@@ -30,10 +30,10 @@
 namespace rex::detail {
 
 /**
- * Tests whether a module name is safe to resolve to a file.
+ * Reports whether a module name is safe to resolve to a file.
  *
  * @param name The module name from Config::modules.
- * @return True when the name has no path separator, no drive colon and no ".." segment.
+ * @return True when the name has no path separator, no colon and no ".." segment.
  */
 REX_API bool IsValidModuleName(std::string_view name);
 
@@ -118,9 +118,18 @@ class REX_API ModuleLoader final : public IInterfaceFactory {
   size_t consumer_tables_registered_ = 0;
 };
 
-/** Registers the log, clock and perf tables core owns. */
+/**
+ * Registers the log, clock and perf tables core owns.
+ *
+ * @param registry The registry to fill.
+ * @return Ok, or the registration error.
+ */
 [[nodiscard]] REX_API Result<void> RegisterBuiltinCvars(cvar::ICvarRegistry& registry);
-/** Unregisters the tables RegisterBuiltinCvars registered, in reverse order. */
+/**
+ * Unregisters the tables RegisterBuiltinCvars registered, in reverse order.
+ *
+ * @param registry The registry RegisterBuiltinCvars filled.
+ */
 REX_API void UnregisterBuiltinCvars(cvar::ICvarRegistry& registry);
 
 }  // namespace rex::detail

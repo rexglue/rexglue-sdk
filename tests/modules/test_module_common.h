@@ -21,8 +21,12 @@
 using RexModTestSink = void (*)(const char* module, const char* event);
 
 /**
- * Defines the sink storage, the sink setter export and a Record helper for 1 test module.
- * Usage at namespace scope in each test module .cpp: REXMOD_TEST_SINK()
+ * Defines the sink storage, the sink setter export and a helper that reports a module event to
+ * the sink.
+ *
+ * @code
+ * REXMOD_TEST_SINK()
+ * @endcode
  */
 #define REXMOD_TEST_SINK()                                                      \
   static RexModTestSink g_rexmod_sink = nullptr;                                \

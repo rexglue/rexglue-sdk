@@ -31,7 +31,6 @@ namespace rex::kernel::xboxkrnl {
 using namespace rex::runtime;
 
 static bool IsValidPath(const std::string_view s, bool is_pattern) {
-  // TODO(gibbed): validate path components individually.
   bool got_asterisk = false;
   for (const auto& c : s) {
     if (c <= 31 || c >= 127) {
@@ -85,7 +84,6 @@ uint32_t GetQueryFileInfoMinimumLength(uint32_t info_class) {
       return sizeof(X_FILE_XCTD_COMPRESSION_INFORMATION);
     case XFileNetworkOpenInformation:
       return sizeof(X_FILE_NETWORK_OPEN_INFORMATION);
-    // TODO(gibbed): structures to get the size of.
     case XFileModeInformation:
     case XFileAlignmentInformation:
     case XFileSectorInformation:
@@ -121,8 +119,6 @@ u32 NtQueryInformationFile_entry(u32 file_handle, ppc_ptr_t<X_IO_STATUS_BLOCK> i
 
   switch (info_class) {
     case XFileInternalInformation: {
-      // Internal unique file pointer. Not sure why anyone would want this.
-      // TODO(benvanik): use pointer to fs::entry?
       auto info = info_ptr.as<X_FILE_INTERNAL_INFORMATION*>();
       info->index_number = rex::memory::hash_combine(0, file->file->Info().path);
       out_length = sizeof(*info);
@@ -144,17 +140,13 @@ u32 NtQueryInformationFile_entry(u32 file_handle, ppc_ptr_t<X_IO_STATUS_BLOCK> i
     }
     case XFileXctdCompressionInformation: {
       REX_KERNEL_STUB("NtQueryInformationFile(XFileXctdCompressionInformation)");
-      // Files that are XCTD compressed begin with the magic 0x0FF512ED but we
-      // shouldn't detect this that way. There's probably a flag somewhere
-      // (attributes?) that defines if it's compressed or not.
+      // XCTD files begin with 0x0FF512ED. Disc layouts tag them in the GDF directory entry too.
       status = X_STATUS_INVALID_PARAMETER;
       out_length = 0;
       break;
     };
     case XFileNetworkOpenInformation: {
-      // Make sure we're working with up-to-date information, in case the
-      // file size has changed via something other than NtSetInfoFile
-      // (eg. seems NtWriteFile might extend the file in some cases)
+      // The size can change outside NtSetInformationFile, as NtWriteFile can extend the file.
       file->file->Refresh();
 
       const filesystem::FileInfo entry = file->file->Info();
@@ -170,14 +162,12 @@ u32 NtQueryInformationFile_entry(u32 file_handle, ppc_ptr_t<X_IO_STATUS_BLOCK> i
       break;
     }
     case XFileAlignmentInformation: {
-      // Requested by XMountUtilityDrive XAM-task
       auto info = info_ptr.as<uint32_t*>();
-      *info = 0;  // FILE_BYTE_ALIGNMENT?
+      *info = 0;
       out_length = sizeof(*info);
       break;
     }
     default: {
-      // Unsupported.
       REX_ASSERT_ALWAYS();
       status = X_STATUS_INVALID_PARAMETER;
       out_length = 0;
@@ -207,7 +197,6 @@ uint32_t GetSetFileInfoMinimumLength(uint32_t info_class) {
       return sizeof(X_FILE_ALLOCATION_INFORMATION);
     case XFileEndOfFileInformation:
       return sizeof(X_FILE_END_OF_FILE_INFORMATION);
-    // TODO(gibbed): structures to get the size of.
     case XFileModeInformation:
     case XFileIoPriorityInformation:
       return 4;
@@ -326,7 +315,6 @@ u32 NtSetInformationFile_entry(u32 file_handle, ppc_ptr_t<X_IO_STATUS_BLOCK> io_
       break;
     }
     case XFileCompletionInformation: {
-      // Info contains IO Completion handle and completion key
       auto info = info_ptr.as<X_FILE_COMPLETION_INFORMATION*>();
       auto handle = static_cast<uint32_t>(info->handle);
       auto key = static_cast<uint32_t>(info->key);
@@ -340,7 +328,6 @@ u32 NtSetInformationFile_entry(u32 file_handle, ppc_ptr_t<X_IO_STATUS_BLOCK> io_
       break;
     }
     default:
-      // Unsupported.
       REX_ASSERT_ALWAYS();
       out_length = 0;
       break;
@@ -393,7 +380,7 @@ u32 NtQueryVolumeInformationFile_entry(u32 file_handle,
     case XFileFsVolumeInformation: {
       auto info = info_ptr.as<X_FILE_FS_VOLUME_INFORMATION*>();
       info->creation_time = 0;
-      info->serial_number = 0;  // set for FATX, but we don't do that
+      info->serial_number = 0;
       info->supports_objects = 0;
       info->label_length = 0;
       out_length = offsetof(X_FILE_FS_VOLUME_INFORMATION, label);
@@ -406,7 +393,6 @@ u32 NtQueryVolumeInformationFile_entry(u32 file_handle,
       info->available_allocation_units = volume.available_allocation_units;
       info->sectors_per_allocation_unit = volume.sectors_per_allocation_unit;
       info->bytes_per_sector = volume.bytes_per_sector;
-      // TODO(gibbed): sanity check, XCTD userland code seems to require this.
       REX_ASSERT(info->bytes_per_sector == 0x200);
       out_length = sizeof(*info);
       break;
@@ -436,7 +422,6 @@ u32 NtQueryVolumeInformationFile_entry(u32 file_handle,
       break;
     }
     default: {
-      // Unsupported.
       REX_ASSERT_ALWAYS();
       out_length = 0;
       break;

@@ -1,4 +1,3 @@
-#pragma once
 /**
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
@@ -9,6 +8,8 @@
  *
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
+
+#pragma once
 
 #include <algorithm>
 #include <atomic>
@@ -32,96 +33,97 @@ namespace rex::runtime {
 
 constexpr memory::fourcc_t kXObjSignature = memory::make_fourcc('R', 'E', 'X', '\0');
 
-// https://www.nirsoft.net/kernel_struct/vista/DISPATCHER_HEADER.html
+/** Header at the start of every waitable kernel object. */
 struct X_DISPATCH_HEADER {
   struct {
-    uint8_t type;
+    uint8_t type; /**< Offset 0x0. Object type, 1 of `X_DISPATCHER_FLAGS`. */
 
     union {
+      /** Offset 0x1. Shares its byte with absolute, npx_irql and signalling. */
       uint8_t abandoned;
+      /** Offset 0x1. Holds the spin count divided by 256 in a critical section. */
       uint8_t absolute;
-      uint8_t npx_irql;
-      uint8_t signalling;
+      uint8_t npx_irql;   /**< Offset 0x1. No code reads it. */
+      uint8_t signalling; /**< Offset 0x1. No code reads it. */
     };
     union {
-      uint8_t size;
-      uint8_t hand;
+      uint8_t size; /**< Offset 0x2. Shares its byte with hand and process_type. */
+      uint8_t hand; /**< Offset 0x2. No code reads it. */
+      /** Offset 0x2. Process type a timer was initialized with by KeInitializeTimerEx. */
       uint8_t process_type;
     };
     union {
-      uint8_t inserted;
-      uint8_t debug_active;
-      uint8_t dpc_active;
+      uint8_t inserted;     /**< Offset 0x3. Shares its byte with debug_active and dpc_active. */
+      uint8_t debug_active; /**< Offset 0x3. No code reads it. */
+      uint8_t dpc_active;   /**< Offset 0x3. No code reads it. */
     };
   };
 
-  be_u32 signal_state;
-  be_u32 wait_list_flink;
-  be_u32 wait_list_blink;
+  be_u32 signal_state;    /**< Offset 0x4. Signal count of the object. */
+  be_u32 wait_list_flink; /**< Offset 0x8. First entry of the wait list. */
+  be_u32 wait_list_blink; /**< Offset 0xC. Last entry of the wait list. */
 };
 REX_STATIC_ASSERT_SIZE(X_DISPATCH_HEADER, 0x10);
 
-// https://www.nirsoft.net/kernel_struct/vista/OBJECT_HEADER.html
+/** The object body follows this header. */
 struct X_OBJECT_HEADER {
+  /** Offset 0x0. Reference count of the object, zeroed when the block is allocated. */
   be_u32 pointer_count;
   union {
+    /** Offset 0x4. Shares its dword with next_to_free, zeroed when the block is allocated. */
     be_u32 handle_count;
-    be_u32 next_to_free;
+    be_u32 next_to_free; /**< Offset 0x4. Shares its dword with handle_count. */
   };
-  uint8_t name_info_offset;
-  uint8_t handle_info_offset;
-  uint8_t quota_info_offset;
-  uint8_t flags;
+  uint8_t name_info_offset;   /**< Offset 0x8. Zero, no name info block precedes the header. */
+  uint8_t handle_info_offset; /**< Offset 0x9. Zero, no handle info block precedes the header. */
+  uint8_t quota_info_offset;  /**< Offset 0xA. Zero, no quota info block precedes the header. */
+  uint8_t flags;              /**< Offset 0xB. Zero, no object flag is set. */
   union {
-    be_u32 object_create_info;  // X_OBJECT_CREATE_INFORMATION
-    be_u32 quota_block_charged;
+    be_u32 object_create_info;  /**< Points to an X_OBJECT_CREATE_INFORMATION. */
+    be_u32 quota_block_charged; /**< Offset 0xC. Shares its dword with object_create_info. */
   };
-  be_u32 object_type_ptr;  // -0x8 POBJECT_TYPE
-  be_u32 unk_04;           // -0x4
-
-  // Object resides after this header.
-  // (There's a body field here which is the object itself)
+  be_u32 object_type_ptr; /**< Offset -0x8. POBJECT_TYPE. */
+  be_u32 unk_04;          /**< Offset -0x4. */
 };
 
-// https://www.nirsoft.net/kernel_struct/vista/OBJECT_CREATE_INFORMATION.html
+/** A SECURITY_QUALITY_OF_SERVICE follows the last field. */
 struct X_OBJECT_CREATE_INFORMATION {
-  be_u32 attributes;                  // 0x0
-  be_u32 root_directory_ptr;          // 0x4
-  be_u32 parse_context_ptr;           // 0x8
-  be_u32 probe_mode;                  // 0xC
-  be_u32 paged_pool_charge;           // 0x10
-  be_u32 non_paged_pool_charge;       // 0x14
-  be_u32 security_descriptor_charge;  // 0x18
-  be_u32 security_descriptor;         // 0x1C
-  be_u32 security_qos_ptr;            // 0x20
-
-  // Security QoS here (SECURITY_QUALITY_OF_SERVICE) too!
+  be_u32 attributes;                 /**< Offset 0x0. */
+  be_u32 root_directory_ptr;         /**< Offset 0x4. */
+  be_u32 parse_context_ptr;          /**< Offset 0x8. */
+  be_u32 probe_mode;                 /**< Offset 0xC. */
+  be_u32 paged_pool_charge;          /**< Offset 0x10. */
+  be_u32 non_paged_pool_charge;      /**< Offset 0x14. */
+  be_u32 security_descriptor_charge; /**< Offset 0x18. */
+  be_u32 security_descriptor;        /**< Offset 0x1C. */
+  be_u32 security_qos_ptr;           /**< Offset 0x20. */
 };
 
+/** Guest object type descriptor. */
 struct X_OBJECT_TYPE {
-  be_u32 constructor;  // 0x0
-  be_u32 destructor;   // 0x4
-  be_u32 unk_08;       // 0x8
-  be_u32 unk_0C;       // 0xC
-  be_u32 unk_10;       // 0x10
-  be_u32 unk_14;       // 0x14 probably offset from ntobject to keobject
-  be_u32 pool_tag;     // 0x18
+  be_u32 constructor; /**< Offset 0x0. */
+  be_u32 destructor;  /**< Offset 0x4. */
+  be_u32 unk_08;      /**< Offset 0x8. */
+  be_u32 unk_0C;      /**< Offset 0xC. */
+  be_u32 unk_10;      /**< Offset 0x10. */
+  be_u32 unk_14;      /**< Offset 0x14. */
+  be_u32 pool_tag;    /**< Offset 0x18. */
 };
 
 /** Kinds of kernel object a handle can name. */
 enum class ObjectKind : u8 {
-  Event,
-  Semaphore,
-  Mutant,
-  Timer,
-  File,
-  Socket,
-  NotifyListener,
-  IOCompletion,
-  Enumerator,
-  SymbolicLink,
-  Module,
-  Thread,
+  Event,          /**< Selects `EventObject` in `ObjectData`. */
+  Semaphore,      /**< Selects `SemaphoreObject` in `ObjectData`. */
+  Mutant,         /**< Selects `MutantObject` in `ObjectData`. */
+  Timer,          /**< Selects `TimerObject` in `ObjectData`. */
+  File,           /**< Selects `FileObject` in `ObjectData`. */
+  Socket,         /**< Selects `SocketObject` in `ObjectData`. */
+  NotifyListener, /**< Selects `NotifyListenerObject` in `ObjectData`. */
+  IOCompletion,   /**< Selects `IOCompletionObject` in `ObjectData`. */
+  Enumerator,     /**< Selects `EnumeratorObject` in `ObjectData`. */
+  SymbolicLink,   /**< Selects `SymbolicLinkObject` in `ObjectData`. */
+  Module,         /**< Selects `ModuleObject` in `ObjectData`. */
+  Thread,         /**< Selects `ThreadRef` in `ObjectData`. */
 };
 
 /** The value added to a table slot index, shifted left by 2, to form a handle. */

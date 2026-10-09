@@ -24,7 +24,6 @@
 namespace rex::gpu {
 
 void ShaderInterpreter::Execute() {
-  // For more consistency between invocations in case of a malformed shader.
   state_.Reset();
 
   const uint32_t* bool_constants =
@@ -99,7 +98,6 @@ void ShaderInterpreter::Execute() {
             if (fetch_instr.opcode() == xenos::ucode::FetchOpcode::kVertexFetch) {
               ExecuteVertexFetchInstruction(fetch_instr.vertex_fetch());
             } else {
-              // Not supporting texture fetching (complex).
               float zero_result[4] = {};
               StoreFetchResult(fetch_instr.dest(), fetch_instr.is_dest_relative(),
                                fetch_instr.dest_swizzle(), zero_result);
@@ -191,8 +189,7 @@ void ShaderInterpreter::Execute() {
       } break;
 
       case xenos::ucode::ControlFlowOpcode::kReturn: {
-        // No stack depth assertion - skipping the return is a well-defined
-        // behavior for `return` outside a function call.
+        // Skipping a return outside a function call is well defined, so no stack depth assertion.
         if (!state_.call_stack_depth) {
           continue;
         }
@@ -262,7 +259,6 @@ const std::array<float, 4> ShaderInterpreter::GetFloatConstant(uint32_t address,
 }
 
 void ShaderInterpreter::ExecuteAluInstruction(xenos::ucode::AluInstruction instr) {
-  // Vector operation.
   float vector_result[4] = {};
   xenos::ucode::AluVectorOpcode vector_opcode = instr.vector_opcode();
   const xenos::ucode::AluVectorOpcodeInfo& vector_opcode_info =
@@ -313,7 +309,7 @@ void ShaderInterpreter::ExecuteAluInstruction(xenos::ucode::AluInstruction instr
       } break;
       case xenos::ucode::AluVectorOpcode::kMul: {
         for (uint32_t i = 0; i < 4; ++i) {
-          // Direct3D 9 behavior (0 or denormal * anything = +0).
+          // Direct3D 9 gives +0 for 0 or denormal * anything.
           vector_result[i] = (vector_operands[0][i] && vector_operands[1][i])
                                  ? vector_operands[0][i] * vector_operands[1][i]
                                  : 0.0f;
@@ -372,9 +368,7 @@ void ShaderInterpreter::ExecuteAluInstruction(xenos::ucode::AluInstruction instr
       } break;
       case xenos::ucode::AluVectorOpcode::kMad: {
         for (uint32_t i = 0; i < 4; ++i) {
-          // Direct3D 9 behavior (0 or denormal * anything = +0).
-          // Doing the addition rather than conditional assignment even for zero
-          // operands because +0 + -0 must be +0.
+          // D3D9 0 or denormal * anything is +0 and +0 + -0 must be +0, so add is unconditional.
           vector_result[i] = ((vector_operands[0][i] && vector_operands[1][i])
                                   ? vector_operands[0][i] * vector_operands[1][i]
                                   : 0.0f) +
@@ -403,9 +397,7 @@ void ShaderInterpreter::ExecuteAluInstruction(xenos::ucode::AluInstruction instr
       case xenos::ucode::AluVectorOpcode::kDp4: {
         vector_result[0] = 0.0f;
         for (uint32_t i = 0; i < 4; ++i) {
-          // Direct3D 9 behavior (0 or denormal * anything = +0).
-          // Doing the addition even for zero operands because +0 + -0 must be
-          // +0.
+          // D3D9 0 or denormal * anything is +0 and +0 + -0 must be +0, so add is unconditional.
           vector_result[0] += (vector_operands[0][i] && vector_operands[1][i])
                                   ? vector_operands[0][i] * vector_operands[1][i]
                                   : 0.0f;
@@ -415,9 +407,7 @@ void ShaderInterpreter::ExecuteAluInstruction(xenos::ucode::AluInstruction instr
       case xenos::ucode::AluVectorOpcode::kDp3: {
         vector_result[0] = 0.0f;
         for (uint32_t i = 0; i < 3; ++i) {
-          // Direct3D 9 behavior (0 or denormal * anything = +0).
-          // Doing the addition even for zero operands because +0 + -0 must be
-          // +0.
+          // D3D9 0 or denormal * anything is +0 and +0 + -0 must be +0, so add is unconditional.
           vector_result[0] += (vector_operands[0][i] && vector_operands[1][i])
                                   ? vector_operands[0][i] * vector_operands[1][i]
                                   : 0.0f;
@@ -425,10 +415,10 @@ void ShaderInterpreter::ExecuteAluInstruction(xenos::ucode::AluInstruction instr
         replicate_vector_result_x = true;
       } break;
       case xenos::ucode::AluVectorOpcode::kDp2Add: {
-        // Doing the addition even for zero operands because +0 + -0 must be +0.
+        // Add even for zero operands because +0 + -0 must be +0.
         vector_result[0] = 0.0f;
         for (uint32_t i = 0; i < 2; ++i) {
-          // Direct3D 9 behavior (0 or denormal * anything = +0).
+          // Direct3D 9 gives +0 for 0 or denormal * anything.
           vector_result[0] += (vector_operands[0][i] && vector_operands[1][i])
                                   ? vector_operands[0][i] * vector_operands[1][i]
                                   : 0.0f;
@@ -511,8 +501,6 @@ void ShaderInterpreter::ExecuteAluInstruction(xenos::ucode::AluInstruction instr
                 : vector_operands[0][0] + 1.0f;
         replicate_vector_result_x = true;
       } break;
-      // Not implementing pixel kill, the interpreter is
-      // used only for vertex shaders.
       case xenos::ucode::AluVectorOpcode::kKillEq: {
         vector_result[0] = static_cast<float>(vector_operands[0][0] == vector_operands[1][0] ||
                                               vector_operands[0][1] == vector_operands[1][1] ||
@@ -545,7 +533,7 @@ void ShaderInterpreter::ExecuteAluInstruction(xenos::ucode::AluInstruction instr
       } break;
       case xenos::ucode::AluVectorOpcode::kDst: {
         vector_result[0] = 1.0f;
-        // Direct3D 9 behavior (0 or denormal * anything = +0).
+        // Direct3D 9 gives +0 for 0 or denormal * anything.
         vector_result[1] = (vector_operands[0][1] && vector_operands[1][1])
                                ? vector_operands[0][1] * vector_operands[1][1]
                                : 0.0f;
@@ -572,7 +560,6 @@ void ShaderInterpreter::ExecuteAluInstruction(xenos::ucode::AluInstruction instr
     }
   }
 
-  // Scalar operation.
   xenos::ucode::AluScalarOpcode scalar_opcode = instr.scalar_opcode();
   const xenos::ucode::AluScalarOpcodeInfo& scalar_opcode_info =
       xenos::ucode::GetAluScalarOpcodeInfo(scalar_opcode);
@@ -642,13 +629,13 @@ void ShaderInterpreter::ExecuteAluInstruction(xenos::ucode::AluInstruction instr
     case xenos::ucode::AluScalarOpcode::kMuls:
     case xenos::ucode::AluScalarOpcode::kMulsc0:
     case xenos::ucode::AluScalarOpcode::kMulsc1: {
-      // Direct3D 9 behavior (0 or denormal * anything = +0).
+      // Direct3D 9 gives +0 for 0 or denormal * anything.
       state_.previous_scalar = (scalar_operands[0] && scalar_operands[1])
                                    ? scalar_operands[0] * scalar_operands[1]
                                    : 0.0f;
     } break;
     case xenos::ucode::AluScalarOpcode::kMulsPrev: {
-      // Direct3D 9 behavior (0 or denormal * anything = +0).
+      // Direct3D 9 gives +0 for 0 or denormal * anything.
       state_.previous_scalar = (scalar_operands[0] && state_.previous_scalar)
                                    ? scalar_operands[0] * state_.previous_scalar
                                    : 0.0f;
@@ -658,7 +645,7 @@ void ShaderInterpreter::ExecuteAluInstruction(xenos::ucode::AluInstruction instr
           !std::isfinite(scalar_operands[1]) || std::islessequal(scalar_operands[1], 0.0f)) {
         state_.previous_scalar = -FLT_MAX;
       } else {
-        // Direct3D 9 behavior (0 or denormal * anything = +0).
+        // Direct3D 9 gives +0 for 0 or denormal * anything.
         state_.previous_scalar = (scalar_operands[0] && state_.previous_scalar)
                                      ? scalar_operands[0] * state_.previous_scalar
                                      : 0.0f;
@@ -801,8 +788,6 @@ void ShaderInterpreter::ExecuteAluInstruction(xenos::ucode::AluInstruction instr
       state_.predicate = scalar_operands[0] == 0.0f;
       state_.previous_scalar = state_.predicate ? 0.0f : scalar_operands[0];
     } break;
-    // Not implementing pixel kill, the interpreter is used
-    // only for vertex shaders.
     case xenos::ucode::AluScalarOpcode::kKillsEq: {
       state_.previous_scalar = static_cast<float>(scalar_operands[0] == 0.0f);
     } break;
@@ -911,8 +896,7 @@ void ShaderInterpreter::StoreFetchResult(uint32_t dest, bool is_dest_relative, u
       case xenos::ucode::FetchDestinationSwizzle::kKeep:
         break;
       default:
-        // ucode::FetchDestinationSwizzle::k0 or the invalid swizzle 6.
-        // TODO(Triang3l): Find the correct handling of the invalid swizzle 6.
+        // k0 or the invalid swizzle 6.
         REX_ASSERT(component_swizzle == xenos::ucode::FetchDestinationSwizzle::k0);
         dest_data[i] = 0.0f;
         break;
@@ -921,10 +905,6 @@ void ShaderInterpreter::StoreFetchResult(uint32_t dest, bool is_dest_relative, u
 }
 
 void ShaderInterpreter::ExecuteVertexFetchInstruction(xenos::ucode::VertexFetchInstruction instr) {
-  // FIXME(Triang3l): Bit scan loops over components cause a link-time
-  // optimization internal error in Visual Studio 2019, mainly in the format
-  // unpacking. Using loops with up to 4 iterations here instead.
-
   if (!instr.is_mini_fetch()) {
     state_.vfetch_full_last = instr;
   }
@@ -933,14 +913,12 @@ void ShaderInterpreter::ExecuteVertexFetchInstruction(xenos::ucode::VertexFetchI
       register_file_.GetVertexFetch(state_.vfetch_full_last.fetch_constant_index());
 
   if (!instr.is_mini_fetch()) {
-    // Get the part of the address that depends on vfetch_full data.
     uint32_t vertex_index = static_cast<uint32_t>(
         std::floor(GetTempRegister(instr.src(), instr.is_src_relative())[instr.src_swizzle()] +
                    (instr.is_index_rounded() ? 0.5f : 0.0f)));
     state_.vfetch_address_dwords = instr.stride() * vertex_index + fetch_constant.address;
   }
 
-  // TODO(Triang3l): Find the default values for unused components.
   float result[4] = {};
   uint32_t dest_swizzle = instr.dest_swizzle();
   uint32_t used_result_components = 0b0000;
@@ -1047,8 +1025,7 @@ void ShaderInterpreter::ExecuteVertexFetchInstruction(xenos::ucode::VertexFetchI
             } else {
               for (uint32_t i = 0; i < 4; ++i) {
                 result[i] /= 2147483647.0f;
-                // No need to clamp to -1 if signed - the smallest value will be
-                // -2^23 / 2^23 due to rounding.
+                // No clamp to -1 for signed as the smallest value is -2^23 / 2^23 after rounding.
               }
             }
           }

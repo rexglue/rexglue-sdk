@@ -22,10 +22,6 @@ namespace rex::codegen {
 
 namespace {
 
-//=============================================================================
-// Scan Phase: segment binary into code/data regions
-//=============================================================================
-
 std::vector<CodeRegion> segmentSection(const SectionView& section,
                                        const std::unordered_set<uint32_t>& exceptionHandlerFuncs,
                                        uint32_t exportTable) {
@@ -89,7 +85,6 @@ void scanBinary(CodegenContext& ctx) {
 
   uint32_t exportTable = binary.exportTableAddr();
 
-  // Build exception handler function set
   std::unordered_set<uint32_t> exceptionHandlerFuncs;
   for (uint32_t addr : state.exceptionHandlerFuncs) {
     exceptionHandlerFuncs.insert(addr);
@@ -104,7 +99,6 @@ void scanBinary(CodegenContext& ctx) {
     }
   }
 
-  // Segment executable sections
   for (const auto& section : binary.sections()) {
     if (!section.executable)
       continue;
@@ -115,7 +109,6 @@ void scanBinary(CodegenContext& ctx) {
 
   REXLOG_TRACE(codegen, "Analyze: segmented into {} code regions", scan.codeRegions.size());
 
-  // Detect data regions
   for (const auto& section : binary.sections()) {
     if (!section.executable)
       continue;

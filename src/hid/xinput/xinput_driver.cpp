@@ -28,8 +28,13 @@ namespace {
 
 constexpr uint32_t kXinputSlotCount = 4;
 
-// XInput has four fixed native slots, so the slot index rides inside the handle
-// and the per-slot bookkeeping below stays keyed by it.
+/**
+ * Builds the device handle for a native slot. XInput has 4 fixed slots, so the slot index
+ * rides in the low byte of the handle.
+ *
+ * @param slot  Native slot index.
+ * @return Device handle.
+ */
 constexpr rex::hid::DeviceId DeviceForSlot(uint32_t slot) {
   return static_cast<rex::hid::DeviceId>(0x58490000ull | slot);
 }
@@ -43,7 +48,7 @@ bool SlotForDevice(rex::hid::DeviceId id, uint32_t* out_slot) {
   return true;
 }
 
-// Querying an empty slot costs milliseconds, so back off after a miss.
+/** Milliseconds to skip an empty slot after a miss, since querying one is slow. */
 constexpr uint64_t SKIP_INVALID_CONTROLLER_TIME = 1100;
 uint64_t last_invalid_time[kXinputSlotCount];
 
@@ -179,14 +184,12 @@ X_RESULT XInputDriver::ReadDeviceState(DeviceId id, X_INPUT_STATE* out_state) {
     return skipper;
   }
 
-  // Added padding in case we are using XInputGetStateEx
+  // Extra padding for the larger XInputGetStateEx output.
   struct {
     XINPUT_STATE state;
     unsigned int dwPaddingReserved;
   } native_state;
 
-  // If the guide button is enabled use XInputGetStateEx, otherwise use the
-  // default XInputGetState.
   auto xigs = REXCVAR_GET(cvars::guide_button) ? get_state_ex_ : get_state_;
 
   DWORD result = xigs(user_index, &native_state.state);
@@ -230,19 +233,12 @@ X_RESULT XInputDriver::WriteDeviceVibration(DeviceId id, X_INPUT_VIBRATION* vibr
 }
 
 X_RESULT XInputDriver::ReadDeviceKeystroke(DeviceId id, X_INPUT_KEYSTROKE* out_keystroke) {
-  // We may want to filter flags before sending to native.
   // flags is reserved on desktop.
   uint32_t user_index = 0;
   if (!SlotForDevice(id, &user_index)) {
     return X_ERROR_DEVICE_NOT_CONNECTED;
   }
 
-  // XInputGetKeystroke on Windows has a bug where it will return
-  // ERROR_SUCCESS (0) even if the device is not connected:
-  // https://stackoverflow.com/questions/23669238/xinputgetkeystroke-returning-error-success-while-controller-is-unplugged
-  //
-  // So we first check if the device is connected via XInputGetCapabilities, so
-  // we are not passing back an uninitialized X_INPUT_KEYSTROKE structure.
   XINPUT_CAPABILITIES caps;
   auto xigc = get_capabilities_;
   DWORD result = xigc(user_index, 0, &caps);
@@ -262,9 +258,6 @@ X_RESULT XInputDriver::ReadDeviceKeystroke(DeviceId id, X_INPUT_KEYSTROKE* out_k
   out_keystroke->flags = native_keystroke.Flags;
   out_keystroke->user_index = native_keystroke.UserIndex;
   out_keystroke->hid_code = native_keystroke.HidCode;
-  // X_ERROR_EMPTY if no new keys
-  // X_ERROR_DEVICE_NOT_CONNECTED if no device
-  // X_ERROR_SUCCESS if key
   return result;
 }
 }  // namespace rex::hid::xinput

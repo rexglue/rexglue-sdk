@@ -9,8 +9,6 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-// This file contains some functions used to help parse XMA data.
-
 #pragma once
 
 #include <stdint.h>
@@ -19,12 +17,22 @@ namespace rex::runtime::xma {
 
 static constexpr uint32_t kMaxFrameLength = 0x7FFF;
 
-// Get number of frames that /begin/ in this packet. Valid only for XMA2 packets.
+/**
+ * Returns the number of frames that begin in a packet, valid only for XMA2 packets.
+ *
+ * @param packet Packet bytes.
+ * @return Frame count.
+ */
 inline uint8_t GetPacketFrameCount(const uint8_t* packet) {
   return packet[0] >> 2;
 }
 
-// Get the first frame offset in bits
+/**
+ * Returns the offset of the first frame in a packet.
+ *
+ * @param packet Packet bytes.
+ * @return Offset in bits.
+ */
 inline uint32_t GetPacketFrameOffset(const uint8_t* packet) {
   uint32_t val =
       static_cast<uint16_t>(((packet[0] & 0x3) << 13) | (packet[1] << 5) | (packet[2] >> 3));

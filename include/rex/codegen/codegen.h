@@ -1,5 +1,5 @@
 /**
- * @file        rex/codegen/codegen.h
+ * @file        codegen/codegen.h
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -35,10 +35,21 @@ class ToolRuntime;
  */
 class CodegenPipeline : public rex::MoveOnly {
  public:
+  /** Destroys the pipeline and the runtime and context it owns. */
   ~CodegenPipeline();
 
-  // Non-copyable, movable
+  /**
+   * Takes ownership of the runtime and context of another pipeline.
+   *
+   * @param other Pipeline to take from, left empty.
+   */
   CodegenPipeline(CodegenPipeline&&) noexcept;
+  /**
+   * Releases the owned runtime and context, then takes those of another pipeline.
+   *
+   * @param other Pipeline to take from, left empty.
+   * @return This pipeline
+   */
   CodegenPipeline& operator=(CodegenPipeline&&) noexcept;
 
   /**

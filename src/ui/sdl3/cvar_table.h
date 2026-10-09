@@ -16,9 +16,17 @@
 
 namespace rex::ui {
 
-/** Console command, echoes the arguments to the log. */
+/**
+ * Console command, echoes the arguments to the log.
+ *
+ * @param args The command arguments.
+ */
 void ConsoleEcho(std::string_view args);
-/** Console command, lists cvar and command names containing a substring. */
+/**
+ * Console command, lists cvar and command names containing a substring.
+ *
+ * @param args The substring.
+ */
 void ConsoleFind(std::string_view args);
 
 }  // namespace rex::ui

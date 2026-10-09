@@ -1,4 +1,3 @@
-#pragma once
 /**
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
@@ -10,6 +9,8 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
+#pragma once
+
 #include "gpu/xenos/host/graphics_upload_buffer_pool.h"
 #include "gpu/xenos/host/vulkan/device.h"
 
@@ -19,6 +20,17 @@ namespace vulkan {
 
 class VulkanUploadBufferPool : public GraphicsUploadBufferPool {
  public:
+  /**
+   * Creates the pool.
+   *
+   * The page size is rounded up to nonCoherentAtomSize, the memory mapping granularity, so the
+   * padding of host visible allocations is not wasted.
+   * Map and flush ranges must still be clamped to the actual allocation size.
+   *
+   * @param vulkan_device The device to allocate on.
+   * @param usage The buffer usage flags.
+   * @param page_size The page size in bytes before rounding.
+   */
   VulkanUploadBufferPool(const VulkanDevice* vulkan_device, VkBufferUsageFlags usage,
                          size_t page_size = kDefaultPageSize);
 
@@ -34,7 +46,14 @@ class VulkanUploadBufferPool : public GraphicsUploadBufferPool {
 
  private:
   struct VulkanPage : public Page {
-    // Takes ownership of the buffer and its memory and mapping.
+    /**
+     * Creates the page and takes ownership of the buffer, its memory and its mapping.
+     *
+     * @param vulkan_device The owning device.
+     * @param buffer The page buffer.
+     * @param memory The buffer memory.
+     * @param mapping The mapped pointer of the memory.
+     */
     VulkanPage(const VulkanDevice* vulkan_device, VkBuffer buffer, VkDeviceMemory memory,
                void* mapping)
         : vulkan_device_(vulkan_device), buffer_(buffer), memory_(memory), mapping_(mapping) {}

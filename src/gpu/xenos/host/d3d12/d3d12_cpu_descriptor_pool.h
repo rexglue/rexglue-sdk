@@ -22,27 +22,25 @@
 
 namespace rex::gpu::d3d12 {
 
-// Single-descriptor pool with reference counting and unique ownership of
-// allocations, safe to use in environments where the order of releasing of the
-// descriptor heap and of allocated descriptors is undefined.
+/**
+ * Single descriptor pool with reference counting and unique ownership of allocations.
+ *
+ * Safe when the release order of the descriptor heap and its descriptors is undefined.
+ */
 class D3D12CpuDescriptorPool : public std::enable_shared_from_this<D3D12CpuDescriptorPool>,
                                public rex::NonCopyable {
  public:
   class Descriptor : public rex::MoveOnly {
    public:
     Descriptor() = default;
-    // shared_ptr to ensure correct release order with between render targets
-    // and descriptor pools.
     Descriptor(std::shared_ptr<D3D12CpuDescriptorPool> pool, size_t index)
         : pool_(pool), index_(index) {}
-    // Owns a descriptor in the pool exclusively.
     Descriptor(Descriptor&& descriptor) {
       pool_ = std::move(descriptor.pool_);
       index_ = descriptor.index_;
     }
     Descriptor& operator=(Descriptor&& descriptor) {
       if (IsValid() && pool_ == descriptor.pool_ && index_ == descriptor.index_) {
-        // If moving to self, don't free.
         return *this;
       }
       Free();
@@ -75,7 +73,6 @@ class D3D12CpuDescriptorPool : public std::enable_shared_from_this<D3D12CpuDescr
       : provider_(provider), type_(type), heap_size_log2_(heap_size_log2) {
     REX_ASSERT(heap_size_log2 <= 31);
   }
-  // No point in moving, created only via make_shared.
   ~D3D12CpuDescriptorPool() {
     for (ID3D12DescriptorHeap* heap : heaps_) {
       heap->Release();

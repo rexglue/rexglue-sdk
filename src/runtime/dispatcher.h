@@ -122,7 +122,7 @@ class REX_RUNTIME_API Dispatcher final : public IDispatcher {
    * Disarms the KTIMER expiries, stops the dispatch thread, waits for it and closes its handle.
    * The DPC stack stays allocated until the dispatcher is destroyed.
    *
-   * @param interval The time between reports of a dispatch thread still running.
+   * @param interval The time between reports of a running dispatch thread.
    */
   void Stop(std::chrono::milliseconds interval);
 

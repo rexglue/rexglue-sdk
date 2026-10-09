@@ -7,6 +7,8 @@
  ******************************************************************************
  *
  * @modified    Rien Gupta, 2026 - Adapted for ReXGlue runtime
+ *
+ * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
 #include <rex/gpu/surface_mac.h>

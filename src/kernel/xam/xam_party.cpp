@@ -21,8 +21,7 @@ namespace xam {
 
 u32 XamPartyGetUserList_entry([[maybe_unused]] u32 player_count,
                               [[maybe_unused]] mapped_u32 party_list) {
-  // 5345085D wants specifically this code to skip loading party data.
-  // This code is not documented in NT_STATUS code list
+  // 0x807D0003 makes the title skip loading party data.
   return 0x807D0003;
 }
 

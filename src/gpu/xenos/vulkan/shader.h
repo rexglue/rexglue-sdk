@@ -1,4 +1,3 @@
-#pragma once
 /**
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
@@ -9,6 +8,8 @@
  *
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
+
+#pragma once
 
 #include <cstdint>
 
@@ -38,15 +39,19 @@ class VulkanShader : public SpirvShader {
                         const uint32_t* ucode_dwords, size_t ucode_dword_count,
                         std::endian ucode_source_endian = std::endian::big);
 
-  // For owning subsystem like the pipeline cache, accessors for unique
-  // identifiers (used instead of hashes to make sure collisions can't happen)
-  // of binding layouts used by the shader, for invalidation if a shader with an
-  // incompatible layout has been bound.
+  /**
+   * Returns the unique identifier of the texture binding layout used by the shader. Identifiers
+   * replace hashes so collisions cannot happen.
+   */
   size_t GetTextureBindingLayoutUserUID() const { return texture_binding_layout_user_uid_; }
   size_t GetSamplerBindingLayoutUserUID() const { return sampler_binding_layout_user_uid_; }
-  // Modifications of the same shader can be translated on different threads.
-  // The "set" function must only be called if "enter" returned true - these are
-  // set up only once.
+  /**
+   * Reports whether the caller won the single time setup of the binding layout identifiers.
+   * Modifications of the same shader can be translated on different threads. The set functions
+   * must only be called when this returned true.
+   *
+   * @return True for the first caller only.
+   */
   bool EnterBindingLayoutUserUIDSetup() { return !binding_layout_user_uids_set_up_.test_and_set(); }
   void SetTextureBindingLayoutUserUID(size_t uid) { texture_binding_layout_user_uid_ = uid; }
   void SetSamplerBindingLayoutUserUID(size_t uid) { sampler_binding_layout_user_uid_ = uid; }

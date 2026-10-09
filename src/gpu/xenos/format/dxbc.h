@@ -22,114 +22,42 @@
 
 namespace rex::gpu::dxbc {
 
-// Utilities for generating shader model 5_1 byte code (for Direct3D 12).
-//
-// This file contains only parts of DXBC used by Xenia now or previously,
-// not all of DXBC. If an operation, operand, blob or something else is needed
-// for Xenia, but is not here, add it (after reproducing it with FXC to see what
-// dependencies - such as STAT fields being modified - and encoding specifics it
-// has).
-//
-// IMPORTANT CONTRIBUTION NOTES:
-//
-// While DXBC may look like a flexible and high-level representation with highly
-// generalized building blocks, it has many restrictions on operand
-// usage!
-// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-// !!!DO NOT ADD ANYTHING FXC THAT WOULD NOT PRODUCE!!!
-// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-// Before adding any sequence that you haven't seen in Xenia, try writing
-// equivalent code in HLSL and running it through FXC, try with /Od, try with
-// full optimization, but if you see that FXC follows a different pattern than
-// what you are expecting, do what FXC does!!!
-// Most important limitations:
-// - Absolute, negate and saturate are only supported by instructions that
-//   explicitly support them. See MSDN pages of the specific instructions you
-//   want to use with modifiers:
-//   https://docs.microsoft.com/en-us/windows/win32/direct3dhlsl/dx9-graphics-reference-asm
-// - Component selection in the general case (ALU instructions - things like
-//   resource access and flow control mostly explicitly need a specific
-//   component selection mode defined in the specification of the instruction):
-//   - 0-component - for operand types with no data (samplers, labels).
-//   - 1-component - for scalar destination operand types, and for scalar source
-//     operand types when the destination vector has 1 component masked
-//     (including scalar immediates).
-//   - Mask - for vector destination operand types.
-//   - Swizzle - for both vector and scalar (replicated in this case) source
-//     operand types, when the destination vector has 2 or more components
-//     masked. Immediates in this case have XYZW swizzle.
-//   - Select 1 - for vector source operand types, when the destination has 1
-//     component masked or is of a scalar type.
-// - Input operands (v#) can be used only as sources, output operands (o#) can
-//   be used only as destinations.
-// - Indexable temporaries (x#) can only be used as a destination or a source
-//   operand (but not both at once) of a mov instruction - a load/store pattern
-//   here. Also, movs involving x# are counted as ArrayInstructions rather than
-//   MovInstructions in STAT. The other operand can be anything that most other
-//   instructions accept, but it still must be a mov with x# on one side.
-// !NOTE!: The D3D11.3 Functional Specification on Microsoft's GitHub profile,
-// as of March 27th, 2020, is NOT a reliable reference, even though it contains
-// many DXBC details! There are multiple places where it clearly contradicts
-// what FXC does, even when targeting old shader models like 4_0:
-// - The limit of 1 immediate or constant buffer source operand per instruction
-//   is totally ignored by FXC - in simple tests, it can emit an instruction
-//   with two constant buffer sources, or one constant buffer source and one
-//   immediate, or a multiply-add with two immediate operands.
-// - It says x# can be used wherever r# can be used - in synthetic tests, FXC
-//   always accesses x# in a load/store way via mov.
-// - It says x# can be used for indexing, including nested indexing of x# (one
-//   level deep), however, FXC moves the inner index operand to r# first in this
-//   case.
-//
-// For bytecode structure, see d3d12TokenizedProgramFormat.hpp from the Windows
-// Driver Kit, and DXILConv from DirectX Shader Compiler.
-//
-// Avoid using uninitialized register components - such as registers written to
-// in "if" and not in "else", but then used outside unconditionally or with a
-// different condition (or even with the same condition, but in a different "if"
-// block). This will cause crashes on AMD drivers, and will also limit
-// optimization possibilities as this may result in false dependencies. Always
-// mov l(0, 0, 0, 0) to such components before potential branching -
-// PushSystemTemp accepts a zero mask for this purpose.
-//
-// Clamping of non-negative values must be done first to the lower bound (using
-// max), then to the upper bound (using min), to match the saturate modifier
-// behavior, which results in 0 for NaN.
-//
-// Sources (apart from reverse engineering of compiled shaders):
-// - Hash:
-//   - DXBCChecksum from GPUOpen-Archive/common-src-ShaderUtils
-// - RDEF:
-//   - d3d12shader.h from the Windows SDK
-//   - D3D10ShaderObject.h from GPUOpen-Archive/common-src-ShaderUtils
-// - ISGN, PCSG, OSGN:
-//   - d3d12shader.h from the Windows SDK
-//   - DxbcSignatures.h from DXILConv
-// - SHEX:
-//   - d3d12TokenizedProgramFormat.hpp from the Windows Driver Kit
-// - SFI0:
-//   - DXBCUtils.h from the D3D12 Translation Layer
-// - STAT:
-//   - D3D10ShaderObject.h fromGPUOpen-Archive/common-src-ShaderUtils
-//   - d3dcompiler_parse_stat from Wine
-//   - d3d12shader.h from the Windows SDK
-// Note that d3d12shader.h contains structures for use with Direct3D reflection
-// interfaces, not the DXBC containers themselves. They may have fields removed,
-// reordered or added.
-//
-// Pointers in RDEF and signatures are offsets from the start of the blob (not
-// including the FourCC and the size), 0 pointer is considered null when
-// applicable.
-//
-// Even if DXIL emission is added to Xenia, it's still desirable to keep the
-// DXBC emitter as a usable option (unless supporting it becomes excessively
-// burdensome) - apart from much worse readability of the resulting DXIL code,
-// the UWP GPU driver on the successor console also doesn't support DXIL.
-
+/**
+ * Shader model 5_1 byte code generation for Direct3D 12.
+ *
+ * Only the parts of DXBC the emitters use are present. Any added operation, operand or blob must
+ * first be reproduced with FXC to find its dependencies, such as modified STAT fields, and its
+ * encoding. DXBC restricts operand usage, so no sequence may be added that FXC would not
+ * produce, and where FXC follows another pattern the FXC pattern is used.
+ *
+ * Absolute, negate and saturate are valid only on instructions that explicitly support them.
+ * Component selection in ALU instructions is 0 component for operand types with no data such as
+ * samplers and labels, 1 component for scalar destinations and for scalar sources when the
+ * destination vector has 1 component masked including scalar immediates, mask for vector
+ * destinations, swizzle for vector and scalar sources, replicated for scalars, when the
+ * destination has 2 or more components masked with XYZW swizzle for immediates, and select 1 for
+ * vector sources when the destination has 1 component masked or is scalar. Resource access and
+ * flow control mostly need the mode defined by the instruction. Input operands (v#) are only
+ * sources and output operands (o#) are only destinations. Indexable temporaries (x#) are only a
+ * destination or a source, not both, of a mov, and such movs count as ArrayInstructions rather
+ * than MovInstructions in STAT.
+ *
+ * FXC ignores the limit of 1 immediate or constant buffer source operand per instruction, accesses
+ * x# only with a load and store mov, and moves the inner index operand of nested x# indexing to
+ * r# first, so the D3D11.3 Functional Specification is not a reliable reference.
+ *
+ * Registers written in "if" and not in "else", then used outside unconditionally or under a
+ * different condition, must not have uninitialized components. They crash AMD drivers and limit
+ * optimization through false dependencies, so l(0, 0, 0, 0) is moved to such components before
+ * branching, and PushSystemTemp accepts a zero mask for this purpose.
+ *
+ * Clamping of non negative values is done first to the lower bound with max, then to the upper
+ * bound with min, to match the saturate modifier, which results in 0 for NaN.
+ *
+ * Pointers in RDEF and signatures are offsets from the start of the blob not including the FourCC
+ * and the size, and a 0 pointer is null when applicable. The reflection structures in
+ * d3d12shader.h differ from the container layout.
+ */
 constexpr uint8_t kAlignmentPadding = 0xAB;
 
 constexpr uint32_t MakeFourCC(uint32_t ch0, uint32_t ch1, uint32_t ch2, uint32_t ch3) {
@@ -137,14 +65,13 @@ constexpr uint32_t MakeFourCC(uint32_t ch0, uint32_t ch1, uint32_t ch2, uint32_t
          (static_cast<uint32_t>(ch2) << 16) | (static_cast<uint32_t>(ch3) << 24);
 }
 
+/** Followed by uint32_t[blob_count] byte offsets from the container start to each blob header. */
 struct alignas(uint32_t) ContainerHeader {
   static constexpr uint32_t kFourCC = MakeFourCC('D', 'X', 'B', 'C');
   static constexpr uint16_t kVersionMajor = 1;
   static constexpr uint16_t kVersionMinor = 0;
   uint32_t fourcc;
-  // Of the entire DXBC container including this header, with this set to 0
-  // before hashing. Calculate using CalculateDXBCChecksum from
-  // GPUOpen-Archive/common-src-ShaderUtils.
+  /** Checksum of the entire container including this header, computed with this set to 0. */
   uint32_t hash[4];
   uint16_t version_major;
   uint16_t version_minor;
@@ -155,14 +82,12 @@ struct alignas(uint32_t) ContainerHeader {
     version_major = kVersionMajor;
     version_minor = kVersionMinor;
   }
-  // Followed by uint32_t[blob_count] offsets from the start of the container in
-  // bytes to the start of each blob's header.
 };
 REX_STATIC_ASSERT_SIZE(ContainerHeader, sizeof(uint32_t) * 8);
 
 struct alignas(uint32_t) BlobHeader {
+  /** FourCC values in order of appearance in a container. */
   enum class FourCC : uint32_t {
-    // In order of appearance in a container.
     kResourceDefinition = MakeFourCC('R', 'D', 'E', 'F'),
     kInputSignature = MakeFourCC('I', 'S', 'G', 'N'),
     kInputSignature_11_1 = MakeFourCC('I', 'S', 'G', '1'),
@@ -179,29 +104,40 @@ struct alignas(uint32_t) BlobHeader {
 };
 REX_STATIC_ASSERT_SIZE(BlobHeader, sizeof(uint32_t) * 2);
 
-// Appends a string to a DWORD stream, returns the DWORD-aligned length.
+/**
+ * Appends a string to a DWORD stream.
+ *
+ * The padding is filled with kAlignmentPadding so equal input gives equal DXBC for driver shader
+ * caching.
+ *
+ * @param dest DWORD stream to append to.
+ * @param source Null terminated string.
+ * @return Length in bytes aligned to a DWORD.
+ */
 inline uint32_t AppendAlignedString(std::vector<uint32_t>& dest, const char* source) {
   size_t size = std::strlen(source) + 1;
   size_t size_aligned = rex::align(size, sizeof(uint32_t));
   size_t dest_position = dest.size();
   dest.resize(dest_position + size_aligned / sizeof(uint32_t));
   std::memcpy(&dest[dest_position], source, size);
-  // Don't leave uninitialized data, and make sure multiple uses of the
-  // assembler with the same input give the same DXBC for driver shader caching.
   std::memset(reinterpret_cast<uint8_t*>(&dest[dest_position]) + size, dxbc::kAlignmentPadding,
               size_aligned - size);
   return static_cast<uint32_t>(size_aligned);
 }
 
-// Returns the length of a string as if it was appended to a DWORD stream, in
-// bytes.
+/**
+ * Returns the length of a string as if appended to a DWORD stream, in bytes.
+ *
+ * @param source Null terminated string.
+ * @return Length in bytes aligned to a DWORD.
+ */
 inline uint32_t GetAlignedStringLength(const char* source) {
   return static_cast<uint32_t>(rex::align(std::strlen(source) + 1, sizeof(uint32_t)));
 }
 
 // D3DCOMPILE subset
 enum CompileFlags : uint32_t {
-  // NoPreshader and PreferFlowControl are set by default for shader model 5_1.
+  /** NoPreshader and PreferFlowControl are set by default for shader model 5_1. */
   kCompileFlagNoPreshader = 1 << 8,
   kCompileFlagPreferFlowControl = 1 << 10,
   kCompileFlagIeeeStrictness = 1 << 13,
@@ -303,14 +239,13 @@ enum class RdefDimension : uint32_t {
 
 // D3D_SHADER_INPUT_FLAGS
 enum RdefInputFlags : uint32_t {
-  // For constant buffers, UserPacked is set if it was declared as `cbuffer`
-  // rather than `ConstantBuffer<T>` (not dynamically indexable; though
-  // non-uniform dynamic indexing of constant buffers also didn't work on AMD
-  // drivers in 2018) - not to be confused with kRdefCbufferFlagUserPacked,
-  // which is set in a different case.
+  /**
+   * For constant buffers, set when declared as `cbuffer` rather than `ConstantBuffer<T>`, which
+   * is not dynamically indexable. Differs from kRdefCbufferFlagUserPacked, set in another case.
+   */
   kRdefInputFlagUserPacked = 1 << 0,
   kRdefInputFlagComparisonSampler = 1 << 1,
-  // Texture and typed buffer component count minus 1.
+  /** Texture and typed buffer component count minus 1. */
   kRdefInputFlagsComponentsShift = 2,
   kRdefInputFlags2Component = 1 << kRdefInputFlagsComponentsShift,
   kRdefInputFlags3Component = 2 << kRdefInputFlagsComponentsShift,
@@ -330,19 +265,19 @@ enum class RdefShaderModel : uint32_t {
 struct alignas(uint32_t) RdefType {
   RdefVariableClass variable_class;
   RdefVariableType variable_type;
-  // Matrix rows, 1 for other numeric, 0 if not applicable.
+  /** Matrix rows, 1 for other numeric, 0 if not applicable. */
   uint16_t row_count;
-  // Vector and matrix columns, 1 for other numerics, 0 if not applicable.
+  /** Vector and matrix columns, 1 for other numerics, 0 if not applicable. */
   uint16_t column_count;
-  // 0 if not an array, except for structures which have 1.
+  /** 0 if not an array, except for structures which have 1. */
   uint16_t element_count;
-  // 0 if not a structure.
+  /** 0 if not a structure. */
   uint16_t member_count;
-  // Null if not a structure.
+  /** Null if not a structure. */
   uint32_t members_ptr;
-  // Zero.
+  /** Always 0. */
   uint32_t unknown_0[4];
-  // uint is called dword when it's scalar (but uint vectors are still uintN).
+  /** A scalar uint is named dword, while uint vectors are named uintN. */
   uint32_t name_ptr;
 };
 REX_STATIC_ASSERT_SIZE(RdefType, sizeof(uint32_t) * 9);
@@ -354,57 +289,56 @@ struct alignas(uint32_t) RdefStructureMember {
 };
 REX_STATIC_ASSERT_SIZE(RdefStructureMember, sizeof(uint32_t) * 3);
 
-// D3D12_SHADER_VARIABLE_DESC with some differences.
-// Used for constants in constant buffers primarily.
+/** D3D12_SHADER_VARIABLE_DESC variant, used primarily for constants in constant buffers. */
 struct alignas(uint32_t) RdefVariable {
   uint32_t name_ptr;
   uint32_t start_offset_bytes;
   uint32_t size_bytes;
-  // RdefVariableFlags.
+  /** RdefVariableFlags. */
   uint32_t flags;
   uint32_t type_ptr;
   uint32_t default_value_ptr;
-  // UINT32_MAX if no textures used.
+  /** UINT32_MAX if no textures used. */
   uint32_t start_texture;
-  // Number of texture slots possibly used, 0 if no textures used.
+  /** Number of texture slots possibly used, 0 if no textures used. */
   uint32_t texture_size;
-  // UINT32_MAX if no textures used.
+  /** UINT32_MAX if no textures used. */
   uint32_t start_sampler;
-  // Number of sampler slots possibly used, 0 if no textures used.
+  /** Number of sampler slots possibly used, 0 if no textures used. */
   uint32_t sampler_size;
 };
 REX_STATIC_ASSERT_SIZE(RdefVariable, sizeof(uint32_t) * 10);
 
-// Sorted by ID.
+/** Sorted by ID. */
 struct alignas(uint32_t) RdefCbuffer {
   uint32_t name_ptr;
   uint32_t variable_count;
   uint32_t variables_ptr;
-  // 16-byte-aligned.
+  /** 16 byte aligned. */
   uint32_t size_vector_aligned_bytes;
   RdefCbufferType type;
-  // RdefCbufferFlags.
+  /** RdefCbufferFlags. */
   uint32_t flags;
 };
 REX_STATIC_ASSERT_SIZE(RdefCbuffer, sizeof(uint32_t) * 6);
 
-// D3D12_SHADER_INPUT_BIND_DESC with some differences.
-// Placed in samplers, SRVs, UAVs, CBVs order, sorted by ID.
+/** D3D12_SHADER_INPUT_BIND_DESC variant, placed in samplers, SRVs, UAVs, CBVs order by ID. */
 struct alignas(uint32_t) RdefInputBind {
   uint32_t name_ptr;
   RdefInputType type;
   ResourceReturnType return_type;
   RdefDimension dimension;
-  // 0 for multisampled textures (the sample count is specified in the SRV
-  // descriptor), constant buffers, ByteAddressBuffers and samplers.
-  // UINT32_MAX for single-sampled textures and typed buffers.
+  /**
+   * 0 for multisampled textures, whose sample count is in the SRV descriptor, constant buffers,
+   * ByteAddressBuffers and samplers. UINT32_MAX for single sampled textures and typed buffers.
+   */
   uint32_t sample_count;
   uint32_t bind_point;
-  // 0 for unbounded.
+  /** 0 for unbounded. */
   uint32_t bind_count;
-  // RdefInputFlags.
+  /** RdefInputFlags. */
   uint32_t flags;
-  // Bind point space and ID added in shader model 5_1.
+  /** Bind point space and ID added in shader model 5_1. */
   uint32_t bind_point_space;
   uint32_t id;
 };
@@ -412,9 +346,9 @@ REX_STATIC_ASSERT_SIZE(RdefInputBind, sizeof(uint32_t) * 10);
 
 struct alignas(uint32_t) RdefHeader {
   enum class FourCC : uint32_t {
-    // RD11 in Shader Model 5_0 shaders.
+    /** RD11 in Shader Model 5_0 shaders. */
     k5_0 = MakeFourCC('R', 'D', '1', '1'),
-    // RD11 with reversed nibbles in Shader Model 5_0 shaders.
+    /** RD11 with reversed nibbles in Shader Model 5_0 shaders. */
     k5_1 = 0x25441313u,
   };
   uint32_t cbuffer_count;
@@ -422,7 +356,7 @@ struct alignas(uint32_t) RdefHeader {
   uint32_t input_bind_count;
   uint32_t input_binds_ptr;
   RdefShaderModel shader_model;
-  // CompileFlags.
+  /** CompileFlags. */
   uint32_t compile_flags;
   uint32_t generator_name_ptr;
   FourCC fourcc;
@@ -432,7 +366,7 @@ struct alignas(uint32_t) RdefHeader {
   uint32_t sizeof_variable_bytes;
   uint32_t sizeof_type_bytes;
   uint32_t sizeof_structure_member_bytes;
-  // Zero.
+  /** Always 0. */
   uint32_t unknown_0;
   void InitializeSizes() {
     sizeof_header_bytes = sizeof(*this);
@@ -483,27 +417,24 @@ enum class MinPrecision : uint32_t {
 struct alignas(uint32_t) SignatureParameter {
   uint32_t semantic_name_ptr;
   uint32_t semantic_index;
-  // kUndefined for pixel shader outputs - inferred from the component type and
-  // what is used in the shader.
+  /** kUndefined for pixel shader outputs, inferred from the component type and shader usage. */
   Name system_value;
   SignatureRegisterComponentType component_type;
-  // o#/v# when there's linkage, SV_Target index or UINT32_MAX in pixel shader
-  // output.
+  /** o#/v# when there is linkage, SV_Target index or UINT32_MAX in pixel shader output. */
   uint32_t register_index;
   uint8_t mask;
   union {
-    // For an output signature.
+    /** For an output signature. */
     uint8_t never_writes_mask;
-    // For an input signature.
+    /** For an input signature. */
     uint8_t always_reads_mask;
   };
 };
 REX_STATIC_ASSERT_SIZE(SignatureParameter, sizeof(uint32_t) * 6);
 
-// D3D11_INTERNALSHADER_PARAMETER_FOR_GS
-// Extends SignatureParameter, see it for more information.
+/** D3D11_INTERNALSHADER_PARAMETER_FOR_GS, extends SignatureParameter. */
 struct alignas(uint32_t) SignatureParameterForGS {
-  // Stream index (parameters must appear in non-decreasing stream order).
+  /** Stream index, parameters must appear in non decreasing stream order. */
   uint32_t stream;
   uint32_t semantic_name_ptr;
   uint32_t semantic_index;
@@ -518,8 +449,7 @@ struct alignas(uint32_t) SignatureParameterForGS {
 };
 REX_STATIC_ASSERT_SIZE(SignatureParameterForGS, sizeof(uint32_t) * 7);
 
-// D3D11_INTERNALSHADER_PARAMETER_11_1
-// Extends SignatureParameterForGS, see it for more information.
+/** D3D11_INTERNALSHADER_PARAMETER_11_1, extends SignatureParameterForGS. */
 struct alignas(uint32_t) SignatureParameter_11_1 {
   uint32_t stream;
   uint32_t semantic_name_ptr;
@@ -539,13 +469,12 @@ REX_STATIC_ASSERT_SIZE(SignatureParameter_11_1, sizeof(uint32_t) * 8);
 // D3D10_INTERNALSHADER_SIGNATURE
 struct alignas(uint32_t) Signature {
   uint32_t parameter_count;
-  // If the signature is empty, this still points after the header.
+  /** Points after the header even if the signature is empty. */
   uint32_t parameter_info_ptr;
 };
 REX_STATIC_ASSERT_SIZE(Signature, sizeof(uint32_t) * 2);
 
-// SHADER_FEATURE
-// Low 32 bits.
+/** SHADER_FEATURE, low 32 bits. */
 enum ShaderFeature0 : uint32_t {
   kShaderFeature0_Doubles = 1 << 0,
   kShaderFeature0_ComputeShadersPlusRawAndStructuredBuffersViaShader_4_X = 1 << 1,
@@ -564,7 +493,7 @@ enum ShaderFeature0 : uint32_t {
 };
 
 struct alignas(uint32_t) ShaderFeatureInfo {
-  // UINT64 originally, but aligned to 4 rather than 8.
+  /** UINT64 originally, but aligned to 4 rather than 8. */
   uint32_t feature_flags[2];
 };
 REX_STATIC_ASSERT_SIZE(ShaderFeatureInfo, sizeof(uint32_t) * 2);
@@ -633,65 +562,59 @@ enum class Primitive : uint32_t {
   k32ControlPointPatch = 39,
 };
 
-// The STAT blob (based on Wine d3dcompiler_parse_stat).
+/** The STAT blob, with the byte offset of each member in its trailing comment. */
 struct alignas(uint32_t) Statistics {
-  // Not increased by declarations and labels.
-  uint32_t instruction_count;    // +0
-  uint32_t temp_register_count;  // +4
-  // Unknown in Wine.
-  uint32_t def_count;  // +8
-  // Only inputs and outputs, not CBVs, SRVs, UAVs and samplers.
-  uint32_t dcl_count;                // +C
-  uint32_t float_instruction_count;  // +10
-  uint32_t int_instruction_count;    // +14
-  uint32_t uint_instruction_count;   // +18
-  // endif, ret.
-  uint32_t static_flow_control_count;  // +1C
-  // if (but not else).
-  uint32_t dynamic_flow_control_count;  // +20
-  // Unknown in Wine.
-  uint32_t macro_instruction_count;        // +24
-  uint32_t temp_array_count;               // +28
-  uint32_t array_instruction_count;        // +2C
-  uint32_t cut_instruction_count;          // +30
-  uint32_t emit_instruction_count;         // +34
-  uint32_t texture_normal_instructions;    // +38
-  uint32_t texture_load_instructions;      // +3C
-  uint32_t texture_comp_instructions;      // +40
-  uint32_t texture_bias_instructions;      // +44
-  uint32_t texture_gradient_instructions;  // +48
-  // Not including indexable temp load/store.
-  uint32_t mov_instruction_count;  // +4C
-  // Unknown in Wine.
-  uint32_t movc_instruction_count;        // +50
-  uint32_t conversion_instruction_count;  // +54
-  // Unknown in Wine.
-  uint32_t unknown_22;                   // +58
-  Primitive input_primitive;             // +5C
-  PrimitiveTopology gs_output_topology;  // +60
-  uint32_t gs_max_output_vertex_count;   // +64
-  uint32_t unknown_26;                   // +68
-  // Unknown in Wine, but confirmed by testing.
-  uint32_t lod_instructions;             // +6C
-  uint32_t unknown_28;                   // +70
-  uint32_t unknown_29;                   // +74
-  uint32_t c_control_points;             // +78
-  uint32_t hs_output_primitive;          // +7C
-  uint32_t hs_partitioning;              // +80
-  TessellatorDomain tessellator_domain;  // +84
-  // Unknown in Wine.
-  uint32_t c_barrier_instructions;  // +88
-  // Unknown in Wine.
-  uint32_t c_interlocked_instructions;  // +8C
-  // Unknown in Wine, but confirmed by testing.
-  uint32_t c_texture_store_instructions;  // +90
+  /** Not increased by declarations and labels. */
+  uint32_t instruction_count;   /**< +0 */
+  uint32_t temp_register_count; /**< +4 */
+  uint32_t def_count;           /**< +8 */
+  /** Only inputs and outputs, not CBVs, SRVs, UAVs and samplers. */
+  uint32_t dcl_count;               /**< +C */
+  uint32_t float_instruction_count; /**< +10 */
+  uint32_t int_instruction_count;   /**< +14 */
+  uint32_t uint_instruction_count;  /**< +18 */
+  /** Counts endif and ret. */
+  uint32_t static_flow_control_count; /**< +1C */
+  /** Counts if but not else. */
+  uint32_t dynamic_flow_control_count;    /**< +20 */
+  uint32_t macro_instruction_count;       /**< +24 */
+  uint32_t temp_array_count;              /**< +28 */
+  uint32_t array_instruction_count;       /**< +2C */
+  uint32_t cut_instruction_count;         /**< +30 */
+  uint32_t emit_instruction_count;        /**< +34 */
+  uint32_t texture_normal_instructions;   /**< +38 */
+  uint32_t texture_load_instructions;     /**< +3C */
+  uint32_t texture_comp_instructions;     /**< +40 */
+  uint32_t texture_bias_instructions;     /**< +44 */
+  uint32_t texture_gradient_instructions; /**< +48 */
+  /** Not including indexable temp load and store. */
+  uint32_t mov_instruction_count;        /**< +4C */
+  uint32_t movc_instruction_count;       /**< +50 */
+  uint32_t conversion_instruction_count; /**< +54 */
+  uint32_t unknown_22;                   /**< +58 */
+  Primitive input_primitive;             /**< +5C */
+  PrimitiveTopology gs_output_topology;  /**< +60 */
+  uint32_t gs_max_output_vertex_count;   /**< +64 */
+  uint32_t unknown_26;                   /**< +68 */
+  uint32_t lod_instructions;             /**< +6C */
+  uint32_t unknown_28;                   /**< +70 */
+  uint32_t unknown_29;                   /**< +74 */
+  uint32_t c_control_points;             /**< +78 */
+  uint32_t hs_output_primitive;          /**< +7C */
+  uint32_t hs_partitioning;              /**< +80 */
+  TessellatorDomain tessellator_domain;  /**< +84 */
+  uint32_t c_barrier_instructions;       /**< +88 */
+  uint32_t c_interlocked_instructions;   /**< +8C */
+  uint32_t c_texture_store_instructions; /**< +90 */
 };
 REX_STATIC_ASSERT_SIZE(Statistics, sizeof(uint32_t) * 37);
 
-// A shader blob begins with a version token and the shader length in dwords
-// (including the version token and the length token itself).
-
-// D3D10_SB_TOKENIZED_PROGRAM_TYPE
+/**
+ * D3D10_SB_TOKENIZED_PROGRAM_TYPE.
+ *
+ * A shader blob begins with a version token and the shader length in dwords, including the
+ * version token and the length token itself.
+ */
 enum class ProgramType : uint32_t {
   kPixelShader,
   kVertexShader,
@@ -721,8 +644,8 @@ enum class OperandType : uint32_t {
   kTemp = 0,
   kInput = 1,
   kOutput = 2,
-  // Only usable as destination or source (but not both) in mov (and it
-  // becomes an array instruction this way).
+  /** Only usable as destination or source, not both, in mov, which makes it an array instruction.
+   */
   kIndexableTemp = 3,
   kImmediate32 = 4,
   kSampler = 6,
@@ -747,9 +670,9 @@ enum class OperandType : uint32_t {
 
 // D3D10_SB_OPERAND_NUM_COMPONENTS
 enum class OperandDimension : uint32_t {
-  kNoData,  // D3D10_SB_OPERAND_0_COMPONENT
-  kScalar,  // D3D10_SB_OPERAND_1_COMPONENT
-  kVector,  // D3D10_SB_OPERAND_4_COMPONENT
+  kNoData, /**< D3D10_SB_OPERAND_0_COMPONENT */
+  kScalar, /**< D3D10_SB_OPERAND_1_COMPONENT */
+  kVector, /**< D3D10_SB_OPERAND_4_COMPONENT */
 };
 
 constexpr OperandDimension GetOperandDimension(OperandType type, bool in_dcl = false) {
@@ -791,12 +714,13 @@ struct Index {
   };
 
   uint32_t index_;
-  // UINT32_MAX if absolute. Lower 2 bits are the component index, upper bits
-  // are the temp register index. Applicable to indexable temps, inputs,
-  // outputs except for pixel shaders, constant buffers and bindings.
+  /**
+   * UINT32_MAX if absolute. Lower 2 bits are the component index, upper bits are the temp
+   * register index. Applies to indexable temps, inputs, outputs except for pixel shaders,
+   * constant buffers and bindings.
+   */
   uint32_t relative_to_temp_;
 
-  // Implicit constructor.
   Index(uint32_t index = 0) : index_(index), relative_to_temp_(UINT32_MAX) {}
   Index(uint32_t temp, uint32_t temp_component, uint32_t offset = 0)
       : index_(offset), relative_to_temp_((temp << 2) | temp_component) {}
@@ -813,7 +737,6 @@ struct Index {
       code.push_back(index_);
     }
     if (relative_to_temp_ != UINT32_MAX) {
-      // Encode selecting one component from absolute-indexed r#.
       code.push_back(std::to_underlying(OperandDimension::kVector) |
                      (std::to_underlying(ComponentSelection::kSelect1) << 2) |
                      ((relative_to_temp_ & 3) << 4) |
@@ -897,15 +820,18 @@ enum class OperandModifier : uint32_t {
   kAbsoluteNegate,
 };
 
+/**
+ * Destination operand.
+ *
+ * Input destinations (v*) are for declarations only. Vector input declarations use read masks
+ * instead of swizzle, while resource declarations use swizzle when they are vector.
+ */
 struct Dest : OperandAddress {
-  // Ignored for 0-component and 1-component operand types.
-  // For 4-component operand types, if the write mask is 0, it's treated as
-  // 0-component.
+  /**
+   * Ignored for 0 component and 1 component operand types. For 4 component operand types, a
+   * write mask of 0 is treated as 0 component.
+   */
   uint32_t write_mask_;
-
-  // Input destinations (v*) are for use only in declarations. Vector input
-  // declarations use read masks instead of swizzle (resource declarations still
-  // use swizzle when they're vector, however).
 
   explicit Dest(OperandType type, uint32_t write_mask)
       : OperandAddress(type), write_mask_(write_mask) {}
@@ -1021,11 +947,11 @@ struct Src : OperandAddress {
     kWWWW = 0b11111111,
   };
 
-  // Ignored for 0-component and 1-component operand types.
+  /** Ignored for 0 component and 1 component operand types. */
   uint32_t swizzle_;
   bool absolute_ = false;
   bool negate_ = false;
-  // Only valid for OperandType::kImmediate32.
+  /** Only valid for OperandType::kImmediate32. */
   uint32_t immediate_[4];
 
   explicit Src(OperandType type, uint32_t swizzle) : OperandAddress(type), swizzle_(swizzle) {}
@@ -1036,7 +962,7 @@ struct Src : OperandAddress {
   explicit Src(OperandType type, uint32_t swizzle, Index index_1d, Index index_2d, Index index_3d)
       : OperandAddress(type, index_1d, index_2d, index_3d), swizzle_(swizzle) {}
 
-  // For creating instances for use in declarations.
+  /** Tag for creating instances for use in declarations. */
   struct DclT {};
   static constexpr DclT Dcl = {};
 
@@ -1182,6 +1108,18 @@ struct Src : OperandAddress {
     return GetModifiedImmediate(immediate_[(swizzle_ >> (swizzle_index * 2)) & 3], is_integer,
                                 absolute_, negate_);
   }
+  /**
+   * Appends the operand tokens.
+   *
+   * The swizzle of components outside the mask is set to a used component, so no potentially
+   * uninitialized register component is referenced.
+   *
+   * @param code Code vector to append to.
+   * @param is_integer True when immediates are integers, for applying modifiers.
+   * @param mask Component mask of the destination.
+   * @param force_vector True to write a vector operand even for a single component mask.
+   * @param in_dcl True when written inside a declaration.
+   */
   void Write(std::vector<uint32_t>& code, bool is_integer, uint32_t mask, bool force_vector = false,
              bool in_dcl = false) const {
     uint32_t operand_token = GetOperandTokenTypeAndIndex();
@@ -1219,8 +1157,6 @@ struct Src : OperandAddress {
           operand_token |= std::to_underlying(OperandDimension::kVector);
           if (is_vector) {
             operand_token |= std::to_underlying(ComponentSelection::kSwizzle) << 2;
-            // Clear swizzle of unused components to a used value to avoid
-            // referencing potentially uninitialized register components.
             uint32_t used_component;
             if (!rex::bit_scan_forward(mask, &used_component)) {
               used_component = 0;
@@ -1260,22 +1196,20 @@ struct Src : OperandAddress {
 
 // D3D10_SB_GLOBAL_FLAGS_MASK
 enum GlobalFlags : uint32_t {
-  // Permit the driver to reorder arithmetic operations for optimization.
+  /** Permits the driver to reorder arithmetic operations for optimization. */
   kGlobalFlagRefactoringAllowed = 1 << 11,
   kGlobalFlagEnableDoublePrecisionFloatOps = 1 << 12,
   kGlobalFlagForceEarlyDepthStencil = 1 << 13,
-  // Enable RAW and structured buffers in non-CS 4.x shaders. Not needed on 5.x.
+  /** Enables RAW and structured buffers in non CS 4.x shaders, not needed on 5.x. */
   kGlobalFlagEnableRawAndStructuredBuffers = 1 << 14,
-  // Direct3D 11.1.
-  // Skip optimizations of shader IL when translating to native code.
+  /** Direct3D 11.1. Skips optimizations of shader IL when translating to native code. */
   kGlobalFlagSkipOptimization = 1 << 15,
   kGlobalFlagEnableMinimumPrecision = 1 << 16,
-  // Enable 11.1 double-precision floating-point instruction extensions. Not
-  // needed on 5.1.
+  /** Enables 11.1 double precision floating point instruction extensions, not needed on 5.1. */
   kGlobalFlagEnableDoubleExtensions = 1 << 17,
-  // Enable 11.1 non-double instruction extensions. Not needed on 5.1.
+  /** Enables 11.1 non double instruction extensions, not needed on 5.1. */
   kGlobalFlagEnableShaderExtensions = 1 << 18,
-  // Direct3D 12.
+  /** Direct3D 12. */
   kGlobalFlagAllResourcesBound = 1 << 19,
 };
 
@@ -1487,13 +1421,20 @@ constexpr uint32_t ResourceReturnTypeToken(ResourceReturnType x, ResourceReturnT
          (static_cast<uint32_t>(z) << 8) | (static_cast<uint32_t>(w) << 12);
 }
 
-// Even if a texture or a typed buffer has less than 4 components, it has the
-// same return type specified for all 4 in its dcl instruction.
+/**
+ * Returns the resource return type token with the same type for all 4 components.
+ *
+ * A texture or typed buffer with fewer than 4 components has the same return type specified for
+ * all 4 in its dcl instruction.
+ *
+ * @param xyzw Return type for all components.
+ * @return Return type token.
+ */
 constexpr uint32_t ResourceReturnTypeX4Token(ResourceReturnType xyzw) {
   return ResourceReturnTypeToken(xyzw, xyzw, xyzw, xyzw);
 }
 
-// Assembler appending to the shader program code vector.
+/** Assembler appending to the shader program code vector. */
 class Assembler {
  public:
   Assembler(std::vector<uint32_t>& code, Statistics& stat) : code_(code), stat_(stat) {}
@@ -1654,14 +1595,19 @@ class Assembler {
     EmitAluOp(Opcode::kIToF, 0b1, dest, src);
     ++stat_.conversion_instruction_count;
   }
+  /**
+   * Emits a label.
+   *
+   * The label is a source operand as in call and callc, while in DXBC it is only a 0 component
+   * label operand. It does not count towards stat_.instruction_count.
+   *
+   * @param label Label operand.
+   */
   void OpLabel(const Src& label) {
-    // The label is source, not destination, for simplicity, to unify it will
-    // call/callc (in DXBC it's only a zero-component label operand).
     uint32_t operands_length = label.GetLength(0b0000);
     code_.reserve(code_.size() + 1 + operands_length);
     code_.push_back(OpcodeToken(Opcode::kLabel, operands_length));
     label.Write(code_, true, 0b0000);
-    // Doesn't count towards stat_.instruction_count.
   }
   void OpLd(const Dest& dest, const Src& address, uint32_t address_mask, const Src& resource,
             int32_t aoffimmi_u = 0, int32_t aoffimmi_v = 0, int32_t aoffimmi_w = 0) {
@@ -1731,7 +1677,16 @@ class Assembler {
     EmitAluOp(Opcode::kMax, 0b00, dest, src0, src1, saturate);
     ++stat_.float_instruction_count;
   }
-  // Returns a pointer for writing the custom data to.
+  /**
+   * Reserves custom data in the code and returns a pointer for writing it.
+   *
+   * The opcode token has no size field. The padding is filled with kAlignmentPadding so equal
+   * input gives equal DXBC for driver shader caching.
+   *
+   * @param custom_data_class Custom data class.
+   * @param length_bytes Length of the data in bytes.
+   * @return Pointer to the data to write.
+   */
   void* OpCustomData(CustomDataClass custom_data_class, uint32_t length_bytes) {
     uint32_t length_bytes_aligned =
         rex::align(length_bytes, static_cast<uint32_t>(sizeof(uint32_t)));
@@ -1739,13 +1694,9 @@ class Assembler {
     size_t offset_dwords = code_.size();
     code_.resize(offset_dwords + total_length_dwords);
     uint32_t* data = code_.data() + offset_dwords;
-    // Different opcode encoding (no size).
     *(data++) = static_cast<uint32_t>(Opcode::kCustomData) |
                 (static_cast<uint32_t>(custom_data_class) << 11);
     *(data++) = total_length_dwords;
-    // Don't leave uninitialized data, and make sure multiple uses of the
-    // assembler with the same input give the same DXBC for driver shader
-    // caching.
     std::memset(reinterpret_cast<uint8_t*>(data) + length_bytes, dxbc::kAlignmentPadding,
                 length_bytes_aligned - length_bytes);
     return data;
@@ -1829,12 +1780,28 @@ class Assembler {
     ++stat_.instruction_count;
     ++stat_.texture_normal_instructions;
   }
+  /**
+   * Emits a sample with explicit derivatives.
+   *
+   * A 1 component address has 1 component derivatives and a 4 component address has 4 component
+   * derivatives.
+   *
+   * @param dest Destination.
+   * @param address Address source.
+   * @param address_components Address component count.
+   * @param resource Resource source.
+   * @param sampler Sampler source.
+   * @param x_derivatives Derivatives along X.
+   * @param y_derivatives Derivatives along Y.
+   * @param derivatives_components Derivative component count.
+   * @param aoffimmi_u Immediate offset along U.
+   * @param aoffimmi_v Immediate offset along V.
+   * @param aoffimmi_w Immediate offset along W.
+   */
   void OpSampleD(const Dest& dest, const Src& address, uint32_t address_components,
                  const Src& resource, const Src& sampler, const Src& x_derivatives,
                  const Src& y_derivatives, uint32_t derivatives_components, int32_t aoffimmi_u = 0,
                  int32_t aoffimmi_v = 0, int32_t aoffimmi_w = 0) {
-    // If the address is 1-component, the derivatives are 1-component, if the
-    // address is 4-component, the derivatives are 4-component.
     REX_ASSERT(derivatives_components <= address_components);
     uint32_t dest_write_mask = dest.GetMask();
     uint32_t sample_controls = 0;
@@ -1925,8 +1892,17 @@ class Assembler {
     code_.push_back(return_type_token);
     code_.push_back(space);
   }
-  // The order of constant buffer declarations in a shader indicates their
-  // relative priority from highest to lowest (hint to driver).
+  /**
+   * Declares a constant buffer.
+   *
+   * The order of constant buffer declarations in a shader is a hint to the driver of their
+   * relative priority from highest to lowest.
+   *
+   * @param operand Constant buffer operand.
+   * @param size_vectors Size in vectors.
+   * @param access_pattern Access pattern.
+   * @param space Register space.
+   */
   void OpDclConstantBuffer(
       const Src& operand, uint32_t size_vectors,
       ConstantBufferAccessPattern access_pattern = ConstantBufferAccessPattern::kImmediateIndexed,
@@ -1948,21 +1924,37 @@ class Assembler {
     operand.Write(code_, false, 0b1111, false, true);
     code_.push_back(space);
   }
-  // In geometry shaders, only kPointList, kLineStrip and kTriangleStrip are
-  // allowed.
+  /**
+   * Declares the geometry shader output topology.
+   *
+   * Only kPointList, kLineStrip and kTriangleStrip are allowed in geometry shaders.
+   *
+   * @param output_topology Output topology.
+   */
   void OpDclOutputTopology(PrimitiveTopology output_topology) {
     code_.push_back(OpcodeToken(Opcode::kDclOutputTopology, 0) |
                     (static_cast<uint32_t>(output_topology) << 11));
     stat_.gs_output_topology = output_topology;
   }
-  // In geometry shaders, only kPoint, kLine, kTriangle, kLineWithAdjacency and
-  // kTriangleWithAdjacency are allowed.
+  /**
+   * Declares the geometry shader input primitive.
+   *
+   * Only kPoint, kLine, kTriangle, kLineWithAdjacency and kTriangleWithAdjacency are allowed in
+   * geometry shaders.
+   *
+   * @param input_primitive Input primitive.
+   */
   void OpDclInputPrimitive(Primitive input_primitive) {
     code_.push_back(OpcodeToken(Opcode::kDclInputPrimitive, 0) |
                     (static_cast<uint32_t>(input_primitive) << 11));
     stat_.input_primitive = input_primitive;
   }
-  // Returns the index of the count written in the code_ vector.
+  /**
+   * Declares the maximum output vertex count.
+   *
+   * @param count Maximum vertex count.
+   * @return Index of the count written in the code_ vector.
+   */
   size_t OpDclMaxOutputVertexCount(uint32_t count) {
     code_.reserve(code_.size() + 2);
     code_.push_back(OpcodeToken(Opcode::kDclMaxOutputVertexCount, 1));
@@ -2001,12 +1993,18 @@ class Assembler {
     operand.Write(code_, true);
     ++stat_.dcl_count;
   }
+  /**
+   * Declares a pixel shader system generated value input.
+   *
+   * Constant interpolation mode is encoded, as FXC does at least for SV_IsFrontFace, although
+   * d3d12TokenizedProgramFormat.hpp says bits 11:23 are ignored.
+   *
+   * @param operand Input operand.
+   * @param name System value name.
+   */
   void OpDclInputPSSGV(const Dest& operand, Name name) {
     uint32_t operands_length = operand.GetLength();
     code_.reserve(code_.size() + 2 + operands_length);
-    // Constant interpolation mode is set in FXC output at least for
-    // SV_IsFrontFace, despite the comment in d3d12TokenizedProgramFormat.hpp
-    // saying bits 11:23 are ignored.
     code_.push_back(OpcodeToken(Opcode::kDclInputPSSGV, 1 + operands_length) |
                     (std::to_underlying(InterpolationMode::kConstant) << 11));
     operand.Write(code_, true);
@@ -2037,7 +2035,12 @@ class Assembler {
     code_.push_back(static_cast<uint32_t>(name));
     ++stat_.dcl_count;
   }
-  // Returns the index of the count written in the code_ vector.
+  /**
+   * Declares the temporary register count.
+   *
+   * @param count Temporary register count.
+   * @return Index of the count written in the code_ vector.
+   */
   size_t OpDclTemps(uint32_t count) {
     code_.reserve(code_.size() + 2);
     code_.push_back(OpcodeToken(Opcode::kDclTemps, 1));
@@ -2053,7 +2056,11 @@ class Assembler {
     code_.push_back(component_count);
     stat_.temp_array_count += count;
   }
-  // flags are GlobalFlags.
+  /**
+   * Declares the global flags.
+   *
+   * @param flags GlobalFlags bits.
+   */
   void OpDclGlobalFlags(uint32_t flags) {
     code_.push_back(OpcodeToken(Opcode::kDclGlobalFlags, 0) | flags);
   }
@@ -2088,17 +2095,20 @@ class Assembler {
     ++stat_.instruction_count;
     ++stat_.cut_instruction_count;
   }
-  // Don't use emit_then_cut_stream - crashes AMD Software: Adrenalin Edition
-  // 23.3.2 shader compiler on RDNA 3 if used conditionally.
+  /**
+   * Emits a vertex and then cuts the stream.
+   *
+   * Crashes the AMD shader compiler when used conditionally, so OpEmitStream and OpCutStream are
+   * used instead.
+   *
+   * @param stream Stream operand.
+   */
   void OpEmitThenCutStream(const Dest& stream) {
     uint32_t operands_length = stream.GetLength();
     code_.reserve(code_.size() + 1 + operands_length);
     code_.push_back(OpcodeToken(Opcode::kEmitThenCutStream, operands_length));
     stream.Write(code_);
     ++stat_.instruction_count;
-    // TODO(Triang3l): Verify if the instruction counts should be incremented
-    // this way (haven't been able to obtain this from FXC because it generates
-    // separate emit_stream and cut_stream, at least for Shader Model 5.1).
     ++stat_.emit_instruction_count;
     ++stat_.cut_instruction_count;
   }
@@ -2176,8 +2186,15 @@ class Assembler {
     code_.push_back(y);
     code_.push_back(z);
   }
-  // Possible flags are kUAVFlagGloballyCoherentAccess and
-  // kUAVFlagRasterizerOrderedAccess.
+  /**
+   * Declares a typed unordered access view.
+   *
+   * @param dimension Resource dimension.
+   * @param flags kUAVFlagGloballyCoherentAccess and kUAVFlagRasterizerOrderedAccess bits.
+   * @param return_type_token Return type token.
+   * @param operand UAV operand.
+   * @param space Register space.
+   */
   void OpDclUnorderedAccessViewTyped(ResourceDimension dimension, uint32_t flags,
                                      uint32_t return_type_token, const Src& operand,
                                      uint32_t space = 0) {
@@ -2189,8 +2206,13 @@ class Assembler {
     code_.push_back(return_type_token);
     code_.push_back(space);
   }
-  // Possible flags are kUAVFlagGloballyCoherentAccess and
-  // kUAVFlagRasterizerOrderedAccess.
+  /**
+   * Declares a raw unordered access view.
+   *
+   * @param flags kUAVFlagGloballyCoherentAccess and kUAVFlagRasterizerOrderedAccess bits.
+   * @param operand UAV operand.
+   * @param space Register space.
+   */
   void OpDclUnorderedAccessViewRaw(uint32_t flags, const Src& operand, uint32_t space = 0) {
     uint32_t operands_length = operand.GetLength(0b1111, false);
     code_.reserve(code_.size() + 2 + operands_length);
@@ -2222,7 +2244,7 @@ class Assembler {
   void OpStoreUAVTyped(const Dest& dest, const Src& address, uint32_t address_components,
                        const Src& value) {
     uint32_t dest_write_mask = dest.GetMask();
-    // Typed UAV writes don't support write masking.
+    // Typed UAV writes do not support write masking.
     REX_ASSERT(dest_write_mask == 0b1111);
     uint32_t address_mask = (1 << address_components) - 1;
     uint32_t operands_length =
@@ -2235,11 +2257,18 @@ class Assembler {
     ++stat_.instruction_count;
     ++stat_.c_texture_store_instructions;
   }
+  /**
+   * Emits a raw load.
+   *
+   * For Load, FXC writes to any component of the destination with the xxxx swizzle of the source
+   * SRV or UAV. For Load2, Load3 and Load4 it uses the xy, xyz and xyzw write masks with the
+   * xyxx, xyzx and xyzw swizzles.
+   *
+   * @param dest Destination.
+   * @param byte_offset Byte offset source.
+   * @param src SRV or UAV source.
+   */
   void OpLdRaw(const Dest& dest, const Src& byte_offset, const Src& src) {
-    // For Load, FXC emits code for writing to any component of the destination,
-    // with xxxx swizzle of the source SRV/UAV.
-    // For Load2/Load3/Load4, it's xy/xyz/xyzw write mask and xyxx/xyzx/xyzw
-    // swizzle.
     uint32_t dest_write_mask = dest.GetMask();
     REX_ASSERT(dest_write_mask == 0b0001 || dest_write_mask == 0b0010 ||
                dest_write_mask == 0b0100 || dest_write_mask == 0b1000 ||
@@ -2394,7 +2423,7 @@ class Assembler {
   }
   void EmitAtomicOp(Opcode opcode, const Dest& dest, const Src& address,
                     uint32_t address_components, const Src& value) {
-    // Atomic operations require a 0-component memory destination.
+    // Atomic operations require a 0 component memory destination.
     REX_ASSERT(dest.GetMask() == 0);
     uint32_t address_mask = (1 << address_components) - 1;
     uint32_t operands_length =

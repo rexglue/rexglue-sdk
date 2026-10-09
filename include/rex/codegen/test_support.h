@@ -1,5 +1,5 @@
 /**
- * @file        rex/codegen/test_support.h
+ * @file        codegen/test_support.h
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -34,6 +34,7 @@ namespace rex::codegen {
  */
 class TestModule : public runtime::Module {
  public:
+  /** Creates an empty module with no runtime. */
   TestModule();
   ~TestModule() override = default;
 
@@ -45,7 +46,6 @@ class TestModule : public runtime::Module {
    */
   void Load(uint32_t base_address, const uint8_t* data, size_t size);
 
-  // Module interface overrides
   const std::string& name() const override { return name_; }
   void set_name(const std::string& name) { name_ = name; }
   bool is_executable() const override { return true; }

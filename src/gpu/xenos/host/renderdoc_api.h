@@ -1,4 +1,3 @@
-#pragma once
 /**
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
@@ -9,6 +8,8 @@
  *
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
+
+#pragma once
 
 #include <memory>
 
@@ -30,11 +31,18 @@ class RenderDocAPI : public rex::NonCopyable {
  public:
   explicit RenderDocAPI(Key) {}
 
+  /**
+   * Creates the API object when RenderDoc is attached to the process.
+   *
+   * Always returns nullptr on macOS, where the vendored header exposes no API.
+   *
+   * @return The API object, or nullptr when RenderDoc is not connected.
+   */
   static std::unique_ptr<RenderDocAPI> CreateIfConnected();
 
   ~RenderDocAPI();
 
-  // Always present if this object exists.
+  /** Always present when this object exists. */
   const RENDERDOC_API_1_0_0* api_1_0_0() const { return api_1_0_0_; }
 
  private:

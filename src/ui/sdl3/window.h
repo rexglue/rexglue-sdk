@@ -82,7 +82,7 @@ class Window : public IWindow, public gpu::IPresentationHost {
   Phase phase() const { return phase_; }
 
   /**
-   * Tests whether the actual state may be read.
+   * Reports whether the actual state may be read.
    *
    * @return True from kOpening through kClosing.
    */
@@ -240,7 +240,7 @@ class Window : public IWindow, public gpu::IPresentationHost {
   }
 
   /**
-   * Tests whether the window is fullscreen.
+   * Reports whether the window is fullscreen.
    *
    * @return The desired fullscreen state.
    */
@@ -351,7 +351,7 @@ class Window : public IWindow, public gpu::IPresentationHost {
   }
 
   /**
-   * Tests whether the window is an active text input field for the OS input method.
+   * Reports whether the window is an active text input field for the OS input method.
    *
    * @return The desired text input state.
    */
@@ -393,7 +393,7 @@ class Window : public IWindow, public gpu::IPresentationHost {
   void SetCursorAutoHideDelayMs(u32 delay_ms) { cursor_auto_hide_delay_ms_ = delay_ms; }
 
   /**
-   * Tests whether the window has focus.
+   * Reports whether the window has focus.
    *
    * @return True when the window has focus.
    */
@@ -447,14 +447,14 @@ class Window : public IWindow, public gpu::IPresentationHost {
     }
 
     /**
-     * Tests whether the window was destroyed.
+     * Reports whether the window was destroyed.
      *
      * @return True once the window destructor ran.
      */
     bool IsWindowDestroyed() const { return window_ == nullptr; }
 
     /**
-     * Tests whether state may no longer be applied.
+     * Reports whether state may no longer be applied.
      *
      * @return True when the window was destroyed or cannot apply state.
      */
@@ -463,7 +463,7 @@ class Window : public IWindow, public gpu::IPresentationHost {
     }
 
     /**
-     * Tests whether listeners may no longer be called.
+     * Reports whether listeners may no longer be called.
      *
      * @return True when the window was destroyed or cannot send events.
      */

@@ -17,7 +17,6 @@
 #include <rex/runtime.h>
 #include <rex/platform/thread.h>
 
-// All of the exported functions:
 #include <rex/kernel/xboxkrnl/rtl.h>
 
 namespace rex::kernel::xboxkrnl {

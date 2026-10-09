@@ -1,4 +1,3 @@
-#pragma once
 /**
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
@@ -10,6 +9,8 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
+#pragma once
+
 #include <cstdint>
 #include <string>
 #include <string_view>
@@ -19,79 +20,73 @@
 
 namespace rex::hid {
 
-// Windows and XInput virtual key enumeration.
-// This is what platform-specific keys should be translated to, for both HID
-// keystroke emulation and Xenia-internal UI events. On Windows, the translation
-// is a simple cast.
-// This is uint16_t as it's WPARAM (which was 16-bit back in Win16 days, where
-// virtual key codes were added), and XINPUT_KEYSTROKE stores the virtual key as
-// a WORD. In some cases (see kPacket), bits above 16 may be used as well, but
-// VK_ on Windows are defined up to 0xFF (0xFE not counting the reserved 0xFF)
-// as of Windows SDK 10.0.19041.0, and XInput virtual key codes are 16-bit.
-// Base virtual key codes as of _WIN32_WINNT 0x0500 (Windows 2000, which the
-// console's kernel is based on), virtual key codes added later are marked
-// explicitly as such.
+/**
+ * Windows and XInput virtual key enumeration. Platform keys translate to it for HID keystroke
+ * emulation and UI events. The type is u16 as WPARAM and XINPUT_KEYSTROKE store the key as a WORD,
+ * though kPacket can use bits above 16. VK_ codes on Windows are defined up to 0xFF and XInput
+ * codes are 16 bit. Base codes follow _WIN32_WINNT 0x0500, later codes are marked as such.
+ */
 enum class VirtualKey : u16 {
-  // Not a valid key - MapVirtualKey returns zero when there is no translation.
-  kNone,
+  kNone, /**< Not a valid key, MapVirtualKey has no translation. */
 
-  kLButton = 0x01,
-  kRButton = 0x02,
-  kCancel = 0x03,   // Control-break.
-  kMButton = 0x04,  // Not contiguous with kLButton and kRButton.
+  kLButton = 0x01, /**< Left mouse button. */
+  kRButton = 0x02, /**< Right mouse button. */
+  kCancel = 0x03,  /**< Control-break. */
+  kMButton = 0x04, /**< Middle mouse button. */
 
-  kXButton1 = 0x05,  // Not contiguous with kLButton and kRButton.
-  kXButton2 = 0x06,  // Not contiguous with kLButton and kRButton.
+  kXButton1 = 0x05, /**< First extra mouse button. */
+  kXButton2 = 0x06, /**< Second extra mouse button. */
 
-  kBack = 0x08,  // Backspace.
-  kTab = 0x09,
+  kBack = 0x08, /**< Backspace. */
+  kTab = 0x09,  /**< Tab key. */
 
-  kClear = 0x0C,
-  kReturn = 0x0D,  // Enter.
-  kWheelUp = 0x0E,
-  kWheelDown = 0x0F,
+  kClear = 0x0C,     /**< Clear key. */
+  kReturn = 0x0D,    /**< Enter. */
+  kWheelUp = 0x0E,   /**< Mouse wheel scrolled up. */
+  kWheelDown = 0x0F, /**< Mouse wheel scrolled down. */
 
-  kShift = 0x10,
-  kControl = 0x11,  // Ctrl.
-  kMenu = 0x12,     // Alt.
-  kPause = 0x13,
-  kCapital = 0x14,  // Caps Lock.
+  kShift = 0x10,   /**< Either Shift key. */
+  kControl = 0x11, /**< Ctrl. */
+  kMenu = 0x12,    /**< Alt. */
+  kPause = 0x13,   /**< Pause key. */
+  kCapital = 0x14, /**< Caps Lock. */
 
-  kKana = 0x15,
-  kHangeul = 0x15,  // Old name.
-  kHangul = 0x15,
-  kImeOn = 0x16,
-  kJunja = 0x17,
-  kFinal = 0x18,
-  kHanja = 0x19,
-  kKanji = 0x19,
-  kImeOff = 0x1A,
+  kKana = 0x15,    /**< IME Kana mode, Japanese keyboards. */
+  kHangeul = 0x15, /**< IME Hangul mode, same code as kKana. */
+  kHangul = 0x15,  /**< IME Hangul mode, same code as kKana. */
+  kImeOn = 0x16,   /**< IME on. */
+  kJunja = 0x17,   /**< IME Junja mode. */
+  kFinal = 0x18,   /**< IME final mode. */
+  kHanja = 0x19,   /**< IME Hanja mode, Korean keyboards. */
+  kKanji = 0x19,   /**< IME Kanji mode, same code as kHanja. */
+  kImeOff = 0x1A,  /**< IME off. */
 
-  kEscape = 0x1B,
+  kEscape = 0x1B, /**< Esc key. */
 
-  kConvert = 0x1C,
-  kNonConvert = 0x1D,
-  kAccept = 0x1E,
-  kModeChange = 0x1F,
+  kConvert = 0x1C,    /**< IME convert. */
+  kNonConvert = 0x1D, /**< IME nonconvert. */
+  kAccept = 0x1E,     /**< IME accept. */
+  kModeChange = 0x1F, /**< IME mode change request. */
 
-  kSpace = 0x20,
-  kPrior = 0x21,  // Page Up.
-  kNext = 0x22,   // Page Down.
-  kEnd = 0x23,
-  kHome = 0x24,
-  kLeft = 0x25,
-  kUp = 0x26,
-  kRight = 0x27,
-  kDown = 0x28,
-  kSelect = 0x29,
-  kPrint = 0x2A,
-  kExecute = 0x2B,
-  kSnapshot = 0x2C,
-  kInsert = 0x2D,
-  kDelete = 0x2E,
-  kHelp = 0x2F,
+  kSpace = 0x20,    /**< Space bar. */
+  kPrior = 0x21,    /**< Page Up. */
+  kNext = 0x22,     /**< Page Down. */
+  kEnd = 0x23,      /**< End key. */
+  kHome = 0x24,     /**< Home key. */
+  kLeft = 0x25,     /**< Left arrow key. */
+  kUp = 0x26,       /**< Up arrow key. */
+  kRight = 0x27,    /**< Right arrow key. */
+  kDown = 0x28,     /**< Down arrow key. */
+  kSelect = 0x29,   /**< Select key. */
+  kPrint = 0x2A,    /**< Print key. */
+  kExecute = 0x2B,  /**< Execute key. */
+  kSnapshot = 0x2C, /**< Print Screen key. */
+  kInsert = 0x2D,   /**< Ins key. */
+  kDelete = 0x2E,   /**< Del key. */
+  kHelp = 0x2F,     /**< Help key. */
 
-  // Same as ASCII '0' - '9'.
+  /** @name Digit keys 0 to 9, equal to their ASCII codes 0x30 to 0x39. */
+  /** @{ */
   k0 = 0x30,
   k1 = 0x31,
   k2 = 0x32,
@@ -102,8 +97,10 @@ enum class VirtualKey : u16 {
   k7 = 0x37,
   k8 = 0x38,
   k9 = 0x39,
+  /** @} */
 
-  // Same as ASCII 'A' - 'Z'.
+  /** @name Letter keys A to Z, equal to their uppercase ASCII codes 0x41 to 0x5A. */
+  /** @{ */
   kA = 0x41,
   kB = 0x42,
   kC = 0x43,
@@ -130,236 +127,233 @@ enum class VirtualKey : u16 {
   kX = 0x58,
   kY = 0x59,
   kZ = 0x5A,
+  /** @} */
 
-  kLWin = 0x5B,
-  kRWin = 0x5C,
-  kApps = 0x5D,
+  kLWin = 0x5B, /**< Left Windows key. */
+  kRWin = 0x5C, /**< Right Windows key. */
+  kApps = 0x5D, /**< Applications key that opens the context menu. */
 
-  kSleep = 0x5F,
+  kSleep = 0x5F, /**< Computer Sleep key. */
 
-  kNumpad0 = 0x60,
-  kNumpad1 = 0x61,
-  kNumpad2 = 0x62,
-  kNumpad3 = 0x63,
-  kNumpad4 = 0x64,
-  kNumpad5 = 0x65,
-  kNumpad6 = 0x66,
-  kNumpad7 = 0x67,
-  kNumpad8 = 0x68,
-  kNumpad9 = 0x69,
-  kMultiply = 0x6A,
-  kAdd = 0x6B,
-  kSeparator = 0x6C,
-  kSubtract = 0x6D,
-  kDecimal = 0x6E,
-  kDivide = 0x6F,
-  kF1 = 0x70,
-  kF2 = 0x71,
-  kF3 = 0x72,
-  kF4 = 0x73,
-  kF5 = 0x74,
-  kF6 = 0x75,
-  kF7 = 0x76,
-  kF8 = 0x77,
-  kF9 = 0x78,
-  kF10 = 0x79,
-  kF11 = 0x7A,
-  kF12 = 0x7B,
-  kF13 = 0x7C,
-  kF14 = 0x7D,
-  kF15 = 0x7E,
-  kF16 = 0x7F,
-  kF17 = 0x80,
-  kF18 = 0x81,
-  kF19 = 0x82,
-  kF20 = 0x83,
-  kF21 = 0x84,
-  kF22 = 0x85,
-  kF23 = 0x86,
-  kF24 = 0x87,
+  kNumpad0 = 0x60,   /**< Numeric keypad 0 key. */
+  kNumpad1 = 0x61,   /**< Numeric keypad 1 key. */
+  kNumpad2 = 0x62,   /**< Numeric keypad 2 key. */
+  kNumpad3 = 0x63,   /**< Numeric keypad 3 key. */
+  kNumpad4 = 0x64,   /**< Numeric keypad 4 key. */
+  kNumpad5 = 0x65,   /**< Numeric keypad 5 key. */
+  kNumpad6 = 0x66,   /**< Numeric keypad 6 key. */
+  kNumpad7 = 0x67,   /**< Numeric keypad 7 key. */
+  kNumpad8 = 0x68,   /**< Numeric keypad 8 key. */
+  kNumpad9 = 0x69,   /**< Numeric keypad 9 key. */
+  kMultiply = 0x6A,  /**< Numeric keypad multiply key. */
+  kAdd = 0x6B,       /**< Numeric keypad add key. */
+  kSeparator = 0x6C, /**< Numeric keypad separator key. */
+  kSubtract = 0x6D,  /**< Numeric keypad subtract key. */
+  kDecimal = 0x6E,   /**< Numeric keypad decimal key. */
+  kDivide = 0x6F,    /**< Numeric keypad divide key. */
+  kF1 = 0x70,        /**< Function key F1. */
+  kF2 = 0x71,        /**< Function key F2. */
+  kF3 = 0x72,        /**< Function key F3. */
+  kF4 = 0x73,        /**< Function key F4. */
+  kF5 = 0x74,        /**< Function key F5. */
+  kF6 = 0x75,        /**< Function key F6. */
+  kF7 = 0x76,        /**< Function key F7. */
+  kF8 = 0x77,        /**< Function key F8. */
+  kF9 = 0x78,        /**< Function key F9. */
+  kF10 = 0x79,       /**< Function key F10. */
+  kF11 = 0x7A,       /**< Function key F11. */
+  kF12 = 0x7B,       /**< Function key F12. */
+  kF13 = 0x7C,       /**< Function key F13. */
+  kF14 = 0x7D,       /**< Function key F14. */
+  kF15 = 0x7E,       /**< Function key F15. */
+  kF16 = 0x7F,       /**< Function key F16. */
+  kF17 = 0x80,       /**< Function key F17. */
+  kF18 = 0x81,       /**< Function key F18. */
+  kF19 = 0x82,       /**< Function key F19. */
+  kF20 = 0x83,       /**< Function key F20. */
+  kF21 = 0x84,       /**< Function key F21. */
+  kF22 = 0x85,       /**< Function key F22. */
+  kF23 = 0x86,       /**< Function key F23. */
+  kF24 = 0x87,       /**< Function key F24. */
 
-  // VK_NAVIGATION_* added in _WIN32_WINNT 0x0604, but marked as reserved in
-  // WinUser.h and not documented on MSDN.
-  kNavigationView = 0x88,
-  kNavigationMenu = 0x89,
-  kNavigationUp = 0x8A,
-  kNavigationDown = 0x8B,
-  kNavigationLeft = 0x8C,
-  kNavigationRight = 0x8D,
-  kNavigationAccept = 0x8E,
-  kNavigationCancel = 0x8F,
+  /** VK_NAVIGATION_* added in _WIN32_WINNT 0x0604, reserved in WinUser.h. */
+  kNavigationView = 0x88,   /**< VK_NAVIGATION_VIEW. */
+  kNavigationMenu = 0x89,   /**< VK_NAVIGATION_MENU. */
+  kNavigationUp = 0x8A,     /**< VK_NAVIGATION_UP. */
+  kNavigationDown = 0x8B,   /**< VK_NAVIGATION_DOWN. */
+  kNavigationLeft = 0x8C,   /**< VK_NAVIGATION_LEFT. */
+  kNavigationRight = 0x8D,  /**< VK_NAVIGATION_RIGHT. */
+  kNavigationAccept = 0x8E, /**< VK_NAVIGATION_ACCEPT. */
+  kNavigationCancel = 0x8F, /**< VK_NAVIGATION_CANCEL. */
 
-  kNumLock = 0x90,
-  kScroll = 0x91,
+  kNumLock = 0x90, /**< Num Lock key. */
+  kScroll = 0x91,  /**< Scroll Lock key. */
 
-  // NEC PC-9800 keyboard.
-  kOemNecEqual = 0x92,  // '=' key on the numpad.
+  /** NEC PC-9800 keyboard. */
+  kOemNecEqual = 0x92, /**< '=' key on the numpad. */
 
-  // Fujitsu/OASYS keyboard.
-  kOemFjJisho = 0x92,    // 'Dictionary' key.
-  kOemFjMasshou = 0x93,  // 'Unregister word' key.
-  kOemFjTouroku = 0x94,  // 'Register word' key.
-  kOemFjLOya = 0x95,     // 'Left OYAYUBI' key.
-  kOemFjROya = 0x96,     // 'Right OYAYUBI' key.
+  /** Fujitsu/OASYS keyboard. */
+  kOemFjJisho = 0x92,   /**< 'Dictionary' key. */
+  kOemFjMasshou = 0x93, /**< 'Unregister word' key. */
+  kOemFjTouroku = 0x94, /**< 'Register word' key. */
+  kOemFjLOya = 0x95,    /**< 'Left OYAYUBI' key. */
+  kOemFjROya = 0x96,    /**< 'Right OYAYUBI' key. */
 
-  // Left and right Alt, Ctrl and Shift virtual keys.
-  // On Windows (from WinUser.h):
-  // "Used only as parameters to GetAsyncKeyState() and GetKeyState().
-  //  No other API or message will distinguish left and right keys in this way."
-  kLShift = 0xA0,
-  kRShift = 0xA1,
-  kLControl = 0xA2,
-  kRControl = 0xA3,
-  kLMenu = 0xA4,
-  kRMenu = 0xA5,
+  /**
+   * Left and right Alt, Ctrl and Shift. Windows uses them only as parameters to
+   * GetAsyncKeyState and GetKeyState.
+   */
+  kLShift = 0xA0,   /**< Left Shift key. */
+  kRShift = 0xA1,   /**< Right Shift key. */
+  kLControl = 0xA2, /**< Left Ctrl key. */
+  kRControl = 0xA3, /**< Right Ctrl key. */
+  kLMenu = 0xA4,    /**< Left Alt key. */
+  kRMenu = 0xA5,    /**< Right Alt key. */
 
-  kBrowserBack = 0xA6,
-  kBrowserForward = 0xA7,
-  kBrowserRefresh = 0xA8,
-  kBrowserStop = 0xA9,
-  kBrowserSearch = 0xAA,
-  kBrowserFavorites = 0xAB,
-  kBrowserHome = 0xAC,
+  kBrowserBack = 0xA6,      /**< Browser Back key. */
+  kBrowserForward = 0xA7,   /**< Browser Forward key. */
+  kBrowserRefresh = 0xA8,   /**< Browser Refresh key. */
+  kBrowserStop = 0xA9,      /**< Browser Stop key. */
+  kBrowserSearch = 0xAA,    /**< Browser Search key. */
+  kBrowserFavorites = 0xAB, /**< Browser Favorites key. */
+  kBrowserHome = 0xAC,      /**< Browser Start and Home key. */
 
-  kVolumeMute = 0xAD,
-  kVolumeDown = 0xAE,
-  kVolumeUp = 0xAF,
-  kMediaNextTrack = 0xB0,
-  kMediaPrevTrack = 0xB1,
-  kMediaStop = 0xB2,
-  kMediaPlayPause = 0xB3,
-  kLaunchMail = 0xB4,
-  kLaunchMediaSelect = 0xB5,
-  kLaunchApp1 = 0xB6,
-  kLaunchApp2 = 0xB7,
+  kVolumeMute = 0xAD,        /**< Volume Mute key. */
+  kVolumeDown = 0xAE,        /**< Volume Down key. */
+  kVolumeUp = 0xAF,          /**< Volume Up key. */
+  kMediaNextTrack = 0xB0,    /**< Next Track key. */
+  kMediaPrevTrack = 0xB1,    /**< Previous Track key. */
+  kMediaStop = 0xB2,         /**< Stop Media key. */
+  kMediaPlayPause = 0xB3,    /**< Play and Pause Media key. */
+  kLaunchMail = 0xB4,        /**< Start Mail key. */
+  kLaunchMediaSelect = 0xB5, /**< Select Media key. */
+  kLaunchApp1 = 0xB6,        /**< Start Application 1 key. */
+  kLaunchApp2 = 0xB7,        /**< Start Application 2 key. */
 
-  kOem1 = 0xBA,       // ';:' for the US.
-  kOemPlus = 0xBB,    // '+' for any country.
-  kOemComma = 0xBC,   // ',' for any country.
-  kOemMinus = 0xBD,   // '-' for any country.
-  kOemPeriod = 0xBE,  // '.' for any country.
-  kOem2 = 0xBF,       // '/?' for the US.
-  kOem3 = 0xC0,       // '`~' for the US.
+  kOem1 = 0xBA,      /**< ';:' for the US. */
+  kOemPlus = 0xBB,   /**< '+' for any country. */
+  kOemComma = 0xBC,  /**< ',' for any country. */
+  kOemMinus = 0xBD,  /**< '-' for any country. */
+  kOemPeriod = 0xBE, /**< '.' for any country. */
+  kOem2 = 0xBF,      /**< '/?' for the US. */
+  kOem3 = 0xC0,      /**< '`~' for the US. */
 
-  // VK_GAMEPAD_* (since _WIN32_WINNT 0x0604) virtual key codes are marked as
-  // reserved in WinUser.h and are mostly not documented on MSDN (with the
-  // exception of the Xbox Device Portal Remote Input REST API in the "UWP on
-  // Xbox One" section).
-  // Xenia uses VK_PAD_* (kXInputPad*) for HID emulation internally instead
-  // because XInput is the API used for the console controller.
-  // To avoid confusion between VK_GAMEPAD_* and VK_PAD_*, here they are
-  // prefixed with kXboxOne and kXInput respectively.
-  kXboxOneGamepadA = 0xC3,
-  kXboxOneGamepadB = 0xC4,
-  kXboxOneGamepadX = 0xC5,
-  kXboxOneGamepadY = 0xC6,
-  kXboxOneGamepadRightShoulder = 0xC7,
-  kXboxOneGamepadLeftShoulder = 0xC8,
-  kXboxOneGamepadLeftTrigger = 0xC9,
-  kXboxOneGamepadRightTrigger = 0xCA,
-  kXboxOneGamepadDpadUp = 0xCB,
-  kXboxOneGamepadDpadDown = 0xCC,
-  kXboxOneGamepadDpadLeft = 0xCD,
-  kXboxOneGamepadDpadRight = 0xCE,
-  kXboxOneGamepadMenu = 0xCF,
-  kXboxOneGamepadView = 0xD0,
-  kXboxOneGamepadLeftThumbstickButton = 0xD1,
-  kXboxOneGamepadRightThumbstickButton = 0xD2,
-  kXboxOneGamepadLeftThumbstickUp = 0xD3,
-  kXboxOneGamepadLeftThumbstickDown = 0xD4,
-  kXboxOneGamepadLeftThumbstickRight = 0xD5,
-  kXboxOneGamepadLeftThumbstickLeft = 0xD6,
-  kXboxOneGamepadRightThumbstickUp = 0xD7,
-  kXboxOneGamepadRightThumbstickDown = 0xD8,
-  kXboxOneGamepadRightThumbstickRight = 0xD9,
-  kXboxOneGamepadRightThumbstickLeft = 0xDA,
+  /**
+   * VK_GAMEPAD_* codes added in _WIN32_WINNT 0x0604, reserved in WinUser.h. VK_PAD_*
+   * (kXInputPad*) serve HID emulation because XInput is the controller API. The 2 name prefixes
+   * tell VK_GAMEPAD_* and VK_PAD_* apart.
+   */
+  kXboxOneGamepadA = 0xC3,                     /**< VK_GAMEPAD_A. */
+  kXboxOneGamepadB = 0xC4,                     /**< VK_GAMEPAD_B. */
+  kXboxOneGamepadX = 0xC5,                     /**< VK_GAMEPAD_X. */
+  kXboxOneGamepadY = 0xC6,                     /**< VK_GAMEPAD_Y. */
+  kXboxOneGamepadRightShoulder = 0xC7,         /**< VK_GAMEPAD_RIGHT_SHOULDER. */
+  kXboxOneGamepadLeftShoulder = 0xC8,          /**< VK_GAMEPAD_LEFT_SHOULDER. */
+  kXboxOneGamepadLeftTrigger = 0xC9,           /**< VK_GAMEPAD_LEFT_TRIGGER. */
+  kXboxOneGamepadRightTrigger = 0xCA,          /**< VK_GAMEPAD_RIGHT_TRIGGER. */
+  kXboxOneGamepadDpadUp = 0xCB,                /**< VK_GAMEPAD_DPAD_UP. */
+  kXboxOneGamepadDpadDown = 0xCC,              /**< VK_GAMEPAD_DPAD_DOWN. */
+  kXboxOneGamepadDpadLeft = 0xCD,              /**< VK_GAMEPAD_DPAD_LEFT. */
+  kXboxOneGamepadDpadRight = 0xCE,             /**< VK_GAMEPAD_DPAD_RIGHT. */
+  kXboxOneGamepadMenu = 0xCF,                  /**< VK_GAMEPAD_MENU. */
+  kXboxOneGamepadView = 0xD0,                  /**< VK_GAMEPAD_VIEW. */
+  kXboxOneGamepadLeftThumbstickButton = 0xD1,  /**< VK_GAMEPAD_LEFT_THUMBSTICK_BUTTON. */
+  kXboxOneGamepadRightThumbstickButton = 0xD2, /**< VK_GAMEPAD_RIGHT_THUMBSTICK_BUTTON. */
+  kXboxOneGamepadLeftThumbstickUp = 0xD3,      /**< VK_GAMEPAD_LEFT_THUMBSTICK_UP. */
+  kXboxOneGamepadLeftThumbstickDown = 0xD4,    /**< VK_GAMEPAD_LEFT_THUMBSTICK_DOWN. */
+  kXboxOneGamepadLeftThumbstickRight = 0xD5,   /**< VK_GAMEPAD_LEFT_THUMBSTICK_RIGHT. */
+  kXboxOneGamepadLeftThumbstickLeft = 0xD6,    /**< VK_GAMEPAD_LEFT_THUMBSTICK_LEFT. */
+  kXboxOneGamepadRightThumbstickUp = 0xD7,     /**< VK_GAMEPAD_RIGHT_THUMBSTICK_UP. */
+  kXboxOneGamepadRightThumbstickDown = 0xD8,   /**< VK_GAMEPAD_RIGHT_THUMBSTICK_DOWN. */
+  kXboxOneGamepadRightThumbstickRight = 0xD9,  /**< VK_GAMEPAD_RIGHT_THUMBSTICK_RIGHT. */
+  kXboxOneGamepadRightThumbstickLeft = 0xDA,   /**< VK_GAMEPAD_RIGHT_THUMBSTICK_LEFT. */
 
-  kOem4 = 0xDB,  // '[{' for the US.
-  kOem5 = 0xDC,  // '\|' for the US.
-  kOem6 = 0xDD,  // ']}' for the US.
-  kOem7 = 0xDE,  // ''"' for the US.
-  kOem8 = 0xDF,
+  kOem4 = 0xDB, /**< '[{' for the US. */
+  kOem5 = 0xDC, /**< '\|' for the US. */
+  kOem6 = 0xDD, /**< ']}' for the US. */
+  kOem7 = 0xDE, /**< ''"' for the US. */
+  kOem8 = 0xDF, /**< Miscellaneous character key, varies by keyboard. */
 
-  kOemAx = 0xE1,    // 'AX' key on the Japanese AX keyboard.
-  kOem102 = 0xE2,   // "<>" or "\|" on the RT 102-key keyboard.
-  kIcoHelp = 0xE3,  // Help key on the Olivetti keyboard (ICO).
-  kIco00 = 0xE4,    // 00 key on the ICO.
+  kOemAx = 0xE1,   /**< 'AX' key on the Japanese AX keyboard. */
+  kOem102 = 0xE2,  /**< "<>" or "\|" on the RT 102-key keyboard. */
+  kIcoHelp = 0xE3, /**< Help key on the Olivetti keyboard (ICO). */
+  kIco00 = 0xE4,   /**< 00 key on the ICO. */
 
-  kProcessKey = 0xE5,
+  kProcessKey = 0xE5, /**< IME Process key. */
 
-  kIcoClear = 0xE6,
+  kIcoClear = 0xE6, /**< Clear key on the ICO. */
 
-  // From MSDN:
-  // "Used to pass Unicode characters as if they were keystrokes. The VK_PACKET
-  //  key is the low word of a 32-bit Virtual Key value used for non-keyboard
-  //  input methods."
+  /**
+   * Passes Unicode characters as keystrokes. The low word of a 32 bit key value for non keyboard
+   * input methods.
+   */
   kPacket = 0xE7,
 
-  // Nokia/Ericsson.
-  kOemReset = 0xE9,
-  kOemJump = 0xEA,
-  kOemPa1 = 0xEB,
-  kOemPa2 = 0xEC,
-  kOemPa3 = 0xED,
-  kOemWsCtrl = 0xEE,
-  kOemCuSel = 0xEF,
-  kOemAttn = 0xF0,
-  kOemFinish = 0xF1,
-  kOemCopy = 0xF2,
-  kOemAuto = 0xF3,
-  kOemEnlW = 0xF4,
-  kOemBackTab = 0xF5,
+  /** Nokia/Ericsson. */
+  kOemReset = 0xE9,   /**< OEM reset key. */
+  kOemJump = 0xEA,    /**< OEM jump key. */
+  kOemPa1 = 0xEB,     /**< OEM PA1 key. */
+  kOemPa2 = 0xEC,     /**< OEM PA2 key. */
+  kOemPa3 = 0xED,     /**< OEM PA3 key. */
+  kOemWsCtrl = 0xEE,  /**< OEM WsCtrl key. */
+  kOemCuSel = 0xEF,   /**< OEM CuSel key. */
+  kOemAttn = 0xF0,    /**< OEM Attn key. */
+  kOemFinish = 0xF1,  /**< OEM Finish key. */
+  kOemCopy = 0xF2,    /**< OEM Copy key. */
+  kOemAuto = 0xF3,    /**< OEM Auto key. */
+  kOemEnlW = 0xF4,    /**< OEM Enlarge Window key. */
+  kOemBackTab = 0xF5, /**< OEM Back Tab key. */
 
-  kAttn = 0xF6,
-  kCrSel = 0xF7,
-  kExSel = 0xF8,
-  kErEof = 0xF9,
-  kPlay = 0xFA,
-  kZoom = 0xFB,
-  kNoName = 0xFC,
-  kPa1 = 0xFD,
-  kOemClear = 0xFE,
+  kAttn = 0xF6,     /**< Attn key. */
+  kCrSel = 0xF7,    /**< CrSel key. */
+  kExSel = 0xF8,    /**< ExSel key. */
+  kErEof = 0xF9,    /**< Erase EOF key. */
+  kPlay = 0xFA,     /**< Play key. */
+  kZoom = 0xFB,     /**< Zoom key. */
+  kNoName = 0xFC,   /**< Reserved code with no key. */
+  kPa1 = 0xFD,      /**< PA1 key. */
+  kOemClear = 0xFE, /**< Clear key, OEM specific. */
 
-  // VK_PAD_* from XInput.h for XInputGetKeystroke. kXInput prefix added to
-  // distinguish from VK_GAMEPAD_*, added much later for newer
-  // controllers.
+  /**
+   * VK_PAD_* from XInput.h for XInputGetKeystroke. The kXInput prefix tells them apart from
+   * VK_GAMEPAD_*.
+   */
 
-  kXInputPadA = 0x5800,
-  kXInputPadB = 0x5801,
-  kXInputPadX = 0x5802,
-  kXInputPadY = 0x5803,
-  // RShoulder before LShoulder, not a typo.
-  kXInputPadRShoulder = 0x5804,
-  kXInputPadLShoulder = 0x5805,
-  kXInputPadLTrigger = 0x5806,
-  kXInputPadRTrigger = 0x5807,
+  kXInputPadA = 0x5800,         /**< VK_PAD_A. */
+  kXInputPadB = 0x5801,         /**< VK_PAD_B. */
+  kXInputPadX = 0x5802,         /**< VK_PAD_X. */
+  kXInputPadY = 0x5803,         /**< VK_PAD_Y. */
+  kXInputPadRShoulder = 0x5804, /**< Numbered before kXInputPadLShoulder. */
+  kXInputPadLShoulder = 0x5805, /**< VK_PAD_LSHOULDER. */
+  kXInputPadLTrigger = 0x5806,  /**< VK_PAD_LTRIGGER. */
+  kXInputPadRTrigger = 0x5807,  /**< VK_PAD_RTRIGGER. */
 
-  kXInputPadDpadUp = 0x5810,
-  kXInputPadDpadDown = 0x5811,
-  kXInputPadDpadLeft = 0x5812,
-  kXInputPadDpadRight = 0x5813,
-  kXInputPadStart = 0x5814,
-  kXInputPadBack = 0x5815,
-  kXInputPadLThumbPress = 0x5816,
-  kXInputPadRThumbPress = 0x5817,
+  kXInputPadDpadUp = 0x5810,      /**< VK_PAD_DPAD_UP. */
+  kXInputPadDpadDown = 0x5811,    /**< VK_PAD_DPAD_DOWN. */
+  kXInputPadDpadLeft = 0x5812,    /**< VK_PAD_DPAD_LEFT. */
+  kXInputPadDpadRight = 0x5813,   /**< VK_PAD_DPAD_RIGHT. */
+  kXInputPadStart = 0x5814,       /**< VK_PAD_START. */
+  kXInputPadBack = 0x5815,        /**< VK_PAD_BACK. */
+  kXInputPadLThumbPress = 0x5816, /**< VK_PAD_LTHUMB_PRESS. */
+  kXInputPadRThumbPress = 0x5817, /**< VK_PAD_RTHUMB_PRESS. */
 
-  kXInputPadLThumbUp = 0x5820,
-  kXInputPadLThumbDown = 0x5821,
-  kXInputPadLThumbRight = 0x5822,
-  kXInputPadLThumbLeft = 0x5823,
-  kXInputPadLThumbUpLeft = 0x5824,
-  kXInputPadLThumbUpRight = 0x5825,
-  kXInputPadLThumbDownRight = 0x5826,
-  kXInputPadLThumbDownLeft = 0x5827,
+  kXInputPadLThumbUp = 0x5820,        /**< VK_PAD_LTHUMB_UP. */
+  kXInputPadLThumbDown = 0x5821,      /**< VK_PAD_LTHUMB_DOWN. */
+  kXInputPadLThumbRight = 0x5822,     /**< VK_PAD_LTHUMB_RIGHT. */
+  kXInputPadLThumbLeft = 0x5823,      /**< VK_PAD_LTHUMB_LEFT. */
+  kXInputPadLThumbUpLeft = 0x5824,    /**< VK_PAD_LTHUMB_UPLEFT. */
+  kXInputPadLThumbUpRight = 0x5825,   /**< VK_PAD_LTHUMB_UPRIGHT. */
+  kXInputPadLThumbDownRight = 0x5826, /**< VK_PAD_LTHUMB_DOWNRIGHT. */
+  kXInputPadLThumbDownLeft = 0x5827,  /**< VK_PAD_LTHUMB_DOWNLEFT. */
 
-  kXInputPadRThumbUp = 0x5830,
-  kXInputPadRThumbDown = 0x5831,
-  kXInputPadRThumbRight = 0x5832,
-  kXInputPadRThumbLeft = 0x5833,
-  kXInputPadRThumbUpLeft = 0x5834,
-  kXInputPadRThumbUpRight = 0x5835,
-  kXInputPadRThumbDownRight = 0x5836,
-  kXInputPadRThumbDownLeft = 0x5837,
+  kXInputPadRThumbUp = 0x5830,        /**< VK_PAD_RTHUMB_UP. */
+  kXInputPadRThumbDown = 0x5831,      /**< VK_PAD_RTHUMB_DOWN. */
+  kXInputPadRThumbRight = 0x5832,     /**< VK_PAD_RTHUMB_RIGHT. */
+  kXInputPadRThumbLeft = 0x5833,      /**< VK_PAD_RTHUMB_LEFT. */
+  kXInputPadRThumbUpLeft = 0x5834,    /**< VK_PAD_RTHUMB_UPLEFT. */
+  kXInputPadRThumbUpRight = 0x5835,   /**< VK_PAD_RTHUMB_UPRIGHT. */
+  kXInputPadRThumbDownRight = 0x5836, /**< VK_PAD_RTHUMB_DOWNRIGHT. */
+  kXInputPadRThumbDownLeft = 0x5837,  /**< VK_PAD_RTHUMB_DOWNLEFT. */
 };
 
 /**

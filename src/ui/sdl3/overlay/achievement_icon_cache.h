@@ -31,12 +31,14 @@ class AchievementIconCache {
  public:
   AchievementIconCache(gpu::IOverlayDrawer* overlay_drawer, rex::Runtime* runtime);
 
-  // Loads the achievement icon in priority order:
-  // 1. explicit metadata icon_path
-  // 2. embedded metadata icon_path
-  // 3. metadata icons/<image_id>.png
-  // 4. embedded metadata icons/<image_id>.png
-  // 5. title XDBF image <image_id> embedded in the loaded XEX
+  /**
+   * Loads the achievement icon from the first source that resolves, in this order. The metadata
+   * icon_path, the embedded metadata icon_path, metadata icons/<image_id>.png, embedded metadata
+   * icons/<image_id>.png, then the title XDBF image <image_id> in the loaded XEX.
+   *
+   * @param achievement Achievement to load the icon for.
+   * @return The icon texture, or null when none could be created.
+   */
   gpu::OverlayTexture* GetIcon(const rex::runtime::AchievementInfo& achievement);
 
  private:

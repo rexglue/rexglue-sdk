@@ -62,18 +62,9 @@ VkDescriptorSet LinkedTypeDescriptorSetAllocator::Allocate(
   descriptor_set_allocate_info.pSetLayouts = &descriptor_set_layout;
   VkDescriptorSet descriptor_set;
 
-  // Check if more descriptors have been requested than a page can hold, or
-  // descriptors of types not provided by this allocator, and if that's the
-  // case, create a dedicated pool for this allocation.
   bool dedicated_descriptor_pool_needed = false;
   for (uint32_t i = 0; i < descriptor_type_count; ++i) {
     const VkDescriptorPoolSize& descriptor_count_for_type = descriptor_counts[i];
-    // If the type is one that's not supported by the allocator, a dedicated
-    // pool is required. If it's supported, and the allocator has large enough
-    // pools to hold the requested number of descriptors,
-    // dedicated_descriptor_pool_needed will be set to false for this iteration,
-    // and the loop will continue. Otherwise, if that doesn't happen, a
-    // dedicated pool is required.
     dedicated_descriptor_pool_needed = true;
     for (uint32_t j = 0; j < descriptor_pool_size_count_; ++j) {
       const VkDescriptorPoolSize& descriptor_pool_size = descriptor_pool_sizes_[j];
@@ -81,13 +72,11 @@ VkDescriptorSet LinkedTypeDescriptorSetAllocator::Allocate(
         continue;
       }
       if (descriptor_count_for_type.descriptorCount <= descriptor_pool_size.descriptorCount) {
-        // For this type, pages can hold enough descriptors.
         dedicated_descriptor_pool_needed = false;
       }
       break;
     }
     if (dedicated_descriptor_pool_needed) {
-      // For at least one requested type, pages can't hold enough descriptors.
       break;
     }
   }
@@ -120,8 +109,6 @@ VkDescriptorSet LinkedTypeDescriptorSetAllocator::Allocate(
     return descriptor_set;
   }
 
-  // Try allocating from the latest page an allocation has happened from, to
-  // avoid detaching from the map and re-attaching for every allocation.
   if (page_usable_latest_.pool != VK_NULL_HANDLE) {
     REX_ASSERT(page_usable_latest_.descriptor_sets_remaining != 0);
     bool allocate_from_latest_page = true;
@@ -153,8 +140,7 @@ VkDescriptorSet LinkedTypeDescriptorSetAllocator::Allocate(
       if (dfn.vkAllocateDescriptorSets(device, &descriptor_set_allocate_info, &descriptor_set) !=
           VK_SUCCESS) {
         descriptor_set = VK_NULL_HANDLE;
-        // Failed to allocate internally even though there should be enough
-        // space, don't try to allocate from this pool again at all.
+        // Never allocate again from a pool that failed internally despite enough space.
         latest_page_becomes_full = true;
       }
       if (latest_page_becomes_full) {
@@ -182,29 +168,20 @@ VkDescriptorSet LinkedTypeDescriptorSetAllocator::Allocate(
     }
   }
 
-  // Count the maximum number of descriptors requested for any type to stop
-  // searching for pages once they can't satisfy this requirement.
   uint32_t max_descriptors_per_type = descriptor_counts[0].descriptorCount;
   for (uint32_t i = 1; i < descriptor_type_count; ++i) {
     max_descriptors_per_type =
         std::max(max_descriptors_per_type, descriptor_counts[i].descriptorCount);
   }
 
-  // If allocating from the latest pool wasn't possible, pick any that has
-  // enough free space. Prefer filling pages that have the most free space as
-  // they can more likely be used for more allocations later.
   auto page_usable_it_next = pages_usable_.rbegin();
   while (page_usable_it_next != pages_usable_.rend()) {
     auto page_usable_it = page_usable_it_next;
     ++page_usable_it_next;
     if (page_usable_it->first < max_descriptors_per_type) {
-      // All other pages_usable_ entries have smaller maximum number of free
-      // descriptor for any type (it's the map key).
+      // Remaining entries have smaller keys, so none can fit.
       break;
     }
-    // Check if the page has enough free descriptors for all requested types,
-    // and whether allocating the requested number of descriptors in it will
-    // result in the page becoming full.
     bool map_page_has_sufficient_space = true;
     bool map_page_becomes_full = page_usable_it->second.descriptor_sets_remaining == 1;
     for (uint32_t i = 0; i < descriptor_type_count; ++i) {
@@ -230,26 +207,16 @@ VkDescriptorSet LinkedTypeDescriptorSetAllocator::Allocate(
       }
     }
     if (!map_page_has_sufficient_space) {
-      // Even though the coarse (maximum number of descriptors for any type)
-      // check has passed, for the exact types requested this page doesn't have
-      // sufficient space - try another one.
       continue;
     }
-    // Remove the page from the map unconditionally - in case of a successful
-    // allocation, it will have a different number of free descriptors for
-    // different types, thus potentially a new map key (but it will also become
-    // page_usable_latest_ instead even), or will become full, and in case of a
-    // failure to allocate internally even though there still should be enough
-    // space, it should never be allocated from again.
+    // Erase unconditionally as success changes the free counts, and so the map key.
     Page map_page = std::move(page_usable_it->second);
-    // Convert the reverse iterator to a forward iterator for erasing.
     pages_usable_.erase(std::next(page_usable_it).base());
     descriptor_set_allocate_info.descriptorPool = map_page.pool;
     if (dfn.vkAllocateDescriptorSets(device, &descriptor_set_allocate_info, &descriptor_set) !=
         VK_SUCCESS) {
       descriptor_set = VK_NULL_HANDLE;
-      // Failed to allocate internally even though there should be enough space,
-      // don't try to allocate from this pool again at all.
+      // Never allocate again from a pool that failed internally despite enough space.
       map_page_becomes_full = true;
     }
     if (map_page_becomes_full) {
@@ -268,11 +235,7 @@ VkDescriptorSet LinkedTypeDescriptorSetAllocator::Allocate(
               descriptor_count_for_type.descriptorCount;
         }
       }
-      // Move the latest page that allocation couldn't be done in to the usable
-      // pages to replace it with the new one.
       if (page_usable_latest_.pool != VK_NULL_HANDLE) {
-        // Calculate the map key (the maximum number of remaining descriptors of
-        // any type).
         uint32_t latest_page_max_descriptors_remaining =
             page_usable_latest_.descriptors_remaining[0].descriptorCount;
         for (uint32_t i = 1; i < descriptor_pool_size_count_; ++i) {
@@ -291,8 +254,6 @@ VkDescriptorSet LinkedTypeDescriptorSetAllocator::Allocate(
     }
   }
 
-  // Try allocating from a new page.
-  // See if the new page has instantly become full.
   bool new_page_becomes_full = descriptor_sets_per_page_ == 1;
   for (uint32_t i = 0; !new_page_becomes_full && i < descriptor_type_count; ++i) {
     const VkDescriptorPoolSize& descriptor_count_for_type = descriptor_counts[i];
@@ -310,9 +271,6 @@ VkDescriptorSet LinkedTypeDescriptorSetAllocator::Allocate(
       }
     }
   }
-  // Allocate from a new page. However, if the new page becomes full
-  // immediately, create a dedicated pool instead for the exact number of
-  // descriptors not to leave any unused space in the pool.
   VkDescriptorPoolCreateInfo new_descriptor_pool_create_info;
   new_descriptor_pool_create_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
   new_descriptor_pool_create_info.pNext = nullptr;
@@ -342,11 +300,7 @@ VkDescriptorSet LinkedTypeDescriptorSetAllocator::Allocate(
   if (new_page_becomes_full) {
     pages_full_.push_back(new_descriptor_pool);
   } else {
-    // Move the latest page that allocation couldn't be done in to the usable
-    // pages to replace it with the new one.
     if (page_usable_latest_.pool != VK_NULL_HANDLE) {
-      // Calculate the map key (the maximum number of remaining descriptors of
-      // any type).
       uint32_t latest_page_max_descriptors_remaining =
           page_usable_latest_.descriptors_remaining[0].descriptorCount;
       for (uint32_t i = 1; i < descriptor_pool_size_count_; ++i) {

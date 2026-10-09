@@ -63,8 +63,6 @@ bool D3D12SharedMemory::Initialize() {
                 "because a full {} MB buffer will be created",
                 kBufferSize >> 20);
     if (provider.GetGraphicsAnalysis()) {
-      // As of October 8th, 2018, PIX doesn't support tiled buffers.
-      // FIXME(Triang3l): Re-enable tiled resources with PIX once fixed.
       REXLOG_INFO(gpu,
                   "This is caused by PIX being attached, which doesn't support tiled "
                   "resources yet.");
@@ -155,8 +153,7 @@ void D3D12SharedMemory::Shutdown(bool from_destructor) {
   }
   buffer_tiled_heaps_.clear();
 
-  // If calling from the destructor, the SharedMemory destructor will call
-  // ShutdownCommon.
+  // The SharedMemory destructor calls ShutdownCommon.
   if (!from_destructor) {
     ShutdownCommon();
   }
@@ -187,7 +184,7 @@ void D3D12SharedMemory::CommitUAVWritesAndTransitionBuffer(D3D12_RESOURCE_STATES
   }
   command_processor_.PushTransitionBarrier(buffer_, buffer_state_, new_state);
   buffer_state_ = new_state;
-  // "UAV -> anything" transition commits the writes implicitly.
+  // A transition from UAV to any state commits the writes implicitly.
   buffer_uav_writes_commit_needed_ = false;
 }
 

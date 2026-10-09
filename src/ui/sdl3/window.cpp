@@ -34,23 +34,17 @@ Window::Window(WindowedAppContext& app_context, const std::string_view title,
       title_(title) {}
 
 Window::~Window() {
-  // In case the implementation didn't need to call EnterDestructor. Though
-  // that was likely a mistake, so placing an assertion.
   REX_ASSERT(phase_ == Phase::kDeleting);
   EnterDestructor();
 
   if (presenter_) {
     gpu::IPresenter* old_presenter = presenter_;
-    // Null the pointer to prevent an infinite loop between
-    // Attach and SetPresenter calling each other.
+    // Nulled first so Attach and SetPresenter do not call each other forever.
     presenter_ = nullptr;
     old_presenter->Attach(nullptr, nullptr);
     presenter_surface_.reset();
   }
 
-  // Right before destruction has finished, after which no interaction with
-  // *this can be done, notify the destruction receivers that the window is
-  // being destroyed and that *this is not accessible anymore.
   while (innermost_destruction_receiver_) {
     innermost_destruction_receiver_->window_ = nullptr;
     innermost_destruction_receiver_ = innermost_destruction_receiver_->outer_receiver_;
@@ -59,7 +53,6 @@ Window::~Window() {
 
 void Window::AddListener(WindowListener* listener) {
   REX_ASSERT(listener != nullptr);
-  // Check if already added.
   if (std::find(listeners_.cbegin(), listeners_.cend(), listener) != listeners_.cend()) {
     return;
   }
@@ -72,7 +65,6 @@ void Window::RemoveListener(WindowListener* listener) {
   if (it == listeners_.cend()) {
     return;
   }
-  // Actualize the next listener indices after the erasure from the vector.
   ListenerIterationContext* iteration_context = innermost_listener_iteration_context_;
   if (iteration_context) {
     size_t existing_index = static_cast<size_t>(std::distance(listeners_.cbegin(), it));
@@ -88,7 +80,6 @@ void Window::RemoveListener(WindowListener* listener) {
 
 void Window::AddInputListener(WindowInputListener* listener, size_t z_order) {
   REX_ASSERT(listener != nullptr);
-  // Check if already added.
   for (auto it_existing = input_listeners_.rbegin(); it_existing != input_listeners_.rend();
        ++it_existing) {
     if (it_existing->second != listener) {
@@ -97,8 +88,7 @@ void Window::AddInputListener(WindowInputListener* listener, size_t z_order) {
     if (it_existing->first == z_order) {
       return;
     }
-    // If removing the listener that is the next in a current listener loop,
-    // skip it (in a multimap, only one element iterator is invalidated).
+    // Advance iterators that point at the erased listener, a multimap erase invalidates only it.
     InputListenerIterationContext* iteration_context = innermost_input_listener_iteration_context_;
     while (iteration_context) {
       if (iteration_context->next_iterator == it_existing) {
@@ -107,23 +97,9 @@ void Window::AddInputListener(WindowInputListener* listener, size_t z_order) {
       iteration_context = iteration_context->outer_context;
     }
     input_listeners_.erase(std::prev(it_existing.base()));
-    // FIXME(Triang3l): Changing the Z order of an existing listener while
-    // already executing the listeners may cause listeners to be called twice if
-    // the Z order is lowered from one that has already been processed to one
-    // below the current one. Because nested listener calls are supported, a
-    // single last call index can't be associated with a listener to skip it if
-    // calling twice for the same event (a "not equal to" comparison of the call
-    // indices will result in the skipping being cancelled in the outer loop if
-    // an inner one is done, a "greater than" comparison will cause the inner
-    // loop to effectively terminate all outer ones).
   }
   auto it_new = std::prev(std::make_reverse_iterator(input_listeners_.emplace(z_order, listener)));
-  // If adding to layers in between the ones being processed (from
-  // highest to lowest) and the previously next, make sure the new listener is
-  // executed too. Execution within one layer, however, happens in the reverse
-  // order of addition, so if adding to the Z layer being processed,
-  // the new listener must not be executed within the loop. But, if adding to
-  // the next Z layer after the current one, it must be executed immediately.
+  // A new listener in a layer between the current and the next one runs in this loop.
   {
     InputListenerIterationContext* iteration_context = innermost_input_listener_iteration_context_;
     while (iteration_context) {
@@ -144,8 +120,7 @@ void Window::RemoveInputListener(WindowInputListener* listener) {
     if (it_existing->second != listener) {
       continue;
     }
-    // If removing the listener that is the next in a current listener loop,
-    // skip it (in a multimap, only one element iterator is invalidated).
+    // Advance iterators that point at the erased listener, a multimap erase invalidates only it.
     InputListenerIterationContext* iteration_context = innermost_input_listener_iteration_context_;
     while (iteration_context) {
       if (iteration_context->next_iterator == it_existing) {
@@ -163,15 +138,7 @@ bool Window::Open() {
     return true;
   }
 
-  // For consistency of the behavior of OpenImpl and the initial On*Update
-  // that should be called as a result of it, reset the actual state to its
-  // defaults for a closed window.
-  // Note that this is performed in Open, not after closing, because there's
-  // only one entry point for opening a window, while closing may be done
-  // different ways - by closing, by destroying, or by failing to call
-  // OpenImpl - instead of performing this reset in every possible close case,
-  // returning these defaults from the actual state getters if
-  // HasActualState is false.
+  // Reset in Open, the only open entry point, rather than on every close path.
   actual_physical_width_ = 0;
   actual_physical_height_ = 0;
   has_focus_ = false;
@@ -182,17 +149,11 @@ bool Window::Open() {
     return false;
   }
   if (phase_ != Phase::kOpening) {
-    // The window was closed mid-opening.
     return true;
   }
   phase_ = Phase::kOpen;
 
-  // Call the listeners (OnOpened with all the new state so the listeners are
-  // aware that they can start interacting with the open Window, and after that,
-  // in case some listeners don't handle OnOpened, but rather, only need the
-  // more granular callbacks, make sure those callbacks receive the new state
-  // too) for the actual state of the new window (that may be different than the
-  // desired, depending on how the platform has interpreted the desired state).
+  // Listeners get the state the platform applied, which can differ from the desired state.
   {
     MonitorUpdateEvent e(this, true, true);
     OnMonitorUpdate(e);
@@ -227,11 +188,7 @@ bool Window::Open() {
     }
   }
 
-  // May now try to create a valid surface (though the window may be in a
-  // minimized state without the possibility of creating a surface, but that
-  // will be resolved by the implementation), after OnDpiChanged and OnResize so
-  // nothing related to painting will be making wrong assumptions about the
-  // size.
+  // After OnDpiChanged and OnResize so painting code sees the right size.
   OnSurfaceChanged(true);
 
   return true;
@@ -327,8 +284,7 @@ void Window::CaptureMouse() {
     return;
   }
   WindowDestructionReceiver destruction_receiver(this);
-  // Call even if capturing while the mouse is already assumed to be captured,
-  // in case something has released it in the OS.
+  // Applied even when assumed captured, since the OS may have released the capture.
   ApplyNewMouseCapture();
   if (destruction_receiver.IsWindowDestroyedOrStateInapplicable()) {
     return;
@@ -420,7 +376,6 @@ void Window::OnSurfaceChanged(bool new_surface_potentially_exists) {
     return;
   }
 
-  // Detach the presenter from the old surface before attaching to the new one.
   if (presenter_surface_) {
     presenter_->Attach(this, nullptr);
     presenter_surface_.reset();
@@ -435,7 +390,6 @@ void Window::OnSurfaceChanged(bool new_surface_potentially_exists) {
   if (presenter_surface_) {
     presenter_->Attach(this, presenter_surface_.get());
   } else if (phase_ == Phase::kOpen) {
-    // Usually a session whose native surface extension the driver lacks.
     REXLOG_ERROR(
         ui,
         "No presentable surface for this window. The graphics provider supports surface types "
@@ -445,10 +399,7 @@ void Window::OnSurfaceChanged(bool new_surface_potentially_exists) {
 }
 
 void Window::OnBeforeClose(WindowDestructionReceiver& destruction_receiver) {
-  // Because events are not sent from closed windows, and to make sure the
-  // window isn't closed while its surface is still attached to the presenter,
-  // this must be called before doing what constitutes closing in the platform
-  // implementation, not after.
+  // Must run before the platform close, closed windows send no events and the surface detaches.
 
   bool was_open = phase_ == Phase::kOpen;
   bool was_open_or_opening = was_open || phase_ == Phase::kOpening;
@@ -460,10 +411,7 @@ void Window::OnBeforeClose(WindowDestructionReceiver& destruction_receiver) {
   if (was_open) {
     phase_ = Phase::kOpenBeforeClosing;
 
-    // If the window was focused, notify the listeners that focus is being lost
-    // because the window is being closed (the implementation usually wouldn't
-    // be sending any events to the listeners after OnClosing even if the OS
-    // sends the focus loss event as part of the closing process).
+    // Sent before OnClosing so listeners see the focus loss on close.
     OnFocusUpdate(false, destruction_receiver);
     if (destruction_receiver.IsWindowDestroyed()) {
       return;
@@ -477,8 +425,7 @@ void Window::OnBeforeClose(WindowDestructionReceiver& destruction_receiver) {
       }
     }
 
-    // Disconnect from the surface without connecting to the new one (after the
-    // listeners so they don't try to reconnect afterwards).
+    // After the listeners so they do not reconnect.
     OnSurfaceChanged(false);
   }
 
@@ -516,7 +463,7 @@ bool Window::OnActualSizeUpdate(uint32_t new_physical_width, uint32_t new_physic
   }
   actual_physical_width_ = new_physical_width;
   actual_physical_height_ = new_physical_height;
-  // The listeners may reference the presenter, update the presenter first.
+  // The listeners may reference the presenter, so update it first.
   if (presenter_surface_) {
     presenter_->OnSurfaceResize();
   }
@@ -549,8 +496,7 @@ bool Window::SendCloseRequestToListeners(WindowDestructionReceiver& destruction_
     return true;
   }
   UIEvent e(UIEvent::Type::Close, this);
-  // Snapshot: listeners may add/remove listeners or destroy the window from
-  // within the callback, and a veto must stop iteration immediately.
+  // Listeners may add or remove listeners or destroy the window, and a veto stops iteration.
   std::vector<WindowListener*> listeners(listeners_);
   for (WindowListener* listener : listeners) {
     bool proceed = listener->OnCloseRequested(e);
@@ -702,20 +648,13 @@ void Window::SendEventToListeners(F&& fn, WindowDestructionReceiver& destruction
   ListenerIterationContext iteration_context(innermost_listener_iteration_context_);
   innermost_listener_iteration_context_ = &iteration_context;
   while (iteration_context.next_index < listeners_.size()) {
-    // iteration_context.next_index may be changed during the execution of the
-    // listener if the list of the listeners is modified by it - don't assume
-    // that after the call iteration_context.next_index will be the same as
-    // iteration_context.next_index + 1 before it.
+    // next_index can change during the call when the listener modifies the list.
     fn(listeners_[iteration_context.next_index++]);
     if (destruction_receiver.IsWindowDestroyed()) {
-      // The window was destroyed by the listener, can't access anything in
-      // *this anymore, including innermost_listener_iteration_context_ which
-      // has to be left in an indeterminate state.
+      // The listener destroyed the window, so *this and the iteration context are inaccessible.
       return;
     }
     if (!CanSendEventsToListeners()) {
-      // The listener has put the window in a state in which the window can't
-      // send events anymore.
       break;
     }
   }
@@ -737,25 +676,17 @@ void Window::PropagateEventThroughInputListeners(F&& fn,
                                                   input_listeners_.crbegin());
   innermost_input_listener_iteration_context_ = &iteration_context;
   while (iteration_context.next_iterator != input_listeners_.crend()) {
-    // The current iterator may be invalidated, and
-    // iteration_context.next_iterator may be changed, during the execution of
-    // the listener if the list of the listeners is modified by it - don't
-    // assume that after the call iteration_context.next_iterator will be the
-    // same as std::next(iteration_context.next_iterator) before it.
+    // The current iterator can be invalidated and next_iterator changed by list edits.
     iteration_context.current_z_order = iteration_context.next_iterator->first;
     bool event_handled = fn((iteration_context.next_iterator++)->second);
     if (destruction_receiver.IsWindowDestroyed()) {
-      // The window was destroyed by the listener, can't access anything in
-      // *this anymore, including innermost_listener_iteration_context_ which
-      // has to be left in an indeterminate state.
+      // The listener destroyed the window, so *this and the iteration context are inaccessible.
       return;
     }
     if (event_handled) {
       break;
     }
     if (!CanSendEventsToListeners()) {
-      // The listener has put the window in a state in which the window can't
-      // send events anymore.
       break;
     }
   }

@@ -1,5 +1,11 @@
 /**
- * Tests for ArgTranslator stack argument support.
+ * @file        tests/unit/ppc/import_function_test.cpp
+ *
+ * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
+ *              All rights reserved.
+ *
+ * @license     BSD 3-Clause License
+ *              See LICENSE file in the project root for full license text.
  */
 
 #include <cstdint>
@@ -12,7 +18,6 @@
 
 using namespace rex::ppc;
 
-// Fake 64KB guest memory block for tests
 alignas(64) static uint8_t g_test_mem[0x10000] = {};
 
 TEST_CASE("SetIntegerArgumentValue writes stack args for index > 7", "[ppc][arg_translator]") {

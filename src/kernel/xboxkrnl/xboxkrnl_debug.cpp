@@ -26,7 +26,6 @@ void DbgBreakPoint_entry() {
   rex::platform::Break();
 }
 
-// https://msdn.microsoft.com/en-us/library/xcb2z8hs.aspx
 struct X_THREADNAME_INFO {
   be_u32 type;
   be_u32 name_ptr;
@@ -36,11 +35,6 @@ struct X_THREADNAME_INFO {
 REX_STATIC_ASSERT_SIZE(X_THREADNAME_INFO, 0x10);
 
 void HandleSetThreadName(ppc_ptr_t<X_EXCEPTION_RECORD> record) {
-  // SetThreadName. FFS.
-  // https://msdn.microsoft.com/en-us/library/xcb2z8hs.aspx
-
-  // TODO(benvanik): check record->number_parameters to make sure it's a
-  // correct size.
   auto thread_info = reinterpret_cast<X_THREADNAME_INFO*>(&record->exception_information[0]);
 
   REX_ASSERT(thread_info->type == 0x1000);
@@ -50,22 +44,16 @@ void HandleSetThreadName(ppc_ptr_t<X_EXCEPTION_RECORD> record) {
     return;
   }
 
-  // 4D5307D6 (and its demo) has a bug where it ends up passing freed memory for
-  // the name, so at the point of SetThreadName it's filled with junk.
-
-  // TODO(gibbed): cvar for thread name encoding for conversion, some games use
-  // SJIS and there's no way to automatically know this.
+  // A title may pass freed memory for the name, which holds junk.
   auto name = std::string(
       runtime::Current().memory()->TranslateVirtual<const char*>(thread_info->name_ptr));
   std::replace_if(name.begin(), name.end(), [](auto c) { return c < 32 || c > 127; }, '?');
 
   ThreadPin thread;
   if (thread_info->thread_id == ~u32{0}) {
-    // Current thread.
     thread =
         runtime::Current().thread_registry().Find(ThreadRecord::GetCurrentThread()->thread_id());
   } else {
-    // Lookup thread by ID.
     thread = runtime::Current().thread_registry().Find(thread_info->thread_id);
   }
 
@@ -73,16 +61,9 @@ void HandleSetThreadName(ppc_ptr_t<X_EXCEPTION_RECORD> record) {
     REXLOG_DEBUG(kernel, "SetThreadName({}, {})", thread->thread_id(), name);
     thread->set_name(name);
   }
-
-  // TODO(benvanik): unwinding required here?
 }
 
 void HandleCppException(ppc_ptr_t<X_EXCEPTION_RECORD> record) {
-  // C++ exception.
-  // https://blogs.msdn.com/b/oldnewthing/archive/2010/07/30/10044061.aspx
-  // http://www.drdobbs.com/visual-c-exception-handling-instrumentat/184416600
-  // http://www.openrce.org/articles/full_view/21
-
   REX_ASSERT(record->number_parameters == 3);
   REX_ASSERT(record->exception_information[0] == 0x19930520);
 
@@ -101,8 +82,6 @@ void RtlRaiseException_entry(ppc_ptr_t<X_EXCEPTION_RECORD> record) {
     }
   }
 
-  // TODO(benvanik): unwinding.
-  // This is going to suck.
   rex::platform::Break();
 }
 

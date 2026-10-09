@@ -32,6 +32,7 @@ namespace rex {
  */
 class REX_API App : public NonCopyable {
  public:
+  /** Destroys the app. */
   virtual ~App();
 
   /**
@@ -98,7 +99,7 @@ class REX_API App : public NonCopyable {
   virtual platform::CrashReporterOptions CrashOptions();
 
   /**
-   * Notes a failed lifecycle step so Shutdown returns 1, and reports it.
+   * Marks a failed lifecycle step so Shutdown returns 1, and reports it.
    *
    * @param step Name of the step, used in the report.
    * @param error The error.

@@ -11,9 +11,6 @@
 
 #pragma once
 
-// NOTE: This file is auto-included by platform.h on Windows.
-// It contains Windows-specific headers and definitions.
-
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif

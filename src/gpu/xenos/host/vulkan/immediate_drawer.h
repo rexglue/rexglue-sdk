@@ -1,4 +1,3 @@
-#pragma once
 /**
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
@@ -9,6 +8,8 @@
  *
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
+
+#pragma once
 
 #include <cstddef>
 #include <deque>
@@ -69,12 +70,10 @@ class VulkanImmediateDrawer : public ImmediateDrawer {
         : OverlayTexture(width, height), immediate_drawer_(nullptr) {}
     ~VulkanImmediateTexture() override;
 
-    // If null, this is either a blank texture, or the immediate drawer has been
-    // destroyed.
+    /** Null for a blank texture or after the immediate drawer has been destroyed. */
     VulkanImmediateDrawer* immediate_drawer_;
     size_t immediate_drawer_index_;
-    // Invalid if immediate_drawer_ is null, since it's managed by the immediate
-    // drawer.
+    /** Invalid when immediate_drawer_ is null, as the immediate drawer manages it. */
     Resource resource_;
     size_t pending_upload_index_;
     uint64_t last_usage_submission_ = 0;
@@ -96,14 +95,29 @@ class VulkanImmediateDrawer : public ImmediateDrawer {
 
   bool EnsurePipelinesCreatedForCurrentRenderPass();
 
-  // Allocates a combined image sampler in a pool and returns its index, or
-  // UINT32_MAX in case of failure.
+  /**
+   * Allocates a combined image sampler in a pool.
+   *
+   * @return The descriptor index, or UINT32_MAX on failure.
+   */
   uint32_t AllocateTextureDescriptor();
   VkDescriptorSet GetTextureDescriptor(uint32_t descriptor_index) const;
   void FreeTextureDescriptor(uint32_t descriptor_index);
 
-  // If data is null, a (1, 1, 1, 1) image will be created, which can be used as
-  // a replacement when drawing without a real texture.
+  /**
+   * Creates a texture resource.
+   *
+   * If data is null, a (1, 1, 1, 1) image is created to stand in when drawing without a texture.
+   *
+   * @param width Width in texels.
+   * @param height Height in texels.
+   * @param filter Sampler filter.
+   * @param is_repeated True when the sampler repeats.
+   * @param data RGBA8 texel data, or null.
+   * @param resource_out Receives the created resource.
+   * @param pending_upload_index_out Receives the pending upload index.
+   * @return True on success.
+   */
   bool CreateTextureResource(uint32_t width, uint32_t height, gpu::OverlayTextureFilter filter,
                              bool is_repeated, const uint8_t* data,
                              VulkanImmediateTexture::Resource& resource_out,
@@ -114,7 +128,6 @@ class VulkanImmediateDrawer : public ImmediateDrawer {
   const VulkanDevice* vulkan_device_;
   const UISamplers* ui_samplers_;
 
-  // Combined image sampler pools for textures.
   VkDescriptorSetLayout texture_descriptor_set_layout_;
   std::vector<TextureDescriptorPool*> texture_descriptor_pools_;
   TextureDescriptorPool* texture_descriptor_pool_unallocated_first_ = nullptr;
@@ -123,9 +136,9 @@ class VulkanImmediateDrawer : public ImmediateDrawer {
   VulkanImmediateTexture::Resource white_texture_ = {};
   std::vector<VulkanImmediateTexture*> textures_;
   struct PendingTextureUpload {
-    // Null for internal resources such as the white texture.
+    /** Null for internal resources such as the white texture. */
     VulkanImmediateTexture* texture;
-    // VK_NULL_HANDLE if need to clear rather than to copy.
+    /** VK_NULL_HANDLE when the image is cleared rather than copied. */
     VkBuffer buffer;
     VkDeviceMemory buffer_memory;
     VkImage image;
@@ -139,7 +152,6 @@ class VulkanImmediateDrawer : public ImmediateDrawer {
     uint64_t submission_index;
   };
   std::deque<SubmittedTextureUploadBuffer> texture_upload_buffers_submitted_;
-  // Resource and last usage submission pairs.
   std::vector<std::pair<VulkanImmediateTexture::Resource, uint64_t>> textures_deleted_;
 
   std::unique_ptr<VulkanUploadBufferPool> vertex_buffer_pool_;
@@ -150,11 +162,9 @@ class VulkanImmediateDrawer : public ImmediateDrawer {
   VkPipeline pipeline_triangle_ = VK_NULL_HANDLE;
   VkPipeline pipeline_line_ = VK_NULL_HANDLE;
 
-  // The submission index within the current Begin (or the last, if outside
-  // one).
+  /** Submission index within the current Begin, or within the last one when outside Begin. */
   uint64_t last_paint_submission_index_ = 0;
-  // Completed submission index as of the latest Begin, to coarsely skip delayed
-  // texture deletion.
+  /** Completed submission index as of the latest Begin, to coarsely skip delayed deletion. */
   uint64_t last_completed_submission_index_ = 0;
 
   VkRect2D current_scissor_;

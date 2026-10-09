@@ -1,10 +1,3 @@
-/**
- * @file        codegen/template_registry.cpp
- *
- * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
- * @license     BSD 3-Clause License
- */
-
 #include <rex/codegen/template_registry.h>
 #include "template_registry_internal.h"
 
@@ -12,7 +5,6 @@
 #include <rex/hash.h>
 #include <rex/logging.h>
 
-// Generated at build time by cmake/embed_templates.cmake
 #include "embedded_templates.h"
 
 #include <algorithm>
@@ -22,19 +14,11 @@
 
 namespace rex::codegen {
 
-// ---------------------------------------------------------------------------
-// TemplateError
-// ---------------------------------------------------------------------------
-
 TemplateError::TemplateError(const std::string& templateId, const std::string& message,
                              const std::string& source)
     : std::runtime_error("[" + source + "] template '" + templateId + "': " + message),
       templateId_(templateId),
       source_(source) {}
-
-// ---------------------------------------------------------------------------
-// TemplateRegistry::Impl
-// ---------------------------------------------------------------------------
 
 struct TemplateRegistry::Impl {
   inja::Environment env_;
@@ -45,12 +29,10 @@ struct TemplateRegistry::Impl {
   Impl() {
     embedded_ = embeddedTemplates();
 
-    // cmake_var callback: wraps a variable name in ${ }
     env_.add_callback("cmake_var", 1, [](inja::Arguments& args) {
       return "${" + args.at(0)->get<std::string>() + "}";
     });
 
-    // hex callback: format an integer as 0x-prefixed hex
     env_.add_callback("hex", 1, [](inja::Arguments& args) {
       auto val = args.at(0)->get<uint64_t>();
       std::ostringstream oss;
@@ -58,9 +40,7 @@ struct TemplateRegistry::Impl {
       return oss.str();
     });
 
-    // Resolve {% include "<id>" %} against the embedded registry. Templates
-    // are embedded under canonical IDs without the .inja extension; accept
-    // either form so include directives can use either.
+    // Templates are embedded under IDs without the .inja extension, so include names drop it.
     env_.set_search_included_templates_in_files(false);
     env_.set_include_callback(
         [this](const std::filesystem::path&, const std::string& name) -> inja::Template {
@@ -77,43 +57,31 @@ struct TemplateRegistry::Impl {
   }
 
   std::string renderImpl(const std::string& id, const nlohmann::json& data) {
-    // Check overrides first
     auto ovIt = overrides_.find(id);
     if (ovIt != overrides_.end()) {
       return env_.render(ovIt->second, data);
     }
 
-    // Check parsed cache
     auto cacheIt = parsedCache_.find(id);
     if (cacheIt != parsedCache_.end()) {
       return env_.render(cacheIt->second, data);
     }
 
-    // Look up in embedded templates
     auto embIt = embedded_.find(id);
     if (embIt == embedded_.end()) {
       throw TemplateError(id, "no template registered with this ID");
     }
 
-    // Parse, cache, and render
     auto tmpl = env_.parse(std::string(embIt->second));
     auto [it, _] = parsedCache_.emplace(id, std::move(tmpl));
     return env_.render(it->second, data);
   }
 };
 
-// ---------------------------------------------------------------------------
-// TemplateRegistry special members
-// ---------------------------------------------------------------------------
-
 TemplateRegistry::TemplateRegistry() : impl_(std::make_unique<Impl>()) {}
 TemplateRegistry::~TemplateRegistry() = default;
 TemplateRegistry::TemplateRegistry(TemplateRegistry&&) noexcept = default;
 TemplateRegistry& TemplateRegistry::operator=(TemplateRegistry&&) noexcept = default;
-
-// ---------------------------------------------------------------------------
-// TemplateRegistry public methods
-// ---------------------------------------------------------------------------
 
 void TemplateRegistry::loadOverrides(const std::filesystem::path& dir) {
   if (!std::filesystem::exists(dir)) {
@@ -127,12 +95,9 @@ void TemplateRegistry::loadOverrides(const std::filesystem::path& dir) {
     if (entry.path().extension() != ".inja")
       continue;
 
-    // Compute canonical ID from relative path, stripping .inja extension
     auto relPath = std::filesystem::relative(entry.path(), dir).string();
-    // Normalize path separators to forward slash
     std::replace(relPath.begin(), relPath.end(), '\\', '/');
-    // Strip .inja extension
-    auto id = relPath.substr(0, relPath.size() - 5);  // strlen(".inja") == 5
+    auto id = relPath.substr(0, relPath.size() - 5);
 
     if (impl_->embedded_.find(id) == impl_->embedded_.end()) {
       REXLOG_WARN(codegen, "Override file does not match a known template ID: {} (from {})", id,
@@ -159,7 +124,7 @@ std::string TemplateRegistry::render(const std::string& id, const std::string& j
     auto data = nlohmann::json::parse(jsonData);
     return impl_->renderImpl(id, data);
   } catch (const TemplateError&) {
-    throw;  // Already wrapped
+    throw;
   } catch (const nlohmann::json::exception& e) {
     throw TemplateError(id, std::string("JSON parse error: ") + e.what());
   } catch (const inja::InjaError& e) {
@@ -212,10 +177,6 @@ std::string EmbeddedTemplatesHash() {
   }();
   return hash;
 }
-
-// ---------------------------------------------------------------------------
-// Free function: renderWithJson (internal API)
-// ---------------------------------------------------------------------------
 
 std::string renderWithJson(TemplateRegistry& registry, const std::string& id,
                            const nlohmann::json& data) {

@@ -53,8 +53,7 @@ void SharedMemory::InitializeSparseHostGpuMemory(uint32_t granularity_log2) {
 void SharedMemory::ShutdownCommon() {
   FireWatches(0, (kBufferSize - 1) >> page_size_log2_, false);
   REX_ASSERT(global_watches_.empty());
-  // No watches now, so no references to the pools accessible by guest threads -
-  // safe not to enter the global critical region.
+  // No watches remain, so guest threads cannot reach the pools without the lock.
   watch_node_first_free_ = nullptr;
   watch_node_current_pool_allocated_ = 0;
   watch_node_pools_.clear();
@@ -98,16 +97,13 @@ void SharedMemory::InvalidateAllPages() {
 void SharedMemory::SetSystemPageBlocksValidWithGpuDataWritten() {
   auto lock = AcquireLock();
 
-  // Pages that are valid only because the CPU uploaded them lose their valid
-  // bit here, so the next frame re-reads them from guest memory.
   system_page_flags_valid_ = system_page_flags_valid_and_gpu_written_;
 }
 
 void SharedMemory::ClearCache() {
-  // Keeping GPU-written data, so "invalidated by GPU".
+  // GPU written data is kept, so the watches report invalidated by GPU.
   FireWatches(0, (kBufferSize - 1) >> page_size_log2_, true);
-  // No watches now, so no references to the pools accessible by guest threads -
-  // safe not to enter the global critical region.
+  // No watches remain, so guest threads cannot reach the pools without the lock.
   watch_node_first_free_ = nullptr;
   watch_node_current_pool_allocated_ = 0;
   watch_node_pools_.clear();
@@ -159,7 +155,6 @@ SharedMemory::WatchHandle SharedMemory::WatchMemoryRange(
   uint32_t bucket_first = watch_page_first << page_size_log2_ >> kWatchBucketSizeLog2;
   uint32_t bucket_last = watch_page_last << page_size_log2_ >> kWatchBucketSizeLog2;
 
-  // Allocate the range.
   WatchRange* range = watch_range_first_free_;
   if (range != nullptr) {
     watch_range_first_free_ = range->next_free;
@@ -178,7 +173,6 @@ SharedMemory::WatchHandle SharedMemory::WatchMemoryRange(
   range->page_first = watch_page_first;
   range->page_last = watch_page_last;
 
-  // Allocate and link the nodes.
   WatchNode* node_previous = nullptr;
   for (uint32_t i = bucket_first; i <= bucket_last; ++i) {
     WatchNode* node = watch_node_first_free_;
@@ -228,19 +222,16 @@ void SharedMemory::FireWatchesLocked(uint32_t page_first, uint32_t page_last,
   uint32_t bucket_first = address_first >> kWatchBucketSizeLog2;
   uint32_t bucket_last = address_last >> kWatchBucketSizeLog2;
 
-  // Fire global watches.
   for (const auto& global_watch : global_watches_) {
     global_watch->callback(global_watch->callback_context, address_first, address_last,
                            invalidated_by_gpu);
   }
 
-  // Fire per-range watches.
   for (uint32_t i = bucket_first; i <= bucket_last; ++i) {
     WatchNode* node = watch_buckets_[i];
     while (node != nullptr) {
       WatchRange* range = node->range;
-      // Store the next node now since when the callback is triggered, the links
-      // will be broken.
+      // Fetch the next node first, since the callback breaks the links.
       node = node->bucket_node_next;
       if (page_first <= range->page_last && page_last >= range->page_first) {
         range->callback(range->callback_context, range->callback_data, range->callback_argument,
@@ -260,12 +251,8 @@ void SharedMemory::RangeWrittenByGpu(uint32_t start, uint32_t length) {
   uint32_t page_first = start >> page_size_log2_;
   uint32_t page_last = end >> page_size_log2_;
 
-  // Trigger modification callbacks so, for instance, resolved data is loaded to
-  // the texture.
   FireWatches(page_first, page_last, true);
 
-  // Mark the range as valid (so pages are not reuploaded until modified by the
-  // CPU) and watch it so the CPU can reuse it and this will be caught.
   MakeRangeValid(start, length, true);
 }
 
@@ -339,7 +326,6 @@ bool SharedMemory::RequestRanges(const std::pair<uint32_t, uint32_t>* ranges, si
     return true;
   }
 
-  // Some texture or buffer is empty, for example - safe to draw in this case.
   std::vector<std::pair<uint32_t, uint32_t>> merged_ranges;
   merged_ranges.reserve(count);
   for (size_t i = 0; i < count; ++i) {
@@ -412,7 +398,6 @@ bool SharedMemory::RequestRanges(const std::pair<uint32_t, uint32_t>* ranges, si
       uint32_t range_start = UINT32_MAX;
       for (uint32_t i = block_first; i <= block_last; ++i) {
         uint64_t block_valid = system_page_flags_valid_[i];
-        // Consider pages in the block outside the requested range valid.
         if (i == block_first) {
           uint64_t block_before = (static_cast<uint64_t>(1) << (page_first & 63)) - 1;
           block_valid |= block_before;
@@ -425,14 +410,11 @@ bool SharedMemory::RequestRanges(const std::pair<uint32_t, uint32_t>* ranges, si
         while (true) {
           uint32_t block_page;
           if (range_start == UINT32_MAX) {
-            // Check if need to open a new range.
             if (!rex::bit_scan_forward(~block_valid, &block_page)) {
               break;
             }
             range_start = (i << 6) + block_page;
           } else {
-            // Check if need to close the range.
-            // Ignore the valid pages before the beginning of the range.
             uint64_t block_valid_from_start = block_valid;
             if (i == (range_start >> 6)) {
               block_valid_from_start &= ~((static_cast<uint64_t>(1) << (range_start & 63)) - 1);
@@ -441,8 +423,6 @@ bool SharedMemory::RequestRanges(const std::pair<uint32_t, uint32_t>* ranges, si
               break;
             }
             append_upload_range(range_start, (i << 6) + block_page - range_start);
-            // In the next iteration within this block, consider this range
-            // valid since it has been queued for upload.
             block_valid |= (static_cast<uint64_t>(1) << block_page) - 1;
             range_start = UINT32_MAX;
           }
@@ -492,14 +472,6 @@ std::pair<uint32_t, uint32_t> SharedMemory::MemoryInvalidationCallback(
   uint32_t block_last = page_last >> 6;
 
   if (!exact_range) {
-    // Check if a slightly wider range (up to 256 KB with 4 KB pages) can be
-    // invalidated - if no GPU-written data nearby that was not intended to be
-    // invalidated since it's not in sync with CPU memory and can't be
-    // reuploaded. It's much cheaper to upload some excess data than to catch
-    // access violations - with 4 KB callbacks, 58410824 (being a
-    // software-rendered game) runs at 4 FPS on Intel Core i7-3770, with 64 KB,
-    // the CPU game code takes 3 ms to run per frame, but with 256 KB, it's
-    // 0.7 ms.
     if (page_first & 63) {
       uint64_t gpu_written_start = system_page_flags_valid_and_gpu_written_[block_first];
       gpu_written_start &= (static_cast<uint64_t>(1) << (page_first & 63)) - 1;

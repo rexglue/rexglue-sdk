@@ -1,14 +1,3 @@
-/**
- * @file        codegen/output_stamp.cpp
- * @brief       Input fingerprinting so unchanged modules skip codegen entirely
- *
- * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
- *              All rights reserved.
- *
- * @license     BSD 3-Clause License
- *              See LICENSE file in the project root for full license text.
- */
-
 #include <rex/codegen/output_stamp.h>
 
 #include <fstream>
@@ -23,7 +12,7 @@
 
 namespace rex::codegen {
 
-/// Bump when the stamp layout changes.
+/** Layout version of the stamp. */
 constexpr int kStampVersion = 1;
 
 std::optional<OutputStamp> OutputStamp::Load(const std::filesystem::path& path) {
@@ -79,14 +68,13 @@ std::string ComputeInputFingerprint(std::span<const std::filesystem::path> input
   }
 
   for (const auto& path : inputFiles) {
-    // Content, not mtime: survives a checkout, a copy, or a bare touch.
+    // Hash content, not mtime, so the stamp survives a checkout, a copy or a touch.
     std::error_code ec;
     std::string digest = "<missing>";
     if (std::filesystem::exists(path, ec)) {
       digest = rex::hash_file(path);
       if (digest.empty()) {
-        // Weaker than content, but a constant here would report a locked input
-        // as unchanged and skip the module forever.
+        // A constant would report a locked input as unchanged and skip the module forever.
         REXLOG_WARN(codegen, "Could not read {} for fingerprinting", path.string());
         digest = std::format("<unreadable:{}:{}>", std::filesystem::file_size(path, ec),
                              std::filesystem::last_write_time(path, ec).time_since_epoch().count());

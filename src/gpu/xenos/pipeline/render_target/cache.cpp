@@ -77,11 +77,6 @@ void RenderTargetCache::GetPSIColorFormatInfo(xenos::ColorRenderTargetFormat for
     } break;
     case xenos::ColorRenderTargetFormat::k_16_16:
     case xenos::ColorRenderTargetFormat::k_16_16_16_16:
-      // Alpha clamping affects blending source, so it's non-zero for alpha for
-      // k_16_16 (the render target is fixed-point). There's one deviation from
-      // how Direct3D 11.3 functional specification defines SNorm conversion
-      // (NaN should be 0, not the lowest negative number), and that needs to be
-      // handled separately.
       clamp_rgb_low = clamp_alpha_low = -32.0f;
       clamp_rgb_high = clamp_alpha_high = 32.0f;
       if (!(write_mask & 0b0001)) {
@@ -103,9 +98,6 @@ void RenderTargetCache::GetPSIColorFormatInfo(xenos::ColorRenderTargetFormat for
       break;
     case xenos::ColorRenderTargetFormat::k_16_16_FLOAT:
     case xenos::ColorRenderTargetFormat::k_16_16_16_16_FLOAT:
-      // No NaNs on the GPU, though can't use the extended range with
-      // Direct3D and Vulkan conversions.
-      // TODO(Triang3l): Use the extended-range encoding in all implementations.
       clamp_rgb_low = clamp_alpha_low = -65504.0f;
       clamp_rgb_high = clamp_alpha_high = 65504.0f;
       if (!(write_mask & 0b0001)) {
@@ -126,7 +118,6 @@ void RenderTargetCache::GetPSIColorFormatInfo(xenos::ColorRenderTargetFormat for
       }
       break;
     case xenos::ColorRenderTargetFormat::k_32_FLOAT:
-      // No clamping - let min/max always pick the original value.
       clamp_rgb_low = clamp_alpha_low = clamp_rgb_high = clamp_alpha_high = std::nanf("");
       write_mask &= 0b0001;
       if (!(write_mask & 0b0001)) {
@@ -134,7 +125,6 @@ void RenderTargetCache::GetPSIColorFormatInfo(xenos::ColorRenderTargetFormat for
       }
       break;
     case xenos::ColorRenderTargetFormat::k_32_32_FLOAT:
-      // No clamping - let min/max always pick the original value.
       clamp_rgb_low = clamp_alpha_low = clamp_rgb_high = clamp_alpha_high = std::nanf("");
       write_mask &= 0b0011;
       if (!(write_mask & 0b0001)) {
@@ -146,12 +136,9 @@ void RenderTargetCache::GetPSIColorFormatInfo(xenos::ColorRenderTargetFormat for
       break;
     default:
       REX_UNHANDLED_CASE(format);
-      // Disable invalid render targets.
       write_mask = 0;
       break;
   }
-  // Special case handled in the shaders for empty write mask to completely skip
-  // a disabled render target: all keep bits are set.
   if (!write_mask) {
     keep_mask_low = keep_mask_high = ~static_cast<uint32_t>(0);
   }
@@ -162,14 +149,11 @@ uint32_t RenderTargetCache::Transfer::GetRangeRectangles(uint32_t start_tiles, u
                                                          xenos::MSAASamples msaa_samples,
                                                          bool is_64bpp, Rectangle* rectangles_out,
                                                          const Rectangle* cutout) {
-  // EDRAM addressing wrapping must be handled by doing GetRangeRectangles for
-  // two clamped ranges, in this case start_tiles == end_tiles will also
-  // unambiguously mean an empty range rather than the entire EDRAM.
+  // EDRAM wrapping uses 2 clamped ranges, so start_tiles == end_tiles means an empty range.
   REX_ASSERT(start_tiles < xenos::kEDRAMTileCount);
   REX_ASSERT(end_tiles <= xenos::kEDRAMTileCount);
   REX_ASSERT(start_tiles <= end_tiles);
-  // If start_tiles < base_tiles, this is the tail after EDRAM addressing
-  // wrapping.
+  // If start_tiles < base_tiles, this is the tail after EDRAM addressing wrapping.
   REX_ASSERT(start_tiles >= base_tiles || end_tiles <= base_tiles);
   REX_ASSERT(pitch_tiles != 0);
   if (start_tiles == end_tiles) {
@@ -180,11 +164,7 @@ uint32_t RenderTargetCache::Transfer::GetRangeRectangles(uint32_t start_tiles, u
                          static_cast<uint32_t>(is_64bpp));
   uint32_t tile_height = xenos::kEDRAMTileHeightSamples >>
                          static_cast<uint32_t>(msaa_samples >= xenos::MSAASamples::k2X);
-  // If the first and / or the last rows have the same X spans as the middle
-  // part, merge them with it.
   uint32_t rectangle_count = 0;
-  // If start_tiles < base_tiles, this is the tail after EDRAM addressing
-  // wrapping.
   uint32_t local_offset = start_tiles < base_tiles ? xenos::kEDRAMTileCount : 0;
   uint32_t local_start = local_offset + start_tiles - base_tiles;
   uint32_t local_end = local_offset + end_tiles - base_tiles;
@@ -244,9 +224,6 @@ uint32_t RenderTargetCache::Transfer::AddRectangle(const Rectangle& rectangle,
                                                    const Rectangle* cutout) {
   uint32_t rectangle_right = rectangle.x_pixels + rectangle.width_pixels;
   uint32_t rectangle_bottom = rectangle.y_pixels + rectangle.height_pixels;
-  // If nothing to cut out (no region specified, or no intersection - if the
-  // cutout region is in the middle on Y, but completely to the left / right on
-  // X, don't split), add the whole rectangle.
   if (!cutout || !cutout->width_pixels || !cutout->height_pixels ||
       cutout->x_pixels >= rectangle_right ||
       cutout->x_pixels + cutout->width_pixels <= rectangle.x_pixels ||
@@ -260,25 +237,19 @@ uint32_t RenderTargetCache::Transfer::AddRectangle(const Rectangle& rectangle,
   uint32_t rectangle_count = 0;
   uint32_t cutout_right = cutout->x_pixels + cutout->width_pixels;
   uint32_t cutout_bottom = cutout->y_pixels + cutout->height_pixels;
-  // Upper part after cutout.
   if (cutout->y_pixels > rectangle.y_pixels) {
-    // The completely outside case has already been checked.
     REX_ASSERT(cutout->y_pixels < rectangle_bottom);
     if (rectangles_out) {
       Rectangle& rectangle_upper = rectangles_out[rectangle_count];
       rectangle_upper.x_pixels = rectangle.x_pixels;
       rectangle_upper.y_pixels = rectangle.y_pixels;
       rectangle_upper.width_pixels = rectangle.width_pixels;
-      // cutout->y_pixels is already known to be < rectangle_bottom, no need for
-      // min(cutout->y_pixels - rectangle.y_pixels, rectangle.height_pixels).
       rectangle_upper.height_pixels = cutout->y_pixels - rectangle.y_pixels;
     }
     ++rectangle_count;
   }
-  // Middle part after cutout.
   uint32_t middle_top = std::max(cutout->y_pixels, rectangle.y_pixels);
   uint32_t middle_height = std::min(cutout_bottom, rectangle_bottom) - middle_top;
-  // Middle left.
   if (cutout->x_pixels > rectangle.x_pixels) {
     REX_ASSERT(cutout->x_pixels < rectangle_right);
     if (rectangles_out) {
@@ -290,7 +261,6 @@ uint32_t RenderTargetCache::Transfer::AddRectangle(const Rectangle& rectangle,
     }
     ++rectangle_count;
   }
-  // Middle right.
   if (cutout_right < rectangle_right) {
     REX_ASSERT(cutout_right > rectangle.x_pixels);
     if (rectangles_out) {
@@ -302,7 +272,6 @@ uint32_t RenderTargetCache::Transfer::AddRectangle(const Rectangle& rectangle,
     }
     ++rectangle_count;
   }
-  // Lower part after cutout.
   if (cutout_bottom < rectangle_bottom) {
     REX_ASSERT(cutout_bottom > rectangle.y_pixels);
     if (rectangles_out) {
@@ -347,7 +316,6 @@ void RenderTargetCache::ShutdownCommon() {
 }
 
 void RenderTargetCache::ClearCache() {
-  // Keep only render targets owning any EDRAM data.
   if (!render_targets_.empty()) {
     std::unordered_set<RenderTargetKey, RenderTargetKey::Hasher> used_render_targets;
     for (const auto& ownership_range_pair : ownership_ranges_) {
@@ -392,15 +360,12 @@ bool RenderTargetCache::Update(bool is_rasterization_done,
   xenos::MSAASamples msaa_samples = rb_surface_info.msaa_samples;
   REX_ASSERT(msaa_samples <= xenos::MSAASamples::k4X);
   if (msaa_samples > xenos::MSAASamples::k4X) {
-    // Safety check because much code assumes up to 4x.
     REX_ASSERT_ALWAYS();
     REX_FAIL(gpu, false, "{}x MSAA requested by the guest, Xenos only supports up to 4x",
              static_cast<uint32_t>(1) << uint32_t(msaa_samples));
   }
   uint32_t msaa_samples_x_log2 = static_cast<uint32_t>(msaa_samples >= xenos::MSAASamples::k4X);
   uint32_t pitch_pixels = rb_surface_info.surface_pitch;
-  // surface_pitch 0 should be handled in disabling rasterization (hopefully
-  // it's safe to assume that).
   REX_ASSERT(pitch_pixels || !is_rasterization_done);
   if (!pitch_pixels) {
     is_rasterization_done = false;
@@ -419,12 +384,6 @@ bool RenderTargetCache::Update(bool is_rasterization_done,
         draw_resolution_scale_x();
     uint32_t max_render_target_width = GetMaxRenderTargetWidth();
     if (pitch_pixels_tile_aligned_scaled > max_render_target_width) {
-      // TODO(Triang3l): If needed for some game on some device, clamp
-      // the pitch and generate multiple ranges (each for every row of tiles)
-      // with gaps for padding. Few PowerVR GPUs have 4096, not 8192, as
-      // the limit, though with 8192 (on Mali) the actual limit for Xenia is
-      // 8160 because tile padding is stored - but 8192 should be extremely rare
-      // anyway.
       REX_FAIL(gpu, false,
                "Surface pitch aligned to EDRAM tiles and resolution-scaled {} "
                "larger than the maximum host render target width {}",
@@ -432,11 +391,8 @@ bool RenderTargetCache::Update(bool is_rasterization_done,
     }
   }
 
-  // Get used render targets.
-  // [0] is depth / stencil where relevant, [1...4] is color.
-  // Depth / stencil testing / writing is before color in the pipeline.
+  // Index 0 is depth and stencil, 1 to 4 are color. Depth and stencil precede color.
   uint32_t depth_and_color_rts_used_bits = 0;
-  // depth_and_color_rts_used_bits -> EDRAM base.
   uint32_t edram_bases[1 + xenos::kMaxColorRenderTargets];
   uint32_t resource_formats[1 + xenos::kMaxColorRenderTargets];
   uint32_t rts_are_64bpp = 0;
@@ -445,8 +401,7 @@ bool RenderTargetCache::Update(bool is_rasterization_done,
       depth_and_color_rts_used_bits |= 1;
       auto rb_depth_info = regs.Get<xenos::reg::RB_DEPTH_INFO>();
       edram_bases[0] = rb_depth_info.depth_base;
-      // With pixel shader interlock, always the same addressing disregarding
-      // the format.
+      // With pixel shader interlock the addressing is the same regardless of the format.
       resource_formats[0] =
           interlock_barrier_only ? 0 : static_cast<uint32_t>(rb_depth_info.depth_format);
     }
@@ -468,9 +423,7 @@ bool RenderTargetCache::Update(bool is_rasterization_done,
       }
       xenos::ColorRenderTargetFormat color_resource_format;
       if (interlock_barrier_only) {
-        // Only changes in mapping between coordinates and addresses are
-        // interesting (along with access overlap between draw calls), thus only
-        // pixel size is relevant.
+        // Only address mapping and access overlap between draws matter, so only pixel size does.
         color_resource_format = is_64bpp ? xenos::ColorRenderTargetFormat::k_16_16_16_16
                                          : xenos::ColorRenderTargetFormat::k_8_8_8_8;
       } else {
@@ -483,25 +436,6 @@ bool RenderTargetCache::Update(bool is_rasterization_done,
   uint32_t rts_remaining;
   uint32_t rt_index;
 
-  // Eliminate other bound render targets if their EDRAM base conflicts with
-  // another render target - it's an error in most host implementations to bind
-  // the same render target into multiple slots, also the behavior would be
-  // unpredictable if that happens.
-  // Depth is considered the least important as it's earlier in the pipeline
-  // (issues caused by color and depth render target collisions haven't been
-  // found yet), but render targets with smaller index are considered more
-  // important - specifically, because of the usage in the lighting pass of
-  // 4D5307E6, which can be checked in the vertical look calibration sequence in
-  // the beginning of the game: if render target 0 is removed in favor of 1, the
-  // characters and the world will be too dark, like fully in shadow -
-  // especially prominent on the helmet. This happens because the shader picks
-  // between two render targets to write dynamically (though with a static, bool
-  // constant condition), but all other state is set up in a way that implies
-  // the same render target being bound twice. On Direct3D 9, if you don't write
-  // to a color pixel shader output on the control flow that was taken, the
-  // render target will not be written to. However, this has been relaxed in
-  // Direct3D 10, where if the shader declares an output, it's assumed to be
-  // always written (or with an undefined value otherwise).
   rts_remaining = depth_and_color_rts_used_bits & ~(static_cast<uint32_t>(1));
   while (rex::bit_scan_forward(rts_remaining, &rt_index)) {
     rts_remaining &= ~(static_cast<uint32_t>(1) << rt_index);
@@ -518,7 +452,6 @@ bool RenderTargetCache::Update(bool is_rasterization_done,
     }
   }
 
-  // Clear ownership transfers before adding any.
   if (!interlock_barrier_only) {
     for (auto& transfers : last_update_transfers_) {
       transfers.clear();
@@ -526,8 +459,6 @@ bool RenderTargetCache::Update(bool is_rasterization_done,
   }
 
   if (!depth_and_color_rts_used_bits) {
-    // Nothing to bind, don't waste time on things like memexport-only draws -
-    // check if old bindings can still be used.
     std::memset(last_update_used_render_targets_, 0, sizeof(last_update_used_render_targets_));
     if (are_accumulated_render_targets_valid_) {
       for (const RenderTarget* render_target : last_update_accumulated_render_targets_) {
@@ -549,8 +480,6 @@ bool RenderTargetCache::Update(bool is_rasterization_done,
     return true;
   }
 
-  // Estimate height used by render targets (for color for writes, for depth /
-  // stencil for both reads and writes) from several sources.
   uint32_t height_used = std::min(
       GetRenderTargetHeight(pitch_tiles_at_32bpp, msaa_samples),
       draw_extent_estimator_.EstimateMaxY(
@@ -560,17 +489,6 @@ bool RenderTargetCache::Update(bool is_rasterization_done,
               : true,
           vertex_shader));
 
-  // Sorted by EDRAM base and then by index in the pipeline - for simplicity,
-  // treat render targets placed closer to the end of the EDRAM as truncating
-  // the previous one (and in case multiple render targets are placed at the
-  // same EDRAM base, though normally this shouldn't happen, treat the color
-  // ones as more important than the depth one, which may be not needed and
-  // a leftover if the draw, for instance, has depth / stencil happening to be
-  // always passing and never writing with the current state, and also because
-  // depth testing has to happen before the color is written). Overall it's
-  // normal for estimated EDRAM ranges of render targets to intersect if drawing
-  // without a viewport (as there's nothing to clamp the estimated height) and
-  // multiple render targets are bound.
   std::pair<uint32_t, uint32_t> edram_bases_sorted[1 + xenos::kMaxColorRenderTargets];
   uint32_t edram_bases_sorted_count = 0;
   rts_remaining = depth_and_color_rts_used_bits;
@@ -580,13 +498,6 @@ bool RenderTargetCache::Update(bool is_rasterization_done,
         std::make_pair(edram_bases[rt_index], rt_index);
   }
   std::sort(edram_bases_sorted, edram_bases_sorted + edram_bases_sorted_count);
-  // "As if it was 64bpp" (contribution of 32bpp render targets multiplied by 2,
-  // and clamping for 32bpp render targets divides this by 2) because 32bpp
-  // render targets can be combined with twice as long 64bpp render targets. An
-  // example is the 4541099D menu background (1-sample 1152x720, or 1200x720
-  // after rounding to tiles, with a 32bpp depth buffer at 0 requiring 675
-  // tiles, and a 64bpp color buffer at 675 requiring 1350 tiles, but the
-  // smallest distance between two render target bases is 675 tiles).
   uint32_t rt_max_distance_tiles_at_64bpp = xenos::kEDRAMTileCount * 2;
   if (REXCVAR_GET(::rex::gpu::cvars::mrt_edram_used_range_clamp_to_min) &&
       edram_bases_sorted_count >= 2) {
@@ -597,8 +508,6 @@ bool RenderTargetCache::Update(bool is_rasterization_done,
                    (edram_bases_sorted[i].first - rt_base_prev.first)
                        << (((rts_are_64bpp >> rt_base_prev.second) & 1) ^ 1));
     }
-    // Clamp to the distance from the last render target to the first with
-    // EDRAM addressing wrapping.
     const std::pair<uint32_t, uint32_t>& rt_base_last =
         edram_bases_sorted[edram_bases_sorted_count - 1];
     rt_max_distance_tiles_at_64bpp =
@@ -607,8 +516,6 @@ bool RenderTargetCache::Update(bool is_rasterization_done,
                      << (((rts_are_64bpp >> rt_base_last.second) & 1) ^ 1));
   }
 
-  // Make sure all the needed render targets are created, and gather lengths of
-  // ranges used by each render target.
   RenderTargetKey rt_keys[1 + xenos::kMaxColorRenderTargets];
   RenderTarget* rts[1 + xenos::kMaxColorRenderTargets];
   uint32_t rt_lengths_tiles[1 + xenos::kMaxColorRenderTargets];
@@ -634,9 +541,7 @@ bool RenderTargetCache::Update(bool is_rasterization_done,
       rts[rt_bit_index] = render_target;
     }
     uint32_t rt_is_64bpp = (rts_are_64bpp >> rt_bit_index) & 1;
-    // The last render target can occupy the EDRAM until the base of the first
-    // render target (itself in case of 1 render target) with EDRAM addressing
-    // wrapping.
+    // The last target can extend to the first one's base (itself if alone), wrapping in EDRAM.
     rt_lengths_tiles[i] = std::min(std::min(length_used_tiles_at_32bpp << rt_is_64bpp,
                                             rt_max_distance_tiles_at_64bpp >> (rt_is_64bpp ^ 1)),
                                    ((i + 1 < edram_bases_sorted_count)
@@ -646,11 +551,7 @@ bool RenderTargetCache::Update(bool is_rasterization_done,
   }
 
   if (interlock_barrier_only) {
-    // Because a full pixel shader interlock barrier may clear the ownership map
-    // (since it flushes all previous writes, and there's no need for another
-    // barrier if an overlap is encountered later between pre-barrier and
-    // post-barrier usages), check if any overlap requiring a barrier happens,
-    // and then insert the barrier if needed.
+    // The full barrier may clear the ownership map, so check for an overlap needing it first.
     bool interlock_barrier_needed = false;
     for (uint32_t i = 0; i < edram_bases_sorted_count; ++i) {
       const std::pair<uint32_t, uint32_t>& rt_base_index = edram_bases_sorted[i];
@@ -665,10 +566,7 @@ bool RenderTargetCache::Update(bool is_rasterization_done,
     }
   }
 
-  // From now on ownership transfers should succeed for simplicity and
-  // consistency, even if they fail in the implementation (ignore that and
-  // draw with whatever contents are in the render target in this
-  // case).
+  // Transfers are assumed to succeed from here on, even if the implementation fails them.
 
   for (uint32_t i = 0; i < edram_bases_sorted_count; ++i) {
     const std::pair<uint32_t, uint32_t>& rt_base_index = edram_bases_sorted[i];
@@ -678,37 +576,28 @@ bool RenderTargetCache::Update(bool is_rasterization_done,
   }
 
   if (interlock_barrier_only) {
-    // No copying transfers or render target bindings - only needed the barrier.
     return true;
   }
 
-  // If everything succeeded, update the used render targets.
   for (uint32_t i = 0; i < 1 + xenos::kMaxColorRenderTargets; ++i) {
     last_update_used_render_targets_[i] =
         (depth_and_color_rts_used_bits & (static_cast<uint32_t>(1) << i)) ? rts[i] : nullptr;
   }
   if (are_accumulated_render_targets_valid_) {
-    // Check if the only re-enabling a previously bound render target.
     for (uint32_t i = 0; i < 1 + xenos::kMaxColorRenderTargets; ++i) {
       RenderTarget* current_rt =
           (depth_and_color_rts_used_bits & (static_cast<uint32_t>(1) << i)) ? rts[i] : nullptr;
       const RenderTarget* accumulated_rt = last_update_accumulated_render_targets_[i];
       if (!accumulated_rt) {
         if (current_rt) {
-          // Binding a totally new render target - won't keep the existing
-          // render pass anyway, no much need to try to re-enable previously
-          // disabled render targets in other slots as well, even though that
-          // would be valid.
           are_accumulated_render_targets_valid_ = false;
           break;
         }
-        // Append the new render target.
         last_update_accumulated_render_targets_[i] = current_rt;
         continue;
       }
       if (current_rt) {
         if (current_rt != accumulated_rt) {
-          // Changing a render target in a slot.
           are_accumulated_render_targets_valid_ = false;
           break;
         }
@@ -716,15 +605,11 @@ bool RenderTargetCache::Update(bool is_rasterization_done,
         RenderTargetKey accumulated_rt_key = accumulated_rt->key();
         if (accumulated_rt_key.pitch_tiles_at_32bpp != pitch_tiles_at_32bpp ||
             accumulated_rt_key.msaa_samples != msaa_samples) {
-          // The previously bound render target is incompatible with the
-          // current surface info.
           are_accumulated_render_targets_valid_ = false;
           break;
         }
       }
     }
-    // Make sure the same render target isn't bound into two different slots
-    // over time.
     for (uint32_t i = 1;
          are_accumulated_render_targets_valid_ && i < 1 + xenos::kMaxColorRenderTargets; ++i) {
       const RenderTarget* render_target = last_update_accumulated_render_targets_[i];
@@ -779,11 +664,9 @@ uint32_t RenderTargetCache::GetRenderTargetHeight(uint32_t pitch_tiles_at_32bpp,
   if (!pitch_tiles_at_32bpp) {
     return 0;
   }
-  // Down to the beginning of the render target in the next 11-bit EDRAM
-  // addressing period.
+  // Down to the beginning of the render target in the next 11 bit EDRAM addressing period.
   uint32_t tile_rows = (xenos::kEDRAMTileCount + (pitch_tiles_at_32bpp - 1)) / pitch_tiles_at_32bpp;
-  // Clamp to the guest limit (tile padding should exceed it) and to the host
-  // limit (tile padding mustn't exceed it).
+  // Clamp to the guest limit (tile padding should exceed it) and host limit (padding must not).
   static_assert(!(xenos::kTexture2DCubeMaxWidthHeight % xenos::kEDRAMTileHeightSamples),
                 "Maximum guest render target height is assumed to always be a multiple "
                 "of an EDRAM tile height");
@@ -801,10 +684,8 @@ void RenderTargetCache::GetHostDepthStoreRectangleInfo(
     const Transfer::Rectangle& transfer_rectangle, xenos::MSAASamples msaa_samples,
     HostDepthStoreRectangleConstant& rectangle_constant_out, uint32_t& group_count_x_out,
     uint32_t& group_count_y_out) const {
-  // Initialize to all bits zeroed.
   HostDepthStoreRectangleConstant rectangle_constant;
-  // 8 pixels is the resolve granularity, both clearing and tile size are
-  // aligned to 8.
+  // 8 pixels is the resolve granularity, both clearing and tile size are aligned to 8.
   REX_ASSERT((transfer_rectangle.x_pixels & 7) == 0);
   REX_ASSERT((transfer_rectangle.y_pixels & 7) == 0);
   REX_ASSERT((transfer_rectangle.width_pixels & 7) == 0);
@@ -834,9 +715,6 @@ void RenderTargetCache::GetResolveCopyRectanglesToDump(
   }
   auto get_rectangles_in_extent = [&](uint32_t extent_start, uint32_t extent_end,
                                       uint32_t range_local_offset) {
-    // Collect render targets owning ranges within the specified rectangle. The
-    // first render target in the range may be before the lower_bound, only
-    // being in the range with its tail.
     auto it = ownership_ranges_.lower_bound(extent_start);
     if (it != ownership_ranges_.cbegin()) {
       auto it_pre = std::prev(it);
@@ -853,8 +731,6 @@ void RenderTargetCache::GetResolveCopyRectanglesToDump(
       if (rt_key.IsEmpty()) {
         continue;
       }
-      // Merge with other render target ranges with the same current ownership,
-      // but different depth ownership, since it's not relevant to resolving.
       while (it != ownership_ranges_.cend()) {
         auto it_next = std::next(it);
         if (it_next == ownership_ranges_.cend() || it_next->first >= extent_end ||
@@ -874,13 +750,10 @@ void RenderTargetCache::GetResolveCopyRectanglesToDump(
       uint32_t rows_end = (range_local_end + (pitch - 1)) / pitch;
       uint32_t row_first_start = range_local_start - rows_start * pitch;
       if (row_first_start >= row_length) {
-        // The first row starts within the pitch padding.
         if (rows_start + 1 < rows_end) {
-          // Multiple rows - start at the second.
           ++rows_start;
           row_first_start = 0;
         } else {
-          // Single row - nothing to dump.
           continue;
         }
       }
@@ -888,7 +761,6 @@ void RenderTargetCache::GetResolveCopyRectanglesToDump(
       auto it_rt = render_targets_.find(rt_key);
       REX_ASSERT(it_rt != render_targets_.cend());
       REX_ASSERT(it_rt->second != nullptr);
-      // Don't include pitch padding in the last row.
       rectangles_out.emplace_back(
           it_rt->second.get(), rows_start, rows_end - rows_start, row_first_start,
           std::min(pitch - (rows_end * pitch - range_local_end), row_length));
@@ -897,7 +769,6 @@ void RenderTargetCache::GetResolveCopyRectanglesToDump(
   uint32_t resolve_area_end = base + (rows - 1) * pitch + row_length;
   get_rectangles_in_extent(base, std::min(resolve_area_end, xenos::kEDRAMTileCount), 0);
   if (resolve_area_end > xenos::kEDRAMTileCount) {
-    // The resolve area goes to the next EDRAM addressing period.
     get_rectangles_in_extent(0, std::min(resolve_area_end & (xenos::kEDRAMTileCount - 1), base),
                              xenos::kEDRAMTileCount);
   }
@@ -969,8 +840,6 @@ bool RenderTargetCache::PrepareHostRenderTargetsResolveClear(
   uint32_t pitch_pixels_scaled = pitch_pixels * draw_resolution_scale_x();
   uint32_t max_render_target_width = GetMaxRenderTargetWidth();
   if (pitch_pixels_scaled > max_render_target_width) {
-    // TODO(Triang3l): If needed for some game on some device, clamp the
-    // pitch the same way as explained in the comment in Update.
     REX_FAIL(gpu, false,
              "Surface pitch aligned to EDRAM tiles and resolution-scaled {} larger "
              "than the maximum host render target width {} in a resolve",
@@ -995,13 +864,9 @@ bool RenderTargetCache::PrepareHostRenderTargetsResolveClear(
   clear_rectangle.height_pixels = std::min(static_cast<uint32_t>(resolve_info.height_div_8) << 3,
                                            render_target_height_pixels - clear_rectangle.y_pixels);
   if (!clear_rectangle.width_pixels || !clear_rectangle.height_pixels) {
-    // Outside the pitch / height (or initially specified as 0).
     return false;
   }
 
-  // Change ownership of the tiles containing the area to be cleared, so the
-  // up-to-date host render target for the cleared range will be the cleared
-  // one.
   uint32_t clear_start_tiles_at_32bpp =
       ((clear_rectangle.y_pixels << msaa_samples_y_log2) / xenos::kEDRAMTileHeightSamples) *
           pitch_tiles_at_32bpp +
@@ -1013,8 +878,7 @@ bool RenderTargetCache::PrepareHostRenderTargetsResolveClear(
       ((clear_rectangle.x_pixels + clear_rectangle.width_pixels - 1) << msaa_samples_x_log2) /
           xenos::kEDRAMTileWidthSamples +
       1 - clear_start_tiles_at_32bpp;
-  // Up to the range from the base in the current 11 tile index bits to the base
-  // in the next 11 tile index bits after wrapping can be cleared.
+  // The cleared range can reach from the base in the current 11 tile index bits to the next 11.
   uint32_t depth_clear_start_tiles_base_relative = 0;
   uint32_t depth_clear_length_tiles = 0;
   if (resolve_info.IsClearingDepth()) {
@@ -1036,8 +900,6 @@ bool RenderTargetCache::PrepareHostRenderTargetsResolveClear(
                                color_clear_start_tiles_base_relative;
   }
   if (depth_clear_length_tiles && color_clear_length_tiles) {
-    // Prevent overlap - clear the depth only until the color, the color only
-    // until the depth, in the current or the next 11 bits of the tile index.
     uint32_t depth_clear_start_tiles_wrapped =
         (resolve_info.depth_original_base + depth_clear_start_tiles_base_relative) &
         (xenos::kEDRAMTileCount - 1);
@@ -1068,7 +930,6 @@ bool RenderTargetCache::PrepareHostRenderTargetsResolveClear(
     depth_render_target_key.resource_format = resolve_info.depth_edram_info.format;
     depth_render_target = GetOrCreateRenderTarget(depth_render_target_key);
     if (!depth_render_target) {
-      // Failed to create the depth render target, don't clear it.
       depth_render_target_key = RenderTargetKey();
       depth_clear_length_tiles = 0;
     }
@@ -1084,13 +945,11 @@ bool RenderTargetCache::PrepareHostRenderTargetsResolveClear(
         xenos::ColorRenderTargetFormat(resolve_info.color_edram_info.format)));
     color_render_target = GetOrCreateRenderTarget(color_render_target_key);
     if (!color_render_target) {
-      // Failed to create the color render target, don't clear it.
       color_render_target_key = RenderTargetKey();
       color_clear_length_tiles = 0;
     }
   }
   if (!depth_clear_length_tiles && !color_clear_length_tiles) {
-    // Complete overlap, or failed to create all the render targets.
     return false;
   }
 
@@ -1112,14 +971,9 @@ bool RenderTargetCache::PrepareHostRenderTargetsResolveClear(
 
 void RenderTargetCache::PixelShaderInterlockFullEdramBarrierPlaced() {
   REX_ASSERT(GetPath() == Path::kPixelShaderInterlock);
-  // Clear ownership - any overlap of data written before the barrier is safe.
   OwnershipRange empty_range(xenos::kEDRAMTileCount, RenderTargetKey(), RenderTargetKey(),
                              RenderTargetKey());
   if (ownership_ranges_.size() == 1) {
-    // Do not reallocate map elements if not needed (either nothing drawn since
-    // the last barrier, or all of the EDRAM is owned by one render target).
-    // The ownership map contains no gaps - the first element should always be
-    // at 0.
     REX_ASSERT(!ownership_ranges_.begin()->first);
     OwnershipRange& all_edram_range = ownership_ranges_.begin()->second;
     REX_ASSERT(all_edram_range.end_tiles == xenos::kEDRAMTileCount);
@@ -1156,7 +1010,6 @@ RenderTargetCache::RenderTarget* RenderTargetCache::GetOrCreateRenderTarget(Rend
                    key.is_depth ? "depth" : "color", static_cast<uint32_t>(key.resource_format),
                    static_cast<uint32_t>(key.base_tiles));
     }
-    // Insert even if failed to create, not to try to create again.
     render_targets_.emplace(key, std::move(created));
   }
   return render_target;
@@ -1165,8 +1018,7 @@ RenderTargetCache::RenderTarget* RenderTargetCache::GetOrCreateRenderTarget(Rend
 bool RenderTargetCache::WouldOwnershipChangeRequireTransfers(RenderTargetKey dest,
                                                              uint32_t start_tiles_base_relative,
                                                              uint32_t length_tiles) const {
-  // xenos::kEDRAMTileCount with length 0 is fine if both the start and the end
-  // are clamped to xenos::kEDRAMTileCount.
+  // xenos::kEDRAMTileCount with length 0 is valid when both start and end are clamped to it.
   REX_ASSERT(start_tiles_base_relative <=
              (xenos::kEDRAMTileCount - static_cast<uint32_t>(length_tiles != 0)));
   REX_ASSERT(length_tiles <= xenos::kEDRAMTileCount);
@@ -1176,10 +1028,6 @@ bool RenderTargetCache::WouldOwnershipChangeRequireTransfers(RenderTargetKey des
   bool host_depth_encoding_different = dest.is_depth && GetPath() == Path::kHostRenderTargets &&
                                        IsHostDepthEncodingDifferent(dest.GetDepthFormat());
   auto would_require_transfers_in_extent = [&](uint32_t extent_start, uint32_t extent_end) -> bool {
-    // The map contains consecutive ranges, merged if the adjacent ones are the
-    // same. Find the range starting at >= the start. A portion of the range
-    // preceding it may be intersecting the render target's range (or even fully
-    // contain it).
     auto it = ownership_ranges_.lower_bound(extent_start);
     if (it != ownership_ranges_.begin()) {
       auto it_pre = std::prev(it);
@@ -1189,26 +1037,19 @@ bool RenderTargetCache::WouldOwnershipChangeRequireTransfers(RenderTargetKey des
     }
     for (; it != ownership_ranges_.end(); ++it) {
       if (it->first >= extent_end) {
-        // Outside the touched extent already.
         break;
       }
       if (it->second.IsOwnedBy(dest, host_depth_encoding_different)) {
-        // Already owned by the needed render target - no need to transfer
-        // anything.
         continue;
       }
       RenderTargetKey transfer_source = it->second.render_target;
-      // Only perform the transfer when changing the latest owner, not
-      // only the latest host depth owner - the transfer source is expected to
-      // be different than the destination.
       if (!transfer_source.IsEmpty() && transfer_source != dest) {
         return true;
       }
     }
     return false;
   };
-  // start_tiles_base_relative may already be in the next 11 bits - wrap the
-  // start tile index to use the same code as if that was not the case.
+  // start_tiles_base_relative may be in the next 11 bit period, so wrap the start tile.
   uint32_t start_tiles =
       (dest.base_tiles + start_tiles_base_relative) & (xenos::kEDRAMTileCount - 1);
   uint32_t end_tiles = start_tiles + length_tiles;
@@ -1216,7 +1057,6 @@ bool RenderTargetCache::WouldOwnershipChangeRequireTransfers(RenderTargetKey des
     return true;
   }
   if (end_tiles > xenos::kEDRAMTileCount) {
-    // The check extent goes to the next EDRAM addressing period.
     if (would_require_transfers_in_extent(
             0, std::min(end_tiles & (xenos::kEDRAMTileCount - 1), start_tiles))) {
       return true;
@@ -1229,8 +1069,7 @@ void RenderTargetCache::ChangeOwnership(RenderTargetKey dest, uint32_t start_til
                                         uint32_t length_tiles,
                                         std::vector<Transfer>* transfers_append_out,
                                         const Transfer::Rectangle* resolve_clear_cutout) {
-  // xenos::kEDRAMTileCount with length 0 is fine if both the start and the end
-  // are clamped to xenos::kEDRAMTileCount.
+  // xenos::kEDRAMTileCount with length 0 is valid when both start and end are clamped to it.
   REX_ASSERT(start_tiles_base_relative <=
              (xenos::kEDRAMTileCount - static_cast<uint32_t>(length_tiles != 0)));
   REX_ASSERT(length_tiles <= xenos::kEDRAMTileCount);
@@ -1242,47 +1081,30 @@ void RenderTargetCache::ChangeOwnership(RenderTargetKey dest, uint32_t start_til
   bool host_depth_encoding_different = dest.is_depth && GetPath() == Path::kHostRenderTargets &&
                                        IsHostDepthEncodingDifferent(dest.GetDepthFormat());
   auto change_ownership_in_extent = [&](uint32_t extent_start, uint32_t extent_end) {
-    // The map contains consecutive ranges, merged if the adjacent ones are the
-    // same. Find the range starting at >= the start. A portion of the range
-    // preceding it may be intersecting the render target's range (or even fully
-    // contain it) - split it into the untouched head and the claimed tail if
-    // needed.
     auto it = ownership_ranges_.lower_bound(extent_start);
     if (it != ownership_ranges_.begin()) {
       auto it_pre = std::prev(it);
       if (it_pre->second.end_tiles > extent_start &&
           !it_pre->second.IsOwnedBy(dest, host_depth_encoding_different)) {
-        // Different render target overlapping the range - split the head.
         ownership_ranges_.emplace(extent_start, it_pre->second);
         it_pre->second.end_tiles = extent_start;
-        // Let the next loop do the transfer and needed merging and splitting
-        // starting from the added tail.
         it = std::next(it_pre);
       }
     }
     while (it != ownership_ranges_.end()) {
       if (it->first >= extent_end) {
-        // Outside the touched extent already.
         break;
       }
       if (it->second.IsOwnedBy(dest, host_depth_encoding_different)) {
-        // Already owned by the needed render target - no need to transfer
-        // anything.
         ++it;
         continue;
       }
-      // Take over the current range. Handle the tail - may be outside the range
-      // (split in this case) or within it.
       if (it->second.end_tiles > extent_end) {
-        // Split the tail.
         ownership_ranges_.emplace(extent_end, it->second);
         it->second.end_tiles = extent_end;
       }
       if (transfers_append_out) {
         RenderTargetKey transfer_source = it->second.render_target;
-        // Only perform the copying when changing the latest owner, not
-        // only the latest host depth owner - the transfer source is expected to
-        // be different than the destination.
         if (!transfer_source.IsEmpty() && transfer_source != dest) {
           uint32_t transfer_end_tiles = std::min(it->second.end_tiles, extent_end);
           if (!resolve_clear_cutout ||
@@ -1294,7 +1116,6 @@ void RenderTargetCache::ChangeOwnership(RenderTargetKey dest, uint32_t start_til
                     ? it->second.GetHostDepthRenderTarget(dest.GetDepthFormat())
                     : RenderTargetKey();
             if (transfer_host_depth_source == transfer_source) {
-              // Same render target, don't provide a separate host depth source.
               transfer_host_depth_source = RenderTargetKey();
             }
             if (!transfers_append_out->empty() &&
@@ -1305,8 +1126,6 @@ void RenderTargetCache::ChangeOwnership(RenderTargetKey dest, uint32_t start_til
                 (transfer_host_depth_source.IsEmpty() ||
                  transfers_append_out->back().host_depth_source->key() ==
                      transfer_host_depth_source)) {
-              // Extend the last transfer if, for example, transferring color,
-              // but host depth is different.
               transfers_append_out->back().end_tiles = transfer_end_tiles;
             } else {
               auto transfer_source_rt_it = render_targets_.find(transfer_source);
@@ -1331,17 +1150,14 @@ void RenderTargetCache::ChangeOwnership(RenderTargetKey dest, uint32_t start_til
           }
         }
       }
-      // Claim the current range.
       it->second.render_target = dest;
       if (host_depth_encoding_different) {
         it->second.GetHostDepthRenderTarget(dest.GetDepthFormat()) = dest;
       }
-      // Check if can merge with the next range after claiming.
       std::map<uint32_t, OwnershipRange>::iterator it_next;
       if (it != ownership_ranges_.end()) {
         it_next = std::next(it);
         if (it_next != ownership_ranges_.end() && it_next->second.AreOwnersSame(it->second)) {
-          // Merge with the next range.
           it->second.end_tiles = it_next->second.end_tiles;
           auto it_after = std::next(it_next);
           ownership_ranges_.erase(it_next);
@@ -1350,8 +1166,7 @@ void RenderTargetCache::ChangeOwnership(RenderTargetKey dest, uint32_t start_til
       } else {
         it_next = ownership_ranges_.end();
       }
-      // Check if can merge with the previous range after claiming and merging
-      // with the next (thus obtaining the correct end pointer).
+      // Merge with the previous range only after merging with the next, to get the correct end.
       if (it != ownership_ranges_.begin()) {
         auto it_prev = std::prev(it);
         if (it_prev->second.AreOwnersSame(it->second)) {
@@ -1362,14 +1177,12 @@ void RenderTargetCache::ChangeOwnership(RenderTargetKey dest, uint32_t start_til
       it = it_next;
     }
   };
-  // start_tiles_base_relative may already be in the next 11 bits - wrap the
-  // start tile index to use the same code as if that was not the case.
+  // start_tiles_base_relative may be in the next 11 bit period, so wrap the start tile.
   uint32_t start_tiles =
       (dest.base_tiles + start_tiles_base_relative) & (xenos::kEDRAMTileCount - 1);
   uint32_t end_tiles = start_tiles + length_tiles;
   change_ownership_in_extent(start_tiles, std::min(end_tiles, xenos::kEDRAMTileCount));
   if (end_tiles > xenos::kEDRAMTileCount) {
-    // The ownership change extent goes to the next EDRAM addressing period.
     change_ownership_in_extent(0, std::min(end_tiles & (xenos::kEDRAMTileCount - 1), start_tiles));
   }
 }

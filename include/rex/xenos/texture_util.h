@@ -73,9 +73,9 @@ REX_API bool GetPackedMipOffset(u32 width, u32 height, u32 depth, xenos::Texture
  *
  * The base level is stored at base_address with the fetch constant pitch. Mips 1 and up are
  * stored at mip_address with sizes of max(next_pow2(size) >> level, 1). Strides between array
- * slices and Z slices use 32x1x1 tiles for 1D, 32x32x1 for 2D and 32x32x4 for 3D, in texels or
- * compressed blocks. Linear rows are aligned to 256 bytes. Array slices are stored within each
- * level, and each array slice or level is aligned to 4 KB.
+ * layers and Z layers use 32x1x1 tiles for 1D, 32x32x1 for 2D and 32x32x4 for 3D, in texels or
+ * compressed blocks. Linear rows are aligned to 256 bytes. Array layers are stored within each
+ * level, and each array layer or level is aligned to 4 KB.
  *
  * With packed mips, levels whose width or height is 16 or less share 1 tail laid out like the
  * level before it. The base level can be packed as well, in which case base_address and
@@ -86,13 +86,13 @@ struct TextureGuestLayout {
   /** Layout of 1 stored level. */
   struct Level {
     u32 row_pitch_bytes;               /**< Block row stride with mip and linear alignment. */
-    u32 z_slice_stride_block_rows;     /**< Z slice stride in block rows. */
-    u32 array_slice_stride_bytes;      /**< Array slice stride, 4 KB aligned. */
+    u32 z_slice_stride_block_rows;     /**< Z layer stride in block rows. */
+    u32 array_slice_stride_bytes;      /**< Array layer stride, 4 KB aligned. */
     u32 x_extent_blocks;               /**< Exclusive X bound of the blocks in use. */
     u32 y_extent_blocks;               /**< Exclusive Y bound of the blocks in use. */
-    u32 z_extent;                      /**< Exclusive Z bound of the slices in use. */
-    u32 array_slice_data_extent_bytes; /**< Bytes 1 array slice reads, not 4 KB aligned. */
-    u32 level_data_extent_bytes;       /**< Bytes the level reads across all array slices. */
+    u32 z_extent;                      /**< Exclusive Z bound of the layers in use. */
+    u32 array_slice_data_extent_bytes; /**< Bytes 1 array layer reads, not 4 KB aligned. */
+    u32 level_data_extent_bytes;       /**< Bytes the level reads across all array layers. */
   };
 
   Level base; /**< The base level. */
@@ -102,7 +102,7 @@ struct TextureGuestLayout {
   u32 mips_total_extent_bytes;                   /**< Bytes all mips read. */
   u32 max_level;                                 /**< Last level, clamped to the size. */
   u32 packed_level;                              /**< First packed level, or UINT32_MAX. */
-  u32 array_size;                                /**< Array slice count, 6 for cubes. */
+  u32 array_size;                                /**< Array layer count, 6 for cubes. */
 };
 
 /**
@@ -145,8 +145,8 @@ REX_API i32 GetTiledOffset2D(i32 x, i32 y, u32 pitch, u32 bytes_per_block_log2);
 
 /**
  * Offset of a block in a 3D tiled texture. Tile origins grow with Z / 4, then Y / 32, then
- * X / 32. Addressing repeats every 8 slices along Z and every 32 blocks along Y. Each 32 block
- * row by 4 slice portion occupies its own 4 KB aligned range.
+ * X / 32. Addressing repeats every 8 layers along Z and every 32 blocks along Y. Each 32 block
+ * row by 4 layer portion occupies its own 4 KB aligned range.
  *
  * @param x Block X coordinate.
  * @param y Block Y coordinate.
@@ -178,7 +178,7 @@ inline u32 GetTiledAddressLowerBound2D(u32 left, u32 top, u32 pitch, u32 bytes_p
  *
  * @param left Left edge in blocks.
  * @param top Top edge in blocks.
- * @param front Front slice.
+ * @param front Front layer.
  * @param pitch Row pitch in blocks.
  * @param height Height in blocks.
  * @param bytes_per_block_log2 log2_floor of the bytes per block.
@@ -208,7 +208,7 @@ REX_API u32 GetTiledAddressUpperBound2D(u32 right, u32 bottom, u32 pitch, u32 by
  *
  * @param right Exclusive right edge in blocks.
  * @param bottom Exclusive bottom edge in blocks.
- * @param back Exclusive back slice.
+ * @param back Exclusive back layer.
  * @param pitch Row pitch in blocks.
  * @param height Height in blocks.
  * @param bytes_per_block_log2 log2_floor of the bytes per block.

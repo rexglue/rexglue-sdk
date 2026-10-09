@@ -21,7 +21,6 @@ ElfModule::ElfModule(FunctionDispatcher* function_dispatcher) : Module(function_
 
 ElfModule::~ElfModule() = default;
 
-// ELF structures
 struct elf32_ehdr {
   uint8_t e_ident[16];
   be_u16 e_type;
@@ -65,27 +64,23 @@ bool ElfModule::Load(const std::string_view name, const std::string_view path, c
   auto hdr = reinterpret_cast<const elf32_ehdr*>(pelf);
   if (hdr->e_ident[0] != 0x7F || hdr->e_ident[1] != 'E' || hdr->e_ident[2] != 'L' ||
       hdr->e_ident[3] != 'F') {
-    // Not an ELF file!
     return false;
   }
 
-  REX_ASSERT(hdr->e_ident[4] == 1);  // 32bit
+  REX_ASSERT(hdr->e_ident[4] == 1);
 
   if (hdr->e_type != 2 /* ET_EXEC */) {
-    // Not executable (shared objects not supported yet)
     REXLOG_ERROR(system, "ELF: Could not load ELF because it isn't executable!");
     return false;
   }
 
   if (hdr->e_machine != 20 /* EM_PPC */) {
-    // Not a PPC ELF!
     REX_FAIL(system, false,
              "ELF: Could not load ELF because target machine is not PPC! (target: "
              "{})",
              static_cast<uint32_t>(hdr->e_machine));
   }
 
-  // Parse LOAD program headers and load into memory.
   if (!hdr->e_phoff) {
     REX_FAIL(system, false, "ELF: File doesn't have a program header!");
   }
@@ -94,30 +89,24 @@ bool ElfModule::Load(const std::string_view name, const std::string_view path, c
     REX_FAIL(system, false, "ELF: Executable has no entry point!");
   }
 
-  // Entry point virtual address
   entry_point_ = hdr->e_entry;
 
-  // Copy the ELF header
   elf_header_mem_.resize(hdr->e_ehsize);
   std::memcpy(elf_header_mem_.data(), hdr, hdr->e_ehsize);
 
   REX_ASSERT(hdr->e_phentsize == sizeof(elf32_phdr));
   auto phdr = reinterpret_cast<const elf32_phdr*>(pelf + hdr->e_phoff);
 
-  // Calculate base address and image size from loaded segments
   uint32_t min_addr = UINT32_MAX;
   uint32_t max_addr = 0;
 
   for (uint32_t i = 0; i < hdr->e_phnum; i++) {
     if (phdr[i].p_type == 1 /* PT_LOAD */ || phdr[i].p_type == 2 /* PT_DYNAMIC */) {
-      // Track address range
       uint32_t seg_start = phdr[i].p_vaddr;
       uint32_t seg_end = phdr[i].p_vaddr + phdr[i].p_memsz;
       min_addr = std::min(min_addr, seg_start);
       max_addr = std::max(max_addr, seg_end);
 
-      // Allocate and copy into memory.
-      // Base address @ 0x80000000
       if (phdr[i].p_vaddr < 0x80000000 || phdr[i].p_vaddr > 0x9FFFFFFF) {
         REX_FAIL(system, false, "ELF: Could not allocate memory for section @ address 0x{:08X}",
                  static_cast<uint32_t>(phdr[i].p_vaddr));
@@ -140,14 +129,11 @@ bool ElfModule::Load(const std::string_view name, const std::string_view path, c
       std::memset(p, 0, phdr[i].p_memsz);
       std::memcpy(p, pelf + phdr[i].p_offset, phdr[i].p_filesz);
 
-      // crack: No JIT backend to notify about executable code
-      // In JIT mode this would be: processor_->backend()->CommitExecutableRange(...)
       (void)virtual_addr;
       (void)virtual_size;
     }
   }
 
-  // Set base address and image size
   base_address_ = (min_addr != UINT32_MAX) ? min_addr : 0;
   image_size_ = (max_addr > min_addr) ? (max_addr - min_addr) : 0;
 
@@ -159,7 +145,6 @@ bool ElfModule::Unload() {
   if (!loaded_) {
     return true;
   }
-  // crack: Memory allocated for ELF segments remains - no deallocation
   loaded_ = false;
   return true;
 }

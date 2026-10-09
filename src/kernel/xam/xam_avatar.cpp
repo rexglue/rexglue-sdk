@@ -20,20 +20,14 @@ namespace rex {
 namespace kernel {
 namespace xam {
 
-u32 XamAvatarInitialize_entry([[maybe_unused]] u32 unk1,                  // 1 or 4
-                              [[maybe_unused]] u32 unk2,                  // 0 or 1
-                              [[maybe_unused]] u32 processor_number,      // for thread creation?
-                              [[maybe_unused]] mapped_u32 function_ptrs,  // 20b, 5 pointers
-                              [[maybe_unused]] mapped_void unk5,          // ptr in data segment
-                              [[maybe_unused]] u32 unk6  // flags - 0x00300000 or 0x30
-) {
-  // Negative to fail. Game should immediately call XamAvatarShutdown.
+u32 XamAvatarInitialize_entry([[maybe_unused]] u32 unk1, [[maybe_unused]] u32 unk2,
+                              [[maybe_unused]] u32 processor_number,
+                              [[maybe_unused]] mapped_u32 function_ptrs,
+                              [[maybe_unused]] mapped_void unk5, [[maybe_unused]] u32 unk6) {
   return ~0u;
 }
 
-void XamAvatarShutdown_entry() {
-  // No-op.
-}
+void XamAvatarShutdown_entry() {}
 
 }  // namespace xam
 }  // namespace kernel

@@ -1,13 +1,3 @@
-/**
- * @file        runtime/runtime.cpp
- *
- * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
- *              All rights reserved.
- *
- * @license     BSD 3-Clause License
- *              See LICENSE file in the project root for full license text.
- */
-
 #include <atomic>
 #include <bit>
 #include <format>
@@ -17,8 +7,8 @@
 #include <rex/filesystem.h>
 #include <rex/gpu/backend.h>
 #include <rex/logging.h>
-#include <rex/ppc/context.h>          // PPCFuncMapping
-#include <rex/platform/exceptions.h>  // SEH exception support
+#include <rex/ppc/context.h>
+#include <rex/platform/exceptions.h>
 #include <rex/runtime.h>
 #include <rex/runtime/function_dispatcher.h>
 #include <rex/runtime/user_module.h>
@@ -116,22 +106,18 @@ Result<void> Runtime::Setup(const RuntimeConfig& config) {
     return Err(SetupError(status, std::string(reason)));
   };
 
-  // Initialize SEH exception support for hardware exception handling
   rex::initialize_seh();
 
-  // Initialize clock
   Clock::set_guest_tick_frequency(50000000);
   Clock::set_guest_system_time_base(Clock::QueryHostSystemTime());
   Clock::set_guest_time_scalar(1.0);
 
-  // Enable threading affinity configuration
   platform::EnableAffinityConfiguration();
 
   tool_mode_ = config.tool_mode;
   video_mode_ = config.video_mode;
   ui_ = config.ui;
 
-  // Create memory system first
   memory_ = std::make_unique<runtime::Memory>();
   if (!memory_->Initialize()) {
     return fail(X_STATUS_UNSUCCESSFUL, "memory init failed");
@@ -157,7 +143,6 @@ Result<void> Runtime::Setup(const RuntimeConfig& config) {
     notifier().BroadcastNotification(kXNotificationSystemInputDevicesChanged, 0);
   });
 
-  // HLE kernel modules and apps.
   if (config.kernel_init) {
     config.kernel_init(*this);
   }
@@ -188,7 +173,6 @@ Result<void> Runtime::Setup(const RuntimeConfig& config) {
     }
   }
 
-  // Skip GPU initialization in tool mode (for analysis tools like codegen)
   if (tool_mode_) {
     REXLOG_DEBUG(system, "Runtime initialized in tool mode (no GPU)");
     setup_complete_ = true;
@@ -196,7 +180,6 @@ Result<void> Runtime::Setup(const RuntimeConfig& config) {
     return Ok();
   }
 
-  // Initialize GPU from injected config
   gpu_ = config.gpu;
   if (!gpu_) {
     null_gpu_ = std::make_unique<runtime::NullGPU>();

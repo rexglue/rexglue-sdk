@@ -77,7 +77,9 @@ class REX_API CvarRegistryImpl final : public cvar::ICvarRegistry {
    */
   void Reset();
   /**
-   * Names of every var still registered, for the Shutdown leak warning.
+   * Returns the names of every var registered, for the Shutdown leak warning.
+   *
+   * @return The names.
    */
   std::vector<std::string> RegisteredNames() const;
 
@@ -121,6 +123,8 @@ class REX_API CvarRegistryImpl final : public cvar::ICvarRegistry {
 
 /**
  * Creates a registry. api.cpp holds the process registry, tests hold their own.
+ *
+ * @return The registry.
  */
 REX_API std::unique_ptr<CvarRegistryImpl> CreateCvarRegistry();
 

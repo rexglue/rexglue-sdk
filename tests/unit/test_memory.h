@@ -1,13 +1,12 @@
 /**
- * @file        test_memory.h
+ * @file        tests/unit/test_memory.h
  * @brief       Single shared guest Memory instance for the unit test binary
  *
- * Memory::Initialize reserves a 4.5GB page-file backed mapping. Two instances
- * in one process do not both survive, so every test must share this one or
- * release it first.
+ * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
+ *              All rights reserved.
  *
- * @copyright   Copyright (c) 2026 Tom Clay
  * @license     BSD 3-Clause License
+ *              See LICENSE file in the project root for full license text.
  */
 
 #pragma once
@@ -16,12 +15,16 @@
 
 namespace rex::testing {
 
-/// Returns the process-wide guest Memory, initializing it on first use.
-/// Fails the calling assertion if initialization did not succeed.
+/**
+ * Returns the process wide guest Memory, creating it on first use.
+ *
+ * @return The shared Memory.
+ */
 rex::runtime::Memory& GetTestMemory();
 
-/// Destroys the shared Memory so another owner can create its own. The next
-/// GetTestMemory call creates it again.
+/**
+ * Destroys the shared Memory so another owner can create its own.
+ */
 void ReleaseTestMemory();
 
 }  // namespace rex::testing

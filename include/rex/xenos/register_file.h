@@ -24,20 +24,31 @@
 
 namespace rex::xenos {
 
+/** Name and value type of a register in the register table. */
 struct RegisterInfo {
+  /** How a register value is interpreted. */
   enum class Type {
-    kDword,
-    kFloat,
+    kDword, /**< Raw 32 bit integer value. */
+    kFloat, /**< 32 bit floating point value. */
   };
-  Type type;
-  const char* name;
+  Type type;        /**< How the register value is interpreted. */
+  const char* name; /**< Register name from the register table. */
 };
 
+/** Storage for every GPU register, indexed by dword register index. */
 class REX_API RegisterFile {
  public:
+  /**
+   * Looks up a register in the register table.
+   *
+   * @param index Dword register index.
+   * @return Name and type of the register, or nullptr when the index is not in the table.
+   */
   static const RegisterInfo* GetRegisterInfo(uint32_t index);
 
+  /** Number of dword registers, 1 past the highest register index. */
   static constexpr size_t kRegisterCount = 0x5003;
+  /** Register values indexed by dword register index. */
   u32 values[kRegisterCount]{};
 
   const uint32_t& operator[](uint32_t reg) const { return values[reg]; }
@@ -46,18 +57,44 @@ class REX_API RegisterFile {
   uint32_t& operator[](Register reg) { return values[std::to_underlying(reg)]; }
 
   template <typename T>
+  /**
+   * Reinterprets a register value as a register layout or other 32 bit type.
+   *
+   * @tparam T Type with the size of a register.
+   * @param reg Dword register index.
+   * @return The register bits as T.
+   */
   T Get(uint32_t reg) const {
     return std::bit_cast<T>(values[reg]);
   }
   template <typename T>
+  /**
+   * Reinterprets a register value as a register layout or other 32 bit type.
+   *
+   * @tparam T Type with the size of a register.
+   * @param reg Register to read.
+   * @return The register bits as T.
+   */
   T Get(Register reg) const {
     return Get<T>(std::to_underlying(reg));
   }
   template <typename T>
+  /**
+   * Reads the register that a register layout declares as its own.
+   *
+   * @tparam T Register layout declaring `register_index`.
+   * @return The register bits as T.
+   */
   T Get() const {
     return Get<T>(T::register_index);
   }
 
+  /**
+   * Reads a vertex fetch constant from the shader fetch constant registers.
+   *
+   * @param index Fetch constant slot, below 96.
+   * @return Copy of the vertex fetch constant.
+   */
   xenos::VertexFetch GetVertexFetch(uint32_t index) const {
     REX_ASSERT(index < 96);
     xenos::VertexFetch fetch;
@@ -68,6 +105,12 @@ class REX_API RegisterFile {
     return fetch;
   }
 
+  /**
+   * Reads a texture fetch constant from the shader fetch constant registers.
+   *
+   * @param index Fetch constant slot, below 32.
+   * @return Copy of the texture fetch constant.
+   */
   xenos::TextureFetch GetTextureFetch(uint32_t index) const {
     REX_ASSERT(index < 32);
     xenos::TextureFetch fetch;
@@ -78,6 +121,12 @@ class REX_API RegisterFile {
     return fetch;
   }
 
+  /**
+   * Reads a memory export stream constant from a float shader constant.
+   *
+   * @param float_constant_index Float constant index, below 512.
+   * @return Copy of the memory export stream constant.
+   */
   xenos::MemExportStream GetMemExportStream(uint32_t float_constant_index) const {
     REX_ASSERT(float_constant_index < 512);
     xenos::MemExportStream stream;

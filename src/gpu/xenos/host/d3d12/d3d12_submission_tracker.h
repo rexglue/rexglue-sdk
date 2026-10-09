@@ -16,58 +16,72 @@
 
 namespace rex::gpu::d3d12 {
 
-// GPU > CPU fence wrapper, safely handling cases when the fence has not been
-// initialized yet or has already been shut down, dropped submissions, and also
-// transfers between queues so signals stay ordered.
-//
-// The current submission index can be associated with the usage of objects to
-// release them when the GPU isn't potentially referencing them anymore, and
-// should be incremented only
-//
-// 0 can be used as a "never referenced" submission index.
-//
-// The submission index timeline survives Shutdown / Initialize, so submission
-// indices can be given to clients that are not aware of the lifetime of the
-// tracker.
+/**
+ * GPU to CPU fence wrapper.
+ *
+ * Handles an uninitialized or shut down fence, dropped submissions and queue transfers so signals
+ * stay ordered. The current submission index is associated with object usage to release objects
+ * once the GPU no longer references them. 0 is the never referenced submission index. The index
+ * timeline survives Shutdown and Initialize, so indices can be given to clients unaware of the
+ * tracker lifetime.
+ */
 class D3D12SubmissionTracker : public rex::NonCopyable {
  public:
   D3D12SubmissionTracker() = default;
   ~D3D12SubmissionTracker() { Shutdown(); }
 
-  // The queue may be null if it's going to be set dynamically. Will also take a
-  // reference to the queue.
+  /**
+   * Creates the fence and takes a reference to the queue.
+   *
+   * @param device Device creating the fence.
+   * @param queue Queue signaling the fence, null when set dynamically.
+   * @return True on success.
+   */
   bool Initialize(ID3D12Device* device, ID3D12CommandQueue* queue);
   void Shutdown();
 
   UINT64 GetCurrentSubmission() const { return submission_current_; }
-  // May be lower than a value awaited by AwaitSubmissionCompletion if it
-  // returned false.
+  /**
+   * Returns the last completed submission index.
+   *
+   * May be lower than a value awaited by AwaitSubmissionCompletion if it returned false.
+   *
+   * @return The completed submission index.
+   */
   UINT64 GetCompletedSubmission() const {
-    // If shut down already or haven't fully initialized yet, don't care, for
-    // simplicity of external code, as any downloads are unlikely in this case,
-    // but destruction can be simplified.
     return fence_ ? fence_->GetCompletedValue() : (GetCurrentSubmission() - 1);
   }
 
-  // Returns whether the expected GPU signal has been reached (rather
-  // than some fallback condition) for cases when stronger completeness
-  // guarantees as needed (when downloading, as opposed to destroying).
-  // If false is returned, it's also not guaranteed that GetCompletedSubmission
-  // will return a value >= submission_index.
+  /**
+   * Reports whether the expected GPU signal was reached rather than a fallback condition.
+   *
+   * Waiting on a submission index beyond the last queued signal retries the signal and waits for
+   * the closest successful one. When false, GetCompletedSubmission may be below
+   * submission_index.
+   *
+   * @param submission_index Submission to wait for, at most the current submission.
+   * @return True when the expected signal was reached.
+   */
   bool AwaitSubmissionCompletion(UINT64 submission_index);
   bool AwaitAllSubmissionsCompletion() {
     return AwaitSubmissionCompletion(GetCurrentSubmission() - 1);
   }
 
-  // Call after a successful ExecuteCommandList. Unconditionally increments the
-  // current submission index, and tries to enqueue the fence signal. Returns
-  // true if enqueued successfully, but even if not, waiting for submissions
-  // without a successfully enqueued signal is handled in the tracker in a way
-  // that it won't be infinite, so there's no need for clients to revert updates
-  // to submission indices associated with GPU usage of objects.
+  /**
+   * Increments the current submission index and tries to enqueue the fence signal.
+   *
+   * Waits on submissions without an enqueued signal are bounded, so clients need not revert
+   * submission indices associated with object usage.
+   *
+   * @return True when the signal was enqueued.
+   */
   bool NextSubmission();
-  // If NextSubmission has failed, but it's important that the signal is
-  // enqueued, can be used to retry enqueueing the signal.
+
+  /**
+   * Retries enqueueing the signal after a failed NextSubmission.
+   *
+   * @return True when the signal is enqueued.
+   */
   bool TrySignalEnqueueing();
 
  private:

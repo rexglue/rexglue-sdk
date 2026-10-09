@@ -1,5 +1,5 @@
 /**
- * @file        graphics/storage_file.h
+ * @file        gpu/xenos/storage_file.h
  * @brief       Host stream helpers for the persistent shader and pipeline storage
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
@@ -36,7 +36,7 @@ inline bool OpenStorageFile(std::fstream& file, const std::filesystem::path& pat
 }
 
 /**
- * Returns the size of a storage file, or 0 when the size is unknown.
+ * Returns the size of a storage file, or 0 when the size cannot be queried.
  *
  * @param path Host path of the storage file.
  * @return Size in bytes.

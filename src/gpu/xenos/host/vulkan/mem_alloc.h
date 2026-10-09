@@ -1,4 +1,3 @@
-#pragma once
 /**
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
@@ -10,13 +9,13 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-// Make sure vulkan.h is included from third_party (rather than from the system
-// include directory) before vk_mem_alloc.h.
+#pragma once
+// Include vulkan.h from third_party, not the system directory, before vk_mem_alloc.h.
 
 #include "gpu/xenos/host/vulkan/device.h"
 
 #define VMA_STATIC_VULKAN_FUNCTIONS 0
-// Work around the pointer nullability completeness warnings on Clang.
+// Silences the Clang pointer nullability completeness warnings.
 #ifndef VMA_NULLABLE
 #define VMA_NULLABLE
 #endif

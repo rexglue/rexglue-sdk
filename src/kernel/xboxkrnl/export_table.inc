@@ -5,10 +5,11 @@
  * Copyright 2021 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
+ *
+ * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-// This is a partial file designed to be included by other files when
-// constructing various tables.
+// Partial file included by other files to construct tables.
 
 // clang-format off
 

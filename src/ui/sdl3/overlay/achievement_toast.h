@@ -31,7 +31,11 @@ class AchievementToastDialog : public AchievementNotificationDialog {
   explicit AchievementToastDialog(const ModuleOverlayContext& context);
   ~AchievementToastDialog() override;
 
-  // Thread-safe: safe to call from any thread, including guest threads.
+  /**
+   * Queues an achievement toast. Safe to call from any thread, including guest threads.
+   *
+   * @param event Achievement event to show.
+   */
   void Push(const rex::runtime::AchievementEvent& event) override;
 
  protected:

@@ -35,9 +35,21 @@ enum class SymbolResolution {
 class REX_API DynamicLibrary : public rex::MoveOnly {
  public:
   DynamicLibrary() = default;
+  /** Closes the library when one is loaded. */
   ~DynamicLibrary();
 
+  /**
+   * Takes ownership of the library held by another object.
+   *
+   * @param other The object to take from, left empty.
+   */
   DynamicLibrary(DynamicLibrary&& other) noexcept;
+  /**
+   * Closes the library held, then takes ownership of the library held by another object.
+   *
+   * @param other The object to take from, left empty.
+   * @return This object.
+   */
   DynamicLibrary& operator=(DynamicLibrary&& other) noexcept;
 
   /**

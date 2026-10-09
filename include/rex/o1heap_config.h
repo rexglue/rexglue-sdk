@@ -3,20 +3,34 @@
  * @brief       o1heap build configuration -- provides correct 64-bit CLZ.
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
+ *              All rights reserved.
+ *
  * @license     BSD 3-Clause License
+ *              See LICENSE file in the project root for full license text.
  */
 
-// On Windows, unsigned long is 32 bits even on x64.  o1heap.c auto-selects
-// __builtin_clzl under clang-cl (because __clang__ is defined), but that
-// gives a 32-bit CLZ while o1heap needs 64-bit (size_t-width).  This causes
-// roundUpToPowerOf2() to produce astronomically large values, corrupting the
-// heap bin structure on first allocation.
 #pragma once
 
 #if defined(__clang__) || defined(__GNUC__)
+/**
+ * Counts leading zeros of a size_t wide value.
+ *
+ * On Windows unsigned long is 32 bits even on x64, so the __builtin_clzl that o1heap.c selects
+ * under clang-cl gives a 32 bit count. o1heap needs a 64 bit count, otherwise
+ * roundUpToPowerOf2() yields oversized values that corrupt the heap bins on first allocation.
+ *
+ * @param x The value to count leading zeros of.
+ * @return The leading zero count as uint8_t.
+ */
 #define O1HEAP_CLZ(x) ((uint8_t)__builtin_clzll((unsigned long long)(x)))
 #elif defined(_MSC_VER)
 #include <intrin.h>
+/**
+ * Counts leading zeros of a 64 bit value on MSVC.
+ *
+ * @param x The value to count leading zeros of.
+ * @return The leading zero count.
+ */
 static __inline uint8_t o1heap_clz_(size_t x) {
   unsigned long index;
   _BitScanReverse64(&index, (unsigned __int64)x);

@@ -19,20 +19,22 @@
 
 #include <rex/macros.h>
 
-//=============================================================================
-// PPCFunc Type Definition
-//=============================================================================
-// Function signature for recompiled PPC functions.
-// All recompiled functions take a context reference and memory base pointer.
-
-// Forward declaration of the PPC execution context
 struct PPCContext;
 
-// Function signature for recompiled PPC functions
-using PPCFunc = void(PPCContext& ctx, uint8_t* base);
+/**
+ * Signature of recompiled PPC functions. Every recompiled function takes a context reference
+ * and the memory base pointer.
+ */
+using PPCFunc = void(PPCContext& ctx, u8* base);
 
 namespace rex::runtime {
-REX_RUNTIME_API PPCFunc* ResolveIndirectFunction(uint32_t guest_address);
+/**
+ * Resolves a guest address to the recompiled function that implements it.
+ *
+ * @param guest_address The guest address.
+ * @return The function, or a trap function when the address has none.
+ */
+REX_RUNTIME_API PPCFunc* ResolveIndirectFunction(u32 guest_address);
 }  // namespace rex::runtime
 
 namespace rex::ppc {
@@ -69,25 +71,64 @@ REX_RUNTIME_API std::jmp_buf& JumpBuffer(uint32_t address);
 [[noreturn]] REX_RUNTIME_API void Unimplemented(const char* opcode);
 }  // namespace rex::ppc
 
-//=============================================================================
-// PPC Function Macros
-//=============================================================================
-
+/**
+ * Joins 2 tokens into 1 without expanding them first.
+ *
+ * @param x The left tokens.
+ * @param y The right tokens.
+ *
+ * @code
+ * REX_JOIN(prefix_, name)
+ * @endcode
+ */
 #define REX_JOIN(x, y) x##y
+/**
+ * Turns the argument into a string literal without expanding it first.
+ *
+ * @param x The tokens to stringify.
+ *
+ * @code
+ * REX_XSTRINGIFY(__LINE__)
+ * @endcode
+ */
 #define REX_XSTRINGIFY(x) #x
+/**
+ * Expands the argument, then turns it into a string literal.
+ *
+ * @param x The tokens to expand and stringify.
+ *
+ * @code
+ * REX_STRINGIFY(__LINE__)
+ * @endcode
+ */
 #define REX_STRINGIFY(x) REX_XSTRINGIFY(x)
-// REX_FUNC is the bare signature; the declaring site supplies linkage, either
-// by writing extern "C" itself or by using REX_EXTERN.
-#define REX_FUNC(x) void x([[maybe_unused]] PPCContext& __restrict ctx, uint8_t* base)
+/**
+ * Declares a recompiled function. Expands to the bare signature, so the declaring site supplies
+ * linkage by writing extern "C" itself or by using REX_EXTERN.
+ *
+ * @param x The function name.
+ *
+ * @code
+ * REX_FUNC(sub_82010000);
+ * @endcode
+ */
+#define REX_FUNC(x) void x([[maybe_unused]] PPCContext& __restrict ctx, u8* base)
+
+/**
+ * Declares a recompiled function with C linkage.
+ *
+ * @param x The function name.
+ *
+ * @code
+ * REX_EXTERN(sub_82010000);
+ * @endcode
+ */
 #define REX_EXTERN(x) extern "C" REX_FUNC(x)
 
-//=============================================================================
-// Function Mapping
-//=============================================================================
-
+/** Maps a guest function address to its recompiled function. */
 struct PPCFuncMapping {
-  size_t guest;
-  PPCFunc* host;
+  size_t guest;  /**< Guest address of the function. */
+  PPCFunc* host; /**< Recompiled function. */
 };
 
 extern PPCFuncMapping PPCFuncMappings[];

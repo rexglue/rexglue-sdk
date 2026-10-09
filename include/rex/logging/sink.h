@@ -27,15 +27,15 @@
 
 namespace rex::log {
 
-/** Receives every written record. The logger calls it under its sink mutex, never concurrently. */
+/** Receives every written message. The logger calls it under its sink mutex, never concurrently. */
 class ISink {
  public:
   virtual ~ISink() = default;
 
   /**
-   * Writes 1 record.
+   * Writes 1 message.
    *
-   * @param record The record.
+   * @param record The message.
    */
   virtual void Write(const Record& record) = 0;
 
@@ -55,9 +55,9 @@ class REX_API ConsoleSink final : public ISink {
   explicit ConsoleSink(LineFormat format);
 
   /**
-   * Writes 1 record.
+   * Writes 1 message.
    *
-   * @param record The record.
+   * @param record The message.
    */
   void Write(const Record& record) override;
 
@@ -87,9 +87,9 @@ class REX_API DebuggerSink final : public ISink {
   explicit DebuggerSink(LineFormat format);
 
   /**
-   * Writes 1 record.
+   * Writes 1 message.
    *
-   * @param record The record.
+   * @param record The message.
    */
   void Write(const Record& record) override;
 
@@ -124,9 +124,9 @@ class REX_API FileSink final : public ISink {
                                                               LineFormat format);
 
   /**
-   * Writes 1 record.
+   * Writes 1 message.
    *
-   * @param record The record.
+   * @param record The message.
    */
   void Write(const Record& record) override;
 
@@ -162,38 +162,38 @@ struct CapturedRecord {
   std::string text;                           /**< Formatted message. */
   std::chrono::system_clock::time_point time; /**< Time the message was written. */
   u32 thread_id = 0;                          /**< Host thread ID. */
-  u64 sequence = 0;                           /**< Record sequence. */
+  u64 sequence = 0;                           /**< Message sequence. */
 };
 
-/** Keeps the newest records in memory for the console. Safe to read from any thread. */
+/** Keeps the newest messages in memory for the console. Safe to read from any thread. */
 class REX_API CaptureSink final : public ISink {
  public:
-  /** Records kept. */
+  /** Messages kept. */
   static constexpr size_t kCapacity = 4096;
 
   /**
-   * Keeps 1 record, dropping the oldest at capacity.
+   * Keeps 1 message, dropping the oldest at capacity.
    *
-   * @param record The record.
+   * @param record The message.
    */
   void Write(const Record& record) override;
 
-  /** Does nothing, the records are in memory. */
+  /** Does nothing, the messages are in memory. */
   void Flush() override;
 
   /**
-   * Copies the records newer than a sequence, oldest first.
+   * Copies the messages newer than a sequence, oldest first.
    *
-   * @param after Sequence of the newest record the caller holds, 0 for all.
-   * @param out Receives the records. Cleared first.
-   * @return The sequence of the newest record kept, or after when nothing is newer.
+   * @param after Sequence of the newest message the caller holds, 0 for all.
+   * @param out Receives the messages. Cleared first.
+   * @return The sequence of the newest message kept, or after when nothing is newer.
    */
   u64 CopySince(u64 after, std::vector<CapturedRecord>& out) const;
 
   /**
-   * Returns the sequence of the newest record kept.
+   * Returns the sequence of the newest message kept.
    *
-   * @return The sequence, 0 before the first record.
+   * @return The sequence, 0 before the first message.
    */
   u64 latest() const;
 

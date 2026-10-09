@@ -45,7 +45,7 @@ class HIDModuleBase : public IModule {
   /**
    * Builds and sets up the module's pad driver.
    *
-   * @param config The hid config slice.
+   * @param config The hid config.
    * @return The driver, or the reason it is unavailable.
    */
   [[nodiscard]] virtual Result<std::unique_ptr<Driver>> CreatePadDriver(

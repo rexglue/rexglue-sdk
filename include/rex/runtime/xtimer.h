@@ -1,4 +1,3 @@
-#pragma once
 /**
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
@@ -9,6 +8,8 @@
  *
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
+
+#pragma once
 
 #include <memory>
 
@@ -26,12 +27,13 @@ namespace rex::runtime {
 
 struct XDPC;
 
+/** Guest layout of a kernel timer. */
 struct X_KTIMER {
-  X_DISPATCH_HEADER header;         // 0x0
-  be_u64 due_time;                  // 0x10
-  X_LIST_ENTRY table_bucket_entry;  // 0x18
-  TypedGuestPointer<XDPC> dpc;      // 0x20
-  be_u32 period;                    // 0x24
+  X_DISPATCH_HEADER header;        /**< Offset 0x0. */
+  be_u64 due_time;                 /**< Offset 0x10. */
+  X_LIST_ENTRY table_bucket_entry; /**< Offset 0x18. */
+  TypedGuestPointer<XDPC> dpc;     /**< Offset 0x20. */
+  be_u32 period;                   /**< Offset 0x24. */
 };
 REX_STATIC_ASSERT_SIZE(X_KTIMER, 0x28);
 
@@ -41,13 +43,17 @@ struct TimerObject {
    * @param timer_type 0 for a notification timer, 1 for a synchronization timer.
    */
   REX_RUNTIME_API explicit TimerObject(u32 timer_type);
+  /** Disarms the timer. */
   REX_RUNTIME_API ~TimerObject();
 
+  /** Host timer that signals the object when it expires. */
   std::unique_ptr<rex::platform::Timer> timer;
+  /** Pending expiry entry the dispatcher tracks, expired when the timer is cancelled. */
   std::weak_ptr<rex::platform::TimerQueueWaitItem> expiry;
+  /** Id of the thread that armed the timer, the thread its completion routine runs on. */
   u32 callback_thread_id = 0;
-  u32 callback_routine = 0;
-  u32 callback_routine_arg = 0;
+  u32 callback_routine = 0;     /**< Guest address of the completion routine, 0 for none. */
+  u32 callback_routine_arg = 0; /**< Argument passed to the completion routine. */
 };
 
 /**

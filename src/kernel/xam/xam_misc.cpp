@@ -1,5 +1,5 @@
 /**
- * @file        rexkernel/xam/xam_misc.cpp
+ * @file        kernel/xam/xam_misc.cpp
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -31,7 +31,6 @@ void XRegisterThreadNotifyRoutine_entry(ppc_ptr_t<runtime::X_THREAD_NOTIFICATION
 REX_EXPORT(__imp__XRegisterThreadNotifyRoutine,
            rex::kernel::xam::XRegisterThreadNotifyRoutine_entry)
 
-// kinda gross but oh well
 REX_EXPORT_STUB(__imp__CancelWaitableTimer);
 REX_EXPORT_STUB(__imp__ControlPackGetCursorPosition);
 REX_EXPORT_STUB(__imp__ControlPackGetHandleManager);

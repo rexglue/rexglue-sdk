@@ -1,4 +1,3 @@
-#pragma once
 /**
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
@@ -10,6 +9,8 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
+#pragma once
+
 #include <cstddef>
 #include <cstdint>
 #include <memory>
@@ -19,13 +20,14 @@
 namespace rex {
 namespace gpu {
 
-// Submission index is the fence value or a value derived from it (if reclaiming
-// less often than once per fence value, for instance).
-
+/**
+ * Pool of upload buffer pages reclaimed by submission index.
+ *
+ * A submission index is the fence value or a value derived from it.
+ */
 class GraphicsUploadBufferPool {
  public:
-  // Taken from the Direct3D 12 MiniEngine sample (LinearAllocator
-  // kCpuAllocatorPageSize). Large enough for most cases.
+  /** Matches the Direct3D 12 MiniEngine sample LinearAllocator kCpuAllocatorPageSize. */
   static constexpr size_t kDefaultPageSize = 2_MiB;
 
   virtual ~GraphicsUploadBufferPool();
@@ -34,12 +36,16 @@ class GraphicsUploadBufferPool {
   void ChangeSubmissionTimeline();
   void ClearCache();
 
-  // Should be called before submitting anything using this pool, unless the
-  // implementation doesn't require explicit flushing.
+  /**
+   * Flushes pending writes of the current page.
+   *
+   * Required before submitting anything using this pool unless the implementation needs no
+   * explicit flushing.
+   */
   void FlushWrites();
 
  protected:
-  // Extended by the implementation.
+  /** Extended by the implementation. */
   struct Page {
     virtual ~Page();
     uint64_t last_submission_index_;
@@ -48,10 +54,29 @@ class GraphicsUploadBufferPool {
 
   GraphicsUploadBufferPool(size_t page_size) : page_size_(page_size) {}
 
-  // Request to write data in a single piece, creating a new page if the current
-  // one doesn't have enough free space.
+  /**
+   * Requests space for data written in a single piece.
+   *
+   * Creates a new page when the current one lacks free space.
+   *
+   * @param submission_index Submission using the space.
+   * @param size Size in bytes.
+   * @param alignment Power of 2 alignment in bytes.
+   * @param offset_out Receives the offset within the page.
+   * @return The page, or nullptr on failure.
+   */
   Page* Request(uint64_t submission_index, size_t size, size_t alignment, size_t& offset_out);
-  // Request to write data in multiple parts, filling the buffer entirely.
+
+  /**
+   * Requests space for data written in multiple parts, filling the buffer.
+   *
+   * @param submission_index Submission using the space.
+   * @param size Total size in bytes.
+   * @param alignment Power of 2 alignment in bytes.
+   * @param offset_out Receives the offset within the page.
+   * @param size_out Receives the size granted in bytes.
+   * @return The page, or nullptr on failure.
+   */
   Page* RequestPartial(uint64_t submission_index, size_t size, size_t alignment, size_t& offset_out,
                        size_t& size_out);
 
@@ -59,17 +84,11 @@ class GraphicsUploadBufferPool {
 
   virtual void FlushPageWrites(Page* page, size_t offset, size_t size);
 
-  // May be increased by the implementation on creation or on first allocation
-  // to avoid wasting space if the real allocation turns out to be bigger than
-  // the specified page size.
+  /** May grow on creation or first allocation when the real allocation exceeds the page size. */
   size_t page_size_;
 
-  // A list of buffers with free space, with the first buffer being the one
-  // being filled.
   Page* writable_first_ = nullptr;
   Page* writable_last_ = nullptr;
-  // A list of full buffers that can be reclaimed when the GPU doesn't use them
-  // anymore.
   Page* submitted_first_ = nullptr;
   Page* submitted_last_ = nullptr;
 

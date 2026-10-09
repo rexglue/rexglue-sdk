@@ -22,21 +22,37 @@
 
 namespace rex::kernel::xboxkrnl {
 
+/**
+ * Fills the value of a console configuration setting.
+ *
+ * Category 0x0002 (secured) supports setting 0x0002 (AV region), reported as 0x1000 (USA/Canada).
+ * Category 0x0003 (user) supports the settings
+ * - 0x0001 to 0x0007 (time zone), reported as 0
+ * - 0x0009 (language)
+ * - 0x000A (video flags)
+ * - 0x000B (audio flags)
+ * - 0x000C (retail flags)
+ * - 0x000E (country)
+ * - 0x0019 (PC flags), reported as 0x03 (XBLAllowed | XBLMembershipCreationAllowed)
+ *
+ * @param category The setting category.
+ * @param setting The setting within the category.
+ * @param buffer Receives the value, may be null to query the size.
+ * @param buffer_size The size of buffer in bytes.
+ * @param required_size Receives the size of the value in bytes, may be null.
+ * @return X_STATUS_SUCCESS or an error status.
+ */
 X_STATUS ExGetXConfigSetting(uint16_t category, uint16_t setting, void* buffer,
                              uint16_t buffer_size, uint16_t* required_size) {
   uint16_t setting_size = 0;
   alignas(uint32_t) uint8_t value[4];
 
-  // TODO(benvanik): have real structs here that get copied from.
-  // https://free60project.github.io/wiki/XConfig.html
-  // https://github.com/oukiar/freestyledash/blob/master/Freestyle/Tools/Generic/ExConfig.h
   switch (category) {
     case 0x0002:
-      // XCONFIG_SECURED_CATEGORY
       switch (setting) {
-        case 0x0002:  // XCONFIG_SECURED_AV_REGION
+        case 0x0002:
           setting_size = 4;
-          memory::store<be_u32>(value, 0x00001000);  // USA/Canada
+          memory::store<be_u32>(value, 0x00001000);
           break;
         default:
           REX_KERNEL_STUB("XConfig SECURED setting 0x{:04X}", setting);
@@ -44,42 +60,39 @@ X_STATUS ExGetXConfigSetting(uint16_t category, uint16_t setting, void* buffer,
       }
       break;
     case 0x0003:
-      // XCONFIG_USER_CATEGORY
       switch (setting) {
-        case 0x0001:  // XCONFIG_USER_TIME_ZONE_BIAS
-        case 0x0002:  // XCONFIG_USER_TIME_ZONE_STD_NAME
-        case 0x0003:  // XCONFIG_USER_TIME_ZONE_DLT_NAME
-        case 0x0004:  // XCONFIG_USER_TIME_ZONE_STD_DATE
-        case 0x0005:  // XCONFIG_USER_TIME_ZONE_DLT_DATE
-        case 0x0006:  // XCONFIG_USER_TIME_ZONE_STD_BIAS
-        case 0x0007:  // XCONFIG_USER_TIME_ZONE_DLT_BIAS
+        case 0x0001:
+        case 0x0002:
+        case 0x0003:
+        case 0x0004:
+        case 0x0005:
+        case 0x0006:
+        case 0x0007:
           setting_size = 4;
-          // TODO(benvanik): get this value.
           memory::store<be_u32>(value, 0);
           break;
-        case 0x0009:  // XCONFIG_USER_LANGUAGE
+        case 0x0009:
           setting_size = 4;
           memory::store<be_u32>(value, runtime::Current().config().runtime.kernel.user_language);
           break;
-        case 0x000A:  // XCONFIG_USER_VIDEO_FLAGS
+        case 0x000A:
           setting_size = 4;
           memory::store<be_u32>(value, 0x00040000);
           break;
-        case 0x000B:  // XCONFIG_USER_AUDIO_FLAGS
+        case 0x000B:
           setting_size = 4;
           memory::store<be_u32>(value, 0x00010001);
           break;
-        case 0x000C:  // XCONFIG_USER_RETAIL_FLAGS
+        case 0x000C:
           setting_size = 4;
           memory::store<be_u32>(value, 0x40);
           break;
-        case 0x000E:  // XCONFIG_USER_COUNTRY
+        case 0x000E:
           setting_size = 1;
           value[0] = static_cast<uint8_t>(runtime::Current().config().runtime.kernel.user_country);
           break;
-        case 0x0019:  // XCONFIG_USER_PC_FLAGS
+        case 0x0019:
           setting_size = 1;
-          // XBLAllowed | XBLMembershipCreationAllowed
           value[0] = 0x03;
           break;
         default:

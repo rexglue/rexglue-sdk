@@ -1,12 +1,3 @@
-/**
- * @file        ui/sdl3/overlay/achievements_overlay.cpp
- *
- * @copyright   Copyright (c) 2026 Rien Gupta <rgupta9@scu.edu>
- *              All rights reserved.
- *
- * @license     BSD 3-Clause License
- *              See LICENSE file in the project root for full license text.
- */
 #include "ui/sdl3/overlay/achievements_overlay.h"
 
 #include <imgui.h>
@@ -69,7 +60,6 @@ void AchievementsOverlayDialog::OnDraw(ImGuiIO& io) {
     }
     const int total_count = static_cast<int>(achievements.size());
 
-    // ---- Header: summary line + progress bar -------------------------------
     ImGui::PushStyleColor(ImGuiCol_Text, ToImVec4(style.header_text));
     ImGui::Text("%d / %d unlocked", unlocked_count, total_count);
     ImGui::PopStyleColor();
@@ -85,7 +75,6 @@ void AchievementsOverlayDialog::OnDraw(ImGuiIO& io) {
     ImGui::Separator();
     ImGui::Spacing();
 
-    // ---- List --------------------------------------------------------------
     ImGui::BeginChild("##achlist", ImVec2(0.0f, 0.0f), false);
     ImDrawList* draw_list = ImGui::GetWindowDrawList();
 
@@ -95,8 +84,7 @@ void AchievementsOverlayDialog::OnDraw(ImGuiIO& io) {
 
       ImGui::PushID(static_cast<int>(a.id));
 
-      // Split the draw list so the row band (channel 0) renders behind the
-      // text (channel 1); we paint the rect after measuring, then merge.
+      // Channel 0 holds the row band behind the text on channel 1, painted after measuring.
       draw_list->ChannelsSplit(2);
       draw_list->ChannelsSetCurrent(1);
 
@@ -104,7 +92,6 @@ void AchievementsOverlayDialog::OnDraw(ImGuiIO& io) {
       const float pad = 4.0f;
       ImGui::Dummy(ImVec2(0.0f, pad * 0.5f));
 
-      // Icon on the left. Locked icons are dimmed so the state reads clearly.
       gpu::OverlayTexture* icon = GetIcon(a);
       if (icon) {
         const Color tint = is_unlocked ? style.unlocked_icon_tint : style.locked_icon_tint;
@@ -116,7 +103,6 @@ void AchievementsOverlayDialog::OnDraw(ImGuiIO& io) {
       }
       ImGui::SameLine();
 
-      // Text block to the right of the icon.
       ImGui::BeginGroup();
       const char* marker = is_unlocked ? "[*]" : "[ ]";
       const ImVec4 title_color = ToImVec4(is_unlocked ? style.unlocked_title : style.locked_title);
@@ -135,7 +121,6 @@ void AchievementsOverlayDialog::OnDraw(ImGuiIO& io) {
       ImGui::Dummy(ImVec2(0.0f, pad * 0.5f));
       const float row_end_y = ImGui::GetCursorScreenPos().y;
 
-      // Paint the band behind unlocked rows on the lower channel.
       if (is_unlocked) {
         draw_list->ChannelsSetCurrent(0);
         const float x0 = ImGui::GetWindowPos().x + 2.0f;

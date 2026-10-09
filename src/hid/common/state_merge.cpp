@@ -1,14 +1,3 @@
-/**
- * @file        hid/common/state_merge.cpp
- * @brief       Combining several devices into one guest controller state.
- *
- * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
- *              All rights reserved.
- *
- * @license     BSD 3-Clause License
- *              See LICENSE file in the project root for full license text.
- */
-
 #include "hid/common/state_merge.h"
 
 #include <algorithm>

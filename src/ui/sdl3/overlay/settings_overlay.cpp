@@ -1,12 +1,3 @@
-/**
- * @file        ui/sdl3/overlay/settings_overlay.cpp
- *
- * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
- *              All rights reserved.
- *
- * @license     BSD 3-Clause License
- *              See LICENSE file in the project root for full license text.
- */
 #include "ui/sdl3/overlay/settings_overlay.h"
 #include "ui/sdl3/overlay_context.h"
 #include <rex/api.h>
@@ -171,16 +162,14 @@ static rex::hid::KeyModifiers HeldModifiers(const ImGuiIO& io) {
 void SettingsDialog::OnDraw(ImGuiIO& io) {
   const std::vector<const rex::cvar::IVar*> vars = registry_.Enumerate();
 
-  // Collect sorted unique category paths.
   std::set<std::string> category_set;
   for (const rex::cvar::IVar* var : vars) {
     category_set.insert(std::string(var->desc().scope));
   }
 
-  // Build tree: 1 node per cvar scope.
   struct CatNode {
     std::string full_path;
-    std::string label;  // leaf segment (e.g. "Controller")
+    std::string label;
     std::map<std::string, CatNode> children;
     bool has_direct_entries = false;
   };
@@ -218,7 +207,6 @@ void SettingsDialog::OnDraw(ImGuiIO& io) {
     return;
   }
 
-  // Search bar at the top (full width).
   ImGui::SetNextItemWidth(-1.0f);
   ImGui::InputText("##search", search_buf_, sizeof(search_buf_));
   ImGui::SameLine(0, 0);
@@ -229,12 +217,10 @@ void SettingsDialog::OnDraw(ImGuiIO& io) {
   const f32 panel_width = metrics.side_panel_width;
   ImGui::BeginChild("##cats", ImVec2(panel_width, -metrics.footer_height), true);
 
-  // Recursive lambda to draw the category tree.
   std::function<void(const std::map<std::string, CatNode>&, int)> draw_tree;
   draw_tree = [&](const std::map<std::string, CatNode>& nodes, int depth) {
     for (auto& [key, node] : nodes) {
       if (node.children.empty()) {
-        // Leaf node - selectable
         bool selected = (selected_category_ == node.full_path);
         if (depth > 0)
           ImGui::Indent(8.0f);
@@ -244,10 +230,8 @@ void SettingsDialog::OnDraw(ImGuiIO& io) {
         if (depth > 0)
           ImGui::Unindent(8.0f);
       } else {
-        // Parent node with children - use tree node
         ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_OpenOnArrow;
         if (node.has_direct_entries) {
-          // Can be selected as well as expanded
           if (selected_category_ == node.full_path)
             flags |= ImGuiTreeNodeFlags_Selected;
         }
@@ -262,7 +246,6 @@ void SettingsDialog::OnDraw(ImGuiIO& io) {
       }
     }
   };
-  // Root node named after the config file
   std::string root_label = config_path_.stem().string();
   ImGuiTreeNodeFlags root_flags = ImGuiTreeNodeFlags_DefaultOpen;
   if (selected_category_.empty())
@@ -280,11 +263,9 @@ void SettingsDialog::OnDraw(ImGuiIO& io) {
 
   ImGui::SameLine();
 
-  // Helper: check if a CVAR's category matches the selected category.
-  // Exact match or prefix match (e.g. selecting "Input" shows all "Input/*").
   auto category_matches = [&](const std::string& cat) -> bool {
     if (selected_category_.empty())
-      return true;  // Root selected - show all
+      return true;
     if (cat == selected_category_)
       return true;
     if (cat.size() > selected_category_.size() &&
@@ -304,13 +285,11 @@ void SettingsDialog::OnDraw(ImGuiIO& io) {
     const auto& desc = var->desc();
     const std::string name(desc.name);
     const std::string description(desc.description);
-    // Filter by category (unless searching).
     if (!searching) {
       if (!category_matches(std::string(desc.scope))) {
         continue;
       }
     } else {
-      // Search matches name or description (case-insensitive substring).
       std::string name_lower = name;
       std::string search_lower = search;
       auto to_lower = [](std::string& s) {
@@ -335,12 +314,10 @@ void SettingsDialog::OnDraw(ImGuiIO& io) {
     std::string current_val = var->Render();
 
     if (is_keybind(var)) {
-      // Grey out controller keybinds when MnK mode is disabled
       bool mnk_disabled = registry_.Get("hid.mnk_mode").value_or("false") != "true";
       if (mnk_disabled)
         ImGui::BeginDisabled();
 
-      // Show description as label (e.g. "A button"), not the raw CVAR name
       ImGui::Text("%-20s", description.c_str());
       ImGui::SameLine(240.0f);
 
@@ -397,7 +374,6 @@ void SettingsDialog::OnDraw(ImGuiIO& io) {
         }
       }
 
-      // Conflict detection
       if (!current_val.empty()) {
         int conflict_count = 0;
         for (const rex::cvar::IVar* other : vars) {
@@ -416,7 +392,6 @@ void SettingsDialog::OnDraw(ImGuiIO& io) {
         }
       }
 
-      // Skip the generic name + lifecycle badge rendering for keybinds
       if (mnk_disabled)
         ImGui::EndDisabled();
       if (read_only)
@@ -424,7 +399,6 @@ void SettingsDialog::OnDraw(ImGuiIO& io) {
       ImGui::PopID();
       continue;
     } else {
-      // Non-keybind CVARs: colored label on left, value widget on right
       ImGui::TextColored(ToImVec4(LifecycleColor(desc.lifecycle, ui_.GetStyle().settings)), "%-20s",
                          name.c_str());
       if (ImGui::IsItemHovered()) {
@@ -518,7 +492,6 @@ void SettingsDialog::OnDraw(ImGuiIO& io) {
   }
   ImGui::EndChild();
 
-  // Bottom bar: Save button.
   ImGui::Separator();
   if (ImGui::Button("Save to config")) {
     if (auto status = rex::SaveConfigFile(registry_, config_path_); !status) {

@@ -18,7 +18,6 @@
 #include <rex/ppc/intrinsics.h>
 #include <rex/ppc/stack.h>
 
-// Consumer-facing using declarations
 using rex::ppc::GuestToHostFunction;
 using rex::ppc::HostToGuestFunction;
 using rex::ppc::ImportFunction;

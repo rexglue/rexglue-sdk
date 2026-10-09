@@ -1,82 +1,14 @@
-// Generated with `xb buildshaders`.
-#if 0
-; SPIR-V
-; Version: 1.0
-; Generator: Khronos Glslang Reference Front End; 11
-; Bound: 24950
-; Schema: 0
-               OpCapability Shader
-          %1 = OpExtInstImport "GLSL.std.450"
-               OpMemoryModel Logical GLSL450
-               OpEntryPoint Fragment %5663 "main" %gl_FragCoord %5312
-               OpExecutionMode %5663 OriginUpperLeft
-               OpDecorate %gl_FragCoord BuiltIn FragCoord
-               OpDecorate %_struct_1028 Block
-               OpMemberDecorate %_struct_1028 0 Offset 16
-               OpMemberDecorate %_struct_1028 1 Offset 24
-               OpDecorate %4448 Binding 0
-               OpDecorate %4448 DescriptorSet 0
-               OpDecorate %4927 Binding 1
-               OpDecorate %4927 DescriptorSet 0
-               OpDecorate %5312 Location 0
-       %void = OpTypeVoid
-       %1282 = OpTypeFunction %void
-       %uint = OpTypeInt 32 0
-     %v2uint = OpTypeVector %uint 2
-      %float = OpTypeFloat 32
-    %v4float = OpTypeVector %float 4
-%_ptr_Input_v4float = OpTypePointer Input %v4float
-%gl_FragCoord = OpVariable %_ptr_Input_v4float Input
-    %v2float = OpTypeVector %float 2
-        %int = OpTypeInt 32 1
-      %v2int = OpTypeVector %int 2
-%_struct_1028 = OpTypeStruct %v2int %v2float
-%_ptr_PushConstant__struct_1028 = OpTypePointer PushConstant %_struct_1028
-       %3305 = OpVariable %_ptr_PushConstant__struct_1028 PushConstant
-      %int_0 = OpConstant %int 0
-%_ptr_PushConstant_v2int = OpTypePointer PushConstant %v2int
-        %150 = OpTypeImage %float 2D 0 0 0 1 Unknown
-%_ptr_UniformConstant_150 = OpTypePointer UniformConstant %150
-       %4448 = OpVariable %_ptr_UniformConstant_150 UniformConstant
-        %508 = OpTypeSampler
-%_ptr_UniformConstant_508 = OpTypePointer UniformConstant %508
-       %4927 = OpVariable %_ptr_UniformConstant_508 UniformConstant
-        %510 = OpTypeSampledImage %150
-  %float_0_5 = OpConstant %float 0.5
-      %int_1 = OpConstant %int 1
-%_ptr_PushConstant_v2float = OpTypePointer PushConstant %v2float
-    %float_0 = OpConstant %float 0
-    %float_1 = OpConstant %float 1
-%_ptr_Output_v4float = OpTypePointer Output %v4float
-       %5312 = OpVariable %_ptr_Output_v4float Output
-       %1566 = OpConstantComposite %v2float %float_0_5 %float_0_5
-       %5663 = OpFunction %void None %1282
-      %24949 = OpLabel
-      %18571 = OpLoad %v4float %gl_FragCoord
-      %14008 = OpVectorShuffle %v2float %18571 %18571 0 1
-      %17656 = OpConvertFToS %v2int %14008
-      %19279 = OpAccessChain %_ptr_PushConstant_v2int %3305 %int_0
-      %22822 = OpLoad %v2int %19279
-      %23236 = OpISub %v2int %17656 %22822
-      %10630 = OpBitcast %v2uint %23236
-      %14905 = OpLoad %150 %4448
-      %16965 = OpLoad %508 %4927
-       %8907 = OpSampledImage %510 %14905 %16965
-      %13759 = OpConvertUToF %v2float %10630
-      %15917 = OpFAdd %v2float %13759 %1566
-      %11863 = OpAccessChain %_ptr_PushConstant_v2float %3305 %int_1
-      %20800 = OpLoad %v2float %11863
-      %24336 = OpFMul %v2float %15917 %20800
-       %9229 = OpImageSampleExplicitLod %v4float %8907 %24336 Lod %float_0
-      %21727 = OpCompositeExtract %float %9229 0
-      %22672 = OpCompositeExtract %float %9229 1
-       %7472 = OpCompositeExtract %float %9229 2
-      %22408 = OpCompositeConstruct %v4float %21727 %22672 %7472 %float_1
-               OpStore %5312 %22408
-               OpReturn
-               OpFunctionEnd
-#endif
+/**
+ * @file        gpu/xenos/host/shaders/vulkan_spirv/guest_output_bilinear_ps.h
+ *
+ * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
+ *              All rights reserved.
+ *
+ * @license     BSD 3-Clause License
+ *              See LICENSE file in the project root for full license text.
+ */
 
+// Generated with `xb buildshaders`.
 const uint32_t guest_output_bilinear_ps[] = {
     0x07230203, 0x00010000, 0x0008000B, 0x00006176, 0x00000000, 0x00020011, 0x00000001, 0x0006000B,
     0x00000001, 0x4C534C47, 0x6474732E, 0x3035342E, 0x00000000, 0x0003000E, 0x00000000, 0x00000001,

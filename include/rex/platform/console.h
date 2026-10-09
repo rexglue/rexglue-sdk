@@ -16,7 +16,7 @@
 namespace rex::platform {
 
 /**
- * Tests whether a stream is attached to a terminal.
+ * Reports whether a stream is attached to a terminal.
  *
  * @param stream Stream to test, may be null.
  * @return True for a terminal. False for null, pipes, files and redirected output.

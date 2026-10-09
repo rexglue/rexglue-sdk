@@ -640,7 +640,7 @@ class DeferredCommandList {
 
   const D3D12CommandProcessor& command_processor_;
 
-  // uintmax_t to ensure uint64_t and pointer alignment of all structures.
+  /** uintmax_t gives all structures uint64_t and pointer alignment. */
   std::vector<uintmax_t> command_stream_;
 };
 

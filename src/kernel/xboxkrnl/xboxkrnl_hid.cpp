@@ -18,40 +18,54 @@
 
 namespace rex::kernel::xboxkrnl {
 
+/**
+ * Reads keys from a keyboard HID device. Reports the device as not connected.
+ *
+ * Titles check for 0xC000009D (translated to 0x48F ERROR_DEVICE_NOT_CONNECTED) and 0x103
+ * (translated to 0x10D2 ERROR_EMPTY).
+ *
+ * @param unk1 Always 0.
+ * @param unk2 Pointer to unk3 + 2.
+ * @param unk3 Pointer to a 20 byte buffer.
+ * @return 0xC000009D.
+ */
 u32 HidReadKeys_entry([[maybe_unused]] u32 unk1, [[maybe_unused]] u32 unk2,
                       [[maybe_unused]] u32 unk3) {
-  /* TODO(gibbed):
-   * Games check for the following errors:
-   *   0xC000009D - translated to 0x48F  - ERROR_DEVICE_NOT_CONNECTED
-   *   0x103      - translated to 0x10D2 - ERROR_EMPTY
-   * Other errors appear to be ignored?
-   *
-   * unk1 is 0
-   * unk2 is a pointer to &unk3[2], possibly a 6-byte buffer
-   * unk3 is a pointer to a 20-byte buffer
-   */
   return 0xC000009D;
 }
 
+/**
+ * Reports the capabilities of a keyboard or mouse HID device. Unsupported.
+ *
+ * @param unk1 Unused.
+ * @param caps_ptr Unused.
+ * @return X_STATUS_UNSUCCESSFUL.
+ */
 u32 HidGetCapabilities_entry([[maybe_unused]] u32 unk1, [[maybe_unused]] u32 caps_ptr) {
-  // HidGetCapabilities - ordinal 0x01EA
-  // Returns capabilities for HID device (keyboard/mouse)
-  // Not supported in rexglue - return unsuccessful
   return X_STATUS_UNSUCCESSFUL;
 }
 
+/**
+ * Returns the time of the last HID input, always 0.
+ *
+ * @param time_ptr Receives the time.
+ * @return X_STATUS_SUCCESS.
+ */
 u32 HidGetLastInputTime_entry(mapped_u32 time_ptr) {
-  // HidGetLastInputTime - ordinal 0x01F1
-  // Returns the last time any HID input was received
   if (time_ptr) {
     *time_ptr = 0;
   }
   return X_STATUS_SUCCESS;
 }
 
+/**
+ * Reads mouse input changes. Unsupported.
+ *
+ * @param unk1 Unused.
+ * @param unk2 Unused.
+ * @return X_STATUS_UNSUCCESSFUL.
+ */
 u32 HidReadMouseChanges_entry([[maybe_unused]] u32 unk1, [[maybe_unused]] u32 unk2) {
-  // HidReadMouseChanges - ordinal 0x0273
-  // Reads mouse input changes - not supported in rexglue
   return X_STATUS_UNSUCCESSFUL;
 }
 
@@ -62,7 +76,6 @@ REX_EXPORT(__imp__HidGetCapabilities, rex::kernel::xboxkrnl::HidGetCapabilities_
 REX_EXPORT(__imp__HidGetLastInputTime, rex::kernel::xboxkrnl::HidGetLastInputTime_entry)
 REX_EXPORT(__imp__HidReadMouseChanges, rex::kernel::xboxkrnl::HidReadMouseChanges_entry)
 
-// XInputd stubs
 REX_EXPORT_STUB(__imp__XInputdGetCapabilities);
 REX_EXPORT_STUB(__imp__XInputdReadState);
 REX_EXPORT_STUB(__imp__XInputdWriteState);
@@ -96,7 +109,6 @@ REX_EXPORT_STUB(__imp__XInputdGetFailedConnectionOrBind);
 REX_EXPORT_STUB(__imp__XInputdSetFailedConnectionOrBindCallback);
 REX_EXPORT_STUB(__imp__XInputdSetMinMaxAuthDelay);
 
-// Drv stubs
 REX_EXPORT_STUB(__imp__DrvSetSysReqCallback);
 REX_EXPORT_STUB(__imp__DrvSetUserBindingCallback);
 REX_EXPORT_STUB(__imp__DrvSetContentStorageCallback);

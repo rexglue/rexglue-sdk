@@ -1,10 +1,3 @@
-/**
- * @file        rexglue/commands/test_recompiler.cpp
- *
- * @copyright   Copyright (c) 2026 Tom Clay
- * @license     BSD 3-Clause License
- */
-
 #include "test_recompiler.h"
 #include "../ui/ui.h"
 
@@ -100,7 +93,15 @@ std::vector<uint8_t> ParseHexBytes(const std::string& hex) {
   return result;
 }
 
-/* Source order is high-to-low; stored low-to-high to match runtime layout. */
+/**
+ * Parses a vector register line. The 4 words are listed high to low in the source and stored
+ * low to high to match the runtime layout.
+ *
+ * @param line Directive line.
+ * @param reg Register name.
+ * @param after Offset in the line past the register name.
+ * @return The register value.
+ */
 RegValue ParseVectorRegister(const std::string& line, std::string reg, size_t after) {
   RegValue rv;
   rv.reg = std::move(reg);

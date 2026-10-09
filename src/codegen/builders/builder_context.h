@@ -1,5 +1,5 @@
 /**
- * @file        rex/codegen/builder_context.h
+ * @file        codegen/builders/builder_context.h
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -57,104 +57,135 @@ enum class CSRState { Unknown, FPU, VMX };
  * @brief Context passed to instruction builders during code generation.
  */
 struct BuilderContext {
-  /// Raw output buffer for code generation
+  /** Raw output buffer for code generation. */
   std::string& out;
 
-  /// Emission context (binary, config, graph)
+  /** Emission context (binary, config, graph). */
   const EmitContext& emitCtx;
 
-  /// The function being recompiled (FunctionNode from graph)
+  /** The function being recompiled (FunctionNode from graph). */
   const FunctionNode& fn;
 
-  /// The decoded instruction being processed (opcode, operands, disassembly)
+  /** The decoded instruction being processed (opcode, operands, disassembly). */
   const ppc_insn& insn;
 
-  /// Address of the current instruction in guest memory
+  /** Address of the current instruction in guest memory. */
   uint32_t base;
 
-  /// Pointer to raw instruction data in the image
+  /** Pointer to raw instruction data in the image. */
   const uint32_t* data;
 
-  /// Tracks which registers need local variable declarations
+  /** Tracks which registers need local variable declarations. */
   RecompilerLocalVariables& locals;
 
-  /// Current CSR state for flush mode (FPU vs VMX)
+  /** Current CSR state for flush mode (FPU vs VMX). */
   CSRState& csrState;
 
-  /// Pointer to active jump table for bctr dispatch, or nullptr
+  /** Pointer to active jump table for bctr dispatch, or nullptr. */
   const JumpTable* activeJumpTable = nullptr;
 
   /** MMIO classification of the current function, or nullptr. */
   const MMIOClassification* mmio = nullptr;
 
-  /// Get the recompiler configuration
+  /**
+   * Returns the recompiler configuration.
+   *
+   * @return The configuration.
+   */
   const RecompilerConfig& config() const;
 
-  /// Get the function graph (single source of truth for function info)
+  /**
+   * Returns the function graph.
+   *
+   * @return The graph.
+   */
   const FunctionGraph& graph() const;
 
-  //=========================================================================
-  // Register Accessors
-  //=========================================================================
-
   /**
-   * @brief Whether non-volatiles may be localized in the current function.
+   * @brief Reports whether non-volatiles may be localized in the current function.
    * False when the function shares registers with an intra-function bl partner.
+   * An SEH funclet inherits its owner's live registers through ctx, so it never localizes them.
+   *
+   * @return True when localizing is allowed.
    */
   bool localizeNonVolatiles() const;
 
   /**
-   * @brief Get expression for general-purpose register access.
+   * @brief Returns the expression for general purpose register access.
    * @param index Register index (0-31)
    * @return "rN" for local variables, "ctx.rN" for context access
    */
   std::string r(size_t index);
 
   /**
-   * @brief Get expression for floating-point register access.
+   * @brief Returns the expression for floating point register access.
    * @param index Register index (0-31)
    * @return "fN" for local variables, "ctx.fN" for context access
    */
   std::string f(size_t index);
 
   /**
-   * @brief Get expression for vector register access.
+   * @brief Returns the expression for vector register access.
    * @param index Register index (0-127, extended VMX128)
    * @return "vN" for local variables, "ctx.vN" for context access
    */
   std::string v(size_t index);
 
   /**
-   * @brief Get expression for condition register field access.
+   * @brief Returns the expression for condition register field access.
    * @param index CR field index (0-7)
    * @return "crN" for local variables, "ctx.crN" for context access
    */
   std::string cr(size_t index);
 
-  /// Get expression for count register ("ctr" or "ctx.ctr")
+  /**
+   * Returns the count register expression.
+   *
+   * @return "ctr" or "ctx.ctr".
+   */
   const char* ctr();
 
-  /// Get expression for XER register ("xer" or "ctx.xer")
+  /**
+   * Returns the XER register expression.
+   *
+   * @return "xer" or "ctx.xer".
+   */
   const char* xer();
 
-  /// Get expression for reservation register (used by lwarx/stwcx)
+  /**
+   * Returns the reservation register expression, used by lwarx and stwcx.
+   *
+   * @return The reservation expression.
+   */
   const char* reserved();
 
-  /// Get expression for scalar temporary variable (always "temp")
+  /**
+   * Returns the scalar temporary expression.
+   *
+   * @return "temp".
+   */
   const char* temp();
 
-  /// Get expression for vector temporary variable (always "vTemp")
+  /**
+   * Returns the vector temporary expression.
+   *
+   * @return "vTemp".
+   */
   const char* v_temp();
 
-  /// Get expression for setjmp environment storage (always "env")
+  /**
+   * Returns the setjmp environment expression.
+   *
+   * @return "env".
+   */
   const char* env();
 
-  /// Get expression for effective address temporary (always "ea")
+  /**
+   * Returns the effective address temporary expression.
+   *
+   * @return "ea".
+   */
   const char* ea();
-
-  //=========================================================================
-  // Output Helpers
-  //=========================================================================
 
   /**
    * @brief Print formatted text to the output buffer (no newline).
@@ -178,10 +209,6 @@ struct BuilderContext {
     std::vformat_to(std::back_inserter(out), fmt.get(), std::make_format_args(args...));
     out += '\n';
   }
-
-  //=========================================================================
-  // Code Generation Helpers
-  //=========================================================================
 
   /**
    * Maps a plain memory macro to the macro the current instruction needs.
@@ -208,6 +235,10 @@ struct BuilderContext {
    * Uses pre-resolved CallTarget from FunctionNode when available.
    * Falls back to symbol lookup for backward compatibility.
    * Handles special cases like setjmp/longjmp and __restgprlr_N functions.
+   * Save and restore helpers are elided under the global non volatile setting and not the
+   * function's, because the helper bodies are emitted under it and would write zeros over the
+   * caller's frame once spilled to locals. An SEH funclet runs on its owner's frame, so the
+   * localized registers are copied through ctx before the call and back after it.
    */
   void emit_function_call(uint32_t address);
 
@@ -227,18 +258,18 @@ struct BuilderContext {
    */
   void emit_set_flush_mode(bool enable);
 
-  /// Emit mid-asm hook if configured for current address
+  /** Emit mid-asm hook if configured for current address. */
   void emit_mid_asm_hook();
 
-  /// Check if mid-asm hook exists for current address
+  /**
+   * Reports whether a mid asm hook exists for the current address.
+   *
+   * @return True when a hook exists.
+   */
   bool has_mid_asm_hook() const;
 
-  /// Clear active jump table pointer (used after processing a switch)
+  /** Clear active jump table pointer (used after processing a switch). */
   void reset_switch_table() { activeJumpTable = nullptr; }
-
-  //=========================================================================
-  // Vector (SIMD) Code Generation Helpers
-  //=========================================================================
 
   /**
    * @brief Emit binary float vector operation: vD = op(vA, vB)
@@ -289,10 +320,6 @@ struct BuilderContext {
    * Uses operands[0]=vD, operands[1]=vA, operands[2]=vB from current instruction.
    */
   void emit_vec_var_shift(const char* shift_dir, const char* element_type, uint32_t mask_value);
-
-  //=========================================================================
-  // Memory (Load/Store) Code Generation Helpers
-  //=========================================================================
 
   /**
    * @brief Emit load with D-form addressing: rD = LOAD(rA + offset)

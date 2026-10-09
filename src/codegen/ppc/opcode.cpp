@@ -1,13 +1,3 @@
-/**
- * @file        codegen/internal/ppc/opcodes.cpp
- *
- * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
- *              All rights reserved.
- *
- * @license     BSD 3-Clause License
- *              See LICENSE file in the project root for full license text.
- */
-
 #include "opcode.h"
 
 #include <array>
@@ -20,103 +10,104 @@ using namespace rex;
 
 namespace rex::codegen::ppc {
 
-// Helper to extract bit fields from instruction
+/**
+ * Extracts count bits starting at PPC bit position start, where bit 0 is the most significant.
+ *
+ * @param value The instruction word
+ * @param start First bit, numbered from the MSB
+ * @param count Number of bits
+ * @return The extracted field
+ */
 constexpr u32 extract_bits(u32 value, u32 start, u32 count) {
   return (value >> (32 - start - count)) & ((1u << count) - 1);
 }
 
-//=============================================================================
-// Opcode information table
-//=============================================================================
-
 static const std::array<OpcodeInfo, 320> g_opcode_table = {{
-    // Primary opcode 16: bcx (conditional branch) - all variants
+    // Primary opcode 16, bcx conditional branch, all variants
     {Opcode::bc, InstrFormat::kB, OpcodeGroup::kBranch, "bc", 16, 0, false},
     {Opcode::bca, InstrFormat::kB, OpcodeGroup::kBranch, "bca", 16, 0, false},
     {Opcode::bcl, InstrFormat::kB, OpcodeGroup::kBranch, "bcl", 16, 0, false},
     {Opcode::bcla, InstrFormat::kB, OpcodeGroup::kBranch, "bcla", 16, 0, false},
 
-    // Primary opcode 18: bx (unconditional branch) - all variants
+    // Primary opcode 18, bx unconditional branch, all variants
     {Opcode::b, InstrFormat::kI, OpcodeGroup::kBranch, "b", 18, 0, false},
     {Opcode::ba, InstrFormat::kI, OpcodeGroup::kBranch, "ba", 18, 0, false},
     {Opcode::bl, InstrFormat::kI, OpcodeGroup::kBranch, "bl", 18, 0, false},
     {Opcode::bla, InstrFormat::kI, OpcodeGroup::kBranch, "bla", 18, 0, false},
 
-    // Primary opcode 19: Extended branch instructions - all variants
+    // Primary opcode 19, extended branch instructions, all variants
     {Opcode::bclr, InstrFormat::kXL, OpcodeGroup::kBranch, "bclr", 19, 16, true},
     {Opcode::bclrl, InstrFormat::kXL, OpcodeGroup::kBranch, "bclrl", 19, 16, true},
     {Opcode::bcctr, InstrFormat::kXL, OpcodeGroup::kBranch, "bcctr", 19, 528, true},
     {Opcode::bcctrl, InstrFormat::kXL, OpcodeGroup::kBranch, "bcctrl", 19, 528, true},
 
-    // Primary opcode 14: addi
+    // Primary opcode 14, addi
     {Opcode::addi, InstrFormat::kD, OpcodeGroup::kGeneral, "addi", 14, 0, false},
 
-    // Primary opcode 15: addis
+    // Primary opcode 15, addis
     {Opcode::addis, InstrFormat::kD, OpcodeGroup::kGeneral, "addis", 15, 0, false},
 
-    // Primary opcode 24: ori
+    // Primary opcode 24, ori
     {Opcode::ori, InstrFormat::kD, OpcodeGroup::kGeneral, "ori", 24, 0, false},
 
-    // Primary opcode 25: oris
+    // Primary opcode 25, oris
     {Opcode::oris, InstrFormat::kD, OpcodeGroup::kGeneral, "oris", 25, 0, false},
 
-    // Primary opcode 26: xori
+    // Primary opcode 26, xori
     {Opcode::xori, InstrFormat::kD, OpcodeGroup::kGeneral, "xori", 26, 0, false},
 
-    // Primary opcode 27: xoris
+    // Primary opcode 27, xoris
     {Opcode::xoris, InstrFormat::kD, OpcodeGroup::kGeneral, "xoris", 27, 0, false},
 
-    // Primary opcode 28: andi.
     {Opcode::andi_, InstrFormat::kD, OpcodeGroup::kGeneral, "andi.", 28, 0, false},
 
-    // Primary opcode 29: andis.
     {Opcode::andis_, InstrFormat::kD, OpcodeGroup::kGeneral, "andis.", 29, 0, false},
 
-    // Primary opcode 32: lwz
+    // Primary opcode 32, lwz
     {Opcode::lwz, InstrFormat::kD, OpcodeGroup::kMemory, "lwz", 32, 0, false},
 
-    // Primary opcode 33: lwzu
+    // Primary opcode 33, lwzu
     {Opcode::lwzu, InstrFormat::kD, OpcodeGroup::kMemory, "lwzu", 33, 0, false},
 
-    // Primary opcode 34: lbz
+    // Primary opcode 34, lbz
     {Opcode::lbz, InstrFormat::kD, OpcodeGroup::kMemory, "lbz", 34, 0, false},
 
-    // Primary opcode 35: lbzu
+    // Primary opcode 35, lbzu
     {Opcode::lbzu, InstrFormat::kD, OpcodeGroup::kMemory, "lbzu", 35, 0, false},
 
-    // Primary opcode 36: stw
+    // Primary opcode 36, stw
     {Opcode::stw, InstrFormat::kD, OpcodeGroup::kMemory, "stw", 36, 0, false},
 
-    // Primary opcode 37: stwu
+    // Primary opcode 37, stwu
     {Opcode::stwu, InstrFormat::kD, OpcodeGroup::kMemory, "stwu", 37, 0, false},
 
-    // Primary opcode 38: stb
+    // Primary opcode 38, stb
     {Opcode::stb, InstrFormat::kD, OpcodeGroup::kMemory, "stb", 38, 0, false},
 
-    // Primary opcode 39: stbu
+    // Primary opcode 39, stbu
     {Opcode::stbu, InstrFormat::kD, OpcodeGroup::kMemory, "stbu", 39, 0, false},
 
-    // Primary opcode 40: lhz
+    // Primary opcode 40, lhz
     {Opcode::lhz, InstrFormat::kD, OpcodeGroup::kMemory, "lhz", 40, 0, false},
 
-    // Primary opcode 41: lhzu
+    // Primary opcode 41, lhzu
     {Opcode::lhzu, InstrFormat::kD, OpcodeGroup::kMemory, "lhzu", 41, 0, false},
 
-    // Primary opcode 44: sth
+    // Primary opcode 44, sth
     {Opcode::sth, InstrFormat::kD, OpcodeGroup::kMemory, "sth", 44, 0, false},
 
-    // Primary opcode 45: sthu
+    // Primary opcode 45, sthu
     {Opcode::sthu, InstrFormat::kD, OpcodeGroup::kMemory, "sthu", 45, 0, false},
 
-    // Primary opcode 58: ld, ldu (DS format with XO)
+    // Primary opcode 58, ld and ldu, DS format with XO
     {Opcode::ld, InstrFormat::kDS, OpcodeGroup::kMemory, "ld", 58, 0, true},
     {Opcode::ldu, InstrFormat::kDS, OpcodeGroup::kMemory, "ldu", 58, 1, true},
 
-    // Primary opcode 62: std, stdu (DS format with XO)
+    // Primary opcode 62, std and stdu, DS format with XO
     {Opcode::std, InstrFormat::kDS, OpcodeGroup::kMemory, "std", 62, 0, true},
     {Opcode::stdu, InstrFormat::kDS, OpcodeGroup::kMemory, "stdu", 62, 1, true},
 
-    // Primary opcode 31: Extended instructions (many ALU/logical operations)
+    // Primary opcode 31, extended ALU and logical instructions
     {Opcode::cmp, InstrFormat::kX, OpcodeGroup::kGeneral, "cmp", 31, 0, true},
     {Opcode::cmpl, InstrFormat::kX, OpcodeGroup::kGeneral, "cmpl", 31, 32, true},
     {Opcode::tw, InstrFormat::kX, OpcodeGroup::kSystem, "tw", 31, 4, true},
@@ -133,7 +124,7 @@ static const std::array<OpcodeInfo, 320> g_opcode_table = {{
     {Opcode::sraw, InstrFormat::kX, OpcodeGroup::kGeneral, "sraw", 31, 792, true},
     {Opcode::mfspr, InstrFormat::kXFX, OpcodeGroup::kSpecial, "mfspr", 31, 339, true},
     {Opcode::mtspr, InstrFormat::kXFX, OpcodeGroup::kSpecial, "mtspr", 31, 467, true},
-    // Simplified mnemonics for SPR access (synthetic opcodes from post-decode)
+    // Simplified mnemonics for SPR access, synthetic opcodes set after decode
     {Opcode::mflr, InstrFormat::kXFX, OpcodeGroup::kSpecial, "mflr", 0, 0, false},
     {Opcode::mtlr, InstrFormat::kXFX, OpcodeGroup::kSpecial, "mtlr", 0, 0, false},
     {Opcode::mfctr, InstrFormat::kXFX, OpcodeGroup::kSpecial, "mfctr", 0, 0, false},
@@ -143,27 +134,25 @@ static const std::array<OpcodeInfo, 320> g_opcode_table = {{
     {Opcode::sync, InstrFormat::kX, OpcodeGroup::kSync, "sync", 31, 598, true},
     {Opcode::isync, InstrFormat::kXL, OpcodeGroup::kSync, "isync", 19, 150, true},
 
-    // Primary opcode 11: cmpi
+    // Primary opcode 11, cmpi
     {Opcode::cmpi, InstrFormat::kD, OpcodeGroup::kGeneral, "cmpi", 11, 0, false},
 
-    // Primary opcode 10: cmpli
+    // Primary opcode 10, cmpli
     {Opcode::cmpli, InstrFormat::kD, OpcodeGroup::kGeneral, "cmpli", 10, 0, false},
 
-    // Primary opcode 21: rlwinm
+    // Primary opcode 21, rlwinm
     {Opcode::rlwinm, InstrFormat::kM, OpcodeGroup::kGeneral, "rlwinm", 21, 0, false},
 
-    // Primary opcode 23: rlwnm
+    // Primary opcode 23, rlwnm
     {Opcode::rlwnm, InstrFormat::kM, OpcodeGroup::kGeneral, "rlwnm", 23, 0, false},
 
-    // Primary opcode 17: sc
+    // Primary opcode 17, sc
     {Opcode::sc, InstrFormat::kX, OpcodeGroup::kSystem, "sc", 17, 0, false},
 
-    // Primary opcode 3: twi
+    // Primary opcode 3, twi
     {Opcode::twi, InstrFormat::kD, OpcodeGroup::kSystem, "twi", 3, 0, false},
 
-    //=========================================================================
-    // Floating-Point Load/Store
-    //=========================================================================
+    // Floating point load and store
     {Opcode::lfs, InstrFormat::kD, OpcodeGroup::kFloat, "lfs", 48, 0, false},
     {Opcode::lfsu, InstrFormat::kD, OpcodeGroup::kFloat, "lfsu", 49, 0, false},
     {Opcode::lfd, InstrFormat::kD, OpcodeGroup::kFloat, "lfd", 50, 0, false},
@@ -177,9 +166,7 @@ static const std::array<OpcodeInfo, 320> g_opcode_table = {{
     {Opcode::stfsx, InstrFormat::kX, OpcodeGroup::kFloat, "stfsx", 31, 663, true},
     {Opcode::stfdx, InstrFormat::kX, OpcodeGroup::kFloat, "stfdx", 31, 727, true},
 
-    //=========================================================================
-    // Floating-Point Arithmetic (Primary 59 - Single Precision)
-    //=========================================================================
+    // Floating point arithmetic, primary 59, single precision
     {Opcode::fadds, InstrFormat::kX, OpcodeGroup::kFloat, "fadds", 59, 21, true},
     {Opcode::fsubs, InstrFormat::kX, OpcodeGroup::kFloat, "fsubs", 59, 20, true},
     {Opcode::fmuls, InstrFormat::kX, OpcodeGroup::kFloat, "fmuls", 59, 25, true},
@@ -192,9 +179,7 @@ static const std::array<OpcodeInfo, 320> g_opcode_table = {{
     {Opcode::fnmadds, InstrFormat::kX, OpcodeGroup::kFloat, "fnmadds", 59, 31, true},
     {Opcode::fnmsubs, InstrFormat::kX, OpcodeGroup::kFloat, "fnmsubs", 59, 30, true},
 
-    //=========================================================================
-    // Floating-Point Arithmetic (Primary 63 - Double Precision)
-    //=========================================================================
+    // Floating point arithmetic, primary 63, double precision
     {Opcode::fadd, InstrFormat::kX, OpcodeGroup::kFloat, "fadd", 63, 21, true},
     {Opcode::fsub, InstrFormat::kX, OpcodeGroup::kFloat, "fsub", 63, 20, true},
     {Opcode::fmul, InstrFormat::kX, OpcodeGroup::kFloat, "fmul", 63, 25, true},
@@ -208,17 +193,13 @@ static const std::array<OpcodeInfo, 320> g_opcode_table = {{
     {Opcode::fnmsub, InstrFormat::kX, OpcodeGroup::kFloat, "fnmsub", 63, 30, true},
     {Opcode::fsel, InstrFormat::kX, OpcodeGroup::kFloat, "fsel", 63, 23, true},
 
-    //=========================================================================
-    // Floating-Point Move/Misc
-    //=========================================================================
+    // Floating point move and misc
     {Opcode::fmr, InstrFormat::kX, OpcodeGroup::kFloat, "fmr", 63, 72, true},
     {Opcode::fneg, InstrFormat::kX, OpcodeGroup::kFloat, "fneg", 63, 40, true},
     {Opcode::fabs, InstrFormat::kX, OpcodeGroup::kFloat, "fabs", 63, 264, true},
     {Opcode::fnabs, InstrFormat::kX, OpcodeGroup::kFloat, "fnabs", 63, 136, true},
 
-    //=========================================================================
-    // Floating-Point Conversion
-    //=========================================================================
+    // Floating point conversion
     {Opcode::frsp, InstrFormat::kX, OpcodeGroup::kFloat, "frsp", 63, 12, true},
     {Opcode::fctiw, InstrFormat::kX, OpcodeGroup::kFloat, "fctiw", 63, 14, true},
     {Opcode::fctiwz, InstrFormat::kX, OpcodeGroup::kFloat, "fctiwz", 63, 15, true},
@@ -226,24 +207,18 @@ static const std::array<OpcodeInfo, 320> g_opcode_table = {{
     {Opcode::fctidz, InstrFormat::kX, OpcodeGroup::kFloat, "fctidz", 63, 815, true},
     {Opcode::fcfid, InstrFormat::kX, OpcodeGroup::kFloat, "fcfid", 63, 846, true},
 
-    //=========================================================================
-    // Floating-Point Compare
-    //=========================================================================
+    // Floating point compare
     {Opcode::fcmpu, InstrFormat::kX, OpcodeGroup::kFloat, "fcmpu", 63, 0, true},
     {Opcode::fcmpo, InstrFormat::kX, OpcodeGroup::kFloat, "fcmpo", 63, 32, true},
 
-    //=========================================================================
-    // Floating-Point Status/Control
-    //=========================================================================
+    // Floating point status and control
     {Opcode::mffs, InstrFormat::kX, OpcodeGroup::kFloat, "mffs", 63, 583, true},
     {Opcode::mtfsf, InstrFormat::kX, OpcodeGroup::kFloat, "mtfsf", 63, 711, true},
     {Opcode::mtfsfi, InstrFormat::kX, OpcodeGroup::kFloat, "mtfsfi", 63, 134, true},
     {Opcode::mtfsb0, InstrFormat::kX, OpcodeGroup::kFloat, "mtfsb0", 63, 70, true},
     {Opcode::mtfsb1, InstrFormat::kX, OpcodeGroup::kFloat, "mtfsb1", 63, 38, true},
 
-    //=========================================================================
-    // VMX Load/Store
-    //=========================================================================
+    // VMX load and store
     {Opcode::lvx, InstrFormat::kX, OpcodeGroup::kVector, "lvx", 4, 103, true},
     {Opcode::lvxl, InstrFormat::kX, OpcodeGroup::kVector, "lvxl", 4, 359, true},
     {Opcode::stvx, InstrFormat::kX, OpcodeGroup::kVector, "stvx", 4, 231, true},
@@ -255,9 +230,7 @@ static const std::array<OpcodeInfo, 320> g_opcode_table = {{
     {Opcode::lvsl, InstrFormat::kX, OpcodeGroup::kVector, "lvsl", 4, 6, true},
     {Opcode::lvsr, InstrFormat::kX, OpcodeGroup::kVector, "lvsr", 4, 38, true},
 
-    //=========================================================================
-    // VMX Floating-Point Arithmetic
-    //=========================================================================
+    // VMX floating point arithmetic
     {Opcode::vaddfp, InstrFormat::kX, OpcodeGroup::kVector, "vaddfp", 4, 10, true},
     {Opcode::vsubfp, InstrFormat::kX, OpcodeGroup::kVector, "vsubfp", 4, 74, true},
     {Opcode::vmaddfp, InstrFormat::kX, OpcodeGroup::kVector, "vmaddfp", 4, 32, true},
@@ -269,9 +242,7 @@ static const std::array<OpcodeInfo, 320> g_opcode_table = {{
     {Opcode::vlogfp, InstrFormat::kX, OpcodeGroup::kVector, "vlogfp", 4, 458, true},
     {Opcode::vexptefp, InstrFormat::kX, OpcodeGroup::kVector, "vexptefp", 4, 394, true},
 
-    //=========================================================================
-    // VMX Integer Arithmetic
-    //=========================================================================
+    // VMX integer arithmetic
     {Opcode::vaddubm, InstrFormat::kX, OpcodeGroup::kVector, "vaddubm", 4, 0, true},
     {Opcode::vadduhm, InstrFormat::kX, OpcodeGroup::kVector, "vadduhm", 4, 64, true},
     {Opcode::vadduwm, InstrFormat::kX, OpcodeGroup::kVector, "vadduwm", 4, 128, true},
@@ -286,9 +257,7 @@ static const std::array<OpcodeInfo, 320> g_opcode_table = {{
     {Opcode::vavguh, InstrFormat::kX, OpcodeGroup::kVector, "vavguh", 4, 1090, true},
     {Opcode::vavguw, InstrFormat::kX, OpcodeGroup::kVector, "vavguw", 4, 1154, true},
 
-    //=========================================================================
-    // VMX Logical
-    //=========================================================================
+    // VMX logical
     {Opcode::vand, InstrFormat::kX, OpcodeGroup::kVector, "vand", 4, 1028, true},
     {Opcode::vandc, InstrFormat::kX, OpcodeGroup::kVector, "vandc", 4, 1092, true},
     {Opcode::vor, InstrFormat::kX, OpcodeGroup::kVector, "vor", 4, 1156, true},
@@ -296,9 +265,7 @@ static const std::array<OpcodeInfo, 320> g_opcode_table = {{
     {Opcode::vnor, InstrFormat::kX, OpcodeGroup::kVector, "vnor", 4, 1284, true},
     {Opcode::vsel, InstrFormat::kX, OpcodeGroup::kVector, "vsel", 4, 42, true},
 
-    //=========================================================================
-    // VMX Compare (Floating-Point)
-    //=========================================================================
+    // VMX compare, floating point
     {Opcode::vcmpeqfp, InstrFormat::kX, OpcodeGroup::kVector, "vcmpeqfp", 4, 198, true},
     {Opcode::vcmpgefp, InstrFormat::kX, OpcodeGroup::kVector, "vcmpgefp", 4, 454, true},
     {Opcode::vcmpgtfp, InstrFormat::kX, OpcodeGroup::kVector, "vcmpgtfp", 4, 710, true},
@@ -307,9 +274,7 @@ static const std::array<OpcodeInfo, 320> g_opcode_table = {{
     {Opcode::vcmpgefp_, InstrFormat::kX, OpcodeGroup::kVector, "vcmpgefp.", 4, 454, true},
     {Opcode::vcmpgtfp_, InstrFormat::kX, OpcodeGroup::kVector, "vcmpgtfp.", 4, 710, true},
 
-    //=========================================================================
-    // VMX Compare (Integer)
-    //=========================================================================
+    // VMX compare, integer
     {Opcode::vcmpequb, InstrFormat::kX, OpcodeGroup::kVector, "vcmpequb", 4, 6, true},
     {Opcode::vcmpequh, InstrFormat::kX, OpcodeGroup::kVector, "vcmpequh", 4, 70, true},
     {Opcode::vcmpequw, InstrFormat::kX, OpcodeGroup::kVector, "vcmpequw", 4, 134, true},
@@ -320,9 +285,7 @@ static const std::array<OpcodeInfo, 320> g_opcode_table = {{
     {Opcode::vcmpgtsh, InstrFormat::kX, OpcodeGroup::kVector, "vcmpgtsh", 4, 838, true},
     {Opcode::vcmpgtsw, InstrFormat::kX, OpcodeGroup::kVector, "vcmpgtsw", 4, 902, true},
 
-    //=========================================================================
-    // VMX Permute/Merge
-    //=========================================================================
+    // VMX permute and merge
     {Opcode::vperm, InstrFormat::kX, OpcodeGroup::kVector, "vperm", 4, 43, true},
     {Opcode::vmrghb, InstrFormat::kX, OpcodeGroup::kVector, "vmrghb", 4, 12, true},
     {Opcode::vmrghh, InstrFormat::kX, OpcodeGroup::kVector, "vmrghh", 4, 76, true},
@@ -331,9 +294,7 @@ static const std::array<OpcodeInfo, 320> g_opcode_table = {{
     {Opcode::vmrglh, InstrFormat::kX, OpcodeGroup::kVector, "vmrglh", 4, 332, true},
     {Opcode::vmrglw, InstrFormat::kX, OpcodeGroup::kVector, "vmrglw", 4, 396, true},
 
-    //=========================================================================
-    // VMX Pack/Unpack
-    //=========================================================================
+    // VMX pack and unpack
     {Opcode::vpkuhum, InstrFormat::kX, OpcodeGroup::kVector, "vpkuhum", 4, 14, true},
     {Opcode::vpkuwum, InstrFormat::kX, OpcodeGroup::kVector, "vpkuwum", 4, 78, true},
     {Opcode::vpkuhus, InstrFormat::kX, OpcodeGroup::kVector, "vpkuhus", 4, 142, true},
@@ -347,9 +308,7 @@ static const std::array<OpcodeInfo, 320> g_opcode_table = {{
     {Opcode::vupklsb, InstrFormat::kX, OpcodeGroup::kVector, "vupklsb", 4, 654, true},
     {Opcode::vupklsh, InstrFormat::kX, OpcodeGroup::kVector, "vupklsh", 4, 718, true},
 
-    //=========================================================================
-    // VMX Splat
-    //=========================================================================
+    // VMX splat
     {Opcode::vspltb, InstrFormat::kX, OpcodeGroup::kVector, "vspltb", 4, 524, true},
     {Opcode::vsplth, InstrFormat::kX, OpcodeGroup::kVector, "vsplth", 4, 588, true},
     {Opcode::vspltw, InstrFormat::kX, OpcodeGroup::kVector, "vspltw", 4, 652, true},
@@ -357,9 +316,7 @@ static const std::array<OpcodeInfo, 320> g_opcode_table = {{
     {Opcode::vspltish, InstrFormat::kX, OpcodeGroup::kVector, "vspltish", 4, 844, true},
     {Opcode::vspltisw, InstrFormat::kX, OpcodeGroup::kVector, "vspltisw", 4, 908, true},
 
-    //=========================================================================
-    // VMX Shift/Rotate
-    //=========================================================================
+    // VMX shift and rotate
     {Opcode::vslb, InstrFormat::kX, OpcodeGroup::kVector, "vslb", 4, 260, true},
     {Opcode::vslh, InstrFormat::kX, OpcodeGroup::kVector, "vslh", 4, 324, true},
     {Opcode::vslw, InstrFormat::kX, OpcodeGroup::kVector, "vslw", 4, 388, true},
@@ -377,9 +334,7 @@ static const std::array<OpcodeInfo, 320> g_opcode_table = {{
     {Opcode::vslo, InstrFormat::kX, OpcodeGroup::kVector, "vslo", 4, 1036, true},
     {Opcode::vsro, InstrFormat::kX, OpcodeGroup::kVector, "vsro", 4, 1100, true},
 
-    //=========================================================================
-    // VMX Conversion
-    //=========================================================================
+    // VMX conversion
     {Opcode::vcfux, InstrFormat::kX, OpcodeGroup::kVector, "vcfux", 4, 778, true},
     {Opcode::vcfsx, InstrFormat::kX, OpcodeGroup::kVector, "vcfsx", 4, 842, true},
     {Opcode::vctuxs, InstrFormat::kX, OpcodeGroup::kVector, "vctuxs", 4, 906, true},
@@ -389,15 +344,11 @@ static const std::array<OpcodeInfo, 320> g_opcode_table = {{
     {Opcode::vrfip, InstrFormat::kX, OpcodeGroup::kVector, "vrfip", 4, 650, true},
     {Opcode::vrfim, InstrFormat::kX, OpcodeGroup::kVector, "vrfim", 4, 714, true},
 
-    //=========================================================================
-    // VMX Status/Control
-    //=========================================================================
+    // VMX status and control
     {Opcode::mfvscr, InstrFormat::kX, OpcodeGroup::kVector, "mfvscr", 4, 1540, true},
     {Opcode::mtvscr, InstrFormat::kX, OpcodeGroup::kVector, "mtvscr", 4, 1604, true},
 
-    //=========================================================================
-    // VMX128 Extensions
-    //=========================================================================
+    // VMX128 extensions
     {Opcode::lvx128, InstrFormat::kX, OpcodeGroup::kVector, "lvx128", 4, 0, true},
     {Opcode::stvx128, InstrFormat::kX, OpcodeGroup::kVector, "stvx128", 4, 0, true},
     {Opcode::lvlx128, InstrFormat::kX, OpcodeGroup::kVector, "lvlx128", 4, 0, true},
@@ -424,9 +375,7 @@ static const std::array<OpcodeInfo, 320> g_opcode_table = {{
     {Opcode::vpkd3d128, InstrFormat::kX, OpcodeGroup::kVector, "vpkd3d128", 4, 0, true},
     {Opcode::vorc, InstrFormat::kX, OpcodeGroup::kVector, "vorc", 4, 0, true},
 
-    //=========================================================================
-    // Additional Integer Operations
-    //=========================================================================
+    // Additional integer operations
     {Opcode::mulli, InstrFormat::kD, OpcodeGroup::kGeneral, "mulli", 7, 0, false},
     {Opcode::subfic, InstrFormat::kD, OpcodeGroup::kGeneral, "subfic", 8, 0, false},
     {Opcode::addic, InstrFormat::kD, OpcodeGroup::kGeneral, "addic", 12, 0, false},
@@ -442,9 +391,7 @@ static const std::array<OpcodeInfo, 320> g_opcode_table = {{
     {Opcode::extsb, InstrFormat::kX, OpcodeGroup::kGeneral, "extsb", 31, 954, true},
     {Opcode::extsh, InstrFormat::kX, OpcodeGroup::kGeneral, "extsh", 31, 922, true},
 
-    //=========================================================================
-    // Indexed Memory Operations
-    //=========================================================================
+    // Indexed memory operations
     {Opcode::lbzx, InstrFormat::kX, OpcodeGroup::kMemory, "lbzx", 31, 87, true},
     {Opcode::lhzx, InstrFormat::kX, OpcodeGroup::kMemory, "lhzx", 31, 279, true},
     {Opcode::lhax, InstrFormat::kX, OpcodeGroup::kMemory, "lhax", 31, 311, true},
@@ -456,11 +403,9 @@ static const std::array<OpcodeInfo, 320> g_opcode_table = {{
     {Opcode::stdx, InstrFormat::kX, OpcodeGroup::kMemory, "stdx", 31, 149, true},
 }};
 
-// Map for fast lookup: (primary_opcode, extended_opcode) -> index
 static std::unordered_map<u64, size_t> g_opcode_lookup_map;
 static std::once_flag g_opcode_init_flag;
 
-// Initialize lookup map implementation
 static void init_opcode_lookup_map_impl() {
   g_opcode_lookup_map.reserve(g_opcode_table.size());
   for (size_t i = 0; i < g_opcode_table.size(); ++i) {
@@ -473,22 +418,15 @@ static void init_opcode_lookup_map_impl() {
   }
 }
 
-// Thread-safe initialization (called once)
 static void init_opcode_lookup_map() {
   std::call_once(g_opcode_init_flag, init_opcode_lookup_map_impl);
 }
 
-//=============================================================================
-// Public API
-//=============================================================================
-
 Opcode lookup_opcode(u32 code) {
   init_opcode_lookup_map();
 
-  // Extract primary opcode (bits 0-5)
   u32 primary = extract_bits(code, 0, 6);
 
-  // Handle instructions with no extended opcode
   switch (primary) {
     case 3:
       return Opcode::twi;
@@ -509,10 +447,9 @@ Opcode lookup_opcode(u32 code) {
     case 15:
       return Opcode::addis;
     case 16: {
-      // Conditional branch - check AA (bit 30) and LK (bit 31)
-      // Note: PPC bit numbering is MSB=0, so bit 30 is position 1, bit 31 is position 0
-      bool aa = (code >> 1) & 1;  // Absolute address
-      bool lk = code & 1;         // Link
+      // PPC numbers bits from the MSB, so AA (bit 30) is code >> 1 and LK (bit 31) is code & 1
+      bool aa = (code >> 1) & 1;
+      bool lk = code & 1;
       if (lk && aa)
         return Opcode::bcla;
       if (lk)
@@ -524,9 +461,8 @@ Opcode lookup_opcode(u32 code) {
     case 17:
       return Opcode::sc;
     case 18: {
-      // Unconditional branch - check AA (bit 30) and LK (bit 31)
-      bool aa = (code >> 1) & 1;  // Absolute address
-      bool lk = code & 1;         // Link
+      bool aa = (code >> 1) & 1;
+      bool lk = code & 1;
       if (lk && aa)
         return Opcode::bla;
       if (lk)
@@ -578,7 +514,6 @@ Opcode lookup_opcode(u32 code) {
     case 45:
       return Opcode::sthu;
 
-      // Floating-point load/store
     case 48:
       return Opcode::lfs;
     case 49:
@@ -597,12 +532,10 @@ Opcode lookup_opcode(u32 code) {
       return Opcode::stfdu;
   }
 
-  // Handle instructions with extended opcodes
   u32 extended = 0;
   if (primary == 19) {
-    // XL format: extended opcode in bits 21-30
     extended = extract_bits(code, 21, 10);
-    bool lk = code & 1;  // LK bit is bit 31 (position 0)
+    bool lk = code & 1;
     if (extended == 16)
       return lk ? Opcode::bclrl : Opcode::bclr;
     if (extended == 528)
@@ -610,10 +543,8 @@ Opcode lookup_opcode(u32 code) {
     if (extended == 150)
       return Opcode::isync;
   } else if (primary == 31) {
-    // X/XO/XFX format: extended opcode in bits 21-30
     extended = extract_bits(code, 21, 10);
 
-    // Map extended opcodes for primary 31
     switch (extended) {
       case 0:
         return Opcode::cmp;
@@ -693,21 +624,18 @@ Opcode lookup_opcode(u32 code) {
         return Opcode::extsb;
     }
   } else if (primary == 58) {
-    // DS format: XO in bits 30-31
     extended = extract_bits(code, 30, 2);
     if (extended == 0)
       return Opcode::ld;
     if (extended == 1)
       return Opcode::ldu;
   } else if (primary == 62) {
-    // DS format: XO in bits 30-31
     extended = extract_bits(code, 30, 2);
     if (extended == 0)
       return Opcode::std;
     if (extended == 1)
       return Opcode::stdu;
   } else if (primary == 59) {
-    // Single-precision floating-point (A-form): extended in bits 26-30
     extended = extract_bits(code, 26, 5);
     switch (extended) {
       case 18:
@@ -734,8 +662,6 @@ Opcode lookup_opcode(u32 code) {
         return Opcode::fnmadds;
     }
   } else if (primary == 63) {
-    // Double-precision floating-point: check both X-form and A-form
-    // First try X-form extended opcode (bits 21-30)
     extended = extract_bits(code, 21, 10);
     switch (extended) {
       case 0:
@@ -767,7 +693,6 @@ Opcode lookup_opcode(u32 code) {
       case 846:
         return Opcode::fcfid;
     }
-    // Try A-form extended opcode (bits 26-30)
     extended = extract_bits(code, 26, 5);
     switch (extended) {
       case 18:
@@ -796,221 +721,216 @@ Opcode lookup_opcode(u32 code) {
         return Opcode::fnmadd;
     }
   } else if (primary == 4) {
-    // VMX/AltiVec instructions (primary opcode 4)
-    // Try VA-form first (bits 26-31, 6-bit XO)
     extended = extract_bits(code, 26, 6);
     switch (extended) {
       case 32:
-        return Opcode::vmaddfp;  // vmaddfp vD, vA, vC, vB
+        // vmaddfp vD, vA, vC, vB
+        return Opcode::vmaddfp;
       case 33:
-        return Opcode::vnmsubfp;  // vnmsubfp vD, vA, vC, vB
+        // vnmsubfp vD, vA, vC, vB
+        return Opcode::vnmsubfp;
       case 43:
-        return Opcode::vperm;  // vperm vD, vA, vB, vC
+        return Opcode::vperm;
       case 44:
-        return Opcode::vsel;  // vsel vD, vA, vB, vC
+        return Opcode::vsel;
     }
 
-    // Try VX-form (bits 21-31, 11-bit XO)
     extended = extract_bits(code, 21, 11);
     switch (extended) {
-        // Vector load/store
       case 7:
-        return Opcode::lvx;  // lvx vD, rA, rB (XO=7 is lvebx, lvx is 103)
+        return Opcode::lvx;
       case 39:
-        return Opcode::lvlx;  // lvlx vD, rA, rB
+        return Opcode::lvlx;
       case 71:
-        return Opcode::lvrx;  // lvrx vD, rA, rB
+        return Opcode::lvrx;
       case 103:
-        return Opcode::lvx;  // lvx vD, rA, rB
+        return Opcode::lvx;
       case 135:
-        return Opcode::stvx;  // stvx vS, rA, rB
+        return Opcode::stvx;
       case 167:
-        return Opcode::stvlx;  // stvlx vS, rA, rB
+        return Opcode::stvlx;
       case 199:
-        return Opcode::stvrx;  // stvrx vS, rA, rB
+        return Opcode::stvrx;
       case 231:
-        return Opcode::stvx;  // stvx vS, rA, rB
+        return Opcode::stvx;
       case 359:
-        return Opcode::lvxl;  // lvxl vD, rA, rB
+        return Opcode::lvxl;
       case 487:
-        return Opcode::stvxl;  // stvxl vS, rA, rB
+        return Opcode::stvxl;
       case 6:
-        return Opcode::lvsl;  // lvsl vD, rA, rB
+        return Opcode::lvsl;
       case 38:
-        return Opcode::lvsr;  // lvsr vD, rA, rB
+        return Opcode::lvsr;
 
-        // Vector floating-point arithmetic
       case 10:
-        return Opcode::vaddfp;  // vaddfp vD, vA, vB
+        return Opcode::vaddfp;
       case 74:
-        return Opcode::vsubfp;  // vsubfp vD, vA, vB
+        return Opcode::vsubfp;
       case 1034:
-        return Opcode::vmaxfp;  // vmaxfp vD, vA, vB
+        return Opcode::vmaxfp;
       case 1098:
-        return Opcode::vminfp;  // vminfp vD, vA, vB
+        return Opcode::vminfp;
       case 266:
-        return Opcode::vrsqrtefp;  // vrsqrtefp vD, vB
+        return Opcode::vrsqrtefp;
       case 330:
-        return Opcode::vrefp;  // vrefp vD, vB
+        return Opcode::vrefp;
       case 394:
-        return Opcode::vlogfp;  // vlogfp vD, vB
+        return Opcode::vlogfp;
       case 458:
-        return Opcode::vexptefp;  // vexptefp vD, vB
+        return Opcode::vexptefp;
 
-        // Vector integer arithmetic
       case 0:
-        return Opcode::vaddubm;  // vaddubm vD, vA, vB
+        return Opcode::vaddubm;
       case 64:
-        return Opcode::vadduhm;  // vadduhm vD, vA, vB
+        return Opcode::vadduhm;
       case 128:
-        return Opcode::vadduwm;  // vadduwm vD, vA, vB
+        return Opcode::vadduwm;
       case 1024:
-        return Opcode::vsububm;  // vsububm vD, vA, vB
+        return Opcode::vsububm;
       case 1088:
-        return Opcode::vsubuhm;  // vsubuhm vD, vA, vB
+        return Opcode::vsubuhm;
       case 1152:
-        return Opcode::vsubuwm;  // vsubuwm vD, vA, vB
+        return Opcode::vsubuwm;
       case 8:
-        return Opcode::vmuloub;  // vmuloub vD, vA, vB
+        return Opcode::vmuloub;
       case 72:
-        return Opcode::vmulouh;  // vmulouh vD, vA, vB
+        return Opcode::vmulouh;
       case 264:
-        return Opcode::vmuleub;  // vmuleub vD, vA, vB
+        return Opcode::vmuleub;
       case 328:
-        return Opcode::vmuleuh;  // vmuleuh vD, vA, vB
+        return Opcode::vmuleuh;
       case 1026:
-        return Opcode::vavgub;  // vavgub vD, vA, vB
+        return Opcode::vavgub;
       case 1090:
-        return Opcode::vavguh;  // vavguh vD, vA, vB
+        return Opcode::vavguh;
       case 1154:
-        return Opcode::vavguw;  // vavguw vD, vA, vB
+        return Opcode::vavguw;
 
-        // Vector logical
       case 1028:
-        return Opcode::vand;  // vand vD, vA, vB
+        return Opcode::vand;
       case 1092:
-        return Opcode::vandc;  // vandc vD, vA, vB
+        return Opcode::vandc;
       case 1156:
-        return Opcode::vor;  // vor vD, vA, vB
+        return Opcode::vor;
       case 1220:
-        return Opcode::vxor;  // vxor vD, vA, vB
+        return Opcode::vxor;
       case 1284:
-        return Opcode::vnor;  // vnor vD, vA, vB
+        return Opcode::vnor;
 
-        // Vector merge
       case 12:
-        return Opcode::vmrghb;  // vmrghb vD, vA, vB
+        return Opcode::vmrghb;
       case 76:
-        return Opcode::vmrghh;  // vmrghh vD, vA, vB
+        return Opcode::vmrghh;
       case 140:
-        return Opcode::vmrghw;  // vmrghw vD, vA, vB
+        return Opcode::vmrghw;
       case 268:
-        return Opcode::vmrglb;  // vmrglb vD, vA, vB
+        return Opcode::vmrglb;
       case 332:
-        return Opcode::vmrglh;  // vmrglh vD, vA, vB
+        return Opcode::vmrglh;
       case 396:
-        return Opcode::vmrglw;  // vmrglw vD, vA, vB
+        return Opcode::vmrglw;
 
-        // Vector pack/unpack
       case 14:
-        return Opcode::vpkuhum;  // vpkuhum vD, vA, vB
+        return Opcode::vpkuhum;
       case 78:
-        return Opcode::vpkuwum;  // vpkuwum vD, vA, vB
+        return Opcode::vpkuwum;
       case 142:
-        return Opcode::vpkuhus;  // vpkuhus vD, vA, vB
+        return Opcode::vpkuhus;
       case 206:
-        return Opcode::vpkuwus;  // vpkuwus vD, vA, vB
+        return Opcode::vpkuwus;
       case 270:
-        return Opcode::vpkshus;  // vpkshus vD, vA, vB
+        return Opcode::vpkshus;
       case 334:
-        return Opcode::vpkswus;  // vpkswus vD, vA, vB
+        return Opcode::vpkswus;
       case 398:
-        return Opcode::vpkshss;  // vpkshss vD, vA, vB
+        return Opcode::vpkshss;
       case 462:
-        return Opcode::vpkswss;  // vpkswss vD, vA, vB
+        return Opcode::vpkswss;
       case 526:
-        return Opcode::vupkhsb;  // vupkhsb vD, vB
+        return Opcode::vupkhsb;
       case 590:
-        return Opcode::vupkhsh;  // vupkhsh vD, vB
+        return Opcode::vupkhsh;
       case 654:
-        return Opcode::vupklsb;  // vupklsb vD, vB
+        return Opcode::vupklsb;
       case 718:
-        return Opcode::vupklsh;  // vupklsh vD, vB
+        return Opcode::vupklsh;
 
-        // Vector splat
       case 524:
-        return Opcode::vspltb;  // vspltb vD, vB, UIMM
+        // vspltb vD, vB, UIMM
+        return Opcode::vspltb;
       case 588:
-        return Opcode::vsplth;  // vsplth vD, vB, UIMM
+        // vsplth vD, vB, UIMM
+        return Opcode::vsplth;
       case 652:
-        return Opcode::vspltw;  // vspltw vD, vB, UIMM
+        // vspltw vD, vB, UIMM
+        return Opcode::vspltw;
       case 780:
-        return Opcode::vspltisb;  // vspltisb vD, SIMM
+        return Opcode::vspltisb;
       case 844:
-        return Opcode::vspltish;  // vspltish vD, SIMM
+        return Opcode::vspltish;
       case 908:
-        return Opcode::vspltisw;  // vspltisw vD, SIMM
+        return Opcode::vspltisw;
 
-        // Vector shift/rotate
       case 260:
-        return Opcode::vslb;  // vslb vD, vA, vB
+        return Opcode::vslb;
       case 324:
-        return Opcode::vslh;  // vslh vD, vA, vB
+        return Opcode::vslh;
       case 388:
-        return Opcode::vslw;  // vslw vD, vA, vB
+        return Opcode::vslw;
       case 516:
-        return Opcode::vsrb;  // vsrb vD, vA, vB
+        return Opcode::vsrb;
       case 580:
-        return Opcode::vsrh;  // vsrh vD, vA, vB
+        return Opcode::vsrh;
       case 644:
-        return Opcode::vsrw;  // vsrw vD, vA, vB
+        return Opcode::vsrw;
       case 772:
-        return Opcode::vsrab;  // vsrab vD, vA, vB
+        return Opcode::vsrab;
       case 836:
-        return Opcode::vsrah;  // vsrah vD, vA, vB
+        return Opcode::vsrah;
       case 900:
-        return Opcode::vsraw;  // vsraw vD, vA, vB
+        return Opcode::vsraw;
       case 4:
-        return Opcode::vrlb;  // vrlb vD, vA, vB
+        return Opcode::vrlb;
       case 68:
-        return Opcode::vrlh;  // vrlh vD, vA, vB
+        return Opcode::vrlh;
       case 132:
-        return Opcode::vrlw;  // vrlw vD, vA, vB
+        return Opcode::vrlw;
       case 452:
-        return Opcode::vsl;  // vsl vD, vA, vB
+        return Opcode::vsl;
       case 708:
-        return Opcode::vsr;  // vsr vD, vA, vB
+        return Opcode::vsr;
       case 1036:
-        return Opcode::vslo;  // vslo vD, vA, vB
+        return Opcode::vslo;
       case 1100:
-        return Opcode::vsro;  // vsro vD, vA, vB
+        return Opcode::vsro;
 
-        // Vector conversion
       case 778:
-        return Opcode::vcfux;  // vcfux vD, vB, UIMM
+        // vcfux vD, vB, UIMM
+        return Opcode::vcfux;
       case 842:
-        return Opcode::vcfsx;  // vcfsx vD, vB, UIMM
+        // vcfsx vD, vB, UIMM
+        return Opcode::vcfsx;
       case 906:
-        return Opcode::vctuxs;  // vctuxs vD, vB, UIMM
+        // vctuxs vD, vB, UIMM
+        return Opcode::vctuxs;
       case 970:
-        return Opcode::vctsxs;  // vctsxs vD, vB, UIMM
+        // vctsxs vD, vB, UIMM
+        return Opcode::vctsxs;
       case 522:
-        return Opcode::vrfin;  // vrfin vD, vB
+        return Opcode::vrfin;
       case 586:
-        return Opcode::vrfiz;  // vrfiz vD, vB
+        return Opcode::vrfiz;
       case 650:
-        return Opcode::vrfip;  // vrfip vD, vB
+        return Opcode::vrfip;
       case 714:
-        return Opcode::vrfim;  // vrfim vD, vB
+        return Opcode::vrfim;
 
-        // Vector status/control
       case 1540:
-        return Opcode::mfvscr;  // mfvscr vD
+        return Opcode::mfvscr;
       case 1604:
-        return Opcode::mtvscr;  // mtvscr vB
+        return Opcode::mtvscr;
     }
 
-    // Try VXR-form for compare instructions (bits 21-30, 10-bit XO with Rc at 31)
     extended = extract_bits(code, 21, 10);
     u32 rc = extract_bits(code, 31, 1);
     switch (extended) {
@@ -1042,103 +962,93 @@ Opcode lookup_opcode(u32 code) {
         return Opcode::vcmpgtsw;
     }
 
-    // VMX128 Load/Store instructions
-    // These use primary opcode 4 with bits 30-31 = 11 (value 3)
-    u32 bits_30_31 = code & 0x3;  // Extract bits 30-31
+    u32 bits_30_31 = code & 0x3;
     if (bits_30_31 == 3) {
-      // VMX128 load/store format: bits 21-27 contain extended opcode
       u32 vmx128_xo = extract_bits(code, 21, 7);
       switch (vmx128_xo) {
         case 0:
-          return Opcode::lvsl128;  // 0000000
+          return Opcode::lvsl128;
         case 4:
-          return Opcode::lvsr128;  // 0000100
+          return Opcode::lvsr128;
         case 8:
-          return Opcode::lvewx128;  // 0001000
+          return Opcode::lvewx128;
         case 12:
-          return Opcode::lvx128;  // 0001100
+          return Opcode::lvx128;
         case 28:
-          return Opcode::stvx128;  // 0011100
+          return Opcode::stvx128;
         case 44:
-          return Opcode::lvxl128;  // 0101100
+          return Opcode::lvxl128;
         case 48:
-          return Opcode::stvewx128;  // 0110000
+          return Opcode::stvewx128;
         case 60:
-          return Opcode::stvxl128;  // 0111100
+          return Opcode::stvxl128;
         case 64:
-          return Opcode::lvlx128;  // 1000000
+          return Opcode::lvlx128;
         case 68:
-          return Opcode::lvrx128;  // 1000100
+          return Opcode::lvrx128;
         case 80:
-          return Opcode::stvlx128;  // 1010000
+          return Opcode::stvlx128;
         case 84:
-          return Opcode::stvrx128;  // 1010100
+          return Opcode::stvrx128;
         case 96:
-          return Opcode::lvlxl128;  // 1100000
+          return Opcode::lvlxl128;
         case 100:
-          return Opcode::lvrxl128;  // 1100100
+          return Opcode::lvrxl128;
         case 112:
-          return Opcode::stvlxl128;  // 1110000
+          return Opcode::stvlxl128;
         case 116:
-          return Opcode::stvrxl128;  // 1110100
+          return Opcode::stvrxl128;
       }
-      // vsldoi128 has a different pattern: bit 27=1, bits 22-26 encode SHB
-      // |0 0 0 1 0 0|VD128|VA128|VB128|A|SHB|a|1|VDh|VBh|
-      if ((code & 0x10) == 0x10) {  // bit 27 == 1
+      if ((code & 0x10) == 0x10) {
         return Opcode::vsldoi128;
       }
     }
   }
 
-  // VMX128 arithmetic/logical instructions (primary opcode 5)
-  // Format: |0 0 0 1 0 1|VD128|VA128|VB128|A|xxxx|a|y|VDh|VBh|
   else if (primary == 5) {
-    // Extract operation bits 22-25 (4 bits) and bit 27
     u32 op4 = extract_bits(code, 22, 4);
     u32 bit27 = extract_bits(code, 27, 1);
     u32 bit26 = extract_bits(code, 26, 1);
 
     if (bit27 == 1) {
-      // Most VMX128 arithmetic instructions
       switch (op4) {
         case 0:
-          return Opcode::vaddfp128;  // 0000
+          return Opcode::vaddfp128;
         case 1:
-          return bit26 ? Opcode::vsubfp128 : Opcode::vrlw128;  // 0001
+          return bit26 ? Opcode::vsubfp128 : Opcode::vrlw128;
         case 2:
-          return Opcode::vmulfp128;  // 0010
+          return Opcode::vmulfp128;
         case 3:
-          return Opcode::vmaddfp128;  // 0011
+          return Opcode::vmaddfp128;
         case 4:
-          return Opcode::vmaddcfp128;  // 0100
+          return Opcode::vmaddcfp128;
         case 5:
-          return Opcode::vnmsubfp128;  // 0101
+          return Opcode::vnmsubfp128;
         case 6:
-          return Opcode::vmsum3fp128;  // 0110
+          return Opcode::vmsum3fp128;
         case 7:
-          return Opcode::vmsum4fp128;  // 0111
+          return Opcode::vmsum4fp128;
         case 8:
-          return Opcode::vand128;  // 1000
+          return Opcode::vand128;
         case 9:
-          return Opcode::vpkshss128;  // 1001 (bit27=0) or other
+          return Opcode::vpkshss128;
         case 10:
-          return bit26 ? Opcode::vnor128 : Opcode::vandc128;  // 1010
+          return bit26 ? Opcode::vnor128 : Opcode::vandc128;
         case 11:
-          return bit26 ? Opcode::vor128 : Opcode::vpkswss128;  // 1011
+          return bit26 ? Opcode::vor128 : Opcode::vpkswss128;
         case 12:
-          return Opcode::vxor128;  // 1100
+          return Opcode::vxor128;
         case 13:
-          return Opcode::vsel128;  // 1101
+          return Opcode::vsel128;
         case 14:
-          return Opcode::vslo128;  // 1110
+          return Opcode::vslo128;
         case 15:
-          return Opcode::vsro128;  // 1111 (only in primary 6?)
+          return Opcode::vsro128;
       }
     } else {
-      // VMX128 instructions with bit27=0
       switch (op4) {
         case 0:
-          return Opcode::vperm128;  // vperm has different encoding
+          return Opcode::vperm128;
         case 8:
           return Opcode::vpkshss128;
         case 9:
@@ -1159,84 +1069,77 @@ Opcode lookup_opcode(u32 code) {
     }
   }
 
-  // VMX128 compare/convert/unary instructions (primary opcode 6)
-  // Format varies by instruction
   else if (primary == 6) {
     u32 op4 = extract_bits(code, 22, 4);
     u32 bit27 = extract_bits(code, 27, 1);
     [[maybe_unused]] u32 bit26 = extract_bits(code, 26, 1);
     u32 bits_21_27 = extract_bits(code, 21, 7);
 
-    // Check for specific extended opcodes
     if (bit27 == 0) {
-      // Compare and some other instructions
       switch (op4) {
         case 0:
-          return Opcode::vcmpeqfp128;  // 0000
+          return Opcode::vcmpeqfp128;
         case 1:
-          return Opcode::vcmpgefp128;  // 0001
+          return Opcode::vcmpgefp128;
         case 2:
-          return Opcode::vcmpgtfp128;  // 0010
+          return Opcode::vcmpgtfp128;
         case 3:
-          return Opcode::vcmpbfp128;  // 0011
+          return Opcode::vcmpbfp128;
         case 8:
-          return Opcode::vcmpequw128;  // 1000
+          return Opcode::vcmpequw128;
         case 10:
-          return Opcode::vmaxfp128;  // 1010
+          return Opcode::vmaxfp128;
         case 11:
-          return Opcode::vminfp128;  // 1011
+          return Opcode::vminfp128;
         case 12:
-          return Opcode::vmrghw128;  // 1100
+          return Opcode::vmrghw128;
         case 13:
-          return Opcode::vmrglw128;  // 1101
+          return Opcode::vmrglw128;
       }
     } else {
-      // bit27 == 1: conversion, rounding, splat, shift instructions
       switch (bits_21_27) {
         case 0x23:
-          return Opcode::vcfpsxws128;  // 0100011
+          return Opcode::vcfpsxws128;
         case 0x27:
-          return Opcode::vcfpuxws128;  // 0100111
+          return Opcode::vcfpuxws128;
         case 0x2B:
-          return Opcode::vcsxwfp128;  // 0101011
+          return Opcode::vcsxwfp128;
         case 0x2F:
-          return Opcode::vcuxwfp128;  // 0101111
+          return Opcode::vcuxwfp128;
         case 0x33:
-          return Opcode::vrfim128;  // 0110011
+          return Opcode::vrfim128;
         case 0x37:
-          return Opcode::vrfin128;  // 0110111
+          return Opcode::vrfin128;
         case 0x3B:
-          return Opcode::vrfip128;  // 0111011
+          return Opcode::vrfip128;
         case 0x3F:
-          return Opcode::vrfiz128;  // 0111111
+          return Opcode::vrfiz128;
         case 0x63:
-          return Opcode::vrefp128;  // 1100011
+          return Opcode::vrefp128;
         case 0x67:
-          return Opcode::vrsqrtefp128;  // 1100111
+          return Opcode::vrsqrtefp128;
         case 0x6B:
-          return Opcode::vexptefp128;  // 1101011
+          return Opcode::vexptefp128;
         case 0x6F:
-          return Opcode::vlogefp128;  // 1101111
+          return Opcode::vlogefp128;
         case 0x73:
-          return Opcode::vspltw128;  // 1110011
+          return Opcode::vspltw128;
         case 0x77:
-          return Opcode::vspltisw128;  // 1110111
+          return Opcode::vspltisw128;
         case 0x7F:
-          return Opcode::vupkd3d128;  // 1111111
+          return Opcode::vupkd3d128;
       }
-      // vpermwi128, vpkd3d128, vrlimi128 have special encodings
       u32 bits_25_27 = extract_bits(code, 25, 3);
-      if (bits_25_27 == 1) {  // 001
+      if (bits_25_27 == 1) {
         return Opcode::vpermwi128;
       }
-      if (bits_25_27 == 5) {  // 101
+      if (bits_25_27 == 5) {
         return Opcode::vrlimi128;
       }
       u32 bits_23_25 = extract_bits(code, 23, 3);
       if (extract_bits(code, 21, 2) == 3 && (bits_23_25 >= 4)) {
         return Opcode::vpkd3d128;
       }
-      // vslw128, vsrw128, vsraw128, vsro128
       if (op4 == 3)
         return Opcode::vslw128;
       if (op4 == 5)
@@ -1254,18 +1157,14 @@ Opcode lookup_opcode(u32 code) {
 const OpcodeInfo& get_opcode_info(Opcode opcode) {
   init_opcode_lookup_map();
 
-  // Static unknown entry for fallback
   static const OpcodeInfo unknown = {
       Opcode::kUnknown, InstrFormat::kUnknown, OpcodeGroup::kGeneral, "unknown", 0, 0, false};
 
-  // bail early if we already know its unknown.
   if (opcode == Opcode::kUnknown) {
     return unknown;
   }
 
-  // Linear search through table (small table, acceptable)
   for (const auto& info : g_opcode_table) {
-    // Skip uninitialized entries (name will be null)
     if (info.name == nullptr)
       continue;
     if (info.opcode == opcode) {

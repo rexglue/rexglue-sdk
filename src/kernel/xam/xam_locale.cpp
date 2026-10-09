@@ -22,8 +22,6 @@
 #include <rex/runtime/xthread.h>
 #include <rex/runtime/xtypes.h>
 
-// TODO(gibbed): put these forward decls in a header somewhere.
-
 namespace rex {
 namespace kernel {
 namespace xam {
@@ -35,8 +33,6 @@ uint32_t XGetGameRegion();
 namespace rex {
 namespace kernel {
 namespace xam {
-
-// Table lookups.
 
 uint8_t XamGetOnlineCountryFromLocale(uint8_t id) {
   static uint8_t const table[] = {
@@ -172,36 +168,28 @@ uint8_t XamGetLocaleFromCountry(uint8_t id) {
   return id < rex::countof(table) ? table[id] : 0;
 }
 
-// Helpers.
-
 uint8_t XamGetLocaleEx(uint8_t max_country_id, uint8_t max_locale_id) {
-  // TODO(gibbed): rework when XConfig is cleanly implemented.
   uint8_t country_id =
       static_cast<uint8_t>(runtime::Current().config().runtime.kernel.user_country);
-  /*if (XSUCCEEDED(xboxkrnl::ExGetXConfigSetting(
-          3, 14, &country_id, sizeof(country_id), nullptr))) {*/
   if (country_id <= max_country_id) {
     uint8_t locale_id = XamGetLocaleFromCountry(country_id);
     if (locale_id <= max_locale_id) {
       return locale_id;
     }
   }
-  /*}*/
 
-  // couldn't find locale, fallback from game region.
+  // Locale ids are 20 JP, 21 KR, 35 GB and 36 US.
   auto game_region = XGetGameRegion();
   auto region = static_cast<uint8_t>((game_region & 0xFF00u) >> 8);
   if (region == 1) {
-    return game_region == 0x101 ? 20 /* JP */ : 21 /* KR */;
+    return game_region == 0x101 ? 20 : 21;
   }
-  return region == 2 ? 35 /* GB */ : 36 /* US */;
+  return region == 2 ? 35 : 36;
 }
 
 uint8_t XamGetLocale() {
   return XamGetLocaleEx(111, 43);
 }
-
-// Exports.
 
 u32 XamGetLocale_entry() {
   return static_cast<uint8_t>(XamGetLocale());

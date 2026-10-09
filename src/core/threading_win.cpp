@@ -2,7 +2,10 @@
  * @file        core/threading_win.cpp
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
+ *              All rights reserved.
+ *
  * @license     BSD 3-Clause License
+ *              See LICENSE file in the project root for full license text.
  */
 
 #include <rex/platform.h>
@@ -41,10 +44,10 @@ uint32_t current_thread_system_id() {
 // https://msdn.microsoft.com/en-us/library/xcb2z8hs.aspx
 #pragma pack(push, 8)
 struct THREADNAME_INFO {
-  DWORD dwType;      // Must be 0x1000.
-  LPCSTR szName;     // Pointer to name (in user addr space).
-  DWORD dwThreadID;  // Thread ID (-1=caller thread).
-  DWORD dwFlags;     // Reserved for future use, must be zero.
+  DWORD dwType;     /**< Must be 0x1000. */
+  LPCSTR szName;    /**< Pointer to the name in user address space. */
+  DWORD dwThreadID; /**< Thread ID, -1 for the caller thread. */
+  DWORD dwFlags;    /**< Reserved, must be zero. */
 };
 #pragma pack(pop)
 
@@ -69,7 +72,6 @@ static void set_thread_name_impl(HANDLE thread, const std::string_view name) {
   if (kernel) {
     auto func = (SetThreadDescriptionFn)GetProcAddress(kernel, "SetThreadDescription");
     if (func) {
-      // Convert UTF-8 name to UTF-16 using Windows API
       int size_needed =
           MultiByteToWideChar(CP_UTF8, 0, name.data(), static_cast<int>(name.size()), nullptr, 0);
       std::wstring u16name(size_needed, 0);
@@ -370,7 +372,6 @@ class Win32Timer : public Win32Handle<Timer> {
   }
 
   bool Cancel() override {
-    // Reset the callback immediately so that any completions don't call it.
     std::lock_guard<std::mutex> lock(mutex_);
     callback_ = nullptr;
     return CancelWaitableTimer(handle_) ? true : false;
@@ -389,7 +390,6 @@ class Win32Timer : public Win32Handle<Timer> {
  private:
   static void CompletionRoutine(Win32Timer* timer, [[maybe_unused]] DWORD timer_low,
                                 [[maybe_unused]] DWORD timer_high) {
-    // As the callback may reset the timer, store local.
     std::function<void()> callback;
     {
       std::lock_guard<std::mutex> lock(timer->mutex_);

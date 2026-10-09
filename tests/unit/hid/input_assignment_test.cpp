@@ -1,3 +1,13 @@
+/**
+ * @file        tests/unit/hid/input_assignment_test.cpp
+ *
+ * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
+ *              All rights reserved.
+ *
+ * @license     BSD 3-Clause License
+ *              See LICENSE file in the project root for full license text.
+ */
+
 #include <catch2/catch_test_macros.hpp>
 
 #include <map>
@@ -40,7 +50,7 @@ std::vector<DeviceId> For(const DeviceAssignment& a, rex::u32 user) {
   return out;
 }
 
-/// Exercises assignment with no SDL, window, or OS behind it.
+/** Pad driver with no SDL, window or OS behind it. */
 class FakeDriver final : public Driver {
  public:
   void Add(rex::u64 id, bool synthetic = false) {
@@ -82,7 +92,6 @@ class FakeDriver final : public Driver {
       return std::unexpected(Unplugged());
     }
     X_INPUT_CAPABILITIES caps{};
-    // Stamp the id so the test can tell which device answered.
     caps.sub_type = static_cast<rex::u8>(id);
     return caps;
   }
@@ -207,7 +216,6 @@ TEST_CASE("A reconnected pad comes back to title user 0", "[hid]") {
   driver->Add(1);
   REQUIRE(system->GetState(0));
 
-  // Replugging arrives as a new device id, not as the old one coming back.
   driver->Remove(1);
   driver->Add(2);
   driver->SetButtons(2, X_INPUT_GAMEPAD_B);

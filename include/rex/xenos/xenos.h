@@ -92,7 +92,7 @@ enum class ClampMode : u32 {
 };
 
 /**
- * Tests whether a clamp mode samples the border color.
+ * Reports whether a clamp mode samples the border color.
  *
  * @param clamp_mode Clamp mode to test.
  * @return True for kClampToBorder and kMirrorClampToBorder.
@@ -128,12 +128,12 @@ enum class AnisoFilter : u32 {
   kUseFetchConst = 7, /**< Use the ratio from the fetch constant. */
 };
 
-/** Texture border color. The alpha of the black colors is not known. */
+/** Texture border color. */
 enum class BorderColor : u32 {
   k_ABGR_Black = 0,   /**< Black (0, 0, 0). */
   k_ABGR_White = 1,   /**< White (1, 1, 1, 1). */
-  k_ACBYCR_Black = 2, /**< Likely (0.5, 0, 0.5) in unsigned (Cr, Y, Cb). */
-  k_ACBCRY_Black = 3, /**< Likely (0, 0.5, 0.5) in unsigned (Y, Cr, Cb). */
+  k_ACBYCR_Black = 2, /**< Host border (0.5, 0, 0.5) in unsigned (Cr, Y, Cb). */
+  k_ACBCRY_Black = 3, /**< Host border (0, 0.5, 0.5) in unsigned (Y, Cr, Cb). */
 };
 
 /** Dimension of the tfetch instruction. Stacked textures are accessed with tfetch3D. */
@@ -244,7 +244,7 @@ enum class ColorRenderTargetFormat : u32 {
 REX_API const char* GetColorRenderTargetFormatName(ColorRenderTargetFormat format);
 
 /**
- * Tests whether a color render target format uses 64 bits per sample.
+ * Reports whether a color render target format uses 64 bits per sample.
  *
  * @param format Color render target format.
  * @return True for k_16_16_16_16, k_16_16_16_16_FLOAT and k_32_32_FLOAT.
@@ -435,7 +435,7 @@ enum class TextureFormat : u32 {
   k_Cr_Y1_Cb_Y0_REP = 11,           /**< Packed unorm YCbCr, Cr Y1 Cb Y0 order. */
   k_Y1_Cr_Y0_Cb_REP = 12,           /**< Packed unorm YCbCr, Y1 Cr Y0 Cb order. */
   k_16_16_EDRAM = 13,               /**< EDRAM k_16_16 data. */
-  k_8_8_8_8_A = 14,                 /**< Likely the same as k_8_8_8_8. */
+  k_8_8_8_8_A = 14,                 /**< Resolved and memexported as k_8_8_8_8. */
   k_4_4_4_4 = 15,                   /**< 4 4-bit components. */
   k_10_11_11 = 16,                  /**< 10, 11 and 11-bit components. */
   k_11_11_10 = 17,                  /**< 11, 11 and 10-bit components. */
@@ -518,7 +518,7 @@ enum class ColorFormat : u32 {
 };
 
 /**
- * Tests whether resolving a render target format to a color format copies bits unchanged.
+ * Reports whether resolving a render target format to a color format copies bits unchanged.
  *
  * Resolves write unsigned data for fixed-point formats, so the signed k_16_16 and
  * k_16_16_16_16 render target formats never match.
@@ -720,7 +720,7 @@ enum class MajorMode : u32 {
 };
 
 /**
- * Tests whether a draw uses explicit major mode.
+ * Reports whether a draw uses explicit major mode.
  *
  * @param major_mode Major mode from the draw initiator.
  * @param primitive_type Primitive type of the draw.
@@ -811,7 +811,7 @@ enum class TessellationMode : u32 {
 /**
  * Polygon mode enable.
  *
- * Value 2 appears in some titles for filled triangles, so only kDualMode applies the
+ * Any value other than kDualMode renders filled triangles, so only kDualMode applies the
  * front and back polygon types.
  */
 enum class PolygonModeEnable : u32 {
@@ -877,7 +877,7 @@ enum class CopyCommand : u32 {
   kRaw = 0,         /**< Raw copy. */
   kConvert = 1,     /**< Copy with format conversion. */
   kConstantOne = 2, /**< Write constant 1. */
-  kNull = 3,        /**< Unknown. */
+  kNull = 3,        /**< Null copy. Resolve rejects it as unsupported. */
 };
 
 /** Samples a resolve reads (a2xx_rb_copy_sample_select). */
@@ -892,7 +892,7 @@ enum class CopySampleSelect : u32 {
 };
 
 /**
- * Tests whether a resolve reads a single sample.
+ * Reports whether a resolve reads a single sample.
  *
  * @param copy_sample_select Sample selection.
  * @return True for k0 to k3.
@@ -1170,7 +1170,7 @@ union alignas(u32) TextureFetch {
       struct {
         u32 width : 13;      /**< Width minus 1. */
         u32 height : 13;     /**< Height minus 1. */
-        u32 stack_depth : 6; /**< Stack depth minus 1, likely ignored if not stacked. */
+        u32 stack_depth : 6; /**< Stack depth minus 1, ignored unless stacked, 5 for cube maps. */
       } size_2d;             /**< Dword 2, 2D, stacked or cube size. */
       struct {
         u32 width : 11;  /**< Width minus 1. */

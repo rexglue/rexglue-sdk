@@ -13,14 +13,14 @@
 
 using rex::platform::Fiber;
 
-// Globals - fiber entry functions cannot capture closures.
+// Fiber entry functions cannot capture closures, so these are globals.
 static Fiber* s_main = nullptr;
 static int s_count = 0;
 
 static void counting_fiber(void*) {
-  ++s_count;  // first resume
+  ++s_count;
   Fiber::SwitchTo(s_main);
-  ++s_count;  // second resume
+  ++s_count;
   Fiber::SwitchTo(s_main);
 }
 
@@ -31,13 +31,10 @@ TEST_CASE("rex::platform::Fiber - basic context switch", "[fiber]") {
 
   REQUIRE(s_count == 0);
   Fiber::SwitchTo(f);
-  REQUIRE(s_count == 1);  // fiber ran, switched back
+  REQUIRE(s_count == 1);
   Fiber::SwitchTo(f);
-  REQUIRE(s_count == 2);  // fiber resumed, ran again, switched back
+  REQUIRE(s_count == 2);
 
-  // NOTE: Cleanup is not exception-safe. If a REQUIRE above fires, Catch2
-  // throws and these Destroy() calls are skipped, leaking the host fiber
-  // handles. Acceptable for a test-only scenario; fix if spurious failures occur.
   f->Destroy();
   s_main->Destroy();
   s_main = nullptr;

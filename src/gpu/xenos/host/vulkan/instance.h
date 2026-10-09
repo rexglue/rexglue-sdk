@@ -1,4 +1,3 @@
-#pragma once
 /**
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
@@ -9,6 +8,8 @@
  *
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
+
+#pragma once
 
 #include <memory>
 #include <vector>
@@ -29,11 +30,25 @@ class VulkanInstance : public rex::NonCopyable {
  public:
   explicit VulkanInstance(Key) {}
 
+  /**
+   * Creates the instance.
+   *
+   * The patch version of apiVersion is ignored on creation. Vulkan 1.0 implementations return
+   * VK_ERROR_INCOMPATIBLE_DRIVER for an apiVersion above 1.0, so a Vulkan 1.0 loader is given 1.0.
+   *
+   * @param with_surface True to enable the surface extensions.
+   * @param try_enable_validation True to enable the validation layer when present.
+   * @return The instance, or null on failure.
+   */
   static std::unique_ptr<VulkanInstance> Create(bool with_surface, bool try_enable_validation);
 
   ~VulkanInstance();
 
-  // nullptr if RenderDoc is not connected.
+  /**
+   * Returns the RenderDoc API.
+   *
+   * @return The API, or nullptr when RenderDoc is not connected.
+   */
   RenderDocAPI* renderdoc_api() const { return renderdoc_api_.get(); }
 
   struct Functions {
@@ -50,33 +65,35 @@ class VulkanInstance : public rex::NonCopyable {
 
     // From vkGetInstanceProcAddr for the instance.
 #define REXVK_FUNCTION(name) PFN_##name name = nullptr;
+/**
+ * Declares a member function pointer named after the core function of a promoted extension.
+ *
+ * @param extension_name Name of the extension function that the core function was promoted from.
+ * @param core_name Name of the core function, used as the member name.
+ *
+ * @code
+ * REXVK_FUNCTION_PROMOTED(vkBindBufferMemory2KHR, vkBindBufferMemory2)
+ * @endcode
+ */
 #define REXVK_FUNCTION_PROMOTED(extension_name, core_name) PFN_##core_name core_name = nullptr;
 #include "gpu/xenos/host/vulkan/functions/instance_1_0.inc"
-    // VK_KHR_surface (#1)
 #include "gpu/xenos/host/vulkan/functions/instance_khr_surface.inc"
-    // VK_KHR_xcb_surface (#6)
 #ifdef VK_USE_PLATFORM_XCB_KHR
 #include "gpu/xenos/host/vulkan/functions/instance_khr_xcb_surface.inc"
 #endif
-    // VK_KHR_wayland_surface (#7)
 #ifdef VK_USE_PLATFORM_WAYLAND_KHR
 #include "gpu/xenos/host/vulkan/functions/instance_khr_wayland_surface.inc"
 #endif
-    // VK_KHR_android_surface (#9)
 #ifdef VK_USE_PLATFORM_ANDROID_KHR
 #include "gpu/xenos/host/vulkan/functions/instance_khr_android_surface.inc"
 #endif
-    // VK_KHR_win32_surface (#10)
 #ifdef VK_USE_PLATFORM_WIN32_KHR
 #include "gpu/xenos/host/vulkan/functions/instance_khr_win32_surface.inc"
 #endif
-    // VK_EXT_metal_surface (#217)
 #ifdef VK_USE_PLATFORM_METAL_EXT
 #include "gpu/xenos/host/vulkan/functions/instance_ext_metal_surface.inc"
 #endif
-    // VK_KHR_get_physical_device_properties2 (#60, promoted to 1.1)
 #include "gpu/xenos/host/vulkan/functions/instance_1_1_khr_get_physical_device_properties2.inc"
-    // VK_EXT_debug_utils (#129)
 #include "gpu/xenos/host/vulkan/functions/instance_ext_debug_utils.inc"
 #undef REXVK_FUNCTION_PROMOTED
 #undef REXVK_FUNCTION
@@ -86,28 +103,32 @@ class VulkanInstance : public rex::NonCopyable {
 
   uint32_t api_version() const { return api_version_; }
 
-  // Also set to true if the version of the Vulkan API they were promoted to it
-  // supported (with the `ext_major_minor_` prefix rather than `ext_`).
+  /**
+   * Enabled instance extensions.
+   *
+   * Also true when the Vulkan version that promoted the extension is supported, using the
+   * ext_major_minor_ prefix rather than ext_.
+   */
   struct Extensions {
-    bool ext_KHR_surface = false;  // #1
+    bool ext_KHR_surface = false;
 #ifdef VK_USE_PLATFORM_XCB_KHR
-    bool ext_KHR_xcb_surface = false;  // #6
+    bool ext_KHR_xcb_surface = false;
 #endif
 #ifdef VK_USE_PLATFORM_WAYLAND_KHR
-    bool ext_KHR_wayland_surface = false;  // #7
+    bool ext_KHR_wayland_surface = false;
 #endif
 #ifdef VK_USE_PLATFORM_ANDROID_KHR
-    bool ext_KHR_android_surface = false;  // #9
+    bool ext_KHR_android_surface = false;
 #endif
 #ifdef VK_USE_PLATFORM_WIN32_KHR
-    bool ext_KHR_win32_surface = false;  // #10
+    bool ext_KHR_win32_surface = false;
 #endif
 #ifdef VK_USE_PLATFORM_METAL_EXT
-    bool ext_EXT_metal_surface = false;  // #217
+    bool ext_EXT_metal_surface = false;
 #endif
-    bool ext_1_1_KHR_get_physical_device_properties2 = false;  // #60
-    bool ext_EXT_debug_utils = false;                          // #129
-    bool ext_KHR_portability_enumeration = false;              // #395
+    bool ext_1_1_KHR_get_physical_device_properties2 = false;
+    bool ext_EXT_debug_utils = false;
+    bool ext_KHR_portability_enumeration = false;
   };
 
   const Extensions& extensions() const { return extensions_; }

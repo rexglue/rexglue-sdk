@@ -18,7 +18,19 @@ namespace rex::kernel::xboxkrnl {
 
 struct X_RTL_CRITICAL_SECTION;
 
+/**
+ * Initializes a critical section in guest memory.
+ *
+ * @param cs The critical section to initialize.
+ */
 REX_RUNTIME_API void RtlInitializeCriticalSection(X_RTL_CRITICAL_SECTION* cs);
+/**
+ * Initializes a critical section in guest memory with a spin count.
+ *
+ * @param cs The critical section to initialize.
+ * @param spin_count The spin count, stored in units of 256 and capped at 255 units.
+ * @return X_STATUS_SUCCESS.
+ */
 REX_RUNTIME_API X_STATUS RtlInitializeCriticalSectionAndSpinCount(X_RTL_CRITICAL_SECTION* cs,
                                                                   uint32_t spin_count);
 

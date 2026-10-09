@@ -1,4 +1,3 @@
-#pragma once
 /**
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
@@ -9,6 +8,8 @@
  *
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
+
+#pragma once
 
 #include <cstddef>
 #include <cstdint>
@@ -31,7 +32,7 @@ class DeferredCommandBuffer {
   void Reset();
   void Execute(VkCommandBuffer command_buffer);
 
-  // render_pass_begin->pNext of all barriers must be null.
+  // render_pass_begin->pNext must be null.
   void CmdVkBeginRenderPass(const VkRenderPassBeginInfo* render_pass_begin,
                             VkSubpassContents contents) {
     REX_ASSERT(render_pass_begin->pNext == nullptr);
@@ -261,7 +262,7 @@ class DeferredCommandBuffer {
 
   void CmdVkEndRenderPass() { WriteCommand(Command::kVkEndRenderPass, 0); }
 
-  // Dynamic rendering (VK_KHR_dynamic_rendering / Vulkan 1.3).
+  // Requires VK_KHR_dynamic_rendering or Vulkan 1.3.
   void CmdVkBeginRendering(const VkRenderingInfo* rendering_info);
   void CmdVkEndRendering() { WriteCommand(Command::kVkEndRendering, 0); }
 
@@ -408,10 +409,7 @@ class DeferredCommandBuffer {
     uint32_t color_attachment_count;
     bool has_depth_attachment;
     bool has_stencil_attachment;
-    // Followed by:
-    // - VkRenderingAttachmentInfo[color_attachment_count]
-    // - VkRenderingAttachmentInfo depth (if has_depth_attachment)
-    // - VkRenderingAttachmentInfo stencil (if has_stencil_attachment)
+    // Followed by a VkRenderingAttachmentInfo per color, then depth and stencil if present.
     static_assert(alignof(VkRenderingAttachmentInfo) <= alignof(uintmax_t));
   };
 
@@ -533,8 +531,7 @@ class DeferredCommandBuffer {
     uint32_t memory_barrier_count;
     uint32_t buffer_memory_barrier_count;
     uint32_t image_memory_barrier_count;
-    // Followed by aligned optional VkMemoryBarrier[],
-    // optional VkBufferMemoryBarrier[], optional VkImageMemoryBarrier[].
+    // Followed by aligned optional memory, buffer memory and image memory barrier arrays.
     static_assert(alignof(VkMemoryBarrier) <= alignof(uintmax_t));
     static_assert(alignof(VkBufferMemoryBarrier) <= alignof(uintmax_t));
     static_assert(alignof(VkImageMemoryBarrier) <= alignof(uintmax_t));
@@ -581,7 +578,7 @@ class DeferredCommandBuffer {
 
   const VulkanCommandProcessor& command_processor_;
 
-  // uintmax_t to ensure uint64_t and pointer alignment of all structures.
+  /** uintmax_t elements give uint64_t and pointer alignment to all structures. */
   std::vector<uintmax_t> command_stream_;
 };
 

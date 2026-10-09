@@ -19,11 +19,12 @@
 
 namespace rex::kernel::xboxkrnl {
 
+/**
+ * Returns the title to firmware.
+ *
+ * @param routine The reentry routine, must be 1 (HalRebootRoutine).
+ */
 void HalReturnToFirmware_entry(u32 routine) {
-  // void
-  // IN FIRMWARE_REENTRY  Routine
-
-  // Routine must be 1 'HalRebootRoutine'
   REX_ASSERT(routine == 1);
   REXLOG_INFO(kernel, "Title requested a return to firmware");
   runtime::Current().ExitTitle(rex::runtime::TitleExitReason::HardExit);

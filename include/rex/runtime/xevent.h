@@ -1,4 +1,3 @@
-#pragma once
 /**
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
@@ -10,6 +9,8 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
+#pragma once
+
 #include <memory>
 
 #include <rex/macros.h>
@@ -19,9 +20,9 @@
 
 namespace rex::runtime {
 
-// https://www.nirsoft.net/kernel_struct/vista/KEVENT.html
+/** Guest layout of a kernel event. */
 struct X_KEVENT {
-  X_DISPATCH_HEADER header;
+  X_DISPATCH_HEADER header; /**< Offset 0x0. Dispatch header. */
 };
 REX_STATIC_ASSERT_SIZE(X_KEVENT, 0x10);
 
@@ -34,12 +35,14 @@ struct EventObject {
   REX_RUNTIME_API EventObject(bool manual_reset_in, bool initial_state);
 
   /**
-   * @param header The dispatch header of a title event, whose type and signal state seed the
+   * @param header The dispatch header of a title event, whose type and signal state initialize the
    * object.
    */
   REX_RUNTIME_API explicit EventObject(const X_DISPATCH_HEADER& header);
 
+  /** True for a notification event, false for a synchronization event that resets on a wait. */
   bool manual_reset = false;
+  /** Host event that carries the signal state and wakes waiters. */
   std::unique_ptr<rex::platform::Event> event;
 };
 

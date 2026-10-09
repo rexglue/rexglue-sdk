@@ -1,4 +1,3 @@
-#pragma once
 /**
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
@@ -9,6 +8,8 @@
  *
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
+
+#pragma once
 
 #include <array>
 #include <atomic>
@@ -36,6 +37,7 @@ struct DPCSaveArea {
   u8 vscr_sat = 0;
 };
 
+/** The register file and stop flag of 1 guest thread. */
 class REX_RUNTIME_API ThreadState {
  public:
   /**
@@ -46,6 +48,7 @@ class REX_RUNTIME_API ThreadState {
    * @param runtime The runtime the thread belongs to, null in tests that run without one.
    */
   ThreadState(u32 thread_id, u32 stack_base, u32 pcr_address, Memory* memory, Runtime* runtime);
+  /** Unbinds the state from the calling host thread when it is the bound one. */
   ~ThreadState();
 
   Memory* memory() const { return memory_; }
@@ -84,8 +87,23 @@ class REX_RUNTIME_API ThreadState {
    */
   DPCSaveArea& dpc_save_area() { return dpc_save_area_; }
 
+  /**
+   * Binds a thread state to the calling host thread.
+   *
+   * @param thread_state The state, null to unbind.
+   */
   static void Bind(ThreadState* thread_state);
+  /**
+   * Returns the thread state bound to the calling host thread.
+   *
+   * @return The state, null when none is bound.
+   */
   static ThreadState* Get();
+  /**
+   * Returns the thread id of the bound thread state.
+   *
+   * @return The id, 0xFFFFFFFF when none is bound.
+   */
   static uint32_t GetThreadID();
 
  private:

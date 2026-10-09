@@ -30,8 +30,13 @@ class SDLWindowedAppContext final : public WindowedAppContext {
   SDLWindowedAppContext() = default;
   ~SDLWindowedAppContext() override;
 
-  // Initializes the SDL video subsystem and registers the custom event types.
-  // Must be called (and must succeed) before any other use.
+  /**
+   * Initializes the SDL video subsystem and registers the custom event types. Must succeed before
+   * any other use.
+   *
+   * @param config UI configuration.
+   * @return True on success.
+   */
   bool Initialize(const UIConfig& config);
 
   void NotifyUILoopOfPendingFunctions() override;
@@ -46,11 +51,20 @@ class SDLWindowedAppContext final : public WindowedAppContext {
    */
   void PumpEvents(std::chrono::milliseconds max_wait);
 
-  // Custom SDL event type carrying a coalesced paint request for a window
-  // (user.windowID identifies the target).
+  /**
+   * Returns the custom SDL event type for a coalesced paint request. user.windowID identifies the
+   * target window.
+   *
+   * @return The event type.
+   */
   uint32_t paint_event_type() const { return paint_event_type_; }
 
-  // Window registry for event routing. UI thread only.
+  /**
+   * Registers a window for event routing. UI thread only.
+   *
+   * @param id SDL window id.
+   * @param window Window that receives the events.
+   */
   void RegisterWindow(SDL_WindowID id, WindowSDL* window) { windows_.emplace(id, window); }
   void UnregisterWindow(SDL_WindowID id) { windows_.erase(id); }
 
@@ -60,8 +74,28 @@ class SDLWindowedAppContext final : public WindowedAppContext {
     return it != windows_.end() ? it->second : nullptr;
   }
 
+  /**
+   * Dispatches 1 SDL event. A paint event first drains a queued quit request, since CAMetalLayer
+   * nextDrawable can block forever once Cocoa requests termination. The pump is needed because a
+   * continuous stream of paint events keeps SDL_WaitEvent from returning to Cocoa to collect the
+   * application menu quit.
+   *
+   * @param event Event to dispatch.
+   */
   void ProcessEvent(SDL_Event& event);
+  /**
+   * Requests close on every window through the normal close path, since OnClosing stops the title,
+   * audio and GPU threads and bypassing it hangs teardown.
+   */
   void ProcessQuitRequest();
+  /**
+   * SDL event watch. On the main thread a quit event is handled synchronously while SDL queues it,
+   * before rendering can block in nextDrawable.
+   *
+   * @param userdata The SDLWindowedAppContext.
+   * @param event Event being queued.
+   * @return Always true.
+   */
   static bool SDLCALL WatchEvent(void* userdata, SDL_Event* event);
 
   std::unordered_map<SDL_WindowID, WindowSDL*> windows_;

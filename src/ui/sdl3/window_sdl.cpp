@@ -1,15 +1,3 @@
-/**
- * @file        ui/sdl3/window_sdl.cpp
- *
- * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
- *              All rights reserved.
- *
- * @license     BSD 3-Clause License
- *              See LICENSE file in the project root for full license text.
- *
- * @remarks     Derived from Xenia's window_win.cc (Ben Vanik, 2020).
- */
-
 #include "ui/sdl3/window_sdl.h"
 
 #include <cmath>
@@ -40,10 +28,16 @@ namespace rex::ui {
 
 namespace {
 
-// SDL timer callback (runs on SDL's timer thread): defer the actual hide to
-// the UI thread. The deferred function only touches the global SDL cursor and
-// the window's nonvirtual cursor-visibility getter; the window owns the timer
-// and removes it before destroying the SDL window.
+/**
+ * SDL timer callback running on the SDL timer thread. Defers the hide to the UI thread, where it
+ * touches only the global SDL cursor and the nonvirtual visibility getter. The window removes the
+ * timer before destroying the SDL window.
+ *
+ * @param userdata The WindowSDL.
+ * @param timer_id Unused.
+ * @param interval Unused.
+ * @return 0, which makes the timer one shot.
+ */
 Uint32 CursorAutoHideTimerCallback(void* userdata, SDL_TimerID timer_id, Uint32 interval) {
   (void)timer_id;
   (void)interval;
@@ -53,7 +47,7 @@ Uint32 CursorAutoHideTimerCallback(void* userdata, SDL_TimerID timer_id, Uint32 
       SDL_HideCursor();
     }
   });
-  return 0;  // One-shot.
+  return 0;
 }
 
 MouseEvent::Button TranslateSDLMouseButton(Uint8 button) {
@@ -93,8 +87,7 @@ WindowSDL::~WindowSDL() {
 }
 
 bool WindowSDL::OpenImpl() {
-  // SDL window coordinates are physical pixels on Windows and X11. Cocoa
-  // uses logical points and applies the backing scale itself.
+  // SDL window coordinates are physical pixels on Windows and X11, logical points on Cocoa.
   SDL_WindowFlags flags = SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY | SDL_WINDOW_HIDDEN;
 #if REX_PLATFORM_MAC
   int initial_width = int(GetDesiredLogicalWidth());
@@ -122,14 +115,11 @@ bool WindowSDL::OpenImpl() {
                            kCFPreferencesCurrentApplication);
   CFPreferencesAppSynchronize(kCFPreferencesCurrentApplication);
 #endif
-  // SDL3 requires explicit opt in for text input events. Reapplied from the
-  // desired state so a reopened window comes back with the state it had.
+  // SDL3 requires opt in for text input events, reapplied so a reopened window keeps its state.
   ApplyTextInputActiveNow();
   ApplyCursorVisibilityNow();
   SDL_ShowWindow(sdl_window_);
 
-  // Actualize state for the common Window code. Listener dispatch is handled
-  // by Window::Open after OpenImpl returns; these only store initial state.
   int pixel_width = 0;
   int pixel_height = 0;
   SDL_GetWindowSizeInPixels(sdl_window_, &pixel_width, &pixel_height);
@@ -299,7 +289,7 @@ bool WindowSDL::WarpMouseToCenter(int32_t& x_out, int32_t& y_out) {
   float center_x = static_cast<float>(width) * 0.5f;
   float center_y = static_cast<float>(height) * 0.5f;
   SDL_WarpMouseInWindow(sdl_window_, center_x, center_y);
-  // The warp reports nothing back and compositors may drop it, so confirm.
+  // The warp reports nothing back and compositors can drop it, so confirm.
   float actual_x = 0.0f;
   float actual_y = 0.0f;
   SDL_GetMouseState(&actual_x, &actual_y);
@@ -490,9 +480,7 @@ void WindowSDL::ApplyCursorVisibilityNow() {
       SDL_HideCursor();
       break;
     case CursorVisibility::AutoHidden:
-      // Hide immediately (see the contract in window.h: switching to
-      // AutoHidden hides instantly, e.g. when entering fullscreen); the
-      // mouse-motion handler reveals the cursor and re-arms the timer.
+      // AutoHidden hides at once, mouse motion reveals the cursor and re-arms the timer.
       SDL_HideCursor();
       break;
   }
@@ -558,8 +546,7 @@ std::unique_ptr<gpu::Surface> WindowSDL::CreateSurfaceImpl(gpu::Surface::TypeFla
 }
 
 void WindowSDL::RequestPaintImpl() {
-  // Coalesce: at most one queued paint event at a time. Callable from non-UI
-  // threads; SDL_PushEvent is thread-safe.
+  // At most 1 paint event is queued at a time, SDL_PushEvent is thread-safe.
   if (paint_pending_.exchange(true, std::memory_order_acq_rel)) {
     return;
   }
@@ -582,14 +569,10 @@ void WindowSDL::HandleWindowEvent(SDL_Event& event) {
                          static_cast<uint32_t>(event.window.data2), destruction_receiver);
       break;
     case SDL_EVENT_WINDOW_RESIZED: {
-      // Track the user-driven size as the desired size for the normal state
-      // only (mirrors the Win32 WM_SIZE handling).
       SDL_WindowFlags flags = SDL_GetWindowFlags(sdl_window_);
       if (!(flags & (SDL_WINDOW_MAXIMIZED | SDL_WINDOW_FULLSCREEN | SDL_WINDOW_MINIMIZED))) {
 #if REX_PLATFORM_MAC
-        // Cocoa reports the client size in logical points. Converting it from
-        // the backing DPI a second time would halve the desired size on Retina
-        // displays.
+        // Cocoa reports logical points, converting again would halve the size on Retina displays.
         OnDesiredLogicalSizeUpdate(static_cast<uint32_t>(event.window.data1),
                                    static_cast<uint32_t>(event.window.data2));
 #else
@@ -616,7 +599,7 @@ void WindowSDL::HandleWindowEvent(SDL_Event& event) {
       OnFocusUpdate(false, destruction_receiver);
       break;
     case SDL_EVENT_WINDOW_EXPOSED:
-      // The platform cannot retain the previous image; force the paint.
+      // The platform cannot retain the previous image, so force the paint.
       OnPaint(true);
       break;
     case SDL_EVENT_WINDOW_MINIMIZED:
@@ -626,7 +609,6 @@ void WindowSDL::HandleWindowEvent(SDL_Event& event) {
       OnRestored(destruction_receiver);
       break;
     case SDL_EVENT_WINDOW_CLOSE_REQUESTED:
-      // SDL destroys nothing on its own; this is the veto point.
       if (SendCloseRequestToListeners(destruction_receiver)) {
         if (!destruction_receiver.IsWindowDestroyed()) {
           PerformClose();
@@ -665,8 +647,7 @@ void WindowSDL::HandleKeyEvent(SDL_Event& event) {
 }
 
 void WindowSDL::HandleTextInputEvent(SDL_Event& event) {
-  // Replicate the Win32 WM_CHAR behavior: one OnKeyChar per codepoint with
-  // the character code in the virtual key slot.
+  // One OnKeyChar per codepoint with the character code in the virtual key slot.
   const char* text = event.text.text;
   if (!text || !*text) {
     return;
@@ -686,7 +667,7 @@ void WindowSDL::HandleTextInputEvent(SDL_Event& event) {
 }
 
 void WindowSDL::HandleMouseEvent(SDL_Event& event) {
-  // SDL3 reports float window coordinates; listeners expect physical pixels.
+  // SDL3 reports float window coordinates, listeners expect physical pixels.
   float density = GetPixelDensity();
   WindowDestructionReceiver destruction_receiver(this);
   switch (event.type) {

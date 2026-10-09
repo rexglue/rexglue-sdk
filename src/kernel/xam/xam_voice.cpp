@@ -21,14 +21,12 @@ namespace kernel {
 namespace xam {
 
 u32 XamVoiceIsActiveProcess_entry() {
-  // Returning 0 here will short-circuit a bunch of voice stuff.
+  // Returning 0 skips most of the voice handling.
   return 0;
 }
 
-u32 XamVoiceCreate_entry([[maybe_unused]] u32 unk1,  // 0
-                         [[maybe_unused]] u32 unk2,  // 0xF
+u32 XamVoiceCreate_entry([[maybe_unused]] u32 unk1, [[maybe_unused]] u32 unk2,
                          mapped_u32 out_voice_ptr) {
-  // Null out the ptr.
   out_voice_ptr.Zero();
   return X_ERROR_ACCESS_DENIED;
 }

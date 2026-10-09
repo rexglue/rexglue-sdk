@@ -36,7 +36,7 @@ class D3D12Provider : public GraphicsProvider {
   std::unique_ptr<ImmediateDrawer> CreateImmediateDrawer() override;
 
   IDXGIFactory2* GetDXGIFactory() const { return dxgi_factory_; }
-  // nullptr if PIX not attached.
+  /** Returns nullptr when PIX is not attached. */
   IDXGraphicsAnalysis* GetGraphicsAnalysis() const { return graphics_analysis_; }
   ID3D12Device* GetDevice() const { return device_; }
   ID3D12CommandQueue* GetDirectQueue() const { return direct_queue_; }
@@ -82,10 +82,8 @@ class D3D12Provider : public GraphicsProvider {
     return start;
   }
 
-  // Adapter info.
   GpuVendorID GetAdapterVendorID() const { return adapter_vendor_id_; }
 
-  // Device features.
   D3D12_HEAP_FLAGS GetHeapFlagCreateNotZeroed() const { return heap_flag_create_not_zeroed_; }
   D3D12_PROGRAMMABLE_SAMPLE_POSITIONS_TIER
   GetProgrammableSamplePositionsTier() const { return programmable_sample_positions_tier_; }
@@ -98,7 +96,6 @@ class D3D12Provider : public GraphicsProvider {
   bool AreUnalignedBlockTexturesSupported() const { return unaligned_block_textures_supported_; }
   uint32_t GetVirtualAddressBitsPerResource() const { return virtual_address_bits_per_resource_; }
 
-  // Proxies for DirectX functions since they are loaded dynamically.
   HRESULT SerializeRootSignature(const D3D12_ROOT_SIGNATURE_DESC* desc,
                                  D3D_ROOT_SIGNATURE_VERSION version, ID3DBlob** blob_out,
                                  ID3DBlob** error_blob_out) const {
@@ -135,7 +132,7 @@ class D3D12Provider : public GraphicsProvider {
 
   HMODULE library_dxgi_ = nullptr;
   PFNCreateDXGIFactory2 pfn_create_dxgi_factory2_;
-  // Needed during shutdown as well to report live objects, so may be nullptr.
+  /** Needed during shutdown to report live objects, so may be nullptr. */
   PFNDXGIGetDebugInterface1 pfn_dxgi_get_debug_interface1_ = nullptr;
 
   HMODULE library_d3d12_ = nullptr;

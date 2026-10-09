@@ -1,4 +1,3 @@
-#pragma once
 /**
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
@@ -10,6 +9,8 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
+#pragma once
+
 #include <rex/macros.h>
 #include <rex/runtime.h>
 
@@ -17,6 +18,11 @@ namespace rex {
 namespace kernel {
 namespace xam {
 
+/**
+ * Reports whether a Xam dialog is on screen.
+ *
+ * @return True when at least 1 Xam dialog is shown.
+ */
 REX_RUNTIME_API bool XamIsUIActive();
 
 }  // namespace xam

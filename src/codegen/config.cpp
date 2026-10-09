@@ -1,17 +1,3 @@
-/**
- * @file        codegen/config.cpp
- *
- * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
- *              All rights reserved.
- *
- * @license     BSD 3-Clause License
- *              See LICENSE file in the project root for full license text.
- *
- * @remarks     Based on XenonRecomp/UnleashedRecomp toml config
- */
-
-// TOML config file loading
-
 #include <algorithm>
 #include <map>
 #include <numeric>
@@ -31,10 +17,15 @@ namespace rex::codegen {
 
 namespace {
 
-/// Maximum nesting depth for include chains.
+/** Maximum nesting depth for include chains. */
 constexpr uint32_t kMaxIncludeDepth = 32;
 
-/// Parse a hex address string (with or without "0x"/"0X" prefix).
+/**
+ * Parses a hex address string with or without a "0x" or "0X" prefix.
+ *
+ * @param keyStr Address text.
+ * @return The address, or nullopt when the text is not hex.
+ */
 std::optional<uint32_t> ParseHexAddress(const std::string& keyStr) {
   try {
     if (keyStr.starts_with("0x") || keyStr.starts_with("0X")) {
@@ -46,10 +37,6 @@ std::optional<uint32_t> ParseHexAddress(const std::string& keyStr) {
     return std::nullopt;
   }
 }
-
-// ---------------------------------------------------------------------------
-// Scalar merge helpers -- log overrides at debug level
-// ---------------------------------------------------------------------------
 
 template <typename T>
 void MergeScalar(T& dst, const T& src, const char* name) {
@@ -65,8 +52,14 @@ void MergeScalar(T& dst, const T& src, const char* name) {
   }
 }
 
-/// Overload for booleans where the "zero" state (false) is meaningful.
-/// Only skip the merge when the overlay explicitly did not set the key.
+/**
+ * Merges a boolean where false is a meaningful value, skipped when the key is absent.
+ *
+ * @param dst Destination value.
+ * @param src Overlay value.
+ * @param present True when the overlay sets the key.
+ * @param name Key name for the override log.
+ */
 void MergeBool(bool& dst, bool src, bool present, const char* name) {
   if (!present)
     return;
@@ -106,10 +99,6 @@ std::string_view NearestShimName(std::string_view name) {
   return best;
 }
 
-// ---------------------------------------------------------------------------
-// Apply a single parsed TOML table onto the config (merge semantics)
-// ---------------------------------------------------------------------------
-
 bool ApplyToml(const toml::table& toml, RecompilerConfig& cfg, const std::string& filePath) {
   if (auto* retired = toml["rexcrt"].as_table()) {
     std::string converted = "[shim]";
@@ -124,9 +113,6 @@ bool ApplyToml(const toml::table& toml, RecompilerConfig& cfg, const std::string
     return false;
   }
 
-  // --- Scalars: last wins ---
-
-  // String scalars (only override if present in this file)
   if (auto v = toml["project_name"].value<std::string>()) {
     MergeScalar(cfg.projectName, *v, "project_name");
   }
@@ -140,7 +126,6 @@ bool ApplyToml(const toml::table& toml, RecompilerConfig& cfg, const std::string
     MergeScalar(cfg.templateDir, *v, "template_dir");
   }
 
-  // Bool scalars
   auto hasBool = [&](const char* key) -> bool { return toml[key].is_boolean(); };
   MergeBool(cfg.skipLr, toml["skip_lr"].value_or(false), hasBool("skip_lr"), "skip_lr");
   MergeBool(cfg.skipMsr, toml["skip_msr"].value_or(false), hasBool("skip_msr"), "skip_msr");
@@ -162,7 +147,6 @@ bool ApplyToml(const toml::table& toml, RecompilerConfig& cfg, const std::string
     cfg.isDll = toml["is_dll"].value_or(false);
   }
 
-  // Integer scalars (only override if present)
   if (auto v = toml["longjmp_address"].value<int64_t>()) {
     uint32_t addr = static_cast<uint32_t>(*v);
     MergeScalar(cfg.longJmpAddress, addr, "longjmp_address");
@@ -172,7 +156,6 @@ bool ApplyToml(const toml::table& toml, RecompilerConfig& cfg, const std::string
     MergeScalar(cfg.setJmpAddress, addr, "setjmp_address");
   }
 
-  // --- [analysis] section scalars ---
   if (auto* analysisTable = toml["analysis"].as_table()) {
     if (auto v = (*analysisTable)["max_jump_extension"].value<uint32_t>()) {
       MergeScalar(cfg.maxJumpExtension, *v, "analysis.max_jump_extension");
@@ -184,7 +167,6 @@ bool ApplyToml(const toml::table& toml, RecompilerConfig& cfg, const std::string
       MergeScalar(cfg.largeFunctionThreshold, *v, "analysis.large_function_threshold");
     }
 
-    // exceptionHandlerFuncHints -- push_back then deduplicate at end
     if (auto handlers = (*analysisTable)["exception_handler_funcs"].as_array()) {
       for (const auto& elem : *handlers) {
         if (auto val = elem.value<int64_t>()) {
@@ -194,9 +176,6 @@ bool ApplyToml(const toml::table& toml, RecompilerConfig& cfg, const std::string
     }
   }
 
-  // --- Keyed tables: additive, same key = last wins ---
-
-  // [shim]
   if (auto* shimTable = toml["shim"].as_table()) {
     size_t added = 0;
     for (const auto& [name, val] : *shimTable) {
@@ -216,7 +195,6 @@ bool ApplyToml(const toml::table& toml, RecompilerConfig& cfg, const std::string
     }
   }
 
-  // [functions]
   if (auto functionsTable = toml["functions"].as_table()) {
     size_t added = 0;
     for (auto& [key, value] : *functionsTable) {
@@ -265,9 +243,6 @@ bool ApplyToml(const toml::table& toml, RecompilerConfig& cfg, const std::string
     }
   }
 
-  // --- Arrays of tables: deduplicated by primary key (address), last wins ---
-
-  // [[invalid_instructions]] -- keyed by "data" address
   if (auto invalidArray = toml["invalid_instructions"].as_array()) {
     for (auto& entry : *invalidArray) {
       auto* table = entry.as_table();
@@ -297,7 +272,6 @@ bool ApplyToml(const toml::table& toml, RecompilerConfig& cfg, const std::string
     }
   }
 
-  // [[switch_tables]] -- keyed by "address"
   if (auto switchTableArray = toml["switch_tables"].as_array()) {
     for (auto& entry : *switchTableArray) {
       auto* table = entry.as_table();
@@ -352,7 +326,6 @@ bool ApplyToml(const toml::table& toml, RecompilerConfig& cfg, const std::string
     }
   }
 
-  // [[midasm_hook]] -- keyed by "address"
   if (auto midAsmHookArray = toml["midasm_hook"].as_array()) {
     for (auto& entry : *midAsmHookArray) {
       auto* table = entry.as_table();
@@ -415,9 +388,6 @@ bool ApplyToml(const toml::table& toml, RecompilerConfig& cfg, const std::string
     }
   }
 
-  // --- Sets: additive ---
-
-  // indirect_calls -> knownIndirectCallHints (set)
   if (auto indirectCallArray = toml["indirect_calls"].as_array()) {
     for (auto& entry : *indirectCallArray) {
       if (auto addr = entry.value<int64_t>()) {
@@ -510,10 +480,6 @@ bool ApplyTableWithIncludes(const toml::table& tbl, const std::filesystem::path&
 
 }  // namespace
 
-// ---------------------------------------------------------------------------
-// Public API
-// ---------------------------------------------------------------------------
-
 namespace {
 
 bool FinalizeConfig(RecompilerConfig& cfg) {
@@ -575,7 +541,6 @@ bool RecompilerConfig::LoadFromTable(const toml::table& tbl,
 RecompilerConfig::ValidationResult RecompilerConfig::Validate() const {
   ValidationResult result;
 
-  // Helper to check 4-byte alignment (PPC instructions are 4-byte aligned)
   auto checkAlignment = [&](uint32_t addr, const char* name) {
     if (addr != 0 && (addr & 0x3) != 0) {
       result.errors.push_back(std::format("{} address 0x{:08X} is not 4-byte aligned", name, addr));
@@ -583,7 +548,6 @@ RecompilerConfig::ValidationResult RecompilerConfig::Validate() const {
     }
   };
 
-  // Check special address alignment
   checkAlignment(longJmpAddress, "longjmp");
   checkAlignment(setJmpAddress, "setjmp");
   for (const auto& entry : declaredMMIOAccesses) {
@@ -616,7 +580,6 @@ RecompilerConfig::ValidationResult RecompilerConfig::Validate() const {
     }
   }
 
-  // Check function address alignment
   for (const auto& [addr, size] : functions) {
     if (addr & 0x3) {
       result.errors.push_back(std::format("Function address 0x{:08X} is not 4-byte aligned", addr));
@@ -624,7 +587,6 @@ RecompilerConfig::ValidationResult RecompilerConfig::Validate() const {
     }
   }
 
-  // Check for duplicate function boundaries
   {
     std::map<uint32_t, uint32_t> seen;
     for (const auto& [addr, cfg] : functions) {
@@ -644,7 +606,6 @@ RecompilerConfig::ValidationResult RecompilerConfig::Validate() const {
     }
   }
 
-  // Check for overlapping function boundaries (standalone functions only)
   {
     std::vector<std::pair<uint32_t, uint32_t>> sorted;
     for (const auto& [addr, cfg] : functions) {
@@ -693,7 +654,6 @@ RecompilerConfig::ValidationResult RecompilerConfig::Validate() const {
     }
   }
 
-  // Check required fields
   if (filePath.empty()) {
     result.warnings.push_back("file_path is empty");
   }

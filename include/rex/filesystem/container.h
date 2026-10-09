@@ -63,8 +63,20 @@ struct ContainerNode {
 /** A mapped and parsed container image. Move only. */
 class REX_API Container : public MoveOnly {
  public:
+  /**
+   * Takes over the mapped image of another container.
+   *
+   * @param other The container to move from.
+   */
   Container(Container&& other) noexcept;
+  /**
+   * Replaces this container with another, releasing the current image.
+   *
+   * @param other The container to move from.
+   * @return This container.
+   */
   Container& operator=(Container&& other) noexcept;
+  /** Unmaps the container image. */
   ~Container();
 
   /**

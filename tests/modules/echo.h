@@ -24,6 +24,9 @@ class IEcho {
   virtual ~IEcho() = default;
 
   /**
+   * Returns its argument.
+   *
+   * @param value The value to return.
    * @return The value passed in.
    */
   virtual int Echo(int value) = 0;

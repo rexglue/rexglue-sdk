@@ -1,5 +1,5 @@
 /**
- * @file        rex/codegen/function_scanner.h
+ * @file        codegen/function_scanner.h
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -19,77 +19,74 @@
 #include <vector>
 
 #include <rex/codegen/config.h>
-#include <rex/codegen/function_graph.h>  // For FunctionAuthority, TargetKind
+#include <rex/codegen/function_graph.h>
 #include <rex/codegen/limits.h>
 #include <rex/result.h>
 #include <rex/types.h>
 
 namespace rex::codegen {
 
-// Forward declarations
 struct CodeRegion;
 class BinaryView;
 class DecodedBinary;
 
-// FunctionAuthority is defined in function_graph.h
-
-//=============================================================================
-// Block-Based Discovery Types
-//=============================================================================
-
 /**
  * Basic block discovered during recursive block discovery.
- * Used as temporary scanner state during discovery when function extent is unknown.
- * Converted to FunctionNode::Block when added to the graph.
+ * Temporary scanner state while the function extent is unknown, converted to
+ * FunctionNode::Block when added to the graph.
  *
- * projectedSize: Size limit for conditional branch fall-through.
- * When a conditional branch is taken, the fall-through block gets a projectedSize
- * equal to the distance to the branch target. This prevents the fall-through from
- * consuming unrelated code beyond the branch target.
+ * projectedSize limits a conditional branch fall through. When a conditional branch is taken,
+ * the fall through block gets a projectedSize equal to the distance to the branch target, so it
+ * cannot consume unrelated code beyond that target.
  */
 struct DiscoveredBlock {
-  rex::guest_addr_t base = 0;   // Start address
-  rex::guest_addr_t end = 0;    // End address (exclusive, points after last instruction)
-  bool has_terminator = false;  // Ends with blr/bctr/unconditional branch
-  int64_t projectedSize =
-      -1;  // Size limit (-1 = unlimited), set on conditional branch fall-through
-  std::vector<rex::guest_addr_t> successors;  // Branch targets (for CFG building)
+  rex::guest_addr_t base = 0;  /**< Guest address of the first instruction of the block. */
+  rex::guest_addr_t end = 0;   /**< Exclusive, points after the last instruction */
+  bool has_terminator = false; /**< Ends with blr, bctr or an unconditional branch */
+  int64_t projectedSize = -1;  /**< Size limit, -1 for unlimited */
+  /** Addresses of the blocks control flow can reach next, including fall through and branch
+   * targets. */
+  std::vector<rex::guest_addr_t> successors;
 };
 
 /**
- * Result of block-based function discovery.
- * Contains all blocks reachable from entry point.
+ * Result of block based function discovery.
+ * Contains all blocks reachable from the entry point.
  */
 struct FunctionBlocks {
-  rex::guest_addr_t entry = 0;                  // Function entry point
-  std::vector<DiscoveredBlock> blocks;          // All discovered blocks
-  rex::u32 pdata_size = 0;                      // From pdata (0 if unknown)
-  std::vector<JumpTable> jump_tables;           // Detected jump tables
-  std::vector<rex::guest_addr_t> external_calls;  // bl targets outside this function
-  std::vector<rex::guest_addr_t> tail_calls;      // Unconditional branches to other functions
+  rex::guest_addr_t entry = 0; /**< Guest address of the function entry the scan started from. */
+  std::vector<DiscoveredBlock> blocks; /**< Blocks reachable from the entry. */
+  rex::u32 pdata_size = 0;             /**< Size from pdata, 0 when unknown */
+  /** Jump tables found behind bctr instructions in the blocks. */
+  std::vector<JumpTable> jump_tables;
+  std::vector<rex::guest_addr_t> external_calls; /**< bl targets outside this function */
+  std::vector<rex::guest_addr_t> tail_calls;     /**< Unconditional branches to other functions */
 };
 
-//=============================================================================
-// Function Scanner
-//=============================================================================
-
 /**
- * PowerPC function scanner
+ * PowerPC function scanner.
  *
- * Implements heuristics for function boundary detection:
- * - Linear sweep from entry point
+ * Implements heuristics for function boundary detection.
+ * - Linear sweep from the entry point
  * - Furthest branch target tracking
- * - Return/indirect branch detection
- * - Prologue/epilogue pattern matching
+ * - Return and indirect branch detection
+ * - Prologue and epilogue pattern matching
  *
  * Uses BinaryView for binary introspection.
  */
 class FunctionScanner {
  public:
+  /**
+   * Creates a scanner over a binary.
+   *
+   * @param binary Binary to scan, must outlive the scanner
+   * @param limits Analysis limits, must outlive the scanner
+   */
   FunctionScanner(const BinaryView& binary, const Limits& limits);
 
   /**
    * Detect jump table pattern at bctr instruction
+   *
    * @param bctr_address Address of the bctr instruction
    * @return JumpTable on success, nullopt if no jump table detected
    */
@@ -98,43 +95,83 @@ class FunctionScanner {
   /**
    * Discover all reachable blocks from entry point.
    * Uses recursive block discovery with pending stack.
+   *
    * @param entry_point Function entry point address
    * @param pdata_size Optional size from .pdata (0 if unknown)
    * @return FunctionBlocks containing all discovered blocks
    */
   FunctionBlocks discover_blocks(rex::guest_addr_t entry_point, rex::u32 pdata_size = 0);
 
-  // Address translation via Module's Memory
+  /**
+   * Translates an address through the Module Memory.
+   *
+   * @tparam T Pointee type
+   * @param guest_addr Address to translate
+   * @return Pointer to the data
+   */
   template <typename T>
   const T* translate_address(rex::guest_addr_t guest_addr) const;
 
-  // Check if address is in an executable section
+  /**
+   * Reports whether an address is in an executable section.
+   *
+   * @param address Address to test
+   * @return True when executable
+   */
   bool isExecutableSection(rex::guest_addr_t address) const;
 
-  // Set known switch table addresses (from config) to skip auto-detection
+  /**
+   * Sets the known switch table addresses from config, which skip auto detection.
+   *
+   * @param addresses Switch table addresses
+   */
   void setKnownSwitchTables(const std::unordered_set<uint32_t>& addresses) {
     known_switch_tables_ = addresses;
   }
 
-  // Set discontinuous function chunks (chunk_addr -> FunctionConfig with parent set)
+  /**
+   * Sets the discontinuous function chunks.
+   *
+   * @param chunks Chunk address mapped to a FunctionConfig with parent set
+   */
   void setChunks(const std::unordered_map<uint32_t, FunctionConfig>& chunks) { chunks_ = chunks; }
 
-  // Set bl targets that need resolution (for Fix 4: shared helper promotion)
+  /**
+   * Sets the bl targets that need resolution.
+   *
+   * @param targets bl target addresses
+   */
   void setBlTargets(const std::unordered_set<uint32_t>& targets) { bl_targets_ = targets; }
 
-  // Get collected bl targets from discovery
+  /** Returns the bl targets collected by discovery. */
   const std::unordered_set<uint32_t>& getBlTargets() const { return bl_targets_; }
 
+  /**
+   * Sets the addresses of known functions. A branch to one is a tail call and a sweep stops at one.
+   *
+   * @param callables Entry point addresses
+   */
   void setKnownCallables(const std::unordered_set<uint32_t>& callables) {
     known_callables_ = callables;
   }
 
   bool isKnownCallable(uint32_t address) const { return known_callables_.contains(address); }
 
+  /**
+   * Sets the address ranges that hold data instead of code.
+   *
+   * @param regions Ranges of start address up to but excluding end address
+   */
   void setDataRegions(const std::vector<std::pair<uint32_t, uint32_t>>& regions) {
     data_regions_ = regions;
   }
 
+  /**
+   * Reports whether an address is in a data region.
+   *
+   * @param address Address to test
+   * @return True when a data region contains address
+   */
   bool isInDataRegion(uint32_t address) const {
     for (const auto& [start, end] : data_regions_) {
       if (address >= start && address < end)
@@ -143,25 +180,40 @@ class FunctionScanner {
     return false;
   }
 
-  // Set code regions for boundary checking (prevents cross-region merges)
+  /**
+   * Sets the code regions used for boundary checking, which prevents cross region merges.
+   *
+   * @param regions Code regions, not owned
+   */
   void setCodeRegions(const std::vector<CodeRegion>* regions) { code_regions_ = regions; }
 
-  // Find which code region contains the given address (nullptr if not found)
+  /**
+   * Finds the code region containing an address.
+   *
+   * @param address Address to look up
+   * @return The region, or null when none contains address
+   */
   const CodeRegion* findRegionContaining(uint32_t address) const;
 
   /**
-   * Check if a branch from currentAddr to targetAddr stays within the same
-   * code region OR targets a configured chunk of the current function.
-   * Used to determine if a branch is internal or a tail call.
+   * Reports whether a branch from currentAddr to targetAddr stays within the same code region
+   * or targets a configured chunk of the current function. Separates an internal branch from a
+   * tail call.
    *
    * @param currentAddr Address of the branch instruction
    * @param targetAddr Branch target address
-   * @param functionEntry Entry point of the current function being discovered
-   * @return true if the branch should be treated as internal
+   * @param functionEntry Entry point of the function being discovered
+   * @return True when the branch is treated as internal
    */
   bool isInternalBranch(uint32_t currentAddr, uint32_t targetAddr, uint32_t functionEntry) const;
 
-  // Check if an address is within a chunk belonging to the given function
+  /**
+   * Reports whether an address is within a chunk belonging to a function.
+   *
+   * @param address Address to test
+   * @param function_entry Entry point of the function
+   * @return True when address is inside one of its chunks
+   */
   bool isWithinChunk(uint32_t address, uint32_t function_entry) const {
     for (const auto& [chunk_start, cfg] : chunks_) {
       if (cfg.parent == function_entry) {
@@ -175,14 +227,18 @@ class FunctionScanner {
     return false;
   }
 
-  // Find chunk parent for an address (returns 0 if not in any chunk)
+  /**
+   * Finds the chunk parent for an address. An exact chunk start match is checked first, then
+   * every chunk range.
+   *
+   * @param address Address to look up
+   * @return Parent function entry, 0 when address is in no chunk
+   */
   uint32_t findChunkParent(uint32_t address) const {
-    // First check exact chunk start matches
     auto it = chunks_.find(address);
     if (it != chunks_.end()) {
       return it->second.parent;
     }
-    // Then check if address is within any chunk range
     for (const auto& [chunk_start, cfg] : chunks_) {
       uint32_t chunk_end =
           cfg.end ? cfg.end : (cfg.size ? chunk_start + cfg.size : chunk_start + 0x1000);
@@ -203,40 +259,31 @@ class FunctionScanner {
   std::vector<std::pair<uint32_t, uint32_t>> data_regions_;
   const std::vector<CodeRegion>* code_regions_ = nullptr;
 
-  // Helper methods for function boundary detection
   bool is_prologue_pattern(rex::guest_addr_t address);
   bool is_epilogue_pattern(rex::guest_addr_t address);
   bool is_restgprlr_function(rex::guest_addr_t address);
 };
 
-//=============================================================================
-// Block Discovery Result
-//=============================================================================
-
+/** Branch whose target the function graph must still resolve. */
 struct UnresolvedBranch {
-  uint32_t site;       // Address of branch instruction
-  uint32_t target;     // Target address
-  bool isCall;         // true = bl (call), false = b (tail/jump)
-  bool isConditional;  // true = bc/beq and others, false = unconditional
+  uint32_t site;      /**< Address of the branch instruction */
+  uint32_t target;    /**< Branch target address */
+  bool isCall;        /**< True for bl, false for b */
+  bool isConditional; /**< True for bc, beq and other conditional branches */
 };
 
+/** Blocks, branches and instructions found by discoverBlocks() for 1 function. */
 struct BlockDiscoveryResult {
-  std::vector<Block> blocks;
-  std::vector<UnresolvedBranch> unresolvedBranches;
-  std::vector<JumpTable> jumpTables;
-  std::set<uint32_t> labels;
+  std::vector<Block> blocks;                        /**< Discovered blocks */
+  std::vector<UnresolvedBranch> unresolvedBranches; /**< Branches left for the graph to resolve */
+  std::vector<JumpTable> jumpTables;                /**< Detected jump tables */
+  std::set<uint32_t> labels;                        /**< Internal branch target addresses */
 
-  // Collected instruction pointers (for FunctionNode ownership)
-  std::vector<rex::codegen::ppc::Instruction*> instructions;
+  std::vector<rex::codegen::ppc::Instruction*> instructions; /**< Handed to FunctionNode */
 
-  // External references found during discovery
-  std::vector<uint32_t> externalCalls;  // bl to unknown targets
-  std::vector<uint32_t> tailCalls;      // b to external targets
+  std::vector<uint32_t> externalCalls; /**< bl to unknown targets */
+  std::vector<uint32_t> tailCalls;     /**< b to external targets */
 };
-
-//=============================================================================
-// Block Discovery Function
-//=============================================================================
 
 /**
  * Discover all blocks belonging to a function starting at entryPoint.
@@ -253,6 +300,8 @@ struct BlockDiscoveryResult {
  * @param entryPoint Starting address of the function
  * @param containingRegion Code region containing the entry point
  * @param knownFunctions Set of known function entry points (to detect tail calls)
+ * @param pdataSize Function size in bytes from PDATA, or 0 when unknown
+ * @param manualSwitchTables Configured switch tables keyed by bctr address, or nullptr
  * @return BlockDiscoveryResult containing blocks, branches, and jump tables
  */
 BlockDiscoveryResult discoverBlocks(
@@ -260,10 +309,6 @@ BlockDiscoveryResult discoverBlocks(
     const CodeRegion& containingRegion, const std::unordered_set<uint32_t>& knownFunctions,
     uint32_t pdataSize = 0,
     const std::unordered_map<uint32_t, JumpTable>* manualSwitchTables = nullptr);
-
-//=============================================================================
-// Jump Table Detection
-//=============================================================================
 
 /**
  * Detect jump table at a bctr instruction.
@@ -278,6 +323,8 @@ BlockDiscoveryResult discoverBlocks(
  * @param limits Analysis limits
  * @param bctrAddr Address of the bctr instruction
  * @param containingRegion Code region for validation
+ * @param funcStart Function start address, lower bound for table targets
+ * @param funcEnd Function end address
  * @return JumpTable if detected, empty optional otherwise
  */
 std::optional<JumpTable> detectJumpTable(DecodedBinary& decoded, const Limits& limits,

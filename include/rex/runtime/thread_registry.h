@@ -24,17 +24,23 @@
 
 namespace rex::runtime {
 
-/** A transient pin on a thread record. Never stored. Move only. */
+/** A transient pin on a `ThreadRecord`. Never stored. Move only. */
 class ThreadPin : public rex::MoveOnly {
  public:
   ThreadPin() = default;
   /**
-   * Adopts a pin already taken on a thread record.
+   * Takes a pin already taken on a `ThreadRecord`.
    *
-   * @param record The pinned record.
+   * @param record The pinned `ThreadRecord`.
    */
   explicit ThreadPin(ThreadRecord* record) noexcept : record_(record) {}
   ThreadPin(ThreadPin&& other) noexcept : record_(other.record_) { other.record_ = nullptr; }
+  /**
+   * Takes over the pin of another slot and releases the pin this pin held.
+   *
+   * @param other The pin left empty.
+   * @return This pin.
+   */
   ThreadPin& operator=(ThreadPin&& other) noexcept {
     if (this != &other) {
       Reset();
@@ -46,7 +52,7 @@ class ThreadPin : public rex::MoveOnly {
   ~ThreadPin() { Reset(); }
 
   /**
-   * Reports whether the pin holds a record.
+   * Reports whether the pin holds a `ThreadRecord`.
    *
    * @return True when it does.
    */
@@ -55,9 +61,9 @@ class ThreadPin : public rex::MoveOnly {
   ThreadRecord& operator*() const noexcept { return *record_; }
 
   /**
-   * Returns the record.
+   * Returns the `ThreadRecord`.
    *
-   * @return The record, null when empty.
+   * @return The `ThreadRecord`, null when empty.
    */
   [[nodiscard]] ThreadRecord* get() const noexcept { return record_; }
 
@@ -85,17 +91,17 @@ struct FiberInfo {
   bool is_thread_fiber;   /**< True for ConvertThreadToFiber, whose stack the thread owns. */
 };
 
-/** Owns every thread record, finds them by id or handle, and keeps the TLS slots and fibers. */
+/** Owns every `ThreadRecord`, finds them by id or handle, and keeps the TLS slots and fibers. */
 class IThreadRegistry {
  public:
   REX_INTERFACE(IThreadRegistry, "rex.runtime.thread_registry", 1);
   virtual ~IThreadRegistry() = default;
 
   /**
-   * Takes ownership of a record, assigns its thread id, gives it a thread handle with a count of
-   * 1, allocates its guest thread block and starts its host thread.
+   * Takes ownership of a `ThreadRecord`, assigns its thread id, gives it a thread handle with a
+   * count of 1, allocates its guest thread block and starts its host thread.
    *
-   * @param record The record.
+   * @param record The `ThreadRecord`.
    * @return The creation handle, or the status of the allocation or the thread creation.
    */
   [[nodiscard]] virtual Result<X_HANDLE> Launch(std::unique_ptr<ThreadRecord> record) = 0;
@@ -104,7 +110,7 @@ class IThreadRegistry {
    * Finds a thread by id and pins it.
    *
    * @param thread_id The thread id.
-   * @return The pin, empty when no record has the id.
+   * @return The pin, empty when no `ThreadRecord` has the id.
    */
   [[nodiscard]] virtual ThreadPin Find(u32 thread_id) = 0;
 
@@ -117,7 +123,7 @@ class IThreadRegistry {
   [[nodiscard]] virtual ThreadPin FindByHandle(X_HANDLE handle) = 0;
 
   /**
-   * Pins every record.
+   * Pins every `ThreadRecord`.
    *
    * @return The pins.
    */
@@ -148,7 +154,7 @@ class IThreadRegistry {
   [[nodiscard]] virtual std::optional<FiberInfo> LookupFiber(u32 address) = 0;
 
   /**
-   * Registers a fiber, replacing a record with the same address.
+   * Registers a fiber, replacing a `ThreadRecord` with the same address.
    *
    * @param address The guest address of the fiber context block.
    * @param info The fiber data.

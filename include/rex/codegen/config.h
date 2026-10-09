@@ -20,28 +20,30 @@
 
 #include <toml++/toml.hpp>
 
-#include <rex/codegen/function_graph.h>  // For JumpTable
+#include <rex/codegen/function_graph.h>
 #include <rex/mmio.h>
 
 namespace rex::codegen {
 
+/**
+ * User function the generated code calls at an instruction address, with an optional return or
+ * jump.
+ */
 struct MidAsmHook {
-  std::string name;
-  std::vector<std::string> registers;
+  std::string name;                   /**< Name of the function to call */
+  std::vector<std::string> registers; /**< Registers passed as arguments in order */
 
-  bool ret = false;
-  bool returnOnTrue = false;
-  bool returnOnFalse = false;
+  bool ret = false;           /**< Return from the recompiled function after the call */
+  bool returnOnTrue = false;  /**< Return when the function returns true */
+  bool returnOnFalse = false; /**< Return when the function returns false */
 
-  uint32_t jumpAddress = 0;
-  uint32_t jumpAddressOnTrue = 0;
-  uint32_t jumpAddressOnFalse = 0;
+  uint32_t jumpAddress = 0;        /**< Address to jump to after the call, 0 for none */
+  uint32_t jumpAddressOnTrue = 0;  /**< Address to jump to when the function returns true */
+  uint32_t jumpAddressOnFalse = 0; /**< Address to jump to when the function returns false */
 
-  bool afterInstruction = false;
+  bool afterInstruction = false; /**< Runs after the instruction at the address instead of before */
 };
 
-// Unified function/chunk configuration
-// A "chunk" is simply a function entry with a non-zero parent field
 /** A load or store the [mmio.gpu] or [mmio.apu] table routes to a register block. */
 struct MMIODeclaredAccess {
   /** The register block the instruction reaches. */
@@ -50,129 +52,184 @@ struct MMIODeclaredAccess {
   bool write;
 };
 
+/**
+ * Function or chunk configuration. A chunk is a function entry with a non zero parent.
+ */
 struct FunctionConfig {
-  uint32_t size = 0;    // Explicit size in bytes (mutually exclusive with end)
-  uint32_t end = 0;     // End address, exclusive (mutually exclusive with size)
-  std::string name;     // Custom symbol name (empty = auto-generate sub_XXXXXXXX)
-  uint32_t parent = 0;  // Parent function address (0 = standalone, non-zero = chunk)
+  uint32_t size = 0;   /**< Size in bytes, exclusive with end */
+  uint32_t end = 0;    /**< Exclusive end address, exclusive with size */
+  std::string name;    /**< Symbol name, empty generates sub_XXXXXXXX */
+  uint32_t parent = 0; /**< Parent function address, 0 when standalone */
 
-  // Keep non-volatiles in ctx instead of localizing them. Marks an MSVC SEH
-  // funclet, which reads the registers its owner left live and would see a zero
-  // from a local. Callers sync their localized copies across the call site.
+  /**
+   * Keeps non volatiles in ctx instead of localizing them. Marks an MSVC SEH funclet, which
+   * reads the registers its owner left live and would see a zero from a local. Callers sync
+   * their localized copies across the call site.
+   */
   bool shareRegisters = false;
 
-  // Get effective size (prefers size over end)
+  /**
+   * Returns the size, preferring size over end.
+   *
+   * @param address Function start address
+   * @return Size in bytes, 0 when neither field gives one
+   */
   uint32_t getSize(uint32_t address) const {
     return size ? size : (end > address ? end - address : 0);
   }
-  // Returns true if this is a discontinuous chunk belonging to a parent function
+
+  /**
+   * Reports whether this is a discontinuous chunk of a parent function.
+   *
+   * @return True when parent is non zero
+   */
   bool isChunk() const { return parent != 0; }
 };
 
-// Section info for analysis output
+/** Section info for analysis output. */
 struct SectionInfo {
-  std::string name;
-  uint64_t address = 0;
-  uint64_t size = 0;
-  std::string flags;  // "rx", "rw" or "r"
+  std::string name;     /**< Section name written to the analysis output. */
+  uint64_t address = 0; /**< Guest address of the first byte of the section. */
+  uint64_t size = 0;    /**< Section size in bytes. */
+  std::string flags;    /**< "rx", "rw" or "r" */
 };
 
-// Function entry for analysis output
+/** Function entry for analysis output. */
 struct FunctionEntry {
-  uint64_t address = 0;
-  uint64_t size = 0;
-  std::string name;  // optional, defaults to "sub_XXXXXXXX"
+  uint64_t address = 0; /**< Guest address of the function entry. */
+  uint64_t size = 0;    /**< Function size in bytes. */
+  std::string name;     /**< Empty defaults to sub_XXXXXXXX */
 };
 
+/**
+ * Settings that control how 1 binary is analyzed and emitted, loaded from TOML.
+ */
 struct RecompilerConfig {
-  // === Required user-provided fields ===
-  std::string projectName = "rex";  ///< Project name for output files
-  std::string filePath;             ///< Path to XEX/ELF file
-  std::string outDirectoryPath;     ///< Output directory for generated code
-  std::string templateDir;          ///< Optional custom template directory for overrides
+  /** TOML key `project_name`, default `rex`. Prefix of the generated `<name>_*.h` and `.cpp` files
+   * and the `project` template variable. */
+  std::string projectName = "rex";
+  std::string filePath; /**< Path to XEX or ELF file */
+  /** TOML key `out_directory_path`, default empty. Directory the generated files are written to,
+   * relative to the config file directory. */
+  std::string outDirectoryPath;
+  std::string templateDir; /**< Optional template directory overriding the built in templates */
 
-  /// Every TOML that fed this config, in load order. LoadFromTable() gets a
-  /// parsed table, so a manifest-embedded entry omits the manifest itself.
+  /**
+   * Every TOML that fed this config, in load order. LoadFromTable() gets a parsed table, so a
+   * manifest embedded entry omits the manifest itself.
+   */
   std::vector<std::string> loadedFiles;
 
-  // === Code generation options (optional) ===
+  /** TOML key `skip_lr`, default false. When true, omits the generated writes and reads of `ctx.lr`
+   * at bl, mflr and similar instructions. */
   bool skipLr = false;
+  /** TOML key `ctr_as_local`, default false. When true, keeps CTR in a local variable instead of
+   * `ctx.ctr`. */
   bool ctrAsLocalVariable = false;
+  /** TOML key `xer_as_local`, default false. When true, keeps XER in a local variable instead of
+   * `ctx.xer`. */
   bool xerAsLocalVariable = false;
+  /** TOML key `reserved_as_local`, default false. When true, keeps the reservation register in a
+   * local variable instead of `ctx.reserved`. */
   bool reservedRegisterAsLocalVariable = false;
+  /** TOML key `skip_msr`, default false. When true, omits the generated global lock check that
+   * mfmsr emits. */
   bool skipMsr = false;
+  /** TOML key `cr_as_local`, default false. When true, keeps the CR fields in local variables
+   * instead of `ctx.cr0` to `ctx.cr7`. */
   bool crRegistersAsLocalVariables = false;
+  /** TOML key `non_argument_as_local`, default false. When true, keeps r0, r2, r11, r12, f0 and v32
+   * to v63 in local variables. */
   bool nonArgumentRegistersAsLocalVariables = false;
+  /** TOML key `non_volatile_as_local`, default false. When true, keeps r14 and above, f14 and above
+   * and the high vector registers in local variables, except in register sharing functions and SEH
+   * scopes. */
   bool nonVolatileRegistersAsLocalVariables = false;
-  bool generateExceptionHandlers = false;  ///< Generate SEH exception handler wrappers
+  bool generateExceptionHandlers = false; /**< Generates SEH exception handler wrappers */
 
-  // === Analysis tuning (optional) ===
-  uint32_t maxJumpExtension = 65536;  ///< Max bytes to extend function for jump table targets
-  uint32_t dataRegionThreshold = 16;  ///< Consecutive invalid instructions to mark as data region
-  uint32_t largeFunctionThreshold = 1048576;  ///< 1MB - warn if function exceeds this size
+  uint32_t maxJumpExtension = 65536; /**< Max bytes to extend a function for jump table targets */
+  uint32_t dataRegionThreshold = 16; /**< Invalid instructions in a row that mark a data region */
+  uint32_t largeFunctionThreshold = 1048576; /**< Size in bytes that triggers a warning */
 
-  // Optional override for DLL module flag. If unset, the orchestrator infers
-  // from the module's position in the manifest (entrypoint = false, modules = true).
+  /**
+   * Overrides the DLL module flag. When unset the orchestrator infers it from the module
+   * position in the manifest, with the entrypoint false and modules true.
+   */
   std::optional<bool> isDll;
 
-  // === Manual overrides ===
-  std::unordered_map<uint32_t, FunctionConfig> functions;  ///< Function/chunk configuration
+  /** TOML tables `[functions]` keyed by hex entry address. Overrides the size, end, name and parent
+   * of discovered functions. */
+  std::unordered_map<uint32_t, FunctionConfig> functions;
+  /** TOML array `[[switch_tables]]` keyed by the bctr address. Manual jump tables that replace
+   * automatic detection. */
   std::unordered_map<uint32_t, JumpTable> switchTables;
+  /** TOML array `[[midasm_hook]]` keyed by instruction address. Calls to user functions inserted
+   * into the generated code. */
   std::unordered_map<uint32_t, MidAsmHook> midAsmHooks;
+  /** TOML key `longjmp_address`, default 0. Function address whose calls are emitted as
+   * `ppc_longjmp`. */
   uint32_t longJmpAddress = 0;
+  /** TOML key `setjmp_address`, default 0. Function address whose calls are emitted as
+   * `ppc_setjmp`. */
   uint32_t setJmpAddress = 0;
 
   /** Shim function addresses keyed by registry name, read from the [shim] toml table. */
   std::unordered_map<std::string, uint32_t> shimFunctions;
 
-  // === User hints (merged with analysis results in AnalysisState) ===
-  std::unordered_map<uint32_t, uint32_t> invalidInstructionHints;  ///< addr -> size
-  std::unordered_set<uint32_t>
-      knownIndirectCallHints;  ///< bctr addresses that are vtable/computed calls
+  std::unordered_map<uint32_t, uint32_t> invalidInstructionHints; /**< Maps address to size */
+  /** Addresses of bctr instructions that are vtable or computed calls. */
+  std::unordered_set<uint32_t> knownIndirectCallHints;
   /** Loads and stores the [mmio.gpu] and [mmio.apu] tables route to a register block. */
   std::unordered_map<u32, MMIODeclaredAccess> declaredMMIOAccesses;
-  std::vector<uint32_t> exceptionHandlerFuncHints;  ///< Additional exception handler addresses
+  /** TOML array `analysis.exception_handler_funcs`. Entry addresses analysis treats as exception
+   * handler functions, sorted and deduplicated after load. */
+  std::vector<uint32_t> exceptionHandlerFuncHints;
 
   /**
-   * Load configuration from a TOML file.
+   * Loads configuration from a TOML file.
    *
-   * Supports an optional `includes` array for layered config. Paths in
-   * `includes` resolve relative to the including file's directory.  Merge
-   * semantics: scalars last-wins, keyed tables additive (same key = last
-   * wins), arrays-of-tables deduplicated by primary key, sets additive.
+   * Supports an optional `includes` array for layered config. Paths in `includes` resolve
+   * relative to the including file directory. Scalars take the last value, keyed tables are
+   * additive with the last value winning on a repeated key, arrays of tables are deduplicated
+   * by primary key and sets are additive.
    *
    * @param configFilePath Path to the TOML config file
-   * @return true on success, false on error (parse failure, circular
-   *         include, depth exceeded)
+   * @return True on success, false on parse failure, circular include or depth exceeded
    */
   bool Load(const std::string_view& configFilePath);
 
   /**
-   * Load configuration from an in-memory TOML table (e.g. an inline binary
-   * entry inside a manifest). Includes referenced from the table resolve
-   * relative to `base_dir`. Same merge semantics as Load().
+   * Loads configuration from an in memory TOML table such as an inline binary entry inside a
+   * manifest. Includes referenced from the table resolve relative to `base_dir`. Merges as
+   * Load() does.
+   *
+   * @param tbl Parsed TOML table
+   * @param base_dir Directory that includes resolve against
+   * @return True on success, false on error
    */
   bool LoadFromTable(const toml::table& tbl, const std::filesystem::path& base_dir);
 
   /**
-   * Tests whether the configured shim functions include the heap group.
+   * Reports whether the configured shim functions include the heap group.
    *
    * @return True when any configured shim function requires the shim heap.
    */
   bool UsesShimHeap() const;
 
-  /// Validation result containing warnings and errors.
+  /** Validation result containing warnings and errors. */
   struct ValidationResult {
-    bool valid = true;                  ///< true if no errors (warnings OK)
-    std::vector<std::string> warnings;  ///< Non-fatal issues
-    std::vector<std::string> errors;    ///< Fatal issues that block codegen
+    bool valid = true; /**< True when there are no errors, warnings allowed */
+    /** Non fatal issues such as an empty `file_path` or `out_directory_path`. */
+    std::vector<std::string> warnings;
+    std::vector<std::string> errors; /**< Fatal issues that block codegen */
 
     explicit operator bool() const { return valid; }
   };
 
   /**
-   * Validate the loaded configuration.
-   * Checks address alignment, required fields, and sanity constraints.
+   * Validates the loaded configuration.
+   * Checks address alignment, required fields and sanity constraints.
+   *
    * @return ValidationResult with warnings and errors
    */
   ValidationResult Validate() const;

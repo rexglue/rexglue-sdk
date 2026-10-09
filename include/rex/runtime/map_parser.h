@@ -26,13 +26,13 @@ namespace rex::runtime {
  * Options for parsing map files.
  */
 struct MapParseOptions {
-  /// Base address to add to all symbol addresses (for relative maps)
+  /** Base address added to all symbol addresses, for relative maps. */
   uint32_t base_address = 0;
 
-  /// If true, only parse symbols that look like functions
+  /** True to parse only symbols that look like functions. */
   bool functions_only = false;
 
-  /// If non-empty, only include symbols whose names start with this prefix
+  /** When non empty, only symbols whose names start with this prefix are included. */
   std::string_view prefix_filter;
 };
 
@@ -42,7 +42,10 @@ struct MapParseOptions {
 enum class MapParseError { FileNotFound, FileReadError, InvalidFormat, Empty };
 
 /**
- * Get a human-readable string for a MapParseError.
+ * Returns a readable description of a MapParseError.
+ *
+ * @param error The error to describe.
+ * @return The description text.
  */
 constexpr std::string_view to_string(MapParseError error) {
   switch (error) {

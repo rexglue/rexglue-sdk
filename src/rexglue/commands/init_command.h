@@ -1,8 +1,11 @@
 /**
  * @file        rexglue/commands/init_command.h
  *
- * @copyright   Copyright (c) 2026 Tom Clay
+ * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
+ *              All rights reserved.
+ *
  * @license     BSD 3-Clause License
+ *              See LICENSE file in the project root for full license text.
  */
 
 #pragma once
@@ -41,7 +44,7 @@ struct InitModuleOptions {
 struct InitAchievementsOptions {
   std::string xex_path;
   std::string output_dir;
-  // XLanguage ID to extract strings for; defaults to English (1) when unset.
+  /** XLanguage ID to extract strings for, English (1) by default. */
   uint32_t language = 1;
 };
 

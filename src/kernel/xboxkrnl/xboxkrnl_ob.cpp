@@ -28,17 +28,18 @@
 namespace rex::kernel::xboxkrnl {
 using namespace rex::runtime;
 
+/**
+ * Opens an object by name.
+ *
+ * @param obj_attributes_ptr The X_OBJECT_ATTRIBUTES whose name_ptr names the object.
+ * @param object_type_ptr ExEventObjectType, ExSemaphoreObjectType or ExTimerObjectType.
+ * @param unk Always 0.
+ * @param handle_ptr Receives the handle.
+ * @return The translated status of the open.
+ */
 u32 ObOpenObjectByName_entry(mapped_void obj_attributes_ptr,
                              [[maybe_unused]] mapped_void object_type_ptr, [[maybe_unused]] u32 unk,
                              mapped_u32 handle_ptr) {
-  // r3 = ptr to info?
-  //   +0 = -4
-  //   +4 = name ptr
-  //   +8 = 0
-  // r4 = ExEventObjectType | ExSemaphoreObjectType | ExTimerObjectType
-  // r5 = 0
-  // r6 = out_ptr (handle?)
-
   REX_KERNEL_ARG(obj_attributes_ptr);
 
   auto obj_attributes = runtime::Current().memory()->TranslateVirtual<X_OBJECT_ATTRIBUTES*>(
@@ -74,7 +75,7 @@ u32 ObLookupThreadByThreadId_entry(u32 thread_id, mapped_u32 out_object_ptr) {
     return X_STATUS_NOT_FOUND;
   }
 
-  // Retain the object. Will be released in ObDereferenceObject.
+  // Released in ObDereferenceObject.
   (void)runtime::Current().object_table().Retain(thread->handle());
   *out_object_ptr = thread->guest_object();
   return X_STATUS_SUCCESS;
@@ -98,7 +99,6 @@ u32 ObReferenceObjectByHandle_entry(u32 handle, u32 object_type_ptr, mapped_u32 
     native_ptr = thread ? thread->guest_object() : 0;
   }
 
-  // Type check using real KernelGuestGlobals addresses.
   if (object_type_ptr) {
     uint32_t globals_base = runtime::Current().GetKernelGuestGlobals();
     uint32_t expected_type = 0;
@@ -126,8 +126,7 @@ u32 ObReferenceObjectByHandle_entry(u32 handle, u32 object_type_ptr, mapped_u32 
     }
   }
 
-  // Caller takes the reference.
-  // It's released in ObDereferenceObject.
+  // The caller takes the reference, released in ObDereferenceObject.
   (void)runtime::Current().object_table().RetainPrimary(object);
   if (out_object_ptr.guest_address()) {
     *out_object_ptr = native_ptr;
@@ -155,7 +154,7 @@ u32 ObDereferenceObject_entry(u32 native_ptr) {
                "ObDereferenceObject "
                "ptr={:#x}",
                static_cast<uint32_t>(native_ptr));
-  // Check if a dummy value from ObReferenceObjectByHandle.
+  // 0xDEADF00D is the dummy value from ObReferenceObjectByHandle.
   if (native_ptr == 0xDEADF00D) {
     return 0;
   }
@@ -177,7 +176,7 @@ u32 ObCreateSymbolicLink_entry(ppc_ptr_t<X_ANSI_STRING> path_ptr,
       util::TranslateAnsiPath(runtime::Current().memory(), target_ptr));
 
   if (rex::utf8_starts_with(path, u8"\\??\\")) {
-    path = path.substr(4);  // Strip the full qualifier
+    path = path.substr(4);
   }
 
   if (auto linked = runtime::Current().file_system()->Link(path, target);
@@ -197,13 +196,15 @@ u32 ObDeleteSymbolicLink_entry(ppc_ptr_t<X_ANSI_STRING> path_ptr) {
   return X_STATUS_SUCCESS;
 }
 
+/**
+ * Creates a new handle to the same object.
+ *
+ * @param handle The source handle, -2 is the current thread pseudo handle.
+ * @param new_handle_ptr Receives the new handle, may be null to only close the source.
+ * @param options 1 closes the source handle (DUPLICATE_CLOSE_SOURCE).
+ * @return X_STATUS_SUCCESS or an error status.
+ */
 u32 NtDuplicateObject_entry(u32 handle, mapped_u32 new_handle_ptr, u32 options) {
-  // NOTE: new_handle_ptr can be zero to close a handle.
-  // NOTE: this function seems to be used to get the current thread handle
-  //       (passed handle=-2).
-  // This function creates a new handle to the same object.
-  // Most games use it to get real handles to the current thread or whatever.
-
   auto& table = runtime::Current().object_table();
   auto duplicated = table.Duplicate(handle);
 
@@ -211,7 +212,7 @@ u32 NtDuplicateObject_entry(u32 handle, mapped_u32 new_handle_ptr, u32 options) 
     *new_handle_ptr = duplicated.value_or(X_INVALID_HANDLE_VALUE);
   }
 
-  if (options == 1 /* DUPLICATE_CLOSE_SOURCE */) {
+  if (options == 1) {
     (void)table.Remove(handle);
   }
 

@@ -27,11 +27,8 @@ void DxbcShaderTranslator::ExportToMemory(uint8_t export_eM) {
 
   REX_ASSERT((export_eM & ~current_shader().memexport_eM_written()) == 0);
 
-  // Check if memory export is allowed in this invocation.
   a_.OpIf(true, dxbc::Src::R(system_temp_memexport_enabled_and_eM_written_, dxbc::Src::kXXXX));
 
-  // Check if the address with the correct sign and exponent was written, and
-  // that the index doesn't overflow the mantissa bits.
   {
     uint32_t address_check_temp = PushSystemTemp();
     a_.OpUShR(dxbc::Dest::R(address_check_temp), dxbc::Src::R(system_temp_memexport_address_),
@@ -44,20 +41,17 @@ void DxbcShaderTranslator::ExportToMemory(uint8_t export_eM) {
              dxbc::Src::R(address_check_temp, dxbc::Src::kXXXX),
              dxbc::Src::R(address_check_temp, dxbc::Src::kYYYY));
     a_.OpIf(true, dxbc::Src::R(address_check_temp, dxbc::Src::kXXXX));
-    // Release address_check_temp.
     PopSystemTemp();
   }
 
   uint8_t eM_remaining;
   uint32_t eM_index;
 
-  // Swap red and blue components if needed.
   {
     uint32_t red_blue_swap_temp = PushSystemTemp();
     a_.OpIBFE(dxbc::Dest::R(red_blue_swap_temp, 0b0001), dxbc::Src::LU(1), dxbc::Src::LU(19),
               dxbc::Src::R(system_temp_memexport_address_, dxbc::Src::kZZZZ));
     a_.OpIf(true, dxbc::Src::R(red_blue_swap_temp, dxbc::Src::kXXXX));
-    // Release red_blue_swap_temp.
     PopSystemTemp();
 
     eM_remaining = export_eM;
@@ -67,22 +61,15 @@ void DxbcShaderTranslator::ExportToMemory(uint8_t export_eM) {
                dxbc::Src::R(system_temps_memexport_data_[eM_index], 0b11000110));
     }
 
-    // Close the red/blue swap conditional.
     a_.OpEndIf();
   }
 
   uint32_t temp = PushSystemTemp();
 
-  // Extract the color format and the numeric format.
-  // temp.x = color format.
-  // temp.y = numeric format is signed.
-  // temp.z = numeric format is integer.
   a_.OpUBFE(dxbc::Dest::R(temp, 0b0111), dxbc::Src::LU(6, 1, 1, 0), dxbc::Src::LU(8, 16, 17, 0),
             dxbc::Src::R(system_temp_memexport_address_, dxbc::Src::kZZZZ));
 
-  // Perform format packing.
-  // After the switch, temp.x must contain log2 of the number of bytes in an
-  // element, of UINT32_MAX if the format is unknown.
+  // temp.x must hold log2 of the element size in bytes after switch, or UINT32_MAX if unknown.
   a_.OpSwitch(dxbc::Src::R(temp, dxbc::Src::kXXXX));
   {
     dxbc::Dest element_size_dest(dxbc::Dest::R(temp, 0b0001));
@@ -100,14 +87,10 @@ void DxbcShaderTranslator::ExportToMemory(uint8_t export_eM) {
         a_.OpMovC(dxbc::Dest::R(eM, components), dxbc::Src::R(is_nan_temp), dxbc::Src::LF(0.0f),
                   dxbc::Src::R(eM));
       }
-      // Release is_nan_temp.
       PopSystemTemp();
     };
 
-    // The result will be in eM#.x. The widths must be without holes (R, RG,
-    // RGB, RGBA), and expecting the widths to add up to the size of the stored
-    // texel (8, 16 or 32 bits), as the unused upper bits will contain junk from
-    // the sign extension of X if the number is signed.
+    // Widths must have no holes and sum to the texel size (8, 16 or 32 bits), upper bits are junk.
     auto pack_8_16_32 = [&](std::array<uint32_t, 4> widths) {
       uint8_t eM_remaining;
       uint32_t eM_index;
@@ -116,7 +99,7 @@ void DxbcShaderTranslator::ExportToMemory(uint8_t export_eM) {
       std::array<uint32_t, 4> offsets = {};
       for (uint32_t i = 0; i < 4; ++i) {
         if (widths[i]) {
-          // Only formats for which max + 0.5 can be represented exactly.
+          // Only formats for which max + 0.5 is exactly representable.
           assert(widths[i] <= 23);
           components |= static_cast<uint32_t>(1) << i;
         }
@@ -124,18 +107,14 @@ void DxbcShaderTranslator::ExportToMemory(uint8_t export_eM) {
           offsets[i] = offsets[i - 1] + widths[i - 1];
         }
       }
-      // Will be packing components into eM#.x starting from green, assume red
-      // will already be there after the conversion.
       REX_ASSERT((components & 0b1) != 0);
 
       flush_nan(components);
 
       a_.OpIf(true, num_format_signed);
       {
-        // Signed.
         a_.OpIf(true, num_format_integer);
         {
-          // Signed integer.
           float min_value[4] = {}, max_value[4] = {};
           for (uint32_t i = 0; i < 4; ++i) {
             if (widths[i]) {
@@ -155,7 +134,6 @@ void DxbcShaderTranslator::ExportToMemory(uint8_t export_eM) {
         }
         a_.OpElse();
         {
-          // Signed normalized.
           uint32_t scale_components = 0;
           float scale[4] = {};
           for (uint32_t i = 0; i < 4; ++i) {
@@ -178,8 +156,6 @@ void DxbcShaderTranslator::ExportToMemory(uint8_t export_eM) {
         }
         a_.OpEndIf();
 
-        // Add plus/minus 0.5 before truncating according to the Direct3D format
-        // conversion rules, and convert to signed integers.
         uint32_t round_bias_temp = PushSystemTemp();
         eM_remaining = export_eM;
         while (rex::bit_scan_forward(eM_remaining, &eM_index)) {
@@ -190,15 +166,12 @@ void DxbcShaderTranslator::ExportToMemory(uint8_t export_eM) {
           a_.OpAdd(dxbc::Dest::R(eM, components), dxbc::Src::R(eM), dxbc::Src::R(round_bias_temp));
           a_.OpFToI(dxbc::Dest::R(eM, components), dxbc::Src::R(eM));
         }
-        // Release round_bias_temp.
         PopSystemTemp();
       }
       a_.OpElse();
       {
-        // Unsigned.
         a_.OpIf(true, num_format_integer);
         {
-          // Unsigned integer.
           float max_value[4];
           for (uint32_t i = 0; i < 4; ++i) {
             max_value[i] = static_cast<float>((static_cast<uint32_t>(1) << widths[i]) - 1);
@@ -214,7 +187,6 @@ void DxbcShaderTranslator::ExportToMemory(uint8_t export_eM) {
         }
         a_.OpElse();
         {
-          // Unsigned normalized.
           uint32_t scale_components = 0;
           float scale[4] = {};
           for (uint32_t i = 0; i < 4; ++i) {
@@ -228,7 +200,6 @@ void DxbcShaderTranslator::ExportToMemory(uint8_t export_eM) {
           while (rex::bit_scan_forward(eM_remaining, &eM_index)) {
             eM_remaining &= ~(static_cast<uint8_t>(1) << eM_index);
             uint32_t eM = system_temps_memexport_data_[eM_index];
-            // Saturate.
             a_.OpMov(dxbc::Dest::R(eM, components), dxbc::Src::R(eM), true);
             if (scale_components) {
               a_.OpMul(dxbc::Dest::R(eM, scale_components), dxbc::Src::R(eM), scale_src);
@@ -237,8 +208,6 @@ void DxbcShaderTranslator::ExportToMemory(uint8_t export_eM) {
         }
         a_.OpEndIf();
 
-        // Add 0.5 before truncating according to the Direct3D format conversion
-        // rules, and convert to unsigned integers.
         eM_remaining = export_eM;
         while (rex::bit_scan_forward(eM_remaining, &eM_index)) {
           eM_remaining &= ~(static_cast<uint8_t>(1) << eM_index);
@@ -249,7 +218,6 @@ void DxbcShaderTranslator::ExportToMemory(uint8_t export_eM) {
       }
       a_.OpEndIf();
 
-      // Pack into 32 bits.
       for (uint32_t i = 0; i < 4; ++i) {
         if (!widths[i]) {
           continue;
@@ -267,8 +235,6 @@ void DxbcShaderTranslator::ExportToMemory(uint8_t export_eM) {
     };
 
     a_.OpCase(dxbc::Src::LU(std::to_underlying(xenos::ColorFormat::k_8)));
-    // TODO(Triang3l): Investigate how input should be treated for k_8_A, k_8_B,
-    // k_8_8_8_8_A.
     a_.OpCase(dxbc::Src::LU(std::to_underlying(xenos::ColorFormat::k_8_A)));
     a_.OpCase(dxbc::Src::LU(std::to_underlying(xenos::ColorFormat::k_8_B)));
     {
@@ -365,10 +331,8 @@ void DxbcShaderTranslator::ExportToMemory(uint8_t export_eM) {
 
       a_.OpIf(true, num_format_signed);
       {
-        // Signed.
         a_.OpIf(true, num_format_integer);
         {
-          // Signed integer.
           eM_remaining = export_eM;
           while (rex::bit_scan_forward(eM_remaining, &eM_index)) {
             eM_remaining &= ~(static_cast<uint8_t>(1) << eM_index);
@@ -381,7 +345,6 @@ void DxbcShaderTranslator::ExportToMemory(uint8_t export_eM) {
         }
         a_.OpElse();
         {
-          // Signed normalized.
           eM_remaining = export_eM;
           while (rex::bit_scan_forward(eM_remaining, &eM_index)) {
             eM_remaining &= ~(static_cast<uint8_t>(1) << eM_index);
@@ -394,8 +357,6 @@ void DxbcShaderTranslator::ExportToMemory(uint8_t export_eM) {
         }
         a_.OpEndIf();
 
-        // Add plus/minus 0.5 before truncating according to the Direct3D format
-        // conversion rules, and convert to signed integers.
         uint32_t round_bias_temp = PushSystemTemp();
         eM_remaining = export_eM;
         while (rex::bit_scan_forward(eM_remaining, &eM_index)) {
@@ -406,15 +367,12 @@ void DxbcShaderTranslator::ExportToMemory(uint8_t export_eM) {
           a_.OpAdd(dxbc::Dest::R(eM), dxbc::Src::R(eM), dxbc::Src::R(round_bias_temp));
           a_.OpFToI(dxbc::Dest::R(eM), dxbc::Src::R(eM));
         }
-        // Release round_bias_temp.
         PopSystemTemp();
       }
       a_.OpElse();
       {
-        // Unsigned.
         a_.OpIf(true, num_format_integer);
         {
-          // Unsigned integer.
           eM_remaining = export_eM;
           while (rex::bit_scan_forward(eM_remaining, &eM_index)) {
             eM_remaining &= ~(static_cast<uint8_t>(1) << eM_index);
@@ -426,12 +384,10 @@ void DxbcShaderTranslator::ExportToMemory(uint8_t export_eM) {
         }
         a_.OpElse();
         {
-          // Unsigned normalized.
           eM_remaining = export_eM;
           while (rex::bit_scan_forward(eM_remaining, &eM_index)) {
             eM_remaining &= ~(static_cast<uint8_t>(1) << eM_index);
             uint32_t eM = system_temps_memexport_data_[eM_index];
-            // Saturate.
             a_.OpMov(dxbc::Dest::R(eM), dxbc::Src::R(eM), true);
             a_.OpMul(dxbc::Dest::R(eM), dxbc::Src::R(eM),
                      dxbc::Src::LF(static_cast<float>(UINT16_MAX)));
@@ -439,8 +395,6 @@ void DxbcShaderTranslator::ExportToMemory(uint8_t export_eM) {
         }
         a_.OpEndIf();
 
-        // Add 0.5 before truncating according to the Direct3D format conversion
-        // rules, and convert to unsigned integers.
         eM_remaining = export_eM;
         while (rex::bit_scan_forward(eM_remaining, &eM_index)) {
           eM_remaining &= ~(static_cast<uint8_t>(1) << eM_index);
@@ -451,7 +405,6 @@ void DxbcShaderTranslator::ExportToMemory(uint8_t export_eM) {
       }
       a_.OpEndIf();
 
-      // Pack.
       eM_remaining = export_eM;
       while (rex::bit_scan_forward(eM_remaining, &eM_index)) {
         eM_remaining &= ~(static_cast<uint8_t>(1) << eM_index);
@@ -466,7 +419,6 @@ void DxbcShaderTranslator::ExportToMemory(uint8_t export_eM) {
 
     a_.OpCase(dxbc::Src::LU(std::to_underlying(xenos::ColorFormat::k_16_FLOAT)));
     {
-      // TODO(Triang3l): Use extended range conversion.
       eM_remaining = export_eM;
       while (rex::bit_scan_forward(eM_remaining, &eM_index)) {
         eM_remaining &= ~(static_cast<uint8_t>(1) << eM_index);
@@ -479,7 +431,6 @@ void DxbcShaderTranslator::ExportToMemory(uint8_t export_eM) {
 
     a_.OpCase(dxbc::Src::LU(std::to_underlying(xenos::ColorFormat::k_16_16_FLOAT)));
     {
-      // TODO(Triang3l): Use extended range conversion.
       eM_remaining = export_eM;
       while (rex::bit_scan_forward(eM_remaining, &eM_index)) {
         eM_remaining &= ~(static_cast<uint8_t>(1) << eM_index);
@@ -494,7 +445,6 @@ void DxbcShaderTranslator::ExportToMemory(uint8_t export_eM) {
 
     a_.OpCase(dxbc::Src::LU(std::to_underlying(xenos::ColorFormat::k_16_16_16_16_FLOAT)));
     {
-      // TODO(Triang3l): Use extended range conversion.
       eM_remaining = export_eM;
       while (rex::bit_scan_forward(eM_remaining, &eM_index)) {
         eM_remaining &= ~(static_cast<uint8_t>(1) << eM_index);
@@ -508,47 +458,31 @@ void DxbcShaderTranslator::ExportToMemory(uint8_t export_eM) {
     a_.OpBreak();
 
     a_.OpCase(dxbc::Src::LU(std::to_underlying(xenos::ColorFormat::k_32_FLOAT)));
-    {
-      // Already in eM#.
-      a_.OpMov(element_size_dest, dxbc::Src::LU(2));
-    }
+    { a_.OpMov(element_size_dest, dxbc::Src::LU(2)); }
     a_.OpBreak();
 
     a_.OpCase(dxbc::Src::LU(std::to_underlying(xenos::ColorFormat::k_32_32_FLOAT)));
-    {
-      // Already in eM#.
-      a_.OpMov(element_size_dest, dxbc::Src::LU(3));
-    }
+    { a_.OpMov(element_size_dest, dxbc::Src::LU(3)); }
     a_.OpBreak();
 
     a_.OpCase(dxbc::Src::LU(std::to_underlying(xenos::ColorFormat::k_32_32_32_32_FLOAT)));
-    {
-      // Already in eM#.
-      a_.OpMov(element_size_dest, dxbc::Src::LU(4));
-    }
+    { a_.OpMov(element_size_dest, dxbc::Src::LU(4)); }
     a_.OpBreak();
 
     a_.OpDefault();
     a_.OpMov(element_size_dest, dxbc::Src::LU(UINT32_MAX));
     a_.OpBreak();
   }
-  // Close the color format switch.
   a_.OpEndSwitch();
 
   dxbc::Src element_size_src(dxbc::Src::R(temp, dxbc::Src::kXXXX));
 
-  // Only temp.x is used (for the element size log2).
-
-  // Do endian swap, using temp.y for the endianness value, and temp.z as a
-  // temporary value.
   {
     dxbc::Dest endian_dest(dxbc::Dest::R(temp, 0b0010));
     dxbc::Src endian_src(dxbc::Src::R(temp, dxbc::Src::kYYYY));
-    // Extract endianness into temp.y.
     a_.OpUBFE(endian_dest, dxbc::Src::LU(3), dxbc::Src::LU(0),
               dxbc::Src::R(system_temp_memexport_address_, dxbc::Src::kZZZZ));
 
-    // Change 8-in-64 and 8-in-128 to 8-in-32.
     for (uint32_t i = 0; i < 2; ++i) {
       a_.OpIEq(dxbc::Dest::R(temp, 0b0100), endian_src,
                dxbc::Src::LU(static_cast<uint32_t>(i ? xenos::Endian128::k8in128
@@ -568,7 +502,6 @@ void DxbcShaderTranslator::ExportToMemory(uint8_t export_eM) {
     dxbc::Dest swap_temp_dest(dxbc::Dest::R(swap_temp));
     dxbc::Src swap_temp_src(dxbc::Src::R(swap_temp));
 
-    // 8-in-16 or one half of 8-in-32.
     a_.OpSwitch(endian_src);
     a_.OpCase(dxbc::Src::LU(std::to_underlying(xenos::Endian128::k8in16)));
     a_.OpCase(dxbc::Src::LU(std::to_underlying(xenos::Endian128::k8in32)));
@@ -578,19 +511,14 @@ void DxbcShaderTranslator::ExportToMemory(uint8_t export_eM) {
       uint32_t eM = system_temps_memexport_data_[eM_index];
       dxbc::Dest eM_dest(dxbc::Dest::R(eM));
       dxbc::Src eM_src(dxbc::Src::R(eM));
-      // Temp = X0Z0.
       a_.OpAnd(swap_temp_dest, eM_src, dxbc::Src::LU(0x00FF00FF));
-      // eM = YZW0.
       a_.OpUShR(eM_dest, eM_src, dxbc::Src::LU(8));
-      // eM = Y0W0.
       a_.OpAnd(eM_dest, eM_src, dxbc::Src::LU(0x00FF00FF));
-      // eM = YXWZ.
       a_.OpUMAd(eM_dest, swap_temp_src, dxbc::Src::LU(256), eM_src);
     }
     a_.OpBreak();
     a_.OpEndSwitch();
 
-    // 16-in-32 or another half of 8-in-32.
     a_.OpSwitch(endian_src);
     a_.OpCase(dxbc::Src::LU(std::to_underlying(xenos::Endian128::k8in32)));
     a_.OpCase(dxbc::Src::LU(std::to_underlying(xenos::Endian128::k16in32)));
@@ -600,32 +528,24 @@ void DxbcShaderTranslator::ExportToMemory(uint8_t export_eM) {
       uint32_t eM = system_temps_memexport_data_[eM_index];
       dxbc::Dest eM_dest(dxbc::Dest::R(eM));
       dxbc::Src eM_src(dxbc::Src::R(eM));
-      // Temp = ZW00.
       a_.OpUShR(swap_temp_dest, eM_src, dxbc::Src::LU(16));
-      // eM = ZWXY.
       a_.OpBFI(eM_dest, dxbc::Src::LU(16), dxbc::Src::LU(16), eM_src, swap_temp_src);
     }
     a_.OpBreak();
     a_.OpEndSwitch();
 
-    // Release swap_temp.
     PopSystemTemp();
   }
 
-  // Extract the base index to temp.y and the index upper bound to temp.z.
   a_.OpUBFE(dxbc::Dest::R(temp, 0b0110), dxbc::Src::LU(23), dxbc::Src::LU(0),
             dxbc::Src::R(system_temp_memexport_address_, 0b1101 << 2));
   dxbc::Dest eM0_address_dest(dxbc::Dest::R(temp, 0b0010));
   dxbc::Src eM0_address_src(dxbc::Src::R(temp, dxbc::Src::kYYYY));
   dxbc::Src index_count_src(dxbc::Src::R(temp, dxbc::Src::kZZZZ));
 
-  // Check if eM0 isn't out of bounds via temp.w - if it is, eM1...4 also are
-  // (the base index can't be negative).
   a_.OpILT(dxbc::Dest::R(temp, 0b1000), eM0_address_src, index_count_src);
   a_.OpIf(true, dxbc::Src::R(temp, dxbc::Src::kWWWW));
 
-  // Extract the base address to temp.w as bytes (30 lower bits to 30 upper bits
-  // with 0 below).
   a_.OpIShL(dxbc::Dest::R(temp, 0b1000),
             dxbc::Src::R(system_temp_memexport_address_, dxbc::Src::kXXXX), dxbc::Src::LU(2));
   dxbc::Src base_address_src(dxbc::Src::R(temp, dxbc::Src::kWWWW));
@@ -634,7 +554,6 @@ void DxbcShaderTranslator::ExportToMemory(uint8_t export_eM) {
   REX_ASSERT((export_eM14 >> 4) == 0);
   uint32_t eM14_address_temp = UINT32_MAX, store_eM14_temp = UINT32_MAX;
   if (export_eM14) {
-    // Get eM1...4 indices and check if they're in bounds.
     eM14_address_temp = PushSystemTemp();
     dxbc::Dest eM14_address_dest(dxbc::Dest::R(eM14_address_temp, export_eM14));
     dxbc::Src eM14_address_src(dxbc::Src::R(eM14_address_temp));
@@ -643,34 +562,24 @@ void DxbcShaderTranslator::ExportToMemory(uint8_t export_eM) {
     dxbc::Src store_eM14_src(dxbc::Src::R(store_eM14_temp));
     a_.OpIAdd(eM14_address_dest, eM0_address_src, dxbc::Src::LU(1, 2, 3, 4));
     a_.OpILT(store_eM14_dest, eM14_address_src, index_count_src);
-    // Check if eM1...4 were written by the invocation and merge the
-    // result with store_eM14_temp.
     uint32_t eM14_written_temp = PushSystemTemp();
     a_.OpIBFE(dxbc::Dest::R(eM14_written_temp, export_eM14), dxbc::Src::LU(1),
               dxbc::Src::LU(1, 2, 3, 4),
               dxbc::Src::R(system_temp_memexport_enabled_and_eM_written_, dxbc::Src::kYYYY));
     a_.OpAnd(store_eM14_dest, store_eM14_src, dxbc::Src::R(eM14_written_temp));
-    // Release eM14_written_temp.
     PopSystemTemp();
-    // Convert eM1...4 indices to global byte addresses.
     a_.OpIShL(eM14_address_dest, eM14_address_src, element_size_src);
     a_.OpIAdd(eM14_address_dest, base_address_src, eM14_address_src);
   }
   if (export_eM & 0b1) {
-    // Convert eM0 index to a global byte address if it's needed.
     a_.OpIShL(eM0_address_dest, eM0_address_src, element_size_src);
     a_.OpIAdd(eM0_address_dest, base_address_src, eM0_address_src);
-    // base_address_src and index_count_src are deallocated here (even
-    // if eM0 isn't potentially written), temp.zw are now free.
-    // Extract if eM0 was written by the invocation to temp.z.
     a_.OpIBFE(dxbc::Dest::R(temp, 0b0100), dxbc::Src::LU(1), dxbc::Src::LU(0),
               dxbc::Src::R(system_temp_memexport_enabled_and_eM_written_, dxbc::Src::kYYYY));
   }
   dxbc::Src eM0_written_src(dxbc::Src::R(temp, dxbc::Src::kZZZZ));
 
-  // Write depending on the element size.
-  // No switch case will be entered for an unknown format (UINT32_MAX size
-  // written), so writing won't be attempted for it.
+  // An unknown format (UINT32_MAX size) enters no case, so nothing is written.
   if (uav_index_shared_memory_ == kBindingIndexUnallocated) {
     uav_index_shared_memory_ = uav_count_++;
   }
@@ -678,7 +587,6 @@ void DxbcShaderTranslator::ExportToMemory(uint8_t export_eM) {
   uint32_t eM14_index;
   a_.OpSwitch(element_size_src);
 
-  // 8bpp, 16bpp.
   dxbc::Dest atomic_dest(
       dxbc::Dest::U(uav_index_shared_memory_, std::to_underlying(UAVRegister::kSharedMemory), 0));
   for (uint32_t i = 0; i <= 1; ++i) {
@@ -687,19 +595,14 @@ void DxbcShaderTranslator::ExportToMemory(uint8_t export_eM) {
     uint32_t sub_dword_temp = PushSystemTemp();
     if (export_eM & 0b1) {
       a_.OpIf(true, eM0_written_src);
-      // sub_dword_temp.x = eM0 offset in the dword (8 << (byte_address & 3))
-      // (assuming a little-endian host).
       a_.OpBFI(dxbc::Dest::R(sub_dword_temp, 0b0001), dxbc::Src::LU(2), dxbc::Src::LU(3),
                eM0_address_src, dxbc::Src::LU(0));
-      // Keep only the dword part of the address.
       a_.OpAnd(eM0_address_dest, eM0_address_src, dxbc::Src::LU(~static_cast<uint32_t>(3)));
-      // Erase the bits that will be replaced with eM0 via sub_dword_temp.y.
       a_.OpBFI(dxbc::Dest::R(sub_dword_temp, 0b0010), width_src,
                dxbc::Src::R(sub_dword_temp, dxbc::Src::kXXXX), dxbc::Src::LU(0),
                dxbc::Src::LU(UINT32_MAX));
       a_.OpAtomicAnd(atomic_dest, eM0_address_src, 0b0001,
                      dxbc::Src::R(sub_dword_temp, dxbc::Src::kYYYY));
-      // Add the eM0 bits via sub_dword_temp.y.
       a_.OpBFI(dxbc::Dest::R(sub_dword_temp, 0b0010), width_src,
                dxbc::Src::R(sub_dword_temp, dxbc::Src::kXXXX),
                dxbc::Src::R(system_temps_memexport_data_[0], dxbc::Src::kXXXX), dxbc::Src::LU(0));
@@ -708,11 +611,8 @@ void DxbcShaderTranslator::ExportToMemory(uint8_t export_eM) {
       a_.OpEndIf();
     }
     if (export_eM14) {
-      // sub_dword_temp = eM# offset in the dword (8 << (byte_address & 3))
-      // (assuming a little-endian host).
       a_.OpBFI(dxbc::Dest::R(sub_dword_temp, export_eM14), dxbc::Src::LU(2), dxbc::Src::LU(3),
                dxbc::Src::R(eM14_address_temp), dxbc::Src::LU(0));
-      // Keep only the dword part of the address.
       a_.OpAnd(dxbc::Dest::R(eM14_address_temp, export_eM14), dxbc::Src::R(eM14_address_temp),
                dxbc::Src::LU(~static_cast<uint32_t>(3)));
       uint32_t sub_dword_data_temp = PushSystemTemp();
@@ -720,14 +620,11 @@ void DxbcShaderTranslator::ExportToMemory(uint8_t export_eM) {
       while (rex::bit_scan_forward(eM14_remaining, &eM14_index)) {
         eM14_remaining &= ~(static_cast<uint8_t>(1) << eM14_index);
         a_.OpIf(true, dxbc::Src::R(store_eM14_temp).Select(eM14_index));
-        // Erase the bits that will be replaced with eM# via
-        // sub_dword_data_temp.x.
         a_.OpBFI(dxbc::Dest::R(sub_dword_data_temp, 0b0001), width_src,
                  dxbc::Src::R(sub_dword_temp).Select(eM14_index), dxbc::Src::LU(0),
                  dxbc::Src::LU(UINT32_MAX));
         a_.OpAtomicAnd(atomic_dest, dxbc::Src::R(eM14_address_temp).Select(eM14_index), 0b0001,
                        dxbc::Src::R(sub_dword_data_temp, dxbc::Src::kXXXX));
-        // Add the eM# bits via sub_dword_temp.y.
         a_.OpBFI(dxbc::Dest::R(sub_dword_data_temp, 0b0001), width_src,
                  dxbc::Src::R(sub_dword_temp).Select(eM14_index),
                  dxbc::Src::R(system_temps_memexport_data_[1 + eM14_index], dxbc::Src::kXXXX),
@@ -736,18 +633,14 @@ void DxbcShaderTranslator::ExportToMemory(uint8_t export_eM) {
                       dxbc::Src::R(sub_dword_data_temp, dxbc::Src::kXXXX));
         a_.OpEndIf();
       }
-      // Release sub_dword_data_temp.
       PopSystemTemp();
     }
-    // Release sub_dword_temp.
     PopSystemTemp();
     a_.OpBreak();
   }
 
-  // 32bpp, 64bpp, 128bpp.
   for (uint32_t i = 2; i <= 4; ++i) {
     a_.OpCase(dxbc::Src::LU(i));
-    // Store (0b0001), Store2 (0b0011), Store4 (0b1111).
     uint32_t store_mask = (static_cast<uint32_t>(1) << (static_cast<uint32_t>(1) << (i - 2))) - 1;
     dxbc::Dest store_dest(dxbc::Dest::U(
         uav_index_shared_memory_, std::to_underlying(UAVRegister::kSharedMemory), store_mask));
@@ -767,24 +660,18 @@ void DxbcShaderTranslator::ExportToMemory(uint8_t export_eM) {
     a_.OpBreak();
   }
 
-  // Close the element size switch.
   a_.OpEndSwitch();
 
   if (export_eM14) {
-    // Release eM14_address_temp and store_eM14_temp.
     PopSystemTemp(2);
   }
 
-  // Close the eM0 bounds check.
   a_.OpEndIf();
 
-  // Release temp.
   PopSystemTemp();
 
-  // Close the address correctness conditional.
   a_.OpEndIf();
 
-  // Close the memory export allowed conditional.
   a_.OpEndIf();
 }
 

@@ -20,7 +20,7 @@
 
 namespace rexglue::cli {
 
-/// A source line a human needs to look at.
+/** A source line that needs review. */
 struct SourceWarning {
   std::filesystem::path file;
   std::size_t line_number;
@@ -31,12 +31,25 @@ struct SourceWarning {
 std::string RenderRexglueCmake(std::string_view project_name, std::string_view sdk_version,
                                std::string_view entrypoint_out_dir);
 
-/// Rewrite generated/rexglue.cmake when it differs from what the installed SDK
-/// renders. Returns true when the file was rewritten.
+/**
+ * Rewrites generated/rexglue.cmake when it differs from what the installed SDK renders.
+ *
+ * @param project_root Project directory.
+ * @param project_name Project name.
+ * @param sdk_version Installed SDK version.
+ * @param entrypoint_out_dir Output directory of the entry binary.
+ * @return True when the file was rewritten.
+ */
 bool RefreshGeneratedGlue(const std::filesystem::path& project_root, std::string_view project_name,
                           std::string_view sdk_version, std::string_view entrypoint_out_dir);
 
-/// Source files still including headers this run no longer emits.
+/**
+ * Finds source files that include headers the run no longer emits.
+ *
+ * @param src_dir Source directory to scan.
+ * @param removed_basenames Names of the headers no longer emitted.
+ * @return One warning per stale include.
+ */
 std::vector<SourceWarning> ScanStaleIncludes(
     const std::filesystem::path& src_dir, const std::unordered_set<std::string>& removed_basenames);
 

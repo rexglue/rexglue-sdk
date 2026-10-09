@@ -32,7 +32,6 @@ namespace xam {
 using namespace rex::runtime;
 using namespace rex::runtime::xam;
 
-// https://github.com/LestaD/SourceEngine2007/blob/master/se2007/engine/xboxsystem.cpp#L518
 u32 XamEnumerate(u32 handle, u32 flags, mapped_void buffer_ptr, u32* items_returned,
                  u32 overlapped_ptr) {
   REX_ASSERT(flags == 0);
@@ -98,8 +97,7 @@ u32 XamCreateEnumeratorHandle_entry([[maybe_unused]] u32 unk1, [[maybe_unused]] 
 u32 XamGetPrivateEnumStructureFromHandle_entry(u32 handle, mapped_u32 out_object_ptr) {
   REX_KERNEL_LOOKUP(e, EnumeratorObject, handle);
 
-  // Caller takes the reference.
-  // It's released in ObDereferenceObject.
+  // The caller owns the reference and releases it with ObDereferenceObject.
   (void)runtime::Current().object_table().RetainPrimary(e.slot());
 
   if (out_object_ptr.guest_address()) {

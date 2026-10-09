@@ -246,26 +246,33 @@ REX_SHIM_FN(CloseHandle, u32, u32 hObject) {
   return 1;
 }
 
+/**
+ * Fills a WIN32_FIND_DATA of 0x140 bytes.
+ *
+ * Layout is dwFileAttributes at 0x00, ftCreationTime at 0x04, ftLastAccessTime at 0x0C,
+ * ftLastWriteTime at 0x14, nFileSizeHigh at 0x1C, nFileSizeLow at 0x20, dwReserved0 and
+ * dwReserved1 at 0x24, cFileName[260] at 0x2C and cAlternateFileName[14] at 0x130.
+ *
+ * @param lpFindFileData The buffer to fill.
+ * @param entry The directory entry.
+ */
 static void FillFindData(mapped_void lpFindFileData, const filesystem::FileInfo& entry) {
   auto* buf = static_cast<u8*>(static_cast<void*>(lpFindFileData));
   std::memset(buf, 0, 0x140);
 
   auto* fields = reinterpret_cast<be_u32*>(buf);
-  fields[0] = std::to_underlying(entry.attributes);              // 0x00 dwFileAttributes
-  fields[1] = static_cast<u32>(entry.create_time & 0xFFFFFFFF);  // 0x04 ftCreationTime.Low
-  fields[2] = static_cast<u32>(entry.create_time >> 32);         // 0x08 ftCreationTime.High
-  fields[3] = static_cast<u32>(entry.access_time & 0xFFFFFFFF);  // 0x0C ftLastAccessTime.Low
-  fields[4] = static_cast<u32>(entry.access_time >> 32);         // 0x10 ftLastAccessTime.High
-  fields[5] = static_cast<u32>(entry.write_time & 0xFFFFFFFF);   // 0x14 ftLastWriteTime.Low
-  fields[6] = static_cast<u32>(entry.write_time >> 32);          // 0x18 ftLastWriteTime.High
-  fields[7] = static_cast<u32>(entry.size >> 32);                // 0x1C nFileSizeHigh
-  fields[8] = static_cast<u32>(entry.size & 0xFFFFFFFF);         // 0x20 nFileSizeLow
-  // 0x24 dwReserved0, 0x28 dwReserved1 already zero
+  fields[0] = std::to_underlying(entry.attributes);
+  fields[1] = static_cast<u32>(entry.create_time & 0xFFFFFFFF);
+  fields[2] = static_cast<u32>(entry.create_time >> 32);
+  fields[3] = static_cast<u32>(entry.access_time & 0xFFFFFFFF);
+  fields[4] = static_cast<u32>(entry.access_time >> 32);
+  fields[5] = static_cast<u32>(entry.write_time & 0xFFFFFFFF);
+  fields[6] = static_cast<u32>(entry.write_time >> 32);
+  fields[7] = static_cast<u32>(entry.size >> 32);
+  fields[8] = static_cast<u32>(entry.size & 0xFFFFFFFF);
 
-  // 0x2C cFileName[260]
   const auto& name = entry.name;
   rex::copy_truncating(reinterpret_cast<char*>(buf + 0x2C), name, 260);
-  // 0x130 cAlternateFileName[14] already zero
 }
 
 REX_SHIM_FN(FindFirstFileA, u32, mapped_string lpFileName, mapped_void lpFindFileData) {
@@ -335,7 +342,8 @@ REX_SHIM_FN(GetFileAttributesA, u32, mapped_string lpFileName) {
   auto entry = runtime::Current().file_system()->Stat(path);
   if (!entry) {
     REXLOG_DEBUG(kernel, "rexshim_GetFileAttributesA: not found '{}'", path);
-    return kInvalidHandleValue;  // INVALID_FILE_ATTRIBUTES
+    // INVALID_FILE_ATTRIBUTES
+    return kInvalidHandleValue;
   }
   REXLOG_TRACE(kernel, "rexshim_GetFileAttributesA: '{}' -> attrs={:#x}", path,
                std::to_underlying(entry->attributes));
@@ -351,17 +359,17 @@ REX_SHIM_FN(GetFileAttributesExA, u32, [[maybe_unused]] u32 fInfoLevelId, mapped
     return 0;
   }
 
-  // Fill WIN32_FILE_ATTRIBUTE_DATA (GetFileExInfoStandard = 0)
+  // WIN32_FILE_ATTRIBUTE_DATA for GetFileExInfoStandard (0).
   auto* buf = reinterpret_cast<be_u32*>(static_cast<u8*>(static_cast<void*>(lpFileInformation)));
-  buf[0] = std::to_underlying(entry->attributes);              // dwFileAttributes
-  buf[1] = static_cast<u32>(entry->create_time & 0xFFFFFFFF);  // ftCreationTime.Low
-  buf[2] = static_cast<u32>(entry->create_time >> 32);         // ftCreationTime.High
-  buf[3] = static_cast<u32>(entry->access_time & 0xFFFFFFFF);  // ftLastAccessTime.Low
-  buf[4] = static_cast<u32>(entry->access_time >> 32);         // ftLastAccessTime.High
-  buf[5] = static_cast<u32>(entry->write_time & 0xFFFFFFFF);   // ftLastWriteTime.Low
-  buf[6] = static_cast<u32>(entry->write_time >> 32);          // ftLastWriteTime.High
-  buf[7] = static_cast<u32>(entry->size >> 32);                // nFileSizeHigh
-  buf[8] = static_cast<u32>(entry->size & 0xFFFFFFFF);         // nFileSizeLow
+  buf[0] = std::to_underlying(entry->attributes);
+  buf[1] = static_cast<u32>(entry->create_time & 0xFFFFFFFF);
+  buf[2] = static_cast<u32>(entry->create_time >> 32);
+  buf[3] = static_cast<u32>(entry->access_time & 0xFFFFFFFF);
+  buf[4] = static_cast<u32>(entry->access_time >> 32);
+  buf[5] = static_cast<u32>(entry->write_time & 0xFFFFFFFF);
+  buf[6] = static_cast<u32>(entry->write_time >> 32);
+  buf[7] = static_cast<u32>(entry->size >> 32);
+  buf[8] = static_cast<u32>(entry->size & 0xFFFFFFFF);
   return 1;
 }
 
@@ -394,15 +402,15 @@ REX_SHIM_FN(SetFilePointerEx, u32, u32 hFile, u32 distHigh, u32 distLow,
 
   if (lpNewFilePointer) {
     auto* out = reinterpret_cast<be_u32*>(static_cast<u8*>(static_cast<void*>(lpNewFilePointer)));
-    out[0] = static_cast<u32>(new_pos & 0xFFFFFFFF);  // LowPart
-    out[1] = static_cast<u32>(new_pos >> 32);         // HighPart
+    out[0] = static_cast<u32>(new_pos & 0xFFFFFFFF);
+    out[1] = static_cast<u32>(new_pos >> 32);
   }
   return 1;
 }
 
 REX_SHIM_FN(SetFileTime, u32, u32 hFile, mapped_void lpCreationTime, mapped_void lpLastAccessTime,
             mapped_void lpLastWriteTime) {
-  // VFS doesn't support modifying timestamps; report success.
+  // The filesystem cannot modify timestamps, so report success.
   (void)hFile;
   (void)lpCreationTime;
   (void)lpLastAccessTime;
@@ -413,7 +421,7 @@ REX_SHIM_FN(SetFileTime, u32, u32 hFile, mapped_void lpCreationTime, mapped_void
 REX_SHIM_FN(CompareFileTime, u32, mapped_void lpFileTime1, mapped_void lpFileTime2) {
   auto* ft1 = reinterpret_cast<be_u32*>(static_cast<u8*>(static_cast<void*>(lpFileTime1)));
   auto* ft2 = reinterpret_cast<be_u32*>(static_cast<u8*>(static_cast<void*>(lpFileTime2)));
-  // FILETIME: { dwLowDateTime, dwHighDateTime }
+  // FILETIME is dwLowDateTime then dwHighDateTime.
   u64 t1 = (static_cast<u64>(static_cast<u32>(ft1[1])) << 32) | static_cast<u32>(ft1[0]);
   u64 t2 = (static_cast<u64>(static_cast<u32>(ft2[1])) << 32) | static_cast<u32>(ft2[0]);
   if (t1 < t2)
@@ -452,7 +460,6 @@ REX_SHIM_FN(CopyFileA, u32, mapped_string lpExistingFileName, mapped_string lpNe
     return 0;
   }
 
-  // Copy data in 64KB chunks
   constexpr size_t kBufSize = 65536;
   auto buf = std::make_unique<u8[]>(kBufSize);
   u64 offset = 0;

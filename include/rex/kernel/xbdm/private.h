@@ -1,4 +1,3 @@
-#pragma once
 /**
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
@@ -8,7 +7,11 @@
  ******************************************************************************
  *
  * @modified    Joseph Lee, 2026 - Adapted for ReXGlue runtime
+ *
+ * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
+
+#pragma once
 
 #include <rex/runtime.h>
 

@@ -1,4 +1,3 @@
-#pragma once
 /**
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
@@ -9,6 +8,8 @@
  *
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
+
+#pragma once
 
 #include <cmath>
 #include <cstdint>
@@ -24,12 +25,19 @@
 
 namespace rex::gpu::draw_util {
 
+/**
+ * Reports whether the primitive type is a line.
+ *
+ * For patch primitive types the major mode is always explicit, so checking whether
+ * VGT_OUTPUT_PATH_CNTL::path_select is kTessellationEnable is enough.
+ *
+ * @param vgt_output_path_is_tessellation_enable True when the output path is tessellation.
+ * @param type Primitive type.
+ * @return True when the primitive type is a line.
+ */
 constexpr bool IsPrimitiveLine(bool vgt_output_path_is_tessellation_enable,
                                xenos::PrimitiveType type) {
   if (vgt_output_path_is_tessellation_enable && type == xenos::PrimitiveType::kLinePatch) {
-    // For patch primitive types, the major mode is always explicit, so
-    // checking if VGT_OUTPUT_PATH_CNTL::path_select is kTessellationEnable is
-    // enough.
     return true;
   }
   switch (type) {
@@ -50,21 +58,25 @@ inline bool IsPrimitiveLine(const xenos::RegisterFile& regs) {
                          regs.Get<xenos::reg::VGT_DRAW_INITIATOR>().prim_type);
 }
 
-// Polygonal primitive types (not including points and lines) are rasterized as
-// triangles, have front and back faces, and also support face culling and fill
-// modes (polymode_front_ptype, polymode_back_ptype). Other primitive types are
-// always "front" (but don't support front face and back face culling, according
-// to OpenGL and Vulkan specifications - even if glCullFace is
-// GL_FRONT_AND_BACK, points and lines are still drawn), and may in some cases
-// use the "para" registers instead of "front" or "back" (for "parallelogram" -
-// like poly_offset_para_enable).
+/**
+ * Reports whether the primitive type is polygonal.
+ *
+ * Polygonal types, which exclude points and lines, are rasterized as triangles, have front and
+ * back faces, and support face culling and fill modes (polymode_front_ptype,
+ * polymode_back_ptype). Other types are always front, are not affected by front and back face
+ * culling in OpenGL and Vulkan even with glCullFace set to GL_FRONT_AND_BACK, and may use the
+ * para registers such as poly_offset_para_enable instead of the front or back ones. For patch
+ * primitive types the major mode is always explicit, so checking whether
+ * VGT_OUTPUT_PATH_CNTL::path_select is kTessellationEnable is enough.
+ *
+ * @param vgt_output_path_is_tessellation_enable True when the output path is tessellation.
+ * @param type Primitive type.
+ * @return True when the primitive type is polygonal.
+ */
 constexpr bool IsPrimitivePolygonal(bool vgt_output_path_is_tessellation_enable,
                                     xenos::PrimitiveType type) {
   if (vgt_output_path_is_tessellation_enable &&
       (type == xenos::PrimitiveType::kTrianglePatch || type == xenos::PrimitiveType::kQuadPatch)) {
-    // For patch primitive types, the major mode is always explicit, so
-    // checking if VGT_OUTPUT_PATH_CNTL::path_select is kTessellationEnable is
-    // enough.
     return true;
   }
   switch (type) {
@@ -79,10 +91,6 @@ constexpr bool IsPrimitivePolygonal(bool vgt_output_path_is_tessellation_enable,
     default:
       break;
   }
-  // TODO(Triang3l): Investigate how kRectangleList should be treated - possibly
-  // drawn as two polygons on the console, however, the current
-  // geometry shader doesn't care about the winding order - allowing backface
-  // culling for rectangles breaks 4D53082D.
   return false;
 }
 
@@ -92,134 +100,97 @@ inline bool IsPrimitivePolygonal(const xenos::RegisterFile& regs) {
                               regs.Get<xenos::reg::VGT_DRAW_INITIATOR>().prim_type);
 }
 
-// Whether with the current state, any samples to rasterize (for any reason, not
-// only to write something to a render target, but also to do sample counting or
-// pixel shader memexport) can be generated. Finally dropping draw calls can
-// only be done if the vertex shader doesn't memexport. Checks mostly special
-// cases (for both the guest and usual host implementations), not everything
-// like whether viewport / scissor are empty (until this truly matters in any
-// game).
+/**
+ * Reports whether any samples to rasterize can be generated with the current state.
+ *
+ * Samples count for any reason, including sample counting and pixel shader memexport, not only
+ * writing to a render target. Draws can be dropped only when the vertex shader does not
+ * memexport. Checks mostly special cases, not whether the viewport or scissor are empty.
+ *
+ * @param regs Register file.
+ * @param primitive_polygonal True when the primitive type is polygonal.
+ * @return True when rasterization can produce samples.
+ */
 bool IsRasterizationPotentiallyDone(const xenos::RegisterFile& regs, bool primitive_polygonal);
 
-// Direct3D 10.1+ standard sample positions, also used in Vulkan, for
-// calculations related to host MSAA, in 1/16th of a pixel.
+/** Direct3D 10.1 standard 2x sample positions in 1/16th of a pixel, also used by Vulkan. */
 extern const int8_t kD3D10StandardSamplePositions2x[2][2];
+/** Direct3D 10.1 standard 4x sample positions in 1/16th of a pixel, also used by Vulkan. */
 extern const int8_t kD3D10StandardSamplePositions4x[4][2];
 
 xenos::reg::RB_DEPTHCONTROL GetNormalizedDepthControl(const xenos::RegisterFile& regs);
 
-// Direct3D 9 and Xenos constant polygon offset is an absolute floating-point
-// value.
-// It's possibly treated as an absolute offset by the Xenos too - the
-// PA_SU_POLY_OFFSET_DB_FMT_CNTL::POLY_OFFSET_DB_IS_FLOAT_FMT switch was added
-// later in the R6xx, though this needs verification.
-// 5454082B, for example, for float24, sets the bias to 0.000002 - or slightly
-// above 2^-19.
-// The total polygon offset formula specified by Direct3D 9 is:
-// `offset = slope * slope factor + constant offset`
-//
-// Direct3D 10, Metal, OpenGL and Vulkan, however, take the constant polygon
-// offset factor as a relative value, with the formula being:
-// `offset = slope * slope factor +
-//           maximum resolvable difference * constant factor`
-// where the maximum resolvable difference is:
-// - For a fixed-point depth buffer, the minimum representable non-zero value in
-//   the depth buffer, that is 1 / (2^24 - 1) for unorm24 (on Vulkan though it's
-//   allowed to be up to 2 / 2^24 in this case).
-// - For a floating-point depth buffer, it's:
-//   2 ^ (exponent of the maximum Z in the primitive - the number of explicitly
-//        stored mantissa bits)
-//   (23 explicitly stored bits for float32 - and 20 explicitly stored bits for
-//    float24).
-//
-// While the polygon offset is a fixed-function feature in the pipeline, and the
-// formula can't be toggled between absolute and relative, it's important that
-// Xenia translates the guest absolute depth bias into the host relative depth
-// bias in a way that the values that separate coplanar geometry on the guest
-// qualitatively also still correctly separate them on the host.
-//
-// It also should be taken into account that on Xenia, float32 depth values may
-// be snapped to float24 directly in the translated pixel shaders (to prevent
-// data loss if after reuploading a depth buffer to the EDRAM there's no way to
-// recover the full-precision value, that results in the inability to perform
-// more rendering passes for the same geometry), and not only to the nearest
-// value, but also truncating them (so in case of data loss, the "greater
-// or equal" depth test function still works).
-//
-// Because of this, the depth bias may be lost if Xenia translates it into a too
-// small value, and the conversion of the depth is done in the pixel shader.
-// Specifically, Xenia should not simply convert a value that separates coplanar
-// primitives as float24 into something that still separates them as
-// float32. Essentially, if conversion to float24 is done in the pixel shader,
-// Xenia should make sure the polygon offset on the host is calculated as if the
-// host had float24 depth too, not float32.
-
-// Applies to both native host unorm24, and unorm24 emulated as host float32.
-// For native unorm24, this is exactly the inverse of the minimum representable
-// non-zero value.
-// For unorm24 emulated as float32, the minimum representable non-zero value for
-// a primitive in the [0.5, 1) range (the worst case that forward depth reaches
-// quickly, at nearly `2 * near clipping plane distance`) is 2 ^ (-1 - 23),
-// or 2^-24, and this factor is almost 2^24.
+/**
+ * Factor converting the guest absolute polygon offset to the host relative constant factor for
+ * unorm24, including unorm24 emulated as host float32.
+ *
+ * Direct3D 9 and Xenos use an absolute offset of slope * slope factor + constant offset.
+ * Direct3D 10, Metal, OpenGL and Vulkan use slope * slope factor + maximum resolvable difference
+ * * constant factor. The maximum resolvable difference is the minimum representable non zero
+ * value for a fixed point depth buffer, 1 / (2^24 - 1) for unorm24, and 2 ^ (exponent of the
+ * maximum Z in the primitive - explicitly stored mantissa bits) for a floating point one, with
+ * 23 bits for float32 and 20 bits for float24. For native unorm24 the factor is the inverse of
+ * the minimum representable non zero value. For unorm24 emulated as float32 that minimum for a
+ * primitive in the [0.5, 1) range is 2^-24, so the factor is almost 2^24.
+ *
+ * The host translation must keep values separating coplanar geometry on the guest separating it
+ * on the host.
+ */
 constexpr float kD3D10PolygonOffsetFactorUnorm24 = static_cast<float>((UINT32_C(1) << 24) - 1);
 
-// For a host floating-point depth buffer, the integer value of the depth bias
-// is roughly how many ULPs primitives should be separated by.
-//
-// Float24, however, has 3 mantissa bits fewer than float32 - so one float24 ULP
-// corresponds to 8 float32 ULPs - which means each conceptual "layer" of the
-// guest value should correspond to a polygon offset of 8. So, after the guest
-// absolute value is converted to "layers", it should be multiplied by 8 before
-// being used on the host with a float32 depth buffer.
-//
-// The scale for converting the guest absolute depth bias to the "layers" needs
-// to be determined for the worst case - specifically, the [0.5, 1) range (1 is
-// a single value, so there's no need to take it into consideration). In this
-// range, Z values have the exponent of -1. Therefore, for float24, the absolute
-// offset is obtained from the "layer index" in this range as (disregarding the
-// slope term):
-// offset = 2 ^ (-1 - 20) * constant factor
-// Thus, to obtain the constant factor from the absolute offset in the range
-// with the lowest absolute precision, the offset needs to be multiplied by
-// 2^21.
-//
-// Finally, the 0...0.5 range may be used on the host to represent the 0...1
-// guest depth range to be able to copy all possible encodings, which are
-// [0, 2), via a [0, 1] depth output variable, during EDRAM contents
-// reinterpretation. This is done by scaling the viewport depth bounds by 0.5.
-// However, there's no need to do anything to handle this scenario in the
-// polygon offset - it's calculated after applying the viewport transformation,
-// and the maximum Z value in the primitive will have an exponent lowered by 1,
-// thus the result will also have an exponent lowered by 1 - exactly what's
-// needed for remapping 0...1 to 0...0.5.
+/**
+ * Factor converting the guest absolute polygon offset to the host relative constant factor for
+ * a host floating point depth buffer.
+ *
+ * The integer depth bias is roughly the ULP count separating primitives. Float24 has 3 fewer
+ * mantissa bits than float32, so 1 float24 ULP is 8 float32 ULPs and each layer of the guest
+ * value needs an offset of 8 with a float32 depth buffer. The scale is set by the [0.5, 1) range,
+ * where Z has exponent -1 and the float24 offset is 2 ^ (-1 - 20) * constant factor, so the
+ * absolute offset is multiplied by 2^21. Float32 depth may be snapped to float24 in translated
+ * pixel shaders by truncation, so the host offset is calculated as for float24 depth or it is
+ * lost. When the 0...0.5 host range represents the 0...1 guest range, the offset needs no change
+ * since it is calculated after the viewport transformation, which lowers the exponent by 1.
+ */
 constexpr float kD3D10PolygonOffsetFactorFloat24 = static_cast<float>(UINT32_C(1) << (21 + 3));
 
+/**
+ * Converts the guest absolute polygon offset to the host integer polygon offset.
+ *
+ * The result rounds up, since any used offset must separate primitives in the depth buffer. For
+ * float24 the conversion may truncate in translated pixel shaders, so the result is a multiple of
+ * 2^3 and the rounding happens before changing units from float24 ULPs to float32 ULPs.
+ *
+ * @param depth_format Depth render target format.
+ * @param polygon_offset Guest absolute polygon offset.
+ * @return Host integer polygon offset.
+ */
 inline int32_t GetD3D10IntegerPolygonOffset(xenos::DepthRenderTargetFormat depth_format,
                                             float polygon_offset) {
   bool is_float24 = depth_format == xenos::DepthRenderTargetFormat::kD24FS8;
-  // Using `ceil` because more offset is better, especially if flooring would
-  // result in 0 - conceptually, if the offset is used at all, primitives need
-  // to be separated in the depth buffer.
   int32_t polygon_offset_int = static_cast<int32_t>(std::ceil(
       std::abs(polygon_offset) * (is_float24 ? kD3D10PolygonOffsetFactorFloat24 * (1.0f / 8.0f)
                                              : kD3D10PolygonOffsetFactorUnorm24)));
-  // For float24, the conversion may be done in the translated pixel shaders,
-  // including via truncation rather than rounding to the nearest. So, making
-  // the integer bias always in the increments of 2^3 (2 ^ the difference in the
-  // mantissa bit count between float32 and float24), and because of that, doing
-  // `ceil` before changing the units from float24 ULPs to float32 ULPs.
   if (is_float24) {
     polygon_offset_int <<= 3;
   }
   return polygon_offset < 0 ? -polygon_offset_int : polygon_offset_int;
 }
 
-// For hosts not supporting separate front and back polygon offsets, returns the
-// polygon offset for the face which likely needs the offset the most (and that
-// will not be culled). The values returned will have the units of the original
-// registers (the scale is for 1/16 subpixels, multiply by
-// xenos::kPolygonOffsetScaleSubpixelUnit outside if the value for pixels is
-// needed).
+/**
+ * Returns the polygon offset for hosts without separate front and back polygon offsets.
+ *
+ * Picks the front face offset when enabled and not culled, otherwise the back face offset when
+ * enabled and not culled. The front offset is
+ * preferred since front faces are usually rendered, except for shadow volumes. Non polygonal
+ * primitives use the front offset toggled by poly_offset_para_enable. The values have the units
+ * of the original registers, with scale in 1/16 subpixels, so multiply by
+ * xenos::kPolygonOffsetScaleSubpixelUnit for pixels.
+ *
+ * @param regs Register file.
+ * @param primitive_polygonal True when the primitive type is polygonal.
+ * @param scale_out Receives the polygon offset scale.
+ * @param offset_out Receives the polygon offset.
+ */
 void GetPreferredFacePolygonOffset(const xenos::RegisterFile& regs, bool primitive_polygonal,
                                    float& scale_out, float& offset_out);
 
@@ -229,49 +200,101 @@ inline bool DoesCoverageDependOnAlpha(xenos::reg::RB_COLORCONTROL rb_colorcontro
          rb_colorcontrol.alpha_to_mask_enable;
 }
 
-// Whether the pixel shader can be disabled on the host to speed up depth
-// pre-passes and shadowmaps. The shader must have its ucode analyzed. If
-// IsRasterizationPotentiallyDone, this shouldn't be called, and assumed false
-// instead. Helps reject the pixel shader in some cases - memexport draws in
-// 4D5307E6, and also most of some 1-point draws not covering anything done for
-// some reason in different games with a leftover pixel shader from the previous
-// draw, but with SQ_PROGRAM_CNTL destroyed, reducing the number of
-// unpredictable unneeded translations of random shaders with different host
-// modification bits, such as register count and depth format-related.
-// include_memory_export may be set to false to evaluate whether the pixel
-// shader has any side effects other than memexport.
+/**
+ * Reports whether the pixel shader is needed, so it cannot be disabled on the host to speed up
+ * depth prepasses and shadowmaps.
+ *
+ * The result is false and the function is not called when IsRasterizationPotentiallyDone is
+ * false. Discarding, depth output and memexport count as side effects, and depth output is
+ * treated as always mattering. Rejecting the pixel shader covers memexport draws and 1 point
+ * draws covering nothing that run with a leftover pixel shader and destroyed SQ_PROGRAM_CNTL,
+ * which avoids unneeded translations of random shaders with different host modification bits such
+ * as register count and depth format.
+ *
+ * @param shader Pixel shader with analyzed ucode.
+ * @param regs Register file.
+ * @param include_memory_export False to ignore memexport as a side effect.
+ * @return True when the pixel shader is needed.
+ */
 bool IsPixelShaderNeededWithRasterization(const Shader& shader, const xenos::RegisterFile& regs,
                                           bool include_memory_export = true);
 
 struct ViewportInfo {
-  // Offset from render target UV = 0 to +UV.
-  // For simplicity of cropping to the maximum size on the host; to match the
-  // Direct3D 12 clipping / scissoring behavior with a fractional viewport, to
-  // floor(TopLeftXY) ... floor(TopLeftXY + WidthHeight), on the real AMD, Intel
-  // and Nvidia hardware (not WARP); as well as to hide the differences between
-  // 0 and 8+ viewportSubPixelBits on Vulkan, and to prevent any numerical error
-  // in bound checking in host APIs, viewport bounds are returned as integers.
-  // Also they're returned as non-negative, also to make it easier to crop (so
-  // Vulkan maxViewportDimensions and viewportBoundsRange don't have to be
-  // handled separately - maxViewportDimensions is greater than or equal to the
-  // largest framebuffer image size, so it's safe, and viewportBoundsRange is
-  // always bigger than maxViewportDimensions. All fractional offsetting,
-  // including the half-pixel offset, and cropping are handled via ndc_scale and
-  // ndc_offset.
+  /**
+   * Offset from render target UV = 0 to +UV.
+   *
+   * Viewport bounds are integers and non negative, which makes cropping to the host maximum size
+   * simple, matches Direct3D 12 clipping and scissoring of a fractional viewport to
+   * floor(TopLeftXY) ... floor(TopLeftXY + WidthHeight), hides the difference between 0 and 8+
+   * viewportSubPixelBits on Vulkan, and avoids numerical error in host bounds checks. All
+   * fractional offsetting, including the half-pixel offset, and cropping go through ndc_scale and
+   * ndc_offset.
+   */
   uint32_t xy_offset[2];
-  // Extent can be zero for an empty viewport - host APIs not supporting empty
-  // viewports need to use an empty scissor rectangle.
+  /** Extent can be 0 for an empty viewport, which hosts without empty viewports scissor out. */
   uint32_t xy_extent[2];
   float z_min;
   float z_max;
-  // The scale is applied before the offset (like using multiply-add).
+  /** The scale is applied before the offset, as in a multiply add. */
   float ndc_scale[3];
   float ndc_offset[3];
 };
-// Converts the guest viewport (or fakes one if drawing without a viewport) to
-// a viewport, plus values to multiply-add the returned position by, usable on
-// host graphics APIs such as Direct3D 11+ and Vulkan, also forcing it to the
-// Direct3D clip space with 0...W Z rather than -W...W.
+/**
+ * Converts the guest viewport, or a fake one when drawing without a viewport, to a host viewport
+ * plus values to multiply add the returned position by, forcing the Direct3D clip space with 0...W
+ * Z rather than -W...W.
+ *
+ * A position goes through clip space, clipping, division by W, NDC, viewport scaling, and the
+ * viewport, window and half-pixel offsetting. NDC XY point toward +XY on the render target. The
+ * integer.0 and integer.5 offsets are summed separately at full precision. The viewport scale
+ * sign maps the Direct3D 9 Y direction into the NDC to pixel transformation. With resolution
+ * scaling guest pixels are treated as a whole.
+ *
+ * Host APIs always clip, and only Z clipping can be replaced with depth clamping.
+ *
+ * With clipping, the window and half-pixel offsets apply after clipping. Host GPUs other than
+ * WARP do not truly clip to -W...W. Primitives overflow the fractional rectangle, and the
+ * viewport scissor is floor(TopLeftXY) ... floor(TopLeftXY + WidthHeight) in float32, where
+ * TopLeftXY 0x3F7FFFFF covers the top row and left column samples and 0x3F800000 covers none.
+ * The result matches passing the guest values directly to Direct3D 12. The integer viewport is
+ * returned and the fractional offset goes to the vertex shaders through ndc_scale and
+ * ndc_offset. Offsetting in W scaled rather than W divided units keeps the exponent ratios, and
+ * rasterization is 16.8 fixed point on most hosts, so coverage is unaffected. Xenos has no
+ * viewport scissor. The guest driver writes the intersection of the viewport and the scissor to
+ * PA_SC_WINDOW_SCISSOR, so the scissor of a fractional viewport is up to the guest. The guest
+ * clip space may be 0...W or -W...W and is always remapped to 0...W, with 0 moved to 0.5 and so
+ * not exact. For -W...W the host depth range is offset - scale and scale * 2, with ndc_scale 0.5
+ * and ndc_offset 0.5 for Z.
+ *
+ * Without clipping, the vertex shader returns a position in pixels pre-divided by W, the viewport
+ * is usually disabled through PA_CL_VTE_CNTL VPORT_X/Y/Z_SCALE/OFFSET_ENA, which equals scale
+ * (1, 1, 1) and offset (0, 0, 0), and the NDC is treated as pixel coordinates before the window
+ * and half-pixel offsets. Direct3D 10 hosts clamp Z to the viewport depth range in the output
+ * merger, so the host depth range is the full 0...1 and the guest Z scale and offset go through
+ * ndc_scale and ndc_offset, leaving Z unclamped to the guest viewport Z range. The host viewport
+ * is at least the scissor region, with Z clipping changed to Z clamping where the host allows it,
+ * ideally a power of 2 size so scaling only biases the exponent, and the vertex shader rescales
+ * from the guest clip space.
+ *
+ * When the pixel shader writes depth the host depth range is 0...1, as guest pixel shaders have
+ * no access to the viewport Z. Otherwise it is clamped to 0...1 since Direct3D allows no
+ * unrestricted range. With convert_z_to_float24 the bounds are rounded to the nearest even
+ * float24 value, as the pixel shader clamps converted depth to them, and vertex Z is not adjusted
+ * so polygons at Z = 0 or Z = W are not clipped.
+ *
+ * @param regs Register file.
+ * @param draw_resolution_scale_x Resolution scale along X.
+ * @param draw_resolution_scale_y Resolution scale along Y.
+ * @param origin_bottom_left True when the host framebuffer origin is the bottom left.
+ * @param x_max Maximum host viewport width.
+ * @param y_max Maximum host viewport height.
+ * @param allow_reverse_z False when the host disallows a reversed depth range.
+ * @param normalized_depth_control Normalized RB_DEPTHCONTROL.
+ * @param convert_z_to_float24 True to round the depth bounds to float24.
+ * @param full_float24_in_0_to_1 True to remap float24 [0...2) to [0...1) for tile ownership.
+ * @param pixel_shader_writes_depth True when the pixel shader writes depth.
+ * @param viewport_info_out Receives the host viewport.
+ */
 void GetHostViewportInfo(const xenos::RegisterFile& regs, uint32_t draw_resolution_scale_x,
                          uint32_t draw_resolution_scale_y, bool origin_bottom_left, uint32_t x_max,
                          uint32_t y_max, bool allow_reverse_z,
@@ -280,41 +303,63 @@ void GetHostViewportInfo(const xenos::RegisterFile& regs, uint32_t draw_resoluti
                          bool pixel_shader_writes_depth, ViewportInfo& viewport_info_out);
 
 struct Scissor {
-  // Offset from render target UV = 0 to +UV.
+  /** Offset from render target UV = 0 to +UV. */
   uint32_t offset[2];
-  // Extent can be zero.
+  /** Extent can be 0. */
   uint32_t extent[2];
 };
+/**
+ * Returns the window scissor intersected with the screen scissor.
+ *
+ * The screen scissor is always 0, 0 to 8192, 8192 in Direct3D 9. A rectangle with a negative
+ * extent collapses to 0 size rather than reordering its bounds, which would reveal samples not
+ * meant to be covered, and negative offsets are dropped. Clamping the horizontal scissor to the
+ * surface pitch prevents overflow in hosts that rasterize independently of the render target
+ * width or use render targets padded to EDRAM tiles, and titles do not clamp it when drawing
+ * without clipping.
+ *
+ * @param regs Register file.
+ * @param scissor_out Receives the scissor.
+ * @param clamp_to_surface_pitch True to clamp the horizontal scissor to the surface pitch.
+ */
 void GetScissor(const xenos::RegisterFile& regs, Scissor& scissor_out,
                 bool clamp_to_surface_pitch = true);
 
-// Returns the color component write mask for the draw command taking into
-// account which color targets are written to by the pixel shader, as well as
-// components that don't exist in the formats of the render targets (render
-// targets with only non-existent components written are skipped, but
-// non-existent components are forced to written if some existing components of
-// the render target are used to make sure the host driver doesn't try
-// to take a slow path involving reading and mixing if there are any disabled
-// components even if they don't exist).
+/**
+ * Returns the color component write mask for the draw command.
+ *
+ * Render targets not statically written by the pixel shader are excluded and take no ownership
+ * transfers. Render targets with only non existent components written are skipped. Non existent
+ * components are forced to written when some existing components of the render target are used,
+ * so the host driver takes no slow path that reads and mixes disabled components.
+ *
+ * @param regs Register file.
+ * @param pixel_shader_writes_color_targets Bit mask of color targets written by the pixel shader.
+ * @return Normalized color write mask.
+ */
 uint32_t GetNormalizedColorMask(const xenos::RegisterFile& regs,
                                 uint32_t pixel_shader_writes_color_targets);
 
-// Never an identity conversion - can always write conditional move instructions
-// to shaders that will be no-ops for conversion from guest to host samples.
-// While we don't know the exact guest sample pattern, due to the way
-// multisampled render targets are stored in the memory (like 1x2 single-sampled
-// pixels with 2x MSAA, or like 2x2 single-sampled pixels with 4x), assuming
-// that the sample 0 is the top sample, and the sample 1 is the bottom one.
+/**
+ * Converts a guest 2x MSAA sample index to a host sample index.
+ *
+ * The conversion is never an identity, so shaders can always use conditional moves that become
+ * no ops. Multisampled render targets are stored
+ * like 1x2 single sampled pixels at 2x and 2x2 at 4x, so sample 0 is assumed to be the top sample
+ * and sample 1 the bottom one. With native 2x MSAA on Direct3D 10.1 the top-left sample is 1 and
+ * the bottom-right sample is 0. Without it, the top-left sample 0 and the bottom-right sample 3
+ * of the guaranteed 4x MSAA are used.
+ *
+ * @param guest_sample_index Guest sample index, 0 or 1.
+ * @param native_2x_msaa_supported True when the host supports native 2x MSAA.
+ * @return Host sample index.
+ */
 inline uint32_t GetD3D10SampleIndexForGuest2xMSAA(uint32_t guest_sample_index,
                                                   bool native_2x_msaa_supported) {
   assert(guest_sample_index <= 1);
   if (native_2x_msaa_supported) {
-    // On Direct3D 10.1 with native 2x MSAA, the top-left sample is 1, and the
-    // bottom-right sample is 0.
     return guest_sample_index ? 0 : 1;
   }
-  // When native 2x MSAA is not supported, using the top-left (0) and the
-  // bottom-right (3) samples of the guaranteed 4x MSAA.
   return guest_sample_index ? 3 : 0;
 }
 
@@ -326,61 +371,90 @@ struct MemExportRange {
       : base_address_dwords(base_address_dwords), size_bytes(size_bytes) {}
 };
 
-// Gathers memory ranges involved in memexports in the shader with the float
-// constants from the registers, adding them to ranges_out.
+/**
+ * Gathers the memory ranges involved in memexports of the shader using the float constants from
+ * the registers.
+ *
+ * Stream constants that are not set up are skipped, as the export may not be on the control flow
+ * path taken by the shader. They are detected through the constant bit fields and the index count
+ * but not through the Y component, since the index may be constructed arbitrarily. The hardware
+ * validates the upper bits of eA.
+ *
+ * @param regs Register file.
+ * @param shader Shader with analyzed ucode.
+ * @param ranges_out Receives the ranges, extended in place when the base address repeats.
+ */
 void AddMemExportRanges(const xenos::RegisterFile& regs, const Shader& shader,
                         std::vector<MemExportRange>& ranges_out);
 
-// To avoid passing values that the shader won't understand (even though
-// Direct3D 9 shouldn't pass them anyway).
+/**
+ * Clamps a copy sample selection to values the shader understands, even though Direct3D 9 should
+ * not pass others.
+ *
+ * Depth cannot be averaged.
+ *
+ * @param copy_sample_select Requested sample selection.
+ * @param msaa_samples Sample count of the surface.
+ * @param is_depth True when the source is a depth surface.
+ * @return Sample selection valid for the shader.
+ */
 xenos::CopySampleSelect SanitizeCopySampleSelect(xenos::CopySampleSelect copy_sample_select,
                                                  xenos::MSAASamples msaa_samples, bool is_depth);
 
-// Packed structures are small and can be passed to the shaders in root/push
-// constants.
-
+/** Packed, small enough to be passed to the shaders in root and push constants. */
 union ResolveEdramInfo {
   uint32_t packed;
   struct {
-    // With 32bpp/64bpp taken into account.
+    /** With 32bpp and 64bpp taken into account. */
     uint32_t pitch_tiles : xenos::kEDRAMPitchTilesBits;
     xenos::MSAASamples msaa_samples : xenos::kMSAASamplesBits;
     uint32_t is_depth : 1;
-    // With offset to the region that edram_offset_x/y_div_8 are relative to.
+    /** With offset to the region that edram_offset_x/y_div_8 are relative to. */
     uint32_t base_tiles : xenos::kEDRAMBaseTilesBits;
     uint32_t format : xenos::kRenderTargetFormatBits;
     uint32_t format_is_64bpp : 1;
-    // Whether to fill the half-pixel offset gap on the left and the top sides
-    // of the resolve region with the contents of the first surely covered
-    // column / row with resolution scaling.
+    /**
+     * Fills the half-pixel offset gap on the left and top sides of the resolve region with the
+     * first covered column and row when resolution scaling.
+     */
     uint32_t fill_half_pixel_offset : 1;
   };
   ResolveEdramInfo() : packed(0) { REX_STATIC_ASSERT_SIZE(*this, sizeof(packed)); }
 };
 
+/** Packed, small enough to be passed to the shaders in root and push constants. */
 union ResolveCoordinateInfo {
   uint32_t packed;
   struct {
-    // In pixels relatively to the origin of the EDRAM base tile.
-    // 0...9 for 0...72.
+    /** In pixels relative to the origin of the EDRAM base tile, 0...9 for 0...72. */
     uint32_t edram_offset_x_div_8 : 4;
-    // 0...1 for 0...8.
+    /** 0...1 for 0...8. */
     uint32_t edram_offset_y_div_8 : 1;
 
-    // In pixels.
-    // May be zero if the original rectangle was somehow specified in a
-    // totally broken way - in this case, the resolve must be dropped.
+    /** In pixels. May be 0 for a malformed original rectangle, and the resolve must be dropped. */
     uint32_t width_div_8 : xenos::kResolveSizeBits - xenos::kResolveAlignmentPixelsLog2;
 
-    // 1 to 7.
+    /** 1 to 7. */
     uint32_t draw_resolution_scale_x : 3;
     uint32_t draw_resolution_scale_y : 3;
   };
   ResolveCoordinateInfo() : packed(0) { REX_STATIC_ASSERT_SIZE(*this, sizeof(packed)); }
 };
 
-// Returns tiles covered by a resolve area. Row length used is width of
-// the area in tiles, but the pitch between rows is edram_info.pitch_tiles.
+/**
+ * Returns the tiles covered by a resolve area.
+ *
+ * The row length used is the width of the area in tiles, while the pitch between rows is
+ * edram_info.pitch_tiles. The offset is always taken into account, as it is not assumed to be
+ * limited to (80 - 8, 8 - 8) with 2x MSAA and (40 - 8, 8 - 8) with 4x MSAA, and 64bpp changes it.
+ *
+ * @param edram_info Packed EDRAM info.
+ * @param coordinate_info Packed coordinate info.
+ * @param height_div_8 Height of the area divided by 8.
+ * @param base_out Receives the first tile.
+ * @param row_length_used_out Receives the width of the area in tiles.
+ * @param rows_out Receives the height of the area in tiles.
+ */
 void GetResolveEdramTileSpan(ResolveEdramInfo edram_info, ResolveCoordinateInfo coordinate_info,
                              uint32_t height_div_8, uint32_t& base_out,
                              uint32_t& row_length_used_out, uint32_t& rows_out);
@@ -388,14 +462,13 @@ void GetResolveEdramTileSpan(ResolveEdramInfo edram_info, ResolveCoordinateInfo 
 union ResolveCopyDestCoordinateInfo {
   uint32_t packed;
   struct {
-    // 0...16384/32.
+    /** 0...16384/32. */
     uint32_t pitch_aligned_div_32 : xenos::kTexture2DCubeMaxWidthHeightLog2 + 2 -
                                     xenos::kTextureTileWidthHeightLog2;
     uint32_t height_aligned_div_32 : xenos::kTexture2DCubeMaxWidthHeightLog2 + 2 -
                                      xenos::kTextureTileWidthHeightLog2;
 
-    // Up to the maximum period of the texture tiled address function (128x128
-    // for 2D 1bpb).
+    /** Up to the maximum period of the texture tiled address function, 128x128 for 2D 1bpb. */
     uint32_t offset_x_div_8 : 7 - xenos::kResolveAlignmentPixelsLog2;
     uint32_t offset_y_div_8 : 7 - xenos::kResolveAlignmentPixelsLog2;
 
@@ -404,8 +477,7 @@ union ResolveCopyDestCoordinateInfo {
   ResolveCopyDestCoordinateInfo() : packed(0) { REX_STATIC_ASSERT_SIZE(*this, sizeof(packed)); }
 };
 
-// For backends with Shader Model 5-like compute, host shaders to use to perform
-// copying in resolve operations.
+/** Host shaders for copying in resolve operations on backends with Shader Model 5 like compute. */
 enum class ResolveCopyShaderIndex {
   kFast32bpp1x2xMSAA,
   kFast32bpp4xMSAA,
@@ -423,24 +495,23 @@ enum class ResolveCopyShaderIndex {
 };
 
 struct ResolveCopyShaderInfo {
-  // Debug name of the pipeline state object with this shader.
+  /** Debug name of the pipeline state object with this shader. */
   const char* debug_name;
-  // Whether the EDRAM source needs be bound as a raw buffer (ByteAddressBuffer
-  // in Direct3D) since it can load different numbers of 32-bit values at once
-  // on some hardware. If the host API doesn't support raw buffers, a typed
-  // buffer with source_bpe_log2-byte elements needs to be used instead.
+  /**
+   * True when the EDRAM source is bound as a raw buffer (ByteAddressBuffer in Direct3D), since
+   * it can load different numbers of 32 bit values at once. Hosts without raw buffers use a typed
+   * buffer with source_bpe_log2 byte elements instead.
+   */
   bool source_is_raw;
-  // Log2 of bytes per element of the type of the EDRAM buffer bound to the
-  // shader (at least 2).
+  /** Log2 of bytes per element of the EDRAM buffer type bound to the shader, at least 2. */
   uint32_t source_bpe_log2;
-  // Log2 of bytes per element of the type of the destination buffer bound to
-  // the shader (at least 2 because of the 128 megatexel minimum requirement on
-  // Direct3D 10+ - D3D12_REQ_BUFFER_RESOURCE_TEXEL_COUNT_2_TO_EXP - that
-  // prevents binding the entire shared memory buffer with smaller element
-  // sizes).
+  /**
+   * Log2 of bytes per element of the destination buffer type bound to the shader. At least 2
+   * because the 128 megatexel minimum on Direct3D 10+ prevents binding the entire shared memory
+   * buffer with smaller elements (D3D12_REQ_BUFFER_RESOURCE_TEXEL_COUNT_2_TO_EXP).
+   */
   uint32_t dest_bpe_log2;
-  // Log2 of number of pixels in a single thread group along X and Y. 64 threads
-  // per group preferred (GCN lane count).
+  /** Log2 of the pixel count in a thread group along X and Y, 64 threads per group preferred. */
   uint32_t group_size_x_log2, group_size_y_log2;
 };
 
@@ -448,9 +519,10 @@ extern const ResolveCopyShaderInfo
     resolve_copy_shader_info[static_cast<size_t>(ResolveCopyShaderIndex::kCount)];
 
 struct ResolveCopyShaderConstants {
-  // When the destination base is not needed (not binding the entire shared
-  // memory buffer - with resoluion scaling, for instance), only the
-  // DestRelative part may be passed to the shader to use less constants.
+  /**
+   * When the destination base is not needed, as when not binding the entire shared memory buffer,
+   * only this part may be passed to the shader to use fewer constants.
+   */
   struct DestRelative {
     ResolveEdramInfo edram_info;
     ResolveCoordinateInfo coordinate_info;
@@ -462,8 +534,10 @@ struct ResolveCopyShaderConstants {
 };
 
 struct ResolveClearShaderConstants {
-  // rt_specific is different for color and depth, the rest is the same and can
-  // be preserved in the root bindings when going from depth to color.
+  /**
+   * Differs for color and depth, while the rest is the same and can be preserved in the root
+   * bindings when going from depth to color.
+   */
   struct RenderTargetSpecific {
     uint32_t clear_value[2];
     ResolveEdramInfo edram_info;
@@ -475,41 +549,48 @@ struct ResolveClearShaderConstants {
 struct ResolveInfo {
   xenos::reg::RB_COPY_CONTROL rb_copy_control;
 
-  // depth_edram_info / depth_original_base and color_edram_info /
-  // color_original_base are set up if copying or clearing color and depth
-  // respectively, according to RB_COPY_CONTROL.
+  /**
+   * Set up when copying or clearing depth, along with depth_original_base, according to
+   * RB_COPY_CONTROL.
+   */
   ResolveEdramInfo depth_edram_info;
+  /**
+   * Set up when copying or clearing color, along with color_original_base, according to
+   * RB_COPY_CONTROL.
+   */
   ResolveEdramInfo color_edram_info;
-  // Original bases, without adjustment to a 160x32 region for packed offsets,
-  // for locating host render targets to perform clears if host render targets
-  // are used for EDRAM emulation - the same as the base that the render target
-  // will likely be used for drawing next, to prevent unneeded tile ownership
-  // transfers between clears and first usage if clearing a subregion.
+  /**
+   * Original bases, without adjustment to a 160x32 region for packed offsets, used to locate host
+   * render targets for clears when they emulate EDRAM. They equal the base the render target
+   * is drawn with next, which avoids unneeded tile ownership transfers between clears and
+   * first usage when clearing a subregion.
+   */
   uint32_t depth_original_base;
   uint32_t color_original_base;
 
   ResolveCoordinateInfo coordinate_info;
-  // Like coordinate_info.width_div_8, but not needed for shaders.
-  // In pixels.
-  // May be zero if the original rectangle was somehow specified in a totally
-  // broken way - in this case, the resolve must be dropped.
+  /**
+   * Like coordinate_info.width_div_8 but not needed for shaders. In pixels. May be 0 for a
+   * malformed original rectangle, and the resolve must be dropped.
+   */
   uint32_t height_div_8;
 
   xenos::reg::RB_COPY_DEST_INFO copy_dest_info;
   ResolveCopyDestCoordinateInfo copy_dest_coordinate_info;
 
-  // The address of the texture or the location within the texture that
-  // copy_dest_coordinate_info.offset_x/y_div_8 - the origin of the copy
-  // destination - is relative to.
+  /**
+   * Address of the texture or the location within it that the offset_x/y_div_8 of
+   * copy_dest_coordinate_info is relative to, the origin of the copy destination.
+   */
   uint32_t copy_dest_base;
-  // Memory range that will potentially be modified by copying to the texture.
-  // copy_dest_extent_length may be zero if something is wrong with the
-  // destination, in this case, clearing may still be done, but copying must be
-  // dropped.
+  /**
+   * Memory range potentially modified by copying to the texture. The length may be 0 for a bad
+   * destination, and clearing may still be done but copying must be dropped.
+   */
   uint32_t copy_dest_extent_start;
   uint32_t copy_dest_extent_length;
 
-  // The clear shaders always write to a uint4 view of EDRAM.
+  /** The clear shaders always write to a uint4 view of EDRAM. */
   uint32_t rb_depth_clear;
   uint32_t rb_color_clear;
   uint32_t rb_color_clear_lo;
@@ -518,7 +599,14 @@ struct ResolveInfo {
     return rb_copy_control.copy_src_select >= xenos::kMaxColorRenderTargets;
   }
 
-  // See GetResolveEdramTileSpan documentation for explanation.
+  /**
+   * Returns the EDRAM tile span of the copy source, see GetResolveEdramTileSpan.
+   *
+   * @param base_out Receives the first tile.
+   * @param row_length_used_out Receives the width of the area in tiles.
+   * @param rows_out Receives the height of the area in tiles.
+   * @param pitch_out Receives the pitch between rows in tiles.
+   */
   void GetCopyEdramTileSpan(uint32_t& base_out, uint32_t& row_length_used_out, uint32_t& rows_out,
                             uint32_t& pitch_out) const {
     ResolveEdramInfo edram_info = IsCopyingDepth() ? depth_edram_info : color_edram_info;
@@ -547,21 +635,34 @@ struct ResolveInfo {
     constants_out.coordinate_info = coordinate_info;
   }
 
+  /**
+   * Fills the color clear shader constants.
+   *
+   * The -32...32 to -1...1 clamping used by the k_16_16 and k_16_16_16_16 blending emulation on
+   * host render targets is not applied, as it would be inconsistent with clearing with a depth
+   * quad.
+   *
+   * @param constants_out Receives the constants.
+   */
   void GetColorClearShaderConstants(ResolveClearShaderConstants& constants_out) const {
     REX_ASSERT(IsClearingColor());
-    // Not doing -32...32 to -1...1 clamping here as a hack for k_16_16 and
-    // k_16_16_16_16 blending emulation when using host render targets as it
-    // would be inconsistent with the usual way of clearing with a depth quad.
-    // TODO(Triang3l): Check which 32-bit portion is in which register.
     constants_out.rt_specific.clear_value[0] = rb_color_clear;
     constants_out.rt_specific.clear_value[1] = rb_color_clear_lo;
     constants_out.rt_specific.edram_info = color_edram_info;
     constants_out.coordinate_info = coordinate_info;
   }
 
+  /**
+   * Returns the clear shader group counts along X and Y.
+   *
+   * Each invocation handles 8 guest MSAA samples.
+   *
+   * @param draw_resolution_scale_x Resolution scale along X.
+   * @param draw_resolution_scale_y Resolution scale along Y.
+   * @return Group counts along X and Y.
+   */
   std::pair<uint32_t, uint32_t> GetClearShaderGroupCount(uint32_t draw_resolution_scale_x,
                                                          uint32_t draw_resolution_scale_y) const {
-    // 8 guest MSAA samples per invocation.
     uint32_t width_samples_div_8 = coordinate_info.width_div_8;
     uint32_t height_samples_div_8 = height_div_8;
     xenos::MSAASamples samples =
@@ -579,11 +680,30 @@ struct ResolveInfo {
   }
 };
 
-// Returns false if there was an error obtaining the info making it totally
-// invalid. fixed_rg[ba]16_truncated_to_minus_1_to_1 is false if 16_16[_16_16]
-// color render target formats are properly emulated as -32...32, true if
-// emulated as snorm, with range limited to -1...1, but with correct blending
-// within that range.
+/**
+ * Returns the resolve info from the registers.
+ *
+ * The resolve extent comes from the vertices in vf0, which are written by the CPU, rasterized
+ * with the top-left rule. Most vertices have a negative half-pixel offset that is reversed. The
+ * rectangle is expanded to the resolve alignment, as D3DDevice_Resolve rounds the right and
+ * bottom up to 8 and the left and top are assumed to expand too. Depth destinations pass the
+ * k_24_8 or k_24_8_FLOAT format to the shader instead of the Direct3D 9 k_8_8_8_8 uint format so
+ * no conversion is done. EDRAM tile bases may wrap, and where modulo xenos::kEDRAMTileCount is
+ * applied does not matter. For k_16_16 and k_16_16_16_16 targets emulated with the range
+ * truncated to -1...1, where 0x8001 = -1 and 0x7FFF = 1, textures expect 0x8001 = -32 and
+ * 0x7FFF = 32, so the exponent bias is raised by 5, which is incorrect for requested biases of 27
+ * or above. The 3D destination base pointer is already adjusted to Z / 8, as copy_dest_slice is
+ * 3 bits. An invalid resolve leaves info_out empty.
+ *
+ * @param regs Register file.
+ * @param memory Guest memory.
+ * @param draw_resolution_scale_x Resolution scale along X.
+ * @param draw_resolution_scale_y Resolution scale along Y.
+ * @param fixed_rg16_truncated_to_minus_1_to_1 True when 16_16 is emulated as snorm in -1...1.
+ * @param fixed_rgba16_truncated_to_minus_1_to_1 True when 16_16_16_16 is emulated as snorm.
+ * @param info_out Receives the resolve info.
+ * @return False when an error made the info invalid.
+ */
 bool GetResolveInfo(const xenos::RegisterFile& regs, const runtime::Memory& memory,
                     uint32_t draw_resolution_scale_x, uint32_t draw_resolution_scale_y,
                     bool fixed_rg16_truncated_to_minus_1_to_1,

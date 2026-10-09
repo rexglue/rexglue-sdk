@@ -1,4 +1,3 @@
-#pragma once
 /**
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
@@ -9,6 +8,8 @@
  *
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
+
+#pragma once
 
 #include <algorithm>
 #include <cstdint>
@@ -25,35 +26,27 @@ namespace rex {
 namespace gpu {
 namespace vulkan {
 
-// Allocates multiple descriptors of in descriptor set layouts consisting of
-// descriptors of types specified during initialization.
-//
-// "LinkedType" means that the allocator is designed for allocating descriptor
-// sets containing descriptors of multiple types together - for instance, it
-// will mark the entire page as full even if no space is left in it for only one
-// of the descriptor types (not all at once).
-//
-// The primary usage scenario for this allocator is allocating image
-// and sampler descriptors in a single descriptor set if they both are
-// used in one. It is expected that the ratio of the numbers of descriptors per
-// type specified during the initialization will roughly correspond to the ratio
-// of the numbers of descriptors that will be allocated. For instance,
-// if there are approximately 2 images for each 1 sampler, it's recommended to
-// make the image count per page twice the sampler count per page.
-//
-// If some allocations use only one type, and some use only another, completely
-// independently, it's preferable to use separate allocators rather than a
-// single one.
-//
-// This allocator is also suitable for allocating variable-length descriptor
-// sets containing descriptors of only a single type.
-//
-// There's no way to free these descriptors within the allocator object itself,
-// per-layout free lists should be used externally.
+/**
+ * Allocates descriptor sets whose descriptors span the types given at construction.
+ *
+ * Linked type means a page is marked full as soon as any one descriptor type runs out. The
+ * per page descriptor counts per type should roughly match the ratio allocated, for example
+ * twice as many images as samplers when sets use 2 images per sampler. Allocations that use
+ * independent types belong in separate allocators. Also suits variable length sets of a single
+ * type. Descriptors cannot be freed here, so per layout free lists live outside the allocator.
+ */
 class LinkedTypeDescriptorSetAllocator : public rex::NonCopyable {
  public:
-  // Multiple descriptor sizes for the same descriptor type, and zero sizes, are
-  // not allowed.
+  /**
+   * Creates the allocator.
+   *
+   * Multiple sizes for the same descriptor type, and zero sizes, are not allowed.
+   *
+   * @param vulkan_device The device to allocate on.
+   * @param descriptor_sizes The descriptors per page for each type.
+   * @param descriptor_size_count The number of entries in descriptor_sizes.
+   * @param descriptor_sets_per_page The maximum number of sets in a page.
+   */
   explicit LinkedTypeDescriptorSetAllocator(const VulkanDevice* const vulkan_device,
                                             const VkDescriptorPoolSize* const descriptor_sizes,
                                             const uint32_t descriptor_size_count,
@@ -100,20 +93,17 @@ class LinkedTypeDescriptorSetAllocator : public rex::NonCopyable {
   uint32_t descriptor_sets_per_page_;
 
   std::vector<VkDescriptorPool> pages_full_;
-  // Because allocations must be contiguous, overflow may happen even if a page
-  // still has free descriptors, so multiple pages may have free space.
-  // To avoid removing and re-adding the page to the map that keeps them sorted
-  // (the key is the maximum number of free descriptors remaining across all
-  // types - and lookups need to be made with the maximum of the requested
-  // number of descriptors across all types since it's pointless to check the
-  // pages that can't even potentially fit the largest amount of descriptors of
-  // a requested type, and unlike using the minimum as the key, this doesn't
-  // degenerate if, for example, 0 descriptors are requested for some type - and
-  // it changes at every allocation from a page), instead of always looking for
-  // a free space in the map, maintaining one page outside the map, and
-  // allocation attempts will be made from that page first.
+  /**
+   * Pages with free descriptors, keyed by the maximum free descriptor count across all types.
+   *
+   * Allocations must be contiguous, so a page can overflow while descriptors remain and several
+   * pages may have free space. The maximum rather than the minimum is the key so lookups skip
+   * pages that cannot fit the largest requested count and do not degenerate when a type requests
+   * 0. One page, page_usable_latest_, is kept outside the map and tried first, since the key
+   * changes on every allocation.
+   */
   std::multimap<uint32_t, Page> pages_usable_;
-  // Doesn't exist if page_usable_latest_.pool == VK_NULL_HANDLE.
+  /** Absent when its pool is VK_NULL_HANDLE. */
   Page page_usable_latest_ = {};
 };
 

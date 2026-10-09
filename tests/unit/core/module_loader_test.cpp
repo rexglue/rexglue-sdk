@@ -36,8 +36,10 @@ void Sink(const char* module, const char* event) {
   g_events.push_back(std::string(module) + ":" + event);
 }
 
-// Holds a second reference to a test module so its statics outlive rex::Shutdown, and
-// installs the event sink before the loader constructs the module instance.
+/**
+ * Holds a second reference to a test module so its statics outlive rex::Shutdown.
+ * Installs the event sink before the loader constructs the module instance.
+ */
 class Pinned {
  public:
   explicit Pinned(const char* name) {

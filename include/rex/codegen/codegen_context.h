@@ -30,54 +30,60 @@ class Runtime;
 
 namespace rex::codegen {
 
-// Forward declarations
 class DecodedBinary;
 struct SectionInfo;
 struct FunctionEntry;
 struct FunctionConfig;
 
 /**
- * Analysis state holding binary-derived data and analysis results.
- * This data is populated during analysis and should not be mutated after.
- * Separates analysis state from user-provided config.
+ * Analysis state holding binary derived data and analysis results.
+ * Populated during analysis and not mutated after. Separate from the user provided config.
  */
 struct AnalysisState {
-  // Binary-derived (set once from BinaryView)
-  std::string format;        ///< "xex" or "elf"
-  uint64_t loadAddress = 0;  ///< Image base address
-  uint64_t entryPoint = 0;   ///< Entry point address
-  uint64_t imageSize = 0;    ///< Total image size
+  std::string format; /**< "xex" or "elf" */
+  /** Guest address the image is loaded at, copied from the BinaryView base address. */
+  uint64_t loadAddress = 0;
+  /** Guest address of the image entry point, which the writer names xstart. */
+  uint64_t entryPoint = 0;
+  uint64_t imageSize = 0; /**< Image size in bytes, copied from the BinaryView. */
 
-  // Analysis results
-  std::vector<SectionInfo> sections;                                   ///< Sections from binary
-  std::vector<FunctionEntry> analyzedFunctions;                        ///< Discovered functions
-  std::unordered_map<uint32_t, std::vector<uint32_t>> chunksByParent;  ///< Chunk lookup
+  std::vector<SectionInfo> sections;            /**< No code reads or writes it. */
+  std::vector<FunctionEntry> analyzedFunctions; /**< No code reads or writes it. */
+  /** Entry addresses of the chunks of each parent function, keyed by parent address, from the
+   * `parent` field of the function configs. */
+  std::unordered_map<uint32_t, std::vector<uint32_t>> chunksByParent;
 
-  // Auto-detected ABI helpers (0 = not found)
+  /** ABI helper addresses found by analysis, 0 when not found. */
   uint32_t restGpr14Address = 0;
+  /** Address of the first `__savegprlr_14` helper, 0 when not found. */
   uint32_t saveGpr14Address = 0;
+  /** Address of the first `__restfpr_14` helper, 0 when not found. */
   uint32_t restFpr14Address = 0;
+  /** Address of the first `__savefpr_14` helper, 0 when not found. */
   uint32_t saveFpr14Address = 0;
+  /** Address of the first `__restvmx_14` helper, 0 when not found. */
   uint32_t restVmx14Address = 0;
+  /** Address of the first `__savevmx_14` helper, 0 when not found. */
   uint32_t saveVmx14Address = 0;
+  /** Address of the first `__restvmx_64` helper, 0 when not found. */
   uint32_t restVmx64Address = 0;
+  /** Address of the first `__savevmx_64` helper, 0 when not found. */
   uint32_t saveVmx64Address = 0;
 
-  // Merged results (user hints + analysis-detected)
-  std::unordered_map<uint32_t, uint32_t> invalidInstructions;  ///< addr -> size
-  std::unordered_set<uint32_t> knownIndirectCalls;             ///< bctr addresses
-  std::vector<uint32_t> exceptionHandlerFuncs;                 ///< Handler addresses
-  std::vector<uint32_t> ehDiscoveredFuncs;                     ///< EH-discovered function addresses
+  std::unordered_map<uint32_t, uint32_t> invalidInstructions; /**< Maps address to size */
+  std::unordered_set<uint32_t> knownIndirectCalls;            /**< bctr addresses */
+  /** Entry addresses of exception handler functions, copied from `analysis.exception_handler_funcs`
+   * in the TOML. */
+  std::vector<uint32_t> exceptionHandlerFuncs;
+  /** Entry addresses found in SEH scope tables, queued as functions after the .pdata functions. */
+  std::vector<uint32_t> ehDiscoveredFuncs;
 };
 
 /**
- * Unified context for the entire codegen pipeline.
+ * Unified context for the codegen pipeline.
  *
- * This class owns all the core data structures used throughout analysis
- * and code generation. It replaces the previous scattered ownership where
- * Recompiler owned some data and AnalysisContext owned other data.
- *
- * Single source of truth for:
+ * Owns the core data structures used by analysis and code generation.
+ * Single source of truth for
  * - Binary data (BinaryView)
  * - Function graph (all functions including imports)
  * - Configuration
@@ -86,57 +92,75 @@ struct AnalysisState {
  */
 class CodegenContext : public rex::MoveOnly {
  public:
-  // === FACTORY ===
   /**
-   * Create a CodegenContext from config file path and Runtime.
-   *
-   * This is the primary way to create a context. It:
-   * 1. Loads configuration from the TOML file
-   * 2. Loads the XEX via Runtime
-   * 3. Creates BinaryView from the loaded module
+   * Creates a CodegenContext from a config file path and Runtime.
+   * Loads the configuration from the TOML file, loads the XEX through Runtime and builds the
+   * BinaryView from the loaded module.
    *
    * @param configPath Path to the TOML config file
-   * @param runtime Runtime instance (must be set up with correct content_root)
+   * @param runtime Runtime instance set up with the correct content_root
    * @return CodegenContext on success, error on failure
    */
   [[nodiscard]] static Result<CodegenContext> Create(const std::filesystem::path& configPath,
                                                      Runtime& runtime);
 
   /**
-   * Create a CodegenContext from pre-loaded binary and config.
-   * Primarily for testing where binary is loaded differently.
+   * Creates a CodegenContext from a pre-loaded binary and config.
+   * Used by tests that load the binary differently.
    *
-   * @param binary Pre-loaded BinaryView (moved into context)
-   * @param config Pre-loaded RecompilerConfig (moved into context)
+   * @param binary Pre-loaded BinaryView, moved into the context
+   * @param config Pre-loaded RecompilerConfig, moved into the context
+   * @return CodegenContext owning both
    */
   static CodegenContext Create(BinaryView binary, RecompilerConfig config);
 
-  // Non-copyable, movable
+  /**
+   * Takes ownership of the state of another context.
+   *
+   * @param other Context to take from, left empty.
+   */
   CodegenContext(CodegenContext&&) noexcept;
+  /**
+   * Releases the owned state, then takes that of another context.
+   *
+   * @param other Context to take from, left empty.
+   * @return This context
+   */
   CodegenContext& operator=(CodegenContext&&) noexcept;
+  /** Destroys the context and the decoded binary it owns. */
   ~CodegenContext();
 
-  // === OWNED DATA (single source of truth) ===
-  FunctionGraph graph;    ///< All functions (including imports)
-  AnalysisErrors errors;  ///< Accumulated errors
+  FunctionGraph graph; /**< All functions including imports */
+  /** Errors the analysis phases collected, which stop the writer unless forced. */
+  AnalysisErrors errors;
 
-  /// Scan phase artifacts (passed to Discover for scanner setup)
+  /** Scan phase artifacts passed to Discover for scanner setup. */
   struct {
-    std::vector<CodeRegion> codeRegions;  ///< Null-delimited code regions
+    std::vector<CodeRegion> codeRegions; /**< Null delimited code regions */
+    /** Address ranges `[first, second)` of runs of at least `dataRegionThreshold` words equal to 0
+     * or 0xFFFFFFFF. */
     std::vector<std::pair<uint32_t, uint32_t>> dataRegions;
-    std::unordered_map<uint32_t, uint32_t> pdataSizes;  // address -> size
+    std::unordered_map<uint32_t, uint32_t> pdataSizes; /**< Maps address to size */
   } scan;
 
-  // === ACCESSORS ===
   const BinaryView& binary() const { return binary_; }
   BinaryView& binary() { return binary_; }
 
-  /// Access the decoded binary (must call initDecoded() first)
+  /**
+   * Returns the decoded binary. Valid only after initDecoded().
+   *
+   * @return Decoded binary owned by the context
+   */
   DecodedBinary& decoded();
+  /**
+   * Returns the decoded binary. Valid only after initDecoded().
+   *
+   * @return Decoded binary owned by the context
+   */
   const DecodedBinary& decoded() const;
 
-  /// Initialize DecodedBinary after context is in final location
-  /// Call this once after Create() before accessing decoded()
+  /** Creates the DecodedBinary once the context is at its final location. Runs once after
+   * Create() and before decoded(). */
   void initDecoded();
 
   bool hasDecoded() const { return decoded_ != nullptr; }
@@ -163,14 +187,14 @@ class CodegenContext : public rex::MoveOnly {
  private:
   CodegenContext() = default;
 
-  BinaryView binary_;                       ///< Binary data + sections (owned)
-  RecompilerConfig config_;                 ///< User configuration (owned)
-  AnalysisState analysisState_;             ///< Analysis state (populated during analysis)
-  Limits limits_;                           ///< Analysis limits
-  std::unique_ptr<DecodedBinary> decoded_;  ///< Decoded instructions (created via initDecoded())
-  std::filesystem::path configDir_;  ///< Directory containing config file (for relative paths)
-  bool is_dll_module_ = false;       ///< True if this module is a DLL (shared library output)
-  bool has_dll_modules_ = false;     ///< True if the project has DLL modules (multi-binary)
+  BinaryView binary_;
+  RecompilerConfig config_;
+  AnalysisState analysisState_;
+  Limits limits_;
+  std::unique_ptr<DecodedBinary> decoded_; /**< Created by initDecoded() */
+  std::filesystem::path configDir_;
+  bool is_dll_module_ = false;
+  bool has_dll_modules_ = false;
 };
 
 }  // namespace rex::codegen

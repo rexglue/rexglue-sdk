@@ -61,7 +61,6 @@ DWORD ToWin32ProtectFlags(PageAccess access) {
 
 PageAccess ToXeniaProtectFlags(DWORD access) {
   if (access & PAGE_GUARD) {
-    // Strip the page guard flag.
     access &= ~PAGE_GUARD;
   }
 
@@ -85,8 +84,6 @@ bool IsWritableExecutableMemorySupported() {
 #ifdef REX_BASE_MEMORY_WIN_USE_DESKTOP_FUNCTIONS
   return true;
 #else
-  // To test FromApp functions on desktop, undefine
-  // REX_BASE_MEMORY_WIN_USE_DESKTOP_FUNCTIONS and link to WindowsApp.lib.
   return false;
 #endif
 }
@@ -220,8 +217,7 @@ void* MapFileView(FileMappingHandle handle, void* base_address, size_t length, P
   return MapViewOfFileEx(reinterpret_cast<HANDLE>(handle), file_access, target_address_high,
                          target_address_low, length, base_address);
 #else
-  // VirtualAlloc2FromApp and MapViewOfFile3FromApp were added in 10.0.17134.0.
-  // https://docs.microsoft.com/en-us/uwp/win32-and-com/win32-apis
+  // VirtualAlloc2FromApp and MapViewOfFile3FromApp require 10.0.17134.0.
   HANDLE process = GetCurrentProcess();
   void* placeholder =
       VirtualAlloc2FromApp(process, base_address, length, MEM_RESERVE | MEM_RESERVE_PLACEHOLDER,

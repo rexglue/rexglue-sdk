@@ -1,5 +1,5 @@
 /**
- * @file        graphics/plugin_main.cpp
+ * @file        gpu/xenos/plugin_main.cpp
  * @brief       rex-gpu-xenos module entry, serves the module and graphics backend interfaces
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>

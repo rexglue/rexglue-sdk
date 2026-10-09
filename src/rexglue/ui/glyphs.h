@@ -15,10 +15,10 @@
 
 namespace rexglue::ui::glyphs {
 
-/* U+2713 CHECK MARK */
+/** Check mark, U+2713. */
 inline constexpr std::string_view kCheckMark = "\xE2\x9C\x93";
 
-/* Braille spinner (U+280B U+2819 U+2839 U+2838 U+283C U+2834 U+2826 U+2827 U+2807 U+280F) */
+/** Braille spinner frames. */
 inline constexpr std::array<std::string_view, 10> kSpinnerFrames = {
     "\xE2\xA0\x8B", "\xE2\xA0\x99", "\xE2\xA0\xB9", "\xE2\xA0\xB8", "\xE2\xA0\xBC",
     "\xE2\xA0\xB4", "\xE2\xA0\xA6", "\xE2\xA0\xA7", "\xE2\xA0\x87", "\xE2\xA0\x8F",

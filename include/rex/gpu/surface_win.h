@@ -1,4 +1,3 @@
-#pragma once
 /**
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
@@ -9,6 +8,8 @@
  *
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
+
+#pragma once
 
 #include <cstdint>
 #include <memory>
@@ -27,14 +28,28 @@ namespace rex {
 namespace gpu {
 
 #if WINAPI_FAMILY_PARTITION(WINAPI_PARTITION_DESKTOP | WINAPI_PARTITION_GAMES)
+/** Presentation target backed by a Win32 window. */
 class Win32HwndSurface final : public Surface {
  public:
+  /**
+   * Wraps a Win32 window.
+   *
+   * @param hinstance The module instance that owns the window.
+   * @param hwnd The window to present to.
+   */
   explicit Win32HwndSurface(HINSTANCE hinstance, HWND hwnd) : hinstance_(hinstance), hwnd_(hwnd) {}
   TypeIndex GetType() const override { return kTypeIndex_Win32Hwnd; }
   HINSTANCE hinstance() const { return hinstance_; }
   HWND hwnd() const { return hwnd_; }
 
  protected:
+  /**
+   * Reads the platform surface size.
+   *
+   * @param width_out Receives the width in physical display pixels.
+   * @param height_out Receives the height in physical display pixels.
+   * @return True when the size was read.
+   */
   bool GetSizeImpl(uint32_t& width_out, uint32_t& height_out) const override;
 
  private:

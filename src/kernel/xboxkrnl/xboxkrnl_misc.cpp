@@ -19,9 +19,7 @@
 
 namespace rex::kernel::xboxkrnl {
 
-void KeEnableFpuExceptions_entry([[maybe_unused]] u32 enabled) {
-  // TODO(benvanik): can we do anything about exceptions?
-}
+void KeEnableFpuExceptions_entry([[maybe_unused]] u32 enabled) {}
 
 }  // namespace rex::kernel::xboxkrnl
 

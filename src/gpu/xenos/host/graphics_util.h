@@ -1,4 +1,3 @@
-#pragma once
 /**
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
@@ -10,18 +9,26 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
+#pragma once
+
 #include <cstdint>
 
 namespace rex {
 namespace gpu {
 
-// For estimating coverage extents from vertices. This may give results that are
-// different than what the GPU will draw (this is the reference
-// conversion with 1/2 ULP accuracy, but Direct3D 11 permits 0.6 ULP tolerance
-// in floating point to fixed point conversion), but is enough to tie-break
-// vertices at pixel centers (due to the half-pixel offset applied to integer
-// coordinates incorrectly, for instance) with some error tolerance near 0.5,
-// for use with the top-left rasterization rule later.
+/**
+ * Converts a float to Direct3D 11 16p8 fixed point for estimating coverage extents from vertices.
+ *
+ * Follows the Direct3D 11.3 functional spec FLOAT to fixed point conversion with 1/2 ULP accuracy,
+ * while Direct3D 11 permits a 0.6 ULP tolerance, so results may differ from what the GPU draws.
+ * Good enough to tie break vertices at pixel centers near 0.5 for the top left rasterization rule.
+ * NaN and magnitudes below 1/512 give 0, and values saturate at the 24 bit signed range. The
+ * float mantissa with its hidden bit is negated for negative inputs, then rounded to nearest even
+ * by 15 minus the unbiased exponent bits before an arithmetic shift right.
+ *
+ * @param f32 Value to convert.
+ * @return The fixed point value with 8 fractional bits.
+ */
 int32_t FloatToD3D11Fixed16p8(float f32);
 
 }  // namespace gpu

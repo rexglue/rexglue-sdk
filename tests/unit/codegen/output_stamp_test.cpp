@@ -1,5 +1,5 @@
 /**
- * @file        codegen/output_stamp_test.cpp
+ * @file        tests/unit/codegen/output_stamp_test.cpp
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

@@ -1,4 +1,3 @@
-#pragma once
 /**
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
@@ -9,6 +8,8 @@
  *
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
+
+#pragma once
 
 #include <rex/gpu/surface.h>
 
@@ -21,8 +22,15 @@ struct wl_surface;
 namespace rex {
 namespace gpu {
 
+/** Presentation target backed by an X11 window reached through XCB. */
 class XcbWindowSurface final : public Surface {
  public:
+  /**
+   * Wraps an XCB window.
+   *
+   * @param connection The XCB connection that owns the window.
+   * @param window The window to present to.
+   */
   explicit XcbWindowSurface(xcb_connection_t* connection, xcb_window_t window)
       : connection_(connection), window_(window) {}
   TypeIndex GetType() const override { return kTypeIndex_XcbWindow; }
@@ -30,6 +38,13 @@ class XcbWindowSurface final : public Surface {
   xcb_window_t window() const { return window_; }
 
  protected:
+  /**
+   * Reads the platform surface size.
+   *
+   * @param width_out Receives the width in physical display pixels.
+   * @param height_out Receives the height in physical display pixels.
+   * @return True when the size was read.
+   */
   bool GetSizeImpl(uint32_t& width_out, uint32_t& height_out) const override;
 
  private:
@@ -37,8 +52,16 @@ class XcbWindowSurface final : public Surface {
   xcb_window_t window_;
 };
 
+/** Presentation target backed by a Wayland surface. */
 class WaylandSurface final : public Surface {
  public:
+  /**
+   * Wraps a Wayland surface.
+   *
+   * @param display The Wayland display connection.
+   * @param surface The surface to present to.
+   * @param sdl_window The SDL window that owns the surface.
+   */
   explicit WaylandSurface(::wl_display* display, ::wl_surface* surface, SDL_Window* sdl_window)
       : display_(display), surface_(surface), sdl_window_(sdl_window) {}
   TypeIndex GetType() const override { return kTypeIndex_WaylandSurface; }
@@ -46,6 +69,13 @@ class WaylandSurface final : public Surface {
   ::wl_surface* surface() const { return surface_; }
 
  protected:
+  /**
+   * Reads the platform surface size.
+   *
+   * @param width_out Receives the width in physical display pixels.
+   * @param height_out Receives the height in physical display pixels.
+   * @return True when the size was read.
+   */
   bool GetSizeImpl(uint32_t& width_out, uint32_t& height_out) const override;
 
  private:

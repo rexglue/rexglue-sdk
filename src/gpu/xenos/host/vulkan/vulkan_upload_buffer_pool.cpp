@@ -20,11 +20,6 @@ namespace rex {
 namespace gpu {
 namespace vulkan {
 
-// Host-visible memory sizes are likely to be internally rounded to
-// nonCoherentAtomSize (it's the memory mapping granularity, though as the map
-// or flush range must be clamped to the actual allocation size as a special
-// case, but it's still unlikely that the allocation won't be aligned to it), so
-// try not to waste that padding.
 VulkanUploadBufferPool::VulkanUploadBufferPool(const VulkanDevice* const vulkan_device,
                                                const VkBufferUsageFlags usage,
                                                const size_t page_size)
@@ -63,7 +58,7 @@ uint8_t* VulkanUploadBufferPool::RequestPartial(uint64_t submission_index, size_
 
 std::unique_ptr<GraphicsUploadBufferPool::Page> VulkanUploadBufferPool::CreatePageImplementation() {
   if (memory_type_ == kMemoryTypeUnavailable) {
-    // Don't try to create everything again and again if totally broken.
+    // Never retry creation once the memory type is unavailable.
     return nullptr;
   }
 
@@ -100,8 +95,7 @@ std::unique_ptr<GraphicsUploadBufferPool::Page> VulkanUploadBufferPool::CreatePa
     }
     allocation_size_ = memory_requirements.size;
     if (allocation_size_ > page_size_) {
-      // Try to occupy the allocation padding. If that's going to require even
-      // more memory for some reason, don't.
+      // Occupy the allocation padding unless that needs more memory.
       buffer_create_info.size = allocation_size_;
       VkBuffer buffer_expanded;
       if (dfn.vkCreateBuffer(device, &buffer_create_info, nullptr, &buffer_expanded) ==
@@ -176,7 +170,7 @@ VulkanUploadBufferPool::VulkanPage::~VulkanPage() {
   const VulkanDevice::Functions& dfn = vulkan_device_->functions();
   const VkDevice device = vulkan_device_->device();
   dfn.vkDestroyBuffer(device, buffer_, nullptr);
-  // Unmapping is done implicitly when the memory is freed.
+  // Freeing the memory unmaps it implicitly.
   dfn.vkFreeMemory(device, memory_, nullptr);
 }
 

@@ -20,7 +20,6 @@ Module::Module(FunctionDispatcher* function_dispatcher)
 
 Module::~Module() = default;
 
-// Binary introspection default implementations
 std::span<const BinarySection> Module::binary_sections() const {
   return binary_sections_;
 }

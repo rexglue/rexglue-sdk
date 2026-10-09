@@ -101,7 +101,7 @@ class IAchievementManager {
       u32 id, AchievementNotification notification = AchievementNotification::kSuppress) = 0;
 
   /**
-   * Tests whether an achievement is unlocked.
+   * Reports whether an achievement is unlocked.
    *
    * @param id The id.
    * @return True when it is unlocked.

@@ -1,4 +1,3 @@
-#pragma once
 /**
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
@@ -10,27 +9,35 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
+#pragma once
+
 #include <rex/ui/ui_event.h>
 
 namespace rex {
 namespace ui {
 
-// Virtual interfaces for types that want to listen for Window events.
-// Use Window::Add[Input]Listener and Window::Remove[Input]Listener to manage
-// active listeners.
+/** Listener for Window events. Manage with Window::Add[Input]Listener and Remove[Input]Listener. */
 
 class WindowListener {
  public:
   virtual ~WindowListener() = default;
 
-  // OnOpened will be followed by the initial setup listeners.
+  /**
+   * Called when the window opens, followed by the initial setup events.
+   *
+   * @param event Setup state of the opened window.
+   */
   virtual void OnOpened(UISetupEvent&) {}
   virtual void OnClosing(UIEvent&) {}
 
-  // Called when the user asks to close the window (close button, Alt+F4).
-  // Return false to veto: the window stays open and the vetoing party is
-  // expected to close it explicitly later (Window::RequestClose) once it is
-  // safe (renderers drained, guest threads stopped). Default accepts.
+  /**
+   * Called when the user asks to close the window (close button, Alt+F4). Returning false vetoes
+   * the close. The window stays open and the vetoing party closes it later with
+   * Window::RequestClose, once renderers are drained and guest threads stopped.
+   *
+   * @param event Close request event.
+   * @return True to accept the close, the default.
+   */
   virtual bool OnCloseRequested(UIEvent&) { return true; }
 
   virtual void OnMinimized(UIEvent&) {}

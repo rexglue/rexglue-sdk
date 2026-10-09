@@ -1,4 +1,3 @@
-#pragma once
 /**
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
@@ -9,6 +8,8 @@
  *
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
+
+#pragma once
 
 #include <cmath>
 #include <cstdint>
@@ -34,61 +35,45 @@ namespace rex::gpu {
 
 class RenderTargetCache {
  public:
-  // High-level emulation logic implementation path.
+  /** Emulation implementation path for the output merger. */
   enum class Path {
-    // Approximate method using conventional host render targets and copying
-    // ("transferring ownership" of tiles) between render targets to support
-    // aliasing.
-    //
-    // May be irreparably inaccurate, completely at the mercy of the host API's
-    // fixed-function output-merger, primarily because it has to perform
-    // blending - and when using a different pixel format, it will behave
-    // differently (the most important factor here is the range - it's clamped
-    // for normalized formats, but not for floating-point ones).
-    //
-    // On a Direct3D 11-level device, formats which can be mapped directly
-    // (disregarding things like blending internal precision details):
-    // - 8_8_8_8
-    // - 2_10_10_10
-    // - 32_FLOAT
-    // - 32_32_FLOAT
-    // - D24S8
-    // Can be mapped directly, but require handling in shaders:
-    // - D24FS8 with truncated SV_DepthLessEqual output (or SV_Depth, which is
-    //   suboptimal, as it prevents early depth / stencil from working). To
-    //   support bit-exact reinterpretation to and from D24F for unmodified
-    //   areas using pixel shader depth output without unrestricted depth range,
-    //   0...1 of the guest depth should be mapped to 0...0.5 on the host in the
-    //   viewport and conversion.
-    // Can be mapped directly, but not supporting rare edge cases:
-    // - 16_16_FLOAT, k_16_16_16_16_FLOAT - the Xenos float16 doesn't have
-    //   special values.
-    // Significant differences:
-    // - 8_8_8_8_GAMMA - the piecewise linear gamma curve is different than
-    //   sRGB, one possible path is conversion in shaders (resulting in
-    //   incorrect blending, especially visible on decals in 4D5307E6), another
-    //   is using sRGB render targets and either conversion on resolve or
-    //   reading the resolved data as a true sRGB texture (incorrect when the
-    //   game accesses the data directly, like 4541080F).
-    // - 2_10_10_10_FLOAT - ranges significantly different than in float16, much
-    //   smaller RGB range, and alpha is fixed-point and has only 2 bits.
-    // - 16_16, 16_16_16_16 - has -32 to 32 range, not -1 to 1 - need either to
-    //   truncate the range for blending to work correctly, or divide by 32 in
-    //   shaders breaking multiplication in blending.
+    /**
+     * Approximate method using conventional host render targets, copying ("transferring ownership"
+     * of tiles) between them to support aliasing. May be irreparably inaccurate, at the mercy of
+     * the host fixed function output merger, mainly because it must perform blending, and a
+     * different pixel format behaves differently (the range is clamped for normalized formats but
+     * not for floating point ones).
+     *
+     * On a Direct3D 11 level device 8_8_8_8, 2_10_10_10, 32_FLOAT, 32_32_FLOAT and D24S8 map
+     * directly, disregarding blending internal precision. D24FS8 maps directly with a truncated
+     * SV_DepthLessEqual output (SV_Depth is suboptimal as it prevents early depth and stencil). For
+     * bit exact reinterpretation to and from D24F in unmodified areas using pixel shader depth
+     * output without unrestricted depth range, guest depth 0...1 maps to 0...0.5 on the host in the
+     * viewport and conversion. 16_16_FLOAT and 16_16_16_16_FLOAT map directly except for rare edge
+     * cases, as the Xenos float16 has no special values.
+     *
+     * Formats with significant differences are as follows. 8_8_8_8_GAMMA uses a piecewise linear
+     * gamma curve different from sRGB, so it needs either shader conversion (incorrect blending) or
+     * sRGB render targets with conversion on resolve or reading the resolved data as an sRGB
+     * texture (incorrect when the guest reads the data itself). 2_10_10_10_FLOAT has ranges
+     * significantly different from float16, with a much smaller RGB range and a fixed point alpha
+     * of only 2 bits. 16_16 and 16_16_16_16 have a -32 to 32 range rather than -1 to 1, so they
+     * need either range truncation for correct blending or division by 32 in shaders, which breaks
+     * multiplication in blending.
+     */
     kHostRenderTargets,
 
-    // Custom output-merger implementation, with full per-pixel and per-sample
-    // control, however, only available on hosts with raster-ordered writes from
-    // pixel shaders.
+    /**
+     * Custom output merger with full per pixel and per sample control, available only on hosts with
+     * raster ordered writes from pixel shaders.
+     */
     kPixelShaderInterlock,
   };
 
-  // Pixel shader interlock implementation helpers.
-
-  // Appended to the format in the format constant via bitwise OR.
+  /** Flags appended to the format in the format constant via bitwise OR. */
   enum : uint32_t {
     kPSIColorFormatFlag_64bpp_Shift = xenos::kColorRenderTargetFormatBits,
-    // Requires clamping of blending sources and factors.
+    /** Requires clamping of blending sources and factors. */
     kPSIColorFormatFlag_FixedPointColor_Shift,
     kPSIColorFormatFlag_FixedPointAlpha_Shift,
 
@@ -120,6 +105,25 @@ class RenderTargetCache {
     return format_flags;
   }
 
+  /**
+   * Returns the blending clamp ranges and the keep masks of the bits left unwritten by write_mask.
+   * All keep bits are set for an empty write mask or an invalid format, which makes the shaders
+   * skip the render target. For k_16_16 and k_16_16_16_16 the alpha clamp is nonzero since alpha
+   * clamping affects the blending source (the render target is fixed point), and NaN should become
+   * 0 rather than the lowest negative number as the Direct3D 11.3 functional specification defines
+   * SNorm conversion, which needs separate handling. The float16 formats have no NaNs on the GPU,
+   * but the extended range cannot be used with Direct3D and Vulkan conversions. The 32 bit float
+   * formats use NaN clamps, so min and max pick the original value.
+   *
+   * @param format Color render target format.
+   * @param write_mask Color component write mask.
+   * @param clamp_rgb_low Receives the lower clamp for RGB.
+   * @param clamp_alpha_low Receives the lower clamp for alpha.
+   * @param clamp_rgb_high Receives the upper clamp for RGB.
+   * @param clamp_alpha_high Receives the upper clamp for alpha.
+   * @param keep_mask_low Receives the keep mask of the low 32 bits.
+   * @param keep_mask_high Receives the keep mask of the high 32 bits.
+   */
   static void GetPSIColorFormatInfo(xenos::ColorRenderTargetFormat format, uint32_t write_mask,
                                     float& clamp_rgb_low, float& clamp_alpha_low,
                                     float& clamp_rgb_high, float& clamp_alpha_high,
@@ -129,60 +133,64 @@ class RenderTargetCache {
 
   virtual Path GetPath() const = 0;
 
-  // Resolution scaling on the EDRAM side is performed by multiplying the EDRAM
-  // tile size by the resolution scale.
-  // Note: Only integer scaling factors are provided because fractional ones,
-  // even with 0.5 granularity, cause significant issues in addition to the ones
-  // already present with integer scaling. 1.5 (from 1280x720 to 1920x1080) may
-  // be useful, but it would cause pixel coverage issues with odd dimensions of
-  // screen-space geometry, most importantly 1x1 that is often the final step in
-  // reduction algorithms such as average luminance computation in HDR. A
-  // single-pixel quad, either 0...1 without half-pixel offset or 0.5...1.5 with
-  // it (covers only the first pixel according the top-left rule), with 1.5x
-  // resolution scaling, would become 0...1.5 (only the first pixel covered) or
-  // 0.75...2.25 (only the second). The workaround used in Xenia for 2x and 3x
-  // resolution scaling for filling the gap caused by the half-pixel offset
-  // becoming whole-pixel - stretching the second column / row of pixels into
-  // the first - will not work in this case, as for one-pixel primitives without
-  // half-pixel offset (covering only the first pixel, but not the second, with
-  // 1.5x), it will cause the pixel to be erased with 1.5x scaling. As
-  // within one pass there can be geometry both with and without the half-pixel
-  // offset (not only depending on PA_SU_VTX_CNTL::PIX_CENTER, but also with the
-  // half-pixel offset possibly reverted manually), the emulator can't decide
-  // whether the stretching workaround needs to be used. So, with 1.5x,
-  // depending on how the game draws its screen-space effects and on whether the
-  // workaround is used, in some cases, nothing will be drawn to the first
-  // pixel, while in other cases, the effect will be drawn to it, but the
-  // stretching workaround will replace it with the undefined value in the
-  // second pixel. Also, with 1.5x, rounding of integer coordinates becomes
-  // complicated, also in part due to the half-pixel offset. Odd texture sizes
-  // would need to be rounded down, as according to the top-left rule, a 1.5x1.5
-  // quad at the 0 or 0.75 origin (after the scaling) will cover only 1 pixel -
-  // so, if the resulting texture was 2x2 rather than 1x1, undefined pixels
-  // would participate in filtering. However, 1x1 scissor rounded to 1x1, with
-  // the half-pixel offset of vertices, would cause the entire 0.75...2.25 quad
-  // to be discarded.
+  /**
+   * Resolution scaling on the EDRAM side multiplies the EDRAM tile size by the resolution scale.
+   * Only integer scales are supported, since fractional ones such as 1.5 break pixel coverage of
+   * odd sized screen space geometry (notably the 1x1 final step of reduction passes), break the gap
+   * fill used for 2x and 3x scaling when the half pixel offset becomes whole pixel, and complicate
+   * rounding of integer coordinates.
+   */
   uint32_t draw_resolution_scale_x() const { return draw_resolution_scale_x_; }
   uint32_t draw_resolution_scale_y() const { return draw_resolution_scale_y_; }
   bool IsDrawResolutionScaled() const {
     return draw_resolution_scale_x() > 1 || draw_resolution_scale_y() > 1;
   }
 
-  // Virtual (both the common code and the implementation may do something
-  // here), don't call from destructors (does work not needed for shutdown
-  // also).
+  /**
+   * Virtual so both the common code and the implementation can act. Must not be called from
+   * destructors, as it does work shutdown does not need.
+   */
   virtual void ClearCache();
 
   virtual void BeginFrame();
 
+  /**
+   * Updates the bound render targets and EDRAM ownership for a draw.
+   *
+   * Render targets whose EDRAM base conflicts with another are eliminated, since binding one render
+   * target into multiple slots is an error in most host implementations and behaves unpredictably.
+   * Depth is least important as it is earlier in the pipeline, and lower indexed render targets are
+   * more important than higher ones, because a shader may select between 2 render targets to write
+   * dynamically (through a static bool constant condition) while the other state implies the same
+   * render target bound twice. On Direct3D 9 a color output not written on the taken control flow
+   * leaves the render target unwritten, while Direct3D 10 treats a declared output as always
+   * written, with an undefined value otherwise.
+   *
+   * Render targets are sorted by EDRAM base and then by pipeline order. A render target placed
+   * closer to the end of the EDRAM truncates the previous one, and for the same base color is more
+   * important than depth, which may be a needless leftover and is tested before color is written.
+   * Estimated EDRAM ranges of render targets normally intersect when drawing without a viewport,
+   * since nothing clamps the estimated height, and with multiple render targets bound. Distances
+   * between bases are compared as if 64bpp (32bpp contributions doubled and clamping for 32bpp
+   * halved), because 32bpp render targets can be combined with 64bpp ones twice as long.
+   *
+   * @param is_rasterization_done True when the draw rasterizes.
+   * @param normalized_depth_control Depth control with the register normalization applied.
+   * @param normalized_color_mask Color write mask, 4 bits per render target.
+   * @param vertex_shader Vertex shader of the draw, used to estimate the extent.
+   * @return False when a required render target could not be created or the surface is unsupported.
+   */
   virtual bool Update(bool is_rasterization_done,
                       xenos::reg::RB_DEPTHCONTROL normalized_depth_control,
                       uint32_t normalized_color_mask, const Shader& vertex_shader);
 
-  // Returns bits where 0 is whether a depth render target is bound on
-  // the host and 1... are whether the same applies to color render targets, and
-  // formats (resource formats, but if needed, with gamma taken into account) of
-  // each.
+  /**
+   * Returns a mask where bit 0 is set when a depth render target is bound on the host and
+   * bits 1 and up are set for bound color render targets.
+   *
+   * @param depth_and_color_formats_out Receives each target's resource format, may be null.
+   * @return Bit mask of the bound render targets.
+   */
   uint32_t GetLastUpdateBoundRenderTargets(uint32_t* depth_and_color_formats_out = nullptr) const;
 
  protected:
@@ -200,44 +208,31 @@ class RenderTargetCache {
 
   virtual bool IsGammaFormatHostStorageSeparate() const = 0;
 
-  // Call last in implementation-specific initialization (when things like path
-  // are initialized by the implementation).
+  /** Call last in implementation initialization, once things like the path are initialized. */
   void InitializeCommon();
-  // May be called from the destructor, or from the implementation shutdown to
-  // destroy all render targets before destroying what they depend on in the
-  // implementation.
+  /**
+   * May be called from the destructor or from the implementation shutdown to destroy all render
+   * targets before destroying what they depend on in the implementation.
+   *
+   * @param shutting_down True when called as part of shutdown.
+   */
   void DestroyAllRenderTargets(bool shutting_down);
-  // Call last in implementation-specific shutdown, also callable from the
-  // destructor.
+  /** Call last in implementation shutdown, also callable from the destructor. */
   void ShutdownCommon();
-
-  // For host render targets, implemented via transfer of ownership of EDRAM
-  // 80x16-sample tiles between host render targets. When a range is
-  // transferred, its data is copied, bit-exactly from the guest's perspective
-  // (when dangerous, such as because of non-propagated NaN, primarily in the
-  // float16 case, by drawing to an integer view of the render target texture),
-  // from the previous host render target to the new one, by drawing rectangles
-  // with a pixel shader converting the previous host render target to a guest
-  // bit pattern, reinterpreting it in the new format. If depth is emulated with
-  // float32, this may lead to loss of data - specifically for depth, both guest
-  // format ownership and float32 ownership are tracked, and to let color data
-  // overwrite depth data, loading during ownership transfer is done from
-  // intersections of the current guest ownership ranges and float32 ownership
-  // ranges. Ownership transfer happens when a render target is needed - based
-  // on the current viewport; or, if no viewport is available, ownership of the
-  // rest of the EDRAM is transferred.
 
   union RenderTargetKey {
     uint32_t key;
     struct {
-      uint32_t base_tiles : xenos::kEDRAMBaseTilesBits;  // 11
-      // At 4x MSAA (2 horizontal samples), max. align(8192 * 2, 80) / 80 = 205.
-      // For pitch at 64bpp, multiply by 2 (or use GetPitchTiles).
-      uint32_t pitch_tiles_at_32bpp : 8;                          // 19
-      xenos::MSAASamples msaa_samples : xenos::kMSAASamplesBits;  // 21
-      uint32_t is_depth : 1;                                      // 22
-      // Ignoring the blending precision and sRGB.
-      uint32_t resource_format : xenos::kRenderTargetFormatBits;  // 26
+      uint32_t base_tiles : xenos::kEDRAMBaseTilesBits;
+      /**
+       * At most align(8192 * 2, 80) / 80 = 205 at 4x MSAA (2 horizontal samples). Doubled at 64bpp,
+       * or use GetPitchTiles.
+       */
+      uint32_t pitch_tiles_at_32bpp : 8;
+      xenos::MSAASamples msaa_samples : xenos::kMSAASamplesBits;
+      uint32_t is_depth : 1;
+      uint32_t resource_format
+          : xenos::kRenderTargetFormatBits; /**< Ignores blending precision and sRGB. */
     };
 
     RenderTargetKey() : key(0) { REX_STATIC_ASSERT_SIZE(*this, sizeof(key)); }
@@ -251,8 +246,7 @@ class RenderTargetCache {
     bool operator!=(const RenderTargetKey& other_key) const { return !(*this == other_key); }
 
     bool IsEmpty() const {
-      // Meaningless when pitch_tiles_at_32bpp == 0, but for comparison
-      // purposes, only treat everything being 0 as a special case.
+      // Meaningless when pitch_tiles_at_32bpp is 0, so only an all zero key counts as empty.
       return key == 0;
     }
 
@@ -293,7 +287,6 @@ class RenderTargetCache {
   class RenderTarget : public rex::NonCopyable {
    public:
     virtual ~RenderTarget() = default;
-    // Exclusive ownership, plus no point in moving (only allocated via new).
     RenderTargetKey key() const { return key_; }
 
    protected:
@@ -303,6 +296,18 @@ class RenderTargetCache {
     RenderTargetKey key_;
   };
 
+  /**
+   * Range of EDRAM 80x16 sample tiles whose ownership moves between host render targets. The data
+   * is copied bit exactly from the guest perspective, by drawing rectangles with a pixel shader
+   * that converts the previous host render target to a guest bit pattern and reinterprets it in the
+   * new format (through an integer view of the texture when dangerous, such as float16 with non
+   * propagated NaN). If depth is emulated with float32, data may be lost, so for depth both the
+   * guest format ownership and the float32 ownership are tracked, and to let color data overwrite
+   * depth data, loading during the transfer uses intersections of the guest ownership ranges and
+   * the float32 ownership ranges. A transfer happens when a render target is needed, based on the
+   * current viewport, or, if no viewport is available, ownership of the rest of the EDRAM is
+   * transferred.
+   */
   struct Transfer {
     uint32_t start_tiles;
     uint32_t end_tiles;
@@ -326,8 +331,20 @@ class RenderTargetCache {
     static constexpr uint32_t kMaxCutoutBorderRectangles = 4;
     static constexpr uint32_t kMaxRectanglesWithCutout =
         kMaxRectanglesWithoutCutout * kMaxCutoutBorderRectangles;
-    // Cutout can be specified for resolve clears - not to transfer areas that
-    // will be cleared to a single value anyway.
+    /**
+     * Returns the rectangles covering a tile range. A cutout can be specified for resolve clears,
+     * to skip areas that are cleared to a single value anyway.
+     *
+     * @param start_tiles First tile of the range.
+     * @param end_tiles Tile after the last one of the range.
+     * @param base_tiles Base tile of the render target.
+     * @param pitch_tiles Row pitch in tiles.
+     * @param msaa_samples Multisample count of the render target.
+     * @param is_64bpp True when the render target uses 64 bits per pixel.
+     * @param rectangles_out Receives the rectangles.
+     * @param cutout Area to exclude, may be null.
+     * @return Number of rectangles written.
+     */
     static uint32_t GetRangeRectangles(uint32_t start_tiles, uint32_t end_tiles,
                                        uint32_t base_tiles, uint32_t pitch_tiles,
                                        xenos::MSAASamples msaa_samples, bool is_64bpp,
@@ -352,7 +369,7 @@ class RenderTargetCache {
   union HostDepthStoreRectangleConstant {
     uint32_t constant;
     struct {
-      // - 1 because the maximum is 0x1FFF / 8, not 0x2000 / 8.
+      // Minus 1 because the maximum is 0x1FFF / 8, not 0x2000 / 8.
       uint32_t x_pixels_div_8 : xenos::kResolveSizeBits - 1 - xenos::kResolveAlignmentPixelsLog2;
       uint32_t y_pixels_div_8 : xenos::kResolveSizeBits - 1 - xenos::kResolveAlignmentPixelsLog2;
       uint32_t width_pixels_div_8_minus_1 : xenos::kResolveSizeBits - 1 -
@@ -369,7 +386,7 @@ class RenderTargetCache {
       uint32_t pitch_tiles : xenos::kEDRAMPitchTilesBits;
       uint32_t resolution_scale_x : 3;
       uint32_t resolution_scale_y : 3;
-      // Whether 2x MSAA is supported natively rather than through 4x.
+      /** Set when 2x MSAA is supported natively rather than through 4x. */
       uint32_t msaa_2x_supported : 1;
     };
     HostDepthStoreRenderTargetConstant() : constant(0) {
@@ -382,18 +399,15 @@ class RenderTargetCache {
     HostDepthStoreRenderTargetConstant render_target;
   };
 
+  /**
+   * Row spans of a render target dump, in tiles. With rows == 1, row row_first spans
+   * [row_first_start, row_last_end). With rows > 1, row row_first spans
+   * [row_first_start, row_length_used), rows [row_first + 1, row_first + rows - 1) span
+   * [row * pitch, row * pitch + row_length_used), and row row_first + rows - 1 spans
+   * [row * pitch, row * pitch + row_last_end).
+   */
   struct ResolveCopyDumpRectangle {
     RenderTarget* render_target;
-    // If rows == 1:
-    //   Row row_first span:
-    //     [row_first_start, row_last_end)
-    // If rows > 1:
-    //   Row row_first + row span:
-    //     [row_first_start, row_length_used)
-    //   Rows [row_first + 1, row_first + rows - 1) span:
-    //     [row * pitch, row * pitch + row_length_used)
-    //   Row row_first + rows - 1 span:
-    //     [row * pitch, row * pitch + row_last_end)
     uint32_t row_first;
     uint32_t rows;
     uint32_t row_first_start;
@@ -406,8 +420,7 @@ class RenderTargetCache {
           row_first_start(row_first_start),
           row_last_end(row_last_end) {}
     struct Dispatch {
-      // Base plus offset may exceed the EDRAM tile count in case of EDRAM
-      // addressing wrapping.
+      /** Base plus offset may exceed the EDRAM tile count when EDRAM addressing wraps. */
       uint32_t offset;
       uint32_t width_tiles;
       uint32_t height_tiles;
@@ -418,8 +431,6 @@ class RenderTargetCache {
       if (!rows) {
         return 0;
       }
-      // If the first and / or the last rows have the same X spans as the middle
-      // part, merge them with it.
       uint32_t dispatch_count = 0;
       if (rows == 1 || row_first_start) {
         Dispatch& dispatch_first = dispatches_out[dispatch_count++];
@@ -455,7 +466,7 @@ class RenderTargetCache {
     }
   };
 
-  // A flattened dispatch extracted from ResolveCopyDumpRectangle.
+  /** Flattened dispatch extracted from a ResolveCopyDumpRectangle. */
   struct ResolveCopyDispatch {
     uint32_t rectangle_index;
     ResolveCopyDumpRectangle::Dispatch dispatch;
@@ -467,28 +478,30 @@ class RenderTargetCache {
   virtual uint32_t GetMaxRenderTargetWidth() const = 0;
   virtual uint32_t GetMaxRenderTargetHeight() const = 0;
 
-  // Returns the height of a render target that's needed and can be created,
-  // taking guest and host limits into account. EDRAM base and 32bpp/64bpp are
-  // not taken into account, the same height is used for all render targets even
-  // if the implementation supports mixed-size render targets, so the
-  // implementation can freely disable individual render targets and let the
-  // other ones use the newly available space without restarting the whole
-  // render pass (on Vulkan, the used height is specified in
-  // VkFramebuffer).
+  /**
+   * Returns the height of a render target that is needed and can be created, within guest and host
+   * limits. EDRAM base and 32bpp/64bpp are not considered, so one height serves all render targets
+   * even if the implementation supports mixed size render targets. The implementation can then
+   * disable individual render targets and let the others use the freed space without restarting the
+   * render pass (on Vulkan the used height is set in VkFramebuffer).
+   *
+   * @param pitch_tiles_at_32bpp Pitch in tiles at 32bpp.
+   * @param msaa_samples MSAA sample count.
+   * @return Render target height.
+   */
   uint32_t GetRenderTargetHeight(uint32_t pitch_tiles_at_32bpp,
                                  xenos::MSAASamples msaa_samples) const;
 
   virtual std::unique_ptr<RenderTarget> CreateRenderTarget(RenderTargetKey key) = 0;
 
-  // Whether depth buffer is encoded differently on the host, thus after
-  // aliasing naively, precision may be lost - host depth must only be
-  // overwritten if the new guest value is different than the current host depth
-  // when converted to the guest format (this catches the usual case of
-  // overwriting the depth buffer for clearing it mostly). 534507D6 intro
-  // cutscene, for example, has a good example of corruption that happens if
-  // this is not handled - the upper 1280x384 pixels are rendered in a
-  // "striped" way if the depth precision is lost (if this is made always return
-  // false).
+  /**
+   * Reports whether the depth buffer is encoded differently on the host, so naive aliasing may lose
+   * precision. Host depth must be overwritten only if the new guest value differs from the current
+   * host depth converted to the guest format, which mostly catches overwriting to clear the buffer.
+   *
+   * @param format Depth render target format.
+   * @return True when the host encoding differs from the guest format.
+   */
   virtual bool IsHostDepthEncodingDifferent(xenos::DepthRenderTargetFormat format) const = 0;
 
   void ResetAccumulatedRenderTargets() { are_accumulated_render_targets_valid_ = false; }
@@ -519,10 +532,17 @@ class RenderTargetCache {
                                       uint32_t& group_count_x_out,
                                       uint32_t& group_count_y_out) const;
 
-  // Returns mappings between ranges within the specified tile rectangle (not
-  // render target texture rectangle - textures may have any pitch they need)
-  // from ResolveInfo::GetCopyEdramTileSpan and render targets owning them to
-  // rectangles_out.
+  /**
+   * Returns mappings between ranges within the tile rectangle (not the render target texture
+   * rectangle, as textures may have any pitch) from ResolveInfo::GetCopyEdramTileSpan and the
+   * render targets owning them.
+   *
+   * @param base First tile.
+   * @param row_length Row length in tiles.
+   * @param rows Row count.
+   * @param pitch Row pitch in tiles.
+   * @param rectangles_out Receives the mappings.
+   */
   void GetResolveCopyRectanglesToDump(uint32_t base, uint32_t row_length, uint32_t rows,
                                       uint32_t pitch,
                                       std::vector<ResolveCopyDumpRectangle>& rectangles_out) const;
@@ -531,12 +551,18 @@ class RenderTargetCache {
                                       std::vector<ResolveCopyDumpRectangle>& rectangles_out,
                                       std::vector<ResolveCopyDispatch>& dispatches_out) const;
 
-  // Sets up the needed render targets and transfers to perform a clear in a
-  // resolve operation via a host render target clear. resolve_info is expected
-  // to be obtained via draw_util::GetResolveInfo. Returns whether any clears
-  // need to be done (false in both empty and error cases).
-  // TODO(Triang3l): Try to defer clears until the first draw in the next pass
-  // (if it uses one or both render targets being cleared) for tile-based GPUs.
+  /**
+   * Sets up the render targets and transfers needed to clear in a resolve operation through a host
+   * render target clear. resolve_info is expected to come from draw_util::GetResolveInfo.
+   *
+   * @param resolve_info Resolve information.
+   * @param clear_rectangle_out Receives the area to clear.
+   * @param depth_render_target_out Receives the depth render target to clear.
+   * @param depth_transfers_out Receives the transfers needed for the depth render target.
+   * @param color_render_target_out Receives the color render target to clear.
+   * @param color_transfers_out Receives the transfers needed for the color render target.
+   * @return True when any clears need to be done (false when there are none and on error).
+   */
   bool PrepareHostRenderTargetsResolveClear(const draw_util::ResolveInfo& resolve_info,
                                             Transfer::Rectangle& clear_rectangle_out,
                                             RenderTarget*& depth_render_target_out,
@@ -544,12 +570,10 @@ class RenderTargetCache {
                                             RenderTarget*& color_render_target_out,
                                             std::vector<Transfer>& color_transfers_out);
 
-  // For pixel shader interlock.
-
   virtual void RequestPixelShaderInterlockBarrier() {}
 
-  // To be called by the implementation when interlocked writes to all of the
-  // EDRAM memory are committed with a memory barrier.
+  /** Called by the implementation when interlocked writes to all of the EDRAM are committed with a
+   * memory barrier. */
   void PixelShaderInterlockFullEdramBarrierPlaced();
 
  private:
@@ -559,31 +583,24 @@ class RenderTargetCache {
 
   DrawExtentEstimator draw_extent_estimator_;
 
-  // For host render targets.
-
   struct OwnershipRange {
     uint32_t end_tiles;
-    // Need to store keys, not pointers to render targets themselves, because
-    // ownership transfer is also what's used to determine when to place
-    // barriers with pixel shader interlock, and in this case there are no host
-    // render targets.
-    // Render target this range is last used by.
+    /**
+     * Last using render target. Stored as a key rather than a pointer since pixel shader interlock
+     * has no host render targets and uses ownership to place barriers.
+     */
     RenderTargetKey render_target;
-    // Last host-side depth render targets that used this range even if it has
-    // been used by a different render target since then, only used if the
-    // respective format has a different encoding on the host. They are tracked
-    // separately, overwritten if the host value converted to the guest format
-    // becomes out of sync with the guest value. Even if the host uses float32
-    // to emulate both unorm24 and float24 (Vulkan on AMD), the unorm24 and
-    // float24 render targets are tracked separately from each other, so
-    // switching between unorm24 and float24 for the same depth data (clearing
-    // of most render targets is done through unorm24 without a viewport -
-    // common) is not destructive as well (f32tof24(host_f32) == guest_f24 does
-    // not imply f32tou24(host_f32) == guest_u24, thus aliasing float24 with
-    // unorm24 through the same float32 buffer will drop the precision of the
-    // float32 value to that of an unorm24 with a totally wrong value). If the
-    // range hasn't been used yet (render_target.IsEmpty() == true), these are
-    // empty too.
+    /**
+     * Last host depth render targets that used the range even if another render target used it
+     * since, tracked only when the format has a different encoding on the host. They are tracked
+     * separately and overwritten when the host value converted to the guest format becomes out of
+     * sync with the guest value. unorm24 and float24 render targets are tracked separately even
+     * when the host emulates both with float32 (Vulkan on AMD), so switching between them for the
+     * same depth data (most clears go through unorm24 without a viewport) is not destructive.
+     * f32tof24(host_f32) == guest_f24 does not imply f32tou24(host_f32) == guest_u24, so aliasing
+     * float24 with unorm24 through the same float32 buffer would drop the precision to that of
+     * unorm24 with a wrong value. Empty when the range is unused (render_target.IsEmpty() == true).
+     */
     RenderTargetKey host_depth_render_target_unorm24;
     RenderTargetKey host_depth_render_target_float24;
     OwnershipRange(uint32_t end_tiles, RenderTargetKey render_target,
@@ -608,14 +625,10 @@ class RenderTargetCache {
     }
     bool IsOwnedBy(RenderTargetKey key, bool host_depth_encoding_different) const {
       if (render_target != key) {
-        // Last time used for something else. If it's a depth render target with
-        // different host depth encoding, might have been overwritten by color,
-        // or by a depth render target of a different format.
         return false;
       }
       if (host_depth_encoding_different && !key.is_depth &&
           GetHostDepthRenderTarget(key.GetDepthFormat()) != key) {
-        // Depth encoding is the same, but different addressing is needed.
         return false;
       }
       return true;
@@ -638,57 +651,77 @@ class RenderTargetCache {
 
   RenderTarget* GetOrCreateRenderTarget(RenderTargetKey key);
 
-  // Checks if changing ownership of the range to the specified render target
-  // would require transferring data - primarily for barrier placement on the
-  // pixel shader interlock path (where transfers do not involve copying, but
-  // barriers are still needed before accessing ranges written before the
-  // barrier and addressed by different target-independent rasterization pixel
-  // positions.
+  /**
+   * Reports whether changing ownership of the range to the render target would require transferring
+   * data. Used primarily for barrier placement on the pixel shader interlock path, where transfers
+   * do not copy but barriers are needed before accessing ranges written before the barrier and
+   * addressed by different render target independent rasterization pixel positions.
+   *
+   * @param dest Render target taking ownership.
+   * @param start_tiles_base_relative First tile, relative to the base.
+   * @param length_tiles Length in tiles.
+   * @return True when transfers would be required.
+   */
   bool WouldOwnershipChangeRequireTransfers(RenderTargetKey dest,
                                             uint32_t start_tiles_base_relative,
                                             uint32_t length_tiles) const;
-  // Updates ownership_ranges_, adds the transfers needed for the ownership
-  // change to transfers_append_out if it's not null.
+  /**
+   * Updates ownership_ranges_ and adds the transfers needed for the change to transfers_append_out
+   * when it is not null.
+   *
+   * @param dest Render target taking ownership.
+   * @param start_tiles_base_relative First tile, relative to the base.
+   * @param length_tiles Length in tiles.
+   * @param transfers_append_out Receives the transfers, may be null.
+   * @param resolve_clear_cutout Area excluded from transfers, may be null.
+   */
   void ChangeOwnership(RenderTargetKey dest, uint32_t start_tiles_base_relative,
                        uint32_t length_tiles, std::vector<Transfer>* transfers_append_out,
                        const Transfer::Rectangle* resolve_clear_cutout = nullptr);
 
-  // If failed to create, may contain nullptr to prevent attempting to create a
-  // render target twice.
   std::unordered_map<RenderTargetKey, std::unique_ptr<RenderTarget>, RenderTargetKey::Hasher>
+      /** May hold nullptr after a failed creation, to prevent attempting to create it twice. */
       render_targets_;
 
-  // Map of host render targets containing the most up-to-date version
-  // of the tile. Has no gaps, unused parts are represented by empty render
-  // target keys.
-  // TODO(Triang3l): Pool allocator (or a custom red-black tree with one even),
-  // since standard containers use dynamic allocation for elements, though
-  // changes to this throughout a frame are pretty rare.
-  std::map<uint32_t, OwnershipRange> ownership_ranges_;
+  std::map<uint32_t, OwnershipRange>
+      /**
+       * Host render targets holding the most up to date tile data. Has no gaps, unused parts are
+       * represented by empty render target keys.
+       */
+      ownership_ranges_;
 
-  // Render targets used by the draw call with the last successful
-  // update. 0 is depth, color starting from 1, nullptr if not bound.
-  // Only valid for non-pixel-shader-interlock paths.
-  RenderTarget* last_update_used_render_targets_[1 + xenos::kMaxColorRenderTargets];
-  // Render targets used by the draw call with the last successful update or
-  // previous updates, unless a different or a totally new one was bound (or
-  // surface info was changed), to avoid unneeded render target switching (which
-  // is especially undesirable on tile-based GPUs) in the implementation if
-  // simply disabling depth / stencil test or color writes and then re-enabling
-  // (58410954 does this often with color). Must also be used to determine
-  // whether it's safe to enable depth / stencil or writing to a specific color
-  // render target in the pipeline for this draw call.
-  // Only valid for non-pixel-shader-interlock paths.
-  RenderTarget* last_update_accumulated_render_targets_[1 + xenos::kMaxColorRenderTargets];
-  // If false, the next update must copy last_update_used_render_targets_ to
-  // last_update_accumulated_render_targets_ - it's not beneficial or even
-  // incorrect to keep the previously bound render targets.
-  bool are_accumulated_render_targets_valid_ = false;
-  // After an update (for simplicity, even an unsuccessful update invalidates
-  // this), contains needed ownership transfer sources for each of the current
-  // render targets. They are reordered so for one source, all transfers are
-  // consecutive in the array.
-  std::vector<Transfer> last_update_transfers_[1 + xenos::kMaxColorRenderTargets];
+  RenderTarget*
+      last_update_used_render_targets_[1 +
+                                       /**
+                                        * Render targets of the last successful update draw. Index 0
+                                        * is depth, colors start from 1, nullptr when not bound.
+                                        * Valid only on non pixel shader interlock paths.
+                                        */
+                                       xenos::kMaxColorRenderTargets];
+  RenderTarget* last_update_accumulated_render_targets_
+      /**
+       * Render targets of the last successful update or earlier ones, unless a different or new one
+       * was bound or surface info changed, to avoid needless switching (undesirable on tile based
+       * GPUs) when depth and stencil test or color writes are toggled. Must also decide whether
+       * depth and stencil or a color render target may be enabled in the pipeline for the draw.
+       * Valid only on non pixel shader interlock paths.
+       */
+      [1 + xenos::kMaxColorRenderTargets];
+  bool are_accumulated_render_targets_valid_ =
+      /**
+       * When false, the next update copies last_update_used_render_targets_ to
+       * last_update_accumulated_render_targets_, as keeping the previously bound render targets is
+       * not beneficial or is incorrect.
+       */
+      false;
+  std::vector<Transfer>
+      last_update_transfers_[1 +
+                             /**
+                              * After an update, even an unsuccessful one, the ownership transfer
+                              * sources needed for each current render target, ordered so all
+                              * transfers of one source are consecutive.
+                              */
+                             xenos::kMaxColorRenderTargets];
 };
 
 }  // namespace rex::gpu

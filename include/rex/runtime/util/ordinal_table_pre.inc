@@ -5,6 +5,8 @@
  * Copyright 2021 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
+ *
+ * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
 /**
@@ -21,4 +23,16 @@
  * #include "rex/kernel/util/ordinal_table_post.inc"
  */
 
+/**
+ * Defines an enumerator named for the export with the ordinal as its value.
+ *
+ * @param module The module that owns the export.
+ * @param ordinal The export ordinal.
+ * @param name The export name, used as the enumerator name.
+ * @param type The export kind, ignored here.
+ *
+ * @code
+ * XE_EXPORT(xboxkrnl, 0x0000000C, ExConsoleGameRegion, kVariable)
+ * @endcode
+ */
 #define XE_EXPORT(module, ordinal, name, type) name = ordinal

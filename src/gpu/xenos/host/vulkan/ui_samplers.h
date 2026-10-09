@@ -1,4 +1,3 @@
-#pragma once
 /**
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
@@ -10,6 +9,8 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
+#pragma once
+
 #include <array>
 #include <memory>
 
@@ -20,11 +21,13 @@ namespace rex {
 namespace gpu {
 namespace vulkan {
 
-/// Samplers that can be used for presentation and UI drawing.
-/// Because maxSamplerAllocationCount can be as low as 4000 (on Nvidia and Intel
-/// GPUs primarily), no other samplers must be created for UI purposes.
-/// The rest of the sampler allocation space on the device must be available to
-/// GPU emulation.
+/**
+ * Samplers for presentation and UI drawing.
+ *
+ * maxSamplerAllocationCount can be as low as 4000, mainly on Nvidia and Intel GPUs, so no other
+ * samplers may be created for UI purposes. The rest of the device sampler allocation space must
+ * stay available to GPU emulation.
+ */
 class UISamplers : public rex::NonCopyable {
   struct Key {};
 

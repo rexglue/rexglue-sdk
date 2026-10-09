@@ -63,7 +63,7 @@ struct XEXSecurityInfo {
   std::vector<XEXPageRange> pages;
 };
 
-/** Import library record of an XEX header. */
+/** Import library entry of an XEX header. */
 struct XEXImportLibrary {
   /** Library file name as the header stores it. */
   std::string name;

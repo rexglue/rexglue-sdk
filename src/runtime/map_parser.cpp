@@ -1,13 +1,3 @@
-/**
- * @file        runtime/map_parser.cpp
- *
- * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
- *              All rights reserved.
- *
- * @license     BSD 3-Clause License
- *              See LICENSE file in the project root for full license text.
- */
-
 #include <charconv>
 #include <fstream>
 #include <sstream>
@@ -19,7 +9,10 @@ namespace rex::runtime {
 namespace {
 
 /**
- * Determine symbol type from nm symbol type character.
+ * Determines the symbol type from an nm type character.
+ *
+ * @param c The nm type character.
+ * @return Function for T and t, Data for D, d, B, b, R and r, Import for U, otherwise Unknown.
  */
 BinarySymbolType SymbolTypeFromNmChar(char c) {
   switch (c) {
@@ -41,7 +34,10 @@ BinarySymbolType SymbolTypeFromNmChar(char c) {
 }
 
 /**
- * Check if nm symbol type indicates a function.
+ * Reports whether an nm type character marks a function.
+ *
+ * @param c The nm type character.
+ * @return True when the character is T or t.
  */
 bool IsFunctionType(char c) {
   return c == 'T' || c == 't';
@@ -53,10 +49,8 @@ std::expected<std::vector<BinarySymbol>, MapParseError> ParseNmMapString(
     std::string_view map_data, const MapParseOptions& options) {
   std::vector<BinarySymbol> symbols;
 
-  // Parse line by line
   size_t pos = 0;
   while (pos < map_data.size()) {
-    // Find end of line
     size_t eol = map_data.find('\n', pos);
     if (eol == std::string_view::npos) {
       eol = map_data.size();
@@ -65,24 +59,18 @@ std::expected<std::vector<BinarySymbol>, MapParseError> ParseNmMapString(
     std::string_view line = map_data.substr(pos, eol - pos);
     pos = eol + 1;
 
-    // Skip empty lines
     if (line.empty())
       continue;
 
-    // Remove trailing \r if present
     if (!line.empty() && line.back() == '\r') {
       line = line.substr(0, line.size() - 1);
     }
 
-    // nm format: "address type name" (space-separated)
-    // Example: "00000000 t test_add1"
-
-    // Find first space (after address)
+    // nm format is "address type name", for example "00000000 t test_add1".
     size_t space1 = line.find(' ');
     if (space1 == std::string_view::npos)
       continue;
 
-    // Parse address
     std::string_view addr_str = line.substr(0, space1);
     uint32_t address = 0;
     auto [ptr, ec] =
@@ -90,7 +78,6 @@ std::expected<std::vector<BinarySymbol>, MapParseError> ParseNmMapString(
     if (ec != std::errc())
       continue;
 
-    // Skip whitespace to find type
     size_t type_pos = space1 + 1;
     while (type_pos < line.size() && line[type_pos] == ' ') {
       ++type_pos;
@@ -100,7 +87,6 @@ std::expected<std::vector<BinarySymbol>, MapParseError> ParseNmMapString(
 
     char type_char = line[type_pos];
 
-    // Skip to name
     size_t name_pos = type_pos + 1;
     while (name_pos < line.size() && line[name_pos] == ' ') {
       ++name_pos;
@@ -110,7 +96,6 @@ std::expected<std::vector<BinarySymbol>, MapParseError> ParseNmMapString(
 
     std::string_view name = line.substr(name_pos);
 
-    // Apply filters
     if (options.functions_only && !IsFunctionType(type_char)) {
       continue;
     }
@@ -121,11 +106,10 @@ std::expected<std::vector<BinarySymbol>, MapParseError> ParseNmMapString(
       }
     }
 
-    // Create symbol
     BinarySymbol sym;
     sym.name = std::string(name);
     sym.address = address + options.base_address;
-    sym.size = 0;  // nm doesn't provide size
+    sym.size = 0;
     sym.type = SymbolTypeFromNmChar(type_char);
 
     symbols.push_back(std::move(sym));
@@ -140,12 +124,10 @@ std::expected<std::vector<BinarySymbol>, MapParseError> ParseNmMapString(
 
 std::expected<std::vector<BinarySymbol>, MapParseError> ParseNmMap(
     const std::filesystem::path& map_path, const MapParseOptions& options) {
-  // Check if file exists
   if (!std::filesystem::exists(map_path)) {
     return std::unexpected(MapParseError::FileNotFound);
   }
 
-  // Read file contents
   std::ifstream file(map_path, std::ios::binary);
   if (!file) {
     return std::unexpected(MapParseError::FileReadError);

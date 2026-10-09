@@ -20,10 +20,9 @@ namespace rex::hid {
 
 namespace {
 
-// A single device, so its handle is a constant.
 constexpr DeviceId kKeyboardMouseDevice = static_cast<DeviceId>(0x4D4E4B00);
 
-// Bounds the queue for titles that never call XamInputGetKeystroke.
+/** Queue bound for titles that never call XamInputGetKeystroke. */
 constexpr size_t kMaxQueuedKeystrokes = 256;
 
 constexpr std::string_view kBlanks = " \t";
@@ -55,16 +54,19 @@ bool IsBindPressed(const bool (&key_down)[256], const std::vector<KeyChord>& cho
   });
 }
 
-// hid::VirtualKey follows Windows VK_ numbering; the title wants USB HID usage
-// page 0x07.
+/**
+ * Maps a virtual key to a USB HID usage on page 0x07. Letters, digits 1 to 9 and F1 to F12
+ * are contiguous runs in both numberings. Digit 0 is irregular and handled in the switch.
+ *
+ * @param vk_enum  Virtual key following Windows VK_ numbering.
+ * @return HID usage, 0 when unmapped.
+ */
 u8 VirtualKeyToHIDUsage(VirtualKey vk_enum) {
   const u32 vk = static_cast<u32>(vk_enum);
 
-  // The runs below are contiguous in both numbering schemes.
   if (vk >= 'A' && vk <= 'Z') {
     return static_cast<u8>(vk - 'A' + 0x04);
   }
-  // 0 is irregular in both digit runs; handled in the switch.
   if (vk >= '1' && vk <= '9') {
     return static_cast<u8>(vk - '1' + 0x1E);
   }
@@ -289,12 +291,10 @@ void KeyboardMouseDriver::SetBind(size_t index, std::string_view text) {
 }
 
 bool KeyboardMouseDriver::IsEnabled() const {
-  // Passthrough enables the device on its own.
   return REXCVAR_GET(cvars::mnk_mode) || REXCVAR_GET(cvars::mnk_passthrough);
 }
 
 void KeyboardMouseDriver::EnumerateDevices(std::vector<DeviceInfo>& out) {
-  // Disabled means no device at all, so it never occupies a title user slot.
   if (!IsEnabled()) {
     return;
   }
@@ -337,15 +337,13 @@ Result<X_INPUT_STATE> KeyboardMouseDriver::GetDeviceState(DeviceId id) {
     return std::unexpected(MakeError(Error::NotConnected, "keyboard and mouse emulation is off"));
   }
 
-  // Keys reach the title through GetDeviceKeystroke only, leaving the title
-  // user free for a real controller.
+  // Passthrough delivers keys through GetDeviceKeystroke only, leaving the title user free.
   if (IsPassthroughEnabled()) {
     return std::unexpected(
         MakeError(Error::NotConnected, "passthrough keeps the user free for a pad"));
   }
 
-  // Mouse look is opt in. Without this gate, keyboard input alone would hide
-  // and lock the cursor, breaking the ImGui overlays.
+  // Mouse look is opt in, else keyboard input alone would hide and lock the cursor over ImGui.
   const bool lock = REXCVAR_GET(cvars::mnk_mouse) && hub_.focused() && is_active();
   if (pointer_lock_.exchange(lock, std::memory_order_relaxed) != lock) {
     hub_.RefreshPointerMode();
@@ -422,9 +420,7 @@ Result<X_INPUT_STATE> KeyboardMouseDriver::GetDeviceState(DeviceId id) {
     rx += static_cast<i32>(static_cast<f64>(mouse_dx_) * sensitivity * kBaseScale);
     ry += static_cast<i32>(static_cast<f64>(-mouse_dy_) * sensitivity * kBaseScale);
   }
-  // Drained unconditionally: deltas keep accumulating in OnMouseMove while the
-  // mouse is off, and toggling it on would otherwise dump the whole backlog
-  // into one frame as a camera snap.
+  // Drained unconditionally, else a backlog from while the mouse was off snaps the camera.
   mouse_dx_ = 0.0f;
   mouse_dy_ = 0.0f;
 
@@ -520,7 +516,6 @@ void KeyboardMouseDriver::EnqueueRawKeystroke(const InputEvent& event, bool down
   ks.hid_code = VirtualKeyToHIDUsage(event.key);
 
   u16 flags = down ? X_INPUT_KEYSTROKE_KEYDOWN : X_INPUT_KEYSTROKE_KEYUP;
-  // Already down, so this is the OS auto-repeat.
   if (down && event.repeat) {
     flags |= X_INPUT_KEYSTROKE_REPEAT;
   }
@@ -581,8 +576,7 @@ void KeyboardMouseDriver::OnChar(const InputEvent& event) {
   if (!IsEnabled() || !IsPassthroughEnabled()) {
     return;
   }
-  // WM_CHAR convention: the codepoint arrives after its key-down, so it is
-  // attached to the keystroke already queued for that key.
+  // WM_CHAR delivers the codepoint after its key-down, so it attaches to the queued keystroke.
   std::lock_guard lock(state_mutex_);
   if (keystroke_queue_.empty()) {
     return;
@@ -630,7 +624,6 @@ void KeyboardMouseDriver::OnFocusLost() {
   pointer_lock_.store(false, std::memory_order_relaxed);
   std::lock_guard lock(state_mutex_);
   std::memset(key_down_, 0, sizeof(key_down_));
-  // Releases landing on another window never arrive here as key-ups.
   RefreshBoundKeystrokesLocked();
   mouse_dx_ = 0.0f;
   mouse_dy_ = 0.0f;

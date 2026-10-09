@@ -1,4 +1,3 @@
-#pragma once
 /**
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
@@ -10,6 +9,8 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
+#pragma once
+
 #include <cstdint>
 
 #include <rex/assert.h>
@@ -18,46 +19,54 @@
 namespace rex {
 namespace gpu {
 
-// Represents a surface that presenting can be performed to.
-// Surface methods can be called only from the UI thread.
-
+/**
+ * Presentation target. Methods are callable only from the UI thread.
+ */
 class Surface : public rex::NonCopyable {
  public:
+  /**
+   * Surface types. Within one platform the more preferable types come first so
+   * rex::bit_scan_forward can try every type supported by both the graphics
+   * provider and the window.
+   */
   enum TypeIndex {
-    // Within one platform, the more preferable surface types are earlier in
-    // this enumeration, so rex::bit_scan_forward can be used to try creating
-    // surfaces of all types supported by both the graphics provider and the
-    // window.
-    // GNU/Linux. Wayland first: xcb is only reachable through XWayland there.
-    kTypeIndex_WaylandSurface,
-    kTypeIndex_XcbWindow,
-    // Windows.
-    kTypeIndex_Win32Hwnd,
-    // macOS — CAMetalLayer presented via MoltenVK (VK_EXT_metal_surface).
-    kTypeIndex_CAMetalLayer,
+    kTypeIndex_WaylandSurface, /**< Preferred over xcb, which needs XWayland there. */
+    kTypeIndex_XcbWindow,      /**< X11 window through the XCB library. */
+    kTypeIndex_Win32Hwnd,      /**< Windows window handle. */
+    kTypeIndex_CAMetalLayer,   /**< Presented via MoltenVK with VK_EXT_metal_surface. */
   };
+  /** Bit mask of `TypeIndex` values, 1 bit per surface type. */
   using TypeFlags = uint32_t;
   enum : TypeFlags {
+    /** Bit of kTypeIndex_WaylandSurface. */
     kTypeFlag_WaylandSurface = TypeFlags(1) << kTypeIndex_WaylandSurface,
-    kTypeFlag_XcbWindow = TypeFlags(1) << kTypeIndex_XcbWindow,
-    kTypeFlag_Win32Hwnd = TypeFlags(1) << kTypeIndex_Win32Hwnd,
+    kTypeFlag_XcbWindow = TypeFlags(1) << kTypeIndex_XcbWindow, /**< Bit of kTypeIndex_XcbWindow. */
+    kTypeFlag_Win32Hwnd = TypeFlags(1) << kTypeIndex_Win32Hwnd, /**< Bit of kTypeIndex_Win32Hwnd. */
+    /** Bit of kTypeIndex_CAMetalLayer. */
     kTypeFlag_CAMetalLayer = TypeFlags(1) << kTypeIndex_CAMetalLayer,
   };
 
   virtual ~Surface() = default;
 
+  /**
+   * Returns the platform type of the surface.
+   *
+   * @return The `TypeIndex` of the concrete surface.
+   */
   virtual TypeIndex GetType() const = 0;
 
-  // Returns the up-to-date size (and true), or zeros (and false) if not ready
-  // to open a presentation connection yet. The size preferably should be
-  // exactly the dimensions of the surface in physical pixels of the display
-  // (without stretching performed by the platform's composition), but even if
-  // stretching happens, it is required that surface pixels have 1:1 aspect
-  // ratio relatively to the physical display.
+  /**
+   * Returns the up-to-date size in physical display pixels. The size should be
+   * the surface dimensions without platform composition stretching, and any
+   * stretching must keep surface pixels at a 1:1 aspect ratio to the display.
+   *
+   * @param width_out Receives the width, or 0 when not ready.
+   * @param height_out Receives the height, or 0 when not ready.
+   * @return True when ready to open a presentation connection. False when not
+   *         ready or when either dimension is 0, since a zero area surface
+   *         cannot be presented to.
+   */
   bool GetSize(uint32_t& width_out, uint32_t& height_out) {
-    // If any dimension is 0 (like, resized completely to zero in one direction,
-    // but not in another), the surface is zero-area - don't try to present to
-    // it.
     uint32_t width, height;
     if (!GetSizeImpl(width, height) || !width || !height) {
       width_out = 0;
@@ -72,8 +81,13 @@ class Surface : public rex::NonCopyable {
  protected:
   Surface() = default;
 
-  // Returns the up-to-date size in physical pixels (and true), or zeros (and
-  // optionally false) if not ready to open a presentation connection yet.
+  /**
+   * Returns the up-to-date size in physical pixels.
+   *
+   * @param width_out Receives the width.
+   * @param height_out Receives the height.
+   * @return True when ready to open a presentation connection.
+   */
   virtual bool GetSizeImpl(uint32_t& width_out, uint32_t& height_out) const = 0;
 };
 

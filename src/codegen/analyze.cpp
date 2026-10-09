@@ -1,14 +1,3 @@
-/**
- * @file        codegen/analyze.cpp
- * @brief       Analysis pipeline orchestrator
- *
- * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
- *              All rights reserved.
- *
- * @license     BSD 3-Clause License
- *              See LICENSE file in the project root for full license text.
- */
-
 #include "decoded_binary.h"
 
 #include <algorithm>
@@ -28,7 +17,6 @@ namespace rex::codegen {
   REXLOG_TRACE(codegen, "Analyze: decoded {} instructions across {} code regions",
                ctx.decoded().instructionCount(), ctx.decoded().codeRegions().size());
 
-  // 1. Register entry points (imports, helpers, config, pdata)
   if (reporter)
     reporter->phaseChanged("Register");
   auto regResult = phases::Register(ctx, reporter);
@@ -36,7 +24,6 @@ namespace rex::codegen {
     return regResult;
   }
 
-  // 2. Scan binary into code/data regions
   if (reporter)
     reporter->phaseChanged("Scan");
   auto scanResult = phases::Scan(ctx, reporter);
@@ -44,7 +31,6 @@ namespace rex::codegen {
     return scanResult;
   }
 
-  // 3. Discover function blocks iteratively (includes vtable scan)
   if (reporter)
     reporter->phaseChanged("Discover");
   auto discoverResult = phases::Discover(ctx, reporter);
@@ -52,7 +38,6 @@ namespace rex::codegen {
     return discoverResult;
   }
 
-  // 4. Gap fill uncovered regions + discover blocks for gap-filled functions + cleanup
   if (reporter)
     reporter->phaseChanged("GapFill");
   auto gapFillResult = phases::GapFill(ctx, reporter);
@@ -60,7 +45,6 @@ namespace rex::codegen {
     return gapFillResult;
   }
 
-  // 5. Merge: resolve jumps and seal functions
   if (reporter)
     reporter->phaseChanged("Merge");
   auto mergeResult = phases::Merge(ctx, reporter);
@@ -68,7 +52,6 @@ namespace rex::codegen {
     return mergeResult;
   }
 
-  // 6. Validate
   if (reporter)
     reporter->phaseChanged("Validate");
   auto validateResult = phases::Validate(ctx, reporter);
@@ -81,10 +64,6 @@ namespace rex::codegen {
 
   return Ok();
 }
-
-//=============================================================================
-// AnalysisErrors implementation
-//=============================================================================
 
 const char* AnalysisErrors::CategoryName(Category cat) {
   switch (cat) {
@@ -123,7 +102,6 @@ void AnalysisErrors::PrintReport() const {
 
   REXLOG_ERROR(codegen, "=== ANALYSIS ERRORS ===");
 
-  // Group by category
   std::map<Category, std::vector<const Entry*>> byCategory;
   for (const auto& entry : entries_) {
     byCategory[entry.category].push_back(&entry);

@@ -18,21 +18,26 @@
 
 namespace rex::kernel::xboxkrnl {
 
-u32 XUsbcamCreate_entry([[maybe_unused]] u32 buffer,
-                        [[maybe_unused]] u32 buffer_size,  // 0x4B000 640x480?
+/**
+ * Allocates the camera buffer. Must report success, because titles that see a failure skip their
+ * initialization and then run on uninitialized data.
+ *
+ * @param buffer Unused.
+ * @param buffer_size Unused.
+ * @param unk3_ptr Unused.
+ * @return X_STATUS_SUCCESS.
+ */
+u32 XUsbcamCreate_entry([[maybe_unused]] u32 buffer, [[maybe_unused]] u32 buffer_size,
                         [[maybe_unused]] mapped_void unk3_ptr) {
-  // This function should return success.
-  // It looks like it only allocates space for usbcam support.
-  // returning error code might cause games to initialize incorrectly.
-  // "Carcassonne" initalization function checks for result from this
-  // function. If value is different than 0 instead of loading
-  // rest of the game it returns from initalization function and tries
-  // to run game normally which causes crash, due to uninitialized data.
   return X_STATUS_SUCCESS;
 }
 
+/**
+ * Returns the camera state.
+ *
+ * @return 0, meaning not connected.
+ */
 u32 XUsbcamGetState_entry() {
-  // 0 = not connected.
   return 0;
 }
 

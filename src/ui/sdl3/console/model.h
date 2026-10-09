@@ -35,7 +35,7 @@ struct ConsoleLine {
   log::Level level = log::Level::kInfo; /**< Level, for color and filtering. */
   std::string category;                 /**< Category name, console for command output. */
   std::string text;                     /**< Text. */
-  u64 sequence = 0;                     /**< Order among log records and command output. */
+  u64 sequence = 0;                     /**< Order among log messages and command output. */
   u64 id = 0;                           /**< Unique among the model's lines, for selection. */
 };
 
@@ -164,7 +164,7 @@ class ConsoleModel : public NonCopyable {
   void set_min_level(log::Level level) { min_level_ = level; }
 
   /**
-   * Tests whether a category is shown.
+   * Reports whether a category is shown.
    *
    * @param category Category name.
    * @return True when shown.

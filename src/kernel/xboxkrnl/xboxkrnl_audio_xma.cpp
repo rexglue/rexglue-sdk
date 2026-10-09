@@ -38,38 +38,13 @@ runtime::XMADecoder* Decoder(Runtime& runtime) {
 
 }  // namespace
 
-//
-// XMA details:
-// https://devel.nuclex.org/external/svn/directx/trunk/include/xma2defs.h
-// https://github.com/gdawg/fsbext/blob/master/src/xma_header.h
-//
-// XMA is undocumented, but the methods are pretty simple.
-// Games do this sequence to decode (now):
-//   (not sure we are setting buffer validity/offsets right)
-// d> XMACreateContext(20656800)
-// d> XMAIsInputBuffer0Valid(000103E0)
-// d> XMAIsInputBuffer1Valid(000103E0)
-// d> XMADisableContext(000103E0, 0)
-// d> XMABlockWhileInUse(000103E0)
-// d> XMAInitializeContext(000103E0, 20008810)
-// d> XMASetOutputBufferValid(000103E0)
-// d> XMASetInputBuffer0Valid(000103E0)
-// d> XMAEnableContext(000103E0)
-// d> XMAGetOutputBufferWriteOffset(000103E0)
-// d> XMAGetOutputBufferReadOffset(000103E0)
-// d> XMAIsOutputBufferValid(000103E0)
-// d> XMAGetOutputBufferReadOffset(000103E0)
-// d> XMAGetOutputBufferWriteOffset(000103E0)
-// d> XMAIsInputBuffer0Valid(000103E0)
-// d> XMAIsInputBuffer1Valid(000103E0)
-// d> XMAIsInputBuffer0Valid(000103E0)
-// d> XMAIsInputBuffer1Valid(000103E0)
-// d> XMAReleaseContext(000103E0)
-//
-// XAudio2 uses XMA under the covers, and seems to map with the same
-// restrictions of frame and subframe:
-// https://msdn.microsoft.com/en-us/library/windows/desktop/microsoft.directx_sdk.xaudio2.xaudio2_buffer(v=vs.85).aspx
-
+/**
+ * Creates a decoder context. Titles decode with XMAInitializeContext, then the buffer valid
+ * setters, XMAEnableContext, offset and validity polls, and finally XMAReleaseContext.
+ *
+ * @param context_out_ptr Receives the context address.
+ * @return X_ERROR_SUCCESS or an error code.
+ */
 u32 XMACreateContext_entry(mapped_u32 context_out_ptr) {
   REXLOG_DEV(kernel, "XMACreateContext called!");
   auto* xma_decoder = Decoder(runtime::Current());
@@ -133,14 +108,12 @@ struct XMA_CONTEXT_INIT {
 REX_STATIC_ASSERT_SIZE(XMA_CONTEXT_INIT, 56);
 
 u32 XMAInitializeContext_entry(mapped_void context_ptr, ppc_ptr_t<XMA_CONTEXT_INIT> context_init) {
-  // Input buffers may be null (buffer 1 in 415607D4).
-  // Convert to host endianness.
+  // Input buffers may be null.
   uint32_t input_buffer_0_guest_ptr = context_init->input_buffer_0_ptr;
   uint32_t input_buffer_0_physical_address = 0;
   if (input_buffer_0_guest_ptr) {
     input_buffer_0_physical_address =
         runtime::Current().memory()->GetPhysicalAddress(input_buffer_0_guest_ptr);
-    // Xenia-specific safety check.
     REX_ASSERT(input_buffer_0_physical_address != UINT32_MAX);
     if (input_buffer_0_physical_address == UINT32_MAX) {
       REX_FAIL(kernel, X_E_FALSE,
@@ -183,7 +156,6 @@ u32 XMAInitializeContext_entry(mapped_void context_ptr, ppc_ptr_t<XMA_CONTEXT_IN
   context.output_buffer_ptr = output_buffer_physical_address;
   context.output_buffer_block_count = context_init->output_buffer_block_count;
 
-  // context.work_buffer = context_init->work_buffer;  // ?
   context.subframe_decode_count = context_init->subframe_decode_count;
   context.is_stereo = context_init->channel_count >= 1;
   context.sample_rate = context_init->sample_rate;
@@ -233,7 +205,6 @@ u32 XMASetInputBuffer0_entry(mapped_void context_ptr, mapped_void buffer, u32 pa
       runtime::Current().memory()->GetPhysicalAddress(buffer.guest_address());
   REX_ASSERT(buffer_physical_address != UINT32_MAX);
   if (buffer_physical_address == UINT32_MAX) {
-    // Xenia-specific safety check.
     REX_FAIL(kernel, X_E_FALSE, "XMASetInputBuffer0: Invalid buffer virtual address {:08X}",
              buffer.guest_address());
   }
@@ -266,7 +237,6 @@ u32 XMASetInputBuffer1_entry(mapped_void context_ptr, mapped_void buffer, u32 pa
       runtime::Current().memory()->GetPhysicalAddress(buffer.guest_address());
   REX_ASSERT(buffer_physical_address != UINT32_MAX);
   if (buffer_physical_address == UINT32_MAX) {
-    // Xenia-specific safety check.
     REX_FAIL(kernel, X_E_FALSE, "XMASetInputBuffer1: Invalid buffer virtual address {:08X}",
              buffer.guest_address());
   }

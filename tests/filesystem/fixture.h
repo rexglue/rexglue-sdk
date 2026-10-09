@@ -75,7 +75,7 @@ class Fixture : public NonCopyable {
   /**
    * Runs rex::Init with rex-filesystem as the only module.
    *
-   * @param game_mount_flags The filesystem slice value handed to Connect.
+   * @param game_mount_flags The filesystem mount flags handed to Connect.
    */
   explicit Fixture(MountFlags game_mount_flags = MountFlags::kNone) {
     Config config;

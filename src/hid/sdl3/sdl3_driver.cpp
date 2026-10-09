@@ -30,7 +30,7 @@ namespace rex::hid::sdl3 {
 
 namespace {
 
-// SDL clamps to SDL_MAX_RUMBLE_DURATION_MS, which is not a public constant.
+/** SDL clamps rumble to SDL_MAX_RUMBLE_DURATION_MS, which is not a public constant. */
 constexpr uint32_t kRumbleDurationMs = 0xFFFF;
 
 const char* JoystickTypeName(SDL_JoystickType t) {
@@ -87,7 +87,13 @@ const char* XInputSubTypeName(uint8_t s) {
   }
 }
 
-// 'needle' must be lowercase ASCII.
+/**
+ * Reports whether a name contains a needle, ignoring case.
+ *
+ * @param name    Device name, may be null.
+ * @param needle  Lowercase ASCII text to find.
+ * @return True when the name contains the needle.
+ */
 bool NameContainsCI(const char* name, std::string_view needle) {
   if (!name || needle.empty()) {
     return false;
@@ -99,13 +105,18 @@ bool NameContainsCI(const char* name, std::string_view needle) {
              }) != haystack.end();
 }
 
-// SDL_JoystickType numbering diverges from XINPUT_DEVSUBTYPE_* past value 6,
-// so it cannot simply be cast.
+/**
+ * Maps an SDL joystick type to an XINPUT_DEVSUBTYPE_* value. SDL_JoystickType numbering
+ * diverges from XINPUT_DEVSUBTYPE_* past value 6, so it cannot be cast.
+ *
+ * @param t     SDL joystick type.
+ * @param name  Device name, used to refine gamepad types.
+ * @return XINPUT_DEVSUBTYPE_* value.
+ */
 uint8_t SdlTypeToXInputSubType(SDL_JoystickType t, const char* name) {
   switch (t) {
     case SDL_JOYSTICK_TYPE_GAMEPAD:
-      // SDL's XInput backend bakes the SubType into the device name, e.g.
-      // "XInput Guitar #1".
+      // SDL's XInput backend puts the SubType in the device name, such as "XInput Guitar #1".
       if (NameContainsCI(name, "guitar")) {
         return XINPUT_DEVSUBTYPE_GUITAR;
       }
@@ -181,7 +192,6 @@ void SDL3Driver::OnHostAttached(IInputHost* host) {
       if (!attached_) {
         return;
       }
-      // Initialize SDL events subsystem
       if (!SDL_InitSubSystem(SDL_INIT_EVENTS)) {
         REXLOG_ERROR(hid, "SDL: Failed to init events subsystem: {}", SDL_GetError());
         return;
@@ -189,18 +199,15 @@ void SDL3Driver::OnHostAttached(IInputHost* host) {
       sdl_events_initialized_ = true;
       pending_events_.reserve(64);
 
-      // With an event watch we will always get notified, even if the event queue
-      // is full, which can happen if another subsystem does not clear its events.
+      // An event watch is notified even when the event queue is full.
       SDL_AddEventWatch(EventWatch, this);
 
-      // Initialize game controller subsystem
       if (!SDL_InitSubSystem(SDL_INIT_GAMEPAD)) {
         REXLOG_ERROR(hid, "SDL: Failed to init gamecontroller subsystem: {}", SDL_GetError());
         return;
       }
       SDL_Gamepad_initialized_ = true;
 
-      // Load custom controller mappings if available
       if (!mappings_file_.empty()) {
         auto mappings_path = mappings_file_.is_relative()
                                  ? rex::platform::GetExecutableFolder() / mappings_file_
@@ -251,9 +258,6 @@ bool SDL3Driver::EventWatch(void* userdata, SDL_Event* event) {
     return false;
   }
 
-  // If another part of rex uses another SDL subsystem that generates
-  // events, this may seem like a bad idea. They will however not
-  // subscribe to controller events so we get away with that.
   static_cast<SDL3Driver*>(userdata)->HandleEvent(*event);
   return false;
 }
@@ -317,8 +321,7 @@ X_RESULT SDL3Driver::ReadDeviceCapabilities(DeviceId id, X_INPUT_CAPABILITIES* o
     return X_ERROR_DEVICE_NOT_CONNECTED;
   }
 
-  // Unfortunately drivers can't present all information immediately (e.g.
-  // battery information) so this needs to be refreshed every time.
+  // Drivers cannot present all information immediately, such as battery, so refresh each call.
   UpdateXCapabilities(*controller);
 
   *out_caps = controller->caps;
@@ -342,9 +345,7 @@ X_RESULT SDL3Driver::ReadDeviceState(DeviceId id, X_INPUT_STATE* out_state) {
     return X_ERROR_DEVICE_NOT_CONNECTED;
   }
 
-  // Make sure packet_number is only incremented by 1, even if there have been
-  // multiple updates between GetState calls. Also track `is_active` to
-  // increment the packet number if it changed.
+  // packet_number increments by 1 per call however many updates arrived, and on is_active changes.
   if ((is_active != controller->is_active) || (is_active && controller->state_changed)) {
     controller->state.packet_number++;
     controller->is_active = is_active;
@@ -352,8 +353,7 @@ X_RESULT SDL3Driver::ReadDeviceState(DeviceId id, X_INPUT_STATE* out_state) {
   }
   *out_state = controller->state;
   if (!is_active) {
-    // Simulate an "untouched" controller. When we become active again the
-    // pressed buttons aren't lost and will be visible again.
+    // Report an untouched pad while inactive. Held buttons stay in state and reappear.
     out_state->gamepad = {};
   }
   return X_ERROR_SUCCESS;
@@ -371,9 +371,6 @@ X_RESULT SDL3Driver::WriteDeviceVibration(DeviceId id, X_INPUT_VIBRATION* vibrat
     return X_ERROR_DEVICE_NOT_CONNECTED;
   }
 
-  // XInput vibration holds until the guest changes it, but SDL rumble expires,
-  // and a zero duration expires on the next SDL_UpdateJoysticks. Arm it for
-  // SDL's maximum instead; each call cancels the previous effect anyway.
   return SDL_RumbleGamepad(controller->sdl, vibration->left_motor_speed,
                            vibration->right_motor_speed, kRumbleDurationMs)
              ? X_ERROR_SUCCESS
@@ -381,18 +378,13 @@ X_RESULT SDL3Driver::WriteDeviceVibration(DeviceId id, X_INPUT_VIBRATION* vibrat
 }
 
 X_RESULT SDL3Driver::ReadDeviceKeystroke(DeviceId id, X_INPUT_KEYSTROKE* out_keystroke) {
-  // TODO(JoelLinn): Figure out the flags
-  // https://github.com/evilC/UCR/blob/0489929e2a8e39caa3484c67f3993d3fba39e46f/Libraries/XInput.ahk#L85-L98
   assert(sdl_events_initialized_ && SDL_Gamepad_initialized_);
   if (!out_keystroke) {
     return X_ERROR_BAD_ARGUMENTS;
   }
 
-  // The order of this list is also the order in which events are send if
-  // multiple buttons change at once.
   static_assert(sizeof(X_INPUT_GAMEPAD::buttons) == 2);
   static constexpr std::array<VirtualKey, 34> kVkLookup = {
-      // 00 - True buttons from xinput button field
       VirtualKey::kXInputPadDpadUp,
       VirtualKey::kXInputPadDpadDown,
       VirtualKey::kXInputPadDpadLeft,
@@ -409,10 +401,8 @@ X_RESULT SDL3Driver::ReadDeviceKeystroke(DeviceId id, X_INPUT_KEYSTROKE* out_key
       VirtualKey::kXInputPadB,
       VirtualKey::kXInputPadX,
       VirtualKey::kXInputPadY,
-      // 16 - Fake buttons generated from analog inputs
       VirtualKey::kXInputPadLTrigger,
       VirtualKey::kXInputPadRTrigger,
-      // 18
       VirtualKey::kXInputPadLThumbUp,
       VirtualKey::kXInputPadLThumbDown,
       VirtualKey::kXInputPadLThumbRight,
@@ -421,7 +411,6 @@ X_RESULT SDL3Driver::ReadDeviceKeystroke(DeviceId id, X_INPUT_KEYSTROKE* out_key
       VirtualKey::kXInputPadLThumbUpRight,
       VirtualKey::kXInputPadLThumbDownRight,
       VirtualKey::kXInputPadLThumbDownLeft,
-      // 26
       VirtualKey::kXInputPadRThumbUp,
       VirtualKey::kXInputPadRThumbDown,
       VirtualKey::kXInputPadRThumbRight,
@@ -445,16 +434,13 @@ X_RESULT SDL3Driver::ReadDeviceKeystroke(DeviceId id, X_INPUT_KEYSTROKE* out_key
     return X_ERROR_DEVICE_NOT_CONNECTED;
   }
 
-  // If input is not active (e.g. due to a dialog overlay), force buttons to
-  // "unpressed". The algorithm will automatically send UP events when
-  // 'is_active()' goes low and DOWN events when it goes high again.
+  // Inactive input reads as unpressed, so UP events are sent and DOWN events return when active.
   const uint64_t curr_butts =
       is_active ? (static_cast<uint64_t>(static_cast<uint16_t>(controller->state.gamepad.buttons)) |
                    AnalogToKeyfield(controller->state.gamepad))
                 : static_cast<uint64_t>(0);
   KeystrokeState& last = controller->keystroke;
 
-  // Handle repeating
   auto guest_now = rex::Clock::QueryGuestUptimeMillis();
   static_assert(HID_SDL_REPEAT_DELAY >= HID_SDL_REPEAT_RATE);
   if (last.repeat_state == RepeatState::Waiting &&
@@ -480,9 +466,7 @@ X_RESULT SDL3Driver::ReadDeviceKeystroke(DeviceId id, X_INPUT_KEYSTROKE* out_key
     return X_ERROR_EMPTY;
   }
 
-  // First try to clear buttons with up events. This is to match xinput
-  // behavior when transitioning thumb sticks, e.g. so that THUMB_UPLEFT is
-  // up before THUMB_LEFT is down.
+  // Clear pass first, matching xinput order, so THUMB_UPLEFT is up before THUMB_LEFT is down.
   for (auto [clear_pass, pass] = std::tuple{true, 0}; pass < 2; clear_pass = false, pass++) {
     for (uint8_t i = 0; i < uint8_t(std::size(kVkLookup)); i++) {
       auto fbutton = static_cast<uint64_t>(1) << i;
@@ -501,14 +485,12 @@ X_RESULT SDL3Driver::ReadDeviceKeystroke(DeviceId id, X_INPUT_KEYSTROKE* out_key
 
       bool is_pressed = curr_butts & fbutton;
       if (clear_pass && !is_pressed) {
-        // up
         out_keystroke->flags = X_INPUT_KEYSTROKE_KEYUP;
         last.buttons &= ~fbutton;
         last.repeat_state = RepeatState::Idle;
         return X_ERROR_SUCCESS;
       }
       if (!clear_pass && is_pressed) {
-        // down
         out_keystroke->flags = X_INPUT_KEYSTROKE_KEYDOWN;
         last.buttons |= fbutton;
         last.repeat_state = RepeatState::Waiting;
@@ -522,21 +504,14 @@ X_RESULT SDL3Driver::ReadDeviceKeystroke(DeviceId id, X_INPUT_KEYSTROKE* out_key
 }
 
 void SDL3Driver::HandleEvent(const SDL_Event& event) {
-  // This callback will likely run on the thread that posts the event, which
-  // may be a dedicated thread SDL has created for the joystick subsystem.
-
-  // Event queue should never be (this) full
   assert(SDL_PeepEvents(nullptr, 0, SDL_PEEKEVENT, SDL_EVENT_FIRST, SDL_EVENT_LAST) < 0xFFFF);
 
-  // The queue could grow up to 3.5MB since it is never polled.
+  // SDL's queue is never polled and can grow to 3.5MB, so it is flushed every 64 events.
   if (++sdl_events_unflushed_ > 64) {
     SDL_FlushEvents(SDL_EVENT_JOYSTICK_AXIS_MOTION, SDL_EVENT_FINGER_DOWN - 1);
     sdl_events_unflushed_ = 0;
   }
 
-  // Buffer only - no controllers_mutex_ acquisition here.
-  // This breaks the lock ordering inversion between controllers_mutex_ and
-  // SDL's internal joystick lock that caused deadlocks.
   std::lock_guard<std::mutex> guard(event_queue_mutex_);
   pending_events_.push_back(event);
 }
@@ -578,8 +553,7 @@ void SDL3Driver::ProcessEventLocked(const SDL_Event& event) {
 }
 
 void SDL3Driver::OnJoystickDeviceAddedLocked(const SDL_Event& event) {
-  // Devices SDL cannot promote to a gamepad, such as some guitars and drum
-  // kits, never reach the gamepad event and would otherwise vanish silently.
+  // Devices SDL cannot promote to a gamepad never reach the gamepad event.
   const SDL_JoystickID id = event.jdevice.which;
   const char* name = SDL_GetJoystickNameForID(id);
   char guid_text[33] = {};
@@ -623,13 +597,12 @@ void SDL3Driver::OnControllerDeviceAddedLocked(const SDL_Event& event) {
                subtype, SDL_GetGamepadVendor(controller), SDL_GetGamepadProduct(controller),
                guid_text);
 
-  // SDL_GetGamepadPlayerIndex is deliberately ignored: on Windows it reports
-  // the XInput user index the OS assigned, which is unrelated to connection
-  // order and leaves non-XInput pads unnumbered.
+  // SDL_GetGamepadPlayerIndex is ignored, it is the OS XInput index and not the connection order.
   ControllerState state = {};
   state.sdl = controller;
   state.id = AllocateDeviceId();
-  state.state_changed = true;  // XInput starts with packet_number = 1
+  // XInput starts with packet_number = 1.
+  state.state_changed = true;
   UpdateXCapabilities(state);
   controllers_.push_back(state);
 
@@ -645,7 +618,6 @@ void SDL3Driver::OnControllerDeviceAddedLocked(const SDL_Event& event) {
 void SDL3Driver::OnControllerDeviceRemovedLocked(const SDL_Event& event) {
   auto idx = GetControllerIndexFromInstanceID(event.gdevice.which);
   if (!idx) {
-    // Expected when the pad was never opened, e.g. it had no gamepad mapping.
     REXLOG_WARN(hid, "SDL OnControllerDeviceRemoved: Ignored, instance_id({}) not in use.",
                 event.gdevice.which);
     return;
@@ -660,8 +632,7 @@ void SDL3Driver::OnControllerDeviceRemovedLocked(const SDL_Event& event) {
   SDL_CloseGamepad(removed);
   controllers_.erase(controllers_.begin() + static_cast<ptrdiff_t>(*idx));
 
-  // LEDs only. Title user assignment does not shift, because the hub holds
-  // each device's ordinal.
+  // LEDs only, title user assignment does not shift since the hub holds each ordinal.
   for (size_t i = 0; i < controllers_.size(); i++) {
     SDL_SetGamepadPlayerIndex(controllers_[i].sdl, static_cast<int>(i));
   }
@@ -671,7 +642,6 @@ void SDL3Driver::OnControllerDeviceRemovedLocked(const SDL_Event& event) {
 void SDL3Driver::OnControllerDeviceAxisMotionLocked(const SDL_Event& event) {
   auto idx = GetControllerIndexFromInstanceID(event.gaxis.which);
   if (!idx) {
-    // The pad can be removed between the event being posted and drained.
     return;
   }
   auto& pad = controllers_.at(*idx).state.gamepad;
@@ -702,11 +672,8 @@ void SDL3Driver::OnControllerDeviceAxisMotionLocked(const SDL_Event& event) {
 }
 
 void SDL3Driver::OnControllerDeviceButtonChangedLocked(const SDL_Event& event) {
-  // Define a lookup table to map between SDL and XInput button codes.
-  // These need to be in the order of the SDL_GamepadButton enum.
   static constexpr std::array<std::underlying_type<X_INPUT_GAMEPAD_BUTTON>::type, 21>
       xbutton_lookup = {
-          // Standard buttons:
           X_INPUT_GAMEPAD_A,
           X_INPUT_GAMEPAD_B,
           X_INPUT_GAMEPAD_X,
@@ -722,16 +689,11 @@ void SDL3Driver::OnControllerDeviceButtonChangedLocked(const SDL_Event& event) {
           X_INPUT_GAMEPAD_DPAD_DOWN,
           X_INPUT_GAMEPAD_DPAD_LEFT,
           X_INPUT_GAMEPAD_DPAD_RIGHT,
-          // There are additional buttons only available on some controllers.
-          // Assign sensible defaults
-          // Misc:
           X_INPUT_GAMEPAD_GUIDE,
-          // Elite paddles:
           X_INPUT_GAMEPAD_Y,
           X_INPUT_GAMEPAD_B,
           X_INPUT_GAMEPAD_X,
           X_INPUT_GAMEPAD_A,
-          // PS touchpad button
           X_INPUT_GAMEPAD_GUIDE,
       };
   static_assert(SDL_GAMEPAD_BUTTON_SOUTH == 0);
@@ -739,20 +701,16 @@ void SDL3Driver::OnControllerDeviceButtonChangedLocked(const SDL_Event& event) {
 
   auto idx = GetControllerIndexFromInstanceID(event.gbutton.which);
   if (!idx) {
-    // The pad can be removed between the event being posted and drained.
     return;
   }
   auto& controller = controllers_.at(*idx);
 
   uint16_t xbuttons = controller.state.gamepad.buttons;
-  // Lookup the XInput button code.
   if (event.gbutton.button >= xbutton_lookup.size()) {
-    // A newer SDL Version may have added new buttons.
     REXLOG_DEBUG(hid, "SDL HID: Unknown button was pressed: {}.", event.gbutton.button);
     return;
   }
   auto xbutton = xbutton_lookup.at(event.gbutton.button);
-  // Pressed or released?
   if (event.gbutton.down) {
     if (xbutton == X_INPUT_GAMEPAD_GUIDE && !REXCVAR_GET(cvars::guide_button)) {
       return;
@@ -766,7 +724,6 @@ void SDL3Driver::OnControllerDeviceButtonChangedLocked(const SDL_Event& event) {
 }
 
 std::optional<size_t> SDL3Driver::GetControllerIndexFromInstanceID(SDL_JoystickID instance_id) {
-  // Loop through our controllers and try to match the given ID.
   for (size_t i = 0; i < controllers_.size(); i++) {
     auto controller = controllers_.at(i).sdl;
     auto joystick = SDL_GetGamepadJoystick(controller);
@@ -806,18 +763,11 @@ void SDL3Driver::UpdateXCapabilities(ControllerState& state) {
   assert(state.sdl);
   uint16_t cap_flags = 0x0;
 
-  // The RAWINPUT driver combines and enhances input from different APIs. For
-  // details, see `SDL_rawinputjoystick.c`. This correlation however has latency
-  // which might confuse games calling `GetCapabilities()` (The power level is
-  // only available after the controller has been "touched"). Generally that
-  // should not be a problem, when in doubt disable the RAWINPUT driver via hint
-  // (env var).
-
   SDL_Joystick* joystick = SDL_GetGamepadJoystick(state.sdl);
   if (SDL_GetJoystickConnectionState(joystick) == SDL_JOYSTICK_CONNECTION_WIRELESS) {
     cap_flags |= X_INPUT_CAPS_WIRELESS;
   } else {
-    // Backends leaving the connection state UNKNOWN still report power.
+    // Backends leaving the connection state UNKNOWN report power.
     const SDL_PowerState power_state = SDL_GetJoystickPowerInfo(joystick, nullptr);
     if (power_state == SDL_POWERSTATE_ON_BATTERY || power_state == SDL_POWERSTATE_CHARGING ||
         power_state == SDL_POWERSTATE_CHARGED) {
@@ -825,7 +775,6 @@ void SDL3Driver::UpdateXCapabilities(ControllerState& state) {
     }
   }
 
-  // Check if all navigational buttons are present
   static constexpr std::array<SDL_GamepadButton, 6> nav_buttons = {
       SDL_GAMEPAD_BUTTON_START,     SDL_GAMEPAD_BUTTON_BACK,      SDL_GAMEPAD_BUTTON_DPAD_UP,
       SDL_GAMEPAD_BUTTON_DPAD_DOWN, SDL_GAMEPAD_BUTTON_DPAD_LEFT, SDL_GAMEPAD_BUTTON_DPAD_RIGHT,
@@ -872,8 +821,6 @@ void SDL3Driver::QueueControllerUpdate() {
   }
 }
 
-// Check if the analog inputs exceed their thresholds to become a button press
-// and build the bitfield.
 inline uint64_t SDL3Driver::AnalogToKeyfield(const X_INPUT_GAMEPAD& gamepad) const {
   uint64_t f = 0;
 

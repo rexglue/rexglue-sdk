@@ -24,19 +24,11 @@ using namespace rex::runtime;
 
 XgiApp::XgiApp(Runtime& runtime) : App(runtime, 0xFB) {}
 
-// http://mb.mirage.org/bugzilla/xliveless/main.c
-
 X_HRESULT XgiApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
                                       uint32_t buffer_length) {
-  // NOTE: buffer_length may be zero or valid.
   switch (message) {
     case 0x000B0006: {
       REX_ASSERT(!buffer_length || buffer_length == 24);
-      // dword r3 user index
-      // dword (unwritten?)
-      // qword 0
-      // dword r4 context enum
-      // dword r5 value
       struct {
         be_u32 user_index;
         u8 pad_04[12];
@@ -69,7 +61,6 @@ X_HRESULT XgiApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
       return X_E_SUCCESS;
     }
     case 0x000B0008: {
-      // Raw dump so we can confirm the actual buffer layout the game sends.
       struct {
         be_u32 count;
         be_u32 achievements_ptr;
@@ -85,8 +76,6 @@ X_HRESULT XgiApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
       uint32_t achievement_count = raw0;
       uint32_t achievements_ptr = raw4;
 
-      // Empirically confirmed from log: each entry is {u32 padding/user_index, u32 id, ...}.
-      // The achievement ID sits at offset 4, not 0. Stride 8 covers the observed fields.
       struct Entry {
         be_u32 user_index;
         be_u32 id;
@@ -121,11 +110,6 @@ X_HRESULT XgiApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
     }
     case 0x000B0010: {
       REX_ASSERT(!buffer_length || buffer_length == 28);
-      // Sequence:
-      // - XamSessionCreateHandle
-      // - XamSessionRefObjByHandle
-      // - [this]
-      // - CloseHandle
       struct {
         be_u32 session_ptr;
         be_u32 flags;
@@ -213,7 +197,6 @@ X_HRESULT XgiApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
       return X_STATUS_SUCCESS;
     }
     case 0x000B0015: {
-      // send high scores?
       REX_ASSERT(!buffer_length || buffer_length == 16);
 
 #pragma pack(push, 4)
@@ -286,7 +269,6 @@ X_HRESULT XgiApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
     case 0x000B001C: {
       REX_ASSERT(!buffer_length || buffer_length == 36);
 
-      // session_search
       struct {
         be_u32 proc_index;
         be_u32 user_index;
@@ -309,7 +291,6 @@ X_HRESULT XgiApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
       uint32_t ctx_ptr = args->ctx_ptr;
       uint32_t results_buffer_size = args->results_buffer_size;
       uint32_t search_results_ptr = args->search_results_ptr;
-      //
       uint32_t num_users = args->num_users;
 
       REXLOG_DEBUG(kernel, "XSessionSearchEx({}, {}, {}, {}, {}, {:08X}, {:08X}, {}, {:08X}, {})",
@@ -398,7 +379,7 @@ X_HRESULT XgiApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
       uint32_t obj_ptr = args->obj_ptr;
       uint32_t flags = args->flags;
       uint64_t session_nonce = args->session_nonce;
-      uint32_t session_duration_sec = args->session_duration_sec;  // 300
+      uint32_t session_duration_sec = args->session_duration_sec;
       uint32_t results_buffer_size = args->results_buffer_size;
       uint32_t results_ptr = args->results_ptr;
 
@@ -547,10 +528,7 @@ X_HRESULT XgiApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
       return X_E_SUCCESS;
     }
     case 0x000B0036: {
-      // Called after opening Live Arcade and clicking on Live v5759
-      // to 5787 and called after clicking Live in the game library from
-      // v6683 to v6717
-      // Does not get sent a buffer
+      // The message carries no buffer.
       REX_KERNEL_STUB("XInvalidateGamerTileCache");
       return X_E_FAIL;
     }
@@ -576,7 +554,6 @@ X_HRESULT XgiApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
     }
     case 0x000B0041: {
       REX_ASSERT(!buffer_length || buffer_length == 32);
-      // 00000000 2789fecc 00000000 00000000 200491e0 00000000 200491f0 20049340
       struct {
         be_u32 user_index;
         u8 pad_04[12];

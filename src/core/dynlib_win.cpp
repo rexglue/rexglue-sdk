@@ -32,7 +32,7 @@ DynamicLibrary& DynamicLibrary::operator=(DynamicLibrary&& other) noexcept {
 }
 
 bool DynamicLibrary::Load(const std::filesystem::path& path, SymbolResolution /*mode*/) {
-  // Windows resolves all imports at load time; mode is informational only.
+  // Windows resolves all imports at load time, so mode has no effect.
   Close();
   handle_ = static_cast<void*>(LoadLibraryW(path.c_str()));
   if (!handle_) {

@@ -1,10 +1,3 @@
-/**
- * @file        rexglue/commands/init_command.cpp
- *
- * @copyright   Copyright (c) 2026 Tom Clay
- * @license     BSD 3-Clause License
- */
-
 #include "init_command.h"
 #include "../ui/ui.h"
 #include "template_utils.h"
@@ -356,7 +349,6 @@ Result<void> InitAchievements(const InitAchievementsOptions& opts, const CLICont
     return Err<void>(ErrorCategory::IO, "Cannot create output directory: " + outDir.string());
   }
 
-  // Build VFS path: game:\ maps to the XEX's parent directory.
   fs::path gameRoot = xexPath.parent_path();
   fs::path entryRel = xexPath.filename();
   std::string entryRelStr = entryRel.string();
@@ -448,7 +440,6 @@ Result<void> InitAchievements(const InitAchievementsOptions& opts, const CLICont
 
   REXLOG_INFO(rexglue, "Wrote {} achievements to {}", achievements.size(), outPath.string());
 
-  // ---- Icons ---------------------------------------------------------------
   fs::path iconsDir = outDir / "icons";
   fs::create_directories(iconsDir, ec);
   if (ec) {
@@ -490,7 +481,6 @@ Result<void> InitAchievements(const InitAchievementsOptions& opts, const CLICont
       REXLOG_WARN(rexglue, "{} achievement(s) had no icon in XDBF", icons_missing);
     }
 
-    // Game title icon (not tied to any achievement).
     if (auto game_icon = db.icon(); game_icon && game_icon.size > 0) {
       fs::path game_icon_path = iconsDir / "title.png";
       std::ofstream f(game_icon_path, std::ios::binary);
@@ -571,7 +561,7 @@ void RegisterInit(CLI::App& parent, const CLIContext& ctx, DeferredAction& pendi
 
   init->callback([args, &ctx, &pending]() {
     if (pending)
-      return;  // a subcommand already claimed the action
+      return;
     pending = [args, &ctx]() -> Result<void> {
       InitOptions opts;
       opts.project_name = args->project_name;

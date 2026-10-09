@@ -1,5 +1,5 @@
 /**
- * @file        tests/unit/system/guest_path_test.cpp
+ * @file        tests/unit/runtime/guest_path_test.cpp
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

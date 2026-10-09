@@ -1,4 +1,3 @@
-#pragma once
 /**
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
@@ -9,6 +8,8 @@
  *
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
+
+#pragma once
 
 #include <memory>
 #include <mutex>
@@ -23,20 +24,24 @@ namespace rex::runtime {
 
 /** One completed request queued on an IO completion port. */
 struct IONotification {
-  u32 key_context;
-  u32 apc_context;
-  u32 status;
-  u32 num_bytes;
+  u32 key_context; /**< Completion key of the port registration the file was bound with. */
+  u32 apc_context; /**< APC context the title passed to the IO call. */
+  u32 status;      /**< X_STATUS result of the IO call. */
+  u32 num_bytes;   /**< Bytes the IO call transferred. */
 };
 
 /** The host state of an IO completion port. */
 struct IOCompletionObject {
+  /** Maximum count of the notification semaphore, so the queue holds at most this many entries. */
   static constexpr u32 kMaxNotifications = 1024;
 
+  /** Creates the port with an empty queue. */
   REX_RUNTIME_API IOCompletionObject();
 
-  std::mutex notification_lock;
+  std::mutex notification_lock; /**< Guards notifications. */
+  /** Completed requests in arrival order, 1 per release of notification_semaphore. */
   std::queue<IONotification> notifications;
+  /** Counts the queued notifications, waited on to receive the next one. */
   std::unique_ptr<rex::platform::Semaphore> notification_semaphore;
 };
 

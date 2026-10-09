@@ -56,8 +56,7 @@ ThreadRecord::ThreadRecord(Runtime& runtime, uint32_t stack_size, uint32_t xapi_
   creation_params_.start_address = start_address;
   creation_params_.start_context = start_context;
 
-  // top 8 bits = processor ID (or 0 for default)
-  // bit 0 = 1 to create suspended
+  // Bits 24..31 hold the processor ID (0 for default) and bit 0 creates suspended.
   creation_params_.creation_flags = creation_flags;
   creation_params_.guest_process = guest_process;
 }
@@ -229,8 +228,6 @@ void ThreadRecord::set_name(const std::string_view name) {
   crash_name_length_.store(static_cast<u8>(end - crash_name_.begin()), std::memory_order_release);
 
   if (thread_) {
-    // May be getting set before the thread is created.
-    // One the thread is ready it will handle it.
     thread_->set_name(thread_name_);
   }
 }
@@ -239,10 +236,10 @@ void ThreadRecord::InitializeGuestObject() {
   auto guest_thread = guest_object<X_KTHREAD>();
   uint32_t guest_ptr = guest_object();
 
-  guest_thread->header.type = 6;  // ThreadObject
+  // Dispatch header type 6 is a thread object.
+  guest_thread->header.type = 6;
   guest_thread->suspend_count = (creation_params_.creation_flags & X_CREATE_SUSPENDED) ? 1 : 0;
 
-  // Self-referencing pointers for wait timeout timer/block
   guest_thread->unk_10 = guest_ptr + 0x010;
   guest_thread->unk_14 = guest_ptr + 0x010;
 
@@ -259,7 +256,6 @@ void ThreadRecord::InitializeGuestObject() {
   guest_thread->tls_address = tls_dynamic_address_;
   guest_thread->thread_state = 0;
 
-  // Initialize APC lists (kernel + user mode)
   guest_thread->apc_lists[0].Initialize(memory());
   guest_thread->apc_lists[1].Initialize(memory());
 
@@ -267,15 +263,13 @@ void ThreadRecord::InitializeGuestObject() {
   guest_thread->process = process_ptr;
   guest_thread->may_queue_apcs = 1;
 
-  // Set PRCB pointers (derived from this thread's PCR).
   uint32_t kpcrb = pcr_address_ + offsetof(X_KPCR, prcb_data);
   guest_thread->a_prcb_ptr = kpcrb;
   guest_thread->another_prcb_ptr = kpcrb;
 
-  // PPCContext for spinlock helpers (valid before thread runs; r13 set at construction).
+  // The context is valid before the thread runs, r13 is set at construction.
   auto* ctx = thread_state_->context();
 
-  // Set per-thread process type and link into process thread list.
   if (process_ptr) {
     auto target_process = memory()->TranslateVirtual<X_KPROCESS*>(process_ptr);
     guest_thread->process_type = target_process->process_type;
@@ -297,14 +291,12 @@ void ThreadRecord::InitializeGuestObject() {
   guest_thread->stack_alloc_base = stack_base_;
   guest_thread->create_time = Clock::QueryGuestSystemTime();
 
-  // Initialize timer_list as self-referencing
   guest_thread->timer_list.flink_ptr = guest_ptr + offsetof(X_KTHREAD, timer_list);
   guest_thread->timer_list.blink_ptr = guest_ptr + offsetof(X_KTHREAD, timer_list);
 
   guest_thread->thread_id = thread_id_;
   guest_thread->start_address = creation_params_.start_address;
 
-  // Initialize unk_154 list as self-referencing
   guest_thread->unk_154.flink_ptr = guest_ptr + offsetof(X_KTHREAD, unk_154);
   guest_thread->unk_154.blink_ptr = guest_ptr + offsetof(X_KTHREAD, unk_154);
 
@@ -338,6 +330,14 @@ void ThreadRecord::FreeStack() {
   stack_limit_ = 0;
 }
 
+/**
+ * Allocates the stack, TLS and thread state block and creates the suspended host thread.
+ *
+ * The thread state block is the X_KPCR that r13 points at in user code, which inlined Win32
+ * calls such as GetLastError read.
+ *
+ * @return X_STATUS_SUCCESS, or an error status when allocation or thread creation fails.
+ */
 X_STATUS ThreadRecord::Create() {
   const u32 process_address = ProcessAddress();
   const auto* process =
@@ -370,28 +370,12 @@ X_STATUS ThreadRecord::Create() {
   }
   tls_slot_count_.store(slot_count, std::memory_order_release);
 
-  // Allocate thread state block from heap.
-  // https://web.archive.org/web/20170704035330/https://www.microsoft.com/msj/archive/S2CE.aspx
-  // This is set as r13 for user code and some special inlined Win32 calls
-  // (like GetLastError) will poke it directly.
-  // We try to use it as our primary store of data to keep things all
-  // consistent.
-  // 0x000: pointer to tls data
-  // 0x100: pointer to TEB(?)
-  // 0x10C: Current CPU(?)
-  // 0x150: if >0 then error states don't get set (DPC active bool?)
-  // TEB:
-  // 0x14C: thread id
-  // 0x160: last error
-  // So, at offset 0x100 we have a 4b pointer to offset 200, then have the
-  // structure.
   pcr_address_ = memory()->SystemHeapAlloc(0x2D8);
   if (!pcr_address_) {
     REXLOG_WARN(system, "Unable to allocate thread state block");
     return X_STATUS_NO_MEMORY;
   }
 
-  // Create thread state - needed for interrupt callbacks and kernel exports
   {
     std::lock_guard lock(stop_mutex_);
     thread_state_ = std::make_unique<runtime::ThreadState>(thread_id_, stack_base_, pcr_address_,
@@ -413,7 +397,6 @@ X_STATUS ThreadRecord::Create() {
     cpu_index = creator->active_cpu();
   }
 
-  // Initialize the KTHREAD object.
   InitializeGuestObject();
 
   X_KPCR* pcr = memory()->TranslateVirtual<X_KPCR*>(pcr_address_);
@@ -430,11 +413,11 @@ X_STATUS ThreadRecord::Create() {
 
   pcr->prcb_data.dpc_active = 0;
 
-  // Always retain when starting - the thread owns itself until exited.
+  // The thread owns itself until it exits.
   (void)runtime_->object_table().Retain(handle_);
 
   rex::platform::Thread::CreationParameters params;
-  params.stack_size = 16_MiB;  // Allocate a big host stack.
+  params.stack_size = 16_MiB;
   params.create_suspended = true;
   auto thread = rex::platform::Thread::Create(params, [this]() {
     if (abandoned_.load(std::memory_order_acquire)) {
@@ -443,16 +426,13 @@ X_STATUS ThreadRecord::Create() {
     rex::initialize_seh_thread();
     runtime::ThreadState::Bind(thread_state_.get());
 
-    // Set thread ID override. This is used by logging.
     rex::platform::set_current_thread_id(handle());
 
-    // Set name immediately, if we have one.
     thread_->set_name(thread_name_);
 
     REX_PROFILE_THREAD(thread_name_.c_str());
     REX_PERF_INC(kActiveThreads);
 
-    // Execute user code.
     current_thread_tls_ = this;
     running_ = true;
     int exit_code = 0;
@@ -473,11 +453,9 @@ X_STATUS ThreadRecord::Create() {
   }
 
   if (!thread_) {
-    // TODO(benvanik): translate error?
     REX_FAIL(system, X_STATUS_NO_MEMORY, "CreateThread failed");
   }
 
-  // Set the thread name based on host ID (for easier debugging).
   if (thread_name_.empty()) {
     set_name(std::format("XThread{:04X}", thread_->system_id()));
   }
@@ -486,8 +464,6 @@ X_STATUS ThreadRecord::Create() {
     thread_->set_priority(creation_params_.creation_flags & 0x20 ? 1 : 0);
   }
 
-  // Assign the newly created thread to the logical processor, and also set up
-  // the current CPU in KPCR and KTHREAD.
   SetActiveCPU(cpu_index);
 
   return X_STATUS_SUCCESS;
@@ -590,7 +566,6 @@ int ThreadRecord::Execute() {
     return host_fn_();
   }
 
-  // Dispatch any APCs that were queued before the thread was created first.
   DeliverAPCs();
   CallThreadNotifyRoutines(true);
 
@@ -599,15 +574,12 @@ int ThreadRecord::Execute() {
   bool want_exit_code;
   int exit_code = 0;
 
-  // If a XapiThreadStartup value is present, we use that as a trampoline.
-  // Otherwise, we are a raw thread.
   if (creation_params_.xapi_thread_startup) {
     address = creation_params_.xapi_thread_startup;
     args.push_back(creation_params_.start_address);
     args.push_back(creation_params_.start_context);
     want_exit_code = false;
   } else {
-    // Run user code.
     address = creation_params_.start_address;
     args.push_back(creation_params_.start_context);
     want_exit_code = true;
@@ -630,7 +602,6 @@ int ThreadRecord::Execute() {
   auto* ctx = thread_state_->context();
   uint8_t* base = memory->virtual_membase();
 
-  // Pass arguments in r3, r4, ... per PPC calling convention
   if (!args.empty())
     ctx->r3.u64 = args[0];
   if (args.size() > 1)
@@ -648,19 +619,14 @@ int ThreadRecord::Execute() {
   if (args.size() > 7)
     ctx->r10.u64 = args[7];
 
-  // Convert this host thread to a fiber so SwitchTo works bidirectionally.
-  // Required on Windows before any CreateFiber; provides the fallback handle
-  // when another fiber switches back to the main execution context.
+  // Windows requires the thread to be a fiber before CreateFiber.
   main_fiber_ = rex::platform::Fiber::ConvertCurrentThread();
 
-  // Execute the function
   REXLOG_DEV(system, "ThreadRecord::Execute - Calling function at {:08X}", address);
   func(*ctx, base);
 
   exit_code = static_cast<int>(ctx->r3.u32);
 
-  // If we got here it means the execute completed without an exit being called.
-  // Treat the return code as an implicit exit code (if desired).
   return want_exit_code ? exit_code : 0;
 }
 
@@ -672,8 +638,7 @@ void ThreadRecord::LeaveCriticalRegion() {
   auto kthread = guest_object<X_KTHREAD>();
   auto apc_disable_count = ++kthread->apc_disable_count;
   if (apc_disable_count == 0) {
-    // NOTE: intentionally not calling CheckApcs() here.
-    // Delivering APCs here can cause them to fire in wrong contexts.
+    // APCs are not delivered here because they could fire in the wrong context.
   }
 }
 
@@ -690,8 +655,7 @@ void ThreadRecord::EnqueueAPC(uint32_t normal_routine, uint32_t normal_context, 
                                     XAPC::kDummyRundownRoutine, normal_routine,
                                     1 /* user apc mode */, normal_context);
 
-  // Important: use the caller PPC context when queuing to another thread.
-  // Using the target thread context here can corrupt APC lock/IRQL bookkeeping.
+  // Queue with the caller context, the target thread context would corrupt APC lock and IRQL state.
   PPCContext* queue_ctx = runtime::ThreadState::Get() ? runtime::ThreadState::Get()->context()
                                                       : thread_state_->context();
 
@@ -703,8 +667,7 @@ void ThreadRecord::EnqueueAPC(uint32_t normal_routine, uint32_t normal_context, 
                  thread_id_, normal_routine, normal_context, arg1, arg2);
     return;
   }
-  // Match Edge/Canary behavior: callback is only a wakeup hint.
-  // APCs are delivered via alertable wait handling.
+  // The user callback is only a wakeup hint, APCs are delivered by alertable waits.
   thread_->QueueUserCallback([]() {});
 }
 
@@ -798,7 +761,6 @@ void ThreadRecord::RundownAPCs() {
   auto kthread = guest_object<X_KTHREAD>();
   auto* ctx = thread_state_->context();
 
-  // Rundown both user (1) and kernel (0) APC lists.
   for (int mode = 1; mode >= 0; --mode) {
     auto old_irql = kernel::xboxkrnl::KeKfAcquireSpinLock(*memory(), ctx, &kthread->apc_lock);
     auto& apc_queue = kthread->apc_lists[mode];
@@ -814,7 +776,6 @@ void ThreadRecord::RundownAPCs() {
       kernel::xboxkrnl::KeKfReleaseSpinLock(*memory(), ctx, &kthread->apc_lock, old_irql);
 
       if (apc->rundown_routine == XAPC::kDummyRundownRoutine) {
-        // No-op.
       } else if (apc->rundown_routine) {
         auto* dispatcher = runtime_->function_dispatcher();
         if (dispatcher->GetFunction(apc->rundown_routine)) {
@@ -854,7 +815,6 @@ int32_t ThreadRecord::QueryPriority() {
 void ThreadRecord::SetPriority(int32_t increment) {
   priority_ = increment;
 
-  // Write priority to guest X_KTHREAD struct.
   auto kthread = guest_object<X_KTHREAD>();
   kthread->priority = static_cast<uint8_t>(std::clamp(increment, 0, 31));
 
@@ -883,9 +843,7 @@ void ThreadRecord::SetAffinity(uint32_t affinity) {
 }
 
 uint8_t ThreadRecord::active_cpu() const {
-  // Prefer reading from guest KTHREAD (always available for guest threads,
-  // kept in sync by SetActiveCPU). Avoids dependency on pcr_address_ which
-  // may not be set yet if the thread is mid-creation.
+  // Read the guest KTHREAD, SetActiveCPU keeps it in sync and pcr_address_ may be unset.
   if (is_guest_thread()) {
     auto* kthread = memory()->TranslateVirtual<const X_KTHREAD*>(guest_object());
     return kthread->current_cpu;
@@ -898,17 +856,15 @@ uint8_t ThreadRecord::active_cpu() const {
 }
 
 void ThreadRecord::SetActiveCPU(uint8_t cpu_index) {
-  // May be called during thread creation - don't skip if current == new.
+  // Called during thread creation, so it must not skip when the CPU is unchanged.
 
   REX_ASSERT(cpu_index < 6);
 
-  // Write to guest KTHREAD (always available for guest threads).
   if (is_guest_thread()) {
     X_KTHREAD& thread_object = *memory()->TranslateVirtual<X_KTHREAD*>(guest_object());
     thread_object.current_cpu = cpu_index;
   }
 
-  // Write to PCR if allocated (may not be during early creation).
   if (pcr_address_) {
     X_KPCR& pcr = *memory()->TranslateVirtual<X_KPCR*>(pcr_address_);
     pcr.prcb_data.current_cpu = cpu_index;

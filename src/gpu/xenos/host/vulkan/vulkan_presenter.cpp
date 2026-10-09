@@ -43,7 +43,6 @@ namespace rex {
 namespace gpu {
 namespace vulkan {
 
-// Generated with `xb buildshaders`.
 namespace shaders {
 #include "../shaders/vulkan_spirv/guest_output_bilinear_dither_ps.h"
 #include "../shaders/vulkan_spirv/guest_output_bilinear_ps.h"
@@ -115,21 +114,8 @@ bool VulkanPresenter::PaintContext::Submission::Initialize() {
 }
 
 VulkanPresenter::~VulkanPresenter() {
-  // Destroy the swapchain after its images are not used for drawing anymore.
-  // This is a confusing part in Vulkan, as vkQueuePresentKHR doesn't signal a
-  // fence clearly indicating when it's safe to destroy a swapchain, so we
-  // assume that its lifetime is tracked internally in the WSI. This is also
-  // done before destroying the semaphore awaited by vkQueuePresentKHR, hoping
-  // that it will prevent the destruction during the semaphore wait in
-  // vkQueuePresentKHR execution (or between the vkQueueSubmit semaphore signal
-  // and the vkQueuePresentKHR semaphore wait).
-  // This will await completion of all paint submissions also.
   paint_context_.DestroySwapchainAndVulkanSurface();
 
-  // Await completion of the usage of everything before destroying anything
-  // (paint submission completion already awaited).
-  // From most likely the latest to most likely the earliest to be signaled, so
-  // only one sleep will likely be needed.
   ui_submission_tracker_.Shutdown();
   guest_output_image_refresher_submission_tracker_.Shutdown();
 
@@ -214,7 +200,6 @@ VkCommandBuffer VulkanPresenter::AcquireUISetupCommandBufferFromUIThread() {
   command_buffer_begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
   command_buffer_begin_info.pInheritanceInfo = nullptr;
 
-  // Try to reuse an existing command buffer.
   if (!paint_context_.ui_setup_command_buffers.empty()) {
     uint64_t submission_index_completed = ui_submission_tracker_.UpdateAndGetCompletedSubmission();
     for (size_t i = 0; i < paint_context_.ui_setup_command_buffers.size(); ++i) {
@@ -239,7 +224,6 @@ VkCommandBuffer VulkanPresenter::AcquireUISetupCommandBufferFromUIThread() {
     }
   }
 
-  // Create a new command buffer.
   VkCommandPoolCreateInfo command_pool_create_info;
   command_pool_create_info.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
   command_pool_create_info.pNext = nullptr;
@@ -287,14 +271,6 @@ VulkanPresenter::ConnectOrReconnectPaintingToSurfaceFromUIThread(
 
   VkFormat new_swapchain_format;
 
-  // ConnectOrReconnectToSurfaceFromUIThread may be called only for the
-  // gpu::Surface of the current swapchain or when the old swapchain and
-  // VkSurface have, if the gpu::Surface is the same, try using the existing
-  // VkSurface and creating the swapchain smoothly from the existing one - if
-  // this doesn't succeed, start from scratch.
-  // The retirement or destruction of the swapchain here will also cause
-  // awaiting completion of the usage of the swapchain and the surface on the
-  // GPU.
   if (paint_context_.vulkan_surface != VK_NULL_HANDLE) {
     VkSwapchainKHR old_swapchain = paint_context_.PrepareForSwapchainRetirement();
     bool surface_unusable;
@@ -302,24 +278,17 @@ VulkanPresenter::ConnectOrReconnectPaintingToSurfaceFromUIThread(
         vulkan_device_, paint_context_.vulkan_surface, new_surface_width, new_surface_height,
         old_swapchain, paint_context_.present_queue_family, new_swapchain_format,
         paint_context_.swapchain_extent, paint_context_.swapchain_is_fifo, surface_unusable);
-    // Destroy the old swapchain that may be retired now.
     if (old_swapchain != VK_NULL_HANDLE) {
       dfn.vkDestroySwapchainKHR(device, old_swapchain, nullptr);
     }
     if (paint_context_.swapchain == VK_NULL_HANDLE) {
-      // Couldn't create the swapchain for the existing surface - start over.
       paint_context_.DestroySwapchainAndVulkanSurface();
     }
   }
 
-  // If failed to create the swapchain for the previous surface, recreate the
-  // surface and create the new swapchain.
   if (paint_context_.swapchain == VK_NULL_HANDLE) {
-    // DestroySwapchainAndVulkanSurface should have been called previously.
     REX_ASSERT(paint_context_.vulkan_surface == VK_NULL_HANDLE);
     gpu::Surface::TypeIndex surface_type = new_surface.GetType();
-    // Check if the surface type is supported according to the Vulkan
-    // extensions.
     if (!(GetSupportedSurfaceTypes() & (gpu::Surface::TypeFlags(1) << surface_type))) {
       REX_FAIL(ui, SurfacePaintConnectResult::kFailureSurfaceUnusable,
                "VulkanPresenter: Tried to create a Vulkan surface for an "
@@ -392,21 +361,14 @@ VulkanPresenter::ConnectOrReconnectPaintingToSurfaceFromUIThread(
         VK_NULL_HANDLE, paint_context_.present_queue_family, new_swapchain_format,
         paint_context_.swapchain_extent, paint_context_.swapchain_is_fifo, surface_unusable);
     if (paint_context_.swapchain == VK_NULL_HANDLE) {
-      // Failed to create the swapchain for the new Vulkan surface - destroy the
-      // Vulkan surface.
       ifn.vkDestroySurfaceKHR(instance, paint_context_.vulkan_surface, nullptr);
       paint_context_.vulkan_surface = VK_NULL_HANDLE;
       return surface_unusable ? SurfacePaintConnectResult::kFailureSurfaceUnusable
                               : SurfacePaintConnectResult::kFailure;
     }
-    // Successfully attached.
   }
 
-  // From now on, in case of failure,
-  // paint_context_.DestroySwapchainAndVulkanSurface must be called before
-  // returning.
-
-  // Update the render pass to the new format.
+  // On failure from here, call paint_context_.DestroySwapchainAndVulkanSurface before returning.
   if (paint_context_.swapchain_render_pass_format != new_swapchain_format) {
     util::DestroyAndNullHandle(dfn.vkDestroyRenderPass, device,
                                paint_context_.swapchain_render_pass);
@@ -439,8 +401,7 @@ VulkanPresenter::ConnectOrReconnectPaintingToSurfaceFromUIThread(
     render_pass_dependencies[0].srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
     render_pass_dependencies[0].dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
     render_pass_dependencies[0].srcAccessMask = VK_ACCESS_MEMORY_READ_BIT;
-    // The main target can be used for UI drawing at any moment, which requires
-    // blending, so VK_ACCESS_COLOR_ATTACHMENT_READ_BIT is also included.
+    // UI drawing may blend at any moment, so the color attachment read access is included.
     render_pass_dependencies[0].dstAccessMask =
         VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
     render_pass_dependencies[0].dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
@@ -479,7 +440,6 @@ VulkanPresenter::ConnectOrReconnectPaintingToSurfaceFromUIThread(
         render_pass_attachment.loadOp == VK_ATTACHMENT_LOAD_OP_CLEAR;
   }
 
-  // Get the swapchain images.
   paint_context_.swapchain_images.clear();
   VkResult swapchain_images_get_result;
   for (;;) {
@@ -488,8 +448,7 @@ VulkanPresenter::ConnectOrReconnectPaintingToSurfaceFromUIThread(
     swapchain_images_get_result = dfn.vkGetSwapchainImagesKHR(
         device, paint_context_.swapchain, &swapchain_image_count,
         swapchain_images_were_empty ? nullptr : paint_context_.swapchain_images.data());
-    // If the original swapchain image count was 0 (first call), SUCCESS is
-    // returned, not INCOMPLETE.
+    // The first call with a count of 0 returns SUCCESS, not INCOMPLETE.
     if (swapchain_images_get_result == VK_SUCCESS || swapchain_images_get_result == VK_INCOMPLETE) {
       paint_context_.swapchain_images.resize(swapchain_image_count);
       if (swapchain_images_get_result == VK_SUCCESS &&
@@ -506,7 +465,6 @@ VulkanPresenter::ConnectOrReconnectPaintingToSurfaceFromUIThread(
     return SurfacePaintConnectResult::kFailure;
   }
 
-  // Create the image views and the framebuffers.
   REX_ASSERT(paint_context_.swapchain_framebuffers.empty());
   paint_context_.swapchain_framebuffers.reserve(paint_context_.swapchain_images.size());
   VkImageViewCreateInfo image_view_create_info;
@@ -571,8 +529,7 @@ bool VulkanPresenter::RefreshGuestOutputImpl(
   VkExtent2D max_framebuffer_extent = util::GetMax2DFramebufferExtent(vulkan_device_->properties());
   if (frontbuffer_width > max_framebuffer_extent.width ||
       frontbuffer_height > max_framebuffer_extent.height) {
-    // Writing the guest output isn't supposed to rescale, and a guest texture
-    // exceeding the maximum size won't be loadable anyway.
+    // Guest output writes do not rescale, and a guest texture above the maximum cannot load.
     return false;
   }
 
@@ -599,17 +556,10 @@ bool VulkanPresenter::RefreshGuestOutputImpl(
   if (refresher_succeeded) {
     image_instance.ever_successfully_refreshed = true;
   }
-  // Even if the refresher has returned false, it still might have submitted
-  // some commands referencing the image. It's better to put an excessive
-  // signal and wait slightly longer, for nothing important, while shutting down
-  // than to destroy the image while it's still in use.
+  // Even on failure the refresher may have submitted commands using the image, so signal anyway.
   image_instance.last_refresher_submission =
       guest_output_image_refresher_submission_tracker_.GetCurrentSubmission();
-  // No need to make the refresher signal the fence by itself - signal it here
-  // instead to have more control:
-  // "Fence signal operations that are defined by vkQueueSubmit additionally
-  //  include in the first synchronization scope all commands that occur earlier
-  //  in submission order."
+  // The fence is signaled here, as a vkQueueSubmit fence signal covers all earlier commands.
   const VulkanDevice::Functions& dfn = vulkan_device_->functions();
   {
     VulkanSubmissionTracker::FenceAcquisition fence_acqusition(
@@ -636,27 +586,13 @@ VkSwapchainKHR VulkanPresenter::PaintContext::CreateSwapchainForVulkanSurface(
   const VulkanDevice::Functions& dfn = vulkan_device->functions();
   const VkDevice device = vulkan_device->device();
 
-  // Get surface capabilities.
   VkSurfaceCapabilitiesKHR surface_capabilities;
   if (ifn.vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physical_device, surface,
                                                     &surface_capabilities) != VK_SUCCESS) {
     REXLOG_ERROR(ui, "VulkanPresenter: Failed to get Vulkan surface capabilities");
-    // Some strange error, try again later.
     return VK_NULL_HANDLE;
   }
 
-  // First, check if the surface is not zero-area because in this case, the rest
-  // of the fields in theory may not be informative as the surface doesn't need
-  // to go to presentation anyway, thus there's no need to return real
-  // information, and ui_surface_unusable_out (from which it may not be possible
-  // to recover on some platforms at all) may be set to true spuriously if
-  // any checks set it to true. VkSurfaceKHR may have zero-area bounds in some
-  // window state cases on Windows, for example. Also clamp the requested size
-  // to the maximum supported by the physical device as long as minImageExtent
-  // in the instance's WSI allows that (if not, there's no way to satisfy both
-  // requirements - the maximum 2D framebuffer size on the specific physical
-  // device, and the minimum swap chain size on the whole instance - fail to
-  // create until the surface becomes smaller).
   VkExtent2D max_framebuffer_extent = util::GetMax2DFramebufferExtent(vulkan_device->properties());
   VkExtent2D image_extent;
   image_extent.width = std::min(std::max(std::min(width, max_framebuffer_extent.width),
@@ -671,12 +607,10 @@ VkSwapchainKHR VulkanPresenter::PaintContext::CreateSwapchainForVulkanSurface(
     return VK_NULL_HANDLE;
   }
 
-  // Get the queue family for presentation.
   uint32_t queue_family_index_present = UINT32_MAX;
   const std::vector<VulkanDevice::QueueFamily>& queue_families = vulkan_device->queue_families();
   VkBool32 queue_family_present_supported;
-  // First try the graphics and compute queue, prefer it to avoid the concurrent
-  // image sharing mode.
+  // Prefer the graphics and compute queue family to avoid the concurrent sharing mode.
   uint32_t queue_family_index_graphics_compute = vulkan_device->queue_family_graphics_compute();
   const VulkanDevice::QueueFamily& queue_family_graphics_compute =
       queue_families[queue_family_index_graphics_compute];
@@ -700,12 +634,10 @@ VkSwapchainKHR VulkanPresenter::PaintContext::CreateSwapchainForVulkanSurface(
     }
   }
   if (queue_family_index_present == UINT32_MAX) {
-    // Not unusable though - may become presentable if the window (with the same
-    // surface) moved to a different display, for instance.
+    // Not unusable, as it may become presentable after moving to a different display.
     return VK_NULL_HANDLE;
   }
 
-  // TODO(Triang3l): Support transforms.
   if (!(surface_capabilities.supportedTransforms &
         (VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR | VK_SURFACE_TRANSFORM_INHERIT_BIT_KHR))) {
     REX_FAIL(ui, VK_NULL_HANDLE,
@@ -713,7 +645,6 @@ VkSwapchainKHR VulkanPresenter::PaintContext::CreateSwapchainForVulkanSurface(
              "window-system-controlled transform");
   }
 
-  // Get the surface format.
   std::vector<VkSurfaceFormatKHR> surface_formats;
   VkResult surface_formats_get_result;
   for (;;) {
@@ -722,8 +653,7 @@ VkSwapchainKHR VulkanPresenter::PaintContext::CreateSwapchainForVulkanSurface(
     surface_formats_get_result = ifn.vkGetPhysicalDeviceSurfaceFormatsKHR(
         physical_device, surface, &surface_format_count,
         surface_formats_were_empty ? nullptr : surface_formats.data());
-    // If the original presentation mode count was 0 (first call), SUCCESS is
-    // returned, not INCOMPLETE.
+    // The first call with a count of 0 returns SUCCESS, not INCOMPLETE.
     if (surface_formats_get_result == VK_SUCCESS || surface_formats_get_result == VK_INCOMPLETE) {
       surface_formats.resize(surface_format_count);
       if (surface_formats_get_result == VK_SUCCESS &&
@@ -735,8 +665,6 @@ VkSwapchainKHR VulkanPresenter::PaintContext::CreateSwapchainForVulkanSurface(
     }
   }
   if (surface_formats_get_result != VK_SUCCESS) {
-    // Assuming any format in case of an error (or as some fallback in case of
-    // specification violation).
     surface_formats.clear();
   }
   // GNU/Linux X11 and Windows DWM use B8G8R8A8.
@@ -745,13 +673,11 @@ VkSwapchainKHR VulkanPresenter::PaintContext::CreateSwapchainForVulkanSurface(
   VkSurfaceFormatKHR image_format;
   if (surface_formats.empty() ||
       (surface_formats.size() == 1 || surface_formats[0].format == VK_FORMAT_UNDEFINED)) {
-    // Can choose any format if the implementation specifies only UNDEFINED.
+    // Any format may be chosen when the implementation reports only UNDEFINED.
     image_format.format = kFormat8888Primary;
     image_format.colorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
   } else {
-    // Pick the sRGB 8888 format preferred by the OS, fall back to any sRGB
-    // 8888, then to 8888 with an unknown color space, and then to the first
-    // sRGB available, and then to the first.
+    // Preference order is OS preferred sRGB 8888, any sRGB 8888, any 8888, any sRGB, the first.
     auto format_8888_primary_it = surface_formats.cend();
     auto format_8888_secondary_it = surface_formats.cend();
     auto any_non_8888_srgb_it = surface_formats.cend();
@@ -766,12 +692,9 @@ VkSwapchainKHR VulkanPresenter::PaintContext::CreateSwapchainForVulkanSurface(
       auto& preferred_8888_it =
           it->format == kFormat8888Primary ? format_8888_primary_it : format_8888_secondary_it;
       if (preferred_8888_it == surface_formats.cend()) {
-        // First primary or secondary 8888 encounter.
         preferred_8888_it = it;
         continue;
       }
-      // Is this a better primary or secondary 8888, that is, this is sRGB,
-      // while the previous encounter was not?
       if (it->colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR &&
           preferred_8888_it->colorSpace != VK_COLOR_SPACE_SRGB_NONLINEAR_KHR) {
         preferred_8888_it = it;
@@ -779,8 +702,6 @@ VkSwapchainKHR VulkanPresenter::PaintContext::CreateSwapchainForVulkanSurface(
     }
     if (format_8888_primary_it != surface_formats.cend() &&
         format_8888_secondary_it != surface_formats.cend()) {
-      // Both the primary and the secondary 8888 formats are available - prefer
-      // sRGB, if both are sRGB or not, prefer the primary format.
       if (format_8888_primary_it->colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR ||
           format_8888_secondary_it->colorSpace != VK_COLOR_SPACE_SRGB_NONLINEAR_KHR) {
         image_format = *format_8888_primary_it;
@@ -788,21 +709,16 @@ VkSwapchainKHR VulkanPresenter::PaintContext::CreateSwapchainForVulkanSurface(
         image_format = *format_8888_secondary_it;
       }
     } else if (format_8888_primary_it != surface_formats.cend()) {
-      // Only primary 8888.
       image_format = *format_8888_primary_it;
     } else if (format_8888_secondary_it != surface_formats.cend()) {
-      // Only secondary 8888.
       image_format = *format_8888_secondary_it;
     } else if (any_non_8888_srgb_it != surface_formats.cend()) {
-      // No 8888, but some sRGB format is available.
       image_format = *any_non_8888_srgb_it;
     } else {
-      // Pick any format.
       image_format = surface_formats.front();
     }
   }
 
-  // Get presentation modes.
   std::vector<VkPresentModeKHR> present_modes;
   VkResult present_modes_get_result;
   for (;;) {
@@ -811,8 +727,7 @@ VkSwapchainKHR VulkanPresenter::PaintContext::CreateSwapchainForVulkanSurface(
     present_modes_get_result = ifn.vkGetPhysicalDeviceSurfacePresentModesKHR(
         physical_device, surface, &present_mode_count,
         present_modes_were_empty ? nullptr : present_modes.data());
-    // If the original presentation mode count was 0 (first call), SUCCESS is
-    // returned, not INCOMPLETE.
+    // The first call with a count of 0 returns SUCCESS, not INCOMPLETE.
     if (present_modes_get_result == VK_SUCCESS || present_modes_get_result == VK_INCOMPLETE) {
       present_modes.resize(present_mode_count);
       if (present_modes_get_result == VK_SUCCESS &&
@@ -824,11 +739,10 @@ VkSwapchainKHR VulkanPresenter::PaintContext::CreateSwapchainForVulkanSurface(
     }
   }
   if (present_modes_get_result != VK_SUCCESS) {
-    // Assuming FIFO only (required everywhere) in case of an error.
+    // FIFO is required everywhere, so assume it alone on error.
     present_modes.clear();
   }
 
-  // Create the swapchain.
   VkSwapchainCreateInfoKHR swapchain_create_info;
   swapchain_create_info.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
   swapchain_create_info.pNext = nullptr;
@@ -847,13 +761,6 @@ VkSwapchainKHR VulkanPresenter::PaintContext::CreateSwapchainForVulkanSurface(
   swapchain_create_info.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
   uint32_t swapchain_queue_family_indices[2];
   if (queue_family_index_graphics_compute != queue_family_index_present) {
-    // Using concurrent sharing mode to avoid an explicit ownership transfer
-    // before presenting, which would require an additional command buffer
-    // submission with the acquire barrier and a semaphore between the graphics
-    // queue and the present queue. Different queues are an extremely rare case,
-    // and Xenia only uses the swapchain for the final guest output and the
-    // internal UI, so keeping framebuffer compression is not worth the
-    // additional submission complexity and possibly latency.
     swapchain_queue_family_indices[0] = queue_family_index_graphics_compute;
     swapchain_queue_family_indices[1] = queue_family_index_present;
     swapchain_create_info.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
@@ -868,9 +775,7 @@ VkSwapchainKHR VulkanPresenter::PaintContext::CreateSwapchainForVulkanSurface(
       (surface_capabilities.supportedTransforms & VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR)
           ? VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR
           : VK_SURFACE_TRANSFORM_INHERIT_BIT_KHR;
-  // Prefer opaque to avoid blending in the window system, or let that be
-  // specified via the window system if it can't be forced. As a last resort,
-  // pick any - guest output will write alpha of 1 anyway.
+  // Prefer opaque, else inherit from the window system, else any as guest output writes alpha 1.
   if (surface_capabilities.supportedCompositeAlpha & VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR) {
     swapchain_create_info.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
   } else if (surface_capabilities.supportedCompositeAlpha & VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR) {
@@ -879,7 +784,6 @@ VkSwapchainKHR VulkanPresenter::PaintContext::CreateSwapchainForVulkanSurface(
     uint32_t composite_alpha_shift;
     if (!rex::bit_scan_forward(static_cast<uint32_t>(surface_capabilities.supportedCompositeAlpha),
                                &composite_alpha_shift)) {
-      // Against the Vulkan specification, but breaks the logic here.
       REX_FAIL(ui, VK_NULL_HANDLE,
                "VulkanPresenter: The surface doesn't support any composite alpha "
                "mode");
@@ -887,31 +791,20 @@ VkSwapchainKHR VulkanPresenter::PaintContext::CreateSwapchainForVulkanSurface(
     swapchain_create_info.compositeAlpha =
         VkCompositeAlphaFlagBitsKHR(static_cast<uint32_t>(1) << composite_alpha_shift);
   }
-  // As presentation is usually controlled by the GPU command processor, it's
-  // better to use modes that allow as quick acquisition as possible to avoid
-  // interfering with GPU command processing, and also to allow tearing so
-  // variable refresh rate may be used where it's available.
-  // Note: If the priorities here are changes, update the cvar descriptions.
+  // Update the cvar descriptions when these priorities change.
   if (REXCVAR_GET(::rex::gpu::cvars::allow_present_mode_immediate) &&
       std::find(present_modes.cbegin(), present_modes.cend(), VK_PRESENT_MODE_IMMEDIATE_KHR) !=
           present_modes.cend()) {
-    // Allowing tearing to reduce latency, and possibly variable refresh rate
-    // (though on Windows with borderless fullscreen, GDI copying is used
-    // instead of independent flip, so it's not supported there).
     swapchain_create_info.presentMode = VK_PRESENT_MODE_IMMEDIATE_KHR;
   } else if (REXCVAR_GET(::rex::gpu::cvars::allow_present_mode_mailbox) &&
              std::find(present_modes.cbegin(), present_modes.cend(), VK_PRESENT_MODE_MAILBOX_KHR) !=
                  present_modes.cend()) {
-    // Allowing dropping frames to reduce latency, but no tearing.
     swapchain_create_info.presentMode = VK_PRESENT_MODE_MAILBOX_KHR;
   } else if (REXCVAR_GET(::rex::gpu::cvars::allow_present_mode_fifo_relaxed) &&
              std::find(present_modes.cbegin(), present_modes.cend(),
                        VK_PRESENT_MODE_FIFO_RELAXED_KHR) != present_modes.cend()) {
-    // Limiting the frame rate, but lets too long frames cause tearing not to
-    // make the latency even worse.
     swapchain_create_info.presentMode = VK_PRESENT_MODE_FIFO_RELAXED_KHR;
   } else {
-    // Highest latency (but always guaranteed to be available).
     swapchain_create_info.presentMode = VK_PRESENT_MODE_FIFO_KHR;
   }
   swapchain_create_info.clipped = VK_TRUE;
@@ -950,7 +843,6 @@ VkSwapchainKHR VulkanPresenter::PaintContext::PrepareForSwapchainRetirement() {
   swapchain_images.clear();
   swapchain_extent.width = 0;
   swapchain_extent.height = 0;
-  // The old swapchain must be destroyed externally.
   VkSwapchainKHR old_swapchain = swapchain;
   swapchain = nullptr;
   return old_swapchain;
@@ -1038,8 +930,6 @@ bool VulkanPresenter::GuestOutputImage::Initialize() {
 }
 
 Presenter::PaintResult VulkanPresenter::PaintAndPresentImpl(bool execute_ui_drawers) {
-  // Begin the submission in place of the one not potentially used on
-  // the GPU.
   uint64_t current_paint_submission_index =
       paint_context_.submission_tracker.GetCurrentSubmission();
   uint64_t paint_submission_count = static_cast<uint64_t>(paint_context_.submissions.size());
@@ -1071,8 +961,7 @@ Presenter::PaintResult VulkanPresenter::PaintAndPresentImpl(bool execute_ui_draw
              "VulkanPresenter: Failed to being recording the command buffer for "
              "drawing to the swapchain");
   }
-  // vkResetCommandPool resets from both initial and recording states, still
-  // safe to return early from this function in case of an error.
+  // vkResetCommandPool resets a command buffer left open, so early returns are safe.
 
   VkSemaphore acquire_semaphore = paint_submission.acquire_semaphore();
   uint32_t swapchain_image_index;
@@ -1090,8 +979,7 @@ Presenter::PaintResult VulkanPresenter::PaintAndPresentImpl(bool execute_ui_draw
     case VK_ERROR_OUT_OF_DATE_KHR:
     case VK_ERROR_SURFACE_LOST_KHR:
     case VK_ERROR_FULL_SCREEN_EXCLUSIVE_MODE_LOST_EXT:
-      // Not an error, reporting as info (may normally occur while resizing
-      // on some platforms).
+      // Not an error, as this may occur normally while resizing on some platforms.
       REXLOG_INFO(ui,
                   "VulkanPresenter: Presentation to the swapchain image has been "
                   "dropped as the swapchain or the surface has become outdated");
@@ -1101,8 +989,7 @@ Presenter::PaintResult VulkanPresenter::PaintAndPresentImpl(bool execute_ui_draw
                "VulkanPresenter: Failed to acquire the swapchain image");
   }
 
-  // Non-zero extents needed for both the viewport (width must not be zero) and
-  // the guest output rectangle.
+  // Non-zero extents are needed for the viewport width and the guest output rectangle.
   REX_ASSERT(paint_context_.swapchain_extent.width != 0);
   REX_ASSERT(paint_context_.swapchain_extent.height != 0);
 
@@ -1145,10 +1032,7 @@ Presenter::PaintResult VulkanPresenter::PaintAndPresentImpl(bool execute_ui_draw
       REX_ASSERT(guest_output_images_[guest_output_mailbox_index].ever_successfully_refreshed);
       guest_output_image = guest_output_images_[guest_output_mailbox_index].image;
     }
-    // Incremented the reference count of the guest output image - safe to leave
-    // the consumer critical section now as everything here either will be using
-    // the new reference or is exclusively owned by main target painting (and
-    // multiple threads can't paint the main target at the same time).
+    // Holding the reference makes leaving the consumer critical section safe.
   }
 
   if (guest_output_image) {
@@ -1159,13 +1043,8 @@ Presenter::PaintResult VulkanPresenter::PaintAndPresentImpl(bool execute_ui_draw
         paint_context_.swapchain_extent.height, max_framebuffer_extent.width,
         max_framebuffer_extent.height, guest_output_paint_config);
     if (guest_output_flow.has_effect) {
-      // Store the main target reference to the guest output image so it's not
-      // destroyed while it's still potentially in use by main target painting
-      // queued on the GPU.
       size_t guest_output_image_paint_ref_index = SIZE_MAX;
       size_t guest_output_image_paint_ref_new_index = SIZE_MAX;
-      // Try to find the existing reference to the same image, or an already
-      // released (or a taken, but never used) slot.
       for (size_t i = 0; i < paint_context_.guest_output_image_paint_refs.size(); ++i) {
         const std::pair<uint64_t, std::shared_ptr<GuestOutputImage>>& guest_output_image_paint_ref =
             paint_context_.guest_output_image_paint_refs[i];
@@ -1179,9 +1058,7 @@ Presenter::PaintResult VulkanPresenter::PaintAndPresentImpl(bool execute_ui_draw
         }
       }
       if (guest_output_image_paint_ref_index == SIZE_MAX) {
-        // New image - store the reference and create the descriptors.
         if (guest_output_image_paint_ref_new_index == SIZE_MAX) {
-          // Replace the earliest used reference.
           guest_output_image_paint_ref_new_index = 0;
           for (size_t i = 1; i < paint_context_.guest_output_image_paint_refs.size(); ++i) {
             if (paint_context_.guest_output_image_paint_refs[i].first <
@@ -1190,18 +1067,14 @@ Presenter::PaintResult VulkanPresenter::PaintAndPresentImpl(bool execute_ui_draw
               guest_output_image_paint_ref_new_index = i;
             }
           }
-          // Await the completion of the usage of the old guest output image and
-          // its descriptors.
           paint_context_.submission_tracker.AwaitSubmissionCompletion(
               paint_context_.guest_output_image_paint_refs[guest_output_image_paint_ref_new_index]
                   .first);
         }
         guest_output_image_paint_ref_index = guest_output_image_paint_ref_new_index;
-        // The actual submission index will be set if the image is
-        // used, not dropped due to some error.
+        // The submission index is set when the image is used and not dropped on error.
         paint_context_.guest_output_image_paint_refs[guest_output_image_paint_ref_index] =
             std::make_pair(static_cast<uint64_t>(0), guest_output_image);
-        // Create the descriptors of the new image.
         VkDescriptorImageInfo guest_output_image_descriptor_image_info;
         guest_output_image_descriptor_image_info.sampler = VK_NULL_HANDLE;
         guest_output_image_descriptor_image_info.imageView = guest_output_image->view();
@@ -1225,8 +1098,6 @@ Presenter::PaintResult VulkanPresenter::PaintAndPresentImpl(bool execute_ui_draw
       }
 
       {
-        // Ensure the pipeline exists for the effect drawing to the swapchain,
-        // for the render pass with the up-to-date image format.
         GuestOutputPaintEffect swapchain_effect = guest_output_flow.effect;
         PaintContext::GuestOutputPaintPipeline& swapchain_effect_pipeline =
             paint_context_.guest_output_paint_pipelines[static_cast<size_t>(swapchain_effect)];
@@ -1250,7 +1121,6 @@ Presenter::PaintResult VulkanPresenter::PaintAndPresentImpl(bool execute_ui_draw
       }
 
       if (guest_output_flow.has_effect) {
-        // Draw the guest output.
         paint_context_.guest_output_image_paint_refs[guest_output_image_paint_ref_index].first =
             current_paint_submission_index;
         paint_context_.guest_output_image_paint_last_submission = current_paint_submission_index;
@@ -1279,8 +1149,6 @@ Presenter::PaintResult VulkanPresenter::PaintAndPresentImpl(bool execute_ui_draw
           }
           effect_rect_size = std::make_pair(paint_context_.swapchain_extent.width,
                                             paint_context_.swapchain_extent.height);
-          // Keep all final-pass data coherent - shader constants and
-          // letterbox clears are derived from guest_output_flow.
           guest_output_flow.effect_output_size = effect_rect_size;
           guest_output_flow.output_x = 0;
           guest_output_flow.output_y = 0;
@@ -1351,8 +1219,6 @@ Presenter::PaintResult VulkanPresenter::PaintAndPresentImpl(bool execute_ui_draw
 
         dfn.vkCmdDraw(draw_command_buffer, 4, 1, 0, 0);
 
-        // Clear the letterbox around the guest output if the guest output
-        // doesn't cover the entire swapchain image.
         if (swapchain_image_clear_needed && guest_output_flow.letterbox_clear_rectangle_count) {
           VkClearRect letterbox_clear_vulkan_rectangles[GuestOutputPaintFlow::kMaxClearRectangles];
           for (size_t i = 0; i < guest_output_flow.letterbox_clear_rectangle_count; ++i) {
@@ -1378,10 +1244,7 @@ Presenter::PaintResult VulkanPresenter::PaintAndPresentImpl(bool execute_ui_draw
     }
   }
 
-  // Release main target guest output image references that aren't needed
-  // anymore (this is done after potential guest-output-related main
-  // target submission tracker waits so the completed submission value is the
-  // most actual).
+  // Done after the paint tracker waits so the completed submission value is the most current.
   uint64_t completed_paint_submission =
       paint_context_.submission_tracker.UpdateAndGetCompletedSubmission();
   for (std::pair<uint64_t, std::shared_ptr<GuestOutputImage>>& guest_output_image_paint_ref :
@@ -1395,8 +1258,6 @@ Presenter::PaintResult VulkanPresenter::PaintAndPresentImpl(bool execute_ui_draw
     }
   }
 
-  // If hasn't presented the guest output, begin the pass to clear and, if
-  // needed, to draw the UI.
   if (!swapchain_image_pass_begun) {
     dfn.vkCmdBeginRenderPass(draw_command_buffer, &swapchain_render_pass_begin_info,
                              VK_SUBPASS_CONTENTS_INLINE);
@@ -1414,7 +1275,6 @@ Presenter::PaintResult VulkanPresenter::PaintAndPresentImpl(bool execute_ui_draw
   }
 
   if (execute_ui_drawers) {
-    // Draw the UI.
     VulkanOverlayDrawContext ui_draw_context(
         *this, paint_context_.swapchain_extent.width, paint_context_.swapchain_extent.height,
         draw_command_buffer, ui_submission_tracker_.GetCurrentSubmission(),
@@ -1430,8 +1290,7 @@ Presenter::PaintResult VulkanPresenter::PaintAndPresentImpl(bool execute_ui_draw
   VkPipelineStageFlags acquire_semaphore_wait_stage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
   VkCommandBuffer command_buffers[2];
   uint32_t command_buffer_count = 0;
-  // UI setup command buffers must be accessed only if execute_ui_drawers is not
-  // null, to identify the UI thread.
+  // UI setup command buffers are accessed only when execute_ui_drawers identifies the UI thread.
   size_t ui_setup_command_buffer_index =
       execute_ui_drawers ? paint_context_.ui_setup_command_buffer_current_index : SIZE_MAX;
   if (ui_setup_command_buffer_index != SIZE_MAX) {
@@ -1439,10 +1298,7 @@ Presenter::PaintResult VulkanPresenter::PaintAndPresentImpl(bool execute_ui_draw
         paint_context_.ui_setup_command_buffers[ui_setup_command_buffer_index];
     dfn.vkEndCommandBuffer(ui_setup_command_buffer.command_buffer);
     command_buffers[command_buffer_count++] = ui_setup_command_buffer.command_buffer;
-    // Release the current UI setup command buffer regardless of submission
-    // result. Failed submissions (if the UI submission index wasn't incremented
-    // since the previous draw) should be handled by UI drawers themselves by
-    // retrying all the failed work if needed.
+    // Released regardless of the result, so UI drawers retry failed work themselves.
     paint_context_.ui_setup_command_buffer_current_index = SIZE_MAX;
   }
   command_buffers[command_buffer_count++] = draw_command_buffer;
@@ -1460,8 +1316,6 @@ Presenter::PaintResult VulkanPresenter::PaintAndPresentImpl(bool execute_ui_draw
   {
     VulkanSubmissionTracker::FenceAcquisition fence_acqusition(
         paint_context_.submission_tracker.AcquireFenceToAdvanceSubmission());
-    // Also update the submission tracker giving submission indices to UI draw
-    // callbacks if submission is successful.
     VulkanSubmissionTracker::FenceAcquisition ui_fence_acquisition;
     if (execute_ui_drawers) {
       ui_fence_acquisition = ui_submission_tracker_.AcquireFenceToAdvanceSubmission();
@@ -1484,17 +1338,11 @@ Presenter::PaintResult VulkanPresenter::PaintAndPresentImpl(bool execute_ui_draw
       fence_acqusition.SubmissionFailedOrDropped();
       ui_fence_acquisition.SubmissionFailedOrDropped();
       if (ui_setup_command_buffer_index != SIZE_MAX) {
-        // If failed to submit, make the UI setup command buffer available for
-        // immediate reuse, as the completed submission index won't be updated
-        // to the current index, and failing submissions with setup command
-        // buffer over and over will result in never reusing the setup command
-        // buffers.
+        // Reusable at once, as the completed index stays behind and would never recycle it.
         paint_context_.ui_setup_command_buffers[ui_setup_command_buffer_index]
             .last_usage_submission_index = 0;
       }
-      // The image is in an acquired state - but now, it will be in it forever.
-      // To avoid that, recreate the swapchain - don't return only
-      // kNotPresented.
+      // An acquired image stays acquired, so request a new swapchain, not kNotPresented.
       return PaintResult::kNotPresentedConnectionOutdated;
     }
   }
@@ -1526,19 +1374,14 @@ Presenter::PaintResult VulkanPresenter::PaintAndPresentImpl(bool execute_ui_draw
     case VK_ERROR_OUT_OF_DATE_KHR:
     case VK_ERROR_SURFACE_LOST_KHR:
     case VK_ERROR_FULL_SCREEN_EXCLUSIVE_MODE_LOST_EXT:
-      // Not an error, reporting as info (may normally occur while resizing
-      // on some platforms).
+      // Not an error, as this may occur normally while resizing on some platforms.
       REXLOG_INFO(ui,
                   "VulkanPresenter: Presentation to the swapchain image has been "
                   "dropped as the swapchain or the surface has become outdated");
-      // Note that the semaphore wait (followed by reset) has been enqueued,
-      // however, this should have no effect on anything here likely.
       return PaintResult::kNotPresentedConnectionOutdated;
     default:
       REXLOG_ERROR(ui, "VulkanPresenter: Failed to present the swapchain image");
-      // The image is in an acquired state - but now, it will be in it forever.
-      // To avoid that, recreate the swapchain - don't return only
-      // kNotPresented.
+      // An acquired image stays acquired, so request a new swapchain, not kNotPresented.
       return PaintResult::kNotPresentedConnectionOutdated;
   }
 }
@@ -1644,7 +1487,6 @@ bool VulkanPresenter::InitializeSurfaceIndependent() {
         shader_module_create_info.pCode = shaders::guest_output_bilinear_dither_ps;
         break;
       default:
-        // Not supported by this implementation.
         continue;
     }
     if (dfn.vkCreateShaderModule(device, &shader_module_create_info, nullptr,
@@ -1656,8 +1498,6 @@ bool VulkanPresenter::InitializeSurfaceIndependent() {
     }
   }
 
-  // Initialize connection-independent parts of the painting context.
-
   for (auto& submission : paint_context_.submissions) {
     submission = PaintContext::Submission::Create(vulkan_device_);
     if (!submission) {
@@ -1665,14 +1505,11 @@ bool VulkanPresenter::InitializeSurfaceIndependent() {
     }
   }
 
-  // Guest output painting descriptor sets.
   VkDescriptorPoolSize guest_output_paint_descriptor_pool_sizes[2];
   guest_output_paint_descriptor_pool_sizes[0].type = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
   guest_output_paint_descriptor_pool_sizes[0].descriptorCount =
       PaintContext::kGuestOutputDescriptorSetCount;
-  // Required even when using immutable samplers, otherwise failing to allocate
-  // descriptor sets (tested on AMD Software: Adrenalin Edition 22.3.2 on
-  // Windows 10 on AMD Radeon RX Vega 10 with Vulkan validation enabled).
+  // Required even with immutable samplers, or descriptor set allocation fails.
   guest_output_paint_descriptor_pool_sizes[1].type = VK_DESCRIPTOR_TYPE_SAMPLER;
   guest_output_paint_descriptor_pool_sizes[1].descriptorCount =
       PaintContext::kGuestOutputDescriptorSetCount;

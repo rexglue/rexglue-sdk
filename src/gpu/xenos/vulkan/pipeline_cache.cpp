@@ -179,8 +179,6 @@ std::string GetTessellationControlShaderGlsl(Shader::HostVertexShaderType host_v
   source += GetTessellationSystemConstantsBlockGlsl();
   source += "layout(location = 0) in float xe_input_value[];\n";
   source += "layout(location = 0) patch out vec4 xe_out_patch_control_point_indices;\n";
-  // In GLSL, primitive mode / spacing / winding are TES layout qualifiers.
-  // TCS only supports `layout(vertices = N) out`.
   source += std::format("layout(vertices = {}) out;\n", output_control_points);
 
   source += R"(
@@ -400,10 +398,7 @@ void VulkanPipelineCache::InitializeShaderStorage(const std::filesystem::path& c
   bool edram_fragment_shader_interlock =
       render_target_cache_.GetPath() == RenderTargetCache::Path::kPixelShaderInterlock;
 
-  // Initialize the pipeline storage stream - read pipeline descriptions and
-  // collect used shader modifications to translate.
   std::vector<PipelineStoredDescription> pipeline_stored_descriptions;
-  // <Shader hash, modification bits>.
   std::set<std::pair<uint64_t, uint64_t>> shader_translations_needed;
   auto pipeline_storage_file_path =
       shader_storage_shareable_root /
@@ -451,8 +446,6 @@ void VulkanPipelineCache::InitializeShaderStorage(const std::filesystem::path& c
       for (size_t i = 0; i < pipeline_storage_read_count; ++i) {
         const PipelineStoredDescription pipeline_stored_description =
             pipeline_stored_descriptions[i];
-        // Validate file integrity, stop and truncate the stream if data is
-        // corrupted.
         if (XXH3_64bits(&pipeline_stored_description.description,
                         sizeof(pipeline_stored_description.description)) !=
             pipeline_stored_description.description_hash) {
@@ -465,7 +458,6 @@ void VulkanPipelineCache::InitializeShaderStorage(const std::filesystem::path& c
           continue;
         }
         pipeline_stored_descriptions[pipeline_storage_kept_count++] = pipeline_stored_description;
-        // Mark the shader modifications as needed for translation.
         shader_translations_needed.emplace(
             pipeline_stored_description.description.vertex_shader_hash,
             pipeline_stored_description.description.vertex_shader_modification);
@@ -487,7 +479,6 @@ void VulkanPipelineCache::InitializeShaderStorage(const std::filesystem::path& c
     }
   }
 
-  // Initialize the Xenos shader storage stream.
   auto shader_storage_file_path =
       shader_storage_shareable_root / std::format("{:08X}.xsh", title_id);
   shader_storage_file_path_ = shader_storage_file_path;
@@ -512,8 +503,6 @@ void VulkanPipelineCache::InitializeShaderStorage(const std::filesystem::path& c
       shader_storage_file_header.magic == shader_storage_magic &&
       shader_storage_file_header.version == ShaderStoredHeader::kVersion) {
     uint64_t shader_storage_valid_bytes = sizeof(shader_storage_file_header);
-    // Load shaders written by previous runs until the end of the file or until
-    // a corrupted one is detected.
     ShaderStoredHeader shader_header;
     std::vector<uint32_t> ucode_dwords;
     ucode_dwords.reserve(0xFFFF);
@@ -530,17 +519,14 @@ void VulkanPipelineCache::InitializeShaderStorage(const std::filesystem::path& c
       }
       uint64_t ucode_data_hash = XXH3_64bits(ucode_dwords.data(), ucode_byte_count);
       if (shader_header.ucode_data_hash != ucode_data_hash) {
-        // Validation failed.
         break;
       }
       shader_storage_valid_bytes += sizeof(shader_header) + ucode_byte_count;
       VulkanShader* shader = LoadShader(shader_header.type, ucode_dwords.data(),
                                         shader_header.ucode_dword_count, ucode_data_hash);
       if (shader->ucode_storage_index() == shader_storage_index_) {
-        // Appeared twice in this file for some reason - skip.
         continue;
       }
-      // Loaded from the current storage - don't write again.
       shader->set_ucode_storage_index(shader_storage_index_);
     }
     ResetStorageFile(shader_storage_file_, shader_storage_file_path_, shader_storage_valid_bytes);
@@ -552,7 +538,6 @@ void VulkanPipelineCache::InitializeShaderStorage(const std::filesystem::path& c
                   sizeof(shader_storage_file_header));
   }
 
-  // Translate shader modifications needed for stored pipelines.
   for (const std::pair<uint64_t, uint64_t>& translation_needed : shader_translations_needed) {
     auto shader_it = shaders_.find(translation_needed.first);
     if (shader_it == shaders_.end()) {
@@ -573,7 +558,6 @@ void VulkanPipelineCache::InitializeShaderStorage(const std::filesystem::path& c
     }
   }
 
-  // Create the pipelines.
   std::vector<PipelineCreationArguments> pipeline_creations;
   pipeline_creations.reserve(pipeline_stored_descriptions.size());
   for (const PipelineStoredDescription& pipeline_stored_description :
@@ -616,7 +600,6 @@ void VulkanPipelineCache::InitializeShaderStorage(const std::filesystem::path& c
     }
     uint32_t logical_processor_count = rex::platform::logical_processor_count();
     if (!logical_processor_count) {
-      // Pick some reasonable amount if couldn't determine the number of cores.
       logical_processor_count = 6;
     }
     size_t creation_thread_count;
@@ -630,8 +613,7 @@ void VulkanPipelineCache::InitializeShaderStorage(const std::filesystem::path& c
           logical_processor_count);
     }
     if (!blocking) {
-      // Vulkan doesn't support deferred pipeline handles at draw time,
-      // so complete preload creation regardless of blocking mode.
+      // No deferred pipeline handles at draw time, so preload completes even when not blocking.
       creation_thread_count = std::max(creation_thread_count, static_cast<size_t>(1));
     }
     creation_thread_count = std::min(creation_thread_count, pipeline_creations.size());
@@ -676,8 +658,6 @@ void VulkanPipelineCache::InitializeShaderStorage(const std::filesystem::path& c
     }
   }
 
-  // If any pipeline descriptions were corrupted (or the whole file has excess
-  // bytes in the end), truncate to the last valid pipeline description.
   ResetStorageFile(pipeline_storage_file_, pipeline_storage_file_path_,
                    static_cast<uint64_t>(sizeof(pipeline_storage_file_header) +
                                          sizeof(PipelineStoredDescription) *
@@ -694,7 +674,6 @@ void VulkanPipelineCache::InitializeShaderStorage(const std::filesystem::path& c
   shader_storage_cache_root_ = cache_root;
   shader_storage_title_id_ = title_id;
 
-  // Start the storage writing thread.
   storage_write_flush_shaders_ = false;
   storage_write_flush_pipelines_ = false;
   storage_write_thread_shutdown_ = false;
@@ -755,13 +734,11 @@ void VulkanPipelineCache::EndSubmission() {
     if (startup_loading) {
       creation_request_cond_.notify_one();
     } else {
-      // Help worker threads on the processor thread to reduce warm-up latency.
       CreateQueuedPipelinesOnProcessorThread();
       bool await_creation_completion_event;
       {
         std::lock_guard<std::mutex> lock(creation_request_lock_);
-        // The queue is empty because of CreateQueuedPipelinesOnProcessorThread,
-        // only check in-flight creation by worker threads.
+        // The queue is empty here, so only in-flight worker creation is checked.
         await_creation_completion_event = creation_threads_busy_ != 0;
         if (await_creation_completion_event) {
           creation_completion_event_->Reset();
@@ -811,7 +788,6 @@ void VulkanPipelineCache::Shutdown() {
 
   ProcessDeferredPipelineDestructions(true);
 
-  // Destroy all pipelines.
   last_pipeline_ = nullptr;
   for (const auto& pipeline_pair : pipelines_) {
     VkPipeline pipeline = pipeline_pair.second.pipeline.load(std::memory_order_acquire);
@@ -821,7 +797,6 @@ void VulkanPipelineCache::Shutdown() {
   }
   pipelines_.clear();
 
-  // Destroy all internal shaders.
   gpu::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyShaderModule, device,
                                           depth_only_fragment_shader_);
   gpu::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyShaderModule, device,
@@ -853,19 +828,16 @@ void VulkanPipelineCache::Shutdown() {
   }
   geometry_shaders_.clear();
 
-  // Destroy all translated shaders.
   shaders_.clear();
   shader_storage_index_ = 0;
   texture_binding_layout_map_.clear();
   texture_binding_layouts_.clear();
 
-  // Shut down shader translation.
   shader_translator_.reset();
 }
 
 VulkanShader* VulkanPipelineCache::LoadShader(xenos::ShaderType shader_type,
                                               const uint32_t* host_address, uint32_t dword_count) {
-  // Hash the input memory and lookup the shader.
   return LoadShader(shader_type, host_address, dword_count,
                     XXH3_64bits(host_address, dword_count * sizeof(uint32_t)));
 }
@@ -875,12 +847,8 @@ VulkanShader* VulkanPipelineCache::LoadShader(xenos::ShaderType shader_type,
                                               uint64_t data_hash) {
   auto it = shaders_.find(data_hash);
   if (it != shaders_.end()) {
-    // Shader has been previously loaded.
     return it->second.get();
   }
-  // Always create the shader and stash it away.
-  // We need to track it even if it fails translation so we know not to try
-  // again.
   auto shader = std::make_unique<VulkanShader>(command_processor_.GetVulkanDevice(), shader_type,
                                                data_hash, host_address, dword_count);
   VulkanShader* raw = shader.get();
@@ -916,10 +884,8 @@ SpirvShaderTranslator::Modification VulkanPipelineCache::GetCurrentVertexShaderM
     if (pa_cl_clip_cntl.ucp_cull_only_ena && device_properties.shaderCullDistance) {
       modification.vertex.user_clip_plane_cull = 1;
     } else if (!device_properties.shaderClipDistance && device_properties.shaderCullDistance) {
-      // Fallback if clip distances are unavailable.
       modification.vertex.user_clip_plane_cull = 1;
     } else if (!device_properties.shaderClipDistance) {
-      // No supported clip/cull built-in for user clip planes.
       user_clip_planes = 0;
       modification.vertex.user_clip_plane_cull = 0;
     } else {
@@ -981,7 +947,6 @@ SpirvShaderTranslator::Modification VulkanPipelineCache::GetCurrentPixelShaderMo
         normalized_depth_control.z_enable &&
         regs.Get<xenos::reg::RB_DEPTH_INFO>().depth_format ==
             xenos::DepthRenderTargetFormat::kD24FS8) {
-      // For host D32 depth, emulate guest D24FS8 float24 depth behavior.
       modification.pixel.depth_stencil_mode = render_target_cache_.depth_float24_round()
                                                   ? DepthStencilMode::kFloat24Rounding
                                                   : DepthStencilMode::kFloat24Truncating;
@@ -1001,7 +966,7 @@ SpirvShaderTranslator::Modification VulkanPipelineCache::GetCurrentPixelShaderMo
 
 bool VulkanPipelineCache::EnsureShadersTranslated(VulkanShader::VulkanTranslation* vertex_shader,
                                                   VulkanShader::VulkanTranslation* pixel_shader) {
-  // Edge flags are not supported yet (because polygon primitives are not).
+  // Edge flags are unsupported because polygon primitives are.
   REX_ASSERT(register_file_.Get<xenos::reg::SQ_PROGRAM_CNTL>().vs_export_mode !=
                  xenos::VertexShaderExportMode::kPosition2VectorsEdge &&
              register_file_.Get<xenos::reg::SQ_PROGRAM_CNTL>().vs_export_mode !=
@@ -1014,7 +979,6 @@ bool VulkanPipelineCache::EnsureShadersTranslated(VulkanShader::VulkanTranslatio
     }
   }
   if (!vertex_shader->is_valid()) {
-    // Translation attempted previously, but not valid.
     return false;
   }
   if (pixel_shader != nullptr) {
@@ -1025,7 +989,6 @@ bool VulkanPipelineCache::EnsureShadersTranslated(VulkanShader::VulkanTranslatio
       }
     }
     if (!pixel_shader->is_valid()) {
-      // Translation attempted previously, but not valid.
       return false;
     }
   }
@@ -1042,7 +1005,6 @@ bool VulkanPipelineCache::ConfigurePipeline(
   REX_PROFILE_SCOPE("gpu");
 #endif  // REXGPU_FINE_GRAINED_DRAW_SCOPES
 
-  // Ensure shaders are translated - needed now for GetCurrentStateDescription.
   if (!EnsureShadersTranslated(vertex_shader, pixel_shader)) {
     return false;
   }
@@ -1135,7 +1097,6 @@ bool VulkanPipelineCache::ConfigurePipeline(
     return pipeline_out != VK_NULL_HANDLE && pipeline_layout_out != nullptr;
   }
 
-  // Create the pipeline if not already existing.
   auto& pipeline = *pipelines_.emplace(description, Pipeline()).first;
   PipelineCreationArguments creation_arguments_real;
   if (!TryGetPipelineCreationArgumentsForDescription(description, &pipeline,
@@ -1224,8 +1185,6 @@ bool VulkanPipelineCache::TranslateAnalyzedShader(SpirvShaderTranslator& transla
                                                   VulkanShader::VulkanTranslation& translation) {
   VulkanShader& shader = static_cast<VulkanShader&>(translation.shader());
 
-  // Perform translation.
-  // If this fails the shader will be marked as invalid and ignored later.
   if (!translator.TranslateAnalyzedShader(translation)) {
     REX_FAIL(gpu, false, "Shader {:016X} translation failed; marking as ignored",
              shader.ucode_data_hash());
@@ -1237,13 +1196,7 @@ bool VulkanPipelineCache::TranslateAnalyzedShader(SpirvShaderTranslator& transla
     return false;
   }
 
-  // TODO(Triang3l): Log that the shader has been successfully translated in
-  // common code.
-
-  // Set up the texture binding layout.
   if (shader.EnterBindingLayoutUserUIDSetup()) {
-    // Obtain the unique IDs of the binding layout if there are any texture
-    // bindings, for invalidation in the command processor.
     size_t texture_binding_layout_uid = kLayoutUIDEmpty;
     const std::vector<VulkanShader::TextureBinding>& texture_bindings =
         shader.GetTextureBindingsAfterTranslation();
@@ -1279,10 +1232,7 @@ bool VulkanPipelineCache::TranslateAnalyzedShader(SpirvShaderTranslator& transla
     }
     shader.SetTextureBindingLayoutUserUID(texture_binding_layout_uid);
 
-    // Use the sampler count for samplers because it's the only thing that must
-    // be the same for layouts to be compatible in this case
-    // (instruction-specified parameters are used as overrides for creating
-    // actual samplers).
+    // Only the sampler count decides layout compatibility, fetch parameters are overrides.
     static_assert(kLayoutUIDEmpty == 0,
                   "Empty layout UID is assumed to be 0 because for bindful samplers, the "
                   "UID is their count");
@@ -1297,12 +1247,12 @@ void VulkanPipelineCache::WritePipelineRenderTargetDescription(
     PipelineRenderTarget& render_target_out) const {
   if (write_mask) {
     REX_ASSERT((write_mask & ~static_cast<uint32_t>(0b1111)) == 0);
-    // 32 because of 0x1F mask, for safety (all unknown to zero).
+    // 32 entries cover the 0x1F mask, unknown values map to zero.
     static const PipelineBlendFactor kBlendFactorMap[32] = {
         /*  0 */ PipelineBlendFactor::kZero,
         /*  1 */ PipelineBlendFactor::kOne,
-        /*  2 */ PipelineBlendFactor::kZero,  // ?
-        /*  3 */ PipelineBlendFactor::kZero,  // ?
+        /*  2 */ PipelineBlendFactor::kZero,
+        /*  3 */ PipelineBlendFactor::kZero,
         /*  4 */ PipelineBlendFactor::kSrcColor,
         /*  5 */ PipelineBlendFactor::kOneMinusSrcColor,
         /*  6 */ PipelineBlendFactor::kSrcAlpha,
@@ -1401,8 +1351,6 @@ bool VulkanPipelineCache::GetCurrentStateDescription(
     }
     description_out.tessellation_mode = primitive_processing_result.tessellation_mode;
   } else {
-    // Fallback expansion in the vertex shader for primitive types that may be
-    // emulated through geometry shaders on GS-capable hosts.
     if (host_vertex_shader_type == Shader::HostVertexShaderType::kPointListAsTriangleStrip ||
         host_vertex_shader_type == Shader::HostVertexShaderType::kRectangleListAsTriangleStrip) {
       if (primitive_processing_result.host_primitive_type != xenos::PrimitiveType::kTriangleStrip ||
@@ -1427,8 +1375,7 @@ bool VulkanPipelineCache::GetCurrentStateDescription(
           primitive_topology = PipelinePrimitiveTopology::kTriangleList;
           break;
         case xenos::PrimitiveType::kTriangleFan:
-          // Triangle fans on Vulkan are expected to be converted to triangle
-          // lists in primitive processing for parity with D3D12 behavior.
+          // Primitive processing converts triangle fans to triangle lists.
           REX_ASSERT_ALWAYS();
           return false;
         case xenos::PrimitiveType::kTriangleStrip:
@@ -1454,24 +1401,15 @@ bool VulkanPipelineCache::GetCurrentStateDescription(
   description_out.depth_clamp_enable =
       device_properties.depthClamp && regs.Get<xenos::reg::PA_CL_CLIP_CNTL>().clip_disable;
 
-  // Tessellated draws are patch-domain polygonal primitives regardless of guest
-  // register ambiguity in non-explicit major mode configurations.
+  // Tessellated patch draws are always polygonal, even when the major mode is not explicit.
   bool primitive_polygonal = tessellated ? true : draw_util::IsPrimitivePolygonal(regs);
   bool rasterization_enabled = draw_util::IsRasterizationPotentiallyDone(regs, primitive_polygonal);
   if (!rasterization_enabled) {
-    // Keep parity with D3D12 by fully disabling rasterization for draws where
-    // only non-raster stages (for instance, vertex memexport) can have side
-    // effects.
     description_out.rasterizer_discard = 1;
     return true;
   }
   if (primitive_polygonal) {
-    // Vulkan only allows the polygon mode to be set for both faces - pick the
-    // most special one (more likely to represent the developer's deliberate
-    // intentions - fill is generic, wireframe is common in debug, points
-    // are for pretty unusual things, but closer to debug purposes too - on the
-    // Xenos, points have the lowest register value and triangles have the
-    // highest) based on which faces are not culled.
+    // 1 polygon mode serves both faces, the lowest type (points lowest, triangles highest) wins.
     bool cull_front = pa_su_sc_mode_cntl.cull_front;
     bool cull_back = pa_su_sc_mode_cntl.cull_back;
     description_out.cull_front = cull_front;
@@ -1490,8 +1428,6 @@ bool VulkanPipelineCache::GetCurrentStateDescription(
       switch (polygon_type) {
         case xenos::PolygonType::kPoints:
         case xenos::PolygonType::kLines:
-          // Keep non-triangle polygon fill behavior aligned with D3D12 (which
-          // maps both point and line polygon modes to wireframe).
           description_out.polygon_mode = PipelinePolygonMode::kLine;
           break;
         case xenos::PolygonType::kTriangles:
@@ -1541,8 +1477,6 @@ bool VulkanPipelineCache::GetCurrentStateDescription(
       }
     }
 
-    // Color blending and write masks (filled only for the attachments present
-    // in the render pass object).
     uint32_t render_pass_color_rts = render_pass_key.depth_and_color_used >> 1;
     REX_ASSERT(device_properties.independentBlend);
     uint32_t render_pass_color_rts_remaining = render_pass_color_rts;
@@ -1579,8 +1513,6 @@ bool VulkanPipelineCache::ArePipelineRequirementsMet(const PipelineDescription& 
     return false;
   }
 
-  // Keep fan handling consistent with D3D12 by always using primitive
-  // processor conversion to triangle lists instead of native fan topologies.
   if (description.primitive_topology == PipelinePrimitiveTopology::kTriangleFan) {
     return false;
   }
@@ -1748,10 +1680,7 @@ bool VulkanPipelineCache::GetGeometryShaderKey(
   if (geometry_shader_type == PipelineGeometryShader::kNone) {
     return false;
   }
-  // For kPointListAsTriangleStrip, output_point_parameters has a different
-  // meaning (the coordinates, not the size). However, the AsTriangleStrip host
-  // vertex shader types are needed specifically when geometry shaders are not
-  // supported as fallbacks.
+  // AsTriangleStrip host vertex shaders are the fallback for hosts without geometry shaders.
   if (vertex_shader_modification.vertex.host_vertex_shader_type ==
           Shader::HostVertexShaderType::kPointListAsTriangleStrip ||
       vertex_shader_modification.vertex.host_vertex_shader_type ==
@@ -1787,22 +1716,18 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
   uint32_t output_max_vertices = 0;
   switch (key.type) {
     case PipelineGeometryShader::kPointList:
-      // Point to a strip of 2 triangles.
       input_primitive_execution_mode = spv::ExecutionModeInputPoints;
       input_primitive_vertex_count = 1;
       output_primitive_execution_mode = spv::ExecutionModeOutputTriangleStrip;
       output_max_vertices = 4;
       break;
     case PipelineGeometryShader::kRectangleList:
-      // Triangle to a strip of 2 triangles.
       input_primitive_execution_mode = spv::ExecutionModeTriangles;
       input_primitive_vertex_count = 3;
       output_primitive_execution_mode = spv::ExecutionModeOutputTriangleStrip;
       output_max_vertices = 4;
       break;
     case PipelineGeometryShader::kQuadList:
-      // 4 vertices passed via a line list with adjacency to a strip of 2
-      // triangles.
       input_primitive_execution_mode = spv::ExecutionModeInputLinesAdjacency;
       input_primitive_vertex_count = 4;
       output_primitive_execution_mode = spv::ExecutionModeOutputTriangleStrip;
@@ -1838,7 +1763,6 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
     spirv_version = spv::Spv_1_3;
   } else {
     spirv_version = spv::Spv_1_0;
-    // Keep the build log around for compatibility diagnostics on older paths.
     builder_logger_ptr = &builder_logger;
   }
   SpirvBuilder builder(spirv_version, (SpirvShaderTranslator::kSpirvMagicToolId << 16) | 1,
@@ -1885,13 +1809,6 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
           ? builder.makeArrayType(type_float, builder.makeUintConstant(cull_distance_count), 0)
           : spv::NoType;
 
-  // System constants.
-  // For points:
-  // - float2 point_constant_diameter
-  // - float2 point_screen_diameter_to_ndc_radius
-  // - float3 ndc_scale
-  // - float3 ndc_offset
-  // - float4[6] user_clip_planes
   enum PointConstant : uint32_t {
     kPointConstantConstantDiameter,
     kPointConstantScreenDiameterToNdcRadius,
@@ -1946,20 +1863,14 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
     main_interface.push_back(uniform_system_constants);
   }
 
-  // Inputs and outputs - matching glslang order, in gl_PerVertex gl_in[],
-  // user-defined outputs, user-defined inputs, out gl_PerVertex.
-
   spv::Id const_input_primitive_vertex_count =
       builder.makeUintConstant(input_primitive_vertex_count);
 
-  // in gl_PerVertex gl_in[].
-  // gl_Position.
   id_vector_temp.clear();
   uint32_t member_in_gl_per_vertex_position = static_cast<uint32_t>(id_vector_temp.size());
   id_vector_temp.push_back(type_float4);
   spv::Id const_member_in_gl_per_vertex_position =
       builder.makeIntConstant(static_cast<int32_t>(member_in_gl_per_vertex_position));
-  // gl_ClipDistance.
   uint32_t member_in_gl_per_vertex_clip_distance = UINT32_MAX;
   spv::Id const_member_in_gl_per_vertex_clip_distance = spv::NoResult;
   if (clip_distance_count) {
@@ -1968,13 +1879,11 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
     const_member_in_gl_per_vertex_clip_distance =
         builder.makeIntConstant(static_cast<int32_t>(member_in_gl_per_vertex_clip_distance));
   }
-  // gl_CullDistance.
   uint32_t member_in_gl_per_vertex_cull_distance = UINT32_MAX;
   if (cull_distance_count) {
     member_in_gl_per_vertex_cull_distance = static_cast<uint32_t>(id_vector_temp.size());
     id_vector_temp.push_back(type_cull_distances);
   }
-  // Structure and array.
   spv::Id type_struct_in_gl_per_vertex = builder.makeStructType(id_vector_temp, "gl_PerVertex");
   builder.addMemberName(type_struct_in_gl_per_vertex, member_in_gl_per_vertex_position,
                         "gl_Position");
@@ -2001,7 +1910,6 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
 
   uint32_t output_location = 0;
 
-  // Interpolators outputs.
   std::array<spv::Id, xenos::kMaxInterpolators> out_interpolators;
   for (uint32_t i = 0; i < key.interpolator_count; ++i) {
     spv::Id out_interpolator =
@@ -2014,7 +1922,6 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
     ++output_location;
   }
 
-  // Point coordinate output.
   spv::Id out_point_coordinates = spv::NoResult;
   if (key.has_point_coordinates) {
     out_point_coordinates = builder.createVariable(spv::NoPrecision, spv::StorageClassOutput,
@@ -2027,7 +1934,6 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
 
   uint32_t input_location = 0;
 
-  // Interpolator inputs.
   std::array<spv::Id, xenos::kMaxInterpolators> in_interpolators;
   for (uint32_t i = 0; i < key.interpolator_count; ++i) {
     spv::Id in_interpolator = builder.createVariable(
@@ -2040,7 +1946,6 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
     ++input_location;
   }
 
-  // Point size input.
   spv::Id in_point_size = spv::NoResult;
   if (key.has_point_size) {
     in_point_size = builder.createVariable(
@@ -2052,14 +1957,11 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
     ++input_location;
   }
 
-  // out gl_PerVertex.
-  // gl_Position.
   id_vector_temp.clear();
   uint32_t member_out_gl_per_vertex_position = static_cast<uint32_t>(id_vector_temp.size());
   id_vector_temp.push_back(type_float4);
   spv::Id const_member_out_gl_per_vertex_position =
       builder.makeIntConstant(static_cast<int32_t>(member_out_gl_per_vertex_position));
-  // gl_ClipDistance.
   uint32_t member_out_gl_per_vertex_clip_distance = UINT32_MAX;
   spv::Id const_member_out_gl_per_vertex_clip_distance = spv::NoResult;
   if (clip_distance_count) {
@@ -2068,7 +1970,6 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
     const_member_out_gl_per_vertex_clip_distance =
         builder.makeIntConstant(static_cast<int32_t>(member_out_gl_per_vertex_clip_distance));
   }
-  // Structure.
   spv::Id type_struct_out_gl_per_vertex = builder.makeStructType(id_vector_temp, "gl_PerVertex");
   builder.addMemberName(type_struct_out_gl_per_vertex, member_out_gl_per_vertex_position,
                         "gl_Position");
@@ -2087,7 +1988,6 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
   builder.addDecoration(out_gl_per_vertex, spv::DecorationInvariant);
   main_interface.push_back(out_gl_per_vertex);
 
-  // Begin the main function.
   std::vector<spv::Id> main_param_types;
   std::vector<std::vector<spv::Decoration>> main_precisions;
   spv::Block* main_entry;
@@ -2116,10 +2016,9 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
     builder.addExecutionMode(main_function, spv::ExecutionModeRoundingModeRTE, 32);
   }
 
-  // Note that after every OpEmitVertex, all output variables are undefined.
+  // After every OpEmitVertex all output variables are undefined.
 
-  // Discard the whole primitive if any vertex has a NaN position (may also be
-  // set to NaN for emulation of vertex killing with the OR operator).
+  // Discard the primitive when any vertex position is NaN, which emulates vertex kill with OR.
   for (uint32_t i = 0; i < input_primitive_vertex_count; ++i) {
     id_vector_temp.clear();
     id_vector_temp.push_back(builder.makeIntConstant(static_cast<int32_t>(i)));
@@ -2152,10 +2051,7 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
     builder.setBuildPoint(&discard_merge_block);
   }
 
-  // Cull the whole primitive if any cull distance for all vertices in the
-  // primitive is < 0.
-  // For point lists with ps_ucp_mode 3, user cull plane distances are
-  // calculated per expanded vertex later.
+  // Point lists with ps_ucp_mode 3 compute user cull plane distances per expanded vertex later.
   if (cull_distance_count) {
     spv::Id const_member_in_gl_per_vertex_cull_distance =
         builder.makeIntConstant(static_cast<int32_t>(member_in_gl_per_vertex_cull_distance));
@@ -2209,13 +2105,12 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
 
   switch (key.type) {
     case PipelineGeometryShader::kPointList: {
-      // Expand the point sprite, with left-to-right, top-to-bottom UVs.
+      // Expand the point sprite with left to right, top to bottom UVs.
 
       spv::Id const_int_0 = builder.makeIntConstant(0);
       spv::Id const_int_1 = builder.makeIntConstant(1);
       spv::Id const_float_0 = builder.makeFloatConstant(0.0f);
 
-      // Load the point diameter in guest pixels.
       id_vector_temp.clear();
       id_vector_temp.push_back(
           builder.makeIntConstant(static_cast<int32_t>(kPointConstantConstantDiameter)));
@@ -2230,13 +2125,8 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
                                                        uniform_system_constants, id_vector_temp),
                              spv::NoPrecision);
       if (key.has_point_size) {
-        // The vertex shader's header writes -1.0 to point_size by default, so
-        // any non-negative value means that it was overwritten by the
-        // translated vertex shader, and needs to be used instead of the
-        // constant size. The per-vertex diameter is already clamped in the
-        // vertex shader (combined with making it non-negative).
+        // Non-negative means the translated vertex shader wrote it, the header default is -1.0.
         id_vector_temp.clear();
-        // 0 is the input primitive vertex index.
         id_vector_temp.push_back(const_int_0);
         spv::Id point_vertex_diameter = builder.createLoad(
             builder.createAccessChain(spv::StorageClassInput, in_point_size, id_vector_temp),
@@ -2251,9 +2141,7 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
                                 point_vertex_diameter, point_guest_diameter_y);
       }
 
-      // 4D5307F1 has zero-size snowflakes, drop them quicker, and also drop
-      // points with a constant size of zero since point lists may also be used
-      // as "compute" with memexport.
+      // Zero size points are dropped early, point lists may also be used as compute with memexport.
       spv::Id point_size_not_zero =
           builder.createBinOp(spv::OpLogicalAnd, type_bool,
                               builder.createBinOp(spv::OpFOrdGreaterThan, type_bool,
@@ -2281,9 +2169,7 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
       builder.createNoResultOp(spv::OpReturn);
       builder.setBuildPoint(&point_size_zero_merge_block);
 
-      // Transform the diameter in the guest screen coordinates to radius in the
-      // normalized device coordinates, and then to the clip space by
-      // multiplying by W.
+      // Convert the diameter in guest screen coordinates to NDC radius, then to clip space by W.
       id_vector_temp.clear();
       id_vector_temp.push_back(
           builder.makeIntConstant(static_cast<int32_t>(kPointConstantScreenDiameterToNdcRadius)));
@@ -2300,7 +2186,6 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
                                                        uniform_system_constants, id_vector_temp),
                              spv::NoPrecision));
       id_vector_temp.clear();
-      // 0 is the input primitive vertex index.
       id_vector_temp.push_back(const_int_0);
       id_vector_temp.push_back(const_member_in_gl_per_vertex_position);
       spv::Id point_position = builder.createLoad(
@@ -2312,18 +2197,14 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
       point_radius_y =
           builder.createNoContractionBinOp(spv::OpFMul, type_float, point_radius_y, point_w);
 
-      // Load the inputs for the guest point.
-      // Interpolators.
       std::array<spv::Id, xenos::kMaxInterpolators> point_interpolators;
       id_vector_temp.clear();
-      // 0 is the input primitive vertex index.
       id_vector_temp.push_back(const_int_0);
       for (uint32_t i = 0; i < key.interpolator_count; ++i) {
         point_interpolators[i] = builder.createLoad(
             builder.createAccessChain(spv::StorageClassInput, in_interpolators[i], id_vector_temp),
             spv::NoPrecision);
       }
-      // Positions.
       spv::Id point_x = builder.createCompositeExtract(point_position, type_float, 0);
       spv::Id point_y = builder.createCompositeExtract(point_position, type_float, 1);
       std::array<spv::Id, 2> point_edge_x, point_edge_y;
@@ -2335,7 +2216,6 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
                                                            point_radius_y);
       };
       spv::Id point_z = builder.createCompositeExtract(point_position, type_float, 2);
-      // Clip distances.
       spv::Id point_clip_distances = spv::NoResult;
       std::vector<spv::Id> point_user_clip_planes;
       point_user_clip_planes.reserve(clip_distance_count);
@@ -2370,7 +2250,6 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
         }
       } else if (clip_distance_count) {
         id_vector_temp.clear();
-        // 0 is the input primitive vertex index.
         id_vector_temp.push_back(const_int_0);
         id_vector_temp.push_back(const_member_in_gl_per_vertex_clip_distance);
         point_clip_distances = builder.createLoad(
@@ -2379,7 +2258,6 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
       }
 
       if (point_recalculate_cull_distances) {
-        // Cull if any user clip plane has all expanded vertices outside.
         std::array<spv::Id, 4> point_guest_positions;
         for (uint32_t i = 0; i < 4; ++i) {
           uint32_t point_vertex_x = i >> 1;
@@ -2463,17 +2341,12 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
       }
 
       for (uint32_t i = 0; i < 4; ++i) {
-        // Same interpolators for the entire sprite.
         for (uint32_t j = 0; j < key.interpolator_count; ++j) {
           builder.createStore(point_interpolators[j], out_interpolators[j]);
         }
-        // Top-left, bottom-left, top-right, bottom-right order (chosen
-        // arbitrarily, simply based on counterclockwise meaning front with
-        // frontFace = VkFrontFace(0), but faceness is ignored for non-polygon
-        // primitive types).
+        // Top-left, bottom-left, top-right, bottom-right order, face winding is ignored for points.
         uint32_t point_vertex_x = i >> 1;
         uint32_t point_vertex_y = i & 1;
-        // Point coordinates.
         if (key.has_point_coordinates) {
           id_vector_temp.clear();
           id_vector_temp.push_back(builder.makeFloatConstant(static_cast<float>(point_vertex_x)));
@@ -2481,7 +2354,6 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
           builder.createStore(builder.makeCompositeConstant(type_float2, id_vector_temp),
                               out_point_coordinates);
         }
-        // Position.
         id_vector_temp.clear();
         id_vector_temp.push_back(point_edge_x[point_vertex_x]);
         id_vector_temp.push_back(point_edge_y[point_vertex_y]);
@@ -2494,10 +2366,8 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
         builder.createStore(
             point_vertex_position,
             builder.createAccessChain(spv::StorageClassOutput, out_gl_per_vertex, id_vector_temp));
-        // Clip distances.
         if (point_recalculate_clip_distances) {
-          // Convert host clip space back to guest clip space before applying
-          // user clip planes.
+          // Convert host clip space back to guest clip space before applying user clip planes.
           id_vector_temp.clear();
           id_vector_temp.push_back(
               builder.createCompositeExtract(point_vertex_position, type_float, 0));
@@ -2539,43 +2409,20 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
                               builder.createAccessChain(spv::StorageClassOutput, out_gl_per_vertex,
                                                         id_vector_temp));
         }
-        // Emit the vertex.
         builder.createNoResultOp(spv::OpEmitVertex);
       }
       builder.createNoResultOp(spv::OpEndPrimitive);
     } break;
 
     case PipelineGeometryShader::kRectangleList: {
-      // Construct a strip with the fourth vertex generated by mirroring a
-      // vertex across the longest edge (the diagonal).
-      //
-      // Possible options:
-      //
-      // 0---1
-      // |  /|
-      // | / |  - 12 is the longest edge, strip 0123 (most commonly used)
-      // |/  |    v3 = v0 + (v1 - v0) + (v2 - v0), or v3 = -v0 + v1 + v2
-      // 2--[3]
-      //
-      // 1---2
-      // |  /|
-      // | / |  - 20 is the longest edge, strip 1203
-      // |/  |
-      // 0--[3]
-      //
-      // 2---0
-      // |  /|
-      // | / |  - 01 is the longest edge, strip 2013
-      // |/  |
-      // 1--[3]
+      // The longest edge picks the strip order 0123, 1203 or 2013 with v3 = -v0 + v1 + v2.
 
       spv::Id const_int_0 = builder.makeIntConstant(0);
       spv::Id const_int_1 = builder.makeIntConstant(1);
       spv::Id const_int_2 = builder.makeIntConstant(2);
       spv::Id const_int_3 = builder.makeIntConstant(3);
 
-      // Get squares of edge lengths to choose the longest edge.
-      // [0] - 12, [1] - 20, [2] - 01.
+      // Squared edge lengths, [0] is 12, [1] is 20, [2] is 01.
       spv::Id edge_lengths[3];
       id_vector_temp.resize(3);
       id_vector_temp[1] = const_member_in_gl_per_vertex_position;
@@ -2605,12 +2452,7 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
             builder.createBinOp(spv::OpFMul, type_float, edge_y, edge_y));
       }
 
-      // Choose the index of the first vertex in the strip based on which edge
-      // is the longest, and calculate the indices of the other vertices.
       spv::Id vertex_indices[3];
-      // If 12 > 20 && 12 > 01, then 12 is the longest edge, and the strip is
-      // 0123. Otherwise, if 20 > 01, then 20 is the longest, and the strip is
-      // 1203, but if not, 01 is the longest, and the strip is 2013.
       vertex_indices[0] = builder.createTriOp(
           spv::OpSelect, type_int,
           builder.createBinOp(spv::OpLogicalAnd, type_bool,
@@ -2624,7 +2466,6 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
                                                   edge_lengths[1], edge_lengths[2]),
                               const_int_1, const_int_2));
       for (uint32_t i = 1; i < 3; ++i) {
-        // vertex_indices[i] = (vertex_indices[0] + i) % 3
         spv::Id vertex_index_without_wrapping =
             builder.createBinOp(spv::OpIAdd, type_int, vertex_indices[0],
                                 builder.makeIntConstant(static_cast<int32_t>(i)));
@@ -2636,8 +2477,6 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
             builder.createBinOp(spv::OpISub, type_int, vertex_index_without_wrapping, const_int_3));
       }
 
-      // Initialize the point coordinates output for safety if this shader type
-      // is used with has_point_coordinates for some reason.
       spv::Id const_point_coordinates_zero = spv::NoResult;
       if (key.has_point_coordinates) {
         spv::Id const_float_0 = builder.makeFloatConstant(0.0f);
@@ -2647,10 +2486,8 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
         const_point_coordinates_zero = builder.makeCompositeConstant(type_float2, id_vector_temp);
       }
 
-      // Emit the triangle in the strip that consists of the original vertices.
       for (uint32_t i = 0; i < 3; ++i) {
         spv::Id vertex_index = vertex_indices[i];
-        // Interpolators.
         id_vector_temp.clear();
         id_vector_temp.push_back(vertex_index);
         for (uint32_t j = 0; j < key.interpolator_count; ++j) {
@@ -2660,11 +2497,9 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
                                  spv::NoPrecision),
               out_interpolators[j]);
         }
-        // Point coordinates.
         if (key.has_point_coordinates) {
           builder.createStore(const_point_coordinates_zero, out_point_coordinates);
         }
-        // Position.
         id_vector_temp.clear();
         id_vector_temp.push_back(vertex_index);
         id_vector_temp.push_back(const_member_in_gl_per_vertex_position);
@@ -2676,7 +2511,6 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
         builder.createStore(
             vertex_position,
             builder.createAccessChain(spv::StorageClassOutput, out_gl_per_vertex, id_vector_temp));
-        // Clip distances.
         if (clip_distance_count) {
           id_vector_temp.clear();
           id_vector_temp.push_back(vertex_index);
@@ -2690,12 +2524,9 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
                               builder.createAccessChain(spv::StorageClassOutput, out_gl_per_vertex,
                                                         id_vector_temp));
         }
-        // Emit the vertex.
         builder.createNoResultOp(spv::OpEmitVertex);
       }
 
-      // Construct the fourth vertex.
-      // Interpolators.
       for (uint32_t i = 0; i < key.interpolator_count; ++i) {
         spv::Id in_interpolator = in_interpolators[i];
         id_vector_temp.clear();
@@ -2718,11 +2549,9 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
                 spv::NoPrecision));
         builder.createStore(vertex_interpolator_v3, out_interpolators[i]);
       }
-      // Point coordinates.
       if (key.has_point_coordinates) {
         builder.createStore(const_point_coordinates_zero, out_point_coordinates);
       }
-      // Position.
       id_vector_temp.clear();
       id_vector_temp.push_back(vertex_indices[0]);
       id_vector_temp.push_back(const_member_in_gl_per_vertex_position);
@@ -2747,7 +2576,6 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
       builder.createStore(
           vertex_position_v3,
           builder.createAccessChain(spv::StorageClassOutput, out_gl_per_vertex, id_vector_temp));
-      // Clip distances.
       for (uint32_t i = 0; i < clip_distance_count; ++i) {
         spv::Id const_int_i = builder.makeIntConstant(static_cast<int32_t>(i));
         id_vector_temp.clear();
@@ -2777,14 +2605,11 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
             vertex_clip_distance_v3,
             builder.createAccessChain(spv::StorageClassOutput, out_gl_per_vertex, id_vector_temp));
       }
-      // Emit the vertex.
       builder.createNoResultOp(spv::OpEmitVertex);
       builder.createNoResultOp(spv::OpEndPrimitive);
     } break;
 
     case PipelineGeometryShader::kQuadList: {
-      // Initialize the point coordinates output for safety if this shader type
-      // is used with has_point_coordinates for some reason.
       spv::Id const_point_coordinates_zero = spv::NoResult;
       if (key.has_point_coordinates) {
         spv::Id const_float_0 = builder.makeFloatConstant(0.0f);
@@ -2794,13 +2619,9 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
         const_point_coordinates_zero = builder.makeCompositeConstant(type_float2, id_vector_temp);
       }
 
-      // Build the triangle strip from the original quad vertices in the
-      // 0, 1, 3, 2 order (like specified for GL_QUAD_STRIP).
-      // TODO(Triang3l): Find the correct decomposition of quads into triangles
-      // on the real hardware.
+      // Strip order 0, 1, 3, 2 as for GL_QUAD_STRIP.
       for (uint32_t i = 0; i < 4; ++i) {
         spv::Id const_vertex_index = builder.makeIntConstant(static_cast<int32_t>(i ^ (i >> 1)));
-        // Interpolators.
         id_vector_temp.clear();
         id_vector_temp.push_back(const_vertex_index);
         for (uint32_t j = 0; j < key.interpolator_count; ++j) {
@@ -2810,11 +2631,9 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
                                  spv::NoPrecision),
               out_interpolators[j]);
         }
-        // Point coordinates.
         if (key.has_point_coordinates) {
           builder.createStore(const_point_coordinates_zero, out_point_coordinates);
         }
-        // Position.
         id_vector_temp.clear();
         id_vector_temp.push_back(const_vertex_index);
         id_vector_temp.push_back(const_member_in_gl_per_vertex_position);
@@ -2826,7 +2645,6 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
         builder.createStore(
             vertex_position,
             builder.createAccessChain(spv::StorageClassOutput, out_gl_per_vertex, id_vector_temp));
-        // Clip distances.
         if (clip_distance_count) {
           id_vector_temp.clear();
           id_vector_temp.push_back(const_vertex_index);
@@ -2840,7 +2658,6 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
                               builder.createAccessChain(spv::StorageClassOutput, out_gl_per_vertex,
                                                         id_vector_temp));
         }
-        // Emit the vertex.
         builder.createNoResultOp(spv::OpEmitVertex);
       }
       builder.createNoResultOp(spv::OpEndPrimitive);
@@ -2850,10 +2667,8 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
       REX_UNHANDLED_CASE(key.type);
   }
 
-  // End the main function.
   builder.leaveFunction();
 
-  // Serialize the shader code.
   std::vector<unsigned int> shader_code;
   builder.dump(shader_code);
   if (!REXCVAR_GET(::rex::gpu::cvars::dump_shaders).empty()) {
@@ -2861,8 +2676,7 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
                                   std::format("gs_{:08X}", key.key), shader_code);
   }
 
-  // Create the shader module, and store the handle even if creation fails not
-  // to try to create it again later.
+  // The handle is stored even when creation fails so it is not retried.
   VkShaderModule shader_module = gpu::vulkan::util::CreateShaderModule(
       command_processor_.GetVulkanDevice(), reinterpret_cast<const uint32_t*>(shader_code.data()),
       sizeof(uint32_t) * shader_code.size());
@@ -3019,10 +2833,6 @@ bool VulkanPipelineCache::EnsurePipelineCreated(const PipelineCreationArguments&
     }
   }
 
-  // This function preferably should validate the description to prevent
-  // unsupported behavior that may be dangerous/crashing because pipelines can
-  // be created from the disk storage.
-
   if (creation_arguments.pixel_shader) {
     REXLOG_DEBUG(gpu, "Creating graphics pipeline state with VS {:016X}, PS {:016X}",
                  creation_arguments.vertex_shader->shader().ucode_data_hash(),
@@ -3051,7 +2861,6 @@ bool VulkanPipelineCache::EnsurePipelineCreated(const PipelineCreationArguments&
   std::array<VkPipelineShaderStageCreateInfo, 5> shader_stages;
   uint32_t shader_stage_count = 0;
 
-  // Vertex or tessellation evaluation shader (plus helper stages for tessellation).
   REX_ASSERT(creation_arguments.vertex_shader->is_translated());
   if (!creation_arguments.vertex_shader->is_valid()) {
     return false;
@@ -3102,7 +2911,6 @@ bool VulkanPipelineCache::EnsurePipelineCreated(const PipelineCreationArguments&
     shader_stage_vertex.pName = "main";
     shader_stage_vertex.pSpecializationInfo = nullptr;
   }
-  // Geometry shader.
   if (creation_arguments.geometry_shader != VK_NULL_HANDLE) {
     if (tessellated) {
       return false;
@@ -3116,7 +2924,6 @@ bool VulkanPipelineCache::EnsurePipelineCreated(const PipelineCreationArguments&
     shader_stage_geometry.pName = "main";
     shader_stage_geometry.pSpecializationInfo = nullptr;
   }
-  // Fragment shader.
   VkPipelineShaderStageCreateInfo& shader_stage_fragment = shader_stages[shader_stage_count++];
   shader_stage_fragment.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
   shader_stage_fragment.pNext = nullptr;
@@ -3191,8 +2998,6 @@ bool VulkanPipelineCache::EnsurePipelineCreated(const PipelineCreationArguments&
       input_assembly_state.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
       break;
     case PipelinePrimitiveTopology::kTriangleFan:
-      // Keep parity with D3D12 by requiring triangle fan to list conversion in
-      // PrimitiveProcessor rather than emitting native fan pipelines.
       REX_ASSERT_ALWAYS();
       return false;
     case PipelinePrimitiveTopology::kLineListWithAdjacency:
@@ -3251,16 +3056,11 @@ bool VulkanPipelineCache::EnsurePipelineCreated(const PipelineCreationArguments&
   }
   rasterization_state.frontFace =
       description.front_face_clockwise ? VK_FRONT_FACE_CLOCKWISE : VK_FRONT_FACE_COUNTER_CLOCKWISE;
-  // Depth bias is dynamic (even toggling - pipeline creation is expensive).
-  // "If no depth attachment is present, r is undefined" in the depth bias
-  // formula, though Z has no effect on anything if a depth attachment is not
-  // used (the guest shader can't access Z), enabling only when there's a
-  // depth / stencil attachment for correctness.
+  // Depth bias is enabled only with a depth attachment, r is undefined in the formula without one.
   rasterization_state.depthBiasEnable =
       (!edram_fragment_shader_interlock && (description.render_pass_key.depth_and_color_used & 0b1))
           ? VK_TRUE
           : VK_FALSE;
-  // TODO(Triang3l): Wide lines.
   rasterization_state.lineWidth = 1.0f;
 
   bool subpass_has_attachments =
@@ -3269,20 +3069,16 @@ bool VulkanPipelineCache::EnsurePipelineCreated(const PipelineCreationArguments&
   VkPipelineMultisampleStateCreateInfo multisample_state = {};
   multisample_state.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
   if (description.rasterizer_discard) {
-    // Keep rasterizer-discard pipelines independent from guest MSAA state, as
-    // done by D3D12 when rasterization is disabled.
+    // Rasterizer discard pipelines ignore the guest MSAA state.
     multisample_state.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
   } else if (!edram_fragment_shader_interlock && !subpass_has_attachments) {
-    // Keep parity with D3D12 host-render-target path, where draws without
-    // color/depth attachments must run at 1x sample count.
+    // Draws without color or depth attachments run at 1 sample.
     multisample_state.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
   } else if (description.render_pass_key.msaa_samples == xenos::MSAASamples::k2X &&
              !render_target_cache_.IsMsaa2xSupported(subpass_has_attachments)) {
-    // Using sample 0 as 0 and 3 as 1 for 2x instead (not exactly the same
-    // sample locations, but still top-left and bottom-right - however, this can
-    // be adjusted with custom sample locations).
+    // 4 samples with samples 0 and 3 stand in for 2x, still top left and bottom right.
     multisample_state.rasterizationSamples = VK_SAMPLE_COUNT_4_BIT;
-    // Keep parity with D3D12 ROV: sample masks are ignored without attachments.
+    // Sample masks are ignored without attachments.
     if (subpass_has_attachments) {
       sample_mask = 0b1001;
       multisample_state.pSampleMask = &sample_mask;
@@ -3361,7 +3157,7 @@ bool VulkanPipelineCache::EnsurePipelineCreated(const PipelineCreationArguments&
           VK_BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA,
           VK_BLEND_FACTOR_SRC_ALPHA_SATURATE,
       };
-      // 8 entries for safety since 3 bits from the guest are passed directly.
+      // 8 entries because 3 bits from the guest index it directly.
       static const VkBlendOp kBlendOpMap[] = {VK_BLEND_OP_ADD,
                                               VK_BLEND_OP_SUBTRACT,
                                               VK_BLEND_OP_MIN,
@@ -3412,10 +3208,7 @@ bool VulkanPipelineCache::EnsurePipelineCreated(const PipelineCreationArguments&
   dynamic_state.flags = 0;
   dynamic_state.dynamicStateCount = 0;
   dynamic_state.pDynamicStates = dynamic_states.data();
-  // Regardless of whether some of this state has any effect on the
-  // pipeline, marking all as dynamic because otherwise, binding any pipeline
-  // with such state not marked as dynamic will cause the dynamic state to be
-  // invalidated (again, even if it has no effect).
+  // All state is dynamic because binding a pipeline with static state invalidates dynamic state.
   dynamic_states[dynamic_state.dynamicStateCount++] = VK_DYNAMIC_STATE_VIEWPORT;
   dynamic_states[dynamic_state.dynamicStateCount++] = VK_DYNAMIC_STATE_SCISSOR;
   if (!edram_fragment_shader_interlock) {
@@ -3557,7 +3350,6 @@ void VulkanPipelineCache::CreationThread(size_t thread_index) {
       VkPipeline pipeline =
           creation_arguments.pipeline->second.pipeline.load(std::memory_order_acquire);
       if (has_placeholder && pipeline != VK_NULL_HANDLE) {
-        // Keep the placeholder resident and stop waiting for a real pipeline.
         creation_arguments.pipeline->second.is_placeholder.store(false, std::memory_order_release);
       } else {
         creation_arguments.pipeline->second.pipeline.store(VK_NULL_HANDLE,
@@ -3636,7 +3428,7 @@ void VulkanPipelineCache::ProcessDeferredPipelineDestructions(bool force_all) {
 
 void VulkanPipelineCache::StorageWriteThread() {
   ShaderStoredHeader shader_header;
-  // Don't leak anything in unused bits.
+  // Zeroed so padding bits never reach the file.
   std::memset(&shader_header, 0, sizeof(shader_header));
 
   std::vector<uint32_t> ucode_guest_endian;
@@ -3694,8 +3486,7 @@ void VulkanPipelineCache::StorageWriteThread() {
       AppendStorage(shader_storage_file_, &shader_header, sizeof(shader_header));
       if (shader_header.ucode_dword_count) {
         ucode_guest_endian.resize(shader_header.ucode_dword_count);
-        // Need to swap because the hash is calculated for the shader with guest
-        // endianness.
+        // The hash is calculated over guest endianness, so swap back.
         memory::copy_and_swap(ucode_guest_endian.data(), shader->ucode_dwords(),
                               shader_header.ucode_dword_count);
         AppendStorage(shader_storage_file_, ucode_guest_endian.data(),

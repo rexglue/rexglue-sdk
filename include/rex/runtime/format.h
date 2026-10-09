@@ -1,13 +1,12 @@
 /**
- * @file        kernel/format.h
+ * @file        runtime/format.h
  * @brief       PPC printf format engine for kernel string exports
  *
- * @copyright   Copyright (c) 2026 Tom Clay
+ * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
+ *              All rights reserved.
  *
  * @license     BSD 3-Clause License
  *              See LICENSE file in the project root for full license text.
- *
- * @remarks     Based on Xenia's format_core
  */
 
 #pragma once
@@ -29,45 +28,46 @@
 
 namespace rex::runtime::format {
 
+/** States of the printf format specifier parser. */
 enum FormatState {
-  FS_Invalid = 0,
-  FS_Unknown,
-  FS_Start,
-  FS_Flags,
-  FS_Width,
-  FS_PrecisionStart,
-  FS_Precision,
-  FS_Size,
-  FS_Type,
-  FS_End,
+  FS_Invalid = 0,    /**< Invalid state. */
+  FS_Unknown,        /**< Copying literal text outside a specifier. */
+  FS_Start,          /**< After the percent sign. */
+  FS_Flags,          /**< Reading flag characters. */
+  FS_Width,          /**< Reading the field width. */
+  FS_PrecisionStart, /**< Checking for a precision. */
+  FS_Precision,      /**< Reading the precision. */
+  FS_Size,           /**< Reading the size prefix. */
+  FS_Type,           /**< Reading the conversion character. */
+  FS_End,            /**< Specifier complete. */
 };
 
+/** Flags collected while parsing a printf format specifier. */
 enum FormatFlags {
-  FF_LeftJustify = 1 << 0,
-  FF_AddLeadingZeros = 1 << 1,
-  FF_AddPositive = 1 << 2,
-  FF_AddPositiveAsSpace = 1 << 3,
-  FF_AddNegative = 1 << 4,
-  FF_AddPrefix = 1 << 5,
-  FF_IsShort = 1 << 6,
-  FF_IsLong = 1 << 7,
-  FF_IsLongLong = 1 << 8,
-  FF_IsWide = 1 << 9,
-  FF_IsSigned = 1 << 10,
-  FF_ForceLeadingZero = 1 << 11,
-  FF_InvertWide = 1 << 12,
+  FF_LeftJustify = 1 << 0,        /**< Left justify the field. */
+  FF_AddLeadingZeros = 1 << 1,    /**< Pad the field with zeros. */
+  FF_AddPositive = 1 << 2,        /**< Print a plus sign on positive values. */
+  FF_AddPositiveAsSpace = 1 << 3, /**< Print a space on positive values. */
+  FF_AddNegative = 1 << 4,        /**< The value is negative, so print a minus sign. */
+  FF_AddPrefix = 1 << 5,          /**< Print the alternate form prefix. */
+  FF_IsShort = 1 << 6,            /**< Short size prefix. */
+  FF_IsLong = 1 << 7,             /**< Long size prefix. */
+  FF_IsLongLong = 1 << 8,         /**< Long long size prefix. */
+  FF_IsWide = 1 << 9,             /**< Wide size prefix. */
+  FF_IsSigned = 1 << 10,          /**< Signed integer conversion. */
+  FF_ForceLeadingZero = 1 << 11,  /**< Octal conversion with the alternate form. */
+  FF_InvertWide = 1 << 12,        /**< Flips the width of the format string character type. */
 };
 
+/** Size prefix of a printf conversion. */
 enum ArgumentSize {
-  AS_Default = 0,
-  AS_Short,
-  AS_Long,
-  AS_LongLong,
+  AS_Default = 0, /**< No size prefix. */
+  AS_Short,       /**< Short size prefix. */
+  AS_Long,        /**< Long size prefix. */
+  AS_LongLong,    /**< Long long size prefix. */
 };
 
-//=============================================================================
-// Concepts
-//=============================================================================
+/** Format string source that also collects the output. */
 template <typename T>
 concept FormatDataSource = requires(T& t, int32_t n, uint16_t c) {
   { t.get() } -> std::same_as<uint16_t>;
@@ -76,15 +76,22 @@ concept FormatDataSource = requires(T& t, int32_t n, uint16_t c) {
   { t.put(c) } -> std::same_as<bool>;
 };
 
+/** Source of 32 bit and 64 bit variadic arguments. */
 template <typename T>
 concept ArgListSource = requires(T& t) {
   { t.get32() } -> std::same_as<uint32_t>;
   { t.get64() } -> std::same_as<uint64_t>;
 };
 
-//=============================================================================
-// format_double helper
-//=============================================================================
+/**
+ * Formats a floating point value for the e, E, f, g, G, a and A conversions.
+ *
+ * @param value The value to format.
+ * @param precision Digits to print, negative for the default of 6.
+ * @param c The conversion character.
+ * @param flags FormatFlags bits.
+ * @return The formatted text.
+ */
 inline std::string format_double(double value, int32_t precision, uint16_t c, uint32_t flags) {
   if (precision < 0) {
     precision = 6;
@@ -117,19 +124,30 @@ inline std::string format_double(double value, int32_t precision, uint16_t c, ui
   return temp.str();
 }
 
-//=============================================================================
-// StackArgList — reads variadic args from PPC registers/stack
-//=============================================================================
-// For sprintf, _snprintf, DbgPrint and others where varargs follow fixed params.
-// Xenon PPC has 64-bit GPRs. Variadic args in r3-r10, then stack at
-// r1+0x54 in 8-byte slots.
+/**
+ * Reads variadic arguments from PPC registers and the stack, for sprintf, _snprintf, DbgPrint and
+ * others where varargs follow fixed parameters. Arguments 0 to 7 come from r3 to r10 as 64 bit
+ * values, the rest from 8 byte slots at r1 + 0x54.
+ */
 class StackArgList {
  public:
+  /**
+   * Constructs the list positioned at an argument index.
+   *
+   * @param ctx The PPC context holding r1 and r3 to r10.
+   * @param base The host base of guest memory.
+   * @param start_index Index of the first variadic argument, counting the fixed parameters.
+   */
   StackArgList(PPCContext& ctx, uint8_t* base, int32_t start_index)
       : ctx_(ctx), base_(base), index_(start_index) {}
 
   uint32_t get32() { return static_cast<uint32_t>(get64()); }
 
+  /**
+   * Returns the next argument and advances the index.
+   *
+   * @return The argument as a 64 bit value.
+   */
   uint64_t get64() {
     uint64_t value;
     if (index_ <= 7) {
@@ -163,7 +181,6 @@ class StackArgList {
           break;
       }
     } else {
-      // Stack arguments: 8-byte big-endian values at r1 + 0x54 + ((index - 8) * 8)
       uint32_t stack_addr = ctx_.r1.u32 + 0x54 + ((index_ - 8) * 8);
       value = static_cast<u64>(*rex::runtime::GuestPtr<be_u64*>(base_, stack_addr));
     }
@@ -177,17 +194,27 @@ class StackArgList {
   int32_t index_;
 };
 
-//=============================================================================
-// ArrayArgList reads from guest va_list (8-byte-aligned array in memory)
-//=============================================================================
-// For vsprintf, _vsnprintf and others where a va_list pointer is passed.
-// On the console, va_list is a pointer to an array of 8-byte-aligned values.
+/**
+ * Reads arguments from a guest va_list, a pointer to an array of 8 byte aligned values. Used by
+ * vsprintf, _vsnprintf and others where a va_list pointer is passed.
+ */
 class ArrayArgList {
  public:
+  /**
+   * Constructs the list over a va_list array.
+   *
+   * @param base The host base of guest memory.
+   * @param arg_ptr Guest address of the va_list array.
+   */
   ArrayArgList(uint8_t* base, uint32_t arg_ptr) : base_(base), arg_ptr_(arg_ptr), index_(0) {}
 
   uint32_t get32() { return static_cast<uint32_t>(get64()); }
 
+  /**
+   * Returns the next argument and advances the index.
+   *
+   * @return The argument as a 64 bit value.
+   */
   uint64_t get64() {
     uint32_t addr = arg_ptr_ + (8 * index_);
     uint64_t value = static_cast<u64>(*rex::runtime::GuestPtr<be_u64*>(base_, addr));
@@ -201,13 +228,21 @@ class ArrayArgList {
   int32_t index_;
 };
 
-//=============================================================================
-// StringFormatData — narrow char format string I/O
-//=============================================================================
+/** Narrow char format string source and sink. */
 class StringFormatData {
  public:
+  /**
+   * Constructs the source over a format string.
+   *
+   * @param input Host pointer to the NUL terminated narrow format string.
+   */
   explicit StringFormatData(const uint8_t* input) : input_(input) {}
 
+  /**
+   * Returns the next character and advances, or returns 0 at the end without advancing.
+   *
+   * @return The character.
+   */
   uint16_t get() {
     uint16_t result = *input_;
     if (result) {
@@ -218,6 +253,11 @@ class StringFormatData {
 
   uint16_t peek(int32_t offset) { return input_[offset]; }
 
+  /**
+   * Advances past up to count characters, stopping at the end.
+   *
+   * @param count Number of characters to skip.
+   */
   void skip(int32_t count) {
     while (count-- > 0) {
       if (!get()) {
@@ -226,6 +266,12 @@ class StringFormatData {
     }
   }
 
+  /**
+   * Appends a character to the output.
+   *
+   * @param c The character.
+   * @return True when appended, false when c does not fit in a narrow character.
+   */
   bool put(uint16_t c) {
     if (c >= 0x100) {
       return false;
@@ -241,13 +287,21 @@ class StringFormatData {
   std::string output_;
 };
 
-//=============================================================================
-// WideStringFormatData — wide (char16_t) format string I/O
-//=============================================================================
+/** Wide char16_t format string source and sink. */
 class WideStringFormatData {
  public:
+  /**
+   * Constructs the source over a format string.
+   *
+   * @param input Host pointer to the NUL terminated big endian UTF-16 format string.
+   */
   explicit WideStringFormatData(const uint16_t* input) : input_(input) {}
 
+  /**
+   * Returns the next character and advances, or returns 0 at the end without advancing.
+   *
+   * @return The character.
+   */
   uint16_t get() {
     uint16_t result = memory::load<be_u16>(input_);
     if (result) {
@@ -258,6 +312,11 @@ class WideStringFormatData {
 
   uint16_t peek(int32_t offset) { return memory::load<be_u16>(input_ + offset); }
 
+  /**
+   * Advances past up to count characters, stopping at the end.
+   *
+   * @param count Number of characters to skip.
+   */
   void skip(int32_t count) {
     while (count-- > 0) {
       if (!get()) {
@@ -266,6 +325,12 @@ class WideStringFormatData {
     }
   }
 
+  /**
+   * Appends a character to the output.
+   *
+   * @param c The character.
+   * @return True always.
+   */
   bool put(uint16_t c) {
     output_.push_back(char16_t(c));
     return true;
@@ -278,13 +343,21 @@ class WideStringFormatData {
   std::u16string output_;
 };
 
-//=============================================================================
-// WideCountFormatData — counts wide output without storing
-//=============================================================================
+/** Counts wide output without storing it. */
 class WideCountFormatData {
  public:
+  /**
+   * Constructs the source over a format string.
+   *
+   * @param input Host pointer to the NUL terminated big endian UTF-16 format string.
+   */
   explicit WideCountFormatData(const uint16_t* input) : input_(input), count_(0) {}
 
+  /**
+   * Returns the next character and advances, or returns 0 at the end without advancing.
+   *
+   * @return The character.
+   */
   uint16_t get() {
     uint16_t result = memory::load<be_u16>(input_);
     if (result) {
@@ -295,6 +368,11 @@ class WideCountFormatData {
 
   uint16_t peek(int32_t offset) { return memory::load<be_u16>(input_ + offset); }
 
+  /**
+   * Advances past up to count characters, stopping at the end.
+   *
+   * @param count Number of characters to skip.
+   */
   void skip(int32_t count) {
     while (count-- > 0) {
       if (!get()) {
@@ -303,6 +381,12 @@ class WideCountFormatData {
     }
   }
 
+  /**
+   * Counts a character without storing it.
+   *
+   * @param c The character, unused.
+   * @return True always.
+   */
   bool put([[maybe_unused]] uint16_t c) {
     ++count_;
     return true;
@@ -315,10 +399,17 @@ class WideCountFormatData {
   int32_t count_;
 };
 
-//=============================================================================
-// format_core — printf format string state machine
-//=============================================================================
-// Reference: https://msdn.microsoft.com/en-us/library/56e442dc.aspx
+/**
+ * Runs the printf format string state machine.
+ *
+ * @tparam Data The format string source and sink.
+ * @tparam Args The argument list source.
+ * @param base The host base of guest memory.
+ * @param data The format string source and sink.
+ * @param args The argument list.
+ * @param wide True when the format string is wide.
+ * @return The number of characters written, or -1 on failure.
+ */
 template <FormatDataSource Data, ArgListSource Args>
 int32_t format_core(uint8_t* base, Data& data, Args& args, const bool wide) {
   int32_t count = 0;
@@ -355,7 +446,7 @@ int32_t format_core(uint8_t* base, Data& data, Args& args, const bool wide) {
 
   for (uint16_t c = data.get();; c = data.get()) {
     if (state == FS_Unknown) {
-      if (!c) {  // the end
+      if (!c) {
         return count;
       } else if (c != '%') {
       output:
@@ -370,7 +461,6 @@ int32_t format_core(uint8_t* base, Data& data, Args& args, const bool wide) {
       c = data.get();
     }
 
-    // in any state, if c is \0, it's bad
     if (!c) {
       return -1;
     }
@@ -392,7 +482,6 @@ int32_t format_core(uint8_t* base, Data& data, Args& args, const bool wide) {
 
         state = FS_Flags;
 
-        // reset to defaults
         flags = 0;
         width = 0;
         precision = -1;
@@ -674,7 +763,6 @@ int32_t format_core(uint8_t* base, Data& data, Args& args, const bool wide) {
             break;
           }
 
-          // %n: write character count to guest memory
           case 'n': {
             auto pointer = static_cast<uint32_t>(args.get32());
             if (flags & FF_IsShort) {
@@ -739,7 +827,6 @@ int32_t format_core(uint8_t* base, Data& data, Args& args, const bool wide) {
             break;
           }
 
-          // ANSI_STRING / UNICODE_STRING (not implemented)
           case 'Z': {
             REX_ASSERT_ALWAYS();
             break;
@@ -822,7 +909,6 @@ int32_t format_core(uint8_t* base, Data& data, Args& args, const bool wide) {
     }
     count += text.length;
 
-    // right padding
     if ((flags & FF_LeftJustify) && padding > 0) {
       count += padding;
       while (padding-- > 0) {

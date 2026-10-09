@@ -1,4 +1,3 @@
-#pragma once
 /**
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
@@ -9,6 +8,8 @@
  *
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
+
+#pragma once
 
 #include <cstring>
 #include <memory>
@@ -26,38 +27,54 @@ class Runtime;
 
 namespace rex::runtime {
 
+/** Guest layout of a generic socket address. */
 struct XSOCKADDR {
-  be_u16 address_family;
-  char sa_data[14];
+  be_u16 address_family; /**< Offset 0x0. Address family. */
+  char sa_data[14];      /**< Offset 0x2. Address bytes. */
 };
 
+/** Host byte order copy of `XSOCKADDR`. */
 struct N_XSOCKADDR {
+  /** Builds an uninitialized address. */
   N_XSOCKADDR() {}
   N_XSOCKADDR(const XSOCKADDR* other) { *this = *other; }
+  /**
+   * Copies a guest address, converting the family to host byte order.
+   *
+   * @param other The guest address.
+   * @return This address.
+   */
   N_XSOCKADDR& operator=(const XSOCKADDR& other) {
     address_family = other.address_family;
     std::memcpy(sa_data, other.sa_data, rex::countof(sa_data));
     return *this;
   }
 
-  uint16_t address_family;
-  char sa_data[14];
+  uint16_t address_family; /**< Offset 0x0. Address family. */
+  char sa_data[14];        /**< Offset 0x2. Address bytes. */
 };
 
+/** Guest layout of an IPv4 socket address. */
 struct XSOCKADDR_IN {
-  be_u16 sin_family;
+  be_u16 sin_family; /**< Offset 0x0. Address family. */
 
-  // Always big-endian!
-  be_u16 sin_port;
-  be_u32 sin_addr;
-  // sin_zero is defined as __pad on Android, so prefixed here.
-  char x_sin_zero[8];
+  be_u16 sin_port; /**< Offset 0x2. Port. */
+  be_u32 sin_addr; /**< Offset 0x4. IPv4 address. */
+  /** Prefixed because Android defines sin_zero as __pad. */
+  char x_sin_zero[8]; /**< Offset 0x8. Zero padding. */
 };
 
-// Xenia native sockaddr_in
+/** Native sockaddr_in. */
 struct N_XSOCKADDR_IN {
+  /** Builds an uninitialized address. */
   N_XSOCKADDR_IN() {}
   N_XSOCKADDR_IN(const XSOCKADDR_IN* other) { *this = *other; }
+  /**
+   * Copies a guest address, converting the family to host byte order and zeroing the padding.
+   *
+   * @param other The guest address.
+   * @return This address.
+   */
   N_XSOCKADDR_IN& operator=(const XSOCKADDR_IN& other) {
     sin_family = other.sin_family;
     sin_port = other.sin_port;
@@ -67,32 +84,33 @@ struct N_XSOCKADDR_IN {
     return *this;
   }
 
-  uint16_t sin_family;
-  be_u16 sin_port;
-  be_u32 sin_addr;
-  // sin_zero is defined as __pad on Android, so prefixed here.
-  char x_sin_zero[8];
+  uint16_t sin_family; /**< Offset 0x0. Address family. */
+  be_u16 sin_port;     /**< Offset 0x2. Port. */
+  be_u32 sin_addr;     /**< Offset 0x4. IPv4 address. */
+  /** Prefixed because Android defines sin_zero as __pad. */
+  char x_sin_zero[8]; /**< Offset 0x8. Zero padding. */
 };
 
 /** The address families a socket object supports. */
 enum SocketAddressFamily {
-  X_AF_INET = 2,
+  X_AF_INET = 2, /**< IPv4 address family. */
 };
 
 /** The socket types a socket object supports. */
 enum SocketType {
-  X_SOCK_STREAM = 1,
-  X_SOCK_DGRAM = 2,
+  X_SOCK_STREAM = 1, /**< Reliable byte stream socket. */
+  X_SOCK_DGRAM = 2,  /**< Datagram socket. */
 };
 
 /** The protocols a socket object supports. */
 enum SocketProtocol {
-  X_IPPROTO_TCP = 6,
-  X_IPPROTO_UDP = 17,
+  X_IPPROTO_TCP = 6,  /**< TCP over IPv4. */
+  X_IPPROTO_UDP = 17, /**< UDP over IPv4. */
 
-  // LIVE Voice and Data Protocol
-  // https://blog.csdn.net/baozi3026/article/details/4277227
-  // Format: [cbGameData][GameData(encrypted)][VoiceData(unencrypted)]
+  /**
+   * LIVE Voice and Data Protocol, framed as
+   * [cbGameData][GameData(encrypted)][VoiceData(unencrypted)].
+   */
   X_IPPROTO_VDP = 254,
 };
 
@@ -109,15 +127,21 @@ struct SocketObject {
   /** Closes the native socket. */
   REX_RUNTIME_API ~SocketObject();
 
+  /** Host socket handle, all bits set when no native socket is open. */
   u64 native_handle = static_cast<u64>(-1);
-  SocketAddressFamily af;
-  SocketType type;
-  SocketProtocol proto;
+  SocketAddressFamily af; /**< Address family the socket was created with. */
+  SocketType type;        /**< Socket type the socket was created with. */
+  SocketProtocol proto;   /**< Protocol the socket was created with. */
+  /** Cleared when the title sets the option that disables the secure transport. */
   bool secure = true;
-  bool bound = false;
+  bool bound = false; /**< Set by a successful bind. No code reads it. */
+  /** Port in network byte order passed to the last successful bind. No code reads it. */
   u16 bound_port = 0;
+  /** Set when the title enabled the broadcast option. No code reads it. */
   bool broadcast_socket = false;
+  /** True after the title enabled non blocking mode, so calls return instead of waiting. */
   bool nonblocking = false;
+  /** Event that Prepare binds to the native socket for readiness waits. */
   std::unique_ptr<rex::platform::Event> event;
 };
 

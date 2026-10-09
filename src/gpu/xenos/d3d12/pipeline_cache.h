@@ -54,10 +54,6 @@ class PipelineCache {
 
   bool Initialize();
   void Shutdown();
-  // No ClearCache because it's undesirable with the persistent shader storage
-  // (if the storage is reloaded, effectively nothing is cleared, while the call
-  // takes a long time, and if it's not, there will be heavy stuttering for the
-  // rest of the execution of the guest).
 
   void InitializeShaderStorage(const std::filesystem::path& cache_root, uint32_t title_id,
                                bool blocking);
@@ -68,11 +64,22 @@ class PipelineCache {
 
   D3D12Shader* LoadShader(xenos::ShaderType shader_type, const uint32_t* host_address,
                           uint32_t dword_count);
-  // Analyze shader microcode on the translator thread.
+  /**
+   * Analyzes shader microcode on the translator thread.
+   *
+   * @param shader Shader to analyze.
+   */
   void AnalyzeShaderUcode(Shader& shader) { shader.AnalyzeUcode(ucode_disasm_buffer_); }
 
-  // Retrieves the shader modification for the current state. The shader must
-  // have microcode analyzed.
+  /**
+   * Returns the shader modification for the current state. The shader must have microcode
+   * analyzed.
+   *
+   * @param shader Vertex shader with analyzed microcode.
+   * @param host_vertex_shader_type Host vertex shader type.
+   * @param interpolator_mask Mask of the interpolators the pixel shader reads.
+   * @return The vertex shader modification.
+   */
   DxbcShaderTranslator::Modification GetCurrentVertexShaderModification(
       const Shader& shader, Shader::HostVertexShaderType host_vertex_shader_type,
       uint32_t interpolator_mask) const;
@@ -80,8 +87,21 @@ class PipelineCache {
       const Shader& shader, uint32_t interpolator_mask, uint32_t param_gen_pos,
       xenos::reg::RB_DEPTHCONTROL normalized_depth_control) const;
 
-  // If draw_util::IsRasterizationPotentiallyDone is false, the pixel shader
-  // MUST be made nullptr BEFORE calling this!
+  /**
+   * Configures the pipeline for the current state. If
+   * draw_util::IsRasterizationPotentiallyDone is false, the pixel shader must be nullptr.
+   *
+   * @param vertex_shader Translated vertex shader.
+   * @param pixel_shader Translated pixel shader, or nullptr.
+   * @param primitive_processing_result Primitive processing result of the draw.
+   * @param normalized_depth_control Normalized RB_DEPTHCONTROL.
+   * @param normalized_color_mask Normalized color write mask.
+   * @param bound_depth_and_color_render_target_bits Bits of the bound render targets.
+   * @param bound_depth_and_color_render_targets_formats Formats of the bound render targets.
+   * @param pipeline_handle_out Receives the pipeline handle.
+   * @param root_signature_out Receives the root signature.
+   * @return True when the pipeline was configured.
+   */
   bool ConfigurePipeline(D3D12Shader::D3D12Translation* vertex_shader,
                          D3D12Shader::D3D12Translation* pixel_shader,
                          const PrimitiveProcessor::ProcessingResult& primitive_processing_result,
@@ -91,8 +111,12 @@ class PipelineCache {
                          const uint32_t* bound_depth_and_color_render_targets_formats,
                          void** pipeline_handle_out, ID3D12RootSignature** root_signature_out);
 
-  // Returns a pipeline with deferred creation by its handle. May return nullptr
-  // if failed to create the pipeline.
+  /**
+   * Returns a pipeline with deferred creation by its handle, or nullptr if creation failed.
+   *
+   * @param handle Handle from ConfigurePipeline.
+   * @return The pipeline state, or nullptr.
+   */
   ID3D12PipelineState* GetD3D12PipelineByHandle(void* handle) const {
     return reinterpret_cast<const Pipeline*>(handle)->state.load(std::memory_order_acquire);
   }
@@ -107,9 +131,7 @@ class PipelineCache {
     static constexpr uint32_t kVersion = 0x20201219;
   });
 
-  // Update PipelineDescription::kVersion if any of the Pipeline* enums are
-  // changed!
-
+  // Changing any Pipeline* enum requires updating PipelineDescription::kVersion.
   enum class PipelineStripCutIndex : uint32_t {
     kNone,
     kFFFF,
@@ -147,7 +169,7 @@ class PipelineCache {
     kNone,
     kFront,
     kBack,
-    // Special case, handled via disabling the pixel shader and depth / stencil.
+    /** Disables the pixel shader and depth and stencil. */
     kDisableRasterization,
   };
 
@@ -167,55 +189,57 @@ class PipelineCache {
     kSrcAlphaSat,
   };
 
-  // Update PipelineDescription::kVersion if anything is changed!
+  // Changing PipelineRenderTarget requires updating PipelineDescription::kVersion.
   REX_PACKED_STRUCT(PipelineRenderTarget, {
-    uint32_t used : 1;                          // 1
-    xenos::ColorRenderTargetFormat format : 4;  // 5
-    PipelineBlendFactor src_blend : 4;          // 9
-    PipelineBlendFactor dest_blend : 4;         // 13
-    xenos::BlendOp blend_op : 3;                // 16
-    PipelineBlendFactor src_blend_alpha : 4;    // 20
-    PipelineBlendFactor dest_blend_alpha : 4;   // 24
-    xenos::BlendOp blend_op_alpha : 3;          // 27
-    uint32_t write_mask : 4;                    // 31
+    uint32_t used : 1;
+    xenos::ColorRenderTargetFormat format : 4;
+    PipelineBlendFactor src_blend : 4;
+    PipelineBlendFactor dest_blend : 4;
+    xenos::BlendOp blend_op : 3;
+    PipelineBlendFactor src_blend_alpha : 4;
+    PipelineBlendFactor dest_blend_alpha : 4;
+    xenos::BlendOp blend_op_alpha : 3;
+    uint32_t write_mask : 4;
   });
 
   REX_PACKED_STRUCT(PipelineDescription, {
     uint64_t vertex_shader_hash;
     uint64_t vertex_shader_modification;
-    // 0 if drawing without a pixel shader.
+    /** 0 if drawing without a pixel shader. */
     uint64_t pixel_shader_hash;
     uint64_t pixel_shader_modification;
 
     int32_t depth_bias;
     float depth_bias_slope_scaled;
 
-    PipelineStripCutIndex strip_cut_index : 2;  // 2
-    // PipelinePrimitiveTopologyType for a vertex shader.
-    // xenos::TessellationMode for a domain shader.
-    uint32_t primitive_topology_type_or_tessellation_mode : 2;  // 4
-    // Zero for non-kVertex host_vertex_shader_type.
-    PipelineGeometryShader geometry_shader : 2;       // 6
-    uint32_t fill_mode_wireframe : 1;                 // 7
-    PipelineCullMode cull_mode : 2;                   // 9
-    uint32_t front_counter_clockwise : 1;             // 10
-    uint32_t depth_clip : 1;                          // 11
-    xenos::MSAASamples host_msaa_samples : 2;         // 13
-    xenos::DepthRenderTargetFormat depth_format : 1;  // 14
-    xenos::CompareFunction depth_func : 3;            // 17
-    uint32_t depth_write : 1;                         // 18
-    uint32_t stencil_enable : 1;                      // 19
-    uint32_t stencil_read_mask : 8;                   // 27
+    PipelineStripCutIndex strip_cut_index : 2;
+    /**
+     * PipelinePrimitiveTopologyType for a vertex shader, xenos::TessellationMode for a domain
+     * shader.
+     */
+    uint32_t primitive_topology_type_or_tessellation_mode : 2;
+    /** 0 for non kVertex host_vertex_shader_type. */
+    PipelineGeometryShader geometry_shader : 2;
+    uint32_t fill_mode_wireframe : 1;
+    PipelineCullMode cull_mode : 2;
+    uint32_t front_counter_clockwise : 1;
+    uint32_t depth_clip : 1;
+    xenos::MSAASamples host_msaa_samples : 2;
+    xenos::DepthRenderTargetFormat depth_format : 1;
+    xenos::CompareFunction depth_func : 3;
+    uint32_t depth_write : 1;
+    uint32_t stencil_enable : 1;
+    uint32_t stencil_read_mask : 8;
 
-    uint32_t stencil_write_mask : 8;                   // 8
-    xenos::StencilOp stencil_front_fail_op : 3;        // 11
-    xenos::StencilOp stencil_front_depth_fail_op : 3;  // 14
-    xenos::StencilOp stencil_front_pass_op : 3;        // 17
-    xenos::CompareFunction stencil_front_func : 3;     // 20
-    xenos::StencilOp stencil_back_fail_op : 3;         // 23
-    xenos::StencilOp stencil_back_depth_fail_op : 3;   // 26
-    xenos::StencilOp stencil_back_pass_op : 3;         // 29
-    xenos::CompareFunction stencil_back_func : 3;      // 32
+    uint32_t stencil_write_mask : 8;
+    xenos::StencilOp stencil_front_fail_op : 3;
+    xenos::StencilOp stencil_front_depth_fail_op : 3;
+    xenos::StencilOp stencil_front_pass_op : 3;
+    xenos::CompareFunction stencil_front_func : 3;
+    xenos::StencilOp stencil_back_fail_op : 3;
+    xenos::StencilOp stencil_back_depth_fail_op : 3;
+    xenos::StencilOp stencil_back_pass_op : 3;
+    xenos::CompareFunction stencil_back_func : 3;
 
     PipelineRenderTarget render_targets[xenos::kMaxColorRenderTargets];
 
@@ -247,7 +271,7 @@ class PipelineCache {
       uint32_t has_vertex_kill_and : 1;
       uint32_t has_point_size : 1;
       uint32_t has_point_coordinates : 1;
-      // PA_CL_CLIP_CNTL::ps_ucp_mode for point primitives.
+      /** PA_CL_CLIP_CNTL::ps_ucp_mode for point primitives. */
       uint32_t point_ps_ucp_mode : 2;
     };
 
@@ -272,9 +296,31 @@ class PipelineCache {
                                IDxcUtils* dxc_utils = nullptr,
                                IDxcCompiler* dxc_compiler = nullptr);
 
-  // If draw_util::IsRasterizationPotentiallyDone is false, the pixel shader
-  // MUST be made nullptr BEFORE calling this! The shaders must be translated
-  // and valid unless for_placeholder is true.
+  /**
+   * Builds the description of the current state. If draw_util::IsRasterizationPotentiallyDone
+   * is false, the pixel shader must be nullptr. The shaders must be translated and valid unless
+   * for_placeholder is true.
+   *
+   * Direct3D 12 has no per side fill mode and depth bias, so the culled side selects the
+   * values. Without culling, wireframe on either side applies and the front side depth bias is
+   * used. Point fill mode becomes wireframe. Only 1 side may be culled, as culling both
+   * disables rasterization or drops the draw.
+   *
+   * The pipeline always lists all bound render targets, as the sample count of every render
+   * target bound with OMSetRenderTargets, even beyond NumRenderTargets, must match the pipeline.
+   * With 0 render targets and depth and stencil disabled the sample count must be 1.
+   *
+   * @param vertex_shader Translated vertex shader.
+   * @param pixel_shader Translated pixel shader, or nullptr.
+   * @param primitive_processing_result Primitive processing result of the draw.
+   * @param normalized_depth_control Normalized RB_DEPTHCONTROL.
+   * @param normalized_color_mask Normalized color write mask.
+   * @param bound_depth_and_color_render_target_bits Bits of the bound render targets.
+   * @param bound_depth_and_color_render_target_formats Formats of the bound render targets.
+   * @param runtime_description_out Receives the description.
+   * @param for_placeholder True when building a placeholder pipeline.
+   * @return True when the description was built.
+   */
   bool GetCurrentStateDescription(
       D3D12Shader::D3D12Translation* vertex_shader, D3D12Shader::D3D12Translation* pixel_shader,
       const PrimitiveProcessor::ProcessingResult& primitive_processing_result,
@@ -287,9 +333,45 @@ class PipelineCache {
                                    DxbcShaderTranslator::Modification vertex_shader_modification,
                                    DxbcShaderTranslator::Modification pixel_shader_modification,
                                    GeometryShaderKey& key_out);
+  /**
+   * Builds a DXBC geometry shader container for the key.
+   *
+   * Clip and cull distances are packed tightly into registers but have separate signature
+   * parameters, each a vec4 aligned window. Input signature parameters are interpolators,
+   * position, clip and cull distances, then point size. Output signature parameters are
+   * interpolators, point coordinates, position, then clip distances. Clip and cull plane
+   * declarations are separate even for a single register.
+   *
+   * Every emit leaves all o# uninitialized, so they must be written again. FXC generates only mov
+   * to o#, so temporaries carry calculations. emit_then_cut_stream must not be used, as it crashes
+   * the shader compiler of AMD Adrenalin 23.3.2 on RDNA 3 when conditional and neither FXC nor DXC
+   * generates it. Input vertices are implicitly indexable, so dcl_indexRange is not needed for
+   * the first dimension of v[#][#].
+   *
+   * Point sprites take the diameter from point_size when it is non negative, as the vertex
+   * shader clamps it per vertex, otherwise from the constant diameter.
+   *
+   * The rectangle list fourth vertex mirrors a vertex across the longest edge (the diagonal), as
+   * v3 = -v0 + v1 + v2 for the longest edge 12 (strip 0123), with strip 1203 for the longest
+   * edge 20 and strip 2013 for the longest edge 01.
+   *
+   * @param key Geometry shader key.
+   * @param shader_out Receives the shader dwords.
+   */
   static void CreateDxbcGeometryShader(GeometryShaderKey key, std::vector<uint32_t>& shader_out);
   const std::vector<uint32_t>& GetGeometryShader(GeometryShaderKey key);
 
+  /**
+   * Creates the pipeline state object.
+   *
+   * With ROV, ForcedSampleCount allows only 1, 4, 8 and 16 (not on all GPUs) samples, so 2x uses
+   * 4x and samples 0 and 3 stand in for the top left and bottom right positions, adjustable with
+   * programmable sample positions. Without ROV and without 2x support the same sample mask is
+   * used on a 4x pipeline.
+   *
+   * @param runtime_description Description of the pipeline to create.
+   * @return The pipeline state, or nullptr on failure.
+   */
   ID3D12PipelineState* CreateD3D12Pipeline(const PipelineRuntimeDescription& runtime_description);
   bool PrepareRuntimeDescriptionForQueuedCreation(Pipeline* pipeline,
                                                   PipelineRuntimeDescription& runtime_description);
@@ -299,19 +381,17 @@ class PipelineCache {
   const D3D12RenderTargetCache& render_target_cache_;
   bool bindless_resources_used_;
 
-  // Temporary storage for AnalyzeUcode calls on the processor thread.
   StringBuffer ucode_disasm_buffer_;
-  // Reusable shader translator for the processor thread.
+  /** Used on the processor thread only. */
   std::unique_ptr<DxbcShaderTranslator> shader_translator_;
   std::mutex translation_request_lock_;
 
-  // Command processor thread DXIL conversion/disassembly interfaces, if DXIL
-  // disassembly is enabled.
+  /** Command processor thread DXIL conversion interfaces, null unless DXIL disassembly is on. */
   IDxbcConverter* dxbc_converter_ = nullptr;
   IDxcUtils* dxc_utils_ = nullptr;
   IDxcCompiler* dxc_compiler_ = nullptr;
 
-  // Ucode hash -> shader.
+  /** Keyed by ucode hash. */
   std::unordered_map<uint64_t, std::unique_ptr<D3D12Shader>, rex::IdentityHasher<uint64_t>>
       shaders_;
 
@@ -321,30 +401,26 @@ class PipelineCache {
     size_t vector_span_length;
   };
   std::mutex layouts_mutex_;
-  // Texture binding layouts of different shaders, for obtaining layout UIDs.
   std::vector<D3D12Shader::TextureBinding> texture_binding_layouts_;
-  // Map of texture binding layouts used by shaders, for obtaining UIDs. Keys
-  // are XXH3 hashes of layouts, values need manual collision resolution using
-  // layout_vector_offset:layout_length of texture_binding_layouts_.
+  /**
+   * Keys are XXH3 hashes of layouts. Values need collision resolution using the span in
+   * texture_binding_layouts_.
+   */
   std::unordered_multimap<uint64_t, LayoutUID, rex::IdentityHasher<uint64_t>>
       texture_binding_layout_map_;
-  // Bindless sampler indices of different shaders, for obtaining layout UIDs.
-  // For bindful, sampler count is used as the UID instead.
+  /** For bindful, the sampler count is the UID instead. */
   std::vector<uint32_t> bindless_sampler_layouts_;
-  // Keys are XXH3 hashes of used bindless sampler indices.
+  /** Keys are XXH3 hashes of used bindless sampler indices. */
   std::unordered_multimap<uint64_t, LayoutUID, rex::IdentityHasher<uint64_t>>
       bindless_sampler_layout_map_;
 
-  // Geometry shaders for Xenos primitive types not supported by Direct3D 12.
   std::unordered_map<GeometryShaderKey, std::vector<uint32_t>, GeometryShaderKey::Hasher>
       geometry_shaders_;
 
-  // Empty depth-only pixel shader for writing to depth buffer via ROV when no
-  // Xenos pixel shader provided.
   std::vector<uint8_t> depth_only_pixel_shader_;
 
   struct Pipeline {
-    // nullptr if creation has failed.
+    /** nullptr if creation failed. */
     std::atomic<ID3D12PipelineState*> state{nullptr};
     std::atomic<ID3D12RootSignature*> root_signature{nullptr};
     PipelineRuntimeDescription description;
@@ -359,38 +435,29 @@ class PipelineCache {
       return priority_a < priority_b;
     }
   };
-  // All previously generated pipelines identified by hash and the description.
   std::unordered_multimap<uint64_t, std::unique_ptr<Pipeline>, rex::IdentityHasher<uint64_t>>
       pipelines_;
 
-  // Previously used pipeline. This matches our current state settings and
-  // allows us to quickly(ish) reuse the pipeline if no registers have been
-  // changed.
   Pipeline* current_pipeline_ = nullptr;
 
-  // Open shader storage path.
   std::filesystem::path shader_storage_cache_root_;
   uint32_t shader_storage_title_id_ = 0;
 
-  // Shader storage output stream, for preload in the next emulator runs.
   std::fstream shader_storage_file_;
   std::filesystem::path shader_storage_file_path_;
-  // For only writing shaders to the open storage once, incremented
-  // when switching the storage.
+  /** Incremented when switching the storage so each shader is written once. */
   uint32_t shader_storage_index_ = 0;
   bool shader_storage_file_flush_needed_ = false;
 
-  // Pipeline storage output stream, for preload in the next emulator runs.
   std::fstream pipeline_storage_file_;
   std::filesystem::path pipeline_storage_file_path_;
   bool pipeline_storage_file_flush_needed_ = false;
 
-  // Thread for asynchronous writing to the storage streams.
+  /** Writes to the storage streams asynchronously. */
   void StorageWriteThread();
   std::mutex storage_write_request_lock_;
   std::condition_variable storage_write_request_cond_;
-  // Storage thread input is protected with storage_write_request_lock_, and the
-  // thread is notified about its change via storage_write_request_cond_.
+  /** Protected with storage_write_request_lock_, notified via storage_write_request_cond_. */
   std::deque<const Shader*> storage_write_shader_queue_;
   std::deque<PipelineStoredDescription> storage_write_pipeline_queue_;
   bool storage_write_flush_shaders_ = false;
@@ -398,29 +465,34 @@ class PipelineCache {
   bool storage_write_thread_shutdown_ = false;
   std::unique_ptr<rex::platform::Thread> storage_write_thread_;
 
-  // Pipeline creation threads.
+  /**
+   * Pipeline creation thread body.
+   *
+   * @param thread_index Index of this thread among the creation threads.
+   */
   void CreationThread(size_t thread_index);
   void CreateQueuedPipelinesOnProcessorThread();
   std::mutex creation_request_lock_;
   std::condition_variable creation_request_cond_;
-  // Protected with creation_request_lock_, notify_one creation_request_cond_
-  // when set.
+  /** Protected with creation_request_lock_, notify_one creation_request_cond_ when set. */
   std::priority_queue<Pipeline*, std::vector<Pipeline*>, PipelineCreationPriorityComparator>
       creation_queue_;
-  // Number of threads that are creating a pipeline - incremented when
-  // a pipeline is dequeued (the completion event can't be triggered before this
-  // is zero). Protected with creation_request_lock_.
+  /**
+   * Number of threads creating a pipeline. Incremented on dequeue, as the completion event must
+   * not trigger before this is 0. Protected with creation_request_lock_.
+   */
   size_t creation_threads_busy_ = 0;
-  // Manual-reset event set when the last queued pipeline is created and there
-  // are no more pipelines to create. This is triggered by the thread creating
-  // the last pipeline.
+  /** Manual reset event set by the thread creating the last queued pipeline. */
   std::unique_ptr<rex::platform::Event> creation_completion_event_;
-  // Whether setting the event on completion is queued. Protected with
-  // creation_request_lock_, notify_one creation_request_cond_ when set.
+  /**
+   * True when setting the event on completion is queued. Protected with creation_request_lock_,
+   * notify_one creation_request_cond_ when set.
+   */
   bool creation_completion_set_event_ = false;
-  // Creation threads with this index or above need to be shut down as soon as
-  // possible. Protected with creation_request_lock_, notify_all
-  // creation_request_cond_ when set.
+  /**
+   * Creation threads with this index or above must shut down. Protected with
+   * creation_request_lock_, notify_all creation_request_cond_ when set.
+   */
   size_t creation_threads_shutdown_from_ = SIZE_MAX;
   std::vector<std::unique_ptr<rex::platform::Thread>> creation_threads_;
 };

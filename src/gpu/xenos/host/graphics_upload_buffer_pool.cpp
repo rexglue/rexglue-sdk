@@ -42,7 +42,6 @@ void GraphicsUploadBufferPool::Reclaim(uint64_t completed_submission_index) {
 }
 
 void GraphicsUploadBufferPool::ChangeSubmissionTimeline() {
-  // Reclaim all submitted pages.
   if (writable_last_) {
     writable_last_->next_ = submitted_first_;
   } else {
@@ -52,7 +51,6 @@ void GraphicsUploadBufferPool::ChangeSubmissionTimeline() {
   submitted_first_ = nullptr;
   submitted_last_ = nullptr;
 
-  // Mark all pages as never used yet in the new timeline.
   Page* page = writable_first_;
   while (page) {
     page->last_submission_index_ = 0;
@@ -61,7 +59,7 @@ void GraphicsUploadBufferPool::ChangeSubmissionTimeline() {
 }
 
 void GraphicsUploadBufferPool::ClearCache() {
-  // Called from the destructor - must not call virtual functions here.
+  // Called from the destructor, so must not call virtual functions.
   current_page_flushed_ = 0;
   current_page_used_ = 0;
   while (submitted_first_) {
@@ -104,9 +102,7 @@ GraphicsUploadBufferPool::Page* GraphicsUploadBufferPool::Request(uint64_t submi
   REX_ASSERT(!submitted_last_ || submission_index >= submitted_last_->last_submission_index_);
   size_t current_page_used_aligned = rex::align(current_page_used_, alignment);
   if (current_page_used_aligned + size > page_size_ || !writable_first_) {
-    // Start a new page if can't fit all the bytes or don't have an open page.
     if (writable_first_) {
-      // Close the page that was current.
       FlushWrites();
       if (submitted_last_) {
         submitted_last_->next_ = writable_first_;
@@ -121,7 +117,6 @@ GraphicsUploadBufferPool::Page* GraphicsUploadBufferPool::Request(uint64_t submi
       }
     }
     if (!writable_first_) {
-      // Create a new page if none available.
       std::unique_ptr<Page> created = CreatePageImplementation();
       if (!created) {
         return nullptr;
@@ -130,8 +125,6 @@ GraphicsUploadBufferPool::Page* GraphicsUploadBufferPool::Request(uint64_t submi
       writable_first_->last_submission_index_ = submission_index;
       writable_first_->next_ = nullptr;
       writable_last_ = writable_first_;
-      // After CreatePageImplementation (more specifically, the first successful
-      // call), page_size_ may grow - but this doesn't matter here.
     }
     current_page_used_ = 0;
     current_page_used_aligned = 0;

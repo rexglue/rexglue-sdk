@@ -102,7 +102,7 @@ class UISetupEvent : public UIEvent {
       : UIEvent(type, target), is_initial_setup_(is_initial_setup) {}
 
   /**
-   * Tests whether this class carries a type.
+   * Reports whether this class carries a type.
    *
    * @param type The type to test.
    * @return True for Opened, DpiChanged, Resize, Focus and MonitorUpdate.
@@ -113,7 +113,7 @@ class UISetupEvent : public UIEvent {
   }
 
   /**
-   * Tests whether the window is opening.
+   * Reports whether the window is opening.
    *
    * @return True when the event is part of the window opening.
    */
@@ -137,7 +137,7 @@ class ResizeEvent : public UISetupEvent {
       : UISetupEvent(Type::Resize, target, is_initial_setup), size_(size) {}
 
   /**
-   * Tests whether this class carries a type.
+   * Reports whether this class carries a type.
    *
    * @param type The type to test.
    * @return True for Resize.
@@ -169,7 +169,7 @@ class FocusEvent : public UISetupEvent {
       : UISetupEvent(Type::Focus, target, is_initial_setup), focused_(focused) {}
 
   /**
-   * Tests whether this class carries a type.
+   * Reports whether this class carries a type.
    *
    * @param type The type to test.
    * @return True for Focus.
@@ -177,7 +177,7 @@ class FocusEvent : public UISetupEvent {
   static constexpr bool Carries(Type type) { return type == Type::Focus; }
 
   /**
-   * Tests whether the window gained focus.
+   * Reports whether the window gained focus.
    *
    * @return True when the window gained focus, false when it lost it.
    */
@@ -203,7 +203,7 @@ class MonitorUpdateEvent : public UISetupEvent {
         old_monitor_potentially_disconnected_(old_monitor_potentially_disconnected) {}
 
   /**
-   * Tests whether this class carries a type.
+   * Reports whether this class carries a type.
    *
    * @param type The type to test.
    * @return True for MonitorUpdate.
@@ -211,7 +211,7 @@ class MonitorUpdateEvent : public UISetupEvent {
   static constexpr bool Carries(Type type) { return type == Type::MonitorUpdate; }
 
   /**
-   * Tests whether the previous monitor may have been disconnected.
+   * Reports whether the previous monitor may have been disconnected.
    *
    * @return True when the previous monitor may be gone.
    */
@@ -236,7 +236,7 @@ class FileDropEvent : public UIEvent {
       : UIEvent(Type::FileDrop, target), filename_(std::move(filename)) {}
 
   /**
-   * Tests whether this class carries a type.
+   * Reports whether this class carries a type.
    *
    * @param type The type to test.
    * @return True for FileDrop.
@@ -281,7 +281,7 @@ class KeyEvent : public UIEvent {
         modifier_alt_pressed_(modifier_alt_pressed) {}
 
   /**
-   * Tests whether this class carries a type.
+   * Reports whether this class carries a type.
    *
    * @param type The type to test.
    * @return True for KeyDown, KeyUp and Char.
@@ -291,7 +291,7 @@ class KeyEvent : public UIEvent {
   }
 
   /**
-   * Tests whether a listener consumed the event.
+   * Reports whether a listener consumed the event.
    *
    * @return True once a listener marked the event handled.
    */
@@ -319,28 +319,28 @@ class KeyEvent : public UIEvent {
   i32 repeat_count() const { return repeat_count_; }
 
   /**
-   * Tests whether the key was down before this event.
+   * Reports whether the key was down before this event.
    *
    * @return True when the key was already down.
    */
   bool prev_state() const { return prev_state_; }
 
   /**
-   * Tests whether Shift was held.
+   * Reports whether Shift was held.
    *
    * @return True while Shift is held.
    */
   bool is_shift_pressed() const { return modifier_shift_pressed_; }
 
   /**
-   * Tests whether Ctrl was held.
+   * Reports whether Ctrl was held.
    *
    * @return True while Ctrl is held.
    */
   bool is_ctrl_pressed() const { return modifier_ctrl_pressed_; }
 
   /**
-   * Tests whether Alt was held.
+   * Reports whether Alt was held.
    *
    * @return True while Alt is held.
    */
@@ -397,7 +397,7 @@ class MouseEvent : public UIEvent {
         dy_(dy) {}
 
   /**
-   * Tests whether this class carries a type.
+   * Reports whether this class carries a type.
    *
    * @param type The type to test.
    * @return True for MouseDown, MouseUp, MouseMove and MouseWheel.
@@ -408,7 +408,7 @@ class MouseEvent : public UIEvent {
   }
 
   /**
-   * Tests whether a listener consumed the event.
+   * Reports whether a listener consumed the event.
    *
    * @return True once a listener marked the event handled.
    */
@@ -511,7 +511,7 @@ class TouchEvent : public UIEvent {
       : UIEvent(type, target), pointer_id_(pointer_id), action_(action), x_(x), y_(y) {}
 
   /**
-   * Tests whether this class carries a type.
+   * Reports whether this class carries a type.
    *
    * @param type The type to test.
    * @return True for Touch.
@@ -519,7 +519,7 @@ class TouchEvent : public UIEvent {
   static constexpr bool Carries(Type type) { return type == Type::Touch; }
 
   /**
-   * Tests whether a listener consumed the event.
+   * Reports whether a listener consumed the event.
    *
    * @return True once a listener marked the event handled.
    */

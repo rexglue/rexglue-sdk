@@ -31,9 +31,7 @@ namespace rex::memory {
 
 class Win32MappedMemory : public MappedMemory {
  public:
-  // CreateFile returns INVALID_HANDLE_VALUE in case of failure.
   static inline const HANDLE kFileHandleInvalid = INVALID_HANDLE_VALUE;
-  // CreateFileMapping returns nullptr in case of failure.
   static constexpr HANDLE kMappingHandleInvalid = nullptr;
 
   ~Win32MappedMemory() override {
@@ -269,8 +267,6 @@ class Win32ChunkedMappedMemoryWriter : public ChunkedMappedMemoryWriter {
         return false;
       }
 
-      // If specified, ensure the allocation occurs in the lower 32-bit address
-      // space.
       if (low_address_space) {
         bool successful = false;
         data_ = reinterpret_cast<uint8_t*>(0x10000000);
@@ -283,9 +279,7 @@ class Win32ChunkedMappedMemoryWriter : public ChunkedMappedMemoryWriter {
             successful = true;
           }
 #else
-          // VirtualAlloc2FromApp and MapViewOfFile3FromApp were added in
-          // 10.0.17134.0.
-          // https://docs.microsoft.com/en-us/uwp/win32-and-com/win32-apis
+          // VirtualAlloc2FromApp and MapViewOfFile3FromApp require 10.0.17134.0.
           if (VirtualAlloc2FromApp(process, data_, capacity_, MEM_RESERVE | MEM_RESERVE_PLACEHOLDER,
                                    PAGE_NOACCESS, nullptr, 0)) {
             if (MapViewOfFile3FromApp(mapping_handle_, process, data_, 0, capacity_,

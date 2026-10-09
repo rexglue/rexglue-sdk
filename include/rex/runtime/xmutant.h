@@ -1,4 +1,3 @@
-#pragma once
 /**
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
@@ -9,6 +8,8 @@
  *
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
+
+#pragma once
 
 #include <atomic>
 #include <memory>
@@ -45,9 +46,10 @@ struct MutantObject {
    */
   REX_RUNTIME_API explicit MutantObject(bool initial_owner, u32 guest_mutant_in = 0);
 
-  std::unique_ptr<rex::platform::Mutant> mutant;
+  std::unique_ptr<rex::platform::Mutant> mutant; /**< Host mutant that waiters block on. */
+  /** Id of the owning thread, 0 when no thread owns the mutant. */
   std::atomic<u32> owner_thread_id{0};
-  std::atomic<i32> hold_count{0};
+  std::atomic<i32> hold_count{0}; /**< Number of recursive acquires by the owner, 0 when unowned. */
   /** Set by an abandon, cleared by the next acquire. */
   std::atomic<bool> abandoned{false};
   /** The guest KMUTANT the object backs, 0 for none. */

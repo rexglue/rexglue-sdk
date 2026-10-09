@@ -23,12 +23,8 @@ namespace rex::codegen {
 
 using Builder = bool (*)(BuilderContext&);
 
-// Static dispatch table
 static const std::unordered_map<int, Builder>& GetDispatchTable() {
   static const std::unordered_map<int, Builder> table = {
-      //=====================================================================
-      // Arithmetic
-      //=====================================================================
       {PPC_INST_ADD, build_add},
       {PPC_INST_ADDE, build_adde},
       {PPC_INST_ADDI, build_addi},
@@ -56,9 +52,6 @@ static const std::unordered_map<int, Builder>& GetDispatchTable() {
       {PPC_INST_MULHD, build_mulhd},
       {PPC_INST_MULHDU, build_mulhdu},
 
-      //=====================================================================
-      // Logical
-      //=====================================================================
       {PPC_INST_AND, build_and},
       {PPC_INST_ANDC, build_andc},
       {PPC_INST_ANDI, build_andi},
@@ -101,9 +94,6 @@ static const std::unordered_map<int, Builder>& GetDispatchTable() {
       {PPC_INST_SRD, build_srd},
       {PPC_INST_SRW, build_srw},
 
-      //=====================================================================
-      // Conditional Register
-      //=====================================================================
       {PPC_INST_CRAND, build_crand},
       {PPC_INST_CRANDC, build_crandc},
       {PPC_INST_CREQV, build_creqv},
@@ -113,9 +103,6 @@ static const std::unordered_map<int, Builder>& GetDispatchTable() {
       {PPC_INST_CRORC, build_crorc},
       {PPC_INST_CRXOR, build_crxor},
 
-      //=====================================================================
-      // Comparison
-      //=====================================================================
       {PPC_INST_CMPD, build_cmpd},
       {PPC_INST_CMPDI, build_cmpdi},
       {PPC_INST_CMPLD, build_cmpld},
@@ -125,9 +112,6 @@ static const std::unordered_map<int, Builder>& GetDispatchTable() {
       {PPC_INST_CMPW, build_cmpw},
       {PPC_INST_CMPWI, build_cmpwi},
 
-      //=====================================================================
-      // Control Flow
-      //=====================================================================
       {PPC_INST_B, build_b},
       {PPC_INST_BL, build_bl},
       {PPC_INST_BLR, build_blr},
@@ -159,9 +143,6 @@ static const std::unordered_map<int, Builder>& GetDispatchTable() {
       {PPC_INST_BNS, build_bns},
       {PPC_INST_BNSLR, build_bnslr},
 
-      //=====================================================================
-      // Floating Point
-      //=====================================================================
       {PPC_INST_FABS, build_fabs},
       {PPC_INST_FNABS, build_fnabs},
       {PPC_INST_FNEG, build_fneg},
@@ -196,15 +177,9 @@ static const std::unordered_map<int, Builder>& GetDispatchTable() {
       {PPC_INST_FSQRTS, build_fsqrts},
       {PPC_INST_FSEL, build_fsel},
 
-      //=====================================================================
-      // Memory - Load Immediate
-      //=====================================================================
       {PPC_INST_LI, build_li},
       {PPC_INST_LIS, build_lis},
 
-      //=====================================================================
-      // Memory - Loads
-      //=====================================================================
       {PPC_INST_LBZ, build_lbz},
       {PPC_INST_LBZU, build_lbzu},
       {PPC_INST_LBZX, build_lbzx},
@@ -241,9 +216,6 @@ static const std::unordered_map<int, Builder>& GetDispatchTable() {
       {PPC_INST_LFSUX, build_lfsux},
       {PPC_INST_LFSX, build_lfsx},
 
-      //=====================================================================
-      // Memory - Stores
-      //=====================================================================
       {PPC_INST_STB, build_stb},
       {PPC_INST_STBU, build_stbu},
       {PPC_INST_STBX, build_stbx},
@@ -275,9 +247,6 @@ static const std::unordered_map<int, Builder>& GetDispatchTable() {
       {PPC_INST_STFSUX, build_stfsux},
       {PPC_INST_STFSX, build_stfsx},
 
-      //=====================================================================
-      // Memory - Vector Loads
-      //=====================================================================
       {PPC_INST_LVX, build_lvx},
       {PPC_INST_LVX128, build_lvx},
       {PPC_INST_LVXL, build_lvx},
@@ -293,9 +262,6 @@ static const std::unordered_map<int, Builder>& GetDispatchTable() {
       {PPC_INST_LVEWX, build_lvx},
       {PPC_INST_LVEWX128, build_lvx},
 
-      //=====================================================================
-      // Memory - Vector Stores
-      //=====================================================================
       {PPC_INST_STVEBX, build_stvebx},
       {PPC_INST_STVEHX, build_stvehx},
       {PPC_INST_STVEWX, build_stvewx},
@@ -309,9 +275,6 @@ static const std::unordered_map<int, Builder>& GetDispatchTable() {
       {PPC_INST_STVX128, build_stvx},
       {PPC_INST_STVXL, build_stvx},
 
-      //=====================================================================
-      // System
-      //=====================================================================
       {PPC_INST_NOP, build_nop},
       {PPC_INST_ATTN, build_attn},
       {PPC_INST_SYNC, build_sync},
@@ -321,7 +284,6 @@ static const std::unordered_map<int, Builder>& GetDispatchTable() {
       {PPC_INST_CCTPL, build_cctpl},
       {PPC_INST_CCTPM, build_cctpm},
       {PPC_INST_CCTPH, build_cctph},
-      // Trap word immediate (all variants map to generic TWI)
       {PPC_INST_TWI, build_twi},
       {PPC_INST_TWLGTI, build_twi},
       {PPC_INST_TWLLTI, build_twi},
@@ -337,7 +299,6 @@ static const std::unordered_map<int, Builder>& GetDispatchTable() {
       {PPC_INST_TWLEI, build_twi},
       {PPC_INST_TWNGI, build_twi},
       {PPC_INST_TWNEI, build_twi},
-      // Trap doubleword immediate (all variants map to generic TDI)
       {PPC_INST_TDI, build_tdi},
       {PPC_INST_TDLGTI, build_tdi},
       {PPC_INST_TDLLTI, build_tdi},
@@ -353,7 +314,6 @@ static const std::unordered_map<int, Builder>& GetDispatchTable() {
       {PPC_INST_TDLEI, build_tdi},
       {PPC_INST_TDNGI, build_tdi},
       {PPC_INST_TDNEI, build_tdi},
-      // Trap word register (all variants map to generic TW)
       {PPC_INST_TW, build_tw},
       {PPC_INST_TWGE, build_tw},
       {PPC_INST_TWGT, build_tw},
@@ -365,7 +325,6 @@ static const std::unordered_map<int, Builder>& GetDispatchTable() {
       {PPC_INST_TWLGT, build_tw},
       {PPC_INST_TWLLE, build_tw},
       {PPC_INST_TWLLT, build_tw},
-      // Trap doubleword register (all variants map to generic TD)
       {PPC_INST_TD, build_td},
       {PPC_INST_TDGE, build_td},
       {PPC_INST_TDGT, build_td},
@@ -404,9 +363,6 @@ static const std::unordered_map<int, Builder>& GetDispatchTable() {
       {PPC_INST_MTXER, build_mtxer},
       {PPC_INST_CLRLDI, build_clrldi},
 
-      //=====================================================================
-      // Vector - Floating Point Arithmetic
-      //=====================================================================
       {PPC_INST_VADDFP, build_vaddfp},
       {PPC_INST_VADDFP128, build_vaddfp},
       {PPC_INST_VSUBFP, build_vsubfp},
@@ -414,7 +370,7 @@ static const std::unordered_map<int, Builder>& GetDispatchTable() {
       {PPC_INST_VMULFP128, build_vmulfp128},
       {PPC_INST_VMADDFP, build_vmaddfp},
       {PPC_INST_VMADDFP128, build_vmaddfp},
-      {PPC_INST_VMADDCFP128, build_vmaddfp},  // Same as VMADDFP
+      {PPC_INST_VMADDCFP128, build_vmaddfp},
       {PPC_INST_VNMSUBFP, build_vnmsubfp},
       {PPC_INST_VNMSUBFP128, build_vnmsubfp},
       {PPC_INST_VMAXFP, build_vmaxfp},
@@ -430,15 +386,9 @@ static const std::unordered_map<int, Builder>& GetDispatchTable() {
       {PPC_INST_VLOGEFP, build_vlogefp},
       {PPC_INST_VLOGEFP128, build_vlogefp},
 
-      //=====================================================================
-      // Vector - Dot Products
-      //=====================================================================
       {PPC_INST_VMSUM3FP128, build_vmsum3fp128},
       {PPC_INST_VMSUM4FP128, build_vmsum4fp128},
 
-      //=====================================================================
-      // Vector - Rounding
-      //=====================================================================
       {PPC_INST_VRFIM, build_vrfim},
       {PPC_INST_VRFIM128, build_vrfim},
       {PPC_INST_VRFIN, build_vrfin},
@@ -448,9 +398,6 @@ static const std::unordered_map<int, Builder>& GetDispatchTable() {
       {PPC_INST_VRFIZ, build_vrfiz},
       {PPC_INST_VRFIZ128, build_vrfiz},
 
-      //=====================================================================
-      // Vector - Integer Arithmetic
-      //=====================================================================
       {PPC_INST_VADDSBS, build_vaddsbs},
       {PPC_INST_VADDSHS, build_vaddshs},
       {PPC_INST_VADDSWS, build_vaddsws},
@@ -481,18 +428,12 @@ static const std::unordered_map<int, Builder>& GetDispatchTable() {
       {PPC_INST_VMINUB, build_vminub},
       {PPC_INST_VMINUW, build_vminuw},
 
-      //=====================================================================
-      // Vector - Average
-      //=====================================================================
       {PPC_INST_VAVGSB, build_vavgsb},
       {PPC_INST_VAVGSH, build_vavgsh},
       {PPC_INST_VAVGSW, build_vavgsw},
       {PPC_INST_VAVGUB, build_vavgub},
       {PPC_INST_VAVGUH, build_vavguh},
 
-      //=====================================================================
-      // Vector - Logical
-      //=====================================================================
       {PPC_INST_VAND, build_vand},
       {PPC_INST_VAND128, build_vand},
       {PPC_INST_VANDC, build_vandc},
@@ -506,9 +447,6 @@ static const std::unordered_map<int, Builder>& GetDispatchTable() {
       {PPC_INST_VSEL, build_vsel},
       {PPC_INST_VSEL128, build_vsel},
 
-      //=====================================================================
-      // Vector - Compare
-      //=====================================================================
       {PPC_INST_VCMPBFP, build_vcmpbfp},
       {PPC_INST_VCMPBFP128, build_vcmpbfp},
       {PPC_INST_VCMPEQFP, build_vcmpeqfp},
@@ -528,21 +466,15 @@ static const std::unordered_map<int, Builder>& GetDispatchTable() {
       {PPC_INST_VCMPGTSH, build_vcmpgtsh},
       {PPC_INST_VCMPGTSW, build_vcmpgtsw},
 
-      //=====================================================================
-      // Vector - Conversion
-      //=====================================================================
       {PPC_INST_VCTSXS, build_vctsxs},
-      {PPC_INST_VCFPSXWS128, build_vctsxs},  // Alias
+      {PPC_INST_VCFPSXWS128, build_vctsxs},
       {PPC_INST_VCTUXS, build_vctuxs},
-      {PPC_INST_VCFPUXWS128, build_vctuxs},  // Alias
+      {PPC_INST_VCFPUXWS128, build_vctuxs},
       {PPC_INST_VCFSX, build_vcfsx},
-      {PPC_INST_VCSXWFP128, build_vcfsx},  // Alias
+      {PPC_INST_VCSXWFP128, build_vcfsx},
       {PPC_INST_VCFUX, build_vcfux},
-      {PPC_INST_VCUXWFP128, build_vcfux},  // Alias
+      {PPC_INST_VCUXWFP128, build_vcfux},
 
-      //=====================================================================
-      // Vector - Merge
-      //=====================================================================
       {PPC_INST_VMRGHB, build_vmrghb},
       {PPC_INST_VMRGHH, build_vmrghh},
       {PPC_INST_VMRGHW, build_vmrghw},
@@ -552,17 +484,11 @@ static const std::unordered_map<int, Builder>& GetDispatchTable() {
       {PPC_INST_VMRGLW, build_vmrglw},
       {PPC_INST_VMRGLW128, build_vmrglw},
 
-      //=====================================================================
-      // Vector - Permute
-      //=====================================================================
       {PPC_INST_VPERM, build_vperm},
       {PPC_INST_VPERM128, build_vperm},
       {PPC_INST_VPERMWI128, build_vpermwi128},
       {PPC_INST_VRLIMI128, build_vrlimi128},
 
-      //=====================================================================
-      // Vector - Shift
-      //=====================================================================
       {PPC_INST_VSL, build_vsl},
       {PPC_INST_VSLB, build_vslb},
       {PPC_INST_VSLH, build_vslh},
@@ -587,9 +513,6 @@ static const std::unordered_map<int, Builder>& GetDispatchTable() {
       {PPC_INST_VRLW, build_vrlw},
       {PPC_INST_VRLW128, build_vrlw},
 
-      //=====================================================================
-      // Vector - Splat
-      //=====================================================================
       {PPC_INST_VSPLTB, build_vspltb},
       {PPC_INST_VSPLTH, build_vsplth},
       {PPC_INST_VSPLTISB, build_vspltisb},
@@ -599,9 +522,6 @@ static const std::unordered_map<int, Builder>& GetDispatchTable() {
       {PPC_INST_VSPLTW, build_vspltw},
       {PPC_INST_VSPLTW128, build_vspltw},
 
-      //=====================================================================
-      // Vector - Pack
-      //=====================================================================
       {PPC_INST_VPKUHUM, build_vpkuhum},
       {PPC_INST_VPKUHUM128, build_vpkuhum},
       {PPC_INST_VPKUHUS, build_vpkuhus},
@@ -620,9 +540,6 @@ static const std::unordered_map<int, Builder>& GetDispatchTable() {
       {PPC_INST_VPKSWUS128, build_vpkswus},
       {PPC_INST_VPKD3D128, build_vpkd3d128},
 
-      //=====================================================================
-      // Vector - Unpack
-      //=====================================================================
       {PPC_INST_VUPKD3D128, build_vupkd3d128},
       {PPC_INST_VUPKHSB, build_vupkhsb},
       {PPC_INST_VUPKHSB128, build_vupkhsb},
@@ -636,10 +553,16 @@ static const std::unordered_map<int, Builder>& GetDispatchTable() {
   return table;
 }
 
+/**
+ * Emits the code for an instruction through its builder. A VUPKHSB128 or VUPKLSB128 with
+ * operands[2] equal to 0x60 is the SH form misidentified by the decoder. An opcode with no builder
+ * emits REX_UNIMPLEMENTED so the title fails at runtime and its function is generated.
+ *
+ * @param id Opcode ID.
+ * @param ctx Builder context.
+ * @return True when the instruction was handled.
+ */
 bool DispatchInstruction(int id, BuilderContext& ctx) {
-  // VUPKHSB128/VUPKLSB128 misidentification fixup (moved from recompiler.cpp).
-  // Only fires when operands[2]==0x60; table entries for *128 variants
-  // still serve the non-0x60 case.
   if (id == PPC_INST_VUPKHSB128 && ctx.insn.operands[2] == 0x60) {
     id = PPC_INST_VUPKHSH128;
   } else if (id == PPC_INST_VUPKLSB128 && ctx.insn.operands[2] == 0x60) {
@@ -652,8 +575,6 @@ bool DispatchInstruction(int id, BuilderContext& ctx) {
     return it->second(ctx);
   }
 
-  // Emit trap code for unimplemented instruction - allows tests to be generated
-  // and fail at runtime rather than skipping the entire function
   REXLOG_WARN(codegen, "Unimplemented: {} at 0x{:08X}", ctx.insn.opcode->name, ctx.base);
   ctx.println("\t// UNIMPLEMENTED: {}", ctx.insn.opcode->name);
   ctx.println("\tREX_UNIMPLEMENTED(0x{:X}, \"{}\");", ctx.base, ctx.insn.opcode->name);

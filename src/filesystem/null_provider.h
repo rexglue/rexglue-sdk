@@ -23,7 +23,7 @@ namespace rex::filesystem {
 
 /**
  * Answers the null paths of its mount entry. Every read and write succeeds with 0 bytes, so title
- * code that probes raw partitions sees them present.
+ * code that opens raw partitions finds them present.
  */
 class NullProvider final : public Provider {
   struct Key {};

@@ -1,13 +1,12 @@
 /**
- * @file        kernel/xtypes.h
+ * @file        runtime/xtypes.h
  * @brief       Core type definitions (X_STATUS, X_RESULT, X_HRESULT)
  *
- * @copyright   Copyright 2020 Ben Vanik. All rights reserved. (Xenia Project)
+ * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
+ *              All rights reserved.
  *
  * @license     BSD 3-Clause License
  *              See LICENSE file in the project root for full license text.
- *
- * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
 #pragma once
@@ -15,15 +14,15 @@
 #include <cstdint>
 
 #include <rex/assert.h>
-#include <rex/types.h>  // be<T>
+#include <rex/types.h>
 
 namespace rex {
 
+/** Value the title uses to name a kernel object. */
 using X_HANDLE = uint32_t;
 inline constexpr X_HANDLE X_INVALID_HANDLE_VALUE = static_cast<X_HANDLE>(-1);
 
-// NT_STATUS (STATUS_*)
-// https://msdn.microsoft.com/en-us/library/cc704588.aspx
+/** NT status code type, holding STATUS_* values. */
 using X_STATUS = uint32_t;
 [[nodiscard]] constexpr bool XSUCCEEDED(X_STATUS s) {
   return (s & 0xC0000000) == 0;
@@ -81,8 +80,7 @@ inline constexpr X_STATUS X_STATUS_NOT_FOUND = 0xC0000225;
 inline constexpr X_STATUS X_STATUS_DRIVER_ORDINAL_NOT_FOUND = 0xC0000262;
 inline constexpr X_STATUS X_STATUS_DRIVER_ENTRYPOINT_NOT_FOUND = 0xC0000263;
 
-// Win32 error codes (ERROR_*)
-// https://msdn.microsoft.com/en-us/library/windows/desktop/ms681381(v=vs.85).aspx
+/** Win32 error code type, holding ERROR_* values. */
 using X_RESULT = uint32_t;
 inline constexpr i32 X_FACILITY_WIN32 = 0x0007;
 [[nodiscard]] constexpr X_RESULT X_RESULT_FROM_WIN32(u32 x) {
@@ -112,7 +110,7 @@ inline constexpr X_RESULT X_ERROR_NO_SUCH_USER = X_RESULT_FROM_WIN32(0x00000525)
 inline constexpr X_RESULT X_ERROR_FUNCTION_FAILED = X_RESULT_FROM_WIN32(0x0000065B);
 inline constexpr X_RESULT X_ERROR_EMPTY = X_RESULT_FROM_WIN32(0x000010D2);
 
-// HRESULT codes
+/** HRESULT code type. */
 using X_HRESULT = uint32_t;
 [[nodiscard]] constexpr X_HRESULT X_HRESULT_FROM_WIN32(u32 x) {
   return static_cast<i32>(x) <= 0 ? x : ((x & 0xFFFF) | (X_FACILITY_WIN32 << 16) | 0x80000000);
@@ -128,73 +126,88 @@ inline constexpr X_HRESULT X_E_DEVICE_NOT_CONNECTED =
 inline constexpr X_HRESULT X_E_NOTFOUND = X_HRESULT_FROM_WIN32(X_ERROR_NOT_FOUND);
 inline constexpr X_HRESULT X_E_NO_SUCH_USER = X_HRESULT_FROM_WIN32(X_ERROR_NO_SUCH_USER);
 
-// MEM_*, used by NtAllocateVirtualMemory
+/** MEM_* flags used by NtAllocateVirtualMemory. */
 enum X_MEM : uint32_t {
-  X_MEM_COMMIT = 0x00001000,
-  X_MEM_RESERVE = 0x00002000,
-  X_MEM_DECOMMIT = 0x00004000,
-  X_MEM_RELEASE = 0x00008000,
-  X_MEM_FREE = 0x00010000,
-  X_MEM_PRIVATE = 0x00020000,
-  X_MEM_RESET = 0x00080000,
-  X_MEM_TOP_DOWN = 0x00100000,
-  X_MEM_NOZERO = 0x00800000,
-  X_MEM_LARGE_PAGES = 0x20000000,
-  X_MEM_HEAP = 0x40000000,
-  X_MEM_16MB_PAGES = 0x80000000  // from Valve SDK
+  X_MEM_COMMIT = 0x00001000,   /**< Commits the pages. */
+  X_MEM_RESERVE = 0x00002000,  /**< Reserves the address range. */
+  X_MEM_DECOMMIT = 0x00004000, /**< Decommits the pages and keeps the reservation. */
+  X_MEM_RELEASE = 0x00008000,  /**< Releases the whole reservation. */
+  X_MEM_FREE = 0x00010000,    /**< State NtQueryVirtualMemory reports for pages neither reserved nor
+                                 committed. */
+  X_MEM_PRIVATE = 0x00020000, /**< Type NtQueryVirtualMemory reports for every region. */
+  X_MEM_RESET = 0x00080000,   /**< Valid only alone, NtAllocateVirtualMemory logs it as a stub. */
+  X_MEM_TOP_DOWN = 0x00100000, /**< Allocates at the highest free address. */
+  X_MEM_NOZERO = 0x00800000,   /**< Leaves the new pages unzeroed. */
+  X_MEM_LARGE_PAGES =
+      0x20000000,               /**< Backs the allocation with 64 KB pages instead of 4 KB pages. */
+  X_MEM_HEAP = 0x40000000,      /**< No code reads it. */
+  X_MEM_16MB_PAGES = 0x80000000 /**< Backs the allocation with 16 MB pages. */
 };
 
-// PAGE_*, used by NtAllocateVirtualMemory
+/** PAGE_* flags used by NtAllocateVirtualMemory. */
 enum X_PAGE : uint32_t {
-  X_PAGE_NOACCESS = 0x00000001,
-  X_PAGE_READONLY = 0x00000002,
-  X_PAGE_READWRITE = 0x00000004,
-  X_PAGE_WRITECOPY = 0x00000008,
-  X_PAGE_EXECUTE = 0x00000010,
-  X_PAGE_EXECUTE_READ = 0x00000020,
-  X_PAGE_EXECUTE_READWRITE = 0x00000040,
-  X_PAGE_EXECUTE_WRITECOPY = 0x00000080,
-  X_PAGE_GUARD = 0x00000100,
-  X_PAGE_NOCACHE = 0x00000200,
-  X_PAGE_WRITECOMBINE = 0x00000400
+  X_PAGE_NOACCESS = 0x00000001,          /**< Any access faults. */
+  X_PAGE_READONLY = 0x00000002,          /**< Pages can be read. */
+  X_PAGE_READWRITE = 0x00000004,         /**< Pages can be read and written. */
+  X_PAGE_WRITECOPY = 0x00000008,         /**< No code reads it. */
+  X_PAGE_EXECUTE = 0x00000010,           /**< Equivalent to X_PAGE_READONLY. */
+  X_PAGE_EXECUTE_READ = 0x00000020,      /**< Equivalent to X_PAGE_READONLY. */
+  X_PAGE_EXECUTE_READWRITE = 0x00000040, /**< Equivalent to X_PAGE_READWRITE. */
+  X_PAGE_EXECUTE_WRITECOPY =
+      0x00000080,            /**< NtAllocateVirtualMemory logs it as an execute request. */
+  X_PAGE_GUARD = 0x00000100, /**< First access raises a guard page exception and clears the flag. */
+  X_PAGE_NOCACHE =
+      0x00000200, /**< Pages are not cached, which the XDK warns gives poor performance. */
+  X_PAGE_WRITECOMBINE =
+      0x00000400 /**< Pages are not cached and writes are combined into larger batches. */
 };
 
-// Sockets/networking
 inline constexpr u32 X_INVALID_SOCKET = ~u32{0};
 inline constexpr u32 X_SOCKET_ERROR = static_cast<u32>(-1);
 
-// https://docs.microsoft.com/en-us/windows/win32/api/ntdef/ns-ntdef-list_entry
+/** Guest layout of an entry of a doubly linked list. */
 struct X_LIST_ENTRY {
-  be_u32 flink_ptr;  // next entry / head
-  be_u32 blink_ptr;  // previous entry / head
+  be_u32 flink_ptr; /**< Next entry, or the head. */
+  be_u32 blink_ptr; /**< Previous entry, or the head. */
 };
 REX_STATIC_ASSERT_SIZE(X_LIST_ENTRY, 8);
 
+/** Guest layout of an entry of a singly linked list. */
 struct X_SINGLE_LIST_ENTRY {
-  be_u32 next;  // 0x0 pointer to next entry
+  be_u32 next; /**< Offset 0x0. Points to the next entry. */
 };
 REX_STATIC_ASSERT_SIZE(X_SINGLE_LIST_ENTRY, 4);
 
-// https://www.nirsoft.net/kernel_struct/vista/SLIST_HEADER.html
+/** Guest layout of the head of an interlocked singly linked list. */
 struct X_SLIST_HEADER {
-  X_SINGLE_LIST_ENTRY next;  // 0x0
-  be_u16 depth;              // 0x4
-  be_u16 sequence;           // 0x6
+  X_SINGLE_LIST_ENTRY next; /**< Offset 0x0. */
+  be_u16 depth;             /**< Offset 0x4. */
+  be_u16 sequence;          /**< Offset 0x6. */
 };
 REX_STATIC_ASSERT_SIZE(X_SLIST_HEADER, 8);
 
+/** Guest layout of a spin lock. */
 struct X_KSPINLOCK {
-  be_u32 prcb_of_owner;
+  be_u32 prcb_of_owner; /**< Offset 0x0. Address of the owner's PCR, 0 when free. */
 };
 REX_STATIC_ASSERT_SIZE(X_KSPINLOCK, 4);
 
-// Typed guest pointer - holds a guest address but provides type documentation.
-// Implicitly converts to/from uint32_t via the be<uint32_t> member.
+/**
+ * Typed guest pointer. Holds a guest address and converts to and from uint32_t.
+ *
+ * @tparam T The pointee type, for documentation only.
+ */
 template <typename T>
 struct TypedGuestPointer {
-  be_u32 value;
+  be_u32 value; /**< Guest address. */
 
   operator uint32_t() const { return value; }
+  /**
+   * Sets the guest address.
+   *
+   * @param v The guest address.
+   * @return This pointer.
+   */
   TypedGuestPointer& operator=(uint32_t v) {
     value = v;
     return *this;

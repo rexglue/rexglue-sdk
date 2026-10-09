@@ -1,10 +1,3 @@
-/**
- * @file        core/seh_posix.cpp
- *
- * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
- * @license     BSD 3-Clause License
- */
-
 #include <rex/platform.h>
 #include <rex/platform/seh.h>
 

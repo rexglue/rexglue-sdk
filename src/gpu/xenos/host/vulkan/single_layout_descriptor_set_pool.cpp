@@ -56,8 +56,7 @@ size_t SingleLayoutDescriptorSetPool::Allocate() {
   const VulkanDevice::Functions& dfn = vulkan_device_->functions();
   const VkDevice device = vulkan_device_->device();
 
-  // Two iterations so if vkAllocateDescriptorSets fails even with a non-zero
-  // current_pool_sets_remaining_, another attempt will be made in a new pool.
+  // 2 attempts so a failure with sets remaining retries in a new pool.
   for (uint32_t i = 0; i < 2; ++i) {
     if (current_pool_ != VK_NULL_HANDLE && !current_pool_sets_remaining_) {
       full_pools_.push_back(current_pool_);
@@ -91,8 +90,7 @@ size_t SingleLayoutDescriptorSetPool::Allocate() {
         VK_SUCCESS) {
       REXLOG_ERROR(ui, "SingleLayoutDescriptorSetPool: Failed to allocate a descriptor set");
       if (current_pool_sets_remaining_ >= pool_set_count_) {
-        // Failed to allocate in a new pool - something completely wrong, don't
-        // store empty pools as full.
+        // Failed in a new pool, so the empty pool is destroyed rather than stored as full.
         dfn.vkDestroyDescriptorPool(device, current_pool_, nullptr);
         current_pool_ = VK_NULL_HANDLE;
         return SIZE_MAX;
@@ -105,7 +103,6 @@ size_t SingleLayoutDescriptorSetPool::Allocate() {
     return descriptor_sets_.size() - 1;
   }
 
-  // Both attempts have failed.
   return SIZE_MAX;
 }
 

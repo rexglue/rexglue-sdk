@@ -1,5 +1,5 @@
 /**
- * @file        codegen/internal/ppc/disasm.h
+ * @file        codegen/ppc/disasm.h
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -15,11 +15,7 @@
 
 namespace rex::codegen::ppc {
 
-//=============================================================================
-// Low-level Disassembler Engine (binutils wrapper)
-//=============================================================================
-// Decodes raw bytes into ppc_insn struct using GNU binutils
-
+/** Decodes raw bytes into a ppc_insn using GNU binutils. */
 struct DisassemblerEngine {
   disassemble_info info{};
   DisassemblerEngine(const DisassemblerEngine&) = default;
@@ -29,7 +25,12 @@ struct DisassemblerEngine {
   ~DisassemblerEngine() = default;
 
   /**
-   * Disassemble a single instruction
+   * Disassembles a single instruction.
+   *
+   * @param code Pointer to the instruction bytes
+   * @param size Number of bytes available at code
+   * @param base Address of the instruction
+   * @param out Receives the decoded instruction
    * @return Number of bytes decoded
    */
   int Disassemble(const void* code, size_t size, uint64_t base, ppc_insn& out);

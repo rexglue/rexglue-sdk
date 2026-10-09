@@ -1,5 +1,5 @@
 /**
- * @file        rex/codegen/project_recompiler.h
+ * @file        codegen/project_recompiler.h
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -20,25 +20,36 @@
 
 namespace rex::codegen {
 
+/** Settings for 1 ProjectRecompiler run. */
 struct ProjectRecompilerOptions {
-  std::vector<std::string> targets;  // empty = all
-  bool force = false;
-  bool enableExceptionHandlers = false;
-  ProgressReporter* reporter = nullptr;
+  std::vector<std::string> targets;     /**< Empty selects all */
+  bool force = false;                   /**< Rewrite outputs whose content is unchanged */
+  bool enableExceptionHandlers = false; /**< Generate SEH exception handler wrappers */
+  ProgressReporter* reporter = nullptr; /**< Receives progress events, null for none */
 
-  /// Bypass the stamp gate and regenerate every targeted module.
+  /** Bypasses the stamp gate and regenerates every targeted module. */
   bool ignoreStamp = false;
 
-  /// Analysis limits applied to every targeted module and folded into the fingerprint.
+  /** Analysis limits applied to every targeted module and folded into the fingerprint. */
   Limits limits;
 
-  /// Folded into the input fingerprint. Must be stable across commits
-  /// ("0.10.0-dev") or every SDK rebuild forces a full re-analysis.
+  /**
+   * Folded into the input fingerprint. Must be stable across commits such as "0.10.0-dev" or
+   * every SDK rebuild forces a full re-analysis.
+   */
   std::string sdkVersion;
 };
 
+/**
+ * Runs code generation for every targeted module of a manifest.
+ */
 class ProjectRecompiler {
  public:
+  /**
+   * Creates a recompiler for a manifest.
+   *
+   * @param manifest Manifest to process, moved into the recompiler
+   */
   explicit ProjectRecompiler(ManifestConfig manifest);
   [[nodiscard]] Result<void> Run(const ProjectRecompilerOptions& opts);
 
@@ -54,10 +65,10 @@ class ProjectRecompiler {
    */
   const std::vector<std::string>& writtenFiles() const { return writtenFiles_; }
 
-  /// Basenames already up to date across all modules in the last Run().
+  /** Returns the basenames already up to date across all modules in the last Run(). */
   const std::vector<std::string>& unchangedFiles() const { return unchangedFiles_; }
 
-  /// Targets skipped in the last Run() because their stamp still matched.
+  /** Returns the targets skipped in the last Run() because their stamp still matched. */
   const std::vector<std::string>& skippedModules() const { return skippedModules_; }
 
  private:

@@ -54,7 +54,6 @@ u32 XamNotifyCreateListenerInternal_entry(u64 mask, u32 is_system, u32 max_versi
   return XamNotifyCreateListener(mask, is_system, max_version);
 }
 
-// https://github.com/CodeAsm/ffplay360/blob/master/Common/AtgSignIn.cpp
 u32 XNotifyGetNext_entry(u32 handle, u32 match_id, mapped_u32 id_ptr, mapped_u32 param_ptr) {
   if (param_ptr) {
     *param_ptr = 0;
@@ -65,7 +64,6 @@ u32 XNotifyGetNext_entry(u32 handle, u32 match_id, mapped_u32 id_ptr, mapped_u32
   }
   *id_ptr = 0;
 
-  // Grab listener.
   auto listener = runtime::Current().object_table().Get<NotifyListenerObject>(handle);
   if (!listener) {
     return 0;
@@ -75,18 +73,14 @@ u32 XNotifyGetNext_entry(u32 handle, u32 match_id, mapped_u32 id_ptr, mapped_u32
   uint32_t id = 0;
   uint32_t param = 0;
   if (match_id) {
-    // Asking for a specific notification
     id = match_id;
     dequeued = NotifyListenerDequeueByID(*listener, match_id, &param);
   } else {
-    // Get next.
     dequeued = NotifyListenerDequeue(*listener, &id, &param);
   }
 
   *id_ptr = dequeued ? id : 0;
-  // param_ptr may be null - 555307F0 Demo explicitly passes nullptr in the
-  // code.
-  // https://github.com/xenia-project/xenia/pull/1577
+  // param_ptr may be null.
   if (param_ptr) {
     *param_ptr = dequeued ? param : 0;
   }
@@ -99,13 +93,10 @@ u32 XNotifyGetNext_entry(u32 handle, u32 match_id, mapped_u32 id_ptr, mapped_u32
 }
 
 u32 XNotifyDelayUI_entry([[maybe_unused]] u32 delay_ms) {
-  // Ignored.
   return 0;
 }
 
-void XNotifyPositionUI_entry([[maybe_unused]] u32 position) {
-  // Ignored.
-}
+void XNotifyPositionUI_entry([[maybe_unused]] u32 position) {}
 
 }  // namespace xam
 }  // namespace kernel

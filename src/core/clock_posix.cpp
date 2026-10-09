@@ -1,10 +1,3 @@
-/**
- * @file        core/clock_posix.cpp
- *
- * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
- * @license     BSD 3-Clause License
- */
-
 #include <rex/assert.h>
 #include <rex/chrono/clock.h>
 #include <rex/platform.h>
@@ -29,19 +22,16 @@ uint64_t Clock::host_tick_frequency_platform() noexcept {
   timespec res;
   int error = clock_getres(CLOCK_MONOTONIC, &res);
   REX_ASSERT(error == 0);
-  REX_ASSERT(res.tv_sec == 0);  // Sub second resolution is required.
+  // Sub second resolution is required.
+  REX_ASSERT(res.tv_sec == 0);
 
-  // Convert nano seconds to hertz. Resolution is 1ns on most systems.
   return 1000000000ull / res.tv_nsec;
 #endif
 }
 
 uint64_t Clock::host_tick_count_platform() {
 #ifdef __APPLE__
-  // mach_absolute_time() returns raw hardware ticks; host_tick_frequency_platform()
-  // expresses the rate of these same ticks via mach_timebase_info.
-  // clock_gettime(CLOCK_MONOTONIC) returns nanoseconds, which would be
-  // inconsistent with the 24 MHz mach frequency and cause ~41x time acceleration.
+  // Ticks must stay in mach units, since nanoseconds against the 24 MHz frequency run 41x fast.
   return mach_absolute_time();
 #else
   timespec tp;
@@ -53,16 +43,14 @@ uint64_t Clock::host_tick_count_platform() {
 }
 
 uint64_t Clock::QueryHostSystemTime() noexcept {
-  // https://docs.microsoft.com/en-us/windows/win32/sysinfo/converting-a-time-t-value-to-a-file-time
   constexpr uint64_t seconds_per_day = 3600 * 24;
-  // Don't forget the 89 leap days.
   constexpr uint64_t seconds_1601_to_1970 = ((369 * 365 + 89) * seconds_per_day);
 
   timeval now;
   int error = gettimeofday(&now, nullptr);
   REX_ASSERT(error == 0);
 
-  // NT systems use 100ns intervals.
+  // FILETIME counts 100ns intervals.
   return static_cast<uint64_t>(
       (static_cast<int64_t>(now.tv_sec) + seconds_1601_to_1970) * 10000000ull + now.tv_usec * 10);
 }

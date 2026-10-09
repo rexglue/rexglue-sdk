@@ -1,73 +1,14 @@
-// Generated with `xb buildshaders`.
-#if 0
-; SPIR-V
-; Version: 1.0
-; Generator: Khronos Glslang Reference Front End; 11
-; Bound: 24012
-; Schema: 0
-               OpCapability Shader
-          %1 = OpExtInstImport "GLSL.std.450"
-               OpMemoryModel Logical GLSL450
-               OpEntryPoint Vertex %5663 "main" %4930 %gl_VertexIndex
-               OpDecorate %_struct_374 Block
-               OpMemberDecorate %_struct_374 0 BuiltIn Position
-               OpMemberDecorate %_struct_374 1 BuiltIn PointSize
-               OpMemberDecorate %_struct_374 2 BuiltIn ClipDistance
-               OpMemberDecorate %_struct_374 3 BuiltIn CullDistance
-               OpDecorate %_struct_1030 Block
-               OpMemberDecorate %_struct_1030 0 Offset 0
-               OpMemberDecorate %_struct_1030 1 Offset 8
-               OpDecorate %gl_VertexIndex BuiltIn VertexIndex
-       %void = OpTypeVoid
-       %1282 = OpTypeFunction %void
-       %uint = OpTypeInt 32 0
-     %v2uint = OpTypeVector %uint 2
-      %float = OpTypeFloat 32
-    %v4float = OpTypeVector %float 4
-     %uint_1 = OpConstant %uint 1
-%_arr_float_uint_1 = OpTypeArray %float %uint_1
-%_struct_374 = OpTypeStruct %v4float %float %_arr_float_uint_1 %_arr_float_uint_1
-%_ptr_Output__struct_374 = OpTypePointer Output %_struct_374
-       %4930 = OpVariable %_ptr_Output__struct_374 Output
-        %int = OpTypeInt 32 1
-      %int_0 = OpConstant %int 0
-    %v2float = OpTypeVector %float 2
-%_struct_1030 = OpTypeStruct %v2float %v2float
-%_ptr_PushConstant__struct_1030 = OpTypePointer PushConstant %_struct_1030
-       %3305 = OpVariable %_ptr_PushConstant__struct_1030 PushConstant
-%_ptr_PushConstant_v2float = OpTypePointer PushConstant %v2float
-%_ptr_Input_int = OpTypePointer Input %int
-%gl_VertexIndex = OpVariable %_ptr_Input_int Input
-     %uint_0 = OpConstant %uint 0
-       %1819 = OpConstantComposite %v2uint %uint_0 %uint_1
-      %int_1 = OpConstant %int 1
-    %float_0 = OpConstant %float 0
-    %float_1 = OpConstant %float 1
-%_ptr_Output_v4float = OpTypePointer Output %v4float
-       %1828 = OpConstantComposite %v2uint %uint_1 %uint_1
-       %5663 = OpFunction %void None %1282
-      %23915 = OpLabel
-       %7053 = OpAccessChain %_ptr_PushConstant_v2float %3305 %int_0
-      %17516 = OpLoad %v2float %7053
-      %23241 = OpLoad %int %gl_VertexIndex
-       %9480 = OpBitcast %uint %23241
-      %15408 = OpCompositeConstruct %v2uint %9480 %9480
-      %14991 = OpShiftRightLogical %v2uint %15408 %1819
-      %17567 = OpBitwiseAnd %v2uint %14991 %1828
-       %7856 = OpConvertUToF %v2float %17567
-      %12606 = OpAccessChain %_ptr_PushConstant_v2float %3305 %int_1
-      %24011 = OpLoad %v2float %12606
-      %17243 = OpFMul %v2float %7856 %24011
-      %16594 = OpFAdd %v2float %17516 %17243
-      %10599 = OpCompositeExtract %float %16594 0
-      %13956 = OpCompositeExtract %float %16594 1
-      %18260 = OpCompositeConstruct %v4float %10599 %13956 %float_0 %float_1
-      %12055 = OpAccessChain %_ptr_Output_v4float %4930 %int_0
-               OpStore %12055 %18260
-               OpReturn
-               OpFunctionEnd
-#endif
+/**
+ * @file        gpu/xenos/host/shaders/vulkan_spirv/guest_output_triangle_strip_rect_vs.h
+ *
+ * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
+ *              All rights reserved.
+ *
+ * @license     BSD 3-Clause License
+ *              See LICENSE file in the project root for full license text.
+ */
 
+// Generated with `xb buildshaders`.
 const uint32_t guest_output_triangle_strip_rect_vs[] = {
     0x07230203, 0x00010000, 0x0008000B, 0x00005DCC, 0x00000000, 0x00020011, 0x00000001, 0x0006000B,
     0x00000001, 0x4C534C47, 0x6474732E, 0x3035342E, 0x00000000, 0x0003000E, 0x00000000, 0x00000001,

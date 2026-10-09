@@ -88,7 +88,7 @@ class ModuleRegistry final : public IModuleRegistry {
    * Marks a path as being loaded.
    *
    * @param path The path.
-   * @return False when another thread already loads the path.
+   * @return False when another thread loads the path.
    */
   bool BeginLoad(std::string_view path);
 

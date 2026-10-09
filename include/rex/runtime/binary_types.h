@@ -16,22 +16,30 @@
 
 namespace rex::runtime {
 
-enum class BinarySymbolType { Function, Data, Import, Unknown };
-
-struct BinarySymbol {
-  std::string name;
-  uint32_t address = 0;
-  uint32_t size = 0;
-  BinarySymbolType type = BinarySymbolType::Unknown;
+/** Category of a `BinarySymbol`. */
+enum class BinarySymbolType {
+  Function, /**< Code. */
+  Data,     /**< Data. */
+  Import,   /**< Import thunk. */
+  Unknown   /**< Not classified. */
 };
 
+/** A named address in a module image. */
+struct BinarySymbol {
+  std::string name;                                  /**< Symbol name. */
+  uint32_t address = 0;                              /**< Guest address. */
+  uint32_t size = 0;                                 /**< Size in bytes. */
+  BinarySymbolType type = BinarySymbolType::Unknown; /**< Category of the symbol. */
+};
+
+/** A section of a module image. */
 struct BinarySection {
-  std::string name;
-  uint32_t virtual_address = 0;
-  uint32_t virtual_size = 0;
-  const uint8_t* host_data = nullptr;  // Pointer to data in host memory
-  bool executable = false;
-  bool writable = false;
+  std::string name;                   /**< Section name. */
+  uint32_t virtual_address = 0;       /**< Guest address of the first byte. */
+  uint32_t virtual_size = 0;          /**< Size in bytes. */
+  const uint8_t* host_data = nullptr; /**< Host address of the first byte. */
+  bool executable = false;            /**< True when the section holds code. */
+  bool writable = false;              /**< True when the section is writable. */
 };
 
 }  // namespace rex::runtime

@@ -1,10 +1,3 @@
-/**
- * @file        core/clock_win.cpp
- *
- * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
- * @license     BSD 3-Clause License
- */
-
 #include <rex/chrono/clock.h>
 #include <rex/platform.h>
 

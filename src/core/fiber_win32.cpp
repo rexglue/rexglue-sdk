@@ -1,5 +1,5 @@
 /**
- * @file        rex/core/fiber_win32.cpp
+ * @file        core/fiber_win32.cpp
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

@@ -23,7 +23,6 @@ bool D3D12SubmissionTracker::Initialize(ID3D12Device* device, ID3D12CommandQueue
     Shutdown();
     return false;
   }
-  // Continue where the tracker was left at the last shutdown.
   if (FAILED(device->CreateFence(submission_current_ - 1, D3D12_FENCE_FLAG_NONE,
                                  IID_PPV_ARGS(&fence_)))) {
     REXLOG_ERROR(ui, "D3D12SubmissionTracker: Failed to create the fence");
@@ -47,24 +46,9 @@ void D3D12SubmissionTracker::Shutdown() {
 
 bool D3D12SubmissionTracker::AwaitSubmissionCompletion(UINT64 submission_index) {
   if (!fence_ || !fence_completion_event_) {
-    // Not fully initialized yet or already shut down.
     return false;
   }
-  // The tracker itself can't give a submission index for a submission that
-  // hasn't even started being recorded yet, the client has provided a
-  // completely invalid value or has done overly optimistic math if such an
-  // index has been obtained somehow.
   REX_ASSERT(submission_index <= submission_current_);
-  // Waiting for the current submission is fine if there was a refusal to
-  // submit, and the submission index wasn't incremented, but still need to
-  // release objects referenced in the dropped submission (while shutting down,
-  // for instance - in this case, waiting for the last successful submission,
-  // which could have also referenced the objects from the new submission - we
-  // can't know since the client has already overwritten its last usage index,
-  // would correctly ensure that GPU usage of the objects is not pending).
-  // Waiting for successful submissions, but failed signals, will result in a
-  // true race condition, however, but waiting for the closest successful signal
-  // is the best approximation - also retrying to signal in this case.
   UINT64 fence_value = submission_index;
   if (submission_index > submission_signal_queued_) {
     TrySignalEnqueueing();

@@ -1,10 +1,3 @@
-/**
- * @file        core/seh_win.cpp
- *
- * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
- * @license     BSD 3-Clause License
- */
-
 #include <utility>
 
 #include <rex/platform.h>

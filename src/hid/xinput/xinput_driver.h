@@ -7,6 +7,8 @@
  ******************************************************************************
  *
  * @modified    Sanjay Govind, 2026 - Adapted for ReXGlue runtime
+ *
+ * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
 #pragma once
@@ -42,6 +44,16 @@ class XInputDriver final : public Driver {
   X_RESULT ReadDeviceState(DeviceId id, X_INPUT_STATE* out_state);
   X_RESULT ReadDeviceCapabilities(DeviceId id, u32 flags, X_INPUT_CAPABILITIES* out_caps);
   X_RESULT WriteDeviceVibration(DeviceId id, X_INPUT_VIBRATION* vibration);
+  /**
+   * Reads the next keystroke from a native slot. XInputGetKeystroke returns ERROR_SUCCESS for
+   * a disconnected device, so XInputGetCapabilities checks the connection first and no
+   * uninitialized X_INPUT_KEYSTROKE is returned.
+   *
+   * @param id             Device handle.
+   * @param out_keystroke  Receives the keystroke.
+   * @return X_ERROR_EMPTY when there are no new keys, X_ERROR_DEVICE_NOT_CONNECTED when there
+   *         is no device, X_ERROR_SUCCESS when a key was read.
+   */
   X_RESULT ReadDeviceKeystroke(DeviceId id, X_INPUT_KEYSTROKE* out_keystroke);
 
   platform::DynamicLibrary library_;

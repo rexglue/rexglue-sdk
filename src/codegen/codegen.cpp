@@ -1,13 +1,3 @@
-/**
- * @file        codegen/codegen.cpp
- *
- * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
- *              All rights reserved.
- *
- * @license     BSD 3-Clause License
- *              See LICENSE file in the project root for full license text.
- */
-
 #include <format>
 
 #include <rex/codegen/analyze.h>
@@ -27,7 +17,6 @@ CodegenPipeline& CodegenPipeline::operator=(CodegenPipeline&&) noexcept = defaul
 Result<CodegenPipeline> CodegenPipeline::Create(const std::filesystem::path& configPath) {
   CodegenPipeline pipeline;
 
-  // Load config to get XEX path
   RecompilerConfig tempConfig;
   if (!tempConfig.Load(configPath.string())) {
     return Err<CodegenPipeline>(ErrorCategory::Config,
@@ -50,7 +39,6 @@ Result<CodegenPipeline> CodegenPipeline::Create(const std::filesystem::path& con
   }
   pipeline.runtime_ = std::make_unique<ToolRuntime>(std::move(*tool));
 
-  // Create CodegenContext (AnalysisState is populated from binary there)
   auto ctxResult = CodegenContext::Create(configPath, pipeline.runtime_->runtime());
   if (!ctxResult) {
     return Err<CodegenPipeline>(ctxResult.error());

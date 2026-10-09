@@ -5,30 +5,14 @@
  * Copyright 2025 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
+ *
+ * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-// This is a partial file designed to be included by other files when
-// constructing various tables.
-
-// Most 3D registers are the same as in the Qualcomm Adreno 200 (AMD Z430,
-// another R400 architecture family chip):
-// https://github.com/UDOOboard/Kernel_Unico/blob/master/drivers/mxc/amd-gpu/include/reg/yamato/10/yamato_offset.h
-// https://github.com/freedreno/amd-gpu/blob/master/include/reg/yamato/10/yamato_offset.h
-//
-// The addresses in this file are specified in dwords, similarly to how they are
-// defined in yamato_offset.h. AMD, however, generally uses byte addresses in
-// their documentation and open source drivers, so when looking up similar
-// registers there, multiply by 4 and convert to hexadecimal.
-//
-// Display controller register addresses mostly match the M56 ones:
-// https://www.x.org/docs/AMD/old/RRG-216M56-03oOEM.pdf
-//
-// 3D registers on the later chips such as the R600 are very different, but some
-// of them are still partially or fully the same, and also share the address.
-// However, on the R600, the 3D register space (at 0x8000 bytes, or 0x2000
-// dwords, on the Xenos) is split into config registers (at 0x8000 bytes) and
-// context registers (at 0x28000 bytes), but the lower bits of the address may
-// still be the same.
+/**
+ * Register addresses are in dwords. AMD documentation and open source drivers use byte
+ * addresses, so multiply by 4 and convert to hexadecimal when looking up a register there.
+ */
 
 REXGPU_REGISTER(0x0048, kDword, BIF_PERFCOUNTER0_SELECT)
 REXGPU_REGISTER(0x0049, kDword, BIF_PERFCOUNTER0_HI)
@@ -55,8 +39,8 @@ REXGPU_REGISTER(0x039A, kDword, RBBM_PERFCOUNTER1_HI)
 
 REXGPU_REGISTER(0x045E, kDword, CALLBACK_ACK)
 
-REXGPU_REGISTER(0x0578, kDword, SCRATCH_REG0)  // interrupt sync
-REXGPU_REGISTER(0x0579, kDword, SCRATCH_REG1)  // present interval
+REXGPU_REGISTER(0x0578, kDword, SCRATCH_REG0)  /**< interrupt sync */
+REXGPU_REGISTER(0x0579, kDword, SCRATCH_REG1)  /**< present interval */
 REXGPU_REGISTER(0x057A, kDword, SCRATCH_REG2)
 REXGPU_REGISTER(0x057B, kDword, SCRATCH_REG3)
 REXGPU_REGISTER(0x057C, kDword, CALLBACK_ADDRESS)
@@ -92,10 +76,9 @@ REXGPU_REGISTER(0x0A2F, kDword, COHER_SIZE_HOST)
 REXGPU_REGISTER(0x0A30, kDword, COHER_BASE_HOST)
 REXGPU_REGISTER(0x0A31, kDword, COHER_STATUS_HOST)
 
-// Status flags of viz queries, doesn't seem to be read back by d3d
-// queries 0x00 to 0x1f (be), bit set when visible
+/** Visibility query status for queries 0x00 to 0x1F (big endian), bit set when visible. */
 REXGPU_REGISTER(0x0C44, kDword, PA_SC_VIZ_QUERY_STATUS_0)
-// queries 0x20 to 0x3f (be)
+/** Visibility query status for queries 0x20 to 0x3F (big endian), bit set when visible. */
 REXGPU_REGISTER(0x0C45, kDword, PA_SC_VIZ_QUERY_STATUS_1)
 
 REXGPU_REGISTER(0x0C48, kDword, VGT_PERFCOUNTER0_SELECT)
@@ -160,8 +143,7 @@ REXGPU_REGISTER(0x0DD4, kDword, SX_PERFCOUNTER0_SELECT)
 REXGPU_REGISTER(0x0DD8, kDword, SX_PERFCOUNTER0_LOW)
 REXGPU_REGISTER(0x0DD9, kDword, SX_PERFCOUNTER0_HI)
 
-// Set with WAIT_UNTIL = WAIT_3D_IDLECLEAN
-REXGPU_REGISTER(0x0E00, kDword, UNKNOWN_0E00)
+REXGPU_REGISTER(0x0E00, kDword, UNKNOWN_0E00)  /**< Set with WAIT_UNTIL = WAIT_3D_IDLECLEAN */
 
 REXGPU_REGISTER(0x0E05, kDword, TCR_PERFCOUNTER0_SELECT)
 REXGPU_REGISTER(0x0E06, kDword, TCR_PERFCOUNTER0_HI)
@@ -198,11 +180,9 @@ REXGPU_REGISTER(0x0E3D, kDword, TP3_PERFCOUNTER1_SELECT)
 REXGPU_REGISTER(0x0E3E, kDword, TP3_PERFCOUNTER1_HI)
 REXGPU_REGISTER(0x0E3F, kDword, TP3_PERFCOUNTER1_LOW)
 
-// Set with WAIT_UNTIL = WAIT_3D_IDLECLEAN
-REXGPU_REGISTER(0x0E40, kDword, UNKNOWN_0E40)
+REXGPU_REGISTER(0x0E40, kDword, UNKNOWN_0E40)  /**< Set with WAIT_UNTIL = WAIT_3D_IDLECLEAN */
 
-// Set during GPU initialization by D3D
-REXGPU_REGISTER(0x0E42, kDword, UNKNOWN_0E42)
+REXGPU_REGISTER(0x0E42, kDword, UNKNOWN_0E42)  /**< Set during GPU initialization by D3D */
 
 REXGPU_REGISTER(0x0E48, kDword, VC_PERFCOUNTER0_SELECT)
 REXGPU_REGISTER(0x0E49, kDword, VC_PERFCOUNTER0_HI)
@@ -284,8 +264,6 @@ REXGPU_REGISTER(0x1007, kDword, HZ_PERFCOUNTER1_SELECT)
 REXGPU_REGISTER(0x1008, kDword, HZ_PERFCOUNTER1_HI)
 REXGPU_REGISTER(0x1009, kDword, HZ_PERFCOUNTER1_LOW)
 
-// D1*, LUT, and AVIVO registers taken from libxenon and
-// https://www.x.org/docs/AMD/old/RRG-216M56-03oOEM.pdf
 REXGPU_REGISTER(0x1838, kDword, D1MODE_MASTER_UPDATE_LOCK)
 
 REXGPU_REGISTER(0x1841, kDword, D1GRPH_CONTROL)
@@ -294,183 +272,63 @@ REXGPU_REGISTER(0x1844, kDword, D1GRPH_PRIMARY_SURFACE_ADDRESS)
 
 REXGPU_REGISTER(0x1852, kDword, D1GRPH_FLIP_CONTROL)
 
-// In 4B4F07FE, the 256-entry gamma ramp for the 8bpc framebuffer is set to
-// different values in multiple places in the game. For VdGetCurrentDisplayGamma
-// returning 1 (sRGB), it's set up in the beginning as:
-// DC_LUTA_CONTROL = 0x00000000 (256-entry unsigned fixed-point)
-// DC_LUT_RW_MODE = 0x00000000
-// DC_LUT_RW_INDEX = 0x00000000
-// DC_LUT_WRITE_EN_MASK = 0x00000007
-// DC_LUT_30_COLOR = 0x00000000
-// DC_LUT_RW_INDEX = 0x00000001
-// DC_LUT_30_COLOR = 0x04812048
-// DC_LUT_RW_INDEX = 0x00000002
-// DC_LUT_30_COLOR = 0x05916459
-// DC_LUT_RW_INDEX = 0x00000003
-// DC_LUT_30_COLOR = 0x06519465
-// ...
-// DC_LUT_RW_INDEX = 0x000000FE
-// DC_LUT_30_COLOR = 0x3FBFEFFB
-// DC_LUT_RW_INDEX = 0x000000FF
-// DC_LUT_30_COLOR = 0x3FFFFFFF
-// DC_LUT_RW_INDEX = 0x00000100
-//
-// One another possible setup in 4B4F07FE is:
-// DC_LUTA_CONTROL = 0x00000000 (256-entry unsigned fixed-point)
-// DC_LUT_RW_MODE = 0x00000000
-// DC_LUT_RW_INDEX = 0x00000000
-// DC_LUT_WRITE_EN_MASK = 0x00000007
-// DC_LUT_30_COLOR = 0x00000000
-// DC_LUT_RW_INDEX = 0x00000001
-// DC_LUT_30_COLOR = 0x01A0681A
-// DC_LUT_RW_INDEX = 0x00000002
-// DC_LUT_30_COLOR = 0x02709C27
-// ...
-// DC_LUT_RW_INDEX = 0x000000FE
-// DC_LUT_30_COLOR = 0x3FBFEFFB
-// DC_LUT_RW_INDEX = 0x000000FF
-// DC_LUT_30_COLOR = 0x3FFFFFFF
-// DC_LUT_RW_INDEX = 0x00000100
-//
-// In 4D5307E6, the 128-entry PWL gamma ramp for the 10bpc framebuffer, for
-// VdGetCurrentDisplayGamma returning 1 (sRGB), is set up right after launching
-// the game as:
-// DC_LUTA_CONTROL = 0x00000003 (8-increment unsigned fixed-point)
-// DC_LUT_RW_MODE = 0x00000001
-// DC_LUT_RW_INDEX = 0x00000000
-// DC_LUT_WRITE_EN_MASK = 0x00000007
-// DC_LUT_PWL_DATA = 0x02000000
-// DC_LUT_PWL_DATA = 0x02000000
-// DC_LUT_PWL_DATA = 0x02000000
-// DC_LUT_RW_INDEX = 0x00000001
-// DC_LUT_PWL_DATA = 0x02000200
-// DC_LUT_PWL_DATA = 0x02000200
-// DC_LUT_PWL_DATA = 0x02000200
-// DC_LUT_RW_INDEX = 0x00000001
-// DC_LUT_PWL_DATA = 0x02000400
-// DC_LUT_PWL_DATA = 0x02000400
-// DC_LUT_PWL_DATA = 0x02000400
-// ...
-// DC_LUT_RW_INDEX = 0x0000007D
-// DC_LUT_PWL_DATA = 0x0200FBC0
-// DC_LUT_PWL_DATA = 0x0200FBC0
-// DC_LUT_PWL_DATA = 0x0200FBC0
-// DC_LUT_RW_INDEX = 0x0000007E
-// DC_LUT_PWL_DATA = 0x0200FDC0
-// DC_LUT_PWL_DATA = 0x0200FDC0
-// DC_LUT_PWL_DATA = 0x0200FDC0
-// DC_LUT_RW_INDEX = 0x0000007F
-// DC_LUT_PWL_DATA = 0x0000FFC0
-// DC_LUT_PWL_DATA = 0x0000FFC0
-// DC_LUT_PWL_DATA = 0x0000FFC0
-// DC_LUT_RW_INDEX = 0x00000080
-//
-// Later in 4D5307E6, for the game itself (apparently for conversion of the bit
-// representation of 7e3 floating-point data in the front buffer to 10-bit fixed
-// point, as the game draws the final passes to a 7e3 framebuffer), with
-// VdGetCurrentDisplayGamma returning 1 (sRGB) and the normal brightness in the
-// game settings, it's:
-// DC_LUTA_CONTROL = 0x00000003 (8-increment unsigned fixed-point)
-// DC_LUT_RW_MODE = 0x00000001
-// DC_LUT_RW_INDEX = 0x00000000
-// DC_LUT_WRITE_EN_MASK = 0x00000007
-// DC_LUT_PWL_DATA = 0x05000000
-// DC_LUT_PWL_DATA = 0x05000000
-// DC_LUT_PWL_DATA = 0x05000000
-// DC_LUT_RW_INDEX = 0x00000001
-// DC_LUT_PWL_DATA = 0x02000500
-// DC_LUT_PWL_DATA = 0x02000500
-// DC_LUT_PWL_DATA = 0x02000500
-// DC_LUT_RW_INDEX = 0x00000001
-// DC_LUT_PWL_DATA = 0x01800740
-// DC_LUT_PWL_DATA = 0x01800740
-// DC_LUT_PWL_DATA = 0x01800740
-// ...
-// DC_LUT_RW_INDEX = 0x0000007D
-// DC_LUT_PWL_DATA = 0x0440F340
-// DC_LUT_PWL_DATA = 0x0440F340
-// DC_LUT_PWL_DATA = 0x0440F340
-// DC_LUT_RW_INDEX = 0x0000007E
-// DC_LUT_PWL_DATA = 0x0400F780
-// DC_LUT_PWL_DATA = 0x0400F780
-// DC_LUT_PWL_DATA = 0x0400F780
-// DC_LUT_RW_INDEX = 0x0000007F
-// DC_LUT_PWL_DATA = 0x0400FBC0
-// DC_LUT_PWL_DATA = 0x0400FBC0
-// DC_LUT_PWL_DATA = 0x0400FBC0
-// DC_LUT_RW_INDEX = 0x00000080
-//
-// In 535107D4, the 256-entry gamma ramp for the 8bpc framebuffer is
-// configurable from the game's settings menu for each channel independently.
-// For VdGetCurrentDisplayGamma returning 1 (sRGB), when in the settings, the
-// red gamma is at the maximum of 5.56, green is at 1.00, and blue is at the
-// minimum of 0.17, the setup is done as:
-// DC_LUT_RW_MODE = 0x00000000
-// DC_LUT_RW_INDEX = 0x00000000
-// DC_LUT_WRITE_EN_MASK = 0x00000007
-// DC_LUT_30_COLOR = 0x00000000
-// DC_LUT_RW_INDEX = 0x00000001
-// DC_LUT_30_COLOR = 0x17901000
-// DC_LUT_RW_INDEX = 0x00000002
-// DC_LUT_30_COLOR = 0x1AB02000
-// ...
-// DC_LUT_RW_INDEX = 0x000000FE
-// DC_LUT_30_COLOR = 0x3FEFE3D2
-// DC_LUT_RW_INDEX = 0x000000FF
-// DC_LUT_30_COLOR = 0x3FFFF3E9
-// DC_LUT_RW_INDEX = 0x00000100
-
-// Read / write mode in bit 0: 0 - 256-entry table, 1 - PWL.
-// Default: 0x00000000.
+/**
+ * Read / write mode in bit 0, 0 for the 256 entry table and 1 for PWL.
+ *
+ * Default is 0x00000000.
+ */
 REXGPU_REGISTER(0x1921, kDword, DC_LUT_RW_MODE)
-// Read / write index. No lower and upper halves on the Xenos apparently, for
-// the 256-entry table, the bits 0:7 are the index directly (unlike on the M56,
-// not split into the index in 1:7 and the lower or upper 10 bits selection in
-// 0:0, instead, on the Xenos, the index in 0:7 is just increased
-// monotonically). For some reason though Direct3D 9 writes an index that
-// overflows by one (0x100 for the 256-entry table, 0x80 for the 128-entry PWL
-// gamma ramp) after setting up all the values. However, the index is 8-bit, and
-// for PWL, according to the M56 documentation, the bit 7 is not used.
-// Default: 0x00000000.
+/**
+ * Read / write index. For the 256 entry table bits 0:7 are the index, with no lower or upper 10
+ * bits selection. The index increases monotonically. Direct3D 9 writes an index that overflows
+ * by 1 (0x100 for the 256 entry table, 0x80 for the 128 entry PWL gamma ramp) after setting all
+ * the values. The index is 8 bit and for PWL bit 7 is unused.
+ *
+ * Default is 0x00000000.
+ */
 REXGPU_REGISTER(0x1922, kDword, DC_LUT_RW_INDEX)
-// Sequential 10-bit R, G, B host read / write for the 256-entry table. After
-// reset or writing DC_LUT_RW_INDEX, the first access is for the red component,
-// the second is for green, the third is for blue, and after blue is accessed,
-// the LUT index is increased by 1 (without having to explicitly change
-// DC_LUT_RW_INDEX). Bits 0:5 are hardwired to zero.
-// Default: 0x00000000.
+/**
+ * Sequential 10 bit R, G, B host read / write for the 256 entry table. After reset or writing
+ * DC_LUT_RW_INDEX the first access is red, the second green and the third blue, after which the
+ * LUT index increases by 1. Bits 0:5 are hardwired to 0.
+ *
+ * Default is 0x00000000.
+ */
 REXGPU_REGISTER(0x1923, kDword, DC_LUT_SEQ_COLOR)
-// Read / write, 0:15 - base, 16:31 - delta. Bits 0:5 of both the base and the
-// delta are hardwired to zero. The LUT index is increased by 1 when
-// DC_LUT_PWL_DATA is accessed, though three DC_LUT_PWL_DATA writes are done for
-// one entry (the order is likely R, G, B, similar to DC_LUT_SEQ_COLOR, but this
-// hasn't been verified yet as no games using the PWL gamma ramp with separate
-// settings for each channel have been found yet).
-// Default: 0x00000000.
+/**
+ * Read / write, 0:15 base and 16:31 delta. Bits 0:5 of both are hardwired to 0. The LUT index
+ * increases by 1 when the register is accessed, though 3 writes are done for each entry. The
+ * command processor treats them as R, G, B like DC_LUT_SEQ_COLOR.
+ *
+ * Default is 0x00000000.
+ */
 REXGPU_REGISTER(0x1924, kDword, DC_LUT_PWL_DATA)
-// Read / write, 0:9 - blue, 10:19 - green, 20:29 - red. The LUT index is
-// increased by 1 when DC_LUT_30_COLOR is accessed.
-// Default: 0x00000000.
+/**
+ * Read / write, 0:9 blue, 10:19 green and 20:29 red. The LUT index increases by 1 when the
+ * register is accessed.
+ *
+ * Default is 0x00000000.
+ */
 REXGPU_REGISTER(0x1925, kDword, DC_LUT_30_COLOR)
 
-// Only LUT pipe 1 on the Xenos apparently (Direct3D 9 sets DC_LUT_WRITE_EN_MASK
-// to 0b111 before writing the gamma ramp), 3 bits set, rather than 6 on the
-// M56.
-// Bit 0 - blue write enable mask.
-// Bit 1 - green write enable mask.
-// Bit 2 - red write enable mask.
-// Default: 0x00000007 (though 0x0000003F on the M56 where there are two pipes).
+/**
+ * Only LUT pipe 1 exists, so 3 bits are set. Direct3D 9 sets 0b111 before writing the gamma
+ * ramp.
+ * - Bit 0 is the blue write enable mask.
+ * - Bit 1 is the green write enable mask.
+ * - Bit 2 is the red write enable mask.
+ *
+ * Default is 0x00000007.
+ */
 REXGPU_REGISTER(0x1927, kDword, DC_LUT_WRITE_EN_MASK)
 
-// Single set of parameters for all channels apparently unlike on the M56
-// (4D5307E6 sets DC_LUTA_CONTROL to 0x00000003 for the data increment of 8 in
-// the 128-entry PWL gamma ramp for a 10bpc framebuffer). Also set not only
-// during setup, but also apparently during every swap by Direct3D 9, though not
-// directly in all games (happens in 4B4F07FE and 4D5307E6 even without proper
-// VdSwap emulation, but in 535107D4, with a fake VdSwap packet rather than the
-// real ones, the register is not set at all, though the expected behavior is
-// that of the value of 0x00000000).
-// Default: 0x00000000.
+/**
+ * One set of parameters for all channels. 0x00000000 selects the 256 entry
+ * unsigned fixed point table and 0x00000003 the data increment of 8 for the 128 entry PWL gamma
+ * ramp of a 10bpc framebuffer. Direct3D 9 sets it during setup and during every swap.
+ *
+ * Default is 0x00000000.
+ */
 REXGPU_REGISTER(0x1930, kDword, DC_LUTA_CONTROL)
 
 REXGPU_REGISTER(0x1961, kDword, AVIVO_D1MODE_VIEWPORT_SIZE)
@@ -530,10 +388,9 @@ REXGPU_REGISTER(0x2182, kDword, SQ_INTERPOLATOR_CNTL)
 REXGPU_REGISTER(0x2183, kDword, SQ_WRAPPING_0)
 REXGPU_REGISTER(0x2184, kDword, SQ_WRAPPING_1)
 
-// These three registers are set by the command processor.
-REXGPU_REGISTER(0x21F9, kDword, VGT_EVENT_INITIATOR)
-REXGPU_REGISTER(0x21FA, kDword, VGT_DMA_BASE)
-REXGPU_REGISTER(0x21FB, kDword, VGT_DMA_SIZE)
+REXGPU_REGISTER(0x21F9, kDword, VGT_EVENT_INITIATOR)  /**< Set by the command processor */
+REXGPU_REGISTER(0x21FA, kDword, VGT_DMA_BASE)  /**< Set by the command processor */
+REXGPU_REGISTER(0x21FB, kDword, VGT_DMA_SIZE)  /**< Set by the command processor */
 REXGPU_REGISTER(0x21FC, kDword, VGT_DRAW_INITIATOR)
 REXGPU_REGISTER(0x21FD, kDword, VGT_IMMED_DATA)
 
@@ -611,11 +468,10 @@ REXGPU_REGISTER(0x2323, kDword, RB_COPY_SURFACE_SLICE)
 REXGPU_REGISTER(0x2324, kDword, RB_SAMPLE_COUNT_CTL)
 REXGPU_REGISTER(0x2325, kDword, RB_SAMPLE_COUNT_ADDR)
 
-// Polygon offset scales and offsets are 32-bit floating-point.
-// "slope computed in subpixels (1/12 or 1/16)" - R5xx Acceleration.
-// But the correct scale for conversion of the slope scale (FRONT_BACK/SCALE)
-// from subpixels to pixels is likely 1/16 according to:
-// https://github.com/mesa3d/mesa/blob/54ad9b444c8e73da498211870e785239ad3ff1aa/src/gallium/drivers/radeonsi/si_state.c#L946
+/**
+ * Scales and offsets are 32 bit floats. The backends convert the slope scale (FRONT_BACK/SCALE)
+ * from subpixels to pixels with xenos::kPolygonOffsetScaleSubpixelUnit.
+ */
 REXGPU_REGISTER(0x2380, kFloat, PA_SU_POLY_OFFSET_FRONT_SCALE)
 REXGPU_REGISTER(0x2381, kFloat, PA_SU_POLY_OFFSET_FRONT_OFFSET)
 REXGPU_REGISTER(0x2382, kFloat, PA_SU_POLY_OFFSET_BACK_SCALE)
@@ -2937,18 +2793,6 @@ REXGPU_REGISTER(0x5000, kDword, SHADER_CONSTANT_FLUSH_FETCH_0)
 REXGPU_REGISTER(0x5001, kDword, SHADER_CONSTANT_FLUSH_FETCH_1)
 REXGPU_REGISTER(0x5002, kDword, SHADER_CONSTANT_FLUSH_FETCH_2)
 
-// Ignored because I have no clue what these are.
-// REXGPU_REGISTER(0x8D00, kDword, UNKNOWN_8D00)
-// REXGPU_REGISTER(0x8D01, kDword, UNKNOWN_8D01)
-// REXGPU_REGISTER(0x8D02, kDword, UNKNOWN_8D02)
-// REXGPU_REGISTER(0x8D03, kDword, UNKNOWN_8D03)
-// REXGPU_REGISTER(0x8D04, kDword, UNKNOWN_8D04)
-// REXGPU_REGISTER(0x8D05, kDword, UNKNOWN_8D05)
-// REXGPU_REGISTER(0x8D06, kDword, UNKNOWN_8D06)
-// REXGPU_REGISTER(0x8D07, kDword, UNKNOWN_8D07)
-
-// Registers present in both Xenia Edge and Xenia Canary.
-// Added to keep local register metadata aligned and reduce unknown-register warnings.
 REXGPU_REGISTER(0x0000, kDword, RBBM_RTL_RELEASE)
 REXGPU_REGISTER(0x0001, kDword, RBBM_PATCH_RELEASE)
 REXGPU_REGISTER(0x0002, kDword, RBBM_AUXILIARY_CONFIG)

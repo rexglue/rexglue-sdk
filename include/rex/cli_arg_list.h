@@ -54,7 +54,7 @@ class REX_API CLIArgList {
   static CLIArgList Parse(std::span<const std::string> args);
 
   /**
-   * Tests whether an option is present.
+   * Reports whether an option is present.
    *
    * @param name Option name without the leading dashes.
    * @return True when --name or --name=value is present.

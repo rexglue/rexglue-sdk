@@ -77,8 +77,6 @@ u32 XamContentAggregateCreateEnumerator_entry(u64 xuid, u32 device_id, u32 conte
   uint64_t userxuid = runtime::Current().content_manager().user_profile().xuid();
 
   if (!device_info || device_info->device_type == DeviceType::HDD) {
-    // Fetch any alternate title IDs defined in the XEX header
-    // (used by games to load saves from other titles)
     std::vector<uint32_t> title_ids{kCurrentlyRunningTitleId};
     auto exe_module = runtime::Current().object_table().Get<ModuleObject>(
         runtime::Current().module_registry().executable().value_or(0));
@@ -88,7 +86,6 @@ u32 XamContentAggregateCreateEnumerator_entry(u64 xuid, u32 device_id, u32 conte
     }
 
     for (auto& title_id : title_ids) {
-      // Get user-specific content
       auto content_datas = runtime::Current().content_manager().ListContent(
           std::to_underlying(DummyDeviceId::HDD), xuid, content_type_enum, title_id);
       for (const auto& content_data : content_datas) {
@@ -99,7 +96,6 @@ u32 XamContentAggregateCreateEnumerator_entry(u64 xuid, u32 device_id, u32 conte
         }
       }
 
-      // Also get common content (xuid=0)
       if (userxuid != 0) {
         auto common_datas = runtime::Current().content_manager().ListContent(
             std::to_underlying(DummyDeviceId::HDD), 0, content_type_enum, title_id);

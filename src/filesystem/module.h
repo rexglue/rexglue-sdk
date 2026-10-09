@@ -60,7 +60,7 @@ class FilesystemModule final : public IModule {
   std::span<const char* const> RequiredInterfaces() const override;
 
   /**
-   * Copies the filesystem slice and registers the filesystem log category.
+   * Copies FilesystemConfig and registers the filesystem log category.
    *
    * @param factory Serves the logger.
    * @param config The configuration rex::Init was called with.

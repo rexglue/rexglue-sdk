@@ -1,4 +1,3 @@
-#pragma once
 /**
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
@@ -9,6 +8,8 @@
  *
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
+
+#pragma once
 
 #include <bit>
 #include <memory>
@@ -29,6 +30,24 @@ class VulkanDevice : public rex::NonCopyable {
   explicit VulkanDevice(Key, const VulkanInstance* vulkan_instance,
                         VkPhysicalDevice physical_device);
 
+  /**
+   * Creates the device when the physical device meets the requirements.
+   *
+   * Without VK_KHR_get_physical_device_properties2 the property and feature structures keep
+   * their zero or minimum and maximum requirement defaults. The device apiVersion is clamped
+   * to 1.0 when the instance is older than 1.1, as validation layers check against the minimum
+   * of the instance and device versions. GPU emulation requires independentBlend, which also
+   * affects the color write mask, cannot reuse the first attachment blend state when
+   * attachments differ in blendable formats, and cannot be split into per attachment draws
+   * because of depth and stencil. Only the experimental Qualcomm Adreno 4xx proprietary driver
+   * lacks it.
+   *
+   * @param vulkan_instance The instance.
+   * @param physical_device The physical device.
+   * @param with_gpu_emulation True to require and enable the GPU emulation features.
+   * @param with_swapchain True to require swapchain and presentation support.
+   * @return The device, or null when unsupported or creation fails.
+   */
   static std::unique_ptr<VulkanDevice> CreateIfSupported(const VulkanInstance* vulkan_instance,
                                                          VkPhysicalDevice physical_device,
                                                          bool with_gpu_emulation,
@@ -40,16 +59,15 @@ class VulkanDevice : public rex::NonCopyable {
 
   VkPhysicalDevice physical_device() const { return physical_device_; }
 
-  // If functionality from higher API versions is used, increase this.
-  // This is for VkApplicationInfo.
-  // "apiVersion must be the highest version of Vulkan that the application is
-  // designed to use"
-  // "The patch version number specified in apiVersion is ignored when creating
-  // an instance object"
+  /**
+   * Highest Vulkan version used, for VkApplicationInfo apiVersion.
+   *
+   * Raise when functionality from a higher version is used. The patch version is ignored when
+   * creating an instance.
+   */
   static constexpr uint32_t kHighestUsedApiMinorVersion = VK_MAKE_API_VERSION(0, 1, 3, 0);
 
   struct Properties {
-    // Vulkan 1.0
     uint32_t apiVersion = VK_MAKE_API_VERSION(0, 1, 0, 0);
     uint32_t driverVersion = 0;
     uint32_t vendorID = 0;
@@ -172,35 +190,41 @@ class VulkanDevice : public rex::NonCopyable {
     bool nullDescriptor = false;
   };
 
-  // Properties of the core API and enabled extensions, and enabled features.
-  // Some supported functionality is enabled conditionally based on the
-  // `with_swapchain` and `with_gpu_emulation` options.
+  /**
+   * Returns the properties of the core API, enabled extensions and enabled features.
+   *
+   * Some functionality is enabled by the with_swapchain and with_gpu_emulation options.
+   *
+   * @return The device properties.
+   */
   const Properties& properties() const { return properties_; }
 
-  // Enabled extensions not fully covered by the device properties and optional
-  // feature flags in the `Properties` structure (primarily those adding API
-  // functionality rather than GPU features). Also set to true if the version of
-  // the Vulkan API they were promoted to it supported (with the
-  // `ext_major_minor_` prefix rather than `ext_`).
+  /**
+   * Enabled extensions not covered by the device properties and optional feature flags in
+   * Properties, mostly those adding API functionality rather than GPU features.
+   *
+   * Also true when the Vulkan version that promoted the extension is supported, using the
+   * ext_major_minor_ prefix rather than ext_.
+   */
   struct Extensions {
-    bool ext_KHR_swapchain = false;                     // #2
-    bool ext_1_1_KHR_dedicated_allocation = false;      // #128
-    bool ext_EXT_shader_stencil_export = false;         // #141
-    bool ext_1_1_KHR_get_memory_requirements2 = false;  // #147
-    bool ext_1_2_KHR_image_format_list = false;         // #148
+    bool ext_KHR_swapchain = false;
+    bool ext_1_1_KHR_dedicated_allocation = false;
+    bool ext_EXT_shader_stencil_export = false;
+    bool ext_1_1_KHR_get_memory_requirements2 = false;
+    bool ext_1_2_KHR_image_format_list = false;
     // Has optional features not implied by this being true.
-    bool ext_1_1_KHR_sampler_ycbcr_conversion = false;  // #157
-    bool ext_1_1_KHR_bind_memory2 = false;              // #158
-    bool ext_1_2_KHR_spirv_1_4 = false;                 // #237
-    bool ext_EXT_memory_budget = false;                 // #238
+    bool ext_1_1_KHR_sampler_ycbcr_conversion = false;
+    bool ext_1_1_KHR_bind_memory2 = false;
+    bool ext_1_2_KHR_spirv_1_4 = false;
+    bool ext_EXT_memory_budget = false;
     // Has optional features not implied by this being true.
     bool ext_EXT_custom_border_color = false;
     // Has optional features not implied by this being true.
     bool ext_EXT_robustness2 = false;
     // Has optional features not implied by this being true.
-    bool ext_1_3_KHR_maintenance4 = false;  // #414
+    bool ext_1_3_KHR_maintenance4 = false;
     // Has optional features not implied by this being true.
-    bool ext_1_3_KHR_dynamic_rendering = false;  // #55
+    bool ext_1_3_KHR_dynamic_rendering = false;
   };
 
   const Extensions& extensions() const { return extensions_; }
@@ -209,17 +233,22 @@ class VulkanDevice : public rex::NonCopyable {
 
   struct Functions {
 #define REXVK_FUNCTION(name) PFN_##name name = nullptr;
+/**
+ * Declares a member function pointer named after the core function of a promoted extension.
+ *
+ * @param extension_name Name of the extension function that the core function was promoted from.
+ * @param core_name Name of the core function, used as the member name.
+ *
+ * @code
+ * REXVK_FUNCTION_PROMOTED(vkBindBufferMemory2KHR, vkBindBufferMemory2)
+ * @endcode
+ */
 #define REXVK_FUNCTION_PROMOTED(extension_name, core_name) PFN_##core_name core_name = nullptr;
 #include "gpu/xenos/host/vulkan/functions/device_1_0.inc"
-    // VK_KHR_swapchain (#2)
 #include "gpu/xenos/host/vulkan/functions/device_khr_swapchain.inc"
-    // VK_KHR_get_memory_requirements2 (#147, promoted to 1.1)
 #include "gpu/xenos/host/vulkan/functions/device_1_1_khr_get_memory_requirements2.inc"
-    // VK_KHR_bind_memory2 (#158, promoted to 1.1)
 #include "gpu/xenos/host/vulkan/functions/device_1_1_khr_bind_memory2.inc"
-    // VK_KHR_maintenance4 (#414, promoted to 1.3)
 #include "gpu/xenos/host/vulkan/functions/device_1_3_khr_maintenance4.inc"
-    // VK_KHR_dynamic_rendering (#55, promoted to 1.3)
 #include "gpu/xenos/host/vulkan/functions/device_1_3_khr_dynamic_rendering.inc"
 #undef REXVK_FUNCTION_PROMOTED
 #undef REXVK_FUNCTION
@@ -271,8 +300,13 @@ class VulkanDevice : public rex::NonCopyable {
 
   const std::vector<QueueFamily>& queue_families() const { return queue_families_; }
   uint32_t queue_family_graphics_compute() const { return queue_family_graphics_compute_; }
-  // UINT32_MAX if not supported or not enabled.
-  // May be the same as queue_family_graphics_compute().
+  /**
+   * Returns the sparse binding queue family, UINT32_MAX if not supported or not enabled.
+   *
+   * May equal queue_family_graphics_compute().
+   *
+   * @return The queue family index.
+   */
   uint32_t queue_family_sparse_binding() const { return queue_family_sparse_binding_; }
 
   Queue::Acquisition AcquireQueue(const uint32_t queue_family_index,
@@ -289,9 +323,17 @@ class VulkanDevice : public rex::NonCopyable {
 
   const MemoryTypes& memory_types() const { return memory_types_; }
 
-  // vulkan.require_geometry_shader at creation.
+  /**
+   * Reports whether vulkan.require_geometry_shader was set at creation.
+   *
+   * @return True when a geometry shader is required.
+   */
   bool requires_geometry_shader() const { return requires_geometry_shader_; }
-  // vulkan.require_fill_mode_non_solid at creation.
+  /**
+   * Reports whether vulkan.require_fill_mode_non_solid was set at creation.
+   *
+   * @return True when non solid fill mode is required.
+   */
   bool requires_fill_mode_non_solid() const { return requires_fill_mode_non_solid_; }
 
  private:

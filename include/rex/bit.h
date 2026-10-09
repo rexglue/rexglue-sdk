@@ -285,7 +285,7 @@ constexpr E& operator^=(E& lhs, E rhs) {
 }
 
 /**
- * Tests whether a set holds every flag of another set.
+ * Reports whether a set holds every flag of another set.
  *
  * @tparam E The flag enum.
  * @param value The set to test.

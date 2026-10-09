@@ -61,6 +61,16 @@ uint32_t FromXdkProtectFlags(uint32_t protect) {
   return result;
 }
 
+/**
+ * Allocates virtual memory. Allocating from the devkit memory area only logs a warning.
+ *
+ * @param base_addr_ptr The base address, updated with the allocated address.
+ * @param region_size_ptr The region size, updated with the size rounded to the allocation unit.
+ * @param alloc_type The X_MEM_ allocation type.
+ * @param protect_bits The X_PAGE_ protection.
+ * @param debug_memory Nonzero when allocating from the devkit memory area.
+ * @return X_STATUS_SUCCESS or an error status.
+ */
 u32 NtAllocateVirtualMemory_entry(mapped_u32 base_addr_ptr, mapped_u32 region_size_ptr,
                                   u32 alloc_type, u32 protect_bits, u32 debug_memory) {
   uint32_t input_base = base_addr_ptr ? static_cast<uint32_t>(*base_addr_ptr) : 0;
@@ -71,40 +81,22 @@ u32 NtAllocateVirtualMemory_entry(mapped_u32 base_addr_ptr, mapped_u32 region_si
                input_base, input_size, static_cast<uint32_t>(alloc_type),
                static_cast<uint32_t>(protect_bits), static_cast<uint32_t>(debug_memory));
 
-  // NTSTATUS
-  // _Inout_  PVOID *BaseAddress,
-  // _Inout_  PSIZE_T RegionSize,
-  // _In_     ULONG AllocationType,
-  // _In_     ULONG Protect
-  // _In_     BOOLEAN DebugMemory
-
   REX_ASSERT(base_addr_ptr != nullptr);
   REX_ASSERT(region_size_ptr != nullptr);
 
-  // Set to TRUE when allocation is from devkit memory area.
-  // only warn, nothing else to do about it
   if (static_cast<uint32_t>(debug_memory) != 0)
     REXLOG_WARN(kernel, "attmpted allocation to devkit memory area (debug_memory={})",
                 static_cast<uint32_t>(debug_memory));
 
-  // This allocates memory from the kernel heap, which is initialized on startup
-  // and shared by both the kernel implementation and user code.
-  // The memory reference object is used to get the memory, and although
-  // it's simple today we could extend it to do better things in the future.
-
-  // Must request a size.
   if (!base_addr_ptr || !region_size_ptr || !*region_size_ptr) {
     return X_STATUS_INVALID_PARAMETER;
   }
-  // Check allocation type.
   if (!(alloc_type & (X_MEM_COMMIT | X_MEM_RESET | X_MEM_RESERVE))) {
     return X_STATUS_INVALID_PARAMETER;
   }
-  // If MEM_RESET is set only MEM_RESET can be set.
   if (alloc_type & X_MEM_RESET && (alloc_type & ~X_MEM_RESET)) {
     return X_STATUS_INVALID_PARAMETER;
   }
-  // Don't allow games to set execute bits.
   if (protect_bits & (X_PAGE_EXECUTE | X_PAGE_EXECUTE_READ | X_PAGE_EXECUTE_READWRITE |
                       X_PAGE_EXECUTE_WRITECOPY)) {
     REXLOG_WARN(kernel, "Game setting EXECUTE bit on allocation");
@@ -112,31 +104,27 @@ u32 NtAllocateVirtualMemory_entry(mapped_u32 base_addr_ptr, mapped_u32 region_si
 
   uint32_t page_size;
   if (*base_addr_ptr != 0) {
-    // ignore specified page size when base address is specified.
+    // The specified page size is ignored when a base address is given.
     auto heap = runtime::Current().memory()->LookupHeap(*base_addr_ptr);
     if (!heap || heap->heap_type() != runtime::HeapType::kGuestVirtual) {
       return X_STATUS_INVALID_PARAMETER;
     }
     page_size = heap->page_size();
   } else {
-    // Adjust size.
     page_size = 4 * 1024;
     if (alloc_type & X_MEM_LARGE_PAGES) {
       page_size = 64 * 1024;
     }
   }
 
-  // Round the base address down to the nearest page boundary.
   uint32_t adjusted_base = *base_addr_ptr - (*base_addr_ptr % page_size);
-  // For some reason, some games pass in negative sizes.
+  // Titles can pass negative sizes.
   uint32_t adjusted_size = int32_t(*region_size_ptr) < 0
                                ? -static_cast<int32_t>(region_size_ptr.value())
                                : region_size_ptr.value();
-  // Use 64KB allocation granularity when no base address is specified,
-  // matching console behavior. With a base address, use the heap's page size.
+  // Without a base address the allocation granularity is 64 KB, otherwise the heap page size.
   adjusted_size = rex::round_up(adjusted_size, adjusted_base ? page_size : 64 * 1024);
 
-  // Allocate.
   uint32_t allocation_type = 0;
   if (alloc_type & X_MEM_RESERVE) {
     allocation_type |= runtime::kMemoryAllocationReserve;
@@ -158,7 +146,6 @@ u32 NtAllocateVirtualMemory_entry(mapped_u32 base_addr_ptr, mapped_u32 region_si
     heap = runtime::Current().memory()->LookupHeap(adjusted_base);
     REX_KERNEL_ARG(heap);
     if (heap->page_size() != page_size) {
-      // Specified the wrong page size for the wrong heap.
       return X_STATUS_ACCESS_DENIED;
     }
     was_commited = heap->QueryRegionInfo(adjusted_base, &prev_alloc_info) &&
@@ -173,11 +160,9 @@ u32 NtAllocateVirtualMemory_entry(mapped_u32 base_addr_ptr, mapped_u32 region_si
     heap->Alloc(adjusted_size, page_size, allocation_type, protect, top_down, &address);
   }
   if (!address) {
-    // Failed - assume no memory available.
     return X_STATUS_NO_MEMORY;
   }
 
-  // Zero memory, if needed.
   if (address && !(alloc_type & X_MEM_NOZERO)) {
     if (alloc_type & X_MEM_COMMIT) {
       if (!(protect & runtime::kMemoryProtectWrite)) {
@@ -192,8 +177,6 @@ u32 NtAllocateVirtualMemory_entry(mapped_u32 base_addr_ptr, mapped_u32 region_si
       }
     }
   }
-  // Stash back.
-  // Maybe set X_STATUS_ALREADY_COMMITTED if MEM_COMMIT?
   *base_addr_ptr = address;
   *region_size_ptr = adjusted_size;
   REXLOG_TRACE(kernel,
@@ -203,17 +186,24 @@ u32 NtAllocateVirtualMemory_entry(mapped_u32 base_addr_ptr, mapped_u32 region_si
   return X_STATUS_SUCCESS;
 }
 
+/**
+ * Changes the protection of a virtual memory region.
+ *
+ * @param base_addr_ptr The base address, updated with the page aligned address.
+ * @param region_size_ptr The region size, updated with the size rounded to the page size.
+ * @param protect_bits The X_PAGE_ protection.
+ * @param old_protect Receives the previous protection, may be null.
+ * @param debug_memory Nonzero when the memory is in the devkit memory area, which is unsupported.
+ * @return X_STATUS_SUCCESS or an error status.
+ */
 u32 NtProtectVirtualMemory_entry(mapped_u32 base_addr_ptr, mapped_u32 region_size_ptr,
                                  u32 protect_bits, mapped_u32 old_protect, u32 debug_memory) {
-  // Set to TRUE when this memory refers to devkit memory area.
   REX_ASSERT(debug_memory == 0);
 
-  // Must request a size.
   if (!base_addr_ptr || !region_size_ptr || !*region_size_ptr) {
     return X_STATUS_INVALID_PARAMETER;
   }
 
-  // Don't allow games to set execute bits.
   if (protect_bits & (X_PAGE_EXECUTE | X_PAGE_EXECUTE_READ | X_PAGE_EXECUTE_READWRITE |
                       X_PAGE_EXECUTE_WRITECOPY)) {
     REXLOG_WARN(kernel, "Game setting EXECUTE bit on protect");
@@ -224,20 +214,16 @@ u32 NtProtectVirtualMemory_entry(mapped_u32 base_addr_ptr, mapped_u32 region_siz
   if (heap->heap_type() != runtime::HeapType::kGuestVirtual) {
     return X_STATUS_INVALID_PARAMETER;
   }
-  // Adjust the base downwards to the nearest page boundary.
   uint32_t adjusted_base = *base_addr_ptr - (*base_addr_ptr % heap->page_size());
   uint32_t adjusted_size = rex::round_up(*region_size_ptr, heap->page_size());
   uint32_t protect = FromXdkProtectFlags(protect_bits);
 
   uint32_t tmp_old_protect = 0;
 
-  // FIXME: I think it's valid for NtProtectVirtualMemory to span regions, but
-  // as of now our implementation will fail in this case. Need to verify.
   if (!heap->Protect(adjusted_base, adjusted_size, protect, &tmp_old_protect)) {
     return X_STATUS_ACCESS_DENIED;
   }
 
-  // Write back output variables.
   *base_addr_ptr = adjusted_base;
   *region_size_ptr = adjusted_size;
 
@@ -248,6 +234,15 @@ u32 NtProtectVirtualMemory_entry(mapped_u32 base_addr_ptr, mapped_u32 region_siz
   return X_STATUS_SUCCESS;
 }
 
+/**
+ * Decommits or releases virtual memory.
+ *
+ * @param base_addr_ptr The base address, updated with the freed address.
+ * @param region_size_ptr The region size, updated with the freed size.
+ * @param free_type X_MEM_DECOMMIT or X_MEM_RELEASE.
+ * @param debug_memory Nonzero when freeing external devkit memory, which is unsupported.
+ * @return X_STATUS_SUCCESS or an error status.
+ */
 u32 NtFreeVirtualMemory_entry(mapped_u32 base_addr_ptr, mapped_u32 region_size_ptr, u32 free_type,
                               u32 debug_memory) {
   uint32_t base_addr_value = *base_addr_ptr;
@@ -257,15 +252,7 @@ u32 NtFreeVirtualMemory_entry(mapped_u32 base_addr_ptr, mapped_u32 region_size_p
                "base={:#x} size={:#x} type={:#x} debug={}",
                base_addr_value, region_size_value, static_cast<uint32_t>(free_type),
                static_cast<uint32_t>(debug_memory));
-  // X_MEM_DECOMMIT | X_MEM_RELEASE
 
-  // NTSTATUS
-  // _Inout_  PVOID *BaseAddress,
-  // _Inout_  PSIZE_T RegionSize,
-  // _In_     ULONG FreeType
-  // _In_     BOOLEAN DebugMemory
-
-  // Set to TRUE when freeing external devkit memory.
   REX_ASSERT(debug_memory == 0);
 
   if (!base_addr_value) {
@@ -343,10 +330,6 @@ u32 NtQueryVirtualMemory_entry(u32 base_address,
   memory_basic_information_ptr->allocation_protect =
       ToXdkProtectFlags(alloc_info.allocation_protect);
   memory_basic_information_ptr->region_size = alloc_info.region_size;
-  // https://docs.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-memory_basic_information
-  // State: ... This member can be one of the following values: MEM_COMMIT,
-  // MEM_FREE, MEM_RESERVE.
-  // State queried by Beautiful Katamari before displaying the loading screen.
   uint32_t x_state;
   if (alloc_info.state & runtime::kMemoryAllocationCommit) {
     REX_ASSERT((alloc_info.state & runtime::kMemoryAllocationReserve) != 0);
@@ -363,6 +346,21 @@ u32 NtQueryVirtualMemory_entry(u32 base_address,
   return X_STATUS_SUCCESS;
 }
 
+/**
+ * Allocates contiguous physical memory.
+ *
+ * The protection is X_PAGE_READONLY or X_PAGE_READWRITE, optionally with X_PAGE_NOCACHE or
+ * X_PAGE_WRITECOMBINE. X_MEM_LARGE_PAGES selects 64 KB pages and X_MEM_16MB_PAGES selects 16 MB
+ * pages, otherwise pages are 4 KB.
+ *
+ * @param flags Unused.
+ * @param region_size The size in bytes, rounded up to the page size.
+ * @param protect_bits The X_PAGE_ protection and X_MEM_ page size flags.
+ * @param min_addr_range The lowest acceptable physical address.
+ * @param max_addr_range The highest acceptable physical address.
+ * @param alignment The alignment, rounded up to the page size.
+ * @return The base address, or 0 when no memory is available.
+ */
 u32 MmAllocatePhysicalMemoryEx_entry(u32 flags, u32 region_size, u32 protect_bits,
                                      u32 min_addr_range, u32 max_addr_range, u32 alignment) {
   REXLOG_TRACE(kernel,
@@ -372,22 +370,10 @@ u32 MmAllocatePhysicalMemoryEx_entry(u32 flags, u32 region_size, u32 protect_bit
                static_cast<uint32_t>(protect_bits), static_cast<uint32_t>(min_addr_range),
                static_cast<uint32_t>(max_addr_range), static_cast<uint32_t>(alignment));
 
-  // Check protection bits.
   if (!(protect_bits & (X_PAGE_READONLY | X_PAGE_READWRITE))) {
     REX_FAIL(kernel, 0, "MmAllocatePhysicalMemoryEx: bad protection bits");
   }
 
-  // Either may be OR'ed into protect_bits:
-  // X_PAGE_NOCACHE
-  // X_PAGE_WRITECOMBINE
-  // We could use this to detect what's likely GPU-synchronized memory
-  // and let the GPU know we're messing with it (or even allocate from
-  // the GPU). At least the D3D command buffer is X_PAGE_WRITECOMBINE.
-
-  // Calculate page size.
-  // Default            = 4KB
-  // X_MEM_LARGE_PAGES  = 64KB
-  // X_MEM_16MB_PAGES   = 16MB
   uint32_t page_size = 4 * 1024;
   if (protect_bits & X_MEM_LARGE_PAGES) {
     page_size = 64 * 1024;
@@ -395,7 +381,6 @@ u32 MmAllocatePhysicalMemoryEx_entry(u32 flags, u32 region_size, u32 protect_bit
     page_size = 16 * 1024 * 1024;
   }
 
-  // Round up the region size and alignment to the next page.
   uint32_t adjusted_size = rex::round_up(region_size, page_size);
   uint32_t adjusted_alignment = rex::round_up(alignment, page_size);
 
@@ -405,13 +390,9 @@ u32 MmAllocatePhysicalMemoryEx_entry(u32 flags, u32 region_size, u32 protect_bit
   bool top_down = true;
   auto heap = static_cast<runtime::PhysicalHeap*>(
       runtime::Current().memory()->LookupHeapByType(true, page_size));
-  // min_addr_range/max_addr_range are bounds in physical memory, not virtual.
+  // min_addr_range and max_addr_range bound physical memory, not virtual.
   uint32_t heap_base = heap->heap_base();
   uint32_t heap_physical_address_offset = heap->GetPhysicalAddress(heap_base);
-  // NOTE: xenia-canary has a per-title workaround (ignore_offset_for_ranged_allocations cvar)
-  // for title 545108B4 where min_addr_range comparison fails due to 0x1000 offset.
-  // If needed, set heap_physical_address_offset = 0 when min_addr_range && max_addr_range.
-  // Reference: xenia-canary 81aaf98e0.
   uint32_t heap_min_addr = rex::sat_sub(min_addr_range, heap_physical_address_offset);
   uint32_t heap_max_addr = rex::sat_sub(max_addr_range, heap_physical_address_offset);
   uint32_t heap_size = heap->heap_size();
@@ -420,7 +401,6 @@ u32 MmAllocatePhysicalMemoryEx_entry(u32 flags, u32 region_size, u32 protect_bit
   uint32_t base_address;
   if (!heap->AllocRange(heap_min_addr, heap_max_addr, adjusted_size, adjusted_alignment,
                         allocation_type, protect, top_down, &base_address)) {
-    // Failed - assume no memory available.
     return 0;
   }
   REXLOG_TRACE(kernel,
@@ -489,7 +469,6 @@ u32 MmQueryAllocationSize_entry(mapped_void base_address) {
   return size;
 }
 
-// https://code.google.com/p/vdash/source/browse/trunk/vdash/include/kernel.h
 struct X_MM_QUERY_STATISTICS_SECTION {
   be_u32 available_pages;
   be_u32 total_virtual_memory_bytes;
@@ -523,12 +502,12 @@ u32 MmQueryStatistics_entry(ppc_ptr_t<X_MM_QUERY_STATISTICS_RESULT> stats_ptr) {
     return X_STATUS_BUFFER_TOO_SMALL;
   }
 
-  // Zero out the struct.
   stats_ptr.Zero();
 
   stats_ptr->size = size;
 
-  stats_ptr->total_physical_pages = 0x00020000;  // 512mb / 4kb pages
+  // 512 MB of 4 KB pages.
+  stats_ptr->total_physical_pages = 0x00020000;
   stats_ptr->kernel_pages = 0x00002000;
 
   uint32_t reserved_pages = 0;
@@ -553,7 +532,7 @@ u32 MmQueryStatistics_entry(ppc_ptr_t<X_MM_QUERY_STATISTICS_RESULT> stats_ptr) {
   stats_ptr->title.available_pages = budget > used ? budget - used : 0;
   stats_ptr->title.total_virtual_memory_bytes = 0x2FFE0000;
   stats_ptr->title.reserved_virtual_memory_bytes = reserved_pages_bytes;
-  stats_ptr->title.physical_pages = 0x00001000;  // TODO(gibbed): FIXME
+  stats_ptr->title.physical_pages = 0x00001000;
   stats_ptr->title.pool_pages = 0x00000010;
   stats_ptr->title.stack_pages = 0x00000100;
   stats_ptr->title.image_pages = 0x00000100;
@@ -579,9 +558,13 @@ u32 MmQueryStatistics_entry(ppc_ptr_t<X_MM_QUERY_STATISTICS_RESULT> stats_ptr) {
   return X_STATUS_SUCCESS;
 }
 
-// https://msdn.microsoft.com/en-us/library/windows/hardware/ff554547(v=vs.85).aspx
+/**
+ * Returns the physical address of an allocation.
+ *
+ * @param base_address The result of MmAllocatePhysicalMemory.
+ * @return The physical address, or 0 when base_address is not physical.
+ */
 u32 MmGetPhysicalAddress_entry(u32 base_address) {
-  // base_address = result of MmAllocatePhysicalMemory.
   uint32_t physical_address = runtime::Current().memory()->GetPhysicalAddress(base_address);
   REX_ASSERT(physical_address != UINT32_MAX);
   if (physical_address == UINT32_MAX) {
@@ -594,10 +577,17 @@ u32 MmGetPhysicalAddress_entry(u32 base_address) {
   return physical_address;
 }
 
+/**
+ * Maps io space by returning the source address, which suffices for XMA audio contexts. Other
+ * uses are unsupported.
+ *
+ * @param unk0 Must be 2.
+ * @param src_address The address to map.
+ * @param size Must be 0x40.
+ * @param flags Must be 0x404.
+ * @return The source address.
+ */
 u32 MmMapIoSpace_entry(u32 unk0, mapped_void src_address, u32 size, u32 flags) {
-  // I've only seen this used to map XMA audio contexts.
-  // The code seems fine with taking the src address, so this returns that.
-  // If others start using it there could be problems.
   REX_ASSERT(unk0 == 2);
   REX_ASSERT(size == 0x40);
   REX_ASSERT(flags == 0x404);
@@ -621,7 +611,7 @@ u32 ExAllocatePoolTypeWithTag_entry(u32 size, u32 tag, [[maybe_unused]] u32 zero
     if (!addr)
       return 0;
     auto header = runtime::Current().memory()->TranslateVirtual<X_POOL_ALLOC_HEADER*>(addr);
-    header->unk_2 = 170;  // magic marker
+    header->unk_2 = 170;
     header->tag = static_cast<uint32_t>(tag);
     return addr + sizeof(X_POOL_ALLOC_HEADER);
   } else {
@@ -630,17 +620,16 @@ u32 ExAllocatePoolTypeWithTag_entry(u32 size, u32 tag, [[maybe_unused]] u32 zero
 }
 
 u32 ExAllocatePool_entry(u32 size) {
-  const uint32_t none = 0x656E6F4E;  // 'None'
+  const uint32_t none = 0x656E6F4E;
   return ExAllocatePoolTypeWithTag_entry(size, none, 0);
 }
 
 void ExFreePool_entry(mapped_void base_address) {
   uint32_t addr = base_address.guest_address();
   if ((addr & (4096 - 1)) == 0) {
-    // Page-aligned: large allocation with no pool header.
+    // A page aligned address is a large allocation without a pool header.
     runtime::Current().memory()->SystemHeapFree(addr);
   } else {
-    // Small allocation: subtract pool header to get real alloc base.
     runtime::Current().memory()->SystemHeapFree(addr - sizeof(X_POOL_ALLOC_HEADER));
   }
 }
@@ -659,7 +648,6 @@ u32 KeGetImagePageTableEntry_entry(mapped_void address) {
 }
 
 u32 KeLockL2_entry() {
-  // TODO
   return 0;
 }
 

@@ -27,7 +27,7 @@ namespace rex::runtime {
 
 /**
  * The module rex-runtime.dll serves. Connect registers the cvar tables of the subsystems
- * rex-runtime holds, reserves the apu and hid scopes, validates the runtime and apu config slices
+ * rex-runtime holds, reserves the apu and hid scopes, validates the runtime and apu config sections
  * and fetches the backends the host service modules serve.
  */
 class REX_RUNTIME_API RuntimeModule final : public IModule {
@@ -103,11 +103,11 @@ class REX_RUNTIME_API RuntimeModule final : public IModule {
   std::span<const char* const> RequiredInterfaces() const override;
 
   /**
-   * Validates the config slices rex-runtime reads and registers its cvar tables.
+   * Validates the config sections rex-runtime reads and registers its cvar tables.
    *
    * @param factory Serves the cvar registry.
    * @param config The configuration rex::Init was called with.
-   * @return Ok, or the first slice or registration error, with every table registered so far
+   * @return Ok, or the first section or registration error, with every table registered so far
    *         unregistered again.
    */
   [[nodiscard]] Result<void> Connect(IInterfaceFactory* factory, const Config& config) override;

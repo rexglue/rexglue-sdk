@@ -47,7 +47,7 @@ class IContentManager {
       u32 device_id, u64 xuid, XContentType content_type, u32 title_id = 0xFFFFFFFF) = 0;
 
   /**
-   * Tests whether a package exists.
+   * Reports whether a package exists.
    *
    * @param xuid The owner.
    * @param data The content data.
@@ -149,7 +149,7 @@ class IContentManager {
   [[nodiscard]] virtual std::filesystem::path ResolveGameUserContentPath() = 0;
 
   /**
-   * Tests whether a package is open.
+   * Reports whether a package is open.
    *
    * @param data The content data.
    * @return True when it is open.

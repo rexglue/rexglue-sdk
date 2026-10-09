@@ -1,5 +1,5 @@
 /**
- * @file        rex/codegen/codegen_writer.h
+ * @file        codegen/codegen_writer.h
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -19,26 +19,47 @@
 
 namespace rex::codegen {
 
+/**
+ * Generates the source files of a recompiled title from a CodegenContext and writes them to disk.
+ */
 class CodegenWriter {
  public:
+  /**
+   * Binds the writer to a context.
+   *
+   * @param ctx Context to generate from, must outlive the writer
+   */
   CodegenWriter(CodegenContext& ctx);
 
-  /// Run the full output pipeline: validate, generate, flush, sweep.
+  /**
+   * Runs the full output pipeline of validate, generate, flush and sweep.
+   *
+   * @param force Rewrite outputs whose content is unchanged
+   * @return True on success
+   */
   bool write(bool force);
 
   /**
-   * Basenames of stale outputs removed by the sweep that follows the flush.
-   * Populated only after write() completes. Empty otherwise.
+   * Returns the basenames of stale outputs removed by the sweep that follows the flush.
+   * Populated only after write() completes, empty otherwise.
+   *
+   * @return Removed basenames
    */
   const std::vector<std::string>& deletedFiles() const { return deletedFiles_; }
 
   /**
-   * Basenames of files written to disk during write() (via FlushPendingWrites).
-   * Populated only after write() completes. Empty otherwise.
+   * Returns the basenames of files written to disk by FlushPendingWrites() during write().
+   * Populated only after write() completes, empty otherwise.
+   *
+   * @return Written basenames
    */
   const std::vector<std::string>& writtenFiles() const { return writtenFiles_; }
 
-  /// Basenames whose on-disk content already matched, so nothing was written.
+  /**
+   * Returns the basenames whose on disk content already matched, so nothing was written.
+   *
+   * @return Unchanged basenames
+   */
   const std::vector<std::string>& unchangedFiles() const { return unchangedFiles_; }
 
  private:
@@ -64,7 +85,6 @@ class CodegenWriter {
   void SaveCurrentOutData(std::string_view name);
   bool FlushPendingWrites();
 
-  // Convenience accessors
   FunctionGraph& graph();
   const FunctionGraph& graph() const;
   const BinaryView& binary() const;

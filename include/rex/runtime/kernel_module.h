@@ -1,4 +1,3 @@
-#pragma once
 /**
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
@@ -9,6 +8,8 @@
  *
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
+
+#pragma once
 
 #include <string_view>
 
@@ -23,7 +24,7 @@ class Runtime;
 namespace rex::runtime {
 
 /**
- * Creates the record of a kernel module with its first handle.
+ * Creates the `ObjectRecord` of a kernel module with its first handle.
  *
  * @param runtime The runtime the call runs in.
  * @param path The guest path of the module, its name is the file name of the path.

@@ -26,7 +26,6 @@ namespace rex {
 namespace gpu {
 namespace vulkan {
 
-// Generated with `xb buildshaders`.
 namespace shaders {
 #include "../shaders/vulkan_spirv/immediate_ps.h"
 #include "../shaders/vulkan_spirv/immediate_vs.h"
@@ -52,8 +51,6 @@ VulkanImmediateDrawer::VulkanImmediateTexture::~VulkanImmediateTexture() {
 }
 
 VulkanImmediateDrawer::~VulkanImmediateDrawer() {
-  // Await GPU usage completion of all draws and texture uploads (which happen
-  // before draws).
   auto vulkan_presenter = static_cast<VulkanPresenter*>(presenter());
   if (vulkan_presenter) {
     vulkan_presenter->AwaitUISubmissionCompletionFromUIThread(last_paint_submission_index_);
@@ -129,8 +126,6 @@ bool VulkanImmediateDrawer::Initialize() {
              "descriptor set layout");
   }
 
-  // Create the (1, 1, 1, 1) texture as a replacement when drawing without a
-  // real texture.
   size_t white_texture_pending_upload_index;
   if (!CreateTextureResource(1, 1, gpu::OverlayTextureFilter::kNearest, false, nullptr,
                              white_texture_, white_texture_pending_upload_index)) {
@@ -158,7 +153,6 @@ bool VulkanImmediateDrawer::Initialize() {
     REX_FAIL(ui, false, "VulkanImmediateDrawer: Failed to create the pipeline layout");
   }
 
-  // Reset the current state.
   batch_open_ = false;
 
   return true;
@@ -192,15 +186,12 @@ void VulkanImmediateDrawer::Begin(gpu::OverlayDrawContext& context, f32 width, f
   const VulkanOverlayDrawContext& vulkan_ui_draw_context =
       static_cast<const VulkanOverlayDrawContext&>(context);
 
-  // Update the submission index to be used throughout the current immediate
-  // drawer paint.
   last_paint_submission_index_ = vulkan_ui_draw_context.submission_index_current();
   last_completed_submission_index_ = vulkan_ui_draw_context.submission_index_completed();
 
   const VulkanDevice::Functions& dfn = vulkan_device_->functions();
   const VkDevice device = vulkan_device_->device();
 
-  // Destroy deleted textures.
   for (auto it = textures_deleted_.begin(); it != textures_deleted_.end();) {
     if (it->second > last_completed_submission_index_) {
       ++it;
@@ -213,7 +204,6 @@ void VulkanImmediateDrawer::Begin(gpu::OverlayDrawContext& context, f32 width, f
     textures_deleted_.pop_back();
   }
 
-  // Release upload buffers for completed texture uploads.
   auto erase_texture_uploads_end = texture_upload_buffers_submitted_.begin();
   while (erase_texture_uploads_end != texture_upload_buffers_submitted_.end()) {
     if (erase_texture_uploads_end->submission_index > last_completed_submission_index_) {
@@ -228,12 +218,7 @@ void VulkanImmediateDrawer::Begin(gpu::OverlayDrawContext& context, f32 width, f
 
   vertex_buffer_pool_->Reclaim(last_completed_submission_index_);
 
-  // Begin drawing.
-
-  // Update the framebuffer attachment format in the pipelines - may await
-  // submission completion if changing.
   if (!EnsurePipelinesCreatedForCurrentRenderPass()) {
-    // Failed to create the pipelines - don't draw anything.
     return;
   }
 
@@ -271,7 +256,6 @@ void VulkanImmediateDrawer::BeginBatch(const gpu::OverlayBatch& batch) {
 
   const VulkanDevice::Functions& dfn = vulkan_device_->functions();
 
-  // Bind the vertices.
   size_t vertex_buffer_size = sizeof(gpu::OverlayVertex) * batch.vertices.size();
   VkBuffer vertex_buffer;
   VkDeviceSize vertex_buffer_offset;
@@ -286,7 +270,6 @@ void VulkanImmediateDrawer::BeginBatch(const gpu::OverlayBatch& batch) {
   std::memcpy(vertex_buffer_mapping, batch.vertices.data(), vertex_buffer_size);
   dfn.vkCmdBindVertexBuffers(draw_command_buffer, 0, 1, &vertex_buffer, &vertex_buffer_offset);
 
-  // Bind the indices.
   batch_has_index_buffer_ = !batch.indices.empty();
   if (batch_has_index_buffer_) {
     size_t index_buffer_size = sizeof(u16) * batch.indices.size();
@@ -310,8 +293,6 @@ void VulkanImmediateDrawer::BeginBatch(const gpu::OverlayBatch& batch) {
 
 void VulkanImmediateDrawer::Draw(const gpu::OverlayDraw& draw) {
   if (!batch_open_) {
-    // Could have been an error while obtaining the vertex and index buffers,
-    // for instance.
     return;
   }
 
@@ -320,7 +301,6 @@ void VulkanImmediateDrawer::Draw(const gpu::OverlayDraw& draw) {
       *static_cast<const VulkanOverlayDrawContext*>(ui_draw_context());
   VkCommandBuffer draw_command_buffer = vulkan_ui_draw_context.draw_command_buffer();
 
-  // Get the pipeline for the current primitive type.
   VkPipeline pipeline;
   switch (draw.primitive) {
     case gpu::OverlayPrimitive::kLines:
@@ -334,17 +314,14 @@ void VulkanImmediateDrawer::Draw(const gpu::OverlayDraw& draw) {
       return;
   }
   if (pipeline == VK_NULL_HANDLE) {
-    // Failed to create the pipeline.
     return;
   }
 
-  // Set the scissor rectangle if enabled.
   VkRect2D scissor;
   uint32_t scissor_left, scissor_top;
   if (!ScissorToRenderTarget(draw, scissor_left, scissor_top, scissor.extent.width,
                              scissor.extent.height)) {
-    // Nothing is visible (zero area is used as the default current_scissor_
-    // value also).
+    // Zero area, also the default current_scissor_ value, means nothing is visible.
     return;
   }
   scissor.offset.x = static_cast<int32_t>(scissor_left);
@@ -357,13 +334,11 @@ void VulkanImmediateDrawer::Draw(const gpu::OverlayDraw& draw) {
     dfn.vkCmdSetScissor(draw_command_buffer, 0, 1, &scissor);
   }
 
-  // Bind the pipeline for the primitive type if the scissor is not empty.
   if (current_pipeline_ != pipeline) {
     current_pipeline_ = pipeline;
     dfn.vkCmdBindPipeline(draw_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
   }
 
-  // Bind the texture.
   uint32_t texture_descriptor_index;
   VulkanImmediateTexture* texture = static_cast<VulkanImmediateTexture*>(draw.texture);
   if (texture && texture->immediate_drawer_ == this) {
@@ -379,7 +354,6 @@ void VulkanImmediateDrawer::Draw(const gpu::OverlayDraw& draw) {
                                 pipeline_layout_, 0, 1, &texture_descriptor_set, 0, nullptr);
   }
 
-  // Draw.
   if (batch_has_index_buffer_) {
     dfn.vkCmdDrawIndexed(draw_command_buffer, draw.count, 1, draw.index_offset, draw.base_vertex,
                          0);
@@ -395,7 +369,6 @@ void VulkanImmediateDrawer::EndBatch() {
 void VulkanImmediateDrawer::End() {
   REX_ASSERT(!batch_open_);
 
-  // Upload textures.
   if (!texture_uploads_pending_.empty()) {
     VulkanPresenter& vulkan_presenter = *static_cast<VulkanPresenter*>(presenter());
     VkCommandBuffer setup_command_buffer =
@@ -404,7 +377,6 @@ void VulkanImmediateDrawer::End() {
       size_t texture_uploads_pending_count = texture_uploads_pending_.size();
       const VulkanDevice::Functions& dfn = vulkan_device_->functions();
 
-      // Transition to VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL.
       std::vector<VkImageMemoryBarrier> image_memory_barriers;
       image_memory_barriers.reserve(texture_uploads_pending_count);
       VkImageMemoryBarrier image_memory_barrier;
@@ -426,12 +398,9 @@ void VulkanImmediateDrawer::End() {
                                static_cast<uint32_t>(image_memory_barriers.size()),
                                image_memory_barriers.data());
 
-      // Do transfer operations and transition to
-      // VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, and also mark as used.
       for (size_t i = 0; i < texture_uploads_pending_count; ++i) {
         const PendingTextureUpload& pending_texture_upload = texture_uploads_pending_[i];
         if (pending_texture_upload.buffer != VK_NULL_HANDLE) {
-          // Copying.
           VkBufferImageCopy copy_region;
           copy_region.bufferOffset = 0;
           copy_region.bufferRowLength = pending_texture_upload.width;
@@ -456,7 +425,6 @@ void VulkanImmediateDrawer::End() {
           submitted_texture_upload_buffer.buffer_memory = pending_texture_upload.buffer_memory;
           submitted_texture_upload_buffer.submission_index = last_paint_submission_index_;
         } else {
-          // Clearing (initializing the special empty image).
           VkClearColorValue white_clear_value;
           white_clear_value.float32[0] = 1.0f;
           white_clear_value.float32[1] = 1.0f;
@@ -493,9 +461,6 @@ void VulkanImmediateDrawer::End() {
 }
 
 void VulkanImmediateDrawer::OnLeavePresenter() {
-  // Leaving the presenter's submission timeline - await GPU usage completion of
-  // all draws and texture uploads (which happen before draws) and reset
-  // submission indices.
   VulkanPresenter& vulkan_presenter = *static_cast<VulkanPresenter*>(presenter());
   vulkan_presenter.AwaitUISubmissionCompletionFromUIThread(last_paint_submission_index_);
 
@@ -524,14 +489,12 @@ bool VulkanImmediateDrawer::EnsurePipelinesCreatedForCurrentRenderPass() {
   VkFormat render_pass_format = vulkan_ui_draw_context.render_pass_format();
 
   if (render_pass_format == pipeline_framebuffer_format_) {
-    // Either created, or failed to create once (don't try to create every
-    // frame).
+    // Created, or failed once and not retried every frame.
     return pipeline_triangle_ != VK_NULL_HANDLE && pipeline_line_ != VK_NULL_HANDLE;
   }
 
   if (last_paint_submission_index_ && pipeline_triangle_ != VK_NULL_HANDLE &&
       pipeline_line_ != VK_NULL_HANDLE) {
-    // Make sure it's safe to delete the pipelines.
     VulkanPresenter& vulkan_presenter = *static_cast<VulkanPresenter*>(presenter());
     vulkan_presenter.AwaitUISubmissionCompletionFromUIThread(last_paint_submission_index_);
   }
@@ -539,14 +502,11 @@ bool VulkanImmediateDrawer::EnsurePipelinesCreatedForCurrentRenderPass() {
   const VulkanDevice::Functions& dfn = vulkan_device_->functions();
   const VkDevice device = vulkan_device_->device();
 
-  // Safe to destroy the pipelines now - if the render pass was recreated,
-  // completion of its usage has already been awaited.
+  // Safe to destroy as usage of a recreated render pass was already awaited.
   util::DestroyAndNullHandle(dfn.vkDestroyPipeline, device, pipeline_line_);
   util::DestroyAndNullHandle(dfn.vkDestroyPipeline, device, pipeline_triangle_);
-  // If creation fails now, don't try to create every frame.
+  // A failed creation is not retried every frame.
   pipeline_framebuffer_format_ = render_pass_format;
-
-  // Triangle pipeline.
 
   VkPipelineShaderStageCreateInfo stages[2] = {};
   stages[0].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
@@ -677,8 +637,6 @@ bool VulkanImmediateDrawer::EnsurePipelinesCreatedForCurrentRenderPass() {
     return false;
   }
 
-  // Line pipeline.
-
   input_assembly_state.topology = VK_PRIMITIVE_TOPOLOGY_LINE_LIST;
   pipeline_create_info.flags =
       (pipeline_create_info.flags & ~VK_PIPELINE_CREATE_ALLOW_DERIVATIVES_BIT) |
@@ -699,7 +657,6 @@ bool VulkanImmediateDrawer::EnsurePipelinesCreatedForCurrentRenderPass() {
 }
 
 uint32_t VulkanImmediateDrawer::AllocateTextureDescriptor() {
-  // Try to reuse a recycled descriptor first.
   if (texture_descriptor_pool_recycled_first_) {
     TextureDescriptorPool* pool = texture_descriptor_pool_recycled_first_;
     REX_ASSERT(pool->recycled_bits != 0);
@@ -721,8 +678,6 @@ uint32_t VulkanImmediateDrawer::AllocateTextureDescriptor() {
   allocate_info.descriptorSetCount = 1;
   allocate_info.pSetLayouts = &texture_descriptor_set_layout_;
 
-  // If no recycled, try to create a new allocation within an existing pool with
-  // unallocated descriptors left.
   while (texture_descriptor_pool_unallocated_first_) {
     TextureDescriptorPool* pool = texture_descriptor_pool_unallocated_first_;
     REX_ASSERT(pool->unallocated_count != 0);
@@ -733,7 +688,7 @@ uint32_t VulkanImmediateDrawer::AllocateTextureDescriptor() {
     if (allocate_result == VK_SUCCESS) {
       --pool->unallocated_count;
     } else {
-      // Failed to allocate for some reason, don't try again for this pool.
+      // Never retry a pool that failed to allocate.
       pool->unallocated_count = 0;
     }
     if (!pool->unallocated_count) {
@@ -744,7 +699,6 @@ uint32_t VulkanImmediateDrawer::AllocateTextureDescriptor() {
     }
   }
 
-  // Create a new pool and allocate the descriptor from it.
   VkDescriptorPoolSize descriptor_pool_size;
   descriptor_pool_size.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
   descriptor_pool_size.descriptorCount = TextureDescriptorPool::kDescriptorCount;
@@ -803,7 +757,6 @@ void VulkanImmediateDrawer::FreeTextureDescriptor(uint32_t descriptor_index) {
   REX_ASSERT(allocation_index < TextureDescriptorPool::kDescriptorCount - pool->unallocated_count);
   REX_ASSERT((pool->recycled_bits & (static_cast<uint64_t>(1) << allocation_index)) == 0);
   if (!pool->recycled_bits) {
-    // Add to the free list if not already in it.
     pool->recycled_next = texture_descriptor_pool_recycled_first_;
     texture_descriptor_pool_recycled_first_ = pool;
   }
@@ -817,8 +770,6 @@ bool VulkanImmediateDrawer::CreateTextureResource(uint32_t width, uint32_t heigh
                                                   size_t& pending_upload_index_out) {
   const VulkanDevice::Functions& dfn = vulkan_device_->functions();
   const VkDevice device = vulkan_device_->device();
-
-  // Create the image and the descriptor.
 
   VkImageCreateInfo image_create_info;
   image_create_info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
@@ -856,8 +807,6 @@ bool VulkanImmediateDrawer::CreateTextureResource(uint32_t width, uint32_t heigh
   image_view_create_info.image = image;
   image_view_create_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
   image_view_create_info.format = VK_FORMAT_R8G8B8A8_UNORM;
-  // data == nullptr is a special case for (1, 1, 1, 1), though the image will
-  // be cleared to (1, 1, 1, 1) anyway, only a micro-optimization.
   VkComponentSwizzle swizzle = (data || !vulkan_device_->properties().imageViewFormatSwizzle)
                                    ? VK_COMPONENT_SWIZZLE_IDENTITY
                                    : VK_COMPONENT_SWIZZLE_ONE;
@@ -910,10 +859,6 @@ bool VulkanImmediateDrawer::CreateTextureResource(uint32_t width, uint32_t heigh
   descriptor_write.pTexelBufferView = nullptr;
   dfn.vkUpdateDescriptorSets(device, 1, &descriptor_write, 0, nullptr);
 
-  // Create and fill the upload buffer.
-
-  // data == nullptr is a special case for (1, 1, 1, 1), clearing rather than
-  // uploading in this case.
   VkBuffer upload_buffer = VK_NULL_HANDLE;
   VkDeviceMemory upload_buffer_memory = VK_NULL_HANDLE;
   if (data) {
@@ -960,7 +905,6 @@ bool VulkanImmediateDrawer::CreateTextureResource(uint32_t width, uint32_t heigh
 
   pending_upload_index_out = texture_uploads_pending_.size();
   PendingTextureUpload& pending_upload = texture_uploads_pending_.emplace_back();
-  // The caller will set the ImmedateTexture pointer if needed.
   pending_upload.texture = nullptr;
   pending_upload.buffer = upload_buffer;
   pending_upload.buffer_memory = upload_buffer_memory;
@@ -981,7 +925,6 @@ void VulkanImmediateDrawer::DestroyTextureResource(VulkanImmediateTexture::Resou
 }
 
 void VulkanImmediateDrawer::OnImmediateTextureDestroyed(VulkanImmediateTexture& texture) {
-  // Remove from the pending uploads.
   size_t pending_upload_index = texture.pending_upload_index_;
   if (pending_upload_index != SIZE_MAX) {
     if (pending_upload_index + 1 < texture_uploads_pending_.size()) {
@@ -994,13 +937,11 @@ void VulkanImmediateDrawer::OnImmediateTextureDestroyed(VulkanImmediateTexture& 
     texture_uploads_pending_.pop_back();
   }
 
-  // Remove from the texture list.
   VulkanImmediateTexture*& texture_at_index = textures_[texture.immediate_drawer_index_];
   texture_at_index = textures_.back();
   texture_at_index->immediate_drawer_index_ = texture.immediate_drawer_index_;
   textures_.pop_back();
 
-  // Destroy immediately or queue for destruction if in use.
   if (texture.last_usage_submission_ > last_completed_submission_index_) {
     textures_deleted_.emplace_back(
         std::make_pair(texture.resource_, texture.last_usage_submission_));

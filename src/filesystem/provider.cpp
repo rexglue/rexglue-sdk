@@ -1,16 +1,3 @@
-/**
- * @file        filesystem/provider.cpp
- * @brief       The backing of 1 mount and the factory that builds it from a mount entry
- *
- * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
- *              All rights reserved.
- *
- * @license     BSD 3-Clause License
- *              See LICENSE file in the project root for full license text.
- *
- * @remarks     Derived from Xenia's xenia/vfs/device.cc (Ben Vanik, 2020).
- */
-
 #include "filesystem/provider.h"
 
 #include <format>

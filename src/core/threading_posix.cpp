@@ -2,7 +2,10 @@
  * @file        core/threading_posix.cpp
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
+ *              All rights reserved.
+ *
  * @license     BSD 3-Clause License
+ *              See LICENSE file in the project root for full license text.
  */
 
 #include <rex/net/socket.h>
@@ -62,7 +65,6 @@ static_assert(REX_PLATFORM_LINUX || REX_PLATFORM_MAC, "This file is POSIX-only")
 namespace rex::platform {
 
 #if REX_PLATFORM_ANDROID
-// May be null if no dynamically loaded functions are required.
 static void* android_libc_;
 // API 26+.
 static int (*android_pthread_getname_np_)(pthread_t pthread, char* buf, size_t n);
@@ -95,16 +97,12 @@ inline timespec DurationToTimeSpec(std::chrono::duration<_Rep, _Period> duration
   return timespec{div.quot, div.rem};
 }
 
-// Thread interruption is done using user-defined signals
-// This implementation uses the SIGRTMAX - SIGRTMIN to signal to a thread
-// gdb tip, for SIG = SIGRTMIN + SignalType : handle SIG nostop
-// lldb tip, for SIG = SIGRTMIN + SignalType : process handle SIG -s false
+/** User defined signals that interrupt a thread, mapped onto SIGRTMIN through SIGRTMAX. */
 enum class SignalType : u8 { kThreadSuspend, kThreadUserCallback, k_Count };
 
 int GetSystemSignal(SignalType num) {
 #if defined(__APPLE__)
-  // macOS has no realtime signals (SIGRTMIN..SIGRTMAX); map the runtime's
-  // signals onto the two user-defined signals.
+  // macOS has no realtime signals (SIGRTMIN..SIGRTMAX), so the 2 user defined signals are used.
   switch (num) {
     case SignalType::kThreadSuspend:
       return SIGUSR1;
@@ -197,10 +195,7 @@ void install_signal_handler(SignalType type) {
   }
 }
 
-// TODO(dougvj)
 void EnableAffinityConfiguration() {}
-
-// uint64_t ticks() { return mach_absolute_time(); }
 
 uint32_t current_thread_system_id() {
 #if defined(__APPLE__)
@@ -227,8 +222,6 @@ void Sleep(std::chrono::microseconds duration) {
   int ret = 0;
   do {
     ret = nanosleep(p_rqtp, p_rmtp);
-    // Swap requested for remaining in case of signal interruption
-    // in which case, we start sleeping again for the remainder
     std::swap(p_rqtp, p_rmtp);
   } while (ret == -1 && errno == EINTR);
 }
@@ -240,7 +233,6 @@ std::chrono::milliseconds QueryCurrentThreadCPUTime() {
                                                 std::chrono::nanoseconds(now.tv_nsec));
 }
 
-// TODO(bwrsandman) Implement by allowing alert interrupts from IO operations
 thread_local bool alertable_state_ = false;
 bool DispatchCurrentThreadUserCallback();
 SleepResult AlertableSleep(std::chrono::microseconds duration) {
@@ -284,11 +276,14 @@ bool SetTLSValue(TLSHandle handle, uintptr_t value) {
 }
 
 #if defined(__APPLE__)
-// macOS does not implement unnamed POSIX semaphores (sem_init fails with
-// ENOSYS). Emulate one with a named semaphore that is unlinked immediately
-// after creation: the name is released but the descriptor stays valid until
-// sem_close, and sem_wait/sem_post remain async-signal-safe (needed because
-// WaitSuspended() runs from a signal handler).
+/**
+ * Emulates an unnamed POSIX semaphore with a named one unlinked right after creation.
+ *
+ * macOS fails sem_init with ENOSYS. The descriptor stays valid until sem_close, and sem_wait
+ * and sem_post stay async signal safe, which WaitSuspended() needs in a signal handler.
+ *
+ * @return The semaphore, or SEM_FAILED.
+ */
 static sem_t* RexCreateAnonymousSemaphore() {
   static std::atomic<uint64_t> counter{0};
   char name[64];
@@ -306,7 +301,6 @@ class PosixConditionBase {
  public:
   PosixConditionBase() {
 #if REX_PLATFORM_LINUX
-    // Use robust mutexes so waits can recover if owner thread terminates.
     pthread_mutexattr_t attr;
     if (pthread_mutexattr_init(&attr) == 0) {
       if (pthread_mutexattr_setrobust(&attr, PTHREAD_MUTEX_ROBUST) == 0) {
@@ -342,7 +336,7 @@ class PosixConditionBase {
     } else {
       if (timeout == std::chrono::milliseconds::max()) {
         cond_.wait(lock, predicate);
-        executed = true;  // Did not time out;
+        executed = true;
       } else {
         executed = cond_.wait_for(lock, timeout, predicate);
       }
@@ -479,10 +473,12 @@ class PosixConditionBase {
   std::mutex mutex_;
 };
 
-// There is no native POSIX handle for a single wait/signal construct
-// pthreads is at a lower level with more handles for such a mechanism.
-// This simple wrapper class functions as our handle and uses conditional
-// variables for waits and signals.
+/**
+ * Handle for a wait and signal construct built on a mutex and condition variable, since POSIX
+ * has no native handle for one.
+ *
+ * @tparam T The condition type.
+ */
 template <typename T>
 class PosixCondition {};
 
@@ -702,7 +698,6 @@ class PosixCondition<Timer> : public PosixConditionBase {
     REX_ASSERT(userdata != nullptr);
     auto timer = reinterpret_cast<PosixCondition<Timer>*>(userdata);
     timer->Signal();
-    // As the callback may reset the timer, store local.
     std::function<void()> callback;
     {
       std::lock_guard<std::mutex> lock(timer->mutex_);
@@ -721,7 +716,7 @@ class PosixCondition<Timer> : public PosixConditionBase {
   }
   std::weak_ptr<TimerQueueWaitItem> wait_item_;
   std::function<void()> callback_;
-  bool signal_;  // Protected by mutex_
+  bool signal_; /**< Protected by mutex_. */
   const bool manual_reset_;
 };
 
@@ -787,8 +782,12 @@ class PosixCondition<Thread> : public PosixConditionBase {
     return true;
   }
 
-  /// Constructor for existing thread. This should only happen once called by
-  /// Thread::GetCurrentThread() on the main thread
+  /**
+   * Wraps a running thread. Thread::GetCurrentThread() calls it for a thread Thread::Create did
+   * not create.
+   *
+   * @param thread The thread.
+   */
   explicit PosixCondition(pthread_t thread)
       : thread_(thread),
         signaled_(false),
@@ -824,9 +823,7 @@ class PosixCondition<Thread> : public PosixConditionBase {
     std::unique_lock lock(state_mutex_);
     if (state_ != State::kUninitialized && state_ != State::kFinished) {
 #if REX_PLATFORM_ANDROID
-      // pthread_getname_np was added in API 26 - below that, store the name in
-      // this object, which may be only modified through Xenia threading, but
-      // should be enough in most cases.
+      // Below API 26 pthread_getname_np is absent, so the name is stored in this object.
       if (android_pthread_getname_np_) {
         if (android_pthread_getname_np_(thread_, result.data(), result.size() - 1) != 0) {
           REX_ASSERT_ALWAYS();
@@ -881,8 +878,7 @@ class PosixCondition<Thread> : public PosixConditionBase {
   uint64_t affinity_mask() const {
     WaitStarted();
 #if defined(__APPLE__)
-    // macOS doesn't expose Linux-style pthread affinity masks; report every
-    // logical processor as available.
+    // macOS has no pthread affinity masks, so every logical processor is reported.
     auto cpu_count = std::min<uint32_t>(logical_processor_count(), 64);
     if (cpu_count == 64) {
       return std::numeric_limits<uint64_t>::max();
@@ -913,8 +909,7 @@ class PosixCondition<Thread> : public PosixConditionBase {
   void set_affinity_mask(uint64_t mask) {
     WaitStarted();
 #if defined(__APPLE__)
-    // macOS doesn't expose Linux-style pthread affinity masks; keep this a
-    // no-op so higher layers can build and run.
+    // macOS has no pthread affinity masks, so this does nothing.
     (void)mask;
 #else
     cpu_set_t cpu_set;
@@ -977,8 +972,7 @@ class PosixCondition<Thread> : public PosixConditionBase {
       has_pending_user_callbacks_.store(true, std::memory_order_release);
     }
 
-    // If the callback is queued on the current thread, don't self-signal.
-    // Alertable waits drain this queue in normal thread context.
+    // Alertable waits drain the queue on the current thread, so no self signal is sent.
     if (pthread_equal(thread_, pthread_self())) {
       if (alertable_state_) {
         DispatchQueuedUserCallbacks();
@@ -991,8 +985,7 @@ class PosixCondition<Thread> : public PosixConditionBase {
       return;
     }
 #if defined(__APPLE__)
-    // macOS has no sigqueue/pthread_sigqueue; pthread_kill delivers the signal
-    // without the sigval payload.
+    // macOS has no sigqueue, so pthread_kill delivers the signal without the sigval payload.
     int result = pthread_kill(thread_, GetSystemSignal(SignalType::kThreadUserCallback));
 #else
     sigval value{};
@@ -1208,7 +1201,7 @@ class PosixCondition<Thread> : public PosixConditionBase {
     state_mutex_.wait(state_signal_, [this] { return state_ != State::kUninitialized; });
   }
 
-  /// Uses sem_wait because it may be called from signal handler context.
+  /** Uses sem_wait, since it can run in signal handler context. */
   void WaitSuspended() {
     int ret;
     do {
@@ -1261,8 +1254,8 @@ class PosixCondition<Thread> : public PosixConditionBase {
   bool joined_ = false;
   bool owns_thread_ = false;
   int exit_code_;
-  State state_;             // Protected by state_mutex_
-  uint32_t suspend_count_;  // Protected by state_mutex_
+  State state_;            /**< Protected by state_mutex_. */
+  uint32_t suspend_count_; /**< Protected by state_mutex_. */
 #if defined(__APPLE__)
   sem_t* suspend_sem_ = SEM_FAILED;
   sem_t* suspend_sem_ptr() { return suspend_sem_; }
@@ -1276,8 +1269,7 @@ class PosixCondition<Thread> : public PosixConditionBase {
   std::deque<std::move_only_function<void()>> user_callbacks_;
   std::atomic<bool> has_pending_user_callbacks_{false};
 #if REX_PLATFORM_ANDROID
-  // Name accessible via name() on Android before API 26 which added
-  // pthread_getname_np.
+  // Below API 26 the name is stored here since pthread_getname_np is absent.
   mutable std::mutex android_pre_api_26_name_mutex_;
   char android_pre_api_26_name_[16];
 #endif
@@ -1348,8 +1340,12 @@ std::chrono::milliseconds ComputeAlertableWaitTimeout(
 
 }  // namespace
 
-// This wraps a condition object as our handle because posix has no single
-// native handle for higher level concurrency constructs such as semaphores
+/**
+ * Wraps a condition object as the handle, since POSIX has no native handle for higher level
+ * concurrency constructs such as semaphores.
+ *
+ * @tparam T The condition type.
+ */
 template <typename T>
 class PosixConditionHandle : public T, public PosixWaitHandle {
  public:
@@ -1743,11 +1739,7 @@ void* PosixCondition<Thread>::ThreadStartRoutine(void* parameter) {
   {
     std::unique_lock lock(thread->handle_.state_mutex_);
     thread->handle_.state_ = create_suspended ? State::kSuspended : State::kRunning;
-    // Arm the suspend counter in the SAME critical section that publishes the
-    // started state. Resume() only waits for state_ != kUninitialized, so if it
-    // observed the state published here while suspend_count_ was still 0 it
-    // would take the "not suspended" path, return false without decrementing,
-    // and the wait below would then never be satisfied.
+    // Armed with the started state, or Resume sees suspend_count_ 0 and the wait never ends.
     if (create_suspended) {
       thread->handle_.suspend_count_ = 1;
     }
@@ -1791,13 +1783,10 @@ Thread* Thread::GetCurrentThread() {
     return current_thread_;
   }
 
-  // Threads not created by Thread::Create (typically main thread) still need
-  // process-wide signal handlers used by suspend/APC machinery.
+  // Threads not created by Thread::Create need the process wide handlers for suspend and APC.
   install_signal_handler(SignalType::kThreadSuspend);
   install_signal_handler(SignalType::kThreadUserCallback);
 
-  // Should take this route only for threads not created by Thread::Create.
-  // The only thread not created by Thread::Create should be the main thread.
   pthread_t handle = pthread_self();
 
   owned_current_thread_ = std::make_unique<PosixThread>(handle);
@@ -1811,11 +1800,10 @@ void Thread::Exit(int exit_code) {
   if (current_thread_) {
     current_thread_->ExitCurrent(exit_code);
   } else {
-    // Should only happen with the main thread
+    // No current_thread_ means the thread was not created by Thread::Create.
     // NOLINTNEXTLINE(performance-no-int-to-ptr): the pthread API carries the value as a pointer
     pthread_exit(reinterpret_cast<void*>(exit_code));
   }
-  // Function must not return
   REX_ASSERT_ALWAYS();
 }
 

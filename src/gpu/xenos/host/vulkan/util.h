@@ -1,4 +1,3 @@
-#pragma once
 /**
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
@@ -9,6 +8,8 @@
  *
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
+
+#pragma once
 
 #include <algorithm>
 #include <cstdint>
@@ -59,13 +60,21 @@ enum class MemoryPurpose {
   kReadback,
 };
 
+/**
+ * Chooses a host visible memory type.
+ *
+ * Upload prefers uncached so writes do not pollute the CPU cache. Readback prefers cached so
+ * repeated CPU reads are fast. Without the preferred caching, any host visible type is used.
+ *
+ * @param memory_types The device memory type masks.
+ * @param supported_types The mask of memory types the resource supports.
+ * @param is_readback True for readback, false for upload.
+ * @return The memory type index, or UINT32_MAX when none fits.
+ */
 inline uint32_t ChooseHostMemoryType(const VulkanDevice::MemoryTypes& memory_types,
                                      uint32_t supported_types, const bool is_readback) {
   supported_types &= memory_types.host_visible;
   uint32_t memory_type;
-  // For upload, uncached is preferred so writes do not pollute the CPU cache.
-  // For readback, cached is preferred so multiple CPU reads are fast.
-  // If the preferred caching behavior is not available, pick any host-visible.
   if (rex::bit_scan_forward(
           supported_types & (is_readback ? memory_types.host_cached : ~memory_types.host_cached),
           &memory_type) ||
@@ -98,11 +107,20 @@ inline uint32_t ChooseMemoryType(const VulkanDevice::MemoryTypes& memory_types,
   }
 }
 
-// Actual memory size is required if explicit size is specified for clamping to
-// the actual memory allocation size while rounding to the non-coherent atom
-// size (offset + size passed to vkFlushMappedMemoryRanges inside this function
-// must be either a multiple of nonCoherentAtomSize (but not exceeding the
-// memory size) or equal to the memory size).
+/**
+ * Flushes a mapped memory range, rounding to the non coherent atom size.
+ *
+ * The offset plus size passed to vkFlushMappedMemoryRanges must be a multiple of
+ * nonCoherentAtomSize not exceeding the memory size, or equal to the memory size. The memory
+ * size is therefore required when an explicit size is given, to clamp to the allocation size.
+ *
+ * @param vulkan_device The device owning the memory.
+ * @param memory The mapped memory.
+ * @param memory_type The memory type index of the memory.
+ * @param offset The offset of the range.
+ * @param memory_size The allocation size of the memory.
+ * @param size The size of the range, or VK_WHOLE_SIZE.
+ */
 void FlushMappedMemoryRange(const VulkanDevice* vulkan_device, VkDeviceMemory memory,
                             uint32_t memory_type, VkDeviceSize offset = 0,
                             VkDeviceSize memory_size = VK_WHOLE_SIZE,
@@ -130,9 +148,22 @@ inline VkImageSubresourceRange InitializeSubresourceRange(
   return range;
 }
 
-// Creates a buffer backed by a dedicated allocation. The allocation size will
-// NOT be aligned to nonCoherentAtomSize - if mapping or flushing not the whole
-// size, memory_size_out must be used for clamping the range.
+/**
+ * Creates a buffer backed by a dedicated allocation.
+ *
+ * The allocation size is not aligned to nonCoherentAtomSize, so when mapping or flushing less
+ * than the whole size, memory_size_out must clamp the range.
+ *
+ * @param vulkan_device The device to create on.
+ * @param size The buffer size.
+ * @param usage The buffer usage flags.
+ * @param memory_purpose The memory purpose.
+ * @param buffer_out Receives the buffer.
+ * @param memory_out Receives the memory.
+ * @param memory_type_out Receives the memory type index, if not null.
+ * @param memory_size_out Receives the allocation size, if not null.
+ * @return True on success.
+ */
 bool CreateDedicatedAllocationBuffer(const VulkanDevice* vulkan_device, VkDeviceSize size,
                                      VkBufferUsageFlags usage, MemoryPurpose memory_purpose,
                                      VkBuffer& buffer_out, VkDeviceMemory& memory_out,
@@ -145,8 +176,17 @@ bool CreateDedicatedAllocationImage(const VulkanDevice* vulkan_device,
                                     VkDeviceMemory& memory_out, uint32_t* memory_type_out = nullptr,
                                     VkDeviceSize* memory_size_out = nullptr);
 
-// Explicitly accepting const uint32_t* to make sure attention is paid to the
-// alignment where this is called for safety on different host architectures.
+/**
+ * Creates a shader module.
+ *
+ * Takes const uint32_t* so callers handle the code alignment, which matters on some host
+ * architectures.
+ *
+ * @param vulkan_device The device to create on.
+ * @param code SPIR-V code, 4 byte aligned.
+ * @param code_size_bytes The code size in bytes.
+ * @return The shader module, or VK_NULL_HANDLE on failure.
+ */
 inline VkShaderModule CreateShaderModule(const VulkanDevice* const vulkan_device,
                                          const uint32_t* const code, const size_t code_size_bytes) {
   VkShaderModuleCreateInfo shader_module_create_info;

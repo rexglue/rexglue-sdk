@@ -31,19 +31,15 @@ ThreadState::ThreadState(u32 thread_id, u32 stack_base, u32 pcr_address, Memory*
                          Runtime* runtime)
     : memory_(memory), runtime_(runtime), pcr_address_(pcr_address), thread_id_(thread_id) {
   if (thread_id_ == UINT_MAX) {
-    // System thread. Assign the system thread ID with a high bit
-    // set so people know what's up.
+    // System thread IDs set bit 31.
     uint32_t system_thread_handle = rex::platform::current_thread_system_id();
     thread_id_ = 0x80000000 | system_thread_handle;
   }
 
-  // Set initial registers
-  context_->r1.u64 = stack_base;    // Stack pointer
-  context_->r13.u64 = pcr_address;  // PCR address
+  // r1 is the stack pointer and r13 holds the PCR address.
+  context_->r1.u64 = stack_base;
+  context_->r13.u64 = pcr_address;
   rex::platform::FPSCRPlatform::InitHostExceptions(dpc_save_area_.csr);
-
-  // Note(tomc): the rexglue abi passes memory base via 'base' parameter to each function call,
-  // so we don't need to store it in the context like JIT did.
 }
 
 ThreadState::~ThreadState() {

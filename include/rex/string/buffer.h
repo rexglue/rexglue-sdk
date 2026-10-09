@@ -31,6 +31,7 @@ class REX_API StringBuffer {
    * @param initial_capacity Initial capacity in bytes. The buffer holds at least 16 KiB.
    */
   explicit StringBuffer(size_t initial_capacity = 0);
+  /** Frees the buffer. */
   ~StringBuffer();
 
   /**

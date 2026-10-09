@@ -27,7 +27,7 @@ namespace rex::detail {
 REX_API void ResetAppState();
 
 /**
- * Sets the function RequestShutdown calls after recording the request, so a waiting loop
+ * Sets the function RequestShutdown calls after storing the request, so a waiting loop
  * wakes.
  *
  * @param wake Function to call, or an empty function for none.
@@ -69,7 +69,7 @@ REX_API void SetRelaunchForTest(RelaunchFunction relaunch, bool can_relaunch);
 [[nodiscard]] REX_API Result<void> RelaunchProcess(std::span<const std::string> args);
 
 /**
- * Tests whether a relaunch may run.
+ * Reports whether a relaunch may run.
  *
  * @return platform::CanRelaunch, or the test value while relaunch is replaced.
  */

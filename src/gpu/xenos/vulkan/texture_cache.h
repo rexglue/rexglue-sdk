@@ -1,4 +1,3 @@
-#pragma once
 /**
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
@@ -9,6 +8,8 @@
  *
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
+
+#pragma once
 
 #include <array>
 #include <memory>
@@ -36,23 +37,21 @@ class VulkanTextureCache final : public TextureCache {
                               VulkanCommandProcessor& command_processor,
                               VkPipelineStageFlags guest_shader_pipeline_stages);
 
-  // Sampler parameters that can be directly converted to a host sampler or used
-  // for checking whether samplers bindings are up to date.
+  /** Sampler parameters convertible to a host sampler or compared to check sampler bindings. */
   union SamplerParameters {
     uint32_t value;
     struct {
-      xenos::ClampMode clamp_x : 3;         // 3
-      xenos::ClampMode clamp_y : 3;         // 6
-      xenos::ClampMode clamp_z : 3;         // 9
-      xenos::BorderColor border_color : 2;  // 11
-      uint32_t mag_linear : 1;              // 12
-      uint32_t min_linear : 1;              // 13
-      uint32_t mip_linear : 1;              // 14
-      xenos::AnisoFilter aniso_filter : 3;  // 17
-      uint32_t mip_min_level : 4;           // 21
-      uint32_t mip_base_map : 1;            // 22
-      // Maximum mip level is in the texture resource itself, but mip_base_map
-      // can be used to limit fetching to mip_min_level.
+      xenos::ClampMode clamp_x : 3;
+      xenos::ClampMode clamp_y : 3;
+      xenos::ClampMode clamp_z : 3;
+      xenos::BorderColor border_color : 2;
+      uint32_t mag_linear : 1;
+      uint32_t min_linear : 1;
+      uint32_t mip_linear : 1;
+      xenos::AnisoFilter aniso_filter : 3;
+      uint32_t mip_min_level : 4;
+      /** The texture holds the maximum mip level, so fetching is limited to mip_min_level. */
+      uint32_t mip_base_map : 1;
     };
 
     SamplerParameters() : value(0) { REX_STATIC_ASSERT_SIZE(*this, sizeof(value)); }
@@ -65,8 +64,7 @@ class VulkanTextureCache final : public TextureCache {
     bool operator!=(const SamplerParameters& parameters) const { return value != parameters.value; }
   };
 
-  // Transient descriptor set layouts must be initialized in the command
-  // processor.
+  // Transient descriptor set layouts must be initialized in the command processor first.
   static std::unique_ptr<VulkanTextureCache> Create(
       const xenos::RegisterFile& register_file, VulkanSharedMemory& shared_memory,
       u32 draw_resolution_scale_x, u32 draw_resolution_scale_y,
@@ -87,11 +85,13 @@ class VulkanTextureCache final : public TextureCache {
   void BeginFrame() override;
   void EndFrame();
 
-  // Must be called within a frame - creates and untiles textures needed by
-  // shaders, and enqueues transitioning them into the sampled usage. This may
-  // bind compute pipelines (notifying the command processor about that), and
-  // also since it may insert deferred barriers, before flushing the barriers
-  // preceding host GPU work.
+  /**
+   * Creates and untiles the textures shaders need and enqueues their transition to the sampled
+   * usage. Runs within a frame. May bind compute pipelines, notifying the command processor, and
+   * may insert deferred barriers before flushing the barriers preceding host GPU work.
+   *
+   * @param used_texture_mask Mask of used fetch constants.
+   */
   void RequestTextures(uint32_t used_texture_mask) override;
 
   VkImageView GetActiveBindingOrNullImageView(uint32_t fetch_constant_index,
@@ -99,29 +99,38 @@ class VulkanTextureCache final : public TextureCache {
 
   SamplerParameters GetSamplerParameters(const VulkanShader::SamplerBinding& binding) const;
 
-  // Must be called for every used sampler at least once in a single submission,
-  // and a submission must be open for this to be callable.
-  // Returns:
-  // - The sampler, if obtained successfully - and increases its last usage
-  //   submission index - and has_overflown_out = false.
-  // - VK_NULL_HANDLE and has_overflown_out = true if there's a total sampler
-  //   count overflow in a submission that potentially hasn't completed yet.
-  // - VK_NULL_HANDLE and has_overflown_out = false in case of a general failure
-  //   to create a sampler.
+  /**
+   * Returns the sampler and updates its last usage submission index. Needs an open submission and
+   * runs at least once per submission for every used sampler.
+   *
+   * @param parameters Sampler parameters.
+   * @param has_overflown_out Receives true on a sampler overflow in a pending submission.
+   * @return The sampler, or VK_NULL_HANDLE on overflow or on failure to create it.
+   */
   VkSampler UseSampler(SamplerParameters parameters, bool& has_overflown_out);
-  // Returns the submission index to await (may be the current submission in
-  // case of an overflow within a single submission - in this case, it must be
-  // ended, and a new one must be started) in case of sampler count overflow, so
-  // samplers may be freed, and UseSamplers may take their slots.
+  /**
+   * Returns the submission index to await on sampler count overflow so samplers can be freed. It
+   * may be the current submission, which then must be ended with a new one started.
+   *
+   * @param overflowed_sampler_count Number of samplers over the limit.
+   * @return The submission index to await.
+   */
   uint64_t GetSubmissionToAwaitOnSamplerOverflow(uint32_t overflowed_sampler_count) const;
 
-  // Returns the 2D view of the front buffer texture (for fragment shader
-  // reading - the barrier will be pushed in the command processor if needed),
-  // or VK_NULL_HANDLE in case of failure. May call LoadTextureData.
-  // If swap_source_needs_rb_swap_out is not nullptr, writes whether the final
-  // guest-to-host swizzle requires swapping red and blue (R <- B, B <- R) with
-  // green preserved, which is needed by the presentation fallback path on
-  // devices without imageViewFormatSwizzle.
+  /**
+   * Returns the 2D view of the front buffer texture for fragment shader reading, with the barrier
+   * pushed in the command processor when needed. May call LoadTextureData. The red and blue swap
+   * flag reports a guest to host swizzle that swaps red and blue with green preserved, which the
+   * presentation fallback path needs on devices without imageViewFormatSwizzle.
+   *
+   * @param width_scaled_out Receives the scaled width.
+   * @param height_scaled_out Receives the scaled height.
+   * @param format_out Receives the texture format.
+   * @param width_unscaled_out Receives the unscaled width when not null.
+   * @param height_unscaled_out Receives the unscaled height when not null.
+   * @param swap_source_needs_rb_swap_out Receives whether red and blue are swapped, when not null.
+   * @return The view, or VK_NULL_HANDLE on failure.
+   */
   VkImageView RequestSwapTexture(uint32_t& width_scaled_out, uint32_t& height_scaled_out,
                                  xenos::TextureFormat& format_out,
                                  uint32_t* width_unscaled_out = nullptr,
@@ -154,6 +163,16 @@ class VulkanTextureCache final : public TextureCache {
   bool EnsureScaledResolveMemoryCommitted(uint32_t start_unscaled, uint32_t length_unscaled,
                                           uint32_t length_scaled_alignment_log2 = 0) override;
 
+  /**
+   * Loads the texture data from resident memory. When the packed mip tail is level 0, the base
+   * and the mips would both be on level 0 but stored separately, so the load loop counter then
+   * counts the base tail and the mips tail instead of the stored level.
+   *
+   * @param texture Texture to load.
+   * @param load_base Whether to load the base level.
+   * @param load_mips Whether to load the mips.
+   * @return True when the load was queued.
+   */
   bool LoadTextureDataFromResidentMemoryImpl(Texture& texture, bool load_base,
                                              bool load_mips) override;
 
@@ -168,29 +187,23 @@ class VulkanTextureCache final : public TextureCache {
 
   struct HostFormat {
     LoadShaderIndex load_shader;
-    // Do NOT add integer formats to this - they are not filterable, can only be
-    // read with ImageFetch, not ImageSample! If any game is seen using
-    // num_format 1 for fixed-point formats (for floating-point, it's normally
-    // set to 1 though), add a constant buffer containing multipliers for the
-    // textures and multiplication to the tfetch implementation.
+    /** Integer formats are not filterable and only work with ImageFetch, so none belong here. */
     VkFormat format = VK_FORMAT_UNDEFINED;
-    // Whether the format is block-compressed on the host (the host block size
-    // matches the guest format block size in this case), and isn't decompressed
-    // on load.
+    /** True when block compressed on the host with the guest block size, kept compressed. */
     bool block_compressed = false;
 
-    // Set up dynamically based on what's supported by the device.
     bool linear_filterable = false;
   };
 
   struct HostFormatPair {
     HostFormat format_unsigned;
     HostFormat format_signed;
-    // Mapping of Xenos swizzle components to Vulkan format components.
+    /** Maps Xenos swizzle components to Vulkan format components. */
     uint32_t swizzle = 0;
-    // Whether the unsigned and the signed formats are compatible for one image
-    // and the same image data (on a portability subset device, this should also
-    // take imageViewFormatReinterpretation into account).
+    /**
+     * True when the unsigned and signed formats are compatible for one image and its data,
+     * including imageViewFormatReinterpretation on portability subset devices.
+     */
     bool unsigned_signed_compatible = false;
   };
 
@@ -203,14 +216,27 @@ class VulkanTextureCache final : public TextureCache {
       kSwapSampled,
     };
 
-    // Takes ownership of the image and its memory.
+    /**
+     * Takes ownership of the image and its memory.
+     *
+     * @param texture_cache Owning texture cache.
+     * @param key Texture key.
+     * @param image Image to own.
+     * @param allocation Allocation backing the image.
+     * @param track_usage Whether usage transitions are tracked.
+     */
     explicit VulkanTexture(VulkanTextureCache& texture_cache, const TextureKey& key, VkImage image,
                            VmaAllocation allocation, bool track_usage = true);
     ~VulkanTexture();
 
     VkImage image() const { return image_; }
 
-    // Doesn't transition (the caller must insert the barrier).
+    /**
+     * Sets the usage without a transition, the caller inserts the barrier.
+     *
+     * @param new_usage Usage to set.
+     * @return The previous usage.
+     */
     Usage SetUsage(Usage new_usage) {
       Usage old_usage = usage_;
       usage_ = new_usage;
@@ -245,8 +271,7 @@ class VulkanTextureCache final : public TextureCache {
       xenos::TextureSwizzle texture_component_swizzle =
           xenos::TextureSwizzle((texture_swizzle >> (3 * component_index)) & 0b111);
       if (texture_component_swizzle == xenos::TextureSwizzle(component_index)) {
-        // The portability subset requires all swizzles to be IDENTITY, return
-        // IDENTITY specifically, not R, G, B, A.
+        // The portability subset requires IDENTITY here, not R, G, B, A.
         return VK_COMPONENT_SWIZZLE_IDENTITY;
       }
       switch (texture_component_swizzle) {
@@ -263,7 +288,6 @@ class VulkanTextureCache final : public TextureCache {
         case xenos::REXGPU_SWIZZLE_1:
           return VK_COMPONENT_SWIZZLE_ONE;
         default:
-          // An invalid value.
           return VK_COMPONENT_SWIZZLE_IDENTITY;
       }
     }
@@ -316,6 +340,13 @@ class VulkanTextureCache final : public TextureCache {
     }
   }
 
+  /**
+   * Creates the host formats, load pipelines, null images and sampler limit. Takes every sampler
+   * allocation slot of the VkDevice except 16 for overlay use and the UI samplers, as this is the
+   * only texture cache on it.
+   *
+   * @return True when initialization succeeded.
+   */
   bool Initialize();
   bool InitializeScaledResolveBuffer();
   void ShutdownScaledResolveBuffer();
@@ -333,10 +364,7 @@ class VulkanTextureCache final : public TextureCache {
   VulkanCommandProcessor& command_processor_;
   VkPipelineStageFlags guest_shader_pipeline_stages_;
 
-  // Using the Vulkan Memory Allocator because texture count in games is
-  // naturally pretty much unbounded, while Vulkan implementations, especially
-  // on Windows versions before 10, may have an allocation count limit as low as
-  // 4096.
+  // VMA suballocates because some drivers limit the allocation count to as low as 4096.
   VmaAllocator vma_allocator_ = VK_NULL_HANDLE;
 
   static const HostFormatPair kBestHostFormats[64];
@@ -353,8 +381,6 @@ class VulkanTextureCache final : public TextureCache {
   std::array<VkPipeline, kLoadShaderCount> load_pipelines_{};
   std::array<VkPipeline, kLoadShaderCount> load_pipelines_scaled_{};
 
-  // If both images can be placed in the same allocation, it's one allocation,
-  // otherwise it's two separate.
   std::array<VkDeviceMemory, 2> null_images_memory_{};
   VkImage null_image_2d_array_cube_ = VK_NULL_HANDLE;
   VkImage null_image_3d_ = VK_NULL_HANDLE;
@@ -365,8 +391,6 @@ class VulkanTextureCache final : public TextureCache {
 
   std::array<VulkanTextureBinding, xenos::kTextureFetchConstantCount> vulkan_texture_bindings_;
 
-  // Unsupported texture formats used during this frame (for research and
-  // testing).
   enum : uint8_t {
     kUnsupportedResourceBit = 1,
     kUnsupportedUnormBit = kUnsupportedResourceBit << 1,

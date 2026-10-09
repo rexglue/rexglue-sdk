@@ -1,5 +1,5 @@
 /**
- * @file        ui/vulkan_moltenvk.h
+ * @file        gpu/xenos/host/vulkan/vulkan_moltenvk.h
  *
  * @copyright   Copyright (c) 2026 Rien Gupta <rgupta9@scu.edu>
  *              All rights reserved.

@@ -26,17 +26,27 @@
 
 namespace rex::ppc {
 
-// note(tomc): PPC64 ABI requires 16-byte frame alignment, but r1 is already frame-aligned
-// on entry; individual pushes round to 8 bytes to maintain doubleword alignment.
+/**
+ * Rounds a size up to 8 bytes. The PPC64 ABI requires 16 byte frame alignment, but r1 is
+ * already frame aligned on entry, so individual pushes round to 8 bytes to keep doubleword
+ * alignment.
+ *
+ * @param size The size in bytes.
+ * @return The size rounded up to a multiple of 8.
+ */
 inline constexpr uint32_t stack_align(uint32_t size) {
   return (size + 7u) & ~7u;
 }
 
-//=============================================================================
-// Core push/pop (explicit ctx/base)
-//=============================================================================
-
-/// Push a byte-swapped scalar onto the guest stack.
+/**
+ * Pushes a byte swapped scalar onto the guest stack.
+ *
+ * @tparam T The arithmetic type to push.
+ * @param ctx The context whose r1 is lowered.
+ * @param base The guest memory base.
+ * @param value The value to push.
+ * @return The guest address of the pushed value.
+ */
 template <typename T>
   requires std::is_arithmetic_v<T>
 inline uint32_t stack_push(PPCContext& ctx, uint8_t* base, T value) {
@@ -45,7 +55,6 @@ inline uint32_t stack_push(PPCContext& ctx, uint8_t* base, T value) {
   stack_bounds_check(ctx, base, new_r1);
   ctx.r1.u32 = new_r1;
 
-  // Byte-swap and write
   T swapped;
   if constexpr (sizeof(T) == 1) {
     swapped = value;
@@ -66,7 +75,14 @@ inline uint32_t stack_push(PPCContext& ctx, uint8_t* base, T value) {
   return new_r1;
 }
 
-/// Push a NUL-terminated string onto the guest stack (no byte-swap, raw bytes).
+/**
+ * Pushes a NUL terminated string onto the guest stack as raw bytes without a byte swap.
+ *
+ * @param ctx The context whose r1 is lowered.
+ * @param base The guest memory base.
+ * @param str The string to push.
+ * @return The guest address of the pushed string.
+ */
 inline uint32_t stack_push_string(PPCContext& ctx, uint8_t* base, const char* str) {
   uint32_t len = static_cast<uint32_t>(std::strlen(str)) + 1;
   uint32_t alloc = stack_align(len);
@@ -77,7 +93,15 @@ inline uint32_t stack_push_string(PPCContext& ctx, uint8_t* base, const char* st
   return new_r1;
 }
 
-/// Push raw bytes onto the guest stack (no byte-swap).
+/**
+ * Pushes raw bytes onto the guest stack without a byte swap.
+ *
+ * @param ctx The context whose r1 is lowered.
+ * @param base The guest memory base.
+ * @param data The bytes to push.
+ * @param len The byte count.
+ * @return The guest address of the pushed bytes.
+ */
 inline uint32_t stack_push(PPCContext& ctx, uint8_t* base, const void* data, uint32_t len) {
   uint32_t alloc = stack_align(len);
   uint32_t new_r1 = ctx.r1.u32 - alloc;
@@ -87,14 +111,15 @@ inline uint32_t stack_push(PPCContext& ctx, uint8_t* base, const void* data, uin
   return new_r1;
 }
 
-/// Pop bytes from the guest stack.
+/**
+ * Pops bytes from the guest stack.
+ *
+ * @param ctx The context whose r1 is raised.
+ * @param size The byte count passed to the matching push.
+ */
 inline void stack_pop(PPCContext& ctx, uint32_t size) {
   ctx.r1.u32 += stack_align(size);
 }
-
-//=============================================================================
-// Scope guard
-//=============================================================================
 
 /** Restores r1 when the scope ends, releasing what the scope pushed. */
 class stack_guard : public rex::NonCopyable {
@@ -102,14 +127,16 @@ class stack_guard : public rex::NonCopyable {
   uint32_t saved_r1_;
 
  public:
+  /**
+   * Saves r1 of a context.
+   *
+   * @param ctx The context whose r1 is restored.
+   */
   explicit stack_guard(PPCContext& ctx) : ctx_(ctx), saved_r1_(ctx.r1.u32) {}
+  /** Saves r1 of the context of the calling thread. */
   stack_guard() : stack_guard(*rex::runtime::ThreadState::Get()->context()) {}
   ~stack_guard() { ctx_.r1.u32 = saved_r1_; }
 };
-
-//=============================================================================
-// Implicit ctx/base overloads (use current thread context)
-//=============================================================================
 
 namespace detail {
 inline uint8_t* current_base() {
@@ -117,22 +144,47 @@ inline uint8_t* current_base() {
 }
 }  // namespace detail
 
+/**
+ * Pushes a byte swapped scalar onto the guest stack of the calling thread.
+ *
+ * @tparam T The arithmetic type to push.
+ * @param value The value to push.
+ * @return The guest address of the pushed value.
+ */
 template <typename T>
   requires std::is_arithmetic_v<T>
 inline uint32_t stack_push(T value) {
   return stack_push(*rex::runtime::ThreadState::Get()->context(), detail::current_base(), value);
 }
 
+/**
+ * Pushes a NUL terminated string onto the guest stack of the calling thread as raw bytes.
+ *
+ * @param str The string to push.
+ * @return The guest address of the pushed string.
+ */
 inline uint32_t stack_push_string(const char* str) {
   return stack_push_string(*rex::runtime::ThreadState::Get()->context(), detail::current_base(),
                            str);
 }
 
+/**
+ * Pushes raw bytes onto the guest stack of the calling thread without a byte swap.
+ *
+ * @param data The bytes to push.
+ * @param len The byte count.
+ * @return The guest address of the pushed bytes.
+ */
 inline uint32_t stack_push(const void* data, uint32_t len) {
   return stack_push(*rex::runtime::ThreadState::Get()->context(), detail::current_base(), data,
                     len);
 }
 
+/**
+ * Pops bytes from the guest stack of the calling thread.
+ *
+ * @param size The byte count passed to the matching push.
+ */
 inline void stack_pop(uint32_t size) {
   stack_pop(*rex::runtime::ThreadState::Get()->context(), size);
 }

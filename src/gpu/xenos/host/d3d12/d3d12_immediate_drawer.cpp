@@ -24,7 +24,6 @@
 
 namespace rex::gpu::d3d12 {
 
-// Generated with `xb buildshaders`.
 namespace shaders {
 #include "../shaders/bytecode/d3d12_5_1/immediate_ps.h"
 #include "../shaders/bytecode/d3d12_5_1/immediate_vs.h"
@@ -47,20 +46,15 @@ D3D12ImmediateDrawer::D3D12ImmediateTexture::~D3D12ImmediateTexture() {
 
 void D3D12ImmediateDrawer::D3D12ImmediateTexture::OnImmediateDrawerDestroyed() {
   immediate_drawer_ = nullptr;
-  // Lifetime is not managed anymore, so don't keep the resource either.
   resource_.Reset();
 }
 
 D3D12ImmediateDrawer::~D3D12ImmediateDrawer() {
-  // Await GPU usage completion of all draws and texture uploads (which happen
-  // before draws).
   auto d3d12_presenter = static_cast<D3D12Presenter*>(presenter());
   if (d3d12_presenter) {
     d3d12_presenter->AwaitUISubmissionCompletionFromUIThread(last_paint_submission_index_);
   }
 
-  // Texture resources and descriptors are owned and tracked by the immediate
-  // drawer. Zombie texture objects are supported, but are meaningless.
   REX_ASSERT(textures_.empty());
   for (D3D12ImmediateTexture* texture : textures_) {
     texture->OnImmediateDrawerDestroyed();
@@ -71,7 +65,6 @@ D3D12ImmediateDrawer::~D3D12ImmediateDrawer() {
 bool D3D12ImmediateDrawer::Initialize() {
   ID3D12Device* device = provider_.GetDevice();
 
-  // Create the root signature.
   D3D12_ROOT_PARAMETER root_parameters[static_cast<size_t>(RootParameter::kCount)];
   D3D12_DESCRIPTOR_RANGE descriptor_range_texture, descriptor_range_sampler;
   {
@@ -119,7 +112,6 @@ bool D3D12ImmediateDrawer::Initialize() {
     REX_FAIL(ui, false, "D3D12ImmediateDrawer: Failed to create the root signature");
   }
 
-  // Create the pipelines.
   D3D12_GRAPHICS_PIPELINE_STATE_DESC pipeline_desc = {};
   pipeline_desc.pRootSignature = root_signature_.Get();
   pipeline_desc.VS.pShaderBytecode = shaders::immediate_vs;
@@ -165,7 +157,6 @@ bool D3D12ImmediateDrawer::Initialize() {
     REX_FAIL(ui, false, "D3D12ImmediateDrawer: Failed to create the line pipeline");
   }
 
-  // Create the samplers.
   D3D12_DESCRIPTOR_HEAP_DESC sampler_heap_desc;
   sampler_heap_desc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER;
   sampler_heap_desc.NumDescriptors = UINT(SamplerIndex::kCount);
@@ -177,7 +168,6 @@ bool D3D12ImmediateDrawer::Initialize() {
   sampler_heap_cpu_start_ = sampler_heap_->GetCPUDescriptorHandleForHeapStart();
   sampler_heap_gpu_start_ = sampler_heap_->GetGPUDescriptorHandleForHeapStart();
   uint32_t sampler_size = provider_.GetSamplerDescriptorSize();
-  // Nearest neighbor, clamp.
   D3D12_SAMPLER_DESC sampler_desc = {};
   sampler_desc.Filter = D3D12_FILTER_MIN_MAG_MIP_POINT;
   sampler_desc.AddressU = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
@@ -188,30 +178,25 @@ bool D3D12ImmediateDrawer::Initialize() {
   sampler_handle.ptr = sampler_heap_cpu_start_.ptr +
                        static_cast<uint32_t>(SamplerIndex::kNearestClamp) * sampler_size;
   device->CreateSampler(&sampler_desc, sampler_handle);
-  // Bilinear, clamp.
   sampler_desc.Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR;
   sampler_handle.ptr = sampler_heap_cpu_start_.ptr +
                        static_cast<uint32_t>(SamplerIndex::kLinearClamp) * sampler_size;
   device->CreateSampler(&sampler_desc, sampler_handle);
-  // Bilinear, repeat.
   sampler_desc.AddressU = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
   sampler_desc.AddressV = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
   sampler_desc.AddressW = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
   sampler_handle.ptr = sampler_heap_cpu_start_.ptr +
                        static_cast<uint32_t>(SamplerIndex::kLinearRepeat) * sampler_size;
   device->CreateSampler(&sampler_desc, sampler_handle);
-  // Nearest neighbor, repeat.
   sampler_desc.Filter = D3D12_FILTER_MIN_MAG_MIP_POINT;
   sampler_handle.ptr = sampler_heap_cpu_start_.ptr +
                        static_cast<uint32_t>(SamplerIndex::kNearestRepeat) * sampler_size;
   device->CreateSampler(&sampler_desc, sampler_handle);
 
-  // Create pools for draws.
   vertex_buffer_pool_ = std::make_unique<D3D12UploadBufferPool>(provider_);
   texture_descriptor_pool_ = std::make_unique<D3D12DescriptorHeapPool>(
       device, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 2048);
 
-  // Reset the current state.
   batch_open_ = false;
 
   return true;
@@ -288,10 +273,7 @@ Result<std::unique_ptr<gpu::OverlayTexture>> D3D12ImmediateDrawer::CreateTexture
     }
   }
   upload_buffer->Unmap(0, nullptr);
-  // Defer uploading and transition to the next draw.
-  // While the upload has not been yet completed, keep a reference to the
-  // resource because its lifetime is not tied to that of the
-  // OverlayTexture (and thus to context's submissions) now.
+  // Holds the resource until the upload completes since the texture does not own its lifetime.
   texture_uploads_pending_.emplace_back(resource.Get(), upload_buffer.Get());
 
   SamplerIndex sampler_index;
@@ -315,12 +297,9 @@ void D3D12ImmediateDrawer::Begin(gpu::OverlayDrawContext& context, f32 width, f3
   const D3D12OverlayDrawContext& d3d12_ui_draw_context =
       static_cast<const D3D12OverlayDrawContext&>(context);
 
-  // Update the submission index to be used throughout the current immediate
-  // drawer paint.
   last_paint_submission_index_ = d3d12_ui_draw_context.submission_index_current();
   last_completed_submission_index_ = d3d12_ui_draw_context.submission_index_completed();
 
-  // Release deleted textures.
   for (auto it = textures_deleted_.begin(); it != textures_deleted_.end();) {
     if (it->second > last_completed_submission_index_) {
       ++it;
@@ -332,7 +311,6 @@ void D3D12ImmediateDrawer::Begin(gpu::OverlayDrawContext& context, f32 width, f3
     textures_deleted_.pop_back();
   }
 
-  // Release upload buffers for completed texture uploads.
   auto erase_uploads_end = texture_uploads_submitted_.begin();
   while (erase_uploads_end != texture_uploads_submitted_.end()) {
     if (erase_uploads_end->submission_index > last_completed_submission_index_) {
@@ -342,16 +320,11 @@ void D3D12ImmediateDrawer::Begin(gpu::OverlayDrawContext& context, f32 width, f3
   }
   texture_uploads_submitted_.erase(texture_uploads_submitted_.begin(), erase_uploads_end);
 
-  // Make sure textures created before the current frame are uploaded, even if
-  // nothing was drawn in the previous frames or nothing will be drawn in the
-  // current or subsequent ones, as that would result in upload buffers kept
-  // forever.
+  // Upload textures created before this frame, else their upload buffers are kept forever.
   UploadTextures();
 
   texture_descriptor_pool_->Reclaim(last_completed_submission_index_);
   vertex_buffer_pool_->Reclaim(last_completed_submission_index_);
-
-  // Begin drawing.
 
   ID3D12GraphicsCommandList* command_list = d3d12_ui_draw_context.command_list();
 
@@ -390,7 +363,6 @@ void D3D12ImmediateDrawer::BeginBatch(const gpu::OverlayBatch& batch) {
 
   ID3D12GraphicsCommandList* command_list = d3d12_ui_draw_context.command_list();
 
-  // Bind the vertices.
   D3D12_VERTEX_BUFFER_VIEW vertex_buffer_view;
   vertex_buffer_view.StrideInBytes = UINT(sizeof(gpu::OverlayVertex));
   vertex_buffer_view.SizeInBytes = UINT(sizeof(gpu::OverlayVertex)) * UINT(batch.vertices.size());
@@ -405,7 +377,6 @@ void D3D12ImmediateDrawer::BeginBatch(const gpu::OverlayBatch& batch) {
   std::memcpy(vertex_buffer_mapping, batch.vertices.data(), vertex_buffer_view.SizeInBytes);
   command_list->IASetVertexBuffers(0, 1, &vertex_buffer_view);
 
-  // Bind the indices.
   batch_has_index_buffer_ = !batch.indices.empty();
   if (batch_has_index_buffer_) {
     D3D12_INDEX_BUFFER_VIEW index_buffer_view;
@@ -428,7 +399,6 @@ void D3D12ImmediateDrawer::BeginBatch(const gpu::OverlayBatch& batch) {
 
 void D3D12ImmediateDrawer::Draw(const gpu::OverlayDraw& draw) {
   if (!batch_open_) {
-    // Could be an error while obtaining the vertex and index buffers.
     return;
   }
 
@@ -436,11 +406,8 @@ void D3D12ImmediateDrawer::Draw(const gpu::OverlayDraw& draw) {
       *static_cast<const D3D12OverlayDrawContext*>(ui_draw_context());
   ID3D12GraphicsCommandList* command_list = d3d12_ui_draw_context.command_list();
 
-  // Set the scissor rectangle.
   u32 scissor_left, scissor_top, scissor_width, scissor_height;
   if (!ScissorToRenderTarget(draw, scissor_left, scissor_top, scissor_width, scissor_height)) {
-    // Nothing is visible (zero area is used as the default current_scissor_
-    // value also).
     return;
   }
   D3D12_RECT scissor;
@@ -454,13 +421,8 @@ void D3D12ImmediateDrawer::Draw(const gpu::OverlayDraw& draw) {
     command_list->RSSetScissorRects(1, &scissor);
   }
 
-  // Ensure texture data is available if any texture is loaded, upload all in a
-  // batch, then transition all at once.
   UploadTextures();
 
-  // Bind the texture. If this is the first draw in a frame, the descriptor heap
-  // index will be invalid initially, and the texture will be bound regardless
-  // of what's in current_texture_.
   auto texture = static_cast<D3D12ImmediateTexture*>(draw.texture);
   ID3D12Resource* texture_resource = texture ? texture->resource() : nullptr;
   bool bind_texture = current_texture_ != texture_resource;
@@ -490,7 +452,6 @@ void D3D12ImmediateDrawer::Draw(const gpu::OverlayDraw& draw) {
     if (texture_resource) {
       texture_view_desc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
     } else {
-      // No texture, solid color.
       texture_view_desc.Shader4ComponentMapping =
           D3D12_ENCODE_SHADER_4_COMPONENT_MAPPING(D3D12_SHADER_COMPONENT_MAPPING_FORCE_VALUE_1,
                                                   D3D12_SHADER_COMPONENT_MAPPING_FORCE_VALUE_1,
@@ -511,8 +472,6 @@ void D3D12ImmediateDrawer::Draw(const gpu::OverlayDraw& draw) {
                                        texture_descriptor_index));
   }
 
-  // Bind the sampler. If the resource doesn't exist (solid color drawing), use
-  // nearest-neighbor and clamp so fetching is simpler.
   SamplerIndex sampler_index =
       texture_resource ? texture->sampler_index() : SamplerIndex::kNearestClamp;
   if (current_sampler_index_ != sampler_index) {
@@ -523,7 +482,6 @@ void D3D12ImmediateDrawer::Draw(const gpu::OverlayDraw& draw) {
                                           static_cast<uint32_t>(sampler_index)));
   }
 
-  // Set the primitive type and the pipeline for it.
   D3D_PRIMITIVE_TOPOLOGY primitive_topology;
   ID3D12PipelineState* pipeline;
   switch (draw.primitive) {
@@ -545,7 +503,6 @@ void D3D12ImmediateDrawer::Draw(const gpu::OverlayDraw& draw) {
     command_list->SetPipelineState(pipeline);
   }
 
-  // Draw.
   if (batch_has_index_buffer_) {
     command_list->DrawIndexedInstanced(draw.count, 1, draw.index_offset, draw.base_vertex, 0);
   } else {
@@ -564,9 +521,6 @@ void D3D12ImmediateDrawer::End() {
 }
 
 void D3D12ImmediateDrawer::OnLeavePresenter() {
-  // Leaving the presenter's submission timeline - await GPU usage completion of
-  // all draws and texture uploads (which happen before draws) and reset
-  // submission indices.
   D3D12Presenter& d3d12_presenter = *static_cast<D3D12Presenter*>(presenter());
   d3d12_presenter.AwaitUISubmissionCompletionFromUIThread(last_paint_submission_index_);
 
@@ -584,7 +538,6 @@ void D3D12ImmediateDrawer::OnLeavePresenter() {
 }
 
 void D3D12ImmediateDrawer::OnImmediateTextureDestroyed(D3D12ImmediateTexture& texture) {
-  // Remove from the texture list.
   size_t texture_index = texture.immediate_drawer_index();
   REX_ASSERT(texture_index != SIZE_MAX);
   D3D12ImmediateTexture*& texture_at_index = textures_[texture_index];
@@ -592,7 +545,6 @@ void D3D12ImmediateDrawer::OnImmediateTextureDestroyed(D3D12ImmediateTexture& te
   texture_at_index->SetImmediateDrawerIndex(texture_index);
   textures_.pop_back();
 
-  // Queue for delayed release.
   ID3D12Resource* resource = texture.resource();
   UINT64 last_usage_submission_index = texture.last_usage_submission_index();
   if (resource && last_usage_submission_index > last_completed_submission_index_) {
@@ -602,7 +554,6 @@ void D3D12ImmediateDrawer::OnImmediateTextureDestroyed(D3D12ImmediateTexture& te
 
 void D3D12ImmediateDrawer::UploadTextures() {
   if (texture_uploads_pending_.empty()) {
-    // Called often - don't initialize anything.
     return;
   }
 
@@ -611,8 +562,7 @@ void D3D12ImmediateDrawer::UploadTextures() {
       *static_cast<const D3D12OverlayDrawContext*>(ui_draw_context());
   ID3D12GraphicsCommandList* command_list = d3d12_ui_draw_context.command_list();
 
-  // Copy all at once, then transition all at once (not interleaving copying and
-  // pipeline barriers).
+  // Copy all, then transition all, without interleaving copies and barriers.
   std::vector<D3D12_RESOURCE_BARRIER> barriers;
   barriers.reserve(texture_uploads_pending_.size());
   for (const PendingTextureUpload& pending_upload : texture_uploads_pending_) {

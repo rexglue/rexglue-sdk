@@ -1,4 +1,3 @@
-#pragma once
 /**
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
@@ -9,6 +8,8 @@
  *
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
+
+#pragma once
 
 #include <memory>
 #include <mutex>
@@ -24,15 +25,21 @@
 
 namespace rex::runtime {
 
+/** Splits a notification id into its bit fields. */
 union XNotificationKey {
-  XNotificationID id;
+  XNotificationID id; /**< The whole notification id, shares its 32 bits with the fields below. */
   struct {
-    uint32_t local_id : 16;
-    uint32_t version : 9;
-    uint32_t mask_index : 6;
+    uint32_t local_id : 16;  /**< Bits 0 to 15. Id within the notification area. */
+    uint32_t version : 9;    /**< Bits 16 to 24. Version of the notification. */
+    uint32_t mask_index : 6; /**< Bits 25 to 30. Bit of the listener mask that selects the area. */
     uint32_t : 1;
   };
 
+  /**
+   * Builds the key of a notification id.
+   *
+   * @param notification_id The id.
+   */
   constexpr XNotificationKey(XNotificationID notification_id = XNotificationID(0))
       : id(notification_id) {
     REX_STATIC_ASSERT_SIZE(*this, sizeof(id));
@@ -49,11 +56,13 @@ struct NotifyListenerObject {
    */
   REX_RUNTIME_API NotifyListenerObject(u64 mask_in, u32 max_version_in);
 
+  /** Manual reset event set while notifications is not empty. */
   std::unique_ptr<rex::platform::Event> wait_handle;
-  std::mutex notifications_lock;
+  std::mutex notifications_lock; /**< Guards notifications. */
+  /** Queued notifications in arrival order, each with its id and data. */
   std::vector<std::pair<XNotificationID, u32>> notifications;
-  u64 mask = 0;
-  u32 max_version = 0;
+  u64 mask = 0; /**< Bit mask of notification areas, bit N admits ids whose mask_index is N. */
+  u32 max_version = 0; /**< Highest notification version admitted, a higher version is dropped. */
 };
 
 /**

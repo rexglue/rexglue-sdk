@@ -13,84 +13,55 @@
 
 namespace rex::codegen {
 
-//=============================================================================
-// No-ops and Sync Operations
-//=============================================================================
-
 bool build_nop(BuilderContext& ctx) {
-  // Canonical PPC no-op (ori 0,0,0)
   (void)ctx;
   return true;
 }
 
 bool build_attn(BuilderContext& ctx) {
-  // Xenon-specific debug breakpoint, no effect in recompiled code
+  // Xenon debug breakpoint, no effect in recompiled code
   (void)ctx;
   return true;
 }
 
 bool build_sync(BuilderContext& ctx) {
-  // sync: full barrier. Orders all combinations including StoreLoad,
-  // which x86_64 TSO does not. seq_cst is the exact C++ mapping.
-  //
-  // x86_64: emits mfence.
-  // ARM64:  emits dmb ish.
   ctx.println("\tstd::atomic_thread_fence(std::memory_order_seq_cst);");
   return true;
 }
 
 bool build_lwsync(BuilderContext& ctx) {
-  // lwsync: acquire-release fence. Orders LoadLoad, LoadStore, StoreStore,
-  // but NOT StoreLoad. acq_rel matches exactly.
-  //
-  // x86_64: TSO already orders those three.
-  // ARM64:  emits dmb ish.
   ctx.println("\tstd::atomic_thread_fence(std::memory_order_acq_rel);");
   return true;
 }
 
 bool build_eieio(BuilderContext& ctx) {
-  // eieio: I/O ordering. No separate I/O space on the host, so seq_cst
-  // is the safe conservative mapping.
-  //
-  // x86_64: emits mfence.
-  // ARM64:  emits dmb ish.
   ctx.println("\tstd::atomic_thread_fence(std::memory_order_seq_cst);");
   return true;
 }
 
 bool build_db16cyc(BuilderContext& ctx) {
-  // Xenon-specific 16-cycle delay hint, no effect in recompiled code
+  // Xenon 16-cycle delay hint, no effect in recompiled code
   (void)ctx;
   return true;
 }
 
 bool build_cctpl(BuilderContext& ctx) {
-  // Xenon-specific cache control thread priority low, no effect in recompiled code
+  // Xenon cache control thread priority low, no effect in recompiled code
   (void)ctx;
   return true;
 }
 
 bool build_cctpm(BuilderContext& ctx) {
-  // Xenon-specific cache control thread priority medium, no effect in recompiled code
+  // Xenon cache control thread priority medium, no effect in recompiled code
   (void)ctx;
   return true;
 }
 
 bool build_cctph(BuilderContext& ctx) {
-  // Xenon-specific cache control thread priority high, no effect in recompiled code
+  // Xenon cache control thread priority high, no effect in recompiled code
   (void)ctx;
   return true;
 }
-
-//=============================================================================
-// Trap Instructions
-// PPC trap instructions are assertion/debug checks. The TO field (bits 21-25)
-// is a 5-bit mask specifying which conditions trigger: signed lt/gt, eq,
-// unsigned lt/gt. We extract TO directly from the instruction word so that
-// both generic (tw TO,rA,rB) and simplified (tweq rA,rB) forms work with
-// the same builder.
-//=============================================================================
 
 bool build_tdi(BuilderContext& ctx) {
   uint32_t to = (ctx.insn.instruction >> 21) & 0x1F;
@@ -136,10 +107,6 @@ bool build_tw(BuilderContext& ctx) {
   return true;
 }
 
-//=============================================================================
-// Cache Operations
-//=============================================================================
-
 bool build_dcbf(BuilderContext& ctx) {
   // Hint instruction, access violation callback handlers take care of this on write
   (void)ctx;
@@ -153,13 +120,12 @@ bool build_dcbt(BuilderContext& ctx) {
 }
 
 bool build_dcbtst(BuilderContext& ctx) {
-  // Hint instruction, prefetch-for-store has no semantic effect
+  // Hint instruction, prefetch for store has no semantic effect
   (void)ctx;
   return true;
 }
 
 bool build_dcbz(BuilderContext& ctx) {
-  // Compute EA, align to 32-byte cache line, apply physical offset
   ctx.print("\t{} = (", ctx.ea());
   if (ctx.insn.operands[0] != 0)
     ctx.print("{}.u32 + ", ctx.r(ctx.insn.operands[0]));
@@ -169,7 +135,6 @@ bool build_dcbz(BuilderContext& ctx) {
 }
 
 bool build_dcbzl(BuilderContext& ctx) {
-  // Compute EA, align to 128-byte cache line, apply physical offset
   ctx.print("\t{} = (", ctx.ea());
   if (ctx.insn.operands[0] != 0)
     ctx.print("{}.u32 + ", ctx.r(ctx.insn.operands[0]));
@@ -184,29 +149,16 @@ bool build_dcbst(BuilderContext& ctx) {
   return true;
 }
 
-//=============================================================================
-// Move Register
-//=============================================================================
-
 bool build_mr(BuilderContext& ctx) {
   ctx.println("\t{}.u64 = {}.u64;", ctx.r(ctx.insn.operands[0]), ctx.r(ctx.insn.operands[1]));
   emitRecordFormCompare(ctx);
   return true;
 }
 
-//=============================================================================
-// Move Register Field
-//=============================================================================
-
 bool build_mcrf(BuilderContext& ctx) {
-  // Trivally copy one Control Register Field to another:
   ctx.println("\t{0} = {1};", ctx.cr(ctx.insn.operands[0]), ctx.cr(ctx.insn.operands[1]));
   return true;
 }
-
-//=============================================================================
-// Move From Special Registers
-//=============================================================================
 
 bool build_mfxer(BuilderContext& ctx) {
   ctx.println("\t{}.u64 = ({}.so << 31) | ({}.ov << 30) | ({}.ca << 29);",
@@ -253,8 +205,7 @@ bool build_mflr(BuilderContext& ctx) {
 
 bool build_mfmsr(BuilderContext& ctx) {
   if (!ctx.config().skipMsr) {
-    // Check global lock and return appropriate value
-    // Returns 0x8000 if unlocked (interrupts enabled), 0 if locked
+    // REX_CHECK_GLOBAL_LOCK yields 0x8000 when interrupts are enabled and 0 when locked
     ctx.println("\t{}.u64 = REX_CHECK_GLOBAL_LOCK();", ctx.r(ctx.insn.operands[0]));
   }
   return true;
@@ -266,21 +217,15 @@ bool build_mffs(BuilderContext& ctx) {
 }
 
 bool build_mftb(BuilderContext& ctx) {
-  // The timebase runs at 50 MHz (guest tick frequency)
-  // Using REX_QUERY_TIMEBASE() macro provides properly scaled timing from the runtime
+  // The timebase runs at 50 MHz
   ctx.println("\t{}.u64 = REX_QUERY_TIMEBASE();", ctx.r(ctx.insn.operands[0]));
   return true;
 }
 
 bool build_mftbu(BuilderContext& ctx) {
-  // Upper 32 bits of timebase
   ctx.println("\t{}.u64 = REX_QUERY_TIMEBASE() >> 32;", ctx.r(ctx.insn.operands[0]));
   return true;
 }
-
-//=============================================================================
-// Move To Special Registers
-//=============================================================================
 
 bool build_mtcr(BuilderContext& ctx) {
   for (size_t i = 0; i < 32; i++) {
@@ -319,12 +264,9 @@ bool build_mtlr(BuilderContext& ctx) {
 
 bool build_mtmsrd(BuilderContext& ctx) {
   if (!ctx.config().skipMsr) {
-    // Update MSR bits
     ctx.println("\tctx.msr = ({}.u32 & 0x8020) | (ctx.msr & ~0x8020);",
                 ctx.r(ctx.insn.operands[0]));
-    // Global lock mechanism:
-    // R13 = enter lock (disable interrupts)
-    // Other = leave lock (enable interrupts)
+    // r13 enters the global lock (interrupts off), any other source register leaves it
     uint32_t src_reg = ctx.insn.operands[0];
     if (src_reg == 13) {
       ctx.println("\tREX_ENTER_GLOBAL_LOCK();");
@@ -358,10 +300,6 @@ bool build_mtxer(BuilderContext& ctx) {
   ctx.println("\t{}.ca = ({}.u64 & 0x20000000) != 0;", ctx.xer(), ctx.r(ctx.insn.operands[0]));
   return true;
 }
-
-//=============================================================================
-// Clear Left Double Word Immediate
-//=============================================================================
 
 bool build_clrldi(BuilderContext& ctx) {
   ctx.println("\t{}.u64 = {}.u64 & 0x{:X};", ctx.r(ctx.insn.operands[0]),

@@ -1,5 +1,5 @@
 /**
- * @file        tests/unit/system/function_dispatcher_test.cpp
+ * @file        tests/unit/runtime/function_dispatcher_test.cpp
  * @brief       Unit tests for thunk allocation, unregister cleanup, and trap-frame dispatch
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
@@ -58,9 +58,7 @@ TEST_CASE("FunctionDispatcher: caller_address routes thunk to caller's module po
 
 TEST_CASE("FunctionDispatcher: AllocateThunk(0) uses the entrypoint pool only when explicit",
           "[runtime][dispatcher]") {
-  // caller_address=0 is reserved for host-initiated allocations that have no
-  // guest caller (the entrypoint wiring its own __imp__* exports during
-  // setup). It must land in the entrypoint module's pool.
+  // caller_address 0 marks host initiated allocations and uses the entrypoint pool.
   auto& memory = GetTestMemory();
   rex::runtime::FunctionDispatcher dispatcher(&memory);
 
@@ -101,9 +99,7 @@ TEST_CASE("FunctionDispatcher: AllocateThunk rejects caller_address outside any 
 
   REQUIRE(dispatcher.InitializeFunctionTable(kModA, kCodeSize, kModA, kImageSize));
 
-  // A non-zero caller_address that doesn't fall inside any module is a bug
-  // in the caller: the right answer is to refuse, not to silently route the
-  // thunk to the entrypoint pool.
+  // A caller_address outside every module is refused, never routed to the entrypoint pool.
   uint32_t thunk = dispatcher.AllocateThunk(&DummyFn, 0xDEADBEEFu);
   CHECK(thunk == 0);
 }
@@ -154,8 +150,7 @@ TEST_CASE("FunctionDispatcher: UnregisterModule clears pool and slots", "[runtim
   CHECK(dispatcher.GetFunction(kRegisterModBase + 0x10) == nullptr);
   CHECK(dispatcher.GetFunction(thunk) == nullptr);
 
-  // Re-init must succeed: UnregisterModule destroys the per-module table so the
-  // same code range can be reloaded without tripping the overlap check.
+  // UnregisterModule destroys the per-module table, so the same code range reloads.
   REQUIRE(dispatcher.InitializeFunctionTable(kRegisterModBase, kCodeSize, kRegisterModBase,
                                              kImageSize));
   uint32_t thunk_after = dispatcher.AllocateThunk(&DummyFn, kRegisterModBase + 0x100);

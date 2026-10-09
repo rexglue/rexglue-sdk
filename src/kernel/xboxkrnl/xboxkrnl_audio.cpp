@@ -33,14 +33,11 @@ u32 XAudioGetVoiceCategoryVolumeChangeMask_entry(mapped_void driver_ptr, mapped_
 
   rex::runtime::ThreadRecord::Sleep(std::chrono::microseconds(1));
 
-  // Checking these bits to see if any voice volume changed.
-  // I think.
   *out_ptr = 0;
   return X_ERROR_SUCCESS;
 }
 
 u32 XAudioGetVoiceCategoryVolume_entry([[maybe_unused]] u32 unk, mapped_f32 out_ptr) {
-  // Expects a floating point single. Volume %?
   *out_ptr = 1.0f;
 
   return X_ERROR_SUCCESS;

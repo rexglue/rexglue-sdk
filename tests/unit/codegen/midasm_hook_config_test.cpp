@@ -1,5 +1,5 @@
 /**
- * @file        codegen/midasm_hook_config_test.cpp
+ * @file        tests/unit/codegen/midasm_hook_config_test.cpp
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

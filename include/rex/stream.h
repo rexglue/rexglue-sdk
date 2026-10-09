@@ -33,6 +33,7 @@ class REX_API BitStream {
    * @param size_in_bits Size of buffer in bits.
    */
   BitStream(u8* buffer, size_t size_in_bits);
+  /** Destroys the stream. The buffer stays with the caller. */
   ~BitStream();
 
   /**
@@ -135,6 +136,7 @@ class REX_API ByteStream {
    * @param offset Initial cursor position in bytes.
    */
   ByteStream(u8* data, size_t data_length, size_t offset = 0);
+  /** Destroys the stream. The buffer stays with the caller. */
   ~ByteStream();
 
   /**

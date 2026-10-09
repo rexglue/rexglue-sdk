@@ -23,102 +23,137 @@ namespace rex {
 namespace runtime {
 namespace util {
 
-// https://github.com/oukiar/freestyledash/blob/master/Freestyle/Tools/XEX/SPA.h
-// https://github.com/oukiar/freestyledash/blob/master/Freestyle/Tools/XEX/SPA.cpp
-
+/** Section of an XDBF entry. */
 enum class XdbfSection : uint16_t {
-  kMetadata = 0x0001,
-  kImage = 0x0002,
-  kStringTable = 0x0003,
+  kMetadata = 0x0001,    /**< Metadata entries. */
+  kImage = 0x0002,       /**< Image entries. */
+  kStringTable = 0x0003, /**< String tables, 1 per language. */
 };
 
 #pragma pack(push, 1)
+/** Header of an XDBF database. */
 struct XbdfHeader {
-  be_u32 magic;
-  be_u32 version;
-  be_u32 entry_count;
-  be_u32 entry_used;
-  be_u32 free_count;
-  be_u32 free_used;
+  be_u32 magic;       /**< Offset 0x00. Signature. */
+  be_u32 version;     /**< Offset 0x04. */
+  be_u32 entry_count; /**< Offset 0x08. Capacity of the entry table. */
+  be_u32 entry_used;  /**< Offset 0x0C. Entries in use. */
+  be_u32 free_count;  /**< Offset 0x10. Rows in the table after the entry table. */
+  be_u32 free_used;   /**< Offset 0x14. */
 };
 REX_STATIC_ASSERT_SIZE(XbdfHeader, 24);
 
+/** Entry table row locating the data of an XDBF entry. */
 struct XbdfEntry {
-  be_u16 section;
-  be_u64 id;
-  be_u32 offset;
-  be_u32 size;
+  be_u16 section; /**< Offset 0x00. XdbfSection value. */
+  be_u64 id;      /**< Offset 0x02. Entry id within the section. */
+  be_u32 offset;  /**< Offset 0x0A. Offset of the data from the content area. */
+  be_u32 size;    /**< Offset 0x0E. Size in bytes. */
 };
 REX_STATIC_ASSERT_SIZE(XbdfEntry, 18);
 
+/** Row of the table between the entry table and the content area. */
 struct XbdfFileLoc {
-  be_u32 offset;
-  be_u32 size;
+  be_u32 offset; /**< Offset 0x00. */
+  be_u32 size;   /**< Offset 0x04. */
 };
 REX_STATIC_ASSERT_SIZE(XbdfFileLoc, 8);
 
+/** Metadata entry holding the default language of the title. */
 struct XdbfXstc {
-  be_u32 magic;
-  be_u32 version;
-  be_u32 size;
-  be_u32 default_language;
+  be_u32 magic;            /**< Offset 0x00. Signature. */
+  be_u32 version;          /**< Offset 0x04. */
+  be_u32 size;             /**< Offset 0x08. */
+  be_u32 default_language; /**< Offset 0x0C. XLanguage value. */
 };
 REX_STATIC_ASSERT_SIZE(XdbfXstc, 16);
 
+/** Header of an XSTR string table or an XACH achievement table. */
 struct XdbfSectionHeader {
-  be_u32 magic;
-  be_u32 version;
-  be_u32 size;
-  be_u16 count;
+  be_u32 magic;   /**< Offset 0x00. Signature. */
+  be_u32 version; /**< Offset 0x04. */
+  be_u32 size;    /**< Offset 0x08. */
+  be_u16 count;   /**< Offset 0x0C. Number of table entries. */
 };
 REX_STATIC_ASSERT_SIZE(XdbfSectionHeader, 14);
 
+/** Header of a string table entry, followed by the text. */
 struct XdbfStringTableEntry {
-  be_u16 id;
-  be_u16 string_length;
+  be_u16 id;            /**< Offset 0x00. String id. */
+  be_u16 string_length; /**< Offset 0x02. Length of the text in bytes. */
 };
 REX_STATIC_ASSERT_SIZE(XdbfStringTableEntry, 4);
 
+/** Achievement table entry. */
 struct XdbfAchievementTableEntry {
-  be_u16 id;
-  be_u16 label_id;
-  be_u16 description_id;
-  be_u16 unachieved_id;
-  be_u32 image_id;
-  be_u16 gamerscore;
-  be_u16 unkE;
-  be_u32 flags;
-  be_u32 unk14;
-  be_u32 unk18;
-  be_u32 unk1C;
-  be_u32 unk20;
+  be_u16 id;             /**< Offset 0x00. Achievement id. */
+  be_u16 label_id;       /**< Offset 0x02. String id of the name. */
+  be_u16 description_id; /**< Offset 0x04. String id of the description shown once unlocked. */
+  be_u16 unachieved_id;  /**< Offset 0x06. String id of the description shown while locked. */
+  be_u32 image_id;       /**< Offset 0x08. Image entry id of the icon. */
+  be_u16 gamerscore;     /**< Offset 0x0C. Gamerscore awarded. */
+  be_u16 unkE;           /**< Offset 0x0E. */
+  be_u32 flags;          /**< Offset 0x10. Achievement flag bits. */
+  be_u32 unk14;          /**< Offset 0x14. */
+  be_u32 unk18;          /**< Offset 0x18. */
+  be_u32 unk1C;          /**< Offset 0x1C. */
+  be_u32 unk20;          /**< Offset 0x20. */
 };
 REX_STATIC_ASSERT_SIZE(XdbfAchievementTableEntry, 0x24);
 #pragma pack(pop)
 
+/** Reference to the bytes of an XDBF entry inside the database. */
 struct XdbfBlock {
-  const uint8_t* buffer;
-  size_t size;
+  const uint8_t* buffer; /**< First byte of the entry, null when absent. */
+  size_t size;           /**< Size in bytes. */
 
+  /**
+   * Reports whether the block refers to data.
+   *
+   * @return True when the buffer is not null.
+   */
   operator bool() const { return buffer != nullptr; }
 };
 
-// Wraps an XBDF (XboxDataBaseFormat) in-memory database.
-// https://free60project.github.io/wiki/XDBF.html
+/** Wraps an in memory XDBF database. */
 class REX_RUNTIME_API XdbfWrapper {
  public:
+  /**
+   * Constructs the wrapper and validates the database header.
+   *
+   * @param data The database bytes, which must outlive the wrapper.
+   * @param data_size Size in bytes.
+   */
   XdbfWrapper(const uint8_t* data, size_t data_size);
 
-  // True if the target memory contains a valid XDBF instance.
+  /**
+   * Reports whether the target memory contains a valid XDBF instance.
+   *
+   * @return True when valid.
+   */
   bool is_valid() const { return data_ != nullptr; }
 
-  // Gets an entry in the given section.
-  // If the entry is not found the returned block will be nullptr.
+  /**
+   * Returns an entry in the given section.
+   *
+   * @param section The section.
+   * @param id The entry id.
+   * @return The block, with a null buffer when the entry is not found.
+   */
   XdbfBlock GetEntry(XdbfSection section, uint64_t id) const;
 
-  // Gets a string from the string table in the given language.
-  // Returns the empty string if the entry is not found.
+  /**
+   * Returns a string from the string table in the given language.
+   *
+   * @param language The language.
+   * @param string_id The string id.
+   * @return The string, empty when the entry is not found.
+   */
   std::string GetStringTableEntry(XLanguage language, uint16_t string_id) const;
+  /**
+   * Returns every entry of the achievement table.
+   *
+   * @return The entries, empty when the table is absent.
+   */
   std::vector<XdbfAchievementTableEntry> GetAchievements() const;
 
  private:
@@ -131,22 +166,52 @@ class REX_RUNTIME_API XdbfWrapper {
   const XbdfFileLoc* files_ = nullptr;
 };
 
+/** Typed access to the title metadata of an XDBF database. */
 class REX_RUNTIME_API XDBFGameData : public XdbfWrapper {
  public:
+  /**
+   * Constructs the accessor over a database.
+   *
+   * @param data The database bytes, which must outlive the accessor.
+   * @param data_size Size in bytes.
+   */
   XDBFGameData(const uint8_t* data, size_t data_size) : XdbfWrapper(data, data_size) {}
 
-  // Checks if provided language exist, if not returns default title language.
+  /**
+   * Returns the given language when the database has it, else the default title language.
+   *
+   * @param language_to_check The language to look up.
+   * @return The language to use.
+   */
   XLanguage GetExistingLanguage(XLanguage language_to_check) const;
 
-  // The game icon image, if found.
+  /**
+   * Returns the title icon image.
+   *
+   * @return The block, with a null buffer when absent.
+   */
   XdbfBlock icon() const;
 
-  // The game's default language.
+  /**
+   * Returns the default language of the title.
+   *
+   * @return The language.
+   */
   XLanguage default_language() const;
 
-  // The game's title in its default language.
+  /**
+   * Returns the title name in its default language.
+   *
+   * @return The name.
+   */
   std::string title() const;
 
+  /**
+   * Returns the title name in the given language.
+   *
+   * @param language The language.
+   * @return The name, empty when the database has no string for it.
+   */
   std::string title(XLanguage language) const;
 };
 

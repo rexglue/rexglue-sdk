@@ -34,25 +34,17 @@ size_t BitStream::BitsRemaining() {
 }
 
 uint64_t BitStream::Peek(size_t num_bits) {
-  // FYI: The reason we can't copy more than 57 bits is:
-  // 57 = 7 * 8 + 1 - that can only span a maximum of 8 bytes.
-  // We can't read in 9 bytes (easily), so we limit it.
+  // At most 57 bits fit since 57 = 7 * 8 + 1 spans at most 8 bytes, the widest load.
   REX_ASSERT(!(num_bits > 57));
   REX_ASSERT(!(offset_bits_ + num_bits > size_bits_));
 
   size_t offset_bytes = offset_bits_ >> 3;
   size_t rel_offset_bits = offset_bits_ - (offset_bytes << 3);
 
-  // offset -->
-  // ..[junk]..| target bits |....[junk].............
   uint64_t bits = memory::load<be_u64>(buffer_ + offset_bytes);
 
-  // Shift right
-  // .....[junk]........| target bits |
   bits >>= 64 - (rel_offset_bits + num_bits);
 
-  // AND with mask
-  // ...................| target bits |
   bits &= (1ULL << num_bits) - 1;
 
   return bits;
@@ -72,30 +64,20 @@ bool BitStream::Write(uint64_t val, size_t num_bits) {
   size_t offset_bytes = offset_bits_ >> 3;
   size_t rel_offset_bits = offset_bits_ - (offset_bytes << 3);
 
-  // Construct a mask
   uint64_t mask = (1ULL << num_bits) - 1;
   mask <<= 64 - (rel_offset_bits + num_bits);
   mask = ~mask;
 
-  // Shift the value left into position.
   val <<= 64 - (rel_offset_bits + num_bits);
 
-  // offset ----->
-  // ....[junk]...| target bits w/ junk |....[junk]......
   uint64_t bits = memory::load<be_u64>(buffer_ + offset_bytes);
 
-  // AND with mask
-  // ....[junk]...| target bits (0) |........[junk]......
   bits &= mask;
 
-  // OR with val
-  // ....[junk]...| target bits (val) |......[junk]......
   bits |= val;
 
-  // Store into the bitstream.
   memory::store(buffer_ + offset_bytes, be_u64(bits));
 
-  // Advance the bitstream forward.
   Advance(num_bits);
 
   return true;
@@ -107,7 +89,6 @@ size_t BitStream::Copy(uint8_t* dest_buffer, size_t num_bits) {
   size_t bits_left = num_bits;
   size_t out_offset_bytes = 0;
 
-  // First: Copy the first few bits up to a byte boundary.
   if (rel_offset_bits) {
     uint64_t bits = Peek(8 - rel_offset_bits);
     uint8_t clear_mask = ~((static_cast<uint8_t>(1) << rel_offset_bits) - 1);
@@ -119,7 +100,6 @@ size_t BitStream::Copy(uint8_t* dest_buffer, size_t num_bits) {
     out_offset_bytes++;
   }
 
-  // Second: Use memcpy for the bytes left.
   if (bits_left >= 8) {
     std::memcpy(dest_buffer + out_offset_bytes, buffer_ + offset_bytes + out_offset_bytes,
                 bits_left / 8);
@@ -128,7 +108,6 @@ size_t BitStream::Copy(uint8_t* dest_buffer, size_t num_bits) {
     bits_left -= (bits_left / 8) * 8;
   }
 
-  // Third: Copy the last few bits.
   if (bits_left) {
     uint64_t bits = Peek(bits_left);
     bits <<= 8 - bits_left;
@@ -139,7 +118,6 @@ size_t BitStream::Copy(uint8_t* dest_buffer, size_t num_bits) {
     Advance(bits_left);
   }
 
-  // Return the bit offset to the copied bits.
   return rel_offset_bits;
 }
 

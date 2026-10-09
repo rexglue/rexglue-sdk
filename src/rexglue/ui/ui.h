@@ -64,7 +64,11 @@ struct InitOptions {
 void Init(const InitOptions& opts);
 void Shutdown();
 
-/** Returns the presentation sink, for LogConfig::sinks. */
+/**
+ * Returns the presentation sink, for LogConfig::sinks.
+ *
+ * @return The shared log sink.
+ */
 rex::log::ISink& LogSink();
 
 void Banner(std::string_view title);

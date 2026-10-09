@@ -28,6 +28,11 @@ class FunctionDispatcher;
 
 struct XMA_CONTEXT_DATA;
 
+/**
+ * Decodes XMA audio for the APU.
+ * Titles reach it through the XMA exports or by writing the contexts and registers,
+ * after mapping them with MmMapIoSpace.
+ */
 class REX_RUNTIME_API XMADecoder {
  public:
   explicit XMADecoder(FunctionDispatcher* function_dispatcher);
@@ -36,6 +41,14 @@ class REX_RUNTIME_API XMADecoder {
   Memory* memory() const { return memory_; }
   FunctionDispatcher* function_dispatcher() const { return function_dispatcher_; }
 
+  /**
+   * Allocates the context array, attaches the APU MMIO block and starts the worker.
+   *
+   * Contexts live in physical memory and the ContextArrayAddress register holds the physical
+   * address of the array.
+   *
+   * @return X_STATUS_SUCCESS.
+   */
   X_STATUS Setup();
   void Shutdown();
 
@@ -45,6 +58,14 @@ class REX_RUNTIME_API XMADecoder {
   void ReleaseContext(uint32_t guest_ptr);
   bool BlockOnContext(uint32_t guest_ptr, bool poll);
 
+  /**
+   * Reads an APU register.
+   *
+   * Register 0x0606 returns a rotating context index so a title never sees a stuck context.
+   *
+   * @param addr Register address, the low 16 bits select the register.
+   * @return The register value, byte swapped.
+   */
   uint32_t ReadRegister(uint32_t addr);
   void WriteRegister(uint32_t addr, uint32_t value);
 
@@ -74,8 +95,8 @@ class REX_RUNTIME_API XMADecoder {
   std::jthread worker_;
 
   std::atomic<bool> paused_ = false;
-  rex::platform::Fence pause_fence_;   // Signaled when worker paused.
-  rex::platform::Fence resume_fence_;  // Signaled when resume requested.
+  rex::platform::Fence pause_fence_;  /**< Signaled when the worker paused */
+  rex::platform::Fence resume_fence_; /**< Signaled when resume is requested */
 
   XMARegisterFile register_file_;
 

@@ -21,33 +21,65 @@ namespace rex::codegen {
  */
 class AnalysisErrors {
  public:
+  /** Failure class an Entry belongs to. */
   enum class Category {
-    UnresolvedCall,
-    MissingJumpTable,
-    JumpTargetOutOfBounds,
-    DiscontinuousFunction,
-    UnimplementedInsn,
+    UnresolvedCall,        /**< A branch target that no function contains. */
+    MissingJumpTable,      /**< No analysis stage adds this class. */
+    JumpTargetOutOfBounds, /**< No analysis stage adds this class. */
+    DiscontinuousFunction, /**< No analysis stage adds this class. */
+    UnimplementedInsn,     /**< No analysis stage adds this class. */
   };
 
+  /** 1 analysis failure with its addresses and message. */
   struct Entry {
-    Category category;
-    uint32_t address;
-    uint32_t secondaryAddress;
-    std::string message;
+    Category category;         /**< Failure class */
+    uint32_t address;          /**< Address where the failure was found */
+    uint32_t secondaryAddress; /**< Address that referenced it, 0 when none */
+    std::string message;       /**< Description of the failure */
   };
 
+  /**
+   * Adds an entry with no secondary address.
+   *
+   * @param cat Failure class
+   * @param addr Address where the failure was found
+   * @param msg Description of the failure
+   */
   void Add(Category cat, uint32_t addr, const std::string& msg);
+  /**
+   * Adds an entry with a secondary address.
+   *
+   * @param cat Failure class
+   * @param addr Address where the failure was found
+   * @param secondary Address that referenced addr, such as a call site
+   * @param msg Description of the failure
+   */
   void Add(Category cat, uint32_t addr, uint32_t secondary, const std::string& msg);
 
   bool HasErrors() const { return !entries_.empty(); }
   size_t Count() const { return entries_.size(); }
+  /**
+   * Counts the entries of 1 failure class.
+   *
+   * @param cat Failure class to count
+   * @return Number of entries in cat
+   */
   size_t Count(Category cat) const;
 
   const std::vector<Entry>& Entries() const { return entries_; }
 
+  /**
+   * Logs every entry grouped by failure class, then the total. Logs nothing when empty.
+   */
   void PrintReport() const;
   void Clear() { entries_.clear(); }
 
+  /**
+   * Returns the name of a failure class.
+   *
+   * @param cat Failure class
+   * @return Static name string, "Unknown" for a value outside the enum
+   */
   static const char* CategoryName(Category cat);
 
  private:

@@ -1,10 +1,10 @@
 /**
- * @file        kernel/xam/xam_debug.cpp
- *
- * @copyright   Copyright 2022 Ben Vanik. All rights reserved. (Xenia Project)
- *
- * @license     BSD 3-Clause License
- *              See LICENSE file in the project root for full license text.
+ ******************************************************************************
+ * Xenia : Xbox 360 Emulator Research Project                                 *
+ ******************************************************************************
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
+ * Released under the BSD license - see LICENSE in the root for more details. *
+ ******************************************************************************
  *
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
@@ -18,17 +18,14 @@ namespace rex {
 namespace kernel {
 namespace xam {
 
-// OutputDebugStringA - ANSI debug string output
 void OutputDebugStringA_entry(mapped_string string) {
   if (string) {
     REXLOG_DEV(title, "OutputDebugStringA: {}", string.value());
   }
 }
 
-// OutputDebugStringW - Unicode debug string output
 void OutputDebugStringW_entry(mapped_wstring string) {
   if (string) {
-    // Convert char16_t to UTF-8 for logging (simple ASCII fallback)
     std::u16string_view sv = string.value();
     std::string utf8;
     utf8.reserve(sv.size());
@@ -36,21 +33,19 @@ void OutputDebugStringW_entry(mapped_wstring string) {
       if (c < 0x80) {
         utf8.push_back(static_cast<char>(c));
       } else {
-        utf8.push_back('?');  // Non-ASCII fallback
+        utf8.push_back('?');
       }
     }
     REXLOG_DEV(title, "OutputDebugStringW: {}", utf8);
   }
 }
 
-// RtlOutputDebugString - Same as OutputDebugStringA
 void RtlOutputDebugString_entry(mapped_string string) {
   if (string) {
     REXLOG_DEV(title, "RtlOutputDebugString: {}", string.value());
   }
 }
 
-// RtlDebugTrace - Debug trace output
 void RtlDebugTrace_entry(mapped_string string) {
   if (string) {
     REXLOG_DEV(title, "RtlDebugTrace: {}", string.value());
@@ -61,7 +56,6 @@ void RtlDebugTrace_entry(mapped_string string) {
 }  // namespace kernel
 }  // namespace rex
 
-// Hook registrations
 REX_EXPORT(__imp__OutputDebugStringA, rex::kernel::xam::OutputDebugStringA_entry)
 REX_EXPORT(__imp__OutputDebugStringW, rex::kernel::xam::OutputDebugStringW_entry)
 REX_EXPORT(__imp__RtlOutputDebugString, rex::kernel::xam::RtlOutputDebugString_entry)

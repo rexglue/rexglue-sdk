@@ -7,6 +7,8 @@
  ******************************************************************************
  *
  * @modified    Joseph Lee, 2026 - Adapted for ReXGlue runtime
+ *
+ * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
 #include <rex/kernel/xbdm/module.h>

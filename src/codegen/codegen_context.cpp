@@ -1,13 +1,3 @@
-/**
- * @file        codegen/codegen_context.cpp
- *
- * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
- *              All rights reserved.
- *
- * @license     BSD 3-Clause License
- *              See LICENSE file in the project root for full license text.
- */
-
 #include "decoded_binary.h"
 
 #include <format>
@@ -25,7 +15,6 @@ Result<CodegenContext> CodegenContext::Create(const std::filesystem::path& confi
                                               Runtime& runtime) {
   CodegenContext ctx;
 
-  // Load configuration
   if (!ctx.config_.Load(configPath.string())) {
     return Err<CodegenContext>(ErrorCategory::Config,
                                std::format("Failed to load config: {}", configPath.string()));
@@ -34,7 +23,6 @@ Result<CodegenContext> CodegenContext::Create(const std::filesystem::path& confi
 
   std::filesystem::path xexPath = ctx.configDir_ / ctx.config_.filePath;
 
-  // Resolve path
   if (std::filesystem::exists(xexPath)) {
     xexPath = std::filesystem::canonical(xexPath);
   } else {
@@ -42,7 +30,6 @@ Result<CodegenContext> CodegenContext::Create(const std::filesystem::path& confi
                                std::format("XEX file not found: {}", xexPath.string()));
   }
 
-  // Load XEX via Runtime
   auto xexFilename = xexPath.filename();
   auto vfsPath = "game:\\" + xexFilename.string();
   if (auto loaded = runtime.LoadXEXImage(vfsPath); !loaded) {
@@ -51,7 +38,6 @@ Result<CodegenContext> CodegenContext::Create(const std::filesystem::path& confi
         std::format("Failed to load XEX: {}, {}", xexPath.string(), loaded.error().message));
   }
 
-  // Get module and create BinaryView
   auto user_module = runtime.object_table().Get<rex::runtime::ModuleObject>(
       runtime.module_registry().executable().value_or(0));
   if (!user_module) {
@@ -70,7 +56,6 @@ Result<CodegenContext> CodegenContext::Create(const std::filesystem::path& confi
   REXLOG_TRACE(codegen, "Loaded XEX: base=0x{:08X}, size=0x{:X}, entry=0x{:08X}",
                ctx.binary_.baseAddress(), ctx.binary_.imageSize(), ctx.binary_.entryPoint());
 
-  // Initialize AnalysisState from binary
   ctx.analysisState_.format = "xex";
   ctx.analysisState_.loadAddress = ctx.binary_.baseAddress();
   ctx.analysisState_.entryPoint = ctx.binary_.entryPoint();

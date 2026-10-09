@@ -16,6 +16,12 @@
 
 namespace rex::kernel::xboxkrnl {
 
+/**
+ * Converts an NT status code to the matching Win32 error code.
+ *
+ * @param source_status The NT status code.
+ * @return The Win32 error code, or 317 when the status has no mapping.
+ */
 REX_RUNTIME_API uint32_t RtlNtStatusToDosError(uint32_t source_status);
 
 }  // namespace rex::kernel::xboxkrnl

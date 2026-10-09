@@ -58,7 +58,7 @@ class REX_API Category : public NonCopyable {
   constexpr std::string_view description() const { return description_; }
 
   /**
-   * Tests whether a message at a level would be written.
+   * Reports whether a message at a level would be written.
    *
    * @param level The message level.
    * @return True when the level is at or above the category's effective level.

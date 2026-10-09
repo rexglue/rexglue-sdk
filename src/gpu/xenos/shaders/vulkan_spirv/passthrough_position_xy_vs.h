@@ -1,50 +1,14 @@
-// Generated with `xb buildshaders`.
-#if 0
-; SPIR-V
-; Version: 1.0
-; Generator: Khronos Glslang Reference Front End; 11
-; Bound: 24988
-; Schema: 0
-               OpCapability Shader
-          %1 = OpExtInstImport "GLSL.std.450"
-               OpMemoryModel Logical GLSL450
-               OpEntryPoint Vertex %5663 "main" %4930 %5474
-               OpDecorate %_struct_2935 Block
-               OpMemberDecorate %_struct_2935 0 BuiltIn Position
-               OpMemberDecorate %_struct_2935 1 BuiltIn PointSize
-               OpMemberDecorate %_struct_2935 2 BuiltIn ClipDistance
-               OpMemberDecorate %_struct_2935 3 BuiltIn CullDistance
-               OpDecorate %5474 Location 0
-       %void = OpTypeVoid
-       %1282 = OpTypeFunction %void
-      %float = OpTypeFloat 32
-    %v4float = OpTypeVector %float 4
-       %uint = OpTypeInt 32 0
-     %uint_1 = OpConstant %uint 1
-%_arr_float_uint_1 = OpTypeArray %float %uint_1
-%_struct_2935 = OpTypeStruct %v4float %float %_arr_float_uint_1 %_arr_float_uint_1
-%_ptr_Output__struct_2935 = OpTypePointer Output %_struct_2935
-       %4930 = OpVariable %_ptr_Output__struct_2935 Output
-        %int = OpTypeInt 32 1
-      %int_0 = OpConstant %int 0
-    %v2float = OpTypeVector %float 2
-%_ptr_Input_v2float = OpTypePointer Input %v2float
-       %5474 = OpVariable %_ptr_Input_v2float Input
-    %float_0 = OpConstant %float 0
-    %float_1 = OpConstant %float 1
-%_ptr_Output_v4float = OpTypePointer Output %v4float
-       %5663 = OpFunction %void None %1282
-      %24987 = OpLabel
-      %17674 = OpLoad %v2float %5474
-      %21995 = OpCompositeExtract %float %17674 0
-      %23384 = OpCompositeExtract %float %17674 1
-      %18260 = OpCompositeConstruct %v4float %21995 %23384 %float_0 %float_1
-      %12055 = OpAccessChain %_ptr_Output_v4float %4930 %int_0
-               OpStore %12055 %18260
-               OpReturn
-               OpFunctionEnd
-#endif
+/**
+ * @file        gpu/xenos/shaders/vulkan_spirv/passthrough_position_xy_vs.h
+ *
+ * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
+ *              All rights reserved.
+ *
+ * @license     BSD 3-Clause License
+ *              See LICENSE file in the project root for full license text.
+ */
 
+// Generated with `xb buildshaders`.
 const uint32_t passthrough_position_xy_vs[] = {
     0x07230203, 0x00010000, 0x0008000B, 0x0000619C, 0x00000000, 0x00020011, 0x00000001, 0x0006000B,
     0x00000001, 0x4C534C47, 0x6474732E, 0x3035342E, 0x00000000, 0x0003000E, 0x00000000, 0x00000001,

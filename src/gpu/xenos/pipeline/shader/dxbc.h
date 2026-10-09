@@ -31,22 +31,20 @@ class DxbcShader : public Shader {
   DxbcShader(xenos::ShaderType shader_type, uint64_t ucode_data_hash, const uint32_t* ucode_dwords,
              size_t ucode_dword_count, std::endian ucode_source_endian = std::endian::big);
 
-  // Resource bindings are gathered after the successful translation of any
-  // modification for simplicity of translation (and they don't depend on
-  // modification bits).
-
   static constexpr uint32_t kMaxTextureBindingIndexBits =
       DxbcShaderTranslator::kMaxTextureBindingIndexBits;
   static constexpr uint32_t kMaxTextureBindings = DxbcShaderTranslator::kMaxTextureBindings;
   struct TextureBinding {
     uint32_t bindless_descriptor_index;
     uint32_t fetch_constant;
-    // Stacked and 3D are separate TextureBindings, even for bindless for null
-    // descriptor handling simplicity.
     xenos::FetchOpDimension dimension;
     bool is_signed;
   };
-  // Safe to hash and compare with memcmp for layout hashing.
+  /**
+   * Safe to hash and compare with memcmp.
+   *
+   * @return Texture bindings collected by the translation.
+   */
   const std::vector<TextureBinding>& GetTextureBindingsAfterTranslation() const {
     return texture_bindings_;
   }

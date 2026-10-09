@@ -1,4 +1,3 @@
-#pragma once
 /**
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
@@ -10,7 +9,9 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-#include <rex/assert.h>  // For Vulkan-Hpp.
+#pragma once
+
+#include <rex/assert.h>
 #include <rex/platform.h>
 
 #ifndef VK_NO_PROTOTYPES
@@ -36,8 +37,7 @@
 #ifndef VK_USE_PLATFORM_XCB_KHR
 #define VK_USE_PLATFORM_XCB_KHR
 #endif
-// From the platform, never the build system: it gates members of
-// VulkanInstance::Functions, so every includer has to agree, plugins included.
+// Set from the platform, never the build system, as it gates VulkanInstance::Functions members.
 #ifndef VK_USE_PLATFORM_WAYLAND_KHR
 #define VK_USE_PLATFORM_WAYLAND_KHR
 #endif

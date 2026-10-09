@@ -1,25 +1,12 @@
-/**
- * @file        codegen/disasm.cpp
- *
- * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
- *              All rights reserved.
- *
- * @license     BSD 3-Clause License
- *              See LICENSE file in the project root for full license text.
- */
-
 #include "disasm.h"
 
 namespace rex::codegen::ppc {
 
-// Binutils PPC_OPCODE_* dialect bits (see thirdparty/disasm/ppc-dis.c)
-constexpr uintptr_t kXenonDialect = 0x1          // PPC
-                                    | 0x4        // 64
-                                    | 0x4000     // POWER4
-                                    | 0x8000000  // CELL
-                                    | 0x200      // ALTIVEC
-                                    | 0x1000000  // VMX_128
-                                    | 0x10000;   // CLASSIC
+/**
+ * Binutils PPC_OPCODE_* dialect bits, the OR of PPC, 64, POWER4, CELL, ALTIVEC, VMX_128 and
+ * CLASSIC (see thirdparty/disasm/ppc-dis.c).
+ */
+constexpr uintptr_t kXenonDialect = 0x1 | 0x4 | 0x4000 | 0x8000000 | 0x200 | 0x1000000 | 0x10000;
 
 thread_local DisassemblerEngine gBigEndianDisassembler{BFD_ENDIAN_BIG, nullptr};
 

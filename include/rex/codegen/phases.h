@@ -18,22 +18,58 @@
 
 namespace rex::codegen::phases {
 
-/// Register PDATA, CONFIG, helpers, imports into FunctionGraph
+/**
+ * Registers PDATA, CONFIG, helpers and imports into FunctionGraph.
+ *
+ * @param ctx CodegenContext with binary and config loaded
+ * @param reporter Optional progress sink, may be null
+ * @return Success, or the failing phase error
+ */
 [[nodiscard]] Result<void> Register(CodegenContext& ctx, ProgressReporter* reporter = nullptr);
 
-/// Scan binary for bl targets, thunks, bctr locations
+/**
+ * Scans the binary for bl targets, thunks and bctr locations.
+ *
+ * @param ctx CodegenContext with binary and config loaded
+ * @param reporter Optional progress sink, may be null
+ * @return Success, or the failing phase error
+ */
 [[nodiscard]] Result<void> Scan(CodegenContext& ctx, ProgressReporter* reporter = nullptr);
 
-/// Discover function blocks from candidates
+/**
+ * Discovers function blocks from candidates.
+ *
+ * @param ctx CodegenContext with binary and config loaded
+ * @param reporter Optional progress sink, may be null
+ * @return Success, or the failing phase error
+ */
 [[nodiscard]] Result<void> Discover(CodegenContext& ctx, ProgressReporter* reporter = nullptr);
 
-/// Vacancy-based function expansion and sealing
+/**
+ * Expands and seals functions by vacancy.
+ *
+ * @param ctx CodegenContext with binary and config loaded
+ * @param reporter Optional progress sink, may be null
+ * @return Success, or the failing phase error
+ */
 [[nodiscard]] Result<void> Merge(CodegenContext& ctx, ProgressReporter* reporter = nullptr);
 
-/// Find uncovered code regions and register them as functions
+/**
+ * Finds uncovered code regions and registers them as functions.
+ *
+ * @param ctx CodegenContext with binary and config loaded
+ * @param reporter Optional progress sink, may be null
+ * @return Success, or the failing phase error
+ */
 [[nodiscard]] Result<void> GapFill(CodegenContext& ctx, ProgressReporter* reporter = nullptr);
 
-/// Validate all call targets resolve
+/**
+ * Validates that all call targets resolve.
+ *
+ * @param ctx CodegenContext with binary and config loaded
+ * @param reporter Optional progress sink, may be null
+ * @return Success, or the failing phase error
+ */
 [[nodiscard]] Result<void> Validate(CodegenContext& ctx, ProgressReporter* reporter = nullptr);
 
 }  // namespace rex::codegen::phases

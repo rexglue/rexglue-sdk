@@ -1,6 +1,6 @@
 /**
  * @file        tests/modules/dupecho.cpp
- * @brief       Test module that also serves the echo interface
+ * @brief       Test module that serves the echo interface
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

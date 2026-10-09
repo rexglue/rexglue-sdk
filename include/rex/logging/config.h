@@ -62,7 +62,7 @@ struct LogConfig {
   LogFileConfig file;
   /** Consumer sinks, added at start and removed at stop. Not owned. */
   std::vector<log::ISink*> sinks;
-  /** Records at or above it flush every sink. */
+  /** Messages at or above it flush every sink. */
   log::Level flush_level = log::Level::kWarn;
   /** Period of the flush thread, 0 for none. */
   std::chrono::seconds flush_interval{1};

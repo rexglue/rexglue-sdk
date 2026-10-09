@@ -1,4 +1,3 @@
-#pragma once
 /**
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
@@ -9,6 +8,8 @@
  *
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
+
+#pragma once
 
 #include <memory>
 #include <string>
@@ -31,37 +32,35 @@ class Runtime;
 
 namespace rex::runtime {
 
-// https://www.nirsoft.net/kernel_struct/vista/LDR_DATA_TABLE_ENTRY.html
-// HMODULE points to this struct!
+/** HMODULE points to this struct. */
 struct X_LDR_DATA_TABLE_ENTRY {
-  X_LIST_ENTRY in_load_order_links;            // 0x0
-  X_LIST_ENTRY in_memory_order_links;          // 0x8
-  X_LIST_ENTRY in_initialization_order_links;  // 0x10
+  X_LIST_ENTRY in_load_order_links;           /**< Offset 0x0. */
+  X_LIST_ENTRY in_memory_order_links;         /**< Offset 0x8. */
+  X_LIST_ENTRY in_initialization_order_links; /**< Offset 0x10. */
 
-  be_u32 dll_base;    // 0x18
-  be_u32 image_base;  // 0x1C
-  be_u32 image_size;  // 0x20
+  be_u32 dll_base;   /**< Offset 0x18. */
+  be_u32 image_base; /**< Offset 0x1C. */
+  be_u32 image_size; /**< Offset 0x20. */
 
-  X_UNICODE_STRING full_dll_name;  // 0x24
-  X_UNICODE_STRING base_dll_name;  // 0x2C
+  X_UNICODE_STRING full_dll_name; /**< Offset 0x24. */
+  X_UNICODE_STRING base_dll_name; /**< Offset 0x2C. */
 
-  be_u32 flags;              // 0x34
-  be_u32 full_image_size;    // 0x38
-  be_u32 entry_point;        // 0x3C
-  be_u16 load_count;         // 0x40
-  be_u16 module_index;       // 0x42
-  be_u32 dll_base_original;  // 0x44
-  be_u32 checksum;           // 0x48 hijacked to hold kernel handle
-  be_u32 load_flags;         // 0x4C
-  be_u32 time_date_stamp;    // 0x50
-  be_u32 loaded_imports;     // 0x54
-  be_u32 xex_header_base;    // 0x58
-  // X_ANSI_STRING load_file_name;     // 0x5C
-  be_u32 closure_root;      // 0x5C
-  be_u32 traversal_parent;  // 0x60
+  be_u32 flags;             /**< Offset 0x34. */
+  be_u32 full_image_size;   /**< Offset 0x38. */
+  be_u32 entry_point;       /**< Offset 0x3C. */
+  be_u16 load_count;        /**< Offset 0x40. */
+  be_u16 module_index;      /**< Offset 0x42. */
+  be_u32 dll_base_original; /**< Offset 0x44. */
+  be_u32 checksum;          /**< Offset 0x48. Holds the kernel handle. */
+  be_u32 load_flags;        /**< Offset 0x4C. */
+  be_u32 time_date_stamp;   /**< Offset 0x50. */
+  be_u32 loaded_imports;    /**< Offset 0x54. */
+  be_u32 xex_header_base;   /**< Offset 0x58. */
+  be_u32 closure_root;      /**< Offset 0x5C. */
+  be_u32 traversal_parent;  /**< Offset 0x60. */
 };
 
-/** Whether a module is HLE kernel code or a loaded title image. */
+/** Module kind, HLE kernel code or a loaded title image. */
 enum class ModuleType : u8 { Kernel, User };
 
 /** The container format of a loaded user module. */
@@ -69,9 +68,12 @@ enum class ModuleFormat : u8 { Undefined, Xex, Elf };
 
 /** The launch request state that the Xam loader exports keep on the Xam module. */
 struct XamLoaderData {
+  /** True once XamLoaderSetLaunchData stored a non empty block. */
   bool launch_data_present = false;
+  /** Bytes the title passed to XamLoaderSetLaunchData, returned by XamLoaderGetLaunchData. */
   std::vector<u8> launch_data;
-  u32 launch_flags = 0;
+  u32 launch_flags = 0; /**< Flags the title passed to XamLoaderLaunchTitle. */
+  /** Path the title passed to XamLoaderLaunchTitle, `game:\default.xex` when it passed none. */
   std::string launch_path;
 };
 
@@ -79,8 +81,9 @@ struct XamLoaderData {
 struct KernelModuleData {
   /** Identifies a thunk by the module that asked for it and the export ordinal. */
   struct ThunkKey {
+    /** Base address of the module that called the export, 0 when no module contains the caller. */
     u32 caller_module_base;
-    u16 ordinal;
+    u16 ordinal; /**< Ordinal of the exported function. */
     bool operator==(const ThunkKey&) const = default;
   };
 
@@ -93,22 +96,29 @@ struct KernelModuleData {
     REX_RUNTIME_API size_t operator()(const ThunkKey& key) const noexcept;
   };
 
+  /** Thunk address made for each caller and ordinal, reused by later lookups. */
   std::unordered_map<ThunkKey, u32, ThunkKeyHash> thunk_cache;
+  /** Guest addresses of the variable exports of the module, bound at module creation. */
   rex::runtime::ExportVariables variables;
-  XamLoaderData loader_data;
+  XamLoaderData loader_data; /**< Launch request state, used only by the Xam module. */
+  /** 1 ms timer that refreshes the tick count of KeTimeStampBundle, set only on Xboxkrnl. */
   std::unique_ptr<rex::platform::HighResolutionTimer> timestamp_timer;
 };
 
 /** The state only a user module has. */
 struct UserModuleData {
+  /** Guest address of the copy of the XEX header, read by XEX header queries. */
   u32 guest_xex_header = 0;
+  /** Container format detected when the module was loaded. */
   ModuleFormat module_format = ModuleFormat::Undefined;
+  /** True when the XEX header sets the DLL flag, so load and unload call the entry point. */
   bool is_dll_module = false;
+  /** Guest address of the entry point from the XEX header or the ELF header. */
   u32 entry_point = 0;
-  u32 stack_size = 0;
+  u32 stack_size = 0; /**< Default stack size in bytes, used for the main thread. */
 };
 
-/** The record data of a module. The kind is always known from type. */
+/** The `ObjectRecord` data of a module. The kind is always known from type. */
 struct ModuleObject : public rex::NonCopyable {
   /**
    * Allocates the loader data entry.
@@ -117,20 +127,23 @@ struct ModuleObject : public rex::NonCopyable {
    * @param type_in Whether the module is kernel or user.
    */
   REX_RUNTIME_API ModuleObject(Runtime* runtime_in, ModuleType type_in);
+  /** Unloads a user module and frees the loader data entry. */
   REX_RUNTIME_API ~ModuleObject();
 
-  ModuleType type;
-  std::string name;
-  std::string path;
+  ModuleType type;  /**< Selects whether `kernel` or `user` holds the state. */
+  std::string name; /**< Module name, the file name of `path` for a user module. */
+  std::string path; /**< Absolute path of the file a user module was loaded from. */
+  /** Loaded XEX or ELF image of a user module, owned by this object, null until loaded. */
   rex::runtime::Module* processor_module = nullptr;
+  /** Guest address of the module X_LDR_DATA_TABLE_ENTRY, the HMODULE titles use. */
   u32 hmodule_ptr = 0;
-  Runtime* runtime;
-  UserModuleData user;
-  KernelModuleData kernel;
+  Runtime* runtime;        /**< Runtime that owns the module, used to free `hmodule_ptr`. */
+  UserModuleData user;     /**< State of a user module, unused for a kernel module. */
+  KernelModuleData kernel; /**< State of a kernel module, unused for a user module. */
 };
 
 /**
- * Creates a module record with its first handle and stores that handle in the loader data entry.
+ * Creates an `ObjectRecord` with its first handle and stores that handle in the loader data entry.
  *
  * @param runtime The runtime the call runs in.
  * @param type Whether the module is kernel or user.
@@ -139,7 +152,7 @@ struct ModuleObject : public rex::NonCopyable {
 REX_RUNTIME_API X_HANDLE CreateModule(Runtime& runtime, ModuleType type);
 
 /**
- * Tests whether a module answers to a name.
+ * Reports whether a module answers to a name.
  *
  * @param module The module.
  * @param name A path, a file name or a module name, compared case insensitively.

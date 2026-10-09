@@ -25,6 +25,11 @@ struct ModuleObject;
 
 namespace rex::kernel::xboxkrnl {
 
+/**
+ * Fills a video mode structure from the runtime display settings.
+ *
+ * @param video_mode Receives the video mode.
+ */
 REX_RUNTIME_API void VdQueryVideoMode(runtime::X_VIDEO_MODE* video_mode);
 
 /**

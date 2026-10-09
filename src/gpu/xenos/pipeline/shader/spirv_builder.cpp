@@ -100,15 +100,10 @@ SpirvBuilder::IfBuilder::IfBuilder(spv::Id condition, unsigned int control, Spir
       thenWeight(thenWeight),
       elseWeight(elseWeight),
       function(builder.getBuildPoint()->getParent()) {
-  // Make the blocks, but only put the then-block into the function, the
-  // else-block and merge-block will be added later, in order, after earlier
-  // code is emitted.
   thenBlock = new spv::Block(builder.getUniqueId(), function);
   elseBlock = nullptr;
   mergeBlock = new spv::Block(builder.getUniqueId(), function);
 
-  // Save the current block, so that we can add in the flow control split when
-  // makeEndIf is called.
   headerBlock = builder.getBuildPoint();
 
   spv::Id headerBlockId = headerBlock->getId();
@@ -124,19 +119,14 @@ void SpirvBuilder::IfBuilder::makeBeginElse(bool branchToMerge) {
   REX_ASSERT(currentBranch == Branch::kThen);
 #endif
 
-  // A block may have only one terminator, and glslang's createBranch appends
-  // unconditionally - check here, like SwitchBuilder::endSegment does.
   if (branchToMerge && !builder.getBuildPoint()->isTerminated()) {
-    // Close out the "then" by having it jump to the mergeBlock.
     thenPhiParent = builder.getBuildPoint()->getId();
     builder.createBranch(mergeBlock);
   }
 
-  // Make the first else block and add it to the function.
   elseBlock = new spv::Block(builder.getUniqueId(), function);
   function.addBlock(elseBlock);
 
-  // Start building the else block.
   builder.setBuildPoint(elseBlock);
 
 #ifndef NDEBUG
@@ -149,14 +139,11 @@ void SpirvBuilder::IfBuilder::makeEndIf(bool branchToMerge) {
   REX_ASSERT(currentBranch == Branch::kThen || currentBranch == Branch::kElse);
 #endif
 
-  // Don't add a second terminator, as in makeBeginElse.
   if (branchToMerge && !builder.getBuildPoint()->isTerminated()) {
-    // Jump to the merge block.
     (elseBlock ? elsePhiParent : thenPhiParent) = builder.getBuildPoint()->getId();
     builder.createBranch(mergeBlock);
   }
 
-  // Go back to the headerBlock and make the flow control split.
   builder.setBuildPoint(headerBlock);
   builder.createSelectionMerge(mergeBlock, control);
   {
@@ -175,7 +162,6 @@ void SpirvBuilder::IfBuilder::makeEndIf(bool branchToMerge) {
     falseBlock->addPredecessor(builder.getBuildPoint());
   }
 
-  // Add the merge block to the function.
   function.addBlock(mergeBlock);
   builder.setBuildPoint(mergeBlock);
 

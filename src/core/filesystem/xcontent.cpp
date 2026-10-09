@@ -1,15 +1,3 @@
-/**
- * @file        core/filesystem/xcontent.cpp
- *
- * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
- *              All rights reserved.
- *
- * @license     BSD 3-Clause License
- *              See LICENSE file in the project root for full license text.
- *
- * @remarks     Derived from Xenia's xenia/vfs/devices/stfs_xbox.h (Ben Vanik, 2021).
- */
-
 #include <rex/filesystem/xcontent.h>
 
 #include <cstring>

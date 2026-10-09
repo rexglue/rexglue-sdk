@@ -1,4 +1,3 @@
-#pragma once
 /**
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
@@ -9,6 +8,8 @@
  *
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
+
+#pragma once
 
 #include <algorithm>
 #include <memory>
@@ -36,15 +37,19 @@ class VulkanSharedMemory : public SharedMemory {
   void EndSubmission();
 
   enum class Usage {
-    // Index buffer, vfetch, compute read, transfer source.
+    /** Index buffer, vfetch, compute read, transfer source. */
     kRead,
-    // Index buffer, vfetch, memexport.
+    /** Index buffer, vfetch, memexport. */
     kGuestDrawReadWrite,
     kComputeWrite,
     kTransferDestination,
   };
-  // Inserts a pipeline barrier for the target usage, also ensuring consecutive
-  // read-write accesses are ordered with each other.
+  /**
+   * Inserts a pipeline barrier for the target usage and orders consecutive read write accesses.
+   *
+   * @param usage Usage to transition to.
+   * @param written_range Byte offset and length the usage writes.
+   */
   void Use(Usage usage, std::pair<uint32_t, uint32_t> written_range = {});
 
   VkBuffer buffer() const { return buffer_; }
@@ -64,7 +69,7 @@ class VulkanSharedMemory : public SharedMemory {
 
   VkBuffer buffer_ = VK_NULL_HANDLE;
   uint32_t buffer_memory_type_;
-  // Single for non-sparse, every allocation so far for sparse.
+  /** Single allocation when non sparse, every allocation so far when sparse. */
   std::vector<VkDeviceMemory> buffer_memory_;
 
   Usage last_usage_;

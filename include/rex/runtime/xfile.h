@@ -1,4 +1,3 @@
-#pragma once
 /**
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
@@ -9,6 +8,8 @@
  *
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
+
+#pragma once
 
 #include <memory>
 #include <mutex>
@@ -37,22 +38,27 @@ namespace rex::runtime {
 
 class IObjectTable;
 
-// https://docs.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/ns-ntifs-_file_directory_information
+/** Guest layout of 1 entry of a directory listing, chained through next_entry_offset. */
 class X_FILE_DIRECTORY_INFORMATION {
  public:
-  // FILE_DIRECTORY_INFORMATION
-  be_u32 next_entry_offset;  // 0x0
-  be_u32 file_index;         // 0x4
-  be_u64 creation_time;      // 0x8
-  be_u64 last_access_time;   // 0x10
-  be_u64 last_write_time;    // 0x18
-  be_u64 change_time;        // 0x20
-  be_u64 end_of_file;        // 0x28 size in bytes
-  be_u64 allocation_size;    // 0x30
-  be_u32 attributes;         // 0x38 X_FILE_ATTRIBUTES
-  be_u32 file_name_length;   // 0x3C
-  char file_name[1];         // 0x40
+  be_u32 next_entry_offset; /**< Offset 0x0. */
+  be_u32 file_index;        /**< Offset 0x4. */
+  be_u64 creation_time;     /**< Offset 0x8. */
+  be_u64 last_access_time;  /**< Offset 0x10. */
+  be_u64 last_write_time;   /**< Offset 0x18. */
+  be_u64 change_time;       /**< Offset 0x20. */
+  be_u64 end_of_file;       /**< Offset 0x28. Size in bytes. */
+  be_u64 allocation_size;   /**< Offset 0x30. */
+  be_u32 attributes;        /**< Offset 0x38. X_FILE_ATTRIBUTES. */
+  be_u32 file_name_length;  /**< Offset 0x3C. */
+  char file_name[1];        /**< Offset 0x40. */
 
+  /**
+   * Copies this entry and the entries chained after it into guest memory.
+   *
+   * @param base The host address of guest memory.
+   * @param p The guest address of the first copy.
+   */
   void Write(uint8_t* base, uint32_t p) {
     uint8_t* dst = base + p;
     uint8_t* src = reinterpret_cast<uint8_t*>(this);
@@ -89,15 +95,19 @@ struct FileObject {
   /** Closes the IO completion port handles the file owns. */
   REX_RUNTIME_API ~FileObject();
 
-  std::unique_ptr<filesystem::IFile> file;
+  std::unique_ptr<filesystem::IFile> file; /**< Opened file or directory. */
+  /** Auto reset event set when an asynchronous read or write completes, waited on by the handle. */
   std::unique_ptr<rex::platform::Event> async_event;
-  mutable std::mutex file_lock;
-  std::mutex completion_port_lock;
+  mutable std::mutex file_lock;    /**< Guards position, find and the reads and writes of file. */
+  std::mutex completion_port_lock; /**< Guards completion_ports and port_table. */
+  /** Completion key and port handle of each IO completion port the file posts to. */
   std::vector<std::pair<u32, X_HANDLE>> completion_ports;
+  /** Table that owns the handles in completion_ports, set when the first port registers. */
   IObjectTable* port_table = nullptr;
-  u64 position = 0;
+  u64 position = 0; /**< Current byte offset used by reads and writes that pass no offset. */
+  /** Directory listing a find call is walking, null before the first find. */
   std::unique_ptr<filesystem::IDirectory> find;
-  bool is_synchronous = false;
+  bool is_synchronous = false; /**< True when the title opened the file for synchronous IO. */
 };
 
 /**

@@ -1,7 +1,11 @@
 /**
- * Unit tests for stream utilities (BitStream, ByteStream)
+ * @file        tests/unit/core/stream_test.cpp
  *
- * Tests bit-level and byte-level stream operations.
+ * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
+ *              All rights reserved.
+ *
+ * @license     BSD 3-Clause License
+ *              See LICENSE file in the project root for full license text.
  */
 
 #include <array>
@@ -14,10 +18,6 @@
 
 using rex::BitStream;
 using rex::ByteStream;
-
-// =============================================================================
-// ByteStream Basic Tests
-// =============================================================================
 
 TEST_CASE("ByteStream construction and initial state", "[stream][bytestream]") {
   std::array<uint8_t, 16> buffer{};
@@ -57,10 +57,6 @@ TEST_CASE("ByteStream set_offset works", "[stream][bytestream]") {
   CHECK(stream.offset() == 0);
 }
 
-// =============================================================================
-// ByteStream Read/Write Tests
-// =============================================================================
-
 TEST_CASE("ByteStream Write and Read span", "[stream][bytestream]") {
   std::array<uint8_t, 16> buffer{};
   ByteStream stream(buffer.data(), buffer.size());
@@ -74,7 +70,6 @@ TEST_CASE("ByteStream Write and Read span", "[stream][bytestream]") {
   CHECK(buffer[2] == 0x33);
   CHECK(buffer[3] == 0x44);
 
-  // Read it back
   stream.set_offset(0);
   std::array<uint8_t, 4> read_data{};
   stream.Read(read_data.data(), read_data.size());
@@ -87,7 +82,6 @@ TEST_CASE("ByteStream Write and Read template primitives", "[stream][bytestream]
   std::array<uint8_t, 32> buffer{};
   ByteStream stream(buffer.data(), buffer.size());
 
-  // Write mixed types
   stream.Write<uint8_t>(0x12);
   stream.Write<uint16_t>(0x3456);
   stream.Write<uint32_t>(0x789ABCDE);
@@ -95,7 +89,6 @@ TEST_CASE("ByteStream Write and Read template primitives", "[stream][bytestream]
 
   CHECK(stream.offset() == 1 + 2 + 4 + 8);
 
-  // Read them back
   stream.set_offset(0);
   CHECK(stream.Read<uint8_t>() == 0x12);
   CHECK(stream.Read<uint16_t>() == 0x3456);
@@ -155,10 +148,6 @@ TEST_CASE("ByteStream empty string round-trip", "[stream][bytestream]") {
   CHECK(result.empty());
 }
 
-// =============================================================================
-// BitStream Basic Tests
-// =============================================================================
-
 TEST_CASE("BitStream construction and initial state", "[stream][bitstream]") {
   std::array<uint8_t, 16> buffer{};
   BitStream stream(buffer.data(), buffer.size() * 8);
@@ -189,20 +178,16 @@ TEST_CASE("BitStream Advance works", "[stream][bitstream]") {
   CHECK(stream.offset_bits() == 15);
 }
 
-// =============================================================================
-// BitStream Peek/Read Tests
-// =============================================================================
-
 TEST_CASE("BitStream Peek reads without advancing", "[stream][bitstream]") {
-  // Buffer with known pattern: 0xAB = 10101011
+  // 0xAB = 10101011
   std::array<uint8_t, 16> buffer = {0xAB, 0xCD, 0xEF, 0x12, 0x34, 0x56, 0x78, 0x9A};
   BitStream stream(buffer.data(), buffer.size() * 8);
 
   uint64_t val1 = stream.Peek(8);
-  CHECK(stream.offset_bits() == 0);  // No advance
+  CHECK(stream.offset_bits() == 0);
 
   uint64_t val2 = stream.Peek(8);
-  CHECK(val1 == val2);  // Same value
+  CHECK(val1 == val2);
 }
 
 TEST_CASE("BitStream Read advances offset", "[stream][bitstream]") {
@@ -217,7 +202,6 @@ TEST_CASE("BitStream Read advances offset", "[stream][bitstream]") {
 }
 
 TEST_CASE("BitStream Read byte-aligned values", "[stream][bitstream]") {
-  // Big-endian data: reading first byte should give 0xAB
   std::array<uint8_t, 16> buffer = {0xAB, 0xCD, 0xEF, 0x12, 0x34, 0x56, 0x78, 0x9A};
   BitStream stream(buffer.data(), buffer.size() * 8);
 
@@ -230,7 +214,6 @@ TEST_CASE("BitStream Read 16-bit aligned", "[stream][bitstream]") {
   std::array<uint8_t, 16> buffer = {0xAB, 0xCD, 0xEF, 0x12, 0x34, 0x56, 0x78, 0x9A};
   BitStream stream(buffer.data(), buffer.size() * 8);
 
-  // Reading 16 bits from big-endian: 0xABCD
   CHECK(stream.Read(16) == 0xABCD);
   CHECK(stream.Read(16) == 0xEF12);
 }
@@ -247,13 +230,10 @@ TEST_CASE("BitStream Read non-byte-aligned", "[stream][bitstream]") {
   std::array<uint8_t, 16> buffer = {0xAB, 0xCD, 0xEF, 0x12, 0x34, 0x56, 0x78, 0x9A};
   BitStream stream(buffer.data(), buffer.size() * 8);
 
-  // Read 4 bits: should be 1010 = 0xA
   CHECK(stream.Read(4) == 0xA);
 
-  // Read 4 bits: should be 1011 = 0xB
   CHECK(stream.Read(4) == 0xB);
 
-  // Read 8 bits: should be 0xCD
   CHECK(stream.Read(8) == 0xCD);
 }
 
@@ -262,34 +242,25 @@ TEST_CASE("BitStream Read single bits", "[stream][bitstream]") {
   std::array<uint8_t, 16> buffer = {0xAB, 0xCD, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
   BitStream stream(buffer.data(), buffer.size() * 8);
 
-  // Read bits one at a time from MSB
-  CHECK(stream.Read(1) == 1);  // 1
-  CHECK(stream.Read(1) == 0);  // 0
-  CHECK(stream.Read(1) == 1);  // 1
-  CHECK(stream.Read(1) == 0);  // 0
-  CHECK(stream.Read(1) == 1);  // 1
-  CHECK(stream.Read(1) == 0);  // 0
-  CHECK(stream.Read(1) == 1);  // 1
-  CHECK(stream.Read(1) == 1);  // 1
+  CHECK(stream.Read(1) == 1);
+  CHECK(stream.Read(1) == 0);
+  CHECK(stream.Read(1) == 1);
+  CHECK(stream.Read(1) == 0);
+  CHECK(stream.Read(1) == 1);
+  CHECK(stream.Read(1) == 0);
+  CHECK(stream.Read(1) == 1);
+  CHECK(stream.Read(1) == 1);
 }
 
 TEST_CASE("BitStream Read crossing byte boundary", "[stream][bitstream]") {
-  // Read bits that span byte boundaries
   std::array<uint8_t, 16> buffer = {0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
   BitStream stream(buffer.data(), buffer.size() * 8);
 
-  stream.Advance(4);  // Now at bit 4
+  stream.Advance(4);
 
-  // Read 8 bits crossing the boundary: last 4 of 0xFF + first 4 of 0x00
-  // 0xFF = 11111111, last 4 = 1111
-  // 0x00 = 00000000, first 4 = 0000
-  // Combined: 11110000 = 0xF0
+  // Last 4 bits of 0xFF and first 4 bits of 0x00 give 11110000 = 0xF0.
   CHECK(stream.Read(8) == 0xF0);
 }
-
-// =============================================================================
-// BitStream Write Tests
-// =============================================================================
 
 TEST_CASE("BitStream Write byte-aligned", "[stream][bitstream]") {
   std::array<uint8_t, 16> buffer{};
@@ -316,9 +287,8 @@ TEST_CASE("BitStream Write non-byte-aligned", "[stream][bitstream]") {
   std::array<uint8_t, 16> buffer{};
   BitStream stream(buffer.data(), buffer.size() * 8);
 
-  // Write 4 bits, then 4 more
-  stream.Write(0xA, 4);  // 1010
-  stream.Write(0xB, 4);  // 1011
+  stream.Write(0xA, 4);
+  stream.Write(0xB, 4);
 
   stream.SetOffset(0);
   CHECK(stream.Read(8) == 0xAB);
@@ -329,24 +299,19 @@ TEST_CASE("BitStream Write preserves surrounding bits", "[stream][bitstream]") {
   BitStream stream(buffer.data(), buffer.size() * 8);
 
   stream.Advance(4);
-  stream.Write(0x0, 4);  // Clear middle 4 bits
+  stream.Write(0x0, 4);
 
   stream.SetOffset(0);
-  // First 4 bits should still be 1111, next 4 should be 0000
   CHECK(stream.Read(4) == 0xF);
   CHECK(stream.Read(4) == 0x0);
 }
-
-// =============================================================================
-// BitStream Edge Cases
-// =============================================================================
 
 TEST_CASE("BitStream Read zero bits returns zero", "[stream][bitstream]") {
   std::array<uint8_t, 16> buffer = {0xFF, 0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
   BitStream stream(buffer.data(), buffer.size() * 8);
 
   CHECK(stream.Read(0) == 0);
-  CHECK(stream.offset_bits() == 0);  // No advance
+  CHECK(stream.offset_bits() == 0);
 }
 
 TEST_CASE("BitStream maximum bits (57)", "[stream][bitstream]") {
@@ -360,7 +325,7 @@ TEST_CASE("BitStream maximum bits (57)", "[stream][bitstream]") {
 
 TEST_CASE("BitStream BitsRemaining decreases", "[stream][bitstream]") {
   std::array<uint8_t, 16> buffer{};
-  BitStream stream(buffer.data(), 64);  // 64 bits = 8 bytes
+  BitStream stream(buffer.data(), 64);
 
   CHECK(stream.BitsRemaining() == 64);
 

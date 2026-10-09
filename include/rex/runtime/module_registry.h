@@ -66,7 +66,7 @@ class IModuleRegistry {
   [[nodiscard]] virtual std::optional<X_HANDLE> FindUser(std::string_view name) = 0;
 
   /**
-   * Tests whether a name belongs to a kernel module.
+   * Reports whether a name belongs to a kernel module.
    *
    * @param name A module name, a file name or a path.
    * @return True when a kernel module matches, false for an empty name.

@@ -1,4 +1,3 @@
-#pragma once
 /**
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
@@ -9,6 +8,8 @@
  *
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
+
+#pragma once
 
 #include <memory>
 
@@ -34,7 +35,11 @@ class VulkanProvider : public GraphicsProvider {
 
   VulkanDevice* vulkan_device() const { return vulkan_device_.get(); }
 
-  // nullptr if created without presentation support.
+  /**
+   * Returns the UI samplers.
+   *
+   * @return The samplers, or nullptr when created without presentation support.
+   */
   const UISamplers* ui_samplers() const { return ui_samplers_.get(); }
 
   std::unique_ptr<Presenter> CreatePresenter(Presenter::HostGpuLossCallback host_gpu_loss_callback =

@@ -131,8 +131,7 @@ std::filesystem::path ContentManager::ResolvePackageRoot(u64 xuid, XContentType 
   auto title_id_str = std::format("{:08X}", title_id);
   auto content_type_str = std::format("{:08X}", static_cast<u32>(content_type));
 
-  // Package root path:
-  // content_root/xuid/title_id/content_type/
+  // Layout is content_root/xuid/title_id/content_type/
   return root_path_ / xuid_str / title_id_str / content_type_str;
 }
 
@@ -141,13 +140,10 @@ std::filesystem::path ContentManager::ResolvePackagePath(u64 xuid,
   u64 used_xuid =
       (data.xuid != static_cast<u64>(-1) && data.xuid != 0) ? static_cast<u64>(data.xuid) : xuid;
 
-  // DLCs are stored in common directory
   if (data.content_type == XContentType::kMarketplaceContent) {
     used_xuid = 0;
   }
 
-  // Content path:
-  // content_root/xuid/title_id/content_type/data_file_name/
   auto package_root = ResolvePackageRoot(used_xuid, data.content_type, data.title_id);
   return package_root / rex::to_path(data.file_name());
 }
@@ -168,8 +164,7 @@ std::filesystem::path ContentManager::ResolvePackageHeaderPath(const std::string
   auto content_type_str = std::format("{:08X}", static_cast<u32>(content_type));
   std::string final_name = std::string(file_name) + ".header";
 
-  // Header root path:
-  // content_root/xuid/title_id/Headers/content_type/filename.header
+  // Layout is content_root/xuid/title_id/Headers/content_type/filename.header
   return root_path_ / xuid_str / title_id_str / kGameContentHeaderDirName / content_type_str /
          final_name;
 }
@@ -183,8 +178,6 @@ std::vector<XCONTENT_AGGREGATE_DATA> ContentManager::ListContent(u32 device_id, 
     title_id = this->title_id();
   }
 
-  // Search path:
-  // content_root/xuid/title_id/type_name/*
   auto package_root = ResolvePackageRoot(xuid, content_type, title_id);
   std::error_code ec;
   for (const auto& child : std::filesystem::directory_iterator(package_root, ec)) {
@@ -344,7 +337,6 @@ Result<void> ContentManager::CloseContent(const std::string_view root_name) {
   std::string open_root_name;
   {
     std::lock_guard lock(mutex_);
-    // Some games use different casing between Create and Close (e.g. "save" vs "SAVE")
     auto it = open_packages_.find(string_key_case(root_name));
     if (it == open_packages_.end()) {
       return Err(ResultError(X_ERROR_FILE_NOT_FOUND));
@@ -395,7 +387,6 @@ Result<void> ContentManager::DeleteContent(u64 xuid, const XCONTENT_AGGREGATE_DA
   std::lock_guard lock(mutex_);
 
   if (IsContentOpen(data)) {
-    // TODO(Gliniak): Get real error code for this case.
     return Err(ResultError(X_ERROR_ACCESS_DENIED));
   }
 
@@ -419,8 +410,6 @@ std::filesystem::path ContentManager::ResolveGameUserContentPath() {
   auto title_id = std::format("{:08X}", this->title_id());
   auto user_name = rex::to_path(user_profile_.name());
 
-  // Per-game per-profile data location:
-  // content_root/title_id/profile/user_name
   return root_path_ / title_id / kGameUserContentDirName / user_name;
 }
 
@@ -442,8 +431,6 @@ bool ContentManager::IsContentOpen(const XCONTENT_AGGREGATE_DATA& data) const {
 }
 
 void ContentManager::CloseOpenedFilesFromContent(const std::string_view root_name) {
-  // TODO(Gliniak): Cleanup this code to care only about handles
-  // related to provided content
   const std::vector<Pinned<FileObject>> all_files_handles =
       runtime_.object_table().GetAll<FileObject>();
 

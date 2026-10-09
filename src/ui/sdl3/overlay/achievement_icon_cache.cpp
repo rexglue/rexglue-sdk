@@ -1,12 +1,3 @@
-/**
- * @file        ui/sdl3/overlay/achievement_icon_cache.cpp
- *
- * @copyright   Copyright (c) 2026 Rien Gupta <rgupta9@scu.edu>
- *              All rights reserved.
- *
- * @license     BSD 3-Clause License
- *              See LICENSE file in the project root for full license text.
- */
 #include "ui/sdl3/overlay/achievement_icon_cache.h"
 
 #include <cstdint>

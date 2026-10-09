@@ -100,7 +100,8 @@ void Runtime::CreateConcerns() {
   globals->ObSymbolicLinkObjectType.pool_tag = memory::make_fourcc('O', 'b', 'S', 'l');
 
   auto* usbd_event = reinterpret_cast<X_DISPATCH_HEADER*>(&globals->UsbdBootEnumerationDoneEvent);
-  usbd_event->type = 1;  // NotificationEvent
+  // Dispatch header type 1 is a notification event.
+  usbd_event->type = 1;
   usbd_event->signal_state = 1;
 
   u32 oddobject_offset = kernel_guest_globals_ + offsetof(KernelGuestGlobals, OddObj);

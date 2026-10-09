@@ -18,8 +18,12 @@
 
 namespace rex::ui {
 
-/// Maps an SDL scancode to the Win32-style hid::VirtualKey used by the input
-/// listener API. Returns hid::VirtualKey::kNone for unmapped keys.
+/**
+ * Maps an SDL scancode to the Win32 style hid::VirtualKey used by the input listener API.
+ *
+ * @param scancode SDL scancode to map.
+ * @return The virtual key, or hid::VirtualKey::kNone for unmapped keys.
+ */
 hid::VirtualKey TranslateSDLScancode(SDL_Scancode scancode);
 
 }  // namespace rex::ui

@@ -23,16 +23,19 @@
 namespace rex::kernel::xboxkrnl {
 using namespace rex::runtime;
 
+/**
+ * Reports whether the executable has a system flag set.
+ *
+ * The privilege is the bit index, so 6 selects 0x40 (XEX_SYSTEM_INSECURE_SOCKETS).
+ *
+ * @param privilege Bit position in the XEX system flags.
+ * @return 1 when the flag is set, otherwise 0.
+ */
 u32 XexCheckExecutablePrivilege_entry(u32 privilege) {
   REXLOG_TRACE(kernel,
                "XexCheckExecutablePrivilege "
                "priv={}",
                static_cast<uint32_t>(privilege));
-  // BOOL
-  // DWORD Privilege
-
-  // Privilege is bit position in the XEX system flags enum - so:
-  // Privilege=6 -> 0x00000040 -> XEX_SYSTEM_INSECURE_SOCKETS
   uint32_t mask = 1 << privilege;
 
   auto module = runtime::Current().object_table().Get<ModuleObject>(
@@ -62,7 +65,6 @@ u32 XexGetModuleHandle_entry(mapped_string module_name, mapped_u32 hmodule_ptr) 
     return X_ERROR_NOT_FOUND;
   }
 
-  // NOTE: we don't retain the handle for return.
   *hmodule_ptr = module->hmodule_ptr;
 
   return X_ERROR_SUCCESS;
@@ -135,8 +137,7 @@ u32 XexUnloadImage_entry(mapped_void hmodule) {
     return X_STATUS_SUCCESS;
   }
 
-  // Decrement-and-check under the lock so concurrent unloads can't both
-  // observe zero and double-free.
+  // Decrement and check under the lock so concurrent unloads cannot both see 0 and double free.
   bool last_ref;
   {
     std::lock_guard lock(runtime::Current().module_registry().load_count_mutex());
@@ -152,7 +153,6 @@ u32 XexUnloadImage_entry(mapped_void hmodule) {
 }
 
 u32 XexGetProcedureAddress_entry(mapped_void hmodule, u32 ordinal, mapped_u32 out_function_ptr) {
-  // May be entry point?
   REX_ASSERT(ordinal != 0);
 
   uint32_t caller_address = 0;

@@ -183,9 +183,8 @@ static void ExceptionHandlerCallback(int signal_number, siginfo_t* signal_info,
       ex.InitializeIllegalInstruction(&thread_context);
       break;
     case SIGBUS:
-      // macOS raises SIGBUS for a write to a protected page.
+      // macOS raises SIGBUS for a write to a protected page, elsewhere it is a misaligned access.
 #if !REX_PLATFORM_MAC
-      // Elsewhere SIGBUS is a misaligned access, not a protection fault.
       REX_UNHANDLED_CASE(signal_number);
       return;
 #endif

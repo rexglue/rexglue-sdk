@@ -1,4 +1,3 @@
-#pragma once
 /**
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
@@ -9,6 +8,8 @@
  *
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
+
+#pragma once
 
 #include <memory>
 #include <set>
@@ -39,95 +40,79 @@ class ShaderTranslator {
     return 0;
   }
 
-  // AnalyzeUcode must be done on the shader before translating!
+  /**
+   * Translates an analyzed shader.
+   *
+   * AnalyzeUcode must be done on the shader before translating.
+   *
+   * @param translation Translation to fill.
+   * @return Whether translation succeeded.
+   */
   bool TranslateAnalyzedShader(Shader::Translation& translation);
 
  protected:
   ShaderTranslator();
 
-  // Resets translator state before beginning translation.
+  /** Resets translator state before beginning translation. */
   virtual void Reset();
 
-  // Shader and modification being translated.
+  /** Shader and modification being translated. */
   Shader::Translation& current_translation() const { return *translation_; }
   Shader& current_shader() const { return current_translation().shader(); }
 
-  // Register count from SQ_PROGRAM_CNTL, stored by the implementation in its
-  // modification bits.
+  /** Register count from SQ_PROGRAM_CNTL, stored by the implementation in its modification bits. */
   virtual uint32_t GetModificationRegisterCount() const { return xenos::kMaxShaderTempRegisters; }
 
-  // True if the current shader is a vertex shader.
   bool is_vertex_shader() const { return current_shader().type() == xenos::ShaderType::kVertex; }
-  // True if the current shader is a pixel shader.
   bool is_pixel_shader() const { return current_shader().type() == xenos::ShaderType::kPixel; }
 
-  // Temporary register count, accessible via static and dynamic addressing.
+  /** Temporary register count, accessible via static and dynamic addressing. */
   uint32_t register_count() const { return register_count_; }
 
-  // Emits a translation error that will be passed back in the result.
+  /**
+   * Emits a translation error that is passed back in the result.
+   *
+   * @param message Error text.
+   * @param is_fatal Whether the error fails the translation.
+   */
   virtual void EmitTranslationError(const char* message, bool is_fatal = true);
 
-  // Handles the start of translation.
-  // The vertex and texture bindings have been gathered.
+  /** Called at the start of translation after the vertex and texture bindings are gathered. */
   virtual void StartTranslation() {}
 
-  // Handles the end of translation when all ucode has been processed.
-  // Returns the translated shader binary.
+  /**
+   * Called at the end of translation after all ucode is processed.
+   *
+   * @return The translated shader binary.
+   */
   virtual std::vector<uint8_t> CompleteTranslation() { return std::vector<uint8_t>(); }
 
-  // Handles post-translation tasks when the shader has been fully translated.
   virtual void PostTranslation() {}
-  // Sets the host disassembly on a shader.
   void set_host_disassembly(Shader::Translation& translation, std::string value) {
     translation.host_disassembly_ = std::move(value);
   }
 
-  // Pre-process a control-flow instruction before anything else.
-  virtual void PreProcessControlFlowInstructions(
-      std::vector<xenos::ucode::ControlFlowInstruction> /*instrs*/) {}
-
-  // Handles translation for control flow label addresses.
-  // This is triggered once for each label required (due to control flow
-  // operations) before any of the instructions within the target exec.
+  /** Called once per label required by control flow, before the instructions of the target exec. */
   virtual void ProcessLabel(uint32_t /*cf_index*/) {}
 
-  // Handles translation for control flow nop instructions.
   virtual void ProcessControlFlowNopInstruction(uint32_t /*cf_index*/) {}
-  // Handles the start of a control flow instruction at the given address.
   virtual void ProcessControlFlowInstructionBegin(uint32_t /*cf_index*/) {}
-  // Handles the end of a control flow instruction that began at the given
-  // address.
   virtual void ProcessControlFlowInstructionEnd(uint32_t /*cf_index*/) {}
-  // Handles translation for control flow exec instructions prior to their
-  // contained ALU/fetch instructions.
   virtual void ProcessExecInstructionBegin(const ParsedExecInstruction& /*instr*/) {}
-  // Handles translation for control flow exec instructions after their
-  // contained ALU/fetch instructions.
   virtual void ProcessExecInstructionEnd(const ParsedExecInstruction& /*instr*/) {}
-  // Handles translation for loop start instructions.
   virtual void ProcessLoopStartInstruction(const ParsedLoopStartInstruction& /*instr*/) {}
-  // Handles translation for loop end instructions.
   virtual void ProcessLoopEndInstruction(const ParsedLoopEndInstruction& /*instr*/) {}
-  // Handles translation for function call instructions.
   virtual void ProcessCallInstruction(const ParsedCallInstruction& /*instr*/) {}
-  // Handles translation for function return instructions.
   virtual void ProcessReturnInstruction(const ParsedReturnInstruction& /*instr*/) {}
-  // Handles translation for jump instructions.
   virtual void ProcessJumpInstruction(const ParsedJumpInstruction& /*instr*/) {}
-  // Handles translation for alloc instructions. Memory exports for eM#
-  // indicated by export_eM must be performed, regardless of the alloc type.
+  /** Memory exports for the eM# in export_eM must be performed regardless of the alloc type. */
   virtual void ProcessAllocInstruction(const ParsedAllocInstruction& /*instr*/,
                                        uint8_t /*export_eM*/) {}
 
-  // Handles translation for vertex fetch instructions.
   virtual void ProcessVertexFetchInstruction(const ParsedVertexFetchInstruction& /*instr*/) {}
-  // Handles translation for texture fetch instructions.
   virtual void ProcessTextureFetchInstruction(const ParsedTextureFetchInstruction& /*instr*/) {}
-  // Handles translation for ALU instructions.
-  // memexport_eM_potentially_written_before needs to be handled by `kill`
-  // instruction to make sure memory exports for the eM# writes earlier in
-  // previous execs and the current exec are done before the invocation becomes
-  // inactive.
+  /** memexport_eM_potentially_written_before must be handled by `kill` so exports of eM# written in
+   * earlier execs and the current exec are done before the invocation becomes inactive. */
   virtual void ProcessAluInstruction(const ParsedAluInstruction& /*instr*/,
                                      uint8_t /*memexport_eM_potentially_written_before*/) {}
 
@@ -135,19 +120,14 @@ class ShaderTranslator {
   void TranslateControlFlowInstruction(const xenos::ucode::ControlFlowInstruction& cf);
   void TranslateExecInstructions(const ParsedExecInstruction& instr);
 
-  // Current shader and modification being translated.
   Shader::Translation* translation_ = nullptr;
 
-  // Accumulated translation errors.
   std::vector<Shader::Error> errors_;
 
-  // Temporary register count, accessible via static and dynamic addressing.
   uint32_t register_count_ = 0;
 
-  // Current control flow dword index.
   uint32_t cf_index_ = 0;
 
-  // Kept for supporting vfetch_mini.
   xenos::ucode::VertexFetchInstruction previous_vfetch_full_;
 };
 

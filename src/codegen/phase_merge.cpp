@@ -19,9 +19,11 @@ namespace rex::codegen {
 
 namespace {
 
-//=============================================================================
-// Merge to resolve jumps then seal functions
-//=============================================================================
+/**
+ * Resolves jumps then seals functions.
+ *
+ * @param ctx Codegen context.
+ */
 void mergeAndSeal(CodegenContext& ctx) {
   REXLOG_TRACE(codegen, "Analyze: resolving jumps and sealing functions...");
 

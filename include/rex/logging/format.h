@@ -47,9 +47,9 @@ struct Record {
 };
 
 /**
- * Renders a record as 1 line without a line break.
+ * Renders a message as 1 line without a line break.
  *
- * @param record The record.
+ * @param record The message.
  * @param format What to write around the message.
  * @return The line. Color is written as ANSI SGR codes.
  */

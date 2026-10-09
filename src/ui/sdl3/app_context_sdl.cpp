@@ -1,13 +1,3 @@
-/**
- * @file        ui/sdl3/app_context_sdl.cpp
- *
- * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
- *              All rights reserved.
- *
- * @license     BSD 3-Clause License
- *              See LICENSE file in the project root for full license text.
- */
-
 #include "ui/sdl3/app_context_sdl.h"
 
 #include <cstdlib>
@@ -26,8 +16,6 @@ SDLWindowedAppContext::~SDLWindowedAppContext() {
   if (event_watch_registered_) {
     SDL_RemoveEventWatch(WatchEvent, this);
   }
-  // Execute leftover pending functions before the loop machinery goes away,
-  // mirroring the shutdown contract documented in WindowedAppContext.
   ExecutePendingFunctionsFromUIThread();
   if (SDL_WasInit(SDL_INIT_VIDEO)) {
     SDL_QuitSubSystem(SDL_INIT_VIDEO);
@@ -37,7 +25,7 @@ SDLWindowedAppContext::~SDLWindowedAppContext() {
 bool SDLWindowedAppContext::Initialize(const UIConfig& config) {
   std::string requested_driver = config.video_driver;
 #if REX_PLATFORM_MAC
-  // macOS presents via a CAMetalLayer surface obtained from the Cocoa driver.
+  // macOS presents through a CAMetalLayer surface from the Cocoa driver.
   if (requested_driver.empty()) {
     requested_driver = "cocoa";
   }
@@ -71,8 +59,7 @@ void SDLWindowedAppContext::NotifyUILoopOfPendingFunctions() {
 }
 
 void SDLWindowedAppContext::PlatformQuitFromUIThread() {
-  // RunMainMessageLoop re-checks HasQuitFromUIThread after every event; a
-  // wakeup guarantees SDL_WaitEvent returns promptly if the queue is empty.
+  // A wakeup makes SDL_WaitEvent return so the loop re-checks HasQuitFromUIThread.
   NotifyUILoopOfPendingFunctions();
 }
 
@@ -104,14 +91,7 @@ void SDLWindowedAppContext::ProcessEvent(SDL_Event& event) {
     return;
   }
   if (event.type == paint_event_type_) {
-    // Cocoa may enqueue its quit request behind an already queued paint. Once
-    // termination has been requested, CAMetalLayer may stop supplying
-    // drawables, so entering the paint first can block forever in
-    // -[CAMetalLayer nextDrawable] and prevent the quit event from being
-    // processed. Give an already queued quit request priority over rendering.
-    // Pump explicitly because a continuous stream of custom paint events can
-    // otherwise keep SDL_WaitEvent from returning to Cocoa to collect the
-    // application-menu quit request.
+    // A queued quit goes first, pumped so a stream of paints cannot starve Cocoa.
     SDL_PumpEvents();
     SDL_Event quit_event{};
     if (SDL_PeepEvents(&quit_event, 1, SDL_GETEVENT, SDL_EVENT_QUIT, SDL_EVENT_QUIT) > 0) {
@@ -185,9 +165,7 @@ void SDLWindowedAppContext::ProcessEvent(SDL_Event& event) {
 bool SDLCALL SDLWindowedAppContext::WatchEvent(void* userdata, SDL_Event* event) {
   auto* context = static_cast<SDLWindowedAppContext*>(userdata);
   if (event->type == SDL_EVENT_QUIT && SDL_IsMainThread() && context->IsInUIThread()) {
-    // Cocoa stops making Metal drawables available as part of its termination
-    // request. Handle the request synchronously while SDL is queueing it,
-    // before rendering can enter another blocking nextDrawable call.
+    // Handled while SDL queues the quit, before rendering blocks in nextDrawable.
     ++context->synchronously_handled_quit_events_;
     context->ProcessQuitRequest();
   }
@@ -195,9 +173,7 @@ bool SDLCALL SDLWindowedAppContext::WatchEvent(void* userdata, SDL_Event* event)
 }
 
 void SDLWindowedAppContext::ProcessQuitRequest() {
-  // Use the normal close-request path rather than terminating the message loop
-  // directly. Window listeners use OnClosing to stop guest, audio and GPU
-  // threads; bypassing it leaves the process hanging during teardown.
+  // Goes through the close request path so OnClosing stops the guest, audio and GPU threads.
   std::vector<SDL_WindowID> window_ids;
   window_ids.reserve(windows_.size());
   for (const auto& [id, window] : windows_) {

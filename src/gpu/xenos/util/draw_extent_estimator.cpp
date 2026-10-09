@@ -25,33 +25,6 @@
 
 #include "gpu/xenos/cvar_table.h"
 
-// DEFINE_bool(
-//     execute_unclipped_draw_vs_on_cpu, true,
-//     "Execute the vertex shader for draws with clipping disabled, primarily "
-//     "screen-space draws (such as clears), on the CPU when possible to estimate "
-//     "the extent of the EDRAM involved in the draw.\n"
-//     "Enabling this may significantly improve GPU performance as otherwise up "
-//     "to the entire EDRAM may be considered used in draws without clipping, "
-//     "potentially resulting in spurious EDRAM range ownership transfer round "
-//     "trips between host render targets.\n"
-//     "Also, on hosts where certain render target formats have to be emulated in "
-//     "a lossy way (for instance, 16-bit fixed-point via 16-bit floating-point), "
-//     "this prevents corruption of other render targets located after the "
-//     "current ones in the EDRAM by lossy range ownership transfers done for "
-//     "those draws.",
-//     "GPU");
-// DEFINE_bool(
-//     execute_unclipped_draw_vs_on_cpu_with_scissor, false,
-//     "Don't restrict the usage of execute_unclipped_draw_vs_on_cpu to only "
-//     "non-scissored draws (with the right and the bottom sides of the scissor "
-//     "rectangle at 8192 or beyond) even though if the scissor rectangle is "
-//     "present, it's usually sufficient for esimating the height of the render "
-//     "target.\n"
-//     "Enabling this may cause excessive processing of vertices on the CPU, as "
-//     "some games draw rectangles (for their UI, for instance) without clipping, "
-//     "but with a proper scissor rectangle.",
-//     "GPU");
-
 namespace rex::gpu {
 
 void DrawExtentEstimator::PositionYExportSink::Export(xenos::ucode::ExportRegister export_register,
@@ -84,11 +57,9 @@ uint32_t DrawExtentEstimator::EstimateVertexMaxY(const Shader& vertex_shader) {
   }
   if (vgt_draw_initiator.source_select != xenos::SourceSelect::kDMA &&
       vgt_draw_initiator.source_select != xenos::SourceSelect::kAutoIndex) {
-    // TODO(Triang3l): Support immediate indices.
     return xenos::kTexture2DCubeMaxWidthHeight;
   }
 
-  // Not reproducing tessellation.
   if (xenos::IsMajorModeExplicit(vgt_draw_initiator.major_mode, vgt_draw_initiator.prim_type) &&
       regs.Get<xenos::reg::VGT_OUTPUT_PATH_CNTL>().path_select ==
           xenos::VGTOutputPath::kTessellationEnable) {
@@ -110,8 +81,8 @@ uint32_t DrawExtentEstimator::EstimateVertexMaxY(const Shader& vertex_shader) {
   xenos::Endian index_endian = vgt_dma_size.swap_mode;
   if (vgt_draw_initiator.source_select == xenos::SourceSelect::kDMA) {
     xenos::IndexFormat index_format = vgt_draw_initiator.index_size;
-    u32 index_buffer_base = regs[std::to_underlying(xenos::Register::VGT_DMA_BASE)];
-    if (index_format == xenos::IndexFormat::kInt16) {
+    uint32_t index_buffer_base = regs[std::to_underlying(xenos::Register::VGT_DMA_BASE)];
+    if (vgt_draw_initiator.index_size == xenos::IndexFormat::kInt16) {
       // Index endianness is handled as in the PrimitiveProcessor.
       if (index_endian == xenos::Endian::k8in32) {
         index_endian = xenos::Endian::k8in16;
@@ -167,7 +138,7 @@ uint32_t DrawExtentEstimator::EstimateVertexMaxY(const Shader& vertex_shader) {
         } else {
           vertex_index = index_buffer_32[i];
         }
-        // The Xenos only uses 24 bits of the index (reset_indx is 24-bit).
+        // The Xenos uses 24 bits of the index, as reset_indx is 24 bit.
         vertex_index = xenos::GPUSwap(vertex_index, index_endian) & 0xFFFFFF;
       } else {
         vertex_index = 0;
@@ -207,41 +178,29 @@ uint32_t DrawExtentEstimator::EstimateVertexMaxY(const Shader& vertex_shader) {
     if (vgt_draw_initiator.prim_type == xenos::PrimitiveType::kPointList) {
       float point_radius_y;
       if (position_y_export_sink.point_size().has_value()) {
-        // Vertex-specified diameter. Clamped effectively as a signed integer in
-        // the hardware, -NaN, -Infinity ... -0 to the minimum, +Infinity, +NaN
-        // to the maximum.
         point_radius_y = 0.5f * rex::memory::Reinterpret<float>(std::min(
                                     point_vertex_max_diameter_float,
                                     std::max(point_vertex_min_diameter_float,
                                              rex::memory::Reinterpret<int32_t>(
                                                  position_y_export_sink.point_size().value()))));
       } else {
-        // Constant radius.
         point_radius_y = point_constant_radius_y;
       }
       vertex_y += point_radius_y;
     }
 
-    // std::max is `a < b ? b : a`, thus in case of NaN, the first argument is
-    // always returned - max_y, which is initialized to a normalized value.
     max_y = std::max(max_y, vertex_y);
   }
   shader_interpreter_.SetExportSink(nullptr);
 
   int32_t max_y_24p8 = gpu::FloatToD3D11Fixed16p8(max_y);
-  // 16p8 range is -32768 to 32767+255/256, but it's stored as uint32_t here,
-  // as 24p8, so overflowing up to -8388608 to 8388608+255/256 is safe. The
-  // range of the window offset plus the half-pixel offset is -16384 to 16384.5,
-  // so it's safe to add both - adding it will neither move the 16p8 clamping
-  // bounds -32768 and 32767+255/256 into the 0...8192 screen space range, nor
-  // cause 24p8 overflow.
   if (regs.Get<xenos::reg::PA_SU_VTX_CNTL>().pix_center == xenos::PixelCenter::kD3DZero) {
     max_y_24p8 += 128;
   }
   if (pa_su_sc_mode_cntl.vtx_window_offset_enable) {
     max_y_24p8 += regs.Get<xenos::reg::PA_SC_WINDOW_OFFSET>().window_y_offset * 256;
   }
-  // Top-left rule - .5 exclusive without MSAA, 1. exclusive with MSAA.
+  // Top-left rule, .5 exclusive without MSAA and 1. exclusive with MSAA.
   auto rb_surface_info = regs.Get<xenos::reg::RB_SURFACE_INFO>();
   return (static_cast<uint32_t>(std::max(static_cast<int32_t>(0), max_y_24p8)) +
           ((rb_surface_info.msaa_samples == xenos::MSAASamples::k1X) ? 127 : 255)) >>
@@ -257,7 +216,6 @@ uint32_t DrawExtentEstimator::EstimateMaxY(bool try_to_estimate_vertex_max_y,
   auto pa_sc_window_offset = regs.Get<xenos::reg::PA_SC_WINDOW_OFFSET>();
   int32_t window_y_offset = pa_sc_window_offset.window_y_offset;
 
-  // Scissor.
   auto pa_sc_window_scissor_br = regs.Get<xenos::reg::PA_SC_WINDOW_SCISSOR_BR>();
   int32_t scissor_bottom = static_cast<int32_t>(pa_sc_window_scissor_br.br_y);
   bool scissor_window_offset =
@@ -270,7 +228,6 @@ uint32_t DrawExtentEstimator::EstimateMaxY(bool try_to_estimate_vertex_max_y,
   uint32_t max_y = static_cast<uint32_t>(std::max(scissor_bottom, static_cast<int32_t>(0)));
 
   if (regs.Get<xenos::reg::PA_CL_CLIP_CNTL>().clip_disable) {
-    // Actual extent from the vertices.
     if (try_to_estimate_vertex_max_y &&
         REXCVAR_GET(::rex::gpu::cvars::execute_unclipped_draw_vs_on_cpu)) {
       bool estimate_vertex_max_y;
@@ -279,10 +236,6 @@ uint32_t DrawExtentEstimator::EstimateMaxY(bool try_to_estimate_vertex_max_y,
       } else {
         estimate_vertex_max_y = false;
         if (scissor_bottom >= static_cast<i32>(xenos::kTexture2DCubeMaxWidthHeight)) {
-          // Handle the usual special 8192x8192 case in Direct3D 9 - 8192
-          // may be a normal render target height (80x8192 is well within the
-          // EDRAM size, for instance), no need to process the vertices on the
-          // CPU in this case.
           int32_t scissor_right = static_cast<int32_t>(pa_sc_window_scissor_br.br_x);
           if (scissor_window_offset) {
             scissor_right += pa_sc_window_offset.window_x_offset;
@@ -299,33 +252,20 @@ uint32_t DrawExtentEstimator::EstimateMaxY(bool try_to_estimate_vertex_max_y,
       }
     }
   } else {
-    // Viewport. Though the Xenos itself doesn't have an implicit viewport
-    // scissor (it's set by Direct3D 9 when a viewport is used), on hosts, it
-    // usually exists and can't be disabled.
     auto pa_cl_vte_cntl = regs.Get<xenos::reg::PA_CL_VTE_CNTL>();
     float viewport_bottom = 0.0f;
-    // First calculate all the integer.0 or integer.5 offsetting exactly at full
-    // precision.
     if (regs.Get<xenos::reg::PA_SU_SC_MODE_CNTL>().vtx_window_offset_enable) {
       viewport_bottom += static_cast<float>(window_y_offset);
     }
     if (regs.Get<xenos::reg::PA_SU_VTX_CNTL>().pix_center == xenos::PixelCenter::kD3DZero) {
       viewport_bottom += 0.5f;
     }
-    // Then apply the floating-point viewport offset.
     if (pa_cl_vte_cntl.vport_y_offset_ena) {
       viewport_bottom += regs.Get<float>(xenos::Register::PA_CL_VPORT_YOFFSET);
     }
     viewport_bottom += pa_cl_vte_cntl.vport_y_scale_ena
                            ? std::abs(regs.Get<float>(xenos::Register::PA_CL_VPORT_YSCALE))
                            : 1.0f;
-    // Using floor, or, rather, truncation (because maxing with zero anyway)
-    // similar to how viewport scissoring behaves on real AMD, Intel and Nvidia
-    // GPUs on Direct3D 12 (but not WARP), also like in
-    // draw_util::GetHostViewportInfo.
-    // max(0.0f, viewport_bottom) to drop NaN and < 0 - max picks the first
-    // argument in the !(a < b) case (always for NaN), min as float (max_y is
-    // well below 2^24) to safely drop large values.
     max_y =
         static_cast<uint32_t>(std::min(static_cast<float>(max_y), std::max(0.0f, viewport_bottom)));
   }

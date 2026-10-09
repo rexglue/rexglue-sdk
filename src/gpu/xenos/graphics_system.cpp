@@ -71,8 +71,7 @@ Result<void> GraphicsSystem::SetupPresentation(gpu::IUIThread& ui_thread) {
     }
     provider_supports_presentation_ = true;
   } else if (!provider_supports_presentation_) {
-    // A prior SetupGuestGPU built a headless provider; backends like Vulkan
-    // need swapchain support baked in at provider creation time.
+    // Backends like Vulkan need swapchain support set at provider creation.
     REXLOG_ERROR(gpu,
                  "SetupPresentation called after headless SetupGuestGPU; call order is reversed");
     return Err(ErrorCategory::Runtime,
@@ -98,15 +97,11 @@ Result<void> GraphicsSystem::SetupGuestGPU(runtime::FunctionDispatcher& dispatch
   function_dispatcher_ = &dispatcher;
   runtime_ = &runtime;
 
-  // Headless path: no one set up presentation, so build a no-presentation
-  // provider only for the command processor.
   if (!provider_) {
     CreateProvider(false);
     provider_supports_presentation_ = false;
   }
 
-  // Create command processor. This will spin up a thread to process all
-  // incoming ringbuffer packets.
   command_processor_ = CreateCommandProcessor();
   if (!command_processor_->Initialize()) {
     REXLOG_ERROR(gpu, "Unable to initialize command processor");
@@ -117,7 +112,6 @@ Result<void> GraphicsSystem::SetupGuestGPU(runtime::FunctionDispatcher& dispatch
 
   rex::AttachMMIO(rex::MMIOBlock::GPU, {this, ReadRegisterThunk, WriteRegisterThunk});
 
-  // Guest vblank timer based on the configured guest video mode.
   vsync_worker_running_ = true;
   auto record = std::make_unique<runtime::ThreadRecord>(*runtime_, 128 * 1024, 0, [this]() {
     double refresh_rate_hz =
@@ -193,9 +187,6 @@ void GraphicsSystem::Shutdown() {
     if (ui_thread_) {
       ui_thread_->RunSynchronous([this] { presenter_.reset(); });
     }
-    // If there's no UI thread (thus the presenter is owned by the thread that
-    // initialized the GraphicsSystem) or can't be queueing UI thread calls
-    // anymore, shutdown anyway.
     presenter_.reset();
   }
 
@@ -203,16 +194,6 @@ void GraphicsSystem::Shutdown() {
 }
 
 void GraphicsSystem::OnHostGpuLossFromAnyThread([[maybe_unused]] bool is_responsible) {
-  // TODO(Triang3l): Somehow gain exclusive ownership of the Provider (may be
-  // used by the command processor, the presenter, and possibly anything else,
-  // it's considered free-threaded, except for lifetime management which will be
-  // involved in this case) and reset it so a new host GPU API device is
-  // created. Then ask the command processor to reset itself in its thread, and
-  // ask the UI thread to reset the Presenter (the UI thread manages its
-  // lifetime - but if there's no WindowedAppContext, either don't reset it as
-  // in this case there's no user who needs uninterrupted gameplay, or somehow
-  // protect it with a mutex so any thread can be considered a UI thread and
-  // reset).
   if (host_gpu_loss_reported_.test_and_set(std::memory_order_relaxed)) {
     return;
   }
@@ -298,7 +279,6 @@ void GraphicsSystem::DispatchInterruptCallback(uint32_t source, uint32_t cpu) {
   auto thread = runtime::ThreadRecord::GetCurrentThread();
   REX_ASSERT(thread != nullptr);
 
-  // Pick a CPU, if needed. We're going to guess 2. Because.
   if (cpu == 0xFFFFFFFF) {
     cpu = 2;
   }
@@ -310,17 +290,10 @@ void GraphicsSystem::DispatchInterruptCallback(uint32_t source, uint32_t cpu) {
 }
 
 void GraphicsSystem::MarkVblank() {
-  // TODO: Enable profiling once ported
-  // REX_PROFILE_SCOPE("gpu");
-
-  // Increment vblank counter (so the game sees us making progress).
   if (command_processor_) {
     command_processor_->increment_counter();
   }
 
-  // TODO(benvanik): we shouldn't need to do the dispatch here, but there's
-  //     something wrong and the CP will block waiting for code that
-  //     needs to be run in the interrupt.
   DispatchInterruptCallback(0, 2);
 }
 

@@ -47,7 +47,6 @@ REX_STATIC_ASSERT_SIZE(XTASK_MESSAGE, 0x1C);
 
 u32 XamTaskSchedule_entry(mapped_void callback, ppc_ptr_t<XTASK_MESSAGE> message,
                           [[maybe_unused]] mapped_u32 unknown, mapped_u32 handle_ptr) {
-  // TODO(gibbed): figure out what this is for
   *handle_ptr = 12345;
 
   auto record = std::make_unique<ThreadRecord>(runtime::Current(), 0, 0, callback.guest_address(),
@@ -61,7 +60,6 @@ u32 XamTaskSchedule_entry(mapped_void callback, ppc_ptr_t<XTASK_MESSAGE> message
   X_STATUS result = ToXStatus(launched);
 
   if (XFAILED(result)) {
-    // Failed!
     REX_FAIL(kernel, result, "XAM task creation failed: {:08X}", result);
   }
   (void)runtime::Current().object_table().Close(task_thread);

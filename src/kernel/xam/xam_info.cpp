@@ -50,7 +50,6 @@ u32 XamFeatureEnabled_entry([[maybe_unused]] u32 unk) {
   return 0;
 }
 
-// Empty stub schema binary.
 uint8_t schema_bin[] = {
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x2C, 0x00, 0x00, 0x00, 0x2C, 0x00, 0x00, 0x00, 0x2C, 0x00, 0x00, 0x00, 0x04, 0x00, 0x00,
@@ -75,7 +74,6 @@ u32 XamGetOnlineSchema_entry() {
     info->size = static_cast<u32>(sizeof(schema_bin));
   }
 
-  // return pointer to the schema ptr/schema size struct
   return schema_guest;
 }
 
@@ -120,7 +118,6 @@ void XamFormatDateString_entry([[maybe_unused]] u32 unk, u64 filetime, mapped_vo
   std::memset(output_buffer, 0, output_count * sizeof(char16_t));
 
   const LocalDateTime local = ToLocalDateTime(filetime);
-  // TODO: format this depending on users locale?
   auto str = rex::to_utf16(std::format("{:02d}/{:02d}/{}", local.month, local.day, local.year));
   rex::copy_and_swap_truncating(output_buffer.as<char16_t*>(), str, output_count);
 }
@@ -130,7 +127,6 @@ void XamFormatTimeString_entry([[maybe_unused]] u32 unk, u64 filetime, mapped_vo
   std::memset(output_buffer, 0, output_count * sizeof(char16_t));
 
   const LocalDateTime local = ToLocalDateTime(filetime);
-  // TODO: format this depending on users locale?
   auto str = rex::to_utf16(std::format("{:02d}:{:02d}", local.hour, local.minute));
   rex::copy_and_swap_truncating(output_buffer.as<char16_t*>(), str, output_count);
 }
@@ -160,20 +156,13 @@ u32 XamBuildResourceLocator_entry(u64 module, mapped_wstring container, mapped_w
 
 u32 XamBuildGamercardResourceLocator_entry(mapped_wstring filename, mapped_void buffer_ptr,
                                            u32 buffer_count) {
-  // On an actual console these funcs would return a locator to xam.xex resources,
-  // but for Xenia we can return a locator to the resources as local files. (big
-  // thanks to MS for letting XamBuildResourceLocator return local file
-  // locators!)
-
-  // If you're running an app that'll need them, make sure to extract xam.xex
-  // resources with xextool ("xextool -d . xam.xex") and add a .xzp extension.
+  // Resources resolve to local .xzp files extracted from xam.xex.
 
   return keXamBuildResourceLocator(0, u"gamercrd", filename.value(), buffer_ptr, buffer_count);
 }
 
 u32 XamBuildSharedSystemResourceLocator_entry(mapped_wstring filename, mapped_void buffer_ptr,
                                               u32 buffer_count) {
-  // see notes inside XamBuildGamercardResourceLocator above
   return keXamBuildResourceLocator(0, u"shrdres", filename.value(), buffer_ptr, buffer_count);
 }
 
@@ -188,24 +177,12 @@ u32 XamBuildXamResourceLocator_entry(mapped_wstring filename, mapped_void buffer
 }
 
 u32 XamGetSystemVersion_entry() {
-  // eh, picking one. If we go too low we may break new games, but
-  // this value seems to be used for conditionally loading symbols and if
-  // we pretend to be old we have less to worry with implementing.
-  // 0x200A3200
-  // 0x20096B00
   return 0;
 }
 
-void XCustomRegisterDynamicActions_entry() {
-  // ???
-}
+void XCustomRegisterDynamicActions_entry() {}
 
 u32 XGetAVPack_entry() {
-  // DWORD
-  // Not sure what the values are for this, but 6 is VGA.
-  // Other likely values are 3/4/8 for HDMI or something.
-  // Games seem to use this as a PAL check - if the result is not 3/4/6/8
-  // they explode with errors if not in PAL mode.
   REXLOG_TRACE(kernel,
                "XGetAVPack -> "
                "6");
@@ -223,22 +200,17 @@ u32 XGetGameRegion_entry() {
 u32 XGetLanguage_entry() {
   auto desired_language = XLanguage::kEnglish;
 
-  // Switch the language based on game region.
-  // TODO(benvanik): pull from xex header.
   uint32_t game_region = XEX_REGION_NTSCU;
   if (game_region & XEX_REGION_NTSCU) {
     desired_language = XLanguage::kEnglish;
   } else if (game_region & XEX_REGION_NTSCJ) {
     desired_language = XLanguage::kJapanese;
   }
-  // Add more overrides?
 
   return static_cast<uint32_t>(desired_language);
 }
 
 u32 XamGetCurrentTitleId_entry() {
-  // NOTE(tomc): Switched this up to get title ID from executable module instead of runtime
-  // (emulator)
   auto module = runtime::Current().object_table().Get<ModuleObject>(
       runtime::Current().module_registry().executable().value_or(0));
   if (module) {
@@ -308,7 +280,6 @@ void XamLoaderLaunchTitle_entry(mapped_string raw_name_ptr, u32 flags) {
     auto& loader_data = xam->kernel.loader_data;
     loader_data.launch_flags = flags;
 
-    // Translate the launch path to a full path.
     if (raw_name_ptr) {
       std::string path(raw_name_ptr.value());
       if (path.empty()) {
@@ -356,20 +327,18 @@ u32 XamFree_entry(mapped_u32 ptr) {
 
 u32 XamQueryLiveHiveW_entry([[maybe_unused]] mapped_wstring name,
                             [[maybe_unused]] mapped_void out_buf, [[maybe_unused]] u32 out_size,
-                            [[maybe_unused]] u32 type /* guess */) {
+                            [[maybe_unused]] u32 type) {
   return X_STATUS_INVALID_PARAMETER_1;
 }
 
 u32 XamLoaderGetDvdTrayState_entry(mapped_u32 out_state) {
-  // 0 = tray open, 1 = tray closed with disc
+  // 0 is tray open, 1 is tray closed with disc.
   if (out_state)
     *out_state = 1;
   return X_STATUS_SUCCESS;
 }
 
 u32 XamSwapDisc_entry(u32 disc_number) {
-  // Stub for multi-disc games. Single-disc games (like Blue Dragon's reblue test)
-  // don't need this, but the game may look it up dynamically via XexGetProcedureAddress.
   REX_KERNEL_STUB("XamSwapDisc({})", static_cast<uint32_t>(disc_number));
   return X_STATUS_SUCCESS;
 }

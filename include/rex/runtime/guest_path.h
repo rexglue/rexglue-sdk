@@ -1,5 +1,5 @@
 /**
- * @file        rex/runtime/guest_path.h
+ * @file        runtime/guest_path.h
  * @brief       Guest path normalization for VFS paths
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
@@ -24,8 +24,11 @@ namespace rex::runtime {
  * slashes, redundant `..` segments resolved, leading slashes removed,
  * and ASCII lowercased. Codegen-side canonicalization
  * (rex::codegen::CanonicalizeModuleGuestPath) layers a project-scoped prefix
- * strip on top of this; both must agree on this base form for runtime
+ * strip on top of this. Both must produce the same base form for runtime
  * lookups to find the registered module.
+ *
+ * @param path The guest path, with or without a device prefix.
+ * @return The canonical lowercase path with forward slashes.
  */
 REX_RUNTIME_API std::string NormalizeGuestPath(std::string_view path);
 

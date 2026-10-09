@@ -56,7 +56,7 @@ class REX_API RingBuffer {
   ring_size_t capacity() const { return capacity_; }
 
   /**
-   * Tests whether the read and write offsets are equal.
+   * Reports whether the read and write offsets are equal.
    *
    * @return True when no bytes are waiting to be read.
    */

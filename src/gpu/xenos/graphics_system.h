@@ -11,7 +11,7 @@
 
 #pragma once
 
-#include "rex/runtime/function_dispatcher.h"
+#include <rex/runtime/function_dispatcher.h>
 
 #include <atomic>
 #include <cstdint>
@@ -58,13 +58,21 @@ class GraphicsSystem : public gpu::IBackend {
   [[nodiscard]] Result<std::unique_ptr<gpu::IPresenter>> CreatePresenter() override;
   [[nodiscard]] Result<std::unique_ptr<gpu::IOverlayDrawer>> CreateOverlayDrawer(
       gpu::IPresenter& presenter) override;
-  /** The backend slice the module received at Connect. Null until set. */
+  /**
+   * Sets the backend config the module received at Connect. Null until set.
+   *
+   * @param config The backend config.
+   */
   void set_config(const gpu::GPUConfig* config) { config_ = config; }
   const gpu::GPUConfig* config() const { return config_; }
   void Shutdown() override;
 
-  // May be called from any thread any number of times, even during recovery
-  // from a device loss.
+  /**
+   * Reports a host GPU loss. May be called from any thread any number of times, even during
+   * recovery from a device loss.
+   *
+   * @param is_responsible True when the caller is responsible for the recovery.
+   */
   void OnHostGpuLossFromAnyThread(bool is_responsible);
 
   xenos::RegisterFile* register_file() { return &register_file_; }
@@ -85,8 +93,11 @@ class GraphicsSystem : public gpu::IBackend {
  protected:
   GraphicsSystem();
 
-  // Backends build their provider here. Called lazily from either setup
-  // entry point; with_presentation is false only on headless guest-GPU paths.
+  /**
+   * Builds the backend provider. Called lazily from either setup entry point.
+   *
+   * @param with_presentation False only on headless guest GPU paths.
+   */
   virtual void CreateProvider(bool with_presentation) = 0;
 
   virtual std::unique_ptr<CommandProcessor> CreateCommandProcessor() = 0;

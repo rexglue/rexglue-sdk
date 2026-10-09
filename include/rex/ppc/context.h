@@ -7,8 +7,10 @@
  *
  * @license     BSD 3-Clause License
  *              See LICENSE file in the project root for full license text.
- *
- * @remarks     Based on XenonRecomp/UnleashedRecomp PPCContext infrastructure
+ */
+
+/*
+ * Parts of the PPCContext infrastructure are based on XenonRecomp and UnleashedRecomp.
  */
 
 #pragma once
@@ -26,10 +28,7 @@
 #include <simde/x86/sse.h>
 #include <simde/x86/sse4.1.h>
 
-//=============================================================================
-// Pack/Unpack Constants (NORMPACKED32 - 2:10:10:10 format)
-//=============================================================================
-
+/** Pack and unpack bounds of the NORMPACKED32 2:10:10:10 format. */
 constexpr float kPack2101010_Min10 = std::bit_cast<float>(0x403FFE01u);
 constexpr float kPack2101010_Max10 = std::bit_cast<float>(0x404001FFu);
 constexpr float kPack2101010_Min2 = std::bit_cast<float>(0x40400000u);
@@ -37,48 +36,44 @@ constexpr float kPack2101010_Max2 = std::bit_cast<float>(0x40400003u);
 
 namespace rex::ppc {
 
-//=============================================================================
-// General Purpose Register
-//=============================================================================
-
+/** General purpose register. */
 union Register {
-  int8_t s8;
-  uint8_t u8;
-  int16_t s16;
-  uint16_t u16;
-  int32_t s32;
-  uint32_t u32;
-  int64_t s64;
-  uint64_t u64;
-  float f32;
-  double f64;
+  int8_t s8;    /**< Signed 8 bit view of the low byte. */
+  uint8_t u8;   /**< Unsigned 8 bit view of the low byte. */
+  int16_t s16;  /**< Signed 16 bit view of the low half word. */
+  uint16_t u16; /**< Unsigned 16 bit view of the low half word. */
+  int32_t s32;  /**< Signed 32 bit view of the low word. */
+  uint32_t u32; /**< Unsigned 32 bit view of the low word. */
+  int64_t s64;  /**< Signed 64 bit view of the whole register. */
+  uint64_t u64; /**< Unsigned 64 bit view of the whole register. */
+  float f32;    /**< 32 bit float view of the low word. */
+  double f64;   /**< 64 bit float view of the whole register. */
 };
 
-//=============================================================================
-// Fixed-Point Exception Register (XER)
-//=============================================================================
-
+/** Fixed point exception register (XER). */
 struct XERRegister {
-  uint8_t so;
-  uint8_t ov;
-  uint8_t ca;
+  uint8_t so; /**< XER bit 0, summary overflow, 1 once an overflow occurred. */
+  uint8_t ov; /**< XER bit 1, overflow of the last arithmetic operation. */
+  uint8_t ca; /**< XER bit 2, carry out of the last arithmetic operation. */
 };
 
-//=============================================================================
-// Condition Register (CR) Field
-//=============================================================================
-
+/** Condition register (CR) field. */
 struct CRRegister {
-  uint8_t lt;
-  uint8_t gt;
-  uint8_t eq;
+  uint8_t lt; /**< CR field bit 0, 1 when the left operand compared less than the right. */
+  uint8_t gt; /**< CR field bit 1, 1 when the left operand compared greater than the right. */
+  uint8_t eq; /**< CR field bit 2, 1 when the operands compared equal. */
   union {
-    uint8_t so;
-    uint8_t un;
+    uint8_t so; /**< CR field bit 3, copy of the XER so after an integer compare. */
+    uint8_t un; /**< CR field bit 3, 1 when a float compare had a NaN operand. */
   };
 
   uint32_t raw() const noexcept { return (lt << 3) | (gt << 2) | (eq << 1) | so; }
 
+  /**
+   * Sets lt, gt, eq and so from the low 4 bits of a CR field value.
+   *
+   * @param value The CR field value, lt in bit 3 and so in bit 0.
+   */
   void set_raw(uint32_t value) noexcept {
     lt = (value >> 3) & 1;
     gt = (value >> 2) & 1;
@@ -86,6 +81,14 @@ struct CRRegister {
     so = value & 1;
   }
 
+  /**
+   * Sets lt, gt and eq from an ordered comparison and copies so from the XER.
+   *
+   * @tparam T The compared type.
+   * @param left The left operand.
+   * @param right The right operand.
+   * @param xer The XER whose so is copied.
+   */
   template <typename T>
   void compare(T left, T right, const XERRegister& xer) noexcept {
     lt = left < right;
@@ -94,6 +97,12 @@ struct CRRegister {
     so = xer.so;
   }
 
+  /**
+   * Sets lt, gt and eq from a floating point comparison, and un when either operand is NaN.
+   *
+   * @param left The left operand.
+   * @param right The right operand.
+   */
   void compare(double left, double right) noexcept {
     un = std::isnan(left) || std::isnan(right);
     lt = !un && (left < right);
@@ -101,6 +110,13 @@ struct CRRegister {
     eq = !un && (left == right);
   }
 
+  /**
+   * Sets lt when the lane sign mask of a float vector equals imm and eq when no sign bit is set.
+   * Clears gt and so.
+   *
+   * @param mask The vector whose 4 lane sign bits are tested.
+   * @param imm The sign mask that sets lt.
+   */
   void setFromMask(simde__m128 mask, int imm) noexcept {
     int m = simde_mm_movemask_ps(mask);
     lt = m == imm;
@@ -109,6 +125,13 @@ struct CRRegister {
     so = 0;
   }
 
+  /**
+   * Sets lt when the byte sign mask of an integer vector equals imm and eq when no sign bit is set.
+   * Clears gt and so.
+   *
+   * @param mask The vector whose 16 byte sign bits are tested.
+   * @param imm The sign mask that sets lt.
+   */
   void setFromMask(simde__m128i mask, int imm) noexcept {
     int m = simde_mm_movemask_epi8(mask);
     lt = m == imm;
@@ -118,26 +141,19 @@ struct CRRegister {
   }
 };
 
-//=============================================================================
-// Vector Register (128-bit)
-//=============================================================================
-
+/** 128 bit vector register. */
 union alignas(0x10) VRegister {
-  int8_t s8[16];
-  uint8_t u8[16];
-  int16_t s16[8];
-  uint16_t u16[8];
-  int32_t s32[4];
-  uint32_t u32[4];
-  int64_t s64[2];
-  uint64_t u64[2];
-  float f32[4];
-  double f64[2];
+  int8_t s8[16];   /**< 16 signed 8 bit lanes. */
+  uint8_t u8[16];  /**< 16 unsigned 8 bit lanes. */
+  int16_t s16[8];  /**< 8 signed 16 bit lanes. */
+  uint16_t u16[8]; /**< 8 unsigned 16 bit lanes. */
+  int32_t s32[4];  /**< 4 signed 32 bit lanes. */
+  uint32_t u32[4]; /**< 4 unsigned 32 bit lanes. */
+  int64_t s64[2];  /**< 2 signed 64 bit lanes. */
+  uint64_t u64[2]; /**< 2 unsigned 64 bit lanes. */
+  float f32[4];    /**< 4 32 bit float lanes. */
+  double f64[2];   /**< 2 64 bit float lanes. */
 };
-
-//=============================================================================
-// Floating-Point Status and Control Register (FPSCR)
-//=============================================================================
 
 constexpr uint32_t kRoundNearest = 0x00;
 constexpr uint32_t kRoundTowardZero = 0x01;
@@ -145,50 +161,74 @@ constexpr uint32_t kRoundUp = 0x02;
 constexpr uint32_t kRoundDown = 0x03;
 constexpr uint32_t kRoundMask = 0x03;
 
+/** Floating point status and control register (FPSCR). */
 struct FPSCRRegister {
-  uint32_t csr;
+  uint32_t csr; /**< Host floating point control word as last read or written. */
 
+  /** Guest rounding mode kRound constant for each value of the host rounding field. */
   static constexpr size_t HostToGuest[] = {kRoundNearest, kRoundDown, kRoundUp, kRoundTowardZero};
 
+  /** Host specific access to the floating point control word. */
   using Platform = platform::FPSCRPlatform;
+  /** Bit position of the host rounding field in csr. */
   static constexpr size_t RoundShift = Platform::RoundShift;
+  /** Mask of the host rounding field in csr. */
   static constexpr size_t RoundMaskVal = Platform::RoundMaskVal;
+  /** Mask of the host flush to zero and denormals are zero bits in csr. */
   static constexpr size_t FlushMask = Platform::FlushMask;
 
-  // Bits the guest owns; the rest is host policy seeded by InitHost.
+  /** Bits the guest owns, the rest is host policy set by InitHost. */
   static constexpr uint32_t GuestMask =
       static_cast<uint32_t>(RoundMaskVal) | static_cast<uint32_t>(FlushMask);
 
   uint32_t getcsr() noexcept { return Platform::getcsr(); }
   void setcsr(uint32_t csr) noexcept { Platform::setcsr(csr); }
 
-  // Restoring the whole word would unmask every FP exception when csr is 0.
+  /**
+   * Restores the guest owned bits from a saved word. Restoring the whole word would unmask every
+   * FP exception when csr is 0.
+   *
+   * @param saved The saved csr word.
+   */
   void restoreGuestBits(uint32_t saved) noexcept {
     csr = (getcsr() & ~GuestMask) | (saved & GuestMask);
     setcsr(csr);
   }
 
+  /**
+   * Reads the host control word into csr.
+   *
+   * @return The guest rounding mode matching the host rounding mode.
+   */
   uint32_t loadFromHost() noexcept {
     csr = getcsr();
     return HostToGuest[(csr & RoundMaskVal) >> RoundShift];
   }
 
+  /**
+   * Sets the host rounding mode from a guest rounding mode and writes csr to the host.
+   *
+   * @param value The guest rounding mode, one of the kRound constants.
+   */
   void storeFromGuest(uint32_t value) noexcept {
     csr &= ~RoundMaskVal;
     csr |= Platform::GuestToHost[value & kRoundMask];
     setcsr(csr);
   }
 
+  /** Turns on flush to zero mode and writes csr to the host without checking its current state. */
   void enableFlushModeUnconditional() noexcept {
     csr |= FlushMask;
     setcsr(csr);
   }
 
+  /** Turns off flush to zero mode and writes csr to the host without checking its current state. */
   void disableFlushModeUnconditional() noexcept {
     csr &= ~FlushMask;
     setcsr(csr);
   }
 
+  /** Turns on flush to zero mode, writing csr to the host only when the mode was off. */
   void enableFlushMode() noexcept {
     if ((csr & FlushMask) != FlushMask) [[unlikely]] {
       csr |= FlushMask;
@@ -196,6 +236,7 @@ struct FPSCRRegister {
     }
   }
 
+  /** Turns off flush to zero mode, writing csr to the host only when the mode was on. */
   void disableFlushMode() noexcept {
     if ((csr & FlushMask) != 0) [[unlikely]] {
       csr &= ~FlushMask;
@@ -203,6 +244,7 @@ struct FPSCRRegister {
     }
   }
 
+  /** Reads the host control word, applies the host exception policy and writes it back. */
   void InitHost() noexcept {
     csr = getcsr();
     Platform::InitHostExceptions(csr);
@@ -212,18 +254,24 @@ struct FPSCRRegister {
 
 }  // namespace rex::ppc
 
+/** Global alias of rex::ppc::Register used by recompiled code. */
 using PPCRegister = rex::ppc::Register;
+/** Global alias of rex::ppc::XERRegister used by recompiled code. */
 using PPCXERRegister = rex::ppc::XERRegister;
+/** Global alias of rex::ppc::CRRegister used by recompiled code. */
 using PPCCRRegister = rex::ppc::CRRegister;
+/** Global alias of rex::ppc::VRegister used by recompiled code. */
 using PPCVRegister = rex::ppc::VRegister;
+/** Global alias of rex::ppc::FPSCRRegister used by recompiled code. */
 using PPCFPSCRRegister = rex::ppc::FPSCRRegister;
 
-//=============================================================================
-// PPCContext Structure
-//=============================================================================
-
+/** PPC execution context of a thread. */
 struct alignas(0x40) PPCContext {
+  /** General purpose register 3, the first integer argument and the integer return value. */
   PPCRegister r3;
+  /** @name General purpose registers r0 to r31 except r3, 64 bit, r1 the stack pointer, r4 to r10
+   * the integer arguments after r3, r13 the KPCR pointer, r14 to r31 saved across calls. */
+  /** @{ */
   PPCRegister r0;
   PPCRegister r1;
   PPCRegister r2;
@@ -255,22 +303,25 @@ struct alignas(0x40) PPCContext {
   PPCRegister r29;
   PPCRegister r30;
   PPCRegister r31;
+  /** @} */
 
-  uint64_t lr;
-  PPCRegister ctr;
-  PPCXERRegister xer;
+  uint64_t lr;        /**< Link register, the return address of the current call. */
+  PPCRegister ctr;    /**< Count register, the target of indirect branches. */
+  PPCXERRegister xer; /**< Fixed point exception register. */
+  /** Value loaded by the last load reserved, which the paired store conditional compares. */
   PPCRegister reserved;
+  /** Machine state register, initially 0x200A000, mtmsrd writes only the bits under 0x8020. */
   uint32_t msr = 0x200A000;
-  PPCCRRegister cr0;
-  PPCCRRegister cr1;
-  PPCCRRegister cr2;
-  PPCCRRegister cr3;
-  PPCCRRegister cr4;
-  PPCCRRegister cr5;
-  PPCCRRegister cr6;
-  PPCCRRegister cr7;
-  PPCFPSCRRegister fpscr;
-  uint8_t vscr_sat = 0;  // VSCR saturation flag (for vector ops)
+  PPCCRRegister cr0;      /**< Condition register field 0, CR bits 0 to 3. */
+  PPCCRRegister cr1;      /**< Condition register field 1, CR bits 4 to 7. */
+  PPCCRRegister cr2;      /**< Condition register field 2, CR bits 8 to 11. */
+  PPCCRRegister cr3;      /**< Condition register field 3, CR bits 12 to 15. */
+  PPCCRRegister cr4;      /**< Condition register field 4, CR bits 16 to 19. */
+  PPCCRRegister cr5;      /**< Condition register field 5, CR bits 20 to 23. */
+  PPCCRRegister cr6;      /**< Condition register field 6, CR bits 24 to 27. */
+  PPCCRRegister cr7;      /**< Condition register field 7, CR bits 28 to 31. */
+  PPCFPSCRRegister fpscr; /**< Floating point status and control register. */
+  uint8_t vscr_sat = 0;   /**< VSCR saturation flag for vector ops */
 
   /**
    * Last indirect call target address. Set by REX_CALL_INDIRECT_FUNC before
@@ -280,6 +331,9 @@ struct alignas(0x40) PPCContext {
    */
   uint32_t last_indirect_target = 0;
 
+  /** @name Floating point registers f0 to f31, 64 bit, f1 to f13 the float arguments, f1 the float
+   * return value, f14 to f31 saved across calls. */
+  /** @{ */
   PPCRegister f0;
   PPCRegister f1;
   PPCRegister f2;
@@ -312,7 +366,10 @@ struct alignas(0x40) PPCContext {
   PPCRegister f29;
   PPCRegister f30;
   PPCRegister f31;
+  /** @} */
 
+  /** @name Vector registers v0 to v31, 128 bit, v14 to v31 saved across calls. */
+  /** @{ */
   PPCVRegister v0;
   PPCVRegister v1;
   PPCVRegister v2;
@@ -345,6 +402,10 @@ struct alignas(0x40) PPCContext {
   PPCVRegister v29;
   PPCVRegister v30;
   PPCVRegister v31;
+  /** @} */
+  /** @name VMX128 vector registers v32 to v127, 128 bit, present only on the title CPU VMX128
+   * extension, v64 to v127 saved across calls. */
+  /** @{ */
   PPCVRegister v32;
   PPCVRegister v33;
   PPCVRegister v34;
@@ -441,10 +502,8 @@ struct alignas(0x40) PPCContext {
   PPCVRegister v125;
   PPCVRegister v126;
   PPCVRegister v127;
+  /** @} */
 
-  //--- Non-volatile register save/restore --------
-  // Layout: r14-r31 (144) | f14-f31 (144) | v14-v31 (288) | v64-v127 (1024)
-  //       | cr2-cr4 (12) | fpscr (4).  Total: 1616 bytes.
   /**
    * Packs cr0 to cr7 into the 32 bit CR layout.
    *
@@ -471,10 +530,19 @@ struct alignas(0x40) PPCContext {
     cr7.set_raw(value);
   }
 
+  /**
+   * Size in bytes of the non volatile save area. The layout is r14-r31 (144), f14-f31 (144),
+   * v14-v31 (288), v64-v127 (1024), cr2-cr4 (12) and fpscr (4), 1616 bytes in total.
+   */
   static constexpr size_t kNonVolatileSaveSize =
       18 * sizeof(PPCRegister) + 18 * sizeof(PPCRegister) + 18 * sizeof(PPCVRegister) +
       64 * sizeof(PPCVRegister) + 3 * sizeof(PPCCRRegister) + sizeof(PPCFPSCRRegister);
 
+  /**
+   * Copies the non volatile registers into a buffer of kNonVolatileSaveSize bytes.
+   *
+   * @param dst The destination buffer.
+   */
   void SaveNonVolatiles(uint8_t* dst) const {
     std::memcpy(dst, &r14, 18 * sizeof(PPCRegister));
     dst += 18 * sizeof(PPCRegister);
@@ -489,6 +557,12 @@ struct alignas(0x40) PPCContext {
     std::memcpy(dst, &fpscr, sizeof(PPCFPSCRRegister));
   }
 
+  /**
+   * Loads the non volatile registers from a buffer written by SaveNonVolatiles. Only the title
+   * owned bits of fpscr are restored.
+   *
+   * @param src The source buffer of kNonVolatileSaveSize bytes.
+   */
   void RestoreNonVolatiles(const uint8_t* src) {
     std::memcpy(&r14, src, 18 * sizeof(PPCRegister));
     src += 18 * sizeof(PPCRegister);

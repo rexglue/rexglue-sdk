@@ -112,6 +112,7 @@ class REX_RUNTIME_API Runtime : public rex::NonCopyable {
    * @param config The configuration Init copied, read through API::config().
    */
   explicit Runtime(const Config& config);
+  /** Stops the runtime and frees what it owns. */
   ~Runtime();
 
   /**

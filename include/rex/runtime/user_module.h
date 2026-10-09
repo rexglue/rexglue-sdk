@@ -1,4 +1,3 @@
-#pragma once
 /**
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
@@ -9,6 +8,8 @@
  *
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
+
+#pragma once
 
 #include <string_view>
 
@@ -25,7 +26,7 @@ class Runtime;
 namespace rex::runtime {
 
 /**
- * Creates the record of a user module with its first handle.
+ * Creates the `ObjectRecord` of a user module with its first handle.
  *
  * @param runtime The runtime the call runs in.
  * @return The handle with a count of 1, 0 when the table cannot grow.

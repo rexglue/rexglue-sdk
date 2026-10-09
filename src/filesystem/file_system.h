@@ -31,7 +31,7 @@ class FileSystem final : public IFileSystem {
   /**
    * Sets the flags ConfigureStandardMounts gives the game mount.
    *
-   * @param flags The game mount flags from the filesystem slice.
+   * @param flags The game mount flags from FilesystemConfig.
    */
   void set_game_mount_flags(MountFlags flags) { game_mount_flags_ = flags; }
 

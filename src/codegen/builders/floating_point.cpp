@@ -13,10 +13,6 @@
 
 namespace rex::codegen {
 
-//=============================================================================
-// Sign Manipulation
-//=============================================================================
-
 bool build_fabs(BuilderContext& ctx) {
   ctx.emit_set_flush_mode(false);
   ctx.println("\t{}.u64 = {}.u64 & ~0x8000000000000000;", ctx.f(ctx.insn.operands[0]),
@@ -37,10 +33,6 @@ bool build_fneg(BuilderContext& ctx) {
               ctx.f(ctx.insn.operands[1]));
   return true;
 }
-
-//=============================================================================
-// Move and Conversion
-//=============================================================================
 
 bool build_fmr(BuilderContext& ctx) {
   ctx.emit_set_flush_mode(false);
@@ -102,10 +94,6 @@ bool build_frsp(BuilderContext& ctx) {
   return true;
 }
 
-//=============================================================================
-// Comparison
-//=============================================================================
-
 bool build_fcmpu(BuilderContext& ctx) {
   ctx.emit_set_flush_mode(false);
   ctx.println("\t{}.compare({}.f64, {}.f64);", ctx.cr(ctx.insn.operands[0]),
@@ -114,15 +102,9 @@ bool build_fcmpu(BuilderContext& ctx) {
 }
 
 bool build_fcmpo(BuilderContext& ctx) {
-  // fcmpo is identical to fcmpu for recompilation purposes.
-  // The difference is that fcmpo sets FPSCR exception flags for SNaN operands,
-  // which we don't need to emulate.
+  // fcmpo matches fcmpu here, its FPSCR exception flags for SNaN operands are not emulated.
   return build_fcmpu(ctx);
 }
-
-//=============================================================================
-// Addition
-//=============================================================================
 
 bool build_fadd(BuilderContext& ctx) {
   ctx.emit_set_flush_mode(false);
@@ -138,10 +120,6 @@ bool build_fadds(BuilderContext& ctx) {
   return true;
 }
 
-//=============================================================================
-// Subtraction
-//=============================================================================
-
 bool build_fsub(BuilderContext& ctx) {
   ctx.emit_set_flush_mode(false);
   ctx.println("\t{}.f64 = {}.f64 - {}.f64;", ctx.f(ctx.insn.operands[0]),
@@ -155,10 +133,6 @@ bool build_fsubs(BuilderContext& ctx) {
               ctx.f(ctx.insn.operands[1]), ctx.f(ctx.insn.operands[2]));
   return true;
 }
-
-//=============================================================================
-// Multiplication
-//=============================================================================
 
 bool build_fmul(BuilderContext& ctx) {
   ctx.emit_set_flush_mode(false);
@@ -174,10 +148,6 @@ bool build_fmuls(BuilderContext& ctx) {
   return true;
 }
 
-//=============================================================================
-// Division
-//=============================================================================
-
 bool build_fdiv(BuilderContext& ctx) {
   ctx.emit_set_flush_mode(false);
   ctx.println("\t{}.f64 = {}.f64 / {}.f64;", ctx.f(ctx.insn.operands[0]),
@@ -191,10 +161,6 @@ bool build_fdivs(BuilderContext& ctx) {
               ctx.f(ctx.insn.operands[1]), ctx.f(ctx.insn.operands[2]));
   return true;
 }
-
-//=============================================================================
-// Fused Multiply-Add
-//=============================================================================
 
 bool build_fmadd(BuilderContext& ctx) {
   ctx.emit_set_flush_mode(false);
@@ -260,10 +226,6 @@ bool build_fnmsubs(BuilderContext& ctx) {
   return true;
 }
 
-//=============================================================================
-// Reciprocal and Square Root
-//=============================================================================
-
 bool build_fres(BuilderContext& ctx) {
   ctx.emit_set_flush_mode(false);
   ctx.println("\t{}.f64 = double(float(1.0 / {}.f64));", ctx.f(ctx.insn.operands[0]),
@@ -290,10 +252,6 @@ bool build_fsqrts(BuilderContext& ctx) {
               ctx.f(ctx.insn.operands[1]));
   return true;
 }
-
-//=============================================================================
-// Selection
-//=============================================================================
 
 bool build_fsel(BuilderContext& ctx) {
   ctx.emit_set_flush_mode(false);

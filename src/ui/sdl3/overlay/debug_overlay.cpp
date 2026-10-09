@@ -1,12 +1,3 @@
-/**
- * @file        ui/sdl3/overlay/debug_overlay.cpp
- *
- * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
- *              All rights reserved.
- *
- * @license     BSD 3-Clause License
- *              See LICENSE file in the project root for full license text.
- */
 #include "ui/sdl3/overlay/debug_overlay.h"
 #include "ui/sdl3/overlay_context.h"
 #include <rex/version.h>
@@ -41,7 +32,6 @@ void DebugOverlayDialog::OnDraw(ImGuiIO& io) {
 #ifdef REXGLUE_ENABLE_PERF_COUNTERS
     ImGui::Separator();
 
-    // Frame time graph
     auto ft_us = rex::platform::GetSnapshotCounter(rex::platform::CounterId::kFrameTimeUs);
     float ft_ms = static_cast<float>(ft_us) / 1000.0f;
     frame_time_history_[frame_history_idx_] = ft_ms;
@@ -50,13 +40,11 @@ void DebugOverlayDialog::OnDraw(ImGuiIO& io) {
                      static_cast<int>(frame_history_idx_), "Frame (ms)", 0.0f, 50.0f,
                      ImVec2(200, 40));
 
-    // GPU
     ImGui::Text("Draw: %" PRId64 "  Stalls: %" PRId64 "  Verts: %" PRId64,
                 rex::platform::GetSnapshotCounter(rex::platform::CounterId::kDrawCalls),
                 rex::platform::GetSnapshotCounter(rex::platform::CounterId::kCommandBufferStalls),
                 rex::platform::GetSnapshotCounter(rex::platform::CounterId::kVerticesProcessed));
 
-    // Audio
     ImGui::Text("XMA: %" PRId64 "  Lat: %.1fms  BufQ: %" PRId64,
                 rex::platform::GetSnapshotCounter(rex::platform::CounterId::kXMAFramesDecoded),
                 static_cast<float>(rex::platform::GetSnapshotCounter(
@@ -64,19 +52,16 @@ void DebugOverlayDialog::OnDraw(ImGuiIO& io) {
                     1000.0f,
                 rex::platform::GetSnapshotCounter(rex::platform::CounterId::kBufferQueueDepth));
 
-    // Dispatch
     ImGui::Text("Dispatch: %" PRId64 "  IRQ: %" PRId64,
                 rex::platform::GetSnapshotCounter(rex::platform::CounterId::kFunctionsDispatched),
                 rex::platform::GetSnapshotCounter(rex::platform::CounterId::kInterruptDispatches));
 
-    // Threading
     ImGui::Text(
         "Threads: %" PRId64 "  APC: %" PRId64 "  Contention: %" PRId64,
         rex::platform::GetSnapshotCounter(rex::platform::CounterId::kActiveThreads),
         rex::platform::GetSnapshotCounter(rex::platform::CounterId::kAPCQueueDepth),
         rex::platform::GetSnapshotCounter(rex::platform::CounterId::kCriticalRegionContentions));
 
-    // Caches
     auto tex_h = rex::platform::GetSnapshotCounter(rex::platform::CounterId::kTextureCacheHits);
     auto tex_m = rex::platform::GetSnapshotCounter(rex::platform::CounterId::kTextureCacheMisses);
     auto pip_h = rex::platform::GetSnapshotCounter(rex::platform::CounterId::kPipelineCacheHits);
@@ -87,7 +72,6 @@ void DebugOverlayDialog::OnDraw(ImGuiIO& io) {
   }
   ImGui::End();
 
-  // Build stamp watermark -- centered near bottom of screen
   auto text_size = ImGui::CalcTextSize(REXGLUE_BUILD_STAMP);
   float padding = ImGui::GetStyle().WindowPadding.x * 2.0f;
   float bottom_offset = io.DisplaySize.y * 0.03f;

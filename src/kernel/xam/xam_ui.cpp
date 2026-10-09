@@ -294,7 +294,7 @@ u32 XamShowDeviceSelectorUI_entry(u32 user_index, u32 content_type, u32 content_
                device_id_ptr.guest_address(), overlapped.guest_address());
   return XamDispatchHeadless(
       [device_id_ptr]() -> X_RESULT {
-        // NOTE: 0x00000001 is our dummy device ID from xam_content.cc
+        // 0x00000001 is DummyDeviceId::HDD.
         *device_id_ptr = 0x00000001;
         return X_ERROR_SUCCESS;
       },
@@ -332,7 +332,6 @@ u32 XamShowCommunitySessionsUI_entry([[maybe_unused]] u32 r3, [[maybe_unused]] u
 }
 
 uint32_t XamShowMessageBoxUIEx_entry() {
-  // TODO(tomc): implement properly
   static bool warned = false;
   if (!warned) {
     REX_KERNEL_STUB("XamShowMessageBoxUIEx");

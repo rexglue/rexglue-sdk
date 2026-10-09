@@ -29,7 +29,7 @@ namespace rex::platform {
 
 bool IsDebuggerAttached() {
 #if defined(__APPLE__)
-  // Darwin has no /proc; query the process's traced flag via sysctl.
+  // Darwin has no /proc, so the traced flag comes from sysctl.
   int mib[4] = {CTL_KERN, KERN_PROC, KERN_PROC_PID, getpid()};
   kinfo_proc process_info = {};
   size_t process_info_size = sizeof(process_info);
@@ -60,13 +60,7 @@ bool IsDebuggerAttached() {
 
 void Break() {
   static std::once_flag flag;
-  std::call_once(flag, []() {
-    // Install handler for sigtrap only once
-    std::signal(SIGTRAP, [](int) {
-      // Forward signal to default handler after being caught
-      std::signal(SIGTRAP, SIG_DFL);
-    });
-  });
+  std::call_once(flag, []() { std::signal(SIGTRAP, [](int) { std::signal(SIGTRAP, SIG_DFL); }); });
   std::raise(SIGTRAP);
 }
 

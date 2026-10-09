@@ -1,10 +1,12 @@
 /**
  * @file        kernel/shim/file.cpp
- *
  * @brief       Shim file routines that have no Xam ordinal
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
+ *              All rights reserved.
+ *
  * @license     BSD 3-Clause License
+ *              See LICENSE file in the project root for full license text.
  */
 
 #include <cstring>
@@ -69,8 +71,10 @@ REX_SHIM_FN(RemoveDirectoryA, u32, mapped_string lpPathName) {
 REX_SHIM_FN(GetFileType, u32, u32 hFile) {
   auto file = runtime::Current().object_table().Get<rex::runtime::FileObject>(hFile);
   if (!file)
-    return 0;  // FILE_TYPE_UNKNOWN
-  return 1;    // FILE_TYPE_DISK
+    // FILE_TYPE_UNKNOWN
+    return 0;
+  // FILE_TYPE_DISK
+  return 1;
 }
 
 }  // namespace rex::kernel::shim

@@ -36,11 +36,7 @@ std::unique_ptr<VulkanInstance> VulkanInstance::Create(const bool with_surface,
                                                        const bool try_enable_validation) {
   auto vulkan_instance = std::make_unique<VulkanInstance>(Key{});
 
-  // Load the RenderDoc API if connected.
-
   vulkan_instance->renderdoc_api_ = RenderDocAPI::CreateIfConnected();
-
-  // Load the loader library.
 
   Functions& ifn = vulkan_instance->functions_;
 
@@ -91,8 +87,6 @@ std::unique_ptr<VulkanInstance> VulkanInstance::Create(const bool with_surface,
     REX_FAIL(ui, nullptr, "Failed to get Vulkan loader function pointers");
   }
 
-  // Load global functions.
-
   functions_loaded &= (ifn.vkCreateInstance = PFN_vkCreateInstance(
                            ifn.vkGetInstanceProcAddr(nullptr, "vkCreateInstance"))) != nullptr;
   functions_loaded &= (ifn.vkEnumerateInstanceExtensionProperties =
@@ -106,60 +100,46 @@ std::unique_ptr<VulkanInstance> VulkanInstance::Create(const bool with_surface,
              "Failed to get Vulkan global function pointers via "
              "vkGetInstanceProcAddr");
   }
-  // Available since Vulkan 1.1. If this is nullptr, it's a Vulkan 1.0 instance.
+  // Available since Vulkan 1.1, so null means a Vulkan 1.0 instance.
   ifn.vkEnumerateInstanceVersion = PFN_vkEnumerateInstanceVersion(
       ifn.vkGetInstanceProcAddr(nullptr, "vkEnumerateInstanceVersion"));
-
-  // Get the API version.
 
   if (ifn.vkEnumerateInstanceVersion) {
     ifn.vkEnumerateInstanceVersion(&vulkan_instance->api_version_);
   }
 
-  // Enable extensions and layers.
-
-  // Name pointers from `requested_extensions` will be used in the enabled
-  // extensions vector.
+  // Name pointers from requested_extensions are used in the enabled extensions vector.
   std::unordered_map<std::string, bool*> requested_extensions;
   if (vulkan_instance->api_version_ >= VK_MAKE_API_VERSION(0, 1, 1, 0)) {
     vulkan_instance->extensions_.ext_1_1_KHR_get_physical_device_properties2 = true;
   } else {
-    // #60.
     requested_extensions.emplace(
         "VK_KHR_get_physical_device_properties2",
         &vulkan_instance->extensions_.ext_1_1_KHR_get_physical_device_properties2);
   }
-  // #129.
   requested_extensions.emplace("VK_EXT_debug_utils",
                                &vulkan_instance->extensions_.ext_EXT_debug_utils);
-  // #395.
   requested_extensions.emplace("VK_KHR_portability_enumeration",
                                &vulkan_instance->extensions_.ext_KHR_portability_enumeration);
   if (with_surface) {
-    // #1.
     requested_extensions.emplace("VK_KHR_surface", &vulkan_instance->extensions_.ext_KHR_surface);
 #ifdef VK_USE_PLATFORM_XCB_KHR
-    // #6.
     requested_extensions.emplace("VK_KHR_xcb_surface",
                                  &vulkan_instance->extensions_.ext_KHR_xcb_surface);
 #endif
 #ifdef VK_USE_PLATFORM_WAYLAND_KHR
-    // #7.
     requested_extensions.emplace("VK_KHR_wayland_surface",
                                  &vulkan_instance->extensions_.ext_KHR_wayland_surface);
 #endif
 #ifdef VK_USE_PLATFORM_ANDROID_KHR
-    // #9.
     requested_extensions.emplace("VK_KHR_android_surface",
                                  &vulkan_instance->extensions_.ext_KHR_android_surface);
 #endif
 #ifdef VK_USE_PLATFORM_WIN32_KHR
-    // #10.
     requested_extensions.emplace("VK_KHR_win32_surface",
                                  &vulkan_instance->extensions_.ext_KHR_win32_surface);
 #endif
 #ifdef VK_USE_PLATFORM_METAL_EXT
-    // #217.
     requested_extensions.emplace("VK_EXT_metal_surface",
                                  &vulkan_instance->extensions_.ext_EXT_metal_surface);
 #endif
@@ -209,13 +189,11 @@ std::unique_ptr<VulkanInstance> VulkanInstance::Create(const bool with_surface,
     }
   }
 
-  // If enabled layers are not present, will disable all extensions provided by
-  // the layers by truncating the enabled extension vector to this size.
+  // Truncating to this size drops layer provided extensions when layers are absent.
   const size_t enabled_implementation_extension_count = enabled_extensions.size();
   std::vector<bool*> enabled_layer_extension_enablement_bools;
 
-  // Name pointers from `requested_layers` will be used in the enabled layer
-  // vector.
+  // Name pointers from requested_layers are used in the enabled layer vector.
   std::unordered_map<std::string, bool*> requested_layers;
   bool layer_khronos_validation = false;
   if (try_enable_validation) {
@@ -226,8 +204,7 @@ std::unique_ptr<VulkanInstance> VulkanInstance::Create(const bool with_surface,
 
   if (!requested_layers.empty()) {
     std::vector<VkLayerProperties> available_layers;
-    // "The list of available layers may change at any time due to actions
-    // outside of the Vulkan implementation"
+    // The available layers may change at any time, hence the retry loop.
     while (true) {
       available_layers.clear();
       uint32_t available_layer_count = 0;
@@ -242,14 +219,12 @@ std::unique_ptr<VulkanInstance> VulkanInstance::Create(const bool with_surface,
         const VkResult get_available_layers_result =
             ifn.vkEnumerateInstanceLayerProperties(&available_layer_count, available_layers.data());
         if (get_available_layers_result == VK_INCOMPLETE) {
-          // New layers were added.
           continue;
         }
         if (get_available_layers_result != VK_SUCCESS) {
           available_layers.clear();
           break;
         }
-        // In case the second enumeration returned fewer layers.
         available_layers.resize(available_layer_count);
       }
       break;
@@ -265,10 +240,7 @@ std::unique_ptr<VulkanInstance> VulkanInstance::Create(const bool with_surface,
         }
 
         bool got_layer_extensions = true;
-        // "Because the list of available layers may change externally between
-        // calls to vkEnumerateInstanceExtensionProperties, two calls may
-        // retrieve different results if a pLayerName is available in one call
-        // but not in another."
+        // Layer extension lists may differ between calls, hence the retry loop.
         while (true) {
           uint32_t supported_layer_extension_count = 0;
           const VkResult get_supported_layer_extension_count_result =
@@ -297,7 +269,6 @@ std::unique_ptr<VulkanInstance> VulkanInstance::Create(const bool with_surface,
           break;
         }
         if (!got_layer_extensions) {
-          // The layer was possibly removed.
           continue;
         }
 
@@ -308,8 +279,7 @@ std::unique_ptr<VulkanInstance> VulkanInstance::Create(const bool with_surface,
             continue;
           }
           REX_ASSERT(requested_extension_it->second != nullptr);
-          // Don't add the extension to the enabled vector multiple times if
-          // provided by the implementation itself or by another layer.
+          // Skip extensions already enabled by the implementation or another layer.
           if (!*requested_extension_it->second) {
             enabled_extensions.emplace_back(requested_extension_it->first.c_str());
             enabled_layer_extension_enablement_bools.push_back(requested_layer_it->second);
@@ -326,8 +296,6 @@ std::unique_ptr<VulkanInstance> VulkanInstance::Create(const bool with_surface,
     }
   }
 
-  // Create the instance.
-
   VkApplicationInfo application_info;
   application_info.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
   application_info.pNext = nullptr;
@@ -335,10 +303,6 @@ std::unique_ptr<VulkanInstance> VulkanInstance::Create(const bool with_surface,
   application_info.applicationVersion = 1;
   application_info.pEngineName = nullptr;
   application_info.engineVersion = 0;
-  // "The patch version number specified in apiVersion is ignored when creating
-  // an instance object."
-  // "Vulkan 1.0 implementations were required to return
-  // VK_ERROR_INCOMPATIBLE_DRIVER if apiVersion was larger than 1.0."
   application_info.apiVersion = vulkan_instance->api_version_ >= VK_MAKE_API_VERSION(0, 1, 1, 0)
                                     ? VulkanDevice::kHighestUsedApiMinorVersion
                                     : VK_MAKE_API_VERSION(0, 1, 0, 0);
@@ -347,8 +311,7 @@ std::unique_ptr<VulkanInstance> VulkanInstance::Create(const bool with_surface,
   instance_create_info.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
   instance_create_info.pNext = nullptr;
   instance_create_info.flags = 0;
-  // VK_KHR_get_physical_device_properties2 is needed to get the portability
-  // subset features.
+  // Portability subset features need VK_KHR_get_physical_device_properties2.
   if (vulkan_instance->extensions_.ext_KHR_portability_enumeration &&
       vulkan_instance->extensions_.ext_1_1_KHR_get_physical_device_properties2) {
     instance_create_info.flags |= VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
@@ -363,7 +326,7 @@ std::unique_ptr<VulkanInstance> VulkanInstance::Create(const bool with_surface,
 
   if (instance_create_result == VK_ERROR_LAYER_NOT_PRESENT ||
       instance_create_result == VK_ERROR_EXTENSION_NOT_PRESENT) {
-    // A layer was possibly removed. Try without layers.
+    // Retry without layers when a layer or extension is not present.
     for (bool* const extension_enablement : enabled_layer_extension_enablement_bools) {
       *extension_enablement = false;
     }
@@ -382,17 +345,14 @@ std::unique_ptr<VulkanInstance> VulkanInstance::Create(const bool with_surface,
              vk::to_string(vk::Result(instance_create_result)));
   }
 
-  // Load instance functions.
-
 #define REXVK_FUNCTION(name)                                                                   \
   functions_loaded &=                                                                          \
       (ifn.name = PFN_##name(ifn.vkGetInstanceProcAddr(vulkan_instance->instance_, #name))) != \
       nullptr;
 
-  // Vulkan 1.0.
 #include "gpu/xenos/host/vulkan/functions/instance_1_0.inc"
 
-  // Extensions promoted to a Vulkan version supported by the instance.
+  // Promoted functions load by their core names when the instance supports that core version.
 #define REXVK_FUNCTION_PROMOTED(extension_name, core_name)                        \
   functions_loaded &= (ifn.core_name = PFN_##core_name(ifn.vkGetInstanceProcAddr( \
                            vulkan_instance->instance_, #core_name))) != nullptr;
@@ -401,8 +361,7 @@ std::unique_ptr<VulkanInstance> VulkanInstance::Create(const bool with_surface,
   }
 #undef REXVK_FUNCTION_PROMOTED
 
-  // Non-promoted extensions, and extensions promoted to a Vulkan version not
-  // supported by the instance.
+  // Below that core version they load by their extension names.
 #define REXVK_FUNCTION_PROMOTED(extension_name, core_name)                        \
   functions_loaded &= (ifn.core_name = PFN_##core_name(ifn.vkGetInstanceProcAddr( \
                            vulkan_instance->instance_, #extension_name))) != nullptr;
@@ -450,14 +409,10 @@ std::unique_ptr<VulkanInstance> VulkanInstance::Create(const bool with_surface,
     REX_FAIL(ui, nullptr, "Failed to get all Vulkan instance function pointers");
   }
 
-  // Check whether a surface can be created.
-
   if (with_surface &&
       !VulkanPresenter::GetSurfaceTypesSupportedByInstance(vulkan_instance->extensions_)) {
     REX_FAIL(ui, nullptr, "The Vulkan instance doesn't support surface types used by ReXGlue");
   }
-
-  // Log instance properties.
 
   REXLOG_INFO(ui, "Vulkan instance API version {}.{}.{}. Enabled layers and extensions:",
               VK_VERSION_MAJOR(vulkan_instance->api_version_),
@@ -472,8 +427,6 @@ std::unique_ptr<VulkanInstance> VulkanInstance::Create(const bool with_surface,
        ++enabled_extension_index) {
     REXLOG_DEBUG(ui, "* {}", instance_create_info.ppEnabledExtensionNames[enabled_extension_index]);
   }
-
-  // Create the debug messenger if requested and available.
 
   if (vulkan_instance->extensions_.ext_EXT_debug_utils &&
       REXCVAR_GET(::rex::gpu::cvars::log_debug_messages)) {
@@ -496,8 +449,7 @@ std::unique_ptr<VulkanInstance> VulkanInstance::Create(const bool with_surface,
       debug_utils_messenger_create_info.messageSeverity |=
           VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
     }
-    // VUID-VkDebugUtilsMessengerCreateInfoEXT-messageSeverity-requiredbitmask:
-    // "messageSeverity must not be 0"
+    // messageSeverity must not be 0.
     if (debug_utils_messenger_create_info.messageSeverity) {
       debug_utils_messenger_create_info.messageType =
           VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT |
@@ -595,8 +547,7 @@ VkBool32 VulkanInstance::DebugUtilsMessengerCallback(
   for (uint32_t object_index = 0; object_index < callback_data->objectCount; ++object_index) {
     begin_annotation();
     const VkDebugUtilsObjectNameInfoEXT& object_info = callback_data->pObjects[object_index];
-    // Lowercase hexadecimal digits in the handle to match the default Vulkan
-    // debug utils messenger.
+    // Lowercase hexadecimal handle digits match the default Vulkan debug utils messenger.
     log_str << "object " << object_index << ": "
             << vk::to_string(vk::ObjectType(object_info.objectType)) << " 0x" << std::hex
             << object_info.objectHandle << std::dec;

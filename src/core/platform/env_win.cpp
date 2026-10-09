@@ -1,13 +1,3 @@
-/**
- * @file        core/platform/env_win.cpp
- *
- * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
- *              All rights reserved.
- *
- * @license     BSD 3-Clause License
- *              See LICENSE file in the project root for full license text.
- */
-
 #include <rex/platform.h>
 #include <rex/platform/env.h>
 
@@ -23,8 +13,7 @@ namespace rex::platform {
 
 std::optional<std::string> GetEnvironmentValue(std::string_view name) {
   std::u16string wname = rex::to_utf16(name);
-  // First call sizes the buffer (return value is char count INCLUDING NUL on
-  // success, or 0 on error / not-set).
+  // The sizing call returns the character count including the NUL, or 0 on error or unset.
   DWORD required = GetEnvironmentVariableW(reinterpret_cast<LPCWSTR>(wname.c_str()), nullptr, 0);
   if (required == 0) {
     return std::nullopt;

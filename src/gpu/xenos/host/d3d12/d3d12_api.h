@@ -27,7 +27,6 @@
 #include <d3dcompiler.h>
 #include <dxgi1_5.h>
 #include <dxgidebug.h>
-// For Microsoft::WRL::ComPtr.
 #include <wrl/client.h>
 #include <dxcapi.h>
 #include "DxbcConverter.h"

@@ -17,9 +17,11 @@
 
 namespace rex::gpu::d3d12 {
 
-// Submission index is the fence value or a value derived from it (if reclaiming
-// less often than once per fence value, for instance).
-
+/**
+ * Pool of shader visible descriptor heap pages.
+ *
+ * A submission index is the fence value or a value derived from it.
+ */
 class D3D12DescriptorHeapPool {
  public:
   static constexpr uint64_t kHeapIndexInvalid = UINT64_MAX;
@@ -32,38 +34,35 @@ class D3D12DescriptorHeapPool {
   void ChangeSubmissionTimeline();
   void ClearCache();
 
-  // Because all descriptors for a single draw call must be in the same heap,
-  // sometimes all descriptors, rather than only the modified portion of it,
-  // needs to be written.
-  //
-  // This may happen if there's not enough free space even for a partial update
-  // in the current heap, or if the heap which contains the unchanged part of
-  // the descriptors is outdated.
-  //
-  // If something uses this pool to do partial updates, it must let this
-  // function determine whether a partial update is possible. For this purpose,
-  // this function returns the heap reset index - and it must be called with its
-  // previous return value for the set of descriptors it's updating.
-  //
-  // If this function returns a value that is the same as previous_heap_index, a
-  // partial update needs to be done - and space for count_for_partial_update is
-  // allocated.
-  //
-  // If it's different, all descriptors must be written again - and space for
-  // count_for_full_update is allocated.
-  //
-  // If kHeapIndexInvalid is returned, there was an error.
-  //
-  // This MUST be called even if there's nothing to write in a partial update
-  // (with count_for_partial_update being 0), because a full update may still be
-  // required.
+  /**
+   * Allocates descriptor space in the current heap.
+   *
+   * All descriptors of a draw call must share a heap, so a full update is needed when the current
+   * heap lacks space for a partial update or the heap holding the unchanged part is outdated.
+   * Callers doing partial updates pass the previous return value for their descriptor set. A
+   * result equal to previous_heap_index means a partial update with count_for_partial_update
+   * descriptors allocated. Any other result means all descriptors are rewritten with
+   * count_for_full_update allocated. Must be called even when a partial update writes nothing
+   * (count_for_partial_update 0), because a full update may be required.
+   *
+   * @param submission_index Fence value or a value derived from it.
+   * @param previous_heap_index Value returned by the previous call for this descriptor set.
+   * @param count_for_partial_update Descriptors to allocate for a partial update.
+   * @param count_for_full_update Descriptors to allocate for a full update.
+   * @param index_out Receives the first allocated descriptor index within the heap.
+   * @return The heap reset index, or kHeapIndexInvalid on error.
+   */
   uint64_t Request(uint64_t submission_index, uint64_t previous_heap_index,
                    uint32_t count_for_partial_update, uint32_t count_for_full_update,
                    uint32_t& index_out);
 
-  // The current heap, for binding and writing - may be called only
-  // after a successful request because before a request, the heap may not exist
-  // yet.
+  /**
+   * Returns the current heap for binding and writing.
+   *
+   * Valid only after a successful Request because the heap may not exist before.
+   *
+   * @return The current heap.
+   */
   ID3D12DescriptorHeap* GetLastRequestHeap() const { return writable_first_->heap.Get(); }
   D3D12_CPU_DESCRIPTOR_HANDLE GetLastRequestHeapCPUStart() const {
     return writable_first_->cpu_start;
@@ -85,17 +84,10 @@ class D3D12DescriptorHeapPool {
     Page* next;
   };
 
-  // A list of heap with free space, with the first buffer being the one
-  // being filled.
   Page* writable_first_ = nullptr;
   Page* writable_last_ = nullptr;
-  // A list of full heaps that can be reclaimed when the GPU doesn't use them
-  // anymore.
   Page* submitted_first_ = nullptr;
   Page* submitted_last_ = nullptr;
-  // Monotonically increased when a new request is going to a different
-  // ID3D12DescriptorHeap than the one that may be bound. See Request
-  // for more information.
   uint64_t current_heap_index_ = 0;
   uint32_t current_page_used_ = 0;
 };

@@ -29,17 +29,33 @@
 #endif
 
 #if REX_PLATFORM_WIN32
+/** The PE header of the image that holds the reference. */
 extern "C" const char __ImageBase;
-/** Returns the recompiled code section of the image that expands it. */
+#elif REX_PLATFORM_MAC
+/** The first byte of the recompiled code section. */
+extern "C" const ::rex::u8 rex_recompiled_code_begin __asm("section$start$__TEXT$__rexguest");
+/** The byte past the end of the recompiled code section. */
+extern "C" const ::rex::u8 rex_recompiled_code_end __asm("section$end$__TEXT$__rexguest");
+#else
+/** The first byte of the recompiled code section, null when the image has none. */
+extern "C" __attribute__((weak, visibility("hidden"))) const ::rex::u8 __start_rexguest[];
+/** The byte past the end of the recompiled code section, null when the image has none. */
+extern "C" __attribute__((weak, visibility("hidden"))) const ::rex::u8 __stop_rexguest[];
+#endif
+
+/**
+ * Returns the recompiled code section of the image that expands it.
+ *
+ * @code
+ * rex::platform::AddRecompiledCode(REX_RECOMPILED_CODE());
+ * @endcode
+ */
+#if REX_PLATFORM_WIN32
 #define REX_RECOMPILED_CODE() ::rex::platform::FindImageSection(&__ImageBase, "rexguest")
 #elif REX_PLATFORM_MAC
-extern "C" const ::rex::u8 rex_recompiled_code_begin __asm("section$start$__TEXT$__rexguest");
-extern "C" const ::rex::u8 rex_recompiled_code_end __asm("section$end$__TEXT$__rexguest");
 #define REX_RECOMPILED_CODE() \
   ::std::span<const ::rex::u8>(&rex_recompiled_code_begin, &rex_recompiled_code_end)
 #else
-extern "C" __attribute__((weak, visibility("hidden"))) const ::rex::u8 __start_rexguest[];
-extern "C" __attribute__((weak, visibility("hidden"))) const ::rex::u8 __stop_rexguest[];
 #define REX_RECOMPILED_CODE() ::std::span<const ::rex::u8>(__start_rexguest, __stop_rexguest)
 #endif
 
@@ -62,7 +78,7 @@ REX_API bool AddRecompiledCode(std::span<const u8> code);
 REX_API void RemoveRecompiledCode(std::span<const u8> code);
 
 /**
- * Reports whether an address lies in registered recompiled code. Safe in a signal handler.
+ * Reports whether an address is in registered recompiled code. Safe in a signal handler.
  *
  * @param address The address to test.
  * @return True when a registered range holds the address.

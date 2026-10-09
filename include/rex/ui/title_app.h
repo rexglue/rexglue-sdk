@@ -118,6 +118,7 @@ class REX_RUNTIME_API TitleApp : public App, public gpu::IUIThread {
  public:
   /** Creates the app. Nothing starts until Init. */
   TitleApp();
+  /** Destroys the app. */
   ~TitleApp() override;
 
   /**

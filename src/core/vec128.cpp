@@ -24,7 +24,6 @@ std::string to_string(const vec128_t& value) {
 }
 
 std::ostream& operator<<(std::ostream& os, const vec128_t& value) {
-  // Inline hex format to avoid string_util dependency
   os << std::format("[{:08X} {:08X} {:08X} {:08X}]", value.u32[0], value.u32[1], value.u32[2],
                     value.u32[3]);
   return os;

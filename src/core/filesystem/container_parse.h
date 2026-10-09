@@ -44,7 +44,7 @@ std::optional<T> ReadAt(std::span<const u8> bytes, u64 offset) {
 }
 
 /**
- * Tests whether a byte range lies inside a span.
+ * Reports whether a byte range lies inside a span.
  *
  * @param bytes The span.
  * @param offset First byte of the range.
@@ -89,7 +89,7 @@ inline rex::Error Corrupt(std::string message) {
                                      std::vector<ContainerNode>& nodes);
 
 /**
- * Tests whether an image holds the GDFX magic at 1 of the probe offsets.
+ * Reports whether an image holds the GDFX magic at 1 of the candidate offsets.
  *
  * @param image The whole image.
  * @return True when the magic is found.

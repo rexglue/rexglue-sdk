@@ -1,4 +1,12 @@
-// VK_KHR_maintenance4 functions used in ReXGlue.
-// Promoted to Vulkan 1.3 core.
+/**
+ * @file        gpu/xenos/host/vulkan/functions/device_1_3_khr_maintenance4.inc
+ *
+ * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
+ *              All rights reserved.
+ *
+ * @license     BSD 3-Clause License
+ *              See LICENSE file in the project root for full license text.
+ */
+
 REXVK_FUNCTION_PROMOTED(vkGetDeviceBufferMemoryRequirementsKHR, vkGetDeviceBufferMemoryRequirements)
 REXVK_FUNCTION_PROMOTED(vkGetDeviceImageMemoryRequirementsKHR, vkGetDeviceImageMemoryRequirements)

@@ -6,8 +6,10 @@
  *
  * @license     BSD 3-Clause License
  *              See LICENSE file in the project root for full license text.
- *
- * @remarks     Based on XenonRecomp/UnleashedRecomp translation wrappers
+ */
+
+/*
+ * Parts of the translation wrappers are based on XenonRecomp and UnleashedRecomp.
  */
 
 #pragma once
@@ -34,25 +36,21 @@
 
 namespace rex::ppc {
 
-//=============================================================================
-// Type Traits (additional, types.h has is_be_type)
-//=============================================================================
-
-// Function argument helpers
 template <typename R, typename... T>
 constexpr std::tuple<T...> function_args(R (*)(T...)) noexcept {
   return std::tuple<T...>();
 }
 
+/**
+ * The value V as a constexpr variable.
+ *
+ * @tparam V The value.
+ */
 template <auto V>
 static constexpr decltype(V) constant_v = V;
 
 template <typename T>
 static constexpr bool is_precise_v = std::is_same_v<T, float> || std::is_same_v<T, double>;
-
-//=============================================================================
-// Concepts for Type Constraints
-//=============================================================================
 
 template <typename T>
 concept BigEndianType = is_be_type_v<T>;
@@ -63,18 +61,20 @@ concept MappedPtrType = is_mapped_ptr_v<T>;
 template <typename T>
 concept PreciseType = is_precise_v<T>;
 
-// A "plain" type: not a pointer, not be<T>, not MappedPtr
+/** A plain type, which is not a pointer, a big endian type or a MappedPtr. */
 template <typename T>
 concept PlainType = !std::is_pointer_v<T> && !BigEndianType<T> && !MappedPtrType<T>;
 
+/**
+ * Number of parameters of a function.
+ *
+ * @tparam Func The function.
+ */
 template <auto Func>
 struct arg_count_t {
+  /** Number of parameters. */
   static constexpr size_t value = std::tuple_size_v<decltype(function_args(Func))>;
 };
-
-//=============================================================================
-// Argument Translator
-//=============================================================================
 
 /** Places of 1 argument in the guest calling convention. */
 struct Argument {
@@ -86,6 +86,7 @@ struct Argument {
   int slot{};
 };
 
+/** Reads and writes function arguments in the guest calling convention. */
 struct ArgTranslator {
   /** Number of integer argument registers, r3 to r10. */
   static constexpr size_t kIntegerRegisters = 8;
@@ -169,6 +170,15 @@ struct ArgTranslator {
     return ctx.r1.u32 + 0x50 + static_cast<u32>((slot - kIntegerRegisters) * 8);
   }
 
+  /**
+   * Reads an integer argument from its register or its stack slot.
+   *
+   * @tparam Bytes The argument width in bytes, 4 or 8.
+   * @param ctx The register file.
+   * @param base The guest memory base.
+   * @param slot The argument image slot.
+   * @return The argument, zero extended.
+   */
   template <size_t Bytes = sizeof(u32)>
   static constexpr uint64_t GetIntegerArgumentValue(const PPCContext& ctx, uint8_t* base,
                                                     size_t slot) noexcept {
@@ -185,6 +195,15 @@ struct ArgTranslator {
     }
   }
 
+  /**
+   * Reads a float argument from its register or its stack slot.
+   *
+   * @param ctx The register file.
+   * @param base The guest memory base.
+   * @param arg The argument places.
+   * @param single True when the argument is a 4 byte float.
+   * @return The argument widened to a double.
+   */
   static double GetPrecisionArgumentValue(const PPCContext& ctx, uint8_t* base, const Argument& arg,
                                           bool single) noexcept {
     if (static_cast<size_t>(arg.ordinal) < kFloatRegisters) {
@@ -198,6 +217,14 @@ struct ArgTranslator {
     return std::bit_cast<f64>(static_cast<u64>(*rex::runtime::GuestPtr<be_u64*>(base, address)));
   }
 
+  /**
+   * Writes an integer argument to its register or its stack slot.
+   *
+   * @param ctx The register file.
+   * @param base The guest memory base.
+   * @param slot The argument image slot.
+   * @param value The value to write, only the low 32 bits go to a stack slot.
+   */
   static constexpr void SetIntegerArgumentValue(PPCContext& ctx, uint8_t* base, size_t slot,
                                                 uint64_t value) noexcept {
     if (slot < kIntegerRegisters) {
@@ -208,6 +235,15 @@ struct ArgTranslator {
         static_cast<u32>(value);
   }
 
+  /**
+   * Writes a float argument to its register or its stack slot.
+   *
+   * @param ctx The register file.
+   * @param base The guest memory base.
+   * @param arg The argument places.
+   * @param value The value to write.
+   * @param single True when the argument is a 4 byte float.
+   */
   static void SetPrecisionArgumentValue(PPCContext& ctx, uint8_t* base, const Argument& arg,
                                         double value, bool single) noexcept {
     if (static_cast<size_t>(arg.ordinal) < kFloatRegisters) {
@@ -223,6 +259,15 @@ struct ArgTranslator {
     }
   }
 
+  /**
+   * Reads a big endian argument.
+   *
+   * @tparam T The big endian type.
+   * @param ctx The register file.
+   * @param base The guest memory base.
+   * @param arg The argument places.
+   * @return The argument.
+   */
   template <BigEndianType T>
   static constexpr T GetValue(PPCContext& ctx, uint8_t* base, const Argument& arg) noexcept {
     T result;
@@ -231,6 +276,15 @@ struct ArgTranslator {
     return result;
   }
 
+  /**
+   * Reads a mapped pointer argument.
+   *
+   * @tparam T The mapped pointer type.
+   * @param ctx The register file.
+   * @param base The guest memory base.
+   * @param arg The argument places.
+   * @return The mapped pointer, null when the argument is 0.
+   */
   template <MappedPtrType T>
   static T GetValue(PPCContext& ctx, uint8_t* base, const Argument& arg) noexcept {
     using inner_t = typename mapped_ptr_inner_type<T>::type;
@@ -243,6 +297,15 @@ struct ArgTranslator {
     return T(host_ptr, guest_addr);
   }
 
+  /**
+   * Reads an integer or float argument.
+   *
+   * @tparam T The argument type.
+   * @param ctx The register file.
+   * @param base The guest memory base.
+   * @param arg The argument places.
+   * @return The argument.
+   */
   template <PlainType T>
   static constexpr T GetValue(PPCContext& ctx, uint8_t* base, const Argument& arg) noexcept {
     if constexpr (is_precise_v<T>) {
@@ -252,6 +315,15 @@ struct ArgTranslator {
     }
   }
 
+  /**
+   * Reads a pointer argument.
+   *
+   * @tparam T The pointer type.
+   * @param ctx The register file.
+   * @param base The guest memory base.
+   * @param arg The argument places.
+   * @return The host pointer, null when the argument is 0.
+   */
   template <typename T>
     requires std::is_pointer_v<T>
   static constexpr T GetValue(PPCContext& ctx, uint8_t* base, const Argument& arg) noexcept {
@@ -263,6 +335,15 @@ struct ArgTranslator {
     return rex::runtime::GuestPtr<T>(base, guest_addr);
   }
 
+  /**
+   * Writes an argument of any supported type.
+   *
+   * @tparam T The argument type.
+   * @param ctx The register file.
+   * @param base The guest memory base.
+   * @param arg The argument places.
+   * @param value The value to write.
+   */
   template <typename T>
   static constexpr void SetValue(PPCContext& ctx, uint8_t* base, const Argument& arg,
                                  T value) noexcept {
@@ -280,10 +361,12 @@ struct ArgTranslator {
   }
 };
 
-//=============================================================================
-// Argument Gathering
-//=============================================================================
-
+/**
+ * Reports whether a type is float or double.
+ *
+ * @tparam T The type.
+ * @return True when T is float or double.
+ */
 template <typename T>
 constexpr bool is_precise_type() {
   return is_precise_v<T>;
@@ -318,30 +401,66 @@ constexpr std::array<Argument, sizeof...(Args)> GatherFunctionArgumentsFromTypes
   return args;
 }
 
+/**
+ * Places each argument of a function signature by the guest calling convention.
+ *
+ * @tparam R The return type.
+ * @tparam Args The argument types.
+ * @return The places of each argument.
+ */
 template <typename R, typename... Args>
 constexpr auto GatherFromSignature(R (*)(Args...)) {
   return GatherFunctionArgumentsFromTypes<Args...>();
 }
 
+/**
+ * Places each argument of a function by the guest calling convention.
+ *
+ * @tparam Func The function.
+ * @return The places of each argument.
+ */
 template <auto Func>
 constexpr auto GatherFunctionArguments() {
   return GatherFromSignature(Func);
 }
 
+/**
+ * Places of 1 argument of a function.
+ *
+ * @tparam Func The function.
+ * @tparam I The argument index.
+ */
 template <auto Func, size_t I>
 struct arg_ordinal_t {
+  /** Places of argument I. */
   static constexpr Argument value = GatherFunctionArguments<Func>()[I];
 };
 
-//=============================================================================
-// Argument Translation
-//=============================================================================
-
+/**
+ * Ends the translation of arguments to host values.
+ *
+ * @tparam Func The native function.
+ * @tparam I The argument index.
+ * @tparam TArgs The argument types.
+ * @param ctx The register file.
+ * @param base The guest memory base.
+ * @param tpl The argument tuple.
+ */
 template <auto Func, int I = 0, typename... TArgs>
   requires(I >= sizeof...(TArgs))
 void _translate_args_to_host([[maybe_unused]] PPCContext& ctx, [[maybe_unused]] uint8_t* base,
                              [[maybe_unused]] std::tuple<TArgs...>&) noexcept {}
 
+/**
+ * Reads argument I and every later one from the register file into a tuple.
+ *
+ * @tparam Func The native function.
+ * @tparam I The argument index.
+ * @tparam TArgs The argument types.
+ * @param ctx The register file.
+ * @param base The guest memory base.
+ * @param tpl The argument tuple to fill.
+ */
 template <auto Func, int I = 0, typename... TArgs>
   requires(I < sizeof...(TArgs))
 void _translate_args_to_host(PPCContext& ctx, uint8_t* base, std::tuple<TArgs...>& tpl) noexcept {
@@ -350,11 +469,29 @@ void _translate_args_to_host(PPCContext& ctx, uint8_t* base, std::tuple<TArgs...
   _translate_args_to_host<Func, I + 1>(ctx, base, tpl);
 }
 
+/**
+ * Ends the translation of arguments to guest values.
+ *
+ * @tparam I The argument index.
+ * @tparam TArgs The argument types.
+ * @param ctx The register file.
+ * @param base The guest memory base.
+ * @param tpl The argument tuple.
+ */
 template <int I = 0, typename... TArgs>
   requires(I >= sizeof...(TArgs))
 void _translate_args_to_guest([[maybe_unused]] PPCContext& ctx, [[maybe_unused]] uint8_t* base,
                               [[maybe_unused]] std::tuple<TArgs...>&) noexcept {}
 
+/**
+ * Writes argument I and every later one from a tuple into the register file and stack image.
+ *
+ * @tparam I The argument index.
+ * @tparam TArgs The argument types.
+ * @param ctx The register file.
+ * @param base The guest memory base.
+ * @param tpl The argument tuple.
+ */
 template <int I = 0, typename... TArgs>
   requires(I < sizeof...(TArgs))
 void _translate_args_to_guest(PPCContext& ctx, uint8_t* base, std::tuple<TArgs...>& tpl) noexcept {
@@ -364,12 +501,14 @@ void _translate_args_to_guest(PPCContext& ctx, uint8_t* base, std::tuple<TArgs..
   _translate_args_to_guest<I + 1>(ctx, base, tpl);
 }
 
-//=============================================================================
-
-// Host To PPC Function Wrapper
-//=============================================================================
-// Calls a native C++ function with arguments extracted from PPC context
-
+/**
+ * Calls a native C++ function with arguments extracted from the PPC context. A compiler barrier
+ * follows the call so the compiler does not reorder it.
+ *
+ * @tparam Func The native function.
+ * @param ctx The register file.
+ * @param base The guest memory base.
+ */
 template <auto Func>
 __attribute__((noinline)) void HostToGuestFunction(PPCContext& ctx, uint8_t* base) {
   using ret_t = decltype(std::apply(Func, function_args(Func)));
@@ -389,7 +528,6 @@ __attribute__((noinline)) void HostToGuestFunction(PPCContext& ctx, uint8_t* bas
   } else {
     auto v = std::apply(Func, args);
 
-    // Memory barrier to ensure compiler doesn't reorder
     asm volatile("" ::: "memory");
 
     if constexpr (std::is_pointer<ret_t>()) {
@@ -419,12 +557,13 @@ inline constexpr u32 kLinkageSize = 0x50;
 /** Return address a call from host code leaves in lr. */
 inline constexpr u32 kHostReturnAddress = 0xBCBCBCBC;
 
-//=============================================================================
-// Stack bounds helper
-//=============================================================================
-
-/// Read stack_end_ptr from KPCR at r13 + 0x74.
-/// Returns 0 if r13 is not set (e.g. in unit tests without a live thread).
+/**
+ * Reads stack_end_ptr from the KPCR at r13 + 0x74.
+ *
+ * @param ctx The register file.
+ * @param base The guest memory base.
+ * @return The stack limit, 0 when r13 is not set as in unit tests without a live thread.
+ */
 inline uint32_t stack_limit_from_pcr(PPCContext& ctx, uint8_t* base) {
   if (ctx.r13.u32 == 0)
     return 0;
@@ -539,6 +678,7 @@ R Call(PPCContext& ctx, uint8_t* base, PPCFunc& fn, Args... args) {
  * Calls recompiled code on the calling thread's register file.
  *
  * @tparam T The return type.
+ * @tparam TArgs The argument types, deduced from argv.
  * @param func The guest function.
  * @param argv The arguments.
  * @return The value the guest function returned.
@@ -553,5 +693,5 @@ T GuestToHostFunction(PPCFunc* func, TArgs&&... argv) {
 
 }  // namespace rex::ppc
 
-/// Maximum size of the loaded image name buffer (255 chars + NUL).
+/** Size of the loaded image name buffer, 255 characters plus NUL. */
 constexpr size_t kExLoadedImageNameSize = 255 + 1;

@@ -1,5 +1,5 @@
 /**
- * @file        runtime/thread_wait_test.cpp
+ * @file        tests/unit/runtime/thread_wait_test.cpp
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

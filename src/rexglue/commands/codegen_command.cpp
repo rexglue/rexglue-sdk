@@ -1,10 +1,3 @@
-/**
- * @file        rexglue/commands/codegen_command.cpp
- *
- * @copyright   Copyright (c) 2026 Tom Clay
- * @license     BSD 3-Clause License
- */
-
 #include "codegen_command.h"
 #include "../ui/progress.h"
 #include "../ui/ui.h"

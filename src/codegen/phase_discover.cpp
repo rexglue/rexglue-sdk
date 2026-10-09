@@ -32,10 +32,6 @@ namespace rex::codegen {
 
 namespace {
 
-//=============================================================================
-// Discover Phase: iterative function block discovery
-//=============================================================================
-
 void discoverFunction(CodegenContext& ctx, uint32_t funcAddr,
                       const std::unordered_set<uint32_t>& knownFunctions) {
   auto& graph = ctx.graph;
@@ -46,13 +42,11 @@ void discoverFunction(CodegenContext& ctx, uint32_t funcAddr,
   if (!node)
     return;
 
-  // Skip if already discovered
   if (!node->canDiscover()) {
     REXLOG_TRACE(codegen, "Analyze: function 0x{:08X} already discovered, skipping", funcAddr);
     return;
   }
 
-  // Imports don't need block discovery
   if (node->isImport()) {
     node->discoverAsImport();
     return;
@@ -60,18 +54,14 @@ void discoverFunction(CodegenContext& ctx, uint32_t funcAddr,
 
   REXLOG_TRACE(codegen, "Analyze: discovering function 0x{:08X} ({})", funcAddr, node->name());
 
-  // Lookup pdataSize for exception handler boundary
   uint32_t pdataSize = 0;
 
-  // For CONFIG functions: use only the explicitly declared size (if any)
-  // If no size specified (size=0), let discovery find natural boundaries via region
-  // Don't inherit PDATA sizes for CONFIG functions - they're user hints for entry points
+  // CONFIG sizes are entry point hints, so only a declared size applies and PDATA is ignored.
   if (node->authority() == FunctionAuthority::CONFIG) {
-    pdataSize = node->size();  // 0 if not specified, which is correct
+    pdataSize = node->size();
     REXLOG_TRACE(codegen, "Analyze: 0x{:08X} is CONFIG, using declared size={}", funcAddr,
                  pdataSize);
   } else {
-    // For non-CONFIG functions, use PDATA size if available
     auto pdataIt = ctx.scan.pdataSizes.find(funcAddr);
     if (pdataIt != ctx.scan.pdataSizes.end()) {
       pdataSize = pdataIt->second;
@@ -79,7 +69,6 @@ void discoverFunction(CodegenContext& ctx, uint32_t funcAddr,
     }
   }
 
-  // Find the code region containing this function
   const CodeRegion* region = nullptr;
   for (const auto& r : ctx.scan.codeRegions) {
     if (r.contains(funcAddr)) {
@@ -92,7 +81,6 @@ void discoverFunction(CodegenContext& ctx, uint32_t funcAddr,
     return;
   }
 
-  // Pass pdataSize so forward branches within function extent are correctly identified
   auto result = discoverBlocks(decoded, ctx.limits(), funcAddr, *region, knownFunctions, pdataSize,
                                &ctx.Config().switchTables);
 
@@ -101,16 +89,13 @@ void discoverFunction(CodegenContext& ctx, uint32_t funcAddr,
     return;
   }
 
-  // snooper the function with the discovered blocks and instructions
   node->discover(std::move(result.blocks), std::move(result.instructions),
                  std::move(result.labels));
 
-  // Add jump tables (targets become labels in the function)
   for (const auto& jt : result.jumpTables) {
     graph.addJumpTableToFunction(funcAddr, jt);
   }
 
-  // Register external call targets as new functions (bl only, not b)
   for (uint32_t target : result.externalCalls) {
     if (!graph.isEntryPoint(target) && !graph.isImport(target)) {
       if (binary.isInImportExportRange(target)) {
@@ -120,13 +105,11 @@ void discoverFunction(CodegenContext& ctx, uint32_t funcAddr,
     }
   }
 
-  // Add unresolved branches for later resolution
   for (const auto& branch : result.unresolvedBranches) {
     graph.addUnresolvedJumpToFunction(funcAddr, branch.site, branch.target, branch.isCall,
                                       branch.isConditional);
   }
 
-  // Scan exception handler regions for branches not in discovered blocks
   if (pdataSize > 0) {
     std::unordered_set<uint32_t> discoveredAddrs;
     for (const auto& block : result.blocks) {
@@ -141,11 +124,9 @@ void discoverFunction(CodegenContext& ctx, uint32_t funcAddr,
       for (uint32_t offset = 0; offset < pdataSize; offset += 4) {
         uint32_t site = funcAddr + offset;
 
-        // Skip if already discovered by normal control flow
         if (discoveredAddrs.count(site))
           continue;
 
-        // Skip if marked invalid
         auto invalidIt = ctx.analysisState().invalidInstructions.find(site);
         if (invalidIt != ctx.analysisState().invalidInstructions.end()) {
           continue;
@@ -169,14 +150,12 @@ void discoverFunction(CodegenContext& ctx, uint32_t funcAddr,
           target = isAbsolute ? static_cast<uint32_t>(branchOffset) : site + branchOffset;
         }
 
-        // Skip internal jumps within pdata region
         if (!isCall && target >= funcAddr && target < pdataEnd) {
           continue;
         }
 
         graph.addUnresolvedJumpToFunction(funcAddr, site, target, isCall, false);
 
-        // Register call targets as new functions
         if (isCall && !graph.isEntryPoint(target) && !graph.isImport(target)) {
           if (binary.isInImportExportRange(target)) {
             continue;
@@ -194,7 +173,6 @@ void discoverAllFunctions(CodegenContext& ctx) {
   auto& graph = ctx.graph;
   auto& binary = ctx.binary();
 
-  // Iterative discovery
   size_t iteration = 0;
   size_t lastFunctionCount = 0;
   const size_t maxIterations = ctx.limits().max_discovery_iterations;
@@ -219,7 +197,6 @@ void discoverAllFunctions(CodegenContext& ctx) {
 
   REXLOG_TRACE(codegen, "Analyze: {} functions after call graph expansion", graph.functionCount());
 
-  // VTable scanning
   {
     VTableScanner vtScanner(binary);
     auto vtables = vtScanner.scan();
@@ -241,7 +218,6 @@ void discoverAllFunctions(CodegenContext& ctx) {
     REXLOG_TRACE(codegen, "Analyze: VTable scan found {} vtables, {} new functions", vtables.size(),
                  newFunctions);
 
-    // Continue discovery for vtable functions
     if (newFunctions > 0) {
       size_t vtableIteration = 0;
       const size_t maxVtableIterations = ctx.limits().max_vtable_iterations;
@@ -265,7 +241,6 @@ void discoverAllFunctions(CodegenContext& ctx) {
 
 }  // anonymous namespace
 
-/// Discover blocks for all pending functions (shared helper, declared in phase_helpers.h).
 size_t discoverPendingFunctions(CodegenContext& ctx,
                                 const std::unordered_set<uint32_t>& knownFunctions) {
   std::vector<uint32_t> pending;

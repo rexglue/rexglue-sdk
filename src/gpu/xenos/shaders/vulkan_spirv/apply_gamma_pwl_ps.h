@@ -1,124 +1,14 @@
-// Generated with `xb buildshaders`.
-#if 0
-; SPIR-V
-; Version: 1.0
-; Generator: Khronos Glslang Reference Front End; 11
-; Bound: 24950
-; Schema: 0
-               OpCapability Shader
-               OpCapability SampledBuffer
-          %1 = OpExtInstImport "GLSL.std.450"
-               OpMemoryModel Logical GLSL450
-               OpEntryPoint Fragment %5663 "main" %gl_FragCoord %3258
-               OpExecutionMode %5663 OriginUpperLeft
-               OpDecorate %gl_FragCoord BuiltIn FragCoord
-               OpDecorate %5759 Binding 0
-               OpDecorate %5759 DescriptorSet 1
-               OpDecorate %5945 Binding 0
-               OpDecorate %5945 DescriptorSet 0
-               OpDecorate %3258 Location 0
-       %void = OpTypeVoid
-       %1282 = OpTypeFunction %void
-      %float = OpTypeFloat 32
-       %uint = OpTypeInt 32 0
-     %v2uint = OpTypeVector %uint 2
-    %float_0 = OpConstant %float 0
-    %float_1 = OpConstant %float 1
-     %uint_7 = OpConstant %uint 7
-     %uint_1 = OpConstant %uint 1
-%float_0_125 = OpConstant %float 0.125
-%float_1_52737048en05 = OpConstant %float 1.52737048e-05
-    %v4float = OpTypeVector %float 4
-%_ptr_Input_v4float = OpTypePointer Input %v4float
-%gl_FragCoord = OpVariable %_ptr_Input_v4float Input
-    %v2float = OpTypeVector %float 2
-     %v3uint = OpTypeVector %uint 3
-        %150 = OpTypeImage %float 2D 0 0 0 1 Unknown
-%_ptr_UniformConstant_150 = OpTypePointer UniformConstant %150
-       %5759 = OpVariable %_ptr_UniformConstant_150 UniformConstant
-        %int = OpTypeInt 32 1
-      %v2int = OpTypeVector %int 2
-      %int_0 = OpConstant %int 0
-    %v3float = OpTypeVector %float 3
- %float_1023 = OpConstant %float 1023
-  %float_0_5 = OpConstant %float 0.5
-        %152 = OpTypeImage %uint Buffer 0 0 0 1 Unknown
-%_ptr_UniformConstant_152 = OpTypePointer UniformConstant %152
-       %5945 = OpVariable %_ptr_UniformConstant_152 UniformConstant
-     %uint_3 = OpConstant %uint 3
-     %v4uint = OpTypeVector %uint 4
-     %uint_2 = OpConstant %uint 2
-%_ptr_Output_v4float = OpTypePointer Output %v4float
-       %3258 = OpVariable %_ptr_Output_v4float Output
-        %939 = OpConstantComposite %v3float %float_0_5 %float_0_5 %float_0_5
-       %5663 = OpFunction %void None %1282
-      %24949 = OpLabel
-      %18552 = OpLoad %v4float %gl_FragCoord
-      %14105 = OpVectorShuffle %v2float %18552 %18552 0 1
-       %8667 = OpConvertFToU %v2uint %14105
-      %21665 = OpLoad %150 %5759
-      %11127 = OpBitcast %v2int %8667
-       %6680 = OpImageFetch %v4float %21665 %11127 Lod %int_0
-      %16242 = OpVectorShuffle %v3float %6680 %6680 0 1 2
-      %13907 = OpVectorTimesScalar %v3float %16242 %float_1023
-      %16889 = OpFAdd %v3float %13907 %939
-      %11099 = OpConvertFToU %v3uint %16889
-      %19954 = OpLoad %152 %5945
-      %23099 = OpCompositeExtract %uint %11099 0
-      %17722 = OpShiftRightLogical %uint %23099 %uint_3
-      %15968 = OpIMul %uint %17722 %uint_3
-      %18268 = OpBitcast %int %15968
-      %14598 = OpImageFetch %v4uint %19954 %18268
-       %6376 = OpCompositeExtract %uint %14598 0
-      %17705 = OpConvertUToF %float %6376
-      %12314 = OpBitwiseAnd %uint %23099 %uint_7
-      %14345 = OpCompositeExtract %uint %14598 1
-      %16230 = OpIMul %uint %12314 %14345
-      %17759 = OpConvertUToF %float %16230
-      %22854 = OpFMul %float %17759 %float_0_125
-      %11948 = OpFAdd %float %17705 %22854
-       %6845 = OpFMul %float %11948 %float_1_52737048en05
-       %6923 = OpExtInst %float %1 FClamp %6845 %float_0 %float_1
-      %14371 = OpLoad %152 %5945
-      %12884 = OpCompositeExtract %uint %11099 1
-      %17798 = OpShiftRightLogical %uint %12884 %uint_3
-      %15827 = OpIMul %uint %17798 %uint_3
-      %18887 = OpIAdd %uint %15827 %uint_1
-      %14460 = OpBitcast %int %18887
-      %17829 = OpImageFetch %v4uint %14371 %14460
-       %6377 = OpCompositeExtract %uint %17829 0
-      %17706 = OpConvertUToF %float %6377
-      %12315 = OpBitwiseAnd %uint %12884 %uint_7
-      %14346 = OpCompositeExtract %uint %17829 1
-      %16231 = OpIMul %uint %12315 %14346
-      %17760 = OpConvertUToF %float %16231
-      %22855 = OpFMul %float %17760 %float_0_125
-      %11949 = OpFAdd %float %17706 %22855
-       %6846 = OpFMul %float %11949 %float_1_52737048en05
-       %6924 = OpExtInst %float %1 FClamp %6846 %float_0 %float_1
-      %14372 = OpLoad %152 %5945
-      %12885 = OpCompositeExtract %uint %11099 2
-      %17799 = OpShiftRightLogical %uint %12885 %uint_3
-      %15828 = OpIMul %uint %17799 %uint_3
-      %18888 = OpIAdd %uint %15828 %uint_2
-      %14461 = OpBitcast %int %18888
-      %17830 = OpImageFetch %v4uint %14372 %14461
-       %6378 = OpCompositeExtract %uint %17830 0
-      %17707 = OpConvertUToF %float %6378
-      %12316 = OpBitwiseAnd %uint %12885 %uint_7
-      %14347 = OpCompositeExtract %uint %17830 1
-      %16232 = OpIMul %uint %12316 %14347
-      %17761 = OpConvertUToF %float %16232
-      %22856 = OpFMul %float %17761 %float_0_125
-      %11950 = OpFAdd %float %17707 %22856
-       %7206 = OpFMul %float %11950 %float_1_52737048en05
-      %22346 = OpExtInst %float %1 FClamp %7206 %float_0 %float_1
-       %9223 = OpCompositeConstruct %v4float %6923 %6924 %22346 %float_1
-               OpStore %3258 %9223
-               OpReturn
-               OpFunctionEnd
-#endif
+/**
+ * @file        gpu/xenos/shaders/vulkan_spirv/apply_gamma_pwl_ps.h
+ *
+ * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
+ *              All rights reserved.
+ *
+ * @license     BSD 3-Clause License
+ *              See LICENSE file in the project root for full license text.
+ */
 
+// Generated with `xb buildshaders`.
 const uint32_t apply_gamma_pwl_ps[] = {
     0x07230203, 0x00010000, 0x0008000B, 0x00006176, 0x00000000, 0x00020011, 0x00000001, 0x00020011,
     0x0000002E, 0x0006000B, 0x00000001, 0x4C534C47, 0x6474732E, 0x3035342E, 0x00000000, 0x0003000E,

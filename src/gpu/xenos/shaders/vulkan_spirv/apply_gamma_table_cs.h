@@ -1,112 +1,14 @@
-// Generated with `xb buildshaders`.
-#if 0
-; SPIR-V
-; Version: 1.0
-; Generator: Khronos Glslang Reference Front End; 11
-; Bound: 24689
-; Schema: 0
-               OpCapability Shader
-               OpCapability SampledBuffer
-               OpCapability StorageImageExtendedFormats
-          %1 = OpExtInstImport "GLSL.std.450"
-               OpMemoryModel Logical GLSL450
-               OpEntryPoint GLCompute %5663 "main" %gl_GlobalInvocationID
-               OpExecutionMode %5663 LocalSize 16 8 1
-               OpDecorate %gl_GlobalInvocationID BuiltIn GlobalInvocationId
-               OpDecorate %_struct_993 Block
-               OpMemberDecorate %_struct_993 0 Offset 0
-               OpDecorate %5759 Binding 0
-               OpDecorate %5759 DescriptorSet 1
-               OpDecorate %5945 Binding 0
-               OpDecorate %5945 DescriptorSet 0
-               OpDecorate %3258 NonReadable
-               OpDecorate %3258 Binding 0
-               OpDecorate %3258 DescriptorSet 2
-               OpDecorate %gl_WorkGroupSize BuiltIn WorkgroupSize
-       %void = OpTypeVoid
-       %1282 = OpTypeFunction %void
-       %uint = OpTypeInt 32 0
-     %v2uint = OpTypeVector %uint 2
-     %v3uint = OpTypeVector %uint 3
-%_ptr_Input_v3uint = OpTypePointer Input %v3uint
-%gl_GlobalInvocationID = OpVariable %_ptr_Input_v3uint Input
-%_struct_993 = OpTypeStruct %v2uint
-%_ptr_PushConstant__struct_993 = OpTypePointer PushConstant %_struct_993
-       %3305 = OpVariable %_ptr_PushConstant__struct_993 PushConstant
-        %int = OpTypeInt 32 1
-      %int_0 = OpConstant %int 0
-%_ptr_PushConstant_v2uint = OpTypePointer PushConstant %v2uint
-       %bool = OpTypeBool
-     %v2bool = OpTypeVector %bool 2
-      %float = OpTypeFloat 32
-        %150 = OpTypeImage %float 2D 0 0 0 1 Unknown
-%_ptr_UniformConstant_150 = OpTypePointer UniformConstant %150
-       %5759 = OpVariable %_ptr_UniformConstant_150 UniformConstant
-      %v2int = OpTypeVector %int 2
-    %v4float = OpTypeVector %float 4
-    %v3float = OpTypeVector %float 3
-  %float_255 = OpConstant %float 255
-  %float_0_5 = OpConstant %float 0.5
-        %154 = OpTypeImage %float Buffer 0 0 0 1 Unknown
-%_ptr_UniformConstant_154 = OpTypePointer UniformConstant %154
-       %5945 = OpVariable %_ptr_UniformConstant_154 UniformConstant
-     %uint_0 = OpConstant %uint 0
-     %uint_1 = OpConstant %uint 1
-    %float_1 = OpConstant %float 1
-        %166 = OpTypeImage %float 2D 0 0 0 2 Rgb10A2
-%_ptr_UniformConstant_166 = OpTypePointer UniformConstant %166
-       %3258 = OpVariable %_ptr_UniformConstant_166 UniformConstant
-    %uint_16 = OpConstant %uint 16
-     %uint_8 = OpConstant %uint 8
-%gl_WorkGroupSize = OpConstantComposite %v3uint %uint_16 %uint_8 %uint_1
-        %939 = OpConstantComposite %v3float %float_0_5 %float_0_5 %float_0_5
-       %5663 = OpFunction %void None %1282
-      %15110 = OpLabel
-               OpSelectionMerge %21573 None
-               OpSwitch %uint_0 %12914
-      %12914 = OpLabel
-      %13761 = OpLoad %v3uint %gl_GlobalInvocationID
-      %21717 = OpVectorShuffle %v2uint %13761 %13761 0 1
-       %7760 = OpAccessChain %_ptr_PushConstant_v2uint %3305 %int_0
-      %13378 = OpLoad %v2uint %7760
-      %23437 = OpUGreaterThanEqual %v2bool %21717 %13378
-      %23076 = OpAny %bool %23437
-               OpSelectionMerge %18302 DontFlatten
-               OpBranchConditional %23076 %21992 %18302
-      %21992 = OpLabel
-               OpBranch %21573
-      %18302 = OpLabel
-      %24004 = OpLoad %150 %5759
-      %10533 = OpBitcast %v2int %21717
-       %6680 = OpImageFetch %v4float %24004 %10533 Lod %int_0
-      %16242 = OpVectorShuffle %v3float %6680 %6680 0 1 2
-      %13907 = OpVectorTimesScalar %v3float %16242 %float_255
-      %16889 = OpFAdd %v3float %13907 %939
-      %11099 = OpConvertFToU %v3uint %16889
-      %18624 = OpLoad %154 %5945
-      %15435 = OpCompositeExtract %uint %11099 0
-      %24686 = OpBitcast %int %15435
-       %8011 = OpImageFetch %v4float %18624 %24686
-      %12957 = OpCompositeExtract %float %8011 2
-      %18146 = OpLoad %154 %5945
-      %12224 = OpCompositeExtract %uint %11099 1
-      %24687 = OpBitcast %int %12224
-       %8012 = OpImageFetch %v4float %18146 %24687
-      %12958 = OpCompositeExtract %float %8012 1
-      %18147 = OpLoad %154 %5945
-      %12225 = OpCompositeExtract %uint %11099 2
-      %24688 = OpBitcast %int %12225
-       %8372 = OpImageFetch %v4float %18147 %24688
-       %9290 = OpCompositeExtract %float %8372 0
-      %18032 = OpCompositeConstruct %v4float %12957 %12958 %9290 %float_1
-      %19279 = OpLoad %166 %3258
-               OpImageWrite %19279 %10533 %18032
-               OpBranch %21573
-      %21573 = OpLabel
-               OpReturn
-               OpFunctionEnd
-#endif
+/**
+ * @file        gpu/xenos/shaders/vulkan_spirv/apply_gamma_table_cs.h
+ *
+ * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
+ *              All rights reserved.
+ *
+ * @license     BSD 3-Clause License
+ *              See LICENSE file in the project root for full license text.
+ */
 
+// Generated with `xb buildshaders`.
 const uint32_t apply_gamma_table_cs[] = {
     0x07230203, 0x00010000, 0x0008000B, 0x00006071, 0x00000000, 0x00020011, 0x00000001, 0x00020011,
     0x0000002E, 0x00020011, 0x00000031, 0x0006000B, 0x00000001, 0x4C534C47, 0x6474732E, 0x3035342E,

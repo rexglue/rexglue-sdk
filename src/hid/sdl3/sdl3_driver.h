@@ -48,16 +48,15 @@ class SDL3Driver final : public Driver {
 
  private:
   enum class RepeatState {
-    Idle,       // no buttons pressed or repeating has ended
-    Waiting,    // a button is held and the delay is awaited
-    Repeating,  // actively repeating at a rate
+    Idle,
+    Waiting,
+    Repeating,
   };
   struct KeystrokeState {
     uint64_t buttons;
     RepeatState repeat_state;
-    // the button number that was pressed last:
     uint8_t repeat_butt_idx;
-    // the last time (ms) a down (and/or repeat) event for that button was send:
+    /** Time in ms of the last down or repeat event for that button. */
     uint32_t repeat_time;
   };
 
@@ -68,16 +67,44 @@ class SDL3Driver final : public Driver {
     bool state_changed;
     bool is_active;
     DeviceId id;
-    // Per pad rather than per guest user, so it survives reassignment.
+    /** Kept per pad, so it survives title user reassignment. */
     KeystrokeState keystroke;
   };
 
   X_RESULT ReadDeviceState(DeviceId id, X_INPUT_STATE* out_state);
   X_RESULT ReadDeviceCapabilities(DeviceId id, X_INPUT_CAPABILITIES* out_caps);
+  /**
+   * Starts rumble on a pad. XInput vibration holds until the guest changes it but SDL rumble
+   * expires, and a zero duration expires on the next SDL_UpdateJoysticks, so the maximum duration
+   * is armed. Each call cancels the previous effect.
+   *
+   * @param id         Device handle.
+   * @param vibration  Motor speeds.
+   * @return X_ERROR_SUCCESS, X_ERROR_DEVICE_NOT_CONNECTED or X_ERROR_FUNCTION_FAILED.
+   */
   X_RESULT WriteDeviceVibration(DeviceId id, X_INPUT_VIBRATION* vibration);
+  /**
+   * Synthesizes keystrokes from pad button changes. The flags argument of the guest call is not
+   * used. The keystroke table is indexed by bit and its order is the order events are sent when
+   * several buttons change at once. Bits 0 to 15 are the XInput button field, bits 16 and 17 the
+   * triggers as buttons, bits 18 to 25 the left stick directions and bits 26 to 33 the right
+   * stick directions.
+   *
+   * @param id             Device handle.
+   * @param out_keystroke  Receives the keystroke.
+   * @return X_ERROR_SUCCESS when a keystroke was produced, X_ERROR_EMPTY when none,
+   *         X_ERROR_DEVICE_NOT_CONNECTED or X_ERROR_BAD_ARGUMENTS on failure.
+   */
   X_RESULT ReadDeviceKeystroke(DeviceId id, X_INPUT_KEYSTROKE* out_keystroke);
 
   static bool EventWatch(void* userdata, SDL_Event* event);
+  /**
+   * Buffers an SDL event. Runs on the thread that posts the event, which can be a thread SDL
+   * created for the joystick subsystem. It only buffers and never takes controllers_mutex_, which
+   * avoids a lock ordering inversion with the SDL joystick lock.
+   *
+   * @param event  The SDL event.
+   */
   void HandleEvent(const SDL_Event& event);
   std::unique_lock<std::mutex> DrainAndLock();
   void ProcessEventLocked(const SDL_Event& event);
@@ -85,13 +112,32 @@ class SDL3Driver final : public Driver {
   void OnControllerDeviceAddedLocked(const SDL_Event& event);
   void OnControllerDeviceRemovedLocked(const SDL_Event& event);
   void OnControllerDeviceAxisMotionLocked(const SDL_Event& event);
+  /**
+   * Applies a pad button change. The lookup table is indexed by SDL_GamepadButton. Entries 15 to
+   * 20 cover Misc1, the 4 paddles and the touchpad, mapped to GUIDE and the face buttons.
+   *
+   * @param event  The SDL button event.
+   */
   void OnControllerDeviceButtonChangedLocked(const SDL_Event& event);
 
+  /**
+   * Builds the keystroke bit field for analog inputs past their thresholds.
+   *
+   * @param gamepad  Gamepad report.
+   * @return Bit field with the trigger and stick direction bits set.
+   */
   inline uint64_t AnalogToKeyfield(const X_INPUT_GAMEPAD& gamepad) const;
   std::optional<size_t> GetControllerIndexFromInstanceID(SDL_JoystickID instance_id);
   ControllerState* FindController(DeviceId id);
   DeviceId AllocateDeviceId();
   bool TestSDLVersion() const;
+  /**
+   * Refreshes the cached capabilities. The RAWINPUT driver correlates input from several APIs
+   * with latency, so the power level is only available once the pad is touched, which can confuse
+   * titles calling GetCapabilities. Disabling the RAWINPUT driver with its SDL hint avoids it.
+   *
+   * @param state  Controller to refresh.
+   */
   void UpdateXCapabilities(ControllerState& state);
   void QueueControllerUpdate();
 
@@ -101,13 +147,15 @@ class SDL3Driver final : public Driver {
   std::filesystem::path mappings_file_;
   std::atomic<int> sdl_events_unflushed_;
   std::atomic<bool> sdl_pumpevents_queued_;
-  // Appended in connection order, never re-sorted, and unbounded: the
-  // assignment decides how many the guest sees.
+  /**
+   * Appended in connection order, never re-sorted and unbounded. The assignment decides how
+   * many the title sees.
+   */
   std::vector<ControllerState> controllers_;
   std::mutex controllers_mutex_;
   std::mutex event_queue_mutex_;
   std::vector<SDL_Event> pending_events_;
-  // Never rewound, so a handle held past a disconnect resolves to nothing.
+  /** Never rewound, so a handle held past a disconnect resolves to nothing. */
   uint64_t next_device_id_ = 1;
 };
 

@@ -106,8 +106,6 @@ std::vector<XdbfAchievementTableEntry> XdbfWrapper::GetAchievements() const {
 }
 
 XLanguage XDBFGameData::GetExistingLanguage(XLanguage language_to_check) const {
-  // A hack. Check if title in specific language exist.
-  // If it doesn't then for sure language is not supported.
   return title(language_to_check).empty() ? default_language() : language_to_check;
 }
 

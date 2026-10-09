@@ -33,7 +33,12 @@ class AchievementsOverlayDialog : public ImGuiDialog {
   void OnDraw(ImGuiIO& io) override;
 
  private:
-  // Lazily loads icon_path, or icons/<image_id>.png when icon_path is empty.
+  /**
+   * Lazily loads icon_path, or icons/<image_id>.png when icon_path is empty.
+   *
+   * @param achievement Achievement to load the icon for.
+   * @return The icon texture, or null when none could be created.
+   */
   gpu::OverlayTexture* GetIcon(const rex::runtime::AchievementInfo& achievement);
 
   const ModuleOverlayContext& context_;

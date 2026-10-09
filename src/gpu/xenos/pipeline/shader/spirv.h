@@ -1,4 +1,3 @@
-#pragma once
 /**
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
@@ -9,6 +8,8 @@
  *
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
+
+#pragma once
 
 #include <atomic>
 #include <vector>
@@ -31,13 +32,8 @@ class SpirvShader : public Shader {
                        const uint32_t* ucode_dwords, size_t ucode_dword_count,
                        std::endian ucode_source_endian = std::endian::big);
 
-  // Resource bindings are gathered after the successful translation of any
-  // modification for simplicity of translation (and they don't depend on
-  // modification bits).
-
   struct TextureBinding {
     uint32_t fetch_constant : 5;
-    // Stacked and 3D are separate TextureBindings.
     xenos::FetchOpDimension dimension : 2;
     uint32_t is_signed : 1;
   };

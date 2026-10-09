@@ -140,30 +140,21 @@ void detail::ShutdownTimerQueue() {
 void TimerQueueWaitItem::Disarm() {
   State state;
 
-  // Special case for calling from a callback itself
   if (std::this_thread::get_id() == parent_queue_->dispatch_thread_id()) {
     state = State::kInCallback;
     if (state_.compare_exchange_strong(state, State::kInCallbackSelfDisarmed,
                                        std::memory_order_acq_rel)) {
-      // If we are self disarming from the callback set this special state and
-      // exit
       return;
     }
-    // Normal case can handle the rest
   }
 
   state = State::kIdle;
-  // Classes which hold WaitItems will often call Disarm() to cancel them during
-  // destruction. This may lead to race conditions when the dispatch thread
-  // executes a callback which accesses memory that is freed simultaneously due
-  // to this. Therefore, we need to guarantee that no callbacks will be running
-  // once Disarm() has returned.
+  // No callback may run after Disarm() returns, since owners free memory callbacks access.
   while (!state_.compare_exchange_weak(state, State::kDisarmed, std::memory_order_acq_rel)) {
     if (state == State::kDisarmed) {
       break;
     }
     if (state == State::kInCallback || state == State::kInCallbackSelfDisarmed) {
-      // Wait for callback to complete - dispatch thread will notify
       state_.wait(state, std::memory_order_acquire);
     }
     state = State::kIdle;

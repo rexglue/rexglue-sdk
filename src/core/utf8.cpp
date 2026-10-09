@@ -863,7 +863,7 @@ std::string utf8_find_base_path(const std::string_view path, char32_t separator)
     --it;
   }
 
-  // A drive letter such as "D:" keeps its root separator.
+  // A volume root such as "D:" keeps its separator.
   if (*it == static_cast<u32>(':')) {
     auto length = ByteLength(begin, std::next(sep_pos));
     return std::string(path.substr(0, length));

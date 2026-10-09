@@ -37,6 +37,11 @@ class D3D12PrimitiveProcessor final : public PrimitiveProcessor {
   void ClearCache() { frame_index_buffer_pool_->ClearCache(); }
 
   void CompletedSubmissionUpdated();
+  /**
+   * Copies the built-in index buffer upload in the first submission. No deferred barriers are
+   * submitted first, as the destination is in its initial state and the upload buffer in an upload
+   * heap is GENERIC_READ.
+   */
   void BeginSubmission();
   void BeginFrame();
   void EndFrame();
@@ -64,16 +69,13 @@ class D3D12PrimitiveProcessor final : public PrimitiveProcessor {
 
   Microsoft::WRL::ComPtr<ID3D12Resource> builtin_index_buffer_;
   D3D12_GPU_VIRTUAL_ADDRESS builtin_index_buffer_gpu_address_ = 0;
-  // Temporary buffer copied in the beginning of the first submission for
-  // uploading to builtin_index_buffer_, destroyed when the submission when it
-  // was uploaded is completed.
+  /** Temporary buffer copied to builtin_index_buffer_ at the start of the first submission. */
   Microsoft::WRL::ComPtr<ID3D12Resource> builtin_index_buffer_upload_;
-  // UINT64_MAX means not uploaded yet and needs uploading in the first
-  // submission (if the upload buffer exists at all).
+  /** UINT64_MAX when the upload buffer, if it exists, awaits the first submission. */
   uint64_t builtin_index_buffer_upload_submission_ = UINT64_MAX;
 
   std::unique_ptr<gpu::d3d12::D3D12UploadBufferPool> frame_index_buffer_pool_;
-  // Indexed by the backend handles.
+  /** Indexed by backend handle. */
   std::deque<D3D12_GPU_VIRTUAL_ADDRESS> frame_index_buffers_;
 };
 

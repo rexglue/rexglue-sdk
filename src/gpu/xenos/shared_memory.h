@@ -1,4 +1,3 @@
-#pragma once
 /**
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
@@ -9,6 +8,8 @@
  *
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
+
+#pragma once
 
 #include <cstdint>
 #include <memory>
@@ -22,16 +23,17 @@
 
 namespace rex::gpu {
 
-// Manages memory for unconverted textures, resolve targets, vertex and index
-// buffers that can be accessed from shaders with Xenon physical addresses, with
-// system page size granularity.
+/**
+ * Manages memory for unconverted textures, resolve targets, vertex and index buffers accessed from
+ * shaders with Xenon physical addresses, with system page size granularity.
+ */
 class SharedMemory {
  public:
   static constexpr uint32_t kBufferSizeLog2 = 29;
   static constexpr uint32_t kBufferSize = 1 << kBufferSizeLog2;
 
   virtual ~SharedMemory();
-  // Call in the implementation-specific ClearCache.
+  /** Clears the cache. Implementations call it from their ClearCache. */
   virtual void ClearCache();
   void SetSystemPageBlocksValidWithGpuDataWritten();
   void InvalidateAllPages();
@@ -39,35 +41,39 @@ class SharedMemory {
   using GlobalWatchCallback = void (*)(void* context, uint32_t address_first, uint32_t address_last,
                                        bool invalidated_by_gpu);
   using GlobalWatchHandle = void*;
-  // Registers a callback invoked when something is invalidated in the GPU
-  // memory copy by the CPU or (if triggered explicitly - such as by a resolve)
-  // by the GPU. It will be fired for writes to pages previously requested, but
-  // may also be fired regardless of whether it was used by GPU emulation - for
-  // example, if the game changes protection level of a memory range containing
-  // the watched range.
-  //
-  // The callback is called with the memory watch lock held.
+  /**
+   * Registers a callback invoked when something in the GPU memory copy is invalidated by the CPU
+   * or, when triggered explicitly such as by a resolve, by the GPU. It fires for writes to pages
+   * previously requested, and may also fire for memory the GPU emulation did not use, for example
+   * when the title changes the protection of a memory range containing the watched range. The
+   * callback runs with the memory watch lock held.
+   *
+   * @param callback The callback to invoke.
+   * @param callback_context The context passed to the callback.
+   * @return The watch handle.
+   */
   GlobalWatchHandle RegisterGlobalWatch(GlobalWatchCallback callback, void* callback_context);
   void UnregisterGlobalWatch(GlobalWatchHandle handle);
   using WatchCallback = void (*)(void* context, void* data, uint64_t argument,
                                  bool invalidated_by_gpu);
   using WatchHandle = void*;
-  // Registers a callback invoked when the specified memory range is invalidated
-  // in the GPU memory copy by the CPU or (if triggered explicitly - such as by
-  // a resolve) by the GPU. It will be fired for writes to pages previously
-  // requested, but may also be fired regardless of whether it was used by GPU
-  // emulation - for example, if the game changes protection level of a memory
-  // range containing the watched range.
-  //
-  // Generally the context is the subsystem pointer (for example, the texture
-  // cache), the data is the object (such as a texture), and the argument is
-  // additional subsystem/object-specific data (such as whether the range
-  // belongs to the base mip level or to the rest of the mips).
-  //
-  // Called with the memory watch lock held. Do NOT watch or unwatch
-  // ranges from within it! The watch for the callback is cancelled after the
-  // callback - the handle becomes invalid.
-  // The caller holds the lock returned by AcquireLock.
+  /**
+   * Registers a callback invoked when the memory range is invalidated in the GPU memory copy by
+   * the CPU or, when triggered explicitly such as by a resolve, by the GPU. It fires for writes to
+   * pages previously requested, and may also fire for memory the GPU emulation did not use, for
+   * example when the title changes the protection of a memory range containing the watched range.
+   * The callback runs with the memory watch lock held and must not watch or unwatch ranges. The
+   * watch is cancelled after the callback and the handle becomes invalid.
+   *
+   * @param lock The lock returned by AcquireLock, held by the caller.
+   * @param start The start of the range.
+   * @param length The length of the range.
+   * @param callback The callback to invoke.
+   * @param callback_context The subsystem pointer, for example the texture cache.
+   * @param callback_data The object, for example a texture.
+   * @param callback_argument Subsystem or object specific data.
+   * @return The watch handle.
+   */
   WatchHandle WatchMemoryRange(const std::unique_lock<rex::platform::RankedMutex>& lock,
                                uint32_t start, uint32_t length, WatchCallback callback,
                                void* callback_context, void* callback_data,
@@ -82,44 +88,63 @@ class SharedMemory {
   std::unique_lock<rex::platform::RankedMutex> AcquireLock() const {
     return std::unique_lock(memory_.watch_mutex());
   }
-  // Unregisters previously registered watched memory range.
+  /**
+   * Unregisters a watched memory range.
+   *
+   * @param handle The handle returned by WatchMemoryRange.
+   */
   void UnwatchMemoryRange(WatchHandle handle);
 
-  // Checks if the range has been updated, uploads new data if needed and
-  // ensures the host GPU memory backing the range are resident. Returns true if
-  // the range has been fully updated and is usable.
+  /**
+   * Uploads new data for ranges that changed and makes the host GPU memory backing them resident.
+   *
+   * @param ranges The ranges as start and length pairs.
+   * @param count The number of ranges.
+   * @return True when the ranges are updated and usable.
+   */
   bool RequestRanges(const std::pair<uint32_t, uint32_t>* ranges, size_t count);
   bool RequestRange(uint32_t start, uint32_t length);
 
-  // Called with the memory watch lock held.
-  // Marks the range and, if not exact_range, potentially its surroundings
-  // (to up to the first GPU-written page, as an access violation exception
-  // count optimization) as modified by the CPU, also invalidating GPU-written
-  // pages directly in the range.
+  /**
+   * Marks the range as modified by the CPU and invalidates GPU written pages inside it. Unless
+   * exact_range, the range widens up to the nearest GPU written pages, at most 256 KB with 4 KB
+   * pages, since GPU written data is out of sync with CPU memory and cannot be reuploaded.
+   * Uploading excess data is much cheaper than catching access violations. In a software rendered
+   * title, 4 KB callbacks run at 4 FPS, 64 KB takes 3 ms of CPU time per frame and 256 KB takes
+   * 0.7 ms. Called with the memory watch lock held.
+   *
+   * @param physical_address_start The start of the modified range.
+   * @param length The length of the modified range.
+   * @param exact_range True to invalidate only the pages in the range.
+   * @return The invalidated range as start address and length.
+   */
   std::pair<uint32_t, uint32_t> MemoryInvalidationCallback(uint32_t physical_address_start,
                                                            uint32_t length, bool exact_range);
 
-  // Marks the range as containing GPU-generated data (such as resolves),
-  // triggering modification callbacks, making it valid (so pages are not
-  // copied from the main memory until they're modified by the CPU) and
-  // protecting it. Before writing anything from the GPU side, RequestRange must
-  // be called, to make sure, if the GPU writes don't overwrite *everything* in
-  // the pages they touch, the CPU data is properly loaded to the unmodified
-  // regions in those pages.
+  /**
+   * Marks the range as containing GPU generated data such as resolves, triggers modification
+   * callbacks, makes the range valid so pages are not copied from main memory until the CPU
+   * modifies them, and protects it. RequestRange must run before the GPU writes, so that when the
+   * writes do not overwrite everything in the pages they touch, the CPU data is loaded to the
+   * unmodified regions of those pages.
+   *
+   * @param start The start of the range.
+   * @param length The length of the range.
+   */
   void RangeWrittenByGpu(uint32_t start, uint32_t length);
 
  protected:
   SharedMemory(runtime::Memory& memory);
-  // Call in implementation-specific initialization.
+  /** Initializes the common state. Implementations call it from their initialization. */
   void InitializeCommon();
   void InitializeSparseHostGpuMemory(uint32_t granularity_log2);
-  // Call last in implementation-specific shutdown, also callable from the
-  // destructor.
+  /** Shuts down the common state. Runs last in implementation shutdown and in the destructor. */
   void ShutdownCommon();
 
-  // Sparse allocations are 4 MB, so not too many of them are allocated, but
-  // also not to waste too much memory for padding (with 16 MB there's too
-  // much).
+  /**
+   * Sparse allocations are 4 MB, which keeps their count low without much padding. 16 MB pads
+   * too much.
+   */
   static constexpr uint32_t kHostGpuMemoryOptimalSparseAllocationLog2 = 22;
   static_assert(kHostGpuMemoryOptimalSparseAllocationLog2 <= kBufferSizeLog2);
 
@@ -131,34 +156,47 @@ class SharedMemory {
     return host_gpu_memory_sparse_granularity_log2_;
   }
 
-  // Allocations in the host buffer are aligned the same way as in the guest
-  // physical memory (for instance, if an allocation is 64 KB, it can represent
-  // 0-64 KB, 64-128 KB, 128-192 KB in the guest memory, onward, but not
-  // something like 16-80 KB. This is assumed by the rules for texture data
-  // access in the texture cache.
+  /**
+   * Allocates a range of sparse host GPU memory. Allocations in the host buffer are aligned the
+   * same way as in guest physical memory. A 64 KB allocation can represent 0-64 KB, 64-128 KB and
+   * 128-192 KB of guest memory, but not 16-80 KB. The texture cache data access rules assume this.
+   *
+   * @param offset_allocations The offset of the range in allocations.
+   * @param length_allocations The length of the range in allocations.
+   * @return True when the allocation succeeded.
+   */
   virtual bool AllocateSparseHostGpuMemoryRange(uint32_t offset_allocations,
                                                 uint32_t length_allocations);
 
-  // Mark the memory range as updated and protect it.
+  /**
+   * Marks the memory range as updated and protects it.
+   *
+   * @param start The start of the range.
+   * @param length The length of the range.
+   * @param written_by_gpu True when the range holds GPU written data.
+   */
   void MakeRangeValid(uint32_t start, uint32_t length, bool written_by_gpu);
 
-  // Uploads a range of host pages - only called if host GPU sparse memory
-  // allocation succeeded if needed. While uploading, MakeRangeValid must be
-  // called for each successfully uploaded range as early as possible, before
-  // the memcpy, to make sure invalidation that happened during the CPU -> GPU
-  // memcpy isn't missed (upload_page_ranges is in pages because of this -
-  // MakeRangeValid has page granularity). upload_page_ranges are sorted in
-  // ascending address order, so front and back can be used to determine the
-  // overall bounds of pages to be uploaded.
+  /**
+   * Uploads a range of host pages, only when the sparse host GPU memory allocation succeeded.
+   * While uploading, MakeRangeValid must run for each uploaded range as early as possible, before
+   * the memcpy, so invalidation during the CPU to GPU memcpy is not missed. The ranges are in
+   * pages because MakeRangeValid has page granularity. They are sorted in ascending address order,
+   * so front and back give the overall bounds of the pages to upload.
+   *
+   * @param upload_page_ranges The page ranges as start and count pairs.
+   * @return True when the upload succeeded.
+   */
   virtual bool UploadRanges(
       const std::vector<std::pair<uint32_t, uint32_t>>& upload_page_ranges) = 0;
 
  private:
   runtime::Memory& memory_;
 
-  // Log2 of invalidation granularity (the system page size, but the dependency
-  // on it is not hard - the access callback takes a range as an argument, and
-  // touched pages of the buffer of this size will be invalidated).
+  /**
+   * Log2 of the invalidation granularity, the system page size. Touched pages of this size are
+   * invalidated.
+   */
   uint32_t page_size_log2_;
 
   bool EnsureHostGpuMemoryAllocated(uint32_t start, uint32_t length);
@@ -169,17 +207,13 @@ class SharedMemory {
 
   void* memory_invalidation_callback_handle_ = nullptr;
 
-  // Ranges that need to be uploaded, generated by GetRangesToUpload (a
-  // persistently allocated vector).
+  /** Ranges to upload, generated by RequestRanges. */
   std::vector<std::pair<uint32_t, uint32_t>> upload_ranges_;
 
-  // ***************************************************************************
-  // Things below should be fully protected by the memory watch lock.
-  // ***************************************************************************
+  // Members below are guarded by the memory watch lock.
 
-  // Pages whose contents in the buffer are in sync with guest memory.
+  /** Pages whose buffer contents are in sync with guest memory. */
   std::vector<uint64_t> system_page_flags_valid_;
-  // Subset of valid pages containing data written by the GPU.
   std::vector<uint64_t> system_page_flags_valid_and_gpu_written_;
   uint32_t num_system_page_flags_ = 0;
 
@@ -192,7 +226,6 @@ class SharedMemory {
   };
   std::vector<std::unique_ptr<GlobalWatch>> global_watches_;
   struct WatchNode;
-  // Watched range placed by other GPU subsystems.
   struct WatchRange {
     union {
       struct {
@@ -207,16 +240,17 @@ class SharedMemory {
       WatchRange* next_free;
     };
   };
-  // Node for faster checking of watches when pages have been written to - all
-  // 512 MB are split into smaller equally sized buckets, and then ranges are
-  // linearly checked.
+  /**
+   * Node for faster checking of watches when pages are written. All 512 MB are split into equally
+   * sized buckets, then ranges are checked linearly.
+   */
   struct WatchNode {
     union {
       struct {
         WatchRange* range;
-        // Link to another node of this watched range in the next bucket.
+        /** Link to another node of this watched range in the next bucket. */
         WatchNode* range_node_next;
-        // Links to nodes belonging to other watched ranges in the bucket.
+        /** Links to nodes of other watched ranges in the bucket. */
         WatchNode* bucket_node_previous;
         WatchNode* bucket_node_next;
       };
@@ -226,9 +260,10 @@ class SharedMemory {
   static constexpr uint32_t kWatchBucketSizeLog2 = 22;
   static constexpr uint32_t kWatchBucketCount = 1 << (kBufferSizeLog2 - kWatchBucketSizeLog2);
   WatchNode* watch_buckets_[kWatchBucketCount] = {};
-  // Allocation from pools - taking new WatchRanges and WatchNodes from the free
-  // list, and if there are none, creating a pool if the current one is fully
-  // used, and linearly allocating from the current pool.
+  /**
+   * Pool sizes for WatchRanges and WatchNodes. Allocation takes from the free list first, then
+   * creates a pool when the current one is used up, then allocates linearly from the current pool.
+   */
   static constexpr uint32_t kWatchRangePoolSize = 8192;
   static constexpr uint32_t kWatchNodePoolSize = 8192;
   std::vector<std::unique_ptr<WatchRange[]>> watch_range_pools_;
@@ -237,12 +272,20 @@ class SharedMemory {
   uint32_t watch_node_current_pool_allocated_ = 0;
   WatchRange* watch_range_first_free_ = nullptr;
   WatchNode* watch_node_first_free_ = nullptr;
-  // Triggers the watches (global and per-range), removing triggered range
-  // watches.
+  /**
+   * Triggers the global and per range watches, removing the triggered range watches.
+   *
+   * @param page_first The first page.
+   * @param page_last The last page.
+   * @param invalidated_by_gpu True when the GPU invalidated the pages.
+   */
   void FireWatches(uint32_t page_first, uint32_t page_last, bool invalidated_by_gpu);
   void FireWatchesLocked(uint32_t page_first, uint32_t page_last, bool invalidated_by_gpu);
-  // Unlinks and frees the range and its nodes. Call this in the global critical
-  // region.
+  /**
+   * Unlinks and frees the range and its nodes. Requires the global critical region.
+   *
+   * @param range The range to unlink.
+   */
   void UnlinkWatchRange(WatchRange* range);
 };
 

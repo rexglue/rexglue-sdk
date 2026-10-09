@@ -29,7 +29,7 @@ enum class Group : u8 {
 
 /** Behavior flags of a shim entry. */
 enum class Flag : u8 {
-  None = 0,
+  None = 0,              /**< No flags set. */
   Stub = 1 << 0,         /**< Returns success without doing the work. */
   RequiresHeap = 1 << 1, /**< Needs the shim heap initialized. */
 };
@@ -152,7 +152,7 @@ constexpr const Entry* Find(std::string_view name) {
 }
 
 /**
- * Tests whether a name is registered.
+ * Reports whether a name is registered.
  *
  * @param name The name without the hook prefix.
  * @return True when the registry holds the name.

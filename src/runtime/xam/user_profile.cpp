@@ -23,14 +23,10 @@ namespace runtime {
 namespace xam {
 
 UserProfile::UserProfile(Runtime& runtime) : runtime_(runtime) {
-  // 58410A1F checks the user XUID against a mask of 0x00C0000000000000 (3<<54),
-  // if non-zero, it prevents the user from playing the game.
-  // "You do not have permissions to perform this operation."
+  // A title rejects any XUID with bits 54 or 55 set (mask 0x00C0000000000000).
   xuid_ = 0xB13EBABEBABEBABE;
   name_ = "User";
 
-  // https://cs.rin.ru/forum/viewtopic.php?f=38&t=60668&hilit=gfwl+live&start=195
-  // https://github.com/arkem/py360/blob/master/py360/constants.py
   // XPROFILE_GAMER_YAXIS_INVERSION
   AddSetting(std::make_unique<Int32Setting>(0x10040002, 0));
   // XPROFILE_OPTION_CONTROLLER_VIBRATION
@@ -82,7 +78,6 @@ UserProfile::UserProfile(Runtime& runtime) : runtime_(runtime) {
   // XPROFILE_GAMERCARD_TITLE_ACHIEVEMENTS_EARNED
   AddSetting(std::make_unique<Int32Setting>(0x10040039, 0));
 
-  // If we set this, games will try to get it.
   // XPROFILE_GAMERCARD_PICTURE_KEY
   AddSetting(std::make_unique<UnicodeSetting>(0x4064000F, u"gamercard_picture_key"));
 
@@ -103,7 +98,6 @@ void UserProfile::AddSetting(std::unique_ptr<Setting> setting) {
   }
 
   if (previous_setting) {
-    // replace: swap out the old setting from the owning list
     for (auto vec_it = setting_list_.begin(); vec_it != setting_list_.end(); ++vec_it) {
       if (vec_it->get() == previous_setting) {
         vec_it->swap(setting);
@@ -111,7 +105,6 @@ void UserProfile::AddSetting(std::unique_ptr<Setting> setting) {
       }
     }
   } else {
-    // new setting: add to the owning list
     setting_list_.push_back(std::move(setting));
   }
 }
@@ -123,8 +116,6 @@ UserProfile::Setting* UserProfile::GetSetting(uint32_t setting_id) {
   }
   UserProfile::Setting* setting = it->second;
   if (setting->is_title_specific()) {
-    // If what we have loaded in memory isn't for the title that is running
-    // right now, then load it from disk.
     if (runtime_.content_manager().title_id() != setting->loaded_title_id) {
       LoadSetting(setting);
     }
@@ -142,8 +133,6 @@ void UserProfile::LoadSetting(UserProfile::Setting* setting) {
       setting->loaded_title_id = runtime_.content_manager().title_id();
     }
   } else {
-    // Unsupported.  Other settings aren't per-game and need to be
-    // stored some other way.
     REXLOG_WARN(system, "Attempting to load unsupported profile setting from disk");
   }
 }
@@ -159,8 +148,6 @@ void UserProfile::SaveSetting(UserProfile::Setting* setting) {
       REXLOG_WARN(system, "profile setting is not saved, {}", written.error().message);
     }
   } else {
-    // Unsupported.  Other settings aren't per-game and need to be
-    // stored some other way.
     REXLOG_WARN(system, "Attempting to save unsupported profile setting to disk");
   }
 }

@@ -66,10 +66,6 @@ std::string_view BuilderContext::MMIOMacro(std::string_view plain) const {
   }
 }
 
-//=============================================================================
-// Convenience Accessors
-//=============================================================================
-
 const RecompilerConfig& BuilderContext::config() const {
   return emitCtx.config;
 }
@@ -78,12 +74,6 @@ const FunctionGraph& BuilderContext::graph() const {
   return emitCtx.graph;
 }
 
-//=============================================================================
-// Register Accessors
-//=============================================================================
-
-// Localizing a non-volatile assumes the function owns it across its whole body.
-// An SEH funclet does not: it inherits its owner's live registers through ctx.
 bool BuilderContext::localizeNonVolatiles() const {
   const auto& info = fn.exceptionInfo();
   const auto* seh = info ? info->asSeh() : nullptr;
@@ -174,26 +164,13 @@ const char* BuilderContext::ea() {
   return "ea";
 }
 
-//=============================================================================
-// Output Helpers
-//=============================================================================
-
-// Template implementations in header, but we need explicit instantiations
-// for common format strings to avoid link errors in some cases
-
-//=============================================================================
-// Code Generation Helpers
-//=============================================================================
-
 const CallTarget* BuilderContext::findCallTarget(uint32_t site) const {
-  // Search in calls (bl instructions)
   for (const auto& edge : fn.calls()) {
     if (edge.site == site) {
       return &edge.target;
     }
   }
 
-  // Search in tail calls (b instructions to other functions)
   for (const auto& edge : fn.tailCalls()) {
     if (edge.site == site) {
       return &edge.target;
@@ -207,42 +184,28 @@ void BuilderContext::emit_function_call(uint32_t address) {
   const auto& cfg = config();
 
   if (address == cfg.longJmpAddress) {
-    // Use custom ppc_longjmp that uses guest address as key (not for storage)
     println("\tppc_longjmp({}.u32, {}.s32);", r(3), r(4));
     return;
   }
 
   if (address == cfg.setJmpAddress) {
-    // Save PPCContext for restoration after longjmp
     println("\t{} = ctx;", env());
-    // Use custom ppc_setjmp that uses guest address as key
     println("\t{}.s64 = ppc_setjmp({}.u32);", temp(), r(3));
-    // Restore PPCContext if returning from longjmp
     println("\tif ({}.s64 != 0) ctx = {};", temp(), env());
     println("\t{} = {};", r(3), temp());
     return;
   }
 
-  // Try to use pre-resolved call target from FunctionGraph
   if (const auto* target = findCallTarget(base)) {
     if (target->isFunction()) {
       auto* targetFn = target->asFunction();
       const auto& name = targetFn->name();
 
-      // Handle save/restore helpers. Gated on the global setting, not this
-      // function's: the helper bodies are emitted under it too, so once they
-      // spill to locals they are no-ops that scribble zeros on the caller's
-      // frame. A share_registers function still has to elide them.
       if (cfg.nonVolatileRegistersAsLocalVariables &&
           (name.find("__rest") == 0 || name.find("__save") == 0)) {
-        // print nothing - these are handled by local variable tracking
         return;
       }
 
-      // An SEH funclet runs on its owner's frame and reads whatever non-volatiles
-      // the owner left live, so hand it the localized copies through ctx and take
-      // them back afterwards. Only registers already localized here can be live at
-      // this point, so that set is the whole live-in the funclet can see.
       if (targetFn->sharesRegisters() && localizeNonVolatiles()) {
         for (size_t i = 14; i < 32; ++i) {
           if (locals.r[i])
@@ -266,7 +229,6 @@ void BuilderContext::emit_function_call(uint32_t address) {
       const auto& importTarget = std::get<CallTarget::ToImport>(target->value);
       std::string func_name;
 
-      // Try to resolve ordinal to actual function name
       auto at_pos = importTarget.name.find('@');
       if (at_pos != std::string::npos) {
         auto lib_name = importTarget.name.substr(0, at_pos);
@@ -291,14 +253,12 @@ void BuilderContext::emit_function_call(uint32_t address) {
       return;
     }
 
-    // Unresolved target from graph
     REXLOG_ERROR(codegen, "Unresolved function 0x{:08X} from 0x{:08X}", address, base);
     println("\t// FATAL: unresolved function 0x{:08X}", address);
     println("\tREX_FATAL(cpu, \"Unresolved call from 0x{:08X} to 0x{:08X}\");", base, address);
     return;
   }
 
-  // No pre-resolved target found - this is an error
   REXLOG_ERROR(codegen,
                "Unresolved function 0x{:08X} from 0x{:08X} (no CallTarget in FunctionNode)",
                address, base);
@@ -309,20 +269,16 @@ void BuilderContext::emit_function_call(uint32_t address) {
 void BuilderContext::emit_conditional_branch(bool not_, std::string_view cond) {
   uint32_t target = insn.operands[1];
 
-  // Use classifyTarget for consistent branch classification
-  // false = branch instruction (not a call), so own-base means loop back
   auto kind = graph().classifyTarget(target, base, false);
 
   switch (kind) {
     case TargetKind::InternalLabel:
-      // Target is within this function - local goto
       println("\tif ({}{}.{}) goto loc_{:08X};", not_ ? "!" : "", cr(insn.operands[0]), cond,
               target);
       break;
 
     case TargetKind::Function:
     case TargetKind::Import:
-      // Conditional tail call to another function - check pre-resolved call target
       if (const auto* callTarget = findCallTarget(base)) {
         if (callTarget->isFunction()) {
           auto* targetFn = callTarget->asFunction();
@@ -392,7 +348,6 @@ void BuilderContext::emit_mid_asm_hook() {
   if (returnsBool)
     print("if (");
 
-  // Build call -- no ctx/base prefix, only register arguments resolved through accessors
   print("{}(", midAsmHook->second.name);
   for (auto& reg : midAsmHook->second.registers) {
     if (out.back() != '(')
@@ -459,10 +414,6 @@ void BuilderContext::emit_mid_asm_hook() {
   }
 }
 
-//=============================================================================
-// Vector (SIMD) Code Generation Helpers
-//=============================================================================
-
 void BuilderContext::emit_vec_fp_binary(const char* simd_op) {
   println(
       "\tsimde_mm_store_ps({}.f32, simde_mm_{}_ps(simde_mm_load_ps({}.f32), "
@@ -474,7 +425,6 @@ void BuilderContext::emit_vec_fp_unary_expr(std::string_view simd_expr) {
   auto vD = v(insn.operands[0]);
   auto vA = v(insn.operands[1]);
 
-  // Replace {vA} placeholder in expression with actual register
   std::string expr(simd_expr);
   size_t pos;
   while ((pos = expr.find("{vA}")) != std::string::npos) {
@@ -494,8 +444,6 @@ void BuilderContext::emit_vec_int_binary(const char* simd_op, const char* elemen
 }
 
 void BuilderContext::emit_vec_int_binary_swapped(const char* simd_op, const char* element_type) {
-  // Swapped: op(vB, vA) instead of op(vA, vB) - useful for andnot which has reversed operand
-  // semantics
   println(
       "\tsimde_mm_store_si128((simde__m128i*){}.{}, "
       "simde_mm_{}(simde_mm_load_si128((simde__m128i*){}.{}), "
@@ -521,10 +469,6 @@ void BuilderContext::emit_vec_var_shift(const char* shift_dir, const char* eleme
       vD, shift_dir, element_type);
   println("\t}}");
 }
-
-//=============================================================================
-// Memory (Load/Store) Code Generation Helpers
-//=============================================================================
 
 void BuilderContext::emit_load_d_form(const char* load_macro, const char* dest_type) {
   print("\t{}.{} = {}(", r(insn.operands[0]), dest_type, MMIOMacro(load_macro));

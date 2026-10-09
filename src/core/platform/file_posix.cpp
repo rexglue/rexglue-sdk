@@ -1,15 +1,3 @@
-/**
- * @file        core/platform/file_posix.cpp
- *
- * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
- *              All rights reserved.
- *
- * @license     BSD 3-Clause License
- *              See LICENSE file in the project root for full license text.
- *
- * @remarks     Derived from Xenia's xenia/base/filesystem_posix.cc (Ben Vanik, 2022).
- */
-
 #include <rex/platform/file.h>
 
 #include <array>

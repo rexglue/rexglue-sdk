@@ -38,15 +38,12 @@ X_RESULT Fail(const rex::Error& error) {
   return rex::hid::ToXResult(rex::hid::CodeOf(error));
 }
 
-void XamResetInactivity_entry() {
-  // Do we need to do anything?
-}
+void XamResetInactivity_entry() {}
 
 u32 XamEnableInactivityProcessing_entry([[maybe_unused]] u32 unk, [[maybe_unused]] u32 enable) {
   return X_ERROR_SUCCESS;
 }
 
-// https://msdn.microsoft.com/en-us/library/windows/desktop/microsoft.directx_sdk.reference.xinputgetcapabilities(v=vs.85).aspx
 u32 XamInputGetCapabilities_entry(u32 user_index, u32 flags, ppc_ptr_t<X_INPUT_CAPABILITIES> caps) {
   REXLOG_TRACE(kernel, "XAM XamInputGetCapabilities called: user={}, flags=0x{:X}",
                static_cast<uint32_t>(user_index), static_cast<uint32_t>(flags));
@@ -55,13 +52,11 @@ u32 XamInputGetCapabilities_entry(u32 user_index, u32 flags, ppc_ptr_t<X_INPUT_C
   }
 
   if ((flags & 0xFF) && (flags & XINPUT_FLAG_GAMEPAD) == 0) {
-    // Ignore any query for other types of devices.
     return X_ERROR_DEVICE_NOT_CONNECTED;
   }
 
   uint32_t actual_user_index = user_index;
   if ((actual_user_index & 0xFF) == 0xFF || (flags & XINPUT_FLAG_ANY_USER)) {
-    // Always pin user to 0.
     actual_user_index = 0;
   }
 
@@ -81,17 +76,15 @@ u32 XamInputGetCapabilitiesEx_entry(u32 unk, u32 user_index, u32 flags,
   }
 
   if ((flags & 0xFF) && (flags & XINPUT_FLAG_GAMEPAD) == 0) {
-    // Ignore any query for other types of devices.
     return X_ERROR_DEVICE_NOT_CONNECTED;
   }
 
   uint32_t actual_user_index = user_index;
   if ((actual_user_index & 0xFF) == 0xFF || (flags & XINPUT_FLAG_ANY_USER)) {
-    // Always pin user to 0.
     actual_user_index = 0;
   }
 
-  (void)unk;  // Unused in this implementation
+  (void)unk;
   auto result = HID().GetCapabilities(actual_user_index, flags);
   if (!result) {
     return Fail(result.error());
@@ -101,9 +94,7 @@ u32 XamInputGetCapabilitiesEx_entry(u32 unk, u32 user_index, u32 flags,
   return X_ERROR_SUCCESS;
 }
 
-// https://msdn.microsoft.com/en-us/library/windows/desktop/microsoft.directx_sdk.reference.xinputgetstate(v=vs.85).aspx
 u32 XamInputGetState_entry(u32 user_index, u32 flags, ppc_ptr_t<X_INPUT_STATE> input_state) {
-  // Games call this with a NULL state ptr, probably as a query.
   static int call_count = 0;
   if (++call_count <= 5) {
     REXLOG_TRACE(kernel, "XAM XamInputGetState called: user={}, flags=0x{:X}",
@@ -111,13 +102,11 @@ u32 XamInputGetState_entry(u32 user_index, u32 flags, ppc_ptr_t<X_INPUT_STATE> i
   }
 
   if ((flags & 0xFF) && (flags & XINPUT_FLAG_GAMEPAD) == 0) {
-    // Ignore any query for other types of devices.
     return X_ERROR_DEVICE_NOT_CONNECTED;
   }
 
   uint32_t actual_user_index = user_index;
   if ((actual_user_index & 0xFF) == 0xFF || (flags & XINPUT_FLAG_ANY_USER)) {
-    // Always pin user to 0.
     actual_user_index = 0;
   }
 
@@ -132,7 +121,6 @@ u32 XamInputGetState_entry(u32 user_index, u32 flags, ppc_ptr_t<X_INPUT_STATE> i
   return X_ERROR_SUCCESS;
 }
 
-// https://msdn.microsoft.com/en-us/library/windows/desktop/microsoft.directx_sdk.reference.xinputsetstate(v=vs.85).aspx
 u32 XamInputSetState_entry(u32 user_index, u32 unk, ppc_ptr_t<X_INPUT_VIBRATION> vibration) {
   if (!vibration) {
     return X_ERROR_BAD_ARGUMENTS;
@@ -140,33 +128,25 @@ u32 XamInputSetState_entry(u32 user_index, u32 unk, ppc_ptr_t<X_INPUT_VIBRATION>
 
   uint32_t actual_user_index = user_index;
   if ((user_index & 0xFF) == 0xFF) {
-    // Always pin user to 0.
     actual_user_index = 0;
   }
 
-  (void)unk;  // Unused in this implementation
+  (void)unk;
   auto result = HID().SetVibration(actual_user_index, *vibration);
   return result ? X_ERROR_SUCCESS : Fail(result.error());
 }
 
-// https://msdn.microsoft.com/en-us/library/windows/desktop/microsoft.directx_sdk.reference.xinputgetkeystroke(v=vs.85).aspx
 u32 XamInputGetKeystroke_entry(u32 user_index, u32 flags, ppc_ptr_t<X_INPUT_KEYSTROKE> keystroke) {
-  // https://github.com/CodeAsm/ffplay360/blob/master/Common/AtgXime.cpp
-  // user index = index or XUSER_INDEX_ANY
-  // flags = XINPUT_FLAG_GAMEPAD (| _ANYUSER | _ANYDEVICE)
-
   if (!keystroke) {
     return X_ERROR_BAD_ARGUMENTS;
   }
 
   if ((flags & 0xFF) && (flags & XINPUT_FLAG_GAMEPAD) == 0) {
-    // Ignore any query for other types of devices.
     return X_ERROR_DEVICE_NOT_CONNECTED;
   }
 
   uint32_t actual_user_index = user_index;
   if ((actual_user_index & 0xFF) == 0xFF || (flags & XINPUT_FLAG_ANY_USER)) {
-    // Always pin user to 0.
     actual_user_index = 0;
   }
 
@@ -179,7 +159,6 @@ u32 XamInputGetKeystroke_entry(u32 user_index, u32 flags, ppc_ptr_t<X_INPUT_KEYS
   return X_ERROR_SUCCESS;
 }
 
-// Same as non-ex, but takes a pointer to user index.
 u32 XamInputGetKeystrokeEx_entry(mapped_u32 user_index_ptr, u32 flags,
                                  ppc_ptr_t<X_INPUT_KEYSTROKE> keystroke) {
   if (!keystroke) {
@@ -187,13 +166,11 @@ u32 XamInputGetKeystrokeEx_entry(mapped_u32 user_index_ptr, u32 flags,
   }
 
   if ((flags & 0xFF) && (flags & XINPUT_FLAG_GAMEPAD) == 0) {
-    // Ignore any query for other types of devices.
     return X_ERROR_DEVICE_NOT_CONNECTED;
   }
 
   uint32_t user_index = *user_index_ptr;
   if ((user_index & 0xFF) == 0xFF || (flags & XINPUT_FLAG_ANY_USER)) {
-    // Always pin user to 0.
     user_index = 0;
   }
 
@@ -208,9 +185,7 @@ u32 XamInputGetKeystrokeEx_entry(mapped_u32 user_index_ptr, u32 flags,
 }
 
 i32 XamUserGetDeviceContext_entry(u32 user_index, [[maybe_unused]] u32 unk, mapped_u32 out_ptr) {
-  // Games check the result - usually with some masking.
-  // If this function fails they assume zero, so let's fail AND
-  // set zero to be safe.
+  // Titles read the output as zero when the call fails.
   *out_ptr = 0;
   if (!user_index || (user_index & 0xFF) == 0xFF) {
     return X_E_SUCCESS;

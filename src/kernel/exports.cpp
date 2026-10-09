@@ -1,15 +1,3 @@
-/**
- * @file        kernel/exports.cpp
- *
- * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
- *              All rights reserved.
- *
- * @license     BSD 3-Clause License
- *              See LICENSE file in the project root for full license text.
- *
- * @remarks     Derived from Xenia's export_resolver (Ben Vanik, 2020).
- */
-
 #include <rex/runtime/exports.h>
 
 #include <algorithm>
@@ -17,7 +5,29 @@
 #include <rex/ppc/context.h>
 #include <rex/string.h>
 
+/**
+ * Declares the host function behind a function export.
+ *
+ * @param ordinal The export ordinal, unused here.
+ * @param text The export name as text, unused here.
+ * @param symbol The __imp__ symbol to declare.
+ *
+ * @code
+ * REX_EXPORT_ROW_kFunction(0x00000001, "NetDll_WSAStartup", __imp__NetDll_WSAStartup)
+ * @endcode
+ */
 #define REX_EXPORT_ROW_kFunction(ordinal, text, symbol) symbol(::PPCContext& __restrict, u8*)
+/**
+ * Declares the host symbol behind a variable export.
+ *
+ * @param ordinal The export ordinal, unused here.
+ * @param text The export name as text, unused here.
+ * @param symbol The __imp__ symbol to declare.
+ *
+ * @code
+ * REX_EXPORT_ROW_kVariable(0x0000000C, "ExConsoleGameRegion", __imp__ExConsoleGameRegion)
+ * @endcode
+ */
 #define REX_EXPORT_ROW_kVariable(ordinal, text, symbol) symbol(::PPCContext& __restrict, u8*)
 
 extern "C" {
@@ -37,6 +47,17 @@ void
   ExportEntry {                                         \
     ordinal, ExportKind::Function, text, &symbol        \
   }
+/**
+ * Builds the table entry of a variable export, which has no function pointer.
+ *
+ * @param ordinal The export ordinal.
+ * @param text The export name as text.
+ * @param symbol The __imp__ symbol, unused here.
+ *
+ * @code
+ * REX_EXPORT_ROW_kVariable(0x0000000C, "ExConsoleGameRegion", __imp__ExConsoleGameRegion)
+ * @endcode
+ */
 #define REX_EXPORT_ROW_kVariable(ordinal, text, symbol) \
   ExportEntry {                                         \
     ordinal, ExportKind::Variable, text, nullptr        \

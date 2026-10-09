@@ -6,8 +6,10 @@
  *
  * @license     BSD 3-Clause License
  *              See LICENSE file in the project root for full license text.
- *
- * @remarks     Based on XenonRecomp/UnleashedRecomp SIMD patterns and simde
+ */
+
+/*
+ * Parts of the SIMD patterns are based on XenonRecomp and UnleashedRecomp.
  */
 
 #pragma once
@@ -25,12 +27,8 @@
 
 namespace rex::ppc {
 
-//=============================================================================
-// Vector Load/Store Mask Tables
-//=============================================================================
-// These tables are used for lvlx/lvrx (load vector left/right) and
-// stvlx/stvrx (store vector left/right) instructions.
-
+/** Mask tables for the lvlx and lvrx (load vector left and right) and stvlx and stvrx (store
+ * vector left and right) instructions. */
 inline uint8_t VectorMaskL[] = {
     0x0F, 0x0E, 0x0D, 0x0C, 0x0B, 0x0A, 0x09, 0x08, 0x07, 0x06, 0x05, 0x04, 0x03, 0x02, 0x01, 0x00,
     0xFF, 0x0F, 0x0E, 0x0D, 0x0C, 0x0B, 0x0A, 0x09, 0x08, 0x07, 0x06, 0x05, 0x04, 0x03, 0x02, 0x01,
@@ -107,38 +105,63 @@ inline uint8_t VectorShiftTableR[] = {
     0x10, 0x0F, 0x0E, 0x0D, 0x0C, 0x0B, 0x0A, 0x09, 0x08, 0x07, 0x06, 0x05, 0x04, 0x03, 0x02, 0x01,
 };
 
-//=============================================================================
-// SIMD Helper Functions
-//=============================================================================
-
-// Unsigned 32-bit saturating add
+/**
+ * Adds unsigned 32 bit lanes with saturation.
+ *
+ * @param a The first operand.
+ * @param b The second operand.
+ * @return The saturated sums.
+ */
 inline simde__m128i simde_mm_adds_epu32(simde__m128i a, simde__m128i b) {
   return simde_mm_add_epi32(
       a, simde_mm_min_epu32(simde_mm_xor_si128(a, simde_mm_cmpeq_epi32(a, a)), b));
 }
 
-// Signed 8-bit average (rounds towards zero)
+/**
+ * Averages signed 8 bit lanes, rounding towards zero.
+ *
+ * @param a The first operand.
+ * @param b The second operand.
+ * @return The averages.
+ */
 inline simde__m128i simde_mm_avg_epi8(simde__m128i a, simde__m128i b) {
   simde__m128i c = simde_mm_set1_epi8(char(128));
   return simde_mm_xor_si128(c,
                             simde_mm_avg_epu8(simde_mm_xor_si128(c, a), simde_mm_xor_si128(c, b)));
 }
 
-// Signed 16-bit average
+/**
+ * Averages signed 16 bit lanes.
+ *
+ * @param a The first operand.
+ * @param b The second operand.
+ * @return The averages.
+ */
 inline simde__m128i simde_mm_avg_epi16(simde__m128i a, simde__m128i b) {
   simde__m128i c = simde_mm_set1_epi16(short(32768));
   return simde_mm_xor_si128(c,
                             simde_mm_avg_epu16(simde_mm_xor_si128(c, a), simde_mm_xor_si128(c, b)));
 }
 
-// Signed 32-bit average
+/**
+ * Averages signed 32 bit lanes.
+ *
+ * @param a The first operand.
+ * @param b The second operand.
+ * @return The averages.
+ */
 inline simde__m128i simde_mm_avg_epi32(simde__m128i a, simde__m128i b) {
   simde__m128i sum = simde_mm_add_epi32(simde_mm_srai_epi32(a, 1), simde_mm_srai_epi32(b, 1));
   return simde_mm_add_epi32(sum,
                             simde_mm_and_si128(simde_mm_or_si128(a, b), simde_mm_set1_epi32(1)));
 }
 
-// Convert unsigned 32-bit integers to floats
+/**
+ * Converts unsigned 32 bit integers to floats.
+ *
+ * @param src1 The integer lanes.
+ * @return The float lanes.
+ */
 inline simde__m128 simde_mm_cvtepu32_ps_(simde__m128i src1) {
   simde__m128i xmm1 = simde_mm_add_epi32(src1, simde_mm_set1_epi32(127));
   simde__m128i xmm0 = simde_mm_slli_epi32(src1, 31 - 8);
@@ -150,7 +173,14 @@ inline simde__m128 simde_mm_cvtepu32_ps_(simde__m128i src1) {
   return simde_mm_blendv_ps(xmm2, simde_mm_castsi128_ps(xmm0), simde_mm_castsi128_ps(src1));
 }
 
-// Permute bytes from two vectors based on control vector
+/**
+ * Permutes bytes from 2 vectors by a control vector.
+ *
+ * @param a The first source.
+ * @param b The second source.
+ * @param c The control vector.
+ * @return The permuted bytes.
+ */
 inline simde__m128i simde_mm_perm_epi8_(simde__m128i a, simde__m128i b, simde__m128i c) {
   simde__m128i d = simde_mm_set1_epi8(0xF);
   simde__m128i e = simde_mm_sub_epi8(d, simde_mm_and_si128(c, d));
@@ -158,19 +188,36 @@ inline simde__m128i simde_mm_perm_epi8_(simde__m128i a, simde__m128i b, simde__m
                               simde_mm_slli_epi32(c, 3));
 }
 
-// Unsigned 8-bit compare greater than
+/**
+ * Compares unsigned 8 bit lanes for greater than.
+ *
+ * @param a The first operand.
+ * @param b The second operand.
+ * @return All ones in lanes where a is greater than b.
+ */
 inline simde__m128i simde_mm_cmpgt_epu8(simde__m128i a, simde__m128i b) {
   simde__m128i c = simde_mm_set1_epi8(char(128));
   return simde_mm_cmpgt_epi8(simde_mm_xor_si128(a, c), simde_mm_xor_si128(b, c));
 }
 
-// Unsigned 16-bit compare greater than
+/**
+ * Compares unsigned 16 bit lanes for greater than.
+ *
+ * @param a The first operand.
+ * @param b The second operand.
+ * @return All ones in lanes where a is greater than b.
+ */
 inline simde__m128i simde_mm_cmpgt_epu16(simde__m128i a, simde__m128i b) {
   simde__m128i c = simde_mm_set1_epi16(short(32768));
   return simde_mm_cmpgt_epi16(simde_mm_xor_si128(a, c), simde_mm_xor_si128(b, c));
 }
 
-// Vector Convert To Signed Fixed-Point Word Saturate
+/**
+ * Converts floats to signed fixed point words with saturation (vctsxs).
+ *
+ * @param src1 The float lanes.
+ * @return The saturated signed words.
+ */
 inline simde__m128i simde_mm_vctsxs(simde__m128 src1) {
   simde__m128 xmm2 = simde_mm_cmpunord_ps(src1, src1);
   simde__m128i xmm0 = simde_mm_cvttps_epi32(src1);
@@ -182,32 +229,34 @@ inline simde__m128i simde_mm_vctsxs(simde__m128 src1) {
   return simde_mm_andnot_si128(simde_mm_castps_si128(xmm2), simde_mm_castps_si128(dest));
 }
 
-// Vector Convert To Unsigned Fixed-Point Word Saturate
-// Convert float to unsigned int with saturation to [0, UINT_MAX]
-// NaN -> 0, negative -> 0, > UINT_MAX -> UINT_MAX
+/**
+ * Converts floats to unsigned fixed point words with saturation (vctuxs).
+ *
+ * NaN and negative inputs give 0 and inputs above UINT_MAX give UINT_MAX. Values from 2^31
+ * up convert after subtracting 2^31 and gain it back, since the signed conversion only
+ * covers values up to INT_MAX.
+ *
+ * @param src1 The float lanes.
+ * @return The words, saturated to [0, UINT_MAX].
+ */
 inline simde__m128i simde_mm_vctuxs(simde__m128 src1) {
   simde__m128 nan_mask = simde_mm_cmpunord_ps(src1, src1);
   simde__m128 neg_mask = simde_mm_cmplt_ps(src1, simde_mm_setzero_ps());
-  simde__m128 max_val = simde_mm_set1_ps(4294967295.0f);  // UINT_MAX as float
+  simde__m128 max_val = simde_mm_set1_ps(4294967295.0f);
   simde__m128 overflow_mask = simde_mm_cmpge_ps(src1, max_val);
 
-  // Clamp to [0, UINT_MAX]
   simde__m128 clamped = simde_mm_max_ps(src1, simde_mm_setzero_ps());
   clamped = simde_mm_min_ps(clamped, max_val);
 
-  // Convert to signed int first (will handle values up to INT_MAX correctly)
-  // For values > INT_MAX, we need special handling
-  simde__m128 half_range = simde_mm_set1_ps(2147483648.0f);  // 2^31
+  simde__m128 half_range = simde_mm_set1_ps(2147483648.0f);
   simde__m128 high_bit_mask = simde_mm_cmpge_ps(clamped, half_range);
 
-  // For values >= 2^31, subtract 2^31 before conversion and add it back after
   simde__m128 adjusted = simde_mm_sub_ps(clamped, simde_mm_and_ps(high_bit_mask, half_range));
   simde__m128i low_bits = simde_mm_cvttps_epi32(adjusted);
   simde__m128i high_bit = simde_mm_and_si128(simde_mm_castps_si128(high_bit_mask),
                                              simde_mm_set1_epi32(int(0x80000000u)));
   simde__m128i result = simde_mm_or_si128(low_bits, high_bit);
 
-  // Apply saturation: NaN -> 0, overflow -> UINT_MAX
   result = simde_mm_andnot_si128(simde_mm_castps_si128(nan_mask), result);
   result = simde_mm_andnot_si128(simde_mm_castps_si128(neg_mask), result);
   result = simde_mm_or_si128(
@@ -217,7 +266,13 @@ inline simde__m128i simde_mm_vctuxs(simde__m128 src1) {
   return result;
 }
 
-// Vector Shift Right
+/**
+ * Shifts the whole 128 bit vector right (vsr).
+ *
+ * @param a The vector to shift.
+ * @param b The shift count source.
+ * @return The shifted vector.
+ */
 inline simde__m128i simde_mm_vsr(simde__m128i a, simde__m128i b) {
   b = simde_mm_srli_epi64(simde_mm_slli_epi64(b, 61), 61);
   return simde_mm_castps_si128(simde_mm_insert_ps(
@@ -225,24 +280,35 @@ inline simde__m128i simde_mm_vsr(simde__m128i a, simde__m128i b) {
       simde_mm_castsi128_ps(simde_mm_srl_epi64(simde_mm_srli_si128(a, 4), b)), 0x10));
 }
 
-// Vector Shift Left - shift entire 128-bit vector left by bits in low 3 bits of b
+/**
+ * Shifts the whole 128 bit vector left (vsl) by the low 3 bits of b.
+ *
+ * @param a The vector to shift.
+ * @param b The shift count source, read from byte 15 which is byte 0 in big endian.
+ * @return The shifted vector.
+ */
 inline simde__m128i simde_mm_vsl(simde__m128i a, simde__m128i b) {
-  int shift = simde_mm_extract_epi8(b, 15) & 0x7;  // Get low 3 bits from byte 15 (BE: byte 0)
+  int shift = simde_mm_extract_epi8(b, 15) & 0x7;
   if (shift == 0)
     return a;
 
-  // Split into high and low 64-bit parts
   simde__m128i low_shifted = simde_mm_sll_epi64(a, simde_mm_cvtsi32_si128(shift));
   simde__m128i high_carry = simde_mm_srl_epi64(a, simde_mm_cvtsi32_si128(64 - shift));
-  // Shift the carry from low qword to high qword position
   high_carry = simde_mm_slli_si128(high_carry, 8);
   return simde_mm_or_si128(low_shifted, high_carry);
 }
 
-// Vector Shift Left by Octet - shift entire vector left by bytes in bits [121:124] of vB
-// In PPC big-endian byte 15 is at LSB position, which in x86 LE is at index 0
-// Bits 121:124 within the byte are extracted as (byte >> 3) & 0xF
-// PPC left shift = shift towards MSB (lower PPC addresses) = shift towards higher x86 addresses
+/**
+ * Shifts the whole vector left by bytes (vslo) given by bits [121:124] of b.
+ *
+ * PPC big endian byte 15 sits at the LSB position, which is index 0 in x86 little endian.
+ * The 4 bits are extracted as (byte >> 3) & 0xF. A PPC left shift moves towards the MSB
+ * and lower PPC addresses, which is towards higher x86 addresses.
+ *
+ * @param a The vector to shift.
+ * @param b The byte count source.
+ * @return The shifted vector.
+ */
 inline simde__m128i simde_mm_vslo(simde__m128i a, simde__m128i b) {
   int shift_bytes = (simde_mm_extract_epi8(b, 0) >> 3) & 0xF;
   if (shift_bytes == 0)
@@ -257,10 +323,17 @@ inline simde__m128i simde_mm_vslo(simde__m128i a, simde__m128i b) {
   return simde_mm_load_si128(reinterpret_cast<const simde__m128i*>(dst));
 }
 
-// Vector Shift Right by Octet - shift entire vector right by bytes in bits [121:124] of vB
-// In PPC big-endian byte 15 is at LSB position, which in x86 LE is at index 0
-// Bits 121:124 within the byte are extracted as (byte >> 3) & 0xF
-// PPC right shift = shift towards LSB (higher PPC addresses) = shift towards lower x86 addresses
+/**
+ * Shifts the whole vector right by bytes (vsro) given by bits [121:124] of b.
+ *
+ * PPC big endian byte 15 sits at the LSB position, which is index 0 in x86 little endian.
+ * The 4 bits are extracted as (byte >> 3) & 0xF. A PPC right shift moves towards the LSB
+ * and higher PPC addresses, which is towards lower x86 addresses.
+ *
+ * @param a The vector to shift.
+ * @param b The byte count source.
+ * @return The shifted vector.
+ */
 inline simde__m128i simde_mm_vsro(simde__m128i a, simde__m128i b) {
   int shift_bytes = (simde_mm_extract_epi8(b, 0) >> 3) & 0xF;
   if (shift_bytes == 0)
@@ -275,7 +348,13 @@ inline simde__m128i simde_mm_vsro(simde__m128i a, simde__m128i b) {
   return simde_mm_load_si128(reinterpret_cast<const simde__m128i*>(dst));
 }
 
-// Variable 16-bit shift left: widen to 32-bit, shift, narrow back
+/**
+ * Shifts 16 bit lanes left by per lane counts, widening to 32 bit, shifting and narrowing back.
+ *
+ * @param a The lanes to shift.
+ * @param count The per lane shift counts.
+ * @return The shifted lanes.
+ */
 inline simde__m128i simde_mm_sllv_epi16(simde__m128i a, simde__m128i count) {
   simde__m128i zero = simde_mm_setzero_si128();
   simde__m128i a_lo = simde_mm_unpacklo_epi16(a, zero);
@@ -290,7 +369,14 @@ inline simde__m128i simde_mm_sllv_epi16(simde__m128i a, simde__m128i count) {
   return simde_mm_packus_epi32(r_lo, r_hi);
 }
 
-// Variable 16-bit logical right shift: widen to 32-bit, shift, narrow back
+/**
+ * Shifts 16 bit lanes right logically by per lane counts, widening to 32 bit, shifting and
+ * narrowing back.
+ *
+ * @param a The lanes to shift.
+ * @param count The per lane shift counts.
+ * @return The shifted lanes.
+ */
 inline simde__m128i simde_mm_srlv_epi16(simde__m128i a, simde__m128i count) {
   simde__m128i zero = simde_mm_setzero_si128();
   simde__m128i a_lo = simde_mm_unpacklo_epi16(a, zero);
@@ -302,10 +388,18 @@ inline simde__m128i simde_mm_srlv_epi16(simde__m128i a, simde__m128i count) {
   return simde_mm_packus_epi32(r_lo, r_hi);
 }
 
-// Variable 16-bit arithmetic right shift: sign-extend to 32-bit, shift, narrow back
+/**
+ * Shifts 16 bit lanes right arithmetically by per lane counts, sign extending to 32 bit,
+ * shifting and narrowing back.
+ *
+ * The sign extension duplicates each 16 bit lane, then shifts right by 16.
+ *
+ * @param a The lanes to shift.
+ * @param count The per lane shift counts.
+ * @return The shifted lanes.
+ */
 inline simde__m128i simde_mm_srav_epi16(simde__m128i a, simde__m128i count) {
   simde__m128i zero = simde_mm_setzero_si128();
-  // Sign-extend a: duplicate each 16-bit lane, then arithmetic shift right by 16
   simde__m128i a_lo = simde_mm_srai_epi32(simde_mm_unpacklo_epi16(a, a), 16);
   simde__m128i a_hi = simde_mm_srai_epi32(simde_mm_unpackhi_epi16(a, a), 16);
   simde__m128i s_lo = simde_mm_unpacklo_epi16(count, zero);
@@ -315,7 +409,13 @@ inline simde__m128i simde_mm_srav_epi16(simde__m128i a, simde__m128i count) {
   return simde_mm_packs_epi32(r_lo, r_hi);
 }
 
-// Variable 8-bit shift left: widen to 16-bit, shift, narrow back
+/**
+ * Shifts 8 bit lanes left by per lane counts, widening to 16 bit, shifting and narrowing back.
+ *
+ * @param a The lanes to shift.
+ * @param count The per lane shift counts.
+ * @return The shifted lanes.
+ */
 inline simde__m128i simde_mm_sllv_epi8(simde__m128i a, simde__m128i count) {
   simde__m128i zero = simde_mm_setzero_si128();
   simde__m128i a_lo = simde_mm_unpacklo_epi8(a, zero);
@@ -332,10 +432,7 @@ inline simde__m128i simde_mm_sllv_epi8(simde__m128i a, simde__m128i count) {
 
 }  // namespace rex::ppc
 
-//=============================================================================
-// Global Aliases for Generated Code
-//=============================================================================
-// Vector mask tables accessible from global scope for generated code
+/** Vector mask tables at global scope for generated code. */
 using rex::ppc::VectorMaskL;
 using rex::ppc::VectorMaskR;
 using rex::ppc::VectorShiftTableL;

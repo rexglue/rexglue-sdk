@@ -1,14 +1,3 @@
-/**
- * @file        runtime/guest_path.cpp
- * @brief       Guest path normalization for VFS paths
- *
- * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
- *              All rights reserved.
- *
- * @license     BSD 3-Clause License
- *              See LICENSE file in the project root for full license text.
- */
-
 #include <rex/runtime/guest_path.h>
 
 #include <algorithm>
@@ -19,9 +8,6 @@
 namespace rex::runtime {
 
 std::string NormalizeGuestPath(std::string_view path) {
-  // Manifest / config consumers expect POSIX-style guest paths: forward
-  // slashes, no device prefix, lowercase. The runtime VFS tolerates either
-  // separator, so converting backslashes here keeps writers (TOML) happy.
   std::string result = rex::utf8_fix_path_separators(path, U'/');
 
   auto colon = result.find(':');

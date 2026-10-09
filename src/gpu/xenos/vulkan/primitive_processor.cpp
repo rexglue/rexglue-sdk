@@ -31,13 +31,8 @@ VulkanPrimitiveProcessor::~VulkanPrimitiveProcessor() {
 bool VulkanPrimitiveProcessor::Initialize() {
   const gpu::vulkan::VulkanDevice* const vulkan_device = command_processor_.GetVulkanDevice();
   const gpu::vulkan::VulkanDevice::Properties& device_properties = vulkan_device->properties();
-  // Keep triangle fan handling aligned with D3D12 by always converting fans to
-  // lists in the shared primitive processor path.
   constexpr bool triangle_fans_supported_without_conversion = false;
 
-  // Default to D3D12-like geometry-shader-based handling when available, but
-  // allow opting into Vulkan fallback paths for debugging and downlevel
-  // compatibility testing.
   bool geometry_shader_primitive_emulation_allowed = device_properties.geometryShader;
   bool quad_lists_supported_without_conversion =
       geometry_shader_primitive_emulation_allowed &&
@@ -98,9 +93,7 @@ void VulkanPrimitiveProcessor::CompletedSubmissionUpdated() {
 void VulkanPrimitiveProcessor::BeginSubmission() {
   if (builtin_index_buffer_upload_ != VK_NULL_HANDLE &&
       builtin_index_buffer_upload_submission_ == UINT64_MAX) {
-    // No need to submit deferred barriers - builtin_index_buffer_ has never
-    // been used yet, and builtin_index_buffer_upload_ is written before
-    // submitting commands reading it.
+    // No deferred barriers needed, the index buffer is unused and the upload is written first.
 
     command_processor_.EndRenderPass();
 
@@ -190,7 +183,6 @@ bool VulkanPrimitiveProcessor::InitializeBuiltinIndexBuffer(
                                             upload_memory_type);
   dfn.vkUnmapMemory(device, builtin_index_buffer_upload_memory_);
 
-  // Schedule uploading in the first submission.
   builtin_index_buffer_upload_submission_ = UINT64_MAX;
   return true;
 }

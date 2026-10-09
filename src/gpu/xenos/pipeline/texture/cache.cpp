@@ -27,127 +27,16 @@
 
 #include "gpu/xenos/cvar_table.h"
 
-// DEFINE_int32(
-//     draw_resolution_scale_x, 1,
-//     "Integer pixel width scale used for scaling the rendering resolution "
-//     "opaquely to the game.\n"
-//     "1, 2 and 3 may be supported, but support of anything above 1 depends on "
-//     "the device properties, such as whether it supports sparse binding / tiled "
-//     "resources, the number of virtual address bits per resource, and other "
-//     "factors.\n"
-//     "Various effects and parts of game rendering pipelines may work "
-//     "incorrectly as pixels become ambiguous from the game's perspective and "
-//     "because half-pixel offset (which normally doesn't affect coverage when "
-//     "MSAA isn't used) becomes full-pixel.",
-//     "GPU");
-// DEFINE_int32(
-//     draw_resolution_scale_y, 1,
-//     "Integer pixel width scale used for scaling the rendering resolution "
-//     "opaquely to the game.\n"
-//     "See draw_resolution_scale_x for more information.",
-//     "GPU");
-// DEFINE_uint32(
-//     texture_cache_memory_limit_soft, 384,
-//     "Maximum host texture memory usage (in megabytes) above which old textures "
-//     "will be destroyed.",
-//     "GPU");
-// DEFINE_uint32(
-//     texture_cache_memory_limit_soft_lifetime, 30,
-//     "Seconds a texture should be unused to be considered old enough to be "
-//     "deleted if texture memory usage exceeds texture_cache_memory_limit_soft.",
-//     "GPU");
-// DEFINE_uint32(
-//     texture_cache_memory_limit_hard, 768,
-//     "Maximum host texture memory usage (in megabytes) above which textures "
-//     "will be destroyed as soon as possible.",
-//     "GPU");
-// DEFINE_uint32(
-//     texture_cache_memory_limit_render_to_texture, 24,
-//     "Part of the host texture memory budget (in megabytes) that will be scaled "
-//     "by the current drawing resolution scale.\n"
-//     "If texture_cache_memory_limit_soft, for instance, is 384, and this is 24, "
-//     "it will be assumed that the game will be using roughly 24 MB of "
-//     "render-to-texture (resolve) targets and 384 - 24 = 360 MB of regular "
-//     "textures - so with 2x2 resolution scaling, the soft limit will be 360 + "
-//     "96 MB, and with 3x3, it will be 360 + 216 MB.",
-//     "GPU");
-
 namespace rex::gpu {
 
+// Order matches LoadShaderIndex.
 const TextureCache::LoadShaderInfo TextureCache::load_shader_info_[kLoadShaderCount] = {
-    // k8bpb
-    {3, 4, 1, 4},
-    // k16bpb
-    {4, 4, 2, 4},
-    // k32bpb
-    {4, 4, 4, 3},
-    // k64bpb
-    {4, 4, 8, 2},
-    // k128bpb
-    {4, 4, 16, 1},
-    // kR5G5B5A1ToB5G5R5A1
-    {4, 4, 2, 4},
-    // kR5G6B5ToB5G6R5
-    {4, 4, 2, 4},
-    // kR5G6B5ToRGBA8
-    {4, 4, 4, 4},
-    // kR5G5B6ToB5G6R5WithRBGASwizzle
-    {4, 4, 2, 4},
-    // kRGBA4ToBGRA4
-    {4, 4, 2, 4},
-    // kRGBA4ToARGB4
-    {4, 4, 2, 4},
-    // kRGBA4ToRGBA8
-    {4, 4, 4, 4},
-    // kGBGR8ToGRGB8
-    {4, 4, 4, 3},
-    // kGBGR8ToRGB8
-    {4, 4, 8, 3},
-    // kBGRG8ToRGBG8
-    {4, 4, 4, 3},
-    // kBGRG8ToRGB8
-    {4, 4, 8, 3},
-    // kR10G11B11ToRGBA16
-    {4, 4, 8, 3},
-    // kR10G11B11ToRGBA16SNorm
-    {4, 4, 8, 3},
-    // kR11G11B10ToRGBA16
-    {4, 4, 8, 3},
-    // kR11G11B10ToRGBA16SNorm
-    {4, 4, 8, 3},
-    // kR16UNormToFloat
-    {4, 4, 2, 4},
-    // kR16SNormToFloat
-    {4, 4, 2, 4},
-    // kRG16UNormToFloat
-    {4, 4, 4, 3},
-    // kRG16SNormToFloat
-    {4, 4, 4, 3},
-    // kRGBA16UNormToFloat
-    {4, 4, 8, 2},
-    // kRGBA16SNormToFloat
-    {4, 4, 8, 2},
-    // kDXT1ToRGBA8
-    {4, 4, 4, 2},
-    // kDXT3ToRGBA8
-    {4, 4, 4, 1},
-    // kDXT5ToRGBA8
-    {4, 4, 4, 1},
-    // kDXNToRG8
-    {4, 4, 2, 1},
-    // kDXT3A
-    {4, 4, 1, 2},
-    // kDXT3AAs1111ToBGRA4
-    {4, 4, 2, 2},
-    // kDXT3AAs1111ToARGB4
-    {4, 4, 2, 2},
-    // kDXT5AToR8
-    {4, 4, 1, 2},
-    // kCTX1
-    {4, 4, 2, 2},
-    // kDepthUnorm
-    {4, 4, 4, 3},
-    // kDepthFloat
+    {3, 4, 1, 4}, {4, 4, 2, 4}, {4, 4, 4, 3}, {4, 4, 8, 2}, {4, 4, 16, 1}, {4, 4, 2, 4},
+    {4, 4, 2, 4}, {4, 4, 4, 4}, {4, 4, 2, 4}, {4, 4, 2, 4}, {4, 4, 2, 4},  {4, 4, 4, 4},
+    {4, 4, 4, 3}, {4, 4, 8, 3}, {4, 4, 4, 3}, {4, 4, 8, 3}, {4, 4, 8, 3},  {4, 4, 8, 3},
+    {4, 4, 8, 3}, {4, 4, 8, 3}, {4, 4, 2, 4}, {4, 4, 2, 4}, {4, 4, 4, 3},  {4, 4, 4, 3},
+    {4, 4, 8, 2}, {4, 4, 8, 2}, {4, 4, 4, 2}, {4, 4, 4, 1}, {4, 4, 4, 1},  {4, 4, 2, 1},
+    {4, 4, 1, 2}, {4, 4, 2, 2}, {4, 4, 2, 2}, {4, 4, 1, 2}, {4, 4, 2, 2},  {4, 4, 4, 3},
     {4, 4, 4, 3},
 };
 
@@ -196,11 +85,8 @@ void TextureCache::ClearCache() {
 }
 
 void TextureCache::CompletedSubmissionUpdated(uint64_t completed_submission_index) {
-  // If memory usage is too high, destroy unused textures.
   uint64_t current_time = rex::Clock::QueryHostUptimeMillis();
-  // texture_cache_memory_limit_render_to_texture is assumed to be included in
-  // texture_cache_memory_limit_soft and texture_cache_memory_limit_hard, at 1x,
-  // so subtracting 1 from the scale.
+  // The render to texture limit is included in the soft and hard limits at 1x.
   uint32_t limit_scaled_resolve_add_mb =
       REXCVAR_GET(::rex::gpu::cvars::texture_cache_memory_limit_render_to_texture) *
       (draw_resolution_scale_x() * draw_resolution_scale_y() - 1);
@@ -227,20 +113,14 @@ void TextureCache::CompletedSubmissionUpdated(uint64_t completed_submission_inde
     }
     if (!destroyed_any) {
       destroyed_any = true;
-      // The texture being destroyed might have been bound in the previous
-      // submissions, and nothing has overwritten the binding yet, so completion
-      // of the submission where the texture was last used on the GPU
-      // doesn't imply that it's not bound. Reset bindings if
-      // any texture has been destroyed.
+      // Bindings may reference the destroyed texture, so reset them.
       ResetTextureBindings();
     }
-    // Remove the texture from the map and destroy it via its unique_ptr.
     auto found_texture_it = textures_.find(texture->key());
     REX_ASSERT(found_texture_it != textures_.end());
     if (found_texture_it != textures_.end()) {
       REX_ASSERT(found_texture_it->second.get() == texture);
       textures_.erase(found_texture_it);
-      // `texture` is invalid now.
     }
   }
   if (destroyed_any) {
@@ -255,9 +135,6 @@ void TextureCache::BeginSubmission(uint64_t new_submission_index) {
 }
 
 void TextureCache::BeginFrame() {
-  // In case there was a failure to create something in the previous frame, make
-  // sure bindings are reset so a new attempt will surely be made if the texture
-  // is requested again.
   ResetTextureBindings();
 }
 
@@ -287,8 +164,7 @@ void TextureCache::MarkRangeAsResolved(uint32_t start_unscaled, uint32_t length_
     }
   }
 
-  // Invalidate textures. Toggling individual textures between scaled and
-  // unscaled also relies on invalidation through shared memory.
+  // Toggling a texture between scaled and unscaled relies on this invalidation.
   shared_memory().RangeWrittenByGpu(start_unscaled, length_unscaled);
 }
 
@@ -298,8 +174,7 @@ uint32_t TextureCache::GuestToHostSwizzle(uint32_t guest_swizzle, uint32_t host_
     uint32_t guest_swizzle_component = (guest_swizzle >> (3 * i)) & 0b111;
     uint32_t host_swizzle_component;
     if (guest_swizzle_component >= xenos::REXGPU_SWIZZLE_0) {
-      // Get rid of 6 and 7 values (to prevent host GPU errors if the game has
-      // something broken) the simple way - by changing them to 4 (0) and 5 (1).
+      // Swizzle values 6 and 7 are invalid on the host, so map them to 4 (0) and 5 (1).
       host_swizzle_component = guest_swizzle_component & 0b101;
     } else {
       host_swizzle_component = (host_format_swizzle >> (3 * guest_swizzle_component)) & 0b111;
@@ -364,10 +239,7 @@ bool TextureCache::CommitPreparedTextureLoad(const PendingTextureLoad& pending_l
   Texture& texture = *pending_load.texture;
   TextureKey texture_key = texture.key();
   if (texture_key.scaled_resolve) {
-    // Make sure all the scaled resolve memory is resident and accessible from
-    // the shader, including any possible padding that hasn't yet been touched
-    // by an actual resolve, but is still included in the texture size, so the
-    // GPU won't be trying to access unmapped memory.
+    // Padding not yet touched by a resolve counts in the texture size, so it must be resident.
     if (pending_load.load_base && !EnsureScaledResolveMemoryCommitted(
                                       texture_key.base_page << 12, texture.GetGuestBaseSize(), 4)) {
       return false;
@@ -383,10 +255,7 @@ bool TextureCache::CommitPreparedTextureLoad(const PendingTextureLoad& pending_l
     return false;
   }
 
-  // Mark the ranges as uploaded and watch them. This is needed for scaled
-  // resolves as well to detect when the CPU wants to reuse the memory for a
-  // regular texture or a vertex buffer, and thus the scaled resolve version is
-  // not up to date anymore.
+  // Scaled resolves are watched too, to detect CPU reuse of the memory.
   texture.MakeUpToDateAndWatch(shared_memory().AcquireLock());
   texture.LogAction("Loaded");
 
@@ -397,13 +266,9 @@ void TextureCache::RequestTextures(uint32_t used_texture_mask) {
   const auto& regs = register_file();
 
   if (texture_became_outdated_.exchange(false, std::memory_order_acquire)) {
-    // A texture has become outdated - make sure whether textures are outdated
-    // is rechecked in this draw and in subsequent ones to reload the new data
-    // if needed.
     ResetTextureBindings();
   }
 
-  // Update the texture keys and the textures.
   uint32_t bindings_changed = 0;
   std::vector<PendingTextureLoad> pending_texture_loads;
   std::vector<PendingSharedMemoryRange> pending_shared_memory_ranges;
@@ -448,9 +313,6 @@ void TextureCache::RequestTextures(uint32_t used_texture_mask) {
     uint32_t old_host_swizzle = binding.host_swizzle;
     binding.host_swizzle = GuestToHostSwizzle(fetch.swizzle, GetHostFormatSwizzle(binding.key));
 
-    // Check if need to load the unsigned and the signed versions of the texture
-    // (if the format is emulated with different host bit representations for
-    // signed and unsigned - otherwise only the unsigned one is loaded).
     bool key_changed = binding.key != old_key;
     bool any_sign_was_not_signed = xenos::IsAnySignNotSigned(old_swizzled_signs);
     bool any_sign_was_signed = xenos::IsAnySignSigned(old_swizzled_signs);
@@ -463,12 +325,7 @@ void TextureCache::RequestTextures(uint32_t used_texture_mask) {
     }
     bool load_unsigned_data = false, load_signed_data = false;
     if (IsSignedVersionSeparateForFormat(binding.key)) {
-      // Can reuse previously loaded unsigned/signed versions if the key is the
-      // same and the texture was previously bound as unsigned/signed
-      // respectively (checking the previous values of signedness rather than
-      // binding.texture != nullptr and binding.texture_signed != nullptr also
-      // prevents repeated attempts to load the texture if it has failed to
-      // load).
+      // Previous signedness, not binding.texture, is checked so failed loads are not retried.
       if (any_sign_is_not_signed) {
         if (key_changed || !any_sign_was_not_signed) {
           binding.texture = FindOrCreateTexture(binding.key);
@@ -488,8 +345,6 @@ void TextureCache::RequestTextures(uint32_t used_texture_mask) {
         binding.texture_signed = nullptr;
       }
     } else {
-      // Same resource for both unsigned and signed, but descriptor formats may
-      // be different.
       if (key_changed) {
         binding.texture = FindOrCreateTexture(binding.key);
         load_unsigned_data = true;
@@ -575,11 +430,6 @@ void TextureCache::Texture::LogAction(const char* action) const {
                GetGuestBaseSize(), key_.mip_page << 12, GetGuestMipsSize());
 }
 
-// The texture must be in the recent usage list. Place it in front now because
-// after creation, the texture will likely be used immediately, and it should
-// not be destroyed immediately after creation if dropping of old textures is
-// performed somehow. The list is maintained by the Texture, not the
-// TextureCache itself (unlike the `textures_` container).
 TextureCache::Texture::Texture(TextureCache& texture_cache, const TextureKey& key, bool track_usage)
     : texture_cache_(texture_cache),
       key_(key),
@@ -598,7 +448,6 @@ TextureCache::Texture::Texture(TextureCache& texture_cache, const TextureKey& ke
     texture_cache.texture_used_last_ = this;
   }
 
-  // Never try to upload data that doesn't exist.
   base_outdated_ = guest_layout().base.level_data_extent_bytes != 0;
   mips_outdated_ = guest_layout().mips_total_extent_bytes != 0;
   outdated_mask_.store(
@@ -656,14 +505,12 @@ void TextureCache::Texture::MarkAsUsed() {
     return;
   }
   REX_ASSERT(last_usage_submission_index_ <= texture_cache_.current_submission_index_);
-  // This is called frequently, don't relink unless needed for caching.
   if (last_usage_submission_index_ >= texture_cache_.current_submission_index_) {
     return;
   }
   last_usage_submission_index_ = texture_cache_.current_submission_index_;
   last_usage_time_ = texture_cache_.current_submission_time_;
   if (used_next_ == nullptr) {
-    // Already the most recently used.
     return;
   }
   if (used_previous_ != nullptr) {
@@ -706,7 +553,6 @@ void TextureCache::DestroyAllTextures(bool from_destructor) {
 }
 
 TextureCache::Texture* TextureCache::FindOrCreateTexture(TextureKey key) {
-  // Check if the texture is a scaled resolve texture.
   if (IsDrawResolutionScaled() && key.tiled && IsScaledResolveSupportedForFormat(key)) {
     xenos::TextureGuestLayout scaled_resolve_guest_layout = key.GetGuestLayout();
     if ((scaled_resolve_guest_layout.base.level_data_extent_bytes &&
@@ -773,9 +619,6 @@ TextureCache::Texture* TextureCache::FindOrCreateTexture(TextureKey key) {
   };
   uint32_t host_width, host_height, host_depth_or_array_size;
   get_host_extent(host_width, host_height, host_depth_or_array_size);
-  // If the host can't support the full texture extent, first try using the
-  // unscaled version of a scaled resolve texture, then fall back to the first
-  // stored mip level only.
   uint32_t max_host_width_height = GetMaxHostTextureWidthHeight(key.dimension);
   uint32_t max_host_depth_or_array_size = GetMaxHostTextureDepthOrArraySize(key.dimension);
   while (true) {
@@ -800,15 +643,11 @@ TextureCache::Texture* TextureCache::FindOrCreateTexture(TextureKey key) {
     get_host_extent(host_width, host_height, host_depth_or_array_size);
   }
 
-  // Try to find an existing texture.
-  // TODO(Triang3l): Reuse a texture with mip_page unchanged, but base_page
-  // previously 0, now not 0, to save memory - common case in streaming.
   auto found_texture_it = textures_.find(key);
   if (found_texture_it != textures_.end()) {
     return found_texture_it->second.get();
   }
 
-  // Create the texture and add it to the map.
   Texture* texture;
   {
     std::unique_ptr<Texture> new_texture = CreateTexture(key);
@@ -845,7 +684,6 @@ bool TextureCache::LoadTextureData(Texture& texture) {
 
 void TextureCache::BindingInfoFromFetchConstant(const xenos::TextureFetch& fetch,
                                                 TextureKey& key_out, uint8_t* swizzled_signs_out) {
-  // Reset the key and the signedness.
   key_out.MakeInvalid();
   if (swizzled_signs_out != nullptr) {
     *swizzled_signs_out =
@@ -882,12 +720,10 @@ void TextureCache::BindingInfoFromFetchConstant(const xenos::TextureFetch& fetch
                                           &depth_or_array_size_minus_1, &base_page, &mip_page,
                                           nullptr, &mip_max_level);
   if (base_page == 0 && mip_page == 0) {
-    // No texture data at all.
     return;
   }
   if (fetch.dimension == xenos::DataDimension::k1D) {
     bool is_invalid_1d = false;
-    // TODO(Triang3l): Support long 1D textures.
     if (width_minus_1 >= xenos::kTexture2DCubeMaxWidthHeight) {
       REXLOG_ERROR(gpu,
                    "1D texture is too wide ({}) - ignoring! Report the title to ReXGlue "
@@ -972,10 +808,6 @@ bool TextureCache::IsRangeScaledResolved(uint32_t start_unscaled, uint32_t lengt
     return false;
   }
 
-  // Two-level check for faster rejection since resolve targets are usually
-  // placed in relatively small and localized memory portions (confirmed by
-  // testing - pretty much all times the deeper level was entered, the texture
-  // was a resolve target).
   uint32_t page_first = start_unscaled >> 12;
   uint32_t page_last = (start_unscaled + length_unscaled - 1) >> 12;
   uint32_t block_first = page_first >> 5;
@@ -1021,11 +853,9 @@ void TextureCache::ScaledResolveGlobalWatchCallback(uint32_t address_first, uint
                                                     bool invalidated_by_gpu) {
   REX_ASSERT(IsDrawResolutionScaled());
   if (invalidated_by_gpu) {
-    // Resolves themselves do exactly the opposite of what this should do.
+    // Resolves set these bits themselves, so invalidations by the GPU are ignored.
     return;
   }
-  // Mark scaled resolve ranges as non-scaled. Textures themselves will be
-  // invalidated by their shared memory watches.
   uint32_t resolve_page_first = address_first >> 12;
   uint32_t resolve_page_last = address_last >> 12;
   uint32_t resolve_block_first = resolve_page_first >> 5;
@@ -1035,7 +865,6 @@ void TextureCache::ScaledResolveGlobalWatchCallback(uint32_t address_first, uint
   for (uint32_t i = resolve_l2_block_first; i <= resolve_l2_block_last; ++i) {
     uint64_t resolve_l2_block = scaled_resolve_pages_l2_[i];
     if (REXCVAR_GET(::rex::gpu::cvars::pre_mask_resolve_l2_block)) {
-      // Pre-mask to only process blocks within the write range.
       if (i == resolve_l2_block_first) {
         resolve_l2_block &= ~((UINT64_C(1) << (resolve_block_first & 63)) - 1);
       }

@@ -1,4 +1,3 @@
-#pragma once
 /**
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
@@ -9,6 +8,8 @@
  *
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
+
+#pragma once
 
 #include <algorithm>
 #include <cstring>
@@ -25,19 +26,21 @@ class Runtime;
 
 namespace rex::runtime {
 
+/** Guest block of an enumerator, followed by the extra bytes of its creator. */
 struct X_KENUMERATOR {
-  be_u32 app_id;
-  be_u32 open_message;
-  be_u32 close_message;
-  be_u32 user_index;
-  be_u32 items_per_enumerate;
-  be_u32 flags;
+  be_u32 app_id;              /**< Offset 0x0. Id of the Xam app the messages go to. */
+  be_u32 open_message;        /**< Offset 0x4. Message sent to the app to open the enumerator. */
+  be_u32 close_message;       /**< Offset 0x8. Message sent to the app to close the enumerator. */
+  be_u32 user_index;          /**< Offset 0xC. Index of the user the enumerator belongs to. */
+  be_u32 items_per_enumerate; /**< Offset 0x10. Items 1 enumerate call returns. */
+  be_u32 flags;               /**< Offset 0x14. Set from EnumeratorInit::flags, 0 at every call. */
 };
 REX_STATIC_ASSERT_SIZE(X_KENUMERATOR, 0x18);
 
+/** Extra block after `X_KENUMERATOR` for the content aggregate enumerator. */
 struct X_KENUMERATOR_CONTENT_AGGREGATE {
-  be_u32 magic;
-  be_u32 handle;
+  be_u32 magic;  /**< Offset 0x0. `kXObjSignature`. */
+  be_u32 handle; /**< Offset 0x4. Handle of the enumerator. */
 };
 
 /**
@@ -61,8 +64,10 @@ struct EnumeratorObject {
   REX_RUNTIME_API EnumeratorObject(size_t items_per_enumerate_in, size_t item_size_in,
                                    EnumeratorWriter write_items_in);
 
+  /** Maximum items 1 enumerate call writes, copied to X_KENUMERATOR. */
   size_t items_per_enumerate;
-  size_t item_size;
+  size_t item_size; /**< Size in bytes of 1 item in the output buffer. */
+  /** Called by the enumerate message to write the next batch into the guest buffer. */
   EnumeratorWriter write_items;
 };
 
@@ -119,11 +124,13 @@ class REX_RUNTIME_API StaticItems {
 
 /** The fields a guest enumerator reports to its consumers. */
 struct EnumeratorInit {
-  u32 user_index;
-  u32 app_id;
+  u32 user_index; /**< Stored in X_KENUMERATOR::user_index, the user the enumerator belongs to. */
+  u32 app_id;     /**< Stored in X_KENUMERATOR::app_id, the Xam app that receives the messages. */
+  /** Stored in X_KENUMERATOR::open_message, the message that opens the enumerator. */
   u32 open_message;
+  /** Stored in X_KENUMERATOR::close_message, the message that closes the enumerator. */
   u32 close_message;
-  u32 flags;
+  u32 flags; /**< Stored in X_KENUMERATOR::flags. */
 };
 
 /**

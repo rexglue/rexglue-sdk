@@ -1,4 +1,3 @@
-#pragma once
 /**
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
@@ -9,6 +8,8 @@
  *
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
+
+#pragma once
 
 #include <array>
 #include <cstdint>
@@ -34,38 +35,29 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
  public:
   union RenderPassKey {
     struct {
-      // If emulating 2x as 4x, this is still 2x for simplicity of using this
-      // field to make guest-related decisions. Render pass objects are not
-      // expensive, and their dependencies can't be shared between 2x-as-4x and
-      // true 4x MSAA passes (framebuffers because render target cache render
-      // targets are different for 2x and 4x guest MSAA, pipelines because the
-      // sample mask will have 2 samples excluded for 2x-as-4x).
-      // This has effect only on the attachments, but even in cases when there
-      // are no attachments, it can be used to pass the sample count between
-      // subsystems, for instance, to specify the desired number of samples to
-      // use when there are no attachments in pipelines.
-      // Also, without attachments, using separate render passes for different
-      // sample counts ensures that if the variableMultisampleRate feature is
-      // not supported, no draws with different rasterization sample counts end
-      // up in one render pass.
-      xenos::MSAASamples msaa_samples : xenos::kMSAASamplesBits;  // 2
-      // << 0 is depth, << 1...4 is color.
-      uint32_t depth_and_color_used : 1 + xenos::kMaxColorRenderTargets;  // 7
-      // 0 for unused attachments.
-      // If VK_FORMAT_D24_UNORM_S8_UINT is not supported, this must be kD24FS8
-      // even for kD24S8.
-      xenos::DepthRenderTargetFormat depth_format : xenos::kDepthRenderTargetFormatBits;  // 8
-      // Linear or sRGB included if host sRGB is used.
-      xenos::ColorRenderTargetFormat color_0_view_format
-          : xenos::kColorRenderTargetFormatBits;  // 12
-      xenos::ColorRenderTargetFormat color_1_view_format
-          : xenos::kColorRenderTargetFormatBits;  // 16
-      xenos::ColorRenderTargetFormat color_2_view_format
-          : xenos::kColorRenderTargetFormatBits;  // 20
-      xenos::ColorRenderTargetFormat color_3_view_format
-          : xenos::kColorRenderTargetFormatBits;    // 24
-      uint32_t color_rts_use_transfer_formats : 1;  // 25
-      u32 padding : 7;                              // 32
+      /**
+       * Stays 2x when emulating 2x as 4x, so guest decisions can use it. Dependencies cannot be
+       * shared between 2x as 4x and true 4x passes, because framebuffers use different render
+       * targets and pipelines exclude 2 samples from the sample mask. Without attachments it
+       * carries the sample count between subsystems, and separate render passes keep draws
+       * with different rasterization sample counts apart when variableMultisampleRate is
+       * unsupported.
+       */
+      xenos::MSAASamples msaa_samples : xenos::kMSAASamplesBits;
+      /** Bit 0 is depth, bits 1 to 4 are color. */
+      uint32_t depth_and_color_used : 1 + xenos::kMaxColorRenderTargets;
+      /**
+       * 0 for unused attachments. Must be kD24FS8 even for kD24S8 when
+       * VK_FORMAT_D24_UNORM_S8_UINT is not supported.
+       */
+      xenos::DepthRenderTargetFormat depth_format : xenos::kDepthRenderTargetFormatBits;
+      /** Linear or sRGB included if host sRGB is used. */
+      xenos::ColorRenderTargetFormat color_0_view_format : xenos::kColorRenderTargetFormatBits;
+      xenos::ColorRenderTargetFormat color_1_view_format : xenos::kColorRenderTargetFormatBits;
+      xenos::ColorRenderTargetFormat color_2_view_format : xenos::kColorRenderTargetFormatBits;
+      xenos::ColorRenderTargetFormat color_3_view_format : xenos::kColorRenderTargetFormatBits;
+      uint32_t color_rts_use_transfer_formats : 1;
+      u32 padding : 7;
     };
     uint32_t key = 0;
     struct Hasher {
@@ -92,8 +84,20 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
                           VulkanCommandProcessor& command_processor);
   ~VulkanRenderTargetCache();
 
-  // Transient descriptor set layouts must be initialized in the command
-  // processor.
+  /**
+   * Creates the render target cache. Transient descriptor set layouts must be initialized in the
+   * command processor first. The fragment shader interlock path needs sample interlock with
+   * common sample coverage (more is acceptable), fragmentStoresAndAtomics, sampleRateShading
+   * (some SPIR-V revisions need it to access the sample mask input), standardSampleLocations
+   * (to calculate depth at the samples), and enough storage buffer slots for the shared memory
+   * buffers and the EDRAM buffer. Interlock orders fragments only within a subpass, so the render
+   * pass has external by region dependencies to keep interlocking between passes. Framebuffer
+   * global dependencies use explicit barriers when EDRAM addressing relative to the fragment
+   * coordinates changes.
+   *
+   * @param shared_memory_binding_count Number of shared memory bindings.
+   * @return True on success.
+   */
   bool Initialize(uint32_t shared_memory_binding_count);
   void Shutdown(bool from_destructor = false);
   void ClearCache() override;
@@ -105,16 +109,24 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
 
   VkBuffer edram_buffer() const { return edram_buffer_; }
 
-  // Performs the resolve to a shared memory area according to the current
-  // register values, and also clears the render targets if needed. Must be in a
-  // frame for calling.
+  /**
+   * Performs the resolve to a shared memory area according to the current register values and
+   * clears the render targets if needed. Must be in a frame.
+   *
+   * @param memory Guest memory.
+   * @param shared_memory Shared memory the resolve writes to.
+   * @param texture_cache Texture cache used while resolving.
+   * @param written_address_out Receives the written address, 0 when nothing was written.
+   * @param written_length_out Receives the written length, 0 when nothing was written.
+   * @return True on success.
+   */
   bool Resolve(const runtime::Memory& memory, VulkanSharedMemory& shared_memory,
                VulkanTextureCache& texture_cache, uint32_t& written_address_out,
                uint32_t& written_length_out);
 
   bool Update(bool is_rasterization_done, xenos::reg::RB_DEPTHCONTROL normalized_depth_control,
               uint32_t normalized_color_mask, const Shader& vertex_shader) override;
-  // Binding information for the last successful update.
+  /** Binding information for the last successful update. */
   RenderPassKey last_update_render_pass_key() const { return last_update_render_pass_key_; }
   VkRenderPass last_update_render_pass() const { return last_update_render_pass_; }
   const Framebuffer* last_update_framebuffer() const { return last_update_framebuffer_; }
@@ -123,10 +135,19 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
                                          VkRenderingAttachmentInfo* depth_attachment,
                                          VkRenderingAttachmentInfo* stencil_attachment) const;
 
-  // Using R16G16[B16A16]_SNORM, which are -1...1, not the needed -32...32.
-  // Persistent data doesn't depend on this, so can be overriden by per-game
-  // configuration.
+  /**
+   * Reports whether R16G16_SNORM is used, which covers -1 to 1 rather than the needed -32 to 32.
+   * Persistent data does not depend on it, so per title configuration may override it.
+   *
+   * @return True when R16G16 is truncated to -1 to 1.
+   */
   bool IsFixedRG16TruncatedToMinus1To1() const;
+  /**
+   * Reports whether R16G16B16A16_SNORM is used, which covers -1 to 1 rather than the needed -32
+   * to 32. Persistent data does not depend on it, so per title configuration may override it.
+   *
+   * @return True when R16G16B16A16 is truncated to -1 to 1.
+   */
   bool IsFixedRGBA16TruncatedToMinus1To1() const;
   bool gamma_render_target_as_unorm16() const { return gamma_render_target_as_unorm16_; }
 
@@ -145,9 +166,13 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
                                    : msaa_2x_no_attachments_supported_;
   }
 
-  // Returns the render pass object, or VK_NULL_HANDLE if failed to create.
-  // A render pass managed by the render target cache may be ended and resumed
-  // at any time (to allow for things like copying and texture loading).
+  /**
+   * Returns the render pass object. A render pass managed by the render target cache may be ended
+   * and resumed at any time, to allow copying and texture loading.
+   *
+   * @param key Render pass key.
+   * @return The render pass, or VK_NULL_HANDLE if failed to create.
+   */
   VkRenderPass GetHostRenderTargetsRenderPass(RenderPassKey key);
   VkRenderPass GetFragmentShaderInterlockRenderPass() const {
     REX_ASSERT(GetPath() == Path::kPixelShaderInterlock);
@@ -156,6 +181,16 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
 
   VkFormat GetDepthVulkanFormat(xenos::DepthRenderTargetFormat format) const;
   VkFormat GetColorVulkanFormat(xenos::ColorRenderTargetFormat format) const;
+  /**
+   * Returns the format used for ownership transfers. Integer formats are preferred because
+   * floating point NaNs must be propagated without changing the bit representation and SNORM has
+   * 2 representations of -1.
+   *
+   * @param format Color render target format.
+   * @param msaa_samples Guest MSAA sample count.
+   * @param is_integer_out Receives whether the returned format is an integer one.
+   * @return The Vulkan transfer format.
+   */
   VkFormat GetColorOwnershipTransferVulkanFormat(
       xenos::ColorRenderTargetFormat format,
       xenos::MSAASamples msaa_samples = xenos::MSAASamples::k1X,
@@ -174,50 +209,42 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
   void RequestPixelShaderInterlockBarrier() override;
 
  private:
+  /**
+   * Usage of the EDRAM buffer. Fragment and compute usages are never combined. With host render
+   * targets the usual sequence is optional compute writes and optional fragment reads (host depth
+   * copy storing for EDRAM range ownership transfers), compute writes (copying from host render
+   * targets during resolve), then compute reads (writing to shared memory during resolve). With
+   * fragment shader interlock it is fragment reads and writes (depth, stencil and color
+   * operations), then compute reads. Fragment reads and compute reads normally do not follow
+   * each other, so a wider barrier in the normal scenario would not pay off.
+   */
   enum class EdramBufferUsage {
-    // There's no need for combined fragment and compute usages.
-    // With host render targets, the usual usage sequence is as follows:
-    // - Optionally compute writes - host depth copy storing for EDRAM range
-    //   ownership transfers.
-    // - Optionally fragment reads - host depth copy storing for EDRAM range
-    //   ownership transfers.
-    // - Compute writes - copying from host render targets during resolving.
-    // - Compute reads - writing to the shared memory during resolving.
-    // With the render backend implementation based on fragment shader
-    // interlocks, it's:
-    // - Fragment reads and writes - depth / stencil and color operations.
-    // - Compute reads - writing to the shared memory during resolving.
-    // So, fragment reads and compute reads normally don't follow each other,
-    // and there's no need to amortize the cost of a read > read barrier in an
-    // exceptional situation by using a wider barrier in the normal scenario.
-
-    // Host depth copy storing.
+    /** Host depth copy storing. */
     kFragmentRead,
-    // Fragment shader interlock depth / stencil and color operations.
+    /** Fragment shader interlock depth, stencil and color operations. */
     kFragmentReadWrite,
-    // Resolve - copying to the shared memory.
+    /** Resolve copying to the shared memory. */
     kComputeRead,
-    // Resolve - copying from host render targets.
+    /** Resolve copying from host render targets. */
     kComputeWrite,
     kTransferRead,
     kTransferWrite,
   };
 
+  /** Values are ordered by how strong the barrier conditions are. */
   enum class EdramBufferModificationStatus {
-    // The values are ordered by how strong the barrier conditions are.
-    // No uncommitted shader writes.
+    /** No uncommitted shader writes. */
     kUnmodified,
-    // Need to commit before the next fragment shader interlock usage with
-    // overlap.
+    /** Must commit before the next fragment shader interlock usage with overlap. */
     kViaFragmentShaderInterlock,
-    // Need to commit before any next fragment shader interlock usage.
+    /** Must commit before any next fragment shader interlock usage. */
     kViaUnordered,
   };
 
   enum ResolveCopyDescriptorSet : uint32_t {
-    // Never changes.
+    /** Never changes. */
     kResolveCopyDescriptorSetEdram,
-    // Shared memory or a region in it.
+    /** Shared memory or a region in it. */
     kResolveCopyDescriptorSetDest,
 
     kResolveCopyDescriptorSetCount,
@@ -266,21 +293,17 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
   std::array<VkPipeline, static_cast<size_t>(draw_util::ResolveCopyShaderIndex::kCount)>
       resolve_copy_pipelines_{};
 
-  // On the fragment shader interlock path, the render pass key is used purely
-  // for passing parameters to pipeline setup - there's always only one render
-  // pass.
+  /** On the fragment shader interlock path it only passes parameters to pipeline setup. */
   RenderPassKey last_update_render_pass_key_;
   VkRenderPass last_update_render_pass_ = VK_NULL_HANDLE;
-  // The pitch is not used on the fragment shader interlock path.
+  /** Not used on the fragment shader interlock path. */
   uint32_t last_update_framebuffer_pitch_tiles_at_32bpp_ = 0;
-  // The attachments are not used on the fragment shader interlock path.
+  /** Not used on the fragment shader interlock path. */
   const RenderTarget* const*
       last_update_framebuffer_attachments_[1 + xenos::kMaxColorRenderTargets] = {};
   const Framebuffer* last_update_framebuffer_ = VK_NULL_HANDLE;
 
-  // For host render targets.
-
-  // Can only be destroyed when framebuffers referencing it are destroyed!
+  /** Must outlive the framebuffers referencing it. */
   class VulkanRenderTarget final : public RenderTarget {
    public:
     static constexpr VkPipelineStageFlags kColorDrawStageMask =
@@ -295,7 +318,20 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
     static constexpr VkImageLayout kDepthDrawLayout =
         VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 
-    // Takes ownership of the Vulkan objects passed to the constructor.
+    /**
+     * Takes ownership of the Vulkan objects passed to the constructor.
+     *
+     * @param key Render target key.
+     * @param render_target_cache Owning cache.
+     * @param image Image backing the render target.
+     * @param memory Memory bound to the image.
+     * @param view_depth_color Depth or color view.
+     * @param view_depth_stencil Optional depth and stencil view.
+     * @param view_stencil Optional stencil view.
+     * @param view_srgb Optional sRGB view.
+     * @param view_color_transfer_separate Optional color view for transfers.
+     * @param descriptor_set_index_transfer_source Index of the transfer source descriptor set.
+     */
     VulkanRenderTarget(RenderTargetKey key, VulkanRenderTargetCache& render_target_cache,
                        VkImage image, VkDeviceMemory memory, VkImageView view_depth_color,
                        VkImageView view_depth_stencil, VkImageView view_stencil,
@@ -364,42 +400,39 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
     VkImage image_;
     VkDeviceMemory memory_;
 
-    // TODO(Triang3l): Per-format drawing views for mutable formats with EDRAM
-    // aliasing without transfers.
     VkImageView view_depth_color_;
-    // Optional views.
+    /** Optional views. */
     VkImageView view_depth_stencil_;
     VkImageView view_stencil_;
     VkImageView view_srgb_;
     VkImageView view_color_transfer_separate_;
 
-    // 2 sampled images for depth / stencil, 1 sampled image for color.
+    /** 2 sampled images for depth and stencil, 1 sampled image for color. */
     size_t descriptor_set_index_transfer_source_;
 
     VkPipelineStageFlags current_stage_mask_ = 0;
     VkAccessFlags current_access_mask_ = 0;
     VkImageLayout current_layout_ = VK_IMAGE_LAYOUT_UNDEFINED;
 
-    // Temporary storage for indices in operations like transfers and dumps.
     uint32_t temporary_sort_index_ = 0;
   };
 
   struct FramebufferKey {
     RenderPassKey render_pass_key;
 
-    // Same as RenderTargetKey::pitch_tiles_at_32bpp.
-    uint32_t pitch_tiles_at_32bpp : 8;  // 8
-    // [0, 2047].
-    uint32_t depth_base_tiles : xenos::kEDRAMBaseTilesBits;    // 19
-    uint32_t color_0_base_tiles : xenos::kEDRAMBaseTilesBits;  // 30
-    u32 padding_0 : 2;                                         // 32
+    /** Same as RenderTargetKey::pitch_tiles_at_32bpp. */
+    uint32_t pitch_tiles_at_32bpp : 8;
+    /** Range is [0, 2047]. */
+    uint32_t depth_base_tiles : xenos::kEDRAMBaseTilesBits;
+    uint32_t color_0_base_tiles : xenos::kEDRAMBaseTilesBits;
+    u32 padding_0 : 2;
 
-    uint32_t color_1_base_tiles : xenos::kEDRAMBaseTilesBits;  // 43
-    uint32_t color_2_base_tiles : xenos::kEDRAMBaseTilesBits;  // 54
-    u32 padding_1 : 10;                                        // 64
+    uint32_t color_1_base_tiles : xenos::kEDRAMBaseTilesBits;
+    uint32_t color_2_base_tiles : xenos::kEDRAMBaseTilesBits;
+    u32 padding_1 : 10;
 
-    uint32_t color_3_base_tiles : xenos::kEDRAMBaseTilesBits;  // 75
-    u32 padding_2 : 21;                                        // 96
+    uint32_t color_3_base_tiles : xenos::kEDRAMBaseTilesBits;
+    u32 padding_2 : 21;
 
     FramebufferKey() { Reset(); }
     bool operator==(const FramebufferKey& key) const {
@@ -411,12 +444,12 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
   static_assert(std::is_trivially_copyable_v<FramebufferKey> &&
                 std::has_unique_object_representations_v<FramebufferKey>);
 
+  /** Ordered from the least to the most frequently changed. */
   enum TransferUsedDescriptorSet : uint32_t {
-    // Ordered from the least to the most frequently changed.
     kTransferUsedDescriptorSetHostDepthBuffer,
     kTransferUsedDescriptorSetHostDepthStencilTextures,
     kTransferUsedDescriptorSetDepthStencilTextures,
-    // Mutually exclusive with kTransferUsedDescriptorSetDepthStencilTextures.
+    /** Mutually exclusive with kTransferUsedDescriptorSetDepthStencilTextures. */
     kTransferUsedDescriptorSetColorTexture,
 
     kTransferUsedDescriptorSetCount,
@@ -431,12 +464,11 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
                                                 << kTransferUsedDescriptorSetColorTexture,
   };
 
-  // 32-bit push constants (for simplicity of size calculation and to avoid
-  // std140 packing issues).
+  /** 32 bit push constants keep size calculation simple and avoid std140 packing issues. */
   enum TransferUsedPushConstantDword : uint32_t {
     kTransferUsedPushConstantDwordHostDepthAddress,
     kTransferUsedPushConstantDwordAddress,
-    // Changed 8 times per transfer.
+    /** Changed 8 times per transfer. */
     kTransferUsedPushConstantDwordStencilMask,
 
     kTransferUsedPushConstantDwordCount,
@@ -480,22 +512,21 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
     kColorToStencilBit,
     kDepthToStencilBit,
 
-    // Two-source modes, using the host depth if it, when converted to the guest
-    // format, matches what's in the owner source (not modified, keep host
-    // precision), or the guest data otherwise (significantly modified, possibly
-    // cleared). Stencil for FragStencilRef is always taken from the guest
-    // source.
-
+    /**
+     * Two source mode. Uses the host depth when, converted to the guest format, it matches the
+     * owner source (not modified, keeps host precision), otherwise the guest data (significantly
+     * modified, possibly cleared). Stencil for FragStencilRef always comes from the guest source.
+     */
     kColorAndHostDepthToDepth,
-    // When using different source and destination depth formats.
+    /** Two source mode for different source and destination depth formats. */
     kDepthAndHostDepthToDepth,
 
-    // If host depth is fetched, but it's the same image as the destination,
-    // it's copied to the EDRAM buffer (but since it's only a scratch buffer,
-    // with tiles laid out linearly with the same pitch as in the original
-    // render target; also no swapping of 40-sample columns as opposed to the
-    // host render target - this is done only for the color source) and fetched
-    // from there instead of the host depth texture.
+    /**
+     * Fetches the host depth from a copy in the EDRAM buffer when it is the same image as the
+     * destination. The copy is a scratch buffer with tiles laid out linearly at the pitch of the
+     * original render target, and 40 sample columns are not swapped, which only the color source
+     * does.
+     */
     kColorAndHostDepthCopyToDepth,
     kDepthAndHostDepthCopyToDepth,
 
@@ -522,16 +553,18 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
       uint32_t dest_color_rt_index : xenos::kColorRenderTargetIndexBits;
       uint32_t dest_resource_format : xenos::kRenderTargetFormatBits;
       xenos::MSAASamples source_msaa_samples : xenos::kMSAASamplesBits;
-      // Always 1x when the host depth is a copy from a buffer rather than an
-      // image, not to create the same pipeline for different MSAA sample counts
-      // as it doesn't matter in this case.
+      /**
+       * Always 1x when the host depth is a copy from a buffer rather than an image, so the same
+       * pipeline is not created for different sample counts.
+       */
       xenos::MSAASamples host_depth_source_msaa_samples : xenos::kMSAASamplesBits;
       uint32_t source_resource_format : xenos::kRenderTargetFormatBits;
 
-      // Last bits because this affects the pipeline layout - after sorting,
-      // only change it as fewer times as possible. Depth buffers have an
-      // additional stencil texture.
       static_assert(static_cast<size_t>(TransferMode::kCount) <= (static_cast<size_t>(1) << 4));
+      /**
+       * Last bits because this affects the pipeline layout, so after sorting it changes as few
+       * times as possible. Depth buffers have an additional stencil texture.
+       */
       TransferMode mode : 4;
     };
 
@@ -578,15 +611,15 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
   union TransferAddressConstant {
     uint32_t constant;
     struct {
-      // All in tiles.
+      /** Pitches and bases are in tiles. */
       uint32_t dest_pitch : xenos::kEDRAMPitchTilesBits;
       uint32_t source_pitch : xenos::kEDRAMPitchTilesBits;
-      // Destination base in tiles minus source base in tiles (not vice versa
-      // because this is a transform of the coordinate system, not addresses
-      // themselves).
-      // + 1 bit because this is a signed difference between two EDRAM bases.
-      // 0 for host_depth_source_is_copy (ignored in this case anyway as
-      // destination == source anyway).
+      /**
+       * Destination base minus source base, not vice versa, because this transforms the
+       * coordinate system rather than addresses. Has 1 extra bit as a signed difference between
+       * two EDRAM bases. 0 for host_depth_source_is_copy, where it is ignored as destination
+       * equals source.
+       */
       int32_t source_to_dest : xenos::kEDRAMBaseTilesBits + 1;
     };
     TransferAddressConstant() : constant(0) { REX_STATIC_ASSERT_SIZE(*this, sizeof(constant)); }
@@ -604,17 +637,9 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
     TransferInvocation(const Transfer& transfer, const TransferShaderKey& shader_key)
         : transfer(transfer), shader_key(shader_key) {}
     bool operator<(const TransferInvocation& other_invocation) const {
-      // TODO(Triang3l): See if it may be better to sort by the source in the
-      // first place, especially when reading the same data multiple times (like
-      // to write the stencil bits after depth) for better read locality.
-      // Sort by the shader key primarily to reduce pipeline state (context)
-      // switches.
       if (shader_key != other_invocation.shader_key) {
         return shader_key < other_invocation.shader_key;
       }
-      // Host depth render targets are changed rarely if they exist, won't save
-      // many binding changes, ignore them for simplicity (their existence is
-      // caught by the shader key change).
       REX_ASSERT(transfer.source != nullptr);
       REX_ASSERT(other_invocation.transfer.source != nullptr);
       uint32_t source_index =
@@ -638,8 +663,10 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
     struct {
       xenos::MSAASamples msaa_samples : 2;
       uint32_t resource_format : 4;
-      // Last bit because this affects the pipeline - after sorting, only change
-      // it at most once. Depth buffers have an additional stencil SRV.
+      /**
+       * Last bit because this affects the pipeline, so after sorting it changes at most once.
+       * Depth buffers have an additional stencil SRV.
+       */
       uint32_t is_depth : 1;
     };
 
@@ -662,21 +689,19 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
     }
   };
 
-  // There's no strict dependency on the group size in dumping, for simplicity
-  // calculations especially with resolution scaling, dividing manually (as the
-  // group size is not unlimited). The only restriction is that an integer
-  // multiple of it must be 80x16 samples (and no larger than that) for 32bpp,
-  // or 40x16 samples for 64bpp (because only a half of the pair of tiles may
-  // need to be dumped). Using 8x16 since that's 128 - the minimum required
-  // group size on Vulkan, and the maximum number of lanes in a subgroup on
-  // Vulkan.
+  /**
+   * Dumping has no strict dependency on the group size. An integer multiple of it must be 80x16
+   * samples (and no larger) for 32bpp, or 40x16 samples for 64bpp, because only half of the pair
+   * of tiles may need to be dumped. 8x16 is 128, the minimum required group size on Vulkan and
+   * the maximum number of lanes in a subgroup on Vulkan.
+   */
   static constexpr uint32_t kDumpSamplesPerGroupX = 8;
   static constexpr uint32_t kDumpSamplesPerGroupY = 16;
 
   union DumpPitches {
     uint32_t pitches;
     struct {
-      // Both in tiles.
+      /** Both in tiles. */
       uint32_t dest_pitch : xenos::kEDRAMPitchTilesBits;
       uint32_t source_pitch : xenos::kEDRAMPitchTilesBits;
     };
@@ -690,8 +715,7 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
   union DumpOffsets {
     uint32_t offsets;
     struct {
-      // May be beyond the EDRAM tile count in case of EDRAM addressing
-      // wrapping, thus + 1 bit.
+      /** May be beyond the EDRAM tile count when EDRAM addressing wraps, hence 1 extra bit. */
       uint32_t dispatch_first_tile : xenos::kEDRAMBaseTilesBits + 1;
       uint32_t source_base_tiles : xenos::kEDRAMBaseTilesBits;
     };
@@ -703,20 +727,21 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
   };
 
   enum DumpDescriptorSet : uint32_t {
-    // Never changes. Same in both color and depth pipeline layouts, keep the
-    // first for pipeline layout compatibility, to only have to set it once.
+    /**
+     * Never changes. Same in both color and depth pipeline layouts and kept first for pipeline
+     * layout compatibility, so it is set once.
+     */
     kDumpDescriptorSetEdram,
-    // One resolve may need multiple sources. Different descriptor set layouts
-    // for color and depth.
+    /** One resolve may need multiple sources. Layouts differ for color and depth. */
     kDumpDescriptorSetSource,
 
     kDumpDescriptorSetCount,
   };
 
   enum DumpPushConstant : uint32_t {
-    // May be different for different sources.
+    /** May be different for different sources. */
     kDumpPushConstantPitches,
-    // May be changed multiple times for the same source.
+    /** May be changed multiple times for the same source. */
     kDumpPushConstantOffsets,
 
     kDumpPushConstantCount,
@@ -728,8 +753,6 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
     DumpInvocation(const ResolveCopyDumpRectangle& rectangle, const DumpPipelineKey& pipeline_key)
         : rectangle(rectangle), pipeline_key(pipeline_key) {}
     bool operator<(const DumpInvocation& other_invocation) const {
-      // Sort by the pipeline key primarily to reduce pipeline state (context)
-      // switches.
       if (pipeline_key != other_invocation.pipeline_key) {
         return pipeline_key < other_invocation.pipeline_key;
       }
@@ -776,36 +799,138 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
     }
   };
 
-  // Returns the framebuffer object, or VK_NULL_HANDLE if failed to create.
+  /**
+   * Returns the framebuffer object.
+   *
+   * @param render_pass_key Render pass key.
+   * @param pitch_tiles_at_32bpp Pitch in tiles at 32bpp.
+   * @param depth_and_color_render_targets Depth render target followed by the color ones.
+   * @return The framebuffer, or nullptr if failed to create.
+   */
   const Framebuffer* GetHostRenderTargetsFramebuffer(
       RenderPassKey render_pass_key, uint32_t pitch_tiles_at_32bpp,
       const RenderTarget* const* depth_and_color_render_targets);
 
+  /**
+   * Returns the fragment shader module for an ownership transfer, caching it per key.
+   *
+   * The destination pixel index is split into a 32bpp tile and a tile relative pixel index.
+   * Division by non power of two constants includes a 4 cycle 32*32 multiplication on AMD even
+   * though so many bits are not needed. An OpUnreachable path for position upper bits set is not
+   * eliminated when compiling for AMD via RenderDoc on Windows.
+   *
+   * At 4x with Vulkan standard locations the first sample bit is the horizontal sample and the
+   * second is the vertical one. At native 2x the top sample is 1 and the bottom is 0, with 2x as
+   * 4x the top is 0 and the bottom is 3.
+   *
+   * Source mapping from destination pixel and sample coordinates.
+   * - 32bpp to 64bpp loads 2 source dwords, from 2 adjacent horizontal samples at 4x or from 2
+   *   adjacent horizontal pixels at 1x and 2x.
+   * - 4x to 4x maps the destination horizontal sample to the source horizontal pixel, with
+   *   vertical samples matching.
+   * - 4x to 2x reuses the pixel index. Sample 1 (native 2x) or 0 (2x as 4x) becomes samples 0 and
+   *   1, sample 0 or 3 becomes samples 2 and 3.
+   * - 4x to 1x reuses the horizontal pixel index and vertical pixel 1 becomes sample 2.
+   * - 1x and 2x to 4x or 1x and 2x map 1 destination horizontal sample (to 4x) or pixel (to 1x
+   *   and 2x) to 2 source horizontal pixels.
+   * - 64bpp to 32bpp picks the half to load as well. To a 4x destination it is the horizontal
+   *   sample index, with 1 destination horizontal pixel covering 1 source horizontal sample from
+   *   a 4x source (2 destination horizontal pixels per source pixel, vertical pixel and second
+   *   sample bit unchanged), or 1 source pixel from a 1x or 2x source.
+   * - To a 1x or 2x destination the half is the horizontal pixel index. From a 4x source
+   *   (destination horizontal pixel >> 1) & 1 is the horizontal sample, 2 destination
+   *   horizontal pixels cover 1 source horizontal sample and 4 cover 1 source pixel. A 2x
+   *   destination maps vertical samples (1 or 0 in the first bit for native 2x, 0 or 1 in the
+   *   second bit for 2x as 4x) to source vertical samples (second bit), a 1x destination maps
+   *   1 vertical pixel to 1 source vertical sample. From a 1x or 2x source 2 destination
+   *   horizontal pixels cover 1 source pixel.
+   * - Same bits per pixel from 4x to 2x maps horizontal pixels to samples and the vertical sample
+   *   to the second sample bit. From 4x to 1x pixels map to samples. From 1x or 2x to 4x
+   *   horizontal samples map to pixels.
+   * - The vertical axis for 1x and 2x sources is mapped separately. To a 4x destination, the
+   *   second sample bit becomes the 2x source vertical sample (1 or 0 for native 2x, 0 or 3 for
+   *   2x as 4x) or the 1x source Y pixel. A 2x source to a 1x destination maps destination
+   *   vertical pixels to source vertical samples with the same encoding. A 1x source to a 2x
+   *   destination maps destination vertical samples (1 or 0 in the first bit for native 2x, 0
+   *   or 1 in the second bit for 2x as 4x) to source vertical pixels.
+   *
+   * The source tile index is the destination tile index plus a signed difference, so it is
+   * negative when the transfer crosses EDRAM addressing wrapping and is masked with
+   * kEDRAMTileCount - 1 regardless of the sign. The same holds for the host depth source.
+   *
+   * Depth outputs use the host float32 depth when, converted to the guest format, it equals the
+   * guest source (up to date), otherwise the guest depth is converted to host. The host depth
+   * texture uses the mapping above for 32bpp to 32bpp only. The host depth copy buffer starts at
+   * (0, 0) of the destination, does not swap 40 sample columns and does not wrap the tile index,
+   * as it is used for depth to depth transfers only and written without the base offset.
+   * The kD24S8 conversion to float32 rescales from 0 to 0xFFFFFF onto 0 to 0x1000000 the way
+   * float division followed by multiplication does on x86-64 MSVC with default SSE rounding
+   * (values from 0x800000 up grow by 1) and then biases the exponent, because multiplying by
+   * 1.0 / 0xFFFFFF gives wrong results, for instance for 0xC00000.
+   *
+   * A 32bpp destination uses a packed value. For color it is the packed 32bpp color. For depth
+   * and stencil it is stencil in bits 0 to 7 and depth in bits 8 to 31, or depth in bits 0 to 23
+   * with zeros above when only depth is packed. For a stencil bit it is stencil in bits 0 to 7.
+   *
+   * @param key Transfer shader key.
+   * @return The shader module, or VK_NULL_HANDLE if failed to create.
+   */
   VkShaderModule GetTransferShader(TransferShaderKey key);
-  // With sample-rate shading, returns a pointer to one pipeline. Without
-  // sample-rate shading, returns a pointer to as many pipelines as there are
-  // samples. If there was a failure to create a pipeline, returns nullptr.
+  /**
+   * Returns the transfer pipelines. With sample rate shading there is 1 pipeline, without it as
+   * many pipelines as there are samples.
+   *
+   * @param key Transfer pipeline key.
+   * @return Pointer to the pipelines, or nullptr if failed to create a pipeline.
+   */
   VkPipeline const* GetTransferPipelines(TransferPipelineKey key);
 
-  // Do ownership transfers for render targets - each render target / vector may
-  // be null / empty in case there's nothing to do for them.
-  // resolve_clear_rectangle is expected to be provided by
-  // PrepareHostRenderTargetsResolveClear which should do all the needed size
-  // bound checks.
+  /**
+   * Performs ownership transfers for render targets. Each render target and vector may be null
+   * or empty when there is nothing to do. resolve_clear_rectangle is expected from
+   * PrepareHostRenderTargetsResolveClear, which does all the needed size bound checks.
+   *
+   * @param render_target_count Number of render targets.
+   * @param render_targets Render targets.
+   * @param render_target_transfers Transfers per render target.
+   * @param render_target_resolve_clear_values Resolve clear values per render target.
+   * @param resolve_clear_rectangle Rectangle to clear.
+   */
   void PerformTransfersAndResolveClears(
       uint32_t render_target_count, RenderTarget* const* render_targets,
       const std::vector<Transfer>* render_target_transfers,
       const uint64_t* render_target_resolve_clear_values = nullptr,
       const Transfer::Rectangle* resolve_clear_rectangle = nullptr);
 
+  /**
+   * Returns the compute pipeline copying a host render target to the EDRAM buffer.
+   *
+   * 64bpp tiles are
+   * treated as storing 40x16 samples rather than 80x16 to keep addressing into the texture
+   * simple. The destination sample index is split into a 32bpp tile and a tile relative sample
+   * index. Division by non power of two constants includes a 4 cycle 32*32 multiplication on AMD
+   * even though so many bits are not needed. An OpUnreachable path for position upper bits set is
+   * not eliminated when compiling for AMD via RenderDoc on Windows.
+   *
+   * @param key Dump pipeline key.
+   * @return The pipeline, or VK_NULL_HANDLE if failed to create.
+   */
   VkPipeline GetDumpPipeline(DumpPipelineKey key);
   VkPipeline GetDirectResolvePipeline(DirectResolvePipelineKey key);
   bool TryResolveCopyDirectly(const draw_util::ResolveInfo& resolve_info,
                               draw_util::ResolveCopyShaderIndex copy_shader,
                               bool draw_resolution_scaled);
 
-  // Writes contents of host render targets within rectangles from
-  // ResolveInfo::GetCopyEdramTileSpan to edram_buffer_.
+  /**
+   * Writes contents of host render targets within rectangles from
+   * ResolveInfo::GetCopyEdramTileSpan to edram_buffer_.
+   *
+   * @param dump_base First EDRAM tile to dump.
+   * @param dump_row_length_used Used row length in tiles.
+   * @param dump_rows Number of rows.
+   * @param dump_pitch Row pitch in tiles.
+   * @return True on success.
+   */
   bool DumpRenderTargets(uint32_t dump_base, uint32_t dump_row_length_used, uint32_t dump_rows,
                          uint32_t dump_pitch);
 
@@ -822,14 +947,15 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
   bool color_rg16_draw_format_fallback_to_float_ = false;
   bool color_rgba16_draw_format_fallback_to_float_ = false;
 
-  // VK_NULL_HANDLE if failed to create.
+  /** VK_NULL_HANDLE if failed to create. */
   std::unordered_map<RenderPassKey, VkRenderPass, RenderPassKey::Hasher> render_passes_;
 
   std::unordered_map<FramebufferKey, Framebuffer, FramebufferKey::Hasher> framebuffers_;
 
-  // Set 0 - EDRAM storage buffer, set 1 - source depth sampled image (and
-  // unused stencil from the transfer descriptor set), HostDepthStoreConstants
-  // passed via push constants.
+  /**
+   * Set 0 is the EDRAM storage buffer, set 1 is the source depth sampled image (and unused
+   * stencil from the transfer descriptor set). HostDepthStoreConstants go via push constants.
+   */
   VkPipelineLayout host_depth_store_pipeline_layout_ = VK_NULL_HANDLE;
   VkPipeline host_depth_store_pipelines_[static_cast<size_t>(xenos::MSAASamples::k4X) + 1] = {};
 
@@ -837,40 +963,38 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
   VkShaderModule transfer_passthrough_vertex_shader_ = VK_NULL_HANDLE;
   VkPipelineLayout
       transfer_pipeline_layouts_[static_cast<size_t>(TransferPipelineLayoutIndex::kCount)] = {};
-  // VK_NULL_HANDLE if failed to create.
+  /** VK_NULL_HANDLE if failed to create. */
   std::unordered_map<TransferShaderKey, VkShaderModule, TransferShaderKey::Hasher>
       transfer_shaders_;
-  // With sample-rate shading, one pipeline per entry. Without sample-rate
-  // shading, one pipeline per sample per entry. VK_NULL_HANDLE if failed to
-  // create.
+  /**
+   * With sample rate shading, 1 pipeline per entry, without it 1 pipeline per sample per entry.
+   * VK_NULL_HANDLE if failed to create.
+   */
   std::unordered_map<TransferPipelineKey, std::array<VkPipeline, 4>, TransferPipelineKey::Hasher>
       transfer_pipelines_;
 
   VkPipelineLayout dump_pipeline_layout_color_ = VK_NULL_HANDLE;
   VkPipelineLayout dump_pipeline_layout_depth_ = VK_NULL_HANDLE;
-  // Compute pipelines for copying host render target contents to the EDRAM
-  // buffer. VK_NULL_HANDLE if failed to create.
+  /** Compute pipelines copying host render targets to EDRAM. VK_NULL_HANDLE if failed. */
   std::unordered_map<DumpPipelineKey, VkPipeline, DumpPipelineKey::Hasher> dump_pipelines_;
   VkPipelineLayout direct_resolve_pipeline_layout_color_ = VK_NULL_HANDLE;
   VkPipelineLayout direct_resolve_pipeline_layout_depth_ = VK_NULL_HANDLE;
   std::unordered_map<DirectResolvePipelineKey, VkPipeline, DirectResolvePipelineKey::Hasher>
       direct_resolve_pipelines_;
 
-  // Temporary storage for Resolve.
+  /** Temporary storage for Resolve. */
   std::vector<Transfer> clear_transfers_[2];
 
-  // Temporary storage for PerformTransfersAndResolveClears.
+  /** Temporary storage for PerformTransfersAndResolveClears. */
   std::vector<TransferInvocation> current_transfer_invocations_;
 
-  // Temporary storage for DumpRenderTargets.
+  /** Temporary storage for DumpRenderTargets. */
   std::vector<ResolveCopyDumpRectangle> dump_rectangles_;
   std::vector<DumpInvocation> dump_invocations_;
   std::vector<ResolveCopyDispatch> direct_resolve_dispatches_;
   uint64_t direct_resolve_attempt_count_ = 0;
   uint64_t direct_resolve_success_count_ = 0;
   uint64_t direct_resolve_fallback_count_ = 0;
-
-  // For pixel (fragment) shader interlock.
 
   VkRenderPass fsi_render_pass_ = VK_NULL_HANDLE;
   Framebuffer fsi_framebuffer_;

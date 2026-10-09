@@ -1,4 +1,3 @@
-#pragma once
 /**
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
@@ -9,6 +8,8 @@
  *
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
+
+#pragma once
 
 #include <memory>
 
@@ -21,9 +22,12 @@ namespace gpu {
 
 class Window;
 
-// Factory for graphics contexts.
-// All contexts created by the same provider will be able to share resources
-// according to the rules of the backing graphics API.
+/**
+ * Factory for graphics contexts.
+ *
+ * Contexts created by the same provider can share resources under the rules of the backing
+ * graphics API.
+ */
 class GraphicsProvider : public rex::NonCopyable {
  public:
   enum class GpuVendorID {
@@ -39,8 +43,15 @@ class GraphicsProvider : public rex::NonCopyable {
 
   virtual ~GraphicsProvider() = default;
 
-  // It's safe to reinitialize the presenter in the host GPU loss callback if it
-  // was called from the UI thread as specified in the arguments.
+  /**
+   * Creates a presenter.
+   *
+   * The presenter may be reinitialized in the host GPU loss callback when it runs on the UI
+   * thread as specified in its arguments.
+   *
+   * @param host_gpu_loss_callback Callback invoked on host GPU loss.
+   * @return The new presenter.
+   */
   virtual std::unique_ptr<Presenter> CreatePresenter(
       Presenter::HostGpuLossCallback host_gpu_loss_callback =
           Presenter::FatalErrorHostGpuLossCallback) = 0;

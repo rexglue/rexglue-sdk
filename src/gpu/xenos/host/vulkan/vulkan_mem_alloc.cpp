@@ -9,7 +9,6 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-// Implementing VMA in this translation unit.
 #define VMA_IMPLEMENTATION
 #include <cstring>
 

@@ -1,4 +1,3 @@
-#pragma once
 /**
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
@@ -9,6 +8,8 @@
  *
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
+
+#pragma once
 
 #include <algorithm>
 #include <array>
@@ -52,82 +53,55 @@ namespace gpu {
 
 class Presenter;
 
-// The presenter displays up to two layers of content on a host surface:
-// - Guest output image, focusing on lowering latency and maintaining stable
-//   frame pacing, with several scaling and sharpening methods and letterboxing;
-// - Xenia's internal UI (such as the profiler and Dear ImGui).
-//
-// The guest output image may be refreshed from any thread generating it
-// (usually the GPU emulation thread), as long as there are no multiple threads
-// doing that simultaneously (since that would functionally be a race condition
-// even if refreshing is performed in a critical section).
-//
-// The UI overlays are managed entirely by the UI thread.
-//
-// Painting on the host surface may occur in two places:
-// - If there are no UI overlays, painting of the guest output may be performed
-//   immediately from the thread refreshing it, to bypass the OS scheduling and
-//   event handling. This is especially important on platforms where the native
-//   surface paint event has a frame rate limit (such as the display refresh
-//   rate), and the limit may differ greatly from the guest frame rate (such as
-//   presenting a 30 or 60 FPS guest to a 144 Hz host surface).
-// - If the UI overlays (owned by the UI thread) are present, painting of both
-//   the guest output (is available) and the UI is done exclusively from the
-//   platform paint event handler. The guest output without UI overlays may also
-//   be painted from the platform paint callback in some cases, such as when
-//   an additional paint beyond the guest's frame rate may be needed (like when
-//   resizing the window), or when painting from the thread refreshing the guest
-//   output is undesirable (for instance, if it will result in waiting for host
-//   vertical sync in that thread too early if host vertical sync can't be
-//   disabled on the platform, blocking the next frame of GPU emulation).
-//
-// The composition of the guest and the UI is done by Xenia manually, as opposed
-// to using platform functionality such as DirectComposition, in order to have
-// more predictability of GPU queue scheduling, but primarily to be able to take
-// advantage of independent host presentation where it's available, so variable
-// refresh rate may be used where possible, and latency may be significantly
-// reduced. Also, at least on some configurations (checked on Windows 11 21H2 on
-// Nvidia GeForce GTX 1070 with driver version 472.12), when in borderless
-// fullscreen, any composition causes the DXGI Present to wait for vertical sync
-// on the GPU even if the sync interval 0 is specified.
-//
-// An intermediate image with the size requested by the guest is used for guest
-// output in all cases. Even though it adds some GPU overhead, especially in the
-// 1:1 size case, using it solves multiple issues:
-// - Presentation may be done more often than by the guest.
-// - There is clear separation between pre-scaling and mid- / post-scaling
-//   operations. The gamma ramp, for instance, may be applied before scaling,
-//   with one lookup per pixel rather than four with fetch4.
-// - A simpler compute shader may be used instead of setting up the whole
-//   graphics pipeline for copying in the GPU command processor in all cases,
-//   while Direct3D 12 does not allow UAVs for swap chain buffers.
-//
-// The presenter limits the frame rate of the UI overlay (when possible) to a
-// value that's ideally the refresh rate of the monitor containing the window if
-// the platform's paint event doesn't have an internal limiter. However, where
-// possible, the arrival of a new guest output image will interrupt the UI tick
-// wait.
-//
-// Because the UI overlays preclude the possibility of presenting directly from
-// the thread refreshing the guest output, and on some platforms, result in the
-// frame rate limiting of paint events manifesting itself, there must be no
-// persistent UI overlays that haven't been explicitly requested by the user.
-// However, for temporary (primarily non-modal) UI elements such as
-// timed notifications, using the Presenter should be preferred to implementing
-// them via overlaying native windows on top of the presentation surface on
-// platforms where the concept of independent presentation exists, as multiple
-// windows will result in native composition disabling it.
-//
-// The painting connection between the Presenter and the Surface can be managed
-// only by the UI thread. However, the thread refreshing the guest output may
-// still mark the current connection as outdated and ask the UI thread (by
-// requesting painting) to try to recover - but the guest output refresh thread
-// must not try to reconnect by itself, as methods of the Surface are available
-// only to the UI thread.
+/**
+ * Displays up to 2 layers on a host surface, the guest output image and the UI overlays.
+ *
+ * The guest output image favors low latency and stable frame pacing, with several scaling and
+ * sharpening methods and letterboxing. It may be refreshed from any thread generating it, usually
+ * the GPU emulation thread, but never from multiple threads at once. The UI overlays are managed
+ * by the UI thread.
+ *
+ * Without UI overlays the guest output may be painted immediately from the refreshing thread,
+ * bypassing OS scheduling and event handling, for platforms where the native paint event rate is
+ * limited to the display refresh rate, which may differ greatly from the guest frame rate. With UI
+ * overlays, painting of both layers happens only in the platform paint event handler. The guest
+ * output alone may be painted there when an extra paint is needed, such as when resizing, or
+ * when painting from the refreshing thread would wait for host vertical sync too early and block
+ * the next GPU emulation frame.
+ *
+ * Composition is done manually rather than through platform facilities such as DirectComposition,
+ * for predictable GPU queue scheduling and to use independent host presentation, which enables
+ * variable refresh rate and lower latency. In borderless fullscreen any composition makes DXGI
+ * Present wait for vertical sync even with sync interval 0.
+ *
+ * Guest output always goes through an intermediate image with the size requested by the guest.
+ * It adds GPU overhead, especially at 1:1 size, but allows presenting more often than the guest
+ * and separates pre scaling from mid and post scaling operations. The gamma ramp can apply before
+ * scaling with 1 lookup per pixel instead of 4 with fetch4. It permits a simple compute
+ * shader instead of a graphics pipeline for the copy in the GPU command processor, since
+ * Direct3D 12 disallows UAVs for swap chain buffers.
+ *
+ * The UI overlay frame rate is limited, when the platform paint event has no internal limiter, to
+ * the refresh rate of the monitor containing the window. A new guest output image interrupts the
+ * UI tick wait where possible.
+ *
+ * UI overlays prevent presenting from the refreshing thread and may expose paint event rate
+ * limits, so persistent overlays must exist only when the user requested them. Temporary non modal
+ * elements such as timed notifications should use the Presenter instead of native windows over
+ * the surface, since multiple windows disable independent presentation.
+ *
+ * Only the UI thread manages the painting connection to the Surface. The refreshing thread may
+ * mark the connection outdated and request painting so the UI thread recovers, but must never
+ * reconnect itself because Surface methods are UI thread only.
+ */
 class Presenter : public gpu::IPresenter, public rex::NonCopyable {
  public:
-  // May be called on the UI thread even if statically_from_ui_thread
-  // is false, such as when the guest output is refreshed by the UI thread.
+  /**
+   * Called on host GPU loss.
+   *
+   * May run on the UI thread even when statically_from_ui_thread is false, such as when the UI
+   * thread refreshes the guest output.
+   */
   using HostGpuLossCallback =
       std::move_only_function<void(bool is_responsible, bool statically_from_ui_thread)>;
   static void FatalErrorHostGpuLossCallback(bool is_responsible, bool statically_from_ui_thread);
@@ -136,9 +110,13 @@ class Presenter : public gpu::IPresenter, public rex::NonCopyable {
    public:
     virtual ~GuestOutputRefreshContext() = default;
 
-    // Sets whether the source has no more than 8 bits of precision
-    // (though the image provided by the refresher may still have a higher
-    // storage precision). If never called, assuming it's false.
+    /**
+     * Sets whether the source has at most 8 bits of precision per channel.
+     *
+     * The refresher image may have a higher storage precision. Defaults to false.
+     *
+     * @param is_8bpc True when the source has at most 8 bits of precision.
+     */
     void SetIs8bpc(bool is_8bpc) { is_8bpc_out_ref_ = is_8bpc; }
 
    protected:
@@ -157,16 +135,12 @@ class Presenter : public gpu::IPresenter, public rex::NonCopyable {
       allow_overscan_cutoff_ = new_allow_overscan_cutoff;
     }
 
-    // Tiny effect, but highly noticeable, for instance, on the sky in the
-    // 4D5307E6 main menu (banding around the clouds can be clearly seen without
-    // dithering with 8bpc final host output).
+    /** Removes banding in smooth gradients such as skies at 8bpc host output. */
     bool GetDither() const { return dither_; }
     void SetDither(bool new_dither) { dither_ = new_dither; }
 
    private:
-    // Tools, rather than the emulator itself, must not allow overscan cutoff
-    // and must use the bilinear effect as the image must be as close to the
-    // original front buffer as possible.
+    /** Tools must not allow overscan cutoff and must use the bilinear effect to match source. */
     bool allow_overscan_cutoff_ = false;
     bool dither_ = false;
   };
@@ -186,15 +160,22 @@ class Presenter : public gpu::IPresenter, public rex::NonCopyable {
   void OnSurfaceResize() override { OnSurfaceResizeFromUIThread(); }
   void Paint(bool force) override { PaintFromUIThread(force); }
 
-  // Pass 0 as width or height to disable guest output until the next refresh
-  // with an actual size. The display aspect ratio may be specified like 16:9 or
-  // like 1280:720, both are accepted, for simplicity, the guest display size
-  // may be passed. The callback will receive a backend-specific context,
-  // and will not be called in case of an error such as the wrong size, or if
-  // guest output is disabled. Returns whether the callback was called and it
-  // returned true. The callback must submit all updating work to the host GPU
-  // before successfully returning, and also signal all the GPU synchronization
-  // primitives required by the GuestOutputRefreshContext implementation.
+  /**
+   * Refreshes the guest output image through the refresher callback.
+   *
+   * A width or height of 0 disables guest output until the next refresh with a nonzero size. The
+   * aspect ratio accepts 16:9 or 1280:720 forms, so the guest display size may be passed. The
+   * callback receives a backend context and is skipped on errors such as a wrong size or when
+   * guest output is disabled. It must submit all update work to the host GPU before returning
+   * successfully and signal every GPU synchronization primitive the context implementation needs.
+   *
+   * @param frontbuffer_width Front buffer width in pixels.
+   * @param frontbuffer_height Front buffer height in pixels.
+   * @param display_aspect_ratio_x Display aspect ratio numerator.
+   * @param display_aspect_ratio_y Display aspect ratio denominator.
+   * @param refresher Callback that updates the image.
+   * @return True when the callback was called and returned true.
+   */
   bool RefreshGuestOutput(
       uint32_t frontbuffer_width, uint32_t frontbuffer_height, uint32_t display_aspect_ratio_x,
       uint32_t display_aspect_ratio_y,
@@ -203,34 +184,41 @@ class Presenter : public gpu::IPresenter, public rex::NonCopyable {
   void AddOverlayLayer(gpu::IOverlayLayer* layer, size_t z_order) override;
   void RemoveOverlayLayer(gpu::IOverlayLayer* layer) override;
 
-  // Requests (re)painting with the UI if there's UI to draw.
+  /** Requests repainting with the UI when there is UI to draw. */
   void RequestOverlayPaint() override;
 
  protected:
   virtual gpu::Surface::TypeFlags GetSupportedSurfaceTypes() const = 0;
 
-  // For calling from the Window for the Presenter attached to it.
-  // May be called from the destructor of the presenter through the window.
+  /**
+   * Sets the host and surface from the Window the presenter is attached to.
+   *
+   * May run from the presenter destructor through the window.
+   *
+   * @param new_host Presentation host.
+   * @param new_surface Surface to paint to.
+   */
   void SetWindowSurfaceFromUIThread(gpu::IPresentationHost* new_host, gpu::Surface* new_surface);
   void OnSurfaceMonitorUpdateFromUIThread(bool old_monitor_potentially_disconnected);
   void OnSurfaceResizeFromUIThread();
 
-  // For calling from the platform paint event handler. Refreshes the surface
-  // connection if needed, and also paints if possible and if needed (if there
-  // are no UI overlays, and the guest output is presented directly from the
-  // thread refreshing it, the paint may be skipped unless there has been an
-  // explicit request previously or force_paint is true). If painting happens,
-  // both the guest output and the UI overlays (if any are active) are drawn.
-  // The background / letterbox of the painted context will be black - windows
-  // should preferably have a black background before a Presenter is attached to
-  // them too.
+  /**
+   * Paints from the platform paint event handler.
+   *
+   * Refreshes the surface connection when needed, then paints when possible and needed. Without
+   * UI overlays, and with the guest output presented from the refreshing thread, the paint is
+   * skipped unless requested earlier or force_paint is true. A paint draws the guest output and
+   * any active UI overlays over a black background and letterbox, so windows should have a
+   * black background before a Presenter is attached.
+   *
+   * @param force_paint True to paint even when no paint was requested.
+   */
   void PaintFromUIThread(bool force_paint = false);
 
   enum class PaintResult {
     kPresented,
     kPresentedSuboptimal,
-    // Refused for internal reasons or a host API side failure, but still may
-    // try to present without resetting the graphics provider in the future.
+    /** Refused for internal reasons or a host API failure, presenting may retry without a reset. */
     kNotPresented,
     kNotPresentedConnectionOutdated,
     kGpuLostExternally,
@@ -238,8 +226,7 @@ class Presenter : public gpu::IPresenter, public rex::NonCopyable {
   };
 
   enum class SurfacePaintConnectResult {
-    // Redrawing not necessary, nothing changed. Must not be returned for a new
-    // connection (when was previously disconnected from the surface).
+    /** Nothing changed so no redraw is needed. Never returned for a new connection. */
     kSuccessUnchanged,
     kSuccess,
     kFailure,
@@ -249,12 +236,10 @@ class Presenter : public gpu::IPresenter, public rex::NonCopyable {
   static constexpr uint32_t kGuestOutputMailboxSize = 3;
 
   struct GuestOutputProperties {
-    // At least any value being 0 here means the guest output is disabled for
-    // this frame.
+    /** Any dimension or aspect ratio value being 0 disables the guest output for the frame. */
     uint32_t frontbuffer_width;
     uint32_t frontbuffer_height;
-    // Guest display aspect ratio numerator and denominator (both 16:9 and
-    // 1280:720 kinds of values are accepted).
+    /** Aspect ratio numerator and denominator, in 16:9 or 1280:720 form. */
     uint32_t display_aspect_ratio_x;
     uint32_t display_aspect_ratio_y;
     bool is_8bpc;
@@ -283,7 +268,6 @@ class Presenter : public gpu::IPresenter, public rex::NonCopyable {
   };
 
   struct GuestOutputPaintFlow {
-    // Letterbox on up to 4 sides.
     static constexpr size_t kMaxClearRectangles = 4;
 
     struct ClearRectangle {
@@ -295,18 +279,16 @@ class Presenter : public gpu::IPresenter, public rex::NonCopyable {
 
     GuestOutputProperties properties;
 
-    // If false, don't display the guest output.
+    /** False means the guest output is not displayed. */
     bool has_effect;
     GuestOutputPaintEffect effect;
     std::pair<uint32_t, uint32_t> effect_output_size;
 
-    // Offset of the rectangle for final drawing to the host window with
-    // letterboxing.
+    /** Offset of the final draw rectangle in the host window, with letterboxing. */
     int32_t output_x;
     int32_t output_y;
 
-    // If there is guest output (has_effect is true), contains the letterbox
-    // rectangles around the guest output.
+    /** Letterbox rectangles around the guest output, valid when has_effect is true. */
     size_t letterbox_clear_rectangle_count;
     std::array<ClearRectangle, kMaxClearRectangles> letterbox_clear_rectangles;
   };
@@ -327,137 +309,157 @@ class Presenter : public gpu::IPresenter, public rex::NonCopyable {
   explicit Presenter(HostGpuLossCallback host_gpu_loss_callback)
       : host_gpu_loss_callback_(std::move(host_gpu_loss_callback)) {}
 
-  // Must be called by the implementation's initialization, before the presenter
-  // is used for anything.
+  /**
+   * Finishes common initialization, run by the implementation initialization before any use.
+   *
+   * @return True on success.
+   */
   bool InitializeCommonSurfaceIndependent();
 
-  // ConnectOrReconnect and Disconnect are callable only by the UI thread and
-  // only when it has access to painting (PaintMode is not
-  // kGuestOutputThreadImmediately).
-  // Called only for a non-zero-area surface potentially supporting painting via
-  // the presenter. In case of a failure, internally no resources referencing
-  // the surface must be held by the implementation anymore - the implementation
-  // must be left in the same state as after
-  // DisconnectPaintingFromSurfaceFromUIThreadImpl. If the call is successful,
-  // the implementation must write to is_vsync_implicit_out whether the
-  // connection will now have vertical sync forced by the host window system,
-  // which may cause undesirable waits on the CPU when beginning or ending
-  // frames.
+  /**
+   * Connects or reconnects painting to the surface.
+   *
+   * Callable only by the UI thread while it has painting access (PaintMode is not
+   * kGuestOutputThreadImmediately) and only for a nonzero area surface that may support painting.
+   * On failure the implementation must hold no resources referencing the surface, the same state
+   * as after DisconnectPaintingFromSurfaceFromUIThreadImpl. On success it must report whether the
+   * host window system now forces vertical sync, which may cause undesirable CPU waits when
+   * beginning or ending frames.
+   *
+   * @param new_surface Surface to paint to.
+   * @param new_surface_width Surface width in pixels.
+   * @param new_surface_height Surface height in pixels.
+   * @param was_paintable True when the previous connection was paintable.
+   * @param is_vsync_implicit_out Receives whether the host forces vertical sync.
+   * @return The connection result.
+   */
   virtual SurfacePaintConnectResult ConnectOrReconnectPaintingToSurfaceFromUIThread(
       gpu::Surface& new_surface, uint32_t new_surface_width, uint32_t new_surface_height,
       bool was_paintable, bool& is_vsync_implicit_out) = 0;
-  // Releases resources referencing the surface in the implementation if they
-  // are held by it. Call through DisconnectPaintingFromSurfaceFromUIThread to
-  // ensure the implementation is only called while the connection is active.
+  /**
+   * Releases resources referencing the surface held by the implementation.
+   *
+   * Invoked by DisconnectPaintingFromSurfaceFromUIThread only while the connection is active.
+   */
   virtual void DisconnectPaintingFromSurfaceFromUIThreadImpl() = 0;
 
-  // The returned lock interlocks multiple consumers (but not the producer and
-  // the consumer) and must be held while accessing implementation-specific
-  // objects that depend on the image or its index in the mailbox (unless there
-  // are other locking mechanisms involved for the resources, such as reference
-  // counting for the guest output images, which doesn't have to be atomic
-  // though for the reason described later in this paragraph, or assumptions
-  // like of main target painting being possible only in at most one thread at
-  // once). While this lock is held, the acquired image index can't be
-  // changed (by other consumers advancing the acquired image index to the new
-  // ready image index), so the image with the index given by this function
-  // can't be released and be made writable or given to a different consumer
-  // (thus it's owned exclusively by the consumer who has called this function).
-  // The properties are returned by copy rather than returning a pointer to them
-  // or asking the consumer to pull them for the current mailbox index, so there
-  // are less things to take into consideration while leaving the guest output
-  // consumer critical section earlier (as if a pointer was returned, the data
-  // behind it could be overwritten at any time after leaving the consumer
-  // critical section) if the implementation has its own synchronization
-  // mechanisms that allow for doing so as described earlier. Returns UINT32_MAX
-  // as the mailbox index if the image is inactive (if it's active, it has
-  // proper properties though).
+  /**
+   * Acquires the ready guest output image for a consumer.
+   *
+   * The returned lock interlocks consumers but not the producer, and must be held while accessing
+   * implementation objects that depend on the image or its mailbox index, unless other locking
+   * exists such as reference counting of the images or main target painting being limited to 1
+   * thread. While held, the acquired image index cannot change, so the image cannot be released,
+   * made writable or given to another consumer. Properties are returned by copy so the critical
+   * section can be left earlier, since data behind a pointer could be overwritten after unlocking.
+   *
+   * @param mailbox_index_or_max_if_inactive_out Receives the mailbox index or UINT32_MAX.
+   * @param properties_out Receives a copy of the image properties.
+   * @param paint_config_out Receives a copy of the paint configuration.
+   * @return The consumer lock, with an inactive image reported as UINT32_MAX.
+   */
   [[nodiscard]] std::unique_lock<std::mutex> ConsumeGuestOutput(
       uint32_t& mailbox_index_or_max_if_inactive_out, GuestOutputProperties* properties_out,
       GuestOutputPaintConfig* paint_config_out);
-  // The properties are passed explicitly, not taken from the current acquired
-  // image, so it can be called for a copy of the acquired image's properties
-  // outside the consumer lock if the implementation has its own synchronization
-  // (like reference counting for the guest output images) that makes it
-  // possible to leave the consumer critical section earlier. Also, the guest
-  // output paint configuration is passed explicitly too so calling this
-  // function multiple times is safer.
+  /**
+   * Computes how the guest output is painted to the host render target.
+   *
+   * Properties and configuration are passed in rather than read from the acquired image, so a
+   * copy can be used outside the consumer lock when the implementation synchronizes by itself,
+   * and repeated calls are safer.
+   *
+   * @param properties Properties of the image to paint.
+   * @param host_rt_width Host render target width in pixels.
+   * @param host_rt_height Host render target height in pixels.
+   * @param max_rt_width Maximum render target width in pixels.
+   * @param max_rt_height Maximum render target height in pixels.
+   * @param config Paint configuration.
+   * @return The paint flow.
+   */
   GuestOutputPaintFlow GetGuestOutputPaintFlow(const GuestOutputProperties& properties,
                                                uint32_t host_rt_width, uint32_t host_rt_height,
                                                uint32_t max_rt_width, uint32_t max_rt_height,
                                                const GuestOutputPaintConfig& config) const;
-  // is_8bpc_out_ref is where to write whether the source has no more
-  // than 8 bits of precision per channel (though the image provided by the
-  // refresher may still have a higher storage precision) - if not written, it
-  // will be assumed to be false.
+  /**
+   * Refreshes the guest output image of a mailbox slot through the refresher.
+   *
+   * The 8 bits per channel result is false when left unwritten.
+   *
+   * @param mailbox_index Mailbox slot to write.
+   * @param frontbuffer_width Front buffer width in pixels.
+   * @param frontbuffer_height Front buffer height in pixels.
+   * @param refresher Callback that updates the image.
+   * @param is_8bpc_out_ref Receives whether the source has at most 8 bits per channel.
+   * @return True when the refresher succeeded.
+   */
   virtual bool RefreshGuestOutputImpl(
       uint32_t mailbox_index, uint32_t frontbuffer_width, uint32_t frontbuffer_height,
       std::move_only_function<bool(GuestOutputRefreshContext& context)> refresher,
       bool& is_8bpc_out_ref) = 0;
 
-  // Paints and presents the guest output if available (or solid black
-  // color), and if requested, the UI on top of it.
-  //
-  // May be called from the non-UI thread, but only to paint the guest output
-  // (no UI drawing, with execute_ui_drawers disabled).
-  //
-  // Call via PaintAndPresent.
+  /**
+   * Paints and presents the guest output, or solid black, with the UI on top when requested.
+   *
+   * May run on a non UI thread only to paint the guest output with execute_ui_drawers false.
+   * Invoked through PaintAndPresent.
+   *
+   * @param execute_ui_drawers True to draw the UI overlays.
+   * @return The paint result.
+   */
   virtual PaintResult PaintAndPresentImpl(bool execute_ui_drawers) = 0;
 
-  // For calling from the painting implementations if requested.
+  /**
+   * Executes the UI drawers on behalf of the painting implementations.
+   *
+   * @param ui_draw_context Context the drawers draw into.
+   */
   void ExecuteUIDrawersFromUIThread(gpu::OverlayDrawContext& ui_draw_context);
 
  private:
   enum class PaintMode {
-    // Don't paint at all.
-    // Painting lifecycle is accessible only by the UI thread.
-    // host_->RequestPaint() must not be called in this mode at all regardless
-    // of whether the Window object exists because the Window object in this
-    // case may correspond to a window without a paintable Surface (in a closed
-    // state, or in the middle of a surface change), and non-UI threads (such as
-    // the guest output thread) may result in a race condition internally inside
-    // Window::RequestPaint during the access to the Window's state, such as the
-    // availability of the Surface that can handle the paint (therefore, if
-    // there's no Surface, this is the only valid mode).
+    /**
+     * Does not paint, and the painting lifecycle is UI thread only.
+     *
+     * host_->RequestPaint() must never be called since the Window may lack a paintable Surface
+     * (closed or mid change), and non UI threads could race inside Window::RequestPaint on the
+     * Window state. The only valid mode when there is no Surface.
+     */
     kNone,
-    // Guest output refreshing notifies the `host_`, which must be valid and
-    // safe to call RequestPaint for, that painting should be done in the UI
-    // thread (including the UI if needed). Painting is possible, and painting
-    // lifecycle is accessible, only by the UI thread.
+    /**
+     * Guest output refreshing notifies host_, valid for RequestPaint, to paint in the UI thread.
+     *
+     * Painting, including the UI, and the painting lifecycle are UI thread only.
+     */
     kUIThreadOnRequest,
-    // Paint immediately in the guest output thread for lower latency. The
-    // `host_`, however, may be notified that the surface painting connection
-    // has become outdated (via RequestPaint, as in this case the UI thread will
-    // need to repaint as sooner as possible after reconnecting anyway), and
-    // change the surface connection state accordingly (only to
-    // kConnectedOutdated).
-    // Painting is possible only by the guest output thread, lifecycle
-    // management cannot be done from the UI thread until it takes over.
+    /**
+     * Paints immediately in the guest output thread for lower latency.
+     *
+     * host_ may be notified through RequestPaint that the connection is outdated, and the
+     * connection state changes only to kConnectedOutdated. Painting is guest output thread only,
+     * and the UI thread cannot manage the lifecycle until it takes over.
+     */
     kGuestOutputThreadImmediately,
   };
 
   enum class SurfacePaintConnectionState {
-    // No surface at all, or couldn't connect with the current state of the
-    // surface (such as because the surface was zero-sized because the window
-    // was minimized, for example). Or, the connection has become outdated, and
-    // the attempt to reconnect at kRetryConnectingSoon has failed. Try to
-    // reconnect if anything changes in the state of the surface, such as its
-    // size.
+    /**
+     * No surface, or connecting failed for the current surface state such as a zero size from
+     * minimizing, or an outdated connection failed to reconnect.
+     *
+     * Reconnects when the surface state changes, such as its size.
+     */
     kUnconnectedRetryAtStateChange,
-    // Can't connect to the current existing surface (the surface has been lost
-    // or it's completely incompatible). No point in retrying connecting until
-    // the surface is replaced.
+    /** The surface is lost or incompatible, so retrying is pointless until it is replaced. */
     kUnconnectedSurfaceReportedUnusable,
-    // Everything is fine, can paint. The connection might have become
-    // suboptimal though, and haven't tried refreshing yet, but still usable for
-    // painting nonetheless.
+    /** Paintable, though the connection may have become suboptimal and not yet been refreshed. */
     kConnectedPaintable,
-    // The implementation still holds resources associated with the connection,
-    // but presentation has reported that it has become outdated, try
-    // reconnecting as soon as possible (at the next paint attempt, requesting
-    // it if needed). This is the only state that the guest output thread may
-    // transition the connection to (from kConnectedPaintable only) if it has
-    // access to painting (the paint mode is kGuestOutputThreadImmediately).
+    /**
+     * The implementation holds connection resources but presentation reported it outdated.
+     *
+     * Reconnects at the next paint attempt, requesting one if needed. The only state the guest
+     * output thread may set, from kConnectedPaintable only, while the paint mode is
+     * kGuestOutputThreadImmediately.
+     */
     kConnectedOutdated,
   };
 
@@ -476,198 +478,203 @@ class Presenter : public gpu::IPresenter, public rex::NonCopyable {
   };
 
   void SetPaintModeFromUIThread(PaintMode new_mode);
-  // Based on conditions like whether UI needs to be drawn and whether vertical
-  // sync is implicit - see the implementation for the requirements.
-  // is_paintable is an explicit parameter because this function may be called
-  // in two scenarios:
-  // - After connection updates - painting connection is owned by the UI thread,
-  //   so the actual state can be obtained and passed here so kNone can be
-  //   returned.
-  // - When merely toggling something local to the UI thread - only to toggle
-  //   between the two threads, but not to switch from or to kNone (make sure
-  //   it's not kNone before calling), pass `true` in this case.
+  /**
+   * Returns the paint mode wanted from conditions such as UI drawing and implicit vertical sync.
+   *
+   * After connection updates the UI thread owns the connection, so its state is passed to allow
+   * kNone. When only toggling between the 2 threads, never to or from kNone, pass true.
+   *
+   * @param is_paintable True when the connection can paint.
+   * @return The desired paint mode.
+   */
   PaintMode GetDesiredPaintModeFromUIThread(bool is_paintable) const;
 
-  // Callable only by the UI thread and only when it has access to painting
-  // (PaintMode is not kGuestOutputThreadImmediately).
-  // This can be called to a surface after having not been connected to any (in
-  // this case, surface_paint_connection_state_ must be
-  // kUnconnectedRetryAtStateChange, not kUnconnectedNoUsableSurface, otherwise
-  // the call will be dropped), or to handle surface state changes such as
-  // resizing. However, this must not be called to change directly from one
-  // surface to another - need to disconnect prior to that, because the
-  // implementation may assume that the surface is still the same, and may try
-  // to, for instance, resize the buffers for the existing surface.
+  /**
+   * Connects to a surface after being unconnected, or handles surface changes such as resizing.
+   *
+   * Callable only by the UI thread while it has painting access (PaintMode is not
+   * kGuestOutputThreadImmediately). The connection state must be kUnconnectedRetryAtStateChange
+   * when connecting, otherwise the call is dropped. Never switch from one surface to
+   * another, disconnect first, because the implementation may assume the surface is unchanged and
+   * resize its buffers.
+   *
+   * @param repaint_needed_out Receives whether a repaint is needed.
+   * @param update_paint_mode_to_desired True to apply the desired paint mode.
+   */
   void UpdateSurfacePaintConnectionFromUIThread(bool* repaint_needed_out,
                                                 bool update_paint_mode_to_desired);
-  // Callable only by the UI thread and only when it has access to painting
-  // (PaintMode is not kGuestOutputThreadImmediately).
-  // See DisconnectPaintingFromSurfaceFromUIThreadImpl for more information.
+
+  /**
+   * Disconnects painting from the surface.
+   *
+   * Callable only by the UI thread while it has painting access (PaintMode is not
+   * kGuestOutputThreadImmediately).
+   *
+   * @param new_state Connection state to set afterwards.
+   */
   void DisconnectPaintingFromSurfaceFromUIThread(SurfacePaintConnectionState new_state);
 
-  // Can be called from any thread if an existing host_ safe to RequestPaint
-  // (not closed) is available in it, so doesn't check the surface painting
-  // connection state. Returns whether the host_->RequestPaint() call has been
-  // made.
+  /**
+   * Requests a paint, or connection recovery, through the window.
+   *
+   * Callable from any thread when an open host_ safe for RequestPaint exists, so the connection
+   * state is not checked.
+   *
+   * @param force_ui_thread_paint_tick True to force a UI thread paint tick.
+   * @return True when host_->RequestPaint() was called.
+   */
   bool RequestPaintOrConnectionRecoveryViaWindow(bool force_ui_thread_paint_tick);
 
-  // Platform-specific function refreshing the monitor the current window
-  // surface is on, through the Surface or its Window. A reference to the
-  // monitor is held only when a Surface is available, so it's automatically
-  // dropped when the Window loses its Surface when it's being closed (but the
-  // Window object keeps being attached to the Presenter), for instance.
+  /**
+   * Refreshes the monitor of the current window surface through the Surface or its Window.
+   *
+   * The monitor reference is held only while a Surface exists, so it drops when the Window loses
+   * its Surface on closing while staying attached to the Presenter.
+   *
+   * @param old_monitor_potentially_disconnected True when the previous monitor may be gone.
+   */
   void UpdateSurfaceMonitorFromUIThread(bool old_monitor_potentially_disconnected);
-  // Platform-specific function returning whether the surface the presenter is
-  // attached it is visible on any monitor. UI thread
-  // painting may be dropped if this returns false - need to request painting if
-  // the surface appears on a monitor again. May be using the state cached at
-  // window / surface state changes, not the actual state from the platform.
+
+  /**
+   * Reports whether the attached surface is visible on any monitor.
+   *
+   * UI thread painting may be dropped when false, so painting must be requested when the surface
+   * reappears on a monitor. May use state cached at window and surface changes.
+   *
+   * @return True when the surface is on a monitor.
+   */
   bool InSurfaceOnMonitorFromUIThread() const;
 
-  // Calls PaintAndPresentImpl and does post-paint checks that are safe to do on
-  // both the UI thread and the guest output thread. See the information about
-  // PaintAndPresentImpl for details.
-  // A kPresentedSuboptimal result is returned as is, but the connection may or
-  // may not be made outdated if that happens - though if it's
-  // kPresentedSuboptimal rather than kNotPresentedConnectionOutdated, the image
-  // has been successfully sent to the OS presentation at least.
+  /**
+   * Calls PaintAndPresentImpl and runs post paint checks safe on both the UI and guest output
+   * threads.
+   *
+   * A kPresentedSuboptimal result is returned as is and the connection may or may not become
+   * outdated, but the image reached OS presentation, unlike kNotPresentedConnectionOutdated.
+   *
+   * @param execute_ui_drawers True to draw the UI overlays.
+   * @return The paint result.
+   */
   PaintResult PaintAndPresent(bool execute_ui_drawers);
 
   void HandleUIDrawersChangeFromUIThread(bool drawers_were_empty);
 
+  /**
+   * Reports whether UI ticks are needed.
+   *
+   * Requires UI drawing and possible painting, checked coarsely since the connection state,
+   * including outdated, may be unavailable from the UI thread. Implicit vertical sync in
+   * presentation rules it out, as limiting the frame rate too would cause inconsistent pacing and
+   * skipped vertical sync intervals.
+   *
+   * @return True when UI ticks are needed.
+   */
   bool AreUITicksNeededFromUIThread() const {
-    // UI drawing should be done, and painting needs to be possible (coarsely
-    // checking because the actual connection state, including outdated, may be
-    // unavailable from the UI thread).
-    // There's no need to limit the frame rate manually if there is vertical
-    // sync in the presentation already as that might result in inconsistent
-    // frame pacing and potentially skipped vertical sync intervals.
     return !ui_drawers_.empty() && paint_mode_ != PaintMode::kNone &&
            !surface_paint_connection_has_implicit_vsync_;
   }
   void UpdateUITicksNeededFromUIThread();
   void WaitForUITickFromUIThread();
-  // May be called from any thread.
+  /** May be called from any thread. */
   void ForceUIThreadPaintTick();
 
-  // Must be called only in the end of entry points - reinitialization of the
-  // presenter may be done by the handler if it was called from the UI thread
-  // (even if the UI thread argument is false - such as when the guest output is
-  // refreshed on the UI thread).
+  /**
+   * Handler for host GPU loss, called only at the end of entry points.
+   *
+   * The handler may reinitialize the presenter when called from the UI thread, even when the UI
+   * thread argument is false, such as when the UI thread refreshes the guest output.
+   */
   HostGpuLossCallback host_gpu_loss_callback_;
 
-  // May be accessed by the guest output thread if the paint mode is not kNone,
-  // to request painting (for kUIThreadOnRequest) or reconnection (for
-  // kGuestOutputThreadImmediately) in the UI thread. Set the paint mode to
-  // kNone before modifying (that naturally has to be done anyway by
-  // disconnecting painting).
+  /**
+   * Accessed by the guest output thread when the paint mode is not kNone, to request painting
+   * (kUIThreadOnRequest) or reconnection (kGuestOutputThreadImmediately) in the UI thread.
+   *
+   * The paint mode must be kNone before modifying it, which disconnecting painting does anyway.
+   */
   gpu::IPresentationHost* host_ = nullptr;
 
-  // The surface of the `host_` the presenter is attached to.
   gpu::Surface* surface_ = nullptr;
 
-  // Mutex protecting paint_mode_ (and, in the guest output thread, objects
-  // related to painting themselves).
-  //
-  // The UI thread (as the mode is modifiable only by it) can use it as
-  // "barriers", like:
-  // 1) If needed, lock and disable guest output thread access to painting.
-  // 2) Interact with the painting connection.
-  // 3) If needed, lock and re-enable guest output thread access to the
-  //    painting.
-  //
-  // On the other hand, the guest output thread _must_ hold it all the time it's
-  // painting, to ensure the mode stays the same while it's painting.
+  /**
+   * Protects paint_mode_ and, in the guest output thread, the painting objects.
+   *
+   * The UI thread, the only modifier of the mode, uses it as barriers around connection work. It
+   * locks to disable guest output thread painting access, interacts with the painting connection,
+   * then locks to re enable the access. The guest output thread must hold it throughout painting
+   * so the mode stays the same.
+   */
   std::mutex paint_mode_mutex_;
-  // UI thread: writable, guest output thread: read-only.
+  /** Writable by the UI thread, read only for the guest output thread. */
   PaintMode paint_mode_ = PaintMode::kNone;
 
-  // These fields can be accessed _exclusively_ by either the UI thread or the
-  // guest output thread, depending on paint_mode_.
-  // If it's kGuestOutputThreadImmediately, they can be accessed _only_ by the
-  // guest output thread (though the UI thread can still read, but not modify,
-  // fields that are writable by the UI thread and readadable by both).
-  // Otherwise, they can be accessed _only_ by the UI thread.
-  // The connection state may be changed from the guest output thread, but only
-  // from kConnectedPaintable to kConnectedOutdated.
+  /**
+   * Accessed exclusively by the guest output thread in kGuestOutputThreadImmediately, otherwise
+   * exclusively by the UI thread.
+   *
+   * The UI thread may read fields it writes and both threads read. The guest output thread
+   * may change the connection state, only from kConnectedPaintable to kConnectedOutdated.
+   */
   SurfacePaintConnectionState surface_paint_connection_state_ =
       SurfacePaintConnectionState::kUnconnectedRetryAtStateChange;
-  // If the surface connection was optimal at the last paint attempt, but now
-  // has become suboptimal, need to try to reconnect. But only in this case - if
-  // the connection has been suboptimal from the beginning don't try to
-  // reconnect every frame.
+  /** Reconnects only when a connection optimal at the last paint became suboptimal. */
   bool surface_paint_connection_was_optimal_at_successful_paint_ = false;
 
-  // Modifiable only by the UI thread (therefore can be accessed by the UI
-  // thread regardless of the paint mode) while (re)connecting painting to the
-  // surface.
+  /** Modifiable only by the UI thread, readable by it in any paint mode, while connecting. */
   bool surface_paint_connection_has_implicit_vsync_ = false;
-  // Modifiable only by the UI thread, can be read by the thread that's
-  // painting.
+  /** Modifiable only by the UI thread, readable by the painting thread. */
   uint32_t surface_width_in_paint_connection_ = 0;
   uint32_t surface_height_in_paint_connection_ = 0;
 
-  // Can be set by both the UI thread and the guest output thread before doing
-  // host_->RequestPaint() - whether an extra painting (preceded by
-  // reconnection if needed, and painting) was requested, primarily after some
-  // state change that may effect the surface painting connection, resulting in
-  // the need to refresh it as soon as possible.
-  //
-  // Relaxed memory order is enough, everything that may influence painting is
-  // either local to the UI thread or protected with barriers elsewhere.
-  //
-  // There's no need to bother about resetting this variable when losing
-  // connection as the next successful reconnection should be followed by a
-  // repaint request anyway.
+  /**
+   * Set by the UI or guest output thread before host_->RequestPaint() when an extra paint,
+   * preceded by reconnection if needed, was requested after a state change that may affect the
+   * painting connection.
+   *
+   * Relaxed memory order suffices since everything influencing painting is either UI thread local
+   * or protected by barriers. It needs no reset on connection loss because the next successful
+   * reconnection is followed by a repaint request.
+   */
   std::atomic<bool> ui_thread_paint_requested_{false};
 
   std::mutex guest_output_paint_config_mutex_;
-  // UI thread: writable, guest output thread: read-only.
+  /** Writable by the UI thread, read only for the guest output thread. */
   GuestOutputPaintConfig guest_output_paint_config_;
 
-  // Single-producer-multiple-consumers (lock-free SPSC + consumer lock) mailbox
-  // for presenting of the most up-to-date guest output image without long
-  // interlocking between guest output refreshing and painting.
   static_assert(kGuestOutputMailboxSize == 3);
-  // The "acquired" image (in bits 0:1) is the one that is being read,
-  // or was last read, by a consumer of the guest output. The index of it can be
-  // modified only by the consumer and stays the same while it's processing the
-  // image.
-  // The "ready" image (in bits 2:3) is the most up-to-date image that the
-  // refresher has completely written, and a consumer may acquire it. It may be
-  // == acquired if there has been no refresh since the last acquisition.
-  // These two images can be accessed by painting in parallel, in an unordered
-  // way, with guest output refreshing.
+  /**
+   * Lock free single producer mailbox for presenting the latest guest output image without long
+   * interlocking between refreshing and painting, with consumers serialized by a lock.
+   *
+   * The acquired image (bits 0:1) is being or was last read by a consumer, and only the consumer
+   * changes its index, which stays fixed while it processes the image. The ready image (bits 2:3)
+   * is the newest written image a consumer may acquire, equal to the acquired image when no
+   * refresh happened since the last acquisition. Painting may access both in parallel and
+   * unordered with refreshing.
+   */
   std::atomic<uint32_t> guest_output_mailbox_acquired_and_ready_{0};
-  // The "writable" image is different than both "acquired" and "ready" and is
-  // accessible only by the guest output refreshing - it's the image that the
-  // refresher may write to.
+  /** Differs from the acquired and ready images and is written only by guest output refreshing. */
   uint32_t guest_output_mailbox_writable_ = 1;
-  // The guest output images may be consumed by two operations - painting, and
-  // capturing to a CPU-side buffer. These two usually never happen in parallel
-  // in reality though, as they're usually not even needed both at once in the
-  // same app within Xenia, so there's no need to create any
-  // complex lock-free synchronization between the two, but still, the situation
-  // when multiple consumers want the guest output image at the same is
-  // perfectly valid (unlike for producers, because even with a producer lock
-  // that would still be a race condition since the two refreshes themselves
-  // will be done in an undefined order) - so, a sufficient synchronization
-  // mechanism is used to make sure multiple consumers can acquire images
-  // without interfering with each other.
-  // While this is held, paint_mode_mutex_ must not be locked (the lock order is
-  // the reverse when painting in the guest output thread - painting is done
-  // with paint_mode_mutex_ held in this case, and guest output consumption
-  // happens as part of painting.
+  /**
+   * Serializes consumers of the guest output images, painting and CPU buffer capture.
+   *
+   * Multiple consumers may want an image at the same time, unlike producers whose refresh order
+   * would be undefined even under a lock. It must not be held while locking paint_mode_mutex_.
+   * The guest output thread paints with paint_mode_mutex_ held and consumes as part of painting,
+   * so the lock order there is the reverse.
+   */
   std::mutex guest_output_mailbox_consumer_mutex_;
 
   std::array<GuestOutputProperties, kGuestOutputMailboxSize> guest_output_properties_;
-  // Accessible only by refreshing, whether the last refresh contained an image
-  // rather than being blank.
+  /** Accessed only by refreshing, true when the last refresh contained an image. */
   bool guest_output_active_last_refresh_ = false;
 
-  // Ordered by the Z order, and then by the time of addition.
-  // Note: All the iteration logic involving this Z ordering must be the same as
-  // in input handling (in the input listeners in the Window), but in reverse.
+  /**
+   * Ordered by Z order, then by time of addition.
+   *
+   * Iteration logic over this order must match input handling in the Window input listeners, in
+   * reverse.
+   */
   std::multimap<size_t, UIDrawerReference> ui_drawers_;
 
   size_t ui_draw_current_ = 0;
@@ -675,21 +682,12 @@ class Presenter : public gpu::IPresenter, public rex::NonCopyable {
   std::multimap<size_t, UIDrawerReference>::iterator ui_draw_next_iterator_;
   bool is_executing_ui_drawers_ = false;
 
-  // Whether running the logic of PaintFromUIThread, so some
-  // actions (such as changing the paint mode, requesting a redraw) must be
-  // deferred and be handled by the tail of PaintFromUIThread for consistency
-  // with what PaintFromUIThread does internally.
+  /** True inside PaintFromUIThread, so paint mode changes and redraw requests defer to its tail. */
   bool is_in_ui_thread_paint_ = false;
   bool request_guest_output_paint_after_current_ui_thread_paint_;
   bool request_ui_paint_after_current_ui_thread_paint_;
 
-  // Platform-specific, but implementation-agnostic parts, primarily for
-  // limiting of the frame rate of the UI to avoid drawing the UI at extreme
-  // frame rates wasting the CPU and the GPU resources and starving everything
-  // else. The waits performed here must be interruptible by guest output
-  // presentation requests to prevent adding arbitrary amounts of latency to it.
-  // On Android and GTK, this is not needed, the frame rate of draw events is
-  // limited to the display refresh rate internally.
+  // Waits here must stay interruptible by guest output presentation requests to bound latency.
 #if REX_PLATFORM_WIN32
   static Microsoft::WRL::ComPtr<IDXGIOutput> GetDXGIOutputForMonitor(IDXGIFactory1* factory,
                                                                      HMONITOR monitor);
@@ -699,42 +697,42 @@ class Presenter : public gpu::IPresenter, public rex::NonCopyable {
   }
   void DXGIUITickThread();
 
-  // Accessible only from the UI thread, to avoid updating monitor-dependent
-  // information such as the DXGI output if the monitor hasn't been
-  // changed in the current state change (such as window positioning changes).
+  /** UI thread only, so monitor dependent data such as the DXGI output updates only on a change. */
   HMONITOR surface_win32_monitor_ = nullptr;
 
-  // Requiring the lowest version of DXGI for IDXGIOutput::WaitForVBlank, which
-  // is available even on Windows Vista, but for IDXGIFactory1::IsCurrent,
-  // DXGI 1.1 is needed (available starting from Windows 7; also mixing DXGI 1.0
-  // and 1.1+ in the Direct3D 12 code is not supported, see CreateDXGIFactory on
-  // MSDN). The factory is created when it's needed, and may be released and
-  // recreated when it's not current anymore and that becomes relevant.
+  /**
+   * Created on demand with DXGI 1.1, needed by IDXGIFactory1::IsCurrent (Windows 7 and later).
+   *
+   * Mixing DXGI 1.0 and 1.1 or later in the Direct3D 12 code is unsupported. It may be released
+   * and recreated once it is no longer current.
+   */
   Microsoft::WRL::ComPtr<IDXGIFactory1> dxgi_ui_tick_factory_;
 
-  // Accessible only from the UI thread, though the value is taken from the
-  // tick-mutex-protected variable.
+  /** UI thread only, though the value comes from the tick mutex protected variable. */
   uint64_t dxgi_ui_tick_last_draw_ = 0;
 
   std::mutex dxgi_ui_tick_mutex_;
   uint64_t dxgi_ui_tick_last_vblank_ = 1;
-  // If output is null or shutdown is true, the signal may not be sent, either
-  // don't limit the frame rate in this case (an exceptional situation, such as
-  // a failure to find the output in DXGI), or don't draw at all if the window
-  // was removed from a connected monitor.
+  /**
+   * With a null output or shutdown set, the signal may not be sent.
+   *
+   * Then the frame rate is not limited, as in a failure to find the output, or nothing is drawn
+   * when the window left a connected monitor.
+   */
   Microsoft::WRL::ComPtr<IDXGIOutput> dxgi_ui_tick_output_;
-  // To avoid allocating processing resources to the thread when nothing needs
-  // the ticks (not drawing the UI), the thread waits for vertical blanking
-  // intervals only when the UI drawing ticks are needed, and sleeping waiting
-  // for the control condition variable signals otherwise. Modifiable only from
-  // the UI thread, so readable by it without locking the mutex.
+  /**
+   * The thread waits for vertical blanking only while UI ticks are needed, otherwise it sleeps on
+   * the control condition variable.
+   *
+   * Modifiable only from the UI thread, so readable by it without the mutex.
+   */
   bool dxgi_ui_ticks_needed_ = false;
-  // The shutdown flag is modifiable only from the UI thread.
+  /** Modifiable only from the UI thread. */
   bool dxgi_ui_tick_thread_shutdown_ = false;
   bool dxgi_ui_tick_force_requested_ = false;
 
   std::condition_variable dxgi_ui_tick_control_condition_;
-  // May be signaled by guest output refreshing.
+  /** May be signaled by guest output refreshing. */
   std::condition_variable dxgi_ui_tick_signal_condition_;
 
   std::jthread dxgi_ui_tick_thread_;

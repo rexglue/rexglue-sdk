@@ -1,4 +1,3 @@
-#pragma once
 /**
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
@@ -9,6 +8,8 @@
  *
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
+
+#pragma once
 
 #include <array>
 #include <atomic>
@@ -39,52 +40,61 @@ class Runtime;
 
 namespace rex::runtime {
 
+/** Interrupt request levels stored in `X_KPCR::current_irql`. */
 enum IRQL_FLAGS : uint8_t {
-  IRQL_PASSIVE = 0,
-  IRQL_APC = 1,
-  IRQL_DISPATCH = 2,
-  IRQL_DPC = 3,
-  IRQL_AUDIO = 68,
-  IRQL_CLOCK = 116,
-  IRQL_HIGHEST = 124
+  IRQL_PASSIVE = 0,  /**< Lowest level. */
+  IRQL_APC = 1,      /**< Level 1, above passive. */
+  IRQL_DISPATCH = 2, /**< Level held while a spinlock is acquired and while queued DPCs run. */
+  IRQL_DPC = 3,      /**< Level held while an interrupt routine runs. */
+  IRQL_AUDIO = 68,   /**< Level 68. No code uses it. */
+  IRQL_CLOCK = 116,  /**< Level 116. No code uses it. */
+  IRQL_HIGHEST = 124 /**< Highest level defined. */
 };
 
+/** Object types stored in the type byte of `X_DISPATCH_HEADER`. */
 enum X_DISPATCHER_FLAGS {
-  DISPATCHER_MANUAL_RESET_EVENT = 0,
-  DISPATCHER_AUTO_RESET_EVENT = 1,
-  DISPATCHER_MUTANT = 2,
-  DISPATCHER_QUEUE = 4,
-  DISPATCHER_SEMAPHORE = 5,
-  DISPATCHER_THREAD = 6,
-  DISPATCHER_MANUAL_RESET_TIMER = 8,
-  DISPATCHER_AUTO_RESET_TIMER = 9,
+  DISPATCHER_MANUAL_RESET_EVENT = 0, /**< Notification event. */
+  DISPATCHER_AUTO_RESET_EVENT = 1,   /**< Synchronization event. */
+  DISPATCHER_MUTANT = 2,             /**< Mutant. */
+  DISPATCHER_QUEUE = 4,              /**< Queue. */
+  DISPATCHER_SEMAPHORE = 5,          /**< Semaphore. */
+  DISPATCHER_THREAD = 6,             /**< Thread. */
+  DISPATCHER_MANUAL_RESET_TIMER = 8, /**< Notification timer. */
+  DISPATCHER_AUTO_RESET_TIMER = 9,   /**< Synchronization timer. */
 };
 
-// https://www.geoffchappell.com/studies/windows/km/ntoskrnl/inc/ntos/ke/kthread_state.htm
+/** Values of `X_KTHREAD::thread_state`. */
 enum X_KTHREAD_STATE_FLAGS : uint8_t {
-  KTHREAD_STATE_INITIALIZED = 0,
-  KTHREAD_STATE_READY = 1,
-  KTHREAD_STATE_RUNNING = 2,
-  KTHREAD_STATE_STANDBY = 3,
-  KTHREAD_STATE_TERMINATED = 4,
-  KTHREAD_STATE_WAITING = 5,
-  KTHREAD_STATE_UNKNOWN = 6,
+  KTHREAD_STATE_INITIALIZED = 0, /**< Written as literal 0 at thread creation. */
+  KTHREAD_STATE_READY = 1,       /**< Never written or compared. */
+  KTHREAD_STATE_RUNNING = 2,     /**< Value 2. */
+  KTHREAD_STATE_STANDBY = 3,     /**< Never written or compared. */
+  KTHREAD_STATE_TERMINATED = 4,  /**< Written when the thread exits. */
+  KTHREAD_STATE_WAITING = 5,     /**< Never written or compared. */
+  KTHREAD_STATE_UNKNOWN = 6,     /**< Never written or compared. */
 };
 
 constexpr uint32_t X_CREATE_SUSPENDED = 0x00000001;
 
 constexpr uint32_t X_TLS_OUT_OF_INDEXES = UINT32_MAX;
 
+/** Guest layout of a deferred procedure call. */
 struct XDPC {
-  be_u16 type;
-  uint8_t selected_cpu_number;
-  uint8_t desired_cpu_number;
-  X_LIST_ENTRY list_entry;
-  be_u32 routine;
-  be_u32 context;
-  be_u32 arg1;
-  be_u32 arg2;
+  be_u16 type;                 /**< Offset 0x0. Object type, 19 for a DPC. */
+  uint8_t selected_cpu_number; /**< Offset 0x2. 1 while the DPC is queued, else 0. */
+  uint8_t desired_cpu_number;  /**< Offset 0x3. Cleared by Initialize and read by no code. */
+  X_LIST_ENTRY list_entry;     /**< Offset 0x4. Links the DPC in the processor queue. */
+  be_u32 routine;              /**< Offset 0xC. Guest address of the routine. */
+  be_u32 context;              /**< Offset 0x10. First argument of the routine. */
+  be_u32 arg1;                 /**< Offset 0x14. Second argument of the routine. */
+  be_u32 arg2;                 /**< Offset 0x18. Third argument of the routine. */
 
+  /**
+   * Sets the routine and context and clears the queue links and arguments.
+   *
+   * @param guest_func The guest address of the routine.
+   * @param guest_context The context passed to the routine.
+   */
   void Initialize(uint32_t guest_func, uint32_t guest_context) {
     type = 19;
     selected_cpu_number = 0;
@@ -108,40 +118,47 @@ struct X_THREAD_NOTIFICATION {
 };
 REX_STATIC_ASSERT_SIZE(X_THREAD_NOTIFICATION, 0xC);
 
+/**
+ * Kernel APC stored in guest memory. 40 bytes, 4 shorter than NT as the reserved dword at +4 is
+ * absent.
+ */
 struct XAPC {
+  /** Size in bytes of an APC block, allocated for each APC the host queues. */
   static constexpr uint32_t kSize = 40;
+  /** Kernel routine address that marks an APC the host queued itself, never called. */
   static constexpr uint32_t kDummyKernelRoutine = 0xF00DFF00;
+  /** Rundown routine address stored beside kDummyKernelRoutine in an APC the host queued itself. */
   static constexpr uint32_t kDummyRundownRoutine = 0xF00DFF01;
 
-  // KAPC is 0x28(40) bytes? (what's passed to ExAllocatePoolWithTag)
-  // This is 4b shorter than NT - looks like the reserved dword at +4 is gone.
-  // NOTE: stored in guest memory.
-  uint16_t type;            // +0
-  uint8_t apc_mode;         // +2
-  uint8_t enqueued;         // +3
-  be_u32 thread_ptr;        // +4
-  X_LIST_ENTRY list_entry;  // +8
-  be_u32 kernel_routine;    // +16
-  be_u32 rundown_routine;   // +20
-  be_u32 normal_routine;    // +24
-  be_u32 normal_context;    // +28
-  be_u32 arg1;              // +32
-  be_u32 arg2;              // +36
+  uint16_t type;           /**< Offset 0x0. */
+  uint8_t apc_mode;        /**< Offset 0x2. */
+  uint8_t enqueued;        /**< Offset 0x3. */
+  be_u32 thread_ptr;       /**< Offset 0x4. */
+  X_LIST_ENTRY list_entry; /**< Offset 0x8. */
+  be_u32 kernel_routine;   /**< Offset 0x10. */
+  be_u32 rundown_routine;  /**< Offset 0x14. */
+  be_u32 normal_routine;   /**< Offset 0x18. */
+  be_u32 normal_context;   /**< Offset 0x1C. */
+  be_u32 arg1;             /**< Offset 0x20. */
+  be_u32 arg2;             /**< Offset 0x24. */
 };
 REX_STATIC_ASSERT_SIZE(XAPC, 40);
 
-/// Guest fiber context buffer layout.
+/** Guest fiber context buffer layout. */
 struct X_FIBER_CONTEXT {
-  be_u32 fiber_data;                         // 0x00  lpParameter
-  be_u32 stack_alloc_base;                   // 0x04  KTHREAD.stack_alloc_base (0xD0)
-  be_u32 stack_base;                         // 0x08  KTHREAD.stack_base (0x5C), PCR.stack_base_ptr
-  be_u32 stack_limit;                        // 0x0C  KTHREAD.stack_limit (0x60), PCR.stack_end_ptr
-  rex::be_u32 cr_save;                       // 0x10  saved CR
-  uint8_t reserved_14[0x08];                 // 0x14  padding
-  rex::be_u32 lr_save;                       // 0x1C  saved LR
-  uint8_t reserved_20[0x10];                 // 0x20  padding
-  be_u64 sp_save;                            // 0x30  saved r1
-  uint8_t register_save_area[0xA50 - 0x38];  // non-volatile PPCContext register save area
+  be_u32 fiber_data;       /**< Offset 0x00. lpParameter. */
+  be_u32 stack_alloc_base; /**< Offset 0x04. KTHREAD.stack_alloc_base (0xD0). */
+  /** Offset 0x08. KTHREAD.stack_base (0x5C), PCR.stack_base_ptr. */
+  be_u32 stack_base;
+  /** Offset 0x0C. KTHREAD.stack_limit (0x60), PCR.stack_end_ptr. */
+  be_u32 stack_limit;
+  rex::be_u32 cr_save;       /**< Offset 0x10. Saved CR. */
+  uint8_t reserved_14[0x08]; /**< Offset 0x14. Padding. */
+  rex::be_u32 lr_save;       /**< Offset 0x1C. Saved LR. */
+  uint8_t reserved_20[0x10]; /**< Offset 0x20. Padding. */
+  be_u64 sp_save;            /**< Offset 0x30. Saved r1. */
+  /** Non volatile PPCContext register save area, starting at offset 0x38. */
+  uint8_t register_save_area[0xA50 - 0x38];
 };
 REX_STATIC_ASSERT_SIZE(X_FIBER_CONTEXT, 0xA50);
 static_assert(sizeof(X_FIBER_CONTEXT::register_save_area) >= ::PPCContext::kNonVolatileSaveSize,
@@ -150,199 +167,206 @@ static_assert(sizeof(X_FIBER_CONTEXT::register_save_area) >= ::PPCContext::kNonV
 struct X_KTHREAD;
 struct X_KPROCESS;
 
+/** Guest layout of a wait block, which ties a thread to an object it waits on. */
 struct X_KWAIT_BLOCK {
-  X_LIST_ENTRY wait_list_entry;                      // 0x0
-  TypedGuestPointer<X_KTHREAD> thread;               // 0x8
-  TypedGuestPointer<X_DISPATCH_HEADER> object;       // 0xC
-  TypedGuestPointer<X_KWAIT_BLOCK> next_wait_block;  // 0x10
-  be_u16 wait_result_xstatus;                        // 0x14
-  be_u16 wait_type;                                  // 0x16
+  X_LIST_ENTRY wait_list_entry;                     /**< Offset 0x0. */
+  TypedGuestPointer<X_KTHREAD> thread;              /**< Offset 0x8. */
+  TypedGuestPointer<X_DISPATCH_HEADER> object;      /**< Offset 0xC. */
+  TypedGuestPointer<X_KWAIT_BLOCK> next_wait_block; /**< Offset 0x10. */
+  be_u16 wait_result_xstatus;                       /**< Offset 0x14. */
+  be_u16 wait_type;                                 /**< Offset 0x16. */
 };
 REX_STATIC_ASSERT_SIZE(X_KWAIT_BLOCK, 0x18);
 
+/** Guest layout of the processor control block embedded in `X_KPCR`. */
 struct X_KPRCB {
-  TypedGuestPointer<X_KTHREAD> current_thread;       // 0x0
-  TypedGuestPointer<X_KTHREAD> next_thread;          // 0x4
-  TypedGuestPointer<X_KTHREAD> idle_thread;          // 0x8
-  uint8_t current_cpu;                               // 0xC
-  uint8_t unk_D[3];                                  // 0xD
-  be_u32 processor_mask;                             // 0x10
-  be_u32 dpc_clock;                                  // 0x14
-  be_u32 interrupt_clock;                            // 0x18
-  be_u32 unk_1C;                                     // 0x1C
-  be_u32 unk_20;                                     // 0x20
-  be_u32 ipi_args[3];                                // 0x24
-  be_u32 targeted_ipi_cpus_mask;                     // 0x30
-  be_u32 ipi_function;                               // 0x34
-  TypedGuestPointer<X_KPRCB> ipi_initiator_prcb;     // 0x38
-  be_u32 unk_3C;                                     // 0x3C
-  be_u32 dpc_related_40;                             // 0x40
-  be_u32 dpc_lock;                                   // 0x44
-  X_LIST_ENTRY queued_dpcs_list_head;                // 0x48
-  be_u32 dpc_active;                                 // 0x50
-  X_KSPINLOCK spin_lock;                             // 0x54
-  TypedGuestPointer<X_KTHREAD> running_idle_thread;  // 0x58
-  X_SINGLE_LIST_ENTRY enqueued_threads_list;         // 0x5C
-  be_u32 has_ready_thread_by_priority;               // 0x60
-  be_u32 unk_mask_64;                                // 0x64
-  X_LIST_ENTRY unk_68[32];                           // 0x68
-  XDPC thread_exit_dpc;                              // 0x168
-  X_LIST_ENTRY terminating_threads_list;             // 0x184
-  XDPC switch_thread_processor_dpc;                  // 0x18C
+  TypedGuestPointer<X_KTHREAD> current_thread;      /**< Offset 0x0. */
+  TypedGuestPointer<X_KTHREAD> next_thread;         /**< Offset 0x4. */
+  TypedGuestPointer<X_KTHREAD> idle_thread;         /**< Offset 0x8. */
+  uint8_t current_cpu;                              /**< Offset 0xC. */
+  uint8_t unk_D[3];                                 /**< Offset 0xD. */
+  be_u32 processor_mask;                            /**< Offset 0x10. */
+  be_u32 dpc_clock;                                 /**< Offset 0x14. */
+  be_u32 interrupt_clock;                           /**< Offset 0x18. */
+  be_u32 unk_1C;                                    /**< Offset 0x1C. */
+  be_u32 unk_20;                                    /**< Offset 0x20. */
+  be_u32 ipi_args[3];                               /**< Offset 0x24. */
+  be_u32 targeted_ipi_cpus_mask;                    /**< Offset 0x30. */
+  be_u32 ipi_function;                              /**< Offset 0x34. */
+  TypedGuestPointer<X_KPRCB> ipi_initiator_prcb;    /**< Offset 0x38. */
+  be_u32 unk_3C;                                    /**< Offset 0x3C. */
+  be_u32 dpc_related_40;                            /**< Offset 0x40. */
+  be_u32 dpc_lock;                                  /**< Offset 0x44. */
+  X_LIST_ENTRY queued_dpcs_list_head;               /**< Offset 0x48. */
+  be_u32 dpc_active;                                /**< Offset 0x50. */
+  X_KSPINLOCK spin_lock;                            /**< Offset 0x54. */
+  TypedGuestPointer<X_KTHREAD> running_idle_thread; /**< Offset 0x58. */
+  X_SINGLE_LIST_ENTRY enqueued_threads_list;        /**< Offset 0x5C. */
+  be_u32 has_ready_thread_by_priority;              /**< Offset 0x60. */
+  be_u32 unk_mask_64;                               /**< Offset 0x64. */
+  X_LIST_ENTRY unk_68[32];                          /**< Offset 0x68. */
+  XDPC thread_exit_dpc;                             /**< Offset 0x168. */
+  X_LIST_ENTRY terminating_threads_list;            /**< Offset 0x184. */
+  XDPC switch_thread_processor_dpc;                 /**< Offset 0x18C. */
 };
 
-// Processor Control Region
+/** Processor Control Region. */
 struct X_KPCR {
-  be_u32 tls_ptr;   // 0x0
-  be_u32 msr_mask;  // 0x4
+  be_u32 tls_ptr;  /**< Offset 0x0. */
+  be_u32 msr_mask; /**< Offset 0x4. */
   union {
-    be_u16 software_interrupt_state;  // 0x8
+    be_u16 software_interrupt_state; /**< Offset 0x8. */
     struct {
-      uint8_t generic_software_interrupt;    // 0x8
-      uint8_t apc_software_interrupt_state;  // 0x9
+      uint8_t generic_software_interrupt;   /**< Offset 0x8. */
+      uint8_t apc_software_interrupt_state; /**< Offset 0x9. */
     };
   };
-  be_u16 unk_0A;                         // 0xA
-  uint8_t processtype_value_in_dpc;      // 0xC
-  uint8_t timeslice_ended;               // 0xD
-  uint8_t timer_pending;                 // 0xE
-  uint8_t unk_0F;                        // 0xF
-  be_u32 thread_fpu_related;             // 0x10
-  be_u32 thread_vmx_related;             // 0x14
-  uint8_t current_irql;                  // 0x18
-  uint8_t background_scheduling_active;  // 0x19
-  uint8_t background_scheduling_1A;      // 0x1A
-  uint8_t background_scheduling_1B;      // 0x1B
-  be_u32 timer_related;                  // 0x1C
-  uint8_t unk_20[0x10];                  // 0x20
-  be_u64 pcr_ptr;                        // 0x30
+  be_u16 unk_0A;                        /**< Offset 0xA. */
+  uint8_t processtype_value_in_dpc;     /**< Offset 0xC. */
+  uint8_t timeslice_ended;              /**< Offset 0xD. */
+  uint8_t timer_pending;                /**< Offset 0xE. */
+  uint8_t unk_0F;                       /**< Offset 0xF. */
+  be_u32 thread_fpu_related;            /**< Offset 0x10. */
+  be_u32 thread_vmx_related;            /**< Offset 0x14. */
+  uint8_t current_irql;                 /**< Offset 0x18. */
+  uint8_t background_scheduling_active; /**< Offset 0x19. */
+  uint8_t background_scheduling_1A;     /**< Offset 0x1A. */
+  uint8_t background_scheduling_1B;     /**< Offset 0x1B. */
+  be_u32 timer_related;                 /**< Offset 0x1C. */
+  uint8_t unk_20[0x10];                 /**< Offset 0x20. */
+  be_u64 pcr_ptr;                       /**< Offset 0x30. */
   union {
-    uint8_t unk_38[8];    // 0x38
-    uint64_t host_stash;  // 0x38
+    uint8_t unk_38[8];   /**< Offset 0x38. */
+    uint64_t host_stash; /**< Offset 0x38. */
   };
-  uint8_t unk_40[28];               // 0x40
-  be_u32 unk_stack_5c;              // 0x5C
-  uint8_t unk_60[12];               // 0x60
-  be_u32 use_alternative_stack;     // 0x6C
-  be_u32 stack_base_ptr;            // 0x70 Stack base address (high addr)
-  be_u32 stack_end_ptr;             // 0x74 Stack end (low addr)
-  be_u32 alt_stack_base_ptr;        // 0x78
-  be_u32 alt_stack_end_ptr;         // 0x7C
-  be_u32 interrupt_handlers[32];    // 0x80
-  X_KPRCB prcb_data;                // 0x100
-  TypedGuestPointer<X_KPRCB> prcb;  // 0x2A8
-  uint8_t unk_2AC[0x2C];            // 0x2AC
+  uint8_t unk_40[28];              /**< Offset 0x40. */
+  be_u32 unk_stack_5c;             /**< Offset 0x5C. */
+  uint8_t unk_60[12];              /**< Offset 0x60. */
+  be_u32 use_alternative_stack;    /**< Offset 0x6C. */
+  be_u32 stack_base_ptr;           /**< Offset 0x70. Stack base address (high addr). */
+  be_u32 stack_end_ptr;            /**< Offset 0x74. Stack end (low addr). */
+  be_u32 alt_stack_base_ptr;       /**< Offset 0x78. */
+  be_u32 alt_stack_end_ptr;        /**< Offset 0x7C. */
+  be_u32 interrupt_handlers[32];   /**< Offset 0x80. */
+  X_KPRCB prcb_data;               /**< Offset 0x100. */
+  TypedGuestPointer<X_KPRCB> prcb; /**< Offset 0x2A8. */
+  uint8_t unk_2AC[0x2C];           /**< Offset 0x2AC. */
 };
 
+/** Guest layout of a kernel thread object. */
 struct X_KTHREAD {
-  X_DISPATCH_HEADER header;          // 0x0
-  be_u32 unk_10;                     // 0x10
-  be_u32 unk_14;                     // 0x14
-  X_KTIMER wait_timeout_timer;       // 0x18
-  X_KWAIT_BLOCK wait_timeout_block;  // 0x40
-  rex::be_u32 kernel_time;           // 0x58
-  be_u32 stack_base;                 // 0x5C
-  be_u32 stack_limit;                // 0x60
-  be_u32 stack_kernel;               // 0x64
-  be_u32 tls_address;                // 0x68
-  uint8_t thread_state;              // 0x6C
-  uint8_t alerted[2];                // 0x6D
-  uint8_t alertable;                 // 0x6F
-  uint8_t priority;                  // 0x70
-  uint8_t fpu_exceptions_on;         // 0x71
-  uint8_t process_type_dup;          // 0x72 (same as process_type below)
-  uint8_t process_type;              // 0x73 (referenced most frequently)
-  // apc_mode determines which list an apc goes into
-  util::X_TYPED_LIST<XAPC, offsetof(XAPC, list_entry)> apc_lists[2];  // 0x74
-  TypedGuestPointer<X_KPROCESS> process;                              // 0x84
-  uint8_t executing_kernel_apc;                                       // 0x88
-  uint8_t deferred_apc_software_interrupt_state;                      // 0x89
-  uint8_t user_apc_pending;                                           // 0x8A
-  uint8_t may_queue_apcs;                                             // 0x8B
-  X_KSPINLOCK apc_lock;                                               // 0x8C
-  be_u32 num_context_switches_to;                                     // 0x90
-  X_LIST_ENTRY ready_prcb_entry;                                      // 0x94
-  be_u32 msr_mask;                                                    // 0x9C
-  rex::be<X_STATUS> wait_result;                                      // 0xA0
-  uint8_t wait_irql;                                                  // 0xA4
-  uint8_t unk_A5[0xB];                                                // 0xA5
-  int32_t apc_disable_count;                                          // 0xB0
-  be_i32 quantum;                                                     // 0xB4
-  uint8_t unk_B8;                                                     // 0xB8
-  uint8_t unk_B9;                                                     // 0xB9
-  uint8_t unk_BA;                                                     // 0xBA
-  uint8_t boost_disabled;                                             // 0xBB
-  uint8_t suspend_count;                                              // 0xBC
-  uint8_t was_preempted;                                              // 0xBD
-  uint8_t terminated;                                                 // 0xBE
-  uint8_t current_cpu;                                                // 0xBF
-  TypedGuestPointer<X_KPRCB> a_prcb_ptr;                              // 0xC0
-  TypedGuestPointer<X_KPRCB> another_prcb_ptr;                        // 0xC4
-  uint8_t unk_C8;                                                     // 0xC8
-  uint8_t unk_C9;                                                     // 0xC9
-  uint8_t unk_CA;                                                     // 0xCA
-  uint8_t unk_CB;                                                     // 0xCB
-  X_KSPINLOCK timer_list_lock;                                        // 0xCC
-  be_u32 stack_alloc_base;                                            // 0xD0
-  XAPC on_suspend;                                                    // 0xD4
-  X_KSEMAPHORE suspend_sema;                                          // 0xFC
-  X_LIST_ENTRY process_threads;                                       // 0x110
-  be_u32 unk_118;                                                     // 0x118
-  X_LIST_ENTRY queue_related;                                         // 0x11C
-  be_u32 unk_124;                                                     // 0x124
-  be_u32 unk_128;                                                     // 0x128
-  be_u32 unk_12C;                                                     // 0x12C
-  be_u64 create_time;                                                 // 0x130
-  be_u64 exit_time;                                                   // 0x138
-  be_u32 exit_status;                                                 // 0x140
-  X_LIST_ENTRY timer_list;                                            // 0x144
-  be_u32 thread_id;                                                   // 0x14C
-  be_u32 start_address;                                               // 0x150
-  X_LIST_ENTRY unk_154;                                               // 0x154
-  uint8_t unk_15C[0x4];                                               // 0x15C
-  be_u32 last_error;                                                  // 0x160
-  be_u32 fiber_ptr;                                                   // 0x164
-  uint8_t unk_168[0x4];                                               // 0x168
-  be_u32 creation_flags;                                              // 0x16C
-  uint8_t unk_170[0xC];                                               // 0x170
-  be_u32 unk_17C;                                                     // 0x17C
-  uint8_t unk_180[0x930];                                             // 0x180
+  X_DISPATCH_HEADER header;         /**< Offset 0x0. */
+  be_u32 unk_10;                    /**< Offset 0x10. */
+  be_u32 unk_14;                    /**< Offset 0x14. */
+  X_KTIMER wait_timeout_timer;      /**< Offset 0x18. */
+  X_KWAIT_BLOCK wait_timeout_block; /**< Offset 0x40. */
+  rex::be_u32 kernel_time;          /**< Offset 0x58. */
+  be_u32 stack_base;                /**< Offset 0x5C. */
+  be_u32 stack_limit;               /**< Offset 0x60. */
+  be_u32 stack_kernel;              /**< Offset 0x64. */
+  be_u32 tls_address;               /**< Offset 0x68. */
+  uint8_t thread_state;             /**< Offset 0x6C. */
+  uint8_t alerted[2];               /**< Offset 0x6D. */
+  uint8_t alertable;                /**< Offset 0x6F. */
+  uint8_t priority;                 /**< Offset 0x70. */
+  uint8_t fpu_exceptions_on;        /**< Offset 0x71. */
+  uint8_t process_type_dup;         /**< Offset 0x72. Same as process_type. */
+  uint8_t process_type;             /**< Offset 0x73. */
+  util::X_TYPED_LIST<XAPC, offsetof(XAPC, list_entry)> apc_lists[2]; /**< Offset 0x74, per mode. */
+  TypedGuestPointer<X_KPROCESS> process;                             /**< Offset 0x84. */
+  uint8_t executing_kernel_apc;                                      /**< Offset 0x88. */
+  uint8_t deferred_apc_software_interrupt_state;                     /**< Offset 0x89. */
+  uint8_t user_apc_pending;                                          /**< Offset 0x8A. */
+  uint8_t may_queue_apcs;                                            /**< Offset 0x8B. */
+  X_KSPINLOCK apc_lock;                                              /**< Offset 0x8C. */
+  be_u32 num_context_switches_to;                                    /**< Offset 0x90. */
+  X_LIST_ENTRY ready_prcb_entry;                                     /**< Offset 0x94. */
+  be_u32 msr_mask;                                                   /**< Offset 0x9C. */
+  rex::be<X_STATUS> wait_result;                                     /**< Offset 0xA0. */
+  uint8_t wait_irql;                                                 /**< Offset 0xA4. */
+  uint8_t unk_A5[0xB];                                               /**< Offset 0xA5. */
+  int32_t apc_disable_count;                                         /**< Offset 0xB0. */
+  be_i32 quantum;                                                    /**< Offset 0xB4. */
+  uint8_t unk_B8;                                                    /**< Offset 0xB8. */
+  uint8_t unk_B9;                                                    /**< Offset 0xB9. */
+  uint8_t unk_BA;                                                    /**< Offset 0xBA. */
+  uint8_t boost_disabled;                                            /**< Offset 0xBB. */
+  uint8_t suspend_count;                                             /**< Offset 0xBC. */
+  uint8_t was_preempted;                                             /**< Offset 0xBD. */
+  uint8_t terminated;                                                /**< Offset 0xBE. */
+  uint8_t current_cpu;                                               /**< Offset 0xBF. */
+  TypedGuestPointer<X_KPRCB> a_prcb_ptr;                             /**< Offset 0xC0. */
+  TypedGuestPointer<X_KPRCB> another_prcb_ptr;                       /**< Offset 0xC4. */
+  uint8_t unk_C8;                                                    /**< Offset 0xC8. */
+  uint8_t unk_C9;                                                    /**< Offset 0xC9. */
+  uint8_t unk_CA;                                                    /**< Offset 0xCA. */
+  uint8_t unk_CB;                                                    /**< Offset 0xCB. */
+  X_KSPINLOCK timer_list_lock;                                       /**< Offset 0xCC. */
+  be_u32 stack_alloc_base;                                           /**< Offset 0xD0. */
+  XAPC on_suspend;                                                   /**< Offset 0xD4. */
+  X_KSEMAPHORE suspend_sema;                                         /**< Offset 0xFC. */
+  X_LIST_ENTRY process_threads;                                      /**< Offset 0x110. */
+  be_u32 unk_118;                                                    /**< Offset 0x118. */
+  X_LIST_ENTRY queue_related;                                        /**< Offset 0x11C. */
+  be_u32 unk_124;                                                    /**< Offset 0x124. */
+  be_u32 unk_128;                                                    /**< Offset 0x128. */
+  be_u32 unk_12C;                                                    /**< Offset 0x12C. */
+  be_u64 create_time;                                                /**< Offset 0x130. */
+  be_u64 exit_time;                                                  /**< Offset 0x138. */
+  be_u32 exit_status;                                                /**< Offset 0x140. */
+  X_LIST_ENTRY timer_list;                                           /**< Offset 0x144. */
+  be_u32 thread_id;                                                  /**< Offset 0x14C. */
+  be_u32 start_address;                                              /**< Offset 0x150. */
+  X_LIST_ENTRY unk_154;                                              /**< Offset 0x154. */
+  uint8_t unk_15C[0x4];                                              /**< Offset 0x15C. */
+  be_u32 last_error;                                                 /**< Offset 0x160. */
+  be_u32 fiber_ptr;                                                  /**< Offset 0x164. */
+  uint8_t unk_168[0x4];                                              /**< Offset 0x168. */
+  be_u32 creation_flags;                                             /**< Offset 0x16C. */
+  uint8_t unk_170[0xC];                                              /**< Offset 0x170. */
+  be_u32 unk_17C;                                                    /**< Offset 0x17C. */
+  uint8_t unk_180[0x930];                                            /**< Offset 0x180. */
 };
 REX_STATIC_ASSERT_SIZE(X_KTHREAD, 0xAB0);
 
 class ThreadRegistry;
 
-/** The table slot data of a thread, naming the record in the registry by thread id. */
+/** The table slot data of a thread, naming the `ThreadRecord` in the registry by thread id. */
 struct ThreadRef : public rex::NonCopyable {
   /**
    * @param thread_id_in The thread id.
-   * @param registry_in The registry that owns the record.
+   * @param registry_in The registry that owns the `ThreadRecord`.
    */
   ThreadRef(u32 thread_id_in, ThreadRegistry* registry_in)
       : thread_id(thread_id_in), registry(registry_in) {}
+  /** Tells the registry the thread lost its handles. */
   REX_RUNTIME_API ~ThreadRef();
 
-  u32 thread_id;
-  ThreadRegistry* registry;
+  u32 thread_id;            /**< Id of the thread whose `ThreadRecord` the registry holds. */
+  ThreadRegistry* registry; /**< Registry told when the thread loses its handles. */
 };
 
 /** A guest thread or a host worker, owned by the thread registry. */
 class REX_RUNTIME_API ThreadRecord : public rex::NonCopyable {
  public:
+  /** Lowest guest address AllocateGuestStack places a stack at. */
   static constexpr u32 kStackAddressRangeBegin = 0x70000000;
+  /** Highest guest address AllocateGuestStack places a stack at, exclusive end of the range. */
   static constexpr u32 kStackAddressRangeEnd = 0x7F000000;
 
+  /** Parameters a guest thread was created with. */
   struct CreationParams {
-    u32 stack_size;
-    u32 xapi_thread_startup;
-    u32 start_address;
-    u32 start_context;
-    u32 creation_flags;
-    u32 guest_process;
+    u32 stack_size;          /**< Guest stack size in bytes, 0 for the process default. */
+    u32 xapi_thread_startup; /**< Guest address of the startup trampoline, 0 for a raw thread. */
+    u32 start_address;       /**< Guest address of the entry point. */
+    u32 start_context;       /**< Argument passed to the entry point. */
+    u32 creation_flags;      /**< Creation flag bits, bit 0 is `X_CREATE_SUSPENDED`. */
+    u32 guest_process;       /**< Guest address of the process block, 0 for the title process. */
   };
 
   /**
-   * Builds a guest thread record. The host thread starts when the registry launches the record.
+   * Builds a guest `ThreadRecord`. The host thread starts when the registry launches the
+   * `ThreadRecord`.
    *
    * @param runtime The runtime the thread belongs to.
    * @param stack_size The guest stack size, 0 for the process default.
@@ -359,7 +383,7 @@ class REX_RUNTIME_API ThreadRecord : public rex::NonCopyable {
                u32 guest_process = 0);
 
   /**
-   * Builds a host worker record.
+   * Builds a host worker `ThreadRecord`.
    *
    * @param runtime The runtime the thread belongs to.
    * @param stack_size The guest stack size.
@@ -368,27 +392,28 @@ class REX_RUNTIME_API ThreadRecord : public rex::NonCopyable {
    */
   ThreadRecord(Runtime& runtime, u32 stack_size, u32 creation_flags,
                std::move_only_function<int()> host_fn);
+  /** Frees the host thread, the scratch block, the stack, the PCR and the kernel thread block. */
   ~ThreadRecord();
 
   /**
-   * Reports whether the calling thread is the given record.
+   * Reports whether the calling thread is the given `ThreadRecord`.
    *
-   * @param other The record.
+   * @param other The `ThreadRecord`.
    * @return True when it is.
    */
   static bool IsInThread(const ThreadRecord* other);
 
   /**
-   * Reports whether the calling thread has a record.
+   * Reports whether the calling thread has a `ThreadRecord`.
    *
    * @return True when it does.
    */
   static bool IsInThread();
 
   /**
-   * Returns the record of the calling thread.
+   * Returns the `ThreadRecord` of the calling thread.
    *
-   * @return The record.
+   * @return The `ThreadRecord`.
    */
   static ThreadRecord* GetCurrentThread();
 
@@ -622,7 +647,7 @@ class REX_RUNTIME_API ThreadRecord : public rex::NonCopyable {
   i32 priority() const { return priority_; }
 
   /**
-   * Queries the host priority.
+   * Returns the host priority.
    *
    * @return The priority.
    */
@@ -722,49 +747,77 @@ class REX_RUNTIME_API ThreadRecord : public rex::NonCopyable {
    */
   runtime::ThreadState* thread_state() { return thread_state_.get(); }
 
-  PinCount pins;
+  PinCount pins; /**< Transient pins that keep the object alive while a caller uses it. */
 
  protected:
+  /** Frees the guest stack and clears the TLS slot count and the stack addresses. */
   void FreeStack();
+  /** Fills the `X_KTHREAD` block of the thread. */
   void InitializeGuestObject();
 
+  /** Removes every queued APC of the thread and calls its rundown routine. */
   void RundownAPCs();
+  /**
+   * Calls the registered thread notify routines.
+   *
+   * @param create True when the thread starts, false when it exits.
+   */
   void CallThreadNotifyRoutines(bool create);
 
+  /** Parameters the thread was created with, read when the thread starts. */
   CreationParams creation_params_ = {0, 0, 0, 0, 0, 0};
 
-  u32 thread_id_ = 0;
+  u32 thread_id_ = 0; /**< Id the registry assigned to the thread. */
+  /** Guest address of the scratch block that carries the arguments of APC kernel routine calls. */
   u32 scratch_address_ = 0;
-  u32 scratch_size_ = 0;
+  u32 scratch_size_ = 0; /**< Size in bytes of the scratch block, 64. */
+  /** Guest address of the static TLS block above the stack, stored in the PCR. */
   u32 tls_static_address_ = 0;
+  /** Guest address of the dynamic TLS slots, placed after the static TLS data. */
   u32 tls_dynamic_address_ = 0;
+  /** Number of 4 byte dynamic TLS slots, read by the TLS accessors for bounds checks. */
   std::atomic<u32> tls_slot_count_{0};
+  /** Guest address of the X_KPCR block of the thread, 0 until the thread is created. */
   u32 pcr_address_ = 0;
+  /** First byte of the stack allocation including the guard page, released by FreeStack. */
   u32 stack_alloc_base_ = 0;
+  /** Highest stack address, where the TLS block starts, stored in the PCR and the X_KTHREAD. */
   u32 stack_base_ = 0;
-  u32 stack_limit_ = 0;
-  bool guest_thread_ = false;
-  bool main_thread_ = false;
-  std::atomic<bool> running_{false};
+  u32 stack_limit_ = 0; /**< Lowest usable stack address, stored in the PCR and the X_KTHREAD. */
+  bool guest_thread_ = false;        /**< True for a guest thread, false for a host worker. */
+  bool main_thread_ = false;         /**< True for the thread that runs the title entry point. */
+  std::atomic<bool> running_{false}; /**< True from the start of the thread body until it ends. */
+  /** True once the thread began exiting, which makes CheckStop return without throwing. */
   std::atomic<bool> exiting_{false};
+  /** Exit code carried by the ThreadStop exception that ends the thread. */
   std::atomic<i32> stop_exit_code_{0};
+  /** Guards stop_requested_, thread_ and thread_state_ against a concurrent stop request. */
   std::mutex stop_mutex_;
+  /** True once a stop was requested, applied to the thread state when it is created. */
   bool stop_requested_ = false;
 
+  /** Name of the thread with its handle appended, guarded by thread_lock_. */
   std::string thread_name_;
+  /** Copy of the name cut to 63 characters, readable by a crash report without locking. */
   std::array<char, 64> crash_name_{};
-  std::atomic<u8> crash_name_length_{0};
+  std::atomic<u8> crash_name_length_{0}; /**< Number of valid characters in crash_name_. */
+  /** Execution state of the thread, created with the stack and the PCR. */
   std::unique_ptr<runtime::ThreadState> thread_state_;
 
-  i32 priority_ = 0;
+  i32 priority_ = 0; /**< Priority increment last passed to SetPriority. */
 
+  /** Guards the suspend count in the X_KTHREAD and suspend_deferred_. */
   std::mutex suspend_mutex_;
+  /** Signalled by Resume to release a thread waiting in a deferred suspend. */
   std::condition_variable suspend_cv_;
+  /** True when Suspend could not stop the thread, which suspends itself at its next CheckStop. */
   std::atomic<bool> suspend_deferred_{false};
 
-  std::mutex thread_lock_;
+  std::mutex thread_lock_; /**< Guards thread_name_, crash_name_ and the host thread name. */
 
+  /** Host thread that runs the guest thread, null before the thread starts. */
   std::unique_ptr<rex::platform::Thread> thread_ = nullptr;
+  /** Fiber the host thread was converted to, destroyed when the thread exits. */
   rex::platform::Fiber* main_fiber_ = nullptr;
 
  private:

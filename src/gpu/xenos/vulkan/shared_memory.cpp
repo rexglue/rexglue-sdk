@@ -48,7 +48,6 @@ bool VulkanSharedMemory::Initialize() {
   const VkBufferCreateFlags sparse_flags =
       VK_BUFFER_CREATE_SPARSE_BINDING_BIT | VK_BUFFER_CREATE_SPARSE_RESIDENCY_BIT;
 
-  // Try to create a sparse buffer.
   VkBufferCreateInfo buffer_create_info;
   buffer_create_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
   buffer_create_info.pNext = nullptr;
@@ -72,15 +71,11 @@ bool VulkanSharedMemory::Initialize() {
                                        static_cast<uint64_t>(1)),
                               &allocation_size_log2);
         if (allocation_size_log2 < kBufferSizeLog2) {
-          // Maximum of 1024 allocations in the worst case for all of the
-          // buffer because of the overall 4096 allocation count limit on
-          // Windows drivers.
+          // Windows drivers cap allocations at 4096 in total, so use at most 1024 here.
           InitializeSparseHostGpuMemory(std::max(
               allocation_size_log2, std::max(kHostGpuMemoryOptimalSparseAllocationLog2,
                                              kBufferSizeLog2 - static_cast<uint32_t>(10))));
         } else {
-          // Shouldn't happen on any real platform, but no point allocating the
-          // buffer sparsely.
           dfn.vkDestroyBuffer(device, buffer_, nullptr);
           buffer_ = VK_NULL_HANDLE;
         }
@@ -97,7 +92,6 @@ bool VulkanSharedMemory::Initialize() {
     }
   }
 
-  // Create a non-sparse buffer if there were issues with the sparse buffer.
   if (buffer_ == VK_NULL_HANDLE) {
     REXLOG_INFO(gpu,
                 "Vulkan sparse binding is not used for shared memory emulation - video "
@@ -157,7 +151,6 @@ bool VulkanSharedMemory::Initialize() {
     }
   }
 
-  // The first usage will likely be uploading.
   last_usage_ = Usage::kTransferDestination;
   last_written_range_ = std::make_pair<uint32_t, uint32_t>(0, 0);
 
@@ -182,8 +175,6 @@ void VulkanSharedMemory::Shutdown(bool from_destructor) {
   }
   buffer_memory_.clear();
 
-  // If calling from the destructor, the SharedMemory destructor will call
-  // ShutdownCommon.
   if (!from_destructor) {
     ShutdownCommon();
   }
@@ -208,14 +199,10 @@ void VulkanSharedMemory::Use(Usage usage, std::pair<uint32_t, uint32_t> written_
     GetUsageMasks(usage, dst_stage_mask, dst_access_mask);
     VkDeviceSize offset, size;
     if (last_usage_ == usage) {
-      // Committing the previous write, while not changing the access mask
-      // (passing false as whether to skip the barrier if no masks are changed
-      // for this reason).
       offset = VkDeviceSize(last_written_range_.first);
       size = VkDeviceSize(last_written_range_.second);
     } else {
-      // Changing the stage and access mask - all preceding writes must be
-      // available not only to the source stage, but to the destination as well.
+      // All preceding writes must be available to the destination stage as well as the source.
       offset = 0;
       size = VK_WHOLE_SIZE;
       last_usage_ = usage;
@@ -272,8 +259,7 @@ bool VulkanSharedMemory::UploadRanges(
   if (upload_page_ranges.empty()) {
     return true;
   }
-  // upload_page_ranges are sorted, use them to determine the range for the
-  // ordering barrier.
+  // upload_page_ranges are sorted, so front and back bound the ordering barrier range.
   Use(Usage::kTransferDestination,
       std::make_pair(upload_page_ranges.front().first << page_size_log2(),
                      (upload_page_ranges.back().first + upload_page_ranges.back().second -

@@ -1,12 +1,3 @@
-/**
- * @file        ui/sdl3/overlay/achievement_toast.cpp
- *
- * @copyright   Copyright (c) 2026 Rien Gupta <rgupta9@scu.edu>
- *              All rights reserved.
- *
- * @license     BSD 3-Clause License
- *              See LICENSE file in the project root for full license text.
- */
 #include "ui/sdl3/overlay/achievement_toast.h"
 #include <imgui.h>
 
@@ -73,7 +64,6 @@ void AchievementToastDialog::OnDraw(ImGuiIO& io) {
   ImGuiWindowFlags flags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoNav |
                            ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings |
                            ImGuiWindowFlags_NoInputs;
-  // Colors carry the fade envelope; the style holds them at full opacity.
   auto faded = [alpha](Color c) { return ToImVec4(c.WithAlpha(c.a * alpha)); };
 
   ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, metrics.toast_rounding);

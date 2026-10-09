@@ -1,14 +1,3 @@
-/**
- * @file        codegen/project_recompiler.cpp
- * @brief       Project-level recompiler driving manifest-based multi-binary codegen
- *
- * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
- *              All rights reserved.
- *
- * @license     BSD 3-Clause License
- *              See LICENSE file in the project root for full license text.
- */
-
 #include <rex/codegen/project_recompiler.h>
 
 #include <algorithm>
@@ -188,9 +177,7 @@ Result<void> ProjectRecompiler::Run(const ProjectRecompilerOptions& opts) {
     }
   }
 
-  // Two binaries sharing an out_directory_path would clobber each other's
-  // sources.cmake on emit (the writer's cleanup sweep is unprefixed for
-  // that file).
+  // Binaries sharing an out_directory_path would clobber each other's sources.cmake on emit.
   std::unordered_map<std::string, std::string> outDirOwner;
   for (const auto& m : targeted) {
     const auto& outDir = m.config.outDirectoryPath;
@@ -215,8 +202,6 @@ Result<void> ProjectRecompiler::Run(const ProjectRecompilerOptions& opts) {
   }
   entryXexPath = fs::canonical(entryXexPath);
 
-  // gameRoot anchors VFS root and DLL guest_path derivation. Honor the
-  // manifest override if set; otherwise default to the entrypoint's parent.
   fs::path gameRoot;
   if (manifest_.gameRoot && !manifest_.gameRoot->empty()) {
     fs::path resolved = configDir / *manifest_.gameRoot;
@@ -465,7 +450,7 @@ Result<void> ProjectRecompiler::Run(const ProjectRecompilerOptions& opts) {
       stamp_text += fingerprint;
       stamp_text += '\n';
     }
-    // Never WriteIfChanged: the build rule re-runs until this mtime passes its inputs.
+    // Never WriteIfChanged, as the build rule reruns until this mtime passes its inputs.
     if (!WriteFileBytes(buildStamp, stamp_text)) {
       return Err<void>(ErrorCategory::IO, std::format("Failed to write {}", buildStamp.string()));
     }

@@ -31,7 +31,7 @@ using rex::operator^=;
 /** The provider that serves a mount. */
 enum class ProviderKind : u32 {
   kHostDirectory, /**< A host folder. */
-  kSTFS,          /**< An STFS or SVOD package file, told apart by the header. */
+  kSTFS,          /**< An STFS or SVOD package file, detected from the header. */
   kDiscImage,     /**< A GDFX disc image. */
   kNull,          /**< Answers a fixed list of paths with empty files. */
 };

@@ -1,4 +1,3 @@
-#pragma once
 /**
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
@@ -9,6 +8,8 @@
  *
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
+
+#pragma once
 
 #include <atomic>
 #include <cassert>
@@ -22,7 +23,7 @@
 
 #include <rex/macros.h>
 #include <rex/memory/utils.h>
-#include <rex/ppc/func.h>  // PPCFunc type
+#include <rex/ppc/func.h>
 #include <rex/platform/lock_order.h>
 #include <rex/types.h>
 
@@ -56,9 +57,15 @@ constexpr u32 RemovePhysicalHostOffset(std::size_t host_offset) noexcept {
 
 namespace rex::runtime {
 
-/// Lightweight guest-to-host pointer translation using the memory base.
-/// For hooks and kernel code operating with the base pointer directly.
-/// Same raw arithmetic as recompiled code; no Memory* or heap lookup needed.
+/**
+ * Translates a guest address to a host pointer from the memory base, with the same arithmetic as
+ * recompiled code and without a Memory or heap lookup.
+ *
+ * @tparam T The pointer type to return.
+ * @param base The host base of guest memory.
+ * @param guest_address The guest address.
+ * @return The host pointer.
+ */
 template <typename T = u8*>
 inline T GuestPtr(u8* base, u32 guest_address) noexcept {
   return reinterpret_cast<T>(base + guest_address + detail::PhysicalHostOffset(guest_address));
@@ -66,165 +73,263 @@ inline T GuestPtr(u8* base, u32 guest_address) noexcept {
 
 class Memory;
 
+/** Selects the heap that SystemHeapAlloc takes memory from. */
 enum SystemHeapFlag : uint32_t {
-  kSystemHeapVirtual = 1 << 0,
-  kSystemHeapPhysical = 1 << 1,
+  kSystemHeapVirtual = 1 << 0,  /**< Virtual heap. */
+  kSystemHeapPhysical = 1 << 1, /**< Physical heap. */
 
-  kSystemHeapDefault = kSystemHeapVirtual,
+  kSystemHeapDefault = kSystemHeapVirtual, /**< Virtual heap. */
 };
 
+/** Address range that a heap manages. */
 enum class HeapType : uint8_t {
-  kGuestVirtual,
-  kGuestXex,
-  kGuestPhysical,
+  kGuestVirtual,  /**< Guest virtual memory. */
+  kGuestXex,      /**< Memory that executable images are mapped into. */
+  kGuestPhysical, /**< Physical memory views. */
 };
 
+/** Bits of an allocation request. */
 enum MemoryAllocationFlag : uint32_t {
-  kMemoryAllocationReserve = 1 << 0,
-  kMemoryAllocationCommit = 1 << 1,
+  kMemoryAllocationReserve = 1 << 0, /**< Reserve address space. */
+  kMemoryAllocationCommit = 1 << 1,  /**< Commit pages. */
   /** Counts the newly committed pages against the title memory budget. */
   kMemoryAllocationTitle = 1 << 2,
 };
 
+/** Bits of a page protection. */
 enum MemoryProtectFlag : uint32_t {
-  kMemoryProtectRead = 1 << 0,
-  kMemoryProtectWrite = 1 << 1,
-  kMemoryProtectNoCache = 1 << 2,
-  kMemoryProtectWriteCombine = 1 << 3,
+  kMemoryProtectRead = 1 << 0,         /**< Read access. */
+  kMemoryProtectWrite = 1 << 1,        /**< Write access. */
+  kMemoryProtectNoCache = 1 << 2,      /**< Uncached access. */
+  kMemoryProtectWriteCombine = 1 << 3, /**< Write combined access. */
 
-  kMemoryProtectNoAccess = 0,
+  kMemoryProtectNoAccess = 0, /**< No access. */
 };
 
-// Equivalent to the Win32 MEMORY_BASIC_INFORMATION struct.
+/** Equivalent to the Win32 MEMORY_BASIC_INFORMATION struct. */
 struct HeapAllocationInfo {
-  // A pointer to the base address of the region of pages.
-  uint32_t base_address;
-  // A pointer to the base address of a range of pages allocated by the
-  // VirtualAlloc function. The page pointed to by the BaseAddress member is
-  // contained within this allocation range.
+  uint32_t base_address; /**< Base address of the queried pages. */
+  /** Base address of the allocation range that contains base_address. */
   uint32_t allocation_base;
-  // The memory protection option when the region was initially allocated.
+  /** Protection when the region was first allocated. */
   uint32_t allocation_protect;
-  // The size specified when the region was initially allocated, in bytes.
+  /** Size in bytes when the region was first allocated. */
   uint32_t allocation_size;
-  // The size of the region beginning at the base address in which all pages
-  // have identical attributes, in bytes.
+  /** Size in bytes from base_address of the pages with identical attributes. */
   uint32_t region_size;
-  // The state of the pages in the region (commit/free/reserve).
+  /** Commit, free or reserve state of the pages. */
   uint32_t state;
-  // The access protection of the pages in the region.
-  uint32_t protect;
+  uint32_t protect; /**< Current protection, MemoryProtectFlag bits. */
 };
 
-// Describes a single page in the page table.
+/** Describes a single page in the page table. */
 union PageEntry {
-  uint64_t qword;
+  uint64_t qword; /**< The whole entry read or written as 1 64 bit value. */
   struct {
-    // Base address of the allocated region in 4k pages.
+    /** Base page of the allocated region in 4 KB pages. */
     uint32_t base_address : 20;
-    // Total number of pages in the allocated region in 4k pages.
+    /** Page count of the allocated region in 4 KB pages. */
     uint32_t region_page_count : 20;
-    // Protection bits specified during region allocation.
-    // Composed of bits from MemoryProtectFlag.
+    /** MemoryProtectFlag bits given at allocation. */
     uint32_t allocation_protect : 4;
-    // Current protection bits as of the last Protect.
-    // Composed of bits from MemoryProtectFlag.
+    /** MemoryProtectFlag bits as of the last Protect. */
     uint32_t current_protect : 4;
-    // Allocation state of the page as a MemoryAllocationFlag bit mask.
+    /** MemoryAllocationFlag bit mask of the page state. */
     uint32_t state : 2;
     /** Set on a committed page that counts against the title memory budget. */
     uint32_t title : 1;
-    uint32_t reserved : 13;
+    uint32_t reserved : 13; /**< Unused. */
   };
 };
 
-// Heap abstraction for page-based allocation.
+/** Heap abstraction for page based allocation. */
 class REX_RUNTIME_API BaseHeap {
  public:
+  /** Destroys the heap without releasing committed pages, which Dispose does. */
   virtual ~BaseHeap();
 
-  // Offset of the heap in relative to membase, without host_address_offset
-  // adjustment.
+  /**
+   * Returns the heap offset relative to membase, without the host_address_offset adjustment.
+   *
+   * @return The offset in bytes.
+   */
   uint32_t heap_base() const { return heap_base_; }
 
-  // Length of the heap range.
+  /**
+   * Returns the length of the heap range.
+   *
+   * @return The length in bytes.
+   */
   uint32_t heap_size() const { return heap_size_; }
 
-  // Size of each page within the heap range in bytes.
+  /**
+   * Returns the size of each page in the heap.
+   *
+   * @return The size in bytes.
+   */
   uint32_t page_size() const { return page_size_; }
 
-  // Type of specified heap
   HeapType heap_type() const { return heap_type_; }
 
-  // Offset added to the virtual addresses to convert them to host addresses
-  // (not including membase).
+  /**
+   * Returns the offset added to guest virtual addresses to convert them to host addresses, not
+   * including membase.
+   *
+   * @return The offset.
+   */
   uint32_t host_address_offset() const { return host_address_offset_; }
 
+  /**
+   * Translates an offset from the heap base to a host pointer.
+   *
+   * @tparam T The pointer type to return.
+   * @param relative_address Offset in bytes from the heap base.
+   * @return The host pointer.
+   */
   template <typename T = uint8_t*>
   inline T TranslateRelative(size_t relative_address) const {
     return reinterpret_cast<T>(membase_ + heap_base_ + host_address_offset_ + relative_address);
   }
 
-  // Disposes and decommits all memory and clears the page table.
+  /** Disposes and decommits all memory and clears the page table. */
   virtual void Dispose();
 
   uint32_t total_page_count() const { return static_cast<uint32_t>(page_table_.size()); }
   uint32_t unreserved_page_count() const { return unreserved_page_count_; }
   uint32_t reserved_page_count() const { return total_page_count() - unreserved_page_count(); }
 
-  // Allocates pages with the given properties and allocation strategy.
-  // This can reserve and commit the pages as well as set protection modes.
-  // This will fail if not enough contiguous pages can be found.
+  /**
+   * Allocates pages with the given properties and allocation strategy. Can reserve and commit the
+   * pages and set protection modes. Fails when not enough contiguous pages are found.
+   *
+   * @param size Size in bytes.
+   * @param alignment Alignment in bytes.
+   * @param allocation_type MemoryAllocationFlag bits.
+   * @param protect MemoryProtectFlag bits.
+   * @param top_down True to allocate from the top of the heap.
+   * @param out_address Receives the allocated guest address.
+   * @return True on success.
+   */
   virtual bool Alloc(uint32_t size, uint32_t alignment, uint32_t allocation_type, uint32_t protect,
                      bool top_down, uint32_t* out_address);
 
-  // Allocates pages at the given address.
-  // This can reserve and commit the pages as well as set protection modes.
-  // This will fail if the pages are already allocated.
+  /**
+   * Allocates pages at the given address. Can reserve and commit the pages and set protection
+   * modes. Fails when the pages are allocated.
+   *
+   * @param base_address Guest address to allocate at.
+   * @param size Size in bytes.
+   * @param alignment Alignment in bytes.
+   * @param allocation_type MemoryAllocationFlag bits.
+   * @param protect MemoryProtectFlag bits.
+   * @return True on success.
+   */
   virtual bool AllocFixed(uint32_t base_address, uint32_t size, uint32_t alignment,
                           uint32_t allocation_type, uint32_t protect);
 
-  // Allocates pages at an address within the given address range.
-  // This can reserve and commit the pages as well as set protection modes.
-  // This will fail if not enough contiguous pages can be found.
+  /**
+   * Allocates pages at an address within the given address range. Can reserve and commit the pages
+   * and set protection modes. Fails when not enough contiguous pages are found.
+   *
+   * @param low_address Lowest acceptable guest address.
+   * @param high_address Highest acceptable guest address.
+   * @param size Size in bytes.
+   * @param alignment Alignment in bytes.
+   * @param allocation_type MemoryAllocationFlag bits.
+   * @param protect MemoryProtectFlag bits.
+   * @param top_down True to allocate from the top of the range.
+   * @param out_address Receives the allocated guest address.
+   * @return True on success.
+   */
   virtual bool AllocRange(uint32_t low_address, uint32_t high_address, uint32_t size,
                           uint32_t alignment, uint32_t allocation_type, uint32_t protect,
                           bool top_down, uint32_t* out_address);
 
-  // Allocates from the system portion of the heap (top of virtual heaps).
-  // Physical heaps delegate to regular Alloc since there is no split.
+  /**
+   * Allocates from the system portion of the heap, the top of virtual heaps. Physical heaps
+   * delegate to Alloc as they have no split.
+   *
+   * @param size Size in bytes.
+   * @param alignment Alignment in bytes.
+   * @param allocation_type MemoryAllocationFlag bits.
+   * @param protect MemoryProtectFlag bits.
+   * @param top_down True to allocate from the top of the heap.
+   * @param out_address Receives the allocated guest address.
+   * @return True on success.
+   */
   virtual bool AllocSystemHeap(uint32_t size, uint32_t alignment, uint32_t allocation_type,
                                uint32_t protect, bool top_down, uint32_t* out_address);
 
-  // Decommits pages in the given range.
-  // Partial overlapping pages will also be decommitted.
+  /**
+   * Decommits pages in the given range. Partially overlapped pages are decommitted.
+   *
+   * @param address Guest address of the range.
+   * @param size Size in bytes.
+   * @return True on success.
+   */
   virtual bool Decommit(uint32_t address, uint32_t size);
 
-  // Decommits and releases pages in the given range.
-  // Partial overlapping pages will also be released.
+  /**
+   * Decommits and releases pages in the given range. Partially overlapped pages are released.
+   *
+   * @param address Guest address in the region.
+   * @param out_region_size Receives the size of the released region.
+   * @return True on success.
+   */
   virtual bool Release(uint32_t address, uint32_t* out_region_size = nullptr);
 
-  // Modifies the protection mode of pages within the given range.
+  /**
+   * Modifies the protection mode of pages within the given range.
+   *
+   * @param address Guest address of the range.
+   * @param size Size in bytes.
+   * @param protect MemoryProtectFlag bits.
+   * @param old_protect Receives the previous protection.
+   * @return True on success.
+   */
   virtual bool Protect(uint32_t address, uint32_t size, uint32_t protect,
                        uint32_t* old_protect = nullptr);
 
-  // Queries information about the given region of pages.
+  /**
+   * Returns information about the given region of pages.
+   *
+   * @param base_address Guest address in the region.
+   * @param out_info Receives the region information.
+   * @return True on success.
+   */
   bool QueryRegionInfo(uint32_t base_address, HeapAllocationInfo* out_info);
 
-  // Queries the size of the region containing the given address.
+  /**
+   * Returns the size of the region containing the given address.
+   *
+   * @param address Guest address in the region.
+   * @param out_size Receives the size in bytes.
+   * @return True on success.
+   */
   bool QuerySize(uint32_t address, uint32_t* out_size);
 
-  // Queries the current protection mode of the region containing the given
-  // address.
+  /**
+   * Returns the current protection mode of the region containing the given address.
+   *
+   * @param address Guest address in the region.
+   * @param out_protect Receives the MemoryProtectFlag bits.
+   * @return True on success.
+   */
   bool QueryProtect(uint32_t address, uint32_t* out_protect);
 
-  // Queries the strictest readability and writability for the entire
-  // range.
+  /**
+   * Returns the strictest readability and writability for the entire range.
+   *
+   * @param low_address Lowest guest address of the range.
+   * @param high_address Highest guest address of the range.
+   * @return The page access.
+   */
   rex::memory::PageAccess QueryRangeAccess(uint32_t low_address, uint32_t high_address);
 
  protected:
   friend class PhysicalHeap;
 
+  /** Constructs an uninitialized heap. */
   BaseHeap();
 
   /**
@@ -303,73 +408,202 @@ class REX_RUNTIME_API BaseHeap {
    */
   bool ProtectLocked(uint32_t address, uint32_t size, uint32_t protect, uint32_t* old_protect);
 
-  // Whether a host page is write-watched for guest invalidation.
-  // SyncHostPageAccess must not restore write access to such a page: the watch
-  // is stored in a flag that EnableAccessCallbacks checks before re-applying
-  // protection, so silently unprotecting here would disable the watch forever.
-  // Only PhysicalHeap tracks this; every other heap has no watch state.
+  /**
+   * Reports whether a host page is write watched for guest invalidation.
+   *
+   * SyncHostPageAccess must not restore write access to such a page. The watch is stored in a flag
+   * that EnableAccessCallbacks checks before re-applying protection, so unprotecting here would
+   * disable the watch permanently. Only PhysicalHeap tracks this, every other heap has no watch
+   * state.
+   *
+   * @param host_page_number The host page number.
+   * @return True when the page is watched.
+   */
   virtual bool IsHostPageWriteWatched([[maybe_unused]] u32 host_page_number) const { return false; }
 
+  /**
+   * Initializes the heap properties and allocates the page table.
+   *
+   * @param memory The owning memory system.
+   * @param membase The host base of guest memory.
+   * @param heap_type The heap type.
+   * @param heap_base The heap offset relative to membase.
+   * @param heap_size The heap length in bytes.
+   * @param page_size The page size in bytes.
+   * @param host_address_offset The offset added to guest addresses to give host addresses.
+   */
   void Initialize(runtime::Memory* memory, uint8_t* membase, HeapType heap_type, uint32_t heap_base,
                   uint32_t heap_size, uint32_t page_size, uint32_t host_address_offset = 0);
 
-  runtime::Memory* memory_;
-  uint8_t* membase_;
-  HeapType heap_type_;
-  uint32_t heap_base_;
-  uint32_t heap_size_;
-  uint32_t page_size_;
+  runtime::Memory* memory_; /**< Memory system that owns the heap, source of the host page size. */
+  uint8_t* membase_;        /**< Host address of the start of guest memory. */
+  HeapType heap_type_;      /**< Heap type given to Initialize. */
+  uint32_t heap_base_;      /**< Guest address of the first byte of the heap. */
+  uint32_t heap_size_;      /**< Length of the heap in bytes. */
+  uint32_t page_size_;      /**< Size of 1 heap page in bytes. */
+  /** Base 2 logarithm of page_size_, shifts a heap offset into a page number. */
   uint32_t page_size_shift_ = 0;
+  /** Offset added to guest addresses to give host addresses, given to Initialize. */
   uint32_t host_address_offset_;
+  /** Number of pages not reserved, falls when pages are reserved and rises when released. */
   uint32_t unreserved_page_count_ = 0;
-  std::recursive_mutex heap_mutex_;
-  std::vector<PageEntry> page_table_;
+  std::recursive_mutex heap_mutex_;   /**< Guards the page table and the counters of the heap. */
+  std::vector<PageEntry> page_table_; /**< 1 entry for each heap page. */
 };
 
-// Normal heap allowing allocations from guest virtual address ranges.
+/** Normal heap allowing allocations from guest virtual address ranges. */
 class REX_RUNTIME_API VirtualHeap : public BaseHeap {
  public:
+  /** Constructs an uninitialized heap. */
   VirtualHeap();
+  /** Destroys the heap. */
   ~VirtualHeap() override;
 
-  // Initializes the heap properties and allocates the page table.
+  /**
+   * Initializes the heap properties and allocates the page table.
+   *
+   * @param memory The owning memory system.
+   * @param membase The host base of guest memory.
+   * @param heap_type The heap type.
+   * @param heap_base The heap offset relative to membase.
+   * @param heap_size The heap length in bytes.
+   * @param page_size The page size in bytes.
+   */
   void Initialize(runtime::Memory* memory, uint8_t* membase, HeapType heap_type, uint32_t heap_base,
                   uint32_t heap_size, uint32_t page_size);
 };
 
-// A heap for ranges of memory that are mapped to physical ranges.
-// Physical ranges are used by the audio and graphics subsystems representing
-// hardware wired directly to memory in the console.
-//
-// The physical heap and the behavior of sharing pages with virtual pages is
-// implemented by having a 'parent' heap that is used to perform allocation in
-// the guest virtual address space 1:1 with the physical address space.
+/**
+ * A heap for ranges of memory mapped to physical ranges, used by the audio and graphics subsystems
+ * for hardware wired to memory.
+ *
+ * Sharing pages with virtual pages works through a parent heap that performs allocation in the
+ * guest virtual address space 1:1 with the physical address space.
+ */
 class REX_RUNTIME_API PhysicalHeap : public BaseHeap {
  public:
+  /** Constructs an uninitialized heap. */
   PhysicalHeap();
+  /** Destroys the heap. */
   ~PhysicalHeap() override;
 
-  // Initializes the heap properties and allocates the page table.
+  /**
+   * Initializes the heap properties and allocates the page table.
+   *
+   * @param memory The owning memory system.
+   * @param membase The host base of guest memory.
+   * @param heap_type The heap type.
+   * @param heap_base The heap offset relative to membase.
+   * @param heap_size The heap length in bytes.
+   * @param page_size The page size in bytes.
+   * @param parent_heap The heap that performs allocation in the guest virtual address space.
+   */
   void Initialize(runtime::Memory* memory, uint8_t* membase, HeapType heap_type, uint32_t heap_base,
                   uint32_t heap_size, uint32_t page_size, VirtualHeap* parent_heap);
 
+  /**
+   * Allocates pages in the parent heap and maps them at the matching address of this heap.
+   *
+   * @param size Size in bytes.
+   * @param alignment Alignment in bytes.
+   * @param allocation_type MemoryAllocationFlag bits.
+   * @param protect MemoryProtectFlag bits.
+   * @param top_down Ignored, allocation always runs from the top of the heap.
+   * @param out_address Receives the allocated guest address.
+   * @return True on success.
+   */
   bool Alloc(uint32_t size, uint32_t alignment, uint32_t allocation_type, uint32_t protect,
              bool top_down, uint32_t* out_address) override;
+  /**
+   * Allocates pages at the given address in the parent heap and in this heap.
+   *
+   * @param base_address Guest address to allocate at.
+   * @param size Size in bytes.
+   * @param alignment Alignment in bytes.
+   * @param allocation_type MemoryAllocationFlag bits.
+   * @param protect MemoryProtectFlag bits.
+   * @return True on success.
+   */
   bool AllocFixed(uint32_t base_address, uint32_t size, uint32_t alignment,
                   uint32_t allocation_type, uint32_t protect) override;
+  /**
+   * Allocates pages within an address range in the parent heap and in this heap.
+   *
+   * @param low_address Lowest acceptable guest address.
+   * @param high_address Highest acceptable guest address.
+   * @param size Size in bytes.
+   * @param alignment Alignment in bytes.
+   * @param allocation_type MemoryAllocationFlag bits.
+   * @param protect MemoryProtectFlag bits.
+   * @param top_down True to allocate from the top of the range.
+   * @param out_address Receives the allocated guest address.
+   * @return True on success.
+   */
   bool AllocRange(uint32_t low_address, uint32_t high_address, uint32_t size, uint32_t alignment,
                   uint32_t allocation_type, uint32_t protect, bool top_down,
                   uint32_t* out_address) override;
+  /**
+   * Allocates with Alloc, as physical heaps have no system portion.
+   *
+   * @param size Size in bytes.
+   * @param alignment Alignment in bytes.
+   * @param allocation_type MemoryAllocationFlag bits.
+   * @param protect MemoryProtectFlag bits.
+   * @param top_down Ignored, allocation always runs from the top of the heap.
+   * @param out_address Receives the allocated guest address.
+   * @return True on success.
+   */
   bool AllocSystemHeap(uint32_t size, uint32_t alignment, uint32_t allocation_type,
                        uint32_t protect, bool top_down, uint32_t* out_address) override;
+  /**
+   * Decommits pages in the parent heap and in this heap, invalidating watched pages.
+   *
+   * @param address Guest address of the range.
+   * @param size Size in bytes.
+   * @return True on success.
+   */
   bool Decommit(uint32_t address, uint32_t size) override;
+  /**
+   * Releases the region in the parent heap and in this heap, invalidating watched pages.
+   *
+   * @param base_address Guest address in the region.
+   * @param out_region_size Receives the size of the released region.
+   * @return True on success.
+   */
   bool Release(uint32_t base_address, uint32_t* out_region_size = nullptr) override;
+  /**
+   * Changes protection in the parent heap and in this heap.
+   * Watched pages are invalidated when the range becomes writable.
+   *
+   * @param address Guest address of the range.
+   * @param size Size in bytes.
+   * @param protect MemoryProtectFlag bits.
+   * @param old_protect Receives the previous protection.
+   * @return True on success.
+   */
   bool Protect(uint32_t address, uint32_t size, uint32_t protect,
                uint32_t* old_protect = nullptr) override;
 
+  /**
+   * Enables write invalidation notifications for the system pages of a physical range.
+   *
+   * @param physical_address Start of the physical range.
+   * @param length Size of the range in bytes.
+   * @param enable_invalidation_notifications True to notify when the title writes the range.
+   * @param enable_data_providers True to enable data providers, which are unsupported.
+   */
   void EnableAccessCallbacks(uint32_t physical_address, uint32_t length,
                              bool enable_invalidation_notifications, bool enable_data_providers);
-  // Returns true if any page in the range was watched.
+  /**
+   * Triggers the physical memory access callbacks of the watched pages in a range.
+   *
+   * @param virtual_address Guest address of the range.
+   * @param length Length in bytes.
+   * @param is_write True for a write access.
+   * @param unwatch_exact_range True to unwatch only the requested range.
+   * @param unprotect True to restore host write access.
+   * @return True when any page in the range was watched.
+   */
   bool TriggerCallbacks(uint32_t virtual_address, uint32_t length, bool is_write,
                         bool unwatch_exact_range, bool unprotect = true);
 
@@ -386,25 +620,46 @@ class REX_RUNTIME_API PhysicalHeap : public BaseHeap {
   bool TriggerCallbacksLocked(uint32_t virtual_address, uint32_t length, bool is_write,
                               bool unwatch_exact_range, bool unprotect = true);
 
+  /**
+   * Translates a guest address in this heap to its physical address.
+   *
+   * @param address Guest address in this heap.
+   * @return The physical address, offset by 0x1000 in the 0xE0000000 view.
+   */
   uint32_t GetPhysicalAddress(uint32_t address) const;
 
  protected:
+  /**
+   * Reports whether a host page is write watched for guest invalidation.
+   *
+   * @param host_page_number The host page number.
+   * @return True when the page is watched.
+   */
   bool IsHostPageWriteWatched(uint32_t host_page_number) const override;
 
+  /**
+   * Takes the memory watch lock when this heap or its parent has
+   * guest pages smaller than host pages.
+   *
+   * @return The held lock, or an empty lock when neither does.
+   */
   std::unique_lock<rex::platform::RankedMutex> AcquireHostPageReconcileLock() const override;
 
-  VirtualHeap* parent_heap_;
+  VirtualHeap* parent_heap_; /**< Virtual heap whose pages back this physical heap. */
 
-  uint32_t system_page_size_;
+  uint32_t system_page_size_; /**< Host page size in bytes. */
+  /** Number of host pages that cover the heap including host_address_offset_. */
   uint32_t system_page_count_;
 
+  /** Watch flags for 64 system pages. */
   struct SystemPageFlagsBlock {
-    // Whether writing to each page should result trigger invalidation
-    // callbacks.
+    /** Set bits mark the pages whose writes trigger invalidation callbacks. */
     uint64_t notify_on_invalidation;
   };
-  // Protected by Memory::watch_mutex(). Flags for each 64 system pages,
-  // interleaved as blocks, so bit scan can be used to quickly extract ranges.
+  /**
+   * Guarded by Memory::watch_mutex(). Flags for each 64 system pages, interleaved as blocks for bit
+   * scans.
+   */
   std::vector<SystemPageFlagsBlock> system_page_flags_;
 };
 
@@ -418,35 +673,43 @@ enum class AccessViolationResult : u8 {
   Unhandled,
 };
 
-// Models the entire guest memory system on the console.
-// This exposes interfaces to both virtual and physical memory and a TLB and
-// page table for allocation, mapping, and protection.
-//
-// The memory is backed by a memory mapped file and is placed at a stable
-// fixed address in the host address space (like 0x100000000). This allows
-// efficient guest<->host address translations as well as easy sharing of the
-// memory across subsystems.
-//
-// The guest memory address space is split into several ranges that have varying
-// properties such as page sizes, caching strategies, protections, and
-// overlap with other ranges. Each range is represented by a BaseHeap of either
-// VirtualHeap or PhysicalHeap depending on type. Heaps model the page tables
-// and can handle reservation and committing of requested pages.
+/**
+ * Models the guest memory system. Exposes virtual and physical memory with a TLB and a page table
+ * for allocation, mapping and protection.
+ *
+ * The memory is backed by a memory mapped file at a stable fixed address in the host address space,
+ * which gives cheap guest to host address translation and sharing across subsystems.
+ *
+ * The guest address space is split into ranges with their own page sizes, caching strategies,
+ * protections and overlaps. Each range is a BaseHeap, either a VirtualHeap or a PhysicalHeap by
+ * type, which models the page table and handles reserving and committing pages.
+ */
 class REX_RUNTIME_API Memory {
  public:
+  /** Constructs the memory system and registers it as the active instance. */
   Memory();
+  /** Disposes the heaps, unmaps the views and unregisters the memory system. */
   ~Memory();
 
-  // Initializes the memory system.
-  // This may fail if the host address space could not be reserved or the
-  // mapping to the file system fails.
+  /**
+   * Initializes the memory system.
+   *
+   * @return False when the host address space cannot be reserved or the file mapping fails.
+   */
   bool Initialize();
 
-  // Full file name and path of the memory-mapped file backing all memory.
+  /**
+   * Returns the file name and path of the memory mapped file backing all memory.
+   *
+   * @return The path.
+   */
   const std::filesystem::path& file_name() const { return file_name_; }
 
-  // Base address of virtual memory in the host address space.
-  // This is often something like 0x100000000.
+  /**
+   * Returns the base address of virtual memory in the host address space.
+   *
+   * @return The host base.
+   */
   inline uint8_t* virtual_membase() const { return virtual_membase_; }
 
   /**
@@ -464,33 +727,67 @@ class REX_RUNTIME_API Memory {
     return GuestPtr<T>(virtual_membase_, guest_address);
   }
 
-  // Base address of physical memory in the host address space.
-  // This is often something like 0x200000000.
+  /**
+   * Returns the base address of physical memory in the host address space.
+   *
+   * @return The host base.
+   */
   inline uint8_t* physical_membase() const { return physical_membase_; }
 
-  // Translates a guest physical address to a host address that can be accessed
-  // as a normal pointer.
-  // Note that the contents at the specified host address are big-endian.
+  /**
+   * Translates a guest physical address to a host address that can be accessed as a normal pointer.
+   * The contents at the host address are big endian.
+   *
+   * @tparam T The pointer type to return.
+   * @param guest_address The guest physical address.
+   * @return The host address.
+   */
   template <typename T = uint8_t*>
   inline T TranslatePhysical(uint32_t guest_address) const {
     return reinterpret_cast<T>(physical_membase_ + (guest_address & 0x1FFFFFFF));
   }
 
-  // Translates a host address to a guest virtual address.
-  // Note that the contents at the returned host address are big-endian.
+  /**
+   * Translates a host address to a guest virtual address. The contents at the host address are big
+   * endian.
+   *
+   * @param host_address The host address.
+   * @return The guest virtual address.
+   */
   uint32_t HostToGuestVirtual(const void* host_address) const;
 
-  // Returns the guest physical address for the guest virtual address, or
-  // UINT32_MAX if it can't be obtained.
+  /**
+   * Returns the guest physical address for a guest virtual address.
+   *
+   * @param address The guest virtual address.
+   * @return The guest physical address, or UINT32_MAX when it cannot be obtained.
+   */
   uint32_t GetPhysicalAddress(uint32_t address) const;
 
-  // Zeros out a range of memory at the given guest address.
+  /**
+   * Zeros a range of memory at the given guest address.
+   *
+   * @param address The guest address.
+   * @param size Size in bytes.
+   */
   void Zero(uint32_t address, uint32_t size) const;
 
-  // Fills a range of guest memory with the given byte value.
+  /**
+   * Fills a range of guest memory with a byte value.
+   *
+   * @param address The guest address.
+   * @param size Size in bytes.
+   * @param value The byte value.
+   */
   void Fill(uint32_t address, uint32_t size, uint8_t value) const;
 
-  // Copies a non-overlapping range of guest memory (like a memcpy).
+  /**
+   * Copies a non overlapping range of guest memory, like memcpy.
+   *
+   * @param dest The destination guest address.
+   * @param src The source guest address.
+   * @param size Size in bytes.
+   */
   void Copy(uint32_t dest, uint32_t src, uint32_t size) const;
 
   /**
@@ -503,68 +800,58 @@ class REX_RUNTIME_API Memory {
    */
   AccessViolationResult HandleAccessViolation(void* host_address, bool is_write);
 
-  // Physical memory access callbacks, two types of them.
-  //
-  // This is simple per-system-page protection without reference counting or
-  // stored ranges. Whenever a watched page is accessed, all callbacks for it
-  // are triggered. Also the only way to remove callbacks is to trigger them
-  // somehow. Since there are no references from pages to individual callbacks,
-  // there's no way to disable only a specific callback for a page. Also
-  // callbacks may be triggered spuriously, and handlers should properly ignore
-  // pages they don't care about.
-  //
-  // Once callbacks are triggered for a page, the page is not watched anymore
-  // until requested again later. It is, however, unwatched only in one guest
-  // view of physical memory (because different views may have different
-  // protection for the same memory) - but it's rare when the same memory is
-  // used with different guest page sizes, and it's okay to fire a callback more
-  // than once.
-  //
-  // Only accessing the guest virtual memory views of physical memory triggers
-  // callbacks - data providers, for instance, must write to the host physical
-  // heap directly, otherwise their threads may infinitely await themselves.
-  //
-  // - Invalidation notifications:
-  //
-  // Protecting from writing. One-shot callbacks for invalidation of
-  // kinds of physical memory caches (such as the GPU copy of the memory).
-  //
-  // May be triggered for a single page (in case of a write access violation or
-  // when need to synchronize data given by data providers) or for multiple
-  // pages (like when memory is released, or explicitly to trigger callbacks
-  // when host-side code can't rely on regular access violations, like when
-  // accessing a file).
-  //
-  // Since granularity of callbacks is one single page, an invalidation
-  // notification handler must invalidate the all the data stored in the touched
-  // pages.
-  //
-  // Because large ranges (like whole framebuffers) may be written to and
-  // exceptions are expensive, it's better to unprotect multiple pages as a
-  // result of a write access violation, so the shortest common range returned
-  // by all the invalidation callbacks (clamped to a sane range and also not to
-  // touch pages with provider callbacks) is unprotected.
-  //
-  // - Data providers:
-  //
-  // TODO(Triang3l): Implement data providers - more complicated because they
-  // will need to be able to release the global lock.
-
-  // Returns start and length of the smallest physical memory region surrounding
-  // the watched region that can be safely unwatched, if it doesn't matter,
-  // return (0, UINT32_MAX).
+  /**
+   * Callback for physical memory invalidation notifications.
+   *
+   * Physical memory access callbacks use per system page protection without reference counting or
+   * stored ranges. An access to a watched page triggers all callbacks for it. Callbacks can only be
+   * removed by triggering them, and may fire spuriously or more than once, so handlers ignore pages
+   * they do not track. After a trigger the page is unwatched, in 1 guest view of physical memory
+   * only, until requested again. Only accesses through the guest virtual views of physical memory
+   * trigger callbacks, so data providers write through the host physical heap or their threads
+   * may wait on themselves.
+   *
+   * Invalidation notifications are one shot callbacks for invalidating physical memory caches such
+   * as the GPU copy. They fire for a single page on a write access violation or when data providers
+   * synchronize, and for many pages when memory is released or when host code triggers them,
+   * as when accessing a file. The granularity is 1 page, so a handler invalidates all
+   * data stored in the touched pages. Large ranges such as framebuffers are costly to fault on, so
+   * a write fault unprotects the shortest common range returned by all invalidation callbacks,
+   * clamped to a sane size and excluding pages with provider callbacks.
+   *
+   * @param context_ptr The context given at registration.
+   * @param physical_address_start The start of the watched region.
+   * @param length The length of the watched region in bytes.
+   * @param exact_range True when only the exact range is being unwatched.
+   * @return The start and length of the smallest physical memory region around the watched region
+   * that can be safely unwatched, or (0, UINT32_MAX) when it does not matter.
+   */
   using PhysicalMemoryInvalidationCallback = std::pair<uint32_t, uint32_t> (*)(
       void* context_ptr, uint32_t physical_address_start, uint32_t length, bool exact_range);
-  // Returns a handle for unregistering or for skipping one notification handler
-  // while triggering data providers.
+  /**
+   * Registers a physical memory invalidation callback.
+   *
+   * @param callback The callback.
+   * @param callback_context The context passed to the callback.
+   * @return A handle for unregistering.
+   */
   void* RegisterPhysicalMemoryInvalidationCallback(PhysicalMemoryInvalidationCallback callback,
                                                    void* callback_context);
-  // Unregisters a physical memory invalidation callback previously added with
-  // RegisterPhysicalMemoryInvalidationCallback.
+  /**
+   * Unregisters a callback added with RegisterPhysicalMemoryInvalidationCallback.
+   *
+   * @param callback_handle The handle returned at registration.
+   */
   void UnregisterPhysicalMemoryInvalidationCallback(void* callback_handle);
 
-  // Enables physical memory access callbacks for the specified memory range,
-  // snapped to system page boundaries.
+  /**
+   * Enables physical memory access callbacks for a memory range, snapped to system page boundaries.
+   *
+   * @param physical_address The guest physical address of the range.
+   * @param length Length in bytes.
+   * @param enable_invalidation_notifications True to enable invalidation notifications.
+   * @param enable_data_providers True to enable data providers.
+   */
   void EnablePhysicalMemoryAccessCallbacks(uint32_t physical_address, uint32_t length,
                                            bool enable_invalidation_notifications,
                                            bool enable_data_providers);
@@ -578,32 +865,73 @@ class REX_RUNTIME_API Memory {
    */
   rex::platform::RankedMutex& watch_mutex() { return watch_mutex_; }
 
-  // Allocates virtual memory from the 'system' heap.
-  // System memory is kept separate from game memory but is still accessible
-  // using normal guest virtual addresses. Kernel structures and other internal
-  // 'system' allocations should come from this heap when possible.
+  /**
+   * Allocates virtual memory from the system heap. System memory is kept separate from title memory
+   * but is reachable with normal guest virtual addresses. Kernel structures and other internal
+   * allocations come from this heap when possible.
+   *
+   * @param size Size in bytes.
+   * @param alignment Alignment in bytes.
+   * @param system_heap_flags SystemHeapFlag bits.
+   * @return The guest address of the allocation.
+   */
   uint32_t SystemHeapAlloc(uint32_t size, uint32_t alignment = 0x20,
                            uint32_t system_heap_flags = kSystemHeapDefault);
 
-  // Frees memory allocated with SystemHeapAlloc.
+  /**
+   * Frees memory allocated with SystemHeapAlloc.
+   *
+   * @param address Guest address of the allocation.
+   * @param out_region_size Receives the size of the freed region.
+   */
   void SystemHeapFree(uint32_t address, uint32_t* out_region_size = nullptr);
 
-  // Gets the heap for the address space containing the given address.
+  /**
+   * Returns the heap for the address space containing the given address.
+   *
+   * @param address The guest address.
+   * @return The heap.
+   */
   const BaseHeap* LookupHeap(uint32_t address) const;
 
+  /**
+   * Returns the heap for the address space containing the given address.
+   *
+   * @param address The guest address.
+   * @return The heap.
+   */
   inline BaseHeap* LookupHeap(uint32_t address) {
     return const_cast<BaseHeap*>(const_cast<const runtime::Memory*>(this)->LookupHeap(address));
   }
 
-  // Gets the heap with the given properties.
+  /**
+   * Returns the heap with the given properties.
+   *
+   * @param physical True for a physical heap.
+   * @param page_size The page size in bytes.
+   * @return The heap.
+   */
   BaseHeap* LookupHeapByType(bool physical, uint32_t page_size);
 
-  // Aggregates page statistics across the given heaps.
+  /**
+   * Aggregates page statistics across the given heaps.
+   *
+   * @param provided_heaps The heaps.
+   * @param heaps_count The number of heaps.
+   * @param unreserved_pages Receives the unreserved page count.
+   * @param reserved_pages Receives the reserved page count.
+   * @param used_pages Receives the used page count.
+   * @param reserved_bytes Receives the reserved size in bytes.
+   */
   void GetHeapsPageStatsSummary(const BaseHeap* const* provided_heaps, size_t heaps_count,
                                 uint32_t& unreserved_pages, uint32_t& reserved_pages,
                                 uint32_t& used_pages, uint32_t& reserved_bytes);
 
-  // Gets the physical base heap.
+  /**
+   * Returns the physical base heap.
+   *
+   * @return The heap.
+   */
   VirtualHeap* GetPhysicalHeap();
 
   /**
@@ -627,16 +955,33 @@ class REX_RUNTIME_API Memory {
    */
   [[nodiscard]] u32 budget_pages() const;
 
-  //==========================================================================
-  // Recompiled Code Function Table API
-  //==========================================================================
-  // Per-module function dispatch table at IMAGE_BASE + IMAGE_SIZE, indexed by
-  // (guest_addr - code_base) * 2. Internally locked: callers may invoke from
-  // any thread.
+  /**
+   * Initializes the per module function dispatch table at IMAGE_BASE + IMAGE_SIZE, indexed by
+   * (guest_addr - code_base) * 2. The function table calls are internally locked and may be made
+   * from any thread.
+   *
+   * @param code_base The first guest address of the code.
+   * @param code_size The code size in bytes.
+   * @param image_base The guest address of the image.
+   * @param image_size The image size in bytes.
+   * @return True on success.
+   */
   bool InitializeFunctionTable(uint32_t code_base, uint32_t code_size, uint32_t image_base,
                                uint32_t image_size);
+  /**
+   * Removes the function table of a module and releases its pages.
+   *
+   * @param code_base The first guest address of the code, as given to InitializeFunctionTable.
+   * @return False when no table is registered for code_base.
+   */
   bool DestroyFunctionTable(uint32_t code_base);
-  // Returns false if guest_address is outside every registered module range.
+  /**
+   * Sets the host function for a guest address.
+   *
+   * @param guest_address The guest address.
+   * @param host_function The host function.
+   * @return False when guest_address is outside every registered module range.
+   */
   bool SetFunction(uint32_t guest_address, PPCFunc* host_function);
 
  private:

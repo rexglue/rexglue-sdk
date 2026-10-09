@@ -118,7 +118,7 @@ class D3D12ImmediateDrawer final : public ImmediateDrawer {
   D3D12_CPU_DESCRIPTOR_HANDLE sampler_heap_cpu_start_;
   D3D12_GPU_DESCRIPTOR_HANDLE sampler_heap_gpu_start_;
 
-  // Only with non-null resources.
+  /** Holds only textures with non-null resources. */
   std::vector<D3D12ImmediateTexture*> textures_;
 
   struct PendingTextureUpload {
@@ -143,11 +143,8 @@ class D3D12ImmediateDrawer final : public ImmediateDrawer {
   std::unique_ptr<D3D12UploadBufferPool> vertex_buffer_pool_;
   std::unique_ptr<D3D12DescriptorHeapPool> texture_descriptor_pool_;
 
-  // The submission index within the current Begin (or the last, if outside
-  // one).
+  /** Submission index within the current Begin, or of the last Begin when outside one. */
   UINT64 last_paint_submission_index_ = 0;
-  // Completed submission index as of the latest Begin, to coarsely skip delayed
-  // texture deletion.
   UINT64 last_completed_submission_index_ = 0;
 
   bool batch_open_ = false;

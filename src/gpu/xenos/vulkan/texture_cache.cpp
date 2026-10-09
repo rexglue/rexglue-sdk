@@ -36,7 +36,6 @@
 
 namespace rex::gpu::vulkan {
 
-// Generated with `xb buildshaders`.
 namespace shaders {
 #include "../shaders/vulkan_spirv/texture_load_128bpb_cs.h"
 #include "../shaders/vulkan_spirv/texture_load_128bpb_scaled_cs.h"
@@ -98,8 +97,7 @@ namespace shaders {
 
 namespace {
 
-// Keep invalid fetch constant texture reads aligned with D3D12 null SRV
-// descriptors, which force all sampled channels to 0.
+// Invalid fetch constant reads sample 0 in all channels.
 constexpr VkFormat kInvalidTextureFetchFallbackFormat = VK_FORMAT_R8G8B8A8_UNORM;
 const VkClearColorValue kInvalidTextureFetchFallbackColor = {{0.0f, 0.0f, 0.0f, 0.0f}};
 
@@ -118,18 +116,15 @@ const VulkanTextureCache::HostFormatPair VulkanTextureCache::kBestHostFormats[64
      {kLoadShaderIndex8bpb, VK_FORMAT_R8_SNORM},
      xenos::REXGPU_SWIZZLE_RRRR,
      true},
-    // k_1_5_5_5
-    // Red and blue swapped in the load shader for simplicity.
+    // k_1_5_5_5, red and blue swapped in the load shader.
     {{kLoadShaderIndexR5G5B5A1ToB5G5R5A1, VK_FORMAT_A1R5G5B5_UNORM_PACK16},
      {kLoadShaderIndexUnknown},
      xenos::REXGPU_SWIZZLE_RGBA},
-    // k_5_6_5
-    // Red and blue swapped in the load shader for simplicity.
+    // k_5_6_5, red and blue swapped in the load shader.
     {{kLoadShaderIndexR5G6B5ToB5G6R5, VK_FORMAT_R5G6B5_UNORM_PACK16},
      {kLoadShaderIndexUnknown},
      xenos::REXGPU_SWIZZLE_RGBB},
-    // k_6_5_5
-    // On the host, green bits in blue, blue bits in green.
+    // k_6_5_5, host green bits in blue and blue bits in green.
     {{kLoadShaderIndexR5G5B6ToB5G6R5WithRBGASwizzle, VK_FORMAT_R5G6B5_UNORM_PACK16},
      {kLoadShaderIndexUnknown},
      REXGPU_SWIZZLE(R, B, G, G)},
@@ -138,8 +133,7 @@ const VulkanTextureCache::HostFormatPair VulkanTextureCache::kBestHostFormats[64
      {kLoadShaderIndex32bpb, VK_FORMAT_R8G8B8A8_SNORM},
      xenos::REXGPU_SWIZZLE_RGBA,
      true},
-    // k_2_10_10_10
-    // Signed 2_10_10_10 is unsupported on D3D12, keep Vulkan behavior aligned.
+    // k_2_10_10_10, no signed variant.
     {{kLoadShaderIndex32bpb, VK_FORMAT_A2B10G10R10_UNORM_PACK32},
      {kLoadShaderIndexUnknown},
      xenos::REXGPU_SWIZZLE_RGBA},
@@ -155,91 +149,65 @@ const VulkanTextureCache::HostFormatPair VulkanTextureCache::kBestHostFormats[64
      {kLoadShaderIndex16bpb, VK_FORMAT_R8G8_SNORM},
      xenos::REXGPU_SWIZZLE_RGGG,
      true},
-    // k_Cr_Y1_Cb_Y0_REP
-    // VK_FORMAT_G8B8G8R8_422_UNORM (added in
-    // VK_KHR_sampler_ycbcr_conversion and promoted to Vulkan 1.1) is
-    // optional.
-    // Signed variant is unsupported on D3D12.
+    // k_Cr_Y1_Cb_Y0_REP, VK_FORMAT_G8B8G8R8_422_UNORM is optional, no signed variant.
     {{kLoadShaderIndex32bpb, VK_FORMAT_G8B8G8R8_422_UNORM, true},
      {kLoadShaderIndexUnknown},
      xenos::REXGPU_SWIZZLE_RGBB},
-    // k_Y1_Cr_Y0_Cb_REP
-    // VK_FORMAT_B8G8R8G8_422_UNORM (added in
-    // VK_KHR_sampler_ycbcr_conversion and promoted to Vulkan 1.1) is
-    // optional.
-    // Signed variant is unsupported on D3D12.
+    // k_Y1_Cr_Y0_Cb_REP, VK_FORMAT_B8G8R8G8_422_UNORM is optional, no signed variant.
     {{kLoadShaderIndex32bpb, VK_FORMAT_B8G8R8G8_422_UNORM, true},
      {kLoadShaderIndexUnknown},
      xenos::REXGPU_SWIZZLE_RGBB},
-    // k_16_16_EDRAM
-    // Not usable as a texture, also has -32...32 range.
+    // k_16_16_EDRAM, not usable as a texture, also has -32...32 range.
     {{kLoadShaderIndexUnknown}, {kLoadShaderIndexUnknown}, xenos::REXGPU_SWIZZLE_RGGG},
     // k_8_8_8_8_A
     {{kLoadShaderIndexUnknown}, {kLoadShaderIndexUnknown}, xenos::REXGPU_SWIZZLE_RGBA},
-    // k_4_4_4_4
-    // Components swapped in the load shader for simplicity.
+    // k_4_4_4_4, components swapped in the load shader.
     {{kLoadShaderIndexRGBA4ToARGB4, VK_FORMAT_B4G4R4A4_UNORM_PACK16},
      {kLoadShaderIndexUnknown},
      xenos::REXGPU_SWIZZLE_RGBA},
-    // k_10_11_11
-    // Runtime fallback to float16 may be enabled if normalized RGBA16 host
-    // formats are not linearly filterable.
+    // k_10_11_11, float16 without filterable RGBA16 UNORM.
     {{kLoadShaderIndexR11G11B10ToRGBA16, VK_FORMAT_R16G16B16A16_UNORM},
      {kLoadShaderIndexR11G11B10ToRGBA16SNorm, VK_FORMAT_R16G16B16A16_SNORM},
      xenos::REXGPU_SWIZZLE_RGBB},
-    // k_11_11_10
-    // Runtime fallback to float16 may be enabled if normalized RGBA16 host
-    // formats are not linearly filterable.
+    // k_11_11_10, float16 without filterable RGBA16 UNORM.
     {{kLoadShaderIndexR10G11B11ToRGBA16, VK_FORMAT_R16G16B16A16_UNORM},
      {kLoadShaderIndexR10G11B11ToRGBA16SNorm, VK_FORMAT_R16G16B16A16_SNORM},
      xenos::REXGPU_SWIZZLE_RGBB},
-    // k_DXT1
-    // VK_FORMAT_BC1_RGBA_UNORM_BLOCK is optional.
+    // k_DXT1, VK_FORMAT_BC1_RGBA_UNORM_BLOCK is optional.
     {{kLoadShaderIndex64bpb, VK_FORMAT_BC1_RGBA_UNORM_BLOCK, true},
      {kLoadShaderIndexUnknown},
      xenos::REXGPU_SWIZZLE_RGBA},
-    // k_DXT2_3
-    // VK_FORMAT_BC2_UNORM_BLOCK is optional.
+    // k_DXT2_3, VK_FORMAT_BC2_UNORM_BLOCK is optional.
     {{kLoadShaderIndex128bpb, VK_FORMAT_BC2_UNORM_BLOCK, true},
      {kLoadShaderIndexUnknown},
      xenos::REXGPU_SWIZZLE_RGBA},
-    // k_DXT4_5
-    // VK_FORMAT_BC3_UNORM_BLOCK is optional.
+    // k_DXT4_5, VK_FORMAT_BC3_UNORM_BLOCK is optional.
     {{kLoadShaderIndex128bpb, VK_FORMAT_BC3_UNORM_BLOCK, true},
      {kLoadShaderIndexUnknown},
      xenos::REXGPU_SWIZZLE_RGBA},
-    // k_16_16_16_16_EDRAM
-    // Not usable as a texture, also has -32...32 range.
+    // k_16_16_16_16_EDRAM, not usable as a texture, also has -32...32 range.
     {{kLoadShaderIndexUnknown}, {kLoadShaderIndexUnknown}, xenos::REXGPU_SWIZZLE_RGBA},
-    // k_24_8
-    // Keep signed and unsigned sampling on the same R32 float descriptor path
-    // for parity with D3D12.
+    // k_24_8, signed and unsigned share the R32 float descriptor path.
     {{kLoadShaderIndexDepthUnorm, VK_FORMAT_R32_SFLOAT},
      {kLoadShaderIndexDepthUnorm, VK_FORMAT_R32_SFLOAT},
      xenos::REXGPU_SWIZZLE_RRRR,
      true},
-    // k_24_8_FLOAT
-    // Keep signed and unsigned sampling on the same R32 float descriptor path
-    // for parity with D3D12.
+    // k_24_8_FLOAT, signed and unsigned share the R32 float descriptor path.
     {{kLoadShaderIndexDepthFloat, VK_FORMAT_R32_SFLOAT},
      {kLoadShaderIndexDepthFloat, VK_FORMAT_R32_SFLOAT},
      xenos::REXGPU_SWIZZLE_RRRR,
      true},
-    // k_16
-    // VK_FORMAT_R16_UNORM and VK_FORMAT_R16_SNORM are optional.
+    // k_16, VK_FORMAT_R16_UNORM and VK_FORMAT_R16_SNORM are optional.
     {{kLoadShaderIndex16bpb, VK_FORMAT_R16_UNORM},
      {kLoadShaderIndex16bpb, VK_FORMAT_R16_SNORM},
      xenos::REXGPU_SWIZZLE_RRRR,
      true},
-    // k_16_16
-    // VK_FORMAT_R16G16_UNORM and VK_FORMAT_R16G16_SNORM are optional.
+    // k_16_16, VK_FORMAT_R16G16_UNORM and VK_FORMAT_R16G16_SNORM are optional.
     {{kLoadShaderIndex32bpb, VK_FORMAT_R16G16_UNORM},
      {kLoadShaderIndex32bpb, VK_FORMAT_R16G16_SNORM},
      xenos::REXGPU_SWIZZLE_RGGG,
      true},
-    // k_16_16_16_16
-    // VK_FORMAT_R16G16B16A16_UNORM and VK_FORMAT_R16G16B16A16_SNORM are
-    // optional.
+    // k_16_16_16_16, VK_FORMAT_R16G16B16A16_UNORM and VK_FORMAT_R16G16B16A16_SNORM are optional.
     {{kLoadShaderIndex64bpb, VK_FORMAT_R16G16B16A16_UNORM},
      {kLoadShaderIndex64bpb, VK_FORMAT_R16G16B16A16_SNORM},
      xenos::REXGPU_SWIZZLE_RGBA,
@@ -315,8 +283,7 @@ const VulkanTextureCache::HostFormatPair VulkanTextureCache::kBestHostFormats[64
     {{kLoadShaderIndexUnknown}, {kLoadShaderIndexUnknown}, xenos::REXGPU_SWIZZLE_RRRR},
     // k_16_16_MPEG_INTERLACED
     {{kLoadShaderIndexUnknown}, {kLoadShaderIndexUnknown}, xenos::REXGPU_SWIZZLE_RGGG},
-    // k_DXN
-    // VK_FORMAT_BC5_UNORM_BLOCK is optional.
+    // k_DXN, VK_FORMAT_BC5_UNORM_BLOCK is optional.
     {{kLoadShaderIndex128bpb, VK_FORMAT_BC5_UNORM_BLOCK, true},
      {kLoadShaderIndexUnknown},
      xenos::REXGPU_SWIZZLE_RGGG},
@@ -325,35 +292,27 @@ const VulkanTextureCache::HostFormatPair VulkanTextureCache::kBestHostFormats[64
      {kLoadShaderIndex32bpb, VK_FORMAT_R8G8B8A8_SNORM},
      xenos::REXGPU_SWIZZLE_RGBA,
      true},
-    // k_DXT1_AS_16_16_16_16
-    // VK_FORMAT_BC1_RGBA_UNORM_BLOCK is optional.
+    // k_DXT1_AS_16_16_16_16, VK_FORMAT_BC1_RGBA_UNORM_BLOCK is optional.
     {{kLoadShaderIndex64bpb, VK_FORMAT_BC1_RGBA_UNORM_BLOCK, true},
      {kLoadShaderIndexUnknown},
      xenos::REXGPU_SWIZZLE_RGBA},
-    // k_DXT2_3_AS_16_16_16_16
-    // VK_FORMAT_BC2_UNORM_BLOCK is optional.
+    // k_DXT2_3_AS_16_16_16_16, VK_FORMAT_BC2_UNORM_BLOCK is optional.
     {{kLoadShaderIndex128bpb, VK_FORMAT_BC2_UNORM_BLOCK, true},
      {kLoadShaderIndexUnknown},
      xenos::REXGPU_SWIZZLE_RGBA},
-    // k_DXT4_5_AS_16_16_16_16
-    // VK_FORMAT_BC3_UNORM_BLOCK is optional.
+    // k_DXT4_5_AS_16_16_16_16, VK_FORMAT_BC3_UNORM_BLOCK is optional.
     {{kLoadShaderIndex128bpb, VK_FORMAT_BC3_UNORM_BLOCK, true},
      {kLoadShaderIndexUnknown},
      xenos::REXGPU_SWIZZLE_RGBA},
-    // k_2_10_10_10_AS_16_16_16_16
-    // Signed 2_10_10_10 is unsupported on D3D12, keep Vulkan behavior aligned.
+    // k_2_10_10_10_AS_16_16_16_16, no signed variant.
     {{kLoadShaderIndex32bpb, VK_FORMAT_A2B10G10R10_UNORM_PACK32},
      {kLoadShaderIndexUnknown},
      xenos::REXGPU_SWIZZLE_RGBA},
-    // k_10_11_11_AS_16_16_16_16
-    // Runtime fallback to float16 may be enabled if normalized RGBA16 host
-    // formats are not linearly filterable.
+    // k_10_11_11_AS_16_16_16_16, float16 without filterable RGBA16 UNORM.
     {{kLoadShaderIndexR11G11B10ToRGBA16, VK_FORMAT_R16G16B16A16_UNORM},
      {kLoadShaderIndexR11G11B10ToRGBA16SNorm, VK_FORMAT_R16G16B16A16_SNORM},
      xenos::REXGPU_SWIZZLE_RGBB},
-    // k_11_11_10_AS_16_16_16_16
-    // Runtime fallback to float16 may be enabled if normalized RGBA16 host
-    // formats are not linearly filterable.
+    // k_11_11_10_AS_16_16_16_16, float16 without filterable RGBA16 UNORM.
     {{kLoadShaderIndexR10G11B11ToRGBA16, VK_FORMAT_R16G16B16A16_UNORM},
      {kLoadShaderIndexR10G11B11ToRGBA16SNorm, VK_FORMAT_R16G16B16A16_SNORM},
      xenos::REXGPU_SWIZZLE_RGBB},
@@ -363,8 +322,7 @@ const VulkanTextureCache::HostFormatPair VulkanTextureCache::kBestHostFormats[64
     {{kLoadShaderIndexDXT3A, VK_FORMAT_R8_UNORM},
      {kLoadShaderIndexUnknown},
      xenos::REXGPU_SWIZZLE_RRRR},
-    // k_DXT5A
-    // VK_FORMAT_BC4_UNORM_BLOCK is optional.
+    // k_DXT5A, VK_FORMAT_BC4_UNORM_BLOCK is optional.
     {{kLoadShaderIndex64bpb, VK_FORMAT_BC4_UNORM_BLOCK, true},
      {kLoadShaderIndexUnknown},
      xenos::REXGPU_SWIZZLE_RRRR},
@@ -376,16 +334,13 @@ const VulkanTextureCache::HostFormatPair VulkanTextureCache::kBestHostFormats[64
     {{kLoadShaderIndexDXT3AAs1111ToARGB4, VK_FORMAT_B4G4R4A4_UNORM_PACK16},
      {kLoadShaderIndexUnknown},
      xenos::REXGPU_SWIZZLE_RGBA},
-    // k_8_8_8_8_GAMMA_EDRAM
-    // Not usable as a texture.
+    // k_8_8_8_8_GAMMA_EDRAM, not usable as a texture.
     {{kLoadShaderIndexUnknown}, {kLoadShaderIndexUnknown}, xenos::REXGPU_SWIZZLE_RGBA},
-    // k_2_10_10_10_FLOAT_EDRAM
-    // Not usable as a texture.
+    // k_2_10_10_10_FLOAT_EDRAM, not usable as a texture.
     {{kLoadShaderIndexUnknown}, {kLoadShaderIndexUnknown}, xenos::REXGPU_SWIZZLE_RGBA},
 };
 
-// Vulkan requires 2x1 (4:2:2) subsampled images to have an even width.
-// Always decompressing them to RGBA8 UNORM for D3D12 parity.
+// 4:2:2 subsampled images need an even width on Vulkan, so unaligned ones decompress to RGBA8.
 
 const VulkanTextureCache::HostFormatPair VulkanTextureCache::kHostFormatGBGRUnaligned = {
     {kLoadShaderIndexGBGR8ToRGB8, VK_FORMAT_R8G8B8A8_UNORM, false, true},
@@ -399,8 +354,6 @@ const VulkanTextureCache::HostFormatPair VulkanTextureCache::kHostFormatBGRGUnal
     xenos::REXGPU_SWIZZLE_RGBB,
     false};
 
-// Keep BC unaligned fallback mapping compatible with the D3D12 texture cache
-// decompression mapping.
 const VulkanTextureCache::HostFormatPair VulkanTextureCache::kHostFormatDXT1Unaligned = {
     {kLoadShaderIndexDXT1ToRGBA8, VK_FORMAT_R8G8B8A8_UNORM, false, true},
     {kLoadShaderIndexUnknown},
@@ -481,8 +434,7 @@ VulkanTextureCache::~VulkanTextureCache() {
     dfn.vkDestroyPipelineLayout(device, load_pipeline_layout_, nullptr);
   }
 
-  // Textures memory is allocated using the Vulkan Memory Allocator, destroy all
-  // textures before destroying VMA.
+  // Destroy all textures before VMA, which allocated their memory.
   DestroyAllTextures(true);
 
   if (vma_allocator_ != VK_NULL_HANDLE) {
@@ -556,7 +508,7 @@ void VulkanTextureCache::RequestTextures(uint32_t used_texture_mask) {
 
   TextureCache::RequestTextures(used_texture_mask);
 
-  // Pre-create 3D-as-2D wrappers while still in texture request phase.
+  // 3D as 2D wrappers are created in the texture request phase.
   if (REXCVAR_GET(::rex::gpu::cvars::texture_3d_to_2d)) {
     uint32_t textures_3d = used_texture_mask;
     uint32_t index_3d;
@@ -577,7 +529,6 @@ void VulkanTextureCache::RequestTextures(uint32_t used_texture_mask) {
     }
   }
 
-  // Transition the textures into the needed usage.
   VkPipelineStageFlags dst_stage_mask;
   VkAccessFlags dst_access_mask;
   VkImageLayout new_layout;
@@ -593,7 +544,6 @@ void VulkanTextureCache::RequestTextures(uint32_t used_texture_mask) {
     }
     VulkanTexture* binding_texture = static_cast<VulkanTexture*>(binding->texture);
     if (binding_texture != nullptr) {
-      // Will be referenced by the command buffer, so mark as used.
       binding_texture->MarkAsUsed();
       VulkanTexture::Usage old_usage =
           binding_texture->SetUsage(VulkanTexture::Usage::kGuestShaderSampled);
@@ -708,7 +658,6 @@ VulkanTextureCache::SamplerParameters VulkanTextureCache::GetSamplerParameters(
   aniso_filter = std::min(aniso_filter, max_anisotropy_);
   if (parameters.mag_linear || parameters.min_linear || parameters.mip_linear ||
       aniso_filter != xenos::AnisoFilter::kDisabled) {
-    // Check if the texture is filterable on the host.
     bool linear_filterable = true;
     TextureKey texture_key;
     uint8_t texture_swizzled_signs;
@@ -747,7 +696,7 @@ VulkanTextureCache::SamplerParameters VulkanTextureCache::GetSamplerParameters(
   }
   aniso_filter = std::min(aniso_filter, max_anisotropy_);
   if (aniso_filter != xenos::AnisoFilter::kDisabled) {
-    // Match D3D12 behavior: anisotropic filtering forces linear min/mag/mip.
+    // Anisotropic filtering forces linear min, mag and mip filters.
     parameters.mag_linear = 1;
     parameters.min_linear = 1;
     parameters.mip_linear = 1;
@@ -761,14 +710,11 @@ VkSampler VulkanTextureCache::UseSampler(SamplerParameters parameters, bool& has
   REX_ASSERT(command_processor_.submission_open());
   uint64_t submission_current = command_processor_.GetCurrentSubmission();
 
-  // Try to find an existing sampler.
   auto it_existing = samplers_.find(parameters);
   if (it_existing != samplers_.end()) {
     std::pair<const SamplerParameters, Sampler>& sampler = *it_existing;
     REX_ASSERT(sampler.second.last_usage_submission <= submission_current);
-    // This is called frequently, don't relink unless needed for caching.
     if (sampler.second.last_usage_submission < submission_current) {
-      // Move to the front of the LRU queue.
       sampler.second.last_usage_submission = submission_current;
       if (sampler.second.used_next) {
         if (sampler.second.used_previous) {
@@ -791,8 +737,6 @@ VkSampler VulkanTextureCache::UseSampler(SamplerParameters parameters, bool& has
   const gpu::vulkan::VulkanDevice::Functions& dfn = vulkan_device->functions();
   const VkDevice device = vulkan_device->device();
 
-  // See if an existing sampler can be destroyed to create space for the new
-  // one.
   if (samplers_.size() >= sampler_max_count_) {
     REX_ASSERT(sampler_used_first_ != nullptr);
     if (!sampler_used_first_) {
@@ -821,7 +765,6 @@ VkSampler VulkanTextureCache::UseSampler(SamplerParameters parameters, bool& has
     sampler_used_first_ = sampler_used_first_->second.used_next;
     REX_ASSERT(it_reuse != samplers_.end());
     if (it_reuse != samplers_.end()) {
-      // This destroys the Sampler object.
       samplers_.erase(it_reuse);
       REX_PROFILE_PLOT("gpu/texture_cache/vulkan/samplers", samplers_.size());
     } else {
@@ -830,9 +773,7 @@ VkSampler VulkanTextureCache::UseSampler(SamplerParameters parameters, bool& has
     }
   }
 
-  // Create a new sampler and make it the least recently used.
-  // The values are normalized, and unsupported ones are excluded, in
-  // GetSamplerParameters.
+  // Values are normalized and unsupported ones excluded in GetSamplerParameters.
   VkSamplerCreateInfo sampler_create_info = {};
   sampler_create_info.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
   if (vulkan_device->properties().nonSeamlessCubeMap &&
@@ -1028,8 +969,7 @@ VkImageView VulkanTextureCache::RequestSwapTexture(uint32_t& width_scaled_out,
         texture->image(), gpu::vulkan::util::InitializeSubresourceRange(), src_stage_mask,
         dst_stage_mask, src_access_mask, dst_access_mask, old_layout, new_layout);
   }
-  // Only texture->key, not the result of BindingInfoFromFetchConstant, contains
-  // whether the texture is scaled.
+  // Only texture->key tells whether the texture is scaled, not BindingInfoFromFetchConstant.
   key = texture->key();
   if (width_unscaled_out) {
     *width_unscaled_out = key.GetWidth();
@@ -1047,7 +987,6 @@ bool VulkanTextureCache::IsSignedVersionSeparateForFormat(TextureKey key) const 
   const HostFormatPair& host_format_pair = GetHostFormatPair(key);
   if (host_format_pair.format_unsigned.format == VK_FORMAT_UNDEFINED ||
       host_format_pair.format_signed.format == VK_FORMAT_UNDEFINED) {
-    // One signedness.
     return false;
   }
   return !host_format_pair.unsigned_signed_compatible;
@@ -1105,8 +1044,7 @@ uint32_t VulkanTextureCache::GetMaxHostTextureDepthOrArraySize(
     case xenos::DataDimension::k3D:
       return device_properties.maxImageDimension3D;
     case xenos::DataDimension::kCube:
-      // Not requesting the imageCubeArray feature, and the Xenos doesn't
-      // support cube map arrays.
+      // imageCubeArray is not requested and the Xenos has no cube map arrays.
       return 6;
     default:
       REX_UNHANDLED_CASE(dimension);
@@ -1118,18 +1056,14 @@ std::unique_ptr<TextureCache::Texture> VulkanTextureCache::CreateTexture(Texture
   VkFormat formats[] = {VK_FORMAT_UNDEFINED, VK_FORMAT_UNDEFINED};
   const HostFormatPair& host_format = GetHostFormatPair(key);
   if (host_format.format_signed.format == VK_FORMAT_UNDEFINED) {
-    // Only the unsigned format may be available, if at all.
     formats[0] = host_format.format_unsigned.format;
   } else if (host_format.format_unsigned.format == VK_FORMAT_UNDEFINED) {
-    // Only the signed format may be available, if at all.
     formats[0] = host_format.format_signed.format;
   } else {
-    // Both unsigned and signed formats are available.
     if (IsSignedVersionSeparateForFormat(key)) {
       formats[0] = key.signed_separate ? host_format.format_signed.format
                                        : host_format.format_unsigned.format;
     } else {
-      // Same format for unsigned and signed, or compatible formats.
       formats[0] = host_format.format_unsigned.format;
       if (host_format.format_signed.format != host_format.format_unsigned.format) {
         REX_ASSERT(host_format.unsigned_signed_compatible != 0);
@@ -1216,7 +1150,6 @@ bool VulkanTextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture,
   VulkanTexture& vulkan_texture = static_cast<VulkanTexture&>(texture);
   TextureKey texture_key = vulkan_texture.key();
 
-  // Get the pipeline.
   const HostFormatPair& host_format_pair = GetHostFormatPair(texture_key);
   bool host_format_is_signed;
   if (IsSignedVersionSeparateForFormat(texture_key)) {
@@ -1263,7 +1196,6 @@ bool VulkanTextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture,
     load_shader_info_float_convert = &GetLoadShaderInfo(load_shader_float_convert);
   }
 
-  // Get the guest layout.
   const xenos::TextureGuestLayout& guest_layout = vulkan_texture.guest_layout();
   xenos::DataDimension dimension = texture_key.dimension;
   bool is_3d = dimension == xenos::DataDimension::k3D;
@@ -1287,32 +1219,21 @@ bool VulkanTextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture,
   uint32_t texture_resolution_scale_x = texture_key.scaled_resolve ? draw_resolution_scale_x() : 1;
   uint32_t texture_resolution_scale_y = texture_key.scaled_resolve ? draw_resolution_scale_y() : 1;
 
-  // The loop counter can mean two things depending on whether the packed mip
-  // tail is stored as mip 0, because in this case, it would be ambiguous since
-  // both the base and the mips would be on "level 0", but stored in separate
-  // places.
+  // Iteration 0 is the base packed tail and 1 the mips packed tail when level 0 is packed.
   uint32_t loop_level_first, loop_level_last;
   if (level_packed == 0) {
-    // Packed mip tail is the level 0 - may need to load mip tails for the base,
-    // the mips, or both.
-    // Loop iteration 0 - base packed mip tail.
-    // Loop iteration 1 - mips packed mip tail.
     loop_level_first = static_cast<uint32_t>(level_first != 0);
     loop_level_last = static_cast<uint32_t>(level_last != 0);
   } else {
-    // Packed mip tail is not the level 0.
-    // Loop iteration is the actual level being loaded.
     loop_level_first = level_stored_first;
     loop_level_last = level_stored_last;
   }
 
-  // Get the host layout and the buffer.
   uint32_t host_block_width = host_format.block_compressed ? block_width : 1;
   uint32_t host_block_height = host_format.block_compressed ? block_height : 1;
   uint32_t host_x_blocks_per_thread = UINT32_C(1)
                                       << load_shader_info.guest_x_blocks_per_thread_log2;
   if (!host_format.block_compressed) {
-    // Decompressing guest blocks.
     host_x_blocks_per_thread *= block_width;
   }
   VkDeviceSize host_buffer_size = 0;
@@ -1323,9 +1244,7 @@ bool VulkanTextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture,
     uint32_t y_pitch_blocks;
   };
   HostLayout host_layout_base;
-  // Indexing is the same as for guest stored mips:
-  // 1...min(level_last, level_packed) if level_packed is not 0, or only 0 if
-  // level_packed == 0.
+  // Indexed as guest stored mips, 1..min(level_last, level_packed) or 0 if level_packed is 0.
   HostLayout host_layout_mips[xenos::kTextureMaxMips];
   for (uint32_t loop_level = loop_level_first; loop_level <= loop_level_last; ++loop_level) {
     bool is_base = loop_level == 0;
@@ -1336,8 +1255,7 @@ bool VulkanTextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture,
     uint32_t level_guest_y_extent_texels_unscaled;
     uint32_t level_guest_z_extent_texels;
     if (level == level_packed) {
-      // Loading the packed tail for the base or the mips - load the whole tail
-      // to copy regions out of it.
+      // The whole packed tail loads to copy regions out of it.
       const xenos::TextureGuestLayout::Level& guest_layout_packed =
           is_base ? guest_layout.base : guest_layout.mips[level];
       level_guest_x_extent_texels_unscaled = guest_layout_packed.x_extent_blocks * block_width;
@@ -1370,9 +1288,6 @@ bool VulkanTextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture,
     return false;
   }
 
-  // Begin loading.
-  // TODO(Triang3l): Going from one descriptor to another on per-array-layer
-  // or even per-8-depth-slices level to stay within maxStorageBufferRange.
   const gpu::vulkan::VulkanDevice* const vulkan_device = command_processor_.GetVulkanDevice();
   const gpu::vulkan::VulkanDevice::Functions& dfn = vulkan_device->functions();
   const VkDevice device = vulkan_device->device();
@@ -1402,11 +1317,7 @@ bool VulkanTextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture,
     write_descriptor_set_dest.pBufferInfo = &write_descriptor_set_dest_buffer_info;
     write_descriptor_set_dest.pTexelBufferView = nullptr;
   }
-  // TODO(Triang3l): Use a single 512 MB shared memory binding if possible.
-  // TODO(Triang3l): Scaled resolve buffer bindings.
-  // Aligning because if the data for a vector in a storage buffer is provided
-  // partially, the value read may still be (0, 0, 0, 0), and small (especially
-  // linear) textures won't be loaded correctly.
+  // Aligned because a partially provided vector reads as zero and breaks small linear textures.
   uint32_t source_length_alignment = UINT32_C(1) << load_shader_info.source_bpe_log2;
   VkDescriptorSet descriptor_set_source_base = VK_NULL_HANDLE;
   VkDescriptorSet descriptor_set_source_mips = VK_NULL_HANDLE;
@@ -1504,8 +1415,6 @@ bool VulkanTextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture,
     vulkan_shared_memory.Use(VulkanSharedMemory::Usage::kRead);
   }
 
-  // Submit the copy buffer population commands.
-
   DeferredCommandBuffer& command_buffer = command_processor_.deferred_command_buffer();
 
   command_processor_.BindExternalComputePipeline(pipeline);
@@ -1539,7 +1448,6 @@ bool VulkanTextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture,
                                              &descriptor_set_source, 0, nullptr);
     }
 
-    // TODO(Triang3l): guest_offset relative to the storage buffer origin.
     load_constants.guest_offset = 0;
     if (!is_base) {
       load_constants.guest_offset += guest_layout.mip_offsets_bytes[level] *
@@ -1560,9 +1468,7 @@ bool VulkanTextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture,
 
     uint32_t level_width, level_height, level_depth;
     if (level == level_packed) {
-      // This is the packed mip tail, containing not only the specified level,
-      // but also other levels at different offsets - load the entire needed
-      // extents.
+      // The packed mip tail holds other levels at other offsets, so the entire extents load.
       level_width = level_guest_layout.x_extent_blocks * block_width;
       level_height = level_guest_layout.y_extent_blocks * block_height;
       level_depth = level_guest_layout.z_extent;
@@ -1585,7 +1491,6 @@ bool VulkanTextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture,
         (load_constants.size_blocks[1] + ((UINT32_C(1) << kLoadGuestYBlocksPerGroupLog2) - 1)) >>
         kLoadGuestYBlocksPerGroupLog2;
 
-    // TODO(Triang3l): host_offset relative to the storage buffer origin.
     const HostLayout& level_host_layout = is_base ? host_layout_base : host_layout_mips[level];
     load_constants.host_offset = static_cast<uint32_t>(level_host_layout.offset_bytes);
     load_constants.host_pitch =
@@ -1628,8 +1533,7 @@ bool VulkanTextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture,
                   xenos::FormatInfo::Get(texture_key.format)->name,
                   host_format_is_signed ? "signed" : "unsigned");
     }
-    // Make the normalized intermediate data visible for conversion and keep it
-    // writable for in-place conversion to float16.
+    // Make the normalized intermediate data visible and keep it writable for in place float16.
     command_processor_.PushBufferMemoryBarrier(
         scratch_buffer, 0, VK_WHOLE_SIZE,
         scratch_buffer_acquisition.SetStageMask(VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT),
@@ -1722,7 +1626,6 @@ bool VulkanTextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture,
     }
   }
 
-  // Submit copying from the copy buffer to the host texture.
   command_processor_.PushBufferMemoryBarrier(
       scratch_buffer, 0, VK_WHOLE_SIZE,
       scratch_buffer_acquisition.SetStageMask(VK_PIPELINE_STAGE_TRANSFER_BIT),
@@ -1882,11 +1785,7 @@ VkImageView VulkanTextureCache::VulkanTexture::GetView(bool is_signed, uint32_t 
   if (format == VK_FORMAT_UNDEFINED) {
     return VK_NULL_HANDLE;
   }
-  // If not distinguishing between unsigned and signed formats for the same
-  // image, don't create two views. As this happens within an image, no need to
-  // care about whether unsigned and signed images are separate - if they are
-  // (or if there are only unsigned or only signed images), this image will have
-  // either all views unsigned or all views signed.
+  // Unsigned and signed share one view when the formats match within an image.
   view_key.is_signed_separate_view = is_signed && (host_format_pair.format_signed.format !=
                                                    host_format_pair.format_unsigned.format);
 
@@ -1900,13 +1799,11 @@ VkImageView VulkanTextureCache::VulkanTexture::GetView(bool is_signed, uint32_t 
 
   view_key.is_array = static_cast<uint32_t>(is_array);
 
-  // Try to find an existing view.
   auto it = views_.find(view_key);
   if (it != views_.end()) {
     return it->second;
   }
 
-  // Create a new view.
   const gpu::vulkan::VulkanDevice::Functions& dfn = vulkan_device->functions();
   const VkDevice device = vulkan_device->device();
   VkImageViewCreateInfo view_create_info;
@@ -2334,8 +2231,6 @@ bool VulkanTextureCache::Initialize() {
   const VkDevice device = vulkan_device->device();
   const gpu::vulkan::VulkanDevice::Properties& device_properties = vulkan_device->properties();
 
-  // Vulkan Memory Allocator.
-
   vma_allocator_ = gpu::vulkan::CreateVmaAllocator(vulkan_device, true);
   if (vma_allocator_ == VK_NULL_HANDLE) {
     return false;
@@ -2345,14 +2240,10 @@ bool VulkanTextureCache::Initialize() {
     return false;
   }
 
-  // Image formats.
-
-  // Initialize to the best formats.
   for (size_t i = 0; i < rex::countof(host_formats_); ++i) {
     host_formats_[i] = kBestHostFormats[i];
   }
 
-  // Check format support and switch to fallbacks if needed.
   constexpr VkFormatFeatureFlags kLinearFilterFeatures =
       VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT | VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT;
   VkFormatProperties r16_unorm_properties;
@@ -2377,7 +2268,6 @@ bool VulkanTextureCache::Initialize() {
   ifn.vkGetPhysicalDeviceFormatProperties(physical_device, VK_FORMAT_R16G16B16A16_SFLOAT,
                                           &r16g16b16a16_sfloat_properties);
   VkFormatProperties format_properties;
-  // k_Cr_Y1_Cb_Y0_REP, k_Y1_Cr_Y0_Cb_REP.
   HostFormatPair& host_format_gbgr =
       host_formats_[std::to_underlying(xenos::TextureFormat::k_Cr_Y1_Cb_Y0_REP)];
   REX_ASSERT(host_format_gbgr.format_unsigned.format == VK_FORMAT_G8B8G8R8_422_UNORM_KHR);
@@ -2402,7 +2292,6 @@ bool VulkanTextureCache::Initialize() {
     host_format_bgrg.format_unsigned.block_compressed = false;
     host_format_bgrg.unsigned_signed_compatible = false;
   }
-  // Expand R5G6B5 while loading if the native packed format can't be sampled.
   HostFormatPair& host_format_r5g6b5 =
       host_formats_[std::to_underlying(xenos::TextureFormat::k_5_6_5)];
   REX_ASSERT(host_format_r5g6b5.format_unsigned.format == VK_FORMAT_R5G6B5_UNORM_PACK16);
@@ -2414,9 +2303,7 @@ bool VulkanTextureCache::Initialize() {
     host_format_r5g6b5.format_unsigned.block_compressed = false;
     host_format_r5g6b5.unsigned_signed_compatible = false;
   }
-  // MoltenVK doesn't expose B4G4R4A4 sampling on all Metal devices. Expand
-  // guest RGBA4444 texels to the universally supported RGBA8 format while
-  // loading them instead of dropping the texture binding entirely.
+  // MoltenVK lacks B4G4R4A4 sampling on some Metal devices, so RGBA4 expands to RGBA8.
   HostFormatPair& host_format_rgba4 =
       host_formats_[std::to_underlying(xenos::TextureFormat::k_4_4_4_4)];
   REX_ASSERT(host_format_rgba4.format_unsigned.format == VK_FORMAT_B4G4R4A4_UNORM_PACK16);
@@ -2428,10 +2315,7 @@ bool VulkanTextureCache::Initialize() {
     host_format_rgba4.format_unsigned.block_compressed = false;
     host_format_rgba4.unsigned_signed_compatible = false;
   }
-  // k_10_11_11, k_11_11_10 (+ _AS_16_16_16_16 variants) - if normalized
-  // R16G16B16A16 is not linearly filterable, decode to normalized 16-bit in a
-  // scratch buffer first, then convert it to float16 in-place in a second pass
-  // before copying to the image.
+  // Without filterable RGBA16 UNORM, 10_11_11 decodes to it and converts to float16 in place.
   bool rgba16_norm_filterable =
       (r16g16b16a16_unorm_properties.optimalTilingFeatures & kLinearFilterFeatures) ==
           kLinearFilterFeatures &&
@@ -2459,19 +2343,11 @@ bool VulkanTextureCache::Initialize() {
       REX_ASSERT(host_format.format_signed.format == VK_FORMAT_R16G16B16A16_SNORM);
       host_format.format_unsigned.format = VK_FORMAT_R16G16B16A16_SFLOAT;
       host_format.format_signed.format = VK_FORMAT_R16G16B16A16_SFLOAT;
-      // Different source signednesses still need separate decoded data.
+      // Different source signednesses need separate decoded data.
       host_format.unsigned_signed_compatible = false;
     }
   }
-  // S3TC.
-  // Not checking the textureCompressionBC feature because its availability
-  // means that all BC formats are supported, however, the device may expose
-  // some BC formats without this feature. Xenia doesn't use BC6H and BC7 at
-  // all, and has fallbacks for each used format.
-  // TODO(Triang3l): Raise the host texture memory usage limit if S3TC has to be
-  // decompressed.
-  // TODO(Triang3l): S3TC -> 5551 or 4444 as an option.
-  // TODO(Triang3l): S3TC -> ETC2 / EAC (a huge research topic).
+  // textureCompressionBC is not checked because devices may expose some BC formats without it.
   HostFormatPair& host_format_dxt1 =
       host_formats_[std::to_underlying(xenos::TextureFormat::k_DXT1)];
   REX_ASSERT(host_format_dxt1.format_unsigned.format == VK_FORMAT_BC1_RGBA_UNORM_BLOCK);
@@ -2527,8 +2403,7 @@ bool VulkanTextureCache::Initialize() {
     host_format_dxt5a.format_unsigned.format = VK_FORMAT_R8_UNORM;
     host_format_dxt5a.format_unsigned.block_compressed = false;
   }
-  // Keep signed format support aligned with D3D12 for texture formats where
-  // D3D12 doesn't expose signed sampling paths.
+  // These formats have no signed sampling path.
   constexpr std::array<xenos::TextureFormat, 19> kD3D12SignedUnsupportedFormats = {
       xenos::TextureFormat::k_1_5_5_5,
       xenos::TextureFormat::k_5_6_5,
@@ -2557,11 +2432,7 @@ bool VulkanTextureCache::Initialize() {
     host_format.format_signed.linear_filterable = false;
     host_format.unsigned_signed_compatible = false;
   }
-  // k_16, k_16_16, k_16_16_16_16 - UNORM / SNORM are optional, fall back to
-  // SFLOAT, which is mandatory and is always filterable.
-  // For D3D12 parity, prefer keeping normalized-format sampling filterable over
-  // keeping fixed-point precision if the host lacks linear filtering support on
-  // UNORM/SNORM variants.
+  // 16 bit UNORM and SNORM are optional, the mandatory filterable SFLOAT is the fallback.
   VkFormatFeatureFlags norm16_required_features = kLinearFilterFeatures;
   HostFormatPair& host_format_16 = host_formats_[std::to_underlying(xenos::TextureFormat::k_16)];
   REX_ASSERT(host_format_16.format_unsigned.format == VK_FORMAT_R16_UNORM);
@@ -2620,12 +2491,9 @@ bool VulkanTextureCache::Initialize() {
       (host_format_16_16_16_16.format_unsigned.format == VK_FORMAT_R16G16B16A16_SFLOAT &&
        host_format_16_16_16_16.format_signed.format == VK_FORMAT_R16G16B16A16_SFLOAT);
 
-  // Normalize format information structures.
   for (size_t i = 0; i < rex::countof(host_formats_); ++i) {
     HostFormatPair& host_format = host_formats_[i];
-    // load_shader_index is left uninitialized for the tail (non-existent
-    // formats), kLoadShaderIndexUnknown may be non-zero, and format support may
-    // be disabled by setting the format to VK_FORMAT_UNDEFINED.
+    // load_shader is uninitialized for tail formats and kLoadShaderIndexUnknown may be non-zero.
     if (host_format.format_unsigned.format == VK_FORMAT_UNDEFINED) {
       host_format.format_unsigned.load_shader = kLoadShaderIndexUnknown;
     }
@@ -2633,7 +2501,6 @@ bool VulkanTextureCache::Initialize() {
                  host_format.format_unsigned.format != VK_FORMAT_UNDEFINED));
     if (host_format.format_unsigned.load_shader == kLoadShaderIndexUnknown) {
       host_format.format_unsigned.format = VK_FORMAT_UNDEFINED;
-      // Surely known it's unsupported with these two conditions.
       host_format.format_unsigned.linear_filterable = false;
     }
     if (host_format.format_signed.format == VK_FORMAT_UNDEFINED) {
@@ -2643,11 +2510,9 @@ bool VulkanTextureCache::Initialize() {
                  host_format.format_signed.format != VK_FORMAT_UNDEFINED));
     if (host_format.format_signed.load_shader == kLoadShaderIndexUnknown) {
       host_format.format_signed.format = VK_FORMAT_UNDEFINED;
-      // Surely known it's unsupported with these two conditions.
       host_format.format_signed.linear_filterable = false;
     }
 
-    // Check if the formats are supported and are linear-filterable.
     if (host_format.format_unsigned.format != VK_FORMAT_UNDEFINED) {
       ifn.vkGetPhysicalDeviceFormatProperties(physical_device, host_format.format_unsigned.format,
                                               &format_properties);
@@ -2675,7 +2540,6 @@ bool VulkanTextureCache::Initialize() {
       }
     }
 
-    // Log which formats are not supported or supported via fallbacks.
     const HostFormatPair& best_host_format = kBestHostFormats[i];
     const char* guest_format_name = xenos::FormatInfo::Get(xenos::TextureFormat(i))->name;
     if (best_host_format.format_unsigned.format != VK_FORMAT_UNDEFINED) {
@@ -2717,23 +2581,17 @@ bool VulkanTextureCache::Initialize() {
       }
     }
 
-    // Signednesses with different load shaders must have the data loaded
-    // differently, therefore can't share the image even if the format is the
-    // same. Also, if there's only one version, simplify the logic - there can't
-    // be compatibility between two formats when one of them is undefined.
+    // Different load shaders need different data, so signednesses cannot share the image.
     if (host_format.format_unsigned.format != VK_FORMAT_UNDEFINED &&
         host_format.format_signed.format != VK_FORMAT_UNDEFINED) {
       if (host_format.format_unsigned.load_shader == host_format.format_signed.load_shader) {
         if (host_format.format_unsigned.format == host_format.format_signed.format) {
-          // Same format after all the fallbacks - force compatibilty.
           host_format.unsigned_signed_compatible = true;
         }
       } else {
         host_format.unsigned_signed_compatible = false;
       }
-      // Formats within the same compatibility class must have the same block
-      // size, though the fallbacks are configured incorrectly if that's not the
-      // case (since such formats can't be in one compatibility class).
+      // Formats in one compatibility class must have the same block size.
       REX_ASSERT(!(host_format.unsigned_signed_compatible &&
                    host_format.format_unsigned.block_compressed !=
                        host_format.format_signed.block_compressed));
@@ -2746,8 +2604,6 @@ bool VulkanTextureCache::Initialize() {
       host_format.unsigned_signed_compatible = false;
     }
   }
-
-  // Load pipeline layout.
 
   VkDescriptorSetLayout load_descriptor_set_layouts[kLoadDescriptorSetCount] = {};
   VkDescriptorSetLayout load_descriptor_set_layout_storage_buffer =
@@ -2774,8 +2630,6 @@ bool VulkanTextureCache::Initialize() {
                                  &load_pipeline_layout_)) {
     REX_FAIL(gpu, false, "VulkanTexture: Failed to create the texture load pipeline layout");
   }
-
-  // Load pipelines, only the ones needed for the formats that will be used.
 
   bool load_shaders_needed[kLoadShaderCount] = {};
   auto mark_host_format_pair_load_shaders_needed = [&](const HostFormatPair& host_format_pair) {
@@ -2972,19 +2826,14 @@ bool VulkanTextureCache::Initialize() {
     }
   }
 
-  // Use true null descriptors when supported; otherwise, keep compatibility
-  // fallback null images.
   if (device_properties.nullDescriptor) {
     null_images_cleared_ = true;
   } else {
-    // Null images as a replacement for unneeded bindings and for bindings for
-    // which the real image hasn't been created.
     VkImageCreateInfo null_image_create_info;
     null_image_create_info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
     null_image_create_info.pNext = nullptr;
     null_image_create_info.flags = VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT;
     null_image_create_info.imageType = VK_IMAGE_TYPE_2D;
-    // Match D3D12 null SRV behavior: invalid fetch constants read (0, 0, 0, 0).
     null_image_create_info.format = kInvalidTextureFetchFallbackFormat;
     null_image_create_info.extent.width = 1;
     null_image_create_info.extent.height = 1;
@@ -3024,8 +2873,7 @@ bool VulkanTextureCache::Initialize() {
             null_image_memory_requirements_3d_.memoryTypeBits,
         gpu::vulkan::util::MemoryPurpose::kDeviceLocal);
     if (null_image_memory_type_common != UINT32_MAX) {
-      // Place both null images in one memory allocation because maximum total
-      // memory allocation count is limited.
+      // One allocation for both null images because the total allocation count is limited.
       VkDeviceSize null_image_memory_offset_3d_ =
           rex::align(null_image_memory_requirements_2d_array_cube_.size,
                      std::max(null_image_memory_requirements_3d_.alignment, VkDeviceSize(1)));
@@ -3052,7 +2900,6 @@ bool VulkanTextureCache::Initialize() {
         REX_FAIL(gpu, false, "VulkanTextureCache: Failed to bind the memory to the null 3D image");
       }
     } else {
-      // Place each null image in separate allocations.
       const uint32_t null_image_memory_type_2d_array_cube = gpu::vulkan::util::ChooseMemoryType(
           vulkan_device->memory_types(),
           null_image_memory_requirements_2d_array_cube_.memoryTypeBits,
@@ -3119,8 +2966,6 @@ bool VulkanTextureCache::Initialize() {
     null_image_view_create_info.image = null_image_2d_array_cube_;
     null_image_view_create_info.viewType = VK_IMAGE_VIEW_TYPE_2D_ARRAY;
     null_image_view_create_info.format = null_image_create_info.format;
-    // Micro-optimization if this has any effect on the host GPU at all, use only
-    // constant components instead of the real texels.
     VkComponentSwizzle null_image_view_swizzle = device_properties.imageViewFormatSwizzle
                                                      ? VK_COMPONENT_SWIZZLE_ZERO
                                                      : VK_COMPONENT_SWIZZLE_IDENTITY;
@@ -3151,14 +2996,7 @@ bool VulkanTextureCache::Initialize() {
     null_images_cleared_ = false;
   }
 
-  // Samplers.
-
-  // Some MoltenVK devices have a maximum of 2048, 1024, or even 96 samplers,
-  // below Vulkan's minimum requirement of 4000.
-  // Assuming that the current VulkanTextureCache is the only one on this
-  // VkDevice (true in a regular emulation scenario), so taking over all the
-  // allocation slots exclusively.
-  // Also leaving a few slots for use by things like overlay applications.
+  // Some MoltenVK devices allow only 96 to 2048 samplers, below the Vulkan minimum of 4000.
   sampler_max_count_ =
       device_properties.maxSamplerAllocationCount - gpu::vulkan::UISamplers::kSamplerCount - 16;
 
@@ -3182,9 +3020,7 @@ const VulkanTextureCache::HostFormatPair& VulkanTextureCache::GetHostFormatPair(
     return host_format_pair;
   }
 
-  // Keep unaligned decompression selection aligned with D3D12 fallback behavior:
-  // only select unaligned fallback mappings when block alignment is
-  // violated for the current guest format.
+  // Unaligned fallback mappings apply only when the guest format block alignment is violated.
   const xenos::FormatInfo* format_info = xenos::FormatInfo::Get(key.format);
   if (!(key.GetWidth() & (format_info->block_width - 1)) &&
       !(key.GetHeight() & (format_info->block_height - 1))) {
@@ -3234,9 +3070,7 @@ void VulkanTextureCache::GetTextureUsageMasks(VulkanTexture::Usage usage,
       layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
       break;
     case VulkanTexture::Usage::kSwapSampled:
-      // The swap texture is likely to be used only for the presentation
-      // post-processing passes, and not during emulation where it'd be used in
-      // other stages.
+      // The swap texture is used only by the presentation post-processing passes.
       stage_mask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
       access_mask = VK_ACCESS_SHADER_READ_BIT;
       layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
@@ -3246,9 +3080,7 @@ void VulkanTextureCache::GetTextureUsageMasks(VulkanTexture::Usage usage,
 
 xenos::ClampMode VulkanTextureCache::NormalizeClampMode(xenos::ClampMode clamp_mode) const {
   if (clamp_mode == xenos::ClampMode::kClampToHalfway) {
-    // No GL_CLAMP (clamp to half edge, half border) equivalent in Vulkan, but
-    // there's no Direct3D 9 equivalent anyway, and too weird to be suitable for
-    // intentional real usage.
+    // Vulkan has no GL_CLAMP equivalent (clamp to half edge, half border), so clamp to edge.
     return xenos::ClampMode::kClampToEdge;
   }
   if (clamp_mode == xenos::ClampMode::kMirrorClampToEdge ||

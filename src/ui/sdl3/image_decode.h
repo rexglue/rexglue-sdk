@@ -16,9 +16,15 @@
 
 namespace rex::ui {
 
-// Decodes a PNG (or any stb-supported image) byte buffer to tightly-packed
-// R8G8B8A8 pixels. Returns an empty vector on failure; on success fills
-// out_width/out_height and returns width*height*4 bytes.
+/**
+ * Decodes a PNG or any stb supported image byte buffer to tightly packed R8G8B8A8 pixels.
+ *
+ * @param data Encoded image bytes.
+ * @param size Size of data in bytes.
+ * @param out_width Receives the width in pixels on success.
+ * @param out_height Receives the height in pixels on success.
+ * @return width * height * 4 bytes on success, an empty vector on failure.
+ */
 std::vector<uint8_t> DecodeImageRGBA(const uint8_t* data, size_t size, int& out_width,
                                      int& out_height);
 

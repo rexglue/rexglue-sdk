@@ -1,5 +1,11 @@
 /**
- * Tests for rex::ppc stack push/pop/guard operations.
+ * @file        tests/unit/ppc/stack_test.cpp
+ *
+ * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
+ *              All rights reserved.
+ *
+ * @license     BSD 3-Clause License
+ *              See LICENSE file in the project root for full license text.
  */
 
 #include <bit>
@@ -15,7 +21,6 @@
 
 #include "../kernel/kernel_fixture.h"
 
-// 64KB test memory, aligned
 alignas(64) static uint8_t g_mem[0x10000] = {};
 
 TEST_CASE("stack_push scalar decrements r1 and writes byte-swapped value", "[ppc][stack]") {

@@ -74,6 +74,7 @@ class ToolRuntime : public MoveOnly {
  * @param extra_modules Modules loaded after rex-runtime.
  * @param ui The user interface the Runtime shows prompts through. Null uses the one a module
  *        serves, or none.
+ *
  * @return The runtime, or the rex::Init or Runtime::Setup error.
  */
 [[nodiscard]] Result<ToolRuntime> OpenToolRuntime(const std::filesystem::path& game_root,

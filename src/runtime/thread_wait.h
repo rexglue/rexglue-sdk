@@ -48,7 +48,7 @@ rex::platform::WaitResult WaitHostSockets(std::span<const rex::platform::SocketW
  * @tparam Report A callable taking 1 element of the range.
  * @param threads The threads to wait for.
  * @param timeout The time each thread has to stop by itself, and the time between reports.
- * @param report Called with each thread still running when a timeout ends.
+ * @param report Called with each thread that runs when a timeout ends.
  */
 template <std::ranges::range Range, typename Report>
 void WaitForThreadsToStop(const Range& threads, std::chrono::milliseconds timeout, Report report) {

@@ -25,11 +25,21 @@
 
 namespace rex::apu::sdl3 {
 
+/**
+ * Converts 6 sequential big endian channels to interleaved little endian with the surround mix
+ * and gain applied. The gain pass walks 4 floats at a time and the 6 channel interleave repeats
+ * every 12 floats, so 3 weight vectors cover every alignment. An even sample count makes the
+ * float count a multiple of 12.
+ *
+ * @param output Interleaved output, 6 floats per sample.
+ * @param input Sequential input, 6 channels of ch_sample_count samples.
+ * @param ch_sample_count Samples per channel, even.
+ * @param mix Weights for the center, surround and LFE channels.
+ * @param gain Output gain, results are clamped to the range -1 to 1.
+ */
 inline void sequential_6_BE_to_interleaved_6_LE(f32* output, const f32* input,
                                                 size_t ch_sample_count, const SurroundMix& mix,
                                                 f32 gain) {
-  // The gain pass below walks the output four floats at a time, and its weight
-  // table assumes 6 channels divide evenly into those windows.
   REX_ASSERT(ch_sample_count % 2 == 0);
 
   const u32* in = reinterpret_cast<const u32*>(input);
@@ -50,13 +60,6 @@ inline void sequential_6_BE_to_interleaved_6_LE(f32* output, const f32* input,
     out[sample * 6 + 5] = sample2;
   }
 
-  // Second pass rather than fusing into the shuffle above, which stores as integers.
-  // 6 KB per 5.33 ms frame, so skipping it at unity gain is not worth the asymmetry.
-  //
-  // Six interleaved channels across four-f32 windows repeat every 12 floats,
-  // so three weight vectors cover every alignment the loop ever sees. The
-  // assert above makes the sample count even, which makes the f32 count a
-  // multiple of 12, so the cycle closes with no tail to handle.
   const f32 c = mix.center * gain;
   const f32 s = mix.surround * gain;
   const f32 l = mix.lfe * gain;
@@ -99,7 +102,6 @@ inline void sequential_6_BE_to_interleaved_2_LE(f32* output, const f32* input,
     bl = simde_mm_castsi128_ps(simde_mm_shuffle_epi8(simde_mm_castps_si128(bl), byte_swap_shuffle));
     br = simde_mm_castsi128_ps(simde_mm_shuffle_epi8(simde_mm_castps_si128(br), byte_swap_shuffle));
 
-    // Center and LFE land on both sides.
     const simde__m128 mid = simde_mm_add_ps(simde_mm_mul_ps(fc, center), simde_mm_mul_ps(lf, lfe));
     simde__m128 left = simde_mm_mul_ps(
         simde_mm_add_ps(simde_mm_add_ps(fl, mid), simde_mm_mul_ps(bl, surround)), scale);

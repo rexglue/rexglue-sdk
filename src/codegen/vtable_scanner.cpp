@@ -1,13 +1,3 @@
-/**
- * @file        codegen/vtable_scanner.cpp
- *
- * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
- *              All rights reserved.
- *
- * @license     BSD 3-Clause License
- *              See LICENSE file in the project root for full license text.
- */
-
 #include <rex/codegen/vtable_scanner.h>
 #include <rex/logging.h>
 
@@ -21,11 +11,9 @@ VTableScanner::VTableScanner(const BinaryView& binary) : binary_(binary) {}
 std::vector<VTableInfo> VTableScanner::scan() {
   std::vector<VTableInfo> vtables;
 
-  // Step 1: Find all Complete Object Locators
   auto cols = findCompleteObjectLocators();
   REXLOG_DEBUG(codegen, "VTableScanner: found {} Complete Object Locators", cols.size());
 
-  // Step 2: For each COL, find its vtable and read slots
   for (uint32_t colAddr : cols) {
     auto vtableAddr = findVTableForCOL(colAddr);
     if (!vtableAddr) {
@@ -53,10 +41,15 @@ std::vector<VTableInfo> VTableScanner::scan() {
   return vtables;
 }
 
+/**
+ * Finds Complete Object Locators in .rdata. A locator is 20 bytes with signature 0 for 32 bit
+ * MSVC RTTI and a type descriptor pointer whose name at +8 starts with ".?AV" or ".?AU".
+ *
+ * @return Addresses of the locators.
+ */
 std::vector<uint32_t> VTableScanner::findCompleteObjectLocators() {
   std::vector<uint32_t> cols;
 
-  // Scan .rdata section for COL patterns
   const auto* rdata = binary_.findSectionByName(".rdata");
   if (!rdata || !rdata->data) {
     REXLOG_WARN(codegen, "VTableScanner: .rdata section not found");
@@ -67,30 +60,25 @@ std::vector<uint32_t> VTableScanner::findCompleteObjectLocators() {
   uint32_t base = rdata->baseAddress;
   size_t size = rdata->size;
 
-  // COL is 20 bytes, need room for it
   if (size < sizeof(RTTICompleteObjectLocator)) {
     return cols;
   }
 
-  // Scan for COL pattern: signature=0, valid type descriptor pointer
   for (size_t offset = 0; offset + sizeof(RTTICompleteObjectLocator) <= size; offset += 4) {
     auto* col = reinterpret_cast<const RTTICompleteObjectLocator*>(data + offset);
 
     uint32_t signature = col->signature;
     uint32_t typeDescPtr = col->pTypeDescriptor;
 
-    // COL signature must be 0 for 32-bit MSVC RTTI
     if (signature != 0) {
       continue;
     }
 
-    // Type descriptor must point to valid memory
     const auto* typeDescSection = binary_.findSection(typeDescPtr);
     if (!typeDescSection || !typeDescSection->data) {
       continue;
     }
 
-    // Check if type descriptor has ".?AV" mangling prefix
     std::string typeName = readString(typeDescPtr + 8, 64);
     if (typeName.find(".?AV") != 0 && typeName.find(".?AU") != 0) {
       continue;
@@ -105,11 +93,14 @@ std::vector<uint32_t> VTableScanner::findCompleteObjectLocators() {
   return cols;
 }
 
+/**
+ * Finds the vtable of a locator. The locator pointer sits at vtable[-1], so the vtable starts 1
+ * dword after the .rdata word that holds the locator address.
+ *
+ * @param colAddr Locator address.
+ * @return The vtable address, or nullopt when nothing references the locator.
+ */
 std::optional<uint32_t> VTableScanner::findVTableForCOL(uint32_t colAddr) {
-  // The vtable pointer to COL is stored at vtable[-1]
-  // So we need to find a dword in .rdata that contains colAddr,
-  // and the vtable starts at that address + 4
-
   const auto* rdata = binary_.findSectionByName(".rdata");
   if (!rdata || !rdata->data) {
     return std::nullopt;
@@ -123,7 +114,6 @@ std::optional<uint32_t> VTableScanner::findVTableForCOL(uint32_t colAddr) {
     uint32_t value = memory::load<be_u32>(data + offset);
 
     if (value == colAddr) {
-      // Found reference to COL - vtable starts at next dword
       uint32_t vtableAddr = base + static_cast<uint32_t>(offset) + 4;
       return vtableAddr;
     }
@@ -132,6 +122,12 @@ std::optional<uint32_t> VTableScanner::findVTableForCOL(uint32_t colAddr) {
   return std::nullopt;
 }
 
+/**
+ * Reads vtable slots until a null, non executable or non 4 byte aligned pointer.
+ *
+ * @param vtableStart Address of slot 0.
+ * @return The slot function addresses.
+ */
 std::vector<uint32_t> VTableScanner::readVTableSlots(uint32_t vtableStart) {
   std::vector<uint32_t> slots;
 
@@ -140,22 +136,19 @@ std::vector<uint32_t> VTableScanner::readVTableSlots(uint32_t vtableStart) {
   while (true) {
     auto funcAddr = readDword(slotAddr);
     if (!funcAddr) {
-      break;  // Can't read memory
+      break;
     }
 
     uint32_t addr = *funcAddr;
 
-    // Termination: null pointer
     if (addr == 0) {
       break;
     }
 
-    // Termination: not executable address
     if (!isExecutableAddress(addr)) {
       break;
     }
 
-    // Termination: not 4-byte aligned (PPC requirement)
     if (addr & 0x3) {
       break;
     }
@@ -167,16 +160,21 @@ std::vector<uint32_t> VTableScanner::readVTableSlots(uint32_t vtableStart) {
   return slots;
 }
 
+/**
+ * Reads the class name from the type descriptor at locator offset 12, name at +8, and strips the
+ * ".?AV" or ".?AU" prefix and the "@@" suffix.
+ *
+ * @param colAddr Locator address.
+ * @return The class name, or the mangled text when it has no known prefix.
+ */
 std::string VTableScanner::extractClassName(uint32_t colAddr) {
-  auto typeDescPtr = readDword(colAddr + 12);  // pTypeDescriptor offset
+  auto typeDescPtr = readDword(colAddr + 12);
   if (!typeDescPtr) {
     return "";
   }
 
-  // Class name is at typeDescriptor + 8
   std::string mangled = readString(*typeDescPtr + 8, 256);
 
-  // Simple demangling: ".?AVClassName@@" -> "ClassName"
   if (mangled.size() > 4 && (mangled.substr(0, 4) == ".?AV" || mangled.substr(0, 4) == ".?AU")) {
     size_t end = mangled.find("@@");
     if (end != std::string::npos) {

@@ -24,39 +24,31 @@ using namespace rex::runtime;
 
 XLiveBaseApp::XLiveBaseApp(Runtime& runtime) : App(runtime, 0xFC) {}
 
-// http://mb.mirage.org/bugzilla/xliveless/main.c
-
 X_HRESULT XLiveBaseApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
                                             uint32_t buffer_length) {
-  // NOTE: buffer_length may be zero or valid.
   auto buffer = memory_->TranslateVirtual(buffer_ptr);
   switch (message) {
     case 0x00058004: {
-      // Called on startup, seems to return a bool in the buffer.
       REX_ASSERT(!buffer_length || buffer_length == 4);
       REXLOG_DEBUG(kernel, "XLiveBaseGetLogonId({:08X})", buffer_ptr);
-      memory::store<be_u32>(buffer + 0, 1);  // ?
+      memory::store<be_u32>(buffer + 0, 1);
       return X_E_SUCCESS;
     }
     case 0x00058006: {
       REX_ASSERT(!buffer_length || buffer_length == 4);
       REXLOG_DEBUG(kernel, "XLiveBaseGetNatType({:08X})", buffer_ptr);
-      memory::store<be_u32>(buffer + 0, 1);  // XONLINE_NAT_OPEN
+      // XONLINE_NAT_OPEN
+      memory::store<be_u32>(buffer + 0, 1);
       return X_E_SUCCESS;
     }
     case 0x00058007: {
-      // Occurs if title calls XOnlineGetServiceInfo, expects dwServiceId
-      // and pServiceInfo. pServiceInfo should contain pointer to
-      // XONLINE_SERVICE_INFO structure.
+      // The buffer holds dwServiceId and a pServiceInfo pointer to XONLINE_SERVICE_INFO.
       REXLOG_DEBUG(kernel, "CXLiveLogon::GetServiceInfo({:08X}, {:08X})", buffer_ptr,
                    buffer_length);
-      return 0x80151802;  // ERROR_CONNECTION_INVALID
+      // ERROR_CONNECTION_INVALID
+      return 0x80151802;
     }
     case 0x00058020: {
-      // 0x00058004 is called right before this.
-      // We should create a XamEnumerate-able empty list here, but I'm not
-      // sure of the format.
-      // buffer_length seems to be the same ptr sent to 0x00058004.
       REX_KERNEL_STUB("CXLiveFriends::Enumerate({:08X}, {:08X})", buffer_ptr, buffer_length);
       return X_E_FAIL;
     }
@@ -66,9 +58,6 @@ X_HRESULT XLiveBaseApp::DispatchMessageSync(uint32_t message, uint32_t buffer_pt
       return X_E_FAIL;
     }
     case 0x00058046: {
-      // Required to be successful for 4D530910 to detect signed-in profile
-      // Doesn't seem to set anything in the given buffer, probably only takes
-      // input
       REX_KERNEL_STUB("XLiveBaseUnk58046({:08X}, {:08X})", buffer_ptr, buffer_length);
       return X_E_SUCCESS;
     }

@@ -38,7 +38,11 @@ class WindowSDL final : public Window {
   bool WarpMouseToCenter(int32_t& x_out, int32_t& y_out) override;
   bool GetDisplayPixelSize(uint32_t& width, uint32_t& height) const override;
 
-  // Called by SDLWindowedAppContext on the UI thread.
+  /**
+   * Handles a window event. SDLWindowedAppContext calls all Handle methods on the UI thread.
+   *
+   * @param event SDL window event.
+   */
   void HandleWindowEvent(SDL_Event& event);
   void HandleKeyEvent(SDL_Event& event);
   void HandleTextInputEvent(SDL_Event& event);
@@ -71,9 +75,7 @@ class WindowSDL final : public Window {
     return static_cast<SDLWindowedAppContext&>(app_context());
   }
 
-  // Performs the common close choreography (OnBeforeClose, native destroy,
-  // OnAfterClose). Used by both RequestCloseImpl and the close-requested
-  // event handler.
+  /** Performs the common close sequence for RequestCloseImpl and the close request handler. */
   void PerformClose();
   void DestroySDLWindow();
 
@@ -83,8 +85,11 @@ class WindowSDL final : public Window {
   void ApplyTextInputActiveNow();
   void RearmCursorAutoHideTimer();
 
-  // Ratio between SDL window coordinates and the physical pixels listeners
-  // expect. Never zero.
+  /**
+   * Returns the ratio between SDL window coordinates and the physical pixels listeners expect.
+   *
+   * @return The ratio, never 0.
+   */
   float GetPixelDensity() const;
 
 #if REX_PLATFORM_MAC
@@ -94,7 +99,7 @@ class WindowSDL final : public Window {
   SDL_Window* sdl_window_ = nullptr;
   SDL_WindowID sdl_window_id_ = 0;
   std::atomic<bool> paint_pending_{false};
-  // Auto-hide cursor bookkeeping (CursorVisibility::AutoHidden).
+  /** Timer that hides the cursor in the AutoHidden mode. */
   SDL_TimerID cursor_hide_timer_ = 0;
 #if REX_PLATFORM_MAC
   void* metal_view_ = nullptr;

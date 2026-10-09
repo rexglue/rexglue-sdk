@@ -1,18 +1,3 @@
-/**
- * @file        runtime/function_dispatcher.cpp
- * @brief       Guest function dispatch coordinator for recompiled code
- *
- * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
- *              All rights reserved.
- *
- * @license     BSD 3-Clause License
- *              See LICENSE file in the project root for full license text.
- *
- * @remarks     Derived from Xenia's runtime::Processor (Ben Vanik, 2020).
- *              Stripped of emulation-era dead code and renamed to reflect its
- *              role as a function dispatch table rather than a CPU emulator.
- */
-
 #include <csetjmp>
 #include <cstdlib>
 #include <ranges>
@@ -234,11 +219,8 @@ uint64_t FunctionDispatcher::ExecuteInterrupt(ThreadState* thread_state, uint32_
   return result;
 }
 
-// rexglue function table management
-
-bool FunctionDispatcher::InitializeFunctionTable(uint32_t code_base, uint32_t code_size,
-                                                 uint32_t image_base, uint32_t image_size,
-                                                 bool is_entrypoint) {
+bool FunctionDispatcher::InitializeFunctionTable(u32 code_base, u32 code_size, u32 image_base,
+                                                 u32 image_size, bool is_entrypoint) {
   std::lock_guard<std::recursive_mutex> lock(dispatch_mutex_);
 
   if (is_entrypoint && entrypoint_code_base_ != 0) {

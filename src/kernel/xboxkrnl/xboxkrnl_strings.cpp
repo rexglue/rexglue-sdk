@@ -1,10 +1,10 @@
 /**
- * @file        kernel/xboxkrnl/xboxkrnl_strings.cpp
- *
- * @copyright   Copyright 2022 Ben Vanik. All rights reserved. (Xenia Project)
- *
- * @license     BSD 3-Clause License
- *              See LICENSE file in the project root for full license text.
+ ******************************************************************************
+ * Xenia : Xbox 360 Emulator Research Project                                 *
+ ******************************************************************************
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
+ * Released under the BSD license - see LICENSE in the root for more details. *
+ ******************************************************************************
  *
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
@@ -21,10 +21,6 @@
 using namespace rex::runtime::format;
 using rex::runtime::GuestPtr;
 
-//=============================================================================
-// DbgPrint / XamDbgPrint
-//=============================================================================
-
 REX_HOOK_RAW(__imp__DbgPrint) {
   uint32_t format_ptr = ctx.r3.u32;
   if (!format_ptr) {
@@ -39,14 +35,13 @@ REX_HOOK_RAW(__imp__DbgPrint) {
   int32_t count = format_core(base, data, args, false);
   if (count > 0) {
     auto str = data.str();
-    // Trim trailing whitespace
     while (!str.empty() && std::isspace(static_cast<unsigned char>(str.back()))) {
       str.pop_back();
     }
     REXLOG_DEV(title, "DbgPrint: {}", str);
   }
 
-  ctx.r3.u64 = 0;  // NTSTATUS success
+  ctx.r3.u64 = 0;
 }
 
 REX_HOOK_RAW(__imp__XamDbgPrint) {
@@ -71,10 +66,6 @@ REX_HOOK_RAW(__imp__XamDbgPrint) {
 
   ctx.r3.u64 = 0;
 }
-
-//=============================================================================
-// sprintf / _snprintf (narrow, stack varargs)
-//=============================================================================
 
 REX_HOOK_RAW(__imp__sprintf) {
   uint32_t buffer_ptr = ctx.r3.u32;
@@ -133,10 +124,6 @@ REX_HOOK_RAW(__imp___snprintf) {
   }
   ctx.r3.u64 = count;
 }
-
-//=============================================================================
-// swprintf / _snwprintf (wide, stack varargs)
-//=============================================================================
 
 REX_HOOK_RAW(__imp__swprintf) {
   uint32_t buffer_ptr = ctx.r3.u32;
@@ -199,10 +186,6 @@ REX_HOOK_RAW(__imp___snwprintf) {
   ctx.r3.u64 = count;
 }
 
-//=============================================================================
-// vsprintf / _vsnprintf (narrow, va_list from memory)
-//=============================================================================
-
 REX_HOOK_RAW(__imp__vsprintf) {
   uint32_t buffer_ptr = ctx.r3.u32;
   uint32_t format_ptr = ctx.r4.u32;
@@ -261,10 +244,6 @@ REX_HOOK_RAW(__imp___vsnprintf) {
   }
   ctx.r3.u64 = count;
 }
-
-//=============================================================================
-// vswprintf / _vsnwprintf / _vscwprintf (wide, va_list from memory)
-//=============================================================================
 
 REX_HOOK_RAW(__imp__vswprintf) {
   uint32_t buffer_ptr = ctx.r3.u32;
@@ -346,10 +325,6 @@ REX_HOOK_RAW(__imp___vscwprintf) {
   REX_ASSERT(count < 0 || data.count() == count);
   ctx.r3.u64 = count;
 }
-
-//=============================================================================
-// Export stubs
-//=============================================================================
 
 REX_EXPORT_STUB(__imp___scprintf);
 REX_EXPORT_STUB(__imp___scwprintf);

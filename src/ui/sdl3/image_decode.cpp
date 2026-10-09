@@ -1,12 +1,3 @@
-/**
- * @file        ui/sdl3/image_decode.cpp
- *
- * @copyright   Copyright (c) 2026 Rien Gupta <rgupta9@scu.edu>
- *              All rights reserved.
- *
- * @license     BSD 3-Clause License
- *              See LICENSE file in the project root for full license text.
- */
 #include "ui/sdl3/image_decode.h"
 
 #define STB_IMAGE_IMPLEMENTATION
@@ -26,7 +17,7 @@ std::vector<uint8_t> DecodeImageRGBA(const uint8_t* data, size_t size, int& out_
   }
   int channels = 0;
   stbi_uc* pixels = stbi_load_from_memory(data, static_cast<int>(size), &out_width, &out_height,
-                                          &channels, 4 /* force RGBA */);
+                                          &channels, /*req_comp=*/4);
   if (!pixels) {
     out_width = 0;
     out_height = 0;

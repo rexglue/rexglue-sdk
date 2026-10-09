@@ -73,7 +73,6 @@ X_HANDLE CreateXboxkrnlModule(Runtime& runtime) {
   ModuleObject& module = *module_pin;
   auto* mem = runtime.memory();
 
-  // Register video variable exports (VdGlobalDevice, VdGpuClockInMHz and others)
   RegisterVideoExports(module, runtime);
 
   for (const u32 ordinal : {0x0059u, 0x0266u}) {
@@ -82,56 +81,28 @@ X_HANDLE CreateXboxkrnlModule(Runtime& runtime) {
     KernelModuleSetVariable(module, ordinal, monitor_data);
   }
 
-  // XboxHardwareInfo (XboxHardwareInfo_t, 16b)
-  // flags       cpu#  ?     ?     ?     ?           ?       ?
-  // 0x00000000, 0x06, 0x00, 0x00, 0x00, 0x00000000, 0x0000, 0x0000
-  // Games seem to check if bit 26 (0x20) is set, which at least for xbox1
-  // was whether an HDD was present. Not sure what the other flags are.
-  //
-  // aomega08 says the value is 0x02000817, bit 27: debug mode on.
-  // When that is set, though, allocs crash in weird ways.
-  //
-  // From kernel dissasembly, after storage is initialized
-  // XboxHardwareInfo flags is set with flag 5 (0x20).
+  // Titles test bit 5 (0x20) of flags. Bit 27 (debug mode) breaks allocations when set.
   uint32_t pXboxHardwareInfo = mem->SystemHeapAlloc(sizeof(X_HARDWARE_INFO));
   auto* hardware_info = mem->TranslateVirtual<X_HARDWARE_INFO*>(pXboxHardwareInfo);
   KernelModuleSetVariable(module, 0x0156, pXboxHardwareInfo);
   hardware_info->flags = 0x20;
   hardware_info->cpu_count = 0x06;
-  // Remaining 11b are zeroes?
 
-  // ExConsoleGameRegion, probably same values as keyvault region uses?
-  // Return all 0xFF, should satisfy anything that checks it
+  // All 0xFF satisfies any region check.
   uint32_t pExConsoleGameRegion = mem->SystemHeapAlloc(4);
   auto lpExConsoleGameRegion = mem->TranslateVirtual(pExConsoleGameRegion);
   KernelModuleSetVariable(module, 0x000C, pExConsoleGameRegion);
   memory::store<uint32_t>(lpExConsoleGameRegion, 0xFFFFFFFF);
 
-  // XexExecutableModuleHandle (?**)
-  // Games try to dereference this to get a pointer to some module struct.
-  // So far it seems like it's only in loader code, and only used to look up
-  // the XexHeaderBase for use by RtlImageXexHeaderField.
-  // We fake it so that the address passed to that looks legit.
-  // 0x80100FFC <- pointer to structure
-  // 0x80101000 <- our module structure
-  // 0x80101058 <- pointer to xex header
-  // 0x80101100 <- xex header base
+  // Titles dereference this to find the XexHeaderBase used by RtlImageXexHeaderField.
   uint32_t ppXexExecutableModuleHandle = mem->SystemHeapAlloc(4);
   KernelModuleSetVariable(module, 0x0193, ppXexExecutableModuleHandle);
 
-  // ExLoadedImageName (char*)
-  // The full path to loaded image/xex including its name.
-  // Used usually in custom dashboards (Aurora)
-  // Todo(Gliniak): Confirm that official kernel always allocate space for this
-  // variable.
+  // The full path of the loaded image including its name.
   uint32_t ppExLoadedImageName = mem->SystemHeapAlloc(kExLoadedImageNameSize);
   KernelModuleSetVariable(module, 0x01AF, ppExLoadedImageName);
 
-  // ExLoadedCommandLine (char*)
-  // The name of the xex. Not sure this is ever used on real devices.
-  // Perhaps it's how swap disc data is sent?
-  // Always set to "default.xex" (with quotes).
-  // TODO(gibbed): set this to the actual module name.
+  // The quoted xex name followed by the command line.
   std::string command_line("\"default.xex\"");
   if (!runtime.config().runtime.kernel.command_line.empty()) {
     command_line += " " + runtime.config().runtime.kernel.command_line;
@@ -144,9 +115,7 @@ X_HANDLE CreateXboxkrnlModule(Runtime& runtime) {
   std::memset(lpExLoadedCommandLine, 0, command_line_length);
   std::memcpy(lpExLoadedCommandLine, command_line.c_str(), command_line.length());
 
-  // XboxKrnlVersion (8b)
-  // Kernel version, looks like 2b.2b.2b.2b.
-  // I've only seen games check >=, so we fake something here.
+  // Titles only compare the version with >=.
   uint32_t pXboxKrnlVersion = mem->SystemHeapAlloc(sizeof(X_KERNEL_VERSION));
   auto* kernel_version = mem->TranslateVirtual<X_KERNEL_VERSION*>(pXboxKrnlVersion);
   KernelModuleSetVariable(module, 0x0158, pXboxKrnlVersion);
@@ -155,9 +124,7 @@ X_HANDLE CreateXboxkrnlModule(Runtime& runtime) {
   kernel_version->build = 0xFFFF;
   kernel_version->qfe = 0x8000;
 
-  // KeTimeStampBundle (24b)
-  // This must be updated during execution, at 1ms intevals.
-  // We setup a system timer here to do that.
+  // Updated at 1 ms intervals by a system timer.
   uint32_t pKeTimeStampBundle = mem->SystemHeapAlloc(sizeof(X_KE_TIMESTAMP_BUNDLE));
   auto* timestamp_bundle = mem->TranslateVirtual<X_KE_TIMESTAMP_BUNDLE*>(pKeTimeStampBundle);
   KernelModuleSetVariable(module, 0x00AD, pKeTimeStampBundle);
@@ -169,7 +136,6 @@ X_HANDLE CreateXboxkrnlModule(Runtime& runtime) {
       std::chrono::milliseconds(1),
       [timestamp_bundle]() { timestamp_bundle->tick_count = Clock::QueryGuestUptimeMillis(); });
 
-  // Wire kernel object type variables to KernelGuestGlobals.
   auto kgg = runtime.GetKernelGuestGlobals();
   REX_ASSERT(kgg != 0);
   KernelModuleSetVariable(module, 0x001B, kgg + offsetof(KernelGuestGlobals, ExThreadObjectType));

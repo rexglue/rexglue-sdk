@@ -1,4 +1,3 @@
-#pragma once
 /**
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
@@ -9,6 +8,8 @@
  *
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
+
+#pragma once
 
 #include <memory>
 #include <optional>
@@ -22,14 +23,12 @@
 
 namespace rex::gpu {
 
-// SpvBuilder with extra helpers.
-
+/** SpvBuilder with extra helpers. */
 class SpirvBuilder : public spv::Builder {
  public:
   SpirvBuilder(unsigned int spv_version, unsigned int user_number, spv::SpvBuildLogger* logger)
       : spv::Builder(spv_version, user_number, logger) {}
 
-  // Make public rather than protected.
   using spv::Builder::createSelectionMerge;
 
   spv::Id createQuadOp(spv::Op op_code, spv::Id type_id, spv::Id operand1, spv::Id operand2,
@@ -46,8 +45,7 @@ class SpirvBuilder : public spv::Builder {
   spv::Id createTriBuiltinCall(spv::Id result_type, spv::Id builtins, int entry_point,
                                spv::Id operand1, spv::Id operand2, spv::Id operand3);
 
-  // Helper to use for building nested control flow with if-then-else with
-  // additions over SpvBuilder::If.
+  /** Builds nested if-then-else control flow, extending SpvBuilder::If. */
   class IfBuilder : public rex::NonCopyable {
    public:
     IfBuilder(spv::Id condition, unsigned int control, SpirvBuilder& builder,
@@ -62,8 +60,6 @@ class SpirvBuilder : public spv::Builder {
     void makeBeginElse(bool branchToMerge = true);
     void makeEndIf(bool branchToMerge = true);
 
-    // If there's no then/else block that branches to the merge block, the phi
-    // parent is the header block - this simplifies then-only usage.
     spv::Id getThenPhiParent() const { return thenPhiParent; }
     spv::Id getElsePhiParent() const { return elsePhiParent; }
 
@@ -97,8 +93,7 @@ class SpirvBuilder : public spv::Builder {
 #endif
   };
 
-  // Simpler and more flexible (such as multiple cases pointing to the same
-  // block) compared to makeSwitch.
+  /** Switch builder allowing multiple cases to share a block, unlike makeSwitch. */
   class SwitchBuilder {
    public:
     SwitchBuilder(spv::Id selector, unsigned int selection_control, SpirvBuilder& builder);
@@ -109,8 +104,6 @@ class SpirvBuilder : public spv::Builder {
     void addCurrentCaseLiteral(unsigned int literal);
     void makeEndSwitch();
 
-    // If there's no default block that branches to the merge block, the phi
-    // parent is the header block - this simplifies case-only usage.
     spv::Id getDefaultPhiParent() const { return default_phi_parent_; }
 
    private:

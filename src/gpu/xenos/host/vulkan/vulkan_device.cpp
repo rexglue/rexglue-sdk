@@ -51,24 +51,11 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
 
   const VulkanInstance::Functions& ifn = vulkan_instance->functions();
 
-  // Get supported Vulkan 1.0 properties and features.
-
   VkPhysicalDeviceProperties properties = {};
   ifn.vkGetPhysicalDeviceProperties(physical_device, &properties);
 
   const uint32_t unclamped_api_version = properties.apiVersion;
   if (vulkan_instance->api_version() < VK_MAKE_API_VERSION(0, 1, 1, 0)) {
-    // From the VkApplicationInfo specification:
-    //
-    // "The Khronos validation layers will treat apiVersion as the highest API
-    // version the application targets, and will validate API usage against the
-    // minimum of that version and the implementation version (instance or
-    // device, depending on context). If an application tries to use
-    // functionality from a greater version than this, a validation error will
-    // be triggered."
-    //
-    // "Vulkan 1.0 implementations were required to return
-    // VK_ERROR_INCOMPATIBLE_DRIVER if apiVersion was larger than 1.0."
     properties.apiVersion =
         VK_MAKE_API_VERSION(0, 1, 0, VK_API_VERSION_PATCH(properties.apiVersion));
   }
@@ -78,15 +65,6 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
 
   if (with_gpu_emulation) {
     if (!supported_features.independentBlend) {
-      // Not trivial to work around:
-      // - Affects not only the blend equation, but also the color write mask.
-      // - Can't reuse the blend state of the first attachment for all because
-      //   some attachments may have a format that doesn't support blending.
-      // - Not possible to split the draw into per-attachment draws because of
-      //   depth / stencil.
-      // Not supported only on the proprietary driver for the Qualcomm
-      // Adreno 4xx, where the driver is largely experimental and doesn't expose
-      // much of the functionality available in the hardware.
       REXLOG_WARN(ui,
                   "Vulkan device '{}' doesn't support the independentBlend feature "
                   "required for GPU emulation",
@@ -125,8 +103,6 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
     }
   }
 
-  // Enable needed extensions.
-
   auto device = std::make_unique<VulkanDevice>(Key{}, vulkan_instance, physical_device);
   device->requires_geometry_shader_ = REXCVAR_GET(::rex::gpu::cvars::require_geometry_shader);
   device->requires_fill_mode_non_solid_ =
@@ -135,8 +111,7 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
   const bool get_physical_device_properties2_supported =
       vulkan_instance->extensions().ext_1_1_KHR_get_physical_device_properties2;
 
-  // Name pointers from `requested_extensions` will be used in the enabled
-  // extensions vector.
+  // Name pointers from requested_extensions are used in the enabled extensions vector.
   std::unordered_map<std::string, bool*> requested_extensions;
 
   const auto request_promoted_extension = [&](const char* const name, uint32_t const major,
@@ -151,44 +126,66 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
 
 #define REXVK_STRUCT_EXTENSION(name) \
   requested_extensions.emplace("VK_" #name, &device->extensions_.ext_##name);
+/**
+ * Requests a device extension whose support flag is a local variable.
+ *
+ * @param name Extension name without the VK_ prefix.
+ *
+ * @code
+ * REXVK_LOCAL_EXTENSION(KHR_portability_subset)
+ * @endcode
+ */
 #define REXVK_LOCAL_EXTENSION(name) requested_extensions.emplace("VK_" #name, &ext_##name);
+/**
+ * Requests an extension promoted to core, with its support flag in the extensions struct.
+ *
+ * @param name Extension name without the VK_ prefix.
+ * @param major Major number of the core version that promoted it.
+ * @param minor Minor number of the core version that promoted it.
+ *
+ * @code
+ * REXVK_STRUCT_PROMOTED_EXTENSION(KHR_dedicated_allocation, 1, 1)
+ * @endcode
+ */
 #define REXVK_STRUCT_PROMOTED_EXTENSION(name, major, minor) \
   request_promoted_extension("VK_" #name, major, minor,     \
                              &device->extensions_.ext_##major##_##minor##_##name);
+/**
+ * Requests an extension promoted to core, with its support flag as a local variable.
+ *
+ * @param name Extension name without the VK_ prefix.
+ * @param major Major number of the core version that promoted it.
+ * @param minor Minor number of the core version that promoted it.
+ *
+ * @code
+ * REXVK_LOCAL_PROMOTED_EXTENSION(KHR_driver_properties, 1, 2)
+ * @endcode
+ */
 #define REXVK_LOCAL_PROMOTED_EXTENSION(name, major, minor) \
   request_promoted_extension("VK_" #name, major, minor, &ext_##major##_##minor##_##name);
 
   bool ext_KHR_portability_subset = false;
   bool ext_1_2_KHR_driver_properties = false;
   if (get_physical_device_properties2_supported) {
-    // #164. Must be enabled according to the specification if the physical
-    // device is a portability subset one.
+    // Must be enabled when the physical device is a portability subset device.
     REXVK_LOCAL_EXTENSION(KHR_portability_subset)
-    // #197
     REXVK_LOCAL_PROMOTED_EXTENSION(KHR_driver_properties, 1, 2)
   }
 
-  // Used by the Vulkan Memory Allocator and potentially by Xenia.
-  // #128.
   REXVK_STRUCT_PROMOTED_EXTENSION(KHR_dedicated_allocation, 1, 1)
-  // #147. Also must be enabled for VK_KHR_dedicated_allocation and
-  // VK_KHR_sampler_ycbcr_conversion.
+  // Also required by VK_KHR_dedicated_allocation and VK_KHR_sampler_ycbcr_conversion.
   REXVK_STRUCT_PROMOTED_EXTENSION(KHR_get_memory_requirements2, 1, 1)
-  // #158. Also must be enabled for VK_KHR_sampler_ycbcr_conversion.
+  // Also required by VK_KHR_sampler_ycbcr_conversion.
   REXVK_STRUCT_PROMOTED_EXTENSION(KHR_bind_memory2, 1, 1)
   if (get_physical_device_properties2_supported) {
-    // #238.
     REXVK_STRUCT_EXTENSION(EXT_memory_budget)
   }
   if (properties.apiVersion >= VK_MAKE_API_VERSION(0, 1, 1, 0)) {
-    // #414.
     REXVK_STRUCT_PROMOTED_EXTENSION(KHR_maintenance4, 1, 3)
-    // #55.
     REXVK_STRUCT_PROMOTED_EXTENSION(KHR_dynamic_rendering, 1, 3)
   }
 
   if (with_swapchain) {
-    // #2.
     REXVK_STRUCT_EXTENSION(KHR_swapchain)
   }
 
@@ -200,26 +197,18 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
   bool ext_1_3_KHR_dynamic_rendering = false;
   bool ext_EXT_non_seamless_cube_map = false;
   if (with_gpu_emulation) {
-    // #15.
     REXVK_LOCAL_PROMOTED_EXTENSION(KHR_sampler_mirror_clamp_to_edge, 1, 2)
-    // #70. Must be enabled for VK_KHR_sampler_ycbcr_conversion.
+    // Required by VK_KHR_sampler_ycbcr_conversion.
     REXVK_LOCAL_PROMOTED_EXTENSION(KHR_maintenance1, 1, 1)
-    // #141.
     REXVK_STRUCT_EXTENSION(EXT_shader_stencil_export)
-    // #148.
     REXVK_STRUCT_PROMOTED_EXTENSION(KHR_image_format_list, 1, 2)
     if (get_physical_device_properties2_supported) {
-      // #157.
       REXVK_STRUCT_PROMOTED_EXTENSION(KHR_sampler_ycbcr_conversion, 1, 1)
-      // #198. Also must be enabled for VK_KHR_spirv_1_4.
+      // Also required by VK_KHR_spirv_1_4.
       REXVK_LOCAL_PROMOTED_EXTENSION(KHR_shader_float_controls, 1, 2)
-      // #252.
       REXVK_LOCAL_EXTENSION(EXT_fragment_shader_interlock)
-      // #55.
       REXVK_LOCAL_PROMOTED_EXTENSION(KHR_dynamic_rendering, 1, 3)
-      // #277.
       REXVK_LOCAL_PROMOTED_EXTENSION(EXT_shader_demote_to_helper_invocation, 1, 3)
-      // #423.
       REXVK_LOCAL_EXTENSION(EXT_non_seamless_cube_map)
       // Required for non-black YCbCr border color parity with D3D12.
       REXVK_STRUCT_EXTENSION(EXT_custom_border_color)
@@ -227,7 +216,6 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
       REXVK_STRUCT_EXTENSION(EXT_robustness2)
     }
     if (properties.apiVersion >= VK_MAKE_API_VERSION(0, 1, 1, 0)) {
-      // #237.
       REXVK_STRUCT_PROMOTED_EXTENSION(KHR_spirv_1_4, 1, 2)
     }
   }
@@ -282,12 +270,6 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
 
   device_create_info.enabledExtensionCount = static_cast<uint32_t>(enabled_extensions.size());
   device_create_info.ppEnabledExtensionNames = enabled_extensions.data();
-
-  // Get supported Vulkan 1.1+ and extension properties and features.
-  //
-  // The property and feature structures are initialized to zero or to the
-  // minimum / maximum requirements for the simplicity of handling unavailable
-  // VK_KHR_get_physical_device_properties2.
 
   auto properties_2 = util::InitializeStructure<VkPhysicalDeviceProperties2>(
       VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2);
@@ -427,7 +409,6 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
   }
 
   if (first_queue_family_graphics_compute == UINT32_MAX) {
-    // Not valid according to the Vulkan specification, but for safety.
     REXLOG_WARN(ui,
                 "Vulkan device '{}' doesn't provide a graphics and compute queue "
                 "family",
@@ -443,12 +424,7 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
     return nullptr;
   }
 
-  // Get the queues to create.
-
   if (first_queue_family_sparse_binding == UINT32_MAX) {
-    // Not valid not to provide a sparse binding queue if the sparseBinding
-    // feature is supported according to the Vulkan specification, but for
-    // safety and simplicity.
     supported_features.sparseBinding = VK_FALSE;
   }
   if (!supported_features.sparseBinding) {
@@ -461,10 +437,6 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
     supported_features.sparseResidency16Samples = VK_FALSE;
     supported_features.sparseResidencyAliased = VK_FALSE;
   }
-
-  // Prefer using one queue for everything whenever possible for simplicity.
-  // TODO(Triang3l): Research if separate queues for purposes like composition,
-  // swapchain image presentation, and sparse binding, may be beneficial.
 
   if (first_queue_family_graphics_compute_sparse_binding != UINT32_MAX) {
     device->queue_family_graphics_compute_ = first_queue_family_graphics_compute_sparse_binding;
@@ -507,13 +479,7 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
   device_create_info.queueCreateInfoCount = static_cast<uint32_t>(queue_create_infos.size());
   device_create_info.pQueueCreateInfos = queue_create_infos.data();
 
-  // Enable needed features and copy the properties.
-  //
-  // Enabling only used features because drivers may take more optimal
-  // paths when some features are disabled. Also, in VK_EXT_shader_object,
-  // the state that the application must set for the draw depends on which
-  // features are enabled.
-
+  // Only used features are enabled, as drivers may take faster paths with others disabled.
   device->properties_.apiVersion = properties.apiVersion;
   device->properties_.driverVersion = properties.driverVersion;
   device->properties_.vendorID = properties.vendorID;
@@ -550,27 +516,86 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
 #define REXVK_LIMIT(name)                            \
   device->properties_.name = properties.limits.name; \
   REXLOG_DEBUG(ui, "* " #name ": {}", properties.limits.name);
+/**
+ * Copies a device limit that is a flag mask and logs it by its Vulkan flag names.
+ *
+ * @param name Member of VkPhysicalDeviceLimits to copy.
+ * @param type Vulkan C++ flags type used to format the value.
+ *
+ * @code
+ * REXVK_ENUM_LIMIT(framebufferColorSampleCounts, SampleCountFlags)
+ * @endcode
+ */
 #define REXVK_ENUM_LIMIT(name, type)                 \
   device->properties_.name = properties.limits.name; \
   REXLOG_DEBUG(ui, "* " #name ": {}", vk::to_string(vk::type(properties.limits.name)));
+/**
+ * Enables a core device feature when supported and stores whether it is supported.
+ *
+ * @param name Member of VkPhysicalDeviceFeatures to enable.
+ *
+ * @code
+ * REXVK_FEATURE(samplerAnisotropy)
+ * @endcode
+ */
 #define REXVK_FEATURE(name)                           \
   enabled_features.name = supported_features.name;    \
   device->properties_.name = supported_features.name; \
   if (supported_features.name) {                      \
     REXLOG_DEBUG(ui, "* " #name);                     \
   }
+/**
+ * Copies a property from an extension properties structure and logs it.
+ *
+ * @param structure Properties structure to read from.
+ * @param name Member of the structure to copy.
+ *
+ * @code
+ * REXVK_PROPERTY_2(properties_1_2_KHR_shader_float_controls, shaderDenormFlushToZeroFloat32)
+ * @endcode
+ */
 #define REXVK_PROPERTY_2(structure, name)    \
   device->properties_.name = structure.name; \
   REXLOG_DEBUG(ui, "* " #name ": {}", structure.name);
+/**
+ * Copies an enumeration property from an extension properties structure and logs it by name.
+ *
+ * @param structure Properties structure to read from.
+ * @param name Member of the structure to copy.
+ * @param type Vulkan C++ enumeration type used to format the value.
+ *
+ * @code
+ * REXVK_ENUM_PROPERTY_2(properties_1_2_KHR_driver_properties, driverID, DriverId)
+ * @endcode
+ */
 #define REXVK_ENUM_PROPERTY_2(structure, name, type) \
   device->properties_.name = structure.name;         \
   REXLOG_DEBUG(ui, "* " #name ": {}", vk::to_string(vk::type(structure.name)));
+/**
+ * Enables a feature from an extension features structure when supported and stores the result.
+ *
+ * @param structure Features structure holding the supported and enabled members.
+ * @param name Feature member to enable.
+ *
+ * @code
+ * REXVK_FEATURE_2(features_1_2, uniformBufferStandardLayout)
+ * @endcode
+ */
 #define REXVK_FEATURE_2(structure, name)               \
   structure.enabled.name = structure.supported.name;   \
   device->properties_.name = structure.supported.name; \
   if (structure.supported.name) {                      \
     REXLOG_DEBUG(ui, "* " #name);                      \
   }
+/**
+ * Marks a feature as supported that an enabled extension or core version implies without a query.
+ *
+ * @param name Name of the implied feature.
+ *
+ * @code
+ * REXVK_FEATURE_IMPLIED(separateStencilMaskRef)
+ * @endcode
+ */
 #define REXVK_FEATURE_IMPLIED(name) \
   device->properties_.name = true;  \
   REXLOG_DEBUG(ui, "* " #name);
@@ -684,7 +709,6 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
       REXVK_FEATURE_2(features_KHR_portability_subset, shaderSampleRateInterpolationFunctions)
     }
   } else {
-    // Not a portability subset device.
     REXVK_FEATURE_IMPLIED(constantAlphaColorBlendFactors)
     REXVK_FEATURE_IMPLIED(imageViewFormatReinterpretation)
     REXVK_FEATURE_IMPLIED(imageViewFormatSwizzle)
@@ -734,8 +758,6 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
 #undef REXVK_ENUM_PROPERTY_2
 #undef REXVK_FEATURE_2
 
-  // Create the device.
-
   const VkResult device_create_result =
       ifn.vkCreateDevice(physical_device, &device_create_info, nullptr, &device->device_);
   if (device_create_result != VK_SUCCESS) {
@@ -745,8 +767,6 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
              properties.deviceName, vk::to_string(vk::Result(device_create_result)));
   }
 
-  // Load device functions.
-
   bool functions_loaded = true;
 
   Functions& dfn = device->functions_;
@@ -755,10 +775,9 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
   functions_loaded &=        \
       (dfn.name = PFN_##name(ifn.vkGetDeviceProcAddr(device->device_, #name))) != nullptr;
 
-  // Vulkan 1.0.
 #include "gpu/xenos/host/vulkan/functions/device_1_0.inc"
 
-  // Extensions promoted to a Vulkan version supported by the device.
+  // Promoted functions load by their core names when the device supports that core version.
 #define REXVK_FUNCTION_PROMOTED(extension_name, core_name)                                       \
   functions_loaded &=                                                                            \
       (dfn.core_name = PFN_##core_name(ifn.vkGetDeviceProcAddr(device->device_, #core_name))) != \
@@ -773,8 +792,7 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
   }
 #undef REXVK_FUNCTION_PROMOTED
 
-  // Non-promoted extensions, and extensions promoted to a Vulkan version not
-  // supported by the device.
+  // Below that core version they load by their extension names.
 #define REXVK_FUNCTION_PROMOTED(extension_name, core_name) \
   functions_loaded &= (dfn.core_name = PFN_##core_name(    \
                            ifn.vkGetDeviceProcAddr(device->device_, #extension_name))) != nullptr;
@@ -806,8 +824,6 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
              properties.deviceName);
   }
 
-  // Get the queues.
-
   for (size_t queue_family_index = 0; queue_family_index < device->queue_families_.size();
        ++queue_family_index) {
     QueueFamily& queue_family = device->queue_families_[queue_family_index];
@@ -818,8 +834,6 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
       queue_family.queues[queue_index] = std::make_unique<Queue>(queue);
     }
   }
-
-  // Get the memory types.
 
   VkPhysicalDeviceMemoryProperties memory_properties;
   ifn.vkGetPhysicalDeviceMemoryProperties(physical_device, &memory_properties);

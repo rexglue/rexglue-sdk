@@ -48,7 +48,7 @@ REX_API int socket_ioctl(SocketHandle handle, u32 cmd, u8* arg);
 
 /** The readiness a socket wait asks for. */
 enum class SocketReady : u32 {
-  kNone = 0,
+  kNone = 0,        /**< No readiness requested. */
   kRead = 1 << 0,   /**< Data, a connection or a peer close to read. */
   kWrite = 1 << 1,  /**< Space to send, or a finished connect. */
   kExcept = 1 << 2, /**< Out of band data, or a failed connect. */

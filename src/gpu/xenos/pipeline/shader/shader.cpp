@@ -29,7 +29,6 @@ Shader::Shader(xenos::ShaderType shader_type, uint64_t ucode_data_hash,
                const uint32_t* ucode_dwords, size_t ucode_dword_count,
                std::endian ucode_source_endian)
     : shader_type_(shader_type), ucode_data_hash_(ucode_data_hash) {
-  // We keep ucode data in host native format so it's easier to work with.
   ucode_data_.resize(ucode_dword_count);
   if (std::endian::native != ucode_source_endian) {
     memory::copy_and_swap(ucode_data_.data(), ucode_dwords, ucode_dword_count);
@@ -47,7 +46,6 @@ std::pair<std::filesystem::path, std::filesystem::path> Shader::Translation::Dum
   }
 
   std::filesystem::path path = base_path;
-  // Ensure target path exists.
   std::filesystem::path target_path = base_path;
   if (!target_path.empty()) {
     target_path = std::filesystem::absolute(target_path);
@@ -102,7 +100,6 @@ void Shader::DestroyTranslation(uint64_t modification) {
 
 std::pair<std::filesystem::path, std::filesystem::path> Shader::DumpUcode(
     const std::filesystem::path& base_path) const {
-  // Ensure target path exists.
   std::filesystem::path target_path = base_path;
   if (!target_path.empty()) {
     target_path = std::filesystem::absolute(target_path);
@@ -131,7 +128,6 @@ std::pair<std::filesystem::path, std::filesystem::path> Shader::DumpUcode(
 }
 
 std::unique_ptr<Shader::Translation> Shader::CreateTranslationInstance(uint64_t modification) {
-  // Default implementation for simple cases like ucode disassembly.
   return std::make_unique<Translation>(*this, modification);
 }
 

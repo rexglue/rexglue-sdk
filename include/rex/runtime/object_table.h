@@ -24,7 +24,7 @@
 
 namespace rex::runtime {
 
-/** Placement options for a new table record. */
+/** Placement options for a new `ObjectRecord`. */
 struct AddOptions {
   std::string_view name; /**< The name to register, empty for none. */
   GuestBlock block;      /**< The guest block that backs the object. */
@@ -40,9 +40,9 @@ class IObjectTable {
   virtual ~IObjectTable() = default;
 
   /**
-   * Takes ownership of a record and gives it its first handle with a count of 1.
+   * Takes ownership of an `ObjectRecord` and gives it its first handle with a count of 1.
    *
-   * @param record The record.
+   * @param record The `ObjectRecord`.
    * @param options The name to register and the guest block that backs the object.
    * @return The handle.
    */
@@ -50,10 +50,10 @@ class IObjectTable {
                                              const AddOptions& options) = 0;
 
   /**
-   * Allocates a guest block when block_size is not 0, adds the record under the name of the object
-   * attributes, and stashes the handle in the block.
+   * Allocates a guest block when block_size is not 0, adds the `ObjectRecord` under the name of the
+   * object attributes, and stashes the handle in the block.
    *
-   * @param record The record.
+   * @param record The `ObjectRecord`.
    * @param attributes_ptr The guest address of an X_OBJECT_ATTRIBUTES, 0 for no name.
    * @param block_size The size of the guest object body, 0 for no block.
    * @return The handle, or X_STATUS_NO_MEMORY when the block cannot be allocated.
@@ -118,7 +118,7 @@ class IObjectTable {
   [[nodiscard]] virtual std::optional<X_HANDLE> PrimaryHandle(const PinnedSlot& slot) = 0;
 
   /**
-   * Looks a handle up and pins its record.
+   * Looks a handle up and pins its `ObjectRecord`.
    *
    * @param handle The handle, pseudo handles are translated.
    * @return The pin, empty when the handle is invalid.
@@ -126,7 +126,7 @@ class IObjectTable {
   [[nodiscard]] virtual PinnedSlot Get(X_HANDLE handle) = 0;
 
   /**
-   * Pins every record, once per record.
+   * Pins every `ObjectRecord`, once per `ObjectRecord`.
    *
    * @return The pins.
    */
@@ -193,7 +193,7 @@ class IObjectTable {
   }
 
   /**
-   * Looks a handle up and pins its record when it holds a T.
+   * Looks a handle up and pins its `ObjectRecord` when it holds a T.
    *
    * @tparam T The expected object struct.
    * @param handle The handle, pseudo handles are translated.
@@ -205,7 +205,7 @@ class IObjectTable {
   }
 
   /**
-   * Pins every record that holds a T, once per record.
+   * Pins every `ObjectRecord` that holds a T, once per `ObjectRecord`.
    *
    * @tparam T The object struct.
    * @return The pins.
@@ -223,7 +223,7 @@ class IObjectTable {
   }
 
   /**
-   * Resolves a guest dispatch header and pins its record when it holds a T.
+   * Resolves a guest dispatch header and pins its `ObjectRecord` when it holds a T.
    *
    * @tparam T The expected object struct.
    * @param address The guest address of the dispatch header.

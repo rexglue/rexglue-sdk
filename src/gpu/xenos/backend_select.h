@@ -1,5 +1,5 @@
 /**
- * @file        graphics/backend_select.h
+ * @file        gpu/xenos/backend_select.h
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

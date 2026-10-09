@@ -1,5 +1,5 @@
 /**
- * @file        rex/codegen/function_graph.h
+ * @file        codegen/function_graph.h
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -14,174 +14,325 @@
 
 namespace rex::codegen {
 
-//=============================================================================
-// Function Graph
-//=============================================================================
-// Container for all function nodes. Manages resolution notifications.
-// Also handles vacancy checking for merge eligibility.
-//
-// Vacancy Rules - A region is vacant if ALL are true:
-//   1. No null dword at the boundary
-//   2. No chunk claims the region
-//   3. Target does not fall within a protected function's range:
-//      - PDATA/CONFIG/HELPER: always protected (cannot merge into)
-//      - DISCOVERED with xrefs: CAN be merged (treated as potential internal label)
-
+/**
+ * Container for all function nodes. Manages resolution notifications and vacancy checking for
+ * merge eligibility.
+ *
+ * A region is vacant when all of these hold.
+ * - No null dword at the boundary
+ * - No chunk claims the region
+ * - The target does not fall within a protected function range, where PDATA, CONFIG and HELPER
+ *   functions are always protected and DISCOVERED functions with xrefs can be merged as a
+ *   potential internal label
+ */
 class FunctionGraph {
  public:
+  /**
+   * Reads the dword stored at a guest address.
+   *
+   * @param addr Guest address
+   * @return The dword, or nullopt when addr is unreadable
+   */
   using MemoryReader = std::move_only_function<std::optional<uint32_t>(uint32_t addr) const>;
 
-  //=========================================================================
-  // Function Management
-  //=========================================================================
-
-  // Add a function to the graph.
-  // Returns the new node, or existing node if already present (higher authority wins).
-  // Notifies all PENDING functions to try resolution against the new entry.
-  // hasXrefs: true if this is a known call target (bl target and others)
+  /**
+   * Adds a function to the graph and notifies all PENDING functions to try resolution against
+   * the new entry.
+   *
+   * @param base Entry point address
+   * @param size Size in bytes
+   * @param authority Authority of the registration, the higher authority wins on a repeat
+   * @param hasXrefs True when this is a known call target such as a bl target
+   * @return The new node, or the existing node when already present
+   */
   FunctionNode* addFunction(uint32_t base, uint32_t size, FunctionAuthority authority,
                             bool hasXrefs = false);
 
-  // Add a named function to the graph (convenience overload)
+  /**
+   * Adds a named function to the graph.
+   *
+   * @param base Entry point address
+   * @param size Size in bytes
+   * @param authority Authority of the registration
+   * @param name Function name
+   * @param hasXrefs True when this is a known call target
+   * @return The new node, or the existing node when already present
+   */
   FunctionNode* addFunction(uint32_t base, uint32_t size, FunctionAuthority authority,
                             std::string_view name, bool hasXrefs = false);
 
-  // Add a resolved import as a callable function with __imp__ name
-  // Address is the thunk address that bl instructions target
+  /**
+   * Adds a resolved import as a callable function with an __imp__ name.
+   *
+   * @param address Thunk address that bl instructions target
+   * @param resolvedName Resolved import name
+   * @return The new node
+   */
   FunctionNode* addImportFunction(uint32_t address, std::string_view resolvedName);
 
-  // Get function by entry point (O(1))
+  /**
+   * Returns the function at an entry point in O(1).
+   *
+   * @param entryPoint Entry point address
+   * @return The node, or null when absent
+   */
   FunctionNode* getFunction(uint32_t entryPoint);
+  /**
+   * Returns the function at an entry point in O(1).
+   *
+   * @param entryPoint Entry point address
+   * @return The node, or null when absent
+   */
   const FunctionNode* getFunction(uint32_t entryPoint) const;
 
-  // Remove function from graph (for cleanup of absorbed GAP_FILLs)
+  /**
+   * Removes a function from the graph, used to clean up absorbed GAP_FILLs.
+   *
+   * @param entryPoint Entry point address
+   * @return True when a function was removed
+   */
   bool removeFunction(uint32_t entryPoint);
 
-  // Get function containing address (O(log f) via sorted base index)
+  /**
+   * Returns the function containing an address in O(log f) through the sorted base index.
+   *
+   * @param addr Address to look up
+   * @return The node, or null when no function contains addr
+   */
   FunctionNode* getFunctionContaining(uint32_t addr);
+  /**
+   * Returns the function containing an address in O(log f) through the sorted base index.
+   *
+   * @param addr Address to look up
+   * @return The node, or null when no function contains addr
+   */
   const FunctionNode* getFunctionContaining(uint32_t addr) const;
 
-  // Check if address is a known entry point
+  /**
+   * Reports whether an address is a known entry point.
+   *
+   * @param addr Address to test
+   * @return True when a function starts at addr
+   */
   bool isEntryPoint(uint32_t addr) const;
 
-  // Check if address is an import (FunctionNode with IMPORT authority)
+  /**
+   * Reports whether an address is an import, a FunctionNode with IMPORT authority.
+   *
+   * @param addr Address to test
+   * @return True when addr is an import
+   */
   bool isImport(uint32_t addr) const;
 
-  // Iterate all functions (includes imports with IMPORT authority)
+  /**
+   * Returns all functions including imports with IMPORT authority.
+   *
+   * @return Functions keyed by entry point
+   */
   const std::unordered_map<uint32_t, std::unique_ptr<FunctionNode>>& functions() const {
     return functions_;
   }
 
-  // Get all PENDING functions
+  /**
+   * Returns all PENDING functions.
+   *
+   * @return Pending nodes
+   */
   std::vector<FunctionNode*> getPendingFunctions();
 
-  // Get all SEALED functions
+  /**
+   * Returns all SEALED functions.
+   *
+   * @return Sealed nodes
+   */
   std::vector<FunctionNode*> getSealedFunctions();
 
-  // Statistics
+  /** Returns the number of functions. */
   size_t functionCount() const { return functions_.size(); }
+  /**
+   * Counts the functions that are not sealed.
+   *
+   * @return Number of PENDING functions
+   */
   size_t pendingCount() const;
+  /**
+   * Counts the sealed functions.
+   *
+   * @return Number of SEALED functions
+   */
   size_t sealedCount() const;
 
-  //=========================================================================
-  // Function Setup (called during Discover phase)
-  //=========================================================================
-
-  // Set function name
+  /**
+   * Sets a function name. Called during the Discover phase.
+   *
+   * @param entry Entry point address
+   * @param name Function name
+   */
   void setFunctionName(uint32_t entry, std::string name);
 
-  // Set exception handler flag
+  /**
+   * Sets the exception handler flag. Called during the Discover phase.
+   *
+   * @param entry Entry point address
+   * @param val Flag value
+   */
   void setFunctionHasExceptionHandler(uint32_t entry, bool val);
 
-  // Set parsed exception info (SEH or C++ EH)
+  /**
+   * Sets the parsed SEH or C++ EH info. Called during the Discover phase.
+   *
+   * @param entry Entry point address
+   * @param info Parsed exception info
+   */
   void setFunctionExceptionInfo(uint32_t entry, ExceptionInfo info);
 
-  // Add a block to a function
+  /**
+   * Adds a block to a function. Called during the Discover phase.
+   *
+   * @param entry Entry point address
+   * @param block Block to add
+   */
   void addBlockToFunction(uint32_t entry, Block block);
 
-  // Add a label (internal branch target) to a function
+  /**
+   * Adds a label, an internal branch target, to a function. Called during the Discover phase.
+   *
+   * @param entry Entry point address
+   * @param label Label address
+   */
   void addLabelToFunction(uint32_t entry, uint32_t label);
 
-  // Add a resolved call to a function
+  /**
+   * Adds a resolved call to a function. Called during the Discover phase.
+   *
+   * @param entry Entry point address
+   * @param site Call site address
+   * @param target Resolved target
+   */
   void addCallToFunction(uint32_t entry, uint32_t site, CallTarget target);
 
-  // Add a resolved tail call to a function
+  /**
+   * Adds a resolved tail call to a function. Called during the Discover phase.
+   *
+   * @param entry Entry point address
+   * @param site Call site address
+   * @param target Resolved target
+   */
   void addTailCallToFunction(uint32_t entry, uint32_t site, CallTarget target);
 
-  // Add a jump table to a function
+  /**
+   * Adds a jump table to a function. Called during the Discover phase.
+   *
+   * @param entry Entry point address
+   * @param jt Jump table to add
+   */
   void addJumpTableToFunction(uint32_t entry, JumpTable jt);
 
-  // Add an unresolved jump to a function
-  // isCall: true for bl (call), false for b (tail call)
+  /**
+   * Adds an unresolved jump to a function. Called during the Discover phase.
+   *
+   * @param entry Entry point address
+   * @param site Jump site address
+   * @param target Jump target address
+   * @param isCall True for bl (call), false for b (tail call)
+   * @param conditional True for a conditional branch
+   */
   void addUnresolvedJumpToFunction(uint32_t entry, uint32_t site, uint32_t target, bool isCall,
                                    bool conditional);
 
-  //=========================================================================
-  // Resolution and Expansion (called during Merge phase)
-  //=========================================================================
-
-  // Try to resolve all unresolved jumps for a function
-  // Checks against known functions, imports, and internal labels
-  // Returns number of jumps resolved
+  /**
+   * Tries to resolve all unresolved jumps of a function against known functions, imports and
+   * internal labels. Called during the Merge phase.
+   *
+   * @param entry Entry point address
+   * @return Number of jumps resolved
+   */
   size_t tryResolveFunction(uint32_t entry);
 
-  // Absorb a region into a function (for vacancy expansion)
+  /**
+   * Absorbs a region into a function for vacancy expansion. Called during the Merge phase.
+   *
+   * @param entry Entry point address
+   * @param regionBase Region start address
+   * @param regionSize Region size in bytes
+   */
   void absorbRegionIntoFunction(uint32_t entry, uint32_t regionBase, uint32_t regionSize);
 
-  // Seal a function if it can be sealed
-  // Returns true if function was sealed
+  /**
+   * Seals a function if it can be sealed. Called during the Merge phase.
+   *
+   * @param entry Entry point address
+   * @return True when the function was sealed
+   */
   bool trySealFunction(uint32_t entry);
 
-  // Seal all functions that can be sealed
-  // Returns number of functions sealed
+  /**
+   * Seals all functions that can be sealed. Called during the Merge phase.
+   *
+   * @return Number of functions sealed
+   */
   size_t sealAllReady();
 
-  // Seal all functions, throwing if any cannot be sealed
-  // Use after discovery is complete to enforce all functions are ready
+  /** Seals all functions and throws if any cannot be sealed, enforcing that discovery is done. */
   void sealAll();
 
-  //=========================================================================
-  // Vacancy Checking
-  //=========================================================================
-
-  // Set the memory reader for null-dword checking
+  /**
+   * Sets the memory reader for null dword checking.
+   *
+   * @param reader Reader returning the dword at an address
+   */
   void setMemoryReader(MemoryReader reader) { memoryReader_ = std::move(reader); }
 
-  // Register a chunk (address range claimed by config, blocks vacancy)
+  /**
+   * Registers a chunk, an address range claimed by config that blocks vacancy.
+   *
+   * @param base Range start address
+   * @param size Range size in bytes
+   */
   void registerChunk(uint32_t base, uint32_t size);
 
-  // Check if a region is vacant for absorption
-  // fromAddr: the address we're expanding from (to check for null boundary)
-  // targetAddr: the start of the region we want to absorb
+  /**
+   * Reports whether a region is vacant for absorption.
+   *
+   * @param fromAddr Address being expanded from, used to check for a null boundary
+   * @param targetAddr Start of the region to absorb
+   * @return True when the region is vacant
+   */
   bool isVacant(uint32_t fromAddr, uint32_t targetAddr) const;
 
-  // Check if target is a mergeable entry point (DISCOVERED with xrefs)
+  /**
+   * Reports whether a target is a mergeable entry point, a DISCOVERED function with xrefs.
+   *
+   * @param addr Address to test
+   * @return True when addr is mergeable
+   */
   bool isMergeableEntryPoint(uint32_t addr) const;
 
-  // Flag every SEH funclet as register-sharing. Run after discovery, once
-  // funclet extents are known. Returns the number flagged.
+  /**
+   * Flags every SEH funclet as register sharing. Runs after discovery, once funclet extents are
+   * known.
+   *
+   * @return Number of funclets flagged
+   */
   size_t markFuncletRegisterSharing();
 
-  //=========================================================================
-  // Target Classification (for code generation)
-  //=========================================================================
-
-  // Classify a branch target for code generation.
-  // target: address being branched to
-  // callerAddr: address of the branch instruction
-  // isCallInstruction: true for bl (expects return), false for b (no return)
-  // Returns how the target should be treated during code generation.
+  /**
+   * Classifies a branch target for code generation.
+   *
+   * @param target Address being branched to
+   * @param callerAddr Address of the branch instruction
+   * @param isCallInstruction True for bl (expects return), false for b (no return)
+   * @return How the target is treated during code generation
+   */
   TargetKind classifyTarget(uint32_t target, uint32_t callerAddr, bool isCallInstruction) const;
 
  private:
   std::unordered_map<uint32_t, std::unique_ptr<FunctionNode>> functions_;
-  std::map<uint32_t, FunctionNode*>
-      functionsByBase_;  // sorted by base for O(log f) interval lookup
-  std::unordered_map<uint32_t, bool> functionHasXrefs_;  // entry -> hasXrefs
-  std::vector<std::pair<uint32_t, uint32_t>> chunks_;    // base, size pairs
+  std::map<uint32_t, FunctionNode*> functionsByBase_;
+  std::unordered_map<uint32_t, bool> functionHasXrefs_;
+  std::vector<std::pair<uint32_t, uint32_t>> chunks_;
   MemoryReader memoryReader_;
 
-  // Notify all PENDING functions that a new function was added
   void notifyFunctionAdded(FunctionNode* newFunction);
 };
 

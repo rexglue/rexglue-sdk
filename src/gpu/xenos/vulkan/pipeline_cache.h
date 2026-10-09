@@ -1,4 +1,3 @@
-#pragma once
 /**
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
@@ -9,6 +8,8 @@
  *
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
+
+#pragma once
 
 #include <atomic>
 #include <condition_variable>
@@ -44,8 +45,6 @@ namespace rex::gpu::vulkan {
 
 class VulkanCommandProcessor;
 
-// TODO(Triang3l): Create a common base for both the Vulkan and the Direct3D
-// implementations.
 class VulkanPipelineCache {
  public:
   static constexpr size_t kLayoutUIDEmpty = 0;
@@ -77,8 +76,7 @@ class VulkanPipelineCache {
   // Analyze shader microcode on the translator thread.
   void AnalyzeShaderUcode(Shader& shader) { shader.AnalyzeUcode(ucode_disasm_buffer_); }
 
-  // Retrieves the shader modification for the current state. The shader must
-  // have microcode analyzed.
+  // The shader must have microcode analyzed.
   SpirvShaderTranslator::Modification GetCurrentVertexShaderModification(
       const Shader& shader, Shader::HostVertexShaderType host_vertex_shader_type,
       uint32_t interpolator_mask, bool ps_param_gen_used) const;
@@ -88,7 +86,6 @@ class VulkanPipelineCache {
 
   bool EnsureShadersTranslated(VulkanShader::VulkanTranslation* vertex_shader,
                                VulkanShader::VulkanTranslation* pixel_shader);
-  // TODO(Triang3l): Return a deferred creation handle.
   bool ConfigurePipeline(
       VulkanShader::VulkanTranslation* vertex_shader, VulkanShader::VulkanTranslation* pixel_shader,
       const PrimitiveProcessor::ProcessingResult& primitive_processing_result,
@@ -154,14 +151,14 @@ class VulkanPipelineCache {
 
   // Update PipelineDescription::kVersion if anything is changed!
   REX_PACKED_STRUCT(PipelineRenderTarget, {
-    PipelineBlendFactor src_color_blend_factor : 4;  // 4
-    PipelineBlendFactor dst_color_blend_factor : 4;  // 8
-    xenos::BlendOp color_blend_op : 3;               // 11
-    PipelineBlendFactor src_alpha_blend_factor : 4;  // 15
-    PipelineBlendFactor dst_alpha_blend_factor : 4;  // 19
-    xenos::BlendOp alpha_blend_op : 3;               // 22
-    uint32_t color_write_mask : 4;                   // 26
-    u32 padding : 6;                                 // 32
+    PipelineBlendFactor src_color_blend_factor : 4;
+    PipelineBlendFactor dst_color_blend_factor : 4;
+    xenos::BlendOp color_blend_op : 3;
+    PipelineBlendFactor src_alpha_blend_factor : 4;
+    PipelineBlendFactor dst_alpha_blend_factor : 4;
+    xenos::BlendOp alpha_blend_op : 3;
+    uint32_t color_write_mask : 4;
+    u32 padding : 6;
   });
   static_assert(std::is_trivially_copyable_v<PipelineRenderTarget> &&
                 std::has_unique_object_representations_v<PipelineRenderTarget>);
@@ -169,41 +166,37 @@ class VulkanPipelineCache {
   REX_PACKED_STRUCT(PipelineDescription, {
     uint64_t vertex_shader_hash;
     uint64_t vertex_shader_modification;
-    // 0 if no pixel shader.
+    /** Zero when there is no pixel shader. */
     uint64_t pixel_shader_hash;
     uint64_t pixel_shader_modification;
     VulkanRenderTargetCache::RenderPassKey render_pass_key;
 
-    // Shader stages.
-    PipelineGeometryShader geometry_shader : 2;  // 2
-    // Input assembly.
-    PipelinePrimitiveTopology primitive_topology : 3;  // 5
-    uint32_t primitive_restart : 1;                    // 6
-    xenos::TessellationMode tessellation_mode : 2;     // 8
-    // Rasterization.
-    uint32_t depth_clamp_enable : 1;       // 9
-    PipelinePolygonMode polygon_mode : 2;  // 11
-    uint32_t cull_front : 1;               // 12
-    uint32_t cull_back : 1;                // 13
-    uint32_t front_face_clockwise : 1;     // 14
-    uint32_t rasterizer_discard : 1;       // 15
-    // Depth / stencil.
-    uint32_t depth_write_enable : 1;                      // 16
-    xenos::CompareFunction depth_compare_op : 3;          // 19
-    uint32_t stencil_test_enable : 1;                     // 20
-    xenos::StencilOp stencil_front_fail_op : 3;           // 23
-    xenos::StencilOp stencil_front_pass_op : 3;           // 26
-    xenos::StencilOp stencil_front_depth_fail_op : 3;     // 29
-    xenos::CompareFunction stencil_front_compare_op : 3;  // 32
-    xenos::StencilOp stencil_back_fail_op : 3;            // 35
+    PipelineGeometryShader geometry_shader : 2;
+    PipelinePrimitiveTopology primitive_topology : 3;
+    uint32_t primitive_restart : 1;
+    xenos::TessellationMode tessellation_mode : 2;
+    uint32_t depth_clamp_enable : 1;
+    PipelinePolygonMode polygon_mode : 2;
+    uint32_t cull_front : 1;
+    uint32_t cull_back : 1;
+    uint32_t front_face_clockwise : 1;
+    uint32_t rasterizer_discard : 1;
+    uint32_t depth_write_enable : 1;
+    xenos::CompareFunction depth_compare_op : 3;
+    uint32_t stencil_test_enable : 1;
+    xenos::StencilOp stencil_front_fail_op : 3;
+    xenos::StencilOp stencil_front_pass_op : 3;
+    xenos::StencilOp stencil_front_depth_fail_op : 3;
+    xenos::CompareFunction stencil_front_compare_op : 3;
+    xenos::StencilOp stencil_back_fail_op : 3;
 
-    xenos::StencilOp stencil_back_pass_op : 3;           // 3
-    xenos::StencilOp stencil_back_depth_fail_op : 3;     // 6
-    xenos::CompareFunction stencil_back_compare_op : 3;  // 9
-    uint32_t sample_rate_shading : 1;                    // 10
-    u32 padding : 19;                                    // 32
+    xenos::StencilOp stencil_back_pass_op : 3;
+    xenos::StencilOp stencil_back_depth_fail_op : 3;
+    xenos::CompareFunction stencil_back_compare_op : 3;
+    uint32_t sample_rate_shading : 1;
+    u32 padding : 19;
 
-    // Filled only for the attachments present in the render pass object.
+    /** Filled only for the attachments present in the render pass object. */
     PipelineRenderTarget render_targets[xenos::kMaxColorRenderTargets];
 
     static constexpr uint32_t kVersion = 0x20260228;
@@ -236,8 +229,7 @@ class VulkanPipelineCache {
 
   struct Pipeline {
     std::atomic<VkPipeline> pipeline{VK_NULL_HANDLE};
-    // The layouts are owned by the VulkanCommandProcessor, and must not be
-    // destroyed by it while the pipeline cache is active.
+    /** Owned by VulkanCommandProcessor, which must keep it alive while the cache is active. */
     std::atomic<const PipelineLayoutProvider*> pipeline_layout{nullptr};
     std::atomic<bool> is_placeholder{false};
     Pipeline() = default;
@@ -260,21 +252,18 @@ class VulkanPipelineCache {
     }
   };
 
-  // Description that can be passed from the command processor thread to the
-  // creation threads, with everything needed from caches pre-looked-up.
+  /** Creation request passed from the command processor thread to the creation threads. */
   struct PipelineCreationArguments {
     uint8_t priority = 0;
     std::pair<const PipelineDescription, Pipeline>* pipeline = nullptr;
     const PipelineLayoutProvider* pipeline_layout = nullptr;
-    // Guest shader translation (VS or TES depending on host vertex type).
     const VulkanShader::VulkanTranslation* vertex_shader = nullptr;
     const VulkanShader::VulkanTranslation* pixel_shader = nullptr;
-    // Non-guest stages for tessellation.
     VkShaderModule tessellation_vertex_shader = VK_NULL_HANDLE;
     VkShaderModule tessellation_control_shader = VK_NULL_HANDLE;
     uint32_t tessellation_patch_control_points = 0;
     VkShaderModule geometry_shader = VK_NULL_HANDLE;
-    // VK_NULL_HANDLE when dynamic rendering is used.
+    /** VK_NULL_HANDLE when dynamic rendering is used. */
     VkRenderPass render_pass = VK_NULL_HANDLE;
   };
   struct PipelineCreationArgumentsPriorityComparator {
@@ -312,7 +301,7 @@ class VulkanPipelineCache {
       uint32_t has_vertex_kill_and : 1;
       uint32_t has_point_size : 1;
       uint32_t has_point_coordinates : 1;
-      // PA_CL_CLIP_CNTL::ps_ucp_mode for point primitives.
+      /** PA_CL_CLIP_CNTL::ps_ucp_mode for point primitives. */
       uint32_t point_ps_ucp_mode : 2;
     };
 
@@ -345,7 +334,12 @@ class VulkanPipelineCache {
       VulkanRenderTargetCache::RenderPassKey render_pass_key,
       PipelineDescription& description_out) const;
 
-  // Whether the pipeline for the given description is supported by the device.
+  /**
+   * Reports whether the device supports the pipeline.
+   *
+   * @param description Pipeline description to check.
+   * @return True when the device supports the pipeline.
+   */
   bool ArePipelineRequirementsMet(const PipelineDescription& description) const;
 
   static bool GetGeometryShaderKey(PipelineGeometryShader geometry_shader_type,
@@ -364,10 +358,14 @@ class VulkanPipelineCache {
       std::pair<const PipelineDescription, Pipeline>* pipeline,
       PipelineCreationArguments& creation_arguments, bool for_placeholder = false);
 
-  // Can be called from creation threads - all needed data must be fully set up
-  // at the point of the call: shaders must be translated, and the pipeline
-  // layout and render pass object (unless dynamic rendering is used) must be
-  // available.
+  /**
+   * Creates the pipeline. Callable from creation threads once the shaders are translated and the
+   * pipeline layout and render pass object (unless dynamic rendering is used) are available.
+   *
+   * @param creation_arguments Pre-looked-up creation request.
+   * @param fragment_shader_override Replacement fragment shader, or VK_NULL_HANDLE for none.
+   * @return True when the pipeline was created.
+   */
   bool EnsurePipelineCreated(const PipelineCreationArguments& creation_arguments,
                              VkShaderModule fragment_shader_override = VK_NULL_HANDLE);
   void CreationThread(size_t thread_index);
@@ -379,9 +377,7 @@ class VulkanPipelineCache {
   VulkanRenderTargetCache& render_target_cache_;
   VkShaderStageFlags guest_shader_vertex_stages_;
 
-  // Temporary storage for AnalyzeUcode calls on the processor thread.
   StringBuffer ucode_disasm_buffer_;
-  // Reusable shader translator on the command processor thread.
   std::unique_ptr<SpirvShaderTranslator> shader_translator_;
 
   struct LayoutUID {
@@ -390,24 +386,18 @@ class VulkanPipelineCache {
     size_t vector_span_length;
   };
   std::mutex layouts_mutex_;
-  // Texture binding layouts of different shaders, for obtaining layout UIDs.
   std::vector<VulkanShader::TextureBinding> texture_binding_layouts_;
-  // Map of texture binding layouts used by shaders, for obtaining UIDs. Keys
-  // are XXH3 hashes of layouts, values need manual collision resolution using
-  // layout_vector_offset:layout_length of texture_binding_layouts_.
+  /** Keys are XXH3 hashes of layouts, collisions resolved through texture_binding_layouts_. */
   std::unordered_multimap<uint64_t, LayoutUID, rex::IdentityHasher<uint64_t>>
       texture_binding_layout_map_;
 
-  // Ucode hash -> shader.
   std::unordered_map<uint64_t, std::unique_ptr<VulkanShader>, rex::IdentityHasher<uint64_t>>
       shaders_;
 
-  // Geometry shaders for Xenos primitive types not supported by Vulkan.
-  // Stores VK_NULL_HANDLE if failed to create.
+  /** Holds VK_NULL_HANDLE when creation failed. */
   std::unordered_map<GeometryShaderKey, VkShaderModule, GeometryShaderKey::Hasher>
       geometry_shaders_;
 
-  // Fixed-function emulation shaders for tessellation.
   bool tessellation_indexed_vertex_shader_attempted_ = false;
   VkShaderModule tessellation_indexed_vertex_shader_ = VK_NULL_HANDLE;
   bool tessellation_adaptive_vertex_shader_attempted_ = false;
@@ -416,46 +406,34 @@ class VulkanPipelineCache {
                      TessellationControlShaderKey::Hasher>
       tessellation_control_shaders_;
 
-  // Empty depth-only pixel shader for writing to depth buffer using fragment
-  // shader interlock when no Xenos pixel shader provided.
   VkShaderModule depth_only_fragment_shader_ = VK_NULL_HANDLE;
   VkShaderModule placeholder_pixel_shader_ = VK_NULL_HANDLE;
-  // Depth-only shaders for float24 emulation when no Xenos pixel shader is
-  // provided in host render target mode.
   VkShaderModule depth_float24_truncate_fragment_shader_ = VK_NULL_HANDLE;
   VkShaderModule depth_float24_round_fragment_shader_ = VK_NULL_HANDLE;
 
   std::unordered_map<PipelineDescription, Pipeline, PipelineDescription::Hasher> pipelines_;
 
-  // Previously used pipeline, to avoid lookups if the state wasn't changed.
   const std::pair<const PipelineDescription, Pipeline>* last_pipeline_ = nullptr;
-  // <Submission index, pipeline>.
+  /** Pairs of submission index and pipeline. */
   std::deque<std::pair<uint64_t, VkPipeline>> deferred_destroy_pipelines_;
   std::mutex deferred_destroy_lock_;
 
-  // Open shader storage path.
   std::filesystem::path shader_storage_cache_root_;
   uint32_t shader_storage_title_id_ = 0;
 
-  // Shader storage output stream, for preload in the next emulator runs.
   std::fstream shader_storage_file_;
   std::filesystem::path shader_storage_file_path_;
-  // For only writing shaders to the open storage once, incremented
-  // when switching the storage.
   uint32_t shader_storage_index_ = 0;
   bool shader_storage_file_flush_needed_ = false;
 
-  // Pipeline storage output stream, for preload in the next emulator runs.
   std::fstream pipeline_storage_file_;
   std::filesystem::path pipeline_storage_file_path_;
   bool pipeline_storage_file_flush_needed_ = false;
 
-  // Thread for asynchronous writing to the storage streams.
   void StorageWriteThread();
   std::mutex storage_write_request_lock_;
   std::condition_variable storage_write_request_cond_;
-  // Storage thread input is protected with storage_write_request_lock_, and the
-  // thread is notified about its change via storage_write_request_cond_.
+  /** Guarded by storage_write_request_lock_, signaled through storage_write_request_cond_. */
   std::deque<const Shader*> storage_write_shader_queue_;
   std::deque<PipelineStoredDescription> storage_write_pipeline_queue_;
   bool storage_write_flush_shaders_ = false;

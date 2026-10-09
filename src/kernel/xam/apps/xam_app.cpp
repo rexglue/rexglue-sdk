@@ -27,7 +27,6 @@ XamApp::XamApp(Runtime& runtime) : App(runtime, 0xFE) {}
 
 X_HRESULT XamApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
                                       uint32_t buffer_length) {
-  // NOTE: buffer_length may be zero or valid.
   auto buffer = memory_->TranslateVirtual(buffer_ptr);
   switch (message) {
     case 0x0002000E: {
@@ -73,9 +72,9 @@ X_HRESULT XamApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
     case 0x00020021: {
       struct message_data {
         char unk_00[64];
-        be_u32 unk_40;  // KeGetCurrentProcessType() < 1 ? 1 : 0
-        be_u32 unk_44;  // ? output_ptr ?
-        be_u32 unk_48;  // ? overlapped_ptr ?
+        be_u32 unk_40; /**< KeGetCurrentProcessType() < 1 ? 1 : 0 */
+        be_u32 unk_44;
+        be_u32 unk_48;
       }* data = reinterpret_cast<message_data*>(buffer);
       REX_ASSERT(buffer_length == sizeof(message_data));
       auto unk = memory_->TranslateVirtual<be_u32*>(data->unk_44);
@@ -91,8 +90,8 @@ X_HRESULT XamApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
     }
     case 0x00022005: {
       struct message_data {
-        be_u32 unk_00;  // ? output_ptr ?
-        be_u32 unk_04;  // ? value/jump to? ?
+        be_u32 unk_00;
+        be_u32 unk_04;
       }* data = reinterpret_cast<message_data*>(buffer);
       REX_ASSERT(buffer_length == sizeof(message_data));
       REXLOG_DEBUG(kernel, "XamApp(0x00022005)(%.8X, %.8X)", static_cast<uint32_t>(data->unk_00),

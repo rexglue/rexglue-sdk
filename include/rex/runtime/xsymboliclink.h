@@ -1,4 +1,3 @@
-#pragma once
 /**
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
@@ -9,6 +8,8 @@
  *
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
+
+#pragma once
 
 #include <string>
 #include <string_view>
@@ -27,8 +28,8 @@ struct SymbolicLinkObject {
    */
   REX_RUNTIME_API SymbolicLinkObject(std::string_view path_in, std::string_view target_in);
 
-  std::string path;
-  std::string target;
+  std::string path;   /**< Path titles open the link by. */
+  std::string target; /**< Path the link resolves to. */
 };
 
 }  // namespace rex::runtime

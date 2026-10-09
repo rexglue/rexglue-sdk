@@ -1,4 +1,3 @@
-#pragma once
 /**
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
@@ -10,6 +9,8 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
+#pragma once
+
 #include <rex/macros.h>
 #include <rex/runtime.h>
 #include <rex/runtime/xam/app_manager.h>
@@ -19,6 +20,9 @@ namespace kernel {
 namespace xam {
 namespace apps {
 
+/**
+ * Xgi app 0xFB, which serves XGI messages such as user contexts and properties.
+ */
 class XgiApp : public runtime::xam::App {
  public:
   /**
@@ -26,6 +30,14 @@ class XgiApp : public runtime::xam::App {
    */
   REX_RUNTIME_API explicit XgiApp(Runtime& runtime);
 
+  /**
+   * Handles 1 message sent to the Xgi app.
+   *
+   * @param message The message identifier.
+   * @param buffer_ptr Guest address of the message buffer.
+   * @param buffer_length Size of the message buffer in bytes.
+   * @return The result code returned to the title.
+   */
   REX_RUNTIME_API X_HRESULT DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
                                                 uint32_t buffer_length) override;
 };

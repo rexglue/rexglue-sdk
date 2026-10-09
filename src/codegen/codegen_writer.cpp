@@ -1,13 +1,3 @@
-/**
- * @file        codegen/codegen_writer.cpp
- *
- * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
- *              All rights reserved.
- *
- * @license     BSD 3-Clause License
- *              See LICENSE file in the project root for full license text.
- */
-
 #include <rex/codegen/codegen_writer.h>
 
 #include <algorithm>
@@ -36,7 +26,6 @@ nlohmann::json buildTemplateData(const rex::codegen::CodegenContext& ctx,
                                  const std::unordered_map<uint32_t, std::string>& shimByAddr) {
   const auto& cfg = ctx.Config();
 
-  // Compute code_base and code_size from binary sections
   size_t codeMin = ~static_cast<size_t>(0);
   size_t codeMax = 0;
   for (const auto& section : ctx.binary().sections()) {
@@ -48,7 +37,6 @@ nlohmann::json buildTemplateData(const rex::codegen::CodegenContext& ctx,
     }
   }
 
-  // Build functions JSON array
   nlohmann::json functionsJson = nlohmann::json::array();
   for (const auto* fn : functions) {
     std::string funcName;
@@ -72,7 +60,6 @@ nlohmann::json buildTemplateData(const rex::codegen::CodegenContext& ctx,
     });
   }
 
-  // Build config flags
   nlohmann::json configFlags = {
       {"skip_lr", cfg.skipLr},
       {"ctr_as_local", cfg.ctrAsLocalVariable},
@@ -188,7 +175,6 @@ nlohmann::json BuildMMIOReport(const std::vector<MMIOReportSite>& sites) {
 
 CodegenWriter::CodegenWriter(CodegenContext& ctx) : ctx_(ctx) {}
 
-// Convenience accessors
 FunctionGraph& CodegenWriter::graph() {
   return ctx_.graph;
 }
@@ -216,23 +202,19 @@ bool CodegenWriter::write(bool force) {
   writtenFiles_.clear();
   unchangedFiles_.clear();
 
-  // --- Validation gate (from recompile.cpp) ---
   if (ctx_.errors.HasErrors() && !force) {
     REX_FAIL(codegen, false,
              "Code generation blocked: {} validation errors. Use --force to override.",
              ctx_.errors.Count());
   }
 
-  // --- Output directory setup (from recompile.cpp) ---
   std::filesystem::path outputPath = ctx_.configDir() / config().outDirectoryPath;
   REXLOG_TRACE(codegen, "Output path: {}", outputPath.string());
   std::filesystem::create_directories(outputPath);
 
-  // --- Everything below from recompiler.cpp recompile() ---
   REXLOG_TRACE(codegen, "Recompile: starting");
   out.reserve(kOutputBufferReserveSize);
 
-  // Build sorted function list from graph
   std::vector<const FunctionNode*> functions;
   functions.reserve(graph().functionCount());
   for (const auto& [addr, node] : graph().functions()) {
@@ -241,7 +223,6 @@ bool CodegenWriter::write(bool force) {
   std::sort(functions.begin(), functions.end(),
             [](const auto* a, const auto* b) { return a->base() < b->base(); });
 
-  // Build shim reverse map and rename graph nodes
   std::unordered_map<uint32_t, std::string> shimByAddr;
   for (const auto& [name, addr] : config().shimFunctions) {
     auto shimName = std::format("rexshim_{}", name);
@@ -259,33 +240,27 @@ bool CodegenWriter::write(bool force) {
 
   auto tmplData = buildTemplateData(ctx_, functions, shimByAddr);
 
-  // Generate {project}_pch.h (config + macros, stable enough to precompile)
   REXLOG_TRACE(codegen, "Recompile: generating {}_pch.h", projectName);
   out = renderWithJson(registry, "codegen/pch_h", tmplData);
   SaveCurrentOutData(std::format("{}_pch.h", projectName));
 
-  // Generate {project}_funcs.h (every guest function declaration)
   REXLOG_TRACE(codegen, "Recompile: generating {}_funcs.h", projectName);
   out = renderWithJson(registry, "codegen/funcs_h", tmplData);
   SaveCurrentOutData(std::format("{}_funcs.h", projectName));
 
-  // Generate {project}_init.h (the full surface, for init.cpp and consumers)
   REXLOG_TRACE(codegen, "Recompile: generating {}_init.h", projectName);
   out = renderWithJson(registry, "codegen/init_h", tmplData);
   SaveCurrentOutData(std::format("{}_init.h", projectName));
 
-  // Generate {project}_init.cpp (PPCImageConfig + PPCFuncMappings)
   REXLOG_TRACE(codegen, "Recompile: generating {}_init.cpp", projectName);
   out = renderWithJson(registry, "codegen/init_cpp", tmplData);
   SaveCurrentOutData(std::format("{}_init.cpp", projectName));
 
-  // Generate {project}_register.cpp (registration function for hash-based dispatch)
   REXLOG_TRACE(codegen, "Recompile: generating {}_register.cpp", projectName);
   tmplData["is_dll"] = ctx_.isDllModule();
   out = renderWithJson(registry, "codegen/register_cpp", tmplData);
   SaveCurrentOutData(std::format("{}_register.cpp", projectName));
 
-  // Filter out imports and shim functions before recompilation
   std::erase_if(functions, [](const FunctionNode* fn) {
     return fn->authority() == FunctionAuthority::IMPORT;
   });
@@ -379,7 +354,6 @@ bool CodegenWriter::write(bool force) {
 
   REXLOG_TRACE(codegen, "Recompilation complete.");
 
-  // Generate sources.cmake
   REXLOG_TRACE(codegen, "Recompile: generating sources.cmake");
   {
     auto& recompFiles = tmplData["recomp_files"];
@@ -391,7 +365,6 @@ bool CodegenWriter::write(bool force) {
     SaveCurrentOutData("sources.cmake");
   }
 
-  // Write all buffered files to disk
   return FlushPendingWrites();
 }
 

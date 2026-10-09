@@ -1,4 +1,3 @@
-#pragma once
 /**
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
@@ -9,6 +8,8 @@
  *
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
+
+#pragma once
 
 #include <cstddef>
 #include <cstdint>
@@ -23,17 +24,28 @@ namespace vulkan {
 
 class SingleLayoutDescriptorSetPool {
  public:
-  // set_layout_descriptor_counts must contain the numbers of descriptors of
-  // each type in a single set with the layout (the multiplication by the pool
-  // set count will be done internally). The descriptor set layout must not be
-  // destroyed until this object is also destroyed.
+  /**
+   * Creates the pool.
+   *
+   * The set layout must outlive this object.
+   *
+   * @param vulkan_device The device to allocate on.
+   * @param pool_set_count The number of sets in each pool.
+   * @param set_layout_descriptor_counts_count The number of entries in the counts array.
+   * @param set_layout_descriptor_counts The descriptors of each type in a single set.
+   * @param set_layout The set layout.
+   */
   SingleLayoutDescriptorSetPool(const VulkanDevice* vulkan_device, uint32_t pool_set_count,
                                 uint32_t set_layout_descriptor_counts_count,
                                 const VkDescriptorPoolSize* set_layout_descriptor_counts,
                                 VkDescriptorSetLayout set_layout);
   ~SingleLayoutDescriptorSetPool();
 
-  // Returns SIZE_MAX in case of a failure.
+  /**
+   * Allocates a descriptor set.
+   *
+   * @return The set index, or SIZE_MAX on failure.
+   */
   size_t Allocate();
   void Free(size_t index) {
     REX_ASSERT(index < descriptor_sets_.size());

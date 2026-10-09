@@ -1,16 +1,3 @@
-/**
- * @file        filesystem/host_provider.cpp
- *
- * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
- *              All rights reserved.
- *
- * @license     BSD 3-Clause License
- *              See LICENSE file in the project root for full license text.
- *
- * @remarks     Derived from Xenia's xenia/vfs/devices/host_path_device.cc, host_path_entry.cc
- *              and host_path_file.cc (Ben Vanik, 2020).
- */
-
 #include "filesystem/host_provider.h"
 
 #include <algorithm>

@@ -68,37 +68,7 @@ void DropStash(X_DISPATCH_HEADER& header) {
 
 }  // namespace
 
-// r13 + 0x100: pointer to thread local state
-// Thread local state:
-//   0x14C: thread id
-//   0x150: if >0 then error states don't get set
-//   0x160: last error
-
-// GetCurrentThreadId:
-// lwz       r11, 0x100(r13)
-// lwz       r3, 0x14C(r11)
-
-// RtlGetLastError:
-// lwz r11, 0x150(r13)
-// if (r11 == 0) {
-//   lwz r11, 0x100(r13)
-//   stw r3, 0x160(r11)
-// }
-
-// RtlSetLastError:
-// lwz r11, 0x150(r13)
-// if (r11 == 0) {
-//   lwz r11, 0x100(r13)
-//   stw r3, 0x160(r11)
-// }
-
-// RtlSetLastNTError:
-// r3 = RtlNtStatusToDosError(r3)
-// lwz r11, 0x150(r13)
-// if (r11 == 0) {
-//   lwz r11, 0x100(r13)
-//   stw r3, 0x160(r11)
-// }
+// r13+0x100 is the thread state, ID at 0x14C, last error at 0x160 stored only while 0x150 is 0.
 
 u32 ExCreateThread_entry(mapped_u32 handle_ptr, u32 stack_size, mapped_u32 thread_id_ptr,
                          u32 xapi_thread_startup, mapped_void start_address,
@@ -247,14 +217,21 @@ void KeSetCurrentStackPointers_entry(mapped_void stack_ptr, ppc_ptr_t<X_KTHREAD>
                            stack_alloc_base.value(), stack_base.value(), stack_limit.value());
 }
 
+/**
+ * Sets the affinity of a thread. Unlike Windows NT, the previous affinity is stored through the
+ * pointer argument and the return value is the status.
+ *
+ * @param thread_ptr The thread object.
+ * @param affinity The new affinity mask.
+ * @param previous_affinity_ptr Receives the previous affinity, may be null.
+ * @return X_STATUS_SUCCESS or X_STATUS_INVALID_HANDLE.
+ */
 u32 KeSetAffinityThread_entry(mapped_void thread_ptr, u32 affinity,
                               mapped_u32 previous_affinity_ptr) {
   REXLOG_TRACE(kernel,
                "KeSetAffinityThread "
                "thread={:#x} affinity={:#x}",
                thread_ptr.guest_address(), static_cast<uint32_t>(affinity));
-  // KeSetAffinityThread, unlike Windows NT, stores the previous affinity through the pointer
-  // argument, and its return value is the result.
   REX_KERNEL_ARG(affinity);
   auto thread = FindThread(thread_ptr.guest_address());
   if (!thread) {
@@ -335,7 +312,6 @@ u32 KeGetCurrentProcessType_entry() {
 }
 
 void KeSetCurrentProcessType_entry(u32 type) {
-  // One of X_PROCTYPE_?
   REX_ASSERT(type <= 2);
 
   runtime::Current().set_process_type(type);
@@ -385,7 +361,6 @@ void KeQuerySystemTime_entry(mapped_u64 time_ptr) {
   }
 }
 
-// https://msdn.microsoft.com/en-us/library/ms686801
 u32 KeTlsAlloc_entry() {
   uint32_t slot = runtime::Current()
                       .thread_registry()
@@ -401,7 +376,6 @@ u32 KeTlsAlloc_entry() {
   return slot;
 }
 
-// https://msdn.microsoft.com/en-us/library/ms686804
 u32 KeTlsFree_entry(u32 tls_index) {
   REXLOG_TRACE(kernel,
                "KeTlsFree "
@@ -421,10 +395,13 @@ u32 KeTlsFree_entry(u32 tls_index) {
   return 1;
 }
 
-// https://msdn.microsoft.com/en-us/library/ms686812
+/**
+ * Returns the value of a TLS slot. Always succeeds, even when the slot overflows the TLS.
+ *
+ * @param tls_index The TLS slot.
+ * @return The slot value, or 0.
+ */
 u32 KeTlsGetValue_entry(u32 tls_index) {
-  // xboxkrnl doesn't have an error branch - it always succeeds, even
-  // if it overflows the TLS.
   uint32_t value = 0;
   if (ThreadRecord::GetCurrentThread()->GetTLSValue(tls_index, &value)) {
     return value;
@@ -433,14 +410,20 @@ u32 KeTlsGetValue_entry(u32 tls_index) {
   return 0;
 }
 
-// https://msdn.microsoft.com/en-us/library/ms686818
+/**
+ * Sets the value of a TLS slot.
+ *
+ * An index past the slots is undefined behavior in the XDK. Here it stores nothing and returns 0.
+ *
+ * @param tls_index The TLS slot.
+ * @param tls_value The new value.
+ * @return 1 when the value was stored, otherwise 0.
+ */
 u32 KeTlsSetValue_entry(u32 tls_index, u32 tls_value) {
   REXLOG_TRACE(kernel,
                "KeTlsSetValue "
                "slot={} value={:#x}",
                static_cast<uint32_t>(tls_index), static_cast<uint32_t>(tls_value));
-  // xboxkrnl doesn't have an error branch - it always succeeds, even
-  // if it overflows the TLS.
   if (ThreadRecord::GetCurrentThread()->SetTLSValue(tls_index, tls_value)) {
     REXLOG_TRACE(kernel,
                  "KeTlsSetValue -> "
@@ -583,9 +566,9 @@ u32 NtClearEvent_entry(u32 handle) {
   return NtClearEvent(handle);
 }
 
-// https://msdn.microsoft.com/en-us/library/windows/hardware/ff552150(v=vs.85).aspx
 void KeInitializeSemaphore_entry(ppc_ptr_t<X_KSEMAPHORE> semaphore_ptr, u32 count, u32 limit) {
-  semaphore_ptr->header.type = 5;  // SemaphoreObject
+  // Type 5 is SemaphoreObject.
+  semaphore_ptr->header.type = 5;
   semaphore_ptr->header.signal_state = static_cast<uint32_t>(count);
   semaphore_ptr->limit = static_cast<uint32_t>(limit);
 
@@ -604,9 +587,6 @@ u32 KeReleaseSemaphore(u32 semaphore_address, [[maybe_unused]] u32 increment, u3
     REX_ASSERT_ALWAYS();
     return 0;
   }
-
-  // TODO(benvanik): increment thread priority?
-  // TODO(benvanik): wait?
 
   int32_t previous_count = 0;
   [[maybe_unused]] bool success =
@@ -694,13 +674,14 @@ u32 NtCreateMutant_entry(mapped_u32 handle_out, ppc_ptr_t<X_OBJECT_ATTRIBUTES> o
   return X_STATUS_SUCCESS;
 }
 
+/**
+ * Releases a mutant.
+ *
+ * @param mutant_handle The mutant handle.
+ * @param unknown The abandon or wait flag, always 0 and ignored.
+ * @return X_STATUS_SUCCESS or an error status.
+ */
 u32 NtReleaseMutant_entry(u32 mutant_handle, u32 unknown) {
-  // This doesn't seem to be supported.
-  // int32_t previous_count_ptr = SHIM_GET_ARG_32(2);
-
-  // Whatever arg 1 is all games seem to set it to 0, so whether it's
-  // abandon or wait we say false. Which is good, cause they are
-  // both ignored.
   REX_ASSERT(unknown == 0);
   bool abandon = false;
 
@@ -756,9 +737,15 @@ u32 KeReleaseMutant_entry(ppc_ptr_t<X_KMUTANT> mutant, [[maybe_unused]] u32 incr
   return static_cast<u32>(previous);
 }
 
+/**
+ * Creates a timer.
+ *
+ * @param handle_ptr Receives the timer handle.
+ * @param obj_attributes_ptr The optional object attributes.
+ * @param timer_type 0 for NotificationTimer or 1 for SynchronizationTimer.
+ * @return X_STATUS_SUCCESS or an error status.
+ */
 u32 NtCreateTimer_entry(mapped_u32 handle_ptr, mapped_void obj_attributes_ptr, u32 timer_type) {
-  // timer_type = NotificationTimer (0) or SynchronizationTimer (1)
-
   REX_KERNEL_NAMED_CREATE(Timer, handle_ptr, obj_attributes_ptr);
 
   X_HANDLE handle = 0;
@@ -793,9 +780,9 @@ void KeInitializeTimerEx_entry(ppc_ptr_t<X_KTIMER> timer_ptr, u32 timer_type, u3
   }
 }
 
-u32 NtSetTimerEx_entry(u32 timer_handle, mapped_u64 due_time_ptr,
-                       mapped_void routine_ptr /*PTIMERAPCROUTINE*/, u32 unk_one,
-                       mapped_void routine_arg, u32 resume, u32 period_ms, u32 unk_zero) {
+u32 NtSetTimerEx_entry(u32 timer_handle, mapped_u64 due_time_ptr, mapped_void routine_ptr,
+                       u32 unk_one, mapped_void routine_arg, u32 resume, u32 period_ms,
+                       u32 unk_zero) {
   REX_ASSERT(unk_one == 1);
   REX_ASSERT(unk_zero == 0);
 
@@ -880,7 +867,6 @@ uint32_t KeWaitForSingleObject(u32 object_address, uint32_t wait_reason, uint32_
       runtime::Current().object_table().ResolveGuestObject(object_address, -1).value_or(0);
 
   if (!handle) {
-    // The only kind-of failure code (though this should never happen)
     REX_ASSERT_ALWAYS();
     return X_STATUS_ABANDONED_WAIT_0;
   }
@@ -898,14 +884,8 @@ uint32_t KeWaitForSingleObject(u32 object_address, uint32_t wait_reason, uint32_
 u32 KeWaitForSingleObject_entry(mapped_void object_ptr, u32 wait_reason, u32 processor_mode,
                                 u32 alertable, mapped_u64 timeout_ptr) {
   uint64_t timeout = timeout_ptr ? static_cast<uint64_t>(*timeout_ptr) : 0u;
-  // REXLOG_TRACE(kernel, "KeWaitForSingleObject " "obj={:#x} reason={} mode={} alertable={}
-  // timeout={}",
-  // object_ptr.guest_address(), (uint32_t)wait_reason,
-  //(uint32_t)processor_mode, (uint32_t)alertable,
-  // timeout_ptr ? (int64_t)timeout : -1);
   auto result = KeWaitForSingleObject(object_ptr.guest_address(), wait_reason, processor_mode,
                                       alertable, timeout_ptr ? &timeout : nullptr);
-  // REXLOG_TRACE(kernel, "KeWaitForSingleObject -> " "{:#x}", result);
   return result;
 }
 
@@ -983,9 +963,15 @@ u32 NtSignalAndWaitForSingleObjectEx_entry(u32 signal_handle, u32 wait_handle, u
   return result;
 }
 
-// Guest memory IRQL helpers - read/write current_irql directly from PCR.
-// Take PPCContext* explicitly so they work from any thread (including host threads
-// during InitializeGuestObject and dispatch thread creation).
+/**
+ * Raises the IRQL stored in the PCR. Takes the context as an argument so it works from any
+ * thread, including host threads.
+ *
+ * @param memory The guest memory.
+ * @param ctx The context whose r13 addresses the PCR.
+ * @param new_irql The new IRQL.
+ * @return The previous IRQL.
+ */
 static unsigned char KfRaiseIrql(runtime::Memory& memory, PPCContext* ctx, unsigned char new_irql) {
   auto pcr = memory.TranslateVirtual<X_KPCR*>(static_cast<uint32_t>(ctx->r13.u64));
   uint8_t old_irql = pcr->current_irql;
@@ -993,13 +979,18 @@ static unsigned char KfRaiseIrql(runtime::Memory& memory, PPCContext* ctx, unsig
   return old_irql;
 }
 
+/**
+ * Lowers the IRQL stored in the PCR.
+ *
+ * @param memory The guest memory.
+ * @param ctx The context whose r13 addresses the PCR.
+ * @param new_irql The new IRQL.
+ */
 static void KfLowerIrql(runtime::Memory& memory, PPCContext* ctx, unsigned char new_irql) {
   auto pcr = memory.TranslateVirtual<X_KPCR*>(static_cast<uint32_t>(ctx->r13.u64));
   pcr->current_irql = new_irql;
 }
 
-// Guest memory spinlock helpers - store PCR address as owner (matching xenia).
-// PPCContext* provides r13 (PCR address) without needing ThreadRecord::GetCurrentThread().
 uint32_t KeKfAcquireSpinLock(runtime::Memory& memory, PPCContext* ctx, X_KSPINLOCK* lock,
                              bool change_irql) {
   uint32_t old_irql = change_irql ? KfRaiseIrql(memory, ctx, IRQL_DISPATCH) : 0;
@@ -1023,7 +1014,6 @@ void KeKfReleaseSpinLock(runtime::Memory& memory, PPCContext* ctx, X_KSPINLOCK* 
   }
 }
 
-// Guest memory APC helpers
 void KeInitializeApc(XAPC* apc, uint32_t thread_ptr, uint32_t kernel_routine,
                      uint32_t rundown_routine, uint32_t normal_routine, uint32_t apc_mode,
                      uint32_t normal_context) {
@@ -1031,7 +1021,8 @@ void KeInitializeApc(XAPC* apc, uint32_t thread_ptr, uint32_t kernel_routine,
   apc->kernel_routine = kernel_routine;
   apc->rundown_routine = rundown_routine;
   apc->normal_routine = normal_routine;
-  apc->type = 18;  // ApcObject
+  // Type 18 is ApcObject.
+  apc->type = 18;
   if (normal_routine) {
     apc->apc_mode = apc_mode;
     apc->normal_context = normal_context;
@@ -1063,7 +1054,7 @@ uint32_t KeInsertQueueApc(runtime::Memory& memory, XAPC* apc, uint32_t arg1, uin
     if (apc->normal_routine) {
       which_list.InsertTail(apc, mem);
     } else {
-      // Kernel-mode APCs without normal_routine go before those with one.
+      // Kernel mode APCs without a normal_routine go before those with one.
       XAPC* insertion_pos = nullptr;
       for (auto&& sub_apc : which_list.IterateForward(mem)) {
         insertion_pos = &sub_apc;
@@ -1200,17 +1191,16 @@ void NtQueueApcThread_entry(u32 thread_handle, mapped_void apc_routine,
     return;
   }
   XAPC* apc = mem->TranslateVirtual<XAPC*>(apc_ptr);
+  // apc_mode 1 is user mode.
   KeInitializeApc(apc, thread->guest_object(), XAPC::kDummyKernelRoutine, 0,
-                  apc_routine.guest_address(), 1 /* user apc mode */,
-                  apc_routine_context.guest_address());
+                  apc_routine.guest_address(), 1, apc_routine_context.guest_address());
 
   if (!KeInsertQueueApc(*mem, apc, arg1.guest_address(), arg2.guest_address(), 0,
                         ThreadState::Get()->context())) {
     mem->SystemHeapFree(apc_ptr);
     return;
   }
-  // Match Edge/Canary behavior: callback is only a wakeup hint.
-  // APC delivery happens via alertable wait handling.
+  // The callback is only a wakeup hint, APCs are delivered by alertable wait handling.
   thread->thread()->QueueUserCallback([]() {});
 }
 
@@ -1249,8 +1239,7 @@ u32 KeRemoveQueueApc_entry(ppc_ptr_t<XAPC> apc) {
   return result ? 1 : 0;
 }
 
-u32 KiApcNormalRoutineNop_entry([[maybe_unused]] u32 unk0 /* output? */,
-                                [[maybe_unused]] u32 unk1 /* 0x13 */) {
+u32 KiApcNormalRoutineNop_entry([[maybe_unused]] u32 unk0, [[maybe_unused]] u32 unk1) {
   return 0;
 }
 
@@ -1318,15 +1307,14 @@ u64 KeQueryInterruptTime_entry() {
   return ticks / frequency * 10000000 + ticks % frequency * 10000000 / frequency;
 }
 
-// https://github.com/Cxbx-Reloaded/Cxbx-Reloaded/blob/51e4dfcaacfdbd1a9692272931a436371492f72d/import/OpenXDK/include/xboxkrnl/xboxkrnl.h#L1372
 struct X_ERWLOCK {
-  be_i32 lock_count;              // 0x0
-  be_u32 writers_waiting_count;   // 0x4
-  be_u32 readers_waiting_count;   // 0x8
-  be_u32 readers_entry_count;     // 0xC
-  X_KEVENT writer_event;          // 0x10
-  X_KSEMAPHORE reader_semaphore;  // 0x20
-  X_KSPINLOCK spin_lock;          // 0x34
+  be_i32 lock_count;             /**< Offset 0x0 */
+  be_u32 writers_waiting_count;  /**< Offset 0x4 */
+  be_u32 readers_waiting_count;  /**< Offset 0x8 */
+  be_u32 readers_entry_count;    /**< Offset 0xC */
+  X_KEVENT writer_event;         /**< Offset 0x10 */
+  X_KSEMAPHORE reader_semaphore; /**< Offset 0x20 */
+  X_KSPINLOCK spin_lock;         /**< Offset 0x34 */
 };
 REX_STATIC_ASSERT_SIZE(X_ERWLOCK, 0x38);
 
@@ -1335,7 +1323,6 @@ void ExInitializeReadWriteLock_entry(ppc_ptr_t<X_ERWLOCK> lock_ptr) {
   lock_ptr->writers_waiting_count = 0;
   lock_ptr->readers_waiting_count = 0;
   lock_ptr->readers_entry_count = 0;
-  // Create GuestPointers to struct members with correct guest addresses
   ppc_ptr_t<X_KEVENT> event_ptr(&lock_ptr->writer_event,
                                 lock_ptr.guest_address() + offsetof(X_ERWLOCK, writer_event));
   ppc_ptr_t<X_KSEMAPHORE> sem_ptr(&lock_ptr->reader_semaphore,
@@ -1449,7 +1436,13 @@ void ExReleaseReadWriteLock_entry(ppc_ptr_t<X_ERWLOCK> lock_ptr) {
   KeSetEvent(lock_ptr.guest_address() + offsetof(X_ERWLOCK, writer_event), 1, 0);
 }
 
-// NOTE: This function is commonly inlined, and probably won't be called!
+/**
+ * Pushes an entry onto an interlocked singly linked list. Titles commonly inline this function.
+ *
+ * @param plist_ptr The list header.
+ * @param entry The entry to push.
+ * @return The previous first entry.
+ */
 u32 InterlockedPushEntrySList_entry(ppc_ptr_t<X_SLIST_HEADER> plist_ptr,
                                     ppc_ptr_t<X_SINGLE_LIST_ENTRY> entry) {
   REX_ASSERT(plist_ptr != nullptr);

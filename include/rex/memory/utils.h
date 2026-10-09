@@ -113,7 +113,7 @@ enum class DeallocationType {
 };
 
 /**
- * Tests whether host pages can be allocated or mapped with PageAccess::kExecuteReadWrite.
+ * Reports whether host pages can be allocated or mapped with PageAccess::kExecuteReadWrite.
  * When they cannot, writes to executable pages go through a separate view of the same file
  * mapping.
  *

@@ -23,14 +23,14 @@ class IPresenter;
 
 /** Texture sampling of an overlay texture. */
 enum class OverlayTextureFilter : u8 {
-  kNearest,
-  kLinear,
+  kNearest, /**< Uses the nearest texel. */
+  kLinear,  /**< Interpolates between the 4 nearest texels. */
 };
 
 /** Primitive topology of an overlay draw. */
 enum class OverlayPrimitive : u8 {
-  kLines,
-  kTriangles,
+  kLines,     /**< Every 2 vertices or indices draw a line. */
+  kTriangles, /**< Every 3 vertices or indices draw a triangle. */
 };
 
 /** A texture an overlay drawer created, sized in pixels. */

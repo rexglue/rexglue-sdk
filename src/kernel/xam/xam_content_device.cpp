@@ -25,28 +25,13 @@ namespace xam {
 using namespace rex::runtime;
 using namespace rex::runtime::xam;
 
-// TODO(gibbed): real information.
-//
-// Until we expose real information about a HDD device, we
-// claim there is 3GB free on a 4GB dummy HDD.
-//
-// There is a possibility that some games are bugged in that
-// they incorrectly only look at the lower 32-bits of free_bytes,
-// when it is a 64-bit value. Which means any size above ~4GB
-// will not be recognized properly.
 constexpr u64 ONE_GB = 1024ull * 1024ull * 1024ull;
 
 static const DummyDeviceInfo dummy_hdd_device_info_ = {
-    DummyDeviceId::HDD, DeviceType::HDD,
-    20ull * ONE_GB,  // 20GB
-    3ull * ONE_GB,   // 3GB, so it looks a little used.
-    u"Dummy HDD",
+    DummyDeviceId::HDD, DeviceType::HDD, 20ull * ONE_GB, 3ull * ONE_GB, u"Dummy HDD",
 };
 static const DummyDeviceInfo dummy_odd_device_info_ = {
-    DummyDeviceId::ODD, DeviceType::ODD,
-    7ull * ONE_GB,  // 7GB (rough maximum)
-    0ull * ONE_GB,  // read-only FS, so no free space
-    u"Dummy ODD",
+    DummyDeviceId::ODD, DeviceType::ODD, 7ull * ONE_GB, 0ull * ONE_GB, u"Dummy ODD",
 };
 static const DummyDeviceInfo* dummy_device_infos_[] = {
     &dummy_hdd_device_info_,
@@ -134,7 +119,6 @@ u32 XamContentCreateDeviceEnumerator_entry([[maybe_unused]] u32 content_type,
   StaticItems items(max_count, sizeof(X_CONTENT_DEVICE_DATA));
 
   for (const auto& device_info : dummy_device_infos_) {
-    // Copy our dummy device into the enumerator
     auto device_data = items.Append<X_CONTENT_DEVICE_DATA>();
     REX_ASSERT(device_data != nullptr);
     if (device_data) {
@@ -170,7 +154,6 @@ u32 XamContentCreateDeviceEnumerator_entry([[maybe_unused]] u32 content_type,
 }  // namespace kernel
 }  // namespace rex
 
-// fix me later
 namespace rex {
 namespace runtime {
 namespace xam {

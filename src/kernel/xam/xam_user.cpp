@@ -70,10 +70,10 @@ u32 XamUserGetSigninState_entry(u32 user_index) {
 
 struct X_USER_SIGNIN_INFO {
   be_u64 xuid;
-  be_u32 unk08;  // maybe zero?
+  be_u32 unk08;
   be_u32 signin_state;
-  be_u32 unk10;  // ?
-  be_u32 unk14;  // ?
+  be_u32 unk10;
+  be_u32 unk14;
   char name[16];
 };
 REX_STATIC_ASSERT_SIZE(X_USER_SIGNIN_INFO, 40);
@@ -136,7 +136,6 @@ struct X_USER_READ_PROFILE_SETTINGS {
 };
 REX_STATIC_ASSERT_SIZE(X_USER_READ_PROFILE_SETTINGS, 8);
 
-// https://github.com/oukiar/freestyledash/blob/master/Freestyle/Tools/Generic/xboxtools.cpp
 u32 XamUserReadProfileSettingsEx([[maybe_unused]] u32 title_id, u32 user_index, u32 xuid_count,
                                  be_u64* xuids, u32 setting_count, be_u32* setting_ids, u32 unk,
                                  be_u32* buffer_size_ptr, u8* buffer, XAM_OVERLAPPED* overlapped) {
@@ -145,26 +144,20 @@ u32 XamUserReadProfileSettingsEx([[maybe_unused]] u32 title_id, u32 user_index, 
   } else {
     REX_ASSERT(xuid_count == 1);
     REX_ASSERT(xuids != nullptr);
-    // TODO(gibbed): allow proper lookup of arbitrary XUIDs
     auto& user_profile = runtime::Current().content_manager().user_profile();
     REX_ASSERT(static_cast<uint64_t>(xuids[0]) == user_profile.xuid());
-    // TODO(gibbed): we assert here, but in case a title passes xuid_count > 1
-    // until it's implemented for release builds...
     xuid_count = 1;
   }
-  REX_ASSERT(unk == 0);  // probably flags
+  REX_ASSERT(unk == 0);
 
-  // must have at least 1 to 32 settings
   if (setting_count < 1 || setting_count > 32) {
     return X_ERROR_INVALID_PARAMETER;
   }
 
-  // buffer size pointer must be valid
   if (!buffer_size_ptr) {
     return X_ERROR_INVALID_PARAMETER;
   }
 
-  // if buffer size is non-zero, buffer pointer must be valid
   auto buffer_size = static_cast<uint32_t>(*buffer_size_ptr);
   if (buffer_size && !buffer) {
     return X_ERROR_INVALID_PARAMETER;
@@ -199,11 +192,7 @@ u32 XamUserReadProfileSettingsEx([[maybe_unused]] u32 title_id, u32 user_index, 
     return X_ERROR_INSUFFICIENT_BUFFER;
   }
 
-  // Title ID = 0 means us.
-  // 0xfffe07d1 = profile?
-
   if (!xuids && user_index) {
-    // Only support user 0.
     if (overlapped) {
       runtime::Current().dispatcher().CompleteOverlappedImmediate(
           runtime::Current().memory()->HostToGuestVirtual(overlapped), X_ERROR_NO_SUCH_USER);
@@ -214,11 +203,8 @@ u32 XamUserReadProfileSettingsEx([[maybe_unused]] u32 title_id, u32 user_index, 
 
   auto& user_profile = runtime::Current().content_manager().user_profile();
 
-  // First call asks for size (fill buffer_size_ptr).
-  // Second call asks for buffer contents with that size.
+  // The first call returns the size in buffer_size_ptr, the second call fills the buffer.
 
-  // TODO(gibbed): setting validity checking without needing a user profile
-  // object.
   bool any_missing = false;
   for (uint32_t i = 0; i < setting_count; ++i) {
     auto setting_id = static_cast<uint32_t>(setting_ids[i]);
@@ -229,7 +215,6 @@ u32 XamUserReadProfileSettingsEx([[maybe_unused]] u32 title_id, u32 user_index, 
     }
   }
   if (any_missing) {
-    // TODO(benvanik): don't fail? most games don't even check!
     if (overlapped) {
       runtime::Current().dispatcher().CompleteOverlappedImmediate(
           runtime::Current().memory()->HostToGuestVirtual(overlapped), X_ERROR_INVALID_PARAMETER);
@@ -297,7 +282,6 @@ u32 XamUserWriteProfileSettings_entry([[maybe_unused]] u32 title_id, u32 user_in
   }
 
   if (user_index) {
-    // Only support user 0.
     if (overlapped) {
       runtime::Current().dispatcher().CompleteOverlappedImmediate(overlapped.guest_address(),
                                                                   X_ERROR_NO_SUCH_USER);
@@ -306,7 +290,6 @@ u32 XamUserWriteProfileSettings_entry([[maybe_unused]] u32 title_id, u32 user_in
     return X_ERROR_NO_SUCH_USER;
   }
 
-  // Update and save settings.
   auto& user_profile = runtime::Current().content_manager().user_profile();
 
   for (uint32_t n = 0; n < setting_count; ++n) {
@@ -331,11 +314,9 @@ u32 XamUserWriteProfileSettings_entry([[maybe_unused]] u32 title_id, u32 user_in
         size_t binary_size = setting.data.binary.size;
         std::vector<uint8_t> bytes;
         if (setting.data.binary.ptr) {
-          // Copy provided data
           bytes.resize(binary_size);
           std::memcpy(bytes.data(), binary_ptr, binary_size);
         } else {
-          // Data pointer was NULL, so fill with zeroes
           bytes.resize(binary_size, 0);
         }
         user_profile.AddSetting(
@@ -362,7 +343,7 @@ u32 XamUserWriteProfileSettings_entry([[maybe_unused]] u32 title_id, u32 user_in
 }
 
 u32 XamUserCheckPrivilege_entry(u32 user_index, [[maybe_unused]] u32 mask, mapped_u32 out_value) {
-  // checking all users?
+  // 0xFF is XUSER_INDEX_ANY.
   if (user_index != 0xFF) {
     if (user_index >= 4) {
       return X_ERROR_INVALID_PARAMETER;
@@ -373,7 +354,6 @@ u32 XamUserCheckPrivilege_entry(u32 user_index, [[maybe_unused]] u32 mask, mappe
     }
   }
 
-  // If we deny everything, games should hopefully not try to do stuff.
   *out_value = 0;
   return X_ERROR_SUCCESS;
 }
@@ -383,7 +363,6 @@ u32 XamUserContentRestrictionGetFlags_entry(u32 user_index, mapped_u32 out_flags
     return X_ERROR_NO_SUCH_USER;
   }
 
-  // No restrictions?
   *out_flags = 0;
   return X_ERROR_SUCCESS;
 }
@@ -394,8 +373,6 @@ u32 XamUserContentRestrictionGetRating_entry(u32 user_index, [[maybe_unused]] u3
     return X_ERROR_NO_SUCH_USER;
   }
 
-  // Some games have special case paths for 3F that differ from the failure
-  // path, so my guess is that's 'don't care'.
   *out_unk2 = 0x3F;
   *out_unk3 = 0;
   return X_ERROR_SUCCESS;
@@ -408,7 +385,6 @@ u32 XamUserContentRestrictionCheckAccess_entry([[maybe_unused]] u32 user_index,
   *out_unk5 = 1;
 
   if (overlapped_ptr) {
-    // TODO(benvanik): does this need the access arg on it?
     runtime::Current().dispatcher().CompleteOverlappedImmediate(overlapped_ptr, X_ERROR_SUCCESS);
   }
 
@@ -426,7 +402,7 @@ u32 XamUserGetMembershipTier_entry(u32 user_index) {
   if (user_index) {
     return X_ERROR_NO_SUCH_USER;
   }
-  return 6 /* 6 appears to be Gold */;
+  return 6;
 }
 
 u32 XamUserAreUsersFriends_entry(u32 user_index, [[maybe_unused]] u32 unk1,
@@ -443,13 +419,11 @@ u32 XamUserAreUsersFriends_entry(u32 user_index, [[maybe_unused]] u32 unk1,
       if (user_profile.signin_state() == 0) {
         result = X_ERROR_NOT_LOGGED_ON;
       } else {
-        // No friends!
         are_friends = 0;
         result = X_ERROR_SUCCESS;
       }
     } else {
-      // Only support user 0.
-      result = X_ERROR_NO_SUCH_USER;  // if user is local -> X_ERROR_NOT_LOGGED_ON
+      result = X_ERROR_NO_SUCH_USER;
     }
   }
 
@@ -470,19 +444,13 @@ u32 XamUserAreUsersFriends_entry(u32 user_index, [[maybe_unused]] u32 unk1,
 }
 
 u32 XamShowSigninUI_entry([[maybe_unused]] u32 unk, [[maybe_unused]] u32 unk_mask) {
-  // Mask values vary. Probably matching user types? Local/remote?
-
-  // To fix game modes that display a 4 profile signin UI (even if playing
-  // alone):
   // XN_SYS_SIGNINCHANGED
   runtime::Current().notifier().BroadcastNotification(0x0000000A, 1);
-  // Games seem to sit and loop until we trigger this notification:
-  // XN_SYS_UI (off)
+  // XN_SYS_UI with the UI off.
   runtime::Current().notifier().BroadcastNotification(0x00000009, 0);
   return X_ERROR_SUCCESS;
 }
 
-// TODO(gibbed): probably a FILETIME/LARGE_INTEGER, unknown
 struct X_ACHIEVEMENT_UNLOCK_TIME {
   be_u32 unk_0;
   be_u32 unk_4;
@@ -606,7 +574,7 @@ u32 XamUserCreateAchievementEnumerator_entry([[maybe_unused]] u32 title_id, u32 
 
   AchievementItems items(count, flags);
 
-  // ACHIEVED | ACHIEVED_ONLINE flags the game checks to consider an achievement earned.
+  // ACHIEVED | ACHIEVED_ONLINE flags titles test to treat an achievement as earned.
   constexpr uint32_t kAchievedFlags = 0x00030000;
 
   auto fill_unlock = [](AchievementItems::AchievementDetails& item, uint32_t id, Runtime& runtime) {
@@ -620,8 +588,6 @@ u32 XamUserCreateAchievementEnumerator_entry([[maybe_unused]] u32 title_id, u32 
 
   auto& runtime = runtime::Current();
 
-  // Prefer the runtime store (populated from TOML or XDBF at boot) so that
-  // dev-edited labels/descriptions are visible to the game's own queries.
   const auto store = runtime.achievement_manager().ListAchievements();
   if (!store.empty()) {
     for (const auto& info : store) {
@@ -687,7 +653,6 @@ u32 XamParseGamerTileKey_entry([[maybe_unused]] mapped_u32 key_ptr, mapped_u32 o
 u32 XamReadTileToTexture_entry([[maybe_unused]] u32 unknown, [[maybe_unused]] u32 title_id,
                                u64 tile_id, [[maybe_unused]] u32 user_index, mapped_void buffer_ptr,
                                u32 stride, u32 height, u32 overlapped_ptr) {
-  // TODO(gibbed): unknown=0,2,3,9
   if (!tile_id) {
     return X_ERROR_INVALID_PARAMETER;
   }
@@ -719,8 +684,6 @@ u32 XamSessionCreateHandle_entry(mapped_u32 handle_ptr) {
 
 u32 XamSessionRefObjByHandle_entry(u32 handle, mapped_u32 obj_ptr) {
   REX_ASSERT(handle == 0xCAFEDEAD);
-  // TODO(PermaNull): Implement this properly,
-  // For the time being returning 0xDEADF00D will prevent crashing.
   *obj_ptr = 0xDEADF00D;
   return X_ERROR_SUCCESS;
 }

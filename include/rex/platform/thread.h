@@ -248,6 +248,7 @@ class HighResolutionTimer {
                                      nullptr, TimerQueueWaitItem::clock::now(), interval);
   }
 
+  /** Stops the timer. */
   ~HighResolutionTimer() {
     if (auto wait_item = wait_item_.lock()) {
       wait_item->Disarm();
@@ -562,6 +563,7 @@ class REX_API Timer : public WaitHandle {
 
   /**
    * Stops the timer, drops pending callbacks and resets it to non signaled.
+   *
    * @return True on success.
    */
   virtual bool Reset() = 0;
@@ -725,7 +727,7 @@ class REX_API Thread : public WaitHandle {
   virtual bool SuspendIf(RedirectFilter filter, void* context) = 0;
 
  protected:
-  std::string name_;
+  std::string name_; /**< Thread name returned by name() and replaced by set_name(). */
 };
 
 namespace detail {

@@ -25,15 +25,15 @@ namespace rex::platform {
  * may be taken while a Leaf is held.
  */
 enum class LockRank : u8 {
-  Interrupt = 1,
-  Identity,
-  Table,
-  Name,
-  ThreadRegistry,
-  ModuleRegistry,
-  Object,
-  DPC,
-  Leaf,
+  Interrupt = 1,  /**< Rank 1, the lowest. Guards the function dispatcher interrupt state. */
+  Identity,       /**< Rank 2. Guards the object table identity map and the module load counts. */
+  Table,          /**< Rank 3. Guards the object table. */
+  Name,           /**< Rank 4. Guards the object table name map. */
+  ThreadRegistry, /**< Rank 5. Guards the thread registry. */
+  ModuleRegistry, /**< Rank 6. Guards the module registry. */
+  Object,         /**< Rank 7. Guards the state of a single object, such as the APU. */
+  DPC,            /**< Rank 8. Guards the deferred procedure call queue of the dispatcher. */
+  Leaf,           /**< Rank 9, the highest. Taken last, nothing may be taken while it is held. */
 };
 
 /**

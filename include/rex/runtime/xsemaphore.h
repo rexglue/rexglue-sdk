@@ -1,4 +1,3 @@
-#pragma once
 /**
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
@@ -10,6 +9,8 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
+#pragma once
+
 #include <memory>
 
 #include <rex/macros.h>
@@ -19,9 +20,10 @@
 
 namespace rex::runtime {
 
+/** Guest layout of a kernel semaphore. */
 struct X_KSEMAPHORE {
-  X_DISPATCH_HEADER header;
-  be_u32 limit;
+  X_DISPATCH_HEADER header; /**< Offset 0x0. Dispatch header. */
+  be_u32 limit;             /**< Offset 0x10. Largest count the semaphore reaches. */
 };
 REX_STATIC_ASSERT_SIZE(X_KSEMAPHORE, 0x14);
 
@@ -34,12 +36,13 @@ struct SemaphoreObject {
   REX_RUNTIME_API SemaphoreObject(i32 initial_count, i32 maximum_count_in);
 
   /**
-   * @param header The guest semaphore whose signal state and limit seed the object.
+   * @param header The guest semaphore whose signal state and limit initialize the object.
    */
   REX_RUNTIME_API explicit SemaphoreObject(const X_KSEMAPHORE& header);
 
+  /** Host semaphore that carries the count and wakes waiters. */
   std::unique_ptr<rex::platform::Semaphore> semaphore;
-  u32 maximum_count = 0;
+  u32 maximum_count = 0; /**< Maximum count the semaphore was created with. */
 };
 
 /**

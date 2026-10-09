@@ -1,5 +1,5 @@
 /**
- * @file        codegen/internal/helpers.h
+ * @file        codegen/builders/helpers.h
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -24,6 +24,7 @@ namespace rex::codegen {
 
 /**
  * Compute a 64-bit mask for PPC rotate/mask instructions.
+ *
  * @param mstart Starting bit position (0-63)
  * @param mstop Ending bit position (0-63)
  * @return 64-bit mask with bits set between mstart and mstop
@@ -35,36 +36,33 @@ inline uint64_t compute_mask(uint32_t mstart, uint32_t mstop) {
   return mstart <= mstop ? value : ~value;
 }
 
-//=============================================================================
-// CR Bit Helpers
-//=============================================================================
-
-/// Map PPC BI field bit index (0-3) to CRRegister member name.
+/**
+ * Returns the CRRegister member name of a BI field bit.
+ *
+ * @param bi BI field bit index, 0 to 3.
+ * @return "lt", "gt", "eq" or "so".
+ */
 inline const char* crBitName(uint32_t bi) {
   static constexpr const char* names[] = {"lt", "gt", "eq", "so"};
   return names[bi & 3];
 }
 
-//=============================================================================
-// Record-Form Helpers
-//=============================================================================
-
 /**
- * Check if the current instruction is a record form (has '.' suffix).
+ * Reports whether the current instruction is a record form (has '.' suffix).
  *
- * Record-form instructions update CR0 based on the result.
+ * Rc forms update CR0 from the result.
  *
  * @param insn The ppc_insn being processed
- * @return true if the instruction name contains '.' (record form)
+ * @return True when the instruction name contains '.' (record form)
  */
 inline bool isRecordForm(const ppc_insn& insn) {
   return std::strchr(insn.opcode->name, '.') != nullptr;
 }
 
 /**
- * Emit CR0 comparison for record-form instructions.
+ * Emits the CR0 comparison for Rc forms.
  *
- * Record-form instructions (those with '.' suffix like add. and and.)
+ * Rc forms (the '.' suffix, such as add. and and.)
  * update CR0 based on the result compared to zero:
  *   CR0[LT] = result < 0
  *   CR0[GT] = result > 0
@@ -123,10 +121,6 @@ inline void emitCRBitOperation(BuilderContext& ctx, std::string_view op, bool in
   ctx.println("\t{}.{} = {};", ctx.cr(crField_D), crBitName(crBit_D), expr);
 }
 
-//=============================================================================
-// Comparison Instruction Helpers
-//=============================================================================
-
 /**
  * Emit register-to-register comparison.
  *
@@ -165,10 +159,6 @@ inline void emitCompareImmediate(BuilderContext& ctx, const char* type_name, con
   }
 }
 
-//=============================================================================
-// Memory Operation Helpers
-//=============================================================================
-
 /**
  * Emit D-form load with update instruction.
  *
@@ -179,13 +169,10 @@ inline void emitCompareImmediate(BuilderContext& ctx, const char* type_name, con
  * @param load_macro The REX_LOAD_* macro to use (e.g., "REX_LOAD_U8")
  */
 inline void emitLoadWithUpdate(BuilderContext& ctx, const char* load_macro) {
-  // EA = displacement + rA
   ctx.println("\t{} = {} + {}.u32;", ctx.ea(), static_cast<int32_t>(ctx.insn.operands[1]),
               ctx.r(ctx.insn.operands[2]));
-  // rD = MEM[EA]
   ctx.println("\t{}.u64 = {}({});", ctx.r(ctx.insn.operands[0]), ctx.MMIOMacro(load_macro),
               ctx.ea());
-  // rA = EA (update)
   ctx.println("\t{}.u32 = {};", ctx.r(ctx.insn.operands[2]), ctx.ea());
 }
 
@@ -217,13 +204,10 @@ inline void emitLoadXFormWithUpdate(BuilderContext& ctx, const char* load_macro)
  * @param field The register field to store (e.g., "u8", "u32", "u64")
  */
 inline void emitStoreWithUpdate(BuilderContext& ctx, const char* store_macro, const char* field) {
-  // EA = displacement + rA
   ctx.println("\t{} = {} + {}.u32;", ctx.ea(), static_cast<int32_t>(ctx.insn.operands[1]),
               ctx.r(ctx.insn.operands[2]));
-  // MEM[EA] = rS
   ctx.println("\t{}({}, {}.{});", ctx.MMIOMacro(store_macro), ctx.ea(), ctx.r(ctx.insn.operands[0]),
               field);
-  // rA = EA (update)
   ctx.println("\t{}.u32 = {};", ctx.r(ctx.insn.operands[2]), ctx.ea());
 }
 
@@ -245,10 +229,6 @@ inline void emitStoreXFormWithUpdate(BuilderContext& ctx, const char* store_macr
               field);
   ctx.println("\t{}.u32 = {};", ctx.r(ctx.insn.operands[1]), ctx.ea());
 }
-
-//=============================================================================
-// Atomic Operation Helpers
-//=============================================================================
 
 /**
  * Emit atomic load-and-reserve instruction (lwarx/ldarx pattern).
@@ -298,10 +278,6 @@ inline void emitAtomicStoreConditional(BuilderContext& ctx, const char* ptr_type
       field);
 }
 
-//=============================================================================
-// Sign-Extending Load Helpers
-//=============================================================================
-
 /**
  * Emit D-form sign-extending load instruction.
  *
@@ -338,10 +314,6 @@ inline void emitSignExtendLoadXForm(BuilderContext& ctx, const char* cast_type,
   ctx.println("{}.u32));", ctx.r(ctx.insn.operands[2]));
 }
 
-//=============================================================================
-// Branch Bounds-Checking Helper
-//=============================================================================
-
 /**
  * Emit a conditional branch with bounds checking.
  *
@@ -364,10 +336,6 @@ inline void emitBranchWithBoundsCheck(BuilderContext& ctx, uint32_t target,
     ctx.println("\tif ({}) goto loc_{:X};", condition, target);
   }
 }
-
-//=============================================================================
-// Vector EA Calculation Helpers
-//=============================================================================
 
 /**
  * Emit aligned or unaligned vector effective address calculation to ea.
@@ -406,13 +374,14 @@ inline void emitVectorTempEA(BuilderContext& ctx) {
   ctx.println("{}.u32;", ctx.r(ctx.insn.operands[2]));
 }
 
-//=============================================================================
-// Trap Instruction Helper
-//=============================================================================
-
 /**
  * Emit a PPC trap instruction: if (<condition>) ppc_trap(ctx, base, 0);
  *
+ * The TO field (instruction bits 21-25) is a 5-bit mask of the trap conditions in the order
+ * signed lt, signed gt, eq, unsigned lt, unsigned gt. It is read from the instruction word so
+ * the generic (tw TO,rA,rB) and simplified (tweq rA,rB) forms share one builder.
+ *
+ * @param ctx      The builder context
  * @param to       5-bit TO field
  * @param aSigned  First operand, signed (e.g., "ctx.r3.s32")
  * @param aUnsigned First operand, unsigned (e.g., "ctx.r3.u32")

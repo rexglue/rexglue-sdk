@@ -34,9 +34,9 @@
 #include "runtime/thread_wait.h"
 
 #if REX_PLATFORM_WIN32
-// NOTE: must be included last as it expects windows.h to already be included.
-#define _WINSOCK_DEPRECATED_NO_WARNINGS  // inet_addr
-#include <winsock2.h>                    // NOLINT(build/include_order)
+// Must be included last, it expects windows.h to be included before it.
+#define _WINSOCK_DEPRECATED_NO_WARNINGS
+#include <winsock2.h>  // NOLINT(build/include_order)
 #elif REX_PLATFORM_LINUX || REX_PLATFORM_MAC
 #include <arpa/inet.h>
 #include <netinet/in.h>
@@ -50,7 +50,6 @@ namespace xam {
 using namespace rex::runtime;
 using namespace rex::runtime::xam;
 
-// https://github.com/G91/TitanOffLine/blob/1e692d9bb9dfac386d08045ccdadf4ae3227bb5e/xkelib/xam/xamNet.h
 enum : u8 {
   XNCALLER_INVALID = 0x0,
   XNCALLER_TITLE = 0x1,
@@ -60,14 +59,13 @@ enum : u8 {
   NUM_XNCALLER_TYPES = 0x4,
 };
 
-// https://github.com/pmrowla/hl2sdk-csgo/blob/master/common/xbox/xboxstubs.h
 struct XNADDR {
-  // FYI: IN_ADDR should be in network-byte order.
-  in_addr ina;           // IP address (zero if not static/DHCP)
-  in_addr inaOnline;     // Online IP address (zero if not online)
-  be_u16 wPortOnline;    // Online port
-  uint8_t abEnet[6];     // Ethernet MAC address
-  uint8_t abOnline[20];  // Online identification
+  // IN_ADDR fields are in network byte order.
+  in_addr ina;       /**< IP address, zero unless static or DHCP. */
+  in_addr inaOnline; /**< Online IP address, zero when not online. */
+  be_u16 wPortOnline;
+  uint8_t abEnet[6]; /**< Ethernet MAC address. */
+  uint8_t abOnline[20];
 };
 
 struct XNDNS {
@@ -122,13 +120,12 @@ struct XWSAOVERLAPPED {
     struct {
       be_u32 low;
       be_u32 high;
-    } offset;  // must be named to avoid GCC error
+    } offset;  // Named because GCC rejects members with constructors in an anonymous struct.
     be_u32 pointer;
   };
   be_u32 event_handle;
 };
 
-// https://github.com/joolswills/mameox/blob/master/MAMEoX/Sources/xbox_Network.cpp#L136
 struct XNetStartupParams {
   uint8_t cfgSizeOfStruct;
   uint8_t cfgFlags;
@@ -153,25 +150,10 @@ u32 NetDll_XNetStartup_entry([[maybe_unused]] u32 caller, ppc_ptr_t<XNetStartupP
     std::memcpy(&xnet_startup_params, params, sizeof(XNetStartupParams));
   }
 
-  /*
-  if (!xam->xnet()) {
-    auto xnet = new XNet(runtime::Current());
-    xnet->Initialize();
-
-    xam->set_xnet(xnet);
-  }
-  */
-
   return 0;
 }
 
 u32 NetDll_XNetCleanup_entry([[maybe_unused]] u32 caller, [[maybe_unused]] mapped_void params) {
-  // auto xnet = xam->xnet();
-  // xam->set_xnet(nullptr);
-
-  // TODO: Shut down and delete.
-  // delete xnet;
-
   return 0;
 }
 
@@ -182,19 +164,19 @@ u32 NetDll_XNetGetOpt_entry(u32 one, u32 option_id, mapped_void buffer_ptr,
     case 1:
       if (*buffer_size < sizeof(XNetStartupParams)) {
         *buffer_size = sizeof(XNetStartupParams);
-        return 0x2738;  // WSAEMSGSIZE
+        // WSAEMSGSIZE
+        return 0x2738;
       }
       std::memcpy(buffer_ptr, &xnet_startup_params, sizeof(XNetStartupParams));
       return 0;
     default:
       REX_KERNEL_STUB("NetDll_XNetGetOpt: option {}", option_id);
-      return 0x2726;  // WSAEINVAL
+      // WSAEINVAL
+      return 0x2726;
   }
 }
 
 u32 NetDll_XNetRandom_entry([[maybe_unused]] u32 caller, mapped_void buffer_ptr, u32 length) {
-  // Constant values.
-  // This makes replicating things easier.
   std::memset(buffer_ptr, 0xBB, length);
 
   return 0;
@@ -202,7 +184,6 @@ u32 NetDll_XNetRandom_entry([[maybe_unused]] u32 caller, mapped_void buffer_ptr,
 
 u32 NetDll_WSAStartup_entry([[maybe_unused]] u32 caller, u16 version,
                             ppc_ptr_t<X_WSADATA> data_ptr) {
-// TODO(benvanik): abstraction layer needed.
 #if REX_PLATFORM_WIN32
   WSADATA wsaData;
   ZeroMemory(&wsaData, sizeof(WSADATA));
@@ -219,7 +200,6 @@ u32 NetDll_WSAStartup_entry([[maybe_unused]] u32 caller, u16 version,
 #else
   int ret = 0;
   if (data_ptr) {
-    // Guess these values!
     data_ptr->version = version;
     data_ptr->description[0] = '\0';
     data_ptr->system_status[0] = '\0';
@@ -232,7 +212,6 @@ u32 NetDll_WSAStartup_entry([[maybe_unused]] u32 caller, u16 version,
 }
 
 u32 NetDll_WSACleanup_entry([[maybe_unused]] u32 caller) {
-  // This does nothing. Xenia needs WSA running.
   return 0;
 }
 
@@ -248,13 +227,27 @@ u32 NetDll_WSARecvFrom_entry([[maybe_unused]] u32 caller, [[maybe_unused]] u32 s
                              [[maybe_unused]] ppc_ptr_t<XSOCKADDR_IN> from_addr,
                              [[maybe_unused]] ppc_ptr_t<XWSAOVERLAPPED> overlapped_ptr,
                              [[maybe_unused]] mapped_void completion_routine_ptr) {
-  // we're not going to be receiving packets any time soon
-  // return error so we don't wait on that - Cancerous
+  // Return an error so the title does not wait for packets.
   return -1;
 }
 
-// If the socket is a VDP socket, buffer 0 is the game data length, and buffer 1
-// is the unencrypted game data.
+/**
+ * Sends the buffers as 1 datagram.
+ *
+ * For a VDP socket, buffer 0 holds the title data length and buffer 1 the unencrypted title data.
+ *
+ * @param caller The caller type.
+ * @param socket_handle The socket handle.
+ * @param buffers The buffers to send.
+ * @param num_buffers The count of buffers.
+ * @param num_bytes_sent Unused.
+ * @param flags The send flags.
+ * @param to_ptr The destination address.
+ * @param to_len The size of the destination address.
+ * @param overlapped Must be null.
+ * @param completion_routine Must be null.
+ * @return 0 on success, -1 when the handle is not a socket.
+ */
 u32 NetDll_WSASendTo_entry([[maybe_unused]] u32 caller, u32 socket_handle,
                            ppc_ptr_t<XWSABUF> buffers, u32 num_buffers,
                            [[maybe_unused]] mapped_u32 num_bytes_sent, u32 flags,
@@ -270,8 +263,7 @@ u32 NetDll_WSASendTo_entry([[maybe_unused]] u32 caller, u32 socket_handle,
     return -1;
   }
 
-  // Our sockets implementation doesn't support multiple buffers, so we need
-  // to combine the buffers the game has given us!
+  // The socket layer takes 1 buffer, so combine the guest buffers.
   std::vector<uint8_t> combined_buffer_mem;
   uint32_t combined_buffer_size = 0;
   uint32_t combined_buffer_offset = 0;
@@ -289,15 +281,14 @@ u32 NetDll_WSASendTo_entry([[maybe_unused]] u32 caller, u32 socket_handle,
   SocketSendTo(*socket, combined_buffer_mem.data(), combined_buffer_size, flags, &native_to,
                to_len);
 
-  // TODO: Instantly complete overlapped
-
   return 0;
 }
 
 u32 NetDll_WSAWaitForMultipleEvents_entry(u32 num_events, mapped_u32 events, u32 wait_all,
                                           u32 timeout, u32 alertable) {
   if (num_events > 64) {
-    ThreadRecord::SetLastError(87);  // ERROR_INVALID_PARAMETER
+    // ERROR_INVALID_PARAMETER
+    ThreadRecord::SetLastError(87);
     return ~0u;
   }
 
@@ -357,45 +348,26 @@ u32 NetDll_WSASetEvent_entry(u32 event_handle) {
 }
 
 struct XnAddrStatus {
-  // Address acquisition is not yet complete
   static const uint32_t XNET_GET_XNADDR_PENDING = 0x00000000;
-  // XNet is uninitialized or no debugger found
+  /** The network stack is uninitialized or no debugger was found. */
   static const uint32_t XNET_GET_XNADDR_NONE = 0x00000001;
-  // Host has ethernet address (no IP address)
+  /** The host has an Ethernet address and no IP address. */
   static const uint32_t XNET_GET_XNADDR_ETHERNET = 0x00000002;
-  // Host has statically assigned IP address
   static const uint32_t XNET_GET_XNADDR_STATIC = 0x00000004;
-  // Host has DHCP assigned IP address
   static const uint32_t XNET_GET_XNADDR_DHCP = 0x00000008;
-  // Host has PPPoE assigned IP address
   static const uint32_t XNET_GET_XNADDR_PPPOE = 0x00000010;
-  // Host has one or more gateways configured
   static const uint32_t XNET_GET_XNADDR_GATEWAY = 0x00000020;
-  // Host has one or more DNS servers configured
   static const uint32_t XNET_GET_XNADDR_DNS = 0x00000040;
-  // Host is connected to online service
   static const uint32_t XNET_GET_XNADDR_ONLINE = 0x00000080;
-  // Network configuration requires troubleshooting
   static const uint32_t XNET_GET_XNADDR_TROUBLESHOOT = 0x00008000;
 };
 
 u32 NetDll_XNetGetTitleXnAddr_entry([[maybe_unused]] u32 caller, ppc_ptr_t<XNADDR> addr_ptr) {
-  // Return a loopback address.
   addr_ptr->ina.s_addr = htonl(INADDR_LOOPBACK);
   addr_ptr->inaOnline.s_addr = 0;
   addr_ptr->wPortOnline = 0;
 
-  // TODO(gibbed): A proper mac address.
-  // RakNet's console version appears to depend on abEnet to create "random" 64-bit
-  // numbers. A zero value will cause RakPeer::Startup to fail. This causes
-  // 58411436 to crash on startup.
-  // The console specific code is scrubbed from the RakNet repo, but there's still
-  // traces of what it's doing which match the game code.
-  // https://github.com/facebookarchive/RakNet/blob/master/Source/RakPeer.cpp#L382
-  // https://github.com/facebookarchive/RakNet/blob/master/Source/RakPeer.cpp#L4527
-  // https://github.com/facebookarchive/RakNet/blob/master/Source/RakPeer.cpp#L4467
-  // "Mac address is a poor solution because you can't have multiple connections
-  // from the same system"
+  // A zero abEnet makes titles that derive random numbers from it fail.
   std::memset(addr_ptr->abEnet, 0xCC, 6);
 
   std::memset(addr_ptr->abOnline, 0, 20);
@@ -406,14 +378,13 @@ u32 NetDll_XNetGetTitleXnAddr_entry([[maybe_unused]] u32 caller, ppc_ptr_t<XNADD
 u32 NetDll_XNetGetDebugXnAddr_entry([[maybe_unused]] u32 caller, ppc_ptr_t<XNADDR> addr_ptr) {
   addr_ptr.Zero();
 
-  // XNET_GET_XNADDR_NONE causes caller to gracefully return.
   return XnAddrStatus::XNET_GET_XNADDR_NONE;
 }
 
 u32 NetDll_XNetXnAddrToMachineId_entry([[maybe_unused]] u32 caller,
                                        [[maybe_unused]] ppc_ptr_t<XNADDR> addr_ptr,
                                        [[maybe_unused]] mapped_u32 id_ptr) {
-  // Tell the caller we're not signed in to live (non-zero ret)
+  // Non zero means the title is not signed in to Live.
   return 1;
 }
 
@@ -422,8 +393,16 @@ void NetDll_XNetInAddrToString_entry([[maybe_unused]] u32 caller, [[maybe_unused
   rex::copy_truncating(string_out, "666.666.666.666", string_size);
 }
 
-// This converts a XNet address to an IN_ADDR. The IN_ADDR is used for
-// subsequent socket calls (like a handle to a XNet address)
+/**
+ * Stub for converting an XNet address to an IN_ADDR, which later socket calls use as a handle
+ * to the address.
+ *
+ * @param caller The caller type.
+ * @param xn_addr The XNet address.
+ * @param xid The key identifier.
+ * @param in_addr Receives the IN_ADDR.
+ * @return 1.
+ */
 u32 NetDll_XNetXnAddrToInAddr_entry([[maybe_unused]] u32 caller,
                                     [[maybe_unused]] ppc_ptr_t<XNADDR> xn_addr,
                                     [[maybe_unused]] mapped_void xid,
@@ -431,8 +410,15 @@ u32 NetDll_XNetXnAddrToInAddr_entry([[maybe_unused]] u32 caller,
   return 1;
 }
 
-// Does the reverse of the above.
-// FIXME: Arguments may not be correct.
+/**
+ * Stub for the reverse conversion of NetDll_XNetXnAddrToInAddr_entry.
+ *
+ * @param caller The caller type.
+ * @param in_addr The IN_ADDR.
+ * @param xn_addr Receives the XNet address.
+ * @param xid The key identifier.
+ * @return 1.
+ */
 u32 NetDll_XNetInAddrToXnAddr_entry([[maybe_unused]] u32 caller,
                                     [[maybe_unused]] mapped_void in_addr,
                                     [[maybe_unused]] ppc_ptr_t<XNADDR> xn_addr,
@@ -440,13 +426,17 @@ u32 NetDll_XNetInAddrToXnAddr_entry([[maybe_unused]] u32 caller,
   return 1;
 }
 
-// https://www.google.com/patents/WO2008112448A1?cl=en
-// Reserves a port for use by system link
+/**
+ * Stub that reserves a port for system link.
+ *
+ * @param caller The caller type.
+ * @param port The port to reserve.
+ * @return 1.
+ */
 u32 NetDll_XNetSetSystemLinkPort_entry([[maybe_unused]] u32 caller, [[maybe_unused]] u32 port) {
   return 1;
 }
 
-// https://github.com/ILOVEPIE/Cxbx-Reloaded/blob/master/src/CxbxKrnl/EmuXOnline.h#L39
 struct XEthernetStatus {
   static const uint32_t XNET_ETHERNET_LINK_ACTIVE = 0x01;
   static const uint32_t XNET_ETHERNET_LINK_100MBPS = 0x02;
@@ -461,11 +451,11 @@ u32 NetDll_XNetGetEthernetLinkStatus_entry([[maybe_unused]] u32 caller) {
 
 u32 NetDll_XNetDnsLookup_entry([[maybe_unused]] u32 caller, [[maybe_unused]] mapped_string host,
                                u32 event_handle, mapped_u32 pdns) {
-  // TODO(gibbed): implement this
   if (pdns) {
     auto dns_guest = runtime::Current().memory()->SystemHeapAlloc(sizeof(XNDNS));
     auto dns = runtime::Current().memory()->TranslateVirtual<XNDNS*>(dns_guest);
-    dns->status = 1;  // non-zero = error
+    // A non zero status is an error.
+    dns->status = 1;
     *pdns = dns_guest;
   }
   if (event_handle) {
@@ -486,7 +476,7 @@ u32 NetDll_XNetDnsRelease_entry([[maybe_unused]] u32 caller, ppc_ptr_t<XNDNS> dn
 
 u32 NetDll_XNetQosServiceLookup_entry([[maybe_unused]] u32 caller, [[maybe_unused]] u32 flags,
                                       u32 event_handle, mapped_u32 pqos) {
-  // Set pqos as some games will try accessing it despite non-successful result
+  // Titles read pqos even after a failure, so always set it.
   if (pqos) {
     auto qos_guest = runtime::Current().memory()->SystemHeapAlloc(sizeof(XNQOS));
     auto qos = runtime::Current().memory()->TranslateVirtual<XNQOS*>(qos_guest);
@@ -521,9 +511,7 @@ u32 NetDll_inet_addr_entry(mapped_string addr_ptr) {
   }
 
   uint32_t addr = inet_addr(addr_ptr);
-  // https://docs.microsoft.com/en-us/windows/win32/api/winsock2/nf-winsock2-inet_addr#return-value
-  // Based on console research it seems like x360 uses old version of inet_addr
-  // In case of empty string it return 0 instead of -1
+  // An empty string returns 0 instead of -1.
   if (addr == INADDR_NONE && addr_ptr.value().empty()) {
     return 0;
   }
@@ -565,8 +553,6 @@ u32 NetDll_closesocket_entry([[maybe_unused]] u32 caller, u32 socket_handle) {
     return -1;
   }
 
-  // TODO: Absolutely delete this object. It is no longer valid after calling
-  // closesocket.
   SocketClose(*socket);
   (void)runtime::Current().object_table().Close(socket_handle);
   return 0;
@@ -620,7 +606,6 @@ u32 NetDll_ioctlsocket_entry([[maybe_unused]] u32 caller, u32 socket_handle, u32
     return -1;
   }
 
-  // TODO
   return 0;
 }
 
@@ -726,7 +711,6 @@ struct host_set {
         this->count = i;
         break;
       }
-      // Convert from Xenia -> native
       auto socket = runtime::Current().object_table().Get<SocketObject>(socket_handle);
       if (!socket) {
         this->count = i;
@@ -850,7 +834,6 @@ i32 NetDll_select_entry([[maybe_unused]] i32 caller, i32 nfds, ppc_ptr_t<x_fd_se
     host_exceptfds.Store(exceptfds);
   }
 
-  // TODO(gibbed): modify ret to be what's copied to the guest fd_sets?
   return ret;
 }
 
@@ -895,7 +878,6 @@ u32 NetDll_recvfrom_entry([[maybe_unused]] u32 caller, u32 socket_handle, mapped
   }
 
   if (ret == -1) {
-// TODO: Better way of getting the error code
 #if REX_PLATFORM_WIN32
     uint32_t error_code = WSAGetLastError();
     ThreadRecord::SetLastError(error_code);

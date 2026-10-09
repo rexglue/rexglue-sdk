@@ -24,13 +24,17 @@
 #include <rex/runtime/thread_state.h>
 #include <rex/types.h>
 
-//=============================================================================
-// Hook Macros
-//=============================================================================
-
-// Hook a recompiled function with an auto-marshaled native C++ function.
-// The native function uses plain types (u32, mapped_u32 and others) and
-// HostToGuestFunction handles register translation automatically.
+/**
+ * Hooks a recompiled function with a native C++ function. The native function uses plain types
+ * (u32, mapped_u32 and others) and HostToGuestFunction translates the registers.
+ *
+ * @param subroutine The recompiled function symbol.
+ * @param function The native function the hook calls.
+ *
+ * @code
+ * REX_HOOK(ExampleFunction, ExampleHook);
+ * @endcode
+ */
 #ifdef REXGLUE_ENABLE_PROFILING
 #include <tracy/Tracy.hpp>
 #define REX_HOOK(subroutine, function)                           \
@@ -45,10 +49,28 @@
   }
 #endif
 
-// Define a raw hook with direct ctx/base access.
+/**
+ * Defines a raw hook with access to ctx and base.
+ *
+ * @param name The recompiled function symbol.
+ *
+ * @code
+ * REX_HOOK_RAW(ExampleFunction) {
+ *   ctx.r3.u64 = 0;
+ * }
+ * @endcode
+ */
 #define REX_HOOK_RAW(name) extern "C" REX_DETAIL_ENTRY_EXPORT REX_FUNC(name)
 
-// Stub: logs a warning on the first call and Dev after.
+/**
+ * Defines a stub that logs a warning on the first call and at Dev level after.
+ *
+ * @param subroutine The recompiled function symbol.
+ *
+ * @code
+ * REX_STUB(ExampleFunction);
+ * @endcode
+ */
 #define REX_STUB(subroutine)                                        \
   extern "C" REX_DETAIL_ENTRY_EXPORT REX_FUNC(subroutine) {         \
     (void)base;                                                     \
@@ -56,6 +78,16 @@
     ::rex::log::detail::WriteStub(rex_stub_seen_, #subroutine, {}); \
   }
 
+/**
+ * Defines a stub that logs a message on the first call and at Dev level after.
+ *
+ * @param subroutine The recompiled function symbol.
+ * @param msg The message logged with the stub.
+ *
+ * @code
+ * REX_STUB_LOG(ExampleFunction, "skips the save");
+ * @endcode
+ */
 #define REX_STUB_LOG(subroutine, msg)                                \
   extern "C" REX_DETAIL_ENTRY_EXPORT REX_FUNC(subroutine) {          \
     (void)base;                                                      \
@@ -63,6 +95,16 @@
     ::rex::log::detail::WriteStub(rex_stub_seen_, #subroutine, msg); \
   }
 
+/**
+ * Defines a stub that returns a fixed value in r3 and logs it like REX_STUB.
+ *
+ * @param subroutine The recompiled function symbol.
+ * @param value The value returned in r3.
+ *
+ * @code
+ * REX_STUB_RETURN(ExampleFunction, 0);
+ * @endcode
+ */
 #define REX_STUB_RETURN(subroutine, value)                                 \
   extern "C" REX_DETAIL_ENTRY_EXPORT REX_FUNC(subroutine) {                \
     (void)base;                                                            \
@@ -78,6 +120,10 @@
  *
  * @param name The hook symbol.
  * @param function The host function the hook wraps.
+ *
+ * @code
+ * REX_EXPORT(__imp__CloseHandle, rex::kernel::xam::CloseHandle_shim)
+ * @endcode
  */
 #define REX_EXPORT(name, function) REX_HOOK(name, function)
 
@@ -85,6 +131,10 @@
  * Defines a stub whose symbol a kernel export table links against.
  *
  * @param name The hook symbol.
+ *
+ * @code
+ * REX_EXPORT_STUB(__imp__AniBlockOnAnimation);
+ * @endcode
  */
 #define REX_EXPORT_STUB(name) REX_STUB(name)
 
@@ -93,26 +143,51 @@
  *
  * @param name The hook symbol.
  * @param retval The value returned in r3.
+ *
+ * @code
+ * REX_EXPORT_STUB_RETURN(__imp__DmRegisterCommandProcessorEx, 0);
+ * @endcode
  */
 #define REX_EXPORT_STUB_RETURN(name, retval) REX_STUB_RETURN(name, retval)
 
 namespace rex::ppc {
 
-//=============================================================================
-// ImportFunction - Zero-overhead typed callable for recompiled functions
-//=============================================================================
-
+/**
+ * Typed callable for a recompiled function.
+ *
+ * @tparam S The function signature.
+ */
 template <typename S>
 struct ImportFunction;
 
+/**
+ * Typed callable for a recompiled function of signature R(Args...).
+ *
+ * @tparam R The return type.
+ * @tparam Args The parameter types.
+ */
 template <typename R, typename... Args>
 struct ImportFunction<R(Args...)> {
-  PPCFunc& fn;
+  PPCFunc& fn; /**< The recompiled function. */
 
+  /**
+   * Calls the function on a given context.
+   *
+   * @param ctx The context the call runs on.
+   * @param base The memory base.
+   * @param args The arguments.
+   * @return The function result.
+   */
   R operator()(PPCContext& ctx, uint8_t* base, Args... args) const {
     return Call<R>(ctx, base, fn, args...);
   }
 
+  /**
+   * Calls the function on the current thread's context.
+   *
+   * @param args The arguments.
+   * @return The function result.
+   */
   R operator()(Args... args) const {
     auto* ts = rex::runtime::ThreadState::Get();
     return Call<R>(*ts->context(), ts->memory()->virtual_membase(), fn, args...);
@@ -121,19 +196,21 @@ struct ImportFunction<R(Args...)> {
 
 }  // namespace rex::ppc
 
-//=============================================================================
-// REX_IMPORT - Typed callable import of a recompiled function
-//=============================================================================
-// Three explicit arguments, no hidden prefix transformations:
-//   symbol:   the exact linker symbol to reference
-//   callable: the name of the typed callable variable
-//   sig:      the function signature (e.g. u32(u32, u32))
-//
-// The callable is internal-linkage on purpose: on ELF, a namespace-scope C++
-// variable is not name-mangled, so an external-linkage callable named after a
-// guest function would collide with the generated weak function alias and
-// hijack its function table entry (MSVC decorates variables, hiding the bug).
-
+/**
+ * Declares a typed callable import of a recompiled function.
+ *
+ * The callable has internal linkage. On ELF a namespace scope C++ variable is not name mangled,
+ * so an external linkage callable named after a guest function would collide with the generated
+ * weak function alias and hijack its function table entry.
+ *
+ * @param symbol The exact linker symbol to reference.
+ * @param callable The name of the typed callable variable.
+ * @param sig The function signature, such as u32(u32, u32).
+ *
+ * @code
+ * REX_IMPORT(ExampleFunction, example_function, u32(u32, u32));
+ * @endcode
+ */
 #define REX_IMPORT(symbol, callable, sig)                          \
   REX_EXTERN(symbol);                                              \
   [[maybe_unused]] static rex::ppc::ImportFunction<sig> callable { \

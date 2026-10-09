@@ -17,9 +17,13 @@
 
 namespace rex::codegen {
 
-/// Build set of non-helper function entry points for boundary detection.
-/// @param graph The function graph to scan
-/// @param excludeGapFill If true, also exclude GAP_FILL authority functions
+/**
+ * Builds the set of non helper function entry points for boundary detection.
+ *
+ * @param graph Function graph to scan.
+ * @param excludeGapFill True to leave GAP_FILL authority functions out of the set.
+ * @return Entry point addresses.
+ */
 inline std::unordered_set<uint32_t> buildKnownFunctions(const FunctionGraph& graph,
                                                         bool excludeGapFill = false) {
   std::unordered_set<uint32_t> result;
@@ -34,7 +38,13 @@ inline std::unordered_set<uint32_t> buildKnownFunctions(const FunctionGraph& gra
   return result;
 }
 
-/// Discover blocks for all pending functions.
+/**
+ * Discovers blocks for all pending functions.
+ *
+ * @param ctx Codegen context.
+ * @param knownFunctions Function entry points that bound a function.
+ * @return The number of functions discovered.
+ */
 size_t discoverPendingFunctions(CodegenContext& ctx,
                                 const std::unordered_set<uint32_t>& knownFunctions);
 

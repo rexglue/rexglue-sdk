@@ -37,23 +37,33 @@ using RegisterModulesFunc = void (*)(runtime::IModuleRegistry& modules);
  */
 using RecompiledCodeFunc = std::span<const u8> (*)();
 
+/** Codegen options that change how the generated code treats registers and state. */
 struct PPCCodegenFlags {
+  /** Omits the generated `ctx.lr` writes and reads at bl, mflr and similar. */
   bool skip_lr = false;
+  /** Keeps CTR in a local variable instead of `ctx.ctr`. Config key `ctr_as_local`. */
   bool ctr_as_local = false;
+  /** Keeps XER in a local variable instead of `ctx.xer`. Config key `xer_as_local`. */
   bool xer_as_local = false;
+  /** Keeps the reservation register in a local variable instead of `ctx.reserved`. */
   bool reserved_as_local = false;
+  /** Omits the generated global lock check that mfmsr emits. Config key `skip_msr`. */
   bool skip_msr = false;
+  /** Keeps the CR fields in local variables instead of `ctx.cr0` to `ctx.cr7`. */
   bool cr_as_local = false;
+  /** Keeps r0, r2, r11, r12, f0 and v32 to v63 in local variables. */
   bool non_argument_as_local = false;
+  /** Keeps r14 and above, f14 and above and the high vector registers in locals. */
   bool non_volatile_as_local = false;
 };
 
 /// PPC image layout passed from the generated config header into TitleApp::Init.
 struct PPCImageInfo {
-  u32 code_base;
-  u32 code_size;
-  u32 image_base;
-  u32 image_size;
+  u32 code_base;  /**< First guest address of the generated code, given to the function table. */
+  u32 code_size;  /**< Size of the generated code in bytes. */
+  u32 image_base; /**< Guest address the image loads at. */
+  u32 image_size; /**< Size of the image in bytes. */
+  /** Guest address and host function pairs registered at startup, ended by guest address 0. */
   const PPCFuncMapping* func_mappings;
   bool shim_heap = false;  ///< Set by codegen when [shim] holds the heap functions
   RegisterModulesFunc register_modules = nullptr;  ///< Set by codegen for multi-binary projects

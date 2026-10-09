@@ -1,14 +1,3 @@
-/**
- * @file        codegen/manifest.cpp
- * @brief       Manifest TOML parser for multi-binary projects
- *
- * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
- *              All rights reserved.
- *
- * @license     BSD 3-Clause License
- *              See LICENSE file in the project root for full license text.
- */
-
 #include <rex/codegen/manifest.h>
 
 #include <algorithm>
@@ -56,9 +45,14 @@ bool IsValidProjectName(std::string_view name) {
 }
 
 /**
- * Pull file_path / out_directory_path / project_name onto the recompiler
- * config so downstream consumers can rely on them. Other fields (codegen
- * flags, sub-tables, includes) come from RecompilerConfig::LoadFromTable.
+ * Loads a binary's recompiler config from its table and sets the project name on it. The other
+ * fields come from RecompilerConfig::LoadFromTable.
+ *
+ * @param tbl The TOML table of the entrypoint or module.
+ * @param base_dir The directory that relative paths in the table resolve against.
+ * @param project_name The project name stored on the recompiler config.
+ * @param out The binary config to fill.
+ * @return True when the table loaded, false on failure.
  */
 bool LoadBinaryConfig(const toml::table& tbl, const std::filesystem::path& base_dir,
                       std::string_view project_name, BinaryConfig& out) {

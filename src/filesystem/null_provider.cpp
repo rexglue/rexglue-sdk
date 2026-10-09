@@ -1,17 +1,3 @@
-/**
- * @file        filesystem/null_provider.cpp
- * @brief       The provider that answers a fixed list of paths with empty files
- *
- * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
- *              All rights reserved.
- *
- * @license     BSD 3-Clause License
- *              See LICENSE file in the project root for full license text.
- *
- * @remarks     Derived from Xenia's xenia/vfs/devices/null_device.cc, null_entry.cc and
- *              null_file.cc (Ben Vanik, 2020).
- */
-
 #include "filesystem/null_provider.h"
 
 #include <format>

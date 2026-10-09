@@ -1,16 +1,3 @@
-/**
- * @file        rexglue/commands/vfs_command.cpp
- * @brief       The vfs command, which extracts STFS, SVOD and GDFX containers
- *
- * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
- *              All rights reserved.
- *
- * @license     BSD 3-Clause License
- *              See LICENSE file in the project root for full license text.
- *
- * @remarks     Derived from Xenia's xenia/vfs/vfs_dump.cc (Ben Vanik, 2020).
- */
-
 #include "vfs_command.h"
 #include "../ui/ui.h"
 

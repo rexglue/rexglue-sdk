@@ -1,4 +1,3 @@
-#pragma once
 /**
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
@@ -9,6 +8,8 @@
  *
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
+
+#pragma once
 
 #include <memory>
 
@@ -35,14 +36,25 @@ class ImmediateDrawer : public gpu::IOverlayDrawer, public rex::NonCopyable {
   virtual void OnLeavePresenter() {}
   virtual void OnEnterPresenter() {}
 
-  // Available between Begin and End.
+  /** Valid between Begin and End. */
   gpu::OverlayDrawContext* ui_draw_context() const { return ui_draw_context_; }
   f32 coordinate_space_width() const { return coordinate_space_width_; }
   f32 coordinate_space_height() const { return coordinate_space_height_; }
 
-  // Converts and clamps the scissor in the immediate draw to render target
-  // coordinates. Returns whether the scissor contains any render target pixels
-  // (but a valid scissor is written even if false is returned).
+  /**
+   * Converts and clamps the draw scissor to render target coordinates.
+   *
+   * A valid scissor is written even when the result is false. Scaling drops NaNs and clamps to the
+   * render target size, within which values are representable as 16p8 fixed point. The top left
+   * edge includes the 0.5 sample and the bottom right edge excludes it.
+   *
+   * @param draw Draw holding the scissor.
+   * @param out_left Receives the left edge.
+   * @param out_top Receives the top edge.
+   * @param out_width Receives the width.
+   * @param out_height Receives the height.
+   * @return True when the scissor contains any render target pixels.
+   */
   bool ScissorToRenderTarget(const gpu::OverlayDraw& draw, u32& out_left, u32& out_top,
                              u32& out_width, u32& out_height);
 

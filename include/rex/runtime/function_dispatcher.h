@@ -32,7 +32,6 @@
 
 namespace rex::runtime {
 
-// Forward declarations
 class ThreadState;
 
 /**
@@ -50,6 +49,7 @@ class IModuleRegistrar {
   ~IModuleRegistrar() = default;
 };
 
+/** Maps guest addresses to recompiled functions and runs them on guest threads. */
 class REX_RUNTIME_API FunctionDispatcher : public IModuleRegistrar {
  public:
   /**
@@ -57,12 +57,37 @@ class REX_RUNTIME_API FunctionDispatcher : public IModuleRegistrar {
    */
   using RegisterFn = void (*)(IModuleRegistrar*);
 
+  /**
+   * Builds a dispatcher with no modules.
+   *
+   * @param memory The guest memory.
+   */
   explicit FunctionDispatcher(runtime::Memory* memory);
+  /** Removes the recompiled code of every registered module. */
   virtual ~FunctionDispatcher();
 
   runtime::Memory* memory() const { return memory_; }
 
+  /**
+   * Runs recompiled code on a thread and restores its register file afterwards.
+   *
+   * @param thread_state The thread that runs the call.
+   * @param address The guest address to call.
+   * @param args The call arguments.
+   * @param arg_count The number of arguments.
+   * @return The value in r3 when the call returns, or 0xDEADBABE when no function is set there.
+   */
   uint64_t Execute(ThreadState* thread_state, uint32_t address, uint64_t args[], size_t arg_count);
+  /**
+   * Runs recompiled code as an interrupt at the DPC level, then runs the queued DPCs once the
+   * outermost interrupt ends.
+   *
+   * @param thread_state The thread that runs the call.
+   * @param address The guest address to call.
+   * @param args The call arguments, at most 5.
+   * @param arg_count The number of arguments.
+   * @return The value in r3 when the call returns, or 0xDEADBABE when no function is set there.
+   */
   uint64_t ExecuteInterrupt(ThreadState* thread_state, uint32_t address, uint64_t args[],
                             size_t arg_count);
 
@@ -73,15 +98,37 @@ class REX_RUNTIME_API FunctionDispatcher : public IModuleRegistrar {
   uint64_t ExecuteTrap(ThreadState* thread_state, uint32_t address, uint64_t args[],
                        size_t arg_count);
 
-  // Shared thunk region size per module.
-  static constexpr uint32_t kThunkReserveSize = 0x10000;  // 64KB
+  /** Bytes of thunk region reserved per module. */
+  static constexpr uint32_t kThunkReserveSize = 0x10000;
 
-  // rexglue function table management (per-module table at IMAGE_BASE + IMAGE_SIZE)
-  // Set is_entrypoint=true exactly once for the host-loaded entrypoint so
-  // AllocateThunk(caller_address=0) can route to its pool.
+  /**
+   * Initializes the function table of a module at image_base + image_size.
+   *
+   * Exactly 1 module is the entrypoint, and AllocateThunk with caller_address 0 routes to its pool.
+   *
+   * @param code_base The first guest address of the code.
+   * @param code_size The code size in bytes.
+   * @param image_base The guest address of the image.
+   * @param image_size The image size in bytes.
+   * @param is_entrypoint True for the host loaded entrypoint module.
+   * @return True on success.
+   */
   bool InitializeFunctionTable(uint32_t code_base, uint32_t code_size, uint32_t image_base,
                                uint32_t image_size, bool is_entrypoint = false);
+  /**
+   * Sets the function at a guest address.
+   *
+   * @param guest_address The guest address of the function.
+   * @param func The function.
+   * @return False when the address is outside every registered module.
+   */
   bool SetFunction(uint32_t guest_address, ::PPCFunc* func) override;
+  /**
+   * Looks up the function at a guest address.
+   *
+   * @param guest_address The guest address.
+   * @return The function, null when none is set.
+   */
   ::PPCFunc* GetFunction(uint32_t guest_address);
   /**
    * caller_address must be inside a registered module, or 0 to mean "host-
@@ -136,16 +183,13 @@ class REX_RUNTIME_API FunctionDispatcher : public IModuleRegistrar {
 
   runtime::Memory* memory_ = nullptr;
 
-  // Host-side function lookup.
   std::unordered_map<uint32_t, ::PPCFunc*> function_table_;
 
-  // Per-module function table metadata.
   std::vector<ModuleTableInfo> module_tables_;
 
-  // code_base of the entrypoint module, or 0 if not yet registered.
+  /** Code base of the entrypoint module, 0 until registered. */
   uint32_t entrypoint_code_base_ = 0;
 
-  // Module recording for RegisterModule/UnregisterModule.
   bool recording_ = false;
   std::vector<uint32_t> recording_addresses_;
 
@@ -154,10 +198,9 @@ class REX_RUNTIME_API FunctionDispatcher : public IModuleRegistrar {
     std::vector<uint32_t> addresses;
   };
 
-  // Stored state per module, keyed by module_id.
   std::unordered_map<std::string, ModuleRegistration> module_addresses_;
 
-  // Protects dispatcher metadata during module registration and callback dispatch.
+  /** Guards module registration and callback dispatch. */
   mutable std::recursive_mutex dispatch_mutex_;
 
   rex::platform::RankedMutex interrupt_mutex_{rex::platform::LockRank::Interrupt};

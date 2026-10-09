@@ -1,14 +1,3 @@
-/**
- * @file        codegen/output_partition.cpp
- * @brief       Stable assignment of guest functions to recomp output files
- *
- * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
- *              All rights reserved.
- *
- * @license     BSD 3-Clause License
- *              See LICENSE file in the project root for full license text.
- */
-
 #include <rex/codegen/output_partition.h>
 
 #include <algorithm>
@@ -26,7 +15,7 @@ namespace rex::codegen {
 
 namespace {
 
-/// Bump when the sidecar layout changes.
+/** Layout version of the sidecar. */
 constexpr int kPartitionVersion = 2;
 
 size_t ChooseFileCount(std::span<const FunctionSize> entries, size_t maxFileBytes) {

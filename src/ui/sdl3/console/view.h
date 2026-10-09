@@ -31,7 +31,7 @@ class ConsoleHost {
   virtual ~ConsoleHost() = default;
 
   /**
-   * Tests whether the console can move to its own OS window.
+   * Reports whether the console can move to its own OS window.
    *
    * @return True when the graphics backend can present a second window.
    */

@@ -53,16 +53,16 @@ class ThreadRegistry final : public IThreadRegistry {
   void RemoveThreadNotify(u32 notification) override;
 
   /**
-   * Notes that a thread finished running. The record is destroyed when its last handle is
-   * already closed and no pin is held.
+   * Marks that a thread finished running. The `ThreadRecord` is destroyed when its last handle is
+   * closed and no pin is held.
    *
    * @param record The finished thread.
    */
   void NoteExited(ThreadRecord& record);
 
   /**
-   * Notes that the last handle of a thread closed. The record is destroyed when the thread
-   * already finished and no pin is held.
+   * Marks that the last handle of a thread closed. The `ThreadRecord` is destroyed when the thread
+   * finished and no pin is held.
    *
    * @param thread_id The thread id.
    */

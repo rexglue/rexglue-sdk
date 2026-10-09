@@ -1,4 +1,3 @@
-#pragma once
 /**
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
@@ -9,6 +8,8 @@
  *
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
+
+#pragma once
 
 #include <memory>
 #include <utility>
@@ -63,17 +64,14 @@ class VulkanPrimitiveProcessor final : public PrimitiveProcessor {
   VkDeviceSize builtin_index_buffer_size_ = 0;
   VkBuffer builtin_index_buffer_ = VK_NULL_HANDLE;
   VkDeviceMemory builtin_index_buffer_memory_ = VK_NULL_HANDLE;
-  // Temporary buffer copied in the beginning of the first submission for
-  // uploading to builtin_index_buffer_, destroyed when the submission when it
-  // was uploaded is completed.
+  /** Staging buffer copied to builtin_index_buffer_ at the start of the first submission. */
   VkBuffer builtin_index_buffer_upload_ = VK_NULL_HANDLE;
   VkDeviceMemory builtin_index_buffer_upload_memory_ = VK_NULL_HANDLE;
-  // UINT64_MAX means not uploaded yet and needs uploading in the first
-  // submission (if the upload buffer exists at all).
+  /** UINT64_MAX when the upload is pending for the first submission. */
   uint64_t builtin_index_buffer_upload_submission_ = UINT64_MAX;
 
   std::unique_ptr<gpu::vulkan::VulkanUploadBufferPool> frame_index_buffer_pool_;
-  // Indexed by the backend handles.
+  /** Indexed by the backend handles. */
   std::deque<std::pair<VkBuffer, VkDeviceSize>> frame_index_buffers_;
 };
 

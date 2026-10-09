@@ -1,13 +1,17 @@
 /**
-******************************************************************************
-* Xenia : Xbox 360 Emulator Research Project                                 *
-******************************************************************************
-* Copyright 2021 Ben Vanik. All rights reserved.                             *
-* Released under the BSD license - see LICENSE in the root for more details. *
-******************************************************************************
-*
-* @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
-*/
+ ******************************************************************************
+ * Xenia : Xbox 360 Emulator Research Project                                 *
+ ******************************************************************************
+ * Copyright 2021 Ben Vanik. All rights reserved.                             *
+ * Released under the BSD license - see LICENSE in the root for more details. *
+ ******************************************************************************
+ *
+ * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
+ */
+
+/*
+ * Derived from https://github.com/koolkdev/libertyv/blob/master/libav_wrapper/xma2dec.c
+ */
 
 #include <algorithm>
 #include <cstring>
@@ -27,9 +31,6 @@ extern "C" {
 #include "libavcodec/avcodec.h"
 #include "libavutil/error.h"
 }  // extern "C"
-
-// Credits for most of this code goes to:
-// https://github.com/koolkdev/libertyv/blob/master/libav_wrapper/xma2dec.c
 
 namespace rex::runtime {
 
@@ -53,12 +54,10 @@ int XMAContext::Setup(uint32_t id, runtime::Memory* memory, uint32_t guest_ptr) 
   memory_ = memory;
   guest_ptr_ = guest_ptr;
 
-  // Allocate ffmpeg stuff:
   av_packet_ = av_packet_alloc();
   REX_ASSERT(av_packet_ != nullptr);
   av_packet_->buf = av_buffer_alloc(128 * 1024);
 
-  // find the XMA2 audio decoder
   av_codec_ = avcodec_find_decoder(AV_CODEC_ID_XMAFRAMES);
   if (!av_codec_) {
     REX_FAIL(apu, 1, "XMAContext {}: Codec not found", id);
@@ -69,7 +68,6 @@ int XMAContext::Setup(uint32_t id, runtime::Memory* memory, uint32_t guest_ptr) 
     REX_FAIL(apu, 1, "XMAContext {}: Couldn't allocate context", id);
   }
 
-  // Initialize these to 0. They'll be set later.
   av_context_->channels = 0;
   av_context_->sample_rate = 0;
 
@@ -78,7 +76,6 @@ int XMAContext::Setup(uint32_t id, runtime::Memory* memory, uint32_t guest_ptr) 
     REX_FAIL(apu, 1, "XMAContext {}: Couldn't allocate frame", id);
   }
 
-  // FYI: We're purposely not opening the codec here. That is done later.
   return 0;
 }
 
@@ -100,7 +97,6 @@ bool XMAContext::Work() {
 
   memory::RingBuffer output_rb = PrepareOutputRingBuffer(&data);
 
-  // Consume-only context: no input, drain remaining subframes.
   if (data.IsConsumeOnlyContext()) {
     if (current_frame_remaining_subframes_ == 0) {
       return true;
@@ -111,8 +107,6 @@ bool XMAContext::Work() {
     return true;
   }
 
-  // Minimum free blocks needed before attempting a decode.
-  // Use subframe_decode_count (clamped to 1) instead of full frame size.
   const uint32_t effective_sdc = std::max(static_cast<uint32_t>(1), data.subframe_decode_count);
   const int32_t minimum_subframe_decode_count =
       static_cast<int32_t>(effective_sdc) + data.output_buffer_padding;
@@ -177,12 +171,6 @@ void XMAContext::ClearLocked(XMA_CONTEXT_DATA* data) {
 }
 
 void XMAContext::ResetDecoderState() {
-  // A freed or re-initialized context is a new logical stream, so the previous
-  // wave's MDCT overlap-add tail must not survive into frame 0 of the next one.
-  // avcodec_flush_buffers() cannot drop it: ff_xmaframes_decoder declares no
-  // flush callback, so the call never reaches the code clearing channel[].out.
-  // Invalidating the cached format makes PrepareDecoder reopen the codec on the
-  // next decode, which does discard the history.
   if (av_context_) {
     av_context_->sample_rate = 0;
     av_context_->channels = 0;
@@ -531,8 +519,6 @@ void XMAContext::Decode(XMA_CONTEXT_DATA* data) {
 
   input_buffer_.fill(0);
 
-  // Loop-end frame: decode it here (output limited to loop_subframe_end),
-  // jump to loop_start afterwards in the next-offset step.
   bool is_loop_end_frame = false;
   if (data->loop_count > 0) {
     const uint32_t loop_end = std::max(kBitsPerPacketHeader, data->loop_end);
@@ -570,7 +556,6 @@ void XMAContext::Decode(XMA_CONTEXT_DATA* data) {
 
   const uint8_t skip_count = xma::GetPacketSkipCount(packet);
 
-  // Full packet skip (0xFF) -- no new frames begin in this packet.
   if (skip_count == 0xFF) {
     uint32_t next_input_offset =
         GetNextPacketReadOffset(current_input_buffer, packet_index + 1, current_input_packet_count);
@@ -585,7 +570,6 @@ void XMAContext::Decode(XMA_CONTEXT_DATA* data) {
   const uint32_t packet_to_skip = skip_count + 1;
   const uint32_t next_packet_index = packet_index + packet_to_skip;
 
-  // Frame header split across packet boundary.
   if (packet_info.current_frame_size_ == 0) {
     const uint8_t* next_packet = GetNextPacket(data, next_packet_index, current_input_packet_count);
     if (!next_packet) {
@@ -645,8 +629,7 @@ void XMAContext::Decode(XMA_CONTEXT_DATA* data) {
   decoded_frame_.fill(0);
 
   if (PrepareDecoder(data->sample_rate, bool(data->is_stereo)) == 1) {
-    // Reopening the codec restarts its output; the carried tail belongs to the
-    // old stream.
+    // A reopened codec restarts its output, so the carried tail is stale.
     carry_valid_ = false;
   }
   PreparePacket(packet_info.current_frame_size_, padding_start);
@@ -655,19 +638,12 @@ void XMAContext::Decode(XMA_CONTEXT_DATA* data) {
     ConvertFrame(reinterpret_cast<const uint8_t**>(&av_frame_->data), bool(data->is_stereo),
                  decoded_frame_.data());
 
-    // Realign the decoder's output onto the bitstream's sample numbering: the
-    // samples of the most recently decoded frame run from kDecoderStartPadding into this
-    // block and finish in the head of the next one.
     const size_t pad_bytes = kDecoderStartPadding * kBytesPerSample << data->is_stereo;
     const size_t carry_bytes = (kBytesPerFrameChannel << data->is_stereo) - pad_bytes;
 
-    // Loop end: limit output to subframes 0..loop_subframe_end.
     const uint8_t decoded_output_limit =
         is_loop_end_frame ? static_cast<uint8_t>((data->loop_subframe_end + 1) << data->is_stereo)
                           : 0;
-    // Loop start: skip leading subframes per loop_subframe_skip. skip == 4
-    // means the whole frame is a warm-up frame (frame-aligned loop start):
-    // decode seeds the codec state, output is fully discarded.
     const uint8_t decoded_start_skip =
         loop_start_skip_pending_ ? static_cast<uint8_t>(data->loop_subframe_skip << data->is_stereo)
                                  : 0;
@@ -688,12 +664,10 @@ void XMAContext::Decode(XMA_CONTEXT_DATA* data) {
     pending_output_limit_ = decoded_output_limit;
     pending_start_skip_ = decoded_start_skip;
   } else {
-    // A dropped frame breaks the carry's adjacency; re-prime rather than splice
-    // two blocks that are not neighbors.
+    // A dropped frame breaks adjacency, so the carry is discarded.
     carry_valid_ = false;
   }
 
-  // Compute where to go next.
   if (is_loop_end_frame) {
     UpdateLoopStatus(data);
     return;
@@ -726,16 +700,9 @@ void XMAContext::Decode(XMA_CONTEXT_DATA* data) {
 
 void XMAContext::ConvertFrame(const uint8_t** samples, bool is_two_channel,
                               uint8_t* output_buffer) {
-  // Loop through every sample, convert and drop it into the output array.
-  // If more than one channel, we need to interleave the samples from each
-  // channel next to each other. Always saturate because FFmpeg output is
-  // not limited to [-1, 1] (for example 1.095 as seen in 5454082B).
   constexpr float scale = (1 << 15) - 1;
   auto out = reinterpret_cast<int16_t*>(output_buffer);
 
-  // For testing of vectorized versions, stereo audio is common in 4D5307E6,
-  // since the first menu frame; the intro cutscene also has more than 2
-  // channels.
   static_assert(kSamplesPerFrame % 8 == 0);
   const auto in_channel_0 = reinterpret_cast<const float*>(samples[0]);
   const simde__m128 scale_mm = simde_mm_set1_ps(scale);
@@ -744,41 +711,28 @@ void XMAContext::ConvertFrame(const uint8_t** samples, bool is_two_channel,
     const simde__m128i shufmask =
         simde_mm_set_epi8(14, 15, 6, 7, 12, 13, 4, 5, 10, 11, 2, 3, 8, 9, 0, 1);
     for (uint32_t i = 0; i < kSamplesPerFrame; i += 4) {
-      // Load 8 samples, 4 for each channel.
       simde__m128 in_mm0 = simde_mm_loadu_ps(&in_channel_0[i]);
       simde__m128 in_mm1 = simde_mm_loadu_ps(&in_channel_1[i]);
-      // Rescale.
       in_mm0 = simde_mm_mul_ps(in_mm0, scale_mm);
       in_mm1 = simde_mm_mul_ps(in_mm1, scale_mm);
-      // Cast to int32.
       simde__m128i out_mm0 = simde_mm_cvtps_epi32(in_mm0);
       simde__m128i out_mm1 = simde_mm_cvtps_epi32(in_mm1);
-      // Saturated cast and pack to int16.
       simde__m128i out_mm = simde_mm_packs_epi32(out_mm0, out_mm1);
-      // Interleave channels and byte swap.
       out_mm = simde_mm_shuffle_epi8(out_mm, shufmask);
-      // Store, as [out + i * 4] movdqu.
       simde_mm_storeu_si128(reinterpret_cast<simde__m128i*>(&out[i * 2]), out_mm);
     }
   } else {
     const simde__m128i shufmask =
         simde_mm_set_epi8(14, 15, 12, 13, 10, 11, 8, 9, 6, 7, 4, 5, 2, 3, 0, 1);
     for (uint32_t i = 0; i < kSamplesPerFrame; i += 8) {
-      // Load 8 samples, as [in_channel_0 + i * 4] and
-      // [in_channel_0 + i * 4 + 16] movups.
       simde__m128 in_mm0 = simde_mm_loadu_ps(&in_channel_0[i]);
       simde__m128 in_mm1 = simde_mm_loadu_ps(&in_channel_0[i + 4]);
-      // Rescale.
       in_mm0 = simde_mm_mul_ps(in_mm0, scale_mm);
       in_mm1 = simde_mm_mul_ps(in_mm1, scale_mm);
-      // Cast to int32.
       simde__m128i out_mm0 = simde_mm_cvtps_epi32(in_mm0);
       simde__m128i out_mm1 = simde_mm_cvtps_epi32(in_mm1);
-      // Saturated cast and pack to int16.
       simde__m128i out_mm = simde_mm_packs_epi32(out_mm0, out_mm1);
-      // Byte swap.
       out_mm = simde_mm_shuffle_epi8(out_mm, shufmask);
-      // Store, as [out + i * 2] movdqu.
       simde_mm_storeu_si128(reinterpret_cast<simde__m128i*>(&out[i]), out_mm);
     }
   }

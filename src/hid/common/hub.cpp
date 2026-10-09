@@ -83,8 +83,6 @@ void Hub::RefreshDevicesLocked() {
     }
   }
 
-  // Carry forward ordinals already handed out, so a device keeps its title user
-  // when another pad is unplugged.
   bool changed = seen.size() != devices_.size();
   std::vector<bool> fresh(seen.size(), false);
   for (size_t i = 0; i < seen.size(); i++) {
@@ -98,16 +96,12 @@ void Hub::RefreshDevicesLocked() {
     changed = true;
   }
 
-  // Runs after the carry-forward pass so a new device cannot take an ordinal a
-  // live one is still holding. Lowest free rather than a growing counter,
-  // because a reconnected pad arrives as a new device and would otherwise walk
-  // off the end of the title users.
+  // Lowest free ordinal, so reconnecting pads never run past the title users.
   for (size_t i = 0; i < seen.size(); i++) {
     if (!fresh[i]) {
       continue;
     }
-    // Only physical devices consume an ordinal, so the first pad to connect is
-    // title user 0 however many synthetic devices enumerated ahead of it.
+    // Synthetic devices take no ordinal, so the first pad is title user 0.
     if (seen[i].synthetic) {
       seen[i].ordinal = kSyntheticOrdinal;
       fresh[i] = false;
@@ -141,8 +135,7 @@ void Hub::RefreshDevicesLocked() {
   for (size_t i = 0; i < order.size(); i++) {
     order[i] = i;
   }
-  // Stable: synthetic devices share one ordinal, and their relative order
-  // decides which answers GetCapabilities when no pad is attached.
+  // Stable, since synthetic devices share 1 ordinal and their order picks the capabilities source.
   std::stable_sort(order.begin(), order.end(),
                    [&](size_t a, size_t b) { return seen[a].ordinal < seen[b].ordinal; });
 
@@ -185,8 +178,6 @@ DeviceId Hub::ChooseDeviceForUserLocked(u32 user) const {
   if (ids.empty()) {
     return DeviceId::kInvalid;
   }
-  // Prefer the pad in hand, so button glyphs follow it rather than whichever
-  // device enumerated first.
   DeviceId chosen = active_devices_.Active(user);
   if (std::find(ids.begin(), ids.end(), chosen) == ids.end()) {
     chosen = ids.front();
@@ -220,8 +211,7 @@ void Hub::UpdateConnectedUserLocked(u32 user, bool connected) {
     REXLOG_INFO(hid, "Controller disconnected from slot {}.", user);
   }
 
-  // Titles poll capabilities off this rather than every frame, so without it
-  // a pad plugged in mid-game is never noticed.
+  // Titles read capabilities only on this notification, so a hot plugged pad needs it.
   if (connection_listener_) {
     connection_listener_(user, connected);
   }
@@ -256,7 +246,6 @@ Result<X_INPUT_STATE> Hub::GetState(u32 user) {
   auto state = ReadStateLocked(user);
   if (state && user < kMaxGuestUsers && consumed_buttons_[user] != 0) {
     const u16 buttons = state->gamepad.buttons;
-    // Each button leaves the mask once the player lets go of it.
     consumed_buttons_[user] &= buttons;
     state->gamepad.buttons = static_cast<u16>(buttons & ~consumed_buttons_[user]);
   }
@@ -308,8 +297,7 @@ void Hub::AcquireUIBlock() {
 
 void Hub::ReleaseUIBlock() {
   std::lock_guard lock(mutex_);
-  // Whatever is held right now stays masked until released, so the press that
-  // dismissed the dialog is not also read as a press in the game.
+  // Held buttons stay masked until released so the dismissing press never reaches the title.
   for (u32 user = 0; user < kMaxGuestUsers; user++) {
     if (auto state = ReadStateLocked(user)) {
       consumed_buttons_[user] |= static_cast<u16>(state->gamepad.buttons);
@@ -323,8 +311,7 @@ void Hub::AdjustDeadzoneLevels(u32 user, X_INPUT_GAMEPAD& gamepad) const {
     return;
   }
 
-  // Radial: the cutoff follows the stick's angle, so a diagonal is not held to
-  // a larger displacement than a cardinal push.
+  // Radial cutoff follows the stick angle, so diagonals are not held to a larger displacement.
   auto apply = [](f64 percentage, const JoystickValue& max, i16& axis_x, i16& axis_y) {
     if (percentage <= 0.0 || percentage >= 1.0) {
       return;
@@ -373,9 +360,7 @@ Result<void> Hub::SetVibration(u32 user, const X_INPUT_VIBRATION& vibration) {
     modified.right_motor_speed = 0;
   }
 
-  // Every pad on this user belongs to the same player, so all of them buzz.
-  // Only pads decide the result: synthetic devices accept any vibration and
-  // would otherwise report success for a pad that never rumbled.
+  // Only pads decide the result, since synthetic devices accept any vibration.
   bool any_pad = false;
   bool any_synthetic = false;
   bool pad_rumbled = false;

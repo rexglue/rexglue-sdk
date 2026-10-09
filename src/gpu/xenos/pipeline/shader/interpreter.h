@@ -1,4 +1,3 @@
-#pragma once
 /**
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
@@ -9,6 +8,8 @@
  *
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
+
+#pragma once
 
 #include <algorithm>
 #include <array>
@@ -43,11 +44,16 @@ class ShaderInterpreter {
   const float* temp_registers() const { return &temp_registers_[0][0]; }
   float* temp_registers() { return &temp_registers_[0][0]; }
 
+  /**
+   * Reports whether the shader can be interpreted.
+   *
+   * Texture fetch instructions are not supported.
+   *
+   * @param shader Analyzed shader to check.
+   * @return True when the shader can be interpreted.
+   */
   static bool CanInterpretShader(const Shader& shader) {
     REX_ASSERT(shader.is_ucode_analyzed());
-    // Texture instructions are not common in vertex shaders (and not used
-    // in Direct3D 9's internal rectangles such as clears) and are extremely
-    // complex, not implemented.
     if (shader.uses_texture_fetch_instruction_results()) {
       return false;
     }
@@ -79,15 +85,18 @@ class ShaderInterpreter {
 
     void Reset() { *this = {}; }
 
+    /**
+     * Returns the loop address clamped to the sequencer range of [-256, 256] from the IPR2015-00325
+     * specification.
+     *
+     * @return Clamped loop address.
+     */
     int32_t GetLoopAddress() const {
       REX_ASSERT(loop_stack_depth && loop_stack_depth < 4);
       if (!loop_stack_depth || loop_stack_depth >= 4) {
         return 0;
       }
       xenos::LoopConstant loop_constant = loop_constants[loop_stack_depth];
-      // Clamp to the real range specified in the IPR2015-00325 sequencer
-      // specification.
-      // https://portal.unifiedpatents.com/ptab/case/IPR2015-00325
       return std::min(
           INT32_C(256),
           std::max(INT32_C(-256),
@@ -128,7 +137,6 @@ class ShaderInterpreter {
   xenos::ShaderType shader_type_ = xenos::ShaderType::kVertex;
   const uint32_t* ucode_ = nullptr;
 
-  // For both inputs and locals.
   float temp_registers_[xenos::kMaxShaderTempRegisters][4];
 
   State state_;

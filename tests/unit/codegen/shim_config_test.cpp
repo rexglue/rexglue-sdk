@@ -1,5 +1,5 @@
 /**
- * @file        codegen/shim_config_test.cpp
+ * @file        tests/unit/codegen/shim_config_test.cpp
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

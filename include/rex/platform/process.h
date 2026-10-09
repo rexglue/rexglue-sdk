@@ -38,8 +38,20 @@ REX_API std::wstring BuildCommandLine(std::wstring_view exe, std::span<const std
 /** A named lock across processes, held for the life of the object. */
 class REX_API InstanceLock : public MoveOnly {
  public:
+  /**
+   * Takes ownership of the lock held by another object.
+   *
+   * @param other The object to take from, left empty.
+   */
   InstanceLock(InstanceLock&&) noexcept;
+  /**
+   * Releases the lock held, then takes ownership of the lock held by another object.
+   *
+   * @param other The object to take from, left empty.
+   * @return This object.
+   */
   InstanceLock& operator=(InstanceLock&&) noexcept;
+  /** Releases the lock. */
   ~InstanceLock();
 
   /**
@@ -64,7 +76,7 @@ class REX_API InstanceLock : public MoveOnly {
 [[nodiscard]] REX_API Result<void> Relaunch(std::span<const std::string> args);
 
 /**
- * Tests whether this process may start a new one.
+ * Reports whether this process may start a new one.
  *
  * @return False where the platform forbids it, such as Steam Game Mode.
  */

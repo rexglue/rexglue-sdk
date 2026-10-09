@@ -1,12 +1,3 @@
-/**
- * @file        kernel/shim/heap.cpp
- *
- * @brief       ReXHeap implementation using o1heap with size header pattern.
- *              Hooks RtlAllocateHeap, RtlFreeHeap, RtlSizeHeap, RtlReAllocateHeap.
- *
- * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
- * @license     BSD 3-Clause License
- */
 #include <rex/kernel/shim/heap.h>
 
 #include <algorithm>
@@ -20,15 +11,11 @@
 #include <rex/runtime/xmemory.h>
 #include <rex/logging.h>
 
-// ---------------------------------------------------------------------------
-// Size header: prepended to every allocation so we can answer RtlSizeHeap
-// without o1heap exposing per-allocation usable size.
-// ---------------------------------------------------------------------------
 namespace {
 
 struct SizeHeader {
   u64 requested_size;
-  u64 reserved;  // padding to O1HEAP_ALIGNMENT
+  u64 reserved;
 };
 static_assert(sizeof(SizeHeader) == O1HEAP_ALIGNMENT,
               "SizeHeader must be exactly one O1HEAP_ALIGNMENT unit");
@@ -42,10 +29,6 @@ constexpr u32 HEAP_ZERO_MEMORY = 0x00000008;
 #endif
 
 }  // namespace
-
-// ---------------------------------------------------------------------------
-// ReXHeap implementation
-// ---------------------------------------------------------------------------
 
 namespace rex::kernel::shim {
 
@@ -128,7 +111,6 @@ u32 ReXHeap::Realloc(u32 guest_addr, u32 new_size, bool zero_new) {
 
   auto* segment = FindSegmentByGuestLocked(guest_addr);
   if (!segment || guest_addr < segment->guest_base + kHeaderSize) {
-    // Pre-hook allocation outside our heap -- treat as fresh alloc.
     REXLOG_WARN(kernel, "rexshim_RtlReAllocateHeap: OOB ptr 0x{:08X}, treating as new alloc({})",
                 guest_addr, new_size);
     return AllocLocked(new_size, zero_new);
@@ -140,7 +122,6 @@ u32 ReXHeap::Realloc(u32 guest_addr, u32 new_size, bool zero_new) {
   u32 old_size = static_cast<u32>(old_hdr->requested_size);
   void* new_ptr = o1heapReallocate(segment->heap, real_host, new_size + kHeaderSize);
   if (!new_ptr) {
-    // Cross-segment fallback: allocate a fresh block, copy, then free old.
     u32 new_guest = AllocLocked(new_size, false);
     if (!new_guest) {
       REXLOG_WARN(kernel, "rexshim_RtlReAllocateHeap: o1heapReallocate({}) failed", new_size);
@@ -181,10 +162,7 @@ bool ReXHeap::AllocateSegmentLocked(u32 segment_size_bytes) {
 
   u32 guest_base = 0;
 
-  // Allocate from the regular virtual heap (top-down) instead of the system
-  // heap. The system heap range is shared with kernel bookkeeping allocations
-  // (KernelGuestGlobals, thread PCR/TLS and module headers) and cannot
-  // accommodate a large contiguous shim heap segment alongside them.
+  // The system heap range is shared with kernel bookkeeping allocations and cannot hold a segment.
   auto* vheap = mem->LookupHeapByType(false, 4096);
   if (!vheap ||
       !vheap->Alloc(segment_size_bytes, O1HEAP_ALIGNMENT,
@@ -297,10 +275,6 @@ HeapDiagnostics ReXHeap::GetDiagnosticsLocked() const {
   }
   return diagnostics;
 }
-
-// ---------------------------------------------------------------------------
-// Global instance + RTL hooks
-// ---------------------------------------------------------------------------
 
 ReXHeap g_heap;
 

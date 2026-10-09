@@ -33,10 +33,6 @@ namespace rex::codegen {
 
 namespace {
 
-//=============================================================================
-// PE Structures
-//=============================================================================
-
 #pragma pack(push, 1)
 struct IMAGE_CE_RUNTIME_FUNCTION {
   uint32_t BeginAddress;
@@ -66,25 +62,31 @@ struct SehScopeEntry {
 };
 REX_STATIC_ASSERT_SIZE(SehScopeEntry, 16);
 
-//=============================================================================
-// Exception Info Parsing
-//=============================================================================
-
 struct ParsedExceptionInfo {
   ExceptionInfo info;
   uint32_t maxAddress;
   std::vector<uint32_t> discoveredFuncs;
 };
 
-// Prolog info extracted from function prologue for SEH unwinding
+/** Frame size and save helper read from a function prologue for SEH unwinding. */
 struct PrologInfo {
-  uint32_t frameSize = 0;   // From addi r31, r1, -N
-  uint32_t saveHelper = 0;  // From bl __savegprlr_N
-  bool valid = false;       // True if frame size was successfully detected
+  /** Frame size from addi r31, r1, -N. */
+  uint32_t frameSize = 0;
+  /** Target of the bl to the save helper. */
+  uint32_t saveHelper = 0;
+  bool valid = false;
 };
 
-// Scan function prolog to extract frame size and save helper
-// Only called for functions with ExceptionFlag set
+/**
+ * Scans the prologue of a function with ExceptionFlag set for its frame size and save helper.
+ * Scanning is skipped when the PDATA prolog length is 0. valid may be false for handler
+ * functions that receive the frame in r12, so the caller warns only when SEH scopes need it.
+ *
+ * @param binary Binary view.
+ * @param funcAddr Function address.
+ * @param prologLength Prolog length in instructions from PDATA.
+ * @return The prologue info.
+ */
 PrologInfo scanProlog(const BinaryView& binary, uint32_t funcAddr, uint32_t prologLength) {
   PrologInfo info;
 
@@ -100,7 +102,6 @@ PrologInfo scanProlog(const BinaryView& binary, uint32_t funcAddr, uint32_t prol
 
   const uint8_t* code = section->data + offset;
 
-  // Use pdata prolog length - if 0, we can't safely scan
   if (prologLength == 0) {
     REXLOG_WARN(codegen, "SEH function 0x{:08X}: PrologLength=0, cannot determine frame size",
                 funcAddr);
@@ -112,7 +113,6 @@ PrologInfo scanProlog(const BinaryView& binary, uint32_t funcAddr, uint32_t prol
     uint32_t addr = funcAddr + i * 4;
     auto decoded = decode_instruction(addr, raw);
 
-    // Check for addi r31, r1, -N (frame pointer setup)
     if (decoded.opcode == Opcode::addi && decoded.D.RT == 31 && decoded.D.RA == 1) {
       int16_t simm = decoded.D.SIMM();
       if (simm < 0) {
@@ -121,17 +121,29 @@ PrologInfo scanProlog(const BinaryView& binary, uint32_t funcAddr, uint32_t prol
       }
     }
 
-    // Check for bl - save helper call
     if (decoded.is_call() && decoded.branch_target.has_value()) {
       info.saveHelper = decoded.branch_target.value();
     }
   }
 
-  // NOTE(tomc): info.valid may be false for handler functions that receive frame in r12
-  // The caller should warn only if frameSize is needed (i.e., function has SEH scopes)
   return info;
 }
 
+/**
+ * Parses an SEH scope table. A __finally scope holds the handler in word 2 and 0 in word 3. An
+ * __except scope holds the filter in word 2 and the handler in word 3. A __finally handler and
+ * an __except filter are separate functions and an __except handler is inline.
+ *
+ * @param handlerThunk Address of the handler thunk.
+ * @param scopeTableAddr Address of the scope table.
+ * @param count Scope count.
+ * @param rdataBase Host pointer to the start of .rdata.
+ * @param rdataStart Address of the start of .rdata.
+ * @param rdataSize Size of .rdata in bytes.
+ * @param functionBeginAddr Address of the function.
+ * @param discoveredFuncs Receives the functions the table names.
+ * @return The parsed info, or nullopt when the table is outside .rdata.
+ */
 std::optional<ParsedExceptionInfo> parseSehScopeTable(uint32_t handlerThunk,
                                                       uint32_t scopeTableAddr, uint32_t count,
                                                       const uint8_t* rdataBase, uint32_t rdataStart,
@@ -157,7 +169,6 @@ std::optional<ParsedExceptionInfo> parseSehScopeTable(uint32_t handlerThunk,
     scope.filter = entries[i].filter;
     scope.handler = entries[i].handler;
 
-    // __finally has layout [2]=handler, [3]=0; __except has [2]=filter, [3]=handler
     if (scope.handler == 0 && scope.filter != 0) {
       scope.handler = scope.filter;
       scope.filter = 0;
@@ -174,13 +185,11 @@ std::optional<ParsedExceptionInfo> parseSehScopeTable(uint32_t handlerThunk,
     if (scope.handler != 0 && scope.handler > maxAddr)
       maxAddr = scope.handler;
 
-    // For __finally (filter=0), handler is a separate function
-    // For __except (filter!=0), only filter is a separate function (handler is inline)
     if (scope.filter == 0 && scope.handler != 0) {
-      discoveredFuncs.push_back(scope.handler);  // __finally handler
+      discoveredFuncs.push_back(scope.handler);
     }
     if (scope.filter != 0) {
-      discoveredFuncs.push_back(scope.filter);  // __except filter
+      discoveredFuncs.push_back(scope.filter);
     }
   }
 
@@ -234,7 +243,6 @@ std::optional<ParsedExceptionInfo> parseCxxFuncInfo(const Limits& limits, uint32
   uint32_t maxAddr = functionBeginAddr;
   discoveredFuncs.push_back(handlerThunk);
 
-  // Parse UnwindMap
   if (pUnwindMap != 0 && cxxInfo.maxState > 0) {
     if (pUnwindMap >= rdataStart && pUnwindMap + cxxInfo.maxState * 8 <= rdataStart + rdataSize) {
       for (uint32_t i = 0; i < cxxInfo.maxState; i++) {
@@ -250,7 +258,6 @@ std::optional<ParsedExceptionInfo> parseCxxFuncInfo(const Limits& limits, uint32
     }
   }
 
-  // Parse TryBlockMap
   if (pTryBlockMap != 0 && nTryBlocks > 0) {
     if (pTryBlockMap >= rdataStart && pTryBlockMap + nTryBlocks * 20 <= rdataStart + rdataSize) {
       for (uint32_t i = 0; i < nTryBlocks; i++) {
@@ -285,7 +292,6 @@ std::optional<ParsedExceptionInfo> parseCxxFuncInfo(const Limits& limits, uint32
     }
   }
 
-  // Parse IPtoStateMap
   if (pIPtoStateMap != 0 && nIPMapEntries > 0) {
     if (pIPtoStateMap >= rdataStart &&
         pIPtoStateMap + nIPMapEntries * 8 <= rdataStart + rdataSize) {
@@ -363,10 +369,12 @@ std::optional<ParsedExceptionInfo> parseExceptionInfo(const BinaryView& binary,
   }
 }
 
-//=============================================================================
-// Helper Detection
-//=============================================================================
-
+/**
+ * Finds the first save and restore helper of each kind in the executable sections.
+ *
+ * @param binary Binary view.
+ * @param state Receives the helper addresses.
+ */
 void detectSaveRestoreHelpers(const BinaryView& binary, AnalysisState& state) {
   struct HelperPattern {
     uint32_t pattern;
@@ -427,10 +435,14 @@ void detectSaveRestoreHelpers(const BinaryView& binary, AnalysisState& state) {
   }
 }
 
-//=============================================================================
-// Register Phase: imports, helpers, PDATA, config functions
-//=============================================================================
-
+/**
+ * Registers imports, save and restore helpers, config functions and PDATA functions. A restore
+ * helper sits at the same offset from its base as the matching save helper, which gives the
+ * restore helper of an SEH function. An __except handler is inline and becomes a label.
+ *
+ * @param ctx Codegen context.
+ * @return Ok, or the failure.
+ */
 [[nodiscard]] Result<void> registerEntryPoints(CodegenContext& ctx) {
   REXLOG_TRACE(codegen, "Analyze: registering entry points...");
 
@@ -440,7 +452,6 @@ void detectSaveRestoreHelpers(const BinaryView& binary, AnalysisState& state) {
   auto& binary = ctx.binary();
   auto& ehDiscoveredFuncs = state.ehDiscoveredFuncs;
 
-  // Merge user hints into analysis state
   for (const auto& [addr, size] : config.invalidInstructionHints) {
     state.invalidInstructions[addr] = size;
   }
@@ -451,7 +462,6 @@ void detectSaveRestoreHelpers(const BinaryView& binary, AnalysisState& state) {
     state.exceptionHandlerFuncs.push_back(addr);
   }
 
-  // Build chunksByParent from config.functions
   for (const auto& [addr, cfg] : config.functions) {
     if (cfg.isChunk()) {
       state.chunksByParent[cfg.parent].push_back(addr);
@@ -460,7 +470,6 @@ void detectSaveRestoreHelpers(const BinaryView& binary, AnalysisState& state) {
 
   detectSaveRestoreHelpers(binary, state);
 
-  // Register imports
   {
     size_t importCount = 0;
     size_t resolvedCount = 0;
@@ -512,7 +521,6 @@ void detectSaveRestoreHelpers(const BinaryView& binary, AnalysisState& state) {
                  importCount, resolvedCount, unresolvedCount, variableCount);
   }
 
-  // Register save/restore helpers
   auto registerHelpers = [&](uint32_t base14, const char* prefix, size_t stride, size_t endReg,
                              size_t extraSize) {
     if (base14 == 0)
@@ -532,7 +540,6 @@ void detectSaveRestoreHelpers(const BinaryView& binary, AnalysisState& state) {
   registerHelpers(state.restVmx14Address, "__restvmx_", 8, 31, 4);
   registerHelpers(state.saveVmx14Address, "__savevmx_", 8, 31, 4);
 
-  // VMX 64-127
   if (state.restVmx64Address != 0) {
     for (size_t i = 64; i < 128; i++) {
       uint32_t addr = state.restVmx64Address + static_cast<uint32_t>((i - 64) * 8);
@@ -550,7 +557,6 @@ void detectSaveRestoreHelpers(const BinaryView& binary, AnalysisState& state) {
     }
   }
 
-  // Register CONFIG functions
   size_t configFuncs = 0, configChunks = 0;
   for (const auto& [address, cfg] : config.functions) {
     uint32_t size = cfg.getSize(address);
@@ -571,7 +577,6 @@ void detectSaveRestoreHelpers(const BinaryView& binary, AnalysisState& state) {
     REXLOG_DEBUG(codegen, "Analyze: {} CONFIG functions, {} chunks", configFuncs, configChunks);
   }
 
-  // Register PDATA functions
   uint32_t pdataAddr = binary.exceptionDirectoryAddr();
   uint32_t pdataSize = binary.exceptionDirectorySize();
 
@@ -613,7 +618,6 @@ void detectSaveRestoreHelpers(const BinaryView& binary, AnalysisState& state) {
     std::optional<ParsedExceptionInfo> exInfo;
     PrologInfo prologInfo;
     if (fn.ExceptionFlag) {
-      // Scan prolog to get frame size for SEH unwinding
       prologInfo = scanProlog(binary, beginAddr, fn.PrologLength);
 
       exInfo = parseExceptionInfo(binary, ctx.limits(), beginAddr);
@@ -627,21 +631,16 @@ void detectSaveRestoreHelpers(const BinaryView& binary, AnalysisState& state) {
           ehDiscoveredFuncs.push_back(addr);
         }
 
-        // Populate SEH frame info for unwinding
         if (exInfo->info.isSeh()) {
-          // Need non-const access to set frame info
           auto& sehInfo = std::get<SehExceptionInfo>(exInfo->info.data);
           sehInfo.frameSize = prologInfo.frameSize;
 
-          // Warn if we have SEH scopes but couldn't determine frame size
           if (!prologInfo.valid && !sehInfo.scopes.empty()) {
             REXLOG_WARN(codegen,
                         "SEH function 0x{:08X}: could not determine frame size from prolog",
                         beginAddr);
           }
 
-          // Compute restore helper from save helper
-          // Save helpers and restore helpers are at matching offsets from their base addresses
           if (prologInfo.saveHelper != 0 && state.restGpr14Address != 0 &&
               state.saveGpr14Address != 0) {
             sehInfo.restoreHelper =
@@ -661,7 +660,6 @@ void detectSaveRestoreHelpers(const BinaryView& binary, AnalysisState& state) {
             graph.addLabelToFunction(beginAddr, scope.tryStart);
           if (scope.tryEnd != 0)
             graph.addLabelToFunction(beginAddr, scope.tryEnd);
-          // For __except (filter!=0), handler is inline code - add as label
           if (scope.filter != 0 && scope.handler != 0) {
             graph.addLabelToFunction(beginAddr, scope.handler);
           }
@@ -681,7 +679,6 @@ void detectSaveRestoreHelpers(const BinaryView& binary, AnalysisState& state) {
 
   REXLOG_TRACE(codegen, "Analyze: added {} functions from PDATA", pdataAdded);
 
-  // Queue EH-discovered functions
   size_t ehFuncsQueued = 0;
   for (uint32_t addr : ehDiscoveredFuncs) {
     if (graph.getFunction(addr) != nullptr)

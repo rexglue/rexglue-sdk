@@ -1,6 +1,6 @@
 /**
  * @file        rexglue/ui/progress.h
- * @brief       ProgressView -- task-list renderer for codegen pipeline
+ * @brief       ProgressView task list renderer for the codegen pipeline
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
