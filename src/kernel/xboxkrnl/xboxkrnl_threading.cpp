@@ -856,12 +856,13 @@ u32 ArmKeTimer(ppc_ptr_t<X_KTIMER> timer, i64 due_time, u32 period_ms, ppc_ptr_t
 
 }  // namespace
 
-u32 KeSetTimerEx_entry(ppc_ptr_t<X_KTIMER> timer, u64, u32 period_ms, ppc_ptr_t<XDPC> dpc) {
-  return ArmKeTimer(timer, static_cast<i64>(ThreadState::Get()->context()->r4.u64), period_ms, dpc);
+u32 KeSetTimerEx_entry(ppc_ptr_t<X_KTIMER> timer, i64 due_time, u32 period_ms,
+                       ppc_ptr_t<XDPC> dpc) {
+  return ArmKeTimer(timer, due_time, period_ms, dpc);
 }
 
-u32 KeSetTimer_entry(ppc_ptr_t<X_KTIMER> timer, u64, ppc_ptr_t<XDPC> dpc) {
-  return ArmKeTimer(timer, static_cast<i64>(ThreadState::Get()->context()->r4.u64), 0, dpc);
+u32 KeSetTimer_entry(ppc_ptr_t<X_KTIMER> timer, i64 due_time, ppc_ptr_t<XDPC> dpc) {
+  return ArmKeTimer(timer, due_time, 0, dpc);
 }
 
 u32 KeCancelTimer_entry(ppc_ptr_t<X_KTIMER> timer) {

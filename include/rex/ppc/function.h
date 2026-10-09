@@ -169,12 +169,20 @@ struct ArgTranslator {
     return ctx.r1.u32 + 0x50 + static_cast<u32>((slot - kIntegerRegisters) * 8);
   }
 
+  template <size_t Bytes = sizeof(u32)>
   static constexpr uint64_t GetIntegerArgumentValue(const PPCContext& ctx, uint8_t* base,
                                                     size_t slot) noexcept {
-    if (slot < kIntegerRegisters) {
-      return IntegerRegister(const_cast<PPCContext&>(ctx), slot).u32;
+    if constexpr (Bytes == sizeof(u64)) {
+      if (slot < kIntegerRegisters) {
+        return IntegerRegister(const_cast<PPCContext&>(ctx), slot).u64;
+      }
+      return *rex::runtime::GuestPtr<be_u64*>(base, StackSlotAddress(ctx, slot));
+    } else {
+      if (slot < kIntegerRegisters) {
+        return IntegerRegister(const_cast<PPCContext&>(ctx), slot).u32;
+      }
+      return *rex::runtime::GuestPtr<be_u32*>(base, StackSlotAddress(ctx, slot) + 4);
     }
-    return *rex::runtime::GuestPtr<be_u32*>(base, StackSlotAddress(ctx, slot) + 4);
   }
 
   static double GetPrecisionArgumentValue(const PPCContext& ctx, uint8_t* base, const Argument& arg,
@@ -218,8 +226,8 @@ struct ArgTranslator {
   template <BigEndianType T>
   static constexpr T GetValue(PPCContext& ctx, uint8_t* base, const Argument& arg) noexcept {
     T result;
-    result.value =
-        static_cast<decltype(result.value)>(GetIntegerArgumentValue(ctx, base, arg.slot));
+    result.value = static_cast<decltype(result.value)>(
+        GetIntegerArgumentValue<sizeof(result.value)>(ctx, base, arg.slot));
     return result;
   }
 
@@ -240,7 +248,7 @@ struct ArgTranslator {
     if constexpr (is_precise_v<T>) {
       return static_cast<T>(GetPrecisionArgumentValue(ctx, base, arg, std::is_same_v<T, float>));
     } else {
-      return static_cast<T>(GetIntegerArgumentValue(ctx, base, arg.slot));
+      return static_cast<T>(GetIntegerArgumentValue<sizeof(T)>(ctx, base, arg.slot));
     }
   }
 

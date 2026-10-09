@@ -16,11 +16,11 @@
 
 namespace rex::kernel::xam {
 
-REX_SHIM_FN(XMemCpy, void*, void* dst, const void* src, size_t n) {
+REX_SHIM_FN(XMemCpy, void*, void* dst, const void* src, u32 n) {
   return std::memcpy(dst, src, n);
 }
 
-REX_SHIM_FN(XMemSet, void*, void* dst, int val, size_t n) {
+REX_SHIM_FN(XMemSet, void*, void* dst, int val, u32 n) {
   return std::memset(dst, val, n);
 }
 

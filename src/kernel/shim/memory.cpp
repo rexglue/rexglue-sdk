@@ -18,19 +18,19 @@ namespace rex::kernel::shim {
 // Standard memory operations
 // ---------------------------------------------------------------------------
 
-REX_SHIM_FN(memcpy, void*, void* dst, const void* src, size_t n) {
+REX_SHIM_FN(memcpy, void*, void* dst, const void* src, u32 n) {
   return std::memcpy(dst, src, n);
 }
 
-REX_SHIM_FN(memmove, void*, void* dst, const void* src, size_t n) {
+REX_SHIM_FN(memmove, void*, void* dst, const void* src, u32 n) {
   return std::memmove(dst, src, n);
 }
 
-REX_SHIM_FN(memset, void*, void* dst, int val, size_t n) {
+REX_SHIM_FN(memset, void*, void* dst, int val, u32 n) {
   return std::memset(dst, val, n);
 }
 
-REX_SHIM_FN(memchr, void*, const void* ptr, int val, size_t n) {
+REX_SHIM_FN(memchr, void*, const void* ptr, int val, u32 n) {
   return const_cast<void*>(std::memchr(ptr, val, n));
 }
 
@@ -38,11 +38,11 @@ REX_SHIM_FN(memchr, void*, const void* ptr, int val, size_t n) {
 // VMX optimized variants (same semantics, native speed)
 // ---------------------------------------------------------------------------
 
-REX_SHIM_FN(XMemSet128, void*, void* dst, int val, size_t n) {
+REX_SHIM_FN(XMemSet128, void*, void* dst, int val, u32 n) {
   return std::memset(dst, val, n);
 }
 
-REX_SHIM_FN(memset_vmx, void*, void* dst, int val, size_t n) {
+REX_SHIM_FN(memset_vmx, void*, void* dst, int val, u32 n) {
   return std::memset(dst, val, n);
 }
 
@@ -50,14 +50,14 @@ REX_SHIM_FN(memset_vmx, void*, void* dst, int val, size_t n) {
 // Secure variants (return errno_t)
 // ---------------------------------------------------------------------------
 
-REX_SHIM_FN(memcpy_s, int, void* dst, size_t dstsz, const void* src, size_t count) {
+REX_SHIM_FN(memcpy_s, int, void* dst, u32 dstsz, const void* src, u32 count) {
   if (!dst || !src || count > dstsz)
     return 22;  // EINVAL
   std::memcpy(dst, src, count);
   return 0;
 }
 
-REX_SHIM_FN(memmove_s, int, void* dst, size_t dstsz, const void* src, size_t count) {
+REX_SHIM_FN(memmove_s, int, void* dst, u32 dstsz, const void* src, u32 count) {
   if (!dst || !src || count > dstsz)
     return 22;  // EINVAL
   std::memmove(dst, src, count);

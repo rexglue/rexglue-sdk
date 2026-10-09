@@ -21,11 +21,11 @@ namespace rex::kernel::shim {
 // C string operations
 // ---------------------------------------------------------------------------
 
-REX_SHIM_FN(strncmp, int, const char* s1, const char* s2, size_t n) {
+REX_SHIM_FN(strncmp, int, const char* s1, const char* s2, u32 n) {
   return std::strncmp(s1, s2, n);
 }
 
-REX_SHIM_FN(strncpy, char*, char* dst, const char* src, size_t n) {
+REX_SHIM_FN(strncpy, char*, char* dst, const char* src, u32 n) {
 #if REX_PLATFORM_WIN32
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 #endif
@@ -58,7 +58,7 @@ REX_SHIM_FN(_stricmp, int, const char* s1, const char* s2) {
   return rex::compare_case(s1, s2);
 }
 
-REX_SHIM_FN(strcpy_s, int, char* dst, size_t dstsz, const char* src) {
+REX_SHIM_FN(strcpy_s, int, char* dst, u32 dstsz, const char* src) {
 #if REX_PLATFORM_WIN32
   return strcpy_s(dst, dstsz, src);
 #else
@@ -154,11 +154,11 @@ REX_SHIM_FN(wcsncpy, i16*, i16* dest, const i16* src, int count) {
   return dest;
 }
 
-REX_SHIM_FN(wcsncpy_s, u32, i16* dst, size_t dstsz, const i16* src, size_t count) {
+REX_SHIM_FN(wcsncpy_s, u32, i16* dst, u32 dstsz, const i16* src, u32 count) {
   if (!dst || !src || dstsz == 0)
     return 22;  // EINVAL
 
-  size_t i = 0;
+  u32 i = 0;
 
   for (; i < count && i + 1 < dstsz && src[i]; i++)
     dst[i] = src[i];

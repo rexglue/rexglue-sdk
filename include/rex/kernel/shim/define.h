@@ -24,7 +24,7 @@
  * @param ... The parameter list.
  *
  * @code
- * REX_SHIM_FN(memcpy, void*, void* dst, const void* src, size_t count) {
+ * REX_SHIM_FN(memcpy, void*, void* dst, const void* src, u32 count) {
  *   return std::memcpy(dst, src, count);
  * }
  * @endcode
