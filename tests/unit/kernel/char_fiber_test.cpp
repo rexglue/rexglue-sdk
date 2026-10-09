@@ -95,17 +95,26 @@ TEST_CASE("fibers: a switch away and back keeps the nonvolatile state", "[char][
     ctx.r3.u64 = 0;
     rexshim_ConvertThreadToFiber(ctx, base);
     g_main_fiber = ctx.r3.u32;
-    REQUIRE(g_main_fiber != 0);
+    CHECKED_ELSE(g_main_fiber != 0) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
 
     const u32 body = c.runtime().function_dispatcher()->AllocateThunk(&FiberBody, 0);
-    REQUIRE(body != 0);
+    CHECKED_ELSE(body != 0) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
     const u32 used = memory->title_pages();
     ctx.r3.u64 = 0;
     ctx.r4.u64 = body;
     ctx.r5.u64 = 0;
     rexshim_CreateFiber(ctx, base);
     const u32 fiber = ctx.r3.u32;
-    REQUIRE(fiber != 0);
+    CHECKED_ELSE(fiber != 0) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
     CHECK(memory->title_pages() == used + 16);
 
     Fill(ctx, 0x1234, 3.25, 0x5A);

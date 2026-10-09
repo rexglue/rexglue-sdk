@@ -73,7 +73,10 @@ constexpr auto kStopBudget = 500ms;
 
 u32 CreateEvent(Caller& c) {
   const u32 handle_ptr = c.Alloc(4);
-  REQUIRE(c.Kernel("NtCreateEvent", {handle_ptr, 0, 0, 0}) == 0);
+  CHECKED_ELSE(c.Kernel("NtCreateEvent", {handle_ptr, 0, 0, 0}) == 0) {
+    FAIL_CHECK("the check above failed");
+    return 0;
+  }
   return c.Load32(handle_ptr);
 }
 
@@ -88,7 +91,10 @@ bool Joined(Caller& c, u32 thread, std::chrono::milliseconds budget) {
 
 void RequestStop(Caller& c, u32 thread) {
   auto pin = c.runtime().thread_registry().FindByHandle(thread);
-  REQUIRE(pin);
+  CHECKED_ELSE(pin) {
+    FAIL_CHECK("the check above failed");
+    return;
+  }
   pin->RequestStop();
 }
 
@@ -97,7 +103,10 @@ void WaitUntil(const std::atomic<bool>& flag) {
   while (!flag.load() && std::chrono::steady_clock::now() < until) {
     std::this_thread::sleep_for(1ms);
   }
-  REQUIRE(flag.load());
+  CHECKED_ELSE(flag.load()) {
+    FAIL_CHECK("the check above failed");
+    return;
+  }
 }
 
 struct SetOnDestroy {
@@ -558,12 +567,18 @@ TEST_CASE("A thread that holds a mutant when the stop lands abandons it", "[kern
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 handle_ptr = c.Alloc(4);
-    REQUIRE(c.Kernel("NtCreateMutant", {handle_ptr, 0, 0}) == 0);
+    CHECKED_ELSE(c.Kernel("NtCreateMutant", {handle_ptr, 0, 0}) == 0) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
     const u32 mutant = c.Load32(handle_ptr);
     const u32 event = CreateEvent(c);
     auto owned = std::make_shared<std::atomic<bool>>(false);
     const u32 holder = c.Spawn([mutant, event, owned](Caller& t) {
-      REQUIRE(t.Kernel("NtWaitForSingleObjectEx", {mutant, 1, 0, 0}) == 0);
+      CHECKED_ELSE(t.Kernel("NtWaitForSingleObjectEx", {mutant, 1, 0, 0}) == 0) {
+        FAIL_CHECK("the check above failed");
+        return;
+      }
       owned->store(true);
       WaitForever(t, event, 0);
     });

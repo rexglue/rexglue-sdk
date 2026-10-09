@@ -30,7 +30,10 @@ u32 SpawnWithStack(Caller& c, u32 stack_size, std::function<void(Caller&)> body,
   const u32 handle_ptr = c.Alloc(4);
   const u32 status = c.Kernel("ExCreateThread", {handle_ptr, stack_size, 0, 0, Caller::start_thunk,
                                                  Caller::PutBodyForTest(std::move(body)), flags});
-  REQUIRE(status == 0);
+  CHECKED_ELSE(status == 0) {
+    FAIL_CHECK("the check above failed");
+    return 0;
+  }
   return c.Load32(handle_ptr);
 }
 
@@ -59,7 +62,10 @@ bool WaitForTitlePages(rex::runtime::Memory& memory, u32 pages) {
 
 u32 Reference(Caller& c, u32 handle) {
   const u32 out = c.Alloc(4);
-  REQUIRE(c.Kernel("ObReferenceObjectByHandle", {handle, 0, out}) == 0);
+  CHECKED_ELSE(c.Kernel("ObReferenceObjectByHandle", {handle, 0, out}) == 0) {
+    FAIL_CHECK("the check above failed");
+    return 0;
+  }
   return c.Load32(out);
 }
 
@@ -134,9 +140,12 @@ TEST_CASE("threads: ObLookupThreadByThreadId finds a live thread and not a dead 
     const u32 handle_ptr = c.Alloc(4);
     auto release = std::make_shared<std::promise<void>>();
     auto gate = release->get_future().share();
-    REQUIRE(c.Kernel("ExCreateThread",
-                     {handle_ptr, 0x10000, id_ptr, 0, Caller::start_thunk,
-                      Caller::PutBodyForTest([gate](Caller&) { gate.wait(); }), 0}) == 0);
+    CHECKED_ELSE(c.Kernel("ExCreateThread",
+                          {handle_ptr, 0x10000, id_ptr, 0, Caller::start_thunk,
+                           Caller::PutBodyForTest([gate](Caller&) { gate.wait(); }), 0}) == 0) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
     const u32 id = c.Load32(id_ptr);
     const u32 object_ptr = c.Alloc(4);
     CHECK(c.Kernel("ObLookupThreadByThreadId", {id, object_ptr}) == 0);
@@ -277,13 +286,16 @@ TEST_CASE("threads: ExCreateThread past the budget returns X_STATUS_NO_MEMORY",
     const u32 room = memory->budget_pages() - memory->title_pages();
     u32 filler = 0;
     if (room > 8) {
-      REQUIRE(memory->LookupHeap(0x10000000)
-                  ->Alloc((room - 8) * 4096, 4096,
-                          rex::runtime::kMemoryAllocationReserve |
-                              rex::runtime::kMemoryAllocationCommit |
-                              rex::runtime::kMemoryAllocationTitle,
-                          rex::runtime::kMemoryProtectRead | rex::runtime::kMemoryProtectWrite,
-                          false, &filler));
+      CHECKED_ELSE(memory->LookupHeap(0x10000000)
+                       ->Alloc((room - 8) * 4096, 4096,
+                               rex::runtime::kMemoryAllocationReserve |
+                                   rex::runtime::kMemoryAllocationCommit |
+                                   rex::runtime::kMemoryAllocationTitle,
+                               rex::runtime::kMemoryProtectRead | rex::runtime::kMemoryProtectWrite,
+                               false, &filler)) {
+        FAIL_CHECK("the check above failed");
+        return;
+      }
     }
     const u32 handle_ptr = c.Alloc(4);
     CHECK(c.Kernel("ExCreateThread", {handle_ptr, 0x10000, 0, 0, Caller::start_thunk,
@@ -302,7 +314,10 @@ TEST_CASE("threads: MmCreateKernelStack returns a counted stack and MmDeleteKern
     auto* memory = c.runtime().memory();
     const u32 before = memory->title_pages();
     const u32 base = c.Kernel("MmCreateKernelStack", {0x4000, 0});
-    REQUIRE(base != 0);
+    CHECKED_ELSE(base != 0) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
     CHECK(c.Kernel("MmIsAddressValid", {base - 0x4000}) == 1);
     CHECK(memory->title_pages() == before + 16);
     CHECK(c.Kernel("MmDeleteKernelStack", {base, base - 0x4000}) == 0);
@@ -315,7 +330,10 @@ TEST_CASE("threads: MmDeleteKernelStack refuses a base that is not the top of a 
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 base = c.Kernel("MmCreateKernelStack", {0x4000, 0});
-    REQUIRE(base != 0);
+    CHECKED_ELSE(base != 0) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
     CHECK(c.Kernel("MmDeleteKernelStack", {base - 0x1000, base - 0x4000}) ==
           rex::X_STATUS_INVALID_PARAMETER);
     CHECK(c.Kernel("MmDeleteKernelStack", {base, base}) == rex::X_STATUS_INVALID_PARAMETER);
@@ -369,7 +387,10 @@ TEST_CASE("threads: a stop writes the same exit state before a waiter wakes",
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
     {
       auto pin = c.runtime().thread_registry().FindByHandle(handle);
-      REQUIRE(pin);
+      CHECKED_ELSE(pin) {
+        FAIL_CHECK("the check above failed");
+        return;
+      }
       pin->RequestStop(9);
     }
     c.Kernel("NtResumeThread", {handle, 0});
@@ -394,7 +415,10 @@ TEST_CASE("threads: kernel time grows across a busy loop and a wait", "[char][th
     const u32 first = c.Load32(kthread + 0x58);
     Spin(std::chrono::milliseconds(150));
     const u32 event_ptr = c.Alloc(4);
-    REQUIRE(c.Kernel("NtCreateEvent", {event_ptr, 0, 0, 0}) == 0);
+    CHECKED_ELSE(c.Kernel("NtCreateEvent", {event_ptr, 0, 0, 0}) == 0) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
     const u32 event = c.Load32(event_ptr);
     c.Kernel("NtWaitForSingleObjectEx", {event, 1, 0, c.Quad(-10000)});
     CHECK(c.Load32(kthread + 0x58) - first >= 100);

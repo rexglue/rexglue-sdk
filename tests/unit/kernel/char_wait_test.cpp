@@ -35,7 +35,10 @@ u64 SystemTime(Caller& c) {
 
 u32 Event(Caller& c, u32 initial_state) {
   const u32 handle = c.Alloc(4);
-  REQUIRE(c.Kernel("NtCreateEvent", {handle, 0, 0, initial_state}) == 0);
+  CHECKED_ELSE(c.Kernel("NtCreateEvent", {handle, 0, 0, initial_state}) == 0) {
+    FAIL_CHECK("the check above failed");
+    return 0;
+  }
   return c.Load32(handle);
 }
 

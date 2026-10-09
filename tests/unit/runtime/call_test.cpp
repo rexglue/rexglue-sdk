@@ -433,7 +433,10 @@ TEST_CASE("A DPC drained inside a call runs on the thread's register file", "[ru
     auto* state = ThreadState::Get();
     const u32 r1 = state->context()->r1.u32;
     const u32 thunk = c.runtime().function_dispatcher()->AllocateThunk(&RecordingDPC, 0);
-    REQUIRE(thunk != 0);
+    CHECKED_ELSE(thunk != 0) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
     const u32 dpc = c.Alloc(0x20);
     c.Kernel("KeInitializeDpc", {dpc, thunk, 0});
     g_guest_dpc(dpc);
@@ -495,7 +498,10 @@ TEST_CASE("A fiber switch inside a call returns to the calling frame", "[runtime
     auto* state = ThreadState::Get();
     const u32 r1 = state->context()->r1.u32;
     const u32 body = c.runtime().function_dispatcher()->AllocateThunk(&SwitchBackBody, 0);
-    REQUIRE(body != 0);
+    CHECKED_ELSE(body != 0) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
     g_guest_fiber(body);
     CHECK(g_fiber_runs == 1);
     CHECK(g_fiber_failures == 0);

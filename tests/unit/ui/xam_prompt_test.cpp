@@ -13,6 +13,7 @@
 
 #include <atomic>
 #include <chrono>
+#include <mutex>
 #include <string>
 #include <thread>
 #include <vector>
@@ -42,22 +43,29 @@ class ScriptedUI final : public rex::ui::IUserInterface {
   }
 
   rex::ui::PromptResult answer;
-  rex::ui::PromptDesc desc;
   std::atomic<rex::i32> prompts{0};
   bool hold = false;
   std::move_only_function<void(rex::ui::PromptResult)> held;
 
   void Prompt(rex::ui::PromptDesc request,
               std::move_only_function<void(rex::ui::PromptResult)> done) override {
+    {
+      std::lock_guard lock(desc_mutex_);
+      desc_ = std::move(request);
+    }
     if (hold) {
       held = std::move(done);
       ++prompts;
       return;
     }
-    desc = std::move(request);
     ++prompts;
     done(answer);
   }
+  rex::ui::PromptDesc Desc() {
+    std::lock_guard lock(desc_mutex_);
+    return desc_;
+  }
+
   rex::ui::IWindow* GetWindow() override { return window_; }
 
   [[nodiscard]] rex::Result<rex::ui::IWindow*> OpenWindow(
@@ -119,6 +127,8 @@ class ScriptedUI final : public rex::ui::IUserInterface {
  private:
   rex::ui::NullUserInterface null_;
   rex::ui::IWindow* window_ = nullptr;
+  std::mutex desc_mutex_;
+  rex::ui::PromptDesc desc_;
 };
 
 rex::u32 PutWide(rex::testing::Caller& caller, rex::Runtime& runtime, std::u16string_view text) {
@@ -169,10 +179,10 @@ TEST_CASE("XamShowMessageBoxUI returns the pressed button and sends the buttons"
         MessageBox(caller, fixture.runtime(), u"Pick", u"Body", 0, result_ptr, &status);
     CHECK(status == 0);
     CHECK(chosen == 1);
-    CHECK(scripted.desc.title == "Pick");
-    CHECK(scripted.desc.body == "Body");
-    CHECK(scripted.desc.buttons == std::vector<std::string>{"No", "Yes"});
-    CHECK_FALSE(scripted.desc.text_input);
+    CHECK(scripted.Desc().title == "Pick");
+    CHECK(scripted.Desc().body == "Body");
+    CHECK(scripted.Desc().buttons == std::vector<std::string>{"No", "Yes"});
+    CHECK_FALSE(scripted.Desc().text_input);
   });
   CHECK(scripted.prompts == 1);
 }
@@ -187,7 +197,7 @@ TEST_CASE("XamShowMessageBoxUI returns the focused button when the prompt is can
     rex::u32 status = 0xFFFFFFFF;
     CHECK(MessageBox(caller, fixture.runtime(), u"", u"Body", 1, result_ptr, &status) == 1);
     CHECK(status == 0);
-    CHECK(scripted.desc.title == "Message Box");
+    CHECK(scripted.Desc().title == "Message Box");
   });
 }
 
@@ -226,10 +236,10 @@ TEST_CASE("XamShowKeyboardUI writes the typed text and completes the overlapped"
     CHECK(WaitOverlapped(caller, overlapped) == 0);
     CHECK(caller.Load32(overlapped + 0x18) == 0);
     CHECK(ReadWide(fixture.runtime(), buffer) == u"Tom");
-    CHECK(scripted.desc.title == "Keyboard Input");
-    CHECK(scripted.desc.default_text == "Seed");
-    CHECK(scripted.desc.text_input);
-    CHECK(scripted.desc.max_length == 16);
+    CHECK(scripted.Desc().title == "Keyboard Input");
+    CHECK(scripted.Desc().default_text == "Seed");
+    CHECK(scripted.Desc().text_input);
+    CHECK(scripted.Desc().max_length == 16);
   });
 }
 
@@ -244,9 +254,9 @@ TEST_CASE("XamShowKeyboardUI uses the description as the title when no title is 
     caller.XAM(
         "XamShowKeyboardUI",
         {0, 0, 0, 0, PutWide(caller, fixture.runtime(), u"Enter a name"), buffer, 16, overlapped});
-    WaitOverlapped(caller, overlapped);
-    CHECK(scripted.desc.title == "Enter a name");
-    CHECK(scripted.desc.body.empty());
+    WaitOverlapped(fixture.runtime(), overlapped);
+    CHECK(scripted.Desc().title == "Enter a name");
+    CHECK(scripted.Desc().body.empty());
   });
 }
 

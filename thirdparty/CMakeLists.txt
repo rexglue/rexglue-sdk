@@ -281,6 +281,7 @@ endif()
 # Catch2 - Test framework (only when tests are enabled, not part of SDK install)
 #=============================================================================
 if(REXGLUE_BUILD_TESTS)
+    set(CATCH_CONFIG_THREAD_SAFE_ASSERTIONS ON CACHE BOOL "Catch2 assertions from any thread" FORCE)
     add_subdirectory(catch2)
 endif()
 

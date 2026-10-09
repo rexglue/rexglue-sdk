@@ -21,9 +21,15 @@ TEST_CASE("events: manual reset create set wait clear", "[char][events]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 handle_ptr = c.Alloc(4);
-    REQUIRE(c.Kernel("NtCreateEvent", {handle_ptr, 0, 0, 0}) == 0);
+    CHECKED_ELSE(c.Kernel("NtCreateEvent", {handle_ptr, 0, 0, 0}) == 0) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
     const u32 handle = c.Load32(handle_ptr);
-    REQUIRE(handle != 0);
+    CHECKED_ELSE(handle != 0) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
     CHECK(c.Kernel("NtWaitForSingleObjectEx", {handle, 1, 0, Poll(c)}) == kTimeout);
     const u32 previous = c.Alloc(4);
     CHECK(c.Kernel("NtSetEvent", {handle, previous}) == 0);
@@ -40,7 +46,10 @@ TEST_CASE("events: auto reset is consumed by one wait", "[char][events]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 handle_ptr = c.Alloc(4);
-    REQUIRE(c.Kernel("NtCreateEvent", {handle_ptr, 0, 1, 1}) == 0);
+    CHECKED_ELSE(c.Kernel("NtCreateEvent", {handle_ptr, 0, 1, 1}) == 0) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
     const u32 handle = c.Load32(handle_ptr);
     CHECK(c.Kernel("NtWaitForSingleObjectEx", {handle, 1, 0, Poll(c)}) == 0);
     CHECK(c.Kernel("NtWaitForSingleObjectEx", {handle, 1, 0, Poll(c)}) == kTimeout);
@@ -56,11 +65,17 @@ TEST_CASE("events: query reports type and state", "[char][events]") {
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 handle_ptr = c.Alloc(4);
     const u32 out = c.Alloc(8);
-    REQUIRE(c.Kernel("NtCreateEvent", {handle_ptr, 0, 0, 1}) == 0);
+    CHECKED_ELSE(c.Kernel("NtCreateEvent", {handle_ptr, 0, 0, 1}) == 0) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
     const u32 manual = c.Load32(handle_ptr);
     CHECK(c.Kernel("NtQueryEvent", {manual, out}) == 0);
     CHECK(c.Load32(out + 4) == 1);
-    REQUIRE(c.Kernel("NtCreateEvent", {handle_ptr, 0, 1, 0}) == 0);
+    CHECKED_ELSE(c.Kernel("NtCreateEvent", {handle_ptr, 0, 1, 0}) == 0) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
     const u32 sync = c.Load32(handle_ptr);
     CHECK(c.Kernel("NtQueryEvent", {sync, out}) == 0);
     CHECK(c.Load32(out + 4) == 0);
@@ -75,7 +90,10 @@ TEST_CASE("events: pulse and invalid handles", "[char][events]") {
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 handle_ptr = c.Alloc(4);
     const u32 previous = c.Alloc(4);
-    REQUIRE(c.Kernel("NtCreateEvent", {handle_ptr, 0, 0, 0}) == 0);
+    CHECKED_ELSE(c.Kernel("NtCreateEvent", {handle_ptr, 0, 0, 0}) == 0) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
     const u32 handle = c.Load32(handle_ptr);
     CHECK(c.Kernel("NtPulseEvent", {handle, previous}) == 0);
     CHECK(c.Load32(previous) == 1);

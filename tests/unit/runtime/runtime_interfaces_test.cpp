@@ -55,7 +55,10 @@ TEST_CASE("Current returns the runtime inside an interrupt callback", "[runtime]
   fixture.RunOnGuestThread([](rex::testing::Caller& c) {
     auto* dispatcher = c.runtime().function_dispatcher();
     const u32 callback = dispatcher->AllocateThunk(&RecordCurrent, 0);
-    REQUIRE(callback != 0);
+    CHECKED_ELSE(callback != 0) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
     const u32 pcr = c.Alloc(0x1000);
     const u32 stack = c.Alloc(0x10000) + 0x8000;
     std::jthread worker([&] {
@@ -155,7 +158,10 @@ TEST_CASE("ResolveGuestObject takes the guest address of a dispatch header",
     std::memset(event, 0, sizeof(rex::runtime::X_KEVENT));
     auto& table = c.runtime().object_table();
     const std::optional<rex::X_HANDLE> handle = table.ResolveGuestObject(address, -1);
-    REQUIRE(handle.has_value());
+    CHECKED_ELSE(handle.has_value()) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
     CHECK(table.ResolveGuestObject(address, -1) == handle);
     CHECK(table.ResolveGuest<rex::runtime::EventObject>(address));
   });

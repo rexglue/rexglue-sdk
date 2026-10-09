@@ -164,7 +164,10 @@ TEST_CASE("APU shutdown stops a worker blocked in its title callback", "[runtime
   g_in_callback.store(false);
   fixture.RunOnGuestThread([](rex::testing::Caller& c) {
     const rex::u32 handle_ptr = c.Alloc(4);
-    REQUIRE(c.Kernel("NtCreateEvent", {handle_ptr, 0, 0, 0}) == 0);
+    CHECKED_ELSE(c.Kernel("NtCreateEvent", {handle_ptr, 0, 0, 0}) == 0) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
     g_callback_event.store(c.Load32(handle_ptr));
   });
   const rex::u32 callback =

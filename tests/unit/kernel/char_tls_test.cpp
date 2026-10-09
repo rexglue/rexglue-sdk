@@ -47,7 +47,10 @@ TEST_CASE("A title without a TLS header has 32 slots", "[char][tls]") {
     std::vector<u32> slots;
     for (u32 slot = c.Kernel("KeTlsAlloc"); slot != kOutOfIndexes; slot = c.Kernel("KeTlsAlloc")) {
       slots.push_back(slot);
-      REQUIRE(slots.size() <= 256);
+      CHECKED_ELSE(slots.size() <= 256) {
+        FAIL_CHECK("the check above failed");
+        return;
+      }
     }
     CHECK(slots.size() == 32);
     for (const u32 slot : slots) {
@@ -70,7 +73,10 @@ TEST_CASE("KeTlsFree clears the slot in every guest thread", "[char][tls]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 slot = c.Kernel("KeTlsAlloc");
-    REQUIRE(slot != kOutOfIndexes);
+    CHECKED_ELSE(slot != kOutOfIndexes) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
     c.Kernel("KeTlsSetValue", {slot, 5});
     auto stage = std::make_shared<std::atomic<int>>(0);
     auto seen = std::make_shared<std::atomic<u32>>(kOutOfIndexes);
@@ -97,7 +103,10 @@ TEST_CASE("KeTlsFree after a thread with the slot exited writes no released bloc
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 slot = c.Kernel("KeTlsAlloc");
-    REQUIRE(slot != kOutOfIndexes);
+    CHECKED_ELSE(slot != kOutOfIndexes) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
     for (int i = 0; i < 20; ++i) {
       Join(c, c.Spawn([slot](Caller& t) { t.Kernel("KeTlsSetValue", {slot, 3}); }));
     }

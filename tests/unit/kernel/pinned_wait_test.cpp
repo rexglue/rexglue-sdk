@@ -44,7 +44,10 @@ TEST_CASE("WaitOn on a kind without a wait handle succeeds at once", "[wait]") {
   fixture.RunOnGuestThread([](Caller& c) {
     auto& table = c.runtime().object_table();
     auto added = table.Emplace<SymbolicLinkObject>(AddOptions{}, "a", "b");
-    REQUIRE(added.has_value());
+    CHECKED_ELSE(added.has_value()) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
     CHECK(rex::runtime::WaitOn(c.runtime(), *added, 3, 1, 0, nullptr) == rex::X_STATUS_SUCCESS);
     (void)table.Close(*added);
   });
@@ -55,7 +58,10 @@ TEST_CASE("WaitOn keeps the object alive when its handle closes mid wait", "[wai
   fixture.RunOnGuestThread([](Caller& c) {
     auto& table = c.runtime().object_table();
     auto added = table.Emplace<EventObject>(AddOptions{}, true, false);
-    REQUIRE(added.has_value());
+    CHECKED_ELSE(added.has_value()) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
     const X_HANDLE handle = *added;
     auto result = std::make_shared<std::promise<u32>>();
     auto done = result->get_future();

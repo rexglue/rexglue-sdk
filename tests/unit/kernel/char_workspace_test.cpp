@@ -32,7 +32,10 @@ std::vector<u32> Fill(Caller& c, u32 size) {
   std::vector<u32> blocks;
   while (c.XAM("XamAlloc", {0, size, out}) == 0) {
     blocks.push_back(c.Load32(out));
-    REQUIRE(blocks.size() <= 0x60000 / 16);
+    CHECKED_ELSE(blocks.size() <= 0x60000 / 16) {
+      FAIL_CHECK("the check above failed");
+      return blocks;
+    }
   }
   return blocks;
 }
@@ -63,7 +66,10 @@ TEST_CASE(
     const u32 used = memory.title_pages();
     {
       auto second = WorkspaceHeap::Create(memory, 0x40000);
-      REQUIRE(second);
+      CHECKED_ELSE(second) {
+        FAIL_CHECK("the check above failed");
+        return;
+      }
       CHECK((*second)->size() == 0x40000);
       CHECK(memory.title_pages() == used + 64);
     }
@@ -108,7 +114,10 @@ TEST_CASE("A 128 KB XamAlloc fits the default workspace and a second one does no
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 out = c.Alloc(4);
-    REQUIRE(c.XAM("XamAlloc", {0, 0x20000, out}) == 0);
+    CHECKED_ELSE(c.XAM("XamAlloc", {0, 0x20000, out}) == 0) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
     const u32 first = c.Load32(out);
     CHECK(first != 0);
     CHECK(c.XAM("XamAlloc", {0, 0x20000, out}) == kNotEnoughMemory);
@@ -127,10 +136,16 @@ TEST_CASE("An enumerator on a full workspace returns 8", "[char][workspace]") {
     blocks.insert(blocks.end(), small.begin(), small.end());
     CHECK(c.XAM("XamContentCreateDeviceEnumerator", {1, 0, 2, 0, handle_out}) == kNotEnoughMemory);
     FreeAll(c, blocks);
-    REQUIRE(c.XAM("XamContentCreateDeviceEnumerator", {1, 0, 2, 0, handle_out}) == 0);
+    CHECKED_ELSE(c.XAM("XamContentCreateDeviceEnumerator", {1, 0, 2, 0, handle_out}) == 0) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
     const u32 handle = c.Load32(handle_out);
     const u32 address = c.Alloc(4);
-    REQUIRE(c.Kernel("ObReferenceObjectByHandle", {handle, 0, address}) == 0);
+    CHECKED_ELSE(c.Kernel("ObReferenceObjectByHandle", {handle, 0, address}) == 0) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
     const u32 object = c.Load32(address);
     c.Kernel("ObDereferenceObject", {object});
     CHECK(object >= c.runtime().memory()->LookupHeapByType(false, 4096)->heap_base());

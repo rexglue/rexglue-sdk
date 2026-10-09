@@ -47,7 +47,10 @@ TEST_CASE("A DPC that changes the FP control word leaves the draining thread's w
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 thunk = c.runtime().function_dispatcher()->AllocateThunk(&ScrambleFPDPC, 0);
-    REQUIRE(thunk != 0);
+    CHECKED_ELSE(thunk != 0) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
     const u32 dpc = c.Alloc(0x20);
     c.Kernel("KeInitializeDpc", {dpc, thunk, 0});
     c.ctx().f1.f64 = 1.0;
@@ -122,7 +125,10 @@ TEST_CASE("A host worker starts from the host policy FP control word", "[kernel]
           return 0;
         });
     auto launched = c.runtime().thread_registry().Launch(std::move(record));
-    REQUIRE(launched);
+    CHECKED_ELSE(launched) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
     CHECK(c.Kernel("NtWaitForSingleObjectEx", {*launched, 1, 0, c.Quad(-50000000)}) == 0);
     c.Kernel("NtClose", {*launched});
     u32 policy = csr->load();

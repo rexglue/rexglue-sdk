@@ -20,7 +20,10 @@ TEST_CASE("notifications: listener receives a matching broadcast", "[char][notif
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 listener = c.XAM("XamNotifyCreateListener", {~0ull, 0});
-    REQUIRE(listener != 0);
+    CHECKED_ELSE(listener != 0) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
     const u32 id_ptr = c.Alloc(4);
     const u32 param_ptr = c.Alloc(4);
     while (c.XAM("XNotifyGetNext", {listener, 0, id_ptr, param_ptr}) == 1) {}
@@ -53,10 +56,19 @@ TEST_CASE("identity: ObReferenceObjectByHandle returns the same guest pointer fo
     const u32 handle_ptr = c.Alloc(4);
     const u32 first = c.Alloc(4);
     const u32 second = c.Alloc(4);
-    REQUIRE(c.Kernel("NtCreateEvent", {handle_ptr, 0, 0, 0}) == 0);
+    CHECKED_ELSE(c.Kernel("NtCreateEvent", {handle_ptr, 0, 0, 0}) == 0) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
     const u32 handle = c.Load32(handle_ptr);
-    REQUIRE(c.Kernel("ObReferenceObjectByHandle", {handle, 0, first}) == 0);
-    REQUIRE(c.Kernel("ObReferenceObjectByHandle", {handle, 0, second}) == 0);
+    CHECKED_ELSE(c.Kernel("ObReferenceObjectByHandle", {handle, 0, first}) == 0) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
+    CHECKED_ELSE(c.Kernel("ObReferenceObjectByHandle", {handle, 0, second}) == 0) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
     CHECK(c.Load32(first) == c.Load32(second));
     c.Kernel("ObDereferenceObject", {c.Load32(first)});
     c.Kernel("ObDereferenceObject", {c.Load32(second)});
@@ -83,7 +95,10 @@ TEST_CASE("notifications: mask filters", "[char][notify]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 listener = c.XAM("XamNotifyCreateListener", {0x1, 0});
-    REQUIRE(listener != 0);
+    CHECKED_ELSE(listener != 0) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
     const u32 id_ptr = c.Alloc(4);
     const u32 param_ptr = c.Alloc(4);
     while (c.XAM("XNotifyGetNext", {listener, 0, id_ptr, param_ptr}) == 1) {}

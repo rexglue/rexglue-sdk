@@ -25,9 +25,15 @@ TEST_CASE("handles: duplicate close and reuse", "[char][handles]") {
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 handle_ptr = c.Alloc(4);
     const u32 copy_ptr = c.Alloc(4);
-    REQUIRE(c.Kernel("NtCreateEvent", {handle_ptr, 0, 0, 0}) == 0);
+    CHECKED_ELSE(c.Kernel("NtCreateEvent", {handle_ptr, 0, 0, 0}) == 0) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
     const u32 handle = c.Load32(handle_ptr);
-    REQUIRE(c.Kernel("NtDuplicateObject", {handle, copy_ptr, 0}) == 0);
+    CHECKED_ELSE(c.Kernel("NtDuplicateObject", {handle, copy_ptr, 0}) == 0) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
     const u32 copy = c.Load32(copy_ptr);
     CHECK(copy != handle);
     CHECK(c.Kernel("NtSetEvent", {copy, 0}) == 0);
@@ -36,7 +42,10 @@ TEST_CASE("handles: duplicate close and reuse", "[char][handles]") {
     CHECK(c.Kernel("NtSetEvent", {handle, 0}) == kInvalidHandle);
     CHECK(c.Kernel("NtSetEvent", {copy, 0}) == 0);
     CHECK(c.Kernel("NtClose", {copy}) == 0);
-    REQUIRE(c.Kernel("NtCreateEvent", {handle_ptr, 0, 0, 0}) == 0);
+    CHECKED_ELSE(c.Kernel("NtCreateEvent", {handle_ptr, 0, 0, 0}) == 0) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
     const u32 reused = c.Load32(handle_ptr);
     CHECK(reused >= 0xF8000004);
     CHECK((reused & 3) == 0);
@@ -60,9 +69,15 @@ TEST_CASE("handles: ObReferenceObjectByHandle and ObDereferenceObject keep the o
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 handle_ptr = c.Alloc(4);
     const u32 object_ptr = c.Alloc(4);
-    REQUIRE(c.Kernel("NtCreateEvent", {handle_ptr, 0, 0, 1}) == 0);
+    CHECKED_ELSE(c.Kernel("NtCreateEvent", {handle_ptr, 0, 0, 1}) == 0) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
     const u32 handle = c.Load32(handle_ptr);
-    REQUIRE(c.Kernel("ObReferenceObjectByHandle", {handle, 0, object_ptr}) == 0);
+    CHECKED_ELSE(c.Kernel("ObReferenceObjectByHandle", {handle, 0, object_ptr}) == 0) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
     const u32 object = c.Load32(object_ptr);
     CHECK(object != 0);
     CHECK(c.Kernel("NtClose", {handle}) == 0);
@@ -88,7 +103,10 @@ TEST_CASE("handles: ObOpenObjectByPointer returns a closable handle", "[char][ha
     const u32 event = c.Alloc(0x10);
     c.Kernel("KeInitializeEvent", {event, 0, 0});
     const u32 handle_ptr = c.Alloc(4);
-    REQUIRE(c.Kernel("ObOpenObjectByPointer", {event, handle_ptr}) == 0);
+    CHECKED_ELSE(c.Kernel("ObOpenObjectByPointer", {event, handle_ptr}) == 0) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
     const u32 handle = c.Load32(handle_ptr);
     CHECK(c.Kernel("NtSetEvent", {handle, 0}) == 0);
     CHECK(c.Kernel("NtClose", {handle}) == 0);
@@ -101,7 +119,10 @@ TEST_CASE("names: case insensitive open and collision", "[char][names]") {
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 handle_ptr = c.Alloc(4);
     const u32 again_ptr = c.Alloc(4);
-    REQUIRE(c.Kernel("NtCreateEvent", {handle_ptr, c.Attributes("TestEvent"), 0, 0}) == 0);
+    CHECKED_ELSE(c.Kernel("NtCreateEvent", {handle_ptr, c.Attributes("TestEvent"), 0, 0}) == 0) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
     const u32 handle = c.Load32(handle_ptr);
     CHECK(c.Kernel("NtCreateEvent", {again_ptr, c.Attributes("testevent"), 0, 0}) ==
           rex::X_STATUS_OBJECT_NAME_EXISTS);
@@ -121,7 +142,10 @@ TEST_CASE("names: another kind holding the name", "[char][names]") {
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 handle_ptr = c.Alloc(4);
     const u32 other_ptr = c.Alloc(4);
-    REQUIRE(c.Kernel("NtCreateSemaphore", {handle_ptr, c.Attributes("Shared"), 1, 2}) == 0);
+    CHECKED_ELSE(c.Kernel("NtCreateSemaphore", {handle_ptr, c.Attributes("Shared"), 1, 2}) == 0) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
     const u32 semaphore = c.Load32(handle_ptr);
     CHECK(c.Kernel("NtCreateEvent", {other_ptr, c.Attributes("Shared"), 0, 0}) == 0);
     const u32 event = c.Load32(other_ptr);
@@ -138,9 +162,15 @@ TEST_CASE("waits: wait any and wait all", "[char][waits]") {
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 handle_ptr = c.Alloc(4);
     const u32 handles = c.Alloc(8);
-    REQUIRE(c.Kernel("NtCreateEvent", {handle_ptr, 0, 0, 0}) == 0);
+    CHECKED_ELSE(c.Kernel("NtCreateEvent", {handle_ptr, 0, 0, 0}) == 0) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
     const u32 first = c.Load32(handle_ptr);
-    REQUIRE(c.Kernel("NtCreateEvent", {handle_ptr, 0, 0, 0}) == 0);
+    CHECKED_ELSE(c.Kernel("NtCreateEvent", {handle_ptr, 0, 0, 0}) == 0) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
     const u32 second = c.Load32(handle_ptr);
     c.Store32(handles, first);
     c.Store32(handles + 4, second);
@@ -162,9 +192,15 @@ TEST_CASE("waits: signal and wait", "[char][waits]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 handle_ptr = c.Alloc(4);
-    REQUIRE(c.Kernel("NtCreateEvent", {handle_ptr, 0, 1, 0}) == 0);
+    CHECKED_ELSE(c.Kernel("NtCreateEvent", {handle_ptr, 0, 1, 0}) == 0) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
     const u32 signal = c.Load32(handle_ptr);
-    REQUIRE(c.Kernel("NtCreateEvent", {handle_ptr, 0, 1, 0}) == 0);
+    CHECKED_ELSE(c.Kernel("NtCreateEvent", {handle_ptr, 0, 1, 0}) == 0) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
     const u32 wait = c.Load32(handle_ptr);
     CHECK(c.Kernel("NtSignalAndWaitForSingleObjectEx", {signal, wait, 0, 0, Poll(c)}) == kTimeout);
     CHECK(c.Kernel("NtSignalAndWaitForSingleObjectEx", {wait, signal, 0, 0, Poll(c)}) == 0);
@@ -179,7 +215,10 @@ TEST_CASE("waits: a handle closed during a wait still completes the wait", "[cha
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 handle_ptr = c.Alloc(4);
-    REQUIRE(c.Kernel("NtCreateEvent", {handle_ptr, 0, 0, 0}) == 0);
+    CHECKED_ELSE(c.Kernel("NtCreateEvent", {handle_ptr, 0, 0, 0}) == 0) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
     const u32 handle = c.Load32(handle_ptr);
     auto result = std::make_shared<std::promise<u32>>();
     auto done = result->get_future();
@@ -187,7 +226,10 @@ TEST_CASE("waits: a handle closed during a wait still completes the wait", "[cha
       result->set_value(w.Kernel("NtWaitForSingleObjectEx", {handle, 1, 0, w.Quad(-20000000)}));
     });
     c.Kernel("NtClose", {handle});
-    REQUIRE(done.wait_for(std::chrono::seconds(10)) == std::future_status::ready);
+    CHECKED_ELSE(done.wait_for(std::chrono::seconds(10)) == std::future_status::ready) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
     const u32 outcome = done.get();
     CHECK((outcome == kTimeout || outcome == kInvalidHandle));
     c.Kernel("NtClose", {waiter});

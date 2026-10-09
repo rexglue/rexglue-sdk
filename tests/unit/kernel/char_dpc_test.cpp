@@ -149,7 +149,10 @@ void Reset() {
 
 u32 MakeDPC(Caller& c, void (*routine)(PPCContext&, u8*), u32 context = 0) {
   const u32 thunk = c.runtime().function_dispatcher()->AllocateThunk(routine, 0);
-  REQUIRE(thunk != 0);
+  CHECKED_ELSE(thunk != 0) {
+    FAIL_CHECK("the check above failed");
+    return 0;
+  }
   const u32 dpc = c.Alloc(0x20);
   c.Kernel("KeInitializeDpc", {dpc, thunk, context});
   return dpc;

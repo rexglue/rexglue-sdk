@@ -43,8 +43,12 @@ TEST_CASE("files: an allocation size only truncates below the end of file", "[ch
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 handle_ptr = c.Alloc(4);
     const u32 status_block = c.Alloc(8);
-    REQUIRE(c.Kernel("NtCreateFile", {handle_ptr, kReadWriteAccess, c.Attributes("scratch:\\a.bin"),
-                                      status_block, 0, 0, 3, 1, 0x20}) == 0);
+    CHECKED_ELSE(
+        c.Kernel("NtCreateFile", {handle_ptr, kReadWriteAccess, c.Attributes("scratch:\\a.bin"),
+                                  status_block, 0, 0, 3, 1, 0x20}) == 0) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
     const u32 handle = c.Load32(handle_ptr);
     const u32 info = c.Alloc(8);
     c.Store64(info, 4096);
@@ -64,8 +68,12 @@ TEST_CASE("files: a flush reaches the file and fails on a bad handle", "[char][f
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 handle_ptr = c.Alloc(4);
     const u32 status_block = c.Alloc(8);
-    REQUIRE(c.Kernel("NtCreateFile", {handle_ptr, kReadWriteAccess, c.Attributes("scratch:\\f.bin"),
-                                      status_block, 0, 0, 3, 1, 0x20}) == 0);
+    CHECKED_ELSE(
+        c.Kernel("NtCreateFile", {handle_ptr, kReadWriteAccess, c.Attributes("scratch:\\f.bin"),
+                                  status_block, 0, 0, 3, 1, 0x20}) == 0) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
     const u32 handle = c.Load32(handle_ptr);
     CHECK(c.Kernel("NtFlushBuffersFile", {handle, status_block}) == 0);
     CHECK(c.Kernel("NtClose", {handle}) == 0);
@@ -82,9 +90,12 @@ TEST_CASE("files: a rename onto a file needs replace existing", "[char][files]")
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 handle_ptr = c.Alloc(4);
     const u32 status_block = c.Alloc(8);
-    REQUIRE(
+    CHECKED_ELSE(
         c.Kernel("NtCreateFile", {handle_ptr, kReadWriteAccess, c.Attributes("scratch:\\r1.bin"),
-                                  status_block, 0, 0, 3, 1, 0x20}) == 0);
+                                  status_block, 0, 0, 3, 1, 0x20}) == 0) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
     const u32 handle = c.Load32(handle_ptr);
     constexpr std::string_view kTarget = "scratch:\\r2.bin";
     const u32 info = c.Alloc(16);
@@ -110,8 +121,12 @@ TEST_CASE("files: an allocation size above the end of file keeps the size", "[ch
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 handle_ptr = c.Alloc(4);
     const u32 status_block = c.Alloc(8);
-    REQUIRE(c.Kernel("NtCreateFile", {handle_ptr, kReadWriteAccess, c.Attributes("scratch:\\b.bin"),
-                                      status_block, 0, 0, 3, 1, 0x20}) == 0);
+    CHECKED_ELSE(
+        c.Kernel("NtCreateFile", {handle_ptr, kReadWriteAccess, c.Attributes("scratch:\\b.bin"),
+                                  status_block, 0, 0, 3, 1, 0x20}) == 0) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
     const u32 handle = c.Load32(handle_ptr);
     const u32 info = c.Alloc(8);
     c.Store64(info, 4096);
@@ -131,8 +146,11 @@ TEST_CASE("files: create read write seek and query", "[char][files]") {
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 handle_ptr = c.Alloc(4);
     const u32 status_block = c.Alloc(8);
-    REQUIRE(c.Kernel("NtCreateFile", {handle_ptr, 0x80100000, c.Attributes("game:\\data.bin"),
-                                      status_block, 0, 0, 3, 1, 0x20}) == 0);
+    CHECKED_ELSE(c.Kernel("NtCreateFile", {handle_ptr, 0x80100000, c.Attributes("game:\\data.bin"),
+                                           status_block, 0, 0, 3, 1, 0x20}) == 0) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
     const u32 handle = c.Load32(handle_ptr);
     const u32 buffer = c.Alloc(16);
     CHECK(c.Kernel("NtReadFile", {handle, 0, 0, 0, status_block, buffer, 8, c.Quad(0)}) == 0);
@@ -162,7 +180,10 @@ TEST_CASE("io completion: set remove and timeout", "[char][files]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 port_ptr = c.Alloc(4);
-    REQUIRE(c.Kernel("NtCreateIoCompletion", {port_ptr, 0x1F0003, 0, 1}) == 0);
+    CHECKED_ELSE(c.Kernel("NtCreateIoCompletion", {port_ptr, 0x1F0003, 0, 1}) == 0) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
     const u32 port = c.Load32(port_ptr);
     const u32 key = c.Alloc(4);
     const u32 context = c.Alloc(4);
@@ -187,8 +208,11 @@ TEST_CASE("files: sequential reads advance the position", "[char][files]") {
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 handle_ptr = c.Alloc(4);
     const u32 status_block = c.Alloc(8);
-    REQUIRE(c.Kernel("NtCreateFile", {handle_ptr, 0x80100000, c.Attributes("game:\\seq.bin"),
-                                      status_block, 0, 0, 3, 1, 0x20}) == 0);
+    CHECKED_ELSE(c.Kernel("NtCreateFile", {handle_ptr, 0x80100000, c.Attributes("game:\\seq.bin"),
+                                           status_block, 0, 0, 3, 1, 0x20}) == 0) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
     const u32 handle = c.Load32(handle_ptr);
     const u32 buffer = c.Alloc(4);
     CHECK(c.Kernel("NtReadFile", {handle, 0, 0, 0, status_block, buffer, 4, 0}) == 0);

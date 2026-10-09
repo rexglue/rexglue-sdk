@@ -57,7 +57,10 @@ TEST_CASE("interrupt callbacks never overlap and never block guest threads", "[i
     auto* dispatcher = c.runtime().function_dispatcher();
     auto* memory = c.runtime().memory();
     const u32 callback = dispatcher->AllocateThunk(&RecordOverlap, 0);
-    REQUIRE(callback != 0);
+    CHECKED_ELSE(callback != 0) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
     const u32 pcr_first = c.Alloc(0x1000);
     const u32 pcr_second = c.Alloc(0x1000);
     const u32 stack_first = c.Alloc(0x10000) + 0x8000;
@@ -87,7 +90,10 @@ TEST_CASE("interrupts leave the guest thread state intact", "[interrupt]") {
   fixture.RunOnGuestThread([](Caller& c) {
     auto* dispatcher = c.runtime().function_dispatcher();
     const u32 callback = dispatcher->AllocateThunk(&RecordOverlap, 0);
-    REQUIRE(callback != 0);
+    CHECKED_ELSE(callback != 0) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
     const u32 pcr = c.Alloc(0x1000);
     c.Store32(pcr, 0x1234);
     rex::runtime::ThreadState state(3, c.Alloc(0x10000) + 0x8000, pcr, c.runtime().memory(),
@@ -124,8 +130,14 @@ TEST_CASE("An interrupt runs at IRQL 3 and leaves no register change behind", "[
     auto* dispatcher = c.runtime().function_dispatcher();
     const u32 isr = dispatcher->AllocateThunk(&ClobberingISR, 0);
     const u32 dpc_routine = dispatcher->AllocateThunk(&RecordDPCRegisters, 0);
-    REQUIRE(isr != 0);
-    REQUIRE(dpc_routine != 0);
+    CHECKED_ELSE(isr != 0) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
+    CHECKED_ELSE(dpc_routine != 0) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
     const u32 dpc = c.Alloc(0x20);
     c.Kernel("KeInitializeDpc", {dpc, dpc_routine, 0});
     g_isr_dpc = dpc;

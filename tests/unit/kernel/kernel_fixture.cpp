@@ -10,7 +10,9 @@
 #include <future>
 #include <memory>
 #include <mutex>
+#include <string>
 #include <unordered_map>
+#include <vector>
 
 #include <thread>
 
@@ -72,13 +74,34 @@ const runtime::ExportEntry* FindExport(runtime::ExportModule module, std::string
   return it == table.end() ? nullptr : &*it;
 }
 
+std::mutex g_failure_mutex;
+std::vector<std::string> g_failures;
+
+void RecordFailure(std::string failure) {
+  std::lock_guard lock(g_failure_mutex);
+  g_failures.push_back(std::move(failure));
+}
+
+void CheckNoFailures() {
+  std::vector<std::string> failures;
+  {
+    std::lock_guard lock(g_failure_mutex);
+    failures.swap(g_failures);
+  }
+  for (const std::string& failure : failures) {
+    FAIL_CHECK(failure);
+  }
+}
+
 }  // namespace
 
 u32 Caller::Call(runtime::ExportModule module, std::string_view name,
                  std::initializer_list<u64> args) {
   const auto* entry = FindExport(module, name);
-  REQUIRE(entry != nullptr);
-  REQUIRE(entry->fn != nullptr);
+  if (!entry || !entry->fn) {
+    RecordFailure("no export named " + std::string(name));
+    return 0xFFFFFFFF;
+  }
   PPCRegister* registers[] = {&ctx_.r3, &ctx_.r4, &ctx_.r5, &ctx_.r6,
                               &ctx_.r7, &ctx_.r8, &ctx_.r9, &ctx_.r10};
   const u64 saved_r1 = ctx_.r1.u64;
@@ -161,7 +184,10 @@ u32 Caller::Spawn(std::function<void(Caller&)> body, u32 creation_flags) {
   const u32 id = PutBody(std::move(body));
   const u32 status =
       Kernel("ExCreateThread", {handle_ptr, 0x10000, 0, 0, start_thunk, id, creation_flags});
-  REQUIRE(status == 0);
+  if (status != 0) {
+    RecordFailure("ExCreateThread returned " + std::to_string(status));
+    return 0;
+  }
   return Load32(handle_ptr);
 }
 
@@ -198,7 +224,9 @@ KernelFixture::KernelFixture(const std::function<void(const std::filesystem::pat
   static_cast<runtime::Dispatcher&>(runtime().dispatcher()).Start();
 }
 
-KernelFixture::~KernelFixture() = default;
+KernelFixture::~KernelFixture() {
+  CheckNoFailures();
+}
 
 void KernelFixture::RunOnGuestThread(const std::function<void(Caller&)>& body) {
   auto done = std::make_shared<std::promise<void>>();
@@ -215,8 +243,13 @@ void KernelFixture::RunOnGuestThread(const std::function<void(Caller&)>& body) {
     done->set_value();
   });
 
-  REQUIRE(finished.wait_for(std::chrono::seconds(20)) == std::future_status::ready);
-  main_caller.Kernel("NtClose", {handle});
+  const bool finished_in_time =
+      finished.wait_for(std::chrono::seconds(20)) == std::future_status::ready;
+  CHECK(finished_in_time);
+  CheckNoFailures();
+  if (finished_in_time) {
+    main_caller.Kernel("NtClose", {handle});
+  }
   runtime::ThreadState::Bind(previous);
 }
 

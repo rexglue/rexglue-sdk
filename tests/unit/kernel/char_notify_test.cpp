@@ -177,7 +177,10 @@ TEST_CASE("thread notify does not run for a thread stopped by title termination"
   fixture.RunOnGuestThread([](Caller& c) {
     ThreadNotification(c);
     const u32 event_ptr = c.Alloc(4);
-    REQUIRE(c.Kernel("NtCreateEvent", {event_ptr, 0, 0, 0}) == 0);
+    CHECKED_ELSE(c.Kernel("NtCreateEvent", {event_ptr, 0, 0, 0}) == 0) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
     const u32 event = c.Load32(event_ptr);
     c.Spawn([event](Caller& o) {
       g_spawned_id = rex::runtime::ThreadRecord::GetCurrentThread()->thread_id();
@@ -231,7 +234,10 @@ TEST_CASE("title termination during an exit notify routine lets the thread exit"
   g_runtime = &fixture.runtime();
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 event_ptr = c.Alloc(4);
-    REQUIRE(c.Kernel("NtCreateEvent", {event_ptr, 0, 0, 0}) == 0);
+    CHECKED_ELSE(c.Kernel("NtCreateEvent", {event_ptr, 0, 0, 0}) == 0) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
     g_exit_event = c.Load32(event_ptr);
     const u32 routine =
         c.runtime().function_dispatcher()->AllocateThunk(&WaitingExitNotifyRoutine, 0);

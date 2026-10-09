@@ -253,7 +253,10 @@ void FreeVirtual(Caller& c, u32 address) {
 u32 AvailablePages(Caller& c) {
   const u32 stats = c.Alloc(104);
   c.Store32(stats, 104);
-  REQUIRE(c.Kernel("MmQueryStatistics", {stats}) == 0);
+  CHECKED_ELSE(c.Kernel("MmQueryStatistics", {stats}) == 0) {
+    FAIL_CHECK("the check above failed");
+    return 0;
+  }
   CHECK(c.Load32(stats + 4) == 0x20000);
   CHECK(c.Load32(stats + 8) == 0x2000);
   return c.Load32(stats + 12);
@@ -269,7 +272,10 @@ TEST_CASE("NtAllocateVirtualMemory counts its commit and fails past the budget",
     const u32 before = memory.title_pages();
     u32 status = 0;
     const u32 address = CommitVirtual(c, 0x100000, &status);
-    REQUIRE(status == 0);
+    CHECKED_ELSE(status == 0) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
     CHECK(memory.title_pages() == before + 256);
     memory.SetBudget(memory.title_pages() / 256);
     CommitVirtual(c, 0x100000, &status);
@@ -287,7 +293,10 @@ TEST_CASE("MmAllocatePhysicalMemoryEx counts the parent pages", "[memory][budget
     const u32 before = memory.title_pages();
     const u32 address =
         c.Kernel("MmAllocatePhysicalMemoryEx", {0, 0x10000, 0x04, 0, 0xFFFFFFFF, 0});
-    REQUIRE(address != 0);
+    CHECKED_ELSE(address != 0) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
     CHECK(memory.title_pages() == before + 16);
     c.Kernel("MmFreePhysicalMemory", {0, address});
     CHECK(memory.title_pages() == before);
@@ -302,7 +311,10 @@ TEST_CASE("MmQueryStatistics available pages track the title pages", "[memory][b
     CHECK(first == memory.budget_pages() - memory.title_pages());
     u32 status = 0;
     const u32 address = CommitVirtual(c, 0x100000, &status);
-    REQUIRE(status == 0);
+    CHECKED_ELSE(status == 0) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
     CHECK(AvailablePages(c) == first - 256);
     FreeVirtual(c, address);
     CHECK(AvailablePages(c) == first);
@@ -318,7 +330,10 @@ TEST_CASE("MmQueryStatistics without a cap reports the free physical pages",
     const u32 first = AvailablePages(c);
     const u32 address =
         c.Kernel("MmAllocatePhysicalMemoryEx", {0, 0x10000, 0x04, 0, 0xFFFFFFFF, 0});
-    REQUIRE(address != 0);
+    CHECKED_ELSE(address != 0) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
     CHECK(AvailablePages(c) == first - 16);
     c.Kernel("MmFreePhysicalMemory", {0, address});
     CHECK(AvailablePages(c) == first);
@@ -382,7 +397,10 @@ u32 DecommitVirtual(Caller& c, u32 address, u32 size, u32* out_address, u32* out
 
 u32 PageState(BaseHeap* heap, u32 address) {
   HeapAllocationInfo info{};
-  REQUIRE(heap->QueryRegionInfo(address, &info));
+  CHECKED_ELSE(heap->QueryRegionInfo(address, &info)) {
+    FAIL_CHECK("the check above failed");
+    return 0;
+  }
   return info.state;
 }
 
@@ -394,10 +412,22 @@ TEST_CASE("A decommit of size 0 at a region base decommits only that region",
   fixture.RunOnGuestThread([](Caller& c) {
     Memory& memory = *c.runtime().memory();
     BaseHeap* heap = memory.LookupHeap(0x40000000);
-    REQUIRE(PageState(heap, 0x40000000) == 0);
-    REQUIRE(PageState(heap, 0x40100000) == 0);
-    REQUIRE(heap->AllocFixed(0x40000000, 0x20000, 0x10000, kTitle, kRW));
-    REQUIRE(heap->AllocFixed(0x40100000, 0x10000, 0x10000, kTitle, kRW));
+    CHECKED_ELSE(PageState(heap, 0x40000000) == 0) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
+    CHECKED_ELSE(PageState(heap, 0x40100000) == 0) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
+    CHECKED_ELSE(heap->AllocFixed(0x40000000, 0x20000, 0x10000, kTitle, kRW)) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
+    CHECKED_ELSE(heap->AllocFixed(0x40100000, 0x10000, 0x10000, kTitle, kRW)) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
     const u32 before = memory.title_pages();
 
     u32 address = 0;
@@ -410,8 +440,14 @@ TEST_CASE("A decommit of size 0 at a region base decommits only that region",
     CHECK(PageState(heap, 0x40100000) == kCommit);
     CHECK(memory.title_pages() == before - 32);
 
-    REQUIRE(heap->Release(0x40000000));
-    REQUIRE(heap->Release(0x40100000));
+    CHECKED_ELSE(heap->Release(0x40000000)) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
+    CHECKED_ELSE(heap->Release(0x40100000)) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
   });
 }
 
@@ -422,7 +458,10 @@ TEST_CASE("A decommit of size 0 inside a region fails and changes nothing",
     Memory& memory = *c.runtime().memory();
     BaseHeap* heap = VirtualHeap4K(memory);
     u32 region = 0;
-    REQUIRE(heap->Alloc(0x3000, 4096, kTitle, kRW, false, &region));
+    CHECKED_ELSE(heap->Alloc(0x3000, 4096, kTitle, kRW, false, &region)) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
     const u32 before = memory.title_pages();
 
     u32 address = 0;
@@ -433,7 +472,10 @@ TEST_CASE("A decommit of size 0 inside a region fails and changes nothing",
     CHECK(PageState(heap, region + 0x2000) == kCommit);
     CHECK(memory.title_pages() == before);
 
-    REQUIRE(heap->Release(region));
+    CHECKED_ELSE(heap->Release(region)) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
   });
 }
 
@@ -444,7 +486,10 @@ TEST_CASE("A decommit range that crosses a page boundary decommits both pages",
     Memory& memory = *c.runtime().memory();
     BaseHeap* heap = VirtualHeap4K(memory);
     u32 region = 0;
-    REQUIRE(heap->Alloc(0x3000, 4096, kTitle, kRW, false, &region));
+    CHECKED_ELSE(heap->Alloc(0x3000, 4096, kTitle, kRW, false, &region)) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
     const u32 before = memory.title_pages();
 
     u32 address = 0;
@@ -457,7 +502,10 @@ TEST_CASE("A decommit range that crosses a page boundary decommits both pages",
     CHECK(PageState(heap, region + 0x2000) == kCommit);
     CHECK(memory.title_pages() == before - 2);
 
-    REQUIRE(heap->Release(region));
+    CHECKED_ELSE(heap->Release(region)) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
   });
 }
 
@@ -503,7 +551,10 @@ TEST_CASE("A release of the free first page of a heap fails and changes nothing"
   fixture.RunOnGuestThread([](Caller& c) {
     Memory& memory = *c.runtime().memory();
     BaseHeap* heap = memory.LookupHeap(0x40000000);
-    REQUIRE(PageState(heap, 0x40000000) == 0);
+    CHECKED_ELSE(PageState(heap, 0x40000000) == 0) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
     const u32 before = memory.title_pages();
 
     const u32 base_ptr = c.Alloc(4);
@@ -521,7 +572,10 @@ TEST_CASE("A release with a nonzero size fails and changes nothing", "[memory][b
     Memory& memory = *c.runtime().memory();
     BaseHeap* heap = VirtualHeap4K(memory);
     u32 region = 0;
-    REQUIRE(heap->Alloc(0x3000, 4096, kTitle, kRW, false, &region));
+    CHECKED_ELSE(heap->Alloc(0x3000, 4096, kTitle, kRW, false, &region)) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
     const u32 before = memory.title_pages();
 
     const u32 base_ptr = c.Alloc(4);
@@ -532,6 +586,9 @@ TEST_CASE("A release with a nonzero size fails and changes nothing", "[memory][b
     CHECK(PageState(heap, region) == kCommit);
     CHECK(memory.title_pages() == before);
 
-    REQUIRE(heap->Release(region));
+    CHECKED_ELSE(heap->Release(region)) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
   });
 }

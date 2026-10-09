@@ -31,7 +31,10 @@ TEST_CASE("semaphores: create release wait and limit", "[char][semaphores]") {
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 handle_ptr = c.Alloc(4);
     const u32 previous = c.Alloc(4);
-    REQUIRE(c.Kernel("NtCreateSemaphore", {handle_ptr, 0, 1, 2}) == 0);
+    CHECKED_ELSE(c.Kernel("NtCreateSemaphore", {handle_ptr, 0, 1, 2}) == 0) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
     const u32 handle = c.Load32(handle_ptr);
     CHECK(c.Kernel("NtWaitForSingleObjectEx", {handle, 1, 0, Poll(c)}) == 0);
     CHECK(c.Kernel("NtWaitForSingleObjectEx", {handle, 1, 0, Poll(c)}) == kTimeout);
@@ -62,7 +65,10 @@ TEST_CASE("mutants: recursive ownership and release", "[char][mutants]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 handle_ptr = c.Alloc(4);
-    REQUIRE(c.Kernel("NtCreateMutant", {handle_ptr, 0, 1}) == 0);
+    CHECKED_ELSE(c.Kernel("NtCreateMutant", {handle_ptr, 0, 1}) == 0) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
     const u32 handle = c.Load32(handle_ptr);
     CHECK(c.Kernel("NtWaitForSingleObjectEx", {handle, 1, 0, Poll(c)}) == 0);
     CHECK(c.Kernel("NtReleaseMutant", {handle, 0}) == 0);
@@ -77,7 +83,10 @@ TEST_CASE("mutants: another thread cannot take an owned mutant", "[char][mutants
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 handle_ptr = c.Alloc(4);
-    REQUIRE(c.Kernel("NtCreateMutant", {handle_ptr, 0, 1}) == 0);
+    CHECKED_ELSE(c.Kernel("NtCreateMutant", {handle_ptr, 0, 1}) == 0) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
     const u32 handle = c.Load32(handle_ptr);
     auto other_result = std::make_shared<std::promise<u32>>();
     auto other_done = other_result->get_future();
@@ -95,7 +104,10 @@ TEST_CASE("timers: create set wait cancel", "[char][timers]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 handle_ptr = c.Alloc(4);
-    REQUIRE(c.Kernel("NtCreateTimer", {handle_ptr, 0, 0}) == 0);
+    CHECKED_ELSE(c.Kernel("NtCreateTimer", {handle_ptr, 0, 0}) == 0) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
     const u32 handle = c.Load32(handle_ptr);
     CHECK(c.Kernel("NtWaitForSingleObjectEx", {handle, 1, 0, Poll(c)}) == kTimeout);
     CHECK(c.Kernel("NtSetTimerEx", {handle, c.Quad(-100000), 0, 1, 0, 0, 0, 0}) == 0);
@@ -123,11 +135,20 @@ TEST_CASE("timers: completion routine runs as an APC on the setting thread",
         },
         0);
     const u32 handle_ptr = c.Alloc(4);
-    REQUIRE(c.Kernel("NtCreateTimer", {handle_ptr, 0, 0}) == 0);
+    CHECKED_ELSE(c.Kernel("NtCreateTimer", {handle_ptr, 0, 0}) == 0) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
     const u32 handle = c.Load32(handle_ptr);
-    REQUIRE(c.Kernel("NtSetTimerEx", {handle, c.Quad(-100000), routine, 1, 0, 0, 0, 0}) == 0);
+    CHECKED_ELSE(c.Kernel("NtSetTimerEx", {handle, c.Quad(-100000), routine, 1, 0, 0, 0, 0}) == 0) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
     const u32 event_ptr = c.Alloc(4);
-    REQUIRE(c.Kernel("NtCreateEvent", {event_ptr, 0, 0, 0}) == 0);
+    CHECKED_ELSE(c.Kernel("NtCreateEvent", {event_ptr, 0, 0, 0}) == 0) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
     CHECK(c.Kernel("NtWaitForSingleObjectEx", {c.Load32(event_ptr), 1, 1, c.Quad(-5000000)}) ==
           rex::X_STATUS_USER_APC);
     CHECK(g_routine_calls == 1);
