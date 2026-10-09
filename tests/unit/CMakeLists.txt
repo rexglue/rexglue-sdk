@@ -74,6 +74,7 @@ add_executable(unit_tests
     runtime/guest_path_test.cpp
     runtime/achievement_manager_test.cpp
     runtime/xcontent_test.cpp
+    runtime/xsemaphore_test.cpp
     runtime/xtypes_test.cpp
     runtime/function_dispatcher_test.cpp
     runtime/call_test.cpp
@@ -96,6 +97,7 @@ add_executable(unit_tests
     ui/title_app_test.cpp
     ui/ui_event_test.cpp
     codegen/codegen_writer_test.cpp
+    codegen/disasm_test.cpp
     codegen/midasm_hook_config_test.cpp
     codegen/output_partition_test.cpp
     codegen/output_stamp_test.cpp
@@ -121,6 +123,7 @@ target_include_directories(unit_tests PRIVATE
     ${PROJECT_SOURCE_DIR}/src
     ${PROJECT_SOURCE_DIR}/tests
     ${PROJECT_SOURCE_DIR}/thirdparty
+    ${PROJECT_SOURCE_DIR}/thirdparty/disasm
     ${CMAKE_CURRENT_SOURCE_DIR}
 )
 

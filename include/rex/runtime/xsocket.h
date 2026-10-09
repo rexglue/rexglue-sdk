@@ -193,7 +193,7 @@ REX_RUNTIME_API X_STATUS SocketIOControl(SocketObject& sock, u32 cmd, u8* arg_pt
  * @param name_len The size of the address.
  * @return X_STATUS_SUCCESS, or X_STATUS_UNSUCCESSFUL.
  */
-REX_RUNTIME_API X_STATUS SocketConnect(SocketObject& sock, N_XSOCKADDR* name, int name_len);
+REX_RUNTIME_API X_STATUS SocketConnect(SocketObject& sock, N_XSOCKADDR* name, u32 name_len);
 
 /**
  * Binds to an address.
@@ -203,7 +203,7 @@ REX_RUNTIME_API X_STATUS SocketConnect(SocketObject& sock, N_XSOCKADDR* name, in
  * @param name_len The size of the address.
  * @return X_STATUS_SUCCESS, or X_STATUS_UNSUCCESSFUL.
  */
-REX_RUNTIME_API X_STATUS SocketBind(SocketObject& sock, N_XSOCKADDR_IN* name, int name_len);
+REX_RUNTIME_API X_STATUS SocketBind(SocketObject& sock, N_XSOCKADDR_IN* name, u32 name_len);
 
 /**
  * Starts listening for connections.

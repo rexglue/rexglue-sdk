@@ -9,8 +9,10 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
+#include <algorithm>
 #include <bit>
 #include <cstring>
+#include <limits>
 
 #if REX_PLATFORM_MAC
 #include <sys/select.h>
@@ -47,6 +49,9 @@
 namespace rex {
 namespace kernel {
 namespace xam {
+
+constexpr u32 kWSAEFAULT = 0x271E;
+constexpr u32 kMaxSocketLength = static_cast<u32>(std::numeric_limits<i32>::max());
 using namespace rex::runtime;
 using namespace rex::runtime::xam;
 
@@ -695,11 +700,13 @@ u32 NetDll_accept_entry([[maybe_unused]] u32 caller, u32 socket_handle,
   }
 
   N_XSOCKADDR native_addr(addr_ptr);
-  int native_len = *addrlen_ptr;
+  int native_len = static_cast<int>(std::min<u32>(*addrlen_ptr, sizeof(N_XSOCKADDR)));
   X_HANDLE new_socket = SocketAccept(runtime::Current(), *socket, &native_addr, &native_len);
   if (new_socket != X_INVALID_HANDLE_VALUE) {
     addr_ptr->address_family = native_addr.address_family;
-    std::memcpy(addr_ptr->sa_data, native_addr.sa_data, *addrlen_ptr - 2);
+    std::memcpy(addr_ptr->sa_data, native_addr.sa_data,
+                static_cast<size_t>(
+                    std::clamp(native_len - 2, 0, static_cast<int>(sizeof(native_addr.sa_data)))));
     *addrlen_ptr = native_len;
 
     return new_socket;
@@ -861,6 +868,11 @@ u32 NetDll_recv_entry([[maybe_unused]] u32 caller, u32 socket_handle, mapped_voi
     return -1;
   }
 
+  if (buf_len > kMaxSocketLength) {
+    ThreadRecord::SetLastError(kWSAEFAULT);
+    return -1;
+  }
+
   return SocketRecv(*socket, buf_ptr, buf_len, flags);
 }
 
@@ -871,6 +883,11 @@ u32 NetDll_recvfrom_entry([[maybe_unused]] u32 caller, u32 socket_handle, mapped
   if (!socket) {
     // WSAENOTSOCK
     ThreadRecord::SetLastError(0x2736);
+    return -1;
+  }
+
+  if (buf_len > kMaxSocketLength) {
+    ThreadRecord::SetLastError(kWSAEFAULT);
     return -1;
   }
 
@@ -913,6 +930,11 @@ u32 NetDll_send_entry([[maybe_unused]] u32 caller, u32 socket_handle, mapped_voi
     return -1;
   }
 
+  if (buf_len > kMaxSocketLength) {
+    ThreadRecord::SetLastError(kWSAEFAULT);
+    return -1;
+  }
+
   return SocketSend(*socket, buf_ptr, buf_len, flags);
 }
 
@@ -922,6 +944,11 @@ u32 NetDll_sendto_entry([[maybe_unused]] u32 caller, u32 socket_handle, mapped_v
   if (!socket) {
     // WSAENOTSOCK
     ThreadRecord::SetLastError(0x2736);
+    return -1;
+  }
+
+  if (buf_len > kMaxSocketLength) {
+    ThreadRecord::SetLastError(kWSAEFAULT);
     return -1;
   }
 

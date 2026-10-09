@@ -1,5 +1,7 @@
 #include "disasm.h"
 
+#include <limits>
+
 #include <rex/types.h>
 
 namespace rex::codegen::ppc {
@@ -21,13 +23,13 @@ DisassemblerEngine::DisassemblerEngine(bfd_endian endian, const char* options) {
 }
 
 int DisassemblerEngine::Disassemble(const void* code, size_t size, u64 base, ppc_insn& out) {
-  if (size < 4) {
+  if (size < 4 || size > static_cast<size_t>(std::numeric_limits<int>::max())) {
     return 0;
   }
 
   info.buffer = static_cast<const bfd_byte*>(code);
   info.buffer_vma = base;
-  info.buffer_length = size;
+  info.buffer_length = static_cast<int>(size);
   return decode_insn_ppc(base, &info, &out);
 }
 
