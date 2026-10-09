@@ -35,8 +35,8 @@ u32 XexCheckExecutablePrivilege_entry(u32 privilege) {
   REXLOG_TRACE(kernel,
                "XexCheckExecutablePrivilege "
                "priv={}",
-               static_cast<uint32_t>(privilege));
-  uint32_t mask = 1 << privilege;
+               static_cast<u32>(privilege));
+  u32 mask = 1 << privilege;
 
   auto module = runtime::Current().object_table().Get<ModuleObject>(
       runtime::Current().module_registry().executable().value_or(0));
@@ -44,8 +44,8 @@ u32 XexCheckExecutablePrivilege_entry(u32 privilege) {
     return 0;
   }
 
-  uint32_t flags = 0;
-  UserModuleGetOptHeader<uint32_t>(*module, XEX_HEADER_SYSTEM_FLAGS, &flags);
+  u32 flags = 0;
+  UserModuleGetOptHeader<u32>(*module, XEX_HEADER_SYSTEM_FLAGS, &flags);
 
   return (flags & mask) > 0;
 }
@@ -77,8 +77,8 @@ u32 XexGetModuleSection_entry(mapped_void hmodule, mapped_string name, mapped_u3
   auto module = runtime::Current().object_table().Get<ModuleObject>(
       ModuleFromHModule(runtime::Current(), hmodule));
   if (module) {
-    uint32_t section_data = 0;
-    uint32_t section_size = 0;
+    u32 section_data = 0;
+    u32 section_size = 0;
     result = ModuleGetSection(*module, name.value(), &section_data, &section_size);
     if (XSUCCEEDED(result)) {
       *data_ptr = section_data;
@@ -97,7 +97,7 @@ u32 XexLoadImage_entry(mapped_string module_name, [[maybe_unused]] u32 module_fl
 
   auto& runtime = runtime::Current();
   auto& modules = runtime.module_registry();
-  uint32_t hmodule = 0;
+  u32 hmodule = 0;
   {
     std::lock_guard lock(modules.load_count_mutex());
     auto module = runtime.object_table().Get<ModuleObject>(
@@ -155,10 +155,10 @@ u32 XexUnloadImage_entry(mapped_void hmodule) {
 u32 XexGetProcedureAddress_entry(mapped_void hmodule, u32 ordinal, mapped_u32 out_function_ptr) {
   REX_ASSERT(ordinal != 0);
 
-  uint32_t caller_address = 0;
+  u32 caller_address = 0;
   auto* thread = ThreadRecord::GetCurrentThread();
   if (thread && thread->thread_state() && thread->thread_state()->context()) {
-    caller_address = static_cast<uint32_t>(thread->thread_state()->context()->lr);
+    caller_address = static_cast<u32>(thread->thread_state()->context()->lr);
   }
 
   bool is_string_name = (ordinal & 0xFFFF0000) != 0;
@@ -175,7 +175,7 @@ u32 XexGetProcedureAddress_entry(mapped_void hmodule, u32 ordinal, mapped_u32 ou
   }
   auto module = runtime::Current().object_table().Get<ModuleObject>(module_handle);
   if (module) {
-    uint32_t ptr;
+    u32 ptr;
     if (is_string_name) {
       ptr = ModuleGetProcAddressByName(*module, string_name);
     } else {

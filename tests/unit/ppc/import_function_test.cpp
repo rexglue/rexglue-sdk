@@ -18,7 +18,7 @@
 
 using namespace rex::ppc;
 
-alignas(64) static uint8_t g_test_mem[0x10000] = {};
+alignas(64) static u8 g_test_mem[0x10000] = {};
 
 TEST_CASE("SetIntegerArgumentValue writes stack args for index > 7", "[ppc][arg_translator]") {
   PPCContext ctx{};
@@ -26,7 +26,7 @@ TEST_CASE("SetIntegerArgumentValue writes stack args for index > 7", "[ppc][arg_
 
   ArgTranslator::SetIntegerArgumentValue(ctx, g_test_mem, 8, 0xDEADBEEF);
 
-  uint64_t readback = ArgTranslator::GetIntegerArgumentValue(ctx, g_test_mem, 8);
+  u64 readback = ArgTranslator::GetIntegerArgumentValue(ctx, g_test_mem, 8);
   CHECK(readback == 0xDEADBEEF);
 }
 

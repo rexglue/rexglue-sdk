@@ -41,7 +41,7 @@ VkShaderModule VulkanShader::VulkanTranslation::GetOrCreateShaderModule() {
   shader_module_create_info.pNext = nullptr;
   shader_module_create_info.flags = 0;
   shader_module_create_info.codeSize = translated_binary().size();
-  shader_module_create_info.pCode = reinterpret_cast<const uint32_t*>(translated_binary().data());
+  shader_module_create_info.pCode = reinterpret_cast<const u32*>(translated_binary().data());
   if (vulkan_device->functions().vkCreateShaderModule(vulkan_device->device(),
                                                       &shader_module_create_info, nullptr,
                                                       &shader_module_) != VK_SUCCESS) {
@@ -56,8 +56,8 @@ VkShaderModule VulkanShader::VulkanTranslation::GetOrCreateShaderModule() {
 }
 
 VulkanShader::VulkanShader(const gpu::vulkan::VulkanDevice* const vulkan_device,
-                           const xenos::ShaderType shader_type, const uint64_t ucode_data_hash,
-                           const uint32_t* const ucode_dwords, const size_t ucode_dword_count,
+                           const xenos::ShaderType shader_type, const u64 ucode_data_hash,
+                           const u32* const ucode_dwords, const size_t ucode_dword_count,
                            const std::endian ucode_source_endian)
     : SpirvShader(shader_type, ucode_data_hash, ucode_dwords, ucode_dword_count,
                   ucode_source_endian),
@@ -65,8 +65,7 @@ VulkanShader::VulkanShader(const gpu::vulkan::VulkanDevice* const vulkan_device,
   REX_ASSERT(vulkan_device != nullptr);
 }
 
-std::unique_ptr<Shader::Translation> VulkanShader::CreateTranslationInstance(
-    uint64_t modification) {
+std::unique_ptr<Shader::Translation> VulkanShader::CreateTranslationInstance(u64 modification) {
   return std::make_unique<VulkanTranslation>(*this, modification);
 }
 

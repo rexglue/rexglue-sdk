@@ -47,9 +47,9 @@ thread_local std::unique_ptr<rex::platform::Thread> t_exiting_thread;
 
 }  // namespace
 
-ThreadRecord::ThreadRecord(Runtime& runtime, uint32_t stack_size, uint32_t xapi_thread_startup,
-                           uint32_t start_address, uint32_t start_context, uint32_t creation_flags,
-                           bool guest_thread, bool main_thread, uint32_t guest_process)
+ThreadRecord::ThreadRecord(Runtime& runtime, u32 stack_size, u32 xapi_thread_startup,
+                           u32 start_address, u32 start_context, u32 creation_flags,
+                           bool guest_thread, bool main_thread, u32 guest_process)
     : guest_thread_(guest_thread), main_thread_(main_thread), runtime_(&runtime) {
   creation_params_.stack_size = stack_size;
   creation_params_.xapi_thread_startup = xapi_thread_startup;
@@ -61,7 +61,7 @@ ThreadRecord::ThreadRecord(Runtime& runtime, uint32_t stack_size, uint32_t xapi_
   creation_params_.guest_process = guest_process;
 }
 
-ThreadRecord::ThreadRecord(Runtime& runtime, uint32_t stack_size, uint32_t creation_flags,
+ThreadRecord::ThreadRecord(Runtime& runtime, u32 stack_size, u32 creation_flags,
                            std::move_only_function<int()> host_fn)
     : ThreadRecord(runtime, stack_size, 0, 0, 0, creation_flags, false) {
   host_fn_ = std::move(host_fn);
@@ -189,31 +189,31 @@ void ThreadRecord::RequestStop(i32 exit_code) {
   }
 }
 
-uint32_t ThreadRecord::GetCurrentThreadHandle() {
+u32 ThreadRecord::GetCurrentThreadHandle() {
   ThreadRecord* thread = ThreadRecord::GetCurrentThread();
   return thread->handle();
 }
 
-uint32_t ThreadRecord::GetCurrentThreadId() {
+u32 ThreadRecord::GetCurrentThreadId() {
   ThreadRecord* thread = ThreadRecord::GetCurrentThread();
   return thread->guest_object<X_KTHREAD>()->thread_id;
 }
 
-uint32_t ThreadRecord::GetLastError() {
+u32 ThreadRecord::GetLastError() {
   ThreadRecord* thread = ThreadRecord::GetCurrentThread();
   return thread->last_error();
 }
 
-void ThreadRecord::SetLastError(uint32_t error_code) {
+void ThreadRecord::SetLastError(u32 error_code) {
   ThreadRecord* thread = ThreadRecord::GetCurrentThread();
   thread->set_last_error(error_code);
 }
 
-uint32_t ThreadRecord::last_error() {
+u32 ThreadRecord::last_error() {
   return guest_object<X_KTHREAD>()->last_error;
 }
 
-void ThreadRecord::set_last_error(uint32_t error_code) {
+void ThreadRecord::set_last_error(u32 error_code) {
   guest_object<X_KTHREAD>()->last_error = error_code;
 }
 
@@ -234,7 +234,7 @@ void ThreadRecord::set_name(const std::string_view name) {
 
 void ThreadRecord::InitializeGuestObject() {
   auto guest_thread = guest_object<X_KTHREAD>();
-  uint32_t guest_ptr = guest_object();
+  u32 guest_ptr = guest_object();
 
   // Dispatch header type 6 is a thread object.
   guest_thread->header.type = 6;
@@ -259,11 +259,11 @@ void ThreadRecord::InitializeGuestObject() {
   guest_thread->apc_lists[0].Initialize(memory());
   guest_thread->apc_lists[1].Initialize(memory());
 
-  uint32_t process_ptr = ProcessAddress();
+  u32 process_ptr = ProcessAddress();
   guest_thread->process = process_ptr;
   guest_thread->may_queue_apcs = 1;
 
-  uint32_t kpcrb = pcr_address_ + offsetof(X_KPCR, prcb_data);
+  u32 kpcrb = pcr_address_ + offsetof(X_KPCR, prcb_data);
   guest_thread->a_prcb_ptr = kpcrb;
   guest_thread->another_prcb_ptr = kpcrb;
 
@@ -405,7 +405,7 @@ X_STATUS ThreadRecord::Create() {
   pcr->pcr_ptr = pcr_address_;
   pcr->prcb_data.current_thread = guest_object();
   pcr->prcb = pcr_address_ + offsetof(X_KPCR, prcb_data);
-  pcr->host_stash = reinterpret_cast<uint64_t>(thread_state_->context());
+  pcr->host_stash = reinterpret_cast<u64>(thread_state_->context());
   pcr->current_irql = 0;
 
   pcr->stack_base_ptr = stack_base_;
@@ -569,8 +569,8 @@ int ThreadRecord::Execute() {
   DeliverAPCs();
   CallThreadNotifyRoutines(true);
 
-  uint32_t address;
-  std::vector<uint64_t> args;
+  u32 address;
+  std::vector<u64> args;
   bool want_exit_code;
   int exit_code = 0;
 
@@ -600,7 +600,7 @@ int ThreadRecord::Execute() {
   }
 
   auto* ctx = thread_state_->context();
-  uint8_t* base = memory->virtual_membase();
+  u8* base = memory->virtual_membase();
 
   if (!args.empty())
     ctx->r3.u64 = args[0];
@@ -642,9 +642,8 @@ void ThreadRecord::LeaveCriticalRegion() {
   }
 }
 
-void ThreadRecord::EnqueueAPC(uint32_t normal_routine, uint32_t normal_context, uint32_t arg1,
-                              uint32_t arg2) {
-  uint32_t apc_ptr = memory()->SystemHeapAlloc(XAPC::kSize);
+void ThreadRecord::EnqueueAPC(u32 normal_routine, u32 normal_context, u32 arg1, u32 arg2) {
+  u32 apc_ptr = memory()->SystemHeapAlloc(XAPC::kSize);
   if (!apc_ptr) {
     REXLOG_WARN(system, "EnqueueAPC: allocation failed (thid={}, normal={:08X})", thread_id_,
                 normal_routine);
@@ -698,7 +697,7 @@ void ThreadRecord::DeliverAPCs() {
   while (!user_apc_queue.empty(mem) && kthread->apc_disable_count == 0) {
     REX_PERF_INC(kAPCQueueDepth);
     XAPC* apc = user_apc_queue.HeadObject(mem);
-    uint32_t apc_ptr = mem->HostToGuestVirtual(apc);
+    u32 apc_ptr = mem->HostToGuestVirtual(apc);
 
     util::XeRemoveEntryList(&apc->list_entry, mem);
     apc->enqueued = 0;
@@ -713,26 +712,26 @@ void ThreadRecord::DeliverAPCs() {
 
     if (apc->kernel_routine != XAPC::kDummyKernelRoutine) {
       if (dispatcher->GetFunction(apc->kernel_routine)) {
-        uint64_t kernel_args[] = {apc_ptr, scratch_address_ + 0, scratch_address_ + 4,
-                                  scratch_address_ + 8, scratch_address_ + 12};
+        u64 kernel_args[] = {apc_ptr, scratch_address_ + 0, scratch_address_ + 4,
+                             scratch_address_ + 8, scratch_address_ + 12};
         dispatcher->ExecuteTrap(thread_state_.get(), apc->kernel_routine, kernel_args,
                                 rex::countof(kernel_args));
       } else {
         REXLOG_ERROR(system, "DeliverAPCs: kernel_routine {:08X} not found",
-                     static_cast<uint32_t>(apc->kernel_routine));
+                     static_cast<u32>(apc->kernel_routine));
       }
     } else {
       mem->SystemHeapFree(apc_ptr);
     }
 
-    uint32_t normal_routine = args->normal_routine;
-    uint32_t normal_context = args->normal_context;
-    uint32_t arg1 = args->arg1;
-    uint32_t arg2 = args->arg2;
+    u32 normal_routine = args->normal_routine;
+    u32 normal_context = args->normal_context;
+    u32 arg1 = args->arg1;
+    u32 arg2 = args->arg2;
 
     if (normal_routine) {
       if (dispatcher->GetFunction(normal_routine)) {
-        uint64_t normal_args[] = {normal_context, arg1, arg2};
+        u64 normal_args[] = {normal_context, arg1, arg2};
         dispatcher->ExecuteTrap(thread_state_.get(), normal_routine, normal_args,
                                 rex::countof(normal_args));
       } else {
@@ -761,7 +760,7 @@ void ThreadRecord::RundownAPCs() {
 
     while (!apc_queue.empty(mem)) {
       XAPC* apc = apc_queue.HeadObject(mem);
-      uint32_t apc_ptr = mem->HostToGuestVirtual(apc);
+      u32 apc_ptr = mem->HostToGuestVirtual(apc);
       bool needs_freeing = apc->kernel_routine == XAPC::kDummyKernelRoutine;
 
       util::XeRemoveEntryList(&apc->list_entry, mem);
@@ -773,12 +772,12 @@ void ThreadRecord::RundownAPCs() {
       } else if (apc->rundown_routine) {
         auto* dispatcher = runtime_->function_dispatcher();
         if (dispatcher->GetFunction(apc->rundown_routine)) {
-          uint64_t rundown_args[] = {apc_ptr};
+          u64 rundown_args[] = {apc_ptr};
           dispatcher->Execute(thread_state_.get(), apc->rundown_routine, rundown_args,
                               rex::countof(rundown_args));
         } else {
           REXLOG_WARN(system, "RundownAPCs: rundown_routine {:08X} not found",
-                      static_cast<uint32_t>(apc->rundown_routine));
+                      static_cast<u32>(apc->rundown_routine));
         }
       }
 
@@ -802,17 +801,17 @@ void ThreadRecord::CallThreadNotifyRoutines(bool create) {
   }
 }
 
-int32_t ThreadRecord::QueryPriority() {
+i32 ThreadRecord::QueryPriority() {
   return thread_->priority();
 }
 
-void ThreadRecord::SetPriority(int32_t increment) {
+void ThreadRecord::SetPriority(i32 increment) {
   priority_ = increment;
 
   auto kthread = guest_object<X_KTHREAD>();
-  kthread->priority = static_cast<uint8_t>(std::clamp(increment, 0, 31));
+  kthread->priority = static_cast<u8>(std::clamp(increment, 0, 31));
 
-  int32_t target_priority = 0;
+  i32 target_priority = 0;
   if (increment > 0x22) {
     target_priority = rex::platform::ThreadPriority::kHighest;
   } else if (increment > 0x11) {
@@ -829,14 +828,14 @@ void ThreadRecord::SetPriority(int32_t increment) {
   }
 }
 
-void ThreadRecord::SetAffinity(uint32_t affinity) {
+void ThreadRecord::SetAffinity(u32 affinity) {
   const u8 mask = static_cast<u8>(affinity);
   if (mask) {
     SetActiveCPU(ProcessorFromMask(mask));
   }
 }
 
-uint8_t ThreadRecord::active_cpu() const {
+u8 ThreadRecord::active_cpu() const {
   // Read the guest KTHREAD, SetActiveCPU keeps it in sync and pcr_address_ may be unset.
   if (is_guest_thread()) {
     auto* kthread = memory()->TranslateVirtual<const X_KTHREAD*>(guest_object());
@@ -849,7 +848,7 @@ uint8_t ThreadRecord::active_cpu() const {
   return pcr.prcb_data.current_cpu;
 }
 
-void ThreadRecord::SetActiveCPU(uint8_t cpu_index) {
+void ThreadRecord::SetActiveCPU(u8 cpu_index) {
   // Called during thread creation, so it must not skip when the CPU is unchanged.
 
   REX_ASSERT(cpu_index < 6);
@@ -866,14 +865,14 @@ void ThreadRecord::SetActiveCPU(uint8_t cpu_index) {
 
   if (rex::platform::logical_processor_count() >= 6) {
     if (!REXCVAR_GET(::rex::runtime::cvars::ignore_thread_affinities)) {
-      thread_->set_affinity_mask(static_cast<uint64_t>(1) << cpu_index);
+      thread_->set_affinity_mask(static_cast<u64>(1) << cpu_index);
     }
   } else {
     REXLOG_WARN(system, "Too few processor cores - scheduling will be wonky");
   }
 }
 
-bool ThreadRecord::GetTLSValue(uint32_t slot, uint32_t* value_out) const {
+bool ThreadRecord::GetTLSValue(u32 slot, u32* value_out) const {
   if (slot >= tls_slot_count_.load(std::memory_order_acquire)) {
     return false;
   }
@@ -884,7 +883,7 @@ bool ThreadRecord::GetTLSValue(uint32_t slot, uint32_t* value_out) const {
 }
 
 // NOLINTNEXTLINE(readability-make-member-function-const): writes guest memory
-bool ThreadRecord::SetTLSValue(uint32_t slot, uint32_t value) {
+bool ThreadRecord::SetTLSValue(u32 slot, u32 value) {
   if (slot >= tls_slot_count_.load(std::memory_order_acquire)) {
     return false;
   }
@@ -894,12 +893,12 @@ bool ThreadRecord::SetTLSValue(uint32_t slot, uint32_t value) {
   return true;
 }
 
-uint32_t ThreadRecord::suspend_count() {
+u32 ThreadRecord::suspend_count() {
   std::lock_guard lock(suspend_mutex_);
   return guest_object<X_KTHREAD>()->suspend_count;
 }
 
-X_STATUS ThreadRecord::Resume(uint32_t* out_suspend_count) {
+X_STATUS ThreadRecord::Resume(u32* out_suspend_count) {
   auto guest_thread = guest_object<X_KTHREAD>();
   std::lock_guard lock(suspend_mutex_);
   const u8 previous = guest_thread->suspend_count;
@@ -920,7 +919,7 @@ X_STATUS ThreadRecord::Resume(uint32_t* out_suspend_count) {
   return thread_->Resume() ? X_STATUS_SUCCESS : X_STATUS_UNSUCCESSFUL;
 }
 
-X_STATUS ThreadRecord::Suspend(uint32_t* out_suspend_count) {
+X_STATUS ThreadRecord::Suspend(u32* out_suspend_count) {
   if (IsInThread(this)) {
     const u32 previous = SelfSuspend();
     if (out_suspend_count) {
@@ -947,10 +946,10 @@ X_STATUS ThreadRecord::Suspend(uint32_t* out_suspend_count) {
   return X_STATUS_SUCCESS;
 }
 
-uint32_t ThreadRecord::SelfSuspend() {
+u32 ThreadRecord::SelfSuspend() {
   CheckStop();
   auto guest_thread = guest_object<X_KTHREAD>();
-  uint32_t previous = 0;
+  u32 previous = 0;
   {
     std::unique_lock lock(suspend_mutex_);
     previous = guest_thread->suspend_count;

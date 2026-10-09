@@ -43,10 +43,10 @@ REX_STATIC_ASSERT_SIZE(RTTICompleteObjectLocator, 20);
 
 /** Result of vtable scanning. */
 struct VTableInfo {
-  uint32_t vtableAddress;      /**< Address of vtable[0] */
-  uint32_t colAddress;         /**< RTTI Complete Object Locator address */
-  std::string className;       /**< Demangled class name, optional */
-  std::vector<uint32_t> slots; /**< Function addresses in the vtable */
+  u32 vtableAddress;      /**< Address of vtable[0] */
+  u32 colAddress;         /**< RTTI Complete Object Locator address */
+  std::string className;  /**< Demangled class name, optional */
+  std::vector<u32> slots; /**< Function addresses in the vtable */
 };
 
 /** RTTI based vtable discovery. */
@@ -69,7 +69,7 @@ class VTableScanner {
  private:
   const BinaryView& binary_;
 
-  std::vector<uint32_t> findCompleteObjectLocators();
+  std::vector<u32> findCompleteObjectLocators();
 
   /**
    * Finds the vtable that references a COL, which sits at vtable[-1].
@@ -77,7 +77,7 @@ class VTableScanner {
    * @param colAddr COL address
    * @return Vtable address, or nullopt when none references it
    */
-  std::optional<uint32_t> findVTableForCOL(uint32_t colAddr);
+  std::optional<u32> findVTableForCOL(u32 colAddr);
 
   /**
    * Reads function slots from a vtable until a non executable address.
@@ -85,15 +85,15 @@ class VTableScanner {
    * @param vtableStart Address of vtable[0]
    * @return Slot function addresses
    */
-  std::vector<uint32_t> readVTableSlots(uint32_t vtableStart);
+  std::vector<u32> readVTableSlots(u32 vtableStart);
 
-  std::string extractClassName(uint32_t colAddr);
+  std::string extractClassName(u32 colAddr);
 
-  bool isExecutableAddress(uint32_t addr) const;
+  bool isExecutableAddress(u32 addr) const;
 
-  std::optional<uint32_t> readDword(uint32_t addr) const;
+  std::optional<u32> readDword(u32 addr) const;
 
-  std::string readString(uint32_t addr, size_t maxLen = 256) const;
+  std::string readString(u32 addr, size_t maxLen = 256) const;
 };
 
 }  // namespace rex::codegen

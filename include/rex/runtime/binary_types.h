@@ -14,6 +14,8 @@
 #include <span>
 #include <string>
 
+#include <rex/types.h>
+
 namespace rex::runtime {
 
 /** Category of a `BinarySymbol`. */
@@ -27,19 +29,19 @@ enum class BinarySymbolType {
 /** A named address in a module image. */
 struct BinarySymbol {
   std::string name;                                  /**< Symbol name. */
-  uint32_t address = 0;                              /**< Guest address. */
-  uint32_t size = 0;                                 /**< Size in bytes. */
+  u32 address = 0;                                   /**< Guest address. */
+  u32 size = 0;                                      /**< Size in bytes. */
   BinarySymbolType type = BinarySymbolType::Unknown; /**< Category of the symbol. */
 };
 
 /** A section of a module image. */
 struct BinarySection {
-  std::string name;                   /**< Section name. */
-  uint32_t virtual_address = 0;       /**< Guest address of the first byte. */
-  uint32_t virtual_size = 0;          /**< Size in bytes. */
-  const uint8_t* host_data = nullptr; /**< Host address of the first byte. */
-  bool executable = false;            /**< True when the section holds code. */
-  bool writable = false;              /**< True when the section is writable. */
+  std::string name;              /**< Section name. */
+  u32 virtual_address = 0;       /**< Guest address of the first byte. */
+  u32 virtual_size = 0;          /**< Size in bytes. */
+  const u8* host_data = nullptr; /**< Host address of the first byte. */
+  bool executable = false;       /**< True when the section holds code. */
+  bool writable = false;         /**< True when the section is writable. */
 };
 
 }  // namespace rex::runtime

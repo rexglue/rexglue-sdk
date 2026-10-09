@@ -60,7 +60,7 @@ enum class InstructionStorageTarget {
  * @param target Storage target.
  * @return Number of used components.
  */
-constexpr uint32_t GetInstructionStorageTargetUsedComponentCount(InstructionStorageTarget target) {
+constexpr u32 GetInstructionStorageTargetUsedComponentCount(InstructionStorageTarget target) {
   switch (target) {
     case InstructionStorageTarget::kNone:
       return 0;
@@ -90,27 +90,27 @@ enum class SwizzleSource : u32 {
   k1,
 };
 
-constexpr SwizzleSource GetSwizzleFromComponentIndex(uint32_t i) {
+constexpr SwizzleSource GetSwizzleFromComponentIndex(u32 i) {
   return static_cast<SwizzleSource>(i);
 }
-constexpr SwizzleSource GetSwizzledAluSourceComponent(uint32_t swizzle, uint32_t component_index) {
+constexpr SwizzleSource GetSwizzledAluSourceComponent(u32 swizzle, u32 component_index) {
   return GetSwizzleFromComponentIndex(
       xenos::ucode::AluInstruction::GetSwizzledComponentIndex(swizzle, component_index));
 }
 inline char GetCharForSwizzle(SwizzleSource swizzle_source) {
   const static char kChars[] = {'x', 'y', 'z', 'w', '0', '1'};
-  return kChars[static_cast<uint32_t>(swizzle_source)];
+  return kChars[static_cast<u32>(swizzle_source)];
 }
 
 struct InstructionResult {
   InstructionStorageTarget storage_target = InstructionStorageTarget::kNone;
-  uint32_t storage_index = 0;
+  u32 storage_index = 0;
   InstructionStorageAddressingMode storage_addressing_mode =
       InstructionStorageAddressingMode::kAbsolute;
   /** Clamps the result to [0-1]. */
   bool is_clamped = false;
   /** Taken from the original microcode, so components missing in the target are included. */
-  uint32_t original_write_mask = 0b0000;
+  u32 original_write_mask = 0b0000;
   SwizzleSource components[4] = {SwizzleSource::kX, SwizzleSource::kY, SwizzleSource::kZ,
                                  SwizzleSource::kW};
   /**
@@ -118,8 +118,8 @@ struct InstructionResult {
    *
    * @return Write mask limited to the target components.
    */
-  uint32_t GetUsedWriteMask() const {
-    uint32_t target_component_count = GetInstructionStorageTargetUsedComponentCount(storage_target);
+  u32 GetUsedWriteMask() const {
+    u32 target_component_count = GetInstructionStorageTargetUsedComponentCount(storage_target);
     return original_write_mask & ((1 << target_component_count) - 1);
   }
   /**
@@ -138,14 +138,14 @@ struct InstructionResult {
    *
    * @return Mask of the used result components.
    */
-  uint32_t GetUsedResultComponents() const {
-    uint32_t used_write_mask = GetUsedWriteMask();
-    uint32_t used_components = 0b0000;
-    for (uint32_t i = 0; i < 4; ++i) {
+  u32 GetUsedResultComponents() const {
+    u32 used_write_mask = GetUsedWriteMask();
+    u32 used_components = 0b0000;
+    for (u32 i = 0; i < 4; ++i) {
       if ((used_write_mask & (1 << i)) && components[i] >= SwizzleSource::kX &&
           components[i] <= SwizzleSource::kW) {
         used_components |=
-            1 << (static_cast<uint32_t>(components[i]) - std::to_underlying(SwizzleSource::kX));
+            1 << (static_cast<u32>(components[i]) - std::to_underlying(SwizzleSource::kX));
       }
     }
     return used_components;
@@ -156,11 +156,11 @@ struct InstructionResult {
    * @param constant_values_out Receives the values of the constant components.
    * @return Mask of constant components.
    */
-  uint32_t GetUsedConstantComponents(uint32_t& constant_values_out) const {
-    uint32_t constant_components = 0;
-    uint32_t constant_values = 0;
-    uint32_t used_write_mask = GetUsedWriteMask();
-    for (uint32_t i = 0; i < 4; ++i) {
+  u32 GetUsedConstantComponents(u32& constant_values_out) const {
+    u32 constant_components = 0;
+    u32 constant_values = 0;
+    u32 used_write_mask = GetUsedWriteMask();
+    for (u32 i = 0; i < 4; ++i) {
       if (!(used_write_mask & (1 << i))) {
         continue;
       }
@@ -191,13 +191,13 @@ enum class InstructionStorageSource {
 
 struct InstructionOperand {
   InstructionStorageSource storage_source = InstructionStorageSource::kRegister;
-  uint32_t storage_index = 0;
+  u32 storage_index = 0;
   InstructionStorageAddressingMode storage_addressing_mode =
       InstructionStorageAddressingMode::kAbsolute;
   bool is_negated = false;
   /** Applied before any negation. */
   bool is_absolute_value = false;
-  uint32_t component_count = 4;
+  u32 component_count = 4;
   SwizzleSource components[4] = {SwizzleSource::kX, SwizzleSource::kY, SwizzleSource::kZ,
                                  SwizzleSource::kW};
   /**
@@ -207,7 +207,7 @@ struct InstructionOperand {
    * @param index Component index.
    * @return Swizzle source of the component.
    */
-  SwizzleSource GetComponent(uint32_t index) const {
+  SwizzleSource GetComponent(u32 index) const {
     return components[std::min(index, component_count - 1)];
   }
   /**
@@ -235,28 +235,28 @@ struct InstructionOperand {
    * @param other Operand to compare with.
    * @return Mask of the components that are identical.
    */
-  uint32_t GetIdenticalComponents(const InstructionOperand& other) const {
+  u32 GetIdenticalComponents(const InstructionOperand& other) const {
     if (storage_source != other.storage_source || storage_index != other.storage_index ||
         storage_addressing_mode != other.storage_addressing_mode ||
         is_negated != other.is_negated || is_absolute_value != other.is_absolute_value) {
       return 0;
     }
-    uint32_t identical_components = 0;
-    for (uint32_t i = 0; i < 4; ++i) {
-      identical_components |= static_cast<uint32_t>(GetComponent(i) == other.GetComponent(i)) << i;
+    u32 identical_components = 0;
+    for (u32 i = 0; i < 4; ++i) {
+      identical_components |= static_cast<u32>(GetComponent(i) == other.GetComponent(i)) << i;
     }
     return identical_components;
   }
 };
 
 struct ParsedExecInstruction {
-  uint32_t dword_index = 0;
+  u32 dword_index = 0;
 
   xenos::ucode::ControlFlowOpcode opcode;
   const char* opcode_name = nullptr;
 
-  uint32_t instruction_address = 0;
-  uint32_t instruction_count = 0;
+  u32 instruction_address = 0;
+  u32 instruction_count = 0;
 
   enum class Type {
     kUnconditional,
@@ -264,7 +264,7 @@ struct ParsedExecInstruction {
     kPredicated,
   };
   Type type = Type::kUnconditional;
-  uint32_t bool_constant_index = 0;
+  u32 bool_constant_index = 0;
   bool condition = false;
 
   bool is_end = false;
@@ -273,30 +273,30 @@ struct ParsedExecInstruction {
   bool is_yield = false;
 
   /** 2 bits per instruction indicating ALU or fetch. */
-  uint32_t sequence = 0;
+  u32 sequence = 0;
 
   void Disassemble(StringBuffer* out) const;
 };
 
 struct ParsedLoopStartInstruction {
-  uint32_t dword_index = 0;
+  u32 dword_index = 0;
 
   /**
    * Integer constant register with the loop parameters.
    *
    * Bits 0 to 7 are the uint8 loop count, 8 to 15 the uint8 start aL and 16 to 23 the int8 aL step.
    */
-  uint32_t loop_constant_index = 0;
+  u32 loop_constant_index = 0;
   /** Reuses the current aL instead of resetting it to the loop start. */
   bool is_repeat = false;
 
-  uint32_t loop_skip_address = 0;
+  u32 loop_skip_address = 0;
 
   void Disassemble(StringBuffer* out) const;
 };
 
 struct ParsedLoopEndInstruction {
-  uint32_t dword_index = 0;
+  u32 dword_index = 0;
 
   /** Breaks from the loop if the predicate matches the expected value. */
   bool is_predicated_break = false;
@@ -307,17 +307,17 @@ struct ParsedLoopEndInstruction {
    *
    * Bits 0 to 7 are the uint8 loop count, 8 to 15 the uint8 start aL and 16 to 23 the int8 aL step.
    */
-  uint32_t loop_constant_index = 0;
+  u32 loop_constant_index = 0;
 
-  uint32_t loop_body_address = 0;
+  u32 loop_body_address = 0;
 
   void Disassemble(StringBuffer* out) const;
 };
 
 struct ParsedCallInstruction {
-  uint32_t dword_index = 0;
+  u32 dword_index = 0;
 
-  uint32_t target_address = 0;
+  u32 target_address = 0;
 
   enum class Type {
     kUnconditional,
@@ -325,22 +325,22 @@ struct ParsedCallInstruction {
     kPredicated,
   };
   Type type = Type::kUnconditional;
-  uint32_t bool_constant_index = 0;
+  u32 bool_constant_index = 0;
   bool condition = false;
 
   void Disassemble(StringBuffer* out) const;
 };
 
 struct ParsedReturnInstruction {
-  uint32_t dword_index = 0;
+  u32 dword_index = 0;
 
   void Disassemble(StringBuffer* out) const;
 };
 
 struct ParsedJumpInstruction {
-  uint32_t dword_index = 0;
+  u32 dword_index = 0;
 
-  uint32_t target_address = 0;
+  u32 target_address = 0;
 
   enum class Type {
     kUnconditional,
@@ -348,14 +348,14 @@ struct ParsedJumpInstruction {
     kPredicated,
   };
   Type type = Type::kUnconditional;
-  uint32_t bool_constant_index = 0;
+  u32 bool_constant_index = 0;
   bool condition = false;
 
   void Disassemble(StringBuffer* out) const;
 };
 
 struct ParsedAllocInstruction {
-  uint32_t dword_index = 0;
+  u32 dword_index = 0;
 
   xenos::ucode::AllocType type = xenos::ucode::AllocType::kNone;
   int count = 0;
@@ -396,11 +396,11 @@ struct ParsedVertexFetchInstruction {
 
   struct Attributes {
     xenos::VertexFormat data_format = xenos::VertexFormat::kUndefined;
-    int32_t offset = 0;
-    uint32_t stride = 0; /**< Stride in dwords. */
-    int32_t exp_adjust = 0;
+    i32 offset = 0;
+    u32 stride = 0; /**< Stride in dwords. */
+    i32 exp_adjust = 0;
     /** Prefetch count minus 1. */
-    uint32_t prefetch_count = 0;
+    u32 prefetch_count = 0;
     xenos::SignedRepeatingFractionMode signed_rf_mode =
         xenos::SignedRepeatingFractionMode::kZeroClampMinusOne;
     bool is_index_rounded = false;
@@ -439,10 +439,10 @@ struct ParsedTextureFetchInstruction {
     bool use_computed_lod = true;
     bool use_register_lod = false;
     bool use_register_gradients = false;
-    float lod_bias = 0.0f;
-    float offset_x = 0.0f;
-    float offset_y = 0.0f;
-    float offset_z = 0.0f;
+    f32 lod_bias = 0.0f;
+    f32 offset_x = 0.0f;
+    f32 offset_y = 0.0f;
+    f32 offset_z = 0.0f;
   };
   Attributes attributes;
 
@@ -452,7 +452,7 @@ struct ParsedTextureFetchInstruction {
    *
    * @return Mask of the possibly non zero result components.
    */
-  uint32_t GetNonZeroResultComponents() const;
+  u32 GetNonZeroResultComponents() const;
 
   void Disassemble(StringBuffer* out) const;
 };
@@ -480,9 +480,9 @@ struct ParsedAluInstruction {
   InstructionResult scalar_result;
   // Both paired ops run before any result is stored, so a result cannot feed the other's operand.
 
-  uint32_t vector_operand_count = 0;
+  u32 vector_operand_count = 0;
   InstructionOperand vector_operands[3];
-  uint32_t scalar_operand_count = 0;
+  u32 scalar_operand_count = 0;
   InstructionOperand scalar_operands[2];
 
   /**
@@ -518,28 +518,28 @@ struct ParsedAluInstruction {
    *
    * @return Stream float constant index, or UINT32_MAX.
    */
-  uint32_t GetMemExportStreamConstant() const;
+  u32 GetMemExportStreamConstant() const;
 
   void Disassemble(StringBuffer* out) const;
 };
 
-void ParseControlFlowExec(const xenos::ucode::ControlFlowExecInstruction& cf, uint32_t cf_index,
+void ParseControlFlowExec(const xenos::ucode::ControlFlowExecInstruction& cf, u32 cf_index,
                           ParsedExecInstruction& instr);
-void ParseControlFlowCondExec(const xenos::ucode::ControlFlowCondExecInstruction& cf,
-                              uint32_t cf_index, ParsedExecInstruction& instr);
+void ParseControlFlowCondExec(const xenos::ucode::ControlFlowCondExecInstruction& cf, u32 cf_index,
+                              ParsedExecInstruction& instr);
 void ParseControlFlowCondExecPred(const xenos::ucode::ControlFlowCondExecPredInstruction& cf,
-                                  uint32_t cf_index, ParsedExecInstruction& instr);
+                                  u32 cf_index, ParsedExecInstruction& instr);
 void ParseControlFlowLoopStart(const xenos::ucode::ControlFlowLoopStartInstruction& cf,
-                               uint32_t cf_index, ParsedLoopStartInstruction& instr);
-void ParseControlFlowLoopEnd(const xenos::ucode::ControlFlowLoopEndInstruction& cf,
-                             uint32_t cf_index, ParsedLoopEndInstruction& instr);
-void ParseControlFlowCondCall(const xenos::ucode::ControlFlowCondCallInstruction& cf,
-                              uint32_t cf_index, ParsedCallInstruction& instr);
-void ParseControlFlowReturn(const xenos::ucode::ControlFlowReturnInstruction& cf, uint32_t cf_index,
+                               u32 cf_index, ParsedLoopStartInstruction& instr);
+void ParseControlFlowLoopEnd(const xenos::ucode::ControlFlowLoopEndInstruction& cf, u32 cf_index,
+                             ParsedLoopEndInstruction& instr);
+void ParseControlFlowCondCall(const xenos::ucode::ControlFlowCondCallInstruction& cf, u32 cf_index,
+                              ParsedCallInstruction& instr);
+void ParseControlFlowReturn(const xenos::ucode::ControlFlowReturnInstruction& cf, u32 cf_index,
                             ParsedReturnInstruction& instr);
-void ParseControlFlowCondJmp(const xenos::ucode::ControlFlowCondJmpInstruction& cf,
-                             uint32_t cf_index, ParsedJumpInstruction& instr);
-void ParseControlFlowAlloc(const xenos::ucode::ControlFlowAllocInstruction& cf, uint32_t cf_index,
+void ParseControlFlowCondJmp(const xenos::ucode::ControlFlowCondJmpInstruction& cf, u32 cf_index,
+                             ParsedJumpInstruction& instr);
+void ParseControlFlowAlloc(const xenos::ucode::ControlFlowAllocInstruction& cf, u32 cf_index,
                            bool is_vertex_shader, ParsedAllocInstruction& instr);
 
 /**
@@ -568,7 +568,7 @@ class Shader {
    * values requires increasing the version of the shader storages that hold it and checking the bit
    * count where it is packed. The underlying type is uint32_t for packing in bit fields.
    */
-  enum class HostVertexShaderType : uint32_t {
+  enum class HostVertexShaderType : u32 {
     kVertex,
 
     kDomainStart,
@@ -592,7 +592,7 @@ class Shader {
     kRectangleListAsTriangleStrip,
   };
   /** Bit count for packing HostVertexShaderType in bit fields. */
-  static constexpr uint32_t kHostVertexShaderTypeBitCount = 4;
+  static constexpr u32 kHostVertexShaderTypeBitCount = 4;
 
   static constexpr bool IsHostVertexShaderTypeDomain(HostVertexShaderType host_vertex_shader_type) {
     return host_vertex_shader_type >= HostVertexShaderType::kDomainStart &&
@@ -611,31 +611,31 @@ class Shader {
 
     int binding_index;
     /** Fetch constant index in [0-95]. */
-    uint32_t fetch_constant;
+    u32 fetch_constant;
     /** Stride of the entire binding in words. */
-    uint32_t stride_words;
+    u32 stride_words;
     std::vector<Attribute> attributes;
   };
 
   struct TextureBinding {
     size_t binding_index;
     /** Fetch constant index in [0-31]. */
-    uint32_t fetch_constant;
+    u32 fetch_constant;
     ParsedTextureFetchInstruction fetch_instr;
   };
 
   struct ConstantRegisterMap {
     /** Each shader reads up to 256 of the 512 float constants, based on the shader type and the
      * SQ_VS/PS_CONST registers. Each bit is a storage index from that base. */
-    uint64_t float_bitmap[256 / 64];
+    u64 float_bitmap[256 / 64];
     /** Each bit is a storage index in [0-31]. */
-    uint32_t loop_bitmap;
+    u32 loop_bitmap;
     /** Each bit is a storage index in [0-255]. */
-    uint32_t bool_bitmap[256 / 32];
+    u32 bool_bitmap[256 / 32];
     /** Each bit is a storage index in [0-95]. */
-    uint32_t vertex_fetch_bitmap[96 / 32];
+    u32 vertex_fetch_bitmap[96 / 32];
 
-    uint32_t float_count;
+    u32 float_count;
 
     /** When set, float_bitmap is all 1 and tight packing must not be done. */
     bool float_dynamic_addressing;
@@ -647,24 +647,24 @@ class Shader {
      * @param float_constant Float constant index.
      * @return Packed index, or UINT32_MAX if not found.
      */
-    uint32_t GetPackedFloatConstantIndex(uint32_t float_constant) const {
+    u32 GetPackedFloatConstantIndex(u32 float_constant) const {
       if (float_constant >= 256) {
         return UINT32_MAX;
       }
       if (float_dynamic_addressing) {
         return float_constant;
       }
-      uint32_t block_index = float_constant / 64;
-      uint32_t bit_index = float_constant % 64;
-      if (!(float_bitmap[block_index] & (static_cast<uint64_t>(1) << bit_index))) {
+      u32 block_index = float_constant / 64;
+      u32 bit_index = float_constant % 64;
+      if (!(float_bitmap[block_index] & (static_cast<u64>(1) << bit_index))) {
         return UINT32_MAX;
       }
-      uint32_t offset = 0;
-      for (uint32_t i = 0; i < block_index; ++i) {
+      u32 offset = 0;
+      for (u32 i = 0; i < block_index; ++i) {
         offset += rex::bit_count(float_bitmap[i]);
       }
-      return offset + rex::bit_count(float_bitmap[block_index] &
-                                     ((static_cast<uint64_t>(1) << bit_index) - 1));
+      return offset +
+             rex::bit_count(float_bitmap[block_index] & ((static_cast<u64>(1) << bit_index) - 1));
     }
   };
 
@@ -672,21 +672,20 @@ class Shader {
     /** Which eM elements are potentially written, regardless of conditionals, loop iteration counts
      * and predication, earlier in the predecessor graph of the instruction since an `alloc export`.
      */
-    uint8_t eM_potentially_written_before = 0;
+    u8 eM_potentially_written_before = 0;
     /** For exec sequences, which eM elements are potentially written by the instructions,
      * regardless of predication. 0 for other control flow instructions. */
-    uint8_t eM_potentially_written_by_exec = 0;
+    u8 eM_potentially_written_by_exec = 0;
   };
 
   class Translation {
    public:
-    Translation(Shader& shader, uint64_t modification)
-        : shader_(shader), modification_(modification) {}
+    Translation(Shader& shader, u64 modification) : shader_(shader), modification_(modification) {}
     virtual ~Translation() {}
 
     Shader& shader() const { return shader_; }
 
-    uint64_t modification() const { return modification_; }
+    u64 modification() const { return modification_; }
 
     bool is_valid() const { return is_valid_; }
 
@@ -694,7 +693,7 @@ class Shader {
 
     const std::vector<Error>& errors() const { return errors_; }
 
-    const std::vector<uint8_t>& translated_binary() const { return translated_binary_; }
+    const std::vector<u8>& translated_binary() const { return translated_binary_; }
 
     /**
      * Sets the host disassembly when it depends on the GPU backend.
@@ -724,12 +723,12 @@ class Shader {
     friend class ShaderTranslator;
 
     Shader& shader_;
-    uint64_t modification_;
+    u64 modification_;
 
     bool is_valid_ = false;
     bool is_translated_ = false;
     std::vector<Error> errors_;
-    std::vector<uint8_t> translated_binary_;
+    std::vector<u8> translated_binary_;
     std::string host_disassembly_;
   };
 
@@ -742,16 +741,16 @@ class Shader {
    * @param ucode_dword_count Number of ucode dwords.
    * @param ucode_source_endian Endianness of ucode_dwords.
    */
-  Shader(xenos::ShaderType shader_type, uint64_t ucode_data_hash, const uint32_t* ucode_dwords,
+  Shader(xenos::ShaderType shader_type, u64 ucode_data_hash, const u32* ucode_dwords,
          size_t ucode_dword_count, std::endian ucode_source_endian = std::endian::big);
   virtual ~Shader();
 
   xenos::ShaderType type() const { return shader_type_; }
 
   /** Microcode dwords in host endianness. */
-  const std::vector<uint32_t>& ucode_data() const { return ucode_data_; }
-  uint64_t ucode_data_hash() const { return ucode_data_hash_; }
-  const uint32_t* ucode_dwords() const { return ucode_data_.data(); }
+  const std::vector<u32>& ucode_data() const { return ucode_data_; }
+  u64 ucode_data_hash() const { return ucode_data_hash_; }
+  const u32* ucode_dwords() const { return ucode_data_.data(); }
   size_t ucode_dword_count() const { return ucode_data_.size(); }
 
   bool is_ucode_analyzed() const { return is_ucode_analyzed_; }
@@ -781,8 +780,8 @@ class Shader {
     return cf_memexport_info_;
   }
 
-  uint8_t memexport_eM_written() const { return memexport_eM_written_; }
-  uint8_t memexport_eM_potentially_written_before_end() const {
+  u8 memexport_eM_written() const { return memexport_eM_written_; }
+  u8 memexport_eM_potentially_written_before_end() const {
     return memexport_eM_potentially_written_before_end_;
   }
 
@@ -791,15 +790,13 @@ class Shader {
    *
    * @return Set of c# register indices.
    */
-  const std::set<uint32_t>& memexport_stream_constants() const {
-    return memexport_stream_constants_;
-  }
+  const std::set<u32>& memexport_stream_constants() const { return memexport_stream_constants_; }
 
-  const std::set<uint32_t>& label_addresses() const { return label_addresses_; }
+  const std::set<u32>& label_addresses() const { return label_addresses_; }
 
   /** Exclusive upper bound of the indexes of paired control flow instructions, each corresponding
    * to 3 dwords. */
-  uint32_t cf_pair_index_bound() const { return cf_pair_index_bound_; }
+  u32 cf_pair_index_bound() const { return cf_pair_index_bound_; }
 
   /**
    * Returns the upper bound of temporary registers addressed statically, the highest static
@@ -810,7 +807,7 @@ class Shader {
    * loaded, so it may hold less than the pixel shader needs. SQ_PROGRAM_CNTL should be used to go
    * above this count only if uses_register_dynamic_addressing is true.
    */
-  uint32_t register_static_address_bound() const { return register_static_address_bound_; }
+  u32 register_static_address_bound() const { return register_static_address_bound_; }
 
   /** Reports whether temporary registers are addressed dynamically, so SQ_PROGRAM_CNTL determines
    * the register count in addition to register_static_address_bound. */
@@ -826,12 +823,11 @@ class Shader {
    * @param program_cntl_num_reg Register count field of SQ_PROGRAM_CNTL.
    * @return Number of dynamically addressable registers.
    */
-  uint32_t GetDynamicAddressableRegisterCount(uint32_t program_cntl_num_reg) const {
+  u32 GetDynamicAddressableRegisterCount(u32 program_cntl_num_reg) const {
     if (!uses_register_dynamic_addressing()) {
       return 0;
     }
-    return std::max(program_cntl_num_reg + static_cast<uint32_t>(1),
-                    register_static_address_bound());
+    return std::max(program_cntl_num_reg + static_cast<u32>(1), register_static_address_bound());
   }
 
   bool kills_pixels() const { return kills_pixels_; }
@@ -846,14 +842,14 @@ class Shader {
   }
 
   /** Mask of interpolators written on any execution path. */
-  uint32_t writes_interpolators() const { return writes_interpolators_; }
+  u32 writes_interpolators() const { return writes_interpolators_; }
 
   /**
    * Mask of system vertex shader exports written on any execution path.
    *
    * @return Mask of written system exports.
    */
-  uint32_t writes_point_size_edge_flag_kill_vertex() const {
+  u32 writes_point_size_edge_flag_kill_vertex() const {
     return writes_point_size_edge_flag_kill_vertex_;
   }
 
@@ -865,9 +861,9 @@ class Shader {
    * @param param_gen_pos_out Receives the PsParamGen register, or UINT32_MAX when unused.
    * @return Mask of the required interpolators.
    */
-  uint32_t GetInterpolatorInputMask(xenos::reg::SQ_PROGRAM_CNTL sq_program_cntl,
-                                    xenos::reg::SQ_CONTEXT_MISC sq_context_misc,
-                                    uint32_t& param_gen_pos_out) const;
+  u32 GetInterpolatorInputMask(xenos::reg::SQ_PROGRAM_CNTL sq_program_cntl,
+                               xenos::reg::SQ_CONTEXT_MISC sq_context_misc,
+                               u32& param_gen_pos_out) const;
 
   bool writes_depth() const { return writes_depth_; }
 
@@ -882,9 +878,9 @@ class Shader {
   }
 
   /** Mask of color render targets written on any execution path. */
-  uint32_t writes_color_targets() const { return writes_color_targets_; }
-  bool writes_color_target(uint32_t i) const {
-    return (writes_color_targets() & (static_cast<uint32_t>(1) << i)) != 0;
+  u32 writes_color_targets() const { return writes_color_targets_; }
+  bool writes_color_target(u32 i) const {
+    return (writes_color_targets() & (static_cast<u32>(1) << i)) != 0;
   }
 
   /**
@@ -893,29 +889,29 @@ class Shader {
    *
    * @return Translations keyed by modification bits.
    */
-  const std::unordered_map<uint64_t, std::unique_ptr<Translation>>& translations() const {
+  const std::unordered_map<u64, std::unique_ptr<Translation>>& translations() const {
     return translations_;
   }
-  Translation* GetTranslation(uint64_t modification) const {
+  Translation* GetTranslation(u64 modification) const {
     auto it = translations_.find(modification);
     if (it != translations_.cend()) {
       return it->second.get();
     }
     return nullptr;
   }
-  Translation* GetOrCreateTranslation(uint64_t modification, bool* is_new = nullptr);
+  Translation* GetOrCreateTranslation(u64 modification, bool* is_new = nullptr);
   /**
    * Removes a modification after a translation failure during shader storage loading. Not thread
    * safe.
    *
    * @param modification Modification bits of the translation to remove.
    */
-  void DestroyTranslation(uint64_t modification);
+  void DestroyTranslation(u64 modification);
 
   /** Externally managed identifier of the shader storage the microcode was last written to or
    * loaded from, so the microcode is written to the storage once. UINT32_MAX by default. */
-  uint32_t ucode_storage_index() const { return ucode_storage_index_; }
-  void set_ucode_storage_index(uint32_t storage_index) { ucode_storage_index_ = storage_index; }
+  u32 ucode_storage_index() const { return ucode_storage_index_; }
+  void set_ucode_storage_index(u32 storage_index) { ucode_storage_index_ = storage_index; }
 
   /**
    * Dumps the microcode binary and, if analyzed, the disassembly to files in the given directory
@@ -930,11 +926,11 @@ class Shader {
  protected:
   friend class ShaderTranslator;
 
-  virtual std::unique_ptr<Translation> CreateTranslationInstance(uint64_t modification);
+  virtual std::unique_ptr<Translation> CreateTranslationInstance(u64 modification);
 
   xenos::ShaderType shader_type_;
-  std::vector<uint32_t> ucode_data_;
-  uint64_t ucode_data_hash_;
+  std::vector<u32> ucode_data_;
+  u64 ucode_data_hash_;
 
   /**
    * Reports whether the info needed before translating has been gathered. It determines which
@@ -952,12 +948,12 @@ class Shader {
   std::vector<VertexBinding> vertex_bindings_;
   std::vector<TextureBinding> texture_bindings_;
   ConstantRegisterMap constant_register_map_ = {};
-  std::set<uint32_t> label_addresses_;
-  uint32_t cf_pair_index_bound_ = 0;
-  uint32_t register_static_address_bound_ = 0;
-  uint32_t writes_interpolators_ = 0;
-  uint32_t writes_point_size_edge_flag_kill_vertex_ = 0;
-  uint32_t writes_color_targets_ = 0b0000;
+  std::set<u32> label_addresses_;
+  u32 cf_pair_index_bound_ = 0;
+  u32 register_static_address_bound_ = 0;
+  u32 writes_interpolators_ = 0;
+  u32 writes_point_size_edge_flag_kill_vertex_ = 0;
+  u32 writes_color_targets_ = 0b0000;
   bool uses_register_dynamic_addressing_ = false;
   bool kills_pixels_ = false;
   bool uses_texture_fetch_instruction_results_ = false;
@@ -967,32 +963,32 @@ class Shader {
    * writes. */
   std::vector<ControlFlowMemExportInfo> cf_memexport_info_;
   /** Which memexport elements (eM#) are written by any memexport in the shader. */
-  uint8_t memexport_eM_written_ = 0;
+  u8 memexport_eM_written_ = 0;
   /** Equivalent of ControlFlowMemExportInfo::eM_potentially_written_before for the end of the
    * shader, covering the last memory export or exports if the end has multiple predecessor chains
    * exporting to memory. */
-  uint8_t memexport_eM_potentially_written_before_end_ = 0;
-  std::set<uint32_t> memexport_stream_constants_;
+  u8 memexport_eM_potentially_written_before_end_ = 0;
+  std::set<u32> memexport_stream_constants_;
 
-  std::unordered_map<uint64_t, std::unique_ptr<Translation>> translations_;
+  std::unordered_map<u64, std::unique_ptr<Translation>> translations_;
 
-  uint32_t ucode_storage_index_ = UINT32_MAX;
+  u32 ucode_storage_index_ = UINT32_MAX;
 
  private:
   void GatherExecInformation(const ParsedExecInstruction& instr,
                              xenos::ucode::VertexFetchInstruction& previous_vfetch_full,
-                             uint32_t& unique_texture_bindings, StringBuffer& ucode_disasm_buffer);
+                             u32& unique_texture_bindings, StringBuffer& ucode_disasm_buffer);
   void GatherVertexFetchInformation(const xenos::ucode::VertexFetchInstruction& op,
                                     xenos::ucode::VertexFetchInstruction& previous_vfetch_full,
                                     StringBuffer& ucode_disasm_buffer);
   void GatherTextureFetchInformation(const xenos::ucode::TextureFetchInstruction& op,
-                                     uint32_t& unique_texture_bindings,
+                                     u32& unique_texture_bindings,
                                      StringBuffer& ucode_disasm_buffer);
-  void GatherAluInstructionInformation(const xenos::ucode::AluInstruction& op,
-                                       uint32_t exec_cf_index, StringBuffer& ucode_disasm_buffer);
+  void GatherAluInstructionInformation(const xenos::ucode::AluInstruction& op, u32 exec_cf_index,
+                                       StringBuffer& ucode_disasm_buffer);
   void GatherOperandInformation(const InstructionOperand& operand);
   void GatherFetchResultInformation(const InstructionResult& result);
-  void GatherAluResultInformation(const InstructionResult& result, uint32_t exec_cf_index);
+  void GatherAluResultInformation(const InstructionResult& result, u32 exec_cf_index);
 };
 
 }  // namespace rex::gpu

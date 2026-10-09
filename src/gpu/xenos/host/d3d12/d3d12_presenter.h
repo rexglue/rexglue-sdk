@@ -26,9 +26,9 @@ namespace rex::gpu::d3d12 {
 
 class D3D12OverlayDrawContext final : public gpu::OverlayDrawContext {
  public:
-  D3D12OverlayDrawContext(Presenter& presenter, uint32_t render_target_width,
-                          uint32_t render_target_height, ID3D12GraphicsCommandList* command_list,
-                          UINT64 submission_index_current, UINT64 submission_index_completed)
+  D3D12OverlayDrawContext(Presenter& presenter, u32 render_target_width, u32 render_target_height,
+                          ID3D12GraphicsCommandList* command_list, UINT64 submission_index_current,
+                          UINT64 submission_index_completed)
       : gpu::OverlayDrawContext(&presenter, render_target_width, render_target_height),
         command_list_(command_list),
         submission_index_current_(submission_index_current),
@@ -101,12 +101,12 @@ class D3D12Presenter final : public Presenter {
 
  protected:
   SurfacePaintConnectResult ConnectOrReconnectPaintingToSurfaceFromUIThread(
-      gpu::Surface& new_surface, uint32_t new_surface_width, uint32_t new_surface_height,
-      bool was_paintable, bool& is_vsync_implicit_out) override;
+      gpu::Surface& new_surface, u32 new_surface_width, u32 new_surface_height, bool was_paintable,
+      bool& is_vsync_implicit_out) override;
   void DisconnectPaintingFromSurfaceFromUIThreadImpl() override;
 
   bool RefreshGuestOutputImpl(
-      uint32_t mailbox_index, uint32_t frontbuffer_width, uint32_t frontbuffer_height,
+      u32 mailbox_index, u32 frontbuffer_width, u32 frontbuffer_height,
       std::move_only_function<bool(GuestOutputRefreshContext& context)> refresher,
       bool& is_8bpc_out) override;
 
@@ -116,17 +116,17 @@ class D3D12Presenter final : public Presenter {
   struct GuestOutputPaintRectangleConstants {
     union {
       struct {
-        float x;
-        float y;
+        f32 x;
+        f32 y;
       };
-      float offset[2];
+      f32 offset[2];
     };
     union {
       struct {
-        float width;
-        float height;
+        f32 width;
+        f32 height;
       };
-      float size[2];
+      f32 size[2];
     };
   };
 
@@ -159,7 +159,7 @@ class D3D12Presenter final : public Presenter {
   struct PaintContext : public rex::NonCopyable {
     explicit PaintContext() = default;
 
-    static constexpr uint32_t kSwapChainBufferCount = 3;
+    static constexpr u32 kSwapChainBufferCount = 3;
 
     enum RTVIndex : UINT {
       kRTVIndexSwapChainBuffer0,
@@ -202,8 +202,8 @@ class D3D12Presenter final : public Presenter {
     std::array<std::pair<UINT64, Microsoft::WRL::ComPtr<ID3D12Resource>>, kGuestOutputMailboxSize>
         guest_output_resource_paint_refs;
 
-    uint32_t swap_chain_width = 0;
-    uint32_t swap_chain_height = 0;
+    u32 swap_chain_width = 0;
+    u32 swap_chain_height = 0;
     bool swap_chain_allows_tearing = false;
     Microsoft::WRL::ComPtr<IDXGISwapChain3> swap_chain;
     std::array<Microsoft::WRL::ComPtr<ID3D12Resource>, kSwapChainBufferCount> swap_chain_buffers;

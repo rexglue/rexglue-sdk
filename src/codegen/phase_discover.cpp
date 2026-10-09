@@ -32,8 +32,8 @@ namespace rex::codegen {
 
 namespace {
 
-void discoverFunction(CodegenContext& ctx, uint32_t funcAddr,
-                      const std::unordered_set<uint32_t>& knownFunctions) {
+void discoverFunction(CodegenContext& ctx, u32 funcAddr,
+                      const std::unordered_set<u32>& knownFunctions) {
   auto& graph = ctx.graph;
   auto& binary = ctx.binary();
   auto& decoded = ctx.decoded();
@@ -54,7 +54,7 @@ void discoverFunction(CodegenContext& ctx, uint32_t funcAddr,
 
   REXLOG_TRACE(codegen, "Analyze: discovering function 0x{:08X} ({})", funcAddr, node->name());
 
-  uint32_t pdataSize = 0;
+  u32 pdataSize = 0;
 
   // CONFIG sizes are entry point hints, so only a declared size applies and PDATA is ignored.
   if (node->authority() == FunctionAuthority::CONFIG) {
@@ -96,7 +96,7 @@ void discoverFunction(CodegenContext& ctx, uint32_t funcAddr,
     graph.addJumpTableToFunction(funcAddr, jt);
   }
 
-  for (uint32_t target : result.externalCalls) {
+  for (u32 target : result.externalCalls) {
     if (!graph.isEntryPoint(target) && !graph.isImport(target)) {
       if (binary.isInImportExportRange(target)) {
         continue;
@@ -111,18 +111,18 @@ void discoverFunction(CodegenContext& ctx, uint32_t funcAddr,
   }
 
   if (pdataSize > 0) {
-    std::unordered_set<uint32_t> discoveredAddrs;
+    std::unordered_set<u32> discoveredAddrs;
     for (const auto& block : result.blocks) {
-      for (uint32_t addr = block.base; addr < block.base + block.size; addr += 4) {
+      for (u32 addr = block.base; addr < block.base + block.size; addr += 4) {
         discoveredAddrs.insert(addr);
       }
     }
 
-    uint32_t pdataEnd = funcAddr + pdataSize;
-    const uint8_t* funcData = binary.translate(funcAddr);
+    u32 pdataEnd = funcAddr + pdataSize;
+    const u8* funcData = binary.translate(funcAddr);
     if (funcData) {
-      for (uint32_t offset = 0; offset < pdataSize; offset += 4) {
-        uint32_t site = funcAddr + offset;
+      for (u32 offset = 0; offset < pdataSize; offset += 4) {
+        u32 site = funcAddr + offset;
 
         if (discoveredAddrs.count(site))
           continue;
@@ -132,22 +132,22 @@ void discoverFunction(CodegenContext& ctx, uint32_t funcAddr,
           continue;
         }
 
-        uint32_t insn = memory::load<be_u32>(funcData + offset);
-        uint32_t opcode = PPC_OP(insn);
+        u32 insn = memory::load<be_u32>(funcData + offset);
+        u32 opcode = PPC_OP(insn);
 
         if (opcode != PPC_OP_B && opcode != PPC_OP_BC)
           continue;
 
-        uint32_t target = 0;
+        u32 target = 0;
         bool isCall = PPC_BL(insn);
         bool isAbsolute = PPC_BA(insn);
 
         if (opcode == PPC_OP_B) {
-          int32_t branchOffset = PPC_BI(insn);
-          target = isAbsolute ? static_cast<uint32_t>(branchOffset) : site + branchOffset;
+          i32 branchOffset = PPC_BI(insn);
+          target = isAbsolute ? static_cast<u32>(branchOffset) : site + branchOffset;
         } else {
-          int32_t branchOffset = PPC_BD(insn);
-          target = isAbsolute ? static_cast<uint32_t>(branchOffset) : site + branchOffset;
+          i32 branchOffset = PPC_BD(insn);
+          target = isAbsolute ? static_cast<u32>(branchOffset) : site + branchOffset;
         }
 
         if (!isCall && target >= funcAddr && target < pdataEnd) {
@@ -204,7 +204,7 @@ void discoverAllFunctions(CodegenContext& ctx) {
     size_t newFunctions = 0;
 
     for (const auto& vt : vtables) {
-      for (uint32_t funcAddr : vt.slots) {
+      for (u32 funcAddr : vt.slots) {
         if (graph.isEntryPoint(funcAddr))
           continue;
         if (binary.isInImportExportRange(funcAddr))
@@ -242,14 +242,14 @@ void discoverAllFunctions(CodegenContext& ctx) {
 }  // anonymous namespace
 
 size_t discoverPendingFunctions(CodegenContext& ctx,
-                                const std::unordered_set<uint32_t>& knownFunctions) {
-  std::vector<uint32_t> pending;
+                                const std::unordered_set<u32>& knownFunctions) {
+  std::vector<u32> pending;
   for (const auto& [addr, node] : ctx.graph.functions()) {
     if (node->canDiscover()) {
       pending.push_back(addr);
     }
   }
-  for (uint32_t funcAddr : pending) {
+  for (u32 funcAddr : pending) {
     discoverFunction(ctx, funcAddr, knownFunctions);
   }
   return pending.size();

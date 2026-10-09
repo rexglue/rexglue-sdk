@@ -12,12 +12,14 @@
 
 #include <cstdint>
 
+#include <rex/types.h>
+
 namespace rex::codegen::ppc {
 
 /**
  * PowerPC instruction formats
  */
-enum class InstrFormat : uint8_t {
+enum class InstrFormat : u8 {
   kUnknown = 0,
   kI,   /**< Branch (LI, AA, LK). */
   kB,   /**< Conditional branch (BO, BI, BD, AA, LK). */
@@ -36,7 +38,7 @@ enum class InstrFormat : uint8_t {
 /**
  * PowerPC opcodes
  */
-enum class Opcode : uint16_t {
+enum class Opcode : u16 {
   kUnknown = 0,
 
   // Branch instructions
@@ -475,7 +477,7 @@ enum class Opcode : uint16_t {
 /**
  * Opcode groups for classification
  */
-enum class OpcodeGroup : uint8_t {
+enum class OpcodeGroup : u8 {
   kGeneral, /**< General ALU/logical. */
   kBranch,  /**< Branch/control flow. */
   kMemory,  /**< Load/store. */
@@ -523,8 +525,8 @@ struct OpcodeInfo {
   InstrFormat format;
   OpcodeGroup group;
   const char* name;
-  uint32_t primary_opcode;  /**< Bits 0-5. */
-  uint32_t extended_opcode; /**< Bits 21-30, or another extended field. */
+  u32 primary_opcode;  /**< Bits 0-5. */
+  u32 extended_opcode; /**< Bits 21-30, or another extended field. */
   bool has_extended;
 };
 
@@ -540,7 +542,7 @@ struct OpcodeInfo {
  * @param code Raw 32-bit instruction (big-endian)
  * @return Opcode enum value
  */
-Opcode lookup_opcode(uint32_t code);
+Opcode lookup_opcode(u32 code);
 
 /**
  * Get opcode information

@@ -20,17 +20,14 @@ namespace rex::runtime {
 
 /** File attribute flags. */
 enum X_FILE_ATTRIBUTES : u32 {
-  X_FILE_ATTRIBUTE_NONE = 0x0000,     /**< No attribute bit is set. */
-  X_FILE_ATTRIBUTE_READONLY = 0x0001, /**< The file cannot be written. */
-  X_FILE_ATTRIBUTE_HIDDEN =
-      0x0002, /**< NT attribute bit the XDK does not list, no code reads it. */
-  X_FILE_ATTRIBUTE_SYSTEM =
-      0x0004, /**< NT attribute bit the XDK does not list, no code reads it. */
-  X_FILE_ATTRIBUTE_DIRECTORY = 0x0010, /**< The entry is a directory. */
-  X_FILE_ATTRIBUTE_ARCHIVE = 0x0020,   /**< The entry is an archive file or directory. */
-  X_FILE_ATTRIBUTE_DEVICE = 0x0040,    /**< Reserved, titles do not use it. */
-  X_FILE_ATTRIBUTE_NORMAL = 0x0080, /**< The file has no other attribute, valid only on its own. */
-  /** NT attribute bit the XDK does not list, no code reads it. */
+  X_FILE_ATTRIBUTE_NONE = 0x0000,
+  X_FILE_ATTRIBUTE_READONLY = 0x0001,
+  X_FILE_ATTRIBUTE_HIDDEN = 0x0002,
+  X_FILE_ATTRIBUTE_SYSTEM = 0x0004,
+  X_FILE_ATTRIBUTE_DIRECTORY = 0x0010,
+  X_FILE_ATTRIBUTE_ARCHIVE = 0x0020,
+  X_FILE_ATTRIBUTE_DEVICE = 0x0040,
+  X_FILE_ATTRIBUTE_NORMAL = 0x0080,
   X_FILE_ATTRIBUTE_TEMPORARY = 0x0100,
   X_FILE_ATTRIBUTE_COMPRESSED =
       0x0800, /**< NT attribute bit the XDK does not list, no code reads it. */
@@ -38,7 +35,7 @@ enum X_FILE_ATTRIBUTES : u32 {
       0x4000, /**< NT attribute bit the XDK does not list, no code reads it. */
 };
 
-// Known as XOVERLAPPED to recompiled code.
+/** The overlapped IO block, known as XOVERLAPPED to the title. */
 struct XAM_OVERLAPPED {
   be_u32 result;             /**< Offset 0x0. */
   be_u32 length;             /**< Offset 0x4. */
@@ -51,36 +48,93 @@ struct XAM_OVERLAPPED {
 
 REX_STATIC_ASSERT_SIZE(XAM_OVERLAPPED, 0x1C);
 
-inline void XOverlappedSetResult(void* ptr, uint32_t value) {
+/**
+ * Publishes the result of an overlapped call with a release store.
+ *
+ * @param ptr The XAM_OVERLAPPED block.
+ * @param value The result.
+ */
+inline void XOverlappedSetResult(void* ptr, u32 value) {
   static_cast<XAM_OVERLAPPED*>(ptr)->result.store(value, std::memory_order_release);
 }
-inline uint32_t XOverlappedGetResult(void* ptr) {
+
+/**
+ * Returns the result of an overlapped call with an acquire load.
+ *
+ * @param ptr The XAM_OVERLAPPED block.
+ * @return The result.
+ */
+inline u32 XOverlappedGetResult(void* ptr) {
   return static_cast<XAM_OVERLAPPED*>(ptr)->result.load(std::memory_order_acquire);
 }
-inline void XOverlappedSetLength(void* ptr, uint32_t value) {
+
+/**
+ * Sets the transferred length of an overlapped call.
+ *
+ * @param ptr The XAM_OVERLAPPED block.
+ * @param value The length.
+ */
+inline void XOverlappedSetLength(void* ptr, u32 value) {
   static_cast<XAM_OVERLAPPED*>(ptr)->length = value;
 }
-inline uint32_t XOverlappedGetContext(void* ptr) {
+
+/**
+ * Returns the context of an overlapped call.
+ *
+ * @param ptr The XAM_OVERLAPPED block.
+ * @return The context.
+ */
+inline u32 XOverlappedGetContext(void* ptr) {
   return static_cast<XAM_OVERLAPPED*>(ptr)->context;
 }
-inline void XOverlappedSetContext(void* ptr, uint32_t value) {
+
+/**
+ * Sets the context of an overlapped call.
+ *
+ * @param ptr The XAM_OVERLAPPED block.
+ * @param value The context.
+ */
+inline void XOverlappedSetContext(void* ptr, u32 value) {
   static_cast<XAM_OVERLAPPED*>(ptr)->context = value;
 }
+
+/**
+ * Returns the event of an overlapped call.
+ *
+ * @param ptr The XAM_OVERLAPPED block.
+ * @return The event handle, or 0 when there is none.
+ */
 inline X_HANDLE XOverlappedGetEvent(void* ptr) {
   return static_cast<XAM_OVERLAPPED*>(ptr)->event;
 }
-inline uint32_t XOverlappedGetCompletionRoutine(void* ptr) {
+
+/**
+ * Returns the completion routine of an overlapped call.
+ *
+ * @param ptr The XAM_OVERLAPPED block.
+ * @return The guest address of the routine, or 0 when there is none.
+ */
+inline u32 XOverlappedGetCompletionRoutine(void* ptr) {
   return static_cast<XAM_OVERLAPPED*>(ptr)->completion_routine;
 }
-inline void XOverlappedSetExtendedError(void* ptr, uint32_t value) {
+
+/**
+ * Sets the extended error of an overlapped call.
+ *
+ * @param ptr The XAM_OVERLAPPED block.
+ * @param value The extended error.
+ */
+inline void XOverlappedSetExtendedError(void* ptr, u32 value) {
   static_cast<XAM_OVERLAPPED*>(ptr)->extended_error = value;
 }
 
+/** A counted 8-bit string in guest memory. */
 struct X_ANSI_STRING {
   be_u16 length;         /**< Offset 0x0. Used bytes of the string, without a terminator. */
   be_u16 maximum_length; /**< Offset 0x2. Capacity in bytes of the buffer at pointer. */
   be_u32 pointer;        /**< Offset 0x4. Guest address of the characters. */
 
+  /** Clears the length, capacity and pointer. */
   void reset() {
     length = 0;
     maximum_length = 0;
@@ -89,11 +143,13 @@ struct X_ANSI_STRING {
 };
 REX_STATIC_ASSERT_SIZE(X_ANSI_STRING, 8);
 
+/** A counted 16-bit string in guest memory. */
 struct X_UNICODE_STRING {
   be_u16 length;         /**< Offset 0x0. */
   be_u16 maximum_length; /**< Offset 0x2. */
   be_u32 pointer;        /**< Offset 0x4. */
 
+  /** Clears the length, capacity and pointer. */
   void reset() {
     length = 0;
     maximum_length = 0;
@@ -102,7 +158,7 @@ struct X_UNICODE_STRING {
 };
 REX_STATIC_ASSERT_SIZE(X_UNICODE_STRING, 8);
 
-// https://msdn.microsoft.com/en-us/library/windows/hardware/ff550671(v=vs.85).aspx
+/** The status and information of a completed IO call. */
 struct X_IO_STATUS_BLOCK {
   union {
     be<X_STATUS> status; /**< Offset 0x0. Final status of the call. */
@@ -112,6 +168,7 @@ struct X_IO_STATUS_BLOCK {
   be_u32 information;
 };
 
+/** The root directory, name and attributes of an object to open. */
 struct X_OBJECT_ATTRIBUTES {
   be_u32 root_directory; /**< Offset 0x0. */
   be_u32 name_ptr;       /**< Offset 0x4. PANSI_STRING. */

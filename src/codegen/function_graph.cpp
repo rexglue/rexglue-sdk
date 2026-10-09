@@ -49,7 +49,7 @@ const char* AuthorityName(FunctionAuthority auth) {
   }
 }
 
-FunctionNode::FunctionNode(uint32_t base, uint32_t size, FunctionAuthority authority)
+FunctionNode::FunctionNode(u32 base, u32 size, FunctionAuthority authority)
     : base_(base), size_(size), authority_(authority), state_(FunctionState::kRegistered) {
   char buf[32];
   snprintf(buf, sizeof(buf), "sub_%08X", base);
@@ -58,7 +58,7 @@ FunctionNode::FunctionNode(uint32_t base, uint32_t size, FunctionAuthority autho
 
 void FunctionNode::discover(std::vector<Block> blocks,
                             std::vector<rex::codegen::ppc::Instruction*> instructions,
-                            std::set<uint32_t> labels) {
+                            std::set<u32> labels) {
   assert(canDiscover() && "Invalid state transition: must be kRegistered");
 
   if (!isImport()) {
@@ -70,7 +70,7 @@ void FunctionNode::discover(std::vector<Block> blocks,
   labels_ = std::move(labels);
 
   for (const auto& block : blocks_) {
-    uint32_t blockEnd = block.base + block.size;
+    u32 blockEnd = block.base + block.size;
     if (blockEnd > base_ + size_) {
       size_ = blockEnd - base_;
     }
@@ -111,13 +111,13 @@ const FunctionAnalysis& FunctionNode::analysis() const {
 void FunctionNode::addBlock(Block block) {
   blocks_.push_back(block);
 
-  uint32_t blockEnd = block.base + block.size;
+  u32 blockEnd = block.base + block.size;
   if (blockEnd > base_ + size_) {
     size_ = blockEnd - base_;
   }
 }
 
-bool FunctionNode::containsAddress(uint32_t addr) const {
+bool FunctionNode::containsAddress(u32 addr) const {
   if (addr < base_ || addr >= base_ + size_) {
     return false;
   }
@@ -140,31 +140,30 @@ bool FunctionNode::containsAddress(uint32_t addr) const {
   return false;
 }
 
-void FunctionNode::addLabel(uint32_t addr) {
+void FunctionNode::addLabel(u32 addr) {
   labels_.insert(addr);
 }
 
-void FunctionNode::addCall(uint32_t site, CallTarget target) {
+void FunctionNode::addCall(u32 site, CallTarget target) {
   calls_.push_back({site, std::move(target)});
 }
 
-void FunctionNode::addTailCall(uint32_t site, CallTarget target) {
+void FunctionNode::addTailCall(u32 site, CallTarget target) {
   tailCalls_.push_back({site, std::move(target)});
 }
 
 void FunctionNode::addJumpTable(JumpTable jt) {
-  for (uint32_t target : jt.targets) {
+  for (u32 target : jt.targets) {
     labels_.insert(target);
   }
   jumpTables_.push_back(std::move(jt));
 }
 
-void FunctionNode::addUnresolvedJump(uint32_t site, uint32_t target, bool isCall,
-                                     bool conditional) {
+void FunctionNode::addUnresolvedJump(u32 site, u32 target, bool isCall, bool conditional) {
   unresolvedJumps_.push_back({site, target, isCall, conditional});
 }
 
-void FunctionNode::removeUnresolvedJump(uint32_t site) {
+void FunctionNode::removeUnresolvedJump(u32 site) {
   auto it = std::remove_if(unresolvedJumps_.begin(), unresolvedJumps_.end(),
                            [site](const UnresolvedJump& j) { return j.site == site; });
   unresolvedJumps_.erase(it, unresolvedJumps_.end());
@@ -196,7 +195,7 @@ bool FunctionNode::tryResolveAgainst(FunctionNode* newFunction) {
   return anyResolved;
 }
 
-bool FunctionNode::tryResolveAgainstImport(uint32_t importAddr, const std::string& importName) {
+bool FunctionNode::tryResolveAgainstImport(u32 importAddr, const std::string& importName) {
   if (isSealed())
     return false;
 
@@ -220,7 +219,7 @@ bool FunctionNode::tryResolveAgainstImport(uint32_t importAddr, const std::strin
   return anyResolved;
 }
 
-bool FunctionNode::tryResolveAsInternalLabel(uint32_t target) {
+bool FunctionNode::tryResolveAsInternalLabel(u32 target) {
   if (!containsAddress(target)) {
     return false;
   }
@@ -229,7 +228,7 @@ bool FunctionNode::tryResolveAsInternalLabel(uint32_t target) {
   return true;
 }
 
-void FunctionNode::absorbRegion(uint32_t regionBase, uint32_t regionSize) {
+void FunctionNode::absorbRegion(u32 regionBase, u32 regionSize) {
   assert(state_ != FunctionState::kSealed && "Cannot absorb into SEALED function");
 
   addBlock({regionBase, regionSize});
@@ -254,7 +253,7 @@ void FunctionNode::seal() {
       const Block& curr = blocks_[i];
 
       if (curr.base <= last.end()) {
-        uint32_t newEnd = std::max(last.end(), curr.end());
+        u32 newEnd = std::max(last.end(), curr.end());
         last.size = newEnd - last.base;
         REXLOG_TRACE(codegen,
                      "FunctionNode 0x{:08X}: merged overlapping blocks 0x{:08X}-0x{:08X} and "
@@ -316,7 +315,7 @@ std::unordered_map<u32, JumpTable> DetectLateJumpTables(const FunctionNode& node
   std::unordered_map<u32, JumpTable> tables;
   ppc_insn insn;
   for (const auto& block : node.blocks()) {
-    const auto* data = reinterpret_cast<const uint32_t*>(ctx.binary.translate(block.base));
+    const auto* data = reinterpret_cast<const u32*>(ctx.binary.translate(block.base));
     if (!data) {
       continue;
     }
@@ -417,13 +416,13 @@ std::string FunctionNode::emitCpp(const EmitContext& ctx) const {
   labels.reserve(64);
 
   for (const auto& block : blocks()) {
-    auto* blockData = reinterpret_cast<const uint32_t*>(ctx.binary.translate(block.base));
+    auto* blockData = reinterpret_cast<const u32*>(ctx.binary.translate(block.base));
     if (!blockData)
       continue;
 
     for (size_t addr = block.base; addr < block.end(); addr += 4) {
-      const uint32_t instruction =
-          memory::load<be_u32>(reinterpret_cast<const uint8_t*>(blockData) + addr - block.base);
+      const u32 instruction =
+          memory::load<be_u32>(reinterpret_cast<const u8*>(blockData) + addr - block.base);
       if (!PPC_BL(instruction)) {
         const size_t op = PPC_OP(instruction);
         if (op == PPC_OP_B)
@@ -432,13 +431,13 @@ std::string FunctionNode::emitCpp(const EmitContext& ctx) const {
           labels.emplace(addr + PPC_BD(instruction));
       }
 
-      auto stIt = ctx.config.switchTables.find(static_cast<uint32_t>(addr));
+      auto stIt = ctx.config.switchTables.find(static_cast<u32>(addr));
       if (stIt != ctx.config.switchTables.end()) {
         for (auto label : stIt->second.targets)
           labels.emplace(label);
       }
 
-      auto hookIt = ctx.config.midAsmHooks.find(static_cast<uint32_t>(addr));
+      auto hookIt = ctx.config.midAsmHooks.find(static_cast<u32>(addr));
       if (hookIt != ctx.config.midAsmHooks.end()) {
         if (hookIt->second.returnOnFalse || hookIt->second.returnOnTrue ||
             hookIt->second.jumpAddressOnFalse != 0 || hookIt->second.jumpAddressOnTrue != 0) {
@@ -545,7 +544,7 @@ std::string FunctionNode::emitCpp(const EmitContext& ctx) const {
   for (const auto& block : blocks()) {
     auto blockBase = block.base;
     auto blockEnd = block.end();
-    auto* data = reinterpret_cast<const uint32_t*>(ctx.binary.translate(block.base));
+    auto* data = reinterpret_cast<const u32*>(ctx.binary.translate(block.base));
     if (!data) {
       REXLOG_WARN(codegen, "Block 0x{:08X} in function 0x{:08X} has no mapped data - skipping",
                   block.base, base());
@@ -671,7 +670,7 @@ std::string FunctionNode::emitCpp(const EmitContext& ctx) const {
   if (localVariables.v_temp)
     emit_println(out, "\tPPCVRegister vTemp{{}};");
   if (localVariables.ea)
-    emit_println(out, "\tuint32_t ea{{}};");
+    emit_println(out, "\tu32 ea{{}};");
 
   if (generateSeh) {
     emit_println(out, "\tSEH_TRY {{");
@@ -697,7 +696,7 @@ std::string FunctionNode::emitCpp(const EmitContext& ctx) const {
   return out;
 }
 
-FunctionNode* FunctionGraph::addFunction(uint32_t base, uint32_t size, FunctionAuthority authority,
+FunctionNode* FunctionGraph::addFunction(u32 base, u32 size, FunctionAuthority authority,
                                          bool hasXrefs) {
   auto it = functions_.find(base);
   if (it != functions_.end()) {
@@ -727,7 +726,7 @@ FunctionNode* FunctionGraph::addFunction(uint32_t base, uint32_t size, FunctionA
   return nodePtr;
 }
 
-FunctionNode* FunctionGraph::addFunction(uint32_t base, uint32_t size, FunctionAuthority authority,
+FunctionNode* FunctionGraph::addFunction(u32 base, u32 size, FunctionAuthority authority,
                                          std::string_view name, bool hasXrefs) {
   auto* node = addFunction(base, size, authority, hasXrefs);
   if (node && !name.empty()) {
@@ -736,24 +735,24 @@ FunctionNode* FunctionGraph::addFunction(uint32_t base, uint32_t size, FunctionA
   return node;
 }
 
-FunctionNode* FunctionGraph::addImportFunction(uint32_t address, std::string_view resolvedName) {
+FunctionNode* FunctionGraph::addImportFunction(u32 address, std::string_view resolvedName) {
   auto* node = addFunction(address, 4, FunctionAuthority::IMPORT, resolvedName, true);
   REXLOG_TRACE(codegen, "FunctionGraph: added import function 0x{:08X} -> {}", address,
                resolvedName);
   return node;
 }
 
-FunctionNode* FunctionGraph::getFunction(uint32_t entryPoint) {
+FunctionNode* FunctionGraph::getFunction(u32 entryPoint) {
   auto it = functions_.find(entryPoint);
   return it != functions_.end() ? it->second.get() : nullptr;
 }
 
-const FunctionNode* FunctionGraph::getFunction(uint32_t entryPoint) const {
+const FunctionNode* FunctionGraph::getFunction(u32 entryPoint) const {
   auto it = functions_.find(entryPoint);
   return it != functions_.end() ? it->second.get() : nullptr;
 }
 
-bool FunctionGraph::removeFunction(uint32_t entryPoint) {
+bool FunctionGraph::removeFunction(u32 entryPoint) {
   auto it = functions_.find(entryPoint);
   if (it == functions_.end()) {
     return false;
@@ -765,7 +764,7 @@ bool FunctionGraph::removeFunction(uint32_t entryPoint) {
   return true;
 }
 
-FunctionNode* FunctionGraph::getFunctionContaining(uint32_t addr) {
+FunctionNode* FunctionGraph::getFunctionContaining(u32 addr) {
   auto it = functionsByBase_.upper_bound(addr);
   if (it != functionsByBase_.begin()) {
     --it;
@@ -776,7 +775,7 @@ FunctionNode* FunctionGraph::getFunctionContaining(uint32_t addr) {
   return nullptr;
 }
 
-const FunctionNode* FunctionGraph::getFunctionContaining(uint32_t addr) const {
+const FunctionNode* FunctionGraph::getFunctionContaining(u32 addr) const {
   auto it = functionsByBase_.upper_bound(addr);
   if (it != functionsByBase_.begin()) {
     --it;
@@ -787,11 +786,11 @@ const FunctionNode* FunctionGraph::getFunctionContaining(uint32_t addr) const {
   return nullptr;
 }
 
-bool FunctionGraph::isEntryPoint(uint32_t addr) const {
+bool FunctionGraph::isEntryPoint(u32 addr) const {
   return functions_.contains(addr);
 }
 
-bool FunctionGraph::isImport(uint32_t addr) const {
+bool FunctionGraph::isImport(u32 addr) const {
   auto it = functions_.find(addr);
   return it != functions_.end() && it->second->authority() == FunctionAuthority::IMPORT;
 }
@@ -834,56 +833,56 @@ size_t FunctionGraph::sealedCount() const {
   return count;
 }
 
-void FunctionGraph::setFunctionName(uint32_t entry, std::string name) {
+void FunctionGraph::setFunctionName(u32 entry, std::string name) {
   if (auto* node = getFunction(entry)) {
     node->setName(std::move(name));
   }
 }
 
-void FunctionGraph::setFunctionHasExceptionHandler(uint32_t entry, bool val) {
+void FunctionGraph::setFunctionHasExceptionHandler(u32 entry, bool val) {
   if (auto* node = getFunction(entry)) {
     node->setHasExceptionHandler(val);
   }
 }
 
-void FunctionGraph::setFunctionExceptionInfo(uint32_t entry, ExceptionInfo info) {
+void FunctionGraph::setFunctionExceptionInfo(u32 entry, ExceptionInfo info) {
   if (auto* node = getFunction(entry)) {
     node->setExceptionInfo(std::move(info));
   }
 }
 
-void FunctionGraph::addBlockToFunction(uint32_t entry, Block block) {
+void FunctionGraph::addBlockToFunction(u32 entry, Block block) {
   if (auto* node = getFunction(entry)) {
     node->addBlock(block);
   }
 }
 
-void FunctionGraph::addLabelToFunction(uint32_t entry, uint32_t label) {
+void FunctionGraph::addLabelToFunction(u32 entry, u32 label) {
   if (auto* node = getFunction(entry)) {
     node->addLabel(label);
   }
 }
 
-void FunctionGraph::addCallToFunction(uint32_t entry, uint32_t site, CallTarget target) {
+void FunctionGraph::addCallToFunction(u32 entry, u32 site, CallTarget target) {
   if (auto* node = getFunction(entry)) {
     node->addCall(site, std::move(target));
   }
 }
 
-void FunctionGraph::addTailCallToFunction(uint32_t entry, uint32_t site, CallTarget target) {
+void FunctionGraph::addTailCallToFunction(u32 entry, u32 site, CallTarget target) {
   if (auto* node = getFunction(entry)) {
     node->addTailCall(site, std::move(target));
   }
 }
 
-void FunctionGraph::addJumpTableToFunction(uint32_t entry, JumpTable jt) {
+void FunctionGraph::addJumpTableToFunction(u32 entry, JumpTable jt) {
   if (auto* node = getFunction(entry)) {
     node->addJumpTable(std::move(jt));
   }
 }
 
-void FunctionGraph::addUnresolvedJumpToFunction(uint32_t entry, uint32_t site, uint32_t target,
-                                                bool isCall, bool conditional) {
+void FunctionGraph::addUnresolvedJumpToFunction(u32 entry, u32 site, u32 target, bool isCall,
+                                                bool conditional) {
   auto* node = getFunction(entry);
   if (!node)
     return;
@@ -919,7 +918,7 @@ void FunctionGraph::addUnresolvedJumpToFunction(uint32_t entry, uint32_t site, u
                isCall ? "call" : "jump", site, target, entry);
 }
 
-size_t FunctionGraph::tryResolveFunction(uint32_t entry) {
+size_t FunctionGraph::tryResolveFunction(u32 entry) {
   auto* node = getFunction(entry);
   if (!node || node->isSealed())
     return 0;
@@ -975,14 +974,13 @@ size_t FunctionGraph::tryResolveFunction(uint32_t entry) {
   return resolved;
 }
 
-void FunctionGraph::absorbRegionIntoFunction(uint32_t entry, uint32_t regionBase,
-                                             uint32_t regionSize) {
+void FunctionGraph::absorbRegionIntoFunction(u32 entry, u32 regionBase, u32 regionSize) {
   if (auto* node = getFunction(entry)) {
     node->absorbRegion(regionBase, regionSize);
   }
 }
 
-bool FunctionGraph::trySealFunction(uint32_t entry) {
+bool FunctionGraph::trySealFunction(u32 entry) {
   auto* node = getFunction(entry);
   if (!node || node->isSealed())
     return false;
@@ -1019,7 +1017,7 @@ size_t FunctionGraph::sealAllReady() {
 }
 
 void FunctionGraph::sealAll() {
-  std::vector<std::pair<uint32_t, std::string>> errors;
+  std::vector<std::pair<u32, std::string>> errors;
 
   for (auto& [base, node] : functions_) {
     if (node->isSealed())
@@ -1054,7 +1052,7 @@ void FunctionGraph::sealAll() {
   REXLOG_TRACE(codegen, "FunctionGraph::sealAll: all {} functions sealed", functions_.size());
 }
 
-void FunctionGraph::registerChunk(uint32_t base, uint32_t size) {
+void FunctionGraph::registerChunk(u32 base, u32 size) {
   chunks_.emplace_back(base, size);
   REXLOG_TRACE(codegen, "FunctionGraph: registered chunk 0x{:08X}-0x{:08X}", base, base + size);
 }
@@ -1067,7 +1065,7 @@ void FunctionGraph::registerChunk(uint32_t base, uint32_t size) {
  * @param targetAddr Address it targets.
  * @return True when the target is vacant.
  */
-bool FunctionGraph::isVacant(uint32_t fromAddr, uint32_t targetAddr) const {
+bool FunctionGraph::isVacant(u32 fromAddr, u32 targetAddr) const {
   if (memoryReader_) {
     if (targetAddr > fromAddr) {
       auto val = memoryReader_(targetAddr);
@@ -1116,7 +1114,7 @@ bool FunctionGraph::isVacant(uint32_t fromAddr, uint32_t targetAddr) const {
  * @return The number of functions marked.
  */
 size_t FunctionGraph::markFuncletRegisterSharing() {
-  std::vector<std::pair<uint32_t, uint32_t>> ranges;
+  std::vector<std::pair<u32, u32>> ranges;
 
   for (auto& entry : functions_) {
     auto& node = entry.second;
@@ -1124,7 +1122,7 @@ size_t FunctionGraph::markFuncletRegisterSharing() {
     if (!info || !info->hasInfo())
       continue;
 
-    auto claim = [&](uint32_t addr) {
+    auto claim = [&](u32 addr) {
       auto it = addr ? functions_.find(addr) : functions_.end();
       if (it == functions_.end())
         return;
@@ -1162,10 +1160,9 @@ size_t FunctionGraph::markFuncletRegisterSharing() {
   }
   ranges.resize(out + 1);
 
-  auto insideFunclet = [&](uint32_t addr) {
-    auto it = std::upper_bound(
-        ranges.begin(), ranges.end(), addr,
-        [](uint32_t a, const std::pair<uint32_t, uint32_t>& r) { return a < r.first; });
+  auto insideFunclet = [&](u32 addr) {
+    auto it = std::upper_bound(ranges.begin(), ranges.end(), addr,
+                               [](u32 a, const std::pair<u32, u32>& r) { return a < r.first; });
     if (it == ranges.begin())
       return false;
     return addr < std::prev(it)->second;
@@ -1182,7 +1179,7 @@ size_t FunctionGraph::markFuncletRegisterSharing() {
   return marked;
 }
 
-bool FunctionGraph::isMergeableEntryPoint(uint32_t addr) const {
+bool FunctionGraph::isMergeableEntryPoint(u32 addr) const {
   auto it = functions_.find(addr);
   if (it == functions_.end()) {
     return false;
@@ -1204,8 +1201,7 @@ bool FunctionGraph::isMergeableEntryPoint(uint32_t addr) const {
  * @param isCallInstruction True for bl.
  * @return The target kind.
  */
-TargetKind FunctionGraph::classifyTarget(uint32_t target, uint32_t callerAddr,
-                                         bool isCallInstruction) const {
+TargetKind FunctionGraph::classifyTarget(u32 target, u32 callerAddr, bool isCallInstruction) const {
   const FunctionNode* callerFn = getFunctionContaining(callerAddr);
 
   if (isImport(target)) {

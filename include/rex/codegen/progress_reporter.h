@@ -15,19 +15,21 @@
 #include <cstdint>
 #include <string_view>
 
+#include <rex/types.h>
+
 namespace rex::codegen {
 
 /** Identifying fields from a loaded XEX, surfaced before recompilation work starts. */
 struct BinaryInfo {
-  std::string_view name;      /**< Filename of the input XEX */
-  uint32_t title_id = 0;      /**< xex2_opt_execution_info.title_id */
-  uint32_t media_id = 0;      /**< xex2_opt_execution_info.media_id */
-  uint32_t version_major = 0; /**< xex2_version.major, 4 bits */
-  uint32_t version_minor = 0; /**< xex2_version.minor, 4 bits */
-  uint32_t version_build = 0; /**< xex2_version.build, 16 bits */
-  uint32_t version_qfe = 0;   /**< xex2_version.qfe, 8 bits */
+  std::string_view name; /**< Filename of the input XEX */
+  u32 title_id = 0;      /**< xex2_opt_execution_info.title_id */
+  u32 media_id = 0;      /**< xex2_opt_execution_info.media_id */
+  u32 version_major = 0; /**< xex2_version.major, 4 bits */
+  u32 version_minor = 0; /**< xex2_version.minor, 4 bits */
+  u32 version_build = 0; /**< xex2_version.build, 16 bits */
+  u32 version_qfe = 0;   /**< xex2_version.qfe, 8 bits */
   /** IMAGE_FILE_HEADER.TimeDateStamp in Unix epoch seconds. */
-  uint32_t pe_time_date_stamp = 0;
+  u32 pe_time_date_stamp = 0;
 };
 
 /**

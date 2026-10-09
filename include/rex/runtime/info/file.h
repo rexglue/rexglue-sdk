@@ -86,7 +86,7 @@ REX_STATIC_ASSERT_SIZE(X_FILE_RENAME_INFORMATION, 16);
 
 /** Delete on close request for a file. */
 struct X_FILE_DISPOSITION_INFORMATION {
-  uint8_t delete_file; /**< Offset 0x00. Nonzero to delete the file on close. */
+  u8 delete_file; /**< Offset 0x00. Nonzero to delete the file on close. */
 };
 REX_STATIC_ASSERT_SIZE(X_FILE_DISPOSITION_INFORMATION, 1);
 

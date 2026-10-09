@@ -34,7 +34,7 @@ namespace rex::ppc {
  * @param size The size in bytes.
  * @return The size rounded up to a multiple of 8.
  */
-inline constexpr uint32_t stack_align(uint32_t size) {
+inline constexpr u32 stack_align(u32 size) {
   return (size + 7u) & ~7u;
 }
 
@@ -49,9 +49,9 @@ inline constexpr uint32_t stack_align(uint32_t size) {
  */
 template <typename T>
   requires std::is_arithmetic_v<T>
-inline uint32_t stack_push(PPCContext& ctx, uint8_t* base, T value) {
-  uint32_t alloc = stack_align(sizeof(T));
-  uint32_t new_r1 = ctx.r1.u32 - alloc;
+inline u32 stack_push(PPCContext& ctx, u8* base, T value) {
+  u32 alloc = stack_align(sizeof(T));
+  u32 new_r1 = ctx.r1.u32 - alloc;
   stack_bounds_check(ctx, base, new_r1);
   ctx.r1.u32 = new_r1;
 
@@ -83,10 +83,10 @@ inline uint32_t stack_push(PPCContext& ctx, uint8_t* base, T value) {
  * @param str The string to push.
  * @return The guest address of the pushed string.
  */
-inline uint32_t stack_push_string(PPCContext& ctx, uint8_t* base, const char* str) {
-  uint32_t len = static_cast<uint32_t>(std::strlen(str)) + 1;
-  uint32_t alloc = stack_align(len);
-  uint32_t new_r1 = ctx.r1.u32 - alloc;
+inline u32 stack_push_string(PPCContext& ctx, u8* base, const char* str) {
+  u32 len = static_cast<u32>(std::strlen(str)) + 1;
+  u32 alloc = stack_align(len);
+  u32 new_r1 = ctx.r1.u32 - alloc;
   stack_bounds_check(ctx, base, new_r1);
   ctx.r1.u32 = new_r1;
   std::memcpy(rex::runtime::GuestPtr(base, new_r1), str, len);
@@ -102,9 +102,9 @@ inline uint32_t stack_push_string(PPCContext& ctx, uint8_t* base, const char* st
  * @param len The byte count.
  * @return The guest address of the pushed bytes.
  */
-inline uint32_t stack_push(PPCContext& ctx, uint8_t* base, const void* data, uint32_t len) {
-  uint32_t alloc = stack_align(len);
-  uint32_t new_r1 = ctx.r1.u32 - alloc;
+inline u32 stack_push(PPCContext& ctx, u8* base, const void* data, u32 len) {
+  u32 alloc = stack_align(len);
+  u32 new_r1 = ctx.r1.u32 - alloc;
   stack_bounds_check(ctx, base, new_r1);
   ctx.r1.u32 = new_r1;
   std::memcpy(rex::runtime::GuestPtr(base, new_r1), data, len);
@@ -117,14 +117,14 @@ inline uint32_t stack_push(PPCContext& ctx, uint8_t* base, const void* data, uin
  * @param ctx The context whose r1 is raised.
  * @param size The byte count passed to the matching push.
  */
-inline void stack_pop(PPCContext& ctx, uint32_t size) {
+inline void stack_pop(PPCContext& ctx, u32 size) {
   ctx.r1.u32 += stack_align(size);
 }
 
 /** Restores r1 when the scope ends, releasing what the scope pushed. */
 class stack_guard : public rex::NonCopyable {
   PPCContext& ctx_;
-  uint32_t saved_r1_;
+  u32 saved_r1_;
 
  public:
   /**
@@ -139,7 +139,7 @@ class stack_guard : public rex::NonCopyable {
 };
 
 namespace detail {
-inline uint8_t* current_base() {
+inline u8* current_base() {
   return rex::runtime::ThreadState::Get()->memory()->virtual_membase();
 }
 }  // namespace detail
@@ -153,7 +153,7 @@ inline uint8_t* current_base() {
  */
 template <typename T>
   requires std::is_arithmetic_v<T>
-inline uint32_t stack_push(T value) {
+inline u32 stack_push(T value) {
   return stack_push(*rex::runtime::ThreadState::Get()->context(), detail::current_base(), value);
 }
 
@@ -163,7 +163,7 @@ inline uint32_t stack_push(T value) {
  * @param str The string to push.
  * @return The guest address of the pushed string.
  */
-inline uint32_t stack_push_string(const char* str) {
+inline u32 stack_push_string(const char* str) {
   return stack_push_string(*rex::runtime::ThreadState::Get()->context(), detail::current_base(),
                            str);
 }
@@ -175,7 +175,7 @@ inline uint32_t stack_push_string(const char* str) {
  * @param len The byte count.
  * @return The guest address of the pushed bytes.
  */
-inline uint32_t stack_push(const void* data, uint32_t len) {
+inline u32 stack_push(const void* data, u32 len) {
   return stack_push(*rex::runtime::ThreadState::Get()->context(), detail::current_base(), data,
                     len);
 }
@@ -185,7 +185,7 @@ inline uint32_t stack_push(const void* data, uint32_t len) {
  *
  * @param size The byte count passed to the matching push.
  */
-inline void stack_pop(uint32_t size) {
+inline void stack_pop(u32 size) {
   stack_pop(*rex::runtime::ThreadState::Get()->context(), size);
 }
 

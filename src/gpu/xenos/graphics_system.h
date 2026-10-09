@@ -82,7 +82,7 @@ class GraphicsSystem : public gpu::IBackend {
   void EnableReadPointerWriteBack(u32 ptr, u32 block_size_log2) override;
 
   void SetInterruptCallback(u32 callback, u32 user_data) override;
-  void DispatchInterruptCallback(uint32_t source, uint32_t cpu);
+  void DispatchInterruptCallback(u32 source, u32 cpu);
 
   virtual void ClearCaches();
   virtual void InvalidateGpuMemory();
@@ -105,8 +105,8 @@ class GraphicsSystem : public gpu::IBackend {
   static u32 ReadRegisterThunk(void* context, u32 addr);
   static void WriteRegisterThunk(void* context, u32 addr, u32 value);
 
-  uint32_t ReadRegister(uint32_t addr);
-  void WriteRegister(uint32_t addr, uint32_t value);
+  u32 ReadRegister(u32 addr);
+  void WriteRegister(u32 addr, u32 value);
 
   void MarkVblank();
 

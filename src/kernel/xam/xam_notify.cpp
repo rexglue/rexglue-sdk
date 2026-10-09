@@ -23,7 +23,7 @@ namespace xam {
 using namespace rex::runtime;
 using namespace rex::runtime::xam;
 
-uint32_t XamNotifyCreateListener(uint64_t mask, uint32_t is_system, uint32_t max_version) {
+u32 XamNotifyCreateListener(u64 mask, u32 is_system, u32 max_version) {
   REX_ASSERT(max_version < 11);
 
   if (max_version > 10) {
@@ -70,8 +70,8 @@ u32 XNotifyGetNext_entry(u32 handle, u32 match_id, mapped_u32 id_ptr, mapped_u32
   }
 
   bool dequeued = false;
-  uint32_t id = 0;
-  uint32_t param = 0;
+  u32 id = 0;
+  u32 param = 0;
   if (match_id) {
     id = match_id;
     dequeued = NotifyListenerDequeueByID(*listener, match_id, &param);
@@ -87,7 +87,7 @@ u32 XNotifyGetNext_entry(u32 handle, u32 match_id, mapped_u32 id_ptr, mapped_u32
 
   if (dequeued) {
     REXLOG_DEV(kernel, "XNotifyGetNext({:08X}, {:08X}) -> id={:#x}, param={}",
-               static_cast<uint32_t>(handle), static_cast<uint32_t>(match_id), id, param);
+               static_cast<u32>(handle), static_cast<u32>(match_id), id, param);
   }
   return dequeued ? 1 : 0;
 }

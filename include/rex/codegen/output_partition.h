@@ -20,14 +20,16 @@
 #include <unordered_map>
 #include <vector>
 
+#include <rex/types.h>
+
 namespace rex::codegen {
 
 inline constexpr std::string_view kPartitionFileName = "codegen.partition.json";
 
 /** Function to place in an output file. */
 struct FunctionSize {
-  uint32_t address; /**< Function entry address */
-  size_t bytes;     /**< Size of the emitted source in bytes */
+  u32 address;  /**< Function entry address */
+  size_t bytes; /**< Size of the emitted source in bytes */
 };
 
 /** Pins each guest function to a recomp file across runs. */
@@ -61,7 +63,7 @@ class OutputPartition {
   std::string Serialize() const;
 
  private:
-  std::unordered_map<uint32_t, size_t> addressToFile_;
+  std::unordered_map<u32, size_t> addressToFile_;
   size_t fileCount_ = 0;
   size_t maxFileBytes_ = 0;
 };

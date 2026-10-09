@@ -71,7 +71,7 @@ class REX_RUNTIME_API ThreadState {
    * @return The context.
    */
   ::PPCContext* context() const { return context_; }
-  uint32_t thread_id() const { return thread_id_; }
+  u32 thread_id() const { return thread_id_; }
 
   /**
    * Returns the runtime the thread belongs to.
@@ -104,14 +104,14 @@ class REX_RUNTIME_API ThreadState {
    *
    * @return The id, 0xFFFFFFFF when none is bound.
    */
-  static uint32_t GetThreadID();
+  static u32 GetThreadID();
 
  private:
   Memory* memory_;
   Runtime* runtime_;
 
-  uint32_t pcr_address_ = 0;
-  uint32_t thread_id_ = 0;
+  u32 pcr_address_ = 0;
+  u32 thread_id_ = 0;
 
   alignas(64)::PPCContext context_storage_{};
   ::PPCContext* context_ = &context_storage_;

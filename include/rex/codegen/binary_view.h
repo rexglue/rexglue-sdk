@@ -27,13 +27,13 @@ namespace rex::codegen {
 /** Lightweight view of a binary section that points into the BinaryView owned data. */
 struct SectionView {
   std::string_view name; /**< Section name from the image, such as `.text`. */
-  uint32_t baseAddress;  /**< Guest address of the first byte of the section. */
-  uint32_t size;         /**< Section size in bytes. */
-  const uint8_t* data;   /**< Host pointer to the section bytes, `size` bytes long. */
+  u32 baseAddress;       /**< Guest address of the first byte of the section. */
+  u32 size;              /**< Section size in bytes. */
+  const u8* data;        /**< Host pointer to the section bytes, `size` bytes long. */
   /** True for sections the image marks executable, which the scanners treat as code. */
   bool executable;
 
-  bool contains(uint32_t addr) const { return addr >= baseAddress && addr < baseAddress + size; }
+  bool contains(u32 addr) const { return addr >= baseAddress && addr < baseAddress + size; }
 
   /**
    * Translates an address to a pointer into this section.
@@ -41,18 +41,18 @@ struct SectionView {
    * @param addr Guest address
    * @return Pointer to the byte at addr, or null when addr is outside the section
    */
-  const uint8_t* translate(uint32_t addr) const {
+  const u8* translate(u32 addr) const {
     if (!contains(addr))
       return nullptr;
     return data + (addr - baseAddress);
   }
 
-  uint32_t end() const { return baseAddress + size; }
+  u32 end() const { return baseAddress + size; }
 };
 
 /** Import symbol with its thunk address and name. */
 struct ImportSymbol {
-  uint32_t address; /**< Thunk address, the bl target */
+  u32 address;      /**< Thunk address, the bl target */
   std::string name; /**< Name in libname@ordinal format */
 };
 
@@ -73,21 +73,21 @@ class BinaryView : public rex::MoveOnly {
    * @param addr Guest address
    * @return Pointer to the byte at addr, or null when no section contains addr
    */
-  const uint8_t* translate(uint32_t addr) const;
+  const u8* translate(u32 addr) const;
   /**
    * Reports whether an address is in an executable section.
    *
    * @param addr Guest address
    * @return True when a section contains addr and is executable
    */
-  bool isExecutable(uint32_t addr) const;
+  bool isExecutable(u32 addr) const;
   /**
    * Finds the section containing an address.
    *
    * @param addr Guest address
    * @return The section, or null when none contains addr
    */
-  const SectionView* findSection(uint32_t addr) const;
+  const SectionView* findSection(u32 addr) const;
   /**
    * Finds a section by name.
    *
@@ -97,18 +97,18 @@ class BinaryView : public rex::MoveOnly {
   const SectionView* findSectionByName(std::string_view name) const;
   std::span<const SectionView> sections() const { return sections_; }
 
-  uint32_t baseAddress() const { return baseAddress_; }
-  uint32_t imageSize() const { return imageSize_; }
-  uint32_t entryPoint() const { return entryPoint_; }
-  uint32_t exceptionDirectoryAddr() const { return exceptionDirectoryAddr_; }
-  uint32_t exceptionDirectorySize() const { return exceptionDirectorySize_; }
-  uint32_t exportTableAddr() const { return exportTableAddr_; }
+  u32 baseAddress() const { return baseAddress_; }
+  u32 imageSize() const { return imageSize_; }
+  u32 entryPoint() const { return entryPoint_; }
+  u32 exceptionDirectoryAddr() const { return exceptionDirectoryAddr_; }
+  u32 exceptionDirectorySize() const { return exceptionDirectorySize_; }
+  u32 exportTableAddr() const { return exportTableAddr_; }
 
   /**
    * Returns the start of the import thunk table, or 0 when absent.
    * Everything from this address to the end of .text is import and export tables, not code.
    */
-  uint32_t importThunkTableStart() const { return importThunkTableStart_; }
+  u32 importThunkTableStart() const { return importThunkTableStart_; }
 
   /**
    * Reports whether an address is in the import thunk and export table range, which is not code.
@@ -117,7 +117,7 @@ class BinaryView : public rex::MoveOnly {
    * @param addr Address to test
    * @return True when addr is inside the range
    */
-  bool isInImportExportRange(uint32_t addr) const {
+  bool isInImportExportRange(u32 addr) const {
     return importThunkTableStart_ != 0 && addr >= importThunkTableStart_ &&
            addr < importExportRangeEnd_;
   }
@@ -131,16 +131,16 @@ class BinaryView : public rex::MoveOnly {
  private:
   std::vector<SectionView> sections_;
   std::vector<std::string> sectionNames_;
-  std::vector<std::vector<uint8_t>> sectionData_;
+  std::vector<std::vector<u8>> sectionData_;
 
-  uint32_t baseAddress_ = 0;
-  uint32_t imageSize_ = 0;
-  uint32_t entryPoint_ = 0;
-  uint32_t exceptionDirectoryAddr_ = 0;
-  uint32_t exceptionDirectorySize_ = 0;
-  uint32_t exportTableAddr_ = 0;
-  uint32_t importThunkTableStart_ = 0;
-  uint32_t importExportRangeEnd_ = 0;
+  u32 baseAddress_ = 0;
+  u32 imageSize_ = 0;
+  u32 entryPoint_ = 0;
+  u32 exceptionDirectoryAddr_ = 0;
+  u32 exceptionDirectorySize_ = 0;
+  u32 exportTableAddr_ = 0;
+  u32 importThunkTableStart_ = 0;
+  u32 importExportRangeEnd_ = 0;
 
   std::vector<ImportSymbol> importSymbols_;
 };

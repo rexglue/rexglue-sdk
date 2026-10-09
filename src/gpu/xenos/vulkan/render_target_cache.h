@@ -45,7 +45,7 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
        */
       xenos::MSAASamples msaa_samples : xenos::kMSAASamplesBits;
       /** Bit 0 is depth, bits 1 to 4 are color. */
-      uint32_t depth_and_color_used : 1 + xenos::kMaxColorRenderTargets;
+      u32 depth_and_color_used : 1 + xenos::kMaxColorRenderTargets;
       /**
        * 0 for unused attachments. Must be kD24FS8 even for kD24S8 when
        * VK_FORMAT_D24_UNORM_S8_UINT is not supported.
@@ -56,12 +56,12 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
       xenos::ColorRenderTargetFormat color_1_view_format : xenos::kColorRenderTargetFormatBits;
       xenos::ColorRenderTargetFormat color_2_view_format : xenos::kColorRenderTargetFormatBits;
       xenos::ColorRenderTargetFormat color_3_view_format : xenos::kColorRenderTargetFormatBits;
-      uint32_t color_rts_use_transfer_formats : 1;
+      u32 color_rts_use_transfer_formats : 1;
       u32 padding : 7;
     };
-    uint32_t key = 0;
+    u32 key = 0;
     struct Hasher {
-      size_t operator()(const RenderPassKey& key) const { return std::hash<uint32_t>{}(key.key); }
+      size_t operator()(const RenderPassKey& key) const { return std::hash<u32>{}(key.key); }
     };
     bool operator==(const RenderPassKey& other_key) const { return key == other_key.key; }
     bool operator!=(const RenderPassKey& other_key) const { return !(*this == other_key); }
@@ -69,7 +69,7 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
   };
   static_assert(std::is_trivially_copyable_v<RenderPassKey> &&
                 std::has_unique_object_representations_v<RenderPassKey>);
-  REX_STATIC_ASSERT_SIZE(RenderPassKey, sizeof(uint32_t));
+  REX_STATIC_ASSERT_SIZE(RenderPassKey, sizeof(u32));
 
   struct Framebuffer {
     VkFramebuffer framebuffer = VK_NULL_HANDLE;
@@ -80,7 +80,7 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
   };
 
   VulkanRenderTargetCache(const xenos::RegisterFile& register_file, const runtime::Memory& memory,
-                          uint32_t draw_resolution_scale_x, uint32_t draw_resolution_scale_y,
+                          u32 draw_resolution_scale_x, u32 draw_resolution_scale_y,
                           VulkanCommandProcessor& command_processor);
   ~VulkanRenderTargetCache();
 
@@ -98,7 +98,7 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
    * @param shared_memory_binding_count Number of shared memory bindings.
    * @return True on success.
    */
-  bool Initialize(uint32_t shared_memory_binding_count);
+  bool Initialize(u32 shared_memory_binding_count);
   void Shutdown(bool from_destructor = false);
   void ClearCache() override;
 
@@ -121,17 +121,17 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
    * @return True on success.
    */
   bool Resolve(const runtime::Memory& memory, VulkanSharedMemory& shared_memory,
-               VulkanTextureCache& texture_cache, uint32_t& written_address_out,
-               uint32_t& written_length_out);
+               VulkanTextureCache& texture_cache, u32& written_address_out,
+               u32& written_length_out);
 
   bool Update(bool is_rasterization_done, xenos::reg::RB_DEPTHCONTROL normalized_depth_control,
-              uint32_t normalized_color_mask, const Shader& vertex_shader) override;
+              u32 normalized_color_mask, const Shader& vertex_shader) override;
   /** Binding information for the last successful update. */
   RenderPassKey last_update_render_pass_key() const { return last_update_render_pass_key_; }
   VkRenderPass last_update_render_pass() const { return last_update_render_pass_; }
   const Framebuffer* last_update_framebuffer() const { return last_update_framebuffer_; }
   void GetLastUpdateRenderingAttachments(VkRenderingAttachmentInfo* color_attachments,
-                                         uint32_t* color_attachment_count_out,
+                                         u32* color_attachment_count_out,
                                          VkRenderingAttachmentInfo* depth_attachment,
                                          VkRenderingAttachmentInfo* stencil_attachment) const;
 
@@ -197,8 +197,8 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
       bool* is_integer_out = nullptr) const;
 
  protected:
-  uint32_t GetMaxRenderTargetWidth() const override;
-  uint32_t GetMaxRenderTargetHeight() const override;
+  u32 GetMaxRenderTargetWidth() const override;
+  u32 GetMaxRenderTargetHeight() const override;
 
   std::unique_ptr<RenderTarget> CreateRenderTarget(RenderTargetKey key) override;
 
@@ -241,7 +241,7 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
     kViaUnordered,
   };
 
-  enum ResolveCopyDescriptorSet : uint32_t {
+  enum ResolveCopyDescriptorSet : u32 {
     /** Never changes. */
     kResolveCopyDescriptorSetEdram,
     /** Shared memory or a region in it. */
@@ -251,9 +251,9 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
   };
 
   struct ResolveCopyShaderCode {
-    const uint32_t* unscaled;
+    const u32* unscaled;
     size_t unscaled_size_bytes;
-    const uint32_t* scaled;
+    const u32* scaled;
     size_t scaled_size_bytes;
   };
 
@@ -297,7 +297,7 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
   RenderPassKey last_update_render_pass_key_;
   VkRenderPass last_update_render_pass_ = VK_NULL_HANDLE;
   /** Not used on the fragment shader interlock path. */
-  uint32_t last_update_framebuffer_pitch_tiles_at_32bpp_ = 0;
+  u32 last_update_framebuffer_pitch_tiles_at_32bpp_ = 0;
   /** Not used on the fragment shader interlock path. */
   const RenderTarget* const*
       last_update_framebuffer_attachments_[1 + xenos::kMaxColorRenderTargets] = {};
@@ -391,8 +391,8 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
       current_layout_ = layout;
     }
 
-    uint32_t temporary_sort_index() const { return temporary_sort_index_; }
-    void SetTemporarySortIndex(uint32_t index) { temporary_sort_index_ = index; }
+    u32 temporary_sort_index() const { return temporary_sort_index_; }
+    void SetTemporarySortIndex(u32 index) { temporary_sort_index_ = index; }
 
    private:
     VulkanRenderTargetCache& render_target_cache_;
@@ -414,24 +414,24 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
     VkAccessFlags current_access_mask_ = 0;
     VkImageLayout current_layout_ = VK_IMAGE_LAYOUT_UNDEFINED;
 
-    uint32_t temporary_sort_index_ = 0;
+    u32 temporary_sort_index_ = 0;
   };
 
   struct FramebufferKey {
     RenderPassKey render_pass_key;
 
     /** Same as RenderTargetKey::pitch_tiles_at_32bpp. */
-    uint32_t pitch_tiles_at_32bpp : 8;
+    u32 pitch_tiles_at_32bpp : 8;
     /** Range is [0, 2047]. */
-    uint32_t depth_base_tiles : xenos::kEDRAMBaseTilesBits;
-    uint32_t color_0_base_tiles : xenos::kEDRAMBaseTilesBits;
+    u32 depth_base_tiles : xenos::kEDRAMBaseTilesBits;
+    u32 color_0_base_tiles : xenos::kEDRAMBaseTilesBits;
     u32 padding_0 : 2;
 
-    uint32_t color_1_base_tiles : xenos::kEDRAMBaseTilesBits;
-    uint32_t color_2_base_tiles : xenos::kEDRAMBaseTilesBits;
+    u32 color_1_base_tiles : xenos::kEDRAMBaseTilesBits;
+    u32 color_2_base_tiles : xenos::kEDRAMBaseTilesBits;
     u32 padding_1 : 10;
 
-    uint32_t color_3_base_tiles : xenos::kEDRAMBaseTilesBits;
+    u32 color_3_base_tiles : xenos::kEDRAMBaseTilesBits;
     u32 padding_2 : 21;
 
     FramebufferKey() { Reset(); }
@@ -445,7 +445,7 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
                 std::has_unique_object_representations_v<FramebufferKey>);
 
   /** Ordered from the least to the most frequently changed. */
-  enum TransferUsedDescriptorSet : uint32_t {
+  enum TransferUsedDescriptorSet : u32 {
     kTransferUsedDescriptorSetHostDepthBuffer,
     kTransferUsedDescriptorSetHostDepthStencilTextures,
     kTransferUsedDescriptorSetDepthStencilTextures,
@@ -454,18 +454,18 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
 
     kTransferUsedDescriptorSetCount,
 
-    kTransferUsedDescriptorSetHostDepthBufferBit = static_cast<uint32_t>(1)
+    kTransferUsedDescriptorSetHostDepthBufferBit = static_cast<u32>(1)
                                                    << kTransferUsedDescriptorSetHostDepthBuffer,
     kTransferUsedDescriptorSetHostDepthStencilTexturesBit =
-        static_cast<uint32_t>(1) << kTransferUsedDescriptorSetHostDepthStencilTextures,
+        static_cast<u32>(1) << kTransferUsedDescriptorSetHostDepthStencilTextures,
     kTransferUsedDescriptorSetDepthStencilTexturesBit =
-        static_cast<uint32_t>(1) << kTransferUsedDescriptorSetDepthStencilTextures,
-    kTransferUsedDescriptorSetColorTextureBit = static_cast<uint32_t>(1)
+        static_cast<u32>(1) << kTransferUsedDescriptorSetDepthStencilTextures,
+    kTransferUsedDescriptorSetColorTextureBit = static_cast<u32>(1)
                                                 << kTransferUsedDescriptorSetColorTexture,
   };
 
   /** 32 bit push constants keep size calculation simple and avoid std140 packing issues. */
-  enum TransferUsedPushConstantDword : uint32_t {
+  enum TransferUsedPushConstantDword : u32 {
     kTransferUsedPushConstantDwordHostDepthAddress,
     kTransferUsedPushConstantDwordAddress,
     /** Changed 8 times per transfer. */
@@ -474,10 +474,10 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
     kTransferUsedPushConstantDwordCount,
 
     kTransferUsedPushConstantDwordHostDepthAddressBit =
-        static_cast<uint32_t>(1) << kTransferUsedPushConstantDwordHostDepthAddress,
-    kTransferUsedPushConstantDwordAddressBit = static_cast<uint32_t>(1)
+        static_cast<u32>(1) << kTransferUsedPushConstantDwordHostDepthAddress,
+    kTransferUsedPushConstantDwordAddressBit = static_cast<u32>(1)
                                                << kTransferUsedPushConstantDwordAddress,
-    kTransferUsedPushConstantDwordStencilMaskBit = static_cast<uint32_t>(1)
+    kTransferUsedPushConstantDwordStencilMaskBit = static_cast<u32>(1)
                                                    << kTransferUsedPushConstantDwordStencilMask,
   };
 
@@ -495,14 +495,14 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
   };
 
   struct TransferPipelineLayoutInfo {
-    uint32_t used_descriptor_sets;
-    uint32_t used_push_constant_dwords;
+    u32 used_descriptor_sets;
+    u32 used_push_constant_dwords;
   };
 
   static const TransferPipelineLayoutInfo
       kTransferPipelineLayoutInfos[static_cast<size_t>(TransferPipelineLayoutIndex::kCount)];
 
-  enum class TransferMode : uint32_t {
+  enum class TransferMode : u32 {
     kColorToDepth,
     kColorToColor,
 
@@ -547,18 +547,18 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
   static const TransferModeInfo kTransferModes[static_cast<size_t>(TransferMode::kCount)];
 
   union TransferShaderKey {
-    uint32_t key;
+    u32 key;
     struct {
       xenos::MSAASamples dest_msaa_samples : xenos::kMSAASamplesBits;
-      uint32_t dest_color_rt_index : xenos::kColorRenderTargetIndexBits;
-      uint32_t dest_resource_format : xenos::kRenderTargetFormatBits;
+      u32 dest_color_rt_index : xenos::kColorRenderTargetIndexBits;
+      u32 dest_resource_format : xenos::kRenderTargetFormatBits;
       xenos::MSAASamples source_msaa_samples : xenos::kMSAASamplesBits;
       /**
        * Always 1x when the host depth is a copy from a buffer rather than an image, so the same
        * pipeline is not created for different sample counts.
        */
       xenos::MSAASamples host_depth_source_msaa_samples : xenos::kMSAASamplesBits;
-      uint32_t source_resource_format : xenos::kRenderTargetFormatBits;
+      u32 source_resource_format : xenos::kRenderTargetFormatBits;
 
       static_assert(static_cast<size_t>(TransferMode::kCount) <= (static_cast<size_t>(1) << 4));
       /**
@@ -571,9 +571,7 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
     TransferShaderKey() : key(0) { REX_STATIC_ASSERT_SIZE(*this, sizeof(key)); }
 
     struct Hasher {
-      size_t operator()(const TransferShaderKey& key) const {
-        return std::hash<uint32_t>{}(key.key);
-      }
+      size_t operator()(const TransferShaderKey& key) const { return std::hash<u32>{}(key.key); }
     };
     bool operator==(const TransferShaderKey& other_key) const { return key == other_key.key; }
     bool operator!=(const TransferShaderKey& other_key) const { return !(*this == other_key); }
@@ -609,18 +607,18 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
   };
 
   union TransferAddressConstant {
-    uint32_t constant;
+    u32 constant;
     struct {
       /** Pitches and bases are in tiles. */
-      uint32_t dest_pitch : xenos::kEDRAMPitchTilesBits;
-      uint32_t source_pitch : xenos::kEDRAMPitchTilesBits;
+      u32 dest_pitch : xenos::kEDRAMPitchTilesBits;
+      u32 source_pitch : xenos::kEDRAMPitchTilesBits;
       /**
        * Destination base minus source base, not vice versa, because this transforms the
        * coordinate system rather than addresses. Has 1 extra bit as a signed difference between
        * two EDRAM bases. 0 for host_depth_source_is_copy, where it is ignored as destination
        * equals source.
        */
-      int32_t source_to_dest : xenos::kEDRAMBaseTilesBits + 1;
+      i32 source_to_dest : xenos::kEDRAMBaseTilesBits + 1;
     };
     TransferAddressConstant() : constant(0) { REX_STATIC_ASSERT_SIZE(*this, sizeof(constant)); }
     bool operator==(const TransferAddressConstant& other_constant) const {
@@ -642,9 +640,9 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
       }
       REX_ASSERT(transfer.source != nullptr);
       REX_ASSERT(other_invocation.transfer.source != nullptr);
-      uint32_t source_index =
+      u32 source_index =
           static_cast<const VulkanRenderTarget*>(transfer.source)->temporary_sort_index();
-      uint32_t other_source_index =
+      u32 other_source_index =
           static_cast<const VulkanRenderTarget*>(other_invocation.transfer.source)
               ->temporary_sort_index();
       if (source_index != other_source_index) {
@@ -659,21 +657,21 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
   };
 
   union DumpPipelineKey {
-    uint32_t key;
+    u32 key;
     struct {
       xenos::MSAASamples msaa_samples : 2;
-      uint32_t resource_format : 4;
+      u32 resource_format : 4;
       /**
        * Last bit because this affects the pipeline, so after sorting it changes at most once.
        * Depth buffers have an additional stencil SRV.
        */
-      uint32_t is_depth : 1;
+      u32 is_depth : 1;
     };
 
     DumpPipelineKey() : key(0) { REX_STATIC_ASSERT_SIZE(*this, sizeof(key)); }
 
     struct Hasher {
-      size_t operator()(const DumpPipelineKey& key) const { return std::hash<uint32_t>{}(key.key); }
+      size_t operator()(const DumpPipelineKey& key) const { return std::hash<u32>{}(key.key); }
     };
     bool operator==(const DumpPipelineKey& other_key) const { return key == other_key.key; }
     bool operator!=(const DumpPipelineKey& other_key) const { return !(*this == other_key); }
@@ -695,15 +693,15 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
    * of tiles may need to be dumped. 8x16 is 128, the minimum required group size on Vulkan and
    * the maximum number of lanes in a subgroup on Vulkan.
    */
-  static constexpr uint32_t kDumpSamplesPerGroupX = 8;
-  static constexpr uint32_t kDumpSamplesPerGroupY = 16;
+  static constexpr u32 kDumpSamplesPerGroupX = 8;
+  static constexpr u32 kDumpSamplesPerGroupY = 16;
 
   union DumpPitches {
-    uint32_t pitches;
+    u32 pitches;
     struct {
       /** Both in tiles. */
-      uint32_t dest_pitch : xenos::kEDRAMPitchTilesBits;
-      uint32_t source_pitch : xenos::kEDRAMPitchTilesBits;
+      u32 dest_pitch : xenos::kEDRAMPitchTilesBits;
+      u32 source_pitch : xenos::kEDRAMPitchTilesBits;
     };
     DumpPitches() : pitches(0) { REX_STATIC_ASSERT_SIZE(*this, sizeof(pitches)); }
     bool operator==(const DumpPitches& other_pitches) const {
@@ -713,11 +711,11 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
   };
 
   union DumpOffsets {
-    uint32_t offsets;
+    u32 offsets;
     struct {
       /** May be beyond the EDRAM tile count when EDRAM addressing wraps, hence 1 extra bit. */
-      uint32_t dispatch_first_tile : xenos::kEDRAMBaseTilesBits + 1;
-      uint32_t source_base_tiles : xenos::kEDRAMBaseTilesBits;
+      u32 dispatch_first_tile : xenos::kEDRAMBaseTilesBits + 1;
+      u32 source_base_tiles : xenos::kEDRAMBaseTilesBits;
     };
     DumpOffsets() : offsets(0) { REX_STATIC_ASSERT_SIZE(*this, sizeof(offsets)); }
     bool operator==(const DumpOffsets& other_offsets) const {
@@ -726,7 +724,7 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
     bool operator!=(const DumpOffsets& other_offsets) const { return !(*this == other_offsets); }
   };
 
-  enum DumpDescriptorSet : uint32_t {
+  enum DumpDescriptorSet : u32 {
     /**
      * Never changes. Same in both color and depth pipeline layouts and kept first for pipeline
      * layout compatibility, so it is set once.
@@ -738,7 +736,7 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
     kDumpDescriptorSetCount,
   };
 
-  enum DumpPushConstant : uint32_t {
+  enum DumpPushConstant : u32 {
     /** May be different for different sources. */
     kDumpPushConstantPitches,
     /** May be changed multiple times for the same source. */
@@ -757,10 +755,10 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
         return pipeline_key < other_invocation.pipeline_key;
       }
       REX_ASSERT(rectangle.render_target != nullptr);
-      uint32_t render_target_index =
+      u32 render_target_index =
           static_cast<const VulkanRenderTarget*>(rectangle.render_target)->temporary_sort_index();
       const ResolveCopyDumpRectangle& other_rectangle = other_invocation.rectangle;
-      uint32_t other_render_target_index =
+      u32 other_render_target_index =
           static_cast<const VulkanRenderTarget*>(other_rectangle.render_target)
               ->temporary_sort_index();
       if (render_target_index != other_render_target_index) {
@@ -775,23 +773,23 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
 
   struct DirectResolvePushConstants {
     draw_util::ResolveCopyShaderConstants resolve;
-    uint32_t source_base_tiles;
-    uint32_t source_pitch_tiles;
-    uint32_t dispatch_first_tile;
+    u32 source_base_tiles;
+    u32 source_pitch_tiles;
+    u32 dispatch_first_tile;
   };
 
   struct DirectResolvePipelineKey {
     DumpPipelineKey dump_pipeline_key;
     draw_util::ResolveCopyShaderIndex copy_shader;
     bool draw_resolution_scaled;
-    uint64_t packed() const {
-      return static_cast<uint64_t>(dump_pipeline_key.key) |
-             (static_cast<uint64_t>(static_cast<size_t>(copy_shader)) << 32) |
-             (static_cast<uint64_t>(draw_resolution_scaled ? 1 : 0) << 40);
+    u64 packed() const {
+      return static_cast<u64>(dump_pipeline_key.key) |
+             (static_cast<u64>(static_cast<size_t>(copy_shader)) << 32) |
+             (static_cast<u64>(draw_resolution_scaled ? 1 : 0) << 40);
     }
     struct Hasher {
       size_t operator()(const DirectResolvePipelineKey& key) const {
-        return std::hash<uint64_t>{}(key.packed());
+        return std::hash<u64>{}(key.packed());
       }
     };
     bool operator==(const DirectResolvePipelineKey& other_key) const {
@@ -808,7 +806,7 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
    * @return The framebuffer, or nullptr if failed to create.
    */
   const Framebuffer* GetHostRenderTargetsFramebuffer(
-      RenderPassKey render_pass_key, uint32_t pitch_tiles_at_32bpp,
+      RenderPassKey render_pass_key, u32 pitch_tiles_at_32bpp,
       const RenderTarget* const* depth_and_color_render_targets);
 
   /**
@@ -897,9 +895,9 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
    * @param resolve_clear_rectangle Rectangle to clear.
    */
   void PerformTransfersAndResolveClears(
-      uint32_t render_target_count, RenderTarget* const* render_targets,
+      u32 render_target_count, RenderTarget* const* render_targets,
       const std::vector<Transfer>* render_target_transfers,
-      const uint64_t* render_target_resolve_clear_values = nullptr,
+      const u64* render_target_resolve_clear_values = nullptr,
       const Transfer::Rectangle* resolve_clear_rectangle = nullptr);
 
   /**
@@ -931,8 +929,7 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
    * @param dump_pitch Row pitch in tiles.
    * @return True on success.
    */
-  bool DumpRenderTargets(uint32_t dump_base, uint32_t dump_row_length_used, uint32_t dump_rows,
-                         uint32_t dump_pitch);
+  bool DumpRenderTargets(u32 dump_base, u32 dump_row_length_used, u32 dump_rows, u32 dump_pitch);
 
   bool gamma_render_target_as_unorm16_ = false;
 
@@ -992,9 +989,9 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
   std::vector<ResolveCopyDumpRectangle> dump_rectangles_;
   std::vector<DumpInvocation> dump_invocations_;
   std::vector<ResolveCopyDispatch> direct_resolve_dispatches_;
-  uint64_t direct_resolve_attempt_count_ = 0;
-  uint64_t direct_resolve_success_count_ = 0;
-  uint64_t direct_resolve_fallback_count_ = 0;
+  u64 direct_resolve_attempt_count_ = 0;
+  u64 direct_resolve_success_count_ = 0;
+  u64 direct_resolve_fallback_count_ = 0;
 
   VkRenderPass fsi_render_pass_ = VK_NULL_HANDLE;
   Framebuffer fsi_framebuffer_;

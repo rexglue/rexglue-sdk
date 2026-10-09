@@ -74,7 +74,7 @@ inline T GuestPtr(u8* base, u32 guest_address) noexcept {
 class Memory;
 
 /** Selects the heap that SystemHeapAlloc takes memory from. */
-enum SystemHeapFlag : uint32_t {
+enum SystemHeapFlag : u32 {
   kSystemHeapVirtual = 1 << 0,  /**< Virtual heap. */
   kSystemHeapPhysical = 1 << 1, /**< Physical heap. */
 
@@ -82,14 +82,14 @@ enum SystemHeapFlag : uint32_t {
 };
 
 /** Address range that a heap manages. */
-enum class HeapType : uint8_t {
+enum class HeapType : u8 {
   kGuestVirtual,  /**< Guest virtual memory. */
   kGuestXex,      /**< Memory that executable images are mapped into. */
   kGuestPhysical, /**< Physical memory views. */
 };
 
 /** Bits of an allocation request. */
-enum MemoryAllocationFlag : uint32_t {
+enum MemoryAllocationFlag : u32 {
   kMemoryAllocationReserve = 1 << 0, /**< Reserve address space. */
   kMemoryAllocationCommit = 1 << 1,  /**< Commit pages. */
   /** Counts the newly committed pages against the title memory budget. */
@@ -97,7 +97,7 @@ enum MemoryAllocationFlag : uint32_t {
 };
 
 /** Bits of a page protection. */
-enum MemoryProtectFlag : uint32_t {
+enum MemoryProtectFlag : u32 {
   kMemoryProtectRead = 1 << 0,         /**< Read access. */
   kMemoryProtectWrite = 1 << 1,        /**< Write access. */
   kMemoryProtectNoCache = 1 << 2,      /**< Uncached access. */
@@ -108,37 +108,37 @@ enum MemoryProtectFlag : uint32_t {
 
 /** Equivalent to the Win32 MEMORY_BASIC_INFORMATION struct. */
 struct HeapAllocationInfo {
-  uint32_t base_address; /**< Base address of the queried pages. */
+  u32 base_address; /**< Base address of the queried pages. */
   /** Base address of the allocation range that contains base_address. */
-  uint32_t allocation_base;
+  u32 allocation_base;
   /** Protection when the region was first allocated. */
-  uint32_t allocation_protect;
+  u32 allocation_protect;
   /** Size in bytes when the region was first allocated. */
-  uint32_t allocation_size;
+  u32 allocation_size;
   /** Size in bytes from base_address of the pages with identical attributes. */
-  uint32_t region_size;
+  u32 region_size;
   /** Commit, free or reserve state of the pages. */
-  uint32_t state;
-  uint32_t protect; /**< Current protection, MemoryProtectFlag bits. */
+  u32 state;
+  u32 protect; /**< Current protection, MemoryProtectFlag bits. */
 };
 
 /** Describes a single page in the page table. */
 union PageEntry {
-  uint64_t qword; /**< The whole entry read or written as 1 64 bit value. */
+  u64 qword; /**< The whole entry read or written as 1 64 bit value. */
   struct {
     /** Base page of the allocated region in 4 KB pages. */
-    uint32_t base_address : 20;
+    u32 base_address : 20;
     /** Page count of the allocated region in 4 KB pages. */
-    uint32_t region_page_count : 20;
+    u32 region_page_count : 20;
     /** MemoryProtectFlag bits given at allocation. */
-    uint32_t allocation_protect : 4;
+    u32 allocation_protect : 4;
     /** MemoryProtectFlag bits as of the last Protect. */
-    uint32_t current_protect : 4;
+    u32 current_protect : 4;
     /** MemoryAllocationFlag bit mask of the page state. */
-    uint32_t state : 2;
+    u32 state : 2;
     /** Set on a committed page that counts against the title memory budget. */
-    uint32_t title : 1;
-    uint32_t reserved : 13; /**< Unused. */
+    u32 title : 1;
+    u32 reserved : 13; /**< Unused. */
   };
 };
 
@@ -153,21 +153,21 @@ class REX_RUNTIME_API BaseHeap {
    *
    * @return The offset in bytes.
    */
-  uint32_t heap_base() const { return heap_base_; }
+  u32 heap_base() const { return heap_base_; }
 
   /**
    * Returns the length of the heap range.
    *
    * @return The length in bytes.
    */
-  uint32_t heap_size() const { return heap_size_; }
+  u32 heap_size() const { return heap_size_; }
 
   /**
    * Returns the size of each page in the heap.
    *
    * @return The size in bytes.
    */
-  uint32_t page_size() const { return page_size_; }
+  u32 page_size() const { return page_size_; }
 
   HeapType heap_type() const { return heap_type_; }
 
@@ -177,7 +177,7 @@ class REX_RUNTIME_API BaseHeap {
    *
    * @return The offset.
    */
-  uint32_t host_address_offset() const { return host_address_offset_; }
+  u32 host_address_offset() const { return host_address_offset_; }
 
   /**
    * Translates an offset from the heap base to a host pointer.
@@ -186,7 +186,7 @@ class REX_RUNTIME_API BaseHeap {
    * @param relative_address Offset in bytes from the heap base.
    * @return The host pointer.
    */
-  template <typename T = uint8_t*>
+  template <typename T = u8*>
   inline T TranslateRelative(size_t relative_address) const {
     return reinterpret_cast<T>(membase_ + heap_base_ + host_address_offset_ + relative_address);
   }
@@ -194,9 +194,9 @@ class REX_RUNTIME_API BaseHeap {
   /** Disposes and decommits all memory and clears the page table. */
   virtual void Dispose();
 
-  uint32_t total_page_count() const { return static_cast<uint32_t>(page_table_.size()); }
-  uint32_t unreserved_page_count() const { return unreserved_page_count_; }
-  uint32_t reserved_page_count() const { return total_page_count() - unreserved_page_count(); }
+  u32 total_page_count() const { return static_cast<u32>(page_table_.size()); }
+  u32 unreserved_page_count() const { return unreserved_page_count_; }
+  u32 reserved_page_count() const { return total_page_count() - unreserved_page_count(); }
 
   /**
    * Allocates pages with the given properties and allocation strategy. Can reserve and commit the
@@ -210,8 +210,8 @@ class REX_RUNTIME_API BaseHeap {
    * @param out_address Receives the allocated guest address.
    * @return True on success.
    */
-  virtual bool Alloc(uint32_t size, uint32_t alignment, uint32_t allocation_type, uint32_t protect,
-                     bool top_down, uint32_t* out_address);
+  virtual bool Alloc(u32 size, u32 alignment, u32 allocation_type, u32 protect, bool top_down,
+                     u32* out_address);
 
   /**
    * Allocates pages at the given address. Can reserve and commit the pages and set protection
@@ -224,8 +224,8 @@ class REX_RUNTIME_API BaseHeap {
    * @param protect MemoryProtectFlag bits.
    * @return True on success.
    */
-  virtual bool AllocFixed(uint32_t base_address, uint32_t size, uint32_t alignment,
-                          uint32_t allocation_type, uint32_t protect);
+  virtual bool AllocFixed(u32 base_address, u32 size, u32 alignment, u32 allocation_type,
+                          u32 protect);
 
   /**
    * Allocates pages at an address within the given address range. Can reserve and commit the pages
@@ -241,9 +241,8 @@ class REX_RUNTIME_API BaseHeap {
    * @param out_address Receives the allocated guest address.
    * @return True on success.
    */
-  virtual bool AllocRange(uint32_t low_address, uint32_t high_address, uint32_t size,
-                          uint32_t alignment, uint32_t allocation_type, uint32_t protect,
-                          bool top_down, uint32_t* out_address);
+  virtual bool AllocRange(u32 low_address, u32 high_address, u32 size, u32 alignment,
+                          u32 allocation_type, u32 protect, bool top_down, u32* out_address);
 
   /**
    * Allocates from the system portion of the heap, the top of virtual heaps. Physical heaps
@@ -257,8 +256,8 @@ class REX_RUNTIME_API BaseHeap {
    * @param out_address Receives the allocated guest address.
    * @return True on success.
    */
-  virtual bool AllocSystemHeap(uint32_t size, uint32_t alignment, uint32_t allocation_type,
-                               uint32_t protect, bool top_down, uint32_t* out_address);
+  virtual bool AllocSystemHeap(u32 size, u32 alignment, u32 allocation_type, u32 protect,
+                               bool top_down, u32* out_address);
 
   /**
    * Decommits pages in the given range. Partially overlapped pages are decommitted.
@@ -267,7 +266,7 @@ class REX_RUNTIME_API BaseHeap {
    * @param size Size in bytes.
    * @return True on success.
    */
-  virtual bool Decommit(uint32_t address, uint32_t size);
+  virtual bool Decommit(u32 address, u32 size);
 
   /**
    * Decommits and releases pages in the given range. Partially overlapped pages are released.
@@ -276,7 +275,7 @@ class REX_RUNTIME_API BaseHeap {
    * @param out_region_size Receives the size of the released region.
    * @return True on success.
    */
-  virtual bool Release(uint32_t address, uint32_t* out_region_size = nullptr);
+  virtual bool Release(u32 address, u32* out_region_size = nullptr);
 
   /**
    * Modifies the protection mode of pages within the given range.
@@ -287,8 +286,7 @@ class REX_RUNTIME_API BaseHeap {
    * @param old_protect Receives the previous protection.
    * @return True on success.
    */
-  virtual bool Protect(uint32_t address, uint32_t size, uint32_t protect,
-                       uint32_t* old_protect = nullptr);
+  virtual bool Protect(u32 address, u32 size, u32 protect, u32* old_protect = nullptr);
 
   /**
    * Returns information about the given region of pages.
@@ -297,7 +295,7 @@ class REX_RUNTIME_API BaseHeap {
    * @param out_info Receives the region information.
    * @return True on success.
    */
-  bool QueryRegionInfo(uint32_t base_address, HeapAllocationInfo* out_info);
+  bool QueryRegionInfo(u32 base_address, HeapAllocationInfo* out_info);
 
   /**
    * Returns the size of the region containing the given address.
@@ -306,7 +304,7 @@ class REX_RUNTIME_API BaseHeap {
    * @param out_size Receives the size in bytes.
    * @return True on success.
    */
-  bool QuerySize(uint32_t address, uint32_t* out_size);
+  bool QuerySize(u32 address, u32* out_size);
 
   /**
    * Returns the current protection mode of the region containing the given address.
@@ -315,7 +313,7 @@ class REX_RUNTIME_API BaseHeap {
    * @param out_protect Receives the MemoryProtectFlag bits.
    * @return True on success.
    */
-  bool QueryProtect(uint32_t address, uint32_t* out_protect);
+  bool QueryProtect(u32 address, u32* out_protect);
 
   /**
    * Returns the strictest readability and writability for the entire range.
@@ -324,7 +322,7 @@ class REX_RUNTIME_API BaseHeap {
    * @param high_address Highest guest address of the range.
    * @return The page access.
    */
-  rex::memory::PageAccess QueryRangeAccess(uint32_t low_address, uint32_t high_address);
+  rex::memory::PageAccess QueryRangeAccess(u32 low_address, u32 high_address);
 
  protected:
   friend class PhysicalHeap;
@@ -340,7 +338,7 @@ class REX_RUNTIME_API BaseHeap {
    * @param end_page_number Last guest page of the range.
    * @return True when the host protection was updated.
    */
-  bool SyncHostPageAccess(uint32_t start_page_number, uint32_t end_page_number);
+  bool SyncHostPageAccess(u32 start_page_number, u32 end_page_number);
 
   /**
    * Takes the memory watch lock for operations that reconcile host page access.
@@ -359,8 +357,8 @@ class REX_RUNTIME_API BaseHeap {
    * @param protect Memory protect flags.
    * @return True on success.
    */
-  bool AllocFixedLocked(uint32_t base_address, uint32_t size, uint32_t alignment,
-                        uint32_t allocation_type, uint32_t protect);
+  bool AllocFixedLocked(u32 base_address, u32 size, u32 alignment, u32 allocation_type,
+                        u32 protect);
 
   /**
    * Allocates within an address range with the reconcile lock already held.
@@ -375,9 +373,8 @@ class REX_RUNTIME_API BaseHeap {
    * @param out_address Receives the allocated guest address.
    * @return True on success.
    */
-  bool AllocRangeLocked(uint32_t low_address, uint32_t high_address, uint32_t size,
-                        uint32_t alignment, uint32_t allocation_type, uint32_t protect,
-                        bool top_down, uint32_t* out_address);
+  bool AllocRangeLocked(u32 low_address, u32 high_address, u32 size, u32 alignment,
+                        u32 allocation_type, u32 protect, bool top_down, u32* out_address);
 
   /**
    * Decommits with the reconcile lock already held.
@@ -386,7 +383,7 @@ class REX_RUNTIME_API BaseHeap {
    * @param size Size in bytes.
    * @return True on success.
    */
-  bool DecommitLocked(uint32_t address, uint32_t size);
+  bool DecommitLocked(u32 address, u32 size);
 
   /**
    * Releases with the reconcile lock already held.
@@ -395,7 +392,7 @@ class REX_RUNTIME_API BaseHeap {
    * @param out_region_size Receives the size of the released region.
    * @return True on success.
    */
-  bool ReleaseLocked(uint32_t address, uint32_t* out_region_size);
+  bool ReleaseLocked(u32 address, u32* out_region_size);
 
   /**
    * Changes protection with the reconcile lock already held.
@@ -406,7 +403,7 @@ class REX_RUNTIME_API BaseHeap {
    * @param old_protect Receives the previous protection.
    * @return True on success.
    */
-  bool ProtectLocked(uint32_t address, uint32_t size, uint32_t protect, uint32_t* old_protect);
+  bool ProtectLocked(u32 address, u32 size, u32 protect, u32* old_protect);
 
   /**
    * Reports whether a host page is write watched for guest invalidation.
@@ -432,21 +429,21 @@ class REX_RUNTIME_API BaseHeap {
    * @param page_size The page size in bytes.
    * @param host_address_offset The offset added to guest addresses to give host addresses.
    */
-  void Initialize(runtime::Memory* memory, uint8_t* membase, HeapType heap_type, uint32_t heap_base,
-                  uint32_t heap_size, uint32_t page_size, uint32_t host_address_offset = 0);
+  void Initialize(runtime::Memory* memory, u8* membase, HeapType heap_type, u32 heap_base,
+                  u32 heap_size, u32 page_size, u32 host_address_offset = 0);
 
   runtime::Memory* memory_; /**< Memory system that owns the heap, source of the host page size. */
-  uint8_t* membase_;        /**< Host address of the start of guest memory. */
+  u8* membase_;             /**< Host address of the start of guest memory. */
   HeapType heap_type_;      /**< Heap type given to Initialize. */
-  uint32_t heap_base_;      /**< Guest address of the first byte of the heap. */
-  uint32_t heap_size_;      /**< Length of the heap in bytes. */
-  uint32_t page_size_;      /**< Size of 1 heap page in bytes. */
+  u32 heap_base_;           /**< Guest address of the first byte of the heap. */
+  u32 heap_size_;           /**< Length of the heap in bytes. */
+  u32 page_size_;           /**< Size of 1 heap page in bytes. */
   /** Base 2 logarithm of page_size_, shifts a heap offset into a page number. */
-  uint32_t page_size_shift_ = 0;
+  u32 page_size_shift_ = 0;
   /** Offset added to guest addresses to give host addresses, given to Initialize. */
-  uint32_t host_address_offset_;
+  u32 host_address_offset_;
   /** Number of pages not reserved, falls when pages are reserved and rises when released. */
-  uint32_t unreserved_page_count_ = 0;
+  u32 unreserved_page_count_ = 0;
   std::recursive_mutex heap_mutex_;   /**< Guards the page table and the counters of the heap. */
   std::vector<PageEntry> page_table_; /**< 1 entry for each heap page. */
 };
@@ -469,8 +466,8 @@ class REX_RUNTIME_API VirtualHeap : public BaseHeap {
    * @param heap_size The heap length in bytes.
    * @param page_size The page size in bytes.
    */
-  void Initialize(runtime::Memory* memory, uint8_t* membase, HeapType heap_type, uint32_t heap_base,
-                  uint32_t heap_size, uint32_t page_size);
+  void Initialize(runtime::Memory* memory, u8* membase, HeapType heap_type, u32 heap_base,
+                  u32 heap_size, u32 page_size);
 };
 
 /**
@@ -498,8 +495,8 @@ class REX_RUNTIME_API PhysicalHeap : public BaseHeap {
    * @param page_size The page size in bytes.
    * @param parent_heap The heap that performs allocation in the guest virtual address space.
    */
-  void Initialize(runtime::Memory* memory, uint8_t* membase, HeapType heap_type, uint32_t heap_base,
-                  uint32_t heap_size, uint32_t page_size, VirtualHeap* parent_heap);
+  void Initialize(runtime::Memory* memory, u8* membase, HeapType heap_type, u32 heap_base,
+                  u32 heap_size, u32 page_size, VirtualHeap* parent_heap);
 
   /**
    * Allocates pages in the parent heap and maps them at the matching address of this heap.
@@ -512,8 +509,8 @@ class REX_RUNTIME_API PhysicalHeap : public BaseHeap {
    * @param out_address Receives the allocated guest address.
    * @return True on success.
    */
-  bool Alloc(uint32_t size, uint32_t alignment, uint32_t allocation_type, uint32_t protect,
-             bool top_down, uint32_t* out_address) override;
+  bool Alloc(u32 size, u32 alignment, u32 allocation_type, u32 protect, bool top_down,
+             u32* out_address) override;
   /**
    * Allocates pages at the given address in the parent heap and in this heap.
    *
@@ -524,8 +521,8 @@ class REX_RUNTIME_API PhysicalHeap : public BaseHeap {
    * @param protect MemoryProtectFlag bits.
    * @return True on success.
    */
-  bool AllocFixed(uint32_t base_address, uint32_t size, uint32_t alignment,
-                  uint32_t allocation_type, uint32_t protect) override;
+  bool AllocFixed(u32 base_address, u32 size, u32 alignment, u32 allocation_type,
+                  u32 protect) override;
   /**
    * Allocates pages within an address range in the parent heap and in this heap.
    *
@@ -539,9 +536,8 @@ class REX_RUNTIME_API PhysicalHeap : public BaseHeap {
    * @param out_address Receives the allocated guest address.
    * @return True on success.
    */
-  bool AllocRange(uint32_t low_address, uint32_t high_address, uint32_t size, uint32_t alignment,
-                  uint32_t allocation_type, uint32_t protect, bool top_down,
-                  uint32_t* out_address) override;
+  bool AllocRange(u32 low_address, u32 high_address, u32 size, u32 alignment, u32 allocation_type,
+                  u32 protect, bool top_down, u32* out_address) override;
   /**
    * Allocates with Alloc, as physical heaps have no system portion.
    *
@@ -553,8 +549,8 @@ class REX_RUNTIME_API PhysicalHeap : public BaseHeap {
    * @param out_address Receives the allocated guest address.
    * @return True on success.
    */
-  bool AllocSystemHeap(uint32_t size, uint32_t alignment, uint32_t allocation_type,
-                       uint32_t protect, bool top_down, uint32_t* out_address) override;
+  bool AllocSystemHeap(u32 size, u32 alignment, u32 allocation_type, u32 protect, bool top_down,
+                       u32* out_address) override;
   /**
    * Decommits pages in the parent heap and in this heap, invalidating watched pages.
    *
@@ -562,7 +558,7 @@ class REX_RUNTIME_API PhysicalHeap : public BaseHeap {
    * @param size Size in bytes.
    * @return True on success.
    */
-  bool Decommit(uint32_t address, uint32_t size) override;
+  bool Decommit(u32 address, u32 size) override;
   /**
    * Releases the region in the parent heap and in this heap, invalidating watched pages.
    *
@@ -570,7 +566,7 @@ class REX_RUNTIME_API PhysicalHeap : public BaseHeap {
    * @param out_region_size Receives the size of the released region.
    * @return True on success.
    */
-  bool Release(uint32_t base_address, uint32_t* out_region_size = nullptr) override;
+  bool Release(u32 base_address, u32* out_region_size = nullptr) override;
   /**
    * Changes protection in the parent heap and in this heap.
    * Watched pages are invalidated when the range becomes writable.
@@ -581,8 +577,7 @@ class REX_RUNTIME_API PhysicalHeap : public BaseHeap {
    * @param old_protect Receives the previous protection.
    * @return True on success.
    */
-  bool Protect(uint32_t address, uint32_t size, uint32_t protect,
-               uint32_t* old_protect = nullptr) override;
+  bool Protect(u32 address, u32 size, u32 protect, u32* old_protect = nullptr) override;
 
   /**
    * Enables write invalidation notifications for the system pages of a physical range.
@@ -592,7 +587,7 @@ class REX_RUNTIME_API PhysicalHeap : public BaseHeap {
    * @param enable_invalidation_notifications True to notify when the title writes the range.
    * @param enable_data_providers True to enable data providers, which are unsupported.
    */
-  void EnableAccessCallbacks(uint32_t physical_address, uint32_t length,
+  void EnableAccessCallbacks(u32 physical_address, u32 length,
                              bool enable_invalidation_notifications, bool enable_data_providers);
   /**
    * Triggers the physical memory access callbacks of the watched pages in a range.
@@ -604,8 +599,8 @@ class REX_RUNTIME_API PhysicalHeap : public BaseHeap {
    * @param unprotect True to restore host write access.
    * @return True when any page in the range was watched.
    */
-  bool TriggerCallbacks(uint32_t virtual_address, uint32_t length, bool is_write,
-                        bool unwatch_exact_range, bool unprotect = true);
+  bool TriggerCallbacks(u32 virtual_address, u32 length, bool is_write, bool unwatch_exact_range,
+                        bool unprotect = true);
 
   /**
    * TriggerCallbacks with the memory watch lock already held.
@@ -617,7 +612,7 @@ class REX_RUNTIME_API PhysicalHeap : public BaseHeap {
    * @param unprotect True to restore host write access.
    * @return True when any page in the range was watched.
    */
-  bool TriggerCallbacksLocked(uint32_t virtual_address, uint32_t length, bool is_write,
+  bool TriggerCallbacksLocked(u32 virtual_address, u32 length, bool is_write,
                               bool unwatch_exact_range, bool unprotect = true);
 
   /**
@@ -626,7 +621,7 @@ class REX_RUNTIME_API PhysicalHeap : public BaseHeap {
    * @param address Guest address in this heap.
    * @return The physical address, offset by 0x1000 in the 0xE0000000 view.
    */
-  uint32_t GetPhysicalAddress(uint32_t address) const;
+  u32 GetPhysicalAddress(u32 address) const;
 
  protected:
   /**
@@ -635,7 +630,7 @@ class REX_RUNTIME_API PhysicalHeap : public BaseHeap {
    * @param host_page_number The host page number.
    * @return True when the page is watched.
    */
-  bool IsHostPageWriteWatched(uint32_t host_page_number) const override;
+  bool IsHostPageWriteWatched(u32 host_page_number) const override;
 
   /**
    * Takes the memory watch lock when this heap or its parent has
@@ -647,14 +642,14 @@ class REX_RUNTIME_API PhysicalHeap : public BaseHeap {
 
   VirtualHeap* parent_heap_; /**< Virtual heap whose pages back this physical heap. */
 
-  uint32_t system_page_size_; /**< Host page size in bytes. */
+  u32 system_page_size_; /**< Host page size in bytes. */
   /** Number of host pages that cover the heap including host_address_offset_. */
-  uint32_t system_page_count_;
+  u32 system_page_count_;
 
   /** Watch flags for 64 system pages. */
   struct SystemPageFlagsBlock {
     /** Set bits mark the pages whose writes trigger invalidation callbacks. */
-    uint64_t notify_on_invalidation;
+    u64 notify_on_invalidation;
   };
   /**
    * Guarded by Memory::watch_mutex(). Flags for each 64 system pages, interleaved as blocks for bit
@@ -710,7 +705,7 @@ class REX_RUNTIME_API Memory {
    *
    * @return The host base.
    */
-  inline uint8_t* virtual_membase() const { return virtual_membase_; }
+  inline u8* virtual_membase() const { return virtual_membase_; }
 
   /**
    * Translates a guest virtual address to a host address, with the arithmetic recompiled code
@@ -720,8 +715,8 @@ class REX_RUNTIME_API Memory {
    * @param guest_address The guest virtual address.
    * @return The host address.
    */
-  template <typename T = uint8_t*>
-  inline T TranslateVirtual(uint32_t guest_address) const {
+  template <typename T = u8*>
+  inline T TranslateVirtual(u32 guest_address) const {
     assert(!LookupHeap(guest_address) || LookupHeap(guest_address)->host_address_offset() ==
                                              detail::PhysicalHostOffset(guest_address));
     return GuestPtr<T>(virtual_membase_, guest_address);
@@ -732,7 +727,7 @@ class REX_RUNTIME_API Memory {
    *
    * @return The host base.
    */
-  inline uint8_t* physical_membase() const { return physical_membase_; }
+  inline u8* physical_membase() const { return physical_membase_; }
 
   /**
    * Translates a guest physical address to a host address that can be accessed as a normal pointer.
@@ -742,8 +737,8 @@ class REX_RUNTIME_API Memory {
    * @param guest_address The guest physical address.
    * @return The host address.
    */
-  template <typename T = uint8_t*>
-  inline T TranslatePhysical(uint32_t guest_address) const {
+  template <typename T = u8*>
+  inline T TranslatePhysical(u32 guest_address) const {
     return reinterpret_cast<T>(physical_membase_ + (guest_address & 0x1FFFFFFF));
   }
 
@@ -754,7 +749,7 @@ class REX_RUNTIME_API Memory {
    * @param host_address The host address.
    * @return The guest virtual address.
    */
-  uint32_t HostToGuestVirtual(const void* host_address) const;
+  u32 HostToGuestVirtual(const void* host_address) const;
 
   /**
    * Returns the guest physical address for a guest virtual address.
@@ -762,7 +757,7 @@ class REX_RUNTIME_API Memory {
    * @param address The guest virtual address.
    * @return The guest physical address, or UINT32_MAX when it cannot be obtained.
    */
-  uint32_t GetPhysicalAddress(uint32_t address) const;
+  u32 GetPhysicalAddress(u32 address) const;
 
   /**
    * Zeros a range of memory at the given guest address.
@@ -770,7 +765,7 @@ class REX_RUNTIME_API Memory {
    * @param address The guest address.
    * @param size Size in bytes.
    */
-  void Zero(uint32_t address, uint32_t size) const;
+  void Zero(u32 address, u32 size) const;
 
   /**
    * Fills a range of guest memory with a byte value.
@@ -779,7 +774,7 @@ class REX_RUNTIME_API Memory {
    * @param size Size in bytes.
    * @param value The byte value.
    */
-  void Fill(uint32_t address, uint32_t size, uint8_t value) const;
+  void Fill(u32 address, u32 size, u8 value) const;
 
   /**
    * Copies a non overlapping range of guest memory, like memcpy.
@@ -788,7 +783,7 @@ class REX_RUNTIME_API Memory {
    * @param src The source guest address.
    * @param size Size in bytes.
    */
-  void Copy(uint32_t dest, uint32_t src, uint32_t size) const;
+  void Copy(u32 dest, u32 src, u32 size) const;
 
   /**
    * Resolves a host access violation inside guest memory.
@@ -826,8 +821,9 @@ class REX_RUNTIME_API Memory {
    * @return The start and length of the smallest physical memory region around the watched region
    * that can be safely unwatched, or (0, UINT32_MAX) when it does not matter.
    */
-  using PhysicalMemoryInvalidationCallback = std::pair<uint32_t, uint32_t> (*)(
-      void* context_ptr, uint32_t physical_address_start, uint32_t length, bool exact_range);
+  using PhysicalMemoryInvalidationCallback = std::pair<u32, u32> (*)(void* context_ptr,
+                                                                     u32 physical_address_start,
+                                                                     u32 length, bool exact_range);
   /**
    * Registers a physical memory invalidation callback.
    *
@@ -852,7 +848,7 @@ class REX_RUNTIME_API Memory {
    * @param enable_invalidation_notifications True to enable invalidation notifications.
    * @param enable_data_providers True to enable data providers.
    */
-  void EnablePhysicalMemoryAccessCallbacks(uint32_t physical_address, uint32_t length,
+  void EnablePhysicalMemoryAccessCallbacks(u32 physical_address, u32 length,
                                            bool enable_invalidation_notifications,
                                            bool enable_data_providers);
 
@@ -875,8 +871,7 @@ class REX_RUNTIME_API Memory {
    * @param system_heap_flags SystemHeapFlag bits.
    * @return The guest address of the allocation.
    */
-  uint32_t SystemHeapAlloc(uint32_t size, uint32_t alignment = 0x20,
-                           uint32_t system_heap_flags = kSystemHeapDefault);
+  u32 SystemHeapAlloc(u32 size, u32 alignment = 0x20, u32 system_heap_flags = kSystemHeapDefault);
 
   /**
    * Frees memory allocated with SystemHeapAlloc.
@@ -884,7 +879,7 @@ class REX_RUNTIME_API Memory {
    * @param address Guest address of the allocation.
    * @param out_region_size Receives the size of the freed region.
    */
-  void SystemHeapFree(uint32_t address, uint32_t* out_region_size = nullptr);
+  void SystemHeapFree(u32 address, u32* out_region_size = nullptr);
 
   /**
    * Returns the heap for the address space containing the given address.
@@ -892,7 +887,7 @@ class REX_RUNTIME_API Memory {
    * @param address The guest address.
    * @return The heap.
    */
-  const BaseHeap* LookupHeap(uint32_t address) const;
+  const BaseHeap* LookupHeap(u32 address) const;
 
   /**
    * Returns the heap for the address space containing the given address.
@@ -900,7 +895,7 @@ class REX_RUNTIME_API Memory {
    * @param address The guest address.
    * @return The heap.
    */
-  inline BaseHeap* LookupHeap(uint32_t address) {
+  inline BaseHeap* LookupHeap(u32 address) {
     return const_cast<BaseHeap*>(const_cast<const runtime::Memory*>(this)->LookupHeap(address));
   }
 
@@ -911,7 +906,7 @@ class REX_RUNTIME_API Memory {
    * @param page_size The page size in bytes.
    * @return The heap.
    */
-  BaseHeap* LookupHeapByType(bool physical, uint32_t page_size);
+  BaseHeap* LookupHeapByType(bool physical, u32 page_size);
 
   /**
    * Aggregates page statistics across the given heaps.
@@ -924,8 +919,8 @@ class REX_RUNTIME_API Memory {
    * @param reserved_bytes Receives the reserved size in bytes.
    */
   void GetHeapsPageStatsSummary(const BaseHeap* const* provided_heaps, size_t heaps_count,
-                                uint32_t& unreserved_pages, uint32_t& reserved_pages,
-                                uint32_t& used_pages, uint32_t& reserved_bytes);
+                                u32& unreserved_pages, u32& reserved_pages, u32& used_pages,
+                                u32& reserved_bytes);
 
   /**
    * Returns the physical base heap.
@@ -966,15 +961,14 @@ class REX_RUNTIME_API Memory {
    * @param image_size The image size in bytes.
    * @return True on success.
    */
-  bool InitializeFunctionTable(uint32_t code_base, uint32_t code_size, uint32_t image_base,
-                               uint32_t image_size);
+  bool InitializeFunctionTable(u32 code_base, u32 code_size, u32 image_base, u32 image_size);
   /**
    * Removes the function table of a module and releases its pages.
    *
    * @param code_base The first guest address of the code, as given to InitializeFunctionTable.
    * @return False when no table is registered for code_base.
    */
-  bool DestroyFunctionTable(uint32_t code_base);
+  bool DestroyFunctionTable(u32 code_base);
   /**
    * Sets the host function for a guest address.
    *
@@ -982,13 +976,13 @@ class REX_RUNTIME_API Memory {
    * @param host_function The host function.
    * @return False when guest_address is outside every registered module range.
    */
-  bool SetFunction(uint32_t guest_address, PPCFunc* host_function);
+  bool SetFunction(u32 guest_address, PPCFunc* host_function);
 
  private:
 #if REX_PLATFORM_MAC
   int MapViewsMac();
 #endif
-  int MapViews(uint8_t* mapping_base);
+  int MapViews(u8* mapping_base);
   void UnmapViews();
   bool ReserveMMIOBlocks() const;
 
@@ -1010,35 +1004,35 @@ class REX_RUNTIME_API Memory {
   void ReleaseTitlePage(u32 pages);
 
   std::filesystem::path file_name_;
-  uint32_t system_page_size_ = 0;
-  uint32_t system_allocation_granularity_ = 0;
-  uint8_t* virtual_membase_ = nullptr;
-  uint8_t* physical_membase_ = nullptr;
+  u32 system_page_size_ = 0;
+  u32 system_allocation_granularity_ = 0;
+  u8* virtual_membase_ = nullptr;
+  u8* physical_membase_ = nullptr;
 
   struct FunctionTableEntry {
-    uint32_t table_base;
-    uint32_t code_base;
-    uint32_t code_size;
-    uint32_t thunk_reserve;
+    u32 table_base;
+    u32 code_base;
+    u32 code_size;
+    u32 thunk_reserve;
   };
   std::vector<FunctionTableEntry> function_tables_;
   mutable std::mutex function_tables_mutex_;
 
   rex::memory::FileMappingHandle mapping_ = rex::memory::kFileMappingHandleInvalid;
-  uint8_t* mapping_base_ = nullptr;
+  u8* mapping_base_ = nullptr;
   union {
     struct {
-      uint8_t* v00000000;
-      uint8_t* v40000000;
-      uint8_t* v7F000000;
-      uint8_t* v80000000;
-      uint8_t* v90000000;
-      uint8_t* vA0000000;
-      uint8_t* vC0000000;
-      uint8_t* vE0000000;
-      uint8_t* physical;
+      u8* v00000000;
+      u8* v40000000;
+      u8* v7F000000;
+      u8* v80000000;
+      u8* v90000000;
+      u8* vA0000000;
+      u8* vC0000000;
+      u8* vE0000000;
+      u8* physical;
     };
-    uint8_t* all_views[9];
+    u8* all_views[9];
   } views_ = {{0, 0, 0, 0, 0, 0, 0, 0, 0}};
 
   struct {

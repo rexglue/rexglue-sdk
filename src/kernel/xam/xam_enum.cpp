@@ -41,17 +41,17 @@ u32 XamEnumerate(u32 handle, u32 flags, mapped_void buffer_ptr, u32* items_retur
     return X_ERROR_INVALID_HANDLE;
   }
 
-  auto run = [runtime = &runtime, handle, buffer_ptr](uint32_t& extended_error,
-                                                      uint32_t& length) -> X_RESULT {
+  auto run = [runtime = &runtime, handle, buffer_ptr](u32& extended_error,
+                                                      u32& length) -> X_RESULT {
     X_RESULT result;
-    uint32_t item_count = 0;
+    u32 item_count = 0;
     auto e = runtime->object_table().Get<EnumeratorObject>(handle);
     if (!e) {
       result = X_ERROR_INVALID_HANDLE;
     } else if (!buffer_ptr) {
       result = X_ERROR_INVALID_PARAMETER;
     } else {
-      result = e->write_items(buffer_ptr.guest_address(), buffer_ptr.as<uint8_t*>(), &item_count);
+      result = e->write_items(buffer_ptr.guest_address(), buffer_ptr.as<u8*>(), &item_count);
     }
     extended_error = X_HRESULT_FROM_WIN32(result);
     length = item_count;
@@ -60,8 +60,8 @@ u32 XamEnumerate(u32 handle, u32 flags, mapped_void buffer_ptr, u32* items_retur
 
   if (items_returned) {
     REX_ASSERT(!overlapped_ptr);
-    uint32_t extended_error;
-    uint32_t item_count;
+    u32 extended_error;
+    u32 item_count;
     X_RESULT result = run(extended_error, item_count);
     *items_returned = result == X_ERROR_SUCCESS ? item_count : 0;
     return result;
@@ -78,7 +78,7 @@ u32 XamEnumerate(u32 handle, u32 flags, mapped_void buffer_ptr, u32* items_retur
 u32 XamEnumerate_entry(u32 handle, u32 flags, mapped_void buffer,
                        [[maybe_unused]] u32 buffer_length, mapped_u32 items_returned,
                        ppc_ptr_t<XAM_OVERLAPPED> overlapped) {
-  uint32_t dummy;
+  u32 dummy;
   auto result = XamEnumerate(handle, flags, buffer, !overlapped.guest_address() ? &dummy : nullptr,
                              overlapped.guest_address());
   if (!overlapped && items_returned) {

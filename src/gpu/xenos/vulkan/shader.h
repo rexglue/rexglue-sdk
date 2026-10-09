@@ -23,7 +23,7 @@ class VulkanShader : public SpirvShader {
  public:
   class VulkanTranslation : public SpirvTranslation {
    public:
-    explicit VulkanTranslation(VulkanShader& shader, uint64_t modification)
+    explicit VulkanTranslation(VulkanShader& shader, u64 modification)
         : SpirvTranslation(shader, modification) {}
     ~VulkanTranslation() override;
 
@@ -35,8 +35,8 @@ class VulkanShader : public SpirvShader {
   };
 
   explicit VulkanShader(const gpu::vulkan::VulkanDevice* vulkan_device,
-                        xenos::ShaderType shader_type, uint64_t ucode_data_hash,
-                        const uint32_t* ucode_dwords, size_t ucode_dword_count,
+                        xenos::ShaderType shader_type, u64 ucode_data_hash, const u32* ucode_dwords,
+                        size_t ucode_dword_count,
                         std::endian ucode_source_endian = std::endian::big);
 
   /**
@@ -57,7 +57,7 @@ class VulkanShader : public SpirvShader {
   void SetSamplerBindingLayoutUserUID(size_t uid) { sampler_binding_layout_user_uid_ = uid; }
 
  protected:
-  std::unique_ptr<Translation> CreateTranslationInstance(uint64_t modification) override;
+  std::unique_ptr<Translation> CreateTranslationInstance(u64 modification) override;
 
  private:
   const gpu::vulkan::VulkanDevice* vulkan_device_;

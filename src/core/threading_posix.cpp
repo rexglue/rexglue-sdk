@@ -197,11 +197,11 @@ void install_signal_handler(SignalType type) {
 
 void EnableAffinityConfiguration() {}
 
-uint32_t current_thread_system_id() {
+u32 current_thread_system_id() {
 #if defined(__APPLE__)
-  return static_cast<uint32_t>(pthread_mach_thread_np(pthread_self()));
+  return static_cast<u32>(pthread_mach_thread_np(pthread_self()));
 #else
-  return static_cast<uint32_t>(syscall(SYS_gettid));
+  return static_cast<u32>(syscall(SYS_gettid));
 #endif
 }
 
@@ -285,7 +285,7 @@ bool SetTLSValue(TLSHandle handle, uintptr_t value) {
  * @return The semaphore, or SEM_FAILED.
  */
 static sem_t* RexCreateAnonymousSemaphore() {
-  static std::atomic<uint64_t> counter{0};
+  static std::atomic<u64> counter{0};
   char name[64];
   std::snprintf(name, sizeof(name), "/rexsusp_%d_%llu", static_cast<int>(getpid()),
                 static_cast<unsigned long long>(counter.fetch_add(1, std::memory_order_relaxed)));
@@ -515,12 +515,12 @@ class PosixCondition<Event> : public PosixConditionBase {
 template <>
 class PosixCondition<Semaphore> : public PosixConditionBase {
  public:
-  PosixCondition(uint32_t initial_count, uint32_t maximum_count)
+  PosixCondition(u32 initial_count, u32 maximum_count)
       : count_(initial_count), maximum_count_(maximum_count) {}
 
   bool Signal() override { return Release(1, nullptr); }
 
-  bool Release(uint32_t release_count, int* out_previous_count) {
+  bool Release(u32 release_count, int* out_previous_count) {
     auto lock = std::unique_lock<std::mutex>(mutex_);
     if (release_count > maximum_count_ - count_) {
       return false;
@@ -539,8 +539,8 @@ class PosixCondition<Semaphore> : public PosixConditionBase {
     count_--;
     cond_.notify_all();
   }
-  uint32_t count_;
-  const uint32_t maximum_count_;
+  u32 count_;
+  const u32 maximum_count_;
 };
 
 namespace {
@@ -615,7 +615,7 @@ class PosixCondition<Mutant> : public PosixConditionBase {
     ArmMutantAbandonOnExit();
   }
   bool TakeAbandoned() override { return std::exchange(abandoned_, false); }
-  uint32_t count_ = 0;
+  u32 count_ = 0;
   pthread_t owner_{};
   bool abandoned_ = false;
 };
@@ -870,20 +870,20 @@ class PosixCondition<Thread> : public PosixConditionBase {
 #endif
 
 #if defined(__APPLE__)
-  uint32_t system_id() const { return static_cast<uint32_t>(pthread_mach_thread_np(thread_)); }
+  u32 system_id() const { return static_cast<u32>(pthread_mach_thread_np(thread_)); }
 #else
-  uint32_t system_id() const { return static_cast<uint32_t>(thread_); }
+  u32 system_id() const { return static_cast<u32>(thread_); }
 #endif
 
-  uint64_t affinity_mask() const {
+  u64 affinity_mask() const {
     WaitStarted();
 #if defined(__APPLE__)
     // macOS has no pthread affinity masks, so every logical processor is reported.
-    auto cpu_count = std::min<uint32_t>(logical_processor_count(), 64);
+    auto cpu_count = std::min<u32>(logical_processor_count(), 64);
     if (cpu_count == 64) {
-      return std::numeric_limits<uint64_t>::max();
+      return std::numeric_limits<u64>::max();
     }
-    return (static_cast<uint64_t>(1) << cpu_count) - 1;
+    return (static_cast<u64>(1) << cpu_count) - 1;
 #else
     cpu_set_t cpu_set;
 #if REX_PLATFORM_ANDROID
@@ -895,7 +895,7 @@ class PosixCondition<Thread> : public PosixConditionBase {
       REX_ASSERT_ALWAYS();
     }
 #endif
-    uint64_t result = 0;
+    u64 result = 0;
     auto cpu_count = std::min(CPU_SETSIZE, 64);
     for (int i = 0; i < cpu_count; i++) {
       auto set = CPU_ISSET(i, &cpu_set);
@@ -906,7 +906,7 @@ class PosixCondition<Thread> : public PosixConditionBase {
   }
 
   // NOLINTNEXTLINE(readability-make-member-function-const): changes the scheduling of the thread
-  void set_affinity_mask(uint64_t mask) {
+  void set_affinity_mask(u64 mask) {
     WaitStarted();
 #if defined(__APPLE__)
     // macOS has no pthread affinity masks, so this does nothing.
@@ -1025,7 +1025,7 @@ class PosixCondition<Thread> : public PosixConditionBase {
     return true;
   }
 
-  bool Resume(uint32_t* out_previous_suspend_count = nullptr) {
+  bool Resume(u32* out_previous_suspend_count = nullptr) {
     if (out_previous_suspend_count) {
       *out_previous_suspend_count = 0;
     }
@@ -1049,7 +1049,7 @@ class PosixCondition<Thread> : public PosixConditionBase {
     return true;
   }
 
-  bool Suspend(uint32_t* out_previous_suspend_count = nullptr) {
+  bool Suspend(u32* out_previous_suspend_count = nullptr) {
     if (out_previous_suspend_count) {
       *out_previous_suspend_count = 0;
     }
@@ -1254,8 +1254,8 @@ class PosixCondition<Thread> : public PosixConditionBase {
   bool joined_ = false;
   bool owns_thread_ = false;
   int exit_code_;
-  State state_;            /**< Protected by state_mutex_. */
-  uint32_t suspend_count_; /**< Protected by state_mutex_. */
+  State state_;       /**< Protected by state_mutex_. */
+  u32 suspend_count_; /**< Protected by state_mutex_. */
 #if defined(__APPLE__)
   sem_t* suspend_sem_ = SEM_FAILED;
   sem_t* suspend_sem_ptr() { return suspend_sem_; }
@@ -1353,7 +1353,7 @@ class PosixConditionHandle : public T, public PosixWaitHandle {
   explicit PosixConditionHandle(bool);
   explicit PosixConditionHandle(pthread_t thread);
   PosixConditionHandle(bool manual_reset, bool initial_state);
-  PosixConditionHandle(uint32_t initial_count, uint32_t maximum_count);
+  PosixConditionHandle(u32 initial_count, u32 maximum_count);
   ~PosixConditionHandle() override = default;
 
   PosixCondition<T>& condition() override { return handle_; }
@@ -1365,8 +1365,7 @@ class PosixConditionHandle : public T, public PosixWaitHandle {
 };
 
 template <>
-PosixConditionHandle<Semaphore>::PosixConditionHandle(uint32_t initial_count,
-                                                      uint32_t maximum_count)
+PosixConditionHandle<Semaphore>::PosixConditionHandle(u32 initial_count, u32 maximum_count)
     : handle_(initial_count, maximum_count) {}
 
 template <>
@@ -1570,14 +1569,13 @@ std::unique_ptr<Event> Event::CreateAutoResetEvent(bool initial_state) {
 class PosixSemaphore : public PosixConditionHandle<Semaphore> {
  public:
   PosixSemaphore(int initial_count, int maximum_count)
-      : PosixConditionHandle(static_cast<uint32_t>(initial_count),
-                             static_cast<uint32_t>(maximum_count)) {}
+      : PosixConditionHandle(static_cast<u32>(initial_count), static_cast<u32>(maximum_count)) {}
   ~PosixSemaphore() override = default;
   bool Release(int release_count, int* out_previous_count) override {
     if (release_count < 1) {
       return false;
     }
-    return handle_.Release(static_cast<uint32_t>(release_count), out_previous_count);
+    return handle_.Release(static_cast<u32>(release_count), out_previous_count);
   }
 };
 
@@ -1673,10 +1671,10 @@ class PosixThread : public PosixConditionHandle<Thread> {
     handle_.set_name(name);
   }
 
-  uint32_t system_id() const override { return handle_.system_id(); }
+  u32 system_id() const override { return handle_.system_id(); }
 
-  uint64_t affinity_mask() override { return handle_.affinity_mask(); }
-  void set_affinity_mask(uint64_t mask) override { handle_.set_affinity_mask(mask); }
+  u64 affinity_mask() override { return handle_.affinity_mask(); }
+  void set_affinity_mask(u64 mask) override { handle_.set_affinity_mask(mask); }
 
   int priority() override { return handle_.priority(); }
   void set_priority(int new_priority) override { handle_.set_priority(new_priority); }
@@ -1685,11 +1683,11 @@ class PosixThread : public PosixConditionHandle<Thread> {
     handle_.QueueUserCallback(std::move(callback));
   }
 
-  bool Resume(uint32_t* out_previous_suspend_count) override {
+  bool Resume(u32* out_previous_suspend_count) override {
     return handle_.Resume(out_previous_suspend_count);
   }
 
-  bool Suspend(uint32_t* out_previous_suspend_count) override {
+  bool Suspend(u32* out_previous_suspend_count) override {
     return handle_.Suspend(out_previous_suspend_count);
   }
 

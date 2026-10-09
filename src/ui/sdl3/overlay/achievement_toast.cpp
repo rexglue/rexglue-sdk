@@ -23,14 +23,14 @@ void AchievementToastDialog::OnDraw(ImGuiIO& io) {
   auto now = std::chrono::steady_clock::now();
 
   PendingToast toast;
-  float age = 0.0f;
+  f32 age = 0.0f;
   {
     std::lock_guard<std::mutex> lock(mutex_);
     while (!queue_.empty()) {
       if (!queue_.front().visible_since) {
         queue_.front().visible_since = now;
       }
-      age = std::chrono::duration<float>(now - *queue_.front().visible_since).count();
+      age = std::chrono::duration<f32>(now - *queue_.front().visible_since).count();
       if (age >= kDisplaySeconds) {
         queue_.pop_front();
       } else {
@@ -43,7 +43,7 @@ void AchievementToastDialog::OnDraw(ImGuiIO& io) {
     toast = queue_.front();
   }
 
-  float alpha = 1.0f;
+  f32 alpha = 1.0f;
   if (age < 0.3f)
     alpha = age / 0.3f;
   else if (age > kDisplaySeconds - 0.5f)

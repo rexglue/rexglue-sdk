@@ -29,22 +29,22 @@
 #include <simde/x86/sse4.1.h>
 
 /** Pack and unpack bounds of the NORMPACKED32 2:10:10:10 format. */
-constexpr float kPack2101010_Min10 = std::bit_cast<float>(0x403FFE01u);
-constexpr float kPack2101010_Max10 = std::bit_cast<float>(0x404001FFu);
-constexpr float kPack2101010_Min2 = std::bit_cast<float>(0x40400000u);
-constexpr float kPack2101010_Max2 = std::bit_cast<float>(0x40400003u);
+constexpr f32 kPack2101010_Min10 = std::bit_cast<f32>(0x403FFE01u);
+constexpr f32 kPack2101010_Max10 = std::bit_cast<f32>(0x404001FFu);
+constexpr f32 kPack2101010_Min2 = std::bit_cast<f32>(0x40400000u);
+constexpr f32 kPack2101010_Max2 = std::bit_cast<f32>(0x40400003u);
 
 namespace rex::ppc {
 
 /** General purpose register. */
 union Register {
-  int8_t s8;    /**< Signed 8 bit view of the low byte. */
+  i8 s8;        /**< Signed 8 bit view of the low byte. */
   uint8_t u8;   /**< Unsigned 8 bit view of the low byte. */
-  int16_t s16;  /**< Signed 16 bit view of the low half word. */
+  i16 s16;      /**< Signed 16 bit view of the low half word. */
   uint16_t u16; /**< Unsigned 16 bit view of the low half word. */
-  int32_t s32;  /**< Signed 32 bit view of the low word. */
+  i32 s32;      /**< Signed 32 bit view of the low word. */
   uint32_t u32; /**< Unsigned 32 bit view of the low word. */
-  int64_t s64;  /**< Signed 64 bit view of the whole register. */
+  i64 s64;      /**< Signed 64 bit view of the whole register. */
   uint64_t u64; /**< Unsigned 64 bit view of the whole register. */
   float f32;    /**< 32 bit float view of the low word. */
   double f64;   /**< 64 bit float view of the whole register. */
@@ -52,29 +52,29 @@ union Register {
 
 /** Fixed point exception register (XER). */
 struct XERRegister {
-  uint8_t so; /**< XER bit 0, summary overflow, 1 once an overflow occurred. */
-  uint8_t ov; /**< XER bit 1, overflow of the last arithmetic operation. */
-  uint8_t ca; /**< XER bit 2, carry out of the last arithmetic operation. */
+  u8 so; /**< XER bit 0, summary overflow, 1 once an overflow occurred. */
+  u8 ov; /**< XER bit 1, overflow of the last arithmetic operation. */
+  u8 ca; /**< XER bit 2, carry out of the last arithmetic operation. */
 };
 
 /** Condition register (CR) field. */
 struct CRRegister {
-  uint8_t lt; /**< CR field bit 0, 1 when the left operand compared less than the right. */
-  uint8_t gt; /**< CR field bit 1, 1 when the left operand compared greater than the right. */
-  uint8_t eq; /**< CR field bit 2, 1 when the operands compared equal. */
+  u8 lt; /**< CR field bit 0, 1 when the left operand compared less than the right. */
+  u8 gt; /**< CR field bit 1, 1 when the left operand compared greater than the right. */
+  u8 eq; /**< CR field bit 2, 1 when the operands compared equal. */
   union {
-    uint8_t so; /**< CR field bit 3, copy of the XER so after an integer compare. */
-    uint8_t un; /**< CR field bit 3, 1 when a float compare had a NaN operand. */
+    u8 so; /**< CR field bit 3, copy of the XER so after an integer compare. */
+    u8 un; /**< CR field bit 3, 1 when a float compare had a NaN operand. */
   };
 
-  uint32_t raw() const noexcept { return (lt << 3) | (gt << 2) | (eq << 1) | so; }
+  u32 raw() const noexcept { return (lt << 3) | (gt << 2) | (eq << 1) | so; }
 
   /**
    * Sets lt, gt, eq and so from the low 4 bits of a CR field value.
    *
    * @param value The CR field value, lt in bit 3 and so in bit 0.
    */
-  void set_raw(uint32_t value) noexcept {
+  void set_raw(u32 value) noexcept {
     lt = (value >> 3) & 1;
     gt = (value >> 2) & 1;
     eq = (value >> 1) & 1;
@@ -103,7 +103,7 @@ struct CRRegister {
    * @param left The left operand.
    * @param right The right operand.
    */
-  void compare(double left, double right) noexcept {
+  void compare(f64 left, f64 right) noexcept {
     un = std::isnan(left) || std::isnan(right);
     lt = !un && (left < right);
     gt = !un && (left > right);
@@ -143,27 +143,27 @@ struct CRRegister {
 
 /** 128 bit vector register. */
 union alignas(0x10) VRegister {
-  int8_t s8[16];   /**< 16 signed 8 bit lanes. */
+  i8 s8[16];       /**< 16 signed 8 bit lanes. */
   uint8_t u8[16];  /**< 16 unsigned 8 bit lanes. */
-  int16_t s16[8];  /**< 8 signed 16 bit lanes. */
+  i16 s16[8];      /**< 8 signed 16 bit lanes. */
   uint16_t u16[8]; /**< 8 unsigned 16 bit lanes. */
-  int32_t s32[4];  /**< 4 signed 32 bit lanes. */
+  i32 s32[4];      /**< 4 signed 32 bit lanes. */
   uint32_t u32[4]; /**< 4 unsigned 32 bit lanes. */
-  int64_t s64[2];  /**< 2 signed 64 bit lanes. */
+  i64 s64[2];      /**< 2 signed 64 bit lanes. */
   uint64_t u64[2]; /**< 2 unsigned 64 bit lanes. */
   float f32[4];    /**< 4 32 bit float lanes. */
   double f64[2];   /**< 2 64 bit float lanes. */
 };
 
-constexpr uint32_t kRoundNearest = 0x00;
-constexpr uint32_t kRoundTowardZero = 0x01;
-constexpr uint32_t kRoundUp = 0x02;
-constexpr uint32_t kRoundDown = 0x03;
-constexpr uint32_t kRoundMask = 0x03;
+constexpr u32 kRoundNearest = 0x00;
+constexpr u32 kRoundTowardZero = 0x01;
+constexpr u32 kRoundUp = 0x02;
+constexpr u32 kRoundDown = 0x03;
+constexpr u32 kRoundMask = 0x03;
 
 /** Floating point status and control register (FPSCR). */
 struct FPSCRRegister {
-  uint32_t csr; /**< Host floating point control word as last read or written. */
+  u32 csr; /**< Host floating point control word as last read or written. */
 
   /** Guest rounding mode kRound constant for each value of the host rounding field. */
   static constexpr size_t HostToGuest[] = {kRoundNearest, kRoundDown, kRoundUp, kRoundTowardZero};
@@ -178,11 +178,10 @@ struct FPSCRRegister {
   static constexpr size_t FlushMask = Platform::FlushMask;
 
   /** Bits the guest owns, the rest is host policy set by InitHost. */
-  static constexpr uint32_t GuestMask =
-      static_cast<uint32_t>(RoundMaskVal) | static_cast<uint32_t>(FlushMask);
+  static constexpr u32 GuestMask = static_cast<u32>(RoundMaskVal) | static_cast<u32>(FlushMask);
 
-  uint32_t getcsr() noexcept { return Platform::getcsr(); }
-  void setcsr(uint32_t csr) noexcept { Platform::setcsr(csr); }
+  u32 getcsr() noexcept { return Platform::getcsr(); }
+  void setcsr(u32 csr) noexcept { Platform::setcsr(csr); }
 
   /**
    * Restores the guest owned bits from a saved word. Restoring the whole word would unmask every
@@ -190,7 +189,7 @@ struct FPSCRRegister {
    *
    * @param saved The saved csr word.
    */
-  void restoreGuestBits(uint32_t saved) noexcept {
+  void restoreGuestBits(u32 saved) noexcept {
     csr = (getcsr() & ~GuestMask) | (saved & GuestMask);
     setcsr(csr);
   }
@@ -200,7 +199,7 @@ struct FPSCRRegister {
    *
    * @return The guest rounding mode matching the host rounding mode.
    */
-  uint32_t loadFromHost() noexcept {
+  u32 loadFromHost() noexcept {
     csr = getcsr();
     return HostToGuest[(csr & RoundMaskVal) >> RoundShift];
   }
@@ -210,7 +209,7 @@ struct FPSCRRegister {
    *
    * @param value The guest rounding mode, one of the kRound constants.
    */
-  void storeFromGuest(uint32_t value) noexcept {
+  void storeFromGuest(u32 value) noexcept {
     csr &= ~RoundMaskVal;
     csr |= Platform::GuestToHost[value & kRoundMask];
     setcsr(csr);
@@ -305,13 +304,13 @@ struct alignas(0x40) PPCContext {
   PPCRegister r31;
   /** @} */
 
-  uint64_t lr;        /**< Link register, the return address of the current call. */
+  u64 lr;             /**< Link register, the return address of the current call. */
   PPCRegister ctr;    /**< Count register, the target of indirect branches. */
   PPCXERRegister xer; /**< Fixed point exception register. */
   /** Value loaded by the last load reserved, which the paired store conditional compares. */
   PPCRegister reserved;
   /** Machine state register, initially 0x200A000, mtmsrd writes only the bits under 0x8020. */
-  uint32_t msr = 0x200A000;
+  u32 msr = 0x200A000;
   PPCCRRegister cr0;      /**< Condition register field 0, CR bits 0 to 3. */
   PPCCRRegister cr1;      /**< Condition register field 1, CR bits 4 to 7. */
   PPCCRRegister cr2;      /**< Condition register field 2, CR bits 8 to 11. */
@@ -321,7 +320,7 @@ struct alignas(0x40) PPCContext {
   PPCCRRegister cr6;      /**< Condition register field 6, CR bits 24 to 27. */
   PPCCRRegister cr7;      /**< Condition register field 7, CR bits 28 to 31. */
   PPCFPSCRRegister fpscr; /**< Floating point status and control register. */
-  uint8_t vscr_sat = 0;   /**< VSCR saturation flag for vector ops */
+  u8 vscr_sat = 0;        /**< VSCR saturation flag for vector ops */
 
   /**
    * Last indirect call target address. Set by REX_CALL_INDIRECT_FUNC before
@@ -329,7 +328,7 @@ struct alignas(0x40) PPCContext {
    * Unconditional (not guarded by config flags) because ctr may be optimized
    * to a local variable via REX_CONFIG_CTR_AS_LOCAL.
    */
-  uint32_t last_indirect_target = 0;
+  u32 last_indirect_target = 0;
 
   /** @name Floating point registers f0 to f31, 64 bit, f1 to f13 the float arguments, f1 the float
    * return value, f14 to f31 saved across calls. */
@@ -543,7 +542,7 @@ struct alignas(0x40) PPCContext {
    *
    * @param dst The destination buffer.
    */
-  void SaveNonVolatiles(uint8_t* dst) const {
+  void SaveNonVolatiles(u8* dst) const {
     std::memcpy(dst, &r14, 18 * sizeof(PPCRegister));
     dst += 18 * sizeof(PPCRegister);
     std::memcpy(dst, &f14, 18 * sizeof(PPCRegister));
@@ -563,7 +562,7 @@ struct alignas(0x40) PPCContext {
    *
    * @param src The source buffer of kNonVolatileSaveSize bytes.
    */
-  void RestoreNonVolatiles(const uint8_t* src) {
+  void RestoreNonVolatiles(const u8* src) {
     std::memcpy(&r14, src, 18 * sizeof(PPCRegister));
     src += 18 * sizeof(PPCRegister);
     std::memcpy(&f14, src, 18 * sizeof(PPCRegister));

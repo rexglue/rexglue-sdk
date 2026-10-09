@@ -45,7 +45,7 @@ bool SamplerInfo::Prepare(const xenos::TextureFetch& fetch,
   return true;
 }
 
-uint64_t SamplerInfo::hash() const {
+u64 SamplerInfo::hash() const {
   return XXH3_64bits(this, sizeof(SamplerInfo));
 }
 

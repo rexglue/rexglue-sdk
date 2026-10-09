@@ -71,10 +71,10 @@ enum class MemoryPurpose {
  * @param is_readback True for readback, false for upload.
  * @return The memory type index, or UINT32_MAX when none fits.
  */
-inline uint32_t ChooseHostMemoryType(const VulkanDevice::MemoryTypes& memory_types,
-                                     uint32_t supported_types, const bool is_readback) {
+inline u32 ChooseHostMemoryType(const VulkanDevice::MemoryTypes& memory_types, u32 supported_types,
+                                const bool is_readback) {
   supported_types &= memory_types.host_visible;
-  uint32_t memory_type;
+  u32 memory_type;
   if (rex::bit_scan_forward(
           supported_types & (is_readback ? memory_types.host_cached : ~memory_types.host_cached),
           &memory_type) ||
@@ -84,11 +84,11 @@ inline uint32_t ChooseHostMemoryType(const VulkanDevice::MemoryTypes& memory_typ
   return UINT32_MAX;
 }
 
-inline uint32_t ChooseMemoryType(const VulkanDevice::MemoryTypes& memory_types,
-                                 const uint32_t supported_types, const MemoryPurpose purpose) {
+inline u32 ChooseMemoryType(const VulkanDevice::MemoryTypes& memory_types,
+                            const u32 supported_types, const MemoryPurpose purpose) {
   switch (purpose) {
     case MemoryPurpose::kDeviceLocal: {
-      uint32_t memory_type;
+      u32 memory_type;
       if (rex::bit_scan_forward(supported_types & memory_types.device_local, &memory_type)) {
         return memory_type;
       }
@@ -122,7 +122,7 @@ inline uint32_t ChooseMemoryType(const VulkanDevice::MemoryTypes& memory_types,
  * @param size The size of the range, or VK_WHOLE_SIZE.
  */
 void FlushMappedMemoryRange(const VulkanDevice* vulkan_device, VkDeviceMemory memory,
-                            uint32_t memory_type, VkDeviceSize offset = 0,
+                            u32 memory_type, VkDeviceSize offset = 0,
                             VkDeviceSize memory_size = VK_WHOLE_SIZE,
                             VkDeviceSize size = VK_WHOLE_SIZE);
 
@@ -136,9 +136,9 @@ inline VkExtent2D GetMax2DFramebufferExtent(const VulkanDevice::Properties& devi
 }
 
 inline VkImageSubresourceRange InitializeSubresourceRange(
-    const VkImageAspectFlags aspect_mask = VK_IMAGE_ASPECT_COLOR_BIT,
-    const uint32_t base_mip_level = 0, const uint32_t level_count = VK_REMAINING_MIP_LEVELS,
-    const uint32_t base_array_layer = 0, const uint32_t layer_count = VK_REMAINING_ARRAY_LAYERS) {
+    const VkImageAspectFlags aspect_mask = VK_IMAGE_ASPECT_COLOR_BIT, const u32 base_mip_level = 0,
+    const u32 level_count = VK_REMAINING_MIP_LEVELS, const u32 base_array_layer = 0,
+    const u32 layer_count = VK_REMAINING_ARRAY_LAYERS) {
   VkImageSubresourceRange range;
   range.aspectMask = aspect_mask;
   range.baseMipLevel = base_mip_level;
@@ -167,13 +167,13 @@ inline VkImageSubresourceRange InitializeSubresourceRange(
 bool CreateDedicatedAllocationBuffer(const VulkanDevice* vulkan_device, VkDeviceSize size,
                                      VkBufferUsageFlags usage, MemoryPurpose memory_purpose,
                                      VkBuffer& buffer_out, VkDeviceMemory& memory_out,
-                                     uint32_t* memory_type_out = nullptr,
+                                     u32* memory_type_out = nullptr,
                                      VkDeviceSize* memory_size_out = nullptr);
 
 bool CreateDedicatedAllocationImage(const VulkanDevice* vulkan_device,
                                     const VkImageCreateInfo& create_info,
                                     MemoryPurpose memory_purpose, VkImage& image_out,
-                                    VkDeviceMemory& memory_out, uint32_t* memory_type_out = nullptr,
+                                    VkDeviceMemory& memory_out, u32* memory_type_out = nullptr,
                                     VkDeviceSize* memory_size_out = nullptr);
 
 /**
@@ -188,7 +188,7 @@ bool CreateDedicatedAllocationImage(const VulkanDevice* vulkan_device,
  * @return The shader module, or VK_NULL_HANDLE on failure.
  */
 inline VkShaderModule CreateShaderModule(const VulkanDevice* const vulkan_device,
-                                         const uint32_t* const code, const size_t code_size_bytes) {
+                                         const u32* const code, const size_t code_size_bytes) {
   VkShaderModuleCreateInfo shader_module_create_info;
   shader_module_create_info.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
   shader_module_create_info.pNext = nullptr;
@@ -208,7 +208,7 @@ VkPipeline CreateComputePipeline(const VulkanDevice* vulkan_device, VkPipelineLa
                                  const VkSpecializationInfo* specialization_info = nullptr,
                                  const char* entry_point = "main");
 VkPipeline CreateComputePipeline(const VulkanDevice* vulkan_device, VkPipelineLayout layout,
-                                 const uint32_t* shader_code, size_t shader_code_size_bytes,
+                                 const u32* shader_code, size_t shader_code_size_bytes,
                                  const VkSpecializationInfo* specialization_info = nullptr,
                                  const char* entry_point = "main");
 

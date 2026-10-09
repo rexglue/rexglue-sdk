@@ -30,12 +30,12 @@ void mergeAndSeal(CodegenContext& ctx) {
   auto& graph = ctx.graph;
   auto& binary = ctx.binary();
 
-  graph.setMemoryReader([&binary](uint32_t addr) -> std::optional<uint32_t> {
+  graph.setMemoryReader([&binary](u32 addr) -> std::optional<u32> {
     auto* section = binary.findSection(addr);
     if (!section || !section->data) {
       return std::nullopt;
     }
-    uint32_t offset = addr - section->baseAddress;
+    u32 offset = addr - section->baseAddress;
     if (offset + 4 > section->size) {
       return std::nullopt;
     }
@@ -50,12 +50,12 @@ void mergeAndSeal(CodegenContext& ctx) {
     iteration++;
     size_t changesThisIteration = 0;
 
-    std::vector<uint32_t> pendingAddrs;
+    std::vector<u32> pendingAddrs;
     for (const auto* node : graph.getPendingFunctions()) {
       pendingAddrs.push_back(node->base());
     }
 
-    for (uint32_t funcAddr : pendingAddrs) {
+    for (u32 funcAddr : pendingAddrs) {
       size_t resolved = graph.tryResolveFunction(funcAddr);
       changesThisIteration += resolved;
       totalResolved += resolved;

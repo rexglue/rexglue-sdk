@@ -14,7 +14,7 @@
 
 namespace rex::runtime {
 
-const XmaRegisterInfo* XMARegisterFile::GetRegisterInfo(uint32_t index) {
+const XmaRegisterInfo* XMARegisterFile::GetRegisterInfo(u32 index) {
   switch (index) {
 #define XE_XMA_REGISTER(index, name)          \
   case index: {                               \

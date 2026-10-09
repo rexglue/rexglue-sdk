@@ -77,7 +77,7 @@ inline bool ParseMapsLine(std::string_view line, ProcMapping& out) {
  * than the line buffer arrive cut short.
  *
  * @tparam F A callable taking a const ProcMapping& and returning true to continue.
- * @param fn The function. The path view lives only for the call.
+ * @param fn The function. The path view is valid only during the call.
  * @return True when the map could be read.
  */
 template <typename F>

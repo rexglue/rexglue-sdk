@@ -50,7 +50,7 @@ void StringBuffer::Grow(size_t additional_length) {
 }
 
 void StringBuffer::Append(char c) {
-  AppendBytes(reinterpret_cast<const uint8_t*>(&c), 1);
+  AppendBytes(reinterpret_cast<const u8*>(&c), 1);
 }
 
 void StringBuffer::Append(char c, size_t count) {
@@ -61,11 +61,11 @@ void StringBuffer::Append(char c, size_t count) {
 }
 
 void StringBuffer::Append(const char* value) {
-  AppendBytes(reinterpret_cast<const uint8_t*>(value), std::strlen(value));
+  AppendBytes(reinterpret_cast<const u8*>(value), std::strlen(value));
 }
 
 void StringBuffer::Append(const std::string_view value) {
-  AppendBytes(reinterpret_cast<const uint8_t*>(value.data()), value.size());
+  AppendBytes(reinterpret_cast<const u8*>(value.data()), value.size());
 }
 
 void StringBuffer::AppendVarargs(const char* format, va_list args) {
@@ -83,7 +83,7 @@ void StringBuffer::AppendVarargs(const char* format, va_list args) {
   buffer_[buffer_offset_] = 0;
 }
 
-void StringBuffer::AppendBytes(const uint8_t* buffer, size_t length) {
+void StringBuffer::AppendBytes(const u8* buffer, size_t length) {
   Grow(length + 1);
   memcpy(buffer_ + buffer_offset_, buffer, length);
   buffer_offset_ += length;
@@ -98,8 +98,8 @@ std::string_view StringBuffer::to_string_view() const {
   return std::string_view(buffer_, buffer_offset_);
 }
 
-std::vector<uint8_t> StringBuffer::to_bytes() const {
-  std::vector<uint8_t> bytes(buffer_offset_);
+std::vector<u8> StringBuffer::to_bytes() const {
+  std::vector<u8> bytes(buffer_offset_);
   std::memcpy(bytes.data(), buffer_, buffer_offset_);
   return bytes;
 }

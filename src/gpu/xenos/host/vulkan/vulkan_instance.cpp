@@ -149,7 +149,7 @@ std::unique_ptr<VulkanInstance> VulkanInstance::Create(const bool with_surface,
 
   std::vector<VkExtensionProperties> supported_implementation_extensions;
   while (true) {
-    uint32_t supported_implementation_extension_count = 0;
+    u32 supported_implementation_extension_count = 0;
     const VkResult get_supported_implementation_extension_count_result =
         ifn.vkEnumerateInstanceExtensionProperties(
             nullptr, &supported_implementation_extension_count, nullptr);
@@ -207,7 +207,7 @@ std::unique_ptr<VulkanInstance> VulkanInstance::Create(const bool with_surface,
     // The available layers may change at any time, hence the retry loop.
     while (true) {
       available_layers.clear();
-      uint32_t available_layer_count = 0;
+      u32 available_layer_count = 0;
       const VkResult get_available_layer_count_result =
           ifn.vkEnumerateInstanceLayerProperties(&available_layer_count, nullptr);
       if (get_available_layer_count_result != VK_SUCCESS &&
@@ -242,7 +242,7 @@ std::unique_ptr<VulkanInstance> VulkanInstance::Create(const bool with_surface,
         bool got_layer_extensions = true;
         // Layer extension lists may differ between calls, hence the retry loop.
         while (true) {
-          uint32_t supported_layer_extension_count = 0;
+          u32 supported_layer_extension_count = 0;
           const VkResult get_supported_layer_extension_count_result =
               ifn.vkEnumerateInstanceExtensionProperties(nullptr, &supported_layer_extension_count,
                                                          nullptr);
@@ -317,9 +317,9 @@ std::unique_ptr<VulkanInstance> VulkanInstance::Create(const bool with_surface,
     instance_create_info.flags |= VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
   }
   instance_create_info.pApplicationInfo = &application_info;
-  instance_create_info.enabledLayerCount = static_cast<uint32_t>(enabled_layers.size());
+  instance_create_info.enabledLayerCount = static_cast<u32>(enabled_layers.size());
   instance_create_info.ppEnabledLayerNames = enabled_layers.data();
-  instance_create_info.enabledExtensionCount = static_cast<uint32_t>(enabled_extensions.size());
+  instance_create_info.enabledExtensionCount = static_cast<u32>(enabled_extensions.size());
   instance_create_info.ppEnabledExtensionNames = enabled_extensions.data();
   VkResult instance_create_result =
       ifn.vkCreateInstance(&instance_create_info, nullptr, &vulkan_instance->instance_);
@@ -335,7 +335,7 @@ std::unique_ptr<VulkanInstance> VulkanInstance::Create(const bool with_surface,
     }
     instance_create_info.enabledLayerCount = 0;
     instance_create_info.enabledExtensionCount =
-        static_cast<uint32_t>(enabled_implementation_extension_count);
+        static_cast<u32>(enabled_implementation_extension_count);
     instance_create_result =
         ifn.vkCreateInstance(&instance_create_info, nullptr, &vulkan_instance->instance_);
   }
@@ -418,11 +418,11 @@ std::unique_ptr<VulkanInstance> VulkanInstance::Create(const bool with_surface,
               VK_VERSION_MAJOR(vulkan_instance->api_version_),
               VK_VERSION_MINOR(vulkan_instance->api_version_),
               VK_VERSION_PATCH(vulkan_instance->api_version_));
-  for (uint32_t enabled_layer_index = 0;
-       enabled_layer_index < instance_create_info.enabledLayerCount; ++enabled_layer_index) {
+  for (u32 enabled_layer_index = 0; enabled_layer_index < instance_create_info.enabledLayerCount;
+       ++enabled_layer_index) {
     REXLOG_DEBUG(ui, "* {}", instance_create_info.ppEnabledLayerNames[enabled_layer_index]);
   }
-  for (uint32_t enabled_extension_index = 0;
+  for (u32 enabled_extension_index = 0;
        enabled_extension_index < instance_create_info.enabledExtensionCount;
        ++enabled_extension_index) {
     REXLOG_DEBUG(ui, "* {}", instance_create_info.ppEnabledExtensionNames[enabled_extension_index]);
@@ -486,7 +486,7 @@ void VulkanInstance::EnumeratePhysicalDevices(
     std::vector<VkPhysicalDevice>& physical_devices_out) const {
   physical_devices_out.clear();
   while (true) {
-    uint32_t physical_device_count = 0;
+    u32 physical_device_count = 0;
     const VkResult get_physical_device_count_result =
         functions_.vkEnumeratePhysicalDevices(instance_, &physical_device_count, nullptr);
     if ((get_physical_device_count_result != VK_SUCCESS &&
@@ -530,21 +530,21 @@ VkBool32 VulkanInstance::DebugUtilsMessengerCallback(
     annotations_begun = true;
   };
 
-  for (uint32_t queue_label_index = 0; queue_label_index < callback_data->queueLabelCount;
+  for (u32 queue_label_index = 0; queue_label_index < callback_data->queueLabelCount;
        ++queue_label_index) {
     begin_annotation();
     log_str << "queue label " << queue_label_index << ": "
             << callback_data->pQueueLabels[queue_label_index].pLabelName;
   }
 
-  for (uint32_t cmd_buf_label_index = 0; cmd_buf_label_index < callback_data->cmdBufLabelCount;
+  for (u32 cmd_buf_label_index = 0; cmd_buf_label_index < callback_data->cmdBufLabelCount;
        ++cmd_buf_label_index) {
     begin_annotation();
     log_str << "command buffer label " << cmd_buf_label_index << ": "
             << callback_data->pCmdBufLabels[cmd_buf_label_index].pLabelName;
   }
 
-  for (uint32_t object_index = 0; object_index < callback_data->objectCount; ++object_index) {
+  for (u32 object_index = 0; object_index < callback_data->objectCount; ++object_index) {
     begin_annotation();
     const VkDebugUtilsObjectNameInfoEXT& object_info = callback_data->pObjects[object_index];
     // Lowercase hexadecimal handle digits match the default Vulkan debug utils messenger.

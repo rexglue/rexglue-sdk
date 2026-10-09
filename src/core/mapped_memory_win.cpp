@@ -46,7 +46,7 @@ class Win32MappedMemory : public MappedMemory {
     }
   }
 
-  void Close(uint64_t truncate_size) override {
+  void Close(u64 truncate_size) override {
     if (data_) {
       UnmapViewOfFile(data_);
       data_ = nullptr;
@@ -89,7 +89,7 @@ class Win32MappedMemory : public MappedMemory {
     } else {
       DWORD length_high;
       size_t map_length = GetFileSize(file_handle, &length_high);
-      map_length |= static_cast<uint64_t>(length_high) << 32;
+      map_length |= static_cast<u64>(length_high) << 32;
       size_ = map_length - aligned_offset;
     }
 
@@ -154,12 +154,12 @@ std::unique_ptr<MappedMemory> MappedMemory::Open(const std::filesystem::path& pa
   }
 
 #ifdef REX_BASE_MAPPED_MEMORY_WIN_USE_DESKTOP_FUNCTIONS
-  mm->data_ = reinterpret_cast<uint8_t*>(MapViewOfFile(mm->mapping_handle, view_access,
-                                                       DWORD(aligned_offset >> 32),
-                                                       DWORD(aligned_offset), aligned_length));
+  mm->data_ = reinterpret_cast<u8*>(MapViewOfFile(mm->mapping_handle, view_access,
+                                                  DWORD(aligned_offset >> 32),
+                                                  DWORD(aligned_offset), aligned_length));
 #else
-  mm->data_ = reinterpret_cast<uint8_t*>(MapViewOfFileFromApp(
-      mm->mapping_handle, ULONG(view_access), ULONG64(aligned_offset), aligned_length));
+  mm->data_ = reinterpret_cast<u8*>(MapViewOfFileFromApp(mm->mapping_handle, ULONG(view_access),
+                                                         ULONG64(aligned_offset), aligned_length));
 #endif
   if (!mm->data_) {
     return nullptr;
@@ -170,7 +170,7 @@ std::unique_ptr<MappedMemory> MappedMemory::Open(const std::filesystem::path& pa
   } else {
     DWORD length_high;
     size_t map_length = GetFileSize(mm->file_handle, &length_high);
-    map_length |= static_cast<uint64_t>(length_high) << 32;
+    map_length |= static_cast<u64>(length_high) << 32;
     mm->size_ = map_length - aligned_offset;
   }
 
@@ -188,10 +188,10 @@ class Win32ChunkedMappedMemoryWriter : public ChunkedMappedMemoryWriter {
     chunks_.clear();
   }
 
-  uint8_t* Allocate(size_t length) override {
+  u8* Allocate(size_t length) override {
     std::lock_guard<std::mutex> lock(mutex_);
     if (!chunks_.empty()) {
-      uint8_t* result = chunks_.back()->Allocate(length);
+      u8* result = chunks_.back()->Allocate(length);
       if (result != nullptr) {
         return result;
       }
@@ -201,7 +201,7 @@ class Win32ChunkedMappedMemoryWriter : public ChunkedMappedMemoryWriter {
     if (!chunk->Open(chunk_path, low_address_space_)) {
       return nullptr;
     }
-    uint8_t* result = chunk->Allocate(length);
+    u8* result = chunk->Allocate(length);
     chunks_.push_back(std::move(chunk));
     return result;
   }
@@ -269,7 +269,7 @@ class Win32ChunkedMappedMemoryWriter : public ChunkedMappedMemoryWriter {
 
       if (low_address_space) {
         bool successful = false;
-        data_ = reinterpret_cast<uint8_t*>(0x10000000);
+        data_ = reinterpret_cast<u8*>(0x10000000);
 #ifndef REX_BASE_MAPPED_MEMORY_WIN_USE_DESKTOP_FUNCTIONS
         HANDLE process = GetCurrentProcess();
 #endif
@@ -303,10 +303,9 @@ class Win32ChunkedMappedMemoryWriter : public ChunkedMappedMemoryWriter {
         }
       } else {
 #ifdef REX_BASE_MAPPED_MEMORY_WIN_USE_DESKTOP_FUNCTIONS
-        data_ = reinterpret_cast<uint8_t*>(
-            MapViewOfFile(mapping_handle_, view_access, 0, 0, capacity_));
+        data_ = reinterpret_cast<u8*>(MapViewOfFile(mapping_handle_, view_access, 0, 0, capacity_));
 #else
-        data_ = reinterpret_cast<uint8_t*>(
+        data_ = reinterpret_cast<u8*>(
             MapViewOfFileFromApp(mapping_handle_, ULONG(view_access), 0, capacity_));
 #endif
       }
@@ -317,11 +316,11 @@ class Win32ChunkedMappedMemoryWriter : public ChunkedMappedMemoryWriter {
       return true;
     }
 
-    uint8_t* Allocate(size_t length) {
+    u8* Allocate(size_t length) {
       if (capacity_ - offset_ < length) {
         return nullptr;
       }
-      uint8_t* result = data_ + offset_;
+      u8* result = data_ + offset_;
       offset_ += length;
       return result;
     }
@@ -336,7 +335,7 @@ class Win32ChunkedMappedMemoryWriter : public ChunkedMappedMemoryWriter {
    private:
     HANDLE file_handle_;
     HANDLE mapping_handle_;
-    uint8_t* data_;
+    u8* data_;
     size_t offset_;
     size_t capacity_;
     size_t last_flush_offset_;

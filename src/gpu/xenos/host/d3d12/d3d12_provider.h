@@ -28,7 +28,7 @@ class D3D12Provider : public GraphicsProvider {
 
   static bool IsD3D12APIAvailable();
 
-  static std::unique_ptr<D3D12Provider> Create(int32_t adapter_index);
+  static std::unique_ptr<D3D12Provider> Create(i32 adapter_index);
 
   std::unique_ptr<Presenter> CreatePresenter(Presenter::HostGpuLossCallback host_gpu_loss_callback =
                                                  Presenter::FatalErrorHostGpuLossCallback) override;
@@ -41,43 +41,37 @@ class D3D12Provider : public GraphicsProvider {
   ID3D12Device* GetDevice() const { return device_; }
   ID3D12CommandQueue* GetDirectQueue() const { return direct_queue_; }
 
-  uint32_t GetDescriptorSize(D3D12_DESCRIPTOR_HEAP_TYPE type) const {
-    return descriptor_sizes_[type];
-  }
-  uint32_t GetViewDescriptorSize() const {
+  u32 GetDescriptorSize(D3D12_DESCRIPTOR_HEAP_TYPE type) const { return descriptor_sizes_[type]; }
+  u32 GetViewDescriptorSize() const {
     return GetDescriptorSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
   }
-  uint32_t GetSamplerDescriptorSize() const {
+  u32 GetSamplerDescriptorSize() const {
     return GetDescriptorSize(D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER);
   }
-  uint32_t GetRTVDescriptorSize() const {
-    return GetDescriptorSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
-  }
-  uint32_t GetDSVDescriptorSize() const {
-    return GetDescriptorSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
-  }
+  u32 GetRTVDescriptorSize() const { return GetDescriptorSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV); }
+  u32 GetDSVDescriptorSize() const { return GetDescriptorSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV); }
   template <typename T>
-  T OffsetDescriptor(D3D12_DESCRIPTOR_HEAP_TYPE type, T start, uint32_t index) const {
+  T OffsetDescriptor(D3D12_DESCRIPTOR_HEAP_TYPE type, T start, u32 index) const {
     start.ptr += index * GetDescriptorSize(type);
     return start;
   }
   template <typename T>
-  T OffsetViewDescriptor(T start, uint32_t index) const {
+  T OffsetViewDescriptor(T start, u32 index) const {
     start.ptr += index * GetViewDescriptorSize();
     return start;
   }
   template <typename T>
-  T OffsetSamplerDescriptor(T start, uint32_t index) const {
+  T OffsetSamplerDescriptor(T start, u32 index) const {
     start.ptr += index * GetSamplerDescriptorSize();
     return start;
   }
   template <typename T>
-  T OffsetRTVDescriptor(T start, uint32_t index) const {
+  T OffsetRTVDescriptor(T start, u32 index) const {
     start.ptr += index * GetRTVDescriptorSize();
     return start;
   }
   template <typename T>
-  T OffsetDSVDescriptor(T start, uint32_t index) const {
+  T OffsetDSVDescriptor(T start, u32 index) const {
     start.ptr += index * GetDSVDescriptorSize();
     return start;
   }
@@ -94,7 +88,7 @@ class D3D12Provider : public GraphicsProvider {
   D3D12_RESOURCE_BINDING_TIER GetResourceBindingTier() const { return resource_binding_tier_; }
   D3D12_TILED_RESOURCES_TIER GetTiledResourcesTier() const { return tiled_resources_tier_; }
   bool AreUnalignedBlockTexturesSupported() const { return unaligned_block_textures_supported_; }
-  uint32_t GetVirtualAddressBitsPerResource() const { return virtual_address_bits_per_resource_; }
+  u32 GetVirtualAddressBitsPerResource() const { return virtual_address_bits_per_resource_; }
 
   HRESULT SerializeRootSignature(const D3D12_ROOT_SIGNATURE_DESC* desc,
                                  D3D_ROOT_SIGNATURE_VERSION version, ID3DBlob** blob_out,
@@ -123,7 +117,7 @@ class D3D12Provider : public GraphicsProvider {
 
  private:
   static bool EnableIncreaseBasePriorityPrivilege();
-  bool Initialize(int32_t adapter_index);
+  bool Initialize(i32 adapter_index);
 
   using PFNCreateDXGIFactory2 = HRESULT(WINAPI*)(UINT Flags, REFIID riid,
                                                  _COM_Outptr_ void** ppFactory);
@@ -154,7 +148,7 @@ class D3D12Provider : public GraphicsProvider {
   ID3D12CommandQueue* direct_queue_ = nullptr;
   IDXGraphicsAnalysis* graphics_analysis_ = nullptr;
 
-  uint32_t descriptor_sizes_[D3D12_DESCRIPTOR_HEAP_TYPE_NUM_TYPES];
+  u32 descriptor_sizes_[D3D12_DESCRIPTOR_HEAP_TYPE_NUM_TYPES];
 
   GpuVendorID adapter_vendor_id_;
 
@@ -162,7 +156,7 @@ class D3D12Provider : public GraphicsProvider {
   D3D12_PROGRAMMABLE_SAMPLE_POSITIONS_TIER programmable_sample_positions_tier_;
   D3D12_RESOURCE_BINDING_TIER resource_binding_tier_;
   D3D12_TILED_RESOURCES_TIER tiled_resources_tier_;
-  uint32_t virtual_address_bits_per_resource_;
+  u32 virtual_address_bits_per_resource_;
   bool ps_specified_stencil_reference_supported_;
   bool rasterizer_ordered_views_supported_;
   bool unaligned_block_textures_supported_;

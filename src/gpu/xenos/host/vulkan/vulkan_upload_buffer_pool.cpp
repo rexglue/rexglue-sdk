@@ -28,8 +28,8 @@ VulkanUploadBufferPool::VulkanUploadBufferPool(const VulkanDevice* const vulkan_
       vulkan_device_(vulkan_device),
       usage_(usage) {}
 
-uint8_t* VulkanUploadBufferPool::Request(uint64_t submission_index, size_t size, size_t alignment,
-                                         VkBuffer& buffer_out, VkDeviceSize& offset_out) {
+u8* VulkanUploadBufferPool::Request(u64 submission_index, size_t size, size_t alignment,
+                                    VkBuffer& buffer_out, VkDeviceSize& offset_out) {
   size_t offset;
   const VulkanPage* page = static_cast<const VulkanPage*>(
       GraphicsUploadBufferPool::Request(submission_index, size, alignment, offset));
@@ -38,12 +38,12 @@ uint8_t* VulkanUploadBufferPool::Request(uint64_t submission_index, size_t size,
   }
   buffer_out = page->buffer_;
   offset_out = VkDeviceSize(offset);
-  return reinterpret_cast<uint8_t*>(page->mapping_) + offset;
+  return reinterpret_cast<u8*>(page->mapping_) + offset;
 }
 
-uint8_t* VulkanUploadBufferPool::RequestPartial(uint64_t submission_index, size_t size,
-                                                size_t alignment, VkBuffer& buffer_out,
-                                                VkDeviceSize& offset_out, VkDeviceSize& size_out) {
+u8* VulkanUploadBufferPool::RequestPartial(u64 submission_index, size_t size, size_t alignment,
+                                           VkBuffer& buffer_out, VkDeviceSize& offset_out,
+                                           VkDeviceSize& size_out) {
   size_t offset, size_obtained;
   const VulkanPage* page = static_cast<const VulkanPage*>(GraphicsUploadBufferPool::RequestPartial(
       submission_index, size, alignment, offset, size_obtained));
@@ -53,7 +53,7 @@ uint8_t* VulkanUploadBufferPool::RequestPartial(uint64_t submission_index, size_
   buffer_out = page->buffer_;
   offset_out = VkDeviceSize(offset);
   size_out = VkDeviceSize(size_obtained);
-  return reinterpret_cast<uint8_t*>(page->mapping_) + offset;
+  return reinterpret_cast<u8*>(page->mapping_) + offset;
 }
 
 std::unique_ptr<GraphicsUploadBufferPool::Page> VulkanUploadBufferPool::CreatePageImplementation() {
@@ -102,7 +102,7 @@ std::unique_ptr<GraphicsUploadBufferPool::Page> VulkanUploadBufferPool::CreatePa
           VK_SUCCESS) {
         VkMemoryRequirements memory_requirements_expanded;
         dfn.vkGetBufferMemoryRequirements(device, buffer_expanded, &memory_requirements_expanded);
-        uint32_t memory_type_expanded = util::ChooseHostMemoryType(
+        u32 memory_type_expanded = util::ChooseHostMemoryType(
             vulkan_device_->memory_types(), memory_requirements.memoryTypeBits, false);
         if (memory_requirements_expanded.size <= allocation_size_ &&
             memory_type_expanded != UINT32_MAX) {

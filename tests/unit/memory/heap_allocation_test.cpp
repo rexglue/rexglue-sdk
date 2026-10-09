@@ -39,7 +39,7 @@ TEST_CASE("Heap allocation rounds size up to page size", "[memory][heap]") {
   REQUIRE(heap != nullptr);
 
   SECTION("Size smaller than page size rounds to page size") {
-    uint32_t addr = 0;
+    u32 addr = 0;
     bool result = heap->Alloc(
         100, 4096, rex::runtime::kMemoryAllocationReserve | rex::runtime::kMemoryAllocationCommit,
         rex::runtime::kMemoryProtectRead | rex::runtime::kMemoryProtectWrite, false, &addr);
@@ -54,7 +54,7 @@ TEST_CASE("Heap allocation rounds size up to page size", "[memory][heap]") {
   }
 
   SECTION("Size of 4 bytes rounds to 4096") {
-    uint32_t addr = 0;
+    u32 addr = 0;
     bool result = heap->Alloc(
         4, 4096, rex::runtime::kMemoryAllocationReserve | rex::runtime::kMemoryAllocationCommit,
         rex::runtime::kMemoryProtectRead | rex::runtime::kMemoryProtectWrite, false, &addr);
@@ -68,7 +68,7 @@ TEST_CASE("Heap allocation rounds size up to page size", "[memory][heap]") {
   }
 
   SECTION("Size exactly page size stays unchanged") {
-    uint32_t addr = 0;
+    u32 addr = 0;
     bool result = heap->Alloc(
         4096, 4096, rex::runtime::kMemoryAllocationReserve | rex::runtime::kMemoryAllocationCommit,
         rex::runtime::kMemoryProtectRead | rex::runtime::kMemoryProtectWrite, false, &addr);
@@ -82,7 +82,7 @@ TEST_CASE("Heap allocation rounds size up to page size", "[memory][heap]") {
   }
 
   SECTION("Multi-page allocation") {
-    uint32_t addr = 0;
+    u32 addr = 0;
     bool result = heap->Alloc(
         4096 * 4, 4096,
         rex::runtime::kMemoryAllocationReserve | rex::runtime::kMemoryAllocationCommit,
@@ -103,7 +103,7 @@ TEST_CASE("Heap allocation rounds alignment up to page size", "[memory][heap]") 
   REQUIRE(heap != nullptr);
 
   SECTION("Small alignment rounds to page size") {
-    uint32_t addr = 0;
+    u32 addr = 0;
     bool result = heap->Alloc(
         4096, 32, rex::runtime::kMemoryAllocationReserve | rex::runtime::kMemoryAllocationCommit,
         rex::runtime::kMemoryProtectRead | rex::runtime::kMemoryProtectWrite, false, &addr);
@@ -115,7 +115,7 @@ TEST_CASE("Heap allocation rounds alignment up to page size", "[memory][heap]") 
   }
 
   SECTION("Large alignment is respected") {
-    uint32_t addr = 0;
+    u32 addr = 0;
     bool result = heap->Alloc(
         4096, 65536, rex::runtime::kMemoryAllocationReserve | rex::runtime::kMemoryAllocationCommit,
         rex::runtime::kMemoryProtectRead | rex::runtime::kMemoryProtectWrite, false, &addr);
@@ -132,7 +132,7 @@ TEST_CASE("Bottom-up allocation starts after reserved first 64KB", "[memory][hea
   auto* heap = MutableHeap(memory.LookupHeap(0x10000000));
   REQUIRE(heap != nullptr);
 
-  uint32_t addr = 0;
+  u32 addr = 0;
   bool result = heap->Alloc(
       4096, 4096, rex::runtime::kMemoryAllocationReserve | rex::runtime::kMemoryAllocationCommit,
       rex::runtime::kMemoryProtectRead | rex::runtime::kMemoryProtectWrite, false, &addr);
@@ -149,8 +149,8 @@ TEST_CASE("Top-down allocation returns high addresses", "[memory][heap]") {
   auto* heap = MutableHeap(memory.LookupHeap(0x10000000));
   REQUIRE(heap != nullptr);
 
-  uint32_t addr_bottom = 0;
-  uint32_t addr_top = 0;
+  u32 addr_bottom = 0;
+  u32 addr_top = 0;
 
   heap->Alloc(
       4096, 4096, rex::runtime::kMemoryAllocationReserve | rex::runtime::kMemoryAllocationCommit,
@@ -173,7 +173,7 @@ TEST_CASE("AllocFixed allocates at exact address", "[memory][heap]") {
   auto* heap = MutableHeap(memory.LookupHeap(0x10000000));
   REQUIRE(heap != nullptr);
 
-  uint32_t target = 0x20000000;
+  u32 target = 0x20000000;
 
   bool result = heap->AllocFixed(
       target, 4096, 4096,
@@ -194,7 +194,7 @@ TEST_CASE("AllocFixed reserve-only fails on already-reserved region", "[memory][
   auto* heap = MutableHeap(memory.LookupHeap(0x10000000));
   REQUIRE(heap != nullptr);
 
-  uint32_t target = 0x21000000;
+  u32 target = 0x21000000;
 
   bool first =
       heap->AllocFixed(target, 4096, 4096, rex::runtime::kMemoryAllocationReserve,
@@ -214,7 +214,7 @@ TEST_CASE("AllocFixed commit on reserved region succeeds", "[memory][heap]") {
   auto* heap = MutableHeap(memory.LookupHeap(0x10000000));
   REQUIRE(heap != nullptr);
 
-  uint32_t target = 0x21100000;
+  u32 target = 0x21100000;
 
   bool reserve =
       heap->AllocFixed(target, 4096, 4096, rex::runtime::kMemoryAllocationReserve,
@@ -234,14 +234,14 @@ TEST_CASE("Protect changes page protection and returns old value", "[memory][hea
   auto* heap = MutableHeap(memory.LookupHeap(0x10000000));
   REQUIRE(heap != nullptr);
 
-  uint32_t addr = 0;
+  u32 addr = 0;
   bool result = heap->Alloc(
       4096, 4096, rex::runtime::kMemoryAllocationReserve | rex::runtime::kMemoryAllocationCommit,
       rex::runtime::kMemoryProtectRead | rex::runtime::kMemoryProtectWrite, false, &addr);
   REQUIRE(result);
 
   SECTION("Change to read-only") {
-    uint32_t old_protect = 0;
+    u32 old_protect = 0;
     bool protect_result = heap->Protect(addr, 4096, rex::runtime::kMemoryProtectRead, &old_protect);
     REQUIRE(protect_result);
 
@@ -260,7 +260,7 @@ TEST_CASE("QueryRegionInfo returns correct allocation info", "[memory][heap]") {
   auto* heap = MutableHeap(memory.LookupHeap(0x10000000));
   REQUIRE(heap != nullptr);
 
-  uint32_t addr = 0;
+  u32 addr = 0;
   bool result = heap->Alloc(
       4096 * 4, 4096,
       rex::runtime::kMemoryAllocationReserve | rex::runtime::kMemoryAllocationCommit,
@@ -279,7 +279,7 @@ TEST_CASE("QueryRegionInfo returns correct allocation info", "[memory][heap]") {
   }
 
   SECTION("Query in middle of allocation") {
-    uint32_t mid = addr + 4096 * 2;
+    u32 mid = addr + 4096 * 2;
     rex::runtime::HeapAllocationInfo info{};
     REQUIRE(heap->QueryRegionInfo(mid, &info));
 
@@ -296,7 +296,7 @@ TEST_CASE("Release frees memory for reallocation", "[memory][heap]") {
   auto* heap = MutableHeap(memory.LookupHeap(0x22000000));
   REQUIRE(heap != nullptr);
 
-  uint32_t target = 0x22000000;
+  u32 target = 0x22000000;
 
   bool alloc1 = heap->AllocFixed(
       target, 4096, 4096,
@@ -304,7 +304,7 @@ TEST_CASE("Release frees memory for reallocation", "[memory][heap]") {
       rex::runtime::kMemoryProtectRead | rex::runtime::kMemoryProtectWrite);
   REQUIRE(alloc1);
 
-  uint32_t released_size = 0;
+  u32 released_size = 0;
   bool release = heap->Release(target, &released_size);
   REQUIRE(release);
   CHECK(released_size == 4096);
@@ -348,7 +348,7 @@ TEST_CASE("64KB page heap rounds to 64KB boundaries", "[memory][heap]") {
   REQUIRE(heap != nullptr);
 
   SECTION("Small size rounds to 64KB") {
-    uint32_t addr = 0;
+    u32 addr = 0;
     bool result = heap->Alloc(
         4096, 4096, rex::runtime::kMemoryAllocationReserve | rex::runtime::kMemoryAllocationCommit,
         rex::runtime::kMemoryProtectRead | rex::runtime::kMemoryProtectWrite, false, &addr);
@@ -370,7 +370,7 @@ TEST_CASE("Decommit removes commit flag but keeps reservation", "[memory][heap]"
   auto* heap = MutableHeap(memory.LookupHeap(0x10000000));
   REQUIRE(heap != nullptr);
 
-  uint32_t addr = 0;
+  u32 addr = 0;
   bool result = heap->Alloc(
       4096, 4096, rex::runtime::kMemoryAllocationReserve | rex::runtime::kMemoryAllocationCommit,
       rex::runtime::kMemoryProtectRead | rex::runtime::kMemoryProtectWrite, false, &addr);
@@ -397,7 +397,7 @@ TEST_CASE("Decommit partial region", "[memory][heap]") {
   auto* heap = MutableHeap(memory.LookupHeap(0x10000000));
   REQUIRE(heap != nullptr);
 
-  uint32_t addr = 0;
+  u32 addr = 0;
   bool result = heap->Alloc(
       4096 * 4, 4096,
       rex::runtime::kMemoryAllocationReserve | rex::runtime::kMemoryAllocationCommit,
@@ -428,7 +428,7 @@ TEST_CASE("Decommit-recommit cycle on 64KB heap (real usage pattern)", "[memory]
   auto* heap = MutableHeap(memory.LookupHeap(0x50000000));
   REQUIRE(heap != nullptr);
 
-  uint32_t addr = 0;
+  u32 addr = 0;
   bool result = heap->Alloc(
       65536, 65536, rex::runtime::kMemoryAllocationReserve | rex::runtime::kMemoryAllocationCommit,
       rex::runtime::kMemoryProtectRead | rex::runtime::kMemoryProtectWrite, false, &addr);
@@ -460,7 +460,7 @@ TEST_CASE("Repeated decommit of same page succeeds (idempotent)", "[memory][heap
   auto* heap = MutableHeap(memory.LookupHeap(0x50000000));
   REQUIRE(heap != nullptr);
 
-  uint32_t addr = 0;
+  u32 addr = 0;
   bool result = heap->Alloc(
       65536, 65536, rex::runtime::kMemoryAllocationReserve | rex::runtime::kMemoryAllocationCommit,
       rex::runtime::kMemoryProtectRead | rex::runtime::kMemoryProtectWrite, false, &addr);
@@ -484,7 +484,7 @@ TEST_CASE("Decommit on 64KB heap uses 64KB granularity", "[memory][heap]") {
   auto* heap = MutableHeap(memory.LookupHeap(0x50000000));
   REQUIRE(heap != nullptr);
 
-  uint32_t addr = 0;
+  u32 addr = 0;
   bool result = heap->Alloc(
       65536, 65536, rex::runtime::kMemoryAllocationReserve | rex::runtime::kMemoryAllocationCommit,
       rex::runtime::kMemoryProtectRead | rex::runtime::kMemoryProtectWrite, false, &addr);
@@ -507,13 +507,13 @@ TEST_CASE("TranslateVirtual returns valid host pointer", "[memory][translation]"
   auto* heap = MutableHeap(memory.LookupHeap(0x10000000));
   REQUIRE(heap != nullptr);
 
-  uint32_t guest_addr = 0;
+  u32 guest_addr = 0;
   bool result = heap->Alloc(
       4096, 4096, rex::runtime::kMemoryAllocationReserve | rex::runtime::kMemoryAllocationCommit,
       rex::runtime::kMemoryProtectRead | rex::runtime::kMemoryProtectWrite, false, &guest_addr);
   REQUIRE(result);
 
-  uint8_t* host_ptr = memory.TranslateVirtual(guest_addr);
+  u8* host_ptr = memory.TranslateVirtual(guest_addr);
   REQUIRE(host_ptr != nullptr);
 
   host_ptr[0] = 0xAB;
@@ -528,14 +528,14 @@ TEST_CASE("HostToGuestVirtual roundtrip", "[memory][translation]") {
   auto* heap = MutableHeap(memory.LookupHeap(0x10000000));
   REQUIRE(heap != nullptr);
 
-  uint32_t original_guest = 0;
+  u32 original_guest = 0;
   bool result = heap->Alloc(
       4096, 4096, rex::runtime::kMemoryAllocationReserve | rex::runtime::kMemoryAllocationCommit,
       rex::runtime::kMemoryProtectRead | rex::runtime::kMemoryProtectWrite, false, &original_guest);
   REQUIRE(result);
 
-  uint8_t* host_ptr = memory.TranslateVirtual(original_guest);
-  uint32_t back_to_guest = memory.HostToGuestVirtual(host_ptr);
+  u8* host_ptr = memory.TranslateVirtual(original_guest);
+  u32 back_to_guest = memory.HostToGuestVirtual(host_ptr);
 
   CHECK(back_to_guest == original_guest);
 
@@ -546,8 +546,8 @@ TEST_CASE("TranslatePhysical masks to 29 bits", "[memory][translation]") {
   auto& memory = GetTestMemory();
 
   // Physical addresses are masked with 0x1FFFFFFF (29 bits)
-  uint8_t* ptr_low = memory.TranslatePhysical(0x00001000);
-  uint8_t* ptr_high = memory.TranslatePhysical(0xA0001000);
+  u8* ptr_low = memory.TranslatePhysical(0x00001000);
+  u8* ptr_high = memory.TranslatePhysical(0xA0001000);
 
   // (0xA0001000 & 0x1FFFFFFF) == 0x00001000
   CHECK(ptr_low == ptr_high);
@@ -559,7 +559,7 @@ TEST_CASE("Physical heap vA0000000 (64KB pages, cached)", "[memory][physical]") 
   REQUIRE(heap != nullptr);
 
   // vA0000000 heap has base 0xA0000000 and 64KB pages
-  uint32_t addr = 0;
+  u32 addr = 0;
   bool result = heap->Alloc(
       4096, 4096, rex::runtime::kMemoryAllocationReserve | rex::runtime::kMemoryAllocationCommit,
       rex::runtime::kMemoryProtectRead | rex::runtime::kMemoryProtectWrite, false, &addr);
@@ -580,7 +580,7 @@ TEST_CASE("Physical heap vC0000000 (16MB pages, uncached)", "[memory][physical]"
 
   // vC0000000 has 16MB pages, and its first 16MB is preallocated for GPU writeback.
 
-  uint32_t addr = 0;
+  u32 addr = 0;
   bool result = heap->Alloc(
       16 * 1024 * 1024, 16 * 1024 * 1024,
       rex::runtime::kMemoryAllocationReserve | rex::runtime::kMemoryAllocationCommit,
@@ -599,7 +599,7 @@ TEST_CASE("Physical heap vE0000000 (4KB pages, write-combine)", "[memory][physic
   REQUIRE(heap != nullptr);
 
   // vE0000000 heap has base 0xE0000000 and 4KB pages
-  uint32_t addr = 0;
+  u32 addr = 0;
   bool result = heap->Alloc(
       4096, 4096, rex::runtime::kMemoryAllocationReserve | rex::runtime::kMemoryAllocationCommit,
       rex::runtime::kMemoryProtectRead | rex::runtime::kMemoryProtectWrite, false, &addr);

@@ -24,9 +24,9 @@ namespace rex::codegen {
  * @param excludeGapFill True to leave GAP_FILL authority functions out of the set.
  * @return Entry point addresses.
  */
-inline std::unordered_set<uint32_t> buildKnownFunctions(const FunctionGraph& graph,
-                                                        bool excludeGapFill = false) {
-  std::unordered_set<uint32_t> result;
+inline std::unordered_set<u32> buildKnownFunctions(const FunctionGraph& graph,
+                                                   bool excludeGapFill = false) {
+  std::unordered_set<u32> result;
   for (const auto& [addr, node] : graph.functions()) {
     auto auth = node->authority();
     if (auth == FunctionAuthority::HELPER)
@@ -45,7 +45,6 @@ inline std::unordered_set<uint32_t> buildKnownFunctions(const FunctionGraph& gra
  * @param knownFunctions Function entry points that bound a function.
  * @return The number of functions discovered.
  */
-size_t discoverPendingFunctions(CodegenContext& ctx,
-                                const std::unordered_set<uint32_t>& knownFunctions);
+size_t discoverPendingFunctions(CodegenContext& ctx, const std::unordered_set<u32>& knownFunctions);
 
 }  // namespace rex::codegen

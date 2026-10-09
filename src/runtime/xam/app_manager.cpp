@@ -16,7 +16,7 @@ namespace rex {
 namespace runtime {
 namespace xam {
 
-App::App(Runtime& runtime, uint32_t app_id)
+App::App(Runtime& runtime, u32 app_id)
     : runtime_(runtime), memory_(runtime.memory()), app_id_(app_id) {}
 
 void AppManager::RegisterApp(std::unique_ptr<App> app) {
@@ -25,8 +25,8 @@ void AppManager::RegisterApp(std::unique_ptr<App> app) {
   apps_.push_back(std::move(app));
 }
 
-X_HRESULT AppManager::DispatchMessageSync(uint32_t app_id, uint32_t message, uint32_t buffer_ptr,
-                                          uint32_t buffer_length) {
+X_HRESULT AppManager::DispatchMessageSync(u32 app_id, u32 message, u32 buffer_ptr,
+                                          u32 buffer_length) {
   App* app;
   {
     auto it = app_lookup_.find(app_id);
@@ -38,8 +38,8 @@ X_HRESULT AppManager::DispatchMessageSync(uint32_t app_id, uint32_t message, uin
   return app->DispatchMessageSync(message, buffer_ptr, buffer_length);
 }
 
-X_HRESULT AppManager::DispatchMessageAsync(uint32_t app_id, uint32_t message, uint32_t buffer_ptr,
-                                           uint32_t buffer_length) {
+X_HRESULT AppManager::DispatchMessageAsync(u32 app_id, u32 message, u32 buffer_ptr,
+                                           u32 buffer_length) {
   App* app;
   {
     auto it = app_lookup_.find(app_id);

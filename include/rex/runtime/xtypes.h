@@ -19,11 +19,11 @@
 namespace rex {
 
 /** Value the title uses to name a kernel object. */
-using X_HANDLE = uint32_t;
+using X_HANDLE = u32;
 inline constexpr X_HANDLE X_INVALID_HANDLE_VALUE = static_cast<X_HANDLE>(-1);
 
 /** NT status code type, holding STATUS_* values. */
-using X_STATUS = uint32_t;
+using X_STATUS = u32;
 [[nodiscard]] constexpr bool XSUCCEEDED(X_STATUS s) {
   return (s & 0xC0000000) == 0;
 }
@@ -81,7 +81,7 @@ inline constexpr X_STATUS X_STATUS_DRIVER_ORDINAL_NOT_FOUND = 0xC0000262;
 inline constexpr X_STATUS X_STATUS_DRIVER_ENTRYPOINT_NOT_FOUND = 0xC0000263;
 
 /** Win32 error code type, holding ERROR_* values. */
-using X_RESULT = uint32_t;
+using X_RESULT = u32;
 inline constexpr i32 X_FACILITY_WIN32 = 0x0007;
 [[nodiscard]] constexpr X_RESULT X_RESULT_FROM_WIN32(u32 x) {
   return x;
@@ -111,7 +111,7 @@ inline constexpr X_RESULT X_ERROR_FUNCTION_FAILED = X_RESULT_FROM_WIN32(0x000006
 inline constexpr X_RESULT X_ERROR_EMPTY = X_RESULT_FROM_WIN32(0x000010D2);
 
 /** HRESULT code type. */
-using X_HRESULT = uint32_t;
+using X_HRESULT = u32;
 [[nodiscard]] constexpr X_HRESULT X_HRESULT_FROM_WIN32(u32 x) {
   return static_cast<i32>(x) <= 0 ? x : ((x & 0xFFFF) | (X_FACILITY_WIN32 << 16) | 0x80000000);
 }
@@ -127,7 +127,7 @@ inline constexpr X_HRESULT X_E_NOTFOUND = X_HRESULT_FROM_WIN32(X_ERROR_NOT_FOUND
 inline constexpr X_HRESULT X_E_NO_SUCH_USER = X_HRESULT_FROM_WIN32(X_ERROR_NO_SUCH_USER);
 
 /** MEM_* flags used by NtAllocateVirtualMemory. */
-enum X_MEM : uint32_t {
+enum X_MEM : u32 {
   X_MEM_COMMIT = 0x00001000,   /**< Commits the pages. */
   X_MEM_RESERVE = 0x00002000,  /**< Reserves the address range. */
   X_MEM_DECOMMIT = 0x00004000, /**< Decommits the pages and keeps the reservation. */
@@ -145,7 +145,7 @@ enum X_MEM : uint32_t {
 };
 
 /** PAGE_* flags used by NtAllocateVirtualMemory. */
-enum X_PAGE : uint32_t {
+enum X_PAGE : u32 {
   X_PAGE_NOACCESS = 0x00000001,          /**< Any access faults. */
   X_PAGE_READONLY = 0x00000002,          /**< Pages can be read. */
   X_PAGE_READWRITE = 0x00000004,         /**< Pages can be read and written. */
@@ -201,14 +201,14 @@ template <typename T>
 struct TypedGuestPointer {
   be_u32 value; /**< Guest address. */
 
-  operator uint32_t() const { return value; }
+  operator u32() const { return value; }
   /**
    * Sets the guest address.
    *
    * @param v The guest address.
    * @return This pointer.
    */
-  TypedGuestPointer& operator=(uint32_t v) {
+  TypedGuestPointer& operator=(u32 v) {
     value = v;
     return *this;
   }

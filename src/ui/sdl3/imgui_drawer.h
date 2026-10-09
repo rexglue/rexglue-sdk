@@ -127,7 +127,7 @@ class ImGuiDrawer : public WindowInputListener, public gpu::IOverlayLayer, publi
 
   void ClearInput();
   void OnKey(KeyEvent& e, bool is_down);
-  void UpdateMousePosition(float x, float y);
+  void UpdateMousePosition(f32 x, f32 y);
   void SwitchToPhysicalMouseAndUpdateMousePosition(const MouseEvent& e);
 
   bool IsDrawingDialogs() const { return dialog_loop_next_index_ != SIZE_MAX; }
@@ -159,15 +159,15 @@ class ImGuiDrawer : public WindowInputListener, public gpu::IOverlayLayer, publi
   std::unique_ptr<gpu::OverlayTexture> font_texture_;
 
   /** Pointer id of the touch controlling the ImGui mouse, kPointerIDNone when the mouse does. */
-  uint32_t touch_pointer_id_ = TouchEvent::kPointerIDNone;
+  u32 touch_pointer_id_ = TouchEvent::kPointerIDNone;
   /**
    * True to reset the ImGui mouse position after the next frame, so the mouse up event is handled
    * at the correct position first and the mouse then hovers over nothing.
    */
   bool reset_mouse_position_after_next_frame_ = false;
 
-  double frame_time_tick_frequency_;
-  uint64_t last_frame_time_ticks_;
+  f64 frame_time_tick_frequency_;
+  u64 last_frame_time_ticks_;
 
   /**
    * ImGui IME hook, called from EndFrame with the frame being ended. WantTextInput lags a frame.

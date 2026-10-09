@@ -43,7 +43,7 @@ struct DiscoveredBlock {
   rex::guest_addr_t base = 0;  /**< Guest address of the first instruction of the block. */
   rex::guest_addr_t end = 0;   /**< Exclusive, points after the last instruction */
   bool has_terminator = false; /**< Ends with blr, bctr or an unconditional branch */
-  int64_t projectedSize = -1;  /**< Size limit, -1 for unlimited */
+  i64 projectedSize = -1;      /**< Size limit, -1 for unlimited */
   /** Addresses of the blocks control flow can reach next, including fall through and branch
    * targets. */
   std::vector<rex::guest_addr_t> successors;
@@ -125,7 +125,7 @@ class FunctionScanner {
    *
    * @param addresses Switch table addresses
    */
-  void setKnownSwitchTables(const std::unordered_set<uint32_t>& addresses) {
+  void setKnownSwitchTables(const std::unordered_set<u32>& addresses) {
     known_switch_tables_ = addresses;
   }
 
@@ -134,37 +134,33 @@ class FunctionScanner {
    *
    * @param chunks Chunk address mapped to a FunctionConfig with parent set
    */
-  void setChunks(const std::unordered_map<uint32_t, FunctionConfig>& chunks) { chunks_ = chunks; }
+  void setChunks(const std::unordered_map<u32, FunctionConfig>& chunks) { chunks_ = chunks; }
 
   /**
    * Sets the bl targets that need resolution.
    *
    * @param targets bl target addresses
    */
-  void setBlTargets(const std::unordered_set<uint32_t>& targets) { bl_targets_ = targets; }
+  void setBlTargets(const std::unordered_set<u32>& targets) { bl_targets_ = targets; }
 
   /** Returns the bl targets collected by discovery. */
-  const std::unordered_set<uint32_t>& getBlTargets() const { return bl_targets_; }
+  const std::unordered_set<u32>& getBlTargets() const { return bl_targets_; }
 
   /**
    * Sets the addresses of known functions. A branch to one is a tail call and a sweep stops at one.
    *
    * @param callables Entry point addresses
    */
-  void setKnownCallables(const std::unordered_set<uint32_t>& callables) {
-    known_callables_ = callables;
-  }
+  void setKnownCallables(const std::unordered_set<u32>& callables) { known_callables_ = callables; }
 
-  bool isKnownCallable(uint32_t address) const { return known_callables_.contains(address); }
+  bool isKnownCallable(u32 address) const { return known_callables_.contains(address); }
 
   /**
    * Sets the address ranges that hold data instead of code.
    *
    * @param regions Ranges of start address up to but excluding end address
    */
-  void setDataRegions(const std::vector<std::pair<uint32_t, uint32_t>>& regions) {
-    data_regions_ = regions;
-  }
+  void setDataRegions(const std::vector<std::pair<u32, u32>>& regions) { data_regions_ = regions; }
 
   /**
    * Reports whether an address is in a data region.
@@ -172,7 +168,7 @@ class FunctionScanner {
    * @param address Address to test
    * @return True when a data region contains address
    */
-  bool isInDataRegion(uint32_t address) const {
+  bool isInDataRegion(u32 address) const {
     for (const auto& [start, end] : data_regions_) {
       if (address >= start && address < end)
         return true;
@@ -193,7 +189,7 @@ class FunctionScanner {
    * @param address Address to look up
    * @return The region, or null when none contains address
    */
-  const CodeRegion* findRegionContaining(uint32_t address) const;
+  const CodeRegion* findRegionContaining(u32 address) const;
 
   /**
    * Reports whether a branch from currentAddr to targetAddr stays within the same code region
@@ -205,7 +201,7 @@ class FunctionScanner {
    * @param functionEntry Entry point of the function being discovered
    * @return True when the branch is treated as internal
    */
-  bool isInternalBranch(uint32_t currentAddr, uint32_t targetAddr, uint32_t functionEntry) const;
+  bool isInternalBranch(u32 currentAddr, u32 targetAddr, u32 functionEntry) const;
 
   /**
    * Reports whether an address is within a chunk belonging to a function.
@@ -214,10 +210,10 @@ class FunctionScanner {
    * @param function_entry Entry point of the function
    * @return True when address is inside one of its chunks
    */
-  bool isWithinChunk(uint32_t address, uint32_t function_entry) const {
+  bool isWithinChunk(u32 address, u32 function_entry) const {
     for (const auto& [chunk_start, cfg] : chunks_) {
       if (cfg.parent == function_entry) {
-        uint32_t chunk_end =
+        u32 chunk_end =
             cfg.end ? cfg.end : (cfg.size ? chunk_start + cfg.size : chunk_start + 0x1000);
         if (address >= chunk_start && address < chunk_end) {
           return true;
@@ -234,13 +230,13 @@ class FunctionScanner {
    * @param address Address to look up
    * @return Parent function entry, 0 when address is in no chunk
    */
-  uint32_t findChunkParent(uint32_t address) const {
+  u32 findChunkParent(u32 address) const {
     auto it = chunks_.find(address);
     if (it != chunks_.end()) {
       return it->second.parent;
     }
     for (const auto& [chunk_start, cfg] : chunks_) {
-      uint32_t chunk_end =
+      u32 chunk_end =
           cfg.end ? cfg.end : (cfg.size ? chunk_start + cfg.size : chunk_start + 0x1000);
       if (address >= chunk_start && address < chunk_end) {
         return cfg.parent;
@@ -252,11 +248,11 @@ class FunctionScanner {
  private:
   const BinaryView* binary_ = nullptr;
   const Limits* limits_ = nullptr;
-  std::unordered_set<uint32_t> known_switch_tables_;
-  std::unordered_map<uint32_t, FunctionConfig> chunks_;
-  std::unordered_set<uint32_t> bl_targets_;
-  std::unordered_set<uint32_t> known_callables_;
-  std::vector<std::pair<uint32_t, uint32_t>> data_regions_;
+  std::unordered_set<u32> known_switch_tables_;
+  std::unordered_map<u32, FunctionConfig> chunks_;
+  std::unordered_set<u32> bl_targets_;
+  std::unordered_set<u32> known_callables_;
+  std::vector<std::pair<u32, u32>> data_regions_;
   const std::vector<CodeRegion>* code_regions_ = nullptr;
 
   bool is_prologue_pattern(rex::guest_addr_t address);
@@ -266,8 +262,8 @@ class FunctionScanner {
 
 /** Branch whose target the function graph must still resolve. */
 struct UnresolvedBranch {
-  uint32_t site;      /**< Address of the branch instruction */
-  uint32_t target;    /**< Branch target address */
+  u32 site;           /**< Address of the branch instruction */
+  u32 target;         /**< Branch target address */
   bool isCall;        /**< True for bl, false for b */
   bool isConditional; /**< True for bc, beq and other conditional branches */
 };
@@ -277,12 +273,12 @@ struct BlockDiscoveryResult {
   std::vector<Block> blocks;                        /**< Discovered blocks */
   std::vector<UnresolvedBranch> unresolvedBranches; /**< Branches left for the graph to resolve */
   std::vector<JumpTable> jumpTables;                /**< Detected jump tables */
-  std::set<uint32_t> labels;                        /**< Internal branch target addresses */
+  std::set<u32> labels;                             /**< Internal branch target addresses */
 
   std::vector<rex::codegen::ppc::Instruction*> instructions; /**< Handed to FunctionNode */
 
-  std::vector<uint32_t> externalCalls; /**< bl to unknown targets */
-  std::vector<uint32_t> tailCalls;     /**< b to external targets */
+  std::vector<u32> externalCalls; /**< bl to unknown targets */
+  std::vector<u32> tailCalls;     /**< b to external targets */
 };
 
 /**
@@ -305,10 +301,9 @@ struct BlockDiscoveryResult {
  * @return BlockDiscoveryResult containing blocks, branches, and jump tables
  */
 BlockDiscoveryResult discoverBlocks(
-    DecodedBinary& decoded, const Limits& limits, uint32_t entryPoint,
-    const CodeRegion& containingRegion, const std::unordered_set<uint32_t>& knownFunctions,
-    uint32_t pdataSize = 0,
-    const std::unordered_map<uint32_t, JumpTable>* manualSwitchTables = nullptr);
+    DecodedBinary& decoded, const Limits& limits, u32 entryPoint,
+    const CodeRegion& containingRegion, const std::unordered_set<u32>& knownFunctions,
+    u32 pdataSize = 0, const std::unordered_map<u32, JumpTable>* manualSwitchTables = nullptr);
 
 /**
  * Detect jump table at a bctr instruction.
@@ -327,8 +322,8 @@ BlockDiscoveryResult discoverBlocks(
  * @param funcEnd Function end address
  * @return JumpTable if detected, empty optional otherwise
  */
-std::optional<JumpTable> detectJumpTable(DecodedBinary& decoded, const Limits& limits,
-                                         uint32_t bctrAddr, const CodeRegion& containingRegion,
-                                         uint32_t funcStart, uint32_t funcEnd);
+std::optional<JumpTable> detectJumpTable(DecodedBinary& decoded, const Limits& limits, u32 bctrAddr,
+                                         const CodeRegion& containingRegion, u32 funcStart,
+                                         u32 funcEnd);
 
 }  // namespace rex::codegen

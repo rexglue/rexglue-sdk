@@ -35,9 +35,8 @@ using namespace xenos::ucode;
 DxbcShaderTranslator::DxbcShaderTranslator(gpu::GraphicsProvider::GpuVendorID vendor_id,
                                            bool bindless_resources_used, bool edram_rov_used,
                                            bool gamma_render_target_as_unorm8,
-                                           bool msaa_2x_supported, uint32_t draw_resolution_scale_x,
-                                           uint32_t draw_resolution_scale_y,
-                                           bool force_emit_source_map)
+                                           bool msaa_2x_supported, u32 draw_resolution_scale_x,
+                                           u32 draw_resolution_scale_y, bool force_emit_source_map)
     : a_(shader_code_, statistics_),
       ao_(shader_object_, statistics_),
       emit_source_map_(force_emit_source_map || REXCVAR_GET(::rex::gpu::cvars::dxbc_source_map)),
@@ -55,7 +54,7 @@ DxbcShaderTranslator::DxbcShaderTranslator(gpu::GraphicsProvider::GpuVendorID ve
 }
 DxbcShaderTranslator::~DxbcShaderTranslator() = default;
 
-std::vector<uint8_t> DxbcShaderTranslator::CreateDepthOnlyPixelShader() {
+std::vector<u8> DxbcShaderTranslator::CreateDepthOnlyPixelShader() {
   is_depth_only_pixel_shader_ = true;
   Shader shader(xenos::ShaderType::kPixel, 0, nullptr, 0);
   shader.AnalyzeUcode(instruction_disassembly_buffer_);
@@ -65,8 +64,8 @@ std::vector<uint8_t> DxbcShaderTranslator::CreateDepthOnlyPixelShader() {
   return translation.translated_binary();
 }
 
-uint64_t DxbcShaderTranslator::GetDefaultVertexShaderModification(
-    uint32_t dynamic_addressable_register_count,
+u64 DxbcShaderTranslator::GetDefaultVertexShaderModification(
+    u32 dynamic_addressable_register_count,
     Shader::HostVertexShaderType host_vertex_shader_type) const {
   Modification shader_modification;
   shader_modification.vertex.dynamic_addressable_register_count =
@@ -76,8 +75,8 @@ uint64_t DxbcShaderTranslator::GetDefaultVertexShaderModification(
   return shader_modification.value;
 }
 
-uint64_t DxbcShaderTranslator::GetDefaultPixelShaderModification(
-    uint32_t dynamic_addressable_register_count) const {
+u64 DxbcShaderTranslator::GetDefaultPixelShaderModification(
+    u32 dynamic_addressable_register_count) const {
   Modification shader_modification;
   shader_modification.pixel.dynamic_addressable_register_count = dynamic_addressable_register_count;
   shader_modification.pixel.interpolator_mask = (UINT32_C(1) << xenos::kMaxInterpolators) - 1;
@@ -140,7 +139,7 @@ void DxbcShaderTranslator::Reset() {
   statistics_ = {};
 }
 
-uint32_t DxbcShaderTranslator::GetModificationRegisterCount() const {
+u32 DxbcShaderTranslator::GetModificationRegisterCount() const {
   Modification modification = GetDxbcShaderModification();
   return is_vertex_shader() ? modification.vertex.dynamic_addressable_register_count
                             : modification.pixel.dynamic_addressable_register_count;
@@ -152,8 +151,8 @@ bool DxbcShaderTranslator::UseSwitchForControlFlow() const {
          vendor_id_ != gpu::GraphicsProvider::GpuVendorID::kIntel;
 }
 
-uint32_t DxbcShaderTranslator::PushSystemTemp(uint32_t zero_mask, uint32_t count) {
-  uint32_t register_index = system_temp_count_current_;
+u32 DxbcShaderTranslator::PushSystemTemp(u32 zero_mask, u32 count) {
+  u32 register_index = system_temp_count_current_;
   if (!is_depth_only_pixel_shader_ && !current_shader().uses_register_dynamic_addressing()) {
     register_index += register_count();
   }
@@ -161,24 +160,23 @@ uint32_t DxbcShaderTranslator::PushSystemTemp(uint32_t zero_mask, uint32_t count
   system_temp_count_max_ = std::max(system_temp_count_max_, system_temp_count_current_);
   zero_mask &= 0b1111;
   if (zero_mask) {
-    for (uint32_t i = 0; i < count; ++i) {
+    for (u32 i = 0; i < count; ++i) {
       a_.OpMov(dxbc::Dest::R(register_index + i, zero_mask), dxbc::Src::LU(0));
     }
   }
   return register_index;
 }
 
-void DxbcShaderTranslator::PopSystemTemp(uint32_t count) {
+void DxbcShaderTranslator::PopSystemTemp(u32 count) {
   REX_ASSERT(count <= system_temp_count_current_);
   system_temp_count_current_ -= std::min(count, system_temp_count_current_);
 }
 
-void DxbcShaderTranslator::PWLGammaToLinear(dxbc::Assembler& a, uint32_t target_temp,
-                                            uint32_t target_temp_component, uint32_t source_temp,
-                                            uint32_t source_temp_component,
-                                            bool source_pre_saturated, uint32_t temp1,
-                                            uint32_t temp1_component, uint32_t temp2,
-                                            uint32_t temp2_component) {
+void DxbcShaderTranslator::PWLGammaToLinear(dxbc::Assembler& a, u32 target_temp,
+                                            u32 target_temp_component, u32 source_temp,
+                                            u32 source_temp_component, bool source_pre_saturated,
+                                            u32 temp1, u32 temp1_component, u32 temp2,
+                                            u32 temp2_component) {
   // The source may be the same as the destination.
   REX_ASSERT(temp1 != target_temp || temp1_component != target_temp_component);
   REX_ASSERT(temp1 != source_temp || temp1_component != source_temp_component);
@@ -219,9 +217,9 @@ void DxbcShaderTranslator::PWLGammaToLinear(dxbc::Assembler& a, uint32_t target_
 }
 
 void DxbcShaderTranslator::PreSaturatedLinearToPWLGamma(
-    dxbc::Assembler& a, uint32_t target_temp, uint32_t target_temp_component, uint32_t source_temp,
-    uint32_t source_temp_component, uint32_t temp_or_target, uint32_t temp_or_target_component,
-    uint32_t temp_non_target, uint32_t temp_non_target_component) {
+    dxbc::Assembler& a, u32 target_temp, u32 target_temp_component, u32 source_temp,
+    u32 source_temp_component, u32 temp_or_target, u32 temp_or_target_component,
+    u32 temp_non_target, u32 temp_non_target_component) {
   // The source may be the same as the target but then cannot also be the temporary.
   REX_ASSERT(target_temp != source_temp || target_temp_component != source_temp_component ||
              target_temp != temp_or_target || target_temp_component != temp_or_target_component);
@@ -260,8 +258,7 @@ void DxbcShaderTranslator::PreSaturatedLinearToPWLGamma(
   a.OpMAd(target_dest, target_src, dxbc::Src::LF(1.0f / 255.0f), temp_non_target_src);
 }
 
-void DxbcShaderTranslator::RemapAndConvertVertexIndices(uint32_t dest_temp,
-                                                        uint32_t dest_temp_components,
+void DxbcShaderTranslator::RemapAndConvertVertexIndices(u32 dest_temp, u32 dest_temp_components,
                                                         const dxbc::Src& src) {
   dxbc::Dest dest(dxbc::Dest::R(dest_temp, dest_temp_components));
   dxbc::Src dest_src(dxbc::Src::R(dest_temp));
@@ -290,7 +287,7 @@ void DxbcShaderTranslator::StartVertexShader_LoadVertexIndex() {
 
   bool uses_register_dynamic_addressing = current_shader().uses_register_dynamic_addressing();
 
-  uint32_t reg;
+  u32 reg;
   if (uses_register_dynamic_addressing) {
     reg = PushSystemTemp();
   } else {
@@ -347,13 +344,13 @@ void DxbcShaderTranslator::StartVertexShader_LoadVertexIndex() {
 void DxbcShaderTranslator::StartVertexOrDomainShader() {
   bool uses_register_dynamic_addressing = current_shader().uses_register_dynamic_addressing();
 
-  for (uint32_t i = 0; i < register_count(); ++i) {
+  for (u32 i = 0; i < register_count(); ++i) {
     a_.OpMov(uses_register_dynamic_addressing ? dxbc::Dest::X(0, i) : dxbc::Dest::R(i),
              dxbc::Src::LF(0.0f));
   }
 
-  uint32_t interpolator_count = rex::bit_count(GetModificationInterpolatorMask());
-  for (uint32_t i = 0; i < interpolator_count; ++i) {
+  u32 interpolator_count = rex::bit_count(GetModificationInterpolatorMask());
+  for (u32 i = 0; i < interpolator_count; ++i) {
     a_.OpMov(dxbc::Dest::O(out_reg_vs_interpolators_ + i), dxbc::Src::LF(0.0f));
   }
 
@@ -376,7 +373,7 @@ void DxbcShaderTranslator::StartVertexOrDomainShader() {
           dxbc::Dest control_point_index_dest(uses_register_dynamic_addressing ? dxbc::Dest::X(0, 1)
                                                                                : dxbc::Dest::R(1));
           in_control_point_index_used_ = true;
-          for (uint32_t i = 0; i < 3; ++i) {
+          for (u32 i = 0; i < 3; ++i) {
             a_.OpMov(control_point_index_dest.Mask(1 << i),
                      dxbc::Src::VICP(i, kInRegisterDSControlPointIndex, dxbc::Src::kXXXX));
           }
@@ -419,7 +416,7 @@ void DxbcShaderTranslator::StartVertexOrDomainShader() {
         if (register_count() >= 2) {
           dxbc::Dest r1_dest(uses_register_dynamic_addressing ? dxbc::Dest::X(0, 1)
                                                               : dxbc::Dest::R(1));
-          for (uint32_t i = 0; i < 3; ++i) {
+          for (u32 i = 0; i < 3; ++i) {
             a_.OpMov(r1_dest.Mask(1 << i),
                      dxbc::Src::VICP(1 + i, kInRegisterDSControlPointIndex, dxbc::Src::kXXXX));
           }
@@ -478,14 +475,13 @@ void DxbcShaderTranslator::StartPixelShader() {
   bool uses_register_dynamic_addressing = current_shader().uses_register_dynamic_addressing();
   Modification shader_modification = GetDxbcShaderModification();
 
-  uint32_t param_gen_interpolator =
-      (shader_modification.pixel.param_gen_enable &&
-       shader_modification.pixel.param_gen_interpolator < register_count())
-          ? shader_modification.pixel.param_gen_interpolator
-          : UINT32_MAX;
+  u32 param_gen_interpolator = (shader_modification.pixel.param_gen_enable &&
+                                shader_modification.pixel.param_gen_interpolator < register_count())
+                                   ? shader_modification.pixel.param_gen_interpolator
+                                   : UINT32_MAX;
 
-  uint32_t interpolator_mask = GetModificationInterpolatorMask();
-  for (uint32_t i = 0; i < register_count(); ++i) {
+  u32 interpolator_mask = GetModificationInterpolatorMask();
+  for (u32 i = 0; i < register_count(); ++i) {
     if (i == param_gen_interpolator) {
       continue;
     }
@@ -497,12 +493,12 @@ void DxbcShaderTranslator::StartPixelShader() {
   }
 
   if (param_gen_interpolator != UINT32_MAX) {
-    uint32_t param_gen_temp =
+    u32 param_gen_temp =
         uses_register_dynamic_addressing ? PushSystemTemp() : param_gen_interpolator;
     in_position_used_ |= 0b0011;
     a_.OpRoundNI(dxbc::Dest::R(param_gen_temp, 0b0011), dxbc::Src::V1D(in_reg_ps_position_));
-    uint32_t resolution_scaled_axes = static_cast<uint32_t>(draw_resolution_scale_x_ > 1) |
-                                      (static_cast<uint32_t>(draw_resolution_scale_y_ > 1) << 1);
+    u32 resolution_scaled_axes = static_cast<u32>(draw_resolution_scale_x_ > 1) |
+                                 (static_cast<u32>(draw_resolution_scale_y_ > 1) << 1);
     if (resolution_scaled_axes) {
       a_.OpMul(dxbc::Dest::R(param_gen_temp, resolution_scaled_axes), dxbc::Src::R(param_gen_temp),
                dxbc::Src::LF(1.0f / draw_resolution_scale_x_, 1.0f / draw_resolution_scale_y_, 1.0f,
@@ -547,10 +543,10 @@ void DxbcShaderTranslator::StartPixelShader() {
         dxbc::Dest::R(system_temp_memexport_enabled_and_eM_written_, 0b0001));
     dxbc::Src memexport_enabled_src(
         dxbc::Src::R(system_temp_memexport_enabled_and_eM_written_, dxbc::Src::kXXXX));
-    uint32_t resolution_scaled_axes = static_cast<uint32_t>(draw_resolution_scale_x_ > 1) |
-                                      (static_cast<uint32_t>(draw_resolution_scale_y_ > 1) << 1);
+    u32 resolution_scaled_axes = static_cast<u32>(draw_resolution_scale_x_ > 1) |
+                                 (static_cast<u32>(draw_resolution_scale_y_ > 1) << 1);
     if (resolution_scaled_axes) {
-      uint32_t memexport_condition_temp = PushSystemTemp();
+      u32 memexport_condition_temp = PushSystemTemp();
       in_position_used_ |= resolution_scaled_axes;
       a_.OpFToU(dxbc::Dest::R(memexport_condition_temp, resolution_scaled_axes),
                 dxbc::Src::V1D(in_reg_ps_position_));
@@ -560,7 +556,7 @@ void DxbcShaderTranslator::StartPixelShader() {
       a_.OpIEq(dxbc::Dest::R(memexport_condition_temp, resolution_scaled_axes),
                dxbc::Src::R(memexport_condition_temp),
                dxbc::Src::LU(draw_resolution_scale_x_ >> 1, draw_resolution_scale_y_ >> 1, 0, 0));
-      for (uint32_t i = 0; i < 2; ++i) {
+      for (u32 i = 0; i < 2; ++i) {
         if (!(resolution_scaled_axes & (1 << i))) {
           continue;
         }
@@ -571,7 +567,7 @@ void DxbcShaderTranslator::StartPixelShader() {
     }
     // Only the sample with SV_SampleIndex == firstbit_lo(SV_Coverage) exports, ~0 if empty.
     if (IsSampleRate()) {
-      uint32_t memexport_condition_temp = PushSystemTemp();
+      u32 memexport_condition_temp = PushSystemTemp();
       a_.OpFirstBitLo(dxbc::Dest::R(memexport_condition_temp, 0b0001), dxbc::Src::VCoverage());
       a_.OpIEq(dxbc::Dest::R(memexport_condition_temp, 0b0001),
                dxbc::Src::V1D(in_reg_ps_front_face_sample_index_, dxbc::Src::kYYYY),
@@ -585,18 +581,18 @@ void DxbcShaderTranslator::StartPixelShader() {
 
 void DxbcShaderTranslator::StartTranslation() {
   Modification shader_modification = GetDxbcShaderModification();
-  uint32_t interpolator_register_mask = GetModificationInterpolatorMask();
-  uint32_t interpolator_register_count = rex::bit_count(interpolator_register_mask);
+  u32 interpolator_register_mask = GetModificationInterpolatorMask();
+  u32 interpolator_register_count = rex::bit_count(interpolator_register_mask);
   if (is_vertex_shader()) {
-    uint32_t out_reg_index = 0;
+    u32 out_reg_index = 0;
     if (interpolator_register_count) {
       out_reg_vs_interpolators_ = out_reg_index;
       out_reg_index += interpolator_register_count;
     }
     out_reg_vs_position_ = out_reg_index;
     ++out_reg_index;
-    uint32_t clip_and_cull_distance_count = shader_modification.GetVertexClipDistanceCount() +
-                                            shader_modification.GetVertexCullDistanceCount();
+    u32 clip_and_cull_distance_count = shader_modification.GetVertexClipDistanceCount() +
+                                       shader_modification.GetVertexCullDistanceCount();
     if (clip_and_cull_distance_count) {
       out_reg_vs_clip_cull_distances_ = out_reg_index;
       out_reg_index += (clip_and_cull_distance_count + 3) >> 2;
@@ -606,7 +602,7 @@ void DxbcShaderTranslator::StartTranslation() {
       ++out_reg_index;
     }
   } else if (is_pixel_shader()) {
-    uint32_t in_reg_index = 0;
+    u32 in_reg_index = 0;
     if (interpolator_register_count) {
       in_reg_ps_interpolators_ = in_reg_index;
       in_reg_index += interpolator_register_count;
@@ -632,7 +628,7 @@ void DxbcShaderTranslator::StartTranslation() {
       system_temp_rov_params_ = PushSystemTemp();
     }
     if (IsDepthStencilSystemTempUsed()) {
-      uint32_t depth_stencil_temp_zero_mask;
+      u32 depth_stencil_temp_zero_mask;
       if (current_shader().writes_depth()) {
         depth_stencil_temp_zero_mask = 0b0001;
       } else {
@@ -645,15 +641,15 @@ void DxbcShaderTranslator::StartTranslation() {
       }
       system_temp_depth_stencil_ = PushSystemTemp(depth_stencil_temp_zero_mask);
     }
-    uint32_t shader_writes_color_targets = current_shader().writes_color_targets();
-    for (uint32_t i = 0; i < 4; ++i) {
+    u32 shader_writes_color_targets = current_shader().writes_color_targets();
+    for (u32 i = 0; i < 4; ++i) {
       if (shader_writes_color_targets & (1 << i)) {
         system_temps_color_[i] = PushSystemTemp(0b1111);
       }
     }
   }
 
-  uint8_t memexport_eM_written = current_shader().memexport_eM_written();
+  u8 memexport_eM_written = current_shader().memexport_eM_written();
   if (memexport_eM_written) {
     system_temp_memexport_enabled_and_eM_written_ = PushSystemTemp(0b0010);
     // The memexport condition starts as 0 or UINT32_MAX by whether shared memory is bound as a UAV.
@@ -661,10 +657,10 @@ void DxbcShaderTranslator::StartTranslation() {
               dxbc::Src::LU(1), dxbc::Src::LU(kSysFlag_SharedMemoryIsUAV_Shift),
               LoadFlagsSystemConstant());
     system_temp_memexport_address_ = PushSystemTemp(0b1111);
-    uint8_t memexport_eM_remaining = memexport_eM_written;
-    uint32_t memexport_eM_index;
+    u8 memexport_eM_remaining = memexport_eM_written;
+    u32 memexport_eM_index;
     while (rex::bit_scan_forward(memexport_eM_remaining, &memexport_eM_index)) {
-      memexport_eM_remaining &= ~(static_cast<uint8_t>(1) << memexport_eM_index);
+      memexport_eM_remaining &= ~(static_cast<u8>(1) << memexport_eM_index);
       system_temps_memexport_data_[memexport_eM_index] = PushSystemTemp(0b1111);
     }
   }
@@ -698,7 +694,7 @@ void DxbcShaderTranslator::StartTranslation() {
 }
 
 void DxbcShaderTranslator::CompleteVertexOrDomainShader() {
-  uint32_t temp = PushSystemTemp();
+  u32 temp = PushSystemTemp();
   dxbc::Dest temp_x_dest(dxbc::Dest::R(temp, 0b0001));
   dxbc::Src temp_x_src(dxbc::Src::R(temp, dxbc::Src::kXXXX));
 
@@ -724,19 +720,19 @@ void DxbcShaderTranslator::CompleteVertexOrDomainShader() {
   a_.OpEndIf();
 
   Modification shader_modification = GetDxbcShaderModification();
-  uint32_t clip_distance_next_component = 0;
-  uint32_t cull_distance_next_component = shader_modification.GetVertexClipDistanceCount();
+  u32 clip_distance_next_component = 0;
+  u32 cull_distance_next_component = shader_modification.GetVertexClipDistanceCount();
 
-  uint32_t& ucp_clip_cull_distance_next_component_ref =
-      shader_modification.vertex.user_clip_plane_cull ? cull_distance_next_component
-                                                      : clip_distance_next_component;
-  for (uint32_t i = 0; i < shader_modification.vertex.user_clip_plane_count; ++i) {
+  u32& ucp_clip_cull_distance_next_component_ref = shader_modification.vertex.user_clip_plane_cull
+                                                       ? cull_distance_next_component
+                                                       : clip_distance_next_component;
+  for (u32 i = 0; i < shader_modification.vertex.user_clip_plane_count; ++i) {
     a_.OpDP4(dxbc::Dest::O(
                  out_reg_vs_clip_cull_distances_ + (ucp_clip_cull_distance_next_component_ref >> 2),
                  UINT32_C(1) << (ucp_clip_cull_distance_next_component_ref & 3)),
              dxbc::Src::R(system_temp_position_),
              LoadSystemConstant(SystemConstants::Index::kUserClipPlanes,
-                                offsetof(SystemConstants, user_clip_planes) + sizeof(float) * 4 * i,
+                                offsetof(SystemConstants, user_clip_planes) + sizeof(f32) * 4 * i,
                                 dxbc::Src::kXYZW));
     ++ucp_clip_cull_distance_next_component_ref;
   }
@@ -802,11 +798,11 @@ void DxbcShaderTranslator::CompleteShaderCode() {
     PopSystemTemp(6);
   }
 
-  uint8_t memexport_eM_written = current_shader().memexport_eM_written();
+  u8 memexport_eM_written = current_shader().memexport_eM_written();
   if (memexport_eM_written) {
     ExportToMemory(current_shader().memexport_eM_potentially_written_before_end());
 
-    PopSystemTemp(rex::bit_count(static_cast<uint32_t>(memexport_eM_written)) + 2);
+    PopSystemTemp(rex::bit_count(static_cast<u32>(memexport_eM_written)) + 2);
   }
 
   if (is_vertex_shader()) {
@@ -820,8 +816,8 @@ void DxbcShaderTranslator::CompleteShaderCode() {
   if (is_vertex_shader()) {
     PopSystemTemp(2);
   } else if (is_pixel_shader()) {
-    uint32_t shader_writes_color_targets = current_shader().writes_color_targets();
-    for (int32_t i = 3; i >= 0; --i) {
+    u32 shader_writes_color_targets = current_shader().writes_color_targets();
+    for (i32 i = 3; i >= 0; --i) {
       if (shader_writes_color_targets & (1 << i)) {
         PopSystemTemp();
       }
@@ -835,7 +831,7 @@ void DxbcShaderTranslator::CompleteShaderCode() {
   }
 }
 
-std::vector<uint8_t> DxbcShaderTranslator::CompleteTranslation() {
+std::vector<u8> DxbcShaderTranslator::CompleteTranslation() {
   // shader_object_.resize() invalidates pointers and zeroes the new memory.
 
   CompleteShaderCode();
@@ -843,112 +839,111 @@ std::vector<uint8_t> DxbcShaderTranslator::CompleteTranslation() {
   shader_object_.clear();
 
   // The container holds 6 or 7 blobs, RDEF, ISGN, optional PCSG, OSGN, SHEX, SFI0 and STAT.
-  uint32_t blob_count = 6 + static_cast<uint32_t>(IsDxbcDomainShader());
-  shader_object_.resize(sizeof(dxbc::ContainerHeader) / sizeof(uint32_t) + blob_count);
+  u32 blob_count = 6 + static_cast<u32>(IsDxbcDomainShader());
+  shader_object_.resize(sizeof(dxbc::ContainerHeader) / sizeof(u32) + blob_count);
 
-  uint32_t blob_offset_position_dwords = sizeof(dxbc::ContainerHeader) / sizeof(uint32_t);
-  uint32_t blob_position_dwords = static_cast<uint32_t>(shader_object_.size());
-  constexpr uint32_t kBlobHeaderSizeDwords = sizeof(dxbc::BlobHeader) / sizeof(uint32_t);
+  u32 blob_offset_position_dwords = sizeof(dxbc::ContainerHeader) / sizeof(u32);
+  u32 blob_position_dwords = static_cast<u32>(shader_object_.size());
+  constexpr u32 kBlobHeaderSizeDwords = sizeof(dxbc::BlobHeader) / sizeof(u32);
 
   shader_object_[blob_offset_position_dwords] =
-      static_cast<uint32_t>(blob_position_dwords * sizeof(uint32_t));
+      static_cast<u32>(blob_position_dwords * sizeof(u32));
   shader_object_.resize(blob_position_dwords + kBlobHeaderSizeDwords);
   WriteResourceDefinition();
   {
     auto& blob_header =
         *reinterpret_cast<dxbc::BlobHeader*>(shader_object_.data() + blob_position_dwords);
     blob_header.fourcc = dxbc::BlobHeader::FourCC::kResourceDefinition;
-    blob_position_dwords = static_cast<uint32_t>(shader_object_.size());
-    blob_header.size_bytes = (blob_position_dwords - kBlobHeaderSizeDwords) * sizeof(uint32_t) -
+    blob_position_dwords = static_cast<u32>(shader_object_.size());
+    blob_header.size_bytes = (blob_position_dwords - kBlobHeaderSizeDwords) * sizeof(u32) -
                              shader_object_[blob_offset_position_dwords++];
   }
 
   shader_object_[blob_offset_position_dwords] =
-      static_cast<uint32_t>(blob_position_dwords * sizeof(uint32_t));
+      static_cast<u32>(blob_position_dwords * sizeof(u32));
   shader_object_.resize(blob_position_dwords + kBlobHeaderSizeDwords);
   WriteInputSignature();
   {
     auto& blob_header =
         *reinterpret_cast<dxbc::BlobHeader*>(shader_object_.data() + blob_position_dwords);
     blob_header.fourcc = dxbc::BlobHeader::FourCC::kInputSignature;
-    blob_position_dwords = static_cast<uint32_t>(shader_object_.size());
-    blob_header.size_bytes = (blob_position_dwords - kBlobHeaderSizeDwords) * sizeof(uint32_t) -
+    blob_position_dwords = static_cast<u32>(shader_object_.size());
+    blob_header.size_bytes = (blob_position_dwords - kBlobHeaderSizeDwords) * sizeof(u32) -
                              shader_object_[blob_offset_position_dwords++];
   }
 
   if (IsDxbcDomainShader()) {
     shader_object_[blob_offset_position_dwords] =
-        static_cast<uint32_t>(blob_position_dwords * sizeof(uint32_t));
+        static_cast<u32>(blob_position_dwords * sizeof(u32));
     shader_object_.resize(blob_position_dwords + kBlobHeaderSizeDwords);
     WritePatchConstantSignature();
     {
       auto& blob_header =
           *reinterpret_cast<dxbc::BlobHeader*>(shader_object_.data() + blob_position_dwords);
       blob_header.fourcc = dxbc::BlobHeader::FourCC::kPatchConstantSignature;
-      blob_position_dwords = static_cast<uint32_t>(shader_object_.size());
-      blob_header.size_bytes = (blob_position_dwords - kBlobHeaderSizeDwords) * sizeof(uint32_t) -
+      blob_position_dwords = static_cast<u32>(shader_object_.size());
+      blob_header.size_bytes = (blob_position_dwords - kBlobHeaderSizeDwords) * sizeof(u32) -
                                shader_object_[blob_offset_position_dwords++];
     }
   }
 
   shader_object_[blob_offset_position_dwords] =
-      static_cast<uint32_t>(blob_position_dwords * sizeof(uint32_t));
+      static_cast<u32>(blob_position_dwords * sizeof(u32));
   shader_object_.resize(blob_position_dwords + kBlobHeaderSizeDwords);
   WriteOutputSignature();
   {
     auto& blob_header =
         *reinterpret_cast<dxbc::BlobHeader*>(shader_object_.data() + blob_position_dwords);
     blob_header.fourcc = dxbc::BlobHeader::FourCC::kOutputSignature;
-    blob_position_dwords = static_cast<uint32_t>(shader_object_.size());
-    blob_header.size_bytes = (blob_position_dwords - kBlobHeaderSizeDwords) * sizeof(uint32_t) -
+    blob_position_dwords = static_cast<u32>(shader_object_.size());
+    blob_header.size_bytes = (blob_position_dwords - kBlobHeaderSizeDwords) * sizeof(u32) -
                              shader_object_[blob_offset_position_dwords++];
   }
 
   shader_object_[blob_offset_position_dwords] =
-      static_cast<uint32_t>(blob_position_dwords * sizeof(uint32_t));
+      static_cast<u32>(blob_position_dwords * sizeof(u32));
   shader_object_.resize(blob_position_dwords + kBlobHeaderSizeDwords);
   WriteShaderCode();
   {
     auto& blob_header =
         *reinterpret_cast<dxbc::BlobHeader*>(shader_object_.data() + blob_position_dwords);
     blob_header.fourcc = dxbc::BlobHeader::FourCC::kShaderEx;
-    blob_position_dwords = static_cast<uint32_t>(shader_object_.size());
-    blob_header.size_bytes = (blob_position_dwords - kBlobHeaderSizeDwords) * sizeof(uint32_t) -
+    blob_position_dwords = static_cast<u32>(shader_object_.size());
+    blob_header.size_bytes = (blob_position_dwords - kBlobHeaderSizeDwords) * sizeof(u32) -
                              shader_object_[blob_offset_position_dwords++];
   }
 
   shader_object_[blob_offset_position_dwords] =
-      static_cast<uint32_t>(blob_position_dwords * sizeof(uint32_t));
+      static_cast<u32>(blob_position_dwords * sizeof(u32));
   shader_object_.resize(blob_position_dwords + kBlobHeaderSizeDwords +
-                        sizeof(dxbc::ShaderFeatureInfo) / sizeof(uint32_t));
+                        sizeof(dxbc::ShaderFeatureInfo) / sizeof(u32));
   std::memcpy(shader_object_.data() + blob_position_dwords + kBlobHeaderSizeDwords,
               &shader_feature_info_, sizeof(shader_feature_info_));
   {
     auto& blob_header =
         *reinterpret_cast<dxbc::BlobHeader*>(shader_object_.data() + blob_position_dwords);
     blob_header.fourcc = dxbc::BlobHeader::FourCC::kShaderFeatureInfo;
-    blob_position_dwords = static_cast<uint32_t>(shader_object_.size());
-    blob_header.size_bytes = (blob_position_dwords - kBlobHeaderSizeDwords) * sizeof(uint32_t) -
+    blob_position_dwords = static_cast<u32>(shader_object_.size());
+    blob_header.size_bytes = (blob_position_dwords - kBlobHeaderSizeDwords) * sizeof(u32) -
                              shader_object_[blob_offset_position_dwords++];
   }
 
   shader_object_[blob_offset_position_dwords] =
-      static_cast<uint32_t>(blob_position_dwords * sizeof(uint32_t));
+      static_cast<u32>(blob_position_dwords * sizeof(u32));
   shader_object_.resize(blob_position_dwords + kBlobHeaderSizeDwords +
-                        sizeof(dxbc::Statistics) / sizeof(uint32_t));
+                        sizeof(dxbc::Statistics) / sizeof(u32));
   std::memcpy(shader_object_.data() + blob_position_dwords + kBlobHeaderSizeDwords, &statistics_,
               sizeof(statistics_));
   {
     auto& blob_header =
         *reinterpret_cast<dxbc::BlobHeader*>(shader_object_.data() + blob_position_dwords);
     blob_header.fourcc = dxbc::BlobHeader::FourCC::kStatistics;
-    blob_position_dwords = static_cast<uint32_t>(shader_object_.size());
-    blob_header.size_bytes = (blob_position_dwords - kBlobHeaderSizeDwords) * sizeof(uint32_t) -
+    blob_position_dwords = static_cast<u32>(shader_object_.size());
+    blob_header.size_bytes = (blob_position_dwords - kBlobHeaderSizeDwords) * sizeof(u32) -
                              shader_object_[blob_offset_position_dwords++];
   }
 
-  uint32_t shader_object_size_bytes =
-      static_cast<uint32_t>(shader_object_.size() * sizeof(uint32_t));
+  u32 shader_object_size_bytes = static_cast<u32>(shader_object_.size() * sizeof(u32));
   {
     auto& container_header = *reinterpret_cast<dxbc::ContainerHeader*>(shader_object_.data());
     container_header.InitializeIdentification();
@@ -959,7 +954,7 @@ std::vector<uint8_t> DxbcShaderTranslator::CompleteTranslation() {
                           container_header.hash);
   }
 
-  std::vector<uint8_t> shader_object_bytes;
+  std::vector<u8> shader_object_bytes;
   shader_object_bytes.resize(shader_object_size_bytes);
   std::memcpy(shader_object_bytes.data(), shader_object_.data(), shader_object_size_bytes);
   return shader_object_bytes;
@@ -1004,7 +999,7 @@ void DxbcShaderTranslator::EmitInstructionDisassembly() {
     return;
   }
   const char* source = instruction_disassembly_buffer_.buffer();
-  uint32_t length = static_cast<uint32_t>(instruction_disassembly_buffer_.length());
+  u32 length = static_cast<u32>(instruction_disassembly_buffer_.length());
   while (length != 0 && source[0] == ' ') {
     ++source;
     --length;
@@ -1022,10 +1017,10 @@ void DxbcShaderTranslator::EmitInstructionDisassembly() {
 }
 
 dxbc::Src DxbcShaderTranslator::LoadOperand(const InstructionOperand& operand,
-                                            uint32_t needed_components, bool& temp_pushed_out) {
+                                            u32 needed_components, bool& temp_pushed_out) {
   temp_pushed_out = false;
 
-  uint32_t first_needed_component;
+  u32 first_needed_component;
   if (!rex::bit_scan_forward(needed_components, &first_needed_component)) {
     return dxbc::Src::LF(0.0f);
   }
@@ -1046,17 +1041,17 @@ dxbc::Src DxbcShaderTranslator::LoadOperand(const InstructionOperand& operand,
   switch (operand.storage_source) {
     case InstructionStorageSource::kRegister: {
       if (current_shader().uses_register_dynamic_addressing()) {
-        uint32_t temp = PushSystemTemp();
+        u32 temp = PushSystemTemp();
         temp_pushed_out = true;
-        uint32_t used_swizzle_components = 0;
-        for (uint32_t i = 0; i < uint32_t(operand.component_count); ++i) {
+        u32 used_swizzle_components = 0;
+        for (u32 i = 0; i < u32(operand.component_count); ++i) {
           if (!(needed_components & (1 << i))) {
             continue;
           }
           SwizzleSource component = operand.GetComponent(i);
           REX_ASSERT(component >= SwizzleSource::kX && component <= SwizzleSource::kW);
           used_swizzle_components |=
-              1 << (static_cast<uint32_t>(component) - std::to_underlying(SwizzleSource::kX));
+              1 << (static_cast<u32>(component) - std::to_underlying(SwizzleSource::kX));
         }
         REX_ASSERT(used_swizzle_components != 0);
         a_.OpMov(dxbc::Dest::R(temp, used_swizzle_components), dxbc::Src::X(0, index));
@@ -1073,7 +1068,7 @@ dxbc::Src DxbcShaderTranslator::LoadOperand(const InstructionOperand& operand,
       const Shader::ConstantRegisterMap& constant_register_map =
           current_shader().constant_register_map();
       if (operand.storage_addressing_mode == InstructionStorageAddressingMode::kAbsolute) {
-        uint32_t float_constant_index =
+        u32 float_constant_index =
             constant_register_map.GetPackedFloatConstantIndex(operand.storage_index);
         REX_ASSERT(float_constant_index != UINT32_MAX);
         if (float_constant_index == UINT32_MAX) {
@@ -1091,13 +1086,12 @@ dxbc::Src DxbcShaderTranslator::LoadOperand(const InstructionOperand& operand,
       return dxbc::Src::LF(0.0f);
   }
 
-  uint32_t swizzle = 0;
-  for (uint32_t i = 0; i < 4; ++i) {
+  u32 swizzle = 0;
+  for (u32 i = 0; i < 4; ++i) {
     SwizzleSource component =
         operand.GetComponent((needed_components & (1 << i)) ? i : first_needed_component);
     REX_ASSERT(component >= SwizzleSource::kX && component <= SwizzleSource::kW);
-    swizzle |= (static_cast<uint32_t>(component) - std::to_underlying(SwizzleSource::kX))
-               << (i * 2);
+    swizzle |= (static_cast<u32>(component) - std::to_underlying(SwizzleSource::kX)) << (i * 2);
   }
   src = src.Swizzle(swizzle);
 
@@ -1106,7 +1100,7 @@ dxbc::Src DxbcShaderTranslator::LoadOperand(const InstructionOperand& operand,
 
 void DxbcShaderTranslator::StoreResult(const InstructionResult& result, const dxbc::Src& src,
                                        bool can_store_memexport_address) {
-  uint32_t used_write_mask = result.GetUsedWriteMask();
+  u32 used_write_mask = result.GetUsedWriteMask();
   if (!used_write_mask) {
     return;
   }
@@ -1136,8 +1130,8 @@ void DxbcShaderTranslator::StoreResult(const InstructionResult& result, const dx
       }
       break;
     case InstructionStorageTarget::kInterpolator: {
-      uint32_t interpolator_mask = GetModificationInterpolatorMask();
-      uint32_t interpolator_bit = UINT32_C(1) << result.storage_index;
+      u32 interpolator_mask = GetModificationInterpolatorMask();
+      u32 interpolator_bit = UINT32_C(1) << result.storage_index;
       if (interpolator_mask & interpolator_bit) {
         dest = dxbc::Dest::O(out_reg_vs_interpolators_ +
                              rex::bit_count(interpolator_mask & (interpolator_bit - 1)));
@@ -1161,12 +1155,12 @@ void DxbcShaderTranslator::StoreResult(const InstructionResult& result, const dx
       break;
     case InstructionStorageTarget::kExportData: {
       REX_ASSERT((current_shader().memexport_eM_written() &
-                  (static_cast<uint8_t>(1) << result.storage_index)) != 0);
+                  (static_cast<u8>(1) << result.storage_index)) != 0);
       dest = dxbc::Dest::R(system_temps_memexport_data_[result.storage_index]);
       REX_ASSERT(used_write_mask != 0);
       a_.OpOr(dxbc::Dest::R(system_temp_memexport_enabled_and_eM_written_, 0b0010),
               dxbc::Src::R(system_temp_memexport_enabled_and_eM_written_, dxbc::Src::kYYYY),
-              dxbc::Src::LU(static_cast<uint8_t>(1) << result.storage_index));
+              dxbc::Src::LU(static_cast<u8>(1) << result.storage_index));
     } break;
     case InstructionStorageTarget::kColor:
       REX_ASSERT(used_write_mask != 0);
@@ -1176,7 +1170,7 @@ void DxbcShaderTranslator::StoreResult(const InstructionResult& result, const dx
         // Unwritten targets stay intact through flow control, unwritten components are undefined.
         a_.OpOr(dxbc::Dest::R(system_temp_rov_params_, 0b0001),
                 dxbc::Src::R(system_temp_rov_params_, dxbc::Src::kXXXX),
-                dxbc::Src::LU(static_cast<uint32_t>(1) << (8 + result.storage_index)));
+                dxbc::Src::LU(static_cast<u32>(1) << (8 + result.storage_index)));
       }
       break;
     case InstructionStorageTarget::kDepth:
@@ -1195,16 +1189,16 @@ void DxbcShaderTranslator::StoreResult(const InstructionResult& result, const dx
     return;
   }
 
-  uint32_t src_additional_swizzle = 0;
-  uint32_t constant_mask = 0, constant_1_mask = 0;
-  for (uint32_t i = 0; i < 4; ++i) {
+  u32 src_additional_swizzle = 0;
+  u32 constant_mask = 0, constant_1_mask = 0;
+  for (u32 i = 0; i < 4; ++i) {
     if (!(used_write_mask & (1 << i))) {
       continue;
     }
     SwizzleSource component = result.components[i];
     if (component >= SwizzleSource::kX && component <= SwizzleSource::kW) {
       src_additional_swizzle |=
-          (static_cast<uint32_t>(component) - std::to_underlying(SwizzleSource::kX)) << (i * 2);
+          (static_cast<u32>(component) - std::to_underlying(SwizzleSource::kX)) << (i * 2);
     } else {
       constant_mask |= 1 << i;
       if (component == SwizzleSource::k1) {
@@ -1217,11 +1211,10 @@ void DxbcShaderTranslator::StoreResult(const InstructionResult& result, const dx
              src.SwizzleSwizzled(src_additional_swizzle), is_clamped);
   }
   if (constant_mask) {
-    a_.OpMov(dest.Mask(constant_mask),
-             dxbc::Src::LF(static_cast<float>(constant_1_mask & 1),
-                           static_cast<float>((constant_1_mask >> 1) & 1),
-                           static_cast<float>((constant_1_mask >> 2) & 1),
-                           static_cast<float>((constant_1_mask >> 3) & 1)));
+    a_.OpMov(dest.Mask(constant_mask), dxbc::Src::LF(static_cast<f32>(constant_1_mask & 1),
+                                                     static_cast<f32>((constant_1_mask >> 1) & 1),
+                                                     static_cast<f32>((constant_1_mask >> 2) & 1),
+                                                     static_cast<f32>((constant_1_mask >> 3) & 1)));
   }
 
   // Clamp like R400 as signed int32, -NaN and -Infinity...-0 to the minimum, +NaN to the maximum.
@@ -1241,7 +1234,7 @@ void DxbcShaderTranslator::StoreResult(const InstructionResult& result, const dx
 }
 
 void DxbcShaderTranslator::UpdateExecConditionalsAndEmitDisassembly(
-    ParsedExecInstruction::Type type, uint32_t bool_constant_index, bool condition) {
+    ParsedExecInstruction::Type type, u32 bool_constant_index, bool condition) {
   bool merge = false;
   if (type == ParsedExecInstruction::Type::kConditional) {
     if (cf_exec_bool_constant_ == bool_constant_index &&
@@ -1270,7 +1263,7 @@ void DxbcShaderTranslator::UpdateExecConditionalsAndEmitDisassembly(
   EmitInstructionDisassembly();
 
   if (type == ParsedExecInstruction::Type::kConditional) {
-    uint32_t bool_constant_test_temp = PushSystemTemp();
+    u32 bool_constant_test_temp = PushSystemTemp();
     if (cbuffer_index_bool_loop_constants_ == kBindingIndexUnallocated) {
       cbuffer_index_bool_loop_constants_ = cbuffer_count_++;
     }
@@ -1279,7 +1272,7 @@ void DxbcShaderTranslator::UpdateExecConditionalsAndEmitDisassembly(
                            std::to_underlying(CbufferRegister::kBoolLoopConstants),
                            bool_constant_index >> 7)
                  .Select((bool_constant_index >> 5) & 3),
-             dxbc::Src::LU(static_cast<uint32_t>(1) << (bool_constant_index & 31)));
+             dxbc::Src::LU(static_cast<u32>(1) << (bool_constant_index & 31)));
     a_.OpIf(condition, dxbc::Src::R(bool_constant_test_temp, dxbc::Src::kXXXX));
     PopSystemTemp();
     cf_exec_bool_constant_ = bool_constant_index;
@@ -1336,12 +1329,12 @@ void DxbcShaderTranslator::CloseInstructionPredication() {
   }
 }
 
-void DxbcShaderTranslator::JumpToLabel(uint32_t address) {
+void DxbcShaderTranslator::JumpToLabel(u32 address) {
   a_.OpMov(dxbc::Dest::R(system_temp_ps_pc_p0_a0_, 0b0010), dxbc::Src::LU(address));
   a_.OpContinue();
 }
 
-void DxbcShaderTranslator::ProcessLabel(uint32_t cf_index) {
+void DxbcShaderTranslator::ProcessLabel(u32 cf_index) {
   if (cf_index == 0) {
     return;
   }
@@ -1353,7 +1346,7 @@ void DxbcShaderTranslator::ProcessLabel(uint32_t cf_index) {
     a_.OpCase(dxbc::Src::LU(cf_index));
   } else {
     a_.OpEndIf();
-    uint32_t test_temp = PushSystemTemp();
+    u32 test_temp = PushSystemTemp();
     a_.OpUGE(dxbc::Dest::R(test_temp, 0b0001), dxbc::Src::LU(cf_index),
              dxbc::Src::R(system_temp_ps_pc_p0_a0_, dxbc::Src::kYYYY));
     a_.OpIf(true, dxbc::Src::R(test_temp, dxbc::Src::kXXXX));
@@ -1400,7 +1393,7 @@ void DxbcShaderTranslator::ProcessLoopStartInstruction(const ParsedLoopStartInst
                                   .Select(instr.loop_constant_index & 3));
 
   {
-    uint32_t loop_count_temp = PushSystemTemp();
+    u32 loop_count_temp = PushSystemTemp();
     a_.OpAnd(dxbc::Dest::R(loop_count_temp, 0b0001), loop_constant_src, dxbc::Src::LU(UINT8_MAX));
 
     a_.OpIf(false, dxbc::Src::R(loop_count_temp, dxbc::Src::kXXXX));
@@ -1436,7 +1429,7 @@ void DxbcShaderTranslator::ProcessLoopEndInstruction(const ParsedLoopEndInstruct
             dxbc::Src::R(system_temp_loop_count_, dxbc::Src::kXXXX), dxbc::Src::LI(-1));
 
   if (instr.is_predicated_break) {
-    uint32_t break_case_temp = PushSystemTemp();
+    u32 break_case_temp = PushSystemTemp();
     if (instr.predicate_condition) {
       a_.OpMovC(dxbc::Dest::R(break_case_temp, 0b0001),
                 dxbc::Src::R(system_temp_ps_pc_p0_a0_, dxbc::Src::kZZZZ), dxbc::Src::LU(0),
@@ -1460,7 +1453,7 @@ void DxbcShaderTranslator::ProcessLoopEndInstruction(const ParsedLoopEndInstruct
   }
   a_.OpElse();
   {
-    uint32_t aL_add_temp = PushSystemTemp();
+    u32 aL_add_temp = PushSystemTemp();
     // The signed aL increment is in bits 16:23 of the loop constant.
     if (cbuffer_index_bool_loop_constants_ == kBindingIndexUnallocated) {
       cbuffer_index_bool_loop_constants_ = cbuffer_count_++;
@@ -1501,7 +1494,7 @@ void DxbcShaderTranslator::ProcessJumpInstruction(const ParsedJumpInstruction& i
 }
 
 void DxbcShaderTranslator::ProcessAllocInstruction(const ParsedAllocInstruction& instr,
-                                                   uint8_t export_eM) {
+                                                   u8 export_eM) {
   bool start_memexport =
       instr.type == AllocType::kMemory && current_shader().memexport_eM_written();
   if (export_eM || start_memexport) {
@@ -1518,10 +1511,10 @@ void DxbcShaderTranslator::ProcessAllocInstruction(const ParsedAllocInstruction&
     ExportToMemory(export_eM);
     a_.OpMov(dxbc::Dest::R(system_temp_memexport_enabled_and_eM_written_, 0b0010),
              dxbc::Src::LU(0));
-    uint8_t export_eM_remaining = export_eM;
-    uint32_t eM_index;
+    u8 export_eM_remaining = export_eM;
+    u32 eM_index;
     while (rex::bit_scan_forward(export_eM_remaining, &eM_index)) {
-      export_eM_remaining &= ~(static_cast<uint8_t>(1) << eM_index);
+      export_eM_remaining &= ~(static_cast<u8>(1) << eM_index);
       a_.OpMov(dxbc::Dest::R(system_temps_memexport_data_[eM_index]), dxbc::Src::LF(0.0f));
     }
   }
@@ -1566,89 +1559,87 @@ const DxbcShaderTranslator::ShaderRdefType DxbcShaderTranslator::rdef_types_[sta
 const DxbcShaderTranslator::SystemConstantRdef
     DxbcShaderTranslator::system_constant_rdef_[static_cast<size_t>(
         DxbcShaderTranslator::SystemConstants::Index::kCount)] = {
-        {"xe_flags", ShaderRdefTypeIndex::kUint, sizeof(uint32_t)},
-        {"xe_tessellation_factor_range", ShaderRdefTypeIndex::kFloat2, sizeof(float) * 2},
-        {"xe_line_loop_closing_index", ShaderRdefTypeIndex::kUint, sizeof(uint32_t)},
+        {"xe_flags", ShaderRdefTypeIndex::kUint, sizeof(u32)},
+        {"xe_tessellation_factor_range", ShaderRdefTypeIndex::kFloat2, sizeof(f32) * 2},
+        {"xe_line_loop_closing_index", ShaderRdefTypeIndex::kUint, sizeof(u32)},
 
-        {"xe_vertex_index_endian", ShaderRdefTypeIndex::kUint, sizeof(uint32_t)},
-        {"xe_vertex_index_offset", ShaderRdefTypeIndex::kUint, sizeof(int32_t)},
-        {"xe_vertex_index_min_max", ShaderRdefTypeIndex::kUint2, sizeof(uint32_t) * 2},
+        {"xe_vertex_index_endian", ShaderRdefTypeIndex::kUint, sizeof(u32)},
+        {"xe_vertex_index_offset", ShaderRdefTypeIndex::kUint, sizeof(i32)},
+        {"xe_vertex_index_min_max", ShaderRdefTypeIndex::kUint2, sizeof(u32) * 2},
 
-        {"xe_user_clip_planes", ShaderRdefTypeIndex::kFloat4Array6, sizeof(float) * 4 * 6},
+        {"xe_user_clip_planes", ShaderRdefTypeIndex::kFloat4Array6, sizeof(f32) * 4 * 6},
 
-        {"xe_ndc_scale", ShaderRdefTypeIndex::kFloat3, sizeof(float) * 3},
-        {"xe_point_vertex_diameter_min", ShaderRdefTypeIndex::kFloat, sizeof(float)},
+        {"xe_ndc_scale", ShaderRdefTypeIndex::kFloat3, sizeof(f32) * 3},
+        {"xe_point_vertex_diameter_min", ShaderRdefTypeIndex::kFloat, sizeof(f32)},
 
-        {"xe_ndc_offset", ShaderRdefTypeIndex::kFloat3, sizeof(float) * 3},
-        {"xe_point_vertex_diameter_max", ShaderRdefTypeIndex::kFloat, sizeof(float)},
+        {"xe_ndc_offset", ShaderRdefTypeIndex::kFloat3, sizeof(f32) * 3},
+        {"xe_point_vertex_diameter_max", ShaderRdefTypeIndex::kFloat, sizeof(f32)},
 
-        {"xe_point_constant_diameter", ShaderRdefTypeIndex::kFloat2, sizeof(float) * 2},
-        {"xe_point_screen_diameter_to_ndc_radius", ShaderRdefTypeIndex::kFloat2, sizeof(float) * 2},
+        {"xe_point_constant_diameter", ShaderRdefTypeIndex::kFloat2, sizeof(f32) * 2},
+        {"xe_point_screen_diameter_to_ndc_radius", ShaderRdefTypeIndex::kFloat2, sizeof(f32) * 2},
 
-        {"xe_texture_swizzled_signs", ShaderRdefTypeIndex::kUint4Array2, sizeof(uint32_t) * 4 * 2},
+        {"xe_texture_swizzled_signs", ShaderRdefTypeIndex::kUint4Array2, sizeof(u32) * 4 * 2},
 
-        {"xe_textures_resolution_scaled", ShaderRdefTypeIndex::kUint, sizeof(uint32_t)},
-        {"xe_sample_count_log2", ShaderRdefTypeIndex::kUint2, sizeof(uint32_t) * 2},
-        {"xe_alpha_test_reference", ShaderRdefTypeIndex::kFloat, sizeof(float)},
+        {"xe_textures_resolution_scaled", ShaderRdefTypeIndex::kUint, sizeof(u32)},
+        {"xe_sample_count_log2", ShaderRdefTypeIndex::kUint2, sizeof(u32) * 2},
+        {"xe_alpha_test_reference", ShaderRdefTypeIndex::kFloat, sizeof(f32)},
 
-        {"xe_alpha_to_mask", ShaderRdefTypeIndex::kUint, sizeof(uint32_t)},
-        {"xe_edram_32bpp_tile_pitch_dwords_scaled", ShaderRdefTypeIndex::kUint, sizeof(uint32_t)},
-        {"xe_edram_depth_base_dwords_scaled", ShaderRdefTypeIndex::kUint, sizeof(uint32_t),
-         sizeof(uint32_t)},
+        {"xe_alpha_to_mask", ShaderRdefTypeIndex::kUint, sizeof(u32)},
+        {"xe_edram_32bpp_tile_pitch_dwords_scaled", ShaderRdefTypeIndex::kUint, sizeof(u32)},
+        {"xe_edram_depth_base_dwords_scaled", ShaderRdefTypeIndex::kUint, sizeof(u32), sizeof(u32)},
 
-        {"xe_color_exp_bias", ShaderRdefTypeIndex::kFloat4, sizeof(float) * 4},
+        {"xe_color_exp_bias", ShaderRdefTypeIndex::kFloat4, sizeof(f32) * 4},
 
-        {"xe_edram_poly_offset_front", ShaderRdefTypeIndex::kFloat2, sizeof(float) * 2},
-        {"xe_edram_poly_offset_back", ShaderRdefTypeIndex::kFloat2, sizeof(float) * 2},
+        {"xe_edram_poly_offset_front", ShaderRdefTypeIndex::kFloat2, sizeof(f32) * 2},
+        {"xe_edram_poly_offset_back", ShaderRdefTypeIndex::kFloat2, sizeof(f32) * 2},
 
-        {"xe_edram_stencil", ShaderRdefTypeIndex::kUint4Array2, sizeof(uint32_t) * 4 * 2},
+        {"xe_edram_stencil", ShaderRdefTypeIndex::kUint4Array2, sizeof(u32) * 4 * 2},
 
-        {"xe_edram_rt_base_dwords_scaled", ShaderRdefTypeIndex::kUint4, sizeof(uint32_t) * 4},
+        {"xe_edram_rt_base_dwords_scaled", ShaderRdefTypeIndex::kUint4, sizeof(u32) * 4},
 
-        {"xe_edram_rt_format_flags", ShaderRdefTypeIndex::kUint4, sizeof(uint32_t) * 4},
+        {"xe_edram_rt_format_flags", ShaderRdefTypeIndex::kUint4, sizeof(u32) * 4},
 
-        {"xe_edram_rt_clamp", ShaderRdefTypeIndex::kFloat4Array4, sizeof(float) * 4 * 4},
+        {"xe_edram_rt_clamp", ShaderRdefTypeIndex::kFloat4Array4, sizeof(f32) * 4 * 4},
 
-        {"xe_edram_rt_keep_mask", ShaderRdefTypeIndex::kUint4Array2, sizeof(uint32_t) * 4 * 2},
+        {"xe_edram_rt_keep_mask", ShaderRdefTypeIndex::kUint4Array2, sizeof(u32) * 4 * 2},
 
-        {"xe_edram_rt_blend_factors_ops", ShaderRdefTypeIndex::kUint4, sizeof(uint32_t) * 4},
+        {"xe_edram_rt_blend_factors_ops", ShaderRdefTypeIndex::kUint4, sizeof(u32) * 4},
 
-        {"xe_edram_blend_constant", ShaderRdefTypeIndex::kFloat4, sizeof(float) * 4},
+        {"xe_edram_blend_constant", ShaderRdefTypeIndex::kFloat4, sizeof(f32) * 4},
 };
 
 void DxbcShaderTranslator::WriteResourceDefinition() {
   // shader_object_.resize() invalidates pointers and zeroes the new memory.
 
-  uint32_t blob_position_dwords = static_cast<uint32_t>(shader_object_.size());
-  uint32_t name_ptr;
+  u32 blob_position_dwords = static_cast<u32>(shader_object_.size());
+  u32 name_ptr;
 
   const Shader::ConstantRegisterMap& constant_register_map =
       current_shader().constant_register_map();
 
-  shader_object_.resize(shader_object_.size() + sizeof(dxbc::RdefHeader) / sizeof(uint32_t));
+  shader_object_.resize(shader_object_.size() + sizeof(dxbc::RdefHeader) / sizeof(u32));
   dxbc::AppendAlignedString(shader_object_, "ReXGlue");
 
-  name_ptr =
-      (static_cast<uint32_t>(shader_object_.size()) - blob_position_dwords) * sizeof(uint32_t);
-  uint32_t type_name_ptrs[std::to_underlying(ShaderRdefTypeIndex::kCount)];
-  for (uint32_t i = 0; i < std::to_underlying(ShaderRdefTypeIndex::kCount); ++i) {
+  name_ptr = (static_cast<u32>(shader_object_.size()) - blob_position_dwords) * sizeof(u32);
+  u32 type_name_ptrs[std::to_underlying(ShaderRdefTypeIndex::kCount)];
+  for (u32 i = 0; i < std::to_underlying(ShaderRdefTypeIndex::kCount); ++i) {
     const ShaderRdefType& type = rdef_types_[i];
     if (type.name == nullptr) {
-      REX_ASSERT(static_cast<uint32_t>(type.array_element_type) < i);
-      type_name_ptrs[i] = type_name_ptrs[static_cast<uint32_t>(type.array_element_type)];
+      REX_ASSERT(static_cast<u32>(type.array_element_type) < i);
+      type_name_ptrs[i] = type_name_ptrs[static_cast<u32>(type.array_element_type)];
       continue;
     }
     type_name_ptrs[i] = name_ptr;
     name_ptr += dxbc::AppendAlignedString(shader_object_, type.name);
   }
-  uint32_t types_position_dwords = static_cast<uint32_t>(shader_object_.size());
-  uint32_t types_ptr = (types_position_dwords - blob_position_dwords) * sizeof(uint32_t);
+  u32 types_position_dwords = static_cast<u32>(shader_object_.size());
+  u32 types_ptr = (types_position_dwords - blob_position_dwords) * sizeof(u32);
   shader_object_.resize(types_position_dwords +
-                        sizeof(dxbc::RdefType) / sizeof(uint32_t) *
+                        sizeof(dxbc::RdefType) / sizeof(u32) *
                             std::to_underlying(ShaderRdefTypeIndex::kCount));
   {
     auto types = reinterpret_cast<dxbc::RdefType*>(shader_object_.data() + types_position_dwords);
-    for (uint32_t i = 0; i < std::to_underlying(ShaderRdefTypeIndex::kCount); ++i) {
+    for (u32 i = 0; i < std::to_underlying(ShaderRdefTypeIndex::kCount); ++i) {
       dxbc::RdefType& type = types[i];
       const ShaderRdefType& translator_type = rdef_types_[i];
       type.variable_class = translator_type.variable_class;
@@ -1657,13 +1648,12 @@ void DxbcShaderTranslator::WriteResourceDefinition() {
       type.column_count = translator_type.column_count;
       switch (ShaderRdefTypeIndex(i)) {
         case ShaderRdefTypeIndex::kFloat4ConstantArray:
-          type.element_count = std::max(static_cast<uint16_t>(constant_register_map.float_count),
-                                        static_cast<uint16_t>(1));
+          type.element_count =
+              std::max(static_cast<u16>(constant_register_map.float_count), static_cast<u16>(1));
           break;
         case ShaderRdefTypeIndex::kUint4DescriptorIndexArray:
-          type.element_count =
-              std::max(static_cast<uint16_t>((GetBindlessResourceCount() + 3) >> 2),
-                       static_cast<uint16_t>(1));
+          type.element_count = std::max(static_cast<u16>((GetBindlessResourceCount() + 3) >> 2),
+                                        static_cast<u16>(1));
           break;
         default:
           type.element_count = translator_type.element_count;
@@ -1672,55 +1662,52 @@ void DxbcShaderTranslator::WriteResourceDefinition() {
     }
   }
 
-  name_ptr =
-      (static_cast<uint32_t>(shader_object_.size()) - blob_position_dwords) * sizeof(uint32_t);
-  uint32_t constant_name_ptrs_system[std::to_underlying(SystemConstants::Index::kCount)];
+  name_ptr = (static_cast<u32>(shader_object_.size()) - blob_position_dwords) * sizeof(u32);
+  u32 constant_name_ptrs_system[std::to_underlying(SystemConstants::Index::kCount)];
   if (cbuffer_index_system_constants_ != kBindingIndexUnallocated) {
     for (size_t i = 0; i < size_t(SystemConstants::Index::kCount); ++i) {
       constant_name_ptrs_system[i] = name_ptr;
       name_ptr += dxbc::AppendAlignedString(shader_object_, system_constant_rdef_[i].name);
     }
   }
-  uint32_t constant_name_ptr_float = name_ptr;
+  u32 constant_name_ptr_float = name_ptr;
   if (cbuffer_index_float_constants_ != kBindingIndexUnallocated) {
     name_ptr += dxbc::AppendAlignedString(shader_object_, "xe_float_constants");
   }
-  uint32_t constant_name_ptr_bool = name_ptr;
-  uint32_t constant_name_ptr_loop = name_ptr;
+  u32 constant_name_ptr_bool = name_ptr;
+  u32 constant_name_ptr_loop = name_ptr;
   if (cbuffer_index_bool_loop_constants_ != kBindingIndexUnallocated) {
     name_ptr += dxbc::AppendAlignedString(shader_object_, "xe_bool_constants");
     constant_name_ptr_loop = name_ptr;
     name_ptr += dxbc::AppendAlignedString(shader_object_, "xe_loop_constants");
   }
-  uint32_t constant_name_ptr_fetch = name_ptr;
+  u32 constant_name_ptr_fetch = name_ptr;
   if (cbuffer_index_fetch_constants_ != kBindingIndexUnallocated) {
     name_ptr += dxbc::AppendAlignedString(shader_object_, "xe_fetch_constants");
   }
-  uint32_t constant_name_ptr_descriptor_indices = name_ptr;
+  u32 constant_name_ptr_descriptor_indices = name_ptr;
   if (cbuffer_index_descriptor_indices_ != kBindingIndexUnallocated) {
     name_ptr += dxbc::AppendAlignedString(shader_object_, "xe_descriptor_indices");
   }
 
-  uint32_t constant_position_dwords_system = static_cast<uint32_t>(shader_object_.size());
+  u32 constant_position_dwords_system = static_cast<u32>(shader_object_.size());
   if (cbuffer_index_system_constants_ != kBindingIndexUnallocated) {
     shader_object_.resize(constant_position_dwords_system +
-                          sizeof(dxbc::RdefVariable) / sizeof(uint32_t) *
+                          sizeof(dxbc::RdefVariable) / sizeof(u32) *
                               static_cast<size_t>(SystemConstants::Index::kCount));
     auto constants_system = reinterpret_cast<dxbc::RdefVariable*>(shader_object_.data() +
                                                                   constant_position_dwords_system);
-    uint32_t constant_offset_system = 0;
+    u32 constant_offset_system = 0;
     for (size_t i = 0; i < size_t(SystemConstants::Index::kCount); ++i) {
       dxbc::RdefVariable& constant_system = constants_system[i];
       const SystemConstantRdef& translator_constant_system = system_constant_rdef_[i];
       constant_system.name_ptr = constant_name_ptrs_system[i];
       constant_system.start_offset_bytes = constant_offset_system;
       constant_system.size_bytes = translator_constant_system.size;
-      constant_system.flags = (system_constants_used_ & (static_cast<uint64_t>(1) << i))
-                                  ? dxbc::kRdefVariableFlagUsed
-                                  : 0;
+      constant_system.flags =
+          (system_constants_used_ & (static_cast<u64>(1) << i)) ? dxbc::kRdefVariableFlagUsed : 0;
       constant_system.type_ptr =
-          types_ptr +
-          sizeof(dxbc::RdefType) * static_cast<uint32_t>(translator_constant_system.type);
+          types_ptr + sizeof(dxbc::RdefType) * static_cast<u32>(translator_constant_system.type);
       constant_system.start_texture = UINT32_MAX;
       constant_system.start_sampler = UINT32_MAX;
       constant_offset_system +=
@@ -1728,15 +1715,15 @@ void DxbcShaderTranslator::WriteResourceDefinition() {
     }
   }
 
-  uint32_t constant_position_dwords_float = static_cast<uint32_t>(shader_object_.size());
+  u32 constant_position_dwords_float = static_cast<u32>(shader_object_.size());
   if (cbuffer_index_float_constants_ != kBindingIndexUnallocated) {
     REX_ASSERT(constant_register_map.float_count != 0);
     shader_object_.resize(constant_position_dwords_float +
-                          sizeof(dxbc::RdefVariable) / sizeof(uint32_t));
+                          sizeof(dxbc::RdefVariable) / sizeof(u32));
     auto& constant_float = *reinterpret_cast<dxbc::RdefVariable*>(shader_object_.data() +
                                                                   constant_position_dwords_float);
     constant_float.name_ptr = constant_name_ptr_float;
-    constant_float.size_bytes = sizeof(float) * 4 * constant_register_map.float_count;
+    constant_float.size_bytes = sizeof(f32) * 4 * constant_register_map.float_count;
     constant_float.flags = dxbc::kRdefVariableFlagUsed;
     constant_float.type_ptr =
         types_ptr +
@@ -1745,15 +1732,15 @@ void DxbcShaderTranslator::WriteResourceDefinition() {
     constant_float.start_sampler = UINT32_MAX;
   }
 
-  uint32_t constant_position_dwords_bool_loop = static_cast<uint32_t>(shader_object_.size());
+  u32 constant_position_dwords_bool_loop = static_cast<u32>(shader_object_.size());
   if (cbuffer_index_bool_loop_constants_ != kBindingIndexUnallocated) {
     shader_object_.resize(constant_position_dwords_bool_loop +
-                          sizeof(dxbc::RdefVariable) / sizeof(uint32_t) * 2);
+                          sizeof(dxbc::RdefVariable) / sizeof(u32) * 2);
     auto constants_bool_loop = reinterpret_cast<dxbc::RdefVariable*>(
         shader_object_.data() + constant_position_dwords_bool_loop);
 
     constants_bool_loop[0].name_ptr = constant_name_ptr_bool;
-    constants_bool_loop[0].size_bytes = sizeof(uint32_t) * 4 * 2;
+    constants_bool_loop[0].size_bytes = sizeof(u32) * 4 * 2;
     if (std::ranges::any_of(constant_register_map.bool_bitmap, std::identity{})) {
       constants_bool_loop[0].flags |= dxbc::kRdefVariableFlagUsed;
     }
@@ -1763,8 +1750,8 @@ void DxbcShaderTranslator::WriteResourceDefinition() {
     constants_bool_loop[0].start_sampler = UINT32_MAX;
 
     constants_bool_loop[1].name_ptr = constant_name_ptr_loop;
-    constants_bool_loop[1].start_offset_bytes = sizeof(uint32_t) * 4 * 2;
-    constants_bool_loop[1].size_bytes = sizeof(uint32_t) * 4 * 8;
+    constants_bool_loop[1].start_offset_bytes = sizeof(u32) * 4 * 2;
+    constants_bool_loop[1].size_bytes = sizeof(u32) * 4 * 8;
     constants_bool_loop[1].flags =
         constant_register_map.loop_bitmap ? dxbc::kRdefVariableFlagUsed : 0;
     constants_bool_loop[1].type_ptr =
@@ -1773,14 +1760,14 @@ void DxbcShaderTranslator::WriteResourceDefinition() {
     constants_bool_loop[1].start_sampler = UINT32_MAX;
   }
 
-  uint32_t constant_position_dwords_fetch = static_cast<uint32_t>(shader_object_.size());
+  u32 constant_position_dwords_fetch = static_cast<u32>(shader_object_.size());
   if (cbuffer_index_fetch_constants_ != kBindingIndexUnallocated) {
     shader_object_.resize(constant_position_dwords_fetch +
-                          sizeof(dxbc::RdefVariable) / sizeof(uint32_t));
+                          sizeof(dxbc::RdefVariable) / sizeof(u32));
     auto& constant_fetch = *reinterpret_cast<dxbc::RdefVariable*>(shader_object_.data() +
                                                                   constant_position_dwords_fetch);
     constant_fetch.name_ptr = constant_name_ptr_fetch;
-    constant_fetch.size_bytes = sizeof(uint32_t) * 6 * 32;
+    constant_fetch.size_bytes = sizeof(u32) * 6 * 32;
     constant_fetch.flags = dxbc::kRdefVariableFlagUsed;
     constant_fetch.type_ptr =
         types_ptr + sizeof(dxbc::RdefType) * std::to_underlying(ShaderRdefTypeIndex::kUint4Array48);
@@ -1788,17 +1775,16 @@ void DxbcShaderTranslator::WriteResourceDefinition() {
     constant_fetch.start_sampler = UINT32_MAX;
   }
 
-  uint32_t constant_position_dwords_descriptor_indices =
-      static_cast<uint32_t>(shader_object_.size());
+  u32 constant_position_dwords_descriptor_indices = static_cast<u32>(shader_object_.size());
   if (cbuffer_index_descriptor_indices_ != kBindingIndexUnallocated) {
     REX_ASSERT(GetBindlessResourceCount() != 0);
     shader_object_.resize(constant_position_dwords_descriptor_indices +
-                          sizeof(dxbc::RdefVariable) / sizeof(uint32_t));
+                          sizeof(dxbc::RdefVariable) / sizeof(u32));
     auto& constant_descriptor_indices = *reinterpret_cast<dxbc::RdefVariable*>(
         shader_object_.data() + constant_position_dwords_descriptor_indices);
     constant_descriptor_indices.name_ptr = constant_name_ptr_descriptor_indices;
     constant_descriptor_indices.size_bytes =
-        sizeof(uint32_t) * rex::align(GetBindlessResourceCount(), static_cast<uint32_t>(4));
+        sizeof(u32) * rex::align(GetBindlessResourceCount(), static_cast<u32>(4));
     constant_descriptor_indices.flags = dxbc::kRdefVariableFlagUsed;
     constant_descriptor_indices.type_ptr =
         types_ptr + sizeof(dxbc::RdefType) *
@@ -1807,98 +1793,96 @@ void DxbcShaderTranslator::WriteResourceDefinition() {
     constant_descriptor_indices.start_sampler = UINT32_MAX;
   }
 
-  name_ptr =
-      (static_cast<uint32_t>(shader_object_.size()) - blob_position_dwords) * sizeof(uint32_t);
-  uint32_t cbuffer_name_ptr_system = name_ptr;
+  name_ptr = (static_cast<u32>(shader_object_.size()) - blob_position_dwords) * sizeof(u32);
+  u32 cbuffer_name_ptr_system = name_ptr;
   if (cbuffer_index_system_constants_ != kBindingIndexUnallocated) {
     name_ptr += dxbc::AppendAlignedString(shader_object_, "xe_system_cbuffer");
   }
-  uint32_t cbuffer_name_ptr_float = name_ptr;
+  u32 cbuffer_name_ptr_float = name_ptr;
   if (cbuffer_index_float_constants_ != kBindingIndexUnallocated) {
     name_ptr += dxbc::AppendAlignedString(shader_object_, "xe_float_cbuffer");
   }
-  uint32_t cbuffer_name_ptr_bool_loop = name_ptr;
+  u32 cbuffer_name_ptr_bool_loop = name_ptr;
   if (cbuffer_index_bool_loop_constants_ != kBindingIndexUnallocated) {
     name_ptr += dxbc::AppendAlignedString(shader_object_, "xe_bool_loop_cbuffer");
   }
-  uint32_t cbuffer_name_ptr_fetch = name_ptr;
+  u32 cbuffer_name_ptr_fetch = name_ptr;
   if (cbuffer_index_fetch_constants_ != kBindingIndexUnallocated) {
     name_ptr += dxbc::AppendAlignedString(shader_object_, "xe_fetch_cbuffer");
   }
-  uint32_t cbuffer_name_ptr_descriptor_indices = name_ptr;
+  u32 cbuffer_name_ptr_descriptor_indices = name_ptr;
   if (cbuffer_index_descriptor_indices_ != kBindingIndexUnallocated) {
     name_ptr += dxbc::AppendAlignedString(shader_object_, "xe_descriptor_indices_cbuffer");
   }
 
-  uint32_t cbuffers_position_dwords = static_cast<uint32_t>(shader_object_.size());
+  u32 cbuffers_position_dwords = static_cast<u32>(shader_object_.size());
   shader_object_.resize(cbuffers_position_dwords +
-                        sizeof(dxbc::RdefCbuffer) / sizeof(uint32_t) * cbuffer_count_);
+                        sizeof(dxbc::RdefCbuffer) / sizeof(u32) * cbuffer_count_);
   {
     auto cbuffers =
         reinterpret_cast<dxbc::RdefCbuffer*>(shader_object_.data() + cbuffers_position_dwords);
-    for (uint32_t i = 0; i < cbuffer_count_; ++i) {
+    for (u32 i = 0; i < cbuffer_count_; ++i) {
       dxbc::RdefCbuffer& cbuffer = cbuffers[i];
       cbuffer.type = dxbc::RdefCbufferType::kCbuffer;
       if (i == cbuffer_index_system_constants_) {
         cbuffer.name_ptr = cbuffer_name_ptr_system;
         cbuffer.variable_count = std::to_underlying(SystemConstants::Index::kCount);
         cbuffer.variables_ptr =
-            (constant_position_dwords_system - blob_position_dwords) * sizeof(uint32_t);
+            (constant_position_dwords_system - blob_position_dwords) * sizeof(u32);
         cbuffer.size_vector_aligned_bytes =
-            static_cast<uint32_t>(rex::align(sizeof(SystemConstants), sizeof(uint32_t) * 4));
+            static_cast<u32>(rex::align(sizeof(SystemConstants), sizeof(u32) * 4));
       } else if (i == cbuffer_index_float_constants_) {
         REX_ASSERT(constant_register_map.float_count != 0);
         cbuffer.name_ptr = cbuffer_name_ptr_float;
         cbuffer.variable_count = 1;
         cbuffer.variables_ptr =
-            (constant_position_dwords_float - blob_position_dwords) * sizeof(uint32_t);
-        cbuffer.size_vector_aligned_bytes = sizeof(float) * 4 * constant_register_map.float_count;
+            (constant_position_dwords_float - blob_position_dwords) * sizeof(u32);
+        cbuffer.size_vector_aligned_bytes = sizeof(f32) * 4 * constant_register_map.float_count;
       } else if (i == cbuffer_index_bool_loop_constants_) {
         cbuffer.name_ptr = cbuffer_name_ptr_bool_loop;
         cbuffer.variable_count = 2;
         cbuffer.variables_ptr =
-            (constant_position_dwords_bool_loop - blob_position_dwords) * sizeof(uint32_t);
-        cbuffer.size_vector_aligned_bytes = sizeof(uint32_t) * 4 * (2 + 8);
+            (constant_position_dwords_bool_loop - blob_position_dwords) * sizeof(u32);
+        cbuffer.size_vector_aligned_bytes = sizeof(u32) * 4 * (2 + 8);
       } else if (i == cbuffer_index_fetch_constants_) {
         cbuffer.name_ptr = cbuffer_name_ptr_fetch;
         cbuffer.variable_count = 1;
         cbuffer.variables_ptr =
-            (constant_position_dwords_fetch - blob_position_dwords) * sizeof(uint32_t);
-        cbuffer.size_vector_aligned_bytes = sizeof(uint32_t) * 6 * 32;
+            (constant_position_dwords_fetch - blob_position_dwords) * sizeof(u32);
+        cbuffer.size_vector_aligned_bytes = sizeof(u32) * 6 * 32;
       } else if (i == cbuffer_index_descriptor_indices_) {
         REX_ASSERT(GetBindlessResourceCount() != 0);
         cbuffer.name_ptr = cbuffer_name_ptr_descriptor_indices;
         cbuffer.variable_count = 1;
         cbuffer.variables_ptr =
-            (constant_position_dwords_descriptor_indices - blob_position_dwords) * sizeof(uint32_t);
+            (constant_position_dwords_descriptor_indices - blob_position_dwords) * sizeof(u32);
         cbuffer.size_vector_aligned_bytes =
-            sizeof(uint32_t) * rex::align(GetBindlessResourceCount(), static_cast<uint32_t>(4));
+            sizeof(u32) * rex::align(GetBindlessResourceCount(), static_cast<u32>(4));
       } else {
         REX_UNHANDLED_CASE(i);
       }
     }
   }
 
-  name_ptr =
-      (static_cast<uint32_t>(shader_object_.size()) - blob_position_dwords) * sizeof(uint32_t);
-  uint32_t sampler_name_ptr = name_ptr;
+  name_ptr = (static_cast<u32>(shader_object_.size()) - blob_position_dwords) * sizeof(u32);
+  u32 sampler_name_ptr = name_ptr;
   if (!sampler_bindings_.empty()) {
     if (bindless_resources_used_) {
       name_ptr += dxbc::AppendAlignedString(shader_object_, "xe_samplers");
     } else {
-      for (uint32_t i = 0; i < uint32_t(sampler_bindings_.size()); ++i) {
+      for (u32 i = 0; i < u32(sampler_bindings_.size()); ++i) {
         name_ptr +=
             dxbc::AppendAlignedString(shader_object_, sampler_bindings_[i].bindful_name.c_str());
       }
     }
   }
-  uint32_t shared_memory_srv_name_ptr = name_ptr;
+  u32 shared_memory_srv_name_ptr = name_ptr;
   if (srv_index_shared_memory_ != kBindingIndexUnallocated) {
     name_ptr += dxbc::AppendAlignedString(shader_object_, "xe_shared_memory_srv");
   }
-  uint32_t bindless_textures_2d_name_ptr = name_ptr;
-  uint32_t bindless_textures_3d_name_ptr = name_ptr;
-  uint32_t bindless_textures_cube_name_ptr = name_ptr;
+  u32 bindless_textures_2d_name_ptr = name_ptr;
+  u32 bindless_textures_3d_name_ptr = name_ptr;
+  u32 bindless_textures_cube_name_ptr = name_ptr;
   if (bindless_resources_used_) {
     if (srv_index_bindless_textures_2d_ != kBindingIndexUnallocated) {
       bindless_textures_2d_name_ptr = name_ptr;
@@ -1918,21 +1902,21 @@ void DxbcShaderTranslator::WriteResourceDefinition() {
       name_ptr += dxbc::AppendAlignedString(shader_object_, texture_binding.bindful_name.c_str());
     }
   }
-  uint32_t shared_memory_uav_name_ptr = name_ptr;
+  u32 shared_memory_uav_name_ptr = name_ptr;
   if (uav_index_shared_memory_ != kBindingIndexUnallocated) {
     name_ptr += dxbc::AppendAlignedString(shader_object_, "xe_shared_memory_uav");
   }
-  uint32_t edram_name_ptr = name_ptr;
+  u32 edram_name_ptr = name_ptr;
   if (uav_index_edram_ != kBindingIndexUnallocated) {
     name_ptr += dxbc::AppendAlignedString(shader_object_, "xe_edram");
   }
 
-  uint32_t bindings_position_dwords = static_cast<uint32_t>(shader_object_.size());
+  u32 bindings_position_dwords = static_cast<u32>(shader_object_.size());
 
   if (!sampler_bindings_.empty()) {
-    uint32_t samplers_position_dwords = static_cast<uint32_t>(shader_object_.size());
+    u32 samplers_position_dwords = static_cast<u32>(shader_object_.size());
     shader_object_.resize(samplers_position_dwords +
-                          sizeof(dxbc::RdefInputBind) / sizeof(uint32_t) *
+                          sizeof(dxbc::RdefInputBind) / sizeof(u32) *
                               (bindless_resources_used_ ? 1 : sampler_bindings_.size()));
     auto samplers =
         reinterpret_cast<dxbc::RdefInputBind*>(shader_object_.data() + samplers_position_dwords);
@@ -1940,27 +1924,27 @@ void DxbcShaderTranslator::WriteResourceDefinition() {
       samplers[0].name_ptr = sampler_name_ptr;
       samplers[0].type = dxbc::RdefInputType::kSampler;
     } else {
-      uint32_t sampler_current_name_ptr = sampler_name_ptr;
+      u32 sampler_current_name_ptr = sampler_name_ptr;
       for (size_t i = 0; i < sampler_bindings_.size(); ++i) {
         dxbc::RdefInputBind& sampler = samplers[i];
         sampler.name_ptr = sampler_current_name_ptr;
         sampler.type = dxbc::RdefInputType::kSampler;
-        sampler.bind_point = static_cast<uint32_t>(i);
+        sampler.bind_point = static_cast<u32>(i);
         sampler.bind_count = 1;
-        sampler.id = static_cast<uint32_t>(i);
+        sampler.id = static_cast<u32>(i);
         sampler_current_name_ptr +=
             dxbc::GetAlignedStringLength(sampler_bindings_[i].bindful_name.c_str());
       }
     }
   }
 
-  uint32_t srvs_position_dwords = static_cast<uint32_t>(shader_object_.size());
+  u32 srvs_position_dwords = static_cast<u32>(shader_object_.size());
   shader_object_.resize(srvs_position_dwords +
-                        sizeof(dxbc::RdefInputBind) / sizeof(uint32_t) * srv_count_);
+                        sizeof(dxbc::RdefInputBind) / sizeof(u32) * srv_count_);
   {
     auto srvs =
         reinterpret_cast<dxbc::RdefInputBind*>(shader_object_.data() + srvs_position_dwords);
-    for (uint32_t i = 0; i < srv_count_; ++i) {
+    for (u32 i = 0; i < srv_count_; ++i) {
       dxbc::RdefInputBind& srv = srvs[i];
       srv.id = i;
       if (i == srv_index_shared_memory_) {
@@ -1994,7 +1978,7 @@ void DxbcShaderTranslator::WriteResourceDefinition() {
         } else {
           auto it = texture_bindings_for_bindful_srv_indices_.find(i);
           REX_ASSERT(it != texture_bindings_for_bindful_srv_indices_.end());
-          uint32_t texture_binding_index = it->second;
+          u32 texture_binding_index = it->second;
           const TextureBinding& texture_binding = texture_bindings_[texture_binding_index];
           srv.name_ptr = texture_binding.bindful_srv_rdef_name_ptr;
           switch (texture_binding.dimension) {
@@ -2017,13 +2001,13 @@ void DxbcShaderTranslator::WriteResourceDefinition() {
     }
   }
 
-  uint32_t uavs_position_dwords = static_cast<uint32_t>(shader_object_.size());
+  u32 uavs_position_dwords = static_cast<u32>(shader_object_.size());
   shader_object_.resize(uavs_position_dwords +
-                        sizeof(dxbc::RdefInputBind) / sizeof(uint32_t) * uav_count_);
+                        sizeof(dxbc::RdefInputBind) / sizeof(u32) * uav_count_);
   {
     auto uavs =
         reinterpret_cast<dxbc::RdefInputBind*>(shader_object_.data() + uavs_position_dwords);
-    for (uint32_t i = 0; i < uav_count_; ++i) {
+    for (u32 i = 0; i < uav_count_; ++i) {
       dxbc::RdefInputBind& uav = uavs[i];
       uav.bind_count = 1;
       uav.id = i;
@@ -2046,13 +2030,13 @@ void DxbcShaderTranslator::WriteResourceDefinition() {
     }
   }
 
-  uint32_t cbuffer_binding_position_dwords = static_cast<uint32_t>(shader_object_.size());
+  u32 cbuffer_binding_position_dwords = static_cast<u32>(shader_object_.size());
   shader_object_.resize(cbuffer_binding_position_dwords +
-                        sizeof(dxbc::RdefInputBind) / sizeof(uint32_t) * cbuffer_count_);
+                        sizeof(dxbc::RdefInputBind) / sizeof(u32) * cbuffer_count_);
   {
     auto cbuffers = reinterpret_cast<dxbc::RdefInputBind*>(shader_object_.data() +
                                                            cbuffer_binding_position_dwords);
-    for (uint32_t i = 0; i < cbuffer_count_; ++i) {
+    for (u32 i = 0; i < cbuffer_count_; ++i) {
       dxbc::RdefInputBind& cbuffer = cbuffers[i];
       cbuffer.type = dxbc::RdefInputType::kCbuffer;
       cbuffer.bind_count = 1;
@@ -2079,16 +2063,16 @@ void DxbcShaderTranslator::WriteResourceDefinition() {
     }
   }
 
-  uint32_t bindings_end_position_dwords = static_cast<uint32_t>(shader_object_.size());
+  u32 bindings_end_position_dwords = static_cast<u32>(shader_object_.size());
 
   {
     auto& header =
         *reinterpret_cast<dxbc::RdefHeader*>(shader_object_.data() + blob_position_dwords);
     header.cbuffer_count = cbuffer_count_;
-    header.cbuffers_ptr = (cbuffers_position_dwords - blob_position_dwords) * sizeof(uint32_t);
+    header.cbuffers_ptr = (cbuffers_position_dwords - blob_position_dwords) * sizeof(u32);
     header.input_bind_count = (bindings_end_position_dwords - bindings_position_dwords) *
-                              sizeof(uint32_t) / sizeof(dxbc::RdefInputBind);
-    header.input_binds_ptr = (bindings_position_dwords - blob_position_dwords) * sizeof(uint32_t);
+                              sizeof(u32) / sizeof(dxbc::RdefInputBind);
+    header.input_binds_ptr = (bindings_position_dwords - blob_position_dwords) * sizeof(u32);
     if (IsDxbcVertexShader()) {
       header.shader_model = dxbc::RdefShaderModel::kVertexShader5_1;
     } else if (IsDxbcDomainShader()) {
@@ -2110,10 +2094,10 @@ void DxbcShaderTranslator::WriteResourceDefinition() {
 
 void DxbcShaderTranslator::WriteInputSignature() {
   // shader_object_.resize() invalidates pointers and zeroes the new memory.
-  uint32_t blob_position = static_cast<uint32_t>(shader_object_.size());
-  shader_object_.resize(shader_object_.size() + sizeof(dxbc::Signature) / sizeof(uint32_t));
-  uint32_t parameter_count = 0;
-  constexpr size_t kParameterDwords = sizeof(dxbc::SignatureParameter) / sizeof(uint32_t);
+  u32 blob_position = static_cast<u32>(shader_object_.size());
+  shader_object_.resize(shader_object_.size() + sizeof(dxbc::Signature) / sizeof(u32));
+  u32 parameter_count = 0;
+  constexpr size_t kParameterDwords = sizeof(dxbc::SignatureParameter) / sizeof(u32);
 
   if (IsDxbcVertexShader()) {
     size_t vertex_id_position = shader_object_.size();
@@ -2129,8 +2113,7 @@ void DxbcShaderTranslator::WriteInputSignature() {
       vertex_id.always_reads_mask = (register_count() >= 1) ? 0b0001 : 0b0000;
     }
 
-    uint32_t semantic_offset =
-        static_cast<uint32_t>((shader_object_.size() - blob_position) * sizeof(uint32_t));
+    u32 semantic_offset = static_cast<u32>((shader_object_.size() - blob_position) * sizeof(u32));
     {
       auto& vertex_id =
           *reinterpret_cast<dxbc::SignatureParameter*>(shader_object_.data() + vertex_id_position);
@@ -2150,8 +2133,7 @@ void DxbcShaderTranslator::WriteInputSignature() {
       control_point_index.always_reads_mask = in_control_point_index_used_ ? 0b0001 : 0b0000;
     }
 
-    uint32_t semantic_offset =
-        static_cast<uint32_t>((shader_object_.size() - blob_position) * sizeof(uint32_t));
+    u32 semantic_offset = static_cast<u32>((shader_object_.size() - blob_position) * sizeof(u32));
     {
       auto& control_point_index = *reinterpret_cast<dxbc::SignatureParameter*>(
           shader_object_.data() + control_point_index_position);
@@ -2160,16 +2142,16 @@ void DxbcShaderTranslator::WriteInputSignature() {
     semantic_offset += dxbc::AppendAlignedString(shader_object_, "XEVERTEXID");
   } else if (is_pixel_shader()) {
     size_t interpolator_position = shader_object_.size();
-    uint32_t interpolator_mask = GetModificationInterpolatorMask();
-    uint32_t interpolator_count = rex::bit_count(interpolator_mask);
+    u32 interpolator_mask = GetModificationInterpolatorMask();
+    u32 interpolator_count = rex::bit_count(interpolator_mask);
     shader_object_.resize(shader_object_.size() + interpolator_count * kParameterDwords);
     parameter_count += interpolator_count;
     {
       auto interpolators = reinterpret_cast<dxbc::SignatureParameter*>(shader_object_.data() +
                                                                        interpolator_position);
-      uint32_t used_interpolator_index = 0;
-      uint32_t interpolators_remaining = interpolator_mask;
-      uint32_t interpolator_index;
+      u32 used_interpolator_index = 0;
+      u32 interpolators_remaining = interpolator_mask;
+      u32 interpolator_index;
       while (rex::bit_scan_forward(interpolators_remaining, &interpolator_index)) {
         interpolators_remaining &= ~(UINT32_C(1) << interpolator_index);
         dxbc::SignatureParameter& interpolator = interpolators[used_interpolator_index];
@@ -2238,12 +2220,11 @@ void DxbcShaderTranslator::WriteInputSignature() {
       }
     }
 
-    uint32_t semantic_offset =
-        static_cast<uint32_t>((shader_object_.size() - blob_position) * sizeof(uint32_t));
+    u32 semantic_offset = static_cast<u32>((shader_object_.size() - blob_position) * sizeof(u32));
     if (interpolator_count) {
       auto interpolators = reinterpret_cast<dxbc::SignatureParameter*>(shader_object_.data() +
                                                                        interpolator_position);
-      for (uint32_t i = 0; i < interpolator_count; ++i) {
+      for (u32 i = 0; i < interpolator_count; ++i) {
         interpolators[i].semantic_name_ptr = semantic_offset;
       }
       semantic_offset += dxbc::AppendAlignedString(shader_object_, "TEXCOORD");
@@ -2286,15 +2267,15 @@ void DxbcShaderTranslator::WriteInputSignature() {
 void DxbcShaderTranslator::WritePatchConstantSignature() {
   REX_ASSERT(IsDxbcDomainShader());
   // shader_object_.resize() invalidates pointers and zeroes the new memory.
-  uint32_t blob_position = static_cast<uint32_t>(shader_object_.size());
-  shader_object_.resize(shader_object_.size() + sizeof(dxbc::Signature) / sizeof(uint32_t));
-  uint32_t parameter_count = 0;
-  constexpr size_t kParameterDwords = sizeof(dxbc::SignatureParameter) / sizeof(uint32_t);
+  u32 blob_position = static_cast<u32>(shader_object_.size());
+  shader_object_.resize(shader_object_.size() + sizeof(dxbc::Signature) / sizeof(u32));
+  u32 parameter_count = 0;
+  constexpr size_t kParameterDwords = sizeof(dxbc::SignatureParameter) / sizeof(u32);
 
   // FXC compiles with SV_TessFactor and SV_InsideTessFactor inputs, required if unreferenced.
-  uint32_t tess_factor_edge_count = 0;
+  u32 tess_factor_edge_count = 0;
   dxbc::Name tess_factor_edge_system_value = dxbc::Name::kUndefined;
-  uint32_t tess_factor_inside_count = 0;
+  u32 tess_factor_inside_count = 0;
   dxbc::Name tess_factor_inside_system_value = dxbc::Name::kUndefined;
   Shader::HostVertexShaderType host_vertex_shader_type =
       GetDxbcShaderModification().vertex.host_vertex_shader_type;
@@ -2324,7 +2305,7 @@ void DxbcShaderTranslator::WritePatchConstantSignature() {
   {
     auto tess_factors_edge = reinterpret_cast<dxbc::SignatureParameter*>(shader_object_.data() +
                                                                          tess_factor_edge_position);
-    for (uint32_t i = 0; i < tess_factor_edge_count; ++i) {
+    for (u32 i = 0; i < tess_factor_edge_count; ++i) {
       dxbc::SignatureParameter& tess_factor_edge = tess_factors_edge[i];
       tess_factor_edge.semantic_index = i;
       tess_factor_edge.system_value = tess_factor_edge_system_value;
@@ -2340,7 +2321,7 @@ void DxbcShaderTranslator::WritePatchConstantSignature() {
   {
     auto tess_factors_inside = reinterpret_cast<dxbc::SignatureParameter*>(
         shader_object_.data() + tess_factor_inside_position);
-    for (uint32_t i = 0; i < tess_factor_inside_count; ++i) {
+    for (u32 i = 0; i < tess_factor_inside_count; ++i) {
       dxbc::SignatureParameter& tess_factor_inside = tess_factors_inside[i];
       tess_factor_inside.semantic_index = i;
       tess_factor_inside.system_value = tess_factor_inside_system_value;
@@ -2350,12 +2331,11 @@ void DxbcShaderTranslator::WritePatchConstantSignature() {
     }
   }
 
-  uint32_t semantic_offset =
-      static_cast<uint32_t>((shader_object_.size() - blob_position) * sizeof(uint32_t));
+  u32 semantic_offset = static_cast<u32>((shader_object_.size() - blob_position) * sizeof(u32));
   {
     auto tess_factors_edge = reinterpret_cast<dxbc::SignatureParameter*>(shader_object_.data() +
                                                                          tess_factor_edge_position);
-    for (uint32_t i = 0; i < tess_factor_edge_count; ++i) {
+    for (u32 i = 0; i < tess_factor_edge_count; ++i) {
       tess_factors_edge[i].semantic_name_ptr = semantic_offset;
     }
   }
@@ -2363,7 +2343,7 @@ void DxbcShaderTranslator::WritePatchConstantSignature() {
   {
     auto tess_factors_inside = reinterpret_cast<dxbc::SignatureParameter*>(
         shader_object_.data() + tess_factor_inside_position);
-    for (uint32_t i = 0; i < tess_factor_inside_count; ++i) {
+    for (u32 i = 0; i < tess_factor_inside_count; ++i) {
       tess_factors_inside[i].semantic_name_ptr = semantic_offset;
     }
   }
@@ -2378,22 +2358,22 @@ void DxbcShaderTranslator::WritePatchConstantSignature() {
 
 void DxbcShaderTranslator::WriteOutputSignature() {
   // shader_object_.resize() invalidates pointers and zeroes the new memory.
-  uint32_t blob_position = static_cast<uint32_t>(shader_object_.size());
-  shader_object_.resize(shader_object_.size() + sizeof(dxbc::Signature) / sizeof(uint32_t));
-  uint32_t parameter_count = 0;
-  constexpr size_t kParameterDwords = sizeof(dxbc::SignatureParameter) / sizeof(uint32_t);
+  u32 blob_position = static_cast<u32>(shader_object_.size());
+  shader_object_.resize(shader_object_.size() + sizeof(dxbc::Signature) / sizeof(u32));
+  u32 parameter_count = 0;
+  constexpr size_t kParameterDwords = sizeof(dxbc::SignatureParameter) / sizeof(u32);
 
   Modification shader_modification = GetDxbcShaderModification();
 
   if (is_vertex_shader()) {
     size_t interpolator_position = shader_object_.size();
-    uint32_t interpolator_count = rex::bit_count(GetModificationInterpolatorMask());
+    u32 interpolator_count = rex::bit_count(GetModificationInterpolatorMask());
     shader_object_.resize(shader_object_.size() + interpolator_count * kParameterDwords);
     parameter_count += interpolator_count;
     {
       auto interpolators = reinterpret_cast<dxbc::SignatureParameter*>(shader_object_.data() +
                                                                        interpolator_position);
-      for (uint32_t i = 0; i < interpolator_count; ++i) {
+      for (u32 i = 0; i < interpolator_count; ++i) {
         dxbc::SignatureParameter& interpolator = interpolators[i];
         interpolator.semantic_index = i;
         interpolator.component_type = dxbc::SignatureRegisterComponentType::kFloat32;
@@ -2415,13 +2395,13 @@ void DxbcShaderTranslator::WriteOutputSignature() {
     }
 
     size_t clip_and_cull_distance_position = shader_object_.size();
-    uint32_t clip_distance_count = shader_modification.GetVertexClipDistanceCount();
-    uint32_t cull_distance_count = shader_modification.GetVertexCullDistanceCount();
-    uint32_t clip_and_cull_distance_count = clip_distance_count + cull_distance_count;
-    uint32_t clip_distance_parameter_count = 0;
-    uint32_t cull_distance_parameter_count = 0;
-    for (uint32_t i = 0; i < clip_and_cull_distance_count; i += 4) {
-      uint32_t clip_cull_distance_register = out_reg_vs_clip_cull_distances_ + (i >> 2);
+    u32 clip_distance_count = shader_modification.GetVertexClipDistanceCount();
+    u32 cull_distance_count = shader_modification.GetVertexCullDistanceCount();
+    u32 clip_and_cull_distance_count = clip_distance_count + cull_distance_count;
+    u32 clip_distance_parameter_count = 0;
+    u32 cull_distance_parameter_count = 0;
+    for (u32 i = 0; i < clip_and_cull_distance_count; i += 4) {
+      u32 clip_cull_distance_register = out_reg_vs_clip_cull_distances_ + (i >> 2);
       if (i < clip_distance_count) {
         shader_object_.resize(shader_object_.size() + kParameterDwords);
         ++parameter_count;
@@ -2432,7 +2412,7 @@ void DxbcShaderTranslator::WriteOutputSignature() {
           clip_distance.system_value = dxbc::Name::kClipDistance;
           clip_distance.component_type = dxbc::SignatureRegisterComponentType::kFloat32;
           clip_distance.register_index = clip_cull_distance_register;
-          uint8_t clip_distance_mask =
+          u8 clip_distance_mask =
               (UINT8_C(1) << std::min(clip_distance_count - i, UINT32_C(4))) - 1;
           clip_distance.mask = clip_distance_mask;
           clip_distance.never_writes_mask = clip_distance_mask ^ 0b1111;
@@ -2449,7 +2429,7 @@ void DxbcShaderTranslator::WriteOutputSignature() {
           cull_distance.system_value = dxbc::Name::kCullDistance;
           cull_distance.component_type = dxbc::SignatureRegisterComponentType::kFloat32;
           cull_distance.register_index = clip_cull_distance_register;
-          uint8_t cull_distance_mask =
+          u8 cull_distance_mask =
               (UINT8_C(1) << std::min(cull_distance_count - i, UINT32_C(4))) - 1;
           if (i < clip_distance_count) {
             cull_distance_mask &= ~((UINT8_C(1) << (clip_distance_count - i)) - 1);
@@ -2475,13 +2455,12 @@ void DxbcShaderTranslator::WriteOutputSignature() {
       }
     }
 
-    uint32_t semantic_offset =
-        static_cast<uint32_t>((shader_object_.size() - blob_position) * sizeof(uint32_t));
+    u32 semantic_offset = static_cast<u32>((shader_object_.size() - blob_position) * sizeof(u32));
     if (interpolator_count) {
       {
         auto interpolators = reinterpret_cast<dxbc::SignatureParameter*>(shader_object_.data() +
                                                                          interpolator_position);
-        for (uint32_t i = 0; i < interpolator_count; ++i) {
+        for (u32 i = 0; i < interpolator_count; ++i) {
           interpolators[i].semantic_name_ptr = semantic_offset;
         }
       }
@@ -2497,7 +2476,7 @@ void DxbcShaderTranslator::WriteOutputSignature() {
       {
         auto clip_distances = reinterpret_cast<dxbc::SignatureParameter*>(
             shader_object_.data() + clip_and_cull_distance_position);
-        for (uint32_t i = 0; i < clip_distance_parameter_count; ++i) {
+        for (u32 i = 0; i < clip_distance_parameter_count; ++i) {
           clip_distances[i].semantic_name_ptr = semantic_offset;
         }
       }
@@ -2508,7 +2487,7 @@ void DxbcShaderTranslator::WriteOutputSignature() {
         auto cull_distances = reinterpret_cast<dxbc::SignatureParameter*>(
                                   shader_object_.data() + clip_and_cull_distance_position) +
                               clip_distance_parameter_count;
-        for (uint32_t i = 0; i < cull_distance_parameter_count; ++i) {
+        for (u32 i = 0; i < cull_distance_parameter_count; ++i) {
           cull_distances[i].semantic_name_ptr = semantic_offset;
         }
       }
@@ -2524,10 +2503,10 @@ void DxbcShaderTranslator::WriteOutputSignature() {
     }
   } else if (is_pixel_shader()) {
     if (!edram_rov_used_) {
-      uint32_t color_targets_written = current_shader().writes_color_targets();
+      u32 color_targets_written = current_shader().writes_color_targets();
 
       size_t target_position = SIZE_MAX;
-      uint32_t color_targets_written_count = rex::bit_count(color_targets_written);
+      u32 color_targets_written_count = rex::bit_count(color_targets_written);
       if (color_targets_written) {
         target_position = shader_object_.size();
         shader_object_.resize(shader_object_.size() +
@@ -2535,9 +2514,9 @@ void DxbcShaderTranslator::WriteOutputSignature() {
         parameter_count += color_targets_written_count;
         auto targets =
             reinterpret_cast<dxbc::SignatureParameter*>(shader_object_.data() + target_position);
-        uint32_t target_index = 0;
-        for (uint32_t i = 0; i < xenos::kMaxColorRenderTargets; ++i) {
-          if (!(color_targets_written & (static_cast<uint32_t>(1) << i))) {
+        u32 target_index = 0;
+        for (u32 i = 0; i < xenos::kMaxColorRenderTargets; ++i) {
+          if (!(color_targets_written & (static_cast<u32>(1) << i))) {
             continue;
           }
           dxbc::SignatureParameter& target = targets[target_index++];
@@ -2574,13 +2553,12 @@ void DxbcShaderTranslator::WriteOutputSignature() {
         depth.never_writes_mask = 0b1110;
       }
 
-      uint32_t semantic_offset =
-          static_cast<uint32_t>((shader_object_.size() - blob_position) * sizeof(uint32_t));
+      u32 semantic_offset = static_cast<u32>((shader_object_.size() - blob_position) * sizeof(u32));
       if (target_position != SIZE_MAX) {
         {
           auto targets =
               reinterpret_cast<dxbc::SignatureParameter*>(shader_object_.data() + target_position);
-          for (uint32_t i = 0; i < color_targets_written_count; ++i) {
+          for (u32 i = 0; i < color_targets_written_count; ++i) {
             targets[i].semantic_name_ptr = semantic_offset;
           }
         }
@@ -2621,7 +2599,7 @@ void DxbcShaderTranslator::WriteOutputSignature() {
 }
 
 void DxbcShaderTranslator::WriteShaderCode() {
-  uint32_t blob_position_dwords = static_cast<uint32_t>(shader_object_.size());
+  u32 blob_position_dwords = static_cast<u32>(shader_object_.size());
 
   dxbc::ProgramType program_type;
   if (IsDxbcVertexShader()) {
@@ -2637,7 +2615,7 @@ void DxbcShaderTranslator::WriteShaderCode() {
 
   Modification shader_modification = GetDxbcShaderModification();
 
-  uint32_t control_point_count = 1;
+  u32 control_point_count = 1;
   if (IsDxbcDomainShader()) {
     dxbc::TessellatorDomain tessellator_domain = dxbc::TessellatorDomain::kTriangle;
     switch (shader_modification.vertex.host_vertex_shader_type) {
@@ -2718,7 +2696,7 @@ void DxbcShaderTranslator::WriteShaderCode() {
     }
   }
 
-  for (uint32_t i = 0; i < srv_count_; ++i) {
+  for (u32 i = 0; i < srv_count_; ++i) {
     if (i == srv_index_shared_memory_) {
       ao_.OpDclResourceRaw(dxbc::Src::T(dxbc::Src::Dcl, srv_index_shared_memory_,
                                         std::to_underlying(SRVMainRegister::kSharedMemory),
@@ -2726,7 +2704,7 @@ void DxbcShaderTranslator::WriteShaderCode() {
                            std::to_underlying(SRVSpace::kMain));
     } else {
       dxbc::ResourceDimension texture_dimension;
-      uint32_t texture_register_lower_bound, texture_register_upper_bound;
+      u32 texture_register_lower_bound, texture_register_upper_bound;
       SRVSpace texture_register_space;
       if (bindless_resources_used_) {
         texture_register_lower_bound = 0;
@@ -2745,7 +2723,7 @@ void DxbcShaderTranslator::WriteShaderCode() {
       } else {
         auto it = texture_bindings_for_bindful_srv_indices_.find(i);
         REX_ASSERT(it != texture_bindings_for_bindful_srv_indices_.end());
-        uint32_t texture_binding_index = it->second;
+        u32 texture_binding_index = it->second;
         const TextureBinding& texture_binding = texture_bindings_[texture_binding_index];
         switch (texture_binding.dimension) {
           case xenos::FetchOpDimension::k3DOrStacked:
@@ -2767,11 +2745,11 @@ void DxbcShaderTranslator::WriteShaderCode() {
                         dxbc::ResourceReturnTypeX4Token(dxbc::ResourceReturnType::kFloat),
                         dxbc::Src::T(dxbc::Src::Dcl, i, texture_register_lower_bound,
                                      texture_register_upper_bound),
-                        static_cast<uint32_t>(texture_register_space));
+                        static_cast<u32>(texture_register_space));
     }
   }
 
-  for (uint32_t i = 0; i < uav_count_; ++i) {
+  for (u32 i = 0; i < uav_count_; ++i) {
     if (i == uav_index_shared_memory_) {
       if (!is_pixel_shader()) {
         shader_feature_info_.feature_flags[0] |= dxbc::kShaderFeature0_UAVsAtEveryStage;
@@ -2806,15 +2784,15 @@ void DxbcShaderTranslator::WriteShaderCode() {
         ao_.OpDclInputSGV(dxbc::Dest::V1D(kInRegisterVSVertexIndex, 0b0001), dxbc::Name::kVertexID);
       }
     }
-    uint32_t interpolator_count = rex::bit_count(GetModificationInterpolatorMask());
-    for (uint32_t i = 0; i < interpolator_count; ++i) {
+    u32 interpolator_count = rex::bit_count(GetModificationInterpolatorMask());
+    for (u32 i = 0; i < interpolator_count; ++i) {
       ao_.OpDclOutput(dxbc::Dest::O(out_reg_vs_interpolators_ + i));
     }
     ao_.OpDclOutputSIV(dxbc::Dest::O(out_reg_vs_position_), dxbc::Name::kPosition);
-    uint32_t clip_distance_count = shader_modification.GetVertexClipDistanceCount();
-    uint32_t cull_distance_count = shader_modification.GetVertexCullDistanceCount();
-    uint32_t clip_and_cull_distance_count = clip_distance_count + cull_distance_count;
-    for (uint32_t i = 0; i < clip_and_cull_distance_count; i += 4) {
+    u32 clip_distance_count = shader_modification.GetVertexClipDistanceCount();
+    u32 cull_distance_count = shader_modification.GetVertexCullDistanceCount();
+    u32 clip_and_cull_distance_count = clip_distance_count + cull_distance_count;
+    for (u32 i = 0; i < clip_and_cull_distance_count; i += 4) {
       if (i < clip_distance_count) {
         ao_.OpDclOutputSIV(
             dxbc::Dest::O(out_reg_vs_clip_cull_distances_ + (i >> 2),
@@ -2822,7 +2800,7 @@ void DxbcShaderTranslator::WriteShaderCode() {
             dxbc::Name::kClipDistance);
       }
       if (cull_distance_count && i + 4 > clip_distance_count) {
-        uint32_t cull_distance_mask =
+        u32 cull_distance_mask =
             (UINT32_C(1) << std::min(clip_and_cull_distance_count - i, UINT32_C(4))) - 1;
         if (i < clip_distance_count) {
           cull_distance_mask &= ~((UINT32_C(1) << (clip_distance_count - i)) - 1);
@@ -2838,9 +2816,9 @@ void DxbcShaderTranslator::WriteShaderCode() {
   } else if (is_pixel_shader()) {
     bool is_writing_float24_depth = DSV_IsWritingFloat24Depth();
     bool shader_writes_depth = current_shader().writes_depth();
-    uint32_t interpolator_register_index = in_reg_ps_interpolators_;
-    uint32_t interpolators_remaining = GetModificationInterpolatorMask();
-    uint32_t interpolator_index;
+    u32 interpolator_register_index = in_reg_ps_interpolators_;
+    u32 interpolators_remaining = GetModificationInterpolatorMask();
+    u32 interpolator_index;
     while (rex::bit_scan_forward(interpolators_remaining, &interpolator_index)) {
       interpolators_remaining &= ~(UINT32_C(1) << interpolator_index);
       if (interpolator_index >= register_count()) {
@@ -2866,8 +2844,8 @@ void DxbcShaderTranslator::WriteShaderCode() {
     }
     bool sample_rate_memexport = current_shader().memexport_eM_written() && IsSampleRate();
     REX_ASSERT(!(sample_rate_memexport && edram_rov_used_));
-    uint32_t front_face_and_sample_index_mask = static_cast<uint32_t>(in_front_face_used_) |
-                                                (static_cast<uint32_t>(sample_rate_memexport) << 1);
+    u32 front_face_and_sample_index_mask =
+        static_cast<u32>(in_front_face_used_) | (static_cast<u32>(sample_rate_memexport) << 1);
     if (front_face_and_sample_index_mask) {
       ao_.OpDclInputPSSGV(
           dxbc::Dest::V1D(in_reg_ps_front_face_sample_index_, front_face_and_sample_index_mask),
@@ -2879,9 +2857,9 @@ void DxbcShaderTranslator::WriteShaderCode() {
       if (sample_rate_memexport) {
         ao_.OpDclInput(dxbc::Dest::VCoverage());
       }
-      uint32_t color_targets_written = current_shader().writes_color_targets();
-      for (uint32_t i = 0; i < xenos::kMaxColorRenderTargets; ++i) {
-        if (color_targets_written & (static_cast<uint32_t>(1) << i)) {
+      u32 color_targets_written = current_shader().writes_color_targets();
+      for (u32 i = 0; i < xenos::kMaxColorRenderTargets; ++i) {
+        if (color_targets_written & (static_cast<u32>(1) << i)) {
           ao_.OpDclOutput(dxbc::Dest::O(i));
         }
       }
@@ -2899,7 +2877,7 @@ void DxbcShaderTranslator::WriteShaderCode() {
     }
   }
 
-  uint32_t temp_register_count = system_temp_count_max_;
+  u32 temp_register_count = system_temp_count_max_;
   if (!is_depth_only_pixel_shader_ && !current_shader().uses_register_dynamic_addressing()) {
     temp_register_count += register_count();
   }
@@ -2915,11 +2893,11 @@ void DxbcShaderTranslator::WriteShaderCode() {
   if (code_size_dwords) {
     shader_object_.resize(shader_object_.size() + code_size_dwords);
     std::memcpy(shader_object_.data() + (shader_object_.size() - code_size_dwords),
-                shader_code_.data(), code_size_dwords * sizeof(uint32_t));
+                shader_code_.data(), code_size_dwords * sizeof(u32));
   }
 
   shader_object_[blob_position_dwords + 1] =
-      static_cast<uint32_t>(shader_object_.size()) - blob_position_dwords;
+      static_cast<u32>(shader_object_.size()) - blob_position_dwords;
 }
 
 }  // namespace rex::gpu

@@ -39,7 +39,7 @@ spv::Id SpirvShaderTranslator::ZeroIfAnyOperandIsZero(spv::Id value, spv::Id ope
 }
 
 void SpirvShaderTranslator::KillPixel(spv::Id condition,
-                                      uint8_t memexport_eM_potentially_written_before) {
+                                      u8 memexport_eM_potentially_written_before) {
   SpirvBuilder::IfBuilder kill_if(condition, spv::SelectionControlMaskNone, *builder_);
   {
     ExportToMemory(memexport_eM_potentially_written_before);
@@ -54,7 +54,7 @@ void SpirvShaderTranslator::KillPixel(spv::Id condition,
 }
 
 void SpirvShaderTranslator::ProcessAluInstruction(const ParsedAluInstruction& instr,
-                                                  uint8_t memexport_eM_potentially_written_before) {
+                                                  u8 memexport_eM_potentially_written_before) {
   if (instr.IsNop()) {
     return;
   }
@@ -88,26 +88,26 @@ void SpirvShaderTranslator::ProcessAluInstruction(const ParsedAluInstruction& in
   }
 }
 
-spv::Id SpirvShaderTranslator::ProcessVectorAluOperation(
-    const ParsedAluInstruction& instr, uint8_t memexport_eM_potentially_written_before,
-    bool& predicate_written) {
+spv::Id SpirvShaderTranslator::ProcessVectorAluOperation(const ParsedAluInstruction& instr,
+                                                         u8 memexport_eM_potentially_written_before,
+                                                         bool& predicate_written) {
   predicate_written = false;
 
-  uint32_t used_result_components = instr.vector_and_constant_result.GetUsedResultComponents();
+  u32 used_result_components = instr.vector_and_constant_result.GetUsedResultComponents();
   if (!used_result_components &&
       !xenos::ucode::GetAluVectorOpcodeInfo(instr.vector_opcode).changed_state) {
     return spv::NoResult;
   }
-  uint32_t used_result_component_count = rex::bit_count(used_result_components);
+  u32 used_result_component_count = rex::bit_count(used_result_components);
 
-  uint32_t operand_count;
+  u32 operand_count;
   if (instr.vector_opcode == xenos::ucode::AluVectorOpcode::kCube) {
     operand_count = 1;
   } else {
     operand_count = instr.vector_operand_count;
   }
   spv::Id operand_storage[3] = {};
-  for (uint32_t i = 0; i < operand_count; ++i) {
+  for (u32 i = 0; i < operand_count; ++i) {
     operand_storage[i] = LoadOperandStorage(instr.vector_operands[i]);
   }
   spv::Id result_type = used_result_component_count
@@ -161,41 +161,41 @@ spv::Id SpirvShaderTranslator::ProcessVectorAluOperation(
     case xenos::ucode::AluVectorOpcode::kMul:
     case xenos::ucode::AluVectorOpcode::kMad: {
       spv::Id multiplicands[2];
-      for (uint32_t i = 0; i < 2; ++i) {
+      for (u32 i = 0; i < 2; ++i) {
         multiplicands[i] = GetOperandComponents(operand_storage[i], instr.vector_operands[i],
                                                 used_result_components);
       }
       spv::Id result = builder_->createNoContractionBinOp(spv::OpFMul, result_type,
                                                           multiplicands[0], multiplicands[1]);
-      uint32_t multiplicands_different =
+      u32 multiplicands_different =
           used_result_components &
           ~instr.vector_operands[0].GetIdenticalComponents(instr.vector_operands[1]);
       if (multiplicands_different) {
         spv::Id different_operands[2] = {multiplicands[0], multiplicands[1]};
         spv::Id different_result = result;
-        uint32_t different_count = rex::bit_count(multiplicands_different);
+        u32 different_count = rex::bit_count(multiplicands_different);
         spv::Id different_type = type_float_vectors_[different_count - 1];
         if (multiplicands_different != used_result_components) {
           uint_vector_temp_.clear();
-          uint32_t components_remaining = used_result_components;
-          for (uint32_t i = 0; i < used_result_component_count; ++i) {
-            uint32_t component;
+          u32 components_remaining = used_result_components;
+          for (u32 i = 0; i < used_result_component_count; ++i) {
+            u32 component;
             rex::bit_scan_forward(components_remaining, &component);
-            components_remaining &= ~(static_cast<uint32_t>(1) << component);
+            components_remaining &= ~(static_cast<u32>(1) << component);
             if (multiplicands_different & (1 << component)) {
               uint_vector_temp_.push_back(i);
             }
           }
           REX_ASSERT(uint_vector_temp_.size() == different_count);
           if (different_count > 1) {
-            for (uint32_t i = 0; i < 2; ++i) {
+            for (u32 i = 0; i < 2; ++i) {
               different_operands[i] = builder_->createRvalueSwizzle(
                   spv::NoPrecision, different_type, different_operands[i], uint_vector_temp_);
             }
             different_result = builder_->createRvalueSwizzle(spv::NoPrecision, different_type,
                                                              different_result, uint_vector_temp_);
           } else {
-            for (uint32_t i = 0; i < 2; ++i) {
+            for (u32 i = 0; i < 2; ++i) {
               different_operands[i] = builder_->createCompositeExtract(
                   different_operands[i], different_type, uint_vector_temp_[0]);
             }
@@ -203,7 +203,7 @@ spv::Id SpirvShaderTranslator::ProcessVectorAluOperation(
                                                                 uint_vector_temp_[0]);
           }
         }
-        for (uint32_t i = 0; i < 2; ++i) {
+        for (u32 i = 0; i < 2; ++i) {
           different_operands[i] =
               GetAbsoluteOperand(different_operands[i], instr.vector_operands[i]);
         }
@@ -221,12 +221,12 @@ spv::Id SpirvShaderTranslator::ProcessVectorAluOperation(
                 builder_->getUniqueId(), result_type, spv::OpVectorShuffle);
             shuffle_op->addIdOperand(result);
             shuffle_op->addIdOperand(different_result);
-            uint32_t components_remaining = used_result_components;
+            u32 components_remaining = used_result_components;
             unsigned int different_shuffle_index = used_result_component_count;
-            for (uint32_t i = 0; i < used_result_component_count; ++i) {
-              uint32_t component;
+            for (u32 i = 0; i < used_result_component_count; ++i) {
+              u32 component;
               rex::bit_scan_forward(components_remaining, &component);
-              components_remaining &= ~(static_cast<uint32_t>(1) << component);
+              components_remaining &= ~(static_cast<u32>(1) << component);
               shuffle_op->addImmediateOperand(
                   (multiplicands_different & (1 << component)) ? different_shuffle_index++ : i);
             }
@@ -282,9 +282,8 @@ spv::Id SpirvShaderTranslator::ProcessVectorAluOperation(
       if (!used_result_components) {
         return spv::NoResult;
       }
-      uint32_t identical =
-          instr.vector_operands[0].GetIdenticalComponents(instr.vector_operands[1]) &
-          used_result_components;
+      u32 identical = instr.vector_operands[0].GetIdenticalComponents(instr.vector_operands[1]) &
+                      used_result_components;
       spv::Id operand_0_per_component;
       if (is_maxa && !(used_result_components & 0b1000) &&
           (identical == used_result_components || !identical)) {
@@ -321,16 +320,16 @@ spv::Id SpirvShaderTranslator::ProcessVectorAluOperation(
       }
       REX_ASSERT(used_result_component_count > 1);
       id_vector_temp_.clear();
-      uint32_t components_remaining = used_result_components;
-      for (uint32_t i = 0; i < used_result_component_count; ++i) {
+      u32 components_remaining = used_result_components;
+      for (u32 i = 0; i < used_result_component_count; ++i) {
         spv::Id result_component =
             ((used_result_components & 0b1000) && i + 1 >= used_result_component_count &&
              maxa_operand_0_w != spv::NoResult)
                 ? maxa_operand_0_w
                 : builder_->createCompositeExtract(operand_0, type_float_, i);
-        uint32_t component_index;
+        u32 component_index;
         rex::bit_scan_forward(components_remaining, &component_index);
-        components_remaining &= ~(static_cast<uint32_t>(1) << component_index);
+        components_remaining &= ~(static_cast<u32>(1) << component_index);
         if (!(identical & (1 << component_index))) {
           spv::Id operand_1_component = builder_->createCompositeExtract(operand_1, type_float_, i);
           result_component = builder_->createTriOp(
@@ -385,7 +384,7 @@ spv::Id SpirvShaderTranslator::ProcessVectorAluOperation(
     case xenos::ucode::AluVectorOpcode::kDp4:
     case xenos::ucode::AluVectorOpcode::kDp3:
     case xenos::ucode::AluVectorOpcode::kDp2Add: {
-      uint32_t component_count;
+      u32 component_count;
       if (instr.vector_opcode == xenos::ucode::AluVectorOpcode::kDp2Add) {
         component_count = 2;
       } else if (instr.vector_opcode == xenos::ucode::AluVectorOpcode::kDp3) {
@@ -393,16 +392,16 @@ spv::Id SpirvShaderTranslator::ProcessVectorAluOperation(
       } else {
         component_count = 4;
       }
-      uint32_t component_mask = (1 << component_count) - 1;
+      u32 component_mask = (1 << component_count) - 1;
       spv::Id operands[2];
-      for (uint32_t i = 0; i < 2; ++i) {
+      for (u32 i = 0; i < 2; ++i) {
         operands[i] =
             GetOperandComponents(operand_storage[i], instr.vector_operands[i], component_mask);
       }
-      uint32_t different = component_mask & ~instr.vector_operands[0].GetIdenticalComponents(
-                                                instr.vector_operands[1]);
+      u32 different = component_mask &
+                      ~instr.vector_operands[0].GetIdenticalComponents(instr.vector_operands[1]);
       spv::Id result = spv::NoResult;
-      for (uint32_t i = 0; i < component_count; ++i) {
+      for (u32 i = 0; i < component_count; ++i) {
         spv::Id operand_components[2];
         for (unsigned int j = 0; j < 2; ++j) {
           operand_components[j] = builder_->createCompositeExtract(operands[j], type_float_, i);
@@ -526,7 +525,7 @@ spv::Id SpirvShaderTranslator::ProcessVectorAluOperation(
         }
         ma_y_if.makeEndIf();
 
-        for (uint32_t i = 0; i < 4; ++i) {
+        for (u32 i = 0; i < 4; ++i) {
           if (!(used_result_components & (1 << i))) {
             continue;
           }
@@ -536,7 +535,7 @@ spv::Id SpirvShaderTranslator::ProcessVectorAluOperation(
       ma_z_if.makeEndIf();
 
       id_vector_temp_.clear();
-      for (uint32_t i = 0; i < 4; ++i) {
+      for (u32 i = 0; i < 4; ++i) {
         if (!(used_result_components & (1 << i))) {
           continue;
         }
@@ -556,22 +555,22 @@ spv::Id SpirvShaderTranslator::ProcessVectorAluOperation(
     }
 
     case xenos::ucode::AluVectorOpcode::kMax4: {
-      uint32_t components_remaining = 0b0000;
-      for (uint32_t i = 0; i < 4; ++i) {
+      u32 components_remaining = 0b0000;
+      for (u32 i = 0; i < 4; ++i) {
         SwizzleSource swizzle_source = instr.vector_operands[0].GetComponent(i);
         REX_ASSERT(swizzle_source >= SwizzleSource::kX && swizzle_source <= SwizzleSource::kW);
         components_remaining |=
-            1 << (static_cast<uint32_t>(swizzle_source) - std::to_underlying(SwizzleSource::kX));
+            1 << (static_cast<u32>(swizzle_source) - std::to_underlying(SwizzleSource::kX));
       }
       REX_ASSERT(components_remaining != 0);
       spv::Id operand = ApplyOperandModifiers(operand_storage[0], instr.vector_operands[0]);
-      uint32_t component;
+      u32 component;
       rex::bit_scan_forward(components_remaining, &component);
-      components_remaining &= ~(static_cast<uint32_t>(1) << component);
+      components_remaining &= ~(static_cast<u32>(1) << component);
       spv::Id result = builder_->createCompositeExtract(operand, type_float_,
                                                         static_cast<unsigned int>(component));
       while (rex::bit_scan_forward(components_remaining, &component)) {
-        components_remaining &= ~(static_cast<uint32_t>(1) << component);
+        components_remaining &= ~(static_cast<u32>(1) << component);
         result = builder_->createBinBuiltinCall(
             type_float_, ext_inst_glsl_std_450_, GLSLstd450NMax, result,
             builder_->createCompositeExtract(operand, type_float_,
@@ -586,7 +585,7 @@ spv::Id SpirvShaderTranslator::ProcessVectorAluOperation(
     case xenos::ucode::AluVectorOpcode::kSetpGePush: {
       spv::Id operands[2];
       spv::Id operands_w[2];
-      for (uint32_t i = 0; i < 2; ++i) {
+      for (u32 i = 0; i < 2; ++i) {
         operands[i] = GetOperandComponents(operand_storage[i], instr.vector_operands[i],
                                            used_result_components ? 0b1001 : 0b1000);
         if (used_result_components) {
@@ -607,7 +606,7 @@ spv::Id SpirvShaderTranslator::ProcessVectorAluOperation(
         return spv::NoResult;
       }
       spv::Id operands_x[2];
-      for (uint32_t i = 0; i < 2; ++i) {
+      for (u32 i = 0; i < 2; ++i) {
         operands_x[i] = builder_->createCompositeExtract(operands[i], type_float_, 0);
       }
       spv::Id condition = builder_->createBinOp(
@@ -696,13 +695,13 @@ spv::Id SpirvShaderTranslator::ProcessVectorAluOperation(
   return spv::NoResult;
 }
 
-spv::Id SpirvShaderTranslator::ProcessScalarAluOperation(
-    const ParsedAluInstruction& instr, uint8_t memexport_eM_potentially_written_before,
-    bool& predicate_written) {
+spv::Id SpirvShaderTranslator::ProcessScalarAluOperation(const ParsedAluInstruction& instr,
+                                                         u8 memexport_eM_potentially_written_before,
+                                                         bool& predicate_written) {
   predicate_written = false;
 
   spv::Id operand_storage[2] = {};
-  for (uint32_t i = 0; i < instr.scalar_operand_count; ++i) {
+  for (u32 i = 0; i < instr.scalar_operand_count; ++i) {
     operand_storage[i] = LoadOperandStorage(instr.scalar_operands[i]);
   }
 
@@ -934,7 +933,7 @@ spv::Id SpirvShaderTranslator::ProcessScalarAluOperation(
       result = builder_->createTriOp(spv::OpSelect, type_uint_,
                                      builder_->createBinOp(spv::OpFOrdEqual, type_bool_, result,
                                                            builder_->makeFloatConstant(-INFINITY)),
-                                     builder_->makeUintConstant(static_cast<uint32_t>(INT32_MIN)),
+                                     builder_->makeUintConstant(static_cast<u32>(INT32_MIN)),
                                      builder_->createUnaryOp(spv::OpBitcast, type_uint_, result));
       return builder_->createUnaryOp(spv::OpBitcast, type_float_, result);
     }
@@ -968,7 +967,7 @@ spv::Id SpirvShaderTranslator::ProcessScalarAluOperation(
       result = builder_->createTriOp(spv::OpSelect, type_uint_,
                                      builder_->createBinOp(spv::OpFOrdEqual, type_bool_, result,
                                                            builder_->makeFloatConstant(-INFINITY)),
-                                     builder_->makeUintConstant(static_cast<uint32_t>(INT32_MIN)),
+                                     builder_->makeUintConstant(static_cast<u32>(INT32_MIN)),
                                      builder_->createUnaryOp(spv::OpBitcast, type_uint_, result));
       return builder_->createUnaryOp(spv::OpBitcast, type_float_, result);
     }

@@ -66,15 +66,15 @@ bool VulkanSharedMemory::Initialize() {
       if (rex::bit_scan_forward(buffer_memory_requirements.memoryTypeBits &
                                     vulkan_device->memory_types().device_local,
                                 &buffer_memory_type_)) {
-        uint32_t allocation_size_log2;
-        rex::bit_scan_forward(std::max(static_cast<uint64_t>(buffer_memory_requirements.alignment),
-                                       static_cast<uint64_t>(1)),
-                              &allocation_size_log2);
+        u32 allocation_size_log2;
+        rex::bit_scan_forward(
+            std::max(static_cast<u64>(buffer_memory_requirements.alignment), static_cast<u64>(1)),
+            &allocation_size_log2);
         if (allocation_size_log2 < kBufferSizeLog2) {
           // Windows drivers cap allocations at 4096 in total, so use at most 1024 here.
-          InitializeSparseHostGpuMemory(std::max(
-              allocation_size_log2, std::max(kHostGpuMemoryOptimalSparseAllocationLog2,
-                                             kBufferSizeLog2 - static_cast<uint32_t>(10))));
+          InitializeSparseHostGpuMemory(
+              std::max(allocation_size_log2, std::max(kHostGpuMemoryOptimalSparseAllocationLog2,
+                                                      kBufferSizeLog2 - static_cast<u32>(10))));
         } else {
           dfn.vkDestroyBuffer(device, buffer_, nullptr);
           buffer_ = VK_NULL_HANDLE;
@@ -152,7 +152,7 @@ bool VulkanSharedMemory::Initialize() {
   }
 
   last_usage_ = Usage::kTransferDestination;
-  last_written_range_ = std::make_pair<uint32_t, uint32_t>(0, 0);
+  last_written_range_ = std::make_pair<u32, u32>(0, 0);
 
   upload_buffer_pool_ = std::make_unique<gpu::vulkan::VulkanUploadBufferPool>(
       vulkan_device, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
@@ -188,7 +188,7 @@ void VulkanSharedMemory::EndSubmission() {
   upload_buffer_pool_->FlushWrites();
 }
 
-void VulkanSharedMemory::Use(Usage usage, std::pair<uint32_t, uint32_t> written_range) {
+void VulkanSharedMemory::Use(Usage usage, std::pair<u32, u32> written_range) {
   written_range.first = std::min(written_range.first, kBufferSize);
   written_range.second = std::min(written_range.second, kBufferSize - written_range.first);
   REX_ASSERT(usage != Usage::kRead || !written_range.second);
@@ -214,8 +214,8 @@ void VulkanSharedMemory::Use(Usage usage, std::pair<uint32_t, uint32_t> written_
   last_written_range_ = written_range;
 }
 
-bool VulkanSharedMemory::AllocateSparseHostGpuMemoryRange(uint32_t offset_allocations,
-                                                          uint32_t length_allocations) {
+bool VulkanSharedMemory::AllocateSparseHostGpuMemoryRange(u32 offset_allocations,
+                                                          u32 length_allocations) {
   if (!length_allocations) {
     return true;
   }
@@ -254,8 +254,7 @@ bool VulkanSharedMemory::AllocateSparseHostGpuMemoryRange(uint32_t offset_alloca
   return true;
 }
 
-bool VulkanSharedMemory::UploadRanges(
-    const std::vector<std::pair<uint32_t, uint32_t>>& upload_page_ranges) {
+bool VulkanSharedMemory::UploadRanges(const std::vector<std::pair<u32, u32>>& upload_page_ranges) {
   if (upload_page_ranges.empty()) {
     return true;
   }
@@ -267,17 +266,17 @@ bool VulkanSharedMemory::UploadRanges(
                          << page_size_log2()));
   command_processor_.SubmitBarriers(true);
   DeferredCommandBuffer& command_buffer = command_processor_.deferred_command_buffer();
-  uint64_t submission_current = command_processor_.GetCurrentSubmission();
+  u64 submission_current = command_processor_.GetCurrentSubmission();
   bool successful = true;
   upload_regions_.clear();
   VkBuffer upload_buffer_previous = VK_NULL_HANDLE;
   for (auto upload_range : upload_page_ranges) {
-    uint32_t upload_range_start = upload_range.first;
-    uint32_t upload_range_length = upload_range.second;
+    u32 upload_range_start = upload_range.first;
+    u32 upload_range_length = upload_range.second;
     while (upload_range_length) {
       VkBuffer upload_buffer;
       VkDeviceSize upload_buffer_offset, upload_buffer_size;
-      uint8_t* upload_buffer_mapping = upload_buffer_pool_->RequestPartial(
+      u8* upload_buffer_mapping = upload_buffer_pool_->RequestPartial(
           submission_current, upload_range_length << page_size_log2(),
           static_cast<size_t>(1) << page_size_log2(), upload_buffer, upload_buffer_offset,
           upload_buffer_size);
@@ -286,15 +285,15 @@ bool VulkanSharedMemory::UploadRanges(
         successful = false;
         break;
       }
-      MakeRangeValid(upload_range_start << page_size_log2(),
-                     static_cast<uint32_t>(upload_buffer_size), false);
+      MakeRangeValid(upload_range_start << page_size_log2(), static_cast<u32>(upload_buffer_size),
+                     false);
       std::memcpy(upload_buffer_mapping,
                   memory().TranslatePhysical(upload_range_start << page_size_log2()),
                   upload_buffer_size);
       if (upload_buffer_previous != upload_buffer && !upload_regions_.empty()) {
         REX_ASSERT(upload_buffer_previous != VK_NULL_HANDLE);
         command_buffer.CmdVkCopyBuffer(upload_buffer_previous, buffer_,
-                                       static_cast<uint32_t>(upload_regions_.size()),
+                                       static_cast<u32>(upload_regions_.size()),
                                        upload_regions_.data());
         upload_regions_.clear();
       }
@@ -303,7 +302,7 @@ bool VulkanSharedMemory::UploadRanges(
       upload_region.srcOffset = upload_buffer_offset;
       upload_region.dstOffset = VkDeviceSize(upload_range_start << page_size_log2());
       upload_region.size = upload_buffer_size;
-      uint32_t upload_buffer_pages = static_cast<uint32_t>(upload_buffer_size >> page_size_log2());
+      u32 upload_buffer_pages = static_cast<u32>(upload_buffer_size >> page_size_log2());
       upload_range_start += upload_buffer_pages;
       upload_range_length -= upload_buffer_pages;
     }
@@ -314,7 +313,7 @@ bool VulkanSharedMemory::UploadRanges(
   if (!upload_regions_.empty()) {
     REX_ASSERT(upload_buffer_previous != VK_NULL_HANDLE);
     command_buffer.CmdVkCopyBuffer(upload_buffer_previous, buffer_,
-                                   static_cast<uint32_t>(upload_regions_.size()),
+                                   static_cast<u32>(upload_regions_.size()),
                                    upload_regions_.data());
     upload_regions_.clear();
   }

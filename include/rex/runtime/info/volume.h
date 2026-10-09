@@ -25,7 +25,7 @@ enum X_FILE_FS_INFORMATION_CLASS {
 };
 
 /** Device type reported for a volume. */
-enum X_FILE_DEVICE_TYPE : uint32_t {
+enum X_FILE_DEVICE_TYPE : u32 {
   FILE_DEVICE_UNKNOWN = 0x00000022, /**< Device type the volume device query reports. */
   FILE_DEVICE_EHSTOR = 0x00000046,  /**< Device type 0x46. No code uses it. */
 };
@@ -34,12 +34,12 @@ enum X_FILE_DEVICE_TYPE : uint32_t {
 
 /** Label and serial number of a volume. */
 struct X_FILE_FS_VOLUME_INFORMATION {
-  be_u64 creation_time;     /**< Offset 0x00. Creation time. */
-  be_u32 serial_number;     /**< Offset 0x08. */
-  be_u32 label_length;      /**< Offset 0x0C. Label length in bytes. */
-  uint8_t supports_objects; /**< Offset 0x10. Nonzero when the volume supports objects. */
-  char label[1];            /**< Offset 0x11. First character of the label. */
-  uint8_t pad[6];           /**< Offset 0x12. */
+  be_u64 creation_time; /**< Offset 0x00. Creation time. */
+  be_u32 serial_number; /**< Offset 0x08. */
+  be_u32 label_length;  /**< Offset 0x0C. Label length in bytes. */
+  u8 supports_objects;  /**< Offset 0x10. Nonzero when the volume supports objects. */
+  char label[1];        /**< Offset 0x11. First character of the label. */
+  u8 pad[6];            /**< Offset 0x12. */
 };
 REX_STATIC_ASSERT_SIZE(X_FILE_FS_VOLUME_INFORMATION, 24);
 
@@ -58,7 +58,7 @@ struct X_FILE_FS_ATTRIBUTE_INFORMATION {
   be_i32 component_name_max_length; /**< Offset 0x04. Longest path component in characters. */
   be_u32 name_length;               /**< Offset 0x08. Name length in bytes. */
   char name[1];                     /**< Offset 0x0C. First character of the file system name. */
-  uint8_t pad[3];                   /**< Offset 0x0D. */
+  u8 pad[3];                        /**< Offset 0x0D. */
 };
 REX_STATIC_ASSERT_SIZE(X_FILE_FS_ATTRIBUTE_INFORMATION, 16);
 

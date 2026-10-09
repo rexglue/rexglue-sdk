@@ -30,7 +30,7 @@ namespace {
 class TempDirectory {
  public:
   explicit TempDirectory(std::string_view name) {
-    static std::atomic<uint64_t> next_id{0};
+    static std::atomic<u64> next_id{0};
     auto suffix = std::chrono::steady_clock::now().time_since_epoch().count();
     path_ = std::filesystem::temp_directory_path() /
             (std::string(name) + "_" + std::to_string(suffix) + "_" + std::to_string(next_id++));
@@ -48,7 +48,7 @@ class TempDirectory {
   std::filesystem::path path_;
 };
 
-rex::runtime::AchievementInfo MakeAchievement(uint32_t id, std::string label) {
+rex::runtime::AchievementInfo MakeAchievement(u32 id, std::string label) {
   rex::runtime::AchievementInfo info;
   info.id = id;
   info.label = std::move(label);
@@ -161,12 +161,12 @@ TEST_CASE("achievement unlock saves serialize concurrent writers", "[achievement
 
   rex::runtime::AchievementManager manager;
   manager.SetUnlockSavePath(save_path);
-  for (uint32_t id = 1; id <= 8; ++id) {
+  for (u32 id = 1; id <= 8; ++id) {
     (void)manager.RegisterAchievement(MakeAchievement(id, "Achievement " + std::to_string(id)));
   }
 
   std::vector<std::thread> threads;
-  for (uint32_t id = 1; id <= 8; ++id) {
+  for (u32 id = 1; id <= 8; ++id) {
     threads.emplace_back([&manager, id]() { (void)manager.UnlockAchievement(id); });
   }
   for (auto& thread : threads) {
@@ -175,11 +175,11 @@ TEST_CASE("achievement unlock saves serialize concurrent writers", "[achievement
 
   rex::runtime::AchievementManager reloaded;
   reloaded.SetUnlockSavePath(save_path);
-  for (uint32_t id = 1; id <= 8; ++id) {
+  for (u32 id = 1; id <= 8; ++id) {
     (void)reloaded.RegisterAchievement(MakeAchievement(id, "Achievement " + std::to_string(id)));
   }
   reloaded.LoadUnlockState();
-  for (uint32_t id = 1; id <= 8; ++id) {
+  for (u32 id = 1; id <= 8; ++id) {
     CHECK(reloaded.IsUnlocked(id));
   }
 }
@@ -218,7 +218,7 @@ TEST_CASE("runtime metadata root overrides legacy metadata discovery", "[achieve
 }
 
 TEST_CASE("embedded metadata assets resolve by metadata-relative path", "[achievements]") {
-  static constexpr std::uint8_t kIconBytes[] = {0x89, 0x50, 0x4E, 0x47};
+  static constexpr u8 kIconBytes[] = {0x89, 0x50, 0x4E, 0x47};
   REQUIRE(rex::RegisterEmbeddedMetadataAsset("icons/custom/unit-test.png", kIconBytes,
                                              sizeof(kIconBytes)));
 

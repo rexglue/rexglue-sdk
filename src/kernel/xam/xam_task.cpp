@@ -74,7 +74,7 @@ u32 XamTaskShouldExit_entry([[maybe_unused]] u32 r3) {
 }
 
 u32 XamTaskCloseHandle_entry(u32 handle) {
-  REX_KERNEL_STUB("XamTaskCloseHandle({:#x})", static_cast<uint32_t>(handle));
+  REX_KERNEL_STUB("XamTaskCloseHandle({:#x})", static_cast<u32>(handle));
   return X_STATUS_SUCCESS;
 }
 

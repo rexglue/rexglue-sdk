@@ -34,7 +34,7 @@ struct TemplateRegistry::Impl {
     });
 
     env_.add_callback("hex", 1, [](inja::Arguments& args) {
-      auto val = args.at(0)->get<uint64_t>();
+      auto val = args.at(0)->get<u64>();
       std::ostringstream oss;
       oss << "0x" << std::hex << std::uppercase << val;
       return oss.str();

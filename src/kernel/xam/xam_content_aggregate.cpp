@@ -37,10 +37,10 @@ void AddODDContentTest(StaticItems& items, XContentType content_type) {
     return;
   }
 
-  auto content_type_path = std::format("{:08X}", static_cast<uint32_t>(content_type));
+  auto content_type_path = std::format("{:08X}", static_cast<u32>(content_type));
 
   while (auto title_entry = (*titles)->Next()) {
-    auto title_id = rex::from_string<uint32_t>(title_entry->name, true);
+    auto title_id = rex::from_string<u32>(title_entry->name, true);
 
     auto contents =
         fs->List(rex::utf8_join_guest_paths({kRoot, title_entry->name, content_type_path}),
@@ -72,12 +72,12 @@ u32 XamContentAggregateCreateEnumerator_entry(u64 xuid, u32 device_id, u32 conte
 
   StaticItems items(1, sizeof(XCONTENT_AGGREGATE_DATA));
 
-  auto content_type_enum = XContentType(static_cast<uint32_t>(content_type));
+  auto content_type_enum = XContentType(static_cast<u32>(content_type));
 
-  uint64_t userxuid = runtime::Current().content_manager().user_profile().xuid();
+  u64 userxuid = runtime::Current().content_manager().user_profile().xuid();
 
   if (!device_info || device_info->device_type == DeviceType::HDD) {
-    std::vector<uint32_t> title_ids{kCurrentlyRunningTitleId};
+    std::vector<u32> title_ids{kCurrentlyRunningTitleId};
     auto exe_module = runtime::Current().object_table().Get<ModuleObject>(
         runtime::Current().module_registry().executable().value_or(0));
     if (exe_module && UserModuleXEX(*exe_module)) {

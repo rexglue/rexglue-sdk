@@ -64,8 +64,8 @@ struct XNADDR {
   in_addr ina;       /**< IP address, zero unless static or DHCP. */
   in_addr inaOnline; /**< Online IP address, zero when not online. */
   be_u16 wPortOnline;
-  uint8_t abEnet[6]; /**< Ethernet MAC address. */
-  uint8_t abOnline[20];
+  u8 abEnet[6]; /**< Ethernet MAC address. */
+  u8 abOnline[20];
 };
 
 struct XNDNS {
@@ -75,8 +75,8 @@ struct XNDNS {
 };
 
 struct XNQOSINFO {
-  uint8_t flags;
-  uint8_t reserved;
+  u8 flags;
+  u8 reserved;
   be_u16 probes_xmit;
   be_u16 probes_recv;
   be_u16 data_len;
@@ -127,19 +127,19 @@ struct XWSAOVERLAPPED {
 };
 
 struct XNetStartupParams {
-  uint8_t cfgSizeOfStruct;
-  uint8_t cfgFlags;
-  uint8_t cfgSockMaxDgramSockets;
-  uint8_t cfgSockMaxStreamSockets;
-  uint8_t cfgSockDefaultRecvBufsizeInK;
-  uint8_t cfgSockDefaultSendBufsizeInK;
-  uint8_t cfgKeyRegMax;
-  uint8_t cfgSecRegMax;
-  uint8_t cfgQosDataLimitDiv4;
-  uint8_t cfgQosProbeTimeoutInSeconds;
-  uint8_t cfgQosProbeRetries;
-  uint8_t cfgQosSrvMaxSimultaneousResponses;
-  uint8_t cfgQosPairWaitTimeInSeconds;
+  u8 cfgSizeOfStruct;
+  u8 cfgFlags;
+  u8 cfgSockMaxDgramSockets;
+  u8 cfgSockMaxStreamSockets;
+  u8 cfgSockDefaultRecvBufsizeInK;
+  u8 cfgSockDefaultSendBufsizeInK;
+  u8 cfgKeyRegMax;
+  u8 cfgSecRegMax;
+  u8 cfgQosDataLimitDiv4;
+  u8 cfgQosProbeTimeoutInSeconds;
+  u8 cfgQosProbeRetries;
+  u8 cfgQosSrvMaxSimultaneousResponses;
+  u8 cfgQosPairWaitTimeInSeconds;
 };
 
 XNetStartupParams xnet_startup_params = {};
@@ -264,13 +264,13 @@ u32 NetDll_WSASendTo_entry([[maybe_unused]] u32 caller, u32 socket_handle,
   }
 
   // The socket layer takes 1 buffer, so combine the guest buffers.
-  std::vector<uint8_t> combined_buffer_mem;
-  uint32_t combined_buffer_size = 0;
-  uint32_t combined_buffer_offset = 0;
-  for (uint32_t i = 0; i < num_buffers; i++) {
+  std::vector<u8> combined_buffer_mem;
+  u32 combined_buffer_size = 0;
+  u32 combined_buffer_offset = 0;
+  for (u32 i = 0; i < num_buffers; i++) {
     combined_buffer_size += buffers[i].len;
     combined_buffer_mem.resize(combined_buffer_size);
-    uint8_t* combined_buffer = combined_buffer_mem.data();
+    u8* combined_buffer = combined_buffer_mem.data();
 
     std::memcpy(combined_buffer + combined_buffer_offset,
                 runtime::Current().memory()->TranslateVirtual(buffers[i].buf_ptr), buffers[i].len);
@@ -301,7 +301,7 @@ u32 NetDll_WSAWaitForMultipleEvents_entry(u32 num_events, mapped_u32 events, u32
   } while (result == X_STATUS_ALERTED);
 
   if (XFAILED(result)) {
-    uint32_t error = xboxkrnl::RtlNtStatusToDosError(result);
+    u32 error = xboxkrnl::RtlNtStatusToDosError(result);
     ThreadRecord::SetLastError(error);
     return ~0u;
   }
@@ -320,7 +320,7 @@ u32 NetDll_WSACreateEvent_entry() {
 u32 NetDll_WSACloseEvent_entry(u32 event_handle) {
   X_STATUS result = ToXStatus(runtime::Current().object_table().Close(event_handle));
   if (XFAILED(result)) {
-    uint32_t error = xboxkrnl::RtlNtStatusToDosError(result);
+    u32 error = xboxkrnl::RtlNtStatusToDosError(result);
     ThreadRecord::SetLastError(error);
     return 0;
   }
@@ -330,7 +330,7 @@ u32 NetDll_WSACloseEvent_entry(u32 event_handle) {
 u32 NetDll_WSAResetEvent_entry(u32 event_handle) {
   X_STATUS result = xboxkrnl::NtClearEvent(event_handle);
   if (XFAILED(result)) {
-    uint32_t error = xboxkrnl::RtlNtStatusToDosError(result);
+    u32 error = xboxkrnl::RtlNtStatusToDosError(result);
     ThreadRecord::SetLastError(error);
     return 0;
   }
@@ -340,7 +340,7 @@ u32 NetDll_WSAResetEvent_entry(u32 event_handle) {
 u32 NetDll_WSASetEvent_entry(u32 event_handle) {
   X_STATUS result = xboxkrnl::NtSetEvent(event_handle, nullptr);
   if (XFAILED(result)) {
-    uint32_t error = xboxkrnl::RtlNtStatusToDosError(result);
+    u32 error = xboxkrnl::RtlNtStatusToDosError(result);
     ThreadRecord::SetLastError(error);
     return 0;
   }
@@ -348,18 +348,18 @@ u32 NetDll_WSASetEvent_entry(u32 event_handle) {
 }
 
 struct XnAddrStatus {
-  static const uint32_t XNET_GET_XNADDR_PENDING = 0x00000000;
+  static const u32 XNET_GET_XNADDR_PENDING = 0x00000000;
   /** The network stack is uninitialized or no debugger was found. */
-  static const uint32_t XNET_GET_XNADDR_NONE = 0x00000001;
+  static const u32 XNET_GET_XNADDR_NONE = 0x00000001;
   /** The host has an Ethernet address and no IP address. */
-  static const uint32_t XNET_GET_XNADDR_ETHERNET = 0x00000002;
-  static const uint32_t XNET_GET_XNADDR_STATIC = 0x00000004;
-  static const uint32_t XNET_GET_XNADDR_DHCP = 0x00000008;
-  static const uint32_t XNET_GET_XNADDR_PPPOE = 0x00000010;
-  static const uint32_t XNET_GET_XNADDR_GATEWAY = 0x00000020;
-  static const uint32_t XNET_GET_XNADDR_DNS = 0x00000040;
-  static const uint32_t XNET_GET_XNADDR_ONLINE = 0x00000080;
-  static const uint32_t XNET_GET_XNADDR_TROUBLESHOOT = 0x00008000;
+  static const u32 XNET_GET_XNADDR_ETHERNET = 0x00000002;
+  static const u32 XNET_GET_XNADDR_STATIC = 0x00000004;
+  static const u32 XNET_GET_XNADDR_DHCP = 0x00000008;
+  static const u32 XNET_GET_XNADDR_PPPOE = 0x00000010;
+  static const u32 XNET_GET_XNADDR_GATEWAY = 0x00000020;
+  static const u32 XNET_GET_XNADDR_DNS = 0x00000040;
+  static const u32 XNET_GET_XNADDR_ONLINE = 0x00000080;
+  static const u32 XNET_GET_XNADDR_TROUBLESHOOT = 0x00008000;
 };
 
 u32 NetDll_XNetGetTitleXnAddr_entry([[maybe_unused]] u32 caller, ppc_ptr_t<XNADDR> addr_ptr) {
@@ -438,11 +438,11 @@ u32 NetDll_XNetSetSystemLinkPort_entry([[maybe_unused]] u32 caller, [[maybe_unus
 }
 
 struct XEthernetStatus {
-  static const uint32_t XNET_ETHERNET_LINK_ACTIVE = 0x01;
-  static const uint32_t XNET_ETHERNET_LINK_100MBPS = 0x02;
-  static const uint32_t XNET_ETHERNET_LINK_10MBPS = 0x04;
-  static const uint32_t XNET_ETHERNET_LINK_FULL_DUPLEX = 0x08;
-  static const uint32_t XNET_ETHERNET_LINK_HALF_DUPLEX = 0x10;
+  static const u32 XNET_ETHERNET_LINK_ACTIVE = 0x01;
+  static const u32 XNET_ETHERNET_LINK_100MBPS = 0x02;
+  static const u32 XNET_ETHERNET_LINK_10MBPS = 0x04;
+  static const u32 XNET_ETHERNET_LINK_FULL_DUPLEX = 0x08;
+  static const u32 XNET_ETHERNET_LINK_HALF_DUPLEX = 0x10;
 };
 
 u32 NetDll_XNetGetEthernetLinkStatus_entry([[maybe_unused]] u32 caller) {
@@ -510,7 +510,7 @@ u32 NetDll_inet_addr_entry(mapped_string addr_ptr) {
     return -1;
   }
 
-  uint32_t addr = inet_addr(addr_ptr);
+  u32 addr = inet_addr(addr_ptr);
   // An empty string returns 0 instead of -1.
   if (addr == INADDR_NONE && addr_ptr.value().empty()) {
     return 0;
@@ -522,9 +522,9 @@ u32 NetDll_inet_addr_entry(mapped_string addr_ptr) {
 u32 NetDll_socket_entry([[maybe_unused]] u32 caller, u32 af, u32 type, u32 protocol) {
   auto& table = runtime::Current().object_table();
   X_HANDLE handle = X_INVALID_HANDLE_VALUE;
-  auto added = table.Emplace<SocketObject>(
-      AddOptions{}, SocketAddressFamily(static_cast<uint32_t>(af)),
-      SocketType(static_cast<uint32_t>(type)), SocketProtocol(static_cast<uint32_t>(protocol)));
+  auto added = table.Emplace<SocketObject>(AddOptions{}, SocketAddressFamily(static_cast<u32>(af)),
+                                           SocketType(static_cast<u32>(type)),
+                                           SocketProtocol(static_cast<u32>(protocol)));
   if (added) {
     handle = *added;
   }
@@ -537,7 +537,7 @@ u32 NetDll_socket_entry([[maybe_unused]] u32 caller, u32 af, u32 type, u32 proto
   }
 
   if (XFAILED(result)) {
-    uint32_t error = xboxkrnl::RtlNtStatusToDosError(result);
+    u32 error = xboxkrnl::RtlNtStatusToDosError(result);
     ThreadRecord::SetLastError(error);
     return -1;
   }
@@ -569,7 +569,7 @@ i32 NetDll_shutdown_entry([[maybe_unused]] u32 caller, u32 socket_handle, i32 ho
   auto ret = SocketShutdown(*socket, how);
   if (ret == -1) {
 #if REX_PLATFORM_WIN32
-    uint32_t error_code = WSAGetLastError();
+    u32 error_code = WSAGetLastError();
     ThreadRecord::SetLastError(error_code);
 #else
     ThreadRecord::SetLastError(0x0);
@@ -699,13 +699,13 @@ struct x_fd_set {
 };
 
 struct host_set {
-  uint32_t count;
+  u32 count;
   Pinned<SocketObject> sockets[64];
 
   void Load(const x_fd_set* guest_set) {
     REX_ASSERT(guest_set->fd_count < 64);
     this->count = guest_set->fd_count;
-    for (uint32_t i = 0; i < this->count; ++i) {
+    for (u32 i = 0; i < this->count; ++i) {
       auto socket_handle = static_cast<X_HANDLE>(guest_set->fd_array[i]);
       if (socket_handle == X_INVALID_SOCKET) {
         this->count = i;
@@ -722,21 +722,21 @@ struct host_set {
 
   void Store(x_fd_set* guest_set) {
     guest_set->fd_count = 0;
-    for (uint32_t i = 0; i < this->count; ++i) {
+    for (u32 i = 0; i < this->count; ++i) {
       guest_set->fd_array[guest_set->fd_count++] = this->sockets[i].handle();
     }
   }
 
   void Store(fd_set* native_set) {
     FD_ZERO(native_set);
-    for (uint32_t i = 0; i < this->count; ++i) {
+    for (u32 i = 0; i < this->count; ++i) {
       FD_SET(this->sockets[i]->native_handle, native_set);
     }
   }
 
   void UpdateFrom(fd_set* native_set) {
-    uint32_t new_count = 0;
-    for (uint32_t i = 0; i < this->count; ++i) {
+    u32 new_count = 0;
+    for (u32 i = 0; i < this->count; ++i) {
       if (FD_ISSET(this->sockets[i]->native_handle, native_set)) {
         if (new_count != i) {
           this->sockets[new_count] = std::move(this->sockets[i]);
@@ -778,8 +778,8 @@ i32 NetDll_select_entry([[maybe_unused]] i32 caller, i32 nfds, ppc_ptr_t<x_fd_se
   timeval timeout = {};
   auto wait_time = std::chrono::milliseconds::max();
   if (timeout_ptr) {
-    i32 timeout_sec = static_cast<int32_t>(timeout_ptr.as_array<int32_t>()[0]);
-    i32 timeout_usec = static_cast<int32_t>(timeout_ptr.as_array<int32_t>()[1]);
+    i32 timeout_sec = static_cast<i32>(timeout_ptr.as_array<i32>()[0]);
+    i32 timeout_usec = static_cast<i32>(timeout_ptr.as_array<i32>()[1]);
     Clock::ScaleGuestDurationTimeval(&timeout_sec, &timeout_usec);
     timeout = {timeout_sec, timeout_usec};
     timeout_in = &timeout;
@@ -863,7 +863,7 @@ u32 NetDll_recvfrom_entry([[maybe_unused]] u32 caller, u32 socket_handle, mapped
   if (from_ptr) {
     native_from = *from_ptr;
   }
-  uint32_t native_fromlen = fromlen_ptr ? fromlen_ptr.value() : 0;
+  u32 native_fromlen = fromlen_ptr ? fromlen_ptr.value() : 0;
   int ret = SocketRecvFrom(*socket, buf_ptr, buf_len, flags, &native_from,
                            fromlen_ptr ? &native_fromlen : 0);
 
@@ -879,7 +879,7 @@ u32 NetDll_recvfrom_entry([[maybe_unused]] u32 caller, u32 socket_handle, mapped
 
   if (ret == -1) {
 #if REX_PLATFORM_WIN32
-    uint32_t error_code = WSAGetLastError();
+    u32 error_code = WSAGetLastError();
     ThreadRecord::SetLastError(error_code);
 #else
     ThreadRecord::SetLastError(0x0);
@@ -915,9 +915,8 @@ u32 NetDll_sendto_entry([[maybe_unused]] u32 caller, u32 socket_handle, mapped_v
 }
 
 u32 NetDll___WSAFDIsSet_entry(u32 socket_handle, ppc_ptr_t<x_fd_set> fd_set) {
-  const uint8_t max_fd_count =
-      std::min(static_cast<uint32_t>(fd_set->fd_count), static_cast<uint32_t>(64));
-  for (uint8_t i = 0; i < max_fd_count; i++) {
+  const u8 max_fd_count = std::min(static_cast<u32>(fd_set->fd_count), static_cast<u32>(64));
+  for (u8 i = 0; i < max_fd_count; i++) {
     if (fd_set->fd_array[i] == socket_handle) {
       return 1;
     }

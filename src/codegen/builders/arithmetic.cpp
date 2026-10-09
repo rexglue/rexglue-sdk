@@ -35,7 +35,7 @@ bool build_addi(BuilderContext& ctx) {
   ctx.print("\t{}.s64 = ", ctx.r(ctx.insn.operands[0]));
   if (ctx.insn.operands[1] != 0)
     ctx.print("{}.s64 + ", ctx.r(ctx.insn.operands[1]));
-  ctx.println("{};", static_cast<int32_t>(ctx.insn.operands[2]));
+  ctx.println("{};", static_cast<i32>(ctx.insn.operands[2]));
   return true;
 }
 
@@ -43,7 +43,7 @@ bool build_addic(BuilderContext& ctx) {
   ctx.println("\t{}.ca = {}.u32 > {};", ctx.xer(), ctx.r(ctx.insn.operands[1]),
               ~ctx.insn.operands[2]);
   ctx.println("\t{}.s64 = {}.s64 + {};", ctx.r(ctx.insn.operands[0]), ctx.r(ctx.insn.operands[1]),
-              static_cast<int32_t>(ctx.insn.operands[2]));
+              static_cast<i32>(ctx.insn.operands[2]));
   emitRecordFormCompare(ctx);
   return true;
 }
@@ -52,7 +52,7 @@ bool build_addis(BuilderContext& ctx) {
   ctx.print("\t{}.s64 = ", ctx.r(ctx.insn.operands[0]));
   if (ctx.insn.operands[1] != 0)
     ctx.print("{}.s64 + ", ctx.r(ctx.insn.operands[1]));
-  ctx.println("{};", static_cast<int32_t>(ctx.insn.operands[2] << 16));
+  ctx.println("{};", static_cast<i32>(ctx.insn.operands[2] << 16));
   return true;
 }
 
@@ -111,7 +111,7 @@ bool build_divw(BuilderContext& ctx) {
   auto rA = ctx.r(ctx.insn.operands[1]);
   auto rB = ctx.r(ctx.insn.operands[2]);
   ctx.println(
-      "\t{}.u64 = uint32_t(({}.s32 && !({}.s32 == INT32_MIN && {}.s32 == -1)) ? {}.s32 / {}.s32 : "
+      "\t{}.u64 = u32(({}.s32 && !({}.s32 == INT32_MIN && {}.s32 == -1)) ? {}.s32 / {}.s32 : "
       "0);",
       rD, rB, rA, rB, rA, rB);
   emitRecordFormCompare(ctx);
@@ -122,29 +122,28 @@ bool build_divwu(BuilderContext& ctx) {
   auto rD = ctx.r(ctx.insn.operands[0]);
   auto rA = ctx.r(ctx.insn.operands[1]);
   auto rB = ctx.r(ctx.insn.operands[2]);
-  ctx.println("\t{}.u64 = uint32_t({}.u32 ? {}.u32 / {}.u32 : 0);", rD, rB, rA, rB);
+  ctx.println("\t{}.u64 = u32({}.u32 ? {}.u32 / {}.u32 : 0);", rD, rB, rA, rB);
   emitRecordFormCompare(ctx);
   return true;
 }
 
 bool build_mulhw(BuilderContext& ctx) {
-  ctx.println("\t{}.s64 = (int64_t({}.s32) * int64_t({}.s32)) >> 32;", ctx.r(ctx.insn.operands[0]),
+  ctx.println("\t{}.s64 = (i64({}.s32) * i64({}.s32)) >> 32;", ctx.r(ctx.insn.operands[0]),
               ctx.r(ctx.insn.operands[1]), ctx.r(ctx.insn.operands[2]));
   emitRecordFormCompare(ctx);
   return true;
 }
 
 bool build_mulhwu(BuilderContext& ctx) {
-  ctx.println("\t{}.u64 = (uint64_t({}.u32) * uint64_t({}.u32)) >> 32;",
-              ctx.r(ctx.insn.operands[0]), ctx.r(ctx.insn.operands[1]),
-              ctx.r(ctx.insn.operands[2]));
+  ctx.println("\t{}.u64 = (u64({}.u32) * u64({}.u32)) >> 32;", ctx.r(ctx.insn.operands[0]),
+              ctx.r(ctx.insn.operands[1]), ctx.r(ctx.insn.operands[2]));
   emitRecordFormCompare(ctx);
   return true;
 }
 
 bool build_mulld(BuilderContext& ctx) {
   // Use unsigned multiplication to avoid signed overflow UB (PPC wraps on overflow)
-  ctx.println("\t{}.s64 = static_cast<int64_t>({}.u64 * {}.u64);", ctx.r(ctx.insn.operands[0]),
+  ctx.println("\t{}.s64 = static_cast<i64>({}.u64 * {}.u64);", ctx.r(ctx.insn.operands[0]),
               ctx.r(ctx.insn.operands[1]), ctx.r(ctx.insn.operands[2]));
   emitRecordFormCompare(ctx);
   return true;
@@ -152,14 +151,14 @@ bool build_mulld(BuilderContext& ctx) {
 
 bool build_mulli(BuilderContext& ctx) {
   // Use unsigned multiplication to avoid signed overflow UB (PPC wraps on overflow)
-  ctx.println("\t{}.s64 = static_cast<int64_t>({}.u64 * static_cast<uint64_t>({}));",
+  ctx.println("\t{}.s64 = static_cast<i64>({}.u64 * static_cast<u64>({}));",
               ctx.r(ctx.insn.operands[0]), ctx.r(ctx.insn.operands[1]),
-              static_cast<int32_t>(ctx.insn.operands[2]));
+              static_cast<i32>(ctx.insn.operands[2]));
   return true;
 }
 
 bool build_mullw(BuilderContext& ctx) {
-  ctx.println("\t{}.s64 = int64_t({}.s32) * int64_t({}.s32);", ctx.r(ctx.insn.operands[0]),
+  ctx.println("\t{}.s64 = i64({}.s32) * i64({}.s32);", ctx.r(ctx.insn.operands[0]),
               ctx.r(ctx.insn.operands[1]), ctx.r(ctx.insn.operands[2]));
   emitRecordFormCompare(ctx);
   return true;
@@ -167,8 +166,8 @@ bool build_mullw(BuilderContext& ctx) {
 
 bool build_mulhd(BuilderContext& ctx) {
   ctx.println(
-      "\t{}.s64 = static_cast<int64_t>((static_cast<__int128>(static_cast<int64_t>({}.s64)) * "
-      "static_cast<__int128>(static_cast<int64_t>({}.s64))) >> 64);",
+      "\t{}.s64 = static_cast<i64>((static_cast<__int128>(static_cast<i64>({}.s64)) * "
+      "static_cast<__int128>(static_cast<i64>({}.s64))) >> 64);",
       ctx.r(ctx.insn.operands[0]), ctx.r(ctx.insn.operands[1]), ctx.r(ctx.insn.operands[2]));
   emitRecordFormCompare(ctx);
   return true;
@@ -176,7 +175,7 @@ bool build_mulhd(BuilderContext& ctx) {
 
 bool build_mulhdu(BuilderContext& ctx) {
   ctx.println(
-      "\t{}.u64 = static_cast<uint64_t>((static_cast<__uint128_t>({}.u64) * "
+      "\t{}.u64 = static_cast<u64>((static_cast<__uint128_t>({}.u64) * "
       "static_cast<__uint128_t>({}.u64)) >> 64);",
       ctx.r(ctx.insn.operands[0]), ctx.r(ctx.insn.operands[1]), ctx.r(ctx.insn.operands[2]));
   emitRecordFormCompare(ctx);
@@ -185,7 +184,7 @@ bool build_mulhdu(BuilderContext& ctx) {
 
 bool build_neg(BuilderContext& ctx) {
   // Use unsigned negation to avoid signed overflow UB when negating INT64_MIN
-  ctx.println("\t{}.s64 = static_cast<int64_t>(-{}.u64);", ctx.r(ctx.insn.operands[0]),
+  ctx.println("\t{}.s64 = static_cast<i64>(-{}.u64);", ctx.r(ctx.insn.operands[0]),
               ctx.r(ctx.insn.operands[1]));
   emitRecordFormCompare(ctx);
   return true;
@@ -222,8 +221,8 @@ bool build_subfe(BuilderContext& ctx) {
 bool build_subfic(BuilderContext& ctx) {
   ctx.println("\t{}.ca = {}.u32 <= {};", ctx.xer(), ctx.r(ctx.insn.operands[1]),
               ctx.insn.operands[2]);
-  ctx.println("\t{}.u64 = static_cast<uint64_t>({}) - {}.u64;", ctx.r(ctx.insn.operands[0]),
-              static_cast<int32_t>(ctx.insn.operands[2]), ctx.r(ctx.insn.operands[1]));
+  ctx.println("\t{}.u64 = static_cast<u64>({}) - {}.u64;", ctx.r(ctx.insn.operands[0]),
+              static_cast<i32>(ctx.insn.operands[2]), ctx.r(ctx.insn.operands[1]));
   return true;
 }
 

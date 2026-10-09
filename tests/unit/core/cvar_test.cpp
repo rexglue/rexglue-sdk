@@ -57,8 +57,8 @@ REXCVAR_BOOL(other, wrong_scope, false, "Wrong scope for the test table");
 REXCVAR_TABLE(kWrongScope, wrong_scope);
 }  // namespace dupe_cvars
 
-constinit rex::cvar::Var<int32_t> g_constinit_proof =
-    rex::cvar::Var<int32_t>("test.proof", 7, "constant initialized").range(0, 10);
+constinit rex::cvar::Var<i32> g_constinit_proof =
+    rex::cvar::Var<i32>("test.proof", 7, "constant initialized").range(0, 10);
 static_assert(rex::cvar::detail::RenderDefault(-42).view() == "-42");
 static_assert(rex::cvar::detail::RenderDefault(true).view() == "true");
 static_assert(rex::cvar::detail::RenderDefault(0.5).view() == "0.5");

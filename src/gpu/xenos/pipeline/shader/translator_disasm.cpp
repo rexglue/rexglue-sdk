@@ -127,7 +127,7 @@ void DisassembleSourceOperand(const InstructionOperand& op, StringBuffer* out) {
       out->Append(GetCharForSwizzle(op.components[0]));
       out->Append(GetCharForSwizzle(op.components[1]));
     } else {
-      for (uint32_t j = 0; j < op.component_count; ++j) {
+      for (u32 j = 0; j < op.component_count; ++j) {
         out->Append(GetCharForSwizzle(op.components[j]));
       }
     }
@@ -475,7 +475,7 @@ void ParsedAluInstruction::Disassemble(StringBuffer* out) const {
     }
     out->Append(' ');
     DisassembleResultOperand(vector_and_constant_result, out);
-    for (uint32_t i = 0; i < vector_operand_count; ++i) {
+    for (u32 i = 0; i < vector_operand_count; ++i) {
       out->Append(", ");
       DisassembleSourceOperand(vector_operands[i], out);
     }
@@ -494,7 +494,7 @@ void ParsedAluInstruction::Disassemble(StringBuffer* out) const {
     }
     out->Append(' ');
     DisassembleResultOperand(scalar_result, out);
-    for (uint32_t i = 0; i < scalar_operand_count; ++i) {
+    for (u32 i = 0; i < scalar_operand_count; ++i) {
       out->Append(", ");
       DisassembleSourceOperand(scalar_operands[i], out);
     }

@@ -42,7 +42,7 @@
 
 namespace rex::runtime {
 
-uint32_t get_page_count(uint32_t value, uint32_t page_size, uint32_t page_size_shift) {
+u32 get_page_count(u32 value, u32 page_size, u32 page_size_shift) {
   return rex::round_up(value, page_size) >> page_size_shift;
 }
 
@@ -137,8 +137,8 @@ bool OnAccessViolation(rex::platform::Exception* ex, void* data) {
 }  // namespace
 
 Memory::Memory() {
-  system_page_size_ = static_cast<uint32_t>(rex::memory::page_size());
-  system_allocation_granularity_ = static_cast<uint32_t>(rex::memory::allocation_granularity());
+  system_page_size_ = static_cast<u32>(rex::memory::page_size());
+  system_allocation_granularity_ = static_cast<u32>(rex::memory::allocation_granularity());
   REX_ASSERT(active_memory_.load() == nullptr);
   active_memory_.store(this, std::memory_order_release);
   platform::SetCrashAddressDescriber(DescribeCrashAddress);
@@ -201,7 +201,7 @@ bool Memory::Initialize() {
 #else
   mapping_base_ = 0;
   for (size_t n = 32; n < 64; n++) {
-    auto mapping_base = std::bit_cast<uint8_t*>(uintptr_t{1} << n);
+    auto mapping_base = std::bit_cast<u8*>(uintptr_t{1} << n);
     if (!MapViews(mapping_base)) {
       mapping_base_ = mapping_base;
       break;
@@ -263,12 +263,12 @@ bool Memory::Initialize() {
   }
   rex::platform::ExceptionHandler::Install(OnAccessViolation, this);
 
-  uint32_t unk_phys_alloc;
+  u32 unk_phys_alloc;
   heaps_.vA0000000.Alloc(0x340000, 64 * 1024, runtime::kMemoryAllocationReserve,
                          runtime::kMemoryProtectNoAccess, true, &unk_phys_alloc);
 
   // A guest reads a constant at 0x8000001C in the XEX range.
-  uint32_t unknown_xex_range;
+  u32 unknown_xex_range;
   heaps_.v80000000.Alloc(0x40000, 4 * 1024, runtime::kMemoryAllocationCommit,
                          runtime::kMemoryProtectRead | runtime::kMemoryProtectWrite, false,
                          &unknown_xex_range);
@@ -294,9 +294,9 @@ bool Memory::Initialize() {
  * The physical ranges map onto the lower 512MB, so 0xA0000000 is physical 0x00000000.
  */
 static const struct {
-  uint64_t virtual_address_start;
-  uint64_t virtual_address_end;
-  uint64_t target_address;
+  u64 virtual_address_start;
+  u64 virtual_address_end;
+  u64 target_address;
 } map_info[] = {
     {
         0x00000000,
@@ -358,8 +358,8 @@ int Memory::MapViewsMac() {
     REX_FAIL(system, 1, "MapViewsMac: reserve failed: {}", std::strerror(errno));
   }
 
-  uint8_t* mapping_base = reinterpret_cast<uint8_t*>(reserved_base);
-  uint64_t granularity_mask = ~static_cast<uint64_t>(system_allocation_granularity_ - 1);
+  u8* mapping_base = reinterpret_cast<u8*>(reserved_base);
+  u64 granularity_mask = ~static_cast<u64>(system_allocation_granularity_ - 1);
 
   for (size_t n = 0; n < rex::countof(map_info); n++) {
     size_t view_size = static_cast<size_t>(map_info[n].virtual_address_end -
@@ -381,18 +381,18 @@ int Memory::MapViewsMac() {
       }
       return 1;
     }
-    views_.all_views[n] = reinterpret_cast<uint8_t*>(result);
+    views_.all_views[n] = reinterpret_cast<u8*>(result);
   }
 
   return 0;
 }
 #endif  // REX_PLATFORM_MAC
 
-int Memory::MapViews(uint8_t* mapping_base) {
+int Memory::MapViews(u8* mapping_base) {
   REX_ASSERT(rex::countof(map_info) == rex::countof(views_.all_views));
-  uint64_t granularity_mask = ~static_cast<uint64_t>(system_allocation_granularity_ - 1);
+  u64 granularity_mask = ~static_cast<u64>(system_allocation_granularity_ - 1);
   for (size_t n = 0; n < rex::countof(map_info); n++) {
-    views_.all_views[n] = reinterpret_cast<uint8_t*>(rex::memory::MapFileView(
+    views_.all_views[n] = reinterpret_cast<u8*>(rex::memory::MapFileView(
         mapping_, mapping_base + map_info[n].virtual_address_start,
         map_info[n].virtual_address_end - map_info[n].virtual_address_start + 1,
         rex::memory::PageAccess::kReadWrite, map_info[n].target_address & granularity_mask));
@@ -413,7 +413,7 @@ void Memory::UnmapViews() {
   }
 }
 
-const BaseHeap* Memory::LookupHeap(uint32_t address) const {
+const BaseHeap* Memory::LookupHeap(u32 address) const {
   if (address < 0x40000000) {
     return &heaps_.v00000000;
   }
@@ -438,7 +438,7 @@ const BaseHeap* Memory::LookupHeap(uint32_t address) const {
   return &heaps_.vE0000000;
 }
 
-BaseHeap* Memory::LookupHeapByType(bool physical, uint32_t page_size) {
+BaseHeap* Memory::LookupHeapByType(bool physical, u32 page_size) {
   if (physical) {
     if (page_size <= 4096) {
       return &heaps_.vE0000000;
@@ -460,12 +460,12 @@ VirtualHeap* Memory::GetPhysicalHeap() {
   return &heaps_.physical;
 }
 
-uint32_t Memory::HostToGuestVirtual(const void* host_address) const {
+u32 Memory::HostToGuestVirtual(const void* host_address) const {
   return detail::RemovePhysicalHostOffset(reinterpret_cast<size_t>(host_address) -
                                           reinterpret_cast<size_t>(virtual_membase_));
 }
 
-uint32_t Memory::GetPhysicalAddress(uint32_t address) const {
+u32 Memory::GetPhysicalAddress(u32 address) const {
   const BaseHeap* heap = LookupHeap(address);
   if (!heap || heap->heap_type() != runtime::HeapType::kGuestPhysical) {
     return UINT32_MAX;
@@ -473,17 +473,17 @@ uint32_t Memory::GetPhysicalAddress(uint32_t address) const {
   return static_cast<const PhysicalHeap*>(heap)->GetPhysicalAddress(address);
 }
 
-void Memory::Zero(uint32_t address, uint32_t size) const {
+void Memory::Zero(u32 address, u32 size) const {
   std::memset(TranslateVirtual(address), 0, size);
 }
 
-void Memory::Fill(uint32_t address, uint32_t size, uint8_t value) const {
+void Memory::Fill(u32 address, u32 size, u8 value) const {
   std::memset(TranslateVirtual(address), value, size);
 }
 
-void Memory::Copy(uint32_t dest, uint32_t src, uint32_t size) const {
-  uint8_t* pdest = TranslateVirtual(dest);
-  const uint8_t* psrc = TranslateVirtual(src);
+void Memory::Copy(u32 dest, u32 src, u32 size) const {
+  u8* pdest = TranslateVirtual(dest);
+  const u8* psrc = TranslateVirtual(src);
   std::memcpy(pdest, psrc, size);
 }
 
@@ -530,7 +530,7 @@ bool Memory::AccessViolationCallback(void* host_address, bool is_write) {
       reinterpret_cast<size_t>(host_address) >= reinterpret_cast<size_t>(physical_membase_)) {
     return false;
   }
-  uint32_t virtual_address = HostToGuestVirtual(host_address);
+  u32 virtual_address = HostToGuestVirtual(host_address);
   BaseHeap* heap = LookupHeap(virtual_address);
   if (!heap || heap->heap_type() != runtime::HeapType::kGuestPhysical) {
     t_guest_fault = GuestFault{
@@ -547,9 +547,9 @@ bool Memory::AccessViolationCallback(void* host_address, bool is_write) {
 
   // Restore write access when guest metadata says writable but host protection is stale.
   if (is_write) {
-    constexpr uint32_t kWriteProtectMask =
+    constexpr u32 kWriteProtectMask =
         runtime::kMemoryProtectWrite | runtime::kMemoryProtectWriteCombine;
-    uint32_t guest_protect = 0;
+    u32 guest_protect = 0;
     bool allow_write = false;
     if (heap->QueryProtect(virtual_address, &guest_protect) &&
         (guest_protect & kWriteProtectMask)) {
@@ -562,9 +562,9 @@ bool Memory::AccessViolationCallback(void* host_address, bool is_write) {
         guest_protect = guest_info.protect;
         allow_write = true;
       } else {
-        uint32_t physical_address = GetPhysicalAddress(virtual_address);
+        u32 physical_address = GetPhysicalAddress(virtual_address);
         if (physical_address != UINT32_MAX) {
-          uint32_t physical_protect = 0;
+          u32 physical_protect = 0;
           if (heaps_.physical.QueryProtect(physical_address, &physical_protect) &&
               (physical_protect & kWriteProtectMask)) {
             guest_protect = physical_protect;
@@ -593,10 +593,10 @@ bool Memory::AccessViolationCallback(void* host_address, bool is_write) {
       }
     }
 
-    uint32_t current_guest_protect = 0;
+    u32 current_guest_protect = 0;
     heap->QueryProtect(virtual_address, &current_guest_protect);
-    uint32_t physical_address = GetPhysicalAddress(virtual_address);
-    uint32_t physical_protect = 0;
+    u32 physical_address = GetPhysicalAddress(virtual_address);
+    u32 physical_protect = 0;
     if (physical_address != UINT32_MAX) {
       heaps_.physical.QueryProtect(physical_address, &physical_protect);
     }
@@ -637,7 +637,7 @@ void Memory::UnregisterPhysicalMemoryInvalidationCallback(void* callback_handle)
   }
 }
 
-void Memory::EnablePhysicalMemoryAccessCallbacks(uint32_t physical_address, uint32_t length,
+void Memory::EnablePhysicalMemoryAccessCallbacks(u32 physical_address, u32 length,
                                                  bool enable_invalidation_notifications,
                                                  bool enable_data_providers) {
   heaps_.vA0000000.EnableAccessCallbacks(physical_address, length,
@@ -648,10 +648,10 @@ void Memory::EnablePhysicalMemoryAccessCallbacks(uint32_t physical_address, uint
                                          enable_invalidation_notifications, enable_data_providers);
 }
 
-uint32_t Memory::SystemHeapAlloc(uint32_t size, uint32_t alignment, uint32_t system_heap_flags) {
+u32 Memory::SystemHeapAlloc(u32 size, u32 alignment, u32 system_heap_flags) {
   bool is_physical = !!(system_heap_flags & runtime::kSystemHeapPhysical);
   auto heap = LookupHeapByType(is_physical, 4096);
-  uint32_t address;
+  u32 address;
   if (!heap->AllocSystemHeap(
           size, alignment, runtime::kMemoryAllocationReserve | runtime::kMemoryAllocationCommit,
           runtime::kMemoryProtectRead | runtime::kMemoryProtectWrite, false, &address)) {
@@ -661,7 +661,7 @@ uint32_t Memory::SystemHeapAlloc(uint32_t size, uint32_t alignment, uint32_t sys
   return address;
 }
 
-void Memory::SystemHeapFree(uint32_t address, uint32_t* out_region_size) {
+void Memory::SystemHeapFree(u32 address, u32* out_region_size) {
   if (!address) {
     return;
   }
@@ -670,13 +670,13 @@ void Memory::SystemHeapFree(uint32_t address, uint32_t* out_region_size) {
 }
 
 void Memory::GetHeapsPageStatsSummary(const BaseHeap* const* provided_heaps, size_t heaps_count,
-                                      uint32_t& unreserved_pages, uint32_t& reserved_pages,
-                                      uint32_t& used_pages, uint32_t& reserved_bytes) {
+                                      u32& unreserved_pages, u32& reserved_pages, u32& used_pages,
+                                      u32& reserved_bytes) {
   // The heap array is fixed after init and page counts are approximate.
   for (size_t i = 0; i < heaps_count; i++) {
     const BaseHeap* heap = provided_heaps[i];
-    uint32_t heap_unreserved = heap->unreserved_page_count();
-    uint32_t heap_reserved = heap->reserved_page_count();
+    u32 heap_unreserved = heap->unreserved_page_count();
+    u32 heap_reserved = heap->reserved_page_count();
 
     unreserved_pages += heap_unreserved;
     reserved_pages += heap_reserved;
@@ -713,11 +713,10 @@ void Memory::ReleaseTitlePage(u32 pages) {
   title_pages_.fetch_sub(pages, std::memory_order_relaxed);
 }
 
-bool Memory::InitializeFunctionTable(uint32_t code_base, uint32_t code_size, uint32_t image_base,
-                                     uint32_t image_size) {
-  constexpr uint32_t kThunkReserveSize = runtime::FunctionDispatcher::kThunkReserveSize;
-  uint32_t table_base = image_base + image_size;
-  uint32_t table_size = (code_size + kThunkReserveSize) * 2;
+bool Memory::InitializeFunctionTable(u32 code_base, u32 code_size, u32 image_base, u32 image_size) {
+  constexpr u32 kThunkReserveSize = runtime::FunctionDispatcher::kThunkReserveSize;
+  u32 table_base = image_base + image_size;
+  u32 table_size = (code_size + kThunkReserveSize) * 2;
 
   REXLOG_DEBUG(system,
                "Initializing function table at {:08X}, size {:08X} for code {:08X}-{:08X} "
@@ -744,11 +743,11 @@ bool Memory::InitializeFunctionTable(uint32_t code_base, uint32_t code_size, uin
   return true;
 }
 
-bool Memory::DestroyFunctionTable(uint32_t code_base) {
-  uint32_t table_base = 0;
-  uint32_t table_size = 0;
-  uint32_t logged_code_base = 0;
-  uint32_t logged_code_size = 0;
+bool Memory::DestroyFunctionTable(u32 code_base) {
+  u32 table_base = 0;
+  u32 table_size = 0;
+  u32 logged_code_base = 0;
+  u32 logged_code_size = 0;
   {
     std::lock_guard lock(function_tables_mutex_);
     auto it = std::find_if(
@@ -771,15 +770,15 @@ bool Memory::DestroyFunctionTable(uint32_t code_base) {
   return true;
 }
 
-bool Memory::SetFunction(uint32_t guest_address, PPCFunc* host_function) {
-  uint32_t table_address = 0;
+bool Memory::SetFunction(u32 guest_address, PPCFunc* host_function) {
+  u32 table_address = 0;
   {
     std::lock_guard lock(function_tables_mutex_);
     for (const auto& entry : function_tables_) {
-      uint32_t range_end = entry.code_base + entry.code_size + entry.thunk_reserve;
+      u32 range_end = entry.code_base + entry.code_size + entry.thunk_reserve;
       if (guest_address >= entry.code_base && guest_address < range_end) {
-        uint64_t offset = (static_cast<uint64_t>(guest_address) - entry.code_base) * 2;
-        table_address = entry.table_base + static_cast<uint32_t>(offset);
+        u64 offset = (static_cast<u64>(guest_address) - entry.code_base) * 2;
+        table_address = entry.table_base + static_cast<u32>(offset);
         break;
       }
     }
@@ -792,7 +791,7 @@ bool Memory::SetFunction(uint32_t guest_address, PPCFunc* host_function) {
   return true;
 }
 
-rex::memory::PageAccess ToPageAccess(uint32_t protect) {
+rex::memory::PageAccess ToPageAccess(u32 protect) {
   bool is_writable =
       (protect & runtime::kMemoryProtectWrite) || (protect & runtime::kMemoryProtectWriteCombine);
 
@@ -805,7 +804,7 @@ rex::memory::PageAccess ToPageAccess(uint32_t protect) {
   }
 }
 
-uint32_t FromPageAccess(rex::memory::PageAccess protect) {
+u32 FromPageAccess(rex::memory::PageAccess protect) {
   switch (protect) {
     case memory::PageAccess::kNoAccess:
       return runtime::kMemoryProtectNoAccess;
@@ -835,33 +834,33 @@ std::unique_lock<rex::platform::RankedMutex> BaseHeap::AcquireHostPageReconcileL
   return std::unique_lock(memory_->watch_mutex_);
 }
 
-bool BaseHeap::SyncHostPageAccess(uint32_t start_page_number, uint32_t end_page_number) {
-  const uint32_t host_page_size = memory_->system_page_size_;
+bool BaseHeap::SyncHostPageAccess(u32 start_page_number, u32 end_page_number) {
+  const u32 host_page_size = memory_->system_page_size_;
   if (page_size_ >= host_page_size) {
     return true;
   }
 
   // A host page spans several guest pages, so it gets the union of their committed access.
-  const auto get_host_page_access = [&](uint32_t host_page_number) {
-    const uint64_t host_page_start = static_cast<uint64_t>(host_page_number) * host_page_size;
-    const uint64_t host_page_end = host_page_start + host_page_size;
-    const uint64_t heap_host_start = host_address_offset_;
-    const uint64_t heap_host_end = heap_host_start + heap_size_;
-    const uint64_t overlap_start = std::max(host_page_start, heap_host_start);
-    const uint64_t overlap_end = std::min(host_page_end, heap_host_end);
+  const auto get_host_page_access = [&](u32 host_page_number) {
+    const u64 host_page_start = static_cast<u64>(host_page_number) * host_page_size;
+    const u64 host_page_end = host_page_start + host_page_size;
+    const u64 heap_host_start = host_address_offset_;
+    const u64 heap_host_end = heap_host_start + heap_size_;
+    const u64 overlap_start = std::max(host_page_start, heap_host_start);
+    const u64 overlap_end = std::min(host_page_end, heap_host_end);
     if (overlap_start >= overlap_end) {
       return rex::memory::PageAccess::kNoAccess;
     }
 
-    const uint32_t guest_page_start =
-        static_cast<uint32_t>(overlap_start - heap_host_start) >> page_size_shift_;
-    const uint32_t guest_page_end =
-        static_cast<uint32_t>(overlap_end - heap_host_start - 1) >> page_size_shift_;
+    const u32 guest_page_start =
+        static_cast<u32>(overlap_start - heap_host_start) >> page_size_shift_;
+    const u32 guest_page_end =
+        static_cast<u32>(overlap_end - heap_host_start - 1) >> page_size_shift_;
 
     bool has_read = false;
     bool has_write = false;
     bool has_committed = false;
-    for (uint32_t page_number = guest_page_start; page_number <= guest_page_end; ++page_number) {
+    for (u32 page_number = guest_page_start; page_number <= guest_page_end; ++page_number) {
       const auto& page_entry = page_table_[page_number];
       if (!(page_entry.state & runtime::kMemoryAllocationCommit)) {
         continue;
@@ -896,23 +895,21 @@ bool BaseHeap::SyncHostPageAccess(uint32_t start_page_number, uint32_t end_page_
     return access;
   };
 
-  const uint64_t guest_byte_start = static_cast<uint64_t>(start_page_number) << page_size_shift_;
-  const uint64_t guest_byte_end =
-      ((static_cast<uint64_t>(end_page_number) + 1) << page_size_shift_) - 1;
-  const uint32_t host_page_first =
-      static_cast<uint32_t>((guest_byte_start + host_address_offset_) / host_page_size);
-  const uint32_t host_page_last =
-      static_cast<uint32_t>((guest_byte_end + host_address_offset_) / host_page_size);
+  const u64 guest_byte_start = static_cast<u64>(start_page_number) << page_size_shift_;
+  const u64 guest_byte_end = ((static_cast<u64>(end_page_number) + 1) << page_size_shift_) - 1;
+  const u32 host_page_first =
+      static_cast<u32>((guest_byte_start + host_address_offset_) / host_page_size);
+  const u32 host_page_last =
+      static_cast<u32>((guest_byte_end + host_address_offset_) / host_page_size);
 
   // Coalesce host pages with equal access into 1 Protect call, bulk commits span thousands.
-  uint8_t* const heap_host_base = membase_ + heap_base_;
-  uint32_t run_first_page = host_page_first;
+  u8* const heap_host_base = membase_ + heap_base_;
+  u32 run_first_page = host_page_first;
   rex::memory::PageAccess run_access = get_host_page_access(host_page_first);
-  const auto flush_run = [&](uint32_t run_last_page) {
+  const auto flush_run = [&](u32 run_last_page) {
     const size_t run_length =
         (static_cast<size_t>(run_last_page - run_first_page) + 1) * host_page_size;
-    uint8_t* const run_pointer =
-        heap_host_base + static_cast<size_t>(run_first_page) * host_page_size;
+    u8* const run_pointer = heap_host_base + static_cast<size_t>(run_first_page) * host_page_size;
     if (!rex::memory::Protect(run_pointer, run_length, run_access, nullptr)) {
       REX_FAIL(system, false,
                "BaseHeap::SyncHostPageAccess failed for heap {:08X} host pages {}-{}", heap_base_,
@@ -921,7 +918,7 @@ bool BaseHeap::SyncHostPageAccess(uint32_t start_page_number, uint32_t end_page_
     return true;
   };
 
-  for (uint32_t host_page = host_page_first + 1; host_page <= host_page_last; ++host_page) {
+  for (u32 host_page = host_page_first + 1; host_page <= host_page_last; ++host_page) {
     const rex::memory::PageAccess access = get_host_page_access(host_page);
     if (access == run_access) {
       continue;
@@ -935,9 +932,8 @@ bool BaseHeap::SyncHostPageAccess(uint32_t start_page_number, uint32_t end_page_
   return flush_run(host_page_last);
 }
 
-void BaseHeap::Initialize(runtime::Memory* memory, uint8_t* membase, HeapType heap_type,
-                          uint32_t heap_base, uint32_t heap_size, uint32_t page_size,
-                          uint32_t host_address_offset) {
+void BaseHeap::Initialize(runtime::Memory* memory, u8* membase, HeapType heap_type, u32 heap_base,
+                          u32 heap_size, u32 page_size, u32 host_address_offset) {
   memory_ = memory;
   membase_ = membase;
   heap_type_ = heap_type;
@@ -948,11 +944,11 @@ void BaseHeap::Initialize(runtime::Memory* memory, uint8_t* membase, HeapType he
   page_size_shift_ = rex::log2_floor(page_size_);
   host_address_offset_ = host_address_offset;
   page_table_.resize(heap_size / page_size);
-  unreserved_page_count_ = static_cast<uint32_t>(page_table_.size());
+  unreserved_page_count_ = static_cast<u32>(page_table_.size());
 }
 
 void BaseHeap::Dispose() {
-  for (uint32_t page_number = 0; page_number < page_table_.size(); ++page_number) {
+  for (u32 page_number = 0; page_number < page_table_.size(); ++page_number) {
     auto& page_entry = page_table_[page_number];
     if (page_entry.state) {
       rex::memory::DeallocFixed(TranslateRelative(page_number << page_size_shift_), 0,
@@ -962,14 +958,14 @@ void BaseHeap::Dispose() {
   }
 }
 
-bool BaseHeap::Alloc(uint32_t size, uint32_t alignment, uint32_t allocation_type, uint32_t protect,
-                     bool top_down, uint32_t* out_address) {
+bool BaseHeap::Alloc(u32 size, u32 alignment, u32 allocation_type, u32 protect, bool top_down,
+                     u32* out_address) {
   *out_address = 0;
   size = rex::round_up(size, page_size_);
   alignment = rex::round_up(alignment, page_size_);
 
   // The top is reserved for thread stacks, 0x3XXXXXXX system and 0x7XXXXXXX title.
-  uint32_t heap_virtual_guest_offset = 0;
+  u32 heap_virtual_guest_offset = 0;
   if (heap_type_ == runtime::HeapType::kGuestVirtual) {
     heap_virtual_guest_offset = 0x10000000;
     if (page_size_ == 0x10000) {
@@ -977,29 +973,29 @@ bool BaseHeap::Alloc(uint32_t size, uint32_t alignment, uint32_t allocation_type
     }
   }
 
-  uint32_t low_address = heap_base_;
-  uint32_t high_address = heap_base_ + (heap_size_ - 1) - heap_virtual_guest_offset;
+  u32 low_address = heap_base_;
+  u32 high_address = heap_base_ + (heap_size_ - 1) - heap_virtual_guest_offset;
   return AllocRange(low_address, high_address, size, alignment, allocation_type, protect, top_down,
                     out_address);
 }
 
-bool BaseHeap::AllocSystemHeap(uint32_t size, uint32_t alignment, uint32_t allocation_type,
-                               uint32_t protect, bool top_down, uint32_t* out_address) {
+bool BaseHeap::AllocSystemHeap(u32 size, u32 alignment, u32 allocation_type, u32 protect,
+                               bool top_down, u32* out_address) {
   *out_address = 0;
   size = rex::round_up(size, page_size_);
   alignment = rex::round_up(alignment, page_size_);
 
-  uint32_t low_address = heap_base_;
+  u32 low_address = heap_base_;
   if (heap_type_ == runtime::HeapType::kGuestVirtual) {
     low_address = heap_base_ + heap_size_ - 0x10000000;
   }
-  uint32_t high_address = heap_base_ + (heap_size_ - 1);
+  u32 high_address = heap_base_ + (heap_size_ - 1);
   return AllocRange(low_address, high_address, size, alignment, allocation_type, protect, top_down,
                     out_address);
 }
 
-bool BaseHeap::AllocFixed(uint32_t base_address, uint32_t size, uint32_t alignment,
-                          uint32_t allocation_type, uint32_t protect) {
+bool BaseHeap::AllocFixed(u32 base_address, u32 size, u32 alignment, u32 allocation_type,
+                          u32 protect) {
   PendingScribble scribble(allocation_type, protect);
   auto reconcile_lock = AcquireHostPageReconcileLock();
   if (!AllocFixedLocked(base_address, size, alignment, allocation_type, protect)) {
@@ -1009,8 +1005,8 @@ bool BaseHeap::AllocFixed(uint32_t base_address, uint32_t size, uint32_t alignme
   return true;
 }
 
-bool BaseHeap::AllocFixedLocked(uint32_t base_address, uint32_t size, uint32_t alignment,
-                                uint32_t allocation_type, uint32_t protect) {
+bool BaseHeap::AllocFixedLocked(u32 base_address, u32 size, u32 alignment, u32 allocation_type,
+                                u32 protect) {
   const bool title_memory = (allocation_type & runtime::kMemoryAllocationTitle) != 0;
   allocation_type &= ~static_cast<u32>(runtime::kMemoryAllocationTitle);
   alignment = rex::round_up(alignment, page_size_);
@@ -1029,9 +1025,9 @@ bool BaseHeap::AllocFixedLocked(uint32_t base_address, uint32_t size, uint32_t a
     alignment = page_size_;
   }
   size = rex::align(size, alignment);
-  uint32_t page_count = get_page_count(size, page_size_, page_size_shift_);
-  uint32_t start_page_number = (base_address - heap_base_) >> page_size_shift_;
-  uint32_t end_page_number = start_page_number + page_count - 1;
+  u32 page_count = get_page_count(size, page_size_, page_size_shift_);
+  u32 start_page_number = (base_address - heap_base_) >> page_size_shift_;
+  u32 end_page_number = start_page_number + page_count - 1;
   if (start_page_number >= page_table_.size() || end_page_number >= page_table_.size()) {
     REX_FAIL(system, false, "BaseHeap::AllocFixed passed out of range address range");
   }
@@ -1039,8 +1035,8 @@ bool BaseHeap::AllocFixedLocked(uint32_t base_address, uint32_t size, uint32_t a
   std::lock_guard<std::recursive_mutex> heap_lock(heap_mutex_);
 
   // A reserve needs the whole range unreserved, a commit may overlap committed pages.
-  for (uint32_t page_number = start_page_number; page_number <= end_page_number; ++page_number) {
-    uint32_t state = page_table_[page_number].state;
+  for (u32 page_number = start_page_number; page_number <= end_page_number; ++page_number) {
+    u32 state = page_table_[page_number].state;
     if ((allocation_type == runtime::kMemoryAllocationReserve) && state) {
       REX_FAIL(system, false,
                "BaseHeap::AllocFixed attempting to reserve an already reserved "
@@ -1081,7 +1077,7 @@ bool BaseHeap::AllocFixedLocked(uint32_t base_address, uint32_t size, uint32_t a
     }
   }
 
-  for (uint32_t page_number = start_page_number; page_number <= end_page_number; ++page_number) {
+  for (u32 page_number = start_page_number; page_number <= end_page_number; ++page_number) {
     auto& page_entry = page_table_[page_number];
     if (title_pages && (page_entry.state & runtime::kMemoryAllocationCommit) == 0) {
       page_entry.title = 1;
@@ -1105,9 +1101,8 @@ bool BaseHeap::AllocFixedLocked(uint32_t base_address, uint32_t size, uint32_t a
   return true;
 }
 
-bool BaseHeap::AllocRange(uint32_t low_address, uint32_t high_address, uint32_t size,
-                          uint32_t alignment, uint32_t allocation_type, uint32_t protect,
-                          bool top_down, uint32_t* out_address) {
+bool BaseHeap::AllocRange(u32 low_address, u32 high_address, u32 size, u32 alignment,
+                          u32 allocation_type, u32 protect, bool top_down, u32* out_address) {
   PendingScribble scribble(allocation_type, protect);
   auto reconcile_lock = AcquireHostPageReconcileLock();
   if (!AllocRangeLocked(low_address, high_address, size, alignment, allocation_type, protect,
@@ -1118,29 +1113,28 @@ bool BaseHeap::AllocRange(uint32_t low_address, uint32_t high_address, uint32_t 
   return true;
 }
 
-bool BaseHeap::AllocRangeLocked(uint32_t low_address, uint32_t high_address, uint32_t size,
-                                uint32_t alignment, uint32_t allocation_type, uint32_t protect,
-                                bool top_down, uint32_t* out_address) {
+bool BaseHeap::AllocRangeLocked(u32 low_address, u32 high_address, u32 size, u32 alignment,
+                                u32 allocation_type, u32 protect, bool top_down, u32* out_address) {
   *out_address = 0;
   const bool title_memory = (allocation_type & runtime::kMemoryAllocationTitle) != 0;
   allocation_type &= ~static_cast<u32>(runtime::kMemoryAllocationTitle);
 
   alignment = rex::round_up(alignment, page_size_);
-  uint32_t page_count = get_page_count(size, page_size_, page_size_shift_);
+  u32 page_count = get_page_count(size, page_size_, page_size_shift_);
   low_address = std::max(heap_base_, rex::align(low_address, alignment));
   high_address = std::min(heap_base_ + (heap_size_ - 1), rex::align(high_address, alignment));
   if (high_address < low_address) {
     REX_FAIL(system, false, "BaseHeap::Alloc invalid requested range");
   }
-  uint32_t low_page_number = (low_address - heap_base_) >> page_size_shift_;
-  uint32_t high_page_number = (high_address - heap_base_) >> page_size_shift_;
-  low_page_number = std::min(static_cast<uint32_t>(page_table_.size()) - 1, low_page_number);
-  high_page_number = std::min(static_cast<uint32_t>(page_table_.size()) - 1, high_page_number);
+  u32 low_page_number = (low_address - heap_base_) >> page_size_shift_;
+  u32 high_page_number = (high_address - heap_base_) >> page_size_shift_;
+  low_page_number = std::min(static_cast<u32>(page_table_.size()) - 1, low_page_number);
+  high_page_number = std::min(static_cast<u32>(page_table_.size()) - 1, high_page_number);
   if (high_page_number < low_page_number) {
     REX_FAIL(system, false, "BaseHeap::Alloc invalid requested page range");
   }
 
-  uint32_t available_page_count = high_page_number - low_page_number + 1;
+  u32 available_page_count = high_page_number - low_page_number + 1;
   if (!page_count || page_count > available_page_count) {
     REX_FAIL(system, false, "BaseHeap::Alloc page count too big for requested range");
   }
@@ -1148,22 +1142,22 @@ bool BaseHeap::AllocRangeLocked(uint32_t low_address, uint32_t high_address, uin
   std::lock_guard<std::recursive_mutex> heap_lock(heap_mutex_);
 
   // Scan aligned base pages, then check that the following pages are free.
-  uint32_t start_page_number = UINT_MAX;
-  uint32_t end_page_number = UINT_MAX;
-  uint32_t page_scan_stride = alignment >> page_size_shift_;
-  uint32_t max_base_page_number = high_page_number + 1 - page_count;
+  u32 start_page_number = UINT_MAX;
+  u32 end_page_number = UINT_MAX;
+  u32 page_scan_stride = alignment >> page_size_shift_;
+  u32 max_base_page_number = high_page_number + 1 - page_count;
   if (top_down) {
     max_base_page_number -= max_base_page_number % page_scan_stride;
-    for (int64_t base_page_number = max_base_page_number; base_page_number >= low_page_number;
+    for (i64 base_page_number = max_base_page_number; base_page_number >= low_page_number;
          base_page_number -= page_scan_stride) {
       if (page_table_[base_page_number].state != 0) {
         continue;
       }
-      start_page_number = static_cast<uint32_t>(base_page_number);
-      end_page_number = static_cast<uint32_t>(base_page_number) + page_count - 1;
+      start_page_number = static_cast<u32>(base_page_number);
+      end_page_number = static_cast<u32>(base_page_number) + page_count - 1;
       REX_ASSERT(end_page_number < page_table_.size());
       bool any_taken = false;
-      for (uint32_t page_number = static_cast<uint32_t>(base_page_number);
+      for (u32 page_number = static_cast<u32>(base_page_number);
            !any_taken && page_number <= end_page_number; ++page_number) {
         bool is_free = page_table_[page_number].state == 0;
         if (!is_free) {
@@ -1184,7 +1178,7 @@ bool BaseHeap::AllocRangeLocked(uint32_t low_address, uint32_t high_address, uin
       start_page_number = end_page_number = UINT_MAX;
     }
   } else {
-    for (uint32_t base_page_number = low_page_number; base_page_number <= max_base_page_number;
+    for (u32 base_page_number = low_page_number; base_page_number <= max_base_page_number;
          base_page_number += page_scan_stride) {
       if (page_table_[base_page_number].state != 0) {
         continue;
@@ -1192,7 +1186,7 @@ bool BaseHeap::AllocRangeLocked(uint32_t low_address, uint32_t high_address, uin
       start_page_number = base_page_number;
       end_page_number = base_page_number + page_count - 1;
       bool any_taken = false;
-      for (uint32_t page_number = base_page_number; !any_taken && page_number <= end_page_number;
+      for (u32 page_number = base_page_number; !any_taken && page_number <= end_page_number;
            ++page_number) {
         bool is_free = page_table_[page_number].state == 0;
         if (!is_free) {
@@ -1234,7 +1228,7 @@ bool BaseHeap::AllocRangeLocked(uint32_t low_address, uint32_t high_address, uin
     }
   }
 
-  for (uint32_t page_number = start_page_number; page_number <= end_page_number; ++page_number) {
+  for (u32 page_number = start_page_number; page_number <= end_page_number; ++page_number) {
     auto& page_entry = page_table_[page_number];
     if (!page_entry.state) {
       unreserved_page_count_--;
@@ -1255,24 +1249,24 @@ bool BaseHeap::AllocRangeLocked(uint32_t low_address, uint32_t high_address, uin
   return true;
 }
 
-bool BaseHeap::Decommit(uint32_t address, uint32_t size) {
+bool BaseHeap::Decommit(u32 address, u32 size) {
   auto reconcile_lock = AcquireHostPageReconcileLock();
   return DecommitLocked(address, size);
 }
 
-bool BaseHeap::DecommitLocked(uint32_t address, uint32_t size) {
-  uint32_t page_count = get_page_count(size, page_size_, page_size_shift_);
-  uint32_t start_page_number = (address - heap_base_) >> page_size_shift_;
-  uint32_t end_page_number = start_page_number + page_count - 1;
-  start_page_number = std::min(static_cast<uint32_t>(page_table_.size()) - 1, start_page_number);
-  end_page_number = std::min(static_cast<uint32_t>(page_table_.size()) - 1, end_page_number);
+bool BaseHeap::DecommitLocked(u32 address, u32 size) {
+  u32 page_count = get_page_count(size, page_size_, page_size_shift_);
+  u32 start_page_number = (address - heap_base_) >> page_size_shift_;
+  u32 end_page_number = start_page_number + page_count - 1;
+  start_page_number = std::min(static_cast<u32>(page_table_.size()) - 1, start_page_number);
+  end_page_number = std::min(static_cast<u32>(page_table_.size()) - 1, end_page_number);
 
   std::lock_guard<std::recursive_mutex> heap_lock(heap_mutex_);
 
   // Mapped memory cannot be decommitted.
 
   u32 released = 0;
-  for (uint32_t page_number = start_page_number; page_number <= end_page_number; ++page_number) {
+  for (u32 page_number = start_page_number; page_number <= end_page_number; ++page_number) {
     auto& page_entry = page_table_[page_number];
     released += page_entry.title;
     page_entry.title = 0;
@@ -1287,16 +1281,16 @@ bool BaseHeap::DecommitLocked(uint32_t address, uint32_t size) {
   return true;
 }
 
-bool BaseHeap::Release(uint32_t base_address, uint32_t* out_region_size) {
+bool BaseHeap::Release(u32 base_address, u32* out_region_size) {
   auto reconcile_lock = AcquireHostPageReconcileLock();
   return ReleaseLocked(base_address, out_region_size);
 }
 
-bool BaseHeap::ReleaseLocked(uint32_t base_address, uint32_t* out_region_size) {
+bool BaseHeap::ReleaseLocked(u32 base_address, u32* out_region_size) {
   std::lock_guard<std::recursive_mutex> heap_lock(heap_mutex_);
 
   // Given address must be a region base address.
-  uint32_t base_page_number = (base_address - heap_base_) >> page_size_shift_;
+  u32 base_page_number = (base_address - heap_base_) >> page_size_shift_;
   auto base_page_entry = page_table_[base_page_number];
   if (!base_page_entry.state || base_page_entry.base_address != base_page_number) {
     REX_FAIL(system, false, "BaseHeap::Release failed because address is not a region start");
@@ -1323,9 +1317,9 @@ bool BaseHeap::ReleaseLocked(uint32_t base_address, uint32_t* out_region_size) {
     }
   }
 
-  uint32_t end_page_number = base_page_number + base_page_entry.region_page_count - 1;
+  u32 end_page_number = base_page_number + base_page_entry.region_page_count - 1;
   u32 released = 0;
-  for (uint32_t page_number = base_page_number; page_number <= end_page_number; ++page_number) {
+  for (u32 page_number = base_page_number; page_number <= end_page_number; ++page_number) {
     auto& page_entry = page_table_[page_number];
     released += page_entry.title;
     page_entry.qword = 0;
@@ -1340,26 +1334,25 @@ bool BaseHeap::ReleaseLocked(uint32_t base_address, uint32_t* out_region_size) {
   return true;
 }
 
-bool BaseHeap::Protect(uint32_t address, uint32_t size, uint32_t protect, uint32_t* old_protect) {
+bool BaseHeap::Protect(u32 address, u32 size, u32 protect, u32* old_protect) {
   auto reconcile_lock = AcquireHostPageReconcileLock();
   return ProtectLocked(address, size, protect, old_protect);
 }
 
-bool BaseHeap::ProtectLocked(uint32_t address, uint32_t size, uint32_t protect,
-                             uint32_t* old_protect) {
+bool BaseHeap::ProtectLocked(u32 address, u32 size, u32 protect, u32* old_protect) {
   if (!size) {
     REX_FAIL(system, false, "BaseHeap::Protect failed due to zero size");
   }
 
   // Protect covers every host page the range touches and needs all of them committed.
 
-  uint32_t start_page_number = (address - heap_base_) >> page_size_shift_;
+  u32 start_page_number = (address - heap_base_) >> page_size_shift_;
   if (start_page_number >= page_table_.size()) {
     REX_FAIL(system, false, "BaseHeap::Protect failed due to out-of-bounds base address {:08X}",
              address);
   }
-  uint32_t end_page_number = static_cast<uint32_t>(
-      (static_cast<uint64_t>(address) + size - 1 - heap_base_) >> page_size_shift_);
+  u32 end_page_number =
+      static_cast<u32>((static_cast<u64>(address) + size - 1 - heap_base_) >> page_size_shift_);
   if (end_page_number >= page_table_.size()) {
     REX_FAIL(system, false,
              "BaseHeap::Protect failed due to out-of-bounds range ({:08X} bytes "
@@ -1369,8 +1362,8 @@ bool BaseHeap::ProtectLocked(uint32_t address, uint32_t size, uint32_t protect,
 
   std::lock_guard<std::recursive_mutex> heap_lock(heap_mutex_);
 
-  uint32_t first_base_address = UINT_MAX;
-  for (uint32_t page_number = start_page_number; page_number <= end_page_number; ++page_number) {
+  u32 first_base_address = UINT_MAX;
+  for (u32 page_number = start_page_number; page_number <= end_page_number; ++page_number) {
     auto page_entry = page_table_[page_number];
     if (first_base_address == UINT_MAX) {
       first_base_address = page_entry.base_address;
@@ -1384,7 +1377,7 @@ bool BaseHeap::ProtectLocked(uint32_t address, uint32_t size, uint32_t protect,
 
   // Guest pages smaller than host pages are reconciled after the page table update.
   if (page_size_ >= memory_->system_page_size_) {
-    const uint32_t page_count = end_page_number - start_page_number + 1;
+    const u32 page_count = end_page_number - start_page_number + 1;
     memory::PageAccess old_protect_access;
     if (!rex::memory::Protect(TranslateRelative(start_page_number << page_size_shift_),
                               page_count << page_size_shift_, ToPageAccess(protect),
@@ -1401,7 +1394,7 @@ bool BaseHeap::ProtectLocked(uint32_t address, uint32_t size, uint32_t protect,
     }
   }
 
-  for (uint32_t page_number = start_page_number; page_number <= end_page_number; ++page_number) {
+  for (u32 page_number = start_page_number; page_number <= end_page_number; ++page_number) {
     auto& page_entry = page_table_[page_number];
     page_entry.current_protect = protect;
   }
@@ -1413,8 +1406,8 @@ bool BaseHeap::ProtectLocked(uint32_t address, uint32_t size, uint32_t protect,
   return true;
 }
 
-bool BaseHeap::QueryRegionInfo(uint32_t base_address, HeapAllocationInfo* out_info) {
-  uint32_t start_page_number = (base_address - heap_base_) >> page_size_shift_;
+bool BaseHeap::QueryRegionInfo(u32 base_address, HeapAllocationInfo* out_info) {
+  u32 start_page_number = (base_address - heap_base_) >> page_size_shift_;
   if (start_page_number > page_table_.size()) {
     REX_FAIL(system, false, "BaseHeap::QueryRegionInfo base page out of range");
   }
@@ -1435,7 +1428,7 @@ bool BaseHeap::QueryRegionInfo(uint32_t base_address, HeapAllocationInfo* out_in
     out_info->state = start_page_entry.state;
     out_info->protect = start_page_entry.current_protect;
 
-    for (uint32_t page_number = start_page_number;
+    for (u32 page_number = start_page_number;
          page_number < start_page_entry.base_address + start_page_entry.region_page_count;
          ++page_number) {
       auto page_entry = page_table_[page_number];
@@ -1447,8 +1440,7 @@ bool BaseHeap::QueryRegionInfo(uint32_t base_address, HeapAllocationInfo* out_in
       out_info->region_size += page_size_;
     }
   } else {
-    for (uint32_t page_number = start_page_number; page_number < page_table_.size();
-         ++page_number) {
+    for (u32 page_number = start_page_number; page_number < page_table_.size(); ++page_number) {
       auto page_entry = page_table_[page_number];
       if (page_entry.state) {
         break;
@@ -1459,8 +1451,8 @@ bool BaseHeap::QueryRegionInfo(uint32_t base_address, HeapAllocationInfo* out_in
   return true;
 }
 
-bool BaseHeap::QuerySize(uint32_t address, uint32_t* out_size) {
-  uint32_t page_number = (address - heap_base_) >> page_size_shift_;
+bool BaseHeap::QuerySize(u32 address, u32* out_size) {
+  u32 page_number = (address - heap_base_) >> page_size_shift_;
   if (page_number > page_table_.size()) {
     REXLOG_ERROR(system, "BaseHeap::QuerySize base page out of range");
     *out_size = 0;
@@ -1472,8 +1464,8 @@ bool BaseHeap::QuerySize(uint32_t address, uint32_t* out_size) {
   return true;
 }
 
-bool BaseHeap::QueryProtect(uint32_t address, uint32_t* out_protect) {
-  uint32_t page_number = (address - heap_base_) >> page_size_shift_;
+bool BaseHeap::QueryProtect(u32 address, u32* out_protect) {
+  u32 page_number = (address - heap_base_) >> page_size_shift_;
   if (page_number > page_table_.size()) {
     REXLOG_ERROR(system, "BaseHeap::QueryProtect base page out of range");
     *out_protect = 0;
@@ -1485,19 +1477,19 @@ bool BaseHeap::QueryProtect(uint32_t address, uint32_t* out_protect) {
   return true;
 }
 
-rex::memory::PageAccess BaseHeap::QueryRangeAccess(uint32_t low_address, uint32_t high_address) {
+rex::memory::PageAccess BaseHeap::QueryRangeAccess(u32 low_address, u32 high_address) {
   if (low_address > high_address || low_address < heap_base_ ||
       (high_address - heap_base_) >= heap_size_) {
     return rex::memory::PageAccess::kNoAccess;
   }
-  uint32_t low_page_number = (low_address - heap_base_) >> page_size_shift_;
-  uint32_t high_page_number = (high_address - heap_base_) >> page_size_shift_;
+  u32 low_page_number = (low_address - heap_base_) >> page_size_shift_;
+  u32 high_page_number = (high_address - heap_base_) >> page_size_shift_;
   bool all_readable = true;
   bool all_writable = true;
   {
     std::lock_guard<std::recursive_mutex> heap_lock(heap_mutex_);
-    for (uint32_t i = low_page_number; i <= high_page_number; ++i) {
-      uint32_t page_protect = page_table_[i].current_protect;
+    for (u32 i = low_page_number; i <= high_page_number; ++i) {
+      u32 page_protect = page_table_[i].current_protect;
       if (!(page_protect & runtime::kMemoryProtectRead)) {
         all_readable = false;
       }
@@ -1520,8 +1512,8 @@ VirtualHeap::VirtualHeap() = default;
 
 VirtualHeap::~VirtualHeap() = default;
 
-void VirtualHeap::Initialize(runtime::Memory* memory, uint8_t* membase, HeapType heap_type,
-                             uint32_t heap_base, uint32_t heap_size, uint32_t page_size) {
+void VirtualHeap::Initialize(runtime::Memory* memory, u8* membase, HeapType heap_type,
+                             u32 heap_base, u32 heap_size, u32 page_size) {
   BaseHeap::Initialize(memory, membase, heap_type, heap_base, heap_size, page_size);
 }
 
@@ -1529,15 +1521,15 @@ PhysicalHeap::PhysicalHeap() : parent_heap_(nullptr) {}
 
 PhysicalHeap::~PhysicalHeap() = default;
 
-void PhysicalHeap::Initialize(runtime::Memory* memory, uint8_t* membase, HeapType heap_type,
-                              uint32_t heap_base, uint32_t heap_size, uint32_t page_size,
+void PhysicalHeap::Initialize(runtime::Memory* memory, u8* membase, HeapType heap_type,
+                              u32 heap_base, u32 heap_size, u32 page_size,
                               VirtualHeap* parent_heap) {
-  const uint32_t host_address_offset = detail::PhysicalHostOffset(heap_base);
+  const u32 host_address_offset = detail::PhysicalHostOffset(heap_base);
 
   BaseHeap::Initialize(memory, membase, heap_type, heap_base, heap_size, page_size,
                        host_address_offset);
   parent_heap_ = parent_heap;
-  system_page_size_ = static_cast<uint32_t>(rex::memory::page_size());
+  system_page_size_ = static_cast<u32>(rex::memory::page_size());
 
   system_page_count_ =
       (static_cast<size_t>(heap_size_) + host_address_offset + (system_page_size_ - 1)) /
@@ -1545,8 +1537,8 @@ void PhysicalHeap::Initialize(runtime::Memory* memory, uint8_t* membase, HeapTyp
   system_page_flags_.resize((system_page_count_ + 63) / 64);
 }
 
-bool PhysicalHeap::Alloc(uint32_t size, uint32_t alignment, uint32_t allocation_type,
-                         uint32_t protect, bool top_down, uint32_t* out_address) {
+bool PhysicalHeap::Alloc(u32 size, u32 alignment, u32 allocation_type, u32 protect, bool top_down,
+                         u32* out_address) {
   *out_address = 0;
 
   // Top-down by default, the parent heap is bottom-up so this avoids collisions.
@@ -1560,15 +1552,15 @@ bool PhysicalHeap::Alloc(uint32_t size, uint32_t alignment, uint32_t allocation_
   std::lock_guard<std::recursive_mutex> heap_lock(heap_mutex_);
 
   // The parent heap allocation gives a physical address in the first 512MB.
-  uint32_t parent_heap_start = GetPhysicalAddress(heap_base_);
-  uint32_t parent_heap_end = GetPhysicalAddress(heap_base_ + (heap_size_ - 1));
-  uint32_t parent_address;
+  u32 parent_heap_start = GetPhysicalAddress(heap_base_);
+  u32 parent_heap_end = GetPhysicalAddress(heap_base_ + (heap_size_ - 1));
+  u32 parent_address;
   if (!parent_heap_->AllocRangeLocked(parent_heap_start, parent_heap_end, size, alignment,
                                       allocation_type, protect, top_down, &parent_address)) {
     REX_FAIL(system, false, "PhysicalHeap::Alloc unable to alloc physical memory in parent heap");
   }
 
-  uint32_t address = heap_base_ + parent_address - parent_heap_start;
+  u32 address = heap_base_ + parent_address - parent_heap_start;
   if (!BaseHeap::AllocFixedLocked(
           address, size, alignment,
           allocation_type & ~static_cast<u32>(runtime::kMemoryAllocationTitle), protect)) {
@@ -1582,8 +1574,8 @@ bool PhysicalHeap::Alloc(uint32_t size, uint32_t alignment, uint32_t allocation_
   return true;
 }
 
-bool PhysicalHeap::AllocFixed(uint32_t base_address, uint32_t size, uint32_t alignment,
-                              uint32_t allocation_type, uint32_t protect) {
+bool PhysicalHeap::AllocFixed(u32 base_address, u32 size, u32 alignment, u32 allocation_type,
+                              u32 protect) {
   size = rex::round_up(size, page_size_);
   alignment = rex::round_up(alignment, page_size_);
 
@@ -1592,7 +1584,7 @@ bool PhysicalHeap::AllocFixed(uint32_t base_address, uint32_t size, uint32_t ali
   std::lock_guard<std::recursive_mutex> heap_lock(heap_mutex_);
 
   // The parent heap allocation gives a physical address in the first 512MB.
-  uint32_t parent_base_address = GetPhysicalAddress(base_address);
+  u32 parent_base_address = GetPhysicalAddress(base_address);
   std::lock_guard<std::recursive_mutex> parent_lock(parent_heap_->heap_mutex_);
   const u32 parent_size = parent_base_address % alignment == 0 ? rex::align(size, alignment) : size;
   const u32 parent_first =
@@ -1617,7 +1609,7 @@ bool PhysicalHeap::AllocFixed(uint32_t base_address, uint32_t size, uint32_t ali
     REX_FAIL(system, false, "PhysicalHeap::Alloc unable to alloc physical memory in parent heap");
   }
 
-  uint32_t address = heap_base_ + parent_base_address - GetPhysicalAddress(heap_base_);
+  u32 address = heap_base_ + parent_base_address - GetPhysicalAddress(heap_base_);
   if (!BaseHeap::AllocFixedLocked(
           address, size, page_size_,
           allocation_type & ~static_cast<u32>(runtime::kMemoryAllocationTitle), protect)) {
@@ -1633,9 +1625,8 @@ bool PhysicalHeap::AllocFixed(uint32_t base_address, uint32_t size, uint32_t ali
   return true;
 }
 
-bool PhysicalHeap::AllocRange(uint32_t low_address, uint32_t high_address, uint32_t size,
-                              uint32_t alignment, uint32_t allocation_type, uint32_t protect,
-                              bool top_down, uint32_t* out_address) {
+bool PhysicalHeap::AllocRange(u32 low_address, u32 high_address, u32 size, u32 alignment,
+                              u32 allocation_type, u32 protect, bool top_down, u32* out_address) {
   *out_address = 0;
 
   size = rex::round_up(size, page_size_);
@@ -1648,15 +1639,15 @@ bool PhysicalHeap::AllocRange(uint32_t low_address, uint32_t high_address, uint3
   // The parent heap allocation gives a physical address in the first 512MB.
   low_address = std::max(heap_base_, low_address);
   high_address = std::min(heap_base_ + (heap_size_ - 1), high_address);
-  uint32_t parent_low_address = GetPhysicalAddress(low_address);
-  uint32_t parent_high_address = GetPhysicalAddress(high_address);
-  uint32_t parent_address;
+  u32 parent_low_address = GetPhysicalAddress(low_address);
+  u32 parent_high_address = GetPhysicalAddress(high_address);
+  u32 parent_address;
   if (!parent_heap_->AllocRangeLocked(parent_low_address, parent_high_address, size, alignment,
                                       allocation_type, protect, top_down, &parent_address)) {
     REX_FAIL(system, false, "PhysicalHeap::Alloc unable to alloc physical memory in parent heap");
   }
 
-  uint32_t address = heap_base_ + parent_address - GetPhysicalAddress(heap_base_);
+  u32 address = heap_base_ + parent_address - GetPhysicalAddress(heap_base_);
   if (!BaseHeap::AllocFixedLocked(
           address, size, page_size_,
           allocation_type & ~static_cast<u32>(runtime::kMemoryAllocationTitle), protect)) {
@@ -1670,15 +1661,15 @@ bool PhysicalHeap::AllocRange(uint32_t low_address, uint32_t high_address, uint3
   return true;
 }
 
-bool PhysicalHeap::AllocSystemHeap(uint32_t size, uint32_t alignment, uint32_t allocation_type,
-                                   uint32_t protect, bool top_down, uint32_t* out_address) {
+bool PhysicalHeap::AllocSystemHeap(u32 size, u32 alignment, u32 allocation_type, u32 protect,
+                                   bool top_down, u32* out_address) {
   return Alloc(size, alignment, allocation_type, protect, top_down, out_address);
 }
 
-bool PhysicalHeap::Decommit(uint32_t address, uint32_t size) {
+bool PhysicalHeap::Decommit(u32 address, u32 size) {
   std::lock_guard lock(memory_->watch_mutex_);
 
-  uint32_t parent_address = GetPhysicalAddress(address);
+  u32 parent_address = GetPhysicalAddress(address);
   if (!parent_heap_->DecommitLocked(parent_address, size)) {
     REX_FAIL(system, false, "PhysicalHeap::Decommit failed due to parent heap failure");
   }
@@ -1688,16 +1679,16 @@ bool PhysicalHeap::Decommit(uint32_t address, uint32_t size) {
   return BaseHeap::DecommitLocked(address, size);
 }
 
-bool PhysicalHeap::Release(uint32_t base_address, uint32_t* out_region_size) {
+bool PhysicalHeap::Release(u32 base_address, u32* out_region_size) {
   std::lock_guard lock(memory_->watch_mutex_);
 
-  uint32_t parent_base_address = GetPhysicalAddress(base_address);
+  u32 parent_base_address = GetPhysicalAddress(base_address);
   if (!parent_heap_->ReleaseLocked(parent_base_address, out_region_size)) {
     REX_FAIL(system, false, "PhysicalHeap::Release failed due to parent heap failure");
   }
 
   // Invalidate here, Alloc cannot see callbacks enabled in other heaps mapping the memory.
-  uint32_t region_size;
+  u32 region_size;
   if (QuerySize(base_address, &region_size)) {
     TriggerCallbacksLocked(base_address, region_size, true, true);
   }
@@ -1705,8 +1696,7 @@ bool PhysicalHeap::Release(uint32_t base_address, uint32_t* out_region_size) {
   return BaseHeap::ReleaseLocked(base_address, out_region_size);
 }
 
-bool PhysicalHeap::Protect(uint32_t address, uint32_t size, uint32_t protect,
-                           uint32_t* old_protect) {
+bool PhysicalHeap::Protect(u32 address, u32 size, u32 protect, u32* old_protect) {
   std::lock_guard lock(memory_->watch_mutex_);
 
   // Only invalidate when making writable again, not when marking a range immutable.
@@ -1736,14 +1726,14 @@ bool PhysicalHeap::Protect(uint32_t address, uint32_t size, uint32_t protect,
  * @param enable_invalidation_notifications True to notify when the guest writes the range.
  * @param enable_data_providers True to enable data providers, unsupported.
  */
-void PhysicalHeap::EnableAccessCallbacks(uint32_t physical_address, uint32_t length,
+void PhysicalHeap::EnableAccessCallbacks(u32 physical_address, u32 length,
                                          bool enable_invalidation_notifications,
                                          bool enable_data_providers) {
   REX_ASSERT(!enable_data_providers);
   if (!enable_invalidation_notifications && !enable_data_providers) {
     return;
   }
-  uint32_t physical_address_offset = GetPhysicalAddress(heap_base_);
+  u32 physical_address_offset = GetPhysicalAddress(heap_base_);
   if (physical_address < physical_address_offset) {
     if (physical_address_offset - physical_address >= length) {
       return;
@@ -1751,7 +1741,7 @@ void PhysicalHeap::EnableAccessCallbacks(uint32_t physical_address, uint32_t len
     length -= physical_address_offset - physical_address;
     physical_address = physical_address_offset;
   }
-  uint32_t heap_relative_address = physical_address - physical_address_offset;
+  u32 heap_relative_address = physical_address - physical_address_offset;
   if (heap_relative_address >= heap_size_) {
     return;
   }
@@ -1760,8 +1750,8 @@ void PhysicalHeap::EnableAccessCallbacks(uint32_t physical_address, uint32_t len
     return;
   }
 
-  uint32_t system_page_first = (heap_relative_address + host_address_offset()) / system_page_size_;
-  uint32_t system_page_last =
+  u32 system_page_first = (heap_relative_address + host_address_offset()) / system_page_size_;
+  u32 system_page_last =
       (heap_relative_address + length - 1 + host_address_offset()) / system_page_size_;
   system_page_last = std::min(system_page_last, system_page_count_ - 1);
   REX_ASSERT(system_page_first <= system_page_last);
@@ -1769,13 +1759,13 @@ void PhysicalHeap::EnableAccessCallbacks(uint32_t physical_address, uint32_t len
   rex::memory::PageAccess protect_access = enable_data_providers
                                                ? rex::memory::PageAccess::kNoAccess
                                                : rex::memory::PageAccess::kReadOnly;
-  uint8_t* protect_base = membase_ + heap_base_;
-  uint32_t protect_system_page_first = UINT32_MAX;
+  u8* protect_base = membase_ + heap_base_;
+  u32 protect_system_page_first = UINT32_MAX;
   std::lock_guard lock(memory_->watch_mutex_);
-  for (uint32_t i = system_page_first; i <= system_page_last; ++i) {
+  for (u32 i = system_page_first; i <= system_page_last; ++i) {
     SystemPageFlagsBlock& page_flags_block = system_page_flags_[i >> 6];
-    uint64_t page_flags_bit = static_cast<uint64_t>(1) << (i & 63);
-    uint32_t guest_page_number =
+    u64 page_flags_bit = static_cast<u64>(1) << (i & 63);
+    u32 guest_page_number =
         rex::sat_sub(i * system_page_size_, host_address_offset()) >> page_size_shift_;
     if (guest_page_number >= page_table_.size()) {
       REXLOG_ERROR(system, "Access callback page OOB: system_page={} guest_page={} offset=0x{:X}",
@@ -1816,13 +1806,13 @@ void PhysicalHeap::EnableAccessCallbacks(uint32_t physical_address, uint32_t len
   }
 }
 
-bool PhysicalHeap::TriggerCallbacks(uint32_t virtual_address, uint32_t length, bool is_write,
+bool PhysicalHeap::TriggerCallbacks(u32 virtual_address, u32 length, bool is_write,
                                     bool unwatch_exact_range, bool unprotect) {
   std::lock_guard lock(memory_->watch_mutex_);
   return TriggerCallbacksLocked(virtual_address, length, is_write, unwatch_exact_range, unprotect);
 }
 
-bool PhysicalHeap::TriggerCallbacksLocked(uint32_t virtual_address, uint32_t length, bool is_write,
+bool PhysicalHeap::TriggerCallbacksLocked(u32 virtual_address, u32 length, bool is_write,
                                           bool unwatch_exact_range, bool unprotect) {
   REX_ASSERT(is_write);
   if (!is_write) {
@@ -1836,7 +1826,7 @@ bool PhysicalHeap::TriggerCallbacksLocked(uint32_t virtual_address, uint32_t len
     length -= heap_base_ - virtual_address;
     virtual_address = heap_base_;
   }
-  uint32_t heap_relative_address = virtual_address - heap_base_;
+  u32 heap_relative_address = virtual_address - heap_base_;
   if (heap_relative_address >= heap_size_) {
     return false;
   }
@@ -1845,22 +1835,22 @@ bool PhysicalHeap::TriggerCallbacksLocked(uint32_t virtual_address, uint32_t len
     return false;
   }
 
-  uint32_t system_page_first = (heap_relative_address + host_address_offset()) / system_page_size_;
-  uint32_t system_page_last =
+  u32 system_page_first = (heap_relative_address + host_address_offset()) / system_page_size_;
+  u32 system_page_last =
       (heap_relative_address + length - 1 + host_address_offset()) / system_page_size_;
   system_page_last = std::min(system_page_last, system_page_count_ - 1);
   REX_ASSERT(system_page_first <= system_page_last);
-  uint32_t block_index_first = system_page_first >> 6;
-  uint32_t block_index_last = system_page_last >> 6;
+  u32 block_index_first = system_page_first >> 6;
+  u32 block_index_last = system_page_last >> 6;
 
   bool any_watched = false;
-  for (uint32_t i = block_index_first; i <= block_index_last; ++i) {
-    uint64_t block = system_page_flags_[i].notify_on_invalidation;
+  for (u32 i = block_index_first; i <= block_index_last; ++i) {
+    u64 block = system_page_flags_[i].notify_on_invalidation;
     if (i == block_index_first) {
-      block &= ~((static_cast<uint64_t>(1) << (system_page_first & 63)) - 1);
+      block &= ~((static_cast<u64>(1) << (system_page_first & 63)) - 1);
     }
     if (i == block_index_last && (system_page_last & 63) != 63) {
-      block &= (static_cast<uint64_t>(1) << ((system_page_last & 63) + 1)) - 1;
+      block &= (static_cast<u64>(1) << ((system_page_last & 63) + 1)) - 1;
     }
     if (block) {
       any_watched = true;
@@ -1874,34 +1864,34 @@ bool PhysicalHeap::TriggerCallbacksLocked(uint32_t virtual_address, uint32_t len
   if (!unprotect) {
     unwatch_exact_range = true;
   }
-  uint32_t physical_address_offset = GetPhysicalAddress(heap_base_);
-  uint32_t physical_address_start =
+  u32 physical_address_offset = GetPhysicalAddress(heap_base_);
+  u32 physical_address_start =
       rex::sat_sub(system_page_first * system_page_size_, host_address_offset()) +
       physical_address_offset;
-  uint32_t physical_length =
+  u32 physical_length =
       std::min(rex::sat_sub(system_page_last * system_page_size_ + system_page_size_,
                             host_address_offset()) +
                    physical_address_offset - physical_address_start,
                heap_size_ - (physical_address_start - physical_address_offset));
-  uint32_t unwatch_first = 0;
-  uint32_t unwatch_last = UINT32_MAX;
+  u32 unwatch_first = 0;
+  u32 unwatch_last = UINT32_MAX;
   for (const auto& invalidation_callback : memory_->physical_memory_invalidation_callbacks_) {
-    std::pair<uint32_t, uint32_t> callback_unwatch_range =
+    std::pair<u32, u32> callback_unwatch_range =
         invalidation_callback->first(invalidation_callback->second, physical_address_start,
                                      physical_length, unwatch_exact_range);
     if (!unwatch_exact_range) {
       unwatch_first = std::max(unwatch_first, callback_unwatch_range.first);
-      unwatch_last = std::min(
-          unwatch_last,
-          rex::sat_add(callback_unwatch_range.first,
-                       std::max(callback_unwatch_range.second, static_cast<uint32_t>(1)) - 1));
+      unwatch_last =
+          std::min(unwatch_last,
+                   rex::sat_add(callback_unwatch_range.first,
+                                std::max(callback_unwatch_range.second, static_cast<u32>(1)) - 1));
     }
   }
   if (!unwatch_exact_range) {
     unwatch_first = std::min(unwatch_first, physical_address_start);
     unwatch_last = std::max(unwatch_last, physical_address_start + physical_length - 1);
     // Unprotect at most 4MB, which caps the page loop at 1024 iterations.
-    const uint32_t kMaxUnwatchExcess = 4 * 1024 * 1024;
+    const u32 kMaxUnwatchExcess = 4 * 1024 * 1024;
     unwatch_first = std::max(unwatch_first, physical_address_start & ~(kMaxUnwatchExcess - 1));
     unwatch_last = std::min(
         unwatch_last, (physical_address_start + physical_length - 1) | (kMaxUnwatchExcess - 1));
@@ -1919,13 +1909,13 @@ bool PhysicalHeap::TriggerCallbacksLocked(uint32_t virtual_address, uint32_t len
   }
 
   if (unprotect) {
-    uint8_t* protect_base = membase_ + heap_base_;
-    uint32_t unprotect_system_page_first = UINT32_MAX;
-    for (uint32_t i = system_page_first; i <= system_page_last; ++i) {
+    u8* protect_base = membase_ + heap_base_;
+    u32 unprotect_system_page_first = UINT32_MAX;
+    for (u32 i = system_page_first; i <= system_page_last; ++i) {
       bool unprotect_page = (system_page_flags_[i >> 6].notify_on_invalidation &
-                             (static_cast<uint64_t>(1) << (i & 63))) != 0;
+                             (static_cast<u64>(1) << (i & 63))) != 0;
       if (unprotect_page) {
-        uint32_t guest_page_number =
+        u32 guest_page_number =
             rex::sat_sub(i * system_page_size_, host_address_offset()) >> page_size_shift_;
         if (ToPageAccess(page_table_[guest_page_number].current_protect) !=
             rex::memory::PageAccess::kReadWrite) {
@@ -1955,13 +1945,13 @@ bool PhysicalHeap::TriggerCallbacksLocked(uint32_t virtual_address, uint32_t len
     }
   }
 
-  for (uint32_t i = block_index_first; i <= block_index_last; ++i) {
-    uint64_t mask = 0;
+  for (u32 i = block_index_first; i <= block_index_last; ++i) {
+    u64 mask = 0;
     if (i == block_index_first) {
-      mask |= (static_cast<uint64_t>(1) << (system_page_first & 63)) - 1;
+      mask |= (static_cast<u64>(1) << (system_page_first & 63)) - 1;
     }
     if (i == block_index_last && (system_page_last & 63) != 63) {
-      mask |= ~((static_cast<uint64_t>(1) << ((system_page_last & 63) + 1)) - 1);
+      mask |= ~((static_cast<u64>(1) << ((system_page_last & 63) + 1)) - 1);
     }
     system_page_flags_[i].notify_on_invalidation &= mask;
   }
@@ -1977,16 +1967,16 @@ std::unique_lock<rex::platform::RankedMutex> PhysicalHeap::AcquireHostPageReconc
   return lock;
 }
 
-bool PhysicalHeap::IsHostPageWriteWatched(uint32_t host_page_number) const {
+bool PhysicalHeap::IsHostPageWriteWatched(u32 host_page_number) const {
   // Indices count host pages from membase_ + heap_base_, including host_address_offset().
   if (host_page_number >= system_page_count_) {
     return false;
   }
   return (system_page_flags_[host_page_number >> 6].notify_on_invalidation &
-          (static_cast<uint64_t>(1) << (host_page_number & 63))) != 0;
+          (static_cast<u64>(1) << (host_page_number & 63))) != 0;
 }
 
-uint32_t PhysicalHeap::GetPhysicalAddress(uint32_t address) const {
+u32 PhysicalHeap::GetPhysicalAddress(u32 address) const {
   REX_ASSERT(address >= heap_base_);
   address -= heap_base_;
   REX_ASSERT(address < heap_size_);

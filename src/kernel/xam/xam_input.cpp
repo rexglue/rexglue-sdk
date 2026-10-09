@@ -27,8 +27,8 @@ using rex::hid::X_INPUT_KEYSTROKE;
 using rex::hid::X_INPUT_STATE;
 using rex::hid::X_INPUT_VIBRATION;
 
-constexpr uint32_t XINPUT_FLAG_GAMEPAD = 0x01;
-constexpr uint32_t XINPUT_FLAG_ANY_USER = 1 << 30;
+constexpr u32 XINPUT_FLAG_GAMEPAD = 0x01;
+constexpr u32 XINPUT_FLAG_ANY_USER = 1 << 30;
 
 rex::hid::IBackend& HID() {
   return runtime::Current().hid();
@@ -46,7 +46,7 @@ u32 XamEnableInactivityProcessing_entry([[maybe_unused]] u32 unk, [[maybe_unused
 
 u32 XamInputGetCapabilities_entry(u32 user_index, u32 flags, ppc_ptr_t<X_INPUT_CAPABILITIES> caps) {
   REXLOG_TRACE(kernel, "XAM XamInputGetCapabilities called: user={}, flags=0x{:X}",
-               static_cast<uint32_t>(user_index), static_cast<uint32_t>(flags));
+               static_cast<u32>(user_index), static_cast<u32>(flags));
   if (!caps) {
     return X_ERROR_BAD_ARGUMENTS;
   }
@@ -55,7 +55,7 @@ u32 XamInputGetCapabilities_entry(u32 user_index, u32 flags, ppc_ptr_t<X_INPUT_C
     return X_ERROR_DEVICE_NOT_CONNECTED;
   }
 
-  uint32_t actual_user_index = user_index;
+  u32 actual_user_index = user_index;
   if ((actual_user_index & 0xFF) == 0xFF || (flags & XINPUT_FLAG_ANY_USER)) {
     actual_user_index = 0;
   }
@@ -79,7 +79,7 @@ u32 XamInputGetCapabilitiesEx_entry(u32 unk, u32 user_index, u32 flags,
     return X_ERROR_DEVICE_NOT_CONNECTED;
   }
 
-  uint32_t actual_user_index = user_index;
+  u32 actual_user_index = user_index;
   if ((actual_user_index & 0xFF) == 0xFF || (flags & XINPUT_FLAG_ANY_USER)) {
     actual_user_index = 0;
   }
@@ -98,14 +98,14 @@ u32 XamInputGetState_entry(u32 user_index, u32 flags, ppc_ptr_t<X_INPUT_STATE> i
   static int call_count = 0;
   if (++call_count <= 5) {
     REXLOG_TRACE(kernel, "XAM XamInputGetState called: user={}, flags=0x{:X}",
-                 static_cast<uint32_t>(user_index), static_cast<uint32_t>(flags));
+                 static_cast<u32>(user_index), static_cast<u32>(flags));
   }
 
   if ((flags & 0xFF) && (flags & XINPUT_FLAG_GAMEPAD) == 0) {
     return X_ERROR_DEVICE_NOT_CONNECTED;
   }
 
-  uint32_t actual_user_index = user_index;
+  u32 actual_user_index = user_index;
   if ((actual_user_index & 0xFF) == 0xFF || (flags & XINPUT_FLAG_ANY_USER)) {
     actual_user_index = 0;
   }
@@ -126,7 +126,7 @@ u32 XamInputSetState_entry(u32 user_index, u32 unk, ppc_ptr_t<X_INPUT_VIBRATION>
     return X_ERROR_BAD_ARGUMENTS;
   }
 
-  uint32_t actual_user_index = user_index;
+  u32 actual_user_index = user_index;
   if ((user_index & 0xFF) == 0xFF) {
     actual_user_index = 0;
   }
@@ -145,7 +145,7 @@ u32 XamInputGetKeystroke_entry(u32 user_index, u32 flags, ppc_ptr_t<X_INPUT_KEYS
     return X_ERROR_DEVICE_NOT_CONNECTED;
   }
 
-  uint32_t actual_user_index = user_index;
+  u32 actual_user_index = user_index;
   if ((actual_user_index & 0xFF) == 0xFF || (flags & XINPUT_FLAG_ANY_USER)) {
     actual_user_index = 0;
   }
@@ -169,7 +169,7 @@ u32 XamInputGetKeystrokeEx_entry(mapped_u32 user_index_ptr, u32 flags,
     return X_ERROR_DEVICE_NOT_CONNECTED;
   }
 
-  uint32_t user_index = *user_index_ptr;
+  u32 user_index = *user_index_ptr;
   if ((user_index & 0xFF) == 0xFF || (flags & XINPUT_FLAG_ANY_USER)) {
     user_index = 0;
   }

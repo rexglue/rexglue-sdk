@@ -13,18 +13,20 @@
 #include <cstdint>
 #include <string>
 
+#include <rex/types.h>
+
 namespace rex::runtime {
 
 /** 1 achievement a title can unlock. */
 struct AchievementInfo {
-  uint32_t id = 0;                    /**< Achievement id the title unlocks by. */
+  u32 id = 0;                         /**< Achievement id the title unlocks by. */
   std::string label;                  /**< Short name shown to the player. */
   std::string description;            /**< Text shown once the achievement is unlocked. */
   std::string unachieved_description; /**< Text shown while the achievement is locked. */
   std::string icon_path;              /**< Path of the icon image. */
-  uint32_t image_id = 0;              /**< Image id the title refers to the icon by. */
-  uint32_t gamerscore = 0;            /**< Gamerscore the achievement is worth. */
-  uint32_t flags = 0;                 /**< Achievement flag bits. */
+  u32 image_id = 0;                   /**< Image id the title refers to the icon by. */
+  u32 gamerscore = 0;                 /**< Gamerscore the achievement is worth. */
+  u32 flags = 0;                      /**< Achievement flag bits. */
 };
 
 }  // namespace rex::runtime

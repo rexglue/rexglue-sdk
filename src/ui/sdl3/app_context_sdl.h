@@ -57,7 +57,7 @@ class SDLWindowedAppContext final : public WindowedAppContext {
    *
    * @return The event type.
    */
-  uint32_t paint_event_type() const { return paint_event_type_; }
+  u32 paint_event_type() const { return paint_event_type_; }
 
   /**
    * Registers a window for event routing. UI thread only.
@@ -99,9 +99,9 @@ class SDLWindowedAppContext final : public WindowedAppContext {
   static bool SDLCALL WatchEvent(void* userdata, SDL_Event* event);
 
   std::unordered_map<SDL_WindowID, WindowSDL*> windows_;
-  uint32_t wakeup_event_type_ = 0;
-  uint32_t paint_event_type_ = 0;
-  uint32_t synchronously_handled_quit_events_ = 0;
+  u32 wakeup_event_type_ = 0;
+  u32 paint_event_type_ = 0;
+  u32 synchronously_handled_quit_events_ = 0;
   bool event_watch_registered_ = false;
 };
 

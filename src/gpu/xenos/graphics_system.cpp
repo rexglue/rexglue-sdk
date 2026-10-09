@@ -114,18 +114,16 @@ Result<void> GraphicsSystem::SetupGuestGPU(runtime::FunctionDispatcher& dispatch
 
   vsync_worker_running_ = true;
   auto record = std::make_unique<runtime::ThreadRecord>(*runtime_, 128 * 1024, 0, [this]() {
-    double refresh_rate_hz =
-        std::max(1.0, static_cast<double>(runtime_->video_mode().refresh_rate));
-    uint64_t guest_tick_frequency = Clock::guest_tick_frequency();
-    uint64_t vsync_interval_ticks = std::max(
-        static_cast<uint64_t>(1),
-        static_cast<uint64_t>(static_cast<double>(guest_tick_frequency) / refresh_rate_hz));
-    uint64_t no_vsync_interval_ticks =
-        std::max(static_cast<uint64_t>(1), guest_tick_frequency / 1000);
-    uint64_t last_frame_time = Clock::QueryGuestTickCount();
+    f64 refresh_rate_hz = std::max(1.0, static_cast<f64>(runtime_->video_mode().refresh_rate));
+    u64 guest_tick_frequency = Clock::guest_tick_frequency();
+    u64 vsync_interval_ticks =
+        std::max(static_cast<u64>(1),
+                 static_cast<u64>(static_cast<f64>(guest_tick_frequency) / refresh_rate_hz));
+    u64 no_vsync_interval_ticks = std::max(static_cast<u64>(1), guest_tick_frequency / 1000);
+    u64 last_frame_time = Clock::QueryGuestTickCount();
     while (vsync_worker_running_) {
-      uint64_t current_time = Clock::QueryGuestTickCount();
-      uint64_t interval_ticks =
+      u64 current_time = Clock::QueryGuestTickCount();
+      u64 interval_ticks =
           REXCVAR_GET(::rex::gpu::cvars::vsync) ? vsync_interval_ticks : no_vsync_interval_ticks;
       while (current_time - last_frame_time >= interval_ticks) {
         MarkVblank();
@@ -208,8 +206,8 @@ void GraphicsSystem::WriteRegisterThunk(void* context, u32 addr, u32 value) {
   static_cast<GraphicsSystem*>(context)->WriteRegister(addr, value);
 }
 
-uint32_t GraphicsSystem::ReadRegister(uint32_t addr) {
-  uint32_t r = (addr & 0xFFFF) / 4;
+u32 GraphicsSystem::ReadRegister(u32 addr) {
+  u32 r = (addr & 0xFFFF) / 4;
 
   switch (r) {
     case 0x0F00:  // RB_EDRAM_TIMING
@@ -217,15 +215,15 @@ uint32_t GraphicsSystem::ReadRegister(uint32_t addr) {
     case 0x0F01:  // RB_BC_CONTROL
       return 0x0000200E;
     case 0x194C: {  // R500_D1MODE_V_COUNTER
-      return std::min(runtime_->video_mode().height, static_cast<uint32_t>(0x0FFF));
+      return std::min(runtime_->video_mode().height, static_cast<u32>(0x0FFF));
     }
     case 0x1951:    // interrupt status
       return 1;     // vblank
     case 0x1961: {  // AVIVO_D1MODE_VIEWPORT_SIZE
       // Maximum [width(0x0FFF), height(0x0FFF)].
       const runtime::VideoMode& video_mode = runtime_->video_mode();
-      uint32_t viewport_width = std::min(video_mode.width, static_cast<uint32_t>(0x0FFF));
-      uint32_t viewport_height = std::min(video_mode.height, static_cast<uint32_t>(0x0FFF));
+      u32 viewport_width = std::min(video_mode.width, static_cast<u32>(0x0FFF));
+      u32 viewport_height = std::min(video_mode.height, static_cast<u32>(0x0FFF));
       return (viewport_width << 16) | viewport_height;
     }
     default:
@@ -238,8 +236,8 @@ uint32_t GraphicsSystem::ReadRegister(uint32_t addr) {
   return register_file_.values[r];
 }
 
-void GraphicsSystem::WriteRegister(uint32_t addr, uint32_t value) {
-  uint32_t r = (addr & 0xFFFF) / 4;
+void GraphicsSystem::WriteRegister(u32 addr, u32 value) {
+  u32 r = (addr & 0xFFFF) / 4;
 
   switch (r) {
     case 0x01C5:  // CP_RB_WPTR
@@ -269,7 +267,7 @@ void GraphicsSystem::SetInterruptCallback(u32 callback, u32 user_data) {
   REXLOG_DEBUG(gpu, "SetInterruptCallback({:08X}, {:08X})", callback, user_data);
 }
 
-void GraphicsSystem::DispatchInterruptCallback(uint32_t source, uint32_t cpu) {
+void GraphicsSystem::DispatchInterruptCallback(u32 source, u32 cpu) {
   const u64 interrupt = interrupt_callback_.load(std::memory_order_acquire);
   const u32 callback = static_cast<u32>(interrupt);
   if (!callback) {
@@ -284,7 +282,7 @@ void GraphicsSystem::DispatchInterruptCallback(uint32_t source, uint32_t cpu) {
   }
   thread->SetActiveCPU(cpu);
 
-  uint64_t args[] = {source, interrupt >> 32};
+  u64 args[] = {source, interrupt >> 32};
   function_dispatcher_->ExecuteInterrupt(thread->thread_state(), callback, args,
                                          rex::countof(args));
 }

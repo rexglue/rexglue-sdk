@@ -167,7 +167,7 @@ bool D3D12ImmediateDrawer::Initialize() {
   }
   sampler_heap_cpu_start_ = sampler_heap_->GetCPUDescriptorHandleForHeapStart();
   sampler_heap_gpu_start_ = sampler_heap_->GetGPUDescriptorHandleForHeapStart();
-  uint32_t sampler_size = provider_.GetSamplerDescriptorSize();
+  u32 sampler_size = provider_.GetSamplerDescriptorSize();
   D3D12_SAMPLER_DESC sampler_desc = {};
   sampler_desc.Filter = D3D12_FILTER_MIN_MAG_MIP_POINT;
   sampler_desc.AddressU = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
@@ -175,22 +175,22 @@ bool D3D12ImmediateDrawer::Initialize() {
   sampler_desc.AddressW = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
   sampler_desc.MaxAnisotropy = 1;
   D3D12_CPU_DESCRIPTOR_HANDLE sampler_handle;
-  sampler_handle.ptr = sampler_heap_cpu_start_.ptr +
-                       static_cast<uint32_t>(SamplerIndex::kNearestClamp) * sampler_size;
+  sampler_handle.ptr =
+      sampler_heap_cpu_start_.ptr + static_cast<u32>(SamplerIndex::kNearestClamp) * sampler_size;
   device->CreateSampler(&sampler_desc, sampler_handle);
   sampler_desc.Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR;
-  sampler_handle.ptr = sampler_heap_cpu_start_.ptr +
-                       static_cast<uint32_t>(SamplerIndex::kLinearClamp) * sampler_size;
+  sampler_handle.ptr =
+      sampler_heap_cpu_start_.ptr + static_cast<u32>(SamplerIndex::kLinearClamp) * sampler_size;
   device->CreateSampler(&sampler_desc, sampler_handle);
   sampler_desc.AddressU = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
   sampler_desc.AddressV = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
   sampler_desc.AddressW = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
-  sampler_handle.ptr = sampler_heap_cpu_start_.ptr +
-                       static_cast<uint32_t>(SamplerIndex::kLinearRepeat) * sampler_size;
+  sampler_handle.ptr =
+      sampler_heap_cpu_start_.ptr + static_cast<u32>(SamplerIndex::kLinearRepeat) * sampler_size;
   device->CreateSampler(&sampler_desc, sampler_handle);
   sampler_desc.Filter = D3D12_FILTER_MIN_MAG_MIP_POINT;
-  sampler_handle.ptr = sampler_heap_cpu_start_.ptr +
-                       static_cast<uint32_t>(SamplerIndex::kNearestRepeat) * sampler_size;
+  sampler_handle.ptr =
+      sampler_heap_cpu_start_.ptr + static_cast<u32>(SamplerIndex::kNearestRepeat) * sampler_size;
   device->CreateSampler(&sampler_desc, sampler_handle);
 
   vertex_buffer_pool_ = std::make_unique<D3D12UploadBufferPool>(provider_);
@@ -331,14 +331,14 @@ void D3D12ImmediateDrawer::Begin(gpu::OverlayDrawContext& context, f32 width, f3
   D3D12_VIEWPORT viewport;
   viewport.TopLeftX = 0.0f;
   viewport.TopLeftY = 0.0f;
-  viewport.Width = static_cast<float>(d3d12_ui_draw_context.render_target_width());
-  viewport.Height = static_cast<float>(d3d12_ui_draw_context.render_target_height());
+  viewport.Width = static_cast<f32>(d3d12_ui_draw_context.render_target_width());
+  viewport.Height = static_cast<f32>(d3d12_ui_draw_context.render_target_height());
   viewport.MinDepth = 0.0f;
   viewport.MaxDepth = 1.0f;
   command_list->RSSetViewports(1, &viewport);
 
   command_list->SetGraphicsRootSignature(root_signature_.Get());
-  float coordinate_space_size_inv[2];
+  f32 coordinate_space_size_inv[2];
   coordinate_space_size_inv[0] = 1.0f / coordinate_space_width();
   coordinate_space_size_inv[1] = 1.0f / coordinate_space_height();
   command_list->SetGraphicsRoot32BitConstants(UINT(RootParameter::kCoordinateSpaceSizeInv), 2,
@@ -367,7 +367,7 @@ void D3D12ImmediateDrawer::BeginBatch(const gpu::OverlayBatch& batch) {
   vertex_buffer_view.StrideInBytes = UINT(sizeof(gpu::OverlayVertex));
   vertex_buffer_view.SizeInBytes = UINT(sizeof(gpu::OverlayVertex)) * UINT(batch.vertices.size());
   void* vertex_buffer_mapping = vertex_buffer_pool_->Request(
-      last_paint_submission_index_, vertex_buffer_view.SizeInBytes, sizeof(float), nullptr, nullptr,
+      last_paint_submission_index_, vertex_buffer_view.SizeInBytes, sizeof(f32), nullptr, nullptr,
       &vertex_buffer_view.BufferLocation);
   if (vertex_buffer_mapping == nullptr) {
     REXLOG_ERROR(ui, "D3D12ImmediateDrawer: Failed to get a buffer for {} vertices",
@@ -383,8 +383,8 @@ void D3D12ImmediateDrawer::BeginBatch(const gpu::OverlayBatch& batch) {
     index_buffer_view.SizeInBytes = UINT(sizeof(u16)) * UINT(batch.indices.size());
     index_buffer_view.Format = DXGI_FORMAT_R16_UINT;
     void* index_buffer_mapping = vertex_buffer_pool_->Request(
-        last_paint_submission_index_, index_buffer_view.SizeInBytes, sizeof(uint16_t), nullptr,
-        nullptr, &index_buffer_view.BufferLocation);
+        last_paint_submission_index_, index_buffer_view.SizeInBytes, sizeof(u16), nullptr, nullptr,
+        &index_buffer_view.BufferLocation);
     if (index_buffer_mapping == nullptr) {
       REXLOG_ERROR(ui, "D3D12ImmediateDrawer: Failed to get a buffer for {} indices",
                    batch.indices.size());
@@ -426,8 +426,8 @@ void D3D12ImmediateDrawer::Draw(const gpu::OverlayDraw& draw) {
   auto texture = static_cast<D3D12ImmediateTexture*>(draw.texture);
   ID3D12Resource* texture_resource = texture ? texture->resource() : nullptr;
   bool bind_texture = current_texture_ != texture_resource;
-  uint32_t texture_descriptor_index;
-  uint64_t texture_heap_index = texture_descriptor_pool_->Request(
+  u32 texture_descriptor_index;
+  u64 texture_heap_index = texture_descriptor_pool_->Request(
       last_paint_submission_index_, current_texture_descriptor_heap_index_, bind_texture ? 1 : 0, 1,
       texture_descriptor_index);
   if (texture_heap_index == D3D12DescriptorHeapPool::kHeapIndexInvalid) {
@@ -479,7 +479,7 @@ void D3D12ImmediateDrawer::Draw(const gpu::OverlayDraw& draw) {
     command_list->SetGraphicsRootDescriptorTable(
         UINT(RootParameter::kSampler),
         provider_.OffsetSamplerDescriptor(sampler_heap_gpu_start_,
-                                          static_cast<uint32_t>(sampler_index)));
+                                          static_cast<u32>(sampler_index)));
   }
 
   D3D_PRIMITIVE_TOPOLOGY primitive_topology;

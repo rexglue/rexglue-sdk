@@ -27,14 +27,14 @@ namespace rex::kernel::xboxkrnl {
  * @param previous_state_ptr Receives the previous signal state, or null to skip.
  * @return X_STATUS_SUCCESS, or X_STATUS_INVALID_HANDLE when the handle is not an event.
  */
-REX_RUNTIME_API uint32_t NtSetEvent(uint32_t handle, be_u32* previous_state_ptr);
+REX_RUNTIME_API u32 NtSetEvent(u32 handle, be_u32* previous_state_ptr);
 /**
  * Sets an event to the nonsignaled state.
  *
  * @param handle The event handle.
  * @return X_STATUS_SUCCESS, or X_STATUS_INVALID_HANDLE when the handle is not an event.
  */
-REX_RUNTIME_API uint32_t NtClearEvent(uint32_t handle);
+REX_RUNTIME_API u32 NtClearEvent(u32 handle);
 
 /**
  * Waits on several handles at once.
@@ -47,9 +47,8 @@ REX_RUNTIME_API uint32_t NtClearEvent(uint32_t handle);
  * @param timeout_ptr The timeout in 100 ns units, or null to wait indefinitely.
  * @return The wait status, such as the index of the signaled handle or X_STATUS_TIMEOUT.
  */
-REX_RUNTIME_API uint32_t NtWaitForMultipleObjectsEx(uint32_t count, be_u32* handles,
-                                                    uint32_t wait_type, uint32_t wait_mode,
-                                                    uint32_t alertable, uint64_t* timeout_ptr);
+REX_RUNTIME_API u32 NtWaitForMultipleObjectsEx(u32 count, be_u32* handles, u32 wait_type,
+                                               u32 wait_mode, u32 alertable, u64* timeout_ptr);
 
 /**
  * Waits on a kernel object in guest memory.
@@ -61,9 +60,8 @@ REX_RUNTIME_API uint32_t NtWaitForMultipleObjectsEx(uint32_t count, be_u32* hand
  * @param timeout_ptr The timeout in 100 ns units, or null to wait indefinitely.
  * @return The wait status, such as X_STATUS_SUCCESS or X_STATUS_TIMEOUT.
  */
-REX_RUNTIME_API uint32_t KeWaitForSingleObject(u32 object_address, uint32_t wait_reason,
-                                               uint32_t processor_mode, uint32_t alertable,
-                                               uint64_t* timeout_ptr);
+REX_RUNTIME_API u32 KeWaitForSingleObject(u32 object_address, u32 wait_reason, u32 processor_mode,
+                                          u32 alertable, u64* timeout_ptr);
 /**
  * Signals an event object in guest memory.
  *
@@ -72,7 +70,7 @@ REX_RUNTIME_API uint32_t KeWaitForSingleObject(u32 object_address, uint32_t wait
  * @param wait Whether the caller waits next, ignored.
  * @return The previous signal state, or 0 when the address is not an event.
  */
-REX_RUNTIME_API uint32_t KeSetEvent(u32 event_address, uint32_t increment, uint32_t wait);
+REX_RUNTIME_API u32 KeSetEvent(u32 event_address, u32 increment, u32 wait);
 
 /**
  * Acquires a spinlock stored in guest memory.
@@ -83,8 +81,8 @@ REX_RUNTIME_API uint32_t KeSetEvent(u32 event_address, uint32_t increment, uint3
  * @param change_irql True to raise the IRQL while the lock is held.
  * @return The previous IRQL.
  */
-REX_RUNTIME_API uint32_t KeKfAcquireSpinLock(rex::runtime::Memory& memory, PPCContext* ctx,
-                                             rex::X_KSPINLOCK* lock, bool change_irql = true);
+REX_RUNTIME_API u32 KeKfAcquireSpinLock(rex::runtime::Memory& memory, PPCContext* ctx,
+                                        rex::X_KSPINLOCK* lock, bool change_irql = true);
 /**
  * Releases a spinlock stored in guest memory.
  *
@@ -95,7 +93,7 @@ REX_RUNTIME_API uint32_t KeKfAcquireSpinLock(rex::runtime::Memory& memory, PPCCo
  * @param change_irql True to restore the IRQL.
  */
 REX_RUNTIME_API void KeKfReleaseSpinLock(rex::runtime::Memory& memory, PPCContext* ctx,
-                                         rex::X_KSPINLOCK* lock, uint32_t old_irql,
+                                         rex::X_KSPINLOCK* lock, u32 old_irql,
                                          bool change_irql = true);
 
 /**
@@ -109,10 +107,9 @@ REX_RUNTIME_API void KeKfReleaseSpinLock(rex::runtime::Memory& memory, PPCContex
  * @param apc_mode The processor mode, used only when a normal routine is given.
  * @param normal_context Context passed to the normal routine, used only when one is given.
  */
-REX_RUNTIME_API void KeInitializeApc(rex::runtime::XAPC* apc, uint32_t thread_ptr,
-                                     uint32_t kernel_routine, uint32_t rundown_routine,
-                                     uint32_t normal_routine, uint32_t apc_mode,
-                                     uint32_t normal_context);
+REX_RUNTIME_API void KeInitializeApc(rex::runtime::XAPC* apc, u32 thread_ptr, u32 kernel_routine,
+                                     u32 rundown_routine, u32 normal_routine, u32 apc_mode,
+                                     u32 normal_context);
 /**
  * Queues an APC on its target thread.
  *
@@ -124,8 +121,7 @@ REX_RUNTIME_API void KeInitializeApc(rex::runtime::XAPC* apc, uint32_t thread_pt
  * @param ctx The calling context, whose r13 addresses the PCR.
  * @return 1 when queued, 0 when it has no thread, is already queued or is refused.
  */
-REX_RUNTIME_API uint32_t KeInsertQueueApc(rex::runtime::Memory& memory, rex::runtime::XAPC* apc,
-                                          uint32_t arg1, uint32_t arg2, uint32_t priority_increment,
-                                          PPCContext* ctx);
+REX_RUNTIME_API u32 KeInsertQueueApc(rex::runtime::Memory& memory, rex::runtime::XAPC* apc,
+                                     u32 arg1, u32 arg2, u32 priority_increment, PPCContext* ctx);
 
 }  // namespace rex::kernel::xboxkrnl

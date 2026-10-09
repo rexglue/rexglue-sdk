@@ -33,7 +33,7 @@ namespace {
  * @param site Address of the branch.
  * @return The edge, or nullptr when none is registered.
  */
-const CallEdge* findCallEdgeAt(const FunctionNode* node, uint32_t site) {
+const CallEdge* findCallEdgeAt(const FunctionNode* node, u32 site) {
   for (const auto& edge : node->calls()) {
     if (edge.site == site)
       return &edge;
@@ -72,7 +72,7 @@ void validateConfigBoundaries(CodegenContext& ctx) {
     }
 
     // Use the declared size, since discover() grows node->size() to cover its blocks.
-    uint32_t declared = fc.getSize(addr);
+    u32 declared = fc.getSize(addr);
     if (declared == 0)
       continue;
 
@@ -116,17 +116,17 @@ void validateConfigBoundaries(CodegenContext& ctx) {
     functionsChecked++;
 
     for (const auto& block : node->blocks()) {
-      const uint8_t* data = binary.translate(block.base);
+      const u8* data = binary.translate(block.base);
       if (!data)
         continue;
 
       for (size_t offset = 0; offset < block.size; offset += 4) {
-        uint32_t insn = memory::load<be_u32>(data + offset);
+        u32 insn = memory::load<be_u32>(data + offset);
 
         if (PPC_OP(insn) == PPC_OP_B && !PPC_BA(insn)) {
-          uint32_t site = block.base + static_cast<uint32_t>(offset);
-          int32_t branchOffset = PPC_BI(insn);
-          uint32_t target = site + branchOffset;
+          u32 site = block.base + static_cast<u32>(offset);
+          i32 branchOffset = PPC_BI(insn);
+          u32 target = site + branchOffset;
           bool isCall = PPC_BL(insn);
 
           callsChecked++;

@@ -53,7 +53,7 @@
 namespace rex::xenos::ucode {
 
 /** Control flow opcodes used to schedule instructions. */
-enum class ControlFlowOpcode : uint32_t {
+enum class ControlFlowOpcode : u32 {
   /** No operation, used to fill space. */
   kNop = 0,
   /** Executes fetch or ALU instructions. */
@@ -162,7 +162,7 @@ constexpr bool DoesControlFlowCondExecHaveCleanPredicate(ControlFlowOpcode opcod
 }
 
 /** Selects whether addressing is based on a0 or aL. */
-enum class AddressingMode : uint32_t {
+enum class AddressingMode : u32 {
   /** Indexing into register sets is based on aL, allowing forms like c[aL + 5]. */
   kRelative = 0,
   /** Indexing into register sets is based on a0, allowing forms like c[a0 + 5]. */
@@ -173,7 +173,7 @@ enum class AddressingMode : uint32_t {
  * Type of a ControlFlowOpcode::kAlloc instruction. An allocation is a size reservation and a shader
  * may contain several.
  */
-enum class AllocType : uint32_t {
+enum class AllocType : u32 {
   /** Allocation type a shader holds before any alloc instruction sets one. */
   kNone = 0,
   /** Vertex shader exports a position. */
@@ -190,39 +190,39 @@ enum class AllocType : uint32_t {
 struct ControlFlowExecInstruction {
   ControlFlowOpcode opcode() const { return opcode_; }
   AddressingMode addressing_mode() const { return address_mode_; }
-  uint32_t address() const { return address_; }
-  uint32_t count() const { return count_; }
+  u32 address() const { return address_; }
+  u32 count() const { return count_; }
   /**
    * Returns the sequence bits, 2 per instruction.
    *
    * @return Per instruction, bit 0 is ALU (0) or fetch (1) and bit 1 is serialize.
    */
-  uint32_t sequence() const { return sequence_; }
+  u32 sequence() const { return sequence_; }
   bool is_predicate_clean() const { return is_predicate_clean_ == 1; }
   bool is_yield() const { return is_yield_ == 1; }
 
  private:
   /** Word 0 (32 bits). */
-  uint32_t address_ : 12;
-  uint32_t count_ : 3;
-  uint32_t is_yield_ : 1;
-  uint32_t sequence_ : 12;
-  [[maybe_unused]] uint32_t vc_hi_ : 4;
+  u32 address_ : 12;
+  u32 count_ : 3;
+  u32 is_yield_ : 1;
+  u32 sequence_ : 12;
+  [[maybe_unused]] u32 vc_hi_ : 4;
 
   /** Word 1 (16 bits). */
-  [[maybe_unused]] uint32_t vc_lo_ : 2;
-  uint32_t : 7;
+  [[maybe_unused]] u32 vc_lo_ : 2;
+  u32 : 7;
   /**
    * The compiler specifies PredicateClean false for the exec if the instructions inside it modify
    * the predicate, but may keep it true if the predicate set only refines the current predicate,
    * like in a nested `if`, because the optimization works.
    */
-  uint32_t is_predicate_clean_ : 1;
-  uint32_t : 1;
+  u32 is_predicate_clean_ : 1;
+  u32 : 1;
   AddressingMode address_mode_ : 1;
   ControlFlowOpcode opcode_ : 4;
 };
-REX_STATIC_ASSERT_SIZE(ControlFlowExecInstruction, sizeof(uint32_t) * 2);
+REX_STATIC_ASSERT_SIZE(ControlFlowExecInstruction, sizeof(u32) * 2);
 
 /**
  * Instruction data for ControlFlowOpcode::kCondExec, kCondExecEnd, kCondExecPredClean and
@@ -231,68 +231,68 @@ REX_STATIC_ASSERT_SIZE(ControlFlowExecInstruction, sizeof(uint32_t) * 2);
 struct ControlFlowCondExecInstruction {
   ControlFlowOpcode opcode() const { return opcode_; }
   AddressingMode addressing_mode() const { return address_mode_; }
-  uint32_t address() const { return address_; }
-  uint32_t count() const { return count_; }
+  u32 address() const { return address_; }
+  u32 count() const { return count_; }
   /**
    * Returns the sequence bits, 2 per instruction.
    *
    * @return Per instruction, bit 0 is ALU (0) or fetch (1) and bit 1 is serialize.
    */
-  uint32_t sequence() const { return sequence_; }
-  uint32_t bool_address() const { return bool_address_; }
+  u32 sequence() const { return sequence_; }
+  u32 bool_address() const { return bool_address_; }
   bool condition() const { return condition_ == 1; }
   bool is_yield() const { return is_yield_ == 1; }
 
  private:
   /** Word 0 (32 bits). */
-  uint32_t address_ : 12;
-  uint32_t count_ : 3;
-  uint32_t is_yield_ : 1;
-  uint32_t sequence_ : 12;
-  [[maybe_unused]] uint32_t vc_hi_ : 4;
+  u32 address_ : 12;
+  u32 count_ : 3;
+  u32 is_yield_ : 1;
+  u32 sequence_ : 12;
+  [[maybe_unused]] u32 vc_hi_ : 4;
 
   /** Word 1 (16 bits). */
-  [[maybe_unused]] uint32_t vc_lo_ : 2;
-  uint32_t bool_address_ : 8;
-  uint32_t condition_ : 1;
+  [[maybe_unused]] u32 vc_lo_ : 2;
+  u32 bool_address_ : 8;
+  u32 condition_ : 1;
   AddressingMode address_mode_ : 1;
   ControlFlowOpcode opcode_ : 4;
 };
-REX_STATIC_ASSERT_SIZE(ControlFlowCondExecInstruction, sizeof(uint32_t) * 2);
+REX_STATIC_ASSERT_SIZE(ControlFlowCondExecInstruction, sizeof(u32) * 2);
 
 /** Instruction data for ControlFlowOpcode::kCondExecPred and kCondExecPredEnd. */
 struct ControlFlowCondExecPredInstruction {
   ControlFlowOpcode opcode() const { return opcode_; }
   AddressingMode addressing_mode() const { return address_mode_; }
-  uint32_t address() const { return address_; }
-  uint32_t count() const { return count_; }
+  u32 address() const { return address_; }
+  u32 count() const { return count_; }
   /**
    * Returns the sequence bits, 2 per instruction.
    *
    * @return Per instruction, bit 0 is ALU (0) or fetch (1) and bit 1 is serialize.
    */
-  uint32_t sequence() const { return sequence_; }
+  u32 sequence() const { return sequence_; }
   bool is_predicate_clean() const { return is_predicate_clean_ == 1; }
   bool condition() const { return condition_ == 1; }
   bool is_yield() const { return is_yield_ == 1; }
 
  private:
   /** Word 0 (32 bits). */
-  uint32_t address_ : 12;
-  uint32_t count_ : 3;
-  uint32_t is_yield_ : 1;
-  uint32_t sequence_ : 12;
-  [[maybe_unused]] uint32_t vc_hi_ : 4;
+  u32 address_ : 12;
+  u32 count_ : 3;
+  u32 is_yield_ : 1;
+  u32 sequence_ : 12;
+  [[maybe_unused]] u32 vc_hi_ : 4;
 
   /** Word 1 (16 bits). */
-  [[maybe_unused]] uint32_t vc_lo_ : 2;
-  uint32_t : 7;
-  uint32_t is_predicate_clean_ : 1;
-  uint32_t condition_ : 1;
+  [[maybe_unused]] u32 vc_lo_ : 2;
+  u32 : 7;
+  u32 is_predicate_clean_ : 1;
+  u32 condition_ : 1;
   AddressingMode address_mode_ : 1;
   ControlFlowOpcode opcode_ : 4;
 };
-REX_STATIC_ASSERT_SIZE(ControlFlowCondExecPredInstruction, sizeof(uint32_t) * 2);
+REX_STATIC_ASSERT_SIZE(ControlFlowCondExecPredInstruction, sizeof(u32) * 2);
 
 /** Instruction data for ControlFlowOpcode::kLoopStart. */
 struct ControlFlowLoopStartInstruction {
@@ -304,7 +304,7 @@ struct ControlFlowLoopStartInstruction {
    *
    * @return Skip target address.
    */
-  uint32_t address() const { return address_; }
+  u32 address() const { return address_; }
   /**
    * Reports whether the loop reuses the current aL instead of resetting it to the loop start.
    *
@@ -316,22 +316,22 @@ struct ControlFlowLoopStartInstruction {
    *
    * @return Loop constant register index.
    */
-  uint32_t loop_id() const { return loop_id_; }
+  u32 loop_id() const { return loop_id_; }
 
  private:
   /** Word 0 (32 bits). */
-  uint32_t address_ : 13;
-  uint32_t is_repeat_ : 1;
-  uint32_t : 2;
-  uint32_t loop_id_ : 5;
-  uint32_t : 11;
+  u32 address_ : 13;
+  u32 is_repeat_ : 1;
+  u32 : 2;
+  u32 loop_id_ : 5;
+  u32 : 11;
 
   /** Word 1 (16 bits). */
-  uint32_t : 11;
+  u32 : 11;
   AddressingMode address_mode_ : 1;
   ControlFlowOpcode opcode_ : 4;
 };
-REX_STATIC_ASSERT_SIZE(ControlFlowLoopStartInstruction, sizeof(uint32_t) * 2);
+REX_STATIC_ASSERT_SIZE(ControlFlowLoopStartInstruction, sizeof(u32) * 2);
 
 /** Instruction data for ControlFlowOpcode::kLoopEnd. */
 struct ControlFlowLoopEndInstruction {
@@ -343,13 +343,13 @@ struct ControlFlowLoopEndInstruction {
    *
    * @return Loop body address.
    */
-  uint32_t address() const { return address_; }
+  u32 address() const { return address_; }
   /**
    * Returns the integer constant register that holds the loop parameters (xenos::LoopConstant).
    *
    * @return Loop constant register index.
    */
-  uint32_t loop_id() const { return loop_id_; }
+  u32 loop_id() const { return loop_id_; }
   /**
    * Reports whether the loop breaks if the predicate in all 64 invocations matches the expected
    * value.
@@ -361,45 +361,45 @@ struct ControlFlowLoopEndInstruction {
 
  private:
   /** Word 0 (32 bits). */
-  uint32_t address_ : 13;
-  uint32_t : 3;
-  uint32_t loop_id_ : 5;
-  uint32_t is_predicated_break_ : 1;
-  uint32_t : 10;
+  u32 address_ : 13;
+  u32 : 3;
+  u32 loop_id_ : 5;
+  u32 is_predicated_break_ : 1;
+  u32 : 10;
 
   /** Word 1 (16 bits). */
-  uint32_t : 10;
-  uint32_t condition_ : 1;
+  u32 : 10;
+  u32 condition_ : 1;
   AddressingMode address_mode_ : 1;
   ControlFlowOpcode opcode_ : 4;
 };
-REX_STATIC_ASSERT_SIZE(ControlFlowLoopEndInstruction, sizeof(uint32_t) * 2);
+REX_STATIC_ASSERT_SIZE(ControlFlowLoopEndInstruction, sizeof(u32) * 2);
 
 /** Instruction data for ControlFlowOpcode::kCondCall. */
 struct ControlFlowCondCallInstruction {
   ControlFlowOpcode opcode() const { return opcode_; }
   AddressingMode addressing_mode() const { return address_mode_; }
-  uint32_t address() const { return address_; }
+  u32 address() const { return address_; }
   bool is_unconditional() const { return is_unconditional_; }
   bool is_predicated() const { return is_predicated_; }
-  uint32_t bool_address() const { return bool_address_; }
+  u32 bool_address() const { return bool_address_; }
   bool condition() const { return condition_ == 1; }
 
  private:
   /** Word 0 (32 bits). */
-  uint32_t address_ : 13;
-  uint32_t is_unconditional_ : 1;
-  uint32_t is_predicated_ : 1;
-  uint32_t : 17;
+  u32 address_ : 13;
+  u32 is_unconditional_ : 1;
+  u32 is_predicated_ : 1;
+  u32 : 17;
 
   /** Word 1 (16 bits). */
-  uint32_t : 2;
-  uint32_t bool_address_ : 8;
-  uint32_t condition_ : 1;
+  u32 : 2;
+  u32 bool_address_ : 8;
+  u32 condition_ : 1;
   AddressingMode address_mode_ : 1;
   ControlFlowOpcode opcode_ : 4;
 };
-REX_STATIC_ASSERT_SIZE(ControlFlowCondCallInstruction, sizeof(uint32_t) * 2);
+REX_STATIC_ASSERT_SIZE(ControlFlowCondCallInstruction, sizeof(u32) * 2);
 
 /** Instruction data for ControlFlowOpcode::kReturn. */
 struct ControlFlowReturnInstruction {
@@ -408,61 +408,61 @@ struct ControlFlowReturnInstruction {
 
  private:
   /** Word 0 (32 bits). */
-  uint32_t : 32;
+  u32 : 32;
 
   /** Word 1 (16 bits). */
-  uint32_t : 11;
+  u32 : 11;
   AddressingMode address_mode_ : 1;
   ControlFlowOpcode opcode_ : 4;
 };
-REX_STATIC_ASSERT_SIZE(ControlFlowReturnInstruction, sizeof(uint32_t) * 2);
+REX_STATIC_ASSERT_SIZE(ControlFlowReturnInstruction, sizeof(u32) * 2);
 
 /** Instruction data for ControlFlowOpcode::kCondJmp. */
 struct ControlFlowCondJmpInstruction {
   ControlFlowOpcode opcode() const { return opcode_; }
   AddressingMode addressing_mode() const { return address_mode_; }
-  uint32_t address() const { return address_; }
+  u32 address() const { return address_; }
   bool is_unconditional() const { return is_unconditional_; }
   bool is_predicated() const { return is_predicated_; }
-  uint32_t bool_address() const { return bool_address_; }
+  u32 bool_address() const { return bool_address_; }
   bool condition() const { return condition_ == 1; }
 
  private:
   /** Word 0 (32 bits). */
-  uint32_t address_ : 13;
-  uint32_t is_unconditional_ : 1;
-  uint32_t is_predicated_ : 1;
-  uint32_t : 17;
+  u32 address_ : 13;
+  u32 is_unconditional_ : 1;
+  u32 is_predicated_ : 1;
+  u32 : 17;
 
   /** Word 1 (16 bits). */
-  uint32_t : 1;
-  [[maybe_unused]] uint32_t direction_ : 1;
-  uint32_t bool_address_ : 8;
-  uint32_t condition_ : 1;
+  u32 : 1;
+  [[maybe_unused]] u32 direction_ : 1;
+  u32 bool_address_ : 8;
+  u32 condition_ : 1;
   AddressingMode address_mode_ : 1;
   ControlFlowOpcode opcode_ : 4;
 };
-REX_STATIC_ASSERT_SIZE(ControlFlowCondJmpInstruction, sizeof(uint32_t) * 2);
+REX_STATIC_ASSERT_SIZE(ControlFlowCondJmpInstruction, sizeof(u32) * 2);
 
 /** Instruction data for ControlFlowOpcode::kAlloc. */
 struct ControlFlowAllocInstruction {
   ControlFlowOpcode opcode() const { return opcode_; }
-  uint32_t size() const { return size_; }
+  u32 size() const { return size_; }
   AllocType alloc_type() const { return alloc_type_; }
 
  private:
   /** Word 0 (32 bits). */
-  uint32_t size_ : 3;
-  uint32_t : 29;
+  u32 size_ : 3;
+  u32 : 29;
 
   /** Word 1 (16 bits). */
-  uint32_t : 8;
-  uint32_t : 1; /**< is_unserialized_ */
+  u32 : 8;
+  u32 : 1; /**< is_unserialized_ */
   AllocType alloc_type_ : 2;
-  uint32_t : 1;
+  u32 : 1;
   ControlFlowOpcode opcode_ : 4;
 };
-REX_STATIC_ASSERT_SIZE(ControlFlowAllocInstruction, sizeof(uint32_t) * 2);
+REX_STATIC_ASSERT_SIZE(ControlFlowAllocInstruction, sizeof(u32) * 2);
 
 /**
  * Control flow instruction of 48 bits in 2 dwords, viewed through the layout matching its opcode.
@@ -481,16 +481,16 @@ union ControlFlowInstruction {
   ControlFlowAllocInstruction alloc;                 /**< kAlloc */
 
   struct {
-    uint32_t dword_0; /**< Offset 0x0. Low dword of the 64 bit instruction. */
-    uint32_t dword_1; /**< Offset 0x4. High dword of the 64 bit instruction. */
+    u32 dword_0; /**< Offset 0x0. Low dword of the 64 bit instruction. */
+    u32 dword_1; /**< Offset 0x4. High dword of the 64 bit instruction. */
   };
   struct {
-    uint32_t unused_0 : 32;             /**< Bits 0 to 31 of the instruction. No code reads it. */
-    uint32_t unused_1 : 12;             /**< Bits 32 to 43 of the instruction. No code reads it. */
+    u32 unused_0 : 32;                  /**< Bits 0 to 31 of the instruction. No code reads it. */
+    u32 unused_1 : 12;                  /**< Bits 32 to 43 of the instruction. No code reads it. */
     ControlFlowOpcode opcode_value : 4; /**< Bits 44 to 47 of the instruction, the opcode. */
   };
 };
-REX_STATIC_ASSERT_SIZE(ControlFlowInstruction, sizeof(uint32_t) * 2);
+REX_STATIC_ASSERT_SIZE(ControlFlowInstruction, sizeof(u32) * 2);
 
 /**
  * Splits 3 dwords of microcode into the 2 control flow instructions packed in them.
@@ -498,10 +498,10 @@ REX_STATIC_ASSERT_SIZE(ControlFlowInstruction, sizeof(uint32_t) * 2);
  * @param dwords 3 dwords holding a pair of instructions.
  * @param out_ab Receives the first and the second instruction.
  */
-inline void UnpackControlFlowInstructions(const uint32_t* dwords, ControlFlowInstruction* out_ab) {
-  uint32_t dword_0 = dwords[0];
-  uint32_t dword_1 = dwords[1];
-  uint32_t dword_2 = dwords[2];
+inline void UnpackControlFlowInstructions(const u32* dwords, ControlFlowInstruction* out_ab) {
+  u32 dword_0 = dwords[0];
+  u32 dword_1 = dwords[1];
+  u32 dword_2 = dwords[2];
   out_ab[0].dword_0 = dword_0;
   out_ab[0].dword_1 = dword_1 & 0xFFFF;
   out_ab[1].dword_0 = (dword_1 >> 16) | (dword_2 << 16);
@@ -509,7 +509,7 @@ inline void UnpackControlFlowInstructions(const uint32_t* dwords, ControlFlowIns
 }
 
 /** Opcode of a fetch instruction, either a vertex fetch or a texture operation. */
-enum class FetchOpcode : uint32_t {
+enum class FetchOpcode : u32 {
   /** Fetches vertex data through a vertex fetch constant. */
   kVertexFetch = 0,
 
@@ -638,13 +638,12 @@ enum class FetchDestinationSwizzle {
  * @param component Destination component index, 0 for X to 3 for W.
  * @return Swizzle of the component.
  */
-constexpr FetchDestinationSwizzle GetFetchDestinationComponentSwizzle(uint32_t swizzle,
-                                                                      uint32_t component) {
+constexpr FetchDestinationSwizzle GetFetchDestinationComponentSwizzle(u32 swizzle, u32 component) {
   return FetchDestinationSwizzle((swizzle >> (3 * component)) & 0b111);
 }
 
 /** Vertex fetch instruction of 3 dwords. */
-struct alignas(uint32_t) VertexFetchInstruction {
+struct alignas(u32) VertexFetchInstruction {
   FetchOpcode opcode() const { return data_.opcode_value; }
 
   bool is_predicated() const { return data_.is_predicated; }
@@ -655,21 +654,21 @@ struct alignas(uint32_t) VertexFetchInstruction {
    *
    * @return Vertex fetch constant index.
    */
-  uint32_t fetch_constant_index() const { return data_.const_index * 3 + data_.const_index_sel; }
+  u32 fetch_constant_index() const { return data_.const_index * 3 + data_.const_index_sel; }
 
-  uint32_t dest() const { return data_.dst_reg; }
-  uint32_t dest_swizzle() const { return data_.dst_swiz; }
+  u32 dest() const { return data_.dst_reg; }
+  u32 dest_swizzle() const { return data_.dst_swiz; }
   bool is_dest_relative() const { return data_.dst_reg_am; }
   /**
    * Returns the source register. Applicable only to vfetch_full, as vfetch_mini reuses its address.
    *
    * @return Source register index.
    */
-  uint32_t src() const { return data_.src_reg; }
-  uint32_t src_swizzle() const { return data_.src_swiz; }
+  u32 src() const { return data_.src_reg; }
+  u32 src_swizzle() const { return data_.src_swiz; }
   bool is_src_relative() const { return data_.src_reg_am; }
 
-  uint32_t prefetch_count() const { return data_.prefetch_count; }
+  u32 prefetch_count() const { return data_.prefetch_count; }
   bool is_mini_fetch() const { return data_.is_mini_fetch == 1; }
 
   xenos::VertexFormat data_format() const { return data_.format; }
@@ -697,54 +696,54 @@ struct alignas(uint32_t) VertexFetchInstruction {
    *
    * @return Dword stride.
    */
-  uint32_t stride() const { return data_.stride; }
+  u32 stride() const { return data_.stride; }
   /**
    * Returns the dword offset, [-4194304, 4194303].
    *
    * @return Dword offset.
    */
-  int32_t offset() const { return data_.offset; }
+  i32 offset() const { return data_.offset; }
 
  private:
   struct Data {
     struct {
       FetchOpcode opcode_value : 5;
-      uint32_t src_reg : 6;
-      uint32_t src_reg_am : 1;
-      uint32_t dst_reg : 6;
-      uint32_t dst_reg_am : 1;
-      uint32_t must_be_one : 1;
-      uint32_t const_index : 5;
-      uint32_t const_index_sel : 2;
+      u32 src_reg : 6;
+      u32 src_reg_am : 1;
+      u32 dst_reg : 6;
+      u32 dst_reg_am : 1;
+      u32 must_be_one : 1;
+      u32 const_index : 5;
+      u32 const_index_sel : 2;
       /** Prefetch count minus 1. */
-      uint32_t prefetch_count : 3;
+      u32 prefetch_count : 3;
       /** Absolute, 1 comp1nt. */
-      uint32_t src_swiz : 2;
+      u32 src_swiz : 2;
     };
     struct {
-      uint32_t dst_swiz : 12;
-      uint32_t fomat_comp_all : 1;
-      uint32_t num_format_all : 1;
+      u32 dst_swiz : 12;
+      u32 fomat_comp_all : 1;
+      u32 num_format_all : 1;
       xenos::SignedRepeatingFractionMode signed_rf_mode_all : 1;
-      uint32_t is_index_rounded : 1;
+      u32 is_index_rounded : 1;
       xenos::VertexFormat format : 6;
-      uint32_t reserved2 : 2;
-      int32_t exp_adjust : 6;
-      uint32_t is_mini_fetch : 1;
-      uint32_t is_predicated : 1;
+      u32 reserved2 : 2;
+      i32 exp_adjust : 6;
+      u32 is_mini_fetch : 1;
+      u32 is_predicated : 1;
     };
     struct {
-      uint32_t stride : 8;
-      int32_t offset : 23;
-      uint32_t pred_condition : 1;
+      u32 stride : 8;
+      i32 offset : 23;
+      u32 pred_condition : 1;
     };
   };
   Data data_;
 };
-REX_STATIC_ASSERT_SIZE(VertexFetchInstruction, sizeof(uint32_t) * 3);
+REX_STATIC_ASSERT_SIZE(VertexFetchInstruction, sizeof(u32) * 3);
 
 /** Texture fetch instruction of 3 dwords. */
-struct alignas(uint32_t) TextureFetchInstruction {
+struct alignas(u32) TextureFetchInstruction {
   FetchOpcode opcode() const { return data_.opcode_value; }
 
   bool is_predicated() const { return data_.is_predicated; }
@@ -754,13 +753,13 @@ struct alignas(uint32_t) TextureFetchInstruction {
    *
    * @return Texture fetch constant index.
    */
-  uint32_t fetch_constant_index() const { return data_.const_index; }
+  u32 fetch_constant_index() const { return data_.const_index; }
 
-  uint32_t dest() const { return data_.dst_reg; }
-  uint32_t dest_swizzle() const { return data_.dst_swiz; }
+  u32 dest() const { return data_.dst_reg; }
+  u32 dest_swizzle() const { return data_.dst_swiz; }
   bool is_dest_relative() const { return data_.dst_reg_am; }
-  uint32_t src() const { return data_.src_reg; }
-  uint32_t src_swizzle() const { return data_.src_swiz; }
+  u32 src() const { return data_.src_reg; }
+  u32 src_swizzle() const { return data_.src_swiz; }
   bool is_src_relative() const { return data_.src_reg_am; }
 
   xenos::FetchOpDimension dimension() const { return data_.dimension; }
@@ -797,27 +796,27 @@ struct alignas(uint32_t) TextureFetchInstruction {
   bool use_register_lod() const { return data_.use_reg_lod == 1; }
   bool use_register_gradients() const { return data_.use_reg_gradients == 1; }
   xenos::SampleLocation sample_location() const { return data_.sample_location; }
-  float lod_bias() const { return data_.lod_bias * (1.0f / 16.0f); }
-  float offset_x() const { return data_.offset_x * 0.5f; }
-  float offset_y() const { return data_.offset_y * 0.5f; }
-  float offset_z() const { return data_.offset_z * 0.5f; }
+  f32 lod_bias() const { return data_.lod_bias * (1.0f / 16.0f); }
+  f32 offset_x() const { return data_.offset_x * 0.5f; }
+  f32 offset_y() const { return data_.offset_y * 0.5f; }
+  f32 offset_z() const { return data_.offset_z * 0.5f; }
 
  private:
   struct Data {
     struct {
       FetchOpcode opcode_value : 5;
-      uint32_t src_reg : 6;
-      uint32_t src_reg_am : 1;
-      uint32_t dst_reg : 6;
-      uint32_t dst_reg_am : 1;
-      uint32_t fetch_valid_only : 1;
-      uint32_t const_index : 5;
-      uint32_t tx_coord_denorm : 1;
+      u32 src_reg : 6;
+      u32 src_reg_am : 1;
+      u32 dst_reg : 6;
+      u32 dst_reg_am : 1;
+      u32 fetch_valid_only : 1;
+      u32 const_index : 5;
+      u32 tx_coord_denorm : 1;
       /** Absolute, 3 components. */
-      uint32_t src_swiz : 6;
+      u32 src_swiz : 6;
     };
     struct {
-      uint32_t dst_swiz : 12;
+      u32 dst_swiz : 12;
       xenos::TextureFilter mag_filter : 2;
       xenos::TextureFilter min_filter : 2;
       xenos::TextureFilter mip_filter : 2;
@@ -825,39 +824,39 @@ struct alignas(uint32_t) TextureFetchInstruction {
       xenos::ArbitraryFilter arbitrary_filter : 3;
       xenos::TextureFilter vol_mag_filter : 2;
       xenos::TextureFilter vol_min_filter : 2;
-      uint32_t use_comp_lod : 1;
-      uint32_t use_reg_lod : 1;
-      uint32_t unk : 1;
-      uint32_t is_predicated : 1;
+      u32 use_comp_lod : 1;
+      u32 use_reg_lod : 1;
+      u32 unk : 1;
+      u32 is_predicated : 1;
     };
     struct {
-      uint32_t use_reg_gradients : 1;
+      u32 use_reg_gradients : 1;
       xenos::SampleLocation sample_location : 1;
-      int32_t lod_bias : 7;
-      uint32_t unused : 5;
+      i32 lod_bias : 7;
+      u32 unused : 5;
       xenos::FetchOpDimension dimension : 2;
-      int32_t offset_x : 5;
-      int32_t offset_y : 5;
-      int32_t offset_z : 5;
-      uint32_t pred_condition : 1;
+      i32 offset_x : 5;
+      i32 offset_y : 5;
+      i32 offset_z : 5;
+      u32 pred_condition : 1;
     };
   };
   Data data_;
 };
-REX_STATIC_ASSERT_SIZE(TextureFetchInstruction, sizeof(uint32_t) * 3);
+REX_STATIC_ASSERT_SIZE(TextureFetchInstruction, sizeof(u32) * 3);
 
 /** Fetch instruction of 3 dwords, viewed as a vertex or texture fetch according to its opcode. */
-union alignas(uint32_t) FetchInstruction {
+union alignas(u32) FetchInstruction {
  public:
   FetchOpcode opcode() const { return data_.opcode_value; }
 
   bool is_predicated() const { return data_.is_predicated; }
   bool predicate_condition() const { return data_.pred_condition == 1; }
 
-  uint32_t dest() const { return data_.dst_reg; }
-  uint32_t dest_swizzle() const { return data_.dst_swiz; }
+  u32 dest() const { return data_.dst_reg; }
+  u32 dest_swizzle() const { return data_.dst_swiz; }
   bool is_dest_relative() const { return data_.dst_reg_am; }
-  uint32_t src() const { return data_.src_reg; }
+  u32 src() const { return data_.src_reg; }
   bool is_src_relative() const { return data_.src_reg_am; }
 
   /**
@@ -877,34 +876,34 @@ union alignas(uint32_t) FetchInstruction {
   struct Data {
     struct {
       FetchOpcode opcode_value : 5;
-      uint32_t src_reg : 6;
-      uint32_t src_reg_am : 1;
-      uint32_t dst_reg : 6;
-      uint32_t dst_reg_am : 1;
+      u32 src_reg : 6;
+      u32 src_reg_am : 1;
+      u32 dst_reg : 6;
+      u32 dst_reg_am : 1;
       /** Defined by the vertex or texture fetch layout. */
-      uint32_t : 1;
+      u32 : 1;
       /** [0-31], points to 1 tf# or 3 vf# constants. */
-      uint32_t const_index : 5;
+      u32 const_index : 5;
       /** Defined by the vertex or texture fetch layout. */
-      uint32_t : 7;
+      u32 : 7;
     };
     struct {
-      uint32_t dst_swiz : 12;
+      u32 dst_swiz : 12;
       /** Defined by the vertex or texture fetch layout. */
-      uint32_t : 19;
-      uint32_t is_predicated : 1;
+      u32 : 19;
+      u32 is_predicated : 1;
     };
     struct {
       /** Defined by the vertex or texture fetch layout. */
-      uint32_t : 31;
-      uint32_t pred_condition : 1;
+      u32 : 31;
+      u32 pred_condition : 1;
     };
   };
   Data data_;
   VertexFetchInstruction vertex_fetch_;
   TextureFetchInstruction texture_fetch_;
 };
-REX_STATIC_ASSERT_SIZE(FetchInstruction, sizeof(uint32_t) * 3);
+REX_STATIC_ASSERT_SIZE(FetchInstruction, sizeof(u32) * 3);
 
 /**
  * State changes of an ALU operation, used to analyze shaders and skip instructions that write
@@ -952,7 +951,7 @@ enum AluOpChangedState {
  *   add. The DXBC translator emits separate mul and add instead of mad, and the SPIR-V translator
  *   marks them NoContraction.
  */
-enum class AluScalarOpcode : uint32_t {
+enum class AluScalarOpcode : u32 {
   /**
    * Floating Point Add.
    *
@@ -1506,7 +1505,7 @@ struct AluScalarOpcodeInfo {
    * 0 means no operands. 1 means 1 single component (W) or 2 component (WX) r# or c#. 2 means c#.w
    * and r#.x.
    */
-  uint32_t operand_count;
+  u32 operand_count;
   /** If operand_count is 1, true when both W and X of the operand are used rather than only W. */
   bool single_operand_is_two_component;
   /**
@@ -1527,12 +1526,12 @@ extern REX_API const AluScalarOpcodeInfo kAluScalarOpcodeInfos[64];
  * @return Description of the opcode.
  */
 inline const AluScalarOpcodeInfo& GetAluScalarOpcodeInfo(AluScalarOpcode opcode) {
-  REX_ASSERT(static_cast<uint32_t>(opcode) < rex::countof(kAluScalarOpcodeInfos));
-  return kAluScalarOpcodeInfos[static_cast<uint32_t>(opcode)];
+  REX_ASSERT(static_cast<u32>(opcode) < rex::countof(kAluScalarOpcodeInfos));
+  return kAluScalarOpcodeInfos[static_cast<u32>(opcode)];
 }
 
 /** Vector ALU opcodes. */
-enum class AluVectorOpcode : uint32_t {
+enum class AluVectorOpcode : u32 {
   /**
    * Per Component Floating Point Add.
    *
@@ -2024,7 +2023,7 @@ enum class AluVectorOpcode : uint32_t {
 struct AluVectorOpcodeInfo {
   const char* name; /**< Lowercase mnemonic of the opcode. */
   /** Bit mask of the X, Y, Z and W components read from each of the 3 sources, X in bit 0. */
-  uint32_t operand_components_used[3];
+  u32 operand_components_used[3];
   /** State the operation changes besides its destination, as AluOpChangedState bits. */
   AluOpChangedState changed_state;
 
@@ -2033,7 +2032,7 @@ struct AluVectorOpcodeInfo {
    *
    * @return Operand count, from 0 to 3.
    */
-  uint32_t GetOperandCount() const {
+  u32 GetOperandCount() const {
     if (!operand_components_used[2]) {
       if (!operand_components_used[1]) {
         if (!operand_components_used[0]) {
@@ -2057,8 +2056,8 @@ extern REX_API const AluVectorOpcodeInfo kAluVectorOpcodeInfos[32];
  * @return Description of the opcode.
  */
 inline const AluVectorOpcodeInfo& GetAluVectorOpcodeInfo(AluVectorOpcode opcode) {
-  REX_ASSERT(static_cast<uint32_t>(opcode) < rex::countof(kAluVectorOpcodeInfos));
-  return kAluVectorOpcodeInfos[static_cast<uint32_t>(opcode)];
+  REX_ASSERT(static_cast<u32>(opcode) < rex::countof(kAluVectorOpcodeInfos));
+  return kAluVectorOpcodeInfos[static_cast<u32>(opcode)];
 }
 
 /**
@@ -2073,12 +2072,11 @@ inline const AluVectorOpcodeInfo& GetAluVectorOpcodeInfo(AluVectorOpcode opcode)
  * @param used_result_components Write mask of the used result components.
  * @return Mask of the needed source components.
  */
-inline uint32_t GetAluVectorOpNeededSourceComponents(AluVectorOpcode vector_opcode,
-                                                     uint32_t src_index,
-                                                     uint32_t used_result_components) {
+inline u32 GetAluVectorOpNeededSourceComponents(AluVectorOpcode vector_opcode, u32 src_index,
+                                                u32 used_result_components) {
   REX_ASSERT(src_index != 0);
-  REX_ASSERT((used_result_components & ~static_cast<uint32_t>(0b1111)) == 0);
-  uint32_t components = used_result_components;
+  REX_ASSERT((used_result_components & ~static_cast<u32>(0b1111)) == 0);
+  u32 components = used_result_components;
   switch (vector_opcode) {
     case AluVectorOpcode::kDp4:
     case AluVectorOpcode::kMax4:
@@ -2117,13 +2115,13 @@ inline uint32_t GetAluVectorOpNeededSourceComponents(AluVectorOpcode vector_opco
 }
 
 /** eM# (kExportData) register count. */
-constexpr uint32_t kMaxMemExportElementCount = 5;
+constexpr u32 kMaxMemExportElementCount = 5;
 
 /**
  * Destination of an export ALU instruction. Vertex and pixel shaders use different subsets of the
  * values.
  */
-enum class ExportRegister : uint32_t {
+enum class ExportRegister : u32 {
   /** @name Vertex shader interpolators 0 to 15, export registers 0 to 15. */
   /** @{ */
   kVSInterpolator0 = 0,
@@ -2191,7 +2189,7 @@ enum class ExportRegister : uint32_t {
 };
 
 /** ALU instruction of 3 dwords holding a vector operation and a scalar operation. */
-struct alignas(uint32_t) AluInstruction {
+struct alignas(u32) AluInstruction {
   /**
    * Reports whether data is exported, rather than written to local registers.
    *
@@ -2216,28 +2214,26 @@ struct alignas(uint32_t) AluInstruction {
   }
 
   AluVectorOpcode vector_opcode() const { return data_.vector_opc; }
-  uint32_t vector_write_mask() const { return data_.vector_write_mask; }
-  uint32_t vector_dest() const { return data_.vector_dest; }
+  u32 vector_write_mask() const { return data_.vector_write_mask; }
+  u32 vector_dest() const { return data_.vector_dest; }
   bool is_vector_dest_relative() const { return data_.vector_dest_rel == 1; }
   bool vector_clamp() const { return data_.vector_clamp == 1; }
 
   AluScalarOpcode scalar_opcode() const { return data_.scalar_opc; }
-  uint32_t scalar_write_mask() const { return data_.scalar_write_mask; }
-  uint32_t scalar_dest() const { return data_.scalar_dest; }
+  u32 scalar_write_mask() const { return data_.scalar_write_mask; }
+  u32 scalar_dest() const { return data_.scalar_dest; }
   bool is_scalar_dest_relative() const { return data_.scalar_dest_rel == 1; }
   bool scalar_clamp() const { return data_.scalar_clamp == 1; }
 
-  static constexpr uint32_t src_temp_reg(uint32_t src_reg) { return src_reg & 0x3F; }
-  static constexpr bool is_src_temp_relative(uint32_t src_reg) { return (src_reg & 0x40) != 0; }
+  static constexpr u32 src_temp_reg(u32 src_reg) { return src_reg & 0x3F; }
+  static constexpr bool is_src_temp_relative(u32 src_reg) { return (src_reg & 0x40) != 0; }
   /**
    * Reports whether a temporary register source takes the absolute value.
    *
    * @param src_reg Packed temporary register from `src_reg`.
    * @return True when the absolute value is taken.
    */
-  static constexpr bool is_src_temp_value_absolute(uint32_t src_reg) {
-    return (src_reg & 0x80) != 0;
-  }
+  static constexpr bool is_src_temp_value_absolute(u32 src_reg) { return (src_reg & 0x80) != 0; }
   /**
    * Returns the full register index for constants, or the packed structure for temporary registers
    * (unpack using src_temp_reg, is_src_temp_relative and is_src_temp_value_absolute).
@@ -2245,7 +2241,7 @@ struct alignas(uint32_t) AluInstruction {
    * @param i 1 based source operand index.
    * @return Register index or packed temporary register.
    */
-  uint32_t src_reg(size_t i) const {
+  u32 src_reg(size_t i) const {
     switch (i) {
       case 1:
         return data_.src1_reg;
@@ -2316,7 +2312,7 @@ struct alignas(uint32_t) AluInstruction {
    * @param i 1 based source operand index.
    * @return Packed swizzle.
    */
-  uint32_t src_swizzle(size_t i) const {
+  u32 src_swizzle(size_t i) const {
     switch (i) {
       case 1:
         return data_.src1_swiz;
@@ -2356,8 +2352,8 @@ struct alignas(uint32_t) AluInstruction {
    *
    * @return Temporary register index.
    */
-  uint32_t scalar_const_reg_op_src_temp_reg() const {
-    return (static_cast<uint32_t>(data_.scalar_opc) & 1) | (data_.src3_sel << 1) |
+  u32 scalar_const_reg_op_src_temp_reg() const {
+    return (static_cast<u32>(data_.scalar_opc) & 1) | (data_.src3_sel << 1) |
            (data_.src3_swiz & 0x3C);
   }
 
@@ -2369,7 +2365,7 @@ struct alignas(uint32_t) AluInstruction {
    * @param component_index Result component index.
    * @return Absolute component index.
    */
-  static constexpr uint32_t GetSwizzledComponentIndex(uint32_t swizzle, uint32_t component_index) {
+  static constexpr u32 GetSwizzledComponentIndex(u32 swizzle, u32 component_index) {
     return ((swizzle >> (2 * component_index)) + component_index) & 3;
   }
 
@@ -2381,8 +2377,8 @@ struct alignas(uint32_t) AluInstruction {
    *
    * @return Write mask of the vector result.
    */
-  uint32_t GetVectorOpResultWriteMask() const {
-    uint32_t mask = vector_write_mask();
+  u32 GetVectorOpResultWriteMask() const {
+    u32 mask = vector_write_mask();
     if (is_export()) {
       mask &= ~scalar_write_mask();
     }
@@ -2394,8 +2390,8 @@ struct alignas(uint32_t) AluInstruction {
    *
    * @return Write mask of the scalar result.
    */
-  uint32_t GetScalarOpResultWriteMask() const {
-    uint32_t mask = scalar_write_mask();
+  u32 GetScalarOpResultWriteMask() const {
+    u32 mask = scalar_write_mask();
     if (is_export()) {
       mask &= ~vector_write_mask();
     }
@@ -2407,7 +2403,7 @@ struct alignas(uint32_t) AluInstruction {
    *
    * @return Mask of components exporting 0, empty when the instruction is not an export.
    */
-  uint32_t GetConstant0WriteMask() const {
+  u32 GetConstant0WriteMask() const {
     if (!is_export() || !is_scalar_dest_relative()) {
       return 0b0000;
     }
@@ -2418,7 +2414,7 @@ struct alignas(uint32_t) AluInstruction {
    *
    * @return Mask of components exporting 1, empty when the instruction is not an export.
    */
-  uint32_t GetConstant1WriteMask() const {
+  u32 GetConstant1WriteMask() const {
     if (!is_export()) {
       return 0b0000;
     }
@@ -2433,11 +2429,11 @@ struct alignas(uint32_t) AluInstruction {
        * relative in this case. If both operations exporting something have an empty write mask, the
        * assembler forces vector_dest to 0 (interpolator 0 or color 0) in the microcode.
        */
-      uint32_t vector_dest : 6;
-      uint32_t vector_dest_rel : 1;
-      uint32_t abs_constants : 1;
-      uint32_t scalar_dest : 6;
-      uint32_t scalar_dest_rel : 1;
+      u32 vector_dest : 6;
+      u32 vector_dest_rel : 1;
+      u32 abs_constants : 1;
+      u32 scalar_dest : 6;
+      u32 scalar_dest_rel : 1;
       /**
        * Exports have different write masking. Export is done to vector_dest by both the vector and
        * the scalar operation, and exports can write constant 0 and 1. For each component the result
@@ -2448,40 +2444,40 @@ struct alignas(uint32_t) AluInstruction {
        * - vector_write_mask 0, scalar_write_mask 1 is from the scalar operation.
        * - vector_write_mask 1, scalar_write_mask 1 is constant 1.
        */
-      uint32_t export_data : 1;
-      uint32_t vector_write_mask : 4;
-      uint32_t scalar_write_mask : 4;
-      uint32_t vector_clamp : 1;
-      uint32_t scalar_clamp : 1;
+      u32 export_data : 1;
+      u32 vector_write_mask : 4;
+      u32 scalar_write_mask : 4;
+      u32 vector_clamp : 1;
+      u32 scalar_clamp : 1;
       AluScalarOpcode scalar_opc : 6;
     };
     struct {
       /** Swizzles are component relative. */
-      uint32_t src3_swiz : 8;
-      uint32_t src2_swiz : 8;
-      uint32_t src1_swiz : 8;
-      uint32_t src3_reg_negate : 1;
-      uint32_t src2_reg_negate : 1;
-      uint32_t src1_reg_negate : 1;
-      uint32_t pred_condition : 1;
-      uint32_t is_predicated : 1;
+      u32 src3_swiz : 8;
+      u32 src2_swiz : 8;
+      u32 src1_swiz : 8;
+      u32 src3_reg_negate : 1;
+      u32 src2_reg_negate : 1;
+      u32 src1_reg_negate : 1;
+      u32 pred_condition : 1;
+      u32 is_predicated : 1;
       /** Temporary registers can have only absolute and aL relative indices, not a0 relative. */
-      uint32_t const_address_register_relative : 1;
-      uint32_t const_1_rel_abs : 1;
-      uint32_t const_0_rel_abs : 1;
+      u32 const_address_register_relative : 1;
+      u32 const_1_rel_abs : 1;
+      u32 const_0_rel_abs : 1;
     };
     struct {
-      uint32_t src3_reg : 8;
-      uint32_t src2_reg : 8;
-      uint32_t src1_reg : 8;
+      u32 src3_reg : 8;
+      u32 src2_reg : 8;
+      u32 src1_reg : 8;
       AluVectorOpcode vector_opc : 5;
-      uint32_t src3_sel : 1;
-      uint32_t src2_sel : 1;
-      uint32_t src1_sel : 1;
+      u32 src3_sel : 1;
+      u32 src2_sel : 1;
+      u32 src1_sel : 1;
     };
   };
   Data data_;
 };
-REX_STATIC_ASSERT_SIZE(AluInstruction, sizeof(uint32_t) * 3);
+REX_STATIC_ASSERT_SIZE(AluInstruction, sizeof(u32) * 3);
 
 }  // namespace rex::xenos::ucode

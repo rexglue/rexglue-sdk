@@ -26,11 +26,11 @@ namespace rex::codegen {
  * 0xFFFFFFFF is an exact match and a partial mask allows wildcards.
  */
 struct Signature {
-  std::string name;              /**< Symbol name such as "__savegprlr_14" */
-  std::vector<uint32_t> pattern; /**< Instruction words to match */
-  std::vector<uint32_t> mask;    /**< Bits that must match, 0xFFFFFFFF for exact */
-  size_t entryOffset = 0;        /**< Offset from the pattern start to the entry point */
-  std::optional<size_t> size;    /**< Known size, or nullopt to compute from the pattern */
+  std::string name;           /**< Symbol name such as "__savegprlr_14" */
+  std::vector<u32> pattern;   /**< Instruction words to match */
+  std::vector<u32> mask;      /**< Bits that must match, 0xFFFFFFFF for exact */
+  size_t entryOffset = 0;     /**< Offset from the pattern start to the entry point */
+  std::optional<size_t> size; /**< Known size, or nullopt to compute from the pattern */
 };
 
 /** Pattern based signature matcher. */
@@ -49,7 +49,7 @@ class SigScanner {
    * @param sig Signature to match
    * @return Entry points of all matches
    */
-  std::vector<uint32_t> scan(const Signature& sig);
+  std::vector<u32> scan(const Signature& sig);
 
   /**
    * Scans for multiple signatures in a single pass.
@@ -57,8 +57,7 @@ class SigScanner {
    * @param sigs Signatures to match
    * @return Entry points of all matches keyed by signature name
    */
-  std::unordered_map<std::string, std::vector<uint32_t>> scanAll(
-      const std::vector<Signature>& sigs);
+  std::unordered_map<std::string, std::vector<u32>> scanAll(const std::vector<Signature>& sigs);
 
   /**
    * Returns the built in signatures of the __save and __restore helpers.
@@ -77,9 +76,8 @@ class SigScanner {
  private:
   const runtime::Module& module_;
 
-  std::vector<uint32_t> scanRange(uint32_t start, uint32_t end,
-                                  const std::vector<uint32_t>& pattern,
-                                  const std::vector<uint32_t>& mask, size_t entryOffset);
+  std::vector<u32> scanRange(u32 start, u32 end, const std::vector<u32>& pattern,
+                             const std::vector<u32>& mask, size_t entryOffset);
 };
 
 }  // namespace rex::codegen

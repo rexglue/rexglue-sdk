@@ -33,7 +33,7 @@ void DebugOverlayDialog::OnDraw(ImGuiIO& io) {
     ImGui::Separator();
 
     auto ft_us = rex::platform::GetSnapshotCounter(rex::platform::CounterId::kFrameTimeUs);
-    float ft_ms = static_cast<float>(ft_us) / 1000.0f;
+    f32 ft_ms = static_cast<f32>(ft_us) / 1000.0f;
     frame_time_history_[frame_history_idx_] = ft_ms;
     frame_history_idx_ = (frame_history_idx_ + 1) % kFrameHistorySize;
     ImGui::PlotLines("##ft", frame_time_history_.data(), kFrameHistorySize,
@@ -47,7 +47,7 @@ void DebugOverlayDialog::OnDraw(ImGuiIO& io) {
 
     ImGui::Text("XMA: %" PRId64 "  Lat: %.1fms  BufQ: %" PRId64,
                 rex::platform::GetSnapshotCounter(rex::platform::CounterId::kXMAFramesDecoded),
-                static_cast<float>(rex::platform::GetSnapshotCounter(
+                static_cast<f32>(rex::platform::GetSnapshotCounter(
                     rex::platform::CounterId::kAudioFrameLatencyUs)) /
                     1000.0f,
                 rex::platform::GetSnapshotCounter(rex::platform::CounterId::kBufferQueueDepth));
@@ -73,8 +73,8 @@ void DebugOverlayDialog::OnDraw(ImGuiIO& io) {
   ImGui::End();
 
   auto text_size = ImGui::CalcTextSize(REXGLUE_BUILD_STAMP);
-  float padding = ImGui::GetStyle().WindowPadding.x * 2.0f;
-  float bottom_offset = io.DisplaySize.y * 0.03f;
+  f32 padding = ImGui::GetStyle().WindowPadding.x * 2.0f;
+  f32 bottom_offset = io.DisplaySize.y * 0.03f;
   ImGui::SetNextWindowPos(ImVec2((io.DisplaySize.x - text_size.x - padding) * 0.5f,
                                  io.DisplaySize.y - text_size.y - bottom_offset));
   ImGui::SetNextWindowSize(ImVec2(0, 0));

@@ -1,5 +1,7 @@
 #include "disasm.h"
 
+#include <rex/types.h>
+
 namespace rex::codegen::ppc {
 
 /**
@@ -18,7 +20,7 @@ DisassemblerEngine::DisassemblerEngine(bfd_endian endian, const char* options) {
   info.private_data = reinterpret_cast<void*>(kXenonDialect);
 }
 
-int DisassemblerEngine::Disassemble(const void* code, size_t size, uint64_t base, ppc_insn& out) {
+int DisassemblerEngine::Disassemble(const void* code, size_t size, u64 base, ppc_insn& out) {
   if (size < 4) {
     return 0;
   }
@@ -29,9 +31,9 @@ int DisassemblerEngine::Disassemble(const void* code, size_t size, uint64_t base
   return decode_insn_ppc(base, &info, &out);
 }
 
-int Disassemble(const void* code, uint64_t base, ppc_insn* out, size_t nOut) {
+int Disassemble(const void* code, u64 base, ppc_insn* out, size_t nOut) {
   for (size_t i = 0; i < nOut; i++) {
-    Disassemble(static_cast<const uint32_t*>(code) + i, base, out[i]);
+    Disassemble(static_cast<const u32*>(code) + i, base, out[i]);
   }
   return static_cast<int>(nOut) * 4;
 }

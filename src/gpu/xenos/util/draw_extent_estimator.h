@@ -42,7 +42,7 @@ class DrawExtentEstimator {
    * @param vertex_shader Vertex shader with analyzed ucode.
    * @return Exclusive maximum Y in pixels, 0 without indices, 8192 when not estimable.
    */
-  uint32_t EstimateVertexMaxY(const Shader& vertex_shader);
+  u32 EstimateVertexMaxY(const Shader& vertex_shader);
 
   /**
    * Returns the maximum Y in pixels of the EDRAM extent involved in the draw.
@@ -61,13 +61,13 @@ class DrawExtentEstimator {
    * @param vertex_shader Vertex shader with analyzed ucode.
    * @return Maximum Y in pixels.
    */
-  uint32_t EstimateMaxY(bool try_to_estimate_vertex_max_y, const Shader& vertex_shader);
+  u32 EstimateMaxY(bool try_to_estimate_vertex_max_y, const Shader& vertex_shader);
 
  private:
   class PositionYExportSink : public ShaderInterpreter::ExportSink {
    public:
-    void Export(xenos::ucode::ExportRegister export_register, const float* value,
-                uint32_t value_mask) override;
+    void Export(xenos::ucode::ExportRegister export_register, const f32* value,
+                u32 value_mask) override;
 
     void Reset() {
       position_y_.reset();
@@ -76,16 +76,16 @@ class DrawExtentEstimator {
       vertex_kill_.reset();
     }
 
-    const std::optional<float>& position_y() const { return position_y_; }
-    const std::optional<float>& position_w() const { return position_w_; }
-    const std::optional<float>& point_size() const { return point_size_; }
-    const std::optional<uint32_t>& vertex_kill() const { return vertex_kill_; }
+    const std::optional<f32>& position_y() const { return position_y_; }
+    const std::optional<f32>& position_w() const { return position_w_; }
+    const std::optional<f32>& point_size() const { return point_size_; }
+    const std::optional<u32>& vertex_kill() const { return vertex_kill_; }
 
    private:
-    std::optional<float> position_y_;
-    std::optional<float> position_w_;
-    std::optional<float> point_size_;
-    std::optional<uint32_t> vertex_kill_;
+    std::optional<f32> position_y_;
+    std::optional<f32> position_w_;
+    std::optional<f32> point_size_;
+    std::optional<u32> vertex_kill_;
   };
 
   const xenos::RegisterFile& register_file_;

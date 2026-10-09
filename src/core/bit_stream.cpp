@@ -19,8 +19,7 @@
 
 namespace rex {
 
-BitStream::BitStream(uint8_t* buffer, size_t size_in_bits)
-    : buffer_(buffer), size_bits_(size_in_bits) {}
+BitStream::BitStream(u8* buffer, size_t size_in_bits) : buffer_(buffer), size_bits_(size_in_bits) {}
 
 BitStream::~BitStream() = default;
 
@@ -33,7 +32,7 @@ size_t BitStream::BitsRemaining() {
   return size_bits_ - offset_bits_;
 }
 
-uint64_t BitStream::Peek(size_t num_bits) {
+u64 BitStream::Peek(size_t num_bits) {
   // At most 57 bits fit since 57 = 7 * 8 + 1 spans at most 8 bytes, the widest load.
   REX_ASSERT(!(num_bits > 57));
   REX_ASSERT(!(offset_bits_ + num_bits > size_bits_));
@@ -41,7 +40,7 @@ uint64_t BitStream::Peek(size_t num_bits) {
   size_t offset_bytes = offset_bits_ >> 3;
   size_t rel_offset_bits = offset_bits_ - (offset_bytes << 3);
 
-  uint64_t bits = memory::load<be_u64>(buffer_ + offset_bytes);
+  u64 bits = memory::load<be_u64>(buffer_ + offset_bytes);
 
   bits >>= 64 - (rel_offset_bits + num_bits);
 
@@ -50,27 +49,27 @@ uint64_t BitStream::Peek(size_t num_bits) {
   return bits;
 }
 
-uint64_t BitStream::Read(size_t num_bits) {
-  uint64_t val = Peek(num_bits);
+u64 BitStream::Read(size_t num_bits) {
+  u64 val = Peek(num_bits);
   Advance(num_bits);
 
   return val;
 }
 
-bool BitStream::Write(uint64_t val, size_t num_bits) {
+bool BitStream::Write(u64 val, size_t num_bits) {
   REX_ASSERT(!(num_bits > 57));
   REX_ASSERT(!(offset_bits_ + num_bits > size_bits_));
 
   size_t offset_bytes = offset_bits_ >> 3;
   size_t rel_offset_bits = offset_bits_ - (offset_bytes << 3);
 
-  uint64_t mask = (1ULL << num_bits) - 1;
+  u64 mask = (1ULL << num_bits) - 1;
   mask <<= 64 - (rel_offset_bits + num_bits);
   mask = ~mask;
 
   val <<= 64 - (rel_offset_bits + num_bits);
 
-  uint64_t bits = memory::load<be_u64>(buffer_ + offset_bytes);
+  u64 bits = memory::load<be_u64>(buffer_ + offset_bytes);
 
   bits &= mask;
 
@@ -83,17 +82,17 @@ bool BitStream::Write(uint64_t val, size_t num_bits) {
   return true;
 }
 
-size_t BitStream::Copy(uint8_t* dest_buffer, size_t num_bits) {
+size_t BitStream::Copy(u8* dest_buffer, size_t num_bits) {
   size_t offset_bytes = offset_bits_ >> 3;
   size_t rel_offset_bits = offset_bits_ - (offset_bytes << 3);
   size_t bits_left = num_bits;
   size_t out_offset_bytes = 0;
 
   if (rel_offset_bits) {
-    uint64_t bits = Peek(8 - rel_offset_bits);
-    uint8_t clear_mask = ~((static_cast<uint8_t>(1) << rel_offset_bits) - 1);
+    u64 bits = Peek(8 - rel_offset_bits);
+    u8 clear_mask = ~((static_cast<u8>(1) << rel_offset_bits) - 1);
     dest_buffer[out_offset_bytes] &= clear_mask;
-    dest_buffer[out_offset_bytes] |= static_cast<uint8_t>(bits);
+    dest_buffer[out_offset_bytes] |= static_cast<u8>(bits);
 
     bits_left -= 8 - rel_offset_bits;
     Advance(8 - rel_offset_bits);
@@ -109,12 +108,12 @@ size_t BitStream::Copy(uint8_t* dest_buffer, size_t num_bits) {
   }
 
   if (bits_left) {
-    uint64_t bits = Peek(bits_left);
+    u64 bits = Peek(bits_left);
     bits <<= 8 - bits_left;
 
-    uint8_t clear_mask = ((static_cast<uint8_t>(1) << bits_left) - 1);
+    u8 clear_mask = ((static_cast<u8>(1) << bits_left) - 1);
     dest_buffer[out_offset_bytes] &= clear_mask;
-    dest_buffer[out_offset_bytes] |= static_cast<uint8_t>(bits);
+    dest_buffer[out_offset_bytes] |= static_cast<u8>(bits);
     Advance(bits_left);
   }
 

@@ -18,7 +18,7 @@
 namespace rex {
 namespace gpu {
 
-bool XcbWindowSurface::GetSizeImpl(uint32_t& width_out, uint32_t& height_out) const {
+bool XcbWindowSurface::GetSizeImpl(u32& width_out, u32& height_out) const {
   xcb_get_geometry_reply_t* reply =
       xcb_get_geometry_reply(connection_, xcb_get_geometry(connection_, window_), nullptr);
   if (!reply) {
@@ -30,13 +30,13 @@ bool XcbWindowSurface::GetSizeImpl(uint32_t& width_out, uint32_t& height_out) co
   return true;
 }
 
-bool WaylandSurface::GetSizeImpl(uint32_t& width_out, uint32_t& height_out) const {
+bool WaylandSurface::GetSizeImpl(u32& width_out, u32& height_out) const {
   int w = 0, h = 0;
   if (!SDL_GetWindowSizeInPixels(sdl_window_, &w, &h) || w <= 0 || h <= 0) {
     return false;
   }
-  width_out = static_cast<uint32_t>(w);
-  height_out = static_cast<uint32_t>(h);
+  width_out = static_cast<u32>(w);
+  height_out = static_cast<u32>(h);
   return true;
 }
 

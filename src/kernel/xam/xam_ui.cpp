@@ -289,8 +289,8 @@ u32 XamShowDeviceSelectorUI_entry(u32 user_index, u32 content_type, u32 content_
                                   u64 total_requested, mapped_u32 device_id_ptr,
                                   mapped_void overlapped) {
   REXLOG_DEBUG(kernel, "XamShowDeviceSelectorUI({:08X}, {:08X}, {:08X}, {:016X}, {:08X}, {:08X})",
-               static_cast<uint32_t>(user_index), static_cast<uint32_t>(content_type),
-               static_cast<uint32_t>(content_flags), static_cast<uint64_t>(total_requested),
+               static_cast<u32>(user_index), static_cast<u32>(content_type),
+               static_cast<u32>(content_flags), static_cast<u64>(total_requested),
                device_id_ptr.guest_address(), overlapped.guest_address());
   return XamDispatchHeadless(
       [device_id_ptr]() -> X_RESULT {
@@ -331,7 +331,7 @@ u32 XamShowCommunitySessionsUI_entry([[maybe_unused]] u32 r3, [[maybe_unused]] u
   return X_ERROR_FUNCTION_FAILED;
 }
 
-uint32_t XamShowMessageBoxUIEx_entry() {
+u32 XamShowMessageBoxUIEx_entry() {
   static bool warned = false;
   if (!warned) {
     REX_KERNEL_STUB("XamShowMessageBoxUIEx");

@@ -22,7 +22,7 @@ using namespace rex::runtime::format;
 using rex::runtime::GuestPtr;
 
 REX_HOOK_RAW(__imp__DbgPrint) {
-  uint32_t format_ptr = ctx.r3.u32;
+  u32 format_ptr = ctx.r3.u32;
   if (!format_ptr) {
     ctx.r3.u64 = 0;
     return;
@@ -32,7 +32,7 @@ REX_HOOK_RAW(__imp__DbgPrint) {
   StackArgList args(ctx, base, 1);
   StringFormatData data(format);
 
-  int32_t count = format_core(base, data, args, false);
+  i32 count = format_core(base, data, args, false);
   if (count > 0) {
     auto str = data.str();
     while (!str.empty() && std::isspace(static_cast<unsigned char>(str.back()))) {
@@ -45,7 +45,7 @@ REX_HOOK_RAW(__imp__DbgPrint) {
 }
 
 REX_HOOK_RAW(__imp__XamDbgPrint) {
-  uint32_t format_ptr = ctx.r3.u32;
+  u32 format_ptr = ctx.r3.u32;
   if (!format_ptr) {
     ctx.r3.u64 = 0;
     return;
@@ -55,7 +55,7 @@ REX_HOOK_RAW(__imp__XamDbgPrint) {
   StackArgList args(ctx, base, 1);
   StringFormatData data(format);
 
-  int32_t count = format_core(base, data, args, false);
+  i32 count = format_core(base, data, args, false);
   if (count > 0) {
     auto str = data.str();
     while (!str.empty() && std::isspace(static_cast<unsigned char>(str.back()))) {
@@ -68,11 +68,11 @@ REX_HOOK_RAW(__imp__XamDbgPrint) {
 }
 
 REX_HOOK_RAW(__imp__sprintf) {
-  uint32_t buffer_ptr = ctx.r3.u32;
-  uint32_t format_ptr = ctx.r4.u32;
+  u32 buffer_ptr = ctx.r3.u32;
+  u32 format_ptr = ctx.r4.u32;
 
   if (buffer_ptr == 0 || format_ptr == 0) {
-    ctx.r3.u64 = static_cast<uint64_t>(-1);
+    ctx.r3.u64 = static_cast<u64>(-1);
     return;
   }
 
@@ -82,7 +82,7 @@ REX_HOOK_RAW(__imp__sprintf) {
   StackArgList args(ctx, base, 2);
   StringFormatData data(format);
 
-  int32_t count = format_core(base, data, args, false);
+  i32 count = format_core(base, data, args, false);
   if (count <= 0) {
     buffer[0] = '\0';
   } else {
@@ -93,12 +93,12 @@ REX_HOOK_RAW(__imp__sprintf) {
 }
 
 REX_HOOK_RAW(__imp___snprintf) {
-  uint32_t buffer_ptr = ctx.r3.u32;
-  int32_t buffer_count = static_cast<int32_t>(ctx.r4.u32);
-  uint32_t format_ptr = ctx.r5.u32;
+  u32 buffer_ptr = ctx.r3.u32;
+  i32 buffer_count = static_cast<i32>(ctx.r4.u32);
+  u32 format_ptr = ctx.r5.u32;
 
   if (buffer_ptr == 0 || buffer_count <= 0 || format_ptr == 0) {
-    ctx.r3.u64 = static_cast<uint64_t>(-1);
+    ctx.r3.u64 = static_cast<u64>(-1);
     return;
   }
 
@@ -108,7 +108,7 @@ REX_HOOK_RAW(__imp___snprintf) {
   StackArgList args(ctx, base, 3);
   StringFormatData data(format);
 
-  int32_t count = format_core(base, data, args, false);
+  i32 count = format_core(base, data, args, false);
   if (count < 0) {
     if (buffer_count > 0) {
       buffer[0] = '\0';
@@ -126,11 +126,11 @@ REX_HOOK_RAW(__imp___snprintf) {
 }
 
 REX_HOOK_RAW(__imp__swprintf) {
-  uint32_t buffer_ptr = ctx.r3.u32;
-  uint32_t format_ptr = ctx.r4.u32;
+  u32 buffer_ptr = ctx.r3.u32;
+  u32 format_ptr = ctx.r4.u32;
 
   if (buffer_ptr == 0 || format_ptr == 0) {
-    ctx.r3.u64 = static_cast<uint64_t>(-1);
+    ctx.r3.u64 = static_cast<u64>(-1);
     return;
   }
 
@@ -140,24 +140,23 @@ REX_HOOK_RAW(__imp__swprintf) {
   StackArgList args(ctx, base, 2);
   WideStringFormatData data(format);
 
-  int32_t count = format_core(base, data, args, true);
+  i32 count = format_core(base, data, args, true);
   if (count <= 0) {
     buffer[0] = '\0';
   } else {
-    rex::memory::copy_and_swap(buffer, reinterpret_cast<const uint16_t*>(data.wstr().c_str()),
-                               count);
+    rex::memory::copy_and_swap(buffer, reinterpret_cast<const u16*>(data.wstr().c_str()), count);
     buffer[count] = '\0';
   }
   ctx.r3.u64 = count;
 }
 
 REX_HOOK_RAW(__imp___snwprintf) {
-  uint32_t buffer_ptr = ctx.r3.u32;
-  int32_t buffer_count = static_cast<int32_t>(ctx.r4.u32);
-  uint32_t format_ptr = ctx.r5.u32;
+  u32 buffer_ptr = ctx.r3.u32;
+  i32 buffer_count = static_cast<i32>(ctx.r4.u32);
+  u32 format_ptr = ctx.r5.u32;
 
   if (buffer_ptr == 0 || buffer_count <= 0 || format_ptr == 0) {
-    ctx.r3.u64 = static_cast<uint64_t>(-1);
+    ctx.r3.u64 = static_cast<u64>(-1);
     return;
   }
 
@@ -167,19 +166,18 @@ REX_HOOK_RAW(__imp___snwprintf) {
   StackArgList args(ctx, base, 3);
   WideStringFormatData data(format);
 
-  int32_t count = format_core(base, data, args, true);
+  i32 count = format_core(base, data, args, true);
   if (count < 0) {
     if (buffer_count > 0) {
       buffer[0] = '\0';
     }
   } else if (count <= buffer_count) {
-    rex::memory::copy_and_swap(buffer, reinterpret_cast<const uint16_t*>(data.wstr().c_str()),
-                               count);
+    rex::memory::copy_and_swap(buffer, reinterpret_cast<const u16*>(data.wstr().c_str()), count);
     if (count < buffer_count) {
       buffer[count] = '\0';
     }
   } else {
-    rex::memory::copy_and_swap(buffer, reinterpret_cast<const uint16_t*>(data.wstr().c_str()),
+    rex::memory::copy_and_swap(buffer, reinterpret_cast<const u16*>(data.wstr().c_str()),
                                buffer_count);
     count = -1;
   }
@@ -187,12 +185,12 @@ REX_HOOK_RAW(__imp___snwprintf) {
 }
 
 REX_HOOK_RAW(__imp__vsprintf) {
-  uint32_t buffer_ptr = ctx.r3.u32;
-  uint32_t format_ptr = ctx.r4.u32;
-  uint32_t arg_ptr = ctx.r5.u32;
+  u32 buffer_ptr = ctx.r3.u32;
+  u32 format_ptr = ctx.r4.u32;
+  u32 arg_ptr = ctx.r5.u32;
 
   if (buffer_ptr == 0 || format_ptr == 0) {
-    ctx.r3.u64 = static_cast<uint64_t>(-1);
+    ctx.r3.u64 = static_cast<u64>(-1);
     return;
   }
 
@@ -202,7 +200,7 @@ REX_HOOK_RAW(__imp__vsprintf) {
   ArrayArgList args(base, arg_ptr);
   StringFormatData data(format);
 
-  int32_t count = format_core(base, data, args, false);
+  i32 count = format_core(base, data, args, false);
   if (count <= 0) {
     buffer[0] = '\0';
   } else {
@@ -213,13 +211,13 @@ REX_HOOK_RAW(__imp__vsprintf) {
 }
 
 REX_HOOK_RAW(__imp___vsnprintf) {
-  uint32_t buffer_ptr = ctx.r3.u32;
-  int32_t buffer_count = static_cast<int32_t>(ctx.r4.u32);
-  uint32_t format_ptr = ctx.r5.u32;
-  uint32_t arg_ptr = ctx.r6.u32;
+  u32 buffer_ptr = ctx.r3.u32;
+  i32 buffer_count = static_cast<i32>(ctx.r4.u32);
+  u32 format_ptr = ctx.r5.u32;
+  u32 arg_ptr = ctx.r6.u32;
 
   if (buffer_ptr == 0 || buffer_count <= 0 || format_ptr == 0) {
-    ctx.r3.u64 = static_cast<uint64_t>(-1);
+    ctx.r3.u64 = static_cast<u64>(-1);
     return;
   }
 
@@ -229,7 +227,7 @@ REX_HOOK_RAW(__imp___vsnprintf) {
   ArrayArgList args(base, arg_ptr);
   StringFormatData data(format);
 
-  int32_t count = format_core(base, data, args, false);
+  i32 count = format_core(base, data, args, false);
   if (count < 0) {
     if (buffer_count > 0) {
       buffer[0] = '\0';
@@ -246,12 +244,12 @@ REX_HOOK_RAW(__imp___vsnprintf) {
 }
 
 REX_HOOK_RAW(__imp__vswprintf) {
-  uint32_t buffer_ptr = ctx.r3.u32;
-  uint32_t format_ptr = ctx.r4.u32;
-  uint32_t arg_ptr = ctx.r5.u32;
+  u32 buffer_ptr = ctx.r3.u32;
+  u32 format_ptr = ctx.r4.u32;
+  u32 arg_ptr = ctx.r5.u32;
 
   if (buffer_ptr == 0 || format_ptr == 0) {
-    ctx.r3.u64 = static_cast<uint64_t>(-1);
+    ctx.r3.u64 = static_cast<u64>(-1);
     return;
   }
 
@@ -261,25 +259,24 @@ REX_HOOK_RAW(__imp__vswprintf) {
   ArrayArgList args(base, arg_ptr);
   WideStringFormatData data(format);
 
-  int32_t count = format_core(base, data, args, true);
+  i32 count = format_core(base, data, args, true);
   if (count <= 0) {
     buffer[0] = '\0';
   } else {
-    rex::memory::copy_and_swap(buffer, reinterpret_cast<const uint16_t*>(data.wstr().c_str()),
-                               count);
+    rex::memory::copy_and_swap(buffer, reinterpret_cast<const u16*>(data.wstr().c_str()), count);
     buffer[count] = '\0';
   }
   ctx.r3.u64 = count;
 }
 
 REX_HOOK_RAW(__imp___vsnwprintf) {
-  uint32_t buffer_ptr = ctx.r3.u32;
-  int32_t buffer_count = static_cast<int32_t>(ctx.r4.u32);
-  uint32_t format_ptr = ctx.r5.u32;
-  uint32_t arg_ptr = ctx.r6.u32;
+  u32 buffer_ptr = ctx.r3.u32;
+  i32 buffer_count = static_cast<i32>(ctx.r4.u32);
+  u32 format_ptr = ctx.r5.u32;
+  u32 arg_ptr = ctx.r6.u32;
 
   if (buffer_ptr == 0 || buffer_count <= 0 || format_ptr == 0) {
-    ctx.r3.u64 = static_cast<uint64_t>(-1);
+    ctx.r3.u64 = static_cast<u64>(-1);
     return;
   }
 
@@ -289,30 +286,29 @@ REX_HOOK_RAW(__imp___vsnwprintf) {
   ArrayArgList args(base, arg_ptr);
   WideStringFormatData data(format);
 
-  int32_t count = format_core(base, data, args, true);
+  i32 count = format_core(base, data, args, true);
   if (count < 0) {
     if (buffer_count > 0) {
       buffer[0] = '\0';
     }
   } else if (count <= buffer_count) {
-    rex::memory::copy_and_swap(buffer, reinterpret_cast<const uint16_t*>(data.wstr().c_str()),
-                               count);
+    rex::memory::copy_and_swap(buffer, reinterpret_cast<const u16*>(data.wstr().c_str()), count);
     if (count < buffer_count) {
       buffer[count] = '\0';
     }
   } else {
-    rex::memory::copy_and_swap(buffer, reinterpret_cast<const uint16_t*>(data.wstr().c_str()),
+    rex::memory::copy_and_swap(buffer, reinterpret_cast<const u16*>(data.wstr().c_str()),
                                buffer_count);
   }
   ctx.r3.u64 = count;
 }
 
 REX_HOOK_RAW(__imp___vscwprintf) {
-  uint32_t format_ptr = ctx.r3.u32;
-  uint32_t arg_ptr = ctx.r4.u32;
+  u32 format_ptr = ctx.r3.u32;
+  u32 arg_ptr = ctx.r4.u32;
 
   if (format_ptr == 0) {
-    ctx.r3.u64 = static_cast<uint64_t>(-1);
+    ctx.r3.u64 = static_cast<u64>(-1);
     return;
   }
 
@@ -321,7 +317,7 @@ REX_HOOK_RAW(__imp___vscwprintf) {
   ArrayArgList args(base, arg_ptr);
   WideCountFormatData data(format);
 
-  int32_t count = format_core(base, data, args, true);
+  i32 count = format_core(base, data, args, true);
   REX_ASSERT(count < 0 || data.count() == count);
   ctx.r3.u64 = count;
 }

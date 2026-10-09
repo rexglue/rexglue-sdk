@@ -109,7 +109,7 @@ void UserProfile::AddSetting(std::unique_ptr<Setting> setting) {
   }
 }
 
-UserProfile::Setting* UserProfile::GetSetting(uint32_t setting_id) {
+UserProfile::Setting* UserProfile::GetSetting(u32 setting_id) {
   const auto& it = settings_.find(setting_id);
   if (it == settings_.end()) {
     return nullptr;

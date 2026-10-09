@@ -8,8 +8,8 @@ namespace rex::codegen {
 
 SigScanner::SigScanner(const runtime::Module& module) : module_(module) {}
 
-std::vector<uint32_t> SigScanner::scan(const Signature& sig) {
-  std::vector<uint32_t> matches;
+std::vector<u32> SigScanner::scan(const Signature& sig) {
+  std::vector<u32> matches;
 
   for (const auto& section : module_.binary_sections()) {
     if (!section.host_data)
@@ -28,9 +28,9 @@ std::vector<uint32_t> SigScanner::scan(const Signature& sig) {
   return matches;
 }
 
-std::unordered_map<std::string, std::vector<uint32_t>> SigScanner::scanAll(
+std::unordered_map<std::string, std::vector<u32>> SigScanner::scanAll(
     const std::vector<Signature>& sigs) {
-  std::unordered_map<std::string, std::vector<uint32_t>> results;
+  std::unordered_map<std::string, std::vector<u32>> results;
 
   for (const auto& sig : sigs) {
     results[sig.name] = scan(sig);
@@ -39,10 +39,9 @@ std::unordered_map<std::string, std::vector<uint32_t>> SigScanner::scanAll(
   return results;
 }
 
-std::vector<uint32_t> SigScanner::scanRange(uint32_t start, uint32_t end,
-                                            const std::vector<uint32_t>& pattern,
-                                            const std::vector<uint32_t>& mask, size_t entryOffset) {
-  std::vector<uint32_t> matches;
+std::vector<u32> SigScanner::scanRange(u32 start, u32 end, const std::vector<u32>& pattern,
+                                       const std::vector<u32>& mask, size_t entryOffset) {
+  std::vector<u32> matches;
 
   if (pattern.empty() || pattern.size() != mask.size()) {
     return matches;
@@ -54,24 +53,24 @@ std::vector<uint32_t> SigScanner::scanRange(uint32_t start, uint32_t end,
   }
 
   size_t patternBytes = pattern.size() * 4;
-  uint32_t sectionEnd = section->virtual_address + section->virtual_size;
-  uint32_t scanEnd = std::min(end, sectionEnd);
+  u32 sectionEnd = section->virtual_address + section->virtual_size;
+  u32 scanEnd = std::min(end, sectionEnd);
 
   if (start + patternBytes > scanEnd) {
     return matches;
   }
 
-  const uint8_t* data = section->host_data;
-  uint32_t sectionBase = section->virtual_address;
+  const u8* data = section->host_data;
+  u32 sectionBase = section->virtual_address;
 
-  for (uint32_t addr = start; addr + patternBytes <= scanEnd; addr += 4) {
+  for (u32 addr = start; addr + patternBytes <= scanEnd; addr += 4) {
     bool matched = true;
-    uint32_t offset = addr - sectionBase;
+    u32 offset = addr - sectionBase;
 
     for (size_t i = 0; i < pattern.size() && matched; i++) {
-      uint32_t dword = memory::load<be_u32>(data + offset + i * 4);
-      uint32_t masked = dword & mask[i];
-      uint32_t expected = pattern[i] & mask[i];
+      u32 dword = memory::load<be_u32>(data + offset + i * 4);
+      u32 masked = dword & mask[i];
+      u32 expected = pattern[i] & mask[i];
 
       if (masked != expected) {
         matched = false;
@@ -79,7 +78,7 @@ std::vector<uint32_t> SigScanner::scanRange(uint32_t start, uint32_t end,
     }
 
     if (matched) {
-      uint32_t entryPoint = addr + static_cast<uint32_t>(entryOffset * 4);
+      u32 entryPoint = addr + static_cast<u32>(entryOffset * 4);
       matches.push_back(entryPoint);
       REXLOG_TRACE(codegen, "SigScanner: pattern match at 0x{:08X}, entry=0x{:08X}", addr,
                    entryPoint);

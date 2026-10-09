@@ -29,15 +29,15 @@ class FunctionNode {
    * @param size Size in bytes
    * @param authority Authority of the registration
    */
-  FunctionNode(uint32_t base, uint32_t size, FunctionAuthority authority);
+  FunctionNode(u32 base, u32 size, FunctionAuthority authority);
 
-  uint32_t base() const { return base_; }
-  uint32_t size() const { return size_; }
-  uint32_t end() const { return base_ + size_; }
+  u32 base() const { return base_; }
+  u32 size() const { return size_; }
+  u32 end() const { return base_ + size_; }
   const std::string& name() const { return name_; }
 
   /** Returns the cached pointer to the instruction bytes. */
-  const uint8_t* code() const { return code_; }
+  const u8* code() const { return code_; }
   bool hasCode() const { return code_ != nullptr; }
 
   FunctionAuthority authority() const { return authority_; }
@@ -73,8 +73,7 @@ class FunctionNode {
    * @param labels Internal branch target addresses
    */
   void discover(std::vector<Block> blocks,
-                std::vector<rex::codegen::ppc::Instruction*> instructions,
-                std::set<uint32_t> labels);
+                std::vector<rex::codegen::ppc::Instruction*> instructions, std::set<u32> labels);
 
   /** Transitions kRegistered to kDiscovered for an import function, which has no blocks. */
   void discoverAsImport();
@@ -121,7 +120,7 @@ class FunctionNode {
    * @param addr Address to test
    * @return True when addr is inside the function
    */
-  bool containsAddress(uint32_t addr) const;
+  bool containsAddress(u32 addr) const;
 
   /**
    * Reports whether an address is within the overall function bounds, ignoring blocks. Used for
@@ -130,11 +129,11 @@ class FunctionNode {
    * @param addr Address to test
    * @return True when addr is within bounds
    */
-  bool isWithinBounds(uint32_t addr) const { return addr >= base_ && addr < base_ + size_; }
+  bool isWithinBounds(u32 addr) const { return addr >= base_ && addr < base_ + size_; }
 
   /** Returns the internal branch targets of this function. */
-  const std::set<uint32_t>& labels() const { return labels_; }
-  bool isLabel(uint32_t addr) const { return labels_.contains(addr); }
+  const std::set<u32>& labels() const { return labels_; }
+  bool isLabel(u32 addr) const { return labels_.contains(addr); }
 
   /** Returns the resolved calls, the bl instructions. */
   const std::vector<CallEdge>& calls() const { return calls_; }
@@ -166,31 +165,31 @@ class FunctionNode {
   void setSharesRegisters(bool val) { sharesRegisters_ = val; }
 
  private:
-  void setCode(const uint8_t* ptr) { code_ = ptr; }
+  void setCode(const u8* ptr) { code_ = ptr; }
   void setHasExceptionHandler(bool val) { hasExceptionHandler_ = val; }
   void setExceptionInfo(ExceptionInfo info) { exceptionInfo_ = std::move(info); }
 
   void addBlock(Block block);
-  void addLabel(uint32_t addr);
+  void addLabel(u32 addr);
 
-  void addCall(uint32_t site, CallTarget target);
-  void addTailCall(uint32_t site, CallTarget target);
+  void addCall(u32 site, CallTarget target);
+  void addTailCall(u32 site, CallTarget target);
   void addJumpTable(JumpTable jt);
-  void addUnresolvedJump(uint32_t site, uint32_t target, bool isCall, bool conditional);
+  void addUnresolvedJump(u32 site, u32 target, bool isCall, bool conditional);
 
   bool tryResolveAgainst(FunctionNode* newFunction);
-  bool tryResolveAgainstImport(uint32_t importAddr, const std::string& importName);
-  bool tryResolveAsInternalLabel(uint32_t target);
+  bool tryResolveAgainstImport(u32 importAddr, const std::string& importName);
+  bool tryResolveAsInternalLabel(u32 target);
 
-  void absorbRegion(uint32_t regionBase, uint32_t regionSize);
+  void absorbRegion(u32 regionBase, u32 regionSize);
 
-  void removeUnresolvedJump(uint32_t site);
+  void removeUnresolvedJump(u32 site);
 
  private:
-  uint32_t base_;
-  uint32_t size_;
+  u32 base_;
+  u32 size_;
   std::string name_;
-  const uint8_t* code_ = nullptr;
+  const u8* code_ = nullptr;
   FunctionAuthority authority_;
   FunctionState state_ = FunctionState::kRegistered;
   bool hasExceptionHandler_ = false;
@@ -198,7 +197,7 @@ class FunctionNode {
 
   std::vector<Block> blocks_;
   std::vector<rex::codegen::ppc::Instruction*> instructions_; /**< Point into DecodedBinary */
-  std::set<uint32_t> labels_;
+  std::set<u32> labels_;
 
   std::vector<CallEdge> calls_;
   std::vector<CallEdge> tailCalls_;

@@ -32,7 +32,7 @@ TEST_CASE("VdQueryVideoMode returns the runtime video mode", "[kernel][video]") 
     rex::kernel::xboxkrnl::VdQueryVideoMode(&mode);
     CHECK(static_cast<rex::u32>(mode.display_width) == expected.width);
     CHECK(static_cast<rex::u32>(mode.display_height) == expected.height);
-    CHECK(static_cast<float>(mode.refresh_rate) == expected.refresh_rate);
+    CHECK(static_cast<f32>(mode.refresh_rate) == expected.refresh_rate);
   });
   CHECK(expected.width == 1280);
   CHECK(expected.height == 720);

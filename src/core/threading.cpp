@@ -15,21 +15,21 @@
 
 namespace rex::platform {
 
-uint32_t logical_processor_count() {
-  static uint32_t value = 0;
+u32 logical_processor_count() {
+  static u32 value = 0;
   if (!value) {
     value = std::thread::hardware_concurrency();
   }
   return value;
 }
 
-thread_local uint32_t current_thread_id_ = UINT_MAX;
+thread_local u32 current_thread_id_ = UINT_MAX;
 
-uint32_t current_thread_id() {
+u32 current_thread_id() {
   return current_thread_id_ == UINT_MAX ? current_thread_system_id() : current_thread_id_;
 }
 
-void set_current_thread_id(uint32_t id) {
+void set_current_thread_id(u32 id) {
   current_thread_id_ = id;
 }
 

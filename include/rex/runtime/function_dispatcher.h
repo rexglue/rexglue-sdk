@@ -40,10 +40,13 @@ class ThreadState;
 class IModuleRegistrar {
  public:
   /**
-   * Returns false (and logs) if guest_address is outside every registered
-   * function-table range.
+   * Sets the function at a guest address.
+   *
+   * @param guest_address The guest address of the function.
+   * @param func The function.
+   * @return False, with a log line, when the address is outside every registered function table.
    */
-  virtual bool SetFunction(uint32_t guest_address, ::PPCFunc* func) = 0;
+  virtual bool SetFunction(u32 guest_address, ::PPCFunc* func) = 0;
 
  protected:
   ~IModuleRegistrar() = default;
@@ -77,7 +80,7 @@ class REX_RUNTIME_API FunctionDispatcher : public IModuleRegistrar {
    * @param arg_count The number of arguments.
    * @return The value in r3 when the call returns, or 0xDEADBABE when no function is set there.
    */
-  uint64_t Execute(ThreadState* thread_state, uint32_t address, uint64_t args[], size_t arg_count);
+  u64 Execute(ThreadState* thread_state, u32 address, u64 args[], size_t arg_count);
   /**
    * Runs recompiled code as an interrupt at the DPC level, then runs the queued DPCs once the
    * outermost interrupt ends.
@@ -88,18 +91,22 @@ class REX_RUNTIME_API FunctionDispatcher : public IModuleRegistrar {
    * @param arg_count The number of arguments.
    * @return The value in r3 when the call returns, or 0xDEADBABE when no function is set there.
    */
-  uint64_t ExecuteInterrupt(ThreadState* thread_state, uint32_t address, uint64_t args[],
-                            size_t arg_count);
+  u64 ExecuteInterrupt(ThreadState* thread_state, u32 address, u64 args[], size_t arg_count);
 
   /**
    * Executes recompiled code on a thread already running recompiled code, then restores
    * its full register state, matching the console kernel's trap-frame APC delivery.
+   *
+   * @param thread_state The thread running recompiled code.
+   * @param address The guest address to call.
+   * @param args The call arguments.
+   * @param arg_count The number of arguments.
+   * @return The value in r3 when the call returns, or 0xDEADBABE when it could not run.
    */
-  uint64_t ExecuteTrap(ThreadState* thread_state, uint32_t address, uint64_t args[],
-                       size_t arg_count);
+  u64 ExecuteTrap(ThreadState* thread_state, u32 address, u64 args[], size_t arg_count);
 
   /** Bytes of thunk region reserved per module. */
-  static constexpr uint32_t kThunkReserveSize = 0x10000;
+  static constexpr u32 kThunkReserveSize = 0x10000;
 
   /**
    * Initializes the function table of a module at image_base + image_size.
@@ -113,8 +120,8 @@ class REX_RUNTIME_API FunctionDispatcher : public IModuleRegistrar {
    * @param is_entrypoint True for the host loaded entrypoint module.
    * @return True on success.
    */
-  bool InitializeFunctionTable(uint32_t code_base, uint32_t code_size, uint32_t image_base,
-                               uint32_t image_size, bool is_entrypoint = false);
+  bool InitializeFunctionTable(u32 code_base, u32 code_size, u32 image_base, u32 image_size,
+                               bool is_entrypoint = false);
   /**
    * Sets the function at a guest address.
    *
@@ -122,32 +129,40 @@ class REX_RUNTIME_API FunctionDispatcher : public IModuleRegistrar {
    * @param func The function.
    * @return False when the address is outside every registered module.
    */
-  bool SetFunction(uint32_t guest_address, ::PPCFunc* func) override;
+  bool SetFunction(u32 guest_address, ::PPCFunc* func) override;
   /**
    * Looks up the function at a guest address.
    *
    * @param guest_address The guest address.
    * @return The function, null when none is set.
    */
-  ::PPCFunc* GetFunction(uint32_t guest_address);
+  ::PPCFunc* GetFunction(u32 guest_address);
   /**
-   * caller_address must be inside a registered module, or 0 to mean "host-
-   * initiated, route to the entrypoint pool".
+   * Allocates a thunk in the pool of the calling module.
+   *
+   * @param func The function the thunk calls.
+   * @param caller_address An address inside a registered module, or 0 for the entrypoint pool.
+   * @return The guest address of the thunk.
    */
-  uint32_t AllocateThunk(::PPCFunc* func, uint32_t caller_address);
+  u32 AllocateThunk(::PPCFunc* func, u32 caller_address);
 
   /**
-   * Returns the `code_base` of the module containing `guest_address`,
-   * or 0 if no module covers that address.
+   * Returns the code base of the module containing an address.
+   *
+   * @param guest_address The guest address.
+   * @return The code base, or 0 when no module covers the address.
    */
-  uint32_t FindCallerModuleBase(uint32_t guest_address);
+  u32 FindCallerModuleBase(u32 guest_address);
 
   /**
-   * Register a module while tracking guest addresses written via SetFunction.
-   * `code_base` must equal the value previously passed to InitializeFunctionTable
-   * for the same module.
+   * Registers a module and tracks the guest addresses it sets through SetFunction.
+   *
+   * @param module_id The module name.
+   * @param code_base The code base passed to InitializeFunctionTable for the same module.
+   * @param register_func The generated registration function.
+   * @param recompiled_code The recompiled code of the module, where a stop may redirect a thread.
    */
-  void RegisterModule(const std::string& module_id, uint32_t code_base, RegisterFn register_func,
+  void RegisterModule(const std::string& module_id, u32 code_base, RegisterFn register_func,
                       std::span<const u8> recompiled_code = {});
 
   /**
@@ -158,44 +173,45 @@ class REX_RUNTIME_API FunctionDispatcher : public IModuleRegistrar {
   void AddRecompiledCode(std::span<const u8> code);
 
   /**
-   * Unregister `module_id`: clears its function-table entries, releases its
-   * thunk pool, and removes its per-module function table. Returns the
-   * cleared thunk-pool range `[lo, hi)` for external cache invalidation, or
-   * nullopt if the module was not registered.
+   * Unregisters a module, clearing its function table entries, its thunk pool and its function
+   * table.
+   *
+   * @param module_id The module name.
+   * @return The cleared thunk pool range `[lo, hi)` for cache invalidation, or nullopt when the
+   * module was not registered.
    */
-  std::optional<std::pair<uint32_t, uint32_t>> UnregisterModule(const std::string& module_id);
+  std::optional<std::pair<u32, u32>> UnregisterModule(const std::string& module_id);
 
  private:
-  bool Run(ThreadState* thread_state, uint32_t address, std::span<const uint64_t> args);
-  uint64_t RunInterrupt(ThreadState* thread_state, uint32_t address, uint64_t args[],
-                        size_t arg_count);
+  bool Run(ThreadState* thread_state, u32 address, std::span<const u64> args);
+  u64 RunInterrupt(ThreadState* thread_state, u32 address, u64 args[], size_t arg_count);
 
   struct ModuleTableInfo {
-    uint32_t code_base;
-    uint32_t code_size;
-    uint32_t image_base;
-    uint32_t image_size;
-    uint32_t next_thunk_address;
-    uint32_t thunk_limit;
+    u32 code_base;
+    u32 code_size;
+    u32 image_base;
+    u32 image_size;
+    u32 next_thunk_address;
+    u32 thunk_limit;
   };
 
-  ModuleTableInfo* FindModuleByAddress(uint32_t guest_address);
+  ModuleTableInfo* FindModuleByAddress(u32 guest_address);
 
   runtime::Memory* memory_ = nullptr;
 
-  std::unordered_map<uint32_t, ::PPCFunc*> function_table_;
+  std::unordered_map<u32, ::PPCFunc*> function_table_;
 
   std::vector<ModuleTableInfo> module_tables_;
 
   /** Code base of the entrypoint module, 0 until registered. */
-  uint32_t entrypoint_code_base_ = 0;
+  u32 entrypoint_code_base_ = 0;
 
   bool recording_ = false;
-  std::vector<uint32_t> recording_addresses_;
+  std::vector<u32> recording_addresses_;
 
   struct ModuleRegistration {
-    uint32_t code_base;
-    std::vector<uint32_t> addresses;
+    u32 code_base;
+    std::vector<u32> addresses;
   };
 
   std::unordered_map<std::string, ModuleRegistration> module_addresses_;

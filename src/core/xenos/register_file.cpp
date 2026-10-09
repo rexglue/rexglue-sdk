@@ -14,7 +14,7 @@
 
 namespace rex::xenos {
 
-const RegisterInfo* RegisterFile::GetRegisterInfo(uint32_t index) {
+const RegisterInfo* RegisterFile::GetRegisterInfo(u32 index) {
   switch (index) {
 #define REXGPU_REGISTER(index, type, name) \
   case index: {                            \

@@ -59,9 +59,9 @@ class D3D12PrimitiveProcessor final : public PrimitiveProcessor {
   bool InitializeBuiltinIndexBuffer(size_t size_bytes,
                                     std::function<void(void*)> fill_callback) override;
 
-  void* RequestHostConvertedIndexBufferForCurrentFrame(xenos::IndexFormat format,
-                                                       uint32_t index_count, bool coalign_for_simd,
-                                                       uint32_t coalignment_original_address,
+  void* RequestHostConvertedIndexBufferForCurrentFrame(xenos::IndexFormat format, u32 index_count,
+                                                       bool coalign_for_simd,
+                                                       u32 coalignment_original_address,
                                                        size_t& backend_handle_out) override;
 
  private:
@@ -72,7 +72,7 @@ class D3D12PrimitiveProcessor final : public PrimitiveProcessor {
   /** Temporary buffer copied to builtin_index_buffer_ at the start of the first submission. */
   Microsoft::WRL::ComPtr<ID3D12Resource> builtin_index_buffer_upload_;
   /** UINT64_MAX when the upload buffer, if it exists, awaits the first submission. */
-  uint64_t builtin_index_buffer_upload_submission_ = UINT64_MAX;
+  u64 builtin_index_buffer_upload_submission_ = UINT64_MAX;
 
   std::unique_ptr<gpu::d3d12::D3D12UploadBufferPool> frame_index_buffer_pool_;
   /** Indexed by backend handle. */

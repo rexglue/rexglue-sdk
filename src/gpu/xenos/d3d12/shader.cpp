@@ -20,8 +20,8 @@
 
 namespace rex::gpu::d3d12 {
 
-D3D12Shader::D3D12Shader(xenos::ShaderType shader_type, uint64_t ucode_data_hash,
-                         const uint32_t* ucode_dwords, size_t ucode_dword_count,
+D3D12Shader::D3D12Shader(xenos::ShaderType shader_type, u64 ucode_data_hash,
+                         const u32* ucode_dwords, size_t ucode_dword_count,
                          std::endian ucode_source_endian)
     : DxbcShader(shader_type, ucode_data_hash, ucode_dwords, ucode_dword_count,
                  ucode_source_endian) {}
@@ -91,7 +91,7 @@ void D3D12Shader::D3D12Translation::DisassembleDxbcAndDxil(
   set_host_disassembly(std::move(disassembly));
 }
 
-std::unique_ptr<Shader::Translation> D3D12Shader::CreateTranslationInstance(uint64_t modification) {
+std::unique_ptr<Shader::Translation> D3D12Shader::CreateTranslationInstance(u64 modification) {
   return std::make_unique<D3D12Translation>(*this, modification);
 }
 

@@ -24,19 +24,18 @@ class DxbcShader : public Shader {
  public:
   class DxbcTranslation : public Translation {
    public:
-    DxbcTranslation(DxbcShader& shader, uint64_t modification)
-        : Translation(shader, modification) {}
+    DxbcTranslation(DxbcShader& shader, u64 modification) : Translation(shader, modification) {}
   };
 
-  DxbcShader(xenos::ShaderType shader_type, uint64_t ucode_data_hash, const uint32_t* ucode_dwords,
+  DxbcShader(xenos::ShaderType shader_type, u64 ucode_data_hash, const u32* ucode_dwords,
              size_t ucode_dword_count, std::endian ucode_source_endian = std::endian::big);
 
-  static constexpr uint32_t kMaxTextureBindingIndexBits =
+  static constexpr u32 kMaxTextureBindingIndexBits =
       DxbcShaderTranslator::kMaxTextureBindingIndexBits;
-  static constexpr uint32_t kMaxTextureBindings = DxbcShaderTranslator::kMaxTextureBindings;
+  static constexpr u32 kMaxTextureBindings = DxbcShaderTranslator::kMaxTextureBindings;
   struct TextureBinding {
-    uint32_t bindless_descriptor_index;
-    uint32_t fetch_constant;
+    u32 bindless_descriptor_index;
+    u32 fetch_constant;
     xenos::FetchOpDimension dimension;
     bool is_signed;
   };
@@ -48,14 +47,14 @@ class DxbcShader : public Shader {
   const std::vector<TextureBinding>& GetTextureBindingsAfterTranslation() const {
     return texture_bindings_;
   }
-  uint32_t GetUsedTextureMaskAfterTranslation() const { return used_texture_mask_; }
+  u32 GetUsedTextureMaskAfterTranslation() const { return used_texture_mask_; }
 
-  static constexpr uint32_t kMaxSamplerBindingIndexBits =
+  static constexpr u32 kMaxSamplerBindingIndexBits =
       DxbcShaderTranslator::kMaxSamplerBindingIndexBits;
-  static constexpr uint32_t kMaxSamplerBindings = DxbcShaderTranslator::kMaxSamplerBindings;
+  static constexpr u32 kMaxSamplerBindings = DxbcShaderTranslator::kMaxSamplerBindings;
   struct SamplerBinding {
-    uint32_t bindless_descriptor_index;
-    uint32_t fetch_constant;
+    u32 bindless_descriptor_index;
+    u32 fetch_constant;
     xenos::TextureFilter mag_filter;
     xenos::TextureFilter min_filter;
     xenos::TextureFilter mip_filter;
@@ -66,7 +65,7 @@ class DxbcShader : public Shader {
   }
 
  protected:
-  std::unique_ptr<Translation> CreateTranslationInstance(uint64_t modification) override;
+  std::unique_ptr<Translation> CreateTranslationInstance(u64 modification) override;
 
  private:
   friend class DxbcShaderTranslator;
@@ -74,7 +73,7 @@ class DxbcShader : public Shader {
   std::atomic_flag bindings_setup_entered_ = ATOMIC_FLAG_INIT;
   std::vector<TextureBinding> texture_bindings_;
   std::vector<SamplerBinding> sampler_bindings_;
-  uint32_t used_texture_mask_ = 0;
+  u32 used_texture_mask_ = 0;
 };
 
 }  // namespace rex::gpu

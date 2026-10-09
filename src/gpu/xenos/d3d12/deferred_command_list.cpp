@@ -126,7 +126,7 @@ void DeferredCommandList::Execute(ID3D12GraphicsCommandList* command_list,
         auto& args = *reinterpret_cast<const D3DIASetVertexBuffersHeader*>(stream);
         command_list->IASetVertexBuffers(args.start_slot, args.num_views,
                                          reinterpret_cast<const D3D12_VERTEX_BUFFER_VIEW*>(
-                                             reinterpret_cast<const uint8_t*>(stream) +
+                                             reinterpret_cast<const u8*>(stream) +
                                              rex::align(sizeof(D3DIASetVertexBuffersHeader),
                                                         alignof(D3D12_VERTEX_BUFFER_VIEW))));
       } break;
@@ -148,7 +148,7 @@ void DeferredCommandList::Execute(ID3D12GraphicsCommandList* command_list,
         command_list->ResourceBarrier(
             *reinterpret_cast<const UINT*>(stream),
             reinterpret_cast<const D3D12_RESOURCE_BARRIER*>(
-                reinterpret_cast<const uint8_t*>(stream) +
+                reinterpret_cast<const u8*>(stream) +
                 rex::align(sizeof(UINT), alignof(D3D12_RESOURCE_BARRIER))));
       } break;
       case Command::kRSSetScissorRect: {
@@ -254,8 +254,8 @@ void DeferredCommandList::Execute(ID3D12GraphicsCommandList* command_list,
       } break;
       case Command::kBeginDebugMarker: {
         auto& args = *reinterpret_cast<const DebugMarkerHeader*>(stream);
-        const char* label_name = reinterpret_cast<const char*>(
-            reinterpret_cast<const uint8_t*>(stream) + sizeof(DebugMarkerHeader));
+        const char* label_name = reinterpret_cast<const char*>(reinterpret_cast<const u8*>(stream) +
+                                                               sizeof(DebugMarkerHeader));
         command_list->BeginEvent(1, label_name, static_cast<UINT>(args.label_length + 1));
       } break;
       case Command::kEndDebugMarker: {
@@ -263,8 +263,8 @@ void DeferredCommandList::Execute(ID3D12GraphicsCommandList* command_list,
       } break;
       case Command::kInsertDebugMarker: {
         auto& args = *reinterpret_cast<const DebugMarkerHeader*>(stream);
-        const char* label_name = reinterpret_cast<const char*>(
-            reinterpret_cast<const uint8_t*>(stream) + sizeof(DebugMarkerHeader));
+        const char* label_name = reinterpret_cast<const char*>(reinterpret_cast<const u8*>(stream) +
+                                                               sizeof(DebugMarkerHeader));
         command_list->SetMarker(1, label_name, static_cast<UINT>(args.label_length + 1));
       } break;
       default:
@@ -283,7 +283,7 @@ void* DeferredCommandList::WriteCommand(Command command, size_t arguments_size_b
   command_stream_.resize(offset + kCommandHeaderSizeElements + arguments_size_elements);
   CommandHeader& header = *reinterpret_cast<CommandHeader*>(command_stream_.data() + offset);
   header.command = command;
-  header.arguments_size_elements = static_cast<uint32_t>(arguments_size_elements);
+  header.arguments_size_elements = static_cast<u32>(arguments_size_elements);
   return command_stream_.data() + (offset + kCommandHeaderSizeElements);
 }
 

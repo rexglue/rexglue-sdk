@@ -26,7 +26,7 @@ namespace {
 
 using rex::testing::GetTestMemory;
 
-void DummyFn(PPCContext&, uint8_t*) {}
+void DummyFn(PPCContext&, u8*) {}
 
 }  // namespace
 
@@ -35,17 +35,17 @@ TEST_CASE("FunctionDispatcher: caller_address routes thunk to caller's module po
   auto& memory = GetTestMemory();
   rex::runtime::FunctionDispatcher dispatcher(&memory);
 
-  constexpr uint32_t kModA = 0x82000000u;
-  constexpr uint32_t kCodeSize = 0x10000u;
-  constexpr uint32_t kImageSize = 0x100000u;
+  constexpr u32 kModA = 0x82000000u;
+  constexpr u32 kCodeSize = 0x10000u;
+  constexpr u32 kImageSize = 0x100000u;
 
   REQUIRE(dispatcher.InitializeFunctionTable(kModA, kCodeSize, kModA, kImageSize));
 
-  constexpr uint32_t kModB = 0x83000000u;
+  constexpr u32 kModB = 0x83000000u;
   REQUIRE(dispatcher.InitializeFunctionTable(kModB, kCodeSize, kModB, kImageSize));
 
-  uint32_t thunk_a = dispatcher.AllocateThunk(&DummyFn, kModA + 0x100);
-  uint32_t thunk_b = dispatcher.AllocateThunk(&DummyFn, kModB + 0x100);
+  u32 thunk_a = dispatcher.AllocateThunk(&DummyFn, kModA + 0x100);
+  u32 thunk_b = dispatcher.AllocateThunk(&DummyFn, kModB + 0x100);
 
   CHECK(thunk_a >= kModA + kCodeSize);
   CHECK(thunk_a < kModA + kCodeSize + rex::runtime::FunctionDispatcher::kThunkReserveSize);
@@ -62,14 +62,14 @@ TEST_CASE("FunctionDispatcher: AllocateThunk(0) uses the entrypoint pool only wh
   auto& memory = GetTestMemory();
   rex::runtime::FunctionDispatcher dispatcher(&memory);
 
-  constexpr uint32_t kModA = 0x84000000u;
-  constexpr uint32_t kCodeSize = 0x10000u;
-  constexpr uint32_t kImageSize = 0x100000u;
+  constexpr u32 kModA = 0x84000000u;
+  constexpr u32 kCodeSize = 0x10000u;
+  constexpr u32 kImageSize = 0x100000u;
 
   REQUIRE(dispatcher.InitializeFunctionTable(kModA, kCodeSize, kModA, kImageSize,
                                              /*is_entrypoint=*/true));
 
-  uint32_t thunk = dispatcher.AllocateThunk(&DummyFn, 0);
+  u32 thunk = dispatcher.AllocateThunk(&DummyFn, 0);
   CHECK(thunk >= kModA + kCodeSize);
   CHECK(thunk < kModA + kCodeSize + rex::runtime::FunctionDispatcher::kThunkReserveSize);
 }
@@ -79,9 +79,9 @@ TEST_CASE("FunctionDispatcher: AllocateThunk(0) rejects when no entrypoint regis
   auto& memory = GetTestMemory();
   rex::runtime::FunctionDispatcher dispatcher(&memory);
 
-  constexpr uint32_t kModA = 0x88000000u;
-  constexpr uint32_t kCodeSize = 0x10000u;
-  constexpr uint32_t kImageSize = 0x100000u;
+  constexpr u32 kModA = 0x88000000u;
+  constexpr u32 kCodeSize = 0x10000u;
+  constexpr u32 kImageSize = 0x100000u;
 
   REQUIRE(dispatcher.InitializeFunctionTable(kModA, kCodeSize, kModA, kImageSize));
 
@@ -93,14 +93,14 @@ TEST_CASE("FunctionDispatcher: AllocateThunk rejects caller_address outside any 
   auto& memory = GetTestMemory();
   rex::runtime::FunctionDispatcher dispatcher(&memory);
 
-  constexpr uint32_t kModA = 0x86000000u;
-  constexpr uint32_t kCodeSize = 0x10000u;
-  constexpr uint32_t kImageSize = 0x100000u;
+  constexpr u32 kModA = 0x86000000u;
+  constexpr u32 kCodeSize = 0x10000u;
+  constexpr u32 kImageSize = 0x100000u;
 
   REQUIRE(dispatcher.InitializeFunctionTable(kModA, kCodeSize, kModA, kImageSize));
 
   // A caller_address outside every module is refused, never routed to the entrypoint pool.
-  uint32_t thunk = dispatcher.AllocateThunk(&DummyFn, 0xDEADBEEFu);
+  u32 thunk = dispatcher.AllocateThunk(&DummyFn, 0xDEADBEEFu);
   CHECK(thunk == 0);
 }
 
@@ -109,10 +109,10 @@ TEST_CASE("FunctionDispatcher: SetFunction rejects image data below code_base",
   auto& memory = GetTestMemory();
   rex::runtime::FunctionDispatcher dispatcher(&memory);
 
-  constexpr uint32_t kImageBase = 0x87000000u;
-  constexpr uint32_t kCodeBase = kImageBase + 0x10000u;
-  constexpr uint32_t kCodeSize = 0x10000u;
-  constexpr uint32_t kImageSize = 0x100000u;
+  constexpr u32 kImageBase = 0x87000000u;
+  constexpr u32 kCodeBase = kImageBase + 0x10000u;
+  constexpr u32 kCodeSize = 0x10000u;
+  constexpr u32 kImageSize = 0x100000u;
 
   REQUIRE(dispatcher.InitializeFunctionTable(kCodeBase, kCodeSize, kImageBase, kImageSize));
   CHECK_FALSE(dispatcher.SetFunction(kImageBase + 0x10, &DummyFn));
@@ -120,7 +120,7 @@ TEST_CASE("FunctionDispatcher: SetFunction rejects image data below code_base",
 }
 
 namespace {
-constexpr uint32_t kRegisterModBase = 0x85000000u;
+constexpr u32 kRegisterModBase = 0x85000000u;
 void RegisterOne(rex::runtime::IModuleRegistrar* registrar) {
   registrar->SetFunction(kRegisterModBase + 0x10, &DummyFn);
 }
@@ -130,15 +130,15 @@ TEST_CASE("FunctionDispatcher: UnregisterModule clears pool and slots", "[runtim
   auto& memory = GetTestMemory();
   rex::runtime::FunctionDispatcher dispatcher(&memory);
 
-  constexpr uint32_t kCodeSize = 0x10000u;
-  constexpr uint32_t kImageSize = 0x100000u;
+  constexpr u32 kCodeSize = 0x10000u;
+  constexpr u32 kImageSize = 0x100000u;
 
   REQUIRE(dispatcher.InitializeFunctionTable(kRegisterModBase, kCodeSize, kRegisterModBase,
                                              kImageSize));
 
   dispatcher.RegisterModule("modA", kRegisterModBase, &RegisterOne);
 
-  uint32_t thunk = dispatcher.AllocateThunk(&DummyFn, kRegisterModBase + 0x100);
+  u32 thunk = dispatcher.AllocateThunk(&DummyFn, kRegisterModBase + 0x100);
   REQUIRE(thunk != 0);
   REQUIRE(dispatcher.GetFunction(kRegisterModBase + 0x10) == &DummyFn);
   REQUIRE(dispatcher.GetFunction(thunk) == &DummyFn);
@@ -153,7 +153,7 @@ TEST_CASE("FunctionDispatcher: UnregisterModule clears pool and slots", "[runtim
   // UnregisterModule destroys the per-module table, so the same code range reloads.
   REQUIRE(dispatcher.InitializeFunctionTable(kRegisterModBase, kCodeSize, kRegisterModBase,
                                              kImageSize));
-  uint32_t thunk_after = dispatcher.AllocateThunk(&DummyFn, kRegisterModBase + 0x100);
+  u32 thunk_after = dispatcher.AllocateThunk(&DummyFn, kRegisterModBase + 0x100);
   CHECK(thunk_after == thunk);
 }
 
@@ -166,7 +166,7 @@ TEST_CASE("FunctionDispatcher: UnregisterModule on unknown id returns nullopt",
 
 namespace {
 
-void ScribbleFn(PPCContext& ctx, uint8_t*) {
+void ScribbleFn(PPCContext& ctx, u8*) {
   ctx.r3.u64 = 0x1111;
   ctx.r14.u64 = 0xDEAD14;
   ctx.r31.u64 = 0;
@@ -185,18 +185,18 @@ TEST_CASE("FunctionDispatcher: ExecuteTrap restores the interrupted register sta
   auto& memory = GetTestMemory();
   rex::runtime::FunctionDispatcher dispatcher(&memory);
 
-  constexpr uint32_t kTrapModBase = 0x89000000u;
-  constexpr uint32_t kCodeSize = 0x10000u;
-  constexpr uint32_t kImageSize = 0x100000u;
+  constexpr u32 kTrapModBase = 0x89000000u;
+  constexpr u32 kCodeSize = 0x10000u;
+  constexpr u32 kImageSize = 0x100000u;
   REQUIRE(dispatcher.InitializeFunctionTable(kTrapModBase, kCodeSize, kTrapModBase, kImageSize));
 
-  constexpr uint32_t kAddr = kTrapModBase + 0x40;
+  constexpr u32 kAddr = kTrapModBase + 0x40;
   REQUIRE(dispatcher.SetFunction(kAddr, &ScribbleFn));
 
-  constexpr uint32_t kStackSize = 0x10000u;
-  const uint32_t stack = memory.SystemHeapAlloc(kStackSize);
+  constexpr u32 kStackSize = 0x10000u;
+  const u32 stack = memory.SystemHeapAlloc(kStackSize);
   REQUIRE(stack != 0);
-  const uint32_t pcr = memory.SystemHeapAlloc(0x100);
+  const u32 pcr = memory.SystemHeapAlloc(0x100);
   *memory.TranslateVirtual<rex::be_u32*>(pcr + 0x74) = stack;
   rex::runtime::ThreadState thread_state(1, stack + kStackSize, pcr, &memory, nullptr);
   auto* ctx = thread_state.context();
@@ -207,10 +207,10 @@ TEST_CASE("FunctionDispatcher: ExecuteTrap restores the interrupted register sta
   ctx->xer.so = 0;
   ctx->f14.f64 = 2.5;
   ctx->v14.u32[0] = 0x5555;
-  const uint32_t saved_msr = ctx->msr;
-  const uint64_t saved_r1 = ctx->r1.u64;
+  const u32 saved_msr = ctx->msr;
+  const u64 saved_r1 = ctx->r1.u64;
 
-  uint64_t args[] = {0};
+  u64 args[] = {0};
   dispatcher.ExecuteTrap(&thread_state, kAddr, args, rex::countof(args));
 
   CHECK(ctx->r14.u64 == 0x14141414);
@@ -236,9 +236,9 @@ TEST_CASE("PPCContext: non-volatile save area round-trips cr2-cr4 and fpscr",
   ctx.f14.f64 = 4.25;
   ctx.v64.u32[0] = 0x64646464;
   ctx.fpscr.csr = ctx.fpscr.getcsr();
-  const uint32_t saved_csr = ctx.fpscr.csr;
+  const u32 saved_csr = ctx.fpscr.csr;
 
-  uint8_t area[PPCContext::kNonVolatileSaveSize];
+  u8 area[PPCContext::kNonVolatileSaveSize];
   ctx.SaveNonVolatiles(area);
 
   ctx.r31.u64 = 0;
@@ -264,12 +264,12 @@ TEST_CASE("PPCContext: non-volatile save area round-trips cr2-cr4 and fpscr",
 TEST_CASE("PPCContext: restoring a zeroed fpscr leaves host FP exception masks intact",
           "[runtime][context]") {
   PPCContext ctx{};
-  const uint32_t host_before = ctx.fpscr.getcsr();
+  const u32 host_before = ctx.fpscr.getcsr();
 
-  uint8_t area[PPCContext::kNonVolatileSaveSize] = {};
+  u8 area[PPCContext::kNonVolatileSaveSize] = {};
   ctx.RestoreNonVolatiles(area);
 
-  constexpr uint32_t kGuestMask = PPCFPSCRRegister::GuestMask;
+  constexpr u32 kGuestMask = PPCFPSCRRegister::GuestMask;
   CHECK((ctx.fpscr.getcsr() & ~kGuestMask) == (host_before & ~kGuestMask));
   CHECK(ctx.fpscr.csr == ctx.fpscr.getcsr());
 }

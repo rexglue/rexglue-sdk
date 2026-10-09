@@ -25,7 +25,6 @@ namespace rex::ui {
  * @param out_height Receives the height in pixels on success.
  * @return width * height * 4 bytes on success, an empty vector on failure.
  */
-std::vector<uint8_t> DecodeImageRGBA(const uint8_t* data, size_t size, int& out_width,
-                                     int& out_height);
+std::vector<u8> DecodeImageRGBA(const u8* data, size_t size, int& out_width, int& out_height);
 
 }  // namespace rex::ui

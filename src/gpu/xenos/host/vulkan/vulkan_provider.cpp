@@ -26,7 +26,7 @@ namespace vulkan {
 
 std::unique_ptr<VulkanProvider> VulkanProvider::Create(const bool with_gpu_emulation,
                                                        const bool with_presentation,
-                                                       const int32_t device_index) {
+                                                       const i32 device_index) {
   auto provider = std::make_unique<VulkanProvider>(Key{});
 
   provider->vulkan_instance_ =
@@ -56,7 +56,7 @@ std::unique_ptr<VulkanProvider> VulkanProvider::Create(const bool with_gpu_emula
     REXLOG_WARN(ui, "* {}: {}", physical_device_index, physical_device_properties.deviceName);
   }
 
-  if (device_index >= 0 && static_cast<uint32_t>(device_index) < physical_devices.size()) {
+  if (device_index >= 0 && static_cast<u32>(device_index) < physical_devices.size()) {
     provider->vulkan_device_ = VulkanDevice::CreateIfSupported(
         provider->vulkan_instance_.get(), physical_devices[static_cast<size_t>(device_index)],
         with_gpu_emulation, with_presentation);
@@ -75,14 +75,14 @@ std::unique_ptr<VulkanProvider> VulkanProvider::Create(const bool with_gpu_emula
          prefer_fill_mode_non_solid)) {
       struct PhysicalDeviceScore {
         VkPhysicalDevice physical_device;
-        uint32_t score;
+        u32 score;
       };
       std::vector<PhysicalDeviceScore> scored_devices;
       scored_devices.reserve(physical_devices.size());
       for (const VkPhysicalDevice physical_device : physical_devices) {
         VkPhysicalDeviceFeatures supported_features = {};
         ifn.vkGetPhysicalDeviceFeatures(physical_device, &supported_features);
-        uint32_t score = 0;
+        u32 score = 0;
         if (prefer_geometry_shader && supported_features.geometryShader) {
           ++score;
         }

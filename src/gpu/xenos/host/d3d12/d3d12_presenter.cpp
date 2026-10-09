@@ -50,14 +50,14 @@ gpu::Surface::TypeFlags D3D12Presenter::GetSupportedSurfaceTypes() const {
 
 Presenter::SurfacePaintConnectResult
 D3D12Presenter::ConnectOrReconnectPaintingToSurfaceFromUIThread(gpu::Surface& new_surface,
-                                                                uint32_t new_surface_width,
-                                                                uint32_t new_surface_height,
+                                                                u32 new_surface_width,
+                                                                u32 new_surface_height,
                                                                 bool was_paintable,
                                                                 bool& is_vsync_implicit_out) {
-  uint32_t new_swap_chain_width =
-      std::min(new_surface_width, static_cast<uint32_t>(D3D12_REQ_TEXTURE2D_U_OR_V_DIMENSION));
-  uint32_t new_swap_chain_height =
-      std::min(new_surface_height, static_cast<uint32_t>(D3D12_REQ_TEXTURE2D_U_OR_V_DIMENSION));
+  u32 new_swap_chain_width =
+      std::min(new_surface_width, static_cast<u32>(D3D12_REQ_TEXTURE2D_U_OR_V_DIMENSION));
+  u32 new_swap_chain_height =
+      std::min(new_surface_height, static_cast<u32>(D3D12_REQ_TEXTURE2D_U_OR_V_DIMENSION));
 
   if (paint_context_.swap_chain) {
     if (was_paintable && paint_context_.swap_chain_width == new_swap_chain_width &&
@@ -75,7 +75,7 @@ D3D12Presenter::ConnectOrReconnectPaintingToSurfaceFromUIThread(gpu::Surface& ne
         0, UINT(new_swap_chain_width), UINT(new_swap_chain_height), DXGI_FORMAT_UNKNOWN,
         paint_context_.swap_chain_allows_tearing ? DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING : 0));
     if (swap_chain_resized) {
-      for (uint32_t i = 0; i < PaintContext::kSwapChainBufferCount; ++i) {
+      for (u32 i = 0; i < PaintContext::kSwapChainBufferCount; ++i) {
         if (FAILED(paint_context_.swap_chain->GetBuffer(
                 i, IID_PPV_ARGS(&paint_context_.swap_chain_buffers[i])))) {
           swap_chain_resized = false;
@@ -147,7 +147,7 @@ D3D12Presenter::ConnectOrReconnectPaintingToSurfaceFromUIThread(gpu::Surface& ne
     paint_context_.swap_chain_height = new_swap_chain_height;
     paint_context_.swap_chain_allows_tearing =
         (swap_chain_desc.Flags & DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING) != 0;
-    for (uint32_t i = 0; i < PaintContext::kSwapChainBufferCount; ++i) {
+    for (u32 i = 0; i < PaintContext::kSwapChainBufferCount; ++i) {
       if (FAILED(paint_context_.swap_chain->GetBuffer(
               i, IID_PPV_ARGS(&paint_context_.swap_chain_buffers[i])))) {
         REXLOG_ERROR(ui, "D3D12Presenter: Failed to get buffer {} of a {}-buffer swap chain", i,
@@ -166,7 +166,7 @@ D3D12Presenter::ConnectOrReconnectPaintingToSurfaceFromUIThread(gpu::Surface& ne
   rtv_desc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
   rtv_desc.Texture2D.MipSlice = 0;
   rtv_desc.Texture2D.PlaneSlice = 0;
-  for (uint32_t i = 0; i < PaintContext::kSwapChainBufferCount; ++i) {
+  for (u32 i = 0; i < PaintContext::kSwapChainBufferCount; ++i) {
     ID3D12Resource* swap_chain_buffer = paint_context_.swap_chain_buffers[i].Get();
     rtv_desc.Format = kSwapChainFormat;
     device->CreateRenderTargetView(
@@ -183,7 +183,7 @@ void D3D12Presenter::DisconnectPaintingFromSurfaceFromUIThreadImpl() {
 }
 
 bool D3D12Presenter::RefreshGuestOutputImpl(
-    uint32_t mailbox_index, uint32_t frontbuffer_width, uint32_t frontbuffer_height,
+    u32 mailbox_index, u32 frontbuffer_width, u32 frontbuffer_height,
     std::move_only_function<bool(GuestOutputRefreshContext& context)> refresher,
     bool& is_8bpc_out_ref) {
   REX_ASSERT(frontbuffer_width != 0);
@@ -269,13 +269,13 @@ Presenter::PaintResult D3D12Presenter::PaintAndPresentImpl(bool execute_ui_drawe
   bool back_buffer_acquired = false;
   bool back_buffer_bound = false;
   bool back_buffer_clear_needed = true;
-  const float kBackBufferClearColor[] = {0.0f, 0.0f, 0.0f, 1.0f};
+  const f32 kBackBufferClearColor[] = {0.0f, 0.0f, 0.0f, 1.0f};
 
   GuestOutputProperties guest_output_properties;
   GuestOutputPaintConfig guest_output_paint_config;
   Microsoft::WRL::ComPtr<ID3D12Resource> guest_output_resource;
   {
-    uint32_t guest_output_mailbox_index;
+    u32 guest_output_mailbox_index;
     std::unique_lock<std::mutex> guest_output_consumer_lock(ConsumeGuestOutput(
         guest_output_mailbox_index, &guest_output_properties, &guest_output_paint_config));
     if (guest_output_mailbox_index != UINT32_MAX) {
@@ -344,9 +344,8 @@ Presenter::PaintResult D3D12Presenter::PaintAndPresentImpl(bool execute_ui_drawe
         device->CreateShaderResourceView(
             guest_output_resource.Get(), &guest_output_resource_srv_desc,
             provider_.OffsetViewDescriptor(
-                view_heap_cpu_start,
-                PaintContext::kViewIndexGuestOutput0Srv +
-                    static_cast<uint32_t>(guest_output_resource_paint_ref_index)));
+                view_heap_cpu_start, PaintContext::kViewIndexGuestOutput0Srv +
+                                         static_cast<u32>(guest_output_resource_paint_ref_index)));
       }
 
       paint_context_.guest_output_resource_paint_refs[guest_output_resource_paint_ref_index].first =
@@ -379,8 +378,8 @@ Presenter::PaintResult D3D12Presenter::PaintAndPresentImpl(bool execute_ui_drawe
       D3D12_VIEWPORT viewport;
       viewport.TopLeftX = 0.0f;
       viewport.TopLeftY = 0.0f;
-      viewport.Width = static_cast<float>(back_buffer_desc.Width);
-      viewport.Height = static_cast<float>(back_buffer_desc.Height);
+      viewport.Width = static_cast<f32>(back_buffer_desc.Width);
+      viewport.Height = static_cast<f32>(back_buffer_desc.Height);
       viewport.MinDepth = 0.0f;
       viewport.MaxDepth = 1.0f;
       command_list->RSSetViewports(1, &viewport);
@@ -407,18 +406,18 @@ Presenter::PaintResult D3D12Presenter::PaintAndPresentImpl(bool execute_ui_drawe
           provider_.OffsetViewDescriptor(view_heap_gpu_start, effect_src_view_index));
 
       GuestOutputPaintRectangleConstants effect_rect_constants;
-      float effect_x_to_ndc = 2.0f / viewport.Width;
-      float effect_y_to_ndc = 2.0f / viewport.Height;
+      f32 effect_x_to_ndc = 2.0f / viewport.Width;
+      f32 effect_y_to_ndc = 2.0f / viewport.Height;
       effect_rect_constants.x =
-          -1.0f + static_cast<float>(guest_output_flow.output_x) * effect_x_to_ndc;
+          -1.0f + static_cast<f32>(guest_output_flow.output_x) * effect_x_to_ndc;
       effect_rect_constants.y =
-          1.0f - static_cast<float>(guest_output_flow.output_y) * effect_y_to_ndc;
+          1.0f - static_cast<f32>(guest_output_flow.output_y) * effect_y_to_ndc;
       effect_rect_constants.width =
-          static_cast<float>(guest_output_flow.effect_output_size.first) * effect_x_to_ndc;
+          static_cast<f32>(guest_output_flow.effect_output_size.first) * effect_x_to_ndc;
       effect_rect_constants.height =
-          -static_cast<float>(guest_output_flow.effect_output_size.second) * effect_y_to_ndc;
+          -static_cast<f32>(guest_output_flow.effect_output_size.second) * effect_y_to_ndc;
       command_list->SetGraphicsRoot32BitConstants(UINT(GuestOutputPaintRootParameter::kRectangle),
-                                                  sizeof(effect_rect_constants) / sizeof(uint32_t),
+                                                  sizeof(effect_rect_constants) / sizeof(u32),
                                                   &effect_rect_constants, 0);
 
       UINT effect_constants_size = 0;
@@ -436,7 +435,7 @@ Presenter::PaintResult D3D12Presenter::PaintAndPresentImpl(bool execute_ui_drawe
       if (effect_constants_size) {
         command_list->SetGraphicsRoot32BitConstants(
             UINT(GuestOutputPaintRootParameter::kEffectConstants),
-            effect_constants_size / sizeof(uint32_t), &effect_constants, 0);
+            effect_constants_size / sizeof(u32), &effect_constants, 0);
       }
 
       command_list->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
@@ -578,7 +577,7 @@ bool D3D12Presenter::InitializeSurfaceIndependent() {
     guest_output_paint_root_parameter_rect.Constants.ShaderRegister = 0;
     guest_output_paint_root_parameter_rect.Constants.RegisterSpace = 0;
     guest_output_paint_root_parameter_rect.Constants.Num32BitValues =
-        sizeof(GuestOutputPaintRectangleConstants) / sizeof(uint32_t);
+        sizeof(GuestOutputPaintRectangleConstants) / sizeof(u32);
     guest_output_paint_root_parameter_rect.ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;
   }
   D3D12_ROOT_PARAMETER& guest_output_paint_root_parameter_effect_constants =
@@ -611,7 +610,7 @@ bool D3D12Presenter::InitializeSurfaceIndependent() {
   guest_output_paint_root_signature_desc.pStaticSamplers = &guest_output_paint_root_sampler;
   guest_output_paint_root_signature_desc.Flags = D3D12_ROOT_SIGNATURE_FLAG_NONE;
   guest_output_paint_root_parameter_effect_constants.Constants.Num32BitValues =
-      sizeof(BilinearConstants) / sizeof(uint32_t);
+      sizeof(BilinearConstants) / sizeof(u32);
   {
     ID3D12RootSignature* guest_output_paint_root_signature =
         util::CreateRootSignature(provider_, guest_output_paint_root_signature_desc);

@@ -118,7 +118,7 @@ bool D3D12PrimitiveProcessor::InitializeBuiltinIndexBuffer(
              "upload resource with {} bytes",
              size_bytes);
   }
-  fill_callback(reinterpret_cast<uint16_t*>(mapping));
+  fill_callback(reinterpret_cast<u16*>(mapping));
   upload_resource->Unmap(0, nullptr);
 
   builtin_index_buffer_ = std::move(draw_resource);
@@ -129,11 +129,11 @@ bool D3D12PrimitiveProcessor::InitializeBuiltinIndexBuffer(
 }
 
 void* D3D12PrimitiveProcessor::RequestHostConvertedIndexBufferForCurrentFrame(
-    xenos::IndexFormat format, uint32_t index_count, bool coalign_for_simd,
-    uint32_t coalignment_original_address, size_t& backend_handle_out) {
-  size_t index_size = format == xenos::IndexFormat::kInt16 ? sizeof(uint16_t) : sizeof(uint32_t);
+    xenos::IndexFormat format, u32 index_count, bool coalign_for_simd,
+    u32 coalignment_original_address, size_t& backend_handle_out) {
+  size_t index_size = format == xenos::IndexFormat::kInt16 ? sizeof(u16) : sizeof(u32);
   D3D12_GPU_VIRTUAL_ADDRESS gpu_address;
-  uint8_t* mapping = frame_index_buffer_pool_->Request(
+  u8* mapping = frame_index_buffer_pool_->Request(
       command_processor_.GetCurrentFrame(),
       index_size * index_count + (coalign_for_simd ? REXGPU_PRIMITIVE_PROCESSOR_SIMD_SIZE : 0),
       index_size, nullptr, nullptr, &gpu_address);

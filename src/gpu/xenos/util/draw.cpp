@@ -63,27 +63,27 @@ xenos::reg::RB_DEPTHCONTROL GetNormalizedDepthControl(const xenos::RegisterFile&
   return depthcontrol;
 }
 
-const int8_t kD3D10StandardSamplePositions2x[2][2] = {{4, 4}, {-4, -4}};
-const int8_t kD3D10StandardSamplePositions4x[4][2] = {{-2, -6}, {6, -2}, {-6, 2}, {2, 6}};
+const i8 kD3D10StandardSamplePositions2x[2][2] = {{4, 4}, {-4, -4}};
+const i8 kD3D10StandardSamplePositions4x[4][2] = {{-2, -6}, {6, -2}, {-6, 2}, {2, 6}};
 
 void GetPreferredFacePolygonOffset(const xenos::RegisterFile& regs, bool primitive_polygonal,
-                                   float& scale_out, float& offset_out) {
-  float scale = 0.0f, offset = 0.0f;
+                                   f32& scale_out, f32& offset_out) {
+  f32 scale = 0.0f, offset = 0.0f;
   auto pa_su_sc_mode_cntl = regs.Get<xenos::reg::PA_SU_SC_MODE_CNTL>();
   if (primitive_polygonal) {
     if (pa_su_sc_mode_cntl.poly_offset_front_enable && !pa_su_sc_mode_cntl.cull_front) {
-      scale = regs.Get<float>(xenos::Register::PA_SU_POLY_OFFSET_FRONT_SCALE);
-      offset = regs.Get<float>(xenos::Register::PA_SU_POLY_OFFSET_FRONT_OFFSET);
+      scale = regs.Get<f32>(xenos::Register::PA_SU_POLY_OFFSET_FRONT_SCALE);
+      offset = regs.Get<f32>(xenos::Register::PA_SU_POLY_OFFSET_FRONT_OFFSET);
     }
     if (pa_su_sc_mode_cntl.poly_offset_back_enable && !pa_su_sc_mode_cntl.cull_back && !scale &&
         !offset) {
-      scale = regs.Get<float>(xenos::Register::PA_SU_POLY_OFFSET_BACK_SCALE);
-      offset = regs.Get<float>(xenos::Register::PA_SU_POLY_OFFSET_BACK_OFFSET);
+      scale = regs.Get<f32>(xenos::Register::PA_SU_POLY_OFFSET_BACK_SCALE);
+      offset = regs.Get<f32>(xenos::Register::PA_SU_POLY_OFFSET_BACK_OFFSET);
     }
   } else {
     if (pa_su_sc_mode_cntl.poly_offset_para_enable) {
-      scale = regs.Get<float>(xenos::Register::PA_SU_POLY_OFFSET_FRONT_SCALE);
-      offset = regs.Get<float>(xenos::Register::PA_SU_POLY_OFFSET_FRONT_OFFSET);
+      scale = regs.Get<f32>(xenos::Register::PA_SU_POLY_OFFSET_FRONT_SCALE);
+      offset = regs.Get<f32>(xenos::Register::PA_SU_POLY_OFFSET_FRONT_OFFSET);
     }
   }
   scale_out = scale;
@@ -106,17 +106,16 @@ bool IsPixelShaderNeededWithRasterization(const Shader& shader, const xenos::Reg
     return true;
   }
 
-  uint32_t rb_color_mask = regs[std::to_underlying(xenos::Register::RB_COLOR_MASK)];
-  uint32_t rts_remaining = shader.writes_color_targets();
-  uint32_t rt_index;
+  u32 rb_color_mask = regs[std::to_underlying(xenos::Register::RB_COLOR_MASK)];
+  u32 rts_remaining = shader.writes_color_targets();
+  u32 rt_index;
   while (rex::bit_scan_forward(rts_remaining, &rt_index)) {
-    rts_remaining &= ~(static_cast<uint32_t>(1) << rt_index);
-    uint32_t format_component_count = GetColorRenderTargetFormatComponentCount(
+    rts_remaining &= ~(static_cast<u32>(1) << rt_index);
+    u32 format_component_count = GetColorRenderTargetFormatComponentCount(
         regs.Get<xenos::reg::RB_COLOR_INFO>(
                 xenos::reg::RB_COLOR_INFO::rt_register_indices[rt_index])
             .color_format);
-    if ((rb_color_mask >> (rt_index * 4)) &
-        ((static_cast<uint32_t>(1) << format_component_count) - 1)) {
+    if ((rb_color_mask >> (rt_index * 4)) & ((static_cast<u32>(1) << format_component_count) - 1)) {
       return true;
     }
   }
@@ -124,10 +123,9 @@ bool IsPixelShaderNeededWithRasterization(const Shader& shader, const xenos::Reg
   return false;
 }
 
-void GetHostViewportInfo(const xenos::RegisterFile& regs, uint32_t draw_resolution_scale_x,
-                         uint32_t draw_resolution_scale_y, bool origin_bottom_left, uint32_t x_max,
-                         uint32_t y_max, bool allow_reverse_z,
-                         xenos::reg::RB_DEPTHCONTROL normalized_depth_control,
+void GetHostViewportInfo(const xenos::RegisterFile& regs, u32 draw_resolution_scale_x,
+                         u32 draw_resolution_scale_y, bool origin_bottom_left, u32 x_max, u32 y_max,
+                         bool allow_reverse_z, xenos::reg::RB_DEPTHCONTROL normalized_depth_control,
                          bool convert_z_to_float24, bool full_float24_in_0_to_1,
                          bool pixel_shader_writes_depth, ViewportInfo& viewport_info_out) {
   REX_ASSERT(draw_resolution_scale_x != 0);
@@ -138,29 +136,26 @@ void GetHostViewportInfo(const xenos::RegisterFile& regs, uint32_t draw_resoluti
   auto pa_su_sc_mode_cntl = regs.Get<xenos::reg::PA_SU_SC_MODE_CNTL>();
   auto pa_su_vtx_cntl = regs.Get<xenos::reg::PA_SU_VTX_CNTL>();
 
-  float scale_xy[] = {
-      pa_cl_vte_cntl.vport_x_scale_ena ? regs.Get<float>(xenos::Register::PA_CL_VPORT_XSCALE)
-                                       : 1.0f,
-      pa_cl_vte_cntl.vport_y_scale_ena ? regs.Get<float>(xenos::Register::PA_CL_VPORT_YSCALE)
-                                       : 1.0f,
+  f32 scale_xy[] = {
+      pa_cl_vte_cntl.vport_x_scale_ena ? regs.Get<f32>(xenos::Register::PA_CL_VPORT_XSCALE) : 1.0f,
+      pa_cl_vte_cntl.vport_y_scale_ena ? regs.Get<f32>(xenos::Register::PA_CL_VPORT_YSCALE) : 1.0f,
   };
-  float scale_z = pa_cl_vte_cntl.vport_z_scale_ena
-                      ? regs.Get<float>(xenos::Register::PA_CL_VPORT_ZSCALE)
-                      : 1.0f;
-  float offset_base_xy[] = {
-      pa_cl_vte_cntl.vport_x_offset_ena ? regs.Get<float>(xenos::Register::PA_CL_VPORT_XOFFSET)
+  f32 scale_z =
+      pa_cl_vte_cntl.vport_z_scale_ena ? regs.Get<f32>(xenos::Register::PA_CL_VPORT_ZSCALE) : 1.0f;
+  f32 offset_base_xy[] = {
+      pa_cl_vte_cntl.vport_x_offset_ena ? regs.Get<f32>(xenos::Register::PA_CL_VPORT_XOFFSET)
                                         : 0.0f,
-      pa_cl_vte_cntl.vport_y_offset_ena ? regs.Get<float>(xenos::Register::PA_CL_VPORT_YOFFSET)
+      pa_cl_vte_cntl.vport_y_offset_ena ? regs.Get<f32>(xenos::Register::PA_CL_VPORT_YOFFSET)
                                         : 0.0f,
   };
-  float offset_z = pa_cl_vte_cntl.vport_z_offset_ena
-                       ? regs.Get<float>(xenos::Register::PA_CL_VPORT_ZOFFSET)
-                       : 0.0f;
-  float offset_add_xy[2] = {};
+  f32 offset_z = pa_cl_vte_cntl.vport_z_offset_ena
+                     ? regs.Get<f32>(xenos::Register::PA_CL_VPORT_ZOFFSET)
+                     : 0.0f;
+  f32 offset_add_xy[2] = {};
   if (pa_su_sc_mode_cntl.vtx_window_offset_enable) {
     auto pa_sc_window_offset = regs.Get<xenos::reg::PA_SC_WINDOW_OFFSET>();
-    offset_add_xy[0] += static_cast<float>(pa_sc_window_offset.window_x_offset);
-    offset_add_xy[1] += static_cast<float>(pa_sc_window_offset.window_y_offset);
+    offset_add_xy[0] += static_cast<f32>(pa_sc_window_offset.window_x_offset);
+    offset_add_xy[1] += static_cast<f32>(pa_sc_window_offset.window_y_offset);
   }
   if (REXCVAR_GET(::rex::gpu::cvars::half_pixel_offset) &&
       pa_su_vtx_cntl.pix_center == xenos::PixelCenter::kD3DZero) {
@@ -168,24 +163,23 @@ void GetHostViewportInfo(const xenos::RegisterFile& regs, uint32_t draw_resoluti
     offset_add_xy[1] += 0.5f;
   }
 
-  uint32_t xy_max_unscaled[] = {x_max / draw_resolution_scale_x, y_max / draw_resolution_scale_y};
+  u32 xy_max_unscaled[] = {x_max / draw_resolution_scale_x, y_max / draw_resolution_scale_y};
   REX_ASSERT(xy_max_unscaled[0] != 0);
   REX_ASSERT(xy_max_unscaled[1] != 0);
 
-  float z_min;
-  float z_max;
-  float ndc_scale[3];
-  float ndc_offset[3];
+  f32 z_min;
+  f32 z_max;
+  f32 ndc_scale[3];
+  f32 ndc_offset[3];
 
   if (pa_cl_clip_cntl.clip_disable) {
-    for (uint32_t i = 0; i < 2; ++i) {
+    for (u32 i = 0; i < 2; ++i) {
       viewport_info_out.xy_offset[i] = 0;
-      uint32_t extent_axis_unscaled =
-          std::min(xenos::kTexture2DCubeMaxWidthHeight, xy_max_unscaled[i]);
+      u32 extent_axis_unscaled = std::min(xenos::kTexture2DCubeMaxWidthHeight, xy_max_unscaled[i]);
       viewport_info_out.xy_extent[i] =
           extent_axis_unscaled * (i ? draw_resolution_scale_y : draw_resolution_scale_x);
-      float extent_axis_unscaled_float = static_cast<float>(extent_axis_unscaled);
-      float pixels_to_ndc_axis = 2.0f / extent_axis_unscaled_float;
+      f32 extent_axis_unscaled_float = static_cast<f32>(extent_axis_unscaled);
+      f32 pixels_to_ndc_axis = 2.0f / extent_axis_unscaled_float;
       ndc_scale[i] = scale_xy[i] * pixels_to_ndc_axis;
       ndc_offset[i] = (offset_base_xy[i] - extent_axis_unscaled_float * 0.5f + offset_add_xy[i]) *
                       pixels_to_ndc_axis;
@@ -196,26 +190,26 @@ void GetHostViewportInfo(const xenos::RegisterFile& regs, uint32_t draw_resoluti
     ndc_scale[2] = scale_z;
     ndc_offset[2] = offset_z;
   } else {
-    for (uint32_t i = 0; i < 2; ++i) {
-      uint32_t axis_resolution_scale = i ? draw_resolution_scale_y : draw_resolution_scale_x;
-      float offset_axis = offset_base_xy[i] + offset_add_xy[i];
-      float scale_axis = scale_xy[i];
-      float scale_axis_abs = std::abs(scale_xy[i]);
-      float axis_max_unscaled_float = static_cast<float>(xy_max_unscaled[i]);
-      uint32_t axis_0_int = static_cast<uint32_t>(
+    for (u32 i = 0; i < 2; ++i) {
+      u32 axis_resolution_scale = i ? draw_resolution_scale_y : draw_resolution_scale_x;
+      f32 offset_axis = offset_base_xy[i] + offset_add_xy[i];
+      f32 scale_axis = scale_xy[i];
+      f32 scale_axis_abs = std::abs(scale_xy[i]);
+      f32 axis_max_unscaled_float = static_cast<f32>(xy_max_unscaled[i]);
+      u32 axis_0_int = static_cast<u32>(
           rex::clamp_float(offset_axis - scale_axis_abs, 0.0f, axis_max_unscaled_float));
-      uint32_t axis_1_int = static_cast<uint32_t>(
+      u32 axis_1_int = static_cast<u32>(
           rex::clamp_float(offset_axis + scale_axis_abs, 0.0f, axis_max_unscaled_float));
-      uint32_t axis_extent_int = axis_1_int - axis_0_int;
+      u32 axis_extent_int = axis_1_int - axis_0_int;
       viewport_info_out.xy_offset[i] = axis_0_int * axis_resolution_scale;
       viewport_info_out.xy_extent[i] = axis_extent_int * axis_resolution_scale;
-      float ndc_scale_axis;
-      float ndc_offset_axis;
+      f32 ndc_scale_axis;
+      f32 ndc_offset_axis;
       if (axis_extent_int) {
-        float axis_extent_rounded = static_cast<float>(axis_extent_int);
+        f32 axis_extent_rounded = static_cast<f32>(axis_extent_int);
         ndc_scale_axis = scale_axis * 2.0f / axis_extent_rounded;
-        ndc_offset_axis = (static_cast<float>(offset_axis) -
-                           (static_cast<float>(axis_0_int) + axis_extent_rounded * 0.5f)) *
+        ndc_offset_axis = (static_cast<f32>(offset_axis) -
+                           (static_cast<f32>(axis_0_int) + axis_extent_rounded * 0.5f)) *
                           2.0f / axis_extent_rounded;
       } else {
         ndc_scale_axis = 1.0f;
@@ -225,8 +219,8 @@ void GetHostViewportInfo(const xenos::RegisterFile& regs, uint32_t draw_resoluti
       ndc_offset[i] = ndc_offset_axis;
     }
 
-    float host_clip_offset_z;
-    float host_clip_scale_z;
+    f32 host_clip_offset_z;
+    f32 host_clip_scale_z;
     if (pa_cl_clip_cntl.dx_clip_space_def) {
       host_clip_offset_z = offset_z;
       host_clip_scale_z = scale_z;
@@ -270,7 +264,7 @@ void GetHostViewportInfo(const xenos::RegisterFile& regs, uint32_t draw_resoluti
     ndc_scale[1] = -ndc_scale[1];
     ndc_offset[1] = -ndc_offset[1];
   }
-  for (uint32_t i = 0; i < 3; ++i) {
+  for (u32 i = 0; i < 3; ++i) {
     viewport_info_out.ndc_scale[i] = ndc_scale[i];
     viewport_info_out.ndc_offset[i] = ndc_offset[i];
   }
@@ -279,11 +273,11 @@ void GetHostViewportInfo(const xenos::RegisterFile& regs, uint32_t draw_resoluti
 void GetScissor(const xenos::RegisterFile& regs, Scissor& scissor_out,
                 bool clamp_to_surface_pitch) {
   auto pa_sc_window_scissor_tl = regs.Get<xenos::reg::PA_SC_WINDOW_SCISSOR_TL>();
-  int32_t tl_x = static_cast<int32_t>(pa_sc_window_scissor_tl.tl_x);
-  int32_t tl_y = static_cast<int32_t>(pa_sc_window_scissor_tl.tl_y);
+  i32 tl_x = static_cast<i32>(pa_sc_window_scissor_tl.tl_x);
+  i32 tl_y = static_cast<i32>(pa_sc_window_scissor_tl.tl_y);
   auto pa_sc_window_scissor_br = regs.Get<xenos::reg::PA_SC_WINDOW_SCISSOR_BR>();
-  int32_t br_x = static_cast<int32_t>(pa_sc_window_scissor_br.br_x);
-  int32_t br_y = static_cast<int32_t>(pa_sc_window_scissor_br.br_y);
+  i32 br_x = static_cast<i32>(pa_sc_window_scissor_br.br_x);
+  i32 br_y = static_cast<i32>(pa_sc_window_scissor_br.br_y);
   if (!pa_sc_window_scissor_tl.window_offset_disable) {
     auto pa_sc_window_offset = regs.Get<xenos::reg::PA_SC_WINDOW_OFFSET>();
     tl_x += pa_sc_window_offset.window_x_offset;
@@ -292,43 +286,42 @@ void GetScissor(const xenos::RegisterFile& regs, Scissor& scissor_out,
     br_y += pa_sc_window_offset.window_y_offset;
   }
   auto pa_sc_screen_scissor_tl = regs.Get<xenos::reg::PA_SC_SCREEN_SCISSOR_TL>();
-  tl_x = std::max(tl_x, static_cast<int32_t>(pa_sc_screen_scissor_tl.tl_x));
-  tl_y = std::max(tl_y, static_cast<int32_t>(pa_sc_screen_scissor_tl.tl_y));
+  tl_x = std::max(tl_x, static_cast<i32>(pa_sc_screen_scissor_tl.tl_x));
+  tl_y = std::max(tl_y, static_cast<i32>(pa_sc_screen_scissor_tl.tl_y));
   auto pa_sc_screen_scissor_br = regs.Get<xenos::reg::PA_SC_SCREEN_SCISSOR_BR>();
-  br_x = std::min(br_x, static_cast<int32_t>(pa_sc_screen_scissor_br.br_x));
-  br_y = std::min(br_y, static_cast<int32_t>(pa_sc_screen_scissor_br.br_y));
+  br_x = std::min(br_x, static_cast<i32>(pa_sc_screen_scissor_br.br_x));
+  br_y = std::min(br_y, static_cast<i32>(pa_sc_screen_scissor_br.br_y));
   if (clamp_to_surface_pitch) {
-    uint32_t surface_pitch = regs.Get<xenos::reg::RB_SURFACE_INFO>().surface_pitch;
-    tl_x = std::min(tl_x, static_cast<int32_t>(surface_pitch));
-    br_x = std::min(br_x, static_cast<int32_t>(surface_pitch));
+    u32 surface_pitch = regs.Get<xenos::reg::RB_SURFACE_INFO>().surface_pitch;
+    tl_x = std::min(tl_x, static_cast<i32>(surface_pitch));
+    br_x = std::min(br_x, static_cast<i32>(surface_pitch));
   }
-  tl_x = std::max(tl_x, static_cast<int32_t>(0));
-  tl_y = std::max(tl_y, static_cast<int32_t>(0));
+  tl_x = std::max(tl_x, static_cast<i32>(0));
+  tl_y = std::max(tl_y, static_cast<i32>(0));
   br_x = std::max(br_x, tl_x);
   br_y = std::max(br_y, tl_y);
-  scissor_out.offset[0] = static_cast<uint32_t>(tl_x);
-  scissor_out.offset[1] = static_cast<uint32_t>(tl_y);
-  scissor_out.extent[0] = static_cast<uint32_t>(br_x - tl_x);
-  scissor_out.extent[1] = static_cast<uint32_t>(br_y - tl_y);
+  scissor_out.offset[0] = static_cast<u32>(tl_x);
+  scissor_out.offset[1] = static_cast<u32>(tl_y);
+  scissor_out.extent[0] = static_cast<u32>(br_x - tl_x);
+  scissor_out.extent[1] = static_cast<u32>(br_y - tl_y);
 }
 
-uint32_t GetNormalizedColorMask(const xenos::RegisterFile& regs,
-                                uint32_t pixel_shader_writes_color_targets) {
+u32 GetNormalizedColorMask(const xenos::RegisterFile& regs, u32 pixel_shader_writes_color_targets) {
   if (regs.Get<xenos::reg::RB_MODECONTROL>().edram_mode != xenos::EDRAMMode::kColorDepth) {
     return 0;
   }
-  uint32_t normalized_color_mask = 0;
-  uint32_t rb_color_mask = regs[std::to_underlying(xenos::Register::RB_COLOR_MASK)];
-  for (uint32_t i = 0; i < xenos::kMaxColorRenderTargets; ++i) {
-    if (!(pixel_shader_writes_color_targets & (static_cast<uint32_t>(1) << i))) {
+  u32 normalized_color_mask = 0;
+  u32 rb_color_mask = regs[std::to_underlying(xenos::Register::RB_COLOR_MASK)];
+  for (u32 i = 0; i < xenos::kMaxColorRenderTargets; ++i) {
+    if (!(pixel_shader_writes_color_targets & (static_cast<u32>(1) << i))) {
       continue;
     }
-    uint32_t format_component_mask =
-        (static_cast<uint32_t>(1) << xenos::GetColorRenderTargetFormatComponentCount(
+    u32 format_component_mask =
+        (static_cast<u32>(1) << xenos::GetColorRenderTargetFormatComponentCount(
              regs.Get<xenos::reg::RB_COLOR_INFO>(xenos::reg::RB_COLOR_INFO::rt_register_indices[i])
                  .color_format)) -
         1;
-    uint32_t rt_write_mask = (rb_color_mask >> (4 * i)) & format_component_mask;
+    u32 rt_write_mask = (rb_color_mask >> (4 * i)) & format_component_mask;
     if (!rt_write_mask) {
       continue;
     }
@@ -343,10 +336,10 @@ void AddMemExportRanges(const xenos::RegisterFile& regs, const Shader& shader,
   if (!shader.memexport_eM_written()) {
     return;
   }
-  uint32_t float_constants_base = shader.type() == xenos::ShaderType::kVertex
-                                      ? regs.Get<xenos::reg::SQ_VS_CONST>().base
-                                      : regs.Get<xenos::reg::SQ_PS_CONST>().base;
-  for (uint32_t constant_index : shader.memexport_stream_constants()) {
+  u32 float_constants_base = shader.type() == xenos::ShaderType::kVertex
+                                 ? regs.Get<xenos::reg::SQ_VS_CONST>().base
+                                 : regs.Get<xenos::reg::SQ_PS_CONST>().base;
+  for (u32 constant_index : shader.memexport_stream_constants()) {
     xenos::MemExportStream stream = regs.GetMemExportStream(float_constants_base + constant_index);
     if (stream.const_0x1 != 0x1 || stream.const_0x4b0 != 0x4B0 || stream.const_0x96 != 0x96 ||
         !stream.index_count) {
@@ -370,7 +363,7 @@ void AddMemExportRanges(const xenos::RegisterFile& regs, const Shader& shader,
       default:
         break;
     }
-    uint32_t stream_size_bytes = stream.index_count * (format_info.bits_per_pixel >> 3);
+    u32 stream_size_bytes = stream.index_count * (format_info.bits_per_pixel >> 3);
     bool range_reused = false;
     for (MemExportRange& range : ranges_out) {
       if (range.base_address_dwords == stream.base_address) {
@@ -380,7 +373,7 @@ void AddMemExportRanges(const xenos::RegisterFile& regs, const Shader& shader,
       }
     }
     if (!range_reused) {
-      ranges_out.emplace_back(static_cast<uint32_t>(stream.base_address), stream_size_bytes);
+      ranges_out.emplace_back(static_cast<u32>(stream.base_address), stream_size_bytes);
     }
   }
 }
@@ -427,24 +420,19 @@ xenos::CopySampleSelect SanitizeCopySampleSelect(xenos::CopySampleSelect copy_sa
 }
 
 void GetResolveEdramTileSpan(ResolveEdramInfo edram_info, ResolveCoordinateInfo coordinate_info,
-                             uint32_t height_div_8, uint32_t& base_out,
-                             uint32_t& row_length_used_out, uint32_t& rows_out) {
-  uint32_t x_scale_log2 =
-      3 + static_cast<uint32_t>(edram_info.msaa_samples >= xenos::MSAASamples::k4X) +
-      edram_info.format_is_64bpp;
-  uint32_t x0 =
-      (coordinate_info.edram_offset_x_div_8 << x_scale_log2) / xenos::kEDRAMTileWidthSamples;
-  uint32_t x1 =
-      (((coordinate_info.edram_offset_x_div_8 + coordinate_info.width_div_8) << x_scale_log2) +
-       (xenos::kEDRAMTileWidthSamples - 1)) /
-      xenos::kEDRAMTileWidthSamples;
-  uint32_t y_scale_log2 =
-      3 + static_cast<uint32_t>(edram_info.msaa_samples >= xenos::MSAASamples::k2X);
-  uint32_t y0 =
-      (coordinate_info.edram_offset_y_div_8 << y_scale_log2) / xenos::kEDRAMTileHeightSamples;
-  uint32_t y1 = (((coordinate_info.edram_offset_y_div_8 + height_div_8) << y_scale_log2) +
-                 (xenos::kEDRAMTileHeightSamples - 1)) /
-                xenos::kEDRAMTileHeightSamples;
+                             u32 height_div_8, u32& base_out, u32& row_length_used_out,
+                             u32& rows_out) {
+  u32 x_scale_log2 = 3 + static_cast<u32>(edram_info.msaa_samples >= xenos::MSAASamples::k4X) +
+                     edram_info.format_is_64bpp;
+  u32 x0 = (coordinate_info.edram_offset_x_div_8 << x_scale_log2) / xenos::kEDRAMTileWidthSamples;
+  u32 x1 = (((coordinate_info.edram_offset_x_div_8 + coordinate_info.width_div_8) << x_scale_log2) +
+            (xenos::kEDRAMTileWidthSamples - 1)) /
+           xenos::kEDRAMTileWidthSamples;
+  u32 y_scale_log2 = 3 + static_cast<u32>(edram_info.msaa_samples >= xenos::MSAASamples::k2X);
+  u32 y0 = (coordinate_info.edram_offset_y_div_8 << y_scale_log2) / xenos::kEDRAMTileHeightSamples;
+  u32 y1 = (((coordinate_info.edram_offset_y_div_8 + height_div_8) << y_scale_log2) +
+            (xenos::kEDRAMTileHeightSamples - 1)) /
+           xenos::kEDRAMTileHeightSamples;
   base_out = edram_info.base_tiles + y0 * edram_info.pitch_tiles + x0;
   row_length_used_out = x1 - x0;
   rows_out = y1 - y0;
@@ -464,7 +452,7 @@ const ResolveCopyShaderInfo
 };
 
 bool GetResolveInfo(const xenos::RegisterFile& regs, const runtime::Memory& memory,
-                    uint32_t draw_resolution_scale_x, uint32_t draw_resolution_scale_y,
+                    u32 draw_resolution_scale_x, u32 draw_resolution_scale_y,
                     bool fixed_rg16_truncated_to_minus_1_to_1,
                     bool fixed_rgba16_truncated_to_minus_1_to_1, ResolveInfo& info_out) {
   info_out.coordinate_info.packed = 0;
@@ -478,7 +466,7 @@ bool GetResolveInfo(const xenos::RegisterFile& regs, const runtime::Memory& memo
     REXLOG_ERROR(gpu,
                  "Unsupported resolve copy command {}. Report the title to ReXGlue "
                  "developers",
-                 static_cast<uint32_t>(rb_copy_control.copy_command));
+                 static_cast<u32>(rb_copy_control.copy_command));
     REX_ASSERT_ALWAYS();
     return false;
   }
@@ -489,22 +477,22 @@ bool GetResolveInfo(const xenos::RegisterFile& regs, const runtime::Memory& memo
     REX_ASSERT_ALWAYS();
     return false;
   }
-  const float* vertices_guest =
-      reinterpret_cast<const float*>(memory.TranslatePhysical(fetch.address * sizeof(uint32_t)));
-  float half_pixel_offset =
+  const f32* vertices_guest =
+      reinterpret_cast<const f32*>(memory.TranslatePhysical(fetch.address * sizeof(u32)));
+  f32 half_pixel_offset =
       regs.Get<xenos::reg::PA_SU_VTX_CNTL>().pix_center == xenos::PixelCenter::kD3DZero ? 0.5f
                                                                                         : 0.0f;
-  int32_t vertices_fixed[6];
+  i32 vertices_fixed[6];
   for (size_t i = 0; i < rex::countof(vertices_fixed); ++i) {
     vertices_fixed[i] = gpu::FloatToD3D11Fixed16p8(xenos::GPUSwap(vertices_guest[i], fetch.endian) +
                                                    half_pixel_offset);
   }
   // Inclusive.
-  int32_t x0 = std::min(std::min(vertices_fixed[0], vertices_fixed[2]), vertices_fixed[4]);
-  int32_t y0 = std::min(std::min(vertices_fixed[1], vertices_fixed[3]), vertices_fixed[5]);
+  i32 x0 = std::min(std::min(vertices_fixed[0], vertices_fixed[2]), vertices_fixed[4]);
+  i32 y0 = std::min(std::min(vertices_fixed[1], vertices_fixed[3]), vertices_fixed[5]);
   // Exclusive.
-  int32_t x1 = std::max(std::max(vertices_fixed[0], vertices_fixed[2]), vertices_fixed[4]);
-  int32_t y1 = std::max(std::max(vertices_fixed[1], vertices_fixed[3]), vertices_fixed[5]);
+  i32 x1 = std::max(std::max(vertices_fixed[0], vertices_fixed[2]), vertices_fixed[4]);
+  i32 y1 = std::max(std::max(vertices_fixed[1], vertices_fixed[3]), vertices_fixed[5]);
   // Top-left includes .5, so 0.128 covers pixel 0 and 0.129 does not.
   x0 = (x0 + 127) >> 8;
   y0 = (y0 + 127) >> 8;
@@ -524,19 +512,19 @@ bool GetResolveInfo(const xenos::RegisterFile& regs, const runtime::Memory& memo
   Scissor scissor;
   // Pitch is clamped later after alignment, as it may not be a multiple of 8.
   GetScissor(regs, scissor, false);
-  int32_t scissor_right = static_cast<int32_t>(scissor.offset[0] + scissor.extent[0]);
-  int32_t scissor_bottom = static_cast<int32_t>(scissor.offset[1] + scissor.extent[1]);
-  x0 = std::clamp(x0, static_cast<int32_t>(scissor.offset[0]), scissor_right);
-  y0 = std::clamp(y0, static_cast<int32_t>(scissor.offset[1]), scissor_bottom);
-  x1 = std::clamp(x1, static_cast<int32_t>(scissor.offset[0]), scissor_right);
-  y1 = std::clamp(y1, static_cast<int32_t>(scissor.offset[1]), scissor_bottom);
+  i32 scissor_right = static_cast<i32>(scissor.offset[0] + scissor.extent[0]);
+  i32 scissor_bottom = static_cast<i32>(scissor.offset[1] + scissor.extent[1]);
+  x0 = std::clamp(x0, static_cast<i32>(scissor.offset[0]), scissor_right);
+  y0 = std::clamp(y0, static_cast<i32>(scissor.offset[1]), scissor_bottom);
+  x1 = std::clamp(x1, static_cast<i32>(scissor.offset[0]), scissor_right);
+  y1 = std::clamp(y1, static_cast<i32>(scissor.offset[1]), scissor_bottom);
 
   REX_ASSERT(x0 <= x1 && y0 <= y1);
 
-  x0 &= ~static_cast<int32_t>(xenos::kResolveAlignmentPixels - 1);
-  y0 &= ~static_cast<int32_t>(xenos::kResolveAlignmentPixels - 1);
-  x1 = rex::align(x1, static_cast<int32_t>(xenos::kResolveAlignmentPixels));
-  y1 = rex::align(y1, static_cast<int32_t>(xenos::kResolveAlignmentPixels));
+  x0 &= ~static_cast<i32>(xenos::kResolveAlignmentPixels - 1);
+  y0 &= ~static_cast<i32>(xenos::kResolveAlignmentPixels - 1);
+  x1 = rex::align(x1, static_cast<i32>(xenos::kResolveAlignmentPixels));
+  y1 = rex::align(y1, static_cast<i32>(xenos::kResolveAlignmentPixels));
 
   auto rb_surface_info = regs.Get<xenos::reg::RB_SURFACE_INFO>();
   if (rb_surface_info.msaa_samples > xenos::MSAASamples::k4X) {
@@ -544,25 +532,25 @@ bool GetResolveInfo(const xenos::RegisterFile& regs, const runtime::Memory& memo
     REX_FAIL(gpu, false,
              "{}x MSAA requested by the guest in a resolve, Xenos only supports up "
              "to 4x",
-             static_cast<uint32_t>(1) << uint32_t(rb_surface_info.msaa_samples));
+             static_cast<u32>(1) << u32(rb_surface_info.msaa_samples));
   }
 
   // The maximum surface pitch is assumed to be the largest resolvable size.
-  int32_t surface_pitch_aligned = static_cast<int32_t>(
-      rb_surface_info.surface_pitch & ~static_cast<uint32_t>(xenos::kResolveAlignmentPixels - 1));
+  i32 surface_pitch_aligned = static_cast<i32>(
+      rb_surface_info.surface_pitch & ~static_cast<u32>(xenos::kResolveAlignmentPixels - 1));
   if (x1 > surface_pitch_aligned) {
     REXLOG_ERROR(gpu, "Resolve region {} <= x < {} is outside the surface pitch {}", x0, x1,
                  surface_pitch_aligned);
     x0 = std::min(x0, surface_pitch_aligned);
     x1 = std::min(x1, surface_pitch_aligned);
   }
-  REX_ASSERT(x1 - x0 <= static_cast<int32_t>(xenos::kMaxResolveSize));
+  REX_ASSERT(x1 - x0 <= static_cast<i32>(xenos::kMaxResolveSize));
 
   // The height must fit in the packed shader constant.
-  if (y1 - y0 > static_cast<int32_t>(xenos::kMaxResolveSize)) {
+  if (y1 - y0 > static_cast<i32>(xenos::kMaxResolveSize)) {
     REXLOG_ERROR(gpu, "Resolve region {} <= y < {} is taller than {}", y0, y1,
                  xenos::kMaxResolveSize);
-    y1 = y0 + static_cast<int32_t>(xenos::kMaxResolveSize);
+    y1 = y0 + static_cast<i32>(xenos::kMaxResolveSize);
   }
 
   REX_ASSERT(x0 < x1 && y0 < y1);
@@ -571,8 +559,8 @@ bool GetResolveInfo(const xenos::RegisterFile& regs, const runtime::Memory& memo
   }
 
   info_out.coordinate_info.width_div_8 =
-      static_cast<uint32_t>(x1 - x0) >> xenos::kResolveAlignmentPixelsLog2;
-  info_out.height_div_8 = static_cast<uint32_t>(y1 - y0) >> xenos::kResolveAlignmentPixelsLog2;
+      static_cast<u32>(x1 - x0) >> xenos::kResolveAlignmentPixelsLog2;
+  info_out.height_div_8 = static_cast<u32>(y1 - y0) >> xenos::kResolveAlignmentPixelsLog2;
   // The scales are packed in 3 bits each.
   REX_ASSERT(draw_resolution_scale_x <= 7);
   REX_ASSERT(draw_resolution_scale_y <= 7);
@@ -586,9 +574,9 @@ bool GetResolveInfo(const xenos::RegisterFile& regs, const runtime::Memory& memo
     REXLOG_WARN(gpu,
                 "Incorrect resolve sample selected for {}-sample {}: {}, treating like "
                 "{}",
-                1 << uint32_t(rb_surface_info.msaa_samples), is_depth ? "depth" : "color",
-                static_cast<uint32_t>(rb_copy_control.copy_sample_select),
-                static_cast<uint32_t>(sample_select));
+                1 << u32(rb_surface_info.msaa_samples), is_depth ? "depth" : "color",
+                static_cast<u32>(rb_copy_control.copy_sample_select),
+                static_cast<u32>(sample_select));
   }
   info_out.copy_dest_coordinate_info.copy_sample_select = sample_select;
   auto rb_copy_dest_info = regs.Get<xenos::reg::RB_COPY_DEST_INFO>();
@@ -619,11 +607,11 @@ bool GetResolveInfo(const xenos::RegisterFile& regs, const runtime::Memory& memo
     }
   }
 
-  uint32_t rb_copy_dest_base = regs[std::to_underlying(xenos::Register::RB_COPY_DEST_BASE)];
-  uint32_t copy_dest_base_adjusted = rb_copy_dest_base;
-  uint32_t copy_dest_extent_start, copy_dest_extent_end;
+  u32 rb_copy_dest_base = regs[std::to_underlying(xenos::Register::RB_COPY_DEST_BASE)];
+  u32 copy_dest_base_adjusted = rb_copy_dest_base;
+  u32 copy_dest_extent_start, copy_dest_extent_end;
   auto rb_copy_dest_pitch = regs.Get<xenos::reg::RB_COPY_DEST_PITCH>();
-  uint32_t copy_dest_pitch_aligned_div_32 =
+  u32 copy_dest_pitch_aligned_div_32 =
       (rb_copy_dest_pitch.copy_dest_pitch + (xenos::kTextureTileWidthHeight - 1)) >>
       xenos::kTextureTileWidthHeightLog2;
   info_out.copy_dest_coordinate_info.pitch_aligned_div_32 = copy_dest_pitch_aligned_div_32;
@@ -632,49 +620,44 @@ bool GetResolveInfo(const xenos::RegisterFile& regs, const runtime::Memory& memo
       xenos::kTextureTileWidthHeightLog2;
   const xenos::FormatInfo& dest_format_info = *xenos::FormatInfo::Get(dest_format);
   if (is_depth || dest_format_info.type == xenos::FormatType::kResolvable) {
-    uint32_t bpp_log2 = rex::log2_floor(dest_format_info.bits_per_pixel >> 3);
-    uint32_t dest_base_relative_x_mask = (UINT32_C(1) << xenos::GetTextureTiledXBaseGranularityLog2(
-                                              bool(rb_copy_dest_info.copy_dest_array), bpp_log2)) -
-                                         1;
-    uint32_t dest_base_relative_y_mask = (UINT32_C(1) << xenos::GetTextureTiledYBaseGranularityLog2(
-                                              bool(rb_copy_dest_info.copy_dest_array), bpp_log2)) -
-                                         1;
+    u32 bpp_log2 = rex::log2_floor(dest_format_info.bits_per_pixel >> 3);
+    u32 dest_base_relative_x_mask = (UINT32_C(1) << xenos::GetTextureTiledXBaseGranularityLog2(
+                                         bool(rb_copy_dest_info.copy_dest_array), bpp_log2)) -
+                                    1;
+    u32 dest_base_relative_y_mask = (UINT32_C(1) << xenos::GetTextureTiledYBaseGranularityLog2(
+                                         bool(rb_copy_dest_info.copy_dest_array), bpp_log2)) -
+                                    1;
     info_out.copy_dest_coordinate_info.offset_x_div_8 =
-        (static_cast<uint32_t>(x0) & dest_base_relative_x_mask) >>
-        xenos::kResolveAlignmentPixelsLog2;
+        (static_cast<u32>(x0) & dest_base_relative_x_mask) >> xenos::kResolveAlignmentPixelsLog2;
     info_out.copy_dest_coordinate_info.offset_y_div_8 =
-        (static_cast<uint32_t>(y0) & dest_base_relative_y_mask) >>
-        xenos::kResolveAlignmentPixelsLog2;
-    uint32_t dest_base_x = static_cast<uint32_t>(x0) & ~dest_base_relative_x_mask;
-    uint32_t dest_base_y = static_cast<uint32_t>(y0) & ~dest_base_relative_y_mask;
+        (static_cast<u32>(y0) & dest_base_relative_y_mask) >> xenos::kResolveAlignmentPixelsLog2;
+    u32 dest_base_x = static_cast<u32>(x0) & ~dest_base_relative_x_mask;
+    u32 dest_base_y = static_cast<u32>(y0) & ~dest_base_relative_y_mask;
     if (rb_copy_dest_info.copy_dest_array) {
       copy_dest_base_adjusted += xenos::GetTiledOffset3D(
-          static_cast<int32_t>(dest_base_x), static_cast<int32_t>(dest_base_y), 0,
+          static_cast<i32>(dest_base_x), static_cast<i32>(dest_base_y), 0,
           rb_copy_dest_pitch.copy_dest_pitch, rb_copy_dest_pitch.copy_dest_height, bpp_log2);
       copy_dest_extent_start =
           rb_copy_dest_base +
-          xenos::GetTiledAddressLowerBound3D(static_cast<uint32_t>(x0), static_cast<uint32_t>(y0),
-                                             rb_copy_dest_info.copy_dest_slice,
-                                             rb_copy_dest_pitch.copy_dest_pitch,
-                                             rb_copy_dest_pitch.copy_dest_height, bpp_log2);
-      copy_dest_extent_end =
-          rb_copy_dest_base +
-          xenos::GetTiledAddressUpperBound3D(static_cast<uint32_t>(x1), static_cast<uint32_t>(y1),
-                                             rb_copy_dest_info.copy_dest_slice + 1,
-                                             rb_copy_dest_pitch.copy_dest_pitch,
-                                             rb_copy_dest_pitch.copy_dest_height, bpp_log2);
+          xenos::GetTiledAddressLowerBound3D(
+              static_cast<u32>(x0), static_cast<u32>(y0), rb_copy_dest_info.copy_dest_slice,
+              rb_copy_dest_pitch.copy_dest_pitch, rb_copy_dest_pitch.copy_dest_height, bpp_log2);
+      copy_dest_extent_end = rb_copy_dest_base + xenos::GetTiledAddressUpperBound3D(
+                                                     static_cast<u32>(x1), static_cast<u32>(y1),
+                                                     rb_copy_dest_info.copy_dest_slice + 1,
+                                                     rb_copy_dest_pitch.copy_dest_pitch,
+                                                     rb_copy_dest_pitch.copy_dest_height, bpp_log2);
     } else {
-      copy_dest_base_adjusted += xenos::GetTiledOffset2D(
-          static_cast<int32_t>(dest_base_x), static_cast<int32_t>(dest_base_y),
-          rb_copy_dest_pitch.copy_dest_pitch, bpp_log2);
+      copy_dest_base_adjusted +=
+          xenos::GetTiledOffset2D(static_cast<i32>(dest_base_x), static_cast<i32>(dest_base_y),
+                                  rb_copy_dest_pitch.copy_dest_pitch, bpp_log2);
       copy_dest_extent_start =
           rb_copy_dest_base +
-          xenos::GetTiledAddressLowerBound2D(static_cast<uint32_t>(x0), static_cast<uint32_t>(y0),
+          xenos::GetTiledAddressLowerBound2D(static_cast<u32>(x0), static_cast<u32>(y0),
                                              rb_copy_dest_pitch.copy_dest_pitch, bpp_log2);
-      copy_dest_extent_end =
-          rb_copy_dest_base +
-          xenos::GetTiledAddressUpperBound2D(static_cast<uint32_t>(x1), static_cast<uint32_t>(y1),
-                                             rb_copy_dest_pitch.copy_dest_pitch, bpp_log2);
+      copy_dest_extent_end = rb_copy_dest_base + xenos::GetTiledAddressUpperBound2D(
+                                                     static_cast<u32>(x1), static_cast<u32>(y1),
+                                                     rb_copy_dest_pitch.copy_dest_pitch, bpp_log2);
     }
   } else {
     REXLOG_ERROR(gpu, "Tried to resolve to format {}, which is not a ColorFormat",
@@ -689,29 +672,28 @@ bool GetResolveInfo(const xenos::RegisterFile& regs, const runtime::Memory& memo
   info_out.copy_dest_extent_start = copy_dest_extent_start;
   info_out.copy_dest_extent_length = copy_dest_extent_end - copy_dest_extent_start;
 
-  uint32_t sample_count_log2_x =
-      static_cast<uint32_t>(rb_surface_info.msaa_samples >= xenos::MSAASamples::k4X);
-  uint32_t sample_count_log2_y =
-      static_cast<uint32_t>(rb_surface_info.msaa_samples >= xenos::MSAASamples::k2X);
-  uint32_t x0_samples = static_cast<uint32_t>(x0) << sample_count_log2_x;
-  uint32_t y0_samples = static_cast<uint32_t>(y0) << sample_count_log2_y;
-  uint32_t base_offset_x_tiles = x0_samples / xenos::kEDRAMTileWidthSamples;
-  uint32_t base_offset_y_tiles = y0_samples / xenos::kEDRAMTileHeightSamples;
+  u32 sample_count_log2_x =
+      static_cast<u32>(rb_surface_info.msaa_samples >= xenos::MSAASamples::k4X);
+  u32 sample_count_log2_y =
+      static_cast<u32>(rb_surface_info.msaa_samples >= xenos::MSAASamples::k2X);
+  u32 x0_samples = static_cast<u32>(x0) << sample_count_log2_x;
+  u32 y0_samples = static_cast<u32>(y0) << sample_count_log2_y;
+  u32 base_offset_x_tiles = x0_samples / xenos::kEDRAMTileWidthSamples;
+  u32 base_offset_y_tiles = y0_samples / xenos::kEDRAMTileHeightSamples;
   info_out.coordinate_info.edram_offset_x_div_8 =
       (x0_samples % xenos::kEDRAMTileWidthSamples) >> (sample_count_log2_x + 3);
   info_out.coordinate_info.edram_offset_y_div_8 =
       (y0_samples % xenos::kEDRAMTileHeightSamples) >> (sample_count_log2_y + 3);
-  uint32_t surface_pitch_tiles = xenos::GetSurfacePitchTiles(rb_surface_info.surface_pitch,
-                                                             rb_surface_info.msaa_samples, false);
-  uint32_t edram_base_offset_tiles =
-      base_offset_y_tiles * surface_pitch_tiles + base_offset_x_tiles;
+  u32 surface_pitch_tiles = xenos::GetSurfacePitchTiles(rb_surface_info.surface_pitch,
+                                                        rb_surface_info.msaa_samples, false);
+  u32 edram_base_offset_tiles = base_offset_y_tiles * surface_pitch_tiles + base_offset_x_tiles;
 
   bool fill_half_pixel_offset =
       (draw_resolution_scale_x > 1 || draw_resolution_scale_y > 1) &&
       REXCVAR_GET(::rex::gpu::cvars::resolve_resolution_scale_fill_half_pixel_offset) &&
       REXCVAR_GET(::rex::gpu::cvars::half_pixel_offset) &&
       regs.Get<xenos::reg::PA_SU_VTX_CNTL>().pix_center == xenos::PixelCenter::kD3DZero;
-  int32_t exp_bias = is_depth ? 0 : rb_copy_dest_info.copy_dest_exp_bias;
+  i32 exp_bias = is_depth ? 0 : rb_copy_dest_info.copy_dest_exp_bias;
   ResolveEdramInfo depth_edram_info;
   depth_edram_info.packed = 0;
   if (is_depth || rb_copy_control.depth_clear_enable) {
@@ -719,9 +701,9 @@ bool GetResolveInfo(const xenos::RegisterFile& regs, const runtime::Memory& memo
     depth_edram_info.msaa_samples = rb_surface_info.msaa_samples;
     depth_edram_info.is_depth = 1;
     depth_edram_info.base_tiles = rb_depth_info.depth_base + edram_base_offset_tiles;
-    depth_edram_info.format = static_cast<uint32_t>(rb_depth_info.depth_format);
+    depth_edram_info.format = static_cast<u32>(rb_depth_info.depth_format);
     depth_edram_info.format_is_64bpp = 0;
-    depth_edram_info.fill_half_pixel_offset = static_cast<uint32_t>(fill_half_pixel_offset);
+    depth_edram_info.fill_half_pixel_offset = static_cast<u32>(fill_half_pixel_offset);
     info_out.depth_original_base = rb_depth_info.depth_base;
   } else {
     info_out.depth_original_base = 0;
@@ -732,20 +714,19 @@ bool GetResolveInfo(const xenos::RegisterFile& regs, const runtime::Memory& memo
   if (!is_depth) {
     auto color_info = regs.Get<xenos::reg::RB_COLOR_INFO>(
         xenos::reg::RB_COLOR_INFO::rt_register_indices[rb_copy_control.copy_src_select]);
-    uint32_t is_64bpp =
-        static_cast<uint32_t>(xenos::IsColorRenderTargetFormat64bpp(color_info.color_format));
+    u32 is_64bpp = static_cast<u32>(xenos::IsColorRenderTargetFormat64bpp(color_info.color_format));
     color_edram_info.pitch_tiles = surface_pitch_tiles << is_64bpp;
     color_edram_info.msaa_samples = rb_surface_info.msaa_samples;
     color_edram_info.is_depth = 0;
     color_edram_info.base_tiles = color_info.color_base + (edram_base_offset_tiles << is_64bpp);
-    color_edram_info.format = static_cast<uint32_t>(color_info.color_format);
+    color_edram_info.format = static_cast<u32>(color_info.color_format);
     color_edram_info.format_is_64bpp = is_64bpp;
-    color_edram_info.fill_half_pixel_offset = static_cast<uint32_t>(fill_half_pixel_offset);
+    color_edram_info.fill_half_pixel_offset = static_cast<u32>(fill_half_pixel_offset);
     if ((fixed_rg16_truncated_to_minus_1_to_1 &&
          color_info.color_format == xenos::ColorRenderTargetFormat::k_16_16) ||
         (fixed_rgba16_truncated_to_minus_1_to_1 &&
          color_info.color_format == xenos::ColorRenderTargetFormat::k_16_16_16_16)) {
-      exp_bias = std::min(exp_bias + static_cast<int32_t>(5), static_cast<int32_t>(31));
+      exp_bias = std::min(exp_bias + static_cast<i32>(5), static_cast<i32>(31));
     }
     info_out.color_original_base = color_info.color_base;
   } else {
@@ -778,11 +759,11 @@ bool GetResolveInfo(const xenos::RegisterFile& regs, const runtime::Memory& memo
   return true;
 }
 
-ResolveCopyShaderIndex ResolveInfo::GetCopyShader(uint32_t draw_resolution_scale_x,
-                                                  uint32_t draw_resolution_scale_y,
+ResolveCopyShaderIndex ResolveInfo::GetCopyShader(u32 draw_resolution_scale_x,
+                                                  u32 draw_resolution_scale_y,
                                                   ResolveCopyShaderConstants& constants_out,
-                                                  uint32_t& group_count_x_out,
-                                                  uint32_t& group_count_y_out) const {
+                                                  u32& group_count_x_out,
+                                                  u32& group_count_y_out) const {
   ResolveCopyShaderIndex shader = ResolveCopyShaderIndex::kUnknown;
   bool is_depth = IsCopyingDepth();
   ResolveEdramInfo edram_info = is_depth ? depth_edram_info : color_edram_info;
@@ -831,10 +812,9 @@ ResolveCopyShaderIndex ResolveInfo::GetCopyShader(uint32_t draw_resolution_scale
   constants_out.dest_base = copy_dest_base;
 
   if (shader != ResolveCopyShaderIndex::kUnknown) {
-    uint32_t width = (coordinate_info.width_div_8 << xenos::kResolveAlignmentPixelsLog2) *
-                     draw_resolution_scale_x;
-    uint32_t height =
-        (height_div_8 << xenos::kResolveAlignmentPixelsLog2) * draw_resolution_scale_y;
+    u32 width = (coordinate_info.width_div_8 << xenos::kResolveAlignmentPixelsLog2) *
+                draw_resolution_scale_x;
+    u32 height = (height_div_8 << xenos::kResolveAlignmentPixelsLog2) * draw_resolution_scale_y;
     const ResolveCopyShaderInfo& shader_info =
         resolve_copy_shader_info[static_cast<size_t>(shader)];
     group_count_x_out =

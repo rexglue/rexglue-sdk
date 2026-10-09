@@ -29,8 +29,8 @@ namespace rex::gpu {
  */
 class SharedMemory {
  public:
-  static constexpr uint32_t kBufferSizeLog2 = 29;
-  static constexpr uint32_t kBufferSize = 1 << kBufferSizeLog2;
+  static constexpr u32 kBufferSizeLog2 = 29;
+  static constexpr u32 kBufferSize = 1 << kBufferSizeLog2;
 
   virtual ~SharedMemory();
   /** Clears the cache. Implementations call it from their ClearCache. */
@@ -38,7 +38,7 @@ class SharedMemory {
   void SetSystemPageBlocksValidWithGpuDataWritten();
   void InvalidateAllPages();
 
-  using GlobalWatchCallback = void (*)(void* context, uint32_t address_first, uint32_t address_last,
+  using GlobalWatchCallback = void (*)(void* context, u32 address_first, u32 address_last,
                                        bool invalidated_by_gpu);
   using GlobalWatchHandle = void*;
   /**
@@ -54,8 +54,7 @@ class SharedMemory {
    */
   GlobalWatchHandle RegisterGlobalWatch(GlobalWatchCallback callback, void* callback_context);
   void UnregisterGlobalWatch(GlobalWatchHandle handle);
-  using WatchCallback = void (*)(void* context, void* data, uint64_t argument,
-                                 bool invalidated_by_gpu);
+  using WatchCallback = void (*)(void* context, void* data, u64 argument, bool invalidated_by_gpu);
   using WatchHandle = void*;
   /**
    * Registers a callback invoked when the memory range is invalidated in the GPU memory copy by
@@ -74,10 +73,9 @@ class SharedMemory {
    * @param callback_argument Subsystem or object specific data.
    * @return The watch handle.
    */
-  WatchHandle WatchMemoryRange(const std::unique_lock<rex::platform::RankedMutex>& lock,
-                               uint32_t start, uint32_t length, WatchCallback callback,
-                               void* callback_context, void* callback_data,
-                               uint64_t callback_argument);
+  WatchHandle WatchMemoryRange(const std::unique_lock<rex::platform::RankedMutex>& lock, u32 start,
+                               u32 length, WatchCallback callback, void* callback_context,
+                               void* callback_data, u64 callback_argument);
 
   /**
    * Takes the memory watch lock that guards page validity, watches and the texture state that
@@ -102,8 +100,8 @@ class SharedMemory {
    * @param count The number of ranges.
    * @return True when the ranges are updated and usable.
    */
-  bool RequestRanges(const std::pair<uint32_t, uint32_t>* ranges, size_t count);
-  bool RequestRange(uint32_t start, uint32_t length);
+  bool RequestRanges(const std::pair<u32, u32>* ranges, size_t count);
+  bool RequestRange(u32 start, u32 length);
 
   /**
    * Marks the range as modified by the CPU and invalidates GPU written pages inside it. Unless
@@ -118,8 +116,8 @@ class SharedMemory {
    * @param exact_range True to invalidate only the pages in the range.
    * @return The invalidated range as start address and length.
    */
-  std::pair<uint32_t, uint32_t> MemoryInvalidationCallback(uint32_t physical_address_start,
-                                                           uint32_t length, bool exact_range);
+  std::pair<u32, u32> MemoryInvalidationCallback(u32 physical_address_start, u32 length,
+                                                 bool exact_range);
 
   /**
    * Marks the range as containing GPU generated data such as resolves, triggers modification
@@ -131,13 +129,13 @@ class SharedMemory {
    * @param start The start of the range.
    * @param length The length of the range.
    */
-  void RangeWrittenByGpu(uint32_t start, uint32_t length);
+  void RangeWrittenByGpu(u32 start, u32 length);
 
  protected:
   SharedMemory(runtime::Memory& memory);
   /** Initializes the common state. Implementations call it from their initialization. */
   void InitializeCommon();
-  void InitializeSparseHostGpuMemory(uint32_t granularity_log2);
+  void InitializeSparseHostGpuMemory(u32 granularity_log2);
   /** Shuts down the common state. Runs last in implementation shutdown and in the destructor. */
   void ShutdownCommon();
 
@@ -145,14 +143,14 @@ class SharedMemory {
    * Sparse allocations are 4 MB, which keeps their count low without much padding. 16 MB pads
    * too much.
    */
-  static constexpr uint32_t kHostGpuMemoryOptimalSparseAllocationLog2 = 22;
+  static constexpr u32 kHostGpuMemoryOptimalSparseAllocationLog2 = 22;
   static_assert(kHostGpuMemoryOptimalSparseAllocationLog2 <= kBufferSizeLog2);
 
   runtime::Memory& memory() const { return memory_; }
 
-  uint32_t page_size_log2() const { return page_size_log2_; }
+  u32 page_size_log2() const { return page_size_log2_; }
 
-  uint32_t host_gpu_memory_sparse_granularity_log2() const {
+  u32 host_gpu_memory_sparse_granularity_log2() const {
     return host_gpu_memory_sparse_granularity_log2_;
   }
 
@@ -165,8 +163,7 @@ class SharedMemory {
    * @param length_allocations The length of the range in allocations.
    * @return True when the allocation succeeded.
    */
-  virtual bool AllocateSparseHostGpuMemoryRange(uint32_t offset_allocations,
-                                                uint32_t length_allocations);
+  virtual bool AllocateSparseHostGpuMemoryRange(u32 offset_allocations, u32 length_allocations);
 
   /**
    * Marks the memory range as updated and protects it.
@@ -175,7 +172,7 @@ class SharedMemory {
    * @param length The length of the range.
    * @param written_by_gpu True when the range holds GPU written data.
    */
-  void MakeRangeValid(uint32_t start, uint32_t length, bool written_by_gpu);
+  void MakeRangeValid(u32 start, u32 length, bool written_by_gpu);
 
   /**
    * Uploads a range of host pages, only when the sparse host GPU memory allocation succeeded.
@@ -187,8 +184,7 @@ class SharedMemory {
    * @param upload_page_ranges The page ranges as start and count pairs.
    * @return True when the upload succeeded.
    */
-  virtual bool UploadRanges(
-      const std::vector<std::pair<uint32_t, uint32_t>>& upload_page_ranges) = 0;
+  virtual bool UploadRanges(const std::vector<std::pair<u32, u32>>& upload_page_ranges) = 0;
 
  private:
   runtime::Memory& memory_;
@@ -197,28 +193,29 @@ class SharedMemory {
    * Log2 of the invalidation granularity, the system page size. Touched pages of this size are
    * invalidated.
    */
-  uint32_t page_size_log2_;
+  u32 page_size_log2_;
 
-  bool EnsureHostGpuMemoryAllocated(uint32_t start, uint32_t length);
-  uint32_t host_gpu_memory_sparse_granularity_log2_ = UINT32_MAX;
-  std::vector<uint64_t> host_gpu_memory_sparse_allocated_;
-  uint32_t host_gpu_memory_sparse_allocations_ = 0;
-  uint32_t host_gpu_memory_sparse_used_bytes_ = 0;
+  bool EnsureHostGpuMemoryAllocated(u32 start, u32 length);
+  u32 host_gpu_memory_sparse_granularity_log2_ = UINT32_MAX;
+  std::vector<u64> host_gpu_memory_sparse_allocated_;
+  u32 host_gpu_memory_sparse_allocations_ = 0;
+  u32 host_gpu_memory_sparse_used_bytes_ = 0;
 
   void* memory_invalidation_callback_handle_ = nullptr;
 
   /** Ranges to upload, generated by RequestRanges. */
-  std::vector<std::pair<uint32_t, uint32_t>> upload_ranges_;
+  std::vector<std::pair<u32, u32>> upload_ranges_;
 
   // Members below are guarded by the memory watch lock.
 
   /** Pages whose buffer contents are in sync with guest memory. */
-  std::vector<uint64_t> system_page_flags_valid_;
-  std::vector<uint64_t> system_page_flags_valid_and_gpu_written_;
-  uint32_t num_system_page_flags_ = 0;
+  std::vector<u64> system_page_flags_valid_;
+  std::vector<u64> system_page_flags_valid_and_gpu_written_;
+  u32 num_system_page_flags_ = 0;
 
-  static std::pair<uint32_t, uint32_t> MemoryInvalidationCallbackThunk(
-      void* context_ptr, uint32_t physical_address_start, uint32_t length, bool exact_range);
+  static std::pair<u32, u32> MemoryInvalidationCallbackThunk(void* context_ptr,
+                                                             u32 physical_address_start, u32 length,
+                                                             bool exact_range);
 
   struct GlobalWatch {
     GlobalWatchCallback callback;
@@ -232,10 +229,10 @@ class SharedMemory {
         WatchCallback callback;
         void* callback_context;
         void* callback_data;
-        uint64_t callback_argument;
+        u64 callback_argument;
         WatchNode* node_first;
-        uint32_t page_first;
-        uint32_t page_last;
+        u32 page_first;
+        u32 page_last;
       };
       WatchRange* next_free;
     };
@@ -257,19 +254,19 @@ class SharedMemory {
       WatchNode* next_free;
     };
   };
-  static constexpr uint32_t kWatchBucketSizeLog2 = 22;
-  static constexpr uint32_t kWatchBucketCount = 1 << (kBufferSizeLog2 - kWatchBucketSizeLog2);
+  static constexpr u32 kWatchBucketSizeLog2 = 22;
+  static constexpr u32 kWatchBucketCount = 1 << (kBufferSizeLog2 - kWatchBucketSizeLog2);
   WatchNode* watch_buckets_[kWatchBucketCount] = {};
   /**
    * Pool sizes for WatchRanges and WatchNodes. Allocation takes from the free list first, then
    * creates a pool when the current one is used up, then allocates linearly from the current pool.
    */
-  static constexpr uint32_t kWatchRangePoolSize = 8192;
-  static constexpr uint32_t kWatchNodePoolSize = 8192;
+  static constexpr u32 kWatchRangePoolSize = 8192;
+  static constexpr u32 kWatchNodePoolSize = 8192;
   std::vector<std::unique_ptr<WatchRange[]>> watch_range_pools_;
   std::vector<std::unique_ptr<WatchNode[]>> watch_node_pools_;
-  uint32_t watch_range_current_pool_allocated_ = 0;
-  uint32_t watch_node_current_pool_allocated_ = 0;
+  u32 watch_range_current_pool_allocated_ = 0;
+  u32 watch_node_current_pool_allocated_ = 0;
   WatchRange* watch_range_first_free_ = nullptr;
   WatchNode* watch_node_first_free_ = nullptr;
   /**
@@ -279,8 +276,8 @@ class SharedMemory {
    * @param page_last The last page.
    * @param invalidated_by_gpu True when the GPU invalidated the pages.
    */
-  void FireWatches(uint32_t page_first, uint32_t page_last, bool invalidated_by_gpu);
-  void FireWatchesLocked(uint32_t page_first, uint32_t page_last, bool invalidated_by_gpu);
+  void FireWatches(u32 page_first, u32 page_last, bool invalidated_by_gpu);
+  void FireWatchesLocked(u32 page_first, u32 page_last, bool invalidated_by_gpu);
   /**
    * Unlinks and frees the range and its nodes. Requires the global critical region.
    *

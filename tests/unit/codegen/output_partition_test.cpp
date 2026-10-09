@@ -24,7 +24,7 @@ namespace {
 
 /// Index of the bucket holding `address`, or SIZE_MAX when absent.
 size_t BucketOf(const std::vector<std::vector<size_t>>& buckets,
-                std::span<const FunctionSize> entries, uint32_t address) {
+                std::span<const FunctionSize> entries, u32 address) {
   for (size_t b = 0; b < buckets.size(); ++b) {
     for (size_t i : buckets[b]) {
       if (entries[i].address == address)
@@ -79,7 +79,7 @@ TEST_CASE("A function stays in its bucket when an earlier function grows", "[out
 
 TEST_CASE("The file count survives functions growing far past the budget", "[output_partition]") {
   std::vector<FunctionSize> first;
-  for (uint32_t i = 0; i < 20; ++i) {
+  for (u32 i = 0; i < 20; ++i) {
     first.push_back({0x8200'0000 + i * 0x100, 10});
   }
 

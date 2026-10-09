@@ -19,18 +19,18 @@ namespace rex::codegen {
 
 TestModule::TestModule() : Module(nullptr) {}
 
-void TestModule::Load(uint32_t base_address, const uint8_t* data, size_t size) {
+void TestModule::Load(u32 base_address, const u8* data, size_t size) {
   base_address_ = base_address;
-  size_ = static_cast<uint32_t>(size);
+  size_ = static_cast<u32>(size);
 
   binary_sections_.clear();
-  binary_sections_.push_back(runtime::BinarySection{
-      ".text", base_address, static_cast<uint32_t>(size), data, true, false});
+  binary_sections_.push_back(
+      runtime::BinarySection{".text", base_address, static_cast<u32>(size), data, true, false});
 }
 
 void AnalyzeTestBinary(CodegenContext& ctx, std::string_view testName,
-                       const std::map<size_t, std::string>& symbols, uint32_t baseAddress,
-                       const uint8_t* data, size_t dataSize) {
+                       const std::map<size_t, std::string>& symbols, u32 baseAddress,
+                       const u8* data, size_t dataSize) {
   std::vector<std::pair<size_t, std::string>> testFunctions;
   for (const auto& [addr, name] : symbols) {
     if (name.starts_with("test_")) {
@@ -41,13 +41,13 @@ void AnalyzeTestBinary(CodegenContext& ctx, std::string_view testName,
   std::sort(testFunctions.begin(), testFunctions.end());
 
   for (size_t i = 0; i < testFunctions.size(); i++) {
-    uint32_t fnAddr = static_cast<uint32_t>(testFunctions[i].first);
+    u32 fnAddr = static_cast<u32>(testFunctions[i].first);
 
-    uint32_t nextAddr = static_cast<uint32_t>(baseAddress + dataSize);
+    u32 nextAddr = static_cast<u32>(baseAddress + dataSize);
     if (i + 1 < testFunctions.size()) {
-      nextAddr = static_cast<uint32_t>(testFunctions[i + 1].first);
+      nextAddr = static_cast<u32>(testFunctions[i + 1].first);
     }
-    uint32_t fnSize = nextAddr - fnAddr;
+    u32 fnSize = nextAddr - fnAddr;
 
     auto* node = ctx.graph.addFunction(fnAddr, fnSize, FunctionAuthority::DISCOVERED, true);
 
@@ -59,20 +59,20 @@ void AnalyzeTestBinary(CodegenContext& ctx, std::string_view testName,
   }
 
   for (size_t i = 0; i < testFunctions.size(); i++) {
-    uint32_t fnAddr = static_cast<uint32_t>(testFunctions[i].first);
-    uint32_t nextAddr = static_cast<uint32_t>(baseAddress + dataSize);
+    u32 fnAddr = static_cast<u32>(testFunctions[i].first);
+    u32 nextAddr = static_cast<u32>(baseAddress + dataSize);
     if (i + 1 < testFunctions.size()) {
-      nextAddr = static_cast<uint32_t>(testFunctions[i + 1].first);
+      nextAddr = static_cast<u32>(testFunctions[i + 1].first);
     }
-    uint32_t fnSize = nextAddr - fnAddr;
+    u32 fnSize = nextAddr - fnAddr;
 
-    for (uint32_t offset = 0; offset < fnSize; offset += 4) {
-      uint32_t pc = fnAddr + offset;
-      uint32_t raw = memory::load<be_u32>(data + (fnAddr - baseAddress) + offset);
+    for (u32 offset = 0; offset < fnSize; offset += 4) {
+      u32 pc = fnAddr + offset;
+      u32 raw = memory::load<be_u32>(data + (fnAddr - baseAddress) + offset);
       auto decoded = decode_instruction(pc, raw);
 
       if (decoded.is_call() && decoded.branch_target.has_value()) {
-        uint32_t target = decoded.branch_target.value();
+        u32 target = decoded.branch_target.value();
         auto* targetNode = ctx.graph.getFunction(target);
         if (targetNode) {
           ctx.graph.addCallToFunction(fnAddr, pc, CallTarget::function(targetNode));

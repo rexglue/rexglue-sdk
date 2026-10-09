@@ -16,7 +16,7 @@ namespace rex::runtime {
 u64 AchievementManager::CurrentFileTime() {
   using namespace std::chrono;
   auto now = system_clock::now().time_since_epoch();
-  auto intervals = duration_cast<duration<int64_t, std::ratio<1, 10'000'000>>>(now);
+  auto intervals = duration_cast<duration<i64, std::ratio<1, 10'000'000>>>(now);
   constexpr u64 kEpochDelta = 116'444'736'000'000'000ULL;
   return static_cast<u64>(intervals.count()) + kEpochDelta;
 }
@@ -84,14 +84,14 @@ Result<void> AchievementManager::LoadMetadataFile(const std::filesystem::path& p
       }
 
       AchievementInfo info;
-      info.id = static_cast<u32>((*entry)["id"].value_or<int64_t>(0));
+      info.id = static_cast<u32>((*entry)["id"].value_or<i64>(0));
       info.label = (*entry)["label"].value_or<std::string>("");
       info.description = (*entry)["description"].value_or<std::string>("");
       info.unachieved_description = (*entry)["unachieved_description"].value_or<std::string>("");
       info.icon_path = (*entry)["icon_path"].value_or<std::string>("");
-      info.image_id = static_cast<u32>((*entry)["image_id"].value_or<int64_t>(0));
-      info.gamerscore = static_cast<u32>((*entry)["gamerscore"].value_or<int64_t>(0));
-      info.flags = static_cast<u32>((*entry)["flags"].value_or<int64_t>(0));
+      info.image_id = static_cast<u32>((*entry)["image_id"].value_or<i64>(0));
+      info.gamerscore = static_cast<u32>((*entry)["gamerscore"].value_or<i64>(0));
+      info.flags = static_cast<u32>((*entry)["flags"].value_or<i64>(0));
       if (RegisterAchievement(std::move(info))) {
         ++loaded;
       }
@@ -192,7 +192,7 @@ void AchievementManager::LoadUnlockState() {
         u32 id = static_cast<u32>(std::stoul(std::string(key.str())));
         u64 filetime = 0;
         if (const auto* entry = value.as_table()) {
-          filetime = static_cast<u64>((*entry)["filetime"].value_or<int64_t>(0));
+          filetime = static_cast<u64>((*entry)["filetime"].value_or<i64>(0));
         }
         unlocked_achievements_.emplace(id, filetime != 0 ? filetime : CurrentFileTime());
       }
@@ -200,7 +200,7 @@ void AchievementManager::LoadUnlockState() {
       migrated = true;
       u64 now = CurrentFileTime();
       for (const auto& node : *unlocked) {
-        if (auto value = node.value<int64_t>()) {
+        if (auto value = node.value<i64>()) {
           u32 id = static_cast<u32>(*value);
           if (id != 0) {
             unlocked_achievements_.emplace(id, now);

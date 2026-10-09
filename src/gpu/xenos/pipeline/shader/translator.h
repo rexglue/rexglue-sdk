@@ -29,14 +29,13 @@ class ShaderTranslator {
  public:
   virtual ~ShaderTranslator();
 
-  virtual uint64_t GetDefaultVertexShaderModification(
-      uint32_t /*dynamic_addressable_register_count*/,
+  virtual u64 GetDefaultVertexShaderModification(
+      u32 /*dynamic_addressable_register_count*/,
       Shader::HostVertexShaderType /*host_vertex_shader_type*/ =
           Shader::HostVertexShaderType::kVertex) const {
     return 0;
   }
-  virtual uint64_t GetDefaultPixelShaderModification(
-      uint32_t /*dynamic_addressable_register_count*/) const {
+  virtual u64 GetDefaultPixelShaderModification(u32 /*dynamic_addressable_register_count*/) const {
     return 0;
   }
 
@@ -61,13 +60,13 @@ class ShaderTranslator {
   Shader& current_shader() const { return current_translation().shader(); }
 
   /** Register count from SQ_PROGRAM_CNTL, stored by the implementation in its modification bits. */
-  virtual uint32_t GetModificationRegisterCount() const { return xenos::kMaxShaderTempRegisters; }
+  virtual u32 GetModificationRegisterCount() const { return xenos::kMaxShaderTempRegisters; }
 
   bool is_vertex_shader() const { return current_shader().type() == xenos::ShaderType::kVertex; }
   bool is_pixel_shader() const { return current_shader().type() == xenos::ShaderType::kPixel; }
 
   /** Temporary register count, accessible via static and dynamic addressing. */
-  uint32_t register_count() const { return register_count_; }
+  u32 register_count() const { return register_count_; }
 
   /**
    * Emits a translation error that is passed back in the result.
@@ -85,7 +84,7 @@ class ShaderTranslator {
    *
    * @return The translated shader binary.
    */
-  virtual std::vector<uint8_t> CompleteTranslation() { return std::vector<uint8_t>(); }
+  virtual std::vector<u8> CompleteTranslation() { return std::vector<u8>(); }
 
   virtual void PostTranslation() {}
   void set_host_disassembly(Shader::Translation& translation, std::string value) {
@@ -93,11 +92,11 @@ class ShaderTranslator {
   }
 
   /** Called once per label required by control flow, before the instructions of the target exec. */
-  virtual void ProcessLabel(uint32_t /*cf_index*/) {}
+  virtual void ProcessLabel(u32 /*cf_index*/) {}
 
-  virtual void ProcessControlFlowNopInstruction(uint32_t /*cf_index*/) {}
-  virtual void ProcessControlFlowInstructionBegin(uint32_t /*cf_index*/) {}
-  virtual void ProcessControlFlowInstructionEnd(uint32_t /*cf_index*/) {}
+  virtual void ProcessControlFlowNopInstruction(u32 /*cf_index*/) {}
+  virtual void ProcessControlFlowInstructionBegin(u32 /*cf_index*/) {}
+  virtual void ProcessControlFlowInstructionEnd(u32 /*cf_index*/) {}
   virtual void ProcessExecInstructionBegin(const ParsedExecInstruction& /*instr*/) {}
   virtual void ProcessExecInstructionEnd(const ParsedExecInstruction& /*instr*/) {}
   virtual void ProcessLoopStartInstruction(const ParsedLoopStartInstruction& /*instr*/) {}
@@ -106,15 +105,14 @@ class ShaderTranslator {
   virtual void ProcessReturnInstruction(const ParsedReturnInstruction& /*instr*/) {}
   virtual void ProcessJumpInstruction(const ParsedJumpInstruction& /*instr*/) {}
   /** Memory exports for the eM# in export_eM must be performed regardless of the alloc type. */
-  virtual void ProcessAllocInstruction(const ParsedAllocInstruction& /*instr*/,
-                                       uint8_t /*export_eM*/) {}
+  virtual void ProcessAllocInstruction(const ParsedAllocInstruction& /*instr*/, u8 /*export_eM*/) {}
 
   virtual void ProcessVertexFetchInstruction(const ParsedVertexFetchInstruction& /*instr*/) {}
   virtual void ProcessTextureFetchInstruction(const ParsedTextureFetchInstruction& /*instr*/) {}
   /** memexport_eM_potentially_written_before must be handled by `kill` so exports of eM# written in
    * earlier execs and the current exec are done before the invocation becomes inactive. */
   virtual void ProcessAluInstruction(const ParsedAluInstruction& /*instr*/,
-                                     uint8_t /*memexport_eM_potentially_written_before*/) {}
+                                     u8 /*memexport_eM_potentially_written_before*/) {}
 
  private:
   void TranslateControlFlowInstruction(const xenos::ucode::ControlFlowInstruction& cf);
@@ -124,9 +122,9 @@ class ShaderTranslator {
 
   std::vector<Shader::Error> errors_;
 
-  uint32_t register_count_ = 0;
+  u32 register_count_ = 0;
 
-  uint32_t cf_index_ = 0;
+  u32 cf_index_ = 0;
 
   xenos::ucode::VertexFetchInstruction previous_vfetch_full_;
 };

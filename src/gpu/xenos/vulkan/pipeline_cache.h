@@ -66,22 +66,21 @@ class VulkanPipelineCache {
 
   bool Initialize();
   void Shutdown();
-  void InitializeShaderStorage(const std::filesystem::path& cache_root, uint32_t title_id,
+  void InitializeShaderStorage(const std::filesystem::path& cache_root, u32 title_id,
                                bool blocking);
   void ShutdownShaderStorage();
   void EndSubmission();
 
-  VulkanShader* LoadShader(xenos::ShaderType shader_type, const uint32_t* host_address,
-                           uint32_t dword_count);
+  VulkanShader* LoadShader(xenos::ShaderType shader_type, const u32* host_address, u32 dword_count);
   // Analyze shader microcode on the translator thread.
   void AnalyzeShaderUcode(Shader& shader) { shader.AnalyzeUcode(ucode_disasm_buffer_); }
 
   // The shader must have microcode analyzed.
   SpirvShaderTranslator::Modification GetCurrentVertexShaderModification(
       const Shader& shader, Shader::HostVertexShaderType host_vertex_shader_type,
-      uint32_t interpolator_mask, bool ps_param_gen_used) const;
+      u32 interpolator_mask, bool ps_param_gen_used) const;
   SpirvShaderTranslator::Modification GetCurrentPixelShaderModification(
-      const Shader& shader, uint32_t interpolator_mask, uint32_t param_gen_pos,
+      const Shader& shader, u32 interpolator_mask, u32 param_gen_pos,
       xenos::reg::RB_DEPTHCONTROL normalized_depth_control) const;
 
   bool EnsureShadersTranslated(VulkanShader::VulkanTranslation* vertex_shader,
@@ -89,7 +88,7 @@ class VulkanPipelineCache {
   bool ConfigurePipeline(
       VulkanShader::VulkanTranslation* vertex_shader, VulkanShader::VulkanTranslation* pixel_shader,
       const PrimitiveProcessor::ProcessingResult& primitive_processing_result,
-      xenos::reg::RB_DEPTHCONTROL normalized_depth_control, uint32_t normalized_color_mask,
+      xenos::reg::RB_DEPTHCONTROL normalized_depth_control, u32 normalized_color_mask,
       VulkanRenderTargetCache::RenderPassKey render_pass_key, VkPipeline& pipeline_out,
       const PipelineLayoutProvider*& pipeline_layout_out, void** pipeline_handle_out = nullptr);
   bool IsCreatingPipelines() const;
@@ -99,22 +98,22 @@ class VulkanPipelineCache {
 
  private:
   REX_PACKED_STRUCT(ShaderStoredHeader, {
-    uint64_t ucode_data_hash;
+    u64 ucode_data_hash;
 
-    uint32_t ucode_dword_count : 31;
+    u32 ucode_dword_count : 31;
     xenos::ShaderType type : 1;
 
-    static constexpr uint32_t kVersion = 0x20201219;
+    static constexpr u32 kVersion = 0x20201219;
   });
 
-  enum class PipelineGeometryShader : uint32_t {
+  enum class PipelineGeometryShader : u32 {
     kNone,
     kPointList,
     kRectangleList,
     kQuadList,
   };
 
-  enum class PipelinePrimitiveTopology : uint32_t {
+  enum class PipelinePrimitiveTopology : u32 {
     kPointList,
     kLineList,
     kLineStrip,
@@ -125,13 +124,13 @@ class VulkanPipelineCache {
     kPatchList,
   };
 
-  enum class PipelinePolygonMode : uint32_t {
+  enum class PipelinePolygonMode : u32 {
     kFill,
     kLine,
     kPoint,
   };
 
-  enum class PipelineBlendFactor : uint32_t {
+  enum class PipelineBlendFactor : u32 {
     kZero,
     kOne,
     kSrcColor,
@@ -157,33 +156,33 @@ class VulkanPipelineCache {
     PipelineBlendFactor src_alpha_blend_factor : 4;
     PipelineBlendFactor dst_alpha_blend_factor : 4;
     xenos::BlendOp alpha_blend_op : 3;
-    uint32_t color_write_mask : 4;
+    u32 color_write_mask : 4;
     u32 padding : 6;
   });
   static_assert(std::is_trivially_copyable_v<PipelineRenderTarget> &&
                 std::has_unique_object_representations_v<PipelineRenderTarget>);
 
   REX_PACKED_STRUCT(PipelineDescription, {
-    uint64_t vertex_shader_hash;
-    uint64_t vertex_shader_modification;
+    u64 vertex_shader_hash;
+    u64 vertex_shader_modification;
     /** Zero when there is no pixel shader. */
-    uint64_t pixel_shader_hash;
-    uint64_t pixel_shader_modification;
+    u64 pixel_shader_hash;
+    u64 pixel_shader_modification;
     VulkanRenderTargetCache::RenderPassKey render_pass_key;
 
     PipelineGeometryShader geometry_shader : 2;
     PipelinePrimitiveTopology primitive_topology : 3;
-    uint32_t primitive_restart : 1;
+    u32 primitive_restart : 1;
     xenos::TessellationMode tessellation_mode : 2;
-    uint32_t depth_clamp_enable : 1;
+    u32 depth_clamp_enable : 1;
     PipelinePolygonMode polygon_mode : 2;
-    uint32_t cull_front : 1;
-    uint32_t cull_back : 1;
-    uint32_t front_face_clockwise : 1;
-    uint32_t rasterizer_discard : 1;
-    uint32_t depth_write_enable : 1;
+    u32 cull_front : 1;
+    u32 cull_back : 1;
+    u32 front_face_clockwise : 1;
+    u32 rasterizer_discard : 1;
+    u32 depth_write_enable : 1;
     xenos::CompareFunction depth_compare_op : 3;
-    uint32_t stencil_test_enable : 1;
+    u32 stencil_test_enable : 1;
     xenos::StencilOp stencil_front_fail_op : 3;
     xenos::StencilOp stencil_front_pass_op : 3;
     xenos::StencilOp stencil_front_depth_fail_op : 3;
@@ -193,13 +192,13 @@ class VulkanPipelineCache {
     xenos::StencilOp stencil_back_pass_op : 3;
     xenos::StencilOp stencil_back_depth_fail_op : 3;
     xenos::CompareFunction stencil_back_compare_op : 3;
-    uint32_t sample_rate_shading : 1;
+    u32 sample_rate_shading : 1;
     u32 padding : 19;
 
     /** Filled only for the attachments present in the render pass object. */
     PipelineRenderTarget render_targets[xenos::kMaxColorRenderTargets];
 
-    static constexpr uint32_t kVersion = 0x20260228;
+    static constexpr u32 kVersion = 0x20260228;
     PipelineDescription() {
       Reset();
     }
@@ -209,7 +208,7 @@ class VulkanPipelineCache {
     void Reset() {
       std::memset(this, 0, sizeof(*this));
     }
-    uint64_t GetHash() const {
+    u64 GetHash() const {
       return XXH3_64bits(this, sizeof(*this));
     }
     struct Hasher {
@@ -221,7 +220,7 @@ class VulkanPipelineCache {
   static_assert(std::is_trivially_copyable_v<PipelineDescription> &&
                 std::has_unique_object_representations_v<PipelineDescription>);
   REX_PACKED_STRUCT(PipelineStoredDescription, {
-    uint64_t description_hash;
+    u64 description_hash;
     PipelineDescription description;
   });
   static_assert(std::is_trivially_copyable_v<PipelineStoredDescription> &&
@@ -254,14 +253,14 @@ class VulkanPipelineCache {
 
   /** Creation request passed from the command processor thread to the creation threads. */
   struct PipelineCreationArguments {
-    uint8_t priority = 0;
+    u8 priority = 0;
     std::pair<const PipelineDescription, Pipeline>* pipeline = nullptr;
     const PipelineLayoutProvider* pipeline_layout = nullptr;
     const VulkanShader::VulkanTranslation* vertex_shader = nullptr;
     const VulkanShader::VulkanTranslation* pixel_shader = nullptr;
     VkShaderModule tessellation_vertex_shader = VK_NULL_HANDLE;
     VkShaderModule tessellation_control_shader = VK_NULL_HANDLE;
-    uint32_t tessellation_patch_control_points = 0;
+    u32 tessellation_patch_control_points = 0;
     VkShaderModule geometry_shader = VK_NULL_HANDLE;
     /** VK_NULL_HANDLE when dynamic rendering is used. */
     VkRenderPass render_pass = VK_NULL_HANDLE;
@@ -273,7 +272,7 @@ class VulkanPipelineCache {
   };
 
   union TessellationControlShaderKey {
-    uint32_t key;
+    u32 key;
     struct {
       Shader::HostVertexShaderType host_vertex_shader_type : Shader::kHostVertexShaderTypeBitCount;
       xenos::TessellationMode tessellation_mode : 2;
@@ -283,7 +282,7 @@ class VulkanPipelineCache {
 
     struct Hasher {
       size_t operator()(const TessellationControlShaderKey& key) const {
-        return std::hash<uint32_t>{}(key.key);
+        return std::hash<u32>{}(key.key);
       }
     };
     bool operator==(const TessellationControlShaderKey& other_key) const {
@@ -292,45 +291,43 @@ class VulkanPipelineCache {
   };
 
   union GeometryShaderKey {
-    uint32_t key;
+    u32 key;
     struct {
       PipelineGeometryShader type : 2;
-      uint32_t interpolator_count : 5;
-      uint32_t user_clip_plane_count : 3;
-      uint32_t user_clip_plane_cull : 1;
-      uint32_t has_vertex_kill_and : 1;
-      uint32_t has_point_size : 1;
-      uint32_t has_point_coordinates : 1;
+      u32 interpolator_count : 5;
+      u32 user_clip_plane_count : 3;
+      u32 user_clip_plane_cull : 1;
+      u32 has_vertex_kill_and : 1;
+      u32 has_point_size : 1;
+      u32 has_point_coordinates : 1;
       /** PA_CL_CLIP_CNTL::ps_ucp_mode for point primitives. */
-      uint32_t point_ps_ucp_mode : 2;
+      u32 point_ps_ucp_mode : 2;
     };
 
     GeometryShaderKey() : key(0) { REX_STATIC_ASSERT_SIZE(*this, sizeof(key)); }
 
     struct Hasher {
-      size_t operator()(const GeometryShaderKey& key) const {
-        return std::hash<uint32_t>{}(key.key);
-      }
+      size_t operator()(const GeometryShaderKey& key) const { return std::hash<u32>{}(key.key); }
     };
     bool operator==(const GeometryShaderKey& other_key) const { return key == other_key.key; }
     bool operator!=(const GeometryShaderKey& other_key) const { return !(*this == other_key); }
   };
 
-  VulkanShader* LoadShader(xenos::ShaderType shader_type, const uint32_t* host_address,
-                           uint32_t dword_count, uint64_t data_hash);
+  VulkanShader* LoadShader(xenos::ShaderType shader_type, const u32* host_address, u32 dword_count,
+                           u64 data_hash);
 
   // Can be called from multiple threads.
   bool TranslateAnalyzedShader(SpirvShaderTranslator& translator,
                                VulkanShader::VulkanTranslation& translation);
 
   void WritePipelineRenderTargetDescription(xenos::reg::RB_BLENDCONTROL blend_control,
-                                            uint32_t write_mask,
+                                            u32 write_mask,
                                             PipelineRenderTarget& render_target_out) const;
   bool GetCurrentStateDescription(
       const VulkanShader::VulkanTranslation* vertex_shader,
       const VulkanShader::VulkanTranslation* pixel_shader,
       const PrimitiveProcessor::ProcessingResult& primitive_processing_result,
-      xenos::reg::RB_DEPTHCONTROL normalized_depth_control, uint32_t normalized_color_mask,
+      xenos::reg::RB_DEPTHCONTROL normalized_depth_control, u32 normalized_color_mask,
       VulkanRenderTargetCache::RenderPassKey render_pass_key,
       PipelineDescription& description_out) const;
 
@@ -346,7 +343,7 @@ class VulkanPipelineCache {
                                    SpirvShaderTranslator::Modification vertex_shader_modification,
                                    SpirvShaderTranslator::Modification pixel_shader_modification,
                                    GeometryShaderKey& key_out);
-  static uint32_t GetTessellationPatchControlPointCount(
+  static u32 GetTessellationPatchControlPointCount(
       Shader::HostVertexShaderType host_vertex_shader_type,
       xenos::TessellationMode tessellation_mode);
   VkShaderModule GetTessellationVertexShader(bool adaptive);
@@ -388,11 +385,9 @@ class VulkanPipelineCache {
   std::mutex layouts_mutex_;
   std::vector<VulkanShader::TextureBinding> texture_binding_layouts_;
   /** Keys are XXH3 hashes of layouts, collisions resolved through texture_binding_layouts_. */
-  std::unordered_multimap<uint64_t, LayoutUID, rex::IdentityHasher<uint64_t>>
-      texture_binding_layout_map_;
+  std::unordered_multimap<u64, LayoutUID, rex::IdentityHasher<u64>> texture_binding_layout_map_;
 
-  std::unordered_map<uint64_t, std::unique_ptr<VulkanShader>, rex::IdentityHasher<uint64_t>>
-      shaders_;
+  std::unordered_map<u64, std::unique_ptr<VulkanShader>, rex::IdentityHasher<u64>> shaders_;
 
   /** Holds VK_NULL_HANDLE when creation failed. */
   std::unordered_map<GeometryShaderKey, VkShaderModule, GeometryShaderKey::Hasher>
@@ -415,15 +410,15 @@ class VulkanPipelineCache {
 
   const std::pair<const PipelineDescription, Pipeline>* last_pipeline_ = nullptr;
   /** Pairs of submission index and pipeline. */
-  std::deque<std::pair<uint64_t, VkPipeline>> deferred_destroy_pipelines_;
+  std::deque<std::pair<u64, VkPipeline>> deferred_destroy_pipelines_;
   std::mutex deferred_destroy_lock_;
 
   std::filesystem::path shader_storage_cache_root_;
-  uint32_t shader_storage_title_id_ = 0;
+  u32 shader_storage_title_id_ = 0;
 
   std::fstream shader_storage_file_;
   std::filesystem::path shader_storage_file_path_;
-  uint32_t shader_storage_index_ = 0;
+  u32 shader_storage_index_ = 0;
   bool shader_storage_file_flush_needed_ = false;
 
   std::fstream pipeline_storage_file_;

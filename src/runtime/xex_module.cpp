@@ -33,7 +33,7 @@ XexModule::XexModule(FunctionDispatcher* function_dispatcher, Runtime& runtime)
 
 XexModule::~XexModule() = default;
 
-uint32_t XexModule::image_size() const {
+u32 XexModule::image_size() const {
   REX_ASSERT(base_address_ != 0);
   const u32 page_size = memory()->LookupHeap(base_address_)->page_size();
   u32 total = 0;
@@ -43,14 +43,14 @@ uint32_t XexModule::image_size() const {
   return total;
 }
 
-uint32_t XexModule::GetProcAddress(uint16_t ordinal) const {
+u32 XexModule::GetProcAddress(u16 ordinal) const {
   if (const u32 table_address = image_.security().export_table) {
     auto export_table = memory()->TranslateVirtual<const xex2_export_table*>(table_address);
     ordinal -= export_table->base;
     if (ordinal >= export_table->count) {
       REX_FAIL(system, 0, "GetProcAddress({:03X}): ordinal out of bounds", ordinal);
     }
-    uint32_t ordinal_offset = export_table->ordOffset[ordinal];
+    u32 ordinal_offset = export_table->ordOffset[ordinal];
     ordinal_offset += export_table->imagebaseaddr << 16;
     return ordinal_offset;
   }
@@ -62,7 +62,7 @@ uint32_t XexModule::GetProcAddress(uint16_t ordinal) const {
                                                                          directory->offset);
     REX_ASSERT(e != nullptr);
     const auto* bytes = reinterpret_cast<const u8*>(e);
-    auto* function_table = reinterpret_cast<const uint32_t*>(bytes + e->AddressOfFunctions);
+    auto* function_table = reinterpret_cast<const u32*>(bytes + e->AddressOfFunctions);
     if (ordinal < e->NumberOfFunctions) {
       return base_address_ + function_table[ordinal];
     }
@@ -70,7 +70,7 @@ uint32_t XexModule::GetProcAddress(uint16_t ordinal) const {
   return 0;
 }
 
-uint32_t XexModule::GetProcAddress(const std::string_view name) const {
+u32 XexModule::GetProcAddress(const std::string_view name) const {
   REX_ASSERT(base_address_ != 0);
   const auto* directory = image_.OptHeader<xex2_opt_data_directory>(XEX_HEADER_EXPORTS_BY_NAME);
   if (!directory) {
@@ -80,10 +80,10 @@ uint32_t XexModule::GetProcAddress(const std::string_view name) const {
                                                                        directory->offset);
   REX_ASSERT(e != nullptr);
   const auto* bytes = reinterpret_cast<const u8*>(e);
-  auto* function_table = reinterpret_cast<const uint32_t*>(bytes + e->AddressOfFunctions);
-  auto* name_table = reinterpret_cast<const uint32_t*>(bytes + e->AddressOfNames);
-  auto* ordinal_table = reinterpret_cast<const uint16_t*>(bytes + e->AddressOfNameOrdinals);
-  for (uint32_t i = 0; i < e->NumberOfNames; i++) {
+  auto* function_table = reinterpret_cast<const u32*>(bytes + e->AddressOfFunctions);
+  auto* name_table = reinterpret_cast<const u32*>(bytes + e->AddressOfNames);
+  auto* ordinal_table = reinterpret_cast<const u16*>(bytes + e->AddressOfNameOrdinals);
+  for (u32 i = 0; i < e->NumberOfNames; i++) {
     auto fn_name = reinterpret_cast<const char*>(bytes + name_table[i]);
     if (name == std::string_view(fn_name)) {
       return base_address_ + function_table[ordinal_table[i]];
@@ -268,15 +268,15 @@ bool XexModule::SetupLibraryImports(std::string_view name,
   library_info.version = library.version;
   library_info.min_version = library.min_version;
 
-  std::unordered_map<uint16_t, ImportLibraryFn> import_map;
+  std::unordered_map<u16, ImportLibraryFn> import_map;
   for (const u32 record_addr : library.records) {
     if (!record_addr) {
       continue;
     }
     auto record_slot = memory()->TranslateVirtual<be_u32*>(record_addr);
-    const uint32_t record_value = *record_slot;
-    const uint16_t record_type = (record_value & 0xFF000000) >> 24;
-    const uint16_t ordinal = record_value & 0xFFFF;
+    const u32 record_value = *record_slot;
+    const u16 record_type = (record_value & 0xFF000000) >> 24;
+    const u16 ordinal = record_value & 0xFFFF;
 
     auto& import_info = import_map[ordinal];
     import_info.ordinal = ordinal;
@@ -285,7 +285,7 @@ bool XexModule::SetupLibraryImports(std::string_view name,
       if (kernel_module) {
         const auto* kernel_export = rex::runtime::FindByOrdinal(*kernel_module_id, ordinal);
         if (kernel_export && kernel_export->kind == rex::runtime::ExportKind::Variable) {
-          const uint32_t variable_ptr = runtime::KernelModuleVariable(*kernel_module, ordinal);
+          const u32 variable_ptr = runtime::KernelModuleVariable(*kernel_module, ordinal);
           if (variable_ptr) {
             *record_slot = variable_ptr;
             REXLOG_DEBUG(system, "Patched variable import {}:{:#x} ({}) -> {:#x}", base_name,
@@ -302,13 +302,13 @@ bool XexModule::SetupLibraryImports(std::string_view name,
     }
   }
 
-  std::vector<uint16_t> ordinals;
+  std::vector<u16> ordinals;
   ordinals.reserve(import_map.size());
   for (const auto& [ordinal, _] : import_map) {
     ordinals.push_back(ordinal);
   }
   std::ranges::sort(ordinals);
-  for (const uint16_t ordinal : ordinals) {
+  for (const u16 ordinal : ordinals) {
     library_info.imports.push_back(import_map[ordinal]);
   }
 
@@ -326,7 +326,7 @@ void XexModule::PopulateBinaryData() {
     sec.name = pe_sec.name;
     sec.virtual_address = pe_sec.address;
     sec.virtual_size = pe_sec.size;
-    sec.host_data = memory()->TranslateVirtual<uint8_t*>(pe_sec.address);
+    sec.host_data = memory()->TranslateVirtual<u8*>(pe_sec.address);
     sec.executable = (pe_sec.flags & kXEPESectionMemoryExecute) != 0;
     sec.writable = (pe_sec.flags & kXEPESectionMemoryWrite) != 0;
     binary_sections_.push_back(std::move(sec));

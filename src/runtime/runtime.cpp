@@ -216,7 +216,7 @@ Result<void> Runtime::Setup(const rex::PPCImageInfo& image_info, const RuntimeCo
     int duplicates = 0;
     int rejected = 0;
     for (int i = 0; image_info.func_mappings[i].guest != 0; ++i) {
-      uint32_t address = static_cast<uint32_t>(image_info.func_mappings[i].guest);
+      u32 address = static_cast<u32>(image_info.func_mappings[i].guest);
       auto* host = image_info.func_mappings[i].host;
       if (!host) {
         continue;

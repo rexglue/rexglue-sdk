@@ -38,7 +38,7 @@ bool SDLWindowedAppContext::Initialize(const UIConfig& config) {
   }
   const char* video_driver_in_use = SDL_GetCurrentVideoDriver();
   REXLOG_INFO(ui, "SDL video driver: {}", video_driver_in_use ? video_driver_in_use : "unknown");
-  uint32_t first = SDL_RegisterEvents(2);
+  u32 first = SDL_RegisterEvents(2);
   if (first == 0) {
     REX_FAIL(ui, false, "SDL_RegisterEvents failed: {}", SDL_GetError());
   }

@@ -15,6 +15,7 @@
 #include <cstdint>
 #include <memory>
 
+#include <rex/types.h>
 #include <rex/literals.h>
 
 namespace rex {
@@ -32,7 +33,7 @@ class GraphicsUploadBufferPool {
 
   virtual ~GraphicsUploadBufferPool();
 
-  void Reclaim(uint64_t completed_submission_index);
+  void Reclaim(u64 completed_submission_index);
   void ChangeSubmissionTimeline();
   void ClearCache();
 
@@ -48,7 +49,7 @@ class GraphicsUploadBufferPool {
   /** Extended by the implementation. */
   struct Page {
     virtual ~Page();
-    uint64_t last_submission_index_;
+    u64 last_submission_index_;
     Page* next_;
   };
 
@@ -65,7 +66,7 @@ class GraphicsUploadBufferPool {
    * @param offset_out Receives the offset within the page.
    * @return The page, or nullptr on failure.
    */
-  Page* Request(uint64_t submission_index, size_t size, size_t alignment, size_t& offset_out);
+  Page* Request(u64 submission_index, size_t size, size_t alignment, size_t& offset_out);
 
   /**
    * Requests space for data written in multiple parts, filling the buffer.
@@ -77,7 +78,7 @@ class GraphicsUploadBufferPool {
    * @param size_out Receives the size granted in bytes.
    * @return The page, or nullptr on failure.
    */
-  Page* RequestPartial(uint64_t submission_index, size_t size, size_t alignment, size_t& offset_out,
+  Page* RequestPartial(u64 submission_index, size_t size, size_t alignment, size_t& offset_out,
                        size_t& size_out);
 
   virtual std::unique_ptr<Page> CreatePageImplementation() = 0;

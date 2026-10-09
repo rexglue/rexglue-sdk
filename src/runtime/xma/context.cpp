@@ -34,8 +34,8 @@ extern "C" {
 
 namespace rex::runtime {
 
-const uint32_t XMAContext::kBitsPerPacketHeader;
-const uint32_t XMAContext::kOutputMaxSizeBytes;
+const u32 XMAContext::kBitsPerPacketHeader;
+const u32 XMAContext::kOutputMaxSizeBytes;
 
 XMAContext::XMAContext()
     : work_completion_event_(rex::platform::Event::CreateAutoResetEvent(false)) {}
@@ -49,7 +49,7 @@ XMAContext::~XMAContext() {
   }
 }
 
-int XMAContext::Setup(uint32_t id, runtime::Memory* memory, uint32_t guest_ptr) {
+int XMAContext::Setup(u32 id, runtime::Memory* memory, u32 guest_ptr) {
   id_ = id;
   memory_ = memory;
   guest_ptr_ = guest_ptr;
@@ -107,9 +107,9 @@ bool XMAContext::Work() {
     return true;
   }
 
-  const uint32_t effective_sdc = std::max(static_cast<uint32_t>(1), data.subframe_decode_count);
-  const int32_t minimum_subframe_decode_count =
-      static_cast<int32_t>(effective_sdc) + data.output_buffer_padding;
+  const u32 effective_sdc = std::max(static_cast<u32>(1), data.subframe_decode_count);
+  const i32 minimum_subframe_decode_count =
+      static_cast<i32>(effective_sdc) + data.output_buffer_padding;
 
   if (minimum_subframe_decode_count > remaining_subframe_blocks_in_output_buffer_) {
     StoreContextMerged(data, initial_data, context_ptr);
@@ -216,8 +216,8 @@ void XMAContext::UpdateLoopStatus(XMA_CONTEXT_DATA* data) {
     return;
   }
 
-  const uint32_t loop_start = std::max(kBitsPerPacketHeader, data->loop_start);
-  const uint32_t loop_end = std::max(kBitsPerPacketHeader, data->loop_end);
+  const u32 loop_start = std::max(kBitsPerPacketHeader, data->loop_start);
+  const u32 loop_end = std::max(kBitsPerPacketHeader, data->loop_end);
 
   if (data->input_buffer_read_offset != loop_end) {
     return;
@@ -235,7 +235,7 @@ int XMAContext::GetSampleRate(int id) {
   return kIdToSampleRate[std::min(id, 3)];
 }
 
-int16_t XMAContext::GetPacketNumber(size_t size, size_t bit_offset) {
+i16 XMAContext::GetPacketNumber(size_t size, size_t bit_offset) {
   if (bit_offset < kBitsPerPacketHeader) {
     REX_ASSERT_ALWAYS();
     return -1;
@@ -246,34 +246,34 @@ int16_t XMAContext::GetPacketNumber(size_t size, size_t bit_offset) {
   }
   size_t byte_offset = bit_offset >> 3;
   size_t packet_number = byte_offset / kBytesPerPacket;
-  return static_cast<int16_t>(packet_number);
+  return static_cast<i16>(packet_number);
 }
 
-uint32_t XMAContext::GetCurrentInputBufferSize(XMA_CONTEXT_DATA* data) {
+u32 XMAContext::GetCurrentInputBufferSize(XMA_CONTEXT_DATA* data) {
   return data->GetCurrentInputBufferPacketCount() * kBytesPerPacket;
 }
 
-uint8_t* XMAContext::GetCurrentInputBuffer(XMA_CONTEXT_DATA* data) {
+u8* XMAContext::GetCurrentInputBuffer(XMA_CONTEXT_DATA* data) {
   return memory()->TranslatePhysical(data->GetCurrentInputBufferAddress());
 }
 
-uint32_t XMAContext::GetAmountOfBitsToRead(uint32_t remaining_stream_bits, uint32_t frame_size) {
+u32 XMAContext::GetAmountOfBitsToRead(u32 remaining_stream_bits, u32 frame_size) {
   return std::min(remaining_stream_bits, frame_size);
 }
 
-const uint8_t* XMAContext::GetNextPacket(XMA_CONTEXT_DATA* data, uint32_t next_packet_index,
-                                         uint32_t current_input_packet_count) {
+const u8* XMAContext::GetNextPacket(XMA_CONTEXT_DATA* data, u32 next_packet_index,
+                                    u32 current_input_packet_count) {
   if (next_packet_index < current_input_packet_count) {
     return memory()->TranslatePhysical(data->GetCurrentInputBufferAddress()) +
            next_packet_index * kBytesPerPacket;
   }
 
-  const uint8_t next_buffer_index = data->current_buffer ^ 1;
+  const u8 next_buffer_index = data->current_buffer ^ 1;
   if (!data->IsInputBufferValid(next_buffer_index)) {
     return nullptr;
   }
 
-  const uint32_t next_buffer_address = data->GetInputBufferAddress(next_buffer_index);
+  const u32 next_buffer_address = data->GetInputBufferAddress(next_buffer_index);
   if (!next_buffer_address) {
     REX_FAIL(apu, nullptr, "XMAContext {}: Buffer marked valid but has null pointer!", id());
   }
@@ -281,11 +281,11 @@ const uint8_t* XMAContext::GetNextPacket(XMA_CONTEXT_DATA* data, uint32_t next_p
   return memory()->TranslatePhysical(next_buffer_address);
 }
 
-uint32_t XMAContext::GetNextPacketReadOffset(uint8_t* buffer, uint32_t next_packet_index,
-                                             uint32_t current_input_packet_count) {
+u32 XMAContext::GetNextPacketReadOffset(u8* buffer, u32 next_packet_index,
+                                        u32 current_input_packet_count) {
   while (next_packet_index < current_input_packet_count) {
-    uint8_t* next_packet = buffer + (next_packet_index * kBytesPerPacket);
-    const uint32_t packet_frame_offset = xma::GetPacketFrameOffset(next_packet);
+    u8* next_packet = buffer + (next_packet_index * kBytesPerPacket);
+    const u32 packet_frame_offset = xma::GetPacketFrameOffset(next_packet);
 
     if (packet_frame_offset <= kMaxFrameSizeinBits) {
       return (next_packet_index * kBitsPerPacket) + packet_frame_offset;
@@ -297,9 +297,9 @@ uint32_t XMAContext::GetNextPacketReadOffset(uint8_t* buffer, uint32_t next_pack
 }
 
 memory::RingBuffer XMAContext::PrepareOutputRingBuffer(XMA_CONTEXT_DATA* data) {
-  const uint32_t output_capacity = data->output_buffer_block_count * kOutputBytesPerBlock;
-  const uint32_t output_read_offset = data->output_buffer_read_offset * kOutputBytesPerBlock;
-  const uint32_t output_write_offset = data->output_buffer_write_offset * kOutputBytesPerBlock;
+  const u32 output_capacity = data->output_buffer_block_count * kOutputBytesPerBlock;
+  const u32 output_read_offset = data->output_buffer_read_offset * kOutputBytesPerBlock;
+  const u32 output_write_offset = data->output_buffer_write_offset * kOutputBytesPerBlock;
 
   if (output_capacity > kOutputMaxSizeBytes) {
     REXLOG_WARN(apu,
@@ -308,21 +308,21 @@ memory::RingBuffer XMAContext::PrepareOutputRingBuffer(XMA_CONTEXT_DATA* data) {
                 id(), output_capacity, kOutputMaxSizeBytes);
   }
 
-  uint8_t* output_buffer = memory()->TranslatePhysical(data->output_buffer_ptr);
+  u8* output_buffer = memory()->TranslatePhysical(data->output_buffer_ptr);
 
   memory::RingBuffer output_rb(output_buffer, output_capacity);
   output_rb.set_read_offset(output_read_offset);
   output_rb.set_write_offset(output_write_offset);
   remaining_subframe_blocks_in_output_buffer_ =
-      static_cast<int32_t>(output_rb.write_count()) / kOutputBytesPerBlock;
+      static_cast<i32>(output_rb.write_count()) / kOutputBytesPerBlock;
 
   return output_rb;
 }
 
-kPacketInfo XMAContext::GetPacketInfo(uint8_t* packet, uint32_t frame_offset) {
+kPacketInfo XMAContext::GetPacketInfo(u8* packet, u32 frame_offset) {
   kPacketInfo packet_info = {};
 
-  const uint32_t first_frame_offset = xma::GetPacketFrameOffset(packet);
+  const u32 first_frame_offset = xma::GetPacketFrameOffset(packet);
   BitStream stream(packet, kBitsPerPacket);
   stream.SetOffset(first_frame_offset);
 
@@ -336,14 +336,14 @@ kPacketInfo XMAContext::GetPacketInfo(uint8_t* packet, uint32_t frame_offset) {
       break;
     }
 
-    const uint64_t frame_size = stream.Peek(kBitsPerFrameHeader);
+    const u64 frame_size = stream.Peek(kBitsPerFrameHeader);
     if (frame_size == 0 || frame_size == xma::kMaxFrameLength) {
       break;
     }
 
     if (stream.offset_bits() == frame_offset) {
       packet_info.current_frame_ = packet_info.frame_count_;
-      packet_info.current_frame_size_ = static_cast<uint32_t>(frame_size);
+      packet_info.current_frame_size_ = static_cast<u32>(frame_size);
     }
 
     packet_info.frame_count_++;
@@ -360,7 +360,7 @@ kPacketInfo XMAContext::GetPacketInfo(uint8_t* packet, uint32_t frame_offset) {
   }
 
   if (xma::IsPacketXma2Type(packet)) {
-    const uint8_t xma2_frame_count = xma::GetPacketFrameCount(packet);
+    const u8 xma2_frame_count = xma::GetPacketFrameCount(packet);
     if (xma2_frame_count > packet_info.frame_count_) {
       if (packet_info.current_frame_size_ == 0) {
         packet_info.current_frame_ = packet_info.frame_count_;
@@ -372,7 +372,7 @@ kPacketInfo XMAContext::GetPacketInfo(uint8_t* packet, uint32_t frame_offset) {
 }
 
 void XMAContext::StoreContextMerged(const XMA_CONTEXT_DATA& data,
-                                    const XMA_CONTEXT_DATA& initial_data, uint8_t* context_ptr) {
+                                    const XMA_CONTEXT_DATA& initial_data, u8* context_ptr) {
   XMA_CONTEXT_DATA fresh(context_ptr);
 
   fresh.loop_count = data.loop_count;
@@ -402,9 +402,8 @@ void XMAContext::Consume(memory::RingBuffer* output_rb, const XMA_CONTEXT_DATA* 
   }
 
   if (loop_frame_output_limit_ > 0) {
-    const uint8_t total_subframes = (kBytesPerFrameChannel / kOutputBytesPerBlock)
-                                    << data->is_stereo;
-    const uint8_t consumed = total_subframes - current_frame_remaining_subframes_;
+    const u8 total_subframes = (kBytesPerFrameChannel / kOutputBytesPerBlock) << data->is_stereo;
+    const u8 consumed = total_subframes - current_frame_remaining_subframes_;
     if (consumed >= loop_frame_output_limit_) {
       remaining_subframe_blocks_in_output_buffer_ -= data->output_buffer_padding;
       current_frame_remaining_subframes_ = 0;
@@ -413,30 +412,29 @@ void XMAContext::Consume(memory::RingBuffer* output_rb, const XMA_CONTEXT_DATA* 
     }
   }
 
-  const uint8_t effective_sdc = std::max(static_cast<uint32_t>(1), data->subframe_decode_count);
-  int8_t subframes_to_write = std::min(static_cast<int8_t>(current_frame_remaining_subframes_),
-                                       static_cast<int8_t>(effective_sdc));
+  const u8 effective_sdc = std::max(static_cast<u32>(1), data->subframe_decode_count);
+  i8 subframes_to_write =
+      std::min(static_cast<i8>(current_frame_remaining_subframes_), static_cast<i8>(effective_sdc));
 
   if (loop_frame_output_limit_ > 0) {
-    const uint8_t total_subframes = (kBytesPerFrameChannel / kOutputBytesPerBlock)
-                                    << data->is_stereo;
-    const uint8_t consumed = total_subframes - current_frame_remaining_subframes_;
-    const int8_t remaining_until_limit = static_cast<int8_t>(loop_frame_output_limit_ - consumed);
+    const u8 total_subframes = (kBytesPerFrameChannel / kOutputBytesPerBlock) << data->is_stereo;
+    const u8 consumed = total_subframes - current_frame_remaining_subframes_;
+    const i8 remaining_until_limit = static_cast<i8>(loop_frame_output_limit_ - consumed);
     if (subframes_to_write > remaining_until_limit) {
       subframes_to_write = remaining_until_limit;
     }
   }
 
-  const int8_t raw_frame_read_offset =
+  const i8 raw_frame_read_offset =
       ((kBytesPerFrameChannel / kOutputBytesPerBlock) << data->is_stereo) -
       current_frame_remaining_subframes_;
 
   output_rb->Write(raw_frame_.data() + (kOutputBytesPerBlock * raw_frame_read_offset),
                    subframes_to_write * kOutputBytesPerBlock);
 
-  const int8_t headroom = (current_frame_remaining_subframes_ - subframes_to_write == 0)
-                              ? data->output_buffer_padding
-                              : 0;
+  const i8 headroom = (current_frame_remaining_subframes_ - subframes_to_write == 0)
+                          ? data->output_buffer_padding
+                          : 0;
 
   remaining_subframe_blocks_in_output_buffer_ -= subframes_to_write + headroom;
   current_frame_remaining_subframes_ -= subframes_to_write;
@@ -445,7 +443,7 @@ void XMAContext::Consume(memory::RingBuffer* output_rb, const XMA_CONTEXT_DATA* 
 int XMAContext::PrepareDecoder(int sample_rate, bool is_two_channel) {
   sample_rate = GetSampleRate(sample_rate);
 
-  uint32_t channels = is_two_channel ? 2 : 1;
+  u32 channels = is_two_channel ? 2 : 1;
   if (av_context_->sample_rate != sample_rate ||
       av_context_->channels != static_cast<int>(channels)) {
     REXLOG_DEV(apu, "XMAContext {}: Codec reinit: rate {} -> {}, channels {} -> {}", id(),
@@ -465,7 +463,7 @@ int XMAContext::PrepareDecoder(int sample_rate, bool is_two_channel) {
   return 0;
 }
 
-void XMAContext::PreparePacket(uint32_t frame_size, uint32_t frame_padding) {
+void XMAContext::PreparePacket(u32 frame_size, u32 frame_padding) {
   av_packet_->data = xma_frame_.data();
   av_packet_->size = static_cast<int>(1 + ((frame_padding + frame_size) / 8) +
                                       (((frame_padding + frame_size) % 8) ? 1 : 0));
@@ -515,13 +513,13 @@ void XMAContext::Decode(XMA_CONTEXT_DATA* data) {
     }
   }
 
-  uint8_t* current_input_buffer = GetCurrentInputBuffer(data);
+  u8* current_input_buffer = GetCurrentInputBuffer(data);
 
   input_buffer_.fill(0);
 
   bool is_loop_end_frame = false;
   if (data->loop_count > 0) {
-    const uint32_t loop_end = std::max(kBitsPerPacketHeader, data->loop_end);
+    const u32 loop_end = std::max(kBitsPerPacketHeader, data->loop_end);
     is_loop_end_frame = (data->input_buffer_read_offset == loop_end);
   }
 
@@ -534,30 +532,30 @@ void XMAContext::Decode(XMA_CONTEXT_DATA* data) {
     data->input_buffer_read_offset = kBitsPerPacketHeader;
   }
 
-  const uint32_t current_input_size = GetCurrentInputBufferSize(data);
-  const uint32_t current_input_packet_count = current_input_size / kBytesPerPacket;
+  const u32 current_input_size = GetCurrentInputBufferSize(data);
+  const u32 current_input_packet_count = current_input_size / kBytesPerPacket;
 
-  const int16_t packet_index = GetPacketNumber(current_input_size, data->input_buffer_read_offset);
+  const i16 packet_index = GetPacketNumber(current_input_size, data->input_buffer_read_offset);
 
   if (packet_index == -1) {
     REXLOG_ERROR(apu, "XMAContext {}: Invalid packet index. Input read offset: {}", id(),
-                 static_cast<uint32_t>(data->input_buffer_read_offset));
+                 static_cast<u32>(data->input_buffer_read_offset));
     return;
   }
 
-  uint8_t* packet = current_input_buffer + (packet_index * kBytesPerPacket);
-  const uint32_t packet_first_frame_offset = xma::GetPacketFrameOffset(packet);
-  uint32_t relative_offset = data->input_buffer_read_offset % kBitsPerPacket;
+  u8* packet = current_input_buffer + (packet_index * kBytesPerPacket);
+  const u32 packet_first_frame_offset = xma::GetPacketFrameOffset(packet);
+  u32 relative_offset = data->input_buffer_read_offset % kBitsPerPacket;
 
   if (relative_offset < packet_first_frame_offset) {
     data->input_buffer_read_offset = (packet_index * kBitsPerPacket) + packet_first_frame_offset;
     relative_offset = packet_first_frame_offset;
   }
 
-  const uint8_t skip_count = xma::GetPacketSkipCount(packet);
+  const u8 skip_count = xma::GetPacketSkipCount(packet);
 
   if (skip_count == 0xFF) {
-    uint32_t next_input_offset =
+    u32 next_input_offset =
         GetNextPacketReadOffset(current_input_buffer, packet_index + 1, current_input_packet_count);
     if (next_input_offset == kBitsPerPacketHeader) {
       SwapInputBuffer(data);
@@ -567,11 +565,11 @@ void XMAContext::Decode(XMA_CONTEXT_DATA* data) {
   }
 
   kPacketInfo packet_info = GetPacketInfo(packet, relative_offset);
-  const uint32_t packet_to_skip = skip_count + 1;
-  const uint32_t next_packet_index = packet_index + packet_to_skip;
+  const u32 packet_to_skip = skip_count + 1;
+  const u32 next_packet_index = packet_index + packet_to_skip;
 
   if (packet_info.current_frame_size_ == 0) {
-    const uint8_t* next_packet = GetNextPacket(data, next_packet_index, current_input_packet_count);
+    const u8* next_packet = GetNextPacket(data, next_packet_index, current_input_packet_count);
     if (!next_packet) {
       SwapInputBuffer(data);
       return;
@@ -583,19 +581,19 @@ void XMAContext::Decode(XMA_CONTEXT_DATA* data) {
     BitStream combined(input_buffer_.data(), (kBitsPerPacket - kBitsPerPacketHeader) * 2);
     combined.SetOffset(relative_offset - kBitsPerPacketHeader);
 
-    uint64_t frame_size = combined.Peek(kBitsPerFrameHeader);
+    u64 frame_size = combined.Peek(kBitsPerFrameHeader);
     if (frame_size == xma::kMaxFrameLength) {
       data->error_status = 4;
       return;
     }
-    packet_info.current_frame_size_ = static_cast<uint32_t>(frame_size);
+    packet_info.current_frame_size_ = static_cast<u32>(frame_size);
   }
 
   BitStream stream(current_input_buffer, (packet_index + 1) * kBitsPerPacket);
   stream.SetOffset(data->input_buffer_read_offset);
 
-  const uint64_t bits_to_copy = GetAmountOfBitsToRead(static_cast<uint32_t>(stream.BitsRemaining()),
-                                                      packet_info.current_frame_size_);
+  const u64 bits_to_copy = GetAmountOfBitsToRead(static_cast<u32>(stream.BitsRemaining()),
+                                                 packet_info.current_frame_size_);
 
   if (bits_to_copy == 0) {
     REXLOG_ERROR(apu, "XMAContext {}: There are no bits to copy!", id());
@@ -605,8 +603,7 @@ void XMAContext::Decode(XMA_CONTEXT_DATA* data) {
 
   if (packet_info.isLastFrameInPacket()) {
     if (stream.BitsRemaining() < packet_info.current_frame_size_) {
-      const uint8_t* next_packet =
-          GetNextPacket(data, next_packet_index, current_input_packet_count);
+      const u8* next_packet = GetNextPacket(data, next_packet_index, current_input_packet_count);
       if (!next_packet) {
         data->error_status = 4;
         return;
@@ -623,8 +620,8 @@ void XMAContext::Decode(XMA_CONTEXT_DATA* data) {
 
   xma_frame_.fill(0);
 
-  const uint32_t padding_start =
-      static_cast<uint8_t>(stream.Copy(xma_frame_.data() + 1, packet_info.current_frame_size_));
+  const u32 padding_start =
+      static_cast<u8>(stream.Copy(xma_frame_.data() + 1, packet_info.current_frame_size_));
 
   decoded_frame_.fill(0);
 
@@ -635,18 +632,16 @@ void XMAContext::Decode(XMA_CONTEXT_DATA* data) {
   PreparePacket(packet_info.current_frame_size_, padding_start);
   const bool decoded = DecodePacket(av_context_, av_packet_, av_frame_);
   if (decoded) {
-    ConvertFrame(reinterpret_cast<const uint8_t**>(&av_frame_->data), bool(data->is_stereo),
+    ConvertFrame(reinterpret_cast<const u8**>(&av_frame_->data), bool(data->is_stereo),
                  decoded_frame_.data());
 
     const size_t pad_bytes = kDecoderStartPadding * kBytesPerSample << data->is_stereo;
     const size_t carry_bytes = (kBytesPerFrameChannel << data->is_stereo) - pad_bytes;
 
-    const uint8_t decoded_output_limit =
-        is_loop_end_frame ? static_cast<uint8_t>((data->loop_subframe_end + 1) << data->is_stereo)
-                          : 0;
-    const uint8_t decoded_start_skip =
-        loop_start_skip_pending_ ? static_cast<uint8_t>(data->loop_subframe_skip << data->is_stereo)
-                                 : 0;
+    const u8 decoded_output_limit =
+        is_loop_end_frame ? static_cast<u8>((data->loop_subframe_end + 1) << data->is_stereo) : 0;
+    const u8 decoded_start_skip =
+        loop_start_skip_pending_ ? static_cast<u8>(data->loop_subframe_skip << data->is_stereo) : 0;
     loop_start_skip_pending_ = false;
 
     if (carry_valid_) {
@@ -674,13 +669,12 @@ void XMAContext::Decode(XMA_CONTEXT_DATA* data) {
   }
 
   if (!packet_info.isLastFrameInPacket()) {
-    const uint32_t next_frame_offset =
-        (data->input_buffer_read_offset + bits_to_copy) % kBitsPerPacket;
+    const u32 next_frame_offset = (data->input_buffer_read_offset + bits_to_copy) % kBitsPerPacket;
     data->input_buffer_read_offset = (packet_index * kBitsPerPacket) + next_frame_offset;
     return;
   }
 
-  uint32_t next_input_offset =
+  u32 next_input_offset =
       GetNextPacketReadOffset(current_input_buffer, next_packet_index, current_input_packet_count);
 
   if (next_input_offset == kBitsPerPacketHeader) {
@@ -698,19 +692,18 @@ void XMAContext::Decode(XMA_CONTEXT_DATA* data) {
   data->input_buffer_read_offset = next_input_offset;
 }
 
-void XMAContext::ConvertFrame(const uint8_t** samples, bool is_two_channel,
-                              uint8_t* output_buffer) {
-  constexpr float scale = (1 << 15) - 1;
-  auto out = reinterpret_cast<int16_t*>(output_buffer);
+void XMAContext::ConvertFrame(const u8** samples, bool is_two_channel, u8* output_buffer) {
+  constexpr f32 scale = (1 << 15) - 1;
+  auto out = reinterpret_cast<i16*>(output_buffer);
 
   static_assert(kSamplesPerFrame % 8 == 0);
-  const auto in_channel_0 = reinterpret_cast<const float*>(samples[0]);
+  const auto in_channel_0 = reinterpret_cast<const f32*>(samples[0]);
   const simde__m128 scale_mm = simde_mm_set1_ps(scale);
   if (is_two_channel) {
-    const auto in_channel_1 = reinterpret_cast<const float*>(samples[1]);
+    const auto in_channel_1 = reinterpret_cast<const f32*>(samples[1]);
     const simde__m128i shufmask =
         simde_mm_set_epi8(14, 15, 6, 7, 12, 13, 4, 5, 10, 11, 2, 3, 8, 9, 0, 1);
-    for (uint32_t i = 0; i < kSamplesPerFrame; i += 4) {
+    for (u32 i = 0; i < kSamplesPerFrame; i += 4) {
       simde__m128 in_mm0 = simde_mm_loadu_ps(&in_channel_0[i]);
       simde__m128 in_mm1 = simde_mm_loadu_ps(&in_channel_1[i]);
       in_mm0 = simde_mm_mul_ps(in_mm0, scale_mm);
@@ -724,7 +717,7 @@ void XMAContext::ConvertFrame(const uint8_t** samples, bool is_two_channel,
   } else {
     const simde__m128i shufmask =
         simde_mm_set_epi8(14, 15, 12, 13, 10, 11, 8, 9, 6, 7, 4, 5, 2, 3, 0, 1);
-    for (uint32_t i = 0; i < kSamplesPerFrame; i += 8) {
+    for (u32 i = 0; i < kSamplesPerFrame; i += 8) {
       simde__m128 in_mm0 = simde_mm_loadu_ps(&in_channel_0[i]);
       simde__m128 in_mm1 = simde_mm_loadu_ps(&in_channel_0[i + 4]);
       in_mm0 = simde_mm_mul_ps(in_mm0, scale_mm);

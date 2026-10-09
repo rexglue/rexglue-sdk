@@ -36,7 +36,7 @@ class Surface : public rex::NonCopyable {
     kTypeIndex_CAMetalLayer,   /**< Presented via MoltenVK with VK_EXT_metal_surface. */
   };
   /** Bit mask of `TypeIndex` values, 1 bit per surface type. */
-  using TypeFlags = uint32_t;
+  using TypeFlags = u32;
   enum : TypeFlags {
     /** Bit of kTypeIndex_WaylandSurface. */
     kTypeFlag_WaylandSurface = TypeFlags(1) << kTypeIndex_WaylandSurface,
@@ -66,8 +66,8 @@ class Surface : public rex::NonCopyable {
    *         ready or when either dimension is 0, since a zero area surface
    *         cannot be presented to.
    */
-  bool GetSize(uint32_t& width_out, uint32_t& height_out) {
-    uint32_t width, height;
+  bool GetSize(u32& width_out, u32& height_out) {
+    u32 width, height;
     if (!GetSizeImpl(width, height) || !width || !height) {
       width_out = 0;
       height_out = 0;
@@ -88,7 +88,7 @@ class Surface : public rex::NonCopyable {
    * @param height_out Receives the height.
    * @return True when ready to open a presentation connection.
    */
-  virtual bool GetSizeImpl(uint32_t& width_out, uint32_t& height_out) const = 0;
+  virtual bool GetSizeImpl(u32& width_out, u32& height_out) const = 0;
 };
 
 }  // namespace gpu

@@ -37,7 +37,7 @@ namespace {
 namespace fs = std::filesystem;
 namespace codegen = rex::codegen;
 
-constexpr uint32_t kTestBaseAddress = 0x82010000;
+constexpr u32 kTestBaseAddress = 0x82010000;
 
 struct RegValue {
   std::string reg;
@@ -49,7 +49,7 @@ struct RegValue {
 
 struct MemValue {
   std::string address;
-  std::vector<uint8_t> data;
+  std::vector<u8> data;
 };
 
 struct TestSpec {
@@ -77,8 +77,8 @@ std::map<size_t, std::string> ParseMapFile(const std::string& mapPath) {
   return symbols;
 }
 
-std::vector<uint8_t> ParseHexBytes(const std::string& hex) {
-  std::vector<uint8_t> result;
+std::vector<u8> ParseHexBytes(const std::string& hex) {
+  std::vector<u8> result;
   for (size_t i = 0; i < hex.size(); i += 2) {
     if (i + 1 >= hex.size())
       break;
@@ -86,7 +86,7 @@ std::vector<uint8_t> ParseHexBytes(const std::string& hex) {
       i--;
       continue;
     }
-    uint8_t val = 0;
+    u8 val = 0;
     std::from_chars(&hex[i], &hex[i + 2], val, 16);
     result.push_back(val);
   }
@@ -319,7 +319,7 @@ bool RecompileTests(std::string_view binDir, std::string_view asmDir, std::strin
     auto stem = entry.path().stem().string();
     REXLOG_DEBUG(rexglue, "Processing binary file: {}", stem);
 
-    std::vector<uint8_t> fileData;
+    std::vector<u8> fileData;
     {
       std::ifstream file(entry.path(), std::ios::binary | std::ios::ate);
       if (!file) {

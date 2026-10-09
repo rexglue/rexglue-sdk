@@ -27,7 +27,7 @@ namespace rex::runtime {
  */
 struct MapParseOptions {
   /** Base address added to all symbol addresses, for relative maps. */
-  uint32_t base_address = 0;
+  u32 base_address = 0;
 
   /** True to parse only symbols that look like functions. */
   bool functions_only = false;

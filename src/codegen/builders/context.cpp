@@ -164,7 +164,7 @@ const char* BuilderContext::ea() {
   return "ea";
 }
 
-const CallTarget* BuilderContext::findCallTarget(uint32_t site) const {
+const CallTarget* BuilderContext::findCallTarget(u32 site) const {
   for (const auto& edge : fn.calls()) {
     if (edge.site == site) {
       return &edge.target;
@@ -180,7 +180,7 @@ const CallTarget* BuilderContext::findCallTarget(uint32_t site) const {
   return nullptr;
 }
 
-void BuilderContext::emit_function_call(uint32_t address) {
+void BuilderContext::emit_function_call(u32 address) {
   const auto& cfg = config();
 
   if (address == cfg.longJmpAddress) {
@@ -233,7 +233,7 @@ void BuilderContext::emit_function_call(uint32_t address) {
       if (at_pos != std::string::npos) {
         auto lib_name = importTarget.name.substr(0, at_pos);
         auto ordinal_str = importTarget.name.substr(at_pos + 1);
-        uint16_t ordinal = static_cast<uint16_t>(std::stoul(ordinal_str));
+        u16 ordinal = static_cast<u16>(std::stoul(ordinal_str));
 
         const auto exportModule = runtime::ModuleFromName(lib_name);
         const auto* exp = exportModule ? runtime::FindByOrdinal(*exportModule, ordinal) : nullptr;
@@ -267,7 +267,7 @@ void BuilderContext::emit_function_call(uint32_t address) {
 }
 
 void BuilderContext::emit_conditional_branch(bool not_, std::string_view cond) {
-  uint32_t target = insn.operands[1];
+  u32 target = insn.operands[1];
 
   auto kind = graph().classifyTarget(target, base, false);
 
@@ -453,7 +453,7 @@ void BuilderContext::emit_vec_int_binary_swapped(const char* simd_op, const char
 }
 
 void BuilderContext::emit_vec_var_shift(const char* shift_dir, const char* element_type,
-                                        uint32_t mask_value) {
+                                        u32 mask_value) {
   auto vD = v(insn.operands[0]);
   auto vA = v(insn.operands[1]);
   auto vB = v(insn.operands[2]);
@@ -474,7 +474,7 @@ void BuilderContext::emit_load_d_form(const char* load_macro, const char* dest_t
   print("\t{}.{} = {}(", r(insn.operands[0]), dest_type, MMIOMacro(load_macro));
   if (insn.operands[2] != 0)
     print("{}.u32 + ", r(insn.operands[2]));
-  println("{});", static_cast<int32_t>(insn.operands[1]));
+  println("{});", static_cast<i32>(insn.operands[1]));
 }
 
 void BuilderContext::emit_load_x_form(const char* load_macro, const char* dest_type) {
@@ -488,7 +488,7 @@ void BuilderContext::emit_store_d_form(const char* store_macro, const char* src_
   print("\t{}(", MMIOMacro(store_macro));
   if (insn.operands[2] != 0)
     print("{}.u32 + ", r(insn.operands[2]));
-  println("{}, {}.{});", static_cast<int32_t>(insn.operands[1]), r(insn.operands[0]), src_type);
+  println("{}, {}.{});", static_cast<i32>(insn.operands[1]), r(insn.operands[0]), src_type);
 }
 
 void BuilderContext::emit_store_x_form(const char* store_macro, const char* src_type) {

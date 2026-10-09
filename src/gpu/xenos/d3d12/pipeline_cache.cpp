@@ -122,7 +122,7 @@ bool PipelineCache::Initialize() {
     }
   }
 
-  uint32_t logical_processor_count = rex::platform::logical_processor_count();
+  u32 logical_processor_count = rex::platform::logical_processor_count();
   if (!logical_processor_count) {
     logical_processor_count = 6;
   }
@@ -135,10 +135,10 @@ bool PipelineCache::Initialize() {
   if (REXCVAR_GET(::rex::gpu::cvars::d3d12_pipeline_creation_threads) != 0) {
     size_t creation_thread_count;
     if (REXCVAR_GET(::rex::gpu::cvars::d3d12_pipeline_creation_threads) < 0) {
-      creation_thread_count = std::max(logical_processor_count * 3 / 4, static_cast<uint32_t>(1));
+      creation_thread_count = std::max(logical_processor_count * 3 / 4, static_cast<u32>(1));
     } else {
       creation_thread_count = std::min(
-          static_cast<uint32_t>(REXCVAR_GET(::rex::gpu::cvars::d3d12_pipeline_creation_threads)),
+          static_cast<u32>(REXCVAR_GET(::rex::gpu::cvars::d3d12_pipeline_creation_threads)),
           logical_processor_count);
     }
     for (size_t i = 0; i < creation_thread_count; ++i) {
@@ -193,8 +193,8 @@ void PipelineCache::Shutdown() {
   gpu::d3d12::util::ReleaseAndNull(dxbc_converter_);
 }
 
-void PipelineCache::InitializeShaderStorage(const std::filesystem::path& cache_root,
-                                            uint32_t title_id, bool blocking) {
+void PipelineCache::InitializeShaderStorage(const std::filesystem::path& cache_root, u32 title_id,
+                                            bool blocking) {
   ShutdownShaderStorage();
 
   auto shader_storage_root = cache_root / "shaders";
@@ -214,7 +214,7 @@ void PipelineCache::InitializeShaderStorage(const std::filesystem::path& cache_r
       render_target_cache_.GetPath() == RenderTargetCache::Path::kPixelShaderInterlock;
 
   std::vector<PipelineStoredDescription> pipeline_stored_descriptions;
-  std::set<std::pair<uint64_t, uint64_t>> shader_translations_needed;
+  std::set<std::pair<u64, u64>> shader_translations_needed;
   auto pipeline_storage_file_path =
       shader_storage_shareable_root /
       std::format("{:08X}.{}.d3d12.xpso", title_id, edram_rov_used ? "rov" : "rtv");
@@ -228,14 +228,14 @@ void PipelineCache::InitializeShaderStorage(const std::filesystem::path& cache_r
   }
   pipeline_storage_file_flush_needed_ = false;
   // 'XEPS'.
-  const uint32_t pipeline_storage_magic = 0x53504558;
+  const u32 pipeline_storage_magic = 0x53504558;
   // 'DXRO' or 'DXRT'.
-  const uint32_t pipeline_storage_magic_api = edram_rov_used ? 0x4F525844 : 0x54525844;
-  const uint32_t pipeline_storage_version =
+  const u32 pipeline_storage_magic_api = edram_rov_used ? 0x4F525844 : 0x54525844;
+  const u32 pipeline_storage_version =
       std::max(PipelineDescription::kVersion, DxbcShaderTranslator::Modification::kVersion);
   struct {
-    uint32_t magic;
-    uint32_t magic_api;
+    u32 magic;
+    u32 magic_api;
     be_u32 version;
   } pipeline_storage_file_header;
   if (ReadStorage(pipeline_storage_file_, &pipeline_storage_file_header,
@@ -282,7 +282,7 @@ void PipelineCache::InitializeShaderStorage(const std::filesystem::path& cache_r
     logical_processor_count = 6;
   }
 
-  uint64_t shader_storage_initialization_start = rex::Clock::QueryHostTickCount();
+  u64 shader_storage_initialization_start = rex::Clock::QueryHostTickCount();
   auto shader_storage_file_path =
       shader_storage_shareable_root / std::format("{:08X}.xsh", title_id);
   shader_storage_file_path_ = shader_storage_file_path;
@@ -297,18 +297,18 @@ void PipelineCache::InitializeShaderStorage(const std::filesystem::path& cache_r
   ++shader_storage_index_;
   shader_storage_file_flush_needed_ = false;
   struct {
-    uint32_t magic;
+    u32 magic;
     be_u32 version;
   } shader_storage_file_header;
   // 'XESH'.
-  const uint32_t shader_storage_magic = 0x48534558;
+  const u32 shader_storage_magic = 0x48534558;
   if (ReadStorage(shader_storage_file_, &shader_storage_file_header,
                   sizeof(shader_storage_file_header)) == sizeof(shader_storage_file_header) &&
       shader_storage_file_header.magic == shader_storage_magic &&
       shader_storage_file_header.version == ShaderStoredHeader::kVersion) {
-    uint64_t shader_storage_valid_bytes = sizeof(shader_storage_file_header);
+    u64 shader_storage_valid_bytes = sizeof(shader_storage_file_header);
     ShaderStoredHeader shader_header;
-    std::vector<uint32_t> ucode_dwords;
+    std::vector<u32> ucode_dwords;
     ucode_dwords.reserve(0xFFFF);
     size_t shaders_translated = 0;
 
@@ -354,9 +354,9 @@ void PipelineCache::InitializeShaderStorage(const std::filesystem::path& cache_r
           break;
         }
         shader_to_translate->AnalyzeUcode(ucode_disasm_buffer);
-        uint64_t ucode_data_hash = shader_to_translate->ucode_data_hash();
+        u64 ucode_data_hash = shader_to_translate->ucode_data_hash();
         for (auto modification_it = shader_translations_needed.lower_bound(
-                 std::make_pair(ucode_data_hash, static_cast<uint64_t>(0)));
+                 std::make_pair(ucode_data_hash, static_cast<u64>(0)));
              modification_it != shader_translations_needed.end() &&
              modification_it->first == ucode_data_hash;
              ++modification_it) {
@@ -392,13 +392,13 @@ void PipelineCache::InitializeShaderStorage(const std::filesystem::path& cache_r
           sizeof(shader_header)) {
         break;
       }
-      size_t ucode_byte_count = shader_header.ucode_dword_count * sizeof(uint32_t);
+      size_t ucode_byte_count = shader_header.ucode_dword_count * sizeof(u32);
       ucode_dwords.resize(shader_header.ucode_dword_count);
       if (shader_header.ucode_dword_count && ReadStorage(shader_storage_file_, ucode_dwords.data(),
                                                          ucode_byte_count) != ucode_byte_count) {
         break;
       }
-      uint64_t ucode_data_hash = XXH3_64bits(ucode_dwords.data(), ucode_byte_count);
+      u64 ucode_data_hash = XXH3_64bits(ucode_dwords.data(), ucode_byte_count);
       if (shader_header.ucode_data_hash != ucode_data_hash) {
         break;
       }
@@ -462,7 +462,7 @@ void PipelineCache::InitializeShaderStorage(const std::filesystem::path& cache_r
   }
 
   if (!pipeline_stored_descriptions.empty()) {
-    uint64_t pipeline_creation_start_ = rex::Clock::QueryHostTickCount();
+    u64 pipeline_creation_start_ = rex::Clock::QueryHostTickCount();
 
     size_t creation_thread_original_count = creation_threads_.size();
     size_t creation_thread_needed_count =
@@ -553,13 +553,13 @@ void PipelineCache::InitializeShaderStorage(const std::filesystem::path& cache_r
                   sizeof(pipeline_runtime_description));
       new_pipeline->root_signature.store(pipeline_runtime_description.root_signature,
                                          std::memory_order_release);
-      uint32_t bound_rts = 0;
-      for (uint32_t i = 0; i < xenos::kMaxColorRenderTargets; ++i) {
+      u32 bound_rts = 0;
+      for (u32 i = 0; i < xenos::kMaxColorRenderTargets; ++i) {
         if (pipeline_runtime_description.description.render_targets[i].used) {
-          bound_rts |= static_cast<uint32_t>(1) << i;
+          bound_rts |= static_cast<u32>(1) << i;
         }
       }
-      uint32_t shader_writes_color_targets =
+      u32 shader_writes_color_targets =
           pipeline_runtime_description.pixel_shader
               ? pipeline_runtime_description.pixel_shader->shader().writes_color_targets()
               : 0;
@@ -621,10 +621,10 @@ void PipelineCache::InitializeShaderStorage(const std::filesystem::path& cache_r
                 pipelines_created,
                 (rex::Clock::QueryHostTickCount() - pipeline_creation_start_) * 1000 /
                     rex::Clock::QueryHostTickFrequency());
-    ResetStorageFile(pipeline_storage_file_, pipeline_storage_file_path_,
-                     static_cast<uint64_t>(sizeof(pipeline_storage_file_header) +
-                                           sizeof(PipelineStoredDescription) *
-                                               pipeline_stored_descriptions.size()));
+    ResetStorageFile(
+        pipeline_storage_file_, pipeline_storage_file_path_,
+        static_cast<u64>(sizeof(pipeline_storage_file_header) +
+                         sizeof(PipelineStoredDescription) * pipeline_stored_descriptions.size()));
   } else {
     ResetStorageFile(pipeline_storage_file_, pipeline_storage_file_path_, 0);
     pipeline_storage_file_header.magic = pipeline_storage_magic;
@@ -714,14 +714,14 @@ bool PipelineCache::IsCreatingPipelines() {
   return !creation_queue_.empty() || creation_threads_busy_ != 0;
 }
 
-D3D12Shader* PipelineCache::LoadShader(xenos::ShaderType shader_type, const uint32_t* host_address,
-                                       uint32_t dword_count) {
+D3D12Shader* PipelineCache::LoadShader(xenos::ShaderType shader_type, const u32* host_address,
+                                       u32 dword_count) {
   return LoadShader(shader_type, host_address, dword_count,
-                    XXH3_64bits(host_address, dword_count * sizeof(uint32_t)));
+                    XXH3_64bits(host_address, dword_count * sizeof(u32)));
 }
 
-D3D12Shader* PipelineCache::LoadShader(xenos::ShaderType shader_type, const uint32_t* host_address,
-                                       uint32_t dword_count, uint64_t data_hash) {
+D3D12Shader* PipelineCache::LoadShader(xenos::ShaderType shader_type, const u32* host_address,
+                                       u32 dword_count, u64 data_hash) {
   auto it = shaders_.find(data_hash);
   if (it != shaders_.end()) {
     return it->second.get();
@@ -735,7 +735,7 @@ D3D12Shader* PipelineCache::LoadShader(xenos::ShaderType shader_type, const uint
 
 DxbcShaderTranslator::Modification PipelineCache::GetCurrentVertexShaderModification(
     const Shader& shader, Shader::HostVertexShaderType host_vertex_shader_type,
-    uint32_t interpolator_mask) const {
+    u32 interpolator_mask) const {
   REX_ASSERT(shader.type() == xenos::ShaderType::kVertex);
   REX_ASSERT(shader.is_ucode_analyzed());
   const auto& regs = register_file_;
@@ -749,15 +749,15 @@ DxbcShaderTranslator::Modification PipelineCache::GetCurrentVertexShaderModifica
   modification.vertex.interpolator_mask = interpolator_mask;
 
   auto pa_cl_clip_cntl = regs.Get<xenos::reg::PA_CL_CLIP_CNTL>();
-  uint32_t user_clip_planes = pa_cl_clip_cntl.clip_disable ? 0 : pa_cl_clip_cntl.ucp_ena;
+  u32 user_clip_planes = pa_cl_clip_cntl.clip_disable ? 0 : pa_cl_clip_cntl.ucp_ena;
   modification.vertex.user_clip_plane_count = rex::bit_count(user_clip_planes);
   modification.vertex.user_clip_plane_cull =
-      static_cast<uint32_t>(user_clip_planes && pa_cl_clip_cntl.ucp_cull_only_ena);
+      static_cast<u32>(user_clip_planes && pa_cl_clip_cntl.ucp_cull_only_ena);
   modification.vertex.point_ps_ucp_mode = pa_cl_clip_cntl.ps_ucp_mode;
-  modification.vertex.vertex_kill_and = static_cast<uint32_t>(
+  modification.vertex.vertex_kill_and = static_cast<u32>(
       (shader.writes_point_size_edge_flag_kill_vertex() & 0b100) && !pa_cl_clip_cntl.vtx_kill_or);
 
-  modification.vertex.output_point_size = static_cast<uint32_t>(
+  modification.vertex.output_point_size = static_cast<u32>(
       (shader.writes_point_size_edge_flag_kill_vertex() & 0b001) &&
       regs.Get<xenos::reg::VGT_DRAW_INITIATOR>().prim_type == xenos::PrimitiveType::kPointList);
 
@@ -765,7 +765,7 @@ DxbcShaderTranslator::Modification PipelineCache::GetCurrentVertexShaderModifica
 }
 
 DxbcShaderTranslator::Modification PipelineCache::GetCurrentPixelShaderModification(
-    const Shader& shader, uint32_t interpolator_mask, uint32_t param_gen_pos,
+    const Shader& shader, u32 interpolator_mask, u32 param_gen_pos,
     xenos::reg::RB_DEPTHCONTROL normalized_depth_control) const {
   REX_ASSERT(shader.type() == xenos::ShaderType::kPixel);
   REX_ASSERT(shader.is_ucode_analyzed());
@@ -786,7 +786,7 @@ DxbcShaderTranslator::Modification PipelineCache::GetCurrentPixelShaderModificat
   if (param_gen_pos < xenos::kMaxInterpolators) {
     modification.pixel.param_gen_enable = 1;
     modification.pixel.param_gen_interpolator = param_gen_pos;
-    modification.pixel.param_gen_point = static_cast<uint32_t>(
+    modification.pixel.param_gen_point = static_cast<u32>(
         regs.Get<xenos::reg::VGT_DRAW_INITIATOR>().prim_type == xenos::PrimitiveType::kPointList);
   } else {
     modification.pixel.param_gen_enable = 0;
@@ -820,9 +820,9 @@ DxbcShaderTranslator::Modification PipelineCache::GetCurrentPixelShaderModificat
 bool PipelineCache::ConfigurePipeline(
     D3D12Shader::D3D12Translation* vertex_shader, D3D12Shader::D3D12Translation* pixel_shader,
     const PrimitiveProcessor::ProcessingResult& primitive_processing_result,
-    xenos::reg::RB_DEPTHCONTROL normalized_depth_control, uint32_t normalized_color_mask,
-    uint32_t bound_depth_and_color_render_target_bits,
-    const uint32_t* bound_depth_and_color_render_target_formats, void** pipeline_handle_out,
+    xenos::reg::RB_DEPTHCONTROL normalized_depth_control, u32 normalized_color_mask,
+    u32 bound_depth_and_color_render_target_bits,
+    const u32* bound_depth_and_color_render_target_formats, void** pipeline_handle_out,
     ID3D12RootSignature** root_signature_out) {
 #if REXGPU_FINE_GRAINED_DRAW_SCOPES
   REX_PROFILE_SCOPE("gpu");
@@ -910,7 +910,7 @@ bool PipelineCache::ConfigurePipeline(
     return true;
   }
 
-  uint64_t hash = XXH3_64bits(&description, sizeof(description));
+  u64 hash = XXH3_64bits(&description, sizeof(description));
   auto found_range = pipelines_.equal_range(hash);
   for (auto it = found_range.first; it != found_range.second; ++it) {
     Pipeline* found_pipeline = it->second.get();
@@ -932,9 +932,8 @@ bool PipelineCache::ConfigurePipeline(
   REX_PROFILE_PLOT("gpu/pipeline_cache/pipelines", pipelines_.size());
 
   if (use_async) {
-    uint32_t bound_rts =
-        pipeline_util::GetBoundRTMaskFromNormalizedColorMask(normalized_color_mask);
-    uint32_t shader_writes_color_targets =
+    u32 bound_rts = pipeline_util::GetBoundRTMaskFromNormalizedColorMask(normalized_color_mask);
+    u32 shader_writes_color_targets =
         pixel_shader ? pixel_shader->shader().writes_color_targets() : 0;
     bool shader_writes_depth = pixel_shader ? pixel_shader->shader().writes_depth()
                                             : normalized_depth_control.z_write_enable != 0;
@@ -1012,7 +1011,7 @@ bool PipelineCache::TranslateAnalyzedShader(DxbcShaderTranslator& translator,
     host_shader_type = "pixel";
   }
   REXLOG_DEV(gpu, "Generated {} shader ({}b) - hash {:016X}:\n{}\n", host_shader_type,
-             shader.ucode_dword_count() * sizeof(uint32_t), shader.ucode_data_hash(),
+             shader.ucode_dword_count() * sizeof(u32), shader.ucode_data_hash(),
              shader.ucode_disassembly().c_str());
 
   if (shader.EnterBindingLayoutUserUIDSetup()) {
@@ -1025,13 +1024,13 @@ bool PipelineCache::TranslateAnalyzedShader(DxbcShaderTranslator& translator,
     REX_ASSERT(!(bindless_resources_used_ && texture_binding_count + sampler_binding_count >
                                                  D3D12_REQ_CONSTANT_BUFFER_ELEMENT_COUNT * 4));
     size_t texture_binding_layout_bytes = texture_binding_count * sizeof(*texture_bindings.data());
-    uint64_t texture_binding_layout_hash = 0;
+    u64 texture_binding_layout_hash = 0;
     if (texture_binding_count) {
       texture_binding_layout_hash =
           XXH3_64bits(texture_bindings.data(), texture_binding_layout_bytes);
     }
     size_t bindless_sampler_count = bindless_resources_used_ ? sampler_binding_count : 0;
-    uint64_t bindless_sampler_layout_hash = 0;
+    u64 bindless_sampler_layout_hash = 0;
     if (bindless_sampler_count) {
       XXH3_state_t hash_state;
       XXH3_64bits_reset(&hash_state);
@@ -1082,7 +1081,7 @@ bool PipelineCache::TranslateAnalyzedShader(DxbcShaderTranslator& translator,
             continue;
           }
           sampler_binding_layout_uid = it->second.uid;
-          const uint32_t* vector_bindless_sampler_layout =
+          const u32* vector_bindless_sampler_layout =
               bindless_sampler_layouts_.data() + it->second.vector_span_offset;
           for (size_t i = 0; i < bindless_sampler_count; ++i) {
             if (vector_bindless_sampler_layout[i] !=
@@ -1105,7 +1104,7 @@ bool PipelineCache::TranslateAnalyzedShader(DxbcShaderTranslator& translator,
           new_uid.vector_span_offset = bindless_sampler_layouts_.size();
           new_uid.vector_span_length = sampler_binding_count;
           bindless_sampler_layouts_.resize(new_uid.vector_span_offset + sampler_binding_count);
-          uint32_t* vector_bindless_sampler_layout =
+          u32* vector_bindless_sampler_layout =
               bindless_sampler_layouts_.data() + new_uid.vector_span_offset;
           for (size_t i = 0; i < bindless_sampler_count; ++i) {
             vector_bindless_sampler_layout[i] = sampler_bindings[i].bindless_descriptor_index;
@@ -1141,9 +1140,9 @@ bool PipelineCache::TranslateAnalyzedShader(DxbcShaderTranslator& translator,
 bool PipelineCache::GetCurrentStateDescription(
     D3D12Shader::D3D12Translation* vertex_shader, D3D12Shader::D3D12Translation* pixel_shader,
     const PrimitiveProcessor::ProcessingResult& primitive_processing_result,
-    xenos::reg::RB_DEPTHCONTROL normalized_depth_control, uint32_t normalized_color_mask,
-    uint32_t bound_depth_and_color_render_target_bits,
-    const uint32_t* bound_depth_and_color_render_target_formats,
+    xenos::reg::RB_DEPTHCONTROL normalized_depth_control, u32 normalized_color_mask,
+    u32 bound_depth_and_color_render_target_bits,
+    const u32* bound_depth_and_color_render_target_formats,
     PipelineRuntimeDescription& runtime_description_out, bool for_placeholder) {
   // Translated shaders are required for the root signature unless for_placeholder defers them.
   REX_ASSERT(for_placeholder || (vertex_shader->is_translated() && vertex_shader->is_valid()));
@@ -1199,7 +1198,7 @@ bool PipelineCache::GetCurrentStateDescription(
 
   if (tessellated) {
     description_out.primitive_topology_type_or_tessellation_mode =
-        static_cast<uint32_t>(primitive_processing_result.tessellation_mode);
+        static_cast<u32>(primitive_processing_result.tessellation_mode);
   } else {
     switch (primitive_processing_result.host_primitive_type) {
       case xenos::PrimitiveType::kPointList:
@@ -1289,7 +1288,7 @@ bool PipelineCache::GetCurrentStateDescription(
     cull_back = false;
   }
   if (!edram_rov_used) {
-    float polygon_offset, polygon_offset_scale;
+    f32 polygon_offset, polygon_offset_scale;
     draw_util::GetPreferredFacePolygonOffset(regs, primitive_polygonal, polygon_offset_scale,
                                              polygon_offset);
     description_out.depth_bias = draw_util::GetD3D10IntegerPolygonOffset(
@@ -1392,8 +1391,8 @@ bool PipelineCache::GetCurrentStateDescription(
         /* 15 */ PipelineBlendFactor::kInvBlendFactor,
         /* 16 */ PipelineBlendFactor::kSrcAlphaSat,
     };
-    for (uint32_t i = 0; i < 4; ++i) {
-      if (!(bound_depth_and_color_render_target_bits & (static_cast<uint32_t>(1) << (1 + i)))) {
+    for (u32 i = 0; i < 4; ++i) {
+      if (!(bound_depth_and_color_render_target_bits & (static_cast<u32>(1) << (1 + i)))) {
         continue;
       }
       PipelineRenderTarget& rt = description_out.render_targets[i];
@@ -1404,13 +1403,11 @@ bool PipelineCache::GetCurrentStateDescription(
       if (rt.write_mask) {
         auto blendcontrol = regs.Get<xenos::reg::RB_BLENDCONTROL>(
             xenos::reg::RB_BLENDCONTROL::rt_register_indices[i]);
-        rt.src_blend = kBlendFactorMap[static_cast<uint32_t>(blendcontrol.color_srcblend)];
-        rt.dest_blend = kBlendFactorMap[static_cast<uint32_t>(blendcontrol.color_destblend)];
+        rt.src_blend = kBlendFactorMap[static_cast<u32>(blendcontrol.color_srcblend)];
+        rt.dest_blend = kBlendFactorMap[static_cast<u32>(blendcontrol.color_destblend)];
         rt.blend_op = blendcontrol.color_comb_fcn;
-        rt.src_blend_alpha =
-            kBlendFactorAlphaMap[static_cast<uint32_t>(blendcontrol.alpha_srcblend)];
-        rt.dest_blend_alpha =
-            kBlendFactorAlphaMap[static_cast<uint32_t>(blendcontrol.alpha_destblend)];
+        rt.src_blend_alpha = kBlendFactorAlphaMap[static_cast<u32>(blendcontrol.alpha_srcblend)];
+        rt.dest_blend_alpha = kBlendFactorAlphaMap[static_cast<u32>(blendcontrol.alpha_destblend)];
         rt.blend_op_alpha = blendcontrol.alpha_comb_fcn;
       } else {
         rt.src_blend = PipelineBlendFactor::kOne;
@@ -1429,7 +1426,7 @@ bool PipelineCache::GetCurrentStateDescription(
       host_msaa_samples = xenos::MSAASamples::k4X;
     }
   } else {
-    if (!(bound_depth_and_color_render_target_bits & ~static_cast<uint32_t>(1)) &&
+    if (!(bound_depth_and_color_render_target_bits & ~static_cast<u32>(1)) &&
         !depth_stencil_bound_and_used) {
       // Direct3D 12 requires a sample count of 1 when no render targets are bound.
       host_msaa_samples = xenos::MSAASamples::k1X;
@@ -1462,11 +1459,10 @@ bool PipelineCache::GetGeometryShaderKey(
   return true;
 }
 
-void PipelineCache::CreateDxbcGeometryShader(GeometryShaderKey key,
-                                             std::vector<uint32_t>& shader_out) {
+void PipelineCache::CreateDxbcGeometryShader(GeometryShaderKey key, std::vector<u32>& shader_out) {
   shader_out.clear();
-  uint32_t point_clip_distance_count = key.user_clip_plane_cull ? 0 : key.user_clip_plane_count;
-  uint32_t point_user_cull_distance_count =
+  u32 point_clip_distance_count = key.user_clip_plane_cull ? 0 : key.user_clip_plane_count;
+  u32 point_user_cull_distance_count =
       key.type == PipelineGeometryShader::kPointList && key.user_clip_plane_cull
           ? key.user_clip_plane_count
           : 0;
@@ -1477,20 +1473,19 @@ void PipelineCache::CreateDxbcGeometryShader(GeometryShaderKey key,
                                           key.point_ps_ucp_mode >= 3;
 
   // RDEF, ISGN, OSG5, SHEX, STAT.
-  constexpr uint32_t kBlobCount = 5;
+  constexpr u32 kBlobCount = 5;
 
-  shader_out.resize(sizeof(dxbc::ContainerHeader) / sizeof(uint32_t) + kBlobCount);
-  uint32_t blob_offset_position_dwords = sizeof(dxbc::ContainerHeader) / sizeof(uint32_t);
-  uint32_t blob_position_dwords = static_cast<uint32_t>(shader_out.size());
-  constexpr uint32_t kBlobHeaderSizeDwords = sizeof(dxbc::BlobHeader) / sizeof(uint32_t);
+  shader_out.resize(sizeof(dxbc::ContainerHeader) / sizeof(u32) + kBlobCount);
+  u32 blob_offset_position_dwords = sizeof(dxbc::ContainerHeader) / sizeof(u32);
+  u32 blob_position_dwords = static_cast<u32>(shader_out.size());
+  constexpr u32 kBlobHeaderSizeDwords = sizeof(dxbc::BlobHeader) / sizeof(u32);
 
-  uint32_t name_ptr;
+  u32 name_ptr;
 
-  shader_out[blob_offset_position_dwords] =
-      static_cast<uint32_t>(blob_position_dwords * sizeof(uint32_t));
-  uint32_t rdef_position_dwords = blob_position_dwords + kBlobHeaderSizeDwords;
+  shader_out[blob_offset_position_dwords] = static_cast<u32>(blob_position_dwords * sizeof(u32));
+  u32 rdef_position_dwords = blob_position_dwords + kBlobHeaderSizeDwords;
 
-  shader_out.resize(rdef_position_dwords + sizeof(dxbc::RdefHeader) / sizeof(uint32_t));
+  shader_out.resize(rdef_position_dwords + sizeof(dxbc::RdefHeader) / sizeof(u32));
   dxbc::AppendAlignedString(shader_out, "ReXGlue");
   {
     auto& rdef_header =
@@ -1504,16 +1499,16 @@ void PipelineCache::CreateDxbcGeometryShader(GeometryShaderKey key,
     rdef_header.InitializeSizes();
   }
 
-  uint32_t system_cbuffer_size_vector_aligned_bytes = 0;
+  u32 system_cbuffer_size_vector_aligned_bytes = 0;
 
   if (key.type == PipelineGeometryShader::kPointList) {
-    name_ptr = static_cast<uint32_t>((shader_out.size() - rdef_position_dwords) * sizeof(uint32_t));
-    uint32_t rdef_name_ptr_float2 = name_ptr;
+    name_ptr = static_cast<u32>((shader_out.size() - rdef_position_dwords) * sizeof(u32));
+    u32 rdef_name_ptr_float2 = name_ptr;
     name_ptr += dxbc::AppendAlignedString(shader_out, "float2");
-    uint32_t rdef_type_float2_position_dwords = static_cast<uint32_t>(shader_out.size());
-    uint32_t rdef_type_float2_ptr = static_cast<uint32_t>(
-        (rdef_type_float2_position_dwords - rdef_position_dwords) * sizeof(uint32_t));
-    shader_out.resize(rdef_type_float2_position_dwords + sizeof(dxbc::RdefType) / sizeof(uint32_t));
+    u32 rdef_type_float2_position_dwords = static_cast<u32>(shader_out.size());
+    u32 rdef_type_float2_ptr =
+        static_cast<u32>((rdef_type_float2_position_dwords - rdef_position_dwords) * sizeof(u32));
+    shader_out.resize(rdef_type_float2_position_dwords + sizeof(dxbc::RdefType) / sizeof(u32));
     {
       auto& rdef_type_float2 =
           *reinterpret_cast<dxbc::RdefType*>(shader_out.data() + rdef_type_float2_position_dwords);
@@ -1524,44 +1519,44 @@ void PipelineCache::CreateDxbcGeometryShader(GeometryShaderKey key,
       rdef_type_float2.name_ptr = rdef_name_ptr_float2;
     }
 
-    enum PointConstant : uint32_t {
+    enum PointConstant : u32 {
       kPointConstantConstantDiameter,
       kPointConstantScreenDiameterToNDCRadius,
       kPointConstantCount,
     };
-    name_ptr = static_cast<uint32_t>((shader_out.size() - rdef_position_dwords) * sizeof(uint32_t));
-    uint32_t rdef_name_ptr_xe_point_constant_diameter = name_ptr;
+    name_ptr = static_cast<u32>((shader_out.size() - rdef_position_dwords) * sizeof(u32));
+    u32 rdef_name_ptr_xe_point_constant_diameter = name_ptr;
     name_ptr += dxbc::AppendAlignedString(shader_out, "xe_point_constant_diameter");
-    uint32_t rdef_name_ptr_xe_point_screen_diameter_to_ndc_radius = name_ptr;
+    u32 rdef_name_ptr_xe_point_screen_diameter_to_ndc_radius = name_ptr;
     name_ptr += dxbc::AppendAlignedString(shader_out, "xe_point_screen_diameter_to_ndc_radius");
-    uint32_t rdef_constants_position_dwords = static_cast<uint32_t>(shader_out.size());
-    uint32_t rdef_constants_ptr = static_cast<uint32_t>(
-        (rdef_constants_position_dwords - rdef_position_dwords) * sizeof(uint32_t));
+    u32 rdef_constants_position_dwords = static_cast<u32>(shader_out.size());
+    u32 rdef_constants_ptr =
+        static_cast<u32>((rdef_constants_position_dwords - rdef_position_dwords) * sizeof(u32));
     shader_out.resize(rdef_constants_position_dwords +
-                      sizeof(dxbc::RdefVariable) / sizeof(uint32_t) * kPointConstantCount);
+                      sizeof(dxbc::RdefVariable) / sizeof(u32) * kPointConstantCount);
     {
       auto rdef_constants =
           reinterpret_cast<dxbc::RdefVariable*>(shader_out.data() + rdef_constants_position_dwords);
       static_assert(sizeof(DxbcShaderTranslator::SystemConstants ::point_constant_diameter) ==
-                        sizeof(float) * 2,
+                        sizeof(f32) * 2,
                     "DxbcShaderTranslator point_constant_diameter system constant size "
                     "differs between the shader translator and geometry shader "
                     "generation");
       REX_STATIC_ASSERT_SIZE(DxbcShaderTranslator::SystemConstants::point_constant_diameter,
-                             sizeof(float) * 2);
+                             sizeof(f32) * 2);
       dxbc::RdefVariable& rdef_constant_point_constant_diameter =
           rdef_constants[kPointConstantConstantDiameter];
       rdef_constant_point_constant_diameter.name_ptr = rdef_name_ptr_xe_point_constant_diameter;
       rdef_constant_point_constant_diameter.start_offset_bytes =
           offsetof(DxbcShaderTranslator::SystemConstants, point_constant_diameter);
-      rdef_constant_point_constant_diameter.size_bytes = sizeof(float) * 2;
+      rdef_constant_point_constant_diameter.size_bytes = sizeof(f32) * 2;
       rdef_constant_point_constant_diameter.flags = dxbc::kRdefVariableFlagUsed;
       rdef_constant_point_constant_diameter.type_ptr = rdef_type_float2_ptr;
       rdef_constant_point_constant_diameter.start_texture = UINT32_MAX;
       rdef_constant_point_constant_diameter.start_sampler = UINT32_MAX;
       static_assert(
           sizeof(DxbcShaderTranslator::SystemConstants ::point_screen_diameter_to_ndc_radius) ==
-              sizeof(float) * 2,
+              sizeof(f32) * 2,
           "DxbcShaderTranslator point_screen_diameter_to_ndc_radius system "
           "constant size differs between the shader translator and geometry "
           "shader generation");
@@ -1571,18 +1566,18 @@ void PipelineCache::CreateDxbcGeometryShader(GeometryShaderKey key,
           rdef_name_ptr_xe_point_screen_diameter_to_ndc_radius;
       rdef_constant_point_screen_diameter_to_ndc_radius.start_offset_bytes =
           offsetof(DxbcShaderTranslator::SystemConstants, point_screen_diameter_to_ndc_radius);
-      rdef_constant_point_screen_diameter_to_ndc_radius.size_bytes = sizeof(float) * 2;
+      rdef_constant_point_screen_diameter_to_ndc_radius.size_bytes = sizeof(f32) * 2;
       rdef_constant_point_screen_diameter_to_ndc_radius.flags = dxbc::kRdefVariableFlagUsed;
       rdef_constant_point_screen_diameter_to_ndc_radius.type_ptr = rdef_type_float2_ptr;
       rdef_constant_point_screen_diameter_to_ndc_radius.start_texture = UINT32_MAX;
       rdef_constant_point_screen_diameter_to_ndc_radius.start_sampler = UINT32_MAX;
     }
 
-    name_ptr = static_cast<uint32_t>((shader_out.size() - rdef_position_dwords) * sizeof(uint32_t));
-    uint32_t rdef_name_ptr_xe_system_cbuffer = name_ptr;
+    name_ptr = static_cast<u32>((shader_out.size() - rdef_position_dwords) * sizeof(u32));
+    u32 rdef_name_ptr_xe_system_cbuffer = name_ptr;
     name_ptr += dxbc::AppendAlignedString(shader_out, "xe_system_cbuffer");
-    uint32_t rdef_cbuffer_position_dwords = static_cast<uint32_t>(shader_out.size());
-    shader_out.resize(rdef_cbuffer_position_dwords + sizeof(dxbc::RdefCbuffer) / sizeof(uint32_t));
+    u32 rdef_cbuffer_position_dwords = static_cast<u32>(shader_out.size());
+    shader_out.resize(rdef_cbuffer_position_dwords + sizeof(dxbc::RdefCbuffer) / sizeof(u32));
     {
       auto& rdef_cbuffer_system =
           *reinterpret_cast<dxbc::RdefCbuffer*>(shader_out.data() + rdef_cbuffer_position_dwords);
@@ -1591,34 +1586,32 @@ void PipelineCache::CreateDxbcGeometryShader(GeometryShaderKey key,
       rdef_cbuffer_system.variables_ptr = rdef_constants_ptr;
       auto rdef_constants = reinterpret_cast<const dxbc::RdefVariable*>(
           shader_out.data() + rdef_constants_position_dwords);
-      for (uint32_t i = 0; i < kPointConstantCount; ++i) {
+      for (u32 i = 0; i < kPointConstantCount; ++i) {
         system_cbuffer_size_vector_aligned_bytes =
             std::max(system_cbuffer_size_vector_aligned_bytes,
                      rdef_constants[i].start_offset_bytes + rdef_constants[i].size_bytes);
       }
       if (point_recalculate_clip_distances || point_recalculate_cull_distances) {
-        system_cbuffer_size_vector_aligned_bytes = std::max(
-            system_cbuffer_size_vector_aligned_bytes,
-            static_cast<uint32_t>(offsetof(DxbcShaderTranslator::SystemConstants, ndc_scale) +
-                                  sizeof(float) * 3));
-        system_cbuffer_size_vector_aligned_bytes = std::max(
-            system_cbuffer_size_vector_aligned_bytes,
-            static_cast<uint32_t>(offsetof(DxbcShaderTranslator::SystemConstants, ndc_offset) +
-                                  sizeof(float) * 3));
         system_cbuffer_size_vector_aligned_bytes =
             std::max(system_cbuffer_size_vector_aligned_bytes,
-                     static_cast<uint32_t>(
-                         offsetof(DxbcShaderTranslator::SystemConstants, user_clip_planes) +
-                         sizeof(float) * 4 * 6));
+                     static_cast<u32>(offsetof(DxbcShaderTranslator::SystemConstants, ndc_scale) +
+                                      sizeof(f32) * 3));
+        system_cbuffer_size_vector_aligned_bytes =
+            std::max(system_cbuffer_size_vector_aligned_bytes,
+                     static_cast<u32>(offsetof(DxbcShaderTranslator::SystemConstants, ndc_offset) +
+                                      sizeof(f32) * 3));
+        system_cbuffer_size_vector_aligned_bytes = std::max(
+            system_cbuffer_size_vector_aligned_bytes,
+            static_cast<u32>(offsetof(DxbcShaderTranslator::SystemConstants, user_clip_planes) +
+                             sizeof(f32) * 4 * 6));
       }
-      system_cbuffer_size_vector_aligned_bytes = rex::align(
-          system_cbuffer_size_vector_aligned_bytes, static_cast<uint32_t>(sizeof(uint32_t) * 4));
+      system_cbuffer_size_vector_aligned_bytes =
+          rex::align(system_cbuffer_size_vector_aligned_bytes, static_cast<u32>(sizeof(u32) * 4));
       rdef_cbuffer_system.size_vector_aligned_bytes = system_cbuffer_size_vector_aligned_bytes;
     }
 
-    uint32_t rdef_binding_position_dwords = static_cast<uint32_t>(shader_out.size());
-    shader_out.resize(rdef_binding_position_dwords +
-                      sizeof(dxbc::RdefInputBind) / sizeof(uint32_t));
+    u32 rdef_binding_position_dwords = static_cast<u32>(shader_out.size());
+    shader_out.resize(rdef_binding_position_dwords + sizeof(dxbc::RdefInputBind) / sizeof(u32));
     {
       auto& rdef_binding_cbuffer_system =
           *reinterpret_cast<dxbc::RdefInputBind*>(shader_out.data() + rdef_binding_position_dwords);
@@ -1634,11 +1627,11 @@ void PipelineCache::CreateDxbcGeometryShader(GeometryShaderKey key,
       auto& rdef_header =
           *reinterpret_cast<dxbc::RdefHeader*>(shader_out.data() + rdef_position_dwords);
       rdef_header.cbuffer_count = 1;
-      rdef_header.cbuffers_ptr = static_cast<uint32_t>(
-          (rdef_cbuffer_position_dwords - rdef_position_dwords) * sizeof(uint32_t));
+      rdef_header.cbuffers_ptr =
+          static_cast<u32>((rdef_cbuffer_position_dwords - rdef_position_dwords) * sizeof(u32));
       rdef_header.input_bind_count = 1;
-      rdef_header.input_binds_ptr = static_cast<uint32_t>(
-          (rdef_binding_position_dwords - rdef_position_dwords) * sizeof(uint32_t));
+      rdef_header.input_binds_ptr =
+          static_cast<u32>((rdef_binding_position_dwords - rdef_position_dwords) * sizeof(u32));
     }
   }
 
@@ -1646,52 +1639,50 @@ void PipelineCache::CreateDxbcGeometryShader(GeometryShaderKey key,
     auto& blob_header =
         *reinterpret_cast<dxbc::BlobHeader*>(shader_out.data() + blob_position_dwords);
     blob_header.fourcc = dxbc::BlobHeader::FourCC::kResourceDefinition;
-    blob_position_dwords = static_cast<uint32_t>(shader_out.size());
-    blob_header.size_bytes = (blob_position_dwords - kBlobHeaderSizeDwords) * sizeof(uint32_t) -
+    blob_position_dwords = static_cast<u32>(shader_out.size());
+    blob_header.size_bytes = (blob_position_dwords - kBlobHeaderSizeDwords) * sizeof(u32) -
                              shader_out[blob_offset_position_dwords++];
   }
 
-  uint32_t input_clip_distance_count = key.user_clip_plane_cull ? 0 : key.user_clip_plane_count;
-  uint32_t input_cull_distance_count =
+  u32 input_clip_distance_count = key.user_clip_plane_cull ? 0 : key.user_clip_plane_count;
+  u32 input_cull_distance_count =
       (key.user_clip_plane_cull ? key.user_clip_plane_count : 0) + key.has_vertex_kill_and;
-  uint32_t input_clip_and_cull_distance_count =
-      input_clip_distance_count + input_cull_distance_count;
+  u32 input_clip_and_cull_distance_count = input_clip_distance_count + input_cull_distance_count;
 
-  uint32_t isgn_parameter_count =
+  u32 isgn_parameter_count =
       key.interpolator_count + 1 + ((input_clip_and_cull_distance_count + 3) / 4) +
-      static_cast<uint32_t>(input_cull_distance_count && (input_clip_distance_count & 3) != 0) +
+      static_cast<u32>(input_cull_distance_count && (input_clip_distance_count & 3) != 0) +
       key.has_point_size;
 
-  shader_out[blob_offset_position_dwords] =
-      static_cast<uint32_t>(blob_position_dwords * sizeof(uint32_t));
-  uint32_t isgn_position_dwords = blob_position_dwords + kBlobHeaderSizeDwords;
-  shader_out.resize(isgn_position_dwords + sizeof(dxbc::Signature) / sizeof(uint32_t) +
-                    sizeof(dxbc::SignatureParameter) / sizeof(uint32_t) * isgn_parameter_count);
+  shader_out[blob_offset_position_dwords] = static_cast<u32>(blob_position_dwords * sizeof(u32));
+  u32 isgn_position_dwords = blob_position_dwords + kBlobHeaderSizeDwords;
+  shader_out.resize(isgn_position_dwords + sizeof(dxbc::Signature) / sizeof(u32) +
+                    sizeof(dxbc::SignatureParameter) / sizeof(u32) * isgn_parameter_count);
 
-  name_ptr = static_cast<uint32_t>((shader_out.size() - isgn_position_dwords) * sizeof(uint32_t));
-  uint32_t isgn_name_ptr_texcoord = name_ptr;
+  name_ptr = static_cast<u32>((shader_out.size() - isgn_position_dwords) * sizeof(u32));
+  u32 isgn_name_ptr_texcoord = name_ptr;
   if (key.interpolator_count) {
     name_ptr += dxbc::AppendAlignedString(shader_out, "TEXCOORD");
   }
-  uint32_t isgn_name_ptr_sv_position = name_ptr;
+  u32 isgn_name_ptr_sv_position = name_ptr;
   name_ptr += dxbc::AppendAlignedString(shader_out, "SV_Position");
-  uint32_t isgn_name_ptr_sv_clip_distance = name_ptr;
+  u32 isgn_name_ptr_sv_clip_distance = name_ptr;
   if (input_clip_distance_count) {
     name_ptr += dxbc::AppendAlignedString(shader_out, "SV_ClipDistance");
   }
-  uint32_t isgn_name_ptr_sv_cull_distance = name_ptr;
+  u32 isgn_name_ptr_sv_cull_distance = name_ptr;
   if (input_cull_distance_count) {
     name_ptr += dxbc::AppendAlignedString(shader_out, "SV_CullDistance");
   }
-  uint32_t isgn_name_ptr_xepsize = name_ptr;
+  u32 isgn_name_ptr_xepsize = name_ptr;
   if (key.has_point_size) {
     name_ptr += dxbc::AppendAlignedString(shader_out, "XEPSIZE");
   }
 
-  uint32_t input_register_interpolators = UINT32_MAX;
-  uint32_t input_register_position;
-  uint32_t input_register_clip_and_cull_distances = UINT32_MAX;
-  uint32_t input_register_point_size = UINT32_MAX;
+  u32 input_register_interpolators = UINT32_MAX;
+  u32 input_register_position;
+  u32 input_register_clip_and_cull_distances = UINT32_MAX;
+  u32 input_register_point_size = UINT32_MAX;
   {
     auto& isgn_header =
         *reinterpret_cast<dxbc::Signature*>(shader_out.data() + isgn_position_dwords);
@@ -1699,13 +1690,13 @@ void PipelineCache::CreateDxbcGeometryShader(GeometryShaderKey key,
     isgn_header.parameter_info_ptr = sizeof(dxbc::Signature);
 
     auto isgn_parameters = reinterpret_cast<dxbc::SignatureParameter*>(
-        shader_out.data() + isgn_position_dwords + sizeof(dxbc::Signature) / sizeof(uint32_t));
-    uint32_t isgn_parameter_index = 0;
-    uint32_t input_register_index = 0;
+        shader_out.data() + isgn_position_dwords + sizeof(dxbc::Signature) / sizeof(u32));
+    u32 isgn_parameter_index = 0;
+    u32 input_register_index = 0;
 
     if (key.interpolator_count) {
       input_register_interpolators = input_register_index;
-      for (uint32_t i = 0; i < key.interpolator_count; ++i) {
+      for (u32 i = 0; i < key.interpolator_count; ++i) {
         REX_ASSERT(isgn_parameter_index < isgn_parameter_count);
         dxbc::SignatureParameter& isgn_interpolator = isgn_parameters[isgn_parameter_index++];
         isgn_interpolator.semantic_name_ptr = isgn_name_ptr_texcoord;
@@ -1729,8 +1720,8 @@ void PipelineCache::CreateDxbcGeometryShader(GeometryShaderKey key,
 
     if (input_clip_and_cull_distance_count) {
       input_register_clip_and_cull_distances = input_register_index;
-      uint32_t isgn_cull_distance_semantic_index = 0;
-      for (uint32_t i = 0; i < input_clip_and_cull_distance_count; i += 4) {
+      u32 isgn_cull_distance_semantic_index = 0;
+      for (u32 i = 0; i < input_clip_and_cull_distance_count; i += 4) {
         if (i < input_clip_distance_count) {
           dxbc::SignatureParameter& isgn_sv_clip_distance = isgn_parameters[isgn_parameter_index++];
           isgn_sv_clip_distance.semantic_name_ptr = isgn_name_ptr_sv_clip_distance;
@@ -1738,7 +1729,7 @@ void PipelineCache::CreateDxbcGeometryShader(GeometryShaderKey key,
           isgn_sv_clip_distance.system_value = dxbc::Name::kClipDistance;
           isgn_sv_clip_distance.component_type = dxbc::SignatureRegisterComponentType::kFloat32;
           isgn_sv_clip_distance.register_index = input_register_index;
-          uint8_t isgn_sv_clip_distance_mask =
+          u8 isgn_sv_clip_distance_mask =
               (UINT8_C(1) << std::min(input_clip_distance_count - i, UINT32_C(4))) - 1;
           isgn_sv_clip_distance.mask = isgn_sv_clip_distance_mask;
           isgn_sv_clip_distance.always_reads_mask = isgn_sv_clip_distance_mask;
@@ -1750,7 +1741,7 @@ void PipelineCache::CreateDxbcGeometryShader(GeometryShaderKey key,
           isgn_sv_cull_distance.system_value = dxbc::Name::kCullDistance;
           isgn_sv_cull_distance.component_type = dxbc::SignatureRegisterComponentType::kFloat32;
           isgn_sv_cull_distance.register_index = input_register_index;
-          uint8_t isgn_sv_cull_distance_mask =
+          u8 isgn_sv_cull_distance_mask =
               (UINT8_C(1) << std::min(input_clip_and_cull_distance_count - i, UINT32_C(4))) - 1;
           if (i < input_clip_distance_count) {
             isgn_sv_cull_distance_mask &= ~((UINT8_C(1) << (input_clip_distance_count - i)) - 1);
@@ -1781,41 +1772,39 @@ void PipelineCache::CreateDxbcGeometryShader(GeometryShaderKey key,
     auto& blob_header =
         *reinterpret_cast<dxbc::BlobHeader*>(shader_out.data() + blob_position_dwords);
     blob_header.fourcc = dxbc::BlobHeader::FourCC::kInputSignature;
-    blob_position_dwords = static_cast<uint32_t>(shader_out.size());
-    blob_header.size_bytes = (blob_position_dwords - kBlobHeaderSizeDwords) * sizeof(uint32_t) -
+    blob_position_dwords = static_cast<u32>(shader_out.size());
+    blob_header.size_bytes = (blob_position_dwords - kBlobHeaderSizeDwords) * sizeof(u32) -
                              shader_out[blob_offset_position_dwords++];
   }
 
-  uint32_t osgn_parameter_count = key.interpolator_count + key.has_point_coordinates + 1 +
-                                  ((input_clip_distance_count + 3) / 4);
+  u32 osgn_parameter_count = key.interpolator_count + key.has_point_coordinates + 1 +
+                             ((input_clip_distance_count + 3) / 4);
 
-  shader_out[blob_offset_position_dwords] =
-      static_cast<uint32_t>(blob_position_dwords * sizeof(uint32_t));
-  uint32_t osgn_position_dwords = blob_position_dwords + kBlobHeaderSizeDwords;
-  shader_out.resize(osgn_position_dwords + sizeof(dxbc::Signature) / sizeof(uint32_t) +
-                    sizeof(dxbc::SignatureParameterForGS) / sizeof(uint32_t) *
-                        osgn_parameter_count);
+  shader_out[blob_offset_position_dwords] = static_cast<u32>(blob_position_dwords * sizeof(u32));
+  u32 osgn_position_dwords = blob_position_dwords + kBlobHeaderSizeDwords;
+  shader_out.resize(osgn_position_dwords + sizeof(dxbc::Signature) / sizeof(u32) +
+                    sizeof(dxbc::SignatureParameterForGS) / sizeof(u32) * osgn_parameter_count);
 
-  name_ptr = static_cast<uint32_t>((shader_out.size() - osgn_position_dwords) * sizeof(uint32_t));
-  uint32_t osgn_name_ptr_texcoord = name_ptr;
+  name_ptr = static_cast<u32>((shader_out.size() - osgn_position_dwords) * sizeof(u32));
+  u32 osgn_name_ptr_texcoord = name_ptr;
   if (key.interpolator_count) {
     name_ptr += dxbc::AppendAlignedString(shader_out, "TEXCOORD");
   }
-  uint32_t osgn_name_ptr_xespritetexcoord = name_ptr;
+  u32 osgn_name_ptr_xespritetexcoord = name_ptr;
   if (key.has_point_coordinates) {
     name_ptr += dxbc::AppendAlignedString(shader_out, "XESPRITETEXCOORD");
   }
-  uint32_t osgn_name_ptr_sv_position = name_ptr;
+  u32 osgn_name_ptr_sv_position = name_ptr;
   name_ptr += dxbc::AppendAlignedString(shader_out, "SV_Position");
-  uint32_t osgn_name_ptr_sv_clip_distance = name_ptr;
+  u32 osgn_name_ptr_sv_clip_distance = name_ptr;
   if (input_clip_distance_count) {
     name_ptr += dxbc::AppendAlignedString(shader_out, "SV_ClipDistance");
   }
 
-  uint32_t output_register_interpolators = UINT32_MAX;
-  uint32_t output_register_point_coordinates = UINT32_MAX;
-  uint32_t output_register_position;
-  uint32_t output_register_clip_distances = UINT32_MAX;
+  u32 output_register_interpolators = UINT32_MAX;
+  u32 output_register_point_coordinates = UINT32_MAX;
+  u32 output_register_position;
+  u32 output_register_clip_distances = UINT32_MAX;
   {
     auto& osgn_header =
         *reinterpret_cast<dxbc::Signature*>(shader_out.data() + osgn_position_dwords);
@@ -1823,13 +1812,13 @@ void PipelineCache::CreateDxbcGeometryShader(GeometryShaderKey key,
     osgn_header.parameter_info_ptr = sizeof(dxbc::Signature);
 
     auto osgn_parameters = reinterpret_cast<dxbc::SignatureParameterForGS*>(
-        shader_out.data() + osgn_position_dwords + sizeof(dxbc::Signature) / sizeof(uint32_t));
-    uint32_t osgn_parameter_index = 0;
-    uint32_t output_register_index = 0;
+        shader_out.data() + osgn_position_dwords + sizeof(dxbc::Signature) / sizeof(u32));
+    u32 osgn_parameter_index = 0;
+    u32 output_register_index = 0;
 
     if (key.interpolator_count) {
       output_register_interpolators = output_register_index;
-      for (uint32_t i = 0; i < key.interpolator_count; ++i) {
+      for (u32 i = 0; i < key.interpolator_count; ++i) {
         REX_ASSERT(osgn_parameter_index < osgn_parameter_count);
         dxbc::SignatureParameterForGS& osgn_interpolator = osgn_parameters[osgn_parameter_index++];
         osgn_interpolator.semantic_name_ptr = osgn_name_ptr_texcoord;
@@ -1863,7 +1852,7 @@ void PipelineCache::CreateDxbcGeometryShader(GeometryShaderKey key,
 
     if (input_clip_distance_count) {
       output_register_clip_distances = output_register_index;
-      for (uint32_t i = 0; i < input_clip_distance_count; i += 4) {
+      for (u32 i = 0; i < input_clip_distance_count; i += 4) {
         dxbc::SignatureParameterForGS& osgn_sv_clip_distance =
             osgn_parameters[osgn_parameter_index++];
         osgn_sv_clip_distance.semantic_name_ptr = osgn_name_ptr_sv_clip_distance;
@@ -1871,7 +1860,7 @@ void PipelineCache::CreateDxbcGeometryShader(GeometryShaderKey key,
         osgn_sv_clip_distance.system_value = dxbc::Name::kClipDistance;
         osgn_sv_clip_distance.component_type = dxbc::SignatureRegisterComponentType::kFloat32;
         osgn_sv_clip_distance.register_index = output_register_index++;
-        uint8_t osgn_sv_clip_distance_mask =
+        u8 osgn_sv_clip_distance_mask =
             (UINT8_C(1) << std::min(input_clip_distance_count - i, UINT32_C(4))) - 1;
         osgn_sv_clip_distance.mask = osgn_sv_clip_distance_mask;
         osgn_sv_clip_distance.never_writes_mask = osgn_sv_clip_distance_mask ^ 0b1111;
@@ -1885,14 +1874,13 @@ void PipelineCache::CreateDxbcGeometryShader(GeometryShaderKey key,
     auto& blob_header =
         *reinterpret_cast<dxbc::BlobHeader*>(shader_out.data() + blob_position_dwords);
     blob_header.fourcc = dxbc::BlobHeader::FourCC::kOutputSignatureForGS;
-    blob_position_dwords = static_cast<uint32_t>(shader_out.size());
-    blob_header.size_bytes = (blob_position_dwords - kBlobHeaderSizeDwords) * sizeof(uint32_t) -
+    blob_position_dwords = static_cast<u32>(shader_out.size());
+    blob_header.size_bytes = (blob_position_dwords - kBlobHeaderSizeDwords) * sizeof(u32) -
                              shader_out[blob_offset_position_dwords++];
   }
 
-  shader_out[blob_offset_position_dwords] =
-      static_cast<uint32_t>(blob_position_dwords * sizeof(uint32_t));
-  uint32_t shex_position_dwords = blob_position_dwords + kBlobHeaderSizeDwords;
+  shader_out[blob_offset_position_dwords] = static_cast<u32>(blob_position_dwords * sizeof(u32));
+  u32 shex_position_dwords = blob_position_dwords + kBlobHeaderSizeDwords;
   shader_out.resize(shex_position_dwords);
 
   shader_out.push_back(dxbc::VersionToken(dxbc::ProgramType::kGeometryShader, 5, 1));
@@ -1908,13 +1896,13 @@ void PipelineCache::CreateDxbcGeometryShader(GeometryShaderKey key,
         dxbc::Src::CB(dxbc::Src::Dcl, 0,
                       std::to_underlying(DxbcShaderTranslator::CbufferRegister::kSystemConstants),
                       std::to_underlying(DxbcShaderTranslator::CbufferRegister::kSystemConstants)),
-        system_cbuffer_size_vector_aligned_bytes / (sizeof(uint32_t) * 4));
+        system_cbuffer_size_vector_aligned_bytes / (sizeof(u32) * 4));
   }
 
   dxbc::Primitive input_primitive = dxbc::Primitive::kUndefined;
-  uint32_t input_primitive_vertex_count = 0;
+  u32 input_primitive_vertex_count = 0;
   dxbc::PrimitiveTopology output_primitive_topology = dxbc::PrimitiveTopology::kUndefined;
-  uint32_t max_output_vertex_count = 0;
+  u32 max_output_vertex_count = 0;
   switch (key.type) {
     case PipelineGeometryShader::kPointList:
       input_primitive = dxbc::Primitive::kPoint;
@@ -1939,21 +1927,21 @@ void PipelineCache::CreateDxbcGeometryShader(GeometryShaderKey key,
   }
 
   REX_ASSERT(!(key.interpolator_count && input_register_interpolators == UINT32_MAX));
-  for (uint32_t i = 0; i < key.interpolator_count; ++i) {
+  for (u32 i = 0; i < key.interpolator_count; ++i) {
     a.OpDclInput(dxbc::Dest::V2D(input_primitive_vertex_count, input_register_interpolators + i));
   }
   a.OpDclInputSIV(dxbc::Dest::V2D(input_primitive_vertex_count, input_register_position),
                   dxbc::Name::kPosition);
   REX_ASSERT(!(input_clip_and_cull_distance_count &&
                input_register_clip_and_cull_distances == UINT32_MAX));
-  for (uint32_t i = 0; i < input_clip_and_cull_distance_count; i += 4) {
+  for (u32 i = 0; i < input_clip_and_cull_distance_count; i += 4) {
     if (i < input_clip_distance_count) {
       a.OpDclInput(dxbc::Dest::V2D(
           input_primitive_vertex_count, input_register_clip_and_cull_distances + (i >> 2),
           (UINT32_C(1) << std::min(input_clip_distance_count - i, UINT32_C(4))) - 1));
     }
     if (input_cull_distance_count && i + 4 > input_clip_distance_count) {
-      uint32_t cull_distance_mask =
+      u32 cull_distance_mask =
           (UINT32_C(1) << std::min(input_clip_and_cull_distance_count - i, UINT32_C(4))) - 1;
       if (i < input_clip_distance_count) {
         cull_distance_mask &= ~((UINT32_C(1) << (input_clip_distance_count - i)) - 1);
@@ -1977,7 +1965,7 @@ void PipelineCache::CreateDxbcGeometryShader(GeometryShaderKey key,
   a.OpDclOutputTopology(output_primitive_topology);
 
   REX_ASSERT(!(key.interpolator_count && output_register_interpolators == UINT32_MAX));
-  for (uint32_t i = 0; i < key.interpolator_count; ++i) {
+  for (u32 i = 0; i < key.interpolator_count; ++i) {
     a.OpDclOutput(dxbc::Dest::O(output_register_interpolators + i));
   }
   if (key.has_point_coordinates) {
@@ -1986,7 +1974,7 @@ void PipelineCache::CreateDxbcGeometryShader(GeometryShaderKey key,
   }
   a.OpDclOutputSIV(dxbc::Dest::O(output_register_position), dxbc::Name::kPosition);
   REX_ASSERT(!(input_clip_distance_count && output_register_clip_distances == UINT32_MAX));
-  for (uint32_t i = 0; i < input_clip_distance_count; i += 4) {
+  for (u32 i = 0; i < input_clip_distance_count; i += 4) {
     a.OpDclOutputSIV(
         dxbc::Dest::O(output_register_clip_distances + (i >> 2),
                       (UINT32_C(1) << std::min(input_clip_distance_count - i, UINT32_C(4))) - 1),
@@ -1996,7 +1984,7 @@ void PipelineCache::CreateDxbcGeometryShader(GeometryShaderKey key,
   a.OpDclMaxOutputVertexCount(max_output_vertex_count);
 
   // Discard the primitive if any vertex position is NaN, which emulates vertex kill with OR.
-  for (uint32_t i = 0; i < input_primitive_vertex_count; ++i) {
+  for (u32 i = 0; i < input_primitive_vertex_count; ++i) {
     a.OpNE(dxbc::Dest::R(0), dxbc::Src::V2D(i, input_register_position),
            dxbc::Src::V2D(i, input_register_position));
     a.OpOr(dxbc::Dest::R(0, 0b0011), dxbc::Src::R(0, 0b0100), dxbc::Src::R(0, 0b1110));
@@ -2007,16 +1995,15 @@ void PipelineCache::CreateDxbcGeometryShader(GeometryShaderKey key,
 
   // Cull if a cull distance is < 0 for all vertices, ps_ucp_mode 3 points cull per vertex later.
   if (input_cull_distance_count) {
-    uint32_t cull_distance_start =
-        point_recalculate_cull_distances ? point_user_cull_distance_count : 0;
-    for (uint32_t i = cull_distance_start; i < input_cull_distance_count; ++i) {
-      uint32_t cull_distance_register =
+    u32 cull_distance_start = point_recalculate_cull_distances ? point_user_cull_distance_count : 0;
+    for (u32 i = cull_distance_start; i < input_cull_distance_count; ++i) {
+      u32 cull_distance_register =
           input_register_clip_and_cull_distances + ((input_clip_distance_count + i) >> 2);
-      uint32_t cull_distance_component = (input_clip_distance_count + i) & 3;
+      u32 cull_distance_component = (input_clip_distance_count + i) & 3;
       a.OpLT(dxbc::Dest::R(0, 0b0001),
              dxbc::Src::V2D(0, cull_distance_register).Select(cull_distance_component),
              dxbc::Src::LF(0.0f));
-      for (uint32_t j = 1; j < input_primitive_vertex_count; ++j) {
+      for (u32 j = 1; j < input_primitive_vertex_count; ++j) {
         a.OpLT(dxbc::Dest::R(0, 0b0010),
                dxbc::Src::V2D(j, cull_distance_register).Select(cull_distance_component),
                dxbc::Src::LF(0.0f));
@@ -2045,7 +2032,7 @@ void PipelineCache::CreateDxbcGeometryShader(GeometryShaderKey key,
         point_size_src = dxbc::Src::R(0, 0b0100);
       }
       // Drop zero size points early, as memexport may use point lists as compute.
-      for (uint32_t i = 0; i < 2; ++i) {
+      for (u32 i = 0; i < 2; ++i) {
         a.OpLT(dxbc::Dest::R(0, 0b0100), dxbc::Src::LF(0.0f), point_size_src.SelectFromSwizzled(i));
         a.OpRetC(false, dxbc::Src::R(0, dxbc::Src::kZZZZ));
       }
@@ -2090,8 +2077,8 @@ void PipelineCache::CreateDxbcGeometryShader(GeometryShaderKey key,
         dxbc::Src ndc_offset_z(dxbc::Src::CB(
             0, std::to_underlying(DxbcShaderTranslator::CbufferRegister::kSystemConstants),
             offsetof(DxbcShaderTranslator::SystemConstants, ndc_offset) >> 4, dxbc::Src::kZZZZ));
-        for (uint32_t j = 0; j < point_user_cull_distance_count; ++j) {
-          for (uint32_t i = 0; i < 4; ++i) {
+        for (u32 j = 0; j < point_user_cull_distance_count; ++j) {
+          for (u32 i = 0; i < 4; ++i) {
             a.OpAdd(dxbc::Dest::R(2, 0b0001),
                     dxbc::Src::V2D(0, input_register_position, dxbc::Src::kXXXX),
                     (i & 1) ? point_radius_x_src : -point_radius_x_src);
@@ -2113,7 +2100,7 @@ void PipelineCache::CreateDxbcGeometryShader(GeometryShaderKey key,
                 dxbc::Src::CB(
                     0, std::to_underlying(DxbcShaderTranslator::CbufferRegister::kSystemConstants),
                     (offsetof(DxbcShaderTranslator::SystemConstants, user_clip_planes) +
-                     sizeof(float) * 4 * j) >>
+                     sizeof(f32) * 4 * j) >>
                         4,
                     dxbc::Src::kXYZW));
             a.OpLT(dxbc::Dest::R(2, 0b0001), dxbc::Src::R(2, dxbc::Src::kXXXX),
@@ -2129,15 +2116,15 @@ void PipelineCache::CreateDxbcGeometryShader(GeometryShaderKey key,
         }
       }
 
-      for (uint32_t i = 0; i < 4; ++i) {
-        for (uint32_t j = 0; j < key.interpolator_count; ++j) {
+      for (u32 i = 0; i < 4; ++i) {
+        for (u32 j = 0; j < key.interpolator_count; ++j) {
           a.OpMov(dxbc::Dest::O(output_register_interpolators + j),
                   dxbc::Src::V2D(0, input_register_interpolators + j));
         }
         // Order is TL, TR, BL, BR, bottom is -Y in NDC and +V in point coordinates.
         if (key.has_point_coordinates) {
           a.OpMov(dxbc::Dest::O(output_register_point_coordinates, 0b0011),
-                  dxbc::Src::LF(static_cast<float>(i & 1), static_cast<float>(i >> 1), 0.0f, 0.0f));
+                  dxbc::Src::LF(static_cast<f32>(i & 1), static_cast<f32>(i >> 1), 0.0f, 0.0f));
         }
         // o# only takes mov, so r0.zw is temporary as r0.xy holds the point size.
         a.OpAdd(dxbc::Dest::R(0, 0b0100),
@@ -2180,19 +2167,19 @@ void PipelineCache::CreateDxbcGeometryShader(GeometryShaderKey key,
           a.OpMAd(dxbc::Dest::R(1, 0b0100), -ndc_offset_z, dxbc::Src::R(1, dxbc::Src::kWWWW),
                   dxbc::Src::R(1, dxbc::Src::kZZZZ));
           a.OpDiv(dxbc::Dest::R(1, 0b0100), dxbc::Src::R(1, dxbc::Src::kZZZZ), ndc_scale_z);
-          for (uint32_t j = 0; j < input_clip_distance_count; ++j) {
+          for (u32 j = 0; j < input_clip_distance_count; ++j) {
             a.OpDP4(
                 dxbc::Dest::O(output_register_clip_distances + (j >> 2), UINT32_C(1) << (j & 3)),
                 dxbc::Src::R(1),
                 dxbc::Src::CB(
                     0, std::to_underlying(DxbcShaderTranslator::CbufferRegister::kSystemConstants),
                     (offsetof(DxbcShaderTranslator::SystemConstants, user_clip_planes) +
-                     sizeof(float) * 4 * j) >>
+                     sizeof(f32) * 4 * j) >>
                         4,
                     dxbc::Src::kXYZW));
           }
         } else {
-          for (uint32_t j = 0; j < input_clip_distance_count; j += 4) {
+          for (u32 j = 0; j < input_clip_distance_count; j += 4) {
             a.OpMov(dxbc::Dest::O(
                         output_register_clip_distances + (j >> 2),
                         (UINT32_C(1) << std::min(input_clip_distance_count - j, UINT32_C(4))) - 1),
@@ -2232,9 +2219,9 @@ void PipelineCache::CreateDxbcGeometryShader(GeometryShaderKey key,
       }
       a.OpEndIf();
 
-      for (uint32_t i = 0; i < 3; ++i) {
+      for (u32 i = 0; i < 3; ++i) {
         dxbc::Index input_vertex_index(0, i);
-        for (uint32_t j = 0; j < key.interpolator_count; ++j) {
+        for (u32 j = 0; j < key.interpolator_count; ++j) {
           a.OpMov(dxbc::Dest::O(output_register_interpolators + j),
                   dxbc::Src::V2D(input_vertex_index, input_register_interpolators + j));
         }
@@ -2243,7 +2230,7 @@ void PipelineCache::CreateDxbcGeometryShader(GeometryShaderKey key,
         }
         a.OpMov(dxbc::Dest::O(output_register_position),
                 dxbc::Src::V2D(input_vertex_index, input_register_position));
-        for (uint32_t j = 0; j < input_clip_distance_count; j += 4) {
+        for (u32 j = 0; j < input_clip_distance_count; j += 4) {
           a.OpMov(dxbc::Dest::O(
                       output_register_clip_distances + (j >> 2),
                       (UINT32_C(1) << std::min(input_clip_distance_count - j, UINT32_C(4))) - 1),
@@ -2255,8 +2242,8 @@ void PipelineCache::CreateDxbcGeometryShader(GeometryShaderKey key,
 
       // r1 is temporary for the fourth vertex as o# only takes mov.
       stat.temp_register_count = std::max(UINT32_C(2), stat.temp_register_count);
-      for (uint32_t j = 0; j < key.interpolator_count; ++j) {
-        uint32_t input_register_interpolator = input_register_interpolators + j;
+      for (u32 j = 0; j < key.interpolator_count; ++j) {
+        u32 input_register_interpolator = input_register_interpolators + j;
         a.OpAdd(dxbc::Dest::R(1), -dxbc::Src::V2D(dxbc::Index(0, 0), input_register_interpolator),
                 dxbc::Src::V2D(dxbc::Index(0, 1), input_register_interpolator));
         a.OpAdd(dxbc::Dest::R(1), dxbc::Src::R(1),
@@ -2271,10 +2258,10 @@ void PipelineCache::CreateDxbcGeometryShader(GeometryShaderKey key,
       a.OpAdd(dxbc::Dest::R(1), dxbc::Src::R(1),
               dxbc::Src::V2D(dxbc::Index(0, 2), input_register_position));
       a.OpMov(dxbc::Dest::O(output_register_position), dxbc::Src::R(1));
-      for (uint32_t j = 0; j < input_clip_distance_count; j += 4) {
-        uint32_t clip_distance_mask =
+      for (u32 j = 0; j < input_clip_distance_count; j += 4) {
+        u32 clip_distance_mask =
             (UINT32_C(1) << std::min(input_clip_distance_count - j, UINT32_C(4))) - 1;
-        uint32_t input_register_clip_distance = input_register_clip_and_cull_distances + (j >> 2);
+        u32 input_register_clip_distance = input_register_clip_and_cull_distances + (j >> 2);
         a.OpAdd(dxbc::Dest::R(1, clip_distance_mask),
                 -dxbc::Src::V2D(dxbc::Index(0, 0), input_register_clip_distance),
                 dxbc::Src::V2D(dxbc::Index(0, 1), input_register_clip_distance));
@@ -2289,9 +2276,9 @@ void PipelineCache::CreateDxbcGeometryShader(GeometryShaderKey key,
 
     case PipelineGeometryShader::kQuadList: {
       // Triangle strip order is 0, 1, 3, 2 like GL_QUAD_STRIP.
-      for (uint32_t i = 0; i < 4; ++i) {
-        uint32_t input_vertex_index = i ^ (i >> 1);
-        for (uint32_t j = 0; j < key.interpolator_count; ++j) {
+      for (u32 i = 0; i < 4; ++i) {
+        u32 input_vertex_index = i ^ (i >> 1);
+        for (u32 j = 0; j < key.interpolator_count; ++j) {
           a.OpMov(dxbc::Dest::O(output_register_interpolators + j),
                   dxbc::Src::V2D(input_vertex_index, input_register_interpolators + j));
         }
@@ -2300,7 +2287,7 @@ void PipelineCache::CreateDxbcGeometryShader(GeometryShaderKey key,
         }
         a.OpMov(dxbc::Dest::O(output_register_position),
                 dxbc::Src::V2D(input_vertex_index, input_register_position));
-        for (uint32_t j = 0; j < input_clip_distance_count; j += 4) {
+        for (u32 j = 0; j < input_clip_distance_count; j += 4) {
           a.OpMov(dxbc::Dest::O(
                       output_register_clip_distances + (j >> 2),
                       (UINT32_C(1) << std::min(input_clip_distance_count - j, UINT32_C(4))) - 1),
@@ -2320,34 +2307,32 @@ void PipelineCache::CreateDxbcGeometryShader(GeometryShaderKey key,
 
   shader_out[dcl_temps_count_position_dwords] = stat.temp_register_count;
 
-  shader_out[shex_position_dwords + 1] =
-      static_cast<uint32_t>(shader_out.size()) - shex_position_dwords;
+  shader_out[shex_position_dwords + 1] = static_cast<u32>(shader_out.size()) - shex_position_dwords;
 
   {
     auto& blob_header =
         *reinterpret_cast<dxbc::BlobHeader*>(shader_out.data() + blob_position_dwords);
     blob_header.fourcc = dxbc::BlobHeader::FourCC::kShaderEx;
-    blob_position_dwords = static_cast<uint32_t>(shader_out.size());
-    blob_header.size_bytes = (blob_position_dwords - kBlobHeaderSizeDwords) * sizeof(uint32_t) -
+    blob_position_dwords = static_cast<u32>(shader_out.size());
+    blob_header.size_bytes = (blob_position_dwords - kBlobHeaderSizeDwords) * sizeof(u32) -
                              shader_out[blob_offset_position_dwords++];
   }
 
-  shader_out[blob_offset_position_dwords] =
-      static_cast<uint32_t>(blob_position_dwords * sizeof(uint32_t));
-  uint32_t stat_position_dwords = blob_position_dwords + kBlobHeaderSizeDwords;
-  shader_out.resize(stat_position_dwords + sizeof(dxbc::Statistics) / sizeof(uint32_t));
+  shader_out[blob_offset_position_dwords] = static_cast<u32>(blob_position_dwords * sizeof(u32));
+  u32 stat_position_dwords = blob_position_dwords + kBlobHeaderSizeDwords;
+  shader_out.resize(stat_position_dwords + sizeof(dxbc::Statistics) / sizeof(u32));
   std::memcpy(shader_out.data() + stat_position_dwords, &stat, sizeof(dxbc::Statistics));
 
   {
     auto& blob_header =
         *reinterpret_cast<dxbc::BlobHeader*>(shader_out.data() + blob_position_dwords);
     blob_header.fourcc = dxbc::BlobHeader::FourCC::kStatistics;
-    blob_position_dwords = static_cast<uint32_t>(shader_out.size());
-    blob_header.size_bytes = (blob_position_dwords - kBlobHeaderSizeDwords) * sizeof(uint32_t) -
+    blob_position_dwords = static_cast<u32>(shader_out.size());
+    blob_header.size_bytes = (blob_position_dwords - kBlobHeaderSizeDwords) * sizeof(u32) -
                              shader_out[blob_offset_position_dwords++];
   }
 
-  uint32_t shader_size_bytes = static_cast<uint32_t>(shader_out.size() * sizeof(uint32_t));
+  u32 shader_size_bytes = static_cast<u32>(shader_out.size() * sizeof(u32));
   {
     auto& container_header = *reinterpret_cast<dxbc::ContainerHeader*>(shader_out.data());
     container_header.InitializeIdentification();
@@ -2358,12 +2343,12 @@ void PipelineCache::CreateDxbcGeometryShader(GeometryShaderKey key,
   }
 }
 
-const std::vector<uint32_t>& PipelineCache::GetGeometryShader(GeometryShaderKey key) {
+const std::vector<u32>& PipelineCache::GetGeometryShader(GeometryShaderKey key) {
   auto it = geometry_shaders_.find(key);
   if (it != geometry_shaders_.end()) {
     return it->second;
   }
-  std::vector<uint32_t> shader;
+  std::vector<u32> shader;
   CreateDxbcGeometryShader(key, shader);
   return geometry_shaders_.emplace(key, std::move(shader)).first->second;
 }
@@ -2567,17 +2552,17 @@ ID3D12PipelineState* PipelineCache::CreateD3D12Pipeline(
   // Non square resolution scaling takes the larger scale, as too much bias beats Z fighting.
   state_desc.RasterizerState.SlopeScaledDepthBias =
       description.depth_bias_slope_scaled *
-      static_cast<float>(std::max(render_target_cache_.draw_resolution_scale_x(),
-                                  render_target_cache_.draw_resolution_scale_y()));
+      static_cast<f32>(std::max(render_target_cache_.draw_resolution_scale_x(),
+                                render_target_cache_.draw_resolution_scale_y()));
   state_desc.RasterizerState.DepthClipEnable = description.depth_clip ? TRUE : FALSE;
-  uint32_t msaa_sample_count = static_cast<uint32_t>(1) << uint32_t(description.host_msaa_samples);
+  u32 msaa_sample_count = static_cast<u32>(1) << u32(description.host_msaa_samples);
   if (edram_rov_used) {
     REX_ASSERT(msaa_sample_count == 1 || msaa_sample_count == 4);
     if (msaa_sample_count != 1 && msaa_sample_count != 4) {
       return nullptr;
     }
-    state_desc.RasterizerState.ForcedSampleCount = static_cast<uint32_t>(1)
-                                                   << uint32_t(description.host_msaa_samples);
+    state_desc.RasterizerState.ForcedSampleCount = static_cast<u32>(1)
+                                                   << u32(description.host_msaa_samples);
   }
 
   state_desc.SampleMask = UINT_MAX;
@@ -2602,9 +2587,8 @@ ID3D12PipelineState* PipelineCache::CreateD3D12Pipeline(
       state_desc.DepthStencilState.DepthWriteMask =
           description.depth_write ? D3D12_DEPTH_WRITE_MASK_ALL : D3D12_DEPTH_WRITE_MASK_ZERO;
       // Comparison functions map to the Direct3D 12 ones plus 1.
-      state_desc.DepthStencilState.DepthFunc =
-          D3D12_COMPARISON_FUNC(static_cast<uint32_t>(D3D12_COMPARISON_FUNC_NEVER) +
-                                static_cast<uint32_t>(description.depth_func));
+      state_desc.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC(
+          static_cast<u32>(D3D12_COMPARISON_FUNC_NEVER) + static_cast<u32>(description.depth_func));
     }
     if (description.stencil_enable) {
       state_desc.DepthStencilState.StencilEnable = TRUE;
@@ -2612,29 +2596,29 @@ ID3D12PipelineState* PipelineCache::CreateD3D12Pipeline(
       state_desc.DepthStencilState.StencilWriteMask = description.stencil_write_mask;
       // Stencil operations map to the Direct3D 12 ones plus 1.
       state_desc.DepthStencilState.FrontFace.StencilFailOp =
-          D3D12_STENCIL_OP(static_cast<uint32_t>(D3D12_STENCIL_OP_KEEP) +
-                           static_cast<uint32_t>(description.stencil_front_fail_op));
+          D3D12_STENCIL_OP(static_cast<u32>(D3D12_STENCIL_OP_KEEP) +
+                           static_cast<u32>(description.stencil_front_fail_op));
       state_desc.DepthStencilState.FrontFace.StencilDepthFailOp =
-          D3D12_STENCIL_OP(static_cast<uint32_t>(D3D12_STENCIL_OP_KEEP) +
-                           static_cast<uint32_t>(description.stencil_front_depth_fail_op));
+          D3D12_STENCIL_OP(static_cast<u32>(D3D12_STENCIL_OP_KEEP) +
+                           static_cast<u32>(description.stencil_front_depth_fail_op));
       state_desc.DepthStencilState.FrontFace.StencilPassOp =
-          D3D12_STENCIL_OP(static_cast<uint32_t>(D3D12_STENCIL_OP_KEEP) +
-                           static_cast<uint32_t>(description.stencil_front_pass_op));
+          D3D12_STENCIL_OP(static_cast<u32>(D3D12_STENCIL_OP_KEEP) +
+                           static_cast<u32>(description.stencil_front_pass_op));
       state_desc.DepthStencilState.FrontFace.StencilFunc =
-          D3D12_COMPARISON_FUNC(static_cast<uint32_t>(D3D12_COMPARISON_FUNC_NEVER) +
-                                static_cast<uint32_t>(description.stencil_front_func));
+          D3D12_COMPARISON_FUNC(static_cast<u32>(D3D12_COMPARISON_FUNC_NEVER) +
+                                static_cast<u32>(description.stencil_front_func));
       state_desc.DepthStencilState.BackFace.StencilFailOp =
-          D3D12_STENCIL_OP(static_cast<uint32_t>(D3D12_STENCIL_OP_KEEP) +
-                           static_cast<uint32_t>(description.stencil_back_fail_op));
+          D3D12_STENCIL_OP(static_cast<u32>(D3D12_STENCIL_OP_KEEP) +
+                           static_cast<u32>(description.stencil_back_fail_op));
       state_desc.DepthStencilState.BackFace.StencilDepthFailOp =
-          D3D12_STENCIL_OP(static_cast<uint32_t>(D3D12_STENCIL_OP_KEEP) +
-                           static_cast<uint32_t>(description.stencil_back_depth_fail_op));
+          D3D12_STENCIL_OP(static_cast<u32>(D3D12_STENCIL_OP_KEEP) +
+                           static_cast<u32>(description.stencil_back_depth_fail_op));
       state_desc.DepthStencilState.BackFace.StencilPassOp =
-          D3D12_STENCIL_OP(static_cast<uint32_t>(D3D12_STENCIL_OP_KEEP) +
-                           static_cast<uint32_t>(description.stencil_back_pass_op));
+          D3D12_STENCIL_OP(static_cast<u32>(D3D12_STENCIL_OP_KEEP) +
+                           static_cast<u32>(description.stencil_back_pass_op));
       state_desc.DepthStencilState.BackFace.StencilFunc =
-          D3D12_COMPARISON_FUNC(static_cast<uint32_t>(D3D12_COMPARISON_FUNC_NEVER) +
-                                static_cast<uint32_t>(description.stencil_back_func));
+          D3D12_COMPARISON_FUNC(static_cast<u32>(D3D12_COMPARISON_FUNC_NEVER) +
+                                static_cast<u32>(description.stencil_back_func));
     }
     if (state_desc.DepthStencilState.DepthEnable || state_desc.DepthStencilState.StencilEnable) {
       state_desc.DSVFormat =
@@ -2656,7 +2640,7 @@ ID3D12PipelineState* PipelineCache::CreateD3D12Pipeline(
         D3D12_BLEND_OP_ADD, D3D12_BLEND_OP_SUBTRACT,     D3D12_BLEND_OP_MIN,
         D3D12_BLEND_OP_MAX, D3D12_BLEND_OP_REV_SUBTRACT, D3D12_BLEND_OP_ADD,
         D3D12_BLEND_OP_ADD, D3D12_BLEND_OP_ADD};
-    for (uint32_t i = 0; i < xenos::kMaxColorRenderTargets; ++i) {
+    for (u32 i = 0; i < xenos::kMaxColorRenderTargets; ++i) {
       const PipelineRenderTarget& rt = description.render_targets[i];
       if (!rt.used) {
         // Null RTV descriptors are valid for DXGI_FORMAT_UNKNOWN slots.
@@ -2676,12 +2660,12 @@ ID3D12PipelineState* PipelineCache::CreateD3D12Pipeline(
           rt.dest_blend_alpha != PipelineBlendFactor::kZero ||
           rt.blend_op_alpha != xenos::BlendOp::kAdd) {
         blend_desc.BlendEnable = TRUE;
-        blend_desc.SrcBlend = kBlendFactorMap[static_cast<uint32_t>(rt.src_blend)];
-        blend_desc.DestBlend = kBlendFactorMap[static_cast<uint32_t>(rt.dest_blend)];
-        blend_desc.BlendOp = kBlendOpMap[static_cast<uint32_t>(rt.blend_op)];
-        blend_desc.SrcBlendAlpha = kBlendFactorMap[static_cast<uint32_t>(rt.src_blend_alpha)];
-        blend_desc.DestBlendAlpha = kBlendFactorMap[static_cast<uint32_t>(rt.dest_blend_alpha)];
-        blend_desc.BlendOpAlpha = kBlendOpMap[static_cast<uint32_t>(rt.blend_op_alpha)];
+        blend_desc.SrcBlend = kBlendFactorMap[static_cast<u32>(rt.src_blend)];
+        blend_desc.DestBlend = kBlendFactorMap[static_cast<u32>(rt.dest_blend)];
+        blend_desc.BlendOp = kBlendOpMap[static_cast<u32>(rt.blend_op)];
+        blend_desc.SrcBlendAlpha = kBlendFactorMap[static_cast<u32>(rt.src_blend_alpha)];
+        blend_desc.DestBlendAlpha = kBlendFactorMap[static_cast<u32>(rt.dest_blend_alpha)];
+        blend_desc.BlendOpAlpha = kBlendOpMap[static_cast<u32>(rt.blend_op_alpha)];
       }
       blend_desc.RenderTargetWriteMask = rt.write_mask;
     }
@@ -2726,7 +2710,7 @@ void PipelineCache::StorageWriteThread() {
   // Zero the unused bits so nothing leaks into the file.
   std::memset(&shader_header, 0, sizeof(shader_header));
 
-  std::vector<uint32_t> ucode_guest_endian;
+  std::vector<u32> ucode_guest_endian;
   ucode_guest_endian.reserve(0xFFFF);
 
   bool flush_shaders = false;
@@ -2786,7 +2770,7 @@ void PipelineCache::StorageWriteThread() {
         memory::copy_and_swap(ucode_guest_endian.data(), shader->ucode_dwords(),
                               shader_header.ucode_dword_count);
         AppendStorage(shader_storage_file_, ucode_guest_endian.data(),
-                      shader_header.ucode_dword_count * sizeof(uint32_t));
+                      shader_header.ucode_dword_count * sizeof(u32));
       }
     }
 

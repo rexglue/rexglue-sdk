@@ -16,7 +16,7 @@ int socket_close(SocketHandle handle) {
   return close(static_cast<int>(handle));
 }
 
-int socket_ioctl(SocketHandle handle, uint32_t cmd, uint8_t* arg) {
+int socket_ioctl(SocketHandle handle, u32 cmd, u8* arg) {
   return ioctl(static_cast<int>(handle), cmd, arg);
 }
 

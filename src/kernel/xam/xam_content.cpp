@@ -70,14 +70,13 @@ u32 XamContentCreateEnumerator_entry([[maybe_unused]] u32 user_index, u32 device
     *buffer_size_ptr = sizeof(XCONTENT_DATA) * items_per_enumerate;
   }
 
-  uint64_t xuid = runtime::Current().content_manager().user_profile().xuid();
+  u64 xuid = runtime::Current().content_manager().user_profile().xuid();
 
   StaticItems items(items_per_enumerate, sizeof(XCONTENT_DATA));
 
   if (!device_info || device_info->device_id == DummyDeviceId::HDD) {
     auto content_datas = runtime::Current().content_manager().ListContent(
-        std::to_underlying(DummyDeviceId::HDD), xuid,
-        XContentType(static_cast<uint32_t>(content_type)));
+        std::to_underlying(DummyDeviceId::HDD), xuid, XContentType(static_cast<u32>(content_type)));
     for (const auto& content_data : content_datas) {
       auto item = items.Append<XCONTENT_DATA>();
       *item = content_data;
@@ -85,8 +84,7 @@ u32 XamContentCreateEnumerator_entry([[maybe_unused]] u32 user_index, u32 device
 
     if (xuid != 0) {
       auto common_datas = runtime::Current().content_manager().ListContent(
-          std::to_underlying(DummyDeviceId::HDD), 0,
-          XContentType(static_cast<uint32_t>(content_type)));
+          std::to_underlying(DummyDeviceId::HDD), 0, XContentType(static_cast<u32>(content_type)));
       for (const auto& content_data : common_datas) {
         auto item = items.Append<XCONTENT_DATA>();
         *item = content_data;
@@ -123,7 +121,7 @@ enum class kDispositionState : u8 { Unknown = 0, Create = 1, Open = 2 };
 u32 XamContentCreate(mapped_string root_name, mapped_void content_data_ptr, u32 content_data_size,
                      u32 flags, mapped_u32 disposition_ptr, mapped_u32 license_mask_ptr,
                      mapped_void overlapped_ptr) {
-  uint64_t xuid = runtime::Current().content_manager().user_profile().xuid();
+  u64 xuid = runtime::Current().content_manager().user_profile().xuid();
 
   XCONTENT_AGGREGATE_DATA content_data;
   if (content_data_size == sizeof(XCONTENT_DATA)) {
@@ -146,8 +144,7 @@ u32 XamContentCreate(mapped_string root_name, mapped_void content_data_ptr, u32 
   }
 
   auto run = [content_manager, xuid, root_name = root_name.value(), flags, content_data,
-              disposition_ptr,
-              license_mask_ptr](uint32_t& extended_error, uint32_t& length) -> X_RESULT {
+              disposition_ptr, license_mask_ptr](u32& extended_error, u32& length) -> X_RESULT {
     X_RESULT result = X_ERROR_INVALID_PARAMETER;
     kDispositionState disposition = kDispositionState::Unknown;
     switch (flags & 0xF) {
@@ -204,7 +201,7 @@ u32 XamContentCreate(mapped_string root_name, mapped_void content_data_ptr, u32 
         break;
     }
 
-    uint32_t content_license = 0;
+    u32 content_license = 0;
     if (disposition == kDispositionState::Create) {
       result = ToXResult(content_manager->CreateContent(root_name, xuid, content_data));
       if (result == X_ERROR_SUCCESS) {
@@ -223,16 +220,16 @@ u32 XamContentCreate(mapped_string root_name, mapped_void content_data_ptr, u32 
     }
 
     if (disposition_ptr) {
-      *disposition_ptr = static_cast<uint32_t>(disposition);
+      *disposition_ptr = static_cast<u32>(disposition);
     }
 
     extended_error = X_HRESULT_FROM_WIN32(result);
-    length = static_cast<uint32_t>(disposition);
+    length = static_cast<u32>(disposition);
     return result;
   };
 
   if (!overlapped_ptr) {
-    uint32_t extended_error, length;
+    u32 extended_error, length;
     return run(extended_error, length);
   } else {
     runtime::Current().dispatcher().CompleteOverlappedDeferredEx(run,
@@ -301,7 +298,7 @@ u32 XamContentGetCreator_entry([[maybe_unused]] u32 user_index, mapped_void cont
                                mapped_void overlapped_ptr) {
   auto result = X_ERROR_SUCCESS;
 
-  uint64_t xuid = runtime::Current().content_manager().user_profile().xuid();
+  u64 xuid = runtime::Current().content_manager().user_profile().xuid();
   XCONTENT_AGGREGATE_DATA content_data = *content_data_ptr.as<XCONTENT_DATA*>();
 
   bool content_exists = runtime::Current().content_manager().ContentExists(xuid, content_data);
@@ -335,25 +332,25 @@ u32 XamContentGetThumbnail_entry([[maybe_unused]] u32 user_index, mapped_void co
                                  mapped_void buffer_ptr, mapped_u32 buffer_size_ptr,
                                  mapped_void overlapped_ptr) {
   REX_ASSERT(buffer_size_ptr != nullptr);
-  uint32_t buffer_size = *buffer_size_ptr;
-  uint64_t xuid = runtime::Current().content_manager().user_profile().xuid();
+  u32 buffer_size = *buffer_size_ptr;
+  u64 xuid = runtime::Current().content_manager().user_profile().xuid();
   XCONTENT_AGGREGATE_DATA content_data = *content_data_ptr.as<XCONTENT_DATA*>();
 
-  std::vector<uint8_t> buffer;
+  std::vector<u8> buffer;
   auto thumbnail = runtime::Current().content_manager().GetContentThumbnail(xuid, content_data);
   if (thumbnail) {
     buffer = std::move(*thumbnail);
   }
   auto result = ToXResult(thumbnail);
 
-  *buffer_size_ptr = static_cast<uint32_t>(buffer.size());
+  *buffer_size_ptr = static_cast<u32>(buffer.size());
 
   if (result == X_ERROR_SUCCESS) {
     if (buffer_ptr) {
       if (buffer_size < buffer.size()) {
         result = X_ERROR_INSUFFICIENT_BUFFER;
       } else {
-        std::memcpy(static_cast<uint8_t*>(buffer_ptr), buffer.data(), buffer.size());
+        std::memcpy(static_cast<u8*>(buffer_ptr), buffer.data(), buffer.size());
       }
     }
   }
@@ -370,12 +367,12 @@ u32 XamContentGetThumbnail_entry([[maybe_unused]] u32 user_index, mapped_void co
 u32 XamContentSetThumbnail_entry([[maybe_unused]] u32 user_index, mapped_void content_data_ptr,
                                  mapped_void buffer_ptr, u32 buffer_size,
                                  mapped_void overlapped_ptr) {
-  uint64_t xuid = runtime::Current().content_manager().user_profile().xuid();
+  u64 xuid = runtime::Current().content_manager().user_profile().xuid();
   XCONTENT_AGGREGATE_DATA content_data = *content_data_ptr.as<XCONTENT_DATA*>();
 
   // Buffer is PNG data.
-  auto buffer = std::vector<uint8_t>(static_cast<uint8_t*>(buffer_ptr),
-                                     static_cast<uint8_t*>(buffer_ptr) + buffer_size);
+  auto buffer =
+      std::vector<u8>(static_cast<u8*>(buffer_ptr), static_cast<u8*>(buffer_ptr) + buffer_size);
   auto result = ToXResult(runtime::Current().content_manager().SetContentThumbnail(
       xuid, content_data, std::move(buffer)));
 
@@ -390,7 +387,7 @@ u32 XamContentSetThumbnail_entry([[maybe_unused]] u32 user_index, mapped_void co
 
 u32 XamContentDelete_entry([[maybe_unused]] u32 user_index, mapped_void content_data_ptr,
                            mapped_void overlapped_ptr) {
-  uint64_t xuid = runtime::Current().content_manager().user_profile().xuid();
+  u64 xuid = runtime::Current().content_manager().user_profile().xuid();
   XCONTENT_AGGREGATE_DATA content_data = *content_data_ptr.as<XCONTENT_DATA*>();
 
   auto result = ToXResult(runtime::Current().content_manager().DeleteContent(xuid, content_data));
@@ -406,7 +403,7 @@ u32 XamContentDelete_entry([[maybe_unused]] u32 user_index, mapped_void content_
 
 u32 XamContentDeleteInternal_entry(mapped_void content_data_ptr, mapped_void overlapped_ptr) {
   // Internal variants wrap the public call with 0xFE as the user index.
-  uint64_t xuid = runtime::Current().content_manager().user_profile().xuid();
+  u64 xuid = runtime::Current().content_manager().user_profile().xuid();
   XCONTENT_AGGREGATE_DATA content_data = *content_data_ptr.as<XCONTENT_AGGREGATE_DATA*>();
 
   auto result = ToXResult(runtime::Current().content_manager().DeleteContent(xuid, content_data));

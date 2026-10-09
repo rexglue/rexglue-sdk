@@ -47,7 +47,7 @@ struct EmitContext {
   const RecompilerConfig& config;
   const FunctionGraph& graph; /**< Graph that classifies branch targets and resolves calls. */
   const Limits& limits;       /**< Codegen limits such as the maximum output file size. */
-  uint32_t entryPoint = 0;    /**< Used for xstart naming */
+  u32 entryPoint = 0;         /**< Used for xstart naming */
 
   /**
    * Every function name emitted as a call. The writer turns this into the per file declaration
@@ -73,7 +73,7 @@ struct EmitContext {
  * Determines boundary mutability and merge eligibility. Only GAP_FILL can be absorbed during
  * vacancy merging, all others are immutable entry points.
  */
-enum class FunctionAuthority : uint8_t {
+enum class FunctionAuthority : u8 {
   GAP_FILL = 0,   /**< Found in an unclaimed gap, can be absorbed */
   DISCOVERED = 1, /**< Found through bl or bcl */
   VTABLE = 2,     /**< Found in a vtable */
@@ -100,7 +100,7 @@ enum class TargetKind {
 const char* AuthorityName(FunctionAuthority auth);
 
 /** Three state machine of a function. */
-enum class FunctionState : uint8_t {
+enum class FunctionState : u8 {
   kRegistered, /**< Entry point known, blocks and instructions not assigned */
   kDiscovered, /**< Blocks and instructions assigned, may have unresolved branches */
   kSealed,     /**< All branches resolved, ready for code generation */
@@ -111,57 +111,57 @@ constexpr FunctionState SEALED = FunctionState::kSealed;
 
 /** 1 scope table entry of an SEH function. */
 struct SehScope {
-  uint32_t tryStart; /**< Offset +0, start of the __try block */
-  uint32_t tryEnd;   /**< Offset +4, end of the __try block */
-  uint32_t handler;  /**< Offset +8, __finally or __except body */
-  uint32_t filter;   /**< Offset +C, 0 for __finally and the address for __except */
+  u32 tryStart; /**< Offset +0, start of the __try block */
+  u32 tryEnd;   /**< Offset +4, end of the __try block */
+  u32 handler;  /**< Offset +8, __finally or __except body */
+  u32 filter;   /**< Offset +C, 0 for __finally and the address for __except */
 };
 
 /** SEH data of 1 function. */
 struct SehExceptionInfo {
-  uint32_t handlerThunk;        /**< Thunk address such as __C_specific_handler */
-  uint32_t scopeTableAddr;      /**< Pointer to the scope table in .rdata */
+  u32 handlerThunk;             /**< Thunk address such as __C_specific_handler */
+  u32 scopeTableAddr;           /**< Pointer to the scope table in .rdata */
   std::vector<SehScope> scopes; /**< Scope table entries */
-  uint32_t frameSize = 0;       /**< Stack frame size for the r12 setup during unwind */
-  uint32_t restoreHelper = 0;   /**< __restgprlr_N address to call on unwind */
+  u32 frameSize = 0;            /**< Stack frame size for the r12 setup during unwind */
+  u32 restoreHelper = 0;        /**< __restgprlr_N address to call on unwind */
 };
 
 /** FuncInfo magic of C++ EH. */
-constexpr uint32_t CXX_EH_MAGIC = 0x19930522;
+constexpr u32 CXX_EH_MAGIC = 0x19930522;
 
 /** 1 entry of the C++ EH unwind map. */
 struct CxxUnwindEntry {
-  int32_t toState; /**< Previous state, -1 for terminal */
-  uint32_t action; /**< Cleanup or destructor function address */
+  i32 toState; /**< Previous state, -1 for terminal */
+  u32 action;  /**< Cleanup or destructor function address */
 };
 
 /** Maps a code address to a C++ EH state. */
 struct CxxIPStateEntry {
-  uint32_t ip;   /**< Code address where the state changes */
-  int32_t state; /**< State in effect from ip */
+  u32 ip;    /**< Code address where the state changes */
+  i32 state; /**< State in effect from ip */
 };
 
 /** 1 catch clause of a C++ try block. */
 struct CxxCatchHandler {
-  uint32_t adjectives;          /**< Catch type flags */
-  uint32_t typeDescriptor;      /**< Pointer to the RTTI type descriptor */
-  int32_t catchObjDisplacement; /**< Frame displacement of the caught object */
-  uint32_t handlerAddress;      /**< Address of the catch body */
+  u32 adjectives;           /**< Catch type flags */
+  u32 typeDescriptor;       /**< Pointer to the RTTI type descriptor */
+  i32 catchObjDisplacement; /**< Frame displacement of the caught object */
+  u32 handlerAddress;       /**< Address of the catch body */
 };
 
 /** 1 C++ try block with its state range and catch clauses. */
 struct CxxTryBlock {
-  int32_t tryLow;                        /**< Lowest state inside the try body */
-  int32_t tryHigh;                       /**< Highest state inside the try body */
-  int32_t catchHigh;                     /**< Highest state inside the catch bodies */
+  i32 tryLow;                            /**< Lowest state inside the try body */
+  i32 tryHigh;                           /**< Highest state inside the try body */
+  i32 catchHigh;                         /**< Highest state inside the catch bodies */
   std::vector<CxxCatchHandler> handlers; /**< Catch clauses of the block */
 };
 
 /** C++ EH data of 1 function. */
 struct CxxExceptionInfo {
-  uint32_t handlerThunk;                     /**< Thunk address of the EH handler */
-  uint32_t funcInfoAddr;                     /**< Address of FuncInfo in .rdata */
-  uint32_t maxState;                         /**< Number of unwind states */
+  u32 handlerThunk;                          /**< Thunk address of the EH handler */
+  u32 funcInfoAddr;                          /**< Address of FuncInfo in .rdata */
+  u32 maxState;                              /**< Number of unwind states */
   std::vector<CxxUnwindEntry> unwindMap;     /**< Unwind action per state */
   std::vector<CxxTryBlock> tryBlocks;        /**< Try blocks of the function */
   std::vector<CxxIPStateEntry> ipToStateMap; /**< Code address to state transitions */
@@ -184,7 +184,7 @@ struct ExceptionInfo {
    *
    * @return Thunk address, or 0 when no info is held
    */
-  uint32_t handlerThunk() const {
+  u32 handlerThunk() const {
     if (auto* seh = asSeh())
       return seh->handlerThunk;
     if (auto* cxx = asCxx())
@@ -201,12 +201,12 @@ struct CallTarget {
   };
   /** Destination is an import thunk. */
   struct ToImport {
-    uint32_t address; /**< Thunk address */
+    u32 address;      /**< Thunk address */
     std::string name; /**< Import name */
   };
   /** Destination not yet resolved. */
   struct Unresolved {
-    uint32_t address; /**< Branch target address */
+    u32 address; /**< Branch target address */
   };
 
   /** Resolved destination, a function, an import thunk or an unresolved address. */
@@ -235,39 +235,37 @@ struct CallTarget {
    * @param name Import name
    * @return The import target
    */
-  static CallTarget import(uint32_t addr, std::string name) {
-    return {ToImport{addr, std::move(name)}};
-  }
-  static CallTarget unresolved(uint32_t addr) { return {Unresolved{addr}}; }
+  static CallTarget import(u32 addr, std::string name) { return {ToImport{addr, std::move(name)}}; }
+  static CallTarget unresolved(u32 addr) { return {Unresolved{addr}}; }
 };
 
 /** A call site within a function. */
 struct CallEdge {
-  uint32_t site;     /**< Address of the bl or b instruction */
+  u32 site;          /**< Address of the bl or b instruction */
   CallTarget target; /**< Destination of the call. */
 };
 
 /** Contiguous run of instructions inside a function. */
 struct Block {
-  uint32_t base; /**< Start address */
-  uint32_t size; /**< Size in bytes */
+  u32 base; /**< Start address */
+  u32 size; /**< Size in bytes */
 
-  uint32_t end() const { return base + size; }
-  bool contains(uint32_t addr) const { return addr >= base && addr < end(); }
+  u32 end() const { return base + size; }
+  bool contains(u32 addr) const { return addr >= base && addr < end(); }
 };
 
 /** Jump table behind an indirect branch. */
 struct JumpTable {
-  uint32_t bctrAddress;          /**< Address of the bctr instruction */
-  uint32_t tableAddress;         /**< Address of the jump table data */
-  uint8_t indexRegister;         /**< Register holding the switch index */
-  std::vector<uint32_t> targets; /**< Resolved case targets, internal labels */
+  u32 bctrAddress;          /**< Address of the bctr instruction */
+  u32 tableAddress;         /**< Address of the jump table data */
+  u8 indexRegister;         /**< Register holding the switch index */
+  std::vector<u32> targets; /**< Resolved case targets, internal labels */
 };
 
 /** Analysis computed at seal time. */
 struct FunctionAnalysis {
   /** CSR requirement for denormal handling. */
-  enum class CsrRequirement : uint8_t { None, Fpu, Vmx };
+  enum class CsrRequirement : u8 { None, Fpu, Vmx };
 
   bool usesCtr = false;   /**< No code sets it, always false. */
   bool usesXer = false;   /**< No code sets it, always false. */
@@ -279,8 +277,8 @@ struct FunctionAnalysis {
 
 /** Internal jump awaiting resolution. */
 struct UnresolvedJump {
-  uint32_t site;      /**< Address of the branch instruction */
-  uint32_t target;    /**< Address of the branch destination. */
+  u32 site;           /**< Address of the branch instruction */
+  u32 target;         /**< Address of the branch destination. */
   bool isCall;        /**< True for bl, false for b */
   bool isConditional; /**< True for bc, beq, bne and other conditional branches */
 };

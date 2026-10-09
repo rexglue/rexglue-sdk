@@ -20,7 +20,7 @@
 namespace rex::gpu {
 using namespace xenos::ucode;
 
-void DxbcShaderTranslator::ExportToMemory(uint8_t export_eM) {
+void DxbcShaderTranslator::ExportToMemory(u8 export_eM) {
   if (!export_eM) {
     return;
   }
@@ -30,7 +30,7 @@ void DxbcShaderTranslator::ExportToMemory(uint8_t export_eM) {
   a_.OpIf(true, dxbc::Src::R(system_temp_memexport_enabled_and_eM_written_, dxbc::Src::kXXXX));
 
   {
-    uint32_t address_check_temp = PushSystemTemp();
+    u32 address_check_temp = PushSystemTemp();
     a_.OpUShR(dxbc::Dest::R(address_check_temp), dxbc::Src::R(system_temp_memexport_address_),
               dxbc::Src::LU(30, 23, 23, 23));
     a_.OpIEq(dxbc::Dest::R(address_check_temp), dxbc::Src::R(address_check_temp),
@@ -44,11 +44,11 @@ void DxbcShaderTranslator::ExportToMemory(uint8_t export_eM) {
     PopSystemTemp();
   }
 
-  uint8_t eM_remaining;
-  uint32_t eM_index;
+  u8 eM_remaining;
+  u32 eM_index;
 
   {
-    uint32_t red_blue_swap_temp = PushSystemTemp();
+    u32 red_blue_swap_temp = PushSystemTemp();
     a_.OpIBFE(dxbc::Dest::R(red_blue_swap_temp, 0b0001), dxbc::Src::LU(1), dxbc::Src::LU(19),
               dxbc::Src::R(system_temp_memexport_address_, dxbc::Src::kZZZZ));
     a_.OpIf(true, dxbc::Src::R(red_blue_swap_temp, dxbc::Src::kXXXX));
@@ -56,7 +56,7 @@ void DxbcShaderTranslator::ExportToMemory(uint8_t export_eM) {
 
     eM_remaining = export_eM;
     while (rex::bit_scan_forward(eM_remaining, &eM_index)) {
-      eM_remaining &= ~(static_cast<uint8_t>(1) << eM_index);
+      eM_remaining &= ~(static_cast<u8>(1) << eM_index);
       a_.OpMov(dxbc::Dest::R(system_temps_memexport_data_[eM_index], 0b0101),
                dxbc::Src::R(system_temps_memexport_data_[eM_index], 0b11000110));
     }
@@ -64,7 +64,7 @@ void DxbcShaderTranslator::ExportToMemory(uint8_t export_eM) {
     a_.OpEndIf();
   }
 
-  uint32_t temp = PushSystemTemp();
+  u32 temp = PushSystemTemp();
 
   a_.OpUBFE(dxbc::Dest::R(temp, 0b0111), dxbc::Src::LU(6, 1, 1, 0), dxbc::Src::LU(8, 16, 17, 0),
             dxbc::Src::R(system_temp_memexport_address_, dxbc::Src::kZZZZ));
@@ -76,13 +76,13 @@ void DxbcShaderTranslator::ExportToMemory(uint8_t export_eM) {
     dxbc::Src num_format_signed(dxbc::Src::R(temp, dxbc::Src::kYYYY));
     dxbc::Src num_format_integer(dxbc::Src::R(temp, dxbc::Src::kZZZZ));
 
-    auto flush_nan = [this, export_eM](uint32_t components) {
-      uint8_t eM_remaining = export_eM;
-      uint32_t eM_index;
-      uint32_t is_nan_temp = PushSystemTemp();
+    auto flush_nan = [this, export_eM](u32 components) {
+      u8 eM_remaining = export_eM;
+      u32 eM_index;
+      u32 is_nan_temp = PushSystemTemp();
       while (rex::bit_scan_forward(eM_remaining, &eM_index)) {
-        eM_remaining &= ~(static_cast<uint8_t>(1) << eM_index);
-        uint32_t eM = system_temps_memexport_data_[eM_index];
+        eM_remaining &= ~(static_cast<u8>(1) << eM_index);
+        u32 eM = system_temps_memexport_data_[eM_index];
         a_.OpNE(dxbc::Dest::R(is_nan_temp, components), dxbc::Src::R(eM), dxbc::Src::R(eM));
         a_.OpMovC(dxbc::Dest::R(eM, components), dxbc::Src::R(is_nan_temp), dxbc::Src::LF(0.0f),
                   dxbc::Src::R(eM));
@@ -91,17 +91,17 @@ void DxbcShaderTranslator::ExportToMemory(uint8_t export_eM) {
     };
 
     // Widths must have no holes and sum to the texel size (8, 16 or 32 bits), upper bits are junk.
-    auto pack_8_16_32 = [&](std::array<uint32_t, 4> widths) {
-      uint8_t eM_remaining;
-      uint32_t eM_index;
+    auto pack_8_16_32 = [&](std::array<u32, 4> widths) {
+      u8 eM_remaining;
+      u32 eM_index;
 
-      uint32_t components = 0;
-      std::array<uint32_t, 4> offsets = {};
-      for (uint32_t i = 0; i < 4; ++i) {
+      u32 components = 0;
+      std::array<u32, 4> offsets = {};
+      for (u32 i = 0; i < 4; ++i) {
         if (widths[i]) {
           // Only formats for which max + 0.5 is exactly representable.
           assert(widths[i] <= 23);
-          components |= static_cast<uint32_t>(1) << i;
+          components |= static_cast<u32>(1) << i;
         }
         if (i) {
           offsets[i] = offsets[i - 1] + widths[i - 1];
@@ -115,10 +115,10 @@ void DxbcShaderTranslator::ExportToMemory(uint8_t export_eM) {
       {
         a_.OpIf(true, num_format_integer);
         {
-          float min_value[4] = {}, max_value[4] = {};
-          for (uint32_t i = 0; i < 4; ++i) {
+          f32 min_value[4] = {}, max_value[4] = {};
+          for (u32 i = 0; i < 4; ++i) {
             if (widths[i]) {
-              max_value[i] = static_cast<float>((static_cast<uint32_t>(1) << (widths[i] - 1)) - 1);
+              max_value[i] = static_cast<f32>((static_cast<u32>(1) << (widths[i] - 1)) - 1);
               min_value[i] = -1.0f - max_value[i];
             }
           }
@@ -126,27 +126,27 @@ void DxbcShaderTranslator::ExportToMemory(uint8_t export_eM) {
           dxbc::Src max_value_src(dxbc::Src::LP(max_value));
           eM_remaining = export_eM;
           while (rex::bit_scan_forward(eM_remaining, &eM_index)) {
-            eM_remaining &= ~(static_cast<uint8_t>(1) << eM_index);
-            uint32_t eM = system_temps_memexport_data_[eM_index];
+            eM_remaining &= ~(static_cast<u8>(1) << eM_index);
+            u32 eM = system_temps_memexport_data_[eM_index];
             a_.OpMax(dxbc::Dest::R(eM, components), min_value_src, dxbc::Src::R(eM));
             a_.OpMin(dxbc::Dest::R(eM, components), max_value_src, dxbc::Src::R(eM));
           }
         }
         a_.OpElse();
         {
-          uint32_t scale_components = 0;
-          float scale[4] = {};
-          for (uint32_t i = 0; i < 4; ++i) {
+          u32 scale_components = 0;
+          f32 scale[4] = {};
+          for (u32 i = 0; i < 4; ++i) {
             if (widths[i] > 2) {
-              scale_components |= static_cast<uint32_t>(1) << i;
-              scale[i] = static_cast<float>((static_cast<uint32_t>(1) << (widths[i] - 1)) - 1);
+              scale_components |= static_cast<u32>(1) << i;
+              scale[i] = static_cast<f32>((static_cast<u32>(1) << (widths[i] - 1)) - 1);
             }
           }
           dxbc::Src scale_src(dxbc::Src::LP(scale));
           eM_remaining = export_eM;
           while (rex::bit_scan_forward(eM_remaining, &eM_index)) {
-            eM_remaining &= ~(static_cast<uint8_t>(1) << eM_index);
-            uint32_t eM = system_temps_memexport_data_[eM_index];
+            eM_remaining &= ~(static_cast<u8>(1) << eM_index);
+            u32 eM = system_temps_memexport_data_[eM_index];
             a_.OpMax(dxbc::Dest::R(eM, components), dxbc::Src::LF(-1.0f), dxbc::Src::R(eM));
             a_.OpMin(dxbc::Dest::R(eM, components), dxbc::Src::LF(1.0f), dxbc::Src::R(eM));
             if (scale_components) {
@@ -156,11 +156,11 @@ void DxbcShaderTranslator::ExportToMemory(uint8_t export_eM) {
         }
         a_.OpEndIf();
 
-        uint32_t round_bias_temp = PushSystemTemp();
+        u32 round_bias_temp = PushSystemTemp();
         eM_remaining = export_eM;
         while (rex::bit_scan_forward(eM_remaining, &eM_index)) {
-          eM_remaining &= ~(static_cast<uint8_t>(1) << eM_index);
-          uint32_t eM = system_temps_memexport_data_[eM_index];
+          eM_remaining &= ~(static_cast<u8>(1) << eM_index);
+          u32 eM = system_temps_memexport_data_[eM_index];
           a_.OpBFI(dxbc::Dest::R(eM, components), dxbc::Src::LU(31), dxbc::Src::LU(0),
                    dxbc::Src::LF(0.5f), dxbc::Src::R(eM));
           a_.OpAdd(dxbc::Dest::R(eM, components), dxbc::Src::R(eM), dxbc::Src::R(round_bias_temp));
@@ -172,34 +172,34 @@ void DxbcShaderTranslator::ExportToMemory(uint8_t export_eM) {
       {
         a_.OpIf(true, num_format_integer);
         {
-          float max_value[4];
-          for (uint32_t i = 0; i < 4; ++i) {
-            max_value[i] = static_cast<float>((static_cast<uint32_t>(1) << widths[i]) - 1);
+          f32 max_value[4];
+          for (u32 i = 0; i < 4; ++i) {
+            max_value[i] = static_cast<f32>((static_cast<u32>(1) << widths[i]) - 1);
           }
           dxbc::Src max_value_src(dxbc::Src::LP(max_value));
           eM_remaining = export_eM;
           while (rex::bit_scan_forward(eM_remaining, &eM_index)) {
-            eM_remaining &= ~(static_cast<uint8_t>(1) << eM_index);
-            uint32_t eM = system_temps_memexport_data_[eM_index];
+            eM_remaining &= ~(static_cast<u8>(1) << eM_index);
+            u32 eM = system_temps_memexport_data_[eM_index];
             a_.OpMax(dxbc::Dest::R(eM, components), dxbc::Src::LF(0.0f), dxbc::Src::R(eM));
             a_.OpMin(dxbc::Dest::R(eM, components), max_value_src, dxbc::Src::R(eM));
           }
         }
         a_.OpElse();
         {
-          uint32_t scale_components = 0;
-          float scale[4] = {};
-          for (uint32_t i = 0; i < 4; ++i) {
+          u32 scale_components = 0;
+          f32 scale[4] = {};
+          for (u32 i = 0; i < 4; ++i) {
             if (widths[i] > 1) {
-              scale_components |= static_cast<uint32_t>(1) << i;
-              scale[i] = static_cast<float>((static_cast<uint32_t>(1) << widths[i]) - 1);
+              scale_components |= static_cast<u32>(1) << i;
+              scale[i] = static_cast<f32>((static_cast<u32>(1) << widths[i]) - 1);
             }
           }
           dxbc::Src scale_src(dxbc::Src::LP(scale));
           eM_remaining = export_eM;
           while (rex::bit_scan_forward(eM_remaining, &eM_index)) {
-            eM_remaining &= ~(static_cast<uint8_t>(1) << eM_index);
-            uint32_t eM = system_temps_memexport_data_[eM_index];
+            eM_remaining &= ~(static_cast<u8>(1) << eM_index);
+            u32 eM = system_temps_memexport_data_[eM_index];
             a_.OpMov(dxbc::Dest::R(eM, components), dxbc::Src::R(eM), true);
             if (scale_components) {
               a_.OpMul(dxbc::Dest::R(eM, scale_components), dxbc::Src::R(eM), scale_src);
@@ -210,15 +210,15 @@ void DxbcShaderTranslator::ExportToMemory(uint8_t export_eM) {
 
         eM_remaining = export_eM;
         while (rex::bit_scan_forward(eM_remaining, &eM_index)) {
-          eM_remaining &= ~(static_cast<uint8_t>(1) << eM_index);
-          uint32_t eM = system_temps_memexport_data_[eM_index];
+          eM_remaining &= ~(static_cast<u8>(1) << eM_index);
+          u32 eM = system_temps_memexport_data_[eM_index];
           a_.OpAdd(dxbc::Dest::R(eM, components), dxbc::Src::R(eM), dxbc::Src::LF(0.5f));
           a_.OpFToU(dxbc::Dest::R(eM, components), dxbc::Src::R(eM));
         }
       }
       a_.OpEndIf();
 
-      for (uint32_t i = 0; i < 4; ++i) {
+      for (u32 i = 0; i < 4; ++i) {
         if (!widths[i]) {
           continue;
         }
@@ -226,8 +226,8 @@ void DxbcShaderTranslator::ExportToMemory(uint8_t export_eM) {
         dxbc::Src offset_src(dxbc::Src::LU(offsets[i]));
         eM_remaining = export_eM;
         while (rex::bit_scan_forward(eM_remaining, &eM_index)) {
-          eM_remaining &= ~(static_cast<uint8_t>(1) << eM_index);
-          uint32_t eM = system_temps_memexport_data_[eM_index];
+          eM_remaining &= ~(static_cast<u8>(1) << eM_index);
+          u32 eM = system_temps_memexport_data_[eM_index];
           a_.OpBFI(dxbc::Dest::R(eM, 0b0001), width_src, offset_src, dxbc::Src::R(eM).Select(i),
                    dxbc::Src::R(eM, dxbc::Src::kXXXX));
         }
@@ -335,11 +335,11 @@ void DxbcShaderTranslator::ExportToMemory(uint8_t export_eM) {
         {
           eM_remaining = export_eM;
           while (rex::bit_scan_forward(eM_remaining, &eM_index)) {
-            eM_remaining &= ~(static_cast<uint8_t>(1) << eM_index);
-            uint32_t eM = system_temps_memexport_data_[eM_index];
-            a_.OpMax(dxbc::Dest::R(eM), dxbc::Src::LF(static_cast<float>(INT16_MIN)),
+            eM_remaining &= ~(static_cast<u8>(1) << eM_index);
+            u32 eM = system_temps_memexport_data_[eM_index];
+            a_.OpMax(dxbc::Dest::R(eM), dxbc::Src::LF(static_cast<f32>(INT16_MIN)),
                      dxbc::Src::R(eM));
-            a_.OpMin(dxbc::Dest::R(eM), dxbc::Src::LF(static_cast<float>(INT16_MAX)),
+            a_.OpMin(dxbc::Dest::R(eM), dxbc::Src::LF(static_cast<f32>(INT16_MAX)),
                      dxbc::Src::R(eM));
           }
         }
@@ -347,21 +347,21 @@ void DxbcShaderTranslator::ExportToMemory(uint8_t export_eM) {
         {
           eM_remaining = export_eM;
           while (rex::bit_scan_forward(eM_remaining, &eM_index)) {
-            eM_remaining &= ~(static_cast<uint8_t>(1) << eM_index);
-            uint32_t eM = system_temps_memexport_data_[eM_index];
+            eM_remaining &= ~(static_cast<u8>(1) << eM_index);
+            u32 eM = system_temps_memexport_data_[eM_index];
             a_.OpMax(dxbc::Dest::R(eM), dxbc::Src::LF(-1.0f), dxbc::Src::R(eM));
             a_.OpMin(dxbc::Dest::R(eM), dxbc::Src::LF(1.0f), dxbc::Src::R(eM));
             a_.OpMul(dxbc::Dest::R(eM), dxbc::Src::R(eM),
-                     dxbc::Src::LF(static_cast<float>(INT16_MAX)));
+                     dxbc::Src::LF(static_cast<f32>(INT16_MAX)));
           }
         }
         a_.OpEndIf();
 
-        uint32_t round_bias_temp = PushSystemTemp();
+        u32 round_bias_temp = PushSystemTemp();
         eM_remaining = export_eM;
         while (rex::bit_scan_forward(eM_remaining, &eM_index)) {
-          eM_remaining &= ~(static_cast<uint8_t>(1) << eM_index);
-          uint32_t eM = system_temps_memexport_data_[eM_index];
+          eM_remaining &= ~(static_cast<u8>(1) << eM_index);
+          u32 eM = system_temps_memexport_data_[eM_index];
           a_.OpBFI(dxbc::Dest::R(eM), dxbc::Src::LU(31), dxbc::Src::LU(0), dxbc::Src::LF(0.5f),
                    dxbc::Src::R(eM));
           a_.OpAdd(dxbc::Dest::R(eM), dxbc::Src::R(eM), dxbc::Src::R(round_bias_temp));
@@ -375,10 +375,10 @@ void DxbcShaderTranslator::ExportToMemory(uint8_t export_eM) {
         {
           eM_remaining = export_eM;
           while (rex::bit_scan_forward(eM_remaining, &eM_index)) {
-            eM_remaining &= ~(static_cast<uint8_t>(1) << eM_index);
-            uint32_t eM = system_temps_memexport_data_[eM_index];
+            eM_remaining &= ~(static_cast<u8>(1) << eM_index);
+            u32 eM = system_temps_memexport_data_[eM_index];
             a_.OpMax(dxbc::Dest::R(eM), dxbc::Src::LF(0.0f), dxbc::Src::R(eM));
-            a_.OpMin(dxbc::Dest::R(eM), dxbc::Src::LF(static_cast<float>(UINT16_MAX)),
+            a_.OpMin(dxbc::Dest::R(eM), dxbc::Src::LF(static_cast<f32>(UINT16_MAX)),
                      dxbc::Src::R(eM));
           }
         }
@@ -386,19 +386,19 @@ void DxbcShaderTranslator::ExportToMemory(uint8_t export_eM) {
         {
           eM_remaining = export_eM;
           while (rex::bit_scan_forward(eM_remaining, &eM_index)) {
-            eM_remaining &= ~(static_cast<uint8_t>(1) << eM_index);
-            uint32_t eM = system_temps_memexport_data_[eM_index];
+            eM_remaining &= ~(static_cast<u8>(1) << eM_index);
+            u32 eM = system_temps_memexport_data_[eM_index];
             a_.OpMov(dxbc::Dest::R(eM), dxbc::Src::R(eM), true);
             a_.OpMul(dxbc::Dest::R(eM), dxbc::Src::R(eM),
-                     dxbc::Src::LF(static_cast<float>(UINT16_MAX)));
+                     dxbc::Src::LF(static_cast<f32>(UINT16_MAX)));
           }
         }
         a_.OpEndIf();
 
         eM_remaining = export_eM;
         while (rex::bit_scan_forward(eM_remaining, &eM_index)) {
-          eM_remaining &= ~(static_cast<uint8_t>(1) << eM_index);
-          uint32_t eM = system_temps_memexport_data_[eM_index];
+          eM_remaining &= ~(static_cast<u8>(1) << eM_index);
+          u32 eM = system_temps_memexport_data_[eM_index];
           a_.OpAdd(dxbc::Dest::R(eM), dxbc::Src::R(eM), dxbc::Src::LF(0.5f));
           a_.OpFToU(dxbc::Dest::R(eM), dxbc::Src::R(eM));
         }
@@ -407,8 +407,8 @@ void DxbcShaderTranslator::ExportToMemory(uint8_t export_eM) {
 
       eM_remaining = export_eM;
       while (rex::bit_scan_forward(eM_remaining, &eM_index)) {
-        eM_remaining &= ~(static_cast<uint8_t>(1) << eM_index);
-        uint32_t eM = system_temps_memexport_data_[eM_index];
+        eM_remaining &= ~(static_cast<u8>(1) << eM_index);
+        u32 eM = system_temps_memexport_data_[eM_index];
         a_.OpBFI(dxbc::Dest::R(eM, 0b0011), dxbc::Src::LU(16), dxbc::Src::LU(16),
                  dxbc::Src::R(eM, 0b1101), dxbc::Src::R(eM, 0b1000));
       }
@@ -421,8 +421,8 @@ void DxbcShaderTranslator::ExportToMemory(uint8_t export_eM) {
     {
       eM_remaining = export_eM;
       while (rex::bit_scan_forward(eM_remaining, &eM_index)) {
-        eM_remaining &= ~(static_cast<uint8_t>(1) << eM_index);
-        uint32_t eM = system_temps_memexport_data_[eM_index];
+        eM_remaining &= ~(static_cast<u8>(1) << eM_index);
+        u32 eM = system_temps_memexport_data_[eM_index];
         a_.OpF32ToF16(dxbc::Dest::R(eM, 0b0001), dxbc::Src::R(eM, dxbc::Src::kXXXX));
       }
       a_.OpMov(element_size_dest, dxbc::Src::LU(1));
@@ -433,8 +433,8 @@ void DxbcShaderTranslator::ExportToMemory(uint8_t export_eM) {
     {
       eM_remaining = export_eM;
       while (rex::bit_scan_forward(eM_remaining, &eM_index)) {
-        eM_remaining &= ~(static_cast<uint8_t>(1) << eM_index);
-        uint32_t eM = system_temps_memexport_data_[eM_index];
+        eM_remaining &= ~(static_cast<u8>(1) << eM_index);
+        u32 eM = system_temps_memexport_data_[eM_index];
         a_.OpF32ToF16(dxbc::Dest::R(eM, 0b0011), dxbc::Src::R(eM));
         a_.OpBFI(dxbc::Dest::R(eM, 0b0001), dxbc::Src::LU(16), dxbc::Src::LU(16),
                  dxbc::Src::R(eM, dxbc::Src::kYYYY), dxbc::Src::R(eM, dxbc::Src::kXXXX));
@@ -447,8 +447,8 @@ void DxbcShaderTranslator::ExportToMemory(uint8_t export_eM) {
     {
       eM_remaining = export_eM;
       while (rex::bit_scan_forward(eM_remaining, &eM_index)) {
-        eM_remaining &= ~(static_cast<uint8_t>(1) << eM_index);
-        uint32_t eM = system_temps_memexport_data_[eM_index];
+        eM_remaining &= ~(static_cast<u8>(1) << eM_index);
+        u32 eM = system_temps_memexport_data_[eM_index];
         a_.OpF32ToF16(dxbc::Dest::R(eM), dxbc::Src::R(eM));
         a_.OpBFI(dxbc::Dest::R(eM, 0b0011), dxbc::Src::LU(16), dxbc::Src::LU(16),
                  dxbc::Src::R(eM, 0b1101), dxbc::Src::R(eM, 0b1000));
@@ -483,14 +483,14 @@ void DxbcShaderTranslator::ExportToMemory(uint8_t export_eM) {
     a_.OpUBFE(endian_dest, dxbc::Src::LU(3), dxbc::Src::LU(0),
               dxbc::Src::R(system_temp_memexport_address_, dxbc::Src::kZZZZ));
 
-    for (uint32_t i = 0; i < 2; ++i) {
+    for (u32 i = 0; i < 2; ++i) {
       a_.OpIEq(dxbc::Dest::R(temp, 0b0100), endian_src,
-               dxbc::Src::LU(static_cast<uint32_t>(i ? xenos::Endian128::k8in128
-                                                     : xenos::Endian128::k8in64)));
+               dxbc::Src::LU(
+                   static_cast<u32>(i ? xenos::Endian128::k8in128 : xenos::Endian128::k8in64)));
       eM_remaining = export_eM;
       while (rex::bit_scan_forward(eM_remaining, &eM_index)) {
-        eM_remaining &= ~(static_cast<uint8_t>(1) << eM_index);
-        uint32_t eM = system_temps_memexport_data_[eM_index];
+        eM_remaining &= ~(static_cast<u8>(1) << eM_index);
+        u32 eM = system_temps_memexport_data_[eM_index];
         a_.OpMovC(dxbc::Dest::R(eM), dxbc::Src::R(temp, dxbc::Src::kZZZZ),
                   dxbc::Src::R(eM, i ? 0b00011011 : 0b10110001), dxbc::Src::R(eM));
       }
@@ -498,7 +498,7 @@ void DxbcShaderTranslator::ExportToMemory(uint8_t export_eM) {
                 dxbc::Src::LU(std::to_underlying(xenos::Endian128::k8in32)), endian_src);
     }
 
-    uint32_t swap_temp = PushSystemTemp();
+    u32 swap_temp = PushSystemTemp();
     dxbc::Dest swap_temp_dest(dxbc::Dest::R(swap_temp));
     dxbc::Src swap_temp_src(dxbc::Src::R(swap_temp));
 
@@ -507,8 +507,8 @@ void DxbcShaderTranslator::ExportToMemory(uint8_t export_eM) {
     a_.OpCase(dxbc::Src::LU(std::to_underlying(xenos::Endian128::k8in32)));
     eM_remaining = export_eM;
     while (rex::bit_scan_forward(eM_remaining, &eM_index)) {
-      eM_remaining &= ~(static_cast<uint8_t>(1) << eM_index);
-      uint32_t eM = system_temps_memexport_data_[eM_index];
+      eM_remaining &= ~(static_cast<u8>(1) << eM_index);
+      u32 eM = system_temps_memexport_data_[eM_index];
       dxbc::Dest eM_dest(dxbc::Dest::R(eM));
       dxbc::Src eM_src(dxbc::Src::R(eM));
       a_.OpAnd(swap_temp_dest, eM_src, dxbc::Src::LU(0x00FF00FF));
@@ -524,8 +524,8 @@ void DxbcShaderTranslator::ExportToMemory(uint8_t export_eM) {
     a_.OpCase(dxbc::Src::LU(std::to_underlying(xenos::Endian128::k16in32)));
     eM_remaining = export_eM;
     while (rex::bit_scan_forward(eM_remaining, &eM_index)) {
-      eM_remaining &= ~(static_cast<uint8_t>(1) << eM_index);
-      uint32_t eM = system_temps_memexport_data_[eM_index];
+      eM_remaining &= ~(static_cast<u8>(1) << eM_index);
+      u32 eM = system_temps_memexport_data_[eM_index];
       dxbc::Dest eM_dest(dxbc::Dest::R(eM));
       dxbc::Src eM_src(dxbc::Src::R(eM));
       a_.OpUShR(swap_temp_dest, eM_src, dxbc::Src::LU(16));
@@ -550,9 +550,9 @@ void DxbcShaderTranslator::ExportToMemory(uint8_t export_eM) {
             dxbc::Src::R(system_temp_memexport_address_, dxbc::Src::kXXXX), dxbc::Src::LU(2));
   dxbc::Src base_address_src(dxbc::Src::R(temp, dxbc::Src::kWWWW));
 
-  uint8_t export_eM14 = export_eM >> 1;
+  u8 export_eM14 = export_eM >> 1;
   REX_ASSERT((export_eM14 >> 4) == 0);
-  uint32_t eM14_address_temp = UINT32_MAX, store_eM14_temp = UINT32_MAX;
+  u32 eM14_address_temp = UINT32_MAX, store_eM14_temp = UINT32_MAX;
   if (export_eM14) {
     eM14_address_temp = PushSystemTemp();
     dxbc::Dest eM14_address_dest(dxbc::Dest::R(eM14_address_temp, export_eM14));
@@ -562,7 +562,7 @@ void DxbcShaderTranslator::ExportToMemory(uint8_t export_eM) {
     dxbc::Src store_eM14_src(dxbc::Src::R(store_eM14_temp));
     a_.OpIAdd(eM14_address_dest, eM0_address_src, dxbc::Src::LU(1, 2, 3, 4));
     a_.OpILT(store_eM14_dest, eM14_address_src, index_count_src);
-    uint32_t eM14_written_temp = PushSystemTemp();
+    u32 eM14_written_temp = PushSystemTemp();
     a_.OpIBFE(dxbc::Dest::R(eM14_written_temp, export_eM14), dxbc::Src::LU(1),
               dxbc::Src::LU(1, 2, 3, 4),
               dxbc::Src::R(system_temp_memexport_enabled_and_eM_written_, dxbc::Src::kYYYY));
@@ -583,21 +583,21 @@ void DxbcShaderTranslator::ExportToMemory(uint8_t export_eM) {
   if (uav_index_shared_memory_ == kBindingIndexUnallocated) {
     uav_index_shared_memory_ = uav_count_++;
   }
-  uint8_t eM14_remaining;
-  uint32_t eM14_index;
+  u8 eM14_remaining;
+  u32 eM14_index;
   a_.OpSwitch(element_size_src);
 
   dxbc::Dest atomic_dest(
       dxbc::Dest::U(uav_index_shared_memory_, std::to_underlying(UAVRegister::kSharedMemory), 0));
-  for (uint32_t i = 0; i <= 1; ++i) {
+  for (u32 i = 0; i <= 1; ++i) {
     a_.OpCase(dxbc::Src::LU(i));
     dxbc::Src width_src(dxbc::Src::LU(8 << i));
-    uint32_t sub_dword_temp = PushSystemTemp();
+    u32 sub_dword_temp = PushSystemTemp();
     if (export_eM & 0b1) {
       a_.OpIf(true, eM0_written_src);
       a_.OpBFI(dxbc::Dest::R(sub_dword_temp, 0b0001), dxbc::Src::LU(2), dxbc::Src::LU(3),
                eM0_address_src, dxbc::Src::LU(0));
-      a_.OpAnd(eM0_address_dest, eM0_address_src, dxbc::Src::LU(~static_cast<uint32_t>(3)));
+      a_.OpAnd(eM0_address_dest, eM0_address_src, dxbc::Src::LU(~static_cast<u32>(3)));
       a_.OpBFI(dxbc::Dest::R(sub_dword_temp, 0b0010), width_src,
                dxbc::Src::R(sub_dword_temp, dxbc::Src::kXXXX), dxbc::Src::LU(0),
                dxbc::Src::LU(UINT32_MAX));
@@ -614,11 +614,11 @@ void DxbcShaderTranslator::ExportToMemory(uint8_t export_eM) {
       a_.OpBFI(dxbc::Dest::R(sub_dword_temp, export_eM14), dxbc::Src::LU(2), dxbc::Src::LU(3),
                dxbc::Src::R(eM14_address_temp), dxbc::Src::LU(0));
       a_.OpAnd(dxbc::Dest::R(eM14_address_temp, export_eM14), dxbc::Src::R(eM14_address_temp),
-               dxbc::Src::LU(~static_cast<uint32_t>(3)));
-      uint32_t sub_dword_data_temp = PushSystemTemp();
+               dxbc::Src::LU(~static_cast<u32>(3)));
+      u32 sub_dword_data_temp = PushSystemTemp();
       eM14_remaining = export_eM14;
       while (rex::bit_scan_forward(eM14_remaining, &eM14_index)) {
-        eM14_remaining &= ~(static_cast<uint8_t>(1) << eM14_index);
+        eM14_remaining &= ~(static_cast<u8>(1) << eM14_index);
         a_.OpIf(true, dxbc::Src::R(store_eM14_temp).Select(eM14_index));
         a_.OpBFI(dxbc::Dest::R(sub_dword_data_temp, 0b0001), width_src,
                  dxbc::Src::R(sub_dword_temp).Select(eM14_index), dxbc::Src::LU(0),
@@ -639,9 +639,9 @@ void DxbcShaderTranslator::ExportToMemory(uint8_t export_eM) {
     a_.OpBreak();
   }
 
-  for (uint32_t i = 2; i <= 4; ++i) {
+  for (u32 i = 2; i <= 4; ++i) {
     a_.OpCase(dxbc::Src::LU(i));
-    uint32_t store_mask = (static_cast<uint32_t>(1) << (static_cast<uint32_t>(1) << (i - 2))) - 1;
+    u32 store_mask = (static_cast<u32>(1) << (static_cast<u32>(1) << (i - 2))) - 1;
     dxbc::Dest store_dest(dxbc::Dest::U(
         uav_index_shared_memory_, std::to_underlying(UAVRegister::kSharedMemory), store_mask));
     if (export_eM & 0b1) {
@@ -651,7 +651,7 @@ void DxbcShaderTranslator::ExportToMemory(uint8_t export_eM) {
     }
     eM14_remaining = export_eM14;
     while (rex::bit_scan_forward(eM14_remaining, &eM14_index)) {
-      eM14_remaining &= ~(static_cast<uint8_t>(1) << eM14_index);
+      eM14_remaining &= ~(static_cast<u8>(1) << eM14_index);
       a_.OpIf(true, dxbc::Src::R(store_eM14_temp).Select(eM14_index));
       a_.OpStoreRaw(store_dest, dxbc::Src::R(eM14_address_temp).Select(eM14_index),
                     dxbc::Src::R(system_temps_memexport_data_[1 + eM14_index]));

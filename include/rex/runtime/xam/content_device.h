@@ -19,13 +19,13 @@ namespace runtime {
 namespace xam {
 
 /** Storage device type. */
-enum class DeviceType : uint32_t {
+enum class DeviceType : u32 {
   HDD = 1, /**< Hard disk. */
   ODD = 4, /**< Optical disc. */
 };
 
 /** Ids of the placeholder devices reported to the title. */
-enum class DummyDeviceId : uint32_t {
+enum class DummyDeviceId : u32 {
   HDD = 1, /**< Placeholder hard disk. */
   ODD = 2, /**< Placeholder optical disc. */
 };
@@ -34,8 +34,8 @@ enum class DummyDeviceId : uint32_t {
 struct DummyDeviceInfo {
   DummyDeviceId device_id;        /**< Id the title refers to the device by. */
   DeviceType device_type;         /**< Device type. */
-  uint64_t total_bytes;           /**< Capacity in bytes. */
-  uint64_t free_bytes;            /**< Free space in bytes. */
+  u64 total_bytes;                /**< Capacity in bytes. */
+  u64 free_bytes;                 /**< Free space in bytes. */
   const std::u16string_view name; /**< Display name. */
 };
 
@@ -45,7 +45,7 @@ struct DummyDeviceInfo {
  * @param device_id The DummyDeviceId value.
  * @return The device, null when no placeholder has the id.
  */
-REX_RUNTIME_API const DummyDeviceInfo* GetDummyDeviceInfo(uint32_t device_id);
+REX_RUNTIME_API const DummyDeviceInfo* GetDummyDeviceInfo(u32 device_id);
 
 }  // namespace xam
 }  // namespace runtime

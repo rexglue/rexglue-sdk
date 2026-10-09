@@ -27,7 +27,7 @@ namespace rex {
 namespace ui {
 
 Window::Window(WindowedAppContext& app_context, const std::string_view title,
-               uint32_t desired_logical_width, uint32_t desired_logical_height)
+               u32 desired_logical_width, u32 desired_logical_height)
     : app_context_(app_context),
       desired_logical_width_(desired_logical_width),
       desired_logical_height_(desired_logical_height),
@@ -220,7 +220,7 @@ void Window::RefreshFullscreen() {
   }
 }
 
-void Window::SetMonitor(int32_t new_monitor) {
+void Window::SetMonitor(i32 new_monitor) {
   if (monitor_ == new_monitor) {
     return;
   }
@@ -235,8 +235,7 @@ void Window::SetMonitor(int32_t new_monitor) {
   }
 }
 
-void Window::SetDesiredLogicalSize(uint32_t new_desired_logical_width,
-                                   uint32_t new_desired_logical_height) {
+void Window::SetDesiredLogicalSize(u32 new_desired_logical_width, u32 new_desired_logical_height) {
   if (desired_logical_width_ == new_desired_logical_width &&
       desired_logical_height_ == new_desired_logical_height) {
     return;
@@ -253,14 +252,14 @@ void Window::SetDesiredLogicalSize(uint32_t new_desired_logical_width,
   }
 }
 
-void Window::ResolveConfiguredLogicalSize(uint32_t& width_out, uint32_t& height_out) {
-  int32_t configured_width = REXCVAR_GET(::rex::ui::cvars::window_width);
-  int32_t configured_height = REXCVAR_GET(::rex::ui::cvars::window_height);
+void Window::ResolveConfiguredLogicalSize(u32& width_out, u32& height_out) {
+  i32 configured_width = REXCVAR_GET(::rex::ui::cvars::window_width);
+  i32 configured_height = REXCVAR_GET(::rex::ui::cvars::window_height);
   if (configured_width <= 0 || configured_height <= 0) {
     detail::ResolveConfiguredSize(configured_width, configured_height);
   }
-  width_out = static_cast<uint32_t>(std::clamp(configured_width, 1, 8192));
-  height_out = static_cast<uint32_t>(std::clamp(configured_height, 1, 8192));
+  width_out = static_cast<u32>(std::clamp(configured_width, 1, 8192));
+  height_out = static_cast<u32>(std::clamp(configured_height, 1, 8192));
 }
 
 void Window::SetTitle(const std::string_view new_title) {
@@ -455,7 +454,7 @@ void Window::OnMonitorUpdate(MonitorUpdateEvent& e) {
   }
 }
 
-bool Window::OnActualSizeUpdate(uint32_t new_physical_width, uint32_t new_physical_height,
+bool Window::OnActualSizeUpdate(u32 new_physical_width, u32 new_physical_height,
                                 WindowDestructionReceiver& destruction_receiver) {
   if (actual_physical_width_ == new_physical_width &&
       actual_physical_height_ == new_physical_height) {

@@ -216,8 +216,8 @@ void Clock::ScaleGuestDurationTimeval(i32* tv_sec, i32* tv_usec) {
     scaled_usec -= overflow_sec * 1000000;
     scaled_sec += overflow_sec;
   }
-  *tv_sec = static_cast<int32_t>(scaled_sec);
-  *tv_usec = static_cast<int32_t>(scaled_usec);
+  *tv_sec = static_cast<i32>(scaled_sec);
+  *tv_usec = static_cast<i32>(scaled_usec);
 }
 
 }  // namespace rex

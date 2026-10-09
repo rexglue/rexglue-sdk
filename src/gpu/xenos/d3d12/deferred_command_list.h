@@ -227,7 +227,7 @@ class DeferredCommandList {
                      header_size + num_views * sizeof(D3D12_VERTEX_BUFFER_VIEW)));
     args->start_slot = start_slot;
     args->num_views = num_views;
-    std::memcpy(reinterpret_cast<uint8_t*>(args) + header_size, views,
+    std::memcpy(reinterpret_cast<u8*>(args) + header_size, views,
                 sizeof(D3D12_VERTEX_BUFFER_VIEW) * num_views);
   }
 
@@ -272,7 +272,7 @@ class DeferredCommandList {
     }
     static_assert(alignof(D3D12_RESOURCE_BARRIER) <= alignof(uintmax_t));
     const size_t header_size = ::rex::align(sizeof(UINT), alignof(D3D12_RESOURCE_BARRIER));
-    uint8_t* args = reinterpret_cast<uint8_t*>(WriteCommand(
+    u8* args = reinterpret_cast<u8*>(WriteCommand(
         Command::kD3DResourceBarrier, header_size + num_barriers * sizeof(D3D12_RESOURCE_BARRIER)));
     *reinterpret_cast<UINT*>(args) = num_barriers;
     std::memcpy(args + header_size, barriers, num_barriers * sizeof(D3D12_RESOURCE_BARRIER));
@@ -295,13 +295,13 @@ class DeferredCommandList {
     if (num_32bit_values_to_set == 0) {
       return;
     }
-    auto args = reinterpret_cast<SetRoot32BitConstantsHeader*>(WriteCommand(
-        Command::kD3DSetComputeRoot32BitConstants,
-        sizeof(SetRoot32BitConstantsHeader) + num_32bit_values_to_set * sizeof(uint32_t)));
+    auto args = reinterpret_cast<SetRoot32BitConstantsHeader*>(
+        WriteCommand(Command::kD3DSetComputeRoot32BitConstants,
+                     sizeof(SetRoot32BitConstantsHeader) + num_32bit_values_to_set * sizeof(u32)));
     args->root_parameter_index = root_parameter_index;
     args->num_32bit_values_to_set = num_32bit_values_to_set;
     args->dest_offset_in_32bit_values = dest_offset_in_32bit_values;
-    std::memcpy(args + 1, src_data, num_32bit_values_to_set * sizeof(uint32_t));
+    std::memcpy(args + 1, src_data, num_32bit_values_to_set * sizeof(u32));
   }
 
   void D3DSetGraphicsRoot32BitConstants(UINT root_parameter_index, UINT num_32bit_values_to_set,
@@ -309,13 +309,13 @@ class DeferredCommandList {
     if (num_32bit_values_to_set == 0) {
       return;
     }
-    auto args = reinterpret_cast<SetRoot32BitConstantsHeader*>(WriteCommand(
-        Command::kD3DSetGraphicsRoot32BitConstants,
-        sizeof(SetRoot32BitConstantsHeader) + num_32bit_values_to_set * sizeof(uint32_t)));
+    auto args = reinterpret_cast<SetRoot32BitConstantsHeader*>(
+        WriteCommand(Command::kD3DSetGraphicsRoot32BitConstants,
+                     sizeof(SetRoot32BitConstantsHeader) + num_32bit_values_to_set * sizeof(u32)));
     args->root_parameter_index = root_parameter_index;
     args->num_32bit_values_to_set = num_32bit_values_to_set;
     args->dest_offset_in_32bit_values = dest_offset_in_32bit_values;
-    std::memcpy(args + 1, src_data, num_32bit_values_to_set * sizeof(uint32_t));
+    std::memcpy(args + 1, src_data, num_32bit_values_to_set * sizeof(u32));
   }
 
   void D3DSetComputeRootConstantBufferView(UINT root_parameter_index,
@@ -431,10 +431,10 @@ class DeferredCommandList {
 
   void BeginDebugMarker(const char* label_name) {
     size_t label_len = std::strlen(label_name);
-    uint8_t* args_ptr = reinterpret_cast<uint8_t*>(
+    u8* args_ptr = reinterpret_cast<u8*>(
         WriteCommand(Command::kBeginDebugMarker, sizeof(DebugMarkerHeader) + label_len + 1));
     auto& args = *reinterpret_cast<DebugMarkerHeader*>(args_ptr);
-    args.label_length = static_cast<uint32_t>(label_len);
+    args.label_length = static_cast<u32>(label_len);
     std::memcpy(args_ptr + sizeof(DebugMarkerHeader), label_name, label_len + 1);
   }
 
@@ -442,10 +442,10 @@ class DeferredCommandList {
 
   void InsertDebugMarker(const char* label_name) {
     size_t label_len = std::strlen(label_name);
-    uint8_t* args_ptr = reinterpret_cast<uint8_t*>(
+    u8* args_ptr = reinterpret_cast<u8*>(
         WriteCommand(Command::kInsertDebugMarker, sizeof(DebugMarkerHeader) + label_len + 1));
     auto& args = *reinterpret_cast<DebugMarkerHeader*>(args_ptr);
-    args.label_length = static_cast<uint32_t>(label_len);
+    args.label_length = static_cast<u32>(label_len);
     std::memcpy(args_ptr + sizeof(DebugMarkerHeader), label_name, label_len + 1);
   }
 
@@ -496,7 +496,7 @@ class DeferredCommandList {
 
   struct CommandHeader {
     Command command;
-    uint32_t arguments_size_elements;
+    u32 arguments_size_elements;
   };
   static constexpr size_t kCommandHeaderSizeElements =
       (sizeof(CommandHeader) + sizeof(uintmax_t) - 1) / sizeof(uintmax_t);
@@ -596,7 +596,7 @@ class DeferredCommandList {
   };
 
   struct D3DOMSetRenderTargetsArguments {
-    uint8_t num_render_target_descriptors;
+    u8 num_render_target_descriptors;
     bool rts_single_handle_to_descriptor_range;
     bool depth_stencil;
     D3D12_CPU_DESCRIPTOR_HANDLE
@@ -632,7 +632,7 @@ class DeferredCommandList {
   };
 
   struct DebugMarkerHeader {
-    uint32_t label_length;
+    u32 label_length;
     // Followed by null-terminated label string.
   };
 

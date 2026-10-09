@@ -44,17 +44,17 @@ class REX_API RegisterFile {
    * @param index Dword register index.
    * @return Name and type of the register, or nullptr when the index is not in the table.
    */
-  static const RegisterInfo* GetRegisterInfo(uint32_t index);
+  static const RegisterInfo* GetRegisterInfo(u32 index);
 
   /** Number of dword registers, 1 past the highest register index. */
   static constexpr size_t kRegisterCount = 0x5003;
   /** Register values indexed by dword register index. */
   u32 values[kRegisterCount]{};
 
-  const uint32_t& operator[](uint32_t reg) const { return values[reg]; }
-  uint32_t& operator[](uint32_t reg) { return values[reg]; }
-  const uint32_t& operator[](Register reg) const { return values[std::to_underlying(reg)]; }
-  uint32_t& operator[](Register reg) { return values[std::to_underlying(reg)]; }
+  const u32& operator[](u32 reg) const { return values[reg]; }
+  u32& operator[](u32 reg) { return values[reg]; }
+  const u32& operator[](Register reg) const { return values[std::to_underlying(reg)]; }
+  u32& operator[](Register reg) { return values[std::to_underlying(reg)]; }
 
   template <typename T>
   /**
@@ -64,7 +64,7 @@ class REX_API RegisterFile {
    * @param reg Dword register index.
    * @return The register bits as T.
    */
-  T Get(uint32_t reg) const {
+  T Get(u32 reg) const {
     return std::bit_cast<T>(values[reg]);
   }
   template <typename T>
@@ -95,12 +95,12 @@ class REX_API RegisterFile {
    * @param index Fetch constant slot, below 96.
    * @return Copy of the vertex fetch constant.
    */
-  xenos::VertexFetch GetVertexFetch(uint32_t index) const {
+  xenos::VertexFetch GetVertexFetch(u32 index) const {
     REX_ASSERT(index < 96);
     xenos::VertexFetch fetch;
     std::memcpy(&fetch,
                 &values[std::to_underlying(xenos::Register::SHADER_CONSTANT_FETCH_00_0) +
-                        (sizeof(fetch) / sizeof(uint32_t)) * index],
+                        (sizeof(fetch) / sizeof(u32)) * index],
                 sizeof(fetch));
     return fetch;
   }
@@ -111,12 +111,12 @@ class REX_API RegisterFile {
    * @param index Fetch constant slot, below 32.
    * @return Copy of the texture fetch constant.
    */
-  xenos::TextureFetch GetTextureFetch(uint32_t index) const {
+  xenos::TextureFetch GetTextureFetch(u32 index) const {
     REX_ASSERT(index < 32);
     xenos::TextureFetch fetch;
     std::memcpy(&fetch,
                 &values[std::to_underlying(xenos::Register::SHADER_CONSTANT_FETCH_00_0) +
-                        (sizeof(fetch) / sizeof(uint32_t)) * index],
+                        (sizeof(fetch) / sizeof(u32)) * index],
                 sizeof(fetch));
     return fetch;
   }
@@ -127,7 +127,7 @@ class REX_API RegisterFile {
    * @param float_constant_index Float constant index, below 512.
    * @return Copy of the memory export stream constant.
    */
-  xenos::MemExportStream GetMemExportStream(uint32_t float_constant_index) const {
+  xenos::MemExportStream GetMemExportStream(u32 float_constant_index) const {
     REX_ASSERT(float_constant_index < 512);
     xenos::MemExportStream stream;
     std::memcpy(&stream,

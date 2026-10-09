@@ -47,7 +47,7 @@ class TextureCache : public rex::NonCopyable {
    * counts for passing the scale to shaders, and the 490 MB EDRAM buffer fitting the Direct3D 12
    * minimum of 128 * 2^20 texels per buffer binding (counted as R32 for a byte address buffer).
    */
-  static constexpr uint32_t kMaxDrawResolutionScaleAlongAxis = 7;
+  static constexpr u32 kMaxDrawResolutionScaleAlongAxis = 7;
 
   virtual ~TextureCache();
 
@@ -58,37 +58,36 @@ class TextureCache : public rex::NonCopyable {
    * @param y_out Receives the vertical scale.
    * @return True when neither axis was clamped.
    */
-  static bool GetConfigDrawResolutionScale(uint32_t& x_out, uint32_t& y_out);
-  uint32_t draw_resolution_scale_x() const { return draw_resolution_scale_x_; }
-  uint32_t draw_resolution_scale_y() const { return draw_resolution_scale_y_; }
+  static bool GetConfigDrawResolutionScale(u32& x_out, u32& y_out);
+  u32 draw_resolution_scale_x() const { return draw_resolution_scale_x_; }
+  u32 draw_resolution_scale_y() const { return draw_resolution_scale_y_; }
   bool IsDrawResolutionScaled() const {
     return draw_resolution_scale_x_ > 1 || draw_resolution_scale_y_ > 1;
   }
 
   virtual void ClearCache();
 
-  virtual void CompletedSubmissionUpdated(uint64_t completed_submission_index);
-  virtual void BeginSubmission(uint64_t new_submission_index);
+  virtual void CompletedSubmissionUpdated(u64 completed_submission_index);
+  virtual void BeginSubmission(u64 new_submission_index);
   virtual void BeginFrame();
 
-  void MarkRangeAsResolved(uint32_t start_unscaled, uint32_t length_unscaled);
+  void MarkRangeAsResolved(u32 start_unscaled, u32 length_unscaled);
   /**
    * Allocates the memory backing the range in the scaled resolve address space.
    *
    * @return True when the memory is allocated.
    */
-  virtual bool EnsureScaledResolveMemoryCommitted(uint32_t /*start_unscaled*/,
-                                                  uint32_t /*length_unscaled*/,
-                                                  uint32_t /*length_scaled_alignment_log2*/ = 0) {
+  virtual bool EnsureScaledResolveMemoryCommitted(u32 /*start_unscaled*/, u32 /*length_unscaled*/,
+                                                  u32 /*length_scaled_alignment_log2*/ = 0) {
     return false;
   }
 
-  static uint32_t GuestToHostSwizzle(uint32_t guest_swizzle, uint32_t host_format_swizzle);
+  static u32 GuestToHostSwizzle(u32 guest_swizzle, u32 host_format_swizzle);
 
-  void TextureFetchConstantWritten(uint32_t index) { TextureFetchConstantsWritten(index, index); }
-  void TextureFetchConstantsWritten(uint32_t first_index, uint32_t last_index) {
+  void TextureFetchConstantWritten(u32 index) { TextureFetchConstantsWritten(index, index); }
+  void TextureFetchConstantsWritten(u32 first_index, u32 last_index) {
     if (first_index > last_index) {
-      uint32_t swap_index = first_index;
+      u32 swap_index = first_index;
       first_index = last_index;
       last_index = swap_index;
     }
@@ -98,24 +97,24 @@ class TextureCache : public rex::NonCopyable {
     if (last_index > 31) {
       last_index = 31;
     }
-    uint32_t bit_count = last_index - first_index + 1;
-    uint32_t mask = bit_count == 32 ? UINT32_MAX : ((UINT32_C(1) << bit_count) - 1) << first_index;
+    u32 bit_count = last_index - first_index + 1;
+    u32 mask = bit_count == 32 ? UINT32_MAX : ((UINT32_C(1) << bit_count) - 1) << first_index;
     texture_bindings_in_sync_ &= ~mask;
   }
 
-  virtual void RequestTextures(uint32_t used_texture_mask);
+  virtual void RequestTextures(u32 used_texture_mask);
 
   // Active textures are those of the latest RequestTextures call.
 
-  uint32_t GetActiveTextureHostSwizzle(uint32_t fetch_constant_index) const {
+  u32 GetActiveTextureHostSwizzle(u32 fetch_constant_index) const {
     const TextureBinding* binding = GetValidTextureBinding(fetch_constant_index);
     return binding ? binding->host_swizzle : xenos::REXGPU_SWIZZLE_0000;
   }
-  uint8_t GetActiveTextureSwizzledSigns(uint32_t fetch_constant_index) const {
+  u8 GetActiveTextureSwizzledSigns(u32 fetch_constant_index) const {
     const TextureBinding* binding = GetValidTextureBinding(fetch_constant_index);
     return binding ? binding->swizzled_signs : kSwizzledSignsUnsigned;
   }
-  bool IsActiveTextureResolutionScaled(uint32_t fetch_constant_index) const {
+  bool IsActiveTextureResolutionScaled(u32 fetch_constant_index) const {
     const TextureBinding* binding = GetValidTextureBinding(fetch_constant_index);
     if (!binding) {
       return false;
@@ -127,26 +126,26 @@ class TextureCache : public rex::NonCopyable {
  protected:
   struct TextureKey {
     /** Physical 4 KB page of the base mip, without the A/C/E address range prefix. */
-    uint32_t base_page : 17;
+    u32 base_page : 17;
     xenos::DataDimension dimension : 2;
-    uint32_t width_minus_1 : 13;
+    u32 width_minus_1 : 13;
 
-    uint32_t height_minus_1 : 13;
-    uint32_t tiled : 1;
-    uint32_t packed_mips : 1;
-    uint32_t mip_page : 17; /**< Physical 4 KB page of mip 1 and smaller. */
+    u32 height_minus_1 : 13;
+    u32 tiled : 1;
+    u32 packed_mips : 1;
+    u32 mip_page : 17; /**< Physical 4 KB page of mip 1 and smaller. */
 
     /** (Layers for stacked and 3D, 6 for cube, 1 for others) - 1. */
-    uint32_t depth_or_array_size_minus_1 : 10;
-    uint32_t pitch : 9;
-    uint32_t mip_max_level : 4;
+    u32 depth_or_array_size_minus_1 : 10;
+    u32 pitch : 9;
+    u32 mip_max_level : 4;
     xenos::TextureFormat format : 6;
     xenos::Endian endianness : 2;
     /** Signed with a host representation different from the unsigned view. */
-    uint32_t signed_separate : 1;
+    u32 signed_separate : 1;
 
-    uint32_t scaled_resolve : 1;
-    uint32_t is_valid : 1;
+    u32 scaled_resolve : 1;
+    u32 is_valid : 1;
     u32 padding : 30;
 
     TextureKey() { MakeInvalid(); }
@@ -159,9 +158,9 @@ class TextureCache : public rex::NonCopyable {
     bool operator==(const TextureKey& key) const { return !std::memcmp(this, &key, sizeof(*this)); }
     bool operator!=(const TextureKey& key) const { return !(*this == key); }
 
-    uint32_t GetWidth() const { return width_minus_1 + 1; }
-    uint32_t GetHeight() const { return height_minus_1 + 1; }
-    uint32_t GetDepthOrArraySize() const { return depth_or_array_size_minus_1 + 1; }
+    u32 GetWidth() const { return width_minus_1 + 1; }
+    u32 GetHeight() const { return height_minus_1 + 1; }
+    u32 GetDepthOrArraySize() const { return depth_or_array_size_minus_1 + 1; }
 
     xenos::TextureGuestLayout GetGuestLayout() const {
       return xenos::GetGuestTextureLayout(dimension, pitch, GetWidth(), GetHeight(),
@@ -185,19 +184,19 @@ class TextureCache : public rex::NonCopyable {
     const TextureKey& key() const { return key_; }
 
     const xenos::TextureGuestLayout& guest_layout() const { return guest_layout_; }
-    uint32_t GetGuestBaseSize() const { return guest_layout().base.level_data_extent_bytes; }
-    uint32_t GetGuestMipsSize() const { return guest_layout().mips_total_extent_bytes; }
+    u32 GetGuestBaseSize() const { return guest_layout().base.level_data_extent_bytes; }
+    u32 GetGuestMipsSize() const { return guest_layout().mips_total_extent_bytes; }
 
     /** Reports whether guest memory is tiled as 3D although the host texture is 2D (3D as 2D
      * wrappers). */
     bool force_load_3d_tiling() const { return force_load_3d_tiling_; }
     void SetForceLoad3DTiling(bool force) { force_load_3d_tiling_ = force; }
 
-    uint64_t last_usage_submission_index() const { return last_usage_submission_index_; }
-    uint64_t last_usage_time() const { return last_usage_time_; }
-    static constexpr uint32_t kOutdatedBitBase = UINT32_C(1) << 0;
-    static constexpr uint32_t kOutdatedBitMips = UINT32_C(1) << 1;
-    uint32_t outdated_mask() const { return outdated_mask_.load(std::memory_order_acquire); }
+    u64 last_usage_submission_index() const { return last_usage_submission_index_; }
+    u64 last_usage_time() const { return last_usage_time_; }
+    static constexpr u32 kOutdatedBitBase = UINT32_C(1) << 0;
+    static constexpr u32 kOutdatedBitMips = UINT32_C(1) << 1;
+    u32 outdated_mask() const { return outdated_mask_.load(std::memory_order_acquire); }
 
     bool base_outdated(
         [[maybe_unused]] const std::unique_lock<rex::platform::RankedMutex>& watch_lock) const {
@@ -229,7 +228,7 @@ class TextureCache : public rex::NonCopyable {
      */
     explicit Texture(TextureCache& texture_cache, const TextureKey& key, bool track_usage = true);
 
-    void SetHostMemoryUsage(uint64_t new_host_memory_usage) {
+    void SetHostMemoryUsage(u64 new_host_memory_usage) {
       texture_cache_.UpdateTexturesTotalHostMemoryUsage(new_host_memory_usage, host_memory_usage_);
       host_memory_usage_ = new_host_memory_usage;
     }
@@ -241,10 +240,10 @@ class TextureCache : public rex::NonCopyable {
 
     xenos::TextureGuestLayout guest_layout_;
 
-    uint64_t host_memory_usage_ = 0;
+    u64 host_memory_usage_ = 0;
 
-    uint64_t last_usage_submission_index_;
-    uint64_t last_usage_time_;
+    u64 last_usage_submission_index_;
+    u64 last_usage_time_;
     Texture* used_previous_;
     Texture* used_next_;
     bool in_usage_list_;
@@ -253,7 +252,7 @@ class TextureCache : public rex::NonCopyable {
     // Accessed within the global critical region to synchronize with shared memory.
     bool base_outdated_ = false;
     bool mips_outdated_ = false;
-    std::atomic<uint32_t> outdated_mask_{0};
+    std::atomic<u32> outdated_mask_{0};
     SharedMemory::WatchHandle base_watch_handle_ = nullptr;
     SharedMemory::WatchHandle mips_watch_handle_ = nullptr;
   };
@@ -294,27 +293,25 @@ class TextureCache : public rex::NonCopyable {
    * 64 bit and 128 bit loads and stores can untile regardless of the scale.
    */
   struct LoadConstants {
-    uint32_t is_tiled_3d_endian_scale;
-    uint32_t guest_offset; /**< Base offset in bytes, resolution scaled. */
+    u32 is_tiled_3d_endian_scale;
+    u32 guest_offset; /**< Base offset in bytes, resolution scaled. */
     /** Row pitch aligned to 32 and unscaled, in blocks for tiled textures and bytes for linear. */
-    uint32_t guest_pitch_aligned;
-    uint32_t
-        guest_z_stride_block_rows_aligned; /**< 3D textures only, aligned to 32 and unscaled. */
+    u32 guest_pitch_aligned;
+    u32 guest_z_stride_block_rows_aligned; /**< 3D textures only, aligned to 32 and unscaled. */
 
     // - std140 vector boundary -
 
-    uint32_t
-        size_blocks[3]; /**< Aligned to tile dimensions for a packed mip tail. Resolution scaled. */
-    uint32_t host_offset; /**< Base offset in bytes. */
+    u32 size_blocks[3]; /**< Aligned to tile dimensions for a packed mip tail. Resolution scaled. */
+    u32 host_offset;    /**< Base offset in bytes. */
 
     // - std140 vector boundary -
 
-    uint32_t host_pitch;
-    uint32_t height_texels;
+    u32 host_pitch;
+    u32 height_texels;
   };
 
-  static constexpr uint32_t kLoadGuestXThreadsPerGroupLog2 = 2;
-  static constexpr uint32_t kLoadGuestYBlocksPerGroupLog2 = 5;
+  static constexpr u32 kLoadGuestXThreadsPerGroupLog2 = 2;
+  static constexpr u32 kLoadGuestYBlocksPerGroupLog2 = 5;
 
   enum LoadShaderIndex {
     kLoadShaderIndex8bpb,
@@ -360,34 +357,32 @@ class TextureCache : public rex::NonCopyable {
   };
 
   struct LoadShaderInfo {
-    uint32_t
-        source_bpe_log2; /**< Log2 of the element size in bytes of the source (guest) binding. */
-    uint32_t
-        dest_bpe_log2; /**< Log2 of the element size in bytes of the destination (host) binding. */
+    u32 source_bpe_log2; /**< Log2 of the element size in bytes of the source (guest) binding. */
+    u32 dest_bpe_log2; /**< Log2 of the element size in bytes of the destination (host) binding. */
     /**
      * Bytes written per host resolution scaled block (a guest block, or a host texel when
      * decompressing).
      */
-    uint32_t bytes_per_host_block;
+    u32 bytes_per_host_block;
     /** Log2 of the guest resolution scaled blocks along X loaded per thread. */
-    uint32_t guest_x_blocks_per_thread_log2;
+    u32 guest_x_blocks_per_thread_log2;
 
-    uint32_t GetGuestXBlocksPerGroupLog2() const {
+    u32 GetGuestXBlocksPerGroupLog2() const {
       return kLoadGuestXThreadsPerGroupLog2 + guest_x_blocks_per_thread_log2;
     }
   };
 
-  static constexpr uint8_t kSwizzledSignsUnsigned =
-      static_cast<uint8_t>(xenos::TextureSign::kUnsigned) * static_cast<uint8_t>(0b01010101);
+  static constexpr u8 kSwizzledSignsUnsigned =
+      static_cast<u8>(xenos::TextureSign::kUnsigned) * static_cast<u8>(0b01010101);
 
   struct TextureBinding {
     TextureKey key;
-    uint32_t host_swizzle;
+    u32 host_swizzle;
     /**
      * Packed TextureSign values, 2 bits per component, with the fetch constant destination swizzle
      * applied.
      */
-    uint8_t swizzled_signs;
+    u8 swizzled_signs;
     Texture* texture;        /**< Unsigned version, or signed if the data is identical. */
     Texture* texture_signed; /**< Signed version, when its host data differs. */
 
@@ -401,7 +396,7 @@ class TextureCache : public rex::NonCopyable {
   };
 
   explicit TextureCache(const xenos::RegisterFile& register_file, SharedMemory& shared_memory,
-                        uint32_t draw_resolution_scale_x, uint32_t draw_resolution_scale_y);
+                        u32 draw_resolution_scale_x, u32 draw_resolution_scale_y);
 
   const xenos::RegisterFile& register_file() const { return register_file_; }
   SharedMemory& shared_memory() const { return shared_memory_; }
@@ -436,10 +431,10 @@ class TextureCache : public rex::NonCopyable {
    * @param key Key of the texture to swizzle.
    * @return Packed host swizzle.
    */
-  virtual uint32_t GetHostFormatSwizzle(TextureKey key) const = 0;
+  virtual u32 GetHostFormatSwizzle(TextureKey key) const = 0;
 
-  virtual uint32_t GetMaxHostTextureWidthHeight(xenos::DataDimension dimension) const = 0;
-  virtual uint32_t GetMaxHostTextureDepthOrArraySize(xenos::DataDimension dimension) const = 0;
+  virtual u32 GetMaxHostTextureWidthHeight(xenos::DataDimension dimension) const = 0;
+  virtual u32 GetMaxHostTextureDepthOrArraySize(xenos::DataDimension dimension) const = 0;
 
   /**
    * Creates a texture with exactly this key, which must not be modified. Returns nullptr when the
@@ -486,7 +481,7 @@ class TextureCache : public rex::NonCopyable {
    * @param swizzled_signs_out Receives the signedness, may be null.
    */
   static void BindingInfoFromFetchConstant(const xenos::TextureFetch& fetch, TextureKey& key_out,
-                                           uint8_t* swizzled_signs_out);
+                                           u8* swizzled_signs_out);
 
   /**
    * Makes all texture bindings invalid. Textures requested afterwards are created or untiled again,
@@ -496,13 +491,13 @@ class TextureCache : public rex::NonCopyable {
    */
   void ResetTextureBindings(bool from_destructor = false);
 
-  const TextureBinding* GetValidTextureBinding(uint32_t fetch_constant_index) const {
+  const TextureBinding* GetValidTextureBinding(u32 fetch_constant_index) const {
     const TextureBinding& binding = texture_bindings_[fetch_constant_index];
     return binding.key.is_valid ? &binding : nullptr;
   }
   /** Called when a texture binding changes, for the implementation to update its dependent state.
    */
-  virtual void UpdateTextureBindingsImpl(uint32_t /*fetch_constant_mask*/) {}
+  virtual void UpdateTextureBindingsImpl(u32 /*fetch_constant_mask*/) {}
 
  private:
   struct PendingTextureLoad {
@@ -511,17 +506,17 @@ class TextureCache : public rex::NonCopyable {
     bool load_mips = false;
   };
   struct PendingSharedMemoryRange {
-    uint32_t start = 0;
-    uint32_t length = 0;
+    u32 start = 0;
+    u32 length = 0;
   };
   bool PrepareTextureLoad(Texture& texture, PendingTextureLoad& pending_load_out,
                           PendingSharedMemoryRange* pending_ranges_out,
                           size_t& pending_range_count_out);
   bool CommitPreparedTextureLoad(const PendingTextureLoad& pending_load);
 
-  void UpdateTexturesTotalHostMemoryUsage(uint64_t add, uint64_t subtract);
+  void UpdateTexturesTotalHostMemoryUsage(u64 add, u64 subtract);
 
-  static void WatchCallback(void* context, void* data, uint64_t argument, bool invalidated_by_gpu);
+  static void WatchCallback(void* context, void* data, u64 argument, bool invalidated_by_gpu);
 
   /**
    * Reports whether any page in the range contains scaled resolve data.
@@ -530,7 +525,7 @@ class TextureCache : public rex::NonCopyable {
    * @param length_unscaled Length in bytes, unscaled.
    * @return True when any page in the range contains scaled resolve data.
    */
-  bool IsRangeScaledResolved(uint32_t start_unscaled, uint32_t length_unscaled);
+  bool IsRangeScaledResolved(u32 start_unscaled, u32 length_unscaled);
   /**
    * Global shared memory invalidation callback that unmarks scaled resolved texture data.
    *
@@ -539,39 +534,39 @@ class TextureCache : public rex::NonCopyable {
    * @param address_last Last invalidated address.
    * @param invalidated_by_gpu True when the GPU caused the invalidation.
    */
-  static void ScaledResolveGlobalWatchCallbackThunk(void* context, uint32_t address_first,
-                                                    uint32_t address_last, bool invalidated_by_gpu);
-  void ScaledResolveGlobalWatchCallback(uint32_t address_first, uint32_t address_last,
+  static void ScaledResolveGlobalWatchCallbackThunk(void* context, u32 address_first,
+                                                    u32 address_last, bool invalidated_by_gpu);
+  void ScaledResolveGlobalWatchCallback(u32 address_first, u32 address_last,
                                         bool invalidated_by_gpu);
 
   const xenos::RegisterFile& register_file_;
   SharedMemory& shared_memory_;
-  uint32_t draw_resolution_scale_x_;
-  uint32_t draw_resolution_scale_y_;
+  u32 draw_resolution_scale_x_;
+  u32 draw_resolution_scale_y_;
 
   static const LoadShaderInfo load_shader_info_[kLoadShaderCount];
 
-  std::unique_ptr<uint32_t[]>
+  std::unique_ptr<u32[]>
       /**
        * Bit per 4 KB physical page holding scaled resolve data, 32 bit words since parts are sent
        * to shaders.
        */
       scaled_resolve_pages_;
-  uint64_t scaled_resolve_pages_l2_[SharedMemory::kBufferSize >>
-                                    /**
-                                     * Second level for rejecting non scaled textures, shifted by 12
-                                     * for 4 KB pages, 5 for level 1 words and 6 for level 2 words.
-                                     */
-                                    (12 + 5 + 6)];
+  u64 scaled_resolve_pages_l2_[SharedMemory::kBufferSize >>
+                               /**
+                                * Second level for rejecting non scaled textures, shifted by 12
+                                * for 4 KB pages, 5 for level 1 words and 6 for level 2 words.
+                                */
+                               (12 + 5 + 6)];
 
   SharedMemory::GlobalWatchHandle scaled_resolve_global_watch_handle_ = nullptr;
 
-  uint64_t current_submission_index_ = 0;
-  uint64_t current_submission_time_ = 0;
+  u64 current_submission_index_ = 0;
+  u64 current_submission_time_ = 0;
 
   std::unordered_map<TextureKey, std::unique_ptr<Texture>, TextureKey::Hasher> textures_;
 
-  uint64_t textures_total_host_memory_usage_ = 0;
+  u64 textures_total_host_memory_usage_ = 0;
 
   Texture* texture_used_first_ = nullptr;
   Texture* texture_used_last_ = nullptr;
@@ -583,7 +578,7 @@ class TextureCache : public rex::NonCopyable {
       false};
 
   std::array<TextureBinding, xenos::kTextureFetchConstantCount> texture_bindings_;
-  uint32_t texture_bindings_in_sync_ = 0;
+  u32 texture_bindings_in_sync_ = 0;
 };
 
 }  // namespace rex::gpu

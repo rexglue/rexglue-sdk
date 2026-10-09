@@ -48,16 +48,16 @@ class DxbcShaderTranslator : public ShaderTranslator {
  public:
   DxbcShaderTranslator(gpu::GraphicsProvider::GpuVendorID vendor_id, bool bindless_resources_used,
                        bool edram_rov_used, bool gamma_render_target_as_unorm8 = false,
-                       bool msaa_2x_supported = true, uint32_t draw_resolution_scale_x = 1,
-                       uint32_t draw_resolution_scale_y = 1, bool force_emit_source_map = false);
+                       bool msaa_2x_supported = true, u32 draw_resolution_scale_x = 1,
+                       u32 draw_resolution_scale_y = 1, bool force_emit_source_map = false);
   ~DxbcShaderTranslator() override;
 
   union Modification {
     /** Layout version in 0xYYYYMMDD form, increased on incompatible changes to invalidate pipeline
      * storage. */
-    static constexpr uint32_t kVersion = 0x20260226;
+    static constexpr u32 kVersion = 0x20260226;
 
-    enum class DepthStencilMode : uint32_t {
+    enum class DepthStencilMode : u32 {
       kNoModifiers,
       /** Enables [earlydepthstencil] when alpha test and alpha to coverage are disabled, ignored if
          the shader blocks early Z writes. */
@@ -77,47 +77,47 @@ class DxbcShaderTranslator : public ShaderTranslator {
       kFloat24Rounding,
     };
 
-    uint64_t value;
+    u64 value;
     struct VertexShaderModification {
-      uint32_t interpolator_mask : xenos::kMaxInterpolators;
-      uint32_t user_clip_plane_count : 3;
-      uint32_t user_clip_plane_cull : 1;
-      uint32_t vertex_kill_and : 1;
-      uint32_t output_point_size : 1;
+      u32 interpolator_mask : xenos::kMaxInterpolators;
+      u32 user_clip_plane_count : 3;
+      u32 user_clip_plane_cull : 1;
+      u32 vertex_kill_and : 1;
+      u32 output_point_size : 1;
       /** Value from SQ_PROGRAM_CNTL. */
-      uint32_t dynamic_addressable_register_count : 8;
+      u32 dynamic_addressable_register_count : 8;
       /** Value of PA_CL_CLIP_CNTL::ps_ucp_mode for point primitives. */
-      uint32_t point_ps_ucp_mode : 2;
+      u32 point_ps_ucp_mode : 2;
       Shader::HostVertexShaderType host_vertex_shader_type : Shader::kHostVertexShaderTypeBitCount;
     } vertex;
     struct PixelShaderModification {
-      uint32_t interpolator_mask : xenos::kMaxInterpolators;
-      uint32_t interpolators_centroid : xenos::kMaxInterpolators;
-      uint32_t param_gen_enable : 1;
-      uint32_t param_gen_interpolator : 4;
+      u32 interpolator_mask : xenos::kMaxInterpolators;
+      u32 interpolators_centroid : xenos::kMaxInterpolators;
+      u32 param_gen_enable : 1;
+      u32 param_gen_interpolator : 4;
       /** Must be set for point primitives and clear otherwise when param_gen_enable is set. Enables
        * the point sprite coordinates input and changes the PsParamGen flag bits. */
-      uint32_t param_gen_point : 1;
-      uint32_t dynamic_addressable_register_count : 8;
+      u32 param_gen_point : 1;
+      u32 dynamic_addressable_register_count : 8;
       /** Used without ROV only. */
       DepthStencilMode depth_stencil_mode : 2;
     } pixel;
 
-    explicit Modification(uint64_t modification_value = 0) : value(modification_value) {
+    explicit Modification(u64 modification_value = 0) : value(modification_value) {
       REX_STATIC_ASSERT_SIZE(*this, sizeof(value));
     }
 
-    uint32_t GetVertexClipDistanceCount() const {
+    u32 GetVertexClipDistanceCount() const {
       return vertex.user_clip_plane_cull ? 0 : vertex.user_clip_plane_count;
     }
-    uint32_t GetVertexCullDistanceCount() const {
+    u32 GetVertexCullDistanceCount() const {
       return (vertex.user_clip_plane_cull ? vertex.user_clip_plane_count : 0) +
              vertex.vertex_kill_and;
     }
   };
 
   /** Constant buffer registers in space 0. */
-  enum class CbufferRegister : uint32_t {
+  enum class CbufferRegister : u32 {
     kSystemConstants,
     kFloatConstants,
     kBoolLoopConstants,
@@ -126,7 +126,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
   };
 
   /** Some flags are referenced in xenos_draw.hlsli and must stay in sync with it. */
-  enum : uint32_t {
+  enum : u32 {
     kSysFlag_SharedMemoryIsUAV_Shift,
     kSysFlag_XYDividedByW_Shift,
     kSysFlag_ZDividedByW_Shift,
@@ -187,70 +187,70 @@ class DxbcShaderTranslator : public ShaderTranslator {
    * d3d12/shaders/xenos_draw.hlsli.
    */
   struct SystemConstants {
-    uint32_t flags;
+    u32 flags;
     union {
       struct {
-        float tessellation_factor_range_min;
-        float tessellation_factor_range_max;
+        f32 tessellation_factor_range_min;
+        f32 tessellation_factor_range_max;
       };
-      float tessellation_factor_range[2];
+      f32 tessellation_factor_range[2];
     };
-    uint32_t line_loop_closing_index;
+    u32 line_loop_closing_index;
 
     xenos::Endian vertex_index_endian;
-    uint32_t vertex_index_offset;
+    u32 vertex_index_offset;
     union {
       struct {
-        uint32_t vertex_index_min;
-        uint32_t vertex_index_max;
+        u32 vertex_index_min;
+        u32 vertex_index_max;
       };
-      uint32_t vertex_index_min_max[2];
+      u32 vertex_index_min_max[2];
     };
 
-    float user_clip_planes[6][4];
+    f32 user_clip_planes[6][4];
 
-    float ndc_scale[3];
-    float point_vertex_diameter_min;
+    f32 ndc_scale[3];
+    f32 point_vertex_diameter_min;
 
-    float ndc_offset[3];
-    float point_vertex_diameter_max;
+    f32 ndc_offset[3];
+    f32 point_vertex_diameter_max;
 
-    float point_constant_diameter[2];
+    f32 point_constant_diameter[2];
     /** Converts diameter in guest screen coordinates to radius in NDC for the host viewport. */
-    float point_screen_diameter_to_ndc_radius[2];
+    f32 point_screen_diameter_to_ndc_radius[2];
 
     /** Post swizzle TextureSign values, 1 byte per needed component of each of the 32 texture fetch
      * constants. */
-    uint32_t texture_swizzled_signs[8];
+    u32 texture_swizzled_signs[8];
 
-    uint32_t textures_resolution_scaled;
+    u32 textures_resolution_scaled;
     /** Log2 of the X and Y sample size, used for alpha to mask and for EDRAM addressing with ROV
      * MSAA. */
-    uint32_t sample_count_log2[2];
-    float alpha_test_reference;
+    u32 sample_count_log2[2];
+    f32 alpha_test_reference;
 
     /** 0 when alpha to mask is disabled. When enabled, bits 0 to 7 are sample offsets and bit 8 is
      * set. */
-    uint32_t alpha_to_mask;
-    uint32_t edram_32bpp_tile_pitch_dwords_scaled;
-    uint32_t edram_depth_base_dwords_scaled;
-    uint32_t padding_edram_depth_base_dwords_scaled;
+    u32 alpha_to_mask;
+    u32 edram_32bpp_tile_pitch_dwords_scaled;
+    u32 edram_depth_base_dwords_scaled;
+    u32 padding_edram_depth_base_dwords_scaled;
 
-    float color_exp_bias[4];
+    f32 color_exp_bias[4];
 
     union {
       struct {
-        float edram_poly_offset_front_scale;
-        float edram_poly_offset_front_offset;
+        f32 edram_poly_offset_front_scale;
+        f32 edram_poly_offset_front_offset;
       };
-      float edram_poly_offset_front[2];
+      f32 edram_poly_offset_front[2];
     };
     union {
       struct {
-        float edram_poly_offset_back_scale;
-        float edram_poly_offset_back_offset;
+        f32 edram_poly_offset_back_scale;
+        f32 edram_poly_offset_back_offset;
       };
-      float edram_poly_offset_back[2];
+      f32 edram_poly_offset_back[2];
     };
 
     /**
@@ -263,47 +263,47 @@ class DxbcShaderTranslator : public ShaderTranslator {
      */
     union {
       struct {
-        uint32_t edram_stencil_front_reference;
-        uint32_t edram_stencil_front_read_mask;
-        uint32_t edram_stencil_front_write_mask;
-        uint32_t edram_stencil_front_func_ops;
+        u32 edram_stencil_front_reference;
+        u32 edram_stencil_front_read_mask;
+        u32 edram_stencil_front_write_mask;
+        u32 edram_stencil_front_func_ops;
 
-        uint32_t edram_stencil_back_reference;
-        uint32_t edram_stencil_back_read_mask;
-        uint32_t edram_stencil_back_write_mask;
-        uint32_t edram_stencil_back_func_ops;
+        u32 edram_stencil_back_reference;
+        u32 edram_stencil_back_read_mask;
+        u32 edram_stencil_back_write_mask;
+        u32 edram_stencil_back_func_ops;
       };
       struct {
-        uint32_t edram_stencil_front[4];
-        uint32_t edram_stencil_back[4];
+        u32 edram_stencil_front[4];
+        u32 edram_stencil_back[4];
       };
-      uint32_t edram_stencil[2][4];
+      u32 edram_stencil[2][4];
     };
 
-    uint32_t edram_rt_base_dwords_scaled[4];
+    u32 edram_rt_base_dwords_scaled[4];
 
     /** Render target format combined with RenderTargetCache::kPSIColorFormatFlag values from
      * RenderTargetCache::AddPSIColorFormatFlags. */
-    uint32_t edram_rt_format_flags[4];
+    u32 edram_rt_format_flags[4];
 
     /** Color clamp values applied before blending or storing, ordered low color, low alpha, high
      * color, high alpha. */
-    float edram_rt_clamp[4][4];
+    f32 edram_rt_clamp[4][4];
 
     /** Mask applied to the old packed render target data and, inverted, to the new packed data
      * before storing. When 0 and not blending, reading the old data from EDRAM is not required. */
-    uint32_t edram_rt_keep_mask[4][2];
+    u32 edram_rt_keep_mask[4][2];
 
     /** RB_BLENDCONTROL factors and operations masked with 0x1FFF1FFF. A value of 0x00010001 (1 *
      * src + 0 * dst) disables blending for the render target. */
-    uint32_t edram_rt_blend_factors_ops[4];
+    u32 edram_rt_blend_factors_ops[4];
 
-    float edram_blend_constant[4];
+    f32 edram_blend_constant[4];
 
    private:
     friend class DxbcShaderTranslator;
 
-    enum class Index : uint32_t {
+    enum class Index : u32 {
       kFlags,
       kTessellationFactorRange,
       kLineLoopClosingIndex,
@@ -359,7 +359,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
   };
 
   /** Shader resource view binding spaces. */
-  enum class SRVSpace : uint32_t {
+  enum class SRVSpace : u32 {
     /** Uses the SRVMainRegister t# layout. */
     kMain,
     kBindlessTextures2DArray,
@@ -368,20 +368,20 @@ class DxbcShaderTranslator : public ShaderTranslator {
   };
 
   /** Shader resource view registers in SRVSpace::kMain. */
-  enum class SRVMainRegister : uint32_t {
+  enum class SRVMainRegister : u32 {
     kSharedMemory,
     kBindfulTexturesStart,
   };
 
   /** At most 192 textures, from 32 fetch constants times 2D array, 3D or cube dimensions and signed
    * or unsigned. */
-  static constexpr uint32_t kMaxTextureBindingIndexBits = 8;
-  static constexpr uint32_t kMaxTextureBindings = (1 << kMaxTextureBindingIndexBits) - 1;
+  static constexpr u32 kMaxTextureBindingIndexBits = 8;
+  static constexpr u32 kMaxTextureBindings = (1 << kMaxTextureBindingIndexBits) - 1;
   struct TextureBinding {
-    uint32_t bindful_srv_index;
-    uint32_t bindful_srv_rdef_name_ptr;
-    uint32_t bindless_descriptor_index;
-    uint32_t fetch_constant;
+    u32 bindful_srv_index;
+    u32 bindful_srv_rdef_name_ptr;
+    u32 bindless_descriptor_index;
+    u32 fetch_constant;
     xenos::FetchOpDimension dimension;
     bool is_signed;
     std::string bindful_name;
@@ -390,11 +390,11 @@ class DxbcShaderTranslator : public ShaderTranslator {
   /**
    * Limit of sampler bindings so the count packs into 32 bit map keys such as root signature keys.
    */
-  static constexpr uint32_t kMaxSamplerBindingIndexBits = 7;
-  static constexpr uint32_t kMaxSamplerBindings = (1 << kMaxSamplerBindingIndexBits) - 1;
+  static constexpr u32 kMaxSamplerBindingIndexBits = 7;
+  static constexpr u32 kMaxSamplerBindings = (1 << kMaxSamplerBindingIndexBits) - 1;
   struct SamplerBinding {
-    uint32_t bindless_descriptor_index;
-    uint32_t fetch_constant;
+    u32 bindless_descriptor_index;
+    u32 fetch_constant;
     xenos::TextureFilter mag_filter;
     xenos::TextureFilter min_filter;
     xenos::TextureFilter mip_filter;
@@ -403,17 +403,15 @@ class DxbcShaderTranslator : public ShaderTranslator {
   };
 
   /** Unordered access view registers in space 0. */
-  enum class UAVRegister : uint32_t {
+  enum class UAVRegister : u32 {
     kSharedMemory,
     kEDRAM,
   };
 
-  uint64_t GetDefaultVertexShaderModification(
-      uint32_t dynamic_addressable_register_count,
-      Shader::HostVertexShaderType host_vertex_shader_type =
-          Shader::HostVertexShaderType::kVertex) const override;
-  uint64_t GetDefaultPixelShaderModification(
-      uint32_t dynamic_addressable_register_count) const override;
+  u64 GetDefaultVertexShaderModification(u32 dynamic_addressable_register_count,
+                                         Shader::HostVertexShaderType host_vertex_shader_type =
+                                             Shader::HostVertexShaderType::kVertex) const override;
+  u64 GetDefaultPixelShaderModification(u32 dynamic_addressable_register_count) const override;
 
   /**
    * Creates a pixel shader without color outputs.
@@ -422,7 +420,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
    *
    * @return The translated shader binary.
    */
-  std::vector<uint8_t> CreateDepthOnlyPixelShader();
+  std::vector<u8> CreateDepthOnlyPixelShader();
 
   /**
    * Converts a color externally clamped to [0, 31.875] to 7e3 floating point in bits 0 to 9,
@@ -438,10 +436,9 @@ class DxbcShaderTranslator : public ShaderTranslator {
    * @param temp_temp Scratch temporary register.
    * @param temp_temp_component Component of temp_temp to use.
    */
-  static void PreClampedFloat32To7e3(dxbc::Assembler& a, uint32_t f10_temp,
-                                     uint32_t f10_temp_component, uint32_t f32_temp,
-                                     uint32_t f32_temp_component, uint32_t temp_temp,
-                                     uint32_t temp_temp_component);
+  static void PreClampedFloat32To7e3(dxbc::Assembler& a, u32 f10_temp, u32 f10_temp_component,
+                                     u32 f32_temp, u32 f32_temp_component, u32 temp_temp,
+                                     u32 temp_temp_component);
   /**
    * Same as PreClampedFloat32To7e3 but clamps the input to [0, 31.875].
    *
@@ -453,10 +450,9 @@ class DxbcShaderTranslator : public ShaderTranslator {
    * @param temp_temp Scratch temporary register.
    * @param temp_temp_component Component of temp_temp to use.
    */
-  static void UnclampedFloat32To7e3(dxbc::Assembler& a, uint32_t f10_temp,
-                                    uint32_t f10_temp_component, uint32_t f32_temp,
-                                    uint32_t f32_temp_component, uint32_t temp_temp,
-                                    uint32_t temp_temp_component);
+  static void UnclampedFloat32To7e3(dxbc::Assembler& a, u32 f10_temp, u32 f10_temp_component,
+                                    u32 f32_temp, u32 f32_temp_component, u32 temp_temp,
+                                    u32 temp_temp_component);
   /**
    * Converts the 7e3 number in bits [f10_shift, f10_shift + 10) to a 32 bit float.
    *
@@ -473,10 +469,9 @@ class DxbcShaderTranslator : public ShaderTranslator {
    * @param temp2_temp Second scratch temporary register.
    * @param temp2_temp_component Component of temp2_temp to use.
    */
-  static void Float7e3To32(dxbc::Assembler& a, const dxbc::Dest& f32, uint32_t f10_temp,
-                           uint32_t f10_temp_component, uint32_t f10_shift, uint32_t temp1_temp,
-                           uint32_t temp1_temp_component, uint32_t temp2_temp,
-                           uint32_t temp2_temp_component);
+  static void Float7e3To32(dxbc::Assembler& a, const dxbc::Dest& f32, u32 f10_temp,
+                           u32 f10_temp_component, u32 f10_shift, u32 temp1_temp,
+                           u32 temp1_temp_component, u32 temp2_temp, u32 temp2_temp_component);
   /**
    * Converts a depth externally clamped to [0, 2) to 20e4 floating point in bits 0 to 23, rounding
    * to nearest even or towards zero.
@@ -493,10 +488,9 @@ class DxbcShaderTranslator : public ShaderTranslator {
    * @param round_to_nearest_even Whether to round to nearest even instead of towards zero.
    * @param remap_from_0_to_0_5 Whether the input has 0...1 pre-remapped to 0...0.5.
    */
-  static void PreClampedDepthTo20e4(dxbc::Assembler& a, uint32_t f24_temp,
-                                    uint32_t f24_temp_component, uint32_t f32_temp,
-                                    uint32_t f32_temp_component, uint32_t temp_temp,
-                                    uint32_t temp_temp_component, bool round_to_nearest_even,
+  static void PreClampedDepthTo20e4(dxbc::Assembler& a, u32 f24_temp, u32 f24_temp_component,
+                                    u32 f32_temp, u32 f32_temp_component, u32 temp_temp,
+                                    u32 temp_temp_component, bool round_to_nearest_even,
                                     bool remap_from_0_to_0_5);
   /**
    * Converts the 20e4 number in bits [f24_shift, f24_shift + 10) to a 32 bit float.
@@ -515,10 +509,10 @@ class DxbcShaderTranslator : public ShaderTranslator {
    * @param temp2_temp_component Component of temp2_temp to use.
    * @param remap_to_0_to_0_5 Whether 0...1 in float24 maps to 0...0.5 in float32.
    */
-  static void Depth20e4To32(dxbc::Assembler& a, const dxbc::Dest& f32, uint32_t f24_temp,
-                            uint32_t f24_temp_component, uint32_t f24_shift, uint32_t temp1_temp,
-                            uint32_t temp1_temp_component, uint32_t temp2_temp,
-                            uint32_t temp2_temp_component, bool remap_to_0_to_0_5);
+  static void Depth20e4To32(dxbc::Assembler& a, const dxbc::Dest& f32, u32 f24_temp,
+                            u32 f24_temp_component, u32 f24_shift, u32 temp1_temp,
+                            u32 temp1_temp_component, u32 temp2_temp, u32 temp2_temp_component,
+                            bool remap_to_0_to_0_5);
 
   /**
    * Converts 1 scalar from piecewise linear gamma to linear, saturating the source internally
@@ -537,11 +531,10 @@ class DxbcShaderTranslator : public ShaderTranslator {
    * @param temp2 Second scratch temporary register.
    * @param temp2_component Component of temp2 to use.
    */
-  static void PWLGammaToLinear(dxbc::Assembler& a, uint32_t target_temp,
-                               uint32_t target_temp_component, uint32_t source_temp,
-                               uint32_t source_temp_component, bool source_pre_saturated,
-                               uint32_t temp1, uint32_t temp1_component, uint32_t temp2,
-                               uint32_t temp2_component);
+  static void PWLGammaToLinear(dxbc::Assembler& a, u32 target_temp, u32 target_temp_component,
+                               u32 source_temp, u32 source_temp_component,
+                               bool source_pre_saturated, u32 temp1, u32 temp1_component, u32 temp2,
+                               u32 temp2_component);
   /**
    * Converts 1 pre saturated scalar from linear to piecewise linear gamma.
    *
@@ -558,30 +551,29 @@ class DxbcShaderTranslator : public ShaderTranslator {
    * @param temp_non_target Scratch temporary register distinct from all others.
    * @param temp_non_target_component Component of temp_non_target to use.
    */
-  static void PreSaturatedLinearToPWLGamma(dxbc::Assembler& a, uint32_t target_temp,
-                                           uint32_t target_temp_component, uint32_t source_temp,
-                                           uint32_t source_temp_component, uint32_t temp_or_target,
-                                           uint32_t temp_or_target_component,
-                                           uint32_t temp_non_target,
-                                           uint32_t temp_non_target_component);
+  static void PreSaturatedLinearToPWLGamma(dxbc::Assembler& a, u32 target_temp,
+                                           u32 target_temp_component, u32 source_temp,
+                                           u32 source_temp_component, u32 temp_or_target,
+                                           u32 temp_or_target_component, u32 temp_non_target,
+                                           u32 temp_non_target_component);
 
  protected:
   void Reset() override;
 
-  uint32_t GetModificationRegisterCount() const override;
+  u32 GetModificationRegisterCount() const override;
 
   void StartTranslation() override;
-  std::vector<uint8_t> CompleteTranslation() override;
+  std::vector<u8> CompleteTranslation() override;
   void PostTranslation() override;
 
-  void ProcessLabel(uint32_t cf_index) override;
+  void ProcessLabel(u32 cf_index) override;
 
   void ProcessExecInstructionBegin(const ParsedExecInstruction& instr) override;
   void ProcessExecInstructionEnd(const ParsedExecInstruction& instr) override;
   void ProcessLoopStartInstruction(const ParsedLoopStartInstruction& instr) override;
   void ProcessLoopEndInstruction(const ParsedLoopEndInstruction& instr) override;
   void ProcessJumpInstruction(const ParsedJumpInstruction& instr) override;
-  void ProcessAllocInstruction(const ParsedAllocInstruction& instr, uint8_t export_eM) override;
+  void ProcessAllocInstruction(const ParsedAllocInstruction& instr, u8 export_eM) override;
 
   void ProcessVertexFetchInstruction(const ParsedVertexFetchInstruction& instr) override;
   /**
@@ -600,12 +592,12 @@ class DxbcShaderTranslator : public ShaderTranslator {
    */
   void ProcessTextureFetchInstruction(const ParsedTextureFetchInstruction& instr) override;
   void ProcessAluInstruction(const ParsedAluInstruction& instr,
-                             uint8_t memexport_eM_potentially_written_before) override;
+                             u8 memexport_eM_potentially_written_before) override;
 
  private:
   /** Changing these requires updating WriteInputSignature and WriteOutputSignature. */
-  static constexpr uint32_t kInRegisterVSVertexIndex = 0;
-  static constexpr uint32_t kInRegisterDSControlPointIndex = 0;
+  static constexpr u32 kInRegisterVSVertexIndex = 0;
+  static constexpr u32 kInRegisterDSControlPointIndex = 0;
 
   /**
    * Marks a system constant as used. Together with GetSystemConstantSrc it builds a source
@@ -614,7 +606,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
    * @param index System constant to mark.
    */
   void MarkSystemConstantUsed(SystemConstants::Index index) {
-    system_constants_used_ |= static_cast<uint64_t>(1) << uint32_t(index);
+    system_constants_used_ |= static_cast<u64>(1) << u32(index);
   }
   /**
    * Builds a constant buffer source for a system constant.
@@ -627,17 +619,17 @@ class DxbcShaderTranslator : public ShaderTranslator {
    * @param swizzle Swizzle relative to the first component at the offset.
    * @return Constant buffer source for the requested components.
    */
-  dxbc::Src GetSystemConstantSrc(size_t offset, uint32_t swizzle) const {
-    uint32_t first_component = static_cast<uint32_t>((offset >> 2) & 3);
+  dxbc::Src GetSystemConstantSrc(size_t offset, u32 swizzle) const {
+    u32 first_component = static_cast<u32>((offset >> 2) & 3);
     return dxbc::Src::CB(
         cbuffer_index_system_constants_, std::to_underlying(CbufferRegister::kSystemConstants),
-        static_cast<uint32_t>(offset >> 4),
-        std::min((swizzle & 3) + first_component, static_cast<uint32_t>(3)) |
-            std::min(((swizzle >> 2) & 3) + first_component, static_cast<uint32_t>(3)) << 2 |
-            std::min(((swizzle >> 4) & 3) + first_component, static_cast<uint32_t>(3)) << 4 |
-            std::min(((swizzle >> 6) & 3) + first_component, static_cast<uint32_t>(3)) << 6);
+        static_cast<u32>(offset >> 4),
+        std::min((swizzle & 3) + first_component, static_cast<u32>(3)) |
+            std::min(((swizzle >> 2) & 3) + first_component, static_cast<u32>(3)) << 2 |
+            std::min(((swizzle >> 4) & 3) + first_component, static_cast<u32>(3)) << 4 |
+            std::min(((swizzle >> 6) & 3) + first_component, static_cast<u32>(3)) << 6);
   }
-  dxbc::Src LoadSystemConstant(SystemConstants::Index index, size_t offset, uint32_t swizzle) {
+  dxbc::Src LoadSystemConstant(SystemConstants::Index index, size_t offset, u32 swizzle) {
     MarkSystemConstantUsed(index);
     return GetSystemConstantSrc(offset, swizzle);
   }
@@ -666,7 +658,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
            !edram_rov_used_ && current_shader().implicit_early_z_write_allowed();
   }
 
-  uint32_t GetModificationInterpolatorMask() const {
+  u32 GetModificationInterpolatorMask() const {
     Modification modification = GetDxbcShaderModification();
     return is_vertex_shader() ? modification.vertex.interpolator_mask
                               : modification.pixel.interpolator_mask;
@@ -686,13 +678,13 @@ class DxbcShaderTranslator : public ShaderTranslator {
    * @param count Number of registers to allocate.
    * @return Index of the first register.
    */
-  uint32_t PushSystemTemp(uint32_t zero_mask = 0, uint32_t count = 1);
+  u32 PushSystemTemp(u32 zero_mask = 0, u32 count = 1);
   /**
    * Frees the last allocated internal r# registers for reuse.
    *
    * @param count Number of registers to free.
    */
-  void PopSystemTemp(uint32_t count = 1);
+  void PopSystemTemp(u32 count = 1);
 
   /**
    * Exports eM# to memory. Modifies eA and eM# values, so call only before starting a new export or
@@ -700,7 +692,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
    *
    * @param export_eM Mask of eM# registers to export.
    */
-  void ExportToMemory(uint8_t export_eM);
+  void ExportToMemory(u8 export_eM);
 
   bool IsSampleRate() const {
     REX_ASSERT(is_pixel_shader());
@@ -752,9 +744,8 @@ class DxbcShaderTranslator : public ShaderTranslator {
    * @param temp_temp Scratch temporary register.
    * @param temp_temp_component Component of temp_temp to use.
    */
-  void ROV_DepthTo24Bit(uint32_t d24_temp, uint32_t d24_temp_component, uint32_t d32_temp,
-                        uint32_t d32_temp_component, uint32_t temp_temp,
-                        uint32_t temp_temp_component);
+  void ROV_DepthTo24Bit(u32 d24_temp, u32 d24_temp_component, u32 d32_temp, u32 d32_temp_component,
+                        u32 temp_temp, u32 temp_temp_component);
   /**
    * Performs the depth and stencil test, writing depending on whether it is late or safe to do
    * early.
@@ -777,9 +768,8 @@ class DxbcShaderTranslator : public ShaderTranslator {
    * @param temp2 Second scratch VGPR.
    * @param temp2_component Component of temp2 to use.
    */
-  void ROV_UnpackColor(uint32_t rt_index, uint32_t packed_temp, uint32_t packed_temp_components,
-                       uint32_t color_temp, uint32_t temp1, uint32_t temp1_component,
-                       uint32_t temp2, uint32_t temp2_component);
+  void ROV_UnpackColor(u32 rt_index, u32 packed_temp, u32 packed_temp_components, u32 color_temp,
+                       u32 temp1, u32 temp1_component, u32 temp2, u32 temp2_component);
   /**
    * Packs a float32x4 color from color_temp to a 32bpp or 64bpp value in
    * packed_temp.packed_temp_components using 2 temporary VGPRs.
@@ -796,9 +786,9 @@ class DxbcShaderTranslator : public ShaderTranslator {
    * @param temp2 Second scratch VGPR.
    * @param temp2_component Component of temp2 to use.
    */
-  void ROV_PackPreClampedColor(uint32_t rt_index, uint32_t color_temp, uint32_t packed_temp,
-                               uint32_t packed_temp_components, uint32_t temp1,
-                               uint32_t temp1_component, uint32_t temp2, uint32_t temp2_component);
+  void ROV_PackPreClampedColor(u32 rt_index, u32 color_temp, u32 packed_temp,
+                               u32 packed_temp_components, u32 temp1, u32 temp1_component,
+                               u32 temp2, u32 temp2_component);
   /**
    * Emits `case` labels for color blend factors, generating the factor from src_temp.rgb and
    * dst_temp.rgb into factor_temp.rgb.
@@ -809,7 +799,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
    * @param dst_temp Temporary register holding the destination color.
    * @param factor_temp Temporary register receiving the factor.
    */
-  void ROV_HandleColorBlendFactorCases(uint32_t src_temp, uint32_t dst_temp, uint32_t factor_temp);
+  void ROV_HandleColorBlendFactorCases(u32 src_temp, u32 dst_temp, u32 factor_temp);
   /**
    * Emits `case` labels for alpha blend factors, generating the factor from src_temp.a and
    * dst_temp.a into factor_temp.factor_component.
@@ -821,8 +811,8 @@ class DxbcShaderTranslator : public ShaderTranslator {
    * @param factor_temp Temporary register receiving the factor.
    * @param factor_component Component of factor_temp to write.
    */
-  void ROV_HandleAlphaBlendFactorCases(uint32_t src_temp, uint32_t dst_temp, uint32_t factor_temp,
-                                       uint32_t factor_component);
+  void ROV_HandleAlphaBlendFactorCases(u32 src_temp, u32 dst_temp, u32 factor_temp,
+                                       u32 factor_component);
 
   /**
    * Applies the index offset to vertex or tessellation patch indices, clamps them to the minimum
@@ -834,8 +824,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
    * @param dest_temp_components Components of dest_temp to write.
    * @param src Source holding the raw indices.
    */
-  void RemapAndConvertVertexIndices(uint32_t dest_temp, uint32_t dest_temp_components,
-                                    const dxbc::Src& src);
+  void RemapAndConvertVertexIndices(u32 dest_temp, u32 dest_temp_components, const dxbc::Src& src);
   void StartVertexShader_LoadVertexIndex();
   void StartVertexOrDomainShader();
   /**
@@ -876,11 +865,10 @@ class DxbcShaderTranslator : public ShaderTranslator {
    * @param temp Scratch temporary register.
    * @param temp_component Component of temp to use.
    */
-  void CompletePixelShader_AlphaToMaskSample(bool initialize, uint32_t sample_index,
-                                             float threshold_base, dxbc::Src threshold_offset,
-                                             float threshold_offset_scale, uint32_t coverage_temp,
-                                             uint32_t coverage_temp_component, uint32_t temp,
-                                             uint32_t temp_component);
+  void CompletePixelShader_AlphaToMaskSample(bool initialize, u32 sample_index, f32 threshold_base,
+                                             dxbc::Src threshold_offset, f32 threshold_offset_scale,
+                                             u32 coverage_temp, u32 coverage_temp_component,
+                                             u32 temp, u32 temp_component);
   /**
    * Performs alpha to coverage. For RTV writes oMask, for ROV updates the coverage bits of
    * system_temp_rov_params_.x. Done manually for RTV to keep the guest dithering pattern and
@@ -911,7 +899,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
    * @param temp_pushed_out Set when a system temporary was allocated.
    * @return DXBC source for the operand.
    */
-  dxbc::Src LoadOperand(const InstructionOperand& operand, uint32_t needed_components,
+  dxbc::Src LoadOperand(const InstructionOperand& operand, u32 needed_components,
                         bool& temp_pushed_out);
   /**
    * Writes src, which must be usable as a vector `mov` source including to x#, to an instruction
@@ -947,7 +935,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
    * @param condition Value the condition must have for the exec to run.
    */
   void UpdateExecConditionalsAndEmitDisassembly(ParsedExecInstruction::Type type,
-                                                uint32_t bool_constant_index, bool condition);
+                                                u32 bool_constant_index, bool condition);
   /** Closes `if`s opened by execs and their instructions, but not by labels. */
   void CloseExecConditionals();
   /**
@@ -961,21 +949,21 @@ class DxbcShaderTranslator : public ShaderTranslator {
   void UpdateInstructionPredicationAndEmitDisassembly(bool predicated, bool condition);
   /** Closes the instruction level predicate `if` if open. */
   void CloseInstructionPredication();
-  void JumpToLabel(uint32_t address);
+  void JumpToLabel(u32 address);
 
-  uint32_t FindOrAddTextureBinding(uint32_t fetch_constant, xenos::FetchOpDimension dimension,
-                                   bool is_signed);
-  uint32_t FindOrAddSamplerBinding(uint32_t fetch_constant, xenos::TextureFilter mag_filter,
-                                   xenos::TextureFilter min_filter, xenos::TextureFilter mip_filter,
-                                   xenos::AnisoFilter aniso_filter);
+  u32 FindOrAddTextureBinding(u32 fetch_constant, xenos::FetchOpDimension dimension,
+                              bool is_signed);
+  u32 FindOrAddSamplerBinding(u32 fetch_constant, xenos::TextureFilter mag_filter,
+                              xenos::TextureFilter min_filter, xenos::TextureFilter mip_filter,
+                              xenos::AnisoFilter aniso_filter);
   /**
    * Returns the number of texture SRV and sampler offsets passed to the shader through a constant
    * buffer.
    *
    * @return Number of bindless texture and sampler offsets.
    */
-  uint32_t GetBindlessResourceCount() const {
-    return static_cast<uint32_t>(texture_bindings_.size() + sampler_bindings_.size());
+  u32 GetBindlessResourceCount() const {
+    return static_cast<u32>(texture_bindings_.size() + sampler_bindings_.size());
   }
   /**
    * Marks fetch constants used and returns the source for words 0 and 1 (pair 0), 2 and 3 (pair 1)
@@ -985,29 +973,28 @@ class DxbcShaderTranslator : public ShaderTranslator {
    * @param pair_index Index of the word pair within the fetch constant.
    * @return Constant buffer source for the word pair.
    */
-  dxbc::Src RequestTextureFetchConstantWordPair(uint32_t fetch_constant_index,
-                                                uint32_t pair_index) {
+  dxbc::Src RequestTextureFetchConstantWordPair(u32 fetch_constant_index, u32 pair_index) {
     if (cbuffer_index_fetch_constants_ == kBindingIndexUnallocated) {
       cbuffer_index_fetch_constants_ = cbuffer_count_++;
     }
-    uint32_t total_pair_index = fetch_constant_index * 3 + pair_index;
+    u32 total_pair_index = fetch_constant_index * 3 + pair_index;
     return dxbc::Src::CB(cbuffer_index_fetch_constants_,
                          std::to_underlying(CbufferRegister::kFetchConstants),
                          total_pair_index >> 1, (total_pair_index & 1) ? 0b10101110 : 0b00000100);
   }
-  dxbc::Src RequestTextureFetchConstantWord(uint32_t fetch_constant_index, uint32_t word_index) {
+  dxbc::Src RequestTextureFetchConstantWord(u32 fetch_constant_index, u32 word_index) {
     return RequestTextureFetchConstantWordPair(fetch_constant_index, word_index >> 1)
         .SelectFromSwizzled(word_index & 1);
   }
 
   void KillPixel(bool condition, const dxbc::Src& condition_src,
-                 uint8_t memexport_eM_potentially_written_before);
+                 u8 memexport_eM_potentially_written_before);
 
   void ProcessVectorAluOperation(const ParsedAluInstruction& instr,
-                                 uint8_t memexport_eM_potentially_written_before,
-                                 uint32_t& result_swizzle, bool& predicate_written);
+                                 u8 memexport_eM_potentially_written_before, u32& result_swizzle,
+                                 bool& predicate_written);
   void ProcessScalarAluOperation(const ParsedAluInstruction& instr,
-                                 uint8_t memexport_eM_potentially_written_before,
+                                 u8 memexport_eM_potentially_written_before,
                                  bool& predicate_written);
 
   void WriteResourceDefinition();
@@ -1016,8 +1003,8 @@ class DxbcShaderTranslator : public ShaderTranslator {
   void WriteOutputSignature();
   void WriteShaderCode();
 
-  std::vector<uint32_t> shader_code_;
-  std::vector<uint32_t> shader_object_;
+  std::vector<u32> shader_code_;
+  std::vector<u32> shader_object_;
 
   dxbc::ShaderFeatureInfo shader_feature_info_;
   dxbc::Statistics statistics_;
@@ -1041,12 +1028,12 @@ class DxbcShaderTranslator : public ShaderTranslator {
 
   bool msaa_2x_supported_;
 
-  uint32_t draw_resolution_scale_x_;
-  uint32_t draw_resolution_scale_y_;
+  u32 draw_resolution_scale_x_;
+  u32 draw_resolution_scale_y_;
 
   bool is_depth_only_pixel_shader_ = false;
 
-  enum class ShaderRdefTypeIndex : uint32_t {
+  enum class ShaderRdefTypeIndex : u32 {
     kFloat,
     kFloat2,
     kFloat3,
@@ -1071,57 +1058,57 @@ class DxbcShaderTranslator : public ShaderTranslator {
     const char* name;
     dxbc::RdefVariableClass variable_class;
     dxbc::RdefVariableType variable_type;
-    uint16_t row_count;
-    uint16_t column_count;
-    uint16_t element_count;
+    u16 row_count;
+    u16 column_count;
+    u16 element_count;
     ShaderRdefTypeIndex array_element_type;
   };
   static const ShaderRdefType rdef_types_[std::to_underlying(ShaderRdefTypeIndex::kCount)];
 
-  static constexpr uint32_t kBindingIndexUnallocated = UINT32_MAX;
+  static constexpr u32 kBindingIndexUnallocated = UINT32_MAX;
 
-  uint32_t cbuffer_count_;
-  uint32_t cbuffer_index_system_constants_;
-  uint32_t cbuffer_index_float_constants_;
-  uint32_t cbuffer_index_bool_loop_constants_;
-  uint32_t cbuffer_index_fetch_constants_;
-  uint32_t cbuffer_index_descriptor_indices_;
+  u32 cbuffer_count_;
+  u32 cbuffer_index_system_constants_;
+  u32 cbuffer_index_float_constants_;
+  u32 cbuffer_index_bool_loop_constants_;
+  u32 cbuffer_index_fetch_constants_;
+  u32 cbuffer_index_descriptor_indices_;
 
   struct SystemConstantRdef {
     const char* name;
     ShaderRdefTypeIndex type;
-    uint32_t size;
-    uint32_t padding_after = 0;
+    u32 size;
+    u32 padding_after = 0;
   };
   static const SystemConstantRdef
       system_constant_rdef_[std::to_underlying(SystemConstants::Index::kCount)];
   /** Mask of system constants (1 << SystemConstants::Index) used, so the rest are marked unused in
    * RDEF. */
-  uint64_t system_constants_used_;
+  u64 system_constants_used_;
 
-  uint32_t out_reg_vs_interpolators_;
-  uint32_t out_reg_vs_position_;
+  u32 out_reg_vs_interpolators_;
+  u32 out_reg_vs_position_;
   /** Clip and cull distances are tightly packed with up to 6 SV_ClipDistance or SV_CullDistance
    * depending on user_clip_plane_cull, then 1 SV_CullDistance when vertex_kill_and is used. */
-  uint32_t out_reg_vs_clip_cull_distances_;
-  uint32_t out_reg_vs_point_size_;
-  uint32_t in_reg_ps_interpolators_;
-  uint32_t in_reg_ps_point_coordinates_;
-  uint32_t in_reg_ps_position_;
+  u32 out_reg_vs_clip_cull_distances_;
+  u32 out_reg_vs_point_size_;
+  u32 in_reg_ps_interpolators_;
+  u32 in_reg_ps_point_coordinates_;
+  u32 in_reg_ps_position_;
   /** Nointerpolation inputs. SV_IsFrontFace (X) is for non point PsParamGen, SV_SampleIndex (Y) is
    * for memexport when sample rate shading is needed for depth conversion. */
-  uint32_t in_reg_ps_front_face_sample_index_;
+  u32 in_reg_ps_front_face_sample_index_;
 
-  uint32_t in_domain_location_used_;
+  u32 in_domain_location_used_;
   bool in_control_point_index_used_;
-  uint32_t in_position_used_;
+  u32 in_position_used_;
   bool in_front_face_used_;
 
-  uint32_t system_temp_count_current_;
-  uint32_t system_temp_count_max_;
+  u32 system_temp_count_current_;
+  u32 system_temp_count_max_;
 
-  uint32_t system_temp_position_;
-  uint32_t system_temp_point_size_edge_flag_kill_vertex_;
+  u32 system_temp_position_;
+  u32 system_temp_point_size_edge_flag_kill_vertex_;
   /**
    * ROV only, 4 persistent VGPRs when writing color targets and 2 otherwise.
    *
@@ -1137,7 +1124,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
    * - Z is the base relative resolution scaled EDRAM offset for 32bpp color in dwords.
    * - W is the base relative resolution scaled EDRAM offset for 64bpp color in dwords.
    */
-  uint32_t system_temp_rov_params_;
+  u32 system_temp_rov_params_;
   /**
    * When writing oDepth, X holds the shader depth, which for float24 host render targets is
    * remapped from 0...1 to 0...0.5 and converted to float24 precision, and for ROV is written at
@@ -1147,32 +1134,32 @@ class DxbcShaderTranslator : public ShaderTranslator {
    * stencil from the early test. Without ROV_IsDepthStencilEarly, .xy hold the Z gradients taken
    * before any return.
    */
-  uint32_t system_temp_depth_stencil_;
+  u32 system_temp_depth_stencil_;
   /** Up to 4 color outputs, readable for alpha test, alpha to coverage, exponent bias, gamma and
    * ROV writing. */
-  uint32_t system_temps_color_[4];
+  u32 system_temps_color_[4];
 
   /** Allocated only when the shader writes any eM#. X is whether memexport is enabled for the
    * invocation, Y is the mask of eM# elements written since the last memory write. */
-  uint32_t system_temp_memexport_enabled_and_eM_written_;
-  uint32_t system_temp_memexport_address_;
-  uint32_t system_temps_memexport_data_[xenos::ucode::kMaxMemExportElementCount];
+  u32 system_temp_memexport_enabled_and_eM_written_;
+  u32 system_temp_memexport_address_;
+  u32 system_temps_memexport_data_[xenos::ucode::kMaxMemExportElementCount];
 
-  uint32_t system_temp_result_;
-  uint32_t system_temp_ps_pc_p0_a0_;
+  u32 system_temp_result_;
+  u32 system_temp_ps_pc_p0_a0_;
   /** Loop index stack with the active loop in .x, shifted right to .yzw on push. */
-  uint32_t system_temp_aL_;
+  u32 system_temp_aL_;
   /** Loop counter stack with the active loop in .x, holding the remaining iteration count. */
-  uint32_t system_temp_loop_count_;
-  uint32_t system_temp_grad_h_lod_;
+  u32 system_temp_loop_count_;
+  u32 system_temp_grad_h_lod_;
   /** The .w component holds `base + index * stride` in bytes from the last vfetch_full for
    * vfetch_mini. */
-  uint32_t system_temp_grad_v_vfetch_address_;
+  u32 system_temp_grad_v_vfetch_address_;
 
   /** Bool constant index of the processed exec condition, or kCfExecBoolConstantNone when
    * unchecked. */
-  uint32_t cf_exec_bool_constant_;
-  static constexpr uint32_t kCfExecBoolConstantNone = UINT32_MAX;
+  u32 cf_exec_bool_constant_;
+  static constexpr u32 kCfExecBoolConstantNone = UINT32_MAX;
   bool cf_exec_bool_constant_condition_;
   bool cf_exec_predicated_;
   bool cf_exec_predicate_condition_;
@@ -1182,19 +1169,19 @@ class DxbcShaderTranslator : public ShaderTranslator {
    * from the exec level one and execs with the same condition cannot be merged. */
   bool cf_exec_predicate_written_;
 
-  uint32_t srv_count_;
-  uint32_t srv_index_shared_memory_;
-  uint32_t srv_index_bindless_textures_2d_;
-  uint32_t srv_index_bindless_textures_3d_;
-  uint32_t srv_index_bindless_textures_cube_;
+  u32 srv_count_;
+  u32 srv_index_shared_memory_;
+  u32 srv_index_bindless_textures_2d_;
+  u32 srv_index_bindless_textures_3d_;
+  u32 srv_index_bindless_textures_cube_;
 
   /** The first binding is at t[SRVMainRegister::kBindfulTexturesStart] of SRVSpace::kMain. */
   std::vector<TextureBinding> texture_bindings_;
-  std::unordered_map<uint32_t, uint32_t> texture_bindings_for_bindful_srv_indices_;
+  std::unordered_map<u32, u32> texture_bindings_for_bindful_srv_indices_;
 
-  uint32_t uav_count_;
-  uint32_t uav_index_shared_memory_;
-  uint32_t uav_index_edram_;
+  u32 uav_count_;
+  u32 uav_index_shared_memory_;
+  u32 uav_index_edram_;
 
   std::vector<SamplerBinding> sampler_bindings_;
 };

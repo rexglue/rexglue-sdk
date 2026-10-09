@@ -64,44 +64,44 @@ bool build_cctph(BuilderContext& ctx) {
 }
 
 bool build_tdi(BuilderContext& ctx) {
-  uint32_t to = (ctx.insn.instruction >> 21) & 0x1F;
-  uint32_t ra = (ctx.insn.instruction >> 16) & 0x1F;
-  int64_t simm = static_cast<int16_t>(ctx.insn.instruction & 0xFFFF);
+  u32 to = (ctx.insn.instruction >> 21) & 0x1F;
+  u32 ra = (ctx.insn.instruction >> 16) & 0x1F;
+  i64 simm = static_cast<i16>(ctx.insn.instruction & 0xFFFF);
   emitTrap(ctx, to, std::format("{}.s64", ctx.r(ra)), std::format("{}.u64", ctx.r(ra)),
-           std::format("{}ll", simm), std::format("{}ull", static_cast<uint64_t>(simm)));
+           std::format("{}ll", simm), std::format("{}ull", static_cast<u64>(simm)));
   return true;
 }
 
 bool build_twi(BuilderContext& ctx) {
-  uint32_t to = (ctx.insn.instruction >> 21) & 0x1F;
-  uint32_t ra = (ctx.insn.instruction >> 16) & 0x1F;
-  int32_t simm = static_cast<int16_t>(ctx.insn.instruction & 0xFFFF);
+  u32 to = (ctx.insn.instruction >> 21) & 0x1F;
+  u32 ra = (ctx.insn.instruction >> 16) & 0x1F;
+  i32 simm = static_cast<i16>(ctx.insn.instruction & 0xFFFF);
 
   // twi 31, r0, <imm> is an unconditional trap with service code in the immediate
   if (to == 0x1F && ra == 0) {
-    uint16_t trap_type = static_cast<uint16_t>(simm);
+    u16 trap_type = static_cast<u16>(simm);
     ctx.println("\tppc_trap(ctx, base, {});", trap_type);
     return true;
   }
 
   emitTrap(ctx, to, std::format("{}.s32", ctx.r(ra)), std::format("{}.u32", ctx.r(ra)),
-           std::format("{}", simm), std::format("{}u", static_cast<uint32_t>(simm)));
+           std::format("{}", simm), std::format("{}u", static_cast<u32>(simm)));
   return true;
 }
 
 bool build_td(BuilderContext& ctx) {
-  uint32_t to = (ctx.insn.instruction >> 21) & 0x1F;
-  uint32_t ra = (ctx.insn.instruction >> 16) & 0x1F;
-  uint32_t rb = (ctx.insn.instruction >> 11) & 0x1F;
+  u32 to = (ctx.insn.instruction >> 21) & 0x1F;
+  u32 ra = (ctx.insn.instruction >> 16) & 0x1F;
+  u32 rb = (ctx.insn.instruction >> 11) & 0x1F;
   emitTrap(ctx, to, std::format("{}.s64", ctx.r(ra)), std::format("{}.u64", ctx.r(ra)),
            std::format("{}.s64", ctx.r(rb)), std::format("{}.u64", ctx.r(rb)));
   return true;
 }
 
 bool build_tw(BuilderContext& ctx) {
-  uint32_t to = (ctx.insn.instruction >> 21) & 0x1F;
-  uint32_t ra = (ctx.insn.instruction >> 16) & 0x1F;
-  uint32_t rb = (ctx.insn.instruction >> 11) & 0x1F;
+  u32 to = (ctx.insn.instruction >> 21) & 0x1F;
+  u32 ra = (ctx.insn.instruction >> 16) & 0x1F;
+  u32 rb = (ctx.insn.instruction >> 11) & 0x1F;
   emitTrap(ctx, to, std::format("{}.s32", ctx.r(ra)), std::format("{}.u32", ctx.r(ra)),
            std::format("{}.s32", ctx.r(rb)), std::format("{}.u32", ctx.r(rb)));
   return true;
@@ -182,15 +182,15 @@ bool build_mfcr(BuilderContext& ctx) {
 
 bool build_mfocrf(BuilderContext& ctx) {
   // FXM is a one-hot mask with bit 7 for CR0, bit 6 for CR1, down to bit 0 for CR7
-  uint32_t fxm = ctx.insn.operands[1];
-  uint32_t crField = 0;
-  for (uint32_t i = 0; i < 8; i++) {
+  u32 fxm = ctx.insn.operands[1];
+  u32 crField = 0;
+  for (u32 i = 0; i < 8; i++) {
     if (fxm & (0x80u >> i)) {
       crField = i;
       break;
     }
   }
-  uint32_t baseShift = 28 - 4 * crField;
+  u32 baseShift = 28 - 4 * crField;
   ctx.println("\t{}.u64 = ({}.lt << {}) | ({}.gt << {}) | ({}.eq << {}) | ({}.so << {});",
               ctx.r(ctx.insn.operands[0]), ctx.cr(crField), baseShift + 3, ctx.cr(crField),
               baseShift + 2, ctx.cr(crField), baseShift + 1, ctx.cr(crField), baseShift);
@@ -237,11 +237,11 @@ bool build_mtcr(BuilderContext& ctx) {
 }
 
 bool build_mtcrf(BuilderContext& ctx) {
-  uint32_t fxm = ctx.insn.operands[0];
+  u32 fxm = ctx.insn.operands[0];
   constexpr std::string_view names[] = {"lt", "gt", "eq", "so"};
-  for (uint32_t field = 0; field < 8; field++) {
+  for (u32 field = 0; field < 8; field++) {
     if (fxm & (0x80u >> field)) {
-      uint32_t base_bit = 28 - 4 * field;
+      u32 base_bit = 28 - 4 * field;
       for (int b = 0; b < 4; b++) {
         ctx.println("\t{}.{} = ({}.u32 & 0x{:X}) != 0;", ctx.cr(field), names[b],
                     ctx.r(ctx.insn.operands[1]), 1u << (base_bit + 3 - b));
@@ -267,7 +267,7 @@ bool build_mtmsrd(BuilderContext& ctx) {
     ctx.println("\tctx.msr = ({}.u32 & 0x8020) | (ctx.msr & ~0x8020);",
                 ctx.r(ctx.insn.operands[0]));
     // r13 enters the global lock (interrupts off), any other source register leaves it
-    uint32_t src_reg = ctx.insn.operands[0];
+    u32 src_reg = ctx.insn.operands[0];
     if (src_reg == 13) {
       ctx.println("\tREX_ENTER_GLOBAL_LOCK();");
     } else {
@@ -278,8 +278,8 @@ bool build_mtmsrd(BuilderContext& ctx) {
 }
 
 bool build_mtfsf(BuilderContext& ctx) {
-  uint32_t fm = ctx.insn.operands[0];
-  uint32_t mask = 0;
+  u32 fm = ctx.insn.operands[0];
+  u32 mask = 0;
   for (int j = 0; j < 8; j++) {
     if (fm & (1 << (7 - j)))
       mask |= 0xF << (4 * j);

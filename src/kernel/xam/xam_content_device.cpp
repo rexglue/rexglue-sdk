@@ -38,11 +38,11 @@ static const DummyDeviceInfo* dummy_device_infos_[] = {
     &dummy_odd_device_info_,
 };
 
-const DummyDeviceInfo* GetDummyDeviceInfo(uint32_t device_id) {
+const DummyDeviceInfo* GetDummyDeviceInfo(u32 device_id) {
   const auto& begin = std::begin(dummy_device_infos_);
   const auto& end = std::end(dummy_device_infos_);
   auto it = std::find_if(begin, end, [device_id](const auto& item) {
-    return static_cast<uint32_t>(item->device_id) == device_id;
+    return static_cast<u32>(item->device_id) == device_id;
   });
   return it == end ? nullptr : *it;
 }
@@ -98,8 +98,8 @@ u32 XamContentGetDeviceData_entry(u32 device_id, ppc_ptr_t<X_CONTENT_DEVICE_DATA
     return X_ERROR_DEVICE_NOT_CONNECTED;
   }
   device_data.Zero();
-  device_data->device_id = static_cast<uint32_t>(device_info->device_id);
-  device_data->device_type = static_cast<uint32_t>(device_info->device_type);
+  device_data->device_id = static_cast<u32>(device_info->device_id);
+  device_data->device_type = static_cast<u32>(device_info->device_type);
   device_data->total_bytes = device_info->total_bytes;
   device_data->free_bytes = device_info->free_bytes;
   rex::copy_and_swap_truncating(device_data->name_chars, device_info->name,
@@ -122,8 +122,8 @@ u32 XamContentCreateDeviceEnumerator_entry([[maybe_unused]] u32 content_type,
     auto device_data = items.Append<X_CONTENT_DEVICE_DATA>();
     REX_ASSERT(device_data != nullptr);
     if (device_data) {
-      device_data->device_id = static_cast<uint32_t>(device_info->device_id);
-      device_data->device_type = static_cast<uint32_t>(device_info->device_type);
+      device_data->device_id = static_cast<u32>(device_info->device_id);
+      device_data->device_type = static_cast<u32>(device_info->device_type);
       device_data->total_bytes = device_info->total_bytes;
       device_data->free_bytes = device_info->free_bytes;
       rex::copy_and_swap_truncating(device_data->name_chars, device_info->name,
@@ -158,7 +158,7 @@ namespace rex {
 namespace runtime {
 namespace xam {
 
-const DummyDeviceInfo* GetDummyDeviceInfo(uint32_t device_id) {
+const DummyDeviceInfo* GetDummyDeviceInfo(u32 device_id) {
   return rex::kernel::xam::GetDummyDeviceInfo(device_id);
 }
 

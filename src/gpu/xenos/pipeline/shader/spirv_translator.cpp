@@ -60,7 +60,7 @@ SpirvShaderTranslator::Features::Features(const gpu::vulkan::VulkanDevice* const
       fragment_shader_sample_interlock(vulkan_device->properties().fragmentShaderSampleInterlock),
       demote_to_helper_invocation(vulkan_device->properties().shaderDemoteToHelperInvocation),
       sample_rate_shading(vulkan_device->properties().sampleRateShading) {
-  const uint32_t vulkan_api_version = vulkan_device->properties().apiVersion;
+  const u32 vulkan_api_version = vulkan_device->properties().apiVersion;
   if (vulkan_api_version >= VK_MAKE_API_VERSION(0, 1, 2, 0)) {
     spirv_version = spv::Spv_1_5;
   } else if (vulkan_device->extensions().ext_1_2_KHR_spirv_1_4) {
@@ -72,8 +72,8 @@ SpirvShaderTranslator::Features::Features(const gpu::vulkan::VulkanDevice* const
   }
 }
 
-uint64_t SpirvShaderTranslator::GetDefaultVertexShaderModification(
-    uint32_t dynamic_addressable_register_count,
+u64 SpirvShaderTranslator::GetDefaultVertexShaderModification(
+    u32 dynamic_addressable_register_count,
     Shader::HostVertexShaderType host_vertex_shader_type) const {
   Modification shader_modification;
   shader_modification.vertex.dynamic_addressable_register_count =
@@ -82,14 +82,14 @@ uint64_t SpirvShaderTranslator::GetDefaultVertexShaderModification(
   return shader_modification.value;
 }
 
-uint64_t SpirvShaderTranslator::GetDefaultPixelShaderModification(
-    uint32_t dynamic_addressable_register_count) const {
+u64 SpirvShaderTranslator::GetDefaultPixelShaderModification(
+    u32 dynamic_addressable_register_count) const {
   Modification shader_modification;
   shader_modification.pixel.dynamic_addressable_register_count = dynamic_addressable_register_count;
   return shader_modification.value;
 }
 
-std::vector<uint8_t> SpirvShaderTranslator::CreateDepthOnlyFragmentShader(
+std::vector<u8> SpirvShaderTranslator::CreateDepthOnlyFragmentShader(
     Modification::DepthStencilMode depth_stencil_mode) {
   is_depth_only_fragment_shader_ = true;
   Shader shader(xenos::ShaderType::kPixel, 0, nullptr, 0);
@@ -160,7 +160,7 @@ void SpirvShaderTranslator::Reset() {
   cf_instruction_predicate_merge_ = nullptr;
 }
 
-uint32_t SpirvShaderTranslator::GetModificationRegisterCount() const {
+u32 SpirvShaderTranslator::GetModificationRegisterCount() const {
   Modification modification = GetSpirvShaderModification();
   return is_vertex_shader() ? modification.vertex.dynamic_addressable_register_count
                             : modification.pixel.dynamic_addressable_register_count;
@@ -202,20 +202,20 @@ void SpirvShaderTranslator::StartTranslation() {
 
   const_int_0_ = builder_->makeIntConstant(0);
   id_vector_temp_.clear();
-  for (uint32_t i = 0; i < 4; ++i) {
+  for (u32 i = 0; i < 4; ++i) {
     id_vector_temp_.push_back(const_int_0_);
   }
   const_int4_0_ = builder_->makeCompositeConstant(type_int4_, id_vector_temp_);
   const_uint_0_ = builder_->makeUintConstant(0);
   id_vector_temp_.clear();
-  for (uint32_t i = 0; i < 4; ++i) {
+  for (u32 i = 0; i < 4; ++i) {
     id_vector_temp_.push_back(const_uint_0_);
   }
   const_uint4_0_ = builder_->makeCompositeConstant(type_uint4_, id_vector_temp_);
   const_float_0_ = builder_->makeFloatConstant(0.0f);
   id_vector_temp_.clear();
   id_vector_temp_.push_back(const_float_0_);
-  for (uint32_t i = 1; i < 4; ++i) {
+  for (u32 i = 1; i < 4; ++i) {
     id_vector_temp_.push_back(const_float_0_);
     const_float_vectors_0_[i] =
         builder_->makeCompositeConstant(type_float_vectors_[i], id_vector_temp_);
@@ -223,7 +223,7 @@ void SpirvShaderTranslator::StartTranslation() {
   const_float_1_ = builder_->makeFloatConstant(1.0f);
   id_vector_temp_.clear();
   id_vector_temp_.push_back(const_float_1_);
-  for (uint32_t i = 1; i < 4; ++i) {
+  for (u32 i = 1; i < 4; ++i) {
     id_vector_temp_.push_back(const_float_1_);
     const_float_vectors_1_[i] =
         builder_->makeCompositeConstant(type_float_vectors_[i], id_vector_temp_);
@@ -239,17 +239,17 @@ void SpirvShaderTranslator::StartTranslation() {
     spv::Id type;
   };
   spv::Id type_float4_array_4 =
-      builder_->makeArrayType(type_float4_, builder_->makeUintConstant(4), sizeof(float) * 4);
-  builder_->addDecoration(type_float4_array_4, spv::DecorationArrayStride, sizeof(float) * 4);
+      builder_->makeArrayType(type_float4_, builder_->makeUintConstant(4), sizeof(f32) * 4);
+  builder_->addDecoration(type_float4_array_4, spv::DecorationArrayStride, sizeof(f32) * 4);
   spv::Id type_float4_array_6 =
-      builder_->makeArrayType(type_float4_, builder_->makeUintConstant(6), sizeof(float) * 4);
-  builder_->addDecoration(type_float4_array_6, spv::DecorationArrayStride, sizeof(float) * 4);
+      builder_->makeArrayType(type_float4_, builder_->makeUintConstant(6), sizeof(f32) * 4);
+  builder_->addDecoration(type_float4_array_6, spv::DecorationArrayStride, sizeof(f32) * 4);
   spv::Id type_uint4_array_2 =
-      builder_->makeArrayType(type_uint4_, builder_->makeUintConstant(2), sizeof(uint32_t) * 4);
-  builder_->addDecoration(type_uint4_array_2, spv::DecorationArrayStride, sizeof(uint32_t) * 4);
+      builder_->makeArrayType(type_uint4_, builder_->makeUintConstant(2), sizeof(u32) * 4);
+  builder_->addDecoration(type_uint4_array_2, spv::DecorationArrayStride, sizeof(u32) * 4);
   spv::Id type_uint4_array_4 =
-      builder_->makeArrayType(type_uint4_, builder_->makeUintConstant(4), sizeof(uint32_t) * 4);
-  builder_->addDecoration(type_uint4_array_4, spv::DecorationArrayStride, sizeof(uint32_t) * 4);
+      builder_->makeArrayType(type_uint4_, builder_->makeUintConstant(4), sizeof(u32) * 4);
+  builder_->addDecoration(type_uint4_array_4, spv::DecorationArrayStride, sizeof(u32) * 4);
   const SystemConstant system_constants[] = {
       {"flags", offsetof(SystemConstants, flags), type_uint_},
       {"vertex_index_load_address", offsetof(SystemConstants, vertex_index_load_address),
@@ -331,14 +331,13 @@ void SpirvShaderTranslator::StartTranslation() {
   bool memexport_used = IsMemoryExportUsed();
 
   if (!is_depth_only_fragment_shader_) {
-    uint32_t float_constant_count = current_shader().constant_register_map().float_count;
+    u32 float_constant_count = current_shader().constant_register_map().float_count;
     if (float_constant_count) {
       id_vector_temp_.clear();
       id_vector_temp_.push_back(builder_->makeArrayType(
-          type_float4_, builder_->makeUintConstant(float_constant_count), sizeof(float) * 4));
+          type_float4_, builder_->makeUintConstant(float_constant_count), sizeof(f32) * 4));
       // makeArrayType deduplicates by stride only, so apply the ArrayStride decoration.
-      builder_->addDecoration(id_vector_temp_.back(), spv::DecorationArrayStride,
-                              sizeof(float) * 4);
+      builder_->addDecoration(id_vector_temp_.back(), spv::DecorationArrayStride, sizeof(f32) * 4);
       spv::Id type_float_constants = builder_->makeStructType(id_vector_temp_, "XeFloatConstants");
       builder_->addMemberName(type_float_constants, 0, "float_constants");
       builder_->addMemberDecoration(type_float_constants, 0, spv::DecorationOffset, 0);
@@ -359,20 +358,18 @@ void SpirvShaderTranslator::StartTranslation() {
     // std140 pads scalar array elements to 16 bytes, so use arrays of 4-component vectors.
     id_vector_temp_.clear();
     id_vector_temp_.push_back(
-        builder_->makeArrayType(type_uint4_, builder_->makeUintConstant(2), sizeof(uint32_t) * 4));
-    builder_->addDecoration(id_vector_temp_.back(), spv::DecorationArrayStride,
-                            sizeof(uint32_t) * 4);
+        builder_->makeArrayType(type_uint4_, builder_->makeUintConstant(2), sizeof(u32) * 4));
+    builder_->addDecoration(id_vector_temp_.back(), spv::DecorationArrayStride, sizeof(u32) * 4);
     id_vector_temp_.push_back(
-        builder_->makeArrayType(type_uint4_, builder_->makeUintConstant(8), sizeof(uint32_t) * 4));
-    builder_->addDecoration(id_vector_temp_.back(), spv::DecorationArrayStride,
-                            sizeof(uint32_t) * 4);
+        builder_->makeArrayType(type_uint4_, builder_->makeUintConstant(8), sizeof(u32) * 4));
+    builder_->addDecoration(id_vector_temp_.back(), spv::DecorationArrayStride, sizeof(u32) * 4);
     spv::Id type_bool_loop_constants =
         builder_->makeStructType(id_vector_temp_, "XeBoolLoopConstants");
     builder_->addMemberName(type_bool_loop_constants, 0, "bool_constants");
     builder_->addMemberDecoration(type_bool_loop_constants, 0, spv::DecorationOffset, 0);
     builder_->addMemberName(type_bool_loop_constants, 1, "loop_constants");
     builder_->addMemberDecoration(type_bool_loop_constants, 1, spv::DecorationOffset,
-                                  sizeof(uint32_t) * 8);
+                                  sizeof(u32) * 8);
     builder_->addDecoration(type_bool_loop_constants, spv::DecorationBlock);
     uniform_bool_loop_constants_ =
         builder_->createVariable(spv::NoPrecision, spv::StorageClassUniform,
@@ -388,9 +385,8 @@ void SpirvShaderTranslator::StartTranslation() {
     // 32 x 6 uints packed in std140 as 4-component vectors.
     id_vector_temp_.clear();
     id_vector_temp_.push_back(builder_->makeArrayType(
-        type_uint4_, builder_->makeUintConstant(32 * 6 / 4), sizeof(uint32_t) * 4));
-    builder_->addDecoration(id_vector_temp_.back(), spv::DecorationArrayStride,
-                            sizeof(uint32_t) * 4);
+        type_uint4_, builder_->makeUintConstant(32 * 6 / 4), sizeof(u32) * 4));
+    builder_->addDecoration(id_vector_temp_.back(), spv::DecorationArrayStride, sizeof(u32) * 4);
     spv::Id type_fetch_constants = builder_->makeStructType(id_vector_temp_, "XeFetchConstants");
     builder_->addMemberName(type_fetch_constants, 0, "fetch_constants");
     builder_->addMemberDecoration(type_fetch_constants, 0, spv::DecorationOffset, 0);
@@ -409,7 +405,7 @@ void SpirvShaderTranslator::StartTranslation() {
     // Shared memory uint[] SSBOs of 128 MB or larger packed in std430 without padding.
     id_vector_temp_.clear();
     id_vector_temp_.push_back(builder_->makeRuntimeArray(type_uint_));
-    builder_->addDecoration(id_vector_temp_.back(), spv::DecorationArrayStride, sizeof(uint32_t));
+    builder_->addDecoration(id_vector_temp_.back(), spv::DecorationArrayStride, sizeof(u32));
     spv::Id type_shared_memory = builder_->makeStructType(id_vector_temp_, "XeSharedMemory");
     builder_->addMemberName(type_shared_memory, 0, "shared_memory");
     builder_->addMemberDecoration(type_shared_memory, 0, spv::DecorationRestrict);
@@ -505,22 +501,22 @@ void SpirvShaderTranslator::StartTranslation() {
                                    type_rectangle_per_vertex_array, "xe_var_rectangle_per_vertex");
       spv::Id type_rectangle_distance_array =
           builder_->makeArrayType(type_float_, builder_->makeUintConstant(3), 0);
-      uint32_t clip_distance_count = shader_modification.GetVertexClipDistanceCount();
+      u32 clip_distance_count = shader_modification.GetVertexClipDistanceCount();
       REX_ASSERT(clip_distance_count <= kMaxRectanglePerVertexDistances);
-      for (uint32_t i = 0; i < clip_distance_count; ++i) {
+      for (u32 i = 0; i < clip_distance_count; ++i) {
         var_main_rectangle_clip_distances_[i] = builder_->createVariable(
             spv::NoPrecision, spv::StorageClassFunction, type_rectangle_distance_array,
             std::format("xe_var_rectangle_clip_distance_{}", i).c_str());
       }
-      uint32_t cull_distance_count = shader_modification.GetVertexCullDistanceCount();
+      u32 cull_distance_count = shader_modification.GetVertexCullDistanceCount();
       REX_ASSERT(cull_distance_count <= kMaxRectanglePerVertexDistances);
-      for (uint32_t i = 0; i < cull_distance_count; ++i) {
+      for (u32 i = 0; i < cull_distance_count; ++i) {
         var_main_rectangle_cull_distances_[i] = builder_->createVariable(
             spv::NoPrecision, spv::StorageClassFunction, type_rectangle_distance_array,
             std::format("xe_var_rectangle_cull_distance_{}", i).c_str());
       }
-      uint32_t interpolators_remaining = GetModificationInterpolatorMask();
-      uint32_t interpolator_index;
+      u32 interpolators_remaining = GetModificationInterpolatorMask();
+      u32 interpolator_index;
       while (rex::bit_scan_forward(interpolators_remaining, &interpolator_index)) {
         interpolators_remaining &= ~(UINT32_C(1) << interpolator_index);
         spv::Id type_rectangle_interpolator_array =
@@ -534,10 +530,10 @@ void SpirvShaderTranslator::StartTranslation() {
       var_main_memexport_address_ =
           builder_->createVariable(spv::NoPrecision, spv::StorageClassFunction, type_float4_,
                                    "xe_var_memexport_address", const_float4_0_);
-      uint8_t memexport_eM_remaining = current_shader().memexport_eM_written();
-      uint32_t memexport_eM_index;
+      u8 memexport_eM_remaining = current_shader().memexport_eM_written();
+      u32 memexport_eM_index;
       while (rex::bit_scan_forward(memexport_eM_remaining, &memexport_eM_index)) {
-        memexport_eM_remaining &= ~(static_cast<uint8_t>(1) << memexport_eM_index);
+        memexport_eM_remaining &= ~(static_cast<u8>(1) << memexport_eM_index);
         var_main_memexport_data_[memexport_eM_index] = builder_->createVariable(
             spv::NoPrecision, spv::StorageClassFunction, type_float4_,
             std::format("xe_var_memexport_data_{}", memexport_eM_index).c_str(), const_float4_0_);
@@ -609,7 +605,7 @@ void SpirvShaderTranslator::StartTranslation() {
   }
 }
 
-std::vector<uint8_t> SpirvShaderTranslator::CompleteTranslation() {
+std::vector<u8> SpirvShaderTranslator::CompleteTranslation() {
   bool rectangle_vertex_loop = IsSpirvRectangleListVertexLoopEnabled();
   if (!is_depth_only_fragment_shader_) {
     CloseExecConditionals();
@@ -646,8 +642,8 @@ std::vector<uint8_t> SpirvShaderTranslator::CompleteTranslation() {
     builder_->setBuildPoint(main_loop_merge_);
     if (rectangle_vertex_loop) {
       Modification shader_modification = GetSpirvShaderModification();
-      uint32_t clip_distance_count = shader_modification.GetVertexClipDistanceCount();
-      uint32_t cull_distance_count = shader_modification.GetVertexCullDistanceCount();
+      u32 clip_distance_count = shader_modification.GetVertexClipDistanceCount();
+      u32 cull_distance_count = shader_modification.GetVertexCullDistanceCount();
 
       CompleteVertexOrTessEvalShaderInMain();
 
@@ -669,9 +665,9 @@ std::vector<uint8_t> SpirvShaderTranslator::CompleteTranslation() {
                                       id_vector_temp_));
       auto store_rectangle_distance_members =
           [this, rectangle_guest_vertex_index_int](
-              uint32_t member_index, uint32_t component_count,
+              u32 member_index, u32 component_count,
               const std::array<spv::Id, kMaxRectanglePerVertexDistances>& variables) {
-            for (uint32_t i = 0; i < component_count; ++i) {
+            for (u32 i = 0; i < component_count; ++i) {
               id_vector_temp_.clear();
               id_vector_temp_.push_back(builder_->makeIntConstant(int(member_index)));
               id_vector_temp_.push_back(builder_->makeIntConstant(int(i)));
@@ -694,8 +690,8 @@ std::vector<uint8_t> SpirvShaderTranslator::CompleteTranslation() {
         store_rectangle_distance_members(output_per_vertex_member_cull_distance_,
                                          cull_distance_count, var_main_rectangle_cull_distances_);
       }
-      uint32_t interpolators_remaining = GetModificationInterpolatorMask();
-      uint32_t interpolator_index;
+      u32 interpolators_remaining = GetModificationInterpolatorMask();
+      u32 interpolator_index;
       while (rex::bit_scan_forward(interpolators_remaining, &interpolator_index)) {
         interpolators_remaining &= ~(UINT32_C(1) << interpolator_index);
         id_vector_temp_.clear();
@@ -727,14 +723,14 @@ std::vector<uint8_t> SpirvShaderTranslator::CompleteTranslation() {
         builder_->createStore(const_float_0_, var_main_tfetch_lod_);
         builder_->createStore(const_float3_0_, var_main_tfetch_gradients_h_);
         builder_->createStore(const_float3_0_, var_main_tfetch_gradients_v_);
-        for (uint32_t i = 0; i < register_count(); ++i) {
+        for (u32 i = 0; i < register_count(); ++i) {
           id_vector_temp_.clear();
           id_vector_temp_.push_back(builder_->makeIntConstant(int(i)));
           builder_->createStore(const_float4_0_,
                                 builder_->createAccessChain(spv::StorageClassFunction,
                                                             var_main_registers_, id_vector_temp_));
         }
-        uint32_t iteration_interpolators_remaining = GetModificationInterpolatorMask();
+        u32 iteration_interpolators_remaining = GetModificationInterpolatorMask();
         while (rex::bit_scan_forward(iteration_interpolators_remaining, &interpolator_index)) {
           iteration_interpolators_remaining &= ~(UINT32_C(1) << interpolator_index);
           builder_->createStore(const_float4_0_, input_output_interpolators_[interpolator_index]);
@@ -750,10 +746,10 @@ std::vector<uint8_t> SpirvShaderTranslator::CompleteTranslation() {
         if (IsMemoryExportUsed()) {
           ExportToMemory(current_shader().memexport_eM_potentially_written_before_end());
           builder_->createStore(const_float4_0_, var_main_memexport_address_);
-          uint8_t memexport_eM_remaining = current_shader().memexport_eM_written();
-          uint32_t memexport_eM_index;
+          u8 memexport_eM_remaining = current_shader().memexport_eM_written();
+          u32 memexport_eM_index;
           while (rex::bit_scan_forward(memexport_eM_remaining, &memexport_eM_index)) {
-            memexport_eM_remaining &= ~(static_cast<uint8_t>(1) << memexport_eM_index);
+            memexport_eM_remaining &= ~(static_cast<u8>(1) << memexport_eM_index);
             builder_->createStore(const_float4_0_, var_main_memexport_data_[memexport_eM_index]);
           }
           builder_->createStore(const_uint_0_, var_main_memexport_data_written_);
@@ -889,7 +885,7 @@ std::vector<uint8_t> SpirvShaderTranslator::CompleteTranslation() {
             builder_->createBinOp(spv::OpIEqual, type_bool_, rectangle_host_vertex_in_primitive,
                                   builder_->makeUintConstant(1));
 
-        auto load_rectangle_position_xy = [this](spv::Id vertex_index, uint32_t component) {
+        auto load_rectangle_position_xy = [this](spv::Id vertex_index, u32 component) {
           id_vector_temp_.clear();
           id_vector_temp_.push_back(vertex_index);
           id_vector_temp_.push_back(builder_->makeIntConstant(int(component)));
@@ -905,7 +901,7 @@ std::vector<uint8_t> SpirvShaderTranslator::CompleteTranslation() {
         spv::Id const_int_3 = builder_->makeIntConstant(3);
 
         spv::Id edge_lengths[3];
-        for (uint32_t i = 0; i < 3; ++i) {
+        for (u32 i = 0; i < 3; ++i) {
           spv::Id edge_0 = builder_->makeIntConstant(int((1 + i) % 3));
           spv::Id edge_1 = builder_->makeIntConstant(int((2 + i) % 3));
           spv::Id edge_x =
@@ -933,7 +929,7 @@ std::vector<uint8_t> SpirvShaderTranslator::CompleteTranslation() {
                                   builder_->createBinOp(spv::OpFOrdGreaterThan, type_bool_,
                                                         edge_lengths[1], edge_lengths[2]),
                                   const_int_1, const_int_2));
-        for (uint32_t i = 1; i < 3; ++i) {
+        for (u32 i = 1; i < 3; ++i) {
           spv::Id vertex_index_without_wrapping =
               builder_->createBinOp(spv::OpIAdd, type_int_, rectangle_vertex_indices[0],
                                     builder_->makeIntConstant(int(i)));
@@ -1022,9 +1018,9 @@ std::vector<uint8_t> SpirvShaderTranslator::CompleteTranslation() {
         auto write_rectangle_distance_member =
             [this, &select_rectangle_vertex_component, rectangle_host_vertex_is_synthetic,
              &load_rectangle_vertex_value, rectangle_vertex_indices](
-                uint32_t member_index, uint32_t component_count,
+                u32 member_index, u32 component_count,
                 const std::array<spv::Id, kMaxRectanglePerVertexDistances>& variables) {
-              for (uint32_t i = 0; i < component_count; ++i) {
+              for (u32 i = 0; i < component_count; ++i) {
                 spv::Id value_0 =
                     load_rectangle_vertex_value(variables[i], rectangle_vertex_indices[0]);
                 spv::Id value_1 =
@@ -1168,10 +1164,10 @@ std::vector<uint8_t> SpirvShaderTranslator::CompleteTranslation() {
 
   std::vector<unsigned int> module_uints;
   builder_->dump(module_uints);
-  std::vector<uint8_t> module_bytes;
+  std::vector<u8> module_bytes;
   module_bytes.reserve(sizeof(unsigned int) * module_uints.size());
-  module_bytes.insert(module_bytes.cend(), reinterpret_cast<const uint8_t*>(module_uints.data()),
-                      reinterpret_cast<const uint8_t*>(module_uints.data()) +
+  module_bytes.insert(module_bytes.cend(), reinterpret_cast<const u8*>(module_uints.data()),
+                      reinterpret_cast<const u8*>(module_uints.data()) +
                           sizeof(unsigned int) * module_uints.size());
   return module_bytes;
 }
@@ -1207,7 +1203,7 @@ void SpirvShaderTranslator::PostTranslation() {
   }
 }
 
-void SpirvShaderTranslator::ProcessLabel(uint32_t cf_index) {
+void SpirvShaderTranslator::ProcessLabel(u32 cf_index) {
   if (cf_index == 0) {
     return;
   }
@@ -1435,7 +1431,7 @@ void SpirvShaderTranslator::ProcessJumpInstruction(const ParsedJumpInstruction& 
 }
 
 void SpirvShaderTranslator::ProcessAllocInstruction(const ParsedAllocInstruction& instr,
-                                                    uint8_t export_eM) {
+                                                    u8 export_eM) {
   bool start_memexport =
       instr.type == xenos::ucode::AllocType::kMemory && current_shader().memexport_eM_written();
   if (export_eM || start_memexport) {
@@ -1445,10 +1441,10 @@ void SpirvShaderTranslator::ProcessAllocInstruction(const ParsedAllocInstruction
   if (export_eM) {
     ExportToMemory(export_eM);
     builder_->createStore(const_uint_0_, var_main_memexport_data_written_);
-    uint8_t export_eM_remaining = export_eM;
-    uint32_t eM_index;
+    u8 export_eM_remaining = export_eM;
+    u32 eM_index;
     while (rex::bit_scan_forward(export_eM_remaining, &eM_index)) {
-      export_eM_remaining &= ~(static_cast<uint8_t>(1) << eM_index);
+      export_eM_remaining &= ~(static_cast<u8>(1) << eM_index);
       builder_->createStore(const_float4_0_, var_main_memexport_data_[eM_index]);
     }
   }
@@ -1479,7 +1475,7 @@ spv::Id SpirvShaderTranslator::SpirvSmearScalarResultOrConstant(spv::Id scalar,
   return builder_->makeCompositeConstant(vector_type, id_vector_temp_util_, is_spec_constant);
 }
 
-uint32_t SpirvShaderTranslator::GetPsParamGenInterpolator() const {
+u32 SpirvShaderTranslator::GetPsParamGenInterpolator() const {
   REX_ASSERT(is_pixel_shader());
   Modification modification = GetSpirvShaderModification();
   return (modification.pixel.param_gen_enable &&
@@ -1529,11 +1525,11 @@ void SpirvShaderTranslator::StartVertexOrTessEvalShaderBeforeMain() {
     main_interface_.push_back(input_vertex_index_);
   }
 
-  uint32_t output_location = 0;
+  u32 output_location = 0;
 
   {
-    uint32_t interpolators_remaining = GetModificationInterpolatorMask();
-    uint32_t interpolator_index;
+    u32 interpolators_remaining = GetModificationInterpolatorMask();
+    u32 interpolator_index;
     while (rex::bit_scan_forward(interpolators_remaining, &interpolator_index)) {
       interpolators_remaining &= ~(UINT32_C(1) << interpolator_index);
       spv::Id interpolator = builder_->createVariable(
@@ -1569,12 +1565,12 @@ void SpirvShaderTranslator::StartVertexOrTessEvalShaderBeforeMain() {
     }
   }
 
-  uint32_t clip_distance_count = shader_modification.GetVertexClipDistanceCount();
-  uint32_t cull_distance_count = shader_modification.GetVertexCullDistanceCount();
+  u32 clip_distance_count = shader_modification.GetVertexClipDistanceCount();
+  u32 cull_distance_count = shader_modification.GetVertexCullDistanceCount();
   std::vector<spv::Id> struct_per_vertex_members;
   struct_per_vertex_members.reserve(kOutputPerVertexMemberCountMax);
   struct_per_vertex_members.push_back(type_float4_);
-  output_per_vertex_member_count_ = static_cast<uint32_t>(struct_per_vertex_members.size());
+  output_per_vertex_member_count_ = static_cast<u32>(struct_per_vertex_members.size());
   output_per_vertex_member_clip_distance_ = UINT32_MAX;
   output_per_vertex_member_cull_distance_ = UINT32_MAX;
   if (clip_distance_count) {
@@ -1582,22 +1578,20 @@ void SpirvShaderTranslator::StartVertexOrTessEvalShaderBeforeMain() {
     builder_->addCapability(spv::CapabilityClipDistance);
     spv::Id type_clip_distance =
         builder_->makeArrayType(type_float_, builder_->makeUintConstant(clip_distance_count), 0);
-    builder_->addDecoration(type_clip_distance, spv::DecorationArrayStride, sizeof(float));
-    output_per_vertex_member_clip_distance_ =
-        static_cast<uint32_t>(struct_per_vertex_members.size());
+    builder_->addDecoration(type_clip_distance, spv::DecorationArrayStride, sizeof(f32));
+    output_per_vertex_member_clip_distance_ = static_cast<u32>(struct_per_vertex_members.size());
     struct_per_vertex_members.push_back(type_clip_distance);
-    output_per_vertex_member_count_ = static_cast<uint32_t>(struct_per_vertex_members.size());
+    output_per_vertex_member_count_ = static_cast<u32>(struct_per_vertex_members.size());
   }
   if (cull_distance_count) {
     REX_ASSERT(features_.cull_distance);
     builder_->addCapability(spv::CapabilityCullDistance);
     spv::Id type_cull_distance =
         builder_->makeArrayType(type_float_, builder_->makeUintConstant(cull_distance_count), 0);
-    builder_->addDecoration(type_cull_distance, spv::DecorationArrayStride, sizeof(float));
-    output_per_vertex_member_cull_distance_ =
-        static_cast<uint32_t>(struct_per_vertex_members.size());
+    builder_->addDecoration(type_cull_distance, spv::DecorationArrayStride, sizeof(f32));
+    output_per_vertex_member_cull_distance_ = static_cast<u32>(struct_per_vertex_members.size());
     struct_per_vertex_members.push_back(type_cull_distance);
-    output_per_vertex_member_count_ = static_cast<uint32_t>(struct_per_vertex_members.size());
+    output_per_vertex_member_count_ = static_cast<u32>(struct_per_vertex_members.size());
   }
   spv::Id type_struct_per_vertex =
       builder_->makeStructType(struct_per_vertex_members, "gl_PerVertex");
@@ -1640,7 +1634,7 @@ void SpirvShaderTranslator::StartVertexOrTessEvalShaderInMain() {
                                  builder_->makeCompositeConstant(type_float3_, id_vector_temp_));
   }
 
-  for (uint32_t i = 0; i < register_count(); ++i) {
+  for (u32 i = 0; i < register_count(); ++i) {
     id_vector_temp_.clear();
     id_vector_temp_.push_back(builder_->makeIntConstant(int(i)));
     builder_->createStore(
@@ -1649,8 +1643,8 @@ void SpirvShaderTranslator::StartVertexOrTessEvalShaderInMain() {
   }
 
   if (!IsSpirvComputeShader()) {
-    uint32_t interpolators_remaining = GetModificationInterpolatorMask();
-    uint32_t interpolator_index;
+    u32 interpolators_remaining = GetModificationInterpolatorMask();
+    u32 interpolator_index;
     while (rex::bit_scan_forward(interpolators_remaining, &interpolator_index)) {
       interpolators_remaining &= ~(UINT32_C(1) << interpolator_index);
       builder_->createStore(const_float4_0_, input_output_interpolators_[interpolator_index]);
@@ -1691,8 +1685,7 @@ void SpirvShaderTranslator::StartVertexOrTessEvalShaderInMain() {
   }
 
   if (register_count()) {
-    auto store_register_component = [this](uint32_t register_index, uint32_t component,
-                                           spv::Id value) {
+    auto store_register_component = [this](u32 register_index, u32 component, spv::Id value) {
       id_vector_temp_.clear();
       id_vector_temp_.push_back(builder_->makeIntConstant(int(register_index)));
       id_vector_temp_.push_back(builder_->makeIntConstant(int(component)));
@@ -1701,11 +1694,11 @@ void SpirvShaderTranslator::StartVertexOrTessEvalShaderInMain() {
                                              id_vector_temp_));
     };
     if (IsSpirvTessEvalShader()) {
-      auto load_tess_coord_component = [this](uint32_t component) {
+      auto load_tess_coord_component = [this](u32 component) {
         return builder_->createCompositeExtract(
             builder_->createLoad(input_tess_coord_, spv::NoPrecision), type_float_, component);
       };
-      auto load_patch_control_point_index = [this](uint32_t component) {
+      auto load_patch_control_point_index = [this](u32 component) {
         return builder_->createCompositeExtract(
             builder_->createLoad(input_patch_control_point_indices_, spv::NoPrecision), type_float_,
             component);
@@ -2294,10 +2287,10 @@ void SpirvShaderTranslator::CompleteVertexOrTessEvalShaderInMain() {
     }
   }
 
-  uint32_t clip_distance_next_component = 0;
-  uint32_t cull_distance_next_component = 0;
+  u32 clip_distance_next_component = 0;
+  u32 cull_distance_next_component = 0;
   if (shader_modification.vertex.user_clip_plane_count) {
-    uint32_t output_per_vertex_member_clip_or_cull_distance =
+    u32 output_per_vertex_member_clip_or_cull_distance =
         shader_modification.vertex.user_clip_plane_cull ? output_per_vertex_member_cull_distance_
                                                         : output_per_vertex_member_clip_distance_;
     REX_ASSERT(output_per_vertex_member_clip_or_cull_distance != UINT32_MAX);
@@ -2311,10 +2304,10 @@ void SpirvShaderTranslator::CompleteVertexOrTessEvalShaderInMain() {
       guest_position_formatted = composite_construct_op->getResultId();
       builder_->getBuildPoint()->addInstruction(std::move(composite_construct_op));
     }
-    uint32_t& user_clip_plane_next_component = shader_modification.vertex.user_clip_plane_cull
-                                                   ? cull_distance_next_component
-                                                   : clip_distance_next_component;
-    for (uint32_t i = 0; i < shader_modification.vertex.user_clip_plane_count; ++i) {
+    u32& user_clip_plane_next_component = shader_modification.vertex.user_clip_plane_cull
+                                              ? cull_distance_next_component
+                                              : clip_distance_next_component;
+    for (u32 i = 0; i < shader_modification.vertex.user_clip_plane_count; ++i) {
       id_vector_temp_.clear();
       id_vector_temp_.push_back(builder_->makeIntConstant(kSystemConstantUserClipPlanes));
       id_vector_temp_.push_back(builder_->makeIntConstant(int(i)));
@@ -2497,7 +2490,7 @@ void SpirvShaderTranslator::CompleteVertexOrTessEvalShaderInMain() {
                                             shader_modification.vertex.user_clip_plane_cull &&
                                             shader_modification.vertex.point_ps_ucp_mode >= 3;
     if (point_recalculate_clip_distances || point_recalculate_cull_distances) {
-      uint32_t output_per_vertex_member_user_clip_distance =
+      u32 output_per_vertex_member_user_clip_distance =
           point_recalculate_cull_distances ? output_per_vertex_member_cull_distance_
                                            : output_per_vertex_member_clip_distance_;
       REX_ASSERT(output_per_vertex_member_user_clip_distance != UINT32_MAX);
@@ -2529,7 +2522,7 @@ void SpirvShaderTranslator::CompleteVertexOrTessEvalShaderInMain() {
         builder_->getBuildPoint()->addInstruction(std::move(composite_construct_op));
       }
 
-      for (uint32_t i = 0; i < shader_modification.vertex.user_clip_plane_count; ++i) {
+      for (u32 i = 0; i < shader_modification.vertex.user_clip_plane_count; ++i) {
         id_vector_temp_.clear();
         id_vector_temp_.push_back(builder_->makeIntConstant(kSystemConstantUserClipPlanes));
         id_vector_temp_.push_back(builder_->makeIntConstant(int(i)));
@@ -2571,7 +2564,7 @@ void SpirvShaderTranslator::StartFragmentShaderBeforeMain() {
 
     id_vector_temp_.clear();
     id_vector_temp_.push_back(builder_->makeRuntimeArray(type_uint_));
-    builder_->addDecoration(id_vector_temp_.back(), spv::DecorationArrayStride, sizeof(uint32_t));
+    builder_->addDecoration(id_vector_temp_.back(), spv::DecorationArrayStride, sizeof(u32));
     spv::Id type_edram = builder_->makeStructType(id_vector_temp_, "XeEdram");
     builder_->addMemberName(type_edram, 0, "edram");
     builder_->addMemberDecoration(type_edram, 0, spv::DecorationCoherent);
@@ -2597,11 +2590,11 @@ void SpirvShaderTranslator::StartFragmentShaderBeforeMain() {
       !is_depth_only_fragment_shader_ && GetPsParamGenInterpolator() != UINT32_MAX;
 
   if (!is_depth_only_fragment_shader_) {
-    uint32_t input_location = 0;
+    u32 input_location = 0;
 
     {
-      uint32_t interpolators_remaining = GetModificationInterpolatorMask();
-      uint32_t interpolator_index;
+      u32 interpolators_remaining = GetModificationInterpolatorMask();
+      u32 interpolator_index;
       while (rex::bit_scan_forward(interpolators_remaining, &interpolator_index)) {
         interpolators_remaining &= ~(UINT32_C(1) << interpolator_index);
         spv::Id interpolator = builder_->createVariable(
@@ -2687,8 +2680,8 @@ void SpirvShaderTranslator::StartFragmentShaderBeforeMain() {
           "xe_out_fragment_data_2",
           "xe_out_fragment_data_3",
       };
-      uint32_t color_targets_remaining = current_shader().writes_color_targets();
-      uint32_t color_target_index;
+      u32 color_targets_remaining = current_shader().writes_color_targets();
+      u32 color_target_index;
       while (rex::bit_scan_forward(color_targets_remaining, &color_target_index)) {
         color_targets_remaining &= ~(UINT32_C(1) << color_target_index);
         spv::Id output_fragment_data_rt =
@@ -2743,7 +2736,7 @@ void SpirvShaderTranslator::StartFragmentShaderInMain() {
           builder_->createVariable(spv::NoPrecision, spv::StorageClassFunction, type_float_,
                                    "xe_var_fragment_depth", const_float_0_);
     }
-    uint32_t color_targets_written = current_shader().writes_color_targets();
+    u32 color_targets_written = current_shader().writes_color_targets();
     if (color_targets_written) {
       static const char* const kFragmentDataVariableNames[] = {
           "xe_var_fragment_data_0",
@@ -2751,8 +2744,8 @@ void SpirvShaderTranslator::StartFragmentShaderInMain() {
           "xe_var_fragment_data_2",
           "xe_var_fragment_data_3",
       };
-      uint32_t color_targets_remaining = color_targets_written;
-      uint32_t color_target_index;
+      u32 color_targets_remaining = color_targets_written;
+      u32 color_target_index;
       while (rex::bit_scan_forward(color_targets_remaining, &color_target_index)) {
         color_targets_remaining &= ~(UINT32_C(1) << color_target_index);
         output_or_var_fragment_data_[color_target_index] = builder_->createVariable(
@@ -2809,12 +2802,12 @@ void SpirvShaderTranslator::StartFragmentShaderInMain() {
   }
 
   if (current_shader().memexport_eM_written()) {
-    uint32_t resolution_scaled_axes = static_cast<uint32_t>(draw_resolution_scale_x_ > 1) |
-                                      (static_cast<uint32_t>(draw_resolution_scale_y_ > 1) << 1);
+    u32 resolution_scaled_axes = static_cast<u32>(draw_resolution_scale_x_ > 1) |
+                                 (static_cast<u32>(draw_resolution_scale_y_ > 1) << 1);
     if (resolution_scaled_axes) {
       REX_ASSERT(input_fragment_coordinates_ != spv::NoResult);
       spv::Id memexport_allowed = spv::NoResult;
-      for (uint32_t i = 0; i < 2; ++i) {
+      for (u32 i = 0; i < 2; ++i) {
         if (!(resolution_scaled_axes & (UINT32_C(1) << i))) {
           continue;
         }
@@ -2872,10 +2865,10 @@ void SpirvShaderTranslator::StartFragmentShaderInMain() {
     }
   }
 
-  uint32_t param_gen_interpolator = GetPsParamGenInterpolator();
+  u32 param_gen_interpolator = GetPsParamGenInterpolator();
 
-  uint32_t interpolator_mask = GetModificationInterpolatorMask();
-  for (uint32_t i = 0; i < register_count(); ++i) {
+  u32 interpolator_mask = GetModificationInterpolatorMask();
+  for (u32 i = 0; i < register_count(); ++i) {
     if (i == param_gen_interpolator) {
       continue;
     }
@@ -2905,7 +2898,7 @@ void SpirvShaderTranslator::StartFragmentShaderInMain() {
     if (draw_resolution_scale_x_ > 1) {
       param_gen_x = builder_->createNoContractionBinOp(
           spv::OpFMul, type_float_, param_gen_x,
-          builder_->makeFloatConstant(1.0f / static_cast<float>(draw_resolution_scale_x_)));
+          builder_->makeFloatConstant(1.0f / static_cast<f32>(draw_resolution_scale_x_)));
     }
     param_gen_x = builder_->createUnaryBuiltinCall(type_float_, ext_inst_glsl_std_450_,
                                                    GLSLstd450FAbs, param_gen_x);
@@ -2940,7 +2933,7 @@ void SpirvShaderTranslator::StartFragmentShaderInMain() {
     if (draw_resolution_scale_y_ > 1) {
       param_gen_y = builder_->createNoContractionBinOp(
           spv::OpFMul, type_float_, param_gen_y,
-          builder_->makeFloatConstant(1.0f / static_cast<float>(draw_resolution_scale_y_)));
+          builder_->makeFloatConstant(1.0f / static_cast<f32>(draw_resolution_scale_y_)));
     }
     param_gen_y = builder_->createUnaryBuiltinCall(type_float_, ext_inst_glsl_std_450_,
                                                    GLSLstd450FAbs, param_gen_y);
@@ -2987,7 +2980,7 @@ void SpirvShaderTranslator::StartFragmentShaderInMain() {
   }
 
   if (!edram_fragment_shader_interlock_) {
-    for (uint32_t i = 0; i < xenos::kMaxColorRenderTargets; ++i) {
+    for (u32 i = 0; i < xenos::kMaxColorRenderTargets; ++i) {
       spv::Id output_fragment_data_rt = output_or_var_fragment_data_[i];
       if (output_fragment_data_rt != spv::NoResult) {
         builder_->createStore(const_float4_0_, output_fragment_data_rt);
@@ -3000,7 +2993,7 @@ void SpirvShaderTranslator::StartFragmentShaderInMain() {
 }
 
 void SpirvShaderTranslator::UpdateExecConditionals(ParsedExecInstruction::Type type,
-                                                   uint32_t bool_constant_index, bool condition) {
+                                                   u32 bool_constant_index, bool condition) {
   if (type == ParsedExecInstruction::Type::kConditional) {
     if (cf_exec_conditional_merge_ && cf_exec_bool_constant_or_predicate_ == bool_constant_index &&
         cf_exec_condition_ == condition) {
@@ -3040,7 +3033,7 @@ void SpirvShaderTranslator::UpdateExecConditionals(ParsedExecInstruction::Type t
         spv::OpINotEqual, type_bool_,
         builder_->createBinOp(
             spv::OpBitwiseAnd, type_uint_, bool_constant_scalar,
-            builder_->makeUintConstant(static_cast<uint32_t>(1) << (bool_constant_index & 31))),
+            builder_->makeUintConstant(static_cast<u32>(1) << (bool_constant_index & 31))),
         const_uint_0_);
     cf_exec_bool_constant_or_predicate_ = bool_constant_index;
   } else if (type == ParsedExecInstruction::Type::kPredicated) {
@@ -3121,15 +3114,14 @@ void SpirvShaderTranslator::CloseExecConditionals() {
 }
 
 spv::Id SpirvShaderTranslator::GetStorageAddressingIndex(
-    InstructionStorageAddressingMode addressing_mode, uint32_t storage_index,
-    bool is_float_constant) {
+    InstructionStorageAddressingMode addressing_mode, u32 storage_index, bool is_float_constant) {
   const Shader::ConstantRegisterMap& constant_register_map =
       current_shader().constant_register_map();
   EnsureBuildPointAvailable();
   spv::Id base_pointer = spv::NoResult;
   switch (addressing_mode) {
     case InstructionStorageAddressingMode::kAbsolute: {
-      uint32_t static_storage_index = storage_index;
+      u32 static_storage_index = storage_index;
       if (is_float_constant) {
         static_storage_index = constant_register_map.GetPackedFloatConstantIndex(storage_index);
         REX_ASSERT(static_storage_index != UINT32_MAX);
@@ -3209,7 +3201,7 @@ spv::Id SpirvShaderTranslator::ApplyOperandModifiers(spv::Id operand_value,
 }
 
 spv::Id SpirvShaderTranslator::GetUnmodifiedOperandComponents(
-    spv::Id operand_storage, const InstructionOperand& original_operand, uint32_t components) {
+    spv::Id operand_storage, const InstructionOperand& original_operand, u32 components) {
   REX_ASSERT(components != 0);
   if (!components) {
     return spv::NoResult;
@@ -3219,9 +3211,9 @@ spv::Id SpirvShaderTranslator::GetUnmodifiedOperandComponents(
     return operand_storage;
   }
   EnsureBuildPointAvailable();
-  uint32_t component_count = rex::bit_count(components);
+  u32 component_count = rex::bit_count(components);
   if (component_count == 1) {
-    uint32_t scalar_index;
+    u32 scalar_index;
     rex::bit_scan_forward(components, &scalar_index);
     return builder_->createCompositeExtract(
         operand_storage, type_float_,
@@ -3229,10 +3221,10 @@ spv::Id SpirvShaderTranslator::GetUnmodifiedOperandComponents(
             static_cast<unsigned int>(SwizzleSource::kX));
   }
   uint_vector_temp_util_.clear();
-  uint32_t components_remaining = components;
-  uint32_t component_index;
+  u32 components_remaining = components;
+  u32 component_index;
   while (rex::bit_scan_forward(components_remaining, &component_index)) {
-    components_remaining &= ~(static_cast<uint32_t>(1) << component_index);
+    components_remaining &= ~(static_cast<u32>(1) << component_index);
     uint_vector_temp_util_.push_back(
         static_cast<unsigned int>(original_operand.GetComponent(component_index)) -
         static_cast<unsigned int>(SwizzleSource::kX));
@@ -3266,7 +3258,7 @@ spv::Id SpirvShaderTranslator::GetAbsoluteOperand(spv::Id operand_storage,
 
 void SpirvShaderTranslator::StoreResult(const InstructionResult& result, spv::Id value,
                                         bool can_store_memexport_address) {
-  uint32_t used_write_mask = result.GetUsedWriteMask();
+  u32 used_write_mask = result.GetUsedWriteMask();
   if (!used_write_mask) {
     return;
   }
@@ -3315,7 +3307,7 @@ void SpirvShaderTranslator::StoreResult(const InstructionResult& result, spv::Id
             builder_->createBinOp(
                 spv::OpBitwiseOr, type_uint_,
                 builder_->createLoad(var_main_fsi_color_written_, spv::NoPrecision),
-                builder_->makeUintConstant(static_cast<uint32_t>(1) << result.storage_index)),
+                builder_->makeUintConstant(static_cast<u32>(1) << result.storage_index)),
             var_main_fsi_color_written_);
       }
     } break;
@@ -3339,7 +3331,7 @@ void SpirvShaderTranslator::StoreResult(const InstructionResult& result, spv::Id
     } break;
     case InstructionStorageTarget::kExportData: {
       REX_ASSERT((current_shader().memexport_eM_written() &
-                  (static_cast<uint8_t>(1) << result.storage_index)) != 0);
+                  (static_cast<u8>(1) << result.storage_index)) != 0);
       target_pointer = var_main_memexport_data_[result.storage_index];
       if (target_pointer != spv::NoResult) {
         REX_ASSERT(var_main_memexport_data_written_ != spv::NoResult);
@@ -3347,7 +3339,7 @@ void SpirvShaderTranslator::StoreResult(const InstructionResult& result, spv::Id
             builder_->createBinOp(
                 spv::OpBitwiseOr, type_uint_,
                 builder_->createLoad(var_main_memexport_data_written_, spv::NoPrecision),
-                builder_->makeUintConstant(static_cast<uint32_t>(1) << result.storage_index)),
+                builder_->makeUintConstant(static_cast<u32>(1) << result.storage_index)),
             var_main_memexport_data_written_);
       }
     } break;
@@ -3359,12 +3351,12 @@ void SpirvShaderTranslator::StoreResult(const InstructionResult& result, spv::Id
     return;
   }
 
-  uint32_t constant_values;
-  uint32_t constant_components = result.GetUsedConstantComponents(constant_values);
+  u32 constant_values;
+  u32 constant_components = result.GetUsedConstantComponents(constant_values);
   if (value == spv::NoResult) {
     constant_components = used_write_mask;
   }
-  uint32_t non_constant_components = used_write_mask & ~constant_components;
+  u32 non_constant_components = used_write_mask & ~constant_components;
 
   unsigned int value_num_components =
       value != spv::NoResult ? static_cast<unsigned int>(builder_->getNumComponents(value)) : 0;
@@ -3376,28 +3368,28 @@ void SpirvShaderTranslator::StoreResult(const InstructionResult& result, spv::Id
                                            const_float_vectors_1_[value_num_components - 1]);
   }
 
-  uint32_t used_result_components = result.GetUsedResultComponents();
+  u32 used_result_components = result.GetUsedResultComponents();
   unsigned int result_unswizzled_value_components[4] = {};
   if (value_num_components > 1) {
     unsigned int value_component = 0;
-    uint32_t used_result_components_remaining = used_result_components;
-    uint32_t result_component;
+    u32 used_result_components_remaining = used_result_components;
+    u32 result_component;
     while (rex::bit_scan_forward(used_result_components_remaining, &result_component)) {
-      used_result_components_remaining &= ~(static_cast<uint32_t>(1) << result_component);
+      used_result_components_remaining &= ~(static_cast<u32>(1) << result_component);
       result_unswizzled_value_components[result_component] =
           std::min(value_component++, value_num_components - 1);
     }
   }
 
   unsigned int result_swizzled_value_components[4] = {};
-  for (uint32_t i = 0; i < 4; ++i) {
+  for (u32 i = 0; i < 4; ++i) {
     if (!(non_constant_components & (1 << i))) {
       continue;
     }
     SwizzleSource swizzle = result.components[i];
     REX_ASSERT(swizzle >= SwizzleSource::kX && swizzle <= SwizzleSource::kW);
     result_swizzled_value_components[i] =
-        result_unswizzled_value_components[static_cast<uint32_t>(swizzle) -
+        result_unswizzled_value_components[static_cast<u32>(swizzle) -
                                            std::to_underlying(SwizzleSource::kX)];
   }
 
@@ -3405,7 +3397,7 @@ void SpirvShaderTranslator::StoreResult(const InstructionResult& result, spv::Id
   unsigned int target_num_components = builder_->getNumTypeComponents(target_type);
   REX_ASSERT(target_num_components ==
              GetInstructionStorageTargetUsedComponentCount(result.storage_target));
-  uint32_t target_component_mask = (1 << target_num_components) - 1;
+  u32 target_component_mask = (1 << target_num_components) - 1;
   REX_ASSERT((used_write_mask & ~target_component_mask) == 0);
 
   spv::Id value_to_store;
@@ -3414,7 +3406,7 @@ void SpirvShaderTranslator::StoreResult(const InstructionResult& result, spv::Id
       if (target_num_components > 1) {
         if (value_num_components > 1) {
           bool is_identity_swizzle = target_num_components == value_num_components;
-          for (uint32_t i = 0; is_identity_swizzle && i < target_num_components; ++i) {
+          for (u32 i = 0; is_identity_swizzle && i < target_num_components; ++i) {
             is_identity_swizzle &= result_swizzled_value_components[i] == i;
           }
           if (is_identity_swizzle) {
@@ -3441,7 +3433,7 @@ void SpirvShaderTranslator::StoreResult(const InstructionResult& result, spv::Id
     } else if (!non_constant_components) {
       if (target_num_components > 1) {
         id_vector_temp_util_.clear();
-        for (uint32_t i = 0; i < target_num_components; ++i) {
+        for (u32 i = 0; i < target_num_components; ++i) {
           id_vector_temp_util_.push_back((constant_values & (1 << i)) ? const_float_1_
                                                                       : const_float_0_);
         }
@@ -3456,7 +3448,7 @@ void SpirvShaderTranslator::StoreResult(const InstructionResult& result, spv::Id
             builder_->getUniqueId(), target_type, spv::OpVectorShuffle);
         shuffle_op->addIdOperand(value);
         shuffle_op->addIdOperand(const_float2_0_1_);
-        for (uint32_t i = 0; i < target_num_components; ++i) {
+        for (u32 i = 0; i < target_num_components; ++i) {
           shuffle_op->addImmediateOperand((constant_components & (1 << i))
                                               ? value_num_components + ((constant_values >> i) & 1)
                                               : result_swizzled_value_components[i]);
@@ -3465,7 +3457,7 @@ void SpirvShaderTranslator::StoreResult(const InstructionResult& result, spv::Id
         builder_->getBuildPoint()->addInstruction(std::move(shuffle_op));
       } else {
         id_vector_temp_util_.clear();
-        for (uint32_t i = 0; i < target_num_components; ++i) {
+        for (u32 i = 0; i < target_num_components; ++i) {
           if (constant_components & (1 << i)) {
             id_vector_temp_util_.push_back((constant_values & (1 << i)) ? const_float_1_
                                                                         : const_float_0_);
@@ -3484,7 +3476,7 @@ void SpirvShaderTranslator::StoreResult(const InstructionResult& result, spv::Id
           builder_->getUniqueId(), target_type, spv::OpVectorShuffle);
       shuffle_op->addIdOperand(value_to_store);
       shuffle_op->addIdOperand(const_float2_0_1_);
-      for (uint32_t i = 0; i < target_num_components; ++i) {
+      for (u32 i = 0; i < target_num_components; ++i) {
         shuffle_op->addImmediateOperand((constant_components & (1 << i))
                                             ? target_num_components + ((constant_values >> i) & 1)
                                             : i);
@@ -3498,7 +3490,7 @@ void SpirvShaderTranslator::StoreResult(const InstructionResult& result, spv::Id
             builder_->getUniqueId(), target_type, spv::OpVectorShuffle);
         shuffle_op->addIdOperand(value_to_store);
         shuffle_op->addIdOperand(value);
-        for (uint32_t i = 0; i < target_num_components; ++i) {
+        for (u32 i = 0; i < target_num_components; ++i) {
           shuffle_op->addImmediateOperand((non_constant_components & (1 << i))
                                               ? target_num_components +
                                                     result_swizzled_value_components[i]
@@ -3507,7 +3499,7 @@ void SpirvShaderTranslator::StoreResult(const InstructionResult& result, spv::Id
         value_to_store = shuffle_op->getResultId();
         builder_->getBuildPoint()->addInstruction(std::move(shuffle_op));
       } else {
-        for (uint32_t i = 0; i < target_num_components; ++i) {
+        for (u32 i = 0; i < target_num_components; ++i) {
           if (non_constant_components & (1 << i)) {
             value_to_store = builder_->createCompositeInsert(value, value_to_store, target_type, i);
           }
@@ -3658,7 +3650,7 @@ spv::Id SpirvShaderTranslator::LoadUint32FromSharedMemory(spv::Id address_dwords
                                         ? spv::StorageClassStorageBuffer
                                         : spv::StorageClassUniform;
 
-  uint32_t binding_count_log2 = GetSharedMemoryStorageBufferCountLog2();
+  u32 binding_count_log2 = GetSharedMemoryStorageBufferCountLog2();
 
   if (!binding_count_log2) {
     id_vector_temp_.clear();
@@ -3669,14 +3661,14 @@ spv::Id SpirvShaderTranslator::LoadUint32FromSharedMemory(spv::Id address_dwords
         spv::NoPrecision);
   }
 
-  uint32_t binding_address_bits = (29 - 2) - binding_count_log2;
+  u32 binding_address_bits = (29 - 2) - binding_count_log2;
   spv::Id binding_index =
       builder_->createBinOp(spv::OpShiftRightLogical, type_uint_,
                             builder_->createUnaryOp(spv::OpBitcast, type_uint_, address_dwords_int),
                             builder_->makeUintConstant(binding_address_bits));
   spv::Id binding_address = builder_->createBinOp(
       spv::OpBitwiseAnd, type_int_, address_dwords_int,
-      builder_->makeIntConstant(int((static_cast<uint32_t>(1) << binding_address_bits) - 1)));
+      builder_->makeIntConstant(int((static_cast<u32>(1) << binding_address_bits) - 1)));
 
   auto value_phi_op =
       std::make_unique<spv::Instruction>(builder_->getUniqueId(), type_uint_, spv::OpPhi);
@@ -3685,14 +3677,14 @@ spv::Id SpirvShaderTranslator::LoadUint32FromSharedMemory(spv::Id address_dwords
 
   SpirvBuilder::SwitchBuilder binding_switch(binding_index, spv::SelectionControlDontFlattenMask,
                                              *builder_);
-  uint32_t binding_count = static_cast<uint32_t>(1) << binding_count_log2;
+  u32 binding_count = static_cast<u32>(1) << binding_count_log2;
 
   id_vector_temp_.clear();
   id_vector_temp_.push_back(spv::NoResult);
   id_vector_temp_.push_back(const_int_0_);
   id_vector_temp_.push_back(binding_address);
 
-  for (uint32_t i = 0; i < binding_count; ++i) {
+  for (u32 i = 0; i < binding_count; ++i) {
     binding_switch.makeBeginCase(i);
     id_vector_temp_[0] = builder_->makeIntConstant(int(i));
     value_phi_op->addIdOperand(builder_->createLoad(
@@ -3734,7 +3726,7 @@ void SpirvShaderTranslator::StoreUint32ToSharedMemory(spv::Id value, spv::Id add
     }
   };
 
-  uint32_t binding_count_log2 = GetSharedMemoryStorageBufferCountLog2();
+  u32 binding_count_log2 = GetSharedMemoryStorageBufferCountLog2();
 
   if (!binding_count_log2) {
     id_vector_temp_.clear();
@@ -3744,25 +3736,25 @@ void SpirvShaderTranslator::StoreUint32ToSharedMemory(spv::Id value, spv::Id add
     return;
   }
 
-  uint32_t binding_address_bits = (29 - 2) - binding_count_log2;
+  u32 binding_address_bits = (29 - 2) - binding_count_log2;
   spv::Id binding_index =
       builder_->createBinOp(spv::OpShiftRightLogical, type_uint_,
                             builder_->createUnaryOp(spv::OpBitcast, type_uint_, address_dwords_int),
                             builder_->makeUintConstant(binding_address_bits));
   spv::Id binding_address = builder_->createBinOp(
       spv::OpBitwiseAnd, type_int_, address_dwords_int,
-      builder_->makeIntConstant(int((static_cast<uint32_t>(1) << binding_address_bits) - 1)));
+      builder_->makeIntConstant(int((static_cast<u32>(1) << binding_address_bits) - 1)));
 
   SpirvBuilder::SwitchBuilder binding_switch(binding_index, spv::SelectionControlDontFlattenMask,
                                              *builder_);
-  uint32_t binding_count = static_cast<uint32_t>(1) << binding_count_log2;
+  u32 binding_count = static_cast<u32>(1) << binding_count_log2;
 
   id_vector_temp_.clear();
   id_vector_temp_.push_back(spv::NoResult);
   id_vector_temp_.push_back(const_int_0_);
   id_vector_temp_.push_back(binding_address);
 
-  for (uint32_t i = 0; i < binding_count; ++i) {
+  for (u32 i = 0; i < binding_count; ++i) {
     binding_switch.makeBeginCase(i);
     id_vector_temp_[0] = builder_->makeIntConstant(int(i));
     store(builder_->createAccessChain(storage_class, buffers_shared_memory_, id_vector_temp_));

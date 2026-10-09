@@ -35,7 +35,7 @@ namespace xam {
 /** Base class of a Xam app, which receives messages dispatched by app id. */
 class REX_RUNTIME_API App {
  public:
-  uint32_t app_id() const { return app_id_; }
+  u32 app_id() const { return app_id_; }
 
   /**
    * Processes a message addressed to the app.
@@ -45,8 +45,7 @@ class REX_RUNTIME_API App {
    * @param buffer_length The buffer length in bytes.
    * @return The result of the message.
    */
-  virtual X_HRESULT DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
-                                        uint32_t buffer_length) = 0;
+  virtual X_HRESULT DispatchMessageSync(u32 message, u32 buffer_ptr, u32 buffer_length) = 0;
 
   virtual ~App() = default;
 
@@ -57,12 +56,12 @@ class REX_RUNTIME_API App {
    * @param runtime The runtime that owns the app.
    * @param app_id The id the app is registered under.
    */
-  App(Runtime& runtime, uint32_t app_id);
+  App(Runtime& runtime, u32 app_id);
 
   Runtime& runtime_; /**< Runtime that owns the app. */
   /** Guest memory of the runtime, used to translate message buffer addresses. */
   runtime::Memory* memory_;
-  uint32_t app_id_; /**< Id the app is registered under in the `AppManager`. */
+  u32 app_id_; /**< Id the app is registered under in the `AppManager`. */
 };
 
 /** Registry of Xam apps that routes messages by app id. */
@@ -84,8 +83,8 @@ class AppManager {
    * @param buffer_length The buffer length in bytes.
    * @return X_E_NOTFOUND when no app has the id, else the result of the app.
    */
-  REX_RUNTIME_API X_HRESULT DispatchMessageSync(uint32_t app_id, uint32_t message,
-                                                uint32_t buffer_ptr, uint32_t buffer_length);
+  REX_RUNTIME_API X_HRESULT DispatchMessageSync(u32 app_id, u32 message, u32 buffer_ptr,
+                                                u32 buffer_length);
   /**
    * Sends an asynchronous message to the app with the given id. The app receives it through
    * DispatchMessageSync.
@@ -96,12 +95,12 @@ class AppManager {
    * @param buffer_length The buffer length in bytes.
    * @return X_E_NOTFOUND when no app has the id, else the result of the app.
    */
-  REX_RUNTIME_API X_HRESULT DispatchMessageAsync(uint32_t app_id, uint32_t message,
-                                                 uint32_t buffer_ptr, uint32_t buffer_length);
+  REX_RUNTIME_API X_HRESULT DispatchMessageAsync(u32 app_id, u32 message, u32 buffer_ptr,
+                                                 u32 buffer_length);
 
  private:
   std::vector<std::unique_ptr<App>> apps_;
-  std::unordered_map<uint32_t, App*> app_lookup_;
+  std::unordered_map<u32, App*> app_lookup_;
 };
 
 }  // namespace xam

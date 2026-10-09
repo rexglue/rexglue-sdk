@@ -442,7 +442,7 @@ VulkanTextureCache::~VulkanTextureCache() {
   }
 }
 
-void VulkanTextureCache::BeginSubmission(uint64_t new_submission_index) {
+void VulkanTextureCache::BeginSubmission(u64 new_submission_index) {
   TextureCache::BeginSubmission(new_submission_index);
 
   if (!null_images_cleared_ && null_image_2d_array_cube_ != VK_NULL_HANDLE &&
@@ -484,8 +484,8 @@ void VulkanTextureCache::BeginFrame() {
 
 void VulkanTextureCache::EndFrame() {
   bool unsupported_header_written = false;
-  for (uint32_t i = 0; i < 64; ++i) {
-    uint32_t unsupported_features = unsupported_format_features_used_[i];
+  for (u32 i = 0; i < 64; ++i) {
+    u32 unsupported_features = unsupported_format_features_used_[i];
     if (!unsupported_features) {
       continue;
     }
@@ -501,7 +501,7 @@ void VulkanTextureCache::EndFrame() {
   }
 }
 
-void VulkanTextureCache::RequestTextures(uint32_t used_texture_mask) {
+void VulkanTextureCache::RequestTextures(u32 used_texture_mask) {
 #if REXGPU_FINE_GRAINED_DRAW_SCOPES
   REX_PROFILE_SCOPE("gpu");
 #endif  // REXGPU_FINE_GRAINED_DRAW_SCOPES
@@ -510,10 +510,10 @@ void VulkanTextureCache::RequestTextures(uint32_t used_texture_mask) {
 
   // 3D as 2D wrappers are created in the texture request phase.
   if (REXCVAR_GET(::rex::gpu::cvars::texture_3d_to_2d)) {
-    uint32_t textures_3d = used_texture_mask;
-    uint32_t index_3d;
+    u32 textures_3d = used_texture_mask;
+    u32 index_3d;
     while (rex::bit_scan_forward(textures_3d, &index_3d)) {
-      textures_3d &= ~(static_cast<uint32_t>(1) << index_3d);
+      textures_3d &= ~(static_cast<u32>(1) << index_3d);
       const TextureBinding* binding = GetValidTextureBinding(index_3d);
       if (!binding || binding->key.dimension != xenos::DataDimension::k3D) {
         continue;
@@ -534,10 +534,10 @@ void VulkanTextureCache::RequestTextures(uint32_t used_texture_mask) {
   VkImageLayout new_layout;
   GetTextureUsageMasks(VulkanTexture::Usage::kGuestShaderSampled, dst_stage_mask, dst_access_mask,
                        new_layout);
-  uint32_t textures_remaining = used_texture_mask;
-  uint32_t index;
+  u32 textures_remaining = used_texture_mask;
+  u32 index;
   while (rex::bit_scan_forward(textures_remaining, &index)) {
-    textures_remaining &= ~(static_cast<uint32_t>(1) << index);
+    textures_remaining &= ~(static_cast<u32>(1) << index);
     const TextureBinding* binding = GetValidTextureBinding(index);
     if (!binding) {
       continue;
@@ -577,7 +577,7 @@ void VulkanTextureCache::RequestTextures(uint32_t used_texture_mask) {
   }
 }
 
-VkImageView VulkanTextureCache::GetActiveBindingOrNullImageView(uint32_t fetch_constant_index,
+VkImageView VulkanTextureCache::GetActiveBindingOrNullImageView(u32 fetch_constant_index,
                                                                 xenos::FetchOpDimension dimension,
                                                                 bool is_signed) {
   VkImageView image_view = VK_NULL_HANDLE;
@@ -660,7 +660,7 @@ VulkanTextureCache::SamplerParameters VulkanTextureCache::GetSamplerParameters(
       aniso_filter != xenos::AnisoFilter::kDisabled) {
     bool linear_filterable = true;
     TextureKey texture_key;
-    uint8_t texture_swizzled_signs;
+    u8 texture_swizzled_signs;
     BindingInfoFromFetchConstant(fetch, texture_key, &texture_swizzled_signs);
     if (texture_key.is_valid) {
       const HostFormatPair& host_format_pair = GetHostFormatPair(texture_key);
@@ -684,12 +684,12 @@ VulkanTextureCache::SamplerParameters VulkanTextureCache::GetSamplerParameters(
   bool mip_filter_bilinear_or_trilinear =
       mip_filter == xenos::TextureFilter::kPoint || mip_filter == xenos::TextureFilter::kLinear;
   parameters.mip_base_map = mip_filter == xenos::TextureFilter::kBaseMap;
-  uint32_t mip_min_level, mip_max_level;
+  u32 mip_min_level, mip_max_level;
   xenos::GetSubresourcesFromFetchConstant(fetch, nullptr, nullptr, nullptr, nullptr, nullptr,
                                           &mip_min_level, &mip_max_level);
   parameters.mip_min_level = mip_min_level;
   bool has_mips = mip_max_level > mip_min_level;
-  int32_t anisotropic_override = REXCVAR_GET(::rex::gpu::cvars::anisotropic_override);
+  i32 anisotropic_override = REXCVAR_GET(::rex::gpu::cvars::anisotropic_override);
   if (anisotropic_override > -1 && anisotropic_override < 6 && has_mips &&
       !parameters.mip_base_map && min_mag_linear && mip_filter_bilinear_or_trilinear) {
     aniso_filter = xenos::AnisoFilter(anisotropic_override);
@@ -708,7 +708,7 @@ VulkanTextureCache::SamplerParameters VulkanTextureCache::GetSamplerParameters(
 
 VkSampler VulkanTextureCache::UseSampler(SamplerParameters parameters, bool& has_overflown_out) {
   REX_ASSERT(command_processor_.submission_open());
-  uint64_t submission_current = command_processor_.GetCurrentSubmission();
+  u64 submission_current = command_processor_.GetCurrentSubmission();
 
   auto it_existing = samplers_.find(parameters);
   if (it_existing != samplers_.end()) {
@@ -802,17 +802,17 @@ VkSampler VulkanTextureCache::UseSampler(SamplerParameters parameters, bool& has
       // kMirrorClampToBorder
       VK_SAMPLER_ADDRESS_MODE_MIRROR_CLAMP_TO_EDGE,
   };
-  sampler_create_info.addressModeU = kAddressModeMap[static_cast<uint32_t>(parameters.clamp_x)];
-  sampler_create_info.addressModeV = kAddressModeMap[static_cast<uint32_t>(parameters.clamp_y)];
-  sampler_create_info.addressModeW = kAddressModeMap[static_cast<uint32_t>(parameters.clamp_z)];
+  sampler_create_info.addressModeU = kAddressModeMap[static_cast<u32>(parameters.clamp_x)];
+  sampler_create_info.addressModeV = kAddressModeMap[static_cast<u32>(parameters.clamp_y)];
+  sampler_create_info.addressModeW = kAddressModeMap[static_cast<u32>(parameters.clamp_z)];
   // LOD biasing is performed in shaders.
   if (parameters.aniso_filter != xenos::AnisoFilter::kDisabled) {
     sampler_create_info.anisotropyEnable = VK_TRUE;
     sampler_create_info.maxAnisotropy =
-        static_cast<float>(UINT32_C(1) << (static_cast<uint32_t>(parameters.aniso_filter) -
-                                           std::to_underlying(xenos::AnisoFilter::kMax_1_1)));
+        static_cast<f32>(UINT32_C(1) << (static_cast<u32>(parameters.aniso_filter) -
+                                         std::to_underlying(xenos::AnisoFilter::kMax_1_1)));
   }
-  sampler_create_info.minLod = static_cast<float>(parameters.mip_min_level);
+  sampler_create_info.minLod = static_cast<f32>(parameters.mip_min_level);
   if (parameters.mip_base_map) {
     REX_ASSERT(!parameters.mip_linear);
     sampler_create_info.maxLod = sampler_create_info.minLod + 0.25f;
@@ -901,8 +901,7 @@ VkSampler VulkanTextureCache::UseSampler(SamplerParameters parameters, bool& has
   return vulkan_sampler;
 }
 
-uint64_t VulkanTextureCache::GetSubmissionToAwaitOnSamplerOverflow(
-    uint32_t overflowed_sampler_count) const {
+u64 VulkanTextureCache::GetSubmissionToAwaitOnSamplerOverflow(u32 overflowed_sampler_count) const {
   if (!overflowed_sampler_count) {
     return 0;
   }
@@ -910,7 +909,7 @@ uint64_t VulkanTextureCache::GetSubmissionToAwaitOnSamplerOverflow(
   if (!sampler_used_first_) {
     return 0;
   }
-  for (uint32_t samplers_remaining = overflowed_sampler_count - 1; samplers_remaining;
+  for (u32 samplers_remaining = overflowed_sampler_count - 1; samplers_remaining;
        --samplers_remaining) {
     std::pair<const SamplerParameters, Sampler>* sampler_used_next = sampler_used->second.used_next;
     if (!sampler_used_next) {
@@ -921,11 +920,10 @@ uint64_t VulkanTextureCache::GetSubmissionToAwaitOnSamplerOverflow(
   return sampler_used->second.last_usage_submission;
 }
 
-VkImageView VulkanTextureCache::RequestSwapTexture(uint32_t& width_scaled_out,
-                                                   uint32_t& height_scaled_out,
+VkImageView VulkanTextureCache::RequestSwapTexture(u32& width_scaled_out, u32& height_scaled_out,
                                                    xenos::TextureFormat& format_out,
-                                                   uint32_t* width_unscaled_out,
-                                                   uint32_t* height_unscaled_out,
+                                                   u32* width_unscaled_out,
+                                                   u32* height_unscaled_out,
                                                    bool* swap_source_needs_rb_swap_out) {
   const auto& regs = register_file();
   xenos::TextureFetch fetch = regs.GetTextureFetch(0);
@@ -938,10 +936,9 @@ VkImageView VulkanTextureCache::RequestSwapTexture(uint32_t& width_scaled_out,
   if (!texture) {
     return VK_NULL_HANDLE;
   }
-  uint32_t host_swizzle = GuestToHostSwizzle(fetch.swizzle, GetHostFormatSwizzle(key));
+  u32 host_swizzle = GuestToHostSwizzle(fetch.swizzle, GetHostFormatSwizzle(key));
   if (swap_source_needs_rb_swap_out) {
-    auto swizzle_component = [](uint32_t swizzle,
-                                uint32_t component_index) -> xenos::TextureSwizzle {
+    auto swizzle_component = [](u32 swizzle, u32 component_index) -> xenos::TextureSwizzle {
       return xenos::TextureSwizzle((swizzle >> (3 * component_index)) & 0b111);
     };
     *swap_source_needs_rb_swap_out =
@@ -1010,11 +1007,11 @@ bool VulkanTextureCache::IsScaledResolveSupportedForFormat(TextureKey key) const
          load_pipelines_scaled_[load_shader] != VK_NULL_HANDLE;
 }
 
-uint32_t VulkanTextureCache::GetHostFormatSwizzle(TextureKey key) const {
+u32 VulkanTextureCache::GetHostFormatSwizzle(TextureKey key) const {
   return GetHostFormatPair(key).swizzle;
 }
 
-uint32_t VulkanTextureCache::GetMaxHostTextureWidthHeight(xenos::DataDimension dimension) const {
+u32 VulkanTextureCache::GetMaxHostTextureWidthHeight(xenos::DataDimension dimension) const {
   const gpu::vulkan::VulkanDevice::Properties& device_properties =
       command_processor_.GetVulkanDevice()->properties();
   switch (dimension) {
@@ -1032,8 +1029,7 @@ uint32_t VulkanTextureCache::GetMaxHostTextureWidthHeight(xenos::DataDimension d
   }
 }
 
-uint32_t VulkanTextureCache::GetMaxHostTextureDepthOrArraySize(
-    xenos::DataDimension dimension) const {
+u32 VulkanTextureCache::GetMaxHostTextureDepthOrArraySize(xenos::DataDimension dimension) const {
   const gpu::vulkan::VulkanDevice::Properties& device_properties =
       command_processor_.GetVulkanDevice()->properties();
   switch (dimension) {
@@ -1072,14 +1068,14 @@ std::unique_ptr<TextureCache::Texture> VulkanTextureCache::CreateTexture(Texture
     }
   }
   if (formats[0] == VK_FORMAT_UNDEFINED) {
-    unsupported_format_features_used_[static_cast<uint32_t>(key.format)] |= kUnsupportedResourceBit;
+    unsupported_format_features_used_[static_cast<u32>(key.format)] |= kUnsupportedResourceBit;
     return nullptr;
   }
 
   const gpu::vulkan::VulkanDevice* const vulkan_device = command_processor_.GetVulkanDevice();
 
   bool is_3d = key.dimension == xenos::DataDimension::k3D;
-  uint32_t depth_or_array_size = key.GetDepthOrArraySize();
+  u32 depth_or_array_size = key.GetDepthOrArraySize();
 
   VkImageCreateInfo image_create_info;
   VkImageCreateInfo* image_create_info_last = &image_create_info;
@@ -1134,10 +1130,9 @@ std::unique_ptr<TextureCache::Texture> VulkanTextureCache::CreateTexture(Texture
   return std::make_unique<VulkanTexture>(*this, key, image, allocation);
 }
 
-bool VulkanTextureCache::EnsureScaledResolveMemoryCommitted(uint32_t start_unscaled,
-                                                            uint32_t length_unscaled,
-                                                            uint32_t length_scaled_alignment_log2) {
-  uint64_t start_scaled, length_scaled;
+bool VulkanTextureCache::EnsureScaledResolveMemoryCommitted(u32 start_unscaled, u32 length_unscaled,
+                                                            u32 length_scaled_alignment_log2) {
+  u64 start_scaled, length_scaled;
   if (!GetScaledResolveRange(start_unscaled, length_unscaled, length_scaled_alignment_log2,
                              start_scaled, length_scaled)) {
     return false;
@@ -1200,39 +1195,38 @@ bool VulkanTextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture,
   xenos::DataDimension dimension = texture_key.dimension;
   bool is_3d = dimension == xenos::DataDimension::k3D;
   bool is_3d_tiling = is_3d || vulkan_texture.force_load_3d_tiling();
-  uint32_t width = texture_key.GetWidth();
-  uint32_t height = texture_key.GetHeight();
-  uint32_t depth_or_array_size = texture_key.GetDepthOrArraySize();
-  uint32_t depth = is_3d ? depth_or_array_size : 1;
-  uint32_t array_size = is_3d ? 1 : depth_or_array_size;
+  u32 width = texture_key.GetWidth();
+  u32 height = texture_key.GetHeight();
+  u32 depth_or_array_size = texture_key.GetDepthOrArraySize();
+  u32 depth = is_3d ? depth_or_array_size : 1;
+  u32 array_size = is_3d ? 1 : depth_or_array_size;
   xenos::TextureFormat guest_format = texture_key.format;
   const xenos::FormatInfo* guest_format_info = xenos::FormatInfo::Get(guest_format);
-  uint32_t block_width = guest_format_info->block_width;
-  uint32_t block_height = guest_format_info->block_height;
-  uint32_t bytes_per_block = guest_format_info->bytes_per_block();
-  uint32_t level_first = load_base ? 0 : 1;
-  uint32_t level_last = load_mips ? texture_key.mip_max_level : 0;
+  u32 block_width = guest_format_info->block_width;
+  u32 block_height = guest_format_info->block_height;
+  u32 bytes_per_block = guest_format_info->bytes_per_block();
+  u32 level_first = load_base ? 0 : 1;
+  u32 level_last = load_mips ? texture_key.mip_max_level : 0;
   REX_ASSERT(level_first <= level_last);
-  uint32_t level_packed = guest_layout.packed_level;
-  uint32_t level_stored_first = std::min(level_first, level_packed);
-  uint32_t level_stored_last = std::min(level_last, level_packed);
-  uint32_t texture_resolution_scale_x = texture_key.scaled_resolve ? draw_resolution_scale_x() : 1;
-  uint32_t texture_resolution_scale_y = texture_key.scaled_resolve ? draw_resolution_scale_y() : 1;
+  u32 level_packed = guest_layout.packed_level;
+  u32 level_stored_first = std::min(level_first, level_packed);
+  u32 level_stored_last = std::min(level_last, level_packed);
+  u32 texture_resolution_scale_x = texture_key.scaled_resolve ? draw_resolution_scale_x() : 1;
+  u32 texture_resolution_scale_y = texture_key.scaled_resolve ? draw_resolution_scale_y() : 1;
 
   // Iteration 0 is the base packed tail and 1 the mips packed tail when level 0 is packed.
-  uint32_t loop_level_first, loop_level_last;
+  u32 loop_level_first, loop_level_last;
   if (level_packed == 0) {
-    loop_level_first = static_cast<uint32_t>(level_first != 0);
-    loop_level_last = static_cast<uint32_t>(level_last != 0);
+    loop_level_first = static_cast<u32>(level_first != 0);
+    loop_level_last = static_cast<u32>(level_last != 0);
   } else {
     loop_level_first = level_stored_first;
     loop_level_last = level_stored_last;
   }
 
-  uint32_t host_block_width = host_format.block_compressed ? block_width : 1;
-  uint32_t host_block_height = host_format.block_compressed ? block_height : 1;
-  uint32_t host_x_blocks_per_thread = UINT32_C(1)
-                                      << load_shader_info.guest_x_blocks_per_thread_log2;
+  u32 host_block_width = host_format.block_compressed ? block_width : 1;
+  u32 host_block_height = host_format.block_compressed ? block_height : 1;
+  u32 host_x_blocks_per_thread = UINT32_C(1) << load_shader_info.guest_x_blocks_per_thread_log2;
   if (!host_format.block_compressed) {
     host_x_blocks_per_thread *= block_width;
   }
@@ -1240,20 +1234,20 @@ bool VulkanTextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture,
   struct HostLayout {
     VkDeviceSize offset_bytes;
     VkDeviceSize slice_size_bytes;
-    uint32_t x_pitch_blocks;
-    uint32_t y_pitch_blocks;
+    u32 x_pitch_blocks;
+    u32 y_pitch_blocks;
   };
   HostLayout host_layout_base;
   // Indexed as guest stored mips, 1..min(level_last, level_packed) or 0 if level_packed is 0.
   HostLayout host_layout_mips[xenos::kTextureMaxMips];
-  for (uint32_t loop_level = loop_level_first; loop_level <= loop_level_last; ++loop_level) {
+  for (u32 loop_level = loop_level_first; loop_level <= loop_level_last; ++loop_level) {
     bool is_base = loop_level == 0;
-    uint32_t level = (level_packed == 0) ? 0 : loop_level;
+    u32 level = (level_packed == 0) ? 0 : loop_level;
     HostLayout& level_host_layout = is_base ? host_layout_base : host_layout_mips[level];
     level_host_layout.offset_bytes = host_buffer_size;
-    uint32_t level_guest_x_extent_texels_unscaled;
-    uint32_t level_guest_y_extent_texels_unscaled;
-    uint32_t level_guest_z_extent_texels;
+    u32 level_guest_x_extent_texels_unscaled;
+    u32 level_guest_y_extent_texels_unscaled;
+    u32 level_guest_z_extent_texels;
     if (level == level_packed) {
       // The whole packed tail loads to copy regions out of it.
       const xenos::TextureGuestLayout::Level& guest_layout_packed =
@@ -1293,7 +1287,7 @@ bool VulkanTextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture,
   const VkDevice device = vulkan_device->device();
   VulkanSharedMemory& vulkan_shared_memory = static_cast<VulkanSharedMemory&>(shared_memory());
   std::array<VkWriteDescriptorSet, 3> write_descriptor_sets;
-  uint32_t write_descriptor_set_count = 0;
+  u32 write_descriptor_set_count = 0;
   VkDescriptorSet descriptor_set_dest = command_processor_.AllocateSingleTransientDescriptor(
       VulkanCommandProcessor::SingleTransientDescriptorLayout ::kStorageBufferCompute);
   if (!descriptor_set_dest) {
@@ -1318,7 +1312,7 @@ bool VulkanTextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture,
     write_descriptor_set_dest.pTexelBufferView = nullptr;
   }
   // Aligned because a partially provided vector reads as zero and breaks small linear textures.
-  uint32_t source_length_alignment = UINT32_C(1) << load_shader_info.source_bpe_log2;
+  u32 source_length_alignment = UINT32_C(1) << load_shader_info.source_bpe_log2;
   VkDescriptorSet descriptor_set_source_base = VK_NULL_HANDLE;
   VkDescriptorSet descriptor_set_source_mips = VK_NULL_HANDLE;
   VkDescriptorBufferInfo write_descriptor_set_source_base_buffer_info;
@@ -1329,9 +1323,9 @@ bool VulkanTextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture,
     if (!descriptor_set_source_base) {
       return false;
     }
-    uint32_t source_base_start_unscaled = texture_key.base_page << 12;
-    uint64_t source_base_start;
-    uint64_t source_base_range;
+    u32 source_base_start_unscaled = texture_key.base_page << 12;
+    u64 source_base_start;
+    u64 source_base_range;
     if (texture_key.scaled_resolve) {
       if (!GetScaledResolveRange(source_base_start_unscaled, vulkan_texture.GetGuestBaseSize(),
                                  load_shader_info.source_bpe_log2, source_base_start,
@@ -1341,10 +1335,9 @@ bool VulkanTextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture,
       write_descriptor_set_source_base_buffer_info.buffer = scaled_resolve_buffer_;
     } else {
       source_base_start = source_base_start_unscaled;
-      source_base_range = rex::align(static_cast<uint64_t>(vulkan_texture.GetGuestBaseSize()),
-                                     static_cast<uint64_t>(source_length_alignment));
-      if (source_base_range >
-          static_cast<uint64_t>(SharedMemory::kBufferSize) - source_base_start) {
+      source_base_range = rex::align(static_cast<u64>(vulkan_texture.GetGuestBaseSize()),
+                                     static_cast<u64>(source_length_alignment));
+      if (source_base_range > static_cast<u64>(SharedMemory::kBufferSize) - source_base_start) {
         return false;
       }
       write_descriptor_set_source_base_buffer_info.buffer = vulkan_shared_memory.buffer();
@@ -1370,9 +1363,9 @@ bool VulkanTextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture,
     if (!descriptor_set_source_mips) {
       return false;
     }
-    uint32_t source_mips_start_unscaled = texture_key.mip_page << 12;
-    uint64_t source_mips_start;
-    uint64_t source_mips_range;
+    u32 source_mips_start_unscaled = texture_key.mip_page << 12;
+    u64 source_mips_start;
+    u64 source_mips_range;
     if (texture_key.scaled_resolve) {
       if (!GetScaledResolveRange(source_mips_start_unscaled, vulkan_texture.GetGuestMipsSize(),
                                  load_shader_info.source_bpe_log2, source_mips_start,
@@ -1382,10 +1375,9 @@ bool VulkanTextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture,
       write_descriptor_set_source_mips_buffer_info.buffer = scaled_resolve_buffer_;
     } else {
       source_mips_start = source_mips_start_unscaled;
-      source_mips_range = rex::align(static_cast<uint64_t>(vulkan_texture.GetGuestMipsSize()),
-                                     static_cast<uint64_t>(source_length_alignment));
-      if (source_mips_range >
-          static_cast<uint64_t>(SharedMemory::kBufferSize) - source_mips_start) {
+      source_mips_range = rex::align(static_cast<u64>(vulkan_texture.GetGuestMipsSize()),
+                                     static_cast<u64>(source_length_alignment));
+      if (source_mips_range > static_cast<u64>(SharedMemory::kBufferSize) - source_mips_start) {
         return false;
       }
       write_descriptor_set_source_mips_buffer_info.buffer = vulkan_shared_memory.buffer();
@@ -1430,14 +1422,14 @@ bool VulkanTextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture,
   REX_ASSERT(texture_resolution_scale_x <= 7);
   REX_ASSERT(texture_resolution_scale_y <= 7);
   load_constants.is_tiled_3d_endian_scale =
-      static_cast<uint32_t>(texture_key.tiled) | (static_cast<uint32_t>(is_3d_tiling) << 1) |
-      (static_cast<uint32_t>(texture_key.endianness) << 2) | (texture_resolution_scale_x << 4) |
+      static_cast<u32>(texture_key.tiled) | (static_cast<u32>(is_3d_tiling) << 1) |
+      (static_cast<u32>(texture_key.endianness) << 2) | (texture_resolution_scale_x << 4) |
       (texture_resolution_scale_y << 7);
 
-  uint32_t guest_x_blocks_per_group_log2 = load_shader_info.GetGuestXBlocksPerGroupLog2();
-  for (uint32_t loop_level = loop_level_first; loop_level <= loop_level_last; ++loop_level) {
+  u32 guest_x_blocks_per_group_log2 = load_shader_info.GetGuestXBlocksPerGroupLog2();
+  for (u32 loop_level = loop_level_first; loop_level <= loop_level_last; ++loop_level) {
     bool is_base = loop_level == 0;
-    uint32_t level = (level_packed == 0) ? 0 : loop_level;
+    u32 level = (level_packed == 0) ? 0 : loop_level;
 
     VkDescriptorSet descriptor_set_source =
         is_base ? descriptor_set_source_base : descriptor_set_source_mips;
@@ -1455,7 +1447,7 @@ bool VulkanTextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture,
     }
     const xenos::TextureGuestLayout::Level& level_guest_layout =
         is_base ? guest_layout.base : guest_layout.mips[level];
-    uint32_t level_guest_pitch = level_guest_layout.row_pitch_bytes;
+    u32 level_guest_pitch = level_guest_layout.row_pitch_bytes;
     if (texture_key.tiled) {
       // Shaders expect pitch in blocks for tiled textures.
       level_guest_pitch /= bytes_per_block;
@@ -1466,7 +1458,7 @@ bool VulkanTextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture,
     REX_ASSERT(!is_3d_tiling || !(load_constants.guest_z_stride_block_rows_aligned &
                                   (xenos::kTextureTileWidthHeight - 1)));
 
-    uint32_t level_width, level_height, level_depth;
+    u32 level_width, level_height, level_depth;
     if (level == level_packed) {
       // The packed mip tail holds other levels at other offsets, so the entire extents load.
       level_width = level_guest_layout.x_extent_blocks * block_width;
@@ -1484,25 +1476,25 @@ bool VulkanTextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture,
     load_constants.size_blocks[2] = level_depth;
     load_constants.height_texels = level_height;
 
-    uint32_t group_count_x =
+    u32 group_count_x =
         (load_constants.size_blocks[0] + ((UINT32_C(1) << guest_x_blocks_per_group_log2) - 1)) >>
         guest_x_blocks_per_group_log2;
-    uint32_t group_count_y =
+    u32 group_count_y =
         (load_constants.size_blocks[1] + ((UINT32_C(1) << kLoadGuestYBlocksPerGroupLog2) - 1)) >>
         kLoadGuestYBlocksPerGroupLog2;
 
     const HostLayout& level_host_layout = is_base ? host_layout_base : host_layout_mips[level];
-    load_constants.host_offset = static_cast<uint32_t>(level_host_layout.offset_bytes);
+    load_constants.host_offset = static_cast<u32>(level_host_layout.offset_bytes);
     load_constants.host_pitch =
         load_shader_info.bytes_per_host_block * level_host_layout.x_pitch_blocks;
 
     command_buffer.CmdVkPushConstants(load_pipeline_layout_, VK_SHADER_STAGE_COMPUTE_BIT, 0,
                                       sizeof(load_constants), &load_constants);
 
-    uint32_t level_array_slice_stride_bytes_scaled =
+    u32 level_array_slice_stride_bytes_scaled =
         level_guest_layout.array_slice_stride_bytes *
         (texture_resolution_scale_x * texture_resolution_scale_y);
-    for (uint32_t slice = 0; slice < array_size; ++slice) {
+    for (u32 slice = 0; slice < array_size; ++slice) {
       if (slice != 0) {
         command_buffer.CmdVkPushConstants(load_pipeline_layout_, VK_SHADER_STAGE_COMPUTE_BIT,
                                           offsetof(LoadConstants, guest_offset),
@@ -1516,17 +1508,16 @@ bool VulkanTextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture,
       command_processor_.SubmitBarriers(true);
       command_buffer.CmdVkDispatch(group_count_x, group_count_y, load_constants.size_blocks[2]);
       load_constants.guest_offset += level_array_slice_stride_bytes_scaled;
-      load_constants.host_offset += static_cast<uint32_t>(level_host_layout.slice_size_bytes);
+      load_constants.host_offset += static_cast<u32>(level_host_layout.slice_size_bytes);
     }
   }
 
   if (pipeline_float_convert != VK_NULL_HANDLE) {
     REX_ASSERT(load_shader_info_float_convert != nullptr);
-    static std::array<uint8_t, 64> float_fallback_log_mask = {};
-    uint8_t float_fallback_log_bit =
-        host_format_is_signed ? static_cast<uint8_t>(1 << 1) : static_cast<uint8_t>(1 << 0);
-    uint8_t& float_fallback_log_state =
-        float_fallback_log_mask[static_cast<uint32_t>(texture_key.format)];
+    static std::array<u8, 64> float_fallback_log_mask = {};
+    u8 float_fallback_log_bit =
+        host_format_is_signed ? static_cast<u8>(1 << 1) : static_cast<u8>(1 << 0);
+    u8& float_fallback_log_state = float_fallback_log_mask[static_cast<u32>(texture_key.format)];
     if ((float_fallback_log_state & float_fallback_log_bit) == 0) {
       float_fallback_log_state |= float_fallback_log_bit;
       REXLOG_INFO(gpu, "VulkanTextureCache: Using two-pass float fallback for format {} ({})",
@@ -1553,17 +1544,17 @@ bool VulkanTextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture,
     LoadConstants load_constants_float_convert;
     // Linear source and destination in the same scratch buffer, 1x1 scaling.
     load_constants_float_convert.is_tiled_3d_endian_scale =
-        (static_cast<uint32_t>(is_3d) << 1) | (UINT32_C(1) << 4) | (UINT32_C(1) << 7);
-    uint32_t guest_x_blocks_per_group_log2_float_convert =
+        (static_cast<u32>(is_3d) << 1) | (UINT32_C(1) << 4) | (UINT32_C(1) << 7);
+    u32 guest_x_blocks_per_group_log2_float_convert =
         load_shader_info_float_convert->GetGuestXBlocksPerGroupLog2();
 
-    for (uint32_t loop_level = loop_level_first; loop_level <= loop_level_last; ++loop_level) {
+    for (u32 loop_level = loop_level_first; loop_level <= loop_level_last; ++loop_level) {
       bool is_base = loop_level == 0;
-      uint32_t level = (level_packed == 0) ? 0 : loop_level;
+      u32 level = (level_packed == 0) ? 0 : loop_level;
 
       const xenos::TextureGuestLayout::Level& level_guest_layout =
           is_base ? guest_layout.base : guest_layout.mips[level];
-      uint32_t level_width, level_height, level_depth;
+      u32 level_width, level_height, level_depth;
       if (level == level_packed) {
         level_width = level_guest_layout.x_extent_blocks * block_width;
         level_height = level_guest_layout.y_extent_blocks * block_height;
@@ -1580,23 +1571,20 @@ bool VulkanTextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture,
       load_constants_float_convert.size_blocks[2] = level_depth;
       load_constants_float_convert.height_texels = level_height;
 
-      uint32_t group_count_x =
-          (load_constants_float_convert.size_blocks[0] +
-           ((UINT32_C(1) << guest_x_blocks_per_group_log2_float_convert) - 1)) >>
-          guest_x_blocks_per_group_log2_float_convert;
-      uint32_t group_count_y = (load_constants_float_convert.size_blocks[1] +
-                                ((UINT32_C(1) << kLoadGuestYBlocksPerGroupLog2) - 1)) >>
-                               kLoadGuestYBlocksPerGroupLog2;
+      u32 group_count_x = (load_constants_float_convert.size_blocks[0] +
+                           ((UINT32_C(1) << guest_x_blocks_per_group_log2_float_convert) - 1)) >>
+                          guest_x_blocks_per_group_log2_float_convert;
+      u32 group_count_y = (load_constants_float_convert.size_blocks[1] +
+                           ((UINT32_C(1) << kLoadGuestYBlocksPerGroupLog2) - 1)) >>
+                          kLoadGuestYBlocksPerGroupLog2;
 
       const HostLayout& level_host_layout = is_base ? host_layout_base : host_layout_mips[level];
-      load_constants_float_convert.guest_offset =
-          static_cast<uint32_t>(level_host_layout.offset_bytes);
+      load_constants_float_convert.guest_offset = static_cast<u32>(level_host_layout.offset_bytes);
       load_constants_float_convert.guest_pitch_aligned =
           load_shader_info_float_convert->bytes_per_host_block * level_host_layout.x_pitch_blocks;
       load_constants_float_convert.guest_z_stride_block_rows_aligned =
           level_host_layout.y_pitch_blocks;
-      load_constants_float_convert.host_offset =
-          static_cast<uint32_t>(level_host_layout.offset_bytes);
+      load_constants_float_convert.host_offset = static_cast<u32>(level_host_layout.offset_bytes);
       load_constants_float_convert.host_pitch =
           load_shader_info_float_convert->bytes_per_host_block * level_host_layout.x_pitch_blocks;
 
@@ -1604,9 +1592,8 @@ bool VulkanTextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture,
                                         sizeof(load_constants_float_convert),
                                         &load_constants_float_convert);
 
-      uint32_t level_array_slice_stride_bytes =
-          static_cast<uint32_t>(level_host_layout.slice_size_bytes);
-      for (uint32_t slice = 0; slice < array_size; ++slice) {
+      u32 level_array_slice_stride_bytes = static_cast<u32>(level_host_layout.slice_size_bytes);
+      for (u32 slice = 0; slice < array_size; ++slice) {
         if (slice != 0) {
           command_buffer.CmdVkPushConstants(load_pipeline_layout_, VK_SHADER_STAGE_COMPUTE_BIT,
                                             offsetof(LoadConstants, guest_offset),
@@ -1652,17 +1639,17 @@ bool VulkanTextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture,
   VkBufferImageCopy* copy_regions = command_buffer.CmdCopyBufferToImageEmplace(
       scratch_buffer, vulkan_texture.image(), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
       level_last - level_first + 1);
-  for (uint32_t level = level_first; level <= level_last; ++level) {
+  for (u32 level = level_first; level <= level_last; ++level) {
     VkBufferImageCopy& copy_region = copy_regions[level - level_first];
     const HostLayout& level_host_layout =
         level != 0 ? host_layout_mips[std::min(level, level_packed)] : host_layout_base;
     copy_region.bufferOffset = level_host_layout.offset_bytes;
     if (level >= level_packed) {
-      uint32_t level_offset_blocks_x, level_offset_blocks_y, level_offset_z;
+      u32 level_offset_blocks_x, level_offset_blocks_y, level_offset_z;
       xenos::GetPackedMipOffset(width, height, depth, guest_format, level, level_offset_blocks_x,
                                 level_offset_blocks_y, level_offset_z);
-      uint32_t level_offset_host_blocks_x = texture_resolution_scale_x * level_offset_blocks_x;
-      uint32_t level_offset_host_blocks_y = texture_resolution_scale_y * level_offset_blocks_y;
+      u32 level_offset_host_blocks_x = texture_resolution_scale_x * level_offset_blocks_x;
+      u32 level_offset_host_blocks_y = texture_resolution_scale_y * level_offset_blocks_y;
       if (!host_format.block_compressed) {
         level_offset_host_blocks_x *= block_width;
         level_offset_host_blocks_y *= block_height;
@@ -1693,9 +1680,9 @@ bool VulkanTextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture,
   return true;
 }
 
-void VulkanTextureCache::UpdateTextureBindingsImpl(uint32_t fetch_constant_mask) {
-  uint32_t bindings_remaining = fetch_constant_mask;
-  uint32_t binding_index;
+void VulkanTextureCache::UpdateTextureBindingsImpl(u32 fetch_constant_mask) {
+  u32 bindings_remaining = fetch_constant_mask;
+  u32 binding_index;
   while (rex::bit_scan_forward(bindings_remaining, &binding_index)) {
     bindings_remaining &= ~(UINT32_C(1) << binding_index);
     VulkanTextureBinding& vulkan_binding = vulkan_texture_bindings_[binding_index];
@@ -1709,10 +1696,10 @@ void VulkanTextureCache::UpdateTextureBindingsImpl(uint32_t fetch_constant_mask)
     bool uses_signed = xenos::IsAnySignSigned(binding->swizzled_signs);
     xenos::TextureFormat format = binding->key.format;
     if (uses_unsigned && host_format_pair.format_unsigned.format == VK_FORMAT_UNDEFINED) {
-      unsupported_format_features_used_[static_cast<uint32_t>(format)] |= kUnsupportedUnormBit;
+      unsupported_format_features_used_[static_cast<u32>(format)] |= kUnsupportedUnormBit;
     }
     if (uses_signed && host_format_pair.format_signed.format == VK_FORMAT_UNDEFINED) {
-      unsupported_format_features_used_[static_cast<uint32_t>(format)] |= kUnsupportedSnormBit;
+      unsupported_format_features_used_[static_cast<u32>(format)] |= kUnsupportedSnormBit;
     }
     if (IsSignedVersionSeparateForFormat(binding->key)) {
       if (binding->texture && uses_unsigned &&
@@ -1745,7 +1732,7 @@ VulkanTextureCache::VulkanTexture::VulkanTexture(VulkanTextureCache& texture_cac
     : Texture(texture_cache, key, track_usage), image_(image), allocation_(allocation) {
   VmaAllocationInfo allocation_info;
   vmaGetAllocationInfo(texture_cache.vma_allocator_, allocation_, &allocation_info);
-  SetHostMemoryUsage(static_cast<uint64_t>(allocation_info.size));
+  SetHostMemoryUsage(static_cast<u64>(allocation_info.size));
 }
 
 VulkanTextureCache::VulkanTexture::~VulkanTexture() {
@@ -1767,7 +1754,7 @@ VulkanTextureCache::VulkanTexture::~VulkanTexture() {
   vmaDestroyImage(vulkan_texture_cache.vma_allocator_, image_, allocation_);
 }
 
-VkImageView VulkanTextureCache::VulkanTexture::GetView(bool is_signed, uint32_t host_swizzle,
+VkImageView VulkanTextureCache::VulkanTexture::GetView(bool is_signed, u32 host_swizzle,
                                                        bool is_array) {
   xenos::DataDimension dimension = key().dimension;
   if (dimension == xenos::DataDimension::k3D || dimension == xenos::DataDimension::kCube) {
@@ -1797,7 +1784,7 @@ VkImageView VulkanTextureCache::VulkanTexture::GetView(bool is_signed, uint32_t 
   }
   view_key.host_swizzle = host_swizzle;
 
-  view_key.is_array = static_cast<uint32_t>(is_array);
+  view_key.is_array = static_cast<u32>(is_array);
 
   auto it = views_.find(view_key);
   if (it != views_.end()) {
@@ -1838,14 +1825,14 @@ VkImageView VulkanTextureCache::VulkanTexture::GetView(bool is_signed, uint32_t 
     REX_FAIL(gpu, VK_NULL_HANDLE,
              "VulkanTextureCache: Failed to create an image view for Vulkan format "
              "{} ({}signed) with swizzle 0x{:3X}",
-             static_cast<uint32_t>(format), is_signed ? "" : "un", host_swizzle);
+             static_cast<u32>(format), is_signed ? "" : "un", host_swizzle);
   }
   views_.emplace(view_key, view);
   return view;
 }
 
 VkImageView VulkanTextureCache::VulkanTexture::GetOrCreate3DAs2DImageView(bool is_signed,
-                                                                          uint32_t host_swizzle) {
+                                                                          u32 host_swizzle) {
   if (!REXCVAR_GET(::rex::gpu::cvars::texture_3d_to_2d)) {
     return VK_NULL_HANDLE;
   }
@@ -1960,8 +1947,7 @@ VkImageView VulkanTextureCache::VulkanTexture::GetOrCreate3DAs2DImageView(bool i
 
 VulkanTextureCache::VulkanTextureCache(Key, const xenos::RegisterFile& register_file,
                                        VulkanSharedMemory& shared_memory,
-                                       uint32_t draw_resolution_scale_x,
-                                       uint32_t draw_resolution_scale_y,
+                                       u32 draw_resolution_scale_x, u32 draw_resolution_scale_y,
                                        VulkanCommandProcessor& command_processor,
                                        VkPipelineStageFlags guest_shader_pipeline_stages)
     : TextureCache(register_file, shared_memory, draw_resolution_scale_x, draw_resolution_scale_y),
@@ -1971,9 +1957,9 @@ VulkanTextureCache::VulkanTextureCache(Key, const xenos::RegisterFile& register_
 bool VulkanTextureCache::InitializeScaledResolveBuffer() {
   REX_ASSERT(IsDrawResolutionScaled());
 
-  uint64_t scale_area = static_cast<uint64_t>(draw_resolution_scale_x()) *
-                        static_cast<uint64_t>(draw_resolution_scale_y());
-  scaled_resolve_buffer_size_ = static_cast<uint64_t>(SharedMemory::kBufferSize) * scale_area;
+  u64 scale_area =
+      static_cast<u64>(draw_resolution_scale_x()) * static_cast<u64>(draw_resolution_scale_y());
+  scaled_resolve_buffer_size_ = static_cast<u64>(SharedMemory::kBufferSize) * scale_area;
 
   const gpu::vulkan::VulkanDevice* const vulkan_device = command_processor_.GetVulkanDevice();
   const gpu::vulkan::VulkanDevice::Functions& dfn = vulkan_device->functions();
@@ -2000,20 +1986,19 @@ bool VulkanTextureCache::InitializeScaledResolveBuffer() {
     if (rex::bit_scan_forward(
             memory_requirements.memoryTypeBits & vulkan_device->memory_types().device_local,
             &scaled_resolve_buffer_memory_type_)) {
-      uint32_t alignment_log2;
+      u32 alignment_log2;
       rex::bit_scan_forward(std::max(memory_requirements.alignment, VkDeviceSize(1)),
                             &alignment_log2);
-      uint32_t size_log2 = rex::log2_ceil(scaled_resolve_buffer_size_);
-      uint32_t preferred_log2 =
-          std::max(static_cast<uint32_t>(0), size_log2 - static_cast<uint32_t>(10));
+      u32 size_log2 = rex::log2_ceil(scaled_resolve_buffer_size_);
+      u32 preferred_log2 = std::max(static_cast<u32>(0), size_log2 - static_cast<u32>(10));
       scaled_resolve_sparse_granularity_log2_ =
-          std::max(alignment_log2, std::max(static_cast<uint32_t>(22), preferred_log2));
+          std::max(alignment_log2, std::max(static_cast<u32>(22), preferred_log2));
       scaled_resolve_sparse_granularity_log2_ =
           std::min(scaled_resolve_sparse_granularity_log2_, size_log2);
-      uint32_t allocation_count_log2 =
-          std::max(static_cast<uint32_t>(6), size_log2 - scaled_resolve_sparse_granularity_log2_);
-      scaled_resolve_sparse_allocated_.resize(
-          static_cast<size_t>(1) << (allocation_count_log2 - static_cast<uint32_t>(6)));
+      u32 allocation_count_log2 =
+          std::max(static_cast<u32>(6), size_log2 - scaled_resolve_sparse_granularity_log2_);
+      scaled_resolve_sparse_allocated_.resize(static_cast<size_t>(1)
+                                              << (allocation_count_log2 - static_cast<u32>(6)));
       scaled_resolve_buffer_sparse_ = true;
     } else {
       dfn.vkDestroyBuffer(device, scaled_resolve_buffer_, nullptr);
@@ -2038,8 +2023,7 @@ bool VulkanTextureCache::InitializeScaledResolveBuffer() {
   }
 
   scaled_resolve_last_usage_write_ = false;
-  scaled_resolve_last_written_range_ =
-      std::make_pair(static_cast<uint64_t>(0), static_cast<uint64_t>(0));
+  scaled_resolve_last_written_range_ = std::make_pair(static_cast<u64>(0), static_cast<u64>(0));
   return true;
 }
 
@@ -2059,14 +2043,13 @@ void VulkanTextureCache::ShutdownScaledResolveBuffer() {
   scaled_resolve_buffer_memory_type_ = UINT32_MAX;
   scaled_resolve_sparse_granularity_log2_ = UINT32_MAX;
   scaled_resolve_last_usage_write_ = false;
-  scaled_resolve_last_written_range_ =
-      std::make_pair(static_cast<uint64_t>(0), static_cast<uint64_t>(0));
+  scaled_resolve_last_written_range_ = std::make_pair(static_cast<u64>(0), static_cast<u64>(0));
 }
 
-bool VulkanTextureCache::GetScaledResolveRange(uint32_t start_unscaled, uint32_t length_unscaled,
-                                               uint32_t length_scaled_alignment_log2,
-                                               uint64_t& start_scaled_out,
-                                               uint64_t& length_scaled_out) const {
+bool VulkanTextureCache::GetScaledResolveRange(u32 start_unscaled, u32 length_unscaled,
+                                               u32 length_scaled_alignment_log2,
+                                               u64& start_scaled_out,
+                                               u64& length_scaled_out) const {
   if (!IsDrawResolutionScaled()) {
     return false;
   }
@@ -2080,11 +2063,11 @@ bool VulkanTextureCache::GetScaledResolveRange(uint32_t start_unscaled, uint32_t
     return false;
   }
 
-  uint64_t scale_area = static_cast<uint64_t>(draw_resolution_scale_x()) *
-                        static_cast<uint64_t>(draw_resolution_scale_y());
-  uint64_t start_scaled = static_cast<uint64_t>(start_unscaled) * scale_area;
-  uint64_t length_scaled = static_cast<uint64_t>(length_unscaled) * scale_area;
-  uint64_t alignment = static_cast<uint64_t>(1) << length_scaled_alignment_log2;
+  u64 scale_area =
+      static_cast<u64>(draw_resolution_scale_x()) * static_cast<u64>(draw_resolution_scale_y());
+  u64 start_scaled = static_cast<u64>(start_unscaled) * scale_area;
+  u64 length_scaled = static_cast<u64>(length_unscaled) * scale_area;
+  u64 alignment = static_cast<u64>(1) << length_scaled_alignment_log2;
   length_scaled = rex::align(length_scaled, alignment);
 
   if (start_scaled > scaled_resolve_buffer_size_ ||
@@ -2097,15 +2080,13 @@ bool VulkanTextureCache::GetScaledResolveRange(uint32_t start_unscaled, uint32_t
   return true;
 }
 
-bool VulkanTextureCache::EnsureScaledResolveBufferAllocated(uint64_t start_scaled,
-                                                            uint64_t length_scaled) {
+bool VulkanTextureCache::EnsureScaledResolveBufferAllocated(u64 start_scaled, u64 length_scaled) {
   if (!length_scaled || !scaled_resolve_buffer_sparse_) {
     return true;
   }
-  uint32_t allocation_first =
-      static_cast<uint32_t>(start_scaled >> scaled_resolve_sparse_granularity_log2_);
-  uint32_t allocation_last = static_cast<uint32_t>((start_scaled + (length_scaled - 1)) >>
-                                                   scaled_resolve_sparse_granularity_log2_);
+  u32 allocation_first = static_cast<u32>(start_scaled >> scaled_resolve_sparse_granularity_log2_);
+  u32 allocation_last = static_cast<u32>((start_scaled + (length_scaled - 1)) >>
+                                         scaled_resolve_sparse_granularity_log2_);
   while (true) {
     std::pair<size_t, size_t> allocation_range =
         rex::GetNextRangeUnset(scaled_resolve_sparse_allocated_.data(), allocation_first,
@@ -2146,7 +2127,7 @@ bool VulkanTextureCache::EnsureScaledResolveBufferAllocated(uint64_t start_scale
 
     rex::SetRange(scaled_resolve_sparse_allocated_.data(), allocation_range.first,
                   allocation_range.second);
-    allocation_first = static_cast<uint32_t>(allocation_range.first + allocation_range.second);
+    allocation_first = static_cast<u32>(allocation_range.first + allocation_range.second);
   }
   return true;
 }
@@ -2186,12 +2167,11 @@ void VulkanTextureCache::UseScaledResolveBufferForRead() {
   command_processor_.PushBufferMemoryBarrier(
       scaled_resolve_buffer_, offset, size, src_stage_mask, dst_stage_mask, src_access_mask,
       dst_access_mask, VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED, false);
-  scaled_resolve_last_written_range_ =
-      std::make_pair(static_cast<uint64_t>(0), static_cast<uint64_t>(0));
+  scaled_resolve_last_written_range_ = std::make_pair(static_cast<u64>(0), static_cast<u64>(0));
 }
 
-void VulkanTextureCache::UseScaledResolveBufferForWrite(uint64_t written_start_scaled,
-                                                        uint64_t written_length_scaled) {
+void VulkanTextureCache::UseScaledResolveBufferForWrite(u64 written_start_scaled,
+                                                        u64 written_length_scaled) {
   if (!scaled_resolve_buffer_) {
     return;
   }
@@ -2338,7 +2318,7 @@ bool VulkanTextureCache::Initialize() {
         xenos::TextureFormat::k_11_11_10_AS_16_16_16_16,
     };
     for (xenos::TextureFormat format : kR10G11B11Formats) {
-      HostFormatPair& host_format = host_formats_[static_cast<uint32_t>(format)];
+      HostFormatPair& host_format = host_formats_[static_cast<u32>(format)];
       REX_ASSERT(host_format.format_unsigned.format == VK_FORMAT_R16G16B16A16_UNORM);
       REX_ASSERT(host_format.format_signed.format == VK_FORMAT_R16G16B16A16_SNORM);
       host_format.format_unsigned.format = VK_FORMAT_R16G16B16A16_SFLOAT;
@@ -2426,7 +2406,7 @@ bool VulkanTextureCache::Initialize() {
       xenos::TextureFormat::k_DXT3A_AS_1_1_1_1,
   };
   for (xenos::TextureFormat format : kD3D12SignedUnsupportedFormats) {
-    HostFormatPair& host_format = host_formats_[static_cast<uint32_t>(format)];
+    HostFormatPair& host_format = host_formats_[static_cast<u32>(format)];
     host_format.format_signed.load_shader = kLoadShaderIndexUnknown;
     host_format.format_signed.format = VK_FORMAT_UNDEFINED;
     host_format.format_signed.linear_filterable = false;
@@ -2550,15 +2530,14 @@ bool VulkanTextureCache::Initialize() {
                       "VulkanTextureCache: Format {} (unsigned) is supported via a "
                       "fallback format (using the Vulkan format {} instead of the "
                       "preferred {})",
-                      guest_format_name, static_cast<uint32_t>(host_format.format_unsigned.format),
-                      static_cast<uint32_t>(best_host_format.format_unsigned.format));
+                      guest_format_name, static_cast<u32>(host_format.format_unsigned.format),
+                      static_cast<u32>(best_host_format.format_unsigned.format));
         }
       } else {
         REXLOG_INFO(gpu,
                     "VulkanTextureCache: Format {} (unsigned) is not supported by the "
                     "device (preferred Vulkan format is {})",
-                    guest_format_name,
-                    static_cast<uint32_t>(best_host_format.format_unsigned.format));
+                    guest_format_name, static_cast<u32>(best_host_format.format_unsigned.format));
       }
     }
     if (best_host_format.format_signed.format != VK_FORMAT_UNDEFINED) {
@@ -2569,15 +2548,14 @@ bool VulkanTextureCache::Initialize() {
                       "VulkanTextureCache: Format {} (signed) is supported via a "
                       "fallback format (using the Vulkan format {} instead of the "
                       "preferred {})",
-                      guest_format_name, static_cast<uint32_t>(host_format.format_signed.format),
-                      static_cast<uint32_t>(best_host_format.format_signed.format));
+                      guest_format_name, static_cast<u32>(host_format.format_signed.format),
+                      static_cast<u32>(best_host_format.format_signed.format));
         }
       } else {
         REXLOG_INFO(gpu,
                     "VulkanTextureCache: Format {} (signed) is not supported by the "
                     "device (preferred Vulkan format is {})",
-                    guest_format_name,
-                    static_cast<uint32_t>(best_host_format.format_signed.format));
+                    guest_format_name, static_cast<u32>(best_host_format.format_signed.format));
       }
     }
 
@@ -2651,7 +2629,7 @@ bool VulkanTextureCache::Initialize() {
   mark_host_format_pair_load_shaders_needed(kHostFormatDXNUnaligned);
   mark_host_format_pair_load_shaders_needed(kHostFormatDXT5AUnaligned);
 
-  std::pair<const uint32_t*, size_t> load_shader_code[kLoadShaderCount] = {};
+  std::pair<const u32*, size_t> load_shader_code[kLoadShaderCount] = {};
   load_shader_code[kLoadShaderIndex8bpb] =
       std::make_pair(shaders::texture_load_8bpb_cs, sizeof(shaders::texture_load_8bpb_cs));
   load_shader_code[kLoadShaderIndex16bpb] =
@@ -2726,7 +2704,7 @@ bool VulkanTextureCache::Initialize() {
       shaders::texture_load_depth_unorm_cs, sizeof(shaders::texture_load_depth_unorm_cs));
   load_shader_code[kLoadShaderIndexDepthFloat] = std::make_pair(
       shaders::texture_load_depth_float_cs, sizeof(shaders::texture_load_depth_float_cs));
-  std::pair<const uint32_t*, size_t> load_shader_code_scaled[kLoadShaderCount] = {};
+  std::pair<const u32*, size_t> load_shader_code_scaled[kLoadShaderCount] = {};
   if (IsDrawResolutionScaled()) {
     load_shader_code_scaled[kLoadShaderIndex8bpb] = std::make_pair(
         shaders::texture_load_8bpb_scaled_cs, sizeof(shaders::texture_load_8bpb_scaled_cs));
@@ -2798,7 +2776,7 @@ bool VulkanTextureCache::Initialize() {
     if (!load_shaders_needed[i]) {
       continue;
     }
-    const std::pair<const uint32_t*, size_t>& current_load_shader_code = load_shader_code[i];
+    const std::pair<const u32*, size_t>& current_load_shader_code = load_shader_code[i];
     REX_ASSERT(current_load_shader_code.first != nullptr);
     load_pipelines_[i] = gpu::vulkan::util::CreateComputePipeline(
         vulkan_device, load_pipeline_layout_, current_load_shader_code.first,
@@ -2810,7 +2788,7 @@ bool VulkanTextureCache::Initialize() {
                i);
     }
     if (IsDrawResolutionScaled()) {
-      const std::pair<const uint32_t*, size_t>& current_load_shader_code_scaled =
+      const std::pair<const u32*, size_t>& current_load_shader_code_scaled =
           load_shader_code_scaled[i];
       if (current_load_shader_code_scaled.first) {
         load_pipelines_scaled_[i] = gpu::vulkan::util::CreateComputePipeline(
@@ -2867,7 +2845,7 @@ bool VulkanTextureCache::Initialize() {
                                      &null_image_memory_requirements_2d_array_cube_);
     VkMemoryRequirements null_image_memory_requirements_3d_;
     dfn.vkGetImageMemoryRequirements(device, null_image_3d_, &null_image_memory_requirements_3d_);
-    uint32_t null_image_memory_type_common = gpu::vulkan::util::ChooseMemoryType(
+    u32 null_image_memory_type_common = gpu::vulkan::util::ChooseMemoryType(
         vulkan_device->memory_types(),
         null_image_memory_requirements_2d_array_cube_.memoryTypeBits &
             null_image_memory_requirements_3d_.memoryTypeBits,
@@ -2900,11 +2878,11 @@ bool VulkanTextureCache::Initialize() {
         REX_FAIL(gpu, false, "VulkanTextureCache: Failed to bind the memory to the null 3D image");
       }
     } else {
-      const uint32_t null_image_memory_type_2d_array_cube = gpu::vulkan::util::ChooseMemoryType(
+      const u32 null_image_memory_type_2d_array_cube = gpu::vulkan::util::ChooseMemoryType(
           vulkan_device->memory_types(),
           null_image_memory_requirements_2d_array_cube_.memoryTypeBits,
           gpu::vulkan::util::MemoryPurpose::kDeviceLocal);
-      const uint32_t null_image_memory_type_3d = gpu::vulkan::util::ChooseMemoryType(
+      const u32 null_image_memory_type_3d = gpu::vulkan::util::ChooseMemoryType(
           vulkan_device->memory_types(), null_image_memory_requirements_3d_.memoryTypeBits,
           gpu::vulkan::util::MemoryPurpose::kDeviceLocal);
       if (null_image_memory_type_2d_array_cube == UINT32_MAX ||
@@ -3003,7 +2981,7 @@ bool VulkanTextureCache::Initialize() {
   if (device_properties.samplerAnisotropy) {
     max_anisotropy_ = xenos::AnisoFilter(
         std::to_underlying(xenos::AnisoFilter::kMax_1_1) +
-        (31 - rex::lzcnt(static_cast<uint32_t>(
+        (31 - rex::lzcnt(static_cast<u32>(
                   std::min(16.0f, std::max(1.0f, device_properties.maxSamplerAnisotropy))))));
   } else {
     max_anisotropy_ = xenos::AnisoFilter::kDisabled;
@@ -3014,7 +2992,7 @@ bool VulkanTextureCache::Initialize() {
 
 const VulkanTextureCache::HostFormatPair& VulkanTextureCache::GetHostFormatPair(
     TextureKey key) const {
-  const HostFormatPair& host_format_pair = host_formats_[static_cast<uint32_t>(key.format)];
+  const HostFormatPair& host_format_pair = host_formats_[static_cast<u32>(key.format)];
   if (!host_format_pair.format_unsigned.block_compressed &&
       !host_format_pair.format_signed.block_compressed) {
     return host_format_pair;

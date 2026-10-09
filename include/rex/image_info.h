@@ -57,7 +57,7 @@ struct PPCCodegenFlags {
   bool non_volatile_as_local = false;
 };
 
-/// PPC image layout passed from the generated config header into TitleApp::Init.
+/** PPC image layout passed from the generated config header into TitleApp::Init. */
 struct PPCImageInfo {
   u32 code_base;  /**< First guest address of the generated code, given to the function table. */
   u32 code_size;  /**< Size of the generated code in bytes. */
@@ -65,11 +65,11 @@ struct PPCImageInfo {
   u32 image_size; /**< Size of the image in bytes. */
   /** Guest address and host function pairs registered at startup, ended by guest address 0. */
   const PPCFuncMapping* func_mappings;
-  bool shim_heap = false;  ///< Set by codegen when [shim] holds the heap functions
-  RegisterModulesFunc register_modules = nullptr;  ///< Set by codegen for multi-binary projects
-  PPCCodegenFlags codegen_flags{};                 ///< Set by codegen from the config flags
+  bool shim_heap = false; /**< Set by codegen when [shim] holds the heap functions. */
+  RegisterModulesFunc register_modules = nullptr; /**< Set by codegen for multi binary projects. */
+  PPCCodegenFlags codegen_flags{};                /**< Set by codegen from the config flags. */
   RecompiledCodeFunc recompiled_code =
-      nullptr;  ///< Set by codegen to the generated recompiled code
+      nullptr; /**< Set by codegen to the generated recompiled code. */
 };
 
 }  // namespace rex

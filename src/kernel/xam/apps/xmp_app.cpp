@@ -69,21 +69,20 @@ XmpApp::XmpApp(Runtime& runtime)
       next_playlist_handle_(1),
       next_song_handle_(1) {}
 
-X_HRESULT XmpApp::XMPGetStatus(uint32_t state_ptr) {
+X_HRESULT XmpApp::XMPGetStatus(u32 state_ptr) {
   if (!ThreadRecord::GetCurrentThread()->main_thread()) {
     // Titles poll this in a loop, the delay keeps them from starving other threads.
     rex::runtime::ThreadRecord::Sleep(std::chrono::milliseconds(1));
   }
 
   REXLOG_TRACE(kernel, "XMPGetStatus({:08X})", state_ptr);
-  *memory_->TranslateVirtual<be_u32*>(state_ptr) = static_cast<uint32_t>(state_);
+  *memory_->TranslateVirtual<be_u32*>(state_ptr) = static_cast<u32>(state_);
   return X_E_SUCCESS;
 }
 
-X_HRESULT XmpApp::XMPCreateTitlePlaylist(uint32_t songs_ptr, uint32_t song_count,
-                                         uint32_t playlist_name_ptr,
-                                         const std::u16string& playlist_name, uint32_t flags,
-                                         uint32_t out_song_handles, uint32_t out_playlist_handle) {
+X_HRESULT XmpApp::XMPCreateTitlePlaylist(u32 songs_ptr, u32 song_count, u32 playlist_name_ptr,
+                                         const std::u16string& playlist_name, u32 flags,
+                                         u32 out_song_handles, u32 out_playlist_handle) {
   REXLOG_DEBUG(kernel,
                "XMPCreateTitlePlaylist({:08X}, {:08X}, {:08X}({}), {:08X}, {:08X}, "
                "{:08X})",
@@ -94,7 +93,7 @@ X_HRESULT XmpApp::XMPCreateTitlePlaylist(uint32_t songs_ptr, uint32_t song_count
   playlist->name = playlist_name;
   playlist->flags = flags;
   if (songs_ptr) {
-    for (uint32_t i = 0; i < song_count; ++i) {
+    for (u32 i = 0; i < song_count; ++i) {
       auto song = std::make_unique<Song>();
       song->handle = ++next_song_handle_;
       const auto& in = memory_->TranslateVirtual<const XMP_SONG_IN*>(songs_ptr)[i];
@@ -120,13 +119,13 @@ X_HRESULT XmpApp::XMPCreateTitlePlaylist(uint32_t songs_ptr, uint32_t song_count
     *memory_->TranslateVirtual<be_u32*>(out_playlist_handle) = playlist->handle;
   }
 
-  const uint32_t handle = playlist->handle;
+  const u32 handle = playlist->handle;
   std::lock_guard lock(mutex_);
   playlists_.emplace(handle, std::move(playlist));
   return X_E_SUCCESS;
 }
 
-X_HRESULT XmpApp::XMPDeleteTitlePlaylist(uint32_t playlist_handle) {
+X_HRESULT XmpApp::XMPDeleteTitlePlaylist(u32 playlist_handle) {
   REXLOG_DEBUG(kernel, "XMPDeleteTitlePlaylist({:08X})", playlist_handle);
   std::unique_ptr<Playlist> playlist;
   {
@@ -144,7 +143,7 @@ X_HRESULT XmpApp::XMPDeleteTitlePlaylist(uint32_t playlist_handle) {
   return X_E_SUCCESS;
 }
 
-X_HRESULT XmpApp::XMPPlayTitlePlaylist(uint32_t playlist_handle, uint32_t song_handle) {
+X_HRESULT XmpApp::XMPPlayTitlePlaylist(u32 playlist_handle, u32 song_handle) {
   REXLOG_DEBUG(kernel, "XMPPlayTitlePlaylist({:08X}, {:08X})", playlist_handle, song_handle);
   Playlist* playlist = nullptr;
   {
@@ -179,7 +178,7 @@ X_HRESULT XmpApp::XMPContinue() {
   return X_E_SUCCESS;
 }
 
-X_HRESULT XmpApp::XMPStop(uint32_t unk) {
+X_HRESULT XmpApp::XMPStop(u32 unk) {
   REX_ASSERT(unk == 0);
   REXLOG_DEBUG(kernel, "XMPStop({:08X})", unk);
   active_playlist_ = nullptr;
@@ -225,11 +224,10 @@ X_HRESULT XmpApp::XMPPrevious() {
 }
 
 void XmpApp::OnStateChanged() {
-  runtime_.notifier().BroadcastNotification(kMsgStateChanged, static_cast<uint32_t>(state_));
+  runtime_.notifier().BroadcastNotification(kMsgStateChanged, static_cast<u32>(state_));
 }
 
-X_HRESULT XmpApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
-                                      uint32_t buffer_length) {
+X_HRESULT XmpApp::DispatchMessageSync(u32 message, u32 buffer_ptr, u32 buffer_length) {
   switch (message) {
     case 0x00070002: {
       REX_ASSERT(!buffer_length || buffer_length == 12);
@@ -240,7 +238,7 @@ X_HRESULT XmpApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
       }* args = memory_->TranslateVirtual<decltype(args)>(buffer_ptr);
       REX_STATIC_ASSERT_SIZE(decltype(*args), 12);
 
-      uint32_t playlist_handle = *memory_->TranslateVirtual<const be_u32*>(args->storage_ptr);
+      u32 playlist_handle = *memory_->TranslateVirtual<const be_u32*>(args->storage_ptr);
       REX_ASSERT(args->xmp_client == 0x00000002);
       return XMPPlayTitlePlaylist(playlist_handle, args->song_handle);
     }
@@ -287,10 +285,10 @@ X_HRESULT XmpApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
 
       REX_ASSERT(args->xmp_client == 0x00000002 || args->xmp_client == 0x00000000);
       REXLOG_DEBUG(kernel, "XMPSetPlaybackBehavior({:08X}, {:08X}, {:08X})",
-                   static_cast<uint32_t>(args->playback_mode),
-                   static_cast<uint32_t>(args->repeat_mode), static_cast<uint32_t>(args->flags));
-      playback_mode_ = static_cast<PlaybackMode>(static_cast<uint32_t>(args->playback_mode));
-      repeat_mode_ = static_cast<RepeatMode>(static_cast<uint32_t>(args->repeat_mode));
+                   static_cast<u32>(args->playback_mode), static_cast<u32>(args->repeat_mode),
+                   static_cast<u32>(args->flags));
+      playback_mode_ = static_cast<PlaybackMode>(static_cast<u32>(args->playback_mode));
+      repeat_mode_ = static_cast<RepeatMode>(static_cast<u32>(args->repeat_mode));
       unknown_flags_ = args->flags;
       runtime_.notifier().BroadcastNotification(kMsgPlaybackBehaviorChanged, 0);
       return X_E_SUCCESS;
@@ -315,7 +313,7 @@ X_HRESULT XmpApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
       REX_STATIC_ASSERT_SIZE(decltype(*args), 8);
 
       REX_ASSERT(args->xmp_client == 0x00000002);
-      REXLOG_DEBUG(kernel, "XMPGetVolume({:08X})", static_cast<uint32_t>(args->volume_ptr));
+      REXLOG_DEBUG(kernel, "XMPGetVolume({:08X})", static_cast<u32>(args->volume_ptr));
       *memory_->TranslateVirtual<be_f32*>(args->volume_ptr) = volume_;
       return X_E_SUCCESS;
     }
@@ -328,7 +326,7 @@ X_HRESULT XmpApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
       REX_STATIC_ASSERT_SIZE(decltype(*args), 8);
 
       REX_ASSERT(args->xmp_client == 0x00000002);
-      REXLOG_DEBUG(kernel, "XMPSetVolume({:g})", static_cast<float>(args->value));
+      REXLOG_DEBUG(kernel, "XMPSetVolume({:g})", static_cast<f32>(args->value));
       volume_ = args->value;
       return X_E_SUCCESS;
     }
@@ -357,8 +355,8 @@ X_HRESULT XmpApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
             memory_->TranslateVirtual(args->playlist_name_ptr));
       }
       // storage_ptr is a XamAlloc of storage_size bytes.
-      REX_ASSERT(static_cast<uint32_t>(args->storage_size) ==
-                 4 + static_cast<uint32_t>(args->song_count) * 128);
+      REX_ASSERT(static_cast<u32>(args->storage_size) ==
+                 4 + static_cast<u32>(args->song_count) * 128);
       return XMPCreateTitlePlaylist(args->songs_ptr, args->song_count, args->playlist_name_ptr,
                                     playlist_name, args->flags, args->song_handles_ptr,
                                     args->storage_ptr);
@@ -375,8 +373,8 @@ X_HRESULT XmpApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
       auto* info = memory_->TranslateVirtual<XMP_SONG_INFO*>(args->info_ptr);
       REX_ASSERT(args->xmp_client == 0x00000002);
       REX_ASSERT(args->unk_ptr == 0);
-      REXLOG_ERROR(kernel, "XMPGetInfo?({:08X}, {:08X})", static_cast<uint32_t>(args->unk_ptr),
-                   static_cast<uint32_t>(args->info_ptr));
+      REXLOG_ERROR(kernel, "XMPGetInfo?({:08X}, {:08X})", static_cast<u32>(args->unk_ptr),
+                   static_cast<u32>(args->info_ptr));
       if (!active_playlist_) {
         return X_E_FAIL;
       }
@@ -389,7 +387,7 @@ X_HRESULT XmpApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
       memory::store_and_swap<std::u16string>(info->genre, song->genre);
       info->track_number = song->track_number;
       info->duration_ms = song->duration_ms;
-      info->format = static_cast<uint32_t>(song->format);
+      info->format = static_cast<u32>(song->format);
       return X_E_SUCCESS;
     }
     case 0x00070013: {
@@ -400,7 +398,7 @@ X_HRESULT XmpApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
       }* args = memory_->TranslateVirtual<decltype(args)>(buffer_ptr);
       REX_STATIC_ASSERT_SIZE(decltype(*args), 8);
 
-      uint32_t playlist_handle = *memory_->TranslateVirtual<const be_u32*>(args->storage_ptr);
+      u32 playlist_handle = *memory_->TranslateVirtual<const be_u32*>(args->storage_ptr);
       REX_ASSERT(args->xmp_client == 0x00000002 || args->xmp_client == 0x00000000);
       return XMPDeleteTitlePlaylist(playlist_handle);
     }
@@ -416,10 +414,9 @@ X_HRESULT XmpApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
       REX_ASSERT((args->xmp_client == 0x00000002 && args->controller == 0x00000000) ||
                  (args->xmp_client == 0x00000000 && args->controller == 0x00000001));
       REXLOG_DEBUG(kernel, "XMPSetPlaybackController({:08X}, {:08X})",
-                   static_cast<uint32_t>(args->controller),
-                   static_cast<uint32_t>(args->playback_client));
+                   static_cast<u32>(args->controller), static_cast<u32>(args->playback_client));
 
-      playback_client_ = PlaybackClient(static_cast<uint32_t>(args->playback_client));
+      playback_client_ = PlaybackClient(static_cast<u32>(args->playback_client));
       runtime_.notifier().BroadcastNotification(kMsgPlaybackControllerChanged,
                                                 !args->playback_client);
       return X_E_SUCCESS;
@@ -435,9 +432,8 @@ X_HRESULT XmpApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
 
       REX_ASSERT(args->xmp_client == 0x00000002);
       REXLOG_DEBUG(kernel, "XMPGetPlaybackController({:08X}, {:08X}, {:08X})",
-                   static_cast<uint32_t>(args->xmp_client),
-                   static_cast<uint32_t>(args->controller_ptr),
-                   static_cast<uint32_t>(args->locked_ptr));
+                   static_cast<u32>(args->xmp_client), static_cast<u32>(args->controller_ptr),
+                   static_cast<u32>(args->locked_ptr));
       *memory_->TranslateVirtual<be_u32*>(args->controller_ptr) = 0;
       *memory_->TranslateVirtual<be_u32*>(args->locked_ptr) = 0;
 
@@ -460,16 +456,14 @@ X_HRESULT XmpApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
 
       REX_ASSERT(args->xmp_client == 0x00000002 || args->xmp_client == 0x00000000);
       REXLOG_DEBUG(kernel, "XMPGetPlaybackBehavior({:08X}, {:08X}, {:08X})",
-                   static_cast<uint32_t>(args->playback_mode_ptr),
-                   static_cast<uint32_t>(args->repeat_mode_ptr),
-                   static_cast<uint32_t>(args->unk3_ptr));
+                   static_cast<u32>(args->playback_mode_ptr),
+                   static_cast<u32>(args->repeat_mode_ptr), static_cast<u32>(args->unk3_ptr));
       if (args->playback_mode_ptr) {
         *memory_->TranslateVirtual<be_u32*>(args->playback_mode_ptr) =
-            static_cast<uint32_t>(playback_mode_);
+            static_cast<u32>(playback_mode_);
       }
       if (args->repeat_mode_ptr) {
-        *memory_->TranslateVirtual<be_u32*>(args->repeat_mode_ptr) =
-            static_cast<uint32_t>(repeat_mode_);
+        *memory_->TranslateVirtual<be_u32*>(args->repeat_mode_ptr) = static_cast<u32>(repeat_mode_);
       }
       if (args->unk3_ptr) {
         *memory_->TranslateVirtual<be_u32*>(args->unk3_ptr) = unknown_flags_;
@@ -488,7 +482,7 @@ X_HRESULT XmpApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
 
       REX_ASSERT(args->xmp_client == 0x00000002 || args->xmp_client == 0x00000000);
       *memory_->TranslateVirtual<be_u32*>(args->size_ptr) =
-          4 + static_cast<uint32_t>(args->song_count) * 128;
+          4 + static_cast<u32>(args->song_count) * 128;
       return X_E_SUCCESS;
     }
     case 0x0007003D: {

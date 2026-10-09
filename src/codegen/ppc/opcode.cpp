@@ -1,8 +1,6 @@
 #include "opcode.h"
 
 #include <array>
-#include <mutex>
-#include <unordered_map>
 
 #include <rex/types.h>
 
@@ -403,28 +401,7 @@ static const std::array<OpcodeInfo, 320> g_opcode_table = {{
     {Opcode::stdx, InstrFormat::kX, OpcodeGroup::kMemory, "stdx", 31, 149, true},
 }};
 
-static std::unordered_map<u64, size_t> g_opcode_lookup_map;
-static std::once_flag g_opcode_init_flag;
-
-static void init_opcode_lookup_map_impl() {
-  g_opcode_lookup_map.reserve(g_opcode_table.size());
-  for (size_t i = 0; i < g_opcode_table.size(); ++i) {
-    const auto& info = g_opcode_table[i];
-    if (info.opcode == Opcode::kUnknown)
-      continue;
-
-    u64 key = (static_cast<u64>(info.primary_opcode) << 32) | info.extended_opcode;
-    g_opcode_lookup_map[key] = i;
-  }
-}
-
-static void init_opcode_lookup_map() {
-  std::call_once(g_opcode_init_flag, init_opcode_lookup_map_impl);
-}
-
 Opcode lookup_opcode(u32 code) {
-  init_opcode_lookup_map();
-
   u32 primary = extract_bits(code, 0, 6);
 
   switch (primary) {
@@ -1155,8 +1132,6 @@ Opcode lookup_opcode(u32 code) {
 }
 
 const OpcodeInfo& get_opcode_info(Opcode opcode) {
-  init_opcode_lookup_map();
-
   static const OpcodeInfo unknown = {
       Opcode::kUnknown, InstrFormat::kUnknown, OpcodeGroup::kGeneral, "unknown", 0, 0, false};
 

@@ -21,17 +21,17 @@
  * LSB first, so the LSB fields are listed first to match the packing.
  */
 union xe_xex2_version_t {
-  uint32_t value; /**< Whole version word in native byte order. */
+  u32 value; /**< Whole version word in native byte order. */
   struct {
-    uint32_t qfe : 8;    /**< Bits 0 to 7 of value. Quick fix engineering number. */
-    uint32_t build : 16; /**< Bits 8 to 23 of value. Build number. */
-    uint32_t minor : 4;  /**< Bits 24 to 27 of value. Minor version. */
-    uint32_t major : 4;  /**< Bits 28 to 31 of value. Major version. */
+    u32 qfe : 8;    /**< Bits 0 to 7 of value. Quick fix engineering number. */
+    u32 build : 16; /**< Bits 8 to 23 of value. Build number. */
+    u32 minor : 4;  /**< Bits 24 to 27 of value. Minor version. */
+    u32 major : 4;  /**< Bits 28 to 31 of value. Major version. */
   };
 };
 
 /** Characteristics bits of a PE section header. */
-enum xe_pe_section_flags_e : uint32_t {
+enum xe_pe_section_flags_e : u32 {
   /** IMAGE_SCN_CNT_CODE. The section holds executable code. */
   kXEPESectionContainsCode = 0x00000020,
   /** IMAGE_SCN_CNT_INITIALIZED_DATA. The section holds initialized data. */
@@ -49,20 +49,20 @@ enum xe_pe_section_flags_e : uint32_t {
 /** 1 section of the title PE image. */
 class PESection {
  public:
-  char name[9];         /**< Section name from the 8 byte PE name plus a terminator. */
-  uint32_t raw_address; /**< File offset of the section data (PointerToRawData). */
-  uint32_t raw_size;    /**< Size of the section data in the file (SizeOfRawData). */
-  uint32_t address;     /**< Image relative address of the section when loaded (VirtualAddress). */
-  uint32_t size;        /**< Size of the section in memory (VirtualSize). */
-  uint32_t flags;       /**< kXEPESection* flag bits. */
+  char name[9];    /**< Section name from the 8 byte PE name plus a terminator. */
+  u32 raw_address; /**< File offset of the section data (PointerToRawData). */
+  u32 raw_size;    /**< Size of the section data in the file (SizeOfRawData). */
+  u32 address;     /**< Image relative address of the section when loaded (VirtualAddress). */
+  u32 size;        /**< Size of the section in memory (VirtualSize). */
+  u32 flags;       /**< kXEPESection* flag bits. */
 };
 
 /** 1 named export of a PE image. */
 struct PEExport {
   const char* name; /**< Name of the export. No code reads it. */
-  uint32_t ordinal; /**< Ordinal of the export. No code reads it. */
+  u32 ordinal;      /**< Ordinal of the export. No code reads it. */
 
-  uint64_t addr; /**< Address of the export. No code reads it. */
+  u64 addr; /**< Address of the export. No code reads it. */
 };
 
 namespace rex {
@@ -75,7 +75,7 @@ enum xex2_section_type {
 };
 
 /** Image flag bits of the XEX security info. */
-enum xex2_image_flags : uint32_t {
+enum xex2_image_flags : u32 {
   /** @name Image flag bits of xex2_security_info::image_flags. No code reads them. */
   /** @{ */
   XEX_IMAGE_MANUFACTURING_UTILITY = 0x00000002,
@@ -103,7 +103,7 @@ enum xex2_image_flags : uint32_t {
 };
 
 /** Media types an image may be loaded from. */
-enum xex2_media_flags : uint32_t {
+enum xex2_media_flags : u32 {
   /** @name Media bits of xex2_security_info::allowed_media_types. No code reads them. */
   /** @{ */
   XEX_MEDIA_HARDDISK = 0x00000001,
@@ -127,7 +127,7 @@ enum xex2_media_flags : uint32_t {
 };
 
 /** Regions an image may run in. */
-enum xex2_region_flags : uint32_t {
+enum xex2_region_flags : u32 {
   /** North America region bits. The title language query tests them to pick English. */
   XEX_REGION_NTSCU = 0x000000FF,
   /** Japan and Asia region bits. The title language query tests them to pick Japanese. */
@@ -142,7 +142,7 @@ enum xex2_region_flags : uint32_t {
 };
 
 /** Module flag bits of the XEX header. */
-enum xex2_module_flags : uint32_t {
+enum xex2_module_flags : u32 {
   XEX_MODULE_TITLE = 0x00000001, /**< The module is a title executable. No code reads it. */
   /** The module exports functions to the title. No code reads it. */
   XEX_MODULE_EXPORTS_TO_TITLE = 0x00000002,
@@ -160,7 +160,7 @@ enum xex2_module_flags : uint32_t {
 };
 
 /** System flag bits of the XEX system flags optional header. */
-enum xex2_system_flags : uint32_t {
+enum xex2_system_flags : u32 {
   /** @name System flag bits. Bit N is privilege N of XexCheckExecutablePrivilege. */
   /** @{ */
   XEX_SYSTEM_NO_FORCED_REBOOT = 0x00000001,
@@ -199,7 +199,7 @@ enum xex2_system_flags : uint32_t {
 };
 
 /** ESRB (Entertainment Software Rating Board) */
-enum xex2_rating_esrb_value : uint32_t {
+enum xex2_rating_esrb_value : u32 {
   XEX_RATING_ESRB_eC = 0x00,      /**< Early Childhood. */
   XEX_RATING_ESRB_E = 0x02,       /**< Everyone. */
   XEX_RATING_ESRB_E10 = 0x04,     /**< Everyone 10 and older. */
@@ -209,7 +209,7 @@ enum xex2_rating_esrb_value : uint32_t {
   XEX_RATING_ESRB_UNRATED = 0xFF, /**< No rating assigned. */
 };
 /** PEGI (Pan European Game Information) */
-enum xex2_rating_pegi_value : uint32_t {
+enum xex2_rating_pegi_value : u32 {
   XEX_RATING_PEGI_3_PLUS = 0,     /**< Age 3 and up. */
   XEX_RATING_PEGI_7_PLUS = 4,     /**< Age 7 and up. */
   XEX_RATING_PEGI_12_PLUS = 9,    /**< Age 12 and up. */
@@ -218,7 +218,7 @@ enum xex2_rating_pegi_value : uint32_t {
   XEX_RATING_PEGI_UNRATED = 0xFF, /**< No rating assigned. */
 };
 /** PEGI (Pan European Game Information) for Finland */
-enum xex2_rating_pegi_fi_value : uint32_t {
+enum xex2_rating_pegi_fi_value : u32 {
   XEX_RATING_PEGI_FI_3_PLUS = 0,     /**< Age 3 and up. */
   XEX_RATING_PEGI_FI_7_PLUS = 4,     /**< Age 7 and up. */
   XEX_RATING_PEGI_FI_11_PLUS = 8,    /**< Age 11 and up. */
@@ -227,7 +227,7 @@ enum xex2_rating_pegi_fi_value : uint32_t {
   XEX_RATING_PEGI_FI_UNRATED = 0xFF, /**< No rating assigned. */
 };
 /** PEGI (Pan European Game Information) for Portugal */
-enum xex2_rating_pegi_pt_value : uint32_t {
+enum xex2_rating_pegi_pt_value : u32 {
   XEX_RATING_PEGI_PT_4_PLUS = 1,     /**< Age 4 and up. */
   XEX_RATING_PEGI_PT_6_PLUS = 3,     /**< Age 6 and up. */
   XEX_RATING_PEGI_PT_12_PLUS = 9,    /**< Age 12 and up. */
@@ -236,7 +236,7 @@ enum xex2_rating_pegi_pt_value : uint32_t {
   XEX_RATING_PEGI_PT_UNRATED = 0xFF, /**< No rating assigned. */
 };
 /** BBFC (British Board of Film Classification) for UK and Ireland */
-enum xex2_rating_bbfc_value : uint32_t {
+enum xex2_rating_bbfc_value : u32 {
   XEX_RATING_BBFC_UNIVERSAL = 1,  /**< Suitable for all ages. */
   XEX_RATING_BBFC_PG = 5,         /**< Parental guidance. */
   XEX_RATING_BBFC_3_PLUS = 0,     /**< Age 3 and up. */
@@ -248,7 +248,7 @@ enum xex2_rating_bbfc_value : uint32_t {
   XEX_RATING_BBFC_UNRATED = 0xFF, /**< No rating assigned. */
 };
 /** CERO (Computer Entertainment Rating Organization) */
-enum xex2_rating_cero_value : uint32_t {
+enum xex2_rating_cero_value : u32 {
   XEX_RATING_CERO_A = 0,          /**< All ages. */
   XEX_RATING_CERO_B = 2,          /**< Age 12 and up. */
   XEX_RATING_CERO_C = 4,          /**< Age 15 and up. */
@@ -257,7 +257,7 @@ enum xex2_rating_cero_value : uint32_t {
   XEX_RATING_CERO_UNRATED = 0xFF, /**< No rating assigned. */
 };
 /** USK (Unterhaltungssoftware SelbstKontrolle) */
-enum xex2_rating_usk_value : uint32_t {
+enum xex2_rating_usk_value : u32 {
   XEX_RATING_USK_ALL = 0,        /**< All ages. */
   XEX_RATING_USK_6_PLUS = 2,     /**< Age 6 and up. */
   XEX_RATING_USK_12_PLUS = 4,    /**< Age 12 and up. */
@@ -266,7 +266,7 @@ enum xex2_rating_usk_value : uint32_t {
   XEX_RATING_USK_UNRATED = 0xFF, /**< No rating assigned. */
 };
 /** OFLC (Office of Film and Literature Classification) for Australia */
-enum xex2_rating_oflc_au_value : uint32_t {
+enum xex2_rating_oflc_au_value : u32 {
   XEX_RATING_OFLC_AU_G = 0,          /**< General. */
   XEX_RATING_OFLC_AU_PG = 2,         /**< Parental guidance. */
   XEX_RATING_OFLC_AU_M = 4,          /**< Mature. */
@@ -274,7 +274,7 @@ enum xex2_rating_oflc_au_value : uint32_t {
   XEX_RATING_OFLC_AU_UNRATED = 0xFF, /**< No rating assigned. */
 };
 /** OFLC (Office of Film and Literature Classification) for New Zealand */
-enum xex2_rating_oflc_nz_value : uint32_t {
+enum xex2_rating_oflc_nz_value : u32 {
   XEX_RATING_OFLC_NZ_G = 0,          /**< General. */
   XEX_RATING_OFLC_NZ_PG = 2,         /**< Parental guidance. */
   XEX_RATING_OFLC_NZ_M = 4,          /**< Mature. */
@@ -282,7 +282,7 @@ enum xex2_rating_oflc_nz_value : uint32_t {
   XEX_RATING_OFLC_NZ_UNRATED = 0xFF, /**< No rating assigned. */
 };
 /** KMRB (Korea Media Rating Board) */
-enum xex2_rating_kmrb_value : uint32_t {
+enum xex2_rating_kmrb_value : u32 {
   XEX_RATING_KMRB_ALL = 0,        /**< All ages. */
   XEX_RATING_KMRB_12_PLUS = 2,    /**< Age 12 and up. */
   XEX_RATING_KMRB_15_PLUS = 4,    /**< Age 15 and up. */
@@ -290,7 +290,7 @@ enum xex2_rating_kmrb_value : uint32_t {
   XEX_RATING_KMRB_UNRATED = 0xFF, /**< No rating assigned. */
 };
 /** Brazil ratings */
-enum xex2_rating_brazil_value : uint32_t {
+enum xex2_rating_brazil_value : u32 {
   XEX_RATING_BRAZIL_ALL = 0,        /**< All ages. */
   XEX_RATING_BRAZIL_12_PLUS = 2,    /**< Age 12 and up. */
   XEX_RATING_BRAZIL_14_PLUS = 4,    /**< Age 14 and up. */
@@ -299,7 +299,7 @@ enum xex2_rating_brazil_value : uint32_t {
   XEX_RATING_BRAZIL_UNRATED = 0xFF, /**< No rating assigned. */
 };
 /** FPB (Film and Publication Board) */
-enum xex2_rating_fpb_value : uint32_t {
+enum xex2_rating_fpb_value : u32 {
   XEX_RATING_FPB_ALL = 0,        /**< All ages. */
   XEX_RATING_FPB_PG = 6,         /**< Parental guidance. */
   XEX_RATING_FPB_10_PLUS = 7,    /**< Age 10 and up. */
@@ -310,7 +310,7 @@ enum xex2_rating_fpb_value : uint32_t {
 };
 
 /** Keys of the XEX optional headers. */
-enum xex2_header_keys : uint32_t {
+enum xex2_header_keys : u32 {
   XEX_HEADER_RESOURCE_INFO = 0x000002FF,          /**< Selects xex2_opt_resource_info. */
   XEX_HEADER_FILE_FORMAT_INFO = 0x000003FF,       /**< Selects xex2_opt_file_format_info. */
   XEX_HEADER_DELTA_PATCH_DESCRIPTOR = 0x000005FF, /**< Selects xex2_opt_delta_patch_descriptor. */
@@ -362,13 +362,13 @@ enum xex2_header_keys : uint32_t {
 };
 
 /** Encryption applied to the image data. */
-enum xex2_encryption_type : uint16_t {
+enum xex2_encryption_type : u16 {
   XEX_ENCRYPTION_NONE = 0,   /**< Image data is stored unencrypted. */
   XEX_ENCRYPTION_NORMAL = 1, /**< Image data is AES encrypted with the image key. */
 };
 
 /** Compression applied to the image data. */
-enum xex2_compression_type : uint16_t {
+enum xex2_compression_type : u16 {
   XEX_COMPRESSION_NONE = 0, /**< Image data is stored uncompressed. */
   /** Image data is stored as the runs of xex2_file_basic_compression_info. */
   XEX_COMPRESSION_BASIC = 1,
@@ -378,7 +378,7 @@ enum xex2_compression_type : uint16_t {
 };
 
 /** Approval state of a static library. */
-enum xex2_approval_type : uint32_t {
+enum xex2_approval_type : u32 {
   /** @name Values of xex2_opt_static_library::approval_type. No code reads them. */
   /** @{ */
   XEX_APPROVAL_UNAPPROVED = 0,
@@ -417,8 +417,8 @@ struct xex2_file_basic_compression_info {
 
 /** Size and hash of the next compressed block. */
 struct xex2_compressed_block_info {
-  be_u32 block_size;      /**< Offset 0x0. */
-  uint8_t block_hash[20]; /**< Offset 0x4. */
+  be_u32 block_size; /**< Offset 0x0. */
+  u8 block_hash[20]; /**< Offset 0x4. */
 };
 
 /** Compression info of a normal compressed image. */
@@ -440,18 +440,18 @@ struct xex2_opt_file_format_info {
 
 /** Same layout as xe_xex2_version_t. */
 union xex2_version {
-  uint32_t value; /**< Whole version word in native byte order. */
+  u32 value; /**< Whole version word in native byte order. */
   struct {
-    uint32_t qfe : 8;    /**< Bits 0 to 7 of value. Quick fix engineering number. */
-    uint32_t build : 16; /**< Bits 8 to 23 of value. Build number. */
-    uint32_t minor : 4;  /**< Bits 24 to 27 of value. Minor version. */
-    uint32_t major : 4;  /**< Bits 28 to 31 of value. Major version. */
+    u32 qfe : 8;    /**< Bits 0 to 7 of value. Quick fix engineering number. */
+    u32 build : 16; /**< Bits 8 to 23 of value. Build number. */
+    u32 minor : 4;  /**< Bits 24 to 27 of value. Minor version. */
+    u32 major : 4;  /**< Bits 28 to 31 of value. Major version. */
   };
 };
 
 /** Optional header holding the LAN key. */
 struct xex2_opt_lan_key {
-  uint8_t key[0x10]; /**< Offset 0x0. */
+  u8 key[0x10]; /**< Offset 0x0. */
 };
 
 /** Optional header holding the path the image is bound to. */
@@ -462,12 +462,12 @@ struct xex2_opt_bound_path {
 
 /** 1 static library linked into the image. */
 struct xex2_opt_static_library {
-  char name[8];          /**< Offset 0x0. */
-  be_u16 version_major;  /**< Offset 0x8. */
-  be_u16 version_minor;  /**< Offset 0xA. */
-  be_u16 version_build;  /**< Offset 0xC. */
-  uint8_t approval_type; /**< Offset 0xE. */
-  uint8_t version_qfe;   /**< Offset 0xF. */
+  char name[8];         /**< Offset 0x0. */
+  be_u16 version_major; /**< Offset 0x8. */
+  be_u16 version_minor; /**< Offset 0xA. */
+  be_u16 version_build; /**< Offset 0xC. */
+  u8 approval_type;     /**< Offset 0xE. */
+  u8 version_qfe;       /**< Offset 0xF. */
 };
 REX_STATIC_ASSERT_SIZE(xex2_opt_static_library, 0x10);
 
@@ -527,8 +527,8 @@ struct xex2_opt_delta_patch_descriptor {
   be_u32 size;                        /**< Offset 0x0. */
   be_u32 target_version_value;        /**< Offset 0x4. */
   be_u32 source_version_value;        /**< Offset 0x8. */
-  uint8_t digest_source[0x14];        /**< Offset 0xC. */
-  uint8_t image_key_source[0x10];     /**< Offset 0x20. */
+  u8 digest_source[0x14];             /**< Offset 0xC. */
+  u8 image_key_source[0x10];          /**< Offset 0x20. */
   be_u32 size_of_target_headers;      /**< Offset 0x30. */
   be_u32 delta_headers_source_offset; /**< Offset 0x34. */
   be_u32 delta_headers_source_size;   /**< Offset 0x38. */
@@ -553,10 +553,10 @@ struct xex2_opt_execution_info {
   be_u32 version_value;      /**< Offset 0x4. */
   be_u32 base_version_value; /**< Offset 0x8. */
   be_u32 title_id;           /**< Offset 0xC. */
-  uint8_t platform;          /**< Offset 0x10. */
-  uint8_t executable_table;  /**< Offset 0x11. */
-  uint8_t disc_number;       /**< Offset 0x12. */
-  uint8_t disc_count;        /**< Offset 0x13. */
+  u8 platform;               /**< Offset 0x10. */
+  u8 executable_table;       /**< Offset 0x11. */
+  u8 disc_number;            /**< Offset 0x12. */
+  u8 disc_count;             /**< Offset 0x13. */
   be_u32 savegame_id;        /**< Offset 0x14. */
 
   xex2_version version() const { return xex2_version{version_value}; }
@@ -604,7 +604,7 @@ struct xex2_opt_generic_u32 {
   be_u32 size;      /**< Offset 0x0. */
   be_u32 values[1]; /**< Offset 0x4. */
 
-  uint32_t count() const { return (size - 4) / 4; }
+  u32 count() const { return (size - 4) / 4; }
 };
 
 /**
@@ -641,7 +641,7 @@ struct xex2_page_descriptor {
     be_u32 value; /**< Offset 0x0. */
     struct {
       xex2_section_type info : 4; /**< Bits 0 to 3 of value. Section type of the pages. */
-      uint32_t page_count : 28;   /**< Bits 4 to 31 of value. Number of pages in the run. */
+      u32 page_count : 28;        /**< Bits 4 to 31 of value. Number of pages in the run. */
     };
   };
   char data_digest[0x14]; /**< Offset 0x4. */
@@ -700,17 +700,17 @@ struct xex2_export_table {
 
 /** Little endian PE export directory from winnt.h. */
 struct X_IMAGE_EXPORT_DIRECTORY {
-  uint32_t Characteristics;       /**< Reserved export flags from winnt.h. */
-  uint32_t TimeDateStamp;         /**< Time the export table was created, in seconds since 1970. */
-  uint16_t MajorVersion;          /**< Major version of the export table. */
-  uint16_t MinorVersion;          /**< Minor version of the export table. */
-  uint32_t Name;                  /**< RVA of the module name string. */
-  uint32_t Base;                  /**< Ordinal of the first entry of AddressOfFunctions. */
-  uint32_t NumberOfFunctions;     /**< Number of entries in AddressOfFunctions. */
-  uint32_t NumberOfNames;         /**< Number of entries in AddressOfNames. */
-  uint32_t AddressOfFunctions;    /**< RVA from base of image. */
-  uint32_t AddressOfNames;        /**< RVA from base of image. */
-  uint32_t AddressOfNameOrdinals; /**< RVA from base of image. */
+  u32 Characteristics;       /**< Reserved export flags from winnt.h. */
+  u32 TimeDateStamp;         /**< Time the export table was created, in seconds since 1970. */
+  u16 MajorVersion;          /**< Major version of the export table. */
+  u16 MinorVersion;          /**< Minor version of the export table. */
+  u32 Name;                  /**< RVA of the module name string. */
+  u32 Base;                  /**< Ordinal of the first entry of AddressOfFunctions. */
+  u32 NumberOfFunctions;     /**< Number of entries in AddressOfFunctions. */
+  u32 NumberOfNames;         /**< Number of entries in AddressOfNames. */
+  u32 AddressOfFunctions;    /**< RVA from base of image. */
+  u32 AddressOfNames;        /**< RVA from base of image. */
+  u32 AddressOfNameOrdinals; /**< RVA from base of image. */
 };
 
 }  // namespace rex

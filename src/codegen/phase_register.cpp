@@ -35,14 +35,14 @@ namespace {
 
 #pragma pack(push, 1)
 struct IMAGE_CE_RUNTIME_FUNCTION {
-  uint32_t BeginAddress;
+  u32 BeginAddress;
   union {
-    uint32_t Data;
+    u32 Data;
     struct {
-      uint32_t PrologLength : 8;
-      uint32_t FunctionLength : 22;
-      uint32_t ThirtyTwoBit : 1;
-      uint32_t ExceptionFlag : 1;
+      u32 PrologLength : 8;
+      u32 FunctionLength : 22;
+      u32 ThirtyTwoBit : 1;
+      u32 ExceptionFlag : 1;
     };
   };
 };
@@ -64,16 +64,16 @@ REX_STATIC_ASSERT_SIZE(SehScopeEntry, 16);
 
 struct ParsedExceptionInfo {
   ExceptionInfo info;
-  uint32_t maxAddress;
-  std::vector<uint32_t> discoveredFuncs;
+  u32 maxAddress;
+  std::vector<u32> discoveredFuncs;
 };
 
 /** Frame size and save helper read from a function prologue for SEH unwinding. */
 struct PrologInfo {
   /** Frame size from addi r31, r1, -N. */
-  uint32_t frameSize = 0;
+  u32 frameSize = 0;
   /** Target of the bl to the save helper. */
-  uint32_t saveHelper = 0;
+  u32 saveHelper = 0;
   bool valid = false;
 };
 
@@ -87,7 +87,7 @@ struct PrologInfo {
  * @param prologLength Prolog length in instructions from PDATA.
  * @return The prologue info.
  */
-PrologInfo scanProlog(const BinaryView& binary, uint32_t funcAddr, uint32_t prologLength) {
+PrologInfo scanProlog(const BinaryView& binary, u32 funcAddr, u32 prologLength) {
   PrologInfo info;
 
   auto* section = binary.findSection(funcAddr);
@@ -95,12 +95,12 @@ PrologInfo scanProlog(const BinaryView& binary, uint32_t funcAddr, uint32_t prol
     return info;
   }
 
-  uint32_t offset = funcAddr - section->baseAddress;
+  u32 offset = funcAddr - section->baseAddress;
   if (offset + prologLength * 4 > section->size) {
     return info;
   }
 
-  const uint8_t* code = section->data + offset;
+  const u8* code = section->data + offset;
 
   if (prologLength == 0) {
     REXLOG_WARN(codegen, "SEH function 0x{:08X}: PrologLength=0, cannot determine frame size",
@@ -108,15 +108,15 @@ PrologInfo scanProlog(const BinaryView& binary, uint32_t funcAddr, uint32_t prol
     return info;
   }
 
-  for (uint32_t i = 0; i < prologLength; i++) {
-    uint32_t raw = memory::load<be_u32>(code + i * 4);
-    uint32_t addr = funcAddr + i * 4;
+  for (u32 i = 0; i < prologLength; i++) {
+    u32 raw = memory::load<be_u32>(code + i * 4);
+    u32 addr = funcAddr + i * 4;
     auto decoded = decode_instruction(addr, raw);
 
     if (decoded.opcode == Opcode::addi && decoded.D.RT == 31 && decoded.D.RA == 1) {
-      int16_t simm = decoded.D.SIMM();
+      i16 simm = decoded.D.SIMM();
       if (simm < 0) {
-        info.frameSize = static_cast<uint32_t>(-simm);
+        info.frameSize = static_cast<u32>(-simm);
         info.valid = true;
       }
     }
@@ -144,13 +144,12 @@ PrologInfo scanProlog(const BinaryView& binary, uint32_t funcAddr, uint32_t prol
  * @param discoveredFuncs Receives the functions the table names.
  * @return The parsed info, or nullopt when the table is outside .rdata.
  */
-std::optional<ParsedExceptionInfo> parseSehScopeTable(uint32_t handlerThunk,
-                                                      uint32_t scopeTableAddr, uint32_t count,
-                                                      const uint8_t* rdataBase, uint32_t rdataStart,
-                                                      uint32_t rdataSize,
-                                                      uint32_t functionBeginAddr,
-                                                      std::vector<uint32_t>& discoveredFuncs) {
-  uint32_t tableOffset = scopeTableAddr - rdataStart;
+std::optional<ParsedExceptionInfo> parseSehScopeTable(u32 handlerThunk, u32 scopeTableAddr,
+                                                      u32 count, const u8* rdataBase,
+                                                      u32 rdataStart, u32 rdataSize,
+                                                      u32 functionBeginAddr,
+                                                      std::vector<u32>& discoveredFuncs) {
+  u32 tableOffset = scopeTableAddr - rdataStart;
   if (tableOffset + 4 + count * 16 > rdataSize) {
     return std::nullopt;
   }
@@ -159,10 +158,10 @@ std::optional<ParsedExceptionInfo> parseSehScopeTable(uint32_t handlerThunk,
   sehInfo.handlerThunk = handlerThunk;
   sehInfo.scopeTableAddr = scopeTableAddr;
 
-  uint32_t maxAddr = functionBeginAddr;
+  u32 maxAddr = functionBeginAddr;
 
   const auto* entries = reinterpret_cast<const SehScopeEntry*>(rdataBase + tableOffset + 4);
-  for (uint32_t i = 0; i < count; i++) {
+  for (u32 i = 0; i < count; i++) {
     SehScope scope;
     scope.tryStart = entries[i].tryStart;
     scope.tryEnd = entries[i].tryEnd;
@@ -202,20 +201,18 @@ std::optional<ParsedExceptionInfo> parseSehScopeTable(uint32_t handlerThunk,
   return result;
 }
 
-std::optional<ParsedExceptionInfo> parseCxxFuncInfo(const Limits& limits, uint32_t handlerThunk,
-                                                    uint32_t funcInfoAddr, const uint8_t* rdataBase,
-                                                    uint32_t rdataStart, uint32_t rdataSize,
-                                                    uint32_t functionBeginAddr,
-                                                    std::vector<uint32_t>& discoveredFuncs) {
-  uint32_t tableOffset = funcInfoAddr - rdataStart;
+std::optional<ParsedExceptionInfo> parseCxxFuncInfo(const Limits& limits, u32 handlerThunk,
+                                                    u32 funcInfoAddr, const u8* rdataBase,
+                                                    u32 rdataStart, u32 rdataSize,
+                                                    u32 functionBeginAddr,
+                                                    std::vector<u32>& discoveredFuncs) {
+  u32 tableOffset = funcInfoAddr - rdataStart;
   if (tableOffset + 28 > rdataSize) {
     return std::nullopt;
   }
 
-  auto readU32 = [&](uint32_t addr) {
-    return memory::load<be_u32>(rdataBase + (addr - rdataStart));
-  };
-  auto readI32 = [&](uint32_t addr) {
+  auto readU32 = [&](u32 addr) { return memory::load<be_u32>(rdataBase + (addr - rdataStart)); };
+  auto readI32 = [&](u32 addr) {
     return i32{memory::load<be_i32>(rdataBase + (addr - rdataStart))};
   };
 
@@ -223,13 +220,13 @@ std::optional<ParsedExceptionInfo> parseCxxFuncInfo(const Limits& limits, uint32
   cxxInfo.handlerThunk = handlerThunk;
   cxxInfo.funcInfoAddr = funcInfoAddr;
 
-  uint32_t magic = readU32(funcInfoAddr + 0);
+  u32 magic = readU32(funcInfoAddr + 0);
   cxxInfo.maxState = readU32(funcInfoAddr + 4);
-  uint32_t pUnwindMap = readU32(funcInfoAddr + 8);
-  uint32_t nTryBlocks = readU32(funcInfoAddr + 12);
-  uint32_t pTryBlockMap = readU32(funcInfoAddr + 16);
-  uint32_t nIPMapEntries = readU32(funcInfoAddr + 20);
-  uint32_t pIPtoStateMap = readU32(funcInfoAddr + 24);
+  u32 pUnwindMap = readU32(funcInfoAddr + 8);
+  u32 nTryBlocks = readU32(funcInfoAddr + 12);
+  u32 pTryBlockMap = readU32(funcInfoAddr + 16);
+  u32 nIPMapEntries = readU32(funcInfoAddr + 20);
+  u32 pIPtoStateMap = readU32(funcInfoAddr + 24);
 
   if (magic != CXX_EH_MAGIC) {
     return std::nullopt;
@@ -240,12 +237,12 @@ std::optional<ParsedExceptionInfo> parseCxxFuncInfo(const Limits& limits, uint32
     return std::nullopt;
   }
 
-  uint32_t maxAddr = functionBeginAddr;
+  u32 maxAddr = functionBeginAddr;
   discoveredFuncs.push_back(handlerThunk);
 
   if (pUnwindMap != 0 && cxxInfo.maxState > 0) {
     if (pUnwindMap >= rdataStart && pUnwindMap + cxxInfo.maxState * 8 <= rdataStart + rdataSize) {
-      for (uint32_t i = 0; i < cxxInfo.maxState; i++) {
+      for (u32 i = 0; i < cxxInfo.maxState; i++) {
         CxxUnwindEntry entry;
         entry.toState = readI32(pUnwindMap + i * 8);
         entry.action = readU32(pUnwindMap + i * 8 + 4);
@@ -260,19 +257,19 @@ std::optional<ParsedExceptionInfo> parseCxxFuncInfo(const Limits& limits, uint32
 
   if (pTryBlockMap != 0 && nTryBlocks > 0) {
     if (pTryBlockMap >= rdataStart && pTryBlockMap + nTryBlocks * 20 <= rdataStart + rdataSize) {
-      for (uint32_t i = 0; i < nTryBlocks; i++) {
-        uint32_t entryAddr = pTryBlockMap + i * 20;
+      for (u32 i = 0; i < nTryBlocks; i++) {
+        u32 entryAddr = pTryBlockMap + i * 20;
         CxxTryBlock tryBlock;
         tryBlock.tryLow = readI32(entryAddr + 0);
         tryBlock.tryHigh = readI32(entryAddr + 4);
         tryBlock.catchHigh = readI32(entryAddr + 8);
-        uint32_t nCatches = readU32(entryAddr + 12);
-        uint32_t pHandlers = readU32(entryAddr + 16);
+        u32 nCatches = readU32(entryAddr + 12);
+        u32 pHandlers = readU32(entryAddr + 16);
 
         if (pHandlers != 0 && nCatches > 0 && nCatches <= 20) {
           if (pHandlers >= rdataStart && pHandlers + nCatches * 16 <= rdataStart + rdataSize) {
-            for (uint32_t j = 0; j < nCatches; j++) {
-              uint32_t hAddr = pHandlers + j * 16;
+            for (u32 j = 0; j < nCatches; j++) {
+              u32 hAddr = pHandlers + j * 16;
               CxxCatchHandler handler;
               handler.adjectives = readU32(hAddr + 0);
               handler.typeDescriptor = readU32(hAddr + 4);
@@ -295,7 +292,7 @@ std::optional<ParsedExceptionInfo> parseCxxFuncInfo(const Limits& limits, uint32
   if (pIPtoStateMap != 0 && nIPMapEntries > 0) {
     if (pIPtoStateMap >= rdataStart &&
         pIPtoStateMap + nIPMapEntries * 8 <= rdataStart + rdataSize) {
-      for (uint32_t i = 0; i < nIPMapEntries; i++) {
+      for (u32 i = 0; i < nIPMapEntries; i++) {
         CxxIPStateEntry entry;
         entry.ip = readU32(pIPtoStateMap + i * 8);
         entry.state = readI32(pIPtoStateMap + i * 8 + 4);
@@ -316,51 +313,50 @@ std::optional<ParsedExceptionInfo> parseCxxFuncInfo(const Limits& limits, uint32
 }
 
 std::optional<ParsedExceptionInfo> parseExceptionInfo(const BinaryView& binary,
-                                                      const Limits& limits,
-                                                      uint32_t functionBeginAddr) {
-  uint32_t headerAddr = functionBeginAddr - 8;
+                                                      const Limits& limits, u32 functionBeginAddr) {
+  u32 headerAddr = functionBeginAddr - 8;
 
   auto* textSection = binary.findSection(headerAddr);
   if (!textSection || !textSection->data) {
     return std::nullopt;
   }
 
-  uint32_t headerOffset = headerAddr - textSection->baseAddress;
+  u32 headerOffset = headerAddr - textSection->baseAddress;
   if (headerOffset + 8 > textSection->size) {
     return std::nullopt;
   }
 
   const auto* header = reinterpret_cast<const SehHeader*>(textSection->data + headerOffset);
-  uint32_t handlerThunk = header->handlerThunk;
-  uint32_t tableAddr = header->tableAddr;
+  u32 handlerThunk = header->handlerThunk;
+  u32 tableAddr = header->tableAddr;
 
   auto* rdataSection = binary.findSectionByName(".rdata");
   if (!rdataSection || !rdataSection->data) {
     return std::nullopt;
   }
 
-  uint32_t rdataStart = rdataSection->baseAddress;
-  uint32_t rdataSize = rdataSection->size;
-  uint32_t rdataEnd = rdataStart + rdataSize;
-  const uint8_t* rdataBase = rdataSection->data;
+  u32 rdataStart = rdataSection->baseAddress;
+  u32 rdataSize = rdataSection->size;
+  u32 rdataEnd = rdataStart + rdataSize;
+  const u8* rdataBase = rdataSection->data;
 
   if (tableAddr < rdataStart || tableAddr >= rdataEnd) {
     return std::nullopt;
   }
 
-  uint32_t tableOffset = tableAddr - rdataStart;
+  u32 tableOffset = tableAddr - rdataStart;
   if (tableOffset + 4 > rdataSize) {
     return std::nullopt;
   }
 
-  uint32_t firstWord = memory::load<be_u32>(rdataBase + tableOffset);
-  std::vector<uint32_t> discoveredFuncs;
+  u32 firstWord = memory::load<be_u32>(rdataBase + tableOffset);
+  std::vector<u32> discoveredFuncs;
 
   if (firstWord == CXX_EH_MAGIC) {
     return parseCxxFuncInfo(limits, handlerThunk, tableAddr, rdataBase, rdataStart, rdataSize,
                             functionBeginAddr, discoveredFuncs);
   } else {
-    uint32_t count = firstWord;
+    u32 count = firstWord;
     if (count == 0 || count > limits.max_seh_scope_entries) {
       return std::nullopt;
     }
@@ -377,8 +373,8 @@ std::optional<ParsedExceptionInfo> parseExceptionInfo(const BinaryView& binary,
  */
 void detectSaveRestoreHelpers(const BinaryView& binary, AnalysisState& state) {
   struct HelperPattern {
-    uint32_t pattern;
-    uint32_t* state_addr;
+    u32 pattern;
+    u32* state_addr;
     const char* name;
   };
 
@@ -393,13 +389,13 @@ void detectSaveRestoreHelpers(const BinaryView& binary, AnalysisState& state) {
     if (!section.executable)
       continue;
 
-    const uint8_t* data = section.data;
+    const u8* data = section.data;
     const size_t size = section.size;
     const size_t base = section.baseAddress;
 
     for (size_t offset = 0; offset + 4 <= size; offset += 4) {
-      uint32_t instr = memory::load<be_u32>(data + offset);
-      uint32_t addr = static_cast<uint32_t>(base + offset);
+      u32 instr = memory::load<be_u32>(data + offset);
+      u32 addr = static_cast<u32>(base + offset);
 
       for (auto& p : patterns) {
         if (instr == p.pattern && *p.state_addr == 0) {
@@ -409,7 +405,7 @@ void detectSaveRestoreHelpers(const BinaryView& binary, AnalysisState& state) {
       }
 
       if (offset + 8 <= size) {
-        uint32_t next = memory::load<be_u32>(data + offset + 4);
+        u32 next = memory::load<be_u32>(data + offset + 4);
 
         if (instr == 0x3960fee0) {
           if (next == 0x7dcb60ce && state.restVmx14Address == 0) {
@@ -455,10 +451,10 @@ void detectSaveRestoreHelpers(const BinaryView& binary, AnalysisState& state) {
   for (const auto& [addr, size] : config.invalidInstructionHints) {
     state.invalidInstructions[addr] = size;
   }
-  for (uint32_t addr : config.knownIndirectCallHints) {
+  for (u32 addr : config.knownIndirectCallHints) {
     state.knownIndirectCalls.insert(addr);
   }
-  for (uint32_t addr : config.exceptionHandlerFuncHints) {
+  for (u32 addr : config.exceptionHandlerFuncHints) {
     state.exceptionHandlerFuncs.push_back(addr);
   }
 
@@ -485,7 +481,7 @@ void detectSaveRestoreHelpers(const BinaryView& binary, AnalysisState& state) {
 
       auto lib_name = sym.name.substr(0, at_pos);
       auto ordinal_str = sym.name.substr(at_pos + 1);
-      uint16_t ordinal = static_cast<uint16_t>(std::stoul(ordinal_str));
+      u16 ordinal = static_cast<u16>(std::stoul(ordinal_str));
 
       std::string resolvedName;
       const auto exportModule = runtime::ModuleFromName(lib_name);
@@ -521,13 +517,13 @@ void detectSaveRestoreHelpers(const BinaryView& binary, AnalysisState& state) {
                  importCount, resolvedCount, unresolvedCount, variableCount);
   }
 
-  auto registerHelpers = [&](uint32_t base14, const char* prefix, size_t stride, size_t endReg,
+  auto registerHelpers = [&](u32 base14, const char* prefix, size_t stride, size_t endReg,
                              size_t extraSize) {
     if (base14 == 0)
       return;
     for (size_t i = 14; i <= endReg; i++) {
-      uint32_t addr = base14 + static_cast<uint32_t>((i - 14) * stride);
-      uint32_t size = static_cast<uint32_t>((endReg + 1 - i) * stride + extraSize);
+      u32 addr = base14 + static_cast<u32>((i - 14) * stride);
+      u32 size = static_cast<u32>((endReg + 1 - i) * stride + extraSize);
       graph.addFunction(addr, size, FunctionAuthority::HELPER, true);
       graph.setFunctionName(addr, std::format("{}{}", prefix, i));
     }
@@ -542,16 +538,16 @@ void detectSaveRestoreHelpers(const BinaryView& binary, AnalysisState& state) {
 
   if (state.restVmx64Address != 0) {
     for (size_t i = 64; i < 128; i++) {
-      uint32_t addr = state.restVmx64Address + static_cast<uint32_t>((i - 64) * 8);
-      uint32_t size = static_cast<uint32_t>((128 - i) * 8 + 4);
+      u32 addr = state.restVmx64Address + static_cast<u32>((i - 64) * 8);
+      u32 size = static_cast<u32>((128 - i) * 8 + 4);
       graph.addFunction(addr, size, FunctionAuthority::HELPER, true);
       graph.setFunctionName(addr, std::format("__restvmx_{}", i));
     }
   }
   if (state.saveVmx64Address != 0) {
     for (size_t i = 64; i < 128; i++) {
-      uint32_t addr = state.saveVmx64Address + static_cast<uint32_t>((i - 64) * 8);
-      uint32_t size = static_cast<uint32_t>((128 - i) * 8 + 4);
+      u32 addr = state.saveVmx64Address + static_cast<u32>((i - 64) * 8);
+      u32 size = static_cast<u32>((128 - i) * 8 + 4);
       graph.addFunction(addr, size, FunctionAuthority::HELPER, true);
       graph.setFunctionName(addr, std::format("__savevmx_{}", i));
     }
@@ -559,7 +555,7 @@ void detectSaveRestoreHelpers(const BinaryView& binary, AnalysisState& state) {
 
   size_t configFuncs = 0, configChunks = 0;
   for (const auto& [address, cfg] : config.functions) {
-    uint32_t size = cfg.getSize(address);
+    u32 size = cfg.getSize(address);
     std::string name = cfg.name.empty() ? std::format("sub_{:08X}", address) : cfg.name;
     auto* node = graph.addFunction(address, size, FunctionAuthority::CONFIG, true);
     graph.setFunctionName(address, name);
@@ -577,8 +573,8 @@ void detectSaveRestoreHelpers(const BinaryView& binary, AnalysisState& state) {
     REXLOG_DEBUG(codegen, "Analyze: {} CONFIG functions, {} chunks", configFuncs, configChunks);
   }
 
-  uint32_t pdataAddr = binary.exceptionDirectoryAddr();
-  uint32_t pdataSize = binary.exceptionDirectorySize();
+  u32 pdataAddr = binary.exceptionDirectoryAddr();
+  u32 pdataSize = binary.exceptionDirectorySize();
 
   if (pdataSize == 0) {
     return Err(ErrorCategory::Format, "Exception DataDirectory not found (size=0)");
@@ -590,8 +586,8 @@ void detectSaveRestoreHelpers(const BinaryView& binary, AnalysisState& state) {
                std::format("Cannot find section containing PDATA at 0x{:08X}", pdataAddr));
   }
 
-  uint32_t offsetInSection = pdataAddr - pdataSection->baseAddress;
-  const uint8_t* pdataData = pdataSection->data + offsetInSection;
+  u32 offsetInSection = pdataAddr - pdataSection->baseAddress;
+  const u8* pdataData = pdataSection->data + offsetInSection;
 
   REXLOG_TRACE(codegen, "Analyze: PDATA base=0x{:08X}, size={}", pdataAddr, pdataSize);
 
@@ -600,14 +596,14 @@ void detectSaveRestoreHelpers(const BinaryView& binary, AnalysisState& state) {
 
   size_t pdataAdded = 0;
   for (size_t i = 0; i < count; i++) {
-    uint32_t beginAddr = memory::load<be_u32>(&entries[i].BeginAddress);
-    uint32_t data = memory::load<be_u32>(&entries[i].Data);
+    u32 beginAddr = memory::load<be_u32>(&entries[i].BeginAddress);
+    u32 data = memory::load<be_u32>(&entries[i].Data);
 
     IMAGE_CE_RUNTIME_FUNCTION fn;
     fn.BeginAddress = beginAddr;
     fn.Data = data;
 
-    uint32_t size = fn.FunctionLength * 4;
+    u32 size = fn.FunctionLength * 4;
     if (size == 0)
       size = 4;
 
@@ -627,7 +623,7 @@ void detectSaveRestoreHelpers(const BinaryView& binary, AnalysisState& state) {
         }
         state.invalidInstructions[beginAddr - 8] = 8;
 
-        for (uint32_t addr : exInfo->discoveredFuncs) {
+        for (u32 addr : exInfo->discoveredFuncs) {
           ehDiscoveredFuncs.push_back(addr);
         }
 
@@ -680,7 +676,7 @@ void detectSaveRestoreHelpers(const BinaryView& binary, AnalysisState& state) {
   REXLOG_TRACE(codegen, "Analyze: added {} functions from PDATA", pdataAdded);
 
   size_t ehFuncsQueued = 0;
-  for (uint32_t addr : ehDiscoveredFuncs) {
+  for (u32 addr : ehDiscoveredFuncs) {
     if (graph.getFunction(addr) != nullptr)
       continue;
     if (graph.isImport(addr))

@@ -22,11 +22,11 @@ ElfModule::ElfModule(FunctionDispatcher* function_dispatcher) : Module(function_
 ElfModule::~ElfModule() = default;
 
 struct elf32_ehdr {
-  uint8_t e_ident[16];
+  u8 e_ident[16];
   be_u16 e_type;
   be_u16 e_machine;
   be_u32 e_version;
-  rex::be<uint32_t> e_entry;
+  rex::be<u32> e_entry;
   be_u32 e_phoff;
   be_u32 e_shoff;
   be_u32 e_flags;
@@ -60,7 +60,7 @@ bool ElfModule::Load(const std::string_view name, const std::string_view path, c
   path_ = path;
   (void)elf_length;
 
-  auto pelf = static_cast<const uint8_t*>(elf_addr);
+  auto pelf = static_cast<const u8*>(elf_addr);
   auto hdr = reinterpret_cast<const elf32_ehdr*>(pelf);
   if (hdr->e_ident[0] != 0x7F || hdr->e_ident[1] != 'E' || hdr->e_ident[2] != 'L' ||
       hdr->e_ident[3] != 'F') {
@@ -78,7 +78,7 @@ bool ElfModule::Load(const std::string_view name, const std::string_view path, c
     REX_FAIL(system, false,
              "ELF: Could not load ELF because target machine is not PPC! (target: "
              "{})",
-             static_cast<uint32_t>(hdr->e_machine));
+             static_cast<u32>(hdr->e_machine));
   }
 
   if (!hdr->e_phoff) {
@@ -97,24 +97,24 @@ bool ElfModule::Load(const std::string_view name, const std::string_view path, c
   REX_ASSERT(hdr->e_phentsize == sizeof(elf32_phdr));
   auto phdr = reinterpret_cast<const elf32_phdr*>(pelf + hdr->e_phoff);
 
-  uint32_t min_addr = UINT32_MAX;
-  uint32_t max_addr = 0;
+  u32 min_addr = UINT32_MAX;
+  u32 max_addr = 0;
 
-  for (uint32_t i = 0; i < hdr->e_phnum; i++) {
+  for (u32 i = 0; i < hdr->e_phnum; i++) {
     if (phdr[i].p_type == 1 /* PT_LOAD */ || phdr[i].p_type == 2 /* PT_DYNAMIC */) {
-      uint32_t seg_start = phdr[i].p_vaddr;
-      uint32_t seg_end = phdr[i].p_vaddr + phdr[i].p_memsz;
+      u32 seg_start = phdr[i].p_vaddr;
+      u32 seg_end = phdr[i].p_vaddr + phdr[i].p_memsz;
       min_addr = std::min(min_addr, seg_start);
       max_addr = std::max(max_addr, seg_end);
 
       if (phdr[i].p_vaddr < 0x80000000 || phdr[i].p_vaddr > 0x9FFFFFFF) {
         REX_FAIL(system, false, "ELF: Could not allocate memory for section @ address 0x{:08X}",
-                 static_cast<uint32_t>(phdr[i].p_vaddr));
+                 static_cast<u32>(phdr[i].p_vaddr));
       }
 
-      uint32_t virtual_addr = phdr[i].p_vaddr & ~(phdr[i].p_align - 1);
-      uint32_t virtual_size =
-          rex::round_up(phdr[i].p_vaddr + phdr[i].p_memsz, static_cast<uint32_t>(phdr[i].p_align)) -
+      u32 virtual_addr = phdr[i].p_vaddr & ~(phdr[i].p_align - 1);
+      u32 virtual_size =
+          rex::round_up(phdr[i].p_vaddr + phdr[i].p_memsz, static_cast<u32>(phdr[i].p_align)) -
           virtual_addr;
       if (!memory()
                ->LookupHeap(virtual_addr)

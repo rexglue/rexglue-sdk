@@ -42,10 +42,10 @@ class AchievementIconCache {
   gpu::OverlayTexture* GetIcon(const rex::runtime::AchievementInfo& achievement);
 
  private:
-  std::unique_ptr<gpu::OverlayTexture> CreateTextureFromBytes(const uint8_t* data, size_t size);
+  std::unique_ptr<gpu::OverlayTexture> CreateTextureFromBytes(const u8* data, size_t size);
   std::unique_ptr<gpu::OverlayTexture> LoadMetadataTexture(
       const std::filesystem::path& relative_path);
-  std::unique_ptr<gpu::OverlayTexture> LoadXdbfTexture(uint32_t image_id);
+  std::unique_ptr<gpu::OverlayTexture> LoadXdbfTexture(u32 image_id);
 
   gpu::IOverlayDrawer* overlay_drawer_ = nullptr;
   rex::Runtime* runtime_ = nullptr;

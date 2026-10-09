@@ -379,11 +379,11 @@ Result<void> ProjectRecompiler::Run(const ProjectRecompilerOptions& opts) {
   }
 
   for (size_t i = 0; i < contexts.size(); ++i) {
-    uint32_t a_base = contexts[i].ctx.binary().baseAddress();
-    uint32_t a_end = a_base + contexts[i].ctx.binary().imageSize();
+    u32 a_base = contexts[i].ctx.binary().baseAddress();
+    u32 a_end = a_base + contexts[i].ctx.binary().imageSize();
     for (size_t j = i + 1; j < contexts.size(); ++j) {
-      uint32_t b_base = contexts[j].ctx.binary().baseAddress();
-      uint32_t b_end = b_base + contexts[j].ctx.binary().imageSize();
+      u32 b_base = contexts[j].ctx.binary().baseAddress();
+      u32 b_end = b_base + contexts[j].ctx.binary().imageSize();
       if (a_base < b_end && b_base < a_end) {
         return Err<void>(ErrorCategory::Validation,
                          std::format("Module '{}' [{:08X}, {:08X}) overlaps '{}' [{:08X}, {:08X})",

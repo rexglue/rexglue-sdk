@@ -200,7 +200,7 @@ void ImGuiDrawer::Initialize() {
     font_setup_(io.Fonts);
   }
 
-  frame_time_tick_frequency_ = static_cast<double>(rex::Clock::QueryHostTickFrequency());
+  frame_time_tick_frequency_ = static_cast<f64>(rex::Clock::QueryHostTickFrequency());
   last_frame_time_ticks_ = rex::Clock::QueryHostTickCount();
 
   touch_pointer_id_ = TouchEvent::kPointerIDNone;
@@ -380,18 +380,18 @@ void ImGuiDrawer::Draw(gpu::OverlayDrawContext& context) {
 
   ImGuiIO& io = ImGui::GetIO();
 
-  uint64_t current_frame_time_ticks = rex::Clock::QueryHostTickCount();
+  u64 current_frame_time_ticks = rex::Clock::QueryHostTickCount();
   io.DeltaTime =
-      static_cast<float>(static_cast<double>(current_frame_time_ticks - last_frame_time_ticks_) /
-                         frame_time_tick_frequency_);
+      static_cast<f32>(static_cast<f64>(current_frame_time_ticks - last_frame_time_ticks_) /
+                       frame_time_tick_frequency_);
   if (!(io.DeltaTime > 0.0f) || current_frame_time_ticks < last_frame_time_ticks_) {
     // ImGui requires a positive DeltaTime.
     io.DeltaTime = 1.0f / 60.0f;
   }
   last_frame_time_ticks_ = current_frame_time_ticks;
 
-  float physical_to_logical =
-      static_cast<float>(window_->GetMediumDpi()) / static_cast<float>(window_->GetDpi());
+  f32 physical_to_logical =
+      static_cast<f32>(window_->GetMediumDpi()) / static_cast<f32>(window_->GetDpi());
   io.DisplaySize.x = window_->GetActualPhysicalWidth() * physical_to_logical;
   io.DisplaySize.y = window_->GetActualPhysicalHeight() * physical_to_logical;
 
@@ -544,14 +544,13 @@ void ImGuiDrawer::OnMouseUp(MouseEvent& e) {
 void ImGuiDrawer::OnMouseWheel(MouseEvent& e) {
   SwitchToPhysicalMouseAndUpdateMousePosition(e);
   auto& io = GetIO();
-  io.MouseWheel +=
-      static_cast<float>(e.scroll_y()) / static_cast<float>(MouseEvent::kScrollPerDetent);
+  io.MouseWheel += static_cast<f32>(e.scroll_y()) / static_cast<f32>(MouseEvent::kScrollPerDetent);
 }
 
 void ImGuiDrawer::OnTouchEvent(TouchEvent& e) {
   auto& io = GetIO();
   TouchEvent::Action action = e.action();
-  uint32_t pointer_id = e.pointer_id();
+  u32 pointer_id = e.pointer_id();
   if (action == TouchEvent::Action::kDown) {
     if (touch_pointer_id_ == TouchEvent::kPointerIDNone) {
       if (ImGui::IsAnyMouseDown()) {
@@ -622,10 +621,10 @@ void ImGuiDrawer::OnKey(KeyEvent& e, bool is_down) {
   }
 }
 
-void ImGuiDrawer::UpdateMousePosition(float x, float y) {
+void ImGuiDrawer::UpdateMousePosition(f32 x, f32 y) {
   auto& io = GetIO();
-  float physical_to_logical =
-      static_cast<float>(window_->GetMediumDpi()) / static_cast<float>(window_->GetDpi());
+  f32 physical_to_logical =
+      static_cast<f32>(window_->GetMediumDpi()) / static_cast<f32>(window_->GetDpi());
   io.MousePos.x = x * physical_to_logical;
   io.MousePos.y = y * physical_to_logical;
 }
@@ -637,7 +636,7 @@ void ImGuiDrawer::SwitchToPhysicalMouseAndUpdateMousePosition(const MouseEvent& 
     std::memset(io.MouseDown, 0, sizeof(io.MouseDown));
   }
   reset_mouse_position_after_next_frame_ = false;
-  UpdateMousePosition(static_cast<float>(e.x()), static_cast<float>(e.y()));
+  UpdateMousePosition(static_cast<f32>(e.x()), static_cast<f32>(e.y()));
 }
 
 void ImGuiDrawer::PlatformSetImeData(ImGuiContext* context, ImGuiViewport* viewport,

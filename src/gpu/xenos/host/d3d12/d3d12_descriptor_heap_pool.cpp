@@ -16,15 +16,14 @@
 namespace rex::gpu::d3d12 {
 
 D3D12DescriptorHeapPool::D3D12DescriptorHeapPool(ID3D12Device* device,
-                                                 D3D12_DESCRIPTOR_HEAP_TYPE type,
-                                                 uint32_t page_size)
+                                                 D3D12_DESCRIPTOR_HEAP_TYPE type, u32 page_size)
     : device_(device), type_(type), page_size_(page_size) {}
 
 D3D12DescriptorHeapPool::~D3D12DescriptorHeapPool() {
   ClearCache();
 }
 
-void D3D12DescriptorHeapPool::Reclaim(uint64_t completed_submission_index) {
+void D3D12DescriptorHeapPool::Reclaim(u64 completed_submission_index) {
   while (submitted_first_) {
     if (submitted_first_->last_submission_index > completed_submission_index) {
       break;
@@ -77,9 +76,9 @@ void D3D12DescriptorHeapPool::ClearCache() {
   writable_last_ = nullptr;
 }
 
-uint64_t D3D12DescriptorHeapPool::Request(uint64_t submission_index, uint64_t previous_heap_index,
-                                          uint32_t count_for_partial_update,
-                                          uint32_t count_for_full_update, uint32_t& index_out) {
+u64 D3D12DescriptorHeapPool::Request(u64 submission_index, u64 previous_heap_index,
+                                     u32 count_for_partial_update, u32 count_for_full_update,
+                                     u32& index_out) {
   REX_ASSERT(count_for_partial_update <= count_for_full_update);
   REX_ASSERT(count_for_full_update <= page_size_);
   if (count_for_partial_update > count_for_full_update || count_for_full_update > page_size_) {
@@ -87,7 +86,7 @@ uint64_t D3D12DescriptorHeapPool::Request(uint64_t submission_index, uint64_t pr
   }
   REX_ASSERT(!current_page_used_ || submission_index >= writable_first_->last_submission_index);
   REX_ASSERT(!submitted_last_ || submission_index >= submitted_last_->last_submission_index);
-  uint32_t count =
+  u32 count =
       previous_heap_index == current_heap_index_ ? count_for_partial_update : count_for_full_update;
   if (page_size_ - current_page_used_ < count) {
     if (submitted_last_) {

@@ -13,6 +13,8 @@
 
 #include <cstdint>
 
+#include <rex/types.h>
+
 namespace rex {
 namespace gpu {
 
@@ -29,7 +31,7 @@ namespace gpu {
  * @param f32 Value to convert.
  * @return The fixed point value with 8 fractional bits.
  */
-int32_t FloatToD3D11Fixed16p8(float f32);
+i32 FloatToD3D11Fixed16p8(float f32);
 
 }  // namespace gpu
 }  // namespace rex

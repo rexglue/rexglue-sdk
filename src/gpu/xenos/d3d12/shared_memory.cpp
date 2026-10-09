@@ -55,7 +55,7 @@ bool D3D12SharedMemory::Initialize() {
     }
     static_assert(D3D12_TILED_RESOURCE_TILE_SIZE_IN_BYTES == (1 << 16));
     InitializeSparseHostGpuMemory(
-        std::max(kHostGpuMemoryOptimalSparseAllocationLog2, static_cast<uint32_t>(16)));
+        std::max(kHostGpuMemoryOptimalSparseAllocationLog2, static_cast<u32>(16)));
   } else {
     REXLOG_INFO(gpu,
                 "Direct3D 12 tiled resources are not used for shared memory "
@@ -209,7 +209,7 @@ void D3D12SharedMemory::WriteRawUAVDescriptor(D3D12_CPU_DESCRIPTOR_HANDLE handle
 }
 
 void D3D12SharedMemory::WriteUintPow2SRVDescriptor(D3D12_CPU_DESCRIPTOR_HANDLE handle,
-                                                   uint32_t element_size_bytes_pow2) {
+                                                   u32 element_size_bytes_pow2) {
   BufferDescriptorIndex descriptor_index;
   switch (element_size_bytes_pow2) {
     case 2:
@@ -227,15 +227,14 @@ void D3D12SharedMemory::WriteUintPow2SRVDescriptor(D3D12_CPU_DESCRIPTOR_HANDLE h
   }
   const gpu::d3d12::D3D12Provider& provider = command_processor_.GetD3D12Provider();
   ID3D12Device* device = provider.GetDevice();
-  device->CopyDescriptorsSimple(
-      1, handle,
-      provider.OffsetViewDescriptor(buffer_descriptor_heap_start_,
-                                    static_cast<uint32_t>(descriptor_index)),
-      D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+  device->CopyDescriptorsSimple(1, handle,
+                                provider.OffsetViewDescriptor(buffer_descriptor_heap_start_,
+                                                              static_cast<u32>(descriptor_index)),
+                                D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 }
 
 void D3D12SharedMemory::WriteUintPow2UAVDescriptor(D3D12_CPU_DESCRIPTOR_HANDLE handle,
-                                                   uint32_t element_size_bytes_pow2) {
+                                                   u32 element_size_bytes_pow2) {
   BufferDescriptorIndex descriptor_index;
   switch (element_size_bytes_pow2) {
     case 2:
@@ -253,21 +252,20 @@ void D3D12SharedMemory::WriteUintPow2UAVDescriptor(D3D12_CPU_DESCRIPTOR_HANDLE h
   }
   const gpu::d3d12::D3D12Provider& provider = command_processor_.GetD3D12Provider();
   ID3D12Device* device = provider.GetDevice();
-  device->CopyDescriptorsSimple(
-      1, handle,
-      provider.OffsetViewDescriptor(buffer_descriptor_heap_start_,
-                                    static_cast<uint32_t>(descriptor_index)),
-      D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+  device->CopyDescriptorsSimple(1, handle,
+                                provider.OffsetViewDescriptor(buffer_descriptor_heap_start_,
+                                                              static_cast<u32>(descriptor_index)),
+                                D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 }
 
-bool D3D12SharedMemory::AllocateSparseHostGpuMemoryRange(uint32_t offset_allocations,
-                                                         uint32_t length_allocations) {
+bool D3D12SharedMemory::AllocateSparseHostGpuMemoryRange(u32 offset_allocations,
+                                                         u32 length_allocations) {
   if (!length_allocations) {
     return true;
   }
 
-  uint32_t offset_bytes = offset_allocations << host_gpu_memory_sparse_granularity_log2();
-  uint32_t length_bytes = length_allocations << host_gpu_memory_sparse_granularity_log2();
+  u32 offset_bytes = offset_allocations << host_gpu_memory_sparse_granularity_log2();
+  u32 length_bytes = length_allocations << host_gpu_memory_sparse_granularity_log2();
 
   const gpu::d3d12::D3D12Provider& provider = command_processor_.GetD3D12Provider();
   ID3D12Device* device = provider.GetDevice();
@@ -300,8 +298,7 @@ bool D3D12SharedMemory::AllocateSparseHostGpuMemoryRange(uint32_t offset_allocat
   return true;
 }
 
-bool D3D12SharedMemory::UploadRanges(
-    const std::vector<std::pair<uint32_t, uint32_t>>& upload_page_ranges) {
+bool D3D12SharedMemory::UploadRanges(const std::vector<std::pair<u32, u32>>& upload_page_ranges) {
   if (upload_page_ranges.empty()) {
     return true;
   }
@@ -309,27 +306,27 @@ bool D3D12SharedMemory::UploadRanges(
   command_processor_.SubmitBarriers();
   auto& command_list = command_processor_.GetDeferredCommandList();
   for (auto upload_range : upload_page_ranges) {
-    uint32_t upload_range_start = upload_range.first;
-    uint32_t upload_range_length = upload_range.second;
+    u32 upload_range_start = upload_range.first;
+    u32 upload_range_length = upload_range.second;
     while (upload_range_length != 0) {
       ID3D12Resource* upload_buffer;
       size_t upload_buffer_offset, upload_buffer_size;
-      uint8_t* upload_buffer_mapping = upload_buffer_pool_->RequestPartial(
+      u8* upload_buffer_mapping = upload_buffer_pool_->RequestPartial(
           command_processor_.GetCurrentSubmission(), upload_range_length << page_size_log2(),
           static_cast<size_t>(1) << page_size_log2(), &upload_buffer, &upload_buffer_offset,
           &upload_buffer_size, nullptr);
       if (upload_buffer_mapping == nullptr) {
         REX_FAIL(gpu, false, "Shared memory: Failed to get an upload buffer");
       }
-      MakeRangeValid(upload_range_start << page_size_log2(),
-                     static_cast<uint32_t>(upload_buffer_size), false);
+      MakeRangeValid(upload_range_start << page_size_log2(), static_cast<u32>(upload_buffer_size),
+                     false);
       std::memcpy(upload_buffer_mapping,
                   memory().TranslatePhysical(upload_range_start << page_size_log2()),
                   upload_buffer_size);
       command_list.D3DCopyBufferRegion(buffer_, upload_range_start << page_size_log2(),
                                        upload_buffer, UINT64(upload_buffer_offset),
                                        UINT64(upload_buffer_size));
-      uint32_t upload_buffer_pages = static_cast<uint32_t>(upload_buffer_size >> page_size_log2());
+      u32 upload_buffer_pages = static_cast<u32>(upload_buffer_size >> page_size_log2());
       upload_range_start += upload_buffer_pages;
       upload_range_length -= upload_buffer_pages;
     }

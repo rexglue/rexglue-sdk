@@ -14,42 +14,42 @@
 namespace rex::codegen {
 
 bool build_cmpd(BuilderContext& ctx) {
-  emitCompareRegister(ctx, "int64_t", "s64");
+  emitCompareRegister(ctx, "i64", "s64");
   return true;
 }
 
 bool build_cmpdi(BuilderContext& ctx) {
-  emitCompareImmediate(ctx, "int64_t", "s64", true);
+  emitCompareImmediate(ctx, "i64", "s64", true);
   return true;
 }
 
 bool build_cmpld(BuilderContext& ctx) {
-  emitCompareRegister(ctx, "uint64_t", "u64");
+  emitCompareRegister(ctx, "u64", "u64");
   return true;
 }
 
 bool build_cmpldi(BuilderContext& ctx) {
-  emitCompareImmediate(ctx, "uint64_t", "u64", false);
+  emitCompareImmediate(ctx, "u64", "u64", false);
   return true;
 }
 
 bool build_cmplw(BuilderContext& ctx) {
-  emitCompareRegister(ctx, "uint32_t", "u32");
+  emitCompareRegister(ctx, "u32", "u32");
   return true;
 }
 
 bool build_cmplwi(BuilderContext& ctx) {
-  emitCompareImmediate(ctx, "uint32_t", "u32", false);
+  emitCompareImmediate(ctx, "u32", "u32", false);
   return true;
 }
 
 bool build_cmpw(BuilderContext& ctx) {
-  emitCompareRegister(ctx, "int32_t", "s32");
+  emitCompareRegister(ctx, "i32", "s32");
   return true;
 }
 
 bool build_cmpwi(BuilderContext& ctx) {
-  emitCompareImmediate(ctx, "int32_t", "s32", true);
+  emitCompareImmediate(ctx, "i32", "s32", true);
   return true;
 }
 

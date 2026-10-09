@@ -72,7 +72,7 @@ std::expected<std::vector<BinarySymbol>, MapParseError> ParseNmMapString(
       continue;
 
     std::string_view addr_str = line.substr(0, space1);
-    uint32_t address = 0;
+    u32 address = 0;
     auto [ptr, ec] =
         std::from_chars(addr_str.data(), addr_str.data() + addr_str.size(), address, 16);
     if (ec != std::errc())

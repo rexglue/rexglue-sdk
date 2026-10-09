@@ -14,6 +14,8 @@
 #include <string>
 #include <vector>
 
+#include <rex/types.h>
+
 namespace rex::codegen {
 
 /**
@@ -32,10 +34,10 @@ class AnalysisErrors {
 
   /** 1 analysis failure with its addresses and message. */
   struct Entry {
-    Category category;         /**< Failure class */
-    uint32_t address;          /**< Address where the failure was found */
-    uint32_t secondaryAddress; /**< Address that referenced it, 0 when none */
-    std::string message;       /**< Description of the failure */
+    Category category;    /**< Failure class */
+    u32 address;          /**< Address where the failure was found */
+    u32 secondaryAddress; /**< Address that referenced it, 0 when none */
+    std::string message;  /**< Description of the failure */
   };
 
   /**
@@ -45,7 +47,7 @@ class AnalysisErrors {
    * @param addr Address where the failure was found
    * @param msg Description of the failure
    */
-  void Add(Category cat, uint32_t addr, const std::string& msg);
+  void Add(Category cat, u32 addr, const std::string& msg);
   /**
    * Adds an entry with a secondary address.
    *
@@ -54,7 +56,7 @@ class AnalysisErrors {
    * @param secondary Address that referenced addr, such as a call site
    * @param msg Description of the failure
    */
-  void Add(Category cat, uint32_t addr, uint32_t secondary, const std::string& msg);
+  void Add(Category cat, u32 addr, u32 secondary, const std::string& msg);
 
   bool HasErrors() const { return !entries_.empty(); }
   size_t Count() const { return entries_.size(); }

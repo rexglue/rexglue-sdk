@@ -42,7 +42,7 @@ std::atomic<u32> g_isr_irql{0xFF};
 std::atomic<u32> g_isr_dpc{0};
 u64 g_dpc_r14 = 0;
 u64 g_after_r14 = 0;
-double g_after_f14 = 0.0;
+f64 g_after_f14 = 0.0;
 
 void RecordDPCRegisters(PPCContext& ctx, u8*) {
   g_dpc_r14 = ctx.r14.u64;

@@ -14,10 +14,12 @@
 
 #include "gpu/xenos/host/graphics_util.h"
 
+#include <rex/types.h>
+
 namespace rex {
 namespace gpu {
 
-int32_t FloatToD3D11Fixed16p8(float f32) {
+i32 FloatToD3D11Fixed16p8(float f32) {
   if (!(std::abs(f32) >= 1.0f / 512.0f)) {
     return 0;
   }
@@ -27,17 +29,17 @@ int32_t FloatToD3D11Fixed16p8(float f32) {
   if (f32 <= -32768.0f) {
     return -32768 * 256;
   }
-  uint32_t f32_bits = std::bit_cast<uint32_t>(f32);
+  u32 f32_bits = std::bit_cast<u32>(f32);
   union {
-    int32_t s;
-    uint32_t u;
+    i32 s;
+    u32 u;
   } result;
   result.u = (f32_bits & ((1 << 23) - 1)) | (1 << 23);
   if ((f32_bits >> 31) != 0) {
     result.s = -result.s;
   }
-  int32_t exponent = static_cast<int32_t>((f32_bits >> 23) & 255) - 127;
-  uint32_t extra_bits = static_cast<uint32_t>(15 - exponent);
+  i32 exponent = static_cast<i32>((f32_bits >> 23) & 255) - 127;
+  u32 extra_bits = static_cast<u32>(15 - exponent);
   if (extra_bits) {
     result.u += (1 << (extra_bits - 1)) - 1 + ((result.u >> extra_bits) & 1);
     result.s >>= extra_bits;

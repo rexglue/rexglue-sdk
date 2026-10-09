@@ -37,8 +37,8 @@ void EnableAffinityConfiguration() {
   SetProcessAffinityMask(process_handle, system_affinity_mask);
 }
 
-uint32_t current_thread_system_id() {
-  return static_cast<uint32_t>(GetCurrentThreadId());
+u32 current_thread_system_id() {
+  return static_cast<u32>(GetCurrentThreadId());
 }
 
 // https://msdn.microsoft.com/en-us/library/xcb2z8hs.aspx
@@ -365,7 +365,7 @@ class Win32Timer : public Win32Handle<Timer> {
     due_time_li.QuadPart = WClock_::to_file_time(due_time);
     auto completion_routine =
         callback_ ? reinterpret_cast<PTIMERAPCROUTINE>(CompletionRoutine) : nullptr;
-    return SetWaitableTimer(handle_, &due_time_li, static_cast<int32_t>(period.count()),
+    return SetWaitableTimer(handle_, &due_time_li, static_cast<i32>(period.count()),
                             completion_routine, this, FALSE)
                ? true
                : false;
@@ -463,20 +463,20 @@ class Win32Thread : public Win32Handle<Thread> {
     Thread::set_name(name);
   }
 
-  int32_t priority() override { return GetThreadPriority(handle_); }
-  uint32_t system_id() const override { return GetThreadId(handle_); }
+  i32 priority() override { return GetThreadPriority(handle_); }
+  u32 system_id() const override { return GetThreadId(handle_); }
 
-  void set_priority(int32_t new_priority) override { SetThreadPriority(handle_, new_priority); }
+  void set_priority(i32 new_priority) override { SetThreadPriority(handle_, new_priority); }
 
-  uint64_t affinity_mask() override {
+  u64 affinity_mask() override {
     DWORD_PTR prev = SetThreadAffinityMask(handle_, 1);
     if (prev) {
       SetThreadAffinityMask(handle_, prev);
     }
-    return static_cast<uint64_t>(prev);
+    return static_cast<u64>(prev);
   }
 
-  void set_affinity_mask(uint64_t new_affinity_mask) override {
+  void set_affinity_mask(u64 new_affinity_mask) override {
     SetThreadAffinityMask(handle_, new_affinity_mask);
   }
 
@@ -496,7 +496,7 @@ class Win32Thread : public Win32Handle<Thread> {
     }
   }
 
-  bool Resume(uint32_t* out_previous_suspend_count = nullptr) override {
+  bool Resume(u32* out_previous_suspend_count = nullptr) override {
     if (out_previous_suspend_count) {
       *out_previous_suspend_count = 0;
     }
@@ -510,7 +510,7 @@ class Win32Thread : public Win32Handle<Thread> {
     return true;
   }
 
-  bool Suspend(uint32_t* out_previous_suspend_count = nullptr) override {
+  bool Suspend(u32* out_previous_suspend_count = nullptr) override {
     if (out_previous_suspend_count) {
       *out_previous_suspend_count = 0;
     }

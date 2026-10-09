@@ -29,10 +29,10 @@ namespace rex::runtime {
 union XNotificationKey {
   XNotificationID id; /**< The whole notification id, shares its 32 bits with the fields below. */
   struct {
-    uint32_t local_id : 16;  /**< Bits 0 to 15. Id within the notification area. */
-    uint32_t version : 9;    /**< Bits 16 to 24. Version of the notification. */
-    uint32_t mask_index : 6; /**< Bits 25 to 30. Bit of the listener mask that selects the area. */
-    uint32_t : 1;
+    u32 local_id : 16;  /**< Bits 0 to 15. Id within the notification area. */
+    u32 version : 9;    /**< Bits 16 to 24. Version of the notification. */
+    u32 mask_index : 6; /**< Bits 25 to 30. Bit of the listener mask that selects the area. */
+    u32 : 1;
   };
 
   /**

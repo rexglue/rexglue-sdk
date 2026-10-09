@@ -81,8 +81,8 @@ class DecodedBinary : public rex::NonCopyable {
    * @param addr Instruction address.
    * @return The instruction, or nullptr when the address is not in an executable section.
    */
-  DecodedInsn* get(uint32_t addr);
-  const DecodedInsn* get(uint32_t addr) const;
+  DecodedInsn* get(u32 addr);
+  const DecodedInsn* get(u32 addr) const;
 
   /**
    * Returns the instructions in [start, end).
@@ -91,7 +91,7 @@ class DecodedBinary : public rex::NonCopyable {
    * @param end Address after the last instruction.
    * @return The range, empty when the addresses are not in the same section.
    */
-  InsnRange range(uint32_t start, uint32_t end);
+  InsnRange range(u32 start, u32 end);
 
   /**
    * Returns raw section bytes such as jump table data.
@@ -100,7 +100,7 @@ class DecodedBinary : public rex::NonCopyable {
    * @param len Byte count.
    * @return Pointer to the bytes, or nullptr when the span is not in a section.
    */
-  const uint8_t* rawData(uint32_t addr, size_t len) const;
+  const u8* rawData(u32 addr, size_t len) const;
 
   /**
    * Reads a value at an address, byte swapping from big endian.
@@ -110,7 +110,7 @@ class DecodedBinary : public rex::NonCopyable {
    * @return The value, or nullopt when the bytes are not in a section.
    */
   template <typename T>
-  std::optional<T> read(uint32_t addr) const;
+  std::optional<T> read(u32 addr) const;
 
   /** Returns the code regions, separated by null padding. */
   const std::vector<CodeRegion>& codeRegions() const { return codeRegions_; }
@@ -121,7 +121,7 @@ class DecodedBinary : public rex::NonCopyable {
    * @param addr Address to find.
    * @return The region, or nullptr when none contains the address.
    */
-  const CodeRegion* regionContaining(uint32_t addr) const;
+  const CodeRegion* regionContaining(u32 addr) const;
 
   /**
    * Returns the number of decoded instructions.
@@ -132,26 +132,26 @@ class DecodedBinary : public rex::NonCopyable {
 
  private:
   struct Section {
-    uint32_t base;
-    uint32_t size;
+    u32 base;
+    u32 size;
     std::vector<DecodedInsn> instructions;
-    std::vector<uint8_t> data;
+    std::vector<u8> data;
 
-    bool contains(uint32_t addr) const { return addr >= base && addr < base + size; }
+    bool contains(u32 addr) const { return addr >= base && addr < base + size; }
 
-    DecodedInsn* get(uint32_t addr) {
+    DecodedInsn* get(u32 addr) {
       if (!contains(addr))
         return nullptr;
-      uint32_t idx = (addr - base) / 4;
+      u32 idx = (addr - base) / 4;
       if (idx >= instructions.size())
         return nullptr;
       return &instructions[idx];
     }
 
-    const DecodedInsn* get(uint32_t addr) const {
+    const DecodedInsn* get(u32 addr) const {
       if (!contains(addr))
         return nullptr;
-      uint32_t idx = (addr - base) / 4;
+      u32 idx = (addr - base) / 4;
       if (idx >= instructions.size())
         return nullptr;
       return &instructions[idx];
@@ -171,13 +171,13 @@ class DecodedBinary : public rex::NonCopyable {
    * @param addr Address to find.
    * @return The section, or nullptr when none contains the address.
    */
-  Section* findSection(uint32_t addr);
-  const Section* findSection(uint32_t addr) const;
+  Section* findSection(u32 addr);
+  const Section* findSection(u32 addr) const;
 };
 
 template <typename T>
-std::optional<T> DecodedBinary::read(uint32_t addr) const {
-  const uint8_t* data = rawData(addr, sizeof(T));
+std::optional<T> DecodedBinary::read(u32 addr) const {
+  const u8* data = rawData(addr, sizeof(T));
   if (!data)
     return std::nullopt;
 
@@ -266,7 +266,7 @@ inline bool isLis(const DecodedInsn& insn) {
  * @param insn Instruction to test.
  * @return The target, or nullopt when there is none.
  */
-inline std::optional<uint32_t> getBranchTarget(const DecodedInsn& insn) {
+inline std::optional<u32> getBranchTarget(const DecodedInsn& insn) {
   return insn.branch_target;
 }
 
@@ -277,7 +277,7 @@ inline std::optional<uint32_t> getBranchTarget(const DecodedInsn& insn) {
  * @return True when it is invalid.
  */
 inline bool isInvalid(const DecodedInsn& insn) {
-  uint32_t raw = static_cast<uint32_t>(insn.code);
+  u32 raw = static_cast<u32>(insn.code);
   return raw == 0x00000000 || raw == 0xFFFFFFFF ||
          insn.opcode == rex::codegen::ppc::Opcode::kUnknown;
 }

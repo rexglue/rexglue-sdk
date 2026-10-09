@@ -42,7 +42,7 @@ class CAMetalLayerSurface final : public Surface {
    * @param height_out Receives the height in physical display pixels.
    * @return True when the size was read.
    */
-  bool GetSizeImpl(uint32_t& width_out, uint32_t& height_out) const override;
+  bool GetSizeImpl(u32& width_out, u32& height_out) const override;
 
  private:
   SDL_Window* window_;

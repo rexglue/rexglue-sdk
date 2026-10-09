@@ -24,8 +24,7 @@ using namespace rex::runtime;
 
 XLiveBaseApp::XLiveBaseApp(Runtime& runtime) : App(runtime, 0xFC) {}
 
-X_HRESULT XLiveBaseApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
-                                            uint32_t buffer_length) {
+X_HRESULT XLiveBaseApp::DispatchMessageSync(u32 message, u32 buffer_ptr, u32 buffer_length) {
   auto buffer = memory_->TranslateVirtual(buffer_ptr);
   switch (message) {
     case 0x00058004: {

@@ -42,7 +42,7 @@ class AchievementToastDialog : public AchievementNotificationDialog {
   void OnDraw(ImGuiIO& io) override;
 
  private:
-  static constexpr float kDisplaySeconds = 4.5f;
+  static constexpr f32 kDisplaySeconds = 4.5f;
 
   struct PendingToast {
     rex::runtime::AchievementEvent event;

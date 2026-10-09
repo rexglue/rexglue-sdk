@@ -101,7 +101,7 @@ class VulkanInstance : public rex::NonCopyable {
 
   const Functions& functions() const { return functions_; }
 
-  uint32_t api_version() const { return api_version_; }
+  u32 api_version() const { return api_version_; }
 
   /**
    * Enabled instance extensions.
@@ -144,7 +144,7 @@ class VulkanInstance : public rex::NonCopyable {
 
   Functions functions_;
 
-  uint32_t api_version_ = VK_MAKE_API_VERSION(0, 1, 0, 0);
+  u32 api_version_ = VK_MAKE_API_VERSION(0, 1, 0, 0);
 
   Extensions extensions_;
 

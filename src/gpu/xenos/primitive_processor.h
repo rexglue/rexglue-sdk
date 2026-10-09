@@ -115,11 +115,11 @@ class PrimitiveProcessor {
      * from the guest, fully 32 bit, and holds the floating point tessellation factors.
      */
     xenos::TessellationMode tessellation_mode;
-    uint32_t guest_draw_vertex_count;
-    uint32_t host_draw_vertex_count;
-    uint32_t line_loop_closing_index;
+    u32 guest_draw_vertex_count;
+    u32 host_draw_vertex_count;
+    u32 line_loop_closing_index;
     ProcessedIndexBufferType index_buffer_type;
-    uint32_t guest_index_base;
+    u32 guest_index_base;
     xenos::IndexFormat host_index_format;
     xenos::Endian host_shader_index_endian;
     /**
@@ -156,8 +156,8 @@ class PrimitiveProcessor {
    * @param exact_range True to invalidate only the range, false to invalidate whole buckets.
    * @return The invalidated range as start address and length.
    */
-  std::pair<uint32_t, uint32_t> MemoryInvalidationCallback(uint32_t physical_address_start,
-                                                           uint32_t length, bool exact_range);
+  std::pair<u32, u32> MemoryInvalidationCallback(u32 physical_address_start, u32 length,
+                                                 bool exact_range);
 
  protected:
   /**
@@ -178,8 +178,8 @@ class PrimitiveProcessor {
    * The maximum vertex count is therefore set by triangle fan to list conversion. It also includes
    * padding for co-alignment of the source and the destination for SIMD.
    */
-  static constexpr uint32_t kMinRequiredConvertedIndexBufferSize =
-      sizeof(uint32_t) * (UINT16_MAX - 2) * 3 * +REXGPU_PRIMITIVE_PROCESSOR_SIMD_SIZE;
+  static constexpr u32 kMinRequiredConvertedIndexBufferSize =
+      sizeof(u32) * (UINT16_MAX - 2) * 3 * +REXGPU_PRIMITIVE_PROCESSOR_SIMD_SIZE;
 
   PrimitiveProcessor(const xenos::RegisterFile& register_file, runtime::Memory& memory,
                      SharedMemory& shared_memory)
@@ -264,7 +264,7 @@ class PrimitiveProcessor {
    * @param guest_index_base The guest index base address.
    * @return The offset in bytes.
    */
-  static ptrdiff_t GetSimdCoalignmentOffset(const void* host_index_ptr, uint32_t guest_index_base) {
+  static ptrdiff_t GetSimdCoalignmentOffset(const void* host_index_ptr, u32 guest_index_base) {
 #if REXGPU_PRIMITIVE_PROCESSOR_SIMD_SIZE
     return ptrdiff_t((guest_index_base - reinterpret_cast<uintptr_t>(host_index_ptr)) &
                      (REXGPU_PRIMITIVE_PROCESSOR_SIMD_SIZE - 1));
@@ -284,50 +284,48 @@ class PrimitiveProcessor {
    * @param backend_handle_out A handle for the backend command processor to bind the buffer.
    * @return The mapping of the buffer to write to, or nullptr on failure.
    */
-  virtual void* RequestHostConvertedIndexBufferForCurrentFrame(
-      xenos::IndexFormat format, uint32_t index_count, bool coalign_for_simd,
-      uint32_t coalignment_original_address, size_t& backend_handle_out) = 0;
+  virtual void* RequestHostConvertedIndexBufferForCurrentFrame(xenos::IndexFormat format,
+                                                               u32 index_count,
+                                                               bool coalign_for_simd,
+                                                               u32 coalignment_original_address,
+                                                               size_t& backend_handle_out) = 0;
 
  private:
 #if REXGPU_PRIMITIVE_PROCESSOR_SIMD_SIZE
 #if REX_ARCH_AMD64
   using SimdVectorU16 = simde__m128i;
   using SimdVectorU32 = simde__m128i;
-  static SimdVectorU16 ReplicateU16(uint16_t value) {
-    return simde_mm_set1_epi16(static_cast<int16_t>(value));
+  static SimdVectorU16 ReplicateU16(u16 value) {
+    return simde_mm_set1_epi16(static_cast<i16>(value));
   }
-  static SimdVectorU32 ReplicateU32(uint32_t value) {
-    return simde_mm_set1_epi32(static_cast<int32_t>(value));
+  static SimdVectorU32 ReplicateU32(u32 value) {
+    return simde_mm_set1_epi32(static_cast<i32>(value));
   }
-  static SimdVectorU16 LoadAlignedVectorU16(const uint16_t* source) {
+  static SimdVectorU16 LoadAlignedVectorU16(const u16* source) {
     return simde_mm_load_si128(reinterpret_cast<const simde__m128i*>(source));
   }
-  static SimdVectorU32 LoadAlignedVectorU32(const uint32_t* source) {
+  static SimdVectorU32 LoadAlignedVectorU32(const u32* source) {
     return simde_mm_load_si128(reinterpret_cast<const simde__m128i*>(source));
   }
-  static void StoreUnalignedVectorU16(uint16_t* dest, SimdVectorU16 source) {
+  static void StoreUnalignedVectorU16(u16* dest, SimdVectorU16 source) {
     simde_mm_storeu_si128(reinterpret_cast<simde__m128i*>(dest), source);
   }
-  static void StoreUnalignedVectorU32(uint32_t* dest, SimdVectorU32 source) {
+  static void StoreUnalignedVectorU32(u32* dest, SimdVectorU32 source) {
     simde_mm_storeu_si128(reinterpret_cast<simde__m128i*>(dest), source);
   }
 #elif REX_ARCH_ARM64
   using SimdVectorU16 = uint16x8_t;
   using SimdVectorU32 = uint32x4_t;
-  static SimdVectorU16 ReplicateU16(uint16_t value) { return vdupq_n_u16(value); }
-  static SimdVectorU32 ReplicateU32(uint32_t value) { return vdupq_n_u32(value); }
-  static SimdVectorU16 LoadAlignedVectorU16(const uint16_t* source) {
+  static SimdVectorU16 ReplicateU16(u16 value) { return vdupq_n_u16(value); }
+  static SimdVectorU32 ReplicateU32(u32 value) { return vdupq_n_u32(value); }
+  static SimdVectorU16 LoadAlignedVectorU16(const u16* source) {
     return vld1q_u16(std::assume_aligned<sizeof(uint16x8_t)>(source));
   }
-  static SimdVectorU32 LoadAlignedVectorU32(const uint32_t* source) {
+  static SimdVectorU32 LoadAlignedVectorU32(const u32* source) {
     return vld1q_u32(std::assume_aligned<sizeof(uint32x4_t)>(source));
   }
-  static void StoreUnalignedVectorU16(uint16_t* dest, SimdVectorU16 source) {
-    vst1q_u16(dest, source);
-  }
-  static void StoreUnalignedVectorU32(uint32_t* dest, SimdVectorU32 source) {
-    vst1q_u32(dest, source);
-  }
+  static void StoreUnalignedVectorU16(u16* dest, SimdVectorU16 source) { vst1q_u16(dest, source); }
+  static void StoreUnalignedVectorU32(u32* dest, SimdVectorU32 source) { vst1q_u32(dest, source); }
 #else
 #error SIMD vector types and constant loads not specified.
 #endif  // REX_ARCH_AMD64
@@ -337,20 +335,18 @@ class PrimitiveProcessor {
   static_assert(sizeof(SimdVectorU32) == REXGPU_PRIMITIVE_PROCESSOR_SIMD_SIZE,
                 "REXGPU_PRIMITIVE_PROCESSOR_SIMD_SIZE must reflect the vector size "
                 "actually used");
-  static constexpr uint32_t kSimdVectorU16Elements = sizeof(SimdVectorU16) / sizeof(uint16_t);
-  static constexpr uint32_t kSimdVectorU32Elements = sizeof(SimdVectorU32) / sizeof(uint32_t);
+  static constexpr u32 kSimdVectorU16Elements = sizeof(SimdVectorU16) / sizeof(u16);
+  static constexpr u32 kSimdVectorU32Elements = sizeof(SimdVectorU32) / sizeof(u32);
 #endif  // REXGPU_PRIMITIVE_PROCESSOR_SIMD_SIZE
 
-  static bool IsResetUsed(const uint16_t* source, uint32_t count,
-                          uint16_t reset_index_guest_endian);
-  static void Get16BitResetIndexUsage(const uint16_t* source, uint32_t count,
-                                      uint16_t reset_index_guest_endian,
+  static bool IsResetUsed(const u16* source, u32 count, u16 reset_index_guest_endian);
+  static void Get16BitResetIndexUsage(const u16* source, u32 count, u16 reset_index_guest_endian,
                                       bool& is_reset_index_used_out,
                                       bool& is_ffff_used_as_vertex_index_out);
-  static bool IsResetUsed(const uint32_t* source, uint32_t count, uint32_t reset_index_guest_endian,
-                          uint32_t low_bits_mask_guest_endian);
-  static void ReplaceResetIndex16To16(uint16_t* dest, const uint16_t* source, uint32_t count,
-                                      uint16_t reset_index_guest_endian);
+  static bool IsResetUsed(const u32* source, u32 count, u32 reset_index_guest_endian,
+                          u32 low_bits_mask_guest_endian);
+  static void ReplaceResetIndex16To16(u16* dest, const u16* source, u32 count,
+                                      u16 reset_index_guest_endian);
   /**
    * Converts 16 bit indices to 32 bit, keeping 0xFFFF as a real index and replacing the reset index
    * with 0xFFFFFFFF. For use when the reset index is not 0xFFFF and 0xFFFF is also a valid index.
@@ -365,8 +361,8 @@ class PrimitiveProcessor {
    * @param count The number of indices.
    * @param reset_index_guest_endian The reset index in guest endian.
    */
-  static void ReplaceResetIndex16To24(uint32_t* dest, const uint16_t* source, uint32_t count,
-                                      uint16_t reset_index_guest_endian);
+  static void ReplaceResetIndex16To24(u32* dest, const u16* source, u32 count,
+                                      u16 reset_index_guest_endian);
   /**
    * Masks 32 bit indices to 24 bits and replaces the reset index with 0xFFFFFFFF. The reset index
    * and the low 24 bits mask are taken explicitly because the function is used 2 ways. Passthrough
@@ -385,15 +381,15 @@ class PrimitiveProcessor {
    * @param low_bits_mask_guest_endian The low 24 bits mask in guest endian.
    */
   template <xenos::Endian HostSwap>
-  static void ReplaceResetIndex32To24(uint32_t* dest, const uint32_t* source, uint32_t count,
-                                      uint32_t reset_index_guest_endian,
-                                      uint32_t low_bits_mask_guest_endian) {
+  static void ReplaceResetIndex32To24(u32* dest, const u32* source, u32 count,
+                                      u32 reset_index_guest_endian,
+                                      u32 low_bits_mask_guest_endian) {
     // The Xenos only uses the low 24 bits of the index.
 #if REXGPU_PRIMITIVE_PROCESSOR_SIMD_SIZE
     while (count &&
            (reinterpret_cast<uintptr_t>(source) & (REXGPU_PRIMITIVE_PROCESSOR_SIMD_SIZE - 1))) {
       --count;
-      uint32_t index = *(source++) & low_bits_mask_guest_endian;
+      u32 index = *(source++) & low_bits_mask_guest_endian;
       *(dest++) = index != reset_index_guest_endian ? xenos::GPUSwap(index, HostSwap) : UINT32_MAX;
     }
     if (count >= kSimdVectorU32Elements) {
@@ -403,10 +399,10 @@ class PrimitiveProcessor {
       simde__m128i host_swap_shuffle;
       if constexpr (HostSwap != xenos::Endian::kNone) {
         host_swap_shuffle = simde_mm_set_epi32(
-            static_cast<int32_t>(xenos::GPUSwap(static_cast<uint32_t>(0x0F0E0D0C), HostSwap)),
-            static_cast<int32_t>(xenos::GPUSwap(static_cast<uint32_t>(0x0B0A0908), HostSwap)),
-            static_cast<int32_t>(xenos::GPUSwap(static_cast<uint32_t>(0x07060504), HostSwap)),
-            static_cast<int32_t>(xenos::GPUSwap(static_cast<uint32_t>(0x03020100), HostSwap)));
+            static_cast<i32>(xenos::GPUSwap(static_cast<u32>(0x0F0E0D0C), HostSwap)),
+            static_cast<i32>(xenos::GPUSwap(static_cast<u32>(0x0B0A0908), HostSwap)),
+            static_cast<i32>(xenos::GPUSwap(static_cast<u32>(0x07060504), HostSwap)),
+            static_cast<i32>(xenos::GPUSwap(static_cast<u32>(0x03020100), HostSwap)));
       }
 #endif  // REX_ARCH_AMD64
       while (count >= kSimdVectorU32Elements) {
@@ -441,35 +437,35 @@ class PrimitiveProcessor {
     }
 #endif  // REXGPU_PRIMITIVE_PROCESSOR_SIMD_SIZE
     while (count--) {
-      uint32_t index = *(source++) & low_bits_mask_guest_endian;
+      u32 index = *(source++) & low_bits_mask_guest_endian;
       *(dest++) = index != reset_index_guest_endian ? xenos::GPUSwap(index, HostSwap) : UINT32_MAX;
     }
   }
 
   struct PassthroughIndexTransform {
-    uint16_t operator()(uint16_t index) const { return index; }
-    uint32_t operator()(uint32_t index) const { return index; }
+    u16 operator()(u16 index) const { return index; }
+    u32 operator()(u32 index) const { return index; }
   };
   struct To24NonSwappingIndexTransform {
-    uint32_t operator()(uint32_t index) const { return index & xenos::kVertexIndexMask; }
+    u32 operator()(u32 index) const { return index & xenos::kVertexIndexMask; }
   };
   struct To24Swapping8In16IndexTransform {
-    uint32_t operator()(uint32_t index) const {
+    u32 operator()(u32 index) const {
       return xenos::GPUSwap(index, xenos::Endian::k8in16) & xenos::kVertexIndexMask;
     }
   };
   struct To24Swapping8In32IndexTransform {
-    uint32_t operator()(uint32_t index) const {
+    u32 operator()(u32 index) const {
       return xenos::GPUSwap(index, xenos::Endian::k8in32) & xenos::kVertexIndexMask;
     }
   };
   struct To24Swapping16In32IndexTransform {
-    uint32_t operator()(uint32_t index) const {
+    u32 operator()(u32 index) const {
       return xenos::GPUSwap(index, xenos::Endian::k16in32) & xenos::kVertexIndexMask;
     }
   };
 
-  static constexpr uint32_t GetTwoTriangleStripIndexCount(uint32_t strip_count) {
+  static constexpr u32 GetTwoTriangleStripIndexCount(u32 strip_count) {
     return 4 * strip_count + (std::max(strip_count, UINT32_C(1)) - 1);
   }
 
@@ -480,11 +476,11 @@ class PrimitiveProcessor {
    * @param fan_index_count The triangle fan index count.
    * @return The triangle list index count.
    */
-  static constexpr uint32_t GetTriangleFanListIndexCount(uint32_t fan_index_count) {
+  static constexpr u32 GetTriangleFanListIndexCount(u32 fan_index_count) {
     return fan_index_count > 2 ? (fan_index_count - 2) * 3 : 0;
   }
   template <typename Index, typename IndexTransform>
-  static void TriangleFanToList(Index* dest, const Index* source, uint32_t source_index_count,
+  static void TriangleFanToList(Index* dest, const Index* source, u32 source_index_count,
                                 const IndexTransform& index_transform) {
     if (source_index_count <= 2) {
       // To match GetTriangleFanListIndexCount.
@@ -492,7 +488,7 @@ class PrimitiveProcessor {
     }
     Index index_first = index_transform(source[0]);
     Index index_previous = index_transform(source[1]);
-    for (uint32_t i = 2; i < source_index_count; ++i) {
+    for (u32 i = 2; i < source_index_count; ++i) {
       Index index_current = index_transform(source[i]);
       *(dest++) = index_previous;
       *(dest++) = index_current;
@@ -508,11 +504,11 @@ class PrimitiveProcessor {
    * @param loop_index_count The line loop index count.
    * @return The line strip index count.
    */
-  static constexpr uint32_t GetLineLoopStripIndexCount(uint32_t loop_index_count) {
+  static constexpr u32 GetLineLoopStripIndexCount(u32 loop_index_count) {
     return loop_index_count > 1 ? loop_index_count + 1 : 0;
   }
   template <typename Index, typename IndexTransform>
-  static void LineLoopToStrip(Index* dest, const Index* source, uint32_t source_index_count,
+  static void LineLoopToStrip(Index* dest, const Index* source, u32 source_index_count,
                               const IndexTransform& index_transform) {
     if (source_index_count <= 1) {
       // To match GetLineLoopStripIndexCount.
@@ -520,24 +516,24 @@ class PrimitiveProcessor {
     }
     Index index_first = index_transform(source[0]);
     dest[0] = index_first;
-    for (uint32_t i = 1; i < source_index_count; ++i) {
+    for (u32 i = 1; i < source_index_count; ++i) {
       dest[i] = index_transform(source[i]);
     }
     dest[source_index_count] = index_first;
   }
-  static void LineLoopToStrip(uint16_t* dest, const uint16_t* source, uint32_t source_index_count,
+  static void LineLoopToStrip(u16* dest, const u16* source, u32 source_index_count,
                               const PassthroughIndexTransform& index_transform);
-  static void LineLoopToStrip(uint32_t* dest, const uint32_t* source, uint32_t source_index_count,
+  static void LineLoopToStrip(u32* dest, const u32* source, u32 source_index_count,
                               const PassthroughIndexTransform& index_transform);
 
-  static constexpr uint32_t GetQuadListTriangleListIndexCount(uint32_t quad_list_index_count) {
+  static constexpr u32 GetQuadListTriangleListIndexCount(u32 quad_list_index_count) {
     return (quad_list_index_count / 4) * 6;
   }
   template <typename Index, typename IndexTransform>
-  static void QuadListToTriangleList(Index* dest, const Index* source, uint32_t source_index_count,
+  static void QuadListToTriangleList(Index* dest, const Index* source, u32 source_index_count,
                                      const IndexTransform& index_transform) {
-    uint32_t quad_count = source_index_count / 4;
-    for (uint32_t i = 0; i < quad_count; ++i) {
+    u32 quad_count = source_index_count / 4;
+    for (u32 i = 0; i < quad_count; ++i) {
       Index common_index_0 = index_transform(*(source++));
       *(dest++) = common_index_0;
       *(dest++) = index_transform(*(source++));
@@ -556,23 +552,22 @@ class PrimitiveProcessor {
    * indices.
    */
   struct SinglePrimitiveRange {
-    SinglePrimitiveRange(uint32_t guest_offset, uint32_t guest_index_count,
-                         uint32_t host_index_count)
+    SinglePrimitiveRange(u32 guest_offset, u32 guest_index_count, u32 host_index_count)
         : guest_offset(guest_offset),
           guest_index_count(guest_index_count),
           host_index_count(host_index_count) {}
-    uint32_t guest_offset;
-    uint32_t guest_index_count;
-    uint32_t host_index_count;
+    u32 guest_offset;
+    u32 guest_index_count;
+    u32 host_index_count;
   };
-  template <std::invocable<uint32_t> F>
-  static uint32_t GetMultiPrimitiveHostIndexCountAndRanges(
-      F single_primitive_guest_to_host_count, const uint16_t* source, uint32_t source_index_count,
-      uint16_t reset_index_guest_endian, std::deque<SinglePrimitiveRange>& ranges_append_out);
-  template <std::invocable<uint32_t> F>
-  static uint32_t GetMultiPrimitiveHostIndexCountAndRanges(
-      F single_primitive_guest_to_host_count, const uint32_t* source, uint32_t source_index_count,
-      uint32_t reset_index_guest_endian, uint32_t low_bits_mask_guest_endian,
+  template <std::invocable<u32> F>
+  static u32 GetMultiPrimitiveHostIndexCountAndRanges(
+      F single_primitive_guest_to_host_count, const u16* source, u32 source_index_count,
+      u16 reset_index_guest_endian, std::deque<SinglePrimitiveRange>& ranges_append_out);
+  template <std::invocable<u32> F>
+  static u32 GetMultiPrimitiveHostIndexCountAndRanges(
+      F single_primitive_guest_to_host_count, const u32* source, u32 source_index_count,
+      u32 reset_index_guest_endian, u32 low_bits_mask_guest_endian,
       std::deque<SinglePrimitiveRange>& ranges_append_out);
 
   template <typename Index, typename IndexTransform, typename PrimitiveRangeIterator>
@@ -635,20 +630,19 @@ class PrimitiveProcessor {
    * possible guest index buffer, 0xFFFF 32 bit indices, is slightly smaller, so cache entries
    * store links within at most 2 buckets.
    */
-  static constexpr uint32_t kCacheBucketSizeBytesLog2 = 18;
-  static constexpr uint32_t kCacheBucketSizeBytes = static_cast<uint32_t>(1)
-                                                    << kCacheBucketSizeBytesLog2;
-  static constexpr uint32_t kCacheBucketCount =
+  static constexpr u32 kCacheBucketSizeBytesLog2 = 18;
+  static constexpr u32 kCacheBucketSizeBytes = static_cast<u32>(1) << kCacheBucketSizeBytesLog2;
+  static constexpr u32 kCacheBucketCount =
       rex::align(SharedMemory::kBufferSize, kCacheBucketSizeBytes) / kCacheBucketSizeBytes;
 
   union CacheKey {
-    uint64_t key;
+    u64 key;
     struct {
-      uint32_t base;
-      uint32_t count : 16;
+      u32 base;
+      u32 count : 16;
       xenos::IndexFormat format : 1;
       xenos::Endian endian : 2;
-      uint32_t is_reset_enabled : 1;
+      u32 is_reset_enabled : 1;
       /** kNone when the type does not change, like when only processing the reset index. */
       xenos::PrimitiveType conversion_guest_primitive_type : 6;
       /**
@@ -656,11 +650,11 @@ class PrimitiveProcessor {
        * used by non kVertex host vertex shader types on backends without full 32 bit index fetch
        * in this path.
        */
-      uint32_t non_vertex_32bit_dma_to_24bit : 1;
+      u32 non_vertex_32bit_dma_to_24bit : 1;
     };
 
     CacheKey() : key(0) { REX_STATIC_ASSERT_SIZE(*this, sizeof(key)); }
-    CacheKey(uint32_t base, uint32_t count, xenos::IndexFormat format, xenos::Endian endian,
+    CacheKey(u32 base, u32 count, xenos::IndexFormat format, xenos::Endian endian,
              bool is_reset_enabled,
              xenos::PrimitiveType conversion_guest_primitive_type = xenos::PrimitiveType::kNone,
              bool non_vertex_32bit_dma_to_24bit = false) {
@@ -676,12 +670,12 @@ class PrimitiveProcessor {
     }
 
     struct Hasher {
-      size_t operator()(const CacheKey& key) const { return std::hash<uint64_t>{}(key.key); }
+      size_t operator()(const CacheKey& key) const { return std::hash<u64>{}(key.key); }
     };
     bool operator==(const CacheKey& other_key) const { return key == other_key.key; }
 
-    uint32_t GetSizeBytes() const {
-      return count * (format == xenos::IndexFormat::kInt16 ? sizeof(uint16_t) : sizeof(uint32_t));
+    u32 GetSizeBytes() const {
+      return count * (format == xenos::IndexFormat::kInt16 ? sizeof(u16) : sizeof(u32));
     }
   };
 
@@ -690,7 +684,7 @@ class PrimitiveProcessor {
    * applies irrespective of one, like when only processing the reset index.
    */
   struct CachedResult {
-    uint32_t host_draw_vertex_count;
+    u32 host_draw_vertex_count;
     ProcessedIndexBufferType index_buffer_type;
     xenos::IndexFormat host_index_format;
     xenos::Endian host_shader_index_endian;
@@ -699,8 +693,7 @@ class PrimitiveProcessor {
   };
 
   struct CacheEntry {
-    static_assert(UINT16_MAX * sizeof(uint32_t) <=
-                      (static_cast<size_t>(1) << kCacheBucketSizeBytesLog2),
+    static_assert(UINT16_MAX * sizeof(u32) <= (static_cast<size_t>(1) << kCacheBucketSizeBytesLog2),
                   "Assuming that primitive processor cache entries need to store to the "
                   "previous and to the next entries only within up to 2 buckets, so the "
                   "size of the cache buckets must be not smaller than the maximum guest "
@@ -712,13 +705,13 @@ class PrimitiveProcessor {
     size_t buckets_next[2];
     CacheKey key;
     CachedResult result;
-    static uint32_t GetBucketCount(CacheKey key) {
-      uint32_t count = ((key.base + (key.GetSizeBytes() - 1)) >> kCacheBucketSizeBytesLog2) -
-                       (key.base >> kCacheBucketSizeBytesLog2) + 1;
+    static u32 GetBucketCount(CacheKey key) {
+      u32 count = ((key.base + (key.GetSizeBytes() - 1)) >> kCacheBucketSizeBytesLog2) -
+                  (key.base >> kCacheBucketSizeBytesLog2) + 1;
       REX_ASSERT(count <= 2, "Cache entries only store list links within two buckets");
       return count;
     }
-    uint32_t GetBucketCount() const { return GetBucketCount(key); }
+    u32 GetBucketCount() const { return GetBucketCount(key); }
   };
 
   /**
@@ -778,18 +771,18 @@ class PrimitiveProcessor {
    * invalidated during the conversion, the entry is not added to the cache. Modified by the
    * processor, read by the invalidation callback.
    */
-  uint32_t cache_currently_processing_base_ = 0;
+  u32 cache_currently_processing_base_ = 0;
   /** 0 when not in a cache transaction that has not found an existing entry yet. */
-  uint32_t cache_currently_processing_size_bytes_ = 0;
+  u32 cache_currently_processing_size_bytes_ = 0;
   // Modified by both the processor and the invalidation callback.
   size_t cache_bucket_free_first_entry_ = SIZE_MAX;
   // Modified by both the processor and the invalidation callback.
-  uint64_t cache_buckets_non_empty_l1_[(kCacheBucketCount + 63) / 64] = {};
+  u64 cache_buckets_non_empty_l1_[(kCacheBucketCount + 63) / 64] = {};
   /**
    * For faster memory invalidation, whether any bit is set in each cache_buckets_non_empty_l1_.
    * Modified by both the processor and the invalidation callback.
    */
-  uint64_t cache_buckets_non_empty_l2_[(kCacheBucketCount + (64 * 64 - 1)) / (64 * 64)] = {};
+  u64 cache_buckets_non_empty_l2_[(kCacheBucketCount + (64 * 64 - 1)) / (64 * 64)] = {};
   /**
    * Updates the L2 bit of a bucket group. Requires a global critical region.
    *
@@ -797,12 +790,9 @@ class PrimitiveProcessor {
    * @param cache_lock The held cache lock.
    */
   void UpdateCacheBucketsNonEmptyL2(
-      uint32_t bucket_index_div_64,
-      [[maybe_unused]] const std::lock_guard<std::mutex>& cache_lock) {
-    uint64_t& cache_buckets_non_empty_l2_ref =
-        cache_buckets_non_empty_l2_[bucket_index_div_64 >> 6];
-    uint64_t cache_buckets_non_empty_l2_bit = static_cast<uint64_t>(1)
-                                              << (bucket_index_div_64 & 63);
+      u32 bucket_index_div_64, [[maybe_unused]] const std::lock_guard<std::mutex>& cache_lock) {
+    u64& cache_buckets_non_empty_l2_ref = cache_buckets_non_empty_l2_[bucket_index_div_64 >> 6];
+    u64 cache_buckets_non_empty_l2_bit = static_cast<u64>(1) << (bucket_index_div_64 & 63);
     if (cache_buckets_non_empty_l1_[bucket_index_div_64]) {
       cache_buckets_non_empty_l2_ref |= cache_buckets_non_empty_l2_bit;
     } else {
@@ -816,8 +806,9 @@ class PrimitiveProcessor {
    * invalidation callback.
    */
   size_t cache_bucket_first_entries_[kCacheBucketCount];
-  static std::pair<uint32_t, uint32_t> MemoryInvalidationCallbackThunk(
-      void* context_ptr, uint32_t physical_address_start, uint32_t length, bool exact_range);
+  static std::pair<u32, u32> MemoryInvalidationCallbackThunk(void* context_ptr,
+                                                             u32 physical_address_start, u32 length,
+                                                             bool exact_range);
 };
 
 }  // namespace rex::gpu

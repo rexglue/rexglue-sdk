@@ -146,7 +146,7 @@ bool VulkanImmediateDrawer::Initialize() {
   pipeline_layout_create_info.setLayoutCount = 1;
   pipeline_layout_create_info.pSetLayouts = &texture_descriptor_set_layout_;
   pipeline_layout_create_info.pushConstantRangeCount =
-      static_cast<uint32_t>(rex::countof(push_constant_ranges));
+      static_cast<u32>(rex::countof(push_constant_ranges));
   pipeline_layout_create_info.pPushConstantRanges = push_constant_ranges;
   if (dfn.vkCreatePipelineLayout(device, &pipeline_layout_create_info, nullptr,
                                  &pipeline_layout_) != VK_SUCCESS) {
@@ -227,8 +227,8 @@ void VulkanImmediateDrawer::Begin(gpu::OverlayDrawContext& context, f32 width, f
   VkViewport viewport;
   viewport.x = 0.0f;
   viewport.y = 0.0f;
-  viewport.width = static_cast<float>(vulkan_ui_draw_context.render_target_width());
-  viewport.height = static_cast<float>(vulkan_ui_draw_context.render_target_height());
+  viewport.width = static_cast<f32>(vulkan_ui_draw_context.render_target_width());
+  viewport.height = static_cast<f32>(vulkan_ui_draw_context.render_target_height());
   viewport.minDepth = 0.0f;
   viewport.maxDepth = 1.0f;
   dfn.vkCmdSetViewport(draw_command_buffer, 0, 1, &viewport);
@@ -260,7 +260,7 @@ void VulkanImmediateDrawer::BeginBatch(const gpu::OverlayBatch& batch) {
   VkBuffer vertex_buffer;
   VkDeviceSize vertex_buffer_offset;
   void* vertex_buffer_mapping =
-      vertex_buffer_pool_->Request(last_paint_submission_index_, vertex_buffer_size, sizeof(float),
+      vertex_buffer_pool_->Request(last_paint_submission_index_, vertex_buffer_size, sizeof(f32),
                                    vertex_buffer, vertex_buffer_offset);
   if (!vertex_buffer_mapping) {
     REXLOG_ERROR(ui, "VulkanImmediateDrawer: Failed to get a buffer for {} vertices",
@@ -276,8 +276,8 @@ void VulkanImmediateDrawer::BeginBatch(const gpu::OverlayBatch& batch) {
     VkBuffer index_buffer;
     VkDeviceSize index_buffer_offset;
     void* index_buffer_mapping =
-        vertex_buffer_pool_->Request(last_paint_submission_index_, index_buffer_size,
-                                     sizeof(uint16_t), index_buffer, index_buffer_offset);
+        vertex_buffer_pool_->Request(last_paint_submission_index_, index_buffer_size, sizeof(u16),
+                                     index_buffer, index_buffer_offset);
     if (!index_buffer_mapping) {
       REXLOG_ERROR(ui, "VulkanImmediateDrawer: Failed to get a buffer for {} indices",
                    batch.indices.size());
@@ -318,14 +318,14 @@ void VulkanImmediateDrawer::Draw(const gpu::OverlayDraw& draw) {
   }
 
   VkRect2D scissor;
-  uint32_t scissor_left, scissor_top;
+  u32 scissor_left, scissor_top;
   if (!ScissorToRenderTarget(draw, scissor_left, scissor_top, scissor.extent.width,
                              scissor.extent.height)) {
     // Zero area, also the default current_scissor_ value, means nothing is visible.
     return;
   }
-  scissor.offset.x = static_cast<int32_t>(scissor_left);
-  scissor.offset.y = static_cast<int32_t>(scissor_top);
+  scissor.offset.x = static_cast<i32>(scissor_left);
+  scissor.offset.y = static_cast<i32>(scissor_top);
   if (current_scissor_.offset.x != scissor.offset.x ||
       current_scissor_.offset.y != scissor.offset.y ||
       current_scissor_.extent.width != scissor.extent.width ||
@@ -339,7 +339,7 @@ void VulkanImmediateDrawer::Draw(const gpu::OverlayDraw& draw) {
     dfn.vkCmdBindPipeline(draw_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
   }
 
-  uint32_t texture_descriptor_index;
+  u32 texture_descriptor_index;
   VulkanImmediateTexture* texture = static_cast<VulkanImmediateTexture*>(draw.texture);
   if (texture && texture->immediate_drawer_ == this) {
     texture_descriptor_index = texture->resource_.descriptor_index;
@@ -395,7 +395,7 @@ void VulkanImmediateDrawer::End() {
       }
       dfn.vkCmdPipelineBarrier(setup_command_buffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
                                VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr,
-                               static_cast<uint32_t>(image_memory_barriers.size()),
+                               static_cast<u32>(image_memory_barriers.size()),
                                image_memory_barriers.data());
 
       for (size_t i = 0; i < texture_uploads_pending_count; ++i) {
@@ -448,7 +448,7 @@ void VulkanImmediateDrawer::End() {
       }
       dfn.vkCmdPipelineBarrier(setup_command_buffer, VK_PIPELINE_STAGE_TRANSFER_BIT,
                                VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, nullptr, 0, nullptr,
-                               static_cast<uint32_t>(image_memory_barriers.size()),
+                               static_cast<u32>(image_memory_barriers.size()),
                                image_memory_barriers.data());
 
       texture_uploads_pending_.clear();
@@ -552,7 +552,7 @@ bool VulkanImmediateDrawer::EnsurePipelinesCreatedForCurrentRenderPass() {
   vertex_input_state.vertexBindingDescriptionCount = 1;
   vertex_input_state.pVertexBindingDescriptions = &vertex_input_binding;
   vertex_input_state.vertexAttributeDescriptionCount =
-      static_cast<uint32_t>(rex::countof(vertex_input_attributes));
+      static_cast<u32>(rex::countof(vertex_input_attributes));
   vertex_input_state.pVertexAttributeDescriptions = vertex_input_attributes;
 
   VkPipelineInputAssemblyStateCreateInfo input_assembly_state;
@@ -606,14 +606,14 @@ bool VulkanImmediateDrawer::EnsurePipelinesCreatedForCurrentRenderPass() {
   dynamic_state.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
   dynamic_state.pNext = nullptr;
   dynamic_state.flags = 0;
-  dynamic_state.dynamicStateCount = static_cast<uint32_t>(rex::countof(dynamic_states));
+  dynamic_state.dynamicStateCount = static_cast<u32>(rex::countof(dynamic_states));
   dynamic_state.pDynamicStates = dynamic_states;
 
   VkGraphicsPipelineCreateInfo pipeline_create_info;
   pipeline_create_info.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
   pipeline_create_info.pNext = nullptr;
   pipeline_create_info.flags = VK_PIPELINE_CREATE_ALLOW_DERIVATIVES_BIT;
-  pipeline_create_info.stageCount = static_cast<uint32_t>(rex::countof(stages));
+  pipeline_create_info.stageCount = static_cast<u32>(rex::countof(stages));
   pipeline_create_info.pStages = stages;
   pipeline_create_info.pVertexInputState = &vertex_input_state;
   pipeline_create_info.pInputAssemblyState = &input_assembly_state;
@@ -656,13 +656,13 @@ bool VulkanImmediateDrawer::EnsurePipelinesCreatedForCurrentRenderPass() {
   return true;
 }
 
-uint32_t VulkanImmediateDrawer::AllocateTextureDescriptor() {
+u32 VulkanImmediateDrawer::AllocateTextureDescriptor() {
   if (texture_descriptor_pool_recycled_first_) {
     TextureDescriptorPool* pool = texture_descriptor_pool_recycled_first_;
     REX_ASSERT(pool->recycled_bits != 0);
-    uint32_t local_index;
+    u32 local_index;
     rex::bit_scan_forward(pool->recycled_bits, &local_index);
-    pool->recycled_bits &= ~(static_cast<uint64_t>(1) << local_index);
+    pool->recycled_bits &= ~(static_cast<u64>(1) << local_index);
     if (!pool->recycled_bits) {
       texture_descriptor_pool_recycled_first_ = pool->recycled_next;
     }
@@ -682,7 +682,7 @@ uint32_t VulkanImmediateDrawer::AllocateTextureDescriptor() {
     TextureDescriptorPool* pool = texture_descriptor_pool_unallocated_first_;
     REX_ASSERT(pool->unallocated_count != 0);
     allocate_info.descriptorPool = pool->pool;
-    uint32_t local_index = TextureDescriptorPool::kDescriptorCount - pool->unallocated_count;
+    u32 local_index = TextureDescriptorPool::kDescriptorCount - pool->unallocated_count;
     VkResult allocate_result =
         dfn.vkAllocateDescriptorSets(device, &allocate_info, &pool->sets[local_index]);
     if (allocate_result == VK_SUCCESS) {
@@ -729,7 +729,7 @@ uint32_t VulkanImmediateDrawer::AllocateTextureDescriptor() {
   TextureDescriptorPool* new_pool = new TextureDescriptorPool;
   new_pool->pool = descriptor_pool;
   new_pool->sets[0] = descriptor_set;
-  uint32_t new_pool_index = static_cast<uint32_t>(texture_descriptor_pools_.size());
+  u32 new_pool_index = static_cast<u32>(texture_descriptor_pools_.size());
   new_pool->index = new_pool_index;
   new_pool->unallocated_count = TextureDescriptorPool::kDescriptorCount - 1;
   new_pool->recycled_bits = 0;
@@ -740,32 +740,32 @@ uint32_t VulkanImmediateDrawer::AllocateTextureDescriptor() {
   return new_pool_index << 6;
 }
 
-VkDescriptorSet VulkanImmediateDrawer::GetTextureDescriptor(uint32_t descriptor_index) const {
-  uint32_t pool_index = descriptor_index >> 6;
+VkDescriptorSet VulkanImmediateDrawer::GetTextureDescriptor(u32 descriptor_index) const {
+  u32 pool_index = descriptor_index >> 6;
   REX_ASSERT(pool_index < texture_descriptor_pools_.size());
   const TextureDescriptorPool* pool = texture_descriptor_pools_[pool_index];
-  uint32_t allocation_index = descriptor_index & 63;
+  u32 allocation_index = descriptor_index & 63;
   REX_ASSERT(allocation_index < TextureDescriptorPool::kDescriptorCount - pool->unallocated_count);
   return pool->sets[allocation_index];
 }
 
-void VulkanImmediateDrawer::FreeTextureDescriptor(uint32_t descriptor_index) {
-  uint32_t pool_index = descriptor_index >> 6;
+void VulkanImmediateDrawer::FreeTextureDescriptor(u32 descriptor_index) {
+  u32 pool_index = descriptor_index >> 6;
   REX_ASSERT(pool_index < texture_descriptor_pools_.size());
   TextureDescriptorPool* pool = texture_descriptor_pools_[pool_index];
-  uint32_t allocation_index = descriptor_index & 63;
+  u32 allocation_index = descriptor_index & 63;
   REX_ASSERT(allocation_index < TextureDescriptorPool::kDescriptorCount - pool->unallocated_count);
-  REX_ASSERT((pool->recycled_bits & (static_cast<uint64_t>(1) << allocation_index)) == 0);
+  REX_ASSERT((pool->recycled_bits & (static_cast<u64>(1) << allocation_index)) == 0);
   if (!pool->recycled_bits) {
     pool->recycled_next = texture_descriptor_pool_recycled_first_;
     texture_descriptor_pool_recycled_first_ = pool;
   }
-  pool->recycled_bits |= static_cast<uint64_t>(1) << allocation_index;
+  pool->recycled_bits |= static_cast<u64>(1) << allocation_index;
 }
 
-bool VulkanImmediateDrawer::CreateTextureResource(uint32_t width, uint32_t height,
+bool VulkanImmediateDrawer::CreateTextureResource(u32 width, u32 height,
                                                   gpu::OverlayTextureFilter filter,
-                                                  bool is_repeated, const uint8_t* data,
+                                                  bool is_repeated, const u8* data,
                                                   VulkanImmediateTexture::Resource& resource_out,
                                                   size_t& pending_upload_index_out) {
   const VulkanDevice::Functions& dfn = vulkan_device_->functions();
@@ -826,7 +826,7 @@ bool VulkanImmediateDrawer::CreateTextureResource(uint32_t width, uint32_t heigh
     return false;
   }
 
-  uint32_t descriptor_index = AllocateTextureDescriptor();
+  u32 descriptor_index = AllocateTextureDescriptor();
   if (descriptor_index == UINT32_MAX) {
     REXLOG_ERROR(ui, "VulkanImmediateDrawer: Failed to allocate a descriptor for an image");
     dfn.vkDestroyImageView(device, image_view, nullptr);
@@ -862,8 +862,8 @@ bool VulkanImmediateDrawer::CreateTextureResource(uint32_t width, uint32_t heigh
   VkBuffer upload_buffer = VK_NULL_HANDLE;
   VkDeviceMemory upload_buffer_memory = VK_NULL_HANDLE;
   if (data) {
-    size_t data_size = sizeof(uint32_t) * width * height;
-    uint32_t upload_buffer_memory_type;
+    size_t data_size = sizeof(u32) * width * height;
+    u32 upload_buffer_memory_type;
     if (!util::CreateDedicatedAllocationBuffer(vulkan_device_, VkDeviceSize(data_size),
                                                VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
                                                util::MemoryPurpose::kUpload, upload_buffer,

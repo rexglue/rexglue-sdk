@@ -15,14 +15,14 @@ namespace rex {
 namespace gpu {
 
 #if WINAPI_FAMILY_PARTITION(WINAPI_PARTITION_DESKTOP | WINAPI_PARTITION_GAMES)
-bool Win32HwndSurface::GetSizeImpl(uint32_t& width_out, uint32_t& height_out) const {
+bool Win32HwndSurface::GetSizeImpl(u32& width_out, u32& height_out) const {
   RECT client_rect;
   if (!GetClientRect(hwnd(), &client_rect)) {
     return false;
   }
   // GetClientRect returns a rectangle with 0 origin.
-  width_out = static_cast<uint32_t>(client_rect.right);
-  height_out = static_cast<uint32_t>(client_rect.bottom);
+  width_out = static_cast<u32>(client_rect.right);
+  height_out = static_cast<u32>(client_rect.bottom);
   return true;
 }
 #endif

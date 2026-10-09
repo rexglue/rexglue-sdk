@@ -36,9 +36,9 @@ void DxbcShaderTranslator::StartPixelShader_LoadROVParameters() {
             LoadSystemConstant(SystemConstants::Index::kSampleCountLog2,
                                offsetof(SystemConstants, sample_count_log2), 0b0100));
   // Depth only uses full 80x16 tiles instead of 40x16 half tiles.
-  uint32_t tile_width = xenos::kEDRAMTileWidthSamples * draw_resolution_scale_x_;
-  uint32_t tile_or_tile_half_width = tile_width >> static_cast<uint32_t>(any_color_targets_written);
-  uint32_t tile_height = xenos::kEDRAMTileHeightSamples * draw_resolution_scale_y_;
+  u32 tile_width = xenos::kEDRAMTileWidthSamples * draw_resolution_scale_x_;
+  u32 tile_or_tile_half_width = tile_width >> static_cast<u32>(any_color_targets_written);
+  u32 tile_height = xenos::kEDRAMTileHeightSamples * draw_resolution_scale_y_;
   a_.OpUDiv(
       dxbc::Dest::R(system_temp_rov_params_, 0b1100),
       dxbc::Dest::R(system_temp_rov_params_, 0b0011),
@@ -48,12 +48,12 @@ void DxbcShaderTranslator::StartPixelShader_LoadROVParameters() {
   a_.OpUMul(dxbc::Dest::Null(), dxbc::Dest::R(system_temp_rov_params_, 0b0010),
             dxbc::Src::R(system_temp_rov_params_, dxbc::Src::kYYYY), dxbc::Src::LU(tile_width));
 
-  uint32_t tile_size = tile_width * tile_height;
-  uint32_t tile_half_width = tile_width >> 1;
+  u32 tile_size = tile_width * tile_height;
+  u32 tile_half_width = tile_width >> 1;
   if (any_color_targets_written) {
     // 64bpp uses X in the 80x16 dword region, 32bpp color and depth use z & 1, flipped for depth.
 
-    uint32_t rov_address_temp = PushSystemTemp();
+    u32 rov_address_temp = PushSystemTemp();
 
     a_.OpUMul(dxbc::Dest::Null(), dxbc::Dest::R(system_temp_rov_params_, 0b1000),
               dxbc::Src::R(system_temp_rov_params_, dxbc::Src::kWWWW),
@@ -95,8 +95,8 @@ void DxbcShaderTranslator::StartPixelShader_LoadROVParameters() {
     // Depth and stencil flip the 40x16 half tiles relative to 32bpp color.
     a_.OpMovC(dxbc::Dest::R(system_temp_rov_params_, 0b0010),
               dxbc::Src::R(system_temp_rov_params_, dxbc::Src::kYYYY),
-              dxbc::Src::LI(-static_cast<int32_t>(tile_half_width)),
-              dxbc::Src::LI(static_cast<int32_t>(tile_half_width)));
+              dxbc::Src::LI(-static_cast<i32>(tile_half_width)),
+              dxbc::Src::LI(static_cast<i32>(tile_half_width)));
     a_.OpIAdd(dxbc::Dest::R(system_temp_rov_params_, 0b0010),
               dxbc::Src::R(system_temp_rov_params_, dxbc::Src::kZZZZ),
               dxbc::Src::R(system_temp_rov_params_, dxbc::Src::kYYYY));
@@ -120,8 +120,8 @@ void DxbcShaderTranslator::StartPixelShader_LoadROVParameters() {
              dxbc::Src::LU(tile_half_width));
     a_.OpMovC(dxbc::Dest::R(system_temp_rov_params_, 0b0001),
               dxbc::Src::R(system_temp_rov_params_, dxbc::Src::kXXXX),
-              dxbc::Src::LI(-static_cast<int32_t>(tile_half_width)),
-              dxbc::Src::LI(static_cast<int32_t>(tile_half_width)));
+              dxbc::Src::LI(-static_cast<i32>(tile_half_width)),
+              dxbc::Src::LI(static_cast<i32>(tile_half_width)));
     a_.OpIAdd(dxbc::Dest::R(system_temp_rov_params_, 0b0010),
               dxbc::Src::R(system_temp_rov_params_, dxbc::Src::kYYYY),
               dxbc::Src::R(system_temp_rov_params_, dxbc::Src::kXXXX));
@@ -158,7 +158,7 @@ void DxbcShaderTranslator::StartPixelShader_LoadROVParameters() {
 }
 
 void DxbcShaderTranslator::ROV_DepthStencilTest() {
-  uint32_t temp = PushSystemTemp();
+  u32 temp = PushSystemTemp();
   dxbc::Dest temp_x_dest(dxbc::Dest::R(temp, 0b0001));
   dxbc::Src temp_x_src(dxbc::Src::R(temp, dxbc::Src::kXXXX));
   dxbc::Dest temp_y_dest(dxbc::Dest::R(temp, 0b0010));
@@ -213,7 +213,7 @@ void DxbcShaderTranslator::ROV_DepthStencilTest() {
     a_.OpAdd(temp_z_dest, temp_z_src, in_position_z);
   }
 
-  for (uint32_t i = 0; i < 4; ++i) {
+  for (u32 i = 0; i < 4; ++i) {
     // Early depth/stencil writes may defer to shader end, so write system_temp_depth_stencil_.
     dxbc::Dest sample_depth_stencil_dest(
         depth_stencil_early ? dxbc::Dest::R(system_temp_depth_stencil_, 1 << i) : temp_w_dest);
@@ -224,7 +224,7 @@ void DxbcShaderTranslator::ROV_DepthStencilTest() {
              dxbc::Src::LU(1 << i));
     a_.OpIf(true, temp_w_src);
 
-    uint32_t sample_temp = PushSystemTemp();
+    u32 sample_temp = PushSystemTemp();
     dxbc::Dest sample_temp_x_dest(dxbc::Dest::R(sample_temp, 0b0001));
     dxbc::Src sample_temp_x_src(dxbc::Src::R(sample_temp, dxbc::Src::kXXXX));
     dxbc::Dest sample_temp_y_dest(dxbc::Dest::R(sample_temp, 0b0010));
@@ -275,7 +275,7 @@ void DxbcShaderTranslator::ROV_DepthStencilTest() {
           break;
         default: {
           // Samples 2 and 3 (top right and bottom right) map to Direct3D 11 samples 1 and 3.
-          const int8_t* sample_position =
+          const i8* sample_position =
               draw_util::kD3D10StandardSamplePositions4x[i ^ (((i & 1) ^ (i >> 1)) * 0b11)];
           a_.OpMAd(sample_depth_stencil_dest, z_ddx_src,
                    dxbc::Src::LF(sample_position[0] * (1.0f / 16.0f)), temp_z_src);
@@ -316,7 +316,7 @@ void DxbcShaderTranslator::ROV_DepthStencilTest() {
     {
       a_.OpAnd(dxbc::Dest::R(system_temp_rov_params_, 0b0001),
                dxbc::Src::R(system_temp_rov_params_, dxbc::Src::kXXXX),
-               dxbc::Src::LU(~static_cast<uint32_t>(1 << i)));
+               dxbc::Src::LU(~static_cast<u32>(1 << i)));
     }
     a_.OpEndIf();
     a_.OpBFI(sample_depth_stencil_dest, dxbc::Src::LU(24), dxbc::Src::LU(8),
@@ -327,7 +327,7 @@ void DxbcShaderTranslator::ROV_DepthStencilTest() {
     {
       in_front_face_used_ = true;
       a_.OpIf(true, dxbc::Src::V1D(in_reg_ps_front_face_sample_index_, dxbc::Src::kXXXX));
-      for (uint32_t j = 0; j < 2; ++j) {
+      for (u32 j = 0; j < 2; ++j) {
         if (j) {
           a_.OpElse();
         }
@@ -374,7 +374,7 @@ void DxbcShaderTranslator::ROV_DepthStencilTest() {
         a_.OpUBFE(sample_temp_y_dest, dxbc::Src::LU(3), dxbc::Src::LU(3), sample_temp_z_src);
         a_.OpAnd(dxbc::Dest::R(system_temp_rov_params_, 0b0001),
                  dxbc::Src::R(system_temp_rov_params_, dxbc::Src::kXXXX),
-                 dxbc::Src::LU(~static_cast<uint32_t>(1 << i)));
+                 dxbc::Src::LU(~static_cast<u32>(1 << i)));
       }
       a_.OpEndIf();
 
@@ -483,11 +483,11 @@ void DxbcShaderTranslator::ROV_DepthStencilTest() {
     a_.OpEndIf();
 
     // Samples are at +0, +(80*scale_x), +1 and +(80*scale_x+1).
-    uint32_t tile_width = xenos::kEDRAMTileWidthSamples * draw_resolution_scale_x_;
+    u32 tile_width = xenos::kEDRAMTileWidthSamples * draw_resolution_scale_x_;
     a_.OpIAdd(dxbc::Dest::R(system_temp_rov_params_, 0b0010),
               dxbc::Src::R(system_temp_rov_params_, dxbc::Src::kYYYY),
-              dxbc::Src::LI((i & 1) ? -static_cast<int32_t>(tile_width) + 2 - i
-                                    : static_cast<int32_t>(tile_width)));
+              dxbc::Src::LI((i & 1) ? -static_cast<i32>(tile_width) + 2 - i
+                                    : static_cast<i32>(tile_width)));
   }
 
   if (ROV_IsDepthStencilEarly()) {
@@ -511,10 +511,9 @@ void DxbcShaderTranslator::ROV_DepthStencilTest() {
   PopSystemTemp();
 }
 
-void DxbcShaderTranslator::ROV_UnpackColor(uint32_t rt_index, uint32_t packed_temp,
-                                           uint32_t packed_temp_components, uint32_t color_temp,
-                                           uint32_t temp1, uint32_t temp1_component, uint32_t temp2,
-                                           uint32_t temp2_component) {
+void DxbcShaderTranslator::ROV_UnpackColor(u32 rt_index, u32 packed_temp,
+                                           u32 packed_temp_components, u32 color_temp, u32 temp1,
+                                           u32 temp1_component, u32 temp2, u32 temp2_component) {
   REX_ASSERT(color_temp != packed_temp || packed_temp_components == 0);
 
   dxbc::Src packed_temp_low(dxbc::Src::R(packed_temp).Select(packed_temp_components));
@@ -523,10 +522,9 @@ void DxbcShaderTranslator::ROV_UnpackColor(uint32_t rt_index, uint32_t packed_te
 
   a_.OpSwitch(LoadSystemConstant(
       SystemConstants::Index::kEDRAMRTFormatFlags,
-      offsetof(SystemConstants, edram_rt_format_flags) + sizeof(uint32_t) * rt_index,
-      dxbc::Src::kXXXX));
+      offsetof(SystemConstants, edram_rt_format_flags) + sizeof(u32) * rt_index, dxbc::Src::kXXXX));
 
-  for (uint32_t i = 0; i < 2; ++i) {
+  for (u32 i = 0; i < 2; ++i) {
     a_.OpCase(dxbc::Src::LU(RenderTargetCache::AddPSIColorFormatFlags(
         i ? xenos::ColorRenderTargetFormat::k_8_8_8_8_GAMMA
           : xenos::ColorRenderTargetFormat::k_8_8_8_8)));
@@ -535,7 +533,7 @@ void DxbcShaderTranslator::ROV_UnpackColor(uint32_t rt_index, uint32_t packed_te
     a_.OpUToF(dxbc::Dest::R(color_temp), dxbc::Src::R(color_temp));
     a_.OpMul(dxbc::Dest::R(color_temp), dxbc::Src::R(color_temp), dxbc::Src::LF(1.0f / 255.0f));
     if (i) {
-      for (uint32_t j = 0; j < 3; ++j) {
+      for (u32 j = 0; j < 3; ++j) {
         PWLGammaToLinear(a_, color_temp, j, color_temp, j, true, temp1, temp1_component, temp2,
                          temp2_component);
       }
@@ -567,14 +565,14 @@ void DxbcShaderTranslator::ROV_UnpackColor(uint32_t rt_index, uint32_t packed_te
     a_.OpMul(dxbc::Dest::R(color_temp, 0b1000), dxbc::Src::R(color_temp, dxbc::Src::kWWWW),
              dxbc::Src::LF(1.0f / 3.0f));
     // Process in reverse, color_temp.r holds the packed color when packed_temp is color_temp.
-    for (int32_t i = 2; i >= 0; --i) {
+    for (i32 i = 2; i >= 0; --i) {
       Float7e3To32(a_, dxbc::Dest::R(color_temp, 1 << i), packed_temp, packed_temp_components,
                    i * 10, color_temp, i, temp1, temp1_component);
     }
   }
   a_.OpBreak();
 
-  for (uint32_t i = 0; i < 2; ++i) {
+  for (u32 i = 0; i < 2; ++i) {
     a_.OpCase(dxbc::Src::LU(
         RenderTargetCache::AddPSIColorFormatFlags(i ? xenos::ColorRenderTargetFormat::k_16_16_16_16
                                                     : xenos::ColorRenderTargetFormat::k_16_16)));
@@ -586,7 +584,7 @@ void DxbcShaderTranslator::ROV_UnpackColor(uint32_t rt_index, uint32_t packed_te
     a_.OpBreak();
   }
 
-  for (uint32_t i = 0; i < 2; ++i) {
+  for (u32 i = 0; i < 2; ++i) {
     a_.OpCase(dxbc::Src::LU(RenderTargetCache::AddPSIColorFormatFlags(
         i ? xenos::ColorRenderTargetFormat::k_16_16_16_16_FLOAT
           : xenos::ColorRenderTargetFormat::k_16_16_FLOAT)));
@@ -607,11 +605,10 @@ void DxbcShaderTranslator::ROV_UnpackColor(uint32_t rt_index, uint32_t packed_te
   a_.OpEndSwitch();
 }
 
-void DxbcShaderTranslator::ROV_PackPreClampedColor(uint32_t rt_index, uint32_t color_temp,
-                                                   uint32_t packed_temp,
-                                                   uint32_t packed_temp_components, uint32_t temp1,
-                                                   uint32_t temp1_component, uint32_t temp2,
-                                                   uint32_t temp2_component) {
+void DxbcShaderTranslator::ROV_PackPreClampedColor(u32 rt_index, u32 color_temp, u32 packed_temp,
+                                                   u32 packed_temp_components, u32 temp1,
+                                                   u32 temp1_component, u32 temp2,
+                                                   u32 temp2_component) {
   // The caller must clamp normalized formats before packing.
 
   REX_ASSERT(color_temp != packed_temp || packed_temp_components == 0);
@@ -627,14 +624,13 @@ void DxbcShaderTranslator::ROV_PackPreClampedColor(uint32_t rt_index, uint32_t c
 
   a_.OpSwitch(LoadSystemConstant(
       SystemConstants::Index::kEDRAMRTFormatFlags,
-      offsetof(SystemConstants, edram_rt_format_flags) + sizeof(uint32_t) * rt_index,
-      dxbc::Src::kXXXX));
+      offsetof(SystemConstants, edram_rt_format_flags) + sizeof(u32) * rt_index, dxbc::Src::kXXXX));
 
-  for (uint32_t i = 0; i < 2; ++i) {
+  for (u32 i = 0; i < 2; ++i) {
     a_.OpCase(dxbc::Src::LU(RenderTargetCache::AddPSIColorFormatFlags(
         i ? xenos::ColorRenderTargetFormat::k_8_8_8_8_GAMMA
           : xenos::ColorRenderTargetFormat::k_8_8_8_8)));
-    for (uint32_t j = 0; j < 4; ++j) {
+    for (u32 j = 0; j < 4; ++j) {
       if (i && j < 3) {
         PreSaturatedLinearToPWLGamma(a_, temp1, temp1_component, color_temp, j, temp1,
                                      temp1_component, temp2, temp2_component);
@@ -656,7 +652,7 @@ void DxbcShaderTranslator::ROV_PackPreClampedColor(uint32_t rt_index, uint32_t c
       RenderTargetCache::AddPSIColorFormatFlags(xenos::ColorRenderTargetFormat::k_2_10_10_10)));
   a_.OpCase(dxbc::Src::LU(RenderTargetCache::AddPSIColorFormatFlags(
       xenos::ColorRenderTargetFormat::k_2_10_10_10_AS_10_10_10_10)));
-  for (uint32_t i = 0; i < 4; ++i) {
+  for (u32 i = 0; i < 4; ++i) {
     a_.OpMAd(temp1_dest, dxbc::Src::R(color_temp).Select(i), dxbc::Src::LF(i < 3 ? 1023.0f : 3.0f),
              dxbc::Src::LF(0.5f));
     a_.OpFToU(i ? temp1_dest : packed_dest_low, temp1_src);
@@ -675,7 +671,7 @@ void DxbcShaderTranslator::ROV_PackPreClampedColor(uint32_t rt_index, uint32_t c
     // PreClampedFloat32To7e3 allows the destination to be the source.
     PreClampedFloat32To7e3(a_, packed_temp, packed_temp_components, color_temp, 0, temp1,
                            temp1_component);
-    for (uint32_t i = 1; i < 3; ++i) {
+    for (u32 i = 1; i < 3; ++i) {
       PreClampedFloat32To7e3(a_, temp1, temp1_component, color_temp, i, temp2, temp2_component);
       a_.OpBFI(packed_dest_low, dxbc::Src::LU(10), dxbc::Src::LU(i * 10), temp1_src,
                packed_src_low);
@@ -687,11 +683,11 @@ void DxbcShaderTranslator::ROV_PackPreClampedColor(uint32_t rt_index, uint32_t c
   }
   a_.OpBreak();
 
-  for (uint32_t i = 0; i < 2; ++i) {
+  for (u32 i = 0; i < 2; ++i) {
     a_.OpCase(dxbc::Src::LU(
         RenderTargetCache::AddPSIColorFormatFlags(i ? xenos::ColorRenderTargetFormat::k_16_16_16_16
                                                     : xenos::ColorRenderTargetFormat::k_16_16)));
-    for (uint32_t j = 0; j < (static_cast<uint32_t>(2) << i); ++j) {
+    for (u32 j = 0; j < (static_cast<u32>(2) << i); ++j) {
       a_.OpGE(temp2_dest, dxbc::Src::R(color_temp).Select(j), dxbc::Src::LF(0.0f));
       a_.OpMovC(temp2_dest, temp2_src, dxbc::Src::LF(0.5f), dxbc::Src::LF(-0.5f));
       a_.OpMAd(temp1_dest, dxbc::Src::R(color_temp).Select(j), dxbc::Src::LF(32767.0f / 32.0f),
@@ -707,11 +703,11 @@ void DxbcShaderTranslator::ROV_PackPreClampedColor(uint32_t rt_index, uint32_t c
     a_.OpBreak();
   }
 
-  for (uint32_t i = 0; i < 2; ++i) {
+  for (u32 i = 0; i < 2; ++i) {
     a_.OpCase(dxbc::Src::LU(RenderTargetCache::AddPSIColorFormatFlags(
         i ? xenos::ColorRenderTargetFormat::k_16_16_16_16_FLOAT
           : xenos::ColorRenderTargetFormat::k_16_16_FLOAT)));
-    for (uint32_t j = 0; j < (static_cast<uint32_t>(2) << i); ++j) {
+    for (u32 j = 0; j < (static_cast<u32>(2) << i); ++j) {
       dxbc::Dest packed_dest_half(
           dxbc::Dest::R(packed_temp, 1 << (packed_temp_components + (j >> 1))));
       a_.OpF32ToF16((j & 1) ? temp1_dest : packed_dest_half, dxbc::Src::R(color_temp).Select(j));
@@ -733,8 +729,8 @@ void DxbcShaderTranslator::ROV_PackPreClampedColor(uint32_t rt_index, uint32_t c
   a_.OpEndSwitch();
 }
 
-void DxbcShaderTranslator::ROV_HandleColorBlendFactorCases(uint32_t src_temp, uint32_t dst_temp,
-                                                           uint32_t factor_temp) {
+void DxbcShaderTranslator::ROV_HandleColorBlendFactorCases(u32 src_temp, u32 dst_temp,
+                                                           u32 factor_temp) {
   dxbc::Dest factor_dest(dxbc::Dest::R(factor_temp, 0b0111));
   dxbc::Src one_src(dxbc::Src::LF(1.0f));
 
@@ -813,9 +809,8 @@ void DxbcShaderTranslator::ROV_HandleColorBlendFactorCases(uint32_t src_temp, ui
   a_.OpBreak();
 }
 
-void DxbcShaderTranslator::ROV_HandleAlphaBlendFactorCases(uint32_t src_temp, uint32_t dst_temp,
-                                                           uint32_t factor_temp,
-                                                           uint32_t factor_component) {
+void DxbcShaderTranslator::ROV_HandleAlphaBlendFactorCases(u32 src_temp, u32 dst_temp,
+                                                           u32 factor_temp, u32 factor_component) {
   dxbc::Dest factor_dest(dxbc::Dest::R(factor_temp, 1 << factor_component));
   dxbc::Src one_src(dxbc::Src::LF(1.0f));
 
@@ -868,27 +863,27 @@ void DxbcShaderTranslator::ROV_HandleAlphaBlendFactorCases(uint32_t src_temp, ui
 }
 
 void DxbcShaderTranslator::CompletePixelShader_WriteToRTVs() {
-  uint32_t shader_writes_color_targets = current_shader().writes_color_targets();
+  u32 shader_writes_color_targets = current_shader().writes_color_targets();
   if (!shader_writes_color_targets) {
     return;
   }
 
-  uint32_t gamma_temp = PushSystemTemp();
-  for (uint32_t i = 0; i < 4; ++i) {
+  u32 gamma_temp = PushSystemTemp();
+  for (u32 i = 0; i < 4; ++i) {
     if (!(shader_writes_color_targets & (1 << i))) {
       continue;
     }
-    uint32_t system_temp_color = system_temps_color_[i];
+    u32 system_temp_color = system_temps_color_[i];
     a_.OpMul(dxbc::Dest::R(system_temp_color), dxbc::Src::R(system_temp_color),
              LoadSystemConstant(SystemConstants::Index::kColorExpBias,
-                                offsetof(SystemConstants, color_exp_bias) + sizeof(float) * i,
+                                offsetof(SystemConstants, color_exp_bias) + sizeof(f32) * i,
                                 dxbc::Src::kXXXX));
     if (gamma_render_target_as_unorm8_) {
       a_.OpAnd(dxbc::Dest::R(gamma_temp, 0b0001), LoadFlagsSystemConstant(),
                dxbc::Src::LU(kSysFlag_ConvertColor0ToGamma << i));
       a_.OpIf(true, dxbc::Src::R(gamma_temp, dxbc::Src::kXXXX));
       a_.OpMov(dxbc::Dest::R(system_temp_color, 0b0111), dxbc::Src::R(system_temp_color), true);
-      for (uint32_t j = 0; j < 3; ++j) {
+      for (u32 j = 0; j < 3; ++j) {
         PreSaturatedLinearToPWLGamma(a_, system_temp_color, j, system_temp_color, j, gamma_temp, 0,
                                      gamma_temp, 1);
       }
@@ -916,7 +911,7 @@ void DxbcShaderTranslator::CompletePixelShader_DSV_DepthTo24Bit() {
     return;
   }
 
-  uint32_t temp;
+  u32 temp;
   if (shader_writes_depth) {
     temp = system_temp_depth_stencil_;
   } else {
@@ -959,9 +954,9 @@ void DxbcShaderTranslator::CompletePixelShader_DSV_DepthTo24Bit() {
 }
 
 void DxbcShaderTranslator::CompletePixelShader_AlphaToMaskSample(
-    bool initialize, uint32_t sample_index, float threshold_base, dxbc::Src threshold_offset,
-    float threshold_offset_scale, uint32_t coverage_temp, uint32_t coverage_temp_component,
-    uint32_t temp, uint32_t temp_component) {
+    bool initialize, u32 sample_index, f32 threshold_base, dxbc::Src threshold_offset,
+    f32 threshold_offset_scale, u32 coverage_temp, u32 coverage_temp_component, u32 temp,
+    u32 temp_component) {
   dxbc::Dest temp_dest(dxbc::Dest::R(temp, 1 << temp_component));
   dxbc::Src temp_src(dxbc::Src::R(temp).Select(temp_component));
   a_.OpMAd(temp_dest, threshold_offset, dxbc::Src::LF(-threshold_offset_scale),
@@ -973,15 +968,14 @@ void DxbcShaderTranslator::CompletePixelShader_AlphaToMaskSample(
   if (edram_rov_used_) {
     REX_ASSERT(coverage_temp != temp || coverage_temp_component != temp_component);
     // A failed alpha test clears both the coverage and the deferred depth/stencil write bits.
-    a_.OpOr(temp_dest, temp_src,
-            dxbc::Src::LU(~(static_cast<uint32_t>(0b00010001) << sample_index)));
+    a_.OpOr(temp_dest, temp_src, dxbc::Src::LU(~(static_cast<u32>(0b00010001) << sample_index)));
     a_.OpAnd(coverage_dest, coverage_src, temp_src);
   } else {
     if (initialize) {
       REX_ASSERT(coverage_temp != temp || coverage_temp_component != temp_component);
-      a_.OpAnd(coverage_dest, temp_src, dxbc::Src::LU(static_cast<uint32_t>(1) << sample_index));
+      a_.OpAnd(coverage_dest, temp_src, dxbc::Src::LU(static_cast<u32>(1) << sample_index));
     } else {
-      a_.OpAnd(temp_dest, temp_src, dxbc::Src::LU(static_cast<uint32_t>(1) << sample_index));
+      a_.OpAnd(temp_dest, temp_src, dxbc::Src::LU(static_cast<u32>(1) << sample_index));
       a_.OpOr(coverage_dest, coverage_src, temp_src);
     }
   }
@@ -1001,7 +995,7 @@ void DxbcShaderTranslator::CompletePixelShader_AlphaToMask() {
                                                           dxbc::Src::kXXXX));
   a_.OpIf(true, alpha_to_mask_constant_src);
 
-  uint32_t temp = PushSystemTemp();
+  u32 temp = PushSystemTemp();
   dxbc::Dest temp_x_dest(dxbc::Dest::R(temp, 0b0001));
   dxbc::Src temp_x_src(dxbc::Src::R(temp, dxbc::Src::kXXXX));
 
@@ -1014,8 +1008,8 @@ void DxbcShaderTranslator::CompletePixelShader_AlphaToMask() {
   a_.OpUBFE(temp_x_dest, dxbc::Src::LU(2), temp_x_src, alpha_to_mask_constant_src);
   a_.OpUToF(temp_x_dest, temp_x_src);
 
-  uint32_t coverage_temp = edram_rov_used_ ? system_temp_rov_params_ : temp;
-  uint32_t coverage_temp_component = edram_rov_used_ ? 0 : 2;
+  u32 coverage_temp = edram_rov_used_ ? system_temp_rov_params_ : temp;
+  u32 coverage_temp_component = edram_rov_used_ ? 0 : 2;
 
   a_.OpIf(true, LoadSystemConstant(SystemConstants::Index::kSampleCountLog2,
                                    offsetof(SystemConstants, sample_count_log2), dxbc::Src::kYYYY));
@@ -1064,7 +1058,7 @@ void DxbcShaderTranslator::CompletePixelShader_AlphaToMask() {
 }
 
 void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
-  uint32_t temp = PushSystemTemp();
+  u32 temp = PushSystemTemp();
   dxbc::Dest temp_x_dest(dxbc::Dest::R(temp, 0b0001));
   dxbc::Src temp_x_src(dxbc::Src::R(temp, dxbc::Src::kXXXX));
   dxbc::Dest temp_y_dest(dxbc::Dest::R(temp, 0b0010));
@@ -1074,10 +1068,10 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
   dxbc::Dest temp_w_dest(dxbc::Dest::R(temp, 0b1000));
   dxbc::Src temp_w_src(dxbc::Src::R(temp, dxbc::Src::kWWWW));
 
-  uint32_t tile_width = xenos::kEDRAMTileWidthSamples * draw_resolution_scale_x_;
+  u32 tile_width = xenos::kEDRAMTileWidthSamples * draw_resolution_scale_x_;
 
   if (ROV_IsDepthStencilEarly()) {
-    for (uint32_t i = 0; i < 4; ++i) {
+    for (u32 i = 0; i < 4; ++i) {
       a_.OpAnd(temp_x_dest, dxbc::Src::R(system_temp_rov_params_, dxbc::Src::kXXXX),
                dxbc::Src::LU(1 << (4 + i)));
       a_.OpIf(true, temp_x_src);
@@ -1094,8 +1088,8 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
       if (i < 3) {
         a_.OpIAdd(dxbc::Dest::R(system_temp_rov_params_, 0b0010),
                   dxbc::Src::R(system_temp_rov_params_, dxbc::Src::kYYYY),
-                  dxbc::Src::LI((i & 1) ? -static_cast<int32_t>(tile_width) + 2 - i
-                                        : static_cast<int32_t>(tile_width)));
+                  dxbc::Src::LI((i & 1) ? -static_cast<i32>(tile_width) + 2 - i
+                                        : static_cast<i32>(tile_width)));
       }
     }
   } else {
@@ -1108,10 +1102,10 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
     a_.OpRetC(false, temp_x_src);
   }
 
-  uint32_t shader_writes_color_targets = current_shader().writes_color_targets();
-  uint32_t edram_size_32bpp_samples = (xenos::kEDRAMTileHeightSamples * draw_resolution_scale_y_) *
-                                      tile_width * xenos::kEDRAMTileCount;
-  for (uint32_t i = 0; i < 4; ++i) {
+  u32 shader_writes_color_targets = current_shader().writes_color_targets();
+  u32 edram_size_32bpp_samples = (xenos::kEDRAMTileHeightSamples * draw_resolution_scale_y_) *
+                                 tile_width * xenos::kEDRAMTileCount;
+  for (u32 i = 0; i < 4; ++i) {
     if (!(shader_writes_color_targets & (1 << i))) {
       continue;
     }
@@ -1119,7 +1113,7 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
     // Even render targets use XY and odd ones use ZW.
     dxbc::Src keep_mask_src(LoadSystemConstant(
         SystemConstants::Index::kEDRAMRTKeepMask,
-        offsetof(SystemConstants, edram_rt_keep_mask) + sizeof(uint32_t) * 2 * i, 0b0100));
+        offsetof(SystemConstants, edram_rt_keep_mask) + sizeof(u32) * 2 * i, 0b0100));
 
     a_.OpAnd(temp_x_dest, keep_mask_src.SelectFromSwizzled(0), keep_mask_src.SelectFromSwizzled(1));
     a_.OpNot(temp_x_dest, temp_x_src);
@@ -1130,12 +1124,12 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
 
     a_.OpMul(dxbc::Dest::R(system_temps_color_[i]), dxbc::Src::R(system_temps_color_[i]),
              LoadSystemConstant(SystemConstants::Index::kColorExpBias,
-                                offsetof(SystemConstants, color_exp_bias) + sizeof(float) * i,
+                                offsetof(SystemConstants, color_exp_bias) + sizeof(f32) * i,
                                 dxbc::Src::kXXXX));
 
     dxbc::Src rt_format_flags_src(LoadSystemConstant(
         SystemConstants::Index::kEDRAMRTFormatFlags,
-        offsetof(SystemConstants, edram_rt_format_flags) + sizeof(uint32_t) * i, dxbc::Src::kXXXX));
+        offsetof(SystemConstants, edram_rt_format_flags) + sizeof(u32) * i, dxbc::Src::kXXXX));
 
     a_.OpAnd(dxbc::Dest::R(system_temp_rov_params_, 0b0010), rt_format_flags_src,
              dxbc::Src::LU(RenderTargetCache::kPSIColorFormatFlag_64bpp));
@@ -1143,23 +1137,22 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
               dxbc::Src::R(system_temp_rov_params_, dxbc::Src::kYYYY),
               dxbc::Src::R(system_temp_rov_params_, dxbc::Src::kWWWW),
               dxbc::Src::R(system_temp_rov_params_, dxbc::Src::kZZZZ));
-    a_.OpIAdd(dxbc::Dest::R(system_temp_rov_params_, 0b0010),
-              dxbc::Src::R(system_temp_rov_params_, dxbc::Src::kYYYY),
-              LoadSystemConstant(
-                  SystemConstants::Index::kEDRAMRTBaseDwordsScaled,
-                  offsetof(SystemConstants, edram_rt_base_dwords_scaled) + sizeof(uint32_t) * i,
-                  dxbc::Src::kXXXX));
+    a_.OpIAdd(
+        dxbc::Dest::R(system_temp_rov_params_, 0b0010),
+        dxbc::Src::R(system_temp_rov_params_, dxbc::Src::kYYYY),
+        LoadSystemConstant(SystemConstants::Index::kEDRAMRTBaseDwordsScaled,
+                           offsetof(SystemConstants, edram_rt_base_dwords_scaled) + sizeof(u32) * i,
+                           dxbc::Src::kXXXX));
     a_.OpUDiv(dxbc::Dest::Null(), dxbc::Dest::R(system_temp_rov_params_, 0b0010),
               dxbc::Src::R(system_temp_rov_params_, dxbc::Src::kYYYY),
               dxbc::Src::LU(edram_size_32bpp_samples));
 
     dxbc::Src rt_blend_factors_ops_src(LoadSystemConstant(
         SystemConstants::Index::kEDRAMRTBlendFactorsOps,
-        offsetof(SystemConstants, edram_rt_blend_factors_ops) + sizeof(uint32_t) * i,
-        dxbc::Src::kXXXX));
+        offsetof(SystemConstants, edram_rt_blend_factors_ops) + sizeof(u32) * i, dxbc::Src::kXXXX));
     dxbc::Src rt_clamp_vec_src(LoadSystemConstant(
         SystemConstants::Index::kEDRAMRTClamp,
-        offsetof(SystemConstants, edram_rt_clamp) + sizeof(float) * 4 * i, dxbc::Src::kXYZW));
+        offsetof(SystemConstants, edram_rt_clamp) + sizeof(f32) * 4 * i, dxbc::Src::kXYZW));
     a_.OpIEq(temp_x_dest, rt_blend_factors_ops_src, dxbc::Src::LU(0x00010001));
     a_.OpIf(true, temp_x_src);
     {
@@ -1198,7 +1191,7 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
     }
     a_.OpEndIf();
 
-    for (uint32_t j = 0; j < 4; ++j) {
+    for (u32 j = 0; j < 4; ++j) {
       a_.OpAnd(temp_z_dest, dxbc::Src::R(system_temp_rov_params_, dxbc::Src::kXXXX),
                dxbc::Src::LU(1 << j));
 
@@ -1233,7 +1226,7 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
         { a_.OpMov(temp_w_dest, dxbc::Src::LU(0)); }
         a_.OpEndIf();
 
-        uint32_t color_temp = PushSystemTemp();
+        u32 color_temp = PushSystemTemp();
         dxbc::Dest color_temp_rgb_dest(dxbc::Dest::R(color_temp, 0b0111));
         dxbc::Dest color_temp_a_dest(dxbc::Dest::R(color_temp, 0b1000));
         dxbc::Src color_temp_src(dxbc::Src::R(color_temp));
@@ -1248,7 +1241,7 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
           a_.OpAnd(temp_x_dest, rt_blend_factors_ops_src, dxbc::Src::LU(1 << (5 + 1)));
           a_.OpIf(false, temp_x_src);
           {
-            uint32_t blend_src_temp = PushSystemTemp();
+            u32 blend_src_temp = PushSystemTemp();
             dxbc::Dest blend_src_temp_rgb_dest(dxbc::Dest::R(blend_src_temp, 0b0111));
             dxbc::Src blend_src_temp_src(dxbc::Src::R(blend_src_temp));
 
@@ -1285,7 +1278,7 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
             a_.OpUBFE(temp_x_dest, dxbc::Src::LU(5), dxbc::Src::LU(8), rt_blend_factors_ops_src);
             a_.OpIf(true, temp_x_src);
             {
-              uint32_t blend_dest_factor_temp = PushSystemTemp();
+              u32 blend_dest_factor_temp = PushSystemTemp();
               dxbc::Src blend_dest_factor_temp_src(dxbc::Src::R(blend_dest_factor_temp));
               a_.OpSwitch(temp_x_src);
               ROV_HandleColorBlendFactorCases(system_temps_color_[i], color_temp,
@@ -1371,7 +1364,7 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
               a_.OpSwitch(temp_y_src);
               ROV_HandleAlphaBlendFactorCases(system_temps_color_[i], color_temp, temp, 1);
               a_.OpEndSwitch();
-              uint32_t alpha_is_fixed_temp = PushSystemTemp();
+              u32 alpha_is_fixed_temp = PushSystemTemp();
               a_.OpAnd(dxbc::Dest::R(alpha_is_fixed_temp, 0b0001), rt_format_flags_src,
                        dxbc::Src::LU(RenderTargetCache::kPSIColorFormatFlag_FixedPointAlpha));
               a_.OpIf(true, dxbc::Src::R(alpha_is_fixed_temp, dxbc::Src::kXXXX));
@@ -1416,7 +1409,7 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
           }
           a_.OpEndIf();
 
-          uint32_t color_pack_temp = PushSystemTemp();
+          u32 color_pack_temp = PushSystemTemp();
           ROV_PackPreClampedColor(i, color_temp, temp, 0, color_pack_temp, 0, color_pack_temp, 1);
           PopSystemTemp();
         }
@@ -1458,10 +1451,9 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
         if (j & 1) {
           a_.OpAnd(temp_z_dest, rt_format_flags_src,
                    dxbc::Src::LU(RenderTargetCache::kPSIColorFormatFlag_64bpp));
-          a_.OpMovC(
-              temp_z_dest, temp_z_src,
-              dxbc::Src::LI(-static_cast<int32_t>(tile_width) + 2 * (2 - static_cast<int32_t>(j))),
-              dxbc::Src::LI(-static_cast<int32_t>(tile_width) + (2 - static_cast<int32_t>(j))));
+          a_.OpMovC(temp_z_dest, temp_z_src,
+                    dxbc::Src::LI(-static_cast<i32>(tile_width) + 2 * (2 - static_cast<i32>(j))),
+                    dxbc::Src::LI(-static_cast<i32>(tile_width) + (2 - static_cast<i32>(j))));
           a_.OpIAdd(dxbc::Dest::R(system_temp_rov_params_, 0b0010),
                     dxbc::Src::R(system_temp_rov_params_, dxbc::Src::kYYYY), temp_z_src);
         } else {
@@ -1488,14 +1480,14 @@ void DxbcShaderTranslator::CompletePixelShader() {
 
   if (current_shader().writes_color_target(0) && !IsForceEarlyDepthStencilGlobalFlagEnabled()) {
     if (edram_rov_used_) {
-      uint32_t rt_0_written_temp = PushSystemTemp();
+      u32 rt_0_written_temp = PushSystemTemp();
       a_.OpAnd(dxbc::Dest::R(rt_0_written_temp, 0b0001),
                dxbc::Src::R(system_temp_rov_params_, dxbc::Src::kXXXX), dxbc::Src::LU(1 << 8));
       a_.OpIf(true, dxbc::Src::R(rt_0_written_temp, dxbc::Src::kXXXX));
       PopSystemTemp();
     }
 
-    uint32_t alpha_test_temp = PushSystemTemp();
+    u32 alpha_test_temp = PushSystemTemp();
     dxbc::Dest alpha_test_mask_dest(dxbc::Dest::R(alpha_test_temp, 0b0001));
     dxbc::Src alpha_test_mask_src(dxbc::Src::R(alpha_test_temp, dxbc::Src::kXXXX));
     dxbc::Dest alpha_test_op_dest(dxbc::Dest::R(alpha_test_temp, 0b0010));
@@ -1531,31 +1523,25 @@ void DxbcShaderTranslator::CompletePixelShader() {
         if (REXCVAR_GET(::rex::gpu::cvars::use_fuzzy_alpha_epsilon)) {
           a_.OpAdd(alpha_test_fuzzy_diff_dest, alpha_src, -fuzzy_epsilon);
           a_.OpLT(alpha_test_op_dest, alpha_test_fuzzy_diff_src, alpha_test_reference_src);
-          a_.OpOr(alpha_test_op_dest, alpha_test_op_src,
-                  dxbc::Src::LU(~static_cast<uint32_t>(1 << 0)));
+          a_.OpOr(alpha_test_op_dest, alpha_test_op_src, dxbc::Src::LU(~static_cast<u32>(1 << 0)));
           a_.OpAnd(alpha_test_mask_dest, alpha_test_mask_src, alpha_test_op_src);
           a_.OpAdd(alpha_test_fuzzy_diff_dest, alpha_src, -alpha_test_reference_src);
           a_.OpLT(alpha_test_op_dest, alpha_test_fuzzy_diff_src.Abs(), fuzzy_epsilon);
-          a_.OpOr(alpha_test_op_dest, alpha_test_op_src,
-                  dxbc::Src::LU(~static_cast<uint32_t>(1 << 1)));
+          a_.OpOr(alpha_test_op_dest, alpha_test_op_src, dxbc::Src::LU(~static_cast<u32>(1 << 1)));
           a_.OpAnd(alpha_test_mask_dest, alpha_test_mask_src, alpha_test_op_src);
           a_.OpAdd(alpha_test_fuzzy_diff_dest, alpha_src, fuzzy_epsilon);
           a_.OpLT(alpha_test_op_dest, alpha_test_reference_src, alpha_test_fuzzy_diff_src);
-          a_.OpOr(alpha_test_op_dest, alpha_test_op_src,
-                  dxbc::Src::LU(~static_cast<uint32_t>(1 << 2)));
+          a_.OpOr(alpha_test_op_dest, alpha_test_op_src, dxbc::Src::LU(~static_cast<u32>(1 << 2)));
           a_.OpAnd(alpha_test_mask_dest, alpha_test_mask_src, alpha_test_op_src);
         } else {
           a_.OpLT(alpha_test_op_dest, alpha_src, alpha_test_reference_src);
-          a_.OpOr(alpha_test_op_dest, alpha_test_op_src,
-                  dxbc::Src::LU(~static_cast<uint32_t>(1 << 0)));
+          a_.OpOr(alpha_test_op_dest, alpha_test_op_src, dxbc::Src::LU(~static_cast<u32>(1 << 0)));
           a_.OpAnd(alpha_test_mask_dest, alpha_test_mask_src, alpha_test_op_src);
           a_.OpEq(alpha_test_op_dest, alpha_src, alpha_test_reference_src);
-          a_.OpOr(alpha_test_op_dest, alpha_test_op_src,
-                  dxbc::Src::LU(~static_cast<uint32_t>(1 << 1)));
+          a_.OpOr(alpha_test_op_dest, alpha_test_op_src, dxbc::Src::LU(~static_cast<u32>(1 << 1)));
           a_.OpAnd(alpha_test_mask_dest, alpha_test_mask_src, alpha_test_op_src);
           a_.OpLT(alpha_test_op_dest, alpha_test_reference_src, alpha_src);
-          a_.OpOr(alpha_test_op_dest, alpha_test_op_src,
-                  dxbc::Src::LU(~static_cast<uint32_t>(1 << 2)));
+          a_.OpOr(alpha_test_op_dest, alpha_test_op_src, dxbc::Src::LU(~static_cast<u32>(1 << 2)));
           a_.OpAnd(alpha_test_mask_dest, alpha_test_mask_src, alpha_test_op_src);
         }
       }
@@ -1584,10 +1570,10 @@ void DxbcShaderTranslator::CompletePixelShader() {
   }
 }
 
-void DxbcShaderTranslator::PreClampedFloat32To7e3(dxbc::Assembler& a, uint32_t f10_temp,
-                                                  uint32_t f10_temp_component, uint32_t f32_temp,
-                                                  uint32_t f32_temp_component, uint32_t temp_temp,
-                                                  uint32_t temp_temp_component) {
+void DxbcShaderTranslator::PreClampedFloat32To7e3(dxbc::Assembler& a, u32 f10_temp,
+                                                  u32 f10_temp_component, u32 f32_temp,
+                                                  u32 f32_temp_component, u32 temp_temp,
+                                                  u32 temp_temp_component) {
   REX_ASSERT(temp_temp != f10_temp || temp_temp_component != f10_temp_component);
   REX_ASSERT(temp_temp != f32_temp || temp_temp_component != f32_temp_component);
   // Source and destination may be the same.
@@ -1618,10 +1604,10 @@ void DxbcShaderTranslator::PreClampedFloat32To7e3(dxbc::Assembler& a, uint32_t f
   a.OpUBFE(f10_dest, dxbc::Src::LU(10), dxbc::Src::LU(16), f10_src);
 }
 
-void DxbcShaderTranslator::UnclampedFloat32To7e3(dxbc::Assembler& a, uint32_t f10_temp,
-                                                 uint32_t f10_temp_component, uint32_t f32_temp,
-                                                 uint32_t f32_temp_component, uint32_t temp_temp,
-                                                 uint32_t temp_temp_component) {
+void DxbcShaderTranslator::UnclampedFloat32To7e3(dxbc::Assembler& a, u32 f10_temp,
+                                                 u32 f10_temp_component, u32 f32_temp,
+                                                 u32 f32_temp_component, u32 temp_temp,
+                                                 u32 temp_temp_component) {
   // Source and destination may be the same, clamp to the destination and use it as the source.
   a.OpMax(dxbc::Dest::R(f10_temp, 1 << f10_temp_component),
           dxbc::Src::R(f32_temp).Select(f32_temp_component), dxbc::Src::LF(0.0f));
@@ -1631,11 +1617,10 @@ void DxbcShaderTranslator::UnclampedFloat32To7e3(dxbc::Assembler& a, uint32_t f1
                          temp_temp_component);
 }
 
-void DxbcShaderTranslator::Float7e3To32(dxbc::Assembler& a, const dxbc::Dest& f32,
-                                        uint32_t f10_temp, uint32_t f10_temp_component,
-                                        uint32_t f10_shift, uint32_t temp1_temp,
-                                        uint32_t temp1_temp_component, uint32_t temp2_temp,
-                                        uint32_t temp2_temp_component) {
+void DxbcShaderTranslator::Float7e3To32(dxbc::Assembler& a, const dxbc::Dest& f32, u32 f10_temp,
+                                        u32 f10_temp_component, u32 f10_shift, u32 temp1_temp,
+                                        u32 temp1_temp_component, u32 temp2_temp,
+                                        u32 temp2_temp_component) {
   REX_ASSERT(f10_shift <= (32 - 10));
   REX_ASSERT(temp1_temp != temp2_temp || temp1_temp_component != temp2_temp_component);
   // Source may be the same as temp1 or temp2.
@@ -1674,12 +1659,9 @@ void DxbcShaderTranslator::Float7e3To32(dxbc::Assembler& a, const dxbc::Dest& f3
   a.OpBFI(f32, dxbc::Src::LU(7), dxbc::Src::LU(23 - 7), mantissa_src, exponent_src);
 }
 
-void DxbcShaderTranslator::PreClampedDepthTo20e4(dxbc::Assembler& a, uint32_t f24_temp,
-                                                 uint32_t f24_temp_component, uint32_t f32_temp,
-                                                 uint32_t f32_temp_component, uint32_t temp_temp,
-                                                 uint32_t temp_temp_component,
-                                                 bool round_to_nearest_even,
-                                                 bool remap_from_0_to_0_5) {
+void DxbcShaderTranslator::PreClampedDepthTo20e4(
+    dxbc::Assembler& a, u32 f24_temp, u32 f24_temp_component, u32 f32_temp, u32 f32_temp_component,
+    u32 temp_temp, u32 temp_temp_component, bool round_to_nearest_even, bool remap_from_0_to_0_5) {
   REX_ASSERT(temp_temp != f24_temp || temp_temp_component != f24_temp_component);
   REX_ASSERT(temp_temp != f32_temp || temp_temp_component != f32_temp_component);
   // Source and destination may be the same.
@@ -1691,7 +1673,7 @@ void DxbcShaderTranslator::PreClampedDepthTo20e4(dxbc::Assembler& a, uint32_t f2
 
   // The depth must be clamped to [0, 2).
 
-  uint32_t remap_bias = static_cast<uint32_t>(remap_from_0_to_0_5);
+  u32 remap_bias = static_cast<u32>(remap_from_0_to_0_5);
 
   a.OpULT(temp_dest, f32_src, dxbc::Src::LU(0x38800000 - (remap_bias << 23)));
   a.OpIf(true, temp_src);
@@ -1714,11 +1696,10 @@ void DxbcShaderTranslator::PreClampedDepthTo20e4(dxbc::Assembler& a, uint32_t f2
   a.OpUBFE(f24_dest, dxbc::Src::LU(24), dxbc::Src::LU(3), f24_src);
 }
 
-void DxbcShaderTranslator::Depth20e4To32(dxbc::Assembler& a, const dxbc::Dest& f32,
-                                         uint32_t f24_temp, uint32_t f24_temp_component,
-                                         uint32_t f24_shift, uint32_t temp1_temp,
-                                         uint32_t temp1_temp_component, uint32_t temp2_temp,
-                                         uint32_t temp2_temp_component, bool remap_to_0_to_0_5) {
+void DxbcShaderTranslator::Depth20e4To32(dxbc::Assembler& a, const dxbc::Dest& f32, u32 f24_temp,
+                                         u32 f24_temp_component, u32 f24_shift, u32 temp1_temp,
+                                         u32 temp1_temp_component, u32 temp2_temp,
+                                         u32 temp2_temp_component, bool remap_to_0_to_0_5) {
   REX_ASSERT(f24_shift <= (32 - 24));
   REX_ASSERT(temp1_temp != temp2_temp || temp1_temp_component != temp2_temp_component);
   // Source may be the same as temp1 or temp2.
@@ -1727,7 +1708,7 @@ void DxbcShaderTranslator::Depth20e4To32(dxbc::Assembler& a, const dxbc::Dest& f
   dxbc::Dest mantissa_dest(dxbc::Dest::R(temp2_temp, 1 << temp2_temp_component));
   dxbc::Src mantissa_src(dxbc::Src::R(temp2_temp).Select(temp2_temp_component));
 
-  uint32_t remap_bias = static_cast<uint32_t>(remap_to_0_to_0_5);
+  u32 remap_bias = static_cast<u32>(remap_to_0_to_0_5);
 
   if (!(f24_temp == temp1_temp && f24_temp_component == temp1_temp_component)) {
     // Unpack the exponent and the mantissa in the order that does not overwrite the source.
@@ -1751,7 +1732,7 @@ void DxbcShaderTranslator::Depth20e4To32(dxbc::Assembler& a, const dxbc::Dest& f
       a.OpIAdd(exponent_dest, dxbc::Src::LI(1), -exponent_src);
     }
     a.OpElse();
-    { a.OpMov(exponent_dest, dxbc::Src::LI(-static_cast<int32_t>(112 - remap_bias))); }
+    { a.OpMov(exponent_dest, dxbc::Src::LI(-static_cast<i32>(112 - remap_bias))); }
     a.OpEndIf();
   }
   a.OpEndIf();
@@ -1760,9 +1741,9 @@ void DxbcShaderTranslator::Depth20e4To32(dxbc::Assembler& a, const dxbc::Dest& f
   a.OpBFI(f32, dxbc::Src::LU(20), dxbc::Src::LU(23 - 20), mantissa_src, exponent_src);
 }
 
-void DxbcShaderTranslator::ROV_DepthTo24Bit(uint32_t d24_temp, uint32_t d24_temp_component,
-                                            uint32_t d32_temp, uint32_t d32_temp_component,
-                                            uint32_t temp_temp, uint32_t temp_temp_component) {
+void DxbcShaderTranslator::ROV_DepthTo24Bit(u32 d24_temp, u32 d24_temp_component, u32 d32_temp,
+                                            u32 d32_temp_component, u32 temp_temp,
+                                            u32 temp_temp_component) {
   REX_ASSERT(temp_temp != d32_temp || temp_temp_component != d32_temp_component);
   // Source and destination may be the same.
 
@@ -1778,7 +1759,7 @@ void DxbcShaderTranslator::ROV_DepthTo24Bit(uint32_t d24_temp, uint32_t d24_temp
     dxbc::Dest d24_dest(dxbc::Dest::R(d24_temp, 1 << d24_temp_component));
     dxbc::Src d24_src(dxbc::Src::R(d24_temp).Select(d24_temp_component));
     a_.OpMul(d24_dest, dxbc::Src::R(d32_temp).Select(d32_temp_component),
-             dxbc::Src::LF(static_cast<float>(0xFFFFFF)));
+             dxbc::Src::LF(static_cast<f32>(0xFFFFFF)));
     // Round to the nearest even integer, truncation gives 0xFF instead of 0x100 for clears.
     a_.OpRoundNE(d24_dest, d24_src);
     a_.OpFToU(d24_dest, d24_src);

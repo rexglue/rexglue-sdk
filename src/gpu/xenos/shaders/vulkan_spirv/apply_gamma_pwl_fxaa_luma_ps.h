@@ -8,8 +8,10 @@
  *              See LICENSE file in the project root for full license text.
  */
 
+#include <rex/types.h>
+
 // Generated with `xb buildshaders`.
-const uint32_t apply_gamma_pwl_fxaa_luma_ps[] = {
+const u32 apply_gamma_pwl_fxaa_luma_ps[] = {
     0x07230203, 0x00010000, 0x0008000B, 0x00006176, 0x00000000, 0x00020011, 0x00000001, 0x00020011,
     0x0000002E, 0x0006000B, 0x00000001, 0x4C534C47, 0x6474732E, 0x3035342E, 0x00000000, 0x0003000E,
     0x00000000, 0x00000001, 0x0007000F, 0x00000004, 0x0000161F, 0x6E69616D, 0x00000000, 0x00000C93,

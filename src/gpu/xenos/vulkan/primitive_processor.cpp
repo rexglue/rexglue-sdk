@@ -149,7 +149,7 @@ bool VulkanPrimitiveProcessor::InitializeBuiltinIndexBuffer(
              "buffer GPU resource with {} bytes",
              size_bytes);
   }
-  uint32_t upload_memory_type;
+  u32 upload_memory_type;
   if (!gpu::vulkan::util::CreateDedicatedAllocationBuffer(
           vulkan_device, builtin_index_buffer_size_, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
           gpu::vulkan::util::MemoryPurpose::kUpload, builtin_index_buffer_upload_,
@@ -188,12 +188,12 @@ bool VulkanPrimitiveProcessor::InitializeBuiltinIndexBuffer(
 }
 
 void* VulkanPrimitiveProcessor::RequestHostConvertedIndexBufferForCurrentFrame(
-    xenos::IndexFormat format, uint32_t index_count, bool coalign_for_simd,
-    uint32_t coalignment_original_address, size_t& backend_handle_out) {
-  size_t index_size = format == xenos::IndexFormat::kInt16 ? sizeof(uint16_t) : sizeof(uint32_t);
+    xenos::IndexFormat format, u32 index_count, bool coalign_for_simd,
+    u32 coalignment_original_address, size_t& backend_handle_out) {
+  size_t index_size = format == xenos::IndexFormat::kInt16 ? sizeof(u16) : sizeof(u32);
   VkBuffer buffer;
   VkDeviceSize offset;
-  uint8_t* mapping = frame_index_buffer_pool_->Request(
+  u8* mapping = frame_index_buffer_pool_->Request(
       command_processor_.GetCurrentFrame(),
       index_size * index_count + (coalign_for_simd ? REXGPU_PRIMITIVE_PROCESSOR_SIMD_SIZE : 0),
       index_size, buffer, offset);

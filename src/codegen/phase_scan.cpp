@@ -23,24 +23,24 @@ namespace rex::codegen {
 namespace {
 
 std::vector<CodeRegion> segmentSection(const SectionView& section,
-                                       const std::unordered_set<uint32_t>& exceptionHandlerFuncs,
-                                       uint32_t exportTable) {
+                                       const std::unordered_set<u32>& exceptionHandlerFuncs,
+                                       u32 exportTable) {
   std::vector<CodeRegion> regions;
 
-  const uint8_t* data = section.data;
-  const uint8_t* dataEnd = section.data + section.size;
+  const u8* data = section.data;
+  const u8* dataEnd = section.data + section.size;
 
   if (exportTable && exportTable >= section.baseAddress &&
       exportTable < section.baseAddress + section.size) {
     dataEnd = section.data + (exportTable - section.baseAddress);
   }
 
-  uint32_t regionStart = 0;
+  u32 regionStart = 0;
   bool inCode = false;
 
   while (data < dataEnd) {
-    uint32_t addr = section.baseAddress + static_cast<uint32_t>(data - section.data);
-    uint32_t word = memory::load<be_u32>(data);
+    u32 addr = section.baseAddress + static_cast<u32>(data - section.data);
+    u32 word = memory::load<be_u32>(data);
 
     if (word == 0x00000000) {
       if (inCode) {
@@ -49,7 +49,7 @@ std::vector<CodeRegion> segmentSection(const SectionView& section,
       }
 
       if (data + 12 <= dataEnd) {
-        uint32_t nextWord = memory::load<be_u32>(data + 4);
+        u32 nextWord = memory::load<be_u32>(data + 4);
         if (exceptionHandlerFuncs.contains(nextWord)) {
           data += 12;
           continue;
@@ -67,7 +67,7 @@ std::vector<CodeRegion> segmentSection(const SectionView& section,
   }
 
   if (inCode) {
-    uint32_t endAddr = section.baseAddress + static_cast<uint32_t>(dataEnd - section.data);
+    u32 endAddr = section.baseAddress + static_cast<u32>(dataEnd - section.data);
     regions.push_back({regionStart, endAddr});
   }
 
@@ -83,10 +83,10 @@ void scanBinary(CodegenContext& ctx) {
   auto& scan = ctx.scan;
   auto& graph = ctx.graph;
 
-  uint32_t exportTable = binary.exportTableAddr();
+  u32 exportTable = binary.exportTableAddr();
 
-  std::unordered_set<uint32_t> exceptionHandlerFuncs;
-  for (uint32_t addr : state.exceptionHandlerFuncs) {
+  std::unordered_set<u32> exceptionHandlerFuncs;
+  for (u32 addr : state.exceptionHandlerFuncs) {
     exceptionHandlerFuncs.insert(addr);
   }
 
@@ -113,20 +113,20 @@ void scanBinary(CodegenContext& ctx) {
     if (!section.executable)
       continue;
 
-    const uint8_t* data = section.data;
-    const uint8_t* dataEnd = section.data + section.size;
+    const u8* data = section.data;
+    const u8* dataEnd = section.data + section.size;
 
     if (exportTable && exportTable >= section.baseAddress &&
         exportTable < section.baseAddress + section.size) {
       dataEnd = section.data + (exportTable - section.baseAddress);
     }
 
-    uint32_t consecutiveInvalid = 0;
-    uint32_t dataRegionStart = 0;
+    u32 consecutiveInvalid = 0;
+    u32 dataRegionStart = 0;
 
     while (data < dataEnd) {
-      uint32_t addr = section.baseAddress + static_cast<uint32_t>(data - section.data);
-      uint32_t insn = memory::load<be_u32>(data);
+      u32 addr = section.baseAddress + static_cast<u32>(data - section.data);
+      u32 insn = memory::load<be_u32>(data);
 
       bool isInvalid = (insn == 0x00000000 || insn == 0xFFFFFFFF);
       if (isInvalid) {
@@ -144,7 +144,7 @@ void scanBinary(CodegenContext& ctx) {
     }
 
     if (consecutiveInvalid >= config.dataRegionThreshold) {
-      uint32_t endAddr = section.baseAddress + static_cast<uint32_t>(dataEnd - section.data);
+      u32 endAddr = section.baseAddress + static_cast<u32>(dataEnd - section.data);
       scan.dataRegions.emplace_back(dataRegionStart, endAddr);
     }
   }

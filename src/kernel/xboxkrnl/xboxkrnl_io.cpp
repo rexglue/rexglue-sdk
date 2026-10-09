@@ -30,12 +30,12 @@ namespace rex::kernel::xboxkrnl {
 using namespace rex::runtime;
 
 struct CreateOptions {
-  static const uint32_t FILE_DIRECTORY_FILE = 0x00000001;
-  static const uint32_t FILE_SEQUENTIAL_ONLY = 0x00000004;
-  static const uint32_t FILE_SYNCHRONOUS_IO_ALERT = 0x00000010;
-  static const uint32_t FILE_SYNCHRONOUS_IO_NONALERT = 0x00000020;
-  static const uint32_t FILE_NON_DIRECTORY_FILE = 0x00000040;
-  static const uint32_t FILE_RANDOM_ACCESS = 0x00000800;
+  static const u32 FILE_DIRECTORY_FILE = 0x00000001;
+  static const u32 FILE_SEQUENTIAL_ONLY = 0x00000004;
+  static const u32 FILE_SYNCHRONOUS_IO_ALERT = 0x00000010;
+  static const u32 FILE_SYNCHRONOUS_IO_NONALERT = 0x00000020;
+  static const u32 FILE_NON_DIRECTORY_FILE = 0x00000040;
+  static const u32 FILE_RANDOM_ACCESS = 0x00000800;
 };
 
 static bool IsValidPath(const std::string_view s, bool is_pattern) {
@@ -99,9 +99,9 @@ u32 NtCreateFile_entry(mapped_u32 handle_out, u32 desired_access,
   REXLOG_TRACE(kernel,
                "NtCreateFile "
                "path={} access={:#x} attrs={:#x} share={:#x} disp={:#x} options={:#x}",
-               target_path, static_cast<uint32_t>(desired_access),
-               static_cast<uint32_t>(file_attributes), static_cast<uint32_t>(share_access),
-               static_cast<uint32_t>(creation_disposition), static_cast<uint32_t>(create_options));
+               target_path, static_cast<u32>(desired_access), static_cast<u32>(file_attributes),
+               static_cast<u32>(share_access), static_cast<u32>(creation_disposition),
+               static_cast<u32>(create_options));
 
   if (!IsValidPath(target_path, false)) {
     return X_STATUS_OBJECT_NAME_INVALID;
@@ -116,8 +116,8 @@ u32 NtCreateFile_entry(mapped_u32 handle_out, u32 desired_access,
 
   filesystem::OpenOptions options;
   options.disposition =
-      static_cast<filesystem::Disposition>(static_cast<uint32_t>(creation_disposition));
-  options.access = static_cast<filesystem::Access>(static_cast<uint32_t>(desired_access));
+      static_cast<filesystem::Disposition>(static_cast<u32>(creation_disposition));
+  options.access = static_cast<filesystem::Access>(static_cast<u32>(desired_access));
   options.create_directory = (create_options & CreateOptions::FILE_DIRECTORY_FILE) != 0;
   options.require_file = (create_options & CreateOptions::FILE_NON_DIRECTORY_FILE) != 0;
   auto opened = root_file ? runtime::Current().file_system()->OpenRelative(*root_file->file,
@@ -148,7 +148,7 @@ u32 NtCreateFile_entry(mapped_u32 handle_out, u32 desired_access,
 
   if (io_status_block) {
     io_status_block->status = result;
-    io_status_block->information = static_cast<uint32_t>(file_action);
+    io_status_block->information = static_cast<u32>(file_action);
   }
 
   *handle_out = handle;
@@ -190,16 +190,16 @@ u32 NtOpenFile_entry(mapped_u32 handle_out, u32 desired_access,
 u32 NtReadFile_entry(u32 file_handle, u32 event_handle, mapped_void apc_routine_ptr,
                      mapped_void apc_context, ppc_ptr_t<X_IO_STATUS_BLOCK> io_status_block,
                      mapped_void buffer, u32 buffer_length, mapped_u64 byte_offset_ptr) {
-  uint64_t byte_offset = byte_offset_ptr ? static_cast<uint64_t>(*byte_offset_ptr) : 0;
-  const bool apc_requested = (static_cast<uint32_t>(apc_routine_ptr) & ~1u) != 0;
+  u64 byte_offset = byte_offset_ptr ? static_cast<u64>(*byte_offset_ptr) : 0;
+  const bool apc_requested = (static_cast<u32>(apc_routine_ptr) & ~1u) != 0;
   REXLOG_TRACE(
       kernel,
       "NtReadFile "
       "handle={:#x} event={:#x} apc={:#x} apc_ctx={:#x} iosb={:#x} buf={:#x} len={:#x} offset={}",
-      static_cast<uint32_t>(file_handle), static_cast<uint32_t>(event_handle),
+      static_cast<u32>(file_handle), static_cast<u32>(event_handle),
       apc_routine_ptr.guest_address(), apc_context.guest_address(), io_status_block.guest_address(),
-      buffer.guest_address(), static_cast<uint32_t>(buffer_length),
-      byte_offset_ptr ? static_cast<int64_t>(byte_offset) : -1);
+      buffer.guest_address(), static_cast<u32>(buffer_length),
+      byte_offset_ptr ? static_cast<i64>(byte_offset) : -1);
   X_STATUS result = X_STATUS_SUCCESS;
   bool apc_queued = false;
 
@@ -216,9 +216,9 @@ u32 NtReadFile_entry(u32 file_handle, u32 event_handle, mapped_void apc_routine_
 
   if (XSUCCEEDED(result)) {
     if (true || file->is_synchronous) {
-      uint32_t bytes_read = 0;
+      u32 bytes_read = 0;
       result = FileRead(runtime::Current(), *file, buffer.guest_address(), buffer_length,
-                        byte_offset_ptr ? static_cast<uint64_t>(*byte_offset_ptr) : -1, &bytes_read,
+                        byte_offset_ptr ? static_cast<u64>(*byte_offset_ptr) : -1, &bytes_read,
                         apc_context.guest_address());
       if (io_status_block) {
         io_status_block->status = result;
@@ -226,12 +226,12 @@ u32 NtReadFile_entry(u32 file_handle, u32 event_handle, mapped_void apc_routine_
       }
 
       // The APC must go through the APC mechanism even when completing immediately.
-      if (static_cast<uint32_t>(apc_routine_ptr) & ~1) {
+      if (static_cast<u32>(apc_routine_ptr) & ~1) {
         if (apc_context && result == X_STATUS_SUCCESS) {
           auto thread = ThreadRecord::GetCurrentThread();
-          uint32_t apc_routine = static_cast<uint32_t>(apc_routine_ptr) & ~1u;
-          uint32_t apc_ctx = apc_context.guest_address();
-          uint32_t apc_arg1 = io_status_block.guest_address();
+          u32 apc_routine = static_cast<u32>(apc_routine_ptr) & ~1u;
+          u32 apc_ctx = apc_context.guest_address();
+          u32 apc_arg1 = io_status_block.guest_address();
           REXLOG_TRACE(kernel,
                        "NtReadFile "
                        "queue_apc thid={} normal={:#x} ctx={:#x} arg1={:#x} arg2=0",
@@ -278,9 +278,9 @@ u32 NtReadFile_entry(u32 file_handle, u32 event_handle, mapped_void apc_routine_
         "{:#x} (sync={}, iosb_status={:#x}, iosb_info={}, ev_signaled={}, apc_requested={}, "
         "apc_queued={})",
         result, file->is_synchronous,
-        io_status_block ? static_cast<uint32_t>(io_status_block->status) : 0xDEAD,
-        io_status_block ? static_cast<uint32_t>(io_status_block->information) : 0,
-        ev && signal_event, apc_requested, apc_queued);
+        io_status_block ? static_cast<u32>(io_status_block->status) : 0xDEAD,
+        io_status_block ? static_cast<u32>(io_status_block->information) : 0, ev && signal_event,
+        apc_requested, apc_queued);
   } else {
     REXLOG_TRACE(kernel,
                  "NtReadFile -> "
@@ -322,9 +322,9 @@ u32 NtReadFileScatter_entry(u32 file_handle, u32 event_handle, mapped_void apc_r
 
   if (XSUCCEEDED(result)) {
     if (true || file->is_synchronous) {
-      uint32_t bytes_read = 0;
+      u32 bytes_read = 0;
       result = FileReadScatter(runtime::Current(), *file, segment_array.guest_address(), length,
-                               byte_offset_ptr ? static_cast<uint64_t>(*byte_offset_ptr) : -1,
+                               byte_offset_ptr ? static_cast<u64>(*byte_offset_ptr) : -1,
                                &bytes_read, apc_context.guest_address());
       if (io_status_block) {
         io_status_block->status = result;
@@ -332,11 +332,11 @@ u32 NtReadFileScatter_entry(u32 file_handle, u32 event_handle, mapped_void apc_r
       }
 
       // The APC must go through the APC mechanism even when completing immediately.
-      if (static_cast<uint32_t>(apc_routine_ptr) & ~1) {
+      if (static_cast<u32>(apc_routine_ptr) & ~1) {
         if (apc_context) {
           auto thread = ThreadRecord::GetCurrentThread();
-          thread->EnqueueAPC(static_cast<uint32_t>(apc_routine_ptr) & ~1u,
-                             apc_context.guest_address(), io_status_block.guest_address(), 0);
+          thread->EnqueueAPC(static_cast<u32>(apc_routine_ptr) & ~1u, apc_context.guest_address(),
+                             io_status_block.guest_address(), 0);
         }
       }
 
@@ -400,10 +400,10 @@ u32 NtWriteFile_entry(u32 file_handle, u32 event_handle, u32 apc_routine, mapped
 
   if (XSUCCEEDED(result)) {
     if (true || file->is_synchronous) {
-      uint32_t bytes_written = 0;
+      u32 bytes_written = 0;
       result = FileWrite(runtime::Current(), *file, buffer.guest_address(), buffer_length,
-                         byte_offset_ptr ? static_cast<uint64_t>(*byte_offset_ptr) : -1,
-                         &bytes_written, apc_context.guest_address());
+                         byte_offset_ptr ? static_cast<u64>(*byte_offset_ptr) : -1, &bytes_written,
+                         apc_context.guest_address());
 
       if (io_status_block) {
         io_status_block->status = result;
@@ -411,10 +411,10 @@ u32 NtWriteFile_entry(u32 file_handle, u32 event_handle, u32 apc_routine, mapped
       }
 
       // The APC must go through the APC mechanism even when completing immediately.
-      if (static_cast<uint32_t>(apc_routine) & ~1) {
+      if (static_cast<u32>(apc_routine) & ~1) {
         if (apc_context) {
           auto thread = ThreadRecord::GetCurrentThread();
-          thread->EnqueueAPC(static_cast<uint32_t>(apc_routine) & ~1u, apc_context.guest_address(),
+          thread->EnqueueAPC(static_cast<u32>(apc_routine) & ~1u, apc_context.guest_address(),
                              io_status_block.guest_address(), 0);
         }
       }
@@ -493,8 +493,8 @@ u32 NtRemoveIoCompletion_entry(u32 handle, mapped_u32 key_context, mapped_u32 ap
 
   REX_KERNEL_LOOKUP(port, IOCompletionObject, handle);
 
-  uint64_t timeout_ticks = timeout ? static_cast<uint32_t>(*timeout)
-                                   : static_cast<uint64_t>(std::numeric_limits<int64_t>::min());
+  u64 timeout_ticks =
+      timeout ? static_cast<u32>(*timeout) : static_cast<u64>(std::numeric_limits<i64>::min());
   IONotification notification;
   if (IOCompletionWait(*port, timeout_ticks, &notification)) {
     if (key_context) {
@@ -572,7 +572,7 @@ u32 NtQueryDirectoryFile_entry(u32 file_handle, [[maybe_unused]] u32 event_handl
   }
 
   X_STATUS result = X_STATUS_UNSUCCESSFUL;
-  uint32_t info = 0;
+  u32 info = 0;
 
   auto file = runtime::Current().object_table().Get<FileObject>(file_handle);
   auto name = util::TranslateAnsiPath(runtime::Current().memory(), file_name);
@@ -674,7 +674,7 @@ u32 NtQuerySymbolicLinkObject_entry(u32 handle, ppc_ptr_t<X_ANSI_STRING> target)
     auto target_buf = runtime::Current().memory()->TranslateVirtual(target->pointer);
     std::memcpy(target_buf, symlink->target.c_str(), length);
   }
-  target->length = static_cast<uint16_t>(length);
+  target->length = static_cast<u16>(length);
   return X_STATUS_SUCCESS;
 }
 
@@ -727,10 +727,10 @@ u32 NtDeviceIoControlFile_entry([[maybe_unused]] u32 handle, [[maybe_unused]] u3
                                 [[maybe_unused]] mapped_void input_buffer,
                                 [[maybe_unused]] u32 input_buffer_len, mapped_void output_buffer,
                                 u32 output_buffer_len) {
-  const uint32_t cache_size = 0xFF000;
+  const u32 cache_size = 0xFF000;
 
-  const uint32_t X_IOCTL_DISK_GET_DRIVE_GEOMETRY = 0x70000;
-  const uint32_t X_IOCTL_DISK_GET_PARTITION_INFO = 0x74004;
+  const u32 X_IOCTL_DISK_GET_DRIVE_GEOMETRY = 0x70000;
+  const u32 X_IOCTL_DISK_GET_PARTITION_INFO = 0x74004;
 
   if (io_control_code == X_IOCTL_DISK_GET_DRIVE_GEOMETRY) {
     if (output_buffer_len < 0x8) {
@@ -749,7 +749,7 @@ u32 NtDeviceIoControlFile_entry([[maybe_unused]] u32 handle, [[maybe_unused]] u3
     partition->start_offset = 0;
     partition->length = cache_size;
   } else {
-    REX_KERNEL_STUB("NtDeviceIoControlFile(0x{:X})", static_cast<uint32_t>(io_control_code));
+    REX_KERNEL_STUB("NtDeviceIoControlFile(0x{:X})", static_cast<u32>(io_control_code));
     REX_ASSERT_ALWAYS();
     return X_STATUS_INVALID_PARAMETER;
   }
@@ -775,7 +775,7 @@ u32 IoCreateDevice_entry([[maybe_unused]] u32 device_struct, [[maybe_unused]] u3
                          mapped_u32 out_struct) {
   auto out_guest = runtime::Current().memory()->SystemHeapAlloc(0x24);
 
-  auto out = runtime::Current().memory()->TranslateVirtual<uint8_t*>(out_guest);
+  auto out = runtime::Current().memory()->TranslateVirtual<u8*>(out_guest);
   memset(out, 0, 0x24);
 
   auto out_guest2 = runtime::Current().memory()->SystemHeapAlloc(0x1000);
@@ -786,7 +786,7 @@ u32 IoCreateDevice_entry([[maybe_unused]] u32 device_struct, [[maybe_unused]] u3
 }
 
 u32 IoDismountVolumeByFileHandle_entry(u32 handle) {
-  REX_KERNEL_STUB("IoDismountVolumeByFileHandle({:#x})", static_cast<uint32_t>(handle));
+  REX_KERNEL_STUB("IoDismountVolumeByFileHandle({:#x})", static_cast<u32>(handle));
   return X_STATUS_SUCCESS;
 }
 
@@ -802,7 +802,7 @@ u32 IoSynchronousDeviceIoControlRequest_entry(u32 ioctl, [[maybe_unused]] mapped
                                               [[maybe_unused]] u32 output_length,
                                               [[maybe_unused]] mapped_u32 returned_length,
                                               [[maybe_unused]] u32 unk) {
-  REX_KERNEL_STUB("IoSynchronousDeviceIoControlRequest({:#x})", static_cast<uint32_t>(ioctl));
+  REX_KERNEL_STUB("IoSynchronousDeviceIoControlRequest({:#x})", static_cast<u32>(ioctl));
   return X_STATUS_SUCCESS;
 }
 
@@ -817,7 +817,7 @@ u32 StfsControlDevice_entry([[maybe_unused]] mapped_void device_object, u32 ioct
                             [[maybe_unused]] u32 input_length,
                             [[maybe_unused]] mapped_void output_buffer,
                             [[maybe_unused]] u32 output_length) {
-  REX_KERNEL_STUB("StfsControlDevice({:#x})", static_cast<uint32_t>(ioctl));
+  REX_KERNEL_STUB("StfsControlDevice({:#x})", static_cast<u32>(ioctl));
   return X_STATUS_SUCCESS;
 }
 

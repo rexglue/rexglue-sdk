@@ -32,7 +32,7 @@ ThreadState::ThreadState(u32 thread_id, u32 stack_base, u32 pcr_address, Memory*
     : memory_(memory), runtime_(runtime), pcr_address_(pcr_address), thread_id_(thread_id) {
   if (thread_id_ == UINT_MAX) {
     // System thread IDs set bit 31.
-    uint32_t system_thread_handle = rex::platform::current_thread_system_id();
+    u32 system_thread_handle = rex::platform::current_thread_system_id();
     thread_id_ = 0x80000000 | system_thread_handle;
   }
 
@@ -56,7 +56,7 @@ ThreadState* ThreadState::Get() {
   return thread_state_;
 }
 
-uint32_t ThreadState::GetThreadID() {
+u32 ThreadState::GetThreadID() {
   auto* thread_state = Get();
   return thread_state ? thread_state->thread_id_ : 0xFFFFFFFF;
 }

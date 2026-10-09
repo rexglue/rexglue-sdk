@@ -23,7 +23,7 @@ namespace {
 
 nlohmann::json buildTemplateData(const rex::codegen::CodegenContext& ctx,
                                  const std::vector<const rex::codegen::FunctionNode*>& functions,
-                                 const std::unordered_map<uint32_t, std::string>& shimByAddr) {
+                                 const std::unordered_map<u32, std::string>& shimByAddr) {
   const auto& cfg = ctx.Config();
 
   size_t codeMin = ~static_cast<size_t>(0);
@@ -223,7 +223,7 @@ bool CodegenWriter::write(bool force) {
   std::sort(functions.begin(), functions.end(),
             [](const auto* a, const auto* b) { return a->base() < b->base(); });
 
-  std::unordered_map<uint32_t, std::string> shimByAddr;
+  std::unordered_map<u32, std::string> shimByAddr;
   for (const auto& [name, addr] : config().shimFunctions) {
     auto shimName = std::format("rexshim_{}", name);
     shimByAddr[addr] = shimName;
@@ -268,7 +268,7 @@ bool CodegenWriter::write(bool force) {
                 [&shimByAddr](const FunctionNode* fn) { return shimByAddr.contains(fn->base()); });
 
   EmitContext emitCtx{binary(), config(), graph(), ctx_.limits(),
-                      static_cast<uint32_t>(analysisState().entryPoint)};
+                      static_cast<u32>(analysisState().entryPoint)};
 
   REXLOG_TRACE(codegen, "Recompiling {} functions...", functions.size());
 

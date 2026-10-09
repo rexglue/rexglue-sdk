@@ -16,7 +16,7 @@ void SlotAssignment::OnDevicesChanged(const std::vector<DeviceInfo>& devices) {
   }
 }
 
-void SlotAssignment::DevicesForUser(uint32_t user_index, std::vector<DeviceId>& out) const {
+void SlotAssignment::DevicesForUser(u32 user_index, std::vector<DeviceId>& out) const {
   out.clear();
   if (user_index >= kMaxGuestUsers) {
     return;
@@ -32,7 +32,7 @@ void SharedAssignment::OnDevicesChanged(const std::vector<DeviceInfo>& devices) 
   }
 }
 
-void SharedAssignment::DevicesForUser(uint32_t user_index, std::vector<DeviceId>& out) const {
+void SharedAssignment::DevicesForUser(u32 user_index, std::vector<DeviceId>& out) const {
   out.clear();
   if (user_index != 0) {
     return;

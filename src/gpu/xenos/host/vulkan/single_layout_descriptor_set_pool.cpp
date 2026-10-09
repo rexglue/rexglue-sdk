@@ -18,15 +18,15 @@ namespace gpu {
 namespace vulkan {
 
 SingleLayoutDescriptorSetPool::SingleLayoutDescriptorSetPool(
-    const VulkanDevice* const vulkan_device, const uint32_t pool_set_count,
-    const uint32_t set_layout_descriptor_counts_count,
+    const VulkanDevice* const vulkan_device, const u32 pool_set_count,
+    const u32 set_layout_descriptor_counts_count,
     const VkDescriptorPoolSize* const set_layout_descriptor_counts,
     const VkDescriptorSetLayout set_layout)
     : vulkan_device_(vulkan_device), pool_set_count_(pool_set_count), set_layout_(set_layout) {
   REX_ASSERT(vulkan_device != nullptr);
   REX_ASSERT(pool_set_count != 0);
   pool_descriptor_counts_.resize(set_layout_descriptor_counts_count);
-  for (uint32_t i = 0; i < set_layout_descriptor_counts_count; ++i) {
+  for (u32 i = 0; i < set_layout_descriptor_counts_count; ++i) {
     VkDescriptorPoolSize& pool_descriptor_type_count = pool_descriptor_counts_[i];
     const VkDescriptorPoolSize& set_layout_descriptor_type_count = set_layout_descriptor_counts[i];
     pool_descriptor_type_count.type = set_layout_descriptor_type_count.type;
@@ -57,7 +57,7 @@ size_t SingleLayoutDescriptorSetPool::Allocate() {
   const VkDevice device = vulkan_device_->device();
 
   // 2 attempts so a failure with sets remaining retries in a new pool.
-  for (uint32_t i = 0; i < 2; ++i) {
+  for (u32 i = 0; i < 2; ++i) {
     if (current_pool_ != VK_NULL_HANDLE && !current_pool_sets_remaining_) {
       full_pools_.push_back(current_pool_);
       current_pool_ = VK_NULL_HANDLE;
@@ -68,7 +68,7 @@ size_t SingleLayoutDescriptorSetPool::Allocate() {
       pool_create_info.pNext = nullptr;
       pool_create_info.flags = 0;
       pool_create_info.maxSets = pool_set_count_;
-      pool_create_info.poolSizeCount = static_cast<uint32_t>(pool_descriptor_counts_.size());
+      pool_create_info.poolSizeCount = static_cast<u32>(pool_descriptor_counts_.size());
       pool_create_info.pPoolSizes = pool_descriptor_counts_.data();
       if (dfn.vkCreateDescriptorPool(device, &pool_create_info, nullptr, &current_pool_) !=
           VK_SUCCESS) {

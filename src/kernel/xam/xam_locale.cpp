@@ -25,7 +25,7 @@
 namespace rex {
 namespace kernel {
 namespace xam {
-uint32_t XGetGameRegion();
+u32 XGetGameRegion();
 }  // namespace xam
 }  // namespace kernel
 }  // namespace rex
@@ -34,15 +34,15 @@ namespace rex {
 namespace kernel {
 namespace xam {
 
-uint8_t XamGetOnlineCountryFromLocale(uint8_t id) {
-  static uint8_t const table[] = {
+u8 XamGetOnlineCountryFromLocale(u8 id) {
+  static u8 const table[] = {
       2,  6,  5,  8,  13, 16, 19, 20, 21,  23, 25, 32, 34,  24, 37,  39, 42,  46, 44, 50, 53, 56,
       71, 74, 76, 75, 82, 84, 91, 93, 109, 31, 90, 18, 101, 35, 103, 88, 236, 99, 4,  89, 45, 1,
   };
   return id < rex::countof(table) ? table[id] : 0;
 }
 
-const char16_t* XamGetOnlineCountryString(uint8_t id) {
+const char16_t* XamGetOnlineCountryString(u8 id) {
   static const char16_t* const table[] = {
       u"ZZ",   u"AE", u"AL",   u"AM", u"AR", u"AT", u"AU",   u"AZ", u"BE",   u"BG", u"BH",
       u"BN",   u"BO", u"BR",   u"BY", u"BZ", u"CA", nullptr, u"CH", u"CL",   u"CN", u"CO",
@@ -70,7 +70,7 @@ const char16_t* XamGetOnlineCountryString(uint8_t id) {
   return id < rex::countof(table) ? table[id] : nullptr;
 }
 
-const char16_t* XamGetCountryString(uint8_t id) {
+const char16_t* XamGetCountryString(u8 id) {
   static const char16_t* const table[] = {
       u"ZZ", u"AE", u"AL", u"AM",   u"AR",   u"AT", u"AU", u"AZ", u"BE", u"BG", u"BH", u"BN", u"BO",
       u"BR", u"BY", u"BZ", u"CA",   nullptr, u"CH", u"CL", u"CN", u"CO", u"CR", u"CZ", u"DE", u"DK",
@@ -85,7 +85,7 @@ const char16_t* XamGetCountryString(uint8_t id) {
   return id < rex::countof(table) ? table[id] : nullptr;
 }
 
-const char16_t* XamGetLanguageString(uint8_t id) {
+const char16_t* XamGetLanguageString(u8 id) {
   static const char16_t* const table[] = {
       u"zz", u"en",   u"ja", u"de", u"fr", u"es", u"it", u"ko", u"zh",
       u"pt", nullptr, u"pl", u"ru", u"sv", u"tr", u"nb", u"nl", u"zh",
@@ -93,7 +93,7 @@ const char16_t* XamGetLanguageString(uint8_t id) {
   return id < rex::countof(table) ? table[id] : nullptr;
 }
 
-const char16_t* XamGetLocaleString(uint8_t id) {
+const char16_t* XamGetLocaleString(u8 id) {
   static const char16_t* const table[] = {
       u"ZZ", u"AU", u"AT", u"BE", u"BR", u"CA", u"CL", u"CN", u"CO", u"CZ", u"DK",
       u"FI", u"FR", u"DE", u"GR", u"HK", u"HU", u"IN", u"IE", u"IT", u"JP", u"KR",
@@ -103,8 +103,8 @@ const char16_t* XamGetLocaleString(uint8_t id) {
   return id < rex::countof(table) ? table[id] : nullptr;
 }
 
-uint8_t XamGetLocaleFromOnlineCountry(uint8_t id) {
-  static uint8_t const table[] = {
+u8 XamGetLocaleFromOnlineCountry(u8 id) {
+  static u8 const table[] = {
       0,  43, 0,  0,  40, 2,  1, 0,  3,  0, 0,  0,  0,  4,  0, 0,  5,  0,  33, 6,  7,  8,  0,  9,
       13, 10, 0,  0,  0,  0,  0, 31, 11, 0, 12, 35, 0,  14, 0, 15, 0,  0,  16, 0,  18, 42, 17, 0,
       0,  0,  19, 0,  0,  20, 0, 0,  21, 0, 0,  0,  0,  0,  0, 0,  0,  0,  0,  0,  0,  0,  0,  22,
@@ -119,8 +119,8 @@ uint8_t XamGetLocaleFromOnlineCountry(uint8_t id) {
   return id < rex::countof(table) ? table[id] : 0;
 }
 
-uint8_t XamGetLanguageFromOnlineLanguage(uint8_t id) {
-  static uint8_t const table[] = {
+u8 XamGetLanguageFromOnlineLanguage(u8 id) {
+  static u8 const table[] = {
       0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 17, 11, 12, 1, 1, 15, 16, 13, 1, 1, 1,
       1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,  1,  1,  1, 1, 14, 1,  1,  1, 1, 1,
       1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,  1,  1,  1, 1, 1,  1,  1,  1,
@@ -128,7 +128,7 @@ uint8_t XamGetLanguageFromOnlineLanguage(uint8_t id) {
   return id < rex::countof(table) ? table[id] : 0;
 }
 
-const char16_t* XamGetOnlineLanguageString(uint8_t id) {
+const char16_t* XamGetOnlineLanguageString(u8 id) {
   static const char16_t* const table[] = {
       u"zz", u"en", u"ja", u"de", u"fr", u"es", u"it", u"ko", u"zh", u"pt", u"zh", u"pl", u"ru",
       u"da", u"fi", u"nb", u"nl", u"sv", u"cs", u"el", u"hu", u"sk", u"id", u"ms", u"ar", u"bg",
@@ -139,8 +139,8 @@ const char16_t* XamGetOnlineLanguageString(uint8_t id) {
   return id < rex::countof(table) ? table[id] : nullptr;
 }
 
-uint8_t XamGetCountryFromOnlineCountry(uint8_t id) {
-  static uint8_t const table[] = {
+u8 XamGetCountryFromOnlineCountry(u8 id) {
+  static u8 const table[] = {
       0,   1,   2,   3,   4,   5,   6,   7,   8,   9,   10,  11, 12, 13, 14, 15, 16,  0,  18, 19,
       20,  21,  22,  23,  24,  25,  26,  27,  28,  29,  30,  31, 32, 33, 34, 35, 36,  37, 38, 39,
       40,  41,  42,  43,  44,  45,  46,  47,  48,  49,  50,  51, 52, 53, 54, 55, 56,  57, 58, 59,
@@ -157,8 +157,8 @@ uint8_t XamGetCountryFromOnlineCountry(uint8_t id) {
   return id < rex::countof(table) ? table[id] : 0;
 }
 
-uint8_t XamGetLocaleFromCountry(uint8_t id) {
-  static uint8_t const table[] = {
+u8 XamGetLocaleFromCountry(u8 id) {
+  static u8 const table[] = {
       0,  43, 0,  0, 40, 2,  1,  0,  3,  0,  0,  0,  0,  4,  0,  0,  5,  0,  33, 6,  7,  8,  0,
       9,  13, 10, 0, 0,  0,  0,  0,  31, 11, 0,  12, 35, 0,  14, 0,  15, 0,  0,  16, 0,  18, 42,
       17, 0,  0,  0, 19, 0,  0,  20, 0,  0,  21, 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
@@ -168,11 +168,10 @@ uint8_t XamGetLocaleFromCountry(uint8_t id) {
   return id < rex::countof(table) ? table[id] : 0;
 }
 
-uint8_t XamGetLocaleEx(uint8_t max_country_id, uint8_t max_locale_id) {
-  uint8_t country_id =
-      static_cast<uint8_t>(runtime::Current().config().runtime.kernel.user_country);
+u8 XamGetLocaleEx(u8 max_country_id, u8 max_locale_id) {
+  u8 country_id = static_cast<u8>(runtime::Current().config().runtime.kernel.user_country);
   if (country_id <= max_country_id) {
-    uint8_t locale_id = XamGetLocaleFromCountry(country_id);
+    u8 locale_id = XamGetLocaleFromCountry(country_id);
     if (locale_id <= max_locale_id) {
       return locale_id;
     }
@@ -180,19 +179,19 @@ uint8_t XamGetLocaleEx(uint8_t max_country_id, uint8_t max_locale_id) {
 
   // Locale ids are 20 JP, 21 KR, 35 GB and 36 US.
   auto game_region = XGetGameRegion();
-  auto region = static_cast<uint8_t>((game_region & 0xFF00u) >> 8);
+  auto region = static_cast<u8>((game_region & 0xFF00u) >> 8);
   if (region == 1) {
     return game_region == 0x101 ? 20 : 21;
   }
   return region == 2 ? 35 : 36;
 }
 
-uint8_t XamGetLocale() {
+u8 XamGetLocale() {
   return XamGetLocaleEx(111, 43);
 }
 
 u32 XamGetLocale_entry() {
-  return static_cast<uint8_t>(XamGetLocale());
+  return static_cast<u8>(XamGetLocale());
 }
 
 u32 XamGetOnlineCountryFromLocale_entry(u32 id) {
@@ -204,7 +203,7 @@ u32 XamGetOnlineCountryString_entry(u32 id, u32 buffer_length, mapped_wstring bu
     return X_E_INVALIDARG;
   }
 
-  auto str = XamGetOnlineCountryString(static_cast<uint8_t>(id));
+  auto str = XamGetOnlineCountryString(static_cast<u8>(id));
   if (!str) {
     return X_E_NOTFOUND;
   }
@@ -224,7 +223,7 @@ u32 XamGetCountryString_entry(u32 id, u32 buffer_length, mapped_wstring buffer) 
     return X_E_INVALIDARG;
   }
 
-  auto str = XamGetCountryString(static_cast<uint8_t>(id));
+  auto str = XamGetCountryString(static_cast<u8>(id));
   if (!str) {
     return X_E_NOTFOUND;
   }
@@ -244,7 +243,7 @@ u32 XamGetLanguageString_entry(u32 id, u32 buffer_length, mapped_wstring buffer)
     return X_E_INVALIDARG;
   }
 
-  auto str = XamGetLanguageString(static_cast<uint8_t>(id));
+  auto str = XamGetLanguageString(static_cast<u8>(id));
   if (!str) {
     return X_E_NOTFOUND;
   }
@@ -265,12 +264,12 @@ u32 XamGetLanguageLocaleString_entry(u32 language_id, u32 locale_id, u32 buffer_
     return X_E_INVALIDARG;
   }
 
-  auto language_str = XamGetLanguageString(static_cast<uint8_t>(language_id));
+  auto language_str = XamGetLanguageString(static_cast<u8>(language_id));
   if (!language_str) {
     return X_E_NOTFOUND;
   }
 
-  auto locale_str = XamGetLocaleString(static_cast<uint8_t>(locale_id));
+  auto locale_str = XamGetLocaleString(static_cast<u8>(locale_id));
   if (!locale_str) {
     return X_E_NOTFOUND;
   }
@@ -291,12 +290,12 @@ u32 XamGetOnlineLanguageAndCountryString_entry(u32 language_id, u32 country_id, 
     return X_E_INVALIDARG;
   }
 
-  auto language_str = XamGetOnlineLanguageString(static_cast<uint8_t>(language_id));
+  auto language_str = XamGetOnlineLanguageString(static_cast<u8>(language_id));
   if (!language_str) {
     return X_E_NOTFOUND;
   }
 
-  auto country_str = XamGetOnlineCountryString(static_cast<uint8_t>(country_id));
+  auto country_str = XamGetOnlineCountryString(static_cast<u8>(country_id));
   if (!country_str) {
     return X_E_NOTFOUND;
   }
@@ -316,7 +315,7 @@ u32 XamGetLocaleString_entry(u32 id, u32 buffer_length, mapped_wstring buffer) {
     return X_E_INVALIDARG;
   }
 
-  auto str = XamGetLocaleString(static_cast<uint8_t>(id));
+  auto str = XamGetLocaleString(static_cast<u8>(id));
   if (!str) {
     return X_E_NOTFOUND;
   }
@@ -332,11 +331,11 @@ u32 XamGetLocaleString_entry(u32 id, u32 buffer_length, mapped_wstring buffer) {
 }
 
 u32 XamGetLocaleFromOnlineCountry_entry(u32 id) {
-  return XamGetLocaleFromOnlineCountry(static_cast<uint8_t>(id));
+  return XamGetLocaleFromOnlineCountry(static_cast<u8>(id));
 }
 
 u32 XamGetLanguageFromOnlineLanguage_entry(u32 id) {
-  return XamGetLanguageFromOnlineLanguage(static_cast<uint8_t>(id));
+  return XamGetLanguageFromOnlineLanguage(static_cast<u8>(id));
 }
 
 u32 XamGetOnlineLanguageString_entry(u32 id, u32 buffer_length, mapped_wstring buffer) {
@@ -344,7 +343,7 @@ u32 XamGetOnlineLanguageString_entry(u32 id, u32 buffer_length, mapped_wstring b
     return X_E_INVALIDARG;
   }
 
-  auto str = XamGetOnlineLanguageString(static_cast<uint8_t>(id));
+  auto str = XamGetOnlineLanguageString(static_cast<u8>(id));
   if (!str) {
     return X_E_NOTFOUND;
   }
@@ -360,11 +359,11 @@ u32 XamGetOnlineLanguageString_entry(u32 id, u32 buffer_length, mapped_wstring b
 }
 
 u32 XamGetCountryFromOnlineCountry_entry(u32 id) {
-  return XamGetCountryFromOnlineCountry(static_cast<uint8_t>(id));
+  return XamGetCountryFromOnlineCountry(static_cast<u8>(id));
 }
 
 u32 XamGetLocaleEx_entry(u32 max_country_id, u32 max_locale_id) {
-  return XamGetLocaleEx(static_cast<uint8_t>(max_country_id), static_cast<uint8_t>(max_locale_id));
+  return XamGetLocaleEx(static_cast<u8>(max_country_id), static_cast<u8>(max_locale_id));
 }
 
 }  // namespace xam

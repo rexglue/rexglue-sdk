@@ -12,12 +12,12 @@ static_assert(REX_PLATFORM_LINUX || REX_PLATFORM_MAC, "This file is POSIX-only")
 
 namespace rex {
 
-uint64_t Clock::host_tick_frequency_platform() noexcept {
+u64 Clock::host_tick_frequency_platform() noexcept {
 #ifdef __APPLE__
   mach_timebase_info_data_t info;
   mach_timebase_info(&info);
-  return static_cast<uint64_t>((1000000000ull * static_cast<uint64_t>(info.denom)) /
-                               static_cast<uint64_t>(info.numer));
+  return static_cast<u64>((1000000000ull * static_cast<u64>(info.denom)) /
+                          static_cast<u64>(info.numer));
 #else
   timespec res;
   int error = clock_getres(CLOCK_MONOTONIC, &res);
@@ -29,7 +29,7 @@ uint64_t Clock::host_tick_frequency_platform() noexcept {
 #endif
 }
 
-uint64_t Clock::host_tick_count_platform() {
+u64 Clock::host_tick_count_platform() {
 #ifdef __APPLE__
   // Ticks must stay in mach units, since nanoseconds against the 24 MHz frequency run 41x fast.
   return mach_absolute_time();
@@ -42,20 +42,20 @@ uint64_t Clock::host_tick_count_platform() {
 #endif
 }
 
-uint64_t Clock::QueryHostSystemTime() noexcept {
-  constexpr uint64_t seconds_per_day = 3600 * 24;
-  constexpr uint64_t seconds_1601_to_1970 = ((369 * 365 + 89) * seconds_per_day);
+u64 Clock::QueryHostSystemTime() noexcept {
+  constexpr u64 seconds_per_day = 3600 * 24;
+  constexpr u64 seconds_1601_to_1970 = ((369 * 365 + 89) * seconds_per_day);
 
   timeval now;
   int error = gettimeofday(&now, nullptr);
   REX_ASSERT(error == 0);
 
   // FILETIME counts 100ns intervals.
-  return static_cast<uint64_t>(
-      (static_cast<int64_t>(now.tv_sec) + seconds_1601_to_1970) * 10000000ull + now.tv_usec * 10);
+  return static_cast<u64>((static_cast<i64>(now.tv_sec) + seconds_1601_to_1970) * 10000000ull +
+                          now.tv_usec * 10);
 }
 
-uint64_t Clock::QueryHostUptimeMillis() {
+u64 Clock::QueryHostUptimeMillis() {
   return host_tick_count_platform() * 1000 / host_tick_frequency_platform();
 }
 

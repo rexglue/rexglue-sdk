@@ -38,8 +38,8 @@ class XamApp : public runtime::xam::App {
    * @param buffer_length Size of the message buffer in bytes.
    * @return The result code returned to the title.
    */
-  REX_RUNTIME_API X_HRESULT DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
-                                                uint32_t buffer_length) override;
+  REX_RUNTIME_API X_HRESULT DispatchMessageSync(u32 message, u32 buffer_ptr,
+                                                u32 buffer_length) override;
 };
 
 }  // namespace apps

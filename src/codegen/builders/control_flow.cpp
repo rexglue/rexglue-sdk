@@ -18,7 +18,7 @@
 namespace rex::codegen {
 
 bool build_b(BuilderContext& ctx) {
-  uint32_t target = ctx.insn.operands[0];
+  u32 target = ctx.insn.operands[0];
 
   auto kind = ctx.graph().classifyTarget(target, ctx.base, false);
 
@@ -47,7 +47,7 @@ bool build_b(BuilderContext& ctx) {
 }
 
 bool build_bl(BuilderContext& ctx) {
-  uint32_t target = ctx.insn.operands[0];
+  u32 target = ctx.insn.operands[0];
 
   if (!ctx.config().skipLr)
     ctx.println("\tctx.lr = 0x{:X};", ctx.base + 4);
@@ -84,7 +84,7 @@ bool build_blrl(BuilderContext& ctx) {
   ctx.println("\t{{ auto old_lr = ctx.lr;");
   if (!ctx.config().skipLr)
     ctx.println("\tctx.lr = 0x{:X};", ctx.base + 4);
-  ctx.println("\tREX_CALL_INDIRECT_FUNC(uint32_t(old_lr)); }}");
+  ctx.println("\tREX_CALL_INDIRECT_FUNC(u32(old_lr)); }}");
   ctx.csrState = CSRState::Unknown;
   return true;
 }

@@ -19,7 +19,7 @@ BinaryView BinaryView::fromModule(const runtime::Module& module) {
   view.exportTableAddr_ = module.export_table_address();
 
   // Import thunk table and the export table after it extend to the end of .text
-  uint32_t minImportAddr = std::numeric_limits<uint32_t>::max();
+  u32 minImportAddr = std::numeric_limits<u32>::max();
   for (const auto& sym : module.binary_symbols()) {
     if (sym.type == runtime::BinarySymbolType::Import) {
       view.importSymbols_.push_back(ImportSymbol{.address = sym.address, .name = sym.name});
@@ -29,12 +29,12 @@ BinaryView BinaryView::fromModule(const runtime::Module& module) {
       }
     }
   }
-  if (minImportAddr != std::numeric_limits<uint32_t>::max()) {
+  if (minImportAddr != std::numeric_limits<u32>::max()) {
     view.importThunkTableStart_ = minImportAddr;
     REXLOG_DEBUG(codegen, "BinaryView: import thunk table starts at 0x{:08X}", minImportAddr);
 
     for (const auto& section : module.binary_sections()) {
-      uint32_t sectionEnd = section.virtual_address + section.virtual_size;
+      u32 sectionEnd = section.virtual_address + section.virtual_size;
       if (minImportAddr >= section.virtual_address && minImportAddr < sectionEnd) {
         view.importExportRangeEnd_ = sectionEnd;
         REXLOG_DEBUG(codegen,
@@ -51,7 +51,7 @@ BinaryView BinaryView::fromModule(const runtime::Module& module) {
   view.sectionData_.reserve(binarySections.size());
   view.sections_.reserve(binarySections.size());
 
-  uint32_t imageEnd = view.baseAddress_ + view.imageSize_;
+  u32 imageEnd = view.baseAddress_ + view.imageSize_;
   for (const auto& section : binarySections) {
     if (!section.host_data || section.virtual_size == 0) {
       REXLOG_DEBUG(codegen, "BinaryView: skipping unmapped section '{}'", section.name);
@@ -83,7 +83,7 @@ BinaryView BinaryView::fromModule(const runtime::Module& module) {
   return view;
 }
 
-const uint8_t* BinaryView::translate(uint32_t addr) const {
+const u8* BinaryView::translate(u32 addr) const {
   for (const auto& section : sections_) {
     if (auto* ptr = section.translate(addr)) {
       return ptr;
@@ -92,14 +92,14 @@ const uint8_t* BinaryView::translate(uint32_t addr) const {
   return nullptr;
 }
 
-bool BinaryView::isExecutable(uint32_t addr) const {
+bool BinaryView::isExecutable(u32 addr) const {
   if (auto* section = findSection(addr)) {
     return section->executable;
   }
   return false;
 }
 
-const SectionView* BinaryView::findSection(uint32_t addr) const {
+const SectionView* BinaryView::findSection(u32 addr) const {
   for (const auto& section : sections_) {
     if (section.contains(addr)) {
       return &section;

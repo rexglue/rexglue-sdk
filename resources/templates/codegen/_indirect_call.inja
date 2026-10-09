@@ -22,9 +22,9 @@
 #define REX_CALL_INDIRECT_FUNC(x)                                                          \
   do {                                                                                     \
     REX_PROFILE_INDIRECT_DISPATCH();                                                       \
-    uint32_t rex_indirect_target_ = (uint32_t)(x);                                         \
+    u32 rex_indirect_target_ = (u32)(x);                                                   \
     PPCFunc* rex_indirect_func_;                                                           \
-    if ((uint32_t)(rex_indirect_target_ - REX_CODE_BASE) <                                 \
+    if ((u32)(rex_indirect_target_ - REX_CODE_BASE) <                                      \
         REX_CODE_SIZE + REX_THUNK_RESERVE_SIZE) [[likely]] {                               \
       rex_indirect_func_ = REX_LOOKUP_FUNC(base, rex_indirect_target_);                    \
     } else {                                                                               \

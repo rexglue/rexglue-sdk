@@ -93,8 +93,8 @@ class VulkanSubmissionTracker : public rex::NonCopyable {
 
   void Shutdown();
 
-  uint64_t GetCurrentSubmission() const { return submission_current_; }
-  uint64_t UpdateAndGetCompletedSubmission();
+  u64 GetCurrentSubmission() const { return submission_current_; }
+  u64 UpdateAndGetCompletedSubmission();
 
   /**
    * Reports whether the expected GPU signal was reached rather than a fallback condition.
@@ -111,7 +111,7 @@ class VulkanSubmissionTracker : public rex::NonCopyable {
    * @param submission_index The submission to await.
    * @return True when the expected GPU signal was reached.
    */
-  bool AwaitSubmissionCompletion(uint64_t submission_index);
+  bool AwaitSubmissionCompletion(u64 submission_index);
   bool AwaitAllSubmissionsCompletion() {
     return AwaitSubmissionCompletion(submission_current_ - 1);
   }
@@ -120,9 +120,9 @@ class VulkanSubmissionTracker : public rex::NonCopyable {
 
  private:
   const VulkanDevice* vulkan_device_;
-  uint64_t submission_current_ = 1;
+  u64 submission_current_ = 1;
   /** Last submission with a successful fence signal and a successful fence wait or query. */
-  uint64_t submission_completed_on_gpu_ = 0;
+  u64 submission_completed_on_gpu_ = 0;
   /**
    * A fence goes from reclaimed (or created when none) to acquired, pending, then reclaimed.
    *
@@ -130,7 +130,7 @@ class VulkanSubmissionTracker : public rex::NonCopyable {
    */
   VkFence fence_acquired_ = VK_NULL_HANDLE;
   /** Ordered by the submission index, the first pair member. */
-  std::deque<std::pair<uint64_t, VkFence>> fences_pending_;
+  std::deque<std::pair<u64, VkFence>> fences_pending_;
   /** Fences are reclaimed when awaiting or refreshing the completed value. */
   std::vector<VkFence> fences_reclaimed_;
 };

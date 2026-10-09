@@ -32,14 +32,14 @@ using namespace rex::codegen;
 
 namespace {
 
-constexpr uint32_t kBaseAddress = 0x82000000;
-constexpr uint32_t kFunctionCount = 4;
+constexpr u32 kBaseAddress = 0x82000000;
+constexpr u32 kFunctionCount = 4;
 
 // Big-endian `blr` (0x4E800020), one instruction per test function.
-std::vector<uint8_t> MakeBlrBinary(uint32_t functionCount) {
-  std::vector<uint8_t> data;
+std::vector<u8> MakeBlrBinary(u32 functionCount) {
+  std::vector<u8> data;
   data.reserve(functionCount * 4);
-  for (uint32_t i = 0; i < functionCount; ++i) {
+  for (u32 i = 0; i < functionCount; ++i) {
     data.insert(data.end(), {0x4E, 0x80, 0x00, 0x20});
   }
   return data;
@@ -54,11 +54,11 @@ std::string ReadAll(const fs::path& path) {
 /// Fake module, context with a sealed function per `blr`, scratch output tree.
 struct WriterFixture {
   fs::path root;
-  std::vector<uint8_t> data;
+  std::vector<u8> data;
   TestModule module;
   std::optional<CodegenContext> ctx;
 
-  explicit WriterFixture(std::string_view name, uint32_t functionCount = kFunctionCount)
+  explicit WriterFixture(std::string_view name, u32 functionCount = kFunctionCount)
       : root(fs::temp_directory_path() / "rexglue_writer_test" / fs::path(name)),
         data(MakeBlrBinary(functionCount)) {
     fs::remove_all(root);
@@ -75,10 +75,10 @@ struct WriterFixture {
     ctx->analysisState().format = "xex";
     ctx->analysisState().loadAddress = kBaseAddress;
     ctx->analysisState().entryPoint = kBaseAddress;
-    ctx->analysisState().imageSize = static_cast<uint32_t>(data.size());
+    ctx->analysisState().imageSize = static_cast<u32>(data.size());
 
-    for (uint32_t i = 0; i < functionCount; ++i) {
-      uint32_t addr = kBaseAddress + i * 4;
+    for (u32 i = 0; i < functionCount; ++i) {
+      u32 addr = kBaseAddress + i * 4;
       auto* node = ctx->graph.addFunction(addr, 4, FunctionAuthority::DISCOVERED, true);
       REQUIRE(node != nullptr);
       node->discover({{addr, 4}}, {}, {});

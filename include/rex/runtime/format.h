@@ -69,9 +69,9 @@ enum ArgumentSize {
 
 /** Format string source that also collects the output. */
 template <typename T>
-concept FormatDataSource = requires(T& t, int32_t n, uint16_t c) {
-  { t.get() } -> std::same_as<uint16_t>;
-  { t.peek(n) } -> std::same_as<uint16_t>;
+concept FormatDataSource = requires(T& t, i32 n, u16 c) {
+  { t.get() } -> std::same_as<u16>;
+  { t.peek(n) } -> std::same_as<u16>;
   { t.skip(n) } -> std::same_as<void>;
   { t.put(c) } -> std::same_as<bool>;
 };
@@ -79,8 +79,8 @@ concept FormatDataSource = requires(T& t, int32_t n, uint16_t c) {
 /** Source of 32 bit and 64 bit variadic arguments. */
 template <typename T>
 concept ArgListSource = requires(T& t) {
-  { t.get32() } -> std::same_as<uint32_t>;
-  { t.get64() } -> std::same_as<uint64_t>;
+  { t.get32() } -> std::same_as<u32>;
+  { t.get64() } -> std::same_as<u64>;
 };
 
 /**
@@ -92,7 +92,7 @@ concept ArgListSource = requires(T& t) {
  * @param flags FormatFlags bits.
  * @return The formatted text.
  */
-inline std::string format_double(double value, int32_t precision, uint16_t c, uint32_t flags) {
+inline std::string format_double(f64 value, i32 precision, u16 c, u32 flags) {
   if (precision < 0) {
     precision = 6;
   } else if (precision == 0 && c == 'g') {
@@ -138,18 +138,18 @@ class StackArgList {
    * @param base The host base of guest memory.
    * @param start_index Index of the first variadic argument, counting the fixed parameters.
    */
-  StackArgList(PPCContext& ctx, uint8_t* base, int32_t start_index)
+  StackArgList(PPCContext& ctx, u8* base, i32 start_index)
       : ctx_(ctx), base_(base), index_(start_index) {}
 
-  uint32_t get32() { return static_cast<uint32_t>(get64()); }
+  u32 get32() { return static_cast<u32>(get64()); }
 
   /**
    * Returns the next argument and advances the index.
    *
    * @return The argument as a 64 bit value.
    */
-  uint64_t get64() {
-    uint64_t value;
+  u64 get64() {
+    u64 value;
     if (index_ <= 7) {
       switch (index_) {
         case 0:
@@ -181,7 +181,7 @@ class StackArgList {
           break;
       }
     } else {
-      uint32_t stack_addr = ctx_.r1.u32 + 0x54 + ((index_ - 8) * 8);
+      u32 stack_addr = ctx_.r1.u32 + 0x54 + ((index_ - 8) * 8);
       value = static_cast<u64>(*rex::runtime::GuestPtr<be_u64*>(base_, stack_addr));
     }
     ++index_;
@@ -190,8 +190,8 @@ class StackArgList {
 
  private:
   PPCContext& ctx_;
-  uint8_t* base_;
-  int32_t index_;
+  u8* base_;
+  i32 index_;
 };
 
 /**
@@ -206,26 +206,26 @@ class ArrayArgList {
    * @param base The host base of guest memory.
    * @param arg_ptr Guest address of the va_list array.
    */
-  ArrayArgList(uint8_t* base, uint32_t arg_ptr) : base_(base), arg_ptr_(arg_ptr), index_(0) {}
+  ArrayArgList(u8* base, u32 arg_ptr) : base_(base), arg_ptr_(arg_ptr), index_(0) {}
 
-  uint32_t get32() { return static_cast<uint32_t>(get64()); }
+  u32 get32() { return static_cast<u32>(get64()); }
 
   /**
    * Returns the next argument and advances the index.
    *
    * @return The argument as a 64 bit value.
    */
-  uint64_t get64() {
-    uint32_t addr = arg_ptr_ + (8 * index_);
-    uint64_t value = static_cast<u64>(*rex::runtime::GuestPtr<be_u64*>(base_, addr));
+  u64 get64() {
+    u32 addr = arg_ptr_ + (8 * index_);
+    u64 value = static_cast<u64>(*rex::runtime::GuestPtr<be_u64*>(base_, addr));
     ++index_;
     return value;
   }
 
  private:
-  uint8_t* base_;
-  uint32_t arg_ptr_;
-  int32_t index_;
+  u8* base_;
+  u32 arg_ptr_;
+  i32 index_;
 };
 
 /** Narrow char format string source and sink. */
@@ -236,29 +236,29 @@ class StringFormatData {
    *
    * @param input Host pointer to the NUL terminated narrow format string.
    */
-  explicit StringFormatData(const uint8_t* input) : input_(input) {}
+  explicit StringFormatData(const u8* input) : input_(input) {}
 
   /**
    * Returns the next character and advances, or returns 0 at the end without advancing.
    *
    * @return The character.
    */
-  uint16_t get() {
-    uint16_t result = *input_;
+  u16 get() {
+    u16 result = *input_;
     if (result) {
       input_++;
     }
     return result;
   }
 
-  uint16_t peek(int32_t offset) { return input_[offset]; }
+  u16 peek(i32 offset) { return input_[offset]; }
 
   /**
    * Advances past up to count characters, stopping at the end.
    *
    * @param count Number of characters to skip.
    */
-  void skip(int32_t count) {
+  void skip(i32 count) {
     while (count-- > 0) {
       if (!get()) {
         break;
@@ -272,7 +272,7 @@ class StringFormatData {
    * @param c The character.
    * @return True when appended, false when c does not fit in a narrow character.
    */
-  bool put(uint16_t c) {
+  bool put(u16 c) {
     if (c >= 0x100) {
       return false;
     }
@@ -283,7 +283,7 @@ class StringFormatData {
   const std::string& str() const { return output_; }
 
  private:
-  const uint8_t* input_;
+  const u8* input_;
   std::string output_;
 };
 
@@ -295,29 +295,29 @@ class WideStringFormatData {
    *
    * @param input Host pointer to the NUL terminated big endian UTF-16 format string.
    */
-  explicit WideStringFormatData(const uint16_t* input) : input_(input) {}
+  explicit WideStringFormatData(const u16* input) : input_(input) {}
 
   /**
    * Returns the next character and advances, or returns 0 at the end without advancing.
    *
    * @return The character.
    */
-  uint16_t get() {
-    uint16_t result = memory::load<be_u16>(input_);
+  u16 get() {
+    u16 result = memory::load<be_u16>(input_);
     if (result) {
       input_++;
     }
     return result;
   }
 
-  uint16_t peek(int32_t offset) { return memory::load<be_u16>(input_ + offset); }
+  u16 peek(i32 offset) { return memory::load<be_u16>(input_ + offset); }
 
   /**
    * Advances past up to count characters, stopping at the end.
    *
    * @param count Number of characters to skip.
    */
-  void skip(int32_t count) {
+  void skip(i32 count) {
     while (count-- > 0) {
       if (!get()) {
         break;
@@ -331,7 +331,7 @@ class WideStringFormatData {
    * @param c The character.
    * @return True always.
    */
-  bool put(uint16_t c) {
+  bool put(u16 c) {
     output_.push_back(char16_t(c));
     return true;
   }
@@ -339,7 +339,7 @@ class WideStringFormatData {
   const std::u16string& wstr() const { return output_; }
 
  private:
-  const uint16_t* input_;
+  const u16* input_;
   std::u16string output_;
 };
 
@@ -351,29 +351,29 @@ class WideCountFormatData {
    *
    * @param input Host pointer to the NUL terminated big endian UTF-16 format string.
    */
-  explicit WideCountFormatData(const uint16_t* input) : input_(input), count_(0) {}
+  explicit WideCountFormatData(const u16* input) : input_(input), count_(0) {}
 
   /**
    * Returns the next character and advances, or returns 0 at the end without advancing.
    *
    * @return The character.
    */
-  uint16_t get() {
-    uint16_t result = memory::load<be_u16>(input_);
+  u16 get() {
+    u16 result = memory::load<be_u16>(input_);
     if (result) {
       input_++;
     }
     return result;
   }
 
-  uint16_t peek(int32_t offset) { return memory::load<be_u16>(input_ + offset); }
+  u16 peek(i32 offset) { return memory::load<be_u16>(input_ + offset); }
 
   /**
    * Advances past up to count characters, stopping at the end.
    *
    * @param count Number of characters to skip.
    */
-  void skip(int32_t count) {
+  void skip(i32 count) {
     while (count-- > 0) {
       if (!get()) {
         break;
@@ -387,16 +387,16 @@ class WideCountFormatData {
    * @param c The character, unused.
    * @return True always.
    */
-  bool put([[maybe_unused]] uint16_t c) {
+  bool put([[maybe_unused]] u16 c) {
     ++count_;
     return true;
   }
 
-  int32_t count() const { return count_; }
+  i32 count() const { return count_; }
 
  private:
-  const uint16_t* input_;
-  int32_t count_;
+  const u16* input_;
+  i32 count_;
 };
 
 /**
@@ -411,30 +411,30 @@ class WideCountFormatData {
  * @return The number of characters written, or -1 on failure.
  */
 template <FormatDataSource Data, ArgListSource Args>
-int32_t format_core(uint8_t* base, Data& data, Args& args, const bool wide) {
-  int32_t count = 0;
+i32 format_core(u8* base, Data& data, Args& args, const bool wide) {
+  i32 count = 0;
 
   char work8[512];
   char16_t work16[4];
 
   struct {
     const void* buffer;
-    int32_t length;
+    i32 length;
     bool is_wide;
     bool swap_wide;
   } text;
 
   struct {
     char buffer[2];
-    int32_t length;
+    i32 length;
   } prefix;
 
   auto state = FS_Unknown;
-  uint32_t flags = 0;
-  int32_t width = 0;
-  int32_t precision = -1;
+  u32 flags = 0;
+  i32 width = 0;
+  i32 precision = -1;
   [[maybe_unused]] ArgumentSize size = AS_Default;
-  int32_t radix = 0;
+  i32 radix = 0;
   const char* digits = nullptr;
 
   text.buffer = nullptr;
@@ -444,7 +444,7 @@ int32_t format_core(uint8_t* base, Data& data, Args& args, const bool wide) {
   prefix.buffer[0] = '\0';
   prefix.length = 0;
 
-  for (uint16_t c = data.get();; c = data.get()) {
+  for (u16 c = data.get();; c = data.get()) {
     if (state == FS_Unknown) {
       if (!c) {
         return count;
@@ -522,7 +522,7 @@ int32_t format_core(uint8_t* base, Data& data, Args& args, const bool wide) {
 
       case FS_Width: {
         if (c == '*') {
-          width = static_cast<int32_t>(args.get32());
+          width = static_cast<i32>(args.get32());
           if (width < 0) {
             flags |= FF_LeftJustify;
             width = -width;
@@ -550,7 +550,7 @@ int32_t format_core(uint8_t* base, Data& data, Args& args, const bool wide) {
 
       case FS_Precision: {
         if (c == '*') {
-          precision = static_cast<int32_t>(args.get32());
+          precision = static_cast<i32>(args.get32());
           if (precision < 0) {
             precision = -1;
           }
@@ -624,12 +624,12 @@ int32_t format_core(uint8_t* base, Data& data, Args& args, const bool wide) {
             auto value = args.get32();
 
             if (!is_wide) {
-              work8[0] = static_cast<uint8_t>(value);
+              work8[0] = static_cast<u8>(value);
               text.buffer = &work8[0];
               text.length = 1;
               text.is_wide = false;
             } else {
-              work16[0] = static_cast<uint16_t>(value);
+              work16[0] = static_cast<u16>(value);
               text.buffer = &work16[0];
               text.length = 1;
               text.is_wide = true;
@@ -649,20 +649,20 @@ int32_t format_core(uint8_t* base, Data& data, Args& args, const bool wide) {
             REX_ASSERT(digits != nullptr);
             REX_ASSERT(radix != 0);
 
-            int64_t value;
+            i64 value;
 
             if (flags & FF_IsLongLong) {
-              value = static_cast<int64_t>(args.get64());
+              value = static_cast<i64>(args.get64());
             } else if (flags & FF_IsLong) {
-              value = static_cast<int32_t>(args.get32());
+              value = static_cast<i32>(args.get32());
             } else if (flags & FF_IsShort) {
-              value = static_cast<int16_t>(args.get32());
+              value = static_cast<i16>(args.get32());
             } else {
-              value = static_cast<int32_t>(args.get32());
+              value = static_cast<i32>(args.get32());
             }
 
             if (precision >= 0) {
-              precision = std::min(precision, static_cast<int32_t>(std::size(work8)));
+              precision = std::min(precision, static_cast<i32>(std::size(work8)));
             } else {
               precision = 1;
             }
@@ -685,9 +685,9 @@ int32_t format_core(uint8_t* base, Data& data, Args& args, const bool wide) {
             start[0] = '\0';
 
             while (precision-- > 0 || value != 0) {
-              auto digit = static_cast<int32_t>(value % radix);
+              auto digit = static_cast<i32>(value % radix);
               value /= radix;
-              REX_ASSERT(digit < static_cast<int32_t>(strlen(digits)));
+              REX_ASSERT(digit < static_cast<i32>(strlen(digits)));
               *--start = digits[digit];
             }
 
@@ -696,7 +696,7 @@ int32_t format_core(uint8_t* base, Data& data, Args& args, const bool wide) {
             }
 
             text.buffer = start;
-            text.length = static_cast<int32_t>(end - start);
+            text.length = static_cast<i32>(end - start);
             text.is_wide = false;
             break;
           }
@@ -739,7 +739,7 @@ int32_t format_core(uint8_t* base, Data& data, Args& args, const bool wide) {
           case 'A': {
             flags |= FF_IsSigned;
 
-            int64_t dummy = args.get64();
+            i64 dummy = args.get64();
             f64 value = std::bit_cast<f64>(dummy);
 
             if (value < 0) {
@@ -748,8 +748,8 @@ int32_t format_core(uint8_t* base, Data& data, Args& args, const bool wide) {
             }
 
             auto s = format_double(value, precision, c, flags);
-            auto length = static_cast<int32_t>(s.size());
-            REX_ASSERT(length < static_cast<int32_t>(std::size(work8)));
+            auto length = static_cast<i32>(s.size());
+            REX_ASSERT(length < static_cast<i32>(std::size(work8)));
 
             auto fstart = &work8[0];
             auto fend = &fstart[length];
@@ -758,13 +758,13 @@ int32_t format_core(uint8_t* base, Data& data, Args& args, const bool wide) {
             fend[0] = '\0';
 
             text.buffer = fstart;
-            text.length = static_cast<int32_t>(fend - fstart);
+            text.length = static_cast<i32>(fend - fstart);
             text.is_wide = false;
             break;
           }
 
           case 'n': {
-            auto pointer = static_cast<uint32_t>(args.get32());
+            auto pointer = static_cast<u32>(args.get32());
             if (flags & FF_IsShort) {
               *rex::runtime::GuestPtr<be_u16*>(base, pointer) = static_cast<u16>(count);
             } else {
@@ -788,13 +788,13 @@ int32_t format_core(uint8_t* base, Data& data, Args& args, const bool wide) {
           }
 
           case 's': {
-            uint32_t pointer = args.get32();
-            int32_t cap = precision < 0 ? INT32_MAX : precision;
+            u32 pointer = args.get32();
+            i32 cap = precision < 0 ? INT32_MAX : precision;
 
             if (pointer == 0) {
               auto nullstr = "(null)";
               text.buffer = nullstr;
-              text.length = std::min(static_cast<int32_t>(strlen(nullstr)), cap);
+              text.length = std::min(static_cast<i32>(strlen(nullstr)), cap);
               text.is_wide = false;
             } else {
               void* str = rex::runtime::GuestPtr<void*>(base, pointer);
@@ -806,16 +806,16 @@ int32_t format_core(uint8_t* base, Data& data, Args& args, const bool wide) {
               } else {
                 is_wide = ((flags & FF_InvertWide) != 0) ^ wide;
               }
-              int32_t length;
+              i32 length;
 
               if (!is_wide) {
                 length = 0;
-                for (auto s = static_cast<const uint8_t*>(str); cap > 0 && *s; ++s, cap--) {
+                for (auto s = static_cast<const u8*>(str); cap > 0 && *s; ++s, cap--) {
                   length++;
                 }
               } else {
                 length = 0;
-                for (auto s = static_cast<const uint16_t*>(str); cap > 0 && *s; ++s, cap--) {
+                for (auto s = static_cast<const u16*>(str); cap > 0 && *s; ++s, cap--) {
                   length++;
                 }
               }
@@ -852,7 +852,7 @@ int32_t format_core(uint8_t* base, Data& data, Args& args, const bool wide) {
       }
     }
 
-    int32_t padding = width - text.length - prefix.length;
+    i32 padding = width - text.length - prefix.length;
 
     if (!(flags & (FF_LeftJustify | FF_AddLeadingZeros)) && padding > 0) {
       count += padding;
@@ -864,7 +864,7 @@ int32_t format_core(uint8_t* base, Data& data, Args& args, const bool wide) {
     }
 
     if (prefix.length > 0) {
-      int32_t remaining = prefix.length;
+      i32 remaining = prefix.length;
       count += prefix.length;
       auto b = &prefix.buffer[0];
       while (remaining-- > 0) {
@@ -883,16 +883,16 @@ int32_t format_core(uint8_t* base, Data& data, Args& args, const bool wide) {
       }
     }
 
-    int32_t remaining = text.length;
+    i32 remaining = text.length;
     if (!text.is_wide) {
-      auto b = static_cast<const uint8_t*>(text.buffer);
+      auto b = static_cast<const u8*>(text.buffer);
       while (remaining-- > 0) {
         if (!data.put(*b++)) {
           return -1;
         }
       }
     } else {
-      auto b = static_cast<const uint16_t*>(text.buffer);
+      auto b = static_cast<const u16*>(text.buffer);
       if (text.swap_wide) {
         while (remaining-- > 0) {
           if (!data.put(memory::load<be_u16>(b++))) {

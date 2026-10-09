@@ -50,7 +50,7 @@ u32 XamFeatureEnabled_entry([[maybe_unused]] u32 unk) {
   return 0;
 }
 
-uint8_t schema_bin[] = {
+u8 schema_bin[] = {
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x2C, 0x00, 0x00, 0x00, 0x2C, 0x00, 0x00, 0x00, 0x2C, 0x00, 0x00, 0x00, 0x04, 0x00, 0x00,
     0x00, 0x2C, 0x00, 0x00, 0x00, 0x00, 0x00, 0x2C, 0x00, 0x00, 0x00, 0x00, 0x00, 0x18,
@@ -63,7 +63,7 @@ struct XAM_SCHEMA_INFO {
 REX_STATIC_ASSERT_SIZE(XAM_SCHEMA_INFO, 8);
 
 u32 XamGetOnlineSchema_entry() {
-  static uint32_t schema_guest = 0;
+  static u32 schema_guest = 0;
 
   if (!schema_guest) {
     schema_guest =
@@ -131,9 +131,9 @@ void XamFormatTimeString_entry([[maybe_unused]] u32 unk, u64 filetime, mapped_vo
   rex::copy_and_swap_truncating(output_buffer.as<char16_t*>(), str, output_count);
 }
 
-u32 keXamBuildResourceLocator(uint64_t module, std::u16string_view container,
+u32 keXamBuildResourceLocator(u64 module, std::u16string_view container,
                               std::u16string_view resource, mapped_void buffer_ptr,
-                              uint32_t buffer_count) {
+                              u32 buffer_count) {
   std::u16string path;
   if (!module) {
     path = rex::to_utf16(
@@ -189,7 +189,7 @@ u32 XGetAVPack_entry() {
   return 6;
 }
 
-uint32_t XGetGameRegion() {
+u32 XGetGameRegion() {
   return 0xFFFFu;
 }
 
@@ -200,14 +200,14 @@ u32 XGetGameRegion_entry() {
 u32 XGetLanguage_entry() {
   auto desired_language = XLanguage::kEnglish;
 
-  uint32_t game_region = XEX_REGION_NTSCU;
+  u32 game_region = XEX_REGION_NTSCU;
   if (game_region & XEX_REGION_NTSCU) {
     desired_language = XLanguage::kEnglish;
   } else if (game_region & XEX_REGION_NTSCJ) {
     desired_language = XLanguage::kJapanese;
   }
 
-  return static_cast<uint32_t>(desired_language);
+  return static_cast<u32>(desired_language);
 }
 
 u32 XamGetCurrentTitleId_entry() {
@@ -224,7 +224,7 @@ u32 XamGetExecutionId_entry(mapped_u32 info_ptr) {
       runtime::Current().module_registry().executable().value_or(0));
   REX_ASSERT(module);
 
-  uint32_t guest_hdr_ptr;
+  u32 guest_hdr_ptr;
   X_STATUS result = UserModuleGetOptHeader(*module, XEX_HEADER_EXECUTION_INFO, &guest_hdr_ptr);
 
   if (XFAILED(result)) {
@@ -256,7 +256,7 @@ u32 XamLoaderGetLaunchDataSize_entry(mapped_u32 size_ptr) {
     return X_ERROR_NOT_FOUND;
   }
 
-  *size_ptr = static_cast<uint32_t>(loader_data.launch_data.size());
+  *size_ptr = static_cast<u32>(loader_data.launch_data.size());
   return X_ERROR_SUCCESS;
 }
 
@@ -267,8 +267,8 @@ u32 XamLoaderGetLaunchData_entry(mapped_void buffer_ptr, u32 buffer_size) {
     return X_ERROR_NOT_FOUND;
   }
 
-  uint32_t copy_size = std::min(static_cast<uint32_t>(loader_data.launch_data.size()),
-                                static_cast<uint32_t>(buffer_size));
+  u32 copy_size =
+      std::min(static_cast<u32>(loader_data.launch_data.size()), static_cast<u32>(buffer_size));
   std::memcpy(buffer_ptr, loader_data.launch_data.data(), copy_size);
   return X_ERROR_SUCCESS;
 }
@@ -339,7 +339,7 @@ u32 XamLoaderGetDvdTrayState_entry(mapped_u32 out_state) {
 }
 
 u32 XamSwapDisc_entry(u32 disc_number) {
-  REX_KERNEL_STUB("XamSwapDisc({})", static_cast<uint32_t>(disc_number));
+  REX_KERNEL_STUB("XamSwapDisc({})", static_cast<u32>(disc_number));
   return X_STATUS_SUCCESS;
 }
 

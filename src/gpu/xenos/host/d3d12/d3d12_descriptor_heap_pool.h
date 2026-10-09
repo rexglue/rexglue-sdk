@@ -24,13 +24,12 @@ namespace rex::gpu::d3d12 {
  */
 class D3D12DescriptorHeapPool {
  public:
-  static constexpr uint64_t kHeapIndexInvalid = UINT64_MAX;
+  static constexpr u64 kHeapIndexInvalid = UINT64_MAX;
 
-  D3D12DescriptorHeapPool(ID3D12Device* device, D3D12_DESCRIPTOR_HEAP_TYPE type,
-                          uint32_t page_size);
+  D3D12DescriptorHeapPool(ID3D12Device* device, D3D12_DESCRIPTOR_HEAP_TYPE type, u32 page_size);
   ~D3D12DescriptorHeapPool();
 
-  void Reclaim(uint64_t completed_submission_index);
+  void Reclaim(u64 completed_submission_index);
   void ChangeSubmissionTimeline();
   void ClearCache();
 
@@ -52,9 +51,8 @@ class D3D12DescriptorHeapPool {
    * @param index_out Receives the first allocated descriptor index within the heap.
    * @return The heap reset index, or kHeapIndexInvalid on error.
    */
-  uint64_t Request(uint64_t submission_index, uint64_t previous_heap_index,
-                   uint32_t count_for_partial_update, uint32_t count_for_full_update,
-                   uint32_t& index_out);
+  u64 Request(u64 submission_index, u64 previous_heap_index, u32 count_for_partial_update,
+              u32 count_for_full_update, u32& index_out);
 
   /**
    * Returns the current heap for binding and writing.
@@ -74,13 +72,13 @@ class D3D12DescriptorHeapPool {
  private:
   ID3D12Device* device_;
   D3D12_DESCRIPTOR_HEAP_TYPE type_;
-  uint32_t page_size_;
+  u32 page_size_;
 
   struct Page {
     Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> heap;
     D3D12_CPU_DESCRIPTOR_HANDLE cpu_start;
     D3D12_GPU_DESCRIPTOR_HANDLE gpu_start;
-    uint64_t last_submission_index;
+    u64 last_submission_index;
     Page* next;
   };
 
@@ -88,8 +86,8 @@ class D3D12DescriptorHeapPool {
   Page* writable_last_ = nullptr;
   Page* submitted_first_ = nullptr;
   Page* submitted_last_ = nullptr;
-  uint64_t current_heap_index_ = 0;
-  uint32_t current_page_used_ = 0;
+  u64 current_heap_index_ = 0;
+  u32 current_page_used_ = 0;
 };
 
 }  // namespace rex::gpu::d3d12

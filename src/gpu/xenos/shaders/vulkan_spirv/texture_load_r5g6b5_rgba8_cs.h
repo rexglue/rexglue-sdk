@@ -8,8 +8,10 @@
  *              See LICENSE file in the project root for full license text.
  */
 
+#include <rex/types.h>
+
 // Generated with `spirv-as` from the R5G6B5 texture load shader.
-const uint32_t texture_load_r5g6b5_rgba8_cs[] = {
+const u32 texture_load_r5g6b5_rgba8_cs[] = {
     0x07230203, 0x00010000, 0x00070000, 0x00000143, 0x00000000, 0x00020011, 0x00000001, 0x0006000B,
     0x00000001, 0x4C534C47, 0x6474732E, 0x3035342E, 0x00000000, 0x0003000E, 0x00000000, 0x00000001,
     0x0006000F, 0x00000005, 0x00000002, 0x6E69616D, 0x00000000, 0x00000003, 0x00060010, 0x00000002,

@@ -152,7 +152,7 @@ class D3D12ImmediateDrawer final : public ImmediateDrawer {
   D3D12_RECT current_scissor_;
   D3D_PRIMITIVE_TOPOLOGY current_primitive_topology_;
   ID3D12Resource* current_texture_;
-  uint64_t current_texture_descriptor_heap_index_;
+  u64 current_texture_descriptor_heap_index_;
   SamplerIndex current_sampler_index_;
 };
 

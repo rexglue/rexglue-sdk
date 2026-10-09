@@ -62,28 +62,28 @@ bool ImmediateDrawer::ScissorToRenderTarget(const gpu::OverlayDraw& draw, u32& o
     return render_target_width && render_target_height;
   }
   const gpu::OverlayRect& scissor = *draw.scissor;
-  float render_target_width_float = static_cast<float>(render_target_width);
-  float render_target_height_float = static_cast<float>(render_target_height);
-  float scale_x = render_target_width / coordinate_space_width();
-  float scale_y = render_target_height / coordinate_space_height();
-  float x0_float = rex::clamp_float(scissor.left * scale_x, 0.0f, render_target_width_float);
-  float y0_float = rex::clamp_float(scissor.top * scale_y, 0.0f, render_target_height_float);
-  float x1_float = rex::clamp_float(scissor.right * scale_x, x0_float, render_target_width_float);
-  float y1_float = rex::clamp_float(scissor.bottom * scale_y, y0_float, render_target_height_float);
-  int32_t x0 = (FloatToD3D11Fixed16p8(x0_float) + 127) >> 8;
-  int32_t y0 = (FloatToD3D11Fixed16p8(y0_float) + 127) >> 8;
-  int32_t x1 = (FloatToD3D11Fixed16p8(x1_float) + 127) >> 8;
-  int32_t y1 = (FloatToD3D11Fixed16p8(y1_float) + 127) >> 8;
+  f32 render_target_width_float = static_cast<f32>(render_target_width);
+  f32 render_target_height_float = static_cast<f32>(render_target_height);
+  f32 scale_x = render_target_width / coordinate_space_width();
+  f32 scale_y = render_target_height / coordinate_space_height();
+  f32 x0_float = rex::clamp_float(scissor.left * scale_x, 0.0f, render_target_width_float);
+  f32 y0_float = rex::clamp_float(scissor.top * scale_y, 0.0f, render_target_height_float);
+  f32 x1_float = rex::clamp_float(scissor.right * scale_x, x0_float, render_target_width_float);
+  f32 y1_float = rex::clamp_float(scissor.bottom * scale_y, y0_float, render_target_height_float);
+  i32 x0 = (FloatToD3D11Fixed16p8(x0_float) + 127) >> 8;
+  i32 y0 = (FloatToD3D11Fixed16p8(y0_float) + 127) >> 8;
+  i32 x1 = (FloatToD3D11Fixed16p8(x1_float) + 127) >> 8;
+  i32 y1 = (FloatToD3D11Fixed16p8(y1_float) + 127) >> 8;
   REX_ASSERT(x0 >= 0);
   REX_ASSERT(y0 >= 0);
   REX_ASSERT(x1 >= x0);
   REX_ASSERT(y1 >= y0);
-  REX_ASSERT(x1 <= static_cast<int32_t>(render_target_width));
-  REX_ASSERT(y1 <= static_cast<int32_t>(render_target_height));
-  out_left = static_cast<uint32_t>(x0);
-  out_top = static_cast<uint32_t>(y0);
-  out_width = static_cast<uint32_t>(x1 - x0);
-  out_height = static_cast<uint32_t>(y1 - y0);
+  REX_ASSERT(x1 <= static_cast<i32>(render_target_width));
+  REX_ASSERT(y1 <= static_cast<i32>(render_target_height));
+  out_left = static_cast<u32>(x0);
+  out_top = static_cast<u32>(y0);
+  out_width = static_cast<u32>(x1 - x0);
+  out_height = static_cast<u32>(y1 - y0);
   return x1 > x0 && y1 > y0;
 }
 

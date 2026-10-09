@@ -74,7 +74,7 @@ static bool IsValidPath(const std::string_view s, bool is_pattern) {
   return true;
 }
 
-uint32_t GetQueryFileInfoMinimumLength(uint32_t info_class) {
+u32 GetQueryFileInfoMinimumLength(u32 info_class) {
   switch (info_class) {
     case XFileInternalInformation:
       return sizeof(X_FILE_INTERNAL_INFORMATION);
@@ -101,7 +101,7 @@ uint32_t GetQueryFileInfoMinimumLength(uint32_t info_class) {
 
 u32 NtQueryInformationFile_entry(u32 file_handle, ppc_ptr_t<X_IO_STATUS_BLOCK> io_status_block_ptr,
                                  mapped_void info_ptr, u32 info_length, u32 info_class) {
-  uint32_t minimum_length = GetQueryFileInfoMinimumLength(info_class);
+  u32 minimum_length = GetQueryFileInfoMinimumLength(info_class);
   if (!minimum_length) {
     return X_STATUS_INVALID_INFO_CLASS;
   }
@@ -115,7 +115,7 @@ u32 NtQueryInformationFile_entry(u32 file_handle, ppc_ptr_t<X_IO_STATUS_BLOCK> i
   info_ptr.Zero(info_length);
 
   X_STATUS status = X_STATUS_SUCCESS;
-  uint32_t out_length;
+  u32 out_length;
 
   switch (info_class) {
     case XFileInternalInformation: {
@@ -132,10 +132,10 @@ u32 NtQueryInformationFile_entry(u32 file_handle, ppc_ptr_t<X_IO_STATUS_BLOCK> i
     }
     case XFileSectorInformation: {
       REX_KERNEL_STUB("XFileSectorInformation");
-      auto info = info_ptr.as<uint32_t*>();
+      auto info = info_ptr.as<u32*>();
       size_t fname_hash = rex::memory::hash_combine(82589933LL, file->file->Info().path);
-      *info = static_cast<uint32_t>(fname_hash ^ (fname_hash >> 32));
-      out_length = sizeof(uint32_t);
+      *info = static_cast<u32>(fname_hash ^ (fname_hash >> 32));
+      out_length = sizeof(u32);
       break;
     }
     case XFileXctdCompressionInformation: {
@@ -162,7 +162,7 @@ u32 NtQueryInformationFile_entry(u32 file_handle, ppc_ptr_t<X_IO_STATUS_BLOCK> i
       break;
     }
     case XFileAlignmentInformation: {
-      auto info = info_ptr.as<uint32_t*>();
+      auto info = info_ptr.as<u32*>();
       *info = 0;
       out_length = sizeof(*info);
       break;
@@ -183,7 +183,7 @@ u32 NtQueryInformationFile_entry(u32 file_handle, ppc_ptr_t<X_IO_STATUS_BLOCK> i
   return status;
 }
 
-uint32_t GetSetFileInfoMinimumLength(uint32_t info_class) {
+u32 GetSetFileInfoMinimumLength(u32 info_class) {
   switch (info_class) {
     case XFileRenameInformation:
       return sizeof(X_FILE_RENAME_INFORMATION);
@@ -215,7 +215,7 @@ uint32_t GetSetFileInfoMinimumLength(uint32_t info_class) {
 
 u32 NtSetInformationFile_entry(u32 file_handle, ppc_ptr_t<X_IO_STATUS_BLOCK> io_status_block,
                                mapped_void info_ptr, u32 info_length, u32 info_class) {
-  uint32_t minimum_length = GetSetFileInfoMinimumLength(info_class);
+  u32 minimum_length = GetSetFileInfoMinimumLength(info_class);
   if (!minimum_length) {
     return X_STATUS_INVALID_INFO_CLASS;
   }
@@ -227,7 +227,7 @@ u32 NtSetInformationFile_entry(u32 file_handle, ppc_ptr_t<X_IO_STATUS_BLOCK> io_
   REX_KERNEL_LOOKUP(file, FileObject, file_handle);
 
   X_STATUS result = X_STATUS_SUCCESS;
-  uint32_t out_length;
+  u32 out_length;
 
   switch (info_class) {
     case XFileBasicInformation: {
@@ -250,7 +250,7 @@ u32 NtSetInformationFile_entry(u32 file_handle, ppc_ptr_t<X_IO_STATUS_BLOCK> io_
       }
       basic_result &= file->file
                           ->SetAttributes(static_cast<filesystem::FileAttributes>(
-                              static_cast<uint32_t>(info->attributes)))
+                              static_cast<u32>(info->attributes)))
                           .has_value();
       if (!basic_result) {
         result = X_STATUS_UNSUCCESSFUL;
@@ -316,8 +316,8 @@ u32 NtSetInformationFile_entry(u32 file_handle, ppc_ptr_t<X_IO_STATUS_BLOCK> io_
     }
     case XFileCompletionInformation: {
       auto info = info_ptr.as<X_FILE_COMPLETION_INFORMATION*>();
-      auto handle = static_cast<uint32_t>(info->handle);
-      auto key = static_cast<uint32_t>(info->key);
+      auto handle = static_cast<u32>(info->handle);
+      auto key = static_cast<u32>(info->key);
       out_length = sizeof(*info);
       auto port = runtime::Current().object_table().Get<IOCompletionObject>(handle);
       if (!port) {
@@ -341,7 +341,7 @@ u32 NtSetInformationFile_entry(u32 file_handle, ppc_ptr_t<X_IO_STATUS_BLOCK> io_
   return result;
 }
 
-uint32_t GetQueryVolumeInfoMinimumLength(uint32_t info_class) {
+u32 GetQueryVolumeInfoMinimumLength(u32 info_class) {
   switch (info_class) {
     case XFileFsVolumeInformation:
       return sizeof(X_FILE_FS_VOLUME_INFORMATION);
@@ -360,7 +360,7 @@ uint32_t GetQueryVolumeInfoMinimumLength(uint32_t info_class) {
 u32 NtQueryVolumeInformationFile_entry(u32 file_handle,
                                        ppc_ptr_t<X_IO_STATUS_BLOCK> io_status_block_ptr,
                                        mapped_void info_ptr, u32 info_length, u32 info_class) {
-  uint32_t minimum_length = GetQueryVolumeInfoMinimumLength(info_class);
+  u32 minimum_length = GetQueryVolumeInfoMinimumLength(info_class);
   if (!minimum_length) {
     return X_STATUS_INVALID_INFO_CLASS;
   }
@@ -374,7 +374,7 @@ u32 NtQueryVolumeInformationFile_entry(u32 file_handle,
   info_ptr.Zero(info_length);
 
   X_STATUS status = X_STATUS_SUCCESS;
-  uint32_t out_length;
+  u32 out_length;
 
   switch (info_class) {
     case XFileFsVolumeInformation: {
@@ -403,7 +403,7 @@ u32 NtQueryVolumeInformationFile_entry(u32 file_handle,
       auto info = info_ptr.as<X_FILE_FS_ATTRIBUTE_INFORMATION*>();
       info->attributes = volume.attributes;
       info->component_name_max_length = volume.component_name_max_length;
-      info->name_length = static_cast<uint32_t>(name.size());
+      info->name_length = static_cast<u32>(name.size());
       if (info_length >= 12 + name.size()) {
         std::memcpy(info->name, name.data(), name.size());
         out_length = offsetof(X_FILE_FS_ATTRIBUTE_INFORMATION, name) + info->name_length;

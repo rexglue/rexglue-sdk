@@ -42,10 +42,10 @@ namespace rex::kernel::xboxkrnl {
  * @param required_size Receives the size of the value in bytes, may be null.
  * @return X_STATUS_SUCCESS or an error status.
  */
-X_STATUS ExGetXConfigSetting(uint16_t category, uint16_t setting, void* buffer,
-                             uint16_t buffer_size, uint16_t* required_size) {
-  uint16_t setting_size = 0;
-  alignas(uint32_t) uint8_t value[4];
+X_STATUS ExGetXConfigSetting(u16 category, u16 setting, void* buffer, u16 buffer_size,
+                             u16* required_size) {
+  u16 setting_size = 0;
+  alignas(u32) u8 value[4];
 
   switch (category) {
     case 0x0002:
@@ -89,7 +89,7 @@ X_STATUS ExGetXConfigSetting(uint16_t category, uint16_t setting, void* buffer,
           break;
         case 0x000E:
           setting_size = 1;
-          value[0] = static_cast<uint8_t>(runtime::Current().config().runtime.kernel.user_country);
+          value[0] = static_cast<u8>(runtime::Current().config().runtime.kernel.user_country);
           break;
         case 0x0019:
           setting_size = 1;
@@ -125,7 +125,7 @@ X_STATUS ExGetXConfigSetting(uint16_t category, uint16_t setting, void* buffer,
 
 u32 ExGetXConfigSetting_entry(u16 category, u16 setting, mapped_void buffer_ptr, u16 buffer_size,
                               mapped_u16 required_size_ptr) {
-  uint16_t required_size = 0;
+  u16 required_size = 0;
   X_STATUS result = ExGetXConfigSetting(category, setting, buffer_ptr, buffer_size, &required_size);
 
   if (required_size_ptr) {

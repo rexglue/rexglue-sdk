@@ -34,10 +34,10 @@ namespace vulkan {
 
 class VulkanOverlayDrawContext final : public gpu::OverlayDrawContext {
  public:
-  VulkanOverlayDrawContext(Presenter& presenter, uint32_t render_target_width,
-                           uint32_t render_target_height, VkCommandBuffer draw_command_buffer,
-                           uint64_t submission_index_current, uint64_t submission_index_completed,
-                           VkRenderPass render_pass, VkFormat render_pass_format)
+  VulkanOverlayDrawContext(Presenter& presenter, u32 render_target_width, u32 render_target_height,
+                           VkCommandBuffer draw_command_buffer, u64 submission_index_current,
+                           u64 submission_index_completed, VkRenderPass render_pass,
+                           VkFormat render_pass_format)
       : gpu::OverlayDrawContext(&presenter, render_target_width, render_target_height),
         draw_command_buffer_(draw_command_buffer),
         submission_index_current_(submission_index_current),
@@ -46,15 +46,15 @@ class VulkanOverlayDrawContext final : public gpu::OverlayDrawContext {
         render_pass_format_(render_pass_format) {}
 
   VkCommandBuffer draw_command_buffer() const { return draw_command_buffer_; }
-  uint64_t submission_index_current() const { return submission_index_current_; }
-  uint64_t submission_index_completed() const { return submission_index_completed_; }
+  u64 submission_index_current() const { return submission_index_current_; }
+  u64 submission_index_completed() const { return submission_index_completed_; }
   VkRenderPass render_pass() const { return render_pass_; }
   VkFormat render_pass_format() const { return render_pass_format_; }
 
  private:
   VkCommandBuffer draw_command_buffer_;
-  uint64_t submission_index_current_;
-  uint64_t submission_index_completed_;
+  u64 submission_index_current_;
+  u64 submission_index_completed_;
   /** Has 1 subpass with a single render_pass_format_ attachment. */
   VkRenderPass render_pass_;
   VkFormat render_pass_format_;
@@ -104,7 +104,7 @@ class VulkanPresenter final : public Presenter {
   class VulkanGuestOutputRefreshContext final : public GuestOutputRefreshContext {
    public:
     VulkanGuestOutputRefreshContext(bool& is_8bpc_out_ref, VkImage image, VkImageView image_view,
-                                    uint64_t image_version, bool image_ever_written_previously)
+                                    u64 image_version, bool image_ever_written_previously)
         : GuestOutputRefreshContext(is_8bpc_out_ref),
           image_(image),
           image_view_(image_view),
@@ -121,7 +121,7 @@ class VulkanPresenter final : public Presenter {
      */
     VkImage image() const { return image_; }
     VkImageView image_view() const { return image_view_; }
-    uint64_t image_version() const { return image_version_; }
+    u64 image_version() const { return image_version_; }
     /**
      * Reports whether a full barrier must be done to acquire the image.
      *
@@ -132,7 +132,7 @@ class VulkanPresenter final : public Presenter {
    private:
     VkImage image_;
     VkImageView image_view_;
-    uint64_t image_version_;
+    u64 image_version_;
     bool image_ever_written_previously_;
   };
 
@@ -166,7 +166,7 @@ class VulkanPresenter final : public Presenter {
       const VulkanInstance::Extensions& instance_extensions);
   gpu::Surface::TypeFlags GetSupportedSurfaceTypes() const override;
 
-  void AwaitUISubmissionCompletionFromUIThread(uint64_t submission_index) {
+  void AwaitUISubmissionCompletionFromUIThread(u64 submission_index) {
     ui_submission_tracker_.AwaitSubmissionCompletion(submission_index);
   }
   VkCommandBuffer AcquireUISetupCommandBufferFromUIThread();
@@ -187,12 +187,12 @@ class VulkanPresenter final : public Presenter {
    * @return The connection result.
    */
   SurfacePaintConnectResult ConnectOrReconnectPaintingToSurfaceFromUIThread(
-      gpu::Surface& new_surface, uint32_t new_surface_width, uint32_t new_surface_height,
-      bool was_paintable, bool& is_vsync_implicit_out) override;
+      gpu::Surface& new_surface, u32 new_surface_width, u32 new_surface_height, bool was_paintable,
+      bool& is_vsync_implicit_out) override;
   void DisconnectPaintingFromSurfaceFromUIThreadImpl() override;
 
   bool RefreshGuestOutputImpl(
-      uint32_t mailbox_index, uint32_t frontbuffer_width, uint32_t frontbuffer_height,
+      u32 mailbox_index, u32 frontbuffer_width, u32 frontbuffer_height,
       std::move_only_function<bool(GuestOutputRefreshContext& context)> refresher,
       bool& is_8bpc_out_ref) override;
 
@@ -203,15 +203,15 @@ class VulkanPresenter final : public Presenter {
     struct Key {};
 
    public:
-    GuestOutputImage(Key, const VulkanDevice* const vulkan_device, const uint32_t width,
-                     const uint32_t height)
+    GuestOutputImage(Key, const VulkanDevice* const vulkan_device, const u32 width,
+                     const u32 height)
         : vulkan_device_(vulkan_device) {
       extent_.width = width;
       extent_.height = height;
     }
 
     static std::unique_ptr<GuestOutputImage> Create(const VulkanDevice* const vulkan_device,
-                                                    const uint32_t width, const uint32_t height) {
+                                                    const u32 width, const u32 height) {
       REX_ASSERT(width != 0);
       REX_ASSERT(height != 0);
       auto image = std::make_unique<GuestOutputImage>(Key{}, vulkan_device, width, height);
@@ -243,8 +243,8 @@ class VulkanPresenter final : public Presenter {
   struct GuestOutputImageInstance {
     /** Refresher side reference. Painting holds its own so destruction waits for the GPU. */
     std::shared_ptr<GuestOutputImage> image;
-    uint64_t version = UINT64_MAX;
-    uint64_t last_refresher_submission = 0;
+    u64 version = UINT64_MAX;
+    u64 last_refresher_submission = 0;
     /**
      * Selects the barrier stage, access mask and layout.
      *
@@ -252,7 +252,7 @@ class VulkanPresenter final : public Presenter {
      */
     bool ever_successfully_refreshed = false;
 
-    void SetToNewImage(const std::shared_ptr<GuestOutputImage>& new_image, uint64_t new_version) {
+    void SetToNewImage(const std::shared_ptr<GuestOutputImage>& new_image, u64 new_version) {
       image = new_image;
       version = new_version;
       last_refresher_submission = 0;
@@ -263,17 +263,17 @@ class VulkanPresenter final : public Presenter {
   struct GuestOutputPaintRectangleConstants {
     union {
       struct {
-        float x;
-        float y;
+        f32 x;
+        f32 y;
       };
-      float offset[2];
+      f32 offset[2];
     };
     union {
       struct {
-        float width;
-        float height;
+        f32 width;
+        f32 height;
       };
-      float size[2];
+      f32 size[2];
     };
   };
 
@@ -328,7 +328,7 @@ class VulkanPresenter final : public Presenter {
       VkCommandBuffer draw_command_buffer_ = VK_NULL_HANDLE;
     };
 
-    static constexpr uint32_t kSubmissionCount = 3;
+    static constexpr u32 kSubmissionCount = 3;
 
     struct GuestOutputPaintPipeline {
       /**
@@ -339,7 +339,7 @@ class VulkanPresenter final : public Presenter {
       VkFormat swapchain_format = VK_FORMAT_UNDEFINED;
     };
 
-    enum GuestOutputDescriptorSet : uint32_t {
+    enum GuestOutputDescriptorSet : u32 {
       kGuestOutputDescriptorSetGuestOutput0Sampled,
 
       kGuestOutputDescriptorSetCount =
@@ -348,14 +348,14 @@ class VulkanPresenter final : public Presenter {
 
     struct UISetupCommandBuffer {
       UISetupCommandBuffer(VkCommandPool command_pool, VkCommandBuffer command_buffer,
-                           uint64_t last_usage_submission_index = 0)
+                           u64 last_usage_submission_index = 0)
           : command_pool(command_pool),
             command_buffer(command_buffer),
             last_usage_submission_index(last_usage_submission_index) {}
 
       VkCommandPool command_pool;
       VkCommandBuffer command_buffer;
-      uint64_t last_usage_submission_index;
+      u64 last_usage_submission_index;
     };
 
     struct SwapchainFramebuffer {
@@ -408,10 +408,9 @@ class VulkanPresenter final : public Presenter {
      * @return The swapchain, or null on failure.
      */
     static VkSwapchainKHR CreateSwapchainForVulkanSurface(
-        const VulkanDevice* vulkan_device, VkSurfaceKHR surface, uint32_t width, uint32_t height,
-        VkSwapchainKHR old_swapchain, uint32_t& present_queue_family_out,
-        VkFormat& image_format_out, VkExtent2D& image_extent_out, bool& is_fifo_out,
-        bool& ui_surface_unusable_out);
+        const VulkanDevice* vulkan_device, VkSurfaceKHR surface, u32 width, u32 height,
+        VkSwapchainKHR old_swapchain, u32& present_queue_family_out, VkFormat& image_format_out,
+        VkExtent2D& image_extent_out, bool& is_fifo_out, bool& ui_surface_unusable_out);
 
     /**
      * Destroys the swapchain derivatives and nulls swapchain.
@@ -441,9 +440,9 @@ class VulkanPresenter final : public Presenter {
      * indices. A reference missing from the array replaces the most outdated one, after awaiting
      * the usage completion of its last paint.
      */
-    std::array<std::pair<uint64_t, std::shared_ptr<GuestOutputImage>>, kGuestOutputMailboxSize>
+    std::array<std::pair<u64, std::shared_ptr<GuestOutputImage>>, kGuestOutputMailboxSize>
         guest_output_image_paint_refs;
-    uint64_t guest_output_image_paint_last_submission = 0;
+    u64 guest_output_image_paint_last_submission = 0;
 
     /** Command buffers optionally run before the draw command buffer, outside the render pass. */
     std::vector<UISetupCommandBuffer> ui_setup_command_buffers;
@@ -455,7 +454,7 @@ class VulkanPresenter final : public Presenter {
     bool swapchain_render_pass_clear_load_op = false;
 
     VkSurfaceKHR vulkan_surface = VK_NULL_HANDLE;
-    uint32_t present_queue_family = UINT32_MAX;
+    u32 present_queue_family = UINT32_MAX;
     VkSwapchainKHR swapchain = VK_NULL_HANDLE;
     VkExtent2D swapchain_extent = {};
     bool swapchain_is_fifo = false;
@@ -497,7 +496,7 @@ class VulkanPresenter final : public Presenter {
    * Refreshers use it to recreate dependent objects such as framebuffers, since comparing handles
    * is not enough when Create, Destroy, Create yields the same handle for different objects.
    */
-  uint64_t guest_output_image_next_version_ = 0;
+  u64 guest_output_image_next_version_ = 0;
   std::array<GuestOutputImageInstance, kGuestOutputMailboxSize> guest_output_images_;
   VulkanSubmissionTracker guest_output_image_refresher_submission_tracker_;
 

@@ -114,9 +114,9 @@ inline bool IsPrimitivePolygonal(const xenos::RegisterFile& regs) {
 bool IsRasterizationPotentiallyDone(const xenos::RegisterFile& regs, bool primitive_polygonal);
 
 /** Direct3D 10.1 standard 2x sample positions in 1/16th of a pixel, also used by Vulkan. */
-extern const int8_t kD3D10StandardSamplePositions2x[2][2];
+extern const i8 kD3D10StandardSamplePositions2x[2][2];
 /** Direct3D 10.1 standard 4x sample positions in 1/16th of a pixel, also used by Vulkan. */
-extern const int8_t kD3D10StandardSamplePositions4x[4][2];
+extern const i8 kD3D10StandardSamplePositions4x[4][2];
 
 xenos::reg::RB_DEPTHCONTROL GetNormalizedDepthControl(const xenos::RegisterFile& regs);
 
@@ -136,7 +136,7 @@ xenos::reg::RB_DEPTHCONTROL GetNormalizedDepthControl(const xenos::RegisterFile&
  * The host translation must keep values separating coplanar geometry on the guest separating it
  * on the host.
  */
-constexpr float kD3D10PolygonOffsetFactorUnorm24 = static_cast<float>((UINT32_C(1) << 24) - 1);
+constexpr f32 kD3D10PolygonOffsetFactorUnorm24 = static_cast<f32>((UINT32_C(1) << 24) - 1);
 
 /**
  * Factor converting the guest absolute polygon offset to the host relative constant factor for
@@ -151,7 +151,7 @@ constexpr float kD3D10PolygonOffsetFactorUnorm24 = static_cast<float>((UINT32_C(
  * lost. When the 0...0.5 host range represents the 0...1 guest range, the offset needs no change
  * since it is calculated after the viewport transformation, which lowers the exponent by 1.
  */
-constexpr float kD3D10PolygonOffsetFactorFloat24 = static_cast<float>(UINT32_C(1) << (21 + 3));
+constexpr f32 kD3D10PolygonOffsetFactorFloat24 = static_cast<f32>(UINT32_C(1) << (21 + 3));
 
 /**
  * Converts the guest absolute polygon offset to the host integer polygon offset.
@@ -164,10 +164,10 @@ constexpr float kD3D10PolygonOffsetFactorFloat24 = static_cast<float>(UINT32_C(1
  * @param polygon_offset Guest absolute polygon offset.
  * @return Host integer polygon offset.
  */
-inline int32_t GetD3D10IntegerPolygonOffset(xenos::DepthRenderTargetFormat depth_format,
-                                            float polygon_offset) {
+inline i32 GetD3D10IntegerPolygonOffset(xenos::DepthRenderTargetFormat depth_format,
+                                        f32 polygon_offset) {
   bool is_float24 = depth_format == xenos::DepthRenderTargetFormat::kD24FS8;
-  int32_t polygon_offset_int = static_cast<int32_t>(std::ceil(
+  i32 polygon_offset_int = static_cast<i32>(std::ceil(
       std::abs(polygon_offset) * (is_float24 ? kD3D10PolygonOffsetFactorFloat24 * (1.0f / 8.0f)
                                              : kD3D10PolygonOffsetFactorUnorm24)));
   if (is_float24) {
@@ -192,7 +192,7 @@ inline int32_t GetD3D10IntegerPolygonOffset(xenos::DepthRenderTargetFormat depth
  * @param offset_out Receives the polygon offset.
  */
 void GetPreferredFacePolygonOffset(const xenos::RegisterFile& regs, bool primitive_polygonal,
-                                   float& scale_out, float& offset_out);
+                                   f32& scale_out, f32& offset_out);
 
 inline bool DoesCoverageDependOnAlpha(xenos::reg::RB_COLORCONTROL rb_colorcontrol) {
   return (rb_colorcontrol.alpha_test_enable &&
@@ -230,14 +230,14 @@ struct ViewportInfo {
    * fractional offsetting, including the half-pixel offset, and cropping go through ndc_scale and
    * ndc_offset.
    */
-  uint32_t xy_offset[2];
+  u32 xy_offset[2];
   /** Extent can be 0 for an empty viewport, which hosts without empty viewports scissor out. */
-  uint32_t xy_extent[2];
-  float z_min;
-  float z_max;
+  u32 xy_extent[2];
+  f32 z_min;
+  f32 z_max;
   /** The scale is applied before the offset, as in a multiply add. */
-  float ndc_scale[3];
-  float ndc_offset[3];
+  f32 ndc_scale[3];
+  f32 ndc_offset[3];
 };
 /**
  * Converts the guest viewport, or a fake one when drawing without a viewport, to a host viewport
@@ -295,18 +295,17 @@ struct ViewportInfo {
  * @param pixel_shader_writes_depth True when the pixel shader writes depth.
  * @param viewport_info_out Receives the host viewport.
  */
-void GetHostViewportInfo(const xenos::RegisterFile& regs, uint32_t draw_resolution_scale_x,
-                         uint32_t draw_resolution_scale_y, bool origin_bottom_left, uint32_t x_max,
-                         uint32_t y_max, bool allow_reverse_z,
-                         xenos::reg::RB_DEPTHCONTROL normalized_depth_control,
+void GetHostViewportInfo(const xenos::RegisterFile& regs, u32 draw_resolution_scale_x,
+                         u32 draw_resolution_scale_y, bool origin_bottom_left, u32 x_max, u32 y_max,
+                         bool allow_reverse_z, xenos::reg::RB_DEPTHCONTROL normalized_depth_control,
                          bool convert_z_to_float24, bool full_float24_in_0_to_1,
                          bool pixel_shader_writes_depth, ViewportInfo& viewport_info_out);
 
 struct Scissor {
   /** Offset from render target UV = 0 to +UV. */
-  uint32_t offset[2];
+  u32 offset[2];
   /** Extent can be 0. */
-  uint32_t extent[2];
+  u32 extent[2];
 };
 /**
  * Returns the window scissor intersected with the screen scissor.
@@ -337,8 +336,7 @@ void GetScissor(const xenos::RegisterFile& regs, Scissor& scissor_out,
  * @param pixel_shader_writes_color_targets Bit mask of color targets written by the pixel shader.
  * @return Normalized color write mask.
  */
-uint32_t GetNormalizedColorMask(const xenos::RegisterFile& regs,
-                                uint32_t pixel_shader_writes_color_targets);
+u32 GetNormalizedColorMask(const xenos::RegisterFile& regs, u32 pixel_shader_writes_color_targets);
 
 /**
  * Converts a guest 2x MSAA sample index to a host sample index.
@@ -354,8 +352,8 @@ uint32_t GetNormalizedColorMask(const xenos::RegisterFile& regs,
  * @param native_2x_msaa_supported True when the host supports native 2x MSAA.
  * @return Host sample index.
  */
-inline uint32_t GetD3D10SampleIndexForGuest2xMSAA(uint32_t guest_sample_index,
-                                                  bool native_2x_msaa_supported) {
+inline u32 GetD3D10SampleIndexForGuest2xMSAA(u32 guest_sample_index,
+                                             bool native_2x_msaa_supported) {
   assert(guest_sample_index <= 1);
   if (native_2x_msaa_supported) {
     return guest_sample_index ? 0 : 1;
@@ -364,10 +362,10 @@ inline uint32_t GetD3D10SampleIndexForGuest2xMSAA(uint32_t guest_sample_index,
 }
 
 struct MemExportRange {
-  uint32_t base_address_dwords;
-  uint32_t size_bytes;
+  u32 base_address_dwords;
+  u32 size_bytes;
 
-  explicit MemExportRange(uint32_t base_address_dwords, uint32_t size_bytes)
+  explicit MemExportRange(u32 base_address_dwords, u32 size_bytes)
       : base_address_dwords(base_address_dwords), size_bytes(size_bytes) {}
 };
 
@@ -403,40 +401,40 @@ xenos::CopySampleSelect SanitizeCopySampleSelect(xenos::CopySampleSelect copy_sa
 
 /** Packed, small enough to be passed to the shaders in root and push constants. */
 union ResolveEdramInfo {
-  uint32_t packed;
+  u32 packed;
   struct {
     /** With 32bpp and 64bpp taken into account. */
-    uint32_t pitch_tiles : xenos::kEDRAMPitchTilesBits;
+    u32 pitch_tiles : xenos::kEDRAMPitchTilesBits;
     xenos::MSAASamples msaa_samples : xenos::kMSAASamplesBits;
-    uint32_t is_depth : 1;
+    u32 is_depth : 1;
     /** With offset to the region that edram_offset_x/y_div_8 are relative to. */
-    uint32_t base_tiles : xenos::kEDRAMBaseTilesBits;
-    uint32_t format : xenos::kRenderTargetFormatBits;
-    uint32_t format_is_64bpp : 1;
+    u32 base_tiles : xenos::kEDRAMBaseTilesBits;
+    u32 format : xenos::kRenderTargetFormatBits;
+    u32 format_is_64bpp : 1;
     /**
      * Fills the half-pixel offset gap on the left and top sides of the resolve region with the
      * first covered column and row when resolution scaling.
      */
-    uint32_t fill_half_pixel_offset : 1;
+    u32 fill_half_pixel_offset : 1;
   };
   ResolveEdramInfo() : packed(0) { REX_STATIC_ASSERT_SIZE(*this, sizeof(packed)); }
 };
 
 /** Packed, small enough to be passed to the shaders in root and push constants. */
 union ResolveCoordinateInfo {
-  uint32_t packed;
+  u32 packed;
   struct {
     /** In pixels relative to the origin of the EDRAM base tile, 0...9 for 0...72. */
-    uint32_t edram_offset_x_div_8 : 4;
+    u32 edram_offset_x_div_8 : 4;
     /** 0...1 for 0...8. */
-    uint32_t edram_offset_y_div_8 : 1;
+    u32 edram_offset_y_div_8 : 1;
 
     /** In pixels. May be 0 for a malformed original rectangle, and the resolve must be dropped. */
-    uint32_t width_div_8 : xenos::kResolveSizeBits - xenos::kResolveAlignmentPixelsLog2;
+    u32 width_div_8 : xenos::kResolveSizeBits - xenos::kResolveAlignmentPixelsLog2;
 
     /** 1 to 7. */
-    uint32_t draw_resolution_scale_x : 3;
-    uint32_t draw_resolution_scale_y : 3;
+    u32 draw_resolution_scale_x : 3;
+    u32 draw_resolution_scale_y : 3;
   };
   ResolveCoordinateInfo() : packed(0) { REX_STATIC_ASSERT_SIZE(*this, sizeof(packed)); }
 };
@@ -456,21 +454,21 @@ union ResolveCoordinateInfo {
  * @param rows_out Receives the height of the area in tiles.
  */
 void GetResolveEdramTileSpan(ResolveEdramInfo edram_info, ResolveCoordinateInfo coordinate_info,
-                             uint32_t height_div_8, uint32_t& base_out,
-                             uint32_t& row_length_used_out, uint32_t& rows_out);
+                             u32 height_div_8, u32& base_out, u32& row_length_used_out,
+                             u32& rows_out);
 
 union ResolveCopyDestCoordinateInfo {
-  uint32_t packed;
+  u32 packed;
   struct {
     /** 0...16384/32. */
-    uint32_t pitch_aligned_div_32 : xenos::kTexture2DCubeMaxWidthHeightLog2 + 2 -
-                                    xenos::kTextureTileWidthHeightLog2;
-    uint32_t height_aligned_div_32 : xenos::kTexture2DCubeMaxWidthHeightLog2 + 2 -
-                                     xenos::kTextureTileWidthHeightLog2;
+    u32 pitch_aligned_div_32 : xenos::kTexture2DCubeMaxWidthHeightLog2 + 2 -
+                               xenos::kTextureTileWidthHeightLog2;
+    u32 height_aligned_div_32 : xenos::kTexture2DCubeMaxWidthHeightLog2 + 2 -
+                                xenos::kTextureTileWidthHeightLog2;
 
     /** Up to the maximum period of the texture tiled address function, 128x128 for 2D 1bpb. */
-    uint32_t offset_x_div_8 : 7 - xenos::kResolveAlignmentPixelsLog2;
-    uint32_t offset_y_div_8 : 7 - xenos::kResolveAlignmentPixelsLog2;
+    u32 offset_x_div_8 : 7 - xenos::kResolveAlignmentPixelsLog2;
+    u32 offset_y_div_8 : 7 - xenos::kResolveAlignmentPixelsLog2;
 
     xenos::CopySampleSelect copy_sample_select : 3;
   };
@@ -504,15 +502,15 @@ struct ResolveCopyShaderInfo {
    */
   bool source_is_raw;
   /** Log2 of bytes per element of the EDRAM buffer type bound to the shader, at least 2. */
-  uint32_t source_bpe_log2;
+  u32 source_bpe_log2;
   /**
    * Log2 of bytes per element of the destination buffer type bound to the shader. At least 2
    * because the 128 megatexel minimum on Direct3D 10+ prevents binding the entire shared memory
    * buffer with smaller elements (D3D12_REQ_BUFFER_RESOURCE_TEXEL_COUNT_2_TO_EXP).
    */
-  uint32_t dest_bpe_log2;
+  u32 dest_bpe_log2;
   /** Log2 of the pixel count in a thread group along X and Y, 64 threads per group preferred. */
-  uint32_t group_size_x_log2, group_size_y_log2;
+  u32 group_size_x_log2, group_size_y_log2;
 };
 
 extern const ResolveCopyShaderInfo
@@ -530,7 +528,7 @@ struct ResolveCopyShaderConstants {
     ResolveCopyDestCoordinateInfo dest_coordinate_info;
   };
   DestRelative dest_relative;
-  uint32_t dest_base;
+  u32 dest_base;
 };
 
 struct ResolveClearShaderConstants {
@@ -539,7 +537,7 @@ struct ResolveClearShaderConstants {
    * bindings when going from depth to color.
    */
   struct RenderTargetSpecific {
-    uint32_t clear_value[2];
+    u32 clear_value[2];
     ResolveEdramInfo edram_info;
   };
   RenderTargetSpecific rt_specific;
@@ -565,15 +563,15 @@ struct ResolveInfo {
    * is drawn with next, which avoids unneeded tile ownership transfers between clears and
    * first usage when clearing a subregion.
    */
-  uint32_t depth_original_base;
-  uint32_t color_original_base;
+  u32 depth_original_base;
+  u32 color_original_base;
 
   ResolveCoordinateInfo coordinate_info;
   /**
    * Like coordinate_info.width_div_8 but not needed for shaders. In pixels. May be 0 for a
    * malformed original rectangle, and the resolve must be dropped.
    */
-  uint32_t height_div_8;
+  u32 height_div_8;
 
   xenos::reg::RB_COPY_DEST_INFO copy_dest_info;
   ResolveCopyDestCoordinateInfo copy_dest_coordinate_info;
@@ -582,18 +580,18 @@ struct ResolveInfo {
    * Address of the texture or the location within it that the offset_x/y_div_8 of
    * copy_dest_coordinate_info is relative to, the origin of the copy destination.
    */
-  uint32_t copy_dest_base;
+  u32 copy_dest_base;
   /**
    * Memory range potentially modified by copying to the texture. The length may be 0 for a bad
    * destination, and clearing may still be done but copying must be dropped.
    */
-  uint32_t copy_dest_extent_start;
-  uint32_t copy_dest_extent_length;
+  u32 copy_dest_extent_start;
+  u32 copy_dest_extent_length;
 
   /** The clear shaders always write to a uint4 view of EDRAM. */
-  uint32_t rb_depth_clear;
-  uint32_t rb_color_clear;
-  uint32_t rb_color_clear_lo;
+  u32 rb_depth_clear;
+  u32 rb_color_clear;
+  u32 rb_color_clear_lo;
 
   bool IsCopyingDepth() const {
     return rb_copy_control.copy_src_select >= xenos::kMaxColorRenderTargets;
@@ -607,19 +605,17 @@ struct ResolveInfo {
    * @param rows_out Receives the height of the area in tiles.
    * @param pitch_out Receives the pitch between rows in tiles.
    */
-  void GetCopyEdramTileSpan(uint32_t& base_out, uint32_t& row_length_used_out, uint32_t& rows_out,
-                            uint32_t& pitch_out) const {
+  void GetCopyEdramTileSpan(u32& base_out, u32& row_length_used_out, u32& rows_out,
+                            u32& pitch_out) const {
     ResolveEdramInfo edram_info = IsCopyingDepth() ? depth_edram_info : color_edram_info;
     GetResolveEdramTileSpan(edram_info, coordinate_info, height_div_8, base_out,
                             row_length_used_out, rows_out);
     pitch_out = edram_info.pitch_tiles;
   }
 
-  ResolveCopyShaderIndex GetCopyShader(uint32_t draw_resolution_scale_x,
-                                       uint32_t draw_resolution_scale_y,
+  ResolveCopyShaderIndex GetCopyShader(u32 draw_resolution_scale_x, u32 draw_resolution_scale_y,
                                        ResolveCopyShaderConstants& constants_out,
-                                       uint32_t& group_count_x_out,
-                                       uint32_t& group_count_y_out) const;
+                                       u32& group_count_x_out, u32& group_count_y_out) const;
 
   bool IsClearingDepth() const { return rb_copy_control.depth_clear_enable != 0; }
 
@@ -661,10 +657,10 @@ struct ResolveInfo {
    * @param draw_resolution_scale_y Resolution scale along Y.
    * @return Group counts along X and Y.
    */
-  std::pair<uint32_t, uint32_t> GetClearShaderGroupCount(uint32_t draw_resolution_scale_x,
-                                                         uint32_t draw_resolution_scale_y) const {
-    uint32_t width_samples_div_8 = coordinate_info.width_div_8;
-    uint32_t height_samples_div_8 = height_div_8;
+  std::pair<u32, u32> GetClearShaderGroupCount(u32 draw_resolution_scale_x,
+                                               u32 draw_resolution_scale_y) const {
+    u32 width_samples_div_8 = coordinate_info.width_div_8;
+    u32 height_samples_div_8 = height_div_8;
     xenos::MSAASamples samples =
         IsCopyingDepth() ? depth_edram_info.msaa_samples : color_edram_info.msaa_samples;
     if (samples >= xenos::MSAASamples::k2X) {
@@ -675,8 +671,7 @@ struct ResolveInfo {
     }
     width_samples_div_8 *= draw_resolution_scale_x;
     height_samples_div_8 *= draw_resolution_scale_y;
-    return std::make_pair((width_samples_div_8 + static_cast<uint32_t>(7)) >> 3,
-                          height_samples_div_8);
+    return std::make_pair((width_samples_div_8 + static_cast<u32>(7)) >> 3, height_samples_div_8);
   }
 };
 
@@ -705,7 +700,7 @@ struct ResolveInfo {
  * @return False when an error made the info invalid.
  */
 bool GetResolveInfo(const xenos::RegisterFile& regs, const runtime::Memory& memory,
-                    uint32_t draw_resolution_scale_x, uint32_t draw_resolution_scale_y,
+                    u32 draw_resolution_scale_x, u32 draw_resolution_scale_y,
                     bool fixed_rg16_truncated_to_minus_1_to_1,
                     bool fixed_rgba16_truncated_to_minus_1_to_1, ResolveInfo& info_out);
 

@@ -36,26 +36,26 @@ constexpr memory::fourcc_t kXObjSignature = memory::make_fourcc('R', 'E', 'X', '
 /** Header at the start of every waitable kernel object. */
 struct X_DISPATCH_HEADER {
   struct {
-    uint8_t type; /**< Offset 0x0. Object type, 1 of `X_DISPATCHER_FLAGS`. */
+    u8 type; /**< Offset 0x0. Object type, 1 of `X_DISPATCHER_FLAGS`. */
 
     union {
       /** Offset 0x1. Shares its byte with absolute, npx_irql and signalling. */
-      uint8_t abandoned;
+      u8 abandoned;
       /** Offset 0x1. Holds the spin count divided by 256 in a critical section. */
-      uint8_t absolute;
-      uint8_t npx_irql;   /**< Offset 0x1. No code reads it. */
-      uint8_t signalling; /**< Offset 0x1. No code reads it. */
+      u8 absolute;
+      u8 npx_irql;   /**< Offset 0x1. No code reads it. */
+      u8 signalling; /**< Offset 0x1. No code reads it. */
     };
     union {
-      uint8_t size; /**< Offset 0x2. Shares its byte with hand and process_type. */
-      uint8_t hand; /**< Offset 0x2. No code reads it. */
+      u8 size; /**< Offset 0x2. Shares its byte with hand and process_type. */
+      u8 hand; /**< Offset 0x2. No code reads it. */
       /** Offset 0x2. Process type a timer was initialized with by KeInitializeTimerEx. */
-      uint8_t process_type;
+      u8 process_type;
     };
     union {
-      uint8_t inserted;     /**< Offset 0x3. Shares its byte with debug_active and dpc_active. */
-      uint8_t debug_active; /**< Offset 0x3. No code reads it. */
-      uint8_t dpc_active;   /**< Offset 0x3. No code reads it. */
+      u8 inserted;     /**< Offset 0x3. Shares its byte with debug_active and dpc_active. */
+      u8 debug_active; /**< Offset 0x3. No code reads it. */
+      u8 dpc_active;   /**< Offset 0x3. No code reads it. */
     };
   };
 
@@ -74,10 +74,10 @@ struct X_OBJECT_HEADER {
     be_u32 handle_count;
     be_u32 next_to_free; /**< Offset 0x4. Shares its dword with handle_count. */
   };
-  uint8_t name_info_offset;   /**< Offset 0x8. Zero, no name info block precedes the header. */
-  uint8_t handle_info_offset; /**< Offset 0x9. Zero, no handle info block precedes the header. */
-  uint8_t quota_info_offset;  /**< Offset 0xA. Zero, no quota info block precedes the header. */
-  uint8_t flags;              /**< Offset 0xB. Zero, no object flag is set. */
+  u8 name_info_offset;   /**< Offset 0x8. Zero, no name info block precedes the header. */
+  u8 handle_info_offset; /**< Offset 0x9. Zero, no handle info block precedes the header. */
+  u8 quota_info_offset;  /**< Offset 0xA. Zero, no quota info block precedes the header. */
+  u8 flags;              /**< Offset 0xB. Zero, no object flag is set. */
   union {
     be_u32 object_create_info;  /**< Points to an X_OBJECT_CREATE_INFORMATION. */
     be_u32 quota_block_charged; /**< Offset 0xC. Shares its dword with object_create_info. */

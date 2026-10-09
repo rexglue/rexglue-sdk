@@ -35,15 +35,15 @@ class REX_RUNTIME_API XexModule : public Module {
   /** 1 import of an `ImportLibrary`. */
   struct ImportLibraryFn {
    public:
-    uint32_t ordinal = 0;       /**< Export ordinal the import names. */
-    uint32_t value_address = 0; /**< Guest address of the variable import slot, 0 when none. */
-    uint32_t thunk_address = 0; /**< Guest address of the function import thunk, 0 when none. */
+    u32 ordinal = 0;       /**< Export ordinal the import names. */
+    u32 value_address = 0; /**< Guest address of the variable import slot, 0 when none. */
+    u32 thunk_address = 0; /**< Guest address of the function import thunk, 0 when none. */
   };
   /** A library the image imports from. */
   struct ImportLibrary {
    public:
     std::string name;                     /**< Library name. */
-    uint32_t id;                          /**< Library id in the image. */
+    u32 id;                               /**< Library id in the image. */
     xe_xex2_version_t version;            /**< Version the image was linked against. */
     xe_xex2_version_t min_version;        /**< Oldest version the image accepts. */
     std::vector<ImportLibraryFn> imports; /**< Imports in ordinal order. */
@@ -68,29 +68,29 @@ class REX_RUNTIME_API XexModule : public Module {
    *
    * @return The size in bytes, the sum of the page ranges of the image.
    */
-  uint32_t image_size() const override;
+  u32 image_size() const override;
 
-  uint32_t base_address() const override { return base_address_; }
+  u32 base_address() const override { return base_address_; }
 
   /**
    * Returns the entry point of the image.
    *
    * @return The guest address, 0 when the image has none.
    */
-  uint32_t entry_point() const override {
+  u32 entry_point() const override {
     return image_.OptHeaderValue(XEX_HEADER_ENTRY_POINT).value_or(0);
   }
 
-  uint32_t export_table_address() const override { return image_.security().export_table; }
+  u32 export_table_address() const override { return image_.security().export_table; }
 
-  uint32_t exception_directory_rva() const override { return pe_.exception_directory_rva; }
-  uint32_t exception_directory_size() const override { return pe_.exception_directory_size; }
+  u32 exception_directory_rva() const override { return pe_.exception_directory_rva; }
+  u32 exception_directory_size() const override { return pe_.exception_directory_size; }
   /**
    * Returns the guest address of the exception directory.
    *
    * @return The guest address.
    */
-  uint32_t exception_directory_address() const override {
+  u32 exception_directory_address() const override {
     return base_address_ + pe_.exception_directory_rva;
   }
 
@@ -113,14 +113,14 @@ class REX_RUNTIME_API XexModule : public Module {
    * @param ordinal The export ordinal.
    * @return The guest address, 0 when the module has no such export.
    */
-  uint32_t GetProcAddress(uint16_t ordinal) const;
+  u32 GetProcAddress(u16 ordinal) const;
   /**
    * Looks up an export by name.
    *
    * @param name The export name.
    * @return The guest address, 0 when the module has no such export.
    */
-  uint32_t GetProcAddress(const std::string_view name) const;
+  u32 GetProcAddress(const std::string_view name) const;
 
   /**
    * Applies this patch image to a loaded module.
@@ -177,7 +177,7 @@ class REX_RUNTIME_API XexModule : public Module {
   bool loaded_ = false;
   bool finished_load_ = false;
 
-  uint32_t base_address_ = 0;
+  u32 base_address_ = 0;
 };
 
 }  // namespace rex::runtime

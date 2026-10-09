@@ -44,7 +44,7 @@ void VulkanSubmissionTracker::Shutdown() {
     dfn.vkDestroyFence(device, fence, nullptr);
   }
   fences_reclaimed_.clear();
-  for (const std::pair<uint64_t, VkFence>& fence_pair : fences_pending_) {
+  for (const std::pair<u64, VkFence>& fence_pair : fences_pending_) {
     dfn.vkDestroyFence(device, fence_pair.second, nullptr);
   }
   fences_pending_.clear();
@@ -65,12 +65,12 @@ void VulkanSubmissionTracker::FenceAcquisition::SubmissionFailedOrDropped() {
   submission_tracker_ = VK_NULL_HANDLE;
 }
 
-uint64_t VulkanSubmissionTracker::UpdateAndGetCompletedSubmission() {
+u64 VulkanSubmissionTracker::UpdateAndGetCompletedSubmission() {
   if (!fences_pending_.empty()) {
     const VulkanDevice::Functions& dfn = vulkan_device_->functions();
     const VkDevice device = vulkan_device_->device();
     while (!fences_pending_.empty()) {
-      const std::pair<uint64_t, VkFence>& pending_pair = fences_pending_.front();
+      const std::pair<u64, VkFence>& pending_pair = fences_pending_.front();
       REX_ASSERT(pending_pair.first > submission_completed_on_gpu_);
       if (dfn.vkGetFenceStatus(device, pending_pair.second) != VK_SUCCESS) {
         break;
@@ -83,14 +83,14 @@ uint64_t VulkanSubmissionTracker::UpdateAndGetCompletedSubmission() {
   return submission_completed_on_gpu_;
 }
 
-bool VulkanSubmissionTracker::AwaitSubmissionCompletion(uint64_t submission_index) {
+bool VulkanSubmissionTracker::AwaitSubmissionCompletion(u64 submission_index) {
   REX_ASSERT(submission_index <= submission_current_);
   size_t reclaim_end = fences_pending_.size();
   if (reclaim_end) {
     const VulkanDevice::Functions& dfn = vulkan_device_->functions();
     const VkDevice device = vulkan_device_->device();
     while (reclaim_end) {
-      const std::pair<uint64_t, VkFence>& pending_pair = fences_pending_[reclaim_end - 1];
+      const std::pair<u64, VkFence>& pending_pair = fences_pending_[reclaim_end - 1];
       REX_ASSERT(pending_pair.first > submission_completed_on_gpu_);
       if (pending_pair.first <= submission_index) {
         if (dfn.vkWaitForFences(device, 1, &pending_pair.second, VK_TRUE, UINT64_MAX) ==

@@ -76,7 +76,7 @@ class PosixMappedMemory : public MappedMemory {
     return std::make_unique<PosixMappedMemory>(data, map_length, file_descriptor);
   }
 
-  void Close(uint64_t truncate_size) override {
+  void Close(u64 truncate_size) override {
     if (data_) {
       munmap(data_, size());
       data_ = nullptr;

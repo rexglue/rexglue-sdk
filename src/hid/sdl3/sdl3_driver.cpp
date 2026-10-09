@@ -31,7 +31,7 @@ namespace rex::hid::sdl3 {
 namespace {
 
 /** SDL clamps rumble to SDL_MAX_RUMBLE_DURATION_MS, which is not a public constant. */
-constexpr uint32_t kRumbleDurationMs = 0xFFFF;
+constexpr u32 kRumbleDurationMs = 0xFFFF;
 
 const char* JoystickTypeName(SDL_JoystickType t) {
   switch (t) {
@@ -60,7 +60,7 @@ const char* JoystickTypeName(SDL_JoystickType t) {
   }
 }
 
-const char* XInputSubTypeName(uint8_t s) {
+const char* XInputSubTypeName(u8 s) {
   switch (s) {
     case XINPUT_DEVSUBTYPE_GAMEPAD:
       return "GAMEPAD";
@@ -113,7 +113,7 @@ bool NameContainsCI(const char* name, std::string_view needle) {
  * @param name  Device name, used to refine gamepad types.
  * @return XINPUT_DEVSUBTYPE_* value.
  */
-uint8_t SdlTypeToXInputSubType(SDL_JoystickType t, const char* name) {
+u8 SdlTypeToXInputSubType(SDL_JoystickType t, const char* name) {
   switch (t) {
     case SDL_JOYSTICK_TYPE_GAMEPAD:
       // SDL's XInput backend puts the SubType in the device name, such as "XInput Guitar #1".
@@ -159,7 +159,7 @@ uint8_t SdlTypeToXInputSubType(SDL_JoystickType t, const char* name) {
   }
 }
 
-uint8_t GamepadSubType(SDL_Gamepad* gamepad) {
+u8 GamepadSubType(SDL_Gamepad* gamepad) {
   return SdlTypeToXInputSubType(SDL_GetJoystickType(SDL_GetGamepadJoystick(gamepad)),
                                 SDL_GetGamepadName(gamepad));
 }
@@ -435,10 +435,10 @@ X_RESULT SDL3Driver::ReadDeviceKeystroke(DeviceId id, X_INPUT_KEYSTROKE* out_key
   }
 
   // Inactive input reads as unpressed, so UP events are sent and DOWN events return when active.
-  const uint64_t curr_butts =
-      is_active ? (static_cast<uint64_t>(static_cast<uint16_t>(controller->state.gamepad.buttons)) |
+  const u64 curr_butts =
+      is_active ? (static_cast<u64>(static_cast<u16>(controller->state.gamepad.buttons)) |
                    AnalogToKeyfield(controller->state.gamepad))
-                : static_cast<uint64_t>(0);
+                : static_cast<u64>(0);
   KeystrokeState& last = controller->keystroke;
 
   auto guest_now = rex::Clock::QueryGuestUptimeMillis();
@@ -452,7 +452,7 @@ X_RESULT SDL3Driver::ReadDeviceKeystroke(DeviceId id, X_INPUT_KEYSTROKE* out_key
     last.repeat_time = guest_now;
     VirtualKey vk = kVkLookup.at(last.repeat_butt_idx);
     REX_ASSERT(vk != VirtualKey::kNone);
-    out_keystroke->virtual_key = static_cast<uint16_t>(vk);
+    out_keystroke->virtual_key = static_cast<u16>(vk);
     out_keystroke->unicode = 0;
     // The hub stamps the title user this device is assigned to.
     out_keystroke->user_index = 0;
@@ -468,8 +468,8 @@ X_RESULT SDL3Driver::ReadDeviceKeystroke(DeviceId id, X_INPUT_KEYSTROKE* out_key
 
   // Clear pass first, matching xinput order, so THUMB_UPLEFT is up before THUMB_LEFT is down.
   for (auto [clear_pass, pass] = std::tuple{true, 0}; pass < 2; clear_pass = false, pass++) {
-    for (uint8_t i = 0; i < uint8_t(std::size(kVkLookup)); i++) {
-      auto fbutton = static_cast<uint64_t>(1) << i;
+    for (u8 i = 0; i < u8(std::size(kVkLookup)); i++) {
+      auto fbutton = static_cast<u64>(1) << i;
       if (!(butts_changed & fbutton)) {
         continue;
       }
@@ -478,7 +478,7 @@ X_RESULT SDL3Driver::ReadDeviceKeystroke(DeviceId id, X_INPUT_KEYSTROKE* out_key
         continue;
       }
 
-      out_keystroke->virtual_key = static_cast<uint16_t>(vk);
+      out_keystroke->virtual_key = static_cast<u16>(vk);
       out_keystroke->unicode = 0;
       out_keystroke->user_index = 0;
       out_keystroke->hid_code = 0;
@@ -583,7 +583,7 @@ void SDL3Driver::OnControllerDeviceAddedLocked(const SDL_Event& event) {
   SDL_GUIDToString(SDL_GetJoystickGUID(SDL_GetGamepadJoystick(controller)), guid_text,
                    static_cast<int>(sizeof(guid_text)));
   const SDL_JoystickType joy_type = SDL_GetJoystickType(SDL_GetGamepadJoystick(controller));
-  const uint8_t subtype = GamepadSubType(controller);
+  const u8 subtype = GamepadSubType(controller);
   REXLOG_DEBUG(hid,
                "SDL OnControllerDeviceAdded: \"{}\", "
                "JoystickType({}), "
@@ -610,7 +610,7 @@ void SDL3Driver::OnControllerDeviceAddedLocked(const SDL_Event& event) {
   SDL_SetGamepadPlayerIndex(controller, ordinal);
 
   REXLOG_DEBUG(hid, "SDL OnControllerDeviceAdded: connection order {}, device {}.", ordinal,
-               static_cast<uint64_t>(state.id));
+               static_cast<u64>(state.id));
   const char* mapping = SDL_GetGamepadMapping(controller);
   REXLOG_DEBUG(hid, "SDL Controller {}: {}", ordinal, mapping ? mapping : "<none>");
 }
@@ -659,10 +659,10 @@ void SDL3Driver::OnControllerDeviceAxisMotionLocked(const SDL_Event& event) {
       pad.thumb_ry = ~event.gaxis.value;
       break;
     case SDL_GAMEPAD_AXIS_LEFT_TRIGGER:
-      pad.left_trigger = static_cast<uint8_t>(event.gaxis.value >> 7);
+      pad.left_trigger = static_cast<u8>(event.gaxis.value >> 7);
       break;
     case SDL_GAMEPAD_AXIS_RIGHT_TRIGGER:
-      pad.right_trigger = static_cast<uint8_t>(event.gaxis.value >> 7);
+      pad.right_trigger = static_cast<u8>(event.gaxis.value >> 7);
       break;
     default:
       REX_ASSERT_ALWAYS();
@@ -705,7 +705,7 @@ void SDL3Driver::OnControllerDeviceButtonChangedLocked(const SDL_Event& event) {
   }
   auto& controller = controllers_.at(*idx);
 
-  uint16_t xbuttons = controller.state.gamepad.buttons;
+  u16 xbuttons = controller.state.gamepad.buttons;
   if (event.gbutton.button >= xbutton_lookup.size()) {
     REXLOG_DEBUG(hid, "SDL HID: Unknown button was pressed: {}.", event.gbutton.button);
     return;
@@ -761,7 +761,7 @@ bool SDL3Driver::TestSDLVersion() const {
 
 void SDL3Driver::UpdateXCapabilities(ControllerState& state) {
   assert(state.sdl);
-  uint16_t cap_flags = 0x0;
+  u16 cap_flags = 0x0;
 
   SDL_Joystick* joystick = SDL_GetGamepadJoystick(state.sdl);
   if (SDL_GetJoystickConnectionState(joystick) == SDL_JOYSTICK_CONNECTION_WIRELESS) {
@@ -793,10 +793,10 @@ void SDL3Driver::UpdateXCapabilities(ControllerState& state) {
   c.gamepad.buttons = 0xF3FF | (REXCVAR_GET(cvars::guide_button) ? X_INPUT_GAMEPAD_GUIDE : 0x0);
   c.gamepad.left_trigger = 0xFF;
   c.gamepad.right_trigger = 0xFF;
-  c.gamepad.thumb_lx = static_cast<int16_t>(0xFFFFu);
-  c.gamepad.thumb_ly = static_cast<int16_t>(0xFFFFu);
-  c.gamepad.thumb_rx = static_cast<int16_t>(0xFFFFu);
-  c.gamepad.thumb_ry = static_cast<int16_t>(0xFFFFu);
+  c.gamepad.thumb_lx = static_cast<i16>(0xFFFFu);
+  c.gamepad.thumb_ly = static_cast<i16>(0xFFFFu);
+  c.gamepad.thumb_rx = static_cast<i16>(0xFFFFu);
+  c.gamepad.thumb_ry = static_cast<i16>(0xFFFFu);
   c.vibration.left_motor_speed = 0xFFFFu;
   c.vibration.right_motor_speed = 0xFFFFu;
 }
@@ -821,42 +821,42 @@ void SDL3Driver::QueueControllerUpdate() {
   }
 }
 
-inline uint64_t SDL3Driver::AnalogToKeyfield(const X_INPUT_GAMEPAD& gamepad) const {
-  uint64_t f = 0;
+inline u64 SDL3Driver::AnalogToKeyfield(const X_INPUT_GAMEPAD& gamepad) const {
+  u64 f = 0;
 
-  f |= static_cast<uint64_t>(gamepad.left_trigger > HID_SDL_TRIGG_THRES) << 16;
-  f |= static_cast<uint64_t>(gamepad.right_trigger > HID_SDL_TRIGG_THRES) << 17;
+  f |= static_cast<u64>(gamepad.left_trigger > HID_SDL_TRIGG_THRES) << 16;
+  f |= static_cast<u64>(gamepad.right_trigger > HID_SDL_TRIGG_THRES) << 17;
 
-  auto thumb_x = static_cast<int16_t>(gamepad.thumb_lx);
-  auto thumb_y = static_cast<int16_t>(gamepad.thumb_ly);
+  auto thumb_x = static_cast<i16>(gamepad.thumb_lx);
+  auto thumb_y = static_cast<i16>(gamepad.thumb_ly);
   for (size_t i = 0; i <= 8; i = i + 8) {
-    uint64_t u = thumb_y > HID_SDL_THUMB_THRES;
-    uint64_t d = thumb_y < ~HID_SDL_THUMB_THRES;
-    uint64_t r = thumb_x > HID_SDL_THUMB_THRES;
-    uint64_t l = thumb_x < ~HID_SDL_THUMB_THRES;
+    u64 u = thumb_y > HID_SDL_THUMB_THRES;
+    u64 d = thumb_y < ~HID_SDL_THUMB_THRES;
+    u64 r = thumb_x > HID_SDL_THUMB_THRES;
+    u64 l = thumb_x < ~HID_SDL_THUMB_THRES;
     if (u && l) {
       u = l = 0;
-      f |= static_cast<uint64_t>(1) << (22 + i);
+      f |= static_cast<u64>(1) << (22 + i);
     }
     if (u && r) {
       u = r = 0;
-      f |= static_cast<uint64_t>(1) << (23 + i);
+      f |= static_cast<u64>(1) << (23 + i);
     }
     if (d && r) {
       d = r = 0;
-      f |= static_cast<uint64_t>(1) << (24 + i);
+      f |= static_cast<u64>(1) << (24 + i);
     }
     if (d && l) {
       d = l = 0;
-      f |= static_cast<uint64_t>(1) << (25 + i);
+      f |= static_cast<u64>(1) << (25 + i);
     }
     f |= u << (18 + i);
     f |= d << (19 + i);
     f |= r << (20 + i);
     f |= l << (21 + i);
 
-    thumb_x = static_cast<int16_t>(gamepad.thumb_rx);
-    thumb_y = static_cast<int16_t>(gamepad.thumb_ry);
+    thumb_x = static_cast<i16>(gamepad.thumb_rx);
+    thumb_y = static_cast<i16>(gamepad.thumb_ry);
   }
   return f;
 }

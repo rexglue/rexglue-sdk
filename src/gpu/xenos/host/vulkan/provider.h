@@ -29,7 +29,7 @@ class VulkanProvider : public GraphicsProvider {
   explicit VulkanProvider(Key) {}
 
   static std::unique_ptr<VulkanProvider> Create(bool with_gpu_emulation, bool with_presentation,
-                                                int32_t device_index);
+                                                i32 device_index);
 
   VulkanInstance* vulkan_instance() const { return vulkan_instance_.get(); }
 

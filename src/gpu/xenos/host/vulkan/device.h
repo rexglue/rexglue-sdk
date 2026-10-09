@@ -65,37 +65,37 @@ class VulkanDevice : public rex::NonCopyable {
    * Raise when functionality from a higher version is used. The patch version is ignored when
    * creating an instance.
    */
-  static constexpr uint32_t kHighestUsedApiMinorVersion = VK_MAKE_API_VERSION(0, 1, 3, 0);
+  static constexpr u32 kHighestUsedApiMinorVersion = VK_MAKE_API_VERSION(0, 1, 3, 0);
 
   struct Properties {
-    uint32_t apiVersion = VK_MAKE_API_VERSION(0, 1, 0, 0);
-    uint32_t driverVersion = 0;
-    uint32_t vendorID = 0;
-    uint32_t deviceID = 0;
+    u32 apiVersion = VK_MAKE_API_VERSION(0, 1, 0, 0);
+    u32 driverVersion = 0;
+    u32 vendorID = 0;
+    u32 deviceID = 0;
     char deviceName[VK_MAX_PHYSICAL_DEVICE_NAME_SIZE] = {};
 
-    uint32_t maxImageDimension2D = 4096;
-    uint32_t maxImageDimension3D = 256;
-    uint32_t maxImageDimensionCube = 4096;
-    uint32_t maxImageArrayLayers = 256;
-    uint32_t maxStorageBufferRange = static_cast<uint32_t>(1) << 27;
-    uint32_t maxSamplerAllocationCount = 4000;
-    uint32_t maxPerStageDescriptorSamplers = 16;
-    uint32_t maxPerStageDescriptorStorageBuffers = 4;
-    uint32_t maxPerStageDescriptorSampledImages = 16;
-    uint32_t maxPerStageResources = 128;
-    uint32_t maxVertexOutputComponents = 64;
-    uint32_t maxTessellationEvaluationOutputComponents = 64;
-    uint32_t maxGeometryInputComponents = 64;
-    uint32_t maxGeometryOutputComponents = 64;
-    uint32_t maxFragmentInputComponents = 64;
-    uint32_t maxFragmentCombinedOutputResources = 4;
-    float maxSamplerAnisotropy = 1.0f;
-    uint32_t maxViewportDimensions[2] = {4096, 4096};
+    u32 maxImageDimension2D = 4096;
+    u32 maxImageDimension3D = 256;
+    u32 maxImageDimensionCube = 4096;
+    u32 maxImageArrayLayers = 256;
+    u32 maxStorageBufferRange = static_cast<u32>(1) << 27;
+    u32 maxSamplerAllocationCount = 4000;
+    u32 maxPerStageDescriptorSamplers = 16;
+    u32 maxPerStageDescriptorStorageBuffers = 4;
+    u32 maxPerStageDescriptorSampledImages = 16;
+    u32 maxPerStageResources = 128;
+    u32 maxVertexOutputComponents = 64;
+    u32 maxTessellationEvaluationOutputComponents = 64;
+    u32 maxGeometryInputComponents = 64;
+    u32 maxGeometryOutputComponents = 64;
+    u32 maxFragmentInputComponents = 64;
+    u32 maxFragmentCombinedOutputResources = 4;
+    f32 maxSamplerAnisotropy = 1.0f;
+    u32 maxViewportDimensions[2] = {4096, 4096};
     VkDeviceSize minUniformBufferOffsetAlignment = 256;
     VkDeviceSize minStorageBufferOffsetAlignment = 256;
-    uint32_t maxFramebufferWidth = 4096;
-    uint32_t maxFramebufferHeight = 4096;
+    u32 maxFramebufferWidth = 4096;
+    u32 maxFramebufferHeight = 4096;
     VkSampleCountFlags framebufferColorSampleCounts = VK_SAMPLE_COUNT_1_BIT | VK_SAMPLE_COUNT_4_BIT;
     VkSampleCountFlags framebufferDepthSampleCounts = VK_SAMPLE_COUNT_1_BIT | VK_SAMPLE_COUNT_4_BIT;
     VkSampleCountFlags framebufferStencilSampleCounts =
@@ -183,7 +183,7 @@ class VulkanDevice : public rex::NonCopyable {
 
     bool customBorderColors = false;
     bool customBorderColorWithoutFormat = false;
-    uint32_t maxCustomBorderColorSamplers = 0;
+    u32 maxCustomBorderColorSamplers = 0;
 
     // VK_EXT_robustness2
 
@@ -266,7 +266,7 @@ class VulkanDevice : public rex::NonCopyable {
     object_name_info.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT;
     object_name_info.pNext = nullptr;
     object_name_info.objectType = object_type;
-    object_name_info.objectHandle = std::bit_cast<uint64_t>(object_handle);
+    object_name_info.objectHandle = std::bit_cast<u64>(object_handle);
     object_name_info.pObjectName = object_name;
     vulkan_instance()->functions().vkSetDebugUtilsObjectNameEXT(device(), &object_name_info);
   }
@@ -299,7 +299,7 @@ class VulkanDevice : public rex::NonCopyable {
   };
 
   const std::vector<QueueFamily>& queue_families() const { return queue_families_; }
-  uint32_t queue_family_graphics_compute() const { return queue_family_graphics_compute_; }
+  u32 queue_family_graphics_compute() const { return queue_family_graphics_compute_; }
   /**
    * Returns the sparse binding queue family, UINT32_MAX if not supported or not enabled.
    *
@@ -307,18 +307,17 @@ class VulkanDevice : public rex::NonCopyable {
    *
    * @return The queue family index.
    */
-  uint32_t queue_family_sparse_binding() const { return queue_family_sparse_binding_; }
+  u32 queue_family_sparse_binding() const { return queue_family_sparse_binding_; }
 
-  Queue::Acquisition AcquireQueue(const uint32_t queue_family_index,
-                                  const uint32_t queue_index) const {
+  Queue::Acquisition AcquireQueue(const u32 queue_family_index, const u32 queue_index) const {
     return queue_families()[queue_family_index].queues[queue_index]->Acquire();
   }
 
   struct MemoryTypes {
-    uint32_t device_local = 0b0;
-    uint32_t host_visible = 0b0;
-    uint32_t host_coherent = 0b0;
-    uint32_t host_cached = 0b0;
+    u32 device_local = 0b0;
+    u32 host_visible = 0b0;
+    u32 host_coherent = 0b0;
+    u32 host_cached = 0b0;
   };
 
   const MemoryTypes& memory_types() const { return memory_types_; }
@@ -351,8 +350,8 @@ class VulkanDevice : public rex::NonCopyable {
   Functions functions_;
 
   std::vector<QueueFamily> queue_families_;
-  uint32_t queue_family_graphics_compute_ = UINT32_MAX;
-  uint32_t queue_family_sparse_binding_ = UINT32_MAX;
+  u32 queue_family_graphics_compute_ = UINT32_MAX;
+  u32 queue_family_sparse_binding_ = UINT32_MAX;
 
   MemoryTypes memory_types_;
 };

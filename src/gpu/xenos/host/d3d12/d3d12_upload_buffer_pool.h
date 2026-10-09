@@ -28,12 +28,11 @@ class D3D12UploadBufferPool : public GraphicsUploadBufferPool {
    */
   D3D12UploadBufferPool(const D3D12Provider& provider, size_t page_size = kDefaultPageSize);
 
-  uint8_t* Request(uint64_t submission_index, size_t size, size_t alignment,
-                   ID3D12Resource** buffer_out, size_t* offset_out,
-                   D3D12_GPU_VIRTUAL_ADDRESS* gpu_address_out);
-  uint8_t* RequestPartial(uint64_t submission_index, size_t size, size_t alignment,
-                          ID3D12Resource** buffer_out, size_t* offset_out, size_t* size_out,
-                          D3D12_GPU_VIRTUAL_ADDRESS* gpu_address_out);
+  u8* Request(u64 submission_index, size_t size, size_t alignment, ID3D12Resource** buffer_out,
+              size_t* offset_out, D3D12_GPU_VIRTUAL_ADDRESS* gpu_address_out);
+  u8* RequestPartial(u64 submission_index, size_t size, size_t alignment,
+                     ID3D12Resource** buffer_out, size_t* offset_out, size_t* size_out,
+                     D3D12_GPU_VIRTUAL_ADDRESS* gpu_address_out);
 
  protected:
   std::unique_ptr<Page> CreatePageImplementation() override;

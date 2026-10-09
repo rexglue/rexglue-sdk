@@ -34,10 +34,10 @@ class VulkanUploadBufferPool : public GraphicsUploadBufferPool {
   VulkanUploadBufferPool(const VulkanDevice* vulkan_device, VkBufferUsageFlags usage,
                          size_t page_size = kDefaultPageSize);
 
-  uint8_t* Request(uint64_t submission_index, size_t size, size_t alignment, VkBuffer& buffer_out,
-                   VkDeviceSize& offset_out);
-  uint8_t* RequestPartial(uint64_t submission_index, size_t size, size_t alignment,
-                          VkBuffer& buffer_out, VkDeviceSize& offset_out, VkDeviceSize& size_out);
+  u8* Request(u64 submission_index, size_t size, size_t alignment, VkBuffer& buffer_out,
+              VkDeviceSize& offset_out);
+  u8* RequestPartial(u64 submission_index, size_t size, size_t alignment, VkBuffer& buffer_out,
+                     VkDeviceSize& offset_out, VkDeviceSize& size_out);
 
  protected:
   std::unique_ptr<Page> CreatePageImplementation() override;
@@ -67,9 +67,9 @@ class VulkanUploadBufferPool : public GraphicsUploadBufferPool {
   const VulkanDevice* vulkan_device_;
 
   VkDeviceSize allocation_size_;
-  static constexpr uint32_t kMemoryTypeUnknown = UINT32_MAX;
-  static constexpr uint32_t kMemoryTypeUnavailable = kMemoryTypeUnknown - 1;
-  uint32_t memory_type_ = UINT32_MAX;
+  static constexpr u32 kMemoryTypeUnknown = UINT32_MAX;
+  static constexpr u32 kMemoryTypeUnavailable = kMemoryTypeUnknown - 1;
+  u32 memory_type_ = UINT32_MAX;
 
   VkBufferUsageFlags usage_;
 };

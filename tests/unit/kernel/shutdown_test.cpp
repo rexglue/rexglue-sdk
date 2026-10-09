@@ -1,5 +1,5 @@
 /**
- * @file        kernel/shutdown_test.cpp
+ * @file        tests/unit/kernel/shutdown_test.cpp
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

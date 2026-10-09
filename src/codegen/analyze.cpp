@@ -82,11 +82,11 @@ const char* AnalysisErrors::CategoryName(Category cat) {
   }
 }
 
-void AnalysisErrors::Add(Category cat, uint32_t addr, const std::string& msg) {
+void AnalysisErrors::Add(Category cat, u32 addr, const std::string& msg) {
   Add(cat, addr, 0, msg);
 }
 
-void AnalysisErrors::Add(Category cat, uint32_t addr, uint32_t secondary, const std::string& msg) {
+void AnalysisErrors::Add(Category cat, u32 addr, u32 secondary, const std::string& msg) {
   entries_.push_back({cat, addr, secondary, msg});
 }
 

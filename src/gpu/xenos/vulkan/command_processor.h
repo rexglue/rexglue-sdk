@@ -134,7 +134,7 @@ class VulkanCommandProcessor : public CommandProcessor {
 
   void ClearCaches() override;
   void InvalidateGpuMemory() override;
-  void InitializeShaderStorage(const std::filesystem::path& cache_root, uint32_t title_id,
+  void InitializeShaderStorage(const std::filesystem::path& cache_root, u32 title_id,
                                bool blocking) override;
 
   gpu::vulkan::VulkanDevice* GetVulkanDevice() const {
@@ -143,7 +143,7 @@ class VulkanCommandProcessor : public CommandProcessor {
   }
 
   bool CompileGlslToSpirv(VkShaderStageFlagBits stage, std::string_view source,
-                          std::vector<uint32_t>& spirv_out, std::string& error_out) const;
+                          std::vector<u32>& spirv_out, std::string& error_out) const;
 
   /**
    * Returns the deferred drawing command list for the open submission.
@@ -156,10 +156,10 @@ class VulkanCommandProcessor : public CommandProcessor {
   }
 
   bool submission_open() const { return submission_open_; }
-  uint64_t GetCurrentSubmission() const {
-    return submission_completed_ + static_cast<uint64_t>(submissions_in_flight_fences_.size()) + 1;
+  u64 GetCurrentSubmission() const {
+    return submission_completed_ + static_cast<u64>(submissions_in_flight_fences_.size()) + 1;
   }
-  uint64_t GetCompletedSubmission() const { return submission_completed_; }
+  u64 GetCompletedSubmission() const { return submission_completed_; }
 
   /**
    * Queues sparse binds. A submission sends them in one vkQueueBindSparse without waiting for a
@@ -171,11 +171,11 @@ class VulkanCommandProcessor : public CommandProcessor {
    * @param binds Sparse memory binds.
    * @param wait_stage_mask Pipeline stages that wait for the binds.
    */
-  void SparseBindBuffer(VkBuffer buffer, uint32_t bind_count, const VkSparseMemoryBind* binds,
+  void SparseBindBuffer(VkBuffer buffer, u32 bind_count, const VkSparseMemoryBind* binds,
                         VkPipelineStageFlags wait_stage_mask);
 
-  uint64_t GetCurrentFrame() const { return frame_current_; }
-  uint64_t GetCompletedFrame() const { return frame_completed_; }
+  u64 GetCurrentFrame() const { return frame_current_; }
+  u64 GetCompletedFrame() const { return frame_completed_; }
 
   /**
    * Inserts a buffer memory barrier. The submission must be open. Stage masks are 0 when no
@@ -197,8 +197,8 @@ class VulkanCommandProcessor : public CommandProcessor {
                                VkPipelineStageFlags src_stage_mask,
                                VkPipelineStageFlags dst_stage_mask, VkAccessFlags src_access_mask,
                                VkAccessFlags dst_access_mask,
-                               uint32_t src_queue_family_index = VK_QUEUE_FAMILY_IGNORED,
-                               uint32_t dst_queue_family_index = VK_QUEUE_FAMILY_IGNORED,
+                               u32 src_queue_family_index = VK_QUEUE_FAMILY_IGNORED,
+                               u32 dst_queue_family_index = VK_QUEUE_FAMILY_IGNORED,
                                bool skip_if_equal = true);
   /**
    * Inserts an image memory barrier, with the same rules as PushBufferMemoryBarrier.
@@ -221,8 +221,8 @@ class VulkanCommandProcessor : public CommandProcessor {
                               VkPipelineStageFlags dst_stage_mask, VkAccessFlags src_access_mask,
                               VkAccessFlags dst_access_mask, VkImageLayout old_layout,
                               VkImageLayout new_layout,
-                              uint32_t src_queue_family_index = VK_QUEUE_FAMILY_IGNORED,
-                              uint32_t dst_queue_family_index = VK_QUEUE_FAMILY_IGNORED,
+                              u32 src_queue_family_index = VK_QUEUE_FAMILY_IGNORED,
+                              u32 dst_queue_family_index = VK_QUEUE_FAMILY_IGNORED,
                               bool skip_if_equal = true);
   /**
    * Submits the pending barriers.
@@ -304,20 +304,19 @@ class VulkanCommandProcessor : public CommandProcessor {
   bool SetupContext() override;
   void ShutdownContext() override;
 
-  void WriteRegister(uint32_t index, uint32_t value) override;
-  void WriteRegistersFromMem(uint32_t start_index, uint32_t* base, uint32_t num_registers) override;
-  bool ExecutePacketType3_EVENT_WRITE_ZPD(memory::RingBuffer* reader, uint32_t packet,
-                                          uint32_t count) override;
+  void WriteRegister(u32 index, u32 value) override;
+  void WriteRegistersFromMem(u32 start_index, u32* base, u32 num_registers) override;
+  bool ExecutePacketType3_EVENT_WRITE_ZPD(memory::RingBuffer* reader, u32 packet,
+                                          u32 count) override;
 
   void OnGammaRamp256EntryTableValueWritten() override;
   void OnGammaRampPWLValueWritten() override;
   void OnPrimaryBufferEnd() override;
 
-  void IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontbuffer_width,
-                 uint32_t frontbuffer_height) override;
+  void IssueSwap(u32 frontbuffer_ptr, u32 frontbuffer_width, u32 frontbuffer_height) override;
 
-  Shader* LoadShader(xenos::ShaderType shader_type, uint32_t guest_address,
-                     const uint32_t* host_address, uint32_t dword_count) override;
+  Shader* LoadShader(xenos::ShaderType shader_type, u32 guest_address, const u32* host_address,
+                     u32 dword_count) override;
 
   /**
    * Issues a draw, running up to 2 iterations of the subsystem updates. A sampler overflow may
@@ -331,7 +330,7 @@ class VulkanCommandProcessor : public CommandProcessor {
    * @return False when a sampler could not be created, or overflowed twice because of too many
    *         unique samplers in 1 draw or a failed await.
    */
-  bool IssueDraw(xenos::PrimitiveType prim_type, uint32_t index_count,
+  bool IssueDraw(xenos::PrimitiveType prim_type, u32 index_count,
                  IndexBufferInfo* index_buffer_info, bool major_mode_explicit) override;
   bool IssueCopy() override;
 
@@ -344,16 +343,16 @@ class VulkanCommandProcessor : public CommandProcessor {
   struct SparseBufferBind {
     VkBuffer buffer;
     size_t bind_offset;
-    uint32_t bind_count;
+    u32 bind_count;
   };
 
   union TextureDescriptorSetLayoutKey {
-    uint32_t key;
+    u32 key;
     struct {
       /** With both counts 0, descriptor_set_layout_empty_ is used instead, these own references. */
-      uint32_t texture_count : 16;
-      uint32_t sampler_count : 15;
-      uint32_t is_vertex : 1;
+      u32 texture_count : 16;
+      u32 sampler_count : 15;
+      u32 is_vertex : 1;
     };
 
     TextureDescriptorSetLayoutKey() : key(0) { REX_STATIC_ASSERT_SIZE(*this, sizeof(key)); }
@@ -372,13 +371,13 @@ class VulkanCommandProcessor : public CommandProcessor {
   };
 
   union PipelineLayoutKey {
-    uint64_t key;
+    u64 key;
     struct {
       // Pixel textures occupy the low bits because they vary more often.
-      uint16_t texture_count_pixel;
-      uint16_t sampler_count_pixel;
-      uint16_t texture_count_vertex;
-      uint16_t sampler_count_vertex;
+      u16 texture_count_pixel;
+      u16 sampler_count_pixel;
+      u16 texture_count_vertex;
+      u16 sampler_count_vertex;
     };
 
     PipelineLayoutKey() : key(0) { REX_STATIC_ASSERT_SIZE(*this, sizeof(key)); }
@@ -415,24 +414,24 @@ class VulkanCommandProcessor : public CommandProcessor {
   };
 
   struct UsedSingleTransientDescriptor {
-    uint64_t frame;
+    u64 frame;
     SingleTransientDescriptorLayout layout;
     VkDescriptorSet set;
   };
 
   struct UsedTextureTransientDescriptorSet {
-    uint64_t frame;
+    u64 frame;
     TextureDescriptorSetLayoutKey layout;
     VkDescriptorSet set;
   };
 
-  enum SwapApplyGammaDescriptorSet : uint32_t {
+  enum SwapApplyGammaDescriptorSet : u32 {
     kSwapApplyGammaDescriptorSetRamp,
     kSwapApplyGammaDescriptorSetSource,
 
     kSwapApplyGammaDescriptorSetCount,
   };
-  enum SwapApplyGammaComputeDescriptorSet : uint32_t {
+  enum SwapApplyGammaComputeDescriptorSet : u32 {
     kSwapApplyGammaComputeDescriptorSetRamp,
     kSwapApplyGammaComputeDescriptorSetSource,
     kSwapApplyGammaComputeDescriptorSetDestination,
@@ -440,24 +439,24 @@ class VulkanCommandProcessor : public CommandProcessor {
     kSwapApplyGammaComputeDescriptorSetCount,
   };
   struct SwapApplyGammaConstants {
-    uint32_t size[2];
+    u32 size[2];
   };
-  enum SwapFxaaDescriptorSet : uint32_t {
+  enum SwapFxaaDescriptorSet : u32 {
     kSwapFxaaDescriptorSetSource,
     kSwapFxaaDescriptorSetDestination,
 
     kSwapFxaaDescriptorSetCount,
   };
   struct SwapFxaaConstants {
-    uint32_t size[2];
-    float size_inv[2];
+    u32 size[2];
+    f32 size_inv[2];
   };
 
   /** Framebuffer for the current presenter guest output image revision, with usage tracking. */
   struct SwapFramebuffer {
     VkFramebuffer framebuffer = VK_NULL_HANDLE;
-    uint64_t version = UINT64_MAX;
-    uint64_t last_submission = 0;
+    u64 version = UINT64_MAX;
+    u64 last_submission = 0;
   };
 
   /**
@@ -466,7 +465,7 @@ class VulkanCommandProcessor : public CommandProcessor {
    * @param await_submission Submission to await, 0 only checks status and GetCurrentSubmission()
    *        waits for all queue operations to complete.
    */
-  void CheckSubmissionFenceAndDeviceLoss(uint64_t await_submission);
+  void CheckSubmissionFenceAndDeviceLoss(u64 await_submission);
   /**
    * Opens a submission. May be called at any time. An open non frame submission is promoted to a
    * frame when is_guest_command is true. Unlike Direct3D 12, submission boundaries imply no memory
@@ -502,38 +501,38 @@ class VulkanCommandProcessor : public CommandProcessor {
 
   void ClearTransientDescriptorPools();
   bool IssueCopy_ReadbackResolvePath();
-  bool IssueDraw_MemexportReadbackFullPath(uint32_t total_size);
-  bool IssueDraw_MemexportReadbackFastPath(uint32_t total_size);
+  bool IssueDraw_MemexportReadbackFullPath(u32 total_size);
+  bool IssueDraw_MemexportReadbackFastPath(u32 total_size);
 
   void SplitPendingBarrier();
 
   void DestroyScratchBuffer();
   bool InitializeOcclusionQueryResources();
   void ShutdownOcclusionQueryResources();
-  bool BeginGuestOcclusionQuery(uint32_t sample_count_address);
-  bool EndGuestOcclusionQuery(uint32_t sample_count_address);
-  bool AcquireOcclusionQueryIndex(uint32_t& host_index_out);
+  bool BeginGuestOcclusionQuery(u32 sample_count_address);
+  bool EndGuestOcclusionQuery(u32 sample_count_address);
+  bool AcquireOcclusionQueryIndex(u32& host_index_out);
   void DisableHostOcclusionQueries();
-  uint64_t NormalizeOcclusionSamples(uint64_t samples) const;
-  void WriteGuestOcclusionResult(uint32_t sample_count_address, uint64_t samples);
+  u64 NormalizeOcclusionSamples(u64 samples) const;
+  void WriteGuestOcclusionResult(u32 sample_count_address, u64 samples);
   void InvalidateAllVertexBufferResidency();
-  void InvalidateVertexBufferResidency(uint32_t vfetch_index);
-  void InvalidateVertexBufferResidencyRange(uint32_t first_vfetch, uint32_t last_vfetch);
+  void InvalidateVertexBufferResidency(u32 vfetch_index);
+  void InvalidateVertexBufferResidencyRange(u32 first_vfetch, u32 last_vfetch);
   struct ReadbackBuffer {
     VkBuffer buffers[2] = {VK_NULL_HANDLE, VK_NULL_HANDLE};
     VkDeviceMemory memories[2] = {VK_NULL_HANDLE, VK_NULL_HANDLE};
     void* mapped_data[2] = {nullptr, nullptr};
-    uint32_t sizes[2] = {0, 0};
-    uint64_t submission_written[2] = {0, 0};
-    uint32_t written_size[2] = {0, 0};
-    uint32_t current_index = 0;
-    uint64_t last_used_frame = 0;
+    u32 sizes[2] = {0, 0};
+    u64 submission_written[2] = {0, 0};
+    u32 written_size[2] = {0, 0};
+    u32 current_index = 0;
+    u64 last_used_frame = 0;
   };
-  void EvictOldReadbackBuffers(std::unordered_map<uint64_t, ReadbackBuffer>& buffer_map);
-  static constexpr uint32_t kReadbackBufferSizeIncrement = 16 * 1024 * 1024;
+  void EvictOldReadbackBuffers(std::unordered_map<u64, ReadbackBuffer>& buffer_map);
+  static constexpr u32 kReadbackBufferSizeIncrement = 16 * 1024 * 1024;
   static constexpr size_t kMaxReadbackBuffers = 256;
-  static constexpr uint64_t kReadbackBufferEvictionAgeFrames = 60;
-  static inline uint32_t AlignReadbackBufferSize(uint32_t size) {
+  static constexpr u64 kReadbackBufferEvictionAgeFrames = 60;
+  static inline u32 AlignReadbackBufferSize(u32 size) {
     if (size < 1 * 1024 * 1024) {
       return rex::align(size, 256u * 1024u);
     }
@@ -542,23 +541,21 @@ class VulkanCommandProcessor : public CommandProcessor {
     }
     return rex::align(size, kReadbackBufferSizeIncrement);
   }
-  static inline uint64_t MakeReadbackResolveKey(uint32_t address, uint32_t length) {
-    return (static_cast<uint64_t>(address) << 32) | static_cast<uint64_t>(length);
+  static inline u64 MakeReadbackResolveKey(u32 address, u32 length) {
+    return (static_cast<u64>(address) << 32) | static_cast<u64>(length);
   }
-  static inline uint64_t MakeMemexportReadbackKey(uint32_t first_base_address_dwords,
-                                                  uint32_t total_size) {
-    return (static_cast<uint64_t>(first_base_address_dwords) << 32) |
-           static_cast<uint64_t>(total_size);
+  static inline u64 MakeMemexportReadbackKey(u32 first_base_address_dwords, u32 total_size) {
+    return (static_cast<u64>(first_base_address_dwords) << 32) | static_cast<u64>(total_size);
   }
   struct ResolveDownscaleConstants {
-    uint32_t scale_x;
-    uint32_t scale_y;
-    uint32_t pixel_size_log2;
-    uint32_t tile_count;
-    uint32_t source_offset_bytes;
-    uint32_t half_pixel_offset;
+    u32 scale_x;
+    u32 scale_y;
+    u32 pixel_size_log2;
+    u32 tile_count;
+    u32 source_offset_bytes;
+    u32 half_pixel_offset;
   };
-  bool EnsureSwapFxaaSourceImage(uint32_t width, uint32_t height);
+  bool EnsureSwapFxaaSourceImage(u32 width, u32 height);
   void DestroySwapFxaaSourceImage();
 
   void UpdateDynamicState(const draw_util::ViewportInfo& viewport_info, bool primitive_polygonal,
@@ -581,9 +578,9 @@ class VulkanCommandProcessor : public CommandProcessor {
   void UpdateSystemConstantValues(
       bool primitive_polygonal,
       const PrimitiveProcessor::ProcessingResult& primitive_processing_result,
-      bool shader_32bit_index_dma, uint32_t compute_memexport_vertex_count,
-      const draw_util::ViewportInfo& viewport_info, uint32_t used_texture_mask,
-      xenos::reg::RB_DEPTHCONTROL normalized_depth_control, uint32_t normalized_color_mask);
+      bool shader_32bit_index_dma, u32 compute_memexport_vertex_count,
+      const draw_util::ViewportInfo& viewport_info, u32 used_texture_mask,
+      xenos::reg::RB_DEPTHCONTROL normalized_depth_control, u32 normalized_color_mask);
   bool UpdateBindings(const VulkanShader* vertex_shader, const VulkanShader* pixel_shader);
   /**
    * Allocates a descriptor set and fills 1 or 2 VkWriteDescriptorSet entries for images and
@@ -598,12 +595,11 @@ class VulkanCommandProcessor : public CommandProcessor {
    * @param descriptor_set_writes_out Receives the writes.
    * @return The number of writes, or 0 on allocation failure or when no bindings were requested.
    */
-  uint32_t WriteTransientTextureBindings(bool is_vertex, uint32_t texture_count,
-                                         uint32_t sampler_count,
-                                         VkDescriptorSetLayout descriptor_set_layout,
-                                         const VkDescriptorImageInfo* texture_image_info,
-                                         const VkDescriptorImageInfo* sampler_image_info,
-                                         VkWriteDescriptorSet* descriptor_set_writes_out);
+  u32 WriteTransientTextureBindings(bool is_vertex, u32 texture_count, u32 sampler_count,
+                                    VkDescriptorSetLayout descriptor_set_layout,
+                                    const VkDescriptorImageInfo* texture_image_info,
+                                    const VkDescriptorImageInfo* sampler_image_info,
+                                    VkWriteDescriptorSet* descriptor_set_writes_out);
 
   bool device_lost_ = false;
 
@@ -616,29 +612,29 @@ class VulkanCommandProcessor : public CommandProcessor {
   std::vector<VkSemaphore> semaphores_free_;
 
   bool submission_open_ = false;
-  uint64_t submission_completed_ = 0;
+  u64 submission_completed_ = 0;
   /** Kept so the next attempt waits correctly when vkQueueSubmit fails after a bind succeeded. */
   std::vector<VkSemaphore> current_submission_wait_semaphores_;
   std::vector<VkPipelineStageFlags> current_submission_wait_stage_masks_;
   std::vector<VkFence> submissions_in_flight_fences_;
-  std::deque<std::pair<uint64_t, VkSemaphore>> submissions_in_flight_semaphores_;
+  std::deque<std::pair<u64, VkSemaphore>> submissions_in_flight_semaphores_;
 
-  static constexpr uint32_t kMaxFramesInFlight = 3;
+  static constexpr u32 kMaxFramesInFlight = 3;
   bool frame_open_ = false;
   bool frame_used_async_placeholder_pipeline_ = false;
-  uint64_t frame_current_ = 1;
-  uint64_t frame_completed_ = 0;
-  uint64_t closed_frame_submissions_[kMaxFramesInFlight] = {};
+  u64 frame_current_ = 1;
+  u64 frame_completed_ = 0;
+  u64 closed_frame_submissions_[kMaxFramesInFlight] = {};
 
   /** Pairs of last used submission and resource, sorted by submission. */
-  std::deque<std::pair<uint64_t, VkDeviceMemory>> destroy_memory_;
-  std::deque<std::pair<uint64_t, VkBuffer>> destroy_buffers_;
-  std::deque<std::pair<uint64_t, VkImageView>> destroy_image_views_;
-  std::deque<std::pair<uint64_t, VkImage>> destroy_images_;
-  std::deque<std::pair<uint64_t, VkFramebuffer>> destroy_framebuffers_;
+  std::deque<std::pair<u64, VkDeviceMemory>> destroy_memory_;
+  std::deque<std::pair<u64, VkBuffer>> destroy_buffers_;
+  std::deque<std::pair<u64, VkImageView>> destroy_image_views_;
+  std::deque<std::pair<u64, VkImage>> destroy_images_;
+  std::deque<std::pair<u64, VkFramebuffer>> destroy_framebuffers_;
 
   std::vector<CommandBuffer> command_buffers_writable_;
-  std::deque<std::pair<uint64_t, CommandBuffer>> command_buffers_submitted_;
+  std::deque<std::pair<u64, CommandBuffer>> command_buffers_submitted_;
   DeferredCommandBuffer deferred_command_buffer_;
 
   std::vector<VkSparseMemoryBind> sparse_memory_binds_;
@@ -666,7 +662,7 @@ class VulkanCommandProcessor : public CommandProcessor {
   std::unordered_map<PipelineLayoutKey, PipelineLayout, PipelineLayoutKey::Hasher>
       pipeline_layouts_;
 
-  static constexpr uint32_t kLinkedTypeDescriptorPoolSetCount = 32768;
+  static constexpr u32 kLinkedTypeDescriptorPoolSetCount = 32768;
   static const VkDescriptorPoolSize kDescriptorPoolSizeUniformBuffer;
   static const VkDescriptorPoolSize kDescriptorPoolSizeStorageBuffer;
   static const VkDescriptorPoolSize kDescriptorPoolSizeTextures[2];
@@ -677,7 +673,7 @@ class VulkanCommandProcessor : public CommandProcessor {
              static_cast<size_t>(SingleTransientDescriptorLayout::kCount)>
       single_transient_descriptors_free_;
   /** Pairs of usage frame and set. */
-  std::deque<std::pair<uint64_t, VkDescriptorSet>> constants_transient_descriptors_used_;
+  std::deque<std::pair<u64, VkDescriptorSet>> constants_transient_descriptors_used_;
   std::vector<VkDescriptorSet> constants_transient_descriptors_free_;
 
   gpu::vulkan::LinkedTypeDescriptorSetAllocator transient_descriptor_allocator_textures_;
@@ -711,13 +707,13 @@ class VulkanCommandProcessor : public CommandProcessor {
   VkDeviceMemory gamma_ramp_upload_buffer_memory_ = VK_NULL_HANDLE;
   VkBuffer gamma_ramp_upload_buffer_ = VK_NULL_HANDLE;
   VkDeviceSize gamma_ramp_upload_memory_size_;
-  uint32_t gamma_ramp_upload_memory_type_;
+  u32 gamma_ramp_upload_memory_type_;
   /** Maps gamma_ramp_buffer_memory_ when host visible, else gamma_ramp_upload_buffer_memory_. */
   void* gamma_ramp_upload_mapping_;
   std::array<VkBufferView, 2 * kMaxFramesInFlight> gamma_ramp_buffer_views_{};
   /** UINT32_MAX when outdated. */
-  uint32_t gamma_ramp_256_entry_table_current_frame_ = UINT32_MAX;
-  uint32_t gamma_ramp_pwl_current_frame_ = UINT32_MAX;
+  u32 gamma_ramp_256_entry_table_current_frame_ = UINT32_MAX;
+  u32 gamma_ramp_pwl_current_frame_ = UINT32_MAX;
 
   VkDescriptorSetLayout swap_descriptor_set_layout_sampled_image_ = VK_NULL_HANDLE;
   VkDescriptorSetLayout swap_descriptor_set_layout_combined_image_sampler_ = VK_NULL_HANDLE;
@@ -762,14 +758,14 @@ class VulkanCommandProcessor : public CommandProcessor {
   VkPipeline resolve_downscale_pipeline_ = VK_NULL_HANDLE;
   VkBuffer resolve_downscale_buffer_ = VK_NULL_HANDLE;
   VkDeviceMemory resolve_downscale_buffer_memory_ = VK_NULL_HANDLE;
-  uint32_t resolve_downscale_buffer_size_ = 0;
+  u32 resolve_downscale_buffer_size_ = 0;
 
   VkImage swap_fxaa_source_image_ = VK_NULL_HANDLE;
   VkDeviceMemory swap_fxaa_source_image_memory_ = VK_NULL_HANDLE;
   VkImageView swap_fxaa_source_image_view_ = VK_NULL_HANDLE;
-  uint32_t swap_fxaa_source_image_width_ = 0;
-  uint32_t swap_fxaa_source_image_height_ = 0;
-  uint64_t swap_fxaa_source_image_submission_ = 0;
+  u32 swap_fxaa_source_image_width_ = 0;
+  u32 swap_fxaa_source_image_height_ = 0;
+  u64 swap_fxaa_source_image_submission_ = 0;
   VkPipelineStageFlags swap_fxaa_source_stage_mask_ = 0;
   VkAccessFlags swap_fxaa_source_access_mask_ = 0;
   VkImageLayout swap_fxaa_source_layout_ = VK_IMAGE_LAYOUT_UNDEFINED;
@@ -794,49 +790,49 @@ class VulkanCommandProcessor : public CommandProcessor {
   VkDeviceSize scratch_buffer_size_ = 0;
   VkPipelineStageFlags scratch_buffer_last_stage_mask_ = 0;
   VkAccessFlags scratch_buffer_last_access_mask_ = 0;
-  uint64_t scratch_buffer_last_usage_submission_ = 0;
+  u64 scratch_buffer_last_usage_submission_ = 0;
   bool scratch_buffer_used_ = false;
 
-  static constexpr uint32_t kMaxOcclusionQueries = 8192;
+  static constexpr u32 kMaxOcclusionQueries = 8192;
   VkQueryPool occlusion_query_pool_ = VK_NULL_HANDLE;
   VkBuffer occlusion_query_readback_buffer_ = VK_NULL_HANDLE;
   VkDeviceMemory occlusion_query_readback_memory_ = VK_NULL_HANDLE;
-  uint32_t occlusion_query_readback_memory_type_ = UINT32_MAX;
+  u32 occlusion_query_readback_memory_type_ = UINT32_MAX;
   VkDeviceSize occlusion_query_readback_memory_size_ = 0;
-  uint8_t* occlusion_query_readback_mapping_ = nullptr;
-  uint32_t occlusion_query_cursor_ = 0;
+  u8* occlusion_query_readback_mapping_ = nullptr;
+  u32 occlusion_query_cursor_ = 0;
   bool occlusion_query_resources_available_ = false;
   struct ActiveOcclusionQuery {
-    uint32_t sample_count_address = 0;
-    uint32_t host_index = UINT32_MAX;
+    u32 sample_count_address = 0;
+    u32 host_index = UINT32_MAX;
     bool valid = false;
   } active_occlusion_query_;
   struct VertexBufferState {
-    uint32_t address = UINT32_MAX;
-    uint32_t size = UINT32_MAX;
+    u32 address = UINT32_MAX;
+    u32 size = UINT32_MAX;
   };
   std::array<VertexBufferState, 96> vertex_buffer_states_{};
-  uint64_t vertex_buffers_in_sync_[2] = {};
-  std::unordered_map<uint64_t, ReadbackBuffer> readback_buffers_;
-  std::unordered_map<uint64_t, ReadbackBuffer> memexport_readback_buffers_;
+  u64 vertex_buffers_in_sync_[2] = {};
+  std::unordered_map<u64, ReadbackBuffer> readback_buffers_;
+  std::unordered_map<u64, ReadbackBuffer> memexport_readback_buffers_;
 
   /** Binding any pipeline with static state invalidates the dynamic state, even unused values. */
   VkViewport dynamic_viewport_;
   VkRect2D dynamic_scissor_;
-  float dynamic_depth_bias_constant_factor_;
-  float dynamic_depth_bias_slope_factor_;
-  float dynamic_blend_constants_[4];
+  f32 dynamic_depth_bias_constant_factor_;
+  f32 dynamic_depth_bias_slope_factor_;
+  f32 dynamic_blend_constants_[4];
   /**
    * The stencil values start initialized and equal for front and back for portability subset
    * safety, because updates are conditional to keep the back face values unchanged when stencil
    * is disabled and the primitive type switches between polygonal and non polygonal.
    */
-  uint32_t dynamic_stencil_compare_mask_front_ = UINT8_MAX;
-  uint32_t dynamic_stencil_compare_mask_back_ = UINT8_MAX;
-  uint32_t dynamic_stencil_write_mask_front_ = UINT8_MAX;
-  uint32_t dynamic_stencil_write_mask_back_ = UINT8_MAX;
-  uint32_t dynamic_stencil_reference_front_ = 0;
-  uint32_t dynamic_stencil_reference_back_ = 0;
+  u32 dynamic_stencil_compare_mask_front_ = UINT8_MAX;
+  u32 dynamic_stencil_compare_mask_back_ = UINT8_MAX;
+  u32 dynamic_stencil_write_mask_front_ = UINT8_MAX;
+  u32 dynamic_stencil_write_mask_back_ = UINT8_MAX;
+  u32 dynamic_stencil_reference_front_ = 0;
+  u32 dynamic_stencil_reference_back_ = 0;
   bool dynamic_viewport_update_needed_;
   bool dynamic_scissor_update_needed_;
   bool dynamic_depth_bias_update_needed_;
@@ -865,16 +861,16 @@ class VulkanCommandProcessor : public CommandProcessor {
   VkDescriptorBufferInfo
       current_constant_buffer_infos_[SpirvShaderTranslator::kConstantBufferCount];
   /** Mask of constant buffers with up to date data that current_constant_buffer_infos_ cover. */
-  uint32_t current_constant_buffers_up_to_date_;
+  u32 current_constant_buffers_up_to_date_;
   VkDescriptorSet current_graphics_descriptor_sets_[SpirvShaderTranslator::kDescriptorSetCount];
   /** Mask of sets in current_graphics_descriptor_sets_ that point to up to date data. */
-  uint32_t current_graphics_descriptor_set_values_up_to_date_;
+  u32 current_graphics_descriptor_set_values_up_to_date_;
   /**
    * Mask of sets bound to the command buffer. A pipeline layout change keeps only the low bits of
    * unchanged set layouts. May differ from current_graphics_descriptor_set_values_up_to_date_ and
    * may hold bits for nonexistent set layouts, which readers ignore.
    */
-  uint32_t current_graphics_descriptor_sets_bound_up_to_date_;
+  u32 current_graphics_descriptor_sets_bound_up_to_date_;
   static_assert(SpirvShaderTranslator::kDescriptorSetCount <=
                     sizeof(current_graphics_descriptor_set_values_up_to_date_) * CHAR_BIT,
                 "Bit fields storing descriptor set validity must be large enough");
@@ -882,8 +878,8 @@ class VulkanCommandProcessor : public CommandProcessor {
                     sizeof(current_graphics_descriptor_sets_bound_up_to_date_) * CHAR_BIT,
                 "Bit fields storing descriptor set validity must be large enough");
 
-  uint64_t current_float_constant_map_vertex_[4];
-  uint64_t current_float_constant_map_pixel_[4];
+  u64 current_float_constant_map_vertex_[4];
+  u64 current_float_constant_map_pixel_[4];
 
   SpirvShaderTranslator::SystemConstants system_constants_;
 

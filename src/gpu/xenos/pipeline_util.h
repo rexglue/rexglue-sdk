@@ -13,13 +13,15 @@
 
 #include <cstdint>
 
+#include <rex/types.h>
+
 namespace rex::gpu::pipeline_util {
 
 // Higher values compile sooner.
-constexpr uint8_t kPriorityLowest = 0; /**< Writes to unbound RTs only. */
-constexpr uint8_t kPriorityDepthOnly = 1;
-constexpr uint8_t kPriorityVisibleRT = 2;
-constexpr uint8_t kPriorityRT0 = 3;
+constexpr u8 kPriorityLowest = 0; /**< Writes to unbound RTs only. */
+constexpr u8 kPriorityDepthOnly = 1;
+constexpr u8 kPriorityVisibleRT = 2;
+constexpr u8 kPriorityRT0 = 3;
 
 /**
  * Converts a normalized color mask to a 4 bit mask of bound RTs.
@@ -27,7 +29,7 @@ constexpr uint8_t kPriorityRT0 = 3;
  * @param normalized_color_mask The color mask with 4 bits per RT (RGBA).
  * @return The bound RT mask.
  */
-inline uint32_t GetBoundRTMaskFromNormalizedColorMask(uint32_t normalized_color_mask) {
+inline u32 GetBoundRTMaskFromNormalizedColorMask(u32 normalized_color_mask) {
   return (((normalized_color_mask >> 0) & 0xF) ? 1 : 0) |
          (((normalized_color_mask >> 4) & 0xF) ? 2 : 0) |
          (((normalized_color_mask >> 8) & 0xF) ? 4 : 0) |
@@ -42,9 +44,9 @@ inline uint32_t GetBoundRTMaskFromNormalizedColorMask(uint32_t normalized_color_
  * @param shader_writes_depth True when the shader writes depth.
  * @return The priority.
  */
-inline uint8_t CalculatePipelinePriority(uint32_t bound_rts, uint32_t shader_writes_color_targets,
-                                         bool shader_writes_depth) {
-  uint32_t visible_writes = bound_rts & shader_writes_color_targets;
+inline u8 CalculatePipelinePriority(u32 bound_rts, u32 shader_writes_color_targets,
+                                    bool shader_writes_depth) {
+  u32 visible_writes = bound_rts & shader_writes_color_targets;
   if (visible_writes) {
     return (visible_writes & 1) ? kPriorityRT0 : kPriorityVisibleRT;
   }

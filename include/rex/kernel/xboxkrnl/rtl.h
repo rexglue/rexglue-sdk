@@ -32,6 +32,6 @@ REX_RUNTIME_API void RtlInitializeCriticalSection(X_RTL_CRITICAL_SECTION* cs);
  * @return X_STATUS_SUCCESS.
  */
 REX_RUNTIME_API X_STATUS RtlInitializeCriticalSectionAndSpinCount(X_RTL_CRITICAL_SECTION* cs,
-                                                                  uint32_t spin_count);
+                                                                  u32 spin_count);
 
 }  // namespace rex::kernel::xboxkrnl

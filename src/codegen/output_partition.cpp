@@ -62,7 +62,7 @@ OutputPartition OutputPartition::Load(const std::filesystem::path& path) {
   for (const auto& [key, value] : it->items()) {
     if (!value.is_number_unsigned())
       continue;
-    uint32_t address = 0;
+    u32 address = 0;
     const char* first = key.data();
     const char* last = first + key.size();
     auto [ptr, ec] = std::from_chars(first, last, address, 16);

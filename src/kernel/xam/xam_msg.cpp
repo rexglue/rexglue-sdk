@@ -49,8 +49,8 @@ struct XMSGSTARTIOREQUEST_UNKNOWNARG {
   be_u32 unk_1;
 };
 
-X_HRESULT XMsgStartIORequestEx(uint32_t app, uint32_t message, uint32_t overlapped_ptr,
-                               uint32_t buffer_ptr, uint32_t buffer_length,
+X_HRESULT XMsgStartIORequestEx(u32 app, u32 message, u32 overlapped_ptr, u32 buffer_ptr,
+                               u32 buffer_length,
                                [[maybe_unused]] XMSGSTARTIOREQUEST_UNKNOWNARG* unknown) {
   auto result = runtime::Current().content_manager().app_manager().DispatchMessageAsync(
       app, message, buffer_ptr, buffer_length);
@@ -101,7 +101,7 @@ u32 XMsgCompleteIORequest_entry(ppc_ptr_t<XAM_OVERLAPPED> overlapped_ptr, u32 re
 u32 XamGetOverlappedResult_entry(ppc_ptr_t<XAM_OVERLAPPED> overlapped_ptr, mapped_u32 length_ptr,
                                  [[maybe_unused]] u32 unknown) {
   XAM_OVERLAPPED* overlapped = overlapped_ptr.host_address();
-  uint32_t result = XOverlappedGetResult(overlapped);
+  u32 result = XOverlappedGetResult(overlapped);
   if (result == X_ERROR_IO_PENDING && !overlapped->event) {
     result = X_ERROR_IO_INCOMPLETE;
   } else if (result == X_ERROR_IO_PENDING) {

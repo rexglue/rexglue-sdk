@@ -53,7 +53,7 @@ class VulkanImmediateDrawer : public ImmediateDrawer {
  private:
   struct PushConstants {
     struct Vertex {
-      float coordinate_space_size_inv[2];
+      f32 coordinate_space_size_inv[2];
     } vertex;
   };
 
@@ -63,7 +63,7 @@ class VulkanImmediateDrawer : public ImmediateDrawer {
       VkImage image;
       VkDeviceMemory memory;
       VkImageView image_view;
-      uint32_t descriptor_index;
+      u32 descriptor_index;
     };
 
     VulkanImmediateTexture(u32 width, u32 height)
@@ -76,17 +76,17 @@ class VulkanImmediateDrawer : public ImmediateDrawer {
     /** Invalid when immediate_drawer_ is null, as the immediate drawer manages it. */
     Resource resource_;
     size_t pending_upload_index_;
-    uint64_t last_usage_submission_ = 0;
+    u64 last_usage_submission_ = 0;
   };
 
   struct TextureDescriptorPool {
     // Using uint64_t for recycled bits.
-    static constexpr uint32_t kDescriptorCount = 64;
+    static constexpr u32 kDescriptorCount = 64;
     VkDescriptorPool pool;
     VkDescriptorSet sets[kDescriptorCount];
-    uint32_t index;
-    uint32_t unallocated_count;
-    uint64_t recycled_bits;
+    u32 index;
+    u32 unallocated_count;
+    u64 recycled_bits;
     TextureDescriptorPool* unallocated_next;
     TextureDescriptorPool* recycled_next;
   };
@@ -100,9 +100,9 @@ class VulkanImmediateDrawer : public ImmediateDrawer {
    *
    * @return The descriptor index, or UINT32_MAX on failure.
    */
-  uint32_t AllocateTextureDescriptor();
-  VkDescriptorSet GetTextureDescriptor(uint32_t descriptor_index) const;
-  void FreeTextureDescriptor(uint32_t descriptor_index);
+  u32 AllocateTextureDescriptor();
+  VkDescriptorSet GetTextureDescriptor(u32 descriptor_index) const;
+  void FreeTextureDescriptor(u32 descriptor_index);
 
   /**
    * Creates a texture resource.
@@ -118,8 +118,8 @@ class VulkanImmediateDrawer : public ImmediateDrawer {
    * @param pending_upload_index_out Receives the pending upload index.
    * @return True on success.
    */
-  bool CreateTextureResource(uint32_t width, uint32_t height, gpu::OverlayTextureFilter filter,
-                             bool is_repeated, const uint8_t* data,
+  bool CreateTextureResource(u32 width, u32 height, gpu::OverlayTextureFilter filter,
+                             bool is_repeated, const u8* data,
                              VulkanImmediateTexture::Resource& resource_out,
                              size_t& pending_upload_index_out);
   void DestroyTextureResource(VulkanImmediateTexture::Resource& resource);
@@ -142,17 +142,17 @@ class VulkanImmediateDrawer : public ImmediateDrawer {
     VkBuffer buffer;
     VkDeviceMemory buffer_memory;
     VkImage image;
-    uint32_t width;
-    uint32_t height;
+    u32 width;
+    u32 height;
   };
   std::vector<PendingTextureUpload> texture_uploads_pending_;
   struct SubmittedTextureUploadBuffer {
     VkBuffer buffer;
     VkDeviceMemory buffer_memory;
-    uint64_t submission_index;
+    u64 submission_index;
   };
   std::deque<SubmittedTextureUploadBuffer> texture_upload_buffers_submitted_;
-  std::vector<std::pair<VulkanImmediateTexture::Resource, uint64_t>> textures_deleted_;
+  std::vector<std::pair<VulkanImmediateTexture::Resource, u64>> textures_deleted_;
 
   std::unique_ptr<VulkanUploadBufferPool> vertex_buffer_pool_;
 
@@ -163,13 +163,13 @@ class VulkanImmediateDrawer : public ImmediateDrawer {
   VkPipeline pipeline_line_ = VK_NULL_HANDLE;
 
   /** Submission index within the current Begin, or within the last one when outside Begin. */
-  uint64_t last_paint_submission_index_ = 0;
+  u64 last_paint_submission_index_ = 0;
   /** Completed submission index as of the latest Begin, to coarsely skip delayed deletion. */
-  uint64_t last_completed_submission_index_ = 0;
+  u64 last_completed_submission_index_ = 0;
 
   VkRect2D current_scissor_;
   VkPipeline current_pipeline_;
-  uint32_t current_texture_descriptor_index_;
+  u32 current_texture_descriptor_index_;
   bool batch_open_ = false;
   bool batch_has_index_buffer_;
 };

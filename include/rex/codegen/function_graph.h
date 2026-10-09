@@ -33,7 +33,7 @@ class FunctionGraph {
    * @param addr Guest address
    * @return The dword, or nullopt when addr is unreadable
    */
-  using MemoryReader = std::move_only_function<std::optional<uint32_t>(uint32_t addr) const>;
+  using MemoryReader = std::move_only_function<std::optional<u32>(u32 addr) const>;
 
   /**
    * Adds a function to the graph and notifies all PENDING functions to try resolution against
@@ -45,8 +45,7 @@ class FunctionGraph {
    * @param hasXrefs True when this is a known call target such as a bl target
    * @return The new node, or the existing node when already present
    */
-  FunctionNode* addFunction(uint32_t base, uint32_t size, FunctionAuthority authority,
-                            bool hasXrefs = false);
+  FunctionNode* addFunction(u32 base, u32 size, FunctionAuthority authority, bool hasXrefs = false);
 
   /**
    * Adds a named function to the graph.
@@ -58,8 +57,8 @@ class FunctionGraph {
    * @param hasXrefs True when this is a known call target
    * @return The new node, or the existing node when already present
    */
-  FunctionNode* addFunction(uint32_t base, uint32_t size, FunctionAuthority authority,
-                            std::string_view name, bool hasXrefs = false);
+  FunctionNode* addFunction(u32 base, u32 size, FunctionAuthority authority, std::string_view name,
+                            bool hasXrefs = false);
 
   /**
    * Adds a resolved import as a callable function with an __imp__ name.
@@ -68,7 +67,7 @@ class FunctionGraph {
    * @param resolvedName Resolved import name
    * @return The new node
    */
-  FunctionNode* addImportFunction(uint32_t address, std::string_view resolvedName);
+  FunctionNode* addImportFunction(u32 address, std::string_view resolvedName);
 
   /**
    * Returns the function at an entry point in O(1).
@@ -76,14 +75,14 @@ class FunctionGraph {
    * @param entryPoint Entry point address
    * @return The node, or null when absent
    */
-  FunctionNode* getFunction(uint32_t entryPoint);
+  FunctionNode* getFunction(u32 entryPoint);
   /**
    * Returns the function at an entry point in O(1).
    *
    * @param entryPoint Entry point address
    * @return The node, or null when absent
    */
-  const FunctionNode* getFunction(uint32_t entryPoint) const;
+  const FunctionNode* getFunction(u32 entryPoint) const;
 
   /**
    * Removes a function from the graph, used to clean up absorbed GAP_FILLs.
@@ -91,7 +90,7 @@ class FunctionGraph {
    * @param entryPoint Entry point address
    * @return True when a function was removed
    */
-  bool removeFunction(uint32_t entryPoint);
+  bool removeFunction(u32 entryPoint);
 
   /**
    * Returns the function containing an address in O(log f) through the sorted base index.
@@ -99,14 +98,14 @@ class FunctionGraph {
    * @param addr Address to look up
    * @return The node, or null when no function contains addr
    */
-  FunctionNode* getFunctionContaining(uint32_t addr);
+  FunctionNode* getFunctionContaining(u32 addr);
   /**
    * Returns the function containing an address in O(log f) through the sorted base index.
    *
    * @param addr Address to look up
    * @return The node, or null when no function contains addr
    */
-  const FunctionNode* getFunctionContaining(uint32_t addr) const;
+  const FunctionNode* getFunctionContaining(u32 addr) const;
 
   /**
    * Reports whether an address is a known entry point.
@@ -114,7 +113,7 @@ class FunctionGraph {
    * @param addr Address to test
    * @return True when a function starts at addr
    */
-  bool isEntryPoint(uint32_t addr) const;
+  bool isEntryPoint(u32 addr) const;
 
   /**
    * Reports whether an address is an import, a FunctionNode with IMPORT authority.
@@ -122,14 +121,14 @@ class FunctionGraph {
    * @param addr Address to test
    * @return True when addr is an import
    */
-  bool isImport(uint32_t addr) const;
+  bool isImport(u32 addr) const;
 
   /**
    * Returns all functions including imports with IMPORT authority.
    *
    * @return Functions keyed by entry point
    */
-  const std::unordered_map<uint32_t, std::unique_ptr<FunctionNode>>& functions() const {
+  const std::unordered_map<u32, std::unique_ptr<FunctionNode>>& functions() const {
     return functions_;
   }
 
@@ -168,7 +167,7 @@ class FunctionGraph {
    * @param entry Entry point address
    * @param name Function name
    */
-  void setFunctionName(uint32_t entry, std::string name);
+  void setFunctionName(u32 entry, std::string name);
 
   /**
    * Sets the exception handler flag. Called during the Discover phase.
@@ -176,7 +175,7 @@ class FunctionGraph {
    * @param entry Entry point address
    * @param val Flag value
    */
-  void setFunctionHasExceptionHandler(uint32_t entry, bool val);
+  void setFunctionHasExceptionHandler(u32 entry, bool val);
 
   /**
    * Sets the parsed SEH or C++ EH info. Called during the Discover phase.
@@ -184,7 +183,7 @@ class FunctionGraph {
    * @param entry Entry point address
    * @param info Parsed exception info
    */
-  void setFunctionExceptionInfo(uint32_t entry, ExceptionInfo info);
+  void setFunctionExceptionInfo(u32 entry, ExceptionInfo info);
 
   /**
    * Adds a block to a function. Called during the Discover phase.
@@ -192,7 +191,7 @@ class FunctionGraph {
    * @param entry Entry point address
    * @param block Block to add
    */
-  void addBlockToFunction(uint32_t entry, Block block);
+  void addBlockToFunction(u32 entry, Block block);
 
   /**
    * Adds a label, an internal branch target, to a function. Called during the Discover phase.
@@ -200,7 +199,7 @@ class FunctionGraph {
    * @param entry Entry point address
    * @param label Label address
    */
-  void addLabelToFunction(uint32_t entry, uint32_t label);
+  void addLabelToFunction(u32 entry, u32 label);
 
   /**
    * Adds a resolved call to a function. Called during the Discover phase.
@@ -209,7 +208,7 @@ class FunctionGraph {
    * @param site Call site address
    * @param target Resolved target
    */
-  void addCallToFunction(uint32_t entry, uint32_t site, CallTarget target);
+  void addCallToFunction(u32 entry, u32 site, CallTarget target);
 
   /**
    * Adds a resolved tail call to a function. Called during the Discover phase.
@@ -218,7 +217,7 @@ class FunctionGraph {
    * @param site Call site address
    * @param target Resolved target
    */
-  void addTailCallToFunction(uint32_t entry, uint32_t site, CallTarget target);
+  void addTailCallToFunction(u32 entry, u32 site, CallTarget target);
 
   /**
    * Adds a jump table to a function. Called during the Discover phase.
@@ -226,7 +225,7 @@ class FunctionGraph {
    * @param entry Entry point address
    * @param jt Jump table to add
    */
-  void addJumpTableToFunction(uint32_t entry, JumpTable jt);
+  void addJumpTableToFunction(u32 entry, JumpTable jt);
 
   /**
    * Adds an unresolved jump to a function. Called during the Discover phase.
@@ -237,8 +236,7 @@ class FunctionGraph {
    * @param isCall True for bl (call), false for b (tail call)
    * @param conditional True for a conditional branch
    */
-  void addUnresolvedJumpToFunction(uint32_t entry, uint32_t site, uint32_t target, bool isCall,
-                                   bool conditional);
+  void addUnresolvedJumpToFunction(u32 entry, u32 site, u32 target, bool isCall, bool conditional);
 
   /**
    * Tries to resolve all unresolved jumps of a function against known functions, imports and
@@ -247,7 +245,7 @@ class FunctionGraph {
    * @param entry Entry point address
    * @return Number of jumps resolved
    */
-  size_t tryResolveFunction(uint32_t entry);
+  size_t tryResolveFunction(u32 entry);
 
   /**
    * Absorbs a region into a function for vacancy expansion. Called during the Merge phase.
@@ -256,7 +254,7 @@ class FunctionGraph {
    * @param regionBase Region start address
    * @param regionSize Region size in bytes
    */
-  void absorbRegionIntoFunction(uint32_t entry, uint32_t regionBase, uint32_t regionSize);
+  void absorbRegionIntoFunction(u32 entry, u32 regionBase, u32 regionSize);
 
   /**
    * Seals a function if it can be sealed. Called during the Merge phase.
@@ -264,7 +262,7 @@ class FunctionGraph {
    * @param entry Entry point address
    * @return True when the function was sealed
    */
-  bool trySealFunction(uint32_t entry);
+  bool trySealFunction(u32 entry);
 
   /**
    * Seals all functions that can be sealed. Called during the Merge phase.
@@ -289,7 +287,7 @@ class FunctionGraph {
    * @param base Range start address
    * @param size Range size in bytes
    */
-  void registerChunk(uint32_t base, uint32_t size);
+  void registerChunk(u32 base, u32 size);
 
   /**
    * Reports whether a region is vacant for absorption.
@@ -298,7 +296,7 @@ class FunctionGraph {
    * @param targetAddr Start of the region to absorb
    * @return True when the region is vacant
    */
-  bool isVacant(uint32_t fromAddr, uint32_t targetAddr) const;
+  bool isVacant(u32 fromAddr, u32 targetAddr) const;
 
   /**
    * Reports whether a target is a mergeable entry point, a DISCOVERED function with xrefs.
@@ -306,7 +304,7 @@ class FunctionGraph {
    * @param addr Address to test
    * @return True when addr is mergeable
    */
-  bool isMergeableEntryPoint(uint32_t addr) const;
+  bool isMergeableEntryPoint(u32 addr) const;
 
   /**
    * Flags every SEH funclet as register sharing. Runs after discovery, once funclet extents are
@@ -324,13 +322,13 @@ class FunctionGraph {
    * @param isCallInstruction True for bl (expects return), false for b (no return)
    * @return How the target is treated during code generation
    */
-  TargetKind classifyTarget(uint32_t target, uint32_t callerAddr, bool isCallInstruction) const;
+  TargetKind classifyTarget(u32 target, u32 callerAddr, bool isCallInstruction) const;
 
  private:
-  std::unordered_map<uint32_t, std::unique_ptr<FunctionNode>> functions_;
-  std::map<uint32_t, FunctionNode*> functionsByBase_;
-  std::unordered_map<uint32_t, bool> functionHasXrefs_;
-  std::vector<std::pair<uint32_t, uint32_t>> chunks_;
+  std::unordered_map<u32, std::unique_ptr<FunctionNode>> functions_;
+  std::map<u32, FunctionNode*> functionsByBase_;
+  std::unordered_map<u32, bool> functionHasXrefs_;
+  std::vector<std::pair<u32, u32>> chunks_;
   MemoryReader memoryReader_;
 
   void notifyFunctionAdded(FunctionNode* newFunction);

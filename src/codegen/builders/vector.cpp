@@ -287,7 +287,7 @@ bool build_vadduhs(BuilderContext& ctx) {
 
 bool build_vsubsws(BuilderContext& ctx) {
   for (size_t i = 0; i < 4; i++) {
-    ctx.println("\t{}.s64 = int64_t({}.s32[{}]) - int64_t({}.s32[{}]);", ctx.temp(),
+    ctx.println("\t{}.s64 = i64({}.s32[{}]) - i64({}.s32[{}]);", ctx.temp(),
                 ctx.v(ctx.insn.operands[1]), i, ctx.v(ctx.insn.operands[2]), i);
     ctx.println("\t{}.s32[{}] = {}.s64 > INT_MAX ? INT_MAX : {}.s64 < INT_MIN ? INT_MIN : {}.s64;",
                 ctx.v(ctx.insn.operands[0]), i, ctx.temp(), ctx.temp(), ctx.temp());
@@ -630,9 +630,9 @@ bool build_vcmpgtuw(BuilderContext& ctx) {
   ctx.println(
       "\tsimde_mm_store_si128((simde__m128i*){}.u32, "
       "simde_mm_cmpgt_epi32(simde_mm_xor_si128(simde_mm_load_si128((simde__m128i*){}.u32), "
-      "simde_mm_set1_epi32((int32_t)0x80000000)), "
+      "simde_mm_set1_epi32((i32)0x80000000)), "
       "simde_mm_xor_si128(simde_mm_load_si128((simde__m128i*){}.u32), "
-      "simde_mm_set1_epi32((int32_t)0x80000000))));",
+      "simde_mm_set1_epi32((i32)0x80000000))));",
       ctx.v(ctx.insn.operands[0]), ctx.v(ctx.insn.operands[1]), ctx.v(ctx.insn.operands[2]));
 
   if (isRecordForm(ctx.insn))
@@ -687,11 +687,11 @@ bool build_vcfsx(BuilderContext& ctx) {
   ctx.emit_set_flush_mode(true);
   ctx.print("\tsimde_mm_store_ps({}.f32, ", ctx.v(ctx.insn.operands[0]));
   if (ctx.insn.operands[2] != 0) {
-    const float value = std::ldexp(1.0f, -static_cast<int32_t>(ctx.insn.operands[2]));
+    const f32 value = std::ldexp(1.0f, -static_cast<i32>(ctx.insn.operands[2]));
     ctx.println(
         "simde_mm_mul_ps(simde_mm_cvtepi32_ps(simde_mm_load_si128((simde__m128i*){}.u32)), "
         "simde_mm_castsi128_ps(simde_mm_set1_epi32(int(0x{:X})))));",
-        ctx.v(ctx.insn.operands[1]), std::bit_cast<uint32_t>(value));
+        ctx.v(ctx.insn.operands[1]), std::bit_cast<u32>(value));
   } else {
     ctx.println("simde_mm_cvtepi32_ps(simde_mm_load_si128((simde__m128i*){}.u32)));",
                 ctx.v(ctx.insn.operands[1]));
@@ -703,12 +703,12 @@ bool build_vcfux(BuilderContext& ctx) {
   ctx.emit_set_flush_mode(true);
   ctx.print("\tsimde_mm_store_ps({}.f32, ", ctx.v(ctx.insn.operands[0]));
   if (ctx.insn.operands[2] != 0) {
-    const float value = std::ldexp(1.0f, -static_cast<int32_t>(ctx.insn.operands[2]));
+    const f32 value = std::ldexp(1.0f, -static_cast<i32>(ctx.insn.operands[2]));
     ctx.println(
         "simde_mm_mul_ps(rex::ppc::simde_mm_cvtepu32_ps_(simde_mm_load_si128((simde__m128i*){}.u32)"
         "), "
         "simde_mm_castsi128_ps(simde_mm_set1_epi32(int(0x{:X})))));",
-        ctx.v(ctx.insn.operands[1]), std::bit_cast<uint32_t>(value));
+        ctx.v(ctx.insn.operands[1]), std::bit_cast<u32>(value));
   } else {
     ctx.println("rex::ppc::simde_mm_cvtepu32_ps_(simde_mm_load_si128((simde__m128i*){}.u32)));",
                 ctx.v(ctx.insn.operands[1]));
@@ -769,11 +769,11 @@ bool build_vperm(BuilderContext& ctx) {
 }
 
 bool build_vpermwi128(BuilderContext& ctx) {
-  uint32_t x = 3 - (ctx.insn.operands[2] & 0x3);
-  uint32_t y = 3 - ((ctx.insn.operands[2] >> 2) & 0x3);
-  uint32_t z = 3 - ((ctx.insn.operands[2] >> 4) & 0x3);
-  uint32_t w = 3 - ((ctx.insn.operands[2] >> 6) & 0x3);
-  uint32_t perm = x | (y << 2) | (z << 4) | (w << 6);
+  u32 x = 3 - (ctx.insn.operands[2] & 0x3);
+  u32 y = 3 - ((ctx.insn.operands[2] >> 2) & 0x3);
+  u32 z = 3 - ((ctx.insn.operands[2] >> 4) & 0x3);
+  u32 w = 3 - ((ctx.insn.operands[2] >> 6) & 0x3);
+  u32 perm = x | (y << 2) | (z << 4) | (w << 6);
   ctx.println(
       "\tsimde_mm_store_si128((simde__m128i*){}.u32, "
       "simde_mm_shuffle_epi32(simde_mm_load_si128((simde__m128i*){}.u32), 0x{:X}));",
@@ -855,7 +855,7 @@ bool build_vrlh(BuilderContext& ctx) {
 
 bool build_vrlw(BuilderContext& ctx) {
   for (size_t i = 0; i < 4; i++) {
-    ctx.println("\t{{ uint32_t sh = {}.u32[{}] & 0x1F;", ctx.v(ctx.insn.operands[2]), i);
+    ctx.println("\t{{ u32 sh = {}.u32[{}] & 0x1F;", ctx.v(ctx.insn.operands[2]), i);
     ctx.println("\t{}.u32[{}] = ({}.u32[{}] << sh) | (sh ? ({}.u32[{}] >> (32 - sh)) : 0); }}",
                 ctx.v(ctx.insn.operands[0]), i, ctx.v(ctx.insn.operands[1]), i,
                 ctx.v(ctx.insn.operands[1]), i);
@@ -948,7 +948,7 @@ bool build_vsrw(BuilderContext& ctx) {
 }
 
 bool build_vspltb(BuilderContext& ctx) {
-  uint32_t perm = 15 - ctx.insn.operands[2];
+  u32 perm = 15 - ctx.insn.operands[2];
   ctx.println(
       "\tsimde_mm_store_si128((simde__m128i*){}.u8, "
       "simde_mm_shuffle_epi8(simde_mm_load_si128((simde__m128i*){}.u8), "
@@ -958,7 +958,7 @@ bool build_vspltb(BuilderContext& ctx) {
 }
 
 bool build_vsplth(BuilderContext& ctx) {
-  uint32_t perm = 7 - ctx.insn.operands[2];
+  u32 perm = 7 - ctx.insn.operands[2];
   perm = (perm * 2) | ((perm * 2 + 1) << 8);
   ctx.println(
       "\tsimde_mm_store_si128((simde__m128i*){}.u16, "
@@ -969,28 +969,28 @@ bool build_vsplth(BuilderContext& ctx) {
 }
 
 bool build_vspltisb(BuilderContext& ctx) {
-  int8_t imm5 = static_cast<int8_t>(ctx.insn.operands[1] << 3) >> 3;
+  i8 imm5 = static_cast<i8>(ctx.insn.operands[1] << 3) >> 3;
   ctx.println("\tsimde_mm_store_si128((simde__m128i*){}.u8, simde_mm_set1_epi8(char(0x{:X})));",
-              ctx.v(ctx.insn.operands[0]), static_cast<uint8_t>(imm5));
+              ctx.v(ctx.insn.operands[0]), static_cast<u8>(imm5));
   return true;
 }
 
 bool build_vspltisw(BuilderContext& ctx) {
-  int8_t imm5 = static_cast<int8_t>(ctx.insn.operands[1] << 3) >> 3;
+  i8 imm5 = static_cast<i8>(ctx.insn.operands[1] << 3) >> 3;
   ctx.println("\tsimde_mm_store_si128((simde__m128i*){}.u32, simde_mm_set1_epi32(int(0x{:X})));",
-              ctx.v(ctx.insn.operands[0]), static_cast<uint32_t>(static_cast<int32_t>(imm5)));
+              ctx.v(ctx.insn.operands[0]), static_cast<u32>(static_cast<i32>(imm5)));
   return true;
 }
 
 bool build_vspltish(BuilderContext& ctx) {
-  int8_t imm5 = static_cast<int8_t>(ctx.insn.operands[1] << 3) >> 3;
+  i8 imm5 = static_cast<i8>(ctx.insn.operands[1] << 3) >> 3;
   ctx.println("\tsimde_mm_store_si128((simde__m128i*){}.s16, simde_mm_set1_epi16(short(0x{:X})));",
-              ctx.v(ctx.insn.operands[0]), static_cast<uint16_t>(static_cast<int16_t>(imm5)));
+              ctx.v(ctx.insn.operands[0]), static_cast<u16>(static_cast<i16>(imm5)));
   return true;
 }
 
 bool build_vspltw(BuilderContext& ctx) {
-  uint32_t perm = 3 - ctx.insn.operands[2];
+  u32 perm = 3 - ctx.insn.operands[2];
   perm |= (perm << 2) | (perm << 4) | (perm << 6);
   ctx.println(
       "\tsimde_mm_store_si128((simde__m128i*){}.u32, "
@@ -1021,10 +1021,10 @@ bool build_vpkuhum(BuilderContext& ctx) {
 bool build_vpkuhus(BuilderContext& ctx) {
   // packus reads inputs as signed so unsigned saturation is custom, and vD may alias vA or vB
   for (size_t i = 0; i < 8; i++) {
-    ctx.println("\t{}.u8[{}] = {}.u16[{}] > 0xFF ? 0xFF : (uint8_t){}.u16[{}];", ctx.v_temp(),
-                15 - i, ctx.v(ctx.insn.operands[1]), 7 - i, ctx.v(ctx.insn.operands[1]), 7 - i);
-    ctx.println("\t{}.u8[{}] = {}.u16[{}] > 0xFF ? 0xFF : (uint8_t){}.u16[{}];", ctx.v_temp(),
-                7 - i, ctx.v(ctx.insn.operands[2]), 7 - i, ctx.v(ctx.insn.operands[2]), 7 - i);
+    ctx.println("\t{}.u8[{}] = {}.u16[{}] > 0xFF ? 0xFF : (u8){}.u16[{}];", ctx.v_temp(), 15 - i,
+                ctx.v(ctx.insn.operands[1]), 7 - i, ctx.v(ctx.insn.operands[1]), 7 - i);
+    ctx.println("\t{}.u8[{}] = {}.u16[{}] > 0xFF ? 0xFF : (u8){}.u16[{}];", ctx.v_temp(), 7 - i,
+                ctx.v(ctx.insn.operands[2]), 7 - i, ctx.v(ctx.insn.operands[2]), 7 - i);
   }
   ctx.println("\t{} = {};", ctx.v(ctx.insn.operands[0]), ctx.v_temp());
   return true;
@@ -1044,9 +1044,9 @@ bool build_vpkuwum(BuilderContext& ctx) {
 bool build_vpkuwus(BuilderContext& ctx) {
   // packus reads inputs as signed so unsigned saturation is custom, and vD may alias vA or vB
   for (size_t i = 0; i < 4; i++) {
-    ctx.println("\t{}.u16[{}] = {}.u32[{}] > 0xFFFF ? 0xFFFF : (uint16_t){}.u32[{}];", ctx.v_temp(),
+    ctx.println("\t{}.u16[{}] = {}.u32[{}] > 0xFFFF ? 0xFFFF : (u16){}.u32[{}];", ctx.v_temp(),
                 7 - i, ctx.v(ctx.insn.operands[1]), 3 - i, ctx.v(ctx.insn.operands[1]), 3 - i);
-    ctx.println("\t{}.u16[{}] = {}.u32[{}] > 0xFFFF ? 0xFFFF : (uint16_t){}.u32[{}];", ctx.v_temp(),
+    ctx.println("\t{}.u16[{}] = {}.u32[{}] > 0xFFFF ? 0xFFFF : (u16){}.u32[{}];", ctx.v_temp(),
                 3 - i, ctx.v(ctx.insn.operands[2]), 3 - i, ctx.v(ctx.insn.operands[2]), 3 - i);
   }
   ctx.println("\t{} = {};", ctx.v(ctx.insn.operands[0]), ctx.v_temp());
@@ -1103,8 +1103,8 @@ bool build_vpkd3d128(BuilderContext& ctx) {
   ctx.emit_set_flush_mode(true);
   switch (ctx.insn.operands[2]) {
     case 0: {
-      uint32_t mask = ctx.insn.operands[3];
-      uint32_t shift = ctx.insn.operands[4];
+      u32 mask = ctx.insn.operands[3];
+      u32 shift = ctx.insn.operands[4];
 
       for (size_t i = 0; i < 4; i++) {
         constexpr size_t indices[] = {3, 0, 1, 2};
@@ -1114,7 +1114,7 @@ bool build_vpkd3d128(BuilderContext& ctx) {
             "{}.f32[{}]);",
             ctx.v_temp(), i, ctx.v(ctx.insn.operands[1]), i, ctx.v(ctx.insn.operands[1]), i,
             ctx.v_temp(), i, ctx.v_temp(), i, ctx.v(ctx.insn.operands[1]), i);
-        ctx.println("\t{}.u32 {}= uint32_t({}.u8[{}]) << {};", ctx.temp(), i == 0 ? "" : "|",
+        ctx.println("\t{}.u32 {}= u32({}.u8[{}]) << {};", ctx.temp(), i == 0 ? "" : "|",
                     ctx.v_temp(), i * 4, indices[i] * 8);
       }
 
@@ -1133,11 +1133,11 @@ bool build_vpkd3d128(BuilderContext& ctx) {
       ctx.println("\t{}.s32 = {}.s32[3] - 0x40400000;", ctx.temp(), ctx.v(ctx.insn.operands[1]));
       ctx.println("\t{}.s32 = {}.s32 > 32767 ? 32767 : ({}.s32 < -32767 ? -32767 : {}.s32);",
                   ctx.temp(), ctx.temp(), ctx.temp(), ctx.temp());
-      ctx.println("\t{}.u32[0] = uint32_t(uint16_t({}.s32)) << 16;", ctx.v_temp(), ctx.temp());
+      ctx.println("\t{}.u32[0] = u32(u16({}.s32)) << 16;", ctx.v_temp(), ctx.temp());
       ctx.println("\t{}.s32 = {}.s32[2] - 0x40400000;", ctx.temp(), ctx.v(ctx.insn.operands[1]));
       ctx.println("\t{}.s32 = {}.s32 > 32767 ? 32767 : ({}.s32 < -32767 ? -32767 : {}.s32);",
                   ctx.temp(), ctx.temp(), ctx.temp(), ctx.temp());
-      ctx.println("\t{}.u32[0] |= uint16_t({}.s32);", ctx.v_temp(), ctx.temp());
+      ctx.println("\t{}.u32[0] |= u16({}.s32);", ctx.v_temp(), ctx.temp());
       ctx.println("\t{}.u32[{}] = {}.u32[0];", ctx.v(ctx.insn.operands[0]), ctx.insn.operands[4],
                   ctx.v_temp());
       break;
@@ -1210,8 +1210,7 @@ bool build_vpkd3d128(BuilderContext& ctx) {
                     srcIdx);
         ctx.println("\t{}.s32 = {}.s32 > 32767 ? 32767 : ({}.s32 < -32767 ? -32767 : {}.s32);",
                     ctx.temp(), ctx.temp(), ctx.temp(), ctx.temp());
-        ctx.println("\t{}.u16[{}] = uint16_t({}.s32);", ctx.v(ctx.insn.operands[0]), dstIdx,
-                    ctx.temp());
+        ctx.println("\t{}.u16[{}] = u16({}.s32);", ctx.v(ctx.insn.operands[0]), dstIdx, ctx.temp());
       }
       break;
     }
@@ -1244,14 +1243,14 @@ bool build_vpkd3d128(BuilderContext& ctx) {
 
     case 6: {
       ctx.println("\t{}.u64[0] = 0;", ctx.v_temp());
-      ctx.println("\t{}.s32 = int32_t({}.f32[0]);", ctx.temp(), ctx.v(ctx.insn.operands[1]));
-      ctx.println("\t{}.u64[0] = uint64_t({}.s32 & 0xFFFFF);", ctx.v_temp(), ctx.temp());
-      ctx.println("\t{}.s32 = int32_t({}.f32[1]);", ctx.temp(), ctx.v(ctx.insn.operands[1]));
-      ctx.println("\t{}.u64[0] |= uint64_t({}.s32 & 0xFFFFF) << 20;", ctx.v_temp(), ctx.temp());
-      ctx.println("\t{}.s32 = int32_t({}.f32[2]);", ctx.temp(), ctx.v(ctx.insn.operands[1]));
-      ctx.println("\t{}.u64[0] |= uint64_t({}.s32 & 0xFFFFF) << 40;", ctx.v_temp(), ctx.temp());
-      ctx.println("\t{}.s32 = int32_t({}.f32[3]);", ctx.temp(), ctx.v(ctx.insn.operands[1]));
-      ctx.println("\t{}.u64[0] |= uint64_t({}.s32 & 0xF) << 60;", ctx.v_temp(), ctx.temp());
+      ctx.println("\t{}.s32 = i32({}.f32[0]);", ctx.temp(), ctx.v(ctx.insn.operands[1]));
+      ctx.println("\t{}.u64[0] = u64({}.s32 & 0xFFFFF);", ctx.v_temp(), ctx.temp());
+      ctx.println("\t{}.s32 = i32({}.f32[1]);", ctx.temp(), ctx.v(ctx.insn.operands[1]));
+      ctx.println("\t{}.u64[0] |= u64({}.s32 & 0xFFFFF) << 20;", ctx.v_temp(), ctx.temp());
+      ctx.println("\t{}.s32 = i32({}.f32[2]);", ctx.temp(), ctx.v(ctx.insn.operands[1]));
+      ctx.println("\t{}.u64[0] |= u64({}.s32 & 0xFFFFF) << 40;", ctx.v_temp(), ctx.temp());
+      ctx.println("\t{}.s32 = i32({}.f32[3]);", ctx.temp(), ctx.v(ctx.insn.operands[1]));
+      ctx.println("\t{}.u64[0] |= u64({}.s32 & 0xF) << 60;", ctx.v_temp(), ctx.temp());
       ctx.println("\t{}.u64[{}] = {}.u64[0];", ctx.v(ctx.insn.operands[0]),
                   ctx.insn.operands[4] >> 1, ctx.v_temp());
       break;
@@ -1372,13 +1371,13 @@ bool build_vupkd3d128(BuilderContext& ctx) {
       auto vSrc = ctx.v(ctx.insn.operands[1]);
       auto vDst = ctx.v(ctx.insn.operands[0]);
       ctx.println("\t{}.u64[0] = {}.u64[1];", ctx.v_temp(), vSrc);
-      ctx.println("\t{}.s32 = (int32_t({}.u64[0] << 44) >> 44);", ctx.temp(), ctx.v_temp());
-      ctx.println("\t{}.f32[0] = float({}.s32);", vDst, ctx.temp());
-      ctx.println("\t{}.s32 = (int32_t({}.u64[0] << 24) >> 44);", ctx.temp(), ctx.v_temp());
-      ctx.println("\t{}.f32[1] = float({}.s32);", vDst, ctx.temp());
-      ctx.println("\t{}.s32 = (int32_t({}.u64[0] << 4) >> 44);", ctx.temp(), ctx.v_temp());
-      ctx.println("\t{}.f32[2] = float({}.s32);", vDst, ctx.temp());
-      ctx.println("\t{}.f32[3] = float({}.u64[0] >> 60);", vDst, ctx.v_temp());
+      ctx.println("\t{}.s32 = (i32({}.u64[0] << 44) >> 44);", ctx.temp(), ctx.v_temp());
+      ctx.println("\t{}.f32[0] = f32({}.s32);", vDst, ctx.temp());
+      ctx.println("\t{}.s32 = (i32({}.u64[0] << 24) >> 44);", ctx.temp(), ctx.v_temp());
+      ctx.println("\t{}.f32[1] = f32({}.s32);", vDst, ctx.temp());
+      ctx.println("\t{}.s32 = (i32({}.u64[0] << 4) >> 44);", ctx.temp(), ctx.v_temp());
+      ctx.println("\t{}.f32[2] = f32({}.s32);", vDst, ctx.temp());
+      ctx.println("\t{}.f32[3] = f32({}.u64[0] >> 60);", vDst, ctx.v_temp());
       break;
     }
 

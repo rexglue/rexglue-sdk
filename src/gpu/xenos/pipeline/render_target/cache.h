@@ -71,21 +71,21 @@ class RenderTargetCache {
   };
 
   /** Flags appended to the format in the format constant via bitwise OR. */
-  enum : uint32_t {
+  enum : u32 {
     kPSIColorFormatFlag_64bpp_Shift = xenos::kColorRenderTargetFormatBits,
     /** Requires clamping of blending sources and factors. */
     kPSIColorFormatFlag_FixedPointColor_Shift,
     kPSIColorFormatFlag_FixedPointAlpha_Shift,
 
-    kPSIColorFormatFlag_64bpp = static_cast<uint32_t>(1) << kPSIColorFormatFlag_64bpp_Shift,
-    kPSIColorFormatFlag_FixedPointColor = static_cast<uint32_t>(1)
+    kPSIColorFormatFlag_64bpp = static_cast<u32>(1) << kPSIColorFormatFlag_64bpp_Shift,
+    kPSIColorFormatFlag_FixedPointColor = static_cast<u32>(1)
                                           << kPSIColorFormatFlag_FixedPointColor_Shift,
-    kPSIColorFormatFlag_FixedPointAlpha = static_cast<uint32_t>(1)
+    kPSIColorFormatFlag_FixedPointAlpha = static_cast<u32>(1)
                                           << kPSIColorFormatFlag_FixedPointAlpha_Shift,
   };
 
-  static constexpr uint32_t AddPSIColorFormatFlags(xenos::ColorRenderTargetFormat format) {
-    uint32_t format_flags = static_cast<uint32_t>(format);
+  static constexpr u32 AddPSIColorFormatFlags(xenos::ColorRenderTargetFormat format) {
+    u32 format_flags = static_cast<u32>(format);
     if (format == xenos::ColorRenderTargetFormat::k_16_16_16_16 ||
         format == xenos::ColorRenderTargetFormat::k_16_16_16_16_FLOAT ||
         format == xenos::ColorRenderTargetFormat::k_32_32_FLOAT) {
@@ -124,10 +124,9 @@ class RenderTargetCache {
    * @param keep_mask_low Receives the keep mask of the low 32 bits.
    * @param keep_mask_high Receives the keep mask of the high 32 bits.
    */
-  static void GetPSIColorFormatInfo(xenos::ColorRenderTargetFormat format, uint32_t write_mask,
-                                    float& clamp_rgb_low, float& clamp_alpha_low,
-                                    float& clamp_rgb_high, float& clamp_alpha_high,
-                                    uint32_t& keep_mask_low, uint32_t& keep_mask_high);
+  static void GetPSIColorFormatInfo(xenos::ColorRenderTargetFormat format, u32 write_mask,
+                                    f32& clamp_rgb_low, f32& clamp_alpha_low, f32& clamp_rgb_high,
+                                    f32& clamp_alpha_high, u32& keep_mask_low, u32& keep_mask_high);
 
   virtual ~RenderTargetCache();
 
@@ -140,8 +139,8 @@ class RenderTargetCache {
    * fill used for 2x and 3x scaling when the half pixel offset becomes whole pixel, and complicate
    * rounding of integer coordinates.
    */
-  uint32_t draw_resolution_scale_x() const { return draw_resolution_scale_x_; }
-  uint32_t draw_resolution_scale_y() const { return draw_resolution_scale_y_; }
+  u32 draw_resolution_scale_x() const { return draw_resolution_scale_x_; }
+  u32 draw_resolution_scale_y() const { return draw_resolution_scale_y_; }
   bool IsDrawResolutionScaled() const {
     return draw_resolution_scale_x() > 1 || draw_resolution_scale_y() > 1;
   }
@@ -182,7 +181,7 @@ class RenderTargetCache {
    */
   virtual bool Update(bool is_rasterization_done,
                       xenos::reg::RB_DEPTHCONTROL normalized_depth_control,
-                      uint32_t normalized_color_mask, const Shader& vertex_shader);
+                      u32 normalized_color_mask, const Shader& vertex_shader);
 
   /**
    * Returns a mask where bit 0 is set when a depth render target is bound on the host and
@@ -191,11 +190,11 @@ class RenderTargetCache {
    * @param depth_and_color_formats_out Receives each target's resource format, may be null.
    * @return Bit mask of the bound render targets.
    */
-  uint32_t GetLastUpdateBoundRenderTargets(uint32_t* depth_and_color_formats_out = nullptr) const;
+  u32 GetLastUpdateBoundRenderTargets(u32* depth_and_color_formats_out = nullptr) const;
 
  protected:
   RenderTargetCache(const xenos::RegisterFile& register_file, const runtime::Memory& memory,
-                    uint32_t draw_resolution_scale_x, uint32_t draw_resolution_scale_y)
+                    u32 draw_resolution_scale_x, u32 draw_resolution_scale_y)
       : register_file_(register_file),
         draw_resolution_scale_x_(draw_resolution_scale_x),
         draw_resolution_scale_y_(draw_resolution_scale_y),
@@ -221,17 +220,17 @@ class RenderTargetCache {
   void ShutdownCommon();
 
   union RenderTargetKey {
-    uint32_t key;
+    u32 key;
     struct {
-      uint32_t base_tiles : xenos::kEDRAMBaseTilesBits;
+      u32 base_tiles : xenos::kEDRAMBaseTilesBits;
       /**
        * At most align(8192 * 2, 80) / 80 = 205 at 4x MSAA (2 horizontal samples). Doubled at 64bpp,
        * or use GetPitchTiles.
        */
-      uint32_t pitch_tiles_at_32bpp : 8;
+      u32 pitch_tiles_at_32bpp : 8;
       xenos::MSAASamples msaa_samples : xenos::kMSAASamplesBits;
-      uint32_t is_depth : 1;
-      uint32_t resource_format
+      u32 is_depth : 1;
+      u32 resource_format
           : xenos::kRenderTargetFormatBits; /**< Ignores blending precision and sRGB. */
     };
 
@@ -239,7 +238,7 @@ class RenderTargetCache {
 
     struct Hasher {
       size_t operator()(const RenderTargetKey& render_target_key) const {
-        return std::hash<uint32_t>{}(render_target_key.key);
+        return std::hash<u32>{}(render_target_key.key);
       }
     };
     bool operator==(const RenderTargetKey& other_key) const { return key == other_key.key; }
@@ -269,18 +268,16 @@ class RenderTargetCache {
                       : xenos::GetColorRenderTargetFormatName(GetColorFormat());
     }
 
-    uint32_t GetPitchTiles() const { return pitch_tiles_at_32bpp << uint32_t(Is64bpp()); }
-    static constexpr uint32_t GetWidth(uint32_t pitch_tiles_at_32bpp,
-                                       xenos::MSAASamples msaa_samples) {
-      return pitch_tiles_at_32bpp *
-             (xenos::kEDRAMTileWidthSamples >>
-              static_cast<uint32_t>(msaa_samples >= xenos::MSAASamples::k4X));
+    u32 GetPitchTiles() const { return pitch_tiles_at_32bpp << u32(Is64bpp()); }
+    static constexpr u32 GetWidth(u32 pitch_tiles_at_32bpp, xenos::MSAASamples msaa_samples) {
+      return pitch_tiles_at_32bpp * (xenos::kEDRAMTileWidthSamples >>
+                                     static_cast<u32>(msaa_samples >= xenos::MSAASamples::k4X));
     }
-    uint32_t GetWidth() const { return GetWidth(pitch_tiles_at_32bpp, msaa_samples); }
+    u32 GetWidth() const { return GetWidth(pitch_tiles_at_32bpp, msaa_samples); }
 
     std::string GetDebugName() const {
       return std::format("RT @ {}t, <{}t>, {}xMSAA, {}", base_tiles, GetPitchTiles(),
-                         static_cast<uint32_t>(1) << uint32_t(msaa_samples), GetFormatName());
+                         static_cast<u32>(1) << u32(msaa_samples), GetFormatName());
     }
   };
 
@@ -309,12 +306,11 @@ class RenderTargetCache {
    * transferred.
    */
   struct Transfer {
-    uint32_t start_tiles;
-    uint32_t end_tiles;
+    u32 start_tiles;
+    u32 end_tiles;
     RenderTarget* source;
     RenderTarget* host_depth_source;
-    Transfer(uint32_t start_tiles, uint32_t end_tiles, RenderTarget* source,
-             RenderTarget* host_depth_source)
+    Transfer(u32 start_tiles, u32 end_tiles, RenderTarget* source, RenderTarget* host_depth_source)
         : start_tiles(start_tiles),
           end_tiles(end_tiles),
           source(source),
@@ -322,14 +318,14 @@ class RenderTargetCache {
       REX_ASSERT(start_tiles < end_tiles);
     }
     struct Rectangle {
-      uint32_t x_pixels;
-      uint32_t y_pixels;
-      uint32_t width_pixels;
-      uint32_t height_pixels;
+      u32 x_pixels;
+      u32 y_pixels;
+      u32 width_pixels;
+      u32 height_pixels;
     };
-    static constexpr uint32_t kMaxRectanglesWithoutCutout = 3;
-    static constexpr uint32_t kMaxCutoutBorderRectangles = 4;
-    static constexpr uint32_t kMaxRectanglesWithCutout =
+    static constexpr u32 kMaxRectanglesWithoutCutout = 3;
+    static constexpr u32 kMaxCutoutBorderRectangles = 4;
+    static constexpr u32 kMaxRectanglesWithCutout =
         kMaxRectanglesWithoutCutout * kMaxCutoutBorderRectangles;
     /**
      * Returns the rectangles covering a tile range. A cutout can be specified for resolve clears,
@@ -345,14 +341,12 @@ class RenderTargetCache {
      * @param cutout Area to exclude, may be null.
      * @return Number of rectangles written.
      */
-    static uint32_t GetRangeRectangles(uint32_t start_tiles, uint32_t end_tiles,
-                                       uint32_t base_tiles, uint32_t pitch_tiles,
-                                       xenos::MSAASamples msaa_samples, bool is_64bpp,
-                                       Rectangle* rectangles_out,
-                                       const Rectangle* cutout = nullptr);
-    uint32_t GetRectangles(uint32_t base_tiles, uint32_t pitch_tiles,
-                           xenos::MSAASamples msaa_samples, bool is_64bpp,
-                           Rectangle* rectangles_out, const Rectangle* cutout = nullptr) const {
+    static u32 GetRangeRectangles(u32 start_tiles, u32 end_tiles, u32 base_tiles, u32 pitch_tiles,
+                                  xenos::MSAASamples msaa_samples, bool is_64bpp,
+                                  Rectangle* rectangles_out, const Rectangle* cutout = nullptr);
+    u32 GetRectangles(u32 base_tiles, u32 pitch_tiles, xenos::MSAASamples msaa_samples,
+                      bool is_64bpp, Rectangle* rectangles_out,
+                      const Rectangle* cutout = nullptr) const {
       return GetRangeRectangles(start_tiles, end_tiles, base_tiles, pitch_tiles, msaa_samples,
                                 is_64bpp, rectangles_out, cutout);
     }
@@ -362,18 +356,18 @@ class RenderTargetCache {
     }
 
    private:
-    static uint32_t AddRectangle(const Rectangle& rectangle, Rectangle* rectangles_out,
-                                 const Rectangle* cutout = nullptr);
+    static u32 AddRectangle(const Rectangle& rectangle, Rectangle* rectangles_out,
+                            const Rectangle* cutout = nullptr);
   };
 
   union HostDepthStoreRectangleConstant {
-    uint32_t constant;
+    u32 constant;
     struct {
       // Minus 1 because the maximum is 0x1FFF / 8, not 0x2000 / 8.
-      uint32_t x_pixels_div_8 : xenos::kResolveSizeBits - 1 - xenos::kResolveAlignmentPixelsLog2;
-      uint32_t y_pixels_div_8 : xenos::kResolveSizeBits - 1 - xenos::kResolveAlignmentPixelsLog2;
-      uint32_t width_pixels_div_8_minus_1 : xenos::kResolveSizeBits - 1 -
-                                            xenos::kResolveAlignmentPixelsLog2;
+      u32 x_pixels_div_8 : xenos::kResolveSizeBits - 1 - xenos::kResolveAlignmentPixelsLog2;
+      u32 y_pixels_div_8 : xenos::kResolveSizeBits - 1 - xenos::kResolveAlignmentPixelsLog2;
+      u32 width_pixels_div_8_minus_1 : xenos::kResolveSizeBits - 1 -
+                                       xenos::kResolveAlignmentPixelsLog2;
     };
     HostDepthStoreRectangleConstant() : constant(0) {
       REX_STATIC_ASSERT_SIZE(*this, sizeof(constant));
@@ -381,13 +375,13 @@ class RenderTargetCache {
   };
 
   union HostDepthStoreRenderTargetConstant {
-    uint32_t constant;
+    u32 constant;
     struct {
-      uint32_t pitch_tiles : xenos::kEDRAMPitchTilesBits;
-      uint32_t resolution_scale_x : 3;
-      uint32_t resolution_scale_y : 3;
+      u32 pitch_tiles : xenos::kEDRAMPitchTilesBits;
+      u32 resolution_scale_x : 3;
+      u32 resolution_scale_y : 3;
       /** Set when 2x MSAA is supported natively rather than through 4x. */
-      uint32_t msaa_2x_supported : 1;
+      u32 msaa_2x_supported : 1;
     };
     HostDepthStoreRenderTargetConstant() : constant(0) {
       REX_STATIC_ASSERT_SIZE(*this, sizeof(constant));
@@ -408,12 +402,12 @@ class RenderTargetCache {
    */
   struct ResolveCopyDumpRectangle {
     RenderTarget* render_target;
-    uint32_t row_first;
-    uint32_t rows;
-    uint32_t row_first_start;
-    uint32_t row_last_end;
-    ResolveCopyDumpRectangle(RenderTarget* render_target, uint32_t row_first, uint32_t rows,
-                             uint32_t row_first_start, uint32_t row_last_end)
+    u32 row_first;
+    u32 rows;
+    u32 row_first_start;
+    u32 row_last_end;
+    ResolveCopyDumpRectangle(RenderTarget* render_target, u32 row_first, u32 rows,
+                             u32 row_first_start, u32 row_last_end)
         : render_target(render_target),
           row_first(row_first),
           rows(rows),
@@ -421,17 +415,16 @@ class RenderTargetCache {
           row_last_end(row_last_end) {}
     struct Dispatch {
       /** Base plus offset may exceed the EDRAM tile count when EDRAM addressing wraps. */
-      uint32_t offset;
-      uint32_t width_tiles;
-      uint32_t height_tiles;
+      u32 offset;
+      u32 width_tiles;
+      u32 height_tiles;
     };
-    static constexpr uint32_t kMaxDispatches = 3;
-    uint32_t GetDispatches(uint32_t pitch_tiles, uint32_t row_length_used,
-                           Dispatch* dispatches_out) const {
+    static constexpr u32 kMaxDispatches = 3;
+    u32 GetDispatches(u32 pitch_tiles, u32 row_length_used, Dispatch* dispatches_out) const {
       if (!rows) {
         return 0;
       }
-      uint32_t dispatch_count = 0;
+      u32 dispatch_count = 0;
       if (rows == 1 || row_first_start) {
         Dispatch& dispatch_first = dispatches_out[dispatch_count++];
         dispatch_first.offset = row_first * pitch_tiles + row_first_start;
@@ -441,8 +434,8 @@ class RenderTargetCache {
           return dispatch_count;
         }
       }
-      uint32_t mid_row_first = row_first + 1;
-      uint32_t mid_rows = rows - 2;
+      u32 mid_row_first = row_first + 1;
+      u32 mid_rows = rows - 2;
       if (!row_first_start) {
         --mid_row_first;
         ++mid_rows;
@@ -468,15 +461,14 @@ class RenderTargetCache {
 
   /** Flattened dispatch extracted from a ResolveCopyDumpRectangle. */
   struct ResolveCopyDispatch {
-    uint32_t rectangle_index;
+    u32 rectangle_index;
     ResolveCopyDumpRectangle::Dispatch dispatch;
-    ResolveCopyDispatch(uint32_t rectangle_index,
-                        const ResolveCopyDumpRectangle::Dispatch& dispatch)
+    ResolveCopyDispatch(u32 rectangle_index, const ResolveCopyDumpRectangle::Dispatch& dispatch)
         : rectangle_index(rectangle_index), dispatch(dispatch) {}
   };
 
-  virtual uint32_t GetMaxRenderTargetWidth() const = 0;
-  virtual uint32_t GetMaxRenderTargetHeight() const = 0;
+  virtual u32 GetMaxRenderTargetWidth() const = 0;
+  virtual u32 GetMaxRenderTargetHeight() const = 0;
 
   /**
    * Returns the height of a render target that is needed and can be created, within guest and host
@@ -489,8 +481,7 @@ class RenderTargetCache {
    * @param msaa_samples MSAA sample count.
    * @return Render target height.
    */
-  uint32_t GetRenderTargetHeight(uint32_t pitch_tiles_at_32bpp,
-                                 xenos::MSAASamples msaa_samples) const;
+  u32 GetRenderTargetHeight(u32 pitch_tiles_at_32bpp, xenos::MSAASamples msaa_samples) const;
 
   virtual std::unique_ptr<RenderTarget> CreateRenderTarget(RenderTargetKey key) = 0;
 
@@ -515,7 +506,7 @@ class RenderTargetCache {
   }
 
   HostDepthStoreRenderTargetConstant GetHostDepthStoreRenderTargetConstant(
-      uint32_t pitch_tiles, bool msaa_2x_supported) const {
+      u32 pitch_tiles, bool msaa_2x_supported) const {
     HostDepthStoreRenderTargetConstant constant;
     constant.pitch_tiles = pitch_tiles;
     // 3 bits for each.
@@ -523,14 +514,13 @@ class RenderTargetCache {
     REX_ASSERT(draw_resolution_scale_y() <= 7);
     constant.resolution_scale_x = draw_resolution_scale_x();
     constant.resolution_scale_y = draw_resolution_scale_y();
-    constant.msaa_2x_supported = static_cast<uint32_t>(msaa_2x_supported);
+    constant.msaa_2x_supported = static_cast<u32>(msaa_2x_supported);
     return constant;
   }
   void GetHostDepthStoreRectangleInfo(const Transfer::Rectangle& transfer_rectangle,
                                       xenos::MSAASamples msaa_samples,
                                       HostDepthStoreRectangleConstant& rectangle_constant_out,
-                                      uint32_t& group_count_x_out,
-                                      uint32_t& group_count_y_out) const;
+                                      u32& group_count_x_out, u32& group_count_y_out) const;
 
   /**
    * Returns mappings between ranges within the tile rectangle (not the render target texture
@@ -543,11 +533,9 @@ class RenderTargetCache {
    * @param pitch Row pitch in tiles.
    * @param rectangles_out Receives the mappings.
    */
-  void GetResolveCopyRectanglesToDump(uint32_t base, uint32_t row_length, uint32_t rows,
-                                      uint32_t pitch,
+  void GetResolveCopyRectanglesToDump(u32 base, u32 row_length, u32 rows, u32 pitch,
                                       std::vector<ResolveCopyDumpRectangle>& rectangles_out) const;
-  void GetResolveCopyDispatchesToDump(uint32_t base, uint32_t row_length, uint32_t rows,
-                                      uint32_t pitch,
+  void GetResolveCopyDispatchesToDump(u32 base, u32 row_length, u32 rows, u32 pitch,
                                       std::vector<ResolveCopyDumpRectangle>& rectangles_out,
                                       std::vector<ResolveCopyDispatch>& dispatches_out) const;
 
@@ -578,13 +566,13 @@ class RenderTargetCache {
 
  private:
   const xenos::RegisterFile& register_file_;
-  uint32_t draw_resolution_scale_x_;
-  uint32_t draw_resolution_scale_y_;
+  u32 draw_resolution_scale_x_;
+  u32 draw_resolution_scale_y_;
 
   DrawExtentEstimator draw_extent_estimator_;
 
   struct OwnershipRange {
-    uint32_t end_tiles;
+    u32 end_tiles;
     /**
      * Last using render target. Stored as a key rather than a pointer since pixel shader interlock
      * has no host render targets and uses ownership to place barriers.
@@ -603,7 +591,7 @@ class RenderTargetCache {
      */
     RenderTargetKey host_depth_render_target_unorm24;
     RenderTargetKey host_depth_render_target_float24;
-    OwnershipRange(uint32_t end_tiles, RenderTargetKey render_target,
+    OwnershipRange(u32 end_tiles, RenderTargetKey render_target,
                    RenderTargetKey host_depth_render_target_unorm24,
                    RenderTargetKey host_depth_render_target_float24)
         : end_tiles(end_tiles),
@@ -662,9 +650,8 @@ class RenderTargetCache {
    * @param length_tiles Length in tiles.
    * @return True when transfers would be required.
    */
-  bool WouldOwnershipChangeRequireTransfers(RenderTargetKey dest,
-                                            uint32_t start_tiles_base_relative,
-                                            uint32_t length_tiles) const;
+  bool WouldOwnershipChangeRequireTransfers(RenderTargetKey dest, u32 start_tiles_base_relative,
+                                            u32 length_tiles) const;
   /**
    * Updates ownership_ranges_ and adds the transfers needed for the change to transfers_append_out
    * when it is not null.
@@ -675,15 +662,15 @@ class RenderTargetCache {
    * @param transfers_append_out Receives the transfers, may be null.
    * @param resolve_clear_cutout Area excluded from transfers, may be null.
    */
-  void ChangeOwnership(RenderTargetKey dest, uint32_t start_tiles_base_relative,
-                       uint32_t length_tiles, std::vector<Transfer>* transfers_append_out,
+  void ChangeOwnership(RenderTargetKey dest, u32 start_tiles_base_relative, u32 length_tiles,
+                       std::vector<Transfer>* transfers_append_out,
                        const Transfer::Rectangle* resolve_clear_cutout = nullptr);
 
   std::unordered_map<RenderTargetKey, std::unique_ptr<RenderTarget>, RenderTargetKey::Hasher>
       /** May hold nullptr after a failed creation, to prevent attempting to create it twice. */
       render_targets_;
 
-  std::map<uint32_t, OwnershipRange>
+  std::map<u32, OwnershipRange>
       /**
        * Host render targets holding the most up to date tile data. Has no gaps, unused parts are
        * represented by empty render target keys.

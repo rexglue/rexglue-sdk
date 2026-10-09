@@ -76,7 +76,7 @@ X_STATUS XMADecoder::Setup() {
       memory()->GetPhysicalAddress(context_data_first_ptr_);
 
   for (size_t i = 0; i < kContextCount; ++i) {
-    uint32_t guest_ptr = context_data_first_ptr_ + i * sizeof(XMA_CONTEXT_DATA);
+    u32 guest_ptr = context_data_first_ptr_ + i * sizeof(XMA_CONTEXT_DATA);
     XMAContext& context = contexts_[i];
     if (context.Setup(i, memory(), guest_ptr)) {
       REX_ASSERT_ALWAYS();
@@ -99,7 +99,7 @@ X_STATUS XMADecoder::Setup() {
 void XMADecoder::WorkerThreadMain(const std::stop_token& stop) {
   while (!stop.stop_requested()) {
     bool did_work = false;
-    for (uint32_t n = 0; n < kContextCount && !stop.stop_requested(); n++) {
+    for (u32 n = 0; n < kContextCount && !stop.stop_requested(); n++) {
       XMAContext& context = contexts_[n];
       bool worked = context.Work();
       if (worked) {
@@ -147,7 +147,7 @@ void XMADecoder::Shutdown() {
   context_data_last_ptr_ = 0;
 }
 
-int XMADecoder::GetContextId(uint32_t guest_ptr) const {
+int XMADecoder::GetContextId(u32 guest_ptr) const {
   REX_STATIC_ASSERT_SIZE(XMA_CONTEXT_DATA, 64);
   if (guest_ptr < context_data_first_ptr_ || guest_ptr > context_data_last_ptr_) {
     return -1;
@@ -156,7 +156,7 @@ int XMADecoder::GetContextId(uint32_t guest_ptr) const {
   return (guest_ptr - context_data_first_ptr_) >> 6;
 }
 
-uint32_t XMADecoder::AllocateContext() {
+u32 XMADecoder::AllocateContext() {
   size_t index = context_bitmap_.Acquire();
   if (index == static_cast<size_t>(-1)) {
     return 0;
@@ -168,7 +168,7 @@ uint32_t XMADecoder::AllocateContext() {
   return context.guest_ptr();
 }
 
-void XMADecoder::ReleaseContext(uint32_t guest_ptr) {
+void XMADecoder::ReleaseContext(u32 guest_ptr) {
   auto context_id = GetContextId(guest_ptr);
   REX_ASSERT(context_id >= 0);
 
@@ -178,7 +178,7 @@ void XMADecoder::ReleaseContext(uint32_t guest_ptr) {
   context_bitmap_.Release(context_id);
 }
 
-bool XMADecoder::BlockOnContext(uint32_t guest_ptr, bool poll) {
+bool XMADecoder::BlockOnContext(u32 guest_ptr, bool poll) {
   auto context_id = GetContextId(guest_ptr);
   REX_ASSERT(context_id >= 0);
 
@@ -186,7 +186,7 @@ bool XMADecoder::BlockOnContext(uint32_t guest_ptr, bool poll) {
   return context.Block(poll);
 }
 
-uint32_t XMADecoder::ReadRegister(uint32_t addr) {
+u32 XMADecoder::ReadRegister(u32 addr) {
   auto r = (addr & 0xFFFF) / 4;
 
   REX_ASSERT(r < XMARegisterFile::kRegisterCount);
@@ -195,8 +195,8 @@ uint32_t XMADecoder::ReadRegister(uint32_t addr) {
     case XMARegister::ContextArrayAddress:
       break;
     case XMARegister::CurrentContextIndex: {
-      uint32_t& current_context_index = register_file_[XMARegister::CurrentContextIndex];
-      uint32_t& next_context_index = register_file_[XMARegister::NextContextIndex];
+      u32& current_context_index = register_file_[XMARegister::CurrentContextIndex];
+      u32& next_context_index = register_file_[XMARegister::NextContextIndex];
       current_context_index = next_context_index;
       next_context_index = (next_context_index + 1) % kContextCount;
       break;
@@ -214,10 +214,10 @@ uint32_t XMADecoder::ReadRegister(uint32_t addr) {
   return std::byteswap(register_file_[r]);
 }
 
-void XMADecoder::WriteRegister(uint32_t addr, uint32_t value) {
+void XMADecoder::WriteRegister(u32 addr, u32 value) {
   REX_PROFILE_SCOPE("apu");
 
-  uint32_t r = (addr & 0xFFFF) / 4;
+  u32 r = (addr & 0xFFFF) / 4;
   value = std::byteswap(value);
 
   REX_ASSERT(r < XMARegisterFile::kRegisterCount);
@@ -225,11 +225,11 @@ void XMADecoder::WriteRegister(uint32_t addr, uint32_t value) {
 
   if (r >= XMARegister::Context0Kick && r <= XMARegister::Context9Kick) {
     // XMAEnableContext writes the kick registers.
-    uint32_t base_context_id = (r - XMARegister::Context0Kick) * 32;
-    uint32_t kicked_value = value;
+    u32 base_context_id = (r - XMARegister::Context0Kick) * 32;
+    u32 kicked_value = value;
     for (int i = 0; value && i < 32; ++i, value >>= 1) {
       if (value & 1) {
-        uint32_t context_id = base_context_id + i;
+        u32 context_id = base_context_id + i;
         auto& context = contexts_[context_id];
         context.Enable();
       }
@@ -237,7 +237,7 @@ void XMADecoder::WriteRegister(uint32_t addr, uint32_t value) {
     // Decode inline, a worker sweep would stall the audio thread 50 to 100ms in kick bursts.
     for (int i = 0; kicked_value && i < 32; ++i, kicked_value >>= 1) {
       if (kicked_value & 1) {
-        uint32_t context_id = base_context_id + i;
+        u32 context_id = base_context_id + i;
         auto& context = contexts_[context_id];
         if (context.Work()) {
           context.SignalWorkDone();
@@ -247,10 +247,10 @@ void XMADecoder::WriteRegister(uint32_t addr, uint32_t value) {
     work_event_->Set();
   } else if (r >= XMARegister::Context0Lock && r <= XMARegister::Context9Lock) {
     // XMADisableContext writes the lock registers.
-    uint32_t base_context_id = (r - XMARegister::Context0Lock) * 32;
+    u32 base_context_id = (r - XMARegister::Context0Lock) * 32;
     for (int i = 0; value && i < 32; ++i, value >>= 1) {
       if (value & 1) {
-        uint32_t context_id = base_context_id + i;
+        u32 context_id = base_context_id + i;
         auto& context = contexts_[context_id];
         context.Disable();
         // Block until an in flight decode finishes before the guest may modify the context.
@@ -258,10 +258,10 @@ void XMADecoder::WriteRegister(uint32_t addr, uint32_t value) {
       }
     }
   } else if (r >= XMARegister::Context0Clear && r <= XMARegister::Context9Clear) {
-    uint32_t base_context_id = (r - XMARegister::Context0Clear) * 32;
+    u32 base_context_id = (r - XMARegister::Context0Clear) * 32;
     for (int i = 0; value && i < 32; ++i, value >>= 1) {
       if (value & 1) {
-        uint32_t context_id = base_context_id + i;
+        u32 context_id = base_context_id + i;
         XMAContext& context = contexts_[context_id];
         context.Clear();
       }

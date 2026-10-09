@@ -22,7 +22,7 @@ class D3D12Shader : public DxbcShader {
  public:
   class D3D12Translation : public DxbcTranslation {
    public:
-    D3D12Translation(D3D12Shader& shader, uint64_t modification)
+    D3D12Translation(D3D12Shader& shader, u64 modification)
         : DxbcTranslation(shader, modification) {}
 
     void DisassembleDxbcAndDxil(const gpu::d3d12::D3D12Provider& provider, bool disassemble_dxbc,
@@ -31,7 +31,7 @@ class D3D12Shader : public DxbcShader {
                                 IDxcCompiler* dxc_compiler = nullptr);
   };
 
-  D3D12Shader(xenos::ShaderType shader_type, uint64_t ucode_data_hash, const uint32_t* ucode_dwords,
+  D3D12Shader(xenos::ShaderType shader_type, u64 ucode_data_hash, const u32* ucode_dwords,
               size_t ucode_dword_count, std::endian ucode_source_endian = std::endian::big);
 
   /**
@@ -54,7 +54,7 @@ class D3D12Shader : public DxbcShader {
   void SetSamplerBindingLayoutUserUID(size_t uid) { sampler_binding_layout_user_uid_ = uid; }
 
  protected:
-  std::unique_ptr<Translation> CreateTranslationInstance(uint64_t modification) override;
+  std::unique_ptr<Translation> CreateTranslationInstance(u64 modification) override;
 
  private:
   std::atomic_flag binding_layout_user_uids_set_up_ = ATOMIC_FLAG_INIT;

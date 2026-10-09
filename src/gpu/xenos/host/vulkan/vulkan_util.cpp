@@ -24,13 +24,13 @@ namespace vulkan {
 namespace util {
 
 void FlushMappedMemoryRange(const VulkanDevice* const vulkan_device, const VkDeviceMemory memory,
-                            const uint32_t memory_type, const VkDeviceSize offset,
+                            const u32 memory_type, const VkDeviceSize offset,
                             const VkDeviceSize memory_size, const VkDeviceSize size) {
   REX_ASSERT(!(size != VK_WHOLE_SIZE && memory_size == VK_WHOLE_SIZE));
   REX_ASSERT(memory_size == VK_WHOLE_SIZE || offset <= memory_size);
   REX_ASSERT(memory_size == VK_WHOLE_SIZE || size <= memory_size - offset);
   if (!size ||
-      (vulkan_device->memory_types().host_coherent & (static_cast<uint32_t>(1) << memory_type))) {
+      (vulkan_device->memory_types().host_coherent & (static_cast<u32>(1) << memory_type))) {
     return;
   }
   VkMappedMemoryRange range;
@@ -51,7 +51,7 @@ void FlushMappedMemoryRange(const VulkanDevice* const vulkan_device, const VkDev
 bool CreateDedicatedAllocationBuffer(const VulkanDevice* const vulkan_device,
                                      const VkDeviceSize size, const VkBufferUsageFlags usage,
                                      const MemoryPurpose memory_purpose, VkBuffer& buffer_out,
-                                     VkDeviceMemory& memory_out, uint32_t* const memory_type_out,
+                                     VkDeviceMemory& memory_out, u32* const memory_type_out,
                                      VkDeviceSize* const memory_size_out) {
   const VulkanDevice::Functions& dfn = vulkan_device->functions();
   const VkDevice device = vulkan_device->device();
@@ -72,8 +72,8 @@ bool CreateDedicatedAllocationBuffer(const VulkanDevice* const vulkan_device,
 
   VkMemoryRequirements memory_requirements;
   dfn.vkGetBufferMemoryRequirements(device, buffer, &memory_requirements);
-  uint32_t memory_type = ChooseMemoryType(vulkan_device->memory_types(),
-                                          memory_requirements.memoryTypeBits, memory_purpose);
+  u32 memory_type = ChooseMemoryType(vulkan_device->memory_types(),
+                                     memory_requirements.memoryTypeBits, memory_purpose);
   if (memory_type == UINT32_MAX) {
     dfn.vkDestroyBuffer(device, buffer, nullptr);
     return false;
@@ -119,7 +119,7 @@ bool CreateDedicatedAllocationBuffer(const VulkanDevice* const vulkan_device,
 bool CreateDedicatedAllocationImage(const VulkanDevice* const vulkan_device,
                                     const VkImageCreateInfo& create_info,
                                     const MemoryPurpose memory_purpose, VkImage& image_out,
-                                    VkDeviceMemory& memory_out, uint32_t* const memory_type_out,
+                                    VkDeviceMemory& memory_out, u32* const memory_type_out,
                                     VkDeviceSize* const memory_size_out) {
   const VulkanDevice::Functions& dfn = vulkan_device->functions();
   const VkDevice device = vulkan_device->device();
@@ -131,8 +131,8 @@ bool CreateDedicatedAllocationImage(const VulkanDevice* const vulkan_device,
 
   VkMemoryRequirements memory_requirements;
   dfn.vkGetImageMemoryRequirements(device, image, &memory_requirements);
-  uint32_t memory_type = ChooseMemoryType(vulkan_device->memory_types(),
-                                          memory_requirements.memoryTypeBits, memory_purpose);
+  u32 memory_type = ChooseMemoryType(vulkan_device->memory_types(),
+                                     memory_requirements.memoryTypeBits, memory_purpose);
   if (memory_type == UINT32_MAX) {
     dfn.vkDestroyImage(device, image, nullptr);
     return false;
@@ -203,7 +203,7 @@ VkPipeline CreateComputePipeline(const VulkanDevice* const vulkan_device,
 }
 
 VkPipeline CreateComputePipeline(const VulkanDevice* const vulkan_device, VkPipelineLayout layout,
-                                 const uint32_t* shader_code, size_t shader_code_size_bytes,
+                                 const u32* shader_code, size_t shader_code_size_bytes,
                                  const VkSpecializationInfo* specialization_info,
                                  const char* entry_point) {
   const VkShaderModule shader =

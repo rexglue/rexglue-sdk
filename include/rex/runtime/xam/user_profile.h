@@ -37,9 +37,9 @@ struct X_USER_PROFILE_SETTING_DATA {
    * UserProfile::Setting::Type, the XUSER_DATA type byte. Titles do not always zero the 3 bytes
    * after it.
    */
-  uint8_t type;
-  uint8_t unk_1[3]; /**< Offset 0x01. Padding after the type byte. */
-  be_u32 unk_4;     /**< Offset 0x04. Padding before the 8 byte aligned value union. */
+  u8 type;
+  u8 unk_1[3];  /**< Offset 0x01. Padding after the type byte. */
+  be_u32 unk_4; /**< Offset 0x04. Padding before the 8 byte aligned value union. */
   /** Union of the XUSER_DATA value types. */
   union {
     be_i32 s32; /**< Offset 0x08. XUSER_DATA_TYPE_INT32 value. */
@@ -71,8 +71,8 @@ struct X_USER_PROFILE_SETTING {
   be_u32 setting_id; /**< Offset 0x10. Setting id. */
   be_u32 unk14;      /**< Offset 0x14. Padding before the 8 byte aligned data. */
   union {
-    uint8_t data_bytes[sizeof(X_USER_PROFILE_SETTING_DATA)]; /**< Offset 0x18. Raw bytes. */
-    X_USER_PROFILE_SETTING_DATA data;                        /**< Offset 0x18. Value. */
+    u8 data_bytes[sizeof(X_USER_PROFILE_SETTING_DATA)]; /**< Offset 0x18. Raw bytes. */
+    X_USER_PROFILE_SETTING_DATA data;                   /**< Offset 0x18. Value. */
   };
 };
 REX_STATIC_ASSERT_SIZE(X_USER_PROFILE_SETTING, 40);
@@ -91,7 +91,7 @@ class UserProfile {
      * @param data_length The buffer length in bytes.
      * @param offset The initial offset in bytes.
      */
-    SettingByteStream(uint32_t ptr, uint8_t* data, size_t data_length, size_t offset = 0)
+    SettingByteStream(u32 ptr, u8* data, size_t data_length, size_t offset = 0)
         : ByteStream(data, data_length, offset), ptr_(ptr) {}
 
     /**
@@ -99,10 +99,10 @@ class UserProfile {
      *
      * @return The guest address.
      */
-    uint32_t ptr() const { return static_cast<uint32_t>(ptr_ + offset()); }
+    u32 ptr() const { return static_cast<u32>(ptr_ + offset()); }
 
    private:
-    uint32_t ptr_;
+    u32 ptr_;
   };
   /** A profile setting identified by id, which can write itself into a guest value. */
   struct Setting {
@@ -120,19 +120,19 @@ class UserProfile {
     };
     /** Fields packed into a setting id. */
     union Key {
-      uint32_t value; /**< The raw setting id. */
+      u32 value; /**< The raw setting id. */
       struct {
-        uint32_t id : 14;   /**< Setting number. */
-        uint32_t unk : 2;   /**< Bits 14 and 15 of the setting id. */
-        uint32_t size : 12; /**< Size in bytes of a string or binary value. */
-        uint32_t type : 4;  /**< Type value. */
+        u32 id : 14;   /**< Setting number. */
+        u32 unk : 2;   /**< Bits 14 and 15 of the setting id. */
+        u32 size : 12; /**< Size in bytes of a string or binary value. */
+        u32 type : 4;  /**< Type value. */
       };
     };
-    uint32_t setting_id;      /**< Id of the setting. */
-    Type type;                /**< Value type. */
-    size_t size;              /**< Value size in bytes. */
-    bool is_set;              /**< True when the setting holds a value. */
-    uint32_t loaded_title_id; /**< Id of the title whose saved value was loaded, 0 when none. */
+    u32 setting_id;      /**< Id of the setting. */
+    Type type;           /**< Value type. */
+    size_t size;         /**< Value size in bytes. */
+    bool is_set;         /**< True when the setting holds a value. */
+    u32 loaded_title_id; /**< Id of the title whose saved value was loaded, 0 when none. */
     /**
      * Constructs a setting.
      *
@@ -141,7 +141,7 @@ class UserProfile {
      * @param size The value size in bytes.
      * @param is_set True when the setting holds a value.
      */
-    Setting(uint32_t setting_id, Type type, size_t size, bool is_set)
+    Setting(u32 setting_id, Type type, size_t size, bool is_set)
         : setting_id(setting_id), type(type), size(size), is_set(is_set), loaded_title_id(0) {}
     /**
      * Writes the setting into a guest value.
@@ -151,20 +151,20 @@ class UserProfile {
      */
     virtual void Append(X_USER_PROFILE_SETTING_DATA* data, SettingByteStream* stream) {
       (void)stream;
-      data->type = static_cast<uint8_t>(type);
+      data->type = static_cast<u8>(type);
     }
     /**
      * Returns the bytes saved to disk for a title specific setting.
      *
      * @return The bytes.
      */
-    virtual std::vector<uint8_t> Serialize() const { return std::vector<uint8_t>(); }
+    virtual std::vector<u8> Serialize() const { return std::vector<u8>(); }
     /**
      * Restores the value from bytes saved to disk.
      *
      * @param data The saved bytes.
      */
-    virtual void Deserialize(std::vector<uint8_t>) {}
+    virtual void Deserialize(std::vector<u8>) {}
     /**
      * Reports whether the setting is saved per title.
      *
@@ -180,9 +180,9 @@ class UserProfile {
      * @param setting_id The id of the setting.
      * @param value The integer.
      */
-    Int32Setting(uint32_t setting_id, int32_t value)
+    Int32Setting(u32 setting_id, i32 value)
         : Setting(setting_id, Type::INT32, 4, true), value(value) {}
-    int32_t value; /**< The integer. */
+    i32 value; /**< The integer. */
     /**
      * Writes the integer into the guest value.
      *
@@ -202,9 +202,9 @@ class UserProfile {
      * @param setting_id The id of the setting.
      * @param value The integer.
      */
-    Int64Setting(uint32_t setting_id, int64_t value)
+    Int64Setting(u32 setting_id, i64 value)
         : Setting(setting_id, Type::INT64, 8, true), value(value) {}
-    int64_t value; /**< The integer. */
+    i64 value; /**< The integer. */
     /**
      * Writes the integer into the guest value.
      *
@@ -224,9 +224,9 @@ class UserProfile {
      * @param setting_id The id of the setting.
      * @param value The floating point value.
      */
-    DoubleSetting(uint32_t setting_id, double value)
+    DoubleSetting(u32 setting_id, f64 value)
         : Setting(setting_id, Type::DOUBLE, 8, true), value(value) {}
-    double value; /**< The floating point value. */
+    f64 value; /**< The floating point value. */
     /**
      * Writes the floating point value into the guest value.
      *
@@ -246,7 +246,7 @@ class UserProfile {
      * @param setting_id The id of the setting.
      * @param value The text.
      */
-    UnicodeSetting(uint32_t setting_id, const std::u16string& value)
+    UnicodeSetting(u32 setting_id, const std::u16string& value)
         : Setting(setting_id, Type::WSTRING, 8, true), value(value) {}
     std::u16string value; /**< The text. */
     /**
@@ -263,12 +263,12 @@ class UserProfile {
       } else {
         size_t count = value.size() + 1;
         size_t size = 2 * count;
-        REX_ASSERT(size <= std::numeric_limits<uint32_t>::max());
-        data->unicode.size = static_cast<uint32_t>(size);
+        REX_ASSERT(size <= std::numeric_limits<u32>::max());
+        data->unicode.size = static_cast<u32>(size);
         data->unicode.ptr = stream->ptr();
-        auto buffer = reinterpret_cast<uint16_t*>(&stream->data()[stream->offset()]);
+        auto buffer = reinterpret_cast<u16*>(&stream->data()[stream->offset()]);
         stream->Advance(size);
-        memory::copy_and_swap(buffer, reinterpret_cast<const uint16_t*>(value.data()), count);
+        memory::copy_and_swap(buffer, reinterpret_cast<const u16*>(value.data()), count);
       }
     }
   };
@@ -280,9 +280,9 @@ class UserProfile {
      * @param setting_id The id of the setting.
      * @param value The floating point value.
      */
-    FloatSetting(uint32_t setting_id, float value)
+    FloatSetting(u32 setting_id, f32 value)
         : Setting(setting_id, Type::FLOAT, 4, true), value(value) {}
-    float value; /**< The floating point value. */
+    f32 value; /**< The floating point value. */
     /**
      * Writes the floating point value into the guest value.
      *
@@ -301,16 +301,16 @@ class UserProfile {
      *
      * @param setting_id The id of the setting.
      */
-    BinarySetting(uint32_t setting_id) : Setting(setting_id, Type::BINARY, 8, false), value() {}
+    BinarySetting(u32 setting_id) : Setting(setting_id, Type::BINARY, 8, false), value() {}
     /**
      * Constructs a setting holding data.
      *
      * @param setting_id The id of the setting.
      * @param value The data.
      */
-    BinarySetting(uint32_t setting_id, const std::vector<uint8_t>& value)
+    BinarySetting(u32 setting_id, const std::vector<u8>& value)
         : Setting(setting_id, Type::BINARY, 8, true), value(value) {}
-    std::vector<uint8_t> value; /**< The data. */
+    std::vector<u8> value; /**< The data. */
     /**
      * Writes the data after the stream offset and points the guest value at it.
      *
@@ -324,8 +324,8 @@ class UserProfile {
         data->binary.ptr = 0;
       } else {
         size_t size = value.size();
-        REX_ASSERT(size <= std::numeric_limits<uint32_t>::max());
-        data->binary.size = static_cast<uint32_t>(size);
+        REX_ASSERT(size <= std::numeric_limits<u32>::max());
+        data->binary.size = static_cast<u32>(size);
         data->binary.ptr = stream->ptr();
         stream->Write(value.data(), size);
       }
@@ -335,15 +335,15 @@ class UserProfile {
      *
      * @return The data.
      */
-    std::vector<uint8_t> Serialize() const override {
-      return std::vector<uint8_t>(value.data(), value.data() + value.size());
+    std::vector<u8> Serialize() const override {
+      return std::vector<u8>(value.data(), value.data() + value.size());
     }
     /**
      * Replaces the data with bytes read from disk and marks the setting set.
      *
      * @param data The saved bytes.
      */
-    void Deserialize(std::vector<uint8_t> data) override {
+    void Deserialize(std::vector<u8> data) override {
       value = data;
       is_set = true;
     }
@@ -356,9 +356,9 @@ class UserProfile {
      * @param setting_id The id of the setting.
      * @param value The timestamp.
      */
-    DateTimeSetting(uint32_t setting_id, int64_t value)
+    DateTimeSetting(u32 setting_id, i64 value)
         : Setting(setting_id, Type::DATETIME, 8, true), value(value) {}
-    int64_t value; /**< The timestamp. */
+    i64 value; /**< The timestamp. */
     /**
      * Writes the timestamp into the guest value.
      *
@@ -376,10 +376,10 @@ class UserProfile {
    */
   REX_RUNTIME_API explicit UserProfile(Runtime& runtime);
 
-  uint64_t xuid() const { return xuid_; }
+  u64 xuid() const { return xuid_; }
   std::string name() const { return name_; }
-  uint32_t signin_state() const { return 1; }
-  uint32_t type() const { return 1 | 2; /* local | online profile? */ }
+  u32 signin_state() const { return 1; }
+  u32 type() const { return 1 | 2; /* local | online profile? */ }
 
   /**
    * Adds a setting, replacing any setting with the same id.
@@ -395,13 +395,13 @@ class UserProfile {
    * @param setting_id The id of the setting.
    * @return The setting, null when the id is unknown.
    */
-  REX_RUNTIME_API Setting* GetSetting(uint32_t setting_id);
+  REX_RUNTIME_API Setting* GetSetting(u32 setting_id);
 
  private:
-  uint64_t xuid_;
+  u64 xuid_;
   std::string name_;
   std::vector<std::unique_ptr<Setting>> setting_list_;
-  std::unordered_map<uint32_t, Setting*> settings_;
+  std::unordered_map<u32, Setting*> settings_;
   Runtime& runtime_;
 
   REX_RUNTIME_API void LoadSetting(UserProfile::Setting*);

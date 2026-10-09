@@ -24,7 +24,7 @@ namespace runtime {
 namespace util {
 
 /** Section of an XDBF entry. */
-enum class XdbfSection : uint16_t {
+enum class XdbfSection : u16 {
   kMetadata = 0x0001,    /**< Metadata entries. */
   kImage = 0x0002,       /**< Image entries. */
   kStringTable = 0x0003, /**< String tables, 1 per language. */
@@ -103,8 +103,8 @@ REX_STATIC_ASSERT_SIZE(XdbfAchievementTableEntry, 0x24);
 
 /** Reference to the bytes of an XDBF entry inside the database. */
 struct XdbfBlock {
-  const uint8_t* buffer; /**< First byte of the entry, null when absent. */
-  size_t size;           /**< Size in bytes. */
+  const u8* buffer; /**< First byte of the entry, null when absent. */
+  size_t size;      /**< Size in bytes. */
 
   /**
    * Reports whether the block refers to data.
@@ -123,7 +123,7 @@ class REX_RUNTIME_API XdbfWrapper {
    * @param data The database bytes, which must outlive the wrapper.
    * @param data_size Size in bytes.
    */
-  XdbfWrapper(const uint8_t* data, size_t data_size);
+  XdbfWrapper(const u8* data, size_t data_size);
 
   /**
    * Reports whether the target memory contains a valid XDBF instance.
@@ -139,7 +139,7 @@ class REX_RUNTIME_API XdbfWrapper {
    * @param id The entry id.
    * @return The block, with a null buffer when the entry is not found.
    */
-  XdbfBlock GetEntry(XdbfSection section, uint64_t id) const;
+  XdbfBlock GetEntry(XdbfSection section, u64 id) const;
 
   /**
    * Returns a string from the string table in the given language.
@@ -148,7 +148,7 @@ class REX_RUNTIME_API XdbfWrapper {
    * @param string_id The string id.
    * @return The string, empty when the entry is not found.
    */
-  std::string GetStringTableEntry(XLanguage language, uint16_t string_id) const;
+  std::string GetStringTableEntry(XLanguage language, u16 string_id) const;
   /**
    * Returns every entry of the achievement table.
    *
@@ -157,9 +157,9 @@ class REX_RUNTIME_API XdbfWrapper {
   std::vector<XdbfAchievementTableEntry> GetAchievements() const;
 
  private:
-  const uint8_t* data_ = nullptr;
+  const u8* data_ = nullptr;
   size_t data_size_ = 0;
-  const uint8_t* content_offset_ = nullptr;
+  const u8* content_offset_ = nullptr;
 
   const XbdfHeader* header_ = nullptr;
   const XbdfEntry* entries_ = nullptr;
@@ -175,7 +175,7 @@ class REX_RUNTIME_API XDBFGameData : public XdbfWrapper {
    * @param data The database bytes, which must outlive the accessor.
    * @param data_size Size in bytes.
    */
-  XDBFGameData(const uint8_t* data, size_t data_size) : XdbfWrapper(data, data_size) {}
+  XDBFGameData(const u8* data, size_t data_size) : XdbfWrapper(data, data_size) {}
 
   /**
    * Returns the given language when the database has it, else the default title language.

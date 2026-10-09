@@ -29,7 +29,7 @@ bool build_andc(BuilderContext& ctx) {
 bool build_andi(BuilderContext& ctx) {
   ctx.println("\t{}.u64 = {}.u64 & {};", ctx.r(ctx.insn.operands[0]), ctx.r(ctx.insn.operands[1]),
               ctx.insn.operands[2]);
-  ctx.println("\t{}.compare<int32_t>({}.s32, 0, {});", ctx.cr(0), ctx.r(ctx.insn.operands[0]),
+  ctx.println("\t{}.compare<i32>({}.s32, 0, {});", ctx.cr(0), ctx.r(ctx.insn.operands[0]),
               ctx.xer());
   return true;
 }
@@ -37,7 +37,7 @@ bool build_andi(BuilderContext& ctx) {
 bool build_andis(BuilderContext& ctx) {
   ctx.println("\t{}.u64 = {}.u64 & {};", ctx.r(ctx.insn.operands[0]), ctx.r(ctx.insn.operands[1]),
               ctx.insn.operands[2] << 16);
-  ctx.println("\t{}.compare<int32_t>({}.s32, 0, {});", ctx.cr(0), ctx.r(ctx.insn.operands[0]),
+  ctx.println("\t{}.compare<i32>({}.s32, 0, {});", ctx.cr(0), ctx.r(ctx.insn.operands[0]),
               ctx.xer());
   return true;
 }
@@ -84,7 +84,7 @@ bool build_ori(BuilderContext& ctx) {
 
 bool build_oris(BuilderContext& ctx) {
   ctx.println("\t{}.u64 = {}.u64 | {};", ctx.r(ctx.insn.operands[0]), ctx.r(ctx.insn.operands[1]),
-              static_cast<uint32_t>(ctx.insn.operands[2]) << 16);
+              static_cast<u32>(ctx.insn.operands[2]) << 16);
   return true;
 }
 
@@ -170,8 +170,8 @@ bool build_rldicr(BuilderContext& ctx) {
 }
 
 bool build_rldic(BuilderContext& ctx) {
-  uint32_t sh = ctx.insn.operands[2];
-  uint64_t mask = compute_mask(ctx.insn.operands[3], 63 - sh);
+  u32 sh = ctx.insn.operands[2];
+  u64 mask = compute_mask(ctx.insn.operands[3], 63 - sh);
   if (sh)
     ctx.println("\t{}.u64 = __builtin_rotateleft64({}.u64, {}) & 0x{:X};",
                 ctx.r(ctx.insn.operands[0]), ctx.r(ctx.insn.operands[1]), sh, mask);
@@ -183,7 +183,7 @@ bool build_rldic(BuilderContext& ctx) {
 }
 
 bool build_rldcl(BuilderContext& ctx) {
-  uint64_t mask = compute_mask(ctx.insn.operands[3], 63);
+  u64 mask = compute_mask(ctx.insn.operands[3], 63);
   ctx.println("\t{}.u64 = __builtin_rotateleft64({}.u64, {}.u8 & 0x3F) & 0x{:X};",
               ctx.r(ctx.insn.operands[0]), ctx.r(ctx.insn.operands[1]), ctx.r(ctx.insn.operands[2]),
               mask);
@@ -192,7 +192,7 @@ bool build_rldcl(BuilderContext& ctx) {
 }
 
 bool build_rldcr(BuilderContext& ctx) {
-  uint64_t mask = compute_mask(0, ctx.insn.operands[3]);
+  u64 mask = compute_mask(0, ctx.insn.operands[3]);
   ctx.println("\t{}.u64 = __builtin_rotateleft64({}.u64, {}.u8 & 0x3F) & 0x{:X};",
               ctx.r(ctx.insn.operands[0]), ctx.r(ctx.insn.operands[1]), ctx.r(ctx.insn.operands[2]),
               mask);
@@ -201,7 +201,7 @@ bool build_rldcr(BuilderContext& ctx) {
 }
 
 bool build_rldimi(BuilderContext& ctx) {
-  const uint64_t mask = compute_mask(ctx.insn.operands[3], ~ctx.insn.operands[2]);
+  const u64 mask = compute_mask(ctx.insn.operands[3], ~ctx.insn.operands[2]);
   ctx.println("\t{}.u64 = (__builtin_rotateleft64({}.u64, {}) & 0x{:X}) | ({}.u64 & 0x{:X});",
               ctx.r(ctx.insn.operands[0]), ctx.r(ctx.insn.operands[1]), ctx.insn.operands[2], mask,
               ctx.r(ctx.insn.operands[0]), ~mask);
@@ -217,7 +217,7 @@ bool build_rotldi(BuilderContext& ctx) {
 }
 
 bool build_rlwimi(BuilderContext& ctx) {
-  const uint64_t mask = compute_mask(ctx.insn.operands[3] + 32, ctx.insn.operands[4] + 32);
+  const u64 mask = compute_mask(ctx.insn.operands[3] + 32, ctx.insn.operands[4] + 32);
   ctx.println(
       "\t{}.u64 = (__builtin_rotateleft64({}.u32 | ({}.u64 << 32), {}) & 0x{:X}) | ({}.u64 & "
       "0x{:X});",

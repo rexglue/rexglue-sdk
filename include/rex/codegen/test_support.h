@@ -45,19 +45,19 @@ class TestModule : public runtime::Module {
    * @param data Pointer to binary data (caller owns, must outlive TestModule usage)
    * @param size Size of binary data in bytes
    */
-  void Load(uint32_t base_address, const uint8_t* data, size_t size);
+  void Load(u32 base_address, const u8* data, size_t size);
 
   const std::string& name() const override { return name_; }
   void set_name(const std::string& name) { name_ = name; }
   bool is_executable() const override { return true; }
-  uint32_t base_address() const override { return base_address_; }
-  uint32_t image_size() const override { return size_; }
-  uint32_t entry_point() const override { return base_address_; }
+  u32 base_address() const override { return base_address_; }
+  u32 image_size() const override { return size_; }
+  u32 entry_point() const override { return base_address_; }
 
  private:
   std::string name_{"test"};
-  uint32_t base_address_ = 0;
-  uint32_t size_ = 0;
+  u32 base_address_ = 0;
+  u32 size_ = 0;
 };
 
 class CodegenContext;
@@ -77,7 +77,7 @@ class CodegenContext;
  * @param dataSize    Size of binary data in bytes
  */
 void AnalyzeTestBinary(CodegenContext& ctx, std::string_view testName,
-                       const std::map<size_t, std::string>& symbols, uint32_t baseAddress,
-                       const uint8_t* data, size_t dataSize);
+                       const std::map<size_t, std::string>& symbols, u32 baseAddress,
+                       const u8* data, size_t dataSize);
 
 }  // namespace rex::codegen

@@ -36,7 +36,7 @@ class DeviceAssignment {
    * @param user_index  Title user index.
    * @param out         Receives the device ids.
    */
-  virtual void DevicesForUser(uint32_t user_index, std::vector<DeviceId>& out) const = 0;
+  virtual void DevicesForUser(u32 user_index, std::vector<DeviceId>& out) const = 0;
 };
 
 /**
@@ -46,7 +46,7 @@ class DeviceAssignment {
 class SlotAssignment final : public DeviceAssignment {
  public:
   void OnDevicesChanged(const std::vector<DeviceInfo>& devices) override;
-  void DevicesForUser(uint32_t user_index, std::vector<DeviceId>& out) const override;
+  void DevicesForUser(u32 user_index, std::vector<DeviceId>& out) const override;
 
  private:
   std::vector<std::vector<DeviceId>> users_ = std::vector<std::vector<DeviceId>>(kMaxGuestUsers);
@@ -59,7 +59,7 @@ class SlotAssignment final : public DeviceAssignment {
 class SharedAssignment final : public DeviceAssignment {
  public:
   void OnDevicesChanged(const std::vector<DeviceInfo>& devices) override;
-  void DevicesForUser(uint32_t user_index, std::vector<DeviceId>& out) const override;
+  void DevicesForUser(u32 user_index, std::vector<DeviceId>& out) const override;
 
  private:
   std::vector<DeviceId> user0_;

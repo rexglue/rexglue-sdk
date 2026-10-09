@@ -45,16 +45,16 @@ static Color LifecycleColor(rex::cvar::Lifecycle lc, const SettingsStyle& style)
 static rex::hid::VirtualKey ImGuiKeyToVirtualKey(ImGuiKey key) {
   using VK = rex::hid::VirtualKey;
   if (key >= ImGuiKey_A && key <= ImGuiKey_Z) {
-    return static_cast<VK>(static_cast<uint16_t>(VK::kA) + (key - ImGuiKey_A));
+    return static_cast<VK>(static_cast<u16>(VK::kA) + (key - ImGuiKey_A));
   }
   if (key >= ImGuiKey_0 && key <= ImGuiKey_9) {
-    return static_cast<VK>(static_cast<uint16_t>(VK::k0) + (key - ImGuiKey_0));
+    return static_cast<VK>(static_cast<u16>(VK::k0) + (key - ImGuiKey_0));
   }
   if (key >= ImGuiKey_F1 && key <= ImGuiKey_F24) {
-    return static_cast<VK>(static_cast<uint16_t>(VK::kF1) + (key - ImGuiKey_F1));
+    return static_cast<VK>(static_cast<u16>(VK::kF1) + (key - ImGuiKey_F1));
   }
   if (key >= ImGuiKey_Keypad0 && key <= ImGuiKey_Keypad9) {
-    return static_cast<VK>(static_cast<uint16_t>(VK::kNumpad0) + (key - ImGuiKey_Keypad0));
+    return static_cast<VK>(static_cast<u16>(VK::kNumpad0) + (key - ImGuiKey_Keypad0));
   }
   switch (key) {
     case ImGuiKey_Space:
@@ -464,7 +464,7 @@ void SettingsDialog::OnDraw(ImGuiIO& io) {
         }
       } else if (desc.type == rex::cvar::Type::Double) {
         // NOLINTNEXTLINE(bugprone-unchecked-string-to-number-conversion) invalid text reads as 0
-        double v = std::atof(current_val.c_str());
+        f64 v = std::atof(current_val.c_str());
         if (ImGui::InputDouble("##v", &v, 0.0, 0.0, "%.4f")) {
           if (desc.constraints.min)
             v = std::max(v, *desc.constraints.min);

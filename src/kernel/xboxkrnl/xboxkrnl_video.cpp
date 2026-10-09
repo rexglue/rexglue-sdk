@@ -31,9 +31,9 @@
 
 namespace {
 /** Display gamma type, 0 linear, 1 sRGB (CRT), 2 BT.709 (HDTV) or 3 power. */
-constexpr uint32_t kDisplayGammaType = 2;
+constexpr u32 kDisplayGammaType = 2;
 /** Display gamma power, used with gamma type 3. */
-constexpr double kDisplayGammaPower = 2.22222233;
+constexpr f64 kDisplayGammaPower = 2.22222233;
 
 void WarnNoGpuEmulation(const char* export_name, std::atomic<bool>& warned) {
   if (!warned.exchange(true)) {
@@ -103,7 +103,7 @@ REX_EXPORT_STUB(__imp__VdSetStudioRGBMode);
  */
 void VdGetCurrentDisplayGamma_entry(mapped_u32 type_ptr, mapped_f32 power_ptr) {
   *type_ptr = kDisplayGammaType;
-  *power_ptr = static_cast<float>(kDisplayGammaPower);
+  *power_ptr = static_cast<f32>(kDisplayGammaPower);
 }
 
 struct X_D3DPRIVATE_RECT {
@@ -135,8 +135,8 @@ REX_STATIC_ASSERT_SIZE(X_D3DPRIVATE_SCALER_PARAMETERS, 0x38);
 struct X_DISPLAY_INFO {
   be_u16 front_buffer_width;                        /**< Offset 0x0 */
   be_u16 front_buffer_height;                       /**< Offset 0x2 */
-  uint8_t front_buffer_color_format;                /**< Offset 0x4 */
-  uint8_t front_buffer_pixel_format;                /**< Offset 0x5 */
+  u8 front_buffer_color_format;                     /**< Offset 0x4 */
+  u8 front_buffer_pixel_format;                     /**< Offset 0x5 */
   X_D3DPRIVATE_SCALER_PARAMETERS scaler_parameters; /**< Offset 0x8 */
   be_u16 display_window_overscan_left;              /**< Offset 0x40 */
   be_u16 display_window_overscan_top;               /**< Offset 0x42 */
@@ -146,7 +146,7 @@ struct X_DISPLAY_INFO {
   be_u16 display_height;                            /**< Offset 0x4A */
   be_f32 display_refresh_rate;                      /**< Offset 0x4C */
   be_u32 display_interlaced;                        /**< Offset 0x50 */
-  uint8_t display_color_format;                     /**< Offset 0x54 */
+  u8 display_color_format;                          /**< Offset 0x54 */
   be_u16 actual_display_width;                      /**< Offset 0x56 */
 };
 REX_STATIC_ASSERT_SIZE(X_DISPLAY_INFO, 0x58);
@@ -155,8 +155,8 @@ void VdGetCurrentDisplayInformation_entry(ppc_ptr_t<X_DISPLAY_INFO> display_info
   X_VIDEO_MODE mode;
   VdQueryVideoMode(&mode);
   display_info.Zero();
-  display_info->front_buffer_width = static_cast<uint16_t>(mode.display_width);
-  display_info->front_buffer_height = static_cast<uint16_t>(mode.display_height);
+  display_info->front_buffer_width = static_cast<u16>(mode.display_width);
+  display_info->front_buffer_height = static_cast<u16>(mode.display_height);
 
   display_info->scaler_parameters.scaler_source_rect.x2 = mode.display_width;
   display_info->scaler_parameters.scaler_source_rect.y2 = mode.display_height;
@@ -165,16 +165,16 @@ void VdGetCurrentDisplayInformation_entry(ppc_ptr_t<X_DISPLAY_INFO> display_info
   display_info->scaler_parameters.horizontal_filter_type = 1;
   display_info->scaler_parameters.vertical_filter_type = 1;
 
-  uint16_t overscan_x = static_cast<uint16_t>(static_cast<uint32_t>(mode.display_width) / 4);
-  uint16_t overscan_y = static_cast<uint16_t>(static_cast<uint32_t>(mode.display_height) / 4);
+  u16 overscan_x = static_cast<u16>(static_cast<u32>(mode.display_width) / 4);
+  u16 overscan_y = static_cast<u16>(static_cast<u32>(mode.display_height) / 4);
   display_info->display_window_overscan_left = overscan_x;
   display_info->display_window_overscan_top = overscan_y;
   display_info->display_window_overscan_right = overscan_x;
   display_info->display_window_overscan_bottom = overscan_y;
-  display_info->display_width = static_cast<uint16_t>(mode.display_width);
-  display_info->display_height = static_cast<uint16_t>(mode.display_height);
+  display_info->display_width = static_cast<u16>(mode.display_width);
+  display_info->display_height = static_cast<u16>(mode.display_height);
   display_info->display_refresh_rate = mode.refresh_rate;
-  display_info->actual_display_width = static_cast<uint16_t>(mode.display_width);
+  display_info->actual_display_width = static_cast<u16>(mode.display_width);
 }
 
 void VdQueryVideoMode(X_VIDEO_MODE* video_mode) {
@@ -204,7 +204,7 @@ u32 VdQueryVideoFlags_entry() {
   X_VIDEO_MODE mode;
   VdQueryVideoMode(&mode);
 
-  uint32_t flags = 0;
+  u32 flags = 0;
   flags |= mode.is_widescreen ? 1 : 0;
   flags |= mode.display_width >= 1024 ? 2 : 0;
   flags |= mode.display_width >= 1920 ? 4 : 0;
@@ -367,11 +367,11 @@ u32 VdInitializeScalerCommandBuffer_entry(
     [[maybe_unused]] u32 horizontal_filter_type,
     [[maybe_unused]] ppc_ptr_t<X_D3DFILTER_PARAMETERS> horizontal_filter_params,
     [[maybe_unused]] mapped_void unk9, mapped_void dest_ptr, u32 dest_count) {
-  auto dest = dest_ptr.as_array<uint32_t>();
+  auto dest = dest_ptr.as_array<u32>();
   for (size_t i = 0; i < dest_count; ++i) {
     dest[i] = 0x80000000;
   }
-  return static_cast<uint32_t>(dest_count);
+  return static_cast<u32>(dest_count);
 }
 
 struct BufferScaling {
@@ -407,7 +407,7 @@ u32 VdIsHSIOTrainingSucceeded_entry() {
 u32 VdPersistDisplay_entry([[maybe_unused]] u32 unk0, mapped_u32 unk1_ptr) {
   if (unk1_ptr) {
     auto heap = runtime::Current().memory()->LookupHeapByType(true, 16 * 1024);
-    uint32_t unk1_value;
+    u32 unk1_value;
     heap->Alloc(64, 32, runtime::kMemoryAllocationReserve | runtime::kMemoryAllocationCommit,
                 runtime::kMemoryProtectNoAccess, false, &unk1_value);
     *unk1_ptr = unk1_value;
@@ -460,12 +460,12 @@ void VdSwap_entry(mapped_void buffer_ptr, mapped_void fetch_ptr, [[maybe_unused]
   assert(height);
 
   xenos::TextureFetch gpu_fetch;
-  memory::copy_and_swap_32_unaligned(&gpu_fetch,
-                                     reinterpret_cast<uint32_t*>(fetch_ptr.host_address()), 6);
+  memory::copy_and_swap_32_unaligned(&gpu_fetch, reinterpret_cast<u32*>(fetch_ptr.host_address()),
+                                     6);
 
-  uint32_t frontbuffer_virtual_address = gpu_fetch.base_address << 12;
+  u32 frontbuffer_virtual_address = gpu_fetch.base_address << 12;
   REX_ASSERT(*frontbuffer_ptr == frontbuffer_virtual_address);
-  uint32_t frontbuffer_physical_address =
+  u32 frontbuffer_physical_address =
       runtime::Current().memory()->GetPhysicalAddress(frontbuffer_virtual_address);
   REX_ASSERT(frontbuffer_physical_address != UINT32_MAX);
   if (frontbuffer_physical_address == UINT32_MAX) {
@@ -485,8 +485,8 @@ void VdSwap_entry(mapped_void buffer_ptr, mapped_void fetch_ptr, [[maybe_unused]
 
   buffer_ptr.Zero(64 * 4);
 
-  uint32_t offset = 0;
-  auto dwords = buffer_ptr.as_array<uint32_t>();
+  u32 offset = 0;
+  auto dwords = buffer_ptr.as_array<u32>();
 
   dwords[offset++] = xenos::MakePacketType0(
       std::to_underlying(rex::xenos::Register::SHADER_CONSTANT_FETCH_00_0), 6);
@@ -504,7 +504,7 @@ void VdSwap_entry(mapped_void buffer_ptr, mapped_void fetch_ptr, [[maybe_unused]
   dwords[offset++] = *width;
   dwords[offset++] = *height;
 
-  for (uint32_t i = offset; i < 64; i++) {
+  for (u32 i = offset; i < 64; i++) {
     dwords[i] = xenos::MakePacketType2();
   }
 }
@@ -513,21 +513,21 @@ void RegisterVideoExports(ModuleObject& module, Runtime& runtime) {
   auto memory = runtime.memory();
 
   // Titles only write the global D3D device pointer.
-  uint32_t pVdGlobalDevice = memory->SystemHeapAlloc(4, 32, runtime::kSystemHeapPhysical);
+  u32 pVdGlobalDevice = memory->SystemHeapAlloc(4, 32, runtime::kSystemHeapPhysical);
   KernelModuleSetVariable(module, 0x01BE, pVdGlobalDevice);
   *memory->TranslateVirtual<be_u32*>(pVdGlobalDevice) = 0;
 
   // No Xam D3D device exists, so the pointer stays 0.
-  uint32_t pVdGlobalXamDevice = memory->SystemHeapAlloc(4, 32, runtime::kSystemHeapPhysical);
+  u32 pVdGlobalXamDevice = memory->SystemHeapAlloc(4, 32, runtime::kSystemHeapPhysical);
   KernelModuleSetVariable(module, 0x01BF, pVdGlobalXamDevice);
   *memory->TranslateVirtual<be_u32*>(pVdGlobalXamDevice) = 0;
 
   // The Xenos clock is 500 MHz.
-  uint32_t pVdGpuClockInMHz = memory->SystemHeapAlloc(4, 32, runtime::kSystemHeapPhysical);
+  u32 pVdGpuClockInMHz = memory->SystemHeapAlloc(4, 32, runtime::kSystemHeapPhysical);
   KernelModuleSetVariable(module, 0x01C0, pVdGpuClockInMHz);
   *memory->TranslateVirtual<be_u32*>(pVdGpuClockInMHz) = 500;
 
-  uint32_t pVdHSIOCalibrationLock = memory->SystemHeapAlloc(28, 32, runtime::kSystemHeapPhysical);
+  u32 pVdHSIOCalibrationLock = memory->SystemHeapAlloc(28, 32, runtime::kSystemHeapPhysical);
   KernelModuleSetVariable(module, 0x01C1, pVdHSIOCalibrationLock);
   auto hsio_lock = memory->TranslateVirtual<X_RTL_CRITICAL_SECTION*>(pVdHSIOCalibrationLock);
   RtlInitializeCriticalSectionAndSpinCount(hsio_lock, 10000);

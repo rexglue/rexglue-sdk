@@ -177,8 +177,8 @@ class Presenter : public gpu::IPresenter, public rex::NonCopyable {
    * @return True when the callback was called and returned true.
    */
   bool RefreshGuestOutput(
-      uint32_t frontbuffer_width, uint32_t frontbuffer_height, uint32_t display_aspect_ratio_x,
-      uint32_t display_aspect_ratio_y,
+      u32 frontbuffer_width, u32 frontbuffer_height, u32 display_aspect_ratio_x,
+      u32 display_aspect_ratio_y,
       std::move_only_function<bool(GuestOutputRefreshContext& context)> refresher);
 
   void AddOverlayLayer(gpu::IOverlayLayer* layer, size_t z_order) override;
@@ -233,15 +233,15 @@ class Presenter : public gpu::IPresenter, public rex::NonCopyable {
     kFailureSurfaceUnusable,
   };
 
-  static constexpr uint32_t kGuestOutputMailboxSize = 3;
+  static constexpr u32 kGuestOutputMailboxSize = 3;
 
   struct GuestOutputProperties {
     /** Any dimension or aspect ratio value being 0 disables the guest output for the frame. */
-    uint32_t frontbuffer_width;
-    uint32_t frontbuffer_height;
+    u32 frontbuffer_width;
+    u32 frontbuffer_height;
     /** Aspect ratio numerator and denominator, in 16:9 or 1280:720 form. */
-    uint32_t display_aspect_ratio_x;
-    uint32_t display_aspect_ratio_y;
+    u32 display_aspect_ratio_x;
+    u32 display_aspect_ratio_y;
     bool is_8bpc;
 
     GuestOutputProperties() { SetToInactive(); }
@@ -271,10 +271,10 @@ class Presenter : public gpu::IPresenter, public rex::NonCopyable {
     static constexpr size_t kMaxClearRectangles = 4;
 
     struct ClearRectangle {
-      uint32_t x;
-      uint32_t y;
-      uint32_t width;
-      uint32_t height;
+      u32 x;
+      u32 y;
+      u32 width;
+      u32 height;
     };
 
     GuestOutputProperties properties;
@@ -282,11 +282,11 @@ class Presenter : public gpu::IPresenter, public rex::NonCopyable {
     /** False means the guest output is not displayed. */
     bool has_effect;
     GuestOutputPaintEffect effect;
-    std::pair<uint32_t, uint32_t> effect_output_size;
+    std::pair<u32, u32> effect_output_size;
 
     /** Offset of the final draw rectangle in the host window, with letterboxing. */
-    int32_t output_x;
-    int32_t output_y;
+    i32 output_x;
+    i32 output_y;
 
     /** Letterbox rectangles around the guest output, valid when has_effect is true. */
     size_t letterbox_clear_rectangle_count;
@@ -294,15 +294,15 @@ class Presenter : public gpu::IPresenter, public rex::NonCopyable {
   };
 
   struct BilinearConstants {
-    int32_t output_offset[2];
-    float output_size_inv[2];
+    i32 output_offset[2];
+    f32 output_size_inv[2];
 
     void Initialize(const GuestOutputPaintFlow& flow) {
       output_offset[0] = flow.output_x;
       output_offset[1] = flow.output_y;
-      const std::pair<uint32_t, uint32_t>& output_size = flow.effect_output_size;
-      output_size_inv[0] = 1.0f / static_cast<float>(output_size.first);
-      output_size_inv[1] = 1.0f / static_cast<float>(output_size.second);
+      const std::pair<u32, u32>& output_size = flow.effect_output_size;
+      output_size_inv[0] = 1.0f / static_cast<f32>(output_size.first);
+      output_size_inv[1] = 1.0f / static_cast<f32>(output_size.second);
     }
   };
 
@@ -334,8 +334,8 @@ class Presenter : public gpu::IPresenter, public rex::NonCopyable {
    * @return The connection result.
    */
   virtual SurfacePaintConnectResult ConnectOrReconnectPaintingToSurfaceFromUIThread(
-      gpu::Surface& new_surface, uint32_t new_surface_width, uint32_t new_surface_height,
-      bool was_paintable, bool& is_vsync_implicit_out) = 0;
+      gpu::Surface& new_surface, u32 new_surface_width, u32 new_surface_height, bool was_paintable,
+      bool& is_vsync_implicit_out) = 0;
   /**
    * Releases resources referencing the surface held by the implementation.
    *
@@ -359,7 +359,7 @@ class Presenter : public gpu::IPresenter, public rex::NonCopyable {
    * @return The consumer lock, with an inactive image reported as UINT32_MAX.
    */
   [[nodiscard]] std::unique_lock<std::mutex> ConsumeGuestOutput(
-      uint32_t& mailbox_index_or_max_if_inactive_out, GuestOutputProperties* properties_out,
+      u32& mailbox_index_or_max_if_inactive_out, GuestOutputProperties* properties_out,
       GuestOutputPaintConfig* paint_config_out);
   /**
    * Computes how the guest output is painted to the host render target.
@@ -377,8 +377,8 @@ class Presenter : public gpu::IPresenter, public rex::NonCopyable {
    * @return The paint flow.
    */
   GuestOutputPaintFlow GetGuestOutputPaintFlow(const GuestOutputProperties& properties,
-                                               uint32_t host_rt_width, uint32_t host_rt_height,
-                                               uint32_t max_rt_width, uint32_t max_rt_height,
+                                               u32 host_rt_width, u32 host_rt_height,
+                                               u32 max_rt_width, u32 max_rt_height,
                                                const GuestOutputPaintConfig& config) const;
   /**
    * Refreshes the guest output image of a mailbox slot through the refresher.
@@ -393,7 +393,7 @@ class Presenter : public gpu::IPresenter, public rex::NonCopyable {
    * @return True when the refresher succeeded.
    */
   virtual bool RefreshGuestOutputImpl(
-      uint32_t mailbox_index, uint32_t frontbuffer_width, uint32_t frontbuffer_height,
+      u32 mailbox_index, u32 frontbuffer_width, u32 frontbuffer_height,
       std::move_only_function<bool(GuestOutputRefreshContext& context)> refresher,
       bool& is_8bpc_out_ref) = 0;
 
@@ -471,9 +471,9 @@ class Presenter : public gpu::IPresenter, public rex::NonCopyable {
 
   struct UIDrawerReference {
     gpu::IOverlayLayer* layer;
-    uint64_t last_draw;
+    u64 last_draw;
 
-    explicit UIDrawerReference(gpu::IOverlayLayer* layer, uint64_t last_draw = UINT64_MAX)
+    explicit UIDrawerReference(gpu::IOverlayLayer* layer, u64 last_draw = UINT64_MAX)
         : layer(layer), last_draw(last_draw) {}
   };
 
@@ -623,8 +623,8 @@ class Presenter : public gpu::IPresenter, public rex::NonCopyable {
   /** Modifiable only by the UI thread, readable by it in any paint mode, while connecting. */
   bool surface_paint_connection_has_implicit_vsync_ = false;
   /** Modifiable only by the UI thread, readable by the painting thread. */
-  uint32_t surface_width_in_paint_connection_ = 0;
-  uint32_t surface_height_in_paint_connection_ = 0;
+  u32 surface_width_in_paint_connection_ = 0;
+  u32 surface_height_in_paint_connection_ = 0;
 
   /**
    * Set by the UI or guest output thread before host_->RequestPaint() when an extra paint,
@@ -652,9 +652,9 @@ class Presenter : public gpu::IPresenter, public rex::NonCopyable {
    * refresh happened since the last acquisition. Painting may access both in parallel and
    * unordered with refreshing.
    */
-  std::atomic<uint32_t> guest_output_mailbox_acquired_and_ready_{0};
+  std::atomic<u32> guest_output_mailbox_acquired_and_ready_{0};
   /** Differs from the acquired and ready images and is written only by guest output refreshing. */
-  uint32_t guest_output_mailbox_writable_ = 1;
+  u32 guest_output_mailbox_writable_ = 1;
   /**
    * Serializes consumers of the guest output images, painting and CPU buffer capture.
    *
@@ -709,10 +709,10 @@ class Presenter : public gpu::IPresenter, public rex::NonCopyable {
   Microsoft::WRL::ComPtr<IDXGIFactory1> dxgi_ui_tick_factory_;
 
   /** UI thread only, though the value comes from the tick mutex protected variable. */
-  uint64_t dxgi_ui_tick_last_draw_ = 0;
+  u64 dxgi_ui_tick_last_draw_ = 0;
 
   std::mutex dxgi_ui_tick_mutex_;
-  uint64_t dxgi_ui_tick_last_vblank_ = 1;
+  u64 dxgi_ui_tick_last_vblank_ = 1;
   /**
    * With a null output or shutdown set, the signal may not be sent.
    *

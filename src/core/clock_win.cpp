@@ -7,28 +7,28 @@ static_assert(REX_PLATFORM_WIN32, "This file is Windows-only");
 
 namespace rex {
 
-uint64_t Clock::host_tick_frequency_platform() noexcept {
+u64 Clock::host_tick_frequency_platform() noexcept {
   LARGE_INTEGER frequency;
   QueryPerformanceFrequency(&frequency);
   return frequency.QuadPart;
 }
 
-uint64_t Clock::host_tick_count_platform() {
+u64 Clock::host_tick_count_platform() {
   LARGE_INTEGER counter;
-  uint64_t time = 0;
+  u64 time = 0;
   if (QueryPerformanceCounter(&counter)) {
     time = counter.QuadPart;
   }
   return time;
 }
 
-uint64_t Clock::QueryHostSystemTime() noexcept {
+u64 Clock::QueryHostSystemTime() noexcept {
   FILETIME t;
   GetSystemTimeAsFileTime(&t);
-  return (static_cast<uint64_t>(t.dwHighDateTime) << 32) | t.dwLowDateTime;
+  return (static_cast<u64>(t.dwHighDateTime) << 32) | t.dwLowDateTime;
 }
 
-uint64_t Clock::QueryHostUptimeMillis() {
+u64 Clock::QueryHostUptimeMillis() {
   return host_tick_count_platform() * 1000 / host_tick_frequency_platform();
 }
 

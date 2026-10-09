@@ -39,39 +39,39 @@ extern "C" {
 namespace rex::kernel::xboxkrnl {
 
 struct XECRYPT_RC4_STATE {
-  uint8_t S[256]; /**< Offset 0x0 */
-  uint8_t i;      /**< Offset 0x100 */
-  uint8_t j;      /**< Offset 0x101 */
+  u8 S[256]; /**< Offset 0x0 */
+  u8 i;      /**< Offset 0x100 */
+  u8 j;      /**< Offset 0x101 */
 };
 REX_STATIC_ASSERT_SIZE(XECRYPT_RC4_STATE, 0x102);
 
 void XeCryptRc4Key_entry(ppc_ptr_t<XECRYPT_RC4_STATE> rc4_ctx, mapped_void key,
                          [[maybe_unused]] u32 key_size) {
   rc4_ctx->i = rc4_ctx->j = 0;
-  for (uint32_t x = 0; x < 0x100; x++) {
-    rc4_ctx->S[x] = static_cast<uint8_t>(x);
+  for (u32 x = 0; x < 0x100; x++) {
+    rc4_ctx->S[x] = static_cast<u8>(x);
   }
 
-  uint32_t idx = 0;
-  for (uint32_t x = 0; x < 0x100; x++) {
+  u32 idx = 0;
+  for (u32 x = 0; x < 0x100; x++) {
     idx = (idx + rc4_ctx->S[x] + key[x % 0x10]) % 0x100;
-    uint8_t temp = rc4_ctx->S[idx];
+    u8 temp = rc4_ctx->S[idx];
     rc4_ctx->S[idx] = rc4_ctx->S[x];
     rc4_ctx->S[x] = temp;
   }
 }
 
 void XeCryptRc4Ecb_entry(ppc_ptr_t<XECRYPT_RC4_STATE> rc4_ctx, mapped_void data, u32 size) {
-  for (uint32_t idx = 0; idx < size; idx++) {
+  for (u32 idx = 0; idx < size; idx++) {
     rc4_ctx->i = (rc4_ctx->i + 1) % 0x100;
     rc4_ctx->j = (rc4_ctx->j + rc4_ctx->S[rc4_ctx->i]) % 0x100;
-    uint8_t temp = rc4_ctx->S[rc4_ctx->i];
+    u8 temp = rc4_ctx->S[rc4_ctx->i];
     rc4_ctx->S[rc4_ctx->i] = rc4_ctx->S[rc4_ctx->j];
     rc4_ctx->S[rc4_ctx->j] = temp;
 
-    uint8_t a = data[idx];
-    uint8_t b = rc4_ctx->S[(rc4_ctx->S[rc4_ctx->i] + rc4_ctx->S[rc4_ctx->j]) % 0x100];
-    data[idx] = static_cast<uint8_t>(a ^ b);
+    u8 a = data[idx];
+    u8 b = rc4_ctx->S[(rc4_ctx->S[rc4_ctx->i] + rc4_ctx->S[rc4_ctx->j]) % 0x100];
+    data[idx] = static_cast<u8>(a ^ b);
   }
 }
 
@@ -82,14 +82,14 @@ void XeCryptRc4_entry(mapped_void key, u32 key_size, mapped_void data, u32 size)
 }
 
 struct XECRYPT_SHA_STATE {
-  be_u32 count;       /**< Offset 0x0 */
-  be_u32 state[5];    /**< Offset 0x4 */
-  uint8_t buffer[64]; /**< Offset 0x18 */
+  be_u32 count;    /**< Offset 0x0 */
+  be_u32 state[5]; /**< Offset 0x4 */
+  u8 buffer[64];   /**< Offset 0x18 */
 };
 REX_STATIC_ASSERT_SIZE(XECRYPT_SHA_STATE, 0x58);
 
 void InitSha1(sha1::SHA1* sha, const XECRYPT_SHA_STATE* state) {
-  uint32_t digest[5];
+  u32 digest[5];
   std::copy(std::begin(state->state), std::end(state->state), digest);
 
   sha->init(digest, state->buffer, state->count);
@@ -98,7 +98,7 @@ void InitSha1(sha1::SHA1* sha, const XECRYPT_SHA_STATE* state) {
 void StoreSha1(const sha1::SHA1* sha, XECRYPT_SHA_STATE* state) {
   std::copy_n(sha->getDigest(), rex::countof(state->state), state->state);
 
-  state->count = static_cast<uint32_t>(sha->getByteCount());
+  state->count = static_cast<u32>(sha->getByteCount());
   std::copy_n(sha->getBlock(), sha->getBlockByteIndex(), state->buffer);
 }
 
@@ -122,15 +122,15 @@ void XeCryptShaUpdate_entry(ppc_ptr_t<XECRYPT_SHA_STATE> sha_state, mapped_void 
   StoreSha1(&sha, sha_state);
 }
 
-void XeCryptShaFinal_entry(ppc_ptr_t<XECRYPT_SHA_STATE> sha_state, ppc_ptr_t<uint8_t> out,
+void XeCryptShaFinal_entry(ppc_ptr_t<XECRYPT_SHA_STATE> sha_state, ppc_ptr_t<u8> out,
                            u32 out_size) {
   sha1::SHA1 sha;
   InitSha1(&sha, sha_state);
 
-  uint8_t digest[0x14];
+  u8 digest[0x14];
   sha.finalize(digest);
 
-  std::copy_n(digest, std::min<size_t>(rex::countof(digest), out_size), static_cast<uint8_t*>(out));
+  std::copy_n(digest, std::min<size_t>(rex::countof(digest), out_size), static_cast<u8*>(out));
   std::copy_n(sha.getDigest(), rex::countof(sha_state->state), sha_state->state);
 }
 
@@ -148,15 +148,15 @@ void XeCryptSha_entry(mapped_void input_1, u32 input_1_size, mapped_void input_2
     sha.processBytes(input_3, input_3_size);
   }
 
-  uint8_t digest[0x14];
+  u8 digest[0x14];
   sha.finalize(digest);
-  std::copy_n(digest, std::min<size_t>(rex::countof(digest), output_size), output.as<uint8_t*>());
+  std::copy_n(digest, std::min<size_t>(rex::countof(digest), output_size), output.as<u8*>());
 }
 
 struct XECRYPT_SHA256_STATE {
-  be_u32 count;       /**< Offset 0x0 */
-  be_u32 state[8];    /**< Offset 0x4 */
-  uint8_t buffer[64]; /**< Offset 0x24 */
+  be_u32 count;    /**< Offset 0x0 */
+  be_u32 state[8]; /**< Offset 0x4 */
+  u8 buffer[64];   /**< Offset 0x24 */
 };
 
 void XeCryptSha256Init_entry(ppc_ptr_t<XECRYPT_SHA256_STATE> sha_state) {
@@ -183,20 +183,20 @@ void XeCryptSha256Update_entry(ppc_ptr_t<XECRYPT_SHA256_STATE> sha_state, mapped
 
   std::copy_n(sha.getHashValues(), rex::countof(sha_state->state), sha_state->state);
   std::copy_n(sha.getBuffer(), rex::countof(sha_state->buffer), sha_state->buffer);
-  sha_state->count = static_cast<uint32_t>(sha.getTotalSize());
+  sha_state->count = static_cast<u32>(sha.getTotalSize());
 }
 
-void XeCryptSha256Final_entry(ppc_ptr_t<XECRYPT_SHA256_STATE> sha_state, ppc_ptr_t<uint8_t> out,
+void XeCryptSha256Final_entry(ppc_ptr_t<XECRYPT_SHA256_STATE> sha_state, ppc_ptr_t<u8> out,
                               u32 out_size) {
   sha256::SHA256 sha;
   std::copy(std::begin(sha_state->state), std::end(sha_state->state), sha.getHashValues());
   std::copy(std::begin(sha_state->buffer), std::end(sha_state->buffer), sha.getBuffer());
   sha.setTotalSize(sha_state->count);
 
-  uint8_t hash[32];
+  u8 hash[32];
   sha.getHash(hash);
 
-  std::copy_n(hash, std::min<size_t>(rex::countof(hash), out_size), static_cast<uint8_t*>(out));
+  std::copy_n(hash, std::min<size_t>(rex::countof(hash), out_size), static_cast<u8*>(out));
   std::copy(std::begin(hash), std::end(hash), sha_state->buffer);
 }
 
@@ -207,9 +207,8 @@ void XeCryptSha256Final_entry(ppc_ptr_t<XECRYPT_SHA256_STATE> sha_state, ppc_ptr
  * @param qw_out Receives the swapped quadwords.
  * @param size The count of quadwords.
  */
-void XeCryptBnQw_SwapDwQwLeBe_entry(ppc_ptr_t<uint64_t> qw_inp, ppc_ptr_t<uint64_t> qw_out,
-                                    u32 size) {
-  memory::copy_and_swap<uint64_t>(qw_out, qw_inp, size);
+void XeCryptBnQw_SwapDwQwLeBe_entry(ppc_ptr_t<u64> qw_inp, ppc_ptr_t<u64> qw_out, u32 size) {
+  memory::copy_and_swap<u64>(qw_out, qw_inp, size);
 }
 
 /** RSA key header, followed by the modulus and any private key data. */
@@ -228,7 +227,7 @@ REX_STATIC_ASSERT_SIZE(XECRYPT_RSA, 0x10);
  * @param rsa The key.
  * @return 0 on failure, which is not a BOOL return value.
  */
-u32 XeCryptBnQwNeRsaPubCrypt_entry(ppc_ptr_t<uint64_t> qw_a, ppc_ptr_t<uint64_t> qw_b,
+u32 XeCryptBnQwNeRsaPubCrypt_entry(ppc_ptr_t<u64> qw_a, ppc_ptr_t<u64> qw_b,
                                    ppc_ptr_t<XECRYPT_RSA> rsa) {
 #if !REX_PLATFORM_WIN32
   REXLOG_ERROR(kernel,
@@ -237,24 +236,24 @@ u32 XeCryptBnQwNeRsaPubCrypt_entry(ppc_ptr_t<uint64_t> qw_a, ppc_ptr_t<uint64_t>
   REX_ASSERT_ALWAYS();
   return 1;
 #else
-  uint32_t modulus_size = rsa->size * 8;
+  u32 modulus_size = rsa->size * 8;
 
-  ULONG key_size = sizeof(BCRYPT_RSAKEY_BLOB) + sizeof(uint32_t) + modulus_size;
-  auto key_buf = std::make_unique<uint8_t[]>(key_size);
+  ULONG key_size = sizeof(BCRYPT_RSAKEY_BLOB) + sizeof(u32) + modulus_size;
+  auto key_buf = std::make_unique<u8[]>(key_size);
   auto* key_header = reinterpret_cast<BCRYPT_RSAKEY_BLOB*>(key_buf.get());
 
   key_header->Magic = BCRYPT_RSAPUBLIC_MAGIC;
   key_header->BitLength = modulus_size * 8;
-  key_header->cbPublicExp = sizeof(uint32_t);
+  key_header->cbPublicExp = sizeof(u32);
   key_header->cbModulus = modulus_size;
   key_header->cbPrime1 = key_header->cbPrime2 = 0;
 
-  uint32_t* key_exponent = reinterpret_cast<uint32_t*>(&key_header[1]);
+  u32* key_exponent = reinterpret_cast<u32*>(&key_header[1]);
   *key_exponent = rsa->public_exponent.value;
 
   // BCrypt needs the modulus reversed in 64 bit chunks.
-  uint64_t* key_modulus = reinterpret_cast<uint64_t*>(&key_exponent[1]);
-  uint64_t* xecrypt_modulus = reinterpret_cast<uint64_t*>(&rsa[1]);
+  u64* key_modulus = reinterpret_cast<u64*>(&key_exponent[1]);
+  u64* xecrypt_modulus = reinterpret_cast<u64*>(&rsa[1]);
   std::reverse_copy(xecrypt_modulus, xecrypt_modulus + rsa->size, key_modulus);
 
   BCRYPT_ALG_HANDLE hAlgorithm = nullptr;
@@ -286,9 +285,9 @@ u32 XeCryptBnQwNeRsaPubCrypt_entry(ppc_ptr_t<uint64_t> qw_a, ppc_ptr_t<uint64_t>
   }
 
   // BCrypt wants the input MSB first.
-  uint64_t* output = qw_b;
-  uint8_t* output_bytes = reinterpret_cast<uint8_t*>(output);
-  memory::copy_and_swap<uint64_t>(output, qw_a, rsa->size);
+  u64* output = qw_b;
+  u8* output_bytes = reinterpret_cast<u8*>(output);
+  memory::copy_and_swap<u64>(output, qw_a, rsa->size);
   std::reverse(output_bytes, output_bytes + modulus_size);
 
   // BCryptDecrypt only works with private keys, so BCryptEncrypt performs the public decrypt.
@@ -335,7 +334,7 @@ void XeCryptRandom_entry(mapped_void buf, u32 buf_size) {
 }
 
 struct XECRYPT_DES_STATE {
-  uint32_t keytab[16][2];
+  u32 keytab[16][2];
 };
 
 /**
@@ -383,9 +382,9 @@ void XeCryptDes3Cbc_entry(ppc_ptr_t<XECRYPT_DES3_STATE> state_ptr, mapped_u64 in
 
   REX_ASSERT(inp_size % 8 == 0);
 
-  uint64_t last_block = *feed;
-  for (uint32_t i = 0; i < inp_size / 8; i++) {
-    uint64_t block = inp[i];
+  u64 last_block = *feed;
+  for (u32 i = 0; i < inp_size / 8; i++) {
+    u64 block = inp[i];
     if (encrypt) {
       last_block = des3.encrypt(block ^ last_block);
       out[i] = last_block;
@@ -399,12 +398,12 @@ void XeCryptDes3Cbc_entry(ppc_ptr_t<XECRYPT_DES3_STATE> state_ptr, mapped_u64 in
 }
 
 struct XECRYPT_AES_STATE {
-  uint8_t keytabenc[11][4][4]; /**< Offset 0x0 */
-  uint8_t keytabdec[11][4][4]; /**< Offset 0xB0 */
+  u8 keytabenc[11][4][4]; /**< Offset 0x0 */
+  u8 keytabdec[11][4][4]; /**< Offset 0xB0 */
 };
 REX_STATIC_ASSERT_SIZE(XECRYPT_AES_STATE, 0x160);
 
-static inline uint8_t XeCryptAesMul2(uint8_t a) {
+static inline u8 XeCryptAesMul2(u8 a) {
   return (a & 0x80) ? ((a << 1) ^ 0x1B) : (a << 1);
 }
 
@@ -416,12 +415,12 @@ static inline uint8_t XeCryptAesMul2(uint8_t a) {
  * @param key The 16 byte key.
  */
 void XeCryptAesKey_entry(ppc_ptr_t<XECRYPT_AES_STATE> state_ptr, mapped_void key) {
-  aes_key_schedule_128(key, reinterpret_cast<uint8_t*>(state_ptr->keytabenc));
+  aes_key_schedule_128(key, reinterpret_cast<u8*>(state_ptr->keytabenc));
   std::memcpy(state_ptr->keytabdec[0], state_ptr->keytabenc[10], 16);
-  for (uint32_t i = 1; i < 10; ++i) {
-    const uint8_t* enc = reinterpret_cast<const uint8_t*>(state_ptr->keytabenc[10 - i]);
-    uint8_t* dec = reinterpret_cast<uint8_t*>(state_ptr->keytabdec[i]);
-    uint8_t t, u, v;
+  for (u32 i = 1; i < 10; ++i) {
+    const u8* enc = reinterpret_cast<const u8*>(state_ptr->keytabenc[10 - i]);
+    u8* dec = reinterpret_cast<u8*>(state_ptr->keytabdec[i]);
+    u8 t, u, v;
     t = enc[0] ^ enc[1] ^ enc[2] ^ enc[3];
     dec[0] = t ^ enc[0] ^ XeCryptAesMul2(enc[0] ^ enc[1]);
     dec[1] = t ^ enc[1] ^ XeCryptAesMul2(enc[1] ^ enc[2]);
@@ -476,7 +475,7 @@ void XeCryptAesKey_entry(ppc_ptr_t<XECRYPT_AES_STATE> state_ptr, mapped_void key
 
 void XeCryptAesEcb_entry(ppc_ptr_t<XECRYPT_AES_STATE> state_ptr, mapped_void inp_ptr,
                          mapped_void out_ptr, u32 encrypt) {
-  const uint8_t* keytab = reinterpret_cast<const uint8_t*>(state_ptr->keytabenc);
+  const u8* keytab = reinterpret_cast<const u8*>(state_ptr->keytabenc);
   if (encrypt) {
     aes_encrypt_128(keytab, inp_ptr, out_ptr);
   } else {
@@ -486,13 +485,13 @@ void XeCryptAesEcb_entry(ppc_ptr_t<XECRYPT_AES_STATE> state_ptr, mapped_void inp
 
 void XeCryptAesCbc_entry(ppc_ptr_t<XECRYPT_AES_STATE> state_ptr, mapped_void inp_ptr, u32 inp_size,
                          mapped_void out_ptr, mapped_void feed_ptr, u32 encrypt) {
-  const uint8_t* keytab = reinterpret_cast<const uint8_t*>(state_ptr->keytabenc);
-  const uint8_t* inp = inp_ptr.as<const uint8_t*>();
-  uint8_t* out = out_ptr.as<uint8_t*>();
-  uint8_t* feed = feed_ptr.as<uint8_t*>();
+  const u8* keytab = reinterpret_cast<const u8*>(state_ptr->keytabenc);
+  const u8* inp = inp_ptr.as<const u8*>();
+  u8* out = out_ptr.as<u8*>();
+  u8* feed = feed_ptr.as<u8*>();
   if (encrypt) {
-    for (uint32_t i = 0; i < inp_size; i += 16) {
-      for (uint32_t j = 0; j < 16; ++j) {
+    for (u32 i = 0; i < inp_size; i += 16) {
+      for (u32 j = 0; j < 16; ++j) {
         feed[j] ^= inp[j];
       }
       aes_encrypt_128(keytab, feed, feed);
@@ -501,12 +500,12 @@ void XeCryptAesCbc_entry(ppc_ptr_t<XECRYPT_AES_STATE> state_ptr, mapped_void inp
       out += 16;
     }
   } else {
-    for (uint32_t i = 0; i < inp_size; i += 16) {
+    for (u32 i = 0; i < inp_size; i += 16) {
       // inp may alias out.
-      uint8_t tmp[16];
+      u8 tmp[16];
       std::memcpy(tmp, inp, 16);
       aes_decrypt_128(keytab, inp, out);
-      for (uint32_t j = 0; j < 16; ++j) {
+      for (u32 j = 0; j < 16; ++j) {
         out[j] ^= feed[j];
       }
       std::memcpy(feed, tmp, 16);
@@ -519,11 +518,11 @@ void XeCryptAesCbc_entry(ppc_ptr_t<XECRYPT_AES_STATE> state_ptr, mapped_void inp
 void XeCryptHmacSha_entry(mapped_void key, u32 key_size_in, mapped_void inp_1, u32 inp_1_size,
                           mapped_void inp_2, u32 inp_2_size, mapped_void inp_3, u32 inp_3_size,
                           mapped_void out, u32 out_size) {
-  uint32_t key_size = key_size_in;
+  u32 key_size = key_size_in;
   sha1::SHA1 sha;
-  uint8_t kpad_i[0x40];
-  uint8_t kpad_o[0x40];
-  uint8_t tmp_key[0x40];
+  u8 kpad_i[0x40];
+  u8 kpad_o[0x40];
+  u8 tmp_key[0x40];
   std::memset(kpad_i, 0x36, 0x40);
   std::memset(kpad_o, 0x5C, 0x40);
 
@@ -538,7 +537,7 @@ void XeCryptHmacSha_entry(mapped_void key, u32 key_size_in, mapped_void inp_1, u
     std::memcpy(tmp_key, key, key_size);
   }
 
-  for (uint32_t i = 0; i < key_size; i++) {
+  for (u32 i = 0; i < key_size; i++) {
     kpad_i[i] = tmp_key[i] ^ 0x36;
     kpad_o[i] = tmp_key[i] ^ 0x5C;
   }
@@ -557,7 +556,7 @@ void XeCryptHmacSha_entry(mapped_void key, u32 key_size_in, mapped_void inp_1, u
     sha.processBytes(inp_3, inp_3_size);
   }
 
-  uint8_t digest[0x14];
+  u8 digest[0x14];
   sha.finalize(digest);
   sha.reset();
 
@@ -565,23 +564,23 @@ void XeCryptHmacSha_entry(mapped_void key, u32 key_size_in, mapped_void inp_1, u
   sha.processBytes(digest, 0x14);
   sha.finalize(digest);
 
-  std::memcpy(out, digest, std::min(static_cast<uint32_t>(out_size), 0x14u));
+  std::memcpy(out, digest, std::min(static_cast<u32>(out_size), 0x14u));
 }
 
 /** Retail key 0x19. */
-static const uint8_t key19[] = {0xE1, 0xBC, 0x15, 0x9C, 0x73, 0xB1, 0xEA, 0xE9,
-                                0xAB, 0x31, 0x70, 0xF3, 0xAD, 0x47, 0xEB, 0xF3};
+static const u8 key19[] = {0xE1, 0xBC, 0x15, 0x9C, 0x73, 0xB1, 0xEA, 0xE9,
+                           0xAB, 0x31, 0x70, 0xF3, 0xAD, 0x47, 0xEB, 0xF3};
 
 u32 XeKeysHmacSha_entry(u32 key_num, mapped_void inp_1, u32 inp_1_size, mapped_void inp_2,
                         u32 inp_2_size, mapped_void inp_3, u32 inp_3_size, mapped_void out,
                         u32 out_size) {
-  const uint8_t* key = nullptr;
+  const u8* key = nullptr;
   if (key_num == 0x19) {
     key = key19;
   }
 
   if (key) {
-    XeCryptHmacSha_entry(mapped_void::from_host(const_cast<uint8_t*>(key)), 0x10, inp_1, inp_1_size,
+    XeCryptHmacSha_entry(mapped_void::from_host(const_cast<u8*>(key)), 0x10, inp_1, inp_1_size,
                          inp_2, inp_2_size, inp_3, inp_3_size, out, out_size);
 
     return X_STATUS_SUCCESS;
@@ -590,16 +589,16 @@ u32 XeKeysHmacSha_entry(u32 key_num, mapped_void inp_1, u32 inp_1_size, mapped_v
   return X_STATUS_UNSUCCESSFUL;
 }
 
-static const uint8_t kKeyObfuscationKey[16] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-                                               0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+static const u8 kKeyObfuscationKey[16] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                                          0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 
 u32 XeKeysAesCbcUsingKey_entry(mapped_void obscured_key, mapped_void inp_ptr, u32 inp_size,
                                mapped_void out_ptr, mapped_void feed_ptr, u32 encrypt) {
-  uint8_t key[16];
+  u8 key[16];
 
   XECRYPT_AES_STATE aes;
   XeCryptAesKey_entry(ppc_ptr_t<XECRYPT_AES_STATE>::from_host(&aes),
-                      mapped_void::from_host(const_cast<uint8_t*>(kKeyObfuscationKey)));
+                      mapped_void::from_host(const_cast<u8*>(kKeyObfuscationKey)));
   XeCryptAesEcb_entry(ppc_ptr_t<XECRYPT_AES_STATE>::from_host(&aes), obscured_key,
                       mapped_void::from_host(key), 0);
 
@@ -620,7 +619,7 @@ u32 XeKeysAesCbcUsingKey_entry(mapped_void obscured_key, mapped_void inp_ptr, u3
 u32 XeKeysObscureKey_entry(mapped_void input, mapped_void output) {
   XECRYPT_AES_STATE aes;
   XeCryptAesKey_entry(ppc_ptr_t<XECRYPT_AES_STATE>::from_host(&aes),
-                      mapped_void::from_host(const_cast<uint8_t*>(kKeyObfuscationKey)));
+                      mapped_void::from_host(const_cast<u8*>(kKeyObfuscationKey)));
   XeCryptAesEcb_entry(ppc_ptr_t<XECRYPT_AES_STATE>::from_host(&aes), input, output, 1);
 
   return X_STATUS_SUCCESS;
@@ -631,11 +630,11 @@ u32 XeKeysHmacShaUsingKey_entry(mapped_void obscured_key, mapped_void inp_1, u32
                                 u32 inp_3_size, mapped_void out, u32 out_size) {
   REX_KERNEL_ARG(obscured_key);
 
-  uint8_t key[16];
+  u8 key[16];
 
   XECRYPT_AES_STATE aes;
   XeCryptAesKey_entry(ppc_ptr_t<XECRYPT_AES_STATE>::from_host(&aes),
-                      mapped_void::from_host(const_cast<uint8_t*>(kKeyObfuscationKey)));
+                      mapped_void::from_host(const_cast<u8*>(kKeyObfuscationKey)));
   XeCryptAesEcb_entry(ppc_ptr_t<XECRYPT_AES_STATE>::from_host(&aes), obscured_key,
                       mapped_void::from_host(key), 0);
 

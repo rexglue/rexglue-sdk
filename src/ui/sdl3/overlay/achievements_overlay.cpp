@@ -66,7 +66,7 @@ void AchievementsOverlayDialog::OnDraw(ImGuiIO& io) {
     ImGui::SameLine();
     ImGui::TextColored(ToImVec4(style.badge_gamerscore), "%dG / %dG", earned_gs, total_gs);
 
-    float frac = total_count > 0 ? static_cast<float>(unlocked_count) / total_count : 0.0f;
+    f32 frac = total_count > 0 ? static_cast<f32>(unlocked_count) / total_count : 0.0f;
     ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ToImVec4(style.progress_bar));
     ImGui::ProgressBar(frac, ImVec2(-1.0f, 6.0f), "");
     ImGui::PopStyleColor();
@@ -88,8 +88,8 @@ void AchievementsOverlayDialog::OnDraw(ImGuiIO& io) {
       draw_list->ChannelsSplit(2);
       draw_list->ChannelsSetCurrent(1);
 
-      const float row_start_y = ImGui::GetCursorScreenPos().y;
-      const float pad = 4.0f;
+      const f32 row_start_y = ImGui::GetCursorScreenPos().y;
+      const f32 pad = 4.0f;
       ImGui::Dummy(ImVec2(0.0f, pad * 0.5f));
 
       gpu::OverlayTexture* icon = GetIcon(a);
@@ -119,12 +119,12 @@ void AchievementsOverlayDialog::OnDraw(ImGuiIO& io) {
       ImGui::EndGroup();
 
       ImGui::Dummy(ImVec2(0.0f, pad * 0.5f));
-      const float row_end_y = ImGui::GetCursorScreenPos().y;
+      const f32 row_end_y = ImGui::GetCursorScreenPos().y;
 
       if (is_unlocked) {
         draw_list->ChannelsSetCurrent(0);
-        const float x0 = ImGui::GetWindowPos().x + 2.0f;
-        const float x1 = x0 + ImGui::GetWindowSize().x - 4.0f;
+        const f32 x0 = ImGui::GetWindowPos().x + 2.0f;
+        const f32 x1 = x0 + ImGui::GetWindowSize().x - 4.0f;
         draw_list->AddRectFilled(ImVec2(x0, row_start_y), ImVec2(x1, row_end_y),
                                  ImGui::GetColorU32(ToImVec4(style.row_unlocked_bg)),
                                  metrics.row_rounding);

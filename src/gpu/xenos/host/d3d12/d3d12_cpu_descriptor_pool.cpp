@@ -23,7 +23,7 @@ D3D12CpuDescriptorPool::Descriptor D3D12CpuDescriptorPool::AllocateDescriptor() 
     freed_indices_.pop_back();
     return Descriptor(shared_from_this(), index);
   }
-  uint32_t heap_size = static_cast<uint32_t>(1) << heap_size_log2_;
+  u32 heap_size = static_cast<u32>(1) << heap_size_log2_;
   if (!heaps_.empty() && last_heap_allocated_ < heap_size) {
     return Descriptor(shared_from_this(), (heaps_.size() - 1) * heap_size + last_heap_allocated_++);
   }

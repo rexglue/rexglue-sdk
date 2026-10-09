@@ -25,14 +25,14 @@ struct SamplerInfo {
   xenos::ClampMode clamp_w;
   xenos::AnisoFilter aniso_filter;
   xenos::BorderColor border_color;
-  float lod_bias;
-  uint32_t mip_min_level;
-  uint32_t mip_max_level;
+  f32 lod_bias;
+  u32 mip_min_level;
+  u32 mip_max_level;
 
   static bool Prepare(const xenos::TextureFetch& fetch,
                       const ParsedTextureFetchInstruction& fetch_instr, SamplerInfo* out_info);
 
-  uint64_t hash() const;
+  u64 hash() const;
   bool operator==(const SamplerInfo& other) const {
     return min_filter == other.min_filter && mag_filter == other.mag_filter &&
            mip_filter == other.mip_filter && clamp_u == other.clamp_u && clamp_v == other.clamp_v &&

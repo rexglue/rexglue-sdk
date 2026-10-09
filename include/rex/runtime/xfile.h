@@ -59,9 +59,9 @@ class X_FILE_DIRECTORY_INFORMATION {
    * @param base The host address of guest memory.
    * @param p The guest address of the first copy.
    */
-  void Write(uint8_t* base, uint32_t p) {
-    uint8_t* dst = base + p;
-    uint8_t* src = reinterpret_cast<uint8_t*>(this);
+  void Write(u8* base, u32 p) {
+    u8* dst = base + p;
+    u8* src = reinterpret_cast<u8*>(this);
     X_FILE_DIRECTORY_INFORMATION* right;
     do {
       auto left = reinterpret_cast<X_FILE_DIRECTORY_INFORMATION*>(dst);

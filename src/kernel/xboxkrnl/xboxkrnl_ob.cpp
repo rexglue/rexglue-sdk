@@ -85,14 +85,14 @@ u32 ObReferenceObjectByHandle_entry(u32 handle, u32 object_type_ptr, mapped_u32 
   REXLOG_TRACE(kernel,
                "ObReferenceObjectByHandle "
                "handle={:#x} type={:#x}",
-               static_cast<uint32_t>(handle), static_cast<uint32_t>(object_type_ptr));
+               static_cast<u32>(handle), static_cast<u32>(object_type_ptr));
 
   auto object = runtime::Current().object_table().Get(handle);
   if (!object) {
     return X_STATUS_INVALID_HANDLE;
   }
 
-  uint32_t native_ptr = object.guest_object();
+  u32 native_ptr = object.guest_object();
   if (object.kind() == ObjectKind::Thread) {
     auto thread =
         runtime::Current().thread_registry().Find(std::get<ThreadRef>(object.data()).thread_id);
@@ -100,8 +100,8 @@ u32 ObReferenceObjectByHandle_entry(u32 handle, u32 object_type_ptr, mapped_u32 
   }
 
   if (object_type_ptr) {
-    uint32_t globals_base = runtime::Current().GetKernelGuestGlobals();
-    uint32_t expected_type = 0;
+    u32 globals_base = runtime::Current().GetKernelGuestGlobals();
+    u32 expected_type = 0;
     switch (object.kind()) {
       case ObjectKind::Thread:
         expected_type = globals_base + offsetof(KernelGuestGlobals, ExThreadObjectType);
@@ -153,7 +153,7 @@ u32 ObDereferenceObject_entry(u32 native_ptr) {
   REXLOG_TRACE(kernel,
                "ObDereferenceObject "
                "ptr={:#x}",
-               static_cast<uint32_t>(native_ptr));
+               static_cast<u32>(native_ptr));
   // 0xDEADF00D is the dummy value from ObReferenceObjectByHandle.
   if (native_ptr == 0xDEADF00D) {
     return 0;
@@ -223,7 +223,7 @@ u32 NtClose_entry(u32 handle) {
   REXLOG_TRACE(kernel,
                "NtClose "
                "handle={:#x}",
-               static_cast<uint32_t>(handle));
+               static_cast<u32>(handle));
   auto result = ToXStatus(runtime::Current().object_table().Close(handle));
   REXLOG_TRACE(kernel,
                "NtClose -> "
@@ -237,7 +237,7 @@ u32 NtQueryEvent_entry(u32 handle, mapped_u32 out_struc) {
 
   auto ev = runtime::Current().object_table().Get<EventObject>(handle);
   if (ev) {
-    uint32_t type_tmp, state_tmp;
+    u32 type_tmp, state_tmp;
     EventQuery(*ev, &type_tmp, &state_tmp);
     out_struc[0] = type_tmp;
     out_struc[1] = state_tmp;

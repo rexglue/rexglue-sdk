@@ -55,15 +55,14 @@ class PipelineCache {
   bool Initialize();
   void Shutdown();
 
-  void InitializeShaderStorage(const std::filesystem::path& cache_root, uint32_t title_id,
+  void InitializeShaderStorage(const std::filesystem::path& cache_root, u32 title_id,
                                bool blocking);
   void ShutdownShaderStorage();
 
   void EndSubmission();
   bool IsCreatingPipelines();
 
-  D3D12Shader* LoadShader(xenos::ShaderType shader_type, const uint32_t* host_address,
-                          uint32_t dword_count);
+  D3D12Shader* LoadShader(xenos::ShaderType shader_type, const u32* host_address, u32 dword_count);
   /**
    * Analyzes shader microcode on the translator thread.
    *
@@ -82,9 +81,9 @@ class PipelineCache {
    */
   DxbcShaderTranslator::Modification GetCurrentVertexShaderModification(
       const Shader& shader, Shader::HostVertexShaderType host_vertex_shader_type,
-      uint32_t interpolator_mask) const;
+      u32 interpolator_mask) const;
   DxbcShaderTranslator::Modification GetCurrentPixelShaderModification(
-      const Shader& shader, uint32_t interpolator_mask, uint32_t param_gen_pos,
+      const Shader& shader, u32 interpolator_mask, u32 param_gen_pos,
       xenos::reg::RB_DEPTHCONTROL normalized_depth_control) const;
 
   /**
@@ -106,9 +105,8 @@ class PipelineCache {
                          D3D12Shader::D3D12Translation* pixel_shader,
                          const PrimitiveProcessor::ProcessingResult& primitive_processing_result,
                          xenos::reg::RB_DEPTHCONTROL normalized_depth_control,
-                         uint32_t normalized_color_mask,
-                         uint32_t bound_depth_and_color_render_target_bits,
-                         const uint32_t* bound_depth_and_color_render_targets_formats,
+                         u32 normalized_color_mask, u32 bound_depth_and_color_render_target_bits,
+                         const u32* bound_depth_and_color_render_targets_formats,
                          void** pipeline_handle_out, ID3D12RootSignature** root_signature_out);
 
   /**
@@ -123,49 +121,49 @@ class PipelineCache {
 
  private:
   REX_PACKED_STRUCT(ShaderStoredHeader, {
-    uint64_t ucode_data_hash;
+    u64 ucode_data_hash;
 
-    uint32_t ucode_dword_count : 31;
+    u32 ucode_dword_count : 31;
     xenos::ShaderType type : 1;
 
-    static constexpr uint32_t kVersion = 0x20201219;
+    static constexpr u32 kVersion = 0x20201219;
   });
 
   // Changing any Pipeline* enum requires updating PipelineDescription::kVersion.
-  enum class PipelineStripCutIndex : uint32_t {
+  enum class PipelineStripCutIndex : u32 {
     kNone,
     kFFFF,
     kFFFFFFFF,
   };
 
-  enum class PipelineTessellationMode : uint32_t {
+  enum class PipelineTessellationMode : u32 {
     kNone,
     kDiscrete,
     kContinuous,
     kAdaptive,
   };
 
-  enum class PipelinePatchType : uint32_t {
+  enum class PipelinePatchType : u32 {
     kNone,
     kLine,
     kTriangle,
     kQuad,
   };
 
-  enum class PipelinePrimitiveTopologyType : uint32_t {
+  enum class PipelinePrimitiveTopologyType : u32 {
     kPoint,
     kLine,
     kTriangle,
   };
 
-  enum class PipelineGeometryShader : uint32_t {
+  enum class PipelineGeometryShader : u32 {
     kNone,
     kPointList,
     kRectangleList,
     kQuadList,
   };
 
-  enum class PipelineCullMode : uint32_t {
+  enum class PipelineCullMode : u32 {
     kNone,
     kFront,
     kBack,
@@ -173,7 +171,7 @@ class PipelineCache {
     kDisableRasterization,
   };
 
-  enum class PipelineBlendFactor : uint32_t {
+  enum class PipelineBlendFactor : u32 {
     kZero,
     kOne,
     kSrcColor,
@@ -191,7 +189,7 @@ class PipelineCache {
 
   // Changing PipelineRenderTarget requires updating PipelineDescription::kVersion.
   REX_PACKED_STRUCT(PipelineRenderTarget, {
-    uint32_t used : 1;
+    u32 used : 1;
     xenos::ColorRenderTargetFormat format : 4;
     PipelineBlendFactor src_blend : 4;
     PipelineBlendFactor dest_blend : 4;
@@ -199,39 +197,39 @@ class PipelineCache {
     PipelineBlendFactor src_blend_alpha : 4;
     PipelineBlendFactor dest_blend_alpha : 4;
     xenos::BlendOp blend_op_alpha : 3;
-    uint32_t write_mask : 4;
+    u32 write_mask : 4;
   });
 
   REX_PACKED_STRUCT(PipelineDescription, {
-    uint64_t vertex_shader_hash;
-    uint64_t vertex_shader_modification;
+    u64 vertex_shader_hash;
+    u64 vertex_shader_modification;
     /** 0 if drawing without a pixel shader. */
-    uint64_t pixel_shader_hash;
-    uint64_t pixel_shader_modification;
+    u64 pixel_shader_hash;
+    u64 pixel_shader_modification;
 
-    int32_t depth_bias;
-    float depth_bias_slope_scaled;
+    i32 depth_bias;
+    f32 depth_bias_slope_scaled;
 
     PipelineStripCutIndex strip_cut_index : 2;
     /**
      * PipelinePrimitiveTopologyType for a vertex shader, xenos::TessellationMode for a domain
      * shader.
      */
-    uint32_t primitive_topology_type_or_tessellation_mode : 2;
+    u32 primitive_topology_type_or_tessellation_mode : 2;
     /** 0 for non kVertex host_vertex_shader_type. */
     PipelineGeometryShader geometry_shader : 2;
-    uint32_t fill_mode_wireframe : 1;
+    u32 fill_mode_wireframe : 1;
     PipelineCullMode cull_mode : 2;
-    uint32_t front_counter_clockwise : 1;
-    uint32_t depth_clip : 1;
+    u32 front_counter_clockwise : 1;
+    u32 depth_clip : 1;
     xenos::MSAASamples host_msaa_samples : 2;
     xenos::DepthRenderTargetFormat depth_format : 1;
     xenos::CompareFunction depth_func : 3;
-    uint32_t depth_write : 1;
-    uint32_t stencil_enable : 1;
-    uint32_t stencil_read_mask : 8;
+    u32 depth_write : 1;
+    u32 stencil_enable : 1;
+    u32 stencil_read_mask : 8;
 
-    uint32_t stencil_write_mask : 8;
+    u32 stencil_write_mask : 8;
     xenos::StencilOp stencil_front_fail_op : 3;
     xenos::StencilOp stencil_front_depth_fail_op : 3;
     xenos::StencilOp stencil_front_pass_op : 3;
@@ -243,11 +241,11 @@ class PipelineCache {
 
     PipelineRenderTarget render_targets[xenos::kMaxColorRenderTargets];
 
-    static constexpr uint32_t kVersion = 0x20210425;
+    static constexpr u32 kVersion = 0x20210425;
   });
 
   REX_PACKED_STRUCT(PipelineStoredDescription, {
-    uint64_t description_hash;
+    u64 description_hash;
     PipelineDescription description;
   });
 
@@ -255,39 +253,37 @@ class PipelineCache {
     ID3D12RootSignature* root_signature;
     D3D12Shader::D3D12Translation* vertex_shader;
     D3D12Shader::D3D12Translation* pixel_shader;
-    const std::vector<uint32_t>* geometry_shader;
+    const std::vector<u32>* geometry_shader;
     PipelineDescription description;
   };
 
   struct Pipeline;
 
   union GeometryShaderKey {
-    uint32_t key;
+    u32 key;
     struct {
       PipelineGeometryShader type : 2;
-      uint32_t interpolator_count : 5;
-      uint32_t user_clip_plane_count : 3;
-      uint32_t user_clip_plane_cull : 1;
-      uint32_t has_vertex_kill_and : 1;
-      uint32_t has_point_size : 1;
-      uint32_t has_point_coordinates : 1;
+      u32 interpolator_count : 5;
+      u32 user_clip_plane_count : 3;
+      u32 user_clip_plane_cull : 1;
+      u32 has_vertex_kill_and : 1;
+      u32 has_point_size : 1;
+      u32 has_point_coordinates : 1;
       /** PA_CL_CLIP_CNTL::ps_ucp_mode for point primitives. */
-      uint32_t point_ps_ucp_mode : 2;
+      u32 point_ps_ucp_mode : 2;
     };
 
     GeometryShaderKey() : key(0) { REX_STATIC_ASSERT_SIZE(*this, sizeof(key)); }
 
     struct Hasher {
-      size_t operator()(const GeometryShaderKey& key) const {
-        return std::hash<uint32_t>{}(key.key);
-      }
+      size_t operator()(const GeometryShaderKey& key) const { return std::hash<u32>{}(key.key); }
     };
     bool operator==(const GeometryShaderKey& other_key) const { return key == other_key.key; }
     bool operator!=(const GeometryShaderKey& other_key) const { return !(*this == other_key); }
   };
 
-  D3D12Shader* LoadShader(xenos::ShaderType shader_type, const uint32_t* host_address,
-                          uint32_t dword_count, uint64_t data_hash);
+  D3D12Shader* LoadShader(xenos::ShaderType shader_type, const u32* host_address, u32 dword_count,
+                          u64 data_hash);
 
   // Can be called from multiple threads.
   bool TranslateAnalyzedShader(DxbcShaderTranslator& translator,
@@ -324,9 +320,9 @@ class PipelineCache {
   bool GetCurrentStateDescription(
       D3D12Shader::D3D12Translation* vertex_shader, D3D12Shader::D3D12Translation* pixel_shader,
       const PrimitiveProcessor::ProcessingResult& primitive_processing_result,
-      xenos::reg::RB_DEPTHCONTROL normalized_depth_control, uint32_t normalized_color_mask,
-      uint32_t bound_depth_and_color_render_target_bits,
-      const uint32_t* bound_depth_and_color_render_target_formats,
+      xenos::reg::RB_DEPTHCONTROL normalized_depth_control, u32 normalized_color_mask,
+      u32 bound_depth_and_color_render_target_bits,
+      const u32* bound_depth_and_color_render_target_formats,
       PipelineRuntimeDescription& runtime_description_out, bool for_placeholder = false);
 
   static bool GetGeometryShaderKey(PipelineGeometryShader geometry_shader_type,
@@ -358,8 +354,8 @@ class PipelineCache {
    * @param key Geometry shader key.
    * @param shader_out Receives the shader dwords.
    */
-  static void CreateDxbcGeometryShader(GeometryShaderKey key, std::vector<uint32_t>& shader_out);
-  const std::vector<uint32_t>& GetGeometryShader(GeometryShaderKey key);
+  static void CreateDxbcGeometryShader(GeometryShaderKey key, std::vector<u32>& shader_out);
+  const std::vector<u32>& GetGeometryShader(GeometryShaderKey key);
 
   /**
    * Creates the pipeline state object.
@@ -392,8 +388,7 @@ class PipelineCache {
   IDxcCompiler* dxc_compiler_ = nullptr;
 
   /** Keyed by ucode hash. */
-  std::unordered_map<uint64_t, std::unique_ptr<D3D12Shader>, rex::IdentityHasher<uint64_t>>
-      shaders_;
+  std::unordered_map<u64, std::unique_ptr<D3D12Shader>, rex::IdentityHasher<u64>> shaders_;
 
   struct LayoutUID {
     size_t uid;
@@ -406,18 +401,16 @@ class PipelineCache {
    * Keys are XXH3 hashes of layouts. Values need collision resolution using the span in
    * texture_binding_layouts_.
    */
-  std::unordered_multimap<uint64_t, LayoutUID, rex::IdentityHasher<uint64_t>>
-      texture_binding_layout_map_;
+  std::unordered_multimap<u64, LayoutUID, rex::IdentityHasher<u64>> texture_binding_layout_map_;
   /** For bindful, the sampler count is the UID instead. */
-  std::vector<uint32_t> bindless_sampler_layouts_;
+  std::vector<u32> bindless_sampler_layouts_;
   /** Keys are XXH3 hashes of used bindless sampler indices. */
-  std::unordered_multimap<uint64_t, LayoutUID, rex::IdentityHasher<uint64_t>>
-      bindless_sampler_layout_map_;
+  std::unordered_multimap<u64, LayoutUID, rex::IdentityHasher<u64>> bindless_sampler_layout_map_;
 
-  std::unordered_map<GeometryShaderKey, std::vector<uint32_t>, GeometryShaderKey::Hasher>
+  std::unordered_map<GeometryShaderKey, std::vector<u32>, GeometryShaderKey::Hasher>
       geometry_shaders_;
 
-  std::vector<uint8_t> depth_only_pixel_shader_;
+  std::vector<u8> depth_only_pixel_shader_;
 
   struct Pipeline {
     /** nullptr if creation failed. */
@@ -426,27 +419,26 @@ class PipelineCache {
     PipelineRuntimeDescription description;
     D3D12Shader::D3D12Translation* pending_vertex_shader = nullptr;
     D3D12Shader::D3D12Translation* pending_pixel_shader = nullptr;
-    uint8_t priority = 0;
+    u8 priority = 0;
   };
   struct PipelineCreationPriorityComparator {
     bool operator()(const Pipeline* a, const Pipeline* b) const {
-      uint8_t priority_a = a ? a->priority : 0;
-      uint8_t priority_b = b ? b->priority : 0;
+      u8 priority_a = a ? a->priority : 0;
+      u8 priority_b = b ? b->priority : 0;
       return priority_a < priority_b;
     }
   };
-  std::unordered_multimap<uint64_t, std::unique_ptr<Pipeline>, rex::IdentityHasher<uint64_t>>
-      pipelines_;
+  std::unordered_multimap<u64, std::unique_ptr<Pipeline>, rex::IdentityHasher<u64>> pipelines_;
 
   Pipeline* current_pipeline_ = nullptr;
 
   std::filesystem::path shader_storage_cache_root_;
-  uint32_t shader_storage_title_id_ = 0;
+  u32 shader_storage_title_id_ = 0;
 
   std::fstream shader_storage_file_;
   std::filesystem::path shader_storage_file_path_;
   /** Incremented when switching the storage so each shader is written once. */
-  uint32_t shader_storage_index_ = 0;
+  u32 shader_storage_index_ = 0;
   bool shader_storage_file_flush_needed_ = false;
 
   std::fstream pipeline_storage_file_;

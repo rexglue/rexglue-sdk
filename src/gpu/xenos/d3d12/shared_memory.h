@@ -74,16 +74,13 @@ class D3D12SharedMemory : public SharedMemory {
    * @param handle Destination CPU descriptor.
    * @param element_size_bytes_pow2 Log2 of the element size in bytes, 2 to 4.
    */
-  void WriteUintPow2SRVDescriptor(D3D12_CPU_DESCRIPTOR_HANDLE handle,
-                                  uint32_t element_size_bytes_pow2);
-  void WriteUintPow2UAVDescriptor(D3D12_CPU_DESCRIPTOR_HANDLE handle,
-                                  uint32_t element_size_bytes_pow2);
+  void WriteUintPow2SRVDescriptor(D3D12_CPU_DESCRIPTOR_HANDLE handle, u32 element_size_bytes_pow2);
+  void WriteUintPow2UAVDescriptor(D3D12_CPU_DESCRIPTOR_HANDLE handle, u32 element_size_bytes_pow2);
 
  protected:
-  bool AllocateSparseHostGpuMemoryRange(uint32_t offset_allocations,
-                                        uint32_t length_allocations) override;
+  bool AllocateSparseHostGpuMemoryRange(u32 offset_allocations, u32 length_allocations) override;
 
-  bool UploadRanges(const std::vector<std::pair<uint32_t, uint32_t>>& upload_page_ranges) override;
+  bool UploadRanges(const std::vector<std::pair<u32, u32>>& upload_page_ranges) override;
 
  private:
   D3D12CommandProcessor& command_processor_;
@@ -97,7 +94,7 @@ class D3D12SharedMemory : public SharedMemory {
   void CommitUAVWritesAndTransitionBuffer(D3D12_RESOURCE_STATES new_state);
 
   /** Views in the non shader visible descriptor heap, copied instead of created for binding. */
-  enum class BufferDescriptorIndex : uint32_t {
+  enum class BufferDescriptorIndex : u32 {
     kRawSRV,
     kR32UintSRV,
     kR32G32UintSRV,

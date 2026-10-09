@@ -28,7 +28,7 @@ void LinkedTypeDescriptorSetAllocator::Reset() {
   gpu::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyDescriptorPool, device,
                                           page_usable_latest_.pool);
   page_usable_latest_.descriptors_remaining.reset();
-  for (const std::pair<const uint32_t, Page>& page_pair : pages_usable_) {
+  for (const std::pair<const u32, Page>& page_pair : pages_usable_) {
     dfn.vkDestroyDescriptorPool(device, page_pair.second.pool, nullptr);
   }
   pages_usable_.clear();
@@ -40,13 +40,13 @@ void LinkedTypeDescriptorSetAllocator::Reset() {
 
 VkDescriptorSet LinkedTypeDescriptorSetAllocator::Allocate(
     VkDescriptorSetLayout descriptor_set_layout, const VkDescriptorPoolSize* descriptor_counts,
-    uint32_t descriptor_type_count) {
+    u32 descriptor_type_count) {
   REX_ASSERT(descriptor_type_count != 0);
 #ifndef NDEBUG
-  for (uint32_t i = 0; i < descriptor_type_count; ++i) {
+  for (u32 i = 0; i < descriptor_type_count; ++i) {
     const VkDescriptorPoolSize& descriptor_count_for_type = descriptor_counts[i];
     REX_ASSERT(descriptor_count_for_type.descriptorCount != 0);
-    for (uint32_t j = 0; j < i; ++j) {
+    for (u32 j = 0; j < i; ++j) {
       REX_ASSERT(descriptor_counts[j].type != descriptor_count_for_type.type);
     }
   }
@@ -63,10 +63,10 @@ VkDescriptorSet LinkedTypeDescriptorSetAllocator::Allocate(
   VkDescriptorSet descriptor_set;
 
   bool dedicated_descriptor_pool_needed = false;
-  for (uint32_t i = 0; i < descriptor_type_count; ++i) {
+  for (u32 i = 0; i < descriptor_type_count; ++i) {
     const VkDescriptorPoolSize& descriptor_count_for_type = descriptor_counts[i];
     dedicated_descriptor_pool_needed = true;
-    for (uint32_t j = 0; j < descriptor_pool_size_count_; ++j) {
+    for (u32 j = 0; j < descriptor_pool_size_count_; ++j) {
       const VkDescriptorPoolSize& descriptor_pool_size = descriptor_pool_sizes_[j];
       if (descriptor_count_for_type.type != descriptor_pool_size.type) {
         continue;
@@ -113,9 +113,9 @@ VkDescriptorSet LinkedTypeDescriptorSetAllocator::Allocate(
     REX_ASSERT(page_usable_latest_.descriptor_sets_remaining != 0);
     bool allocate_from_latest_page = true;
     bool latest_page_becomes_full = page_usable_latest_.descriptor_sets_remaining == 1;
-    for (uint32_t i = 0; i < descriptor_type_count; ++i) {
+    for (u32 i = 0; i < descriptor_type_count; ++i) {
       const VkDescriptorPoolSize& descriptor_count_for_type = descriptor_counts[i];
-      for (uint32_t j = 0; j < descriptor_pool_size_count_; ++j) {
+      for (u32 j = 0; j < descriptor_pool_size_count_; ++j) {
         const VkDescriptorPoolSize& descriptors_remaining_for_type =
             page_usable_latest_.descriptors_remaining[j];
         if (descriptor_count_for_type.type != descriptors_remaining_for_type.type) {
@@ -149,9 +149,9 @@ VkDescriptorSet LinkedTypeDescriptorSetAllocator::Allocate(
         page_usable_latest_.descriptors_remaining.reset();
       } else {
         --page_usable_latest_.descriptor_sets_remaining;
-        for (uint32_t i = 0; i < descriptor_type_count; ++i) {
+        for (u32 i = 0; i < descriptor_type_count; ++i) {
           const VkDescriptorPoolSize& descriptor_count_for_type = descriptor_counts[i];
-          for (uint32_t j = 0; j < descriptor_pool_size_count_; ++j) {
+          for (u32 j = 0; j < descriptor_pool_size_count_; ++j) {
             VkDescriptorPoolSize& descriptors_remaining_for_type =
                 page_usable_latest_.descriptors_remaining[j];
             if (descriptor_count_for_type.type != descriptors_remaining_for_type.type) {
@@ -168,8 +168,8 @@ VkDescriptorSet LinkedTypeDescriptorSetAllocator::Allocate(
     }
   }
 
-  uint32_t max_descriptors_per_type = descriptor_counts[0].descriptorCount;
-  for (uint32_t i = 1; i < descriptor_type_count; ++i) {
+  u32 max_descriptors_per_type = descriptor_counts[0].descriptorCount;
+  for (u32 i = 1; i < descriptor_type_count; ++i) {
     max_descriptors_per_type =
         std::max(max_descriptors_per_type, descriptor_counts[i].descriptorCount);
   }
@@ -184,9 +184,9 @@ VkDescriptorSet LinkedTypeDescriptorSetAllocator::Allocate(
     }
     bool map_page_has_sufficient_space = true;
     bool map_page_becomes_full = page_usable_it->second.descriptor_sets_remaining == 1;
-    for (uint32_t i = 0; i < descriptor_type_count; ++i) {
+    for (u32 i = 0; i < descriptor_type_count; ++i) {
       const VkDescriptorPoolSize& descriptor_count_for_type = descriptor_counts[i];
-      for (uint32_t j = 0; j < descriptor_pool_size_count_; ++j) {
+      for (u32 j = 0; j < descriptor_pool_size_count_; ++j) {
         const VkDescriptorPoolSize& descriptors_remaining_for_type =
             page_usable_it->second.descriptors_remaining[j];
         if (descriptor_count_for_type.type != descriptors_remaining_for_type.type) {
@@ -224,9 +224,9 @@ VkDescriptorSet LinkedTypeDescriptorSetAllocator::Allocate(
       pages_full_.push_back(map_page.pool);
     } else {
       --map_page.descriptor_sets_remaining;
-      for (uint32_t i = 0; i < descriptor_type_count; ++i) {
+      for (u32 i = 0; i < descriptor_type_count; ++i) {
         const VkDescriptorPoolSize& descriptor_count_for_type = descriptor_counts[i];
-        for (uint32_t j = 0; j < descriptor_pool_size_count_; ++j) {
+        for (u32 j = 0; j < descriptor_pool_size_count_; ++j) {
           VkDescriptorPoolSize& descriptors_remaining_for_type = map_page.descriptors_remaining[j];
           if (descriptor_count_for_type.type != descriptors_remaining_for_type.type) {
             continue;
@@ -236,9 +236,9 @@ VkDescriptorSet LinkedTypeDescriptorSetAllocator::Allocate(
         }
       }
       if (page_usable_latest_.pool != VK_NULL_HANDLE) {
-        uint32_t latest_page_max_descriptors_remaining =
+        u32 latest_page_max_descriptors_remaining =
             page_usable_latest_.descriptors_remaining[0].descriptorCount;
-        for (uint32_t i = 1; i < descriptor_pool_size_count_; ++i) {
+        for (u32 i = 1; i < descriptor_pool_size_count_; ++i) {
           latest_page_max_descriptors_remaining =
               std::max(latest_page_max_descriptors_remaining,
                        page_usable_latest_.descriptors_remaining[i].descriptorCount);
@@ -255,9 +255,9 @@ VkDescriptorSet LinkedTypeDescriptorSetAllocator::Allocate(
   }
 
   bool new_page_becomes_full = descriptor_sets_per_page_ == 1;
-  for (uint32_t i = 0; !new_page_becomes_full && i < descriptor_type_count; ++i) {
+  for (u32 i = 0; !new_page_becomes_full && i < descriptor_type_count; ++i) {
     const VkDescriptorPoolSize& descriptor_count_for_type = descriptor_counts[i];
-    for (uint32_t j = 0; j < descriptor_pool_size_count_; ++j) {
+    for (u32 j = 0; j < descriptor_pool_size_count_; ++j) {
       const VkDescriptorPoolSize& descriptors_remaining_for_type = descriptor_pool_sizes_[j];
       if (descriptor_count_for_type.type != descriptors_remaining_for_type.type) {
         continue;
@@ -301,9 +301,9 @@ VkDescriptorSet LinkedTypeDescriptorSetAllocator::Allocate(
     pages_full_.push_back(new_descriptor_pool);
   } else {
     if (page_usable_latest_.pool != VK_NULL_HANDLE) {
-      uint32_t latest_page_max_descriptors_remaining =
+      u32 latest_page_max_descriptors_remaining =
           page_usable_latest_.descriptors_remaining[0].descriptorCount;
-      for (uint32_t i = 1; i < descriptor_pool_size_count_; ++i) {
+      for (u32 i = 1; i < descriptor_pool_size_count_; ++i) {
         latest_page_max_descriptors_remaining =
             std::max(latest_page_max_descriptors_remaining,
                      page_usable_latest_.descriptors_remaining[i].descriptorCount);
@@ -314,10 +314,10 @@ VkDescriptorSet LinkedTypeDescriptorSetAllocator::Allocate(
     page_usable_latest_.pool = new_descriptor_pool;
     page_usable_latest_.descriptors_remaining =
         std::make_unique_for_overwrite<VkDescriptorPoolSize[]>(descriptor_pool_size_count_);
-    for (uint32_t i = 0; i < descriptor_pool_size_count_; ++i) {
+    for (u32 i = 0; i < descriptor_pool_size_count_; ++i) {
       const VkDescriptorPoolSize& descriptor_pool_size_for_type = descriptor_pool_sizes_[i];
       page_usable_latest_.descriptors_remaining[i] = descriptor_pool_size_for_type;
-      for (uint32_t j = 0; j < descriptor_type_count; ++j) {
+      for (u32 j = 0; j < descriptor_type_count; ++j) {
         const VkDescriptorPoolSize& descriptor_count_for_type = descriptor_counts[j];
         if (descriptor_count_for_type.type != descriptor_pool_size_for_type.type) {
           continue;

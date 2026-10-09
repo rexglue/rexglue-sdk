@@ -16,7 +16,7 @@
 
 namespace rex::memory {
 
-RingBuffer::RingBuffer(uint8_t* buffer, size_t capacity)
+RingBuffer::RingBuffer(u8* buffer, size_t capacity)
     : buffer_(buffer), capacity_(static_cast<ring_size_t>(capacity)) {}
 
 void RingBuffer::AdvanceRead(size_t count) {
@@ -63,7 +63,7 @@ void RingBuffer::EndRead(ReadRange read_range) {
   }
 }
 
-size_t RingBuffer::Read(uint8_t* buffer, size_t count) {
+size_t RingBuffer::Read(u8* buffer, size_t count) {
   count = std::min(count, static_cast<size_t>(capacity_));
   if (!count) {
     return 0;
@@ -92,7 +92,7 @@ size_t RingBuffer::Read(uint8_t* buffer, size_t count) {
   return count;
 }
 
-size_t RingBuffer::Write(const uint8_t* buffer, size_t count) {
+size_t RingBuffer::Write(const u8* buffer, size_t count) {
   count = std::min(count, static_cast<size_t>(capacity_));
   if (!count) {
     return 0;

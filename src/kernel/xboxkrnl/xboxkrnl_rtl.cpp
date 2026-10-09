@@ -33,13 +33,13 @@ namespace rex::kernel::xboxkrnl {
 using namespace rex::runtime;
 
 u32 RtlCompareMemory_entry(mapped_void source1, mapped_void source2, u32 length) {
-  uint8_t* p1 = source1;
-  uint8_t* p2 = source2;
+  u8* p1 = source1;
+  u8* p2 = source2;
 
   // The return value is the count of matching bytes, so memcmp does not apply.
 
-  uint32_t c = 0;
-  for (uint32_t n = 0; n < length; n++, p1++, p2++) {
+  u32 c = 0;
+  for (u32 n = 0; n < length; n++, p1++, p2++) {
     if (*p1 == *p2) {
       c++;
     }
@@ -53,9 +53,9 @@ u32 RtlCompareMemoryUlong_entry(mapped_void source, u32 length, u32 pattern) {
     return 0;
   }
 
-  uint32_t n = 0;
-  for (uint32_t i = 0; i < (length / 4); i++) {
-    uint32_t val = source.as_array<uint32_t>()[i];
+  u32 n = 0;
+  for (u32 i = 0; i < (length / 4); i++) {
+    u32 val = source.as_array<u32>()[i];
     if (val == pattern) {
       n++;
     }
@@ -96,14 +96,14 @@ u32 RtlCompareString_entry(mapped_string string_1, mapped_string string_2, u32 c
 
 u32 RtlCompareStringN_entry(mapped_string string_1, u32 string_1_len, mapped_string string_2,
                             u32 string_2_len, u32 case_insensitive) {
-  uint32_t len1 = string_1_len;
-  uint32_t len2 = string_2_len;
+  u32 len1 = string_1_len;
+  u32 len2 = string_2_len;
 
   if (string_1_len == 0xFFFF) {
-    len1 = static_cast<uint32_t>(std::strlen(string_1));
+    len1 = static_cast<u32>(std::strlen(string_1));
   }
   if (string_2_len == 0xFFFF) {
-    len2 = static_cast<uint32_t>(std::strlen(string_2));
+    len2 = static_cast<u32>(std::strlen(string_2));
   }
   auto len = std::min(len1, len2);
 
@@ -119,7 +119,7 @@ void RtlInitAnsiString_entry(ppc_ptr_t<X_ANSI_STRING> destination, mapped_string
                "str={}",
                source ? source.value() : "(null)");
   if (source) {
-    uint16_t length = static_cast<uint16_t>(strlen(source));
+    u16 length = static_cast<u16>(strlen(source));
     destination->length = length;
     destination->maximum_length = length + 1;
   } else {
@@ -139,8 +139,8 @@ void RtlFreeAnsiString_entry(ppc_ptr_t<X_ANSI_STRING> string) {
 
 void RtlInitUnicodeString_entry(ppc_ptr_t<X_UNICODE_STRING> destination, mapped_wstring source) {
   if (source) {
-    destination->length = static_cast<uint16_t>(source.value().size()) * 2;
-    destination->maximum_length = static_cast<uint16_t>(source.value().size() + 1) * 2;
+    destination->length = static_cast<u16>(source.value().size()) * 2;
+    destination->maximum_length = static_cast<u16>(source.value().size() + 1) * 2;
     destination->pointer = source.guest_address();
   } else {
     destination->reset();
@@ -197,16 +197,16 @@ u32 RtlUnicodeStringToAnsiString_entry(ppc_ptr_t<X_ANSI_STRING> destination_ptr,
 
   X_STATUS result = X_STATUS_SUCCESS;
   if (alloc_dest) {
-    uint32_t buffer_ptr =
-        runtime::Current().memory()->SystemHeapAlloc(static_cast<uint32_t>(ansi_str.size() + 1));
+    u32 buffer_ptr =
+        runtime::Current().memory()->SystemHeapAlloc(static_cast<u32>(ansi_str.size() + 1));
 
     memcpy(runtime::Current().memory()->TranslateVirtual(buffer_ptr), ansi_str.data(),
            ansi_str.size() + 1);
-    destination_ptr->length = static_cast<uint16_t>(ansi_str.size());
-    destination_ptr->maximum_length = static_cast<uint16_t>(ansi_str.size() + 1);
+    destination_ptr->length = static_cast<u16>(ansi_str.size());
+    destination_ptr->maximum_length = static_cast<u16>(ansi_str.size() + 1);
     destination_ptr->pointer = buffer_ptr;
   } else {
-    uint32_t buffer_capacity = destination_ptr->maximum_length;
+    u32 buffer_capacity = destination_ptr->maximum_length;
     auto buffer_ptr = runtime::Current().memory()->TranslateVirtual(destination_ptr->pointer);
     if (buffer_capacity < ansi_str.size() + 1) {
       result = X_STATUS_BUFFER_OVERFLOW;
@@ -220,12 +220,11 @@ u32 RtlUnicodeStringToAnsiString_entry(ppc_ptr_t<X_ANSI_STRING> destination_ptr,
 }
 
 u32 RtlMultiByteToUnicodeN_entry(mapped_u16 destination_ptr, u32 destination_len,
-                                 mapped_u32 written_ptr, ppc_ptr_t<uint8_t> source_ptr,
-                                 u32 source_len) {
-  uint32_t copy_len = destination_len >> 1;
+                                 mapped_u32 written_ptr, ppc_ptr_t<u8> source_ptr, u32 source_len) {
+  u32 copy_len = destination_len >> 1;
   copy_len = copy_len < source_len ? copy_len : source_len;
 
-  for (uint32_t i = 0; i < copy_len; i++) {
+  for (u32 i = 0; i < copy_len; i++) {
     destination_ptr[i] = source_ptr[i];
   }
 
@@ -236,14 +235,14 @@ u32 RtlMultiByteToUnicodeN_entry(mapped_u16 destination_ptr, u32 destination_len
   return 0;
 }
 
-u32 RtlUnicodeToMultiByteN_entry(ppc_ptr_t<uint8_t> destination_ptr, u32 destination_len,
+u32 RtlUnicodeToMultiByteN_entry(ppc_ptr_t<u8> destination_ptr, u32 destination_len,
                                  mapped_u32 written_ptr, mapped_u16 source_ptr, u32 source_len) {
-  uint32_t copy_len = source_len >> 1;
+  u32 copy_len = source_len >> 1;
   copy_len = copy_len < destination_len ? copy_len : destination_len;
 
-  for (uint32_t i = 0; i < copy_len; i++) {
-    uint16_t c = source_ptr[i];
-    destination_ptr[i] = c < 256 ? static_cast<uint8_t>(c) : '?';
+  for (u32 i = 0; i < copy_len; i++) {
+    u16 c = source_ptr[i];
+    destination_ptr[i] = c < 256 ? static_cast<u8>(c) : '?';
   }
 
   if (written_ptr.guest_address() != 0) {
@@ -259,15 +258,15 @@ u32 RtlImageNtHeader_entry(mapped_void module) {
 
   // PE headers are little endian, so no swapping.
 
-  auto dos_header = module.as<const uint8_t*>();
-  auto dos_magic = *reinterpret_cast<const uint16_t*>(&dos_header[0x00]);
+  auto dos_header = module.as<const u8*>();
+  auto dos_magic = *reinterpret_cast<const u16*>(&dos_header[0x00]);
   if (dos_magic != 0x5A4D) {
     return 0;
   }
-  auto dos_lfanew = *reinterpret_cast<const int32_t*>(&dos_header[0x3C]);
+  auto dos_lfanew = *reinterpret_cast<const i32*>(&dos_header[0x3C]);
 
   auto nt_header = &dos_header[dos_lfanew];
-  auto nt_magic = *reinterpret_cast<const uint32_t*>(&nt_header[0x00]);
+  auto nt_magic = *reinterpret_cast<const u32*>(&nt_header[0x00]);
   if (nt_magic != 0x4550) {
     return 0;
   }
@@ -275,8 +274,8 @@ u32 RtlImageNtHeader_entry(mapped_void module) {
 }
 
 u32 RtlImageXexHeaderField_entry(ppc_ptr_t<xex2_header> xex_header, u32 field_dword) {
-  uint32_t field_value = 0;
-  uint32_t field = field_dword;
+  u32 field_value = 0;
+  u32 field = field_dword;
 
   UserModuleGetOptHeader(runtime::Current().memory(), xex_header, xex2_header_keys(field),
                          &field_value);
@@ -297,7 +296,7 @@ u32 RtlImageXexHeaderField_entry(ppc_ptr_t<xex2_header> xex_header, u32 field_dw
 #pragma pack(push, 1)
 struct X_RTL_CRITICAL_SECTION {
   X_DISPATCH_HEADER header;
-  int32_t lock_count;     /**< Offset 0x10, -1 becomes 0 on first lock. */
+  i32 lock_count;         /**< Offset 0x10, -1 becomes 0 on first lock. */
   be_i32 recursion_count; /**< Offset 0x14, 0 becomes 1 on first lock. */
   be_u32 owning_thread;   /**< Offset 0x18, PKTHREAD or 0 when unlocked. */
 };
@@ -321,8 +320,8 @@ void RtlInitializeCriticalSection_entry(ppc_ptr_t<X_RTL_CRITICAL_SECTION> cs) {
   RtlInitializeCriticalSection(cs);
 }
 
-X_STATUS RtlInitializeCriticalSectionAndSpinCount(X_RTL_CRITICAL_SECTION* cs, uint32_t spin_count) {
-  uint32_t spin_count_div_256 = (spin_count + 255) >> 8;
+X_STATUS RtlInitializeCriticalSectionAndSpinCount(X_RTL_CRITICAL_SECTION* cs, u32 spin_count) {
+  u32 spin_count_div_256 = (spin_count + 255) >> 8;
   if (spin_count_div_256 > 255) {
     spin_count_div_256 = 255;
   }
@@ -343,8 +342,8 @@ u32 RtlInitializeCriticalSectionAndSpinCount_entry(ppc_ptr_t<X_RTL_CRITICAL_SECT
 }
 
 void RtlEnterCriticalSection_entry(ppc_ptr_t<X_RTL_CRITICAL_SECTION> cs) {
-  uint32_t cur_thread = ThreadRecord::GetCurrentThread()->guest_object();
-  uint32_t spin_count = cs->header.absolute * 256;
+  u32 cur_thread = ThreadRecord::GetCurrentThread()->guest_object();
+  u32 spin_count = cs->header.absolute * 256;
 
   if (cs->owning_thread == cur_thread) {
     rex::platform::atomic_inc(&cs->lock_count);
@@ -370,7 +369,7 @@ void RtlEnterCriticalSection_entry(ppc_ptr_t<X_RTL_CRITICAL_SECTION> cs) {
 }
 
 u32 RtlTryEnterCriticalSection_entry(ppc_ptr_t<X_RTL_CRITICAL_SECTION> cs) {
-  uint32_t thread = ThreadRecord::GetCurrentThread()->guest_object();
+  u32 thread = ThreadRecord::GetCurrentThread()->guest_object();
 
   if (rex::platform::atomic_cas(-1, 0, &cs->lock_count)) {
     cs->owning_thread = thread;
@@ -428,8 +427,8 @@ void RtlTimeToTimeFields_entry(mapped_u64 time_ptr, ppc_ptr_t<X_TIME_FIELDS> tim
   time_fields_ptr->weekday = weekday.c_encoding();
   time_fields_ptr->hour = time.hours().count();
   time_fields_ptr->minute = time.minutes().count();
-  time_fields_ptr->second = static_cast<uint16_t>(time.seconds().count());
-  time_fields_ptr->milliseconds = static_cast<uint16_t>(time.subseconds().count());
+  time_fields_ptr->second = static_cast<u16>(time.seconds().count());
+  time_fields_ptr->milliseconds = static_cast<u16>(time.subseconds().count());
 }
 
 u32 RtlTimeFieldsToTime_entry(ppc_ptr_t<X_TIME_FIELDS> time_fields_ptr, mapped_u64 time_ptr) {
@@ -457,7 +456,7 @@ u32 RtlTimeFieldsToTime_entry(ppc_ptr_t<X_TIME_FIELDS> time_fields_ptr, mapped_u
   return 1;
 }
 
-static uint32_t crc32_table[256] = {
+static u32 crc32_table[256] = {
     0x00000000u, 0x77073096u, 0xEE0E612Cu, 0x990951BAu, 0x076DC419u, 0x706AF48Fu, 0xE963A535u,
     0x9E6495A3u, 0x0EDB8832u, 0x79DCB8A4u, 0xE0D5E91Eu, 0x97D2D988u, 0x09B64C2Bu, 0x7EB17CBDu,
     0xE7B82D07u, 0x90BF1D91u, 0x1DB71064u, 0x6AB020F2u, 0xF3B97148u, 0x84BE41DEu, 0x1ADAD47Du,
@@ -501,8 +500,8 @@ u32 RtlComputeCrc32_entry(u32 seed, mapped_void buffer, u32 length) {
   if (!length) {
     return seed;
   }
-  uint32_t hash = ~seed;
-  for (uint32_t i = 0; i < length; ++i) {
+  u32 hash = ~seed;
+  for (u32 i = 0; i < length; ++i) {
     hash = crc32_table[buffer[i] ^ (hash & 0xFF)] ^ (hash >> 8);
   }
   return ~hash;

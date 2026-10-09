@@ -26,15 +26,15 @@ namespace rex::gpu {
 void ShaderInterpreter::Execute() {
   state_.Reset();
 
-  const uint32_t* bool_constants =
+  const u32* bool_constants =
       &register_file_[std::to_underlying(xenos::Register::SHADER_CONSTANT_BOOL_000_031)];
 
   bool exec_ended = false;
-  uint32_t cf_index_next = 1;
-  for (uint32_t cf_index = 0; !exec_ended; cf_index = cf_index_next) {
+  u32 cf_index_next = 1;
+  for (u32 cf_index = 0; !exec_ended; cf_index = cf_index_next) {
     cf_index_next = cf_index + 1;
 
-    const uint32_t* cf_pair = &ucode_[3 * (cf_index >> 1)];
+    const u32* cf_pair = &ucode_[3 * (cf_index >> 1)];
     xenos::ucode::ControlFlowInstruction cf_instr;
     if (cf_index & 1) {
       cf_instr.dword_0 = (cf_pair[1] >> 16) | (cf_pair[2] << 16);
@@ -67,7 +67,7 @@ void ShaderInterpreter::Execute() {
           case xenos::ucode::ControlFlowOpcode::kCondExecPredCleanEnd: {
             const xenos::ucode::ControlFlowCondExecInstruction cf_cond_exec =
                 std::bit_cast<xenos::ucode::ControlFlowCondExecInstruction>(cf_exec);
-            uint32_t bool_address = cf_cond_exec.bool_address();
+            u32 bool_address = cf_cond_exec.bool_address();
             if (cf_cond_exec.condition() !=
                 ((bool_constants[bool_address >> 5] & (UINT32_C(1) << (bool_address & 31))) != 0)) {
               continue;
@@ -86,8 +86,8 @@ void ShaderInterpreter::Execute() {
             break;
         }
 
-        for (uint32_t exec_index = 0; exec_index < cf_exec.count(); ++exec_index) {
-          const uint32_t* exec_instruction = &ucode_[3 * (cf_exec.address() + exec_index)];
+        for (u32 exec_index = 0; exec_index < cf_exec.count(); ++exec_index) {
+          const u32* exec_instruction = &ucode_[3 * (cf_exec.address() + exec_index)];
           if ((cf_exec.sequence() >> (exec_index << 1)) & 0b01) {
             const xenos::ucode::FetchInstruction& fetch_instr =
                 *reinterpret_cast<const xenos::ucode::FetchInstruction*>(exec_instruction);
@@ -98,7 +98,7 @@ void ShaderInterpreter::Execute() {
             if (fetch_instr.opcode() == xenos::ucode::FetchOpcode::kVertexFetch) {
               ExecuteVertexFetchInstruction(fetch_instr.vertex_fetch());
             } else {
-              float zero_result[4] = {};
+              f32 zero_result[4] = {};
               StoreFetchResult(fetch_instr.dest(), fetch_instr.is_dest_relative(),
                                fetch_instr.dest_swizzle(), zero_result);
             }
@@ -128,7 +128,7 @@ void ShaderInterpreter::Execute() {
         auto loop_constant = register_file_.Get<xenos::LoopConstant>(
             std::to_underlying(xenos::Register::SHADER_CONSTANT_LOOP_00) + cf_loop_start.loop_id());
         state_.loop_constants[state_.loop_stack_depth] = loop_constant;
-        uint32_t& loop_iterator_ref = state_.loop_iterators[state_.loop_stack_depth];
+        u32& loop_iterator_ref = state_.loop_iterators[state_.loop_stack_depth];
         if (!cf_loop_start.is_repeat()) {
           loop_iterator_ref = 0;
         }
@@ -155,7 +155,7 @@ void ShaderInterpreter::Execute() {
         REX_ASSERT(loop_constant.value ==
                    register_file_[std::to_underlying(xenos::Register::SHADER_CONSTANT_LOOP_00) +
                                   cf_loop_end.loop_id()]);
-        uint32_t loop_iterator = ++state_.loop_iterators[state_.loop_stack_depth - 1];
+        u32 loop_iterator = ++state_.loop_iterators[state_.loop_stack_depth - 1];
         if (loop_iterator < loop_constant.count &&
             (!cf_loop_end.is_predicated_break() || cf_loop_end.condition() != state_.predicate)) {
           cf_index_next = cf_loop_end.address();
@@ -177,7 +177,7 @@ void ShaderInterpreter::Execute() {
               continue;
             }
           } else {
-            uint32_t bool_address = cf_cond_call.bool_address();
+            u32 bool_address = cf_cond_call.bool_address();
             if (cf_cond_call.condition() !=
                 ((bool_constants[bool_address >> 5] & (UINT32_C(1) << (bool_address & 31))) != 0)) {
               continue;
@@ -205,7 +205,7 @@ void ShaderInterpreter::Execute() {
               continue;
             }
           } else {
-            uint32_t bool_address = cf_cond_jmp.bool_address();
+            u32 bool_address = cf_cond_jmp.bool_address();
             if (cf_cond_jmp.condition() !=
                 ((bool_constants[bool_address >> 5] & (UINT32_C(1) << (bool_address & 31))) != 0)) {
               continue;
@@ -231,49 +231,49 @@ void ShaderInterpreter::Execute() {
   }
 }
 
-const std::array<float, 4> ShaderInterpreter::GetFloatConstant(uint32_t address, bool is_relative,
-                                                               bool relative_address_is_a0) const {
-  int32_t index = static_cast<int32_t>(address);
+const std::array<f32, 4> ShaderInterpreter::GetFloatConstant(u32 address, bool is_relative,
+                                                             bool relative_address_is_a0) const {
+  i32 index = static_cast<i32>(address);
   if (is_relative) {
     index += relative_address_is_a0 ? state_.address_register : state_.GetLoopAddress();
   }
   if (index < 0) {
-    return std::array<float, 4>();
+    return std::array<f32, 4>();
   }
   auto base_and_size_minus_1 = register_file_.Get<xenos::reg::SQ_VS_CONST>(
       shader_type_ == xenos::ShaderType::kVertex ? xenos::Register::SQ_VS_CONST
                                                  : xenos::Register::SQ_PS_CONST);
-  if (static_cast<uint32_t>(index) > base_and_size_minus_1.size) {
-    return std::array<float, 4>();
+  if (static_cast<u32>(index) > base_and_size_minus_1.size) {
+    return std::array<f32, 4>();
   }
   index += base_and_size_minus_1.base;
   if (index >= 512) {
-    return std::array<float, 4>();
+    return std::array<f32, 4>();
   }
-  std::array<float, 4> value;
+  std::array<f32, 4> value;
   std::memcpy(
       value.data(),
       &register_file_[std::to_underlying(xenos::Register::SHADER_CONSTANT_000_X) + 4 * index],
-      sizeof(float) * 4);
+      sizeof(f32) * 4);
   return value;
 }
 
 void ShaderInterpreter::ExecuteAluInstruction(xenos::ucode::AluInstruction instr) {
-  float vector_result[4] = {};
+  f32 vector_result[4] = {};
   xenos::ucode::AluVectorOpcode vector_opcode = instr.vector_opcode();
   const xenos::ucode::AluVectorOpcodeInfo& vector_opcode_info =
       xenos::ucode::GetAluVectorOpcodeInfo(vector_opcode);
-  uint32_t vector_result_write_mask = instr.GetVectorOpResultWriteMask();
+  u32 vector_result_write_mask = instr.GetVectorOpResultWriteMask();
   if (vector_result_write_mask || vector_opcode_info.changed_state) {
-    float vector_operands[3][4];
-    for (uint32_t i = 0; i < 3; ++i) {
+    f32 vector_operands[3][4];
+    for (u32 i = 0; i < 3; ++i) {
       if (!vector_opcode_info.operand_components_used[i]) {
         continue;
       }
-      const float* vector_src_ptr;
-      uint32_t vector_src_register = instr.src_reg(1 + i);
+      const f32* vector_src_ptr;
+      u32 vector_src_register = instr.src_reg(1 + i);
       bool vector_src_absolute = false;
-      std::array<float, 4> vector_src_float_constant;
+      std::array<f32, 4> vector_src_float_constant;
       if (instr.src_is_temp(1 + i)) {
         vector_src_ptr = GetTempRegister(
             xenos::ucode::AluInstruction::src_temp_reg(vector_src_register),
@@ -286,15 +286,15 @@ void ShaderInterpreter::ExecuteAluInstruction(xenos::ucode::AluInstruction instr
                              instr.is_const_address_register_relative());
         vector_src_ptr = vector_src_float_constant.data();
       }
-      uint32_t vector_src_absolute_mask = ~(static_cast<uint32_t>(vector_src_absolute) << 31);
-      uint32_t vector_src_negate_bit = static_cast<uint32_t>(instr.src_negate(1 + i)) << 31;
-      uint32_t vector_src_swizzle = instr.src_swizzle(1 + i);
-      for (uint32_t j = 0; j < 4; ++j) {
-        float vector_src_component =
+      u32 vector_src_absolute_mask = ~(static_cast<u32>(vector_src_absolute) << 31);
+      u32 vector_src_negate_bit = static_cast<u32>(instr.src_negate(1 + i)) << 31;
+      u32 vector_src_swizzle = instr.src_swizzle(1 + i);
+      for (u32 j = 0; j < 4; ++j) {
+        f32 vector_src_component =
             FlushDenormal(vector_src_ptr[xenos::ucode::AluInstruction::GetSwizzledComponentIndex(
                 vector_src_swizzle, j)]);
-        vector_src_component = std::bit_cast<float>(
-            (std::bit_cast<uint32_t>(vector_src_component) & vector_src_absolute_mask) ^
+        vector_src_component = std::bit_cast<f32>(
+            (std::bit_cast<u32>(vector_src_component) & vector_src_absolute_mask) ^
             vector_src_negate_bit);
         vector_operands[i][j] = vector_src_component;
       }
@@ -303,12 +303,12 @@ void ShaderInterpreter::ExecuteAluInstruction(xenos::ucode::AluInstruction instr
     bool replicate_vector_result_x = false;
     switch (vector_opcode) {
       case xenos::ucode::AluVectorOpcode::kAdd: {
-        for (uint32_t i = 0; i < 4; ++i) {
+        for (u32 i = 0; i < 4; ++i) {
           vector_result[i] = vector_operands[0][i] + vector_operands[1][i];
         }
       } break;
       case xenos::ucode::AluVectorOpcode::kMul: {
-        for (uint32_t i = 0; i < 4; ++i) {
+        for (u32 i = 0; i < 4; ++i) {
           // Direct3D 9 gives +0 for 0 or denormal * anything.
           vector_result[i] = (vector_operands[0][i] && vector_operands[1][i])
                                  ? vector_operands[0][i] * vector_operands[1][i]
@@ -316,58 +316,58 @@ void ShaderInterpreter::ExecuteAluInstruction(xenos::ucode::AluInstruction instr
         }
       } break;
       case xenos::ucode::AluVectorOpcode::kMax: {
-        for (uint32_t i = 0; i < 4; ++i) {
+        for (u32 i = 0; i < 4; ++i) {
           vector_result[i] = std::isgreaterequal(vector_operands[0][i], vector_operands[1][i])
                                  ? vector_operands[0][i]
                                  : vector_operands[1][i];
         }
       } break;
       case xenos::ucode::AluVectorOpcode::kMin: {
-        for (uint32_t i = 0; i < 4; ++i) {
+        for (u32 i = 0; i < 4; ++i) {
           vector_result[i] = std::isless(vector_operands[0][i], vector_operands[1][i])
                                  ? vector_operands[0][i]
                                  : vector_operands[1][i];
         }
       } break;
       case xenos::ucode::AluVectorOpcode::kSeq: {
-        for (uint32_t i = 0; i < 4; ++i) {
-          vector_result[i] = static_cast<float>(vector_operands[0][i] == vector_operands[1][i]);
+        for (u32 i = 0; i < 4; ++i) {
+          vector_result[i] = static_cast<f32>(vector_operands[0][i] == vector_operands[1][i]);
         }
       } break;
       case xenos::ucode::AluVectorOpcode::kSgt: {
-        for (uint32_t i = 0; i < 4; ++i) {
+        for (u32 i = 0; i < 4; ++i) {
           vector_result[i] =
-              static_cast<float>(std::isgreater(vector_operands[0][i], vector_operands[1][i]));
+              static_cast<f32>(std::isgreater(vector_operands[0][i], vector_operands[1][i]));
         }
       } break;
       case xenos::ucode::AluVectorOpcode::kSge: {
-        for (uint32_t i = 0; i < 4; ++i) {
+        for (u32 i = 0; i < 4; ++i) {
           vector_result[i] =
-              static_cast<float>(std::isgreaterequal(vector_operands[0][i], vector_operands[1][i]));
+              static_cast<f32>(std::isgreaterequal(vector_operands[0][i], vector_operands[1][i]));
         }
       } break;
       case xenos::ucode::AluVectorOpcode::kSne: {
-        for (uint32_t i = 0; i < 4; ++i) {
-          vector_result[i] = static_cast<float>(vector_operands[0][i] != vector_operands[1][i]);
+        for (u32 i = 0; i < 4; ++i) {
+          vector_result[i] = static_cast<f32>(vector_operands[0][i] != vector_operands[1][i]);
         }
       } break;
       case xenos::ucode::AluVectorOpcode::kFrc: {
-        for (uint32_t i = 0; i < 4; ++i) {
+        for (u32 i = 0; i < 4; ++i) {
           vector_result[i] = vector_operands[0][i] - std::floor(vector_operands[0][i]);
         }
       } break;
       case xenos::ucode::AluVectorOpcode::kTrunc: {
-        for (uint32_t i = 0; i < 4; ++i) {
+        for (u32 i = 0; i < 4; ++i) {
           vector_result[i] = std::trunc(vector_operands[0][i]);
         }
       } break;
       case xenos::ucode::AluVectorOpcode::kFloor: {
-        for (uint32_t i = 0; i < 4; ++i) {
+        for (u32 i = 0; i < 4; ++i) {
           vector_result[i] = std::floor(vector_operands[0][i]);
         }
       } break;
       case xenos::ucode::AluVectorOpcode::kMad: {
-        for (uint32_t i = 0; i < 4; ++i) {
+        for (u32 i = 0; i < 4; ++i) {
           // D3D9 0 or denormal * anything is +0 and +0 + -0 must be +0, so add is unconditional.
           vector_result[i] = ((vector_operands[0][i] && vector_operands[1][i])
                                   ? vector_operands[0][i] * vector_operands[1][i]
@@ -376,27 +376,27 @@ void ShaderInterpreter::ExecuteAluInstruction(xenos::ucode::AluInstruction instr
         }
       } break;
       case xenos::ucode::AluVectorOpcode::kCndEq: {
-        for (uint32_t i = 0; i < 4; ++i) {
+        for (u32 i = 0; i < 4; ++i) {
           vector_result[i] =
               vector_operands[0][i] == 0.0f ? vector_operands[1][i] : vector_operands[2][i];
         }
       } break;
       case xenos::ucode::AluVectorOpcode::kCndGe: {
-        for (uint32_t i = 0; i < 4; ++i) {
+        for (u32 i = 0; i < 4; ++i) {
           vector_result[i] = std::isgreaterequal(vector_operands[0][i], 0.0f)
                                  ? vector_operands[1][i]
                                  : vector_operands[2][i];
         }
       } break;
       case xenos::ucode::AluVectorOpcode::kCndGt: {
-        for (uint32_t i = 0; i < 4; ++i) {
+        for (u32 i = 0; i < 4; ++i) {
           vector_result[i] = std::isgreater(vector_operands[0][i], 0.0f) ? vector_operands[1][i]
                                                                          : vector_operands[2][i];
         }
       } break;
       case xenos::ucode::AluVectorOpcode::kDp4: {
         vector_result[0] = 0.0f;
-        for (uint32_t i = 0; i < 4; ++i) {
+        for (u32 i = 0; i < 4; ++i) {
           // D3D9 0 or denormal * anything is +0 and +0 + -0 must be +0, so add is unconditional.
           vector_result[0] += (vector_operands[0][i] && vector_operands[1][i])
                                   ? vector_operands[0][i] * vector_operands[1][i]
@@ -406,7 +406,7 @@ void ShaderInterpreter::ExecuteAluInstruction(xenos::ucode::AluInstruction instr
       } break;
       case xenos::ucode::AluVectorOpcode::kDp3: {
         vector_result[0] = 0.0f;
-        for (uint32_t i = 0; i < 3; ++i) {
+        for (u32 i = 0; i < 3; ++i) {
           // D3D9 0 or denormal * anything is +0 and +0 + -0 must be +0, so add is unconditional.
           vector_result[0] += (vector_operands[0][i] && vector_operands[1][i])
                                   ? vector_operands[0][i] * vector_operands[1][i]
@@ -417,7 +417,7 @@ void ShaderInterpreter::ExecuteAluInstruction(xenos::ucode::AluInstruction instr
       case xenos::ucode::AluVectorOpcode::kDp2Add: {
         // Add even for zero operands because +0 + -0 must be +0.
         vector_result[0] = 0.0f;
-        for (uint32_t i = 0; i < 2; ++i) {
+        for (u32 i = 0; i < 2; ++i) {
           // Direct3D 9 gives +0 for 0 or denormal * anything.
           vector_result[0] += (vector_operands[0][i] && vector_operands[1][i])
                                   ? vector_operands[0][i] * vector_operands[1][i]
@@ -428,10 +428,10 @@ void ShaderInterpreter::ExecuteAluInstruction(xenos::ucode::AluInstruction instr
       } break;
       case xenos::ucode::AluVectorOpcode::kCube: {
         // Operand [0] is .z_xy.
-        float x = vector_operands[0][2];
-        float y = vector_operands[0][3];
-        float z = vector_operands[0][0];
-        float x_abs = std::abs(x), y_abs = std::abs(y), z_abs = std::abs(z);
+        f32 x = vector_operands[0][2];
+        f32 y = vector_operands[0][3];
+        f32 z = vector_operands[0][0];
+        f32 x_abs = std::abs(x), y_abs = std::abs(y), z_abs = std::abs(z);
         // Result is T coordinate, S coordinate, 2 * major axis, face ID.
         if (z_abs >= x_abs && z_abs >= y_abs) {
           bool z_negative = std::isless(z, 0.0f);
@@ -502,33 +502,33 @@ void ShaderInterpreter::ExecuteAluInstruction(xenos::ucode::AluInstruction instr
         replicate_vector_result_x = true;
       } break;
       case xenos::ucode::AluVectorOpcode::kKillEq: {
-        vector_result[0] = static_cast<float>(vector_operands[0][0] == vector_operands[1][0] ||
-                                              vector_operands[0][1] == vector_operands[1][1] ||
-                                              vector_operands[0][2] == vector_operands[1][2] ||
-                                              vector_operands[0][3] == vector_operands[1][3]);
+        vector_result[0] = static_cast<f32>(vector_operands[0][0] == vector_operands[1][0] ||
+                                            vector_operands[0][1] == vector_operands[1][1] ||
+                                            vector_operands[0][2] == vector_operands[1][2] ||
+                                            vector_operands[0][3] == vector_operands[1][3]);
         replicate_vector_result_x = true;
       } break;
       case xenos::ucode::AluVectorOpcode::kKillGt: {
         vector_result[0] =
-            static_cast<float>(std::isgreater(vector_operands[0][0], vector_operands[1][0]) ||
-                               std::isgreater(vector_operands[0][1], vector_operands[1][1]) ||
-                               std::isgreater(vector_operands[0][2], vector_operands[1][2]) ||
-                               std::isgreater(vector_operands[0][3], vector_operands[1][3]));
+            static_cast<f32>(std::isgreater(vector_operands[0][0], vector_operands[1][0]) ||
+                             std::isgreater(vector_operands[0][1], vector_operands[1][1]) ||
+                             std::isgreater(vector_operands[0][2], vector_operands[1][2]) ||
+                             std::isgreater(vector_operands[0][3], vector_operands[1][3]));
         replicate_vector_result_x = true;
       } break;
       case xenos::ucode::AluVectorOpcode::kKillGe: {
         vector_result[0] =
-            static_cast<float>(std::isgreaterequal(vector_operands[0][0], vector_operands[1][0]) ||
-                               std::isgreaterequal(vector_operands[0][1], vector_operands[1][1]) ||
-                               std::isgreaterequal(vector_operands[0][2], vector_operands[1][2]) ||
-                               std::isgreaterequal(vector_operands[0][3], vector_operands[1][3]));
+            static_cast<f32>(std::isgreaterequal(vector_operands[0][0], vector_operands[1][0]) ||
+                             std::isgreaterequal(vector_operands[0][1], vector_operands[1][1]) ||
+                             std::isgreaterequal(vector_operands[0][2], vector_operands[1][2]) ||
+                             std::isgreaterequal(vector_operands[0][3], vector_operands[1][3]));
         replicate_vector_result_x = true;
       } break;
       case xenos::ucode::AluVectorOpcode::kKillNe: {
-        vector_result[0] = static_cast<float>(vector_operands[0][0] != vector_operands[1][0] ||
-                                              vector_operands[0][1] != vector_operands[1][1] ||
-                                              vector_operands[0][2] != vector_operands[1][2] ||
-                                              vector_operands[0][3] != vector_operands[1][3]);
+        vector_result[0] = static_cast<f32>(vector_operands[0][0] != vector_operands[1][0] ||
+                                            vector_operands[0][1] != vector_operands[1][1] ||
+                                            vector_operands[0][2] != vector_operands[1][2] ||
+                                            vector_operands[0][3] != vector_operands[1][3]);
         replicate_vector_result_x = true;
       } break;
       case xenos::ucode::AluVectorOpcode::kDst: {
@@ -541,9 +541,9 @@ void ShaderInterpreter::ExecuteAluInstruction(xenos::ucode::AluInstruction instr
         vector_result[3] = vector_operands[1][3];
       } break;
       case xenos::ucode::AluVectorOpcode::kMaxA: {
-        state_.address_register = static_cast<int32_t>(
+        state_.address_register = static_cast<i32>(
             std::floor(rex::clamp_float(vector_operands[0][3], -256.0f, 255.0f) + 0.5f));
-        for (uint32_t i = 0; i < 4; ++i) {
+        for (u32 i = 0; i < 4; ++i) {
           vector_result[i] = std::isgreaterequal(vector_operands[0][i], vector_operands[1][i])
                                  ? vector_operands[0][i]
                                  : vector_operands[1][i];
@@ -554,7 +554,7 @@ void ShaderInterpreter::ExecuteAluInstruction(xenos::ucode::AluInstruction instr
       }
     }
     if (replicate_vector_result_x) {
-      for (uint32_t i = 1; i < 4; ++i) {
+      for (u32 i = 1; i < 4; ++i) {
         vector_result[i] = vector_result[0];
       }
     }
@@ -563,15 +563,15 @@ void ShaderInterpreter::ExecuteAluInstruction(xenos::ucode::AluInstruction instr
   xenos::ucode::AluScalarOpcode scalar_opcode = instr.scalar_opcode();
   const xenos::ucode::AluScalarOpcodeInfo& scalar_opcode_info =
       xenos::ucode::GetAluScalarOpcodeInfo(scalar_opcode);
-  float scalar_operands[2];
-  uint32_t scalar_operand_component_count = 0;
+  f32 scalar_operands[2];
+  u32 scalar_operand_component_count = 0;
   bool scalar_src_absolute = false;
   switch (scalar_opcode_info.operand_count) {
     case 1: {
       // r#/c#.w or r#/c#.wx.
-      const float* scalar_src_ptr;
-      uint32_t scalar_src_register = instr.src_reg(3);
-      std::array<float, 4> scalar_src_float_constant;
+      const f32* scalar_src_ptr;
+      u32 scalar_src_register = instr.src_reg(3);
+      std::array<f32, 4> scalar_src_float_constant;
       if (instr.src_is_temp(3)) {
         scalar_src_ptr = GetTempRegister(
             xenos::ucode::AluInstruction::src_temp_reg(scalar_src_register),
@@ -584,18 +584,18 @@ void ShaderInterpreter::ExecuteAluInstruction(xenos::ucode::AluInstruction instr
                              instr.is_const_address_register_relative());
         scalar_src_ptr = scalar_src_float_constant.data();
       }
-      uint32_t scalar_src_swizzle = instr.src_swizzle(3);
+      u32 scalar_src_swizzle = instr.src_swizzle(3);
       scalar_operand_component_count = scalar_opcode_info.single_operand_is_two_component ? 2 : 1;
-      for (uint32_t i = 0; i < scalar_operand_component_count; ++i) {
+      for (u32 i = 0; i < scalar_operand_component_count; ++i) {
         scalar_operands[i] = scalar_src_ptr[xenos::ucode::AluInstruction::GetSwizzledComponentIndex(
             scalar_src_swizzle, (3 + i) & 3)];
       }
     } break;
     case 2: {
       scalar_operand_component_count = 2;
-      uint32_t scalar_src_absolute_mask = ~(static_cast<uint32_t>(instr.abs_constants()) << 31);
-      uint32_t scalar_src_negate_bit = static_cast<uint32_t>(instr.src_negate(3)) << 31;
-      uint32_t scalar_src_swizzle = instr.src_swizzle(3);
+      u32 scalar_src_absolute_mask = ~(static_cast<u32>(instr.abs_constants()) << 31);
+      u32 scalar_src_negate_bit = static_cast<u32>(instr.src_negate(3)) << 31;
+      u32 scalar_src_swizzle = instr.src_swizzle(3);
       // c#.w.
       scalar_operands[0] = GetFloatConstant(instr.src_reg(3), instr.src_const_is_addressed(3),
                                             instr.is_const_address_register_relative())
@@ -607,13 +607,12 @@ void ShaderInterpreter::ExecuteAluInstruction(xenos::ucode::AluInstruction instr
     } break;
   }
   if (scalar_operand_component_count) {
-    uint32_t scalar_src_absolute_mask = ~(static_cast<uint32_t>(scalar_src_absolute) << 31);
-    uint32_t scalar_src_negate_bit = static_cast<uint32_t>(instr.src_negate(3)) << 31;
-    for (uint32_t i = 0; i < scalar_operand_component_count; ++i) {
-      float scalar_operand = FlushDenormal(scalar_operands[i]);
-      scalar_operand = std::bit_cast<float>(
-          (std::bit_cast<uint32_t>(scalar_operand) & scalar_src_absolute_mask) ^
-          scalar_src_negate_bit);
+    u32 scalar_src_absolute_mask = ~(static_cast<u32>(scalar_src_absolute) << 31);
+    u32 scalar_src_negate_bit = static_cast<u32>(instr.src_negate(3)) << 31;
+    for (u32 i = 0; i < scalar_operand_component_count; ++i) {
+      f32 scalar_operand = FlushDenormal(scalar_operands[i]);
+      scalar_operand = std::bit_cast<f32>(
+          (std::bit_cast<u32>(scalar_operand) & scalar_src_absolute_mask) ^ scalar_src_negate_bit);
       scalar_operands[i] = scalar_operand;
     }
   }
@@ -662,16 +661,16 @@ void ShaderInterpreter::ExecuteAluInstruction(xenos::ucode::AluInstruction instr
                                    : scalar_operands[1];
     } break;
     case xenos::ucode::AluScalarOpcode::kSeqs: {
-      state_.previous_scalar = static_cast<float>(scalar_operands[0] == 0.0f);
+      state_.previous_scalar = static_cast<f32>(scalar_operands[0] == 0.0f);
     } break;
     case xenos::ucode::AluScalarOpcode::kSgts: {
-      state_.previous_scalar = static_cast<float>(std::isgreater(scalar_operands[0], 0.0f));
+      state_.previous_scalar = static_cast<f32>(std::isgreater(scalar_operands[0], 0.0f));
     } break;
     case xenos::ucode::AluScalarOpcode::kSges: {
-      state_.previous_scalar = static_cast<float>(std::isgreaterequal(scalar_operands[0], 0.0f));
+      state_.previous_scalar = static_cast<f32>(std::isgreaterequal(scalar_operands[0], 0.0f));
     } break;
     case xenos::ucode::AluScalarOpcode::kSnes: {
-      state_.previous_scalar = static_cast<float>(scalar_operands[0] != 0.0f);
+      state_.previous_scalar = static_cast<f32>(scalar_operands[0] != 0.0f);
     } break;
     case xenos::ucode::AluScalarOpcode::kFrcs: {
       state_.previous_scalar = scalar_operands[0] - std::floor(scalar_operands[0]);
@@ -733,7 +732,7 @@ void ShaderInterpreter::ExecuteAluInstruction(xenos::ucode::AluInstruction instr
       state_.previous_scalar = 1.0f / std::sqrt(scalar_operands[0]);
     } break;
     case xenos::ucode::AluScalarOpcode::kMaxAs: {
-      state_.address_register = static_cast<int32_t>(
+      state_.address_register = static_cast<i32>(
           std::floor(rex::clamp_float(scalar_operands[0], -256.0f, 255.0f) + 0.5f));
       state_.previous_scalar = std::isgreaterequal(scalar_operands[0], scalar_operands[1])
                                    ? scalar_operands[0]
@@ -741,7 +740,7 @@ void ShaderInterpreter::ExecuteAluInstruction(xenos::ucode::AluInstruction instr
     } break;
     case xenos::ucode::AluScalarOpcode::kMaxAsf: {
       state_.address_register =
-          static_cast<int32_t>(std::floor(rex::clamp_float(scalar_operands[0], -256.0f, 255.0f)));
+          static_cast<i32>(std::floor(rex::clamp_float(scalar_operands[0], -256.0f, 255.0f)));
       state_.previous_scalar = std::isgreaterequal(scalar_operands[0], scalar_operands[1])
                                    ? scalar_operands[0]
                                    : scalar_operands[1];
@@ -756,19 +755,19 @@ void ShaderInterpreter::ExecuteAluInstruction(xenos::ucode::AluInstruction instr
     } break;
     case xenos::ucode::AluScalarOpcode::kSetpEq: {
       state_.predicate = scalar_operands[0] == 0.0f;
-      state_.previous_scalar = static_cast<float>(!state_.predicate);
+      state_.previous_scalar = static_cast<f32>(!state_.predicate);
     } break;
     case xenos::ucode::AluScalarOpcode::kSetpNe: {
       state_.predicate = scalar_operands[0] != 0.0f;
-      state_.previous_scalar = static_cast<float>(!state_.predicate);
+      state_.previous_scalar = static_cast<f32>(!state_.predicate);
     } break;
     case xenos::ucode::AluScalarOpcode::kSetpGt: {
       state_.predicate = std::isgreater(scalar_operands[0], 0.0f);
-      state_.previous_scalar = static_cast<float>(!state_.predicate);
+      state_.previous_scalar = static_cast<f32>(!state_.predicate);
     } break;
     case xenos::ucode::AluScalarOpcode::kSetpGe: {
       state_.predicate = std::isgreaterequal(scalar_operands[0], 0.0f);
-      state_.previous_scalar = static_cast<float>(!state_.predicate);
+      state_.previous_scalar = static_cast<f32>(!state_.predicate);
     } break;
     case xenos::ucode::AluScalarOpcode::kSetpInv: {
       state_.predicate = scalar_operands[0] == 1.0f;
@@ -776,7 +775,7 @@ void ShaderInterpreter::ExecuteAluInstruction(xenos::ucode::AluInstruction instr
           state_.predicate ? 0.0f : (scalar_operands[0] == 0.0f ? 1.0f : scalar_operands[0]);
     } break;
     case xenos::ucode::AluScalarOpcode::kSetpPop: {
-      float new_counter = scalar_operands[0] - 1.0f;
+      f32 new_counter = scalar_operands[0] - 1.0f;
       state_.predicate = std::islessequal(new_counter, 0.0f);
       state_.previous_scalar = state_.predicate ? 0.0f : new_counter;
     } break;
@@ -789,19 +788,19 @@ void ShaderInterpreter::ExecuteAluInstruction(xenos::ucode::AluInstruction instr
       state_.previous_scalar = state_.predicate ? 0.0f : scalar_operands[0];
     } break;
     case xenos::ucode::AluScalarOpcode::kKillsEq: {
-      state_.previous_scalar = static_cast<float>(scalar_operands[0] == 0.0f);
+      state_.previous_scalar = static_cast<f32>(scalar_operands[0] == 0.0f);
     } break;
     case xenos::ucode::AluScalarOpcode::kKillsGt: {
-      state_.previous_scalar = static_cast<float>(std::isgreater(scalar_operands[0], 0.0f));
+      state_.previous_scalar = static_cast<f32>(std::isgreater(scalar_operands[0], 0.0f));
     } break;
     case xenos::ucode::AluScalarOpcode::kKillsGe: {
-      state_.previous_scalar = static_cast<float>(std::isgreaterequal(scalar_operands[0], 0.0f));
+      state_.previous_scalar = static_cast<f32>(std::isgreaterequal(scalar_operands[0], 0.0f));
     } break;
     case xenos::ucode::AluScalarOpcode::kKillsNe: {
-      state_.previous_scalar = static_cast<float>(scalar_operands[0] != 0.0f);
+      state_.previous_scalar = static_cast<f32>(scalar_operands[0] != 0.0f);
     } break;
     case xenos::ucode::AluScalarOpcode::kKillsOne: {
-      state_.previous_scalar = static_cast<float>(scalar_operands[0] == 1.0f);
+      state_.previous_scalar = static_cast<f32>(scalar_operands[0] == 1.0f);
     } break;
     case xenos::ucode::AluScalarOpcode::kSqrt: {
       state_.previous_scalar = std::sqrt(scalar_operands[0]);
@@ -820,23 +819,23 @@ void ShaderInterpreter::ExecuteAluInstruction(xenos::ucode::AluInstruction instr
   }
 
   if (instr.vector_clamp()) {
-    for (uint32_t i = 0; i < 4; ++i) {
+    for (u32 i = 0; i < 4; ++i) {
       vector_result[i] = rex::saturate(vector_result[i]);
     }
   }
-  float scalar_result =
+  f32 scalar_result =
       instr.scalar_clamp() ? rex::saturate(state_.previous_scalar) : state_.previous_scalar;
 
-  uint32_t scalar_result_write_mask = instr.GetScalarOpResultWriteMask();
+  u32 scalar_result_write_mask = instr.GetScalarOpResultWriteMask();
   if (instr.is_export()) {
     if (export_sink_) {
-      float export_value[4];
-      uint32_t export_constant_1_mask = instr.GetConstant1WriteMask();
-      uint32_t export_mask = vector_result_write_mask | scalar_result_write_mask |
-                             instr.GetConstant0WriteMask() | export_constant_1_mask;
-      for (uint32_t i = 0; i < 4; ++i) {
-        uint32_t export_component_bit = UINT32_C(1) << i;
-        float export_component = 0.0f;
+      f32 export_value[4];
+      u32 export_constant_1_mask = instr.GetConstant1WriteMask();
+      u32 export_mask = vector_result_write_mask | scalar_result_write_mask |
+                        instr.GetConstant0WriteMask() | export_constant_1_mask;
+      for (u32 i = 0; i < 4; ++i) {
+        u32 export_component_bit = UINT32_C(1) << i;
+        f32 export_component = 0.0f;
         if (vector_result_write_mask & export_component_bit) {
           export_component = vector_result[i];
         } else if (scalar_result_write_mask & export_component_bit) {
@@ -853,16 +852,16 @@ void ShaderInterpreter::ExecuteAluInstruction(xenos::ucode::AluInstruction instr
     }
   } else {
     if (vector_result_write_mask) {
-      float* vector_dest = GetTempRegister(instr.vector_dest(), instr.is_vector_dest_relative());
-      for (uint32_t i = 0; i < 4; ++i) {
+      f32* vector_dest = GetTempRegister(instr.vector_dest(), instr.is_vector_dest_relative());
+      for (u32 i = 0; i < 4; ++i) {
         if (vector_result_write_mask & (UINT32_C(1) << i)) {
           vector_dest[i] = vector_result[i];
         }
       }
     }
     if (scalar_result_write_mask) {
-      float* scalar_dest = GetTempRegister(instr.scalar_dest(), instr.is_scalar_dest_relative());
-      for (uint32_t i = 0; i < 4; ++i) {
+      f32* scalar_dest = GetTempRegister(instr.scalar_dest(), instr.is_scalar_dest_relative());
+      for (u32 i = 0; i < 4; ++i) {
         if (scalar_result_write_mask & (UINT32_C(1) << i)) {
           scalar_dest[i] = scalar_result;
         }
@@ -871,10 +870,10 @@ void ShaderInterpreter::ExecuteAluInstruction(xenos::ucode::AluInstruction instr
   }
 }
 
-void ShaderInterpreter::StoreFetchResult(uint32_t dest, bool is_dest_relative, uint32_t swizzle,
-                                         const float* value) {
-  float* dest_data = GetTempRegister(dest, is_dest_relative);
-  for (uint32_t i = 0; i < 4; ++i) {
+void ShaderInterpreter::StoreFetchResult(u32 dest, bool is_dest_relative, u32 swizzle,
+                                         const f32* value) {
+  f32* dest_data = GetTempRegister(dest, is_dest_relative);
+  for (u32 i = 0; i < 4; ++i) {
     xenos::ucode::FetchDestinationSwizzle component_swizzle =
         xenos::ucode::GetFetchDestinationComponentSwizzle(swizzle, i);
     switch (component_swizzle) {
@@ -913,35 +912,35 @@ void ShaderInterpreter::ExecuteVertexFetchInstruction(xenos::ucode::VertexFetchI
       register_file_.GetVertexFetch(state_.vfetch_full_last.fetch_constant_index());
 
   if (!instr.is_mini_fetch()) {
-    uint32_t vertex_index = static_cast<uint32_t>(
+    u32 vertex_index = static_cast<u32>(
         std::floor(GetTempRegister(instr.src(), instr.is_src_relative())[instr.src_swizzle()] +
                    (instr.is_index_rounded() ? 0.5f : 0.0f)));
     state_.vfetch_address_dwords = instr.stride() * vertex_index + fetch_constant.address;
   }
 
-  float result[4] = {};
-  uint32_t dest_swizzle = instr.dest_swizzle();
-  uint32_t used_result_components = 0b0000;
-  for (uint32_t i = 0; i < 4; ++i) {
-    uint32_t dest_component_swizzle = (dest_swizzle >> (3 * i)) & 0b111;
+  f32 result[4] = {};
+  u32 dest_swizzle = instr.dest_swizzle();
+  u32 used_result_components = 0b0000;
+  for (u32 i = 0; i < 4; ++i) {
+    u32 dest_component_swizzle = (dest_swizzle >> (3 * i)) & 0b111;
     if (dest_component_swizzle <= 3) {
       used_result_components |= UINT32_C(1) << dest_component_swizzle;
     }
   }
-  uint32_t needed_dwords =
+  u32 needed_dwords =
       xenos::GetVertexFormatNeededWords(instr.data_format(), used_result_components);
   if (needed_dwords) {
-    uint32_t data[4] = {};
-    const uint32_t* memory_dwords = reinterpret_cast<const uint32_t*>(memory_.physical_membase());
-    uint32_t buffer_end_dwords = fetch_constant.address + fetch_constant.size;
-    uint32_t dword_0_address_dwords =
-        static_cast<uint32_t>(static_cast<int32_t>(state_.vfetch_address_dwords) + instr.offset());
-    for (uint32_t i = 0; i < 4; ++i) {
+    u32 data[4] = {};
+    const u32* memory_dwords = reinterpret_cast<const u32*>(memory_.physical_membase());
+    u32 buffer_end_dwords = fetch_constant.address + fetch_constant.size;
+    u32 dword_0_address_dwords =
+        static_cast<u32>(static_cast<i32>(state_.vfetch_address_dwords) + instr.offset());
+    for (u32 i = 0; i < 4; ++i) {
       if (!(needed_dwords & (UINT32_C(1) << i))) {
         continue;
       }
-      uint32_t dword_value = 0;
-      uint32_t dword_address_dwords = dword_0_address_dwords + i;
+      u32 dword_value = 0;
+      u32 dword_address_dwords = dword_0_address_dwords + i;
       if (dword_address_dwords >= fetch_constant.address &&
           dword_address_dwords < buffer_end_dwords) {
         dword_value = xenos::GPUSwap(memory_dwords[dword_address_dwords], fetch_constant.endian);
@@ -949,9 +948,9 @@ void ShaderInterpreter::ExecuteVertexFetchInstruction(xenos::ucode::VertexFetchI
       data[i] = dword_value;
     }
 
-    uint32_t packed_components = 0b0000;
-    uint32_t packed_widths[4], packed_offsets[4];
-    uint32_t packed_dwords[] = {data[0], data[0]};
+    u32 packed_components = 0b0000;
+    u32 packed_widths[4], packed_offsets[4];
+    u32 packed_dwords[] = {data[0], data[0]};
     switch (instr.data_format()) {
       case xenos::VertexFormat::k_8_8_8_8: {
         packed_components = 0b1111;
@@ -995,46 +994,46 @@ void ShaderInterpreter::ExecuteVertexFetchInstruction(xenos::ucode::VertexFetchI
       } break;
       case xenos::VertexFormat::k_16_16_16_16_FLOAT: {
         if (used_result_components & 0b1000) {
-          result[3] = rex::xenos::HalfToFloat(static_cast<uint16_t>(data[1] >> 16));
+          result[3] = rex::xenos::HalfToFloat(static_cast<u16>(data[1] >> 16));
         }
         if (used_result_components & 0b0100) {
-          result[2] = rex::xenos::HalfToFloat(static_cast<uint16_t>(data[1]));
+          result[2] = rex::xenos::HalfToFloat(static_cast<u16>(data[1]));
         }
       }
         [[fallthrough]];
       case xenos::VertexFormat::k_16_16_FLOAT: {
         if (used_result_components & 0b0010) {
-          result[1] = rex::xenos::HalfToFloat(static_cast<uint16_t>(data[0] >> 16));
+          result[1] = rex::xenos::HalfToFloat(static_cast<u16>(data[0] >> 16));
         }
         if (used_result_components & 0b0001) {
-          result[0] = rex::xenos::HalfToFloat(static_cast<uint16_t>(data[0]));
+          result[0] = rex::xenos::HalfToFloat(static_cast<u16>(data[0]));
         }
       } break;
       case xenos::VertexFormat::k_32:
       case xenos::VertexFormat::k_32_32:
       case xenos::VertexFormat::k_32_32_32_32: {
         if (instr.is_signed()) {
-          for (uint32_t i = 0; i < 4; ++i) {
-            result[i] = static_cast<float>(static_cast<int32_t>(data[i]));
+          for (u32 i = 0; i < 4; ++i) {
+            result[i] = static_cast<f32>(static_cast<i32>(data[i]));
           }
           if (instr.is_normalized()) {
             if (instr.signed_rf_mode() == xenos::SignedRepeatingFractionMode::kNoZero) {
-              for (uint32_t i = 0; i < 4; ++i) {
+              for (u32 i = 0; i < 4; ++i) {
                 result[i] = (result[i] + 0.5f) / 2147483647.5f;
               }
             } else {
-              for (uint32_t i = 0; i < 4; ++i) {
+              for (u32 i = 0; i < 4; ++i) {
                 result[i] /= 2147483647.0f;
                 // No clamp to -1 for signed as the smallest value is -2^23 / 2^23 after rounding.
               }
             }
           }
         } else {
-          for (uint32_t i = 0; i < 4; ++i) {
-            result[i] = static_cast<float>(data[i]);
+          for (u32 i = 0; i < 4; ++i) {
+            result[i] = static_cast<f32>(data[i]);
           }
           if (instr.is_normalized()) {
-            for (uint32_t i = 0; i < 4; ++i) {
+            for (u32 i = 0; i < 4; ++i) {
               result[i] /= 4294967295.0f;
             }
           }
@@ -1044,8 +1043,8 @@ void ShaderInterpreter::ExecuteVertexFetchInstruction(xenos::ucode::VertexFetchI
       case xenos::VertexFormat::k_32_32_FLOAT:
       case xenos::VertexFormat::k_32_32_32_32_FLOAT:
       case xenos::VertexFormat::k_32_32_32_FLOAT: {
-        for (uint32_t i = 0; i < 4; ++i) {
-          result[i] = std::bit_cast<float>(data[i]);
+        for (u32 i = 0; i < 4; ++i) {
+          result[i] = std::bit_cast<f32>(data[i]);
         }
       } break;
       default:
@@ -1056,37 +1055,36 @@ void ShaderInterpreter::ExecuteVertexFetchInstruction(xenos::ucode::VertexFetchI
     packed_components &= used_result_components;
     if (packed_components) {
       if (instr.is_signed()) {
-        for (uint32_t i = 0; i < 4; ++i) {
+        for (u32 i = 0; i < 4; ++i) {
           if (!(packed_components & (UINT32_C(1) << i))) {
             continue;
           }
-          uint32_t packed_width = packed_widths[i];
-          result[i] = static_cast<float>(static_cast<int32_t>(packed_dwords[i >> 1])
-                                             << (32 - (packed_width + packed_offsets[i])) >>
-                                         (32 - packed_width));
+          u32 packed_width = packed_widths[i];
+          result[i] = static_cast<f32>(static_cast<i32>(packed_dwords[i >> 1])
+                                           << (32 - (packed_width + packed_offsets[i])) >>
+                                       (32 - packed_width));
         }
         if (instr.is_normalized()) {
           if (instr.signed_rf_mode() == xenos::SignedRepeatingFractionMode::kNoZero) {
-            for (uint32_t i = 0; i < 4; ++i) {
+            for (u32 i = 0; i < 4; ++i) {
               if (!(packed_components & (UINT32_C(1) << i))) {
                 continue;
               }
               result[i] = (result[i] + 0.5f) * 2.0f /
-                          static_cast<float>((UINT32_C(1) << packed_widths[i]) - 1);
+                          static_cast<f32>((UINT32_C(1) << packed_widths[i]) - 1);
             }
           } else {
-            for (uint32_t i = 0; i < 4; ++i) {
+            for (u32 i = 0; i < 4; ++i) {
               if (!(packed_components & (UINT32_C(1) << i))) {
                 continue;
               }
               result[i] = std::max(
-                  -1.0f,
-                  result[i] / static_cast<float>((UINT32_C(1) << (packed_widths[i] - 1)) - 1));
+                  -1.0f, result[i] / static_cast<f32>((UINT32_C(1) << (packed_widths[i] - 1)) - 1));
             }
           }
         }
       } else {
-        for (uint32_t i = 0; i < 4; ++i) {
+        for (u32 i = 0; i < 4; ++i) {
           if (!(packed_components & (UINT32_C(1) << i))) {
             continue;
           }
@@ -1094,21 +1092,21 @@ void ShaderInterpreter::ExecuteVertexFetchInstruction(xenos::ucode::VertexFetchI
           result[i] = static_cast<f32>(packed_dwords[i >> 1] & ((UINT32_C(1) << packed_width) - 1));
         }
         if (instr.is_normalized()) {
-          for (uint32_t i = 0; i < 4; ++i) {
+          for (u32 i = 0; i < 4; ++i) {
             if (!(packed_components & (UINT32_C(1) << i))) {
               continue;
             }
-            result[i] /= static_cast<float>((UINT32_C(1) << packed_widths[i]) - 1);
+            result[i] /= static_cast<f32>((UINT32_C(1) << packed_widths[i]) - 1);
           }
         }
       }
     }
   }
 
-  int32_t exp_adjust = instr.exp_adjust();
+  i32 exp_adjust = instr.exp_adjust();
   if (exp_adjust) {
-    float exp_adjust_factor = std::ldexp(1.0f, exp_adjust);
-    for (uint32_t i = 0; i < 4; ++i) {
+    f32 exp_adjust_factor = std::ldexp(1.0f, exp_adjust);
+    for (u32 i = 0; i < 4; ++i) {
       result[i] *= exp_adjust_factor;
     }
   }

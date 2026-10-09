@@ -47,8 +47,8 @@ enum class ReadbackResolveMode {
 struct SwapState {
   // Lock must be held when changing data in this structure.
   std::mutex mutex;
-  uint32_t width = 0;
-  uint32_t height = 0;
+  u32 width = 0;
+  u32 height = 0;
   uintptr_t front_buffer_texture = 0;
   uintptr_t back_buffer_texture = 0;
   void* backend_data = nullptr;
@@ -77,7 +77,7 @@ class CommandProcessor {
   CommandProcessor(GraphicsSystem* graphics_system, Runtime& runtime);
   virtual ~CommandProcessor();
 
-  uint32_t counter() const { return counter_; }
+  u32 counter() const { return counter_; }
   void increment_counter() {
     CallInThread([this] { counter_++; });
   }
@@ -117,8 +117,7 @@ class CommandProcessor {
    * @param frontbuffer_width The front buffer width.
    * @param frontbuffer_height The front buffer height.
    */
-  virtual void IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontbuffer_width,
-                         uint32_t frontbuffer_height) = 0;
+  virtual void IssueSwap(u32 frontbuffer_ptr, u32 frontbuffer_width, u32 frontbuffer_height) = 0;
 
   /**
    * Initializes the shader storage. May be called from a thread other than the command processor
@@ -128,28 +127,28 @@ class CommandProcessor {
    * @param title_id The title ID.
    * @param blocking True to wait for the storage to finish loading.
    */
-  virtual void InitializeShaderStorage(const std::filesystem::path& cache_root, uint32_t title_id,
+  virtual void InitializeShaderStorage(const std::filesystem::path& cache_root, u32 title_id,
                                        bool blocking);
 
-  void InitializeRingBuffer(uint32_t ptr, uint32_t size_log2);
+  void InitializeRingBuffer(u32 ptr, u32 size_log2);
   /**
    * Enables writing the read pointer back to memory.
    *
    * @param ptr RB_RPTR_ADDR of CP_RB_RPTR_ADDR (0x70C), the address the read pointer is written to.
    * @param block_size_log2 RB_BLKSZ of CP_RB_CNTL (0x704), log2 of quadwords read between updates.
    */
-  void EnableReadPointerWriteBack(uint32_t ptr, uint32_t block_size_log2);
+  void EnableReadPointerWriteBack(u32 ptr, u32 block_size_log2);
 
-  void UpdateWritePointer(uint32_t value);
+  void UpdateWritePointer(u32 value);
 
-  void ExecutePacket(uint32_t ptr, uint32_t count);
+  void ExecutePacket(u32 ptr, u32 count);
 
  protected:
   struct IndexBufferInfo {
     xenos::IndexFormat format = xenos::IndexFormat::kInt16;
     xenos::Endian endianness = xenos::Endian::kNone;
-    uint32_t count = 0;
-    uint32_t guest_base = 0;
+    u32 count = 0;
+    u32 guest_base = 0;
     size_t length = 0;
   };
 
@@ -176,21 +175,20 @@ class CommandProcessor {
    * @param index The register index.
    * @param value The value to write.
    */
-  virtual void WriteRegister(uint32_t index, uint32_t value);
-  uint32_t ReadRegisterValue(uint32_t index) const;
-  virtual void WriteRegistersFromMem(uint32_t start_index, uint32_t* base, uint32_t num_registers);
-  virtual void WriteRegisterRangeFromRing(memory::RingBuffer* ring, uint32_t base,
-                                          uint32_t num_registers);
-  void WriteALURangeFromRing(memory::RingBuffer* ring, uint32_t base, uint32_t num_registers);
-  void WriteFetchRangeFromRing(memory::RingBuffer* ring, uint32_t base, uint32_t num_registers);
-  void WriteBoolRangeFromRing(memory::RingBuffer* ring, uint32_t base, uint32_t num_registers);
-  void WriteLoopRangeFromRing(memory::RingBuffer* ring, uint32_t base, uint32_t num_registers);
-  void WriteREGISTERSRangeFromRing(memory::RingBuffer* ring, uint32_t base, uint32_t num_registers);
-  void WriteALURangeFromMem(uint32_t start_index, uint32_t* base, uint32_t num_registers);
-  void WriteFetchRangeFromMem(uint32_t start_index, uint32_t* base, uint32_t num_registers);
-  void WriteBoolRangeFromMem(uint32_t start_index, uint32_t* base, uint32_t num_registers);
-  void WriteLoopRangeFromMem(uint32_t start_index, uint32_t* base, uint32_t num_registers);
-  void WriteREGISTERSRangeFromMem(uint32_t start_index, uint32_t* base, uint32_t num_registers);
+  virtual void WriteRegister(u32 index, u32 value);
+  u32 ReadRegisterValue(u32 index) const;
+  virtual void WriteRegistersFromMem(u32 start_index, u32* base, u32 num_registers);
+  virtual void WriteRegisterRangeFromRing(memory::RingBuffer* ring, u32 base, u32 num_registers);
+  void WriteALURangeFromRing(memory::RingBuffer* ring, u32 base, u32 num_registers);
+  void WriteFetchRangeFromRing(memory::RingBuffer* ring, u32 base, u32 num_registers);
+  void WriteBoolRangeFromRing(memory::RingBuffer* ring, u32 base, u32 num_registers);
+  void WriteLoopRangeFromRing(memory::RingBuffer* ring, u32 base, u32 num_registers);
+  void WriteREGISTERSRangeFromRing(memory::RingBuffer* ring, u32 base, u32 num_registers);
+  void WriteALURangeFromMem(u32 start_index, u32* base, u32 num_registers);
+  void WriteFetchRangeFromMem(u32 start_index, u32* base, u32 num_registers);
+  void WriteBoolRangeFromMem(u32 start_index, u32* base, u32 num_registers);
+  void WriteLoopRangeFromMem(u32 start_index, u32* base, u32 num_registers);
+  void WriteREGISTERSRangeFromMem(u32 start_index, u32* base, u32 num_registers);
 
   const xenos::reg::DC_LUT_30_COLOR* gamma_ramp_256_entry_table() const {
     return gamma_ramp_256_entry_table_;
@@ -208,13 +206,13 @@ class CommandProcessor {
   virtual void PrepareForWait();
   virtual void ReturnFromWait();
 
-  uint32_t ExecutePrimaryBuffer(uint32_t start_index, uint32_t end_index);
+  u32 ExecutePrimaryBuffer(u32 start_index, u32 end_index);
   virtual void OnPrimaryBufferEnd() {}
-  void ExecuteIndirectBuffer(uint32_t ptr, uint32_t length);
+  void ExecuteIndirectBuffer(u32 ptr, u32 length);
   bool ExecutePacket(memory::RingBuffer* reader);
-  bool ExecutePacketType0(memory::RingBuffer* reader, uint32_t packet);
-  bool ExecutePacketType1(memory::RingBuffer* reader, uint32_t packet);
-  bool ExecutePacketType2(memory::RingBuffer* reader, uint32_t packet);
+  bool ExecutePacketType0(memory::RingBuffer* reader, u32 packet);
+  bool ExecutePacketType1(memory::RingBuffer* reader, u32 packet);
+  bool ExecutePacketType2(memory::RingBuffer* reader, u32 packet);
   /**
    * Executes a type 3 packet. Bit 0 is the predicate. When set, a bin check decides whether the
    * packet runs. Only type 3 packets are affected. Predicated swaps are skipped as they are never
@@ -224,10 +222,10 @@ class CommandProcessor {
    * @param packet The packet header.
    * @return True when the packet executed.
    */
-  bool ExecutePacketType3(memory::RingBuffer* reader, uint32_t packet);
-  bool ExecutePacketType3_ME_INIT(memory::RingBuffer* reader, uint32_t packet, uint32_t count);
-  bool ExecutePacketType3_NOP(memory::RingBuffer* reader, uint32_t packet, uint32_t count);
-  bool ExecutePacketType3_INTERRUPT(memory::RingBuffer* reader, uint32_t packet, uint32_t count);
+  bool ExecutePacketType3(memory::RingBuffer* reader, u32 packet);
+  bool ExecutePacketType3_ME_INIT(memory::RingBuffer* reader, u32 packet, u32 count);
+  bool ExecutePacketType3_NOP(memory::RingBuffer* reader, u32 packet, u32 count);
+  bool ExecutePacketType3_INTERRUPT(memory::RingBuffer* reader, u32 packet, u32 count);
   /**
    * Executes the swap packet that VdSwap posts to request a screen swap and an interrupt. The
    * packet has 63 words and only the first has data.
@@ -237,17 +235,15 @@ class CommandProcessor {
    * @param count The packet word count.
    * @return True when the packet executed.
    */
-  bool ExecutePacketType3_XE_SWAP(memory::RingBuffer* reader, uint32_t packet, uint32_t count);
-  bool ExecutePacketType3_INDIRECT_BUFFER(memory::RingBuffer* reader, uint32_t packet,
-                                          uint32_t count);
-  bool ExecutePacketType3_WAIT_REG_MEM(memory::RingBuffer* reader, uint32_t packet, uint32_t count);
-  bool ExecutePacketType3_REG_RMW(memory::RingBuffer* reader, uint32_t packet, uint32_t count);
-  bool ExecutePacketType3_REG_TO_MEM(memory::RingBuffer* reader, uint32_t packet, uint32_t count);
-  bool ExecutePacketType3_MEM_WRITE(memory::RingBuffer* reader, uint32_t packet, uint32_t count);
-  bool ExecutePacketType3_COND_WRITE(memory::RingBuffer* reader, uint32_t packet, uint32_t count);
-  bool ExecutePacketType3_EVENT_WRITE(memory::RingBuffer* reader, uint32_t packet, uint32_t count);
-  bool ExecutePacketType3_EVENT_WRITE_SHD(memory::RingBuffer* reader, uint32_t packet,
-                                          uint32_t count);
+  bool ExecutePacketType3_XE_SWAP(memory::RingBuffer* reader, u32 packet, u32 count);
+  bool ExecutePacketType3_INDIRECT_BUFFER(memory::RingBuffer* reader, u32 packet, u32 count);
+  bool ExecutePacketType3_WAIT_REG_MEM(memory::RingBuffer* reader, u32 packet, u32 count);
+  bool ExecutePacketType3_REG_RMW(memory::RingBuffer* reader, u32 packet, u32 count);
+  bool ExecutePacketType3_REG_TO_MEM(memory::RingBuffer* reader, u32 packet, u32 count);
+  bool ExecutePacketType3_MEM_WRITE(memory::RingBuffer* reader, u32 packet, u32 count);
+  bool ExecutePacketType3_COND_WRITE(memory::RingBuffer* reader, u32 packet, u32 count);
+  bool ExecutePacketType3_EVENT_WRITE(memory::RingBuffer* reader, u32 packet, u32 count);
+  bool ExecutePacketType3_EVENT_WRITE_SHD(memory::RingBuffer* reader, u32 packet, u32 count);
   /**
    * Executes the screen extent event. The callback tells the driver the xy coordinates affected by
    * the previous draw call, which is faked with the maximum extent.
@@ -257,8 +253,7 @@ class CommandProcessor {
    * @param count The packet word count.
    * @return True when the packet executed.
    */
-  bool ExecutePacketType3_EVENT_WRITE_EXT(memory::RingBuffer* reader, uint32_t packet,
-                                          uint32_t count);
+  bool ExecutePacketType3_EVENT_WRITE_EXT(memory::RingBuffer* reader, u32 packet, u32 count);
   /**
    * Executes the occlusion query event, sent on query begin and end. A fixed number of passed
    * samples is reported as a workaround.
@@ -268,8 +263,8 @@ class CommandProcessor {
    * @param count The packet word count.
    * @return True when the packet executed.
    */
-  virtual bool ExecutePacketType3_EVENT_WRITE_ZPD(memory::RingBuffer* reader, uint32_t packet,
-                                                  uint32_t count);
+  virtual bool ExecutePacketType3_EVENT_WRITE_ZPD(memory::RingBuffer* reader, u32 packet,
+                                                  u32 count);
   /**
    * Executes a draw. When viz_query_condition is not 0 the draw is conditional on a viz query. Bits
    * 0 to 5 hold the ID matching the one issued in PM4_VIZ_QUERY and bit 8 renders conditionally on
@@ -282,8 +277,8 @@ class CommandProcessor {
    * @param count_remaining The packet words left to read.
    * @return True when processing continues.
    */
-  bool ExecutePacketType3Draw(memory::RingBuffer* reader, uint32_t packet, const char* opcode_name,
-                              uint32_t viz_query_condition, uint32_t count_remaining);
+  bool ExecutePacketType3Draw(memory::RingBuffer* reader, u32 packet, const char* opcode_name,
+                              u32 viz_query_condition, u32 count_remaining);
   /**
    * Initiates a fetch of the index buffer and a draw. Generally used by Direct3D 9 for the kDMA and
    * kAutoIndex sources. The first token is a viz query token.
@@ -293,7 +288,7 @@ class CommandProcessor {
    * @param count The packet word count.
    * @return True when processing continues.
    */
-  bool ExecutePacketType3_DRAW_INDX(memory::RingBuffer* reader, uint32_t packet, uint32_t count);
+  bool ExecutePacketType3_DRAW_INDX(memory::RingBuffer* reader, u32 packet, u32 count);
   /**
    * Draws using the indices supplied in the packet. Generally used by Direct3D 9 for the kAutoIndex
    * source. There is no viz query token.
@@ -303,20 +298,16 @@ class CommandProcessor {
    * @param count The packet word count.
    * @return True when processing continues.
    */
-  bool ExecutePacketType3_DRAW_INDX_2(memory::RingBuffer* reader, uint32_t packet, uint32_t count);
-  bool ExecutePacketType3_SET_CONSTANT(memory::RingBuffer* reader, uint32_t packet, uint32_t count);
-  bool ExecutePacketType3_SET_CONSTANT2(memory::RingBuffer* reader, uint32_t packet,
-                                        uint32_t count);
-  bool ExecutePacketType3_LOAD_ALU_CONSTANT(memory::RingBuffer* reader, uint32_t packet,
-                                            uint32_t count);
-  bool ExecutePacketType3_SET_SHADER_CONSTANTS(memory::RingBuffer* reader, uint32_t packet,
-                                               uint32_t count);
-  bool ExecutePacketType3_IM_LOAD(memory::RingBuffer* reader, uint32_t packet, uint32_t count);
+  bool ExecutePacketType3_DRAW_INDX_2(memory::RingBuffer* reader, u32 packet, u32 count);
+  bool ExecutePacketType3_SET_CONSTANT(memory::RingBuffer* reader, u32 packet, u32 count);
+  bool ExecutePacketType3_SET_CONSTANT2(memory::RingBuffer* reader, u32 packet, u32 count);
+  bool ExecutePacketType3_LOAD_ALU_CONSTANT(memory::RingBuffer* reader, u32 packet, u32 count);
+  bool ExecutePacketType3_SET_SHADER_CONSTANTS(memory::RingBuffer* reader, u32 packet, u32 count);
+  bool ExecutePacketType3_IM_LOAD(memory::RingBuffer* reader, u32 packet, u32 count);
   bool ExecutePacketType3_IM_LOAD_IMMEDIATE(memory::RingBuffer* reader,
 
-                                            uint32_t packet, uint32_t count);
-  bool ExecutePacketType3_INVALIDATE_STATE(memory::RingBuffer* reader, uint32_t packet,
-                                           uint32_t count);
+                                            u32 packet, u32 count);
+  bool ExecutePacketType3_INVALIDATE_STATE(memory::RingBuffer* reader, u32 packet, u32 count);
   /**
    * Executes the begin and end initiator for viz query extent processing. Beginning a query clears
    * the internal state of the scan converter on hardware, which differs from the register. The scan
@@ -328,12 +319,12 @@ class CommandProcessor {
    * @param count The packet word count.
    * @return True when the packet executed.
    */
-  bool ExecutePacketType3_VIZ_QUERY(memory::RingBuffer* reader, uint32_t packet, uint32_t count);
+  bool ExecutePacketType3_VIZ_QUERY(memory::RingBuffer* reader, u32 packet, u32 count);
 
-  virtual Shader* LoadShader(xenos::ShaderType shader_type, uint32_t guest_address,
-                             const uint32_t* host_address, uint32_t dword_count) = 0;
+  virtual Shader* LoadShader(xenos::ShaderType shader_type, u32 guest_address,
+                             const u32* host_address, u32 dword_count) = 0;
 
-  virtual bool IssueDraw(xenos::PrimitiveType prim_type, uint32_t index_count,
+  virtual bool IssueDraw(xenos::PrimitiveType prim_type, u32 index_count,
                          IndexBufferInfo* index_buffer_info, bool major_mode_explicit) = 0;
   virtual bool IssueCopy() = 0;
 
@@ -358,25 +349,25 @@ class CommandProcessor {
   std::mutex pending_mutex_;
   std::queue<std::move_only_function<void()>> pending_fns_;
 
-  std::vector<uint32_t> me_bin_;
+  std::vector<u32> me_bin_;
 
-  uint32_t counter_ = 0;
+  u32 counter_ = 0;
 
-  uint32_t primary_buffer_ptr_ = 0;
-  uint32_t primary_buffer_size_ = 0;
+  u32 primary_buffer_ptr_ = 0;
+  u32 primary_buffer_size_ = 0;
 
-  uint32_t read_ptr_index_ = 0;
-  uint32_t read_ptr_update_freq_ = 0;
-  uint32_t read_ptr_writeback_ptr_ = 0;
+  u32 read_ptr_index_ = 0;
+  u32 read_ptr_update_freq_ = 0;
+  u32 read_ptr_writeback_ptr_ = 0;
 
   std::unique_ptr<rex::platform::Event> write_ptr_index_event_;
-  std::atomic<uint32_t> write_ptr_index_;
+  std::atomic<u32> write_ptr_index_;
 
   /** Register writes beyond the emulated register file range, kept for dependent packet logic. */
-  std::unordered_map<uint32_t, uint32_t> extended_register_values_;
+  std::unordered_map<u32, u32> extended_register_values_;
 
-  uint64_t bin_select_ = 0xFFFFFFFFull;
-  uint64_t bin_mask_ = 0xFFFFFFFFull;
+  u64 bin_select_ = 0xFFFFFFFFull;
+  u64 bin_mask_ = 0xFFFFFFFFull;
 
   Shader* active_vertex_shader_ = nullptr;
   Shader* active_pixel_shader_ = nullptr;
@@ -391,7 +382,7 @@ class CommandProcessor {
  private:
   xenos::reg::DC_LUT_30_COLOR gamma_ramp_256_entry_table_[256] = {};
   xenos::reg::DC_LUT_PWL_DATA gamma_ramp_pwl_rgb_[128][3] = {};
-  uint32_t gamma_ramp_rw_component_ = 0;
+  u32 gamma_ramp_rw_component_ = 0;
 };
 
 }  // namespace rex::gpu

@@ -59,7 +59,7 @@ inline std::string TranslateAnsiPath(const runtime::Memory* memory,
  * @return The text, empty when the address is 0.
  */
 inline std::string_view TranslateAnsiStringAddress(const runtime::Memory* memory,
-                                                   uint32_t guest_address) {
+                                                   u32 guest_address) {
   if (!guest_address) {
     return "";
   }
@@ -78,14 +78,14 @@ inline std::u16string TranslateUnicodeString(const runtime::Memory* memory,
   if (!unicode_string) {
     return u"";
   }
-  uint16_t length = unicode_string->length;
+  u16 length = unicode_string->length;
   if (!length) {
     return u"";
   }
   auto src = memory->TranslateVirtual<const be_u16*>(unicode_string->pointer);
   std::u16string result;
   result.reserve(length);
-  for (uint16_t i = 0; i < length / 2; ++i) {
+  for (u16 i = 0; i < length / 2; ++i) {
     result.push_back(src[i]);
   }
   return result;

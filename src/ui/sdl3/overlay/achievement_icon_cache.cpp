@@ -47,15 +47,15 @@ gpu::OverlayTexture* AchievementIconCache::GetIcon(
   return raw;
 }
 
-std::unique_ptr<gpu::OverlayTexture> AchievementIconCache::CreateTextureFromBytes(
-    const uint8_t* data, size_t size) {
+std::unique_ptr<gpu::OverlayTexture> AchievementIconCache::CreateTextureFromBytes(const u8* data,
+                                                                                  size_t size) {
   if (!overlay_drawer_ || !data || size == 0) {
     return nullptr;
   }
 
   int width = 0;
   int height = 0;
-  std::vector<uint8_t> rgba = DecodeImageRGBA(data, size, width, height);
+  std::vector<u8> rgba = DecodeImageRGBA(data, size, width, height);
   if (rgba.empty() || width <= 0 || height <= 0) {
     return nullptr;
   }
@@ -85,7 +85,7 @@ std::unique_ptr<gpu::OverlayTexture> AchievementIconCache::LoadMetadataTexture(
       if (length > 0) {
         file.seekg(0);
 
-        std::vector<uint8_t> bytes(static_cast<size_t>(length));
+        std::vector<u8> bytes(static_cast<size_t>(length));
         if (file.read(reinterpret_cast<char*>(bytes.data()), length)) {
           return CreateTextureFromBytes(bytes.data(), bytes.size());
         }
@@ -99,7 +99,7 @@ std::unique_ptr<gpu::OverlayTexture> AchievementIconCache::LoadMetadataTexture(
   return nullptr;
 }
 
-std::unique_ptr<gpu::OverlayTexture> AchievementIconCache::LoadXdbfTexture(uint32_t image_id) {
+std::unique_ptr<gpu::OverlayTexture> AchievementIconCache::LoadXdbfTexture(u32 image_id) {
   if (!runtime_ || !runtime_->is_setup()) {
     return nullptr;
   }
@@ -110,7 +110,7 @@ std::unique_ptr<gpu::OverlayTexture> AchievementIconCache::LoadXdbfTexture(uint3
   }
 
   const auto block =
-      db.GetEntry(rex::runtime::util::XdbfSection::kImage, static_cast<uint64_t>(image_id));
+      db.GetEntry(rex::runtime::util::XdbfSection::kImage, static_cast<u64>(image_id));
   if (!block) {
     return nullptr;
   }

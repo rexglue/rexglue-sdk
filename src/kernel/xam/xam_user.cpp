@@ -39,8 +39,8 @@ i32 XamUserGetXUID_entry(u32 user_index, u32 type_mask, mapped_u64 xuid_ptr) {
   if (!xuid_ptr) {
     return X_E_INVALIDARG;
   }
-  uint32_t result = X_E_NO_SUCH_USER;
-  uint64_t xuid = 0;
+  u32 result = X_E_NO_SUCH_USER;
+  u64 xuid = 0;
   if (user_index < 4) {
     if (user_index == 0) {
       auto& user_profile = runtime::Current().content_manager().user_profile();
@@ -58,7 +58,7 @@ i32 XamUserGetXUID_entry(u32 user_index, u32 type_mask, mapped_u64 xuid_ptr) {
 }
 
 u32 XamUserGetSigninState_entry(u32 user_index) {
-  uint32_t signin_state = 0;
+  u32 signin_state = 0;
   if (user_index < 4) {
     if (user_index == 0) {
       auto& user_profile = runtime::Current().content_manager().user_profile();
@@ -107,7 +107,7 @@ u32 XamUserGetName_entry(u32 user_index, mapped_string buffer, u32 buffer_len) {
 
   auto& user_profile = runtime::Current().content_manager().user_profile();
   const auto& user_name = user_profile.name();
-  rex::copy_truncating(buffer, user_name, std::min(buffer_len, static_cast<uint32_t>(16)));
+  rex::copy_truncating(buffer, user_name, std::min(buffer_len, static_cast<u32>(16)));
   return X_E_SUCCESS;
 }
 
@@ -126,7 +126,7 @@ u32 XamUserGetGamerTag_entry(u32 user_index, mapped_wstring buffer, u32 buffer_l
 
   auto& user_profile = runtime::Current().content_manager().user_profile();
   auto user_name = rex::to_utf16(user_profile.name());
-  rex::copy_and_swap_truncating(buffer, user_name, std::min(buffer_len, static_cast<uint32_t>(16)));
+  rex::copy_and_swap_truncating(buffer, user_name, std::min(buffer_len, static_cast<u32>(16)));
   return X_E_SUCCESS;
 }
 
@@ -145,7 +145,7 @@ u32 XamUserReadProfileSettingsEx([[maybe_unused]] u32 title_id, u32 user_index, 
     REX_ASSERT(xuid_count == 1);
     REX_ASSERT(xuids != nullptr);
     auto& user_profile = runtime::Current().content_manager().user_profile();
-    REX_ASSERT(static_cast<uint64_t>(xuids[0]) == user_profile.xuid());
+    REX_ASSERT(static_cast<u64>(xuids[0]) == user_profile.xuid());
     xuid_count = 1;
   }
   REX_ASSERT(unk == 0);
@@ -158,17 +158,17 @@ u32 XamUserReadProfileSettingsEx([[maybe_unused]] u32 title_id, u32 user_index, 
     return X_ERROR_INVALID_PARAMETER;
   }
 
-  auto buffer_size = static_cast<uint32_t>(*buffer_size_ptr);
+  auto buffer_size = static_cast<u32>(*buffer_size_ptr);
   if (buffer_size && !buffer) {
     return X_ERROR_INVALID_PARAMETER;
   }
 
-  uint32_t needed_header_size = 0;
-  uint32_t needed_data_size = 0;
-  for (uint32_t i = 0; i < setting_count; ++i) {
+  u32 needed_header_size = 0;
+  u32 needed_data_size = 0;
+  for (u32 i = 0; i < setting_count; ++i) {
     needed_header_size += sizeof(X_USER_PROFILE_SETTING);
     UserProfile::Setting::Key setting_key;
-    setting_key.value = static_cast<uint32_t>(setting_ids[i]);
+    setting_key.value = static_cast<u32>(setting_ids[i]);
     switch (static_cast<UserProfile::Setting::Type>(setting_key.type)) {
       case UserProfile::Setting::Type::WSTRING:
       case UserProfile::Setting::Type::BINARY:
@@ -184,7 +184,7 @@ u32 XamUserReadProfileSettingsEx([[maybe_unused]] u32 title_id, u32 user_index, 
   }
   needed_header_size += sizeof(X_USER_READ_PROFILE_SETTINGS);
 
-  uint32_t needed_size = needed_header_size + needed_data_size;
+  u32 needed_size = needed_header_size + needed_data_size;
   if (!buffer || buffer_size < needed_size) {
     if (!buffer_size) {
       *buffer_size_ptr = needed_size;
@@ -206,8 +206,8 @@ u32 XamUserReadProfileSettingsEx([[maybe_unused]] u32 title_id, u32 user_index, 
   // The first call returns the size in buffer_size_ptr, the second call fills the buffer.
 
   bool any_missing = false;
-  for (uint32_t i = 0; i < setting_count; ++i) {
-    auto setting_id = static_cast<uint32_t>(setting_ids[i]);
+  for (u32 i = 0; i < setting_count; ++i) {
+    auto setting_id = static_cast<u32>(setting_ids[i]);
     auto setting = user_profile.GetSetting(setting_id);
     if (!setting) {
       any_missing = true;
@@ -230,8 +230,8 @@ u32 XamUserReadProfileSettingsEx([[maybe_unused]] u32 title_id, u32 user_index, 
 
   UserProfile::SettingByteStream out_stream(runtime::Current().memory()->HostToGuestVirtual(buffer),
                                             buffer, buffer_size, needed_header_size);
-  for (uint32_t n = 0; n < setting_count; ++n) {
-    uint32_t setting_id = setting_ids[n];
+  for (u32 n = 0; n < setting_count; ++n) {
+    u32 setting_id = setting_ids[n];
     auto setting = user_profile.GetSetting(setting_id);
 
     std::memset(out_setting, 0, sizeof(X_USER_PROFILE_SETTING));
@@ -292,7 +292,7 @@ u32 XamUserWriteProfileSettings_entry([[maybe_unused]] u32 title_id, u32 user_in
 
   auto& user_profile = runtime::Current().content_manager().user_profile();
 
-  for (uint32_t n = 0; n < setting_count; ++n) {
+  for (u32 n = 0; n < setting_count; ++n) {
     const X_USER_PROFILE_SETTING& setting = settings[n];
 
     auto setting_type = static_cast<UserProfile::Setting::Type>(setting.data.type);
@@ -303,16 +303,15 @@ u32 XamUserWriteProfileSettings_entry([[maybe_unused]] u32 title_id, u32 user_in
     REXLOG_DEBUG(kernel,
                  "XamUserWriteProfileSettings: setting index [{}]:"
                  " from={} setting_id={:08X} data.type={}",
-                 n, static_cast<uint32_t>(setting.from), static_cast<uint32_t>(setting.setting_id),
+                 n, static_cast<u32>(setting.from), static_cast<u32>(setting.setting_id),
                  setting.data.type);
 
     switch (setting_type) {
       case UserProfile::Setting::Type::CONTENT:
       case UserProfile::Setting::Type::BINARY: {
-        uint8_t* binary_ptr =
-            runtime::Current().memory()->TranslateVirtual(setting.data.binary.ptr);
+        u8* binary_ptr = runtime::Current().memory()->TranslateVirtual(setting.data.binary.ptr);
         size_t binary_size = setting.data.binary.size;
-        std::vector<uint8_t> bytes;
+        std::vector<u8> bytes;
         if (setting.data.binary.ptr) {
           bytes.resize(binary_size);
           std::memcpy(bytes.data(), binary_ptr, binary_size);
@@ -408,7 +407,7 @@ u32 XamUserGetMembershipTier_entry(u32 user_index) {
 u32 XamUserAreUsersFriends_entry(u32 user_index, [[maybe_unused]] u32 unk1,
                                  [[maybe_unused]] u32 unk2, mapped_u32 out_value,
                                  u32 overlapped_ptr) {
-  uint32_t are_friends = 0;
+  u32 are_friends = 0;
   X_RESULT result;
 
   if (user_index >= 4) {
@@ -473,20 +472,20 @@ REX_STATIC_ASSERT_SIZE(X_ACHIEVEMENT_DETAILS, 36);
 class AchievementItems {
  public:
   struct AchievementDetails {
-    uint32_t id;
+    u32 id;
     std::u16string label;
     std::u16string description;
     std::u16string unachieved;
-    uint32_t image_id;
-    uint32_t gamerscore;
+    u32 image_id;
+    u32 gamerscore;
     struct {
-      uint32_t unk_0;
-      uint32_t unk_4;
+      u32 unk_0;
+      u32 unk_4;
     } unlock_time;
-    uint32_t flags;
+    u32 flags;
   };
 
-  AchievementItems(size_t items_per_enumerate, uint32_t flags)
+  AchievementItems(size_t items_per_enumerate, u32 flags)
       : items_per_enumerate_(items_per_enumerate), flags_(flags) {}
 
   void Append(AchievementDetails item) { items_.push_back(std::move(item)); }
@@ -500,7 +499,7 @@ class AchievementItems {
     auto details = reinterpret_cast<X_ACHIEVEMENT_DETAILS*>(buffer_data);
     size_t string_offset = items_per_enumerate_ * sizeof(X_ACHIEVEMENT_DETAILS);
     auto string_buffer =
-        StringBuffer{buffer_ptr + static_cast<uint32_t>(string_offset), &buffer_data[string_offset],
+        StringBuffer{buffer_ptr + static_cast<u32>(string_offset), &buffer_data[string_offset],
                      count * X_ACHIEVEMENT_DETAILS::kStringBufferSize};
     for (size_t i = 0; i < count; ++i, ++current_item_) {
       const auto& item = items_[current_item_];
@@ -517,7 +516,7 @@ class AchievementItems {
     }
 
     if (written_count) {
-      *written_count = static_cast<uint32_t>(count);
+      *written_count = static_cast<u32>(count);
     }
 
     return X_ERROR_SUCCESS;
@@ -525,12 +524,12 @@ class AchievementItems {
 
  private:
   struct StringBuffer {
-    uint32_t ptr;
-    uint8_t* data;
+    u32 ptr;
+    u8* data;
     size_t remaining_bytes;
   };
 
-  uint32_t AppendString(StringBuffer& sb, const std::u16string_view string) {
+  u32 AppendString(StringBuffer& sb, const std::u16string_view string) {
     size_t count = string.length() + 1;
     size_t size = count * sizeof(char16_t);
     if (size > sb.remaining_bytes) {
@@ -539,14 +538,14 @@ class AchievementItems {
     }
     auto ptr = sb.ptr;
     rex::copy_and_swap_truncating(reinterpret_cast<char16_t*>(sb.data), string, count);
-    sb.ptr += static_cast<uint32_t>(size);
+    sb.ptr += static_cast<u32>(size);
     sb.data += size;
     sb.remaining_bytes -= size;
     return ptr;
   }
 
   size_t items_per_enumerate_;
-  uint32_t flags_;
+  u32 flags_;
   std::vector<AchievementDetails> items_;
   size_t current_item_ = 0;
 };
@@ -569,20 +568,20 @@ u32 XamUserCreateAchievementEnumerator_entry([[maybe_unused]] u32 title_id, u32 
   }
 
   if (buffer_size_ptr) {
-    *buffer_size_ptr = static_cast<uint32_t>(entry_size) * count;
+    *buffer_size_ptr = static_cast<u32>(entry_size) * count;
   }
 
   AchievementItems items(count, flags);
 
   // ACHIEVED | ACHIEVED_ONLINE flags titles test to treat an achievement as earned.
-  constexpr uint32_t kAchievedFlags = 0x00030000;
+  constexpr u32 kAchievedFlags = 0x00030000;
 
-  auto fill_unlock = [](AchievementItems::AchievementDetails& item, uint32_t id, Runtime& runtime) {
-    uint64_t ft = runtime.achievement_manager().GetUnlockTime(id).value_or(0);
+  auto fill_unlock = [](AchievementItems::AchievementDetails& item, u32 id, Runtime& runtime) {
+    u64 ft = runtime.achievement_manager().GetUnlockTime(id).value_or(0);
     if (ft) {
       item.flags |= kAchievedFlags;
-      item.unlock_time.unk_0 = static_cast<uint32_t>(ft & 0xFFFF'FFFF);
-      item.unlock_time.unk_4 = static_cast<uint32_t>(ft >> 32);
+      item.unlock_time.unk_0 = static_cast<u32>(ft & 0xFFFF'FFFF);
+      item.unlock_time.unk_4 = static_cast<u32>(ft >> 32);
     }
   };
 

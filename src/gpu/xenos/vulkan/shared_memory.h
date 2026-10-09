@@ -50,15 +50,14 @@ class VulkanSharedMemory : public SharedMemory {
    * @param usage Usage to transition to.
    * @param written_range Byte offset and length the usage writes.
    */
-  void Use(Usage usage, std::pair<uint32_t, uint32_t> written_range = {});
+  void Use(Usage usage, std::pair<u32, u32> written_range = {});
 
   VkBuffer buffer() const { return buffer_; }
 
  protected:
-  bool AllocateSparseHostGpuMemoryRange(uint32_t offset_allocations,
-                                        uint32_t length_allocations) override;
+  bool AllocateSparseHostGpuMemoryRange(u32 offset_allocations, u32 length_allocations) override;
 
-  bool UploadRanges(const std::vector<std::pair<uint32_t, uint32_t>>& upload_page_ranges) override;
+  bool UploadRanges(const std::vector<std::pair<u32, u32>>& upload_page_ranges) override;
 
  private:
   void GetUsageMasks(Usage usage, VkPipelineStageFlags& stage_mask,
@@ -68,12 +67,12 @@ class VulkanSharedMemory : public SharedMemory {
   VkPipelineStageFlags guest_shader_pipeline_stages_;
 
   VkBuffer buffer_ = VK_NULL_HANDLE;
-  uint32_t buffer_memory_type_;
+  u32 buffer_memory_type_;
   /** Single allocation when non sparse, every allocation so far when sparse. */
   std::vector<VkDeviceMemory> buffer_memory_;
 
   Usage last_usage_;
-  std::pair<uint32_t, uint32_t> last_written_range_;
+  std::pair<u32, u32> last_written_range_;
 
   std::unique_ptr<gpu::vulkan::VulkanUploadBufferPool> upload_buffer_pool_;
   std::vector<VkBufferCopy> upload_regions_;

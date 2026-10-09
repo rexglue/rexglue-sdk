@@ -69,7 +69,7 @@ class D3D12CpuDescriptorPool : public std::enable_shared_from_this<D3D12CpuDescr
   };
 
   D3D12CpuDescriptorPool(const gpu::d3d12::D3D12Provider& provider, D3D12_DESCRIPTOR_HEAP_TYPE type,
-                         uint32_t heap_size_log2)
+                         u32 heap_size_log2)
       : provider_(provider), type_(type), heap_size_log2_(heap_size_log2) {
     REX_ASSERT(heap_size_log2 <= 31);
   }
@@ -87,17 +87,16 @@ class D3D12CpuDescriptorPool : public std::enable_shared_from_this<D3D12CpuDescr
   D3D12_CPU_DESCRIPTOR_HANDLE GetHandle(size_t index) const {
     D3D12_CPU_DESCRIPTOR_HANDLE heap_start =
         heaps_[index >> heap_size_log2_]->GetCPUDescriptorHandleForHeapStart();
-    uint32_t heap_local_index =
-        static_cast<uint32_t>(index & ((static_cast<uint32_t>(1) << heap_size_log2_) - 1));
+    u32 heap_local_index = static_cast<u32>(index & ((static_cast<u32>(1) << heap_size_log2_) - 1));
     return provider_.OffsetDescriptor(type_, heap_start, heap_local_index);
   }
 
   const gpu::d3d12::D3D12Provider& provider_;
   D3D12_DESCRIPTOR_HEAP_TYPE type_;
-  uint32_t heap_size_log2_;
+  u32 heap_size_log2_;
   std::vector<ID3D12DescriptorHeap*> heaps_;
   std::vector<size_t> freed_indices_;
-  uint32_t last_heap_allocated_ = 0;
+  u32 last_heap_allocated_ = 0;
 };
 
 }  // namespace rex::gpu::d3d12

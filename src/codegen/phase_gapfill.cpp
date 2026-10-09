@@ -37,18 +37,17 @@ namespace {
  * @param knownCallables Entry points that mark a branch as a tail call.
  * @return The segments.
  */
-std::vector<CodeRegion> splitRegionOnTerminators(
-    const CodeRegion& region, const BinaryView& binary,
-    const std::unordered_set<uint32_t>& knownCallables) {
+std::vector<CodeRegion> splitRegionOnTerminators(const CodeRegion& region, const BinaryView& binary,
+                                                 const std::unordered_set<u32>& knownCallables) {
   std::vector<CodeRegion> segments;
-  uint32_t segmentStart = region.start;
+  u32 segmentStart = region.start;
 
-  for (uint32_t addr = region.start; addr < region.end; addr += 4) {
-    const uint8_t* data = binary.translate(addr);
+  for (u32 addr = region.start; addr < region.end; addr += 4) {
+    const u8* data = binary.translate(addr);
     if (!data)
       break;
 
-    uint32_t raw = memory::load<be_u32>(data);
+    u32 raw = memory::load<be_u32>(data);
     auto decoded = decode_instruction(addr, raw);
     bool shouldSplit = false;
     const char* reason = nullptr;
@@ -57,7 +56,7 @@ std::vector<CodeRegion> splitRegionOnTerminators(
       shouldSplit = true;
       reason = "blr";
     } else if (decoded.opcode == Opcode::b && decoded.branch_target.has_value()) {
-      uint32_t target = decoded.branch_target.value();
+      u32 target = decoded.branch_target.value();
       if (target != segmentStart && knownCallables.contains(target)) {
         shouldSplit = true;
         reason = "tail call";
@@ -65,7 +64,7 @@ std::vector<CodeRegion> splitRegionOnTerminators(
     }
 
     if (shouldSplit) {
-      uint32_t segmentEnd = addr + 4;
+      u32 segmentEnd = addr + 4;
       if (segmentEnd > segmentStart) {
         segments.push_back({segmentStart, segmentEnd});
         REXLOG_TRACE(codegen, "GapFill: split segment 0x{:08X}-0x{:08X} ({} at 0x{:08X})",
@@ -91,13 +90,13 @@ std::vector<CodeRegion> splitRegionOnTerminators(
  * @param addr Address to test.
  * @return True when the data matches.
  */
-bool looksLikeExceptionData(const BinaryView& binary, const FunctionGraph& graph, uint32_t addr) {
-  const uint8_t* data = binary.translate(addr);
+bool looksLikeExceptionData(const BinaryView& binary, const FunctionGraph& graph, u32 addr) {
+  const u8* data = binary.translate(addr);
   if (!data)
     return false;
 
-  uint32_t firstDword = memory::load<be_u32>(data);
-  uint32_t secondDword = memory::load<be_u32>(data + 4);
+  u32 firstDword = memory::load<be_u32>(data);
+  u32 secondDword = memory::load<be_u32>(data + 4);
 
   if (!graph.isEntryPoint(firstDword)) {
     return false;
@@ -107,8 +106,8 @@ bool looksLikeExceptionData(const BinaryView& binary, const FunctionGraph& graph
   if (!rdataSection)
     return false;
 
-  uint32_t rdataStart = rdataSection->baseAddress;
-  uint32_t rdataEnd = rdataStart + rdataSection->size;
+  u32 rdataStart = rdataSection->baseAddress;
+  u32 rdataEnd = rdataStart + rdataSection->size;
 
   if (secondDword >= rdataStart && secondDword < rdataEnd) {
     REXLOG_TRACE(
@@ -128,7 +127,7 @@ void gapFillCodeRegions(CodegenContext& ctx) {
   auto& binary = ctx.binary();
   auto& scan = ctx.scan;
 
-  std::unordered_set<uint32_t> knownCallables;
+  std::unordered_set<u32> knownCallables;
   for (const auto& [addr, node] : graph.functions()) {
     knownCallables.insert(addr);
   }
@@ -150,7 +149,7 @@ void gapFillCodeRegions(CodegenContext& ctx) {
       if (looksLikeExceptionData(binary, graph, segment.start))
         continue;
 
-      uint32_t segmentSize = segment.size();
+      u32 segmentSize = segment.size();
       graph.addFunction(segment.start, segmentSize, FunctionAuthority::GAP_FILL, false);
 
       REXLOG_TRACE(codegen, "GapFill: registered sub_{:08X} (0x{:08X}-0x{:08X}, {} bytes)",
@@ -176,7 +175,7 @@ void gapFillCodeRegions(CodegenContext& ctx) {
  */
 void cleanupAbsorbedGapFills(CodegenContext& ctx) {
   auto& graph = ctx.graph;
-  std::vector<uint32_t> toRemove;
+  std::vector<u32> toRemove;
 
   for (const auto& [addr, node] : graph.functions()) {
     if (node->authority() != FunctionAuthority::GAP_FILL)
@@ -198,7 +197,7 @@ void cleanupAbsorbedGapFills(CodegenContext& ctx) {
     }
   }
 
-  for (uint32_t addr : toRemove) {
+  for (u32 addr : toRemove) {
     graph.removeFunction(addr);
   }
 

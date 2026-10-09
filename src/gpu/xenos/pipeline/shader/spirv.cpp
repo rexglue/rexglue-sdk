@@ -15,12 +15,12 @@
 
 namespace rex::gpu {
 
-SpirvShader::SpirvShader(xenos::ShaderType shader_type, uint64_t ucode_data_hash,
-                         const uint32_t* ucode_dwords, size_t ucode_dword_count,
+SpirvShader::SpirvShader(xenos::ShaderType shader_type, u64 ucode_data_hash,
+                         const u32* ucode_dwords, size_t ucode_dword_count,
                          std::endian ucode_source_endian)
     : Shader(shader_type, ucode_data_hash, ucode_dwords, ucode_dword_count, ucode_source_endian) {}
 
-std::unique_ptr<Shader::Translation> SpirvShader::CreateTranslationInstance(uint64_t modification) {
+std::unique_ptr<Shader::Translation> SpirvShader::CreateTranslationInstance(u64 modification) {
   return std::make_unique<SpirvTranslation>(*this, modification);
 }
 

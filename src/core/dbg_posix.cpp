@@ -49,7 +49,7 @@ bool IsDebuggerAttached() {
     std::string key;
     line_stream >> key;
     if (key == "TracerPid:") {
-      uint32_t tracer_pid;
+      u32 tracer_pid;
       line_stream >> tracer_pid;
       return tracer_pid != 0;
     }

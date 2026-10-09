@@ -18,8 +18,8 @@
 
 namespace rex::hid {
 
-constexpr int32_t kThumbDeadzone = X_INPUT_GAMEPAD_LEFT_THUMB_DEADZONE;
-constexpr uint8_t kTriggerThreshold = X_INPUT_GAMEPAD_TRIGGER_THRESHOLD;
+constexpr i32 kThumbDeadzone = X_INPUT_GAMEPAD_LEFT_THUMB_DEADZONE;
+constexpr u8 kTriggerThreshold = X_INPUT_GAMEPAD_TRIGGER_THRESHOLD;
 
 /**
  * Folds src into dst. Buttons OR, triggers max, stick axes larger magnitude,
@@ -46,9 +46,9 @@ class ActiveDeviceTracker {
    * @param id          Device that produced the input.
    * @param gamepad     Gamepad report.
    */
-  void Observe(uint32_t user_index, DeviceId id, const X_INPUT_GAMEPAD& gamepad);
+  void Observe(u32 user_index, DeviceId id, const X_INPUT_GAMEPAD& gamepad);
 
-  DeviceId Active(uint32_t user_index) const;
+  DeviceId Active(u32 user_index) const;
   void Forget(DeviceId id);
 
  private:

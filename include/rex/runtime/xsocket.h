@@ -50,8 +50,8 @@ struct N_XSOCKADDR {
     return *this;
   }
 
-  uint16_t address_family; /**< Offset 0x0. Address family. */
-  char sa_data[14];        /**< Offset 0x2. Address bytes. */
+  u16 address_family; /**< Offset 0x0. Address family. */
+  char sa_data[14];   /**< Offset 0x2. Address bytes. */
 };
 
 /** Guest layout of an IPv4 socket address. */
@@ -84,9 +84,9 @@ struct N_XSOCKADDR_IN {
     return *this;
   }
 
-  uint16_t sin_family; /**< Offset 0x0. Address family. */
-  be_u16 sin_port;     /**< Offset 0x2. Port. */
-  be_u32 sin_addr;     /**< Offset 0x4. IPv4 address. */
+  u16 sin_family;  /**< Offset 0x0. Address family. */
+  be_u16 sin_port; /**< Offset 0x2. Port. */
+  be_u32 sin_addr; /**< Offset 0x4. IPv4 address. */
   /** Prefixed because Android defines sin_zero as __pad. */
   char x_sin_zero[8]; /**< Offset 0x8. Zero padding. */
 };

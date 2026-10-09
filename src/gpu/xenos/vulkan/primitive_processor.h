@@ -53,9 +53,9 @@ class VulkanPrimitiveProcessor final : public PrimitiveProcessor {
   bool InitializeBuiltinIndexBuffer(size_t size_bytes,
                                     std::function<void(void*)> fill_callback) override;
 
-  void* RequestHostConvertedIndexBufferForCurrentFrame(xenos::IndexFormat format,
-                                                       uint32_t index_count, bool coalign_for_simd,
-                                                       uint32_t coalignment_original_address,
+  void* RequestHostConvertedIndexBufferForCurrentFrame(xenos::IndexFormat format, u32 index_count,
+                                                       bool coalign_for_simd,
+                                                       u32 coalignment_original_address,
                                                        size_t& backend_handle_out) override;
 
  private:
@@ -68,7 +68,7 @@ class VulkanPrimitiveProcessor final : public PrimitiveProcessor {
   VkBuffer builtin_index_buffer_upload_ = VK_NULL_HANDLE;
   VkDeviceMemory builtin_index_buffer_upload_memory_ = VK_NULL_HANDLE;
   /** UINT64_MAX when the upload is pending for the first submission. */
-  uint64_t builtin_index_buffer_upload_submission_ = UINT64_MAX;
+  u64 builtin_index_buffer_upload_submission_ = UINT64_MAX;
 
   std::unique_ptr<gpu::vulkan::VulkanUploadBufferPool> frame_index_buffer_pool_;
   /** Indexed by the backend handles. */

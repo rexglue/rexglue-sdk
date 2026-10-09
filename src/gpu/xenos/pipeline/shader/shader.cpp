@@ -25,15 +25,14 @@
 namespace rex::gpu {
 using namespace xenos::ucode;
 
-Shader::Shader(xenos::ShaderType shader_type, uint64_t ucode_data_hash,
-               const uint32_t* ucode_dwords, size_t ucode_dword_count,
-               std::endian ucode_source_endian)
+Shader::Shader(xenos::ShaderType shader_type, u64 ucode_data_hash, const u32* ucode_dwords,
+               size_t ucode_dword_count, std::endian ucode_source_endian)
     : shader_type_(shader_type), ucode_data_hash_(ucode_data_hash) {
   ucode_data_.resize(ucode_dword_count);
   if (std::endian::native != ucode_source_endian) {
     memory::copy_and_swap(ucode_data_.data(), ucode_dwords, ucode_dword_count);
   } else {
-    std::memcpy(ucode_data_.data(), ucode_dwords, sizeof(uint32_t) * ucode_dword_count);
+    std::memcpy(ucode_data_.data(), ucode_dwords, sizeof(u32) * ucode_dword_count);
   }
 }
 
@@ -75,7 +74,7 @@ std::pair<std::filesystem::path, std::filesystem::path> Shader::Translation::Dum
   return std::make_pair(std::move(binary_path), std::move(disasm_path));
 }
 
-Shader::Translation* Shader::GetOrCreateTranslation(uint64_t modification, bool* is_new) {
+Shader::Translation* Shader::GetOrCreateTranslation(u64 modification, bool* is_new) {
   auto it = translations_.find(modification);
   if (it != translations_.end()) {
     if (is_new) {
@@ -90,7 +89,7 @@ Shader::Translation* Shader::GetOrCreateTranslation(uint64_t modification, bool*
   return inserted.first->second.get();
 }
 
-void Shader::DestroyTranslation(uint64_t modification) {
+void Shader::DestroyTranslation(u64 modification) {
   auto it = translations_.find(modification);
   if (it == translations_.end()) {
     return;
@@ -127,7 +126,7 @@ std::pair<std::filesystem::path, std::filesystem::path> Shader::DumpUcode(
   return std::make_pair(std::move(binary_path), std::move(disasm_path));
 }
 
-std::unique_ptr<Shader::Translation> Shader::CreateTranslationInstance(uint64_t modification) {
+std::unique_ptr<Shader::Translation> Shader::CreateTranslationInstance(u64 modification) {
   return std::make_unique<Translation>(*this, modification);
 }
 

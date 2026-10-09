@@ -70,10 +70,10 @@ struct BuilderContext {
   const ppc_insn& insn;
 
   /** Address of the current instruction in guest memory. */
-  uint32_t base;
+  u32 base;
 
   /** Pointer to raw instruction data in the image. */
-  const uint32_t* data;
+  const u32* data;
 
   /** Tracks which registers need local variable declarations. */
   RecompilerLocalVariables& locals;
@@ -226,7 +226,7 @@ struct BuilderContext {
    *
    * Searches the FunctionNode's calls and tailCalls for a matching site.
    */
-  const CallTarget* findCallTarget(uint32_t site) const;
+  const CallTarget* findCallTarget(u32 site) const;
 
   /**
    * @brief Emit C++ code for a function call.
@@ -240,7 +240,7 @@ struct BuilderContext {
    * caller's frame once spilled to locals. An SEH funclet runs on its owner's frame, so the
    * localized registers are copied through ctx before the call and back after it.
    */
-  void emit_function_call(uint32_t address);
+  void emit_function_call(u32 address);
 
   /**
    * @brief Emit C++ code for a conditional branch.
@@ -319,7 +319,7 @@ struct BuilderContext {
    * Uses the custom rex:: variable shift helpers (simde_mm_{sllv,srlv,srav}_epi16).
    * Uses operands[0]=vD, operands[1]=vA, operands[2]=vB from current instruction.
    */
-  void emit_vec_var_shift(const char* shift_dir, const char* element_type, uint32_t mask_value);
+  void emit_vec_var_shift(const char* shift_dir, const char* element_type, u32 mask_value);
 
   /**
    * @brief Emit load with D-form addressing: rD = LOAD(rA + offset)

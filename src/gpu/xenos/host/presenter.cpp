@@ -211,8 +211,8 @@ void Presenter::PaintFromUIThread(bool force_paint) {
 }
 
 bool Presenter::RefreshGuestOutput(
-    uint32_t frontbuffer_width, uint32_t frontbuffer_height, uint32_t display_aspect_ratio_x,
-    uint32_t display_aspect_ratio_y,
+    u32 frontbuffer_width, u32 frontbuffer_height, u32 display_aspect_ratio_x,
+    u32 display_aspect_ratio_y,
     std::move_only_function<bool(GuestOutputRefreshContext& context)> refresher) {
   GuestOutputProperties& writable_properties =
       guest_output_properties_[guest_output_mailbox_writable_];
@@ -237,14 +237,14 @@ bool Presenter::RefreshGuestOutput(
   }
 
   // Replaces the pending ready image rather than queueing behind it, for the lowest latency.
-  uint32_t last_acquired_and_ready =
+  u32 last_acquired_and_ready =
       guest_output_mailbox_acquired_and_ready_.load(std::memory_order_relaxed);
   // acq_rel releases the written image to consumers and acquires the next writable image.
   while (!guest_output_mailbox_acquired_and_ready_.compare_exchange_weak(
       last_acquired_and_ready,
       (last_acquired_and_ready & 3) | (guest_output_mailbox_writable_ << 2),
       std::memory_order_acq_rel, std::memory_order_relaxed)) {}
-  uint32_t last_acquired = last_acquired_and_ready & 3;
+  u32 last_acquired = last_acquired_and_ready & 3;
   if (last_acquired == guest_output_mailbox_writable_) {
     // Not (3 - a - b) % 3, which yields a when a == b. Using + 1 makes waits target 3 frames ago.
     guest_output_mailbox_writable_ = (guest_output_mailbox_writable_ + 1) % 3;
@@ -285,7 +285,7 @@ bool Presenter::RefreshGuestOutput(
 void Presenter::AddOverlayLayer(gpu::IOverlayLayer* layer, size_t z_order) {
   REX_ASSERT(layer != nullptr);
   bool drawers_were_empty = ui_drawers_.empty();
-  uint64_t drawer_last_draw = UINT64_MAX;
+  u64 drawer_last_draw = UINT64_MAX;
   for (auto it_existing = ui_drawers_.begin(); it_existing != ui_drawers_.end(); ++it_existing) {
     if (it_existing->second.layer != layer) {
       continue;
@@ -353,7 +353,7 @@ bool Presenter::InitializeCommonSurfaceIndependent() {
 }
 
 std::unique_lock<std::mutex> Presenter::ConsumeGuestOutput(
-    uint32_t& mailbox_index_or_max_if_inactive_out, GuestOutputProperties* properties_out,
+    u32& mailbox_index_or_max_if_inactive_out, GuestOutputProperties* properties_out,
     GuestOutputPaintConfig* paint_config_out) {
   if (paint_config_out) {
     std::unique_lock<std::mutex> config_lock(guest_output_paint_config_mutex_);
@@ -362,19 +362,19 @@ std::unique_lock<std::mutex> Presenter::ConsumeGuestOutput(
 
   std::unique_lock<std::mutex> consumer_lock(guest_output_mailbox_consumer_mutex_);
   // A relaxed load suffices because the consumer mutex orders access to acquired images.
-  uint32_t old_acquired_and_ready =
+  u32 old_acquired_and_ready =
       guest_output_mailbox_acquired_and_ready_.load(std::memory_order_relaxed);
-  uint32_t desired_acquired_and_ready =
-      (old_acquired_and_ready & ~static_cast<uint32_t>(3)) | (old_acquired_and_ready >> 2);
+  u32 desired_acquired_and_ready =
+      (old_acquired_and_ready & ~static_cast<u32>(3)) | (old_acquired_and_ready >> 2);
   // acq_rel acquires a new ready image and releases the old acquired image to the producer.
   while (old_acquired_and_ready != desired_acquired_and_ready &&
          !guest_output_mailbox_acquired_and_ready_.compare_exchange_weak(
              old_acquired_and_ready, desired_acquired_and_ready, std::memory_order_acq_rel,
              std::memory_order_relaxed)) {
     desired_acquired_and_ready =
-        (old_acquired_and_ready & ~static_cast<uint32_t>(3)) | (old_acquired_and_ready >> 2);
+        (old_acquired_and_ready & ~static_cast<u32>(3)) | (old_acquired_and_ready >> 2);
   }
-  uint32_t mailbox_index = desired_acquired_and_ready & 3;
+  u32 mailbox_index = desired_acquired_and_ready & 3;
   const GuestOutputProperties& properties = guest_output_properties_[mailbox_index];
   mailbox_index_or_max_if_inactive_out = properties.IsActive() ? mailbox_index : UINT32_MAX;
   if (properties_out) {
@@ -384,8 +384,8 @@ std::unique_lock<std::mutex> Presenter::ConsumeGuestOutput(
 }
 
 Presenter::GuestOutputPaintFlow Presenter::GetGuestOutputPaintFlow(
-    const GuestOutputProperties& properties, uint32_t host_rt_width, uint32_t host_rt_height,
-    uint32_t max_rt_width, uint32_t max_rt_height, const GuestOutputPaintConfig& config) const {
+    const GuestOutputProperties& properties, u32 host_rt_width, u32 host_rt_height,
+    u32 max_rt_width, u32 max_rt_height, const GuestOutputPaintConfig& config) const {
   GuestOutputPaintFlow flow = {};
 
   REX_ASSERT(max_rt_width != 0);
@@ -402,28 +402,24 @@ Presenter::GuestOutputPaintFlow Presenter::GetGuestOutputPaintFlow(
 
   flow.properties = properties;
 
-  auto rescale_unsigned = [](uint32_t value, uint32_t new_scale, uint32_t old_scale) -> uint32_t {
-    return static_cast<uint32_t>((static_cast<uint64_t>(value) * new_scale + (old_scale >> 1)) /
-                                 old_scale);
+  auto rescale_unsigned = [](u32 value, u32 new_scale, u32 old_scale) -> u32 {
+    return static_cast<u32>((static_cast<u64>(value) * new_scale + (old_scale >> 1)) / old_scale);
   };
-  auto rescale_signed = [](int32_t value, uint32_t new_scale, uint32_t old_scale) -> int32_t {
+  auto rescale_signed = [](i32 value, u32 new_scale, u32 old_scale) -> i32 {
     // The sign of the half scale offset matches the value, since / truncates toward zero.
-    return static_cast<int32_t>((static_cast<int64_t>(value) * new_scale +
-                                 static_cast<int32_t>(old_scale >> 1) * (value < 0 ? -1 : 1)) /
-                                old_scale);
+    return static_cast<i32>((static_cast<i64>(value) * new_scale +
+                             static_cast<i32>(old_scale >> 1) * (value < 0 ? -1 : 1)) /
+                            old_scale);
   };
 
-  uint32_t output_width, output_height;
-  if (static_cast<uint64_t>(surface_width_in_paint_connection_) *
-          properties.display_aspect_ratio_y >
-      static_cast<uint64_t>(surface_height_in_paint_connection_) *
-          properties.display_aspect_ratio_x) {
-    uint32_t present_safe_area;
+  u32 output_width, output_height;
+  if (static_cast<u64>(surface_width_in_paint_connection_) * properties.display_aspect_ratio_y >
+      static_cast<u64>(surface_height_in_paint_connection_) * properties.display_aspect_ratio_x) {
+    u32 present_safe_area;
     if (config.GetAllowOverscanCutoff() &&
         REXCVAR_GET(::rex::gpu::cvars::present_safe_area_y) > 0 &&
         REXCVAR_GET(::rex::gpu::cvars::present_safe_area_y) < 100) {
-      present_safe_area =
-          static_cast<uint32_t>(REXCVAR_GET(::rex::gpu::cvars::present_safe_area_y));
+      present_safe_area = static_cast<u32>(REXCVAR_GET(::rex::gpu::cvars::present_safe_area_y));
     } else {
       present_safe_area = 100;
     }
@@ -439,23 +435,22 @@ Presenter::GuestOutputPaintFlow Presenter::GetGuestOutputPaintFlow(
       output_width = rescale_unsigned(surface_height_in_paint_connection_ * 100,
                                       properties.display_aspect_ratio_x,
                                       properties.display_aspect_ratio_y * present_safe_area);
-      flow.output_x = (static_cast<int32_t>(surface_width_in_paint_connection_) -
-                       static_cast<int32_t>(output_width)) /
-                      2;
+      flow.output_x =
+          (static_cast<i32>(surface_width_in_paint_connection_) - static_cast<i32>(output_width)) /
+          2;
     } else {
       output_width = surface_width_in_paint_connection_;
       flow.output_x = 0;
     }
-    flow.output_y = (static_cast<int32_t>(surface_height_in_paint_connection_) -
-                     static_cast<int32_t>(output_height)) /
-                    2;
+    flow.output_y =
+        (static_cast<i32>(surface_height_in_paint_connection_) - static_cast<i32>(output_height)) /
+        2;
   } else {
-    uint32_t present_safe_area;
+    u32 present_safe_area;
     if (config.GetAllowOverscanCutoff() &&
         REXCVAR_GET(::rex::gpu::cvars::present_safe_area_x) > 0 &&
         REXCVAR_GET(::rex::gpu::cvars::present_safe_area_x) < 100) {
-      present_safe_area =
-          static_cast<uint32_t>(REXCVAR_GET(::rex::gpu::cvars::present_safe_area_x));
+      present_safe_area = static_cast<u32>(REXCVAR_GET(::rex::gpu::cvars::present_safe_area_x));
     } else {
       present_safe_area = 100;
     }
@@ -471,16 +466,15 @@ Presenter::GuestOutputPaintFlow Presenter::GetGuestOutputPaintFlow(
       output_height = rescale_unsigned(surface_width_in_paint_connection_ * 100,
                                        properties.display_aspect_ratio_y,
                                        properties.display_aspect_ratio_x * present_safe_area);
-      flow.output_y = (static_cast<int32_t>(surface_height_in_paint_connection_) -
-                       static_cast<int32_t>(output_height)) /
+      flow.output_y = (static_cast<i32>(surface_height_in_paint_connection_) -
+                       static_cast<i32>(output_height)) /
                       2;
     } else {
       output_height = surface_height_in_paint_connection_;
       flow.output_y = 0;
     }
-    flow.output_x = (static_cast<int32_t>(surface_width_in_paint_connection_) -
-                     static_cast<int32_t>(output_width)) /
-                    2;
+    flow.output_x =
+        (static_cast<i32>(surface_width_in_paint_connection_) - static_cast<i32>(output_width)) / 2;
   }
 
   // Converts from surface pixels, 1:1 with the physical display, to render target pixels.
@@ -497,8 +491,8 @@ Presenter::GuestOutputPaintFlow Presenter::GetGuestOutputPaintFlow(
         rescale_unsigned(output_height, host_rt_height, surface_height_in_paint_connection_);
   }
 
-  int32_t output_right = flow.output_x + static_cast<int32_t>(output_width);
-  int32_t output_bottom = flow.output_y + static_cast<int32_t>(output_height);
+  i32 output_right = flow.output_x + static_cast<i32>(output_width);
+  i32 output_bottom = flow.output_y + static_cast<i32>(output_height);
   if (flow.output_x >= 0 && flow.output_y >= 0 && flow.output_x <= 1 && flow.output_y <= 1 &&
       output_width < host_rt_width && output_height < host_rt_height) {
     static std::atomic<bool> logged_top_left_expand = false;
@@ -510,12 +504,12 @@ Presenter::GuestOutputPaintFlow Presenter::GetGuestOutputPaintFlow(
     }
     output_width = host_rt_width;
     output_height = host_rt_height;
-    output_right = static_cast<int32_t>(output_width);
-    output_bottom = static_cast<int32_t>(output_height);
+    output_right = static_cast<i32>(output_width);
+    output_bottom = static_cast<i32>(output_height);
   }
   if (!output_width || !output_height || output_right <= 0 || output_bottom <= 0 ||
-      flow.output_x >= static_cast<int32_t>(host_rt_width) ||
-      flow.output_y >= static_cast<int32_t>(host_rt_height)) {
+      flow.output_x >= static_cast<i32>(host_rt_width) ||
+      flow.output_y >= static_cast<i32>(host_rt_height)) {
     return flow;
   }
 
@@ -532,8 +526,7 @@ Presenter::GuestOutputPaintFlow Presenter::GetGuestOutputPaintFlow(
 
   if (flow.has_effect) {
     flow.letterbox_clear_rectangle_count = 0;
-    uint32_t letterbox_mid_top =
-        static_cast<uint32_t>(std::max(flow.output_y, static_cast<int32_t>(0)));
+    u32 letterbox_mid_top = static_cast<u32>(std::max(flow.output_y, static_cast<i32>(0)));
     if (letterbox_mid_top) {
       REX_ASSERT(flow.letterbox_clear_rectangle_count < flow.letterbox_clear_rectangles.size());
       GuestOutputPaintFlow::ClearRectangle& letterbox_clear_rectangle_top =
@@ -543,24 +536,24 @@ Presenter::GuestOutputPaintFlow Presenter::GetGuestOutputPaintFlow(
       letterbox_clear_rectangle_top.width = host_rt_width;
       letterbox_clear_rectangle_top.height = letterbox_mid_top;
     }
-    uint32_t letterbox_mid_bottom = std::min(static_cast<uint32_t>(output_bottom), host_rt_height);
-    uint32_t letterbox_mid_height = letterbox_mid_bottom - letterbox_mid_top;
+    u32 letterbox_mid_bottom = std::min(static_cast<u32>(output_bottom), host_rt_height);
+    u32 letterbox_mid_height = letterbox_mid_bottom - letterbox_mid_top;
     if (flow.output_x > 0) {
       REX_ASSERT(flow.letterbox_clear_rectangle_count < flow.letterbox_clear_rectangles.size());
       GuestOutputPaintFlow::ClearRectangle& letterbox_clear_rectangle_left =
           flow.letterbox_clear_rectangles[flow.letterbox_clear_rectangle_count++];
       letterbox_clear_rectangle_left.x = 0;
       letterbox_clear_rectangle_left.y = letterbox_mid_top;
-      letterbox_clear_rectangle_left.width = static_cast<uint32_t>(flow.output_x);
+      letterbox_clear_rectangle_left.width = static_cast<u32>(flow.output_x);
       letterbox_clear_rectangle_left.height = letterbox_mid_height;
     }
-    if (static_cast<uint32_t>(output_right) < host_rt_width) {
+    if (static_cast<u32>(output_right) < host_rt_width) {
       REX_ASSERT(flow.letterbox_clear_rectangle_count < flow.letterbox_clear_rectangles.size());
       GuestOutputPaintFlow::ClearRectangle& letterbox_clear_rectangle_right =
           flow.letterbox_clear_rectangles[flow.letterbox_clear_rectangle_count++];
-      letterbox_clear_rectangle_right.x = static_cast<uint32_t>(output_right);
+      letterbox_clear_rectangle_right.x = static_cast<u32>(output_right);
       letterbox_clear_rectangle_right.y = letterbox_mid_top;
-      letterbox_clear_rectangle_right.width = host_rt_width - static_cast<uint32_t>(output_right);
+      letterbox_clear_rectangle_right.width = host_rt_width - static_cast<u32>(output_right);
       letterbox_clear_rectangle_right.height = letterbox_mid_height;
     }
     if (letterbox_mid_bottom < host_rt_height) {
@@ -647,7 +640,7 @@ void Presenter::UpdateSurfacePaintConnectionFromUIThread(bool* repaint_needed_ou
 
   if (surface_paint_connection_state_ !=
       SurfacePaintConnectionState::kUnconnectedSurfaceReportedUnusable) {
-    uint32_t surface_width = 0, surface_height = 0;
+    u32 surface_width = 0, surface_height = 0;
     bool surface_area_available = surface_->GetSize(surface_width, surface_height);
     if (!surface_area_available) {
       DisconnectPaintingFromSurfaceFromUIThread(
@@ -836,7 +829,7 @@ void Presenter::WaitForUITickFromUIThread() {
     return;
   }
   std::unique_lock<std::mutex> dxgi_ui_tick_lock(dxgi_ui_tick_mutex_);
-  uint64_t last_vblank_before_wait = dxgi_ui_tick_last_vblank_;
+  u64 last_vblank_before_wait = dxgi_ui_tick_last_vblank_;
   while (true) {
     if (dxgi_ui_tick_force_requested_) {
       dxgi_ui_tick_force_requested_ = false;
@@ -847,7 +840,7 @@ void Presenter::WaitForUITickFromUIThread() {
     }
     if (dxgi_ui_tick_last_vblank_ > dxgi_ui_tick_last_draw_) {
       dxgi_ui_tick_last_draw_ =
-          std::min(last_vblank_before_wait + static_cast<uint64_t>(1), dxgi_ui_tick_last_vblank_);
+          std::min(last_vblank_before_wait + static_cast<u64>(1), dxgi_ui_tick_last_vblank_);
       return;
     }
     dxgi_ui_tick_signal_condition_.wait(dxgi_ui_tick_lock);

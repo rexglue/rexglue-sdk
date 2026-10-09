@@ -49,8 +49,8 @@ class LinkedTypeDescriptorSetAllocator : public rex::NonCopyable {
    */
   explicit LinkedTypeDescriptorSetAllocator(const VulkanDevice* const vulkan_device,
                                             const VkDescriptorPoolSize* const descriptor_sizes,
-                                            const uint32_t descriptor_size_count,
-                                            const uint32_t descriptor_sets_per_page)
+                                            const u32 descriptor_size_count,
+                                            const u32 descriptor_sets_per_page)
       : vulkan_device_(vulkan_device),
         descriptor_pool_sizes_(
             std::make_unique_for_overwrite<VkDescriptorPoolSize[]>(descriptor_size_count)),
@@ -60,10 +60,10 @@ class LinkedTypeDescriptorSetAllocator : public rex::NonCopyable {
     REX_ASSERT(descriptor_size_count != 0);
     REX_ASSERT(descriptor_sets_per_page_ != 0);
 #ifndef NDEBUG
-    for (uint32_t i = 0; i < descriptor_size_count; ++i) {
+    for (u32 i = 0; i < descriptor_size_count; ++i) {
       const VkDescriptorPoolSize& descriptor_size = descriptor_sizes[i];
       REX_ASSERT(descriptor_size.descriptorCount != 0);
-      for (uint32_t j = 0; j < i; ++j) {
+      for (u32 j = 0; j < i; ++j) {
         REX_ASSERT(descriptor_sizes[j].type != descriptor_size.type);
       }
     }
@@ -77,20 +77,20 @@ class LinkedTypeDescriptorSetAllocator : public rex::NonCopyable {
 
   VkDescriptorSet Allocate(VkDescriptorSetLayout descriptor_set_layout,
                            const VkDescriptorPoolSize* descriptor_counts,
-                           uint32_t descriptor_type_count);
+                           u32 descriptor_type_count);
 
  private:
   struct Page {
     VkDescriptorPool pool;
     std::unique_ptr<VkDescriptorPoolSize[]> descriptors_remaining;
-    uint32_t descriptor_sets_remaining;
+    u32 descriptor_sets_remaining;
   };
 
   const VulkanDevice* vulkan_device_;
 
   std::unique_ptr<VkDescriptorPoolSize[]> descriptor_pool_sizes_;
-  uint32_t descriptor_pool_size_count_;
-  uint32_t descriptor_sets_per_page_;
+  u32 descriptor_pool_size_count_;
+  u32 descriptor_sets_per_page_;
 
   std::vector<VkDescriptorPool> pages_full_;
   /**
@@ -102,7 +102,7 @@ class LinkedTypeDescriptorSetAllocator : public rex::NonCopyable {
    * 0. One page, page_usable_latest_, is kept outside the map and tried first, since the key
    * changes on every allocation.
    */
-  std::multimap<uint32_t, Page> pages_usable_;
+  std::multimap<u32, Page> pages_usable_;
   /** Absent when its pool is VK_NULL_HANDLE. */
   Page page_usable_latest_ = {};
 };

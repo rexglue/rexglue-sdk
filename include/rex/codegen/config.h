@@ -37,9 +37,9 @@ struct MidAsmHook {
   bool returnOnTrue = false;  /**< Return when the function returns true */
   bool returnOnFalse = false; /**< Return when the function returns false */
 
-  uint32_t jumpAddress = 0;        /**< Address to jump to after the call, 0 for none */
-  uint32_t jumpAddressOnTrue = 0;  /**< Address to jump to when the function returns true */
-  uint32_t jumpAddressOnFalse = 0; /**< Address to jump to when the function returns false */
+  u32 jumpAddress = 0;        /**< Address to jump to after the call, 0 for none */
+  u32 jumpAddressOnTrue = 0;  /**< Address to jump to when the function returns true */
+  u32 jumpAddressOnFalse = 0; /**< Address to jump to when the function returns false */
 
   bool afterInstruction = false; /**< Runs after the instruction at the address instead of before */
 };
@@ -56,10 +56,10 @@ struct MMIODeclaredAccess {
  * Function or chunk configuration. A chunk is a function entry with a non zero parent.
  */
 struct FunctionConfig {
-  uint32_t size = 0;   /**< Size in bytes, exclusive with end */
-  uint32_t end = 0;    /**< Exclusive end address, exclusive with size */
-  std::string name;    /**< Symbol name, empty generates sub_XXXXXXXX */
-  uint32_t parent = 0; /**< Parent function address, 0 when standalone */
+  u32 size = 0;     /**< Size in bytes, exclusive with end */
+  u32 end = 0;      /**< Exclusive end address, exclusive with size */
+  std::string name; /**< Symbol name, empty generates sub_XXXXXXXX */
+  u32 parent = 0;   /**< Parent function address, 0 when standalone */
 
   /**
    * Keeps non volatiles in ctx instead of localizing them. Marks an MSVC SEH funclet, which
@@ -74,9 +74,7 @@ struct FunctionConfig {
    * @param address Function start address
    * @return Size in bytes, 0 when neither field gives one
    */
-  uint32_t getSize(uint32_t address) const {
-    return size ? size : (end > address ? end - address : 0);
-  }
+  u32 getSize(u32 address) const { return size ? size : (end > address ? end - address : 0); }
 
   /**
    * Reports whether this is a discontinuous chunk of a parent function.
@@ -88,17 +86,17 @@ struct FunctionConfig {
 
 /** Section info for analysis output. */
 struct SectionInfo {
-  std::string name;     /**< Section name written to the analysis output. */
-  uint64_t address = 0; /**< Guest address of the first byte of the section. */
-  uint64_t size = 0;    /**< Section size in bytes. */
-  std::string flags;    /**< "rx", "rw" or "r" */
+  std::string name;  /**< Section name written to the analysis output. */
+  u64 address = 0;   /**< Guest address of the first byte of the section. */
+  u64 size = 0;      /**< Section size in bytes. */
+  std::string flags; /**< "rx", "rw" or "r" */
 };
 
 /** Function entry for analysis output. */
 struct FunctionEntry {
-  uint64_t address = 0; /**< Guest address of the function entry. */
-  uint64_t size = 0;    /**< Function size in bytes. */
-  std::string name;     /**< Empty defaults to sub_XXXXXXXX */
+  u64 address = 0;  /**< Guest address of the function entry. */
+  u64 size = 0;     /**< Function size in bytes. */
+  std::string name; /**< Empty defaults to sub_XXXXXXXX */
 };
 
 /**
@@ -147,9 +145,9 @@ struct RecompilerConfig {
   bool nonVolatileRegistersAsLocalVariables = false;
   bool generateExceptionHandlers = false; /**< Generates SEH exception handler wrappers */
 
-  uint32_t maxJumpExtension = 65536; /**< Max bytes to extend a function for jump table targets */
-  uint32_t dataRegionThreshold = 16; /**< Invalid instructions in a row that mark a data region */
-  uint32_t largeFunctionThreshold = 1048576; /**< Size in bytes that triggers a warning */
+  u32 maxJumpExtension = 65536; /**< Max bytes to extend a function for jump table targets */
+  u32 dataRegionThreshold = 16; /**< Invalid instructions in a row that mark a data region */
+  u32 largeFunctionThreshold = 1048576; /**< Size in bytes that triggers a warning */
 
   /**
    * Overrides the DLL module flag. When unset the orchestrator infers it from the module
@@ -159,31 +157,31 @@ struct RecompilerConfig {
 
   /** TOML tables `[functions]` keyed by hex entry address. Overrides the size, end, name and parent
    * of discovered functions. */
-  std::unordered_map<uint32_t, FunctionConfig> functions;
+  std::unordered_map<u32, FunctionConfig> functions;
   /** TOML array `[[switch_tables]]` keyed by the bctr address. Manual jump tables that replace
    * automatic detection. */
-  std::unordered_map<uint32_t, JumpTable> switchTables;
+  std::unordered_map<u32, JumpTable> switchTables;
   /** TOML array `[[midasm_hook]]` keyed by instruction address. Calls to user functions inserted
    * into the generated code. */
-  std::unordered_map<uint32_t, MidAsmHook> midAsmHooks;
+  std::unordered_map<u32, MidAsmHook> midAsmHooks;
   /** TOML key `longjmp_address`, default 0. Function address whose calls are emitted as
    * `ppc_longjmp`. */
-  uint32_t longJmpAddress = 0;
+  u32 longJmpAddress = 0;
   /** TOML key `setjmp_address`, default 0. Function address whose calls are emitted as
    * `ppc_setjmp`. */
-  uint32_t setJmpAddress = 0;
+  u32 setJmpAddress = 0;
 
   /** Shim function addresses keyed by registry name, read from the [shim] toml table. */
-  std::unordered_map<std::string, uint32_t> shimFunctions;
+  std::unordered_map<std::string, u32> shimFunctions;
 
-  std::unordered_map<uint32_t, uint32_t> invalidInstructionHints; /**< Maps address to size */
+  std::unordered_map<u32, u32> invalidInstructionHints; /**< Maps address to size */
   /** Addresses of bctr instructions that are vtable or computed calls. */
-  std::unordered_set<uint32_t> knownIndirectCallHints;
+  std::unordered_set<u32> knownIndirectCallHints;
   /** Loads and stores the [mmio.gpu] and [mmio.apu] tables route to a register block. */
   std::unordered_map<u32, MMIODeclaredAccess> declaredMMIOAccesses;
   /** TOML array `analysis.exception_handler_funcs`. Entry addresses analysis treats as exception
    * handler functions, sorted and deduplicated after load. */
-  std::vector<uint32_t> exceptionHandlerFuncHints;
+  std::vector<u32> exceptionHandlerFuncHints;
 
   /**
    * Loads configuration from a TOML file.

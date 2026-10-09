@@ -29,10 +29,10 @@ namespace rex::codegen {
  * @param mstop Ending bit position (0-63)
  * @return 64-bit mask with bits set between mstart and mstop
  */
-inline uint64_t compute_mask(uint32_t mstart, uint32_t mstop) {
+inline u64 compute_mask(u32 mstart, u32 mstop) {
   mstart &= 0x3F;
   mstop &= 0x3F;
-  uint64_t value = (UINT64_MAX >> mstart) ^ ((mstop >= 63) ? 0 : UINT64_MAX >> (mstop + 1));
+  u64 value = (UINT64_MAX >> mstart) ^ ((mstop >= 63) ? 0 : UINT64_MAX >> (mstop + 1));
   return mstart <= mstop ? value : ~value;
 }
 
@@ -42,7 +42,7 @@ inline uint64_t compute_mask(uint32_t mstart, uint32_t mstop) {
  * @param bi BI field bit index, 0 to 3.
  * @return "lt", "gt", "eq" or "so".
  */
-inline const char* crBitName(uint32_t bi) {
+inline const char* crBitName(u32 bi) {
   static constexpr const char* names[] = {"lt", "gt", "eq", "so"};
   return names[bi & 3];
 }
@@ -73,7 +73,7 @@ inline bool isRecordForm(const ppc_insn& insn) {
  */
 inline void emitRecordFormCompare(BuilderContext& ctx) {
   if (isRecordForm(ctx.insn)) {
-    ctx.println("\t{}.compare<int32_t>({}.s32, 0, {});", ctx.cr(0), ctx.r(ctx.insn.operands[0]),
+    ctx.println("\t{}.compare<i32>({}.s32, 0, {});", ctx.cr(0), ctx.r(ctx.insn.operands[0]),
                 ctx.xer());
   }
 }
@@ -93,16 +93,16 @@ inline void emitRecordFormCompare(BuilderContext& ctx) {
  */
 inline void emitCRBitOperation(BuilderContext& ctx, std::string_view op, bool invertA = false,
                                bool invertB = false, bool invertResult = false) {
-  uint32_t crD = ctx.insn.operands[0];
-  uint32_t crA = ctx.insn.operands[1];
-  uint32_t crB = ctx.insn.operands[2];
+  u32 crD = ctx.insn.operands[0];
+  u32 crA = ctx.insn.operands[1];
+  u32 crB = ctx.insn.operands[2];
 
-  uint32_t crField_D = crD / 4;
-  uint32_t crBit_D = crD % 4;
-  uint32_t crField_A = crA / 4;
-  uint32_t crBit_A = crA % 4;
-  uint32_t crField_B = crB / 4;
-  uint32_t crBit_B = crB % 4;
+  u32 crField_D = crD / 4;
+  u32 crBit_D = crD % 4;
+  u32 crField_A = crA / 4;
+  u32 crBit_A = crA % 4;
+  u32 crField_B = crB / 4;
+  u32 crBit_B = crB % 4;
 
   std::string aExpr = std::format("{}.{}", ctx.cr(crField_A), crBitName(crBit_A));
 
@@ -128,7 +128,7 @@ inline void emitCRBitOperation(BuilderContext& ctx, std::string_view op, bool in
  * Used by cmpd, cmpld, cmplw, cmpw
  *
  * @param ctx The builder context
- * @param type_name The comparison type (e.g., "int64_t", "uint32_t")
+ * @param type_name The comparison type (e.g., "i64", "u32")
  * @param field The register field accessor (e.g., "s64", "u32")
  */
 inline void emitCompareRegister(BuilderContext& ctx, const char* type_name, const char* field) {
@@ -143,15 +143,15 @@ inline void emitCompareRegister(BuilderContext& ctx, const char* type_name, cons
  * Used by cmpdi, cmpldi, cmplwi, cmpwi
  *
  * @param ctx The builder context
- * @param type_name The comparison type (e.g., "int64_t", "uint32_t")
+ * @param type_name The comparison type (e.g., "i64", "u32")
  * @param field The register field accessor (e.g., "s64", "u32")
- * @param sign_extend If true, sign-extend the immediate via static_cast<int32_t>
+ * @param sign_extend If true, sign-extend the immediate via static_cast<i32>
  */
 inline void emitCompareImmediate(BuilderContext& ctx, const char* type_name, const char* field,
                                  bool sign_extend) {
   if (sign_extend) {
     ctx.println("\t{}.compare<{}>({}.{}, {}, {});", ctx.cr(ctx.insn.operands[0]), type_name,
-                ctx.r(ctx.insn.operands[1]), field, static_cast<int32_t>(ctx.insn.operands[2]),
+                ctx.r(ctx.insn.operands[1]), field, static_cast<i32>(ctx.insn.operands[2]),
                 ctx.xer());
   } else {
     ctx.println("\t{}.compare<{}>({}.{}, {}, {});", ctx.cr(ctx.insn.operands[0]), type_name,
@@ -169,7 +169,7 @@ inline void emitCompareImmediate(BuilderContext& ctx, const char* type_name, con
  * @param load_macro The REX_LOAD_* macro to use (e.g., "REX_LOAD_U8")
  */
 inline void emitLoadWithUpdate(BuilderContext& ctx, const char* load_macro) {
-  ctx.println("\t{} = {} + {}.u32;", ctx.ea(), static_cast<int32_t>(ctx.insn.operands[1]),
+  ctx.println("\t{} = {} + {}.u32;", ctx.ea(), static_cast<i32>(ctx.insn.operands[1]),
               ctx.r(ctx.insn.operands[2]));
   ctx.println("\t{}.u64 = {}({});", ctx.r(ctx.insn.operands[0]), ctx.MMIOMacro(load_macro),
               ctx.ea());
@@ -204,7 +204,7 @@ inline void emitLoadXFormWithUpdate(BuilderContext& ctx, const char* load_macro)
  * @param field The register field to store (e.g., "u8", "u32", "u64")
  */
 inline void emitStoreWithUpdate(BuilderContext& ctx, const char* store_macro, const char* field) {
-  ctx.println("\t{} = {} + {}.u32;", ctx.ea(), static_cast<int32_t>(ctx.insn.operands[1]),
+  ctx.println("\t{} = {} + {}.u32;", ctx.ea(), static_cast<i32>(ctx.insn.operands[1]),
               ctx.r(ctx.insn.operands[2]));
   ctx.println("\t{}({}, {}.{});", ctx.MMIOMacro(store_macro), ctx.ea(), ctx.r(ctx.insn.operands[0]),
               field);
@@ -236,7 +236,7 @@ inline void emitStoreXFormWithUpdate(BuilderContext& ctx, const char* store_macr
  * Pattern `EA = rA + rB; reserved = *(T*)REX_RAW_ADDR(EA); rD = bswap(reserved)`
  *
  * @param ctx The builder context
- * @param ptr_type The pointer type (e.g., "uint32_t", "uint64_t")
+ * @param ptr_type The pointer type (e.g., "u32", "u64")
  * @param bswap_func The byte-swap builtin (e.g., "__builtin_bswap32")
  * @param reserved_field The reserved register field (e.g., "u32", "u64")
  */
@@ -258,7 +258,7 @@ inline void emitAtomicLoadReserve(BuilderContext& ctx, const char* ptr_type, con
  * Pattern `EA = rA + rB; cr0 = CAS(EA, reserved, bswap(rS))`
  *
  * @param ctx The builder context
- * @param ptr_type The pointer type (e.g., "uint32_t", "uint64_t")
+ * @param ptr_type The pointer type (e.g., "u32", "u64")
  * @param bswap_func The byte-swap builtin (e.g., "__builtin_bswap32")
  * @param field The register field (e.g., "u32", "u64")
  */
@@ -285,7 +285,7 @@ inline void emitAtomicStoreConditional(BuilderContext& ctx, const char* ptr_type
  * Used by lha, lwa (halfword/word algebraic loads)
  *
  * @param ctx The builder context
- * @param cast_type The cast for sign extension (e.g., "int16_t", "int32_t")
+ * @param cast_type The cast for sign extension (e.g., "i16", "i32")
  * @param load_macro The REX_LOAD_* macro to use
  */
 inline void emitSignExtendLoadDForm(BuilderContext& ctx, const char* cast_type,
@@ -293,7 +293,7 @@ inline void emitSignExtendLoadDForm(BuilderContext& ctx, const char* cast_type,
   ctx.print("\t{}.s64 = {}({}(", ctx.r(ctx.insn.operands[0]), cast_type, ctx.MMIOMacro(load_macro));
   if (ctx.insn.operands[2] != 0)
     ctx.print("{}.u32 + ", ctx.r(ctx.insn.operands[2]));
-  ctx.println("{}));", static_cast<int32_t>(ctx.insn.operands[1]));
+  ctx.println("{}));", static_cast<i32>(ctx.insn.operands[1]));
 }
 
 /**
@@ -303,7 +303,7 @@ inline void emitSignExtendLoadDForm(BuilderContext& ctx, const char* cast_type,
  * Used by lhax, lwax (halfword/word algebraic indexed loads)
  *
  * @param ctx The builder context
- * @param cast_type The cast for sign extension (e.g., "int16_t", "int32_t")
+ * @param cast_type The cast for sign extension (e.g., "i16", "i32")
  * @param load_macro The REX_LOAD_* macro to use
  */
 inline void emitSignExtendLoadXForm(BuilderContext& ctx, const char* cast_type,
@@ -325,8 +325,8 @@ inline void emitSignExtendLoadXForm(BuilderContext& ctx, const char* cast_type,
  * @param condition Pre-formatted condition expression (e.g., "ctr.u32 != 0")
  * @param instr_name Instruction mnemonic for the warning message
  */
-inline void emitBranchWithBoundsCheck(BuilderContext& ctx, uint32_t target,
-                                      std::string_view condition, std::string_view instr_name) {
+inline void emitBranchWithBoundsCheck(BuilderContext& ctx, u32 target, std::string_view condition,
+                                      std::string_view instr_name) {
   if (target < ctx.fn.base() || target >= ctx.fn.end()) {
     REXLOG_WARN(codegen, "{} at {:X} branches outside function to {:X}", instr_name, ctx.base,
                 target);
@@ -388,7 +388,7 @@ inline void emitVectorTempEA(BuilderContext& ctx) {
  * @param bSigned  Second operand, signed (e.g., "ctx.r4.s32" or "-1")
  * @param bUnsigned Second operand, unsigned (e.g., "ctx.r4.u32" or "4294967295u")
  */
-inline void emitTrap(BuilderContext& ctx, uint32_t to, const std::string& aSigned,
+inline void emitTrap(BuilderContext& ctx, u32 to, const std::string& aSigned,
                      const std::string& aUnsigned, const std::string& bSigned,
                      const std::string& bUnsigned) {
   if (to == 0)

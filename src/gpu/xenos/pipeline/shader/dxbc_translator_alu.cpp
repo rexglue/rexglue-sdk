@@ -20,7 +20,7 @@ namespace rex::gpu {
 using namespace xenos::ucode;
 
 void DxbcShaderTranslator::KillPixel(bool condition, const dxbc::Src& condition_src,
-                                     uint8_t memexport_eM_potentially_written_before) {
+                                     u8 memexport_eM_potentially_written_before) {
   a_.OpIf(condition, condition_src);
   // Perform outstanding memory exports before the invocation goes inactive and UAV writes stop.
   ExportToMemory(memexport_eM_potentially_written_before);
@@ -32,26 +32,26 @@ void DxbcShaderTranslator::KillPixel(bool condition, const dxbc::Src& condition_
   a_.OpEndIf();
 }
 
-void DxbcShaderTranslator::ProcessVectorAluOperation(
-    const ParsedAluInstruction& instr, uint8_t memexport_eM_potentially_written_before,
-    uint32_t& result_swizzle, bool& predicate_written) {
+void DxbcShaderTranslator::ProcessVectorAluOperation(const ParsedAluInstruction& instr,
+                                                     u8 memexport_eM_potentially_written_before,
+                                                     u32& result_swizzle, bool& predicate_written) {
   result_swizzle = dxbc::Src::kXYZW;
   predicate_written = false;
 
-  uint32_t used_result_components = instr.vector_and_constant_result.GetUsedResultComponents();
+  u32 used_result_components = instr.vector_and_constant_result.GetUsedResultComponents();
   if (!used_result_components &&
       !xenos::ucode::GetAluVectorOpcodeInfo(instr.vector_opcode).changed_state) {
     return;
   }
 
-  uint32_t operand_count;
+  u32 operand_count;
   if (instr.vector_opcode == AluVectorOpcode::kCube) {
     operand_count = 1;
   } else {
     operand_count = instr.vector_operand_count;
   }
-  uint32_t operand_needed_components[3];
-  for (uint32_t i = 0; i < operand_count; ++i) {
+  u32 operand_needed_components[3];
+  for (u32 i = 0; i < operand_count; ++i) {
     operand_needed_components[i] = xenos::ucode::GetAluVectorOpNeededSourceComponents(
         instr.vector_opcode, i + 1, used_result_components);
   }
@@ -59,12 +59,12 @@ void DxbcShaderTranslator::ProcessVectorAluOperation(
     operand_needed_components[0] &= 0b1101;
   }
   dxbc::Src operands[3]{dxbc::Src::LF(0.0f), dxbc::Src::LF(0.0f), dxbc::Src::LF(0.0f)};
-  uint32_t operand_temps = 0;
-  for (uint32_t i = 0; i < operand_count; ++i) {
+  u32 operand_temps = 0;
+  for (u32 i = 0; i < operand_count; ++i) {
     bool operand_temp_pushed = false;
     operands[i] =
         LoadOperand(instr.vector_operands[i], operand_needed_components[i], operand_temp_pushed);
-    operand_temps += static_cast<uint32_t>(operand_temp_pushed);
+    operand_temps += static_cast<u32>(operand_temp_pushed);
   }
   // Every return from here on must PopSystemTemp(operand_temps).
 
@@ -77,12 +77,12 @@ void DxbcShaderTranslator::ProcessVectorAluOperation(
     case AluVectorOpcode::kMad: {
       // DXBC mad is avoided to prevent fused multiply-add.
       a_.OpMul(per_component_dest, operands[0], operands[1]);
-      uint32_t multiplicands_different =
+      u32 multiplicands_different =
           used_result_components &
           ~instr.vector_operands[0].GetIdenticalComponents(instr.vector_operands[1]);
       if (multiplicands_different) {
         // Shader Model 3 gives +-0 or denormal * anything = +0.
-        uint32_t is_zero_temp = PushSystemTemp();
+        u32 is_zero_temp = PushSystemTemp();
         a_.OpMin(dxbc::Dest::R(is_zero_temp, multiplicands_different), operands[0].Abs(),
                  operands[1].Abs());
         // min isn't required to flush denormals, eq is.
@@ -101,10 +101,9 @@ void DxbcShaderTranslator::ProcessVectorAluOperation(
 
     case AluVectorOpcode::kMax:
     case AluVectorOpcode::kMin: {
-      uint32_t identical =
-          instr.vector_operands[0].GetIdenticalComponents(instr.vector_operands[1]) &
-          used_result_components;
-      uint32_t different = used_result_components & ~identical;
+      u32 identical = instr.vector_operands[0].GetIdenticalComponents(instr.vector_operands[1]) &
+                      used_result_components;
+      u32 different = used_result_components & ~identical;
       if (different) {
         // Shader Model 3 NaN behavior (`a op b ? a : b`, not fmax/fmin).
         if (instr.vector_opcode == AluVectorOpcode::kMin) {
@@ -163,7 +162,7 @@ void DxbcShaderTranslator::ProcessVectorAluOperation(
     case AluVectorOpcode::kDp4:
     case AluVectorOpcode::kDp3:
     case AluVectorOpcode::kDp2Add: {
-      uint32_t component_count;
+      u32 component_count;
       if (instr.vector_opcode == AluVectorOpcode::kDp2Add) {
         component_count = 2;
       } else if (instr.vector_opcode == AluVectorOpcode::kDp3) {
@@ -172,10 +171,9 @@ void DxbcShaderTranslator::ProcessVectorAluOperation(
         component_count = 4;
       }
       result_swizzle = dxbc::Src::kXXXX;
-      uint32_t different =
-          static_cast<uint32_t>((1 << component_count) - 1) &
-          ~instr.vector_operands[0].GetIdenticalComponents(instr.vector_operands[1]);
-      for (uint32_t i = 0; i < component_count; ++i) {
+      u32 different = static_cast<u32>((1 << component_count) - 1) &
+                      ~instr.vector_operands[0].GetIdenticalComponents(instr.vector_operands[1]);
+      for (u32 i = 0; i < component_count; ++i) {
         a_.OpMul(dxbc::Dest::R(system_temp_result_, i ? 0b0010 : 0b0001),
                  operands[0].SelectFromSwizzled(i), operands[1].SelectFromSwizzled(i));
         if ((different & (1 << i)) != 0) {
@@ -205,7 +203,7 @@ void DxbcShaderTranslator::ProcessVectorAluOperation(
 
     case AluVectorOpcode::kCube: {
       // operands[0] is .z_xy, the result is T coordinate, S coordinate, 2 * major axis, face ID.
-      constexpr uint32_t kCubeX = 2, kCubeY = 3, kCubeZ = 0;
+      constexpr u32 kCubeX = 2, kCubeY = 3, kCubeZ = 0;
       dxbc::Src cube_x_src(operands[0].SelectFromSwizzled(kCubeX));
       dxbc::Src cube_y_src(operands[0].SelectFromSwizzled(kCubeY));
       dxbc::Src cube_z_src(operands[0].SelectFromSwizzled(kCubeZ));
@@ -220,7 +218,7 @@ void DxbcShaderTranslator::ProcessVectorAluOperation(
       dxbc::Dest id_dest(dxbc::Dest::R(system_temp_result_, 0b1000));
       a_.OpIf(true, dxbc::Src::R(system_temp_result_, dxbc::Src::kXXXX));
       {
-        uint32_t ma_neg_component = (used_result_components & 0b1000) ? 3 : 1;
+        u32 ma_neg_component = (used_result_components & 0b1000) ? 3 : 1;
         if (used_result_components & 0b1010) {
           a_.OpLT(dxbc::Dest::R(system_temp_result_, 1 << ma_neg_component), cube_z_src,
                   dxbc::Src::LF(0.0f));
@@ -245,7 +243,7 @@ void DxbcShaderTranslator::ProcessVectorAluOperation(
         a_.OpGE(dxbc::Dest::R(system_temp_result_, 0b0001), cube_y_src.Abs(), cube_x_src.Abs());
         a_.OpIf(true, dxbc::Src::R(system_temp_result_, dxbc::Src::kXXXX));
         {
-          uint32_t ma_neg_component = (used_result_components & 0b1000) ? 3 : 0;
+          u32 ma_neg_component = (used_result_components & 0b1000) ? 3 : 0;
           if (used_result_components & 0b1001) {
             a_.OpLT(dxbc::Dest::R(system_temp_result_, 1 << ma_neg_component), cube_y_src,
                     dxbc::Src::LF(0.0f));
@@ -267,7 +265,7 @@ void DxbcShaderTranslator::ProcessVectorAluOperation(
         }
         a_.OpElse();
         {
-          uint32_t ma_neg_component = (used_result_components & 0b1000) ? 3 : 1;
+          u32 ma_neg_component = (used_result_components & 0b1000) ? 3 : 1;
           if (used_result_components & 0b1010) {
             a_.OpLT(dxbc::Dest::R(system_temp_result_, 1 << ma_neg_component), cube_x_src,
                     dxbc::Src::LF(0.0f));
@@ -295,23 +293,23 @@ void DxbcShaderTranslator::ProcessVectorAluOperation(
     case AluVectorOpcode::kMax4: {
       result_swizzle = dxbc::Src::kXXXX;
       // SM4 max is used, which replaces NaN with the non-NaN component.
-      uint32_t remaining_components = 0;
-      for (uint32_t i = 0; i < 4; ++i) {
+      u32 remaining_components = 0;
+      for (u32 i = 0; i < 4; ++i) {
         remaining_components |= 1 << ((operands[0].swizzle_ >> (i * 2)) & 3);
       }
-      uint32_t unique_component_0;
+      u32 unique_component_0;
       rex::bit_scan_forward(remaining_components, &unique_component_0);
-      remaining_components &= ~static_cast<uint32_t>(1 << unique_component_0);
+      remaining_components &= ~static_cast<u32>(1 << unique_component_0);
       if (remaining_components) {
-        uint32_t unique_component_1;
+        u32 unique_component_1;
         rex::bit_scan_forward(remaining_components, &unique_component_1);
-        remaining_components &= ~static_cast<uint32_t>(1 << unique_component_1);
+        remaining_components &= ~static_cast<u32>(1 << unique_component_1);
         a_.OpMax(dxbc::Dest::R(system_temp_result_, 0b0001), operands[0].Select(unique_component_0),
                  operands[0].Select(unique_component_1));
         while (remaining_components) {
-          uint32_t unique_component;
+          u32 unique_component;
           rex::bit_scan_forward(remaining_components, &unique_component);
-          remaining_components &= ~static_cast<uint32_t>(1 << unique_component);
+          remaining_components &= ~static_cast<u32>(1 << unique_component);
           a_.OpMax(dxbc::Dest::R(system_temp_result_, 0b0001),
                    dxbc::Src::R(system_temp_result_, dxbc::Src::kXXXX),
                    operands[0].Select(unique_component));
@@ -508,10 +506,9 @@ void DxbcShaderTranslator::ProcessVectorAluOperation(
       a_.OpFToI(dxbc::Dest::R(system_temp_ps_pc_p0_a0_, 0b1000),
                 dxbc::Src::R(system_temp_ps_pc_p0_a0_, dxbc::Src::kWWWW));
       if (used_result_components) {
-        uint32_t identical =
-            instr.vector_operands[0].GetIdenticalComponents(instr.vector_operands[1]) &
-            used_result_components;
-        uint32_t different = used_result_components & ~identical;
+        u32 identical = instr.vector_operands[0].GetIdenticalComponents(instr.vector_operands[1]) &
+                        used_result_components;
+        u32 different = used_result_components & ~identical;
         if (different) {
           // Shader Model 3 NaN behavior (`a >= b ? a : b`, not fmax).
           a_.OpGE(dxbc::Dest::R(system_temp_result_, different), operands[0], operands[1]);
@@ -533,9 +530,9 @@ void DxbcShaderTranslator::ProcessVectorAluOperation(
   PopSystemTemp(operand_temps);
 }
 
-void DxbcShaderTranslator::ProcessScalarAluOperation(
-    const ParsedAluInstruction& instr, uint8_t memexport_eM_potentially_written_before,
-    bool& predicate_written) {
+void DxbcShaderTranslator::ProcessScalarAluOperation(const ParsedAluInstruction& instr,
+                                                     u8 memexport_eM_potentially_written_before,
+                                                     bool& predicate_written) {
   predicate_written = false;
 
   if (instr.scalar_opcode == xenos::ucode::AluScalarOpcode::kRetainPrev) {
@@ -543,13 +540,13 @@ void DxbcShaderTranslator::ProcessScalarAluOperation(
   }
 
   dxbc::Src operands_loaded[2]{dxbc::Src::LF(0.0f), dxbc::Src::LF(0.0f)};
-  uint32_t operand_temps = 0;
-  for (uint32_t i = 0; i < instr.scalar_operand_count; ++i) {
+  u32 operand_temps = 0;
+  for (u32 i = 0; i < instr.scalar_operand_count; ++i) {
     bool operand_temp_pushed = false;
     operands_loaded[i] =
         LoadOperand(instr.scalar_operands[i], (1 << instr.scalar_operands[i].component_count) - 1,
                     operand_temp_pushed);
-    operand_temps += static_cast<uint32_t>(operand_temp_pushed);
+    operand_temps += static_cast<u32>(operand_temp_pushed);
   }
   // Every return from here on must PopSystemTemp(operand_temps).
   dxbc::Src operand_0_a(operands_loaded[0].SelectFromSwizzled(0));
@@ -569,7 +566,7 @@ void DxbcShaderTranslator::ProcessScalarAluOperation(
       a_.OpMul(ps_dest, operand_0_a, operand_0_b);
       if (instr.scalar_operands[0].components[0] != instr.scalar_operands[0].components[1]) {
         // Shader Model 3 gives +-0 or denormal * anything = +0.
-        uint32_t is_zero_temp = PushSystemTemp();
+        u32 is_zero_temp = PushSystemTemp();
         a_.OpMin(dxbc::Dest::R(is_zero_temp, 0b0001), operand_0_a.Abs(), operand_0_b.Abs());
         // min isn't required to flush denormals, eq is.
         a_.OpEq(dxbc::Dest::R(is_zero_temp, 0b0001), dxbc::Src::R(is_zero_temp, dxbc::Src::kXXXX),
@@ -581,7 +578,7 @@ void DxbcShaderTranslator::ProcessScalarAluOperation(
       break;
     case AluScalarOpcode::kMulsPrev:
     case AluScalarOpcode::kMulsPrev2: {
-      uint32_t test_temp = PushSystemTemp();
+      u32 test_temp = PushSystemTemp();
       if (instr.scalar_opcode == AluScalarOpcode::kMulsPrev2) {
         a_.OpNE(dxbc::Dest::R(test_temp, 0b0001), ps_src, dxbc::Src::LF(-FLT_MAX));
         a_.OpGE(dxbc::Dest::R(test_temp, 0b0010), -ps_src.Abs(), dxbc::Src::LF(-FLT_MAX));
@@ -657,7 +654,7 @@ void DxbcShaderTranslator::ProcessScalarAluOperation(
       break;
     case AluScalarOpcode::kLogc: {
       a_.OpLog(ps_dest, operand_0_a);
-      uint32_t is_neg_infinity_temp = PushSystemTemp();
+      u32 is_neg_infinity_temp = PushSystemTemp();
       a_.OpEq(dxbc::Dest::R(is_neg_infinity_temp, 0b0001), ps_src, dxbc::Src::LF(-INFINITY));
       a_.OpMovC(ps_dest, dxbc::Src::R(is_neg_infinity_temp, dxbc::Src::kXXXX),
                 dxbc::Src::LF(-FLT_MAX), ps_src);
@@ -673,7 +670,7 @@ void DxbcShaderTranslator::ProcessScalarAluOperation(
       } else {
         a_.OpRcp(ps_dest, operand_0_a);
       }
-      uint32_t is_infinity_temp = PushSystemTemp();
+      u32 is_infinity_temp = PushSystemTemp();
       a_.OpEq(dxbc::Dest::R(is_infinity_temp, 0b0001), ps_src.Abs(), dxbc::Src::LF(INFINITY));
       // Adding 0xFFFFFFFF turns +-Infinity (0x7F800000, 0xFF800000) into +-FLT_MAX.
       a_.OpIAdd(ps_dest, ps_src, dxbc::Src::R(is_infinity_temp, dxbc::Src::kXXXX));
@@ -686,11 +683,11 @@ void DxbcShaderTranslator::ProcessScalarAluOperation(
       } else {
         a_.OpRcp(ps_dest, operand_0_a);
       }
-      uint32_t is_not_infinity_temp = PushSystemTemp();
+      u32 is_not_infinity_temp = PushSystemTemp();
       a_.OpNE(dxbc::Dest::R(is_not_infinity_temp, 0b0001), ps_src.Abs(), dxbc::Src::LF(INFINITY));
       a_.OpOr(dxbc::Dest::R(is_not_infinity_temp, 0b0001),
               dxbc::Src::R(is_not_infinity_temp, dxbc::Src::kXXXX),
-              dxbc::Src::LU(static_cast<uint32_t>(1) << 31));
+              dxbc::Src::LU(static_cast<u32>(1) << 31));
       a_.OpAnd(ps_dest, ps_src, dxbc::Src::R(is_not_infinity_temp, dxbc::Src::kXXXX));
       PopSystemTemp();
     } break;
@@ -818,7 +815,7 @@ void DxbcShaderTranslator::ProcessScalarAluOperation(
       a_.OpMul(ps_dest, operand_0_a, operand_1);
       if (!(instr.scalar_operands[0].GetIdenticalComponents(instr.scalar_operands[1]) & 0b0001)) {
         // Shader Model 3 gives +-0 or denormal * anything = +0.
-        uint32_t is_zero_temp = PushSystemTemp();
+        u32 is_zero_temp = PushSystemTemp();
         a_.OpMin(dxbc::Dest::R(is_zero_temp, 0b0001), operand_0_a.Abs(), operand_1.Abs());
         // min isn't required to flush denormals, eq is.
         a_.OpEq(dxbc::Dest::R(is_zero_temp, 0b0001), dxbc::Src::R(is_zero_temp, dxbc::Src::kXXXX),
@@ -854,7 +851,7 @@ void DxbcShaderTranslator::ProcessScalarAluOperation(
 }
 
 void DxbcShaderTranslator::ProcessAluInstruction(const ParsedAluInstruction& instr,
-                                                 uint8_t memexport_eM_potentially_written_before) {
+                                                 u8 memexport_eM_potentially_written_before) {
   if (instr.IsNop()) {
     return;
   }
@@ -866,7 +863,7 @@ void DxbcShaderTranslator::ProcessAluInstruction(const ParsedAluInstruction& ins
   UpdateInstructionPredicationAndEmitDisassembly(instr.is_predicated, instr.predicate_condition);
 
   bool predicate_written_vector = false;
-  uint32_t vector_result_swizzle = dxbc::Src::kXYZW;
+  u32 vector_result_swizzle = dxbc::Src::kXYZW;
   ProcessVectorAluOperation(instr, memexport_eM_potentially_written_before, vector_result_swizzle,
                             predicate_written_vector);
   bool predicate_written_scalar = false;

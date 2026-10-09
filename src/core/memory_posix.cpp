@@ -116,7 +116,7 @@ size_t allocation_granularity() {
   return page_size();
 }
 
-uint32_t ToPosixProtectFlags(PageAccess access) {
+u32 ToPosixProtectFlags(PageAccess access) {
   switch (access) {
     case PageAccess::kNoAccess:
       return PROT_NONE;
@@ -200,7 +200,7 @@ PageAccess PermsToPageAccess(const std::array<char, 4>& perms) {
  */
 void* AllocFixed(void* base_address, size_t length, AllocationType allocation_type,
                  PageAccess access) {
-  const uint32_t prot_requested = ToPosixProtectFlags(access);
+  const u32 prot_requested = ToPosixProtectFlags(access);
 
   int prot_initial = 0;
   switch (allocation_type) {
@@ -307,7 +307,7 @@ bool Protect(void* base_address, size_t length, PageAccess access, PageAccess* o
   }
 #endif
 
-  uint32_t prot = ToPosixProtectFlags(access);
+  u32 prot = ToPosixProtectFlags(access);
   int ret = mprotect(base_address, length, prot);
   if (ret != 0) {
     REXLOG_ERROR(system, "mprotect({}, 0x{:X}, {}) failed: {} ({})", base_address, length, prot,
@@ -449,7 +449,7 @@ void* MapFileView(FileMappingHandle handle, void* base_address, size_t length, P
     flags |= MAP_FIXED;
   }
 
-  uint32_t prot = ToPosixProtectFlags(access);
+  u32 prot = ToPosixProtectFlags(access);
   void* result = mmap(base_address, length, prot, flags, static_cast<int>(handle),
                       static_cast<off_t>(file_offset));
   if (result == MAP_FAILED) {

@@ -28,8 +28,8 @@ void SpirvShaderTranslator::ProcessVertexFetchInstruction(
     const ParsedVertexFetchInstruction& instr) {
   UpdateInstructionPredication(instr.is_predicated, instr.predicate_condition);
 
-  uint32_t used_result_components = instr.result.GetUsedResultComponents();
-  uint32_t needed_words =
+  u32 used_result_components = instr.result.GetUsedResultComponents();
+  u32 needed_words =
       xenos::GetVertexFormatNeededWords(instr.attributes.data_format, used_result_components);
   if (!needed_words && instr.is_mini_fetch) {
     StoreResult(instr.result, spv::NoResult);
@@ -38,7 +38,7 @@ void SpirvShaderTranslator::ProcessVertexFetchInstruction(
 
   EnsureBuildPointAvailable();
 
-  uint32_t fetch_constant_word_0_index = instr.operands[1].storage_index << 1;
+  u32 fetch_constant_word_0_index = instr.operands[1].storage_index << 1;
 
   spv::Id address;
   if (instr.is_mini_fetch) {
@@ -83,13 +83,13 @@ void SpirvShaderTranslator::ProcessVertexFetchInstruction(
 
   unsigned int word_composite_indices[4] = {};
   spv::Id word_composite_constituents[4];
-  uint32_t word_count = 0;
-  uint32_t words_remaining = needed_words;
-  uint32_t word_index;
+  u32 word_count = 0;
+  u32 words_remaining = needed_words;
+  u32 word_index;
   while (rex::bit_scan_forward(words_remaining, &word_index)) {
     words_remaining &= ~(1 << word_index);
     spv::Id word_address = address;
-    int32_t word_offset = instr.attributes.offset + word_index;
+    i32 word_offset = instr.attributes.offset + word_index;
     if (word_offset) {
       word_address = builder_->createBinOp(spv::OpIAdd, type_int_, word_address,
                                            builder_->makeIntConstant(int(word_offset)));
@@ -108,7 +108,7 @@ void SpirvShaderTranslator::ProcessVertexFetchInstruction(
     words = word_composite_constituents[0];
   }
 
-  uint32_t fetch_constant_word_1_index = fetch_constant_word_0_index + 1;
+  u32 fetch_constant_word_1_index = fetch_constant_word_0_index + 1;
   id_vector_temp_.clear();
   id_vector_temp_.push_back(const_int_0_);
   id_vector_temp_.push_back(builder_->makeIntConstant(int(fetch_constant_word_1_index >> 2)));
@@ -123,15 +123,15 @@ void SpirvShaderTranslator::ProcessVertexFetchInstruction(
 
   spv::Id result = spv::NoResult;
 
-  uint32_t used_format_components =
+  u32 used_format_components =
       used_result_components &
       ((1 << xenos::GetVertexFormatComponentCount(instr.attributes.data_format)) - 1);
   REX_ASSERT(used_format_components != 0);
-  uint32_t used_format_component_count = rex::bit_count(used_format_components);
+  u32 used_format_component_count = rex::bit_count(used_format_components);
   spv::Id result_type = type_float_vectors_[used_format_component_count - 1];
   bool format_is_packed = false;
   int packed_widths[4] = {}, packed_offsets[4] = {};
-  uint32_t packed_words[4] = {};
+  u32 packed_words[4] = {};
   switch (instr.attributes.data_format) {
     case xenos::VertexFormat::k_8_8_8_8:
       format_is_packed = true;
@@ -177,8 +177,8 @@ void SpirvShaderTranslator::ProcessVertexFetchInstruction(
     case xenos::VertexFormat::k_16_16_FLOAT:
     case xenos::VertexFormat::k_16_16_16_16_FLOAT: {
       spv::Id word_needed_component_values[2] = {};
-      for (uint32_t i = 0; i < 2; ++i) {
-        uint32_t word_needed_components = (used_format_components >> (i * 2)) & 0b11;
+      for (u32 i = 0; i < 2; ++i) {
+        u32 word_needed_components = (used_format_components >> (i * 2)) & 0b11;
         if (!word_needed_components) {
           continue;
         }
@@ -276,10 +276,10 @@ void SpirvShaderTranslator::ProcessVertexFetchInstruction(
     }
     int extracted_widths[4] = {};
     spv::Id extracted_components[4] = {};
-    uint32_t extracted_component_count = 0;
+    u32 extracted_component_count = 0;
     unsigned int extraction_word_current_index = UINT_MAX;
     spv::Id extraction_word_current = words;
-    for (uint32_t i = 0; i < 4; ++i) {
+    for (u32 i = 0; i < 4; ++i) {
       if (!(used_format_components & (1 << i))) {
         continue;
       }
@@ -317,21 +317,20 @@ void SpirvShaderTranslator::ProcessVertexFetchInstruction(
     result = builder_->createUnaryOp(
         instr.attributes.is_signed ? spv::OpConvertSToF : spv::OpConvertUToF, result_type, result);
     if (!instr.attributes.is_integer) {
-      float packed_scales[4];
+      f32 packed_scales[4];
       bool packed_scales_same = true;
-      for (uint32_t i = 0; i < used_format_component_count; ++i) {
+      for (u32 i = 0; i < used_format_component_count; ++i) {
         int extracted_width = extracted_widths[i];
         REX_ASSERT(extracted_width >= 2);
         packed_scales_same &= extracted_width != extracted_widths[0];
-        float packed_scale_inv;
+        f32 packed_scale_inv;
         if (instr.attributes.is_signed) {
-          packed_scale_inv =
-              static_cast<float>((static_cast<uint32_t>(1) << (extracted_width - 1)) - 1);
+          packed_scale_inv = static_cast<f32>((static_cast<u32>(1) << (extracted_width - 1)) - 1);
           if (instr.attributes.signed_rf_mode == xenos::SignedRepeatingFractionMode::kNoZero) {
             packed_scale_inv += 0.5f;
           }
         } else {
-          packed_scale_inv = static_cast<float>((static_cast<uint32_t>(1) << extracted_width) - 1);
+          packed_scale_inv = static_cast<f32>((static_cast<u32>(1) << extracted_width) - 1);
         }
         packed_scales[i] = 1.0f / packed_scale_inv;
       }
@@ -344,7 +343,7 @@ void SpirvShaderTranslator::ProcessVertexFetchInstruction(
           packed_scale_mul_op = spv::OpFMul;
           id_vector_temp_.clear();
           id_vector_temp_.push_back(const_packed_scale);
-          for (uint32_t i = 1; i < used_format_component_count; ++i) {
+          for (u32 i = 1; i < used_format_component_count; ++i) {
             id_vector_temp_.push_back(builder_->makeFloatConstant(packed_scales[i]));
           }
           const_packed_scale = builder_->makeCompositeConstant(result_type, id_vector_temp_);
@@ -368,7 +367,7 @@ void SpirvShaderTranslator::ProcessVertexFetchInstruction(
           } break;
           case xenos::SignedRepeatingFractionMode::kNoZero:
             id_vector_temp_.clear();
-            for (uint32_t i = 0; i < used_format_component_count; ++i) {
+            for (u32 i = 0; i < used_format_component_count; ++i) {
               id_vector_temp_.push_back(builder_->makeFloatConstant(0.5f * packed_scales[i]));
             }
             result = builder_->createNoContractionBinOp(
@@ -391,7 +390,7 @@ void SpirvShaderTranslator::ProcessVertexFetchInstruction(
           builder_->makeFloatConstant(std::ldexp(1.0f, instr.attributes.exp_adjust)));
     }
 
-    uint32_t used_missing_components = used_result_components & ~used_format_components;
+    u32 used_missing_components = used_result_components & ~used_format_components;
     if (used_missing_components) {
       // Vectors can be concatenated by createCompositeConstruct despite its assertion.
       std::unique_ptr<spv::Instruction> composite_construct_op = std::make_unique<spv::Instruction>(
@@ -433,8 +432,8 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
       break;
   }
 
-  uint32_t used_result_components = instr.result.GetUsedResultComponents();
-  uint32_t used_result_nonzero_components = instr.GetNonZeroResultComponents();
+  u32 used_result_components = instr.result.GetUsedResultComponents();
+  u32 used_result_nonzero_components = instr.GetNonZeroResultComponents();
   switch (instr.opcode) {
     case xenos::ucode::FetchOpcode::kTextureFetch:
       break;
@@ -448,14 +447,14 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
     case xenos::ucode::FetchOpcode::kGetTextureGradients:
       break;
     case xenos::ucode::FetchOpcode::kGetTextureWeights:
-      used_result_nonzero_components &= ~static_cast<uint32_t>(0b1000);
+      used_result_nonzero_components &= ~static_cast<u32>(0b1000);
       break;
     default:
       REX_UNHANDLED_CASE(instr.opcode);
       EmitTranslationError("Unknown texture fetch operation");
       used_result_nonzero_components = 0;
   }
-  uint32_t used_result_component_count = rex::bit_count(used_result_components);
+  u32 used_result_component_count = rex::bit_count(used_result_components);
   if (!used_result_nonzero_components) {
     if (used_result_components) {
       StoreResult(instr.result, const_float_vectors_0_[used_result_component_count - 1]);
@@ -485,8 +484,8 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
       }
     }
     builder_->addCapability(spv::CapabilityDerivativeControl);
-    uint32_t derivative_components_remaining = used_result_nonzero_components;
-    uint32_t derivative_component_index;
+    u32 derivative_components_remaining = used_result_nonzero_components;
+    u32 derivative_component_index;
     while (rex::bit_scan_forward(derivative_components_remaining, &derivative_component_index)) {
       derivative_components_remaining &= ~(UINT32_C(1) << derivative_component_index);
       result[derivative_component_index] = builder_->createUnaryOp(
@@ -507,8 +506,8 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
       return;
     }
 
-    uint32_t fetch_constant_index = instr.operands[1].storage_index;
-    uint32_t fetch_constant_word_0_index = 6 * fetch_constant_index;
+    u32 fetch_constant_index = instr.operands[1].storage_index;
+    u32 fetch_constant_word_0_index = 6 * fetch_constant_index;
 
     spv::Id sampler = spv::NoResult;
     spv::Id image_2d_array_or_cube_unsigned = spv::NoResult;
@@ -570,9 +569,9 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
       }
     }
 
-    float offset_values[3] = {};
+    f32 offset_values[3] = {};
     if (instr.opcode != xenos::ucode::FetchOpcode::kGetTextureComputedLod) {
-      const float kRoundingOffset = 1.5f / 1024.0f;
+      const f32 kRoundingOffset = 1.5f / 1024.0f;
       switch (instr.dimension) {
         case xenos::FetchOpDimension::k1D:
           offset_values[0] = instr.attributes.offset_x + kRoundingOffset;
@@ -610,14 +609,14 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
           break;
       }
     }
-    uint32_t offsets_not_zero = 0b000;
-    for (uint32_t i = 0; i < 3; ++i) {
+    u32 offsets_not_zero = 0b000;
+    for (u32 i = 0; i < 3; ++i) {
       if (offset_values[i]) {
         offsets_not_zero |= 1 << i;
       }
     }
 
-    uint32_t size_needed_components = 0b000;
+    u32 size_needed_components = 0b000;
     bool data_is_3d_needed = false;
     if (instr.opcode == xenos::ucode::FetchOpcode::kGetTextureWeights) {
       if (!instr.attributes.unnormalized_coordinates) {
@@ -765,8 +764,8 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
         } break;
       }
       {
-        uint32_t size_remaining_components = size_needed_components;
-        uint32_t size_component_index;
+        u32 size_remaining_components = size_needed_components;
+        u32 size_component_index;
         while (rex::bit_scan_forward(size_remaining_components, &size_component_index)) {
           size_remaining_components &= ~(UINT32_C(1) << size_component_index);
           spv::Id& size_component_ref = size[size_component_index];
@@ -781,7 +780,7 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
     REX_ASSERT(!(instr.opcode == xenos::ucode::FetchOpcode::kGetTextureWeights &&
                  (used_result_nonzero_components & 0b1000)));
 
-    uint32_t coordinates_needed_components =
+    u32 coordinates_needed_components =
         instr.opcode == xenos::ucode::FetchOpcode::kGetTextureWeights
             ? used_result_nonzero_components
             : ((UINT32_C(1) << xenos::GetFetchOpDimensionComponentCount(instr.dimension)) - 1);
@@ -790,23 +789,22 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
         LoadOperandStorage(instr.operands[0]), instr.operands[0], coordinates_needed_components);
     spv::Id coordinates[] = {const_float_0_, const_float_0_, const_float_0_};
     if (rex::bit_count(coordinates_needed_components) > 1) {
-      uint32_t coordinates_remaining_components = coordinates_needed_components;
-      uint32_t coordinate_component_index;
-      uint32_t coordinate_operand_component_index = 0;
+      u32 coordinates_remaining_components = coordinates_needed_components;
+      u32 coordinate_component_index;
+      u32 coordinate_operand_component_index = 0;
       while (rex::bit_scan_forward(coordinates_remaining_components, &coordinate_component_index)) {
         coordinates_remaining_components &= ~(UINT32_C(1) << coordinate_component_index);
         coordinates[coordinate_component_index] = builder_->createCompositeExtract(
             coordinates_operand, type_float_, coordinate_operand_component_index++);
       }
     } else {
-      uint32_t coordinate_component_index;
+      u32 coordinate_component_index;
       rex::bit_scan_forward(coordinates_needed_components, &coordinate_component_index);
       coordinates[coordinate_component_index] = coordinates_operand;
     }
     spv::Id texture_resolution_scaled = spv::NoResult;
-    uint32_t revert_resolution_scale_axes =
-        static_cast<uint32_t>(draw_resolution_scale_x_ > 1) |
-        (static_cast<uint32_t>(draw_resolution_scale_y_ > 1) << 1);
+    u32 revert_resolution_scale_axes = static_cast<u32>(draw_resolution_scale_x_ > 1) |
+                                       (static_cast<u32>(draw_resolution_scale_y_ > 1) << 1);
     spv::Id const_texture_resolution_scale[] = {spv::NoResult, spv::NoResult};
     spv::Id const_texture_resolution_scale_reciprocal[] = {spv::NoResult, spv::NoResult};
     if (revert_resolution_scale_axes) {
@@ -823,28 +821,28 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
           const_uint_0_);
       if (revert_resolution_scale_axes & 0b001) {
         const_texture_resolution_scale[0] =
-            builder_->makeFloatConstant(static_cast<float>(draw_resolution_scale_x_));
+            builder_->makeFloatConstant(static_cast<f32>(draw_resolution_scale_x_));
         const_texture_resolution_scale_reciprocal[0] =
-            builder_->makeFloatConstant(1.0f / static_cast<float>(draw_resolution_scale_x_));
+            builder_->makeFloatConstant(1.0f / static_cast<f32>(draw_resolution_scale_x_));
       }
       if (revert_resolution_scale_axes & 0b010) {
         const_texture_resolution_scale[1] =
-            builder_->makeFloatConstant(static_cast<float>(draw_resolution_scale_y_));
+            builder_->makeFloatConstant(static_cast<f32>(draw_resolution_scale_y_));
         const_texture_resolution_scale_reciprocal[1] =
-            builder_->makeFloatConstant(1.0f / static_cast<float>(draw_resolution_scale_y_));
+            builder_->makeFloatConstant(1.0f / static_cast<f32>(draw_resolution_scale_y_));
       }
     }
 
     if (instr.opcode == xenos::ucode::FetchOpcode::kGetTextureWeights) {
-      uint32_t resolution_scaled_result_components =
+      u32 resolution_scaled_result_components =
           used_result_nonzero_components & revert_resolution_scale_axes;
-      uint32_t resolution_scaled_coord_components =
+      u32 resolution_scaled_coord_components =
           instr.attributes.unnormalized_coordinates ? resolution_scaled_result_components : 0b000;
-      uint32_t resolution_scaled_size_components =
+      u32 resolution_scaled_size_components =
           size_needed_components & resolution_scaled_result_components;
       if (texture_resolution_scaled != spv::NoResult &&
           (resolution_scaled_coord_components || resolution_scaled_size_components)) {
-        for (uint32_t i = 0; i < 2; ++i) {
+        for (u32 i = 0; i < 2; ++i) {
           if (resolution_scaled_coord_components & (UINT32_C(1) << i)) {
             coordinates[i] = builder_->createTriOp(
                 spv::OpSelect, type_float_, texture_resolution_scaled,
@@ -863,8 +861,8 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
         }
       }
 
-      uint32_t coordinates_remaining_components = coordinates_needed_components;
-      uint32_t coordinate_component_index;
+      u32 coordinates_remaining_components = coordinates_needed_components;
+      u32 coordinate_component_index;
       while (rex::bit_scan_forward(coordinates_remaining_components, &coordinate_component_index)) {
         coordinates_remaining_components &= ~(UINT32_C(1) << coordinate_component_index);
         spv::Id result_component = coordinates[coordinate_component_index];
@@ -874,7 +872,7 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
           result_component = builder_->createNoContractionBinOp(spv::OpFMul, type_float_,
                                                                 result_component, size_component);
         }
-        float component_offset = offset_values[coordinate_component_index];
+        f32 component_offset = offset_values[coordinate_component_index];
         if (component_offset) {
           result_component =
               builder_->createNoContractionBinOp(spv::OpFAdd, type_float_, result_component,
@@ -885,8 +883,7 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
         result[coordinate_component_index] = result_component;
       }
     } else {
-      for (uint32_t i = 0;
-           i <= static_cast<uint32_t>(instr.dimension != xenos::FetchOpDimension::k1D); ++i) {
+      for (u32 i = 0; i <= static_cast<u32>(instr.dimension != xenos::FetchOpDimension::k1D); ++i) {
         spv::Id& coordinate_ref = coordinates[i];
         spv::Id component_offset =
             offset_values[i] ? builder_->makeFloatConstant(offset_values[i]) : spv::NoResult;
@@ -989,7 +986,7 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
       } else if (instr.dimension == xenos::FetchOpDimension::kCube) {
         spv::Id const_float_2 = builder_->makeFloatConstant(2.0f);
         spv::Id const_float_minus_3 = builder_->makeFloatConstant(-3.0f);
-        for (uint32_t i = 0; i < 2; ++i) {
+        for (u32 i = 0; i < 2; ++i) {
           coordinates[i] = builder_->createNoContractionBinOp(
               spv::OpFAdd, type_float_,
               builder_->createNoContractionBinOp(spv::OpFMul, type_float_, coordinates[i],
@@ -1103,7 +1100,7 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
           builder_->createAccessChain(spv::StorageClassUniform, uniform_system_constants_,
                                       id_vector_temp_),
           spv::NoPrecision);
-      uint32_t swizzled_signs_word_offset = 8 * (fetch_constant_index & 3);
+      u32 swizzled_signs_word_offset = 8 * (fetch_constant_index & 3);
 
       spv::Builder::TextureParameters texture_parameters = {};
 
@@ -1124,7 +1121,7 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
           spv::Id lod_3d;
           {
             id_vector_temp_.clear();
-            for (uint32_t i = 0; i < 3; ++i) {
+            for (u32 i = 0; i < 3; ++i) {
               id_vector_temp_.push_back(coordinates[i]);
             }
             texture_parameters.coords =
@@ -1136,7 +1133,7 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
           spv::Id lod_stacked;
           {
             id_vector_temp_.clear();
-            for (uint32_t i = 0; i < 2; ++i) {
+            for (u32 i = 0; i < 2; ++i) {
               id_vector_temp_.push_back(coordinates[i]);
             }
             texture_parameters.coords =
@@ -1148,10 +1145,10 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
           if_data_is_3d.makeEndIf();
           result[0] = if_data_is_3d.createMergePhi(lod_3d, lod_stacked);
         } else {
-          uint32_t lod_query_coordinate_component_count =
+          u32 lod_query_coordinate_component_count =
               instr.dimension == xenos::FetchOpDimension::kCube ? 3 : 2;
           id_vector_temp_.clear();
-          for (uint32_t i = 0; i < lod_query_coordinate_component_count; ++i) {
+          for (u32 i = 0; i < lod_query_coordinate_component_count; ++i) {
             id_vector_temp_.push_back(coordinates[i]);
           }
           texture_parameters.coords = builder_->createCompositeConstruct(
@@ -1171,8 +1168,8 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
         spv::Id const_uint_sign_signed =
             builder_->makeUintConstant(std::to_underlying(xenos::TextureSign::kSigned));
         {
-          uint32_t result_remaining_components = used_result_nonzero_components;
-          uint32_t result_component_index;
+          u32 result_remaining_components = used_result_nonzero_components;
+          u32 result_component_index;
           while (rex::bit_scan_forward(result_remaining_components, &result_component_index)) {
             result_remaining_components &= ~(UINT32_C(1) << result_component_index);
             spv::Id result_component_sign = builder_->createTriOp(
@@ -1277,7 +1274,7 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
             } break;
             case xenos::FetchOpDimension::k2D: {
               if (instr.attributes.use_register_gradients) {
-                for (uint32_t i = 0; i < 2; ++i) {
+                for (u32 i = 0; i < 2; ++i) {
                   spv::Id register_gradient_3d = builder_->createLoad(
                       i ? var_main_tfetch_gradients_h_ : var_main_tfetch_gradients_v_,
                       spv::NoPrecision);
@@ -1301,7 +1298,7 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
                 }
               } else {
                 id_vector_temp_.clear();
-                for (uint32_t i = 0; i < 2; ++i) {
+                for (u32 i = 0; i < 2; ++i) {
                   id_vector_temp_.push_back(coordinates[i]);
                 }
                 spv::Id gradient_coordinate_vector =
@@ -1322,10 +1319,10 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
                 gradients_h = builder_->createLoad(var_main_tfetch_gradients_h_, spv::NoPrecision);
                 gradients_v = builder_->createLoad(var_main_tfetch_gradients_v_, spv::NoPrecision);
                 if (instr.attributes.unnormalized_coordinates) {
-                  for (uint32_t i = 0; i < 2; ++i) {
+                  for (u32 i = 0; i < 2; ++i) {
                     spv::Id& gradient_ref = i ? gradients_v : gradients_h;
                     id_vector_temp_.clear();
-                    for (uint32_t j = 0; j < 3; ++j) {
+                    for (u32 j = 0; j < 3; ++j) {
                       REX_ASSERT(size[j] != spv::NoResult);
                       id_vector_temp_.push_back(builder_->createNoContractionBinOp(
                           spv::OpFDiv, type_float_,
@@ -1337,7 +1334,7 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
                 }
               } else {
                 id_vector_temp_.clear();
-                for (uint32_t i = 0; i < 3; ++i) {
+                for (u32 i = 0; i < 3; ++i) {
                   id_vector_temp_.push_back(coordinates[i]);
                 }
                 spv::Id gradient_coordinate_vector =
@@ -1359,7 +1356,7 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
                 gradients_v = builder_->createLoad(var_main_tfetch_gradients_v_, spv::NoPrecision);
               } else {
                 id_vector_temp_.clear();
-                for (uint32_t i = 0; i < 3; ++i) {
+                for (u32 i = 0; i < 3; ++i) {
                   id_vector_temp_.push_back(coordinates[i]);
                 }
                 spv::Id gradient_coordinate_vector =
@@ -1395,7 +1392,7 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
               texture_parameters.gradY = gradients_v;
             }
             id_vector_temp_.clear();
-            for (uint32_t i = 0; i < 3; ++i) {
+            for (u32 i = 0; i < 3; ++i) {
               id_vector_temp_.push_back(coordinates[i]);
             }
             texture_parameters.coords =
@@ -1567,7 +1564,7 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
             texture_parameters.gradY = gradients_v;
           }
           id_vector_temp_.clear();
-          for (uint32_t i = 0; i < 3; ++i) {
+          for (u32 i = 0; i < 3; ++i) {
             id_vector_temp_.push_back(coordinates[i]);
           }
           texture_parameters.coords =
@@ -1586,14 +1583,14 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
               builder_->createAccessChain(spv::StorageClassUniform, uniform_system_constants_,
                                           id_vector_temp_),
               spv::NoPrecision);
-          uint32_t swizzle_word_offset = 3 * 4 * (fetch_constant_index & 1);
+          u32 swizzle_word_offset = 3 * 4 * (fetch_constant_index & 1);
           spv::Id const_float_1 = builder_->makeFloatConstant(1.0f);
-          uint32_t result_remaining_components = used_result_nonzero_components;
-          uint32_t result_component_index;
+          u32 result_remaining_components = used_result_nonzero_components;
+          u32 result_component_index;
           while (rex::bit_scan_forward(result_remaining_components, &result_component_index)) {
             result_remaining_components &= ~(UINT32_C(1) << result_component_index);
-            uint32_t swizzle_bit_0_value = UINT32_C(1)
-                                           << (swizzle_word_offset + 3 * result_component_index);
+            u32 swizzle_bit_0_value = UINT32_C(1)
+                                      << (swizzle_word_offset + 3 * result_component_index);
             spv::Id swizzle_bit_0 = builder_->createBinOp(
                 spv::OpINotEqual, type_bool_,
                 builder_->createBinOp(spv::OpBitwiseAnd, type_uint_, swizzle_word,
@@ -1644,8 +1641,8 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
         spv::Id const_float_2 = builder_->makeFloatConstant(2.0f);
         spv::Id const_float_minus_1 = builder_->makeFloatConstant(-1.0f);
         {
-          uint32_t result_remaining_components = used_result_nonzero_components;
-          uint32_t result_component_index;
+          u32 result_remaining_components = used_result_nonzero_components;
+          u32 result_component_index;
           while (rex::bit_scan_forward(result_remaining_components, &result_component_index)) {
             result_remaining_components &= ~(UINT32_C(1) << result_component_index);
             spv::Id sample_result_component_unsigned =
@@ -1728,8 +1725,8 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
             builder_->createTriOp(spv::OpBitFieldSExtract, type_int_, fetch_constant_word_4_signed,
                                   builder_->makeUintConstant(13), builder_->makeUintConstant(6)));
         {
-          uint32_t result_remaining_components = used_result_nonzero_components;
-          uint32_t result_component_index;
+          u32 result_remaining_components = used_result_nonzero_components;
+          u32 result_component_index;
           while (rex::bit_scan_forward(result_remaining_components, &result_component_index)) {
             result_remaining_components &= ~(UINT32_C(1) << result_component_index);
             result[result_component_index] = builder_->createNoContractionBinOp(
@@ -1743,8 +1740,8 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
   spv::Id result_vector;
   if (used_result_component_count > 1) {
     id_vector_temp_.clear();
-    uint32_t result_components_remaining = used_result_components;
-    uint32_t result_component_index;
+    u32 result_components_remaining = used_result_components;
+    u32 result_component_index;
     while (rex::bit_scan_forward(result_components_remaining, &result_component_index)) {
       result_components_remaining &= ~(UINT32_C(1) << result_component_index);
       id_vector_temp_.push_back(result[result_component_index]);
@@ -1752,14 +1749,14 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
     result_vector = builder_->createCompositeConstruct(
         type_float_vectors_[used_result_component_count - 1], id_vector_temp_);
   } else {
-    uint32_t result_component_index;
+    u32 result_component_index;
     rex::bit_scan_forward(used_result_components, &result_component_index);
     result_vector = result[result_component_index];
   }
   StoreResult(instr.result, result_vector);
 }
 
-size_t SpirvShaderTranslator::FindOrAddTextureBinding(uint32_t fetch_constant,
+size_t SpirvShaderTranslator::FindOrAddTextureBinding(u32 fetch_constant,
                                                       xenos::FetchOpDimension dimension,
                                                       bool is_signed) {
   if (dimension == xenos::FetchOpDimension::k1D) {
@@ -1813,7 +1810,7 @@ size_t SpirvShaderTranslator::FindOrAddTextureBinding(uint32_t fetch_constant,
   return new_texture_binding_index;
 }
 
-size_t SpirvShaderTranslator::FindOrAddSamplerBinding(uint32_t fetch_constant,
+size_t SpirvShaderTranslator::FindOrAddSamplerBinding(u32 fetch_constant,
                                                       xenos::TextureFilter mag_filter,
                                                       xenos::TextureFilter min_filter,
                                                       xenos::TextureFilter mip_filter,
@@ -1838,15 +1835,14 @@ size_t SpirvShaderTranslator::FindOrAddSamplerBinding(uint32_t fetch_constant,
   new_sampler_binding.aniso_filter = aniso_filter;
   std::ostringstream name;
   static const char kFilterSuffixes[] = {'p', 'l', 'b', 'f'};
-  name << "xe_sampler" << fetch_constant << '_'
-       << kFilterSuffixes[static_cast<uint32_t>(mag_filter)]
-       << kFilterSuffixes[static_cast<uint32_t>(min_filter)]
-       << kFilterSuffixes[static_cast<uint32_t>(mip_filter)];
+  name << "xe_sampler" << fetch_constant << '_' << kFilterSuffixes[static_cast<u32>(mag_filter)]
+       << kFilterSuffixes[static_cast<u32>(min_filter)]
+       << kFilterSuffixes[static_cast<u32>(mip_filter)];
   if (aniso_filter != xenos::AnisoFilter::kUseFetchConst) {
     if (aniso_filter == xenos::AnisoFilter::kDisabled) {
       name << "_a0";
     } else {
-      name << "_a" << (UINT32_C(1) << (static_cast<uint32_t>(aniso_filter) - 1));
+      name << "_a" << (UINT32_C(1) << (static_cast<u32>(aniso_filter) - 1));
     }
   }
   new_sampler_binding.variable =
@@ -1868,7 +1864,7 @@ void SpirvShaderTranslator::SampleTexture(spv::Builder::TextureParameters& textu
                                           spv::Id is_any_signed, spv::Id& result_unsigned_out,
                                           spv::Id& result_signed_out, spv::Id lerp_factor,
                                           spv::Id lerp_first_unsigned, spv::Id lerp_first_signed) {
-  for (uint32_t i = 0; i < 2; ++i) {
+  for (u32 i = 0; i < 2; ++i) {
     SpirvBuilder::IfBuilder sign_if(i ? is_any_signed : is_any_unsigned,
                                     spv::SelectionControlDontFlattenMask, *builder_);
     spv::Id sign_result;

@@ -52,30 +52,30 @@ class REX_RUNTIME_API Module {
    */
   virtual bool is_executable() const = 0;
 
-  virtual uint32_t base_address() const { return 0; }
-  virtual uint32_t image_size() const { return 0; }
-  virtual uint32_t entry_point() const { return 0; }
-  virtual uint32_t export_table_address() const { return 0; }
+  virtual u32 base_address() const { return 0; }
+  virtual u32 image_size() const { return 0; }
+  virtual u32 entry_point() const { return 0; }
+  virtual u32 export_table_address() const { return 0; }
 
   /**
    * Returns the RVA of the PDATA table from the PE optional header exception data directory.
    *
    * @return The RVA, 0 by default.
    */
-  virtual uint32_t exception_directory_rva() const { return 0; }
+  virtual u32 exception_directory_rva() const { return 0; }
   /**
    * Returns the size of the PDATA table from the PE optional header exception data directory.
    *
    * @return The size in bytes, 0 by default.
    */
-  virtual uint32_t exception_directory_size() const { return 0; }
+  virtual u32 exception_directory_size() const { return 0; }
   /**
    * Returns the guest address of the PDATA table from the PE optional header exception data
    * directory.
    *
    * @return The guest address, 0 by default.
    */
-  virtual uint32_t exception_directory_address() const { return 0; }
+  virtual u32 exception_directory_address() const { return 0; }
 
   /**
    * Reports whether an address is in an executable section.
@@ -83,7 +83,7 @@ class REX_RUNTIME_API Module {
    * @param address The guest address.
    * @return True when the section is executable.
    */
-  bool isExecutableSection(uint32_t address) const;
+  bool isExecutableSection(u32 address) const;
 
   /**
    * Returns the binary sections, empty by default.
@@ -97,7 +97,7 @@ class REX_RUNTIME_API Module {
    * @param address The guest address.
    * @return The section, or null when none contains the address.
    */
-  virtual const BinarySection* FindSectionByAddress(uint32_t address) const;
+  virtual const BinarySection* FindSectionByAddress(u32 address) const;
 
   /**
    * Returns the binary symbols, empty by default.

@@ -18,7 +18,7 @@ namespace rex::codegen {
 namespace {
 
 /** Maximum nesting depth for include chains. */
-constexpr uint32_t kMaxIncludeDepth = 32;
+constexpr u32 kMaxIncludeDepth = 32;
 
 /**
  * Parses a hex address string with or without a "0x" or "0X" prefix.
@@ -26,12 +26,12 @@ constexpr uint32_t kMaxIncludeDepth = 32;
  * @param keyStr Address text.
  * @return The address, or nullopt when the text is not hex.
  */
-std::optional<uint32_t> ParseHexAddress(const std::string& keyStr) {
+std::optional<u32> ParseHexAddress(const std::string& keyStr) {
   try {
     if (keyStr.starts_with("0x") || keyStr.starts_with("0X")) {
-      return static_cast<uint32_t>(std::stoul(keyStr.substr(2), nullptr, 16));
+      return static_cast<u32>(std::stoul(keyStr.substr(2), nullptr, 16));
     } else {
-      return static_cast<uint32_t>(std::stoul(keyStr, nullptr, 16));
+      return static_cast<u32>(std::stoul(keyStr, nullptr, 16));
     }
   } catch (...) {
     return std::nullopt;
@@ -103,9 +103,9 @@ bool ApplyToml(const toml::table& toml, RecompilerConfig& cfg, const std::string
   if (auto* retired = toml["rexcrt"].as_table()) {
     std::string converted = "[shim]";
     for (const auto& [name, val] : *retired) {
-      if (auto addr = val.value<int64_t>()) {
+      if (auto addr = val.value<i64>()) {
         converted +=
-            std::format("\n{} = 0x{:08X}", std::string(name.str()), static_cast<uint32_t>(*addr));
+            std::format("\n{} = 0x{:08X}", std::string(name.str()), static_cast<u32>(*addr));
       }
     }
     REXLOG_ERROR(codegen, "config {}: the [rexcrt] table was renamed, replace it with\n{}",
@@ -147,30 +147,30 @@ bool ApplyToml(const toml::table& toml, RecompilerConfig& cfg, const std::string
     cfg.isDll = toml["is_dll"].value_or(false);
   }
 
-  if (auto v = toml["longjmp_address"].value<int64_t>()) {
-    uint32_t addr = static_cast<uint32_t>(*v);
+  if (auto v = toml["longjmp_address"].value<i64>()) {
+    u32 addr = static_cast<u32>(*v);
     MergeScalar(cfg.longJmpAddress, addr, "longjmp_address");
   }
-  if (auto v = toml["setjmp_address"].value<int64_t>()) {
-    uint32_t addr = static_cast<uint32_t>(*v);
+  if (auto v = toml["setjmp_address"].value<i64>()) {
+    u32 addr = static_cast<u32>(*v);
     MergeScalar(cfg.setJmpAddress, addr, "setjmp_address");
   }
 
   if (auto* analysisTable = toml["analysis"].as_table()) {
-    if (auto v = (*analysisTable)["max_jump_extension"].value<uint32_t>()) {
+    if (auto v = (*analysisTable)["max_jump_extension"].value<u32>()) {
       MergeScalar(cfg.maxJumpExtension, *v, "analysis.max_jump_extension");
     }
-    if (auto v = (*analysisTable)["data_region_threshold"].value<uint32_t>()) {
+    if (auto v = (*analysisTable)["data_region_threshold"].value<u32>()) {
       MergeScalar(cfg.dataRegionThreshold, *v, "analysis.data_region_threshold");
     }
-    if (auto v = (*analysisTable)["large_function_threshold"].value<uint32_t>()) {
+    if (auto v = (*analysisTable)["large_function_threshold"].value<u32>()) {
       MergeScalar(cfg.largeFunctionThreshold, *v, "analysis.large_function_threshold");
     }
 
     if (auto handlers = (*analysisTable)["exception_handler_funcs"].as_array()) {
       for (const auto& elem : *handlers) {
-        if (auto val = elem.value<int64_t>()) {
-          cfg.exceptionHandlerFuncHints.push_back(static_cast<uint32_t>(*val));
+        if (auto val = elem.value<i64>()) {
+          cfg.exceptionHandlerFuncHints.push_back(static_cast<u32>(*val));
         }
       }
     }
@@ -179,14 +179,14 @@ bool ApplyToml(const toml::table& toml, RecompilerConfig& cfg, const std::string
   if (auto* shimTable = toml["shim"].as_table()) {
     size_t added = 0;
     for (const auto& [name, val] : *shimTable) {
-      if (auto addr = val.value<int64_t>()) {
+      if (auto addr = val.value<i64>()) {
         auto key = std::string(name);
         auto it = cfg.shimFunctions.find(key);
         if (it != cfg.shimFunctions.end()) {
           REXLOG_DEBUG(codegen, "config   [shim] {} overridden: 0x{:08X} -> 0x{:08X}", key,
-                       it->second, static_cast<uint32_t>(*addr));
+                       it->second, static_cast<u32>(*addr));
         }
-        cfg.shimFunctions[key] = static_cast<uint32_t>(*addr);
+        cfg.shimFunctions[key] = static_cast<u32>(*addr);
         ++added;
       }
     }
@@ -204,7 +204,7 @@ bool ApplyToml(const toml::table& toml, RecompilerConfig& cfg, const std::string
         REXLOG_ERROR(codegen, "Invalid function address key: {}", keyStr);
         continue;
       }
-      uint32_t address = *addrOpt;
+      u32 address = *addrOpt;
 
       auto* table = value.as_table();
       if (!table) {
@@ -251,8 +251,8 @@ bool ApplyToml(const toml::table& toml, RecompilerConfig& cfg, const std::string
         continue;
       }
 
-      auto data_opt = (*table)["data"].value<uint32_t>();
-      auto size_opt = (*table)["size"].value<uint32_t>();
+      auto data_opt = (*table)["data"].value<u32>();
+      auto size_opt = (*table)["size"].value<u32>();
 
       if (!data_opt) {
         REXLOG_ERROR(codegen, "Missing 'data' in [[invalid_instructions]] entry");
@@ -280,8 +280,8 @@ bool ApplyToml(const toml::table& toml, RecompilerConfig& cfg, const std::string
         continue;
       }
 
-      auto address_opt = (*table)["address"].value<uint32_t>();
-      auto register_opt = (*table)["register"].value<uint32_t>();
+      auto address_opt = (*table)["address"].value<u32>();
+      auto register_opt = (*table)["register"].value<u32>();
       auto labels_array = (*table)["labels"].as_array();
 
       if (!address_opt) {
@@ -300,11 +300,11 @@ bool ApplyToml(const toml::table& toml, RecompilerConfig& cfg, const std::string
       JumpTable jt;
       jt.bctrAddress = *address_opt;
       jt.tableAddress = 0;
-      jt.indexRegister = static_cast<uint8_t>(*register_opt);
+      jt.indexRegister = static_cast<u8>(*register_opt);
 
       for (auto& label : *labels_array) {
-        if (auto label_val = label.value<int64_t>()) {
-          jt.targets.push_back(static_cast<uint32_t>(*label_val));
+        if (auto label_val = label.value<i64>()) {
+          jt.targets.push_back(static_cast<u32>(*label_val));
         }
       }
 
@@ -334,7 +334,7 @@ bool ApplyToml(const toml::table& toml, RecompilerConfig& cfg, const std::string
         continue;
       }
 
-      auto address_opt = (*table)["address"].value<uint32_t>();
+      auto address_opt = (*table)["address"].value<u32>();
       auto name_opt = (*table)["name"].value<std::string>();
 
       if (!address_opt) {
@@ -390,8 +390,8 @@ bool ApplyToml(const toml::table& toml, RecompilerConfig& cfg, const std::string
 
   if (auto indirectCallArray = toml["indirect_calls"].as_array()) {
     for (auto& entry : *indirectCallArray) {
-      if (auto addr = entry.value<int64_t>()) {
-        cfg.knownIndirectCallHints.insert(static_cast<uint32_t>(*addr));
+      if (auto addr = entry.value<i64>()) {
+        cfg.knownIndirectCallHints.insert(static_cast<u32>(*addr));
         REXLOG_DEBUG(codegen, "Loaded known indirect call hint at 0x{:08X}", *addr);
       }
     }
@@ -405,7 +405,7 @@ bool ApplyToml(const toml::table& toml, RecompilerConfig& cfg, const std::string
         continue;
       }
       for (const auto& entry : *list) {
-        const auto addr = entry.value<int64_t>();
+        const auto addr = entry.value<i64>();
         if (!addr) {
           REXLOG_ERROR(codegen, "[mmio.{}] {} holds an entry that is not an integer address",
                        block_name, list_name);
@@ -423,11 +423,11 @@ bool ApplyToml(const toml::table& toml, RecompilerConfig& cfg, const std::string
 }
 
 bool ApplyTableWithIncludes(const toml::table& tbl, const std::filesystem::path& base_dir,
-                            RecompilerConfig& cfg, std::set<std::string>& visited, uint32_t depth,
+                            RecompilerConfig& cfg, std::set<std::string>& visited, u32 depth,
                             const std::string& description);
 
 bool LoadRecursive(const std::filesystem::path& filePath, RecompilerConfig& cfg,
-                   std::set<std::string>& visited, uint32_t depth) {
+                   std::set<std::string>& visited, u32 depth) {
   if (depth > kMaxIncludeDepth) {
     REX_FAIL(codegen, false, "config include depth exceeds maximum ({}) at: {}", kMaxIncludeDepth,
              filePath.string());
@@ -458,7 +458,7 @@ bool LoadRecursive(const std::filesystem::path& filePath, RecompilerConfig& cfg,
 }
 
 bool ApplyTableWithIncludes(const toml::table& tbl, const std::filesystem::path& base_dir,
-                            RecompilerConfig& cfg, std::set<std::string>& visited, uint32_t depth,
+                            RecompilerConfig& cfg, std::set<std::string>& visited, u32 depth,
                             const std::string& description) {
   // Process includes first (depth-first), so this table's own values win.
   if (auto* includesArray = tbl["includes"].as_array()) {
@@ -541,7 +541,7 @@ bool RecompilerConfig::LoadFromTable(const toml::table& tbl,
 RecompilerConfig::ValidationResult RecompilerConfig::Validate() const {
   ValidationResult result;
 
-  auto checkAlignment = [&](uint32_t addr, const char* name) {
+  auto checkAlignment = [&](u32 addr, const char* name) {
     if (addr != 0 && (addr & 0x3) != 0) {
       result.errors.push_back(std::format("{} address 0x{:08X} is not 4-byte aligned", name, addr));
       result.valid = false;
@@ -588,9 +588,9 @@ RecompilerConfig::ValidationResult RecompilerConfig::Validate() const {
   }
 
   {
-    std::map<uint32_t, uint32_t> seen;
+    std::map<u32, u32> seen;
     for (const auto& [addr, cfg] : functions) {
-      uint32_t funcSize = cfg.getSize(addr);
+      u32 funcSize = cfg.getSize(addr);
       auto it = seen.find(addr);
       if (it != seen.end()) {
         if (it->second == funcSize) {
@@ -607,7 +607,7 @@ RecompilerConfig::ValidationResult RecompilerConfig::Validate() const {
   }
 
   {
-    std::vector<std::pair<uint32_t, uint32_t>> sorted;
+    std::vector<std::pair<u32, u32>> sorted;
     for (const auto& [addr, cfg] : functions) {
       if (!cfg.isChunk()) {
         sorted.emplace_back(addr, cfg.getSize(addr));
@@ -615,7 +615,7 @@ RecompilerConfig::ValidationResult RecompilerConfig::Validate() const {
     }
     std::sort(sorted.begin(), sorted.end());
     for (size_t i = 1; i < sorted.size(); ++i) {
-      uint32_t prev_end = sorted[i - 1].first + sorted[i - 1].second;
+      u32 prev_end = sorted[i - 1].first + sorted[i - 1].second;
       if (sorted[i].first < prev_end) {
         result.errors.push_back(std::format(
             "Overlapping boundaries: 0x{:08X}+0x{:X} overlaps 0x{:08X}+0x{:X}", sorted[i - 1].first,

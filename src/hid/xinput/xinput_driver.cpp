@@ -26,7 +26,7 @@
 
 namespace {
 
-constexpr uint32_t kXinputSlotCount = 4;
+constexpr u32 kXinputSlotCount = 4;
 
 /**
  * Builds the device handle for a native slot. XInput has 4 fixed slots, so the slot index
@@ -35,27 +35,27 @@ constexpr uint32_t kXinputSlotCount = 4;
  * @param slot  Native slot index.
  * @return Device handle.
  */
-constexpr rex::hid::DeviceId DeviceForSlot(uint32_t slot) {
+constexpr rex::hid::DeviceId DeviceForSlot(u32 slot) {
   return static_cast<rex::hid::DeviceId>(0x58490000ull | slot);
 }
 
-bool SlotForDevice(rex::hid::DeviceId id, uint32_t* out_slot) {
-  const uint64_t raw = static_cast<uint64_t>(id);
+bool SlotForDevice(rex::hid::DeviceId id, u32* out_slot) {
+  const u64 raw = static_cast<u64>(id);
   if ((raw & ~0xFFull) != 0x58490000ull || (raw & 0xFF) >= kXinputSlotCount) {
     return false;
   }
-  *out_slot = static_cast<uint32_t>(raw & 0xFF);
+  *out_slot = static_cast<u32>(raw & 0xFF);
   return true;
 }
 
 /** Milliseconds to skip an empty slot after a miss, since querying one is slow. */
-constexpr uint64_t SKIP_INVALID_CONTROLLER_TIME = 1100;
-uint64_t last_invalid_time[kXinputSlotCount];
+constexpr u64 SKIP_INVALID_CONTROLLER_TIME = 1100;
+u64 last_invalid_time[kXinputSlotCount];
 
-DWORD should_skip(uint32_t user_index) {
-  uint64_t time = last_invalid_time[user_index];
+DWORD should_skip(u32 user_index) {
+  u64 time = last_invalid_time[user_index];
   if (time) {
-    uint64_t deltatime = rex::Clock::QueryHostUptimeMillis() - time;
+    u64 deltatime = rex::Clock::QueryHostUptimeMillis() - time;
 
     if (deltatime < SKIP_INVALID_CONTROLLER_TIME) {
       return ERROR_DEVICE_NOT_CONNECTED;
@@ -65,7 +65,7 @@ DWORD should_skip(uint32_t user_index) {
   return 0;
 }
 
-void set_skip(uint32_t user_index) {
+void set_skip(u32 user_index) {
   last_invalid_time[user_index] = rex::Clock::QueryHostUptimeMillis();
 }
 
@@ -96,7 +96,7 @@ void XInputDriver::EnumerateDevices(std::vector<DeviceInfo>& out) {
   if (!xigc) {
     return;
   }
-  for (uint32_t slot = 0; slot < kXinputSlotCount; slot++) {
+  for (u32 slot = 0; slot < kXinputSlotCount; slot++) {
     if (should_skip(slot)) {
       continue;
     }
@@ -111,7 +111,7 @@ void XInputDriver::EnumerateDevices(std::vector<DeviceInfo>& out) {
     DeviceInfo info;
     info.id = DeviceForSlot(slot);
     info.name = "XInput Controller";
-    info.subtype = static_cast<uint8_t>(native_caps.SubType);
+    info.subtype = static_cast<u8>(native_caps.SubType);
     info.synthetic = false;
     out.push_back(info);
   }
@@ -140,7 +140,7 @@ Result<X_INPUT_KEYSTROKE> XInputDriver::GetDeviceKeystroke(DeviceId id,
 
 X_RESULT XInputDriver::ReadDeviceCapabilities(DeviceId id, u32 flags,
                                               X_INPUT_CAPABILITIES* out_caps) {
-  uint32_t user_index = 0;
+  u32 user_index = 0;
   if (!SlotForDevice(id, &user_index)) {
     return X_ERROR_DEVICE_NOT_CONNECTED;
   }
@@ -175,7 +175,7 @@ X_RESULT XInputDriver::ReadDeviceCapabilities(DeviceId id, u32 flags,
 }
 
 X_RESULT XInputDriver::ReadDeviceState(DeviceId id, X_INPUT_STATE* out_state) {
-  uint32_t user_index = 0;
+  u32 user_index = 0;
   if (!SlotForDevice(id, &user_index)) {
     return X_ERROR_DEVICE_NOT_CONNECTED;
   }
@@ -213,7 +213,7 @@ X_RESULT XInputDriver::ReadDeviceState(DeviceId id, X_INPUT_STATE* out_state) {
 }
 
 X_RESULT XInputDriver::WriteDeviceVibration(DeviceId id, X_INPUT_VIBRATION* vibration) {
-  uint32_t user_index = 0;
+  u32 user_index = 0;
   if (!SlotForDevice(id, &user_index)) {
     return X_ERROR_DEVICE_NOT_CONNECTED;
   }
@@ -234,7 +234,7 @@ X_RESULT XInputDriver::WriteDeviceVibration(DeviceId id, X_INPUT_VIBRATION* vibr
 
 X_RESULT XInputDriver::ReadDeviceKeystroke(DeviceId id, X_INPUT_KEYSTROKE* out_keystroke) {
   // flags is reserved on desktop.
-  uint32_t user_index = 0;
+  u32 user_index = 0;
   if (!SlotForDevice(id, &user_index)) {
     return X_ERROR_DEVICE_NOT_CONNECTED;
   }

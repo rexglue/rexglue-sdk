@@ -20,16 +20,16 @@
 using rex::WinSystemClock;
 
 // All values are 100 nanosecond intervals since 1601-01-01 00:00:00 UTC.
-static constexpr uint64_t kFtNtEpoch = 0;                    /**< 1601-01-01 */
-static constexpr uint64_t kFtUnixEpoch = 116444736000000000; /**< 1970-01-01 */
-static constexpr uint64_t kFtY2k = 125911584000000000;       /**< 2000-01-01 */
-static constexpr uint64_t kFtLeapDay = 125962560000000000;   /**< 2000-02-29 */
-static constexpr uint64_t kFtSubDay = 132538032123450000;    /**< 2020-12-30 12:00:12.345 */
-static constexpr uint64_t kFt2021 = 132539328000000000;      /**< 2021-01-01 */
+static constexpr u64 kFtNtEpoch = 0;                    /**< 1601-01-01 */
+static constexpr u64 kFtUnixEpoch = 116444736000000000; /**< 1970-01-01 */
+static constexpr u64 kFtY2k = 125911584000000000;       /**< 2000-01-01 */
+static constexpr u64 kFtLeapDay = 125962560000000000;   /**< 2000-02-29 */
+static constexpr u64 kFtSubDay = 132538032123450000;    /**< 2020-12-30 12:00:12.345 */
+static constexpr u64 kFt2021 = 132539328000000000;      /**< 2021-01-01 */
 
 TEST_CASE("unix_epoch_delta computes correct 1601-to-1970 offset", "[chrono]") {
   // 369 years from 1601 to 1970, with 89 leap days
-  constexpr int64_t expected_seconds = (369LL * 365 + 89) * 86400LL;
+  constexpr i64 expected_seconds = (369LL * 365 + 89) * 86400LL;
 
   CHECK(WinSystemClock::unix_epoch_delta().count() == -expected_seconds);
   CHECK(WinSystemClock::unix_epoch_delta().count() < 0);
@@ -46,7 +46,7 @@ TEST_CASE("from_file_time and to_file_time are exact inverses", "[chrono]") {
   }
   SECTION("large value") {
     // Near year 9999.
-    constexpr uint64_t large = 2650467743990000000ULL;
+    constexpr u64 large = 2650467743990000000ULL;
     auto tp = WinSystemClock::from_file_time(large);
     CHECK(WinSystemClock::to_file_time(tp) == large);
   }
@@ -82,7 +82,7 @@ TEST_CASE("to_sys converts known FILETIMEs to correct system_clock values", "[ch
 }
 
 TEST_CASE("from_sys then to_sys round-trips for whole-second values", "[chrono]") {
-  for (uint64_t ft : {kFtNtEpoch, kFtUnixEpoch, kFtY2k, kFt2021}) {
+  for (u64 ft : {kFtNtEpoch, kFtUnixEpoch, kFtY2k, kFt2021}) {
     auto nt_tp = WinSystemClock::from_file_time(ft);
     auto sys_tp = WinSystemClock::to_sys(nt_tp);
     auto nt_tp2 = WinSystemClock::from_sys(sys_tp);
@@ -109,7 +109,7 @@ struct TimeFields {
  * @param filetime The FILETIME in 100 nanosecond intervals since 1601-01-01.
  * @return The calendar fields.
  */
-static TimeFields decompose(uint64_t filetime) {
+static TimeFields decompose(u64 filetime) {
   auto tp = WinSystemClock::to_sys(WinSystemClock::from_file_time(filetime));
   auto dp = std::chrono::floor<std::chrono::days>(tp);
   auto ymd = std::chrono::year_month_day{dp};
@@ -211,7 +211,7 @@ TEST_CASE("calendar decomposition: 2021-01-01", "[chrono]") {
  * @param ms The millisecond.
  * @return The FILETIME, or 0 when the date is invalid.
  */
-static uint64_t recompose(int y, unsigned m, unsigned d, int hour, int min, int sec, int ms) {
+static u64 recompose(int y, unsigned m, unsigned d, int hour, int min, int sec, int ms) {
   auto ymd =
       std::chrono::year_month_day{std::chrono::year{y}, std::chrono::month{m}, std::chrono::day{d}};
   if (!ymd.ok())
@@ -235,7 +235,7 @@ TEST_CASE("calendar recomposition: known dates produce correct FILETIMEs", "[chr
 }
 
 TEST_CASE("calendar recomposition: decompose then recompose round-trips", "[chrono]") {
-  for (uint64_t ft : {kFtNtEpoch, kFtUnixEpoch, kFtY2k, kFtLeapDay, kFtSubDay, kFt2021}) {
+  for (u64 ft : {kFtNtEpoch, kFtUnixEpoch, kFtY2k, kFtLeapDay, kFtSubDay, kFt2021}) {
     auto tf = decompose(ft);
     auto result =
         recompose(tf.year, tf.month, tf.day, tf.hours, tf.minutes, tf.seconds, tf.milliseconds);

@@ -12,15 +12,17 @@
 
 #include <cstdint>
 
+#include <rex/types.h>
+
 namespace rex::codegen {
 
 /** Half open address range of code, from start up to but excluding end. */
 struct CodeRegion {
-  uint32_t start; /**< First address of the range */
-  uint32_t end;   /**< Address 1 past the range */
+  u32 start; /**< First address of the range */
+  u32 end;   /**< Address 1 past the range */
 
-  bool contains(uint32_t addr) const { return addr >= start && addr < end; }
-  uint32_t size() const { return end - start; }
+  bool contains(u32 addr) const { return addr >= start && addr < end; }
+  u32 size() const { return end - start; }
 };
 
 }  // namespace rex::codegen

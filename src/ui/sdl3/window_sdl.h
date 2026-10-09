@@ -28,15 +28,15 @@ namespace rex::ui {
 class WindowSDL final : public Window {
  public:
   WindowSDL(WindowedAppContext& app_context, const std::string_view title,
-            uint32_t desired_logical_width, uint32_t desired_logical_height);
+            u32 desired_logical_width, u32 desired_logical_height);
   ~WindowSDL() override;
 
   void Raise() override;
   NativeWindow Native() override;
   SDL_Window* sdl() const override;
   bool SetRelativeMouseMode(bool enable) override;
-  bool WarpMouseToCenter(int32_t& x_out, int32_t& y_out) override;
-  bool GetDisplayPixelSize(uint32_t& width, uint32_t& height) const override;
+  bool WarpMouseToCenter(i32& x_out, i32& y_out) override;
+  bool GetDisplayPixelSize(u32& width, u32& height) const override;
 
   /**
    * Handles a window event. SDLWindowedAppContext calls all Handle methods on the UI thread.
@@ -51,7 +51,7 @@ class WindowSDL final : public Window {
   void HandlePaintEvent();
 
  protected:
-  uint32_t GetLatestDpiImpl() const override;
+  u32 GetLatestDpiImpl() const override;
 
   bool OpenImpl() override;
   void RequestCloseImpl() override;
@@ -90,7 +90,7 @@ class WindowSDL final : public Window {
    *
    * @return The ratio, never 0.
    */
-  float GetPixelDensity() const;
+  f32 GetPixelDensity() const;
 
 #if REX_PLATFORM_MAC
   void* AcquireMetalLayer();

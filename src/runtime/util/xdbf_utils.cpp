@@ -20,18 +20,17 @@ constexpr memory::fourcc_t kXdbfSignatureXstc = memory::make_fourcc("XSTC");
 constexpr memory::fourcc_t kXdbfSignatureXstr = memory::make_fourcc("XSTR");
 constexpr memory::fourcc_t kXdbfSignatureXach = memory::make_fourcc("XACH");
 
-constexpr uint64_t kXdbfIdTitle = 0x8000;
-constexpr uint64_t kXdbfIdXstc = 0x58535443;
-constexpr uint64_t kXdbfIdXach = 0x58414348;
+constexpr u64 kXdbfIdTitle = 0x8000;
+constexpr u64 kXdbfIdXstc = 0x58535443;
+constexpr u64 kXdbfIdXach = 0x58414348;
 
-XdbfWrapper::XdbfWrapper(const uint8_t* data, size_t data_size)
-    : data_(data), data_size_(data_size) {
+XdbfWrapper::XdbfWrapper(const u8* data, size_t data_size) : data_(data), data_size_(data_size) {
   if (!data || data_size <= sizeof(XbdfHeader)) {
     data_ = nullptr;
     return;
   }
 
-  const uint8_t* ptr = data_;
+  const u8* ptr = data_;
 
   header_ = reinterpret_cast<const XbdfHeader*>(ptr);
   ptr += sizeof(XbdfHeader);
@@ -49,10 +48,10 @@ XdbfWrapper::XdbfWrapper(const uint8_t* data, size_t data_size)
   content_offset_ = ptr;
 }
 
-XdbfBlock XdbfWrapper::GetEntry(XdbfSection section, uint64_t id) const {
-  for (uint32_t i = 0; i < header_->entry_used; ++i) {
+XdbfBlock XdbfWrapper::GetEntry(XdbfSection section, u64 id) const {
+  for (u32 i = 0; i < header_->entry_used; ++i) {
     auto& entry = entries_[i];
-    if (entry.section == static_cast<uint16_t>(section) && entry.id == id) {
+    if (entry.section == static_cast<u16>(section) && entry.id == id) {
       XdbfBlock block;
       block.buffer = content_offset_ + entry.offset;
       block.size = entry.size;
@@ -62,8 +61,8 @@ XdbfBlock XdbfWrapper::GetEntry(XdbfSection section, uint64_t id) const {
   return {};
 }
 
-std::string XdbfWrapper::GetStringTableEntry(XLanguage language, uint16_t string_id) const {
-  auto language_block = GetEntry(XdbfSection::kStringTable, static_cast<uint64_t>(language));
+std::string XdbfWrapper::GetStringTableEntry(XLanguage language, u16 string_id) const {
+  auto language_block = GetEntry(XdbfSection::kStringTable, static_cast<u64>(language));
   if (!language_block) {
     return "";
   }
@@ -72,8 +71,8 @@ std::string XdbfWrapper::GetStringTableEntry(XLanguage language, uint16_t string
   REX_ASSERT(xstr_head->magic == kXdbfSignatureXstr);
   REX_ASSERT(xstr_head->version == 1);
 
-  const uint8_t* ptr = language_block.buffer + sizeof(XdbfSectionHeader);
-  for (uint16_t i = 0; i < xstr_head->count; ++i) {
+  const u8* ptr = language_block.buffer + sizeof(XdbfSectionHeader);
+  for (u16 i = 0; i < xstr_head->count; ++i) {
     auto entry = reinterpret_cast<const XdbfStringTableEntry*>(ptr);
     ptr += sizeof(XdbfStringTableEntry);
     if (entry->id == string_id) {
@@ -96,8 +95,8 @@ std::vector<XdbfAchievementTableEntry> XdbfWrapper::GetAchievements() const {
   REX_ASSERT(xach_head->magic == kXdbfSignatureXach);
   REX_ASSERT(xach_head->version == 1);
 
-  const uint8_t* ptr = achievement_table.buffer + sizeof(XdbfSectionHeader);
-  for (uint16_t i = 0; i < xach_head->count; ++i) {
+  const u8* ptr = achievement_table.buffer + sizeof(XdbfSectionHeader);
+  for (u16 i = 0; i < xach_head->count; ++i) {
     auto entry = reinterpret_cast<const XdbfAchievementTableEntry*>(ptr);
     ptr += sizeof(XdbfAchievementTableEntry);
     achievements.push_back(*entry);
@@ -120,7 +119,7 @@ XLanguage XDBFGameData::default_language() const {
   }
   auto xstc = reinterpret_cast<const XdbfXstc*>(block.buffer);
   REX_ASSERT(xstc->magic == kXdbfSignatureXstc);
-  return static_cast<XLanguage>(static_cast<uint32_t>(xstc->default_language));
+  return static_cast<XLanguage>(static_cast<u32>(xstc->default_language));
 }
 
 std::string XDBFGameData::title() const {

@@ -9,7 +9,7 @@ namespace rex {
 namespace {
 
 struct RegisteredEmbeddedMetadataAsset {
-  const std::uint8_t* data = nullptr;
+  const u8* data = nullptr;
   std::size_t size = 0;
 };
 
@@ -33,7 +33,7 @@ std::unordered_map<std::string, RegisteredEmbeddedMetadataAsset>& Registry() {
 
 }  // namespace
 
-bool RegisterEmbeddedMetadataAsset(std::string_view relative_path, const std::uint8_t* data,
+bool RegisterEmbeddedMetadataAsset(std::string_view relative_path, const u8* data,
                                    std::size_t size) {
   if (relative_path.empty() || !data || size == 0) {
     return false;
@@ -63,7 +63,7 @@ std::optional<EmbeddedMetadataAsset> FindEmbeddedMetadataAsset(
   }
 
   return EmbeddedMetadataAsset{
-      std::span<const std::uint8_t>(it->second.data, it->second.size),
+      std::span<const u8>(it->second.data, it->second.size),
   };
 }
 

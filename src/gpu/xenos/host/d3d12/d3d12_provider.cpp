@@ -34,7 +34,7 @@ bool D3D12Provider::IsD3D12APIAvailable() {
   return true;
 }
 
-std::unique_ptr<D3D12Provider> D3D12Provider::Create(int32_t adapter_index) {
+std::unique_ptr<D3D12Provider> D3D12Provider::Create(i32 adapter_index) {
   auto provider = std::make_unique<D3D12Provider>(Key{});
   if (!provider->Initialize(adapter_index)) {
     REX_FATAL(gpu,
@@ -102,7 +102,7 @@ bool D3D12Provider::EnableIncreaseBasePriorityPrivilege() {
   return enabled;
 }
 
-bool D3D12Provider::Initialize(int32_t adapter_index_wanted) {
+bool D3D12Provider::Initialize(i32 adapter_index_wanted) {
   library_dxgi_ = LoadLibraryW(L"dxgi.dll");
   library_d3d12_ = LoadLibraryW(L"D3D12.dll");
   if (!library_dxgi_ || !library_d3d12_) {
@@ -220,7 +220,7 @@ bool D3D12Provider::Initialize(int32_t adapter_index_wanted) {
     REX_FAIL(ui, false, "Failed to create a DXGI factory");
   }
 
-  uint32_t adapter_index = 0;
+  u32 adapter_index = 0;
   IDXGIAdapter1* adapter = nullptr;
   while (dxgi_factory->EnumAdapters1(adapter_index, &adapter) == S_OK) {
     DXGI_ADAPTER_DESC1 adapter_desc;
@@ -354,7 +354,7 @@ bool D3D12Provider::Initialize(int32_t adapter_index_wanted) {
   device_ = device;
   direct_queue_ = direct_queue;
 
-  for (uint32_t i = 0; i < D3D12_DESCRIPTOR_HEAP_TYPE_NUM_TYPES; ++i) {
+  for (u32 i = 0; i < D3D12_DESCRIPTOR_HEAP_TYPE_NUM_TYPES; ++i) {
     descriptor_sizes_[i] = device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE(i));
   }
 
@@ -410,10 +410,9 @@ bool D3D12Provider::Initialize(int32_t adapter_index_wanted) {
               virtual_address_bits_per_resource_,
               (heap_flag_create_not_zeroed_ & D3D12_HEAP_FLAG_CREATE_NOT_ZEROED) ? "yes" : "no",
               ps_specified_stencil_reference_supported_ ? "yes" : "no",
-              static_cast<uint32_t>(programmable_sample_positions_tier_),
+              static_cast<u32>(programmable_sample_positions_tier_),
               rasterizer_ordered_views_supported_ ? "yes" : "no",
-              static_cast<uint32_t>(resource_binding_tier_),
-              static_cast<uint32_t>(tiled_resources_tier_),
+              static_cast<u32>(resource_binding_tier_), static_cast<u32>(tiled_resources_tier_),
               unaligned_block_textures_supported_ ? "yes" : "no");
 
   pfn_dxgi_get_debug_interface1_(0, IID_PPV_ARGS(&graphics_analysis_));

@@ -54,7 +54,7 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
   VkPhysicalDeviceProperties properties = {};
   ifn.vkGetPhysicalDeviceProperties(physical_device, &properties);
 
-  const uint32_t unclamped_api_version = properties.apiVersion;
+  const u32 unclamped_api_version = properties.apiVersion;
   if (vulkan_instance->api_version() < VK_MAKE_API_VERSION(0, 1, 1, 0)) {
     properties.apiVersion =
         VK_MAKE_API_VERSION(0, 1, 0, VK_API_VERSION_PATCH(properties.apiVersion));
@@ -114,8 +114,8 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
   // Name pointers from requested_extensions are used in the enabled extensions vector.
   std::unordered_map<std::string, bool*> requested_extensions;
 
-  const auto request_promoted_extension = [&](const char* const name, uint32_t const major,
-                                              uint32_t const minor, bool* const supported_ptr) {
+  const auto request_promoted_extension = [&](const char* const name, u32 const major,
+                                              u32 const minor, bool* const supported_ptr) {
     REX_ASSERT(supported_ptr != nullptr);
     if (properties.apiVersion >= VK_MAKE_API_VERSION(0, major, minor, 0)) {
       *supported_ptr = true;
@@ -227,7 +227,7 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
 
   std::vector<const char*> enabled_extensions;
   {
-    uint32_t supported_extension_count = 0;
+    u32 supported_extension_count = 0;
     const VkResult get_supported_extension_count_result = ifn.vkEnumerateDeviceExtensionProperties(
         physical_device, nullptr, &supported_extension_count, nullptr);
     if (get_supported_extension_count_result != VK_SUCCESS &&
@@ -268,7 +268,7 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
   auto device_create_info =
       util::InitializeStructure<VkDeviceCreateInfo>(VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO);
 
-  device_create_info.enabledExtensionCount = static_cast<uint32_t>(enabled_extensions.size());
+  device_create_info.enabledExtensionCount = static_cast<u32>(enabled_extensions.size());
   device_create_info.ppEnabledExtensionNames = enabled_extensions.data();
 
   auto properties_2 = util::InitializeStructure<VkPhysicalDeviceProperties2>(
@@ -358,7 +358,7 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
     ifn.vkGetPhysicalDeviceFeatures2(physical_device, &supported_features_2);
   }
 
-  uint32_t queue_family_count = 0;
+  u32 queue_family_count = 0;
   ifn.vkGetPhysicalDeviceQueueFamilyProperties(physical_device, &queue_family_count, nullptr);
   std::vector<VkQueueFamilyProperties> queue_families(queue_family_count);
   ifn.vkGetPhysicalDeviceQueueFamilyProperties(physical_device, &queue_family_count,
@@ -366,13 +366,12 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
 
   device->queue_families_.resize(queue_family_count);
 
-  uint32_t first_queue_family_graphics_compute_sparse_binding = UINT32_MAX;
-  uint32_t first_queue_family_graphics_compute = UINT32_MAX;
-  uint32_t first_queue_family_sparse_binding = UINT32_MAX;
+  u32 first_queue_family_graphics_compute_sparse_binding = UINT32_MAX;
+  u32 first_queue_family_graphics_compute = UINT32_MAX;
+  u32 first_queue_family_sparse_binding = UINT32_MAX;
   bool has_presentation_queue_family = false;
 
-  for (uint32_t queue_family_index = 0; queue_family_index < queue_family_count;
-       ++queue_family_index) {
+  for (u32 queue_family_index = 0; queue_family_index < queue_family_count; ++queue_family_index) {
     QueueFamily& queue_family = device->queue_families_[queue_family_index];
     const VkQueueFamilyProperties& queue_family_properties = queue_families[queue_family_index];
 
@@ -460,7 +459,7 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
     max_enabled_queues_per_family =
         std::max(queue_family.queues.size(), max_enabled_queues_per_family);
   }
-  const std::vector<float> queue_priorities(max_enabled_queues_per_family, 1.0f);
+  const std::vector<f32> queue_priorities(max_enabled_queues_per_family, 1.0f);
   std::vector<VkDeviceQueueCreateInfo> queue_create_infos;
   for (size_t queue_family_index = 0; queue_family_index < device->queue_families_.size();
        ++queue_family_index) {
@@ -472,11 +471,11 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
     queue_create_info.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
     queue_create_info.pNext = nullptr;
     queue_create_info.flags = 0;
-    queue_create_info.queueFamilyIndex = static_cast<uint32_t>(queue_family_index);
-    queue_create_info.queueCount = static_cast<uint32_t>(queue_family.queues.size());
+    queue_create_info.queueFamilyIndex = static_cast<u32>(queue_family_index);
+    queue_create_info.queueCount = static_cast<u32>(queue_family.queues.size());
     queue_create_info.pQueuePriorities = queue_priorities.data();
   }
-  device_create_info.queueCreateInfoCount = static_cast<uint32_t>(queue_create_infos.size());
+  device_create_info.queueCreateInfoCount = static_cast<u32>(queue_create_infos.size());
   device_create_info.pQueueCreateInfos = queue_create_infos.data();
 
   // Only used features are enabled, as drivers may take faster paths with others disabled.
@@ -502,7 +501,7 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
   }
 
   REXLOG_DEBUG(ui, "Enabled Vulkan device extensions:");
-  for (uint32_t enabled_extension_index = 0;
+  for (u32 enabled_extension_index = 0;
        enabled_extension_index < device_create_info.enabledExtensionCount;
        ++enabled_extension_index) {
     REXLOG_DEBUG(ui, "* {}", device_create_info.ppEnabledExtensionNames[enabled_extension_index]);
@@ -829,17 +828,17 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
     QueueFamily& queue_family = device->queue_families_[queue_family_index];
     for (size_t queue_index = 0; queue_index < queue_family.queues.size(); ++queue_index) {
       VkQueue queue;
-      dfn.vkGetDeviceQueue(device->device_, static_cast<uint32_t>(queue_family_index),
-                           static_cast<uint32_t>(queue_index), &queue);
+      dfn.vkGetDeviceQueue(device->device_, static_cast<u32>(queue_family_index),
+                           static_cast<u32>(queue_index), &queue);
       queue_family.queues[queue_index] = std::make_unique<Queue>(queue);
     }
   }
 
   VkPhysicalDeviceMemoryProperties memory_properties;
   ifn.vkGetPhysicalDeviceMemoryProperties(physical_device, &memory_properties);
-  for (uint32_t memory_type_index = 0; memory_type_index < memory_properties.memoryTypeCount;
+  for (u32 memory_type_index = 0; memory_type_index < memory_properties.memoryTypeCount;
        ++memory_type_index) {
-    const uint32_t memory_type_bit = static_cast<uint32_t>(1) << memory_type_index;
+    const u32 memory_type_bit = static_cast<u32>(1) << memory_type_index;
     const VkMemoryPropertyFlags memory_type_flags =
         memory_properties.memoryTypes[memory_type_index].propertyFlags;
     if (memory_type_flags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) {

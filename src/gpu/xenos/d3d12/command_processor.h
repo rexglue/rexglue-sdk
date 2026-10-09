@@ -52,7 +52,7 @@ class D3D12CommandProcessor : public CommandProcessor {
   void ClearCaches() override;
   void InvalidateGpuMemory() override;
 
-  void InitializeShaderStorage(const std::filesystem::path& cache_root, uint32_t title_id,
+  void InitializeShaderStorage(const std::filesystem::path& cache_root, u32 title_id,
                                bool blocking) override;
 
   gpu::d3d12::D3D12Provider& GetD3D12Provider() const {
@@ -69,8 +69,8 @@ class D3D12CommandProcessor : public CommandProcessor {
     return deferred_command_list_;
   }
 
-  uint64_t GetCurrentSubmission() const { return submission_current_; }
-  uint64_t GetCompletedSubmission() const { return submission_completed_; }
+  u64 GetCurrentSubmission() const { return submission_current_; }
+  u64 GetCompletedSubmission() const { return submission_completed_; }
 
   /**
    * Tracks queue operations done outside submissions, such as UpdateTileMappings, so
@@ -81,8 +81,8 @@ class D3D12CommandProcessor : public CommandProcessor {
     queue_operations_done_since_submission_signal_ = true;
   }
 
-  uint64_t GetCurrentFrame() const { return frame_current_; }
-  uint64_t GetCompletedFrame() const { return frame_completed_; }
+  u64 GetCurrentFrame() const { return frame_current_; }
+  u64 GetCompletedFrame() const { return frame_completed_; }
 
   /**
    * Pushes a transition barrier.
@@ -127,8 +127,8 @@ class D3D12CommandProcessor : public CommandProcessor {
    *
    * @return The descriptor index, or UINT32_MAX if no descriptors are free.
    */
-  uint32_t RequestPersistentViewBindlessDescriptor();
-  void ReleaseViewBindlessDescriptorImmediately(uint32_t descriptor_index);
+  u32 RequestPersistentViewBindlessDescriptor();
+  void ReleaseViewBindlessDescriptorImmediately(u32 descriptor_index);
   /**
    * Requests non contiguous CBV, SRV and UAV descriptors for use only within the next internal
    * draw or dispatch. May change the current descriptor heap. If the unbounded SRV range for
@@ -141,9 +141,9 @@ class D3D12CommandProcessor : public CommandProcessor {
    * @return True when the descriptors were allocated.
    */
   bool RequestOneUseSingleViewDescriptors(
-      uint32_t count, gpu::d3d12::util::DescriptorCpuGpuHandlePair* handles_out);
+      u32 count, gpu::d3d12::util::DescriptorCpuGpuHandlePair* handles_out);
   /** Needed often, so always allocated. */
-  enum class SystemBindlessView : uint32_t {
+  enum class SystemBindlessView : u32 {
     /** Both may be bound as one root parameter. */
     kSharedMemoryRawSRVAndNullRawUAVStart,
     kSharedMemoryRawSRV = kSharedMemoryRawSRVAndNullRawUAVStart,
@@ -187,13 +187,13 @@ class D3D12CommandProcessor : public CommandProcessor {
   gpu::d3d12::util::DescriptorCpuGpuHandlePair GetSystemBindlessViewHandlePair(
       SystemBindlessView view) const;
   gpu::d3d12::util::DescriptorCpuGpuHandlePair GetSharedMemoryUintPow2BindlessSRVHandlePair(
-      uint32_t element_size_bytes_pow2) const;
+      u32 element_size_bytes_pow2) const;
   gpu::d3d12::util::DescriptorCpuGpuHandlePair GetSharedMemoryUintPow2BindlessUAVHandlePair(
-      uint32_t element_size_bytes_pow2) const;
+      u32 element_size_bytes_pow2) const;
   gpu::d3d12::util::DescriptorCpuGpuHandlePair GetEdramUintPow2BindlessSRVHandlePair(
-      uint32_t element_size_bytes_pow2) const;
+      u32 element_size_bytes_pow2) const;
   gpu::d3d12::util::DescriptorCpuGpuHandlePair GetEdramUintPow2BindlessUAVHandlePair(
-      uint32_t element_size_bytes_pow2) const;
+      u32 element_size_bytes_pow2) const;
 
   /**
    * Returns a single temporary GPU side buffer within a submission for tasks like texture
@@ -203,7 +203,7 @@ class D3D12CommandProcessor : public CommandProcessor {
    * @param state State the buffer is in on return.
    * @return The buffer.
    */
-  ID3D12Resource* RequestScratchGPUBuffer(uint32_t size, D3D12_RESOURCE_STATES state);
+  ID3D12Resource* RequestScratchGPUBuffer(u32 size, D3D12_RESOURCE_STATES state);
   /**
    * Releases the scratch buffer and stores its new state in case the user transitioned it.
    *
@@ -232,7 +232,7 @@ class D3D12CommandProcessor : public CommandProcessor {
   void SetExternalGraphicsRootSignature(ID3D12RootSignature* root_signature);
   void SetViewport(const D3D12_VIEWPORT& viewport);
   void SetScissorRect(const D3D12_RECT& scissor_rect);
-  void SetStencilReference(uint32_t stencil_ref);
+  void SetStencilReference(u32 stencil_ref);
   void SetPrimitiveTopology(D3D12_PRIMITIVE_TOPOLOGY primitive_topology);
 
   /**
@@ -246,28 +246,27 @@ class D3D12CommandProcessor : public CommandProcessor {
   bool SetupContext() override;
   void ShutdownContext() override;
 
-  void WriteRegister(uint32_t index, uint32_t value) override;
-  void WriteRegistersFromMem(uint32_t start_index, uint32_t* base, uint32_t num_registers) override;
-  bool ExecutePacketType3_EVENT_WRITE_ZPD(memory::RingBuffer* reader, uint32_t packet,
-                                          uint32_t count) override;
+  void WriteRegister(u32 index, u32 value) override;
+  void WriteRegistersFromMem(u32 start_index, u32* base, u32 num_registers) override;
+  bool ExecutePacketType3_EVENT_WRITE_ZPD(memory::RingBuffer* reader, u32 packet,
+                                          u32 count) override;
 
   void OnGammaRamp256EntryTableValueWritten() override;
   void OnGammaRampPWLValueWritten() override;
 
-  void IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontbuffer_width,
-                 uint32_t frontbuffer_height) override;
+  void IssueSwap(u32 frontbuffer_ptr, u32 frontbuffer_width, u32 frontbuffer_height) override;
 
   void OnPrimaryBufferEnd() override;
 
-  Shader* LoadShader(xenos::ShaderType shader_type, uint32_t guest_address,
-                     const uint32_t* host_address, uint32_t dword_count) override;
+  Shader* LoadShader(xenos::ShaderType shader_type, u32 guest_address, const u32* host_address,
+                     u32 dword_count) override;
 
-  bool IssueDraw(xenos::PrimitiveType primitive_type, uint32_t index_count,
+  bool IssueDraw(xenos::PrimitiveType primitive_type, u32 index_count,
                  IndexBufferInfo* index_buffer_info, bool major_mode_explicit) override;
   bool IssueCopy() override;
 
  private:
-  static constexpr uint32_t kQueueFrames = 3;
+  static constexpr u32 kQueueFrames = 3;
 
   /**
    * Root parameters. The root signature at each stage must stay at 13 dwords or less (better 12
@@ -325,11 +324,11 @@ class D3D12CommandProcessor : public CommandProcessor {
   };
 
   struct RootBindfulExtraParameterIndices {
-    uint32_t textures_pixel;
-    uint32_t samplers_pixel;
-    uint32_t textures_vertex;
-    uint32_t samplers_vertex;
-    static constexpr uint32_t kUnavailable = UINT32_MAX;
+    u32 textures_pixel;
+    u32 samplers_pixel;
+    u32 textures_vertex;
+    u32 samplers_vertex;
+    static constexpr u32 kUnavailable = UINT32_MAX;
   };
   /**
    * Returns the indices of optional root parameters.
@@ -339,9 +338,9 @@ class D3D12CommandProcessor : public CommandProcessor {
    * @param indices_out Receives the indices.
    * @return The total parameter count.
    */
-  static uint32_t GetRootBindfulExtraParameterIndices(
-      const DxbcShader* vertex_shader, const DxbcShader* pixel_shader,
-      RootBindfulExtraParameterIndices& indices_out);
+  static u32 GetRootBindfulExtraParameterIndices(const DxbcShader* vertex_shader,
+                                                 const DxbcShader* pixel_shader,
+                                                 RootBindfulExtraParameterIndices& indices_out);
 
   /**
    * Rechecks the submission number and reclaims per submission resources.
@@ -349,7 +348,7 @@ class D3D12CommandProcessor : public CommandProcessor {
    * @param await_submission Submission to await, 0 to only check the status, or
    * submission_current_ to wait for all queue operations to complete.
    */
-  void CheckSubmissionFence(uint64_t await_submission);
+  void CheckSubmissionFence(u64 await_submission);
   /**
    * Begins a submission. May be called at any time. If a non frame submission is open, passing
    * true promotes it to a frame. Submission (ExecuteCommandLists) boundaries are implicit full
@@ -405,31 +404,29 @@ class D3D12CommandProcessor : public CommandProcessor {
    * @param gpu_handle_out Receives the GPU handle.
    * @return The heap index.
    */
-  uint64_t RequestViewBindfulDescriptors(uint64_t previous_heap_index,
-                                         uint32_t count_for_partial_update,
-                                         uint32_t count_for_full_update,
-                                         D3D12_CPU_DESCRIPTOR_HANDLE& cpu_handle_out,
-                                         D3D12_GPU_DESCRIPTOR_HANDLE& gpu_handle_out);
-  uint64_t RequestSamplerBindfulDescriptors(uint64_t previous_heap_index,
-                                            uint32_t count_for_partial_update,
-                                            uint32_t count_for_full_update,
-                                            D3D12_CPU_DESCRIPTOR_HANDLE& cpu_handle_out,
-                                            D3D12_GPU_DESCRIPTOR_HANDLE& gpu_handle_out);
+  u64 RequestViewBindfulDescriptors(u64 previous_heap_index, u32 count_for_partial_update,
+                                    u32 count_for_full_update,
+                                    D3D12_CPU_DESCRIPTOR_HANDLE& cpu_handle_out,
+                                    D3D12_GPU_DESCRIPTOR_HANDLE& gpu_handle_out);
+  u64 RequestSamplerBindfulDescriptors(u64 previous_heap_index, u32 count_for_partial_update,
+                                       u32 count_for_full_update,
+                                       D3D12_CPU_DESCRIPTOR_HANDLE& cpu_handle_out,
+                                       D3D12_GPU_DESCRIPTOR_HANDLE& gpu_handle_out);
 
   void UpdateFixedFunctionState(const draw_util::ViewportInfo& viewport_info,
                                 const draw_util::Scissor& scissor, bool primitive_polygonal,
                                 xenos::reg::RB_DEPTHCONTROL normalized_depth_control);
   void UpdateSystemConstantValues(bool shared_memory_is_uav, bool primitive_polygonal,
-                                  uint32_t line_loop_closing_index, xenos::Endian index_endian,
+                                  u32 line_loop_closing_index, xenos::Endian index_endian,
                                   const draw_util::ViewportInfo& viewport_info,
-                                  uint32_t used_texture_mask,
+                                  u32 used_texture_mask,
                                   xenos::reg::RB_DEPTHCONTROL normalized_depth_control,
-                                  uint32_t normalized_color_mask);
+                                  u32 normalized_color_mask);
   bool UpdateBindings(const D3D12Shader* vertex_shader, const D3D12Shader* pixel_shader,
                       ID3D12RootSignature* root_signature, bool shared_memory_is_uav);
   bool IssueCopy_ReadbackResolvePath();
-  bool IssueDraw_MemexportReadbackFullPath(uint32_t total_size);
-  bool IssueDraw_MemexportReadbackFastPath(uint32_t total_size);
+  bool IssueDraw_MemexportReadbackFullPath(u32 total_size);
+  bool IssueDraw_MemexportReadbackFastPath(u32 total_size);
 
   /**
    * Returns a buffer for reading GPU data back to the CPU, assuming synchronization right after
@@ -438,21 +435,21 @@ class D3D12CommandProcessor : public CommandProcessor {
    * @param size Size in bytes.
    * @return The buffer.
    */
-  ID3D12Resource* RequestReadbackBuffer(uint32_t size);
+  ID3D12Resource* RequestReadbackBuffer(u32 size);
   struct ReadbackBuffer {
     ID3D12Resource* buffers[2] = {nullptr, nullptr};
-    uint32_t sizes[2] = {0, 0};
+    u32 sizes[2] = {0, 0};
     void* mapped_data[2] = {nullptr, nullptr};
-    uint64_t submission_written[2] = {0, 0};
-    uint32_t written_size[2] = {0, 0};
-    uint32_t current_index = 0;
-    uint64_t last_used_frame = 0;
+    u64 submission_written[2] = {0, 0};
+    u32 written_size[2] = {0, 0};
+    u32 current_index = 0;
+    u64 last_used_frame = 0;
   };
-  void EvictOldReadbackBuffers(std::unordered_map<uint64_t, ReadbackBuffer>& buffer_map);
-  static constexpr uint32_t kReadbackBufferSizeIncrement = 16 * 1024 * 1024;
+  void EvictOldReadbackBuffers(std::unordered_map<u64, ReadbackBuffer>& buffer_map);
+  static constexpr u32 kReadbackBufferSizeIncrement = 16 * 1024 * 1024;
   static constexpr size_t kMaxReadbackBuffers = 256;
-  static constexpr uint64_t kReadbackBufferEvictionAgeFrames = 60;
-  static inline uint32_t AlignReadbackBufferSize(uint32_t size) {
+  static constexpr u64 kReadbackBufferEvictionAgeFrames = 60;
+  static inline u32 AlignReadbackBufferSize(u32 size) {
     if (size < 1 * 1024 * 1024) {
       return rex::align(size, 256u * 1024u);
     }
@@ -461,26 +458,24 @@ class D3D12CommandProcessor : public CommandProcessor {
     }
     return rex::align(size, kReadbackBufferSizeIncrement);
   }
-  static inline uint64_t MakeReadbackResolveKey(uint32_t address, uint32_t length) {
-    return (static_cast<uint64_t>(address) << 32) | static_cast<uint64_t>(length);
+  static inline u64 MakeReadbackResolveKey(u32 address, u32 length) {
+    return (static_cast<u64>(address) << 32) | static_cast<u64>(length);
   }
-  static inline uint64_t MakeMemexportReadbackKey(uint32_t first_base_address_dwords,
-                                                  uint32_t total_size) {
-    return (static_cast<uint64_t>(first_base_address_dwords) << 32) |
-           static_cast<uint64_t>(total_size);
+  static inline u64 MakeMemexportReadbackKey(u32 first_base_address_dwords, u32 total_size) {
+    return (static_cast<u64>(first_base_address_dwords) << 32) | static_cast<u64>(total_size);
   }
 
   bool InitializeOcclusionQueryResources();
   void ShutdownOcclusionQueryResources();
-  bool BeginGuestOcclusionQuery(uint32_t sample_count_address);
+  bool BeginGuestOcclusionQuery(u32 sample_count_address);
   bool EndGuestOcclusionQuery(xenos::DepthSampleCounts* sample_counts);
-  bool AcquireOcclusionQueryIndex(uint32_t& host_index_out);
+  bool AcquireOcclusionQueryIndex(u32& host_index_out);
   void DisableHostOcclusionQueries();
-  uint64_t NormalizeOcclusionSamples(uint64_t samples) const;
-  void WriteGuestOcclusionResult(xenos::DepthSampleCounts* sample_counts, uint64_t samples);
+  u64 NormalizeOcclusionSamples(u64 samples) const;
+  void WriteGuestOcclusionResult(xenos::DepthSampleCounts* sample_counts, u64 samples);
   void InvalidateAllVertexBufferResidency();
-  void InvalidateVertexBufferResidency(uint32_t vfetch_index);
-  void InvalidateVertexBufferResidencyRange(uint32_t first_vfetch, uint32_t last_vfetch);
+  void InvalidateVertexBufferResidency(u32 vfetch_index);
+  void InvalidateVertexBufferResidencyRange(u32 first_vfetch, u32 last_vfetch);
 
   void WriteGammaRampSRV(bool is_pwl, D3D12_CPU_DESCRIPTOR_HANDLE handle) const;
 
@@ -492,8 +487,8 @@ class D3D12CommandProcessor : public CommandProcessor {
 
   bool submission_open_ = false;
   /** Values of submission_fence_. */
-  uint64_t submission_current_ = 1;
-  uint64_t submission_completed_ = 0;
+  u64 submission_current_ = 1;
+  u64 submission_completed_ = 0;
   ID3D12Fence* submission_fence_ = nullptr;
 
   /**
@@ -502,18 +497,18 @@ class D3D12CommandProcessor : public CommandProcessor {
    * and Signal, as awaiting the submission does not cover them.
    */
   ID3D12Fence* queue_operations_since_submission_fence_ = nullptr;
-  uint64_t queue_operations_since_submission_fence_last_ = 0;
+  u64 queue_operations_since_submission_fence_last_ = 0;
   bool queue_operations_done_since_submission_signal_ = false;
 
   bool frame_open_ = false;
   /** Title frame index, updated at the start of a frame, as resources span submissions. */
-  uint64_t frame_current_ = 1;
-  uint64_t frame_completed_ = 0;
-  uint64_t closed_frame_submissions_[kQueueFrames] = {};
+  u64 frame_current_ = 1;
+  u64 frame_completed_ = 0;
+  u64 closed_frame_submissions_[kQueueFrames] = {};
 
   struct CommandAllocator {
     ID3D12CommandAllocator* command_allocator;
-    uint64_t last_usage_submission;
+    u64 last_usage_submission;
     CommandAllocator* next;
   };
   CommandAllocator* command_allocator_writable_first_ = nullptr;
@@ -528,16 +523,16 @@ class D3D12CommandProcessor : public CommandProcessor {
 
   /** Caches viewport info to skip GetHostViewportInfo when affecting registers are unchanged. */
   struct ViewportCacheKey {
-    uint32_t pa_cl_clip_cntl;
-    uint32_t pa_cl_vte_cntl;
-    uint32_t pa_su_sc_mode_cntl;
-    uint32_t pa_su_vtx_cntl;
-    uint32_t pa_sc_window_offset;
-    uint32_t normalized_depth_control;
+    u32 pa_cl_clip_cntl;
+    u32 pa_cl_vte_cntl;
+    u32 pa_su_sc_mode_cntl;
+    u32 pa_su_vtx_cntl;
+    u32 pa_sc_window_offset;
+    u32 normalized_depth_control;
     /** Register order is XSCALE, XOFFSET, YSCALE, YOFFSET, ZSCALE, ZOFFSET. */
-    uint32_t vport_regs[6];
+    u32 vport_regs[6];
     /** Packed convert_z_to_float24, full_float24 and ps_writes_depth. */
-    uint32_t flags;
+    u32 flags;
     bool operator==(const ViewportCacheKey&) const = default;
   };
   ViewportCacheKey previous_viewport_key_{};
@@ -559,7 +554,7 @@ class D3D12CommandProcessor : public CommandProcessor {
 
   std::unique_ptr<gpu::d3d12::D3D12UploadBufferPool> constant_buffer_pool_;
 
-  static constexpr uint32_t kViewBindfulHeapSize = 32768;
+  static constexpr u32 kViewBindfulHeapSize = 32768;
   static_assert(kViewBindfulHeapSize <= D3D12_MAX_SHADER_VISIBLE_DESCRIPTOR_HEAP_SIZE_TIER_1);
   std::unique_ptr<gpu::d3d12::D3D12DescriptorHeapPool> view_bindful_heap_pool_;
   /** Bound descriptor heap, updated by RequestViewBindfulDescriptors. */
@@ -570,22 +565,22 @@ class D3D12CommandProcessor : public CommandProcessor {
    * In practice far fewer exist, so this is a safe value. The limit is 1000000 for resource
    * binding tier 2.
    */
-  static constexpr uint32_t kViewBindlessHeapSize = 262144;
+  static constexpr u32 kViewBindlessHeapSize = 262144;
   static_assert(kViewBindlessHeapSize <= D3D12_MAX_SHADER_VISIBLE_DESCRIPTOR_HEAP_SIZE_TIER_2);
   ID3D12DescriptorHeap* view_bindless_heap_ = nullptr;
   D3D12_CPU_DESCRIPTOR_HANDLE view_bindless_heap_cpu_start_;
   D3D12_GPU_DESCRIPTOR_HANDLE view_bindless_heap_gpu_start_;
-  uint32_t view_bindless_heap_allocated_ = 0;
-  std::vector<uint32_t> view_bindless_heap_free_;
+  u32 view_bindless_heap_allocated_ = 0;
+  std::vector<u32> view_bindless_heap_free_;
   /** Pairs of descriptor index and requesting submission, sorted by submission number. */
-  std::deque<std::pair<uint32_t, uint64_t>> view_bindless_one_use_descriptors_;
+  std::deque<std::pair<u32, u64>> view_bindless_one_use_descriptors_;
 
   /**
    * Direct3D 12 allows shader visible heaps of at most 2048 samplers (due to Nvidia addressing).
    * A possible Nvidia driver bug (440.97 and earlier on Windows 10 1803) broke sampler 2047 when
    * a heap of 8 or fewer samplers also exists, such as the immediate drawer sampler heap.
    */
-  static constexpr uint32_t kSamplerHeapSize = 2000;
+  static constexpr u32 kSamplerHeapSize = 2000;
   static_assert(kSamplerHeapSize <= D3D12_MAX_SHADER_VISIBLE_SAMPLER_HEAP_SIZE);
   std::unique_ptr<gpu::d3d12::D3D12DescriptorHeapPool> sampler_bindful_heap_pool_;
   ID3D12DescriptorHeap* sampler_bindful_heap_current_;
@@ -596,18 +591,18 @@ class D3D12CommandProcessor : public CommandProcessor {
    * Only texture cache samplers use the heap, so samplers are never freed and a linear allocator
    * without a free list is used.
    */
-  uint32_t sampler_bindless_heap_allocated_ = 0;
+  u32 sampler_bindless_heap_allocated_ = 0;
   /**
    * Pairs of heap and overflow submission number, kept when the total sampler count exceeds
    * kSamplerHeapSize and the heap is switched. That can happen as Direct3D 9 has sampler
    * parameter state, so 1 changed parameter may double the sampler count. Sorted by submission
    * number, so checking the first for reuse is enough.
    */
-  std::deque<std::pair<ID3D12DescriptorHeap*, uint64_t>> sampler_bindless_heaps_overflowed_;
+  std::deque<std::pair<ID3D12DescriptorHeap*, u64>> sampler_bindless_heaps_overflowed_;
   /** Maps D3D12TextureCache::SamplerParameters::value to indices in the current bindless heap. */
-  std::unordered_map<uint32_t, uint32_t> texture_cache_bindless_sampler_map_;
+  std::unordered_map<u32, u32> texture_cache_bindless_sampler_map_;
 
-  std::unordered_map<uint32_t, ID3D12RootSignature*> root_signatures_bindful_;
+  std::unordered_map<u32, ID3D12RootSignature*> root_signatures_bindful_;
   ID3D12RootSignature* root_signature_bindless_vs_ = nullptr;
   ID3D12RootSignature* root_signature_bindless_ds_ = nullptr;
 
@@ -626,12 +621,12 @@ class D3D12CommandProcessor : public CommandProcessor {
   D3D12_RESOURCE_STATES gamma_ramp_buffer_state_;
   /** Upload buffer for an image like gamma_ramp_buffer_ with kQueueFrames array layers. */
   Microsoft::WRL::ComPtr<ID3D12Resource> gamma_ramp_upload_buffer_;
-  uint8_t* gamma_ramp_upload_buffer_mapping_ = nullptr;
+  u8* gamma_ramp_upload_buffer_mapping_ = nullptr;
   bool gamma_ramp_256_entry_table_up_to_date_ = false;
   bool gamma_ramp_pwl_up_to_date_ = false;
 
   struct ApplyGammaConstants {
-    uint32_t size[2];
+    u32 size[2];
   };
   enum class ApplyGammaRootParameter : UINT {
     kConstants,
@@ -648,8 +643,8 @@ class D3D12CommandProcessor : public CommandProcessor {
   Microsoft::WRL::ComPtr<ID3D12PipelineState> apply_gamma_pwl_fxaa_luma_pipeline_;
 
   struct FxaaConstants {
-    uint32_t size[2];
-    float size_inv[2];
+    u32 size[2];
+    f32 size_inv[2];
   };
   enum class FxaaRootParameter : UINT {
     kConstants,
@@ -663,11 +658,11 @@ class D3D12CommandProcessor : public CommandProcessor {
   Microsoft::WRL::ComPtr<ID3D12PipelineState> fxaa_extreme_pipeline_;
 
   struct ResolveDownscaleConstants {
-    uint32_t scale_x;
-    uint32_t scale_y;
-    uint32_t pixel_size_log2;
-    uint32_t tile_count;
-    uint32_t half_pixel_offset;
+    u32 scale_x;
+    u32 scale_y;
+    u32 pixel_size_log2;
+    u32 tile_count;
+    u32 half_pixel_offset;
   };
   enum class ResolveDownscaleRootParameter : UINT {
     kConstants,
@@ -679,7 +674,7 @@ class D3D12CommandProcessor : public CommandProcessor {
   Microsoft::WRL::ComPtr<ID3D12RootSignature> resolve_downscale_root_signature_;
   Microsoft::WRL::ComPtr<ID3D12PipelineState> resolve_downscale_pipeline_;
   Microsoft::WRL::ComPtr<ID3D12Resource> resolve_downscale_buffer_;
-  uint32_t resolve_downscale_buffer_size_ = 0;
+  u32 resolve_downscale_buffer_size_ = 0;
 
   /**
    * The PWL gamma ramp can produce more than 10 bits per channel, which has no visible effect.
@@ -690,46 +685,46 @@ class D3D12CommandProcessor : public CommandProcessor {
   static constexpr DXGI_FORMAT kFxaaSourceTextureFormat = DXGI_FORMAT_R16G16B16A16_UNORM;
   /** Kept in NON_PIXEL_SHADER_RESOURCE state. */
   Microsoft::WRL::ComPtr<ID3D12Resource> fxaa_source_texture_;
-  uint64_t fxaa_source_texture_submission_ = 0;
+  u64 fxaa_source_texture_submission_ = 0;
 
   std::vector<D3D12_RESOURCE_BARRIER> barriers_;
 
   /** Pairs of requesting submission and resource, sorted by submission number. */
-  std::deque<std::pair<uint64_t, ID3D12Resource*>> resources_for_deletion_;
+  std::deque<std::pair<u64, ID3D12Resource*>> resources_for_deletion_;
 
-  static constexpr uint32_t kScratchBufferSizeIncrement = 16 * 1024 * 1024;
+  static constexpr u32 kScratchBufferSizeIncrement = 16 * 1024 * 1024;
   ID3D12Resource* scratch_buffer_ = nullptr;
-  uint32_t scratch_buffer_size_ = 0;
+  u32 scratch_buffer_size_ = 0;
   D3D12_RESOURCE_STATES scratch_buffer_state_;
   bool scratch_buffer_used_ = false;
 
   ID3D12Resource* readback_buffer_ = nullptr;
-  uint32_t readback_buffer_size_ = 0;
-  std::unordered_map<uint64_t, ReadbackBuffer> readback_buffers_;
-  std::unordered_map<uint64_t, ReadbackBuffer> memexport_readback_buffers_;
+  u32 readback_buffer_size_ = 0;
+  std::unordered_map<u64, ReadbackBuffer> readback_buffers_;
+  std::unordered_map<u64, ReadbackBuffer> memexport_readback_buffers_;
 
-  static constexpr uint32_t kMaxOcclusionQueries = 8192;
+  static constexpr u32 kMaxOcclusionQueries = 8192;
   Microsoft::WRL::ComPtr<ID3D12QueryHeap> occlusion_query_heap_;
   Microsoft::WRL::ComPtr<ID3D12Resource> occlusion_query_readback_;
-  uint64_t* occlusion_query_readback_mapping_ = nullptr;
-  uint32_t occlusion_query_cursor_ = 0;
+  u64* occlusion_query_readback_mapping_ = nullptr;
+  u32 occlusion_query_cursor_ = 0;
   bool occlusion_query_resources_available_ = false;
   struct ActiveOcclusionQuery {
-    uint32_t sample_count_address = 0;
-    uint32_t host_index = UINT32_MAX;
+    u32 sample_count_address = 0;
+    u32 host_index = UINT32_MAX;
     bool valid = false;
   } active_occlusion_query_;
   struct VertexBufferState {
-    uint32_t address = UINT32_MAX;
-    uint32_t size = UINT32_MAX;
+    u32 address = UINT32_MAX;
+    u32 size = UINT32_MAX;
   };
   std::array<VertexBufferState, 96> vertex_buffer_states_{};
-  uint64_t vertex_buffers_in_sync_[2] = {};
+  u64 vertex_buffers_in_sync_[2] = {};
 
   D3D12_VIEWPORT ff_viewport_;
   D3D12_RECT ff_scissor_;
-  float ff_blend_factor_[4];
-  uint32_t ff_stencil_ref_;
+  f32 ff_blend_factor_[4];
+  u32 ff_stencil_ref_;
   bool ff_viewport_update_needed_;
   bool ff_scissor_update_needed_;
   bool ff_blend_factor_update_needed_;
@@ -746,13 +741,13 @@ class D3D12CommandProcessor : public CommandProcessor {
   ID3D12RootSignature* current_graphics_root_signature_;
   RootBindfulExtraParameterIndices current_graphics_root_bindful_extras_;
   /** Bits of the root parameters that are up to date, reset when a new signature is bound. */
-  uint32_t current_graphics_root_up_to_date_;
+  u32 current_graphics_root_up_to_date_;
 
   DxbcShaderTranslator::SystemConstants system_constants_;
 
   /** Float constant usage masks of the last draw call. */
-  uint64_t current_float_constant_map_vertex_[4];
-  uint64_t current_float_constant_map_pixel_[4];
+  u64 current_float_constant_map_vertex_[4];
+  u64 current_float_constant_map_pixel_[4];
 
   struct ConstantBufferBinding {
     D3D12_GPU_VIRTUAL_ADDRESS address;
@@ -773,8 +768,8 @@ class D3D12CommandProcessor : public CommandProcessor {
    */
   std::optional<bool> current_shared_memory_binding_is_uav_;
 
-  uint64_t draw_view_bindful_heap_index_;
-  uint64_t draw_sampler_bindful_heap_index_;
+  u64 draw_view_bindful_heap_index_;
+  u64 draw_sampler_bindful_heap_index_;
 
   /** True when the last used texture and sampler bindings are in the current descriptor heap. */
   bool bindful_textures_written_vertex_;
@@ -799,8 +794,8 @@ class D3D12CommandProcessor : public CommandProcessor {
   std::vector<D3D12TextureCache::TextureSRVKey> current_texture_srv_keys_pixel_;
   std::vector<D3D12TextureCache::SamplerParameters> current_samplers_vertex_;
   std::vector<D3D12TextureCache::SamplerParameters> current_samplers_pixel_;
-  std::vector<uint32_t> current_sampler_bindless_indices_vertex_;
-  std::vector<uint32_t> current_sampler_bindless_indices_pixel_;
+  std::vector<u32> current_sampler_bindless_indices_vertex_;
+  std::vector<u32> current_sampler_bindless_indices_pixel_;
 
   D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle_shared_memory_srv_and_edram_;
   D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle_shared_memory_uav_and_edram_;

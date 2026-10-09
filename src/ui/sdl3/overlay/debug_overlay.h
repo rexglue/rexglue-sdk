@@ -30,7 +30,7 @@ class DebugOverlayDialog : public ImGuiDialog {
   const ModuleOverlayContext& context_;
 #ifdef REXGLUE_ENABLE_PERF_COUNTERS
   static constexpr size_t kFrameHistorySize = 120;
-  std::array<float, kFrameHistorySize> frame_time_history_{};
+  std::array<f32, kFrameHistorySize> frame_time_history_{};
   size_t frame_history_idx_ = 0;
 #endif
 };

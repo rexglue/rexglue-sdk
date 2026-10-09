@@ -26,12 +26,12 @@
 namespace rex::kernel::xboxkrnl {
 
 struct error_lookup_table {
-  uint32_t base_code;
+  u32 base_code;
   size_t count;
-  const uint32_t* entries;
+  const u32* entries;
 };
 
-const uint32_t error_table_0x00000103[] = {
+const u32 error_table_0x00000103[] = {
     0x000003E5,  // 0x00000103
     0,
     0x000000EA,  // 0x00000105
@@ -42,7 +42,7 @@ const uint32_t error_table_0x00000103[] = {
     0x00000516,  // 0x0000010D
 };
 
-const uint32_t error_table_0x40000002[] = {
+const u32 error_table_0x40000002[] = {
     0x00000057,  // 0x40000002
     0,          0, 0,
     0x00000517,  // 0x40000006
@@ -54,15 +54,15 @@ const uint32_t error_table_0x40000002[] = {
     0x00000518,  // 0x4000000D
 };
 
-const uint32_t error_table_0x40020056[] = {
+const u32 error_table_0x40020056[] = {
     0x00000720,  // 0x40020056
 };
 
-const uint32_t error_table_0x400200AF[] = {
+const u32 error_table_0x400200AF[] = {
     0x00000779,  // 0x400200AF
 };
 
-const uint32_t error_table_0x80000001[] = {
+const u32 error_table_0x80000001[] = {
     0x80000001,  // 0x80000001
     0x000003E6,  // 0x80000002
     0x80000003,  // 0x80000003
@@ -96,12 +96,12 @@ const uint32_t error_table_0x80000001[] = {
     0x00000962,  // 0x80000025
 };
 
-const uint32_t error_table_0x80000288[] = {
+const u32 error_table_0x80000288[] = {
     0x0000048D,  // 0x80000288
     0x0000048E,  // 0x80000289
 };
 
-const uint32_t error_table_0x80090300[] = {
+const u32 error_table_0x80090300[] = {
     0x000005AA,  // 0x80090300
     0x00000006,  // 0x80090301
     0x00000001,  // 0x80090302
@@ -139,7 +139,7 @@ const uint32_t error_table_0x80090300[] = {
     0x00000001,  // 0x80090331
 };
 
-const uint32_t error_table_0xC0000001[] = {
+const u32 error_table_0xC0000001[] = {
     0x0000001F,  // 0xC0000001
     0x00000001,  // 0xC0000002
     0x00000057,  // 0xC0000003
@@ -513,7 +513,7 @@ const uint32_t error_table_0xC0000001[] = {
     0x00000712,  // 0xC000019B
 };
 
-const uint32_t error_table_0xC0000202[] = {
+const u32 error_table_0xC0000202[] = {
     0x00000572,  // 0xC0000202
     0x0000003B,  // 0xC0000203
     0x00000717,  // 0xC0000204
@@ -639,7 +639,7 @@ const uint32_t error_table_0xC0000202[] = {
     0x00000052,  // 0xC00002EA
 };
 
-const uint32_t error_table_0xC0020001[] = {
+const u32 error_table_0xC0020001[] = {
     0x000006A4,  // 0xC0020001
     0x000006A5,  // 0xC0020002
     0x00000006,  // 0xC0020003
@@ -733,7 +733,7 @@ const uint32_t error_table_0xC0020001[] = {
     0x0000077B,  // 0xC0020063
 };
 
-const uint32_t error_table_0xC0030001[] = {
+const u32 error_table_0xC0030001[] = {
     0x000006EC,  // 0xC0030001
     0x000006ED,  // 0xC0030002
     0x000006EE,  // 0xC0030003
@@ -748,7 +748,7 @@ const uint32_t error_table_0xC0030001[] = {
     0x000006F7,  // 0xC003000C
 };
 
-const uint32_t error_table_0xC0030059[] = {
+const u32 error_table_0xC0030059[] = {
     0x00000723,  // 0xC0030059
     0x00000724,  // 0xC003005A
     0x00000725,  // 0xC003005B
@@ -760,12 +760,12 @@ const uint32_t error_table_0xC0030059[] = {
     0x0000077E,  // 0xC0030061
 };
 
-const uint32_t error_table_0xC0050003[] = {
+const u32 error_table_0xC0050003[] = {
     0x0000045D,  // 0xC0050003
     0x00000456,  // 0xC0050004
 };
 
-const uint32_t error_table_0xC0980001[] = {
+const u32 error_table_0xC0980001[] = {
     0x00000037,  // 0xC0980001
     0x00000037,  // 0xC0980002
     0,          0, 0, 0, 0,
@@ -781,8 +781,8 @@ const error_lookup_table error_tables[] = {
 };
 #undef MAKE_ENTRY
 
-uint32_t RtlNtStatusToDosError(uint32_t source_status) {
-  uint32_t status = source_status;
+u32 RtlNtStatusToDosError(u32 source_status) {
+  u32 status = source_status;
   if (!status || (status & 0x20000000)) {
     return status;
   }
@@ -803,7 +803,7 @@ uint32_t RtlNtStatusToDosError(uint32_t source_status) {
     }
     auto index = status - error_table->base_code;
     if (index < error_table->count) {
-      uint32_t result = error_table->entries[index];
+      u32 result = error_table->entries[index];
       if (!result) {
         break;
       }
@@ -829,7 +829,7 @@ uint32_t RtlNtStatusToDosError(uint32_t source_status) {
 }
 
 u32 RtlNtStatusToDosError_entry(u32 source_status) {
-  uint32_t result = RtlNtStatusToDosError(source_status);
+  u32 result = RtlNtStatusToDosError(source_status);
   REXLOG_TRACE(kernel,
                "RtlNtStatusToDosError "
                "status={:#x} -> {}",

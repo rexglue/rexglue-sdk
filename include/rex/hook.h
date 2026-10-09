@@ -178,7 +178,7 @@ struct ImportFunction<R(Args...)> {
    * @param args The arguments.
    * @return The function result.
    */
-  R operator()(PPCContext& ctx, uint8_t* base, Args... args) const {
+  R operator()(PPCContext& ctx, u8* base, Args... args) const {
     return Call<R>(ctx, base, fn, args...);
   }
 

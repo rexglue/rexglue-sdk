@@ -8,8 +8,10 @@
  *              See LICENSE file in the project root for full license text.
  */
 
+#include <rex/types.h>
+
 // Derived from texture_load_r5g6b5_rgba8_scaled with the R4G4B4A4 transform.
-const uint32_t texture_load_r4g4b4a4_rgba8_scaled_cs[] = {
+const u32 texture_load_r4g4b4a4_rgba8_scaled_cs[] = {
     0x07230203, 0x00010000, 0x00070000, 0x0000016F, 0x00000000, 0x00020011, 0x00000001, 0x0006000B,
     0x00000001, 0x4C534C47, 0x6474732E, 0x3035342E, 0x00000000, 0x0003000E, 0x00000000, 0x00000001,
     0x0006000F, 0x00000005, 0x00000002, 0x6E69616D, 0x00000000, 0x00000003, 0x00060010, 0x00000002,

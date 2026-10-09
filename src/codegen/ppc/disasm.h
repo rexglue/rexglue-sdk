@@ -13,6 +13,8 @@
 #include <dis-asm.h>
 #include <ppc.h>
 
+#include <rex/types.h>
+
 namespace rex::codegen::ppc {
 
 /** Decodes raw bytes into a ppc_insn using GNU binutils. */
@@ -33,19 +35,19 @@ struct DisassemblerEngine {
    * @param out Receives the decoded instruction
    * @return Number of bytes decoded
    */
-  int Disassemble(const void* code, size_t size, uint64_t base, ppc_insn& out);
+  int Disassemble(const void* code, size_t size, u64 base, ppc_insn& out);
 };
 
 thread_local extern DisassemblerEngine gBigEndianDisassembler;
 
-inline int Disassemble(const void* code, size_t size, uint64_t base, ppc_insn& out) {
+inline int Disassemble(const void* code, size_t size, u64 base, ppc_insn& out) {
   return gBigEndianDisassembler.Disassemble(code, size, base, out);
 }
 
-inline int Disassemble(const void* code, uint64_t base, ppc_insn& out) {
+inline int Disassemble(const void* code, u64 base, ppc_insn& out) {
   return Disassemble(code, 4, base, out);
 }
 
-int Disassemble(const void* code, uint64_t base, ppc_insn* out, size_t nOut);
+int Disassemble(const void* code, u64 base, ppc_insn* out, size_t nOut);
 
 }  // namespace rex::codegen::ppc

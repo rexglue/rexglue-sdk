@@ -41,7 +41,7 @@ const TextureCache::LoadShaderInfo TextureCache::load_shader_info_[kLoadShaderCo
 };
 
 TextureCache::TextureCache(const xenos::RegisterFile& register_file, SharedMemory& shared_memory,
-                           uint32_t draw_resolution_scale_x, uint32_t draw_resolution_scale_y)
+                           u32 draw_resolution_scale_x, u32 draw_resolution_scale_y)
     : register_file_(register_file),
       shared_memory_(shared_memory),
       draw_resolution_scale_x_(draw_resolution_scale_x),
@@ -52,8 +52,8 @@ TextureCache::TextureCache(const xenos::RegisterFile& register_file, SharedMemor
   REX_ASSERT(draw_resolution_scale_y <= kMaxDrawResolutionScaleAlongAxis);
 
   if (draw_resolution_scale_x > 1 || draw_resolution_scale_y > 1) {
-    constexpr uint32_t kScaledResolvePageDwordCount = SharedMemory::kBufferSize / 4096 / 32;
-    scaled_resolve_pages_ = std::make_unique<uint32_t[]>(kScaledResolvePageDwordCount);
+    constexpr u32 kScaledResolvePageDwordCount = SharedMemory::kBufferSize / 4096 / 32;
+    scaled_resolve_pages_ = std::make_unique<u32[]>(kScaledResolvePageDwordCount);
     std::memset(scaled_resolve_pages_l2_, 0, sizeof(scaled_resolve_pages_l2_));
     scaled_resolve_global_watch_handle_ =
         shared_memory.RegisterGlobalWatch(ScaledResolveGlobalWatchCallbackThunk, this);
@@ -68,13 +68,13 @@ TextureCache::~TextureCache() {
   }
 }
 
-bool TextureCache::GetConfigDrawResolutionScale(uint32_t& x_out, uint32_t& y_out) {
-  uint32_t config_x = static_cast<uint32_t>(
-      std::max(INT32_C(1), REXCVAR_GET(::rex::gpu::cvars::resolution_scale_x)));
-  uint32_t config_y = static_cast<uint32_t>(
-      std::max(INT32_C(1), REXCVAR_GET(::rex::gpu::cvars::resolution_scale_y)));
-  uint32_t clamped_x = std::min(kMaxDrawResolutionScaleAlongAxis, config_x);
-  uint32_t clamped_y = std::min(kMaxDrawResolutionScaleAlongAxis, config_y);
+bool TextureCache::GetConfigDrawResolutionScale(u32& x_out, u32& y_out) {
+  u32 config_x =
+      static_cast<u32>(std::max(INT32_C(1), REXCVAR_GET(::rex::gpu::cvars::resolution_scale_x)));
+  u32 config_y =
+      static_cast<u32>(std::max(INT32_C(1), REXCVAR_GET(::rex::gpu::cvars::resolution_scale_y)));
+  u32 clamped_x = std::min(kMaxDrawResolutionScaleAlongAxis, config_x);
+  u32 clamped_y = std::min(kMaxDrawResolutionScaleAlongAxis, config_y);
   x_out = clamped_x;
   y_out = clamped_y;
   return clamped_x == config_x && clamped_y == config_y;
@@ -84,21 +84,21 @@ void TextureCache::ClearCache() {
   DestroyAllTextures();
 }
 
-void TextureCache::CompletedSubmissionUpdated(uint64_t completed_submission_index) {
-  uint64_t current_time = rex::Clock::QueryHostUptimeMillis();
+void TextureCache::CompletedSubmissionUpdated(u64 completed_submission_index) {
+  u64 current_time = rex::Clock::QueryHostUptimeMillis();
   // The render to texture limit is included in the soft and hard limits at 1x.
-  uint32_t limit_scaled_resolve_add_mb =
+  u32 limit_scaled_resolve_add_mb =
       REXCVAR_GET(::rex::gpu::cvars::texture_cache_memory_limit_render_to_texture) *
       (draw_resolution_scale_x() * draw_resolution_scale_y() - 1);
-  uint32_t limit_soft_mb =
+  u32 limit_soft_mb =
       REXCVAR_GET(::rex::gpu::cvars::texture_cache_memory_limit_soft) + limit_scaled_resolve_add_mb;
-  uint32_t limit_hard_mb =
+  u32 limit_hard_mb =
       REXCVAR_GET(::rex::gpu::cvars::texture_cache_memory_limit_hard) + limit_scaled_resolve_add_mb;
-  uint32_t limit_soft_lifetime =
+  u32 limit_soft_lifetime =
       REXCVAR_GET(::rex::gpu::cvars::texture_cache_memory_limit_soft_lifetime) * 1000;
   bool destroyed_any = false;
   while (texture_used_first_ != nullptr) {
-    uint64_t total_host_memory_usage_mb =
+    u64 total_host_memory_usage_mb =
         (textures_total_host_memory_usage_ + ((UINT32_C(1) << 20) - 1)) >> 20;
     bool limit_hard_exceeded = total_host_memory_usage_mb > limit_hard_mb;
     if (total_host_memory_usage_mb <= limit_soft_mb && !limit_hard_exceeded) {
@@ -128,7 +128,7 @@ void TextureCache::CompletedSubmissionUpdated(uint64_t completed_submission_inde
   }
 }
 
-void TextureCache::BeginSubmission(uint64_t new_submission_index) {
+void TextureCache::BeginSubmission(u64 new_submission_index) {
   REX_ASSERT(new_submission_index > current_submission_index_);
   current_submission_index_ = new_submission_index;
   current_submission_time_ = rex::Clock::QueryHostUptimeMillis();
@@ -138,7 +138,7 @@ void TextureCache::BeginFrame() {
   ResetTextureBindings();
 }
 
-void TextureCache::MarkRangeAsResolved(uint32_t start_unscaled, uint32_t length_unscaled) {
+void TextureCache::MarkRangeAsResolved(u32 start_unscaled, u32 length_unscaled) {
   if (length_unscaled == 0) {
     return;
   }
@@ -146,13 +146,13 @@ void TextureCache::MarkRangeAsResolved(uint32_t start_unscaled, uint32_t length_
   length_unscaled = std::min(length_unscaled, 0x20000000 - start_unscaled);
 
   if (IsDrawResolutionScaled()) {
-    uint32_t page_first = start_unscaled >> 12;
-    uint32_t page_last = (start_unscaled + length_unscaled - 1) >> 12;
-    uint32_t block_first = page_first >> 5;
-    uint32_t block_last = page_last >> 5;
+    u32 page_first = start_unscaled >> 12;
+    u32 page_last = (start_unscaled + length_unscaled - 1) >> 12;
+    u32 block_first = page_first >> 5;
+    u32 block_last = page_last >> 5;
     auto watch_lock = shared_memory().AcquireLock();
-    for (uint32_t i = block_first; i <= block_last; ++i) {
-      uint32_t add_bits = UINT32_MAX;
+    for (u32 i = block_first; i <= block_last; ++i) {
+      u32 add_bits = UINT32_MAX;
       if (i == block_first) {
         add_bits &= ~((UINT32_C(1) << (page_first & 31)) - 1);
       }
@@ -168,11 +168,11 @@ void TextureCache::MarkRangeAsResolved(uint32_t start_unscaled, uint32_t length_
   shared_memory().RangeWrittenByGpu(start_unscaled, length_unscaled);
 }
 
-uint32_t TextureCache::GuestToHostSwizzle(uint32_t guest_swizzle, uint32_t host_format_swizzle) {
-  uint32_t host_swizzle = 0;
-  for (uint32_t i = 0; i < 4; ++i) {
-    uint32_t guest_swizzle_component = (guest_swizzle >> (3 * i)) & 0b111;
-    uint32_t host_swizzle_component;
+u32 TextureCache::GuestToHostSwizzle(u32 guest_swizzle, u32 host_format_swizzle) {
+  u32 host_swizzle = 0;
+  for (u32 i = 0; i < 4; ++i) {
+    u32 guest_swizzle_component = (guest_swizzle >> (3 * i)) & 0b111;
+    u32 host_swizzle_component;
     if (guest_swizzle_component >= xenos::REXGPU_SWIZZLE_0) {
       // Swizzle values 6 and 7 are invalid on the host, so map them to 4 (0) and 5 (1).
       host_swizzle_component = guest_swizzle_component & 0b101;
@@ -187,7 +187,7 @@ uint32_t TextureCache::GuestToHostSwizzle(uint32_t guest_swizzle, uint32_t host_
 bool TextureCache::PrepareTextureLoad(Texture& texture, PendingTextureLoad& pending_load_out,
                                       PendingSharedMemoryRange* pending_ranges_out,
                                       size_t& pending_range_count_out) {
-  uint32_t outdated_mask = texture.outdated_mask();
+  u32 outdated_mask = texture.outdated_mask();
   if (!outdated_mask) {
     return false;
   }
@@ -216,15 +216,13 @@ bool TextureCache::PrepareTextureLoad(Texture& texture, PendingTextureLoad& pend
   if (base_outdated) {
     PendingSharedMemoryRange pending_range;
     pending_range.start = texture_key.base_page << 12;
-    pending_range.length =
-        static_cast<uint32_t>(rex::align(texture.GetGuestBaseSize(), UINT32_C(16)));
+    pending_range.length = static_cast<u32>(rex::align(texture.GetGuestBaseSize(), UINT32_C(16)));
     pending_ranges_out[pending_range_count_out++] = pending_range;
   }
   if (mips_outdated) {
     PendingSharedMemoryRange pending_range;
     pending_range.start = texture_key.mip_page << 12;
-    pending_range.length =
-        static_cast<uint32_t>(rex::align(texture.GetGuestMipsSize(), UINT32_C(16)));
+    pending_range.length = static_cast<u32>(rex::align(texture.GetGuestMipsSize(), UINT32_C(16)));
     pending_ranges_out[pending_range_count_out++] = pending_range;
   }
 
@@ -262,14 +260,14 @@ bool TextureCache::CommitPreparedTextureLoad(const PendingTextureLoad& pending_l
   return true;
 }
 
-void TextureCache::RequestTextures(uint32_t used_texture_mask) {
+void TextureCache::RequestTextures(u32 used_texture_mask) {
   const auto& regs = register_file();
 
   if (texture_became_outdated_.exchange(false, std::memory_order_acquire)) {
     ResetTextureBindings();
   }
 
-  uint32_t bindings_changed = 0;
+  u32 bindings_changed = 0;
   std::vector<PendingTextureLoad> pending_texture_loads;
   std::vector<PendingSharedMemoryRange> pending_shared_memory_ranges;
   auto queue_pending_texture_load = [&](Texture* texture) {
@@ -292,15 +290,15 @@ void TextureCache::RequestTextures(uint32_t used_texture_mask) {
       pending_shared_memory_ranges.push_back(pending_ranges[i]);
     }
   };
-  uint32_t textures_remaining = used_texture_mask & ~texture_bindings_in_sync_;
-  uint32_t index = 0;
+  u32 textures_remaining = used_texture_mask & ~texture_bindings_in_sync_;
+  u32 index = 0;
   while (rex::bit_scan_forward(textures_remaining, &index)) {
-    uint32_t index_bit = UINT32_C(1) << index;
+    u32 index_bit = UINT32_C(1) << index;
     textures_remaining &= ~index_bit;
     TextureBinding& binding = texture_bindings_[index];
     xenos::TextureFetch fetch = regs.GetTextureFetch(index);
     TextureKey old_key = binding.key;
-    uint8_t old_swizzled_signs = binding.swizzled_signs;
+    u8 old_swizzled_signs = binding.swizzled_signs;
     BindingInfoFromFetchConstant(fetch, binding.key, &binding.swizzled_signs);
     texture_bindings_in_sync_ |= index_bit;
     if (!binding.key.is_valid) {
@@ -310,7 +308,7 @@ void TextureCache::RequestTextures(uint32_t used_texture_mask) {
       binding.Reset();
       continue;
     }
-    uint32_t old_host_swizzle = binding.host_swizzle;
+    u32 old_host_swizzle = binding.host_swizzle;
     binding.host_swizzle = GuestToHostSwizzle(fetch.swizzle, GetHostFormatSwizzle(binding.key));
 
     bool key_changed = binding.key != old_key;
@@ -360,12 +358,12 @@ void TextureCache::RequestTextures(uint32_t used_texture_mask) {
   }
 
   REX_PROFILE_PLOT("gpu/texture_cache/request_textures_pending_load_count",
-                   static_cast<uint32_t>(pending_texture_loads.size()));
+                   static_cast<u32>(pending_texture_loads.size()));
   REX_PROFILE_PLOT("gpu/texture_cache/request_textures_pending_range_count",
-                   static_cast<uint32_t>(pending_shared_memory_ranges.size()));
+                   static_cast<u32>(pending_shared_memory_ranges.size()));
 
   bool batched_shared_memory_request_succeeded = true;
-  std::vector<std::pair<uint32_t, uint32_t>> pending_shared_memory_range_pairs;
+  std::vector<std::pair<u32, u32>> pending_shared_memory_range_pairs;
   if (!pending_shared_memory_ranges.empty()) {
     pending_shared_memory_range_pairs.reserve(pending_shared_memory_ranges.size());
     for (const PendingSharedMemoryRange& pending_range : pending_shared_memory_ranges) {
@@ -539,7 +537,7 @@ void TextureCache::Texture::WatchCallback(bool is_mip) {
   }
 }
 
-void TextureCache::WatchCallback(void* context, [[maybe_unused]] void* data, uint64_t argument,
+void TextureCache::WatchCallback(void* context, [[maybe_unused]] void* data, u64 argument,
                                  [[maybe_unused]] bool invalidated_by_gpu) {
   Texture& texture = *static_cast<Texture*>(context);
   texture.WatchCallback(argument != 0);
@@ -565,8 +563,8 @@ TextureCache::Texture* TextureCache::FindOrCreateTexture(TextureKey key) {
     }
   }
 
-  auto get_host_extent = [this, &key](uint32_t& host_width_out, uint32_t& host_height_out,
-                                      uint32_t& host_depth_or_array_size_out) {
+  auto get_host_extent = [this, &key](u32& host_width_out, u32& host_height_out,
+                                      u32& host_depth_or_array_size_out) {
     host_width_out = key.GetWidth();
     host_height_out = key.GetHeight();
     if (key.scaled_resolve) {
@@ -579,31 +577,31 @@ TextureCache::Texture* TextureCache::FindOrCreateTexture(TextureKey key) {
     if (!key.mip_page || !key.mip_max_level) {
       return false;
     }
-    uint32_t old_width = key.GetWidth();
-    uint32_t old_height = key.GetHeight();
-    uint32_t old_depth_or_array_size = key.GetDepthOrArraySize();
-    uint32_t new_width = std::max(old_width >> 1, UINT32_C(1));
-    uint32_t new_height = std::max(old_height >> 1, UINT32_C(1));
-    uint32_t new_depth_or_array_size = key.dimension == xenos::DataDimension::k3D
-                                           ? std::max(old_depth_or_array_size >> 1, UINT32_C(1))
-                                           : old_depth_or_array_size;
+    u32 old_width = key.GetWidth();
+    u32 old_height = key.GetHeight();
+    u32 old_depth_or_array_size = key.GetDepthOrArraySize();
+    u32 new_width = std::max(old_width >> 1, UINT32_C(1));
+    u32 new_height = std::max(old_height >> 1, UINT32_C(1));
+    u32 new_depth_or_array_size = key.dimension == xenos::DataDimension::k3D
+                                      ? std::max(old_depth_or_array_size >> 1, UINT32_C(1))
+                                      : old_depth_or_array_size;
     if (new_width == old_width && new_height == old_height &&
         new_depth_or_array_size == old_depth_or_array_size) {
       return false;
     }
     const xenos::FormatInfo* format_info = xenos::FormatInfo::Get(key.format);
-    uint32_t rebased_pitch_texels = std::max(rex::next_pow2(old_width) >> 1, UINT32_C(1));
+    u32 rebased_pitch_texels = std::max(rex::next_pow2(old_width) >> 1, UINT32_C(1));
     rebased_pitch_texels = rex::align(rebased_pitch_texels, format_info->block_width);
     rebased_pitch_texels = rex::align(rebased_pitch_texels, xenos::kTextureTileWidthHeight);
     if (!key.tiled) {
-      uint32_t rebased_pitch_blocks = rebased_pitch_texels / format_info->block_width;
-      uint32_t rebased_row_pitch_bytes = rebased_pitch_blocks * format_info->bytes_per_block();
+      u32 rebased_pitch_blocks = rebased_pitch_texels / format_info->block_width;
+      u32 rebased_row_pitch_bytes = rebased_pitch_blocks * format_info->bytes_per_block();
       rebased_row_pitch_bytes =
           rex::align(rebased_row_pitch_bytes, xenos::kTextureLinearRowAlignmentBytes);
       rebased_pitch_blocks = rebased_row_pitch_bytes / format_info->bytes_per_block();
       rebased_pitch_texels = rebased_pitch_blocks * format_info->block_width;
     }
-    uint32_t rebased_pitch = std::max(rebased_pitch_texels >> 5, UINT32_C(1));
+    u32 rebased_pitch = std::max(rebased_pitch_texels >> 5, UINT32_C(1));
     if (rebased_pitch > ((UINT32_C(1) << 9) - 1)) {
       return false;
     }
@@ -617,10 +615,10 @@ TextureCache::Texture* TextureCache::FindOrCreateTexture(TextureKey key) {
     key.packed_mips = 0;
     return true;
   };
-  uint32_t host_width, host_height, host_depth_or_array_size;
+  u32 host_width, host_height, host_depth_or_array_size;
   get_host_extent(host_width, host_height, host_depth_or_array_size);
-  uint32_t max_host_width_height = GetMaxHostTextureWidthHeight(key.dimension);
-  uint32_t max_host_depth_or_array_size = GetMaxHostTextureDepthOrArraySize(key.dimension);
+  u32 max_host_width_height = GetMaxHostTextureWidthHeight(key.dimension);
+  u32 max_host_depth_or_array_size = GetMaxHostTextureDepthOrArraySize(key.dimension);
   while (true) {
     bool width_height_too_large =
         host_width > max_host_width_height || host_height > max_host_width_height;
@@ -671,7 +669,7 @@ bool TextureCache::LoadTextureData(Texture& texture) {
     return true;
   }
 
-  std::pair<uint32_t, uint32_t> pending_range_pairs[2];
+  std::pair<u32, u32> pending_range_pairs[2];
   for (size_t i = 0; i < pending_range_count; ++i) {
     pending_range_pairs[i] = std::make_pair(pending_ranges[i].start, pending_ranges[i].length);
   }
@@ -683,11 +681,11 @@ bool TextureCache::LoadTextureData(Texture& texture) {
 }
 
 void TextureCache::BindingInfoFromFetchConstant(const xenos::TextureFetch& fetch,
-                                                TextureKey& key_out, uint8_t* swizzled_signs_out) {
+                                                TextureKey& key_out, u8* swizzled_signs_out) {
   key_out.MakeInvalid();
   if (swizzled_signs_out != nullptr) {
     *swizzled_signs_out =
-        static_cast<uint8_t>(xenos::TextureSign::kUnsigned) * static_cast<uint8_t>(0b01010101);
+        static_cast<u8>(xenos::TextureSign::kUnsigned) * static_cast<u8>(0b01010101);
   }
 
   switch (fetch.type) {
@@ -714,8 +712,8 @@ void TextureCache::BindingInfoFromFetchConstant(const xenos::TextureFetch& fetch
       return;
   }
 
-  uint32_t width_minus_1, height_minus_1, depth_or_array_size_minus_1;
-  uint32_t base_page, mip_page, mip_max_level;
+  u32 width_minus_1, height_minus_1, depth_or_array_size_minus_1;
+  u32 base_page, mip_page, mip_max_level;
   xenos::GetSubresourcesFromFetchConstant(fetch, &width_minus_1, &height_minus_1,
                                           &depth_or_array_size_minus_1, &base_page, &mip_page,
                                           nullptr, &mip_max_level);
@@ -775,7 +773,7 @@ void TextureCache::BindingInfoFromFetchConstant(const xenos::TextureFetch& fetch
 }
 
 void TextureCache::ResetTextureBindings(bool from_destructor) {
-  uint32_t bindings_reset = 0;
+  u32 bindings_reset = 0;
   for (size_t i = 0; i < texture_bindings_.size(); ++i) {
     TextureBinding& binding = texture_bindings_[i];
     if (!binding.key.is_valid) {
@@ -790,14 +788,14 @@ void TextureCache::ResetTextureBindings(bool from_destructor) {
   }
 }
 
-void TextureCache::UpdateTexturesTotalHostMemoryUsage(uint64_t add, uint64_t subtract) {
+void TextureCache::UpdateTexturesTotalHostMemoryUsage(u64 add, u64 subtract) {
   textures_total_host_memory_usage_ = textures_total_host_memory_usage_ - subtract + add;
   REX_PROFILE_PLOT(
       "gpu/texture_cache/total_host_memory_usage_mb",
-      static_cast<uint32_t>((textures_total_host_memory_usage_ + ((UINT32_C(1) << 20) - 1)) >> 20));
+      static_cast<u32>((textures_total_host_memory_usage_ + ((UINT32_C(1) << 20) - 1)) >> 20));
 }
 
-bool TextureCache::IsRangeScaledResolved(uint32_t start_unscaled, uint32_t length_unscaled) {
+bool TextureCache::IsRangeScaledResolved(u32 start_unscaled, u32 length_unscaled) {
   if (!IsDrawResolutionScaled()) {
     return false;
   }
@@ -808,26 +806,26 @@ bool TextureCache::IsRangeScaledResolved(uint32_t start_unscaled, uint32_t lengt
     return false;
   }
 
-  uint32_t page_first = start_unscaled >> 12;
-  uint32_t page_last = (start_unscaled + length_unscaled - 1) >> 12;
-  uint32_t block_first = page_first >> 5;
-  uint32_t block_last = page_last >> 5;
-  uint32_t l2_block_first = block_first >> 6;
-  uint32_t l2_block_last = block_last >> 6;
+  u32 page_first = start_unscaled >> 12;
+  u32 page_last = (start_unscaled + length_unscaled - 1) >> 12;
+  u32 block_first = page_first >> 5;
+  u32 block_last = page_last >> 5;
+  u32 l2_block_first = block_first >> 6;
+  u32 l2_block_last = block_last >> 6;
   auto watch_lock = shared_memory().AcquireLock();
-  for (uint32_t i = l2_block_first; i <= l2_block_last; ++i) {
-    uint64_t l2_block = scaled_resolve_pages_l2_[i];
+  for (u32 i = l2_block_first; i <= l2_block_last; ++i) {
+    u64 l2_block = scaled_resolve_pages_l2_[i];
     if (i == l2_block_first) {
       l2_block &= ~((UINT64_C(1) << (block_first & 63)) - 1);
     }
     if (i == l2_block_last && (block_last & 63) != 63) {
       l2_block &= (UINT64_C(1) << ((block_last & 63) + 1)) - 1;
     }
-    uint32_t block_relative_index;
+    u32 block_relative_index;
     while (rex::bit_scan_forward(l2_block, &block_relative_index)) {
       l2_block &= ~(UINT64_C(1) << block_relative_index);
-      uint32_t block_index = (i << 6) + block_relative_index;
-      uint32_t check_bits = UINT32_MAX;
+      u32 block_index = (i << 6) + block_relative_index;
+      u32 check_bits = UINT32_MAX;
       if (block_index == block_first) {
         check_bits &= ~((UINT32_C(1) << (page_first & 31)) - 1);
       }
@@ -842,28 +840,28 @@ bool TextureCache::IsRangeScaledResolved(uint32_t start_unscaled, uint32_t lengt
   return false;
 }
 
-void TextureCache::ScaledResolveGlobalWatchCallbackThunk(void* context, uint32_t address_first,
-                                                         uint32_t address_last,
+void TextureCache::ScaledResolveGlobalWatchCallbackThunk(void* context, u32 address_first,
+                                                         u32 address_last,
                                                          bool invalidated_by_gpu) {
   TextureCache* texture_cache = reinterpret_cast<TextureCache*>(context);
   texture_cache->ScaledResolveGlobalWatchCallback(address_first, address_last, invalidated_by_gpu);
 }
 
-void TextureCache::ScaledResolveGlobalWatchCallback(uint32_t address_first, uint32_t address_last,
+void TextureCache::ScaledResolveGlobalWatchCallback(u32 address_first, u32 address_last,
                                                     bool invalidated_by_gpu) {
   REX_ASSERT(IsDrawResolutionScaled());
   if (invalidated_by_gpu) {
     // Resolves set these bits themselves, so invalidations by the GPU are ignored.
     return;
   }
-  uint32_t resolve_page_first = address_first >> 12;
-  uint32_t resolve_page_last = address_last >> 12;
-  uint32_t resolve_block_first = resolve_page_first >> 5;
-  uint32_t resolve_block_last = resolve_page_last >> 5;
-  uint32_t resolve_l2_block_first = resolve_block_first >> 6;
-  uint32_t resolve_l2_block_last = resolve_block_last >> 6;
-  for (uint32_t i = resolve_l2_block_first; i <= resolve_l2_block_last; ++i) {
-    uint64_t resolve_l2_block = scaled_resolve_pages_l2_[i];
+  u32 resolve_page_first = address_first >> 12;
+  u32 resolve_page_last = address_last >> 12;
+  u32 resolve_block_first = resolve_page_first >> 5;
+  u32 resolve_block_last = resolve_page_last >> 5;
+  u32 resolve_l2_block_first = resolve_block_first >> 6;
+  u32 resolve_l2_block_last = resolve_block_last >> 6;
+  for (u32 i = resolve_l2_block_first; i <= resolve_l2_block_last; ++i) {
+    u64 resolve_l2_block = scaled_resolve_pages_l2_[i];
     if (REXCVAR_GET(::rex::gpu::cvars::pre_mask_resolve_l2_block)) {
       if (i == resolve_l2_block_first) {
         resolve_l2_block &= ~((UINT64_C(1) << (resolve_block_first & 63)) - 1);
@@ -872,11 +870,11 @@ void TextureCache::ScaledResolveGlobalWatchCallback(uint32_t address_first, uint
         resolve_l2_block &= (UINT64_C(1) << ((resolve_block_last & 63) + 1)) - 1;
       }
     }
-    uint32_t resolve_block_relative_index;
+    u32 resolve_block_relative_index;
     while (rex::bit_scan_forward(resolve_l2_block, &resolve_block_relative_index)) {
       resolve_l2_block &= ~(UINT64_C(1) << resolve_block_relative_index);
-      uint32_t resolve_block_index = (i << 6) + resolve_block_relative_index;
-      uint32_t resolve_keep_bits = 0;
+      u32 resolve_block_index = (i << 6) + resolve_block_relative_index;
+      u32 resolve_keep_bits = 0;
       if (resolve_block_index == resolve_block_first) {
         resolve_keep_bits |= (UINT32_C(1) << (resolve_page_first & 31)) - 1;
       }

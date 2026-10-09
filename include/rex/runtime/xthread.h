@@ -41,7 +41,7 @@ class Runtime;
 namespace rex::runtime {
 
 /** Interrupt request levels stored in `X_KPCR::current_irql`. */
-enum IRQL_FLAGS : uint8_t {
+enum IRQL_FLAGS : u8 {
   IRQL_PASSIVE = 0,  /**< Lowest level. */
   IRQL_APC = 1,      /**< Level 1, above passive. */
   IRQL_DISPATCH = 2, /**< Level held while a spinlock is acquired and while queued DPCs run. */
@@ -64,7 +64,7 @@ enum X_DISPATCHER_FLAGS {
 };
 
 /** Values of `X_KTHREAD::thread_state`. */
-enum X_KTHREAD_STATE_FLAGS : uint8_t {
+enum X_KTHREAD_STATE_FLAGS : u8 {
   KTHREAD_STATE_INITIALIZED = 0, /**< Written as literal 0 at thread creation. */
   KTHREAD_STATE_READY = 1,       /**< Never written or compared. */
   KTHREAD_STATE_RUNNING = 2,     /**< Value 2. */
@@ -74,20 +74,20 @@ enum X_KTHREAD_STATE_FLAGS : uint8_t {
   KTHREAD_STATE_UNKNOWN = 6,     /**< Never written or compared. */
 };
 
-constexpr uint32_t X_CREATE_SUSPENDED = 0x00000001;
+constexpr u32 X_CREATE_SUSPENDED = 0x00000001;
 
-constexpr uint32_t X_TLS_OUT_OF_INDEXES = UINT32_MAX;
+constexpr u32 X_TLS_OUT_OF_INDEXES = UINT32_MAX;
 
 /** Guest layout of a deferred procedure call. */
 struct XDPC {
-  be_u16 type;                 /**< Offset 0x0. Object type, 19 for a DPC. */
-  uint8_t selected_cpu_number; /**< Offset 0x2. 1 while the DPC is queued, else 0. */
-  uint8_t desired_cpu_number;  /**< Offset 0x3. Cleared by Initialize and read by no code. */
-  X_LIST_ENTRY list_entry;     /**< Offset 0x4. Links the DPC in the processor queue. */
-  be_u32 routine;              /**< Offset 0xC. Guest address of the routine. */
-  be_u32 context;              /**< Offset 0x10. First argument of the routine. */
-  be_u32 arg1;                 /**< Offset 0x14. Second argument of the routine. */
-  be_u32 arg2;                 /**< Offset 0x18. Third argument of the routine. */
+  be_u16 type;             /**< Offset 0x0. Object type, 19 for a DPC. */
+  u8 selected_cpu_number;  /**< Offset 0x2. 1 while the DPC is queued, else 0. */
+  u8 desired_cpu_number;   /**< Offset 0x3. Cleared by Initialize and read by no code. */
+  X_LIST_ENTRY list_entry; /**< Offset 0x4. Links the DPC in the processor queue. */
+  be_u32 routine;          /**< Offset 0xC. Guest address of the routine. */
+  be_u32 context;          /**< Offset 0x10. First argument of the routine. */
+  be_u32 arg1;             /**< Offset 0x14. Second argument of the routine. */
+  be_u32 arg2;             /**< Offset 0x18. Third argument of the routine. */
 
   /**
    * Sets the routine and context and clears the queue links and arguments.
@@ -95,7 +95,7 @@ struct XDPC {
    * @param guest_func The guest address of the routine.
    * @param guest_context The context passed to the routine.
    */
-  void Initialize(uint32_t guest_func, uint32_t guest_context) {
+  void Initialize(u32 guest_func, u32 guest_context) {
     type = 19;
     selected_cpu_number = 0;
     desired_cpu_number = 0;
@@ -124,15 +124,15 @@ REX_STATIC_ASSERT_SIZE(X_THREAD_NOTIFICATION, 0xC);
  */
 struct XAPC {
   /** Size in bytes of an APC block, allocated for each APC the host queues. */
-  static constexpr uint32_t kSize = 40;
+  static constexpr u32 kSize = 40;
   /** Kernel routine address that marks an APC the host queued itself, never called. */
-  static constexpr uint32_t kDummyKernelRoutine = 0xF00DFF00;
+  static constexpr u32 kDummyKernelRoutine = 0xF00DFF00;
   /** Rundown routine address stored beside kDummyKernelRoutine in an APC the host queued itself. */
-  static constexpr uint32_t kDummyRundownRoutine = 0xF00DFF01;
+  static constexpr u32 kDummyRundownRoutine = 0xF00DFF01;
 
-  uint16_t type;           /**< Offset 0x0. */
-  uint8_t apc_mode;        /**< Offset 0x2. */
-  uint8_t enqueued;        /**< Offset 0x3. */
+  u16 type;                /**< Offset 0x0. */
+  u8 apc_mode;             /**< Offset 0x2. */
+  u8 enqueued;             /**< Offset 0x3. */
   be_u32 thread_ptr;       /**< Offset 0x4. */
   X_LIST_ENTRY list_entry; /**< Offset 0x8. */
   be_u32 kernel_routine;   /**< Offset 0x10. */
@@ -152,13 +152,13 @@ struct X_FIBER_CONTEXT {
   be_u32 stack_base;
   /** Offset 0x0C. KTHREAD.stack_limit (0x60), PCR.stack_end_ptr. */
   be_u32 stack_limit;
-  rex::be_u32 cr_save;       /**< Offset 0x10. Saved CR. */
-  uint8_t reserved_14[0x08]; /**< Offset 0x14. Padding. */
-  rex::be_u32 lr_save;       /**< Offset 0x1C. Saved LR. */
-  uint8_t reserved_20[0x10]; /**< Offset 0x20. Padding. */
-  be_u64 sp_save;            /**< Offset 0x30. Saved r1. */
+  rex::be_u32 cr_save;  /**< Offset 0x10. Saved CR. */
+  u8 reserved_14[0x08]; /**< Offset 0x14. Padding. */
+  rex::be_u32 lr_save;  /**< Offset 0x1C. Saved LR. */
+  u8 reserved_20[0x10]; /**< Offset 0x20. Padding. */
+  be_u64 sp_save;       /**< Offset 0x30. Saved r1. */
   /** Non volatile PPCContext register save area, starting at offset 0x38. */
-  uint8_t register_save_area[0xA50 - 0x38];
+  u8 register_save_area[0xA50 - 0x38];
 };
 REX_STATIC_ASSERT_SIZE(X_FIBER_CONTEXT, 0xA50);
 static_assert(sizeof(X_FIBER_CONTEXT::register_save_area) >= ::PPCContext::kNonVolatileSaveSize,
@@ -183,8 +183,8 @@ struct X_KPRCB {
   TypedGuestPointer<X_KTHREAD> current_thread;      /**< Offset 0x0. */
   TypedGuestPointer<X_KTHREAD> next_thread;         /**< Offset 0x4. */
   TypedGuestPointer<X_KTHREAD> idle_thread;         /**< Offset 0x8. */
-  uint8_t current_cpu;                              /**< Offset 0xC. */
-  uint8_t unk_D[3];                                 /**< Offset 0xD. */
+  u8 current_cpu;                                   /**< Offset 0xC. */
+  u8 unk_D[3];                                      /**< Offset 0xD. */
   be_u32 processor_mask;                            /**< Offset 0x10. */
   be_u32 dpc_clock;                                 /**< Offset 0x14. */
   be_u32 interrupt_clock;                           /**< Offset 0x18. */
@@ -217,31 +217,31 @@ struct X_KPCR {
   union {
     be_u16 software_interrupt_state; /**< Offset 0x8. */
     struct {
-      uint8_t generic_software_interrupt;   /**< Offset 0x8. */
-      uint8_t apc_software_interrupt_state; /**< Offset 0x9. */
+      u8 generic_software_interrupt;   /**< Offset 0x8. */
+      u8 apc_software_interrupt_state; /**< Offset 0x9. */
     };
   };
-  be_u16 unk_0A;                        /**< Offset 0xA. */
-  uint8_t processtype_value_in_dpc;     /**< Offset 0xC. */
-  uint8_t timeslice_ended;              /**< Offset 0xD. */
-  uint8_t timer_pending;                /**< Offset 0xE. */
-  uint8_t unk_0F;                       /**< Offset 0xF. */
-  be_u32 thread_fpu_related;            /**< Offset 0x10. */
-  be_u32 thread_vmx_related;            /**< Offset 0x14. */
-  uint8_t current_irql;                 /**< Offset 0x18. */
-  uint8_t background_scheduling_active; /**< Offset 0x19. */
-  uint8_t background_scheduling_1A;     /**< Offset 0x1A. */
-  uint8_t background_scheduling_1B;     /**< Offset 0x1B. */
-  be_u32 timer_related;                 /**< Offset 0x1C. */
-  uint8_t unk_20[0x10];                 /**< Offset 0x20. */
-  be_u64 pcr_ptr;                       /**< Offset 0x30. */
+  be_u16 unk_0A;                   /**< Offset 0xA. */
+  u8 processtype_value_in_dpc;     /**< Offset 0xC. */
+  u8 timeslice_ended;              /**< Offset 0xD. */
+  u8 timer_pending;                /**< Offset 0xE. */
+  u8 unk_0F;                       /**< Offset 0xF. */
+  be_u32 thread_fpu_related;       /**< Offset 0x10. */
+  be_u32 thread_vmx_related;       /**< Offset 0x14. */
+  u8 current_irql;                 /**< Offset 0x18. */
+  u8 background_scheduling_active; /**< Offset 0x19. */
+  u8 background_scheduling_1A;     /**< Offset 0x1A. */
+  u8 background_scheduling_1B;     /**< Offset 0x1B. */
+  be_u32 timer_related;            /**< Offset 0x1C. */
+  u8 unk_20[0x10];                 /**< Offset 0x20. */
+  be_u64 pcr_ptr;                  /**< Offset 0x30. */
   union {
-    uint8_t unk_38[8];   /**< Offset 0x38. */
-    uint64_t host_stash; /**< Offset 0x38. */
+    u8 unk_38[8];   /**< Offset 0x38. */
+    u64 host_stash; /**< Offset 0x38. */
   };
-  uint8_t unk_40[28];              /**< Offset 0x40. */
+  u8 unk_40[28];                   /**< Offset 0x40. */
   be_u32 unk_stack_5c;             /**< Offset 0x5C. */
-  uint8_t unk_60[12];              /**< Offset 0x60. */
+  u8 unk_60[12];                   /**< Offset 0x60. */
   be_u32 use_alternative_stack;    /**< Offset 0x6C. */
   be_u32 stack_base_ptr;           /**< Offset 0x70. Stack base address (high addr). */
   be_u32 stack_end_ptr;            /**< Offset 0x74. Stack end (low addr). */
@@ -250,7 +250,7 @@ struct X_KPCR {
   be_u32 interrupt_handlers[32];   /**< Offset 0x80. */
   X_KPRCB prcb_data;               /**< Offset 0x100. */
   TypedGuestPointer<X_KPRCB> prcb; /**< Offset 0x2A8. */
-  uint8_t unk_2AC[0x2C];           /**< Offset 0x2AC. */
+  u8 unk_2AC[0x2C];                /**< Offset 0x2AC. */
 };
 
 /** Guest layout of a kernel thread object. */
@@ -265,42 +265,42 @@ struct X_KTHREAD {
   be_u32 stack_limit;               /**< Offset 0x60. */
   be_u32 stack_kernel;              /**< Offset 0x64. */
   be_u32 tls_address;               /**< Offset 0x68. */
-  uint8_t thread_state;             /**< Offset 0x6C. */
-  uint8_t alerted[2];               /**< Offset 0x6D. */
-  uint8_t alertable;                /**< Offset 0x6F. */
-  uint8_t priority;                 /**< Offset 0x70. */
-  uint8_t fpu_exceptions_on;        /**< Offset 0x71. */
-  uint8_t process_type_dup;         /**< Offset 0x72. Same as process_type. */
-  uint8_t process_type;             /**< Offset 0x73. */
+  u8 thread_state;                  /**< Offset 0x6C. */
+  u8 alerted[2];                    /**< Offset 0x6D. */
+  u8 alertable;                     /**< Offset 0x6F. */
+  u8 priority;                      /**< Offset 0x70. */
+  u8 fpu_exceptions_on;             /**< Offset 0x71. */
+  u8 process_type_dup;              /**< Offset 0x72. Same as process_type. */
+  u8 process_type;                  /**< Offset 0x73. */
   util::X_TYPED_LIST<XAPC, offsetof(XAPC, list_entry)> apc_lists[2]; /**< Offset 0x74, per mode. */
   TypedGuestPointer<X_KPROCESS> process;                             /**< Offset 0x84. */
-  uint8_t executing_kernel_apc;                                      /**< Offset 0x88. */
-  uint8_t deferred_apc_software_interrupt_state;                     /**< Offset 0x89. */
-  uint8_t user_apc_pending;                                          /**< Offset 0x8A. */
-  uint8_t may_queue_apcs;                                            /**< Offset 0x8B. */
+  u8 executing_kernel_apc;                                           /**< Offset 0x88. */
+  u8 deferred_apc_software_interrupt_state;                          /**< Offset 0x89. */
+  u8 user_apc_pending;                                               /**< Offset 0x8A. */
+  u8 may_queue_apcs;                                                 /**< Offset 0x8B. */
   X_KSPINLOCK apc_lock;                                              /**< Offset 0x8C. */
   be_u32 num_context_switches_to;                                    /**< Offset 0x90. */
   X_LIST_ENTRY ready_prcb_entry;                                     /**< Offset 0x94. */
   be_u32 msr_mask;                                                   /**< Offset 0x9C. */
   rex::be<X_STATUS> wait_result;                                     /**< Offset 0xA0. */
-  uint8_t wait_irql;                                                 /**< Offset 0xA4. */
-  uint8_t unk_A5[0xB];                                               /**< Offset 0xA5. */
-  int32_t apc_disable_count;                                         /**< Offset 0xB0. */
+  u8 wait_irql;                                                      /**< Offset 0xA4. */
+  u8 unk_A5[0xB];                                                    /**< Offset 0xA5. */
+  i32 apc_disable_count;                                             /**< Offset 0xB0. */
   be_i32 quantum;                                                    /**< Offset 0xB4. */
-  uint8_t unk_B8;                                                    /**< Offset 0xB8. */
-  uint8_t unk_B9;                                                    /**< Offset 0xB9. */
-  uint8_t unk_BA;                                                    /**< Offset 0xBA. */
-  uint8_t boost_disabled;                                            /**< Offset 0xBB. */
-  uint8_t suspend_count;                                             /**< Offset 0xBC. */
-  uint8_t was_preempted;                                             /**< Offset 0xBD. */
-  uint8_t terminated;                                                /**< Offset 0xBE. */
-  uint8_t current_cpu;                                               /**< Offset 0xBF. */
+  u8 unk_B8;                                                         /**< Offset 0xB8. */
+  u8 unk_B9;                                                         /**< Offset 0xB9. */
+  u8 unk_BA;                                                         /**< Offset 0xBA. */
+  u8 boost_disabled;                                                 /**< Offset 0xBB. */
+  u8 suspend_count;                                                  /**< Offset 0xBC. */
+  u8 was_preempted;                                                  /**< Offset 0xBD. */
+  u8 terminated;                                                     /**< Offset 0xBE. */
+  u8 current_cpu;                                                    /**< Offset 0xBF. */
   TypedGuestPointer<X_KPRCB> a_prcb_ptr;                             /**< Offset 0xC0. */
   TypedGuestPointer<X_KPRCB> another_prcb_ptr;                       /**< Offset 0xC4. */
-  uint8_t unk_C8;                                                    /**< Offset 0xC8. */
-  uint8_t unk_C9;                                                    /**< Offset 0xC9. */
-  uint8_t unk_CA;                                                    /**< Offset 0xCA. */
-  uint8_t unk_CB;                                                    /**< Offset 0xCB. */
+  u8 unk_C8;                                                         /**< Offset 0xC8. */
+  u8 unk_C9;                                                         /**< Offset 0xC9. */
+  u8 unk_CA;                                                         /**< Offset 0xCA. */
+  u8 unk_CB;                                                         /**< Offset 0xCB. */
   X_KSPINLOCK timer_list_lock;                                       /**< Offset 0xCC. */
   be_u32 stack_alloc_base;                                           /**< Offset 0xD0. */
   XAPC on_suspend;                                                   /**< Offset 0xD4. */
@@ -318,14 +318,14 @@ struct X_KTHREAD {
   be_u32 thread_id;                                                  /**< Offset 0x14C. */
   be_u32 start_address;                                              /**< Offset 0x150. */
   X_LIST_ENTRY unk_154;                                              /**< Offset 0x154. */
-  uint8_t unk_15C[0x4];                                              /**< Offset 0x15C. */
+  u8 unk_15C[0x4];                                                   /**< Offset 0x15C. */
   be_u32 last_error;                                                 /**< Offset 0x160. */
   be_u32 fiber_ptr;                                                  /**< Offset 0x164. */
-  uint8_t unk_168[0x4];                                              /**< Offset 0x168. */
+  u8 unk_168[0x4];                                                   /**< Offset 0x168. */
   be_u32 creation_flags;                                             /**< Offset 0x16C. */
-  uint8_t unk_170[0xC];                                              /**< Offset 0x170. */
+  u8 unk_170[0xC];                                                   /**< Offset 0x170. */
   be_u32 unk_17C;                                                    /**< Offset 0x17C. */
-  uint8_t unk_180[0x930];                                            /**< Offset 0x180. */
+  u8 unk_180[0x930];                                                 /**< Offset 0x180. */
 };
 REX_STATIC_ASSERT_SIZE(X_KTHREAD, 0xAB0);
 

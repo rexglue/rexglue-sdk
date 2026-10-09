@@ -33,12 +33,12 @@ FunctionDispatcher* GetBoundFunctionDispatcher() {
 
 }  // namespace
 
-static void InvalidFunctionTrap(PPCContext& ctx, uint8_t* /*base*/) {
+static void InvalidFunctionTrap(PPCContext& ctx, u8* /*base*/) {
   REX_FATAL(cpu, "Call to invalid or unregistered function at guest address 0x{:08X}",
             ctx.last_indirect_target);
 }
 
-PPCFunc* ResolveIndirectFunction(uint32_t guest_address) {
+PPCFunc* ResolveIndirectFunction(u32 guest_address) {
   FunctionDispatcher* dispatcher = GetBoundFunctionDispatcher();
   if (!dispatcher) {
     return &InvalidFunctionTrap;
@@ -55,7 +55,7 @@ PPCFunc* ResolveIndirectFunction(uint32_t guest_address) {
 
 namespace rex::ppc {
 
-void Trap(PPCContext& ctx, uint8_t* base, uint16_t trap_type) {
+void Trap(PPCContext& ctx, u8* base, u16 trap_type) {
   switch (trap_type) {
     case 20:
     case 26: {
@@ -79,14 +79,14 @@ void Trap(PPCContext& ctx, uint8_t* base, uint16_t trap_type) {
 }
 
 namespace {
-thread_local std::unordered_map<uint32_t, std::jmp_buf> t_jump_buffers;
+thread_local std::unordered_map<u32, std::jmp_buf> t_jump_buffers;
 }  // namespace
 
-std::jmp_buf& JumpBuffer(uint32_t address) {
+std::jmp_buf& JumpBuffer(u32 address) {
   return t_jump_buffers[address];
 }
 
-void LongJump(uint32_t address, int value) {
+void LongJump(u32 address, int value) {
   const auto it = t_jump_buffers.find(address);
   if (it != t_jump_buffers.end()) {
     std::longjmp(it->second, value);
@@ -111,8 +111,7 @@ FunctionDispatcher::~FunctionDispatcher() {
   }
 }
 
-bool FunctionDispatcher::Run(ThreadState* thread_state, uint32_t address,
-                             std::span<const uint64_t> args) {
+bool FunctionDispatcher::Run(ThreadState* thread_state, u32 address, std::span<const u64> args) {
   REX_PROFILE_SCOPE("cpu");
   REX_PERF_INC(kFunctionsDispatched);
 
@@ -126,7 +125,7 @@ bool FunctionDispatcher::Run(ThreadState* thread_state, uint32_t address,
   ThreadState::Bind(thread_state);
 
   const u32 stack_bytes = args.size() > 8 ? static_cast<u32>(args.size() - 8) * 8 : 0;
-  const uint64_t previous_lr = ctx->lr;
+  const u64 previous_lr = ctx->lr;
   const u32 caller_r1 = ppc::OpenCallFrame(*ctx, memory_->virtual_membase(), stack_bytes);
 
   PPCRegister* registers[] = {&ctx->r3, &ctx->r4, &ctx->r5, &ctx->r6,
@@ -149,11 +148,11 @@ bool FunctionDispatcher::Run(ThreadState* thread_state, uint32_t address,
   return true;
 }
 
-uint64_t FunctionDispatcher::Execute(ThreadState* thread_state, uint32_t address, uint64_t args[],
-                                     size_t arg_count) {
+u64 FunctionDispatcher::Execute(ThreadState* thread_state, u32 address, u64 args[],
+                                size_t arg_count) {
   auto* ctx = thread_state->context();
   const PPCContext saved = *ctx;
-  const uint64_t result =
+  const u64 result =
       Run(thread_state, address, std::span(args, arg_count)) ? ctx->r3.u64 : 0xDEADBABE;
   const PPCFPSCRRegister fpscr = ctx->fpscr;
   *ctx = saved;
@@ -161,13 +160,13 @@ uint64_t FunctionDispatcher::Execute(ThreadState* thread_state, uint32_t address
   return result;
 }
 
-uint64_t FunctionDispatcher::ExecuteTrap(ThreadState* thread_state, uint32_t address,
-                                         uint64_t args[], size_t arg_count) {
+u64 FunctionDispatcher::ExecuteTrap(ThreadState* thread_state, u32 address, u64 args[],
+                                    size_t arg_count) {
   auto* ctx = thread_state->context();
   const PPCContext saved = *ctx;
   const u32 saved_csr = ctx->fpscr.getcsr();
 
-  const uint64_t result = Execute(thread_state, address, args, arg_count);
+  const u64 result = Execute(thread_state, address, args, arg_count);
 
   *ctx = saved;
   ctx->fpscr.csr = saved_csr;
@@ -175,8 +174,8 @@ uint64_t FunctionDispatcher::ExecuteTrap(ThreadState* thread_state, uint32_t add
   return result;
 }
 
-uint64_t FunctionDispatcher::RunInterrupt(ThreadState* thread_state, uint32_t address,
-                                          uint64_t args[], size_t arg_count) {
+u64 FunctionDispatcher::RunInterrupt(ThreadState* thread_state, u32 address, u64 args[],
+                                     size_t arg_count) {
   std::lock_guard interrupt_lock(interrupt_mutex_);
 
   auto* ctx = thread_state->context();
@@ -191,7 +190,7 @@ uint64_t FunctionDispatcher::RunInterrupt(ThreadState* thread_state, uint32_t ad
   pcr->current_irql = IRQL_DPC;
 
   const bool executed = Run(thread_state, address, std::span(args, arg_count));
-  const uint64_t result = executed ? ctx->r3.u64 : 0xDEADBABE;
+  const u64 result = executed ? ctx->r3.u64 : 0xDEADBABE;
 
   pcr->current_irql = old_irql;
   pcr->tls_ptr = old_tls_ptr;
@@ -201,13 +200,13 @@ uint64_t FunctionDispatcher::RunInterrupt(ThreadState* thread_state, uint32_t ad
   return result;
 }
 
-uint64_t FunctionDispatcher::ExecuteInterrupt(ThreadState* thread_state, uint32_t address,
-                                              uint64_t args[], size_t arg_count) {
+u64 FunctionDispatcher::ExecuteInterrupt(ThreadState* thread_state, u32 address, u64 args[],
+                                         size_t arg_count) {
   REX_PROFILE_SCOPE("cpu");
   REX_PERF_INC(kInterruptDispatches);
 
   EnterInterrupt();
-  const uint64_t result = RunInterrupt(thread_state, address, args, arg_count);
+  const u64 result = RunInterrupt(thread_state, address, args, arg_count);
   if (LeaveInterrupt()) {
     if (Runtime* runtime = thread_state->runtime()) {
       ThreadState* previous = ThreadState::Get();
@@ -219,6 +218,8 @@ uint64_t FunctionDispatcher::ExecuteInterrupt(ThreadState* thread_state, uint32_
   return result;
 }
 
+// rexglue function table management
+
 bool FunctionDispatcher::InitializeFunctionTable(u32 code_base, u32 code_size, u32 image_base,
                                                  u32 image_size, bool is_entrypoint) {
   std::lock_guard<std::recursive_mutex> lock(dispatch_mutex_);
@@ -228,12 +229,12 @@ bool FunctionDispatcher::InitializeFunctionTable(u32 code_base, u32 code_size, u
              entrypoint_code_base_);
   }
 
-  uint32_t new_table_end = image_base + image_size + (code_size + kThunkReserveSize) * 2;
-  uint32_t new_code_end = code_base + code_size + kThunkReserveSize;
+  u32 new_table_end = image_base + image_size + (code_size + kThunkReserveSize) * 2;
+  u32 new_code_end = code_base + code_size + kThunkReserveSize;
   for (const auto& existing : module_tables_) {
-    uint32_t existing_table_end =
+    u32 existing_table_end =
         existing.image_base + existing.image_size + (existing.code_size + kThunkReserveSize) * 2;
-    uint32_t existing_code_end = existing.code_base + existing.code_size + kThunkReserveSize;
+    u32 existing_code_end = existing.code_base + existing.code_size + kThunkReserveSize;
     if (image_base < existing_table_end && new_table_end > existing.image_base) {
       REX_FAIL(cpu, false, "Module image range [{:08X}, {:08X}) overlaps existing [{:08X}, {:08X})",
                image_base, new_table_end, existing.image_base, existing_table_end);
@@ -267,8 +268,7 @@ bool FunctionDispatcher::InitializeFunctionTable(u32 code_base, u32 code_size, u
   return true;
 }
 
-FunctionDispatcher::ModuleTableInfo* FunctionDispatcher::FindModuleByAddress(
-    uint32_t guest_address) {
+FunctionDispatcher::ModuleTableInfo* FunctionDispatcher::FindModuleByAddress(u32 guest_address) {
   for (auto& mod : module_tables_) {
     if (guest_address >= mod.code_base && guest_address < mod.thunk_limit) {
       return &mod;
@@ -277,7 +277,7 @@ FunctionDispatcher::ModuleTableInfo* FunctionDispatcher::FindModuleByAddress(
   return nullptr;
 }
 
-uint32_t FunctionDispatcher::FindCallerModuleBase(uint32_t guest_address) {
+u32 FunctionDispatcher::FindCallerModuleBase(u32 guest_address) {
   std::lock_guard<std::recursive_mutex> lock(dispatch_mutex_);
   if (auto* mod = FindModuleByAddress(guest_address)) {
     return mod->code_base;
@@ -285,7 +285,7 @@ uint32_t FunctionDispatcher::FindCallerModuleBase(uint32_t guest_address) {
   return 0;
 }
 
-bool FunctionDispatcher::SetFunction(uint32_t guest_address, ::PPCFunc* func) {
+bool FunctionDispatcher::SetFunction(u32 guest_address, ::PPCFunc* func) {
   std::lock_guard<std::recursive_mutex> lock(dispatch_mutex_);
   REX_ASSERT(!module_tables_.empty());
 
@@ -309,7 +309,7 @@ bool FunctionDispatcher::SetFunction(uint32_t guest_address, ::PPCFunc* func) {
   return true;
 }
 
-::PPCFunc* FunctionDispatcher::GetFunction(uint32_t guest_address) {
+::PPCFunc* FunctionDispatcher::GetFunction(u32 guest_address) {
   std::lock_guard<std::recursive_mutex> lock(dispatch_mutex_);
   auto it = function_table_.find(guest_address);
   if (it != function_table_.end()) {
@@ -318,7 +318,7 @@ bool FunctionDispatcher::SetFunction(uint32_t guest_address, ::PPCFunc* func) {
   return nullptr;
 }
 
-uint32_t FunctionDispatcher::AllocateThunk(::PPCFunc* func, uint32_t caller_address) {
+u32 FunctionDispatcher::AllocateThunk(::PPCFunc* func, u32 caller_address) {
   std::lock_guard<std::recursive_mutex> lock(dispatch_mutex_);
   auto* mod = FindModuleByAddress(caller_address);
   if (!mod) {
@@ -339,7 +339,7 @@ uint32_t FunctionDispatcher::AllocateThunk(::PPCFunc* func, uint32_t caller_addr
   if (mod->next_thunk_address >= mod->thunk_limit) {
     REX_FAIL(cpu, 0, "Thunk address space exhausted for module at {:08X}", mod->code_base);
   }
-  uint32_t addr = mod->next_thunk_address;
+  u32 addr = mod->next_thunk_address;
   mod->next_thunk_address += 4;
   if (!SetFunction(addr, func)) {
     mod->next_thunk_address -= 4;
@@ -348,7 +348,7 @@ uint32_t FunctionDispatcher::AllocateThunk(::PPCFunc* func, uint32_t caller_addr
   return addr;
 }
 
-void FunctionDispatcher::RegisterModule(const std::string& module_id, uint32_t code_base,
+void FunctionDispatcher::RegisterModule(const std::string& module_id, u32 code_base,
                                         RegisterFn register_func,
                                         std::span<const u8> recompiled_code) {
   std::lock_guard<std::recursive_mutex> lock(dispatch_mutex_);
@@ -405,7 +405,7 @@ void FunctionDispatcher::AddRecompiledCode(std::span<const u8> code) {
   recompiled_code_.emplace_back(std::string(), code);
 }
 
-std::optional<std::pair<uint32_t, uint32_t>> FunctionDispatcher::UnregisterModule(
+std::optional<std::pair<u32, u32>> FunctionDispatcher::UnregisterModule(
     const std::string& module_id) {
   std::lock_guard<std::recursive_mutex> lock(dispatch_mutex_);
   auto it = module_addresses_.find(module_id);
@@ -432,16 +432,16 @@ std::optional<std::pair<uint32_t, uint32_t>> FunctionDispatcher::UnregisterModul
                                  return mti.code_base == code_base;
                                });
 
-  for (uint32_t addr : it->second.addresses) {
+  for (u32 addr : it->second.addresses) {
     function_table_.erase(addr);
     memory_->SetFunction(addr, nullptr);
   }
 
-  std::optional<std::pair<uint32_t, uint32_t>> cleared_range;
+  std::optional<std::pair<u32, u32>> cleared_range;
   if (table_it != module_tables_.end()) {
-    uint32_t pool_start = table_it->code_base + table_it->code_size;
-    uint32_t pool_end = table_it->next_thunk_address;
-    for (uint32_t addr = pool_start; addr < pool_end; addr += 4) {
+    u32 pool_start = table_it->code_base + table_it->code_size;
+    u32 pool_end = table_it->next_thunk_address;
+    for (u32 addr = pool_start; addr < pool_end; addr += 4) {
       function_table_.erase(addr);
       memory_->SetFunction(addr, nullptr);
     }

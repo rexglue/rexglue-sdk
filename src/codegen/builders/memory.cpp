@@ -15,13 +15,13 @@ namespace rex::codegen {
 
 bool build_li(BuilderContext& ctx) {
   ctx.println("\t{}.s64 = {};", ctx.r(ctx.insn.operands[0]),
-              static_cast<int32_t>(ctx.insn.operands[1]));
+              static_cast<i32>(ctx.insn.operands[1]));
   return true;
 }
 
 bool build_lis(BuilderContext& ctx) {
   ctx.println("\t{}.s64 = {};", ctx.r(ctx.insn.operands[0]),
-              static_cast<int32_t>(static_cast<uint32_t>(ctx.insn.operands[1]) << 16));
+              static_cast<i32>(static_cast<u32>(ctx.insn.operands[1]) << 16));
   return true;
 }
 
@@ -46,12 +46,12 @@ bool build_lbzux(BuilderContext& ctx) {
 }
 
 bool build_lha(BuilderContext& ctx) {
-  emitSignExtendLoadDForm(ctx, "int16_t", "REX_LOAD_U16");
+  emitSignExtendLoadDForm(ctx, "i16", "REX_LOAD_U16");
   return true;
 }
 
 bool build_lhax(BuilderContext& ctx) {
-  emitSignExtendLoadXForm(ctx, "int16_t", "REX_LOAD_U16");
+  emitSignExtendLoadXForm(ctx, "i16", "REX_LOAD_U16");
   return true;
 }
 
@@ -76,10 +76,10 @@ bool build_lhzux(BuilderContext& ctx) {
 }
 
 bool build_lhau(BuilderContext& ctx) {
-  ctx.println("\t{} = {} + {}.u32;", ctx.ea(), static_cast<int32_t>(ctx.insn.operands[1]),
+  ctx.println("\t{} = {} + {}.u32;", ctx.ea(), static_cast<i32>(ctx.insn.operands[1]),
               ctx.r(ctx.insn.operands[2]));
-  ctx.println("\t{}.s64 = int16_t({}({}));", ctx.r(ctx.insn.operands[0]),
-              ctx.MMIOMacro("REX_LOAD_U16"), ctx.ea());
+  ctx.println("\t{}.s64 = i16({}({}));", ctx.r(ctx.insn.operands[0]), ctx.MMIOMacro("REX_LOAD_U16"),
+              ctx.ea());
   ctx.println("\t{}.u32 = {};", ctx.r(ctx.insn.operands[2]), ctx.ea());
   return true;
 }
@@ -87,8 +87,8 @@ bool build_lhau(BuilderContext& ctx) {
 bool build_lhaux(BuilderContext& ctx) {
   ctx.println("\t{} = {}.u32 + {}.u32;", ctx.ea(), ctx.r(ctx.insn.operands[1]),
               ctx.r(ctx.insn.operands[2]));
-  ctx.println("\t{}.s64 = int16_t({}({}));", ctx.r(ctx.insn.operands[0]),
-              ctx.MMIOMacro("REX_LOAD_U16"), ctx.ea());
+  ctx.println("\t{}.s64 = i16({}({}));", ctx.r(ctx.insn.operands[0]), ctx.MMIOMacro("REX_LOAD_U16"),
+              ctx.ea());
   ctx.println("\t{}.u32 = {};", ctx.r(ctx.insn.operands[1]), ctx.ea());
   return true;
 }
@@ -103,21 +103,21 @@ bool build_lhbrx(BuilderContext& ctx) {
 }
 
 bool build_lwa(BuilderContext& ctx) {
-  emitSignExtendLoadDForm(ctx, "int32_t", "REX_LOAD_U32");
+  emitSignExtendLoadDForm(ctx, "i32", "REX_LOAD_U32");
   return true;
 }
 
 bool build_lwaux(BuilderContext& ctx) {
   ctx.println("\t{} = {}.u32 + {}.u32;", ctx.ea(), ctx.r(ctx.insn.operands[1]),
               ctx.r(ctx.insn.operands[2]));
-  ctx.println("\t{}.s64 = int32_t({}({}));", ctx.r(ctx.insn.operands[0]),
-              ctx.MMIOMacro("REX_LOAD_U32"), ctx.ea());
+  ctx.println("\t{}.s64 = i32({}({}));", ctx.r(ctx.insn.operands[0]), ctx.MMIOMacro("REX_LOAD_U32"),
+              ctx.ea());
   ctx.println("\t{}.u32 = {};", ctx.r(ctx.insn.operands[1]), ctx.ea());
   return true;
 }
 
 bool build_lwax(BuilderContext& ctx) {
-  emitSignExtendLoadXForm(ctx, "int32_t", "REX_LOAD_U32");
+  emitSignExtendLoadXForm(ctx, "i32", "REX_LOAD_U32");
   return true;
 }
 
@@ -171,12 +171,12 @@ bool build_ldux(BuilderContext& ctx) {
 }
 
 bool build_lwarx(BuilderContext& ctx) {
-  emitAtomicLoadReserve(ctx, "uint32_t", "__builtin_bswap32", "u32");
+  emitAtomicLoadReserve(ctx, "u32", "__builtin_bswap32", "u32");
   return true;
 }
 
 bool build_ldarx(BuilderContext& ctx) {
-  emitAtomicLoadReserve(ctx, "uint64_t", "__builtin_bswap64", "u64");
+  emitAtomicLoadReserve(ctx, "u64", "__builtin_bswap64", "u64");
   return true;
 }
 
@@ -185,7 +185,7 @@ bool build_lfd(BuilderContext& ctx) {
   ctx.print("\t{}.u64 = REX_LOAD_U64(", ctx.f(ctx.insn.operands[0]));
   if (ctx.insn.operands[2] != 0)
     ctx.print("{}.u32 + ", ctx.r(ctx.insn.operands[2]));
-  ctx.println("{});", static_cast<int32_t>(ctx.insn.operands[1]));
+  ctx.println("{});", static_cast<i32>(ctx.insn.operands[1]));
   return true;
 }
 
@@ -203,8 +203,8 @@ bool build_lfs(BuilderContext& ctx) {
   ctx.print("\t{}.u32 = REX_LOAD_U32(", ctx.temp());
   if (ctx.insn.operands[2] != 0)
     ctx.print("{}.u32 + ", ctx.r(ctx.insn.operands[2]));
-  ctx.println("{});", static_cast<int32_t>(ctx.insn.operands[1]));
-  ctx.println("\t{}.f64 = double({}.f32);", ctx.f(ctx.insn.operands[0]), ctx.temp());
+  ctx.println("{});", static_cast<i32>(ctx.insn.operands[1]));
+  ctx.println("\t{}.f64 = f64({}.f32);", ctx.f(ctx.insn.operands[0]), ctx.temp());
   return true;
 }
 
@@ -214,13 +214,13 @@ bool build_lfsx(BuilderContext& ctx) {
   if (ctx.insn.operands[1] != 0)
     ctx.print("{}.u32 + ", ctx.r(ctx.insn.operands[1]));
   ctx.println("{}.u32);", ctx.r(ctx.insn.operands[2]));
-  ctx.println("\t{}.f64 = double({}.f32);", ctx.f(ctx.insn.operands[0]), ctx.temp());
+  ctx.println("\t{}.f64 = f64({}.f32);", ctx.f(ctx.insn.operands[0]), ctx.temp());
   return true;
 }
 
 bool build_lfdu(BuilderContext& ctx) {
   ctx.emit_set_flush_mode(false);
-  ctx.println("\t{} = {} + {}.u32;", ctx.ea(), static_cast<int32_t>(ctx.insn.operands[1]),
+  ctx.println("\t{} = {} + {}.u32;", ctx.ea(), static_cast<i32>(ctx.insn.operands[1]),
               ctx.r(ctx.insn.operands[2]));
   ctx.println("\t{}.u64 = REX_LOAD_U64({});", ctx.f(ctx.insn.operands[0]), ctx.ea());
   ctx.println("\t{}.u32 = {};", ctx.r(ctx.insn.operands[2]), ctx.ea());
@@ -238,10 +238,10 @@ bool build_lfdux(BuilderContext& ctx) {
 
 bool build_lfsu(BuilderContext& ctx) {
   ctx.emit_set_flush_mode(false);
-  ctx.println("\t{} = {} + {}.u32;", ctx.ea(), static_cast<int32_t>(ctx.insn.operands[1]),
+  ctx.println("\t{} = {} + {}.u32;", ctx.ea(), static_cast<i32>(ctx.insn.operands[1]),
               ctx.r(ctx.insn.operands[2]));
   ctx.println("\t{}.u32 = REX_LOAD_U32({});", ctx.temp(), ctx.ea());
-  ctx.println("\t{}.f64 = double({}.f32);", ctx.f(ctx.insn.operands[0]), ctx.temp());
+  ctx.println("\t{}.f64 = f64({}.f32);", ctx.f(ctx.insn.operands[0]), ctx.temp());
   ctx.println("\t{}.u32 = {};", ctx.r(ctx.insn.operands[2]), ctx.ea());
   return true;
 }
@@ -251,7 +251,7 @@ bool build_lfsux(BuilderContext& ctx) {
   ctx.println("\t{} = {}.u32 + {}.u32;", ctx.ea(), ctx.r(ctx.insn.operands[1]),
               ctx.r(ctx.insn.operands[2]));
   ctx.println("\t{}.u32 = REX_LOAD_U32({});", ctx.temp(), ctx.ea());
-  ctx.println("\t{}.f64 = double({}.f32);", ctx.f(ctx.insn.operands[0]), ctx.temp());
+  ctx.println("\t{}.f64 = f64({}.f32);", ctx.f(ctx.insn.operands[0]), ctx.temp());
   ctx.println("\t{}.u32 = {};", ctx.r(ctx.insn.operands[1]), ctx.ea());
   return true;
 }
@@ -326,14 +326,14 @@ bool build_stwx(BuilderContext& ctx) {
 }
 
 bool build_stmw(BuilderContext& ctx) {
-  uint32_t rS = ctx.insn.operands[0];
-  int32_t offset = static_cast<int32_t>(ctx.insn.operands[1]);
-  uint32_t rA = ctx.insn.operands[2];
+  u32 rS = ctx.insn.operands[0];
+  i32 offset = static_cast<i32>(ctx.insn.operands[1]);
+  u32 rA = ctx.insn.operands[2];
   if (rA != 0)
     ctx.println("\t{} = {}.u32 + {};", ctx.ea(), ctx.r(rA), offset);
   else
     ctx.println("\t{} = {};", ctx.ea(), offset);
-  for (uint32_t i = rS; i <= 31; ++i) {
+  for (u32 i = rS; i <= 31; ++i) {
     ctx.println("\tREX_STORE_U32({} + {}, {}.u32);", ctx.ea(), (i - rS) * 4, ctx.r(i));
   }
   return true;
@@ -349,12 +349,12 @@ bool build_stwbrx(BuilderContext& ctx) {
 }
 
 bool build_stwcx(BuilderContext& ctx) {
-  emitAtomicStoreConditional(ctx, "uint32_t", "__builtin_bswap32", "u32");
+  emitAtomicStoreConditional(ctx, "u32", "__builtin_bswap32", "u32");
   return true;
 }
 
 bool build_stdcx(BuilderContext& ctx) {
-  emitAtomicStoreConditional(ctx, "uint64_t", "__builtin_bswap64", "u64");
+  emitAtomicStoreConditional(ctx, "u64", "__builtin_bswap64", "u64");
   return true;
 }
 
@@ -383,8 +383,7 @@ bool build_stfd(BuilderContext& ctx) {
   ctx.print("\t{}(", ctx.MMIOMacro("REX_STORE_U64"));
   if (ctx.insn.operands[2] != 0)
     ctx.print("{}.u32 + ", ctx.r(ctx.insn.operands[2]));
-  ctx.println("{}, {}.u64);", static_cast<int32_t>(ctx.insn.operands[1]),
-              ctx.f(ctx.insn.operands[0]));
+  ctx.println("{}, {}.u64);", static_cast<i32>(ctx.insn.operands[1]), ctx.f(ctx.insn.operands[0]));
   return true;
 }
 
@@ -418,17 +417,17 @@ bool build_stfiwx(BuilderContext& ctx) {
 
 bool build_stfs(BuilderContext& ctx) {
   ctx.emit_set_flush_mode(false);
-  ctx.println("\t{}.f32 = float({}.f64);", ctx.temp(), ctx.f(ctx.insn.operands[0]));
+  ctx.println("\t{}.f32 = f32({}.f64);", ctx.temp(), ctx.f(ctx.insn.operands[0]));
   ctx.print("\t{}(", ctx.MMIOMacro("REX_STORE_U32"));
   if (ctx.insn.operands[2] != 0)
     ctx.print("{}.u32 + ", ctx.r(ctx.insn.operands[2]));
-  ctx.println("{}, {}.u32);", static_cast<int32_t>(ctx.insn.operands[1]), ctx.temp());
+  ctx.println("{}, {}.u32);", static_cast<i32>(ctx.insn.operands[1]), ctx.temp());
   return true;
 }
 
 bool build_stfsx(BuilderContext& ctx) {
   ctx.emit_set_flush_mode(false);
-  ctx.println("\t{}.f32 = float({}.f64);", ctx.temp(), ctx.f(ctx.insn.operands[0]));
+  ctx.println("\t{}.f32 = f32({}.f64);", ctx.temp(), ctx.f(ctx.insn.operands[0]));
   ctx.print("\t{}(", ctx.MMIOMacro("REX_STORE_U32"));
   if (ctx.insn.operands[1] != 0)
     ctx.print("{}.u32 + ", ctx.r(ctx.insn.operands[1]));
@@ -438,7 +437,7 @@ bool build_stfsx(BuilderContext& ctx) {
 
 bool build_stfdu(BuilderContext& ctx) {
   ctx.emit_set_flush_mode(false);
-  ctx.println("\t{} = {} + {}.u32;", ctx.ea(), static_cast<int32_t>(ctx.insn.operands[1]),
+  ctx.println("\t{} = {} + {}.u32;", ctx.ea(), static_cast<i32>(ctx.insn.operands[1]),
               ctx.r(ctx.insn.operands[2]));
   ctx.println("\t{}({}, {}.u64);", ctx.MMIOMacro("REX_STORE_U64"), ctx.ea(),
               ctx.f(ctx.insn.operands[0]));
@@ -448,9 +447,9 @@ bool build_stfdu(BuilderContext& ctx) {
 
 bool build_stfsu(BuilderContext& ctx) {
   ctx.emit_set_flush_mode(false);
-  ctx.println("\t{} = {} + {}.u32;", ctx.ea(), static_cast<int32_t>(ctx.insn.operands[1]),
+  ctx.println("\t{} = {} + {}.u32;", ctx.ea(), static_cast<i32>(ctx.insn.operands[1]),
               ctx.r(ctx.insn.operands[2]));
-  ctx.println("\t{}.f32 = float({}.f64);", ctx.temp(), ctx.f(ctx.insn.operands[0]));
+  ctx.println("\t{}.f32 = f32({}.f64);", ctx.temp(), ctx.f(ctx.insn.operands[0]));
   ctx.println("\t{}({}, {}.u32);", ctx.MMIOMacro("REX_STORE_U32"), ctx.ea(), ctx.temp());
   ctx.println("\t{}.u32 = {};", ctx.r(ctx.insn.operands[2]), ctx.ea());
   return true;
@@ -458,7 +457,7 @@ bool build_stfsu(BuilderContext& ctx) {
 
 bool build_stfsux(BuilderContext& ctx) {
   ctx.emit_set_flush_mode(false);
-  ctx.println("\t{}.f32 = float({}.f64);", ctx.temp(), ctx.f(ctx.insn.operands[0]));
+  ctx.println("\t{}.f32 = f32({}.f64);", ctx.temp(), ctx.f(ctx.insn.operands[0]));
   ctx.println("\t{} = {}.u32 + {}.u32;", ctx.ea(), ctx.r(ctx.insn.operands[1]),
               ctx.r(ctx.insn.operands[2]));
   ctx.println("\t{}({}, {}.u32);", ctx.MMIOMacro("REX_STORE_U32"), ctx.ea(), ctx.temp());

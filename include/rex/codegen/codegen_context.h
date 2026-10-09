@@ -42,41 +42,41 @@ struct FunctionConfig;
 struct AnalysisState {
   std::string format; /**< "xex" or "elf" */
   /** Guest address the image is loaded at, copied from the BinaryView base address. */
-  uint64_t loadAddress = 0;
+  u64 loadAddress = 0;
   /** Guest address of the image entry point, which the writer names xstart. */
-  uint64_t entryPoint = 0;
-  uint64_t imageSize = 0; /**< Image size in bytes, copied from the BinaryView. */
+  u64 entryPoint = 0;
+  u64 imageSize = 0; /**< Image size in bytes, copied from the BinaryView. */
 
   std::vector<SectionInfo> sections;            /**< No code reads or writes it. */
   std::vector<FunctionEntry> analyzedFunctions; /**< No code reads or writes it. */
   /** Entry addresses of the chunks of each parent function, keyed by parent address, from the
    * `parent` field of the function configs. */
-  std::unordered_map<uint32_t, std::vector<uint32_t>> chunksByParent;
+  std::unordered_map<u32, std::vector<u32>> chunksByParent;
 
   /** ABI helper addresses found by analysis, 0 when not found. */
-  uint32_t restGpr14Address = 0;
+  u32 restGpr14Address = 0;
   /** Address of the first `__savegprlr_14` helper, 0 when not found. */
-  uint32_t saveGpr14Address = 0;
+  u32 saveGpr14Address = 0;
   /** Address of the first `__restfpr_14` helper, 0 when not found. */
-  uint32_t restFpr14Address = 0;
+  u32 restFpr14Address = 0;
   /** Address of the first `__savefpr_14` helper, 0 when not found. */
-  uint32_t saveFpr14Address = 0;
+  u32 saveFpr14Address = 0;
   /** Address of the first `__restvmx_14` helper, 0 when not found. */
-  uint32_t restVmx14Address = 0;
+  u32 restVmx14Address = 0;
   /** Address of the first `__savevmx_14` helper, 0 when not found. */
-  uint32_t saveVmx14Address = 0;
+  u32 saveVmx14Address = 0;
   /** Address of the first `__restvmx_64` helper, 0 when not found. */
-  uint32_t restVmx64Address = 0;
+  u32 restVmx64Address = 0;
   /** Address of the first `__savevmx_64` helper, 0 when not found. */
-  uint32_t saveVmx64Address = 0;
+  u32 saveVmx64Address = 0;
 
-  std::unordered_map<uint32_t, uint32_t> invalidInstructions; /**< Maps address to size */
-  std::unordered_set<uint32_t> knownIndirectCalls;            /**< bctr addresses */
+  std::unordered_map<u32, u32> invalidInstructions; /**< Maps address to size */
+  std::unordered_set<u32> knownIndirectCalls;       /**< bctr addresses */
   /** Entry addresses of exception handler functions, copied from `analysis.exception_handler_funcs`
    * in the TOML. */
-  std::vector<uint32_t> exceptionHandlerFuncs;
+  std::vector<u32> exceptionHandlerFuncs;
   /** Entry addresses found in SEH scope tables, queued as functions after the .pdata functions. */
-  std::vector<uint32_t> ehDiscoveredFuncs;
+  std::vector<u32> ehDiscoveredFuncs;
 };
 
 /**
@@ -139,8 +139,8 @@ class CodegenContext : public rex::MoveOnly {
     std::vector<CodeRegion> codeRegions; /**< Null delimited code regions */
     /** Address ranges `[first, second)` of runs of at least `dataRegionThreshold` words equal to 0
      * or 0xFFFFFFFF. */
-    std::vector<std::pair<uint32_t, uint32_t>> dataRegions;
-    std::unordered_map<uint32_t, uint32_t> pdataSizes; /**< Maps address to size */
+    std::vector<std::pair<u32, u32>> dataRegions;
+    std::unordered_map<u32, u32> pdataSizes; /**< Maps address to size */
   } scan;
 
   const BinaryView& binary() const { return binary_; }

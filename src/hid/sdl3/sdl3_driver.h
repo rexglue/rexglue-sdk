@@ -53,11 +53,11 @@ class SDL3Driver final : public Driver {
     Repeating,
   };
   struct KeystrokeState {
-    uint64_t buttons;
+    u64 buttons;
     RepeatState repeat_state;
-    uint8_t repeat_butt_idx;
+    u8 repeat_butt_idx;
     /** Time in ms of the last down or repeat event for that button. */
-    uint32_t repeat_time;
+    u32 repeat_time;
   };
 
   struct ControllerState {
@@ -126,7 +126,7 @@ class SDL3Driver final : public Driver {
    * @param gamepad  Gamepad report.
    * @return Bit field with the trigger and stick direction bits set.
    */
-  inline uint64_t AnalogToKeyfield(const X_INPUT_GAMEPAD& gamepad) const;
+  inline u64 AnalogToKeyfield(const X_INPUT_GAMEPAD& gamepad) const;
   std::optional<size_t> GetControllerIndexFromInstanceID(SDL_JoystickID instance_id);
   ControllerState* FindController(DeviceId id);
   DeviceId AllocateDeviceId();
@@ -156,7 +156,7 @@ class SDL3Driver final : public Driver {
   std::mutex event_queue_mutex_;
   std::vector<SDL_Event> pending_events_;
   /** Never rewound, so a handle held past a disconnect resolves to nothing. */
-  uint64_t next_device_id_ = 1;
+  u64 next_device_id_ = 1;
 };
 
 }  // namespace rex::hid::sdl3

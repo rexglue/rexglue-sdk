@@ -52,11 +52,11 @@ class REX_RUNTIME_API XMADecoder {
   X_STATUS Setup();
   void Shutdown();
 
-  uint32_t context_array_ptr() const { return register_file_[XMARegister::ContextArrayAddress]; }
+  u32 context_array_ptr() const { return register_file_[XMARegister::ContextArrayAddress]; }
 
-  uint32_t AllocateContext();
-  void ReleaseContext(uint32_t guest_ptr);
-  bool BlockOnContext(uint32_t guest_ptr, bool poll);
+  u32 AllocateContext();
+  void ReleaseContext(u32 guest_ptr);
+  bool BlockOnContext(u32 guest_ptr, bool poll);
 
   /**
    * Reads an APU register.
@@ -66,15 +66,15 @@ class REX_RUNTIME_API XMADecoder {
    * @param addr Register address, the low 16 bits select the register.
    * @return The register value, byte swapped.
    */
-  uint32_t ReadRegister(uint32_t addr);
-  void WriteRegister(uint32_t addr, uint32_t value);
+  u32 ReadRegister(u32 addr);
+  void WriteRegister(u32 addr, u32 value);
 
   bool is_paused() const { return paused_; }
   void Pause();
   void Resume();
 
  protected:
-  int GetContextId(uint32_t guest_ptr) const;
+  int GetContextId(u32 guest_ptr) const;
 
  private:
   void WorkerThreadMain(const std::stop_token& stop);
@@ -100,12 +100,12 @@ class REX_RUNTIME_API XMADecoder {
 
   XMARegisterFile register_file_;
 
-  static const uint32_t kContextCount = 320;
+  static const u32 kContextCount = 320;
   XMAContext contexts_[kContextCount];
   BitMap context_bitmap_;
 
-  uint32_t context_data_first_ptr_ = 0;
-  uint32_t context_data_last_ptr_ = 0;
+  u32 context_data_first_ptr_ = 0;
+  u32 context_data_last_ptr_ = 0;
 };
 
 }  // namespace rex::runtime

@@ -71,14 +71,14 @@ MouseEvent::Button TranslateSDLMouseButton(Uint8 button) {
 
 std::unique_ptr<Window> Window::Create(WindowedAppContext& app_context,
                                        const std::string_view title) {
-  uint32_t width = 0;
-  uint32_t height = 0;
+  u32 width = 0;
+  u32 height = 0;
   ResolveConfiguredLogicalSize(width, height);
   return std::make_unique<WindowSDL>(app_context, title, width, height);
 }
 
 WindowSDL::WindowSDL(WindowedAppContext& app_context, const std::string_view title,
-                     uint32_t desired_logical_width, uint32_t desired_logical_height)
+                     u32 desired_logical_width, u32 desired_logical_height)
     : Window(app_context, title, desired_logical_width, desired_logical_height) {}
 
 WindowSDL::~WindowSDL() {
@@ -124,7 +124,7 @@ bool WindowSDL::OpenImpl() {
   int pixel_height = 0;
   SDL_GetWindowSizeInPixels(sdl_window_, &pixel_width, &pixel_height);
   WindowDestructionReceiver destruction_receiver(this);
-  OnActualSizeUpdate(static_cast<uint32_t>(pixel_width), static_cast<uint32_t>(pixel_height),
+  OnActualSizeUpdate(static_cast<u32>(pixel_width), static_cast<u32>(pixel_height),
                      destruction_receiver);
   if (destruction_receiver.IsWindowDestroyed()) {
     return true;
@@ -276,7 +276,7 @@ bool WindowSDL::SetRelativeMouseMode(bool enable) {
   return enable;
 }
 
-bool WindowSDL::WarpMouseToCenter(int32_t& x_out, int32_t& y_out) {
+bool WindowSDL::WarpMouseToCenter(i32& x_out, i32& y_out) {
   if (!sdl_window_) {
     return false;
   }
@@ -286,23 +286,23 @@ bool WindowSDL::WarpMouseToCenter(int32_t& x_out, int32_t& y_out) {
   if (width <= 0 || height <= 0) {
     return false;
   }
-  float center_x = static_cast<float>(width) * 0.5f;
-  float center_y = static_cast<float>(height) * 0.5f;
+  f32 center_x = static_cast<f32>(width) * 0.5f;
+  f32 center_y = static_cast<f32>(height) * 0.5f;
   SDL_WarpMouseInWindow(sdl_window_, center_x, center_y);
   // The warp reports nothing back and compositors can drop it, so confirm.
-  float actual_x = 0.0f;
-  float actual_y = 0.0f;
+  f32 actual_x = 0.0f;
+  f32 actual_y = 0.0f;
   SDL_GetMouseState(&actual_x, &actual_y);
   if (std::fabs(actual_x - center_x) > 1.0f || std::fabs(actual_y - center_y) > 1.0f) {
     return false;
   }
-  float density = GetPixelDensity();
-  x_out = static_cast<int32_t>(center_x * density);
-  y_out = static_cast<int32_t>(center_y * density);
+  f32 density = GetPixelDensity();
+  x_out = static_cast<i32>(center_x * density);
+  y_out = static_cast<i32>(center_y * density);
   return true;
 }
 
-bool WindowSDL::GetDisplayPixelSize(uint32_t& width, uint32_t& height) const {
+bool WindowSDL::GetDisplayPixelSize(u32& width, u32& height) const {
   if (!sdl_window_) {
     return false;
   }
@@ -310,23 +310,23 @@ bool WindowSDL::GetDisplayPixelSize(uint32_t& width, uint32_t& height) const {
   if (!mode) {
     return false;
   }
-  width = static_cast<uint32_t>(static_cast<float>(mode->w) * mode->pixel_density);
-  height = static_cast<uint32_t>(static_cast<float>(mode->h) * mode->pixel_density);
+  width = static_cast<u32>(static_cast<f32>(mode->w) * mode->pixel_density);
+  height = static_cast<u32>(static_cast<f32>(mode->h) * mode->pixel_density);
   return width > 0 && height > 0;
 }
 
-float WindowSDL::GetPixelDensity() const {
-  float density = sdl_window_ ? SDL_GetWindowPixelDensity(sdl_window_) : 1.0f;
+f32 WindowSDL::GetPixelDensity() const {
+  f32 density = sdl_window_ ? SDL_GetWindowPixelDensity(sdl_window_) : 1.0f;
   return density > 0.0f ? density : 1.0f;
 }
 
-uint32_t WindowSDL::GetLatestDpiImpl() const {
-  float scale = sdl_window_ ? SDL_GetWindowDisplayScale(sdl_window_)
-                            : SDL_GetDisplayContentScale(SDL_GetPrimaryDisplay());
+u32 WindowSDL::GetLatestDpiImpl() const {
+  f32 scale = sdl_window_ ? SDL_GetWindowDisplayScale(sdl_window_)
+                          : SDL_GetDisplayContentScale(SDL_GetPrimaryDisplay());
   if (scale <= 0.0f) {
     return GetMediumDpi();
   }
-  return static_cast<uint32_t>(std::lround(scale * static_cast<float>(GetMediumDpi())));
+  return static_cast<u32>(std::lround(scale * static_cast<f32>(GetMediumDpi())));
 }
 
 void WindowSDL::ApplyNewFullscreen() {
@@ -367,7 +367,7 @@ void WindowSDL::ApplyNewDesiredLogicalSize() {
 }
 
 void WindowSDL::CenterOnConfiguredDisplay() {
-  const int32_t monitor_index = GetMonitor();
+  const i32 monitor_index = GetMonitor();
   if (!sdl_window_ || monitor_index <= 0) {
     return;
   }
@@ -397,14 +397,14 @@ void WindowSDL::ApplyFullscreenModeNow() {
   }
 
   const SDL_DisplayID display = SDL_GetDisplayForWindow(sdl_window_);
-  int32_t width = 0;
-  int32_t height = 0;
+  i32 width = 0;
+  i32 height = 0;
   if (!TryParseResolutionPreset(REXCVAR_GET(::rex::ui::cvars::resolution), width, height) ||
       width <= 0 || height <= 0) {
     const SDL_DisplayMode* desktop = SDL_GetDesktopDisplayMode(display);
     if (!desktop) {
       REXLOG_WARN(ui, "No desktop mode for display {}: staying borderless",
-                  static_cast<uint32_t>(display));
+                  static_cast<u32>(display));
       SDL_SetWindowFullscreenMode(sdl_window_, nullptr);
       return;
     }
@@ -415,7 +415,7 @@ void WindowSDL::ApplyFullscreenModeNow() {
   SDL_DisplayMode mode = {};
   if (!SDL_GetClosestFullscreenDisplayMode(display, width, height, 0.0f, true, &mode)) {
     REXLOG_WARN(ui, "Display {} has no mode near {}x{}: staying borderless",
-                static_cast<uint32_t>(display), width, height);
+                static_cast<u32>(display), width, height);
     SDL_SetWindowFullscreenMode(sdl_window_, nullptr);
     return;
   }
@@ -425,7 +425,7 @@ void WindowSDL::ApplyFullscreenModeNow() {
     return;
   }
   REXLOG_INFO(ui, "Exclusive fullscreen mode {}x{} @ {:.3g}Hz on display {}", mode.w, mode.h,
-              mode.refresh_rate, static_cast<uint32_t>(display));
+              mode.refresh_rate, static_cast<u32>(display));
 }
 
 void WindowSDL::ApplyNewTitle() {
@@ -565,19 +565,19 @@ void WindowSDL::HandleWindowEvent(SDL_Event& event) {
   WindowDestructionReceiver destruction_receiver(this);
   switch (event.type) {
     case SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED:
-      OnActualSizeUpdate(static_cast<uint32_t>(event.window.data1),
-                         static_cast<uint32_t>(event.window.data2), destruction_receiver);
+      OnActualSizeUpdate(static_cast<u32>(event.window.data1), static_cast<u32>(event.window.data2),
+                         destruction_receiver);
       break;
     case SDL_EVENT_WINDOW_RESIZED: {
       SDL_WindowFlags flags = SDL_GetWindowFlags(sdl_window_);
       if (!(flags & (SDL_WINDOW_MAXIMIZED | SDL_WINDOW_FULLSCREEN | SDL_WINDOW_MINIMIZED))) {
 #if REX_PLATFORM_MAC
         // Cocoa reports logical points, converting again would halve the size on Retina displays.
-        OnDesiredLogicalSizeUpdate(static_cast<uint32_t>(event.window.data1),
-                                   static_cast<uint32_t>(event.window.data2));
+        OnDesiredLogicalSizeUpdate(static_cast<u32>(event.window.data1),
+                                   static_cast<u32>(event.window.data2));
 #else
-        OnDesiredLogicalSizeUpdate(SizeToLogical(static_cast<uint32_t>(event.window.data1)),
-                                   SizeToLogical(static_cast<uint32_t>(event.window.data2)));
+        OnDesiredLogicalSizeUpdate(SizeToLogical(static_cast<u32>(event.window.data1)),
+                                   SizeToLogical(static_cast<u32>(event.window.data2)));
 #endif
       }
       break;
@@ -668,7 +668,7 @@ void WindowSDL::HandleTextInputEvent(SDL_Event& event) {
 
 void WindowSDL::HandleMouseEvent(SDL_Event& event) {
   // SDL3 reports float window coordinates, listeners expect physical pixels.
-  float density = GetPixelDensity();
+  f32 density = GetPixelDensity();
   WindowDestructionReceiver destruction_receiver(this);
   switch (event.type) {
     case SDL_EVENT_MOUSE_MOTION: {
@@ -677,9 +677,9 @@ void WindowSDL::HandleMouseEvent(SDL_Event& event) {
         RearmCursorAutoHideTimer();
       }
       MouseEvent e(UIEvent::Type::MouseMove, this, MouseEvent::Button::kNone,
-                   static_cast<int32_t>(event.motion.x * density),
-                   static_cast<int32_t>(event.motion.y * density), 0, 0,
-                   event.motion.xrel * density, event.motion.yrel * density);
+                   static_cast<i32>(event.motion.x * density),
+                   static_cast<i32>(event.motion.y * density), 0, 0, event.motion.xrel * density,
+                   event.motion.yrel * density);
       OnMouseMove(e, destruction_receiver);
       break;
     }
@@ -688,8 +688,8 @@ void WindowSDL::HandleMouseEvent(SDL_Event& event) {
       MouseEvent e(event.type == SDL_EVENT_MOUSE_BUTTON_DOWN ? UIEvent::Type::MouseDown
                                                              : UIEvent::Type::MouseUp,
                    this, TranslateSDLMouseButton(event.button.button),
-                   static_cast<int32_t>(event.button.x * density),
-                   static_cast<int32_t>(event.button.y * density));
+                   static_cast<i32>(event.button.x * density),
+                   static_cast<i32>(event.button.y * density));
       if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN) {
         OnMouseDown(e, destruction_receiver);
       } else {
@@ -700,10 +700,10 @@ void WindowSDL::HandleMouseEvent(SDL_Event& event) {
     case SDL_EVENT_MOUSE_WHEEL: {
       MouseEvent e(
           UIEvent::Type::MouseWheel, this, MouseEvent::Button::kNone,
-          static_cast<int32_t>(event.wheel.mouse_x * density),
-          static_cast<int32_t>(event.wheel.mouse_y * density),
-          static_cast<int32_t>(event.wheel.x * static_cast<float>(MouseEvent::kScrollPerDetent)),
-          static_cast<int32_t>(event.wheel.y * static_cast<float>(MouseEvent::kScrollPerDetent)));
+          static_cast<i32>(event.wheel.mouse_x * density),
+          static_cast<i32>(event.wheel.mouse_y * density),
+          static_cast<i32>(event.wheel.x * static_cast<f32>(MouseEvent::kScrollPerDetent)),
+          static_cast<i32>(event.wheel.y * static_cast<f32>(MouseEvent::kScrollPerDetent)));
       OnMouseWheel(e, destruction_receiver);
       break;
     }

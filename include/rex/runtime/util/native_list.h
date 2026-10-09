@@ -31,7 +31,7 @@ namespace rex::runtime::util {
  * @return The host list entry.
  */
 template <typename VirtualTranslator>
-X_LIST_ENTRY* XeHostList(uint32_t ptr, VirtualTranslator context) {
+X_LIST_ENTRY* XeHostList(u32 ptr, VirtualTranslator context) {
   return context->template TranslateVirtual<X_LIST_ENTRY*>(ptr);
 }
 
@@ -44,7 +44,7 @@ X_LIST_ENTRY* XeHostList(uint32_t ptr, VirtualTranslator context) {
  * @return The guest address of the entry.
  */
 template <typename VirtualTranslator>
-uint32_t XeGuestList(X_LIST_ENTRY* ptr, VirtualTranslator context) {
+u32 XeGuestList(X_LIST_ENTRY* ptr, VirtualTranslator context) {
   return context->HostToGuestVirtual(ptr);
 }
 
@@ -61,7 +61,7 @@ void XeInitializeListHead(X_LIST_ENTRY* entry, VirtualTranslator context) {
     entry->blink_ptr = context;
     entry->flink_ptr = context;
   } else {
-    uint32_t orig_ptr = XeGuestList(entry, context);
+    u32 orig_ptr = XeGuestList(entry, context);
     entry->blink_ptr = orig_ptr;
     entry->flink_ptr = orig_ptr;
   }
@@ -89,8 +89,8 @@ bool XeIsListEmpty(X_LIST_ENTRY* entry, VirtualTranslator context) {
  */
 template <typename VirtualTranslator>
 void XeRemoveEntryList(X_LIST_ENTRY* entry, VirtualTranslator context) {
-  uint32_t front = entry->flink_ptr;
-  uint32_t back = entry->blink_ptr;
+  u32 front = entry->flink_ptr;
+  u32 back = entry->blink_ptr;
   XeHostList(back, context)->flink_ptr = front;
   XeHostList(front, context)->blink_ptr = back;
 }
@@ -103,7 +103,7 @@ void XeRemoveEntryList(X_LIST_ENTRY* entry, VirtualTranslator context) {
  * @param context The translator.
  */
 template <typename VirtualTranslator>
-void XeRemoveEntryList(uint32_t entry, VirtualTranslator context) {
+void XeRemoveEntryList(u32 entry, VirtualTranslator context) {
   XeRemoveEntryList(XeHostList(entry, context), context);
 }
 
@@ -116,8 +116,8 @@ void XeRemoveEntryList(uint32_t entry, VirtualTranslator context) {
  * @return The guest address of the removed entry.
  */
 template <typename VirtualTranslator>
-uint32_t XeRemoveHeadList(X_LIST_ENTRY* entry, VirtualTranslator context) {
-  uint32_t result = entry->flink_ptr;
+u32 XeRemoveHeadList(X_LIST_ENTRY* entry, VirtualTranslator context) {
+  u32 result = entry->flink_ptr;
   XeRemoveEntryList(result, context);
   return result;
 }
@@ -133,9 +133,9 @@ uint32_t XeRemoveHeadList(X_LIST_ENTRY* entry, VirtualTranslator context) {
  * @param context The translator.
  */
 template <typename VirtualTranslator>
-void XeInsertTailList(X_LIST_ENTRY* list_head, uint32_t list_head_guest, X_LIST_ENTRY* host_entry,
-                      uint32_t entry, VirtualTranslator context) {
-  uint32_t old_tail = list_head->blink_ptr;
+void XeInsertTailList(X_LIST_ENTRY* list_head, u32 list_head_guest, X_LIST_ENTRY* host_entry,
+                      u32 entry, VirtualTranslator context) {
+  u32 old_tail = list_head->blink_ptr;
   host_entry->flink_ptr = list_head_guest;
   host_entry->blink_ptr = old_tail;
   XeHostList(old_tail, context)->flink_ptr = entry;
@@ -151,7 +151,7 @@ void XeInsertTailList(X_LIST_ENTRY* list_head, uint32_t list_head_guest, X_LIST_
  * @param context The translator.
  */
 template <typename VirtualTranslator>
-void XeInsertTailList(uint32_t list_head, uint32_t entry, VirtualTranslator context) {
+void XeInsertTailList(u32 list_head, u32 entry, VirtualTranslator context) {
   XeInsertTailList(XeHostList(list_head, context), list_head, XeHostList(entry, context), entry,
                    context);
 }
@@ -165,7 +165,7 @@ void XeInsertTailList(uint32_t list_head, uint32_t entry, VirtualTranslator cont
  * @param context The translator.
  */
 template <typename VirtualTranslator>
-void XeInsertTailList(X_LIST_ENTRY* list_head, uint32_t entry, VirtualTranslator context) {
+void XeInsertTailList(X_LIST_ENTRY* list_head, u32 entry, VirtualTranslator context) {
   XeInsertTailList(list_head, XeGuestList(list_head, context), XeHostList(entry, context), entry,
                    context);
 }
@@ -195,9 +195,9 @@ void XeInsertTailList(X_LIST_ENTRY* list_head, X_LIST_ENTRY* entry, VirtualTrans
  * @param context The translator.
  */
 template <typename VirtualTranslator>
-void XeInsertHeadList(X_LIST_ENTRY* list_head, uint32_t list_head_guest, X_LIST_ENTRY* host_entry,
-                      uint32_t entry, VirtualTranslator context) {
-  uint32_t old_list_head_flink = list_head->flink_ptr;
+void XeInsertHeadList(X_LIST_ENTRY* list_head, u32 list_head_guest, X_LIST_ENTRY* host_entry,
+                      u32 entry, VirtualTranslator context) {
+  u32 old_list_head_flink = list_head->flink_ptr;
   host_entry->flink_ptr = old_list_head_flink;
   host_entry->blink_ptr = list_head_guest;
   XeHostList(old_list_head_flink, context)->blink_ptr = entry;
@@ -213,7 +213,7 @@ void XeInsertHeadList(X_LIST_ENTRY* list_head, uint32_t list_head_guest, X_LIST_
  * @param context The translator.
  */
 template <typename VirtualTranslator>
-void XeInsertHeadList(uint32_t list_head, uint32_t entry, VirtualTranslator context) {
+void XeInsertHeadList(u32 list_head, u32 entry, VirtualTranslator context) {
   XeInsertHeadList(XeHostList(list_head, context), list_head, XeHostList(entry, context), entry,
                    context);
 }
@@ -227,7 +227,7 @@ void XeInsertHeadList(uint32_t list_head, uint32_t entry, VirtualTranslator cont
  * @param context The translator.
  */
 template <typename VirtualTranslator>
-void XeInsertHeadList(X_LIST_ENTRY* list_head, uint32_t entry, VirtualTranslator context) {
+void XeInsertHeadList(X_LIST_ENTRY* list_head, u32 entry, VirtualTranslator context) {
   XeInsertHeadList(list_head, XeGuestList(list_head, context), XeHostList(entry, context), entry,
                    context);
 }
@@ -241,7 +241,7 @@ void XeInsertHeadList(X_LIST_ENTRY* list_head, uint32_t entry, VirtualTranslator
  * @param context The translator.
  */
 template <typename VirtualTranslator>
-void XeInsertHeadList(uint32_t list_head, X_LIST_ENTRY* entry, VirtualTranslator context) {
+void XeInsertHeadList(u32 list_head, X_LIST_ENTRY* entry, VirtualTranslator context) {
   XeInsertHeadList(XeHostList(list_head, context), list_head, entry, XeGuestList(entry, context),
                    context);
 }
@@ -300,8 +300,8 @@ struct X_TYPED_LIST : public X_LIST_ENTRY {
    */
   template <typename VirtualTranslator>
   struct ForwardIterator {
-    VirtualTranslator vt;   /**< The translator. */
-    uint32_t current_entry; /**< Guest address of the current entry. */
+    VirtualTranslator vt; /**< The translator. */
+    u32 current_entry;    /**< Guest address of the current entry. */
 
     /**
      * Advances to the next entry.
@@ -319,7 +319,7 @@ struct X_TYPED_LIST : public X_LIST_ENTRY {
      * @param other_ptr The guest address of the entry to compare with.
      * @return True when the entries differ.
      */
-    bool operator!=(uint32_t other_ptr) const { return current_entry != other_ptr; }
+    bool operator!=(u32 other_ptr) const { return current_entry != other_ptr; }
 
     /**
      * Returns the object at the current entry.
@@ -355,7 +355,7 @@ struct X_TYPED_LIST : public X_LIST_ENTRY {
      *
      * @return The guest address.
      */
-    uint32_t end() { return vt->HostToGuestVirtual(thiz); }
+    u32 end() { return vt->HostToGuestVirtual(thiz); }
   };
 
   /**

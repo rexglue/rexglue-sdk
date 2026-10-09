@@ -56,7 +56,7 @@ ID3D12PipelineState* CreateComputePipeline(ID3D12Device* device, const void* sha
 }
 
 void CreateBufferRawSRV(ID3D12Device* device, D3D12_CPU_DESCRIPTOR_HANDLE handle,
-                        ID3D12Resource* buffer, uint32_t size, uint64_t offset) {
+                        ID3D12Resource* buffer, u32 size, u64 offset) {
   REX_ASSERT(!(size & (D3D12_RAW_UAV_SRV_BYTE_ALIGNMENT - 1)));
   REX_ASSERT(!(offset & (D3D12_RAW_UAV_SRV_BYTE_ALIGNMENT - 1)));
   D3D12_SHADER_RESOURCE_VIEW_DESC desc;
@@ -71,7 +71,7 @@ void CreateBufferRawSRV(ID3D12Device* device, D3D12_CPU_DESCRIPTOR_HANDLE handle
 }
 
 void CreateBufferRawUAV(ID3D12Device* device, D3D12_CPU_DESCRIPTOR_HANDLE handle,
-                        ID3D12Resource* buffer, uint32_t size, uint64_t offset) {
+                        ID3D12Resource* buffer, u32 size, u64 offset) {
   REX_ASSERT(!(size & (D3D12_RAW_UAV_SRV_BYTE_ALIGNMENT - 1)));
   REX_ASSERT(!(offset & (D3D12_RAW_UAV_SRV_BYTE_ALIGNMENT - 1)));
   D3D12_UNORDERED_ACCESS_VIEW_DESC desc;
@@ -86,8 +86,8 @@ void CreateBufferRawUAV(ID3D12Device* device, D3D12_CPU_DESCRIPTOR_HANDLE handle
 }
 
 void CreateBufferTypedSRV(ID3D12Device* device, D3D12_CPU_DESCRIPTOR_HANDLE handle,
-                          ID3D12Resource* buffer, DXGI_FORMAT format, uint32_t num_elements,
-                          uint64_t first_element) {
+                          ID3D12Resource* buffer, DXGI_FORMAT format, u32 num_elements,
+                          u64 first_element) {
   D3D12_SHADER_RESOURCE_VIEW_DESC desc;
   desc.Format = format;
   desc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
@@ -100,8 +100,8 @@ void CreateBufferTypedSRV(ID3D12Device* device, D3D12_CPU_DESCRIPTOR_HANDLE hand
 }
 
 void CreateBufferTypedUAV(ID3D12Device* device, D3D12_CPU_DESCRIPTOR_HANDLE handle,
-                          ID3D12Resource* buffer, DXGI_FORMAT format, uint32_t num_elements,
-                          uint64_t first_element) {
+                          ID3D12Resource* buffer, DXGI_FORMAT format, u32 num_elements,
+                          u64 first_element) {
   D3D12_UNORDERED_ACCESS_VIEW_DESC desc;
   desc.Format = format;
   desc.ViewDimension = D3D12_UAV_DIMENSION_BUFFER;

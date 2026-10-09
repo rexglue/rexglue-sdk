@@ -44,7 +44,7 @@
 
 namespace rex::platform {
 
-bool IsArm64LoadPrefetchStore(uint32_t instruction, bool& is_store_out) {
+bool IsArm64LoadPrefetchStore(u32 instruction, bool& is_store_out) {
   if ((instruction & kArm64LoadLiteralFMask) == kArm64LoadLiteralFixed) {
     return true;
   }

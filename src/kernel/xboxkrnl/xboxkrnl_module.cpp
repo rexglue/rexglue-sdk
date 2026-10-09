@@ -82,24 +82,24 @@ X_HANDLE CreateXboxkrnlModule(Runtime& runtime) {
   }
 
   // Titles test bit 5 (0x20) of flags. Bit 27 (debug mode) breaks allocations when set.
-  uint32_t pXboxHardwareInfo = mem->SystemHeapAlloc(sizeof(X_HARDWARE_INFO));
+  u32 pXboxHardwareInfo = mem->SystemHeapAlloc(sizeof(X_HARDWARE_INFO));
   auto* hardware_info = mem->TranslateVirtual<X_HARDWARE_INFO*>(pXboxHardwareInfo);
   KernelModuleSetVariable(module, 0x0156, pXboxHardwareInfo);
   hardware_info->flags = 0x20;
   hardware_info->cpu_count = 0x06;
 
   // All 0xFF satisfies any region check.
-  uint32_t pExConsoleGameRegion = mem->SystemHeapAlloc(4);
+  u32 pExConsoleGameRegion = mem->SystemHeapAlloc(4);
   auto lpExConsoleGameRegion = mem->TranslateVirtual(pExConsoleGameRegion);
   KernelModuleSetVariable(module, 0x000C, pExConsoleGameRegion);
-  memory::store<uint32_t>(lpExConsoleGameRegion, 0xFFFFFFFF);
+  memory::store<u32>(lpExConsoleGameRegion, 0xFFFFFFFF);
 
   // Titles dereference this to find the XexHeaderBase used by RtlImageXexHeaderField.
-  uint32_t ppXexExecutableModuleHandle = mem->SystemHeapAlloc(4);
+  u32 ppXexExecutableModuleHandle = mem->SystemHeapAlloc(4);
   KernelModuleSetVariable(module, 0x0193, ppXexExecutableModuleHandle);
 
   // The full path of the loaded image including its name.
-  uint32_t ppExLoadedImageName = mem->SystemHeapAlloc(kExLoadedImageNameSize);
+  u32 ppExLoadedImageName = mem->SystemHeapAlloc(kExLoadedImageNameSize);
   KernelModuleSetVariable(module, 0x01AF, ppExLoadedImageName);
 
   // The quoted xex name followed by the command line.
@@ -107,16 +107,15 @@ X_HANDLE CreateXboxkrnlModule(Runtime& runtime) {
   if (!runtime.config().runtime.kernel.command_line.empty()) {
     command_line += " " + runtime.config().runtime.kernel.command_line;
   }
-  uint32_t command_line_length =
-      rex::align(static_cast<uint32_t>(command_line.length()) + 1, 1024u);
-  uint32_t pExLoadedCommandLine = mem->SystemHeapAlloc(command_line_length);
+  u32 command_line_length = rex::align(static_cast<u32>(command_line.length()) + 1, 1024u);
+  u32 pExLoadedCommandLine = mem->SystemHeapAlloc(command_line_length);
   auto lpExLoadedCommandLine = mem->TranslateVirtual(pExLoadedCommandLine);
   KernelModuleSetVariable(module, 0x01AE, pExLoadedCommandLine);
   std::memset(lpExLoadedCommandLine, 0, command_line_length);
   std::memcpy(lpExLoadedCommandLine, command_line.c_str(), command_line.length());
 
   // Titles only compare the version with >=.
-  uint32_t pXboxKrnlVersion = mem->SystemHeapAlloc(sizeof(X_KERNEL_VERSION));
+  u32 pXboxKrnlVersion = mem->SystemHeapAlloc(sizeof(X_KERNEL_VERSION));
   auto* kernel_version = mem->TranslateVirtual<X_KERNEL_VERSION*>(pXboxKrnlVersion);
   KernelModuleSetVariable(module, 0x0158, pXboxKrnlVersion);
   kernel_version->major = 2;
@@ -125,7 +124,7 @@ X_HANDLE CreateXboxkrnlModule(Runtime& runtime) {
   kernel_version->qfe = 0x8000;
 
   // Updated at 1 ms intervals by a system timer.
-  uint32_t pKeTimeStampBundle = mem->SystemHeapAlloc(sizeof(X_KE_TIMESTAMP_BUNDLE));
+  u32 pKeTimeStampBundle = mem->SystemHeapAlloc(sizeof(X_KE_TIMESTAMP_BUNDLE));
   auto* timestamp_bundle = mem->TranslateVirtual<X_KE_TIMESTAMP_BUNDLE*>(pKeTimeStampBundle);
   KernelModuleSetVariable(module, 0x00AD, pKeTimeStampBundle);
   timestamp_bundle->interrupt_time = 0;

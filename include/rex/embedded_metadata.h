@@ -25,7 +25,7 @@ namespace rex {
 /** An embedded metadata asset found by path. */
 struct EmbeddedMetadataAsset {
   /** Bytes of the asset, valid for the life of the process. */
-  std::span<const std::uint8_t> bytes;
+  std::span<const u8> bytes;
 };
 
 /**
@@ -38,8 +38,8 @@ struct EmbeddedMetadataAsset {
  * @param size The asset size in bytes.
  * @return True when the asset was registered.
  */
-REX_RUNTIME_API bool RegisterEmbeddedMetadataAsset(std::string_view relative_path,
-                                                   const std::uint8_t* data, std::size_t size);
+REX_RUNTIME_API bool RegisterEmbeddedMetadataAsset(std::string_view relative_path, const u8* data,
+                                                   std::size_t size);
 
 /**
  * Looks up an embedded metadata asset. The path is normalized as in

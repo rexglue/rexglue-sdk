@@ -24,28 +24,28 @@ BitMap::BitMap(size_t size_bits) {
   Resize(size_bits);
 }
 
-BitMap::BitMap(uint64_t* data, size_t size_bits) {
+BitMap::BitMap(u64* data, size_t size_bits) {
   REX_ASSERT(size_bits % kDataSizeBits == 0);
 
   data_.resize(size_bits / kDataSizeBits);
-  std::memcpy(data_.data(), data, data_.size() * sizeof(uint64_t));
+  std::memcpy(data_.data(), data, data_.size() * sizeof(u64));
 }
 
 size_t BitMap::Acquire() {
   for (size_t i = 0; i < data_.size(); i++) {
-    uint64_t entry = 0;
-    uint64_t new_entry = 0;
-    int64_t acquired_idx = -1;
+    u64 entry = 0;
+    u64 new_entry = 0;
+    i64 acquired_idx = -1;
 
     do {
       entry = data_[i];
-      uint8_t index = lzcnt(entry);
+      u8 index = lzcnt(entry);
       if (index == kDataSizeBits) {
         acquired_idx = -1;
         break;
       }
 
-      uint64_t bit = 1ull << (kDataSizeBits - index - 1);
+      u64 bit = 1ull << (kDataSizeBits - index - 1);
       new_entry = entry & ~bit;
       REX_ASSERT((entry & bit) != 0);
 
@@ -64,10 +64,10 @@ void BitMap::Release(size_t index) {
   auto slot = index / kDataSizeBits;
   index -= slot * kDataSizeBits;
 
-  uint64_t bit = 1ull << (kDataSizeBits - index - 1);
+  u64 bit = 1ull << (kDataSizeBits - index - 1);
 
-  uint64_t entry = 0;
-  uint64_t new_entry = 0;
+  u64 entry = 0;
+  u64 new_entry = 0;
   do {
     entry = data_[slot];
     REX_ASSERT((entry & bit) == 0);

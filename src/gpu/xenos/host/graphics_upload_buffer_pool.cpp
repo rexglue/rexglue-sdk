@@ -22,7 +22,7 @@ GraphicsUploadBufferPool::~GraphicsUploadBufferPool() {
   ClearCache();
 }
 
-void GraphicsUploadBufferPool::Reclaim(uint64_t completed_submission_index) {
+void GraphicsUploadBufferPool::Reclaim(u64 completed_submission_index) {
   while (submitted_first_) {
     if (submitted_first_->last_submission_index_ > completed_submission_index) {
       break;
@@ -88,8 +88,8 @@ void GraphicsUploadBufferPool::FlushWrites() {
   current_page_flushed_ = current_page_used_;
 }
 
-GraphicsUploadBufferPool::Page* GraphicsUploadBufferPool::Request(uint64_t submission_index,
-                                                                  size_t size, size_t alignment,
+GraphicsUploadBufferPool::Page* GraphicsUploadBufferPool::Request(u64 submission_index, size_t size,
+                                                                  size_t alignment,
                                                                   size_t& offset_out) {
   alignment = std::max(alignment, static_cast<size_t>(1));
   REX_ASSERT(rex::is_pow2(alignment));
@@ -136,11 +136,8 @@ GraphicsUploadBufferPool::Page* GraphicsUploadBufferPool::Request(uint64_t submi
   return writable_first_;
 }
 
-GraphicsUploadBufferPool::Page* GraphicsUploadBufferPool::RequestPartial(uint64_t submission_index,
-                                                                         size_t size,
-                                                                         size_t alignment,
-                                                                         size_t& offset_out,
-                                                                         size_t& size_out) {
+GraphicsUploadBufferPool::Page* GraphicsUploadBufferPool::RequestPartial(
+    u64 submission_index, size_t size, size_t alignment, size_t& offset_out, size_t& size_out) {
   alignment = std::max(alignment, static_cast<size_t>(1));
   REX_ASSERT(rex::is_pow2(alignment));
   size = rex::align(size, alignment);

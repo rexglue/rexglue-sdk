@@ -35,8 +35,8 @@ class SingleLayoutDescriptorSetPool {
    * @param set_layout_descriptor_counts The descriptors of each type in a single set.
    * @param set_layout The set layout.
    */
-  SingleLayoutDescriptorSetPool(const VulkanDevice* vulkan_device, uint32_t pool_set_count,
-                                uint32_t set_layout_descriptor_counts_count,
+  SingleLayoutDescriptorSetPool(const VulkanDevice* vulkan_device, u32 pool_set_count,
+                                u32 set_layout_descriptor_counts_count,
                                 const VkDescriptorPoolSize* set_layout_descriptor_counts,
                                 VkDescriptorSetLayout set_layout);
   ~SingleLayoutDescriptorSetPool();
@@ -55,13 +55,13 @@ class SingleLayoutDescriptorSetPool {
 
  private:
   const VulkanDevice* vulkan_device_;
-  uint32_t pool_set_count_;
+  u32 pool_set_count_;
   std::vector<VkDescriptorPoolSize> pool_descriptor_counts_;
   VkDescriptorSetLayout set_layout_;
 
   std::vector<VkDescriptorPool> full_pools_;
   VkDescriptorPool current_pool_ = VK_NULL_HANDLE;
-  uint32_t current_pool_sets_remaining_ = 0;
+  u32 current_pool_sets_remaining_ = 0;
 
   std::vector<VkDescriptorSet> descriptor_sets_;
   std::vector<size_t> descriptor_sets_free_;
