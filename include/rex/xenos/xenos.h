@@ -1388,13 +1388,13 @@ enum Type3Opcode {
  *
  * @param index First register index, up to 0x7FFF.
  * @param count Register count, 1 to 0x4000.
- * @param one_reg Not encoded.
+ * @param one_reg Writes every value to index.
  * @return Packet header.
  */
 inline u32 MakePacketType0(u16 index, u16 count, bool one_reg = false) {
   assert(index <= 0x7FFF);
   assert(count >= 1 && count <= 0x4000);
-  return (0u << 30) | (((count - 1) & 0x3FFF) << 16) | (index & 0x7FFF);
+  return (0u << 30) | (((count - 1) & 0x3FFF) << 16) | (one_reg ? 1u << 15 : 0u) | (index & 0x7FFF);
 }
 
 /**

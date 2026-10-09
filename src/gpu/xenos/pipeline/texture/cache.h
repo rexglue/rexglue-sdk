@@ -15,6 +15,7 @@
 #include <cstdint>
 #include <cstring>
 #include <memory>
+#include <type_traits>
 #include <unordered_map>
 #include <vector>
 
@@ -161,13 +162,9 @@ class TextureCache : public rex::NonCopyable {
     uint32_t scaled_resolve : 1;  // 97
     // Least important in ==, so placed last.
     uint32_t is_valid : 1;  // 98
+    u32 padding : 30;       // 128
 
     TextureKey() { MakeInvalid(); }
-    TextureKey(const TextureKey& key) { std::memcpy(this, &key, sizeof(*this)); }
-    TextureKey& operator=(const TextureKey& key) {
-      std::memcpy(this, &key, sizeof(*this));
-      return *this;
-    }
     void MakeInvalid() {
       // Zero everything, including the padding, for a stable hash.
       std::memset(this, 0, sizeof(*this));
@@ -191,6 +188,8 @@ class TextureCache : public rex::NonCopyable {
     const char* GetLogDimensionName() const { return GetLogDimensionName(dimension); }
     void LogAction(const char* action) const;
   };
+  static_assert(std::is_trivially_copyable_v<TextureKey> &&
+                std::has_unique_object_representations_v<TextureKey>);
 
   class Texture : public rex::NonCopyable {
    public:

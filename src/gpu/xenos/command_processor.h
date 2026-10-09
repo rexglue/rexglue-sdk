@@ -83,7 +83,9 @@ class CommandProcessor {
   virtual ~CommandProcessor();
 
   uint32_t counter() const { return counter_; }
-  void increment_counter() { counter_++; }
+  void increment_counter() {
+    CallInThread([this] { counter_++; });
+  }
 
   Shader* active_vertex_shader() const { return active_vertex_shader_; }
   Shader* active_pixel_shader() const { return active_pixel_shader_; }
@@ -92,6 +94,14 @@ class CommandProcessor {
   virtual void Shutdown();
 
   void CallInThread(std::move_only_function<void()> fn);
+
+  /**
+   * Runs a function on the worker and waits for it to finish. The function runs on the calling
+   * thread when that is the worker, or when the worker is not running.
+   *
+   * @param fn The function to run.
+   */
+  void CallInThreadAndWait(std::move_only_function<void()> fn);
 
   virtual void ClearCaches();
   virtual void InvalidateGpuMemory();
@@ -119,10 +129,6 @@ class CommandProcessor {
 
   void ExecutePacket(uint32_t ptr, uint32_t count);
 
-  bool is_paused() const { return paused_; }
-  void Pause();
-  void Resume();
-
  protected:
   struct IndexBufferInfo {
     xenos::IndexFormat format = xenos::IndexFormat::kInt16;
@@ -133,6 +139,9 @@ class CommandProcessor {
   };
 
   void WorkerThreadMain();
+  bool IsWorkerThread();
+  bool HasPendingFns();
+  void RunPendingFns();
   virtual bool SetupContext() = 0;
   virtual void ShutdownContext() = 0;
 
@@ -232,6 +241,7 @@ class CommandProcessor {
   std::atomic<bool> worker_running_;
   X_HANDLE worker_thread_ = 0;
 
+  std::mutex pending_mutex_;
   std::queue<std::move_only_function<void()>> pending_fns_;
 
   // MicroEngine binary from PM4_ME_INIT
@@ -259,8 +269,6 @@ class CommandProcessor {
 
   Shader* active_vertex_shader_ = nullptr;
   Shader* active_pixel_shader_ = nullptr;
-
-  bool paused_ = false;
 
   // By default (such as for tools), post-processing is disabled.
   // "Desired" is for the external thread managing the post-processing effect.

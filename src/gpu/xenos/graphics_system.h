@@ -82,10 +82,6 @@ class GraphicsSystem : public gpu::IBackend {
   [[nodiscard]] Result<void> InitializeShaderStorage(const std::filesystem::path& root,
                                                      u32 title_id, bool blocking) override;
 
-  bool is_paused() const { return paused_; }
-  void Pause();
-  void Resume();
-
  protected:
   GraphicsSystem();
 
@@ -111,16 +107,13 @@ class GraphicsSystem : public gpu::IBackend {
   const gpu::GPUConfig* config_ = nullptr;
   bool provider_supports_presentation_ = false;
 
-  uint32_t interrupt_callback_ = 0;
-  uint32_t interrupt_callback_data_ = 0;
+  std::atomic<u64> interrupt_callback_{0};
 
   std::atomic<bool> vsync_worker_running_;
   X_HANDLE vsync_worker_thread_ = 0;
 
   xenos::RegisterFile register_file_;
   std::unique_ptr<CommandProcessor> command_processor_;
-
-  bool paused_ = false;
 
  private:
   std::unique_ptr<::rex::gpu::Presenter> presenter_;

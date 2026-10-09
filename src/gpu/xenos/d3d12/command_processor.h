@@ -485,6 +485,9 @@ class D3D12CommandProcessor : public CommandProcessor {
 
   std::unique_ptr<D3D12RenderTargetCache> render_target_cache_;
 
+  static constexpr u32 kTitleStateValid = u32{1} << 31;
+  std::atomic<u32> title_state_{0};
+
   std::unique_ptr<gpu::d3d12::D3D12UploadBufferPool> constant_buffer_pool_;
 
   static constexpr uint32_t kViewBindfulHeapSize = 32768;

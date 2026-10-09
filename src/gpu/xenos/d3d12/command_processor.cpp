@@ -841,7 +841,8 @@ void D3D12CommandProcessor::SetPrimitiveTopology(D3D12_PRIMITIVE_TOPOLOGY primit
 std::string D3D12CommandProcessor::GetWindowTitleText() const {
   std::ostringstream title;
   title << "Direct3D 12";
-  if (render_target_cache_) {
+  const u32 state = title_state_.load(std::memory_order_acquire);
+  if (state & kTitleStateValid) {
     // Rasterizer-ordered views are a feature rarely used as of 2020 and
     // that faces adoption complications (outside of Direct3D - on Vulkan - at
     // least), but crucial to Xenia - raise awareness of its usage.
@@ -849,7 +850,7 @@ std::string D3D12CommandProcessor::GetWindowTitleText() const {
     // "In Xenia's title bar "D3D12 ROV" can be seen, which was a surprise, as I
     //  wasn't aware that Xenia D3D12 backend was using Raster Order Views
     //  feature" - oscarbg in that issue.
-    switch (render_target_cache_->GetPath()) {
+    switch (static_cast<RenderTargetCache::Path>(state & 0xFF)) {
       case RenderTargetCache::Path::kHostRenderTargets:
         title << " - RTV/DSV";
         break;
@@ -859,10 +860,8 @@ std::string D3D12CommandProcessor::GetWindowTitleText() const {
       default:
         break;
     }
-    uint32_t draw_resolution_scale_x =
-        texture_cache_ ? texture_cache_->draw_resolution_scale_x() : 1;
-    uint32_t draw_resolution_scale_y =
-        texture_cache_ ? texture_cache_->draw_resolution_scale_y() : 1;
+    const u32 draw_resolution_scale_x = (state >> 8) & 0xFF;
+    const u32 draw_resolution_scale_y = (state >> 16) & 0xFF;
     if (draw_resolution_scale_x > 1 || draw_resolution_scale_y > 1) {
       title << ' ' << draw_resolution_scale_x << 'x' << draw_resolution_scale_y;
     }
@@ -948,6 +947,9 @@ bool D3D12CommandProcessor::SetupContext() {
   if (!render_target_cache_->Initialize()) {
     REX_FAIL(gpu, false, "Failed to initialize the render target cache");
   }
+  title_state_.store(kTitleStateValid | static_cast<u32>(render_target_cache_->GetPath()) |
+                         (draw_resolution_scale_x << 8) | (draw_resolution_scale_y << 16),
+                     std::memory_order_release);
 
   // Initialize resource binding.
   constant_buffer_pool_ = std::make_unique<gpu::d3d12::D3D12UploadBufferPool>(
@@ -1626,6 +1628,7 @@ bool D3D12CommandProcessor::SetupContext() {
 }
 
 void D3D12CommandProcessor::ShutdownContext() {
+  title_state_.store(0, std::memory_order_release);
   AwaitAllQueueOperationsCompletion();
   InvalidateAllVertexBufferResidency();
   ShutdownOcclusionQueryResources();

@@ -106,3 +106,43 @@ TEST_CASE_METHOD(Fixture, "A misspelled backend fails Init with its name", "[gpu
   REQUIRE_FALSE(api);
   CHECK(api.error().message.find("nul") != std::string::npos);
 }
+
+TEST_CASE_METHOD(Fixture, "Setting the interrupt callback while vblanks dispatch is safe",
+                 "[gpu]") {
+  auto api = rex::Init(NullConfig());
+  REQUIRE(api);
+  auto* backend = (*api)->Get<rex::gpu::IBackend>();
+  REQUIRE(backend != nullptr);
+  rex::Runtime runtime((*api)->config());
+  rex::RuntimeConfig setup;
+  setup.file_system = (*api)->Get<rex::filesystem::IFileSystem>();
+  setup.gpu = backend;
+  REQUIRE(runtime.Setup(setup));
+  const auto until = std::chrono::steady_clock::now() + std::chrono::milliseconds(200);
+  for (rex::u32 i = 0; std::chrono::steady_clock::now() < until; ++i) {
+    backend->SetInterruptCallback(0, i);
+    std::this_thread::sleep_for(std::chrono::microseconds(100));
+  }
+  runtime.Shutdown();
+}
+
+TEST_CASE_METHOD(Fixture, "Shutdown stops vblanks before the command processor goes away",
+                 "[gpu]") {
+  for (rex::u32 cycle = 0; cycle < 10; ++cycle) {
+    rex::Config config = NullConfig();
+    config.cvars.values.push_back({"gpu.vsync", "false"});
+    auto api = rex::Init(config);
+    REQUIRE(api);
+    auto* backend = (*api)->Get<rex::gpu::IBackend>();
+    REQUIRE(backend != nullptr);
+    rex::Runtime runtime((*api)->config());
+    rex::RuntimeConfig setup;
+    setup.file_system = (*api)->Get<rex::filesystem::IFileSystem>();
+    setup.gpu = backend;
+    REQUIRE(runtime.Setup(setup));
+    std::this_thread::sleep_for(std::chrono::milliseconds(5));
+    runtime.Shutdown();
+    rex::Shutdown();
+    rex::testing::ReleaseTestMemory();
+  }
+}

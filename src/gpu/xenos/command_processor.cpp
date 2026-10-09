@@ -114,13 +114,54 @@ void CommandProcessor::Shutdown() {
 void CommandProcessor::InitializeShaderStorage(const std::filesystem::path& cache_root,
                                                uint32_t title_id, bool blocking) {}
 
-void CommandProcessor::CallInThread(std::move_only_function<void()> fn) {
-  if (pending_fns_.empty() && runtime::ThreadRecord::IsInThread(
-                                  runtime_->thread_registry().FindByHandle(worker_thread_).get())) {
+bool CommandProcessor::IsWorkerThread() {
+  return runtime::ThreadRecord::IsInThread(
+      runtime_->thread_registry().FindByHandle(worker_thread_).get());
+}
+
+bool CommandProcessor::HasPendingFns() {
+  std::lock_guard lock(pending_mutex_);
+  return !pending_fns_.empty();
+}
+
+void CommandProcessor::RunPendingFns() {
+  while (true) {
+    std::move_only_function<void()> fn;
+    {
+      std::lock_guard lock(pending_mutex_);
+      if (pending_fns_.empty()) {
+        return;
+      }
+      fn = std::move(pending_fns_.front());
+      pending_fns_.pop();
+    }
     fn();
-  } else {
+  }
+}
+
+void CommandProcessor::CallInThread(std::move_only_function<void()> fn) {
+  if (!HasPendingFns() && IsWorkerThread()) {
+    fn();
+    return;
+  }
+  {
+    std::lock_guard lock(pending_mutex_);
     pending_fns_.push(std::move(fn));
   }
+  write_ptr_index_event_->Set();
+}
+
+void CommandProcessor::CallInThreadAndWait(std::move_only_function<void()> fn) {
+  if (!worker_running_ || IsWorkerThread()) {
+    fn();
+    return;
+  }
+  platform::Fence fence;
+  CallInThread([&fn, &fence]() {
+    fn();
+    fence.Signal();
+  });
+  fence.Wait();
 }
 
 void CommandProcessor::ClearCaches() {}
@@ -161,11 +202,7 @@ void CommandProcessor::WorkerThreadMain() {
   }
 
   while (worker_running_) {
-    while (!pending_fns_.empty()) {
-      auto fn = std::move(pending_fns_.front());
-      pending_fns_.pop();
-      fn();
-    }
+    RunPendingFns();
 
     uint32_t write_ptr_index = write_ptr_index_.load();
     if (write_ptr_index == 0xBAADF00D || read_ptr_index_ == write_ptr_index) {
@@ -186,10 +223,10 @@ void CommandProcessor::WorkerThreadMain() {
         rex::platform::MaybeYield();
         loop_count++;
         write_ptr_index = write_ptr_index_.load();
-      } while (worker_running_ && pending_fns_.empty() &&
+      } while (worker_running_ && !HasPendingFns() &&
                (write_ptr_index == 0xBAADF00D || read_ptr_index_ == write_ptr_index));
       ReturnFromWait();
-      if (!worker_running_ || !pending_fns_.empty()) {
+      if (!worker_running_ || HasPendingFns()) {
         continue;
       }
     }
@@ -208,32 +245,8 @@ void CommandProcessor::WorkerThreadMain() {
     // but no games seem to use it.
   }
 
+  RunPendingFns();
   ShutdownContext();
-}
-
-void CommandProcessor::Pause() {
-  if (paused_) {
-    return;
-  }
-  paused_ = true;
-
-  platform::Fence fence;
-  CallInThread([&fence]() {
-    fence.Signal();
-    platform::Thread::GetCurrentThread()->Suspend();
-  });
-
-  fence.Wait();
-}
-
-void CommandProcessor::Resume() {
-  if (!paused_) {
-    return;
-  }
-  paused_ = false;
-
-  runtime::ThreadPin pin = runtime_->thread_registry().FindByHandle(worker_thread_);
-  pin->thread()->Resume();
 }
 
 bool CommandProcessor::SetupContext() {
@@ -243,19 +256,23 @@ bool CommandProcessor::SetupContext() {
 void CommandProcessor::ShutdownContext() {}
 
 void CommandProcessor::InitializeRingBuffer(uint32_t ptr, uint32_t size_log2) {
-  read_ptr_index_ = 0;
-  primary_buffer_ptr_ = ptr;
-  primary_buffer_size_ = static_cast<uint32_t>(1) << (size_log2 + 3);
+  CallInThreadAndWait([this, ptr, size_log2]() {
+    read_ptr_index_ = 0;
+    primary_buffer_ptr_ = ptr;
+    primary_buffer_size_ = static_cast<uint32_t>(1) << (size_log2 + 3);
+  });
 }
 
 void CommandProcessor::EnableReadPointerWriteBack(uint32_t ptr, uint32_t block_size_log2) {
-  // CP_RB_RPTR_ADDR Ring Buffer Read Pointer Address 0x70C
-  // ptr = RB_RPTR_ADDR, pointer to write back the address to.
-  read_ptr_writeback_ptr_ = ptr;
-  // CP_RB_CNTL Ring Buffer Control 0x704
-  // block_size = RB_BLKSZ, log2 of number of quadwords read between updates of
-  //              the read pointer.
-  read_ptr_update_freq_ = static_cast<uint32_t>(1) << block_size_log2 >> 2;
+  CallInThreadAndWait([this, ptr, block_size_log2]() {
+    // CP_RB_RPTR_ADDR Ring Buffer Read Pointer Address 0x70C
+    // ptr = RB_RPTR_ADDR, pointer to write back the address to.
+    read_ptr_writeback_ptr_ = ptr;
+    // CP_RB_CNTL Ring Buffer Control 0x704
+    // block_size = RB_BLKSZ, log2 of number of quadwords read between updates of
+    //              the read pointer.
+    read_ptr_update_freq_ = static_cast<uint32_t>(1) << block_size_log2 >> 2;
+  });
 }
 
 void CommandProcessor::UpdateWritePointer(uint32_t value) {

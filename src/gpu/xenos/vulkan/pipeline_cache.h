@@ -23,6 +23,7 @@
 #include <queue>
 #include <set>
 #include <thread>
+#include <type_traits>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -160,7 +161,10 @@ class VulkanPipelineCache {
     PipelineBlendFactor dst_alpha_blend_factor : 4;  // 19
     xenos::BlendOp alpha_blend_op : 3;               // 22
     uint32_t color_write_mask : 4;                   // 26
+    u32 padding : 6;                                 // 32
   });
+  static_assert(std::is_trivially_copyable_v<PipelineRenderTarget> &&
+                std::has_unique_object_representations_v<PipelineRenderTarget>);
 
   REX_PACKED_STRUCT(PipelineDescription, {
     uint64_t vertex_shader_hash;
@@ -197,21 +201,14 @@ class VulkanPipelineCache {
     xenos::StencilOp stencil_back_depth_fail_op : 3;     // 6
     xenos::CompareFunction stencil_back_compare_op : 3;  // 9
     uint32_t sample_rate_shading : 1;                    // 10
+    u32 padding : 19;                                    // 32
 
     // Filled only for the attachments present in the render pass object.
     PipelineRenderTarget render_targets[xenos::kMaxColorRenderTargets];
 
-    // Including all the padding, for a stable hash.
     static constexpr uint32_t kVersion = 0x20260228;
     PipelineDescription() {
       Reset();
-    }
-    PipelineDescription(const PipelineDescription& description) {
-      std::memcpy(this, &description, sizeof(*this));
-    }
-    PipelineDescription& operator=(const PipelineDescription& description) {
-      std::memcpy(this, &description, sizeof(*this));
-      return *this;
     }
     bool operator==(const PipelineDescription& description) const {
       return std::memcmp(this, &description, sizeof(*this)) == 0;
@@ -228,10 +225,14 @@ class VulkanPipelineCache {
       }
     };
   });
+  static_assert(std::is_trivially_copyable_v<PipelineDescription> &&
+                std::has_unique_object_representations_v<PipelineDescription>);
   REX_PACKED_STRUCT(PipelineStoredDescription, {
     uint64_t description_hash;
     PipelineDescription description;
   });
+  static_assert(std::is_trivially_copyable_v<PipelineStoredDescription> &&
+                std::has_unique_object_representations_v<PipelineStoredDescription>);
 
   struct Pipeline {
     std::atomic<VkPipeline> pipeline{VK_NULL_HANDLE};

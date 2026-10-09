@@ -15,6 +15,7 @@
 #include <cstring>
 #include <functional>
 #include <memory>
+#include <type_traits>
 #include <unordered_map>
 
 #include "gpu/xenos/pipeline/render_target/cache.h"
@@ -64,6 +65,7 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
       xenos::ColorRenderTargetFormat color_3_view_format
           : xenos::kColorRenderTargetFormatBits;    // 24
       uint32_t color_rts_use_transfer_formats : 1;  // 25
+      u32 padding : 7;                              // 32
     };
     uint32_t key = 0;
     struct Hasher {
@@ -73,6 +75,8 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
     bool operator!=(const RenderPassKey& other_key) const { return !(*this == other_key); }
     bool operator<(const RenderPassKey& other_key) const { return key < other_key.key; }
   };
+  static_assert(std::is_trivially_copyable_v<RenderPassKey> &&
+                std::has_unique_object_representations_v<RenderPassKey>);
   REX_STATIC_ASSERT_SIZE(RenderPassKey, sizeof(uint32_t));
 
   struct Framebuffer {
@@ -388,25 +392,24 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
     // [0, 2047].
     uint32_t depth_base_tiles : xenos::kEDRAMBaseTilesBits;    // 19
     uint32_t color_0_base_tiles : xenos::kEDRAMBaseTilesBits;  // 30
+    u32 padding_0 : 2;                                         // 32
 
     uint32_t color_1_base_tiles : xenos::kEDRAMBaseTilesBits;  // 43
     uint32_t color_2_base_tiles : xenos::kEDRAMBaseTilesBits;  // 54
+    u32 padding_1 : 10;                                        // 64
 
     uint32_t color_3_base_tiles : xenos::kEDRAMBaseTilesBits;  // 75
+    u32 padding_2 : 21;                                        // 96
 
-    // Including all the padding, for a stable hash.
     FramebufferKey() { Reset(); }
-    FramebufferKey(const FramebufferKey& key) { std::memcpy(this, &key, sizeof(*this)); }
-    FramebufferKey& operator=(const FramebufferKey& key) {
-      std::memcpy(this, &key, sizeof(*this));
-      return *this;
-    }
     bool operator==(const FramebufferKey& key) const {
       return std::memcmp(this, &key, sizeof(*this)) == 0;
     }
     using Hasher = rex::XXHasher<FramebufferKey>;
     void Reset() { std::memset(this, 0, sizeof(*this)); }
   };
+  static_assert(std::is_trivially_copyable_v<FramebufferKey> &&
+                std::has_unique_object_representations_v<FramebufferKey>);
 
   enum TransferUsedDescriptorSet : uint32_t {
     // Ordered from the least to the most frequently changed.

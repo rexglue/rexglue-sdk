@@ -1180,7 +1180,7 @@ bool VulkanPipelineCache::ConfigurePipeline(
       storage_write_pipeline_queue_.emplace_back();
       PipelineStoredDescription& stored_description = storage_write_pipeline_queue_.back();
       stored_description.description_hash = description.GetHash();
-      std::memcpy(&stored_description.description, &description, sizeof(description));
+      stored_description.description = description;
     }
     storage_write_request_cond_.notify_all();
   }
@@ -3667,8 +3667,7 @@ void VulkanPipelineCache::StorageWriteThread() {
         flush_shaders = true;
       }
       if (!storage_write_pipeline_queue_.empty()) {
-        std::memcpy(&pipeline_description, &storage_write_pipeline_queue_.front(),
-                    sizeof(pipeline_description));
+        pipeline_description = storage_write_pipeline_queue_.front();
         storage_write_pipeline_queue_.pop_front();
         write_pipeline = true;
       } else if (storage_write_flush_pipelines_) {

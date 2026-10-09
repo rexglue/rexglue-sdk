@@ -177,16 +177,16 @@ Result<std::unique_ptr<gpu::IOverlayDrawer>> GraphicsSystem::CreateOverlayDrawer
 
 void GraphicsSystem::Shutdown() {
   rex::DetachMMIO(rex::MMIOBlock::GPU, this);
-  if (command_processor_) {
-    command_processor_->Shutdown();
-    command_processor_.reset();
-  }
-
   if (vsync_worker_thread_) {
     vsync_worker_running_ = false;
     runtime::WaitOn(*runtime_, vsync_worker_thread_, 0, 0, 0, nullptr);
     (void)runtime_->object_table().Close(vsync_worker_thread_);
     vsync_worker_thread_ = 0;
+  }
+
+  if (command_processor_) {
+    command_processor_->Shutdown();
+    command_processor_.reset();
   }
 
   if (presenter_) {
@@ -284,13 +284,14 @@ void GraphicsSystem::EnableReadPointerWriteBack(u32 ptr, u32 block_size_log2) {
 }
 
 void GraphicsSystem::SetInterruptCallback(u32 callback, u32 user_data) {
-  interrupt_callback_ = callback;
-  interrupt_callback_data_ = user_data;
+  interrupt_callback_.store(callback | (u64{user_data} << 32), std::memory_order_release);
   REXLOG_DEBUG(gpu, "SetInterruptCallback({:08X}, {:08X})", callback, user_data);
 }
 
 void GraphicsSystem::DispatchInterruptCallback(uint32_t source, uint32_t cpu) {
-  if (!interrupt_callback_) {
+  const u64 interrupt = interrupt_callback_.load(std::memory_order_acquire);
+  const u32 callback = static_cast<u32>(interrupt);
+  if (!callback) {
     return;
   }
 
@@ -303,8 +304,8 @@ void GraphicsSystem::DispatchInterruptCallback(uint32_t source, uint32_t cpu) {
   }
   thread->SetActiveCPU(cpu);
 
-  uint64_t args[] = {source, interrupt_callback_data_};
-  function_dispatcher_->ExecuteInterrupt(thread->thread_state(), interrupt_callback_, args,
+  uint64_t args[] = {source, interrupt >> 32};
+  function_dispatcher_->ExecuteInterrupt(thread->thread_state(), callback, args,
                                          rex::countof(args));
 }
 
@@ -337,34 +338,15 @@ Result<void> GraphicsSystem::InitializeShaderStorage(const std::filesystem::path
     return Ok();
   }
   if (blocking) {
-    if (command_processor_->is_paused()) {
-      // Safe to run on any thread while the command processor is paused, no
-      // race condition.
+    command_processor_->CallInThreadAndWait([this, root, title_id]() {
       command_processor_->InitializeShaderStorage(root, title_id, true);
-    } else {
-      rex::platform::Fence fence;
-      command_processor_->CallInThread([this, root, title_id, &fence]() {
-        command_processor_->InitializeShaderStorage(root, title_id, true);
-        fence.Signal();
-      });
-      fence.Wait();
-    }
+    });
   } else {
     command_processor_->CallInThread([this, root, title_id]() {
       command_processor_->InitializeShaderStorage(root, title_id, false);
     });
   }
   return Ok();
-}
-
-void GraphicsSystem::Pause() {
-  paused_ = true;
-  command_processor_->Pause();
-}
-
-void GraphicsSystem::Resume() {
-  paused_ = false;
-  command_processor_->Resume();
 }
 
 }  // namespace rex::gpu

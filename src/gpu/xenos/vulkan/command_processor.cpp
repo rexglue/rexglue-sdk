@@ -692,32 +692,6 @@ bool VulkanCommandProcessor::ExecutePacketType3_EVENT_WRITE_ZPD(memory::RingBuff
   return true;
 }
 
-std::string VulkanCommandProcessor::GetWindowTitleText() const {
-  std::ostringstream title;
-  title << "Vulkan";
-  if (render_target_cache_) {
-    switch (render_target_cache_->GetPath()) {
-      case RenderTargetCache::Path::kHostRenderTargets:
-        title << " - FBO";
-        break;
-      case RenderTargetCache::Path::kPixelShaderInterlock:
-        title << " - FSI";
-        break;
-      default:
-        break;
-    }
-    uint32_t draw_resolution_scale_x =
-        texture_cache_ ? texture_cache_->draw_resolution_scale_x() : 1;
-    uint32_t draw_resolution_scale_y =
-        texture_cache_ ? texture_cache_->draw_resolution_scale_y() : 1;
-    if (draw_resolution_scale_x > 1 || draw_resolution_scale_y > 1) {
-      title << ' ' << draw_resolution_scale_x << 'x' << draw_resolution_scale_y;
-    }
-  }
-  title << " - HEAVILY INCOMPLETE, early development";
-  return title.str();
-}
-
 bool VulkanCommandProcessor::CompileGlslToSpirv(VkShaderStageFlagBits stage,
                                                 std::string_view source,
                                                 std::vector<uint32_t>& spirv_out,
