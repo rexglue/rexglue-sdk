@@ -289,14 +289,9 @@ TEST_CASE("BitStream Read crossing byte boundary", "[stream][bitstream]") {
 
 // =============================================================================
 // BitStream Write Tests
-// NOTE: BitStream::Write is marked "TODO: This is totally not tested!" in source.
-// It has a bug: doesn't byte-swap when storing, but Read expects big-endian.
-// These tests are skipped until Write is fixed.
 // =============================================================================
 
-TEST_CASE("BitStream Write byte-aligned", "[stream][bitstream][!mayfail]") {
-  SKIP("BitStream::Write is broken - doesn't byte-swap on store");
-
+TEST_CASE("BitStream Write byte-aligned", "[stream][bitstream]") {
   std::array<uint8_t, 16> buffer{};
   BitStream stream(buffer.data(), buffer.size() * 8);
 
@@ -307,9 +302,7 @@ TEST_CASE("BitStream Write byte-aligned", "[stream][bitstream][!mayfail]") {
   CHECK(stream.Read(8) == 0xAB);
 }
 
-TEST_CASE("BitStream Write 16-bit value", "[stream][bitstream][!mayfail]") {
-  SKIP("BitStream::Write is broken - doesn't byte-swap on store");
-
+TEST_CASE("BitStream Write 16-bit value", "[stream][bitstream]") {
   std::array<uint8_t, 16> buffer{};
   BitStream stream(buffer.data(), buffer.size() * 8);
 
@@ -319,9 +312,7 @@ TEST_CASE("BitStream Write 16-bit value", "[stream][bitstream][!mayfail]") {
   CHECK(stream.Read(16) == 0x1234);
 }
 
-TEST_CASE("BitStream Write non-byte-aligned", "[stream][bitstream][!mayfail]") {
-  SKIP("BitStream::Write is broken - doesn't byte-swap on store");
-
+TEST_CASE("BitStream Write non-byte-aligned", "[stream][bitstream]") {
   std::array<uint8_t, 16> buffer{};
   BitStream stream(buffer.data(), buffer.size() * 8);
 
@@ -333,9 +324,7 @@ TEST_CASE("BitStream Write non-byte-aligned", "[stream][bitstream][!mayfail]") {
   CHECK(stream.Read(8) == 0xAB);
 }
 
-TEST_CASE("BitStream Write preserves surrounding bits", "[stream][bitstream][!mayfail]") {
-  SKIP("BitStream::Write is broken - doesn't byte-swap on store");
-
+TEST_CASE("BitStream Write preserves surrounding bits", "[stream][bitstream]") {
   std::array<uint8_t, 16> buffer = {0xFF, 0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
   BitStream stream(buffer.data(), buffer.size() * 8);
 

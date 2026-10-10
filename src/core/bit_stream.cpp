@@ -65,10 +65,9 @@ uint64_t BitStream::Read(size_t num_bits) {
   return val;
 }
 
-// TODO: This is totally not tested!
 bool BitStream::Write(uint64_t val, size_t num_bits) {
   REX_ASSERT(!(num_bits > 57));
-  REX_ASSERT(!(offset_bits_ + num_bits >= size_bits_));
+  REX_ASSERT(!(offset_bits_ + num_bits > size_bits_));
 
   size_t offset_bytes = offset_bits_ >> 3;
   size_t rel_offset_bits = offset_bits_ - (offset_bytes << 3);
@@ -83,7 +82,7 @@ bool BitStream::Write(uint64_t val, size_t num_bits) {
 
   // offset ----->
   // ....[junk]...| target bits w/ junk |....[junk]......
-  uint64_t bits = *reinterpret_cast<const uint64_t*>(buffer_ + offset_bytes);
+  uint64_t bits = memory::load<be_u64>(buffer_ + offset_bytes);
 
   // AND with mask
   // ....[junk]...| target bits (0) |........[junk]......
@@ -94,7 +93,7 @@ bool BitStream::Write(uint64_t val, size_t num_bits) {
   bits |= val;
 
   // Store into the bitstream.
-  *reinterpret_cast<uint64_t*>(buffer_ + offset_bytes) = bits;
+  memory::store(buffer_ + offset_bytes, be_u64(bits));
 
   // Advance the bitstream forward.
   Advance(num_bits);
