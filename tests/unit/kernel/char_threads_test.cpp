@@ -255,6 +255,54 @@ REX_TEST_CASE("threads: a guest APC with a kernel routine is delivered without f
   });
 }
 
+REX_TEST_CASE("threads: an APC queued before a non-alertable wait runs at the next alertable wait",
+              "[char][threads][apc]") {
+  static std::atomic<u32> g_apc_calls;
+  g_apc_calls = 0;
+  KernelFixture fixture;
+  fixture.RunOnGuestThread([](Caller& c) {
+    const u32 routine = c.runtime().function_dispatcher()->AllocateThunk(
+        +[](PPCContext& ctx, u8*) {
+          ++g_apc_calls;
+          ctx.r3.u64 = 0;
+        },
+        0);
+    const u32 events = c.Alloc(8);
+    REQUIRE(c.Kernel("NtCreateEvent", {events, 0, 0, 1}) == 0);
+    REQUIRE(c.Kernel("NtCreateEvent", {events + 4, 0, 0, 0}) == 0);
+    const u32 signaled = c.Load32(events);
+    const u32 idle = c.Load32(events + 4);
+    const auto queue_behind_plain_wait = [&] {
+      rex::runtime::KernelThread::GetCurrentThread()->EnqueueAPC(routine, 0, 0, 0);
+      CHECK(c.Kernel("NtWaitForSingleObjectEx", {signaled, 1, 0, c.Quad(0)}) == 0);
+    };
+    const u32 calls_before = g_apc_calls;
+
+    queue_behind_plain_wait();
+    CHECK(g_apc_calls == calls_before);
+    CHECK(c.Kernel("NtWaitForSingleObjectEx", {idle, 1, 1, c.Quad(-20000000)}) ==
+          rex::X_STATUS_USER_APC);
+    CHECK(g_apc_calls == calls_before + 1);
+
+    queue_behind_plain_wait();
+    CHECK(c.Kernel("NtWaitForMultipleObjectsEx", {1, events + 4, 1, 1, 1, c.Quad(-20000000)}) ==
+          rex::X_STATUS_USER_APC);
+    CHECK(g_apc_calls == calls_before + 2);
+
+    queue_behind_plain_wait();
+    CHECK(c.Kernel("NtSignalAndWaitForSingleObjectEx", {signaled, idle, 1, 0, c.Quad(-20000000)}) ==
+          rex::X_STATUS_USER_APC);
+    CHECK(g_apc_calls == calls_before + 3);
+
+    queue_behind_plain_wait();
+    CHECK(c.Kernel("KeDelayExecutionThread", {1, 1, c.Quad(-20000000)}) == rex::X_STATUS_USER_APC);
+    CHECK(g_apc_calls == calls_before + 4);
+
+    c.Kernel("NtClose", {signaled});
+    c.Kernel("NtClose", {idle});
+  });
+}
+
 REX_TEST_CASE("threads: title termination ends a thread that suspends itself",
               "[char][threads][terminate]") {
   KernelFixture fixture;

@@ -552,8 +552,8 @@ REX_TEST_CASE("files: a directory query signals its event and queues its APC",
     const u32 info = c.Alloc(0x100);
     CHECK(c.Kernel("NtQueryDirectoryFile",
                    {directory, event, routine, 0, status_block, info, 0x100, 0, 0}) == 0);
-    CHECK(DeliverAPCs(c) == rex::X_STATUS_USER_APC);
     CHECK(c.Kernel("NtWaitForSingleObjectEx", {event, 1, 0, c.Quad(0)}) == 0);
+    CHECK(DeliverAPCs(c) == rex::X_STATUS_USER_APC);
     CHECK(g_apc_calls == 1);
     CHECK(g_apc_status_block == status_block);
     CHECK(c.Kernel("NtClose", {event}) == 0);
@@ -577,8 +577,8 @@ REX_TEST_CASE(
                    {0, event, routine, 0, status_block, 0x70000, 0, 0, geometry, 8}) == 0);
     CHECK(c.Load32(status_block) == 0);
     CHECK(c.Load32(status_block + 4) == 8);
-    CHECK(DeliverAPCs(c) == rex::X_STATUS_USER_APC);
     CHECK(c.Kernel("NtWaitForSingleObjectEx", {event, 1, 0, c.Quad(0)}) == 0);
+    CHECK(DeliverAPCs(c) == rex::X_STATUS_USER_APC);
     CHECK(g_apc_calls == 1);
     CHECK(g_apc_status_block == status_block);
     CHECK(c.Kernel("NtClose", {event}) == 0);

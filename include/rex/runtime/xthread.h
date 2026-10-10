@@ -637,6 +637,13 @@ class REX_RUNTIME_API KernelThread : public rex::NonCopyable {
   void DeliverAPCs();
 
   /**
+   * Reports whether a user APC is queued and APC delivery is enabled.
+   *
+   * @return True when the next alertable wait delivers an APC.
+   */
+  bool HasPendingAPCs();
+
+  /**
    * Queues a user APC.
    *
    * @param normal_routine The routine.

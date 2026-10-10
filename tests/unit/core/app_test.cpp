@@ -28,6 +28,7 @@
 #include <rex/logging.h>
 #include <rex/logging/sink.h>
 #include <rex/platform/dynlib.h>
+#include <rex/platform.h>
 #include <rex/platform/process.h>
 #include <rex/platform/timer_queue.h>
 
@@ -401,28 +402,3 @@ REX_TEST_CASE("RunGuarded turns an escaping exception into exit code 1", "[app][
   CHECK(rex::detail::RunGuarded([]() -> int { throw std::runtime_error("entry failed"); }) == 1);
   CHECK(rex::detail::RunGuarded([]() -> int { throw 5; }) == 1);
 }
-
-#if REX_PLATFORM_WIN32
-REX_TEST_CASE("A callback queued to an exited thread is logged", "[core][thread]") {
-  rex::Shutdown();
-  auto started = rex::Init({});
-  REQUIRE(started);
-  auto* logger = (*started)->Get<rex::ILogger>();
-  REQUIRE(logger);
-  auto thread = rex::platform::Thread::Create({}, [] {});
-  REQUIRE(thread);
-  REQUIRE(rex::platform::Wait(thread.get(), false) == rex::platform::WaitResult::kSuccess);
-
-  rex::log::CaptureSink sink;
-  logger->AddSink(sink);
-  thread->QueueUserCallback([] {});
-  std::vector<rex::log::CapturedMessage> messages;
-  sink.CopySince(0, messages);
-  logger->RemoveSink(sink);
-  thread.reset();
-  rex::Shutdown();
-  CHECK(std::ranges::any_of(messages, [](const rex::log::CapturedMessage& message) {
-    return message.text.find("QueueUserCallback") != std::string::npos;
-  }));
-}
-#endif

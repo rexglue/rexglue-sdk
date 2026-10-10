@@ -1093,24 +1093,25 @@ class PosixCondition<Thread> : public PosixConditionBase {
 
   void QueueUserCallback(rex::MoveOnlyFunction<void()> callback) {
     WaitStarted();
+    std::unique_lock lock(state_mutex_);
+    if (state_ == State::kFinished) {
+      return;
+    }
     {
-      std::unique_lock<std::mutex> lock(callback_mutex_);
+      std::unique_lock<std::mutex> callback_lock(callback_mutex_);
       user_callbacks_.push_back(std::move(callback));
       has_pending_user_callbacks_.store(true, std::memory_order_release);
     }
 
     // Alertable waits drain the queue on the current thread, so no self signal is sent.
     if (pthread_equal(thread_, pthread_self())) {
+      lock.unlock();
       if (alertable_state_) {
         DispatchQueuedUserCallbacks();
       }
       return;
     }
 
-    std::unique_lock lock(state_mutex_);
-    if (state_ == State::kFinished) {
-      return;
-    }
 #if defined(__APPLE__)
     // macOS has no sigqueue, so pthread_kill delivers the signal without the sigval payload.
     int result = pthread_kill(thread_, GetSystemSignal(SignalType::kThreadUserCallback));

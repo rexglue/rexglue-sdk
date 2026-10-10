@@ -489,11 +489,15 @@ class Win32Thread : public Win32Handle<Thread> {
   }
 
   void QueueUserCallback(rex::MoveOnlyFunction<void()> callback) override {
-    auto apc_data = std::make_unique<APCData>(std::move(callback));
+    auto apc_data = std::make_unique<ApcData>(std::move(callback));
     auto* const apc = apc_data.release();
-    if (!QueueUserAPC(DispatchAPC, handle_, reinterpret_cast<ULONG_PTR>(apc))) {
+    if (!QueueUserAPC(DispatchApc, handle_, reinterpret_cast<ULONG_PTR>(apc))) {
       apc_data.reset(apc);
-      REX_LOG_LAST_ERROR();
+      const DWORD error = GetLastError();
+      if (WaitForSingleObject(handle_, 0) != WAIT_OBJECT_0) {
+        SetLastError(error);
+        REX_LOG_LAST_ERROR();
+      }
     }
   }
 

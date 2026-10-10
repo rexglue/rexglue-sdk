@@ -333,8 +333,9 @@ u32 KeQueryPerformanceFrequency_entry() {
 u32 KeDelayExecutionThread_entry(u32 processor_mode, u32 alertable, mapped_u64 interval_ptr) {
   KernelThread* thread = KernelThread::GetCurrentThread();
 
-  if (alertable) {
+  if (alertable && thread->HasPendingAPCs()) {
     thread->DeliverAPCs();
+    return X_STATUS_USER_APC;
   }
 
   X_STATUS result = thread->Delay(processor_mode, alertable, *interval_ptr);

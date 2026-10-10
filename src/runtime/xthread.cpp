@@ -680,6 +680,15 @@ void KernelThread::EnqueueAPC(u32 normal_routine, u32 normal_context, u32 arg1, 
   thread_->QueueUserCallback([]() {});
 }
 
+bool KernelThread::HasPendingAPCs() {
+  auto* ctx = thread_state_->context();
+  auto kthread = guest_object<X_KTHREAD>();
+  auto old_irql = kernel::xboxkrnl::KeKfAcquireSpinLock(*memory(), ctx, &kthread->apc_lock);
+  const bool pending = !kthread->apc_lists[1].empty(memory()) && kthread->apc_disable_count == 0;
+  kernel::xboxkrnl::KeKfReleaseSpinLock(*memory(), ctx, &kthread->apc_lock, old_irql);
+  return pending;
+}
+
 namespace {
 
 struct XAPC_DISPATCH_ARGS {

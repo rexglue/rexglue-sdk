@@ -79,6 +79,14 @@ WaitTarget Resolve(Runtime& runtime, X_HANDLE handle) {
 template <typename Wait, typename IsCallback>
 auto WaitGuest(u32 alertable, std::chrono::milliseconds timeout, Wait wait,
                IsCallback is_callback) {
+  using Result = decltype(wait(timeout));
+  if (alertable && KernelThread::GetCurrentThread()->HasPendingAPCs()) {
+    if constexpr (std::is_same_v<Result, rex::platform::WaitResult>) {
+      return rex::platform::WaitResult::kUserCallback;
+    } else {
+      return Result{rex::platform::WaitResult::kUserCallback, 0};
+    }
+  }
   using clock = std::chrono::steady_clock;
   const bool infinite = timeout == std::chrono::milliseconds::max();
   const auto deadline = infinite ? clock::time_point::max() : clock::now() + timeout;
