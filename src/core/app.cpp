@@ -12,6 +12,7 @@
 #include <rex/platform.h>
 #include <rex/platform/crash.h>
 #include <rex/platform/thread.h>
+#include <rex/move_only_function.h>
 
 #include "core/app_state.h"
 #include "core/logger.h"
@@ -32,7 +33,7 @@ namespace {
 std::atomic<bool> g_requested{false};
 std::atomic<i32> g_exit_code{0};
 std::mutex g_state_mutex;
-std::move_only_function<void()> g_wake;
+rex::MoveOnlyFunction<void()> g_wake;
 std::optional<std::vector<std::string>> g_restart;
 detail::RelaunchFunction g_test_relaunch = nullptr;
 bool g_test_can_relaunch = true;
@@ -197,7 +198,7 @@ void ResetAppState() {
   ResetTeardown();
 }
 
-void SetShutdownWake(std::move_only_function<void()> wake) {
+void SetShutdownWake(rex::MoveOnlyFunction<void()> wake) {
   std::lock_guard lock(g_state_mutex);
   g_wake = std::move(wake);
 }

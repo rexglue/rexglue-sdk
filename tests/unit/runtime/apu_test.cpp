@@ -23,6 +23,7 @@
 #include <rex/runtime/error.h>
 #include <rex/runtime/function_dispatcher.h>
 #include <rex/runtime/thread_state.h>
+#include <rex/move_only_function.h>
 
 #include "../kernel/kernel_fixture.h"
 #include "runtime/apu.h"
@@ -35,7 +36,7 @@ namespace {
 class RecordingBackend final : public rex::apu::IBackend {
  public:
   [[nodiscard]] rex::Result<rex::u32> OpenStream(
-      std::move_only_function<void()> on_frame_played) override {
+      rex::MoveOnlyFunction<void()> on_frame_played) override {
     std::lock_guard lock(mutex_);
     const rex::u32 id = next_++;
     callbacks_.emplace(id, std::move(on_frame_played));
@@ -69,7 +70,7 @@ class RecordingBackend final : public rex::apu::IBackend {
 
  private:
   mutable std::mutex mutex_;
-  std::map<rex::u32, std::move_only_function<void()>> callbacks_;
+  std::map<rex::u32, rex::MoveOnlyFunction<void()>> callbacks_;
   std::vector<rex::u32> submitted_;
   rex::u32 next_ = 1;
   int closed_ = 0;

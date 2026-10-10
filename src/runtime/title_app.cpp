@@ -23,6 +23,7 @@
 #include <rex/string/utf8.h>
 #include <rex/system.h>
 #include <rex/version.h>
+#include <rex/move_only_function.h>
 
 #include "core/app_state.h"
 
@@ -91,7 +92,7 @@ std::string ExitMessage(runtime::TitleExitReason reason) {
 
 }  // namespace
 
-bool InvokeFunction(std::move_only_function<void()> fn) {
+bool InvokeFunction(rex::MoveOnlyFunction<void()> fn) {
   std::lock_guard lock(g_invoke_mutex);
   if (!g_invoke_target) {
     return false;
@@ -302,7 +303,7 @@ Result<void> TitleApp::LaunchTitle() {
   return Ok();
 }
 
-void TitleApp::RunSynchronous(std::move_only_function<void()> work) {
+void TitleApp::RunSynchronous(rex::MoveOnlyFunction<void()> work) {
   ui_->RunSynchronous(std::move(work));
 }
 

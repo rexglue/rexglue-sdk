@@ -21,6 +21,7 @@
 #include <rex/platform/thread.h>
 #if REX_PLATFORM_WIN32
 #include <rex/gpu/surface_win.h>
+#include <rex/move_only_function.h>
 #endif
 #include "gpu/xenos/host/presenter.h"
 
@@ -213,7 +214,7 @@ void Presenter::PaintFromUIThread(bool force_paint) {
 bool Presenter::RefreshGuestOutput(
     u32 frontbuffer_width, u32 frontbuffer_height, u32 display_aspect_ratio_x,
     u32 display_aspect_ratio_y,
-    std::move_only_function<bool(GuestOutputRefreshContext& context)> refresher) {
+    rex::MoveOnlyFunction<bool(GuestOutputRefreshContext& context)> refresher) {
   GuestOutputProperties& writable_properties =
       guest_output_properties_[guest_output_mailbox_writable_];
   writable_properties.frontbuffer_width = frontbuffer_width;

@@ -36,6 +36,7 @@
 #include <rex/platform.h>
 #include <rex/platform/timer_queue.h>
 #include <rex/types.h>
+#include <rex/move_only_function.h>
 
 namespace rex::platform {
 
@@ -607,7 +608,7 @@ class REX_API Thread : public WaitHandle {
    * @return The thread, or null on failure.
    */
   static std::unique_ptr<Thread> Create(CreationParameters params,
-                                        std::move_only_function<void()> start_routine);
+                                        rex::MoveOnlyFunction<void()> start_routine);
   /**
    * Returns the Thread object of the calling thread, wrapping threads that Create did not start.
    *
@@ -678,7 +679,7 @@ class REX_API Thread : public WaitHandle {
    *
    * @param callback Function to run on the thread.
    */
-  virtual void QueueUserCallback(std::move_only_function<void()> callback) = 0;
+  virtual void QueueUserCallback(rex::MoveOnlyFunction<void()> callback) = 0;
 
   /**
    * Decrements the suspend count. The thread runs again when it reaches 0.

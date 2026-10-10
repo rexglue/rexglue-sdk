@@ -1,6 +1,7 @@
 #include "ui/sdl3/console_host.h"
 
 #include <rex/logging.h>
+#include <rex/move_only_function.h>
 
 #include "ui/sdl3/console/model.h"
 #include "ui/sdl3/console/window.h"
@@ -48,7 +49,7 @@ void ConsoleDockHost::ToggleWindow() {
   });
 }
 
-void ConsoleDockHost::Defer(std::move_only_function<void()> action) {
+void ConsoleDockHost::Defer(rex::MoveOnlyFunction<void()> action) {
   SDLWindowedAppContext* context = ui_.context_.get();
   if (!context) {
     return;

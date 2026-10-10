@@ -21,6 +21,7 @@
 #include <rex/macros.h>
 #include <rex/result.h>
 #include <rex/types.h>
+#include <rex/move_only_function.h>
 
 namespace rex::cvar {
 
@@ -33,7 +34,7 @@ enum class CvarSource : u8;
 /**
  * Fires after a value changes, on the thread that changed it, with the registry mutex released.
  */
-using ChangeCallback = std::move_only_function<void(std::string_view name, std::string_view value)>;
+using ChangeCallback = rex::MoveOnlyFunction<void(std::string_view name, std::string_view value)>;
 
 /**
  * The cvar registry. Core serves it. Every method takes the registry

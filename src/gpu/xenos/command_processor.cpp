@@ -35,6 +35,7 @@
 #include <rex/runtime.h>
 #include <rex/runtime/thread_registry.h>
 #include <rex/runtime/user_module.h>
+#include <rex/move_only_function.h>
 
 #include "gpu/xenos/cvar_table.h"
 
@@ -62,7 +63,8 @@ void StoreRelease(void* host, u32 value) {
 }
 
 u32 LoadAcquire(const void* host) {
-  return std::atomic_ref<const u32>(*static_cast<const u32*>(host)).load(std::memory_order_acquire);
+  return std::atomic_ref<u32>(*const_cast<u32*>(static_cast<const u32*>(host)))
+      .load(std::memory_order_acquire);
 }
 
 }  // namespace
@@ -132,7 +134,7 @@ bool CommandProcessor::HasPendingFns() {
 
 void CommandProcessor::RunPendingFns() {
   while (true) {
-    std::move_only_function<void()> fn;
+    rex::MoveOnlyFunction<void()> fn;
     {
       std::lock_guard lock(pending_mutex_);
       if (pending_fns_.empty()) {
@@ -145,7 +147,7 @@ void CommandProcessor::RunPendingFns() {
   }
 }
 
-void CommandProcessor::CallInThread(std::move_only_function<void()> fn) {
+void CommandProcessor::CallInThread(rex::MoveOnlyFunction<void()> fn) {
   if (!HasPendingFns() && IsWorkerThread()) {
     fn();
     return;
@@ -157,7 +159,7 @@ void CommandProcessor::CallInThread(std::move_only_function<void()> fn) {
   write_ptr_index_event_->Set();
 }
 
-void CommandProcessor::CallInThreadAndWait(std::move_only_function<void()> fn) {
+void CommandProcessor::CallInThreadAndWait(rex::MoveOnlyFunction<void()> fn) {
   if (!worker_running_ || IsWorkerThread()) {
     fn();
     return;

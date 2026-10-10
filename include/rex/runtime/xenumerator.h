@@ -13,12 +13,12 @@
 
 #include <algorithm>
 #include <cstring>
-#include <functional>
 #include <vector>
 
 #include <rex/macros.h>
 #include <rex/runtime/xobject.h>
 #include <rex/runtime/xtypes.h>
+#include <rex/move_only_function.h>
 
 namespace rex {
 class Runtime;
@@ -52,7 +52,7 @@ struct X_KENUMERATOR_CONTENT_AGGREGATE {
  * @return The guest error code.
  */
 using EnumeratorWriter =
-    std::move_only_function<u32(u32 buffer_ptr, u8* buffer_data, u32* written_count)>;
+    rex::MoveOnlyFunction<u32(u32 buffer_ptr, u8* buffer_data, u32* written_count)>;
 
 /** The host state of an enumerator object. */
 struct EnumeratorObject {

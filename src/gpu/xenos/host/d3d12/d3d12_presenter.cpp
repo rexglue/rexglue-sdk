@@ -23,6 +23,7 @@
 #include "gpu/xenos/host/d3d12/d3d12_provider.h"
 #include "gpu/xenos/host/d3d12/d3d12_util.h"
 #include <rex/gpu/surface_win.h>
+#include <rex/move_only_function.h>
 
 #include "gpu/xenos/cvar_table.h"
 
@@ -184,7 +185,7 @@ void D3D12Presenter::DisconnectPaintingFromSurfaceFromUIThreadImpl() {
 
 bool D3D12Presenter::RefreshGuestOutputImpl(
     u32 mailbox_index, u32 frontbuffer_width, u32 frontbuffer_height,
-    std::move_only_function<bool(GuestOutputRefreshContext& context)> refresher,
+    rex::MoveOnlyFunction<bool(GuestOutputRefreshContext& context)> refresher,
     bool& is_8bpc_out_ref) {
   REX_ASSERT(frontbuffer_width != 0);
   REX_ASSERT(frontbuffer_height != 0);

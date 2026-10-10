@@ -132,7 +132,7 @@ struct endian_store {
   T load(std::memory_order order) const {
     static_assert(std::atomic_ref<T>::is_always_lock_free);
     REX_ASSERT(std::bit_cast<uintptr_t>(&value) % std::atomic_ref<T>::required_alignment == 0);
-    const T raw = std::atomic_ref<const T>(value).load(order);
+    const T raw = std::atomic_ref<T>(const_cast<T&>(value)).load(order);
     if constexpr (std::endian::native == E) {
       return raw;
     }

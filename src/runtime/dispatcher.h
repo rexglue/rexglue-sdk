@@ -23,6 +23,7 @@
 #include <rex/platform/lock_order.h>
 #include <rex/platform/timer_queue.h>
 #include <rex/runtime/dispatcher.h>
+#include <rex/move_only_function.h>
 
 namespace rex {
 class Runtime;
@@ -85,7 +86,7 @@ class REX_RUNTIME_API Dispatcher final : public IDispatcher {
    *
    * @param work The function the dispatch thread runs.
    */
-  void Post(std::move_only_function<void()> work);
+  void Post(rex::MoveOnlyFunction<void()> work);
 
   /** Drains the DPC queue on the dispatch thread, standing in for the clock interrupt. */
   void PostDrain();
@@ -153,7 +154,7 @@ class REX_RUNTIME_API Dispatcher final : public IDispatcher {
   rex::platform::RankedMutex dpc_mutex_{rex::platform::LockRank::DPC};
   rex::platform::RankedMutex dispatch_mutex_{rex::platform::LockRank::Leaf};
   std::condition_variable_any dispatch_cond_;
-  std::list<std::move_only_function<void()>> dispatch_queue_;
+  std::list<rex::MoveOnlyFunction<void()>> dispatch_queue_;
   std::atomic<bool> dispatch_thread_running_{false};
   X_HANDLE dispatch_thread_ = 0;
   rex::platform::RankedMutex expiry_mutex_{rex::platform::LockRank::Leaf};

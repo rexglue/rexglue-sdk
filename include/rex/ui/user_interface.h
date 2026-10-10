@@ -11,7 +11,6 @@
 #pragma once
 
 #include <filesystem>
-#include <functional>
 #include <memory>
 #include <span>
 #include <string>
@@ -27,6 +26,7 @@
 #include <rex/ui/overlay.h>
 #include <rex/ui/style.h>
 #include <rex/ui/ui_event.h>
+#include <rex/move_only_function.h>
 
 struct ImFontAtlas;
 struct ImGuiIO;
@@ -190,10 +190,10 @@ struct VideoMode {
 };
 
 /** Receives every window and input event. Returns true when it consumed the event. */
-using EventCallback = std::move_only_function<bool(const UIEvent&)>;
+using EventCallback = rex::MoveOnlyFunction<bool(const UIEvent&)>;
 
 /** Supplies the frame timing the debug overlay shows. */
-using FrameStatsProvider = std::move_only_function<FrameStats()>;
+using FrameStatsProvider = rex::MoveOnlyFunction<FrameStats()>;
 
 /** A window the ui provider opened. Every method runs on the UI thread. */
 class IWindow {
@@ -349,7 +349,7 @@ class IUserInterface {
    * @param work The work to run on the next frame.
    * @return True when the work was queued.
    */
-  virtual bool Post(std::move_only_function<void()> work) = 0;
+  virtual bool Post(rex::MoveOnlyFunction<void()> work) = 0;
 
   /**
    * Runs work on the UI thread and waits for it. Runs inline on the UI thread, otherwise posts
@@ -357,7 +357,7 @@ class IUserInterface {
    *
    * @param work The work to run.
    */
-  virtual void RunSynchronous(std::move_only_function<void()> work) = 0;
+  virtual void RunSynchronous(rex::MoveOnlyFunction<void()> work) = 0;
 
   /**
    * Returns the ImGui font atlas. Runs on the UI thread.
@@ -523,7 +523,7 @@ class IUserInterface {
    * @param done Called on the UI thread when the prompt ends, cancelled at once when no window
    *             is open.
    */
-  virtual void Prompt(PromptDesc desc, std::move_only_function<void(PromptResult)> done) = 0;
+  virtual void Prompt(PromptDesc desc, rex::MoveOnlyFunction<void(PromptResult)> done) = 0;
 
   /** Ends every pending prompt as cancelled. Runs on the UI thread. */
   virtual void CancelPrompts() = 0;

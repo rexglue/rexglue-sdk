@@ -10,11 +10,11 @@
 
 #pragma once
 
-#include <functional>
 #include <optional>
 
 #include <rex/hid.h>
 #include <rex/ui/user_interface.h>
+#include <rex/move_only_function.h>
 
 #include "ui/sdl3/imgui_drawer.h"
 #include "ui/sdl3/overlay_registry.h"
@@ -31,7 +31,7 @@ class HIDHost final : public hid::IInputHost, public WindowInputListener, public
   void Attach();
   void Detach();
 
-  bool Post(std::move_only_function<void()> work) override;
+  bool Post(rex::MoveOnlyFunction<void()> work) override;
   bool ApplyPointerMode(hid::PointerMode mode) override;
   std::optional<hid::PointerState> WarpPointerToCenter() override;
   bool capture_active() const override;

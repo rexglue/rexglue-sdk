@@ -1,6 +1,7 @@
 #include "ui/sdl3/hid_host.h"
 
 #include <rex/logging.h>
+#include <rex/move_only_function.h>
 
 namespace rex::ui {
 
@@ -21,7 +22,7 @@ void HIDHost::Detach() {
   backend_.SetHost(nullptr);
 }
 
-bool HIDHost::Post(std::move_only_function<void()> work) {
+bool HIDHost::Post(rex::MoveOnlyFunction<void()> work) {
   return ui_.Post(std::move(work));
 }
 

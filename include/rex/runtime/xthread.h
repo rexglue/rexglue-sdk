@@ -15,7 +15,6 @@
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
-#include <functional>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -33,6 +32,7 @@
 #include <rex/runtime/xtypes.h>
 #include <rex/platform/thread.h>
 #include <rex/types.h>
+#include <rex/move_only_function.h>
 
 namespace rex {
 class Runtime;
@@ -391,7 +391,7 @@ class REX_RUNTIME_API ThreadRecord : public rex::NonCopyable {
    * @param host_fn The function the worker runs. Its result is the exit code.
    */
   ThreadRecord(Runtime& runtime, u32 stack_size, u32 creation_flags,
-               std::move_only_function<int()> host_fn);
+               rex::MoveOnlyFunction<int()> host_fn);
   /** Frees the host thread, the scratch block, the stack, the PCR and the kernel thread block. */
   ~ThreadRecord();
 
@@ -878,7 +878,7 @@ class REX_RUNTIME_API ThreadRecord : public rex::NonCopyable {
   ThreadRegistry* registry_ = nullptr;
   X_HANDLE handle_ = 0;
   u32 guest_object_ptr_ = 0;
-  std::move_only_function<int()> host_fn_;
+  rex::MoveOnlyFunction<int()> host_fn_;
   std::atomic<bool> released_{false};
   std::atomic<bool> abandoned_{false};
   bool exited_ = false;

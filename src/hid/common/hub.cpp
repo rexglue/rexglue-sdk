@@ -6,6 +6,7 @@
 #include <rex/cvar.h>
 #include <rex/dbg.h>
 #include <rex/logging.h>
+#include <rex/move_only_function.h>
 
 #include "hid/common/cvar_table.h"
 #include "hid/common/idle_pad_driver.h"
@@ -425,7 +426,7 @@ Result<X_INPUT_KEYSTROKE> Hub::GetKeystroke(u32 user, u32 flags) {
                                        : NotConnected());
 }
 
-void Hub::SetConnectionListener(std::move_only_function<void(u32, bool)> listener) {
+void Hub::SetConnectionListener(rex::MoveOnlyFunction<void(u32, bool)> listener) {
   std::lock_guard lock(mutex_);
   connection_listener_ = std::move(listener);
 }

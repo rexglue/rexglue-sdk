@@ -11,7 +11,6 @@
 
 #pragma once
 
-#include <functional>
 #include <optional>
 #include <span>
 #include <string>
@@ -20,6 +19,7 @@
 #include <rex/macros.h>
 #include <rex/result.h>
 #include <rex/types.h>
+#include <rex/move_only_function.h>
 
 namespace rex::detail {
 
@@ -32,7 +32,7 @@ REX_API void ResetAppState();
  *
  * @param wake Function to call, or an empty function for none.
  */
-REX_API void SetShutdownWake(std::move_only_function<void()> wake);
+REX_API void SetShutdownWake(rex::MoveOnlyFunction<void()> wake);
 
 /**
  * Returns the exit code of the first shutdown request.

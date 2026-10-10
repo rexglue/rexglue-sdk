@@ -19,7 +19,6 @@
 #include <condition_variable>
 #include <cstddef>
 #include <cstdint>
-#include <functional>
 #include <map>
 #include <memory>
 #include <mutex>
@@ -34,6 +33,7 @@
 #include <rex/gpu/overlay.h>
 #include <rex/gpu/presenter.h>
 #include <rex/gpu/surface.h>
+#include <rex/move_only_function.h>
 
 #if REX_PLATFORM_WIN32
 #ifndef WIN32_LEAN_AND_MEAN
@@ -103,7 +103,7 @@ class Presenter : public gpu::IPresenter, public rex::NonCopyable {
    * thread refreshes the guest output.
    */
   using HostGpuLossCallback =
-      std::move_only_function<void(bool is_responsible, bool statically_from_ui_thread)>;
+      rex::MoveOnlyFunction<void(bool is_responsible, bool statically_from_ui_thread)>;
   static void FatalErrorHostGpuLossCallback(bool is_responsible, bool statically_from_ui_thread);
 
   class GuestOutputRefreshContext : public rex::NonCopyable {
@@ -179,7 +179,7 @@ class Presenter : public gpu::IPresenter, public rex::NonCopyable {
   bool RefreshGuestOutput(
       u32 frontbuffer_width, u32 frontbuffer_height, u32 display_aspect_ratio_x,
       u32 display_aspect_ratio_y,
-      std::move_only_function<bool(GuestOutputRefreshContext& context)> refresher);
+      rex::MoveOnlyFunction<bool(GuestOutputRefreshContext& context)> refresher);
 
   void AddOverlayLayer(gpu::IOverlayLayer* layer, size_t z_order) override;
   void RemoveOverlayLayer(gpu::IOverlayLayer* layer) override;
@@ -394,7 +394,7 @@ class Presenter : public gpu::IPresenter, public rex::NonCopyable {
    */
   virtual bool RefreshGuestOutputImpl(
       u32 mailbox_index, u32 frontbuffer_width, u32 frontbuffer_height,
-      std::move_only_function<bool(GuestOutputRefreshContext& context)> refresher,
+      rex::MoveOnlyFunction<bool(GuestOutputRefreshContext& context)> refresher,
       bool& is_8bpc_out_ref) = 0;
 
   /**

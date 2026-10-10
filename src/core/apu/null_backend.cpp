@@ -13,6 +13,7 @@
 #include <chrono>
 
 #include <rex/platform/thread.h>
+#include <rex/move_only_function.h>
 
 namespace rex::apu {
 
@@ -34,7 +35,7 @@ NullBackend::~NullBackend() {
   clock_ = {};
 }
 
-Result<u32> NullBackend::OpenStream(std::move_only_function<void()> on_frame_played) {
+Result<u32> NullBackend::OpenStream(rex::MoveOnlyFunction<void()> on_frame_played) {
   std::lock_guard lock(mutex_);
   const u32 id = next_stream_++;
   streams_.emplace(id, Stream{std::move(on_frame_played), 0});

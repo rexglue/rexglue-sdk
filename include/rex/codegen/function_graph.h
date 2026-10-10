@@ -11,6 +11,7 @@
 #pragma once
 
 #include <rex/codegen/function_node.h>
+#include <rex/move_only_function.h>
 
 namespace rex::codegen {
 
@@ -33,7 +34,7 @@ class FunctionGraph {
    * @param addr Guest address
    * @return The dword, or nullopt when addr is unreadable
    */
-  using MemoryReader = std::move_only_function<std::optional<u32>(u32 addr) const>;
+  using MemoryReader = rex::MoveOnlyFunction<std::optional<u32>(u32 addr) const>;
 
   /**
    * Adds a function to the graph and notifies all PENDING functions to try resolution against

@@ -11,7 +11,6 @@
 #pragma once
 
 #include <deque>
-#include <functional>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -23,6 +22,7 @@
 #include <rex/macros.h>
 #include <rex/types.h>
 #include <rex/ui/ui_event.h>
+#include <rex/move_only_function.h>
 
 namespace rex::ui {
 
@@ -33,7 +33,7 @@ class BindTable : public NonCopyable {
 
   void Attach(cvar::ICvarRegistry* registry);
   void Register(std::string_view name, hid::KeyChord default_key, std::string_view description,
-                std::move_only_function<void()> callback);
+                rex::MoveOnlyFunction<void()> callback);
   void Unregister(std::string_view name);
   bool Process(const KeyEvent& e);
 
@@ -45,7 +45,7 @@ class BindTable : public NonCopyable {
     std::unique_ptr<cvar::Var<std::string>> var;
     cvar::CallbackHandle handle;
     hid::KeyChord chord;
-    std::shared_ptr<std::move_only_function<void()>> callback;
+    std::shared_ptr<rex::MoveOnlyFunction<void()>> callback;
     bool added = false;
   };
 

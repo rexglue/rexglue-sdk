@@ -65,6 +65,7 @@ add_executable(unit_tests
     core/macros_test.cpp
     core/mmio_test.cpp
     core/module_loader_test.cpp
+    core/move_only_function_test.cpp
     core/relaunch_test.cpp
     core/thread_redirect_test.cpp
     core/thread_registry_test.cpp

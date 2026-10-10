@@ -19,6 +19,7 @@
 #include <SDL3/SDL.h>
 
 #include <rex/apu/backend.h>
+#include <rex/move_only_function.h>
 
 namespace rex::apu::sdl3 {
 
@@ -38,7 +39,7 @@ class SDL3Backend final : public IBackend, public NonCopyable {
   /** Closes every stream and quits the SDL audio subsystem. */
   void Shutdown();
 
-  [[nodiscard]] Result<u32> OpenStream(std::move_only_function<void()> on_frame_played) override;
+  [[nodiscard]] Result<u32> OpenStream(rex::MoveOnlyFunction<void()> on_frame_played) override;
   void CloseStream(u32 stream) override;
   void Submit(u32 stream, Frame frame) override;
   void SetStereoFold(const StereoFold& fold) override;
@@ -53,7 +54,7 @@ class SDL3Backend final : public IBackend, public NonCopyable {
     SDL3Backend* owner = nullptr;
     SDL_AudioStream* sdl = nullptr;
     u32 device_channels = 0;
-    std::move_only_function<void()> on_frame_played;
+    rex::MoveOnlyFunction<void()> on_frame_played;
     std::mutex frames_mutex;
     std::queue<std::unique_ptr<f32[]>> queued;
     std::stack<std::unique_ptr<f32[]>> unused;

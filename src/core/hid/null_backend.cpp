@@ -9,6 +9,7 @@
  */
 
 #include <rex/hid/backend.h>
+#include <rex/move_only_function.h>
 
 namespace rex::hid {
 
@@ -67,7 +68,7 @@ Result<X_INPUT_KEYSTROKE> NullBackend::GetKeystroke(u32 user, u32) {
   return std::unexpected(MakeError(Error::Empty, "the idle pad has no keystrokes"));
 }
 
-void NullBackend::SetConnectionListener(std::move_only_function<void(u32, bool)> listener) {
+void NullBackend::SetConnectionListener(rex::MoveOnlyFunction<void(u32, bool)> listener) {
   std::lock_guard lock(mutex_);
   listener_ = std::move(listener);
 }

@@ -33,6 +33,7 @@
 #include <rex/runtime/xio.h>
 #include <rex/runtime/xobject.h>
 #include <rex/runtime/xthread.h>
+#include <rex/move_only_function.h>
 
 namespace rex::runtime {
 
@@ -265,7 +266,7 @@ void Dispatcher::DrainDPCs() {
   }
 }
 
-void Dispatcher::Post(std::move_only_function<void()> work) {
+void Dispatcher::Post(rex::MoveOnlyFunction<void()> work) {
   {
     std::lock_guard lock(dispatch_mutex_);
     dispatch_queue_.push_back(std::move(work));

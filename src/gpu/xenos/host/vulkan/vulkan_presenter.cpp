@@ -35,6 +35,7 @@
 #endif
 #if REX_PLATFORM_MAC
 #include <rex/gpu/surface_mac.h>
+#include <rex/move_only_function.h>
 #endif
 
 #include "gpu/xenos/cvar_table.h"
@@ -522,7 +523,7 @@ void VulkanPresenter::DisconnectPaintingFromSurfaceFromUIThreadImpl() {
 
 bool VulkanPresenter::RefreshGuestOutputImpl(
     u32 mailbox_index, u32 frontbuffer_width, u32 frontbuffer_height,
-    std::move_only_function<bool(GuestOutputRefreshContext& context)> refresher,
+    rex::MoveOnlyFunction<bool(GuestOutputRefreshContext& context)> refresher,
     bool& is_8bpc_out_ref) {
   REX_ASSERT(frontbuffer_width != 0);
   REX_ASSERT(frontbuffer_height != 0);

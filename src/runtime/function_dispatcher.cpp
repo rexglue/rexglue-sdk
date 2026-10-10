@@ -1,6 +1,5 @@
 #include <csetjmp>
 #include <cstdlib>
-#include <ranges>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -130,7 +129,8 @@ bool FunctionDispatcher::Run(ThreadState* thread_state, u32 address, std::span<c
 
   PPCRegister* registers[] = {&ctx->r3, &ctx->r4, &ctx->r5, &ctx->r6,
                               &ctx->r7, &ctx->r8, &ctx->r9, &ctx->r10};
-  for (const auto [index, value] : std::views::enumerate(args)) {
+  for (size_t index = 0; index < args.size(); ++index) {
+    const u64 value = args[index];
     if (index < 8) {
       registers[index]->u64 = value;
     } else {

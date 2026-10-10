@@ -21,6 +21,7 @@
 
 #include <rex/hid/backend.h>
 #include <rex/hid/driver.h>
+#include <rex/move_only_function.h>
 
 #include "hid/common/device_assignment.h"
 #include "hid/common/state_merge.h"
@@ -80,7 +81,7 @@ class Hub final : public IBackend, public NonCopyable {
   [[nodiscard]] Result<X_INPUT_KEYSTROKE> GetKeystroke(u32 user, u32 flags) override;
   void AcquireUIBlock() override;
   void ReleaseUIBlock() override;
-  void SetConnectionListener(std::move_only_function<void(u32, bool)> listener) override;
+  void SetConnectionListener(rex::MoveOnlyFunction<void(u32, bool)> listener) override;
   void SetHost(IInputHost* host) override;
   void OnEvent(const InputEvent& event) override;
   bool IsKeyDown(VirtualKey key) const override;
@@ -128,7 +129,7 @@ class Hub final : public IBackend, public NonCopyable {
   std::array<std::pair<JoystickValue, JoystickValue>, kMaxGuestUsers> user_max_joystick_value_{};
   std::array<u16, kMaxGuestUsers> consumed_buttons_{};
   std::atomic<i32> ui_blocks_{0};
-  std::move_only_function<void(u32, bool)> connection_listener_;
+  rex::MoveOnlyFunction<void(u32, bool)> connection_listener_;
 
   std::atomic<IInputHost*> host_{nullptr};
   std::atomic<PointerMode> requested_mode_{PointerMode::Free};

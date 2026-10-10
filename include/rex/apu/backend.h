@@ -10,7 +10,6 @@
 
 #pragma once
 
-#include <functional>
 #include <map>
 #include <mutex>
 #include <span>
@@ -19,6 +18,7 @@
 #include <rex/macros.h>
 #include <rex/result.h>
 #include <rex/types.h>
+#include <rex/move_only_function.h>
 
 namespace rex::apu {
 
@@ -81,7 +81,7 @@ class IBackend {
    * @param on_frame_played Called once per submitted frame after the frame leaves the queue.
    * @return The stream id, or the backend failure.
    */
-  [[nodiscard]] virtual Result<u32> OpenStream(std::move_only_function<void()> on_frame_played) = 0;
+  [[nodiscard]] virtual Result<u32> OpenStream(rex::MoveOnlyFunction<void()> on_frame_played) = 0;
 
   /**
    * Closes a stream. Returns after the last on_frame_played of the stream has returned. Queued
@@ -157,7 +157,7 @@ class REX_API NullBackend final : public IBackend, public NonCopyable {
    * @param on_frame_played Called once per frame the clock plays.
    * @return The stream id.
    */
-  [[nodiscard]] Result<u32> OpenStream(std::move_only_function<void()> on_frame_played) override;
+  [[nodiscard]] Result<u32> OpenStream(rex::MoveOnlyFunction<void()> on_frame_played) override;
 
   /**
    * Closes a stream and drops its queued frames.
@@ -218,7 +218,7 @@ class REX_API NullBackend final : public IBackend, public NonCopyable {
 
  private:
   struct Stream {
-    std::move_only_function<void()> on_frame_played;
+    rex::MoveOnlyFunction<void()> on_frame_played;
     u32 queued = 0;
   };
 

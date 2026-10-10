@@ -4,6 +4,7 @@
 #include <utility>
 
 #include <rex/logging.h>
+#include <rex/move_only_function.h>
 
 namespace rex::ui {
 
@@ -61,7 +62,7 @@ void NullUserInterface::Run() {
 }
 
 void NullUserInterface::RunPosted() {
-  std::deque<std::move_only_function<void()>> work;
+  std::deque<rex::MoveOnlyFunction<void()>> work;
   {
     std::lock_guard lock(mutex_);
     work.swap(queue_);
@@ -98,7 +99,7 @@ bool NullUserInterface::IsUIThread() const {
   return std::this_thread::get_id() == ui_thread_;
 }
 
-bool NullUserInterface::Post(std::move_only_function<void()> work) {
+bool NullUserInterface::Post(rex::MoveOnlyFunction<void()> work) {
   {
     std::lock_guard lock(mutex_);
     if (closed_ || quit_) {
@@ -110,14 +111,14 @@ bool NullUserInterface::Post(std::move_only_function<void()> work) {
   return true;
 }
 
-void NullUserInterface::RunSynchronous(std::move_only_function<void()> work) {
+void NullUserInterface::RunSynchronous(rex::MoveOnlyFunction<void()> work) {
   if (IsUIThread()) {
     work();
     return;
   }
   enum class State : u8 { kQueued, kRunning, kFinished, kAbandoned };
   auto state = std::make_shared<State>(State::kQueued);
-  auto shared_work = std::make_shared<std::move_only_function<void()>>(std::move(work));
+  auto shared_work = std::make_shared<rex::MoveOnlyFunction<void()>>(std::move(work));
   const bool queued = Post([this, state, shared_work] {
     {
       std::lock_guard lock(mutex_);
@@ -227,7 +228,7 @@ Result<u32> NullUserInterface::ShowChoice(const ChoiceDesc& desc) {
   return u32{0};
 }
 
-void NullUserInterface::Prompt(PromptDesc, std::move_only_function<void(PromptResult)> done) {
+void NullUserInterface::Prompt(PromptDesc, rex::MoveOnlyFunction<void(PromptResult)> done) {
   done(PromptResult{});
 }
 

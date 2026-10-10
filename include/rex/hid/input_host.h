@@ -10,10 +10,10 @@
 
 #pragma once
 
-#include <functional>
 #include <optional>
 
 #include <rex/hid/event.h>
+#include <rex/move_only_function.h>
 
 namespace rex::hid {
 
@@ -28,7 +28,7 @@ class IInputHost {
    * @param work The work.
    * @return True when the work is queued, false when the UI thread no longer takes work.
    */
-  virtual bool Post(std::move_only_function<void()> work) = 0;
+  virtual bool Post(rex::MoveOnlyFunction<void()> work) = 0;
 
   /**
    * Applies a pointer mode. UI thread only.

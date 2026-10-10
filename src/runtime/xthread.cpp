@@ -35,6 +35,7 @@
 #include <rex/runtime/xthread.h>
 #include <rex/platform/thread.h>
 #include <rex/vec128.h>
+#include <rex/move_only_function.h>
 #include "runtime/cvar_table.h"
 #include "runtime/thread_registry.h"
 #include "runtime/guest_stack.h"
@@ -62,7 +63,7 @@ ThreadRecord::ThreadRecord(Runtime& runtime, u32 stack_size, u32 xapi_thread_sta
 }
 
 ThreadRecord::ThreadRecord(Runtime& runtime, u32 stack_size, u32 creation_flags,
-                           std::move_only_function<int()> host_fn)
+                           rex::MoveOnlyFunction<int()> host_fn)
     : ThreadRecord(runtime, stack_size, 0, 0, 0, creation_flags, false) {
   host_fn_ = std::move(host_fn);
 }

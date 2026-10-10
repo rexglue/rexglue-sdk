@@ -11,6 +11,7 @@
 #pragma once
 
 #include <rex/gpu/backend.h>
+#include <rex/move_only_function.h>
 
 #include "ui/sdl3/console/view.h"
 
@@ -29,7 +30,7 @@ class ConsoleDockHost final : public ConsoleHost {
   void ToggleWindow() override;
 
  private:
-  void Defer(std::move_only_function<void()> action);
+  void Defer(rex::MoveOnlyFunction<void()> action);
   void OpenWindow();
 
   SDL3UserInterface& ui_;

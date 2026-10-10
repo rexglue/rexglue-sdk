@@ -60,8 +60,8 @@ Record View(const CapturedRecord& record) {
 
 [[nodiscard]] Result<Level> ParseLevel(std::string_view text) {
   const std::string lower = Lowercase(text);
-  for (const auto& [index, name] : std::views::enumerate(kLevelNames)) {
-    if (name == lower) {
+  for (size_t index = 0; index < kLevelNames.size(); ++index) {
+    if (kLevelNames[index] == lower) {
       return static_cast<Level>(index);
     }
   }
@@ -123,8 +123,8 @@ Logger::Logger()
 }
 
 std::optional<u16> Logger::FindLocked(std::string_view name) const {
-  for (const auto& [index, slot] : std::views::enumerate(slots_)) {
-    if (slot.name == name) {
+  for (size_t index = 0; index < slots_.size(); ++index) {
+    if (slots_[index].name == name) {
       return static_cast<u16>(index);
     }
   }
@@ -342,10 +342,11 @@ std::vector<CategoryInfo> Logger::Categories() const {
   std::lock_guard lock(mutex_);
   std::vector<CategoryInfo> out;
   out.reserve(slots_.size());
-  for (const auto& [index, slot] : std::views::enumerate(slots_)) {
+  for (size_t index = 0; index < slots_.size(); ++index) {
+    const auto& slot = slots_[index];
     out.push_back(CategoryInfo{slot.name, slot.description,
-                               levels_[static_cast<size_t>(index)].load(std::memory_order_relaxed),
-                               slot.explicit_level, slot.registered});
+                               levels_[index].load(std::memory_order_relaxed), slot.explicit_level,
+                               slot.registered});
   }
   return out;
 }
@@ -522,8 +523,8 @@ void Logger::HookCvars(cvar::ICvarRegistry& cvars) {
   Level level = Level::kInfo;
   {
     std::lock_guard lock(mutex_);
-    for (const auto& [index, slot] : std::views::enumerate(slots_)) {
-      if (slot.registered && !slot.cvar) {
+    for (size_t index = 0; index < slots_.size(); ++index) {
+      if (const auto& slot = slots_[index]; slot.registered && !slot.cvar) {
         unattached.push_back(static_cast<u16>(index));
       }
     }

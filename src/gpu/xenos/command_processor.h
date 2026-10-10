@@ -15,7 +15,6 @@
 
 #include <atomic>
 #include <cstring>
-#include <functional>
 #include <memory>
 #include <mutex>
 #include <queue>
@@ -30,6 +29,7 @@
 #include <rex/memory/ring_buffer.h>
 #include <rex/runtime/xthread.h>
 #include <rex/platform/thread.h>
+#include <rex/move_only_function.h>
 #include "gpu/xenos/host/presenter.h"
 
 namespace rex::gpu {
@@ -94,7 +94,7 @@ class CommandProcessor {
   virtual bool Initialize();
   virtual void Shutdown();
 
-  void CallInThread(std::move_only_function<void()> fn);
+  void CallInThread(rex::MoveOnlyFunction<void()> fn);
 
   /**
    * Runs a function on the worker and waits for it to finish. The function runs on the calling
@@ -102,7 +102,7 @@ class CommandProcessor {
    *
    * @param fn The function to run.
    */
-  void CallInThreadAndWait(std::move_only_function<void()> fn);
+  void CallInThreadAndWait(rex::MoveOnlyFunction<void()> fn);
 
   virtual void ClearCaches();
   virtual void InvalidateGpuMemory();
@@ -347,7 +347,7 @@ class CommandProcessor {
   X_HANDLE worker_thread_ = 0;
 
   std::mutex pending_mutex_;
-  std::queue<std::move_only_function<void()>> pending_fns_;
+  std::queue<rex::MoveOnlyFunction<void()>> pending_fns_;
 
   std::vector<u32> me_bin_;
 

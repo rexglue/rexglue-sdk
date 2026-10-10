@@ -12,7 +12,6 @@
 
 #include <atomic>
 #include <filesystem>
-#include <functional>
 #include <mutex>
 
 #include <rex/hid/device.h>
@@ -23,6 +22,7 @@
 #include <rex/macros.h>
 #include <rex/result.h>
 #include <rex/types.h>
+#include <rex/move_only_function.h>
 
 namespace rex::hid {
 
@@ -88,7 +88,7 @@ class IBackend {
    *
    * @param listener Receives the user and true for connected, empty to clear.
    */
-  virtual void SetConnectionListener(std::move_only_function<void(u32, bool)> listener) = 0;
+  virtual void SetConnectionListener(rex::MoveOnlyFunction<void(u32, bool)> listener) = 0;
 
   /**
    * Attaches the window, null to detach. UI thread only. The host calls it with null before it
@@ -256,7 +256,7 @@ class REX_API NullBackend final : public IBackend, public NonCopyable {
    *
    * @param listener Receives the user and true for connected, empty to clear.
    */
-  void SetConnectionListener(std::move_only_function<void(u32, bool)> listener) override;
+  void SetConnectionListener(rex::MoveOnlyFunction<void(u32, bool)> listener) override;
 
   /**
    * Does nothing, there is no window side.
@@ -380,7 +380,7 @@ class REX_API NullBackend final : public IBackend, public NonCopyable {
 
  private:
   std::mutex mutex_;
-  std::move_only_function<void(u32, bool)> listener_;
+  rex::MoveOnlyFunction<void(u32, bool)> listener_;
   bool reported_ = false;
 };
 

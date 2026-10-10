@@ -43,6 +43,7 @@
 #include <rex/runtime/xmemory.h>
 #include <rex/ui/user_interface.h>
 #include <rex/types.h>
+#include <rex/move_only_function.h>
 
 struct PPCFuncMapping;
 
@@ -306,7 +307,7 @@ class REX_RUNTIME_API Runtime : public rex::NonCopyable {
    *
    * @param callback Function receiving the reason.
    */
-  void OnTitleExit(std::move_only_function<void(runtime::TitleExitReason)> callback);
+  void OnTitleExit(rex::MoveOnlyFunction<void(runtime::TitleExitReason)> callback);
 
   /**
    * Reports that the title exited. Only the first report reaches the callback.
@@ -481,7 +482,7 @@ class REX_RUNTIME_API Runtime : public rex::NonCopyable {
   void RunTerminateNotifications(std::chrono::milliseconds timeout);
 
   std::mutex title_exit_mutex_;
-  std::move_only_function<void(runtime::TitleExitReason)> title_exit_callback_;
+  rex::MoveOnlyFunction<void(runtime::TitleExitReason)> title_exit_callback_;
   bool title_exit_reported_ = false;
 
   const Config& config_;

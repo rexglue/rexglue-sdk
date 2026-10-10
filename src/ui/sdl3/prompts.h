@@ -11,7 +11,6 @@
 #pragma once
 
 #include <concepts>
-#include <functional>
 #include <string>
 #include <type_traits>
 #include <vector>
@@ -19,6 +18,7 @@
 #include <rex/types.h>
 #include <rex/ui/imgui_dialog.h>
 #include <rex/ui/user_interface.h>
+#include <rex/move_only_function.h>
 
 namespace rex::ui {
 
@@ -55,7 +55,7 @@ class PromptDone : public rex::MoveOnly {
   explicit operator bool() const { return static_cast<bool>(done_); }
 
  private:
-  std::move_only_function<void(PromptResult)> done_;
+  rex::MoveOnlyFunction<void(PromptResult)> done_;
 };
 
 class PromptDialog final : public ImGuiDialog {

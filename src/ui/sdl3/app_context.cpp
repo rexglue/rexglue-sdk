@@ -13,6 +13,7 @@
 
 #include <rex/assert.h>
 #include <rex/platform/thread.h>
+#include <rex/move_only_function.h>
 #include "ui/sdl3/app_context.h"
 
 namespace rex {
@@ -32,7 +33,7 @@ WindowedAppContext::~WindowedAppContext() {
   ExecutePendingFunctionsFromUIThread(true);
 }
 
-bool WindowedAppContext::CallInUIThreadDeferred(std::move_only_function<void()> function) {
+bool WindowedAppContext::CallInUIThreadDeferred(rex::MoveOnlyFunction<void()> function) {
   {
     std::unique_lock<std::mutex> pending_functions_lock(pending_functions_mutex_);
     if (!pending_functions_accepted_) {
@@ -47,7 +48,7 @@ bool WindowedAppContext::CallInUIThreadDeferred(std::move_only_function<void()> 
   return true;
 }
 
-bool WindowedAppContext::CallInUIThread(std::move_only_function<void()> function) {
+bool WindowedAppContext::CallInUIThread(rex::MoveOnlyFunction<void()> function) {
   if (IsInUIThread()) {
     function();
     return true;
@@ -74,7 +75,7 @@ void WindowedAppContext::ExecutePendingFunctionsFromUIThread(bool is_final) {
   std::unique_lock<std::mutex> pending_functions_lock(pending_functions_mutex_);
   while (!pending_functions_.empty()) {
     // Popped before running, a nested ExecutePendingFunctionsFromUIThread would rerun it.
-    std::move_only_function<void()> function = std::move(pending_functions_.front());
+    rex::MoveOnlyFunction<void()> function = std::move(pending_functions_.front());
     pending_functions_.pop_front();
     // Run unlocked, a function with a modal loop would otherwise block new functions.
     pending_functions_lock.unlock();

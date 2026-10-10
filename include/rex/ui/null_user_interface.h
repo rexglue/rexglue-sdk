@@ -17,6 +17,7 @@
 #include <thread>
 
 #include <rex/ui/user_interface.h>
+#include <rex/move_only_function.h>
 
 namespace rex::ui {
 
@@ -78,7 +79,7 @@ class NullUserInterface final : public IUserInterface {
    * @param work The work to run.
    * @return True when the work was queued, false after Quit or CloseWindow.
    */
-  bool Post(std::move_only_function<void()> work) override;
+  bool Post(rex::MoveOnlyFunction<void()> work) override;
 
   /**
    * Runs work on the UI thread and waits for it. Returns without running the work from another
@@ -86,7 +87,7 @@ class NullUserInterface final : public IUserInterface {
    *
    * @param work The work to run.
    */
-  void RunSynchronous(std::move_only_function<void()> work) override;
+  void RunSynchronous(rex::MoveOnlyFunction<void()> work) override;
 
   /**
    * Returns no font atlas.
@@ -247,7 +248,7 @@ class NullUserInterface final : public IUserInterface {
    * @param desc Ignored.
    * @param done Called before the function returns.
    */
-  void Prompt(PromptDesc desc, std::move_only_function<void(PromptResult)> done) override;
+  void Prompt(PromptDesc desc, rex::MoveOnlyFunction<void(PromptResult)> done) override;
 
   /** Does nothing, the provider holds no prompt. */
   void CancelPrompts() override;
@@ -283,7 +284,7 @@ class NullUserInterface final : public IUserInterface {
   std::thread::id ui_thread_;
   std::mutex mutex_;
   std::condition_variable wake_;
-  std::deque<std::move_only_function<void()>> queue_;
+  std::deque<rex::MoveOnlyFunction<void()>> queue_;
   std::unique_ptr<NullWindow> window_;
   std::unique_ptr<gpu::IOverlayDrawer> overlay_drawer_;
   FrameStatsProvider frame_stats_;

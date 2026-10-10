@@ -22,6 +22,7 @@
 #include <rex/api.h>
 #include <rex/apu.h>
 #include <rex/hid.h>
+#include <rex/move_only_function.h>
 
 #include "runtime/achievement_manager.h"
 #include "runtime/apu.h"
@@ -378,7 +379,7 @@ runtime::IDispatcher& Runtime::dispatcher() {
   return *dispatcher_;
 }
 
-void Runtime::OnTitleExit(std::move_only_function<void(runtime::TitleExitReason)> callback) {
+void Runtime::OnTitleExit(rex::MoveOnlyFunction<void(runtime::TitleExitReason)> callback) {
   std::lock_guard lock(title_exit_mutex_);
   title_exit_callback_ = std::move(callback);
 }

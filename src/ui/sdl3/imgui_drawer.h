@@ -15,7 +15,6 @@
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
-#include <functional>
 #include <memory>
 #include <optional>
 #include <vector>
@@ -26,6 +25,7 @@
 #include <rex/gpu/presenter.h>
 #include <rex/macros.h>
 #include <rex/ui/imgui_dialog.h>
+#include <rex/move_only_function.h>
 #include "ui/sdl3/window.h"
 #include "ui/sdl3/window_listener.h"
 
@@ -36,7 +36,7 @@ class Window;
 
 class ImGuiDrawer : public WindowInputListener, public gpu::IOverlayLayer, public IDialogHost {
  public:
-  using FontSetupCallback = std::move_only_function<void(ImFontAtlas*)>;
+  using FontSetupCallback = rex::MoveOnlyFunction<void(ImFontAtlas*)>;
   ImGuiDrawer(Window* window, size_t z_order, FontSetupCallback font_setup = nullptr);
   ~ImGuiDrawer();
 

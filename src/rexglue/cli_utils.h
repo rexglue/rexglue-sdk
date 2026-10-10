@@ -11,9 +11,8 @@
 
 #pragma once
 
-#include <functional>
-
 #include <rex/result.h>
+#include <rex/move_only_function.h>
 
 namespace rexglue::cli {
 
@@ -23,6 +22,6 @@ struct CLIContext {
   bool generate_despite_errors = false;
 };
 
-using DeferredAction = std::move_only_function<rex::Result<void>()>;
+using DeferredAction = rex::MoveOnlyFunction<rex::Result<void>()>;
 
 }  // namespace rexglue::cli

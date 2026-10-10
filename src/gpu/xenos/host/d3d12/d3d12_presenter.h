@@ -21,6 +21,7 @@
 #include "gpu/xenos/host/presenter.h"
 #include <rex/gpu/surface.h>
 #include <rex/types.h>
+#include <rex/move_only_function.h>
 
 namespace rex::gpu::d3d12 {
 
@@ -107,7 +108,7 @@ class D3D12Presenter final : public Presenter {
 
   bool RefreshGuestOutputImpl(
       u32 mailbox_index, u32 frontbuffer_width, u32 frontbuffer_height,
-      std::move_only_function<bool(GuestOutputRefreshContext& context)> refresher,
+      rex::MoveOnlyFunction<bool(GuestOutputRefreshContext& context)> refresher,
       bool& is_8bpc_out) override;
 
   PaintResult PaintAndPresentImpl(bool execute_ui_drawers) override;

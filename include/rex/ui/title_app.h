@@ -11,7 +11,6 @@
 #pragma once
 
 #include <chrono>
-#include <functional>
 #include <memory>
 #include <string_view>
 #include <thread>
@@ -33,6 +32,7 @@
 #include <rex/ui/overlay.h>
 #include <rex/ui/ui_event.h>
 #include <rex/ui/user_interface.h>
+#include <rex/move_only_function.h>
 
 #if REX_PLATFORM_WIN32
 #include <windows.h>
@@ -126,7 +126,7 @@ class REX_RUNTIME_API TitleApp : public App, public gpu::IUIThread {
    *
    * @param work The work to run.
    */
-  void RunSynchronous(std::move_only_function<void()> work) override;
+  void RunSynchronous(rex::MoveOnlyFunction<void()> work) override;
 
   /**
    * Configures and initializes the app for a recompiled image. Starts the module list as
@@ -287,7 +287,7 @@ class REX_RUNTIME_API TitleApp : public App, public gpu::IUIThread {
  * @return False when no title app is live or the UI thread runs no more functions, in which case
  *         fn is discarded.
  */
-REX_RUNTIME_API bool InvokeFunction(std::move_only_function<void()> fn);
+REX_RUNTIME_API bool InvokeFunction(rex::MoveOnlyFunction<void()> fn);
 
 }  // namespace rex::ui
 

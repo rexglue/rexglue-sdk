@@ -9,6 +9,7 @@
 #include <rex/dbg.h>
 #include <rex/logging.h>
 #include <rex/perf/counter.h>
+#include <rex/move_only_function.h>
 
 #include "apu/sdl3/conversion.h"
 #include "apu/sdl3/cvar_table.h"
@@ -48,7 +49,7 @@ void SDL3Backend::Shutdown() {
   }
 }
 
-Result<u32> SDL3Backend::OpenStream(std::move_only_function<void()> on_frame_played) {
+Result<u32> SDL3Backend::OpenStream(rex::MoveOnlyFunction<void()> on_frame_played) {
   auto stream = std::make_unique<Stream>();
   stream->owner = this;
   stream->on_frame_played = std::move(on_frame_played);

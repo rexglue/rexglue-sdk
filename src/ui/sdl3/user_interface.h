@@ -30,6 +30,7 @@
 #include <rex/runtime/achievement_manager.h>
 #include <rex/ui/imgui_dialog.h>
 #include <rex/ui/user_interface.h>
+#include <rex/move_only_function.h>
 
 #include "ui/sdl3/app_context_sdl.h"
 #include "ui/sdl3/bind_table.h"
@@ -68,8 +69,8 @@ class SDL3UserInterface final : public IUserInterface, public IDialogHost {
   bool PumpFrame() override;
   void Quit() override;
   bool IsUIThread() const override;
-  bool Post(std::move_only_function<void()> work) override;
-  void RunSynchronous(std::move_only_function<void()> work) override;
+  bool Post(rex::MoveOnlyFunction<void()> work) override;
+  void RunSynchronous(rex::MoveOnlyFunction<void()> work) override;
   ImFontAtlas* Fonts() override;
   ImGuiStyle* GetImGuiStyle() override;
   ImGuiIO* GetImGuiIO() override;
@@ -91,7 +92,7 @@ class SDL3UserInterface final : public IUserInterface, public IDialogHost {
   VideoMode GetVideoMode() const override;
   void ShowMessage(MessageKind kind, std::string_view title, std::string_view body) override;
   [[nodiscard]] Result<u32> ShowChoice(const ChoiceDesc& desc) override;
-  void Prompt(PromptDesc desc, std::move_only_function<void(PromptResult)> done) override;
+  void Prompt(PromptDesc desc, rex::MoveOnlyFunction<void(PromptResult)> done) override;
   void CancelPrompts() override;
   [[nodiscard]] Result<std::vector<std::filesystem::path>> ShowFileDialog(
       const FileDialogDesc& desc) override;

@@ -23,6 +23,7 @@
 #include "gpu/xenos/host/presenter.h"
 #include <rex/gpu/surface.h>
 #include <rex/types.h>
+#include <rex/move_only_function.h>
 #include "gpu/xenos/host/vulkan/device.h"
 #include "gpu/xenos/host/vulkan/instance.h"
 #include "gpu/xenos/host/vulkan/submission_tracker.h"
@@ -193,7 +194,7 @@ class VulkanPresenter final : public Presenter {
 
   bool RefreshGuestOutputImpl(
       u32 mailbox_index, u32 frontbuffer_width, u32 frontbuffer_height,
-      std::move_only_function<bool(GuestOutputRefreshContext& context)> refresher,
+      rex::MoveOnlyFunction<bool(GuestOutputRefreshContext& context)> refresher,
       bool& is_8bpc_out_ref) override;
 
   PaintResult PaintAndPresentImpl(bool execute_ui_drawers) override;

@@ -18,7 +18,6 @@
 #include <rex/api.h>
 #include <cstdint>
 #include <deque>
-#include <functional>
 #include <mutex>
 #include <thread>
 
@@ -26,6 +25,7 @@
 #include <rex/macros.h>
 #include <rex/platform/thread.h>
 #include <rex/types.h>
+#include <rex/move_only_function.h>
 
 namespace rex {
 namespace ui {
@@ -52,14 +52,14 @@ class WindowedAppContext : public rex::NonCopyable {
    * @param function Function to run on the UI thread.
    * @return True when enqueued, false when dropped because the loop has exited.
    */
-  bool CallInUIThreadDeferred(std::move_only_function<void()> function);
+  bool CallInUIThreadDeferred(rex::MoveOnlyFunction<void()> function);
   /**
    * Runs the function immediately in the UI thread and enqueues it otherwise.
    *
    * @param function Function to run on the UI thread.
    * @return True when run or enqueued, false when dropped because the loop has exited.
    */
-  bool CallInUIThread(std::move_only_function<void()> function);
+  bool CallInUIThread(rex::MoveOnlyFunction<void()> function);
   /**
    * Runs the function in the UI thread and waits for it. Safe to call from queued functions.
    *
@@ -137,7 +137,7 @@ class WindowedAppContext : public rex::NonCopyable {
 
   /** Guards pending_functions_ and pending_functions_accepted_. */
   std::mutex pending_functions_mutex_;
-  std::deque<std::move_only_function<void()>> pending_functions_;
+  std::deque<rex::MoveOnlyFunction<void()>> pending_functions_;
   /**
    * Guarded by pending_functions_mutex_, written by the UI thread. Set to false before the platform
    * loop exits and after all pending functions ran, since they may signal awaited fences.

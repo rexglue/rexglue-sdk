@@ -4,6 +4,7 @@
 
 #include <rex/hid/event.h>
 #include <rex/logging.h>
+#include <rex/move_only_function.h>
 
 namespace rex::ui {
 
@@ -97,7 +98,7 @@ void BindTable::RemoveFromRegistry(Entry& entry) {
 }
 
 void BindTable::Register(std::string_view name, hid::KeyChord default_key,
-                         std::string_view description, std::move_only_function<void()> callback) {
+                         std::string_view description, rex::MoveOnlyFunction<void()> callback) {
   Entry* entry = nullptr;
   {
     std::lock_guard lock(mutex_);
@@ -105,7 +106,7 @@ void BindTable::Register(std::string_view name, hid::KeyChord default_key,
     entry->name = std::string(name);
     entry->cvar_name = BindCvarName(name);
     entry->description = std::string(description);
-    entry->callback = std::make_shared<std::move_only_function<void()>>(std::move(callback));
+    entry->callback = std::make_shared<rex::MoveOnlyFunction<void()>>(std::move(callback));
     entry->chord = default_key;
     entry->var = std::make_unique<cvar::Var<std::string>>(
         entry->cvar_name, hid::KeyChordToString(default_key), entry->description);
@@ -130,7 +131,7 @@ void BindTable::Unregister(std::string_view name) {
 
 bool BindTable::Process(const KeyEvent& e) {
   const hid::KeyModifiers mods = ModifiersOf(e);
-  std::shared_ptr<std::move_only_function<void()>> callback;
+  std::shared_ptr<rex::MoveOnlyFunction<void()>> callback;
   {
     std::lock_guard lock(mutex_);
     for (const Entry& entry : entries_) {

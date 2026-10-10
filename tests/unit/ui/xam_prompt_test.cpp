@@ -26,6 +26,7 @@
 #include <rex/string.h>
 #include <rex/ui/null_user_interface.h>
 #include <rex/ui/user_interface.h>
+#include <rex/move_only_function.h>
 
 #include "kernel/kernel_fixture.h"
 
@@ -47,10 +48,10 @@ class ScriptedUI final : public rex::ui::IUserInterface {
   rex::ui::PromptResult answer;
   std::atomic<rex::i32> prompts{0};
   bool hold = false;
-  std::move_only_function<void(rex::ui::PromptResult)> held;
+  rex::MoveOnlyFunction<void(rex::ui::PromptResult)> held;
 
   void Prompt(rex::ui::PromptDesc request,
-              std::move_only_function<void(rex::ui::PromptResult)> done) override {
+              rex::MoveOnlyFunction<void(rex::ui::PromptResult)> done) override {
     {
       std::lock_guard lock(desc_mutex_);
       desc_ = std::move(request);
@@ -79,8 +80,8 @@ class ScriptedUI final : public rex::ui::IUserInterface {
   bool PumpFrame() override { return null_.PumpFrame(); }
   void Quit() override { null_.Quit(); }
   bool IsUIThread() const override { return null_.IsUIThread(); }
-  bool Post(std::move_only_function<void()> work) override { return null_.Post(std::move(work)); }
-  void RunSynchronous(std::move_only_function<void()> work) override {
+  bool Post(rex::MoveOnlyFunction<void()> work) override { return null_.Post(std::move(work)); }
+  void RunSynchronous(rex::MoveOnlyFunction<void()> work) override {
     null_.RunSynchronous(std::move(work));
   }
   ImFontAtlas* Fonts() override { return null_.Fonts(); }

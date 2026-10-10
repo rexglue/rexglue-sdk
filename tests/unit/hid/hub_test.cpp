@@ -17,6 +17,7 @@
 #include <vector>
 
 #include <rex/hid.h>
+#include <rex/move_only_function.h>
 
 #include "core/cvar_registry.h"
 #include "hid/common/cvar_table.h"
@@ -36,7 +37,7 @@ namespace {
 
 class FakeHost final : public rex::hid::IInputHost {
  public:
-  bool Post(std::move_only_function<void()> work) override {
+  bool Post(rex::MoveOnlyFunction<void()> work) override {
     if (!accept) {
       return false;
     }
@@ -61,7 +62,7 @@ class FakeHost final : public rex::hid::IInputHost {
     }
   }
 
-  std::vector<std::move_only_function<void()>> posted;
+  std::vector<rex::MoveOnlyFunction<void()>> posted;
   std::vector<PointerMode> applied;
   bool relative = true;
   bool accept = true;

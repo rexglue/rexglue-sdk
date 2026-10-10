@@ -21,6 +21,7 @@ static_assert(REX_PLATFORM_WIN32, "This file is Windows-only");
 #include <rex/assert.h>
 #include <rex/logging.h>
 #include <rex/chrono/chrono_steady_cast.h>
+#include <rex/move_only_function.h>
 
 #define LOG_LASTERROR() \
   { REXLOG_ERROR(core, "Win32 error 0x{:08X} in {}", GetLastError(), __FUNCTION__); }
@@ -481,7 +482,7 @@ class Win32Thread : public Win32Handle<Thread> {
   }
 
   struct ApcData {
-    std::move_only_function<void()> callback;
+    rex::MoveOnlyFunction<void()> callback;
   };
   static void NTAPI DispatchApc(ULONG_PTR parameter) {
     // NOLINTNEXTLINE(performance-no-int-to-ptr): the Win32 API passes the pointer as an integer
@@ -489,7 +490,7 @@ class Win32Thread : public Win32Handle<Thread> {
     apc_data->callback();
   }
 
-  void QueueUserCallback(std::move_only_function<void()> callback) override {
+  void QueueUserCallback(rex::MoveOnlyFunction<void()> callback) override {
     auto apc_data = std::make_unique<ApcData>(std::move(callback));
     if (QueueUserAPC(DispatchApc, handle_, reinterpret_cast<ULONG_PTR>(apc_data.get()))) {
       apc_data.release();
@@ -580,7 +581,7 @@ class Win32Thread : public Win32Handle<Thread> {
 thread_local std::unique_ptr<Win32Thread> current_thread_ = nullptr;
 
 struct ThreadStartData {
-  std::move_only_function<void()> start_routine;
+  rex::MoveOnlyFunction<void()> start_routine;
 };
 DWORD WINAPI ThreadStartRoutine(LPVOID parameter) {
   detail::RegisterCurrentThread();
@@ -593,7 +594,7 @@ DWORD WINAPI ThreadStartRoutine(LPVOID parameter) {
 }
 
 std::unique_ptr<Thread> Thread::Create(CreationParameters params,
-                                       std::move_only_function<void()> start_routine) {
+                                       rex::MoveOnlyFunction<void()> start_routine) {
   auto start_data = std::make_unique<ThreadStartData>(std::move(start_routine));
   HANDLE handle = CreateThread(nullptr, params.stack_size, ThreadStartRoutine, start_data.get(),
                                params.create_suspended ? CREATE_SUSPENDED : 0, nullptr);

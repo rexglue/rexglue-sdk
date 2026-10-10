@@ -10,7 +10,7 @@
 
 #pragma once
 
-#include <functional>
+#include <rex/move_only_function.h>
 
 namespace rex::gpu {
 
@@ -24,7 +24,7 @@ class IUIThread {
    *
    * @param work The work to run.
    */
-  virtual void RunSynchronous(std::move_only_function<void()> work) = 0;
+  virtual void RunSynchronous(rex::MoveOnlyFunction<void()> work) = 0;
 };
 
 }  // namespace rex::gpu

@@ -60,6 +60,7 @@ static_assert(REX_PLATFORM_LINUX || REX_PLATFORM_MAC, "This file is POSIX-only")
 
 #include <rex/main_android.h>
 #include <rex/string.h>
+#include <rex/move_only_function.h>
 #endif
 
 namespace rex::platform {
@@ -721,7 +722,7 @@ class PosixCondition<Timer> : public PosixConditionBase {
 };
 
 struct ThreadStartData {
-  std::move_only_function<void()> start_routine;
+  rex::MoveOnlyFunction<void()> start_routine;
   bool create_suspended;
   Thread* thread_obj;
 };
@@ -964,7 +965,7 @@ class PosixCondition<Thread> : public PosixConditionBase {
     }
   }
 
-  void QueueUserCallback(std::move_only_function<void()> callback) {
+  void QueueUserCallback(rex::MoveOnlyFunction<void()> callback) {
     WaitStarted();
     {
       std::unique_lock<std::mutex> lock(callback_mutex_);
@@ -1008,7 +1009,7 @@ class PosixCondition<Thread> : public PosixConditionBase {
       return false;
     }
 
-    std::move_only_function<void()> callback;
+    rex::MoveOnlyFunction<void()> callback;
     {
       std::unique_lock<std::mutex> lock(callback_mutex_);
       if (user_callbacks_.empty()) {
@@ -1266,7 +1267,7 @@ class PosixCondition<Thread> : public PosixConditionBase {
   mutable SuspendSafeMutex state_mutex_;
   mutable std::mutex callback_mutex_;
   mutable std::condition_variable state_signal_;
-  std::deque<std::move_only_function<void()>> user_callbacks_;
+  std::deque<rex::MoveOnlyFunction<void()>> user_callbacks_;
   std::atomic<bool> has_pending_user_callbacks_{false};
 #if REX_PLATFORM_ANDROID
   // Below API 26 the name is stored here since pthread_getname_np is absent.
@@ -1657,7 +1658,7 @@ class PosixThread : public PosixConditionHandle<Thread> {
   explicit PosixThread(pthread_t thread) : PosixConditionHandle(thread) {}
   ~PosixThread() override = default;
 
-  bool Initialize(CreationParameters params, std::move_only_function<void()> start_routine) {
+  bool Initialize(CreationParameters params, rex::MoveOnlyFunction<void()> start_routine) {
     auto start_data = std::make_unique<ThreadStartData>(std::move(start_routine), false, this);
     return handle_.Initialize(params, std::move(start_data));
   }
@@ -1679,7 +1680,7 @@ class PosixThread : public PosixConditionHandle<Thread> {
   int priority() override { return handle_.priority(); }
   void set_priority(int new_priority) override { handle_.set_priority(new_priority); }
 
-  void QueueUserCallback(std::move_only_function<void()> callback) override {
+  void QueueUserCallback(rex::MoveOnlyFunction<void()> callback) override {
     handle_.QueueUserCallback(std::move(callback));
   }
 
@@ -1766,7 +1767,7 @@ void* PosixCondition<Thread>::ThreadStartRoutine(void* parameter) {
 }
 
 std::unique_ptr<Thread> Thread::Create(CreationParameters params,
-                                       std::move_only_function<void()> start_routine) {
+                                       rex::MoveOnlyFunction<void()> start_routine) {
   install_signal_handler(SignalType::kThreadSuspend);
   install_signal_handler(SignalType::kThreadUserCallback);
   auto thread = std::make_unique<PosixThread>();

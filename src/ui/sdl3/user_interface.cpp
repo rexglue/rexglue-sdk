@@ -10,6 +10,7 @@
 #include <rex/runtime.h>
 #include <rex/string/numeric.h>
 #include <rex/ui/imgui_style.h>
+#include <rex/move_only_function.h>
 
 #include "ui/sdl3/console/model.h"
 #include "ui/sdl3/console/window.h"
@@ -260,8 +261,8 @@ void SDL3UserInterface::Quit() {
   });
 }
 
-bool SDL3UserInterface::Post(std::move_only_function<void()> work) {
-  auto holder = std::make_shared<std::move_only_function<void()>>(std::move(work));
+bool SDL3UserInterface::Post(rex::MoveOnlyFunction<void()> work) {
+  auto holder = std::make_shared<rex::MoveOnlyFunction<void()>>(std::move(work));
   std::lock_guard lock(post_mutex_);
   if (!post_target_) {
     return false;
@@ -269,7 +270,7 @@ bool SDL3UserInterface::Post(std::move_only_function<void()> work) {
   return post_target_->CallInUIThreadDeferred([holder] { (*holder)(); });
 }
 
-void SDL3UserInterface::RunSynchronous(std::move_only_function<void()> work) {
+void SDL3UserInterface::RunSynchronous(rex::MoveOnlyFunction<void()> work) {
   if (IsUIThread()) {
     work();
     return;
@@ -452,7 +453,7 @@ VideoMode SDL3UserInterface::GetVideoMode() const {
   return mode;
 }
 
-void SDL3UserInterface::Prompt(PromptDesc desc, std::move_only_function<void(PromptResult)> done) {
+void SDL3UserInterface::Prompt(PromptDesc desc, rex::MoveOnlyFunction<void(PromptResult)> done) {
   (void)Post([this, desc = std::move(desc), done = PromptDone(std::move(done))]() mutable {
     if (!drawer_) {
       return;
