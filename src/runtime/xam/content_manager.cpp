@@ -14,6 +14,7 @@
 #include <cstring>
 #include <fstream>
 #include <iterator>
+#include <optional>
 #include <string>
 #include <system_error>
 
@@ -25,6 +26,7 @@
 #include <rex/string.h>
 #include <rex/runtime.h>
 #include <rex/runtime/error.h>
+#include <rex/runtime/object_table.h>
 #include <rex/runtime/user_module.h>
 #include <rex/runtime/xam/content_device.h>
 #include <rex/runtime/xfile.h>
@@ -431,18 +433,24 @@ bool ContentManager::IsContentOpen(const XCONTENT_AGGREGATE_DATA& data) const {
 }
 
 void ContentManager::CloseOpenedFilesFromContent(const std::string_view root_name) {
+  const std::optional<std::string> resolved_path =
+      runtime_.file_system()->FindLink(std::string(root_name) + ':');
+  if (!resolved_path || resolved_path->empty()) {
+    return;
+  }
+
+  const auto is_separator = [](char c) { return c == '\\' || c == '/'; };
+  const std::string_view root = *resolved_path;
   const std::vector<Pinned<FileObject>> all_files_handles =
       runtime_.object_table().GetAll<FileObject>();
-
-  const std::string resolved_path =
-      runtime_.file_system()->FindLink(std::string(root_name) + ':').value_or("");
-
   for (const Pinned<FileObject>& file : all_files_handles) {
     const std::string file_path = file->file->Info().absolute_path;
-    bool is_file_inside_content = rex::utf8_starts_with(file_path, resolved_path);
-
-    if (is_file_inside_content) {
-      (void)runtime_.object_table().Close(file.handle());
+    if (!rex::utf8_starts_with(file_path, root)) {
+      continue;
+    }
+    const std::string_view rest = std::string_view(file_path).substr(root.size());
+    if (rest.empty() || is_separator(rest.front()) || is_separator(root.back())) {
+      CloseOwned(runtime_.object_table(), file.handle());
     }
   }
 }
