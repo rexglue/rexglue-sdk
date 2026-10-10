@@ -40,6 +40,7 @@ add_executable(unit_tests
     kernel/char_threads_test.cpp
     kernel/char_files_test.cpp
     kernel/char_net_test.cpp
+    kernel/char_xmp_test.cpp
     kernel/char_identity_test.cpp
     kernel/interrupt_test.cpp
     kernel/char_dpc_test.cpp

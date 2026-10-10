@@ -199,7 +199,7 @@ X_HRESULT XmpApp::XMPPause() {
 
 X_HRESULT XmpApp::XMPNext() {
   REXLOG_DEBUG(kernel, "XMPNext()");
-  if (!active_playlist_) {
+  if (!active_playlist_ || active_playlist_->songs.empty()) {
     return X_E_NOTFOUND;
   }
   state_ = State::kPlaying;
@@ -210,15 +210,12 @@ X_HRESULT XmpApp::XMPNext() {
 
 X_HRESULT XmpApp::XMPPrevious() {
   REXLOG_DEBUG(kernel, "XMPPrevious()");
-  if (!active_playlist_) {
+  if (!active_playlist_ || active_playlist_->songs.empty()) {
     return X_E_NOTFOUND;
   }
   state_ = State::kPlaying;
-  if (!active_song_index_) {
-    active_song_index_ = static_cast<int>(active_playlist_->songs.size()) - 1;
-  } else {
-    --active_song_index_;
-  }
+  active_song_index_ =
+      active_song_index_ ? active_song_index_ - 1 : active_playlist_->songs.size() - 1;
   OnStateChanged();
   return X_E_SUCCESS;
 }
@@ -375,7 +372,7 @@ X_HRESULT XmpApp::DispatchMessageSync(u32 message, u32 buffer_ptr, u32 buffer_le
       REX_ASSERT(args->unk_ptr == 0);
       REXLOG_ERROR(kernel, "XMPGetInfo?({:08X}, {:08X})", static_cast<u32>(args->unk_ptr),
                    static_cast<u32>(args->info_ptr));
-      if (!active_playlist_) {
+      if (!active_playlist_ || active_playlist_->songs.empty()) {
         return X_E_FAIL;
       }
       auto& song = active_playlist_->songs[active_song_index_];

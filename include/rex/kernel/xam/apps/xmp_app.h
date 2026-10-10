@@ -176,7 +176,7 @@ class REX_RUNTIME_API XmpApp : public runtime::xam::App {
   u32 unknown_flags_;
   f32 volume_;
   Playlist* active_playlist_;
-  int active_song_index_;
+  size_t active_song_index_;
 
   rex::platform::RankedMutex mutex_{rex::platform::LockRank::Leaf};
   std::unordered_map<u32, std::unique_ptr<Playlist>> playlists_;
