@@ -15,6 +15,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <format>
 #include <memory>
 #include <tuple>
 #include <utility>
@@ -4262,6 +4263,10 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(TransferShaderKey key)
   // Serialize the shader code.
   std::vector<unsigned int> shader_code;
   builder.dump(shader_code);
+  if (!REXCVAR_GET(::rex::gpu::cvars::dump_shaders).empty()) {
+    gpu::vulkan::util::DumpShader(REXCVAR_GET(::rex::gpu::cvars::dump_shaders),
+                                  std::format("transfer_{:08X}", key.key), shader_code);
+  }
 
   // Create the shader module, and store the handle even if creation fails not
   // to try to create it again later.
@@ -5951,6 +5956,10 @@ VkPipeline VulkanRenderTargetCache::GetDumpPipeline(DumpPipelineKey key) {
   // Serialize the shader code.
   std::vector<unsigned int> shader_code;
   builder.dump(shader_code);
+  if (!REXCVAR_GET(::rex::gpu::cvars::dump_shaders).empty()) {
+    gpu::vulkan::util::DumpShader(REXCVAR_GET(::rex::gpu::cvars::dump_shaders),
+                                  std::format("edram_dump_{:08X}", key.key), shader_code);
+  }
 
   // Create the pipeline, and store the handle even if creation fails not to try
   // to create it again later.

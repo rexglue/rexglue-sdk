@@ -10,6 +10,8 @@
  */
 
 #include <cstdint>
+#include <format>
+#include <fstream>
 
 #include <rex/assert.h>
 #include <rex/math.h>
@@ -213,6 +215,14 @@ VkPipeline CreateComputePipeline(const VulkanDevice* const vulkan_device, VkPipe
       CreateComputePipeline(vulkan_device, layout, shader, specialization_info, entry_point);
   vulkan_device->functions().vkDestroyShaderModule(vulkan_device->device(), shader, nullptr);
   return pipeline;
+}
+
+void DumpShader(const std::filesystem::path& dir, std::string_view name,
+                std::span<const u32> code) {
+  std::filesystem::create_directories(dir);
+  std::ofstream file(dir / std::format("{}.vulkan.bin", name), std::ios::binary | std::ios::trunc);
+  file.write(reinterpret_cast<const char*>(code.data()),
+             static_cast<std::streamsize>(code.size_bytes()));
 }
 
 }  // namespace util

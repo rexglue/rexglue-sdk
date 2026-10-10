@@ -12,8 +12,12 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <filesystem>
+#include <span>
+#include <string_view>
 
 #include <rex/math.h>
+#include <rex/types.h>
 #include "gpu/xenos/host/vulkan/device.h"
 
 namespace rex {
@@ -167,6 +171,15 @@ VkPipeline CreateComputePipeline(const VulkanDevice* vulkan_device, VkPipelineLa
                                  const uint32_t* shader_code, size_t shader_code_size_bytes,
                                  const VkSpecializationInfo* specialization_info = nullptr,
                                  const char* entry_point = "main");
+
+/**
+ * Writes SPIR-V words to dir/name.vulkan.bin, creating dir.
+ *
+ * @param dir Directory that receives the file.
+ * @param name File name without the extension.
+ * @param code SPIR-V words.
+ */
+void DumpShader(const std::filesystem::path& dir, std::string_view name, std::span<const u32> code);
 
 }  // namespace util
 }  // namespace vulkan

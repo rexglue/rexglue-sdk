@@ -1230,6 +1230,9 @@ bool VulkanPipelineCache::TranslateAnalyzedShader(SpirvShaderTranslator& transla
     REX_FAIL(gpu, false, "Shader {:016X} translation failed; marking as ignored",
              shader.ucode_data_hash());
   }
+  if (!REXCVAR_GET(::rex::gpu::cvars::dump_shaders).empty()) {
+    translation.Dump(REXCVAR_GET(::rex::gpu::cvars::dump_shaders), "vulkan");
+  }
   if (translation.GetOrCreateShaderModule() == VK_NULL_HANDLE) {
     return false;
   }
@@ -2853,6 +2856,10 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
   // Serialize the shader code.
   std::vector<unsigned int> shader_code;
   builder.dump(shader_code);
+  if (!REXCVAR_GET(::rex::gpu::cvars::dump_shaders).empty()) {
+    gpu::vulkan::util::DumpShader(REXCVAR_GET(::rex::gpu::cvars::dump_shaders),
+                                  std::format("gs_{:08X}", key.key), shader_code);
+  }
 
   // Create the shader module, and store the handle even if creation fails not
   // to try to create it again later.
