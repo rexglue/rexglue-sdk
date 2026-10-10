@@ -15,6 +15,7 @@
 #include <bit>
 #include <cstring>
 #include <optional>
+#include <random>
 #include <span>
 #include <utility>
 
@@ -178,7 +179,8 @@ Memory::~Memory() {
 }
 
 bool Memory::Initialize() {
-  file_name_ = std::format("xenia_memory_{}", Clock::QueryHostTickCount());
+  file_name_ = std::format("xenia_memory_{}_{:08x}", Clock::QueryHostTickCount(),
+                           static_cast<u32>(std::random_device{}()));
 
   const size_t mapping_size =
       rex::round_up(static_cast<size_t>(0x120000000ull) + system_allocation_granularity_,

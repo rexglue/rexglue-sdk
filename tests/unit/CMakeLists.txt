@@ -13,6 +13,7 @@ add_executable(unit_tests
     memory/access_violation_test.cpp
     memory/memory_budget_test.cpp
     memory/mapped_memory_test.cpp
+    memory/file_mapping_test.cpp
     memory/bit_cast_copy_test.cpp
     gpu/backend_select_test.cpp
     gpu/null_command_processor_test.cpp

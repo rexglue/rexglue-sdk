@@ -212,7 +212,8 @@ constexpr FileMappingHandle kFileMappingHandleInvalid = -1;
  * @param length Size in bytes.
  * @param access Access rights of views of the object.
  * @param commit True to commit the whole object up front. Only Windows reads it.
- * @return Handle to the object, or kFileMappingHandleInvalid on failure.
+ * @return Handle to the object, or kFileMappingHandleInvalid on failure or when an object with
+ *         that name already exists.
  */
 REX_API FileMappingHandle CreateFileMappingHandle(const std::filesystem::path& path, size_t length,
                                                   PageAccess access, bool commit);

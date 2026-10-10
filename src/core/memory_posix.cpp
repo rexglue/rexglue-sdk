@@ -412,7 +412,7 @@ FileMappingHandle CreateFileMappingHandle(const std::filesystem::path& path, siz
       REX_ASSERT_ALWAYS();
       return kFileMappingHandleInvalid;
   }
-  oflag |= O_CREAT;
+  oflag |= O_CREAT | O_EXCL;
   auto full_path = MakeShmName(path);
   int ret = shm_open(full_path.c_str(), oflag, 0777);
   if (ret < 0) {
