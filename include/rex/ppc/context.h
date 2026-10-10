@@ -165,9 +165,6 @@ constexpr u32 kRoundMask = 0x03;
 struct FPSCRRegister {
   u32 csr; /**< Host floating point control word as last read or written. */
 
-  /** Guest rounding mode kRound constant for each value of the host rounding field. */
-  static constexpr size_t HostToGuest[] = {kRoundNearest, kRoundDown, kRoundUp, kRoundTowardZero};
-
   /** Host specific access to the floating point control word. */
   using Platform = platform::FPSCRPlatform;
   /** Bit position of the host rounding field in csr. */
@@ -176,6 +173,17 @@ struct FPSCRRegister {
   static constexpr size_t RoundMaskVal = Platform::RoundMaskVal;
   /** Mask of the host flush to zero and denormals are zero bits in csr. */
   static constexpr size_t FlushMask = Platform::FlushMask;
+
+  static_assert(
+      [] {
+        for (u32 rn = 0; rn <= kRoundMask; ++rn) {
+          if (Platform::HostToReX[(Platform::GuestToHost[rn] & RoundMaskVal) >> RoundShift] != rn) {
+            return false;
+          }
+        }
+        return true;
+      }(),
+      "HostToReX must invert GuestToHost");
 
   /** Bits the guest owns, the rest is host policy set by InitHost. */
   static constexpr u32 GuestMask = static_cast<u32>(RoundMaskVal) | static_cast<u32>(FlushMask);
@@ -201,7 +209,7 @@ struct FPSCRRegister {
    */
   u32 loadFromHost() noexcept {
     csr = getcsr();
-    return HostToGuest[(csr & RoundMaskVal) >> RoundShift];
+    return Platform::HostToReX[(csr & RoundMaskVal) >> RoundShift];
   }
 
   /**

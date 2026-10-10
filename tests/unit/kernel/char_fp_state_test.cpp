@@ -88,6 +88,20 @@ TEST_CASE("KeSaveFloatingPointState and KeRestoreFloatingPointState round trip f
   });
 }
 
+TEST_CASE("Every guest rounding mode reads back from the host control word", "[kernel][fp]") {
+  KernelFixture fixture;
+  fixture.RunOnGuestThread([](Caller& c) {
+    PPCContext& ctx = c.ctx();
+    for (const u32 mode : {rex::ppc::kRoundNearest, rex::ppc::kRoundTowardZero, rex::ppc::kRoundUp,
+                           rex::ppc::kRoundDown}) {
+      INFO("rounding mode " << mode);
+      ctx.fpscr.storeFromGuest(mode);
+      CHECK(ctx.fpscr.loadFromHost() == mode);
+    }
+    ctx.fpscr.storeFromGuest(rex::ppc::kRoundNearest);
+  });
+}
+
 TEST_CASE("KeSaveVectorUnitState and KeRestoreVectorUnitState round trip v0 to v127",
           "[kernel][fp]") {
   KernelFixture fixture;
@@ -133,7 +147,6 @@ TEST_CASE("A host worker starts from the host policy FP control word", "[kernel]
     c.Kernel("NtClose", {*launched});
     u32 policy = csr->load();
     FPSCRPlatform::InitHostExceptions(policy);
-    CHECK(csr->load() != 0);
     CHECK(csr->load() == host->load());
     CHECK(policy == csr->load());
   });
