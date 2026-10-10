@@ -106,7 +106,7 @@ void DxbcShaderTranslator::ProcessVectorAluOperation(
           used_result_components;
       uint32_t different = used_result_components & ~identical;
       if (different) {
-        // Shader Model 3 NaN behavior (a op b ? a : b, not fmax/fmin).
+        // Shader Model 3 NaN behavior (`a op b ? a : b`, not fmax/fmin).
         if (instr.vector_opcode == AluVectorOpcode::kMin) {
           a_.OpLT(dxbc::Dest::R(system_temp_result_, different), operands[0], operands[1]);
         } else {
@@ -513,7 +513,7 @@ void DxbcShaderTranslator::ProcessVectorAluOperation(
             used_result_components;
         uint32_t different = used_result_components & ~identical;
         if (different) {
-          // Shader Model 3 NaN behavior (a >= b ? a : b, not fmax).
+          // Shader Model 3 NaN behavior (`a >= b ? a : b`, not fmax).
           a_.OpGE(dxbc::Dest::R(system_temp_result_, different), operands[0], operands[1]);
           a_.OpMovC(dxbc::Dest::R(system_temp_result_, different),
                     dxbc::Src::R(system_temp_result_), operands[0], operands[1]);
@@ -615,7 +615,7 @@ void DxbcShaderTranslator::ProcessScalarAluOperation(
       if (instr.scalar_operands[0].components[0] == instr.scalar_operands[0].components[1]) {
         a_.OpMov(ps_dest, operand_0_a);
       } else {
-        // Shader Model 3 NaN behavior (a op b ? a : b, not fmax/fmin).
+        // Shader Model 3 NaN behavior (`a op b ? a : b`, not fmax/fmin).
         if (instr.scalar_opcode == AluScalarOpcode::kMins) {
           a_.OpLT(ps_dest, operand_0_a, operand_0_b);
         } else {
@@ -719,7 +719,7 @@ void DxbcShaderTranslator::ProcessScalarAluOperation(
       if (instr.scalar_operands[0].components[0] == instr.scalar_operands[0].components[1]) {
         a_.OpMov(ps_dest, operand_0_a);
       } else {
-        // Shader Model 3 NaN behavior (a >= b ? a : b, not fmax).
+        // Shader Model 3 NaN behavior (`a >= b ? a : b`, not fmax).
         a_.OpGE(ps_dest, operand_0_a, operand_0_b);
         a_.OpMovC(ps_dest, ps_src, operand_0_a, operand_0_b);
       }

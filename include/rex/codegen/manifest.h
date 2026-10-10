@@ -23,7 +23,7 @@ namespace rex::codegen {
 
 /**
  * Codegen settings for a single binary inside a manifest. The entrypoint
- * uses an empty `guestPath`; module entries set it to the canonicalized
+ * uses an empty `guestPath`, and module entries set it to the canonicalized
  * guest-visible path the host runtime resolves against.
  */
 struct BinaryConfig {
@@ -44,7 +44,7 @@ struct BinaryConfig {
 std::string CanonicalizeModuleGuestPath(std::string_view path, std::string_view project_name = {});
 
 /**
- * Parsed manifest TOML. Construct via Load(); treat as read-only after.
+ * Parsed manifest TOML. Construct via Load() and treat as read-only after.
  */
 struct ManifestConfig {
   std::string projectName;               /**< Value of `[project].name`, a valid identifier. */

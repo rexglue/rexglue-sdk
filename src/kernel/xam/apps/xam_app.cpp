@@ -72,7 +72,7 @@ X_HRESULT XamApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
     case 0x00020021: {
       struct message_data {
         char unk_00[64];
-        be_u32 unk_40; /**< KeGetCurrentProcessType() < 1 ? 1 : 0 */
+        be_u32 unk_40; /**< `KeGetCurrentProcessType() < 1 ? 1 : 0` */
         be_u32 unk_44;
         be_u32 unk_48;
       }* data = reinterpret_cast<message_data*>(buffer);

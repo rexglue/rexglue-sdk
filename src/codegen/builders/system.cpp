@@ -181,7 +181,7 @@ bool build_mfcr(BuilderContext& ctx) {
 }
 
 bool build_mfocrf(BuilderContext& ctx) {
-  // FXM is a one-hot mask: bit 7 = CR0, bit 6 = CR1, ..., bit 0 = CR7
+  // FXM is a one-hot mask with bit 7 for CR0, bit 6 for CR1, down to bit 0 for CR7
   uint32_t fxm = ctx.insn.operands[1];
   uint32_t crField = 0;
   for (uint32_t i = 0; i < 8; i++) {

@@ -26,11 +26,12 @@ namespace rex::codegen {
  * Recompiler without requiring a full Runtime/FunctionDispatcher setup. It accepts
  * raw binary data by reference (caller owns the buffer).
  *
- * Usage:
- *   std::vector<uint8_t> data = load_binary_file(...);
- *   TestModule module;
- *   module.Load(0x82010000, data.data(), data.size());
- *   recompiler.module_ = &module;
+ * @code
+ * std::vector<uint8_t> data = load_binary_file(...);
+ * TestModule module;
+ * module.Load(0x82010000, data.data(), data.size());
+ * recompiler.module_ = &module;
+ * @endcode
  */
 class TestModule : public runtime::Module {
  public:

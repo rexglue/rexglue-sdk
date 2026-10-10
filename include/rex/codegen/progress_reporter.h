@@ -35,7 +35,7 @@ struct BinaryInfo {
  * and phase boundaries. CLI consumers implement it to update a progress
  * view. Callers without a view, such as tests, pass nullptr.
  *
- * All methods are called from the thread that drove the pipeline; no
+ * All methods are called from the thread that drove the pipeline, and no
  * cross-thread synchronization is implied.
  */
 class ProgressReporter {

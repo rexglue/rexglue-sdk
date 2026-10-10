@@ -288,7 +288,7 @@ struct BlockDiscoveryResult {
 /**
  * Discover all blocks belonging to a function starting at entryPoint.
  *
- * Algorithm:
+ * The scan runs in these steps.
  * - Worklist-based block discovery
  * - Linear sweep until terminator (blr, bctr, unconditional b)
  * - Follow both paths for conditional branches
@@ -313,11 +313,11 @@ BlockDiscoveryResult discoverBlocks(
 /**
  * Detect jump table at a bctr instruction.
  *
- * Patterns detected:
- * - ABSOLUTE: lwzx loads full 32-bit addresses
- * - COMPUTED: lbzx + rlwinm (byte offset with shift)
- * - BYTEOFFSET: lbzx + add (byte offset direct)
- * - SHORTOFFSET: lhzx + add (16-bit offset)
+ * Detected patterns.
+ * - ABSOLUTE, lwzx loads full 32-bit addresses
+ * - COMPUTED, lbzx + rlwinm (byte offset with shift)
+ * - BYTEOFFSET, lbzx + add (byte offset direct)
+ * - SHORTOFFSET, lhzx + add (16-bit offset)
  *
  * @param decoded The decoded binary
  * @param limits Analysis limits

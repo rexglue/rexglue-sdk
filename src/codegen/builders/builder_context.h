@@ -43,12 +43,12 @@ struct RecompilerLocalVariables {
 /**
  * @brief CSR (Control/Status Register) flush mode state.
  *
- * Tracks the current MXCSR configuration for floating-point operations:
- * - **Unknown**: Initial state or after function call. Next FP/VMX instruction
- *   will emit a conditional mode check.
- * - **FPU**: Denormals preserved (flush-to-zero disabled). Used by scalar
+ * Tracks the current MXCSR configuration for floating-point operations.
+ * - **Unknown** is the initial state and the state after a function call. The next FP/VMX
+ *   instruction will emit a conditional mode check.
+ * - **FPU** preserves denormals (flush-to-zero disabled). Used by scalar
  *   floating-point instructions (fadd, fmul and others)
- * - **VMX**: Denormals flushed to zero. Used by vector floating-point
+ * - **VMX** flushes denormals to zero. Used by vector floating-point
  *   instructions (vaddfp, vmaddfp and others)
  */
 enum class CSRState { Unknown, FPU, VMX };
@@ -275,7 +275,7 @@ struct BuilderContext {
    * @brief Emit binary float vector operation: vD = op(vA, vB)
    * @param simd_op The SIMDE function name (e.g., "add_ps", "sub_ps", "mul_ps")
    *
-   * Emits: simde_mm_store_ps(vD.f32, simde_mm_OP(load(vA.f32), load(vB.f32)));
+   * Emits `simde_mm_store_ps(vD.f32, simde_mm_OP(load(vA.f32), load(vB.f32)));`
    * Uses operands[0]=vD, operands[1]=vA, operands[2]=vB from current instruction.
    */
   void emit_vec_fp_binary(const char* simd_op);
@@ -285,9 +285,9 @@ struct BuilderContext {
    * @param simd_expr SIMDE expression for the operation (will be wrapped in store)
    *
    * Use when the operation is more complex than a single function call.
-   * Emits: simde_mm_store_ps(vD.f32, EXPR);
+   * Emits `simde_mm_store_ps(vD.f32, EXPR);`
    * Uses operands[0]=vD, operands[1]=vA from current instruction.
-   * Example: emit_vec_fp_unary_expr("simde_mm_sqrt_ps(simde_mm_load_ps({vA}.f32))")
+   * Example `emit_vec_fp_unary_expr("simde_mm_sqrt_ps(simde_mm_load_ps({vA}.f32))")`
    */
   void emit_vec_fp_unary_expr(std::string_view simd_expr);
 
@@ -296,7 +296,7 @@ struct BuilderContext {
    * @param simd_op The SIMDE function name (e.g., "add_epi16", "and_si128")
    * @param element_type The vector element type suffix (e.g., "u8", "s16", "u32")
    *
-   * Emits: simde_mm_store_si128((simde__m128i*)vD.TYPE, simde_mm_OP(load(vA), load(vB)));
+   * Emits `simde_mm_store_si128((simde__m128i*)vD.TYPE, simde_mm_OP(load(vA), load(vB)));`
    * Uses operands[0]=vD, operands[1]=vA, operands[2]=vB from current instruction.
    */
   void emit_vec_int_binary(const char* simd_op, const char* element_type);

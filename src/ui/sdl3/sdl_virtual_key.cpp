@@ -23,7 +23,7 @@ hid::VirtualKey TranslateSDLScancode(SDL_Scancode scancode) {
                            (scancode - SDL_SCANCODE_F13));
   }
   if (scancode >= SDL_SCANCODE_KP_1 && scancode <= SDL_SCANCODE_KP_9) {
-    // SDL numpad order is 1..9,0; VK order is 0..9.
+    // SDL numpad order is 1..9,0 and VK order is 0..9.
     return hid::VirtualKey(static_cast<uint32_t>(hid::VirtualKey::kNumpad0) + 1 +
                            (scancode - SDL_SCANCODE_KP_1));
   }

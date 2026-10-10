@@ -20,7 +20,7 @@ namespace rex::runtime {
 
 /**
  * Normalize a guest path to the canonical form used as a key for runtime
- * lookups: device prefix stripped, separators canonicalized to forward
+ * lookups, with the device prefix stripped, separators canonicalized to forward
  * slashes, redundant `..` segments resolved, leading slashes removed,
  * and ASCII lowercased. Codegen-side canonicalization
  * (rex::codegen::CanonicalizeModuleGuestPath) layers a project-scoped prefix

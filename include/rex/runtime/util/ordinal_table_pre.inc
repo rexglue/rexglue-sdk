@@ -11,8 +11,9 @@
 
 /**
  * Pre-include file for an ordinal table.
- * Use this to build tables of constants describing the ordinals:
+ * Use this to build tables of constants describing the ordinals.
  *
+ * @code
  * // Build an ordinal enum to make it easy to lookup ordinals.
  * #include "rex/kernel/util/ordinal_table_pre.inc"
  * namespace ordinals {
@@ -21,6 +22,7 @@
  * };
  * }  // namespace ordinals
  * #include "rex/kernel/util/ordinal_table_post.inc"
+ * @endcode
  */
 
 /**

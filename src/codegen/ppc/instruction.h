@@ -34,7 +34,7 @@ struct Instruction {
 
   /**
    * Format I - Unconditional Branch (b, ba, bl, bla)
-   * Fields: LI (24-bit), AA (1-bit), LK (1-bit)
+   * Fields LI (24-bit), AA (1-bit), LK (1-bit)
    */
   struct FormatI {
     uint32_t LI : 24;  /**< Branch offset (bits 6-29). */
@@ -50,7 +50,7 @@ struct Instruction {
 
   /**
    * Format B - Conditional Branch (bc, bca, bcl, bcla)
-   * Fields: BO (5-bit), BI (5-bit), BD (14-bit), AA (1-bit), LK (1-bit)
+   * Fields BO (5-bit), BI (5-bit), BD (14-bit), AA (1-bit), LK (1-bit)
    */
   struct FormatB {
     uint32_t BD : 14;  /**< Branch displacement (bits 16-29). */
@@ -68,7 +68,7 @@ struct Instruction {
 
   /**
    * Format D - Immediate operations (load, store, addi and others)
-   * Fields: RT/RS (5-bit), RA (5-bit), d/SIMM/UIMM (16-bit)
+   * Fields RT/RS (5-bit), RA (5-bit), d/SIMM/UIMM (16-bit)
    */
   struct FormatD {
     uint32_t d : 16;   /**< Immediate value (bits 16-31). */
@@ -85,7 +85,7 @@ struct Instruction {
 
   /**
    * Format DS - Double-word operations (ld, std)
-   * Fields: RT/RS (5-bit), RA (5-bit), DS (14-bit), XO (2-bit)
+   * Fields RT/RS (5-bit), RA (5-bit), DS (14-bit), XO (2-bit)
    */
   struct FormatDS {
     uint32_t XO : 2;   /**< Extended opcode (bits 30-31). */
@@ -101,7 +101,7 @@ struct Instruction {
 
   /**
    * Format X - General register operations (logical, shifts, loads/stores)
-   * Fields: RT/RS (5-bit), RA (5-bit), RB (5-bit), XO (10-bit), Rc (1-bit)
+   * Fields RT/RS (5-bit), RA (5-bit), RB (5-bit), XO (10-bit), Rc (1-bit)
    */
   struct FormatX {
     uint32_t Rc : 1;   /**< Bit 31, updates CR0. */
@@ -116,7 +116,7 @@ struct Instruction {
 
   /**
    * Format XL - Branch to LR/CTR (bclr, bcctr)
-   * Fields: BO (5-bit), BI (5-bit), XO (10-bit), LK (1-bit)
+   * Fields BO (5-bit), BI (5-bit), XO (10-bit), LK (1-bit)
    */
   struct FormatXL {
     uint32_t LK : 1;      /**< Link bit (bit 31). */
@@ -129,7 +129,7 @@ struct Instruction {
 
   /**
    * Format XFX - SPR access (mfspr, mtspr)
-   * Fields: RT/RS (5-bit), SPR (10-bit), XO (10-bit)
+   * Fields RT/RS (5-bit), SPR (10-bit), XO (10-bit)
    */
   struct FormatXFX {
     uint32_t _unused : 1; /**< Unused (bit 31). */
@@ -154,7 +154,7 @@ struct Instruction {
 
   /**
    * Format XO - Arithmetic with overflow (add, sub, mul, div)
-   * Fields: RT (5-bit), RA (5-bit), RB (5-bit), OE (1-bit), XO (9-bit), Rc (1-bit)
+   * Fields RT (5-bit), RA (5-bit), RB (5-bit), OE (1-bit), XO (9-bit), Rc (1-bit)
    */
   struct FormatXO {
     uint32_t Rc : 1;   /**< Bit 31, updates CR0. */
@@ -168,7 +168,7 @@ struct Instruction {
 
   /**
    * Format M - Rotate and mask (rlwinm, rlwnm)
-   * Fields: RS (5-bit), RA (5-bit), SH/RB (5-bit), MB (5-bit), ME (5-bit), Rc (1-bit)
+   * Fields RS (5-bit), RA (5-bit), SH/RB (5-bit), MB (5-bit), ME (5-bit), Rc (1-bit)
    */
   struct FormatM {
     uint32_t Rc : 1;   /**< Bit 31, updates CR0. */
@@ -185,7 +185,7 @@ struct Instruction {
 
   /**
    * Format MD - Rotate double-word (64-bit)
-   * Fields: RS (5-bit), RA (5-bit), sh (6-bit), mb (6-bit), XO (3-bit), Rc (1-bit)
+   * Fields RS (5-bit), RA (5-bit), sh (6-bit), mb (6-bit), XO (3-bit), Rc (1-bit)
    */
   struct FormatMD {
     uint32_t Rc : 1;   /**< Bit 31, updates CR0. */
@@ -199,7 +199,7 @@ struct Instruction {
 
   /**
    * Format A - Floating-point arithmetic (fmadd, fmul and others)
-   * Fields: FRT (5-bit), FRA (5-bit), FRB (5-bit), FRC (5-bit), XO (5-bit), Rc (1-bit)
+   * Fields FRT (5-bit), FRA (5-bit), FRB (5-bit), FRC (5-bit), XO (5-bit), Rc (1-bit)
    */
   struct FormatA {
     uint32_t Rc : 1;   /**< Bit 31, updates CR0. */
@@ -213,7 +213,7 @@ struct Instruction {
 
   /**
    * Format VA - Vector 4-operand (vperm, vmaddfp and others)
-   * Fields: VRT (5-bit), VRA (5-bit), VRB (5-bit), VRC (5-bit), XO (6-bit)
+   * Fields VRT (5-bit), VRA (5-bit), VRB (5-bit), VRC (5-bit), XO (6-bit)
    */
   struct FormatVA {
     uint32_t XO : 6;   /**< Extended opcode (bits 26-31). */
@@ -228,7 +228,7 @@ struct Instruction {
 
   /**
    * Format VX - Vector 3-operand/2-operand (vaddfp, vand and others)
-   * Fields: VRT (5-bit), VRA (5-bit), VRB (5-bit), XO (11-bit)
+   * Fields VRT (5-bit), VRA (5-bit), VRB (5-bit), XO (11-bit)
    */
   struct FormatVX {
     uint32_t XO : 11;  /**< Extended opcode (bits 21-31). */
@@ -244,7 +244,7 @@ struct Instruction {
 
   /**
    * Format VXR, vector with the Rc bit (vcmp instructions).
-   * Fields: VRT (5-bit), VRA (5-bit), VRB (5-bit), Rc (1-bit), XO (10-bit)
+   * Fields VRT (5-bit), VRA (5-bit), VRB (5-bit), Rc (1-bit), XO (10-bit)
    */
   struct FormatVXR {
     uint32_t XO : 10;  /**< Extended opcode (bits 21-30). */

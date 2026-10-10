@@ -62,13 +62,15 @@ constexpr std::string_view to_string(MapParseError error) {
 }
 
 /**
- * Parse an nm-style map file (format: "address type name").
+ * Parse an nm-style map file whose lines read "address type name".
  *
- * This is the format produced by `nm` on Unix systems:
- *   00000000 t test_add1
- *   00000010 T test_sub1
+ * This is the format produced by `nm` on Unix systems.
+ * @code
+ * 00000000 t test_add1
+ * 00000010 T test_sub1
+ * @endcode
  *
- * Symbol types:
+ * Symbol types.
  *   T/t = text (code)
  *   D/d = data
  *   B/b = bss

@@ -28,10 +28,11 @@ class ToolRuntime;
 /**
  * Pipeline orchestrator for code generation.
  *
- * Usage:
- *   auto pipeline = CodegenPipeline::Create(configPath);
- *   if (!pipeline) { handle error }
- *   auto result = pipeline->Run();
+ * @code
+ * auto pipeline = CodegenPipeline::Create(configPath);
+ * if (!pipeline) { handle error }
+ * auto result = pipeline->Run();
+ * @endcode
  */
 class CodegenPipeline : public rex::MoveOnly {
  public:

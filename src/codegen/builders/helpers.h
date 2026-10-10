@@ -63,7 +63,7 @@ inline bool isRecordForm(const ppc_insn& insn) {
  * Emits the CR0 comparison for Rc forms.
  *
  * Rc forms (the '.' suffix, such as add. and and.)
- * update CR0 based on the result compared to zero:
+ * update CR0 based on the result compared to zero.
  *   CR0[LT] = result < 0
  *   CR0[GT] = result > 0
  *   CR0[EQ] = result == 0
@@ -79,9 +79,9 @@ inline void emitRecordFormCompare(BuilderContext& ctx) {
 }
 
 /**
- * Emit a CR bit operation: crD = crA <op> crB
+ * Emit a CR bit operation `crD = crA <op> crB`.
  *
- * CR bit operations work on individual CR bits (0-31). This helper:
+ * CR bit operations work on individual CR bits (0-31). This helper does the following.
  * - Maps bit indices to CR field (0-7) and field bit (0-3)
  * - Emits code to access CR fields by bit name
  *
@@ -124,8 +124,8 @@ inline void emitCRBitOperation(BuilderContext& ctx, std::string_view op, bool in
 /**
  * Emit register-to-register comparison.
  *
- * Pattern: crD.compare<T>(rA.field, rB.field, XER)
- * Used by: cmpd, cmpld, cmplw, cmpw
+ * Pattern `crD.compare<T>(rA.field, rB.field, XER)`
+ * Used by cmpd, cmpld, cmplw, cmpw
  *
  * @param ctx The builder context
  * @param type_name The comparison type (e.g., "int64_t", "uint32_t")
@@ -139,8 +139,8 @@ inline void emitCompareRegister(BuilderContext& ctx, const char* type_name, cons
 /**
  * Emit register-to-immediate comparison.
  *
- * Pattern: crD.compare<T>(rA.field, imm, XER)
- * Used by: cmpdi, cmpldi, cmplwi, cmpwi
+ * Pattern `crD.compare<T>(rA.field, imm, XER)`
+ * Used by cmpdi, cmpldi, cmplwi, cmpwi
  *
  * @param ctx The builder context
  * @param type_name The comparison type (e.g., "int64_t", "uint32_t")
@@ -162,8 +162,8 @@ inline void emitCompareImmediate(BuilderContext& ctx, const char* type_name, con
 /**
  * Emit D-form load with update instruction.
  *
- * Pattern: EA = (rA) + d; rD = MEM[EA]; rA = EA
- * Used by: lbzu, lwzu, ldu and others
+ * Pattern `EA = (rA) + d; rD = MEM[EA]; rA = EA`
+ * Used by lbzu, lwzu, ldu and others
  *
  * @param ctx The builder context
  * @param load_macro The REX_LOAD_* macro to use (e.g., "REX_LOAD_U8")
@@ -179,8 +179,8 @@ inline void emitLoadWithUpdate(BuilderContext& ctx, const char* load_macro) {
 /**
  * Emit X-form load with update instruction.
  *
- * Pattern: EA = rA + rB; rD = MEM[EA]; rA = EA
- * Used by: lbzux, lhzux, lwzux, ldux
+ * Pattern `EA = rA + rB; rD = MEM[EA]; rA = EA`
+ * Used by lbzux, lhzux, lwzux, ldux
  *
  * @param ctx The builder context
  * @param load_macro The REX_LOAD_* macro to use (e.g., "REX_LOAD_U8")
@@ -196,8 +196,8 @@ inline void emitLoadXFormWithUpdate(BuilderContext& ctx, const char* load_macro)
 /**
  * Emit D-form store with update instruction.
  *
- * Pattern: EA = (rA) + d; MEM[EA] = rS; rA = EA
- * Used by: stbu, stwu, stdu and others
+ * Pattern `EA = (rA) + d; MEM[EA] = rS; rA = EA`
+ * Used by stbu, stwu, stdu and others
  *
  * @param ctx The builder context
  * @param store_macro The REX_STORE_* macro to use (e.g., "REX_STORE_U8")
@@ -214,8 +214,8 @@ inline void emitStoreWithUpdate(BuilderContext& ctx, const char* store_macro, co
 /**
  * Emit X-form store with update instruction.
  *
- * Pattern: EA = rA + rB; MEM[EA] = rS; rA = EA
- * Used by: stbux, sthux, stwux, stdux
+ * Pattern `EA = rA + rB; MEM[EA] = rS; rA = EA`
+ * Used by stbux, sthux, stwux, stdux
  *
  * @param ctx The builder context
  * @param store_macro The REX_STORE_* macro (e.g., "REX_STORE_U8")
@@ -233,7 +233,7 @@ inline void emitStoreXFormWithUpdate(BuilderContext& ctx, const char* store_macr
 /**
  * Emit atomic load-and-reserve instruction (lwarx/ldarx pattern).
  *
- * Pattern: EA = rA + rB; reserved = *(T*)REX_RAW_ADDR(EA); rD = bswap(reserved)
+ * Pattern `EA = rA + rB; reserved = *(T*)REX_RAW_ADDR(EA); rD = bswap(reserved)`
  *
  * @param ctx The builder context
  * @param ptr_type The pointer type (e.g., "uint32_t", "uint64_t")
@@ -255,7 +255,7 @@ inline void emitAtomicLoadReserve(BuilderContext& ctx, const char* ptr_type, con
 /**
  * Emit atomic store-conditional instruction (stwcx./stdcx. pattern).
  *
- * Pattern: EA = rA + rB; cr0 = CAS(EA, reserved, bswap(rS))
+ * Pattern `EA = rA + rB; cr0 = CAS(EA, reserved, bswap(rS))`
  *
  * @param ctx The builder context
  * @param ptr_type The pointer type (e.g., "uint32_t", "uint64_t")
@@ -281,8 +281,8 @@ inline void emitAtomicStoreConditional(BuilderContext& ctx, const char* ptr_type
 /**
  * Emit D-form sign-extending load instruction.
  *
- * Pattern: rD = sign_extend(LOAD(rA + d))
- * Used by: lha, lwa (halfword/word algebraic loads)
+ * Pattern `rD = sign_extend(LOAD(rA + d))`
+ * Used by lha, lwa (halfword/word algebraic loads)
  *
  * @param ctx The builder context
  * @param cast_type The cast for sign extension (e.g., "int16_t", "int32_t")
@@ -299,8 +299,8 @@ inline void emitSignExtendLoadDForm(BuilderContext& ctx, const char* cast_type,
 /**
  * Emit X-form sign-extending load instruction.
  *
- * Pattern: rD = sign_extend(LOAD(rA + rB))
- * Used by: lhax, lwax (halfword/word algebraic indexed loads)
+ * Pattern `rD = sign_extend(LOAD(rA + rB))`
+ * Used by lhax, lwax (halfword/word algebraic indexed loads)
  *
  * @param ctx The builder context
  * @param cast_type The cast for sign extension (e.g., "int16_t", "int32_t")
@@ -340,7 +340,7 @@ inline void emitBranchWithBoundsCheck(BuilderContext& ctx, uint32_t target,
 /**
  * Emit aligned or unaligned vector effective address calculation to ea.
  *
- * Pattern: ea = (opt_rA + rB) [& ~align_mask]
+ * Pattern `ea = (opt_rA + rB) [& ~align_mask]`
  * Uses operands[1] as optional base register and operands[2] as index register.
  *
  * @param ctx The builder context
@@ -362,7 +362,7 @@ inline void emitVectorEA(BuilderContext& ctx, const char* align_mask = nullptr) 
 /**
  * Emit unaligned vector effective address calculation to temp.
  *
- * Pattern: temp.u32 = opt_rA + rB
+ * Pattern `temp.u32 = opt_rA + rB`
  * Uses operands[1] as optional base register and operands[2] as index register.
  *
  * @param ctx The builder context
@@ -375,7 +375,7 @@ inline void emitVectorTempEA(BuilderContext& ctx) {
 }
 
 /**
- * Emit a PPC trap instruction: if (<condition>) ppc_trap(ctx, base, 0);
+ * Emit a PPC trap instruction `if (<condition>) ppc_trap(ctx, base, 0);`.
  *
  * The TO field (instruction bits 21-25) is a 5-bit mask of the trap conditions in the order
  * signed lt, signed gt, eq, unsigned lt, unsigned gt. It is read from the instruction word so

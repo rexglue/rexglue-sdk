@@ -19,6 +19,7 @@
 
 #include <rex/runtime/function_dispatcher.h>
 #include <rex/runtime/xmemory.h>
+#include <rex/runtime/xthread.h>
 #include <rex/runtime/xtypes.h>
 
 #include "kernel_fixture.h"
@@ -210,6 +211,42 @@ TEST_CASE("threads: a queued user APC runs during an alertable wait", "[char][th
     CHECK(done.get() == rex::X_STATUS_USER_APC);
     CHECK(g_apc_calls == 1);
     c.Kernel("NtClose", {thread});
+  });
+}
+
+TEST_CASE("threads: a guest APC with a kernel routine is delivered without freeing its memory",
+          "[char][threads][apc]") {
+  static std::atomic<u32> g_sequence;
+  static std::atomic<u32> g_kernel_at;
+  static std::atomic<u32> g_normal_at;
+  g_sequence = 0;
+  g_kernel_at = 0;
+  g_normal_at = 0;
+  KernelFixture fixture;
+  fixture.RunOnGuestThread([](Caller& c) {
+    auto* dispatcher = c.runtime().function_dispatcher();
+    const u32 kernel_routine = dispatcher->AllocateThunk(
+        +[](PPCContext& ctx, u8*) {
+          g_kernel_at = ++g_sequence;
+          ctx.r3.u64 = 0;
+        },
+        0);
+    const u32 normal_routine = dispatcher->AllocateThunk(
+        +[](PPCContext& ctx, u8*) {
+          g_normal_at = ++g_sequence;
+          ctx.r3.u64 = 0;
+        },
+        0);
+    const u32 apc = c.Alloc(rex::runtime::XAPC::kSize);
+    c.Kernel("KeInitializeApc", {apc, KThread(c), kernel_routine, 0, normal_routine, 1, 0x1234});
+    REQUIRE(c.Kernel("KeInsertQueueApc", {apc, 5, 6, 0}) == 1);
+    c.Kernel("KeDelayExecutionThread", {1, 1, c.Quad(-10000)});
+
+    CHECK(g_kernel_at == 1);
+    CHECK(g_normal_at == 2);
+    rex::runtime::HeapAllocationInfo info{};
+    REQUIRE(c.runtime().memory()->LookupHeap(apc)->QueryRegionInfo(apc, &info));
+    CHECK((info.state & rex::runtime::kMemoryAllocationCommit) != 0);
   });
 }
 

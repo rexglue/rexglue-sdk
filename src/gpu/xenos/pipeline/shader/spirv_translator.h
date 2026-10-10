@@ -781,14 +781,14 @@ class SpirvShaderTranslator : public ShaderTranslator {
    * Returns a float vector of rex::bit_count(result.GetUsedResultComponents()) components or a
    * single float for a reduction instruction, or spv::NoResult when there is nothing to store.
    *
-   * Max and min follow Shader Model 3 NaN behavior (a op b ? a : b), unlike SPIR-V FMax and FMin
+   * Max and min follow Shader Model 3 NaN behavior (`a op b ? a : b`), unlike SPIR-V FMax and FMin
    * that are undefined for NaN and NMax and NMin that return the non NaN operand. Max4 uses NMax.
    * Cube takes operands[0] as .z_xy and returns the T
    * coordinate, S coordinate, 2 * major axis and face ID. For major axis Z, tc = -y,
-   * sc = z < 0 ? -x : x and id = z < 0 ? 5 : 4. For Y, sc = x, tc = y < 0 ? -z : z and
-   * id = y < 0 ? 3 : 2. For X, tc = -y, sc = x < 0 ? z : -z and id = x < 0 ? 1 : 0. The
+   * `sc = z < 0 ? -x : x` and `id = z < 0 ? 5 : 4`. For Y, sc = x, `tc = y < 0 ? -z : z` and
+   * `id = y < 0 ? 3 : 2`. For X, tc = -y, `sc = x < 0 ? z : -z` and `id = x < 0 ? 1 : 0`. The
    * setp push opcodes set p0 = src0.w == 0 && src1.w op 0 and return
-   * (src0.x == 0 && src1.x op 0) ? 0 : src0.x + 1. Dst returns x = 1, y = src0.y * src1.y,
+   * `(src0.x == 0 && src1.x op 0) ? 0 : src0.x + 1`. Dst returns x = 1, y = src0.y * src1.y,
    * z = src0.z and w = src1.w. Maxa sets a0 = (int)clamp(floor(src0.w + 0.5), -256, 255).
    *
    * @param instr Parsed ALU instruction.

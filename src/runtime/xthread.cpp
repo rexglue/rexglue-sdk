@@ -699,7 +699,6 @@ void ThreadRecord::DeliverAPCs() {
     REX_PERF_INC(kAPCQueueDepth);
     XAPC* apc = user_apc_queue.HeadObject(mem);
     uint32_t apc_ptr = mem->HostToGuestVirtual(apc);
-    bool needs_freeing = apc->kernel_routine != XAPC::kDummyKernelRoutine;
 
     util::XeRemoveEntryList(&apc->list_entry, mem);
     apc->enqueued = 0;
@@ -724,7 +723,6 @@ void ThreadRecord::DeliverAPCs() {
       }
     } else {
       mem->SystemHeapFree(apc_ptr);
-      needs_freeing = false;
     }
 
     uint32_t normal_routine = args->normal_routine;
@@ -744,10 +742,6 @@ void ThreadRecord::DeliverAPCs() {
 
     REXLOG_DEBUG(system, "Completed delivery of APC to {:08X} ({:08X}, {:08X}, {:08X})",
                  normal_routine, normal_context, arg1, arg2);
-
-    if (needs_freeing) {
-      mem->SystemHeapFree(apc_ptr);
-    }
 
     old_irql = kernel::xboxkrnl::KeKfAcquireSpinLock(*memory(), ctx, &kthread->apc_lock);
   }
