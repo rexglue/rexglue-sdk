@@ -70,7 +70,7 @@ void RtlFillMemoryUlong_entry(mapped_void destination, u32 length, u32 pattern) 
 }
 
 u32 RtlUpperChar_entry(u32 in) {
-  char c = in & 0xFF;
+  const u8 c = static_cast<u8>(in & 0xFF);
   if (c >= 'a' && c <= 'z') {
     return c ^ 0x20;
   }
@@ -79,7 +79,7 @@ u32 RtlUpperChar_entry(u32 in) {
 }
 
 u32 RtlLowerChar_entry(u32 in) {
-  char c = in & 0xFF;
+  const u8 c = static_cast<u8>(in & 0xFF);
   if (c >= 'A' && c <= 'Z') {
     return c ^ 0x20;
   }

@@ -75,6 +75,16 @@ TEST_CASE("strings: RtlCompareStringN resolves the strlen length before it compa
   });
 }
 
+TEST_CASE("strings: RtlUpperChar and RtlLowerChar keep a character above 0x7F", "[char][strings]") {
+  KernelFixture fixture;
+  fixture.RunOnGuestThread([](Caller& c) {
+    CHECK(c.Kernel("RtlUpperChar", {0xE9}) == 0xE9);
+    CHECK(c.Kernel("RtlLowerChar", {0xC9}) == 0xC9);
+    CHECK(c.Kernel("RtlUpperChar", {'a'}) == 'A');
+    CHECK(c.Kernel("RtlLowerChar", {'A'}) == 'a');
+  });
+}
+
 TEST_CASE("strings: Xam formats a filetime as local date and time", "[char][strings]") {
 #if !REX_PLATFORM_WIN32
   setenv("TZ", "UTC", 1);
