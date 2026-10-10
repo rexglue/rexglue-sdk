@@ -23,6 +23,7 @@
 #include <CLI/CLI.hpp>
 #include <format>
 
+#include <rex/app.h>
 #include <rex/logging.h>
 #include <rex/platform/console.h>
 #include <rex/platform/env.h>
@@ -66,9 +67,7 @@ bool ColorEnabled(bool tty) {
   return rex::log::Start(config);
 }
 
-}  // namespace
-
-int main(int argc, char** argv) {
+int RunCLI(int argc, char** argv) {
   CLI::App app{TitleString(), "rexglue"};
   app.set_version_flag("--version", REXGLUE_VERSION_STRING);
   app.require_subcommand(1);
@@ -123,4 +122,10 @@ int main(int argc, char** argv) {
   rex::log::Stop();
   rexglue::ui::Shutdown();
   return exit_code;
+}
+
+}  // namespace
+
+int main(int argc, char** argv) {
+  return rex::detail::RunGuarded([&] { return RunCLI(argc, argv); });
 }

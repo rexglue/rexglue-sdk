@@ -9,7 +9,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-#include <catch2/catch_test_macros.hpp>
+#include "rex_test.h"
 
 #include <chrono>
 
@@ -50,7 +50,7 @@ i64 ElapsedMs(std::chrono::steady_clock::time_point start) {
 
 }  // namespace
 
-TEST_CASE("waits: an absolute deadline in the past times out at once", "[char][waits]") {
+REX_TEST_CASE("waits: an absolute deadline in the past times out at once", "[char][waits]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 event = Event(c, 0);
@@ -62,7 +62,7 @@ TEST_CASE("waits: an absolute deadline in the past times out at once", "[char][w
   });
 }
 
-TEST_CASE("waits: an absolute deadline of now times out at once", "[char][waits]") {
+REX_TEST_CASE("waits: an absolute deadline of now times out at once", "[char][waits]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 event = Event(c, 0);
@@ -74,7 +74,7 @@ TEST_CASE("waits: an absolute deadline of now times out at once", "[char][waits]
   });
 }
 
-TEST_CASE("waits: an absolute deadline in the future waits until it", "[char][waits]") {
+REX_TEST_CASE("waits: an absolute deadline in the future waits until it", "[char][waits]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 event = Event(c, 0);
@@ -88,7 +88,7 @@ TEST_CASE("waits: an absolute deadline in the future waits until it", "[char][wa
   });
 }
 
-TEST_CASE("waits: KeDelayExecutionThread honors an absolute deadline", "[char][waits]") {
+REX_TEST_CASE("waits: KeDelayExecutionThread honors an absolute deadline", "[char][waits]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     auto start = std::chrono::steady_clock::now();
@@ -104,8 +104,8 @@ TEST_CASE("waits: KeDelayExecutionThread honors an absolute deadline", "[char][w
   });
 }
 
-TEST_CASE("waits: NetDll_WSAWaitForMultipleEvents waits its millisecond timeout",
-          "[char][waits][net]") {
+REX_TEST_CASE("waits: NetDll_WSAWaitForMultipleEvents waits its millisecond timeout",
+              "[char][waits][net]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 unsignaled = Event(c, 0);

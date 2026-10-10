@@ -18,7 +18,7 @@
 #include <thread>
 #include <vector>
 
-#include <catch2/catch_test_macros.hpp>
+#include "rex_test.h"
 
 #include <rex/api.h>
 #include <rex/runtime.h>
@@ -68,7 +68,7 @@ void WriteFile(const std::filesystem::path& path, std::string_view content) {
 
 }  // namespace
 
-TEST_CASE("achievement metadata layers embedded, TOML, and recomp entries", "[achievements]") {
+REX_TEST_CASE("achievement metadata layers embedded, TOML, and recomp entries", "[achievements]") {
   TempDirectory temp("rex_achievement_metadata");
   auto metadata_path = temp.path() / "achievements.toml";
   WriteFile(metadata_path, R"(
@@ -110,7 +110,7 @@ flags = 4
   CHECK(second->label == "Recomp override");
 }
 
-TEST_CASE("achievement notifications follow the unlock request", "[achievements]") {
+REX_TEST_CASE("achievement notifications follow the unlock request", "[achievements]") {
   rex::runtime::AchievementManager manager;
   (void)manager.RegisterAchievement(MakeAchievement(1, "One"));
   (void)manager.RegisterAchievement(MakeAchievement(2, "Two"));
@@ -135,7 +135,7 @@ TEST_CASE("achievement notifications follow the unlock request", "[achievements]
   CHECK(notification_count == 1);
 }
 
-TEST_CASE("achievement unlock state persists across manager instances", "[achievements]") {
+REX_TEST_CASE("achievement unlock state persists across manager instances", "[achievements]") {
   TempDirectory temp("rex_achievement_save");
   auto save_path = temp.path() / "saves" / "12345678.toml";
 
@@ -155,7 +155,7 @@ TEST_CASE("achievement unlock state persists across manager instances", "[achiev
   CHECK(second.GetUnlockTime(1) == unlock_time);
 }
 
-TEST_CASE("achievement unlock saves serialize concurrent writers", "[achievements]") {
+REX_TEST_CASE("achievement unlock saves serialize concurrent writers", "[achievements]") {
   TempDirectory temp("rex_achievement_concurrent_save");
   auto save_path = temp.path() / "saves" / "12345678.toml";
 
@@ -184,7 +184,7 @@ TEST_CASE("achievement unlock saves serialize concurrent writers", "[achievement
   }
 }
 
-TEST_CASE("runtime metadata root overrides legacy metadata discovery", "[achievements]") {
+REX_TEST_CASE("runtime metadata root overrides legacy metadata discovery", "[achievements]") {
   TempDirectory temp("rex_metadata_root");
   auto game_root = temp.path() / "game";
   auto local_metadata = game_root / "metadata" / "achievements.toml";
@@ -217,7 +217,7 @@ TEST_CASE("runtime metadata root overrides legacy metadata discovery", "[achieve
   }
 }
 
-TEST_CASE("embedded metadata assets resolve by metadata-relative path", "[achievements]") {
+REX_TEST_CASE("embedded metadata assets resolve by metadata-relative path", "[achievements]") {
   static constexpr u8 kIconBytes[] = {0x89, 0x50, 0x4E, 0x47};
   REQUIRE(rex::RegisterEmbeddedMetadataAsset("icons/custom/unit-test.png", kIconBytes,
                                              sizeof(kIconBytes)));

@@ -13,7 +13,7 @@
 #include <filesystem>
 #include <string_view>
 
-#include <catch2/catch_test_macros.hpp>
+#include "rex_test.h"
 
 #include "filesystem/fixture.h"
 
@@ -46,8 +46,8 @@ class ScopedRoot : public Fixture {
 
 }  // namespace
 
-TEST_CASE_METHOD(ScopedRoot, "Overwrite truncates in place instead of deleting",
-                 "[filesystem][overwrite]") {
+REX_TEST_CASE_METHOD(ScopedRoot, "Overwrite truncates in place instead of deleting",
+                     "[filesystem][overwrite]") {
   auto reader = Open(kPath, {.disposition = Disposition::kOpen, .access = Access::kGenericRead});
   CHECK(reader.action == OpenAction::kOpened);
 
@@ -74,8 +74,8 @@ TEST_CASE_METHOD(ScopedRoot, "Overwrite truncates in place instead of deleting",
   CHECK(std::filesystem::file_size(HostPath()) == payload.size());
 }
 
-TEST_CASE_METHOD(ScopedRoot, "Supersede of a file held open by a reader keeps the file",
-                 "[filesystem][overwrite]") {
+REX_TEST_CASE_METHOD(ScopedRoot, "Supersede of a file held open by a reader keeps the file",
+                     "[filesystem][overwrite]") {
   auto reader = Open(kPath, {.disposition = Disposition::kOpen, .access = Access::kGenericRead});
 
   auto writer =

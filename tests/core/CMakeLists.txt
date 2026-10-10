@@ -13,7 +13,7 @@ target_link_libraries(core_tests PRIVATE
     Catch2::Catch2WithMain
 )
 
-target_include_directories(core_tests PRIVATE ${PROJECT_SOURCE_DIR}/thirdparty)
+target_include_directories(core_tests PRIVATE ${PROJECT_SOURCE_DIR}/tests ${PROJECT_SOURCE_DIR}/thirdparty)
 
 set_target_properties(core_tests PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY $<TARGET_FILE_DIR:rex-core>

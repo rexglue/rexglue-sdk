@@ -16,6 +16,7 @@
 
 #include <cstdio>
 #include <cstdlib>
+#include <exception>
 #include <string>
 #include <utility>
 
@@ -51,8 +52,12 @@ inline std::string FormatAssertFailure(const char* file, int line, const char* e
  * @param message Detail for the failure, empty when the site gave none.
  */
 [[noreturn]] inline void AssertFail(const char* file, int line, const char* expr,
-                                    const char* message) {
-  std::fputs(FormatAssertFailure(file, line, expr, message).c_str(), stderr);
+                                    const char* message) noexcept {
+  try {
+    std::fputs(FormatAssertFailure(file, line, expr, message).c_str(), stderr);
+  } catch (const std::exception&) {
+    std::fprintf(stderr, "Assertion failed: %s\n  Location: %s:%d\n", expr, file, line);
+  }
   std::fflush(stderr);
   std::abort();
 }

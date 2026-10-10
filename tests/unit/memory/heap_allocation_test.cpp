@@ -8,7 +8,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-#include <catch2/catch_test_macros.hpp>
+#include "rex_test.h"
 
 #include <rex/cvar.h>
 #include <rex/logging.h>
@@ -32,7 +32,7 @@ rex::runtime::BaseHeap* MutableHeap(const rex::runtime::BaseHeap* heap) {
 
 }  // namespace
 
-TEST_CASE("Heap allocation rounds size up to page size", "[memory][heap]") {
+REX_TEST_CASE("Heap allocation rounds size up to page size", "[memory][heap]") {
   auto& memory = GetTestMemory();
   // 0x10000000 is served by the v00000000 heap with 4KB pages.
   auto* heap = MutableHeap(memory.LookupHeap(0x10000000));
@@ -97,7 +97,7 @@ TEST_CASE("Heap allocation rounds size up to page size", "[memory][heap]") {
   }
 }
 
-TEST_CASE("Heap allocation rounds alignment up to page size", "[memory][heap]") {
+REX_TEST_CASE("Heap allocation rounds alignment up to page size", "[memory][heap]") {
   auto& memory = GetTestMemory();
   auto* heap = MutableHeap(memory.LookupHeap(0x10000000));
   REQUIRE(heap != nullptr);
@@ -127,7 +127,7 @@ TEST_CASE("Heap allocation rounds alignment up to page size", "[memory][heap]") 
   }
 }
 
-TEST_CASE("Bottom-up allocation starts after reserved first 64KB", "[memory][heap]") {
+REX_TEST_CASE("Bottom-up allocation starts after reserved first 64KB", "[memory][heap]") {
   auto& memory = GetTestMemory();
   auto* heap = MutableHeap(memory.LookupHeap(0x10000000));
   REQUIRE(heap != nullptr);
@@ -144,7 +144,7 @@ TEST_CASE("Bottom-up allocation starts after reserved first 64KB", "[memory][hea
   heap->Release(addr, nullptr);
 }
 
-TEST_CASE("Top-down allocation returns high addresses", "[memory][heap]") {
+REX_TEST_CASE("Top-down allocation returns high addresses", "[memory][heap]") {
   auto& memory = GetTestMemory();
   auto* heap = MutableHeap(memory.LookupHeap(0x10000000));
   REQUIRE(heap != nullptr);
@@ -168,7 +168,7 @@ TEST_CASE("Top-down allocation returns high addresses", "[memory][heap]") {
   heap->Release(addr_top, nullptr);
 }
 
-TEST_CASE("AllocFixed allocates at exact address", "[memory][heap]") {
+REX_TEST_CASE("AllocFixed allocates at exact address", "[memory][heap]") {
   auto& memory = GetTestMemory();
   auto* heap = MutableHeap(memory.LookupHeap(0x10000000));
   REQUIRE(heap != nullptr);
@@ -189,7 +189,7 @@ TEST_CASE("AllocFixed allocates at exact address", "[memory][heap]") {
   heap->Release(target, nullptr);
 }
 
-TEST_CASE("AllocFixed reserve-only fails on already-reserved region", "[memory][heap]") {
+REX_TEST_CASE("AllocFixed reserve-only fails on already-reserved region", "[memory][heap]") {
   auto& memory = GetTestMemory();
   auto* heap = MutableHeap(memory.LookupHeap(0x10000000));
   REQUIRE(heap != nullptr);
@@ -209,7 +209,7 @@ TEST_CASE("AllocFixed reserve-only fails on already-reserved region", "[memory][
   heap->Release(target, nullptr);
 }
 
-TEST_CASE("AllocFixed commit on reserved region succeeds", "[memory][heap]") {
+REX_TEST_CASE("AllocFixed commit on reserved region succeeds", "[memory][heap]") {
   auto& memory = GetTestMemory();
   auto* heap = MutableHeap(memory.LookupHeap(0x10000000));
   REQUIRE(heap != nullptr);
@@ -229,7 +229,7 @@ TEST_CASE("AllocFixed commit on reserved region succeeds", "[memory][heap]") {
   heap->Release(target, nullptr);
 }
 
-TEST_CASE("Protect changes page protection and returns old value", "[memory][heap]") {
+REX_TEST_CASE("Protect changes page protection and returns old value", "[memory][heap]") {
   auto& memory = GetTestMemory();
   auto* heap = MutableHeap(memory.LookupHeap(0x10000000));
   REQUIRE(heap != nullptr);
@@ -255,7 +255,7 @@ TEST_CASE("Protect changes page protection and returns old value", "[memory][hea
   heap->Release(addr, nullptr);
 }
 
-TEST_CASE("QueryRegionInfo returns correct allocation info", "[memory][heap]") {
+REX_TEST_CASE("QueryRegionInfo returns correct allocation info", "[memory][heap]") {
   auto& memory = GetTestMemory();
   auto* heap = MutableHeap(memory.LookupHeap(0x10000000));
   REQUIRE(heap != nullptr);
@@ -291,7 +291,7 @@ TEST_CASE("QueryRegionInfo returns correct allocation info", "[memory][heap]") {
   heap->Release(addr, nullptr);
 }
 
-TEST_CASE("Release frees memory for reallocation", "[memory][heap]") {
+REX_TEST_CASE("Release frees memory for reallocation", "[memory][heap]") {
   auto& memory = GetTestMemory();
   auto* heap = MutableHeap(memory.LookupHeap(0x22000000));
   REQUIRE(heap != nullptr);
@@ -318,7 +318,7 @@ TEST_CASE("Release frees memory for reallocation", "[memory][heap]") {
   heap->Release(target, nullptr);
 }
 
-TEST_CASE("LookupHeap returns correct heap for address", "[memory][heap]") {
+REX_TEST_CASE("LookupHeap returns correct heap for address", "[memory][heap]") {
   auto& memory = GetTestMemory();
 
   SECTION("Address in v00000000 range") {
@@ -342,7 +342,7 @@ TEST_CASE("LookupHeap returns correct heap for address", "[memory][heap]") {
   }
 }
 
-TEST_CASE("64KB page heap rounds to 64KB boundaries", "[memory][heap]") {
+REX_TEST_CASE("64KB page heap rounds to 64KB boundaries", "[memory][heap]") {
   auto& memory = GetTestMemory();
   auto* heap = MutableHeap(memory.LookupHeap(0x50000000));
   REQUIRE(heap != nullptr);
@@ -365,7 +365,7 @@ TEST_CASE("64KB page heap rounds to 64KB boundaries", "[memory][heap]") {
   }
 }
 
-TEST_CASE("Decommit removes commit flag but keeps reservation", "[memory][heap]") {
+REX_TEST_CASE("Decommit removes commit flag but keeps reservation", "[memory][heap]") {
   auto& memory = GetTestMemory();
   auto* heap = MutableHeap(memory.LookupHeap(0x10000000));
   REQUIRE(heap != nullptr);
@@ -392,7 +392,7 @@ TEST_CASE("Decommit removes commit flag but keeps reservation", "[memory][heap]"
   heap->Release(addr, nullptr);
 }
 
-TEST_CASE("Decommit partial region", "[memory][heap]") {
+REX_TEST_CASE("Decommit partial region", "[memory][heap]") {
   auto& memory = GetTestMemory();
   auto* heap = MutableHeap(memory.LookupHeap(0x10000000));
   REQUIRE(heap != nullptr);
@@ -422,7 +422,7 @@ TEST_CASE("Decommit partial region", "[memory][heap]") {
   heap->Release(addr, nullptr);
 }
 
-TEST_CASE("Decommit-recommit cycle on 64KB heap (real usage pattern)", "[memory][heap]") {
+REX_TEST_CASE("Decommit-recommit cycle on 64KB heap (real usage pattern)", "[memory][heap]") {
   auto& memory = GetTestMemory();
   // 0x50000000 is served by the v40000000 heap with 64KB pages.
   auto* heap = MutableHeap(memory.LookupHeap(0x50000000));
@@ -455,7 +455,7 @@ TEST_CASE("Decommit-recommit cycle on 64KB heap (real usage pattern)", "[memory]
   heap->Release(addr, nullptr);
 }
 
-TEST_CASE("Repeated decommit of same page succeeds (idempotent)", "[memory][heap]") {
+REX_TEST_CASE("Repeated decommit of same page succeeds (idempotent)", "[memory][heap]") {
   auto& memory = GetTestMemory();
   auto* heap = MutableHeap(memory.LookupHeap(0x50000000));
   REQUIRE(heap != nullptr);
@@ -478,7 +478,7 @@ TEST_CASE("Repeated decommit of same page succeeds (idempotent)", "[memory][heap
   heap->Release(addr, nullptr);
 }
 
-TEST_CASE("Decommit on 64KB heap uses 64KB granularity", "[memory][heap]") {
+REX_TEST_CASE("Decommit on 64KB heap uses 64KB granularity", "[memory][heap]") {
   // On the v40000000 heap a small decommit covers the whole 64KB page.
   auto& memory = GetTestMemory();
   auto* heap = MutableHeap(memory.LookupHeap(0x50000000));
@@ -501,7 +501,7 @@ TEST_CASE("Decommit on 64KB heap uses 64KB granularity", "[memory][heap]") {
   heap->Release(addr, nullptr);
 }
 
-TEST_CASE("TranslateVirtual returns valid host pointer", "[memory][translation]") {
+REX_TEST_CASE("TranslateVirtual returns valid host pointer", "[memory][translation]") {
   auto& memory = GetTestMemory();
 
   auto* heap = MutableHeap(memory.LookupHeap(0x10000000));
@@ -522,7 +522,7 @@ TEST_CASE("TranslateVirtual returns valid host pointer", "[memory][translation]"
   heap->Release(guest_addr, nullptr);
 }
 
-TEST_CASE("HostToGuestVirtual roundtrip", "[memory][translation]") {
+REX_TEST_CASE("HostToGuestVirtual roundtrip", "[memory][translation]") {
   auto& memory = GetTestMemory();
 
   auto* heap = MutableHeap(memory.LookupHeap(0x10000000));
@@ -542,7 +542,7 @@ TEST_CASE("HostToGuestVirtual roundtrip", "[memory][translation]") {
   heap->Release(original_guest, nullptr);
 }
 
-TEST_CASE("TranslatePhysical masks to 29 bits", "[memory][translation]") {
+REX_TEST_CASE("TranslatePhysical masks to 29 bits", "[memory][translation]") {
   auto& memory = GetTestMemory();
 
   // Physical addresses are masked with 0x1FFFFFFF (29 bits)
@@ -553,7 +553,7 @@ TEST_CASE("TranslatePhysical masks to 29 bits", "[memory][translation]") {
   CHECK(ptr_low == ptr_high);
 }
 
-TEST_CASE("Physical heap vA0000000 (64KB pages, cached)", "[memory][physical]") {
+REX_TEST_CASE("Physical heap vA0000000 (64KB pages, cached)", "[memory][physical]") {
   auto& memory = GetTestMemory();
   auto* heap = MutableHeap(memory.LookupHeap(0xA0000000));
   REQUIRE(heap != nullptr);
@@ -573,7 +573,7 @@ TEST_CASE("Physical heap vA0000000 (64KB pages, cached)", "[memory][physical]") 
   heap->Release(addr, nullptr);
 }
 
-TEST_CASE("Physical heap vC0000000 (16MB pages, uncached)", "[memory][physical]") {
+REX_TEST_CASE("Physical heap vC0000000 (16MB pages, uncached)", "[memory][physical]") {
   auto& memory = GetTestMemory();
   auto* heap = MutableHeap(memory.LookupHeap(0xC0000000));
   REQUIRE(heap != nullptr);
@@ -593,7 +593,7 @@ TEST_CASE("Physical heap vC0000000 (16MB pages, uncached)", "[memory][physical]"
   heap->Release(addr, nullptr);
 }
 
-TEST_CASE("Physical heap vE0000000 (4KB pages, write-combine)", "[memory][physical]") {
+REX_TEST_CASE("Physical heap vE0000000 (4KB pages, write-combine)", "[memory][physical]") {
   auto& memory = GetTestMemory();
   auto* heap = MutableHeap(memory.LookupHeap(0xE0000000));
   REQUIRE(heap != nullptr);
@@ -613,7 +613,7 @@ TEST_CASE("Physical heap vE0000000 (4KB pages, write-combine)", "[memory][physic
   heap->Release(addr, nullptr);
 }
 
-TEST_CASE("LookupHeapByType selects correct heap", "[memory][heap]") {
+REX_TEST_CASE("LookupHeapByType selects correct heap", "[memory][heap]") {
   auto& memory = GetTestMemory();
 
   SECTION("Virtual heap with 4KB pages") {

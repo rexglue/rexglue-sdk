@@ -9,7 +9,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-#include <catch2/catch_test_macros.hpp>
+#include "rex_test.h"
 
 #include <atomic>
 #include <chrono>
@@ -46,7 +46,7 @@ struct QueueReset : public rex::NonCopyable {
 
 }  // namespace
 
-TEST_CASE("A once timer fires once", "[core][timer_queue]") {
+REX_TEST_CASE("A once timer fires once", "[core][timer_queue]") {
   QueueReset reset;
   std::atomic<int> calls{0};
   auto item = rex::platform::QueueTimerOnce([&](void*) { calls.fetch_add(1); }, nullptr,
@@ -56,7 +56,7 @@ TEST_CASE("A once timer fires once", "[core][timer_queue]") {
   CHECK(calls.load() == 1);
 }
 
-TEST_CASE("A recurring timer repeats until disarmed", "[core][timer_queue]") {
+REX_TEST_CASE("A recurring timer repeats until disarmed", "[core][timer_queue]") {
   QueueReset reset;
   std::atomic<int> calls{0};
   auto item = rex::platform::QueueTimerRecurring([&](void*) { calls.fetch_add(1); }, nullptr,
@@ -70,7 +70,7 @@ TEST_CASE("A recurring timer repeats until disarmed", "[core][timer_queue]") {
   CHECK(calls.load() == after_disarm);
 }
 
-TEST_CASE("Disarm before the due time prevents the call", "[core][timer_queue]") {
+REX_TEST_CASE("Disarm before the due time prevents the call", "[core][timer_queue]") {
   QueueReset reset;
   std::atomic<int> calls{0};
   auto item = rex::platform::QueueTimerOnce([&](void*) { calls.fetch_add(1); }, nullptr,
@@ -82,7 +82,7 @@ TEST_CASE("Disarm before the due time prevents the call", "[core][timer_queue]")
   CHECK(calls.load() == 0);
 }
 
-TEST_CASE("A recurring timer disarms itself from its callback", "[core][timer_queue]") {
+REX_TEST_CASE("A recurring timer disarms itself from its callback", "[core][timer_queue]") {
   QueueReset reset;
   std::atomic<int> calls{0};
   std::mutex handle_mutex;
@@ -104,7 +104,7 @@ TEST_CASE("A recurring timer disarms itself from its callback", "[core][timer_qu
   CHECK(calls.load() == 2);
 }
 
-TEST_CASE("Disarm waits for a running callback", "[core][timer_queue]") {
+REX_TEST_CASE("Disarm waits for a running callback", "[core][timer_queue]") {
   QueueReset reset;
   std::atomic<bool> entered{false};
   std::atomic<bool> finished{false};
@@ -122,7 +122,7 @@ TEST_CASE("Disarm waits for a running callback", "[core][timer_queue]") {
   CHECK(finished.load());
 }
 
-TEST_CASE("Timers fire in due order", "[core][timer_queue]") {
+REX_TEST_CASE("Timers fire in due order", "[core][timer_queue]") {
   QueueReset reset;
   std::mutex order_mutex;
   std::vector<int> order;
@@ -141,7 +141,7 @@ TEST_CASE("Timers fire in due order", "[core][timer_queue]") {
   CHECK(order == std::vector<int>{1, 2});
 }
 
-TEST_CASE("An earlier timer queued later wakes the dispatch thread", "[core][timer_queue]") {
+REX_TEST_CASE("An earlier timer queued later wakes the dispatch thread", "[core][timer_queue]") {
   QueueReset reset;
   std::atomic<int> calls{0};
   auto distant = rex::platform::QueueTimerOnce([](void*) {}, nullptr, Clock::now() + 1h);
@@ -153,7 +153,7 @@ TEST_CASE("An earlier timer queued later wakes the dispatch thread", "[core][tim
   CHECK(Clock::now() - queued < 400ms);
 }
 
-TEST_CASE("Shutdown with pending timers returns promptly", "[core][timer_queue]") {
+REX_TEST_CASE("Shutdown with pending timers returns promptly", "[core][timer_queue]") {
   QueueReset reset;
   auto item = rex::platform::QueueTimerOnce([](void*) {}, nullptr, Clock::now() + 1h);
   const auto start = Clock::now();

@@ -8,20 +8,20 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-#include <catch2/catch_test_macros.hpp>
+#include "rex_test.h"
 
 #include <rex/filesystem/xcontent.h>
 
 using rex::filesystem::decode_fat_timestamp;
 
-TEST_CASE("A FAT date and time decode to their FILETIME", "[filesystem]") {
+REX_TEST_CASE("A FAT date and time decode to their FILETIME", "[filesystem]") {
   CHECK(decode_fat_timestamp(0x5D43, 0x645C) == 134355044960000000ull);
 }
 
-TEST_CASE("The FAT epoch decodes to 1980-01-01", "[filesystem]") {
+REX_TEST_CASE("The FAT epoch decodes to 1980-01-01", "[filesystem]") {
   CHECK(decode_fat_timestamp(0x0021, 0x0000) == 119600064000000000ull);
 }
 
-TEST_CASE("Month 0 carries back to December of the year before", "[filesystem]") {
+REX_TEST_CASE("Month 0 carries back to December of the year before", "[filesystem]") {
   CHECK(decode_fat_timestamp(0x0001, 0x0000) == 119573280000000000ull);
 }

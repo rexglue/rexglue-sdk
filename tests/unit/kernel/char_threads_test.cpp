@@ -8,7 +8,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-#include <catch2/catch_test_macros.hpp>
+#include "rex_test.h"
 
 #include <atomic>
 #include <chrono>
@@ -102,7 +102,7 @@ std::chrono::milliseconds SpinCPU(std::chrono::milliseconds duration) {
 
 }  // namespace
 
-TEST_CASE("threads: create suspended resume and wait for exit", "[char][threads]") {
+REX_TEST_CASE("threads: create suspended resume and wait for exit", "[char][threads]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     auto ran = std::make_shared<std::atomic<u32>>(0);
@@ -117,7 +117,7 @@ TEST_CASE("threads: create suspended resume and wait for exit", "[char][threads]
   });
 }
 
-TEST_CASE("threads: suspend and resume counts", "[char][threads]") {
+REX_TEST_CASE("threads: suspend and resume counts", "[char][threads]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 handle = c.Spawn([](Caller&) {}, 1);
@@ -133,7 +133,7 @@ TEST_CASE("threads: suspend and resume counts", "[char][threads]") {
   });
 }
 
-TEST_CASE("threads: a handle outlives the thread", "[char][threads]") {
+REX_TEST_CASE("threads: a handle outlives the thread", "[char][threads]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 handle = c.Spawn([](Caller&) {});
@@ -147,8 +147,8 @@ TEST_CASE("threads: a handle outlives the thread", "[char][threads]") {
   });
 }
 
-TEST_CASE("threads: ObLookupThreadByThreadId finds a live thread and not a dead id",
-          "[char][threads]") {
+REX_TEST_CASE("threads: ObLookupThreadByThreadId finds a live thread and not a dead id",
+              "[char][threads]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 id_ptr = c.Alloc(4);
@@ -175,7 +175,8 @@ TEST_CASE("threads: ObLookupThreadByThreadId finds a live thread and not a dead 
   });
 }
 
-TEST_CASE("threads: ExTerminateThread ends the thread and signals its handle", "[char][threads]") {
+REX_TEST_CASE("threads: ExTerminateThread ends the thread and signals its handle",
+              "[char][threads]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 handle = c.Spawn([](Caller& o) { o.Kernel("ExTerminateThread", {7}); });
@@ -184,7 +185,7 @@ TEST_CASE("threads: ExTerminateThread ends the thread and signals its handle", "
   });
 }
 
-TEST_CASE("threads: a queued user APC runs during an alertable wait", "[char][threads][apc]") {
+REX_TEST_CASE("threads: a queued user APC runs during an alertable wait", "[char][threads][apc]") {
   static std::atomic<u32> g_apc_calls;
   g_apc_calls = 0;
   KernelFixture fixture;
@@ -218,8 +219,8 @@ TEST_CASE("threads: a queued user APC runs during an alertable wait", "[char][th
   });
 }
 
-TEST_CASE("threads: a guest APC with a kernel routine is delivered without freeing its memory",
-          "[char][threads][apc]") {
+REX_TEST_CASE("threads: a guest APC with a kernel routine is delivered without freeing its memory",
+              "[char][threads][apc]") {
   static std::atomic<u32> g_sequence;
   static std::atomic<u32> g_kernel_at;
   static std::atomic<u32> g_normal_at;
@@ -254,8 +255,8 @@ TEST_CASE("threads: a guest APC with a kernel routine is delivered without freei
   });
 }
 
-TEST_CASE("threads: title termination ends a thread that suspends itself",
-          "[char][threads][terminate]") {
+REX_TEST_CASE("threads: title termination ends a thread that suspends itself",
+              "[char][threads][terminate]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     auto handle = std::make_shared<std::atomic<u32>>(0);
@@ -282,7 +283,7 @@ TEST_CASE("threads: title termination ends a thread that suspends itself",
   CHECK(elapsed < 1500);
 }
 
-TEST_CASE("threads: a stack of size 0 takes the process default", "[char][threads][stack]") {
+REX_TEST_CASE("threads: a stack of size 0 takes the process default", "[char][threads][stack]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 process = c.runtime().GetTitleProcess();
@@ -296,8 +297,8 @@ TEST_CASE("threads: a stack of size 0 takes the process default", "[char][thread
   });
 }
 
-TEST_CASE("threads: the guard page is invalid and the TLS block starts at the stack base",
-          "[char][threads][stack]") {
+REX_TEST_CASE("threads: the guard page is invalid and the TLS block starts at the stack base",
+              "[char][threads][stack]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 kthread = KThread(c);
@@ -313,8 +314,8 @@ TEST_CASE("threads: the guard page is invalid and the TLS block starts at the st
   });
 }
 
-TEST_CASE("threads: a guest stack counts against the budget while the thread runs",
-          "[char][threads][stack]") {
+REX_TEST_CASE("threads: a guest stack counts against the budget while the thread runs",
+              "[char][threads][stack]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     auto* memory = c.runtime().memory();
@@ -328,8 +329,8 @@ TEST_CASE("threads: a guest stack counts against the budget while the thread run
   });
 }
 
-TEST_CASE("threads: ExCreateThread past the budget returns X_STATUS_NO_MEMORY",
-          "[char][threads][stack]") {
+REX_TEST_CASE("threads: ExCreateThread past the budget returns X_STATUS_NO_MEMORY",
+              "[char][threads][stack]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     auto* memory = c.runtime().memory();
@@ -358,8 +359,9 @@ TEST_CASE("threads: ExCreateThread past the budget returns X_STATUS_NO_MEMORY",
   });
 }
 
-TEST_CASE("threads: MmCreateKernelStack returns a counted stack and MmDeleteKernelStack frees it",
-          "[char][threads][stack]") {
+REX_TEST_CASE(
+    "threads: MmCreateKernelStack returns a counted stack and MmDeleteKernelStack frees it",
+    "[char][threads][stack]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     auto* memory = c.runtime().memory();
@@ -376,8 +378,8 @@ TEST_CASE("threads: MmCreateKernelStack returns a counted stack and MmDeleteKern
   });
 }
 
-TEST_CASE("threads: MmDeleteKernelStack refuses a base that is not the top of a kernel stack",
-          "[char][threads][stack]") {
+REX_TEST_CASE("threads: MmDeleteKernelStack refuses a base that is not the top of a kernel stack",
+              "[char][threads][stack]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 base = c.Kernel("MmCreateKernelStack", {0x4000, 0});
@@ -393,8 +395,8 @@ TEST_CASE("threads: MmDeleteKernelStack refuses a base that is not the top of a 
   });
 }
 
-TEST_CASE("threads: exit writes the exit code, state 4, the exit time and the process count",
-          "[char][threads][exit]") {
+REX_TEST_CASE("threads: exit writes the exit code, state 4, the exit time and the process count",
+              "[char][threads][exit]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 process = c.runtime().GetTitleProcess();
@@ -422,8 +424,8 @@ TEST_CASE("threads: exit writes the exit code, state 4, the exit time and the pr
   });
 }
 
-TEST_CASE("threads: a stop writes the same exit state before a waiter wakes",
-          "[char][threads][exit]") {
+REX_TEST_CASE("threads: a stop writes the same exit state before a waiter wakes",
+              "[char][threads][exit]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 process = c.runtime().GetTitleProcess();
@@ -458,7 +460,8 @@ TEST_CASE("threads: a stop writes the same exit state before a waiter wakes",
   });
 }
 
-TEST_CASE("threads: kernel time grows across a busy loop and a wait", "[char][threads][times]") {
+REX_TEST_CASE("threads: kernel time grows across a busy loop and a wait",
+              "[char][threads][times]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 kthread = KThread(c);
@@ -479,7 +482,7 @@ TEST_CASE("threads: kernel time grows across a busy loop and a wait", "[char][th
   });
 }
 
-TEST_CASE("threads: a new thread starts on its creator's processor", "[char][threads][cpu]") {
+REX_TEST_CASE("threads: a new thread starts on its creator's processor", "[char][threads][cpu]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     CHECK(c.Load8(c.ctx().r13.u32 + 0x10C) == 0);

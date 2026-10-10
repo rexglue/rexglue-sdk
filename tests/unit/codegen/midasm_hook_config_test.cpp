@@ -8,7 +8,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-#include <catch2/catch_test_macros.hpp>
+#include "rex_test.h"
 
 #include <algorithm>
 #include <string>
@@ -39,14 +39,14 @@ bool AnyError(const RecompilerConfig::ValidationResult& result, std::string_view
 
 }  // namespace
 
-TEST_CASE("A mid function hook cannot take r1", "[codegen][midasm]") {
+REX_TEST_CASE("A mid function hook cannot take r1", "[codegen][midasm]") {
   auto result = HookConfig({"r3", "r1"}).Validate();
   CHECK_FALSE(result.valid);
   CHECK(AnyError(result, "TestHook"));
   CHECK(AnyError(result, "r1"));
 }
 
-TEST_CASE("A mid function hook may take other registers", "[codegen][midasm]") {
+REX_TEST_CASE("A mid function hook may take other registers", "[codegen][midasm]") {
   auto result = HookConfig({"r3", "r11", "f1", "ctr"}).Validate();
   CHECK(result.valid);
 }

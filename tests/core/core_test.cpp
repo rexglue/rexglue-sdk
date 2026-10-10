@@ -9,7 +9,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-#include <catch2/catch_test_macros.hpp>
+#include "rex_test.h"
 
 #include <algorithm>
 #include <memory>
@@ -32,8 +32,8 @@ struct Fixture {
 
 }  // namespace
 
-TEST_CASE_METHOD(Fixture, "Init with an empty module list succeeds and Shutdown returns",
-                 "[core]") {
+REX_TEST_CASE_METHOD(Fixture, "Init with an empty module list succeeds and Shutdown returns",
+                     "[core]") {
   auto api = rex::Init(rex::Config{});
   REQUIRE(api);
   REQUIRE(api.value()->config().modules.empty());
@@ -41,8 +41,9 @@ TEST_CASE_METHOD(Fixture, "Init with an empty module list succeeds and Shutdown 
   REQUIRE(rex::Init(rex::Config{}));
 }
 
-TEST_CASE_METHOD(Fixture, "The log, clock and perf scopes are registered and no module scope is",
-                 "[core]") {
+REX_TEST_CASE_METHOD(Fixture,
+                     "The log, clock and perf scopes are registered and no module scope is",
+                     "[core]") {
   auto api = rex::Init(rex::Config{});
   REQUIRE(api);
   auto scopes = api.value()->Get<rex::cvar::ICvarRegistry>()->Scopes();
@@ -50,8 +51,8 @@ TEST_CASE_METHOD(Fixture, "The log, clock and perf scopes are registered and no 
   REQUIRE(scopes == std::vector<std::string_view>{"clock", "log", "perf"});
 }
 
-TEST_CASE_METHOD(Fixture, "ParseCommandLine fills Config and cvar values without a module",
-                 "[core]") {
+REX_TEST_CASE_METHOD(Fixture, "ParseCommandLine fills Config and cvar values without a module",
+                     "[core]") {
   rex::Config cfg;
   char a0[] = "app";
   char a1[] = "--game_data_root=C:/core";
@@ -65,8 +66,9 @@ TEST_CASE_METHOD(Fixture, "ParseCommandLine fills Config and cvar values without
   REQUIRE(api.value()->Get<rex::cvar::ICvarRegistry>()->Get("log.level").value() == "debug");
 }
 
-TEST_CASE_METHOD(Fixture, "Config profiler sets the perf.profiler default and a value overrides it",
-                 "[core]") {
+REX_TEST_CASE_METHOD(Fixture,
+                     "Config profiler sets the perf.profiler default and a value overrides it",
+                     "[core]") {
   rex::Config cfg;
   cfg.profiler = true;
   auto api = rex::Init(cfg);
@@ -82,7 +84,8 @@ TEST_CASE_METHOD(Fixture, "Config profiler sets the perf.profiler default and a 
   REQUIRE(api.value()->Get<rex::cvar::ICvarRegistry>()->Get("perf.profiler").value() == "false");
 }
 
-TEST_CASE_METHOD(Fixture, "Logging writes through a capture sink with no module loaded", "[core]") {
+REX_TEST_CASE_METHOD(Fixture, "Logging writes through a capture sink with no module loaded",
+                     "[core]") {
   auto api = rex::Init(rex::Config{});
   REQUIRE(api);
   auto* logger = api.value()->Get<rex::ILogger>();

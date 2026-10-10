@@ -8,15 +8,15 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-#include <catch2/catch_test_macros.hpp>
+#include "rex_test.h"
 
 #include "kernel/kernel_fixture.h"
 
 using rex::testing::Caller;
 using rex::testing::KernelFixture;
 
-TEST_CASE("A title initialized semaphore with a limit above the int range still works",
-          "[runtime][semaphore]") {
+REX_TEST_CASE("A title initialized semaphore with a limit above the int range still works",
+              "[runtime][semaphore]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 semaphore = c.Alloc(0x14);

@@ -9,7 +9,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-#include <catch2/catch_test_macros.hpp>
+#include "rex_test.h"
 
 #include <atomic>
 #include <cstring>
@@ -42,8 +42,8 @@ void ScrambleFPDPC(PPCContext& ctx, u8*) {
 
 }  // namespace
 
-TEST_CASE("A DPC that changes the FP control word leaves the draining thread's word intact",
-          "[kernel][fp]") {
+REX_TEST_CASE("A DPC that changes the FP control word leaves the draining thread's word intact",
+              "[kernel][fp]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 thunk = c.runtime().function_dispatcher()->AllocateThunk(&ScrambleFPDPC, 0);
@@ -62,8 +62,9 @@ TEST_CASE("A DPC that changes the FP control word leaves the draining thread's w
   });
 }
 
-TEST_CASE("KeSaveFloatingPointState and KeRestoreFloatingPointState round trip f0 to f31 and FPSCR",
-          "[kernel][fp]") {
+REX_TEST_CASE(
+    "KeSaveFloatingPointState and KeRestoreFloatingPointState round trip f0 to f31 and FPSCR",
+    "[kernel][fp]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     PPCContext& ctx = c.ctx();
@@ -88,7 +89,7 @@ TEST_CASE("KeSaveFloatingPointState and KeRestoreFloatingPointState round trip f
   });
 }
 
-TEST_CASE("Every guest rounding mode reads back from the host control word", "[kernel][fp]") {
+REX_TEST_CASE("Every guest rounding mode reads back from the host control word", "[kernel][fp]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     PPCContext& ctx = c.ctx();
@@ -102,8 +103,8 @@ TEST_CASE("Every guest rounding mode reads back from the host control word", "[k
   });
 }
 
-TEST_CASE("KeSaveVectorUnitState and KeRestoreVectorUnitState round trip v0 to v127",
-          "[kernel][fp]") {
+REX_TEST_CASE("KeSaveVectorUnitState and KeRestoreVectorUnitState round trip v0 to v127",
+              "[kernel][fp]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     PPCContext& ctx = c.ctx();
@@ -127,7 +128,7 @@ TEST_CASE("KeSaveVectorUnitState and KeRestoreVectorUnitState round trip v0 to v
   });
 }
 
-TEST_CASE("A host worker starts from the host policy FP control word", "[kernel][fp]") {
+REX_TEST_CASE("A host worker starts from the host policy FP control word", "[kernel][fp]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     auto csr = std::make_shared<std::atomic<u32>>(0);
@@ -152,7 +153,7 @@ TEST_CASE("A host worker starts from the host policy FP control word", "[kernel]
   });
 }
 
-TEST_CASE("A thread's FP save area starts with every FP exception masked", "[kernel][fp]") {
+REX_TEST_CASE("A thread's FP save area starts with every FP exception masked", "[kernel][fp]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller&) {
     u32 expected = 0;

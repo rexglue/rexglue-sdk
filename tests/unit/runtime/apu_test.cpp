@@ -9,7 +9,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-#include <catch2/catch_test_macros.hpp>
+#include "rex_test.h"
 
 #include <atomic>
 #include <chrono>
@@ -78,7 +78,7 @@ class RecordingBackend final : public rex::apu::IBackend {
 
 }  // namespace
 
-TEST_CASE("APU gives a client its queue depth in credits", "[apu]") {
+REX_TEST_CASE("APU gives a client its queue depth in credits", "[apu]") {
   rex::testing::KernelFixture fixture;
   RecordingBackend backend;
   rex::runtime::APU apu(fixture.runtime(), backend, 4);
@@ -92,7 +92,7 @@ TEST_CASE("APU gives a client its queue depth in credits", "[apu]") {
   apu.Shutdown();
 }
 
-TEST_CASE("APU gets 1 credit back per played frame", "[apu]") {
+REX_TEST_CASE("APU gets 1 credit back per played frame", "[apu]") {
   rex::testing::KernelFixture fixture;
   RecordingBackend backend;
   rex::runtime::APU apu(fixture.runtime(), backend, 4);
@@ -106,7 +106,7 @@ TEST_CASE("APU gets 1 credit back per played frame", "[apu]") {
   apu.Shutdown();
 }
 
-TEST_CASE("APU refuses a 9th client with X_STATUS_NO_MEMORY", "[apu]") {
+REX_TEST_CASE("APU refuses a 9th client with X_STATUS_NO_MEMORY", "[apu]") {
   rex::testing::KernelFixture fixture;
   RecordingBackend backend;
   rex::runtime::APU apu(fixture.runtime(), backend, 4);
@@ -120,7 +120,7 @@ TEST_CASE("APU refuses a 9th client with X_STATUS_NO_MEMORY", "[apu]") {
   apu.Shutdown();
 }
 
-TEST_CASE("APU pause is idempotent and resume restores it", "[apu]") {
+REX_TEST_CASE("APU pause is idempotent and resume restores it", "[apu]") {
   rex::testing::KernelFixture fixture;
   RecordingBackend backend;
   rex::runtime::APU apu(fixture.runtime(), backend, 4);
@@ -135,7 +135,7 @@ TEST_CASE("APU pause is idempotent and resume restores it", "[apu]") {
   apu.Shutdown();
 }
 
-TEST_CASE("APU shutdown releases a paused worker", "[apu]") {
+REX_TEST_CASE("APU shutdown releases a paused worker", "[apu]") {
   rex::testing::KernelFixture fixture;
   RecordingBackend backend;
   rex::runtime::APU apu(fixture.runtime(), backend, 4);
@@ -160,7 +160,7 @@ void WaitingClientCallback(PPCContext& ctx, rex::u8* base) {
 
 }  // namespace
 
-TEST_CASE("APU shutdown stops a worker blocked in its title callback", "[runtime][shutdown]") {
+REX_TEST_CASE("APU shutdown stops a worker blocked in its title callback", "[runtime][shutdown]") {
   rex::testing::KernelFixture fixture;
   g_in_callback.store(false);
   fixture.RunOnGuestThread([](rex::testing::Caller& c) {

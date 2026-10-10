@@ -237,4 +237,12 @@ class IObjectTable {
   }
 };
 
+/**
+ * Closes a handle the caller owns and logs a close that fails, for teardown and error unwinding.
+ *
+ * @param table The table that issued the handle.
+ * @param handle The handle.
+ */
+REX_RUNTIME_API void CloseOwned(IObjectTable& table, X_HANDLE handle) noexcept;
+
 }  // namespace rex::runtime

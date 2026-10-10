@@ -8,7 +8,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-#include <catch2/catch_test_macros.hpp>
+#include "rex_test.h"
 
 #include <atomic>
 #include <chrono>
@@ -36,7 +36,7 @@ u32 Poll(Caller& c) {
 }
 }  // namespace
 
-TEST_CASE("semaphores: create release wait and limit", "[char][semaphores]") {
+REX_TEST_CASE("semaphores: create release wait and limit", "[char][semaphores]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 handle_ptr = c.Alloc(4);
@@ -59,7 +59,7 @@ TEST_CASE("semaphores: create release wait and limit", "[char][semaphores]") {
   });
 }
 
-TEST_CASE("semaphores: guest KSEMAPHORE", "[char][semaphores][identity]") {
+REX_TEST_CASE("semaphores: guest KSEMAPHORE", "[char][semaphores][identity]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 sem = c.Alloc(0x14);
@@ -71,7 +71,7 @@ TEST_CASE("semaphores: guest KSEMAPHORE", "[char][semaphores][identity]") {
   });
 }
 
-TEST_CASE("mutants: recursive ownership and release", "[char][mutants]") {
+REX_TEST_CASE("mutants: recursive ownership and release", "[char][mutants]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 handle_ptr = c.Alloc(4);
@@ -89,7 +89,7 @@ TEST_CASE("mutants: recursive ownership and release", "[char][mutants]") {
   });
 }
 
-TEST_CASE("mutants: another thread cannot take an owned mutant", "[char][mutants]") {
+REX_TEST_CASE("mutants: another thread cannot take an owned mutant", "[char][mutants]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 handle_ptr = c.Alloc(4);
@@ -110,7 +110,7 @@ TEST_CASE("mutants: another thread cannot take an owned mutant", "[char][mutants
   });
 }
 
-TEST_CASE("timers: create set wait cancel", "[char][timers]") {
+REX_TEST_CASE("timers: create set wait cancel", "[char][timers]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 handle_ptr = c.Alloc(4);
@@ -131,8 +131,8 @@ TEST_CASE("timers: create set wait cancel", "[char][timers]") {
   });
 }
 
-TEST_CASE("timers: completion routine runs as an APC on the setting thread",
-          "[char][timers][apc]") {
+REX_TEST_CASE("timers: completion routine runs as an APC on the setting thread",
+              "[char][timers][apc]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     static std::atomic<u32> g_routine_calls;
@@ -186,8 +186,8 @@ u32 WaitAll(Caller& c, std::initializer_list<u32> objects, i64 timeout) {
 
 }  // namespace
 
-TEST_CASE("mutants: a Ke mutant initialized with an owner is owned by the caller",
-          "[char][mutants]") {
+REX_TEST_CASE("mutants: a Ke mutant initialized with an owner is owned by the caller",
+              "[char][mutants]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 mutant = c.Alloc(0x20);
@@ -198,7 +198,7 @@ TEST_CASE("mutants: a Ke mutant initialized with an owner is owned by the caller
   });
 }
 
-TEST_CASE("mutants: a Ke mutant counts recursive acquisitions", "[char][mutants]") {
+REX_TEST_CASE("mutants: a Ke mutant counts recursive acquisitions", "[char][mutants]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 mutant = c.Alloc(0x20);
@@ -210,8 +210,8 @@ TEST_CASE("mutants: a Ke mutant counts recursive acquisitions", "[char][mutants]
   });
 }
 
-TEST_CASE("mutants: a Ke mutant release by a thread that does not own it fails",
-          "[char][mutants]") {
+REX_TEST_CASE("mutants: a Ke mutant release by a thread that does not own it fails",
+              "[char][mutants]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 mutant = c.Alloc(0x20);
@@ -225,8 +225,8 @@ TEST_CASE("mutants: a Ke mutant release by a thread that does not own it fails",
   });
 }
 
-TEST_CASE("mutants: a wait all takes the Ke mutant only when every object is signaled",
-          "[char][mutants]") {
+REX_TEST_CASE("mutants: a wait all takes the Ke mutant only when every object is signaled",
+              "[char][mutants]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 mutant = c.Alloc(0x20);
@@ -245,7 +245,7 @@ TEST_CASE("mutants: a wait all takes the Ke mutant only when every object is sig
   });
 }
 
-TEST_CASE("mutants: a Ke mutant release hands ownership to 1 waiter", "[char][mutants]") {
+REX_TEST_CASE("mutants: a Ke mutant release hands ownership to 1 waiter", "[char][mutants]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 mutant = c.Alloc(0x20);
@@ -271,7 +271,8 @@ TEST_CASE("mutants: a Ke mutant release hands ownership to 1 waiter", "[char][mu
   });
 }
 
-TEST_CASE("events: KeInitializeEvent on an initialized event reuses its slot", "[char][events]") {
+REX_TEST_CASE("events: KeInitializeEvent on an initialized event reuses its slot",
+              "[char][events]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 event = c.Alloc(0x10);
@@ -312,7 +313,7 @@ u32 WaitTimer(Caller& c, u32 timer, i64 timeout) {
 
 }  // namespace
 
-TEST_CASE("timers: a notification Ke timer stays signaled", "[char][timers]") {
+REX_TEST_CASE("timers: a notification Ke timer stays signaled", "[char][timers]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 timer = KeTimer(c, 0);
@@ -325,7 +326,7 @@ TEST_CASE("timers: a notification Ke timer stays signaled", "[char][timers]") {
   });
 }
 
-TEST_CASE("timers: a synchronization Ke timer resets on a satisfied wait", "[char][timers]") {
+REX_TEST_CASE("timers: a synchronization Ke timer resets on a satisfied wait", "[char][timers]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 timer = KeTimer(c, 1);
@@ -336,8 +337,8 @@ TEST_CASE("timers: a synchronization Ke timer resets on a satisfied wait", "[cha
   });
 }
 
-TEST_CASE("timers: KeSetTimerEx replaces a set timer and KeCancelTimer reports it",
-          "[char][timers]") {
+REX_TEST_CASE("timers: KeSetTimerEx replaces a set timer and KeCancelTimer reports it",
+              "[char][timers]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 timer = KeTimer(c, 0);
@@ -353,7 +354,7 @@ TEST_CASE("timers: KeSetTimerEx replaces a set timer and KeCancelTimer reports i
   });
 }
 
-TEST_CASE("timers: a Ke timer queues its DPC with the expiry time", "[char][timers][dpc]") {
+REX_TEST_CASE("timers: a Ke timer queues its DPC with the expiry time", "[char][timers][dpc]") {
   g_timer_dpc_runs = 0;
   g_timer_dpc_time = 0;
   KernelFixture fixture;
@@ -374,7 +375,7 @@ TEST_CASE("timers: a Ke timer queues its DPC with the expiry time", "[char][time
   });
 }
 
-TEST_CASE("timers: a periodic Ke timer rearms until canceled", "[char][timers][dpc]") {
+REX_TEST_CASE("timers: a periodic Ke timer rearms until canceled", "[char][timers][dpc]") {
   g_timer_dpc_runs = 0;
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
@@ -392,7 +393,7 @@ TEST_CASE("timers: a periodic Ke timer rearms until canceled", "[char][timers][d
   });
 }
 
-TEST_CASE("interrupts: connect, double connect and disconnect", "[char][interrupts]") {
+REX_TEST_CASE("interrupts: connect, double connect and disconnect", "[char][interrupts]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 interrupt = c.Alloc(0x14);
@@ -413,7 +414,7 @@ TEST_CASE("interrupts: connect, double connect and disconnect", "[char][interrup
   });
 }
 
-TEST_CASE("interrupts: KeQueryInterruptTime grows in 100 ns units", "[char][interrupts]") {
+REX_TEST_CASE("interrupts: KeQueryInterruptTime grows in 100 ns units", "[char][interrupts]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     c.Kernel("KeQueryInterruptTime");
@@ -426,7 +427,8 @@ TEST_CASE("interrupts: KeQueryInterruptTime grows in 100 ns units", "[char][inte
   });
 }
 
-TEST_CASE("timers: a Ke timer with an absolute due time of 0 expires at once", "[char][timers]") {
+REX_TEST_CASE("timers: a Ke timer with an absolute due time of 0 expires at once",
+              "[char][timers]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 timer = KeTimer(c, 0);
@@ -435,7 +437,7 @@ TEST_CASE("timers: a Ke timer with an absolute due time of 0 expires at once", "
   });
 }
 
-TEST_CASE("timers: stopping the dispatcher disarms Ke timer expiries", "[char][timers]") {
+REX_TEST_CASE("timers: stopping the dispatcher disarms Ke timer expiries", "[char][timers]") {
   KernelFixture fixture;
   u32 timer = 0;
   fixture.RunOnGuestThread([&timer](Caller& c) {
@@ -450,8 +452,8 @@ TEST_CASE("timers: stopping the dispatcher disarms Ke timer expiries", "[char][t
   CHECK(static_cast<u32>(object->header.signal_state) == 0);
 }
 
-TEST_CASE("mutants: a Ke mutant abandoned by its owner is released by the next owner",
-          "[char][mutants]") {
+REX_TEST_CASE("mutants: a Ke mutant abandoned by its owner is released by the next owner",
+              "[char][mutants]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 mutant = c.Alloc(0x20);
@@ -465,8 +467,9 @@ TEST_CASE("mutants: a Ke mutant abandoned by its owner is released by the next o
   });
 }
 
-TEST_CASE("mutants: a Ke mutant abandoned by a release from its owner is free and reports it once",
-          "[char][mutants]") {
+REX_TEST_CASE(
+    "mutants: a Ke mutant abandoned by a release from its owner is free and reports it once",
+    "[char][mutants]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 mutant = c.Alloc(0x20);
@@ -489,8 +492,8 @@ TEST_CASE("mutants: a Ke mutant abandoned by a release from its owner is free an
   });
 }
 
-TEST_CASE("mutants: a Ke mutant abandon by a thread that does not own it fails",
-          "[char][mutants]") {
+REX_TEST_CASE("mutants: a Ke mutant abandon by a thread that does not own it fails",
+              "[char][mutants]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 mutant = c.Alloc(0x20);

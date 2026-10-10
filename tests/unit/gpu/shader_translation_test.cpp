@@ -9,7 +9,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-#include <catch2/catch_test_macros.hpp>
+#include "rex_test.h"
 
 #include <array>
 #include <atomic>
@@ -41,7 +41,7 @@ constexpr std::array<rex::u32, 2> kUcode{0, 0};
 
 }  // namespace
 
-TEST_CASE("A destroyed translation is freed and its slot empties", "[gpu][shader]") {
+REX_TEST_CASE("A destroyed translation is freed and its slot empties", "[gpu][shader]") {
   g_destroyed = 0;
   CountedShader shader(rex::xenos::ShaderType::kVertex, 1, kUcode.data(), kUcode.size());
   bool is_new = false;
@@ -55,7 +55,7 @@ TEST_CASE("A destroyed translation is freed and its slot empties", "[gpu][shader
   CHECK(shader.GetTranslation(7) == nullptr);
 }
 
-TEST_CASE("A shader frees the translations it still holds", "[gpu][shader]") {
+REX_TEST_CASE("A shader frees the translations it still holds", "[gpu][shader]") {
   g_destroyed = 0;
   {
     CountedShader shader(rex::xenos::ShaderType::kPixel, 2, kUcode.data(), kUcode.size());

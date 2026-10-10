@@ -9,7 +9,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-#include <catch2/catch_test_macros.hpp>
+#include "rex_test.h"
 
 #include <vector>
 
@@ -18,7 +18,7 @@
 
 using rex::runtime::TitleExitReason;
 
-TEST_CASE("ReportTitleExit calls the callback once with the first reason", "[title_exit]") {
+REX_TEST_CASE("ReportTitleExit calls the callback once with the first reason", "[title_exit]") {
   rex::Config config;
   rex::Runtime runtime(config);
   std::vector<TitleExitReason> seen;

@@ -14,7 +14,7 @@
 #include <string_view>
 #include <vector>
 
-#include <catch2/catch_test_macros.hpp>
+#include "rex_test.h"
 
 #include "filesystem/fixture.h"
 
@@ -81,8 +81,8 @@ void CheckContainer(Fixture& fixture, ProviderKind kind, const char* image,
 
 }  // namespace
 
-TEST_CASE_METHOD(Fixture, "Host provider reads, writes and changes files",
-                 "[filesystem][providers]") {
+REX_TEST_CASE_METHOD(Fixture, "Host provider reads, writes and changes files",
+                     "[filesystem][providers]") {
   WriteHost(temp() / "a.txt", "alpha");
   WriteHost(temp() / "b.bin", "bravo");
   MountTemp(kRoot, MountFlags::kWritable);
@@ -125,8 +125,8 @@ TEST_CASE_METHOD(Fixture, "Host provider reads, writes and changes files",
   CHECK(volume->name == "STFS");
 }
 
-TEST_CASE_METHOD(Fixture, "Host provider finds files created on the host after the mount",
-                 "[filesystem][providers]") {
+REX_TEST_CASE_METHOD(Fixture, "Host provider finds files created on the host after the mount",
+                     "[filesystem][providers]") {
   MountTemp(kRoot);
   WriteHost(temp() / "late.txt", "late");
   WriteHost(temp() / "Mixed.txt", "mixed");
@@ -136,8 +136,8 @@ TEST_CASE_METHOD(Fixture, "Host provider finds files created on the host after t
   CHECK(ReadText(*Open("\\Device\\Test\\MIXED.txt").file) == "mixed");
 }
 
-TEST_CASE_METHOD(Fixture, "Open if keeps a host file added after the mount",
-                 "[filesystem][providers]") {
+REX_TEST_CASE_METHOD(Fixture, "Open if keeps a host file added after the mount",
+                     "[filesystem][providers]") {
   WriteHost(temp() / "sub" / "seen.txt", "seen");
   MountTemp(kRoot);
   WriteHost(temp() / "sub" / "late.txt", "late bytes");
@@ -161,8 +161,8 @@ TEST_CASE_METHOD(Fixture, "Open if keeps a host file added after the mount",
   CHECK(std::string(root_host->begin(), root_host->end()) == "root bytes");
 }
 
-TEST_CASE_METHOD(Fixture, "Create of a name that exists only on the host is kExists",
-                 "[filesystem][providers]") {
+REX_TEST_CASE_METHOD(Fixture, "Create of a name that exists only on the host is kExists",
+                     "[filesystem][providers]") {
   MountTemp(kRoot);
   WriteHost(temp() / "late.txt", "late");
   auto created = fs().Open("\\Device\\Test\\late.txt",
@@ -174,8 +174,8 @@ TEST_CASE_METHOD(Fixture, "Create of a name that exists only on the host is kExi
   CHECK(std::string(host->begin(), host->end()) == "late");
 }
 
-TEST_CASE_METHOD(Fixture, "Host provider refuses names that leave the mounted folder",
-                 "[filesystem][providers]") {
+REX_TEST_CASE_METHOD(Fixture, "Host provider refuses names that leave the mounted folder",
+                     "[filesystem][providers]") {
   WriteHost(temp() / "outside.txt", "outside");
   WriteHost(temp() / "mount" / "a.txt", "alpha");
   REQUIRE(fs().Mount(
@@ -197,7 +197,7 @@ TEST_CASE_METHOD(Fixture, "Host provider refuses names that leave the mounted fo
   CHECK_FALSE(std::filesystem::exists(temp() / "mount" / "a.txt:hidden"));
 }
 
-TEST_CASE_METHOD(Fixture, "Null provider answers only its paths", "[filesystem][providers]") {
+REX_TEST_CASE_METHOD(Fixture, "Null provider answers only its paths", "[filesystem][providers]") {
   REQUIRE(fs().Mount({"\\Device\\Null",
                       ProviderKind::kNull,
                       {},
@@ -218,15 +218,18 @@ TEST_CASE_METHOD(Fixture, "Null provider answers only its paths", "[filesystem][
   CHECK(CodeOf(missing.error()) == Error::kNotFound);
 }
 
-TEST_CASE_METHOD(Fixture, "STFS provider mounts the fixture read only", "[filesystem][providers]") {
+REX_TEST_CASE_METHOD(Fixture, "STFS provider mounts the fixture read only",
+                     "[filesystem][providers]") {
   CheckContainer(*this, ProviderKind::kSTFS, "stfs_con.bin", "STFS");
 }
 
-TEST_CASE_METHOD(Fixture, "Disc provider mounts the fixture read only", "[filesystem][providers]") {
+REX_TEST_CASE_METHOD(Fixture, "Disc provider mounts the fixture read only",
+                     "[filesystem][providers]") {
   CheckContainer(*this, ProviderKind::kDiscImage, "gdfx.iso", "GDFX");
 }
 
-TEST_CASE_METHOD(Fixture, "A container of the wrong kind is kCorrupt", "[filesystem][providers]") {
+REX_TEST_CASE_METHOD(Fixture, "A container of the wrong kind is kCorrupt",
+                     "[filesystem][providers]") {
   auto mounted =
       fs().Mount({std::string(kRoot), ProviderKind::kDiscImage, kFixtures / "stfs_con.bin"});
   REQUIRE_FALSE(mounted);

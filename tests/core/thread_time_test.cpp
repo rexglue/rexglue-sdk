@@ -8,7 +8,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-#include <catch2/catch_test_macros.hpp>
+#include "rex_test.h"
 
 #include <chrono>
 
@@ -27,19 +27,19 @@ void Spin(std::chrono::milliseconds duration) {
 
 }  // namespace
 
-TEST_CASE("QueryCurrentThreadCPUTime grows across a busy loop", "[core][thread_time]") {
+REX_TEST_CASE("QueryCurrentThreadCPUTime grows across a busy loop", "[core][thread_time]") {
   const auto start = rex::platform::QueryCurrentThreadCPUTime();
   Spin(std::chrono::milliseconds(150));
   CHECK(rex::platform::QueryCurrentThreadCPUTime() - start >= std::chrono::milliseconds(100));
 }
 
-TEST_CASE("QueryCurrentThreadCPUTime stays flat across a sleep", "[core][thread_time]") {
+REX_TEST_CASE("QueryCurrentThreadCPUTime stays flat across a sleep", "[core][thread_time]") {
   const auto start = rex::platform::QueryCurrentThreadCPUTime();
   rex::platform::Sleep(std::chrono::milliseconds(100));
   CHECK(rex::platform::QueryCurrentThreadCPUTime() - start < std::chrono::milliseconds(50));
 }
 
-TEST_CASE("QueryCurrentThreadCPUTime reports its cost a call", "[core][thread_time]") {
+REX_TEST_CASE("QueryCurrentThreadCPUTime reports its cost a call", "[core][thread_time]") {
   constexpr int kCalls = 100000;
   std::chrono::milliseconds sink{0};
   const auto start = std::chrono::steady_clock::now();

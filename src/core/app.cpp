@@ -2,6 +2,7 @@
 
 #include <atomic>
 #include <csignal>
+#include <cstdio>
 #include <format>
 #include <mutex>
 #include <thread>
@@ -188,6 +189,11 @@ bool ShutdownRequested() {
 }
 
 namespace detail {
+
+int ReportEntryFailure(const char* what) noexcept {
+  std::fprintf(stderr, "unhandled exception, %s\n", what);
+  return 1;
+}
 
 void ResetAppState() {
   g_requested.store(false);

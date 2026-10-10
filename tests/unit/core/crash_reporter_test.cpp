@@ -9,7 +9,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-#include <catch2/catch_test_macros.hpp>
+#include "rex_test.h"
 
 #include <cstdlib>
 #include <filesystem>
@@ -62,7 +62,7 @@ ProbeResult RunProbe(std::string_view mode) {
 
 }  // namespace
 
-TEST_CASE("A null write is reported with the fault address", "[crash][crash_report]") {
+REX_TEST_CASE("A null write is reported with the fault address", "[crash][crash_report]") {
   const auto result = RunProbe("null-write");
   CHECK(result.status != 0);
   CHECK(result.Reported());
@@ -75,21 +75,21 @@ TEST_CASE("A null write is reported with the fault address", "[crash][crash_repo
   CHECK(result.Has("end of crash report"));
 }
 
-TEST_CASE("std::terminate names the exception type and message", "[crash][crash_report]") {
+REX_TEST_CASE("std::terminate names the exception type and message", "[crash][crash_report]") {
   const auto result = RunProbe("terminate");
   CHECK(result.status != 0);
   CHECK(result.Has("runtime_error"));
   CHECK(result.Has("probe terminate"));
 }
 
-TEST_CASE("abort is reported", "[crash][crash_report]") {
+REX_TEST_CASE("abort is reported", "[crash][crash_report]") {
   const auto result = RunProbe("abort");
   CHECK(result.status != 0);
   CHECK(result.Reported());
   CHECK(result.Has("SIGABRT"));
 }
 
-TEST_CASE("A stack overflow is reported", "[crash][crash_report]") {
+REX_TEST_CASE("A stack overflow is reported", "[crash][crash_report]") {
   const auto result = RunProbe("stack-overflow");
   CHECK(result.status != 0);
   CHECK(result.Reported());
@@ -98,7 +98,7 @@ TEST_CASE("A stack overflow is reported", "[crash][crash_report]") {
 #endif
 }
 
-TEST_CASE(
+REX_TEST_CASE(
     "A GPU register write outside generated code names the block and address from the "
     "faulting thread",
     "[crash][crash_report]") {
@@ -108,7 +108,24 @@ TEST_CASE(
   CHECK(result.Reported());
 }
 
-TEST_CASE("An access violation inside SEH_TRY is not reported", "[crash][crash_report]") {
+REX_TEST_CASE("A write to read only guest memory names the address from the faulting thread",
+              "[crash][crash_report]") {
+  const auto result = RunProbe("read-only-write");
+  CHECK(result.status != 0);
+  CHECK(result.Has("unhandled title write of 0x40000010"));
+  CHECK(result.Reported());
+}
+
+REX_TEST_CASE("A write to a page with stale host protection resumes and teardown counts it",
+              "[crash][crash_report]") {
+  const auto result = RunProbe("stale-protect");
+  CHECK(result.status == 0);
+  CHECK(result.Has("stale resumed"));
+  CHECK(result.Has("Recovered stale physical page protection 1 times"));
+  CHECK_FALSE(result.Reported());
+}
+
+REX_TEST_CASE("An access violation inside SEH_TRY is not reported", "[crash][crash_report]") {
   const auto result = RunProbe("seh");
   CHECK(result.status == 0);
   CHECK(result.Has("seh caught"));
@@ -116,8 +133,8 @@ TEST_CASE("An access violation inside SEH_TRY is not reported", "[crash][crash_r
 }
 
 #if !REX_PLATFORM_WIN32
-TEST_CASE("A fault in recompiled code under a host frame is not caught by an outer SEH_TRY",
-          "[core][seh][crash_report]") {
+REX_TEST_CASE("A fault in recompiled code under a host frame is not caught by an outer SEH_TRY",
+              "[core][seh][crash_report]") {
   const auto result = RunProbe("seh-host-frame");
   CHECK(result.status != 0);
   CHECK_FALSE(result.Has("seh caught"));
@@ -126,7 +143,7 @@ TEST_CASE("A fault in recompiled code under a host frame is not caught by an out
 #endif
 
 #if REX_PLATFORM_WIN32
-TEST_CASE("A write watch fault resumes without a report", "[crash][crash_report]") {
+REX_TEST_CASE("A write watch fault resumes without a report", "[crash][crash_report]") {
   const auto result = RunProbe("watch");
   CHECK(result.status == 0);
   CHECK(result.Has("watch resumed"));
@@ -134,21 +151,21 @@ TEST_CASE("A write watch fault resumes without a report", "[crash][crash_report]
 }
 #endif
 
-TEST_CASE("A fault on a thread the SDK did not start is reported", "[crash][crash_report]") {
+REX_TEST_CASE("A fault on a thread the SDK did not start is reported", "[crash][crash_report]") {
   const auto result = RunProbe("foreign-thread");
   CHECK(result.status != 0);
   CHECK(result.Reported());
 }
 
-TEST_CASE("A fault during another thread's report waits for the report to finish",
-          "[crash][crash_report]") {
+REX_TEST_CASE("A fault during another thread's report waits for the report to finish",
+              "[crash][crash_report]") {
   const auto result = RunProbe("concurrent");
   CHECK(result.status != 0);
   CHECK(result.Has("probe concurrent describer"));
   CHECK(result.Has("==== end of crash report ===="));
 }
 
-TEST_CASE("The describer text is part of the report", "[crash][crash_report]") {
+REX_TEST_CASE("The describer text is part of the report", "[crash][crash_report]") {
   const auto result = RunProbe("describer");
   CHECK(result.status != 0);
   CHECK(result.Has("probe describer 0"));

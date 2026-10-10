@@ -8,7 +8,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-#include <catch2/catch_test_macros.hpp>
+#include "rex_test.h"
 
 #include <cstring>
 #include <vector>
@@ -86,7 +86,7 @@ void MoveOptHeader(std::vector<u8>& file, u32 key, u32 value) {
 
 }  // namespace
 
-TEST_CASE("XEX optional headers that end past the header are not returned", "[xex]") {
+REX_TEST_CASE("XEX optional headers that end past the header are not returned", "[xex]") {
   XEXSpec spec;
   spec.image = TestImage(0x1000);
   spec.alternate_title_ids = {0x11111111, 0x22222222};
@@ -114,7 +114,7 @@ TEST_CASE("XEX optional headers that end past the header are not returned", "[xe
   CHECK(long_image->alternate_title_ids().empty());
 }
 
-TEST_CASE("XEX header and optional headers parse", "[xex]") {
+REX_TEST_CASE("XEX header and optional headers parse", "[xex]") {
   XEXSpec spec;
   spec.image = TestImage(0x1000);
   spec.alternate_title_ids = {0x11111111, 0x22222222};
@@ -134,7 +134,7 @@ TEST_CASE("XEX header and optional headers parse", "[xex]") {
   CHECK_FALSE(image->is_patch());
 }
 
-TEST_CASE("XEX image size follows the 4 KB page flag", "[xex]") {
+REX_TEST_CASE("XEX image size follows the 4 KB page flag", "[xex]") {
   XEXSpec spec;
   spec.image = TestImage(0x1000);
   auto small = XEXImage::Parse(BuildXEX(spec));
@@ -146,7 +146,7 @@ TEST_CASE("XEX image size follows the 4 KB page flag", "[xex]") {
   CHECK(large->image_size() == 0x10000u);
 }
 
-TEST_CASE("XEX decodes every compression and key", "[xex]") {
+REX_TEST_CASE("XEX decodes every compression and key", "[xex]") {
   const auto expected = TestImage(0x1000);
   for (const auto compression :
        {XEX_COMPRESSION_NONE, XEX_COMPRESSION_BASIC, XEX_COMPRESSION_NORMAL}) {
@@ -171,7 +171,7 @@ TEST_CASE("XEX decodes every compression and key", "[xex]") {
   }
 }
 
-TEST_CASE("XEX rejects bad input", "[xex]") {
+REX_TEST_CASE("XEX rejects bad input", "[xex]") {
   XEXSpec spec;
   spec.image = TestImage(0x1000);
   auto file = BuildXEX(spec);
@@ -193,7 +193,7 @@ TEST_CASE("XEX rejects bad input", "[xex]") {
   CHECK(result.error().category == ErrorCategory::Crypto);
 }
 
-TEST_CASE("XEX delta patch applies to header and image", "[xex]") {
+REX_TEST_CASE("XEX delta patch applies to header and image", "[xex]") {
   XEXSpec base_spec;
   base_spec.image = TestImage(0x1000);
   const auto base_file = BuildXEX(base_spec);
@@ -221,7 +221,7 @@ TEST_CASE("XEX delta patch applies to header and image", "[xex]") {
   }
 }
 
-TEST_CASE("PE headers parse from a decoded image", "[xex]") {
+REX_TEST_CASE("PE headers parse from a decoded image", "[xex]") {
   std::vector<u8> image(0x2000, 0);
   auto* dos = reinterpret_cast<IMAGE_DOS_HEADER*>(image.data());
   dos->e_magic = IMAGE_DOS_SIGNATURE;

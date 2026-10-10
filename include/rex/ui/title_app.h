@@ -313,17 +313,17 @@ REX_RUNTIME_API CLIArgList WindowsCommandLine();
  * REX_DETAIL_ENTRY_POINTS(FooEntry)
  * @endcode
  */
-#define REX_DETAIL_ENTRY_POINTS(fn)                       \
-  int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) { \
-    return fn(::rex::detail::WindowsCommandLine());       \
-  }                                                       \
-  int main(int argc, char** argv) {                       \
-    return fn(::rex::CLIArgList::Parse(argc, argv));      \
+#define REX_DETAIL_ENTRY_POINTS(fn)                                                             \
+  int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {                                       \
+    return ::rex::detail::RunGuarded([] { return fn(::rex::detail::WindowsCommandLine()); });   \
+  }                                                                                             \
+  int main(int argc, char** argv) {                                                             \
+    return ::rex::detail::RunGuarded([&] { return fn(::rex::CLIArgList::Parse(argc, argv)); }); \
   }
 #else
-#define REX_DETAIL_ENTRY_POINTS(fn)                  \
-  int main(int argc, char** argv) {                  \
-    return fn(::rex::CLIArgList::Parse(argc, argv)); \
+#define REX_DETAIL_ENTRY_POINTS(fn)                                                             \
+  int main(int argc, char** argv) {                                                             \
+    return ::rex::detail::RunGuarded([&] { return fn(::rex::CLIArgList::Parse(argc, argv)); }); \
   }
 #endif
 
@@ -332,6 +332,7 @@ REX_RUNTIME_API CLIArgList WindowsCommandLine();
  * line, calls Init with the PPCImageConfig the codegen init header declares, then
  * CreateTitleWindow, LaunchTitle and Run on a default constructed Class while each step
  * succeeds, and returns the Shutdown exit code.
+ * An exception that escapes is printed to stderr and the exit code is 1.
  *
  * @param Class A default constructible class derived from rex::ui::TitleApp.
  *
@@ -357,6 +358,7 @@ REX_RUNTIME_API CLIArgList WindowsCommandLine();
  * Defines main, and wWinMain on Windows, for a title app that calls its own lifecycle steps.
  * The entry point parses the command line, default constructs Class, and returns what
  * Function returns.
+ * An exception that escapes is printed to stderr and the exit code is 1.
  *
  * @param Class A default constructible class derived from rex::ui::TitleApp.
  * @param Function A function taking Class& and const rex::CLIArgList&, returning i32.

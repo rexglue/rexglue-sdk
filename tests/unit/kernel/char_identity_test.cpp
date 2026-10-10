@@ -8,7 +8,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-#include <catch2/catch_test_macros.hpp>
+#include "rex_test.h"
 
 #include <rex/runtime.h>
 #include <rex/runtime/xtypes.h>
@@ -26,7 +26,7 @@ u32 Poll(Caller& c) {
 }
 }  // namespace
 
-TEST_CASE("notifications: listener receives a matching broadcast", "[char][notify]") {
+REX_TEST_CASE("notifications: listener receives a matching broadcast", "[char][notify]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 listener = c.XAM("XamNotifyCreateListener", {~0ull, 0});
@@ -46,7 +46,7 @@ TEST_CASE("notifications: listener receives a matching broadcast", "[char][notif
   });
 }
 
-TEST_CASE("identity: the stash survives and survives repeated resolution", "[char][identity]") {
+REX_TEST_CASE("identity: the stash survives and survives repeated resolution", "[char][identity]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 event = c.Alloc(0x10);
@@ -59,8 +59,9 @@ TEST_CASE("identity: the stash survives and survives repeated resolution", "[cha
   });
 }
 
-TEST_CASE("identity: ObReferenceObjectByHandle returns the same guest pointer for the same object",
-          "[char][identity]") {
+REX_TEST_CASE(
+    "identity: ObReferenceObjectByHandle returns the same guest pointer for the same object",
+    "[char][identity]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 handle_ptr = c.Alloc(4);
@@ -86,7 +87,7 @@ TEST_CASE("identity: ObReferenceObjectByHandle returns the same guest pointer fo
   });
 }
 
-TEST_CASE("identity: the current thread pseudo handle", "[char][identity]") {
+REX_TEST_CASE("identity: the current thread pseudo handle", "[char][identity]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 copy_ptr = c.Alloc(4);
@@ -101,7 +102,7 @@ TEST_CASE("identity: the current thread pseudo handle", "[char][identity]") {
   });
 }
 
-TEST_CASE("notifications: mask filters", "[char][notify]") {
+REX_TEST_CASE("notifications: mask filters", "[char][notify]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 listener = c.XAM("XamNotifyCreateListener", {0x1, 0});

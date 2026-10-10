@@ -9,7 +9,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-#include <catch2/catch_test_macros.hpp>
+#include "rex_test.h"
 
 #include <filesystem>
 #include <format>
@@ -22,7 +22,7 @@ using rex::memory::CreateFileMappingHandle;
 using rex::memory::kFileMappingHandleInvalid;
 using rex::memory::PageAccess;
 
-TEST_CASE("Creating a file mapping under a name that exists fails", "[memory][file_mapping]") {
+REX_TEST_CASE("Creating a file mapping under a name that exists fails", "[memory][file_mapping]") {
   const std::filesystem::path name =
       std::format("rex_file_mapping_test_{:08x}", static_cast<rex::u32>(std::random_device{}()));
   const auto first = CreateFileMappingHandle(name, 0x10000, PageAccess::kReadWrite, false);

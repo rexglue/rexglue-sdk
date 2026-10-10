@@ -12,6 +12,8 @@
 #include <utility>
 
 #include <rex/assert.h>
+#include <rex/logging.h>
+#include <rex/no_throw.h>
 #include <rex/platform/thread.h>
 #include <rex/move_only_function.h>
 #include "ui/sdl3/app_context.h"
@@ -79,7 +81,11 @@ void WindowedAppContext::ExecutePendingFunctionsFromUIThread(bool is_final) {
     pending_functions_.pop_front();
     // Run unlocked, a function with a modal loop would otherwise block new functions.
     pending_functions_lock.unlock();
-    function();
+    if (is_final) {
+      log::NoThrow(log::ui, function);
+    } else {
+      function();
+    }
     pending_functions_lock.lock();
   }
   if (is_final) {

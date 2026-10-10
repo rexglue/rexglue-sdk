@@ -12,14 +12,14 @@
 #include <cstdint>
 #include <cstring>
 
-#include <catch2/catch_test_macros.hpp>
+#include "rex_test.h"
 
 #include <rex/stream.h>
 
 using rex::BitStream;
 using rex::ByteStream;
 
-TEST_CASE("ByteStream construction and initial state", "[stream][bytestream]") {
+REX_TEST_CASE("ByteStream construction and initial state", "[stream][bytestream]") {
   std::array<u8, 16> buffer{};
   ByteStream stream(buffer.data(), buffer.size());
 
@@ -28,14 +28,14 @@ TEST_CASE("ByteStream construction and initial state", "[stream][bytestream]") {
   CHECK(stream.offset() == 0);
 }
 
-TEST_CASE("ByteStream construction with offset", "[stream][bytestream]") {
+REX_TEST_CASE("ByteStream construction with offset", "[stream][bytestream]") {
   std::array<u8, 16> buffer{};
   ByteStream stream(buffer.data(), buffer.size(), 8);
 
   CHECK(stream.offset() == 8);
 }
 
-TEST_CASE("ByteStream Advance moves offset", "[stream][bytestream]") {
+REX_TEST_CASE("ByteStream Advance moves offset", "[stream][bytestream]") {
   std::array<u8, 16> buffer{};
   ByteStream stream(buffer.data(), buffer.size());
 
@@ -46,7 +46,7 @@ TEST_CASE("ByteStream Advance moves offset", "[stream][bytestream]") {
   CHECK(stream.offset() == 12);
 }
 
-TEST_CASE("ByteStream set_offset works", "[stream][bytestream]") {
+REX_TEST_CASE("ByteStream set_offset works", "[stream][bytestream]") {
   std::array<u8, 16> buffer{};
   ByteStream stream(buffer.data(), buffer.size());
 
@@ -57,7 +57,7 @@ TEST_CASE("ByteStream set_offset works", "[stream][bytestream]") {
   CHECK(stream.offset() == 0);
 }
 
-TEST_CASE("ByteStream Write and Read span", "[stream][bytestream]") {
+REX_TEST_CASE("ByteStream Write and Read span", "[stream][bytestream]") {
   std::array<u8, 16> buffer{};
   ByteStream stream(buffer.data(), buffer.size());
 
@@ -78,7 +78,7 @@ TEST_CASE("ByteStream Write and Read span", "[stream][bytestream]") {
   CHECK(stream.offset() == 4);
 }
 
-TEST_CASE("ByteStream Write and Read template primitives", "[stream][bytestream]") {
+REX_TEST_CASE("ByteStream Write and Read template primitives", "[stream][bytestream]") {
   std::array<u8, 32> buffer{};
   ByteStream stream(buffer.data(), buffer.size());
 
@@ -96,7 +96,7 @@ TEST_CASE("ByteStream Write and Read template primitives", "[stream][bytestream]
   CHECK(stream.Read<u64>() == 0xFEDCBA9876543210);
 }
 
-TEST_CASE("ByteStream Write and Read void* overloads", "[stream][bytestream]") {
+REX_TEST_CASE("ByteStream Write and Read void* overloads", "[stream][bytestream]") {
   std::array<u8, 16> buffer{};
   ByteStream stream(buffer.data(), buffer.size());
 
@@ -110,7 +110,7 @@ TEST_CASE("ByteStream Write and Read void* overloads", "[stream][bytestream]") {
   CHECK(std::memcmp(read_buf, msg, 4) == 0);
 }
 
-TEST_CASE("ByteStream Write and Read std::string", "[stream][bytestream]") {
+REX_TEST_CASE("ByteStream Write and Read std::string", "[stream][bytestream]") {
   std::array<u8, 64> buffer{};
   ByteStream stream(buffer.data(), buffer.size());
 
@@ -123,7 +123,7 @@ TEST_CASE("ByteStream Write and Read std::string", "[stream][bytestream]") {
   CHECK(result == original);
 }
 
-TEST_CASE("ByteStream Write and Read std::u16string", "[stream][bytestream]") {
+REX_TEST_CASE("ByteStream Write and Read std::u16string", "[stream][bytestream]") {
   std::array<u8, 64> buffer{};
   ByteStream stream(buffer.data(), buffer.size());
 
@@ -136,7 +136,7 @@ TEST_CASE("ByteStream Write and Read std::u16string", "[stream][bytestream]") {
   CHECK(result == original);
 }
 
-TEST_CASE("ByteStream empty string round-trip", "[stream][bytestream]") {
+REX_TEST_CASE("ByteStream empty string round-trip", "[stream][bytestream]") {
   std::array<u8, 16> buffer{};
   ByteStream stream(buffer.data(), buffer.size());
 
@@ -148,7 +148,7 @@ TEST_CASE("ByteStream empty string round-trip", "[stream][bytestream]") {
   CHECK(result.empty());
 }
 
-TEST_CASE("BitStream construction and initial state", "[stream][bitstream]") {
+REX_TEST_CASE("BitStream construction and initial state", "[stream][bitstream]") {
   std::array<u8, 16> buffer{};
   BitStream stream(buffer.data(), buffer.size() * 8);
 
@@ -158,7 +158,7 @@ TEST_CASE("BitStream construction and initial state", "[stream][bitstream]") {
   CHECK(stream.BitsRemaining() == 128);
 }
 
-TEST_CASE("BitStream SetOffset works", "[stream][bitstream]") {
+REX_TEST_CASE("BitStream SetOffset works", "[stream][bitstream]") {
   std::array<u8, 16> buffer{};
   BitStream stream(buffer.data(), buffer.size() * 8);
 
@@ -167,7 +167,7 @@ TEST_CASE("BitStream SetOffset works", "[stream][bitstream]") {
   CHECK(stream.BitsRemaining() == 96);
 }
 
-TEST_CASE("BitStream Advance works", "[stream][bitstream]") {
+REX_TEST_CASE("BitStream Advance works", "[stream][bitstream]") {
   std::array<u8, 16> buffer{};
   BitStream stream(buffer.data(), buffer.size() * 8);
 
@@ -178,7 +178,7 @@ TEST_CASE("BitStream Advance works", "[stream][bitstream]") {
   CHECK(stream.offset_bits() == 15);
 }
 
-TEST_CASE("BitStream Peek reads without advancing", "[stream][bitstream]") {
+REX_TEST_CASE("BitStream Peek reads without advancing", "[stream][bitstream]") {
   // 0xAB = 10101011
   std::array<u8, 16> buffer = {0xAB, 0xCD, 0xEF, 0x12, 0x34, 0x56, 0x78, 0x9A};
   BitStream stream(buffer.data(), buffer.size() * 8);
@@ -190,7 +190,7 @@ TEST_CASE("BitStream Peek reads without advancing", "[stream][bitstream]") {
   CHECK(val1 == val2);
 }
 
-TEST_CASE("BitStream Read advances offset", "[stream][bitstream]") {
+REX_TEST_CASE("BitStream Read advances offset", "[stream][bitstream]") {
   std::array<u8, 16> buffer = {0xAB, 0xCD, 0xEF, 0x12, 0x34, 0x56, 0x78, 0x9A};
   BitStream stream(buffer.data(), buffer.size() * 8);
 
@@ -201,7 +201,7 @@ TEST_CASE("BitStream Read advances offset", "[stream][bitstream]") {
   CHECK(stream.offset_bits() == 24);
 }
 
-TEST_CASE("BitStream Read byte-aligned values", "[stream][bitstream]") {
+REX_TEST_CASE("BitStream Read byte-aligned values", "[stream][bitstream]") {
   std::array<u8, 16> buffer = {0xAB, 0xCD, 0xEF, 0x12, 0x34, 0x56, 0x78, 0x9A};
   BitStream stream(buffer.data(), buffer.size() * 8);
 
@@ -210,7 +210,7 @@ TEST_CASE("BitStream Read byte-aligned values", "[stream][bitstream]") {
   CHECK(stream.Read(8) == 0xEF);
 }
 
-TEST_CASE("BitStream Read 16-bit aligned", "[stream][bitstream]") {
+REX_TEST_CASE("BitStream Read 16-bit aligned", "[stream][bitstream]") {
   std::array<u8, 16> buffer = {0xAB, 0xCD, 0xEF, 0x12, 0x34, 0x56, 0x78, 0x9A};
   BitStream stream(buffer.data(), buffer.size() * 8);
 
@@ -218,14 +218,14 @@ TEST_CASE("BitStream Read 16-bit aligned", "[stream][bitstream]") {
   CHECK(stream.Read(16) == 0xEF12);
 }
 
-TEST_CASE("BitStream Read 32-bit aligned", "[stream][bitstream]") {
+REX_TEST_CASE("BitStream Read 32-bit aligned", "[stream][bitstream]") {
   std::array<u8, 16> buffer = {0xAB, 0xCD, 0xEF, 0x12, 0x34, 0x56, 0x78, 0x9A};
   BitStream stream(buffer.data(), buffer.size() * 8);
 
   CHECK(stream.Read(32) == 0xABCDEF12);
 }
 
-TEST_CASE("BitStream Read non-byte-aligned", "[stream][bitstream]") {
+REX_TEST_CASE("BitStream Read non-byte-aligned", "[stream][bitstream]") {
   // 0xAB = 10101011, 0xCD = 11001101
   std::array<u8, 16> buffer = {0xAB, 0xCD, 0xEF, 0x12, 0x34, 0x56, 0x78, 0x9A};
   BitStream stream(buffer.data(), buffer.size() * 8);
@@ -237,7 +237,7 @@ TEST_CASE("BitStream Read non-byte-aligned", "[stream][bitstream]") {
   CHECK(stream.Read(8) == 0xCD);
 }
 
-TEST_CASE("BitStream Read single bits", "[stream][bitstream]") {
+REX_TEST_CASE("BitStream Read single bits", "[stream][bitstream]") {
   // 0xAB = 10101011
   std::array<u8, 16> buffer = {0xAB, 0xCD, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
   BitStream stream(buffer.data(), buffer.size() * 8);
@@ -252,7 +252,7 @@ TEST_CASE("BitStream Read single bits", "[stream][bitstream]") {
   CHECK(stream.Read(1) == 1);
 }
 
-TEST_CASE("BitStream Read crossing byte boundary", "[stream][bitstream]") {
+REX_TEST_CASE("BitStream Read crossing byte boundary", "[stream][bitstream]") {
   std::array<u8, 16> buffer = {0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
   BitStream stream(buffer.data(), buffer.size() * 8);
 
@@ -262,7 +262,7 @@ TEST_CASE("BitStream Read crossing byte boundary", "[stream][bitstream]") {
   CHECK(stream.Read(8) == 0xF0);
 }
 
-TEST_CASE("BitStream Write byte-aligned", "[stream][bitstream]") {
+REX_TEST_CASE("BitStream Write byte-aligned", "[stream][bitstream]") {
   std::array<u8, 16> buffer{};
   BitStream stream(buffer.data(), buffer.size() * 8);
 
@@ -273,7 +273,7 @@ TEST_CASE("BitStream Write byte-aligned", "[stream][bitstream]") {
   CHECK(stream.Read(8) == 0xAB);
 }
 
-TEST_CASE("BitStream Write 16-bit value", "[stream][bitstream]") {
+REX_TEST_CASE("BitStream Write 16-bit value", "[stream][bitstream]") {
   std::array<u8, 16> buffer{};
   BitStream stream(buffer.data(), buffer.size() * 8);
 
@@ -283,7 +283,7 @@ TEST_CASE("BitStream Write 16-bit value", "[stream][bitstream]") {
   CHECK(stream.Read(16) == 0x1234);
 }
 
-TEST_CASE("BitStream Write non-byte-aligned", "[stream][bitstream]") {
+REX_TEST_CASE("BitStream Write non-byte-aligned", "[stream][bitstream]") {
   std::array<u8, 16> buffer{};
   BitStream stream(buffer.data(), buffer.size() * 8);
 
@@ -294,7 +294,7 @@ TEST_CASE("BitStream Write non-byte-aligned", "[stream][bitstream]") {
   CHECK(stream.Read(8) == 0xAB);
 }
 
-TEST_CASE("BitStream Write preserves surrounding bits", "[stream][bitstream]") {
+REX_TEST_CASE("BitStream Write preserves surrounding bits", "[stream][bitstream]") {
   std::array<u8, 16> buffer = {0xFF, 0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
   BitStream stream(buffer.data(), buffer.size() * 8);
 
@@ -306,7 +306,7 @@ TEST_CASE("BitStream Write preserves surrounding bits", "[stream][bitstream]") {
   CHECK(stream.Read(4) == 0x0);
 }
 
-TEST_CASE("BitStream Read zero bits returns zero", "[stream][bitstream]") {
+REX_TEST_CASE("BitStream Read zero bits returns zero", "[stream][bitstream]") {
   std::array<u8, 16> buffer = {0xFF, 0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
   BitStream stream(buffer.data(), buffer.size() * 8);
 
@@ -314,7 +314,7 @@ TEST_CASE("BitStream Read zero bits returns zero", "[stream][bitstream]") {
   CHECK(stream.offset_bits() == 0);
 }
 
-TEST_CASE("BitStream maximum bits (57)", "[stream][bitstream]") {
+REX_TEST_CASE("BitStream maximum bits (57)", "[stream][bitstream]") {
   std::array<u8, 16> buffer = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
   BitStream stream(buffer.data(), buffer.size() * 8);
 
@@ -323,7 +323,7 @@ TEST_CASE("BitStream maximum bits (57)", "[stream][bitstream]") {
   CHECK(stream.Read(57) == expected);
 }
 
-TEST_CASE("BitStream BitsRemaining decreases", "[stream][bitstream]") {
+REX_TEST_CASE("BitStream BitsRemaining decreases", "[stream][bitstream]") {
   std::array<u8, 16> buffer{};
   BitStream stream(buffer.data(), 64);
 

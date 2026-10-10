@@ -9,7 +9,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-#include <catch2/catch_test_macros.hpp>
+#include "rex_test.h"
 
 #include <rex/platform.h>
 
@@ -53,8 +53,8 @@ rex::memory::PageAccess AccessOf(void* address) {
 
 }  // namespace
 
-TEST_CASE("QueryProtect reports the protection of read only, read write and no access pages",
-          "[core][memory]") {
+REX_TEST_CASE("QueryProtect reports the protection of read only, read write and no access pages",
+              "[core][memory]") {
   const Mapping read_only(PROT_READ);
   const Mapping read_write(PROT_READ | PROT_WRITE);
   const Mapping no_access(PROT_NONE);
@@ -66,7 +66,7 @@ TEST_CASE("QueryProtect reports the protection of read only, read write and no a
   CHECK(AccessOf(no_access.address) == rex::memory::PageAccess::kNoAccess);
 }
 
-TEST_CASE(
+REX_TEST_CASE(
     "A mapped file with a path longer than the line buffer keeps its fields and the next line",
     "[core][memory]") {
   std::filesystem::path folder = std::filesystem::temp_directory_path() / "rex-proc-maps";

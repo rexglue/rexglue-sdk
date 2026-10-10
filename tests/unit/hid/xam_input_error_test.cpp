@@ -9,14 +9,14 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-#include <catch2/catch_test_macros.hpp>
+#include "rex_test.h"
 
 #include <rex/hid/error.h>
 
 using rex::X_RESULT;
 using rex::hid::Error;
 
-TEST_CASE("Each hid::Error maps to its X_ERROR code and back", "[hid]") {
+REX_TEST_CASE("Each hid::Error maps to its X_ERROR code and back", "[hid]") {
   CHECK(rex::hid::ToXResult(Error::NotConnected) == rex::X_ERROR_DEVICE_NOT_CONNECTED);
   CHECK(rex::hid::ToXResult(Error::Empty) == rex::X_ERROR_EMPTY);
   CHECK(rex::hid::ToXResult(Error::BadArguments) == rex::X_ERROR_BAD_ARGUMENTS);

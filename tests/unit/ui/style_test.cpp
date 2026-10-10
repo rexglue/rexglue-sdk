@@ -9,7 +9,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-#include <catch2/catch_test_macros.hpp>
+#include "rex_test.h"
 
 #include <rex/color.h>
 #include <rex/ui/style.h>
@@ -17,7 +17,7 @@
 using rex::Color;
 using rex::ui::Style;
 
-TEST_CASE("Default Metrics hold the former overlay literals", "[style]") {
+REX_TEST_CASE("Default Metrics hold the former overlay literals", "[style]") {
   const Style style;
   const auto& metrics = style.metrics;
   CHECK(metrics.window_rounding == 0.0f);
@@ -47,7 +47,7 @@ TEST_CASE("Default Metrics hold the former overlay literals", "[style]") {
   CHECK(metrics.window_alpha.hud == 0.5f);
 }
 
-TEST_CASE("Default section colors reference the palette roles they equal", "[style]") {
+REX_TEST_CASE("Default section colors reference the palette roles they equal", "[style]") {
   const Style style;
   CHECK(style.settings.warning == style.palette.warning);
   CHECK(style.settings.lifecycle_live == style.palette.success);
@@ -59,7 +59,7 @@ TEST_CASE("Default section colors reference the palette roles they equal", "[sty
   CHECK(style.settings.lifecycle_unknown == rex::colors::kWhite);
 }
 
-TEST_CASE("Default section colors keep the former values", "[style]") {
+REX_TEST_CASE("Default section colors keep the former values", "[style]") {
   const Style style;
   CHECK(style.achievements.unlocked_title == Color::RGBA(0.45f, 1.00f, 0.55f, 1.00f));
   CHECK(style.achievements.row_unlocked_bg == Color::RGBA(0.16f, 0.30f, 0.18f, 0.55f));

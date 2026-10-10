@@ -12,7 +12,7 @@
 #include <cstdint>
 #include <cstring>
 
-#include <catch2/catch_test_macros.hpp>
+#include "rex_test.h"
 
 #include <rex/ppc/context.h>
 #include <rex/ppc/stack.h>
@@ -23,7 +23,7 @@
 
 alignas(64) static u8 g_mem[0x10000] = {};
 
-TEST_CASE("stack_push scalar decrements r1 and writes byte-swapped value", "[ppc][stack]") {
+REX_TEST_CASE("stack_push scalar decrements r1 and writes byte-swapped value", "[ppc][stack]") {
   PPCContext ctx{};
   ctx.r1.u32 = 0x8000;
 
@@ -36,7 +36,7 @@ TEST_CASE("stack_push scalar decrements r1 and writes byte-swapped value", "[ppc
   CHECK(raw == std::byteswap(u32{0x12345678}));
 }
 
-TEST_CASE("stack_push float writes byte-swapped float", "[ppc][stack]") {
+REX_TEST_CASE("stack_push float writes byte-swapped float", "[ppc][stack]") {
   PPCContext ctx{};
   ctx.r1.u32 = 0x8000;
 
@@ -51,7 +51,7 @@ TEST_CASE("stack_push float writes byte-swapped float", "[ppc][stack]") {
   CHECK(raw == std::byteswap(val_bits));
 }
 
-TEST_CASE("stack_push_string writes NUL-terminated string", "[ppc][stack]") {
+REX_TEST_CASE("stack_push_string writes NUL-terminated string", "[ppc][stack]") {
   PPCContext ctx{};
   ctx.r1.u32 = 0x8000;
   std::memset(g_mem + 0x7F00, 0, 0x100);
@@ -63,7 +63,7 @@ TEST_CASE("stack_push_string writes NUL-terminated string", "[ppc][stack]") {
   CHECK(std::strcmp(reinterpret_cast<char*>(g_mem + addr), "hello") == 0);
 }
 
-TEST_CASE("stack_push_string aligns to 8 bytes", "[ppc][stack]") {
+REX_TEST_CASE("stack_push_string aligns to 8 bytes", "[ppc][stack]") {
   PPCContext ctx{};
   ctx.r1.u32 = 0x8000;
 
@@ -72,7 +72,7 @@ TEST_CASE("stack_push_string aligns to 8 bytes", "[ppc][stack]") {
   CHECK(addr == ctx.r1.u32);
 }
 
-TEST_CASE("stack_push raw bytes", "[ppc][stack]") {
+REX_TEST_CASE("stack_push raw bytes", "[ppc][stack]") {
   PPCContext ctx{};
   ctx.r1.u32 = 0x8000;
 
@@ -85,7 +85,7 @@ TEST_CASE("stack_push raw bytes", "[ppc][stack]") {
   CHECK(g_mem[addr + 2] == 0xCC);
 }
 
-TEST_CASE("stack_pop restores r1", "[ppc][stack]") {
+REX_TEST_CASE("stack_pop restores r1", "[ppc][stack]") {
   PPCContext ctx{};
   ctx.r1.u32 = 0x8000;
 
@@ -96,7 +96,7 @@ TEST_CASE("stack_pop restores r1", "[ppc][stack]") {
   CHECK(ctx.r1.u32 == 0x8000);
 }
 
-TEST_CASE("multiple pushes return stable addresses", "[ppc][stack]") {
+REX_TEST_CASE("multiple pushes return stable addresses", "[ppc][stack]") {
   PPCContext ctx{};
   ctx.r1.u32 = 0x8000;
 
@@ -108,7 +108,7 @@ TEST_CASE("multiple pushes return stable addresses", "[ppc][stack]") {
   CHECK(std::strcmp(reinterpret_cast<char*>(g_mem + addr2), "second") == 0);
 }
 
-TEST_CASE("stack_guard restores r1 on scope exit", "[ppc][stack]") {
+REX_TEST_CASE("stack_guard restores r1 on scope exit", "[ppc][stack]") {
   PPCContext ctx{};
   ctx.r1.u32 = 0x8000;
 
@@ -121,7 +121,7 @@ TEST_CASE("stack_guard restores r1 on scope exit", "[ppc][stack]") {
   CHECK(ctx.r1.u32 == 0x8000);
 }
 
-TEST_CASE("stack_guard restores after multiple pushes", "[ppc][stack]") {
+REX_TEST_CASE("stack_guard restores after multiple pushes", "[ppc][stack]") {
   PPCContext ctx{};
   ctx.r1.u32 = 0x8000;
 
@@ -136,7 +136,7 @@ TEST_CASE("stack_guard restores after multiple pushes", "[ppc][stack]") {
   CHECK(ctx.r1.u32 == 0x8000);
 }
 
-TEST_CASE("nested stack_guards restore correctly", "[ppc][stack]") {
+REX_TEST_CASE("nested stack_guards restore correctly", "[ppc][stack]") {
   PPCContext ctx{};
   ctx.r1.u32 = 0x8000;
 
@@ -153,8 +153,8 @@ TEST_CASE("nested stack_guards restore correctly", "[ppc][stack]") {
   CHECK(ctx.r1.u32 == 0x8000);
 }
 
-TEST_CASE("stack_push and the PCR read reach the 0xE0 heap through its page offset",
-          "[ppc][stack]") {
+REX_TEST_CASE("stack_push and the PCR read reach the 0xE0 heap through its page offset",
+              "[ppc][stack]") {
   rex::testing::KernelFixture fixture;
   rex::runtime::Memory& memory = *fixture.runtime().memory();
   rex::runtime::BaseHeap* heap = memory.LookupHeapByType(true, 4096);

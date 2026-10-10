@@ -9,12 +9,12 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-#include <catch2/catch_test_macros.hpp>
+#include "rex_test.h"
 
 #include <rex/types.h>
 #include <rex/xenos/xenos.h>
 
-TEST_CASE("MakePacketType0 encodes the 1 register flag", "[gpu]") {
+REX_TEST_CASE("MakePacketType0 encodes the 1 register flag", "[gpu]") {
   for (bool one_reg : {false, true}) {
     u32 packet = rex::xenos::MakePacketType0(0x4800, 6, one_reg);
     CHECK((packet >> 30) == 0);

@@ -8,13 +8,13 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-#include <catch2/catch_test_macros.hpp>
+#include "rex_test.h"
 
 #include <array>
 
 #include "codegen/ppc/disasm.h"
 
-TEST_CASE("Disassemble decodes nothing from a size above the int range", "[codegen][disasm]") {
+REX_TEST_CASE("Disassemble decodes nothing from a size above the int range", "[codegen][disasm]") {
   const std::array<rex::u8, 4> nop{0x60, 0x00, 0x00, 0x00};
   ppc_insn insn{};
   CHECK(rex::codegen::ppc::Disassemble(nop.data(), 4, 0x82000000, insn) == 4);

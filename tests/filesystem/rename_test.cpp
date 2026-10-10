@@ -14,7 +14,7 @@
 #include <string_view>
 #include <vector>
 
-#include <catch2/catch_test_macros.hpp>
+#include "rex_test.h"
 
 #include "filesystem/fixture.h"
 
@@ -50,8 +50,8 @@ std::string HostText(const std::filesystem::path& path) {
 
 }  // namespace
 
-TEST_CASE_METHOD(Fixture, "Rename moves a file into another folder of the tree",
-                 "[filesystem][rename]") {
+REX_TEST_CASE_METHOD(Fixture, "Rename moves a file into another folder of the tree",
+                     "[filesystem][rename]") {
   WriteHost(temp() / "from" / "a.txt", "alpha");
   WriteHost(temp() / "to" / "keep.txt", "keep");
   MountTemp(kRoot);
@@ -67,8 +67,8 @@ TEST_CASE_METHOD(Fixture, "Rename moves a file into another folder of the tree",
   CHECK(HostText(temp() / "to" / "b.txt") == "alpha");
 }
 
-TEST_CASE_METHOD(Fixture, "Rename of a folder waits for the files below it to close",
-                 "[filesystem][rename]") {
+REX_TEST_CASE_METHOD(Fixture, "Rename of a folder waits for the files below it to close",
+                     "[filesystem][rename]") {
   WriteHost(temp() / "old" / "sub" / "c.txt", "charlie");
   MountTemp(kRoot);
 
@@ -87,8 +87,8 @@ TEST_CASE_METHOD(Fixture, "Rename of a folder waits for the files below it to cl
   CHECK(ReadText(*moved.file) == "charlie");
 }
 
-TEST_CASE_METHOD(Fixture, "Rename onto an existing name without replace is kExists",
-                 "[filesystem][rename]") {
+REX_TEST_CASE_METHOD(Fixture, "Rename onto an existing name without replace is kExists",
+                     "[filesystem][rename]") {
   WriteHost(temp() / "a.txt", "alpha");
   WriteHost(temp() / "b.txt", "bravo");
   MountTemp(kRoot);
@@ -100,7 +100,8 @@ TEST_CASE_METHOD(Fixture, "Rename onto an existing name without replace is kExis
   CHECK(HostText(temp() / "b.txt") == "bravo");
 }
 
-TEST_CASE_METHOD(Fixture, "Rename with replace overwrites a closed file", "[filesystem][rename]") {
+REX_TEST_CASE_METHOD(Fixture, "Rename with replace overwrites a closed file",
+                     "[filesystem][rename]") {
   WriteHost(temp() / "a.txt", "alpha");
   WriteHost(temp() / "b.txt", "bravo");
   MountTemp(kRoot);
@@ -111,8 +112,8 @@ TEST_CASE_METHOD(Fixture, "Rename with replace overwrites a closed file", "[file
   CHECK(Names(*this, kRoot) == std::vector<std::string>{"b.txt"});
 }
 
-TEST_CASE_METHOD(Fixture, "Rename refuses to replace an open file or a folder",
-                 "[filesystem][rename]") {
+REX_TEST_CASE_METHOD(Fixture, "Rename refuses to replace an open file or a folder",
+                     "[filesystem][rename]") {
   WriteHost(temp() / "a.txt", "alpha");
   WriteHost(temp() / "b.txt", "bravo");
   WriteHost(temp() / "dir" / "x.txt", "x");
@@ -130,7 +131,7 @@ TEST_CASE_METHOD(Fixture, "Rename refuses to replace an open file or a folder",
   CHECK(HostText(temp() / "b.txt") == "bravo");
 }
 
-TEST_CASE_METHOD(Fixture, "Rename to another mount is kNotSameDevice", "[filesystem][rename]") {
+REX_TEST_CASE_METHOD(Fixture, "Rename to another mount is kNotSameDevice", "[filesystem][rename]") {
   WriteHost(temp() / "one" / "a.txt", "alpha");
   std::filesystem::create_directories(temp() / "two");
   REQUIRE(fs().Mount(
@@ -144,7 +145,8 @@ TEST_CASE_METHOD(Fixture, "Rename to another mount is kNotSameDevice", "[filesys
   CHECK(std::filesystem::exists(temp() / "one" / "a.txt"));
 }
 
-TEST_CASE_METHOD(Fixture, "Rename into its own subfolder is kInvalidPath", "[filesystem][rename]") {
+REX_TEST_CASE_METHOD(Fixture, "Rename into its own subfolder is kInvalidPath",
+                     "[filesystem][rename]") {
   WriteHost(temp() / "a" / "b" / "c.txt", "charlie");
   MountTemp(kRoot);
 
@@ -154,7 +156,7 @@ TEST_CASE_METHOD(Fixture, "Rename into its own subfolder is kInvalidPath", "[fil
   CHECK(std::filesystem::exists(temp() / "a" / "b" / "c.txt"));
 }
 
-TEST_CASE_METHOD(Fixture, "Rename through a link resolves the link", "[filesystem][rename]") {
+REX_TEST_CASE_METHOD(Fixture, "Rename through a link resolves the link", "[filesystem][rename]") {
   WriteHost(temp() / "sub" / "a.txt", "alpha");
   MountTemp(kRoot);
   REQUIRE(fs().Link("test:", kRoot));
@@ -163,8 +165,8 @@ TEST_CASE_METHOD(Fixture, "Rename through a link resolves the link", "[filesyste
   CHECK(HostText(temp() / "sub" / "b.txt") == "alpha");
 }
 
-TEST_CASE_METHOD(Fixture, "An open file renamed to a bare name stays in its folder",
-                 "[filesystem][rename]") {
+REX_TEST_CASE_METHOD(Fixture, "An open file renamed to a bare name stays in its folder",
+                     "[filesystem][rename]") {
   WriteHost(temp() / "sub" / "a.txt", "alpha");
   MountTemp(kRoot);
 
@@ -175,8 +177,8 @@ TEST_CASE_METHOD(Fixture, "An open file renamed to a bare name stays in its fold
   CHECK(HostText(temp() / "sub" / "b.txt") == "alpha");
 }
 
-TEST_CASE_METHOD(Fixture, "An open file renamed below a root directory moves there",
-                 "[filesystem][rename]") {
+REX_TEST_CASE_METHOD(Fixture, "An open file renamed below a root directory moves there",
+                     "[filesystem][rename]") {
   WriteHost(temp() / "a.txt", "alpha");
   std::filesystem::create_directories(temp() / "dest");
   MountTemp(kRoot);

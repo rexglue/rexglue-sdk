@@ -11,7 +11,7 @@
 
 #include <type_traits>
 
-#include <catch2/catch_test_macros.hpp>
+#include "rex_test.h"
 
 #include <rex/logging.h>
 #include <rex/math.h>
@@ -30,8 +30,8 @@ void DummyFn(PPCContext&, u8*) {}
 
 }  // namespace
 
-TEST_CASE("FunctionDispatcher: caller_address routes thunk to caller's module pool",
-          "[runtime][dispatcher]") {
+REX_TEST_CASE("FunctionDispatcher: caller_address routes thunk to caller's module pool",
+              "[runtime][dispatcher]") {
   auto& memory = GetTestMemory();
   rex::runtime::FunctionDispatcher dispatcher(&memory);
 
@@ -56,8 +56,8 @@ TEST_CASE("FunctionDispatcher: caller_address routes thunk to caller's module po
   CHECK(dispatcher.GetFunction(thunk_b) == &DummyFn);
 }
 
-TEST_CASE("FunctionDispatcher: AllocateThunk(0) uses the entrypoint pool only when explicit",
-          "[runtime][dispatcher]") {
+REX_TEST_CASE("FunctionDispatcher: AllocateThunk(0) uses the entrypoint pool only when explicit",
+              "[runtime][dispatcher]") {
   // caller_address 0 marks host initiated allocations and uses the entrypoint pool.
   auto& memory = GetTestMemory();
   rex::runtime::FunctionDispatcher dispatcher(&memory);
@@ -74,8 +74,8 @@ TEST_CASE("FunctionDispatcher: AllocateThunk(0) uses the entrypoint pool only wh
   CHECK(thunk < kModA + kCodeSize + rex::runtime::FunctionDispatcher::kThunkReserveSize);
 }
 
-TEST_CASE("FunctionDispatcher: AllocateThunk(0) rejects when no entrypoint registered",
-          "[runtime][dispatcher]") {
+REX_TEST_CASE("FunctionDispatcher: AllocateThunk(0) rejects when no entrypoint registered",
+              "[runtime][dispatcher]") {
   auto& memory = GetTestMemory();
   rex::runtime::FunctionDispatcher dispatcher(&memory);
 
@@ -88,8 +88,8 @@ TEST_CASE("FunctionDispatcher: AllocateThunk(0) rejects when no entrypoint regis
   CHECK(dispatcher.AllocateThunk(&DummyFn, 0) == 0);
 }
 
-TEST_CASE("FunctionDispatcher: AllocateThunk rejects caller_address outside any module",
-          "[runtime][dispatcher]") {
+REX_TEST_CASE("FunctionDispatcher: AllocateThunk rejects caller_address outside any module",
+              "[runtime][dispatcher]") {
   auto& memory = GetTestMemory();
   rex::runtime::FunctionDispatcher dispatcher(&memory);
 
@@ -104,8 +104,8 @@ TEST_CASE("FunctionDispatcher: AllocateThunk rejects caller_address outside any 
   CHECK(thunk == 0);
 }
 
-TEST_CASE("FunctionDispatcher: SetFunction rejects image data below code_base",
-          "[runtime][dispatcher]") {
+REX_TEST_CASE("FunctionDispatcher: SetFunction rejects image data below code_base",
+              "[runtime][dispatcher]") {
   auto& memory = GetTestMemory();
   rex::runtime::FunctionDispatcher dispatcher(&memory);
 
@@ -126,7 +126,8 @@ void RegisterOne(rex::runtime::IModuleRegistrar* registrar) {
 }
 }  // namespace
 
-TEST_CASE("FunctionDispatcher: UnregisterModule clears pool and slots", "[runtime][dispatcher]") {
+REX_TEST_CASE("FunctionDispatcher: UnregisterModule clears pool and slots",
+              "[runtime][dispatcher]") {
   auto& memory = GetTestMemory();
   rex::runtime::FunctionDispatcher dispatcher(&memory);
 
@@ -157,8 +158,8 @@ TEST_CASE("FunctionDispatcher: UnregisterModule clears pool and slots", "[runtim
   CHECK(thunk_after == thunk);
 }
 
-TEST_CASE("FunctionDispatcher: UnregisterModule on unknown id returns nullopt",
-          "[runtime][dispatcher]") {
+REX_TEST_CASE("FunctionDispatcher: UnregisterModule on unknown id returns nullopt",
+              "[runtime][dispatcher]") {
   auto& memory = GetTestMemory();
   rex::runtime::FunctionDispatcher dispatcher(&memory);
   CHECK_FALSE(dispatcher.UnregisterModule("nope").has_value());
@@ -180,8 +181,8 @@ void ScribbleFn(PPCContext& ctx, u8*) {
 
 }  // namespace
 
-TEST_CASE("FunctionDispatcher: ExecuteTrap restores the interrupted register state",
-          "[runtime][dispatcher]") {
+REX_TEST_CASE("FunctionDispatcher: ExecuteTrap restores the interrupted register state",
+              "[runtime][dispatcher]") {
   auto& memory = GetTestMemory();
   rex::runtime::FunctionDispatcher dispatcher(&memory);
 
@@ -226,8 +227,8 @@ TEST_CASE("FunctionDispatcher: ExecuteTrap restores the interrupted register sta
   memory.SystemHeapFree(stack);
 }
 
-TEST_CASE("PPCContext: non-volatile save area round-trips cr2-cr4 and fpscr",
-          "[runtime][context]") {
+REX_TEST_CASE("PPCContext: non-volatile save area round-trips cr2-cr4 and fpscr",
+              "[runtime][context]") {
   PPCContext ctx{};
   ctx.r31.u64 = 0x31313131;
   ctx.cr2.set_raw(0x5);
@@ -261,8 +262,8 @@ TEST_CASE("PPCContext: non-volatile save area round-trips cr2-cr4 and fpscr",
   CHECK(ctx.fpscr.getcsr() == saved_csr);
 }
 
-TEST_CASE("PPCContext: restoring a zeroed fpscr leaves host FP exception masks intact",
-          "[runtime][context]") {
+REX_TEST_CASE("PPCContext: restoring a zeroed fpscr leaves host FP exception masks intact",
+              "[runtime][context]") {
   PPCContext ctx{};
   const u32 host_before = ctx.fpscr.getcsr();
 
@@ -274,6 +275,6 @@ TEST_CASE("PPCContext: restoring a zeroed fpscr leaves host FP exception masks i
   CHECK(ctx.fpscr.csr == ctx.fpscr.getcsr());
 }
 
-TEST_CASE("FunctionDispatcher deletes through a base pointer", "[runtime]") {
+REX_TEST_CASE("FunctionDispatcher deletes through a base pointer", "[runtime]") {
   STATIC_REQUIRE(std::has_virtual_destructor_v<rex::runtime::FunctionDispatcher>);
 }

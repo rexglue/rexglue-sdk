@@ -9,7 +9,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-#include <catch2/catch_test_macros.hpp>
+#include "rex_test.h"
 
 #include <array>
 
@@ -50,7 +50,7 @@ u8* HeapLookup(const rex::runtime::Memory& memory, u32 address) {
 
 }  // namespace
 
-TEST_CASE("TranslateVirtual equals the heap lookup at every heap edge", "[runtime][memory]") {
+REX_TEST_CASE("TranslateVirtual equals the heap lookup at every heap edge", "[runtime][memory]") {
   rex::testing::KernelFixture fixture;
   const rex::runtime::Memory& memory = *fixture.runtime().memory();
   for (const u32 address : kHeapEdges) {
@@ -58,7 +58,8 @@ TEST_CASE("TranslateVirtual equals the heap lookup at every heap edge", "[runtim
   }
 }
 
-TEST_CASE("HostToGuestVirtual inverts TranslateVirtual at every heap edge", "[runtime][memory]") {
+REX_TEST_CASE("HostToGuestVirtual inverts TranslateVirtual at every heap edge",
+              "[runtime][memory]") {
   rex::testing::KernelFixture fixture;
   const rex::runtime::Memory& memory = *fixture.runtime().memory();
   for (const u32 address : kHeapEdges) {
@@ -66,7 +67,7 @@ TEST_CASE("HostToGuestVirtual inverts TranslateVirtual at every heap edge", "[ru
   }
 }
 
-TEST_CASE("MemoryView returns what Memory returns", "[runtime][memory]") {
+REX_TEST_CASE("MemoryView returns what Memory returns", "[runtime][memory]") {
   rex::testing::KernelFixture fixture;
   const rex::runtime::Memory& memory = *fixture.runtime().memory();
   const rex::runtime::MemoryView view(memory);
@@ -78,7 +79,7 @@ TEST_CASE("MemoryView returns what Memory returns", "[runtime][memory]") {
   }
 }
 
-TEST_CASE("TranslateVirtual above the 0xE0 heap matches recompiled code", "[runtime][memory]") {
+REX_TEST_CASE("TranslateVirtual above the 0xE0 heap matches recompiled code", "[runtime][memory]") {
   rex::testing::KernelFixture fixture;
   const rex::runtime::Memory& memory = *fixture.runtime().memory();
   for (const u32 address : {0xFFD00000u, 0xFFFFFFFFu}) {
@@ -87,7 +88,8 @@ TEST_CASE("TranslateVirtual above the 0xE0 heap matches recompiled code", "[runt
   }
 }
 
-TEST_CASE("HostToGuestVirtual inverts TranslateVirtual above the 0xE0 heap", "[runtime][memory]") {
+REX_TEST_CASE("HostToGuestVirtual inverts TranslateVirtual above the 0xE0 heap",
+              "[runtime][memory]") {
   rex::testing::KernelFixture fixture;
   const rex::runtime::Memory& memory = *fixture.runtime().memory();
   const rex::runtime::MemoryView view(memory);
@@ -98,7 +100,8 @@ TEST_CASE("HostToGuestVirtual inverts TranslateVirtual above the 0xE0 heap", "[r
   }
 }
 
-TEST_CASE("Every physical heap reaches the physical byte the hardware maps", "[runtime][memory]") {
+REX_TEST_CASE("Every physical heap reaches the physical byte the hardware maps",
+              "[runtime][memory]") {
   rex::testing::KernelFixture fixture;
   rex::runtime::Memory& memory = *fixture.runtime().memory();
   for (const u32 page_size : {4096u, 64u * 1024u, 16u * 1024u * 1024u}) {
@@ -120,7 +123,7 @@ TEST_CASE("Every physical heap reaches the physical byte the hardware maps", "[r
   }
 }
 
-TEST_CASE("The top guest page wraps to physical 0 as the hardware does", "[runtime][memory]") {
+REX_TEST_CASE("The top guest page wraps to physical 0 as the hardware does", "[runtime][memory]") {
   rex::testing::KernelFixture fixture;
   const rex::runtime::Memory& memory = *fixture.runtime().memory();
   CHECK(memory.TranslateVirtual(0xFFFFF000) == memory.TranslatePhysical(0));

@@ -9,7 +9,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-#include <catch2/catch_test_macros.hpp>
+#include "rex_test.h"
 
 #include <atomic>
 #include <chrono>
@@ -175,7 +175,7 @@ std::vector<u32> Order() {
 
 }  // namespace
 
-TEST_CASE("A DPC queued by an ISR runs after the ISR returns", "[kernel][dpc]") {
+REX_TEST_CASE("A DPC queued by an ISR runs after the ISR returns", "[kernel][dpc]") {
   Reset();
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
@@ -194,7 +194,8 @@ TEST_CASE("A DPC queued by an ISR runs after the ISR returns", "[kernel][dpc]") 
   CHECK(g_runs == 1);
 }
 
-TEST_CASE("A DPC inserted at passive level runs before KeInsertQueueDpc returns", "[kernel][dpc]") {
+REX_TEST_CASE("A DPC inserted at passive level runs before KeInsertQueueDpc returns",
+              "[kernel][dpc]") {
   Reset();
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
@@ -205,7 +206,7 @@ TEST_CASE("A DPC inserted at passive level runs before KeInsertQueueDpc returns"
   });
 }
 
-TEST_CASE("A DPC inserted at raised IRQL runs when KfLowerIrql lowers it", "[kernel][dpc]") {
+REX_TEST_CASE("A DPC inserted at raised IRQL runs when KfLowerIrql lowers it", "[kernel][dpc]") {
   Reset();
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
@@ -219,7 +220,7 @@ TEST_CASE("A DPC inserted at raised IRQL runs when KfLowerIrql lowers it", "[ker
   });
 }
 
-TEST_CASE("A DPC queued from a DPC runs after it", "[kernel][dpc]") {
+REX_TEST_CASE("A DPC queued from a DPC runs after it", "[kernel][dpc]") {
   Reset();
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
@@ -230,7 +231,7 @@ TEST_CASE("A DPC queued from a DPC runs after it", "[kernel][dpc]") {
   });
 }
 
-TEST_CASE("A DPC that queues itself runs again once after it returns", "[kernel][dpc]") {
+REX_TEST_CASE("A DPC that queues itself runs again once after it returns", "[kernel][dpc]") {
   Reset();
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
@@ -242,7 +243,7 @@ TEST_CASE("A DPC that queues itself runs again once after it returns", "[kernel]
   CHECK(Order() == std::vector<u32>{1, 0});
 }
 
-TEST_CASE("DPCs inserted from 2 threads never overlap", "[kernel][dpc]") {
+REX_TEST_CASE("DPCs inserted from 2 threads never overlap", "[kernel][dpc]") {
   Reset();
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
@@ -263,7 +264,7 @@ TEST_CASE("DPCs inserted from 2 threads never overlap", "[kernel][dpc]") {
   CHECK(g_runs > 0);
 }
 
-TEST_CASE("KeRemoveQueueDpc removes a queued DPC once", "[kernel][dpc]") {
+REX_TEST_CASE("KeRemoveQueueDpc removes a queued DPC once", "[kernel][dpc]") {
   Reset();
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
@@ -277,7 +278,7 @@ TEST_CASE("KeRemoveQueueDpc removes a queued DPC once", "[kernel][dpc]") {
   });
 }
 
-TEST_CASE("KeRetireDpcList runs the queue", "[kernel][dpc]") {
+REX_TEST_CASE("KeRetireDpcList runs the queue", "[kernel][dpc]") {
   Reset();
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
@@ -291,7 +292,7 @@ TEST_CASE("KeRetireDpcList runs the queue", "[kernel][dpc]") {
   });
 }
 
-TEST_CASE("A DPC runs on the DPC stack at DISPATCH_LEVEL", "[kernel][dpc]") {
+REX_TEST_CASE("A DPC runs on the DPC stack at DISPATCH_LEVEL", "[kernel][dpc]") {
   Reset();
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
@@ -306,7 +307,7 @@ TEST_CASE("A DPC runs on the DPC stack at DISPATCH_LEVEL", "[kernel][dpc]") {
   CHECK(g_irql_in_dpc == 2);
 }
 
-TEST_CASE("The DPC safe calls work inside a DPC", "[kernel][dpc]") {
+REX_TEST_CASE("The DPC safe calls work inside a DPC", "[kernel][dpc]") {
   Reset();
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
@@ -326,8 +327,8 @@ TEST_CASE("The DPC safe calls work inside a DPC", "[kernel][dpc]") {
   CHECK(g_safe_results[4] == 0);
 }
 
-TEST_CASE("Queueing a DPC that sits in a write watched page keeps the lock order",
-          "[kernel][dpc][lock_order]") {
+REX_TEST_CASE("Queueing a DPC that sits in a write watched page keeps the lock order",
+              "[kernel][dpc][lock_order]") {
 #ifdef NDEBUG
   SKIP("lock order is checked in debug builds only");
 #endif

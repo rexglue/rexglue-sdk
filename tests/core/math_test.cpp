@@ -8,12 +8,12 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-#include <catch2/catch_test_macros.hpp>
+#include "rex_test.h"
 
 #include <rex/math.h>
 #include <rex/types.h>
 
-TEST_CASE("lzcnt counts leading zero bits at every width", "[core][math]") {
+REX_TEST_CASE("lzcnt counts leading zero bits at every width", "[core][math]") {
   CHECK(rex::lzcnt(u8{0}) == 8);
   CHECK(rex::lzcnt(u8{1}) == 7);
   CHECK(rex::lzcnt(u8{0x10}) == 3);
@@ -32,7 +32,7 @@ TEST_CASE("lzcnt counts leading zero bits at every width", "[core][math]") {
   CHECK(rex::lzcnt(u64{0x8000000000000000}) == 0);
 }
 
-TEST_CASE("tzcnt counts trailing zero bits at every width", "[core][math]") {
+REX_TEST_CASE("tzcnt counts trailing zero bits at every width", "[core][math]") {
   CHECK(rex::tzcnt(u8{0}) == 8);
   CHECK(rex::tzcnt(u8{1}) == 0);
   CHECK(rex::tzcnt(u8{0x18}) == 3);
@@ -48,7 +48,7 @@ TEST_CASE("tzcnt counts trailing zero bits at every width", "[core][math]") {
   CHECK(rex::tzcnt(u64{0x8000000000000000}) == 63);
 }
 
-TEST_CASE("signed overloads read the value as unsigned", "[core][math]") {
+REX_TEST_CASE("signed overloads read the value as unsigned", "[core][math]") {
   CHECK(rex::lzcnt(i8{-1}) == 0);
   CHECK(rex::lzcnt(i16{1}) == 15);
   CHECK(rex::lzcnt(i32{1}) == 31);
@@ -59,7 +59,7 @@ TEST_CASE("signed overloads read the value as unsigned", "[core][math]") {
   CHECK(rex::tzcnt(i64{0}) == 64);
 }
 
-TEST_CASE("bit_scan_forward finds the lowest set bit", "[core][math]") {
+REX_TEST_CASE("bit_scan_forward finds the lowest set bit", "[core][math]") {
   u32 index = 0;
   CHECK_FALSE(rex::bit_scan_forward(u32{0}, &index));
   CHECK(rex::bit_scan_forward(u32{0x10}, &index));

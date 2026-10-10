@@ -8,23 +8,29 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-#include <catch2/catch_test_macros.hpp>
+#include "rex_test.h"
 
+#include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <functional>
 #include <memory>
 #include <span>
+#include <stdexcept>
 #include <string>
 #include <thread>
 #include <vector>
 
+#include <rex/api.h>
 #include <rex/cvar/registry.h>
 #include <rex/hid/key_chord.h>
+#include <rex/logging.h>
 #include <rex/platform/thread.h>
 #include <rex/ui/imgui_dialog.h>
 #include <rex/ui/overlay.h>
 #include <rex/ui/title_app.h>
+
+#include "ui/sdl3/app_context.h"
 
 namespace rex::ui {
 
@@ -134,7 +140,7 @@ class CountedDialog final : public rex::ui::ImGuiDialog {
 
 }  // namespace
 
-TEST_CASE("A title window opens and Shutdown joins every thread", "[title_app]") {
+REX_TEST_CASE("A title window opens and Shutdown joins every thread", "[title_app]") {
   rex::platform::detail::ShutdownTimerQueue();
   const rex::u64 before = rex::platform::detail::LiveCount();
   FooApp app;
@@ -149,7 +155,7 @@ TEST_CASE("A title window opens and Shutdown joins every thread", "[title_app]")
   REQUIRE(rex::platform::detail::LiveCount() == before);
 }
 
-TEST_CASE("A consumed Close keeps the app running", "[title_app]") {
+REX_TEST_CASE("A consumed Close keeps the app running", "[title_app]") {
   FooApp app;
   if (!Open(app)) {
     app.Shutdown();
@@ -167,7 +173,7 @@ TEST_CASE("A consumed Close keeps the app running", "[title_app]") {
   REQUIRE(app.Shutdown() == 0);
 }
 
-TEST_CASE("InvokeFunction runs on the UI thread and fails after Shutdown", "[title_app]") {
+REX_TEST_CASE("InvokeFunction runs on the UI thread and fails after Shutdown", "[title_app]") {
   FooApp app;
   if (!Open(app)) {
     app.Shutdown();
@@ -185,7 +191,7 @@ TEST_CASE("InvokeFunction runs on the UI thread and fails after Shutdown", "[tit
   REQUIRE_FALSE(rex::ui::InvokeFunction([] {}));
 }
 
-TEST_CASE("LaunchTitle without a game directory fails", "[title_app]") {
+REX_TEST_CASE("LaunchTitle without a game directory fails", "[title_app]") {
   const rex::u64 before = rex::platform::detail::LiveCount();
   FooApp app;
   if (!Open(app)) {
@@ -197,7 +203,7 @@ TEST_CASE("LaunchTitle without a game directory fails", "[title_app]") {
   REQUIRE(rex::platform::detail::LiveCount() == before);
 }
 
-TEST_CASE("Shutdown closes the window and reports Closing before OnShutdown", "[title_app]") {
+REX_TEST_CASE("Shutdown closes the window and reports Closing before OnShutdown", "[title_app]") {
   FooApp app;
   if (!Open(app)) {
     app.Shutdown();
@@ -208,7 +214,8 @@ TEST_CASE("Shutdown closes the window and reports Closing before OnShutdown", "[
   REQUIRE(app.closing_events_at_shutdown == 1);
 }
 
-TEST_CASE("A prompt pending on a guest thread completes cancelled when Stop runs", "[title_app]") {
+REX_TEST_CASE("A prompt pending on a guest thread completes cancelled when Stop runs",
+              "[title_app]") {
   FooApp app;
   if (!Open(app)) {
     app.Shutdown();
@@ -239,7 +246,7 @@ TEST_CASE("A prompt pending on a guest thread completes cancelled when Stop runs
   REQUIRE(on_ui);
 }
 
-TEST_CASE("Prompt after the UI loop quits completes cancelled at once", "[title_app]") {
+REX_TEST_CASE("Prompt after the UI loop quits completes cancelled at once", "[title_app]") {
   FooApp app;
   if (!Open(app)) {
     app.Shutdown();
@@ -262,7 +269,7 @@ TEST_CASE("Prompt after the UI loop quits completes cancelled at once", "[title_
   REQUIRE(app.Shutdown() == 0);
 }
 
-TEST_CASE("Stop destroys the prompts before the window closes", "[title_app]") {
+REX_TEST_CASE("Stop destroys the prompts before the window closes", "[title_app]") {
   FooApp app;
   if (!Open(app)) {
     app.Shutdown();
@@ -277,7 +284,7 @@ TEST_CASE("Stop destroys the prompts before the window closes", "[title_app]") {
   REQUIRE_FALSE(app.dialogs_at_closing);
 }
 
-TEST_CASE("CloseWindow leaves a dialog its owner holds to the owner", "[title_app]") {
+REX_TEST_CASE("CloseWindow leaves a dialog its owner holds to the owner", "[title_app]") {
   g_dialogs_destroyed = 0;
   FooApp app;
   if (!Open(app)) {
@@ -293,7 +300,7 @@ TEST_CASE("CloseWindow leaves a dialog its owner holds to the owner", "[title_ap
   REQUIRE(g_dialogs_destroyed == 1);
 }
 
-TEST_CASE("Closing the window destroys the overlays", "[title_app]") {
+REX_TEST_CASE("Closing the window destroys the overlays", "[title_app]") {
   g_constructed = 0;
   g_destroyed = 0;
   FooApp app;
@@ -312,7 +319,8 @@ TEST_CASE("Closing the window destroys the overlays", "[title_app]") {
   REQUIRE(g_destroyed == 1);
 }
 
-TEST_CASE("Overlay tables bind, toggle without destroying, and die with the app", "[title_app]") {
+REX_TEST_CASE("Overlay tables bind, toggle without destroying, and die with the app",
+              "[title_app]") {
   g_constructed = 0;
   g_destroyed = 0;
   FooApp app;
@@ -330,7 +338,7 @@ TEST_CASE("Overlay tables bind, toggle without destroying, and die with the app"
   REQUIRE(g_destroyed == 1);
 }
 
-TEST_CASE("RequestShutdown before Run ends Run at once", "[title_app]") {
+REX_TEST_CASE("RequestShutdown before Run ends Run at once", "[title_app]") {
   FooApp app;
   if (!Open(app)) {
     app.Shutdown();
@@ -341,7 +349,7 @@ TEST_CASE("RequestShutdown before Run ends Run at once", "[title_app]") {
   REQUIRE(app.Shutdown() == 4);
 }
 
-TEST_CASE("A shutdown requested during Init skips the window and the title", "[title_app]") {
+REX_TEST_CASE("A shutdown requested during Init skips the window and the title", "[title_app]") {
   FooApp app;
   REQUIRE(app.Init(rex::CLIArgList::Parse(std::span<const std::string>{}), rex::PPCImageInfo{}));
   rex::RequestShutdown(6);
@@ -352,7 +360,7 @@ TEST_CASE("A shutdown requested during Init skips the window and the title", "[t
   REQUIRE(app.Shutdown() == 6);
 }
 
-TEST_CASE("OnEvent receives nothing before OnCreateWindow returns", "[title_app]") {
+REX_TEST_CASE("OnEvent receives nothing before OnCreateWindow returns", "[title_app]") {
   FooApp app;
   if (!Open(app)) {
     app.Shutdown();
@@ -363,7 +371,7 @@ TEST_CASE("OnEvent receives nothing before OnCreateWindow returns", "[title_app]
   REQUIRE(app.closing_events == 1);
 }
 
-TEST_CASE("TitleApp puts rex-filesystem and rex-runtime first", "[title_app]") {
+REX_TEST_CASE("TitleApp puts rex-filesystem and rex-runtime first", "[title_app]") {
   FooApp app;
   app.modules = {"rexmod-test-good"};
   REQUIRE(app.Init(rex::CLIArgList::Parse(std::span<const std::string>{}), rex::PPCImageInfo{}));
@@ -372,8 +380,8 @@ TEST_CASE("TitleApp puts rex-filesystem and rex-runtime first", "[title_app]") {
   REQUIRE(app.Shutdown() == 0);
 }
 
-TEST_CASE("A title app with no ui module runs headless and Shutdown returns 0",
-          "[title_app][headless]") {
+REX_TEST_CASE("A title app with no ui module runs headless and Shutdown returns 0",
+              "[title_app][headless]") {
   FooApp app;
   app.modules = {};
   REQUIRE(Open(app));
@@ -390,8 +398,8 @@ TEST_CASE("A title app with no ui module runs headless and Shutdown returns 0",
   REQUIRE(app.Shutdown() == 0);
 }
 
-TEST_CASE("InvokeFunction from a guest thread runs on the null provider loop",
-          "[title_app][headless]") {
+REX_TEST_CASE("InvokeFunction from a guest thread runs on the null provider loop",
+              "[title_app][headless]") {
   FooApp app;
   app.modules = {};
   REQUIRE(Open(app));
@@ -410,4 +418,40 @@ TEST_CASE("InvokeFunction from a guest thread runs on the null provider loop",
   REQUIRE(ran_on_loop);
   REQUIRE(rex::ShutdownRequested());
   REQUIRE(app.Shutdown() == 0);
+}
+
+namespace {
+
+class InertAppContext final : public rex::ui::WindowedAppContext {
+ protected:
+  void NotifyUILoopOfPendingFunctions() override {}
+  void PlatformQuitFromUIThread() override {}
+};
+
+}  // namespace
+
+REX_TEST_CASE("A pending UI function that throws at shutdown is logged", "[ui][app_context]") {
+  rex::Shutdown();
+  auto started = rex::Init({});
+  REQUIRE(started);
+  auto* logger = (*started)->Get<rex::ILogger>();
+  REQUIRE(logger);
+  rex::log::CaptureSink sink;
+  logger->AddSink(sink);
+  bool later_ran = false;
+  {
+    InertAppContext context;
+    std::thread([&] {
+      context.CallInUIThreadDeferred([] { throw std::runtime_error("pending function failed"); });
+      context.CallInUIThreadDeferred([&] { later_ran = true; });
+    }).join();
+  }
+  std::vector<rex::log::CapturedRecord> records;
+  sink.CopySince(0, records);
+  logger->RemoveSink(sink);
+  rex::Shutdown();
+  CHECK(std::ranges::any_of(records, [](const rex::log::CapturedRecord& record) {
+    return record.text == "teardown step failed, pending function failed";
+  }));
+  CHECK(later_ran);
 }

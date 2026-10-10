@@ -10,7 +10,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-#include <catch2/catch_test_macros.hpp>
+#include "rex_test.h"
 
 #include <array>
 #include <bit>
@@ -53,12 +53,13 @@ f32 RunMulConstTemp(bool abs_constants) {
 
 }  // namespace
 
-TEST_CASE("A scalar constant and temp operation takes the absolute value of both operands",
-          "[gpu][shader][interpreter]") {
+REX_TEST_CASE("A scalar constant and temp operation takes the absolute value of both operands",
+              "[gpu][shader][interpreter]") {
   CHECK(RunMulConstTemp(true) == 6.0f);
 }
 
-TEST_CASE("A scalar constant and temp operation keeps the operand signs without the absolute flag",
-          "[gpu][shader][interpreter]") {
+REX_TEST_CASE(
+    "A scalar constant and temp operation keeps the operand signs without the absolute flag",
+    "[gpu][shader][interpreter]") {
   CHECK(RunMulConstTemp(false) == -6.0f);
 }

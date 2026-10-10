@@ -9,14 +9,16 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-#include <catch2/catch_test_macros.hpp>
+#include "rex_test.h"
 
 #include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <filesystem>
+#include <format>
 #include <fstream>
 #include <sstream>
+#include <stdexcept>
 #include <string>
 #include <thread>
 #include <vector>
@@ -105,7 +107,7 @@ struct Fixture {
 
 }  // namespace
 
-TEST_CASE("Level names round trip and reject other spellings", "[logger]") {
+REX_TEST_CASE("Level names round trip and reject other spellings", "[logger]") {
   for (Level level : {Level::kTrace, Level::kDev, Level::kDebug, Level::kInfo, Level::kWarn,
                       Level::kError, Level::kCritical, Level::kOff}) {
     auto parsed = rex::log::ParseLevel(rex::log::LevelName(level));
@@ -117,7 +119,8 @@ TEST_CASE("Level names round trip and reject other spellings", "[logger]") {
   REQUIRE_FALSE(rex::log::ParseLevel("err"));
 }
 
-TEST_CASE_METHOD(Fixture, "A category follows the default until it has its own level", "[logger]") {
+REX_TEST_CASE_METHOD(Fixture, "A category follows the default until it has its own level",
+                     "[logger]") {
   rex::ILogger& logger = Start();
   REQUIRE(logger.Register(rex::log::kTestLog));
   REQUIRE(logger.GetLevel("test_alpha").value() == Level::kInfo);
@@ -133,7 +136,7 @@ TEST_CASE_METHOD(Fixture, "A category follows the default until it has its own l
   logger.Unregister(rex::log::kTestLog);
 }
 
-TEST_CASE_METHOD(Fixture, "A disabled level does not evaluate its arguments", "[logger]") {
+REX_TEST_CASE_METHOD(Fixture, "A disabled level does not evaluate its arguments", "[logger]") {
   rex::ILogger& logger = Start();
   REQUIRE(logger.Register(rex::log::kTestLog));
   REQUIRE(logger.SetLevel("test_alpha", Level::kWarn));
@@ -146,7 +149,8 @@ TEST_CASE_METHOD(Fixture, "A disabled level does not evaluate its arguments", "[
   logger.Unregister(rex::log::kTestLog);
 }
 
-TEST_CASE_METHOD(Fixture, "Register adds a cvar per category and rejects conflicts", "[logger]") {
+REX_TEST_CASE_METHOD(Fixture, "Register adds a cvar per category and rejects conflicts",
+                     "[logger]") {
   rex::ILogger& logger = Start();
   REQUIRE(logger.Register(rex::log::kTestLog));
   REQUIRE(Cvars().Find("log.test_alpha"));
@@ -158,8 +162,8 @@ TEST_CASE_METHOD(Fixture, "Register adds a cvar per category and rejects conflic
   REQUIRE_FALSE(Cvars().Find("log.test_alpha"));
 }
 
-TEST_CASE_METHOD(Fixture, "A config file value reaches a category registered at start",
-                 "[logger]") {
+REX_TEST_CASE_METHOD(Fixture, "A config file value reaches a category registered at start",
+                     "[logger]") {
   rex::Config config;
   config.log.categories = {&rex::log::test_gamma};
   config.cvars.values.push_back({"log.test_gamma", "debug", rex::cvar::CvarSource::Config});
@@ -167,7 +171,8 @@ TEST_CASE_METHOD(Fixture, "A config file value reaches a category registered at 
   REQUIRE(logger.GetLevel("test_gamma").value() == Level::kDebug);
 }
 
-TEST_CASE_METHOD(Fixture, "A category nobody registered is listed and reported once", "[logger]") {
+REX_TEST_CASE_METHOD(Fixture, "A category nobody registered is listed and reported once",
+                     "[logger]") {
   rex::ILogger& logger = Start();
   RecordingSink sink;
   logger.AddSink(sink);
@@ -181,7 +186,7 @@ TEST_CASE_METHOD(Fixture, "A category nobody registered is listed and reported o
   REQUIRE_FALSE(orphan->registered);
 }
 
-TEST_CASE_METHOD(Fixture, "Sinks receive records in order until removed", "[logger]") {
+REX_TEST_CASE_METHOD(Fixture, "Sinks receive records in order until removed", "[logger]") {
   rex::ILogger& logger = Start();
   RecordingSink sink;
   logger.AddSink(sink);
@@ -196,7 +201,7 @@ TEST_CASE_METHOD(Fixture, "Sinks receive records in order until removed", "[logg
   REQUIRE(sink.records[0].sequence < sink.records[1].sequence);
 }
 
-TEST_CASE("FormatLine writes the columns it is asked for and never the level", "[logger]") {
+REX_TEST_CASE("FormatLine writes the columns it is asked for and never the level", "[logger]") {
   rex::log::Record record;
   record.level = Level::kWarn;
   record.category = "gpu";
@@ -219,7 +224,7 @@ TEST_CASE("FormatLine writes the columns it is asked for and never the level", "
   REQUIRE(rex::log::FormatLine(record, colored).starts_with("\x1b["));
 }
 
-TEST_CASE("A file sink writes a level letter column", "[logger]") {
+REX_TEST_CASE("A file sink writes a level letter column", "[logger]") {
   TempFolder temp;
   const auto path = temp.Path() / "direct.log";
   {
@@ -236,7 +241,7 @@ TEST_CASE("A file sink writes a level letter column", "[logger]") {
   REQUIRE(ReadText(path).starts_with("E core"));
 }
 
-TEST_CASE_METHOD(Fixture, "Sequential log files count up and old runs are pruned", "[logger]") {
+REX_TEST_CASE_METHOD(Fixture, "Sequential log files count up and old runs are pruned", "[logger]") {
   TempFolder temp;
   rex::Config config;
   config.log.file.enabled = true;
@@ -254,7 +259,7 @@ TEST_CASE_METHOD(Fixture, "Sequential log files count up and old runs are pruned
   REQUIRE_FALSE(std::filesystem::exists(temp.Path() / "run_001.log"));
 }
 
-TEST_CASE("A capture sink returns only newer records and keeps its capacity", "[logger]") {
+REX_TEST_CASE("A capture sink returns only newer records and keeps its capacity", "[logger]") {
   rex::log::CaptureSink sink;
   rex::log::Record record;
   for (rex::u64 i = 1; i <= rex::log::CaptureSink::kCapacity + 10; ++i) {
@@ -269,7 +274,7 @@ TEST_CASE("A capture sink returns only newer records and keeps its capacity", "[
   REQUIRE(out.size() == 5);
 }
 
-TEST_CASE_METHOD(Fixture, "Lines written while stopped reach the next log file", "[logger]") {
+REX_TEST_CASE_METHOD(Fixture, "Lines written while stopped reach the next log file", "[logger]") {
   TempFolder temp;
   REXLOG_ERROR(core, "written while stopped");
   rex::Config config;
@@ -280,7 +285,7 @@ TEST_CASE_METHOD(Fixture, "Lines written while stopped reach the next log file",
   REQUIRE(ReadText(temp.Path() / "replay.log").find("written while stopped") != std::string::npos);
 }
 
-TEST_CASE_METHOD(Fixture, "A stub warns once and writes Dev after", "[logger]") {
+REX_TEST_CASE_METHOD(Fixture, "A stub warns once and writes Dev after", "[logger]") {
   rex::ILogger& logger = Start();
   REQUIRE(logger.SetLevel("", Level::kTrace));
   RecordingSink sink;
@@ -298,7 +303,7 @@ TEST_CASE_METHOD(Fixture, "A stub warns once and writes Dev after", "[logger]") 
   REQUIRE(stubs[1].text == "TestStub stub, again");
 }
 
-TEST_CASE_METHOD(Fixture, "A log.flush_interval of 0 starts no flush thread", "[logger]") {
+REX_TEST_CASE_METHOD(Fixture, "A log.flush_interval of 0 starts no flush thread", "[logger]") {
   TempFolder temp;
   rex::Config config;
   config.log.file.enabled = true;
@@ -318,8 +323,8 @@ TEST_CASE_METHOD(Fixture, "A log.flush_interval of 0 starts no flush thread", "[
   CHECK(Cvars().ResetToDefault("log.flush_interval"));
 }
 
-TEST_CASE_METHOD(Fixture, "The log config sets levels and log.file overrides the path",
-                 "[logger]") {
+REX_TEST_CASE_METHOD(Fixture, "The log config sets levels and log.file overrides the path",
+                     "[logger]") {
   TempFolder temp;
   rex::Config config;
   config.log.categories = {&rex::log::test_gamma};
@@ -329,4 +334,30 @@ TEST_CASE_METHOD(Fixture, "The log config sets levels and log.file overrides the
   rex::ILogger& logger = Start(config);
   REQUIRE(logger.GetLevel("test_gamma").value() == Level::kDebug);
   REQUIRE(logger.FilePath() == path);
+}
+
+namespace {
+struct ThrowingArg {};
+}  // namespace
+
+template <>
+struct std::formatter<ThrowingArg> {
+  constexpr auto parse(std::format_parse_context& context) { return context.begin(); }
+  auto format(const ThrowingArg&, std::format_context& context) const {
+    throw std::runtime_error("formatter failed");
+    return context.out();
+  }
+};
+
+REX_TEST_CASE_METHOD(Fixture, "A message whose formatting throws logs a fallback line",
+                     "[logger]") {
+  rex::ILogger& logger = Start();
+  REQUIRE(logger.Register(rex::log::kTestLog));
+  RecordingSink sink;
+  logger.AddSink(sink);
+  auto write = [] { REXLOG_WARN(test_alpha, "{}", ThrowingArg{}); };
+  CHECK_NOTHROW(write());
+  logger.RemoveSink(sink);
+  logger.Unregister(rex::log::kTestLog);
+  CHECK(sink.Contains("log message dropped, formatter failed"));
 }

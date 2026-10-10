@@ -8,7 +8,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-#include <catch2/catch_test_macros.hpp>
+#include "rex_test.h"
 
 #include "kernel_fixture.h"
 
@@ -27,7 +27,8 @@ u32 LoopbackAddress(Caller& c, u32 port) {
 }
 }  // namespace
 
-TEST_CASE("net: a socket with an address family, type or protocol above 255 fails", "[char][net]") {
+REX_TEST_CASE("net: a socket with an address family, type or protocol above 255 fails",
+              "[char][net]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     REQUIRE(c.XAM("NetDll_WSAStartup", {0, 0x0202, c.Alloc(0x200)}) == 0);
@@ -44,7 +45,7 @@ TEST_CASE("net: a socket with an address family, type or protocol above 255 fail
   });
 }
 
-TEST_CASE("net: accept copies no more address than a sockaddr holds", "[char][net]") {
+REX_TEST_CASE("net: accept copies no more address than a sockaddr holds", "[char][net]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     constexpr u32 kPort = 47321;
@@ -76,7 +77,7 @@ TEST_CASE("net: accept copies no more address than a sockaddr holds", "[char][ne
   });
 }
 
-TEST_CASE("net: a length above the int range fails every socket call", "[char][net]") {
+REX_TEST_CASE("net: a length above the int range fails every socket call", "[char][net]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     constexpr u32 kPort = 47322;

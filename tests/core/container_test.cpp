@@ -8,7 +8,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-#include <catch2/catch_test_macros.hpp>
+#include "rex_test.h"
 
 #include <algorithm>
 #include <cstring>
@@ -137,7 +137,7 @@ std::filesystem::path WriteVariant(const TempFolder& temp, const char* name,
 
 }  // namespace
 
-TEST_CASE("is_flags_enum operators combine and test flags", "[core][bit]") {
+REX_TEST_CASE("is_flags_enum operators combine and test flags", "[core][bit]") {
   ContainerTestFlags flags = ContainerTestFlags::kA | ContainerTestFlags::kC;
   CHECK(rex::HasFlags(flags, ContainerTestFlags::kA));
   CHECK_FALSE(rex::HasFlags(flags, ContainerTestFlags::kB));
@@ -151,7 +151,7 @@ TEST_CASE("is_flags_enum operators combine and test flags", "[core][bit]") {
   CHECK((ContainerTestFlags::kA & ContainerTestFlags::kB) == ContainerTestFlags::kNone);
 }
 
-TEST_CASE("ReadWholeFile and WriteWholeFile round trip and create parents", "[core][file]") {
+REX_TEST_CASE("ReadWholeFile and WriteWholeFile round trip and create parents", "[core][file]") {
   TempFolder temp;
   const auto path = temp.path / "a" / "b" / "data.bin";
   const std::vector<rex::u8> bytes = {1, 2, 3, 250};
@@ -167,8 +167,8 @@ TEST_CASE("ReadWholeFile and WriteWholeFile round trip and create parents", "[co
   CHECK_FALSE(rex::platform::ReadWholeFile(temp.path / "missing"));
 }
 
-TEST_CASE("ReadSTFSHeader reads the fixture and refuses short bytes", "[core][container]") {
-  auto header = fs::ReadSTFSHeader(kFixtures / "stfs_con.bin");
+REX_TEST_CASE("ReadSTFSHeader reads the fixture and refuses short bytes", "[core][container]") {
+  auto header = fs::ReadSTFSHeader(Fixtures() / "stfs_con.bin");
   REQUIRE(header);
   CHECK(header->header.magic == fs::XContentPackageType::kCon);
   CHECK(header->metadata.volume_type == fs::XContentVolumeType::kSTFS);
@@ -181,23 +181,23 @@ TEST_CASE("ReadSTFSHeader reads the fixture and refuses short bytes", "[core][co
   CHECK_FALSE(fs::ReadSTFSHeader(kFixtures / "missing.bin"));
 }
 
-TEST_CASE("Container opens the STFS fixture", "[core][container]") {
-  auto container = fs::Container::Open(kFixtures / "stfs_con.bin");
+REX_TEST_CASE("Container opens the STFS fixture", "[core][container]") {
+  auto container = fs::Container::Open(Fixtures() / "stfs_con.bin");
   REQUIRE(container);
   CHECK(container->kind() == fs::ContainerKind::kSTFS);
   REQUIRE(container->header());
   CheckTree(*container);
 }
 
-TEST_CASE("Container opens the GDFX fixture", "[core][container]") {
-  auto container = fs::Container::Open(kFixtures / "gdfx.iso");
+REX_TEST_CASE("Container opens the GDFX fixture", "[core][container]") {
+  auto container = fs::Container::Open(Fixtures() / "gdfx.iso");
   REQUIRE(container);
   CHECK(container->kind() == fs::ContainerKind::kGDFX);
   CHECK(container->header() == nullptr);
   CheckTree(*container);
 }
 
-TEST_CASE("Container extracts byte exact", "[core][container]") {
+REX_TEST_CASE("Container extracts byte exact", "[core][container]") {
   for (const char* name : {"stfs_con.bin", "gdfx.iso"}) {
     TempFolder temp;
     auto container = fs::Container::Open(kFixtures / name);
@@ -210,7 +210,7 @@ TEST_CASE("Container extracts byte exact", "[core][container]") {
   }
 }
 
-TEST_CASE("Container refuses a dot dot name and removes its output", "[core][container]") {
+REX_TEST_CASE("Container refuses a dot dot name and removes its output", "[core][container]") {
   TempFolder temp;
   auto bytes = Fixture("gdfx.iso");
   const size_t entry = size_t{33} * 0x800;
@@ -227,7 +227,7 @@ TEST_CASE("Container refuses a dot dot name and removes its output", "[core][con
   CHECK_FALSE(std::filesystem::exists(out));
 }
 
-TEST_CASE("Container walks a long GDFX sibling chain without recursion", "[core][container]") {
+REX_TEST_CASE("Container walks a long GDFX sibling chain without recursion", "[core][container]") {
   constexpr rex::u32 kEntries = 16000;
   constexpr size_t kSector = 0x800;
   TempFolder temp;
@@ -254,7 +254,8 @@ TEST_CASE("Container walks a long GDFX sibling chain without recursion", "[core]
   CHECK(container->root().children.size() == kEntries);
 }
 
-TEST_CASE("Container reports truncated and out of range images as corrupt", "[core][container]") {
+REX_TEST_CASE("Container reports truncated and out of range images as corrupt",
+              "[core][container]") {
   TempFolder temp;
   auto stfs = Fixture("stfs_con.bin");
   stfs.resize(0xA800);

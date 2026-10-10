@@ -8,7 +8,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-#include <catch2/catch_test_macros.hpp>
+#include "rex_test.h"
 
 #include <chrono>
 #include <filesystem>
@@ -55,7 +55,7 @@ REXCVAR_STRING(gpu, path, "a", "a string");
 REXCVAR_TABLE(kFileCvars, vsync, path);
 }  // namespace file_cvars
 
-TEST_CASE("ParseCommandLine reads every cvar form", "[config]") {
+REX_TEST_CASE("ParseCommandLine reads every cvar form", "[config]") {
   rex::Config cfg;
   auto rest =
       Parse(cfg, {"--gpu.vsync=false", "--gpu.scale", "2", "--gpu.debug", "--no-gpu.markers"});
@@ -68,7 +68,7 @@ TEST_CASE("ParseCommandLine reads every cvar form", "[config]") {
   REQUIRE(Find(cfg, "gpu.vsync")->source == rex::cvar::CvarSource::CommandLine);
 }
 
-TEST_CASE("ParseCommandLine fills structural fields and modules", "[config]") {
+REX_TEST_CASE("ParseCommandLine fills structural fields and modules", "[config]") {
   rex::Config cfg;
   auto rest = Parse(cfg, {"--game_data_root=X:/game", "--cache_root", "X:/cache", "--backend",
                           "vulkan", "--modules", "a,b", "--config_file=X:/app.toml"});
@@ -81,7 +81,7 @@ TEST_CASE("ParseCommandLine fills structural fields and modules", "[config]") {
   REQUIRE(cfg.cvars.values.empty());
 }
 
-TEST_CASE("The --modules flag appends to the configured list", "[config]") {
+REX_TEST_CASE("The --modules flag appends to the configured list", "[config]") {
   rex::Config cfg;
   cfg.modules = {"x"};
   auto rest = Parse(cfg, {"--modules=a", "--modules", "b,c"});
@@ -89,7 +89,7 @@ TEST_CASE("The --modules flag appends to the configured list", "[config]") {
   REQUIRE(cfg.modules == std::vector<std::string>{"x", "a", "b", "c"});
 }
 
-TEST_CASE("ParseCommandLine returns unknown options in order", "[config]") {
+REX_TEST_CASE("ParseCommandLine returns unknown options in order", "[config]") {
   rex::Config cfg;
   auto rest =
       Parse(cfg, {"game_dir", "--foo", "--foo=1", "--Bad.Name=1", "--gpu.vsync", "--modules"});
@@ -97,7 +97,8 @@ TEST_CASE("ParseCommandLine returns unknown options in order", "[config]") {
   REQUIRE(Find(cfg, "gpu.vsync")->value == "true");
 }
 
-TEST_CASE("ParseCommandLine treats a following -- argument as a bool value boundary", "[config]") {
+REX_TEST_CASE("ParseCommandLine treats a following -- argument as a bool value boundary",
+              "[config]") {
   rex::Config cfg;
   auto rest = Parse(cfg, {"--gpu.vsync", "--gpu.scale=2"});
   REQUIRE(rest.empty());
@@ -105,7 +106,7 @@ TEST_CASE("ParseCommandLine treats a following -- argument as a bool value bound
   REQUIRE(Find(cfg, "gpu.scale")->value == "2");
 }
 
-TEST_CASE("LoadConfigFile reads scoped tables and flat keys alike", "[config]") {
+REX_TEST_CASE("LoadConfigFile reads scoped tables and flat keys alike", "[config]") {
   auto path = TempFile("rex_config_test_1.toml",
                        "fs.path = \"C:\\\\x\"\n\n[gpu]\nvsync = false\nscale = 2\n");
   rex::Config cfg;
@@ -118,7 +119,7 @@ TEST_CASE("LoadConfigFile reads scoped tables and flat keys alike", "[config]") 
   std::filesystem::remove(path);
 }
 
-TEST_CASE("LoadConfigFile keeps a dotless key as an override", "[config]") {
+REX_TEST_CASE("LoadConfigFile keeps a dotless key as an override", "[config]") {
   auto path = TempFile("rex_config_test_2.toml", "vsync = false\n");
   rex::Config cfg;
   REQUIRE(rex::LoadConfigFile(cfg, path));
@@ -127,8 +128,8 @@ TEST_CASE("LoadConfigFile keeps a dotless key as an override", "[config]") {
   std::filesystem::remove(path);
 }
 
-TEST_CASE("LoadConfigFile rejects nested tables and malformed files, accepts a missing file",
-          "[config]") {
+REX_TEST_CASE("LoadConfigFile rejects nested tables and malformed files, accepts a missing file",
+              "[config]") {
   rex::Config cfg;
   REQUIRE(rex::LoadConfigFile(
       cfg, std::filesystem::temp_directory_path() / "rex_config_test_missing.toml"));
@@ -145,7 +146,7 @@ TEST_CASE("LoadConfigFile rejects nested tables and malformed files, accepts a m
   std::filesystem::remove(broken);
 }
 
-TEST_CASE("SaveConfigFile round trips through LoadConfigFile", "[config]") {
+REX_TEST_CASE("SaveConfigFile round trips through LoadConfigFile", "[config]") {
   auto registry = rex::detail::CreateCvarRegistry();
   REQUIRE(registry->Register("gpu", file_cvars::kFileCvars));
   REQUIRE(registry->Set("gpu.vsync", "false"));
@@ -162,7 +163,7 @@ TEST_CASE("SaveConfigFile round trips through LoadConfigFile", "[config]") {
   REQUIRE(file_cvars::path.Parse("a"));
 }
 
-TEST_CASE("ApplyEnvironment reads REX_ variables into Environment overrides", "[config]") {
+REX_TEST_CASE("ApplyEnvironment reads REX_ variables into Environment overrides", "[config]") {
   rex::platform::SetEnvironmentValue("REX_GPU_VSYNC", "false");
   rex::platform::SetEnvironmentValue("REX_APP_DEBUG_MARKERS", "1");
   rex::platform::SetEnvironmentValue("REX_NOSCOPE", "x");
@@ -182,7 +183,7 @@ TEST_CASE("ApplyEnvironment reads REX_ variables into Environment overrides", "[
   rex::platform::UnsetEnvironmentValue("REXX_FOO");
 }
 
-TEST_CASE("CvarConfig::Get returns the highest precedence queued value", "[config]") {
+REX_TEST_CASE("CvarConfig::Get returns the highest precedence queued value", "[config]") {
   rex::Config config;
   config.cvars.values.push_back({"gpu.vsync", "false", rex::cvar::CvarSource::Environment});
   config.cvars.SetDefault("gpu.vsync", "true");
@@ -193,7 +194,7 @@ TEST_CASE("CvarConfig::Get returns the highest precedence queued value", "[confi
   REQUIRE_FALSE(config.cvars.Get("gpu.nothing").has_value());
 }
 
-TEST_CASE("Config defaults for the 6a fields", "[config]") {
+REX_TEST_CASE("Config defaults for the 6a fields", "[config]") {
   rex::Config config;
   REQUIRE(config.single_instance.empty());
   REQUIRE(config.runtime.terminate_timeout == std::chrono::milliseconds(2000));

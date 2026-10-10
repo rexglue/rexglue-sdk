@@ -9,7 +9,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-#include <catch2/catch_test_macros.hpp>
+#include "rex_test.h"
 
 #include <cstring>
 
@@ -32,8 +32,8 @@ constexpr u32 kItemSize = 0x40;
 constexpr u32 kShortBufferSize = 4;
 }  // namespace
 
-TEST_CASE("enumerate: a buffer size smaller than 1 item still takes the full batch",
-          "[char][enumerate]") {
+REX_TEST_CASE("enumerate: a buffer size smaller than 1 item still takes the full batch",
+              "[char][enumerate]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 size_ptr = c.Alloc(4);
@@ -52,8 +52,8 @@ TEST_CASE("enumerate: a buffer size smaller than 1 item still takes the full bat
   });
 }
 
-TEST_CASE("enumerate: the aggregate message takes an item with a buffer size below 1 item",
-          "[char][enumerate]") {
+REX_TEST_CASE("enumerate: the aggregate message takes an item with a buffer size below 1 item",
+              "[char][enumerate]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     rex::runtime::StaticItems items(1, kItemSize);

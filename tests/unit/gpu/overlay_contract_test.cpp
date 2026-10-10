@@ -9,7 +9,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-#include <catch2/catch_test_macros.hpp>
+#include "rex_test.h"
 
 #include <algorithm>
 #include <atomic>
@@ -127,7 +127,8 @@ std::vector<std::string> After(const std::string& first) {
 
 }  // namespace
 
-TEST_CASE("The title window draws 1 overlay frame through the backend drawer", "[gpu][overlay]") {
+REX_TEST_CASE("The title window draws 1 overlay frame through the backend drawer",
+              "[gpu][overlay]") {
   g_events.clear();
   NullGPUModule module;
   NullGPUApp app;
@@ -151,7 +152,7 @@ TEST_CASE("The title window draws 1 overlay frame through the backend drawer", "
   CHECK(std::ranges::count(g_events, std::string("texture_freed")) >= 1);
 }
 
-TEST_CASE("The title window reports its SDL window", "[gpu][overlay]") {
+REX_TEST_CASE("The title window reports its SDL window", "[gpu][overlay]") {
   g_events.clear();
   NullGPUModule module;
   NullGPUApp app;
@@ -166,7 +167,8 @@ TEST_CASE("The title window reports its SDL window", "[gpu][overlay]") {
   REQUIRE(app.Shutdown() == 0);
 }
 
-TEST_CASE("DrawOverlays draws the shown overlays through the overlay drawer", "[gpu][overlay]") {
+REX_TEST_CASE("DrawOverlays draws the shown overlays through the overlay drawer",
+              "[gpu][overlay]") {
   g_events.clear();
   NullGPUModule module;
   NullGPUApp app;
@@ -191,7 +193,7 @@ TEST_CASE("DrawOverlays draws the shown overlays through the overlay drawer", "[
   REQUIRE(app.Shutdown() == 0);
 }
 
-TEST_CASE("A failed font texture is created again on the next frame", "[gpu][overlay]") {
+REX_TEST_CASE("A failed font texture is created again on the next frame", "[gpu][overlay]") {
   g_events.clear();
   NullGPUModule module;
   module.FailTextures(1);
@@ -209,7 +211,7 @@ TEST_CASE("A failed font texture is created again on the next frame", "[gpu][ove
   REQUIRE(app.Shutdown() == 0);
 }
 
-TEST_CASE("A dialog closed while its owner holds it survives the frame", "[gpu][overlay]") {
+REX_TEST_CASE("A dialog closed while its owner holds it survives the frame", "[gpu][overlay]") {
   g_events.clear();
   g_owned_destroyed = 0;
   NullGPUModule module;

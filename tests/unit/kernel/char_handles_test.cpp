@@ -8,7 +8,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-#include <catch2/catch_test_macros.hpp>
+#include "rex_test.h"
 
 #include <chrono>
 #include <future>
@@ -30,7 +30,7 @@ u32 Poll(Caller& c) {
 }
 }  // namespace
 
-TEST_CASE("handles: duplicate close and reuse", "[char][handles]") {
+REX_TEST_CASE("handles: duplicate close and reuse", "[char][handles]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 handle_ptr = c.Alloc(4);
@@ -63,7 +63,7 @@ TEST_CASE("handles: duplicate close and reuse", "[char][handles]") {
   });
 }
 
-TEST_CASE("handles: close of pseudo and bad handles returns a status", "[char][handles]") {
+REX_TEST_CASE("handles: close of pseudo and bad handles returns a status", "[char][handles]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     CHECK(c.Kernel("NtClose", {0}) == kInvalidHandle);
@@ -73,8 +73,8 @@ TEST_CASE("handles: close of pseudo and bad handles returns a status", "[char][h
   });
 }
 
-TEST_CASE("handles: ObReferenceObjectByHandle and ObDereferenceObject keep the object open",
-          "[char][handles]") {
+REX_TEST_CASE("handles: ObReferenceObjectByHandle and ObDereferenceObject keep the object open",
+              "[char][handles]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 handle_ptr = c.Alloc(4);
@@ -97,8 +97,8 @@ TEST_CASE("handles: ObReferenceObjectByHandle and ObDereferenceObject keep the o
   });
 }
 
-TEST_CASE("handles: ObDereferenceObject and ObOpenObjectByPointer reject a null object",
-          "[char][handles]") {
+REX_TEST_CASE("handles: ObDereferenceObject and ObOpenObjectByPointer reject a null object",
+              "[char][handles]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 handle_ptr = c.Alloc(4);
@@ -107,7 +107,7 @@ TEST_CASE("handles: ObDereferenceObject and ObOpenObjectByPointer reject a null 
   });
 }
 
-TEST_CASE("handles: ObOpenObjectByPointer returns a closable handle", "[char][handles]") {
+REX_TEST_CASE("handles: ObOpenObjectByPointer returns a closable handle", "[char][handles]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 event = c.Alloc(0x10);
@@ -124,7 +124,7 @@ TEST_CASE("handles: ObOpenObjectByPointer returns a closable handle", "[char][ha
   });
 }
 
-TEST_CASE("names: case insensitive open and collision", "[char][names]") {
+REX_TEST_CASE("names: case insensitive open and collision", "[char][names]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 handle_ptr = c.Alloc(4);
@@ -147,7 +147,7 @@ TEST_CASE("names: case insensitive open and collision", "[char][names]") {
   });
 }
 
-TEST_CASE("names: another kind holding the name", "[char][names]") {
+REX_TEST_CASE("names: another kind holding the name", "[char][names]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 handle_ptr = c.Alloc(4);
@@ -167,7 +167,7 @@ TEST_CASE("names: another kind holding the name", "[char][names]") {
   });
 }
 
-TEST_CASE("waits: wait any and wait all", "[char][waits]") {
+REX_TEST_CASE("waits: wait any and wait all", "[char][waits]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 handle_ptr = c.Alloc(4);
@@ -198,7 +198,7 @@ TEST_CASE("waits: wait any and wait all", "[char][waits]") {
   });
 }
 
-TEST_CASE("waits: signal and wait", "[char][waits]") {
+REX_TEST_CASE("waits: signal and wait", "[char][waits]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 handle_ptr = c.Alloc(4);
@@ -221,7 +221,8 @@ TEST_CASE("waits: signal and wait", "[char][waits]") {
   });
 }
 
-TEST_CASE("waits: a handle closed during a wait still completes the wait", "[char][waits][pin]") {
+REX_TEST_CASE("waits: a handle closed during a wait still completes the wait",
+              "[char][waits][pin]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 handle_ptr = c.Alloc(4);

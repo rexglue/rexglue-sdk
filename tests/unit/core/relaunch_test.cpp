@@ -8,7 +8,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-#include <catch2/catch_test_macros.hpp>
+#include "rex_test.h"
 
 #include <rex/platform.h>
 
@@ -23,7 +23,7 @@
 
 #include <rex/platform/process.h>
 
-TEST_CASE("BuildCommandLine round trips through CommandLineToArgvW", "[relaunch]") {
+REX_TEST_CASE("BuildCommandLine round trips through CommandLineToArgvW", "[relaunch]") {
   const std::vector<std::string> args{R"(D:\Games\Blue Dragon\)",
                                       "--flag",
                                       R"(say "hi")",

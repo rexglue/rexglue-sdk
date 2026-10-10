@@ -9,7 +9,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-#include <catch2/catch_test_macros.hpp>
+#include "rex_test.h"
 
 #include <map>
 #include <memory>
@@ -107,7 +107,7 @@ InputEvent Motion(rex::f32 x, rex::f32 y, rex::f32 dx = 0.0f, rex::f32 dy = 0.0f
 
 }  // namespace
 
-TEST_CASE("Hub keeps keyboard state and modifiers", "[hid]") {
+REX_TEST_CASE("Hub keeps keyboard state and modifiers", "[hid]") {
   Hub hub;
   hub.OnEvent(Key(Kind::KeyDown, VirtualKey::kA));
   hub.OnEvent(Key(Kind::KeyDown, VirtualKey::kShift));
@@ -119,7 +119,7 @@ TEST_CASE("Hub keeps keyboard state and modifiers", "[hid]") {
   CHECK_FALSE(hub.AnyKeyDown());
 }
 
-TEST_CASE("Hub tracks the free pointer and consumes the moved flag", "[hid]") {
+REX_TEST_CASE("Hub tracks the free pointer and consumes the moved flag", "[hid]") {
   Hub hub;
   hub.OnEvent({.kind = Kind::Resize, .width = 100, .height = 100});
   hub.OnEvent(Motion(10.0f, 20.0f));
@@ -131,7 +131,7 @@ TEST_CASE("Hub tracks the free pointer and consumes the moved flag", "[hid]") {
   CHECK(hub.TakeMotion().dx == 0.0f);
 }
 
-TEST_CASE("Hub posts a pointer mode once and applies the last one", "[hid]") {
+REX_TEST_CASE("Hub posts a pointer mode once and applies the last one", "[hid]") {
   Hub hub;
   FakeHost host;
   hub.SetHost(&host);
@@ -143,7 +143,7 @@ TEST_CASE("Hub posts a pointer mode once and applies the last one", "[hid]") {
   hub.SetHost(nullptr);
 }
 
-TEST_CASE("Hub posts again after the host dropped a pointer update", "[hid]") {
+REX_TEST_CASE("Hub posts again after the host dropped a pointer update", "[hid]") {
   Hub hub;
   FakeHost host;
   hub.SetHost(&host);
@@ -157,7 +157,7 @@ TEST_CASE("Hub posts again after the host dropped a pointer update", "[hid]") {
   hub.SetHost(nullptr);
 }
 
-TEST_CASE("Hub frees the pointer while the host holds no capture", "[hid]") {
+REX_TEST_CASE("Hub frees the pointer while the host holds no capture", "[hid]") {
   Hub hub;
   FakeHost host;
   hub.SetPointerMode(PointerMode::Hidden);
@@ -174,7 +174,7 @@ TEST_CASE("Hub frees the pointer while the host holds no capture", "[hid]") {
   hub.SetHost(nullptr);
 }
 
-TEST_CASE("Hub applies a mode set before any host on SetHost", "[hid]") {
+REX_TEST_CASE("Hub applies a mode set before any host on SetHost", "[hid]") {
   Hub hub;
   hub.SetPointerMode(PointerMode::Hidden);
   FakeHost host;
@@ -184,7 +184,7 @@ TEST_CASE("Hub applies a mode set before any host on SetHost", "[hid]") {
   CHECK(host.applied.back() == PointerMode::Free);
 }
 
-TEST_CASE("Hub accumulates locked motion, Take consumes and Peek does not", "[hid]") {
+REX_TEST_CASE("Hub accumulates locked motion, Take consumes and Peek does not", "[hid]") {
   Hub hub;
   FakeHost host;
   hub.SetPointerMode(PointerMode::Locked);
@@ -199,7 +199,7 @@ TEST_CASE("Hub accumulates locked motion, Take consumes and Peek does not", "[hi
   hub.SetHost(nullptr);
 }
 
-TEST_CASE("Hub recenters a locked pointer without relative motion", "[hid]") {
+REX_TEST_CASE("Hub recenters a locked pointer without relative motion", "[hid]") {
   Hub hub;
   FakeHost host;
   host.relative = false;
@@ -217,7 +217,7 @@ TEST_CASE("Hub recenters a locked pointer without relative motion", "[hid]") {
   hub.SetHost(nullptr);
 }
 
-TEST_CASE("Hub frees the pointer and drops held input on focus loss", "[hid]") {
+REX_TEST_CASE("Hub frees the pointer and drops held input on focus loss", "[hid]") {
   Hub hub;
   FakeHost host;
   hub.SetPointerMode(PointerMode::Locked);
@@ -236,7 +236,7 @@ TEST_CASE("Hub frees the pointer and drops held input on focus loss", "[hid]") {
   hub.SetHost(nullptr);
 }
 
-TEST_CASE("Hub drops events from a detached host", "[hid]") {
+REX_TEST_CASE("Hub drops events from a detached host", "[hid]") {
   Hub hub;
   FakeHost host;
   hub.SetHost(&host);
@@ -246,7 +246,7 @@ TEST_CASE("Hub drops events from a detached host", "[hid]") {
   CHECK(host.applied.empty());
 }
 
-TEST_CASE("Hub returns the wheel detents once", "[hid]") {
+REX_TEST_CASE("Hub returns the wheel detents once", "[hid]") {
   Hub hub;
   hub.OnEvent({.kind = Kind::Wheel, .wheel = 2});
   hub.OnEvent({.kind = Kind::Wheel, .wheel = -1});
@@ -255,7 +255,7 @@ TEST_CASE("Hub returns the wheel detents once", "[hid]") {
   CHECK(hub.TakeWheel() == 0);
 }
 
-TEST_CASE("Hub masks buttons held when the last UI block drops", "[hid]") {
+REX_TEST_CASE("Hub masks buttons held when the last UI block drops", "[hid]") {
   Hub hub;
   auto pad = std::make_unique<FakePad>();
   FakePad* raw = pad.get();
@@ -273,7 +273,7 @@ TEST_CASE("Hub masks buttons held when the last UI block drops", "[hid]") {
   CHECK(static_cast<rex::u16>(hub.GetState(0)->gamepad.buttons) == rex::hid::X_INPUT_GAMEPAD_A);
 }
 
-TEST_CASE("Hub tells the listener when user 0 connects", "[hid]") {
+REX_TEST_CASE("Hub tells the listener when user 0 connects", "[hid]") {
   Hub hub;
   std::vector<std::pair<rex::u32, bool>> events;
   hub.SetConnectionListener([&events](rex::u32 user, bool on) { events.emplace_back(user, on); });
@@ -282,7 +282,7 @@ TEST_CASE("Hub tells the listener when user 0 connects", "[hid]") {
   CHECK(events == std::vector<std::pair<rex::u32, bool>>{{0, true}});
 }
 
-TEST_CASE("Keyboard pad releases bound keys and drops motion on focus loss", "[hid]") {
+REX_TEST_CASE("Keyboard pad releases bound keys and drops motion on focus loss", "[hid]") {
   auto registry = rex::detail::CreateCvarRegistry();
   REQUIRE(registry->Register("hid", rex::hid::cvars::kHIDCvars));
   REQUIRE(REXCVAR_SET(rex::hid::cvars::mnk_mode, true));
@@ -331,8 +331,8 @@ std::vector<rex::u16> Drain(rex::hid::KeyboardMouseDriver& pad, rex::hid::Device
 
 }  // namespace
 
-TEST_CASE("Keyboard pad binds fire only with their exact modifiers and follow cvar changes",
-          "[hid][key_chord]") {
+REX_TEST_CASE("Keyboard pad binds fire only with their exact modifiers and follow cvar changes",
+              "[hid][key_chord]") {
   auto registry = rex::detail::CreateCvarRegistry();
   REQUIRE(registry->Register("hid", rex::hid::cvars::kHIDCvars));
   REQUIRE(REXCVAR_SET(rex::hid::cvars::mnk_mode, true));

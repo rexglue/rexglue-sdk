@@ -18,6 +18,7 @@
 
 #include <rex/assert.h>
 #include <rex/logging.h>
+#include <rex/no_throw.h>
 #include <rex/runtime/error.h>
 #include <rex/runtime/xevent.h>
 #include <rex/runtime/xmutant.h>
@@ -367,6 +368,14 @@ std::optional<X_HANDLE> ObjectTable::ResolveGuestObject(u32 address, i32 as_type
   const X_HANDLE handle = added.value_or(0);
   StashHandle(header, handle);
   return handle;
+}
+
+void CloseOwned(IObjectTable& table, X_HANDLE handle) noexcept {
+  log::NoThrow(log::system, [&] {
+    if (auto closed = table.Close(handle); !closed) {
+      REXLOG_WARN(system, "Handle {:08X} did not close, {}", handle, closed.error().message);
+    }
+  });
 }
 
 }  // namespace rex::runtime

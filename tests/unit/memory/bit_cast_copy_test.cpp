@@ -9,7 +9,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-#include <catch2/catch_test_macros.hpp>
+#include "rex_test.h"
 
 #include <bit>
 #include <cstring>
@@ -44,7 +44,7 @@ bool SameBytes(const T& a, const T& b) {
 
 }  // namespace
 
-TEST_CASE("Reinterpret copies the same bytes as memcpy for f32", "[memory][bit_cast]") {
+REX_TEST_CASE("Reinterpret copies the same bytes as memcpy for f32", "[memory][bit_cast]") {
   for (const rex::u32 bits : kF32Patterns) {
     const rex::f32 expected = MemcpyCopy<rex::f32>(bits);
     CHECK(SameBytes(rex::memory::Reinterpret<rex::f32>(bits), expected));
@@ -56,7 +56,7 @@ TEST_CASE("Reinterpret copies the same bytes as memcpy for f32", "[memory][bit_c
   }
 }
 
-TEST_CASE("Reinterpret copies the same bytes as memcpy for f64", "[memory][bit_cast]") {
+REX_TEST_CASE("Reinterpret copies the same bytes as memcpy for f64", "[memory][bit_cast]") {
   for (const rex::u64 bits : kF64Patterns) {
     const rex::f64 expected = MemcpyCopy<rex::f64>(bits);
     CHECK(SameBytes(rex::memory::Reinterpret<rex::f64>(bits), expected));
@@ -67,7 +67,7 @@ TEST_CASE("Reinterpret copies the same bytes as memcpy for f64", "[memory][bit_c
   }
 }
 
-TEST_CASE("to_hex_string of a float prints the bits memcpy would read", "[string][bit_cast]") {
+REX_TEST_CASE("to_hex_string of a float prints the bits memcpy would read", "[string][bit_cast]") {
   for (const rex::u32 bits : kF32Patterns) {
     CHECK(rex::to_hex_string(MemcpyCopy<rex::f32>(bits)) == rex::to_hex_string(bits));
   }
@@ -78,7 +78,7 @@ TEST_CASE("to_hex_string of a float prints the bits memcpy would read", "[string
   CHECK(rex::to_hex_string(1.0) == "3FF0000000000000");
 }
 
-TEST_CASE("from_string hex floats carry the bits memcpy would write", "[string][bit_cast]") {
+REX_TEST_CASE("from_string hex floats carry the bits memcpy would write", "[string][bit_cast]") {
   for (const rex::u32 bits : kF32Patterns) {
     const std::string text = "0x" + rex::to_hex_string(bits);
     CHECK(SameBytes(rex::from_string<rex::f32>(text), MemcpyCopy<rex::f32>(bits)));

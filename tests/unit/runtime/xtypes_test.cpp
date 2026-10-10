@@ -8,7 +8,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-#include <catch2/catch_test_macros.hpp>
+#include "rex_test.h"
 
 #include <rex/runtime/xtypes.h>
 
@@ -98,7 +98,7 @@ static_assert(rex::X_HRESULT_FROM_WIN32(0x80070057u) == 0x80070057u);
 static_assert(rex::X_HRESULT_FROM_WIN32(0x00000057u) == 0x80070057u);
 static_assert(rex::X_RESULT_FROM_WIN32(0x00000490u) == 0x00000490u);
 
-TEST_CASE("XSUCCEEDED accepts codes whose top 2 bits are clear", "[runtime][xtypes]") {
+REX_TEST_CASE("XSUCCEEDED accepts codes whose top 2 bits are clear", "[runtime][xtypes]") {
   CHECK(rex::XSUCCEEDED(rex::X_STATUS_SUCCESS));
   CHECK(rex::XSUCCEEDED(rex::X_STATUS_PENDING));
   CHECK_FALSE(rex::XSUCCEEDED(rex::X_STATUS_OBJECT_NAME_EXISTS));

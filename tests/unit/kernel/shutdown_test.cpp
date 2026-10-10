@@ -8,7 +8,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-#include <catch2/catch_test_macros.hpp>
+#include "rex_test.h"
 
 #include <array>
 #include <atomic>
@@ -288,7 +288,7 @@ bool SwitchToFiberInScope(Caller& t, u32 fiber_entry) {
 
 }  // namespace
 
-TEST_CASE("ExTerminateThread from a nested call runs host destructors", "[kernel][shutdown]") {
+REX_TEST_CASE("ExTerminateThread from a nested call runs host destructors", "[kernel][shutdown]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     auto destroyed = std::make_shared<std::atomic<bool>>(false);
@@ -301,7 +301,8 @@ TEST_CASE("ExTerminateThread from a nested call runs host destructors", "[kernel
   });
 }
 
-TEST_CASE("A stop crosses a guest SEH scope without running its handler", "[kernel][shutdown]") {
+REX_TEST_CASE("A stop crosses a guest SEH scope without running its handler",
+              "[kernel][shutdown]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 event = CreateEvent(c);
@@ -316,7 +317,7 @@ TEST_CASE("A stop crosses a guest SEH scope without running its handler", "[kern
   });
 }
 
-TEST_CASE("A stop on a guest fiber unwinds the thread", "[kernel][shutdown]") {
+REX_TEST_CASE("A stop on a guest fiber unwinds the thread", "[kernel][shutdown]") {
   KernelFixture fixture;
   const u32 fiber_entry = fixture.runtime().function_dispatcher()->AllocateThunk(&FiberWait, 0);
   REQUIRE(fiber_entry != 0);
@@ -328,8 +329,8 @@ TEST_CASE("A stop on a guest fiber unwinds the thread", "[kernel][shutdown]") {
   });
 }
 
-TEST_CASE("A guest thread that ends as a fiber frees its fibers once",
-          "[kernel][shutdown][fiber]") {
+REX_TEST_CASE("A guest thread that ends as a fiber frees its fibers once",
+              "[kernel][shutdown][fiber]") {
   KernelFixture fixture;
   const u32 fiber_entry = fixture.runtime().function_dispatcher()->AllocateThunk(&FiberWait, 0);
   REQUIRE(fiber_entry != 0);
@@ -342,7 +343,7 @@ TEST_CASE("A guest thread that ends as a fiber frees its fibers once",
   });
 }
 
-TEST_CASE("A stop wakes a non-alertable wait on an event nobody sets", "[kernel][shutdown]") {
+REX_TEST_CASE("A stop wakes a non-alertable wait on an event nobody sets", "[kernel][shutdown]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 event = CreateEvent(c);
@@ -351,7 +352,7 @@ TEST_CASE("A stop wakes a non-alertable wait on an event nobody sets", "[kernel]
   });
 }
 
-TEST_CASE("A stop wakes a wait all on events not all set", "[kernel][shutdown]") {
+REX_TEST_CASE("A stop wakes a wait all on events not all set", "[kernel][shutdown]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 handles = c.Alloc(8);
@@ -365,7 +366,7 @@ TEST_CASE("A stop wakes a wait all on events not all set", "[kernel][shutdown]")
   });
 }
 
-TEST_CASE("A stop wakes a signal and wait", "[kernel][shutdown]") {
+REX_TEST_CASE("A stop wakes a signal and wait", "[kernel][shutdown]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 signal = CreateEvent(c);
@@ -377,7 +378,7 @@ TEST_CASE("A stop wakes a signal and wait", "[kernel][shutdown]") {
   });
 }
 
-TEST_CASE("A stop wakes a non-alertable delay of 1 hour", "[kernel][shutdown]") {
+REX_TEST_CASE("A stop wakes a non-alertable delay of 1 hour", "[kernel][shutdown]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 thread = StopsWithin(
@@ -386,7 +387,7 @@ TEST_CASE("A stop wakes a non-alertable delay of 1 hour", "[kernel][shutdown]") 
   });
 }
 
-TEST_CASE("A stop releases a host lock held across a wait", "[kernel][shutdown]") {
+REX_TEST_CASE("A stop releases a host lock held across a wait", "[kernel][shutdown]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 event = CreateEvent(c);
@@ -401,7 +402,7 @@ TEST_CASE("A stop releases a host lock held across a wait", "[kernel][shutdown]"
   });
 }
 
-TEST_CASE("A stop requested before the wait still wakes it", "[kernel][shutdown]") {
+REX_TEST_CASE("A stop requested before the wait still wakes it", "[kernel][shutdown]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 event = CreateEvent(c);
@@ -421,7 +422,7 @@ TEST_CASE("A stop requested before the wait still wakes it", "[kernel][shutdown]
   });
 }
 
-TEST_CASE("A non-alertable wait keeps waiting through a guest APC", "[kernel][shutdown]") {
+REX_TEST_CASE("A non-alertable wait keeps waiting through a guest APC", "[kernel][shutdown]") {
   KernelFixture fixture;
   const u32 routine = fixture.runtime().function_dispatcher()->AllocateThunk(&MarkAPC, 0);
   REQUIRE(routine != 0);
@@ -449,8 +450,8 @@ TEST_CASE("A non-alertable wait keeps waiting through a guest APC", "[kernel][sh
   });
 }
 
-TEST_CASE("TerminateTitle ends guest threads in every wait kind with no kill",
-          "[kernel][shutdown]") {
+REX_TEST_CASE("TerminateTitle ends guest threads in every wait kind with no kill",
+              "[kernel][shutdown]") {
   KernelFixture fixture;
   std::vector<u32> threads;
   fixture.RunOnGuestThread([&threads](Caller& c) {
@@ -478,7 +479,7 @@ TEST_CASE("TerminateTitle ends guest threads in every wait kind with no kill",
   }
 }
 
-TEST_CASE("TerminateTitle stops every thread launched while it runs", "[kernel][shutdown]") {
+REX_TEST_CASE("TerminateTitle stops every thread launched while it runs", "[kernel][shutdown]") {
   struct Launched {
     std::mutex mutex;
     std::vector<u32> handles;
@@ -514,8 +515,9 @@ TEST_CASE("TerminateTitle stops every thread launched while it runs", "[kernel][
   }
 }
 
-TEST_CASE("A thread created after TerminateTitle leaves the title process thread list as it was",
-          "[kernel][shutdown]") {
+REX_TEST_CASE(
+    "A thread created after TerminateTitle leaves the title process thread list as it was",
+    "[kernel][shutdown]") {
   KernelFixture fixture;
   fixture.runtime().TerminateTitle();
 
@@ -539,7 +541,7 @@ TEST_CASE("A thread created after TerminateTitle leaves the title process thread
   rex::runtime::ThreadState::Bind(previous);
 }
 
-TEST_CASE("TerminateTitle from a guest thread ends the caller last", "[kernel][shutdown]") {
+REX_TEST_CASE("TerminateTitle from a guest thread ends the caller last", "[kernel][shutdown]") {
   KernelFixture fixture;
   auto terminator = std::make_shared<std::atomic<u32>>(0);
   auto other = std::make_shared<std::atomic<u32>>(0);
@@ -568,8 +570,8 @@ TEST_CASE("TerminateTitle from a guest thread ends the caller last", "[kernel][s
   CHECK(other_stopped_first->load());
 }
 
-TEST_CASE("A terminate notification that waits forever is stopped with no kill",
-          "[kernel][shutdown]") {
+REX_TEST_CASE("A terminate notification that waits forever is stopped with no kill",
+              "[kernel][shutdown]") {
   KernelFixture fixture;
   const u32 routine =
       fixture.runtime().function_dispatcher()->AllocateThunk(&WaitingTerminateRoutine, 0);
@@ -588,8 +590,8 @@ TEST_CASE("A terminate notification that waits forever is stopped with no kill",
   CHECK(elapsed < 3500);
 }
 
-TEST_CASE("TerminateTitle stops a guest thread spinning in generated code",
-          "[kernel][shutdown][forced_stop]") {
+REX_TEST_CASE("TerminateTitle stops a guest thread spinning in generated code",
+              "[kernel][shutdown][forced_stop]") {
   KernelFixture fixture;
   fixture.runtime().function_dispatcher()->AddRecompiledCode(REX_RECOMPILED_CODE());
   auto started = std::make_shared<std::atomic<bool>>(false);
@@ -610,8 +612,8 @@ TEST_CASE("TerminateTitle stops a guest thread spinning in generated code",
   CHECK(unwound->load());
 }
 
-TEST_CASE("TerminateTitle stops a guest thread spinning in an SEH scope",
-          "[kernel][shutdown][forced_stop]") {
+REX_TEST_CASE("TerminateTitle stops a guest thread spinning in an SEH scope",
+              "[kernel][shutdown][forced_stop]") {
   KernelFixture fixture;
   fixture.runtime().function_dispatcher()->AddRecompiledCode(REX_RECOMPILED_CODE());
   auto started = std::make_shared<std::atomic<bool>>(false);
@@ -632,8 +634,8 @@ TEST_CASE("TerminateTitle stops a guest thread spinning in an SEH scope",
   CHECK(unwound->load());
 }
 
-TEST_CASE("A stop requested before a thread launches ends it at its first check",
-          "[kernel][shutdown]") {
+REX_TEST_CASE("A stop requested before a thread launches ends it at its first check",
+              "[kernel][shutdown]") {
   KernelFixture fixture;
   auto ran_on = std::make_shared<std::atomic<bool>>(false);
   auto record =
@@ -650,7 +652,8 @@ TEST_CASE("A stop requested before a thread launches ends it at its first check"
   CHECK_FALSE(ran_on->load());
 }
 
-TEST_CASE("A thread that holds a mutant when the stop lands abandons it", "[kernel][shutdown]") {
+REX_TEST_CASE("A thread that holds a mutant when the stop lands abandons it",
+              "[kernel][shutdown]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 handle_ptr = c.Alloc(4);
@@ -677,7 +680,7 @@ TEST_CASE("A thread that holds a mutant when the stop lands abandons it", "[kern
   });
 }
 
-TEST_CASE("A ThreadStop unwinds through an extern C frame", "[kernel][shutdown]") {
+REX_TEST_CASE("A ThreadStop unwinds through an extern C frame", "[kernel][shutdown]") {
   KernelFixture fixture;
   g_extern_c_unwound.store(false);
   fixture.RunOnGuestThread([](Caller& c) {
@@ -690,7 +693,7 @@ TEST_CASE("A ThreadStop unwinds through an extern C frame", "[kernel][shutdown]"
   CHECK(g_extern_c_unwound.load());
 }
 
-TEST_CASE("A stop wakes an IO completion wait with no timeout", "[kernel][shutdown]") {
+REX_TEST_CASE("A stop wakes an IO completion wait with no timeout", "[kernel][shutdown]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 port_ptr = c.Alloc(4);
@@ -707,7 +710,7 @@ TEST_CASE("A stop wakes an IO completion wait with no timeout", "[kernel][shutdo
   });
 }
 
-TEST_CASE("2 guest threads that call TerminateTitle at once both end", "[kernel][shutdown]") {
+REX_TEST_CASE("2 guest threads that call TerminateTitle at once both end", "[kernel][shutdown]") {
   KernelFixture fixture;
   auto ready = std::make_shared<std::atomic<int>>(0);
   auto spawned = std::make_shared<std::atomic<bool>>(false);
@@ -727,8 +730,8 @@ TEST_CASE("2 guest threads that call TerminateTitle at once both end", "[kernel]
   }
 }
 
-TEST_CASE("TerminateTitle ends a thread suspended after the stop request",
-          "[kernel][shutdown][forced_stop]") {
+REX_TEST_CASE("TerminateTitle ends a thread suspended after the stop request",
+              "[kernel][shutdown][forced_stop]") {
   KernelFixture fixture;
   fixture.runtime().function_dispatcher()->AddRecompiledCode(REX_RECOMPILED_CODE());
   auto started = std::make_shared<std::atomic<bool>>(false);
@@ -753,7 +756,8 @@ TEST_CASE("TerminateTitle ends a thread suspended after the stop request",
   CHECK(unwound->load());
 }
 
-TEST_CASE("Teardown stops a thread whose exit notification waits forever", "[kernel][shutdown]") {
+REX_TEST_CASE("Teardown stops a thread whose exit notification waits forever",
+              "[kernel][shutdown]") {
   auto fixture = std::make_unique<KernelFixture>();
   const u32 routine =
       fixture->runtime().function_dispatcher()->AllocateThunk(&WaitingExitRoutine, 0);
@@ -822,17 +826,19 @@ void ReceiveFrom(Caller& t, u32 sock) {
   t.XAM("NetDll_recvfrom", {0, sock, buffer, 64, 0, 0, 0});
 }
 
-TEST_CASE("TerminateTitle wakes a guest thread blocked in a socket receive", "[kernel][shutdown]") {
+REX_TEST_CASE("TerminateTitle wakes a guest thread blocked in a socket receive",
+              "[kernel][shutdown]") {
   CheckTerminateWakesSocketCall([](Caller& c) { return OpenSocket(c, 2, 17, true); }, &ReceiveFrom);
 }
 
-TEST_CASE("TerminateTitle wakes a guest thread receiving on an unbound socket",
-          "[kernel][shutdown]") {
+REX_TEST_CASE("TerminateTitle wakes a guest thread receiving on an unbound socket",
+              "[kernel][shutdown]") {
   CheckTerminateWakesSocketCall([](Caller& c) { return OpenSocket(c, 2, 17, false); },
                                 &ReceiveFrom);
 }
 
-TEST_CASE("TerminateTitle wakes a guest thread blocked in a socket accept", "[kernel][shutdown]") {
+REX_TEST_CASE("TerminateTitle wakes a guest thread blocked in a socket accept",
+              "[kernel][shutdown]") {
   CheckTerminateWakesSocketCall(
       [](Caller& c) {
         const u32 sock = OpenSocket(c, 1, 6, true);
@@ -849,7 +855,8 @@ TEST_CASE("TerminateTitle wakes a guest thread blocked in a socket accept", "[ke
       });
 }
 
-TEST_CASE("TerminateTitle wakes a guest thread blocked in a socket select", "[kernel][shutdown]") {
+REX_TEST_CASE("TerminateTitle wakes a guest thread blocked in a socket select",
+              "[kernel][shutdown]") {
   CheckTerminateWakesSocketCall([](Caller& c) { return OpenSocket(c, 2, 17, true); },
                                 [](Caller& t, u32 sock) {
                                   const u32 readable = t.Alloc(4 + 64 * 4);
@@ -859,8 +866,8 @@ TEST_CASE("TerminateTitle wakes a guest thread blocked in a socket select", "[ke
                                 });
 }
 
-TEST_CASE("TerminateTitle wakes a guest thread blocked in a send on a full connection",
-          "[kernel][shutdown]") {
+REX_TEST_CASE("TerminateTitle wakes a guest thread blocked in a send on a full connection",
+              "[kernel][shutdown]") {
   CheckTerminateWakesSocketCall(
       [](Caller& c) {
         const u32 listener = OpenSocket(c, 1, 6, true, 47311);
@@ -886,7 +893,7 @@ TEST_CASE("TerminateTitle wakes a guest thread blocked in a send on a full conne
       });
 }
 
-TEST_CASE("TerminateTitle wakes a guest thread blocked in a connect", "[kernel][shutdown]") {
+REX_TEST_CASE("TerminateTitle wakes a guest thread blocked in a connect", "[kernel][shutdown]") {
   CheckTerminateWakesSocketCall([](Caller& c) { return OpenSocket(c, 1, 6, false); },
                                 [](Caller& t, u32 sock) {
                                   t.XAM("NetDll_connect",
@@ -894,8 +901,8 @@ TEST_CASE("TerminateTitle wakes a guest thread blocked in a connect", "[kernel][
                                 });
 }
 
-TEST_CASE("A receive on a socket the title made nonblocking returns at once",
-          "[kernel][shutdown]") {
+REX_TEST_CASE("A receive on a socket the title made nonblocking returns at once",
+              "[kernel][shutdown]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 sock = OpenSocket(c, 2, 17, true);
@@ -912,7 +919,7 @@ TEST_CASE("A receive on a socket the title made nonblocking returns at once",
   });
 }
 
-TEST_CASE("A blocking receive gets data sent after it blocked", "[kernel][shutdown]") {
+REX_TEST_CASE("A blocking receive gets data sent after it blocked", "[kernel][shutdown]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 receiver = OpenSocket(c, 2, 17, true, 47312);
@@ -939,7 +946,7 @@ TEST_CASE("A blocking receive gets data sent after it blocked", "[kernel][shutdo
   });
 }
 
-TEST_CASE("A send to a peer that closed returns an error", "[kernel][socket]") {
+REX_TEST_CASE("A send to a peer that closed returns an error", "[kernel][socket]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 listener = OpenSocket(c, 1, 6, true, 47313);
@@ -974,7 +981,7 @@ TEST_CASE("A send to a peer that closed returns an error", "[kernel][socket]") {
   });
 }
 
-TEST_CASE("A datagram sent with sendto arrives with its source address", "[kernel][socket]") {
+REX_TEST_CASE("A datagram sent with sendto arrives with its source address", "[kernel][socket]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 receiver = OpenSocket(c, 2, 17, true, 47314);
@@ -1007,8 +1014,8 @@ TEST_CASE("A datagram sent with sendto arrives with its source address", "[kerne
 }
 
 #if !REX_PLATFORM_WIN32
-TEST_CASE("A stop that crosses an SEH scope leaves no scope open on the thread",
-          "[kernel][shutdown][seh]") {
+REX_TEST_CASE("A stop that crosses an SEH scope leaves no scope open on the thread",
+              "[kernel][shutdown][seh]") {
   KernelFixture fixture;
   const u32 routine = fixture.runtime().function_dispatcher()->AllocateThunk(&ProbeScopeOnExit, 0);
   REQUIRE(routine != 0);
@@ -1031,8 +1038,8 @@ TEST_CASE("A stop that crosses an SEH scope leaves no scope open on the thread",
   CHECK_FALSE(g_scope_left_open.load());
 }
 
-TEST_CASE("A guest fiber starts with no SEH scope and the switch back restores the scope",
-          "[kernel][shutdown][seh][fiber]") {
+REX_TEST_CASE("A guest fiber starts with no SEH scope and the switch back restores the scope",
+              "[kernel][shutdown][seh][fiber]") {
   KernelFixture fixture;
   const u32 fiber_entry =
       fixture.runtime().function_dispatcher()->AllocateThunk(&ProbeScopeOnFiber, 0);
@@ -1051,7 +1058,7 @@ TEST_CASE("A guest fiber starts with no SEH scope and the switch back restores t
 }
 #endif
 
-TEST_CASE("A suspend never parks a guest thread inside a host allocation", "[kernel][thread]") {
+REX_TEST_CASE("A suspend never parks a guest thread inside a host allocation", "[kernel][thread]") {
   KernelFixture fixture;
   auto stop = std::make_shared<std::atomic<bool>>(false);
   auto allocating = std::make_shared<std::atomic<bool>>(false);

@@ -8,7 +8,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-#include <catch2/catch_test_macros.hpp>
+#include "rex_test.h"
 
 #include <format>
 
@@ -96,7 +96,7 @@ struct WriterFixture {
 
 }  // namespace
 
-TEST_CASE("Second write with unchanged inputs writes nothing", "[codegen_writer]") {
+REX_TEST_CASE("Second write with unchanged inputs writes nothing", "[codegen_writer]") {
   WriterFixture fx("unchanged");
 
   CodegenWriter first(*fx.ctx);
@@ -111,7 +111,7 @@ TEST_CASE("Second write with unchanged inputs writes nothing", "[codegen_writer]
   CHECK(second.deletedFiles().empty());
 }
 
-TEST_CASE("Unchanged files keep their modification time", "[codegen_writer]") {
+REX_TEST_CASE("Unchanged files keep their modification time", "[codegen_writer]") {
   WriterFixture fx("mtime");
 
   CodegenWriter first(*fx.ctx);
@@ -128,7 +128,7 @@ TEST_CASE("Unchanged files keep their modification time", "[codegen_writer]") {
   CHECK(unchanged);
 }
 
-TEST_CASE("Stale generated files are swept after the write", "[codegen_writer]") {
+REX_TEST_CASE("Stale generated files are swept after the write", "[codegen_writer]") {
   WriterFixture fx("stale");
 
   CodegenWriter first(*fx.ctx);
@@ -146,7 +146,7 @@ TEST_CASE("Stale generated files are swept after the write", "[codegen_writer]")
                   std::string("testproj_recomp.99.cpp")) != second.deletedFiles().end());
 }
 
-TEST_CASE("Unrelated files in the output directory survive the sweep", "[codegen_writer]") {
+REX_TEST_CASE("Unrelated files in the output directory survive the sweep", "[codegen_writer]") {
   WriterFixture fx("bystander");
 
   CodegenWriter first(*fx.ctx);
@@ -161,7 +161,7 @@ TEST_CASE("Unrelated files in the output directory survive the sweep", "[codegen
   CHECK(fs::exists(bystander));
 }
 
-TEST_CASE("The stamp is owned by the recompiler and survives the sweep", "[codegen_writer]") {
+REX_TEST_CASE("The stamp is owned by the recompiler and survives the sweep", "[codegen_writer]") {
   WriterFixture fx("stamp");
 
   CodegenWriter first(*fx.ctx);
@@ -177,7 +177,7 @@ TEST_CASE("The stamp is owned by the recompiler and survives the sweep", "[codeg
   CHECK(second.deletedFiles().empty());
 }
 
-TEST_CASE("A changed function rewrites only the files that differ", "[codegen_writer]") {
+REX_TEST_CASE("A changed function rewrites only the files that differ", "[codegen_writer]") {
   WriterFixture fx("changed");
 
   CodegenWriter first(*fx.ctx);
@@ -197,7 +197,7 @@ TEST_CASE("A changed function rewrites only the files that differ", "[codegen_wr
                   std::string("sources.cmake")) == second.writtenFiles().end());
 }
 
-TEST_CASE("Recomp files are stable when one function's size changes", "[codegen_writer]") {
+REX_TEST_CASE("Recomp files are stable when one function's size changes", "[codegen_writer]") {
   WriterFixture fx("partition", 8);
 
   CodegenWriter first(*fx.ctx);
@@ -217,7 +217,7 @@ TEST_CASE("Recomp files are stable when one function's size changes", "[codegen_
   CHECK(fs::exists(fx.outputDir() / "codegen.partition.json"));
 }
 
-TEST_CASE("Every name a recomp file calls is declared in its header", "[codegen_writer]") {
+REX_TEST_CASE("Every name a recomp file calls is declared in its header", "[codegen_writer]") {
   WriterFixture fx("declarations", 8);
 
   CodegenWriter writer(*fx.ctx);

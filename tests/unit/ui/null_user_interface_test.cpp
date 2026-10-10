@@ -12,7 +12,7 @@
 #include <chrono>
 #include <thread>
 
-#include <catch2/catch_test_macros.hpp>
+#include "rex_test.h"
 
 #include <rex/ui/null_user_interface.h>
 
@@ -34,7 +34,7 @@ bool IgnoreEvent(const UIEvent&) {
 
 }  // namespace
 
-TEST_CASE("OpenWindow returns a window with no native handle", "[ui]") {
+REX_TEST_CASE("OpenWindow returns a window with no native handle", "[ui]") {
   NullUserInterface ui;
   auto window = ui.OpenWindow(UIConfig{}, IgnoreEvent);
   REQUIRE(window);
@@ -45,7 +45,7 @@ TEST_CASE("OpenWindow returns a window with no native handle", "[ui]") {
   CHECK((*window)->Native().sdl == nullptr);
 }
 
-TEST_CASE("Prompt completes cancelled at once", "[ui]") {
+REX_TEST_CASE("Prompt completes cancelled at once", "[ui]") {
   NullUserInterface ui;
   bool called = false;
   PromptResult result;
@@ -58,14 +58,14 @@ TEST_CASE("Prompt completes cancelled at once", "[ui]") {
   CHECK(result.cancelled);
 }
 
-TEST_CASE("ShowChoice returns the first button", "[ui]") {
+REX_TEST_CASE("ShowChoice returns the first button", "[ui]") {
   NullUserInterface ui;
   auto choice = ui.ShowChoice(ChoiceDesc{});
   REQUIRE(choice);
   CHECK(*choice == u32{0});
 }
 
-TEST_CASE("Post from another thread runs on PumpFrame", "[ui]") {
+REX_TEST_CASE("Post from another thread runs on PumpFrame", "[ui]") {
   NullUserInterface ui;
   bool posted = false;
   bool ran = false;
@@ -84,7 +84,7 @@ TEST_CASE("Post from another thread runs on PumpFrame", "[ui]") {
   CHECK(ran_on == std::this_thread::get_id());
 }
 
-TEST_CASE("RunSynchronous runs inline on the ui thread and posts from another thread", "[ui]") {
+REX_TEST_CASE("RunSynchronous runs inline on the ui thread and posts from another thread", "[ui]") {
   NullUserInterface ui;
   CHECK(ui.IsUIThread());
   bool inline_ran = false;
@@ -103,7 +103,7 @@ TEST_CASE("RunSynchronous runs inline on the ui thread and posts from another th
   CHECK(other_ran);
 }
 
-TEST_CASE("PumpFrame returns false after Quit and after CloseWindow", "[ui]") {
+REX_TEST_CASE("PumpFrame returns false after Quit and after CloseWindow", "[ui]") {
   NullUserInterface quit_ui;
   CHECK(quit_ui.PumpFrame());
   quit_ui.Quit();
@@ -117,7 +117,7 @@ TEST_CASE("PumpFrame returns false after Quit and after CloseWindow", "[ui]") {
   CHECK(close_ui.GetWindow() == nullptr);
 }
 
-TEST_CASE("Post returns false once the loop quit and RunSynchronous does not wait", "[ui]") {
+REX_TEST_CASE("Post returns false once the loop quit and RunSynchronous does not wait", "[ui]") {
   NullUserInterface quit_ui;
   quit_ui.Quit();
   CHECK_FALSE(quit_ui.Post([] {}));
@@ -138,7 +138,7 @@ TEST_CASE("Post returns false once the loop quit and RunSynchronous does not wai
   CHECK_FALSE(ran);
 }
 
-TEST_CASE("Displays and ShowFileDialog are empty and fonts are null", "[ui]") {
+REX_TEST_CASE("Displays and ShowFileDialog are empty and fonts are null", "[ui]") {
   NullUserInterface ui;
   CHECK(ui.Displays().empty());
   auto files = ui.ShowFileDialog(FileDialogDesc{});
@@ -150,12 +150,12 @@ TEST_CASE("Displays and ShowFileDialog are empty and fonts are null", "[ui]") {
   CHECK_FALSE(ui.AnyOverlayVisible());
 }
 
-TEST_CASE("PreferredLocales on the null provider is empty", "[ui]") {
+REX_TEST_CASE("PreferredLocales on the null provider is empty", "[ui]") {
   NullUserInterface ui;
   CHECK(ui.PreferredLocales().empty());
 }
 
-TEST_CASE("RunSynchronous work abandoned at Quit never runs", "[ui]") {
+REX_TEST_CASE("RunSynchronous work abandoned at Quit never runs", "[ui]") {
   NullUserInterface ui;
   std::atomic<bool> ran{false};
   std::jthread worker([&] {
@@ -173,7 +173,7 @@ TEST_CASE("RunSynchronous work abandoned at Quit never runs", "[ui]") {
   CHECK_FALSE(ran);
 }
 
-TEST_CASE("GetImGuiIO on the null provider is null", "[ui]") {
+REX_TEST_CASE("GetImGuiIO on the null provider is null", "[ui]") {
   NullUserInterface ui;
   CHECK(ui.GetImGuiIO() == nullptr);
 }

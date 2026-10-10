@@ -9,7 +9,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-#include <catch2/catch_test_macros.hpp>
+#include "rex_test.h"
 
 #include <rex/mmio.h>
 
@@ -39,7 +39,7 @@ rex::MMIORecipient RecipientFor(Recorder& recorder) {
 
 }  // namespace
 
-TEST_CASE("MMIO block helpers match both blocks at every edge", "[mmio]") {
+REX_TEST_CASE("MMIO block helpers match both blocks at every edge", "[mmio]") {
   STATIC_REQUIRE(rex::MMIOBlockBase(rex::MMIOBlock::GPU) == 0x7FC80000u);
   STATIC_REQUIRE(rex::MMIOBlockBase(rex::MMIOBlock::APU) == 0x7FEA0000u);
   STATIC_REQUIRE_FALSE(rex::IsMMIOBlockAddress(0x7FC7FFFFu));
@@ -54,7 +54,7 @@ TEST_CASE("MMIO block helpers match both blocks at every edge", "[mmio]") {
   STATIC_REQUIRE_FALSE(rex::IsMMIOBlockAddress(0xFFFFFFFFu));
 }
 
-TEST_CASE("An attached recipient serves its block until it detaches", "[mmio]") {
+REX_TEST_CASE("An attached recipient serves its block until it detaches", "[mmio]") {
   Recorder gpu{.value = 0x11};
   rex::AttachMMIO(rex::MMIOBlock::GPU, RecipientFor(gpu));
   CHECK(rex::detail::MMIOLoad(0x7FC86530) == 0x11u);
@@ -66,7 +66,7 @@ TEST_CASE("An attached recipient serves its block until it detaches", "[mmio]") 
   CHECK(rex::detail::MMIOLoad(0x7FC86530) == 0u);
 }
 
-TEST_CASE("A late detach by an old owner keeps the new owner", "[mmio]") {
+REX_TEST_CASE("A late detach by an old owner keeps the new owner", "[mmio]") {
   Recorder old_owner{.value = 1};
   Recorder new_owner{.value = 2};
   rex::AttachMMIO(rex::MMIOBlock::APU, RecipientFor(old_owner));
@@ -77,7 +77,7 @@ TEST_CASE("A late detach by an old owner keeps the new owner", "[mmio]") {
   CHECK(rex::detail::MMIOLoad(0x7FEA0000) == 0u);
 }
 
-TEST_CASE("The null recipient returns 0 and drops stores", "[mmio]") {
+REX_TEST_CASE("The null recipient returns 0 and drops stores", "[mmio]") {
   rex::detail::MMIOStore(0x7FC80000, 0x33);
   CHECK(rex::detail::MMIOLoad(0x7FC80000) == 0u);
   rex::detail::MMIOStore(0x7FEA0000, 0x44);
@@ -86,7 +86,7 @@ TEST_CASE("The null recipient returns 0 and drops stores", "[mmio]") {
   CHECK(rex::detail::mmio_slots[1].context == nullptr);
 }
 
-TEST_CASE("Guarded accesses pick the slot by block", "[mmio]") {
+REX_TEST_CASE("Guarded accesses pick the slot by block", "[mmio]") {
   Recorder gpu{.value = 0xA};
   Recorder apu{.value = 0xB};
   rex::AttachMMIO(rex::MMIOBlock::GPU, RecipientFor(gpu));
@@ -100,14 +100,14 @@ TEST_CASE("Guarded accesses pick the slot by block", "[mmio]") {
   rex::DetachMMIO(rex::MMIOBlock::APU, &apu);
 }
 
-TEST_CASE("An incomplete recipient is refused", "[mmio]") {
+REX_TEST_CASE("An incomplete recipient is refused", "[mmio]") {
   Recorder recorder;
   rex::AttachMMIO(rex::MMIOBlock::GPU, {&recorder, nullptr, RecorderWrite});
   CHECK(rex::detail::mmio_slots[0].context == nullptr);
   CHECK(rex::detail::MMIOLoad(0x7FC80000) == 0u);
 }
 
-TEST_CASE("An address outside both blocks reaches no recipient", "[mmio]") {
+REX_TEST_CASE("An address outside both blocks reaches no recipient", "[mmio]") {
   Recorder gpu{.value = 0xA};
   Recorder apu{.value = 0xB};
   rex::AttachMMIO(rex::MMIOBlock::GPU, RecipientFor(gpu));
@@ -120,7 +120,7 @@ TEST_CASE("An address outside both blocks reaches no recipient", "[mmio]") {
   rex::DetachMMIO(rex::MMIOBlock::APU, &apu);
 }
 
-TEST_CASE("Narrow guarded loads read the big endian lane of the register", "[mmio]") {
+REX_TEST_CASE("Narrow guarded loads read the big endian lane of the register", "[mmio]") {
   Recorder gpu{.value = 0x11223344};
   rex::AttachMMIO(rex::MMIOBlock::GPU, RecipientFor(gpu));
   CHECK(rex::detail::MMIOLoad8(0x7FC80010) == 0x11u);

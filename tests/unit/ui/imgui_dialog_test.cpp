@@ -8,7 +8,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-#include <catch2/catch_test_macros.hpp>
+#include "rex_test.h"
 
 #include <imgui.h>
 
@@ -66,7 +66,7 @@ class ProbeDialog final : public rex::ui::ImGuiDialog {
 
 }  // namespace
 
-TEST_CASE("A closed dialog is removed from its host by the next Draw", "[ui][imgui]") {
+REX_TEST_CASE("A closed dialog is removed from its host by the next Draw", "[ui][imgui]") {
   ImGuiFrame frame;
   RecordingHost host;
   ProbeDialog dialog;
@@ -87,7 +87,7 @@ TEST_CASE("A closed dialog is removed from its host by the next Draw", "[ui][img
   REQUIRE(host.removed == 1);
 }
 
-TEST_CASE("A dialog that never closes stays attached across Draw", "[ui][imgui]") {
+REX_TEST_CASE("A dialog that never closes stays attached across Draw", "[ui][imgui]") {
   ImGuiFrame frame;
   RecordingHost host;
   ProbeDialog dialog;
@@ -101,7 +101,7 @@ TEST_CASE("A dialog that never closes stays attached across Draw", "[ui][imgui]"
   REQUIRE_FALSE(dialog.Closed());
 }
 
-TEST_CASE("Destroying an attached dialog removes it from its host", "[ui][imgui]") {
+REX_TEST_CASE("Destroying an attached dialog removes it from its host", "[ui][imgui]") {
   RecordingHost host;
   const rex::ui::ImGuiDialog* address = nullptr;
   {
@@ -113,7 +113,7 @@ TEST_CASE("Destroying an attached dialog removes it from its host", "[ui][imgui]
   REQUIRE(host.last == address);
 }
 
-TEST_CASE("Attach with nullptr detaches without touching the host", "[ui][imgui]") {
+REX_TEST_CASE("Attach with nullptr detaches without touching the host", "[ui][imgui]") {
   RecordingHost host;
   {
     ProbeDialog dialog;

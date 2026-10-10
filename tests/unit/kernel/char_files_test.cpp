@@ -8,7 +8,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-#include <catch2/catch_test_macros.hpp>
+#include "rex_test.h"
 
 #include <filesystem>
 #include <fstream>
@@ -47,7 +47,7 @@ void WriteScratch(const std::filesystem::path& root, const char* name, std::stre
 }
 }  // namespace
 
-TEST_CASE("files: an allocation size only truncates below the end of file", "[char][files]") {
+REX_TEST_CASE("files: an allocation size only truncates below the end of file", "[char][files]") {
   KernelFixture fixture([](const std::filesystem::path& root) { WriteScratch(root, "a.bin", 16); });
   MountScratch(fixture);
   fixture.RunOnGuestThread([](Caller& c) {
@@ -72,7 +72,7 @@ TEST_CASE("files: an allocation size only truncates below the end of file", "[ch
   CHECK(std::filesystem::file_size(fixture.root() / "scratch" / "a.bin") == 8);
 }
 
-TEST_CASE("files: a flush reaches the file and fails on a bad handle", "[char][files]") {
+REX_TEST_CASE("files: a flush reaches the file and fails on a bad handle", "[char][files]") {
   KernelFixture fixture([](const std::filesystem::path& root) { WriteScratch(root, "f.bin", 16); });
   MountScratch(fixture);
   fixture.RunOnGuestThread([](Caller& c) {
@@ -91,7 +91,7 @@ TEST_CASE("files: a flush reaches the file and fails on a bad handle", "[char][f
   });
 }
 
-TEST_CASE("files: a rename onto a file needs replace existing", "[char][files]") {
+REX_TEST_CASE("files: a rename onto a file needs replace existing", "[char][files]") {
   KernelFixture fixture([](const std::filesystem::path& root) {
     WriteScratch(root, "r1.bin", 16);
     WriteScratch(root, "r2.bin", 4);
@@ -125,7 +125,7 @@ TEST_CASE("files: a rename onto a file needs replace existing", "[char][files]")
   CHECK(std::filesystem::file_size(fixture.root() / "scratch" / "r2.bin") == 16);
 }
 
-TEST_CASE("files: an allocation size above the end of file keeps the size", "[char][files]") {
+REX_TEST_CASE("files: an allocation size above the end of file keeps the size", "[char][files]") {
   KernelFixture fixture([](const std::filesystem::path& root) { WriteScratch(root, "b.bin", 16); });
   MountScratch(fixture);
   fixture.RunOnGuestThread([](Caller& c) {
@@ -147,7 +147,7 @@ TEST_CASE("files: an allocation size above the end of file keeps the size", "[ch
   CHECK(std::filesystem::file_size(fixture.root() / "scratch" / "b.bin") == 16);
 }
 
-TEST_CASE("files: create read write seek and query", "[char][files]") {
+REX_TEST_CASE("files: create read write seek and query", "[char][files]") {
   KernelFixture fixture([](const std::filesystem::path& root) {
     std::ofstream out(root / "data.bin", std::ios::binary);
     const char bytes[16] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15};
@@ -176,7 +176,7 @@ TEST_CASE("files: create read write seek and query", "[char][files]") {
   });
 }
 
-TEST_CASE("files: missing file", "[char][files]") {
+REX_TEST_CASE("files: missing file", "[char][files]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 handle_ptr = c.Alloc(4);
@@ -186,7 +186,7 @@ TEST_CASE("files: missing file", "[char][files]") {
   });
 }
 
-TEST_CASE("io completion: set remove and timeout", "[char][files]") {
+REX_TEST_CASE("io completion: set remove and timeout", "[char][files]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 port_ptr = c.Alloc(4);
@@ -209,7 +209,7 @@ TEST_CASE("io completion: set remove and timeout", "[char][files]") {
   });
 }
 
-TEST_CASE("files: sequential reads advance the position", "[char][files]") {
+REX_TEST_CASE("files: sequential reads advance the position", "[char][files]") {
   KernelFixture fixture([](const std::filesystem::path& root) {
     std::ofstream out(root / "seq.bin", std::ios::binary);
     const char bytes[8] = {0, 1, 2, 3, 4, 5, 6, 7};
@@ -233,7 +233,7 @@ TEST_CASE("files: sequential reads advance the position", "[char][files]") {
   });
 }
 
-TEST_CASE("files: full attributes report the size", "[char][files]") {
+REX_TEST_CASE("files: full attributes report the size", "[char][files]") {
   KernelFixture fixture([](const std::filesystem::path& root) {
     std::ofstream out(root / "size.bin", std::ios::binary);
     const char bytes[16] = {};
@@ -246,8 +246,8 @@ TEST_CASE("files: full attributes report the size", "[char][files]") {
   });
 }
 
-TEST_CASE("files: a creation disposition above overwrite if is an invalid parameter",
-          "[char][files]") {
+REX_TEST_CASE("files: a creation disposition above overwrite if is an invalid parameter",
+              "[char][files]") {
   KernelFixture fixture([](const std::filesystem::path& root) { WriteScratch(root, "d.bin", 4); });
   MountScratch(fixture);
   fixture.RunOnGuestThread([](Caller& c) {

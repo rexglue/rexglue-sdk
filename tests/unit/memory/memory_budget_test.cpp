@@ -9,7 +9,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-#include <catch2/catch_test_macros.hpp>
+#include "rex_test.h"
 
 #include <atomic>
 #include <latch>
@@ -71,7 +71,7 @@ void ReleaseFiller(Memory& memory, u32 filler) {
 
 }  // namespace
 
-TEST_CASE("A title commit counts its pages and a release returns them", "[memory][budget]") {
+REX_TEST_CASE("A title commit counts its pages and a release returns them", "[memory][budget]") {
   Memory& memory = GetTestMemory();
   memory.SetBudget(0);
   const u32 before = memory.title_pages();
@@ -82,8 +82,8 @@ TEST_CASE("A title commit counts its pages and a release returns them", "[memory
   CHECK(memory.title_pages() == before);
 }
 
-TEST_CASE("Commits without the title flag and system heap blocks are not counted",
-          "[memory][budget]") {
+REX_TEST_CASE("Commits without the title flag and system heap blocks are not counted",
+              "[memory][budget]") {
   Memory& memory = GetTestMemory();
   memory.SetBudget(0);
   const u32 before = memory.title_pages();
@@ -95,7 +95,8 @@ TEST_CASE("Commits without the title flag and system heap blocks are not counted
   REQUIRE(VirtualHeap4K(memory)->Release(address));
 }
 
-TEST_CASE("The commit that crosses the budget fails with nothing committed", "[memory][budget]") {
+REX_TEST_CASE("The commit that crosses the budget fails with nothing committed",
+              "[memory][budget]") {
   Memory& memory = GetTestMemory();
   const u32 filler = RoomAfter(memory, 8);
   BaseHeap* heap = VirtualHeap4K(memory);
@@ -111,8 +112,8 @@ TEST_CASE("The commit that crosses the budget fails with nothing committed", "[m
   ReleaseFiller(memory, filler);
 }
 
-TEST_CASE("A commit in pieces counts each page once and a decommit returns it",
-          "[memory][budget]") {
+REX_TEST_CASE("A commit in pieces counts each page once and a decommit returns it",
+              "[memory][budget]") {
   Memory& memory = GetTestMemory();
   memory.SetBudget(0);
   BaseHeap* heap = VirtualHeap4K(memory);
@@ -131,7 +132,7 @@ TEST_CASE("A commit in pieces counts each page once and a decommit returns it",
   CHECK(memory.title_pages() == before);
 }
 
-TEST_CASE("A physical commit counts its parent pages", "[memory][budget]") {
+REX_TEST_CASE("A physical commit counts its parent pages", "[memory][budget]") {
   Memory& memory = GetTestMemory();
   memory.SetBudget(0);
   BaseHeap* alias = memory.LookupHeapByType(true, 0x10000);
@@ -143,7 +144,7 @@ TEST_CASE("A physical commit counts its parent pages", "[memory][budget]") {
   CHECK(memory.title_pages() == before);
 }
 
-TEST_CASE("2 threads racing at the budget pass at most once", "[memory][budget]") {
+REX_TEST_CASE("2 threads racing at the budget pass at most once", "[memory][budget]") {
   Memory& memory = GetTestMemory();
   for (int round = 0; round < 50; ++round) {
     const u32 filler = RoomAfter(memory, 16);
@@ -171,7 +172,7 @@ TEST_CASE("2 threads racing at the budget pass at most once", "[memory][budget]"
   }
 }
 
-TEST_CASE("A budget of 0 removes the cap", "[memory][budget]") {
+REX_TEST_CASE("A budget of 0 removes the cap", "[memory][budget]") {
   Memory& memory = GetTestMemory();
   const u32 filler = RoomAfter(memory, 0);
   u32 address = 0;
@@ -183,7 +184,7 @@ TEST_CASE("A budget of 0 removes the cap", "[memory][budget]") {
   ReleaseFiller(memory, filler);
 }
 
-TEST_CASE("A failed alias pin returns the parent pages", "[memory][budget]") {
+REX_TEST_CASE("A failed alias pin returns the parent pages", "[memory][budget]") {
   Memory& memory = GetTestMemory();
   memory.SetBudget(0);
   auto* alias = static_cast<PhysicalHeap*>(memory.LookupHeapByType(true, 0x10000));
@@ -209,7 +210,7 @@ TEST_CASE("A failed alias pin returns the parent pages", "[memory][budget]") {
   REQUIRE(alias->Release(address));
 }
 
-TEST_CASE("A fixed physical allocation over a partly used range fails", "[memory][budget]") {
+REX_TEST_CASE("A fixed physical allocation over a partly used range fails", "[memory][budget]") {
   Memory& memory = GetTestMemory();
   memory.SetBudget(0);
   auto* alias = static_cast<PhysicalHeap*>(memory.LookupHeapByType(true, 0x1000));
@@ -264,8 +265,8 @@ u32 AvailablePages(Caller& c) {
 
 }  // namespace
 
-TEST_CASE("NtAllocateVirtualMemory counts its commit and fails past the budget",
-          "[memory][budget][kernel]") {
+REX_TEST_CASE("NtAllocateVirtualMemory counts its commit and fails past the budget",
+              "[memory][budget][kernel]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     Memory& memory = *c.runtime().memory();
@@ -286,7 +287,7 @@ TEST_CASE("NtAllocateVirtualMemory counts its commit and fails past the budget",
   });
 }
 
-TEST_CASE("MmAllocatePhysicalMemoryEx counts the parent pages", "[memory][budget][kernel]") {
+REX_TEST_CASE("MmAllocatePhysicalMemoryEx counts the parent pages", "[memory][budget][kernel]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     Memory& memory = *c.runtime().memory();
@@ -303,7 +304,8 @@ TEST_CASE("MmAllocatePhysicalMemoryEx counts the parent pages", "[memory][budget
   });
 }
 
-TEST_CASE("MmQueryStatistics available pages track the title pages", "[memory][budget][kernel]") {
+REX_TEST_CASE("MmQueryStatistics available pages track the title pages",
+              "[memory][budget][kernel]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     Memory& memory = *c.runtime().memory();
@@ -321,8 +323,8 @@ TEST_CASE("MmQueryStatistics available pages track the title pages", "[memory][b
   });
 }
 
-TEST_CASE("MmQueryStatistics without a cap reports the free physical pages",
-          "[memory][budget][kernel]") {
+REX_TEST_CASE("MmQueryStatistics without a cap reports the free physical pages",
+              "[memory][budget][kernel]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     Memory& memory = *c.runtime().memory();
@@ -341,7 +343,7 @@ TEST_CASE("MmQueryStatistics without a cap reports the free physical pages",
   });
 }
 
-TEST_CASE("SetBudget saturates instead of wrapping", "[memory][budget]") {
+REX_TEST_CASE("SetBudget saturates instead of wrapping", "[memory][budget]") {
   KernelFixture fixture;
   Memory& memory = *fixture.runtime().memory();
   memory.SetBudget(0x01000000);
@@ -350,7 +352,8 @@ TEST_CASE("SetBudget saturates instead of wrapping", "[memory][budget]") {
   CHECK(memory.budget_pages() == 480 * 256);
 }
 
-TEST_CASE("Loading an XEX keeps the other allocations in its heap", "[memory][budget][kernel]") {
+REX_TEST_CASE("Loading an XEX keeps the other allocations in its heap",
+              "[memory][budget][kernel]") {
   KernelFixture fixture;
   rex::Runtime& runtime = fixture.runtime();
   Memory& memory = *runtime.memory();
@@ -406,8 +409,8 @@ u32 PageState(BaseHeap* heap, u32 address) {
 
 }  // namespace
 
-TEST_CASE("A decommit of size 0 at a region base decommits only that region",
-          "[memory][budget][kernel]") {
+REX_TEST_CASE("A decommit of size 0 at a region base decommits only that region",
+              "[memory][budget][kernel]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     Memory& memory = *c.runtime().memory();
@@ -451,8 +454,8 @@ TEST_CASE("A decommit of size 0 at a region base decommits only that region",
   });
 }
 
-TEST_CASE("A decommit of size 0 inside a region fails and changes nothing",
-          "[memory][budget][kernel]") {
+REX_TEST_CASE("A decommit of size 0 inside a region fails and changes nothing",
+              "[memory][budget][kernel]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     Memory& memory = *c.runtime().memory();
@@ -479,8 +482,8 @@ TEST_CASE("A decommit of size 0 inside a region fails and changes nothing",
   });
 }
 
-TEST_CASE("A decommit range that crosses a page boundary decommits both pages",
-          "[memory][budget][kernel]") {
+REX_TEST_CASE("A decommit range that crosses a page boundary decommits both pages",
+              "[memory][budget][kernel]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     Memory& memory = *c.runtime().memory();
@@ -536,7 +539,7 @@ X_STATUS SetupWithBudget(u32 megabytes, u32* out_budget_pages) {
 
 }  // namespace
 
-TEST_CASE("Setup rejects a title memory budget above 512 MB", "[memory][budget][runtime]") {
+REX_TEST_CASE("Setup rejects a title memory budget above 512 MB", "[memory][budget][runtime]") {
   u32 budget_pages = 1;
   CHECK(SetupWithBudget(513, &budget_pages) == rex::X_STATUS_INVALID_PARAMETER);
   CHECK(SetupWithBudget(512, &budget_pages) == rex::X_STATUS_SUCCESS);
@@ -545,8 +548,8 @@ TEST_CASE("Setup rejects a title memory budget above 512 MB", "[memory][budget][
   CHECK(budget_pages == 0);
 }
 
-TEST_CASE("A release of the free first page of a heap fails and changes nothing",
-          "[memory][budget][kernel]") {
+REX_TEST_CASE("A release of the free first page of a heap fails and changes nothing",
+              "[memory][budget][kernel]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     Memory& memory = *c.runtime().memory();
@@ -566,7 +569,8 @@ TEST_CASE("A release of the free first page of a heap fails and changes nothing"
   });
 }
 
-TEST_CASE("A release with a nonzero size fails and changes nothing", "[memory][budget][kernel]") {
+REX_TEST_CASE("A release with a nonzero size fails and changes nothing",
+              "[memory][budget][kernel]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     Memory& memory = *c.runtime().memory();

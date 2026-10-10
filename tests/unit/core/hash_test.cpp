@@ -8,7 +8,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-#include <catch2/catch_test_macros.hpp>
+#include "rex_test.h"
 
 #include <filesystem>
 #include <fstream>
@@ -18,18 +18,18 @@
 
 namespace fs = std::filesystem;
 
-TEST_CASE("hash_bytes is stable and 128 bits wide", "[hash]") {
+REX_TEST_CASE("hash_bytes is stable and 128 bits wide", "[hash]") {
   auto digest = rex::hash_bytes("hello world");
   CHECK(digest.size() == 32);
   CHECK(digest == rex::hash_bytes("hello world"));
   CHECK(digest != rex::hash_bytes("hello worlds"));
 }
 
-TEST_CASE("hash_bytes handles empty input", "[hash]") {
+REX_TEST_CASE("hash_bytes handles empty input", "[hash]") {
   CHECK(rex::hash_bytes("").size() == 32);
 }
 
-TEST_CASE("hash_file matches hash_bytes over the same content", "[hash]") {
+REX_TEST_CASE("hash_file matches hash_bytes over the same content", "[hash]") {
   auto root = fs::temp_directory_path() / "rexglue_hash_test";
   fs::remove_all(root);
   fs::create_directories(root);
@@ -50,10 +50,10 @@ TEST_CASE("hash_file matches hash_bytes over the same content", "[hash]") {
   fs::remove_all(root, ec);
 }
 
-TEST_CASE("hash_file returns empty for a missing file", "[hash]") {
+REX_TEST_CASE("hash_file returns empty for a missing file", "[hash]") {
   CHECK(rex::hash_file(fs::temp_directory_path() / "rexglue_hash_test_absent.bin").empty());
 }
 
-TEST_CASE("hash_file returns empty for a directory", "[hash]") {
+REX_TEST_CASE("hash_file returns empty for a directory", "[hash]") {
   CHECK(rex::hash_file(fs::temp_directory_path()).empty());
 }

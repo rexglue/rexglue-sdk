@@ -9,7 +9,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-#include <catch2/catch_test_macros.hpp>
+#include "rex_test.h"
 
 #include <atomic>
 #include <chrono>
@@ -106,7 +106,7 @@ std::vector<u32> CallsFor(u32 thread_id) {
 
 }  // namespace
 
-TEST_CASE("terminate notifications run by priority with their registration", "[char][notify]") {
+REX_TEST_CASE("terminate notifications run by priority with their registration", "[char][notify]") {
   Reset();
   std::vector<u32> expected;
   KernelFixture fixture;
@@ -125,7 +125,8 @@ TEST_CASE("terminate notifications run by priority with their registration", "[c
   CHECK(g_registrations == expected);
 }
 
-TEST_CASE("a blocking terminate notification ends after the terminate timeout", "[char][notify]") {
+REX_TEST_CASE("a blocking terminate notification ends after the terminate timeout",
+              "[char][notify]") {
   Reset();
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
@@ -141,7 +142,8 @@ TEST_CASE("a blocking terminate notification ends after the terminate timeout", 
   CHECK(elapsed < 6000);
 }
 
-TEST_CASE("thread notify runs on create and on return from the start routine", "[char][notify]") {
+REX_TEST_CASE("thread notify runs on create and on return from the start routine",
+              "[char][notify]") {
   Reset();
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
@@ -155,7 +157,7 @@ TEST_CASE("thread notify runs on create and on return from the start routine", "
   CHECK(CallsFor(g_spawned_id) == std::vector<u32>{1, 0});
 }
 
-TEST_CASE("thread notify runs on ExTerminateThread", "[char][notify]") {
+REX_TEST_CASE("thread notify runs on ExTerminateThread", "[char][notify]") {
   Reset();
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
@@ -170,8 +172,8 @@ TEST_CASE("thread notify runs on ExTerminateThread", "[char][notify]") {
   CHECK(CallsFor(g_spawned_id) == std::vector<u32>{1, 0});
 }
 
-TEST_CASE("thread notify does not run for a thread stopped by title termination",
-          "[char][notify]") {
+REX_TEST_CASE("thread notify does not run for a thread stopped by title termination",
+              "[char][notify]") {
   Reset();
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
@@ -194,7 +196,7 @@ TEST_CASE("thread notify does not run for a thread stopped by title termination"
   CHECK(CallsFor(g_spawned_id) == std::vector<u32>{1});
 }
 
-TEST_CASE("a removed thread notification is not called", "[char][notify]") {
+REX_TEST_CASE("a removed thread notification is not called", "[char][notify]") {
   Reset();
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
@@ -209,8 +211,8 @@ TEST_CASE("a removed thread notification is not called", "[char][notify]") {
   CHECK(CallsFor(g_spawned_id).empty());
 }
 
-TEST_CASE("a terminate notification that never returns ends exit after the terminate timeout",
-          "[char][notify]") {
+REX_TEST_CASE("a terminate notification that never returns ends exit after the terminate timeout",
+              "[char][notify]") {
   Reset();
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
@@ -226,8 +228,8 @@ TEST_CASE("a terminate notification that never returns ends exit after the termi
   CHECK(elapsed < 3500);
 }
 
-TEST_CASE("title termination during an exit notify routine lets the thread exit",
-          "[char][notify]") {
+REX_TEST_CASE("title termination during an exit notify routine lets the thread exit",
+              "[char][notify]") {
   Reset();
   g_in_exit_routine = false;
   KernelFixture fixture;

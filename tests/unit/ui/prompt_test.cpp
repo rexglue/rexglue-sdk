@@ -9,7 +9,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-#include <catch2/catch_test_macros.hpp>
+#include "rex_test.h"
 
 #include <chrono>
 #include <filesystem>
@@ -84,7 +84,7 @@ class ModuleFixture {
 
 }  // namespace
 
-TEST_CASE("Prompt without a window completes cancelled at once", "[ui][prompt]") {
+REX_TEST_CASE("Prompt without a window completes cancelled at once", "[ui][prompt]") {
   ModuleFixture fixture;
   rex::i32 calls = 0;
   PromptResult got;
@@ -96,8 +96,8 @@ TEST_CASE("Prompt without a window completes cancelled at once", "[ui][prompt]")
   CHECK(got.cancelled);
 }
 
-TEST_CASE("Prompt on an open window completes cancelled when the prompts are cancelled",
-          "[ui][prompt]") {
+REX_TEST_CASE("Prompt on an open window completes cancelled when the prompts are cancelled",
+              "[ui][prompt]") {
   ModuleFixture fixture;
   auto opened =
       fixture.ui->OpenWindow(fixture.config.ui, [](const rex::ui::UIEvent&) { return false; });
@@ -123,7 +123,7 @@ TEST_CASE("Prompt on an open window completes cancelled when the prompts are can
   fixture.ui->CloseWindow();
 }
 
-TEST_CASE("A prompt still queued when the window closes completes cancelled", "[ui][prompt]") {
+REX_TEST_CASE("A prompt still queued when the window closes completes cancelled", "[ui][prompt]") {
   ModuleFixture fixture;
   auto opened =
       fixture.ui->OpenWindow(fixture.config.ui, [](const rex::ui::UIEvent&) { return false; });
@@ -142,7 +142,7 @@ TEST_CASE("A prompt still queued when the window closes completes cancelled", "[
   CHECK(got.cancelled);
 }
 
-TEST_CASE("A prompt completes once with the pressed button", "[ui][prompt]") {
+REX_TEST_CASE("A prompt completes once with the pressed button", "[ui][prompt]") {
   rex::i32 calls = 0;
   PromptResult got;
   {
@@ -159,7 +159,7 @@ TEST_CASE("A prompt completes once with the pressed button", "[ui][prompt]") {
   CHECK(calls == 1);
 }
 
-TEST_CASE("A text prompt returns the accepted text", "[ui][prompt]") {
+REX_TEST_CASE("A text prompt returns the accepted text", "[ui][prompt]") {
   PromptResult got;
   {
     rex::ui::PromptDialog dialog(PromptDesc{.title = "Name", .text_input = true, .max_length = 16},
@@ -171,14 +171,14 @@ TEST_CASE("A text prompt returns the accepted text", "[ui][prompt]") {
   CHECK(got.text == "abc");
 }
 
-TEST_CASE("A text prompt holds max_length characters", "[ui][prompt]") {
+REX_TEST_CASE("A text prompt holds max_length characters", "[ui][prompt]") {
   rex::ui::PromptDialog dialog(
       PromptDesc{.title = "Name", .text_input = true, .default_text = "abcdef", .max_length = 4},
       [](PromptResult) {});
   CHECK(dialog.Text() == "abcd");
 }
 
-TEST_CASE("PreferredLocales returns without a window", "[ui][prompt]") {
+REX_TEST_CASE("PreferredLocales returns without a window", "[ui][prompt]") {
   ModuleFixture fixture;
   const std::vector<rex::ui::HostLocale> locales = fixture.ui->PreferredLocales();
   for (const rex::ui::HostLocale& locale : locales) {
@@ -186,7 +186,7 @@ TEST_CASE("PreferredLocales returns without a window", "[ui][prompt]") {
   }
 }
 
-TEST_CASE("A prompt destroyed without a button completes cancelled", "[ui][prompt]") {
+REX_TEST_CASE("A prompt destroyed without a button completes cancelled", "[ui][prompt]") {
   rex::i32 calls = 0;
   PromptResult got;
   {
@@ -199,7 +199,7 @@ TEST_CASE("A prompt destroyed without a button completes cancelled", "[ui][promp
   CHECK(got.cancelled);
 }
 
-TEST_CASE("ShowMessage from a worker thread without a window returns", "[ui][prompt]") {
+REX_TEST_CASE("ShowMessage from a worker thread without a window returns", "[ui][prompt]") {
   ModuleFixture fixture;
   std::promise<void> returned;
   std::future<void> done = returned.get_future();
@@ -210,8 +210,8 @@ TEST_CASE("ShowMessage from a worker thread without a window returns", "[ui][pro
   REQUIRE(done.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
 }
 
-TEST_CASE("ShowMessage from a worker thread returns while the window thread is busy",
-          "[ui][prompt]") {
+REX_TEST_CASE("ShowMessage from a worker thread returns while the window thread is busy",
+              "[ui][prompt]") {
   ModuleFixture fixture;
   auto opened =
       fixture.ui->OpenWindow(fixture.config.ui, [](const rex::ui::UIEvent&) { return false; });
@@ -233,7 +233,7 @@ TEST_CASE("ShowMessage from a worker thread returns while the window thread is b
   fixture.ui->CloseWindow();
 }
 
-TEST_CASE("A video scope pins the running video driver", "[ui][prompt]") {
+REX_TEST_CASE("A video scope pins the running video driver", "[ui][prompt]") {
   SDL_SetHint(SDL_HINT_VIDEO_DRIVER, "dummy,offscreen");
   {
     rex::ui::VideoScope video;

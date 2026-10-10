@@ -8,7 +8,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-#include <catch2/catch_test_macros.hpp>
+#include "rex_test.h"
 
 #include <algorithm>
 #include <optional>
@@ -69,7 +69,7 @@ struct LoopFunction {
 
 }  // namespace
 
-TEST_CASE("An SEH function leaves its scope at every return", "[codegen][seh]") {
+REX_TEST_CASE("An SEH function leaves its scope at every return", "[codegen][seh]") {
   const std::string code = LoopFunction(true, true).Emit();
   CHECK(code.find("SEH_TRY") != std::string::npos);
   CHECK(code.find("REX_SEH_RETURN;") != std::string::npos);
@@ -77,20 +77,20 @@ TEST_CASE("An SEH function leaves its scope at every return", "[codegen][seh]") 
   CHECK(code.find("\treturn;") == std::string::npos);
 }
 
-TEST_CASE("A function with SEH generation off returns plainly", "[codegen][seh]") {
+REX_TEST_CASE("A function with SEH generation off returns plainly", "[codegen][seh]") {
   const std::string code = LoopFunction(false, true).Emit();
   CHECK(code.find("REX_SEH_RETURN") == std::string::npos);
   CHECK(code.find("return;") != std::string::npos);
 }
 
-TEST_CASE("An SEH handler reads the frame register the body wrote", "[codegen][seh]") {
+REX_TEST_CASE("An SEH handler reads the frame register the body wrote", "[codegen][seh]") {
   const std::string code = LoopFunction(true, true, true).Emit();
   CHECK(code.find("PPCRegister r31{}") == std::string::npos);
   CHECK(code.find("ctx.r31.u64 = ctx.r1.u64;") != std::string::npos);
   CHECK(code.find("ctx.r12.s64 = ctx.r31.s64 + 96;") != std::string::npos);
 }
 
-TEST_CASE("A function without SEH keeps its non-volatile registers local", "[codegen][seh]") {
+REX_TEST_CASE("A function without SEH keeps its non-volatile registers local", "[codegen][seh]") {
   const std::string code = LoopFunction(false, true, true).Emit();
   CHECK(code.find("PPCRegister r31{}") != std::string::npos);
 }

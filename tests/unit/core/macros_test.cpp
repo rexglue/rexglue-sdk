@@ -8,7 +8,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-#include <catch2/catch_test_macros.hpp>
+#include "rex_test.h"
 
 #include <type_traits>
 
@@ -41,21 +41,21 @@ namespace {
 
 }  // namespace
 
-TEST_CASE("REX_TRY unwraps a value and propagates an error", "[macros]") {
+REX_TEST_CASE("REX_TRY unwraps a value and propagates an error", "[macros]") {
   REQUIRE(UseTry(true).value() == 8);
   auto failed = UseTry(false);
   REQUIRE_FALSE(failed);
   REQUIRE(failed.error().category == rex::ErrorCategory::Validation);
 }
 
-TEST_CASE("REX_TRY_VOID and REX_CHECK propagate", "[macros]") {
+REX_TEST_CASE("REX_TRY_VOID and REX_CHECK propagate", "[macros]") {
   REQUIRE(UseTryVoid(true));
   auto failed = UseTryVoid(false);
   REQUIRE_FALSE(failed);
   REQUIRE(failed.error().message == "check failed");
 }
 
-TEST_CASE("Result<void> is the void result", "[macros]") {
+REX_TEST_CASE("Result<void> is the void result", "[macros]") {
   rex::Result<void> s = rex::Ok();
   REQUIRE(s);
   static_assert(std::is_same_v<rex::Result<void>, rex::Result<void>>);

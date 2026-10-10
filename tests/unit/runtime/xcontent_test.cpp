@@ -9,7 +9,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-#include <catch2/catch_test_macros.hpp>
+#include "rex_test.h"
 
 #include <memory>
 #include <string>
@@ -22,7 +22,7 @@ using rex::memory::DeallocationType;
 using rex::memory::PageAccess;
 using rex::runtime::xam::XCONTENT_DATA;
 
-TEST_CASE("a full file name stops at the field end before a guard page", "[xcontent]") {
+REX_TEST_CASE("a full file name stops at the field end before a guard page", "[xcontent]") {
   const size_t page = rex::memory::page_size();
   auto* base = static_cast<u8*>(rex::memory::AllocFixed(
       nullptr, page * 2, AllocationType::kReserveCommit, PageAccess::kReadWrite));
@@ -41,7 +41,7 @@ TEST_CASE("a full file name stops at the field end before a guard page", "[xcont
   rex::memory::DeallocFixed(base, 0, DeallocationType::kRelease);
 }
 
-TEST_CASE("a language id outside the language range converts to no language", "[xcontent]") {
+REX_TEST_CASE("a language id outside the language range converts to no language", "[xcontent]") {
   using rex::runtime::ToXLanguage;
   using rex::runtime::XLanguage;
   STATIC_REQUIRE(ToXLanguage(1) == XLanguage::kEnglish);

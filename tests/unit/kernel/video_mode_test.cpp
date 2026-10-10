@@ -8,7 +8,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-#include <catch2/catch_test_macros.hpp>
+#include "rex_test.h"
 
 #include <string>
 
@@ -19,7 +19,7 @@
 
 #include "kernel_fixture.h"
 
-TEST_CASE("VdQueryVideoMode returns the runtime video mode", "[kernel][video]") {
+REX_TEST_CASE("VdQueryVideoMode returns the runtime video mode", "[kernel][video]") {
   const std::string modules[] = {"rex-ui-sdl3"};
   rex::testing::KernelFixture fixture({}, modules);
   auto* cvars = fixture.api().Get<rex::cvar::ICvarRegistry>();

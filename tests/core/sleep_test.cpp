@@ -8,7 +8,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-#include <catch2/catch_test_macros.hpp>
+#include "rex_test.h"
 
 #include <chrono>
 
@@ -25,20 +25,20 @@ std::chrono::microseconds TimedSleep(std::chrono::microseconds duration) {
 
 }  // namespace
 
-TEST_CASE("Sleep never returns before a sub millisecond duration", "[core][sleep]") {
+REX_TEST_CASE("Sleep never returns before a sub millisecond duration", "[core][sleep]") {
   for (int i = 0; i < 20; ++i) {
     CHECK(TimedSleep(std::chrono::microseconds(500)) >= std::chrono::microseconds(500));
   }
 }
 
-TEST_CASE("Sleep never returns before a multi millisecond duration", "[core][sleep]") {
+REX_TEST_CASE("Sleep never returns before a multi millisecond duration", "[core][sleep]") {
   for (int i = 0; i < 10; ++i) {
     CHECK(TimedSleep(std::chrono::microseconds(3500)) >= std::chrono::microseconds(3500));
   }
 }
 
-TEST_CASE("Sleep stays near a multi millisecond duration at the default timer period",
-          "[core][sleep]") {
+REX_TEST_CASE("Sleep stays near a multi millisecond duration at the default timer period",
+              "[core][sleep]") {
   std::chrono::microseconds total{0};
   for (int i = 0; i < 20; ++i) {
     total += TimedSleep(std::chrono::microseconds(3000));

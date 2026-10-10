@@ -9,7 +9,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-#include <catch2/catch_test_macros.hpp>
+#include "rex_test.h"
 
 #include <filesystem>
 #include <string>
@@ -20,8 +20,8 @@
 #include "rexglue/log_categories.h"
 #include "test_memory.h"
 
-TEST_CASE("The tool runtime opens under the log categories the rexglue tool registers",
-          "[codegen][tool]") {
+REX_TEST_CASE("The tool runtime opens under the log categories the rexglue tool registers",
+              "[codegen][tool]") {
   const std::filesystem::path root =
       std::filesystem::temp_directory_path() / "rex_tool_runtime_log_test";
   std::filesystem::create_directories(root);

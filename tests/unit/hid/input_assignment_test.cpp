@@ -8,7 +8,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-#include <catch2/catch_test_macros.hpp>
+#include "rex_test.h"
 
 #include <map>
 #include <memory>
@@ -134,7 +134,7 @@ std::unique_ptr<Hub> SharedSystem(FakeDriver** out_driver) {
 
 }  // namespace
 
-TEST_CASE("SharedAssignment puts every device on user 0", "[hid]") {
+REX_TEST_CASE("SharedAssignment puts every device on user 0", "[hid]") {
   SharedAssignment shared;
   shared.OnDevicesChanged({Pad(10, 0), Pad(11, 1)});
 
@@ -143,7 +143,7 @@ TEST_CASE("SharedAssignment puts every device on user 0", "[hid]") {
   REQUIRE(For(shared, 1).empty());
 }
 
-TEST_CASE("SlotAssignment does not renumber survivors when a pad is unplugged", "[hid]") {
+REX_TEST_CASE("SlotAssignment does not renumber survivors when a pad is unplugged", "[hid]") {
   SlotAssignment slots;
   slots.OnDevicesChanged({Pad(10, 0), Pad(11, 1)});
   slots.OnDevicesChanged({Pad(11, 1)});
@@ -152,7 +152,7 @@ TEST_CASE("SlotAssignment does not renumber survivors when a pad is unplugged", 
   REQUIRE(For(slots, 1) == std::vector<DeviceId>{static_cast<DeviceId>(11)});
 }
 
-TEST_CASE("Both controllers reach one title user", "[hid]") {
+REX_TEST_CASE("Both controllers reach one title user", "[hid]") {
   FakeDriver* driver = nullptr;
   auto system = SharedSystem(&driver);
   driver->Add(1);
@@ -165,7 +165,7 @@ TEST_CASE("Both controllers reach one title user", "[hid]") {
   REQUIRE(static_cast<rex::u16>(state->gamepad.buttons) == (X_INPUT_GAMEPAD_A | X_INPUT_GAMEPAD_B));
 }
 
-TEST_CASE("Unplugging one controller leaves the other working", "[hid]") {
+REX_TEST_CASE("Unplugging one controller leaves the other working", "[hid]") {
   FakeDriver* driver = nullptr;
   auto system = SharedSystem(&driver);
   driver->Add(1);
@@ -180,7 +180,7 @@ TEST_CASE("Unplugging one controller leaves the other working", "[hid]") {
   REQUIRE(static_cast<rex::u16>(state->gamepad.buttons) == X_INPUT_GAMEPAD_B);
 }
 
-TEST_CASE("Capabilities follow the controller in hand", "[hid]") {
+REX_TEST_CASE("Capabilities follow the controller in hand", "[hid]") {
   FakeDriver* driver = nullptr;
   auto system = SharedSystem(&driver);
   driver->Add(1);
@@ -194,7 +194,7 @@ TEST_CASE("Capabilities follow the controller in hand", "[hid]") {
   REQUIRE(caps->sub_type == 2);
 }
 
-TEST_CASE("A keystroke from the second controller reaches the title", "[hid]") {
+REX_TEST_CASE("A keystroke from the second controller reaches the title", "[hid]") {
   FakeDriver* driver = nullptr;
   auto system = SharedSystem(&driver);
   driver->Add(1);
@@ -206,7 +206,7 @@ TEST_CASE("A keystroke from the second controller reaches the title", "[hid]") {
   REQUIRE(static_cast<rex::u16>(ks->virtual_key) == 0x5800);
 }
 
-TEST_CASE("A reconnected pad comes back to title user 0", "[hid]") {
+REX_TEST_CASE("A reconnected pad comes back to title user 0", "[hid]") {
   auto owned = std::make_unique<FakeDriver>();
   FakeDriver* driver = owned.get();
   auto system = std::make_unique<Hub>();
@@ -224,7 +224,7 @@ TEST_CASE("A reconnected pad comes back to title user 0", "[hid]") {
   REQUIRE(static_cast<rex::u16>(state->gamepad.buttons) == X_INPUT_GAMEPAD_B);
 }
 
-TEST_CASE("A synthetic device does not push the first pad off title user 0", "[hid]") {
+REX_TEST_CASE("A synthetic device does not push the first pad off title user 0", "[hid]") {
   auto owned = std::make_unique<FakeDriver>();
   FakeDriver* driver = owned.get();
   auto system = std::make_unique<Hub>();

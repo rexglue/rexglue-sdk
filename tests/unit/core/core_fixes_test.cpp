@@ -8,7 +8,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-#include <catch2/catch_test_macros.hpp>
+#include "rex_test.h"
 
 #include <cstdarg>
 #include <string>
@@ -32,21 +32,21 @@ std::string Format(const char* format, ...) {
 
 }  // namespace
 
-TEST_CASE("BitMap copies every source word", "[bit]") {
+REX_TEST_CASE("BitMap copies every source word", "[bit]") {
   rex::u64 words[3] = {0x1111111111111111, 0x2222222222222222, 0x3333333333333333};
   rex::BitMap map(words, sizeof(words) * 8);
   REQUIRE(map.data() == std::vector<rex::u64>{words[0], words[1], words[2]});
 }
 
-TEST_CASE("AppendVarargs formats every argument", "[string]") {
+REX_TEST_CASE("AppendVarargs formats every argument", "[string]") {
   REQUIRE(Format("%s-%d-%s", "alpha", 42, "beta") == "alpha-42-beta");
 }
 
-TEST_CASE("utf8_upper_ascii uppercases ASCII letters", "[string]") {
+REX_TEST_CASE("utf8_upper_ascii uppercases ASCII letters", "[string]") {
   REQUIRE(rex::utf8_upper_ascii("abc XYZ 1") == "ABC XYZ 1");
 }
 
-TEST_CASE("utf8_ends_with_case ignores ASCII case", "[string]") {
+REX_TEST_CASE("utf8_ends_with_case ignores ASCII case", "[string]") {
   REQUIRE(rex::utf8_ends_with_case("Default.XEX", ".xex"));
   REQUIRE(rex::utf8_ends_with_case("a", "A"));
   REQUIRE_FALSE(rex::utf8_ends_with_case("default.xex", ".xexp"));

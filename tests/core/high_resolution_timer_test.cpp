@@ -9,7 +9,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-#include <catch2/catch_test_macros.hpp>
+#include "rex_test.h"
 
 #include <atomic>
 #include <chrono>
@@ -36,7 +36,7 @@ struct QueueReset : public rex::NonCopyable {
 
 }  // namespace
 
-TEST_CASE("CreateRepeating returns a running timer built through the key", "[core][timer]") {
+REX_TEST_CASE("CreateRepeating returns a running timer built through the key", "[core][timer]") {
   QueueReset reset;
   std::atomic<int> ticks{0};
   auto timer = HighResolutionTimer::CreateRepeating(2ms, [&ticks] { ++ticks; });

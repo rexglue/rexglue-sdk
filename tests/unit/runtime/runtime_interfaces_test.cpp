@@ -9,7 +9,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-#include <catch2/catch_test_macros.hpp>
+#include "rex_test.h"
 
 #include <atomic>
 #include <chrono>
@@ -42,14 +42,14 @@ void RecordCurrent(PPCContext& ctx, u8*) {
 
 }  // namespace
 
-TEST_CASE("Current returns the runtime on a guest thread", "[runtime][current]") {
+REX_TEST_CASE("Current returns the runtime on a guest thread", "[runtime][current]") {
   rex::testing::KernelFixture fixture;
   rex::Runtime* seen = nullptr;
   fixture.RunOnGuestThread([&](rex::testing::Caller&) { seen = &rex::runtime::Current(); });
   CHECK(seen == &fixture.runtime());
 }
 
-TEST_CASE("Current returns the runtime inside an interrupt callback", "[runtime][current]") {
+REX_TEST_CASE("Current returns the runtime inside an interrupt callback", "[runtime][current]") {
   rex::testing::KernelFixture fixture;
   g_seen_runtime = nullptr;
   fixture.RunOnGuestThread([](rex::testing::Caller& c) {
@@ -70,7 +70,7 @@ TEST_CASE("Current returns the runtime inside an interrupt callback", "[runtime]
   CHECK(g_seen_runtime.load() == &fixture.runtime());
 }
 
-TEST_CASE("A host thread with no thread state launches a worker record", "[runtime][current]") {
+REX_TEST_CASE("A host thread with no thread state launches a worker record", "[runtime][current]") {
   rex::testing::KernelFixture fixture;
   std::atomic<bool> ran{false};
   bool launched = false;
@@ -115,24 +115,24 @@ void CheckNoneServed(rex::API& api) {
 
 }  // namespace
 
-TEST_CASE("The module serves the 7 interfaces of the active runtime", "[runtime][interfaces]") {
+REX_TEST_CASE("The module serves the 7 interfaces of the active runtime", "[runtime][interfaces]") {
   rex::testing::KernelFixture fixture;
   CheckServed(fixture.api(), fixture.runtime());
 }
 
-TEST_CASE("The module serves no interface after Shutdown", "[runtime][interfaces]") {
+REX_TEST_CASE("The module serves no interface after Shutdown", "[runtime][interfaces]") {
   rex::testing::KernelFixture fixture;
   fixture.runtime().Shutdown();
   CheckNoneServed(fixture.api());
 }
 
-TEST_CASE("A second runtime in the same process is served", "[runtime][interfaces]") {
+REX_TEST_CASE("A second runtime in the same process is served", "[runtime][interfaces]") {
   { rex::testing::KernelFixture first; }
   rex::testing::KernelFixture second;
   CheckServed(second.api(), second.runtime());
 }
 
-TEST_CASE("Setup fails while another runtime is active", "[runtime][interfaces]") {
+REX_TEST_CASE("Setup fails while another runtime is active", "[runtime][interfaces]") {
   rex::testing::KernelFixture fixture;
   rex::Runtime other(fixture.api().config());
   rex::RuntimeConfig config;
@@ -141,7 +141,7 @@ TEST_CASE("Setup fails while another runtime is active", "[runtime][interfaces]"
   CheckServed(fixture.api(), fixture.runtime());
 }
 
-TEST_CASE("process_type reads what set_process_type wrote", "[runtime][interfaces]") {
+REX_TEST_CASE("process_type reads what set_process_type wrote", "[runtime][interfaces]") {
   rex::testing::KernelFixture fixture;
   fixture.runtime().set_process_type(rex::runtime::X_PROCTYPE_SYSTEM);
   CHECK(fixture.runtime().process_type() == rex::runtime::X_PROCTYPE_SYSTEM);
@@ -149,8 +149,8 @@ TEST_CASE("process_type reads what set_process_type wrote", "[runtime][interface
   CHECK(fixture.runtime().process_type() == rex::runtime::X_PROCTYPE_USER);
 }
 
-TEST_CASE("ResolveGuestObject takes the guest address of a dispatch header",
-          "[runtime][interfaces]") {
+REX_TEST_CASE("ResolveGuestObject takes the guest address of a dispatch header",
+              "[runtime][interfaces]") {
   rex::testing::KernelFixture fixture;
   fixture.RunOnGuestThread([](rex::testing::Caller& c) {
     const u32 address = c.Alloc(sizeof(rex::runtime::X_KEVENT));
@@ -167,7 +167,8 @@ TEST_CASE("ResolveGuestObject takes the guest address of a dispatch header",
   });
 }
 
-TEST_CASE("is_setup holds only between a successful Setup and Shutdown", "[runtime][interfaces]") {
+REX_TEST_CASE("is_setup holds only between a successful Setup and Shutdown",
+              "[runtime][interfaces]") {
   rex::testing::KernelFixture fixture;
   CHECK(fixture.runtime().is_setup());
   rex::Runtime other(fixture.api().config());

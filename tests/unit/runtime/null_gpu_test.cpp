@@ -9,7 +9,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-#include <catch2/catch_test_macros.hpp>
+#include "rex_test.h"
 
 #include <atomic>
 #include <chrono>
@@ -43,7 +43,7 @@ constexpr rex::u32 kWritePointerRegister = 0x01C5;
 
 }  // namespace
 
-TEST_CASE("NullGPU raises the vblank interrupt at the refresh rate", "[gpu]") {
+REX_TEST_CASE("NullGPU raises the vblank interrupt at the refresh rate", "[gpu]") {
   g_vblanks = 0;
   KernelFixture fixture;
   auto& runtime = fixture.runtime();
@@ -64,7 +64,7 @@ TEST_CASE("NullGPU raises the vblank interrupt at the refresh rate", "[gpu]") {
   CHECK(g_user_data == 0x1234);
 }
 
-TEST_CASE("NullGPU without a callback raises nothing", "[gpu]") {
+REX_TEST_CASE("NullGPU without a callback raises nothing", "[gpu]") {
   g_vblanks = 0;
   KernelFixture fixture;
   auto& runtime = fixture.runtime();
@@ -75,7 +75,7 @@ TEST_CASE("NullGPU without a callback raises nothing", "[gpu]") {
   CHECK(g_vblanks == 0);
 }
 
-TEST_CASE("NullGPU writes the write pointer back as the read pointer", "[gpu]") {
+REX_TEST_CASE("NullGPU writes the write pointer back as the read pointer", "[gpu]") {
   KernelFixture fixture;
   auto& runtime = fixture.runtime();
   auto* memory = runtime.memory();
@@ -97,7 +97,7 @@ TEST_CASE("NullGPU writes the write pointer back as the read pointer", "[gpu]") 
   CHECK(*memory->TranslatePhysical<const be_u32*>(writeback) == 0x20);
 }
 
-TEST_CASE("NullGPU has no presentation", "[gpu]") {
+REX_TEST_CASE("NullGPU has no presentation", "[gpu]") {
   rex::runtime::NullGPU gpu;
   CHECK_FALSE(gpu.has_presentation());
   CHECK(gpu.presenter() == nullptr);

@@ -9,7 +9,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-#include <catch2/catch_test_macros.hpp>
+#include "rex_test.h"
 
 #include <cstdlib>
 #include <cstring>
@@ -62,8 +62,8 @@ std::tm LocalTime(std::time_t time) {
 }
 }  // namespace
 
-TEST_CASE("strings: RtlCompareStringN resolves the strlen length before it compares",
-          "[char][strings]") {
+REX_TEST_CASE("strings: RtlCompareStringN resolves the strlen length before it compares",
+              "[char][strings]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 shorter = PutString(c, "ab");
@@ -75,7 +75,8 @@ TEST_CASE("strings: RtlCompareStringN resolves the strlen length before it compa
   });
 }
 
-TEST_CASE("strings: RtlUpperChar and RtlLowerChar keep a character above 0x7F", "[char][strings]") {
+REX_TEST_CASE("strings: RtlUpperChar and RtlLowerChar keep a character above 0x7F",
+              "[char][strings]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     CHECK(c.Kernel("RtlUpperChar", {0xE9}) == 0xE9);
@@ -85,7 +86,7 @@ TEST_CASE("strings: RtlUpperChar and RtlLowerChar keep a character above 0x7F", 
   });
 }
 
-TEST_CASE("strings: Xam formats a filetime as local date and time", "[char][strings]") {
+REX_TEST_CASE("strings: Xam formats a filetime as local date and time", "[char][strings]") {
 #if !REX_PLATFORM_WIN32
   setenv("TZ", "UTC", 1);
   tzset();

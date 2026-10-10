@@ -10,10 +10,12 @@
 
 #pragma once
 
+#include <exception>
 #include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include <rex/macros.h>
@@ -195,11 +197,42 @@ REX_API void RequestRestart(std::vector<std::string> args = {});
  */
 REX_API bool ShutdownRequested();
 
+namespace detail {
+
+/**
+ * Prints an exception that escaped an entry point to stderr.
+ *
+ * @param what Text of the exception.
+ * @return 1, the exit code of a failed run.
+ */
+REX_API int ReportEntryFailure(const char* what) noexcept;
+
+/**
+ * Runs the body of an entry point and turns an escaping exception into a message on stderr.
+ *
+ * @tparam Fn Callable that takes no arguments and returns the exit code.
+ * @param fn The body.
+ * @return What fn returns, or 1 when it throws.
+ */
+template <typename Fn>
+int RunGuarded(Fn&& fn) noexcept {
+  try {
+    return std::forward<Fn>(fn)();
+  } catch (const std::exception& error) {
+    return ReportEntryFailure(error.what());
+  } catch (...) {
+    return ReportEntryFailure("unknown exception");
+  }
+}
+
+}  // namespace detail
+
 }  // namespace rex
 
 /**
  * Defines main for a console app. The entry point parses the command line, then calls Init,
  * Run and Shutdown on a default constructed Class and returns the Shutdown exit code.
+ * An exception that escapes is printed to stderr and the exit code is 1.
  *
  * @param Class A default constructible class derived from rex::App.
  *
@@ -210,18 +243,21 @@ REX_API bool ShutdownRequested();
  * REX_CONSOLE_APP(FooTool)
  * @endcode
  */
-#define REX_CONSOLE_APP(Class)                                \
-  int main(int argc, char** argv) {                           \
-    Class rex_app;                                            \
-    if (rex_app.Init(::rex::CLIArgList::Parse(argc, argv))) { \
-      rex_app.Run();                                          \
-    }                                                         \
-    return rex_app.Shutdown();                                \
+#define REX_CONSOLE_APP(Class)                                  \
+  int main(int argc, char** argv) {                             \
+    return ::rex::detail::RunGuarded([&] {                      \
+      Class rex_app;                                            \
+      if (rex_app.Init(::rex::CLIArgList::Parse(argc, argv))) { \
+        rex_app.Run();                                          \
+      }                                                         \
+      return rex_app.Shutdown();                                \
+    });                                                         \
   }
 
 /**
  * Defines main for a console app that calls its own lifecycle steps. The entry point parses
  * the command line, default constructs Class, and returns what Function returns.
+ * An exception that escapes is printed to stderr and the exit code is 1.
  *
  * @param Class A default constructible class derived from rex::App.
  * @param Function A function taking Class& and const rex::CLIArgList&, returning i32.
@@ -236,8 +272,10 @@ REX_API bool ShutdownRequested();
  * REX_CONSOLE_APP_MAIN(FooTool, FooToolMain)
  * @endcode
  */
-#define REX_CONSOLE_APP_MAIN(Class, Function)                       \
-  int main(int argc, char** argv) {                                 \
-    Class rex_app;                                                  \
-    return Function(rex_app, ::rex::CLIArgList::Parse(argc, argv)); \
+#define REX_CONSOLE_APP_MAIN(Class, Function)                         \
+  int main(int argc, char** argv) {                                   \
+    return ::rex::detail::RunGuarded([&] {                            \
+      Class rex_app;                                                  \
+      return Function(rex_app, ::rex::CLIArgList::Parse(argc, argv)); \
+    });                                                               \
   }

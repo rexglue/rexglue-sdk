@@ -9,7 +9,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-#include <catch2/catch_test_macros.hpp>
+#include "rex_test.h"
 
 #include <array>
 #include <atomic>
@@ -24,7 +24,7 @@ std::array<rex::be_f32, rex::apu::kFrameSamples> g_silence{};
 
 }  // namespace
 
-TEST_CASE("NullBackend plays 1 frame per period", "[apu]") {
+REX_TEST_CASE("NullBackend plays 1 frame per period", "[apu]") {
   rex::apu::NullBackend backend;
   std::atomic<rex::u32> played{0};
   auto stream = backend.OpenStream([&played] { played.fetch_add(1); });
@@ -51,7 +51,7 @@ TEST_CASE("NullBackend plays 1 frame per period", "[apu]") {
   backend.CloseStream(*stream);
 }
 
-TEST_CASE("NullBackend calls back only for submitted frames", "[apu]") {
+REX_TEST_CASE("NullBackend calls back only for submitted frames", "[apu]") {
   rex::apu::NullBackend backend;
   std::atomic<rex::u32> played{0};
   auto stream = backend.OpenStream([&played] { played.fetch_add(1); });
@@ -63,7 +63,7 @@ TEST_CASE("NullBackend calls back only for submitted frames", "[apu]") {
   backend.CloseStream(*stream);
 }
 
-TEST_CASE("NullBackend drops queued frames on CloseStream", "[apu]") {
+REX_TEST_CASE("NullBackend drops queued frames on CloseStream", "[apu]") {
   rex::apu::NullBackend backend;
   std::atomic<rex::u32> played{0};
   auto stream = backend.OpenStream([&played] { played.fetch_add(1); });
@@ -77,7 +77,7 @@ TEST_CASE("NullBackend drops queued frames on CloseStream", "[apu]") {
   CHECK(played.load() == after_close);
 }
 
-TEST_CASE("NullBackend keeps the mix values it was given", "[apu]") {
+REX_TEST_CASE("NullBackend keeps the mix values it was given", "[apu]") {
   rex::apu::NullBackend backend;
   backend.SetOutputGain(0.5f);
   backend.SetStereoFold({.center = 1.0f, .surround = 0.5f, .lfe = 0.25f, .scale = 0.4f});

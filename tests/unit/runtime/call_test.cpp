@@ -8,7 +8,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-#include <catch2/catch_test_macros.hpp>
+#include "rex_test.h"
 
 #include <algorithm>
 #include <array>
@@ -140,22 +140,22 @@ void CheckNested(GuestThread& thread) {
 
 }  // namespace
 
-TEST_CASE("Nested calls keep every title frame", "[runtime][call]") {
+REX_TEST_CASE("Nested calls keep every title frame", "[runtime][call]") {
   GuestThread thread;
   g_mode = Mode::kImport;
   g_guest(1);
   CheckNested(thread);
 }
 
-TEST_CASE("GuestToHostFunction nests under the running frame", "[runtime][call]") {
+REX_TEST_CASE("GuestToHostFunction nests under the running frame", "[runtime][call]") {
   GuestThread thread;
   g_mode = Mode::kGuestToHost;
   g_guest(1);
   CheckNested(thread);
 }
 
-TEST_CASE("FunctionDispatcher::Execute inside a call runs under the live frame",
-          "[runtime][call]") {
+REX_TEST_CASE("FunctionDispatcher::Execute inside a call runs under the live frame",
+              "[runtime][call]") {
   GuestThread thread;
   rex::runtime::FunctionDispatcher dispatcher(&thread.memory);
   constexpr u32 kModule = 0x8A000000;
@@ -197,8 +197,8 @@ rex::ppc::ImportFunction<u32()> g_clobber{Clobber};
 
 }  // namespace
 
-TEST_CASE("A call from a mid function hook keeps the caller's registers and red zone",
-          "[runtime][call]") {
+REX_TEST_CASE("A call from a mid function hook keeps the caller's registers and red zone",
+              "[runtime][call]") {
   GuestThread thread;
   PPCContext& ctx = *thread.state.context();
   const u32 caller_r1 = ctx.r1.u32;
@@ -314,7 +314,7 @@ void ReturnPointer(PPCContext& ctx, u8*) {
 
 }  // namespace
 
-TEST_CASE("A call places integer, float and stack arguments", "[runtime][call]") {
+REX_TEST_CASE("A call places integer, float and stack arguments", "[runtime][call]") {
   GuestThread thread;
   g_slots.fill(0xDEAD);
   PPCContext& ctx = *thread.state.context();
@@ -336,7 +336,7 @@ TEST_CASE("A call places integer, float and stack arguments", "[runtime][call]")
   CHECK(g_floats == std::array<f64, 3>{0.25, 0.5, 0.75});
 }
 
-TEST_CASE("A call passes the 14th float in its stack slot", "[runtime][call]") {
+REX_TEST_CASE("A call passes the 14th float in its stack slot", "[runtime][call]") {
   GuestThread thread;
   g_fourteen_floats(1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0, 13.0, 14.5);
   CHECK(g_floats[0] == 1.0);
@@ -344,7 +344,7 @@ TEST_CASE("A call passes the 14th float in its stack slot", "[runtime][call]") {
   CHECK(g_stack_float == 14.5);
 }
 
-TEST_CASE("An export reads an integer after a float from the next slot", "[runtime][call]") {
+REX_TEST_CASE("An export reads an integer after a float from the next slot", "[runtime][call]") {
   GuestThread thread;
   PPCContext& ctx = *thread.state.context();
   ctx.r3.u64 = 1;
@@ -360,7 +360,7 @@ TEST_CASE("An export reads an integer after a float from the next slot", "[runti
   CHECK(ctx.r3.u64 == 6);
 }
 
-TEST_CASE("A call frame is aligned, chained and returns to the host", "[runtime][call]") {
+REX_TEST_CASE("A call frame is aligned, chained and returns to the host", "[runtime][call]") {
   GuestThread thread;
   const u32 caller_r1 = thread.state.context()->r1.u32;
   g_arguments(1, 0.25, 2, 3, 0.5, 4, 5, 6, 7, 8, 0.75, 9, 10);
@@ -369,7 +369,8 @@ TEST_CASE("A call frame is aligned, chained and returns to the host", "[runtime]
   CHECK(g_callee_lr == rex::ppc::kHostReturnAddress);
 }
 
-TEST_CASE("Call and GuestToHostFunction return guest pointers and integers", "[runtime][call]") {
+REX_TEST_CASE("Call and GuestToHostFunction return guest pointers and integers",
+              "[runtime][call]") {
   GuestThread thread;
   u8* base = thread.memory.virtual_membase();
   rex::ppc::ImportFunction<u8*(u32)> pointer{ReturnPointer};
@@ -378,7 +379,8 @@ TEST_CASE("Call and GuestToHostFunction return guest pointers and integers", "[r
   CHECK(rex::ppc::GuestToHostFunction<u32>(ReturnPointer, u32{5}) == 0x15);
 }
 
-TEST_CASE("FunctionDispatcher::Execute places register and stack arguments", "[runtime][call]") {
+REX_TEST_CASE("FunctionDispatcher::Execute places register and stack arguments",
+              "[runtime][call]") {
   GuestThread thread;
   rex::runtime::FunctionDispatcher dispatcher(&thread.memory);
   constexpr u32 kModule = 0x8B000000;
@@ -424,7 +426,7 @@ rex::ppc::ImportFunction<void(u32)> g_guest_dpc{GuestDPC};
 
 }  // namespace
 
-TEST_CASE("A DPC drained inside a call runs on the thread's register file", "[runtime][call]") {
+REX_TEST_CASE("A DPC drained inside a call runs on the thread's register file", "[runtime][call]") {
   g_call_ctx = nullptr;
   g_dpc_ctx = nullptr;
   g_drain_failures = 0;
@@ -489,7 +491,7 @@ rex::ppc::ImportFunction<void(u32)> g_guest_fiber{GuestFiberBody};
 
 }  // namespace
 
-TEST_CASE("A fiber switch inside a call returns to the calling frame", "[runtime][call]") {
+REX_TEST_CASE("A fiber switch inside a call returns to the calling frame", "[runtime][call]") {
   g_main_fiber = 0;
   g_fiber_runs = 0;
   g_fiber_failures = 0;

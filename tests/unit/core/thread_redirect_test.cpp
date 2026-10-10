@@ -8,7 +8,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-#include <catch2/catch_test_macros.hpp>
+#include "rex_test.h"
 
 #include <atomic>
 #include <chrono>
@@ -155,24 +155,24 @@ void CheckRedirectUnwinds(Spin spin) {
 
 }  // namespace
 
-TEST_CASE("Redirect unwinds a thread in compiled code of the recompiled code section",
-          "[core][thread][forced_stop]") {
+REX_TEST_CASE("Redirect unwinds a thread in compiled code of the recompiled code section",
+              "[core][thread][forced_stop]") {
   CheckRedirectUnwinds(&SpinInSection);
 }
 
 #if REX_TEST_ASM_SPINS
-TEST_CASE("Redirect unwinds a thread at the first instruction of a frameless leaf",
-          "[core][thread][forced_stop]") {
+REX_TEST_CASE("Redirect unwinds a thread at the first instruction of a frameless leaf",
+              "[core][thread][forced_stop]") {
   CheckRedirectUnwinds(&rex_test_spin_leaf);
 }
 
-TEST_CASE("Redirect unwinds a thread inside a prologue", "[core][thread][forced_stop]") {
+REX_TEST_CASE("Redirect unwinds a thread inside a prologue", "[core][thread][forced_stop]") {
   CheckRedirectUnwinds(&rex_test_spin_prologue);
 }
 #endif
 
-TEST_CASE("Redirect leaves a thread outside the recompiled code section running",
-          "[core][thread][forced_stop]") {
+REX_TEST_CASE("Redirect leaves a thread outside the recompiled code section running",
+              "[core][thread][forced_stop]") {
   g_spinning = false;
   g_release = false;
   auto thread = rex::platform::Thread::Create({}, [] {
@@ -185,7 +185,7 @@ TEST_CASE("Redirect leaves a thread outside the recompiled code section running"
   CHECK(rex::platform::Wait(thread.get(), false, 1s) == rex::platform::WaitResult::kSuccess);
 }
 
-TEST_CASE("A thread that ended and was waited on ignores later signals", "[core][thread]") {
+REX_TEST_CASE("A thread that ended and was waited on ignores later signals", "[core][thread]") {
   rex::platform::Thread::CreationParameters params;
   params.stack_size = 64 * 1024 * 1024;
   auto thread = rex::platform::Thread::Create(params, [] {});
@@ -195,7 +195,8 @@ TEST_CASE("A thread that ended and was waited on ignores later signals", "[core]
   CHECK_FALSE(thread->Redirect(&InRecompiledCode, nullptr, &ThrowRedirected));
 }
 
-TEST_CASE("An alertable wait with no time left still takes a signaled object", "[core][thread]") {
+REX_TEST_CASE("An alertable wait with no time left still takes a signaled object",
+              "[core][thread]") {
   using rex::platform::WaitResult;
   auto ready = rex::platform::Event::CreateManualResetEvent(true);
   auto other = rex::platform::Event::CreateManualResetEvent(false);
@@ -205,8 +206,8 @@ TEST_CASE("An alertable wait with no time left still takes a signaled object", "
   CHECK(rex::platform::WaitAny(handles, 2, true, 0ms).first == WaitResult::kSuccess);
 }
 
-TEST_CASE("A thread suspended while it suspends another thread holds no lock on it",
-          "[core][thread]") {
+REX_TEST_CASE("A thread suspended while it suspends another thread holds no lock on it",
+              "[core][thread]") {
   std::atomic<bool> stop{false};
   std::atomic<rex::u32> asked{0};
   std::atomic<rex::u32> answered{0};
@@ -255,7 +256,7 @@ TEST_CASE("A thread suspended while it suspends another thread holds no lock on 
 }
 
 /** Covers a Resume that runs before the delayed suspend handler parks and one that runs after. */
-TEST_CASE("A thread suspended as it exits finishes once resumed", "[core][thread]") {
+REX_TEST_CASE("A thread suspended as it exits finishes once resumed", "[core][thread]") {
   using rex::platform::WaitResult;
   bool finished_every_time = true;
   constexpr rex::u32 kPairs = 2000;
@@ -286,8 +287,8 @@ TEST_CASE("A thread suspended as it exits finishes once resumed", "[core][thread
   CHECK(finished_every_time);
 }
 
-TEST_CASE("A thread handle destroyed right after its body ends frees nothing still in use",
-          "[core][thread]") {
+REX_TEST_CASE("A thread handle destroyed right after its body ends frees nothing still in use",
+              "[core][thread]") {
   const rex::u64 before = rex::platform::detail::LiveCount();
   for (int i = 0; i < 200; ++i) {
     std::atomic<bool> done{false};

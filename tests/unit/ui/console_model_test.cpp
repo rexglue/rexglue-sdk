@@ -8,7 +8,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-#include <catch2/catch_test_macros.hpp>
+#include "rex_test.h"
 
 #include <chrono>
 #include <deque>
@@ -105,7 +105,7 @@ std::vector<std::string> VisibleText(const ConsoleModel& model) {
 
 }  // namespace
 
-TEST_CASE_METHOD(Harness, "Execute sets, prints, reports, runs and clears", "[console]") {
+REX_TEST_CASE_METHOD(Harness, "Execute sets, prints, reports, runs and clears", "[console]") {
   ConsoleModel model(*registry, capture, {});
   model.Execute("zeta.count 6");
   REQUIRE(registry->Get("zeta.count").value() == "6");
@@ -123,7 +123,8 @@ TEST_CASE_METHOD(Harness, "Execute sets, prints, reports, runs and clears", "[co
   REQUIRE(model.lines().empty());
 }
 
-TEST_CASE_METHOD(Harness, "Complete sorts by scope then name with built ins first", "[console]") {
+REX_TEST_CASE_METHOD(Harness, "Complete sorts by scope then name with built ins first",
+                     "[console]") {
   ConsoleModel model(*registry, capture, {});
   REQUIRE(model.Complete("").empty());
   REQUIRE(model.Complete("alpha.mode x").empty());
@@ -157,7 +158,8 @@ TEST_CASE_METHOD(Harness, "Complete sorts by scope then name with built ins firs
   registry->Unregister(table);
 }
 
-TEST_CASE_METHOD(Harness, "HelpLine describes a cvar, a command and nothing else", "[console]") {
+REX_TEST_CASE_METHOD(Harness, "HelpLine describes a cvar, a command and nothing else",
+                     "[console]") {
   ConsoleModel model(*registry, capture, {});
   REQUIRE(model.HelpLine("alpha.mode") ==
           "alpha.mode string = low, default low, allowed low high. Quality mode");
@@ -168,7 +170,7 @@ TEST_CASE_METHOD(Harness, "HelpLine describes a cvar, a command and nothing else
   REQUIRE(model.HelpLine("zeta.nope").empty());
 }
 
-TEST_CASE_METHOD(Harness, "History walks, skips repeats, caps and round trips", "[console]") {
+REX_TEST_CASE_METHOD(Harness, "History walks, skips repeats, caps and round trips", "[console]") {
   TempFolder temp;
   const auto path = temp.Path() / "history.txt";
   std::string newest;
@@ -195,7 +197,7 @@ TEST_CASE_METHOD(Harness, "History walks, skips repeats, caps and round trips", 
   REQUIRE(reloaded.HistoryPrevious() == newest);
 }
 
-TEST_CASE_METHOD(Harness, "Output interleaves by sequence, caps and filters", "[console]") {
+REX_TEST_CASE_METHOD(Harness, "Output interleaves by sequence, caps and filters", "[console]") {
   ConsoleModel model(*registry, capture, {});
   Write(Level::kInfo, "kernel", "first");
   model.Execute("zeta.count");

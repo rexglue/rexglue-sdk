@@ -9,7 +9,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-#include <catch2/catch_test_macros.hpp>
+#include "rex_test.h"
 
 #include <vector>
 
@@ -48,15 +48,15 @@ void FreeAll(Caller& c, const std::vector<u32>& blocks) {
 
 }  // namespace
 
-TEST_CASE("ResolveSize keeps 384 KB by default, at least 256 KB, in 16 KB steps",
-          "[char][workspace]") {
+REX_TEST_CASE("ResolveSize keeps 384 KB by default, at least 256 KB, in 16 KB steps",
+              "[char][workspace]") {
   CHECK(WorkspaceHeap::ResolveSize(0) == 0x60000);
   CHECK(WorkspaceHeap::ResolveSize(0x10000) == 0x40000);
   CHECK(WorkspaceHeap::ResolveSize(0x40001) == 0x44000);
   CHECK(WorkspaceHeap::ResolveSize(0x80000) == 0x80000);
 }
 
-TEST_CASE(
+REX_TEST_CASE(
     "The tool runtime has a workspace at the default size and workspaces count against the budget",
     "[char][workspace]") {
   KernelFixture fixture;
@@ -77,8 +77,8 @@ TEST_CASE(
   });
 }
 
-TEST_CASE("XamAlloc returns 8 and a 0 pointer on a full workspace and XamFree makes room",
-          "[char][workspace]") {
+REX_TEST_CASE("XamAlloc returns 8 and a 0 pointer on a full workspace and XamFree makes room",
+              "[char][workspace]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const std::vector<u32> blocks = Fill(c, 0x1000);
@@ -97,7 +97,7 @@ TEST_CASE("XamAlloc returns 8 and a 0 pointer on a full workspace and XamFree ma
   });
 }
 
-TEST_CASE("XamFree of an address outside the workspace is ignored", "[char][workspace]") {
+REX_TEST_CASE("XamFree of an address outside the workspace is ignored", "[char][workspace]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 outside = c.Alloc(16);
@@ -109,8 +109,8 @@ TEST_CASE("XamFree of an address outside the workspace is ignored", "[char][work
   });
 }
 
-TEST_CASE("A 128 KB XamAlloc fits the default workspace and a second one does not",
-          "[char][workspace]") {
+REX_TEST_CASE("A 128 KB XamAlloc fits the default workspace and a second one does not",
+              "[char][workspace]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 out = c.Alloc(4);
@@ -127,7 +127,7 @@ TEST_CASE("A 128 KB XamAlloc fits the default workspace and a second one does no
   });
 }
 
-TEST_CASE("An enumerator on a full workspace returns 8", "[char][workspace]") {
+REX_TEST_CASE("An enumerator on a full workspace returns 8", "[char][workspace]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 handle_out = c.Alloc(4);

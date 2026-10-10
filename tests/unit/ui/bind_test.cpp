@@ -8,7 +8,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-#include <catch2/catch_test_macros.hpp>
+#include "rex_test.h"
 
 #include <memory>
 
@@ -47,7 +47,7 @@ struct Harness {
 
 }  // namespace
 
-TEST_CASE("A bind writes its cvar from the default chord", "[bind]") {
+REX_TEST_CASE("A bind writes its cvar from the default chord", "[bind]") {
   Harness h;
   h.table.Register("bind_console", {VirtualKey::kOem3}, "Toggle the console", [&h] { ++h.fired; });
   CHECK(h.registry->Get("bind.console").value() == "Backtick");
@@ -58,7 +58,7 @@ TEST_CASE("A bind writes its cvar from the default chord", "[bind]") {
   CHECK(h.registry->Get("bind.settings").value() == "Alt+F4");
 }
 
-TEST_CASE("A bind cvar change moves the bind to the new chord", "[bind]") {
+REX_TEST_CASE("A bind cvar change moves the bind to the new chord", "[bind]") {
   Harness h;
   h.table.Register("test", {VirtualKey::kF9}, "Test bind", [&h] { ++h.fired; });
   REQUIRE(h.registry->Set("bind.test", "Ctrl+K"));
@@ -71,7 +71,7 @@ TEST_CASE("A bind cvar change moves the bind to the new chord", "[bind]") {
   CHECK(h.fired == 2);
 }
 
-TEST_CASE("A chord with Ctrl fires only with Ctrl held", "[bind]") {
+REX_TEST_CASE("A chord with Ctrl fires only with Ctrl held", "[bind]") {
   Harness h;
   h.table.Register("test", {VirtualKey::kK, KeyModifiers::Ctrl}, "Test bind", [&h] { ++h.fired; });
   CHECK_FALSE(h.table.Process(Down(VirtualKey::kK)));
@@ -82,7 +82,7 @@ TEST_CASE("A chord with Ctrl fires only with Ctrl held", "[bind]") {
   CHECK(h.fired == 1);
 }
 
-TEST_CASE("A bad bind value keeps the previous chord", "[bind]") {
+REX_TEST_CASE("A bad bind value keeps the previous chord", "[bind]") {
   Harness h;
   h.table.Register("test", {VirtualKey::kF9}, "Test bind", [&h] { ++h.fired; });
   REQUIRE(h.registry->Set("bind.test", "Ctrl+NoSuchKey"));
@@ -94,7 +94,7 @@ TEST_CASE("A bad bind value keeps the previous chord", "[bind]") {
   CHECK(h.fired == 2);
 }
 
-TEST_CASE("A bind with no default key is unbound until its cvar is set", "[bind]") {
+REX_TEST_CASE("A bind with no default key is unbound until its cvar is set", "[bind]") {
   Harness h;
   h.table.Register("test", KeyChord{}, "Test bind", [&h] { ++h.fired; });
   CHECK(h.registry->Get("bind.test").value().empty());
@@ -104,7 +104,7 @@ TEST_CASE("A bind with no default key is unbound until its cvar is set", "[bind]
   CHECK(h.fired == 1);
 }
 
-TEST_CASE("Unregister removes the cvar and the bind", "[bind]") {
+REX_TEST_CASE("Unregister removes the cvar and the bind", "[bind]") {
   Harness h;
   h.table.Register("test", {VirtualKey::kF9}, "Test bind", [&h] { ++h.fired; });
   REQUIRE(h.registry->Find("bind.test"));
@@ -114,7 +114,7 @@ TEST_CASE("Unregister removes the cvar and the bind", "[bind]") {
   CHECK(h.fired == 0);
 }
 
-TEST_CASE("A bind registered before Attach reaches the registry on Attach", "[bind]") {
+REX_TEST_CASE("A bind registered before Attach reaches the registry on Attach", "[bind]") {
   auto registry = rex::detail::CreateCvarRegistry();
   REQUIRE(registry->Register("bind", {}));
   rex::i32 fired = 0;

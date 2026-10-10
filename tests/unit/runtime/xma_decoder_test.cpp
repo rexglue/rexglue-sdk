@@ -9,7 +9,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-#include <catch2/catch_test_macros.hpp>
+#include "rex_test.h"
 
 #include <chrono>
 #include <future>
@@ -24,7 +24,7 @@
 
 using rex::X_STATUS;
 
-TEST_CASE("An XMA decoder destroyed without Shutdown stops its worker", "[apu][xma]") {
+REX_TEST_CASE("An XMA decoder destroyed without Shutdown stops its worker", "[apu][xma]") {
   rex::testing::KernelFixture fixture;
   auto decoder =
       std::make_unique<rex::runtime::XMADecoder>(fixture.runtime().function_dispatcher());
@@ -38,7 +38,7 @@ TEST_CASE("An XMA decoder destroyed without Shutdown stops its worker", "[apu][x
   CHECK(done.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
 }
 
-TEST_CASE("An XMA decoder serves the APU block until it is destroyed", "[apu][xma][mmio]") {
+REX_TEST_CASE("An XMA decoder serves the APU block until it is destroyed", "[apu][xma][mmio]") {
   rex::testing::KernelFixture fixture;
   auto decoder =
       std::make_unique<rex::runtime::XMADecoder>(fixture.runtime().function_dispatcher());

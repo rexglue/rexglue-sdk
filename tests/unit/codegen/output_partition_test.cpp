@@ -8,7 +8,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-#include <catch2/catch_test_macros.hpp>
+#include "rex_test.h"
 
 #include <filesystem>
 #include <fstream>
@@ -42,7 +42,8 @@ fs::path ScratchPath(std::string_view name) {
 
 }  // namespace
 
-TEST_CASE("File count is derived from the total size and the byte budget", "[output_partition]") {
+REX_TEST_CASE("File count is derived from the total size and the byte budget",
+              "[output_partition]") {
   std::vector<FunctionSize> entries{{0x8200'0000, 40}, {0x8200'0100, 40}, {0x8200'0200, 40}};
 
   OutputPartition partition;
@@ -52,7 +53,7 @@ TEST_CASE("File count is derived from the total size and the byte budget", "[out
   CHECK(buckets[0].size() + buckets[1].size() == 3);
 }
 
-TEST_CASE("New functions go to the smallest bucket", "[output_partition]") {
+REX_TEST_CASE("New functions go to the smallest bucket", "[output_partition]") {
   std::vector<FunctionSize> entries{{0x8200'0000, 90}, {0x8200'0100, 10}, {0x8200'0200, 10}};
 
   OutputPartition partition;
@@ -64,7 +65,8 @@ TEST_CASE("New functions go to the smallest bucket", "[output_partition]") {
   CHECK(BucketOf(buckets, entries, 0x8200'0200) == 1);
 }
 
-TEST_CASE("A function stays in its bucket when an earlier function grows", "[output_partition]") {
+REX_TEST_CASE("A function stays in its bucket when an earlier function grows",
+              "[output_partition]") {
   std::vector<FunctionSize> first{{0x8200'0000, 40}, {0x8200'0100, 40}, {0x8200'0200, 40}};
 
   OutputPartition partition;
@@ -77,7 +79,8 @@ TEST_CASE("A function stays in its bucket when an earlier function grows", "[out
   CHECK(BucketOf(after, second, 0x8200'0200) == lastBucketBefore);
 }
 
-TEST_CASE("The file count survives functions growing far past the budget", "[output_partition]") {
+REX_TEST_CASE("The file count survives functions growing far past the budget",
+              "[output_partition]") {
   std::vector<FunctionSize> first;
   for (u32 i = 0; i < 20; ++i) {
     first.push_back({0x8200'0000 + i * 0x100, 10});
@@ -95,7 +98,7 @@ TEST_CASE("The file count survives functions growing far past the budget", "[out
   CHECK(partition.Assign(second, 100).size() == 2);
 }
 
-TEST_CASE("The file count survives a reload", "[output_partition]") {
+REX_TEST_CASE("The file count survives a reload", "[output_partition]") {
   auto path = ScratchPath("count.json");
   std::vector<FunctionSize> entries{{0x8200'0000, 40}, {0x8200'0100, 40}, {0x8200'0200, 40}};
 
@@ -108,7 +111,7 @@ TEST_CASE("The file count survives a reload", "[output_partition]") {
   fs::remove(path);
 }
 
-TEST_CASE("A changed byte budget re-derives the file count", "[output_partition]") {
+REX_TEST_CASE("A changed byte budget re-derives the file count", "[output_partition]") {
   auto path = ScratchPath("budget.json");
   std::vector<FunctionSize> entries{{0x8200'0000, 40}, {0x8200'0100, 40}, {0x8200'0200, 40}};
 
@@ -121,7 +124,7 @@ TEST_CASE("A changed byte budget re-derives the file count", "[output_partition]
   fs::remove(path);
 }
 
-TEST_CASE("A sidecar from another version is ignored", "[output_partition]") {
+REX_TEST_CASE("A sidecar from another version is ignored", "[output_partition]") {
   auto path = ScratchPath("other_version.json");
   {
     std::ofstream(path, std::ios::binary)
@@ -135,7 +138,7 @@ TEST_CASE("A sidecar from another version is ignored", "[output_partition]") {
   fs::remove(path);
 }
 
-TEST_CASE("A wrongly typed file_count is ignored, not thrown on", "[output_partition]") {
+REX_TEST_CASE("A wrongly typed file_count is ignored, not thrown on", "[output_partition]") {
   auto path = ScratchPath("bad_count.json");
   {
     std::ofstream(path, std::ios::binary)
@@ -149,7 +152,7 @@ TEST_CASE("A wrongly typed file_count is ignored, not thrown on", "[output_parti
   fs::remove(path);
 }
 
-TEST_CASE("A new function does not change the file count", "[output_partition]") {
+REX_TEST_CASE("A new function does not change the file count", "[output_partition]") {
   std::vector<FunctionSize> first{{0x8200'0000, 40}, {0x8200'0100, 40}};
 
   OutputPartition partition;
@@ -162,7 +165,7 @@ TEST_CASE("A new function does not change the file count", "[output_partition]")
   CHECK(after[0].size() == 3);
 }
 
-TEST_CASE("Buckets stay sorted by address", "[output_partition]") {
+REX_TEST_CASE("Buckets stay sorted by address", "[output_partition]") {
   std::vector<FunctionSize> entries{{0x8200'0000, 10}, {0x8200'0100, 10}, {0x8200'0200, 10}};
 
   OutputPartition partition;
@@ -172,7 +175,7 @@ TEST_CASE("Buckets stay sorted by address", "[output_partition]") {
   CHECK(buckets[0] == std::vector<size_t>{0, 1, 2});
 }
 
-TEST_CASE("Serialize and Load round-trip preserves assignments", "[output_partition]") {
+REX_TEST_CASE("Serialize and Load round-trip preserves assignments", "[output_partition]") {
   auto path = ScratchPath("roundtrip.json");
   std::vector<FunctionSize> entries{{0x8200'0000, 90}, {0x8200'0100, 10}, {0x8200'0200, 10}};
 
@@ -189,8 +192,8 @@ TEST_CASE("Serialize and Load round-trip preserves assignments", "[output_partit
   fs::remove(path);
 }
 
-TEST_CASE("Functions that disappear are dropped from the serialized partition",
-          "[output_partition]") {
+REX_TEST_CASE("Functions that disappear are dropped from the serialized partition",
+              "[output_partition]") {
   std::vector<FunctionSize> first{{0x8200'0000, 40}, {0x8200'0100, 40}};
   OutputPartition partition;
   partition.Assign(first, 100);
@@ -201,7 +204,7 @@ TEST_CASE("Functions that disappear are dropped from the serialized partition",
   CHECK(partition.Serialize().find("82000100") == std::string::npos);
 }
 
-TEST_CASE("A malformed sidecar falls back to a fresh partition", "[output_partition]") {
+REX_TEST_CASE("A malformed sidecar falls back to a fresh partition", "[output_partition]") {
   auto path = ScratchPath("malformed.json");
   { std::ofstream(path, std::ios::binary) << "{ this is not json"; }
 
@@ -212,7 +215,7 @@ TEST_CASE("A malformed sidecar falls back to a fresh partition", "[output_partit
   fs::remove(path);
 }
 
-TEST_CASE("A non-hex assignment key is skipped, not thrown on", "[output_partition]") {
+REX_TEST_CASE("A non-hex assignment key is skipped, not thrown on", "[output_partition]") {
   auto path = ScratchPath("bad_key.json");
   {
     std::ofstream(path, std::ios::binary)
@@ -230,7 +233,7 @@ TEST_CASE("A non-hex assignment key is skipped, not thrown on", "[output_partiti
   fs::remove(path);
 }
 
-TEST_CASE("A missing sidecar falls back to a fresh partition", "[output_partition]") {
+REX_TEST_CASE("A missing sidecar falls back to a fresh partition", "[output_partition]") {
   auto loaded = OutputPartition::Load(ScratchPath("does_not_exist.json"));
 
   std::vector<FunctionSize> entries{{0x8200'0000, 40}, {0x8200'0100, 40}};

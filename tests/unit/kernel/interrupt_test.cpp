@@ -8,7 +8,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-#include <catch2/catch_test_macros.hpp>
+#include "rex_test.h"
 
 #include <atomic>
 #include <chrono>
@@ -59,7 +59,7 @@ void ClobberingISR(PPCContext& ctx, u8* base) {
 
 }  // namespace
 
-TEST_CASE("interrupt callbacks never overlap and never block guest threads", "[interrupt]") {
+REX_TEST_CASE("interrupt callbacks never overlap and never block guest threads", "[interrupt]") {
   g_active = 0;
   g_max = 0;
   KernelFixture fixture;
@@ -93,7 +93,7 @@ TEST_CASE("interrupt callbacks never overlap and never block guest threads", "[i
   CHECK(g_max == 1);
 }
 
-TEST_CASE("interrupts leave the guest thread state intact", "[interrupt]") {
+REX_TEST_CASE("interrupts leave the guest thread state intact", "[interrupt]") {
   g_active = 0;
   g_max = 0;
   KernelFixture fixture;
@@ -114,7 +114,7 @@ TEST_CASE("interrupts leave the guest thread state intact", "[interrupt]") {
   CHECK(g_max == 1);
 }
 
-TEST_CASE("DPC init and removal from 2 guest threads leaves the list empty", "[interrupt]") {
+REX_TEST_CASE("DPC init and removal from 2 guest threads leaves the list empty", "[interrupt]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     auto worker = [](Caller& o) {
@@ -134,7 +134,7 @@ TEST_CASE("DPC init and removal from 2 guest threads leaves the list empty", "[i
   });
 }
 
-TEST_CASE("An interrupt runs at IRQL 3 and leaves no register change behind", "[interrupt]") {
+REX_TEST_CASE("An interrupt runs at IRQL 3 and leaves no register change behind", "[interrupt]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     auto* dispatcher = c.runtime().function_dispatcher();

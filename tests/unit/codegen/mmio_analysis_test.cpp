@@ -9,7 +9,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-#include <catch2/catch_test_macros.hpp>
+#include "rex_test.h"
 
 #include <algorithm>
 #include <filesystem>
@@ -138,7 +138,7 @@ struct Scratch {
 
 }  // namespace
 
-TEST_CASE("A constant GPU base is proven", "[codegen][mmio]") {
+REX_TEST_CASE("A constant GPU base is proven", "[codegen][mmio]") {
   const auto result = Program{kLisGPU, kLoadWord, kBlr}.Classify();
   REQUIRE(result.sites.size() == 1);
   CHECK(result.At(Address(1)) == MMIOAccess::GPU);
@@ -146,20 +146,20 @@ TEST_CASE("A constant GPU base is proven", "[codegen][mmio]") {
   CHECK(result.sites[0].target == 0x7FC80010u);
 }
 
-TEST_CASE("A constant APU base built with ori and mr is proven", "[codegen][mmio]") {
+REX_TEST_CASE("A constant APU base built with ori and mr is proven", "[codegen][mmio]") {
   const auto result = Program{kLisAPU, kOriRegister, kMoveBase, kLoadThroughCopy, kBlr}.Classify();
   CHECK(result.At(Address(3)) == MMIOAccess::APU);
   REQUIRE(SiteAt(result, Address(3)) != nullptr);
   CHECK(SiteAt(result, Address(3))->target == 0x7FEA6540u);
 }
 
-TEST_CASE("A proven 16 bit access and a proven store are classified", "[codegen][mmio]") {
+REX_TEST_CASE("A proven 16 bit access and a proven store are classified", "[codegen][mmio]") {
   const auto result = Program{kLisGPU, kLoadHalf, kStoreWord, kBlr}.Classify();
   CHECK(result.At(Address(1)) == MMIOAccess::GPU);
   CHECK(result.At(Address(2)) == MMIOAccess::GPU);
 }
 
-TEST_CASE("A float store is classified and a float load is unsupported", "[codegen][mmio]") {
+REX_TEST_CASE("A float store is classified and a float load is unsupported", "[codegen][mmio]") {
   const auto result = Program{kLisGPU, kFloatStore, kFloatLoad, kBlr}.Classify();
   CHECK(result.At(Address(1)) == MMIOAccess::GPU);
   const MMIOSite* load = SiteAt(result, Address(2));
@@ -169,7 +169,7 @@ TEST_CASE("A float store is classified and a float load is unsupported", "[codeg
   CHECK(load->target == 0x7FC80000u);
 }
 
-TEST_CASE("A known address elsewhere in the 0x7F window is unserved", "[codegen][mmio]") {
+REX_TEST_CASE("A known address elsewhere in the 0x7F window is unserved", "[codegen][mmio]") {
   const auto result = Program{kLisWindow, kLoadWordZero, kBlr}.Classify();
   REQUIRE(result.sites.size() == 1);
   CHECK(result.sites[0].reason == MMIOReason::Unserved);
@@ -177,20 +177,21 @@ TEST_CASE("A known address elsewhere in the 0x7F window is unserved", "[codegen]
   CHECK(result.At(Address(1)) == MMIOAccess::Plain);
 }
 
-TEST_CASE("A 0x7F constant used as data stays plain", "[codegen][mmio]") {
+REX_TEST_CASE("A 0x7F constant used as data stays plain", "[codegen][mmio]") {
   const auto result = Program{kLisDataHigh, kOriDataLow, kStoreDataOnStack, kBlr}.Classify();
   CHECK(result.sites.empty());
 }
 
-TEST_CASE("The generic common load pattern with no barrier hints is guarded", "[codegen][mmio]") {
+REX_TEST_CASE("The generic common load pattern with no barrier hints is guarded",
+              "[codegen][mmio]") {
   const auto result = Program{kAddisOffset, kShiftOffset, kLoadWordZero, kBlr}.Classify();
   CHECK(result.At(Address(2)) == MMIOAccess::Guarded);
   REQUIRE(SiteAt(result, Address(2)) != nullptr);
   CHECK(SiteAt(result, Address(2))->reason == MMIOReason::Offset);
 }
 
-TEST_CASE("An unknown base before eieio is guarded and a known plain base is not",
-          "[codegen][mmio]") {
+REX_TEST_CASE("An unknown base before eieio is guarded and a known plain base is not",
+              "[codegen][mmio]") {
   const auto unknown = Program{kStoreThroughR4, kEieio, kBlr}.Classify();
   CHECK(unknown.At(Address(0)) == MMIOAccess::Guarded);
   REQUIRE(SiteAt(unknown, Address(0)) != nullptr);
@@ -200,7 +201,7 @@ TEST_CASE("An unknown base before eieio is guarded and a known plain base is not
   CHECK(known.sites.empty());
 }
 
-TEST_CASE("A declared GPU read calls the GPU handler", "[codegen][mmio]") {
+REX_TEST_CASE("A declared GPU read calls the GPU handler", "[codegen][mmio]") {
   Program program{kLoadThroughR4, kBlr};
   program.declared = {{Address(0), {rex::MMIOBlock::GPU, false}}};
   const auto result = program.Classify();
@@ -211,7 +212,7 @@ TEST_CASE("A declared GPU read calls the GPU handler", "[codegen][mmio]") {
   CHECK_FALSE(site->write);
 }
 
-TEST_CASE("A declared APU write calls the APU handler", "[codegen][mmio]") {
+REX_TEST_CASE("A declared APU write calls the APU handler", "[codegen][mmio]") {
   Program program{kStoreThroughR4, kBlr};
   program.declared = {{Address(0), {rex::MMIOBlock::APU, true}}};
   const auto result = program.Classify();
@@ -222,13 +223,13 @@ TEST_CASE("A declared APU write calls the APU handler", "[codegen][mmio]") {
   CHECK(site->write);
 }
 
-TEST_CASE("A base set before a loop is proven inside the loop", "[codegen][mmio]") {
+REX_TEST_CASE("A base set before a loop is proven inside the loop", "[codegen][mmio]") {
   const auto result =
       Program{kLisGPU, kLoadWordZero, kCompare, kBranchNotEqualMinus8, kBlr}.Classify();
   CHECK(result.At(Address(1)) == MMIOAccess::GPU);
 }
 
-TEST_CASE("Predecessors with different bases leave the access plain", "[codegen][mmio]") {
+REX_TEST_CASE("Predecessors with different bases leave the access plain", "[codegen][mmio]") {
   const auto result =
       Program{kCompare, kBranchEqualPlus12, kLisGPU, kBranchPlus8, kLisAPU, kLoadWordZero, kBlr}
           .Classify();
@@ -236,38 +237,38 @@ TEST_CASE("Predecessors with different bases leave the access plain", "[codegen]
   CHECK(result.sites.empty());
 }
 
-TEST_CASE("Predecessors with the same base keep the proof", "[codegen][mmio]") {
+REX_TEST_CASE("Predecessors with the same base keep the proof", "[codegen][mmio]") {
   const auto result =
       Program{kCompare, kBranchEqualPlus12, kLisGPU, kBranchPlus8, kLisGPU, kLoadWordZero, kBlr}
           .Classify();
   CHECK(result.At(Address(5)) == MMIOAccess::GPU);
 }
 
-TEST_CASE("A call clears r0 and r3 to r12 and keeps r31", "[codegen][mmio]") {
+REX_TEST_CASE("A call clears r0 and r3 to r12 and keeps r31", "[codegen][mmio]") {
   const auto result =
       Program{kLisR3GPU, kLisR31GPU, kCallFar, kLoadThroughR3, kLoadThroughR31, kBlr}.Classify();
   CHECK(result.At(Address(3)) == MMIOAccess::Plain);
   CHECK(result.At(Address(4)) == MMIOAccess::GPU);
 }
 
-TEST_CASE("A load into the base register ends the proof", "[codegen][mmio]") {
+REX_TEST_CASE("A load into the base register ends the proof", "[codegen][mmio]") {
   const auto result = Program{kLisGPU, kLoadIntoBase, kLoadWordZero, kBlr}.Classify();
   CHECK(result.At(Address(1)) == MMIOAccess::GPU);
   CHECK(result.At(Address(2)) == MMIOAccess::Plain);
 }
 
-TEST_CASE("A float instruction between lis and the access keeps the proof", "[codegen][mmio]") {
+REX_TEST_CASE("A float instruction between lis and the access keeps the proof", "[codegen][mmio]") {
   const auto result = Program{kLisGPU, kFloatAdd, kLoadWordZero, kBlr}.Classify();
   CHECK(result.At(Address(2)) == MMIOAccess::GPU);
 }
 
-TEST_CASE("A mid asm hook clears every register", "[codegen][mmio]") {
+REX_TEST_CASE("A mid asm hook clears every register", "[codegen][mmio]") {
   Program program{kLisGPU, kNop, kLoadWordZero, kBlr};
   program.hook_sites = {Address(1)};
   CHECK(program.Classify().At(Address(2)) == MMIOAccess::Plain);
 }
 
-TEST_CASE("A jump table target inherits the state at its bctr", "[codegen][mmio]") {
+REX_TEST_CASE("A jump table target inherits the state at its bctr", "[codegen][mmio]") {
   Program without_table{kLisGPU, kMoveToCtr, kBranchCtr, kLoadWordZero, kBlr};
   CHECK(without_table.Classify().At(Address(3)) == MMIOAccess::Plain);
 
@@ -276,7 +277,7 @@ TEST_CASE("A jump table target inherits the state at its bctr", "[codegen][mmio]
   CHECK(with_table.Classify().At(Address(3)) == MMIOAccess::GPU);
 }
 
-TEST_CASE("Code after a gap between code blocks starts unknown", "[codegen][mmio]") {
+REX_TEST_CASE("Code after a gap between code blocks starts unknown", "[codegen][mmio]") {
   const std::vector<u8> first = Encode({kLisGPU});
   const std::vector<u8> second = Encode({kLoadWordZero, kBlr});
   const std::vector<MMIOCodeBlock> blocks{{kBase, first}, {kBase + 0x10, second}};
@@ -285,7 +286,7 @@ TEST_CASE("Code after a gap between code blocks starts unknown", "[codegen][mmio
   CHECK(result.At(kBase + 0x10) == MMIOAccess::Plain);
 }
 
-TEST_CASE("A branch back to the entry keeps the entry unknown", "[codegen][mmio]") {
+REX_TEST_CASE("A branch back to the entry keeps the entry unknown", "[codegen][mmio]") {
   const std::vector<u8> entry = Encode({kLoadWordZero, kBlr});
   const std::vector<u8> tail = Encode({kLisGPU, kBranchToEntry});
   const std::vector<MMIOCodeBlock> blocks{{kBase, entry}, {kBase + 0x10, tail}};
@@ -294,7 +295,7 @@ TEST_CASE("A branch back to the entry keeps the entry unknown", "[codegen][mmio]
   CHECK(result.At(kBase) == MMIOAccess::Plain);
 }
 
-TEST_CASE("The [mmio.gpu] and [mmio.apu] tables load declared accesses", "[codegen][mmio]") {
+REX_TEST_CASE("The [mmio.gpu] and [mmio.apu] tables load declared accesses", "[codegen][mmio]") {
   Scratch scratch("loads");
   RecompilerConfig config;
   REQUIRE(
@@ -310,7 +311,7 @@ TEST_CASE("The [mmio.gpu] and [mmio.apu] tables load declared accesses", "[codeg
   CHECK(declared.at(0x82000020u).write);
 }
 
-TEST_CASE("A misaligned declared address fails validation", "[codegen][mmio]") {
+REX_TEST_CASE("A misaligned declared address fails validation", "[codegen][mmio]") {
   RecompilerConfig config;
   config.filePath = "game.xex";
   config.outDirectoryPath = "out";
@@ -322,7 +323,7 @@ TEST_CASE("A misaligned declared address fails validation", "[codegen][mmio]") {
   }));
 }
 
-TEST_CASE("An address declared twice fails the load", "[codegen][mmio]") {
+REX_TEST_CASE("An address declared twice fails the load", "[codegen][mmio]") {
   Scratch scratch("twice");
   RecompilerConfig config;
   CHECK_FALSE(config.Load(
@@ -391,7 +392,7 @@ bool Has(const std::string& text, std::string_view needle) {
 
 }  // namespace
 
-TEST_CASE("Codegen emits the macro each classified access needs", "[codegen][mmio]") {
+REX_TEST_CASE("Codegen emits the macro each classified access needs", "[codegen][mmio]") {
   EmitFixture fixture("macros",
                       {kLisGPU, kLoadWord, kBlr, kStoreThroughR4, kEieio, kBlr, kLisGPU, kLoadHalf,
                        kBlr, kLisAPU, kStoreWord, kBlr},
@@ -406,7 +407,7 @@ TEST_CASE("Codegen emits the macro each classified access needs", "[codegen][mmi
   CHECK_FALSE(Has(code, "REX_MM_LOAD_U32("));
 }
 
-TEST_CASE("Codegen writes every classified site to codegen.mmio.json", "[codegen][mmio]") {
+REX_TEST_CASE("Codegen writes every classified site to codegen.mmio.json", "[codegen][mmio]") {
   EmitFixture fixture("report", {kLisGPU, kLoadWord, kBlr, kStoreThroughR4, kEieio, kBlr},
                       {12, 12});
   CodegenWriter writer(fixture.ctx);
@@ -425,7 +426,7 @@ TEST_CASE("Codegen writes every classified site to codegen.mmio.json", "[codegen
   CHECK(Has(report, "\"access\": \"write\""));
 }
 
-TEST_CASE("A declared GPU read emits the direct call", "[codegen][mmio]") {
+REX_TEST_CASE("A declared GPU read emits the direct call", "[codegen][mmio]") {
   EmitFixture fixture("declared", {kLoadThroughR4, kBlr}, {8},
                       {{kBase, {rex::MMIOBlock::GPU, false}}});
   CodegenWriter writer(fixture.ctx);
@@ -433,27 +434,28 @@ TEST_CASE("A declared GPU read emits the direct call", "[codegen][mmio]") {
   CHECK(Has(fixture.Read("testproj_recomp.0.cpp"), "REX_GPU_LOAD32("));
 }
 
-TEST_CASE("A declaration that matches no load or store fails the write", "[codegen][mmio]") {
+REX_TEST_CASE("A declaration that matches no load or store fails the write", "[codegen][mmio]") {
   EmitFixture fixture("unmatched", {kBlr}, {4}, {{kBase, {rex::MMIOBlock::GPU, false}}});
   CodegenWriter writer(fixture.ctx);
   CHECK_FALSE(writer.write(false));
 }
 
-TEST_CASE("A read declaration on a store fails the write", "[codegen][mmio]") {
+REX_TEST_CASE("A read declaration on a store fails the write", "[codegen][mmio]") {
   EmitFixture fixture("direction", {kStoreThroughR4, kBlr}, {8},
                       {{kBase, {rex::MMIOBlock::GPU, false}}});
   CodegenWriter writer(fixture.ctx);
   CHECK_FALSE(writer.write(false));
 }
 
-TEST_CASE("A declaration that disagrees with the proven block fails the write", "[codegen][mmio]") {
+REX_TEST_CASE("A declaration that disagrees with the proven block fails the write",
+              "[codegen][mmio]") {
   EmitFixture fixture("disagree", {kLisGPU, kLoadWord, kBlr}, {12},
                       {{kBase + 4, {rex::MMIOBlock::APU, false}}});
   CodegenWriter writer(fixture.ctx);
   CHECK_FALSE(writer.write(false));
 }
 
-TEST_CASE("A declared address that is not an integer fails the load", "[codegen][mmio]") {
+REX_TEST_CASE("A declared address that is not an integer fails the load", "[codegen][mmio]") {
   Scratch scratch("string");
   RecompilerConfig config;
   CHECK_FALSE(config.Load(scratch.Write("[mmio.gpu]\nread = [\"0x82000010\"]\n")));

@@ -9,7 +9,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-#include <catch2/catch_test_macros.hpp>
+#include "rex_test.h"
 
 #include <atomic>
 #include <chrono>
@@ -30,7 +30,7 @@ struct Token {
 
 }  // namespace
 
-TEST_CASE("Thread start data runs once and is freed once", "[core][thread]") {
+REX_TEST_CASE("Thread start data runs once and is freed once", "[core][thread]") {
   std::atomic<int> ran{0};
   std::atomic<int> freed{0};
   {

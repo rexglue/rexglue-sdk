@@ -9,7 +9,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-#include <catch2/catch_test_macros.hpp>
+#include "rex_test.h"
 
 #include <atomic>
 #include <cstdint>
@@ -24,7 +24,7 @@
 
 using rex::runtime::AccessViolationResult;
 
-TEST_CASE("Memory reserves both register blocks as no access", "[memory][mmio]") {
+REX_TEST_CASE("Memory reserves both register blocks as no access", "[memory][mmio]") {
   auto& memory = rex::testing::GetTestMemory();
   for (rex::u32 address : {0x7FC80000u, 0x7FC8FFFCu, 0x7FEA0000u, 0x7FEAFFFCu}) {
     size_t length = rex::memory::page_size();
@@ -34,7 +34,7 @@ TEST_CASE("Memory reserves both register blocks as no access", "[memory][mmio]")
   }
 }
 
-TEST_CASE("A fault in a register block is an MMIO miss", "[memory][mmio]") {
+REX_TEST_CASE("A fault in a register block is an MMIO miss", "[memory][mmio]") {
   auto& memory = rex::testing::GetTestMemory();
   CHECK(memory.HandleAccessViolation(memory.TranslateVirtual(0x7FC80010), false) ==
         AccessViolationResult::MMIOMiss);
@@ -42,7 +42,7 @@ TEST_CASE("A fault in a register block is an MMIO miss", "[memory][mmio]") {
         AccessViolationResult::MMIOMiss);
 }
 
-TEST_CASE("A fault outside guest memory is unhandled", "[memory][mmio]") {
+REX_TEST_CASE("A fault outside guest memory is unhandled", "[memory][mmio]") {
   auto& memory = rex::testing::GetTestMemory();
   int local = 0;
   CHECK(memory.HandleAccessViolation(&local, true) == AccessViolationResult::Unhandled);
@@ -79,8 +79,8 @@ bool OpenBlockPage(rex::platform::Exception* ex, void* data) {
 
 }  // namespace
 
-TEST_CASE("A write to a watched physical page runs the invalidation callback and resumes",
-          "[memory][mmio]") {
+REX_TEST_CASE("A write to a watched physical page runs the invalidation callback and resumes",
+              "[memory][mmio]") {
   auto& memory = rex::testing::GetTestMemory();
   const rex::u32 address =
       memory.SystemHeapAlloc(0x1000, 0x1000, rex::runtime::kSystemHeapPhysical);
@@ -97,8 +97,8 @@ TEST_CASE("A write to a watched physical page runs the invalidation callback and
   memory.SystemHeapFree(address);
 }
 
-TEST_CASE("A plain read of a register block is refused by Memory and reaches the next handler",
-          "[memory][mmio]") {
+REX_TEST_CASE("A plain read of a register block is refused by Memory and reaches the next handler",
+              "[memory][mmio]") {
   auto& memory = rex::testing::GetTestMemory();
   BlockProbe probe{memory.TranslateVirtual(0x7FC80000), rex::memory::page_size()};
   rex::platform::ExceptionHandler::Install(OpenBlockPage, &probe);

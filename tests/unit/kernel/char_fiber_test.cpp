@@ -9,7 +9,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-#include <catch2/catch_test_macros.hpp>
+#include "rex_test.h"
 
 #include <atomic>
 #include <cstring>
@@ -86,7 +86,7 @@ void FiberBody(PPCContext& ctx, u8* base) {
 
 }  // namespace
 
-TEST_CASE("fibers: a switch away and back keeps the nonvolatile state", "[char][fibers]") {
+REX_TEST_CASE("fibers: a switch away and back keeps the nonvolatile state", "[char][fibers]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     PPCContext& ctx = c.ctx();
@@ -147,14 +147,14 @@ TEST_CASE("fibers: a switch away and back keeps the nonvolatile state", "[char][
   });
 }
 
-TEST_CASE("fibers: ResolveGuestStackSize allows 12 KB fiber stacks", "[char][fibers]") {
+REX_TEST_CASE("fibers: ResolveGuestStackSize allows 12 KB fiber stacks", "[char][fibers]") {
   CHECK(rex::runtime::ResolveGuestStackSize(0x2000, 0x10000, 12 * 1024) == 0x3000);
   CHECK(rex::runtime::ResolveGuestStackSize(0, 0x10000, 12 * 1024) == 0x10000);
   CHECK(rex::runtime::ResolveGuestStackSize(0x3001, 0x10000, 12 * 1024) == 0x4000);
 }
 
-TEST_CASE("Teardown frees a fiber context in a physical heap without breaking the lock order",
-          "[kernel][fiber][lock_order]") {
+REX_TEST_CASE("Teardown frees a fiber context in a physical heap without breaking the lock order",
+              "[kernel][fiber][lock_order]") {
 #ifdef NDEBUG
   SKIP("lock order is checked in debug builds only");
 #endif

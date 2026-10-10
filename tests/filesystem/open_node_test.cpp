@@ -14,7 +14,7 @@
 #include <string>
 #include <string_view>
 
-#include <catch2/catch_test_macros.hpp>
+#include "rex_test.h"
 
 #include "filesystem/fixture.h"
 
@@ -47,8 +47,8 @@ class OpenRoot : public Fixture {
 
 }  // namespace
 
-TEST_CASE_METHOD(OpenRoot, "A file with an open handle cannot be deleted",
-                 "[filesystem][open_node]") {
+REX_TEST_CASE_METHOD(OpenRoot, "A file with an open handle cannot be deleted",
+                     "[filesystem][open_node]") {
   auto reader = Open(kPath, {.disposition = Disposition::kOpen, .access = Access::kGenericRead});
 
   auto removed = fs().Remove(kPath);
@@ -62,8 +62,8 @@ TEST_CASE_METHOD(OpenRoot, "A file with an open handle cannot be deleted",
   CHECK_FALSE(std::filesystem::exists(HostPath()));
 }
 
-TEST_CASE_METHOD(OpenRoot, "Delete on close removes the file at its last close",
-                 "[filesystem][open_node]") {
+REX_TEST_CASE_METHOD(OpenRoot, "Delete on close removes the file at its last close",
+                     "[filesystem][open_node]") {
   auto first = Open(kPath, {.disposition = Disposition::kOpen, .access = Access::kGenericRead});
   auto second = Open(kPath, {.disposition = Disposition::kOpen, .access = Access::kGenericRead});
   first.file->SetDeleteOnClose(true);
@@ -75,8 +75,8 @@ TEST_CASE_METHOD(OpenRoot, "Delete on close removes the file at its last close",
   CHECK_FALSE(fs().Stat(kPath));
 }
 
-TEST_CASE_METHOD(OpenRoot, "A file removed on the host stays readable through its open handle",
-                 "[filesystem][open_node]") {
+REX_TEST_CASE_METHOD(OpenRoot, "A file removed on the host stays readable through its open handle",
+                     "[filesystem][open_node]") {
   auto reader = Open(kPath, {.disposition = Disposition::kOpen, .access = Access::kGenericRead});
   std::filesystem::remove(HostPath());
 
@@ -93,8 +93,8 @@ TEST_CASE_METHOD(OpenRoot, "A file removed on the host stays readable through it
   CHECK(ReadText(*reopened.file) == "new");
 }
 
-TEST_CASE_METHOD(OpenRoot, "An open file outlives the unmount of its mount",
-                 "[filesystem][open_node]") {
+REX_TEST_CASE_METHOD(OpenRoot, "An open file outlives the unmount of its mount",
+                     "[filesystem][open_node]") {
   auto reader = Open(kPath, {.disposition = Disposition::kOpen, .access = Access::kGenericRead});
   auto list = fs().List(kMountPath, "*");
   REQUIRE(list);

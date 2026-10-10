@@ -8,7 +8,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-#include <catch2/catch_test_macros.hpp>
+#include "rex_test.h"
 
 #include <string>
 #include <vector>
@@ -24,7 +24,7 @@ rex::CLIArgList Args(std::vector<std::string> args) {
 
 }  // namespace
 
-TEST_CASE("CLIArgList splits options, values and positionals", "[cli]") {
+REX_TEST_CASE("CLIArgList splits options, values and positionals", "[cli]") {
   auto args = Args({"first", "--a=1", "--b", "2", "--c", "--d", "last"});
   REQUIRE(args.Get("a") == "1");
   REQUIRE(args.Get("b") == "2");
@@ -38,7 +38,7 @@ TEST_CASE("CLIArgList splits options, values and positionals", "[cli]") {
   REQUIRE(args.Options()[1].name == "b");
 }
 
-TEST_CASE("CLIArgList skips argv[0]", "[cli]") {
+REX_TEST_CASE("CLIArgList skips argv[0]", "[cli]") {
   char program[] = "foo.exe";
   char option[] = "--x=1";
   char* argv[] = {program, option};
@@ -47,13 +47,13 @@ TEST_CASE("CLIArgList skips argv[0]", "[cli]") {
   REQUIRE(args.Get("x") == "1");
 }
 
-TEST_CASE("A trailing option without a value has none", "[cli]") {
+REX_TEST_CASE("A trailing option without a value has none", "[cli]") {
   auto args = Args({"--last"});
   REQUIRE(args.Has("last"));
   REQUIRE_FALSE(args.Get("last").has_value());
 }
 
-TEST_CASE("ParseCommandLine fills fields and cvars and returns unknown options", "[cli]") {
+REX_TEST_CASE("ParseCommandLine fills fields and cvars and returns unknown options", "[cli]") {
   rex::Config config;
   auto unknown = rex::ParseCommandLine(
       config, Args({"--game_data_root=C:/g", "--gpu.vsync", "--no-ui.fullscreen", "--foo",
@@ -65,7 +65,7 @@ TEST_CASE("ParseCommandLine fills fields and cvars and returns unknown options",
   REQUIRE(unknown == std::vector<std::string>{"--foo", "--Bad.Name=1"});
 }
 
-TEST_CASE("A structural option without a value is unknown", "[cli]") {
+REX_TEST_CASE("A structural option without a value is unknown", "[cli]") {
   rex::Config config;
   auto unknown = rex::ParseCommandLine(config, Args({"--game_data_root"}));
   REQUIRE(unknown == std::vector<std::string>{"--game_data_root"});

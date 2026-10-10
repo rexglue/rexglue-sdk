@@ -8,7 +8,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-#include <catch2/catch_test_macros.hpp>
+#include "rex_test.h"
 
 #include <rex/kernel/xam/apps/xmp_app.h>
 
@@ -28,7 +28,7 @@ u32 PlayEmptyPlaylist(Caller& c, rex::kernel::xam::apps::XmpApp& app) {
 
 }  // namespace
 
-TEST_CASE("xmp: next and previous on an empty playlist find no song", "[char][xmp]") {
+REX_TEST_CASE("xmp: next and previous on an empty playlist find no song", "[char][xmp]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     rex::kernel::xam::apps::XmpApp app(c.runtime());
@@ -38,7 +38,7 @@ TEST_CASE("xmp: next and previous on an empty playlist find no song", "[char][xm
   });
 }
 
-TEST_CASE("xmp: song info on an empty playlist fails", "[char][xmp]") {
+REX_TEST_CASE("xmp: song info on an empty playlist fails", "[char][xmp]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     rex::kernel::xam::apps::XmpApp app(c.runtime());

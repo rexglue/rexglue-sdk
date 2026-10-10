@@ -9,7 +9,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-#include <catch2/catch_test_macros.hpp>
+#include "rex_test.h"
 
 #include <atomic>
 #include <chrono>
@@ -52,7 +52,7 @@ constexpr rex::u32 kWritePointerRegister = 0x01C5;
 
 }  // namespace
 
-TEST_CASE_METHOD(Fixture, "backend null runs a MEM_WRITE and an EVENT_WRITE_SHD", "[gpu]") {
+REX_TEST_CASE_METHOD(Fixture, "backend null runs a MEM_WRITE and an EVENT_WRITE_SHD", "[gpu]") {
   auto api = rex::Init(NullConfig());
   REQUIRE(api);
   auto* backend = (*api)->Get<rex::gpu::IBackend>();
@@ -100,7 +100,7 @@ TEST_CASE_METHOD(Fixture, "backend null runs a MEM_WRITE and an EVENT_WRITE_SHD"
   runtime.Shutdown();
 }
 
-TEST_CASE_METHOD(Fixture, "A misspelled backend fails Init with its name", "[gpu]") {
+REX_TEST_CASE_METHOD(Fixture, "A misspelled backend fails Init with its name", "[gpu]") {
   rex::Config config = NullConfig();
   config.gpu.backend = "nul";
   auto api = rex::Init(config);
@@ -108,8 +108,8 @@ TEST_CASE_METHOD(Fixture, "A misspelled backend fails Init with its name", "[gpu
   CHECK(api.error().message.find("nul") != std::string::npos);
 }
 
-TEST_CASE_METHOD(Fixture, "Setting the interrupt callback while vblanks dispatch is safe",
-                 "[gpu]") {
+REX_TEST_CASE_METHOD(Fixture, "Setting the interrupt callback while vblanks dispatch is safe",
+                     "[gpu]") {
   auto api = rex::Init(NullConfig());
   REQUIRE(api);
   auto* backend = (*api)->Get<rex::gpu::IBackend>();
@@ -127,8 +127,8 @@ TEST_CASE_METHOD(Fixture, "Setting the interrupt callback while vblanks dispatch
   runtime.Shutdown();
 }
 
-TEST_CASE_METHOD(Fixture, "Shutdown stops vblanks before the command processor goes away",
-                 "[gpu]") {
+REX_TEST_CASE_METHOD(Fixture, "Shutdown stops vblanks before the command processor goes away",
+                     "[gpu]") {
   for (rex::u32 cycle = 0; cycle < 10; ++cycle) {
     rex::Config config = NullConfig();
     config.cvars.values.push_back({"gpu.vsync", "false"});

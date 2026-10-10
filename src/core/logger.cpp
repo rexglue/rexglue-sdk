@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <array>
 #include <cctype>
+#include <cstdio>
 #include <format>
 #include <ranges>
 #include <thread>
@@ -86,6 +87,14 @@ namespace detail {
 
 void Write(const Category& category, Level level, std::string_view text) {
   GetLoggerInstance().Write(category, level, text);
+}
+
+void WriteFailure(const Category& category, const char* what) noexcept {
+  try {
+    Write(category, Level::kError, std::format("log message dropped, {}", what));
+  } catch (...) {
+    std::fprintf(stderr, "log message dropped, %s\n", what);
+  }
 }
 
 void WriteStub(std::atomic_flag& seen, std::string_view name, std::string_view detail) {

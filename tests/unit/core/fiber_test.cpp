@@ -8,7 +8,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-#include <catch2/catch_test_macros.hpp>
+#include "rex_test.h"
 #include <rex/platform/fiber.h>
 
 using rex::platform::Fiber;
@@ -24,7 +24,7 @@ static void counting_fiber(void*) {
   Fiber::SwitchTo(s_main);
 }
 
-TEST_CASE("rex::platform::Fiber - basic context switch", "[fiber]") {
+REX_TEST_CASE("rex::platform::Fiber - basic context switch", "[fiber]") {
   s_count = 0;
   s_main = Fiber::ConvertCurrentThread();
   auto* f = Fiber::Create(256 * 1024, counting_fiber, nullptr);

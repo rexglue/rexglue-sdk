@@ -9,7 +9,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-#include <catch2/catch_test_macros.hpp>
+#include "rex_test.h"
 
 #include <array>
 #include <string>
@@ -34,7 +34,7 @@ rex::platform::DynamicLibrary OpenRuntime() {
 
 }  // namespace
 
-TEST_CASE("The runtime exports every function row of the export tables", "[exports]") {
+REX_TEST_CASE("The runtime exports every function row of the export tables", "[exports]") {
   const auto library = OpenRuntime();
   rex::u32 resolved = 0;
   for (const auto module : kModules) {
@@ -51,7 +51,7 @@ TEST_CASE("The runtime exports every function row of the export tables", "[expor
   CHECK(resolved > 0);
 }
 
-TEST_CASE("The runtime exports every shim", "[exports]") {
+REX_TEST_CASE("The runtime exports every shim", "[exports]") {
   const auto library = OpenRuntime();
   for (const auto& entry : rex::kernel::shim::kRegistry) {
     const std::string symbol = "rexshim_" + std::string(entry.name);
@@ -60,13 +60,13 @@ TEST_CASE("The runtime exports every shim", "[exports]") {
   }
 }
 
-TEST_CASE("The runtime exports both module entry points", "[exports]") {
+REX_TEST_CASE("The runtime exports both module entry points", "[exports]") {
   const auto library = OpenRuntime();
   CHECK(library.GetRawSymbol("rex_create_interface") != nullptr);
   CHECK(library.GetRawSymbol("rex_enumerate_interfaces") != nullptr);
 }
 
-TEST_CASE("The runtime exports none of its third party code", "[exports]") {
+REX_TEST_CASE("The runtime exports none of its third party code", "[exports]") {
   const auto library = OpenRuntime();
   CHECK(library.GetRawSymbol("stbi_load_from_memory") == nullptr);
 }

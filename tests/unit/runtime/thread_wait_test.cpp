@@ -8,7 +8,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-#include <catch2/catch_test_macros.hpp>
+#include "rex_test.h"
 
 #include <atomic>
 #include <chrono>
@@ -38,7 +38,8 @@ std::shared_ptr<HostThread> Sleeper(std::chrono::milliseconds duration) {
 
 }  // namespace
 
-TEST_CASE("A running thread is reported each interval until it ends", "[runtime][thread_wait]") {
+REX_TEST_CASE("A running thread is reported each interval until it ends",
+              "[runtime][thread_wait]") {
   std::vector<std::shared_ptr<HostThread>> threads{Sleeper(0ms), Sleeper(120ms)};
   std::atomic<int> reports{0};
   rex::runtime::WaitForThreadsToStop(threads, 50ms, [&](const auto&) { ++reports; });
@@ -46,19 +47,20 @@ TEST_CASE("A running thread is reported each interval until it ends", "[runtime]
   CHECK(reports.load() <= 3);
 }
 
-TEST_CASE("A thread past its timeout is forced to stop every few ms", "[runtime][thread_wait]") {
+REX_TEST_CASE("A thread past its timeout is forced to stop every few ms",
+              "[runtime][thread_wait]") {
   std::vector<std::shared_ptr<HostThread>> threads{Sleeper(150ms)};
   rex::runtime::WaitForThreadsToStop(threads, 50ms, [](const auto&) {});
   CHECK(threads[0]->force_stops.load() >= 5);
 }
 
-TEST_CASE("A thread that ends before its timeout is never forced", "[runtime][thread_wait]") {
+REX_TEST_CASE("A thread that ends before its timeout is never forced", "[runtime][thread_wait]") {
   std::vector<std::shared_ptr<HostThread>> threads{Sleeper(20ms)};
   rex::runtime::WaitForThreadsToStop(threads, 1s, [](const auto&) {});
   CHECK(threads[0]->force_stops.load() == 0);
 }
 
-TEST_CASE("Ended threads end the wait at once", "[runtime][thread_wait]") {
+REX_TEST_CASE("Ended threads end the wait at once", "[runtime][thread_wait]") {
   std::vector<std::shared_ptr<HostThread>> threads{Sleeper(0ms), Sleeper(0ms)};
   rex::platform::Wait(threads[0]->thread(), false);
   rex::platform::Wait(threads[1]->thread(), false);

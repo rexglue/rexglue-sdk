@@ -9,7 +9,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-#include <catch2/catch_test_macros.hpp>
+#include "rex_test.h"
 
 #include <algorithm>
 #include <array>
@@ -40,7 +40,7 @@ std::vector<rex::u8> ReadFile(const std::filesystem::path& path) {
 
 static_assert(std::is_constructible_v<MappedMemory, void*, size_t>);
 
-TEST_CASE("Slice returns a non owning view of the same bytes", "[memory][mapped_memory]") {
+REX_TEST_CASE("Slice returns a non owning view of the same bytes", "[memory][mapped_memory]") {
   std::array<rex::u8, 16> bytes{};
   MappedMemory mapping(bytes.data(), bytes.size());
   auto view = mapping.Slice(4, 8);
@@ -51,7 +51,8 @@ TEST_CASE("Slice returns a non owning view of the same bytes", "[memory][mapped_
   CHECK(mapping.data() == bytes.data());
 }
 
-TEST_CASE("A chunked writer spills a full chunk into the next file", "[memory][mapped_memory]") {
+REX_TEST_CASE("A chunked writer spills a full chunk into the next file",
+              "[memory][mapped_memory]") {
   const auto dir = std::filesystem::temp_directory_path() / "rex_chunked_writer_test";
   std::filesystem::remove_all(dir);
   std::filesystem::create_directories(dir);
@@ -78,7 +79,7 @@ TEST_CASE("A chunked writer spills a full chunk into the next file", "[memory][m
   std::filesystem::remove_all(dir);
 }
 
-TEST_CASE("A low address chunked writer maps below 4 GiB", "[memory][mapped_memory]") {
+REX_TEST_CASE("A low address chunked writer maps below 4 GiB", "[memory][mapped_memory]") {
   const auto dir = std::filesystem::temp_directory_path() / "rex_chunked_writer_low_test";
   std::filesystem::remove_all(dir);
   std::filesystem::create_directories(dir);
@@ -98,8 +99,8 @@ TEST_CASE("A low address chunked writer maps below 4 GiB", "[memory][mapped_memo
 }
 
 #if REX_PLATFORM_WIN32
-TEST_CASE("A low address chunked writer moves past an occupied first address",
-          "[memory][mapped_memory]") {
+REX_TEST_CASE("A low address chunked writer moves past an occupied first address",
+              "[memory][mapped_memory]") {
   const auto dir = std::filesystem::temp_directory_path() / "rex_chunked_writer_busy_test";
   std::filesystem::remove_all(dir);
   std::filesystem::create_directories(dir);

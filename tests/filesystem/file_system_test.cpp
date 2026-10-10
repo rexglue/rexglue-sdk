@@ -11,7 +11,7 @@
 #include <string>
 #include <string_view>
 
-#include <catch2/catch_test_macros.hpp>
+#include "rex_test.h"
 
 #include "filesystem/fixture.h"
 
@@ -39,7 +39,7 @@ Error OpenError(Fixture& fixture, std::string_view path, const OpenOptions& opti
 
 }  // namespace
 
-TEST_CASE_METHOD(Fixture, "Canonical paths name the same file", "[filesystem][paths]") {
+REX_TEST_CASE_METHOD(Fixture, "Canonical paths name the same file", "[filesystem][paths]") {
   WriteHost(temp() / "folder" / "c.txt", "charlie");
   MountTemp(kRoot);
   for (std::string_view path :
@@ -53,7 +53,7 @@ TEST_CASE_METHOD(Fixture, "Canonical paths name the same file", "[filesystem][pa
   }
 }
 
-TEST_CASE_METHOD(Fixture, "Links substitute by prefix and repeat", "[filesystem][links]") {
+REX_TEST_CASE_METHOD(Fixture, "Links substitute by prefix and repeat", "[filesystem][links]") {
   WriteHost(temp() / "a.txt", "alpha");
   MountTemp(kRoot);
   REQUIRE(fs().Link("inner:", kRoot));
@@ -79,7 +79,8 @@ TEST_CASE_METHOD(Fixture, "Links substitute by prefix and repeat", "[filesystem]
   CHECK(OpenError(*this, "outer:\\a.txt", {}) == Error::kNoMount);
 }
 
-TEST_CASE_METHOD(Fixture, "Links and mounts match whole path components", "[filesystem][links]") {
+REX_TEST_CASE_METHOD(Fixture, "Links and mounts match whole path components",
+                     "[filesystem][links]") {
   WriteHost(temp() / "a.txt", "alpha");
   MountTemp("\\Device\\Cdrom0");
   REQUIRE(fs().Link("cd:", "\\Device\\Cdrom0"));
@@ -94,13 +95,13 @@ TEST_CASE_METHOD(Fixture, "Links and mounts match whole path components", "[file
   CHECK(CodeOf(again.error()) == Error::kExists);
 }
 
-TEST_CASE_METHOD(Fixture, "A link that never ends is kInvalidPath", "[filesystem][links]") {
+REX_TEST_CASE_METHOD(Fixture, "A link that never ends is kInvalidPath", "[filesystem][links]") {
   MountTemp(kRoot);
   REQUIRE(fs().Link("loop:", "loop:\\again"));
   CHECK(OpenError(*this, "loop:\\a.txt", {}) == Error::kInvalidPath);
 }
 
-TEST_CASE_METHOD(Fixture, "The first registered mount wins", "[filesystem][mounts]") {
+REX_TEST_CASE_METHOD(Fixture, "The first registered mount wins", "[filesystem][mounts]") {
   WriteHost(temp() / "outer" / "B" / "x.txt", "from outer");
   WriteHost(temp() / "inner" / "x.txt", "from inner");
   REQUIRE(fs().Mount({"\\Device\\A", ProviderKind::kHostDirectory, temp() / "outer"}));
@@ -121,7 +122,8 @@ TEST_CASE_METHOD(Fixture, "The first registered mount wins", "[filesystem][mount
   CHECK(CodeOf(gone.error()) == Error::kNoMount);
 }
 
-TEST_CASE_METHOD(Fixture, "Dispositions against present and absent files", "[filesystem][open]") {
+REX_TEST_CASE_METHOD(Fixture, "Dispositions against present and absent files",
+                     "[filesystem][open]") {
   WriteHost(temp() / "present.txt", "data");
   MountTemp(kRoot);
   const std::string present = "\\Device\\Test\\present.txt";
@@ -177,8 +179,8 @@ TEST_CASE_METHOD(Fixture, "Dispositions against present and absent files", "[fil
   }
 }
 
-TEST_CASE_METHOD(Fixture, "Open creates files and directories in present parents",
-                 "[filesystem][open]") {
+REX_TEST_CASE_METHOD(Fixture, "Open creates files and directories in present parents",
+                     "[filesystem][open]") {
   MountTemp(kRoot);
   const OpenOptions create{.disposition = Disposition::kCreate, .access = Access::kGenericWrite};
   CHECK(OpenError(*this, "\\Device\\Test\\one\\two\\file.txt", create) == Error::kNotFound);
@@ -193,14 +195,14 @@ TEST_CASE_METHOD(Fixture, "Open creates files and directories in present parents
   CHECK(rex::HasFlags(folder.file->Info().attributes, rex::filesystem::FileAttributes::kDirectory));
 }
 
-TEST_CASE_METHOD(Fixture, "require_file refuses a directory", "[filesystem][open]") {
+REX_TEST_CASE_METHOD(Fixture, "require_file refuses a directory", "[filesystem][open]") {
   std::filesystem::create_directories(temp() / "folder");
   MountTemp(kRoot);
   CHECK(OpenError(*this, "\\Device\\Test\\folder", {.require_file = true}) == Error::kIsDirectory);
   CHECK(Open("\\Device\\Test\\folder").file->Info().name == "folder");
 }
 
-TEST_CASE_METHOD(Fixture, "A write on a read only mount opens for read", "[filesystem][open]") {
+REX_TEST_CASE_METHOD(Fixture, "A write on a read only mount opens for read", "[filesystem][open]") {
   WriteHost(temp() / "a.txt", "alpha");
   REQUIRE(fs().Mount({std::string(kRoot), ProviderKind::kHostDirectory, temp()}));
   auto opened = Open("\\Device\\Test\\a.txt", {.access = Access::kGenericAll});
@@ -213,8 +215,8 @@ TEST_CASE_METHOD(Fixture, "A write on a read only mount opens for read", "[files
         Error::kAccessDenied);
 }
 
-TEST_CASE_METHOD(Fixture, "OpenRelative opens and creates below an open directory",
-                 "[filesystem][open]") {
+REX_TEST_CASE_METHOD(Fixture, "OpenRelative opens and creates below an open directory",
+                     "[filesystem][open]") {
   WriteHost(temp() / "folder" / "c.txt", "charlie");
   MountTemp(kRoot);
   auto root = Open("\\Device\\Test\\folder");
@@ -228,8 +230,8 @@ TEST_CASE_METHOD(Fixture, "OpenRelative opens and creates below an open director
   CHECK(std::filesystem::exists(temp() / "folder" / "d.txt"));
 }
 
-TEST_CASE_METHOD(Fixture, "Stat, List, CreateDirectories, Rename and Remove",
-                 "[filesystem][paths]") {
+REX_TEST_CASE_METHOD(Fixture, "Stat, List, CreateDirectories, Rename and Remove",
+                     "[filesystem][paths]") {
   WriteHost(temp() / "a.txt", "alpha");
   WriteHost(temp() / "b.bin", "bravo");
   MountTemp(kRoot);
@@ -268,7 +270,7 @@ TEST_CASE_METHOD(Fixture, "Stat, List, CreateDirectories, Rename and Remove",
   CHECK(CodeOf(root.error()) == Error::kAccessDenied);
 }
 
-TEST_CASE("Standard mounts serve game, d, update and the null paths", "[filesystem][mounts]") {
+REX_TEST_CASE("Standard mounts serve game, d, update and the null paths", "[filesystem][mounts]") {
   Fixture fixture;
   WriteHost(fixture.temp() / "game" / "default.xex", "xex");
   WriteHost(fixture.temp() / "update" / "patch.bin", "patch");
@@ -301,7 +303,7 @@ TEST_CASE("Standard mounts serve game, d, update and the null paths", "[filesyst
   CHECK(CodeOf(missing.error()) == Error::kNotFound);
 }
 
-TEST_CASE("game_mount_flags makes the game partition writable", "[filesystem][mounts]") {
+REX_TEST_CASE("game_mount_flags makes the game partition writable", "[filesystem][mounts]") {
   Fixture fixture(MountFlags::kWritable);
   std::filesystem::create_directories(fixture.temp() / "game");
   rex::PathsConfig paths;

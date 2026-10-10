@@ -9,7 +9,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-#include <catch2/catch_test_macros.hpp>
+#include "rex_test.h"
 
 #include <atomic>
 #include <memory>
@@ -34,14 +34,14 @@ void Join(Caller& c, u32 handle) {
 
 }  // namespace
 
-TEST_CASE("ResolveTLSSlotCount keeps 32 to 256 slots", "[char][tls]") {
+REX_TEST_CASE("ResolveTLSSlotCount keeps 32 to 256 slots", "[char][tls]") {
   CHECK(rex::runtime::ResolveTLSSlotCount(0) == 32);
   CHECK(rex::runtime::ResolveTLSSlotCount(10) == 32);
   CHECK(rex::runtime::ResolveTLSSlotCount(64) == 64);
   CHECK(rex::runtime::ResolveTLSSlotCount(300) == 256);
 }
 
-TEST_CASE("A title without a TLS header has 32 slots", "[char][tls]") {
+REX_TEST_CASE("A title without a TLS header has 32 slots", "[char][tls]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     std::vector<u32> slots;
@@ -59,7 +59,7 @@ TEST_CASE("A title without a TLS header has 32 slots", "[char][tls]") {
   });
 }
 
-TEST_CASE("A slot at or past the slot count is rejected", "[char][tls]") {
+REX_TEST_CASE("A slot at or past the slot count is rejected", "[char][tls]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     CHECK(c.Kernel("KeTlsSetValue", {31, 9}) == 1);
@@ -69,7 +69,7 @@ TEST_CASE("A slot at or past the slot count is rejected", "[char][tls]") {
   });
 }
 
-TEST_CASE("KeTlsFree clears the slot in every guest thread", "[char][tls]") {
+REX_TEST_CASE("KeTlsFree clears the slot in every guest thread", "[char][tls]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 slot = c.Kernel("KeTlsAlloc");
@@ -99,7 +99,8 @@ TEST_CASE("KeTlsFree clears the slot in every guest thread", "[char][tls]") {
   });
 }
 
-TEST_CASE("KeTlsFree after a thread with the slot exited writes no released block", "[char][tls]") {
+REX_TEST_CASE("KeTlsFree after a thread with the slot exited writes no released block",
+              "[char][tls]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 slot = c.Kernel("KeTlsAlloc");
@@ -114,7 +115,7 @@ TEST_CASE("KeTlsFree after a thread with the slot exited writes no released bloc
   });
 }
 
-TEST_CASE("The TLS data block is copied with a slot count of 0", "[char][tls]") {
+REX_TEST_CASE("The TLS data block is copied with a slot count of 0", "[char][tls]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 process = c.runtime().GetTitleProcess();

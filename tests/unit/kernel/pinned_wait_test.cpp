@@ -9,7 +9,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-#include <catch2/catch_test_macros.hpp>
+#include "rex_test.h"
 
 #include <chrono>
 #include <future>
@@ -31,7 +31,7 @@ using rex::runtime::ToXStatus;
 using rex::testing::Caller;
 using rex::testing::KernelFixture;
 
-TEST_CASE("WaitOn returns invalid handle for a missing handle", "[wait]") {
+REX_TEST_CASE("WaitOn returns invalid handle for a missing handle", "[wait]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     CHECK(rex::runtime::WaitOn(c.runtime(), 0xF8001230, 3, 1, 0, nullptr) ==
@@ -39,7 +39,7 @@ TEST_CASE("WaitOn returns invalid handle for a missing handle", "[wait]") {
   });
 }
 
-TEST_CASE("WaitOn on a kind without a wait handle succeeds at once", "[wait]") {
+REX_TEST_CASE("WaitOn on a kind without a wait handle succeeds at once", "[wait]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     auto& table = c.runtime().object_table();
@@ -53,7 +53,7 @@ TEST_CASE("WaitOn on a kind without a wait handle succeeds at once", "[wait]") {
   });
 }
 
-TEST_CASE("WaitOn keeps the object alive when its handle closes mid wait", "[wait][pin]") {
+REX_TEST_CASE("WaitOn keeps the object alive when its handle closes mid wait", "[wait][pin]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     auto& table = c.runtime().object_table();

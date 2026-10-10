@@ -8,7 +8,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-#include <catch2/catch_test_macros.hpp>
+#include "rex_test.h"
 
 #include <array>
 #include <string_view>
@@ -25,13 +25,13 @@ constexpr std::array<ExportModule, 3> kModules = {ExportModule::Xboxkrnl, Export
 
 }  // namespace
 
-TEST_CASE("Export tables hold every row of the inc files", "[kernel][exports]") {
+REX_TEST_CASE("Export tables hold every row of the inc files", "[kernel][exports]") {
   CHECK(Exports(ExportModule::Xboxkrnl).size() == 922);
   CHECK(Exports(ExportModule::XAM).size() == 1735);
   CHECK(Exports(ExportModule::XBDM).size() == 255);
 }
 
-TEST_CASE("Export tables are sorted by unique ordinal and unique name", "[kernel][exports]") {
+REX_TEST_CASE("Export tables are sorted by unique ordinal and unique name", "[kernel][exports]") {
   for (const auto module : kModules) {
     const auto table = Exports(module);
     std::unordered_set<std::string_view> names;
@@ -44,8 +44,8 @@ TEST_CASE("Export tables are sorted by unique ordinal and unique name", "[kernel
   }
 }
 
-TEST_CASE("Every function row links to a translation entry and no variable does",
-          "[kernel][exports]") {
+REX_TEST_CASE("Every function row links to a translation entry and no variable does",
+              "[kernel][exports]") {
   for (const auto module : kModules) {
     for (const auto& entry : Exports(module)) {
       if (entry.kind == ExportKind::Function) {
@@ -57,7 +57,7 @@ TEST_CASE("Every function row links to a translation entry and no variable does"
   }
 }
 
-TEST_CASE("Ordinal lookups round trip every row", "[kernel][exports]") {
+REX_TEST_CASE("Ordinal lookups round trip every row", "[kernel][exports]") {
   for (const auto module : kModules) {
     for (const auto& entry : Exports(module)) {
       REQUIRE(FindByOrdinal(module, entry.ordinal) == &entry);
@@ -65,13 +65,13 @@ TEST_CASE("Ordinal lookups round trip every row", "[kernel][exports]") {
   }
 }
 
-TEST_CASE("Lookups that miss return null", "[kernel][exports]") {
+REX_TEST_CASE("Lookups that miss return null", "[kernel][exports]") {
   for (const auto module : kModules) {
     CHECK(FindByOrdinal(module, 0xFFFF) == nullptr);
   }
 }
 
-TEST_CASE("An ordinal in a gap of a table returns null", "[kernel][exports]") {
+REX_TEST_CASE("An ordinal in a gap of a table returns null", "[kernel][exports]") {
   for (const auto module : kModules) {
     const auto table = Exports(module);
     for (size_t i = 1; i < table.size(); ++i) {
@@ -84,7 +84,7 @@ TEST_CASE("An ordinal in a gap of a table returns null", "[kernel][exports]") {
   }
 }
 
-TEST_CASE("Known kernel variables are table variables", "[kernel][exports]") {
+REX_TEST_CASE("Known kernel variables are table variables", "[kernel][exports]") {
   const auto* handle = FindByOrdinal(ExportModule::Xboxkrnl, 0x0193);
   REQUIRE(handle != nullptr);
   CHECK(handle->name == "XexExecutableModuleHandle");
@@ -96,7 +96,7 @@ TEST_CASE("Known kernel variables are table variables", "[kernel][exports]") {
   CHECK(image->kind == ExportKind::Variable);
 }
 
-TEST_CASE("Module names map to tables in short and long form", "[kernel][exports]") {
+REX_TEST_CASE("Module names map to tables in short and long form", "[kernel][exports]") {
   CHECK(ModuleFromName("xboxkrnl.exe") == ExportModule::Xboxkrnl);
   CHECK(ModuleFromName("XBOXKRNL.EXE") == ExportModule::Xboxkrnl);
   CHECK(ModuleFromName("xboxkrnl") == ExportModule::Xboxkrnl);
@@ -107,14 +107,14 @@ TEST_CASE("Module names map to tables in short and long form", "[kernel][exports
   CHECK(ModuleFromName("Xbdm") == ExportModule::XBDM);
 }
 
-TEST_CASE("Names that are not kernel modules map to nothing", "[kernel][exports]") {
+REX_TEST_CASE("Names that are not kernel modules map to nothing", "[kernel][exports]") {
   CHECK_FALSE(ModuleFromName("").has_value());
   CHECK_FALSE(ModuleFromName("kernel32.dll").has_value());
   CHECK_FALSE(ModuleFromName("xamextra").has_value());
   CHECK_FALSE(ModuleFromName("xbox").has_value());
 }
 
-TEST_CASE("Export variables bind per instance", "[kernel][exports]") {
+REX_TEST_CASE("Export variables bind per instance", "[kernel][exports]") {
   ExportVariables first;
   ExportVariables second;
   first.Set(0x0193, 0x40001000);

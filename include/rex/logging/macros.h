@@ -61,12 +61,12 @@
  * REXLOG_DETAIL_WRITE(gpu, ::rex::log::Level::kInfo, "{} pipelines", count);
  * @endcode
  */
-#define REXLOG_DETAIL_WRITE(category, level, fmt, ...)                          \
-  do {                                                                          \
-    if (::rex::log::category.Enabled(level)) {                                  \
-      ::rex::log::detail::Write(::rex::log::category, level,                    \
-                                ::std::format(fmt __VA_OPT__(, ) __VA_ARGS__)); \
-    }                                                                           \
+#define REXLOG_DETAIL_WRITE(category, level, fmt, ...)                    \
+  do {                                                                    \
+    if (::rex::log::category.Enabled(level)) {                            \
+      ::rex::log::detail::WriteFormatted(::rex::log::category, level,     \
+                                         fmt __VA_OPT__(, ) __VA_ARGS__); \
+    }                                                                     \
   } while (0)
 
 /**

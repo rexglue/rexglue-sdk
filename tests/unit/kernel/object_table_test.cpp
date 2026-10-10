@@ -8,7 +8,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-#include <catch2/catch_test_macros.hpp>
+#include "rex_test.h"
 
 #include <atomic>
 #include <memory>
@@ -39,12 +39,12 @@ X_HANDLE AddEvent(ObjectTable& table, std::string_view name = {}) {
 
 }  // namespace
 
-TEST_CASE("ObjectTable first handle is slot 1 not 0", "[kernel][object_table]") {
+REX_TEST_CASE("ObjectTable first handle is slot 1 not 0", "[kernel][object_table]") {
   ObjectTable table(nullptr);
   CHECK(AddEvent(table) == 0xF8000004);
 }
 
-TEST_CASE("ObjectTable gives each object a unique 4 aligned handle", "[kernel][object_table]") {
+REX_TEST_CASE("ObjectTable gives each object a unique 4 aligned handle", "[kernel][object_table]") {
   ObjectTable table(nullptr);
   const X_HANDLE a = AddEvent(table);
   const X_HANDLE b = AddEvent(table);
@@ -54,7 +54,7 @@ TEST_CASE("ObjectTable gives each object a unique 4 aligned handle", "[kernel][o
   CHECK(b == a + 4);
 }
 
-TEST_CASE("ObjectTable Get is type checked", "[kernel][object_table]") {
+REX_TEST_CASE("ObjectTable Get is type checked", "[kernel][object_table]") {
   ObjectTable table(nullptr);
   const X_HANDLE handle = AddEvent(table);
   CHECK(table.Get<EventObject>(handle));
@@ -62,7 +62,7 @@ TEST_CASE("ObjectTable Get is type checked", "[kernel][object_table]") {
   CHECK(table.Get(handle).kind() == ObjectKind::Event);
 }
 
-TEST_CASE("ObjectTable Get rejects 0 pseudo and unknown handles", "[kernel][object_table]") {
+REX_TEST_CASE("ObjectTable Get rejects 0 pseudo and unknown handles", "[kernel][object_table]") {
   ObjectTable table(nullptr);
   AddEvent(table);
   CHECK_FALSE(table.Get(0));
@@ -72,7 +72,8 @@ TEST_CASE("ObjectTable Get rejects 0 pseudo and unknown handles", "[kernel][obje
   CHECK_FALSE(table.Get(0x12345678));
 }
 
-TEST_CASE("ObjectTable Duplicate gives a new handle to the same object", "[kernel][object_table]") {
+REX_TEST_CASE("ObjectTable Duplicate gives a new handle to the same object",
+              "[kernel][object_table]") {
   ObjectTable table(nullptr);
   const X_HANDLE handle = AddEvent(table);
   auto duplicated = table.Duplicate(handle);
@@ -83,7 +84,8 @@ TEST_CASE("ObjectTable Duplicate gives a new handle to the same object", "[kerne
   CHECK(ToXStatus(table.Duplicate(0xF8FFFFF0)) == rex::X_STATUS_INVALID_HANDLE);
 }
 
-TEST_CASE("ObjectTable Close removes at zero and reports bad handles", "[kernel][object_table]") {
+REX_TEST_CASE("ObjectTable Close removes at zero and reports bad handles",
+              "[kernel][object_table]") {
   ObjectTable table(nullptr);
   const X_HANDLE handle = AddEvent(table);
   CHECK(ToXStatus(table.Close(handle)) == rex::X_STATUS_SUCCESS);
@@ -93,7 +95,7 @@ TEST_CASE("ObjectTable Close removes at zero and reports bad handles", "[kernel]
   CHECK(ToXStatus(table.Close(0xFFFFFFFF)) == rex::X_STATUS_INVALID_HANDLE);
 }
 
-TEST_CASE("ObjectTable Retain needs a matching Close", "[kernel][object_table]") {
+REX_TEST_CASE("ObjectTable Retain needs a matching Close", "[kernel][object_table]") {
   ObjectTable table(nullptr);
   const X_HANDLE handle = AddEvent(table);
   REQUIRE(ToXStatus(table.Retain(handle)) == rex::X_STATUS_SUCCESS);
@@ -104,7 +106,7 @@ TEST_CASE("ObjectTable Retain needs a matching Close", "[kernel][object_table]")
   CHECK(ToXStatus(table.Retain(handle)) == rex::X_STATUS_INVALID_HANDLE);
 }
 
-TEST_CASE("ObjectTable RetainPrimary needs a matching Close", "[kernel][object_table]") {
+REX_TEST_CASE("ObjectTable RetainPrimary needs a matching Close", "[kernel][object_table]") {
   ObjectTable table(nullptr);
   const X_HANDLE handle = AddEvent(table);
   {
@@ -117,7 +119,7 @@ TEST_CASE("ObjectTable RetainPrimary needs a matching Close", "[kernel][object_t
   CHECK_FALSE(table.Get(handle));
 }
 
-TEST_CASE("ObjectTable PrimaryHandle returns the first handle", "[kernel][object_table]") {
+REX_TEST_CASE("ObjectTable PrimaryHandle returns the first handle", "[kernel][object_table]") {
   ObjectTable table(nullptr);
   const X_HANDLE handle = AddEvent(table);
   auto duplicated = table.Duplicate(handle);
@@ -127,7 +129,7 @@ TEST_CASE("ObjectTable PrimaryHandle returns the first handle", "[kernel][object
   CHECK(table.PrimaryHandle(pin) == std::optional<X_HANDLE>(handle));
 }
 
-TEST_CASE("ObjectTable ReleasePrimary closes the first handle", "[kernel][object_table]") {
+REX_TEST_CASE("ObjectTable ReleasePrimary closes the first handle", "[kernel][object_table]") {
   ObjectTable table(nullptr);
   const X_HANDLE handle = AddEvent(table);
   {
@@ -137,7 +139,7 @@ TEST_CASE("ObjectTable ReleasePrimary closes the first handle", "[kernel][object
   CHECK_FALSE(table.Get(handle));
 }
 
-TEST_CASE("ObjectTable Remove ignores the count", "[kernel][object_table]") {
+REX_TEST_CASE("ObjectTable Remove ignores the count", "[kernel][object_table]") {
   ObjectTable table(nullptr);
   const X_HANDLE handle = AddEvent(table);
   {
@@ -148,7 +150,8 @@ TEST_CASE("ObjectTable Remove ignores the count", "[kernel][object_table]") {
   CHECK_FALSE(table.Get(handle));
 }
 
-TEST_CASE("ObjectTable keeps a pinned object alive across Close", "[kernel][object_table][pin]") {
+REX_TEST_CASE("ObjectTable keeps a pinned object alive across Close",
+              "[kernel][object_table][pin]") {
   ObjectTable table(nullptr);
   const X_HANDLE handle = AddEvent(table);
   auto pin = table.Get<EventObject>(handle);
@@ -158,8 +161,8 @@ TEST_CASE("ObjectTable keeps a pinned object alive across Close", "[kernel][obje
   CHECK(pin->event != nullptr);
 }
 
-TEST_CASE("ObjectTable destroys on the last pin when another thread closed first",
-          "[kernel][object_table][pin]") {
+REX_TEST_CASE("ObjectTable destroys on the last pin when another thread closed first",
+              "[kernel][object_table][pin]") {
   for (int round = 0; round < 200; ++round) {
     ObjectTable table(nullptr);
     const X_HANDLE handle = AddEvent(table);
@@ -182,7 +185,8 @@ TEST_CASE("ObjectTable destroys on the last pin when another thread closed first
   }
 }
 
-TEST_CASE("ObjectTable names are case insensitive and collide", "[kernel][object_table][names]") {
+REX_TEST_CASE("ObjectTable names are case insensitive and collide",
+              "[kernel][object_table][names]") {
   ObjectTable table(nullptr);
   const X_HANDLE handle = AddEvent(table, "Alpha");
   auto found = table.OpenByName("ALPHA");
@@ -194,7 +198,7 @@ TEST_CASE("ObjectTable names are case insensitive and collide", "[kernel][object
   CHECK(missing.value_or(rex::X_INVALID_HANDLE_VALUE) == rex::X_INVALID_HANDLE_VALUE);
 }
 
-TEST_CASE("ObjectTable OpenByName takes a handle reference", "[kernel][object_table][names]") {
+REX_TEST_CASE("ObjectTable OpenByName takes a handle reference", "[kernel][object_table][names]") {
   ObjectTable table(nullptr);
   const X_HANDLE handle = AddEvent(table, "Beta");
   REQUIRE(table.OpenByName("Beta").has_value());
@@ -204,7 +208,8 @@ TEST_CASE("ObjectTable OpenByName takes a handle reference", "[kernel][object_ta
   CHECK(ToXStatus(table.OpenByName("Beta")) == rex::X_STATUS_OBJECT_NAME_NOT_FOUND);
 }
 
-TEST_CASE("ObjectTable keeps a name while any handle is open", "[kernel][object_table][names]") {
+REX_TEST_CASE("ObjectTable keeps a name while any handle is open",
+              "[kernel][object_table][names]") {
   ObjectTable table(nullptr);
   const X_HANDLE handle = AddEvent(table, "Gamma");
   auto duplicated = table.Duplicate(handle);
@@ -219,7 +224,8 @@ TEST_CASE("ObjectTable keeps a name while any handle is open", "[kernel][object_
   CHECK(ToXStatus(table.OpenByName("Gamma")) == rex::X_STATUS_OBJECT_NAME_NOT_FOUND);
 }
 
-TEST_CASE("ObjectTable GetAll returns one pin per object of the type", "[kernel][object_table]") {
+REX_TEST_CASE("ObjectTable GetAll returns one pin per object of the type",
+              "[kernel][object_table]") {
   ObjectTable table(nullptr);
   const X_HANDLE a = AddEvent(table);
   AddEvent(table);
@@ -230,7 +236,7 @@ TEST_CASE("ObjectTable GetAll returns one pin per object of the type", "[kernel]
   CHECK(table.GetAll().size() == 3);
 }
 
-TEST_CASE("ObjectTable Reset closes everything", "[kernel][object_table]") {
+REX_TEST_CASE("ObjectTable Reset closes everything", "[kernel][object_table]") {
   ObjectTable table(nullptr);
   const X_HANDLE handle = AddEvent(table);
   table.Reset();

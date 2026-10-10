@@ -12,9 +12,12 @@
 
 #include <array>
 #include <atomic>
+#include <exception>
+#include <format>
 #include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
 
 #include <rex/logging/level.h>
 #include <rex/macros.h>
@@ -93,6 +96,36 @@ namespace detail {
  * @param text The formatted message.
  */
 REX_API void Write(const Category& category, Level level, std::string_view text);
+
+/**
+ * Writes the line that replaces a message whose formatting or writing threw. Falls back to
+ * stderr when the logger cannot take the line.
+ *
+ * @param category The category of the dropped message.
+ * @param what Text of the exception.
+ */
+REX_API void WriteFailure(const Category& category, const char* what) noexcept;
+
+/**
+ * Formats and writes a message. A throw while formatting or writing becomes a WriteFailure line.
+ *
+ * @tparam Args Format argument types.
+ * @param category The category.
+ * @param level The message level.
+ * @param fmt The format string.
+ * @param args Format arguments.
+ */
+template <typename... Args>
+void WriteFormatted(const Category& category, Level level, std::format_string<Args...> fmt,
+                    Args&&... args) noexcept {
+  try {
+    Write(category, level, std::format(fmt, std::forward<Args>(args)...));
+  } catch (const std::exception& error) {
+    WriteFailure(category, error.what());
+  } catch (...) {
+    WriteFailure(category, "unknown exception");
+  }
+}
 
 /**
  * Writes a stub call. The first call of each stub is a warning, later calls are Dev.

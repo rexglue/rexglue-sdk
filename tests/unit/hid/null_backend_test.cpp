@@ -9,7 +9,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-#include <catch2/catch_test_macros.hpp>
+#include "rex_test.h"
 
 #include <vector>
 
@@ -19,7 +19,7 @@ using rex::hid::CodeOf;
 using rex::hid::Error;
 using rex::hid::NullBackend;
 
-TEST_CASE("NullBackend reports an idle pad on user 0 only", "[hid]") {
+REX_TEST_CASE("NullBackend reports an idle pad on user 0 only", "[hid]") {
   NullBackend backend;
   auto state = backend.GetState(0);
   REQUIRE(state);
@@ -34,7 +34,7 @@ TEST_CASE("NullBackend reports an idle pad on user 0 only", "[hid]") {
   }
 }
 
-TEST_CASE("NullBackend has no keystrokes and accepts vibration", "[hid]") {
+REX_TEST_CASE("NullBackend has no keystrokes and accepts vibration", "[hid]") {
   NullBackend backend;
   auto keystroke = backend.GetKeystroke(0, 0);
   REQUIRE_FALSE(keystroke);
@@ -43,7 +43,7 @@ TEST_CASE("NullBackend has no keystrokes and accepts vibration", "[hid]") {
   CHECK_FALSE(backend.SetVibration(1, {}));
 }
 
-TEST_CASE("NullBackend reports the idle pad connected once", "[hid]") {
+REX_TEST_CASE("NullBackend reports the idle pad connected once", "[hid]") {
   NullBackend backend;
   std::vector<rex::u32> connected;
   backend.SetConnectionListener([&connected](rex::u32 user, bool on) {
@@ -56,7 +56,7 @@ TEST_CASE("NullBackend reports the idle pad connected once", "[hid]") {
   CHECK(connected == std::vector<rex::u32>{0});
 }
 
-TEST_CASE("NullBackend has no keyboard or pointer", "[hid]") {
+REX_TEST_CASE("NullBackend has no keyboard or pointer", "[hid]") {
   NullBackend backend;
   backend.OnEvent({.kind = rex::hid::InputEvent::Kind::KeyDown, .key = rex::hid::VirtualKey::kA});
   CHECK_FALSE(backend.IsKeyDown(rex::hid::VirtualKey::kA));

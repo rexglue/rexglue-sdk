@@ -8,7 +8,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-#include <catch2/catch_test_macros.hpp>
+#include "rex_test.h"
 
 #include <rex/runtime/xtypes.h>
 
@@ -27,7 +27,7 @@ u32 Poll(Caller& c) {
 }
 }  // namespace
 
-TEST_CASE("events: manual reset create set wait clear", "[char][events]") {
+REX_TEST_CASE("events: manual reset create set wait clear", "[char][events]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 handle_ptr = c.Alloc(4);
@@ -52,7 +52,7 @@ TEST_CASE("events: manual reset create set wait clear", "[char][events]") {
   });
 }
 
-TEST_CASE("events: auto reset is consumed by one wait", "[char][events]") {
+REX_TEST_CASE("events: auto reset is consumed by one wait", "[char][events]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 handle_ptr = c.Alloc(4);
@@ -70,7 +70,7 @@ TEST_CASE("events: auto reset is consumed by one wait", "[char][events]") {
   });
 }
 
-TEST_CASE("events: query reports type and state", "[char][events]") {
+REX_TEST_CASE("events: query reports type and state", "[char][events]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 handle_ptr = c.Alloc(4);
@@ -95,7 +95,7 @@ TEST_CASE("events: query reports type and state", "[char][events]") {
   });
 }
 
-TEST_CASE("events: pulse and invalid handles", "[char][events]") {
+REX_TEST_CASE("events: pulse and invalid handles", "[char][events]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 handle_ptr = c.Alloc(4);
@@ -115,7 +115,7 @@ TEST_CASE("events: pulse and invalid handles", "[char][events]") {
   });
 }
 
-TEST_CASE("events: guest KEVENT initialized and lazily created", "[char][events][identity]") {
+REX_TEST_CASE("events: guest KEVENT initialized and lazily created", "[char][events][identity]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 initialized = c.Alloc(0x10);
