@@ -17,6 +17,7 @@
 #include <memory>
 #include <thread>
 
+#include <rex/platform/thread.h>
 #include <rex/runtime/function_dispatcher.h>
 #include <rex/runtime/xmemory.h>
 #include <rex/runtime/xthread.h>
@@ -88,12 +89,15 @@ u32 ExitCodeXAPI(Caller& c, u32 kthread) {
   return c.Load32(kthread + 4) ? c.Load32(kthread + 0x140) : 0x103;
 }
 
-void Spin(std::chrono::milliseconds duration) {
-  const auto until = std::chrono::steady_clock::now() + duration;
+std::chrono::milliseconds SpinCPU(std::chrono::milliseconds duration) {
+  const auto start = rex::platform::QueryCurrentThreadCPUTime();
+  const auto cap = std::chrono::steady_clock::now() + std::chrono::seconds(5);
   volatile u64 counter = 0;
-  while (std::chrono::steady_clock::now() < until) {
+  while (rex::platform::QueryCurrentThreadCPUTime() - start < duration &&
+         std::chrono::steady_clock::now() < cap) {
     counter = counter + 1;
   }
+  return rex::platform::QueryCurrentThreadCPUTime() - start;
 }
 
 }  // namespace
@@ -460,7 +464,8 @@ TEST_CASE("threads: kernel time grows across a busy loop and a wait", "[char][th
     const u32 kthread = KThread(c);
     c.Kernel("NtYieldExecution");
     const u32 first = c.Load32(kthread + 0x58);
-    Spin(std::chrono::milliseconds(150));
+    const auto spun = SpinCPU(std::chrono::milliseconds(150));
+    CHECK(spun >= std::chrono::milliseconds(150));
     const u32 event_ptr = c.Alloc(4);
     CHECKED_ELSE(c.Kernel("NtCreateEvent", {event_ptr, 0, 0, 0}) == 0) {
       FAIL_CHECK("the check above failed");
@@ -468,6 +473,7 @@ TEST_CASE("threads: kernel time grows across a busy loop and a wait", "[char][th
     }
     const u32 event = c.Load32(event_ptr);
     c.Kernel("NtWaitForSingleObjectEx", {event, 1, 0, c.Quad(-10000)});
+    INFO("host thread CPU time " << spun.count() << " ms");
     CHECK(c.Load32(kthread + 0x58) - first >= 100);
     c.Kernel("NtClose", {event});
   });
