@@ -595,15 +595,15 @@ DWORD WINAPI ThreadStartRoutine(LPVOID parameter) {
 std::unique_ptr<Thread> Thread::Create(CreationParameters params,
                                        rex::MoveOnlyFunction<void()> start_routine) {
   auto start_data = std::make_unique<ThreadStartData>(std::move(start_routine));
-  HANDLE handle = CreateThread(nullptr, params.stack_size, ThreadStartRoutine, start_data.get(),
+  ThreadStartData* const start = start_data.release();
+  HANDLE handle = CreateThread(nullptr, params.stack_size, ThreadStartRoutine, start,
                                params.create_suspended ? CREATE_SUSPENDED : 0, nullptr);
   if (handle) {
-    start_data.release();
     return std::make_unique<Win32Thread>(handle);
-  } else {
-    LOG_LASTERROR();
-    return nullptr;
   }
+  start_data.reset(start);
+  LOG_LASTERROR();
+  return nullptr;
 }
 
 Thread* Thread::GetCurrentThread() {

@@ -149,10 +149,13 @@ REX_TEST_CASE("SetLength is exact while another thread reads", "[filesystem][hos
   HostFile& file = **handle;
 
   std::atomic<bool> stop = false;
+  std::atomic<bool> read_failed = false;
   std::jthread reader([&] {
     std::array<u8, 1> byte{};
     while (!stop.load(std::memory_order_relaxed)) {
-      (void)file.Read(0, byte);
+      if (!file.Read(0, byte)) {
+        read_failed = true;
+      }
     }
   });
   bool exact = true;
@@ -166,6 +169,7 @@ REX_TEST_CASE("SetLength is exact while another thread reads", "[filesystem][hos
   }
   stop = true;
   CHECK(exact);
+  CHECK_FALSE(read_failed);
 }
 
 REX_TEST_CASE("HostList reports a link to a folder as a folder", "[filesystem][host]") {

@@ -11,6 +11,7 @@
 #include "rex_test.h"
 
 #include <array>
+#include <string>
 #include <atomic>
 #include <chrono>
 #include <functional>
@@ -19,6 +20,8 @@
 #include <thread>
 #include <vector>
 
+#include <rex/api.h>
+#include <rex/filesystem.h>
 #include <rex/platform/exceptions.h>
 #include <rex/ppc/recompiled_code.h>
 #include <rex/runtime/function_dispatcher.h>
@@ -1101,4 +1104,27 @@ REX_TEST_CASE("A suspend never parks a guest thread inside a host allocation", "
   stop->store(true);
   allocator.join();
   CHECK(allocated_every_time);
+}
+
+REX_TEST_CASE("Setup fails when kernel initialization fails", "[runtime][kernel_init]") {
+  rex::Config config;
+  config.modules = {"rex-filesystem", "rex-runtime"};
+  auto api = rex::Init(config);
+  REQUIRE(api);
+  {
+    rex::Runtime runtime((*api)->config());
+    rex::RuntimeConfig setup;
+    setup.file_system = (*api)->Get<rex::filesystem::IFileSystem>();
+    setup.kernel_init = [](rex::Runtime&) -> rex::Result<void> {
+      return rex::Err(rex::ErrorCategory::Runtime, "kernel module did not load");
+    };
+    setup.tool_mode = true;
+    const rex::Result<void> result = runtime.Setup(setup);
+    CHECK_FALSE(result);
+    if (!result) {
+      CHECK(result.error().message.find("kernel module did not load") != std::string::npos);
+    }
+    runtime.Shutdown();
+  }
+  rex::Shutdown();
 }

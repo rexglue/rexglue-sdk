@@ -18,15 +18,17 @@
 namespace rex::gpu::d3d12 {
 
 D3D12CpuDescriptorPool::Descriptor D3D12CpuDescriptorPool::AllocateDescriptor() {
-  if (!freed_indices_.empty()) {
-    size_t index = freed_indices_.back();
-    freed_indices_.pop_back();
+  if (free_head_ != SIZE_MAX) {
+    const size_t index = free_head_;
+    free_head_ = next_free_[index];
     return Descriptor(shared_from_this(), index);
   }
   u32 heap_size = static_cast<u32>(1) << heap_size_log2_;
   if (!heaps_.empty() && last_heap_allocated_ < heap_size) {
     return Descriptor(shared_from_this(), (heaps_.size() - 1) * heap_size + last_heap_allocated_++);
   }
+  heaps_.reserve(heaps_.size() + 1);
+  next_free_.resize((heaps_.size() + 1) * size_t{heap_size});
   D3D12_DESCRIPTOR_HEAP_DESC descriptor_heap_desc;
   descriptor_heap_desc.Type = type_;
   descriptor_heap_desc.NumDescriptors = heap_size;

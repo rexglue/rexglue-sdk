@@ -72,8 +72,8 @@ CodegenContext CodegenContext::Create(BinaryView binary, RecompilerConfig config
 }
 
 CodegenContext::~CodegenContext() = default;
-CodegenContext::CodegenContext(CodegenContext&&) noexcept = default;
-CodegenContext& CodegenContext::operator=(CodegenContext&&) noexcept = default;
+CodegenContext::CodegenContext(CodegenContext&&) noexcept(false) = default;
+CodegenContext& CodegenContext::operator=(CodegenContext&&) noexcept(false) = default;
 
 DecodedBinary& CodegenContext::decoded() {
   assert(decoded_ && "Call initDecoded() before accessing decoded()");

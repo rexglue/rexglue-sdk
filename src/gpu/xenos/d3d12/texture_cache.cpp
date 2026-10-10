@@ -615,6 +615,7 @@ void D3D12TextureCache::ClearCache() {
   TextureCache::ClearCache();
 
   srv_descriptor_cache_free_.clear();
+  srv_descriptor_cache_free_count_ = 0;
   srv_descriptor_cache_allocated_ = 0;
   srv_descriptor_cache_.clear();
 }
@@ -1997,9 +1998,8 @@ u32 D3D12TextureCache::FindOrCreateTextureDescriptor(D3D12Texture& texture,
                "descriptors");
     }
   } else {
-    if (!srv_descriptor_cache_free_.empty()) {
-      descriptor_index = srv_descriptor_cache_free_.back();
-      srv_descriptor_cache_free_.pop_back();
+    if (srv_descriptor_cache_free_count_) {
+      descriptor_index = srv_descriptor_cache_free_[--srv_descriptor_cache_free_count_];
     } else {
       // Allocated + 1 including the new descriptor, rounded up to the page size.
       u32 cache_pages_needed = (srv_descriptor_cache_allocated_ + kSRVDescriptorCachePageSize) /
@@ -2010,6 +2010,8 @@ u32 D3D12TextureCache::FindOrCreateTextureDescriptor(D3D12Texture& texture,
         cache_heap_desc.NumDescriptors = kSRVDescriptorCachePageSize;
         cache_heap_desc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
         cache_heap_desc.NodeMask = 0;
+        srv_descriptor_cache_.reserve(cache_pages_needed);
+        srv_descriptor_cache_free_.resize(size_t{cache_pages_needed} * kSRVDescriptorCachePageSize);
         while (srv_descriptor_cache_.size() < cache_pages_needed) {
           Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> cache_heap;
           if (FAILED(device->CreateDescriptorHeap(&cache_heap_desc, IID_PPV_ARGS(&cache_heap)))) {
@@ -2029,11 +2031,11 @@ u32 D3D12TextureCache::FindOrCreateTextureDescriptor(D3D12Texture& texture,
   return descriptor_index;
 }
 
-void D3D12TextureCache::ReleaseTextureDescriptor(u32 descriptor_index) {
+void D3D12TextureCache::ReleaseTextureDescriptor(u32 descriptor_index) noexcept {
   if (bindless_resources_used_) {
     command_processor_.ReleaseViewBindlessDescriptorImmediately(descriptor_index);
   } else {
-    srv_descriptor_cache_free_.push_back(descriptor_index);
+    srv_descriptor_cache_free_[srv_descriptor_cache_free_count_++] = descriptor_index;
   }
 }
 

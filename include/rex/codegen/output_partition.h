@@ -35,6 +35,13 @@ struct FunctionSize {
 /** Pins each guest function to a recomp file across runs. */
 class OutputPartition {
  public:
+  OutputPartition() = default;
+  OutputPartition(const OutputPartition&) = default;
+  OutputPartition& operator=(const OutputPartition&) = default;
+  OutputPartition(OutputPartition&&) noexcept(false) = default;
+  OutputPartition& operator=(OutputPartition&&) noexcept(false) = default;
+  ~OutputPartition() = default;
+
   /**
    * Loads a partition from its sidecar file.
    *

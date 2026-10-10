@@ -103,6 +103,13 @@ struct FunctionEntry {
  * Settings that control how 1 binary is analyzed and emitted, loaded from TOML.
  */
 struct RecompilerConfig {
+  RecompilerConfig() = default;
+  RecompilerConfig(const RecompilerConfig&) = default;
+  RecompilerConfig& operator=(const RecompilerConfig&) = default;
+  RecompilerConfig(RecompilerConfig&&) noexcept(false) = default;
+  RecompilerConfig& operator=(RecompilerConfig&&) noexcept(false) = default;
+  ~RecompilerConfig() = default;
+
   /** TOML key `project_name`, default `rex`. Prefix of the generated `<name>_*.h` and `.cpp` files
    * and the `project` template variable. */
   std::string projectName = "rex";

@@ -212,12 +212,10 @@ class RenderTargetCache {
   /**
    * May be called from the destructor or from the implementation shutdown to destroy all render
    * targets before destroying what they depend on in the implementation.
-   *
-   * @param shutting_down True when called as part of shutdown.
    */
-  void DestroyAllRenderTargets(bool shutting_down);
+  void DestroyAllRenderTargets() noexcept;
   /** Call last in implementation shutdown, also callable from the destructor. */
-  void ShutdownCommon();
+  void ShutdownCommon() noexcept;
 
   union RenderTargetKey {
     u32 key;

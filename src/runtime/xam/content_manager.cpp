@@ -23,6 +23,7 @@
 #include <rex/filesystem.h>
 #include <rex/filesystem/container.h>
 #include <rex/logging.h>
+#include <rex/no_throw.h>
 #include <rex/string.h>
 #include <rex/runtime.h>
 #include <rex/runtime/error.h>
@@ -68,13 +69,15 @@ ContentPackage::ContentPackage(Runtime& runtime, const std::string_view root_nam
 }
 
 ContentPackage::~ContentPackage() {
-  auto* fs = runtime_.file_system();
-  if (auto unlinked = fs->Unlink(root_name_ + ":"); !unlinked) {
-    REXLOG_DEBUG(system, "{}", unlinked.error().message);
-  }
-  if (auto unmounted = fs->Unmount(device_path_); !unmounted) {
-    REXLOG_DEBUG(system, "{}", unmounted.error().message);
-  }
+  log::NoThrow(log::system, [this] {
+    auto* fs = runtime_.file_system();
+    if (auto unlinked = fs->Unlink(root_name_ + ":"); !unlinked) {
+      REXLOG_DEBUG(system, "{}", unlinked.error().message);
+    }
+    if (auto unmounted = fs->Unmount(device_path_); !unmounted) {
+      REXLOG_DEBUG(system, "{}", unmounted.error().message);
+    }
+  });
 }
 
 void ContentPackage::LoadPackageLicenseMask(const std::filesystem::path& header_path) {

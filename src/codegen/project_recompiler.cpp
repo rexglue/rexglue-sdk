@@ -126,18 +126,27 @@ Result<void> ProjectRecompiler::Run(const ProjectRecompilerOptions& opts) {
   }
 
   struct ModuleEntry {
+    ModuleEntry(std::string target_name, std::string guest_path, RecompilerConfig recompiler_config)
+        : targetName(std::move(target_name)),
+          guestPath(std::move(guest_path)),
+          config(std::move(recompiler_config)) {}
+    ModuleEntry(const ModuleEntry&) = default;
+    ModuleEntry& operator=(const ModuleEntry&) = default;
+    ModuleEntry(ModuleEntry&&) noexcept(false) = default;
+    ModuleEntry& operator=(ModuleEntry&&) noexcept(false) = default;
+    ~ModuleEntry() = default;
+
     std::string targetName;
     std::string guestPath;
-    bool isDll;
     RecompilerConfig config;
   };
 
   std::vector<ModuleEntry> allModules;
-  allModules.push_back({DeriveTargetNameFromFilePath(manifest_.entrypoint.recompiler.filePath), "",
-                        false, std::move(manifest_.entrypoint.recompiler)});
+  allModules.emplace_back(DeriveTargetNameFromFilePath(manifest_.entrypoint.recompiler.filePath),
+                          "", std::move(manifest_.entrypoint.recompiler));
   for (auto& mod : manifest_.modules) {
-    allModules.push_back({DeriveTargetNameFromFilePath(mod.recompiler.filePath), mod.guestPath,
-                          true, std::move(mod.recompiler)});
+    allModules.emplace_back(DeriveTargetNameFromFilePath(mod.recompiler.filePath), mod.guestPath,
+                            std::move(mod.recompiler));
   }
 
   if (!opts.targets.empty()) {

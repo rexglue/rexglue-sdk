@@ -387,7 +387,7 @@ void Dispatcher::Stop(std::chrono::milliseconds interval) {
         REXLOG_WARN(system, "Kernel Dispatch thread still running after {} ms", interval.count());
       });
     }
-    (void)runtime_.object_table().Close(dispatch_thread_);
+    CloseOwned(runtime_.object_table(), dispatch_thread_);
     dispatch_thread_ = 0;
     std::lock_guard lock(dispatch_mutex_);
     dispatch_queue_.clear();

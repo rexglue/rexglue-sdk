@@ -19,6 +19,7 @@
 #include <rex/runtime/xenumerator.h>
 #include <rex/runtime/xtypes.h>
 #include "kernel/kernel_macros.h"
+#include "kernel/object_reference.h"
 
 #if REX_PLATFORM_WIN32
 #include <rex/platform.h>
@@ -97,11 +98,13 @@ u32 XamCreateEnumeratorHandle_entry([[maybe_unused]] u32 unk1, [[maybe_unused]] 
 u32 XamGetPrivateEnumStructureFromHandle_entry(u32 handle, mapped_u32 out_object_ptr) {
   REX_KERNEL_LOOKUP(e, EnumeratorObject, handle);
 
-  // The caller owns the reference and releases it with ObDereferenceObject.
-  (void)runtime::Current().object_table().RetainPrimary(e.slot());
+  auto referenced = ReferencePrimary(runtime::Current().object_table(), e.slot(), e.guest_object());
+  if (!referenced) {
+    return ToXStatus(referenced);
+  }
 
   if (out_object_ptr.guest_address()) {
-    *out_object_ptr = e.guest_object();
+    *out_object_ptr = *referenced;
   }
 
   return X_STATUS_SUCCESS;

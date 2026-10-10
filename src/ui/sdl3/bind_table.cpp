@@ -32,7 +32,9 @@ hid::KeyModifiers ModifiersOf(const KeyEvent& e) {
 }  // namespace
 
 BindTable::~BindTable() {
-  Attach(nullptr);
+  std::ranges::for_each(entries_, [this](Entry& entry) { RemoveFromRegistry(entry); });
+  std::lock_guard lock(mutex_);
+  registry_ = nullptr;
 }
 
 void BindTable::Attach(cvar::ICvarRegistry* registry) {

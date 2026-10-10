@@ -28,6 +28,13 @@ namespace rex::codegen {
  */
 class FunctionGraph {
  public:
+  FunctionGraph() = default;
+  FunctionGraph(const FunctionGraph&) = delete;
+  FunctionGraph& operator=(const FunctionGraph&) = delete;
+  FunctionGraph(FunctionGraph&&) noexcept(false) = default;
+  FunctionGraph& operator=(FunctionGraph&&) noexcept(false) = default;
+  ~FunctionGraph() = default;
+
   /**
    * Reads the dword stored at a guest address.
    *

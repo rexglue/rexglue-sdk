@@ -9,6 +9,7 @@
  */
 
 #include "rex_test.h"
+#include "support/temp_folder.h"
 
 #include <filesystem>
 #include <fstream>
@@ -33,10 +34,7 @@ struct Scratch {
     fs::create_directories(root);
   }
 
-  ~Scratch() {
-    std::error_code ec;
-    fs::remove_all(root, ec);
-  }
+  ~Scratch() { rex::test::RemoveTree(root); }
 
   fs::path WriteFile(std::string_view name, std::string_view content) const {
     auto path = root / fs::path(name);
@@ -99,7 +97,7 @@ REX_TEST_CASE("An unreadable input is not fingerprinted as empty content", "[out
   fs::create_directories(scratch.root / "b" / "input.bin");
 
   auto readable = scratch.root / "a" / "input.bin";
-  std::ofstream(readable, std::ios::binary);
+  std::ofstream(readable, std::ios::binary).close();
 
   // Same basename, so only the digest can separate the two fingerprints.
   std::vector<fs::path> asFile{readable};
@@ -129,7 +127,10 @@ REX_TEST_CASE("Stamp round-trips through Serialize and Load", "[output_stamp]") 
   std::ofstream(path, std::ios::binary) << stamp.Serialize();
 
   auto loaded = OutputStamp::Load(path);
-  REQUIRE(loaded.has_value());
+  if (!loaded) {
+    FAIL("the stamp did not load");
+    return;
+  }
   CHECK(loaded->fingerprint == "abc123");
   CHECK(loaded->outputs == stamp.outputs);
 }

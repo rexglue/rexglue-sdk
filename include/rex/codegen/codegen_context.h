@@ -40,6 +40,13 @@ struct FunctionConfig;
  * Populated during analysis and not mutated after. Separate from the user provided config.
  */
 struct AnalysisState {
+  AnalysisState() = default;
+  AnalysisState(const AnalysisState&) = default;
+  AnalysisState& operator=(const AnalysisState&) = default;
+  AnalysisState(AnalysisState&&) noexcept(false) = default;
+  AnalysisState& operator=(AnalysisState&&) noexcept(false) = default;
+  ~AnalysisState() = default;
+
   std::string format; /**< "xex" or "elf" */
   /** Guest address the image is loaded at, copied from the BinaryView base address. */
   u64 loadAddress = 0;
@@ -119,14 +126,14 @@ class CodegenContext : public rex::MoveOnly {
    *
    * @param other Context to take from, left empty.
    */
-  CodegenContext(CodegenContext&&) noexcept;
+  CodegenContext(CodegenContext&&) noexcept(false);
   /**
    * Releases the owned state, then takes that of another context.
    *
    * @param other Context to take from, left empty.
    * @return This context
    */
-  CodegenContext& operator=(CodegenContext&&) noexcept;
+  CodegenContext& operator=(CodegenContext&&) noexcept(false);
   /** Destroys the context and the decoded binary it owns. */
   ~CodegenContext();
 
@@ -135,7 +142,14 @@ class CodegenContext : public rex::MoveOnly {
   AnalysisErrors errors;
 
   /** Scan phase artifacts passed to Discover for scanner setup. */
-  struct {
+  struct ScanArtifacts {
+    ScanArtifacts() = default;
+    ScanArtifacts(const ScanArtifacts&) = default;
+    ScanArtifacts& operator=(const ScanArtifacts&) = default;
+    ScanArtifacts(ScanArtifacts&&) noexcept(false) = default;
+    ScanArtifacts& operator=(ScanArtifacts&&) noexcept(false) = default;
+    ~ScanArtifacts() = default;
+
     std::vector<CodeRegion> codeRegions; /**< Null delimited code regions */
     /** Address ranges `[first, second)` of runs of at least `dataRegionThreshold` words equal to 0
      * or 0xFFFFFFFF. */

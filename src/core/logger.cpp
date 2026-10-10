@@ -268,7 +268,7 @@ void Logger::AttachCvar(u16 slot) {
     REXLOG_ERROR(core, "{}", added.error().message);
     return;
   }
-  const std::string name = cvar_name.substr(4);
+  std::string name = cvar_name.substr(4);
   if (auto value = cvars_->Get(cvar_name); value && !value->empty()) {
     ApplyCvarLevel(name, *value);
   }

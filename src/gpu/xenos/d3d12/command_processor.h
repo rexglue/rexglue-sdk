@@ -128,7 +128,7 @@ class D3D12CommandProcessor : public CommandProcessor {
    * @return The descriptor index, or UINT32_MAX if no descriptors are free.
    */
   u32 RequestPersistentViewBindlessDescriptor();
-  void ReleaseViewBindlessDescriptorImmediately(u32 descriptor_index);
+  void ReleaseViewBindlessDescriptorImmediately(u32 descriptor_index) noexcept;
   /**
    * Requests non contiguous CBV, SRV and UAV descriptors for use only within the next internal
    * draw or dispatch. May change the current descriptor heap. If the unbounded SRV range for
@@ -572,6 +572,7 @@ class D3D12CommandProcessor : public CommandProcessor {
   D3D12_GPU_DESCRIPTOR_HANDLE view_bindless_heap_gpu_start_;
   u32 view_bindless_heap_allocated_ = 0;
   std::vector<u32> view_bindless_heap_free_;
+  u32 view_bindless_heap_free_count_ = 0;
   /** Pairs of descriptor index and requesting submission, sorted by submission number. */
   std::deque<std::pair<u32, u64>> view_bindless_one_use_descriptors_;
 

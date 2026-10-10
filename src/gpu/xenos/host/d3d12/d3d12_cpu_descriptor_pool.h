@@ -82,7 +82,10 @@ class D3D12CpuDescriptorPool : public std::enable_shared_from_this<D3D12CpuDescr
   Descriptor AllocateDescriptor();
 
  private:
-  void FreeDescriptor(size_t index) { freed_indices_.push_back(index); }
+  void FreeDescriptor(size_t index) noexcept {
+    next_free_[index] = free_head_;
+    free_head_ = index;
+  }
 
   D3D12_CPU_DESCRIPTOR_HANDLE GetHandle(size_t index) const {
     D3D12_CPU_DESCRIPTOR_HANDLE heap_start =
@@ -95,7 +98,8 @@ class D3D12CpuDescriptorPool : public std::enable_shared_from_this<D3D12CpuDescr
   D3D12_DESCRIPTOR_HEAP_TYPE type_;
   u32 heap_size_log2_;
   std::vector<ID3D12DescriptorHeap*> heaps_;
-  std::vector<size_t> freed_indices_;
+  std::vector<size_t> next_free_;
+  size_t free_head_ = SIZE_MAX;
   u32 last_heap_allocated_ = 0;
 };
 

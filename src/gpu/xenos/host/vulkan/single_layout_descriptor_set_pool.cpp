@@ -47,11 +47,15 @@ SingleLayoutDescriptorSetPool::~SingleLayoutDescriptorSetPool() {
 }
 
 size_t SingleLayoutDescriptorSetPool::Allocate() {
-  if (!descriptor_sets_free_.empty()) {
-    size_t free_index = descriptor_sets_free_.back();
-    descriptor_sets_free_.pop_back();
+  if (free_head_ != SIZE_MAX) {
+    const size_t free_index = free_head_;
+    free_head_ = next_free_[free_index];
     return free_index;
   }
+
+  descriptor_sets_.reserve(descriptor_sets_.size() + 1);
+  next_free_.reserve(descriptor_sets_.size() + 1);
+  full_pools_.reserve(full_pools_.size() + 1);
 
   const VulkanDevice::Functions& dfn = vulkan_device_->functions();
   const VkDevice device = vulkan_device_->device();
@@ -97,9 +101,11 @@ size_t SingleLayoutDescriptorSetPool::Allocate() {
       }
       full_pools_.push_back(current_pool_);
       current_pool_ = VK_NULL_HANDLE;
+      continue;
     }
     --current_pool_sets_remaining_;
     descriptor_sets_.push_back(descriptor_set);
+    next_free_.push_back(SIZE_MAX);
     return descriptor_sets_.size() - 1;
   }
 

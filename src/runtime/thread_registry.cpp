@@ -57,7 +57,7 @@ Result<X_HANDLE> ThreadRegistry::Launch(std::unique_ptr<ThreadRecord> record) {
   const X_STATUS status = raw->Create();
   if (XFAILED(status)) {
     raw->WriteExitState(status);
-    (void)table_.Close(*handle);
+    CloseOwned(table_, *handle);
     return Err<X_HANDLE>(StatusError(status));
   }
   bool published = false;
@@ -70,8 +70,8 @@ Result<X_HANDLE> ThreadRegistry::Launch(std::unique_ptr<ThreadRecord> record) {
   }
   if (!published) {
     raw->Abandon();
-    (void)table_.Close(*handle);
-    (void)table_.Close(*handle);
+    CloseOwned(table_, *handle);
+    CloseOwned(table_, *handle);
     return Err<X_HANDLE>(StatusError(X_STATUS_PROCESS_IS_TERMINATING));
   }
   raw->Start();

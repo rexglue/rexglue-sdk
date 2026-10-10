@@ -28,6 +28,7 @@
 #include <rex/dbg.h>
 #include <rex/logging.h>
 #include <rex/math.h>
+#include <rex/no_throw.h>
 #include <rex/platform/thread.h>
 #include <rex/memory.h>
 #include "gpu/xenos/util/draw.h"
@@ -270,7 +271,7 @@ VulkanPipelineCache::VulkanPipelineCache(VulkanCommandProcessor& command_process
       guest_shader_vertex_stages_(guest_shader_vertex_stages) {}
 
 VulkanPipelineCache::~VulkanPipelineCache() {
-  Shutdown();
+  log::NoThrow(log::gpu, [this] { Shutdown(); });
 }
 
 bool VulkanPipelineCache::Initialize() {

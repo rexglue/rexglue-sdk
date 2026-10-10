@@ -297,7 +297,7 @@ Result<void> TitleApp::LaunchTitle() {
   runtime_->thread_registry().FindByHandle(main_thread)->Resume();
   title_monitor_ = platform::Spawn("Title Monitor", [this, main_thread](const std::stop_token&) {
     runtime::WaitOn(*runtime_, main_thread, 0, 0, 0, nullptr);
-    (void)runtime_->object_table().Close(main_thread);
+    runtime::CloseOwned(runtime_->object_table(), main_thread);
     runtime_->ReportTitleExit(runtime::TitleExitReason::NormalExit);
   });
   return Ok();

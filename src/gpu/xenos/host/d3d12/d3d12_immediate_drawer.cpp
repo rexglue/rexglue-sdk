@@ -17,6 +17,7 @@
 
 #include <rex/assert.h>
 #include <rex/logging.h>
+#include <rex/no_throw.h>
 #include <rex/math.h>
 #include "gpu/xenos/host/d3d12/d3d12_immediate_drawer.h"
 #include "gpu/xenos/host/d3d12/d3d12_presenter.h"
@@ -40,7 +41,7 @@ D3D12ImmediateDrawer::D3D12ImmediateTexture::D3D12ImmediateTexture(
 
 D3D12ImmediateDrawer::D3D12ImmediateTexture::~D3D12ImmediateTexture() {
   if (immediate_drawer_) {
-    immediate_drawer_->OnImmediateTextureDestroyed(*this);
+    log::NoThrow(log::gpu, [this] { immediate_drawer_->OnImmediateTextureDestroyed(*this); });
   }
 }
 

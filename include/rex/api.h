@@ -42,6 +42,13 @@ class ModuleLoader;
  * API::config().
  */
 struct Config {
+  Config() = default;
+  Config(const Config&) = default;
+  Config& operator=(const Config&) = default;
+  Config(Config&&) noexcept(false) = default;
+  Config& operator=(Config&&) noexcept(false) = default;
+  ~Config() = default;
+
   /** Module DLL base names to load, in load and Init order. Empty means no modules. */
   std::vector<std::string> modules;
   /** Host paths. Empty fields take the defaults documented on PathsConfig. */

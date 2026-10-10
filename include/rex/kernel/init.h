@@ -11,6 +11,7 @@
 #pragma once
 
 #include <rex/macros.h>
+#include <rex/result.h>
 
 namespace rex {
 class Runtime;
@@ -22,7 +23,8 @@ namespace rex::kernel {
  * Registers the Xam apps and loads the xboxkrnl, Xam and Xbdm kernel modules.
  *
  * @param runtime The runtime being set up.
+ * @return Ok, or the error of the first kernel module that did not load.
  */
-REX_RUNTIME_API void InitializeKernel(Runtime& runtime);
+[[nodiscard]] REX_RUNTIME_API Result<void> InitializeKernel(Runtime& runtime);
 
 }  // namespace rex::kernel

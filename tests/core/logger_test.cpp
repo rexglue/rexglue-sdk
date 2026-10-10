@@ -10,6 +10,7 @@
  */
 
 #include "rex_test.h"
+#include "support/temp_folder.h"
 
 #include <algorithm>
 #include <atomic>
@@ -57,21 +58,8 @@ class RecordingSink final : public rex::log::ISink {
   std::vector<rex::log::CapturedRecord> records;
 };
 
-class TempFolder {
- public:
-  TempFolder() {
-    const auto stamp = std::chrono::steady_clock::now().time_since_epoch().count();
-    path_ = std::filesystem::temp_directory_path() / ("rex_logger_test_" + std::to_string(stamp));
-    std::filesystem::create_directories(path_);
-  }
-  ~TempFolder() {
-    std::error_code ec;
-    std::filesystem::remove_all(path_, ec);
-  }
-  const std::filesystem::path& Path() const { return path_; }
-
- private:
-  std::filesystem::path path_;
+struct TempFolder : rex::test::TempFolder {
+  TempFolder() : rex::test::TempFolder("rex_logger_test_") {}
 };
 
 std::string ReadText(const std::filesystem::path& path) {
@@ -226,7 +214,7 @@ REX_TEST_CASE("FormatLine writes the columns it is asked for and never the level
 
 REX_TEST_CASE("A file sink writes a level letter column", "[logger]") {
   TempFolder temp;
-  const auto path = temp.Path() / "direct.log";
+  const auto path = temp.path / "direct.log";
   {
     auto sink =
         rex::log::FileSink::Open(path, {rex::log::TimestampStyle::kNone, true, false, false});
@@ -245,7 +233,7 @@ REX_TEST_CASE_METHOD(Fixture, "Sequential log files count up and old runs are pr
   TempFolder temp;
   rex::Config config;
   config.log.file.enabled = true;
-  config.log.file.folder = temp.Path();
+  config.log.file.folder = temp.path;
   config.log.file.name = "run";
   rex::ILogger& first = Start(config);
   REQUIRE(first.FilePath().filename() == "run_001.log");
@@ -256,7 +244,7 @@ REX_TEST_CASE_METHOD(Fixture, "Sequential log files count up and old runs are pr
   rex::Shutdown();
   config.log.file.folder_budget = 1;
   Start(config);
-  REQUIRE_FALSE(std::filesystem::exists(temp.Path() / "run_001.log"));
+  REQUIRE_FALSE(std::filesystem::exists(temp.path / "run_001.log"));
 }
 
 REX_TEST_CASE("A capture sink returns only newer records and keeps its capacity", "[logger]") {
@@ -279,10 +267,10 @@ REX_TEST_CASE_METHOD(Fixture, "Lines written while stopped reach the next log fi
   REXLOG_ERROR(core, "written while stopped");
   rex::Config config;
   config.log.file.enabled = true;
-  config.log.file.path = temp.Path() / "replay.log";
+  config.log.file.path = temp.path / "replay.log";
   rex::ILogger& logger = Start(config);
   logger.Flush();
-  REQUIRE(ReadText(temp.Path() / "replay.log").find("written while stopped") != std::string::npos);
+  REQUIRE(ReadText(temp.path / "replay.log").find("written while stopped") != std::string::npos);
 }
 
 REX_TEST_CASE_METHOD(Fixture, "A stub warns once and writes Dev after", "[logger]") {
@@ -307,7 +295,7 @@ REX_TEST_CASE_METHOD(Fixture, "A log.flush_interval of 0 starts no flush thread"
   TempFolder temp;
   rex::Config config;
   config.log.file.enabled = true;
-  config.log.file.path = temp.Path() / "flush.log";
+  config.log.file.path = temp.path / "flush.log";
   config.log.flush_interval = std::chrono::seconds(0);
   Start(config);
   std::this_thread::sleep_for(std::chrono::milliseconds(200));
@@ -329,7 +317,7 @@ REX_TEST_CASE_METHOD(Fixture, "The log config sets levels and log.file overrides
   rex::Config config;
   config.log.categories = {&rex::log::test_gamma};
   config.log.levels.emplace("test_gamma", Level::kDebug);
-  const auto path = temp.Path() / "override.log";
+  const auto path = temp.path / "override.log";
   config.cvars.values.push_back({"log.file", path.string(), rex::cvar::CvarSource::CommandLine});
   rex::ILogger& logger = Start(config);
   REQUIRE(logger.GetLevel("test_gamma").value() == Level::kDebug);

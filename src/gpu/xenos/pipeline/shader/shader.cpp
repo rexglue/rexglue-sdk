@@ -44,7 +44,6 @@ std::pair<std::filesystem::path, std::filesystem::path> Shader::Translation::Dum
     return std::make_pair(std::filesystem::path(), std::filesystem::path());
   }
 
-  std::filesystem::path path = base_path;
   std::filesystem::path target_path = base_path;
   if (!target_path.empty()) {
     target_path = std::filesystem::absolute(target_path);

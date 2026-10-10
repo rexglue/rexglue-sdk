@@ -238,7 +238,10 @@ void Runtime::LoadAchievementsData() {
 
   achievement_manager_->ReplaceAchievements(std::move(achievements));
   if (auto metadata_path = FindMetadataPath("achievements.toml")) {
-    (void)achievement_manager_->LoadMetadataFile(*metadata_path);
+    if (auto loaded = achievement_manager_->LoadMetadataFile(*metadata_path); !loaded) {
+      REXLOG_WARN(system, "achievements metadata {} ignored, {}", rex::path_to_utf8(*metadata_path),
+                  loaded.error().message);
+    }
   }
 
   const auto user_root = user_data_root();

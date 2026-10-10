@@ -9,6 +9,7 @@
  */
 
 #include "rex_test.h"
+#include "support/temp_folder.h"
 
 #include <algorithm>
 #include <filesystem>
@@ -31,10 +32,7 @@ struct Scratch {
     fs::create_directories(root);
   }
 
-  ~Scratch() {
-    std::error_code ec;
-    fs::remove_all(root, ec);
-  }
+  ~Scratch() { rex::test::RemoveTree(root); }
 
   std::string Write(std::string_view body) const {
     auto path = root / "game.toml";

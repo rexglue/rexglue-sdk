@@ -111,7 +111,7 @@ class REX_API DebuggerSink final : public ISink {
  * A log file. Writes a 1 letter level column (T, V, D, I, W, E, C) after the timestamp, because a
  * file has no color.
  */
-class REX_API FileSink final : public ISink {
+class REX_API FileSink final : public ISink, public NonCopyable {
  public:
   /**
    * Opens a file for appending.

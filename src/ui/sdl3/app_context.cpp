@@ -21,6 +21,26 @@
 namespace rex {
 namespace ui {
 
+template <typename Run>
+void WindowedAppContext::DrainPendingFunctions(bool is_final, Run run) {
+  REX_ASSERT(IsInUIThread());
+  pending_functions_mutex_.lock();
+  while (!pending_functions_.empty()) {
+    // Popped before running, a nested ExecutePendingFunctionsFromUIThread would rerun it.
+    rex::MoveOnlyFunction<void()> function = std::move(pending_functions_.front());
+    pending_functions_.pop_front();
+    // Run unlocked, a function with a modal loop would otherwise block new functions.
+    pending_functions_mutex_.unlock();
+    run(function);
+    pending_functions_mutex_.lock();
+  }
+  if (is_final) {
+    // Closed atomically with the drain, a function queued later would never run.
+    pending_functions_accepted_ = false;
+  }
+  pending_functions_mutex_.unlock();
+}
+
 WindowedAppContext::~WindowedAppContext() {
   REX_ASSERT(IsInUIThread());
 
@@ -32,7 +52,9 @@ WindowedAppContext::~WindowedAppContext() {
   has_quit_ = true;
 
   // The subclass performs the platform quit, PlatformQuitFromUIThread is no longer callable.
-  ExecutePendingFunctionsFromUIThread(true);
+  DrainPendingFunctions(true, [](rex::MoveOnlyFunction<void()>& function) noexcept {
+    log::NoThrow(log::ui, function);
+  });
 }
 
 bool WindowedAppContext::CallInUIThreadDeferred(rex::MoveOnlyFunction<void()> function) {
@@ -73,25 +95,7 @@ void WindowedAppContext::QuitFromUIThread() {
 }
 
 void WindowedAppContext::ExecutePendingFunctionsFromUIThread(bool is_final) {
-  REX_ASSERT(IsInUIThread());
-  std::unique_lock<std::mutex> pending_functions_lock(pending_functions_mutex_);
-  while (!pending_functions_.empty()) {
-    // Popped before running, a nested ExecutePendingFunctionsFromUIThread would rerun it.
-    rex::MoveOnlyFunction<void()> function = std::move(pending_functions_.front());
-    pending_functions_.pop_front();
-    // Run unlocked, a function with a modal loop would otherwise block new functions.
-    pending_functions_lock.unlock();
-    if (is_final) {
-      log::NoThrow(log::ui, function);
-    } else {
-      function();
-    }
-    pending_functions_lock.lock();
-  }
-  if (is_final) {
-    // Closed atomically with the drain, a function queued later would never run.
-    pending_functions_accepted_ = false;
-  }
+  DrainPendingFunctions(is_final, [](rex::MoveOnlyFunction<void()>& function) { function(); });
 }
 
 }  // namespace ui

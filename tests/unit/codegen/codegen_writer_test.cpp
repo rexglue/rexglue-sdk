@@ -9,6 +9,7 @@
  */
 
 #include "rex_test.h"
+#include "support/temp_folder.h"
 
 #include <format>
 
@@ -17,6 +18,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iterator>
+#include <memory>
 #include <optional>
 #include <regex>
 #include <set>
@@ -56,7 +58,7 @@ struct WriterFixture {
   fs::path root;
   std::vector<u8> data;
   TestModule module;
-  std::optional<CodegenContext> ctx;
+  std::unique_ptr<CodegenContext> ctx;
 
   explicit WriterFixture(std::string_view name, u32 functionCount = kFunctionCount)
       : root(fs::temp_directory_path() / "rexglue_writer_test" / fs::path(name)),
@@ -70,7 +72,8 @@ struct WriterFixture {
     config.projectName = "testproj";
     config.outDirectoryPath = "generated";
 
-    ctx.emplace(CodegenContext::Create(BinaryView::fromModule(module), std::move(config)));
+    ctx = std::make_unique<CodegenContext>(
+        CodegenContext::Create(BinaryView::fromModule(module), std::move(config)));
     ctx->setConfigDir(root);
     ctx->analysisState().format = "xex";
     ctx->analysisState().loadAddress = kBaseAddress;
@@ -86,10 +89,7 @@ struct WriterFixture {
     }
   }
 
-  ~WriterFixture() {
-    std::error_code ec;
-    fs::remove_all(root, ec);
-  }
+  ~WriterFixture() { rex::test::RemoveTree(root); }
 
   fs::path outputDir() const { return root / "generated"; }
 };

@@ -97,7 +97,7 @@ class ModuleRegistry final : public IModuleRegistry {
    *
    * @param path The path.
    */
-  void EndLoad(std::string_view path);
+  void EndLoad(const std::string& path);
 
   /** Closes every handle the registry owns, user modules in reverse load order first. */
   void Shutdown();

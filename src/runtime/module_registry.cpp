@@ -90,7 +90,7 @@ bool ModuleRegistry::RemoveUser(X_HANDLE handle) {
       return false;
     }
   }
-  (void)table_.Close(listed);
+  CloseOwned(table_, listed);
   return true;
 }
 
@@ -140,7 +140,7 @@ void ModuleRegistry::SetExecutable(X_HANDLE handle) {
     executable_ = owned;
   }
   if (previous) {
-    (void)table_.Close(previous);
+    CloseOwned(table_, previous);
   }
 }
 
@@ -159,9 +159,9 @@ bool ModuleRegistry::BeginLoad(std::string_view path) {
   return loading_paths_.emplace(path).second;
 }
 
-void ModuleRegistry::EndLoad(std::string_view path) {
+void ModuleRegistry::EndLoad(const std::string& path) {
   std::lock_guard lock(mutex_);
-  loading_paths_.erase(std::string(path));
+  loading_paths_.erase(path);
 }
 
 void ModuleRegistry::Shutdown() {
@@ -175,13 +175,13 @@ void ModuleRegistry::Shutdown() {
     executable = std::exchange(executable_, 0);
   }
   for (X_HANDLE handle : std::views::reverse(user)) {
-    (void)table_.Close(handle);
+    CloseOwned(table_, handle);
   }
   if (executable) {
-    (void)table_.Close(executable);
+    CloseOwned(table_, executable);
   }
   for (X_HANDLE handle : std::views::reverse(kernel)) {
-    (void)table_.Close(handle);
+    CloseOwned(table_, handle);
   }
 }
 
@@ -268,7 +268,7 @@ Result<X_HANDLE> ModuleRegistry::LoadUserModule(std::string_view raw_name, bool 
   auto module = table_.Get<ModuleObject>(created);
   X_STATUS status = UserModuleLoadFromFile(runtime_, *module, path);
   if (XFAILED(status)) {
-    (void)table_.Close(created);
+    CloseOwned(table_, created);
     return Err<X_HANDLE>(StatusError(status));
   }
 
@@ -285,7 +285,7 @@ Result<X_HANDLE> ModuleRegistry::LoadUserModule(std::string_view raw_name, bool 
     if (!inserted) {
       REXLOG_ERROR(system, "Recompiled module '{}' already loaded; refusing duplicate load",
                    lib_key);
-      (void)table_.Close(created);
+      CloseOwned(table_, created);
       return Err<X_HANDLE>(StatusError(X_STATUS_UNSUCCESSFUL));
     }
 
@@ -339,13 +339,13 @@ Result<X_HANDLE> ModuleRegistry::LoadUserModule(std::string_view raw_name, bool 
         std::lock_guard lock(recompiled_mutex_);
         module_libraries_.erase(lib_key);
       }
-      (void)table_.Close(created);
+      CloseOwned(table_, created);
       return Err<X_HANDLE>(StatusError(X_STATUS_UNSUCCESSFUL));
     }
   }
 
   if (!AddUser(created)) {
-    (void)table_.Close(created);
+    CloseOwned(table_, created);
     if (auto existing = FindUser(path)) {
       return *existing;
     }
@@ -419,8 +419,8 @@ void ModuleRegistry::UnloadUserModule(X_HANDLE module_handle, bool call_entry) {
 
   const bool found_module = RemoveUser(module_handle);
   if (found_module) {
-    (void)table_.Close(
-        ModuleHandleFromHModule(runtime_.memory()->TranslateVirtual(module->hmodule_ptr)));
+    CloseOwned(table_,
+               ModuleHandleFromHModule(runtime_.memory()->TranslateVirtual(module->hmodule_ptr)));
   }
 
   if (!found_module) {

@@ -211,7 +211,7 @@ X_HANDLE SocketAccept(Runtime& runtime, SocketObject& sock, N_XSOCKADDR* name, i
   accepted->native_handle = ret;
   accepted->nonblocking = sock.nonblocking;
   if (XFAILED(Prepare(*accepted))) {
-    (void)table.Close(handle);
+    CloseOwned(table, handle);
     return X_INVALID_HANDLE_VALUE;
   }
 

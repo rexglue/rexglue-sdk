@@ -17,6 +17,7 @@
 
 #include <rex/assert.h>
 #include <rex/logging.h>
+#include <rex/no_throw.h>
 #include <rex/math.h>
 #include "gpu/xenos/host/vulkan/immediate_drawer.h"
 #include "gpu/xenos/host/vulkan/presenter.h"
@@ -46,7 +47,7 @@ std::unique_ptr<VulkanImmediateDrawer> VulkanImmediateDrawer::Create(
 
 VulkanImmediateDrawer::VulkanImmediateTexture::~VulkanImmediateTexture() {
   if (immediate_drawer_) {
-    immediate_drawer_->OnImmediateTextureDestroyed(*this);
+    log::NoThrow(log::gpu, [this] { immediate_drawer_->OnImmediateTextureDestroyed(*this); });
   }
 }
 

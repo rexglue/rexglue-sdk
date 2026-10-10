@@ -900,7 +900,7 @@ void VulkanRenderTargetCache::Shutdown(bool from_destructor) {
   const VkDevice device = vulkan_device->device();
 
   // Must precede pool destruction, as ShutdownCommon runs too late from the destructor.
-  DestroyAllRenderTargets(true);
+  DestroyAllRenderTargets();
 
   gpu::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyPipeline, device,
                                           resolve_fsi_clear_64bpp_pipeline_);

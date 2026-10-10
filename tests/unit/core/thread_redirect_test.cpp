@@ -259,6 +259,7 @@ REX_TEST_CASE("A thread suspended while it suspends another thread holds no lock
 REX_TEST_CASE("A thread suspended as it exits finishes once resumed", "[core][thread]") {
   using rex::platform::WaitResult;
   bool finished_every_time = true;
+  rex::platform::Thread* stuck_thread = nullptr;
   constexpr rex::u32 kPairs = 2000;
   for (rex::u32 i = 0; i < 200 && finished_every_time; ++i) {
     std::atomic<bool> go{false};
@@ -281,10 +282,11 @@ REX_TEST_CASE("A thread suspended as it exits finishes once resumed", "[core][th
     hammer.join();
     finished_every_time = rex::platform::Wait(thread.get(), false, 30s) == WaitResult::kSuccess;
     if (!finished_every_time) {
-      (void)thread.release();
+      stuck_thread = thread.release();
     }
   }
   CHECK(finished_every_time);
+  CHECK(stuck_thread == nullptr);
 }
 
 REX_TEST_CASE("A thread handle destroyed right after its body ends frees nothing still in use",

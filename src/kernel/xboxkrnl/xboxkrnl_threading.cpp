@@ -60,7 +60,7 @@ void DrainDPCsBelowDispatch(Runtime& runtime) {
 
 void DropStash(X_DISPATCH_HEADER& header) {
   if (header.wait_list_flink == kXObjSignature) {
-    (void)runtime::Current().object_table().Close(header.wait_list_blink);
+    runtime::CloseOwned(runtime::Current().object_table(), header.wait_list_blink);
   }
   header.wait_list_flink = 0;
   header.wait_list_blink = 0;
@@ -618,7 +618,7 @@ u32 NtCreateSemaphore_entry(mapped_u32 handle_ptr, mapped_void obj_attributes_pt
     valid = sem->semaphore != nullptr;
   }
   if (!valid) {
-    (void)runtime::Current().object_table().Close(handle);
+    runtime::CloseOwned(runtime::Current().object_table(), handle);
     if (handle_ptr) {
       *handle_ptr = 0;
     }

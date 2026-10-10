@@ -159,7 +159,10 @@ u32 XamContentCreate(mapped_string root_name, mapped_void content_data_ptr, u32 
       // CREATE_ALWAYS
       case 2:
         // Titles may reuse a root name without closing it, so close the mount first.
-        (void)content_manager->CloseContent(root_name);
+        if (content_manager->CloseContent(root_name)) {
+          REXLOG_DEBUG(kernel, "XamContentCreate: closed the open {} before recreating it",
+                       root_name);
+        }
         if (content_manager->ContentExists(xuid, content_data) &&
             !content_manager->DeleteContent(xuid, content_data)) {
           result = X_ERROR_ACCESS_DENIED;
@@ -188,7 +191,10 @@ u32 XamContentCreate(mapped_string root_name, mapped_void content_data_ptr, u32 
         if (!content_manager->ContentExists(xuid, content_data)) {
           result = X_ERROR_PATH_NOT_FOUND;
         } else {
-          (void)content_manager->CloseContent(root_name);
+          if (content_manager->CloseContent(root_name)) {
+            REXLOG_DEBUG(kernel, "XamContentCreate: closed the open {} before truncating it",
+                         root_name);
+          }
           if (!content_manager->DeleteContent(xuid, content_data)) {
             result = X_ERROR_ACCESS_DENIED;
           } else {
@@ -205,7 +211,19 @@ u32 XamContentCreate(mapped_string root_name, mapped_void content_data_ptr, u32 
     if (disposition == kDispositionState::Create) {
       result = ToXResult(content_manager->CreateContent(root_name, xuid, content_data));
       if (result == X_ERROR_SUCCESS) {
-        (void)content_manager->WriteContentHeaderFile(xuid, content_data);
+        if (auto written = content_manager->WriteContentHeaderFile(xuid, content_data); !written) {
+          REXLOG_WARN(kernel, "XamContentCreate: header file of {} not written, {}", root_name,
+                      written.error().message);
+          result = ToXResult(written);
+          if (auto closed = content_manager->CloseContent(root_name); !closed) {
+            REXLOG_WARN(kernel, "XamContentCreate: {} did not close, {}", root_name,
+                        closed.error().message);
+          }
+          if (auto deleted = content_manager->DeleteContent(xuid, content_data); !deleted) {
+            REXLOG_WARN(kernel, "XamContentCreate: {} was not removed, {}", root_name,
+                        deleted.error().message);
+          }
+        }
       }
     } else if (disposition == kDispositionState::Open) {
       auto opened = content_manager->OpenContent(root_name, xuid, content_data);

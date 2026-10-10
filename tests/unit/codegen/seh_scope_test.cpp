@@ -11,7 +11,7 @@
 #include "rex_test.h"
 
 #include <algorithm>
-#include <optional>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -34,7 +34,7 @@ constexpr u32 kMoveR1ToR31 = 0x7C3F0B78;
 struct LoopFunction {
   std::vector<u8> data;
   TestModule module;
-  std::optional<CodegenContext> ctx;
+  std::unique_ptr<CodegenContext> ctx;
   FunctionNode* node = nullptr;
 
   LoopFunction(bool exception_handlers, bool seh_scope, bool non_volatile_as_local = false) {
@@ -47,7 +47,8 @@ struct LoopFunction {
     config.projectName = "testproj";
     config.generateExceptionHandlers = exception_handlers;
     config.nonVolatileRegistersAsLocalVariables = non_volatile_as_local;
-    ctx.emplace(CodegenContext::Create(BinaryView::fromModule(module), std::move(config)));
+    ctx = std::make_unique<CodegenContext>(
+        CodegenContext::Create(BinaryView::fromModule(module), std::move(config)));
     node = ctx->graph.addFunction(kBase, static_cast<u32>(data.size()),
                                   FunctionAuthority::DISCOVERED, true);
     REQUIRE(node != nullptr);

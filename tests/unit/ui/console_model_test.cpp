@@ -9,6 +9,7 @@
  */
 
 #include "rex_test.h"
+#include "support/temp_folder.h"
 
 #include <chrono>
 #include <deque>
@@ -74,21 +75,8 @@ struct Harness {
   rex::u64 sequence = 0;
 };
 
-class TempFolder {
- public:
-  TempFolder() {
-    const auto stamp = std::chrono::steady_clock::now().time_since_epoch().count();
-    path_ = std::filesystem::temp_directory_path() / ("rex_console_test_" + std::to_string(stamp));
-    std::filesystem::create_directories(path_);
-  }
-  ~TempFolder() {
-    std::error_code ec;
-    std::filesystem::remove_all(path_, ec);
-  }
-  const std::filesystem::path& Path() const { return path_; }
-
- private:
-  std::filesystem::path path_;
+struct TempFolder : rex::test::TempFolder {
+  TempFolder() : rex::test::TempFolder("rex_console_test_") {}
 };
 
 const std::string& Last(const ConsoleModel& model) {
@@ -172,7 +160,7 @@ REX_TEST_CASE_METHOD(Harness, "HelpLine describes a cvar, a command and nothing 
 
 REX_TEST_CASE_METHOD(Harness, "History walks, skips repeats, caps and round trips", "[console]") {
   TempFolder temp;
-  const auto path = temp.Path() / "history.txt";
+  const auto path = temp.path / "history.txt";
   std::string newest;
   {
     ConsoleModel model(*registry, capture, path);

@@ -40,6 +40,7 @@
 #include <rex/xenos/xenos.h>
 #include <rex/hash.h>
 #include <rex/logging.h>
+#include <rex/no_throw.h>
 #include <rex/math.h>
 #include <rex/string.h>
 #include <rex/string/buffer.h>
@@ -94,7 +95,7 @@ PipelineCache::PipelineCache(D3D12CommandProcessor& command_processor,
 }
 
 PipelineCache::~PipelineCache() {
-  Shutdown();
+  log::NoThrow(log::gpu, [this] { Shutdown(); });
 }
 
 bool PipelineCache::Initialize() {

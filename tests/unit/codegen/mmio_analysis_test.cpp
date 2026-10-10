@@ -10,6 +10,7 @@
  */
 
 #include "rex_test.h"
+#include "support/temp_folder.h"
 
 #include <algorithm>
 #include <filesystem>
@@ -122,10 +123,7 @@ struct Scratch {
     fs::create_directories(root);
   }
 
-  ~Scratch() {
-    std::error_code ec;
-    fs::remove_all(root, ec);
-  }
+  ~Scratch() { rex::test::RemoveTree(root); }
 
   std::string Write(std::string_view body) const {
     auto path = root / "game.toml";
@@ -375,10 +373,7 @@ struct EmitFixture {
     return ctx;
   }
 
-  ~EmitFixture() {
-    std::error_code ec;
-    fs::remove_all(root, ec);
-  }
+  ~EmitFixture() { rex::test::RemoveTree(root); }
 
   std::string Read(std::string_view file) const {
     std::ifstream in(root / "generated" / fs::path(file), std::ios::binary);

@@ -13,8 +13,12 @@
 #include <chrono>
 #include <future>
 #include <memory>
+#include <rex/runtime/error.h>
+#include <rex/runtime/object_table.h>
+#include <rex/runtime/xobject.h>
 #include <rex/runtime/xtypes.h>
 
+#include "kernel/object_reference.h"
 #include "kernel_fixture.h"
 
 using rex::X_STATUS;
@@ -244,5 +248,29 @@ REX_TEST_CASE("waits: a handle closed during a wait still completes the wait",
     const u32 outcome = done.get();
     CHECK((outcome == kTimeout || outcome == kInvalidHandle));
     c.Kernel("NtClose", {waiter});
+  });
+}
+
+REX_TEST_CASE("handles: a lookup whose object lost its last handle takes no reference",
+              "[char][handles][pin]") {
+  KernelFixture fixture;
+  fixture.RunOnGuestThread([](Caller& c) {
+    auto& table = c.runtime().object_table();
+    auto added =
+        table.Emplace<rex::runtime::SymbolicLinkObject>(rex::runtime::AddOptions{}, "a", "b");
+    if (!added) {
+      FAIL("the symbolic link was not added");
+      return;
+    }
+    const auto object = table.Get(*added);
+    REQUIRE(object);
+    REQUIRE(table.Close(*added));
+
+    auto opened = rex::kernel::OpenPrimaryHandle(table, object);
+    CHECK(rex::runtime::ToXStatus(opened) == kInvalidHandle);
+    auto referenced = rex::kernel::ReferencePrimary(table, object, 0x1234);
+    CHECK(rex::runtime::ToXStatus(referenced) == kInvalidHandle);
+    auto thread = rex::kernel::ReferenceThread(table, *added, 0x1234);
+    CHECK(rex::runtime::ToXStatus(thread) == kInvalidHandle);
   });
 }

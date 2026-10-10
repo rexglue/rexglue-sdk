@@ -164,11 +164,11 @@ REX_TEST_CASE("Hub frees the pointer while the host holds no capture", "[hid]") 
   hub.SetHost(&host);
   CHECK(host.applied.back() == PointerMode::Hidden);
   host.capture = false;
-  (void)hub.GetState(0);
+  CHECK(hub.GetState(0));
   host.RunPosted();
   CHECK(host.applied.back() == PointerMode::Free);
   host.capture = true;
-  (void)hub.GetState(0);
+  CHECK(hub.GetState(0));
   host.RunPosted();
   CHECK(host.applied.back() == PointerMode::Hidden);
   hub.SetHost(nullptr);
@@ -268,7 +268,7 @@ REX_TEST_CASE("Hub masks buttons held when the last UI block drops", "[hid]") {
   hub.ReleaseUIBlock();
   CHECK(static_cast<rex::u16>(hub.GetState(0)->gamepad.buttons) == 0);
   raw->buttons = 0;
-  (void)hub.GetState(0);
+  CHECK(hub.GetState(0));
   raw->buttons = rex::hid::X_INPUT_GAMEPAD_A;
   CHECK(static_cast<rex::u16>(hub.GetState(0)->gamepad.buttons) == rex::hid::X_INPUT_GAMEPAD_A);
 }
@@ -277,8 +277,8 @@ REX_TEST_CASE("Hub tells the listener when user 0 connects", "[hid]") {
   Hub hub;
   std::vector<std::pair<rex::u32, bool>> events;
   hub.SetConnectionListener([&events](rex::u32 user, bool on) { events.emplace_back(user, on); });
-  (void)hub.GetState(0);
-  (void)hub.GetState(0);
+  CHECK(hub.GetState(0));
+  CHECK(hub.GetState(0));
   CHECK(events == std::vector<std::pair<rex::u32, bool>>{{0, true}});
 }
 

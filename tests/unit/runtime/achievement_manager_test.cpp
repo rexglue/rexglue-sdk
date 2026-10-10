@@ -25,6 +25,7 @@
 #include <rex/runtime.h>
 #include <rex/embedded_metadata.h>
 #include "runtime/achievement_manager.h"
+#include "support/temp_folder.h"
 
 namespace {
 
@@ -38,10 +39,7 @@ class TempDirectory {
     std::filesystem::create_directories(path_);
   }
 
-  ~TempDirectory() {
-    std::error_code ec;
-    std::filesystem::remove_all(path_, ec);
-  }
+  ~TempDirectory() { rex::test::RemoveTree(path_); }
 
   const std::filesystem::path& path() const { return path_; }
 
@@ -158,7 +156,7 @@ REX_TEST_CASE("achievement unlock state persists across manager instances", "[ac
   auto save_path = temp.path() / "saves" / "12345678.toml";
 
   rex::runtime::AchievementManager first;
-  (void)first.RegisterAchievement(MakeAchievement(1, "One"));
+  REQUIRE(first.RegisterAchievement(MakeAchievement(1, "One")).has_value());
   first.SetUnlockSavePath(save_path);
   REQUIRE(first.UnlockAchievement(1) == rex::runtime::AchievementUnlockResult::kUnlocked);
   REQUIRE(std::filesystem::exists(save_path));
@@ -166,7 +164,7 @@ REX_TEST_CASE("achievement unlock state persists across manager instances", "[ac
   REQUIRE(unlock_time.has_value());
 
   rex::runtime::AchievementManager second;
-  (void)second.RegisterAchievement(MakeAchievement(1, "One"));
+  REQUIRE(second.RegisterAchievement(MakeAchievement(1, "One")).has_value());
   second.SetUnlockSavePath(save_path);
   second.LoadUnlockState();
   CHECK(second.IsUnlocked(1));
@@ -180,7 +178,8 @@ REX_TEST_CASE("achievement unlock saves serialize concurrent writers", "[achieve
   rex::runtime::AchievementManager manager;
   manager.SetUnlockSavePath(save_path);
   for (u32 id = 1; id <= 8; ++id) {
-    (void)manager.RegisterAchievement(MakeAchievement(id, "Achievement " + std::to_string(id)));
+    REQUIRE(manager.RegisterAchievement(MakeAchievement(id, "Achievement " + std::to_string(id)))
+                .has_value());
   }
 
   std::vector<std::thread> threads;
@@ -194,7 +193,8 @@ REX_TEST_CASE("achievement unlock saves serialize concurrent writers", "[achieve
   rex::runtime::AchievementManager reloaded;
   reloaded.SetUnlockSavePath(save_path);
   for (u32 id = 1; id <= 8; ++id) {
-    (void)reloaded.RegisterAchievement(MakeAchievement(id, "Achievement " + std::to_string(id)));
+    REQUIRE(reloaded.RegisterAchievement(MakeAchievement(id, "Achievement " + std::to_string(id)))
+                .has_value());
   }
   reloaded.LoadUnlockState();
   for (u32 id = 1; id <= 8; ++id) {
@@ -242,7 +242,10 @@ REX_TEST_CASE("embedded metadata assets resolve by metadata-relative path", "[ac
 
   auto asset =
       rex::FindEmbeddedMetadataAsset(std::filesystem::path("icons") / "custom" / "unit-test.png");
-  REQUIRE(asset);
+  if (!asset) {
+    FAIL("the embedded asset is not registered");
+    return;
+  }
   REQUIRE(asset->bytes.size() == sizeof(kIconBytes));
   CHECK(asset->bytes[0] == 0x89);
   CHECK(asset->bytes[1] == 0x50);

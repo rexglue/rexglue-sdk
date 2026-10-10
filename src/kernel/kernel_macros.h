@@ -86,15 +86,15 @@
       if (auto rex_opened_ = rex_table_.OpenByName(rex_name_)) {                                \
         const X_HANDLE rex_handle_ = *rex_opened_;                                              \
         auto rex_existing_ = rex_table_.Get(rex_handle_);                                       \
-        if (rex_existing_) {                                                                    \
-          (void)rex_table_.Close(rex_handle_);                                                  \
-          if (rex_existing_.kind() == ::rex::runtime::ObjectKind::KIND) {                       \
-            if (HANDLE_OUT) {                                                                   \
-              (void)rex_table_.Retain(rex_handle_);                                             \
-              *(HANDLE_OUT) = rex_handle_;                                                      \
-            }                                                                                   \
-            return X_STATUS_OBJECT_NAME_EXISTS;                                                 \
-          }                                                                                     \
+        const bool rex_same_kind_ =                                                             \
+            rex_existing_ && rex_existing_.kind() == ::rex::runtime::ObjectKind::KIND;          \
+        if (rex_same_kind_ && (HANDLE_OUT)) {                                                   \
+          *(HANDLE_OUT) = rex_handle_;                                                          \
+          return X_STATUS_OBJECT_NAME_EXISTS;                                                   \
+        }                                                                                       \
+        ::rex::runtime::CloseOwned(rex_table_, rex_handle_);                                    \
+        if (rex_same_kind_) {                                                                   \
+          return X_STATUS_OBJECT_NAME_EXISTS;                                                   \
         }                                                                                       \
       }                                                                                         \
     }                                                                                           \

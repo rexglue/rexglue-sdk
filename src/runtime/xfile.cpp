@@ -133,7 +133,7 @@ FileObject::~FileObject() {
     return;
   }
   for (const auto& port : completion_ports) {
-    (void)port_table->Close(port.second);
+    CloseOwned(*port_table, port.second);
   }
 }
 

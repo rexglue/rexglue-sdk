@@ -296,19 +296,13 @@ void RenderTargetCache::InitializeCommon() {
                                                   RenderTargetKey(), RenderTargetKey()));
 }
 
-void RenderTargetCache::DestroyAllRenderTargets(bool shutting_down) {
+void RenderTargetCache::DestroyAllRenderTargets() noexcept {
   ownership_ranges_.clear();
-  if (!shutting_down) {
-    ownership_ranges_.emplace(std::piecewise_construct, std::forward_as_tuple(static_cast<u32>(0)),
-                              std::forward_as_tuple(xenos::kEDRAMTileCount, RenderTargetKey(),
-                                                    RenderTargetKey(), RenderTargetKey()));
-  }
-
   render_targets_.clear();
 }
 
-void RenderTargetCache::ShutdownCommon() {
-  DestroyAllRenderTargets(true);
+void RenderTargetCache::ShutdownCommon() noexcept {
+  DestroyAllRenderTargets();
 }
 
 void RenderTargetCache::ClearCache() {

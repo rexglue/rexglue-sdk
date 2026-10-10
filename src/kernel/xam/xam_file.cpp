@@ -303,7 +303,7 @@ REX_SHIM_FN(FindFirstFileA, u32, mapped_string lpFileName, mapped_void lpFindFil
   auto entry = rex::runtime::FileFindNext(*xfile);
   if (!entry) {
     REXLOG_DEBUG(kernel, "rexshim_FindFirstFileA: no matches for '{}' in '{}'", pattern, dir);
-    (void)runtime::Current().object_table().Close(handle);
+    runtime::CloseOwned(runtime::Current().object_table(), handle);
     return kInvalidHandleValue;
   }
 

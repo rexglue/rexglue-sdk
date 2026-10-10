@@ -25,21 +25,13 @@
 #include <rex/platform/file.h>
 #include <rex/types.h>
 
+#include "support/temp_folder.h"
+
 namespace rex::filesystem::test {
 
 /** Host folder removed with its contents on destruction. */
-struct TempFolder : NonCopyable {
-  TempFolder()
-      : path(std::filesystem::temp_directory_path() /
-             ("rex_filesystem_test_" + std::to_string(std::random_device{}()))) {
-    std::filesystem::create_directories(path);
-  }
-  ~TempFolder() {
-    std::error_code ec;
-    std::filesystem::remove_all(path, ec);
-  }
-
-  std::filesystem::path path; /**< The folder. */
+struct TempFolder : rex::test::TempFolder {
+  TempFolder() : rex::test::TempFolder("rex_filesystem_test_") {}
 };
 
 /**

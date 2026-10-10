@@ -25,12 +25,14 @@ void VulkanSubmissionTracker::FenceAcquisition::Release() noexcept {
   }
   REX_ASSERT(submission_tracker_->fence_acquired_ == fence_);
   if (fence_ != VK_NULL_HANDLE) {
-    if (signal_failed_) {
-      submission_tracker_->fences_reclaimed_.push_back(fence_);
-    } else {
-      submission_tracker_->fences_pending_.emplace_back(submission_tracker_->submission_current_,
-                                                        fence_);
-    }
+    log::NoThrow(log::gpu, [this] {
+      if (signal_failed_) {
+        submission_tracker_->fences_reclaimed_.push_back(fence_);
+      } else {
+        submission_tracker_->fences_pending_.emplace_back(submission_tracker_->submission_current_,
+                                                          fence_);
+      }
+    });
     submission_tracker_->fence_acquired_ = VK_NULL_HANDLE;
   }
   ++submission_tracker_->submission_current_;

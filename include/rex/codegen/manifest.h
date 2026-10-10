@@ -27,6 +27,13 @@ namespace rex::codegen {
  * guest-visible path the host runtime resolves against.
  */
 struct BinaryConfig {
+  BinaryConfig() = default;
+  BinaryConfig(const BinaryConfig&) = default;
+  BinaryConfig& operator=(const BinaryConfig&) = default;
+  BinaryConfig(BinaryConfig&&) noexcept(false) = default;
+  BinaryConfig& operator=(BinaryConfig&&) noexcept(false) = default;
+  ~BinaryConfig() = default;
+
   RecompilerConfig recompiler; /**< Codegen settings of the binary, loaded from its TOML table. */
   /** Canonical guest path the host runtime resolves the module against, empty for the entrypoint.
    */
@@ -47,6 +54,13 @@ std::string CanonicalizeModuleGuestPath(std::string_view path, std::string_view 
  * Parsed manifest TOML. Construct via Load() and treat as read-only after.
  */
 struct ManifestConfig {
+  ManifestConfig() = default;
+  ManifestConfig(const ManifestConfig&) = default;
+  ManifestConfig& operator=(const ManifestConfig&) = default;
+  ManifestConfig(ManifestConfig&&) noexcept(false) = default;
+  ManifestConfig& operator=(ManifestConfig&&) noexcept(false) = default;
+  ~ManifestConfig() = default;
+
   std::string projectName;               /**< Value of `[project].name`, a valid identifier. */
   std::optional<std::string> sdkVersion; /**< Last SDK that ran codegen on this project */
   std::filesystem::path manifestPath;    /**< Path the manifest was loaded from. */

@@ -24,6 +24,34 @@
 #include <rex/runtime/xthread.h>
 #include <rex/runtime/xtypes.h>
 #include "kernel/kernel_macros.h"
+#include "kernel/object_reference.h"
+
+namespace rex::kernel {
+
+Result<X_HANDLE> OpenPrimaryHandle(runtime::IObjectTable& table,
+                                   const runtime::PinnedSlot& object) {
+  if (auto retained = table.RetainPrimary(object); !retained) {
+    return Err<X_HANDLE>(retained.error());
+  }
+  return table.PrimaryHandle(object).value_or(0);
+}
+
+Result<u32> ReferencePrimary(runtime::IObjectTable& table, const runtime::PinnedSlot& object,
+                             u32 object_ptr) {
+  if (auto retained = table.RetainPrimary(object); !retained) {
+    return Err<u32>(retained.error());
+  }
+  return object_ptr;
+}
+
+Result<u32> ReferenceThread(runtime::IObjectTable& table, X_HANDLE handle, u32 object_ptr) {
+  if (auto retained = table.Retain(handle); !retained) {
+    return Err<u32>(retained.error());
+  }
+  return object_ptr;
+}
+
+}  // namespace rex::kernel
 
 namespace rex::kernel::xboxkrnl {
 using namespace rex::runtime;
@@ -64,8 +92,11 @@ u32 ObOpenObjectByPointer_entry(mapped_void object_ptr, mapped_u32 out_handle_pt
     return X_STATUS_UNSUCCESSFUL;
   }
 
-  (void)table.RetainPrimary(object);
-  *out_handle_ptr = table.PrimaryHandle(object).value_or(0);
+  auto opened = OpenPrimaryHandle(table, object);
+  if (!opened) {
+    return ToXStatus(opened);
+  }
+  *out_handle_ptr = *opened;
   return X_STATUS_SUCCESS;
 }
 
@@ -75,9 +106,12 @@ u32 ObLookupThreadByThreadId_entry(u32 thread_id, mapped_u32 out_object_ptr) {
     return X_STATUS_NOT_FOUND;
   }
 
-  // Released in ObDereferenceObject.
-  (void)runtime::Current().object_table().Retain(thread->handle());
-  *out_object_ptr = thread->guest_object();
+  auto referenced =
+      ReferenceThread(runtime::Current().object_table(), thread->handle(), thread->guest_object());
+  if (!referenced) {
+    return ToXStatus(referenced);
+  }
+  *out_object_ptr = *referenced;
   return X_STATUS_SUCCESS;
 }
 
@@ -126,10 +160,12 @@ u32 ObReferenceObjectByHandle_entry(u32 handle, u32 object_type_ptr, mapped_u32 
     }
   }
 
-  // The caller takes the reference, released in ObDereferenceObject.
-  (void)runtime::Current().object_table().RetainPrimary(object);
+  auto referenced = ReferencePrimary(runtime::Current().object_table(), object, native_ptr);
+  if (!referenced) {
+    return ToXStatus(referenced);
+  }
   if (out_object_ptr.guest_address()) {
-    *out_object_ptr = native_ptr;
+    *out_object_ptr = *referenced;
   }
   REXLOG_TRACE(kernel,
                "ObReferenceObjectByHandle -> "
@@ -162,7 +198,10 @@ u32 ObDereferenceObject_entry(u32 native_ptr) {
   auto& table = runtime::Current().object_table();
   auto object = table.Get(table.ResolveGuestObject(native_ptr, -1).value_or(0));
   if (object) {
-    (void)table.ReleasePrimary(object);
+    if (auto released = table.ReleasePrimary(object); !released) {
+      REXLOG_WARN(kernel, "ObDereferenceObject: {:#x} not released, {}", native_ptr,
+                  released.error().message);
+    }
   }
 
   return 0;
@@ -213,7 +252,10 @@ u32 NtDuplicateObject_entry(u32 handle, mapped_u32 new_handle_ptr, u32 options) 
   }
 
   if (options == 1) {
-    (void)table.Remove(handle);
+    if (auto removed = table.Remove(handle); !removed) {
+      REXLOG_WARN(kernel, "NtDuplicateObject: source handle {:08X} not closed, {}", handle,
+                  removed.error().message);
+    }
   }
 
   return ToXStatus(duplicated);

@@ -92,8 +92,8 @@ struct RuntimeConfig {
   gpu::IBackend* gpu = nullptr;
   /** The mount table. Required, Setup fails without it. */
   filesystem::IFileSystem* file_system = nullptr;
-  /** Registers the Xam apps and the kernel modules. */
-  std::function<void(Runtime&)> kernel_init;
+  /** Registers the Xam apps and the kernel modules. Setup fails with its error. */
+  std::function<Result<void>(Runtime&)> kernel_init;
   /** True to skip the GPU, for analysis tools. */
   bool tool_mode = false;
   /** The display mode the title queries. TitleApp fills it from the user interface. */

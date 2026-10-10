@@ -130,6 +130,8 @@ class WindowedAppContext : public rex::NonCopyable {
    * @param is_final True to stop accepting new functions.
    */
   void ExecutePendingFunctionsFromUIThread(bool is_final);
+  template <typename Run>
+  void DrainPendingFunctions(bool is_final, Run run);
 
   /** Accessed by the UI thread only. */
   bool has_quit_ = false;

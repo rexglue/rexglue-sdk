@@ -145,7 +145,9 @@ Result<void> Runtime::Setup(const RuntimeConfig& config) {
   });
 
   if (config.kernel_init) {
-    config.kernel_init(*this);
+    if (auto initialized = config.kernel_init(*this); !initialized) {
+      return fail(X_STATUS_UNSUCCESSFUL, initialized.error().message);
+    }
   }
 
   if (!tool_mode_) {
@@ -312,7 +314,7 @@ Result<void> Runtime::LoadXEXImage(const std::string_view module_path) {
   auto module = object_table_->Get<runtime::ModuleObject>(handle);
   X_STATUS status = runtime::UserModuleLoadFromFile(*this, *module, module_path);
   if (XFAILED(status)) {
-    (void)object_table_->Close(handle);
+    runtime::CloseOwned(*object_table_, handle);
     return Err(
         SetupError(status, std::format("cannot load {}, status {:08X}", module_path, status)));
   }

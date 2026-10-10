@@ -172,7 +172,7 @@ void GraphicsSystem::Shutdown() {
   if (vsync_worker_thread_) {
     vsync_worker_running_ = false;
     runtime::WaitOn(*runtime_, vsync_worker_thread_, 0, 0, 0, nullptr);
-    (void)runtime_->object_table().Close(vsync_worker_thread_);
+    runtime::CloseOwned(runtime_->object_table(), vsync_worker_thread_);
     vsync_worker_thread_ = 0;
   }
 
@@ -309,11 +309,11 @@ Result<void> GraphicsSystem::InitializeShaderStorage(const std::filesystem::path
     return Ok();
   }
   if (blocking) {
-    command_processor_->CallInThreadAndWait([this, root, title_id]() {
+    command_processor_->CallInThreadAndWait([this, root = std::filesystem::path(root), title_id]() {
       command_processor_->InitializeShaderStorage(root, title_id, true);
     });
   } else {
-    command_processor_->CallInThread([this, root, title_id]() {
+    command_processor_->CallInThread([this, root = std::filesystem::path(root), title_id]() {
       command_processor_->InitializeShaderStorage(root, title_id, false);
     });
   }

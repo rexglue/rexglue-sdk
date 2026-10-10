@@ -94,7 +94,9 @@ void SDL3UserInterface::ShowMessage(MessageKind kind, std::string_view title,
                                     std::string_view body) {
   LogMessage(kind, title, body);
   const std::string ok[] = {"OK"};
-  (void)ShowBox(kind, title, body, ok);
+  if (const auto shown = ShowBox(kind, title, body, ok); !shown) {
+    REXLOG_DEBUG(ui, "message box not shown, {}", shown.error().message);
+  }
 }
 
 Result<u32> SDL3UserInterface::ShowChoice(const ChoiceDesc& desc) {

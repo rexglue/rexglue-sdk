@@ -51,8 +51,8 @@ REX_TEST_CASE("NullBackend reports the idle pad connected once", "[hid]") {
       connected.push_back(user);
     }
   });
-  (void)backend.GetState(0);
-  (void)backend.GetState(0);
+  CHECK(backend.GetState(0));
+  CHECK(backend.GetState(0));
   CHECK(connected == std::vector<rex::u32>{0});
 }
 

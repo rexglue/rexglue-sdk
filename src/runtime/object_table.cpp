@@ -38,7 +38,7 @@ ObjectRecord::~ObjectRecord() {
 ObjectTable::ObjectTable(Memory* memory) : memory_(memory) {}
 
 ObjectTable::~ObjectTable() {
-  Reset();
+  log::NoThrow(log::system, [this] { Reset(); });
 }
 
 void ObjectTable::Reset() {

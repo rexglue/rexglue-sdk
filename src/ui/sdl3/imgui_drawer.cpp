@@ -22,6 +22,7 @@
 #include <rex/assert.h>
 #include <rex/chrono/clock.h>
 #include <rex/logging.h>
+#include <rex/no_throw.h>
 #include <rex/ui/imgui_dialog.h>
 #include "ui/sdl3/imgui_drawer.h"
 #include <rex/ui/ui_event.h>
@@ -52,7 +53,7 @@ ImGuiDrawer::~ImGuiDrawer() {
   }
   DestroyDialogs();
   SetPresenter(nullptr);
-  SetWindowTextInputActive(false);
+  log::NoThrow(log::ui, [this] { SetWindowTextInputActive(false); });
   if (internal_state_) {
     ImGui::DestroyContext(internal_state_);
     internal_state_ = nullptr;
@@ -95,8 +96,12 @@ void ImGuiDrawer::DestroyDialogs() {
   std::vector<std::unique_ptr<ImGuiDialog>> doomed = std::move(owned_);
   owned_.clear();
   while (!dialogs_.empty()) {
-    RemoveDialog(*dialogs_.back());
+    ImGuiDialog* dialog = dialogs_.back();
+    dialogs_.pop_back();
+    dialog->Attach(nullptr);
   }
+  log::NoThrow(log::ui, [this] { DetachIfLastDialogRemoved(); });
+  PublishDialogCount();
   retired_.clear();
   doomed.clear();
 }

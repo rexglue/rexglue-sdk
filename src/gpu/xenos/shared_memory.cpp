@@ -17,8 +17,10 @@
 #include <rex/assert.h>
 #include <rex/bit.h>
 #include <rex/dbg.h>
+#include <rex/logging.h>
 #include "gpu/xenos/shared_memory.h"
 #include <rex/math.h>
+#include <rex/no_throw.h>
 #include <rex/memory.h>
 
 namespace rex::gpu {
@@ -28,7 +30,7 @@ SharedMemory::SharedMemory(runtime::Memory& memory) : memory_(memory) {
 }
 
 SharedMemory::~SharedMemory() {
-  ShutdownCommon();
+  log::NoThrow(log::gpu, [this] { ShutdownCommon(); });
 }
 
 void SharedMemory::InitializeCommon() {

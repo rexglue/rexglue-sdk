@@ -552,7 +552,7 @@ u32 NetDll_socket_entry([[maybe_unused]] u32 caller, u32 af, u32 type, u32 proto
   if (XSUCCEEDED(result)) {
     result = SocketInitialize(*table.Get<SocketObject>(handle));
     if (XFAILED(result)) {
-      (void)table.Close(handle);
+      runtime::CloseOwned(table, handle);
     }
   }
 
@@ -574,7 +574,11 @@ u32 NetDll_closesocket_entry([[maybe_unused]] u32 caller, u32 socket_handle) {
   }
 
   SocketClose(*socket);
-  (void)runtime::Current().object_table().Close(socket_handle);
+  if (const auto closed = runtime::Current().object_table().Close(socket_handle); !closed) {
+    // WSAENOTSOCK
+    ThreadRecord::SetLastError(0x2736);
+    return -1;
+  }
   return 0;
 }
 

@@ -270,6 +270,13 @@ struct UnresolvedBranch {
 
 /** Blocks, branches and instructions found by discoverBlocks() for 1 function. */
 struct BlockDiscoveryResult {
+  BlockDiscoveryResult() = default;
+  BlockDiscoveryResult(const BlockDiscoveryResult&) = default;
+  BlockDiscoveryResult& operator=(const BlockDiscoveryResult&) = default;
+  BlockDiscoveryResult(BlockDiscoveryResult&&) noexcept(false) = default;
+  BlockDiscoveryResult& operator=(BlockDiscoveryResult&&) noexcept(false) = default;
+  ~BlockDiscoveryResult() = default;
+
   std::vector<Block> blocks;                        /**< Discovered blocks */
   std::vector<UnresolvedBranch> unresolvedBranches; /**< Branches left for the graph to resolve */
   std::vector<JumpTable> jumpTables;                /**< Detected jump tables */

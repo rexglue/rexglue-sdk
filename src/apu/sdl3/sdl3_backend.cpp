@@ -8,6 +8,7 @@
 #include <rex/cvar.h>
 #include <rex/dbg.h>
 #include <rex/logging.h>
+#include <rex/no_throw.h>
 #include <rex/perf/counter.h>
 #include <rex/move_only_function.h>
 
@@ -19,7 +20,7 @@ namespace rex::apu::sdl3 {
 SDL3Backend::SDL3Backend() = default;
 
 SDL3Backend::~SDL3Backend() {
-  Shutdown();
+  log::NoThrow(log::apu, [this] { Shutdown(); });
 }
 
 Result<void> SDL3Backend::Init() {

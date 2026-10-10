@@ -1,8 +1,8 @@
 #include "runtime/apu.h"
 
 #include <algorithm>
+#include <array>
 #include <chrono>
-#include <vector>
 
 #include <rex/dbg.h>
 #include <rex/logging.h>
@@ -131,15 +131,14 @@ void APU::StopWorker() {
     {
       if (ThreadPin pin = runtime_.thread_registry().FindByHandle(worker_thread_)) {
         pin->RequestStop();
-        std::vector<ThreadPin> threads;
-        threads.push_back(std::move(pin));
+        std::array<ThreadPin, 1> threads{std::move(pin)};
         WaitForThreadsToStop(threads, kWorkerShutdownTimeout, [](const ThreadPin&) {
           REXLOG_WARN(apu, "Audio worker still running after {} ms",
                       kWorkerShutdownTimeout.count());
         });
       }
     }
-    (void)runtime_.object_table().Close(worker_thread_);
+    CloseOwned(runtime_.object_table(), worker_thread_);
     worker_thread_ = 0;
   }
 }

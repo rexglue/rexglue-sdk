@@ -49,7 +49,7 @@ REX_TEST_CASE("WaitOn on a kind without a wait handle succeeds at once", "[wait]
       return;
     }
     CHECK(rex::runtime::WaitOn(c.runtime(), *added, 3, 1, 0, nullptr) == rex::X_STATUS_SUCCESS);
-    (void)table.Close(*added);
+    CHECK(table.Close(*added));
   });
 }
 

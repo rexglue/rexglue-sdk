@@ -114,7 +114,7 @@ void CommandProcessor::Shutdown() {
   worker_running_ = false;
   write_ptr_index_event_->Set();
   runtime::WaitOn(*runtime_, worker_thread_, 0, 0, 0, nullptr);
-  (void)runtime_->object_table().Close(worker_thread_);
+  runtime::CloseOwned(runtime_->object_table(), worker_thread_);
   worker_thread_ = 0;
 }
 

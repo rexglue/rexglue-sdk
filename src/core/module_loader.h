@@ -52,7 +52,7 @@ REX_API std::filesystem::path ModuleFileName(std::string_view name);
  */
 REX_API u64 InterfaceRequestCount();
 
-class REX_API ModuleLoader final : public IInterfaceFactory {
+class REX_API ModuleLoader final : public IInterfaceFactory, public NonCopyable {
  public:
   static ModuleLoader& Instance();
 

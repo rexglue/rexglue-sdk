@@ -106,7 +106,7 @@ void NullGPU::Shutdown() {
   if (vsync_thread_) {
     vsync_running_.store(false, std::memory_order_release);
     WaitOn(*runtime_, vsync_thread_, 0, 0, 0, nullptr);
-    (void)runtime_->object_table().Close(vsync_thread_);
+    CloseOwned(runtime_->object_table(), vsync_thread_);
     vsync_thread_ = 0;
   }
 }

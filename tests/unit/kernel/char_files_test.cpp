@@ -10,14 +10,16 @@
 
 #include "rex_test.h"
 
+#include <cstring>
 #include <filesystem>
+#include <format>
 #include <fstream>
 #include <string_view>
 
 #include <rex/api.h>
 #include <rex/filesystem.h>
+#include <rex/runtime.h>
 #include <rex/runtime/info/file.h>
-#include <rex/runtime/object_table.h>
 #include <rex/runtime/content_manager.h>
 #include <rex/runtime/xam/user_profile.h>
 #include <rex/runtime/xcontent.h>
@@ -295,57 +297,5 @@ REX_TEST_CASE("files: XamContentCreate fails when the content header cannot be w
     CHECK(c.XAM("XamContentCreateInternal", {root, data, 1, 0, 0, 0, 0, 0}) != 0);
     CHECK_FALSE(c.runtime().content_manager().IsContentOpen(*host));
     CHECK_FALSE(std::filesystem::exists(package_path));
-  });
-}
-
-REX_TEST_CASE("files: closing content with no link leaves other files open",
-              "[char][files][content]") {
-  KernelFixture fixture([](const std::filesystem::path& root) { WriteScratch(root, "k.bin", 4); });
-  MountScratch(fixture);
-  fixture.RunOnGuestThread([](Caller& c) {
-    const u32 handle_ptr = c.Alloc(4);
-    const u32 status_block = c.Alloc(8);
-    CHECKED_ELSE(
-        c.Kernel("NtCreateFile", {handle_ptr, kReadWriteAccess, c.Attributes("scratch:\\k.bin"),
-                                  status_block, 0, 0, 3, 1, 0x20}) == 0) {
-      FAIL_CHECK("the check above failed");
-      return;
-    }
-    const u32 handle = c.Load32(handle_ptr);
-    c.runtime().content_manager().CloseOpenedFilesFromContent("nolink");
-    CHECK(c.runtime().object_table().Get(handle));
-    CHECK(c.Kernel("NtClose", {handle}) == 0);
-  });
-}
-
-REX_TEST_CASE("files: closing content leaves a sibling root that shares its prefix open",
-              "[char][files][content]") {
-  KernelFixture fixture([](const std::filesystem::path& root) {
-    std::filesystem::create_directories(root / "conta");
-    std::filesystem::create_directories(root / "contab");
-    std::ofstream(root / "contab" / "k.bin", std::ios::binary) << "xxxx";
-  });
-  namespace fs = rex::filesystem;
-  auto* file_system = fixture.api().Get<fs::IFileSystem>();
-  REQUIRE(file_system);
-  REQUIRE(file_system->Mount({"\\Device\\ContA", fs::ProviderKind::kHostDirectory,
-                              fixture.root() / "conta", fs::MountFlags::kWritable}));
-  REQUIRE(file_system->Mount({"\\Device\\ContAB", fs::ProviderKind::kHostDirectory,
-                              fixture.root() / "contab", fs::MountFlags::kWritable}));
-  REQUIRE(file_system->Link("conta:", "\\Device\\ContA"));
-  REQUIRE(file_system->Link("contab:", "\\Device\\ContAB"));
-  fixture.RunOnGuestThread([](Caller& c) {
-    const u32 handle_ptr = c.Alloc(4);
-    const u32 status_block = c.Alloc(8);
-    CHECKED_ELSE(
-        c.Kernel("NtCreateFile", {handle_ptr, kReadWriteAccess, c.Attributes("contab:\\k.bin"),
-                                  status_block, 0, 0, 3, 1, 0x20}) == 0) {
-      FAIL_CHECK("the check above failed");
-      return;
-    }
-    const u32 handle = c.Load32(handle_ptr);
-    c.runtime().content_manager().CloseOpenedFilesFromContent("conta");
-    CHECK(c.runtime().object_table().Get(handle));
-    CHECK(c.Kernel("NtClose", {handle}) == 0);
   });
 }

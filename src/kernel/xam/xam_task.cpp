@@ -62,7 +62,7 @@ u32 XamTaskSchedule_entry(mapped_void callback, ppc_ptr_t<XTASK_MESSAGE> message
   if (XFAILED(result)) {
     REX_FAIL(kernel, result, "XAM task creation failed: {:08X}", result);
   }
-  (void)runtime::Current().object_table().Close(task_thread);
+  runtime::CloseOwned(runtime::Current().object_table(), task_thread);
 
   REXLOG_DEBUG(kernel, "XAM task ({:08X}) scheduled asynchronously", callback.guest_address());
 

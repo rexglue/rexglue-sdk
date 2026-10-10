@@ -9,6 +9,7 @@
  */
 
 #include "rex_test.h"
+#include "support/temp_folder.h"
 
 #include <algorithm>
 #include <cstring>
@@ -61,18 +62,8 @@ std::vector<rex::u8> Bytes(std::string_view text) {
   return {text.begin(), text.end()};
 }
 
-struct TempFolder : rex::NonCopyable {
-  TempFolder()
-      : path(std::filesystem::temp_directory_path() /
-             ("rex_container_test_" + std::to_string(std::random_device{}()))) {
-    std::filesystem::create_directories(path);
-  }
-  ~TempFolder() {
-    std::error_code ec;
-    std::filesystem::remove_all(path, ec);
-  }
-
-  std::filesystem::path path;
+struct TempFolder : rex::test::TempFolder {
+  TempFolder() : rex::test::TempFolder("rex_container_test_") {}
 };
 
 std::vector<rex::u8> ReadNode(const fs::Container& container, const fs::ContainerNode& node) {

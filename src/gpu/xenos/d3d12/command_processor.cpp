@@ -525,10 +525,8 @@ u64 D3D12CommandProcessor::RequestViewBindfulDescriptors(
 
 u32 D3D12CommandProcessor::RequestPersistentViewBindlessDescriptor() {
   REX_ASSERT(bindless_resources_used_);
-  if (!view_bindless_heap_free_.empty()) {
-    u32 descriptor_index = view_bindless_heap_free_.back();
-    view_bindless_heap_free_.pop_back();
-    return descriptor_index;
+  if (view_bindless_heap_free_count_) {
+    return view_bindless_heap_free_[--view_bindless_heap_free_count_];
   }
   if (view_bindless_heap_allocated_ >= kViewBindlessHeapSize) {
     return UINT32_MAX;
@@ -536,9 +534,10 @@ u32 D3D12CommandProcessor::RequestPersistentViewBindlessDescriptor() {
   return view_bindless_heap_allocated_++;
 }
 
-void D3D12CommandProcessor::ReleaseViewBindlessDescriptorImmediately(u32 descriptor_index) {
+void D3D12CommandProcessor::ReleaseViewBindlessDescriptorImmediately(
+    u32 descriptor_index) noexcept {
   REX_ASSERT(bindless_resources_used_);
-  view_bindless_heap_free_.push_back(descriptor_index);
+  view_bindless_heap_free_[view_bindless_heap_free_count_++] = descriptor_index;
 }
 
 bool D3D12CommandProcessor::RequestOneUseSingleViewDescriptors(
@@ -552,14 +551,13 @@ bool D3D12CommandProcessor::RequestOneUseSingleViewDescriptors(
   if (bindless_resources_used_) {
     // Bindless descriptors are freed when the GPU completes this submission.
     if (count >
-        kViewBindlessHeapSize - view_bindless_heap_allocated_ + view_bindless_heap_free_.size()) {
+        kViewBindlessHeapSize - view_bindless_heap_allocated_ + view_bindless_heap_free_count_) {
       return false;
     }
     for (u32 i = 0; i < count; ++i) {
       u32 descriptor_index;
-      if (!view_bindless_heap_free_.empty()) {
-        descriptor_index = view_bindless_heap_free_.back();
-        view_bindless_heap_free_.pop_back();
+      if (view_bindless_heap_free_count_) {
+        descriptor_index = view_bindless_heap_free_[--view_bindless_heap_free_count_];
       } else {
         descriptor_index = view_bindless_heap_allocated_++;
       }
@@ -925,6 +923,8 @@ bool D3D12CommandProcessor::SetupContext() {
     view_bindless_heap_cpu_start_ = view_bindless_heap_->GetCPUDescriptorHandleForHeapStart();
     view_bindless_heap_gpu_start_ = view_bindless_heap_->GetGPUDescriptorHandleForHeapStart();
     view_bindless_heap_allocated_ = std::to_underlying(SystemBindlessView::kCount);
+    view_bindless_heap_free_.resize(kViewBindlessHeapSize);
+    view_bindless_heap_free_count_ = 0;
 
     D3D12_DESCRIPTOR_HEAP_DESC sampler_bindless_heap_desc;
     sampler_bindless_heap_desc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER;
@@ -1625,6 +1625,7 @@ void D3D12CommandProcessor::ShutdownContext() {
     gpu::d3d12::util::ReleaseAndNull(sampler_bindless_heap_current_);
     view_bindless_one_use_descriptors_.clear();
     view_bindless_heap_free_.clear();
+    view_bindless_heap_free_count_ = 0;
     gpu::d3d12::util::ReleaseAndNull(view_bindless_heap_);
   } else {
     sampler_bindful_heap_pool_.reset();

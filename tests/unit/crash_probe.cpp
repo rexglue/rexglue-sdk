@@ -56,6 +56,7 @@ namespace {
   throw std::runtime_error("probe terminate");
 }
 
+// NOLINTNEXTLINE(bugprone-exception-escape): the test needs the throw to reach std::terminate
 [[noreturn]] void ThrowFromNoexcept() noexcept {
   Throw();
 }
@@ -83,8 +84,6 @@ std::pair<rex::u32, rex::u32> IgnoreInvalidation(void*, rex::u32, rex::u32, bool
 int Run(std::string_view mode) {
   if (mode == "null-write") {
     WriteNull();
-  } else if (mode == "terminate") {
-    ThrowFromNoexcept();
   } else if (mode == "abort") {
     std::abort();
   } else if (mode == "stack-overflow") {
@@ -180,15 +179,24 @@ int main(int argc, char** argv) {
   if (argc < 2) {
     return 5;
   }
-  rex::LogConfig config;
-  config.console = true;
-  config.debugger = false;
-  config.flush_interval = std::chrono::seconds(0);
-  if (!rex::log::Start(config)) {
-    return 6;
+  const std::string_view mode = argv[1];
+  try {
+    rex::LogConfig config;
+    config.console = true;
+    config.debugger = false;
+    config.flush_interval = std::chrono::seconds(0);
+    if (!rex::log::Start(config)) {
+      return 6;
+    }
+    if (!rex::platform::InstallCrashReporter({.app_name = "rex-crash-probe"})) {
+      return 7;
+    }
+    if (mode != "terminate") {
+      return Run(mode);
+    }
+  } catch (const std::exception& error) {
+    std::fprintf(stderr, "probe failed: %s\n", error.what());
+    return 9;
   }
-  if (!rex::platform::InstallCrashReporter({.app_name = "rex-crash-probe"})) {
-    return 7;
-  }
-  return Run(argv[1]);
+  ThrowFromNoexcept();
 }

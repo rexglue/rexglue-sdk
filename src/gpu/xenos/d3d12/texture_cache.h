@@ -476,7 +476,7 @@ class D3D12TextureCache final : public TextureCache {
    */
   u32 FindOrCreateTextureDescriptor(D3D12Texture& texture, xenos::DataDimension dimension,
                                     bool is_signed, u32 host_swizzle);
-  void ReleaseTextureDescriptor(u32 descriptor_index);
+  void ReleaseTextureDescriptor(u32 descriptor_index) noexcept;
   D3D12_CPU_DESCRIPTOR_HANDLE GetTextureDescriptorCPUHandle(u32 descriptor_index) const;
 
   /**
@@ -538,6 +538,7 @@ class D3D12TextureCache final : public TextureCache {
   std::vector<SRVDescriptorCachePage> srv_descriptor_cache_;
   u32 srv_descriptor_cache_allocated_;
   std::vector<u32> srv_descriptor_cache_free_;
+  u32 srv_descriptor_cache_free_count_ = 0;
 
   enum class NullSRVDescriptorIndex : u32 {
     k2DArray,

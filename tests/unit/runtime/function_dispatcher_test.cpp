@@ -10,6 +10,7 @@
  */
 
 #include <type_traits>
+#include <utility>
 
 #include "rex_test.h"
 
@@ -145,9 +146,7 @@ REX_TEST_CASE("FunctionDispatcher: UnregisterModule clears pool and slots",
   REQUIRE(dispatcher.GetFunction(thunk) == &DummyFn);
 
   auto cleared = dispatcher.UnregisterModule("modA");
-  REQUIRE(cleared.has_value());
-  CHECK(cleared->first == kRegisterModBase + kCodeSize);
-  CHECK(cleared->second == thunk + 4);
+  CHECK(cleared == std::pair<u32, u32>{kRegisterModBase + kCodeSize, thunk + 4});
   CHECK(dispatcher.GetFunction(kRegisterModBase + 0x10) == nullptr);
   CHECK(dispatcher.GetFunction(thunk) == nullptr);
 

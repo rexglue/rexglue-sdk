@@ -415,7 +415,11 @@ X_STATUS ThreadRecord::Create() {
   pcr->prcb_data.dpc_active = 0;
 
   // The thread owns itself until it exits.
-  (void)runtime_->object_table().Retain(handle_);
+  if (auto retained = runtime_->object_table().Retain(handle_); !retained) {
+    REXLOG_ERROR(system, "XThread{:08X}: cannot take the self reference, {}", handle_,
+                 retained.error().message);
+    return ToXStatus(retained);
+  }
 
   rex::platform::Thread::CreationParameters params;
   params.stack_size = 16_MiB;
@@ -454,7 +458,7 @@ X_STATUS ThreadRecord::Create() {
   }
 
   if (!thread_) {
-    (void)runtime_->object_table().Close(handle_);
+    CloseOwned(runtime_->object_table(), handle_);
     REX_FAIL(system, X_STATUS_NO_MEMORY, "CreateThread failed");
   }
 
@@ -529,7 +533,10 @@ void ThreadRecord::Finish(int exit_code) {
   if (!host_fn_ && !runtime_->is_terminating_title()) {
     try {
       CallThreadNotifyRoutines(false);
-    } catch (const rex::ThreadStop&) {}
+    } catch (const rex::ThreadStop& stop) {
+      REXLOG_DEBUG(system, "XThread{:08X} exited with code {} inside a thread notify routine",
+                   handle(), stop.exit_code);
+    }
   }
   exiting_ = true;
 
@@ -555,7 +562,7 @@ void ThreadRecord::ReleaseSelf() {
     current_thread_tls_ = nullptr;
   }
   registry->NoteExited(*this);
-  (void)runtime_->object_table().Close(handle);
+  CloseOwned(runtime_->object_table(), handle);
 }
 
 int ThreadRecord::Execute() {

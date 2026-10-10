@@ -47,9 +47,10 @@ class SingleLayoutDescriptorSetPool {
    * @return The set index, or SIZE_MAX on failure.
    */
   size_t Allocate();
-  void Free(size_t index) {
+  void Free(size_t index) noexcept {
     REX_ASSERT(index < descriptor_sets_.size());
-    descriptor_sets_free_.push_back(index);
+    next_free_[index] = free_head_;
+    free_head_ = index;
   }
   VkDescriptorSet Get(size_t index) const { return descriptor_sets_[index]; }
 
@@ -64,7 +65,8 @@ class SingleLayoutDescriptorSetPool {
   u32 current_pool_sets_remaining_ = 0;
 
   std::vector<VkDescriptorSet> descriptor_sets_;
-  std::vector<size_t> descriptor_sets_free_;
+  std::vector<size_t> next_free_;
+  size_t free_head_ = SIZE_MAX;
 };
 
 }  // namespace vulkan

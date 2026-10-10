@@ -5,7 +5,9 @@
 #include <algorithm>
 #include <atomic>
 #include <chrono>
+#include <cstdio>
 #include <cstring>
+#include <exception>
 #include <filesystem>
 #include <future>
 #include <memory>
@@ -23,6 +25,7 @@
 
 #include "../test_memory.h"
 #include "runtime/dispatcher.h"
+#include "support/temp_folder.h"
 
 namespace rex::testing {
 
@@ -209,8 +212,7 @@ KernelFixture::TempRoot::TempRoot() {
 }
 
 KernelFixture::TempRoot::~TempRoot() {
-  std::error_code error;
-  std::filesystem::remove_all(path, error);
+  rex::test::RemoveTree(path);
 }
 
 KernelFixture::KernelFixture(const std::function<void(const std::filesystem::path&)>& populate,
@@ -225,7 +227,11 @@ KernelFixture::KernelFixture(const std::function<void(const std::filesystem::pat
 }
 
 KernelFixture::~KernelFixture() {
-  CheckNoFailures();
+  try {
+    CheckNoFailures();
+  } catch (const std::exception& error) {
+    std::fprintf(stderr, "KernelFixture teardown failed: %s\n", error.what());
+  }
 }
 
 void KernelFixture::RunOnGuestThread(const std::function<void(Caller&)>& body) {

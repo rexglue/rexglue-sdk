@@ -404,12 +404,10 @@ std::string FunctionNode::emitCpp(const EmitContext& ctx) const {
     return out;
   }
 
-  const SehExceptionInfo* sehInfo = nullptr;
-  if (hasExceptionInfo()) {
-    sehInfo = exceptionInfo()->asSeh();
-    if (sehInfo && !sehInfo->scopes.empty()) {
-      REXLOG_TRACE(codegen, "Function 0x{:08X} has {} SEH scopes", base(), sehInfo->scopes.size());
-    }
+  const auto& exception_info = exceptionInfo();
+  const SehExceptionInfo* sehInfo = exception_info ? exception_info->asSeh() : nullptr;
+  if (sehInfo && !sehInfo->scopes.empty()) {
+    REXLOG_TRACE(codegen, "Function 0x{:08X} has {} SEH scopes", base(), sehInfo->scopes.size());
   }
 
   std::unordered_set<size_t> labels;

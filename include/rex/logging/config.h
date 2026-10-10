@@ -46,6 +46,13 @@ struct LogFileConfig {
 
 /** Logger configuration, read once when the modules connect. */
 struct LogConfig {
+  LogConfig() = default;
+  LogConfig(const LogConfig&) = default;
+  LogConfig& operator=(const LogConfig&) = default;
+  LogConfig(LogConfig&&) noexcept(false) = default;
+  LogConfig& operator=(LogConfig&&) noexcept(false) = default;
+  ~LogConfig() = default;
+
   /** Default level. */
   log::Level level = log::Level::kInfo;
   /** Levels by category name, applied when the category registers. */

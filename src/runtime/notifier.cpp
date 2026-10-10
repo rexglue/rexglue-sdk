@@ -52,7 +52,7 @@ void Notifier::Shutdown() {
     listeners.swap(listeners_);
   }
   for (X_HANDLE handle : listeners) {
-    (void)table_.Close(handle);
+    CloseOwned(table_, handle);
   }
 }
 

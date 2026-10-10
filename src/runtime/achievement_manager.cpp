@@ -84,8 +84,6 @@ Result<void> AchievementManager::LoadMetadataFile(const std::filesystem::path& p
     auto table = toml::parse_file(path.string());
     const auto* entries = table["achievements"].as_array();
     if (!entries) {
-      REXLOG_WARN(system, "Achievement metadata has no [[achievements]] entries: {}",
-                  path.string());
       return Err(ErrorCategory::Format,
                  std::format("{} has no [[achievements]] entries", path.string()));
     }
@@ -113,7 +111,6 @@ Result<void> AchievementManager::LoadMetadataFile(const std::filesystem::path& p
     REXLOG_DEBUG(system, "Loaded achievements.toml: {} entries from {}", loaded, path.string());
     return Ok();
   } catch (const toml::parse_error& error) {
-    REXLOG_WARN(system, "Failed to parse {}: {}", path.string(), error.what());
     return Err(ErrorCategory::Format, error.what());
   }
 }

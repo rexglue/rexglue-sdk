@@ -17,6 +17,8 @@
 #include <vector>
 
 #include <rex/assert.h>
+#include <rex/logging.h>
+#include <rex/no_throw.h>
 #include <rex/types.h>
 #include "gpu/xenos/host/vulkan/device.h"
 
@@ -94,7 +96,9 @@ class VulkanSubmissionTracker : public rex::NonCopyable {
     REX_ASSERT(vulkan_device != nullptr);
   }
 
-  ~VulkanSubmissionTracker() { Shutdown(); }
+  ~VulkanSubmissionTracker() {
+    log::NoThrow(log::gpu, [this] { Shutdown(); });
+  }
 
   void Shutdown();
 
