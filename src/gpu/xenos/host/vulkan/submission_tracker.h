@@ -38,21 +38,24 @@ class VulkanSubmissionTracker : public rex::NonCopyable {
  public:
   class FenceAcquisition : public rex::MoveOnly {
    public:
-    FenceAcquisition() : submission_tracker_(nullptr), fence_(VK_NULL_HANDLE) {}
+    FenceAcquisition() = default;
     FenceAcquisition(VulkanSubmissionTracker& submission_tracker, VkFence fence)
         : submission_tracker_(&submission_tracker), fence_(fence) {}
-    FenceAcquisition(FenceAcquisition&& fence_acquisition) { *this = std::move(fence_acquisition); }
-    FenceAcquisition& operator=(FenceAcquisition&& fence_acquisition) {
+    FenceAcquisition(FenceAcquisition&& fence_acquisition) noexcept
+        : submission_tracker_(std::exchange(fence_acquisition.submission_tracker_, nullptr)),
+          fence_(std::exchange(fence_acquisition.fence_, VK_NULL_HANDLE)),
+          signal_failed_(std::exchange(fence_acquisition.signal_failed_, false)) {}
+    FenceAcquisition& operator=(FenceAcquisition&& fence_acquisition) noexcept {
       if (this == &fence_acquisition) {
         return *this;
       }
-      submission_tracker_ = fence_acquisition.submission_tracker_;
-      fence_acquisition.submission_tracker_ = nullptr;
-      fence_ = fence_acquisition.fence_;
-      fence_acquisition.fence_ = VK_NULL_HANDLE;
+      Release();
+      submission_tracker_ = std::exchange(fence_acquisition.submission_tracker_, nullptr);
+      fence_ = std::exchange(fence_acquisition.fence_, VK_NULL_HANDLE);
+      signal_failed_ = std::exchange(fence_acquisition.signal_failed_, false);
       return *this;
     }
-    ~FenceAcquisition();
+    ~FenceAcquisition() { Release(); }
 
     /**
      * Returns the fence, in the unsignaled state.
@@ -79,9 +82,11 @@ class VulkanSubmissionTracker : public rex::NonCopyable {
     void SubmissionSucceededSignalFailed() { signal_failed_ = true; }
 
    private:
+    void Release() noexcept;
+
     /** Null once moved to another FenceAcquisition, which then holds no fence. */
-    VulkanSubmissionTracker* submission_tracker_;
-    VkFence fence_;
+    VulkanSubmissionTracker* submission_tracker_ = nullptr;
+    VkFence fence_ = VK_NULL_HANDLE;
     bool signal_failed_ = false;
   };
 

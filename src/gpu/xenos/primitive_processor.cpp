@@ -576,6 +576,7 @@ bool PrimitiveProcessor::Process(ProcessingResult& result_out) {
           }
         }
         cache_transaction.SetNewResult(cacheable);
+        cache_transaction.Commit();
       }
     } else {
       cacheable.host_draw_vertex_count = guest_draw_vertex_count;
@@ -619,6 +620,7 @@ bool PrimitiveProcessor::Process(ProcessingResult& result_out) {
                 }
               }
               cache_transaction.SetNewResult(cacheable);
+              cache_transaction.Commit();
             }
           }
         } else {
@@ -665,6 +667,7 @@ bool PrimitiveProcessor::Process(ProcessingResult& result_out) {
                   full_32bit_vertex_indices_used_ ? guest_index_endian : xenos::Endian::kNone;
             }
             cache_transaction.SetNewResult(cacheable);
+            cache_transaction.Commit();
           }
         }
       }
@@ -694,6 +697,7 @@ bool PrimitiveProcessor::Process(ProcessingResult& result_out) {
           cacheable.index_buffer_type = ProcessedIndexBufferType::kHostConverted;
           cacheable.host_shader_index_endian = xenos::Endian::kNone;
           cache_transaction.SetNewResult(cacheable);
+          cache_transaction.Commit();
         }
       }
     }
@@ -1129,8 +1133,8 @@ PrimitiveProcessor::CacheTransaction::CacheTransaction(PrimitiveProcessor& proce
   }
 }
 
-PrimitiveProcessor::CacheTransaction::~CacheTransaction() {
-  if (!key_.count || result_type_ == ResultType::kExisting) {
+void PrimitiveProcessor::CacheTransaction::Commit() {
+  if (committed_ || !key_.count || result_type_ == ResultType::kExisting) {
     return;
   }
 
@@ -1138,16 +1142,21 @@ PrimitiveProcessor::CacheTransaction::~CacheTransaction() {
 
   processor_.cache_currently_processing_base_ = 0;
   processor_.cache_currently_processing_size_bytes_ = 0;
+  committed_ = true;
 
   if (result_type_ == ResultType::kNewSet) {
+    const bool from_free_list = processor_.cache_bucket_free_first_entry_ != SIZE_MAX;
     size_t new_entry_index;
-    if (processor_.cache_bucket_free_first_entry_ != SIZE_MAX) {
+    if (from_free_list) {
       new_entry_index = processor_.cache_bucket_free_first_entry_;
-      processor_.cache_bucket_free_first_entry_ =
-          processor_.cache_entry_pool_[new_entry_index].free_next;
     } else {
       new_entry_index = processor_.cache_entry_pool_.size();
       processor_.cache_entry_pool_.emplace_back();
+    }
+    processor_.cache_map_.emplace(key_, new_entry_index);
+    if (from_free_list) {
+      processor_.cache_bucket_free_first_entry_ =
+          processor_.cache_entry_pool_[new_entry_index].free_next;
     }
     CacheEntry& new_entry = processor_.cache_entry_pool_[new_entry_index];
 
@@ -1176,9 +1185,16 @@ PrimitiveProcessor::CacheTransaction::~CacheTransaction() {
 
     new_entry.key = key_;
     new_entry.result = result_;
-
-    processor_.cache_map_.emplace(key_, new_entry_index);
   }
+}
+
+PrimitiveProcessor::CacheTransaction::~CacheTransaction() {
+  if (committed_ || !key_.count || result_type_ == ResultType::kExisting) {
+    return;
+  }
+  std::lock_guard<std::mutex> cache_lock(processor_.cache_mutex_);
+  processor_.cache_currently_processing_base_ = 0;
+  processor_.cache_currently_processing_size_bytes_ = 0;
 }
 
 std::pair<u32, u32> PrimitiveProcessor::MemoryInvalidationCallback(u32 physical_address_start,

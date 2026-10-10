@@ -469,7 +469,7 @@ void PipelineCache::InitializeShaderStorage(const std::filesystem::path& cache_r
         std::max(std::min(pipeline_stored_descriptions.size(), logical_processor_count) -
                      static_cast<size_t>(1),
                  creation_thread_original_count);
-    while (creation_threads_.size() < creation_thread_original_count) {
+    while (creation_threads_.size() < creation_thread_needed_count) {
       size_t creation_thread_index = creation_threads_.size();
       std::unique_ptr<rex::platform::Thread> creation_thread = rex::platform::Thread::Create(
           {}, [this, creation_thread_index]() { CreationThread(creation_thread_index); });

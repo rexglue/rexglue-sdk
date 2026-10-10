@@ -17,8 +17,10 @@ add_executable(unit_tests
     gpu/backend_select_test.cpp
     gpu/null_command_processor_test.cpp
     gpu/packet_header_test.cpp
+    gpu/texture_info_test.cpp
     gpu/cvar_scope_test.cpp
     gpu/overlay_contract_test.cpp
+    gpu/shader_interpreter_test.cpp
     gpu/shader_translation_test.cpp
     kernel/exit_title_test.cpp
     kernel/video_mode_test.cpp
@@ -102,6 +104,7 @@ add_executable(unit_tests
 )
 
 target_sources(unit_tests PRIVATE
+    ${PROJECT_SOURCE_DIR}/src/gpu/xenos/pipeline/shader/interpreter.cpp
     ${PROJECT_SOURCE_DIR}/src/gpu/xenos/pipeline/shader/shader.cpp
     ${PROJECT_SOURCE_DIR}/src/rexglue/ui/ui.cpp
     ${PROJECT_SOURCE_DIR}/src/rexglue/ui/progress.cpp

@@ -593,8 +593,7 @@ void ShaderInterpreter::ExecuteAluInstruction(xenos::ucode::AluInstruction instr
     } break;
     case 2: {
       scalar_operand_component_count = 2;
-      u32 scalar_src_absolute_mask = ~(static_cast<u32>(instr.abs_constants()) << 31);
-      u32 scalar_src_negate_bit = static_cast<u32>(instr.src_negate(3)) << 31;
+      scalar_src_absolute = instr.abs_constants();
       u32 scalar_src_swizzle = instr.src_swizzle(3);
       // c#.w.
       scalar_operands[0] = GetFloatConstant(instr.src_reg(3), instr.src_const_is_addressed(3),

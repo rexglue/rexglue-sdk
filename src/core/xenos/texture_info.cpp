@@ -243,7 +243,16 @@ bool TextureInfo::GetPackedTileOffset(int packed_tile, u32* offset_x, u32* offse
 }
 
 u64 TextureInfo::hash() const {
-  return XXH3_64bits(this, sizeof(TextureInfo));
+  XXH3_state_t state;
+  XXH3_64bits_reset(&state);
+  const auto add = [&state](const auto&... fields) {
+    (XXH3_64bits_update(&state, &fields, sizeof(fields)), ...);
+  };
+  add(format, endianness, dimension, width, height, depth, pitch, mip_min_level, mip_max_level,
+      is_stacked, is_tiled, has_packed_mips, memory.base_address, memory.base_size,
+      memory.mip_address, memory.mip_size, extent.pitch, extent.height, extent.block_width,
+      extent.block_height, extent.block_pitch_h, extent.block_pitch_v, extent.depth);
+  return XXH3_64bits_digest(&state);
 }
 
 void TextureInfo::SetupMemoryInfo(u32 base_address, u32 mip_address) {

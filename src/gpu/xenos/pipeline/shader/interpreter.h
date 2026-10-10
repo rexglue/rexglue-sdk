@@ -22,7 +22,7 @@
 #include "gpu/xenos/pipeline/shader/shader.h"
 #include <rex/xenos/register_file.h>
 #include <rex/xenos/xenos.h>
-#include <rex/memory.h>
+#include <rex/runtime/xmemory.h>
 
 namespace rex::gpu {
 

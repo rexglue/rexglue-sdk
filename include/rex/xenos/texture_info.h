@@ -12,7 +12,6 @@
 
 #pragma once
 
-#include <cstring>
 #include <memory>
 
 #include <rex/assert.h>
@@ -203,6 +202,12 @@ struct REX_API TextureExtent {
    * @return The extent.
    */
   static TextureExtent Calculate(const TextureInfo* texture_info, bool is_guest);
+
+  /**
+   * @param other The extent to compare with.
+   * @return True when every field matches.
+   */
+  bool operator==(const TextureExtent& other) const = default;
 };
 
 /** Guest memory ranges of a texture. */
@@ -211,6 +216,12 @@ struct TextureMemoryInfo {
   u32 base_size;    /**< Size of the base level in bytes. */
   u32 mip_address;  /**< Address of the mip levels, or 0 when absent. */
   u32 mip_size;     /**< Size of the mip levels in bytes. */
+
+  /**
+   * @param other The ranges to compare with.
+   * @return True when every field matches.
+   */
+  bool operator==(const TextureMemoryInfo& other) const = default;
 };
 
 /** Texture description decoded from a fetch constant or a resolve. */
@@ -313,16 +324,14 @@ struct REX_API TextureInfo {
    */
   bool GetPackedTileOffset(int packed_tile, u32* offset_x, u32* offset_y) const;
 
-  /** @return The 64 bit XXH3 hash of the object bytes. */
+  /** @return The 64 bit XXH3 hash of every field. */
   u64 hash() const;
 
   /**
    * @param other The description to compare with.
-   * @return True when the object bytes match.
+   * @return True when every field matches.
    */
-  bool operator==(const TextureInfo& other) const {
-    return std::memcmp(this, &other, sizeof(TextureInfo)) == 0;
-  }
+  bool operator==(const TextureInfo& other) const = default;
 
  private:
   void SetupMemoryInfo(u32 base_address, u32 mip_address);

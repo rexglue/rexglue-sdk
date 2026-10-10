@@ -103,7 +103,7 @@ class VulkanPipelineCache {
     u32 ucode_dword_count : 31;
     xenos::ShaderType type : 1;
 
-    static constexpr u32 kVersion = 0x20201219;
+    static constexpr u32 kVersion = 0x20261017;
   });
 
   enum class PipelineGeometryShader : u32 {

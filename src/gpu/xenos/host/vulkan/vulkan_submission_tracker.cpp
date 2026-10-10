@@ -19,7 +19,7 @@ namespace rex {
 namespace gpu {
 namespace vulkan {
 
-VulkanSubmissionTracker::FenceAcquisition::~FenceAcquisition() {
+void VulkanSubmissionTracker::FenceAcquisition::Release() noexcept {
   if (!submission_tracker_) {
     return;
   }
@@ -34,6 +34,9 @@ VulkanSubmissionTracker::FenceAcquisition::~FenceAcquisition() {
     submission_tracker_->fence_acquired_ = VK_NULL_HANDLE;
   }
   ++submission_tracker_->submission_current_;
+  submission_tracker_ = nullptr;
+  fence_ = VK_NULL_HANDLE;
+  signal_failed_ = false;
 }
 
 void VulkanSubmissionTracker::Shutdown() {

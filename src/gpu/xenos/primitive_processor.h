@@ -740,6 +740,8 @@ class PrimitiveProcessor {
       result_ = new_result;
       result_type_ = ResultType::kNewSet;
     }
+    /** Closes the inhibit window and stores the new result. Called once processing is done. */
+    void Commit();
     ~CacheTransaction();
 
    private:
@@ -757,6 +759,7 @@ class PrimitiveProcessor {
       kExisting,
     };
     ResultType result_type_ = ResultType::kNewUnset;
+    bool committed_ = false;
   };
 
   std::deque<CacheEntry> cache_entry_pool_;

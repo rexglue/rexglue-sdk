@@ -65,42 +65,24 @@ class VulkanCommandProcessor : public CommandProcessor {
           stage_mask_(stage_mask),
           access_mask_(access_mask) {}
 
-    ScratchBufferAcquisition(ScratchBufferAcquisition&& acquisition) {
-      command_processor_ = acquisition.command_processor_;
-      buffer_ = acquisition.buffer_;
-      stage_mask_ = acquisition.stage_mask_;
-      access_mask_ = acquisition.access_mask_;
-      acquisition.command_processor_ = nullptr;
-      acquisition.buffer_ = VK_NULL_HANDLE;
-      acquisition.stage_mask_ = 0;
-      acquisition.access_mask_ = 0;
-    }
-    ScratchBufferAcquisition& operator=(ScratchBufferAcquisition&& acquisition) {
+    ScratchBufferAcquisition(ScratchBufferAcquisition&& acquisition) noexcept
+        : command_processor_(std::exchange(acquisition.command_processor_, nullptr)),
+          buffer_(std::exchange(acquisition.buffer_, VK_NULL_HANDLE)),
+          stage_mask_(std::exchange(acquisition.stage_mask_, 0)),
+          access_mask_(std::exchange(acquisition.access_mask_, 0)) {}
+    ScratchBufferAcquisition& operator=(ScratchBufferAcquisition&& acquisition) noexcept {
       if (this == &acquisition) {
         return *this;
       }
-      command_processor_ = acquisition.command_processor_;
-      buffer_ = acquisition.buffer_;
-      stage_mask_ = acquisition.stage_mask_;
-      access_mask_ = acquisition.access_mask_;
-      acquisition.command_processor_ = nullptr;
-      acquisition.buffer_ = VK_NULL_HANDLE;
-      acquisition.stage_mask_ = 0;
-      acquisition.access_mask_ = 0;
+      Release();
+      command_processor_ = std::exchange(acquisition.command_processor_, nullptr);
+      buffer_ = std::exchange(acquisition.buffer_, VK_NULL_HANDLE);
+      stage_mask_ = std::exchange(acquisition.stage_mask_, 0);
+      access_mask_ = std::exchange(acquisition.access_mask_, 0);
       return *this;
     }
 
-    ~ScratchBufferAcquisition() {
-      if (buffer_ != VK_NULL_HANDLE) {
-        REX_ASSERT(command_processor_->scratch_buffer_used_);
-        REX_ASSERT(command_processor_->scratch_buffer_ == buffer_);
-        command_processor_->scratch_buffer_last_stage_mask_ = stage_mask_;
-        command_processor_->scratch_buffer_last_access_mask_ = access_mask_;
-        command_processor_->scratch_buffer_last_usage_submission_ =
-            command_processor_->GetCurrentSubmission();
-        command_processor_->scratch_buffer_used_ = false;
-      }
-    }
+    ~ScratchBufferAcquisition() { Release(); }
 
     /**
      * Returns the buffer.
@@ -123,6 +105,20 @@ class VulkanCommandProcessor : public CommandProcessor {
     }
 
    private:
+    void Release() noexcept {
+      if (buffer_ == VK_NULL_HANDLE) {
+        return;
+      }
+      REX_ASSERT(command_processor_->scratch_buffer_used_);
+      REX_ASSERT(command_processor_->scratch_buffer_ == buffer_);
+      command_processor_->scratch_buffer_last_stage_mask_ = stage_mask_;
+      command_processor_->scratch_buffer_last_access_mask_ = access_mask_;
+      command_processor_->scratch_buffer_last_usage_submission_ =
+          command_processor_->GetCurrentSubmission();
+      command_processor_->scratch_buffer_used_ = false;
+      buffer_ = VK_NULL_HANDLE;
+    }
+
     VulkanCommandProcessor* command_processor_ = nullptr;
     VkBuffer buffer_ = VK_NULL_HANDLE;
     VkPipelineStageFlags stage_mask_ = 0;

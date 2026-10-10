@@ -299,8 +299,7 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
   /** Not used on the fragment shader interlock path. */
   u32 last_update_framebuffer_pitch_tiles_at_32bpp_ = 0;
   /** Not used on the fragment shader interlock path. */
-  const RenderTarget* const*
-      last_update_framebuffer_attachments_[1 + xenos::kMaxColorRenderTargets] = {};
+  const RenderTarget* last_update_framebuffer_attachments_[1 + xenos::kMaxColorRenderTargets] = {};
   const Framebuffer* last_update_framebuffer_ = VK_NULL_HANDLE;
 
   /** Must outlive the framebuffers referencing it. */

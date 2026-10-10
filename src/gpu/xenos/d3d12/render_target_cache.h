@@ -728,8 +728,7 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
   gpu::d3d12::D3D12CpuDescriptorPool::Descriptor null_rtv_descriptor_ss_;
   gpu::d3d12::D3D12CpuDescriptorPool::Descriptor null_rtv_descriptor_ms_;
 
-  const RenderTarget* const*
-      current_command_list_render_targets_[1 + xenos::kMaxColorRenderTargets];
+  const RenderTarget* current_command_list_render_targets_[1 + xenos::kMaxColorRenderTargets];
   bool are_current_command_list_render_targets_valid_ = false;
 
   /**
