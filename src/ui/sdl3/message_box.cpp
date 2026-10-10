@@ -70,6 +70,9 @@ Result<u32> ShowSDLBox(MessageKind kind, const std::string& title, const std::st
 Result<u32> SDL3UserInterface::ShowBox(MessageKind kind, std::string_view title,
                                        std::string_view body,
                                        std::span<const std::string> buttons) {
+  if (config_ && config_->ui.video_driver == "dummy") {
+    return Err<u32>(ErrorCategory::Platform, "the dummy video driver shows no message box");
+  }
   if (REX_PLATFORM_MAC && !IsUIThread() && open_.load()) {
     std::optional<Result<u32>> shown;
     RunSynchronous([&] { shown = ShowBox(kind, title, body, buttons); });
@@ -77,9 +80,6 @@ Result<u32> SDL3UserInterface::ShowBox(MessageKind kind, std::string_view title,
       return Err<u32>(ErrorCategory::Platform, "the window closed before the message box showed");
     }
     return std::move(*shown);
-  }
-  if (config_ && config_->ui.video_driver == "dummy") {
-    return Err<u32>(ErrorCategory::Platform, "the dummy video driver shows no message box");
   }
   VideoScope video;
   if (!video.Ok()) {

@@ -122,7 +122,7 @@ class REX_API ChunkedMappedMemoryWriter {
    *
    * @param path Base path of the chunk files.
    * @param chunk_size Byte size of each chunk, rounded up to the allocation granularity.
-   * @param low_address_space True to map chunks below 4 GiB.
+   * @param low_address_space True to map chunks below 4 GiB, which Allocate refuses on macOS.
    * @return The writer.
    */
   static std::unique_ptr<ChunkedMappedMemoryWriter> Open(const std::filesystem::path& path,

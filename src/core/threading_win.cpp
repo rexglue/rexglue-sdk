@@ -13,7 +13,6 @@
 
 static_assert(REX_PLATFORM_WIN32, "This file is Windows-only");
 
-#include "core/thread_registry.h"
 #include "platform_win.h"
 
 #include <array>

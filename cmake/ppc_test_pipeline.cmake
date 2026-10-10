@@ -4,7 +4,9 @@
 # symbol maps from PPC assembly test files.
 
 # Locate PPC toolchain in tools/ directory
-set(PPC_TOOLS_DIR "${PROJECT_SOURCE_DIR}/tools/binutils")
+set(REXGLUE_PPC_BINUTILS_DIR "${PROJECT_SOURCE_DIR}/tools/binutils" CACHE PATH
+    "Directory holding the powerpc-none-elf binutils for the PPC instruction tests")
+set(PPC_TOOLS_DIR "${REXGLUE_PPC_BINUTILS_DIR}")
 
 if(WIN32)
     set(PPC_ASSEMBLER "${PPC_TOOLS_DIR}/powerpc-none-elf-as.exe")
@@ -22,6 +24,17 @@ if(NOT EXISTS "${PPC_ASSEMBLER}")
 endif()
 if(NOT EXISTS "${PPC_LINKER}")
     message(FATAL_ERROR "PPC linker not found at ${PPC_LINKER}")
+endif()
+
+execute_process(
+    COMMAND "${PPC_ASSEMBLER}" --version
+    RESULT_VARIABLE _ppc_as_result
+    OUTPUT_QUIET ERROR_QUIET
+)
+if(NOT _ppc_as_result EQUAL 0)
+    message(FATAL_ERROR
+        "PPC assembler at ${PPC_ASSEMBLER} does not run on this host. "
+        "Set REXGLUE_PPC_BINUTILS_DIR to a powerpc-none-elf binutils build with VMX128 support.")
 endif()
 
 message(STATUS "PowerPC assembler: ${PPC_ASSEMBLER}")

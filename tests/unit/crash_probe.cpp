@@ -111,11 +111,14 @@ int Run(std::string_view mode) {
       if (!memory.Initialize()) {
         return 2;
       }
+      const auto host_page = static_cast<rex::u32>(rex::memory::page_size());
       const rex::u32 address =
-          memory.SystemHeapAlloc(0x1000, 0x1000, rex::runtime::kSystemHeapPhysical);
+          memory.SystemHeapAlloc(host_page, host_page, rex::runtime::kSystemHeapPhysical);
       auto* host = memory.TranslateVirtual<volatile rex::u32*>(address);
-      if (!address || !rex::memory::Protect(const_cast<rex::u32*>(host), 0x1000,
-                                            rex::memory::PageAccess::kReadOnly, nullptr)) {
+      auto* page = reinterpret_cast<rex::u8*>(reinterpret_cast<rex::host_addr_t>(host) &
+                                              ~rex::host_addr_t{host_page - 1});
+      if (!address ||
+          !rex::memory::Protect(page, host_page, rex::memory::PageAccess::kReadOnly, nullptr)) {
         return 2;
       }
       *host = 1;

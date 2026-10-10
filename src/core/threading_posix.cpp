@@ -39,6 +39,7 @@ static_assert(REX_PLATFORM_LINUX || REX_PLATFORM_MAC, "This file is POSIX-only")
 #include <cstdio>
 
 #include <fcntl.h>
+#include <mach/mach.h>
 #endif
 #include <sys/syscall.h>
 #include <sys/time.h>
@@ -51,7 +52,6 @@ static_assert(REX_PLATFORM_LINUX || REX_PLATFORM_MAC, "This file is POSIX-only")
 #include <rex/platform/timer_queue.h>
 
 #include "core/signal_context.h"
-#include "core/thread_registry.h"
 
 #include <sched.h>
 
@@ -61,6 +61,48 @@ static_assert(REX_PLATFORM_LINUX || REX_PLATFORM_MAC, "This file is POSIX-only")
 #include <rex/main_android.h>
 #include <rex/string.h>
 #include <rex/move_only_function.h>
+#endif
+
+#if REX_PLATFORM_MAC
+static_assert(rex::platform::detail::kRedirectFrameFP == 0x00 &&
+              rex::platform::detail::kRedirectFrameLR == 0x08 &&
+              rex::platform::detail::kRedirectFrameSP == 0x10 &&
+              rex::platform::detail::kRedirectFramePC == 0x18 &&
+              rex::platform::detail::kRedirectFrameTarget == 0x20);
+#if REX_ARCH_AMD64
+__asm__(
+    ".text\n"
+    ".globl _rex_redirect_trampoline\n"
+    ".private_extern _rex_redirect_trampoline\n"
+    ".p2align 4\n"
+    "_rex_redirect_trampoline:\n"
+    ".cfi_startproc\n"
+    ".cfi_signal_frame\n"
+    ".cfi_escape 0x0f, 0x03, 0x77, 0x10, 0x06\n"
+    ".cfi_escape 0x10, 0x06, 0x02, 0x77, 0x00\n"
+    ".cfi_escape 0x10, 0x10, 0x02, 0x77, 0x18\n"
+    "  call *0x20(%rsp)\n"
+    "  ud2\n"
+    ".cfi_endproc\n");
+#else
+__asm__(
+    ".text\n"
+    ".globl _rex_redirect_trampoline\n"
+    ".private_extern _rex_redirect_trampoline\n"
+    ".p2align 2\n"
+    "_rex_redirect_trampoline:\n"
+    ".cfi_startproc\n"
+    ".cfi_signal_frame\n"
+    ".cfi_return_column 32\n"
+    ".cfi_escape 0x0f, 0x03, 0x8f, 0x10, 0x06\n"
+    ".cfi_escape 0x10, 0x1d, 0x02, 0x8f, 0x00\n"
+    ".cfi_escape 0x10, 0x1e, 0x02, 0x8f, 0x08\n"
+    ".cfi_escape 0x10, 0x20, 0x02, 0x8f, 0x18\n"
+    "  ldr x16, [sp, #0x20]\n"
+    "  blr x16\n"
+    "  brk #1\n"
+    ".cfi_endproc\n");
+#endif
 #endif
 
 namespace rex::platform {
@@ -228,10 +270,22 @@ void Sleep(std::chrono::microseconds duration) {
 }
 
 std::chrono::milliseconds QueryCurrentThreadCPUTime() {
+#if REX_PLATFORM_MAC
+  thread_basic_info_data_t info{};
+  mach_msg_type_number_t count = THREAD_BASIC_INFO_COUNT;
+  if (thread_info(pthread_mach_thread_np(pthread_self()), THREAD_BASIC_INFO,
+                  reinterpret_cast<thread_info_t>(&info), &count) != KERN_SUCCESS) {
+    return {};
+  }
+  return std::chrono::seconds(info.user_time.seconds + info.system_time.seconds) +
+         std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::microseconds(
+             info.user_time.microseconds + info.system_time.microseconds));
+#else
   timespec now{};
   clock_gettime(CLOCK_THREAD_CPUTIME_ID, &now);
   return std::chrono::seconds(now.tv_sec) + std::chrono::duration_cast<std::chrono::milliseconds>(
                                                 std::chrono::nanoseconds(now.tv_nsec));
+#endif
 }
 
 thread_local bool alertable_state_ = false;
@@ -1169,7 +1223,7 @@ class PosixCondition<Thread> : public PosixConditionBase {
     return redirect_result_.load(std::memory_order_acquire) == kRedirectTaken;
   }
 
-  void HandleRedirect(int signal, void* signal_context) {
+  void HandleRedirect([[maybe_unused]] int signal, void* signal_context) {
     if (!redirect_pending_.exchange(false, std::memory_order_acq_rel)) {
       return;
     }
@@ -1179,11 +1233,15 @@ class PosixCondition<Thread> : public PosixConditionBase {
       return;
     }
     redirect_result_.store(kRedirectTaken, std::memory_order_release);
+#if REX_PLATFORM_MAC
+    detail::CallOnSignalReturn(signal_context, target);
+#else
     sigset_t unblock;
     sigemptyset(&unblock);
     sigaddset(&unblock, signal);
     pthread_sigmask(SIG_UNBLOCK, &unblock, nullptr);
     target();
+#endif
   }
 
   [[noreturn]] void ExitCurrent(int exit_code) {

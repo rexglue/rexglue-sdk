@@ -80,8 +80,10 @@ endif()
 target_compile_options(ppc_tests PRIVATE
     -UTRACY_ENABLE -UREXGLUE_ENABLE_PROFILING
     -UREXGLUE_ENABLE_PERF_COUNTERS
-    -msse4.1 -mssse3
 )
+if(REX_TARGET_PROCESSOR MATCHES "AMD64|x86_64")
+    target_compile_options(ppc_tests PRIVATE -msse4.1 -mssse3)
+endif()
 
 include(Catch)
 catch_discover_tests(ppc_tests

@@ -86,9 +86,13 @@ TEST_CASE("A low address chunked writer maps below 4 GiB", "[memory][mapped_memo
     auto writer =
         ChunkedMappedMemoryWriter::Open(dir / "trace", rex::memory::allocation_granularity(), true);
     REQUIRE(writer != nullptr);
+#if REX_PLATFORM_MAC
+    CHECK(writer->Allocate(16) == nullptr);
+#else
     rex::u8* data = writer->Allocate(16);
     REQUIRE(data != nullptr);
     CHECK(reinterpret_cast<uintptr_t>(data) < (uintptr_t{1} << 32));
+#endif
   }
   std::filesystem::remove_all(dir);
 }

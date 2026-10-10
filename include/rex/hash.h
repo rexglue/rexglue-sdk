@@ -69,8 +69,8 @@ REX_API std::string hash_bytes(std::string_view data);
  * 128 bit XXH3 digest over the contents of a file, read in chunks.
  *
  * @param path The file to hash.
- * @return The digest as a 32 character lowercase hex string, or an empty string when the file
- *         cannot be opened or read.
+ * @return The digest as a 32 character lowercase hex string, or an empty string when the path is
+ *         not a regular file or cannot be opened or read.
  */
 REX_API std::string hash_file(const std::filesystem::path& path);
 

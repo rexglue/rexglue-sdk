@@ -1,36 +1,28 @@
-#include "core/thread_registry.h"
+/**
+ * @file        core/thread_registry.cpp
+ * @brief       Count of live host threads that registered with the platform layer
+ *
+ * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
+ *              All rights reserved.
+ *
+ * @license     BSD 3-Clause License
+ *              See LICENSE file in the project root for full license text.
+ */
 
-#include <mutex>
-#include <type_traits>
-#include <unordered_set>
+#include <atomic>
 
-#include <rex/platform.h>
 #include <rex/platform/thread.h>
-
-#if REX_PLATFORM_WIN32
-#include <windows.h>
-#else
-#include <pthread.h>
-#endif
 
 namespace rex::platform::detail {
 namespace {
 
-std::mutex& RegistryMutex() {
-  static std::mutex mutex;
-  return mutex;
-}
-
-std::unordered_set<u64>& LiveThreads() {
-  static std::unordered_set<u64> threads;
-  return threads;
-}
+constinit std::atomic<u64> g_live_count{0};
 
 struct ExitGuard {
-  u64 id = 0;
+  bool registered = false;
   ~ExitGuard() {
-    if (id != 0) {
-      UnregisterThread(id);
+    if (registered) {
+      g_live_count.fetch_sub(1, std::memory_order_acq_rel);
     }
   }
 };
@@ -39,36 +31,16 @@ thread_local ExitGuard g_exit_guard;
 
 }  // namespace
 
-u64 CurrentThreadID() {
-#if REX_PLATFORM_WIN32
-  return ::GetCurrentThreadId();
-#else
-  const pthread_t self = pthread_self();
-  if constexpr (std::is_pointer_v<pthread_t>) {
-    return reinterpret_cast<uintptr_t>(self);
-  } else {
-    return static_cast<u64>(self);
-  }
-#endif
-}
-
 void RegisterCurrentThread() {
-  if (g_exit_guard.id != 0) {
+  if (g_exit_guard.registered) {
     return;
   }
-  g_exit_guard.id = CurrentThreadID();
-  std::lock_guard lock(RegistryMutex());
-  LiveThreads().insert(g_exit_guard.id);
-}
-
-void UnregisterThread(u64 id) {
-  std::lock_guard lock(RegistryMutex());
-  LiveThreads().erase(id);
+  g_exit_guard.registered = true;
+  g_live_count.fetch_add(1, std::memory_order_acq_rel);
 }
 
 u64 LiveCount() {
-  std::lock_guard lock(RegistryMutex());
-  return LiveThreads().size();
+  return g_live_count.load(std::memory_order_acquire);
 }
 
 }  // namespace rex::platform::detail

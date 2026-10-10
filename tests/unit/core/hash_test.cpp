@@ -53,3 +53,7 @@ TEST_CASE("hash_file matches hash_bytes over the same content", "[hash]") {
 TEST_CASE("hash_file returns empty for a missing file", "[hash]") {
   CHECK(rex::hash_file(fs::temp_directory_path() / "rexglue_hash_test_absent.bin").empty());
 }
+
+TEST_CASE("hash_file returns empty for a directory", "[hash]") {
+  CHECK(rex::hash_file(fs::temp_directory_path()).empty());
+}

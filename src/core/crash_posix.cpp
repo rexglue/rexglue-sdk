@@ -1,7 +1,3 @@
-#if defined(__APPLE__) && !defined(_XOPEN_SOURCE)
-#define _XOPEN_SOURCE 700
-#endif
-
 #include <rex/platform/crash.h>
 
 #include <rex/platform.h>
@@ -18,8 +14,13 @@
 #include <pthread.h>
 #include <signal.h>
 #include <sys/mman.h>
-#include <ucontext.h>
 #include <unistd.h>
+
+#if REX_PLATFORM_MAC
+#include <sys/ucontext.h>
+#else
+#include <ucontext.h>
+#endif
 
 #include "core/crash_report.h"
 #include "core/logger.h"

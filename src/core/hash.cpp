@@ -26,6 +26,10 @@ std::string hash_bytes(std::string_view data) {
 }
 
 std::string hash_file(const std::filesystem::path& path) {
+  std::error_code ec;
+  if (!std::filesystem::is_regular_file(path, ec)) {
+    return {};
+  }
   std::ifstream file(path, std::ios::binary);
   if (!file)
     return {};

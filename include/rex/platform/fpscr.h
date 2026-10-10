@@ -81,7 +81,7 @@ struct FPSCRPlatform {
   static inline u32 getcsr() noexcept {
     u64 csr;
     __asm__ __volatile__("mrs %0, fpcr" : "=r"(csr));
-    return csr;
+    return static_cast<u32>(csr);
   }
 
   /**
@@ -89,7 +89,9 @@ struct FPSCRPlatform {
    *
    * @param csr New FPCR value.
    */
-  static inline void setcsr(u32 csr) noexcept { __asm__ __volatile__("msr fpcr, %0" : : "r"(csr)); }
+  static inline void setcsr(u32 csr) noexcept {
+    __asm__ __volatile__("msr fpcr, %0" : : "r"(static_cast<u64>(csr)));
+  }
 
   /**
    * Disables every floating point trap in a control word.

@@ -7,13 +7,12 @@
 #   rexglue_configure_module_target(<target> ...)  - guest DLL module
 #==========================================================
 include_guard(GLOBAL)
-set(_REXGLUE_HELPERS_DIR ${CMAKE_CURRENT_LIST_DIR})
 
 function(_rexglue_stage_macos_vulkan_runtime target_name)
     if(TARGET Vulkan::Loader AND TARGET MoltenVK::MoltenVK)
         set(_rexglue_vulkan_loader Vulkan::Loader)
         set(_rexglue_moltenvk MoltenVK::MoltenVK)
-        set(_rexglue_moltenvk_icd "${REXGLUE_ROOT}/cmake/MoltenVK_icd.json")
+        set(_rexglue_moltenvk_icd "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/MoltenVK_icd.json")
     elseif(TARGET rex::vulkan-loader AND TARGET rex::moltenvk)
         set(_rexglue_vulkan_loader rex::vulkan-loader)
         set(_rexglue_moltenvk rex::moltenvk)
@@ -158,7 +157,8 @@ function(rexglue_configure_target target_name)
 
     if(WIN32)
         set(_optimus_source "${CMAKE_CURRENT_BINARY_DIR}/${target_name}_optimus.cpp")
-        configure_file("${_REXGLUE_HELPERS_DIR}/rexglue_optimus.cpp.in" "${_optimus_source}" COPYONLY)
+        configure_file("${CMAKE_CURRENT_FUNCTION_LIST_DIR}/rexglue_optimus.cpp.in"
+            "${_optimus_source}" COPYONLY)
         target_sources(${target_name} PRIVATE "${_optimus_source}")
     endif()
 

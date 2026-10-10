@@ -124,7 +124,8 @@ TEST_CASE("Unchanged files keep their modification time", "[codegen_writer]") {
   CodegenWriter second(*fx.ctx);
   REQUIRE(second.write(false));
 
-  CHECK(fs::last_write_time(probe) == before);
+  const bool unchanged = fs::last_write_time(probe) == before;
+  CHECK(unchanged);
 }
 
 TEST_CASE("Stale generated files are swept after the write", "[codegen_writer]") {

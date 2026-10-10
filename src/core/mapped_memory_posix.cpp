@@ -188,6 +188,10 @@ class PosixChunkedMappedMemoryWriter : public ChunkedMappedMemoryWriter {
         data_ = static_cast<u8*>(data);
         return true;
       }
+#if REX_PLATFORM_MAC
+      REXLOG_ERROR(core, "macOS maps no chunk below 4 GiB");
+      return false;
+#else
       u8* hint = reinterpret_cast<u8*>(kLowAddressBase);
       for (u32 attempt = 0; attempt < kLowAddressAttempts; ++attempt, hint += capacity_) {
         void* data =
@@ -202,6 +206,7 @@ class PosixChunkedMappedMemoryWriter : public ChunkedMappedMemoryWriter {
       }
       REXLOG_ERROR(core, "Unable to find space for mapping");
       return false;
+#endif
     }
 
     u8* Allocate(size_t length) {
