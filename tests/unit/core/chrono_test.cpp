@@ -304,3 +304,55 @@ TEST_CASE("The host tick count advances at the rate of steady_clock", "[chrono]"
   CHECK(seconds / elapsed.count() > 0.99);
   CHECK(seconds / elapsed.count() < 1.01);
 }
+
+TEST_CASE("A scaled relative file time stays negative", "[chrono]") {
+  const rex::f64 scalar = rex::Clock::guest_time_scalar();
+  rex::Clock::set_guest_time_scalar(0.5);
+  CHECK(rex::Clock::ScaleGuestDurationFileTime(-10'000'000) == -5'000'000);
+  rex::Clock::set_guest_time_scalar(2.0);
+  CHECK(rex::Clock::ScaleGuestDurationFileTime(-10'000'000) == -20'000'000);
+  rex::Clock::set_guest_time_scalar(scalar);
+}
+
+TEST_CASE("A scaled negative timeval stays negative", "[chrono]") {
+  const rex::f64 scalar = rex::Clock::guest_time_scalar();
+  rex::Clock::set_guest_time_scalar(2.0);
+  rex::i32 sec = -1;
+  rex::i32 usec = -1;
+  rex::Clock::ScaleGuestDurationTimeval(&sec, &usec);
+  CHECK(sec == -3);
+  CHECK(usec == 999'998);
+  rex::Clock::set_guest_time_scalar(scalar);
+}
+
+TEST_CASE("A scaled timeval carries microseconds into seconds at 1 second", "[chrono]") {
+  const rex::f64 scalar = rex::Clock::guest_time_scalar();
+  rex::Clock::set_guest_time_scalar(2.0);
+  rex::i32 sec = 0;
+  rex::i32 usec = 600'000;
+  rex::Clock::ScaleGuestDurationTimeval(&sec, &usec);
+  CHECK(sec == 1);
+  CHECK(usec == 200'000);
+  sec = -1;
+  usec = -600'000;
+  rex::Clock::ScaleGuestDurationTimeval(&sec, &usec);
+  CHECK(sec == -4);
+  CHECK(usec == 800'000);
+  rex::Clock::set_guest_time_scalar(scalar);
+}
+
+TEST_CASE("A scaled timeval keeps the fraction of its seconds", "[chrono]") {
+  const rex::f64 scalar = rex::Clock::guest_time_scalar();
+  rex::Clock::set_guest_time_scalar(0.5);
+  rex::i32 sec = 1;
+  rex::i32 usec = 0;
+  rex::Clock::ScaleGuestDurationTimeval(&sec, &usec);
+  CHECK(sec == 0);
+  CHECK(usec == 500'000);
+  sec = 0;
+  usec = 1;
+  rex::Clock::ScaleGuestDurationTimeval(&sec, &usec);
+  CHECK(sec == 0);
+  CHECK(usec == 0);
+  rex::Clock::set_guest_time_scalar(scalar);
+}

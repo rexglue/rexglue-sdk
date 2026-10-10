@@ -198,8 +198,8 @@ i64 Clock::ScaleGuestDurationFileTime(i64 guest_file_time) {
     i64 scaled_time = static_cast<i64>(relative_time * g_guest_time_scalar);
     return static_cast<i64>(guest_time) + scaled_time;
   } else {
-    u64 scaled_file_time =
-        static_cast<u64>((static_cast<u64>(guest_file_time) * g_guest_time_scalar));
+    const i64 scaled_file_time =
+        static_cast<i64>(static_cast<f64>(guest_file_time) * g_guest_time_scalar);
     return scaled_file_time;
   }
 }
@@ -209,12 +209,14 @@ void Clock::ScaleGuestDurationTimeval(i32* tv_sec, i32* tv_usec) {
     return;
   }
 
-  u64 scaled_sec = static_cast<u64>(static_cast<u64>(*tv_sec) * g_guest_time_scalar);
-  u64 scaled_usec = static_cast<u64>(static_cast<u64>(*tv_usec) * g_guest_time_scalar);
-  if (scaled_usec > std::numeric_limits<u32>::max()) {
-    u64 overflow_sec = scaled_usec / 1000000;
-    scaled_usec -= overflow_sec * 1000000;
-    scaled_sec += overflow_sec;
+  constexpr i64 kMicrosPerSecond = 1'000'000;
+  const i64 total = i64{*tv_sec} * kMicrosPerSecond + i64{*tv_usec};
+  const i64 scaled = static_cast<i64>(static_cast<f64>(total) * g_guest_time_scalar);
+  i64 scaled_sec = scaled / kMicrosPerSecond;
+  i64 scaled_usec = scaled % kMicrosPerSecond;
+  if (scaled_usec < 0) {
+    scaled_usec += kMicrosPerSecond;
+    --scaled_sec;
   }
   *tv_sec = static_cast<i32>(scaled_sec);
   *tv_usec = static_cast<i32>(scaled_usec);
