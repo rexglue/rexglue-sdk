@@ -66,7 +66,7 @@ class SpirvBuilder : public spv::Builder {
     spv::Id createMergePhi(spv::Id then_variable, spv::Id else_variable) const;
 
    private:
-    enum class Branch {
+    enum class Branch : u8 {
       kThen,
       kElse,
       kMerge,
@@ -107,7 +107,7 @@ class SpirvBuilder : public spv::Builder {
     spv::Id getDefaultPhiParent() const { return default_phi_parent_; }
 
    private:
-    enum class Branch {
+    enum class Branch : u8 {
       kSelection,
       kDefault,
       kCase,

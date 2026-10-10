@@ -66,7 +66,7 @@ void Break() {
 
 namespace detail {
 void DebugPrint(const char* s) {
-  std::clog << s << std::endl;
+  std::clog << s << '\n';
 }
 }  // namespace detail
 

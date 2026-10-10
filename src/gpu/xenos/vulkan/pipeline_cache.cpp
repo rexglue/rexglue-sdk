@@ -881,9 +881,8 @@ SpirvShaderTranslator::Modification VulkanPipelineCache::GetCurrentVertexShaderM
   auto pa_cl_clip_cntl = regs.Get<xenos::reg::PA_CL_CLIP_CNTL>();
   u32 user_clip_planes = pa_cl_clip_cntl.clip_disable ? 0 : pa_cl_clip_cntl.ucp_ena;
   if (user_clip_planes) {
-    if (pa_cl_clip_cntl.ucp_cull_only_ena && device_properties.shaderCullDistance) {
-      modification.vertex.user_clip_plane_cull = 1;
-    } else if (!device_properties.shaderClipDistance && device_properties.shaderCullDistance) {
+    if (device_properties.shaderCullDistance &&
+        (pa_cl_clip_cntl.ucp_cull_only_ena || !device_properties.shaderClipDistance)) {
       modification.vertex.user_clip_plane_cull = 1;
     } else if (!device_properties.shaderClipDistance) {
       user_clip_planes = 0;
@@ -1630,9 +1629,8 @@ VkShaderModule VulkanPipelineCache::GetTessellationControlShader(
   u32 input_control_points =
       GetTessellationPatchControlPointCount(host_vertex_shader_type, tessellation_mode);
   u32 output_control_points = 0;
-  if (tessellation_mode == xenos::TessellationMode::kAdaptive) {
-    output_control_points = 1;
-  } else if (IsPatchIndexedHostVertexShaderType(host_vertex_shader_type)) {
+  if (tessellation_mode == xenos::TessellationMode::kAdaptive ||
+      IsPatchIndexedHostVertexShaderType(host_vertex_shader_type)) {
     output_control_points = 1;
   } else if (IsTriangleDomainHostVertexShaderType(host_vertex_shader_type)) {
     output_control_points = 3;
@@ -1806,7 +1804,7 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
           ? builder.makeArrayType(type_float, builder.makeUintConstant(cull_distance_count), 0)
           : spv::NoType;
 
-  enum PointConstant : u32 {
+  enum PointConstant : u8 {
     kPointConstantConstantDiameter,
     kPointConstantScreenDiameterToNdcRadius,
     kPointConstantNdcScale,
@@ -1864,21 +1862,21 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
       builder.makeUintConstant(input_primitive_vertex_count);
 
   id_vector_temp.clear();
-  u32 member_in_gl_per_vertex_position = static_cast<u32>(id_vector_temp.size());
+  i32 member_in_gl_per_vertex_position = static_cast<i32>(id_vector_temp.size());
   id_vector_temp.push_back(type_float4);
   spv::Id const_member_in_gl_per_vertex_position =
-      builder.makeIntConstant(static_cast<i32>(member_in_gl_per_vertex_position));
-  u32 member_in_gl_per_vertex_clip_distance = UINT32_MAX;
+      builder.makeIntConstant(member_in_gl_per_vertex_position);
+  i32 member_in_gl_per_vertex_clip_distance = -1;
   spv::Id const_member_in_gl_per_vertex_clip_distance = spv::NoResult;
   if (clip_distance_count) {
-    member_in_gl_per_vertex_clip_distance = static_cast<u32>(id_vector_temp.size());
+    member_in_gl_per_vertex_clip_distance = static_cast<i32>(id_vector_temp.size());
     id_vector_temp.push_back(type_clip_distances);
     const_member_in_gl_per_vertex_clip_distance =
-        builder.makeIntConstant(static_cast<i32>(member_in_gl_per_vertex_clip_distance));
+        builder.makeIntConstant(member_in_gl_per_vertex_clip_distance);
   }
-  u32 member_in_gl_per_vertex_cull_distance = UINT32_MAX;
+  i32 member_in_gl_per_vertex_cull_distance = -1;
   if (cull_distance_count) {
-    member_in_gl_per_vertex_cull_distance = static_cast<u32>(id_vector_temp.size());
+    member_in_gl_per_vertex_cull_distance = static_cast<i32>(id_vector_temp.size());
     id_vector_temp.push_back(type_cull_distances);
   }
   spv::Id type_struct_in_gl_per_vertex = builder.makeStructType(id_vector_temp, "gl_PerVertex");
@@ -1955,17 +1953,17 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
   }
 
   id_vector_temp.clear();
-  u32 member_out_gl_per_vertex_position = static_cast<u32>(id_vector_temp.size());
+  i32 member_out_gl_per_vertex_position = static_cast<i32>(id_vector_temp.size());
   id_vector_temp.push_back(type_float4);
   spv::Id const_member_out_gl_per_vertex_position =
-      builder.makeIntConstant(static_cast<i32>(member_out_gl_per_vertex_position));
-  u32 member_out_gl_per_vertex_clip_distance = UINT32_MAX;
+      builder.makeIntConstant(member_out_gl_per_vertex_position);
+  i32 member_out_gl_per_vertex_clip_distance = -1;
   spv::Id const_member_out_gl_per_vertex_clip_distance = spv::NoResult;
   if (clip_distance_count) {
-    member_out_gl_per_vertex_clip_distance = static_cast<u32>(id_vector_temp.size());
+    member_out_gl_per_vertex_clip_distance = static_cast<i32>(id_vector_temp.size());
     id_vector_temp.push_back(type_clip_distances);
     const_member_out_gl_per_vertex_clip_distance =
-        builder.makeIntConstant(static_cast<i32>(member_out_gl_per_vertex_clip_distance));
+        builder.makeIntConstant(member_out_gl_per_vertex_clip_distance);
   }
   spv::Id type_struct_out_gl_per_vertex = builder.makeStructType(id_vector_temp, "gl_PerVertex");
   builder.addMemberName(type_struct_out_gl_per_vertex, member_out_gl_per_vertex_position,
@@ -2051,7 +2049,7 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
   // Point lists with ps_ucp_mode 3 compute user cull plane distances per expanded vertex later.
   if (cull_distance_count) {
     spv::Id const_member_in_gl_per_vertex_cull_distance =
-        builder.makeIntConstant(static_cast<i32>(member_in_gl_per_vertex_cull_distance));
+        builder.makeIntConstant(member_in_gl_per_vertex_cull_distance);
     spv::Id const_float_0 = builder.makeFloatConstant(0.0f);
     spv::Id cull_condition = spv::NoResult;
     u32 cull_distance_start = point_recalculate_cull_distances ? point_user_cull_distance_count : 0;
@@ -3060,13 +3058,11 @@ bool VulkanPipelineCache::EnsurePipelineCreated(const PipelineCreationArguments&
   bool subpass_has_attachments =
       !edram_fragment_shader_interlock && description.render_pass_key.depth_and_color_used != 0;
   VkSampleMask sample_mask = UINT32_MAX;
-  VkPipelineMultisampleStateCreateInfo multisample_state = {};
-  multisample_state.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
-  if (description.rasterizer_discard) {
-    // Rasterizer discard pipelines ignore the guest MSAA state.
-    multisample_state.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
-  } else if (!edram_fragment_shader_interlock && !subpass_has_attachments) {
-    // Draws without color or depth attachments run at 1 sample.
+  VkPipelineMultisampleStateCreateInfo multisample_state =
+      util::MakeMultisampleState(VK_SAMPLE_COUNT_1_BIT);
+  if (description.rasterizer_discard ||
+      (!edram_fragment_shader_interlock && !subpass_has_attachments)) {
+    // Rasterizer discard and attachmentless draws run at 1 sample.
     multisample_state.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
   } else if (description.render_pass_key.msaa_samples == xenos::MSAASamples::k2X &&
              !render_target_cache_.IsMsaa2xSupported(subpass_has_attachments)) {

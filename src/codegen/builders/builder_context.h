@@ -51,7 +51,7 @@ struct RecompilerLocalVariables {
  * - **VMX** flushes denormals to zero. Used by vector floating-point
  *   instructions (vaddfp, vmaddfp and others)
  */
-enum class CSRState { Unknown, FPU, VMX };
+enum class CSRState : u8 { Unknown, FPU, VMX };
 
 /**
  * @brief Context passed to instruction builders during code generation.

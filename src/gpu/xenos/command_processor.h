@@ -37,7 +37,7 @@ namespace rex::gpu {
 class GraphicsSystem;
 class Shader;
 
-enum class ReadbackResolveMode {
+enum class ReadbackResolveMode : u8 {
   kDisabled,
   kFast,
   kSome,
@@ -55,12 +55,12 @@ struct SwapState {
   bool pending = false;
 };
 
-enum class SwapMode {
+enum class SwapMode : u8 {
   kNormal,
   kIgnored,
 };
 
-enum class GammaRampType {
+enum class GammaRampType : u8 {
   kUnknown = 0,
   kTable,
   kPWL,
@@ -68,7 +68,7 @@ enum class GammaRampType {
 
 class CommandProcessor {
  public:
-  enum class SwapPostEffect {
+  enum class SwapPostEffect : u8 {
     kNone,
     kFxaa,
     kFxaaExtreme,

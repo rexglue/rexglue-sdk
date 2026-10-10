@@ -47,6 +47,7 @@ class AchievementToastDialog : public AchievementNotificationDialog {
   struct PendingToast {
     rex::runtime::AchievementEvent event;
     std::chrono::steady_clock::time_point arrived;
+    // NOLINTNEXTLINE(readability-redundant-member-init) designated initializers omit this field
     std::optional<std::chrono::steady_clock::time_point> visible_since = {};
   };
 

@@ -35,7 +35,7 @@ inline bool WriteFileBytes(const std::filesystem::path& path, std::string_view c
       .has_value();
 }
 
-enum class WriteOutcome { Failed, Unchanged, Written };
+enum class WriteOutcome : u8 { Failed, Unchanged, Written };
 
 /**
  * Writes a file only when its bytes differ, so an unchanged output keeps its mtime and does not

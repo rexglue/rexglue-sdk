@@ -22,13 +22,11 @@
 #include "kernel_fixture.h"
 #include "runtime/guest_stack.h"
 
-// NOLINTBEGIN(readability-identifier-naming) frozen shim entry names
 extern "C" void rexshim_ConvertThreadToFiber(PPCContext& ctx, rex::u8* base);
 extern "C" void rexshim_ConvertFiberToThread(PPCContext& ctx, rex::u8* base);
 extern "C" void rexshim_CreateFiber(PPCContext& ctx, rex::u8* base);
 extern "C" void rexshim_DeleteFiber(PPCContext& ctx, rex::u8* base);
 extern "C" void rexshim_SwitchToFiber(PPCContext& ctx, rex::u8* base);
-// NOLINTEND(readability-identifier-naming)
 
 using rex::u32;
 using rex::u64;

@@ -187,7 +187,7 @@ REX_TEST_CASE("Redirect leaves a thread outside the recompiled code section runn
 
 REX_TEST_CASE("A thread that ended and was waited on ignores later signals", "[core][thread]") {
   rex::platform::Thread::CreationParameters params;
-  params.stack_size = 64 * 1024 * 1024;
+  params.stack_size = size_t{64} * 1024 * 1024;
   auto thread = rex::platform::Thread::Create(params, [] {});
   REQUIRE(rex::platform::Wait(thread.get(), false, 1s) == rex::platform::WaitResult::kSuccess);
   thread->QueueUserCallback([] {});

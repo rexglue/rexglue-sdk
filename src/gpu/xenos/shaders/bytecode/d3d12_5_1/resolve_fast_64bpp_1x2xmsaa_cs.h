@@ -8,7 +8,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-const BYTE resolve_fast_64bpp_1x2xmsaa_cs[] = {
+const BYTE kResolveFast64BPP1x2xMSAACS[] = {
     68,  88,  66,  67,  72,  24,  139, 103, 64,  0,   156, 217, 10,  65,  226, 91,  157, 5,   131,
     37,  1,   0,   0,   0,   0,   23,  0,   0,   5,   0,   0,   0,   52,  0,   0,   0,   208, 2,
     0,   0,   224, 2,   0,   0,   240, 2,   0,   0,   100, 22,  0,   0,   82,  68,  69,  70,  148,

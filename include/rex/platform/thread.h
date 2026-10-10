@@ -758,13 +758,13 @@ REX_API void ShutdownTimerQueue();
  */
 template <typename F>
 std::jthread Spawn(std::string_view name, F&& fn) {
-  return std::jthread(
-      [thread_name = std::string(name), body = std::forward<F>(fn)](std::stop_token token) mutable {
-        detail::RegisterCurrentThread();
-        PrepareThreadForCrash();
-        set_current_thread_name(thread_name);
-        body(std::move(token));
-      });
+  return std::jthread([thread_name = std::string(name),
+                       body = std::forward<F>(fn)](const std::stop_token& token) mutable {
+    detail::RegisterCurrentThread();
+    PrepareThreadForCrash();
+    set_current_thread_name(thread_name);
+    body(std::move(token));
+  });
 }
 
 }  // namespace rex::platform

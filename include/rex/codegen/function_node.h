@@ -185,7 +185,6 @@ class FunctionNode {
 
   void removeUnresolvedJump(u32 site);
 
- private:
   u32 base_;
   u32 size_;
   std::string name_;

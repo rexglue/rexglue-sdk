@@ -20,7 +20,7 @@
 namespace {
 
 template <typename Signature>
-using Holder = typename rex::detail::MoveOnlyFunctionFor<Signature>::type;
+using Holder = rex::detail::MoveOnlyFunctionFor<Signature>::type;
 
 i32 Twice(i32 value) {
   return value * 2;

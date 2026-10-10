@@ -43,8 +43,8 @@ u64 Clock::host_tick_count_platform() {
 }
 
 u64 Clock::QueryHostSystemTime() noexcept {
-  constexpr u64 seconds_per_day = 3600 * 24;
-  constexpr u64 seconds_1601_to_1970 = ((369 * 365 + 89) * seconds_per_day);
+  constexpr u64 seconds_per_day = u64{3600} * 24;
+  constexpr u64 seconds_1601_to_1970 = ((u64{369} * 365 + 89) * seconds_per_day);
 
   timeval now;
   int error = gettimeofday(&now, nullptr);

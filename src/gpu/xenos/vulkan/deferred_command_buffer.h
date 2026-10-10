@@ -27,7 +27,7 @@ class VulkanCommandProcessor;
 class DeferredCommandBuffer {
  public:
   DeferredCommandBuffer(const VulkanCommandProcessor& command_processor,
-                        size_t initial_size_bytes = 1024 * 1024);
+                        size_t initial_size_bytes = size_t{1024} * 1024);
 
   void Reset();
   void Execute(VkCommandBuffer command_buffer);
@@ -78,7 +78,7 @@ class DeferredCommandBuffer {
     args.first_set = first_set;
     args.descriptor_set_count = descriptor_set_count;
     args.dynamic_offset_count = dynamic_offset_count;
-    std::memcpy(args_ptr + descriptor_sets_offset, descriptor_sets,
+    std::memcpy(args_ptr + descriptor_sets_offset, static_cast<const void*>(descriptor_sets),
                 sizeof(VkDescriptorSet) * descriptor_set_count);
     if (dynamic_offset_count) {
       std::memcpy(args_ptr + dynamic_offsets_offset, dynamic_offsets,
@@ -114,7 +114,8 @@ class DeferredCommandBuffer {
     auto& args = *reinterpret_cast<ArgsVkBindVertexBuffers*>(args_ptr);
     args.first_binding = first_binding;
     args.binding_count = binding_count;
-    std::memcpy(args_ptr + buffers_offset, buffers, sizeof(VkBuffer) * binding_count);
+    std::memcpy(args_ptr + buffers_offset, static_cast<const void*>(buffers),
+                sizeof(VkBuffer) * binding_count);
     std::memcpy(args_ptr + offsets_offset, offsets, sizeof(VkDeviceSize) * binding_count);
   }
 
@@ -348,7 +349,7 @@ class DeferredCommandBuffer {
   }
 
  private:
-  enum class Command {
+  enum class Command : u8 {
     kVkBeginRenderPass,
     kVkBeginQuery,
     kVkBindDescriptorSets,

@@ -17,7 +17,8 @@ int socket_close(SocketHandle handle) {
 }
 
 int socket_ioctl(SocketHandle handle, u32 cmd, u8* arg) {
-  return ioctlsocket(static_cast<SOCKET>(handle), cmd, reinterpret_cast<u_long*>(arg));
+  return ioctlsocket(static_cast<SOCKET>(handle), static_cast<long>(cmd),
+                     reinterpret_cast<u_long*>(arg));
 }
 
 int socket_prepare(SocketHandle handle, WaitHandle* event) {

@@ -21,8 +21,8 @@
 #include <rex/hid/driver.h>
 #include <rex/platform/dynlib.h>
 
-#include <windows.h>  // NOLINT(build/include_order)
-#include <xinput.h>   // NOLINT(build/include_order)
+#include <windows.h>
+#include <xinput.h>
 
 namespace rex::hid::xinput {
 

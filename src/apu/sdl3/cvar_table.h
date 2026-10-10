@@ -14,11 +14,7 @@
 
 namespace rex::apu::sdl3::cvars {
 
-// NOLINTBEGIN(bugprone-throwing-static-initialization) constant descriptors registered at Connect
-
 REXCVAR_BOOL(apu, mute, false, "Mute audio output");
 REXCVAR_TABLE(kSDL3Cvars, mute);
-
-// NOLINTEND(bugprone-throwing-static-initialization)
 
 }  // namespace rex::apu::sdl3::cvars

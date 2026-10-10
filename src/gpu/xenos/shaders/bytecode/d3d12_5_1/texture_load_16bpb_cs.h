@@ -8,7 +8,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-const BYTE texture_load_16bpb_cs[] = {
+const BYTE kTextureLoad16BPBCS[] = {
     68,  88,  66,  67,  70,  63,  226, 191, 20,  148, 36,  58,  207, 1,   178, 229, 94,  61,  2,
     47,  1,   0,   0,   0,   0,   17,  0,   0,   5,   0,   0,   0,   52,  0,   0,   0,   20,  4,
     0,   0,   36,  4,   0,   0,   52,  4,   0,   0,   100, 16,  0,   0,   82,  68,  69,  70,  216,

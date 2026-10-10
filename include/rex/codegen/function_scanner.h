@@ -255,9 +255,9 @@ class FunctionScanner {
   std::vector<std::pair<u32, u32>> data_regions_;
   const std::vector<CodeRegion>* code_regions_ = nullptr;
 
-  bool is_prologue_pattern(rex::guest_addr_t address);
-  bool is_epilogue_pattern(rex::guest_addr_t address);
-  bool is_restgprlr_function(rex::guest_addr_t address);
+  bool is_prologue_pattern(rex::guest_addr_t address) const;
+  bool is_epilogue_pattern(rex::guest_addr_t address) const;
+  bool is_restgprlr_function(rex::guest_addr_t address) const;
 };
 
 /** Branch whose target the function graph must still resolve. */

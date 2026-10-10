@@ -54,10 +54,16 @@ void ConvertTexelCTX1ToR8G8(xenos::Endian endian, void* output, const void* inpu
   const u32 bytes_per_block = 8;
   CopySwapBlock(endian, block.data, input, bytes_per_block);
 
-  u8 cr[4] = {block.r0, block.r1, static_cast<u8>(2.f / 3.f * block.r0 + 1.f / 3.f * block.r1),
-              static_cast<u8>(1.f / 3.f * block.r0 + 2.f / 3.f * block.r1)};
-  u8 cg[4] = {block.g0, block.g1, static_cast<u8>(2.f / 3.f * block.g0 + 1.f / 3.f * block.g1),
-              static_cast<u8>(1.f / 3.f * block.g0 + 2.f / 3.f * block.g1)};
+  u8 cr[4] = {block.r0, block.r1,
+              static_cast<u8>(2.f / 3.f * static_cast<f32>(block.r0) +
+                              1.f / 3.f * static_cast<f32>(block.r1)),
+              static_cast<u8>(1.f / 3.f * static_cast<f32>(block.r0) +
+                              2.f / 3.f * static_cast<f32>(block.r1))};
+  u8 cg[4] = {block.g0, block.g1,
+              static_cast<u8>(2.f / 3.f * static_cast<f32>(block.g0) +
+                              1.f / 3.f * static_cast<f32>(block.g1)),
+              static_cast<u8>(1.f / 3.f * static_cast<f32>(block.g0) +
+                              2.f / 3.f * static_cast<f32>(block.g1))};
 
   auto output_bytes = static_cast<u8*>(output);
   for (u32 oy = 0; oy < 4; ++oy) {

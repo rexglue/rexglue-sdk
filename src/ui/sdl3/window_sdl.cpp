@@ -206,7 +206,7 @@ NativeWindow WindowSDL::Native() {
       static_cast<u64>(SDL_GetNumberProperty(props, SDL_PROP_WINDOW_X11_WINDOW_NUMBER, 0));
   if (x11_window) {
     result.kind = NativeWindow::Kind::X11;
-    // NOLINTNEXTLINE(performance-no-int-to-ptr): an X11 window is an integer XID
+    // NOLINTNEXTLINE(performance-no-int-to-ptr): NativeWindow carries the X11 XID as a pointer
     result.window = reinterpret_cast<void*>(x11_window);
     result.display = SDL_GetPointerProperty(props, SDL_PROP_WINDOW_X11_DISPLAY_POINTER, nullptr);
   }

@@ -21,8 +21,8 @@
 #include "hid/common/cvar_table.h"
 #include "hid/common/x_result.h"
 #include "hid/xinput/xinput_driver.h"
-#include <windows.h>  // NOLINT(build/include_order)
-#include <xinput.h>   // NOLINT(build/include_order)
+#include <windows.h>
+#include <xinput.h>
 
 namespace {
 
@@ -81,6 +81,7 @@ Result<void> XInputDriver::Setup() {
   get_capabilities_ = library_.GetSymbol<decltype(get_capabilities_)>("XInputGetCapabilities");
   get_state_ = library_.GetSymbol<decltype(get_state_)>("XInputGetState");
   get_state_ex_ = library_.GetSymbol<decltype(get_state_ex_)>(
+      // NOLINTNEXTLINE(performance-no-int-to-ptr): GetProcAddress takes an ordinal as a pointer
       reinterpret_cast<const char*>(std::uintptr_t{100}));
   get_keystroke_ = library_.GetSymbol<decltype(get_keystroke_)>("XInputGetKeystroke");
   set_state_ = library_.GetSymbol<decltype(set_state_)>("XInputSetState");

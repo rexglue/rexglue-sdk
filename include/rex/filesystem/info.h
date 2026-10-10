@@ -28,7 +28,7 @@ using rex::operator&=;
 using rex::operator^=;
 
 /** NT file attribute bits as the kernel writes them into guest structures. */
-enum class FileAttributes : u32 {
+enum class FileAttributes : u16 {
   kNone = 0x0000,       /**< No attribute. */
   kReadOnly = 0x0001,   /**< Read only. */
   kHidden = 0x0002,     /**< Hidden. */
@@ -57,9 +57,11 @@ struct FileInfo {
 
 /** Times to change on a file. An empty field keeps the current time. */
 struct FileTimes {
+  // NOLINTNEXTLINE(readability-redundant-member-init) designated initializers omit this field
   std::optional<u64> create = {}; /**< New creation time in FILETIME ticks. */
+  // NOLINTNEXTLINE(readability-redundant-member-init) designated initializers omit this field
   std::optional<u64> access = {}; /**< New last access time in FILETIME ticks. */
-  std::optional<u64> write = {};  /**< New last write time in FILETIME ticks. */
+  std::optional<u64> write;       /**< New last write time in FILETIME ticks. */
 };
 
 /** Information about the volume a file resides on. */
@@ -77,5 +79,4 @@ struct VolumeInfo {
 
 /** Opts FileAttributes into the flag operators. */
 template <>
-// NOLINTNEXTLINE(readability-identifier-naming)
 inline constexpr bool rex::is_flags_enum<rex::filesystem::FileAttributes> = true;

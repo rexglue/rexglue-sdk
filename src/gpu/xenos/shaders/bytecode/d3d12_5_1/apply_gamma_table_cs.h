@@ -8,7 +8,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-const BYTE apply_gamma_table_cs[] = {
+const BYTE kApplyGammaTableCS[] = {
     68,  88,  66,  67,  224, 187, 208, 232, 174, 162, 162, 142, 57,  39,  145, 206, 92,  198, 122,
     202, 1,   0,   0,   0,   244, 4,   0,   0,   5,   0,   0,   0,   52,  0,   0,   0,   16,  2,
     0,   0,   32,  2,   0,   0,   48,  2,   0,   0,   88,  4,   0,   0,   82,  68,  69,  70,  212,

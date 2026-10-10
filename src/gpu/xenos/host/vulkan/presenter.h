@@ -278,7 +278,7 @@ class VulkanPresenter final : public Presenter {
     };
   };
 
-  enum GuestOutputPaintPipelineLayoutIndex : size_t {
+  enum GuestOutputPaintPipelineLayoutIndex : u8 {
     kGuestOutputPaintPipelineLayoutIndexBilinear,
 
     kGuestOutputPaintPipelineLayoutCount,
@@ -340,7 +340,7 @@ class VulkanPresenter final : public Presenter {
       VkFormat swapchain_format = VK_FORMAT_UNDEFINED;
     };
 
-    enum GuestOutputDescriptorSet : u32 {
+    enum GuestOutputDescriptorSet : u8 {
       kGuestOutputDescriptorSetGuestOutput0Sampled,
 
       kGuestOutputDescriptorSetCount =

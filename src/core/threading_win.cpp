@@ -63,8 +63,7 @@ void raise_thread_name_exception(HANDLE thread, const std::string& name) {
   __try {
     RaiseException(0x406D1388, 0, sizeof(info) / sizeof(ULONG_PTR),
                    reinterpret_cast<ULONG_PTR*>(&info));
-  } __except (EXCEPTION_EXECUTE_HANDLER) {  // NOLINT
-  }
+  } __except (EXCEPTION_EXECUTE_HANDLER) {}
 }
 
 static void set_thread_name_impl(HANDLE thread, const std::string_view name) {
@@ -172,7 +171,7 @@ uintptr_t GetTLSValue(TLSHandle handle) {
 }
 
 bool SetTLSValue(TLSHandle handle, uintptr_t value) {
-  // NOLINTNEXTLINE(performance-no-int-to-ptr): the Win32 API passes the pointer as an integer
+  // NOLINTNEXTLINE(performance-no-int-to-ptr): TlsSetValue takes the value as a void pointer
   return TlsSetValue(handle, reinterpret_cast<void*>(value)) ? true : false;
 }
 
@@ -341,7 +340,7 @@ class Win32Timer : public Win32Handle<Timer> {
     std::lock_guard<std::mutex> lock(mutex_);
     callback_ = std::move(opt_callback);
     LARGE_INTEGER due_time_li;
-    due_time_li.QuadPart = WClock_::to_file_time(due_time);
+    due_time_li.QuadPart = static_cast<LONGLONG>(WClock_::to_file_time(due_time));
     auto completion_routine =
         callback_ ? reinterpret_cast<PTIMERAPCROUTINE>(CompletionRoutine) : nullptr;
     return SetWaitableTimer(handle_, &due_time_li, 0, completion_routine, this, FALSE) ? true
@@ -362,7 +361,7 @@ class Win32Timer : public Win32Handle<Timer> {
     std::lock_guard<std::mutex> lock(mutex_);
     callback_ = std::move(opt_callback);
     LARGE_INTEGER due_time_li;
-    due_time_li.QuadPart = WClock_::to_file_time(due_time);
+    due_time_li.QuadPart = static_cast<LONGLONG>(WClock_::to_file_time(due_time));
     auto completion_routine =
         callback_ ? reinterpret_cast<PTIMERAPCROUTINE>(CompletionRoutine) : nullptr;
     return SetWaitableTimer(handle_, &due_time_li, static_cast<i32>(period.count()),
@@ -484,7 +483,7 @@ class Win32Thread : public Win32Handle<Thread> {
     rex::MoveOnlyFunction<void()> callback;
   };
   static void NTAPI DispatchApc(ULONG_PTR parameter) {
-    // NOLINTNEXTLINE(performance-no-int-to-ptr): the Win32 API passes the pointer as an integer
+    // NOLINTNEXTLINE(performance-no-int-to-ptr): QueueUserAPC delivers its parameter as a ULONG_PTR
     std::unique_ptr<ApcData> apc_data(reinterpret_cast<ApcData*>(parameter));
     apc_data->callback();
   }
@@ -536,6 +535,7 @@ class Win32Thread : public Win32Handle<Thread> {
       const u64 frame = (state.Rsp - 5 * sizeof(u64)) & ~u64{0xF};
       const std::array<u64, 5> machine_frame{state.Rip, state.SegCs, state.EFlags, state.Rsp,
                                              state.SegSs};
+      // NOLINTNEXTLINE(performance-no-int-to-ptr): CONTEXT stores the stack pointer as a DWORD64
       std::memcpy(reinterpret_cast<void*>(frame), machine_frame.data(), sizeof(machine_frame));
       state.Rsp = frame;
       state.Rip = reinterpret_cast<u64>(&rex_redirect_stub);

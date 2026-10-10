@@ -96,7 +96,7 @@ class REX_API BitMap {
 template <typename Block>
 std::pair<size_t, size_t> GetNextRangeUnset(const Block* bits, size_t first, size_t length) {
   if (!length) {
-    return std::make_pair(static_cast<size_t>(first), static_cast<size_t>(0));
+    return std::make_pair(first, static_cast<size_t>(0));
   }
   size_t last = first + length - 1;
   const size_t block_bits = sizeof(Block) * CHAR_BIT;
@@ -180,7 +180,6 @@ void SetRange(Block* bits, size_t first, size_t length) {
  * @endcode
  */
 template <typename E>
-// NOLINTNEXTLINE(readability-identifier-naming)
 inline constexpr bool is_flags_enum = false;
 
 /**

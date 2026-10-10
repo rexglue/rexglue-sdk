@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cctype>
 #include <fstream>
+#include <iterator>
 #include <optional>
 #include <span>
 #include <string>
@@ -213,7 +214,8 @@ bool ManifestConfig::WriteSdkVersionStamp(const std::filesystem::path& path,
   if (stamp_idx) {
     lines[*stamp_idx] = stamp_line;
   } else if (project_header_idx) {
-    lines.insert(lines.begin() + *project_header_idx + 1, stamp_line);
+    lines.insert(std::next(lines.begin(), static_cast<std::ptrdiff_t>(*project_header_idx + 1)),
+                 stamp_line);
   } else {
     if (!lines.empty() && !lines.back().empty())
       lines.emplace_back();

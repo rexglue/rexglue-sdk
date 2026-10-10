@@ -39,7 +39,7 @@ REX_TEST_CASE("BuildCommandLine round trips through CommandLineToArgvW", "[relau
   for (size_t i = 0; i < args.size(); ++i) {
     CHECK(std::wstring(argv[i + 1]) == std::wstring(args[i].begin(), args[i].end()));
   }
-  LocalFree(argv);
+  LocalFree(static_cast<void*>(argv));
 }
 
 #endif

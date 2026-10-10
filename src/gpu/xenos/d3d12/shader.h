@@ -57,7 +57,7 @@ class D3D12Shader : public DxbcShader {
   std::unique_ptr<Translation> CreateTranslationInstance(u64 modification) override;
 
  private:
-  std::atomic_flag binding_layout_user_uids_set_up_ = ATOMIC_FLAG_INIT;
+  std::atomic_flag binding_layout_user_uids_set_up_;
   size_t texture_binding_layout_user_uid_ = 0;
   size_t sampler_binding_layout_user_uid_ = 0;
 };

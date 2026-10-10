@@ -150,7 +150,6 @@ class NullGPUModule final : public rex::IModule, public rex::gpu::IBackend {
 
 }  // namespace
 
-// NOLINTNEXTLINE(readability-identifier-naming)
 extern "C" REX_DETAIL_EXPORT void rexmod_test_null_gpu_fail_textures(int count) {
   g_fail_textures = count;
 }

@@ -133,7 +133,9 @@ REX_TEST_CASE("ApplyDefaultStyle maps every control role to its slot", "[style]"
   ImGuiStyle style;
   rex::ui::Style custom;
   rex::ui::ControlPalette& controls = custom.palette.controls;
-  const auto role = [](rex::i32 n) { return rex::Color::RGBA(n / 32.0f, 0.5f, 0.25f, 1.0f); };
+  const auto role = [](rex::i32 n) {
+    return rex::Color::RGBA(static_cast<rex::f32>(n) / 32.0f, 0.5f, 0.25f, 1.0f);
+  };
   controls.menu_bar = role(1);
   controls.separator = role(2);
   controls.slider_grab = role(3);

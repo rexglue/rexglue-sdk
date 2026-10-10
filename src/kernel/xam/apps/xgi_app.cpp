@@ -659,6 +659,8 @@ X_HRESULT XgiApp::DispatchMessageSync(u32 message, u32 buffer_ptr, u32 buffer_le
       REX_KERNEL_STUB("XGI 0x000B0071");
       return X_E_SUCCESS;
     }
+    default:
+      break;
   }
   REX_FAIL(kernel, X_E_FAIL,
            "Unimplemented XGI message app={:08X}, msg={:08X}, arg1={:08X}, "

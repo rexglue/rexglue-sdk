@@ -57,6 +57,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
      * storage. */
     static constexpr u32 kVersion = 0x20260226;
 
+    // NOLINTNEXTLINE(performance-enum-size): packed key bit field, MSVC packs per type
     enum class DepthStencilMode : u32 {
       kNoModifiers,
       /** Enables [earlydepthstencil] when alpha test and alpha to coverage are disabled, ignored if
@@ -117,7 +118,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
   };
 
   /** Constant buffer registers in space 0. */
-  enum class CbufferRegister : u32 {
+  enum class CbufferRegister : u8 {
     kSystemConstants,
     kFloatConstants,
     kBoolLoopConstants,
@@ -303,7 +304,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
    private:
     friend class DxbcShaderTranslator;
 
-    enum class Index : u32 {
+    enum class Index : u8 {
       kFlags,
       kTessellationFactorRange,
       kLineLoopClosingIndex,
@@ -359,7 +360,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
   };
 
   /** Shader resource view binding spaces. */
-  enum class SRVSpace : u32 {
+  enum class SRVSpace : u8 {
     /** Uses the SRVMainRegister t# layout. */
     kMain,
     kBindlessTextures2DArray,
@@ -368,7 +369,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
   };
 
   /** Shader resource view registers in SRVSpace::kMain. */
-  enum class SRVMainRegister : u32 {
+  enum class SRVMainRegister : u8 {
     kSharedMemory,
     kBindfulTexturesStart,
   };
@@ -403,7 +404,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
   };
 
   /** Unordered access view registers in space 0. */
-  enum class UAVRegister : u32 {
+  enum class UAVRegister : u8 {
     kSharedMemory,
     kEDRAM,
   };
@@ -1033,7 +1034,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
 
   bool is_depth_only_pixel_shader_ = false;
 
-  enum class ShaderRdefTypeIndex : u32 {
+  enum class ShaderRdefTypeIndex : u8 {
     kFloat,
     kFloat2,
     kFloat3,

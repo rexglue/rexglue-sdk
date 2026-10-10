@@ -239,7 +239,7 @@ class MoveOnlyFunctionImpl {
    * @return The target's result converted to R.
    */
   R operator()(Args... args) const
-    requires(kConst)
+    requires kConst
   {
     REX_ASSERT(ops_ != nullptr);
     return ops_->invoke(const_cast<std::byte*>(storage_), std::forward<Args>(args)...);

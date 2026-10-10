@@ -84,7 +84,7 @@ u32 NtAllocateVirtualMemory_entry(mapped_u32 base_addr_ptr, mapped_u32 region_si
   REX_ASSERT(base_addr_ptr != nullptr);
   REX_ASSERT(region_size_ptr != nullptr);
 
-  if (static_cast<u32>(debug_memory) != 0)
+  if (debug_memory != 0)
     REXLOG_WARN(kernel, "attmpted allocation to devkit memory area (debug_memory={})",
                 static_cast<u32>(debug_memory));
 
@@ -309,7 +309,7 @@ struct X_MEMORY_BASIC_INFORMATION {
 u32 NtQueryVirtualMemory_entry(u32 base_address,
                                ppc_ptr_t<X_MEMORY_BASIC_INFORMATION> memory_basic_information_ptr,
                                u32 region_type) {
-  switch (static_cast<u32>(region_type)) {
+  switch (region_type) {
     case 0:
     case 1:
     case 2:
@@ -441,7 +441,7 @@ void MmSetAddressProtect_entry(mapped_void base_address, u32 region_size, u32 pr
   constexpr u32 required_protect_bits = X_PAGE_NOACCESS | X_PAGE_READONLY | X_PAGE_READWRITE |
                                         X_PAGE_EXECUTE_READ | X_PAGE_EXECUTE_READWRITE;
 
-  if (rex::bit_count(static_cast<u32>(protect_bits) & required_protect_bits) != 1) {
+  if (rex::bit_count(protect_bits & required_protect_bits) != 1) {
     REX_ASSERT(!(rex::bit_count(static_cast<u32>(protect_bits) & required_protect_bits) > 1));
     return;
   }
@@ -611,7 +611,7 @@ u32 ExAllocatePoolTypeWithTag_entry(u32 size, u32 tag, [[maybe_unused]] u32 zero
       return 0;
     auto header = runtime::Current().memory()->TranslateVirtual<X_POOL_ALLOC_HEADER*>(addr);
     header->unk_2 = 170;
-    header->tag = static_cast<u32>(tag);
+    header->tag = tag;
     return addr + sizeof(X_POOL_ALLOC_HEADER);
   } else {
     return runtime::Current().memory()->SystemHeapAlloc(size, 4096);
@@ -698,7 +698,7 @@ u32 NtAllocateEncryptedMemory_entry([[maybe_unused]] u32 unk, u32 region_size,
     return X_STATUS_INVALID_PARAMETER;
   }
 
-  const u32 region_size_adjusted = rex::round_up(static_cast<u32>(region_size), 64 * 1024);
+  const u32 region_size_adjusted = rex::round_up(region_size, 64 * 1024);
   if (region_size_adjusted > 16 * 1024 * 1024) {
     return X_STATUS_INVALID_PARAMETER;
   }

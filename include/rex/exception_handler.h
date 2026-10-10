@@ -27,7 +27,7 @@ namespace rex::platform {
  * ARM64 registers. The X and V indices match the register numbers in the instruction encoding and
  * the remapping tables in the exception handler implementations.
  */
-enum class Arm64Register {
+enum class Arm64Register : u8 {
   kX0,     /**< General purpose register X0. */
   kX1,     /**< General purpose register X1. */
   kX2,     /**< General purpose register X2. */
@@ -104,7 +104,7 @@ enum class Arm64Register {
  * x86-64 registers. The general purpose order matches the instruction encoding, the Windows
  * CONTEXT structure and the remapping tables in the exception handler implementations.
  */
-enum class X64Register {
+enum class X64Register : u8 {
   kRip,                     /**< Instruction pointer. */
   kEflags,                  /**< Flags register. */
   kIntRegisterFirst,        /**< First general purpose register. */
@@ -333,14 +333,14 @@ REX_API bool IsArm64LoadPrefetchStore(u32 instruction, bool& is_store_out);
 class Exception {
  public:
   /** Exception kind. */
-  enum class Code {
+  enum class Code : u8 {
     kInvalidException = 0, /**< Not initialized. */
     kAccessViolation,      /**< Memory access violation. */
     kIllegalInstruction,   /**< Illegal instruction. */
   };
 
   /** Memory operation that raised an access violation. */
-  enum class AccessViolationOperation {
+  enum class AccessViolationOperation : u8 {
     kUnknown, /**< Unknown operation. */
     kRead,    /**< Read. */
     kWrite,   /**< Write. */

@@ -8,7 +8,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-const BYTE clear_uint2_ps[] = {
+const BYTE kClearUInt2PS[] = {
     68,  88,  66,  67,  90,  79,  67,  15,  17,  175, 210, 170, 189, 222, 209, 228, 62,  31,  153,
     246, 1,   0,   0,   0,   148, 2,   0,   0,   5,   0,   0,   0,   52,  0,   0,   0,   88,  1,
     0,   0,   104, 1,   0,   0,   156, 1,   0,   0,   248, 1,   0,   0,   82,  68,  69,  70,  28,

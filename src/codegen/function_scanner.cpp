@@ -36,7 +36,7 @@ bool FunctionScanner::isExecutableSection(rex::guest_addr_t address) const {
   return binary_->isExecutable(static_cast<u32>(address));
 }
 
-bool FunctionScanner::is_prologue_pattern(guest_addr_t address) {
+bool FunctionScanner::is_prologue_pattern(guest_addr_t address) const {
   auto host_ptr = translate_address<u32>(address);
   if (!host_ptr)
     return false;
@@ -59,7 +59,7 @@ bool FunctionScanner::is_prologue_pattern(guest_addr_t address) {
   return false;
 }
 
-bool FunctionScanner::is_epilogue_pattern(guest_addr_t address) {
+bool FunctionScanner::is_epilogue_pattern(guest_addr_t address) const {
   auto host_ptr = translate_address<u32>(address);
   if (!host_ptr)
     return false;
@@ -92,7 +92,7 @@ bool FunctionScanner::is_epilogue_pattern(guest_addr_t address) {
  * @param address Address to test.
  * @return True when the address starts a helper.
  */
-bool FunctionScanner::is_restgprlr_function(guest_addr_t address) {
+bool FunctionScanner::is_restgprlr_function(guest_addr_t address) const {
   auto host_ptr = translate_address<u32>(address);
   if (!host_ptr)
     return false;
@@ -1305,7 +1305,9 @@ std::optional<JumpTable> detectJumpTable(DecodedBinary& decoded, const Limits& l
       if (insn->opcode == Opcode::rlwinm) {
         destReg = insn->M.RA;
       } else if (insn->opcode == Opcode::srawi || insn->opcode == Opcode::sraw ||
-                 insn->opcode == Opcode::srw || insn->opcode == Opcode::slw) {
+                 insn->opcode == Opcode::srw || insn->opcode == Opcode::slw ||
+                 insn->opcode == Opcode::or_ || insn->opcode == Opcode::and_ ||
+                 insn->opcode == Opcode::xor_ || insn->opcode == Opcode::mr) {
         destReg = insn->X.RA;
       } else if (insn->opcode == Opcode::lbz || insn->opcode == Opcode::lhz ||
                  insn->opcode == Opcode::lwz || insn->opcode == Opcode::li ||
@@ -1314,9 +1316,6 @@ std::optional<JumpTable> detectJumpTable(DecodedBinary& decoded, const Limits& l
       } else if (insn->opcode == Opcode::lbzx || insn->opcode == Opcode::lhzx ||
                  insn->opcode == Opcode::lwzx) {
         destReg = insn->X.RT;
-      } else if (insn->opcode == Opcode::or_ || insn->opcode == Opcode::and_ ||
-                 insn->opcode == Opcode::xor_ || insn->opcode == Opcode::mr) {
-        destReg = insn->X.RA;
       } else if (insn->opcode == Opcode::add || insn->opcode == Opcode::subf) {
         destReg = insn->XO.RT;
       }

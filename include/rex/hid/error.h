@@ -19,7 +19,7 @@
 namespace rex::hid {
 
 /** HID error codes, stored in rex::Error::code. */
-enum class Error : i32 {
+enum class Error : u8 {
   NotConnected = 1, /**< No device answers for the user. */
   Empty = 2,        /**< The device has no keystroke queued. */
   BadArguments = 3, /**< The request is malformed. */

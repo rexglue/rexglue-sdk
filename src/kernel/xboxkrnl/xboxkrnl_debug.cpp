@@ -80,6 +80,8 @@ void RtlRaiseException_entry(ppc_ptr_t<X_EXCEPTION_RECORD> record) {
       HandleCppException(record);
       return;
     }
+    default:
+      break;
   }
 
   rex::platform::Break();

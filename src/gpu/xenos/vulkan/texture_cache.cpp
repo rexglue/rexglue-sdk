@@ -1855,24 +1855,22 @@ VkImageView VulkanTextureCache::VulkanTexture::GetOrCreate3DAs2DImageView(bool i
       return VK_NULL_HANDLE;
     }
 
-    VkImageCreateInfo image_create_info = {};
-    image_create_info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-    image_create_info.pNext = nullptr;
-    image_create_info.flags = 0;
-    image_create_info.imageType = VK_IMAGE_TYPE_2D;
-    image_create_info.format = wrapper_format;
-    image_create_info.extent.width = key().GetWidth();
-    image_create_info.extent.height = key().GetHeight();
-    image_create_info.extent.depth = 1;
-    image_create_info.mipLevels = 1;
-    image_create_info.arrayLayers = 1;
-    image_create_info.samples = VK_SAMPLE_COUNT_1_BIT;
-    image_create_info.tiling = VK_IMAGE_TILING_OPTIMAL;
-    image_create_info.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
-    image_create_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-    image_create_info.queueFamilyIndexCount = 0;
-    image_create_info.pQueueFamilyIndices = nullptr;
-    image_create_info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    const VkImageCreateInfo image_create_info = {
+        .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+        .pNext = nullptr,
+        .flags = 0,
+        .imageType = VK_IMAGE_TYPE_2D,
+        .format = wrapper_format,
+        .extent = {.width = key().GetWidth(), .height = key().GetHeight(), .depth = 1},
+        .mipLevels = 1,
+        .arrayLayers = 1,
+        .samples = VK_SAMPLE_COUNT_1_BIT,
+        .tiling = VK_IMAGE_TILING_OPTIMAL,
+        .usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+        .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+        .queueFamilyIndexCount = 0,
+        .pQueueFamilyIndices = nullptr,
+        .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED};
 
     VmaAllocationCreateInfo allocation_create_info = {};
     allocation_create_info.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
@@ -2631,145 +2629,137 @@ bool VulkanTextureCache::Initialize() {
 
   std::pair<const u32*, size_t> load_shader_code[kLoadShaderCount] = {};
   load_shader_code[kLoadShaderIndex8bpb] =
-      std::make_pair(shaders::texture_load_8bpb_cs, sizeof(shaders::texture_load_8bpb_cs));
+      std::make_pair(shaders::kTextureLoad8BPBCS, sizeof(shaders::kTextureLoad8BPBCS));
   load_shader_code[kLoadShaderIndex16bpb] =
-      std::make_pair(shaders::texture_load_16bpb_cs, sizeof(shaders::texture_load_16bpb_cs));
+      std::make_pair(shaders::kTextureLoad16BPBCS, sizeof(shaders::kTextureLoad16BPBCS));
   load_shader_code[kLoadShaderIndex32bpb] =
-      std::make_pair(shaders::texture_load_32bpb_cs, sizeof(shaders::texture_load_32bpb_cs));
+      std::make_pair(shaders::kTextureLoad32BPBCS, sizeof(shaders::kTextureLoad32BPBCS));
   load_shader_code[kLoadShaderIndex64bpb] =
-      std::make_pair(shaders::texture_load_64bpb_cs, sizeof(shaders::texture_load_64bpb_cs));
+      std::make_pair(shaders::kTextureLoad64BPBCS, sizeof(shaders::kTextureLoad64BPBCS));
   load_shader_code[kLoadShaderIndex128bpb] =
-      std::make_pair(shaders::texture_load_128bpb_cs, sizeof(shaders::texture_load_128bpb_cs));
-  load_shader_code[kLoadShaderIndexR5G5B5A1ToB5G5R5A1] =
-      std::make_pair(shaders::texture_load_r5g5b5a1_b5g5r5a1_cs,
-                     sizeof(shaders::texture_load_r5g5b5a1_b5g5r5a1_cs));
+      std::make_pair(shaders::kTextureLoad128BPBCS, sizeof(shaders::kTextureLoad128BPBCS));
+  load_shader_code[kLoadShaderIndexR5G5B5A1ToB5G5R5A1] = std::make_pair(
+      shaders::kTextureLoadR5G5B5A1B5G5R5A1CS, sizeof(shaders::kTextureLoadR5G5B5A1B5G5R5A1CS));
   load_shader_code[kLoadShaderIndexR5G6B5ToB5G6R5] = std::make_pair(
-      shaders::texture_load_r5g6b5_b5g6r5_cs, sizeof(shaders::texture_load_r5g6b5_b5g6r5_cs));
+      shaders::kTextureLoadR5G6B5B5G6R5CS, sizeof(shaders::kTextureLoadR5G6B5B5G6R5CS));
   load_shader_code[kLoadShaderIndexR5G6B5ToRGBA8] = std::make_pair(
-      shaders::texture_load_r5g6b5_rgba8_cs, sizeof(shaders::texture_load_r5g6b5_rgba8_cs));
+      shaders::kTextureLoadR5G6B5RGBA8CS, sizeof(shaders::kTextureLoadR5G6B5RGBA8CS));
   load_shader_code[kLoadShaderIndexR5G5B6ToB5G6R5WithRBGASwizzle] =
-      std::make_pair(shaders::texture_load_r5g5b6_b5g6r5_swizzle_rbga_cs,
-                     sizeof(shaders::texture_load_r5g5b6_b5g6r5_swizzle_rbga_cs));
-  load_shader_code[kLoadShaderIndexRGBA4ToARGB4] =
-      std::make_pair(shaders::texture_load_r4g4b4a4_a4r4g4b4_cs,
-                     sizeof(shaders::texture_load_r4g4b4a4_a4r4g4b4_cs));
+      std::make_pair(shaders::kTextureLoadR5G5B6B5G6R5SwizzleRBGACS,
+                     sizeof(shaders::kTextureLoadR5G5B6B5G6R5SwizzleRBGACS));
+  load_shader_code[kLoadShaderIndexRGBA4ToARGB4] = std::make_pair(
+      shaders::kTextureLoadR4G4B4A4A4R4G4B4CS, sizeof(shaders::kTextureLoadR4G4B4A4A4R4G4B4CS));
   load_shader_code[kLoadShaderIndexRGBA4ToRGBA8] = std::make_pair(
-      shaders::texture_load_r4g4b4a4_rgba8_cs, sizeof(shaders::texture_load_r4g4b4a4_rgba8_cs));
-  load_shader_code[kLoadShaderIndexGBGR8ToRGB8] = std::make_pair(
-      shaders::texture_load_gbgr8_rgb8_cs, sizeof(shaders::texture_load_gbgr8_rgb8_cs));
-  load_shader_code[kLoadShaderIndexBGRG8ToRGB8] = std::make_pair(
-      shaders::texture_load_bgrg8_rgb8_cs, sizeof(shaders::texture_load_bgrg8_rgb8_cs));
+      shaders::kTextureLoadR4G4B4A4RGBA8CS, sizeof(shaders::kTextureLoadR4G4B4A4RGBA8CS));
+  load_shader_code[kLoadShaderIndexGBGR8ToRGB8] =
+      std::make_pair(shaders::kTextureLoadGBGR8RGB8CS, sizeof(shaders::kTextureLoadGBGR8RGB8CS));
+  load_shader_code[kLoadShaderIndexBGRG8ToRGB8] =
+      std::make_pair(shaders::kTextureLoadBGRG8RGB8CS, sizeof(shaders::kTextureLoadBGRG8RGB8CS));
   load_shader_code[kLoadShaderIndexR10G11B11ToRGBA16] = std::make_pair(
-      shaders::texture_load_r10g11b11_rgba16_cs, sizeof(shaders::texture_load_r10g11b11_rgba16_cs));
+      shaders::kTextureLoadR10G11B11RGBA16CS, sizeof(shaders::kTextureLoadR10G11B11RGBA16CS));
   load_shader_code[kLoadShaderIndexR10G11B11ToRGBA16SNorm] =
-      std::make_pair(shaders::texture_load_r10g11b11_rgba16_snorm_cs,
-                     sizeof(shaders::texture_load_r10g11b11_rgba16_snorm_cs));
+      std::make_pair(shaders::kTextureLoadR10G11B11RGBA16SNormCS,
+                     sizeof(shaders::kTextureLoadR10G11B11RGBA16SNormCS));
   load_shader_code[kLoadShaderIndexR11G11B10ToRGBA16] = std::make_pair(
-      shaders::texture_load_r11g11b10_rgba16_cs, sizeof(shaders::texture_load_r11g11b10_rgba16_cs));
+      shaders::kTextureLoadR11G11B10RGBA16CS, sizeof(shaders::kTextureLoadR11G11B10RGBA16CS));
   load_shader_code[kLoadShaderIndexR11G11B10ToRGBA16SNorm] =
-      std::make_pair(shaders::texture_load_r11g11b10_rgba16_snorm_cs,
-                     sizeof(shaders::texture_load_r11g11b10_rgba16_snorm_cs));
+      std::make_pair(shaders::kTextureLoadR11G11B10RGBA16SNormCS,
+                     sizeof(shaders::kTextureLoadR11G11B10RGBA16SNormCS));
   load_shader_code[kLoadShaderIndexR16UNormToFloat] = std::make_pair(
-      shaders::texture_load_r16_unorm_float_cs, sizeof(shaders::texture_load_r16_unorm_float_cs));
+      shaders::kTextureLoadR16UNormFloatCS, sizeof(shaders::kTextureLoadR16UNormFloatCS));
   load_shader_code[kLoadShaderIndexR16SNormToFloat] = std::make_pair(
-      shaders::texture_load_r16_snorm_float_cs, sizeof(shaders::texture_load_r16_snorm_float_cs));
+      shaders::kTextureLoadR16SNormFloatCS, sizeof(shaders::kTextureLoadR16SNormFloatCS));
   load_shader_code[kLoadShaderIndexRG16UNormToFloat] = std::make_pair(
-      shaders::texture_load_rg16_unorm_float_cs, sizeof(shaders::texture_load_rg16_unorm_float_cs));
+      shaders::kTextureLoadRG16UNormFloatCS, sizeof(shaders::kTextureLoadRG16UNormFloatCS));
   load_shader_code[kLoadShaderIndexRG16SNormToFloat] = std::make_pair(
-      shaders::texture_load_rg16_snorm_float_cs, sizeof(shaders::texture_load_rg16_snorm_float_cs));
-  load_shader_code[kLoadShaderIndexRGBA16UNormToFloat] =
-      std::make_pair(shaders::texture_load_rgba16_unorm_float_cs,
-                     sizeof(shaders::texture_load_rgba16_unorm_float_cs));
-  load_shader_code[kLoadShaderIndexRGBA16SNormToFloat] =
-      std::make_pair(shaders::texture_load_rgba16_snorm_float_cs,
-                     sizeof(shaders::texture_load_rgba16_snorm_float_cs));
-  load_shader_code[kLoadShaderIndexDXT1ToRGBA8] = std::make_pair(
-      shaders::texture_load_dxt1_rgba8_cs, sizeof(shaders::texture_load_dxt1_rgba8_cs));
-  load_shader_code[kLoadShaderIndexDXT3ToRGBA8] = std::make_pair(
-      shaders::texture_load_dxt3_rgba8_cs, sizeof(shaders::texture_load_dxt3_rgba8_cs));
-  load_shader_code[kLoadShaderIndexDXT5ToRGBA8] = std::make_pair(
-      shaders::texture_load_dxt5_rgba8_cs, sizeof(shaders::texture_load_dxt5_rgba8_cs));
+      shaders::kTextureLoadRG16SNormFloatCS, sizeof(shaders::kTextureLoadRG16SNormFloatCS));
+  load_shader_code[kLoadShaderIndexRGBA16UNormToFloat] = std::make_pair(
+      shaders::kTextureLoadRGBA16UNormFloatCS, sizeof(shaders::kTextureLoadRGBA16UNormFloatCS));
+  load_shader_code[kLoadShaderIndexRGBA16SNormToFloat] = std::make_pair(
+      shaders::kTextureLoadRGBA16SNormFloatCS, sizeof(shaders::kTextureLoadRGBA16SNormFloatCS));
+  load_shader_code[kLoadShaderIndexDXT1ToRGBA8] =
+      std::make_pair(shaders::kTextureLoadDXT1RGBA8CS, sizeof(shaders::kTextureLoadDXT1RGBA8CS));
+  load_shader_code[kLoadShaderIndexDXT3ToRGBA8] =
+      std::make_pair(shaders::kTextureLoadDXT3RGBA8CS, sizeof(shaders::kTextureLoadDXT3RGBA8CS));
+  load_shader_code[kLoadShaderIndexDXT5ToRGBA8] =
+      std::make_pair(shaders::kTextureLoadDXT5RGBA8CS, sizeof(shaders::kTextureLoadDXT5RGBA8CS));
   load_shader_code[kLoadShaderIndexDXNToRG8] =
-      std::make_pair(shaders::texture_load_dxn_rg8_cs, sizeof(shaders::texture_load_dxn_rg8_cs));
+      std::make_pair(shaders::kTextureLoadDXNRG8CS, sizeof(shaders::kTextureLoadDXNRG8CS));
   load_shader_code[kLoadShaderIndexDXT3A] =
-      std::make_pair(shaders::texture_load_dxt3a_cs, sizeof(shaders::texture_load_dxt3a_cs));
-  load_shader_code[kLoadShaderIndexDXT3AAs1111ToARGB4] =
-      std::make_pair(shaders::texture_load_dxt3aas1111_argb4_cs,
-                     sizeof(shaders::texture_load_dxt3aas1111_argb4_cs));
+      std::make_pair(shaders::kTextureLoadDXT3ACS, sizeof(shaders::kTextureLoadDXT3ACS));
+  load_shader_code[kLoadShaderIndexDXT3AAs1111ToARGB4] = std::make_pair(
+      shaders::kTextureLoadDXT3AAS1111ARGB4CS, sizeof(shaders::kTextureLoadDXT3AAS1111ARGB4CS));
   load_shader_code[kLoadShaderIndexDXT5AToR8] =
-      std::make_pair(shaders::texture_load_dxt5a_r8_cs, sizeof(shaders::texture_load_dxt5a_r8_cs));
+      std::make_pair(shaders::kTextureLoadDXT5AR8CS, sizeof(shaders::kTextureLoadDXT5AR8CS));
   load_shader_code[kLoadShaderIndexCTX1] =
-      std::make_pair(shaders::texture_load_ctx1_cs, sizeof(shaders::texture_load_ctx1_cs));
-  load_shader_code[kLoadShaderIndexDepthUnorm] = std::make_pair(
-      shaders::texture_load_depth_unorm_cs, sizeof(shaders::texture_load_depth_unorm_cs));
-  load_shader_code[kLoadShaderIndexDepthFloat] = std::make_pair(
-      shaders::texture_load_depth_float_cs, sizeof(shaders::texture_load_depth_float_cs));
+      std::make_pair(shaders::kTextureLoadCTX1CS, sizeof(shaders::kTextureLoadCTX1CS));
+  load_shader_code[kLoadShaderIndexDepthUnorm] =
+      std::make_pair(shaders::kTextureLoadDepthUNormCS, sizeof(shaders::kTextureLoadDepthUNormCS));
+  load_shader_code[kLoadShaderIndexDepthFloat] =
+      std::make_pair(shaders::kTextureLoadDepthFloatCS, sizeof(shaders::kTextureLoadDepthFloatCS));
   std::pair<const u32*, size_t> load_shader_code_scaled[kLoadShaderCount] = {};
   if (IsDrawResolutionScaled()) {
     load_shader_code_scaled[kLoadShaderIndex8bpb] = std::make_pair(
-        shaders::texture_load_8bpb_scaled_cs, sizeof(shaders::texture_load_8bpb_scaled_cs));
+        shaders::kTextureLoad8BPBScaledCS, sizeof(shaders::kTextureLoad8BPBScaledCS));
     load_shader_code_scaled[kLoadShaderIndex16bpb] = std::make_pair(
-        shaders::texture_load_16bpb_scaled_cs, sizeof(shaders::texture_load_16bpb_scaled_cs));
+        shaders::kTextureLoad16BPBScaledCS, sizeof(shaders::kTextureLoad16BPBScaledCS));
     load_shader_code_scaled[kLoadShaderIndex32bpb] = std::make_pair(
-        shaders::texture_load_32bpb_scaled_cs, sizeof(shaders::texture_load_32bpb_scaled_cs));
+        shaders::kTextureLoad32BPBScaledCS, sizeof(shaders::kTextureLoad32BPBScaledCS));
     load_shader_code_scaled[kLoadShaderIndex64bpb] = std::make_pair(
-        shaders::texture_load_64bpb_scaled_cs, sizeof(shaders::texture_load_64bpb_scaled_cs));
+        shaders::kTextureLoad64BPBScaledCS, sizeof(shaders::kTextureLoad64BPBScaledCS));
     load_shader_code_scaled[kLoadShaderIndex128bpb] = std::make_pair(
-        shaders::texture_load_128bpb_scaled_cs, sizeof(shaders::texture_load_128bpb_scaled_cs));
+        shaders::kTextureLoad128BPBScaledCS, sizeof(shaders::kTextureLoad128BPBScaledCS));
     load_shader_code_scaled[kLoadShaderIndexR5G5B5A1ToB5G5R5A1] =
-        std::make_pair(shaders::texture_load_r5g5b5a1_b5g5r5a1_scaled_cs,
-                       sizeof(shaders::texture_load_r5g5b5a1_b5g5r5a1_scaled_cs));
+        std::make_pair(shaders::kTextureLoadR5G5B5A1B5G5R5A1ScaledCS,
+                       sizeof(shaders::kTextureLoadR5G5B5A1B5G5R5A1ScaledCS));
     load_shader_code_scaled[kLoadShaderIndexR5G6B5ToB5G6R5] =
-        std::make_pair(shaders::texture_load_r5g6b5_b5g6r5_scaled_cs,
-                       sizeof(shaders::texture_load_r5g6b5_b5g6r5_scaled_cs));
-    load_shader_code_scaled[kLoadShaderIndexR5G6B5ToRGBA8] =
-        std::make_pair(shaders::texture_load_r5g6b5_rgba8_scaled_cs,
-                       sizeof(shaders::texture_load_r5g6b5_rgba8_scaled_cs));
+        std::make_pair(shaders::kTextureLoadR5G6B5B5G6R5ScaledCS,
+                       sizeof(shaders::kTextureLoadR5G6B5B5G6R5ScaledCS));
+    load_shader_code_scaled[kLoadShaderIndexR5G6B5ToRGBA8] = std::make_pair(
+        shaders::kTextureLoadR5G6B5RGBA8ScaledCS, sizeof(shaders::kTextureLoadR5G6B5RGBA8ScaledCS));
     load_shader_code_scaled[kLoadShaderIndexR5G5B6ToB5G6R5WithRBGASwizzle] =
-        std::make_pair(shaders::texture_load_r5g5b6_b5g6r5_swizzle_rbga_scaled_cs,
-                       sizeof(shaders::texture_load_r5g5b6_b5g6r5_swizzle_rbga_scaled_cs));
+        std::make_pair(shaders::kTextureLoadR5G5B6B5G6R5SwizzleRBGAScaledCS,
+                       sizeof(shaders::kTextureLoadR5G5B6B5G6R5SwizzleRBGAScaledCS));
     load_shader_code_scaled[kLoadShaderIndexRGBA4ToARGB4] =
-        std::make_pair(shaders::texture_load_r4g4b4a4_a4r4g4b4_scaled_cs,
-                       sizeof(shaders::texture_load_r4g4b4a4_a4r4g4b4_scaled_cs));
+        std::make_pair(shaders::kTextureLoadR4G4B4A4A4R4G4B4ScaledCS,
+                       sizeof(shaders::kTextureLoadR4G4B4A4A4R4G4B4ScaledCS));
     load_shader_code_scaled[kLoadShaderIndexRGBA4ToRGBA8] =
-        std::make_pair(shaders::texture_load_r4g4b4a4_rgba8_scaled_cs,
-                       sizeof(shaders::texture_load_r4g4b4a4_rgba8_scaled_cs));
+        std::make_pair(shaders::kTextureLoadR4G4B4A4RGBA8ScaledCS,
+                       sizeof(shaders::kTextureLoadR4G4B4A4RGBA8ScaledCS));
     load_shader_code_scaled[kLoadShaderIndexR10G11B11ToRGBA16] =
-        std::make_pair(shaders::texture_load_r10g11b11_rgba16_scaled_cs,
-                       sizeof(shaders::texture_load_r10g11b11_rgba16_scaled_cs));
+        std::make_pair(shaders::kTextureLoadR10G11B11RGBA16ScaledCS,
+                       sizeof(shaders::kTextureLoadR10G11B11RGBA16ScaledCS));
     load_shader_code_scaled[kLoadShaderIndexR10G11B11ToRGBA16SNorm] =
-        std::make_pair(shaders::texture_load_r10g11b11_rgba16_snorm_scaled_cs,
-                       sizeof(shaders::texture_load_r10g11b11_rgba16_snorm_scaled_cs));
+        std::make_pair(shaders::kTextureLoadR10G11B11RGBA16SNormScaledCS,
+                       sizeof(shaders::kTextureLoadR10G11B11RGBA16SNormScaledCS));
     load_shader_code_scaled[kLoadShaderIndexR11G11B10ToRGBA16] =
-        std::make_pair(shaders::texture_load_r11g11b10_rgba16_scaled_cs,
-                       sizeof(shaders::texture_load_r11g11b10_rgba16_scaled_cs));
+        std::make_pair(shaders::kTextureLoadR11G11B10RGBA16ScaledCS,
+                       sizeof(shaders::kTextureLoadR11G11B10RGBA16ScaledCS));
     load_shader_code_scaled[kLoadShaderIndexR11G11B10ToRGBA16SNorm] =
-        std::make_pair(shaders::texture_load_r11g11b10_rgba16_snorm_scaled_cs,
-                       sizeof(shaders::texture_load_r11g11b10_rgba16_snorm_scaled_cs));
+        std::make_pair(shaders::kTextureLoadR11G11B10RGBA16SNormScaledCS,
+                       sizeof(shaders::kTextureLoadR11G11B10RGBA16SNormScaledCS));
     load_shader_code_scaled[kLoadShaderIndexR16UNormToFloat] =
-        std::make_pair(shaders::texture_load_r16_unorm_float_scaled_cs,
-                       sizeof(shaders::texture_load_r16_unorm_float_scaled_cs));
+        std::make_pair(shaders::kTextureLoadR16UNormFloatScaledCS,
+                       sizeof(shaders::kTextureLoadR16UNormFloatScaledCS));
     load_shader_code_scaled[kLoadShaderIndexR16SNormToFloat] =
-        std::make_pair(shaders::texture_load_r16_snorm_float_scaled_cs,
-                       sizeof(shaders::texture_load_r16_snorm_float_scaled_cs));
+        std::make_pair(shaders::kTextureLoadR16SNormFloatScaledCS,
+                       sizeof(shaders::kTextureLoadR16SNormFloatScaledCS));
     load_shader_code_scaled[kLoadShaderIndexRG16UNormToFloat] =
-        std::make_pair(shaders::texture_load_rg16_unorm_float_scaled_cs,
-                       sizeof(shaders::texture_load_rg16_unorm_float_scaled_cs));
+        std::make_pair(shaders::kTextureLoadRG16UNormFloatScaledCS,
+                       sizeof(shaders::kTextureLoadRG16UNormFloatScaledCS));
     load_shader_code_scaled[kLoadShaderIndexRG16SNormToFloat] =
-        std::make_pair(shaders::texture_load_rg16_snorm_float_scaled_cs,
-                       sizeof(shaders::texture_load_rg16_snorm_float_scaled_cs));
+        std::make_pair(shaders::kTextureLoadRG16SNormFloatScaledCS,
+                       sizeof(shaders::kTextureLoadRG16SNormFloatScaledCS));
     load_shader_code_scaled[kLoadShaderIndexRGBA16UNormToFloat] =
-        std::make_pair(shaders::texture_load_rgba16_unorm_float_scaled_cs,
-                       sizeof(shaders::texture_load_rgba16_unorm_float_scaled_cs));
+        std::make_pair(shaders::kTextureLoadRGBA16UNormFloatScaledCS,
+                       sizeof(shaders::kTextureLoadRGBA16UNormFloatScaledCS));
     load_shader_code_scaled[kLoadShaderIndexRGBA16SNormToFloat] =
-        std::make_pair(shaders::texture_load_rgba16_snorm_float_scaled_cs,
-                       sizeof(shaders::texture_load_rgba16_snorm_float_scaled_cs));
-    load_shader_code_scaled[kLoadShaderIndexDepthUnorm] =
-        std::make_pair(shaders::texture_load_depth_unorm_scaled_cs,
-                       sizeof(shaders::texture_load_depth_unorm_scaled_cs));
-    load_shader_code_scaled[kLoadShaderIndexDepthFloat] =
-        std::make_pair(shaders::texture_load_depth_float_scaled_cs,
-                       sizeof(shaders::texture_load_depth_float_scaled_cs));
+        std::make_pair(shaders::kTextureLoadRGBA16SNormFloatScaledCS,
+                       sizeof(shaders::kTextureLoadRGBA16SNormFloatScaledCS));
+    load_shader_code_scaled[kLoadShaderIndexDepthUnorm] = std::make_pair(
+        shaders::kTextureLoadDepthUNormScaledCS, sizeof(shaders::kTextureLoadDepthUNormScaledCS));
+    load_shader_code_scaled[kLoadShaderIndexDepthFloat] = std::make_pair(
+        shaders::kTextureLoadDepthFloatScaledCS, sizeof(shaders::kTextureLoadDepthFloatScaledCS));
   }
 
   for (size_t i = 0; i < kLoadShaderCount; ++i) {
@@ -3030,7 +3020,8 @@ const VulkanTextureCache::HostFormatPair& VulkanTextureCache::GetHostFormatPair(
 
 void VulkanTextureCache::GetTextureUsageMasks(VulkanTexture::Usage usage,
                                               VkPipelineStageFlags& stage_mask,
-                                              VkAccessFlags& access_mask, VkImageLayout& layout) {
+                                              VkAccessFlags& access_mask,
+                                              VkImageLayout& layout) const {
   stage_mask = 0;
   access_mask = 0;
   layout = VK_IMAGE_LAYOUT_UNDEFINED;

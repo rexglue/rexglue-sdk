@@ -14,8 +14,6 @@
 
 namespace rex::hid::cvars {
 
-// NOLINTBEGIN(bugprone-throwing-static-initialization) constant descriptors registered at Connect
-
 REXCVAR_BOOL(hid, guide_button, false, "Enable guide button pass-through");
 REXCVAR_BOOL(hid, vibration, true, "Enable controller vibration");
 REXCVAR_DOUBLE(hid, left_stick_deadzone, 0.0,
@@ -65,7 +63,5 @@ REXCVAR_TABLE(kHIDCvars, guide_button, vibration, left_stick_deadzone, right_sti
               keybind_rstick_down, keybind_rstick_left, keybind_rstick_right, keybind_rstick_press,
               keybind_dpad_up, keybind_dpad_down, keybind_dpad_left, keybind_dpad_right,
               keybind_back, keybind_start, keybind_guide);
-
-// NOLINTEND(bugprone-throwing-static-initialization)
 
 }  // namespace rex::hid::cvars

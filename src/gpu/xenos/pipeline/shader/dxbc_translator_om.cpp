@@ -241,12 +241,16 @@ void DxbcShaderTranslator::ROV_DepthStencilTest() {
     } else {
       switch (i) {
         case 0:
-          a_.OpMAd(sample_depth_stencil_dest, z_ddx_src,
-                   dxbc::Src::LF(draw_util::kD3D10StandardSamplePositions4x[0][0] * (1.0f / 16.0f)),
-                   temp_z_src);
-          a_.OpMAd(sample_depth_stencil_dest, z_ddy_src,
-                   dxbc::Src::LF(draw_util::kD3D10StandardSamplePositions4x[0][1] * (1.0f / 16.0f)),
-                   sample_depth_stencil_src);
+          a_.OpMAd(
+              sample_depth_stencil_dest, z_ddx_src,
+              dxbc::Src::LF(static_cast<f32>(draw_util::kD3D10StandardSamplePositions4x[0][0]) *
+                            (1.0f / 16.0f)),
+              temp_z_src);
+          a_.OpMAd(
+              sample_depth_stencil_dest, z_ddy_src,
+              dxbc::Src::LF(static_cast<f32>(draw_util::kD3D10StandardSamplePositions4x[0][1]) *
+                            (1.0f / 16.0f)),
+              sample_depth_stencil_src);
           a_.OpMovC(
               sample_depth_stencil_dest,
               LoadSystemConstant(SystemConstants::Index::kSampleCountLog2,
@@ -258,19 +262,27 @@ void DxbcShaderTranslator::ROV_DepthStencilTest() {
           a_.OpIf(true, LoadSystemConstant(SystemConstants::Index::kSampleCountLog2,
                                            offsetof(SystemConstants, sample_count_log2),
                                            dxbc::Src::kXXXX));
-          a_.OpMAd(sample_depth_stencil_dest, z_ddx_src,
-                   dxbc::Src::LF(draw_util::kD3D10StandardSamplePositions4x[2][0] * (1.0f / 16.0f)),
-                   temp_z_src);
-          a_.OpMAd(sample_depth_stencil_dest, z_ddy_src,
-                   dxbc::Src::LF(draw_util::kD3D10StandardSamplePositions4x[2][1] * (1.0f / 16.0f)),
-                   sample_depth_stencil_src, true);
+          a_.OpMAd(
+              sample_depth_stencil_dest, z_ddx_src,
+              dxbc::Src::LF(static_cast<f32>(draw_util::kD3D10StandardSamplePositions4x[2][0]) *
+                            (1.0f / 16.0f)),
+              temp_z_src);
+          a_.OpMAd(
+              sample_depth_stencil_dest, z_ddy_src,
+              dxbc::Src::LF(static_cast<f32>(draw_util::kD3D10StandardSamplePositions4x[2][1]) *
+                            (1.0f / 16.0f)),
+              sample_depth_stencil_src, true);
           a_.OpElse();
-          a_.OpMAd(sample_depth_stencil_dest, z_ddx_src,
-                   dxbc::Src::LF(draw_util::kD3D10StandardSamplePositions4x[3][0] * (1.0f / 16.0f)),
-                   temp_z_src);
-          a_.OpMAd(sample_depth_stencil_dest, z_ddy_src,
-                   dxbc::Src::LF(draw_util::kD3D10StandardSamplePositions4x[3][1] * (1.0f / 16.0f)),
-                   sample_depth_stencil_src, true);
+          a_.OpMAd(
+              sample_depth_stencil_dest, z_ddx_src,
+              dxbc::Src::LF(static_cast<f32>(draw_util::kD3D10StandardSamplePositions4x[3][0]) *
+                            (1.0f / 16.0f)),
+              temp_z_src);
+          a_.OpMAd(
+              sample_depth_stencil_dest, z_ddy_src,
+              dxbc::Src::LF(static_cast<f32>(draw_util::kD3D10StandardSamplePositions4x[3][1]) *
+                            (1.0f / 16.0f)),
+              sample_depth_stencil_src, true);
           a_.OpEndIf();
           break;
         default: {
@@ -278,10 +290,11 @@ void DxbcShaderTranslator::ROV_DepthStencilTest() {
           const i8* sample_position =
               draw_util::kD3D10StandardSamplePositions4x[i ^ (((i & 1) ^ (i >> 1)) * 0b11)];
           a_.OpMAd(sample_depth_stencil_dest, z_ddx_src,
-                   dxbc::Src::LF(sample_position[0] * (1.0f / 16.0f)), temp_z_src);
+                   dxbc::Src::LF(static_cast<f32>(sample_position[0]) * (1.0f / 16.0f)),
+                   temp_z_src);
           a_.OpMAd(sample_depth_stencil_dest, z_ddy_src,
-                   dxbc::Src::LF(sample_position[1] * (1.0f / 16.0f)), sample_depth_stencil_src,
-                   true);
+                   dxbc::Src::LF(static_cast<f32>(sample_position[1]) * (1.0f / 16.0f)),
+                   sample_depth_stencil_src, true);
         } break;
       }
       ROV_DepthTo24Bit(sample_depth_stencil_src.index_1d_.index_,
@@ -486,7 +499,7 @@ void DxbcShaderTranslator::ROV_DepthStencilTest() {
     u32 tile_width = xenos::kEDRAMTileWidthSamples * draw_resolution_scale_x_;
     a_.OpIAdd(dxbc::Dest::R(system_temp_rov_params_, 0b0010),
               dxbc::Src::R(system_temp_rov_params_, dxbc::Src::kYYYY),
-              dxbc::Src::LI((i & 1) ? -static_cast<i32>(tile_width) + 2 - i
+              dxbc::Src::LI((i & 1) ? -static_cast<i32>(tile_width) + 2 - static_cast<i32>(i)
                                     : static_cast<i32>(tile_width)));
   }
 
@@ -1088,7 +1101,7 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
       if (i < 3) {
         a_.OpIAdd(dxbc::Dest::R(system_temp_rov_params_, 0b0010),
                   dxbc::Src::R(system_temp_rov_params_, dxbc::Src::kYYYY),
-                  dxbc::Src::LI((i & 1) ? -static_cast<i32>(tile_width) + 2 - i
+                  dxbc::Src::LI((i & 1) ? -static_cast<i32>(tile_width) + 2 - static_cast<i32>(i)
                                         : static_cast<i32>(tile_width)));
       }
     }
@@ -1679,7 +1692,7 @@ void DxbcShaderTranslator::PreClampedDepthTo20e4(
   a.OpIf(true, temp_src);
   {
     a.OpUShR(temp_dest, f32_src, dxbc::Src::LU(23));
-    a.OpIAdd(temp_dest, dxbc::Src::LI(113 - remap_bias), -temp_src);
+    a.OpIAdd(temp_dest, dxbc::Src::LI(113 - static_cast<i32>(remap_bias)), -temp_src);
     // DXBC shifts use the lower 5 bits of the amount, so clamp it to avoid overflow.
     a.OpUMin(temp_dest, temp_src, dxbc::Src::LU(24));
     a.OpBFI(f24_dest, dxbc::Src::LU(9), dxbc::Src::LU(23), dxbc::Src::LU(1), f32_src);
@@ -1737,7 +1750,7 @@ void DxbcShaderTranslator::Depth20e4To32(dxbc::Assembler& a, const dxbc::Dest& f
   }
   a.OpEndIf();
   a.OpIMAd(exponent_dest, exponent_src, dxbc::Src::LI(1 << 23),
-           dxbc::Src::LI((112 - remap_bias) << 23));
+           dxbc::Src::LI(static_cast<i32>((112 - remap_bias) << 23)));
   a.OpBFI(f32, dxbc::Src::LU(20), dxbc::Src::LU(23 - 20), mantissa_src, exponent_src);
 }
 

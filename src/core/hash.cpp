@@ -9,7 +9,7 @@ namespace rex {
 
 namespace {
 
-constexpr size_t kChunkSize = 256 * 1024;
+constexpr size_t kChunkSize = size_t{256} * 1024;
 
 struct StateDeleter {
   void operator()(XXH3_state_t* state) const { XXH3_freeState(state); }

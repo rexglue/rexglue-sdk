@@ -44,21 +44,21 @@ struct FPSCRPlatform {
    *
    * @return Current MXCSR value.
    */
-  static inline u32 getcsr() noexcept { return simde_mm_getcsr(); }
+  static u32 getcsr() noexcept { return simde_mm_getcsr(); }
 
   /**
    * Writes MXCSR.
    *
    * @param csr New MXCSR value.
    */
-  static inline void setcsr(u32 csr) noexcept { simde_mm_setcsr(csr); }
+  static void setcsr(u32 csr) noexcept { simde_mm_setcsr(csr); }
 
   /**
    * Masks every floating point exception in a control word.
    *
    * @param csr Control word to update.
    */
-  static inline void InitHostExceptions(u32& csr) noexcept { csr |= ExceptionMask; }
+  static void InitHostExceptions(u32& csr) noexcept { csr |= ExceptionMask; }
 };
 
 #elif defined(__aarch64__) || defined(_M_ARM64)

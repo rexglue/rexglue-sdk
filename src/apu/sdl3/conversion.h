@@ -47,9 +47,10 @@ inline void sequential_6_BE_to_interleaved_6_LE(f32* output, const f32* input,
   const simde__m128i byte_swap_shuffle =
       simde_mm_set_epi8(12, 13, 14, 15, 8, 9, 10, 11, 4, 5, 6, 7, 0, 1, 2, 3);
   for (size_t sample = 0; sample < ch_sample_count; sample++) {
-    simde__m128i sample0 =
-        simde_mm_set_epi32(in[3 * ch_sample_count + sample], in[2 * ch_sample_count + sample],
-                           in[1 * ch_sample_count + sample], in[0 * ch_sample_count + sample]);
+    simde__m128i sample0 = simde_mm_set_epi32(static_cast<i32>(in[3 * ch_sample_count + sample]),
+                                              static_cast<i32>(in[2 * ch_sample_count + sample]),
+                                              static_cast<i32>(in[1 * ch_sample_count + sample]),
+                                              static_cast<i32>(in[0 * ch_sample_count + sample]));
     u32 sample1 = in[4 * ch_sample_count + sample];
     u32 sample2 = in[5 * ch_sample_count + sample];
     sample0 = simde_mm_shuffle_epi8(sample0, byte_swap_shuffle);

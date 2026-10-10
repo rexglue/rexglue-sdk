@@ -969,21 +969,21 @@ bool build_vsplth(BuilderContext& ctx) {
 }
 
 bool build_vspltisb(BuilderContext& ctx) {
-  i8 imm5 = static_cast<i8>(ctx.insn.operands[1] << 3) >> 3;
+  i8 imm5 = static_cast<i8>(static_cast<i8>(ctx.insn.operands[1] << 3) >> 3);
   ctx.println("\tsimde_mm_store_si128((simde__m128i*){}.u8, simde_mm_set1_epi8(char(0x{:X})));",
               ctx.v(ctx.insn.operands[0]), static_cast<u8>(imm5));
   return true;
 }
 
 bool build_vspltisw(BuilderContext& ctx) {
-  i8 imm5 = static_cast<i8>(ctx.insn.operands[1] << 3) >> 3;
+  i8 imm5 = static_cast<i8>(static_cast<i8>(ctx.insn.operands[1] << 3) >> 3);
   ctx.println("\tsimde_mm_store_si128((simde__m128i*){}.u32, simde_mm_set1_epi32(int(0x{:X})));",
               ctx.v(ctx.insn.operands[0]), static_cast<u32>(static_cast<i32>(imm5)));
   return true;
 }
 
 bool build_vspltish(BuilderContext& ctx) {
-  i8 imm5 = static_cast<i8>(ctx.insn.operands[1] << 3) >> 3;
+  i8 imm5 = static_cast<i8>(static_cast<i8>(ctx.insn.operands[1] << 3) >> 3);
   ctx.println("\tsimde_mm_store_si128((simde__m128i*){}.s16, simde_mm_set1_epi16(short(0x{:X})));",
               ctx.v(ctx.insn.operands[0]), static_cast<u16>(static_cast<i16>(imm5)));
   return true;
@@ -1182,7 +1182,7 @@ bool build_vpkd3d128(BuilderContext& ctx) {
     case 3: {
       for (size_t i = 0; i < 2; i++) {
         size_t srcIdx = 3 - i;
-        size_t dstIdx = (1 - i) + (2 * ctx.insn.operands[4]);
+        size_t dstIdx = (1 - i) + (2 * static_cast<size_t>(ctx.insn.operands[4]));
         ctx.println("\t{}.u32 = ({}.u32[{}]&0x7FFFFFFF);", ctx.temp(), ctx.v(ctx.insn.operands[1]),
                     srcIdx);
         ctx.println(
@@ -1205,7 +1205,7 @@ bool build_vpkd3d128(BuilderContext& ctx) {
     case 4: {
       for (size_t i = 0; i < 4; i++) {
         size_t srcIdx = 3 - i;
-        size_t dstIdx = (3 - i) + (2 * ctx.insn.operands[4]);
+        size_t dstIdx = (3 - i) + (2 * static_cast<size_t>(ctx.insn.operands[4]));
         ctx.println("\t{}.s32 = {}.s32[{}] - 0x40400000;", ctx.temp(), ctx.v(ctx.insn.operands[1]),
                     srcIdx);
         ctx.println("\t{}.s32 = {}.s32 > 32767 ? 32767 : ({}.s32 < -32767 ? -32767 : {}.s32);",
@@ -1221,7 +1221,7 @@ bool build_vpkd3d128(BuilderContext& ctx) {
 
       for (size_t i = 0; i < 4; i++) {
         size_t srcIdx = 3 - i;
-        size_t dstIdx = (3 - i) + (2 * ctx.insn.operands[4]);
+        size_t dstIdx = (3 - i) + (2 * static_cast<size_t>(ctx.insn.operands[4]));
         ctx.println("\t{}.u32 = ({}.u32[{}]&0x7FFFFFFF);", ctx.temp(), ctx.v(ctx.insn.operands[1]),
                     srcIdx);
         ctx.println(

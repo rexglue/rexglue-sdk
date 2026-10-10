@@ -68,6 +68,7 @@ struct PEExport {
 namespace rex {
 
 /** Memory protection class of a run of pages in the image. */
+// NOLINTNEXTLINE(performance-enum-size): XEX file format field width
 enum xex2_section_type {
   XEX_SECTION_CODE = 1, /**< Pages are mapped read only unless the writable code cvar is set. */
   XEX_SECTION_DATA = 2, /**< Pages are mapped read and write. */
@@ -142,6 +143,7 @@ enum xex2_region_flags : u32 {
 };
 
 /** Module flag bits of the XEX header. */
+// NOLINTNEXTLINE(performance-enum-size): XEX file format field width
 enum xex2_module_flags : u32 {
   XEX_MODULE_TITLE = 0x00000001, /**< The module is a title executable. No code reads it. */
   /** The module exports functions to the title. No code reads it. */
@@ -199,6 +201,7 @@ enum xex2_system_flags : u32 {
 };
 
 /** ESRB (Entertainment Software Rating Board) */
+// NOLINTNEXTLINE(performance-enum-size): XEX file format field width
 enum xex2_rating_esrb_value : u32 {
   XEX_RATING_ESRB_eC = 0x00,      /**< Early Childhood. */
   XEX_RATING_ESRB_E = 0x02,       /**< Everyone. */
@@ -209,6 +212,7 @@ enum xex2_rating_esrb_value : u32 {
   XEX_RATING_ESRB_UNRATED = 0xFF, /**< No rating assigned. */
 };
 /** PEGI (Pan European Game Information) */
+// NOLINTNEXTLINE(performance-enum-size): XEX file format field width
 enum xex2_rating_pegi_value : u32 {
   XEX_RATING_PEGI_3_PLUS = 0,     /**< Age 3 and up. */
   XEX_RATING_PEGI_7_PLUS = 4,     /**< Age 7 and up. */
@@ -218,6 +222,7 @@ enum xex2_rating_pegi_value : u32 {
   XEX_RATING_PEGI_UNRATED = 0xFF, /**< No rating assigned. */
 };
 /** PEGI (Pan European Game Information) for Finland */
+// NOLINTNEXTLINE(performance-enum-size): XEX file format field width
 enum xex2_rating_pegi_fi_value : u32 {
   XEX_RATING_PEGI_FI_3_PLUS = 0,     /**< Age 3 and up. */
   XEX_RATING_PEGI_FI_7_PLUS = 4,     /**< Age 7 and up. */
@@ -227,6 +232,7 @@ enum xex2_rating_pegi_fi_value : u32 {
   XEX_RATING_PEGI_FI_UNRATED = 0xFF, /**< No rating assigned. */
 };
 /** PEGI (Pan European Game Information) for Portugal */
+// NOLINTNEXTLINE(performance-enum-size): XEX file format field width
 enum xex2_rating_pegi_pt_value : u32 {
   XEX_RATING_PEGI_PT_4_PLUS = 1,     /**< Age 4 and up. */
   XEX_RATING_PEGI_PT_6_PLUS = 3,     /**< Age 6 and up. */
@@ -236,6 +242,7 @@ enum xex2_rating_pegi_pt_value : u32 {
   XEX_RATING_PEGI_PT_UNRATED = 0xFF, /**< No rating assigned. */
 };
 /** BBFC (British Board of Film Classification) for UK and Ireland */
+// NOLINTNEXTLINE(performance-enum-size): XEX file format field width
 enum xex2_rating_bbfc_value : u32 {
   XEX_RATING_BBFC_UNIVERSAL = 1,  /**< Suitable for all ages. */
   XEX_RATING_BBFC_PG = 5,         /**< Parental guidance. */
@@ -248,6 +255,7 @@ enum xex2_rating_bbfc_value : u32 {
   XEX_RATING_BBFC_UNRATED = 0xFF, /**< No rating assigned. */
 };
 /** CERO (Computer Entertainment Rating Organization) */
+// NOLINTNEXTLINE(performance-enum-size): XEX file format field width
 enum xex2_rating_cero_value : u32 {
   XEX_RATING_CERO_A = 0,          /**< All ages. */
   XEX_RATING_CERO_B = 2,          /**< Age 12 and up. */
@@ -257,6 +265,7 @@ enum xex2_rating_cero_value : u32 {
   XEX_RATING_CERO_UNRATED = 0xFF, /**< No rating assigned. */
 };
 /** USK (Unterhaltungssoftware SelbstKontrolle) */
+// NOLINTNEXTLINE(performance-enum-size): XEX file format field width
 enum xex2_rating_usk_value : u32 {
   XEX_RATING_USK_ALL = 0,        /**< All ages. */
   XEX_RATING_USK_6_PLUS = 2,     /**< Age 6 and up. */
@@ -266,6 +275,7 @@ enum xex2_rating_usk_value : u32 {
   XEX_RATING_USK_UNRATED = 0xFF, /**< No rating assigned. */
 };
 /** OFLC (Office of Film and Literature Classification) for Australia */
+// NOLINTNEXTLINE(performance-enum-size): XEX file format field width
 enum xex2_rating_oflc_au_value : u32 {
   XEX_RATING_OFLC_AU_G = 0,          /**< General. */
   XEX_RATING_OFLC_AU_PG = 2,         /**< Parental guidance. */
@@ -274,6 +284,7 @@ enum xex2_rating_oflc_au_value : u32 {
   XEX_RATING_OFLC_AU_UNRATED = 0xFF, /**< No rating assigned. */
 };
 /** OFLC (Office of Film and Literature Classification) for New Zealand */
+// NOLINTNEXTLINE(performance-enum-size): XEX file format field width
 enum xex2_rating_oflc_nz_value : u32 {
   XEX_RATING_OFLC_NZ_G = 0,          /**< General. */
   XEX_RATING_OFLC_NZ_PG = 2,         /**< Parental guidance. */
@@ -282,6 +293,7 @@ enum xex2_rating_oflc_nz_value : u32 {
   XEX_RATING_OFLC_NZ_UNRATED = 0xFF, /**< No rating assigned. */
 };
 /** KMRB (Korea Media Rating Board) */
+// NOLINTNEXTLINE(performance-enum-size): XEX file format field width
 enum xex2_rating_kmrb_value : u32 {
   XEX_RATING_KMRB_ALL = 0,        /**< All ages. */
   XEX_RATING_KMRB_12_PLUS = 2,    /**< Age 12 and up. */
@@ -290,6 +302,7 @@ enum xex2_rating_kmrb_value : u32 {
   XEX_RATING_KMRB_UNRATED = 0xFF, /**< No rating assigned. */
 };
 /** Brazil ratings */
+// NOLINTNEXTLINE(performance-enum-size): XEX file format field width
 enum xex2_rating_brazil_value : u32 {
   XEX_RATING_BRAZIL_ALL = 0,        /**< All ages. */
   XEX_RATING_BRAZIL_12_PLUS = 2,    /**< Age 12 and up. */
@@ -299,6 +312,7 @@ enum xex2_rating_brazil_value : u32 {
   XEX_RATING_BRAZIL_UNRATED = 0xFF, /**< No rating assigned. */
 };
 /** FPB (Film and Publication Board) */
+// NOLINTNEXTLINE(performance-enum-size): XEX file format field width
 enum xex2_rating_fpb_value : u32 {
   XEX_RATING_FPB_ALL = 0,        /**< All ages. */
   XEX_RATING_FPB_PG = 6,         /**< Parental guidance. */
@@ -362,12 +376,14 @@ enum xex2_header_keys : u32 {
 };
 
 /** Encryption applied to the image data. */
+// NOLINTNEXTLINE(performance-enum-size): XEX file format field width
 enum xex2_encryption_type : u16 {
   XEX_ENCRYPTION_NONE = 0,   /**< Image data is stored unencrypted. */
   XEX_ENCRYPTION_NORMAL = 1, /**< Image data is AES encrypted with the image key. */
 };
 
 /** Compression applied to the image data. */
+// NOLINTNEXTLINE(performance-enum-size): XEX file format field width
 enum xex2_compression_type : u16 {
   XEX_COMPRESSION_NONE = 0, /**< Image data is stored uncompressed. */
   /** Image data is stored as the runs of xex2_file_basic_compression_info. */
@@ -378,7 +394,7 @@ enum xex2_compression_type : u16 {
 };
 
 /** Approval state of a static library. */
-enum xex2_approval_type : u32 {
+enum xex2_approval_type : u8 {
   /** @name Values of xex2_opt_static_library::approval_type. No code reads them. */
   /** @{ */
   XEX_APPROVAL_UNAPPROVED = 0,

@@ -18,7 +18,7 @@ namespace rex {
 namespace runtime {
 
 /** File information class selecting the layout of a query or set request. */
-enum X_FILE_INFORMATION_CLASS {
+enum X_FILE_INFORMATION_CLASS : u8 {
   XFileDirectoryInformation = 1,   /**< File directory information class. */
   XFileFullDirectoryInformation,   /**< File full directory information class. */
   XFileBothDirectoryInformation,   /**< File both directory information class. */

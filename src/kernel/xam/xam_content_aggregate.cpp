@@ -72,7 +72,7 @@ u32 XamContentAggregateCreateEnumerator_entry(u64 xuid, u32 device_id, u32 conte
 
   StaticItems items(1, sizeof(XCONTENT_AGGREGATE_DATA));
 
-  auto content_type_enum = XContentType(static_cast<u32>(content_type));
+  auto content_type_enum = XContentType(content_type);
 
   u64 userxuid = runtime::Current().content_manager().user_profile().xuid();
 

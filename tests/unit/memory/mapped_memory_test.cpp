@@ -105,6 +105,7 @@ REX_TEST_CASE("A low address chunked writer moves past an occupied first address
   std::filesystem::remove_all(dir);
   std::filesystem::create_directories(dir);
   const size_t chunk_size = rex::memory::allocation_granularity();
+  // NOLINTNEXTLINE(performance-no-int-to-ptr): VirtualAlloc reserves at this fixed address
   void* first_address = reinterpret_cast<void*>(uintptr_t{0x10000000});
   void* blocker = VirtualAlloc(first_address, chunk_size, MEM_RESERVE, PAGE_NOACCESS);
   {

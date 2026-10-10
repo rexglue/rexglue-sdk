@@ -187,10 +187,7 @@ void cleanupAbsorbedGapFills(CodegenContext& ctx) {
       if (!otherNode->containsAddress(addr))
         continue;
 
-      if (otherNode->authority() != FunctionAuthority::GAP_FILL) {
-        toRemove.push_back(addr);
-        break;
-      } else if (otherAddr < addr) {
+      if (otherNode->authority() != FunctionAuthority::GAP_FILL || otherAddr < addr) {
         toRemove.push_back(addr);
         break;
       }

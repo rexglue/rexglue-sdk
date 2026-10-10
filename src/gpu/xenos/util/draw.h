@@ -11,8 +11,11 @@
 
 #pragma once
 
+#include <algorithm>
+#include <bit>
 #include <cmath>
 #include <cstdint>
+#include <span>
 #include <utility>
 #include <vector>
 
@@ -24,6 +27,18 @@
 #include <rex/memory.h>
 
 namespace rex::gpu::draw_util {
+
+/**
+ * Compares 2 runs of floats by bit pattern, so a NaN equals itself.
+ *
+ * @param a The first run.
+ * @param b The second run.
+ * @return True when both runs have the same length and the same bits.
+ */
+inline bool BitsEqual(std::span<const f32> a, std::span<const f32> b) {
+  return std::ranges::equal(
+      a, b, [](f32 x, f32 y) { return std::bit_cast<u32>(x) == std::bit_cast<u32>(y); });
+}
 
 /**
  * Reports whether the primitive type is a line.
@@ -476,7 +491,7 @@ union ResolveCopyDestCoordinateInfo {
 };
 
 /** Host shaders for copying in resolve operations on backends with Shader Model 5 like compute. */
-enum class ResolveCopyShaderIndex {
+enum class ResolveCopyShaderIndex : u8 {
   kFast32bpp1x2xMSAA,
   kFast32bpp4xMSAA,
   kFast64bpp1x2xMSAA,

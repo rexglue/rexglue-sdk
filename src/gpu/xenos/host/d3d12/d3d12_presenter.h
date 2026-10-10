@@ -131,7 +131,7 @@ class D3D12Presenter final : public Presenter {
     };
   };
 
-  enum class GuestOutputPaintRootParameter : UINT {
+  enum class GuestOutputPaintRootParameter : u8 {
     kSource,
     kRectangle,
     kEffectConstants,
@@ -139,7 +139,7 @@ class D3D12Presenter final : public Presenter {
     kCount,
   };
 
-  enum GuestOutputPaintRootSignatureIndex : size_t {
+  enum GuestOutputPaintRootSignatureIndex : u8 {
     kGuestOutputPaintRootSignatureIndexBilinear,
 
     kGuestOutputPaintRootSignatureCount,
@@ -162,13 +162,13 @@ class D3D12Presenter final : public Presenter {
 
     static constexpr u32 kSwapChainBufferCount = 3;
 
-    enum RTVIndex : UINT {
+    enum RTVIndex : u8 {
       kRTVIndexSwapChainBuffer0,
 
       kRTVCount = kRTVIndexSwapChainBuffer0 + kSwapChainBufferCount,
     };
 
-    enum ViewIndex : UINT {
+    enum ViewIndex : u8 {
       kViewIndexGuestOutput0Srv,
 
       kViewCount = kViewIndexGuestOutput0Srv + kGuestOutputMailboxSize,

@@ -67,7 +67,8 @@ class PosixMappedMemory : public MappedMemory {
       map_length = static_cast<size_t>(file_stat.st_size);
     }
 
-    void* data = mmap(0, map_length, protection, MAP_SHARED, file_descriptor, offset);
+    void* data =
+        mmap(0, map_length, protection, MAP_SHARED, file_descriptor, static_cast<off_t>(offset));
     if (!data || data == MAP_FAILED) {
       close(file_descriptor);
       return nullptr;
@@ -192,6 +193,7 @@ class PosixChunkedMappedMemoryWriter : public ChunkedMappedMemoryWriter {
       REXLOG_ERROR(core, "macOS maps no chunk below 4 GiB");
       return false;
 #else
+      // NOLINTNEXTLINE(performance-no-int-to-ptr): mmap takes the address hint as a pointer
       u8* hint = reinterpret_cast<u8*>(kLowAddressBase);
       for (u32 attempt = 0; attempt < kLowAddressAttempts; ++attempt, hint += capacity_) {
         void* data =

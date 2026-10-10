@@ -371,7 +371,7 @@ u32 VdInitializeScalerCommandBuffer_entry(
   for (size_t i = 0; i < dest_count; ++i) {
     dest[i] = 0x80000000;
   }
-  return static_cast<u32>(dest_count);
+  return dest_count;
 }
 
 struct BufferScaling {
@@ -483,7 +483,7 @@ void VdSwap_entry(mapped_void buffer_ptr, mapped_void fetch_ptr, [[maybe_unused]
   REX_ASSERT(*width == 1 + gpu_fetch.size_2d.width);
   REX_ASSERT(*height == 1 + gpu_fetch.size_2d.height);
 
-  buffer_ptr.Zero(64 * 4);
+  buffer_ptr.Zero(size_t{64} * 4);
 
   u32 offset = 0;
   auto dwords = buffer_ptr.as_array<u32>();

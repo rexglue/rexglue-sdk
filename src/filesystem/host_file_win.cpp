@@ -13,11 +13,6 @@ namespace rex::filesystem {
 
 namespace {
 
-HANDLE Native(std::intptr_t native) {
-  // NOLINTNEXTLINE(performance-no-int-to-ptr)
-  return reinterpret_cast<HANDLE>(native);
-}
-
 u64 Combine(FILETIME time) {
   return (static_cast<u64>(time.dwHighDateTime) << 32) | time.dwLowDateTime;
 }
@@ -40,11 +35,11 @@ rex::Error HostError(std::string_view what, const std::filesystem::path& path) {
 
 }  // namespace
 
-HostFile::HostFile(Key /*key*/, std::filesystem::path path, std::intptr_t native)
+HostFile::HostFile(Key /*key*/, std::filesystem::path path, NativeHandle native)
     : path_(std::move(path)), native_(native) {}
 
 HostFile::~HostFile() {
-  CloseHandle(Native(native_));
+  CloseHandle(native_);
 }
 
 Result<std::unique_ptr<HostFile>> HostFile::OpenExisting(const std::filesystem::path& path,
@@ -87,13 +82,13 @@ Result<std::unique_ptr<HostFile>> HostFile::OpenExisting(const std::filesystem::
     return Err<std::unique_ptr<HostFile>>(MakeError(
         code, std::format("cannot open host file '{}', error {}", path_to_utf8(path), error)));
   }
-  return std::make_unique<HostFile>(Key{}, path, reinterpret_cast<std::intptr_t>(handle));
+  return std::make_unique<HostFile>(Key{}, path, handle);
 }
 
 Result<size_t> HostFile::Read(u64 offset, std::span<u8> buffer) {
   OVERLAPPED overlapped = At(offset);
   DWORD bytes_read = 0;
-  if (!ReadFile(Native(native_), buffer.data(), static_cast<DWORD>(buffer.size()), &bytes_read,
+  if (!ReadFile(native_, buffer.data(), static_cast<DWORD>(buffer.size()), &bytes_read,
                 &overlapped)) {
     if (GetLastError() == ERROR_HANDLE_EOF) {
       return size_t{0};
@@ -110,7 +105,7 @@ Result<size_t> HostFile::Read(u64 offset, std::span<u8> buffer) {
 Result<size_t> HostFile::Write(u64 offset, std::span<const u8> buffer) {
   OVERLAPPED overlapped = At(offset);
   DWORD bytes_written = 0;
-  if (!WriteFile(Native(native_), buffer.data(), static_cast<DWORD>(buffer.size()), &bytes_written,
+  if (!WriteFile(native_, buffer.data(), static_cast<DWORD>(buffer.size()), &bytes_written,
                  &overlapped)) {
     return Err<size_t>(HostError("write", path_));
   }
@@ -120,14 +115,14 @@ Result<size_t> HostFile::Write(u64 offset, std::span<const u8> buffer) {
 Result<void> HostFile::SetLength(u64 length) {
   FILE_END_OF_FILE_INFO info{};
   info.EndOfFile.QuadPart = static_cast<LONGLONG>(length);
-  if (!SetFileInformationByHandle(Native(native_), FileEndOfFileInfo, &info, sizeof(info))) {
+  if (!SetFileInformationByHandle(native_, FileEndOfFileInfo, &info, sizeof(info))) {
     return Err(HostError("set length of", path_));
   }
   return Ok();
 }
 
 Result<void> HostFile::Flush() const {
-  if (!FlushFileBuffers(Native(native_))) {
+  if (!FlushFileBuffers(native_)) {
     return Err(HostError("flush", path_));
   }
   return Ok();

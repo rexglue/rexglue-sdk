@@ -23,7 +23,7 @@ namespace rex::platform {
 /**
  * Performance counter slots. ResetFrameCounters zeroes accumulators each frame and keeps gauges.
  */
-enum class CounterId : u16 {
+enum class CounterId : u8 {
   kFrameTimeUs,               /**< Last frame time in microseconds. */
   kFps,                       /**< Frames per second. */
   kDrawCalls,                 /**< GPU draw calls this frame. */

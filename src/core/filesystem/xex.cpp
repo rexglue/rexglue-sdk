@@ -385,7 +385,7 @@ Result<void> XEXImage::DecodeWith(const xex2_opt_file_format_info& format, std::
         if (encrypted) {
           decryptor.Run(data.subspan(in, data_size), image.subspan(out, data_size));
         } else {
-          std::ranges::copy(data.subspan(in, data_size), image.begin() + out);
+          std::ranges::copy(data.subspan(in, data_size), image.subspan(out).begin());
         }
         in += data_size;
         out += data_size + zero_size;
@@ -431,7 +431,8 @@ Result<void> XEXImage::DecodeWith(const xex2_opt_file_format_info& format, std::
           if (p + chunk > block.size()) {
             return FormatError<void>("XEX compressed chunk is out of range");
           }
-          compressed.insert(compressed.end(), block.begin() + p, block.begin() + p + chunk);
+          const auto piece = block.subspan(p, chunk);
+          compressed.insert(compressed.end(), piece.begin(), piece.end());
           p += chunk;
         }
         offset += block_size;

@@ -70,13 +70,18 @@ X_HANDLE CreateUserModule(Runtime& runtime) {
   return CreateModule(runtime, ModuleType::User);
 }
 
-rex::runtime::XexModule* UserModuleXEX(const ModuleObject& module) {
-  REX_ASSERT(module.user.module_format == ModuleFormat::Xex);
-  return static_cast<rex::runtime::XexModule*>(module.processor_module);
+rex::runtime::XEXModule* ModuleObject::xex() {
+  REX_ASSERT(user.module_format == ModuleFormat::XEX);
+  return static_cast<rex::runtime::XEXModule*>(processor_module.get());
 }
 
-u32 UserModuleTitleID(const ModuleObject& module) {
-  if (module.user.module_format != ModuleFormat::Xex) {
+const rex::runtime::XEXModule* ModuleObject::xex() const {
+  REX_ASSERT(user.module_format == ModuleFormat::XEX);
+  return static_cast<const rex::runtime::XEXModule*>(processor_module.get());
+}
+
+u32 ModuleObject::title_id() const {
+  if (user.module_format != ModuleFormat::XEX) {
     return 0;
   }
   const auto* info =

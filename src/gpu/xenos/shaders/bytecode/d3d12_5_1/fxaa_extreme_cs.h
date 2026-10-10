@@ -8,7 +8,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-const BYTE fxaa_extreme_cs[] = {
+const BYTE kFXAAExtremeCS[] = {
     68,  88,  66,  67,  201, 241, 80,  129, 142, 182, 61,  91,  66,  45,  161, 133, 204, 62,  115,
     180, 1,   0,   0,   0,   16,  36,  0,   0,   5,   0,   0,   0,   52,  0,   0,   0,   108, 2,
     0,   0,   124, 2,   0,   0,   140, 2,   0,   0,   116, 35,  0,   0,   82,  68,  69,  70,  48,

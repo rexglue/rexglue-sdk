@@ -279,7 +279,7 @@ u32 KeSetBasePriorityThread_entry(mapped_void thread_ptr, u32 increment) {
 
   if (thread) {
     prev_priority = thread->QueryPriority();
-    thread->SetPriority(increment);
+    thread->SetPriority(static_cast<i32>(increment));
   }
   REXLOG_TRACE(kernel,
                "KeSetBasePriorityThread -> "
@@ -451,7 +451,7 @@ void KeInitializeEvent_entry(ppc_ptr_t<X_KEVENT> event_ptr, u32 event_type, u32 
   event_ptr.Zero();
   event_ptr->header.type = static_cast<u8>(event_type);
   event_ptr->header.signal_state = initial_state;
-  if (!table.ResolveGuest<EventObject>(event_ptr.guest_address(), event_type)) {
+  if (!table.ResolveGuest<EventObject>(event_ptr.guest_address(), static_cast<i32>(event_type))) {
     REXLOG_WARN(kernel, "KeInitializeEvent({:08X}) could not create the event",
                 event_ptr.guest_address());
   }
@@ -568,8 +568,8 @@ u32 NtClearEvent_entry(u32 handle) {
 void KeInitializeSemaphore_entry(ppc_ptr_t<X_KSEMAPHORE> semaphore_ptr, u32 count, u32 limit) {
   // Type 5 is SemaphoreObject.
   semaphore_ptr->header.type = 5;
-  semaphore_ptr->header.signal_state = static_cast<u32>(count);
-  semaphore_ptr->limit = static_cast<u32>(limit);
+  semaphore_ptr->header.signal_state = count;
+  semaphore_ptr->limit = limit;
 
   auto sem = runtime::Current().object_table().ResolveGuest<SemaphoreObject>(
       semaphore_ptr.guest_address(), 5);
@@ -1111,7 +1111,6 @@ void KeEnterCriticalRegion_entry() {
 static_assert(offsetof(PPCContext, f31) - offsetof(PPCContext, f0) == 31 * sizeof(PPCRegister));
 static_assert(offsetof(PPCContext, v127) - offsetof(PPCContext, v0) == 127 * sizeof(PPCVRegister));
 
-// NOLINTNEXTLINE(readability-identifier-naming): frozen export entry name
 void KeSaveFloatingPointState_entry() {
   ThreadState* state = ThreadState::Get();
   PPCContext* ctx = state->context();
@@ -1120,7 +1119,6 @@ void KeSaveFloatingPointState_entry() {
   area.csr = ctx->fpscr.getcsr();
 }
 
-// NOLINTNEXTLINE(readability-identifier-naming): frozen export entry name
 void KeRestoreFloatingPointState_entry() {
   ThreadState* state = ThreadState::Get();
   PPCContext* ctx = state->context();
@@ -1130,7 +1128,6 @@ void KeRestoreFloatingPointState_entry() {
   ctx->fpscr.setcsr(area.csr);
 }
 
-// NOLINTNEXTLINE(readability-identifier-naming): frozen export entry name
 void KeSaveVectorUnitState_entry() {
   ThreadState* state = ThreadState::Get();
   PPCContext* ctx = state->context();
@@ -1139,7 +1136,6 @@ void KeSaveVectorUnitState_entry() {
   area.vscr_sat = ctx->vscr_sat;
 }
 
-// NOLINTNEXTLINE(readability-identifier-naming): frozen export entry name
 void KeRestoreVectorUnitState_entry() {
   ThreadState* state = ThreadState::Get();
   PPCContext* ctx = state->context();
@@ -1158,14 +1154,13 @@ u32 KeRaiseIrqlToDpcLevel_entry() {
 
 void KfLowerIrql_entry(u32 old_value) {
   auto& runtime = runtime::Current();
-  KfLowerIrql(*runtime.memory(), ThreadState::Get()->context(),
-              static_cast<unsigned char>(static_cast<u32>(old_value)));
+  KfLowerIrql(*runtime.memory(), ThreadState::Get()->context(), static_cast<u8>(old_value));
   DrainDPCsBelowDispatch(runtime);
 }
 
 u32 KfRaiseIrql_entry(u32 new_irql) {
   return KfRaiseIrql(*runtime::Current().memory(), ThreadState::Get()->context(),
-                     static_cast<unsigned char>(static_cast<u32>(new_irql)));
+                     static_cast<u8>(new_irql));
 }
 
 void NtQueueApcThread_entry(u32 thread_handle, mapped_void apc_routine,

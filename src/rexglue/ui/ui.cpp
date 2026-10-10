@@ -234,15 +234,16 @@ void ManualReviewList(std::string_view header, std::span<const ManualReviewRow> 
 
 void DoneSummary(std::chrono::milliseconds elapsed) {
   detail::GlobalSinkAccessor acc;
-  acc.writeColored(color::kBoldGreen, std::format("Done in {:.1f}s.", elapsed.count() / 1000.0));
+  acc.writeColored(color::kBoldGreen,
+                   std::format("Done in {:.1f}s.", std::chrono::duration<f64>(elapsed).count()));
   acc.writeRaw("\n");
   acc.flush();
 }
 
 void FailureSummary(std::string_view reason, std::chrono::milliseconds elapsed) {
   detail::GlobalSinkAccessor acc;
-  acc.writeColored(color::kBoldRed,
-                   std::format("Failed: {} (after {:.1f}s)", reason, elapsed.count() / 1000.0));
+  acc.writeColored(color::kBoldRed, std::format("Failed: {} (after {:.1f}s)", reason,
+                                                std::chrono::duration<f64>(elapsed).count()));
   acc.writeRaw("\n");
   acc.flush();
 }

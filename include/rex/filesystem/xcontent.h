@@ -78,8 +78,9 @@ enum class XContentPackageType : u32 {
 };
 
 /** Volume layout of a package. */
-enum class XContentVolumeType : u32 {  // NOLINT(performance-enum-size) guest memory field
-  kSTFS = 0,                           /**< Secure transacted file system, 1 file. */
+// NOLINTNEXTLINE(performance-enum-size): the on disk XContent header stores 4 bytes
+enum class XContentVolumeType : u32 {
+  kSTFS = 0, /**< Secure transacted file system, 1 file. */
   kSVOD = 1, /**< Secure virtual optical disc, a header file and data fragments. */
 };
 

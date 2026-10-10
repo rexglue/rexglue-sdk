@@ -94,7 +94,7 @@ class D3D12SharedMemory : public SharedMemory {
   void CommitUAVWritesAndTransitionBuffer(D3D12_RESOURCE_STATES new_state);
 
   /** Views in the non shader visible descriptor heap, copied instead of created for binding. */
-  enum class BufferDescriptorIndex : u32 {
+  enum class BufferDescriptorIndex : u8 {
     kRawSRV,
     kR32UintSRV,
     kR32G32UintSRV,

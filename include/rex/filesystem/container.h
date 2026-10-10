@@ -33,7 +33,7 @@ class MappedMemory;
 namespace rex::filesystem {
 
 /** Format of a container image. */
-enum class ContainerKind : u32 {
+enum class ContainerKind : u8 {
   kSTFS, /**< STFS package, 1 file. */
   kSVOD, /**< SVOD package, a header file and data fragments. */
   kGDFX, /**< GDFX disc image. */

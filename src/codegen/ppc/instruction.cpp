@@ -17,7 +17,6 @@ bool Instruction::is_call() const {
   switch (opcode) {
     case Opcode::bl:
     case Opcode::bla:
-      return true;
     case Opcode::bcl:
     case Opcode::bcla:
     case Opcode::bclrl:

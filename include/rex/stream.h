@@ -34,7 +34,7 @@ class REX_API BitStream {
    */
   BitStream(u8* buffer, size_t size_in_bits);
   /** Destroys the stream. The buffer stays with the caller. */
-  ~BitStream();
+  ~BitStream() = default;
 
   /**
    * Returns the backing memory.
@@ -83,7 +83,7 @@ class REX_API BitStream {
    *
    * @return Bit count.
    */
-  size_t BitsRemaining();
+  size_t BitsRemaining() const;
 
   /**
    * Reads bits at the cursor without moving it.
@@ -137,7 +137,7 @@ class REX_API ByteStream {
    */
   ByteStream(u8* data, size_t data_length, size_t offset = 0);
   /** Destroys the stream. The buffer stays with the caller. */
-  ~ByteStream();
+  ~ByteStream() = default;
 
   /**
    * Moves the cursor forward.

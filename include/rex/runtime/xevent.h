@@ -15,7 +15,8 @@
 
 #include <rex/macros.h>
 #include <rex/platform/thread.h>
-#include <rex/runtime/xobject.h>
+#include <rex/propagate_const.h>
+#include <rex/runtime/object.h>
 #include <rex/runtime/xtypes.h>
 
 namespace rex::runtime {
@@ -43,8 +44,7 @@ struct EventObject {
   /** True for a notification event, false for a synchronization event that resets on a wait. */
   bool manual_reset = false;
   /** Host event that carries the signal state and wakes waiters. */
-  std::unique_ptr<rex::platform::Event> event;
-};
+  PropagateConst<std::unique_ptr<rex::platform::Event>> event;
 
 /**
  * Reads the type and the live state of an event.

@@ -52,7 +52,7 @@ enum IRQL_FLAGS : u8 {
 };
 
 /** Object types stored in the type byte of `X_DISPATCH_HEADER`. */
-enum X_DISPATCHER_FLAGS {
+enum X_DISPATCHER_FLAGS : u8 {
   DISPATCHER_MANUAL_RESET_EVENT = 0, /**< Notification event. */
   DISPATCHER_AUTO_RESET_EVENT = 1,   /**< Synchronization event. */
   DISPATCHER_MUTANT = 2,             /**< Mutant. */
@@ -731,7 +731,7 @@ class REX_RUNTIME_API ThreadRecord : public rex::NonCopyable {
    * @param interval The interval in 100 nanosecond ticks, negative for relative.
    * @return X_STATUS_SUCCESS, or X_STATUS_USER_APC.
    */
-  X_STATUS Delay(u32 processor_mode, u32 alertable, u64 interval);
+  X_STATUS Delay(u32 processor_mode, u32 alertable, u64 interval) const;
 
   /**
    * Returns the host thread.

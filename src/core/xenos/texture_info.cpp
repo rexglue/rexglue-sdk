@@ -198,7 +198,7 @@ u32 TextureInfo::GetMipLocation(u32 mip, u32* offset_x, u32* offset_y, bool is_g
 }
 
 bool TextureInfo::GetPackedTileOffset(u32 width, u32 height, const FormatInfo* format_info,
-                                      int packed_tile, u32* offset_x, u32* offset_y) {
+                                      u32 packed_tile, u32* offset_x, u32* offset_y) {
   // Levels of 16 texels or less share 1 32x32 tile, placed by their logical size.
 
   u32 log2_width = rex::log2_ceil(width);
@@ -232,7 +232,7 @@ bool TextureInfo::GetPackedTileOffset(u32 width, u32 height, const FormatInfo* f
   return true;
 }
 
-bool TextureInfo::GetPackedTileOffset(int packed_tile, u32* offset_x, u32* offset_y) const {
+bool TextureInfo::GetPackedTileOffset(u32 packed_tile, u32* offset_x, u32* offset_y) const {
   if (!has_packed_mips) {
     *offset_x = 0;
     *offset_y = 0;

@@ -360,7 +360,7 @@ class KeyEvent : public UIEvent {
 class MouseEvent : public UIEvent {
  public:
   /** Mouse buttons. */
-  enum class Button {
+  enum class Button : u8 {
     kNone = 0, /**< No button. */
     kLeft,     /**< The left button. */
     kRight,    /**< The right button. */
@@ -487,7 +487,7 @@ class MouseEvent : public UIEvent {
 class TouchEvent : public UIEvent {
  public:
   /** Touch point changes. */
-  enum class Action {
+  enum class Action : u8 {
     kDown,   /**< The point touched down. */
     kUp,     /**< The point lifted. */
     kCancel, /**< The point lifted without its usual release action. */

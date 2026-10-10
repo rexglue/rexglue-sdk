@@ -8,7 +8,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-const BYTE apply_gamma_table_fxaa_luma_cs[] = {
+const BYTE kApplyGammaTableFXAALumaCS[] = {
     68,  88,  66,  67,  128, 162, 66,  16,  174, 83,  136, 225, 62,  54,  160, 145, 249, 15,  149,
     77,  1,   0,   0,   0,   8,   5,   0,   0,   5,   0,   0,   0,   52,  0,   0,   0,   16,  2,
     0,   0,   32,  2,   0,   0,   48,  2,   0,   0,   108, 4,   0,   0,   82,  68,  69,  70,  212,

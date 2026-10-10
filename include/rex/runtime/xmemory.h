@@ -74,7 +74,7 @@ inline T GuestPtr(u8* base, u32 guest_address) noexcept {
 class Memory;
 
 /** Selects the heap that SystemHeapAlloc takes memory from. */
-enum SystemHeapFlag : u32 {
+enum SystemHeapFlag : u8 {
   kSystemHeapVirtual = 1 << 0,  /**< Virtual heap. */
   kSystemHeapPhysical = 1 << 1, /**< Physical heap. */
 
@@ -89,7 +89,7 @@ enum class HeapType : u8 {
 };
 
 /** Bits of an allocation request. */
-enum MemoryAllocationFlag : u32 {
+enum MemoryAllocationFlag : u8 {
   kMemoryAllocationReserve = 1 << 0, /**< Reserve address space. */
   kMemoryAllocationCommit = 1 << 1,  /**< Commit pages. */
   /** Counts the newly committed pages against the title memory budget. */
@@ -97,7 +97,7 @@ enum MemoryAllocationFlag : u32 {
 };
 
 /** Bits of a page protection. */
-enum MemoryProtectFlag : u32 {
+enum MemoryProtectFlag : u8 {
   kMemoryProtectRead = 1 << 0,         /**< Read access. */
   kMemoryProtectWrite = 1 << 1,        /**< Write access. */
   kMemoryProtectNoCache = 1 << 2,      /**< Uncached access. */
@@ -187,7 +187,7 @@ class REX_RUNTIME_API BaseHeap {
    * @return The host pointer.
    */
   template <typename T = u8*>
-  inline T TranslateRelative(size_t relative_address) const {
+  T TranslateRelative(size_t relative_address) const {
     return reinterpret_cast<T>(membase_ + heap_base_ + host_address_offset_ + relative_address);
   }
 
@@ -705,7 +705,7 @@ class REX_RUNTIME_API Memory {
    *
    * @return The host base.
    */
-  inline u8* virtual_membase() const { return virtual_membase_; }
+  u8* virtual_membase() const { return virtual_membase_; }
 
   /**
    * Translates a guest virtual address to a host address, with the arithmetic recompiled code
@@ -716,7 +716,7 @@ class REX_RUNTIME_API Memory {
    * @return The host address.
    */
   template <typename T = u8*>
-  inline T TranslateVirtual(u32 guest_address) const {
+  T TranslateVirtual(u32 guest_address) const {
     assert(!LookupHeap(guest_address) || LookupHeap(guest_address)->host_address_offset() ==
                                              detail::PhysicalHostOffset(guest_address));
     return GuestPtr<T>(virtual_membase_, guest_address);
@@ -727,7 +727,7 @@ class REX_RUNTIME_API Memory {
    *
    * @return The host base.
    */
-  inline u8* physical_membase() const { return physical_membase_; }
+  u8* physical_membase() const { return physical_membase_; }
 
   /**
    * Translates a guest physical address to a host address that can be accessed as a normal pointer.
@@ -738,7 +738,7 @@ class REX_RUNTIME_API Memory {
    * @return The host address.
    */
   template <typename T = u8*>
-  inline T TranslatePhysical(u32 guest_address) const {
+  T TranslatePhysical(u32 guest_address) const {
     return reinterpret_cast<T>(physical_membase_ + (guest_address & 0x1FFFFFFF));
   }
 
@@ -895,7 +895,7 @@ class REX_RUNTIME_API Memory {
    * @param address The guest address.
    * @return The heap.
    */
-  inline BaseHeap* LookupHeap(u32 address) {
+  BaseHeap* LookupHeap(u32 address) {
     return const_cast<BaseHeap*>(const_cast<const runtime::Memory*>(this)->LookupHeap(address));
   }
 

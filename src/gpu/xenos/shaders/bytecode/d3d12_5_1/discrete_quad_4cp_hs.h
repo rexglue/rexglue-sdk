@@ -8,7 +8,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-const BYTE discrete_quad_4cp_hs[] = {
+const BYTE kDiscreteQuad4CPHS[] = {
     68,  88,  66,  67,  192, 34,  77,  20,  70,  107, 155, 33,  163, 40,  168, 219, 244, 3,   133,
     198, 1,   0,   0,   0,   160, 13,  0,   0,   6,   0,   0,   0,   56,  0,   0,   0,   108, 10,
     0,   0,   160, 10,  0,   0,   212, 10,  0,   0,   152, 11,  0,   0,   4,   13,  0,   0,   82,

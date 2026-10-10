@@ -16,15 +16,13 @@
 
 namespace rex::hid {
 
-// NOLINTBEGIN(readability-identifier-naming) platform defined names
-
 /** XInput's published thresholds. */
 constexpr i32 X_INPUT_GAMEPAD_LEFT_THUMB_DEADZONE = 7849;
 constexpr i32 X_INPUT_GAMEPAD_RIGHT_THUMB_DEADZONE = 8689;
 constexpr u8 X_INPUT_GAMEPAD_TRIGGER_THRESHOLD = 30;
 
 /** XInput capability flags. */
-enum X_INPUT_CAPS {
+enum X_INPUT_CAPS : u8 {
   /** XINPUT_CAPS_FFB_SUPPORTED. The device supports force feedback. */
   X_INPUT_CAPS_FFB_SUPPORTED = 0x0001,
   X_INPUT_CAPS_WIRELESS = 0x0002, /**< XINPUT_CAPS_WIRELESS. The device is wireless. */
@@ -37,7 +35,7 @@ enum X_INPUT_CAPS {
 };
 
 /** XInput device types. */
-enum X_INPUT_DEVTYPE {
+enum X_INPUT_DEVTYPE : u8 {
   /** The device is a game controller. The HID drivers report it in X_INPUT_CAPABILITIES::type. */
   XINPUT_DEVTYPE_GAMEPAD = 0x00000001,
   /** The device is a keyboard. The keyboard driver reports it in X_INPUT_CAPABILITIES::type. */
@@ -45,7 +43,7 @@ enum X_INPUT_DEVTYPE {
 };
 
 /** XInput device subtypes. */
-enum X_INPUT_DEVSUBTYPE {
+enum X_INPUT_DEVSUBTYPE : u8 {
   /** Keyboard subtype. The keyboard driver reports it for the keyboard device. */
   XINPUT_DEVSUBTYPE_USB_KEYBOARD = 0x00000000,
   /** XDK gamepad subtype. Titles treat unrecognized subtypes as this one. */
@@ -75,7 +73,7 @@ enum X_INPUT_FLAG {
 };
 
 /** XInput gamepad button bits. */
-enum X_INPUT_GAMEPAD_BUTTON {
+enum X_INPUT_GAMEPAD_BUTTON : u16 {
   X_INPUT_GAMEPAD_DPAD_UP = 0x0001,    /**< Bit 0 of X_INPUT_GAMEPAD::buttons. D-pad up. */
   X_INPUT_GAMEPAD_DPAD_DOWN = 0x0002,  /**< Bit 1 of X_INPUT_GAMEPAD::buttons. D-pad down. */
   X_INPUT_GAMEPAD_DPAD_LEFT = 0x0004,  /**< Bit 2 of X_INPUT_GAMEPAD::buttons. D-pad left. */
@@ -98,7 +96,7 @@ enum X_INPUT_GAMEPAD_BUTTON {
 };
 
 /** XInput keystroke flags. */
-enum X_INPUT_KEYSTROKE_FLAGS {
+enum X_INPUT_KEYSTROKE_FLAGS : u16 {
   X_INPUT_KEYSTROKE_KEYDOWN = 0x0001, /**< XINPUT_KEYSTROKE_KEYDOWN. The key was pressed. */
   X_INPUT_KEYSTROKE_KEYUP = 0x0002,   /**< XINPUT_KEYSTROKE_KEYUP. The key was released. */
   X_INPUT_KEYSTROKE_REPEAT = 0x0004,  /**< XINPUT_KEYSTROKE_REPEAT. A repeat of a held key. */
@@ -158,7 +156,5 @@ struct X_INPUT_KEYSTROKE {
   u8 hid_code;        /**< Offset 0x7. USB HID usage of the key, 0 when none. */
 };
 REX_STATIC_ASSERT_SIZE(X_INPUT_KEYSTROKE, 8);
-
-// NOLINTEND(readability-identifier-naming)
 
 }  // namespace rex::hid

@@ -60,7 +60,7 @@ void Shader::AnalyzeUcode(StringBuffer& ucode_disasm_buffer) {
   cf_pair_index_bound_ = static_cast<u32>(ucode_data_.size() / 3);
   for (u32 i = 0; i < cf_pair_index_bound_; ++i) {
     ControlFlowInstruction cf_ab[2];
-    UnpackControlFlowInstructions(ucode_data_.data() + i * 3, cf_ab);
+    UnpackControlFlowInstructions(ucode_data_.data() + size_t{i} * 3, cf_ab);
     for (u32 j = 0; j < 2; ++j) {
       const ControlFlowInstruction& cf = cf_ab[j];
       if (IsControlFlowOpcodeExec(cf.opcode())) {
@@ -90,7 +90,7 @@ void Shader::AnalyzeUcode(StringBuffer& ucode_disasm_buffer) {
   u32 unique_texture_bindings = 0;
   for (u32 i = 0; i < cf_pair_index_bound_; ++i) {
     ControlFlowInstruction cf_ab[2];
-    UnpackControlFlowInstructions(ucode_data_.data() + i * 3, cf_ab);
+    UnpackControlFlowInstructions(ucode_data_.data() + size_t{i} * 3, cf_ab);
     for (u32 j = 0; j < 2; ++j) {
       u32 cf_index = i * 2 + j;
       if (label_addresses_.find(cf_index) != label_addresses_.end()) {
@@ -196,7 +196,7 @@ void Shader::AnalyzeUcode(StringBuffer& ucode_disasm_buffer) {
     std::vector<u32> successor_stack;
     for (u32 i = 0; i < cf_pair_index_bound_; ++i) {
       ControlFlowInstruction eM_writing_cf_ab[2];
-      UnpackControlFlowInstructions(ucode_data_.data() + i * 3, eM_writing_cf_ab);
+      UnpackControlFlowInstructions(ucode_data_.data() + size_t{i} * 3, eM_writing_cf_ab);
       for (u32 j = 0; j < 2; ++j) {
         u32 eM_writing_cf_index = i * 2 + j;
         u32 eM_written_by_cf_instr =
@@ -226,7 +226,7 @@ void Shader::AnalyzeUcode(StringBuffer& ucode_disasm_buffer) {
           is_successor_graph_head = false;
 
           ControlFlowInstruction successor_cf_ab[2];
-          UnpackControlFlowInstructions(ucode_data_.data() + (successor_cf_index >> 1) * 3,
+          UnpackControlFlowInstructions(ucode_data_.data() + size_t{successor_cf_index >> 1} * 3,
                                         successor_cf_ab);
           const ControlFlowInstruction& successor_cf = successor_cf_ab[successor_cf_index & 1];
 
@@ -315,7 +315,7 @@ void Shader::GatherExecInformation(const ParsedExecInstruction& instr,
     if (sequence & 0b10) {
       ucode_disasm_buffer.Append("         serialize\n             ");
     }
-    const u32* op_ptr = ucode_data_.data() + instr_offset * 3;
+    const u32* op_ptr = ucode_data_.data() + size_t{instr_offset} * 3;
     if (sequence & 0b01) {
       auto& op = *reinterpret_cast<const FetchInstruction*>(op_ptr);
       if (op.opcode() == FetchOpcode::kVertexFetch) {
@@ -417,7 +417,7 @@ void Shader::GatherTextureFetchInformation(const TextureFetchInstruction& op,
     binding.binding_index = unique_texture_bindings++;
   }
 
-  texture_bindings_.emplace_back(std::move(binding));
+  texture_bindings_.emplace_back(binding);
 }
 
 /**
@@ -528,7 +528,7 @@ void Shader::GatherAluResultInformation(const InstructionResult& result, u32 exe
     case InstructionStorageTarget::kExportData:
       memexport_eM_written_ |= static_cast<u8>(1) << result.storage_index;
       if (cf_memexport_info_.empty()) {
-        cf_memexport_info_.resize(2 * cf_pair_index_bound_);
+        cf_memexport_info_.resize(size_t{2} * cf_pair_index_bound_);
       }
       cf_memexport_info_[exec_cf_index].eM_potentially_written_by_exec |= static_cast<u32>(1)
                                                                           << result.storage_index;
@@ -577,7 +577,7 @@ bool ShaderTranslator::TranslateAnalyzedShader(Shader::Translation& translation)
   const std::set<u32>& label_addresses = shader.label_addresses();
   for (u32 i = 0; i < cf_pair_index_bound; ++i) {
     ControlFlowInstruction cf_ab[2];
-    UnpackControlFlowInstructions(ucode_dwords + i * 3, cf_ab);
+    UnpackControlFlowInstructions(ucode_dwords + size_t{i} * 3, cf_ab);
     for (u32 j = 0; j < 2; ++j) {
       u32 cf_index = i * 2 + j;
       cf_index_ = cf_index;
@@ -803,7 +803,7 @@ void ParseControlFlowAlloc(const ControlFlowAllocInstruction& cf, u32 cf_index,
                            bool is_vertex_shader, ParsedAllocInstruction& instr) {
   instr.dword_index = cf_index;
   instr.type = cf.alloc_type();
-  instr.count = cf.size();
+  instr.count = static_cast<int>(cf.size());
   instr.is_vertex_shader = is_vertex_shader;
 }
 
@@ -822,7 +822,7 @@ void ShaderTranslator::TranslateExecInstructions(const ParsedExecInstruction& in
   for (u32 instr_offset = instr.instruction_address;
        instr_offset < instr.instruction_address + instr.instruction_count;
        ++instr_offset, sequence >>= 2) {
-    const u32* op_ptr = ucode_dwords + instr_offset * 3;
+    const u32* op_ptr = ucode_dwords + size_t{instr_offset} * 3;
     if (sequence & 0b01) {
       auto& op = *reinterpret_cast<const FetchInstruction*>(op_ptr);
       if (op.opcode() == FetchOpcode::kVertexFetch) {
@@ -1049,8 +1049,6 @@ u32 ParsedTextureFetchInstruction::GetNonZeroResultComponents() const {
       components = 0b1111;
       break;
     case FetchOpcode::kGetTextureBorderColorFrac:
-      components = 0b0001;
-      break;
     case FetchOpcode::kGetTextureComputedLod:
       // XNA does not accept MipFilter for getCompTexLOD, so the MipFilter is not checked.
       components = 0b0001;

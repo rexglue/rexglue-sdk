@@ -32,27 +32,31 @@ namespace apps {
 class REX_RUNTIME_API XmpApp : public runtime::xam::App {
  public:
   /** Playback state reported to the title. */
-  enum class State : u32 {
+  enum class State : u8 {
     kIdle = 0,    /**< Nothing is playing. */
     kPlaying = 1, /**< A song is playing. */
     kPaused = 2,  /**< Playback is paused. */
   };
   /** Which side controls playback. */
+  // NOLINTNEXTLINE(performance-enum-size): holds the title u32 unchanged
   enum class PlaybackClient : u32 {
     kSystem = 0, /**< The system music player. */
     kTitle = 1,  /**< The title. */
   };
   /** Playback order set by the guest through XMPSetPlaybackBehavior. */
+  // NOLINTNEXTLINE(performance-enum-size): the title reads this u32 back
   enum class PlaybackMode : u32 {
     kUnknown = 0, /**< Value 0, XMP_PLAYBACKMODE_INORDER in the XDK. */
   };
   /** Repeat mode set by the guest through XMPSetPlaybackBehavior. */
+  // NOLINTNEXTLINE(performance-enum-size): the title reads this u32 back
   enum class RepeatMode : u32 {
     kUnknown = 0, /**< Value 0, XMP_REPEATMODE_PLAYLIST in the XDK. */
   };
   /** A song added to a title playlist. */
   struct Song {
     /** Audio container format. */
+    // NOLINTNEXTLINE(performance-enum-size): the title reads this u32 back
     enum class Format : u32 {
       kWma = 0, /**< Windows Media Audio. */
       kMp3 = 1, /**< MP3. */

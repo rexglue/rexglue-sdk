@@ -22,6 +22,7 @@ namespace rex::platform {
 /** Options for the process crash reporter. */
 struct CrashReporterOptions {
   /** Name in the report banner and the dialog. Empty names the executable. */
+  // NOLINTNEXTLINE(readability-redundant-member-init) designated initializers omit this field
   std::string app_name = {};
   /** Shows a message box after the report is written. */
   bool show_dialog = false;

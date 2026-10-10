@@ -85,7 +85,7 @@ namespace rex::gpu {
  */
 class PrimitiveProcessor {
  public:
-  enum ProcessedIndexBufferType {
+  enum ProcessedIndexBufferType : u8 {
     /** Auto-indexed on the host. */
     kNone,
     /**
@@ -562,11 +562,11 @@ class PrimitiveProcessor {
   };
   template <std::invocable<u32> F>
   static u32 GetMultiPrimitiveHostIndexCountAndRanges(
-      F single_primitive_guest_to_host_count, const u16* source, u32 source_index_count,
+      const F& single_primitive_guest_to_host_count, const u16* source, u32 source_index_count,
       u16 reset_index_guest_endian, std::deque<SinglePrimitiveRange>& ranges_append_out);
   template <std::invocable<u32> F>
   static u32 GetMultiPrimitiveHostIndexCountAndRanges(
-      F single_primitive_guest_to_host_count, const u32* source, u32 source_index_count,
+      const F& single_primitive_guest_to_host_count, const u32* source, u32 source_index_count,
       u32 reset_index_guest_endian, u32 low_bits_mask_guest_endian,
       std::deque<SinglePrimitiveRange>& ranges_append_out);
 
@@ -574,8 +574,8 @@ class PrimitiveProcessor {
   static void ConvertSinglePrimitiveRanges(Index* dest, const Index* source,
                                            xenos::PrimitiveType source_primitive_type,
                                            const IndexTransform& index_transform,
-                                           PrimitiveRangeIterator ranges_beginning,
-                                           PrimitiveRangeIterator ranges_end) {
+                                           const PrimitiveRangeIterator& ranges_beginning,
+                                           const PrimitiveRangeIterator& ranges_end) {
     Index* dest_write_ptr = dest;
     switch (source_primitive_type) {
       case xenos::PrimitiveType::kTriangleFan:
@@ -753,7 +753,7 @@ class PrimitiveProcessor {
      */
     CacheKey key_;
     CachedResult result_;
-    enum class ResultType {
+    enum class ResultType : u8 {
       kNewUnset,
       kNewSet,
       kExisting,

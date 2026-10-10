@@ -509,25 +509,21 @@ bool VulkanImmediateDrawer::EnsurePipelinesCreatedForCurrentRenderPass() {
   // A failed creation is not retried every frame.
   pipeline_framebuffer_format_ = render_pass_format;
 
-  VkPipelineShaderStageCreateInfo stages[2] = {};
-  stages[0].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-  stages[0].stage = VK_SHADER_STAGE_VERTEX_BIT;
-  stages[0].module = util::CreateShaderModule(vulkan_device_, shaders::immediate_vs,
-                                              sizeof(shaders::immediate_vs));
+  VkPipelineShaderStageCreateInfo stages[2] = {
+      util::MakeShaderStage(VK_SHADER_STAGE_VERTEX_BIT, VK_NULL_HANDLE),
+      util::MakeShaderStage(VK_SHADER_STAGE_FRAGMENT_BIT, VK_NULL_HANDLE)};
+  stages[0].module = util::CreateShaderModule(vulkan_device_, shaders::kImmediateVS,
+                                              sizeof(shaders::kImmediateVS));
   if (stages[0].module == VK_NULL_HANDLE) {
     REX_FAIL(ui, false, "VulkanImmediateDrawer: Failed to create the vertex shader module");
   }
-  stages[0].pName = "main";
-  stages[1].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-  stages[1].stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-  stages[1].module = util::CreateShaderModule(vulkan_device_, shaders::immediate_ps,
-                                              sizeof(shaders::immediate_ps));
+  stages[1].module = util::CreateShaderModule(vulkan_device_, shaders::kImmediatePS,
+                                              sizeof(shaders::kImmediatePS));
   if (stages[1].module == VK_NULL_HANDLE) {
     REXLOG_ERROR(ui, "VulkanImmediateDrawer: Failed to create the fragment shader module");
     dfn.vkDestroyShaderModule(device, stages[0].module, nullptr);
     return false;
   }
-  stages[1].pName = "main";
 
   VkVertexInputBindingDescription vertex_input_binding;
   vertex_input_binding.binding = 0;
@@ -579,9 +575,8 @@ bool VulkanImmediateDrawer::EnsurePipelinesCreatedForCurrentRenderPass() {
   rasterization_state.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
   rasterization_state.lineWidth = 1.0f;
 
-  VkPipelineMultisampleStateCreateInfo multisample_state = {};
-  multisample_state.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
-  multisample_state.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+  VkPipelineMultisampleStateCreateInfo multisample_state =
+      util::MakeMultisampleState(VK_SAMPLE_COUNT_1_BIT);
 
   VkPipelineColorBlendAttachmentState color_blend_attachment_state;
   color_blend_attachment_state.blendEnable = VK_TRUE;

@@ -178,7 +178,7 @@ class VulkanTextureCache final : public TextureCache {
   void UpdateTextureBindingsImpl(u32 fetch_constant_mask) override;
 
  private:
-  enum LoadDescriptorSetIndex {
+  enum LoadDescriptorSetIndex : u8 {
     kLoadDescriptorSetIndexDestination,
     kLoadDescriptorSetIndexSource,
     kLoadDescriptorSetCount,
@@ -208,7 +208,7 @@ class VulkanTextureCache final : public TextureCache {
 
   class VulkanTexture final : public Texture {
    public:
-    enum class Usage {
+    enum class Usage : u8 {
       kUndefined,
       kTransferDestination,
       kGuestShaderSampled,
@@ -353,7 +353,7 @@ class VulkanTextureCache final : public TextureCache {
   const HostFormatPair& GetHostFormatPair(TextureKey key) const;
 
   void GetTextureUsageMasks(VulkanTexture::Usage usage, VkPipelineStageFlags& stage_mask,
-                            VkAccessFlags& access_mask, VkImageLayout& layout);
+                            VkAccessFlags& access_mask, VkImageLayout& layout) const;
   bool EnsureScaledResolveBufferAllocated(u64 start_scaled, u64 length_scaled);
   void GetScaledResolveUsageMasks(VkPipelineStageFlags& stage_mask_out,
                                   VkAccessFlags& access_mask_out, bool write) const;

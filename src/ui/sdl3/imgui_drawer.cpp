@@ -397,8 +397,8 @@ void ImGuiDrawer::Draw(gpu::OverlayDrawContext& context) {
 
   f32 physical_to_logical =
       static_cast<f32>(window_->GetMediumDpi()) / static_cast<f32>(window_->GetDpi());
-  io.DisplaySize.x = window_->GetActualPhysicalWidth() * physical_to_logical;
-  io.DisplaySize.y = window_->GetActualPhysicalHeight() * physical_to_logical;
+  io.DisplaySize.x = static_cast<f32>(window_->GetActualPhysicalWidth()) * physical_to_logical;
+  io.DisplaySize.y = static_cast<f32>(window_->GetActualPhysicalHeight()) * physical_to_logical;
 
   ImGui::NewFrame();
 

@@ -127,9 +127,9 @@ class detail_access;
 class IVar {
  public:
   /** Constructs a var that no registry holds. */
-  constexpr IVar() = default;
+  constexpr IVar() noexcept = default;
   /** Copies nothing but the vtable. Chain methods copy a Var before any registration. */
-  constexpr IVar(const IVar&) {}
+  constexpr IVar(const IVar&) noexcept {}
   IVar& operator=(const IVar&) = delete;
   virtual ~IVar() = default;
   /**
@@ -201,7 +201,7 @@ struct DefaultText {
   constexpr std::string_view view() const { return {text.data(), size}; }
 };
 
-constexpr DefaultText RenderDefault(bool v) {
+constexpr DefaultText RenderDefault(bool v) noexcept {
   DefaultText out;
   std::string_view s = v ? "true" : "false";
   for (char c : s)
@@ -211,7 +211,7 @@ constexpr DefaultText RenderDefault(bool v) {
 
 template <typename T>
   requires std::integral<T> && (!std::same_as<T, bool>)
-constexpr DefaultText RenderDefault(T v) {
+constexpr DefaultText RenderDefault(T v) noexcept {
   DefaultText out;
   bool negative = v < 0;
   using U = std::make_unsigned_t<T>;
@@ -229,7 +229,7 @@ constexpr DefaultText RenderDefault(T v) {
   return out;
 }
 
-constexpr DefaultText RenderDefault(f64 v) {
+constexpr DefaultText RenderDefault(f64 v) noexcept {
   DefaultText out;
   bool negative = v < 0;
   if (negative)
@@ -260,8 +260,8 @@ struct StringCell {
   static constexpr size_t kCapacity = 255;
   std::array<char, kCapacity + 1> text{};
   u8 size = 0;
-  constexpr StringCell() = default;
-  constexpr StringCell(std::string_view s) {
+  constexpr StringCell() noexcept = default;
+  constexpr StringCell(std::string_view s) noexcept {
     for (char c : s.substr(0, kCapacity))
       text[size++] = c;
   }
@@ -269,7 +269,7 @@ struct StringCell {
 };
 
 template <typename T>
-constexpr Type TypeOf() {
+constexpr Type TypeOf() noexcept {
   if constexpr (std::same_as<T, bool>)
     return Type::Bool;
   else if constexpr (std::same_as<T, i32>)
@@ -297,7 +297,7 @@ template <typename T>
 std::optional<T> ParseValue(std::string_view text);
 
 template <typename... Args>
-constexpr size_t CountArgs(Args&&...) {
+constexpr size_t CountArgs(Args&&...) noexcept {
   return sizeof...(Args);
 }
 
@@ -333,7 +333,7 @@ class Var final : public IVar {
    * @param default_value The default, rendered to text at compile time.
    * @param description Shown by the console and the settings overlay.
    */
-  constexpr Var(std::string_view name, Init default_value, std::string_view description)
+  constexpr Var(std::string_view name, Init default_value, std::string_view description) noexcept
       : default_text_(MakeDefaultText(default_value)),
         default_string_(MakeDefaultString(default_value)),
         cell_(MakeCell(default_value)) {
@@ -342,7 +342,7 @@ class Var final : public IVar {
     desc_.type = detail::TypeOf<T>();
     desc_.description = description;
   }
-  constexpr Var(const Var&) = default;
+  constexpr Var(const Var&) noexcept = default;
 
   /**
    * Sets an inclusive numeric range.
@@ -351,7 +351,7 @@ class Var final : public IVar {
    * @param max_value The largest value.
    * @return This var with the range set.
    */
-  constexpr Var range(f64 min_value, f64 max_value) && {
+  constexpr Var range(f64 min_value, f64 max_value) && noexcept {
     desc_.constraints.min = min_value;
     desc_.constraints.max = max_value;
     return *this;
@@ -362,7 +362,7 @@ class Var final : public IVar {
    * @param values Values with static storage, REXCVAR_ALLOWED provides them.
    * @return This var with the allowed values set.
    */
-  constexpr Var allowed(std::span<const std::string_view> values) && {
+  constexpr Var allowed(std::span<const std::string_view> values) && noexcept {
     desc_.constraints.allowed = values;
     return *this;
   }
@@ -372,7 +372,7 @@ class Var final : public IVar {
    * @param lc The lifecycle.
    * @return This var with the lifecycle set.
    */
-  constexpr Var lifecycle(Lifecycle lc) && {
+  constexpr Var lifecycle(Lifecycle lc) && noexcept {
     desc_.lifecycle = lc;
     return *this;
   }
@@ -382,7 +382,7 @@ class Var final : public IVar {
    * @param fn Returns false for text the var rejects.
    * @return This var with the validator set.
    */
-  constexpr Var validator(bool (*fn)(std::string_view)) && {
+  constexpr Var validator(bool (*fn)(std::string_view)) && noexcept {
     desc_.constraints.validator = fn;
     return *this;
   }
@@ -391,7 +391,7 @@ class Var final : public IVar {
    *
    * @return This var with Desc::debug_only set.
    */
-  constexpr Var debug_only() && {
+  constexpr Var debug_only() && noexcept {
     desc_.debug_only = true;
     return *this;
   }
@@ -401,7 +401,7 @@ class Var final : public IVar {
    *
    * @return This var with Desc::no_save set.
    */
-  constexpr Var no_save() && {
+  constexpr Var no_save() && noexcept {
     desc_.no_save = true;
     return *this;
   }
@@ -460,19 +460,19 @@ class Var final : public IVar {
   }
 
  private:
-  static constexpr detail::DefaultText MakeDefaultText(Init v) {
+  static constexpr detail::DefaultText MakeDefaultText(Init v) noexcept {
     if constexpr (kIsString)
       return {};
     else
       return detail::RenderDefault(v);
   }
-  static constexpr detail::StringCell MakeDefaultString(Init v) {
+  static constexpr detail::StringCell MakeDefaultString(Init v) noexcept {
     if constexpr (kIsString)
       return detail::StringCell(v);
     else
       return {};
   }
-  static constexpr Cell MakeCell(Init v) {
+  static constexpr Cell MakeCell(Init v) noexcept {
     if constexpr (kIsString)
       return detail::StringCell(v);
     else
@@ -515,7 +515,7 @@ class Command final : public IVar {
    * @param fn Runs with the argument text.
    * @param description Shown by the console.
    */
-  constexpr Command(std::string_view name, Fn fn, std::string_view description) : fn_(fn) {
+  constexpr Command(std::string_view name, Fn fn, std::string_view description) noexcept : fn_(fn) {
     desc_.name = name;
     desc_.scope = name.substr(0, name.find('.'));
     desc_.type = Type::Command;
@@ -585,7 +585,7 @@ REX_API void ApplyEnvironment(rex::Config& config);
 namespace detail {
 
 template <typename... Vars>
-constexpr std::array<const IVar*, sizeof...(Vars)> MakeTable(const Vars&... vars) {
+constexpr std::array<const IVar*, sizeof...(Vars)> MakeTable(const Vars&... vars) noexcept {
   return {static_cast<const IVar*>(&vars)...};
 }
 
@@ -762,7 +762,7 @@ struct CvarConfig {
  * @endcode
  */
 #define REXCVAR_BOOL(scope, name, default_value, description) \
-  inline ::rex::cvar::Var<bool> name =                        \
+  inline constinit ::rex::cvar::Var<bool> name =              \
       ::rex::cvar::Var<bool>(#scope "." #name, default_value, description)
 /**
  * Declares an i32 cvar.
@@ -777,7 +777,7 @@ struct CvarConfig {
  * @endcode
  */
 #define REXCVAR_INT32(scope, name, default_value, description) \
-  inline ::rex::cvar::Var<::rex::i32> name =                   \
+  inline constinit ::rex::cvar::Var<::rex::i32> name =         \
       ::rex::cvar::Var<::rex::i32>(#scope "." #name, default_value, description)
 /**
  * Declares an i64 cvar.
@@ -792,7 +792,7 @@ struct CvarConfig {
  * @endcode
  */
 #define REXCVAR_INT64(scope, name, default_value, description) \
-  inline ::rex::cvar::Var<::rex::i64> name =                   \
+  inline constinit ::rex::cvar::Var<::rex::i64> name =         \
       ::rex::cvar::Var<::rex::i64>(#scope "." #name, default_value, description)
 /**
  * Declares a u32 cvar.
@@ -807,7 +807,7 @@ struct CvarConfig {
  * @endcode
  */
 #define REXCVAR_UINT32(scope, name, default_value, description) \
-  inline ::rex::cvar::Var<::rex::u32> name =                    \
+  inline constinit ::rex::cvar::Var<::rex::u32> name =          \
       ::rex::cvar::Var<::rex::u32>(#scope "." #name, default_value, description)
 /**
  * Declares a u64 cvar.
@@ -822,7 +822,7 @@ struct CvarConfig {
  * @endcode
  */
 #define REXCVAR_UINT64(scope, name, default_value, description) \
-  inline ::rex::cvar::Var<::rex::u64> name =                    \
+  inline constinit ::rex::cvar::Var<::rex::u64> name =          \
       ::rex::cvar::Var<::rex::u64>(#scope "." #name, default_value, description)
 /**
  * Declares an f64 cvar.
@@ -837,7 +837,7 @@ struct CvarConfig {
  * @endcode
  */
 #define REXCVAR_DOUBLE(scope, name, default_value, description) \
-  inline ::rex::cvar::Var<::rex::f64> name =                    \
+  inline constinit ::rex::cvar::Var<::rex::f64> name =          \
       ::rex::cvar::Var<::rex::f64>(#scope "." #name, default_value, description)
 /**
  * Declares a string cvar of at most 255 bytes.
@@ -852,7 +852,7 @@ struct CvarConfig {
  * @endcode
  */
 #define REXCVAR_STRING(scope, name, default_value, description) \
-  inline ::rex::cvar::Var<std::string> name =                   \
+  inline constinit ::rex::cvar::Var<std::string> name =         \
       ::rex::cvar::Var<std::string>(#scope "." #name, default_value, description)
 /**
  * Declares a console command without arguments.
@@ -867,7 +867,7 @@ struct CvarConfig {
  * @endcode
  */
 #define REXCVAR_COMMAND(scope, name, fn, description)             \
-  inline ::rex::cvar::Command name {                              \
+  inline constinit ::rex::cvar::Command name {                    \
     #scope "." #name, [](std::string_view) { fn(); }, description \
   }
 /**
@@ -883,7 +883,7 @@ struct CvarConfig {
  * @endcode
  */
 #define REXCVAR_COMMAND_ARGS(scope, name, fn, description) \
-  inline ::rex::cvar::Command name {                       \
+  inline constinit ::rex::cvar::Command name {             \
     #scope "." #name, fn, description                      \
   }
 /**
@@ -896,7 +896,7 @@ struct CvarConfig {
  * @endcode
  */
 #define REXCVAR_ALLOWED(...)                                                                       \
-  ([]() constexpr -> ::std::span<const ::std::string_view> {                                       \
+  ([]() constexpr noexcept -> ::std::span<const ::std::string_view> {                              \
     static constexpr ::std::array<::std::string_view, ::rex::cvar::detail::CountArgs(__VA_ARGS__)> \
         values{__VA_ARGS__};                                                                       \
     return values;                                                                                 \

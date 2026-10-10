@@ -14,8 +14,6 @@
 
 namespace rex::gpu::cvars {
 
-// NOLINTBEGIN(bugprone-throwing-static-initialization) constant descriptors registered at Connect
-
 REXCVAR_BOOL(gpu, vsync, true, "Enable vertical sync");
 REXCVAR_BOOL(gpu, debug_markers, false,
              "Insert debug markers into GPU command streams for tools like PIX and RenderDoc. "
@@ -264,7 +262,5 @@ REXCVAR_TABLE(kVulkanCvars, require_geometry_shader, require_fill_mode_non_solid
               allow_present_mode_mailbox, allow_present_mode_fifo_relaxed, validation,
               prefer_geometry_shader, prefer_fragment_stores_and_atomics,
               prefer_vertex_pipeline_stores_and_atomics, prefer_fill_mode_non_solid);
-
-// NOLINTEND(bugprone-throwing-static-initialization)
 
 }  // namespace rex::gpu::cvars

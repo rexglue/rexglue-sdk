@@ -28,16 +28,16 @@
  * @endcode
  */
 #define XE_XMA_REGISTER_CONTEXT_GROUP(index, suffix) \
-  XE_XMA_REGISTER(index + 0, Context0##suffix)       \
-  XE_XMA_REGISTER(index + 1, Context1##suffix)       \
-  XE_XMA_REGISTER(index + 2, Context2##suffix)       \
-  XE_XMA_REGISTER(index + 3, Context3##suffix)       \
-  XE_XMA_REGISTER(index + 4, Context4##suffix)       \
-  XE_XMA_REGISTER(index + 5, Context5##suffix)       \
-  XE_XMA_REGISTER(index + 6, Context6##suffix)       \
-  XE_XMA_REGISTER(index + 7, Context7##suffix)       \
-  XE_XMA_REGISTER(index + 8, Context8##suffix)       \
-  XE_XMA_REGISTER(index + 9, Context9##suffix)
+  XE_XMA_REGISTER((index) + 0, Context0##suffix)     \
+  XE_XMA_REGISTER((index) + 1, Context1##suffix)     \
+  XE_XMA_REGISTER((index) + 2, Context2##suffix)     \
+  XE_XMA_REGISTER((index) + 3, Context3##suffix)     \
+  XE_XMA_REGISTER((index) + 4, Context4##suffix)     \
+  XE_XMA_REGISTER((index) + 5, Context5##suffix)     \
+  XE_XMA_REGISTER((index) + 6, Context6##suffix)     \
+  XE_XMA_REGISTER((index) + 7, Context7##suffix)     \
+  XE_XMA_REGISTER((index) + 8, Context8##suffix)     \
+  XE_XMA_REGISTER((index) + 9, Context9##suffix)
 #endif
 
 XE_XMA_REGISTER(0x0600, ContextArrayAddress)

@@ -34,7 +34,10 @@ using rex::filesystem::test::ReadText;
 using rex::filesystem::test::WriteHost;
 
 constexpr std::string_view kRoot = "\\Device\\Test";
-const std::filesystem::path kFixtures = REXGLUE_FIXTURE_DIR;
+const std::filesystem::path& Fixtures() {
+  static const std::filesystem::path dir = REXGLUE_FIXTURE_DIR;
+  return dir;
+}
 
 std::string BigBin() {
   std::string bytes(0x1800, '\0');
@@ -57,7 +60,8 @@ std::vector<std::string> Names(Fixture& fixture, std::string_view path, std::str
 
 void CheckContainer(Fixture& fixture, ProviderKind kind, const char* image,
                     std::string_view volume) {
-  REQUIRE(fixture.fs().Mount({std::string(kRoot), kind, kFixtures / image, MountFlags::kWritable}));
+  REQUIRE(
+      fixture.fs().Mount({std::string(kRoot), kind, Fixtures() / image, MountFlags::kWritable}));
   CHECK(Names(fixture, kRoot, "") == std::vector<std::string>{"a.txt", "big.bin", "folder"});
   CHECK(Names(fixture, "\\Device\\Test\\folder", "*.txt") == std::vector<std::string>{"c.txt"});
   CHECK(ReadText(*fixture.Open("\\Device\\Test\\a.txt").file) == "alpha\n");
@@ -231,7 +235,7 @@ REX_TEST_CASE_METHOD(Fixture, "Disc provider mounts the fixture read only",
 REX_TEST_CASE_METHOD(Fixture, "A container of the wrong kind is kCorrupt",
                      "[filesystem][providers]") {
   auto mounted =
-      fs().Mount({std::string(kRoot), ProviderKind::kDiscImage, kFixtures / "stfs_con.bin"});
+      fs().Mount({std::string(kRoot), ProviderKind::kDiscImage, Fixtures() / "stfs_con.bin"});
   REQUIRE_FALSE(mounted);
   CHECK(CodeOf(mounted.error()) == Error::kCorrupt);
   auto missing = fs().Mount({std::string(kRoot), ProviderKind::kSTFS, temp() / "none.bin"});

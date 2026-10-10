@@ -133,8 +133,8 @@ void AndroidShutdown() {
 }
 #endif
 
-template <typename _Rep, typename _Period>
-inline timespec DurationToTimeSpec(std::chrono::duration<_Rep, _Period> duration) {
+template <typename Rep, typename Period>
+inline timespec DurationToTimeSpec(std::chrono::duration<Rep, Period> duration) {
   auto nanoseconds = std::chrono::duration_cast<std::chrono::nanoseconds>(duration);
   auto div = ldiv(nanoseconds.count(), 1000000000L);
   return timespec{div.quot, div.rem};
@@ -325,7 +325,7 @@ uintptr_t GetTLSValue(TLSHandle handle) {
 }
 
 bool SetTLSValue(TLSHandle handle, uintptr_t value) {
-  // NOLINTNEXTLINE(performance-no-int-to-ptr): the pthread API carries the value as a pointer
+  // NOLINTNEXTLINE(performance-no-int-to-ptr): pthread passes the value as a void pointer
   return pthread_setspecific(static_cast<pthread_key_t>(handle), reinterpret_cast<void*>(value)) ==
          0;
 }
@@ -570,12 +570,12 @@ class PosixCondition<Event> : public PosixConditionBase {
 template <>
 class PosixCondition<Semaphore> : public PosixConditionBase {
  public:
-  PosixCondition(u32 initial_count, u32 maximum_count)
+  PosixCondition(int initial_count, int maximum_count)
       : count_(initial_count), maximum_count_(maximum_count) {}
 
   bool Signal() override { return Release(1, nullptr); }
 
-  bool Release(u32 release_count, int* out_previous_count) {
+  bool Release(int release_count, int* out_previous_count) {
     auto lock = std::unique_lock<std::mutex>(mutex_);
     if (release_count > maximum_count_ - count_) {
       return false;
@@ -594,8 +594,8 @@ class PosixCondition<Semaphore> : public PosixConditionBase {
     count_--;
     cond_.notify_all();
   }
-  u32 count_;
-  const u32 maximum_count_;
+  int count_;
+  const int maximum_count_;
 };
 
 namespace {
@@ -827,12 +827,13 @@ class PosixCondition<Thread> : public PosixConditionBase {
         return false;
       }
     }
-    if (pthread_create(&thread_, &attr, ThreadStartRoutine, start_data.get()) != 0) {
+    ThreadStartData* const start = start_data.release();
+    if (pthread_create(&thread_, &attr, ThreadStartRoutine, start) != 0) {
+      start_data.reset(start);
       pthread_attr_destroy(&attr);
       return false;
     }
     owns_thread_ = true;
-    start_data.release();
     pthread_attr_destroy(&attr);
     return true;
   }
@@ -960,8 +961,7 @@ class PosixCondition<Thread> : public PosixConditionBase {
 #endif
   }
 
-  // NOLINTNEXTLINE(readability-make-member-function-const): changes the scheduling of the thread
-  void set_affinity_mask(u64 mask) {
+  void set_affinity_mask(u64 mask) const {
     WaitStarted();
 #if defined(__APPLE__)
     // macOS has no pthread affinity masks, so this does nothing.
@@ -998,8 +998,7 @@ class PosixCondition<Thread> : public PosixConditionBase {
     return param.sched_priority;
   }
 
-  // NOLINTNEXTLINE(readability-make-member-function-const): changes the scheduling of the thread
-  void set_priority(int new_priority) {
+  void set_priority(int new_priority) const {
     WaitStarted();
     sched_param param{};
     param.sched_priority = new_priority;
@@ -1251,7 +1250,7 @@ class PosixCondition<Thread> : public PosixConditionBase {
     }
     PosixCondition<Mutant>::AbandonOwnedBy(thread_);
     SignalExit(exit_code);
-    // NOLINTNEXTLINE(performance-no-int-to-ptr): the pthread API carries the value as a pointer
+    // NOLINTNEXTLINE(performance-no-int-to-ptr): pthread passes the value as a void pointer
     pthread_exit(reinterpret_cast<void*>(exit_code));
   }
 
@@ -1268,7 +1267,7 @@ class PosixCondition<Thread> : public PosixConditionBase {
     } while (ret == -1 && errno == EINTR);
   }
 
-  // NOLINTNEXTLINE(performance-no-int-to-ptr): the pthread API carries the value as a pointer
+  // NOLINTNEXTLINE(performance-no-int-to-ptr): the cross platform native handle is a pointer
   void* native_handle() const override { return reinterpret_cast<void*>(thread_); }
 
  private:
@@ -1412,7 +1411,7 @@ class PosixConditionHandle : public T, public PosixWaitHandle {
   explicit PosixConditionHandle(bool);
   explicit PosixConditionHandle(pthread_t thread);
   PosixConditionHandle(bool manual_reset, bool initial_state);
-  PosixConditionHandle(u32 initial_count, u32 maximum_count);
+  PosixConditionHandle(int initial_count, int maximum_count);
   ~PosixConditionHandle() override = default;
 
   PosixCondition<T>& condition() override { return handle_; }
@@ -1424,7 +1423,7 @@ class PosixConditionHandle : public T, public PosixWaitHandle {
 };
 
 template <>
-PosixConditionHandle<Semaphore>::PosixConditionHandle(u32 initial_count, u32 maximum_count)
+PosixConditionHandle<Semaphore>::PosixConditionHandle(int initial_count, int maximum_count)
     : handle_(initial_count, maximum_count) {}
 
 template <>
@@ -1628,13 +1627,13 @@ std::unique_ptr<Event> Event::CreateAutoResetEvent(bool initial_state) {
 class PosixSemaphore : public PosixConditionHandle<Semaphore> {
  public:
   PosixSemaphore(int initial_count, int maximum_count)
-      : PosixConditionHandle(static_cast<u32>(initial_count), static_cast<u32>(maximum_count)) {}
+      : PosixConditionHandle(initial_count, maximum_count) {}
   ~PosixSemaphore() override = default;
   bool Release(int release_count, int* out_previous_count) override {
     if (release_count < 1) {
       return false;
     }
-    return handle_.Release(static_cast<u32>(release_count), out_previous_count);
+    return handle_.Release(release_count, out_previous_count);
   }
 };
 
@@ -1858,7 +1857,7 @@ void Thread::Exit(int exit_code) {
     current_thread_->ExitCurrent(exit_code);
   } else {
     // No current_thread_ means the thread was not created by Thread::Create.
-    // NOLINTNEXTLINE(performance-no-int-to-ptr): the pthread API carries the value as a pointer
+    // NOLINTNEXTLINE(performance-no-int-to-ptr): pthread passes the value as a void pointer
     pthread_exit(reinterpret_cast<void*>(exit_code));
   }
   REX_ASSERT_ALWAYS();

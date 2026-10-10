@@ -125,7 +125,6 @@ class BinaryView : public rex::MoveOnly {
   /** Returns the import symbols with thunk addresses and names. */
   std::span<const ImportSymbol> importSymbols() const { return importSymbols_; }
 
- public:
   BinaryView() = default;
 
  private:

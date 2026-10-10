@@ -110,7 +110,7 @@ void DxbcShaderTranslator::ProcessVertexFetchInstruction(
   i32 first_word_buffer_offset = instr.attributes.offset + static_cast<i32>(first_word_index);
   if (first_word_buffer_offset) {
     a_.OpIAdd(address_temp_dest, address_src,
-              dxbc::Src::LI(first_word_buffer_offset * sizeof(u32)));
+              dxbc::Src::LI(first_word_buffer_offset * static_cast<i32>(sizeof(u32))));
     address_src = address_temp_src;
   }
 
@@ -656,7 +656,7 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
   }
   u32 offsets_not_zero = 0b000;
   for (u32 i = 0; i < 3; ++i) {
-    if (offsets[i]) {
+    if (offsets[i] != 0.0f) {
       offsets_not_zero |= 1 << i;
     }
   }
@@ -873,10 +873,11 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
                                       dxbc::Src::kXXXX),
                    dxbc::Src::LU(static_cast<u32>(1) << tfetch_index));
           a_.OpIf(true, dxbc::Src::R(coord_and_sampler_temp, dxbc::Src::kWWWW));
-          a_.OpAdd(dxbc::Dest::R(coord_and_sampler_temp, normalized_components_with_scaled_offsets),
-                   coord_operand,
-                   dxbc::Src::LF(offsets[0] / draw_resolution_scale_x_,
-                                 offsets[1] / draw_resolution_scale_y_, 0.0f, 0.0f));
+          a_.OpAdd(
+              dxbc::Dest::R(coord_and_sampler_temp, normalized_components_with_scaled_offsets),
+              coord_operand,
+              dxbc::Src::LF(offsets[0] / static_cast<f32>(draw_resolution_scale_x_),
+                            offsets[1] / static_cast<f32>(draw_resolution_scale_y_), 0.0f, 0.0f));
           a_.OpElse();
           a_.OpAdd(dxbc::Dest::R(coord_and_sampler_temp, normalized_components_with_scaled_offsets),
                    coord_operand, offsets_src);
@@ -928,8 +929,8 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
           a_.OpIf(true, dxbc::Src::R(coord_and_sampler_temp, dxbc::Src::kWWWW));
           a_.OpMAd(dxbc::Dest::R(coord_and_sampler_temp, normalized_components_with_scaled_offsets),
                    dxbc::Src::R(coord_and_sampler_temp),
-                   dxbc::Src::LF(1.0f / draw_resolution_scale_x_, 1.0f / draw_resolution_scale_y_,
-                                 1.0f, 1.0f),
+                   dxbc::Src::LF(1.0f / static_cast<f32>(draw_resolution_scale_x_),
+                                 1.0f / static_cast<f32>(draw_resolution_scale_y_), 1.0f, 1.0f),
                    coord_operand);
           a_.OpElse();
           a_.OpAdd(dxbc::Dest::R(coord_and_sampler_temp, normalized_components_with_scaled_offsets),
@@ -977,7 +978,7 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
         // SC/TC plus 1 moves from 1...2 to -1...1.
         a_.OpMAd(dxbc::Dest::R(coord_and_sampler_temp, 0b0011),
                  dxbc::Src::R(coord_and_sampler_temp), dxbc::Src::LF(2.0f), dxbc::Src::LF(-3.0f));
-        if (offsets[2]) {
+        if (offsets[2] != 0.0f) {
           a_.OpAdd(dxbc::Dest::R(coord_and_sampler_temp, 0b0100),
                    coord_operand.SelectFromSwizzled(2), dxbc::Src::LF(offsets[2]));
           a_.OpFToU(dxbc::Dest::R(coord_and_sampler_temp, 0b0100),
@@ -1177,11 +1178,11 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
         if (instr.attributes.use_register_lod) {
           a_.OpMAd(lod_dest, lod_src, dxbc::Src::LF(1.0f / 32.0f),
                    dxbc::Src::R(system_temp_grad_h_lod_, dxbc::Src::kWWWW));
-          if (instr.attributes.lod_bias) {
+          if (instr.attributes.lod_bias != 0.0f) {
             a_.OpAdd(lod_dest, lod_src, dxbc::Src::LF(instr.attributes.lod_bias));
           }
         } else {
-          if (instr.attributes.lod_bias) {
+          if (instr.attributes.lod_bias != 0.0f) {
             a_.OpMAd(lod_dest, lod_src, dxbc::Src::LF(1.0f / 32.0f),
                      dxbc::Src::LF(instr.attributes.lod_bias));
           } else {

@@ -75,28 +75,28 @@ namespace shaders {
 const D3D12RenderTargetCache::ResolveCopyShaderCode
     D3D12RenderTargetCache::kResolveCopyShaders[static_cast<size_t>(
         draw_util::ResolveCopyShaderIndex::kCount)] = {
-        {shaders::resolve_fast_32bpp_1x2xmsaa_cs, sizeof(shaders::resolve_fast_32bpp_1x2xmsaa_cs),
-         shaders::resolve_fast_32bpp_1x2xmsaa_scaled_cs,
-         sizeof(shaders::resolve_fast_32bpp_1x2xmsaa_scaled_cs)},
-        {shaders::resolve_fast_32bpp_4xmsaa_cs, sizeof(shaders::resolve_fast_32bpp_4xmsaa_cs),
-         shaders::resolve_fast_32bpp_4xmsaa_scaled_cs,
-         sizeof(shaders::resolve_fast_32bpp_4xmsaa_scaled_cs)},
-        {shaders::resolve_fast_64bpp_1x2xmsaa_cs, sizeof(shaders::resolve_fast_64bpp_1x2xmsaa_cs),
-         shaders::resolve_fast_64bpp_1x2xmsaa_scaled_cs,
-         sizeof(shaders::resolve_fast_64bpp_1x2xmsaa_scaled_cs)},
-        {shaders::resolve_fast_64bpp_4xmsaa_cs, sizeof(shaders::resolve_fast_64bpp_4xmsaa_cs),
-         shaders::resolve_fast_64bpp_4xmsaa_scaled_cs,
-         sizeof(shaders::resolve_fast_64bpp_4xmsaa_scaled_cs)},
-        {shaders::resolve_full_8bpp_cs, sizeof(shaders::resolve_full_8bpp_cs),
-         shaders::resolve_full_8bpp_scaled_cs, sizeof(shaders::resolve_full_8bpp_scaled_cs)},
-        {shaders::resolve_full_16bpp_cs, sizeof(shaders::resolve_full_16bpp_cs),
-         shaders::resolve_full_16bpp_scaled_cs, sizeof(shaders::resolve_full_16bpp_scaled_cs)},
-        {shaders::resolve_full_32bpp_cs, sizeof(shaders::resolve_full_32bpp_cs),
-         shaders::resolve_full_32bpp_scaled_cs, sizeof(shaders::resolve_full_32bpp_scaled_cs)},
-        {shaders::resolve_full_64bpp_cs, sizeof(shaders::resolve_full_64bpp_cs),
-         shaders::resolve_full_64bpp_scaled_cs, sizeof(shaders::resolve_full_64bpp_scaled_cs)},
-        {shaders::resolve_full_128bpp_cs, sizeof(shaders::resolve_full_128bpp_cs),
-         shaders::resolve_full_128bpp_scaled_cs, sizeof(shaders::resolve_full_128bpp_scaled_cs)},
+        {shaders::kResolveFast32BPP1x2xMSAACS, sizeof(shaders::kResolveFast32BPP1x2xMSAACS),
+         shaders::kResolveFast32BPP1x2xMSAAScaledCS,
+         sizeof(shaders::kResolveFast32BPP1x2xMSAAScaledCS)},
+        {shaders::kResolveFast32BPP4xMSAACS, sizeof(shaders::kResolveFast32BPP4xMSAACS),
+         shaders::kResolveFast32BPP4xMSAAScaledCS,
+         sizeof(shaders::kResolveFast32BPP4xMSAAScaledCS)},
+        {shaders::kResolveFast64BPP1x2xMSAACS, sizeof(shaders::kResolveFast64BPP1x2xMSAACS),
+         shaders::kResolveFast64BPP1x2xMSAAScaledCS,
+         sizeof(shaders::kResolveFast64BPP1x2xMSAAScaledCS)},
+        {shaders::kResolveFast64BPP4xMSAACS, sizeof(shaders::kResolveFast64BPP4xMSAACS),
+         shaders::kResolveFast64BPP4xMSAAScaledCS,
+         sizeof(shaders::kResolveFast64BPP4xMSAAScaledCS)},
+        {shaders::kResolveFull8BPPCS, sizeof(shaders::kResolveFull8BPPCS),
+         shaders::kResolveFull8BPPScaledCS, sizeof(shaders::kResolveFull8BPPScaledCS)},
+        {shaders::kResolveFull16BPPCS, sizeof(shaders::kResolveFull16BPPCS),
+         shaders::kResolveFull16BPPScaledCS, sizeof(shaders::kResolveFull16BPPScaledCS)},
+        {shaders::kResolveFull32BPPCS, sizeof(shaders::kResolveFull32BPPCS),
+         shaders::kResolveFull32BPPScaledCS, sizeof(shaders::kResolveFull32BPPScaledCS)},
+        {shaders::kResolveFull64BPPCS, sizeof(shaders::kResolveFull64BPPCS),
+         shaders::kResolveFull64BPPScaledCS, sizeof(shaders::kResolveFull64BPPScaledCS)},
+        {shaders::kResolveFull128BPPCS, sizeof(shaders::kResolveFull128BPPCS),
+         shaders::kResolveFull128BPPScaledCS, sizeof(shaders::kResolveFull128BPPScaledCS)},
 };
 
 const u32 D3D12RenderTargetCache::kTransferUsedRootParameters[static_cast<size_t>(
@@ -465,8 +465,8 @@ bool D3D12RenderTargetCache::Initialize() {
       return false;
     }
     host_depth_store_pipelines_[std::to_underlying(xenos::MSAASamples::k1X)] =
-        gpu::d3d12::util::CreateComputePipeline(device, shaders::host_depth_store_1xmsaa_cs,
-                                                sizeof(shaders::host_depth_store_1xmsaa_cs),
+        gpu::d3d12::util::CreateComputePipeline(device, shaders::kHostDepthStore1xMSAACS,
+                                                sizeof(shaders::kHostDepthStore1xMSAACS),
                                                 host_depth_store_root_signature_);
     if (!host_depth_store_pipelines_[std::to_underlying(xenos::MSAASamples::k1X)]) {
       REXLOG_ERROR(gpu,
@@ -478,8 +478,8 @@ bool D3D12RenderTargetCache::Initialize() {
     host_depth_store_pipelines_[std::to_underlying(xenos::MSAASamples::k1X)]->SetName(
         L"Host Depth Store 1xMSAA");
     host_depth_store_pipelines_[std::to_underlying(xenos::MSAASamples::k2X)] =
-        gpu::d3d12::util::CreateComputePipeline(device, shaders::host_depth_store_2xmsaa_cs,
-                                                sizeof(shaders::host_depth_store_2xmsaa_cs),
+        gpu::d3d12::util::CreateComputePipeline(device, shaders::kHostDepthStore2xMSAACS,
+                                                sizeof(shaders::kHostDepthStore2xMSAACS),
                                                 host_depth_store_root_signature_);
     if (!host_depth_store_pipelines_[std::to_underlying(xenos::MSAASamples::k2X)]) {
       REXLOG_ERROR(gpu,
@@ -491,8 +491,8 @@ bool D3D12RenderTargetCache::Initialize() {
     host_depth_store_pipelines_[std::to_underlying(xenos::MSAASamples::k2X)]->SetName(
         L"Host Depth Store 2xMSAA");
     host_depth_store_pipelines_[std::to_underlying(xenos::MSAASamples::k4X)] =
-        gpu::d3d12::util::CreateComputePipeline(device, shaders::host_depth_store_4xmsaa_cs,
-                                                sizeof(shaders::host_depth_store_4xmsaa_cs),
+        gpu::d3d12::util::CreateComputePipeline(device, shaders::kHostDepthStore4xMSAACS,
+                                                sizeof(shaders::kHostDepthStore4xMSAACS),
                                                 host_depth_store_root_signature_);
     if (!host_depth_store_pipelines_[std::to_underlying(xenos::MSAASamples::k4X)]) {
       REXLOG_ERROR(gpu,
@@ -735,12 +735,12 @@ bool D3D12RenderTargetCache::Initialize() {
       Shutdown();
       return false;
     }
-    D3D12_GRAPHICS_PIPELINE_STATE_DESC uint32_rtv_clear_pipeline_desc = {};
+    auto uint32_rtv_clear_pipeline_desc = util::MakeGraphicsPipelineStateDesc();
     uint32_rtv_clear_pipeline_desc.pRootSignature = uint32_rtv_clear_root_signature_;
-    uint32_rtv_clear_pipeline_desc.VS.pShaderBytecode = shaders::fullscreen_cw_vs;
-    uint32_rtv_clear_pipeline_desc.VS.BytecodeLength = sizeof(shaders::fullscreen_cw_vs);
-    uint32_rtv_clear_pipeline_desc.PS.pShaderBytecode = shaders::clear_uint2_ps;
-    uint32_rtv_clear_pipeline_desc.PS.BytecodeLength = sizeof(shaders::clear_uint2_ps);
+    uint32_rtv_clear_pipeline_desc.VS.pShaderBytecode = shaders::kFullscreenCWVS;
+    uint32_rtv_clear_pipeline_desc.VS.BytecodeLength = sizeof(shaders::kFullscreenCWVS);
+    uint32_rtv_clear_pipeline_desc.PS.pShaderBytecode = shaders::kClearUInt2PS;
+    uint32_rtv_clear_pipeline_desc.PS.BytecodeLength = sizeof(shaders::kClearUInt2PS);
     uint32_rtv_clear_pipeline_desc.BlendState.RenderTarget[0].RenderTargetWriteMask =
         D3D12_COLOR_WRITE_ENABLE_ALL;
     uint32_rtv_clear_pipeline_desc.RasterizerState.FillMode = D3D12_FILL_MODE_SOLID;
@@ -831,10 +831,10 @@ bool D3D12RenderTargetCache::Initialize() {
 
     resolve_rov_clear_32bpp_pipeline_ = gpu::d3d12::util::CreateComputePipeline(
         device,
-        draw_resolution_scaled ? shaders::resolve_clear_32bpp_scaled_cs
-                               : shaders::resolve_clear_32bpp_cs,
-        draw_resolution_scaled ? sizeof(shaders::resolve_clear_32bpp_scaled_cs)
-                               : sizeof(shaders::resolve_clear_32bpp_cs),
+        draw_resolution_scaled ? shaders::kResolveClear32BPPScaledCS
+                               : shaders::kResolveClear32BPPCS,
+        draw_resolution_scaled ? sizeof(shaders::kResolveClear32BPPScaledCS)
+                               : sizeof(shaders::kResolveClear32BPPCS),
         resolve_rov_clear_root_signature_);
     if (resolve_rov_clear_32bpp_pipeline_ == nullptr) {
       REXLOG_ERROR(gpu,
@@ -846,10 +846,10 @@ bool D3D12RenderTargetCache::Initialize() {
     resolve_rov_clear_32bpp_pipeline_->SetName(L"Resolve Clear 32bpp");
     resolve_rov_clear_64bpp_pipeline_ = gpu::d3d12::util::CreateComputePipeline(
         device,
-        draw_resolution_scaled ? shaders::resolve_clear_64bpp_scaled_cs
-                               : shaders::resolve_clear_64bpp_cs,
-        draw_resolution_scaled ? sizeof(shaders::resolve_clear_64bpp_scaled_cs)
-                               : sizeof(shaders::resolve_clear_64bpp_cs),
+        draw_resolution_scaled ? shaders::kResolveClear64BPPScaledCS
+                               : shaders::kResolveClear64BPPCS,
+        draw_resolution_scaled ? sizeof(shaders::kResolveClear64BPPScaledCS)
+                               : sizeof(shaders::kResolveClear64BPPCS),
         resolve_rov_clear_root_signature_);
     if (resolve_rov_clear_64bpp_pipeline_ == nullptr) {
       REXLOG_ERROR(gpu,
@@ -1443,7 +1443,7 @@ std::unique_ptr<RenderTargetCache::RenderTarget> D3D12RenderTargetCache::CreateR
   D3D12_RESOURCE_DESC resource_desc;
   resource_desc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
   resource_desc.Alignment = 0;
-  resource_desc.Width = key.GetWidth() * draw_resolution_scale_x();
+  resource_desc.Width = u64{key.GetWidth()} * draw_resolution_scale_x();
   resource_desc.Height =
       GetRenderTargetHeight(key.pitch_tiles_at_32bpp, key.msaa_samples) * draw_resolution_scale_y();
   resource_desc.DepthOrArraySize = 1;
@@ -1997,7 +1997,7 @@ ID3D12PipelineState* const* D3D12RenderTargetCache::GetOrCreateTransferPipelines
   }
 
   /** Registers for accessing in the shader code. Multiple inputs may be packed into one. */
-  enum InputRegister : u32 {
+  enum InputRegister : u8 {
     kInputRegisterPosition,
     kInputRegisterSampleIndex,
     kInputRegisterCount,
@@ -3179,12 +3179,12 @@ ID3D12PipelineState* const* D3D12RenderTargetCache::GetOrCreateTransferPipelines
   pipeline_input_element_desc.AlignedByteOffset = 0;
   pipeline_input_element_desc.InputSlotClass = D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA;
   pipeline_input_element_desc.InstanceDataStepRate = 0;
-  D3D12_GRAPHICS_PIPELINE_STATE_DESC pipeline_desc = {};
+  auto pipeline_desc = util::MakeGraphicsPipelineStateDesc();
   pipeline_desc.pRootSignature = transfer_root_signatures_[static_cast<size_t>(
       use_stencil_reference_output_ ? mode.root_signature_with_stencil_ref
                                     : mode.root_signature_no_stencil_ref)];
-  pipeline_desc.VS.pShaderBytecode = shaders::passthrough_position_xy_vs;
-  pipeline_desc.VS.BytecodeLength = sizeof(shaders::passthrough_position_xy_vs);
+  pipeline_desc.VS.pShaderBytecode = shaders::kPassthroughPositionXYVS;
+  pipeline_desc.VS.BytecodeLength = sizeof(shaders::kPassthroughPositionXYVS);
   pipeline_desc.PS.pShaderBytecode = built_shader_.data();
   pipeline_desc.PS.BytecodeLength = built_shader_size_bytes;
   if (key.dest_msaa_samples == xenos::MSAASamples::k2X && !msaa_2x_supported_) {
@@ -3312,14 +3312,16 @@ void D3D12RenderTargetCache::PerformTransfersAndResolveClears(
   D3D12_RECT clear_rect;
   if (resolve_clear_needed) {
     // The rectangle is already clamped by the common render target cache setup.
-    clear_rect.left = LONG(resolve_clear_rectangle->x_pixels * draw_resolution_scale_x());
-    clear_rect.top = LONG(resolve_clear_rectangle->y_pixels * draw_resolution_scale_y());
-    clear_rect.right =
-        LONG((resolve_clear_rectangle->x_pixels + resolve_clear_rectangle->width_pixels) *
-             draw_resolution_scale_x());
-    clear_rect.bottom =
-        LONG((resolve_clear_rectangle->y_pixels + resolve_clear_rectangle->height_pixels) *
-             draw_resolution_scale_y());
+    clear_rect.left = static_cast<LONG>(resolve_clear_rectangle->x_pixels) *
+                      static_cast<LONG>(draw_resolution_scale_x());
+    clear_rect.top = static_cast<LONG>(resolve_clear_rectangle->y_pixels) *
+                     static_cast<LONG>(draw_resolution_scale_y());
+    clear_rect.right = (static_cast<LONG>(resolve_clear_rectangle->x_pixels) +
+                        static_cast<LONG>(resolve_clear_rectangle->width_pixels)) *
+                       static_cast<LONG>(draw_resolution_scale_x());
+    clear_rect.bottom = (static_cast<LONG>(resolve_clear_rectangle->y_pixels) +
+                         static_cast<LONG>(resolve_clear_rectangle->height_pixels)) *
+                        static_cast<LONG>(draw_resolution_scale_y());
   }
 
   // Stores host depth for the single depth destination whose host depth source is itself.
@@ -3547,8 +3549,8 @@ void D3D12RenderTargetCache::PerformTransfersAndResolveClears(
 
   bool transfer_viewport_set = false;
   f32 pixels_to_ndc_unscaled = 2.0f / static_cast<f32>(D3D12_REQ_TEXTURE2D_U_OR_V_DIMENSION);
-  f32 pixels_to_ndc_x = pixels_to_ndc_unscaled * draw_resolution_scale_x();
-  f32 pixels_to_ndc_y = pixels_to_ndc_unscaled * draw_resolution_scale_y();
+  f32 pixels_to_ndc_x = pixels_to_ndc_unscaled * static_cast<f32>(draw_resolution_scale_x());
+  f32 pixels_to_ndc_y = pixels_to_ndc_unscaled * static_cast<f32>(draw_resolution_scale_y());
 
   TransferRootSignatureIndex last_transfer_root_signature_index =
       TransferRootSignatureIndex::kCount;
@@ -3689,15 +3691,19 @@ void D3D12RenderTargetCache::PerformTransfersAndResolveClears(
             const Transfer::Rectangle& stencil_clear_rectangle =
                 transfer_stencil_clear_rectangles[j];
             stencil_clear_rect_write_ptr->left =
-                LONG(stencil_clear_rectangle.x_pixels * draw_resolution_scale_x());
+                static_cast<LONG>(stencil_clear_rectangle.x_pixels) *
+                static_cast<LONG>(draw_resolution_scale_x());
             stencil_clear_rect_write_ptr->top =
-                LONG(stencil_clear_rectangle.y_pixels * draw_resolution_scale_y());
+                static_cast<LONG>(stencil_clear_rectangle.y_pixels) *
+                static_cast<LONG>(draw_resolution_scale_y());
             stencil_clear_rect_write_ptr->right =
-                LONG((stencil_clear_rectangle.x_pixels + stencil_clear_rectangle.width_pixels) *
-                     draw_resolution_scale_x());
+                (static_cast<LONG>(stencil_clear_rectangle.x_pixels) +
+                 static_cast<LONG>(stencil_clear_rectangle.width_pixels)) *
+                static_cast<LONG>(draw_resolution_scale_x());
             stencil_clear_rect_write_ptr->bottom =
-                LONG((stencil_clear_rectangle.y_pixels + stencil_clear_rectangle.height_pixels) *
-                     draw_resolution_scale_y());
+                (static_cast<LONG>(stencil_clear_rectangle.y_pixels) +
+                 static_cast<LONG>(stencil_clear_rectangle.height_pixels)) *
+                static_cast<LONG>(draw_resolution_scale_y());
             ++stencil_clear_rect_write_ptr;
           }
         }
@@ -3794,12 +3800,16 @@ void D3D12RenderTargetCache::PerformTransfersAndResolveClears(
           REX_ASSERT(transfer_invocation_rectangle_count != 0);
           for (u32 j = 0; j < transfer_invocation_rectangle_count; ++j) {
             const Transfer::Rectangle& transfer_rectangle = transfer_invocation_rectangles[j];
-            f32 transfer_rectangle_x0 = -1.0f + transfer_rectangle.x_pixels * pixels_to_ndc_x;
-            f32 transfer_rectangle_y0 = 1.0f - transfer_rectangle.y_pixels * pixels_to_ndc_y;
+            f32 transfer_rectangle_x0 =
+                -1.0f + static_cast<f32>(transfer_rectangle.x_pixels) * pixels_to_ndc_x;
+            f32 transfer_rectangle_y0 =
+                1.0f - static_cast<f32>(transfer_rectangle.y_pixels) * pixels_to_ndc_y;
             f32 transfer_rectangle_x1 =
-                transfer_rectangle_x0 + transfer_rectangle.width_pixels * pixels_to_ndc_x;
+                transfer_rectangle_x0 +
+                static_cast<f32>(transfer_rectangle.width_pixels) * pixels_to_ndc_x;
             f32 transfer_rectangle_y1 =
-                transfer_rectangle_y0 - transfer_rectangle.height_pixels * pixels_to_ndc_y;
+                transfer_rectangle_y0 -
+                static_cast<f32>(transfer_rectangle.height_pixels) * pixels_to_ndc_y;
             // Vertices are (x0, y0) (x1, y0) (x0, y1) then (x0, y1) (x1, y0) (x1, y1).
             *(transfer_rectangle_write_ptr++) = transfer_rectangle_x0;
             *(transfer_rectangle_write_ptr++) = transfer_rectangle_y0;
@@ -3976,7 +3986,7 @@ void D3D12RenderTargetCache::PerformTransfersAndResolveClears(
             command_list.D3DSetGraphicsRoot32BitConstants(
                 rex::bit_count(transfer_root_parameters_used &
                                (kTransferUsedRootParameterStencilMaskConstantBit - 1)),
-                sizeof(transfer_stencil_bit) / sizeof(u32), &transfer_stencil_bit, 0);
+                1, &transfer_stencil_bit, 0);
           }
           command_processor_.SetExternalPipeline(transfer_pipelines[j]);
           command_list.D3DDrawInstanced(transfer_vertex_count, 1, 0, 0);
@@ -4013,13 +4023,15 @@ void D3D12RenderTargetCache::PerformTransfersAndResolveClears(
         switch (dest_rt_key.GetColorFormat()) {
           case xenos::ColorRenderTargetFormat::k_8_8_8_8: {
             for (u32 j = 0; j < 4; ++j) {
-              color_clear_value[j] = ((clear_value >> (j * 8)) & 0xFF) * (1.0f / 0xFF);
+              color_clear_value[j] =
+                  static_cast<f32>((clear_value >> (j * 8)) & 0xFF) * (1.0f / 0xFF);
             }
           } break;
           case xenos::ColorRenderTargetFormat::k_8_8_8_8_GAMMA: {
             // 8_8_8_8_GAMMA is stored as linear in R16G16B16A16_UNORM.
             for (u32 j = 0; j < 4; ++j) {
-              color_clear_value[j] = ((clear_value >> (j * 8)) & 0xFF) * (1.0f / 0xFF);
+              color_clear_value[j] =
+                  static_cast<f32>((clear_value >> (j * 8)) & 0xFF) * (1.0f / 0xFF);
             }
             for (u32 j = 0; j < 3; ++j) {
               color_clear_value[j] = xenos::PWLGammaToLinear(color_clear_value[j]);
@@ -4028,16 +4040,17 @@ void D3D12RenderTargetCache::PerformTransfersAndResolveClears(
           case xenos::ColorRenderTargetFormat::k_2_10_10_10:
           case xenos::ColorRenderTargetFormat::k_2_10_10_10_AS_10_10_10_10: {
             for (u32 j = 0; j < 3; ++j) {
-              color_clear_value[j] = ((clear_value >> (j * 10)) & 0x3FF) * (1.0f / 0x3FF);
+              color_clear_value[j] =
+                  static_cast<f32>((clear_value >> (j * 10)) & 0x3FF) * (1.0f / 0x3FF);
             }
-            color_clear_value[3] = ((clear_value >> 30) & 0x3) * (1.0f / 0x3);
+            color_clear_value[3] = static_cast<f32>((clear_value >> 30) & 0x3) * (1.0f / 0x3);
           } break;
           case xenos::ColorRenderTargetFormat::k_2_10_10_10_FLOAT:
           case xenos::ColorRenderTargetFormat::k_2_10_10_10_FLOAT_AS_16_16_16_16: {
             for (u32 j = 0; j < 3; ++j) {
               color_clear_value[j] = xenos::Float7e3To32((clear_value >> (j * 10)) & 0x3FF);
             }
-            color_clear_value[3] = ((clear_value >> 30) & 0x3) * (1.0f / 0x3);
+            color_clear_value[3] = static_cast<f32>((clear_value >> 30) & 0x3) * (1.0f / 0x3);
           } break;
           case xenos::ColorRenderTargetFormat::k_16_16:
           case xenos::ColorRenderTargetFormat::k_16_16_FLOAT: {
@@ -4137,13 +4150,13 @@ void D3D12RenderTargetCache::SetCommandListRenderTargets(
   }
 
   if (are_current_command_list_render_targets_valid_ &&
-      std::memcmp(current_command_list_render_targets_, depth_and_color_render_targets,
-                  sizeof(current_command_list_render_targets_))) {
+      !std::equal(std::begin(current_command_list_render_targets_),
+                  std::end(current_command_list_render_targets_), depth_and_color_render_targets)) {
     are_current_command_list_render_targets_valid_ = false;
   }
   if (!are_current_command_list_render_targets_valid_) {
-    std::memcpy(current_command_list_render_targets_, depth_and_color_render_targets,
-                sizeof(current_command_list_render_targets_));
+    std::copy_n(depth_and_color_render_targets, std::size(current_command_list_render_targets_),
+                std::begin(current_command_list_render_targets_));
     D3D12_CPU_DESCRIPTOR_HANDLE dsv_handle;
     if (depth_and_color_render_targets[0]) {
       dsv_handle = static_cast<const D3D12RenderTarget*>(depth_and_color_render_targets[0])
@@ -4215,7 +4228,7 @@ ID3D12PipelineState* D3D12RenderTargetCache::GetOrCreateDumpPipeline(DumpPipelin
     rdef_type_uint.name_ptr = rdef_dword_name_ptr;
   }
 
-  enum Constant : u32 {
+  enum Constant : u8 {
     kConstantOffsets,
     kConstantPitches,
     kConstantCount,

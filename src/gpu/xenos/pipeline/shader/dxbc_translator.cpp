@@ -501,8 +501,8 @@ void DxbcShaderTranslator::StartPixelShader() {
                                  (static_cast<u32>(draw_resolution_scale_y_ > 1) << 1);
     if (resolution_scaled_axes) {
       a_.OpMul(dxbc::Dest::R(param_gen_temp, resolution_scaled_axes), dxbc::Src::R(param_gen_temp),
-               dxbc::Src::LF(1.0f / draw_resolution_scale_x_, 1.0f / draw_resolution_scale_y_, 1.0f,
-                             1.0f));
+               dxbc::Src::LF(1.0f / static_cast<f32>(draw_resolution_scale_x_),
+                             1.0f / static_cast<f32>(draw_resolution_scale_y_), 1.0f, 1.0f));
     }
     if (shader_modification.pixel.param_gen_point) {
       a_.OpMov(dxbc::Dest::R(param_gen_temp, 0b0001),

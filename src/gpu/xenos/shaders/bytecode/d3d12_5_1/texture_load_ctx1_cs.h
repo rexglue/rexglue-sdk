@@ -8,7 +8,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-const BYTE texture_load_ctx1_cs[] = {
+const BYTE kTextureLoadCTX1CS[] = {
     68,  88,  66,  67,  115, 231, 89,  89,  49,  188, 154, 206, 254, 240, 60,  244, 153, 221, 99,
     181, 1,   0,   0,   0,   16,  65,  0,   0,   5,   0,   0,   0,   52,  0,   0,   0,   20,  4,
     0,   0,   36,  4,   0,   0,   52,  4,   0,   0,   116, 64,  0,   0,   82,  68,  69,  70,  216,

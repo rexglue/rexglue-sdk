@@ -57,8 +57,9 @@ class Win32MappedMemory : public MappedMemory {
     }
     if (file_handle != kFileHandleInvalid) {
       if (truncate_size) {
-        LONG distance_high = truncate_size >> 32;
-        SetFilePointer(file_handle, truncate_size & 0xFFFFFFFF, &distance_high, FILE_BEGIN);
+        LARGE_INTEGER position;
+        position.QuadPart = static_cast<LONGLONG>(truncate_size);
+        SetFilePointerEx(file_handle, position, nullptr, FILE_BEGIN);
         SetEndOfFile(file_handle);
       }
 

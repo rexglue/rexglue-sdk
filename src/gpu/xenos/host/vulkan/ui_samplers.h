@@ -38,7 +38,7 @@ class UISamplers : public rex::NonCopyable {
 
   ~UISamplers();
 
-  enum SamplerIndex {
+  enum SamplerIndex : u8 {
     kSamplerIndexNearestRepeat,
     kSamplerIndexNearestClampToEdge,
     kSamplerIndexLinearRepeat,

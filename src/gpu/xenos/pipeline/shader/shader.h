@@ -32,7 +32,7 @@ namespace rex::gpu {
 
 // Shared with disassembly, so parsing may generalize but not skip nops, for XNA round trips.
 
-enum class InstructionStorageTarget {
+enum class InstructionStorageTarget : u8 {
   kNone,
   /** Temporary register, storage_index in [0-63]. */
   kRegister,
@@ -73,7 +73,7 @@ constexpr u32 GetInstructionStorageTargetUsedComponentCount(InstructionStorageTa
   }
 }
 
-enum class InstructionStorageAddressingMode {
+enum class InstructionStorageAddressingMode : u8 {
   kAbsolute,
   /** Addressed by a0, float constants only. */
   kAddressRegisterRelative,
@@ -81,7 +81,7 @@ enum class InstructionStorageAddressingMode {
   kLoopRelative,
 };
 
-enum class SwizzleSource : u32 {
+enum class SwizzleSource : u8 {
   kX,
   kY,
   kZ,
@@ -178,7 +178,7 @@ struct InstructionResult {
   }
 };
 
-enum class InstructionStorageSource {
+enum class InstructionStorageSource : u8 {
   /** Temporary register, storage_index in [0-63]. */
   kRegister,
   /** Float constant, storage_index in [0-255]. */
@@ -216,12 +216,11 @@ struct InstructionOperand {
    * @return True when there are 4 components in xyzw order.
    */
   bool IsStandardSwizzle() const {
-    switch (component_count) {
-      case 4:
-        return components[0] == SwizzleSource::kX && components[1] == SwizzleSource::kY &&
-               components[2] == SwizzleSource::kZ && components[3] == SwizzleSource::kW;
+    if (component_count != 4) {
+      return false;
     }
-    return false;
+    return components[0] == SwizzleSource::kX && components[1] == SwizzleSource::kY &&
+           components[2] == SwizzleSource::kZ && components[3] == SwizzleSource::kW;
   }
 
   /**
@@ -258,7 +257,7 @@ struct ParsedExecInstruction {
   u32 instruction_address = 0;
   u32 instruction_count = 0;
 
-  enum class Type {
+  enum class Type : u8 {
     kUnconditional,
     kConditional,
     kPredicated,
@@ -319,7 +318,7 @@ struct ParsedCallInstruction {
 
   u32 target_address = 0;
 
-  enum class Type {
+  enum class Type : u8 {
     kUnconditional,
     kConditional,
     kPredicated,
@@ -342,7 +341,7 @@ struct ParsedJumpInstruction {
 
   u32 target_address = 0;
 
-  enum class Type {
+  enum class Type : u8 {
     kUnconditional,
     kConditional,
     kPredicated,
@@ -568,6 +567,7 @@ class Shader {
    * values requires increasing the version of the shader storages that hold it and checking the bit
    * count where it is packed. The underlying type is uint32_t for packing in bit fields.
    */
+  // NOLINTNEXTLINE(performance-enum-size): packed key bit field, MSVC packs per type
   enum class HostVertexShaderType : u32 {
     kVertex,
 

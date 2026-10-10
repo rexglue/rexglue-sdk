@@ -26,13 +26,11 @@
 #include "../kernel/kernel_fixture.h"
 #include "test_memory.h"
 
-// NOLINTBEGIN(readability-identifier-naming) frozen shim entry names
 extern "C" void rexshim_ConvertThreadToFiber(PPCContext& ctx, rex::u8* base);
 extern "C" void rexshim_ConvertFiberToThread(PPCContext& ctx, rex::u8* base);
 extern "C" void rexshim_CreateFiber(PPCContext& ctx, rex::u8* base);
 extern "C" void rexshim_DeleteFiber(PPCContext& ctx, rex::u8* base);
 extern "C" void rexshim_SwitchToFiber(PPCContext& ctx, rex::u8* base);
-// NOLINTEND(readability-identifier-naming)
 
 using rex::be_u32;
 using rex::f64;
@@ -49,7 +47,7 @@ constexpr u32 kStackSize = 0x10000;
 u32 g_pcr = 0;
 constexpr u32 kDepth = 3;
 
-enum class Mode { kImport, kGuestToHost, kExecute };
+enum class Mode : u8 { kImport, kGuestToHost, kExecute };
 
 Mode g_mode = Mode::kImport;
 u32 g_failures = 0;
@@ -289,8 +287,8 @@ rex::ppc::ImportFunction<f64(u32, f64, u32, u32, f64, u32, u32, u32, u32, u32, f
     g_arguments{ReadArguments};
 
 void ReadFourteenthFloat(PPCContext& ctx, u8* base) {
-  g_stack_float = std::bit_cast<f64>(
-      static_cast<u64>(rex::memory::load<be_u64>(base + ctx.r1.u32 + 0x50 + 5 * 8)));
+  g_stack_float = std::bit_cast<f64>(static_cast<u64>(
+      rex::memory::load<be_u64>(base + ctx.r1.u32 + 0x50 + std::ptrdiff_t{5} * 8)));
   g_floats = {ctx.f1.f64, ctx.f13.f64, 0};
 }
 

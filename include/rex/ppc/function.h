@@ -287,7 +287,7 @@ struct ArgTranslator {
    */
   template <MappedPtrType T>
   static T GetValue(PPCContext& ctx, u8* base, const Argument& arg) noexcept {
-    using inner_t = typename mapped_ptr_inner_type<T>::type;
+    using inner_t = mapped_ptr_inner_type<T>::type;
     const auto v = GetIntegerArgumentValue(ctx, base, arg.slot);
     if (!v) {
       return T(nullptr);

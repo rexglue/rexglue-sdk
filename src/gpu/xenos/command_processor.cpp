@@ -344,6 +344,9 @@ void CommandProcessor::WriteRegister(u32 index, u32 value) {
             case 2:
               gamma_ramp_entry.color_10_blue = gamma_ramp_seq_color;
               break;
+            default:
+              REX_UNHANDLED_CASE(gamma_ramp_rw_component_);
+              break;
           }
         }
         if (++gamma_ramp_rw_component_ >= 3) {
@@ -416,6 +419,9 @@ void CommandProcessor::WriteRegister(u32 index, u32 value) {
           OnGammaRamp256EntryTableValueWritten();
         }
       } break;
+
+      default:
+        break;
     }
   }
 }
@@ -886,7 +892,8 @@ bool CommandProcessor::ExecutePacketType3_WAIT_REG_MEM(memory::RingBuffer* reade
         value = ReadRegisterValue(poll_reg_addr);
       }
     }
-    switch (wait_info & 0x7) {
+    const u32 wait_function = wait_info & 0x7;
+    switch (wait_function) {
       case 0x0:
         matched = false;
         break;
@@ -910,6 +917,9 @@ bool CommandProcessor::ExecutePacketType3_WAIT_REG_MEM(memory::RingBuffer* reade
         break;
       case 0x7:
         matched = true;
+        break;
+      default:
+        REX_UNHANDLED_CASE(wait_function);
         break;
     }
     if (!matched) {
@@ -1007,7 +1017,8 @@ bool CommandProcessor::ExecutePacketType3_COND_WRITE(memory::RingBuffer* reader,
     value = ReadRegisterValue(poll_reg_addr);
   }
   bool matched = false;
-  switch (wait_info & 0x7) {
+  const u32 wait_function = wait_info & 0x7;
+  switch (wait_function) {
     case 0x0:
       matched = false;
       break;
@@ -1031,6 +1042,9 @@ bool CommandProcessor::ExecutePacketType3_COND_WRITE(memory::RingBuffer* reader,
       break;
     case 0x7:
       matched = true;
+      break;
+    default:
+      REX_UNHANDLED_CASE(wait_function);
       break;
   }
   if (matched) {
@@ -1185,7 +1199,7 @@ bool CommandProcessor::ExecutePacketType3Draw(memory::RingBuffer* reader,
       index_buffer_info.guest_base = vgt_dma_base & ~(index_size_bytes - 1);
       index_buffer_info.endianness = vgt_dma_size.swap_mode;
       index_buffer_info.format = vgt_draw_initiator.index_size;
-      index_buffer_info.length = vgt_dma_size.num_words * index_size_bytes;
+      index_buffer_info.length = static_cast<size_t>(vgt_dma_size.num_words) * index_size_bytes;
       index_buffer_info.count = vgt_draw_initiator.num_indices;
     } break;
     case xenos::SourceSelect::kImmediate: {
@@ -1378,8 +1392,9 @@ bool CommandProcessor::ExecutePacketType3_IM_LOAD_IMMEDIATE(memory::RingBuffer* 
   REX_ASSERT(start == 0);
   REX_ASSERT(reader->read_count() >= size_dwords * 4);
   REX_ASSERT(count - 2 >= size_dwords);
-  auto shader = LoadShader(shader_type, static_cast<u32>(reader->read_ptr()),
-                           reinterpret_cast<u32*>(reader->read_ptr()), size_dwords);
+  auto shader =
+      LoadShader(shader_type, static_cast<u32>(reader->read_ptr()),
+                 reinterpret_cast<u32*>(reader->buffer() + reader->read_offset()), size_dwords);
   switch (shader_type) {
     case xenos::ShaderType::kVertex:
       active_vertex_shader_ = shader;

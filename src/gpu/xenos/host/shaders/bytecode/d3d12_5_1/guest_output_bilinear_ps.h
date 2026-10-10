@@ -8,7 +8,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-const BYTE guest_output_bilinear_ps[] = {
+const BYTE kGuestOutputBilinearPS[] = {
     68,  88,  66,  67,  235, 28,  93,  216, 171, 104, 177, 132, 67,  116, 72,  226, 224, 12,  60,
     100, 1,   0,   0,   0,   204, 4,   0,   0,   5,   0,   0,   0,   52,  0,   0,   0,   68,  2,
     0,   0,   120, 2,   0,   0,   172, 2,   0,   0,   48,  4,   0,   0,   82,  68,  69,  70,  8,

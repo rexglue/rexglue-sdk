@@ -8,7 +8,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-const BYTE guest_output_bilinear_dither_ps[] = {
+const BYTE kGuestOutputBilinearDitherPS[] = {
     68,  88,  66,  67,  156, 138, 216, 142, 148, 62,  121, 93,  254, 24,  231, 193, 50,  177, 115,
     65,  1,   0,   0,   0,   56,  21,  0,   0,   5,   0,   0,   0,   52,  0,   0,   0,   68,  2,
     0,   0,   120, 2,   0,   0,   172, 2,   0,   0,   156, 20,  0,   0,   82,  68,  69,  70,  8,

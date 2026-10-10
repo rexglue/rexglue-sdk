@@ -8,7 +8,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-const BYTE texture_load_dxt3aas1111_bgra4_cs[] = {
+const BYTE kTextureLoadDXT3AAS1111BGRA4CS[] = {
     68,  88,  66,  67,  14,  66,  192, 176, 67,  14,  85,  193, 165, 146, 201, 199, 79,  92,  136,
     38,  1,   0,   0,   0,   56,  60,  0,   0,   5,   0,   0,   0,   52,  0,   0,   0,   20,  4,
     0,   0,   36,  4,   0,   0,   52,  4,   0,   0,   156, 59,  0,   0,   82,  68,  69,  70,  216,

@@ -34,7 +34,7 @@ void ShaderInterpreter::Execute() {
   for (u32 cf_index = 0; !exec_ended; cf_index = cf_index_next) {
     cf_index_next = cf_index + 1;
 
-    const u32* cf_pair = &ucode_[3 * (cf_index >> 1)];
+    const u32* cf_pair = &ucode_[size_t{3} * (cf_index >> 1)];
     xenos::ucode::ControlFlowInstruction cf_instr;
     if (cf_index & 1) {
       cf_instr.dword_0 = (cf_pair[1] >> 16) | (cf_pair[2] << 16);
@@ -87,7 +87,7 @@ void ShaderInterpreter::Execute() {
         }
 
         for (u32 exec_index = 0; exec_index < cf_exec.count(); ++exec_index) {
-          const u32* exec_instruction = &ucode_[3 * (cf_exec.address() + exec_index)];
+          const u32* exec_instruction = &ucode_[size_t{3} * (cf_exec.address() + exec_index)];
           if ((cf_exec.sequence() >> (exec_index << 1)) & 0b01) {
             const xenos::ucode::FetchInstruction& fetch_instr =
                 *reinterpret_cast<const xenos::ucode::FetchInstruction*>(exec_instruction);
@@ -310,7 +310,7 @@ void ShaderInterpreter::ExecuteAluInstruction(xenos::ucode::AluInstruction instr
       case xenos::ucode::AluVectorOpcode::kMul: {
         for (u32 i = 0; i < 4; ++i) {
           // Direct3D 9 gives +0 for 0 or denormal * anything.
-          vector_result[i] = (vector_operands[0][i] && vector_operands[1][i])
+          vector_result[i] = (vector_operands[0][i] != 0.0f && vector_operands[1][i] != 0.0f)
                                  ? vector_operands[0][i] * vector_operands[1][i]
                                  : 0.0f;
         }
@@ -369,7 +369,7 @@ void ShaderInterpreter::ExecuteAluInstruction(xenos::ucode::AluInstruction instr
       case xenos::ucode::AluVectorOpcode::kMad: {
         for (u32 i = 0; i < 4; ++i) {
           // D3D9 0 or denormal * anything is +0 and +0 + -0 must be +0, so add is unconditional.
-          vector_result[i] = ((vector_operands[0][i] && vector_operands[1][i])
+          vector_result[i] = ((vector_operands[0][i] != 0.0f && vector_operands[1][i] != 0.0f)
                                   ? vector_operands[0][i] * vector_operands[1][i]
                                   : 0.0f) +
                              vector_operands[2][i];
@@ -398,7 +398,7 @@ void ShaderInterpreter::ExecuteAluInstruction(xenos::ucode::AluInstruction instr
         vector_result[0] = 0.0f;
         for (u32 i = 0; i < 4; ++i) {
           // D3D9 0 or denormal * anything is +0 and +0 + -0 must be +0, so add is unconditional.
-          vector_result[0] += (vector_operands[0][i] && vector_operands[1][i])
+          vector_result[0] += (vector_operands[0][i] != 0.0f && vector_operands[1][i] != 0.0f)
                                   ? vector_operands[0][i] * vector_operands[1][i]
                                   : 0.0f;
         }
@@ -408,7 +408,7 @@ void ShaderInterpreter::ExecuteAluInstruction(xenos::ucode::AluInstruction instr
         vector_result[0] = 0.0f;
         for (u32 i = 0; i < 3; ++i) {
           // D3D9 0 or denormal * anything is +0 and +0 + -0 must be +0, so add is unconditional.
-          vector_result[0] += (vector_operands[0][i] && vector_operands[1][i])
+          vector_result[0] += (vector_operands[0][i] != 0.0f && vector_operands[1][i] != 0.0f)
                                   ? vector_operands[0][i] * vector_operands[1][i]
                                   : 0.0f;
         }
@@ -419,7 +419,7 @@ void ShaderInterpreter::ExecuteAluInstruction(xenos::ucode::AluInstruction instr
         vector_result[0] = 0.0f;
         for (u32 i = 0; i < 2; ++i) {
           // Direct3D 9 gives +0 for 0 or denormal * anything.
-          vector_result[0] += (vector_operands[0][i] && vector_operands[1][i])
+          vector_result[0] += (vector_operands[0][i] != 0.0f && vector_operands[1][i] != 0.0f)
                                   ? vector_operands[0][i] * vector_operands[1][i]
                                   : 0.0f;
         }
@@ -534,7 +534,7 @@ void ShaderInterpreter::ExecuteAluInstruction(xenos::ucode::AluInstruction instr
       case xenos::ucode::AluVectorOpcode::kDst: {
         vector_result[0] = 1.0f;
         // Direct3D 9 gives +0 for 0 or denormal * anything.
-        vector_result[1] = (vector_operands[0][1] && vector_operands[1][1])
+        vector_result[1] = (vector_operands[0][1] != 0.0f && vector_operands[1][1] != 0.0f)
                                ? vector_operands[0][1] * vector_operands[1][1]
                                : 0.0f;
         vector_result[2] = vector_operands[0][2];
@@ -604,6 +604,8 @@ void ShaderInterpreter::ExecuteAluInstruction(xenos::ucode::AluInstruction instr
           instr.scalar_const_reg_op_src_temp_reg(),
           false)[xenos::ucode::AluInstruction::GetSwizzledComponentIndex(scalar_src_swizzle, 0)];
     } break;
+    default:
+      break;
   }
   if (scalar_operand_component_count) {
     u32 scalar_src_absolute_mask = ~(static_cast<u32>(scalar_src_absolute) << 31);
@@ -628,13 +630,13 @@ void ShaderInterpreter::ExecuteAluInstruction(xenos::ucode::AluInstruction instr
     case xenos::ucode::AluScalarOpcode::kMulsc0:
     case xenos::ucode::AluScalarOpcode::kMulsc1: {
       // Direct3D 9 gives +0 for 0 or denormal * anything.
-      state_.previous_scalar = (scalar_operands[0] && scalar_operands[1])
+      state_.previous_scalar = (scalar_operands[0] != 0.0f && scalar_operands[1] != 0.0f)
                                    ? scalar_operands[0] * scalar_operands[1]
                                    : 0.0f;
     } break;
     case xenos::ucode::AluScalarOpcode::kMulsPrev: {
       // Direct3D 9 gives +0 for 0 or denormal * anything.
-      state_.previous_scalar = (scalar_operands[0] && state_.previous_scalar)
+      state_.previous_scalar = (scalar_operands[0] != 0.0f && state_.previous_scalar != 0.0f)
                                    ? scalar_operands[0] * state_.previous_scalar
                                    : 0.0f;
     } break;
@@ -644,7 +646,7 @@ void ShaderInterpreter::ExecuteAluInstruction(xenos::ucode::AluInstruction instr
         state_.previous_scalar = -FLT_MAX;
       } else {
         // Direct3D 9 gives +0 for 0 or denormal * anything.
-        state_.previous_scalar = (scalar_operands[0] && state_.previous_scalar)
+        state_.previous_scalar = (scalar_operands[0] != 0.0f && state_.previous_scalar != 0.0f)
                                      ? scalar_operands[0] * state_.previous_scalar
                                      : 0.0f;
       }

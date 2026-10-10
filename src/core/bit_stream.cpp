@@ -21,14 +21,12 @@ namespace rex {
 
 BitStream::BitStream(u8* buffer, size_t size_in_bits) : buffer_(buffer), size_bits_(size_in_bits) {}
 
-BitStream::~BitStream() = default;
-
 void BitStream::SetOffset(size_t offset_bits) {
   REX_ASSERT(!(offset_bits > size_bits_));
   offset_bits_ = std::min(offset_bits, size_bits_);
 }
 
-size_t BitStream::BitsRemaining() {
+size_t BitStream::BitsRemaining() const {
   return size_bits_ - offset_bits_;
 }
 

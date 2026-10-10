@@ -24,7 +24,7 @@ namespace rex::codegen {
 class AnalysisErrors {
  public:
   /** Failure class an Entry belongs to. */
-  enum class Category {
+  enum class Category : u8 {
     UnresolvedCall,        /**< A branch target that no function contains. */
     MissingJumpTable,      /**< No analysis stage adds this class. */
     JumpTargetOutOfBounds, /**< No analysis stage adds this class. */

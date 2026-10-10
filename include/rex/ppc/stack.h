@@ -34,7 +34,7 @@ namespace rex::ppc {
  * @param size The size in bytes.
  * @return The size rounded up to a multiple of 8.
  */
-inline constexpr u32 stack_align(u32 size) {
+constexpr u32 stack_align(u32 size) {
   return (size + 7u) & ~7u;
 }
 

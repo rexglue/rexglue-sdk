@@ -36,14 +36,17 @@ constexpr u32 kCodeSize = 0x10000;
 constexpr u32 kImageSize = 0x100000;
 
 std::mutex g_bodies_mutex;
-std::unordered_map<u32, std::function<void(Caller&)>> g_bodies;
+std::unordered_map<u32, std::function<void(Caller&)>>& Bodies() {
+  static std::unordered_map<u32, std::function<void(Caller&)>> bodies;
+  return bodies;
+}
 u32 g_next_body = 1;
 std::atomic<u32> g_next_root{0};
 
 u32 PutBody(std::function<void(Caller&)> body) {
   std::lock_guard lock(g_bodies_mutex);
   const u32 id = g_next_body++;
-  g_bodies.emplace(id, std::move(body));
+  Bodies().emplace(id, std::move(body));
   return id;
 }
 
@@ -51,9 +54,9 @@ void TestStart(PPCContext& ctx, u8* base) {
   std::function<void(Caller&)> body;
   {
     std::lock_guard lock(g_bodies_mutex);
-    auto it = g_bodies.find(ctx.r3.u32);
+    auto it = Bodies().find(ctx.r3.u32);
     body = std::move(it->second);
-    g_bodies.erase(it);
+    Bodies().erase(it);
   }
   Caller caller(ctx, base, runtime::Current());
   body(caller);

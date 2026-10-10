@@ -8,7 +8,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-const BYTE immediate_ps[] = {
+const BYTE kImmediatePS[] = {
     68,  88,  66,  67,  107, 181, 28,  66,  229, 168, 59,  0,   81,  196, 220, 121, 194, 12,  76,
     233, 1,   0,   0,   0,   16,  3,   0,   0,   5,   0,   0,   0,   52,  0,   0,   0,   40,  1,
     0,   0,   120, 1,   0,   0,   172, 1,   0,   0,   116, 2,   0,   0,   82,  68,  69,  70,  236,

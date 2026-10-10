@@ -20,8 +20,6 @@ namespace rex {
 ByteStream::ByteStream(u8* data, size_t data_length, size_t offset)
     : data_(data), data_length_(data_length), offset_(offset) {}
 
-ByteStream::~ByteStream() = default;
-
 void ByteStream::Advance(size_t num_bytes) {
   REX_ASSERT(offset_ + num_bytes <= data_length_);
   offset_ += num_bytes;

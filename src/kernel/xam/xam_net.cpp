@@ -37,8 +37,9 @@
 
 #if REX_PLATFORM_WIN32
 // Must be included last, it expects windows.h to be included before it.
+// NOLINTNEXTLINE(bugprone-reserved-identifier): Windows SDK macro name
 #define _WINSOCK_DEPRECATED_NO_WARNINGS
-#include <winsock2.h>  // NOLINT(build/include_order)
+#include <winsock2.h>
 #elif REX_PLATFORM_LINUX || REX_PLATFORM_MAC
 #include <arpa/inet.h>
 #include <netinet/in.h>
@@ -542,9 +543,8 @@ u32 NetDll_socket_entry([[maybe_unused]] u32 caller, u32 af, u32 type, u32 proto
   }
   auto& table = runtime::Current().object_table();
   X_HANDLE handle = X_INVALID_HANDLE_VALUE;
-  auto added = table.Emplace<SocketObject>(AddOptions{}, SocketAddressFamily(static_cast<u32>(af)),
-                                           SocketType(static_cast<u32>(type)),
-                                           SocketProtocol(static_cast<u32>(protocol)));
+  auto added = table.Emplace<SocketObject>(AddOptions{}, SocketAddressFamily(af), SocketType(type),
+                                           SocketProtocol(protocol));
   if (added) {
     handle = *added;
   }

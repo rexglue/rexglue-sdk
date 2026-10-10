@@ -191,7 +191,7 @@ u8 XamGetLocale() {
 }
 
 u32 XamGetLocale_entry() {
-  return static_cast<u8>(XamGetLocale());
+  return XamGetLocale();
 }
 
 u32 XamGetOnlineCountryFromLocale_entry(u32 id) {

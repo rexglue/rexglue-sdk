@@ -20,6 +20,7 @@
 
 #include <signal.h>
 
+#include <array>
 #include <cstdint>
 #include <cstring>
 
@@ -44,7 +45,12 @@ struct sigaction g_original_sigbus_handler;
 
 constexpr size_t kMaxHandlerCount = 8;
 
-std::pair<ExceptionHandler::Handler, void*> g_handlers[kMaxHandlerCount];
+struct HandlerSlot {
+  ExceptionHandler::Handler fn = nullptr;
+  void* data = nullptr;
+};
+
+constinit std::array<HandlerSlot, kMaxHandlerCount> g_handlers{};
 
 struct sigaction* OriginalAction(int signal_number) {
   switch (signal_number) {
@@ -262,8 +268,8 @@ static void ExceptionHandlerCallback(int signal_number, siginfo_t* signal_info,
       REX_UNHANDLED_CASE(signal_number);
   }
 
-  for (size_t i = 0; i < rex::countof(g_handlers) && g_handlers[i].first; ++i) {
-    if (g_handlers[i].first(&ex, g_handlers[i].second)) {
+  for (size_t i = 0; i < g_handlers.size() && g_handlers[i].fn; ++i) {
+    if (g_handlers[i].fn(&ex, g_handlers[i].data)) {
 #if REX_ARCH_AMD64
 #if REX_PLATFORM_MAC
       mcontext->__ss.__rip = thread_context.rip;
@@ -345,7 +351,7 @@ static void ExceptionHandlerCallback(int signal_number, siginfo_t* signal_info,
       while (rex::bit_scan_forward(modified_int_registers_remaining, &modified_register_index)) {
         modified_int_registers_remaining &= ~(UINT16_C(1) << modified_register_index);
         mcontext.gregs[kIntRegisterMap[modified_register_index]] =
-            thread_context.int_registers[modified_register_index];
+            static_cast<greg_t>(thread_context.int_registers[modified_register_index]);
       }
       u16 modified_xmm_registers_remaining = ex.modified_xmm_registers();
       while (rex::bit_scan_forward(modified_xmm_registers_remaining, &modified_register_index)) {
@@ -441,10 +447,10 @@ void ExceptionHandler::Install(Handler fn, void* data) {
     g_signal_handlers_installed = true;
   }
 
-  for (size_t i = 0; i < rex::countof(g_handlers); ++i) {
-    if (!g_handlers[i].first) {
-      g_handlers[i].first = fn;
-      g_handlers[i].second = data;
+  for (size_t i = 0; i < g_handlers.size(); ++i) {
+    if (!g_handlers[i].fn) {
+      g_handlers[i].fn = fn;
+      g_handlers[i].data = data;
       return;
     }
   }
@@ -452,20 +458,20 @@ void ExceptionHandler::Install(Handler fn, void* data) {
 }
 
 void ExceptionHandler::Uninstall(Handler fn, void* data) {
-  for (size_t i = 0; i < rex::countof(g_handlers); ++i) {
-    if (g_handlers[i].first == fn && g_handlers[i].second == data) {
-      for (; i < rex::countof(g_handlers) - 1; ++i) {
+  for (size_t i = 0; i < g_handlers.size(); ++i) {
+    if (g_handlers[i].fn == fn && g_handlers[i].data == data) {
+      for (; i < g_handlers.size() - 1; ++i) {
         g_handlers[i] = g_handlers[i + 1];
       }
-      g_handlers[i].first = nullptr;
-      g_handlers[i].second = nullptr;
+      g_handlers[i].fn = nullptr;
+      g_handlers[i].data = nullptr;
       break;
     }
   }
 
   bool has_any = false;
-  for (size_t i = 0; i < rex::countof(g_handlers); ++i) {
-    if (g_handlers[i].first) {
+  for (size_t i = 0; i < g_handlers.size(); ++i) {
+    if (g_handlers[i].fn) {
       has_any = true;
       break;
     }

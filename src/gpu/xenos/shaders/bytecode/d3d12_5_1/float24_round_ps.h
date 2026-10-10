@@ -8,7 +8,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-const BYTE float24_round_ps[] = {
+const BYTE kFloat24RoundPS[] = {
     68,  88,  66,  67,  110, 79,  84,  202, 151, 165, 237, 180, 64,  17,  0,   132, 236, 126, 142,
     105, 1,   0,   0,   0,   8,   7,   0,   0,   5,   0,   0,   0,   52,  0,   0,   0,   160, 0,
     0,   0,   120, 2,   0,   0,   172, 2,   0,   0,   108, 6,   0,   0,   82,  68,  69,  70,  100,

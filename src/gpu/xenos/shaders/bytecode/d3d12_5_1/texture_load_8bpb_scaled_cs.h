@@ -8,7 +8,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-const BYTE texture_load_8bpb_scaled_cs[] = {
+const BYTE kTextureLoad8BPBScaledCS[] = {
     68,  88,  66,  67,  197, 166, 177, 165, 113, 197, 117, 164, 80,  31,  113, 208, 208, 117, 226,
     197, 1,   0,   0,   0,   216, 17,  0,   0,   5,   0,   0,   0,   52,  0,   0,   0,   20,  4,
     0,   0,   36,  4,   0,   0,   52,  4,   0,   0,   60,  17,  0,   0,   82,  68,  69,  70,  216,

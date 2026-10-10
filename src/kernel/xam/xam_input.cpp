@@ -190,7 +190,7 @@ i32 XamUserGetDeviceContext_entry(u32 user_index, [[maybe_unused]] u32 unk, mapp
   if (!user_index || (user_index & 0xFF) == 0xFF) {
     return X_E_SUCCESS;
   } else {
-    return X_E_DEVICE_NOT_CONNECTED;
+    return static_cast<i32>(X_E_DEVICE_NOT_CONNECTED);
   }
 }
 

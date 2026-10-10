@@ -409,7 +409,7 @@ Presenter::GuestOutputPaintFlow Presenter::GetGuestOutputPaintFlow(
   auto rescale_signed = [](i32 value, u32 new_scale, u32 old_scale) -> i32 {
     // The sign of the half scale offset matches the value, since / truncates toward zero.
     return static_cast<i32>((static_cast<i64>(value) * new_scale +
-                             static_cast<i32>(old_scale >> 1) * (value < 0 ? -1 : 1)) /
+                             static_cast<i64>(old_scale >> 1) * (value < 0 ? -1 : 1)) /
                             old_scale);
   };
 

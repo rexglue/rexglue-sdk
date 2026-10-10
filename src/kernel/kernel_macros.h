@@ -26,11 +26,13 @@
  * REX_KERNEL_LOOKUP(file, FileObject, file_handle);
  * @endcode
  */
+// NOLINTBEGIN(bugprone-macro-parentheses): VAR is a declared name
 #define REX_KERNEL_LOOKUP(VAR, TYPE, HANDLE)                             \
   auto VAR = ::rex::runtime::Current().object_table().Get<TYPE>(HANDLE); \
   if (!(VAR)) {                                                          \
     return X_STATUS_INVALID_HANDLE;                                      \
   }
+// NOLINTEND(bugprone-macro-parentheses)
 
 /**
  * Returns X_STATUS_INVALID_PARAMETER when a pointer argument is null.

@@ -26,7 +26,6 @@ using rex::hid::KeyModifiers;
 using rex::hid::ParseKeyChord;
 using rex::hid::ParseKeyChordList;
 using rex::hid::VirtualKey;
-using rex::operator|;
 
 REX_TEST_CASE("A plain key name parses to a chord with no modifiers", "[key_chord]") {
   auto chord = ParseKeyChord("F3");

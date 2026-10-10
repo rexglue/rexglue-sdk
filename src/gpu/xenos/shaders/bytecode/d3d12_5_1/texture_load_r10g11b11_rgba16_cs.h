@@ -8,7 +8,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-const BYTE texture_load_r10g11b11_rgba16_cs[] = {
+const BYTE kTextureLoadR10G11B11RGBA16CS[] = {
     68,  88,  66,  67,  224, 89,  222, 129, 166, 183, 93,  231, 201, 98,  207, 138, 82,  135, 157,
     47,  1,   0,   0,   0,   240, 25,  0,   0,   5,   0,   0,   0,   52,  0,   0,   0,   20,  4,
     0,   0,   36,  4,   0,   0,   52,  4,   0,   0,   84,  25,  0,   0,   82,  68,  69,  70,  216,

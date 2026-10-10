@@ -45,7 +45,7 @@ union XNotificationKey {
     REX_STATIC_ASSERT_SIZE(*this, sizeof(id));
   }
 
-  constexpr operator XNotificationID() { return id; }
+  constexpr operator XNotificationID() const { return id; }
 };
 
 /** The host state of a notification listener. */

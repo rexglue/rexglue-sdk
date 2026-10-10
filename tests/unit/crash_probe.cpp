@@ -114,6 +114,7 @@ int Run(std::string_view mode) {
       const rex::u32 address =
           memory.SystemHeapAlloc(host_page, host_page, rex::runtime::kSystemHeapPhysical);
       auto* host = memory.TranslateVirtual<volatile rex::u32*>(address);
+      // NOLINTNEXTLINE(performance-no-int-to-ptr): rounds the host pointer down to its page
       auto* page = reinterpret_cast<rex::u8*>(reinterpret_cast<rex::host_addr_t>(host) &
                                               ~rex::host_addr_t{host_page - 1});
       if (!address ||

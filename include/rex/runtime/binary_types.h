@@ -19,7 +19,7 @@
 namespace rex::runtime {
 
 /** Category of a `BinarySymbol`. */
-enum class BinarySymbolType {
+enum class BinarySymbolType : u8 {
   Function, /**< Code. */
   Data,     /**< Data. */
   Import,   /**< Import thunk. */

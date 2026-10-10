@@ -64,6 +64,8 @@ X_HRESULT XLiveBaseApp::DispatchMessageSync(u32 message, u32 buffer_ptr, u32 buf
       REXLOG_DEBUG(kernel, "XPresenceInitialize({:08X}, {:08X})", buffer_ptr, buffer_length);
       return X_E_SUCCESS;
     }
+    default:
+      break;
   }
   REX_FAIL(kernel, X_E_FAIL,
            "Unimplemented XLIVEBASE message app={:08X}, msg={:08X}, arg1={:08X}, "

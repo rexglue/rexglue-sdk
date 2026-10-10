@@ -8,7 +8,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-const BYTE apply_gamma_pwl_fxaa_luma_cs[] = {
+const BYTE kApplyGammaPWLFXAALumaCS[] = {
     68,  88,  66,  67,  96,  224, 168, 165, 77,  202, 54,  14,  176, 64,  7,   12,  228, 221, 231,
     44,  1,   0,   0,   0,   140, 7,   0,   0,   5,   0,   0,   0,   52,  0,   0,   0,   16,  2,
     0,   0,   32,  2,   0,   0,   48,  2,   0,   0,   240, 6,   0,   0,   82,  68,  69,  70,  212,

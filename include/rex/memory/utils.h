@@ -91,7 +91,7 @@ REX_API size_t page_size();
 REX_API size_t allocation_granularity();
 
 /** Access rights of a range of host pages. */
-enum class PageAccess {
+enum class PageAccess : u8 {
   kNoAccess = 0,                           /**< No access. */
   kReadOnly = 1 << 0,                      /**< Read only. */
   kReadWrite = kReadOnly | 1 << 1,         /**< Read and write. */
@@ -100,14 +100,14 @@ enum class PageAccess {
 };
 
 /** Allocation mode AllocFixed uses. */
-enum class AllocationType {
+enum class AllocationType : u8 {
   kReserve = 1 << 0,                   /**< Reserve address space without backing it. */
   kCommit = 1 << 1,                    /**< Back reserved address space with memory. */
   kReserveCommit = kReserve | kCommit, /**< Reserve and commit in 1 step. */
 };
 
 /** Deallocation mode DeallocFixed uses. */
-enum class DeallocationType {
+enum class DeallocationType : u8 {
   kRelease = 1 << 0,  /**< Return the address space to the system. */
   kDecommit = 1 << 1, /**< Drop the backing memory and keep the reservation. */
 };
@@ -200,10 +200,17 @@ void AlignedFree(T* ptr) {
 #endif
 }
 
-/** Opaque file mapping handle. Holds a HANDLE on Windows and a file descriptor on POSIX. */
-using FileMappingHandle = intptr_t;
+#if REX_PLATFORM_WIN32
+/** File mapping handle, a HANDLE. */
+using FileMappingHandle = void*;
+/** Value CreateFileMappingHandle returns on failure. */
+constexpr FileMappingHandle kFileMappingHandleInvalid = nullptr;
+#else
+/** File mapping handle, a file descriptor. */
+using FileMappingHandle = int;
 /** Value CreateFileMappingHandle returns on failure. */
 constexpr FileMappingHandle kFileMappingHandleInvalid = -1;
+#endif
 
 /**
  * Creates a named shared memory object.
@@ -283,6 +290,7 @@ size_t hash_combine(size_t hash, const T& v, const Ts&... vs) {
  * @return The pointer with the upper 32 bits cleared.
  */
 inline void* low_address(void* address) {
+  // NOLINTNEXTLINE(performance-no-int-to-ptr): the contract truncates a host pointer
   return reinterpret_cast<void*>(reinterpret_cast<u64>(address) & 0xFFFFFFFF);
 }
 
@@ -561,9 +569,9 @@ using fourcc_t = u32;
  * @param d Fourth character, the least significant byte.
  * @return The packed code. make_fourcc('a', 'b', 'c', 'd') is 0x61626364.
  */
-constexpr inline fourcc_t make_fourcc(char a, char b, char c, char d) {
-  return fourcc_t((static_cast<fourcc_t>(a) << 24) | (static_cast<fourcc_t>(b) << 16) |
-                  (static_cast<fourcc_t>(c) << 8) | static_cast<fourcc_t>(d));
+constexpr fourcc_t make_fourcc(char a, char b, char c, char d) {
+  return ((static_cast<fourcc_t>(a) << 24) | (static_cast<fourcc_t>(b) << 16) |
+          (static_cast<fourcc_t>(c) << 8) | static_cast<fourcc_t>(d));
 }
 
 /**
@@ -572,7 +580,7 @@ constexpr inline fourcc_t make_fourcc(char a, char b, char c, char d) {
  * @param fourcc String of exactly 4 characters. Any other length throws std::runtime_error.
  * @return The packed code. make_fourcc("abcd") is 0x61626364.
  */
-constexpr inline fourcc_t make_fourcc(const std::string_view fourcc) {
+constexpr fourcc_t make_fourcc(const std::string_view fourcc) {
   if (fourcc.length() != 4) {
     throw std::runtime_error("Invalid fourcc length");
   }

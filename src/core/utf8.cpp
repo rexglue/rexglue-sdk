@@ -124,13 +124,11 @@ void EncodeUTF16(char32_t code_point, std::u16string& out) {
 
 class CodepointIterator {
  public:
-  // NOLINTBEGIN(readability-identifier-naming): std::iterator_traits reads these names
   using iterator_category = std::bidirectional_iterator_tag;
   using value_type = u32;
   using difference_type = std::ptrdiff_t;
   using pointer = void;
   using reference = u32;
-  // NOLINTEND(readability-identifier-naming)
 
   CodepointIterator() = default;
   CodepointIterator(const char* position, const char* range_begin, const char* range_end)

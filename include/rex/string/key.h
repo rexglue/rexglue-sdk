@@ -13,6 +13,7 @@
 #pragma once
 
 #include <string>
+#include <utility>
 #include <variant>
 
 #include <rex/string/utf8.h>
@@ -55,7 +56,7 @@ struct string_key : detail::string_key_base {
    *
    * @param value String to own.
    */
-  explicit string_key(std::string value) : string_key_base(value) {}
+  explicit string_key(std::string value) : string_key_base(std::move(value)) {}
 
   /**
    * Creates a key that owns a copy of a string.
@@ -71,7 +72,7 @@ struct string_key : detail::string_key_base {
    * @param value String to own.
    * @return The owning key.
    */
-  static string_key create(std::string value) { return string_key(value); }
+  static string_key create(std::string value) { return string_key(std::move(value)); }
 
   /**
    * Compares 2 keys byte for byte.
@@ -118,7 +119,7 @@ struct string_key_case : detail::string_key_base {
    *
    * @param value String to own.
    */
-  explicit string_key_case(std::string value) : string_key_base(value) {}
+  explicit string_key_case(std::string value) : string_key_base(std::move(value)) {}
 
   /**
    * Creates a key that owns a copy of a string.
@@ -136,7 +137,7 @@ struct string_key_case : detail::string_key_base {
    * @param value String to own.
    * @return The owning key.
    */
-  static string_key_case create(std::string value) { return string_key_case(value); }
+  static string_key_case create(std::string value) { return string_key_case(std::move(value)); }
 
   /**
    * Compares 2 keys, ignoring ASCII case.

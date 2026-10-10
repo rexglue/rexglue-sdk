@@ -47,7 +47,7 @@ REX_API int socket_close(SocketHandle handle);
 REX_API int socket_ioctl(SocketHandle handle, u32 cmd, u8* arg);
 
 /** The readiness a socket wait asks for. */
-enum class SocketReady : u32 {
+enum class SocketReady : u8 {
   kNone = 0,        /**< No readiness requested. */
   kRead = 1 << 0,   /**< Data, a connection or a peer close to read. */
   kWrite = 1 << 1,  /**< Space to send, or a finished connect. */
@@ -92,5 +92,4 @@ REX_API WaitResult socket_wait(std::span<const SocketWait> sockets, bool alertab
 
 /** Opts SocketReady into the flag operators. */
 template <>
-// NOLINTNEXTLINE(readability-identifier-naming)
 inline constexpr bool rex::is_flags_enum<rex::platform::SocketReady> = true;

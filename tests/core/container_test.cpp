@@ -17,6 +17,7 @@
 #include <random>
 #include <span>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include <rex/bit.h>
@@ -36,7 +37,6 @@ enum class ContainerTestFlags : u8 {
 };
 
 template <>
-// NOLINTNEXTLINE(readability-identifier-naming): the trait uses snake case
 inline constexpr bool is_flags_enum<ContainerTestFlags> = true;
 
 }  // namespace rex
@@ -46,9 +46,12 @@ namespace {
 namespace fs = rex::filesystem;
 using rex::ContainerTestFlags;
 
-const std::filesystem::path kFixtures = REXGLUE_FIXTURE_DIR;
-const std::string kAText = "alpha\n";
-const std::string kCText = "charlie in folder\n";
+const std::filesystem::path& Fixtures() {
+  static const std::filesystem::path dir = REXGLUE_FIXTURE_DIR;
+  return dir;
+}
+constexpr std::string_view kAText = "alpha\n";
+constexpr std::string_view kCText = "charlie in folder\n";
 
 std::vector<rex::u8> BigBin() {
   std::vector<rex::u8> bytes(0x1800);
@@ -114,7 +117,7 @@ void CheckTree(const fs::Container& container) {
 }
 
 std::vector<rex::u8> Fixture(const char* name) {
-  auto bytes = rex::platform::ReadWholeFile(kFixtures / name);
+  auto bytes = rex::platform::ReadWholeFile(Fixtures() / name);
   REQUIRE(bytes);
   return *bytes;
 }
@@ -158,7 +161,7 @@ REX_TEST_CASE("ReadWholeFile and WriteWholeFile round trip and create parents", 
   CHECK_FALSE(rex::platform::ReadWholeFile(temp.path / "missing"));
 }
 
-REX_TEST_CASE("ReadSTFSHeader reads the fixture and refuses short bytes", "[core][container]") {
+TEST_CASE("ReadSTFSHeader reads the fixture and refuses short bytes", "[core][container]") {
   auto header = fs::ReadSTFSHeader(Fixtures() / "stfs_con.bin");
   REQUIRE(header);
   CHECK(header->header.magic == fs::XContentPackageType::kCon);
@@ -169,10 +172,10 @@ REX_TEST_CASE("ReadSTFSHeader reads the fixture and refuses short bytes", "[core
   auto shorter = fs::ReadSTFSHeader(std::span(bytes).first(0x100));
   REQUIRE_FALSE(shorter);
   CHECK(fs::CodeOf(shorter.error()) == fs::Error::kCorrupt);
-  CHECK_FALSE(fs::ReadSTFSHeader(kFixtures / "missing.bin"));
+  CHECK_FALSE(fs::ReadSTFSHeader(Fixtures() / "missing.bin"));
 }
 
-REX_TEST_CASE("Container opens the STFS fixture", "[core][container]") {
+TEST_CASE("Container opens the STFS fixture", "[core][container]") {
   auto container = fs::Container::Open(Fixtures() / "stfs_con.bin");
   REQUIRE(container);
   CHECK(container->kind() == fs::ContainerKind::kSTFS);
@@ -180,7 +183,7 @@ REX_TEST_CASE("Container opens the STFS fixture", "[core][container]") {
   CheckTree(*container);
 }
 
-REX_TEST_CASE("Container opens the GDFX fixture", "[core][container]") {
+TEST_CASE("Container opens the GDFX fixture", "[core][container]") {
   auto container = fs::Container::Open(Fixtures() / "gdfx.iso");
   REQUIRE(container);
   CHECK(container->kind() == fs::ContainerKind::kGDFX);
@@ -191,7 +194,7 @@ REX_TEST_CASE("Container opens the GDFX fixture", "[core][container]") {
 REX_TEST_CASE("Container extracts byte exact", "[core][container]") {
   for (const char* name : {"stfs_con.bin", "gdfx.iso"}) {
     TempFolder temp;
-    auto container = fs::Container::Open(kFixtures / name);
+    auto container = fs::Container::Open(Fixtures() / name);
     REQUIRE(container);
     const auto out = temp.path / "out";
     REQUIRE(container->Extract(out));

@@ -8,7 +8,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-const BYTE texture_load_dxt5_rgba8_cs[] = {
+const BYTE kTextureLoadDXT5RGBA8CS[] = {
     68,  88,  66,  67,  48,  101, 47,  119, 216, 187, 72,  27,  170, 250, 52,  18,  141, 202, 188,
     199, 1,   0,   0,   0,   104, 117, 0,   0,   5,   0,   0,   0,   52,  0,   0,   0,   20,  4,
     0,   0,   36,  4,   0,   0,   52,  4,   0,   0,   204, 116, 0,   0,   82,  68,  69,  70,  216,

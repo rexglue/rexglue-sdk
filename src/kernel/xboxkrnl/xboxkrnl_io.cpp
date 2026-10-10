@@ -118,9 +118,8 @@ u32 NtCreateFile_entry(mapped_u32 handle_out, u32 desired_access,
   }
 
   filesystem::OpenOptions options;
-  options.disposition =
-      static_cast<filesystem::Disposition>(static_cast<u32>(creation_disposition));
-  options.access = static_cast<filesystem::Access>(static_cast<u32>(desired_access));
+  options.disposition = static_cast<filesystem::Disposition>(creation_disposition);
+  options.access = static_cast<filesystem::Access>(desired_access);
   options.create_directory = (create_options & CreateOptions::FILE_DIRECTORY_FILE) != 0;
   options.require_file = (create_options & CreateOptions::FILE_NON_DIRECTORY_FILE) != 0;
   auto opened = root_file ? runtime::Current().file_system()->OpenRelative(*root_file->file,
@@ -414,10 +413,10 @@ u32 NtWriteFile_entry(u32 file_handle, u32 event_handle, u32 apc_routine, mapped
       }
 
       // The APC must go through the APC mechanism even when completing immediately.
-      if (static_cast<u32>(apc_routine) & ~1) {
+      if (apc_routine & ~1) {
         if (apc_context) {
           auto thread = ThreadRecord::GetCurrentThread();
-          thread->EnqueueAPC(static_cast<u32>(apc_routine) & ~1u, apc_context.guest_address(),
+          thread->EnqueueAPC(apc_routine & ~1u, apc_context.guest_address(),
                              io_status_block.guest_address(), 0);
         }
       }

@@ -41,7 +41,7 @@ enum class Access : u32 {
 };
 
 /** What an open does when the path exists or is absent. NT numbering. */
-enum class Disposition : u32 {
+enum class Disposition : u8 {
   kSupersede,   /**< Replace when present, create when absent. */
   kOpen,        /**< Open when present, fail when absent. */
   kCreate,      /**< Fail when present, create when absent. */
@@ -51,7 +51,7 @@ enum class Disposition : u32 {
 };
 
 /** What an open did. NT numbering. */
-enum class OpenAction : u32 {
+enum class OpenAction : u8 {
   kSuperseded,   /**< The file was replaced. */
   kOpened,       /**< The file was opened. */
   kCreated,      /**< The file was created. */
@@ -78,5 +78,4 @@ struct Opened {
 
 /** Opts Access into the flag operators. */
 template <>
-// NOLINTNEXTLINE(readability-identifier-naming)
 inline constexpr bool rex::is_flags_enum<rex::filesystem::Access> = true;

@@ -391,7 +391,7 @@ inline f64 from_string<f64>(const std::string_view value, bool force_hex) {
  */
 template <>
 inline vec128_t from_string<vec128_t>(const std::string_view value, bool force_hex) {
-  if (!value.size()) {
+  if (value.empty()) {
     return vec128_t();
   }
   vec128_t v;

@@ -8,7 +8,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-const BYTE resolve_full_16bpp_scaled_cs[] = {
+const BYTE kResolveFull16BPPScaledCS[] = {
     68,  88,  66,  67,  82,  213, 18,  189, 197, 246, 219, 147, 75,  2,   155, 28,  248, 198, 204,
     233, 1,   0,   0,   0,   80,  164, 0,   0,   5,   0,   0,   0,   52,  0,   0,   0,   144, 2,
     0,   0,   160, 2,   0,   0,   176, 2,   0,   0,   180, 163, 0,   0,   82,  68,  69,  70,  84,

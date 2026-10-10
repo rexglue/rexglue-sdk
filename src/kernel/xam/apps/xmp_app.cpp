@@ -487,6 +487,8 @@ X_HRESULT XmpApp::DispatchMessageSync(u32 message, u32 buffer_ptr, u32 buffer_le
       REX_ASSERT_ALWAYS("XMP output not unimplemented");
       return X_E_FAIL;
     }
+    default:
+      break;
   }
   REX_FAIL(kernel, X_E_FAIL,
            "Unimplemented XMP message app={:08X}, msg={:08X}, arg1={:08X}, "

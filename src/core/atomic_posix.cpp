@@ -27,10 +27,10 @@ i64 atomic_exchange_add(i64 amount, volatile i64* value) {
 }
 
 bool atomic_cas(i32 old_value, i32 new_value, volatile i32* value) {
-  return __sync_bool_compare_and_swap(reinterpret_cast<volatile i32*>(value), old_value, new_value);
+  return __sync_bool_compare_and_swap(value, old_value, new_value);
 }
 bool atomic_cas(i64 old_value, i64 new_value, volatile i64* value) {
-  return __sync_bool_compare_and_swap(reinterpret_cast<volatile i64*>(value), old_value, new_value);
+  return __sync_bool_compare_and_swap(value, old_value, new_value);
 }
 
 void atomic_store_release(i32 new_value, volatile i32* value) {

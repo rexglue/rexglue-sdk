@@ -8,7 +8,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-const BYTE texture_load_depth_float_scaled_cs[] = {
+const BYTE kTextureLoadDepthFloatScaledCS[] = {
     68,  88,  66,  67,  200, 79,  199, 219, 76,  83,  35,  242, 135, 157, 88,  82,  83,  73,  244,
     45,  1,   0,   0,   0,   64,  26,  0,   0,   5,   0,   0,   0,   52,  0,   0,   0,   20,  4,
     0,   0,   36,  4,   0,   0,   52,  4,   0,   0,   164, 25,  0,   0,   82,  68,  69,  70,  216,

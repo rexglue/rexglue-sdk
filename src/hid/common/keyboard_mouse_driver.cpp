@@ -168,7 +168,7 @@ u8 VirtualKeyToHIDUsage(VirtualKey vk_enum) {
   }
 }
 
-enum BindIndex : size_t {
+enum BindIndex : u8 {
   kBindA,
   kBindB,
   kBindX,

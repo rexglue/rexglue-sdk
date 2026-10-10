@@ -313,7 +313,7 @@ class TextureCache : public rex::NonCopyable {
   static constexpr u32 kLoadGuestXThreadsPerGroupLog2 = 2;
   static constexpr u32 kLoadGuestYBlocksPerGroupLog2 = 5;
 
-  enum LoadShaderIndex {
+  enum LoadShaderIndex : u8 {
     kLoadShaderIndex8bpb,
     kLoadShaderIndex16bpb,
     kLoadShaderIndex32bpb,

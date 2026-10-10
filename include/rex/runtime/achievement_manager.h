@@ -29,13 +29,13 @@ struct AchievementEvent {
 };
 
 /** Selects whether an unlock also raises the notification callbacks. */
-enum class AchievementNotification {
+enum class AchievementNotification : u8 {
   kShow,     /**< Raise the notification callbacks. */
   kSuppress, /**< Persist the unlock only. */
 };
 
 /** The outcome of an unlock. */
-enum class AchievementUnlockResult {
+enum class AchievementUnlockResult : u8 {
   kUnlocked,           /**< The achievement was locked and is now unlocked. */
   kAlreadyUnlocked,    /**< The achievement was already unlocked. */
   kUnknownAchievement, /**< No achievement has the id. */

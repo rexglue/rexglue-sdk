@@ -10,6 +10,7 @@
  */
 
 #include <algorithm>
+#include <limits>
 
 #include <rex/kernel/xboxkrnl/private.h>
 #include <rex/logging.h>
@@ -345,7 +346,8 @@ struct XECRYPT_DES_STATE {
  * @param out_ptr Receives the key bytes with odd parity.
  */
 void XeCryptDesParity_entry(mapped_void inp, u32 inp_size, mapped_void out_ptr) {
-  DES::set_parity(inp, inp_size, out_ptr);
+  DES::set_parity(inp, static_cast<int>(std::min<u32>(inp_size, std::numeric_limits<int>::max())),
+                  out_ptr);
 }
 
 struct XECRYPT_DES3_STATE {
@@ -564,7 +566,7 @@ void XeCryptHmacSha_entry(mapped_void key, u32 key_size_in, mapped_void inp_1, u
   sha.processBytes(digest, 0x14);
   sha.finalize(digest);
 
-  std::memcpy(out, digest, std::min(static_cast<u32>(out_size), 0x14u));
+  std::memcpy(out, digest, std::min(out_size, 0x14u));
 }
 
 /** Retail key 0x19. */

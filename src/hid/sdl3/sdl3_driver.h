@@ -47,7 +47,7 @@ class SDL3Driver final : public Driver {
   void OnHostAttached(IInputHost* host) override;
 
  private:
-  enum class RepeatState {
+  enum class RepeatState : u8 {
     Idle,
     Waiting,
     Repeating,

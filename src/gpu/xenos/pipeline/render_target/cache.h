@@ -36,7 +36,7 @@ namespace rex::gpu {
 class RenderTargetCache {
  public:
   /** Emulation implementation path for the output merger. */
-  enum class Path {
+  enum class Path : u8 {
     /**
      * Approximate method using conventional host render targets, copying ("transferring ownership"
      * of tiles) between them to support aliasing. May be irreparably inaccurate, at the mercy of
@@ -71,7 +71,7 @@ class RenderTargetCache {
   };
 
   /** Flags appended to the format in the format constant via bitwise OR. */
-  enum : u32 {
+  enum : u8 {
     kPSIColorFormatFlag_64bpp_Shift = xenos::kColorRenderTargetFormatBits,
     /** Requires clamping of blending sources and factors. */
     kPSIColorFormatFlag_FixedPointColor_Shift,

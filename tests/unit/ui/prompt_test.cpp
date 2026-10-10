@@ -174,7 +174,7 @@ REX_TEST_CASE("A text prompt returns the accepted text", "[ui][prompt]") {
 REX_TEST_CASE("A text prompt holds max_length characters", "[ui][prompt]") {
   rex::ui::PromptDialog dialog(
       PromptDesc{.title = "Name", .text_input = true, .default_text = "abcdef", .max_length = 4},
-      [](PromptResult) {});
+      [](const PromptResult&) {});
   CHECK(dialog.Text() == "abcd");
 }
 

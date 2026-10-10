@@ -176,7 +176,7 @@ static inline vec128_t vec128i(u32 x, u32 y, u32 z, u32 w) {
 static inline vec128_t vec128q(u64 src) {
   vec128_t v;
   for (auto i = 0; i < 2; ++i) {
-    v.i64[i] = src;
+    v.u64[i] = src;
   }
   return v;
 }
@@ -188,8 +188,8 @@ static inline vec128_t vec128q(u64 src) {
  */
 static inline vec128_t vec128q(u64 x, u64 y) {
   vec128_t v;
-  v.i64[0] = x;
-  v.i64[1] = y;
+  v.u64[0] = x;
+  v.u64[1] = y;
   return v;
 }
 

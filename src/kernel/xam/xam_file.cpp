@@ -65,11 +65,11 @@ REX_SHIM_FN(CreateFileA, u32, mapped_string lpFileName, u32 dwDesiredAccess,
             [[maybe_unused]] u32 hTemplateFile) {
   const char* path = static_cast<const char*>(lpFileName);
   auto& runtime = runtime::Current();
-  auto disposition = MapDisposition(static_cast<u32>(dwCreationDisposition));
+  auto disposition = MapDisposition(dwCreationDisposition);
 
   filesystem::OpenOptions options;
   options.disposition = disposition;
-  options.access = static_cast<filesystem::Access>(static_cast<u32>(dwDesiredAccess));
+  options.access = static_cast<filesystem::Access>(dwDesiredAccess);
   options.require_file = true;
   auto opened = runtime.file_system()->Open(path, options);
   if (!opened) {
@@ -90,8 +90,7 @@ REX_SHIM_FN(CreateFileA, u32, mapped_string lpFileName, u32 dwDesiredAccess,
 
 REX_SHIM_FN(ReadFile, u32, u32 hFile, mapped_void lpBuffer, u32 nNumberOfBytesToRead,
             mapped_u32 lpNumberOfBytesRead, mapped_void lpOverlapped) {
-  auto file =
-      runtime::Current().object_table().Get<rex::runtime::FileObject>(static_cast<u32>(hFile));
+  auto file = runtime::Current().object_table().Get<rex::runtime::FileObject>(hFile);
   if (!file) {
     REXLOG_WARN(kernel, "rexshim_ReadFile: invalid handle {:#x}", static_cast<u32>(hFile));
     if (lpNumberOfBytesRead)
@@ -101,17 +100,16 @@ REX_SHIM_FN(ReadFile, u32, u32 hFile, mapped_void lpBuffer, u32 nNumberOfBytesTo
 
   u64 offset = static_cast<u64>(-1);
   if (lpOverlapped) {
-    auto* ov = reinterpret_cast<be_u32*>(static_cast<u8*>(static_cast<void*>(lpOverlapped)));
+    auto* ov = lpOverlapped.as_array<u32>();
     offset = (static_cast<u64>(static_cast<u32>(ov[3])) << 32) | static_cast<u32>(ov[2]);
   }
 
   u32 bytes_read = 0;
-  X_STATUS status =
-      rex::runtime::FileRead(runtime::Current(), *file, lpBuffer.guest_address(),
-                             static_cast<u32>(nNumberOfBytesToRead), offset, &bytes_read, 0);
+  X_STATUS status = rex::runtime::FileRead(runtime::Current(), *file, lpBuffer.guest_address(),
+                                           nNumberOfBytesToRead, offset, &bytes_read, 0);
 
   if (lpOverlapped) {
-    auto* ov = reinterpret_cast<be_u32*>(static_cast<u8*>(static_cast<void*>(lpOverlapped)));
+    auto* ov = lpOverlapped.as_array<u32>();
     ov[0] = 0;
     ov[1] = bytes_read;
   } else if (lpNumberOfBytesRead) {
@@ -123,8 +121,7 @@ REX_SHIM_FN(ReadFile, u32, u32 hFile, mapped_void lpBuffer, u32 nNumberOfBytesTo
 
 REX_SHIM_FN(WriteFile, u32, u32 hFile, mapped_void lpBuffer, u32 nNumberOfBytesToWrite,
             mapped_u32 lpNumberOfBytesWritten, mapped_void lpOverlapped) {
-  auto file =
-      runtime::Current().object_table().Get<rex::runtime::FileObject>(static_cast<u32>(hFile));
+  auto file = runtime::Current().object_table().Get<rex::runtime::FileObject>(hFile);
   if (!file) {
     if (lpNumberOfBytesWritten)
       *lpNumberOfBytesWritten = 0;
@@ -133,17 +130,16 @@ REX_SHIM_FN(WriteFile, u32, u32 hFile, mapped_void lpBuffer, u32 nNumberOfBytesT
 
   u64 offset = static_cast<u64>(-1);
   if (lpOverlapped) {
-    auto* ov = reinterpret_cast<be_u32*>(static_cast<u8*>(static_cast<void*>(lpOverlapped)));
+    auto* ov = lpOverlapped.as_array<u32>();
     offset = (static_cast<u64>(static_cast<u32>(ov[3])) << 32) | static_cast<u32>(ov[2]);
   }
 
   u32 bytes_written = 0;
-  X_STATUS status =
-      rex::runtime::FileWrite(runtime::Current(), *file, lpBuffer.guest_address(),
-                              static_cast<u32>(nNumberOfBytesToWrite), offset, &bytes_written, 0);
+  X_STATUS status = rex::runtime::FileWrite(runtime::Current(), *file, lpBuffer.guest_address(),
+                                            nNumberOfBytesToWrite, offset, &bytes_written, 0);
 
   if (lpOverlapped) {
-    auto* ov = reinterpret_cast<be_u32*>(static_cast<u8*>(static_cast<void*>(lpOverlapped)));
+    auto* ov = lpOverlapped.as_array<u32>();
     ov[0] = 0;
     ov[1] = bytes_written;
   } else if (lpNumberOfBytesWritten) {
@@ -155,18 +151,17 @@ REX_SHIM_FN(WriteFile, u32, u32 hFile, mapped_void lpBuffer, u32 nNumberOfBytesT
 
 REX_SHIM_FN(SetFilePointer, u32, u32 hFile, u32 lDistanceToMove, mapped_u32 lpDistanceToMoveHigh,
             u32 dwMoveMethod) {
-  auto file =
-      runtime::Current().object_table().Get<rex::runtime::FileObject>(static_cast<u32>(hFile));
+  auto file = runtime::Current().object_table().Get<rex::runtime::FileObject>(hFile);
   if (!file)
     return kInvalidHandleValue;
 
-  i64 distance = static_cast<i32>(static_cast<u32>(lDistanceToMove));
+  i64 distance = static_cast<i32>(lDistanceToMove);
   if (lpDistanceToMoveHigh) {
     distance |= static_cast<i64>(static_cast<i32>(static_cast<u32>(*lpDistanceToMoveHigh))) << 32;
   }
 
   u64 new_pos = 0;
-  switch (static_cast<u32>(dwMoveMethod)) {
+  switch (dwMoveMethod) {
     case kFileBegin:
       new_pos = static_cast<u64>(distance);
       break;
@@ -187,8 +182,7 @@ REX_SHIM_FN(SetFilePointer, u32, u32 hFile, u32 lDistanceToMove, mapped_u32 lpDi
 }
 
 REX_SHIM_FN(GetFileSize, u32, u32 hFile, mapped_u32 lpFileSizeHigh) {
-  auto file =
-      runtime::Current().object_table().Get<rex::runtime::FileObject>(static_cast<u32>(hFile));
+  auto file = runtime::Current().object_table().Get<rex::runtime::FileObject>(hFile);
   if (!file)
     return kInvalidHandleValue;
 
@@ -199,14 +193,13 @@ REX_SHIM_FN(GetFileSize, u32, u32 hFile, mapped_u32 lpFileSizeHigh) {
 }
 
 REX_SHIM_FN(GetFileSizeEx, u32, u32 hFile, mapped_void lpFileSize) {
-  auto file =
-      runtime::Current().object_table().Get<rex::runtime::FileObject>(static_cast<u32>(hFile));
+  auto file = runtime::Current().object_table().Get<rex::runtime::FileObject>(hFile);
   if (!file)
     return 0;
 
   u64 size = file->file->Info().size;
   if (lpFileSize) {
-    auto* out = reinterpret_cast<be_u32*>(static_cast<u8*>(static_cast<void*>(lpFileSize)));
+    auto* out = lpFileSize.as_array<u32>();
     out[0] = static_cast<u32>(size >> 32);
     out[1] = static_cast<u32>(size & 0xFFFFFFFF);
   }
@@ -214,8 +207,7 @@ REX_SHIM_FN(GetFileSizeEx, u32, u32 hFile, mapped_void lpFileSize) {
 }
 
 REX_SHIM_FN(SetEndOfFile, u32, u32 hFile) {
-  auto file =
-      runtime::Current().object_table().Get<rex::runtime::FileObject>(static_cast<u32>(hFile));
+  auto file = runtime::Current().object_table().Get<rex::runtime::FileObject>(hFile);
   if (!file)
     return 0;
   X_STATUS status = rex::runtime::FileSetLength(*file, rex::runtime::FilePosition(*file));
@@ -236,7 +228,7 @@ REX_SHIM_FN(DeleteFileA, u32, mapped_string lpFileName) {
 }
 
 REX_SHIM_FN(CloseHandle, u32, u32 hObject) {
-  u32 h = static_cast<u32>(hObject);
+  u32 h = hObject;
   if (h == kInvalidHandleValue || h == 0)
     return 0;
   if (!runtime::Current().object_table().Close(h)) {
@@ -257,10 +249,10 @@ REX_SHIM_FN(CloseHandle, u32, u32 hObject) {
  * @param entry The directory entry.
  */
 static void FillFindData(mapped_void lpFindFileData, const filesystem::FileInfo& entry) {
-  auto* buf = static_cast<u8*>(static_cast<void*>(lpFindFileData));
+  auto* buf = lpFindFileData.as<u8*>();
   std::memset(buf, 0, 0x140);
 
-  auto* fields = reinterpret_cast<be_u32*>(buf);
+  auto* fields = lpFindFileData.as_array<u32>();
   fields[0] = std::to_underlying(entry.attributes);
   fields[1] = static_cast<u32>(entry.create_time & 0xFFFFFFFF);
   fields[2] = static_cast<u32>(entry.create_time >> 32);
@@ -314,8 +306,7 @@ REX_SHIM_FN(FindFirstFileA, u32, mapped_string lpFileName, mapped_void lpFindFil
 }
 
 REX_SHIM_FN(FindNextFileA, u32, u32 hFindFile, mapped_void lpFindFileData) {
-  auto file =
-      runtime::Current().object_table().Get<rex::runtime::FileObject>(static_cast<u32>(hFindFile));
+  auto file = runtime::Current().object_table().Get<rex::runtime::FileObject>(hFindFile);
   if (!file)
     return 0;
 
@@ -360,7 +351,7 @@ REX_SHIM_FN(GetFileAttributesExA, u32, [[maybe_unused]] u32 fInfoLevelId, mapped
   }
 
   // WIN32_FILE_ATTRIBUTE_DATA for GetFileExInfoStandard (0).
-  auto* buf = reinterpret_cast<be_u32*>(static_cast<u8*>(static_cast<void*>(lpFileInformation)));
+  auto* buf = lpFileInformation.as_array<u32>();
   buf[0] = std::to_underlying(entry->attributes);
   buf[1] = static_cast<u32>(entry->create_time & 0xFFFFFFFF);
   buf[2] = static_cast<u32>(entry->create_time >> 32);
@@ -375,16 +366,14 @@ REX_SHIM_FN(GetFileAttributesExA, u32, [[maybe_unused]] u32 fInfoLevelId, mapped
 
 REX_SHIM_FN(SetFilePointerEx, u32, u32 hFile, u32 distHigh, u32 distLow,
             mapped_void lpNewFilePointer, u32 dwMoveMethod) {
-  auto file =
-      runtime::Current().object_table().Get<rex::runtime::FileObject>(static_cast<u32>(hFile));
+  auto file = runtime::Current().object_table().Get<rex::runtime::FileObject>(hFile);
   if (!file)
     return 0;
 
-  i64 distance = static_cast<i64>((static_cast<u64>(static_cast<u32>(distHigh)) << 32) |
-                                  static_cast<u32>(distLow));
+  i64 distance = static_cast<i64>((static_cast<u64>(distHigh) << 32) | distLow);
 
   u64 new_pos = 0;
-  switch (static_cast<u32>(dwMoveMethod)) {
+  switch (dwMoveMethod) {
     case kFileBegin:
       new_pos = static_cast<u64>(distance);
       break;
@@ -401,7 +390,7 @@ REX_SHIM_FN(SetFilePointerEx, u32, u32 hFile, u32 distHigh, u32 distLow,
   rex::runtime::FileSetPosition(*file, new_pos);
 
   if (lpNewFilePointer) {
-    auto* out = reinterpret_cast<be_u32*>(static_cast<u8*>(static_cast<void*>(lpNewFilePointer)));
+    auto* out = lpNewFilePointer.as_array<u32>();
     out[0] = static_cast<u32>(new_pos & 0xFFFFFFFF);
     out[1] = static_cast<u32>(new_pos >> 32);
   }
@@ -419,8 +408,8 @@ REX_SHIM_FN(SetFileTime, u32, u32 hFile, mapped_void lpCreationTime, mapped_void
 }
 
 REX_SHIM_FN(CompareFileTime, u32, mapped_void lpFileTime1, mapped_void lpFileTime2) {
-  auto* ft1 = reinterpret_cast<be_u32*>(static_cast<u8*>(static_cast<void*>(lpFileTime1)));
-  auto* ft2 = reinterpret_cast<be_u32*>(static_cast<u8*>(static_cast<void*>(lpFileTime2)));
+  auto* ft1 = lpFileTime1.as_array<u32>();
+  auto* ft2 = lpFileTime2.as_array<u32>();
   // FILETIME is dwLowDateTime then dwHighDateTime.
   u64 t1 = (static_cast<u64>(static_cast<u32>(ft1[1])) << 32) | static_cast<u32>(ft1[0]);
   u64 t2 = (static_cast<u64>(static_cast<u32>(ft2[1])) << 32) | static_cast<u32>(ft2[0]);
@@ -449,9 +438,8 @@ REX_SHIM_FN(CopyFileA, u32, mapped_string lpExistingFileName, mapped_string lpNe
   }
 
   filesystem::OpenOptions destination_options;
-  destination_options.disposition = static_cast<u32>(bFailIfExists)
-                                        ? filesystem::Disposition::kCreate
-                                        : filesystem::Disposition::kOverwriteIf;
+  destination_options.disposition =
+      bFailIfExists ? filesystem::Disposition::kCreate : filesystem::Disposition::kOverwriteIf;
   destination_options.access = filesystem::Access::kWriteData;
   destination_options.require_file = true;
   auto dst_file = runtime.file_system()->Open(dst, destination_options);
@@ -499,26 +487,23 @@ u32 GetDiskFreeSpaceExA_entry(mapped_string lpDirectoryName,
   u64 free_bytes = static_cast<u64>(volume->available_allocation_units) * bytes_per_au;
 
   if (lpFreeBytesAvailableToCaller) {
-    auto* out = reinterpret_cast<be_u32*>(
-        static_cast<u8*>(static_cast<void*>(lpFreeBytesAvailableToCaller)));
+    auto* out = lpFreeBytesAvailableToCaller.as_array<u32>();
     out[0] = static_cast<u32>(free_bytes & 0xFFFFFFFF);
     out[1] = static_cast<u32>(free_bytes >> 32);
   }
   if (lpTotalNumberOfBytes) {
-    auto* out =
-        reinterpret_cast<be_u32*>(static_cast<u8*>(static_cast<void*>(lpTotalNumberOfBytes)));
+    auto* out = lpTotalNumberOfBytes.as_array<u32>();
     out[0] = static_cast<u32>(total_bytes & 0xFFFFFFFF);
     out[1] = static_cast<u32>(total_bytes >> 32);
   }
   if (lpTotalNumberOfFreeBytes) {
-    auto* out =
-        reinterpret_cast<be_u32*>(static_cast<u8*>(static_cast<void*>(lpTotalNumberOfFreeBytes)));
+    auto* out = lpTotalNumberOfFreeBytes.as_array<u32>();
     out[0] = static_cast<u32>(free_bytes & 0xFFFFFFFF);
     out[1] = static_cast<u32>(free_bytes >> 32);
   }
 
   REXLOG_TRACE(kernel, "rexshim_GetDiskFreeSpaceExA: '{}' total={}MB free={}MB", path,
-               total_bytes / (1024 * 1024), free_bytes / (1024 * 1024));
+               total_bytes >> 20, free_bytes >> 20);
   return 1;
 }
 

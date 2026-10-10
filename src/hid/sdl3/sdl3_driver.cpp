@@ -171,9 +171,7 @@ SDL3Driver::SDL3Driver(std::filesystem::path mappings_file)
       SDL_Gamepad_initialized_(false),
       mappings_file_(std::move(mappings_file)),
       sdl_events_unflushed_(0),
-      sdl_pumpevents_queued_(false),
-      controllers_(),
-      controllers_mutex_() {}
+      sdl_pumpevents_queued_(false) {}
 
 SDL3Driver::~SDL3Driver() {}
 
@@ -650,13 +648,13 @@ void SDL3Driver::OnControllerDeviceAxisMotionLocked(const SDL_Event& event) {
       pad.thumb_lx = event.gaxis.value;
       break;
     case SDL_GAMEPAD_AXIS_LEFTY:
-      pad.thumb_ly = ~event.gaxis.value;
+      pad.thumb_ly = static_cast<i16>(~event.gaxis.value);
       break;
     case SDL_GAMEPAD_AXIS_RIGHTX:
       pad.thumb_rx = event.gaxis.value;
       break;
     case SDL_GAMEPAD_AXIS_RIGHTY:
-      pad.thumb_ry = ~event.gaxis.value;
+      pad.thumb_ry = static_cast<i16>(~event.gaxis.value);
       break;
     case SDL_GAMEPAD_AXIS_LEFT_TRIGGER:
       pad.left_trigger = static_cast<u8>(event.gaxis.value >> 7);

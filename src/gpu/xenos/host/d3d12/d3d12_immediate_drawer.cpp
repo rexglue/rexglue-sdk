@@ -113,12 +113,12 @@ bool D3D12ImmediateDrawer::Initialize() {
     REX_FAIL(ui, false, "D3D12ImmediateDrawer: Failed to create the root signature");
   }
 
-  D3D12_GRAPHICS_PIPELINE_STATE_DESC pipeline_desc = {};
+  auto pipeline_desc = util::MakeGraphicsPipelineStateDesc();
   pipeline_desc.pRootSignature = root_signature_.Get();
-  pipeline_desc.VS.pShaderBytecode = shaders::immediate_vs;
-  pipeline_desc.VS.BytecodeLength = sizeof(shaders::immediate_vs);
-  pipeline_desc.PS.pShaderBytecode = shaders::immediate_ps;
-  pipeline_desc.PS.BytecodeLength = sizeof(shaders::immediate_ps);
+  pipeline_desc.VS.pShaderBytecode = shaders::kImmediateVS;
+  pipeline_desc.VS.BytecodeLength = sizeof(shaders::kImmediateVS);
+  pipeline_desc.PS.pShaderBytecode = shaders::kImmediatePS;
+  pipeline_desc.PS.BytecodeLength = sizeof(shaders::kImmediatePS);
   D3D12_RENDER_TARGET_BLEND_DESC& pipeline_blend_desc = pipeline_desc.BlendState.RenderTarget[0];
   pipeline_blend_desc.BlendEnable = TRUE;
   pipeline_blend_desc.SrcBlend = D3D12_BLEND_SRC_ALPHA;
@@ -169,29 +169,33 @@ bool D3D12ImmediateDrawer::Initialize() {
   sampler_heap_cpu_start_ = sampler_heap_->GetCPUDescriptorHandleForHeapStart();
   sampler_heap_gpu_start_ = sampler_heap_->GetGPUDescriptorHandleForHeapStart();
   u32 sampler_size = provider_.GetSamplerDescriptorSize();
-  D3D12_SAMPLER_DESC sampler_desc = {};
-  sampler_desc.Filter = D3D12_FILTER_MIN_MAG_MIP_POINT;
-  sampler_desc.AddressU = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
-  sampler_desc.AddressV = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
-  sampler_desc.AddressW = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
-  sampler_desc.MaxAnisotropy = 1;
+  D3D12_SAMPLER_DESC sampler_desc = {.Filter = D3D12_FILTER_MIN_MAG_MIP_POINT,
+                                     .AddressU = D3D12_TEXTURE_ADDRESS_MODE_CLAMP,
+                                     .AddressV = D3D12_TEXTURE_ADDRESS_MODE_CLAMP,
+                                     .AddressW = D3D12_TEXTURE_ADDRESS_MODE_CLAMP,
+                                     .MipLODBias = 0.0f,
+                                     .MaxAnisotropy = 1,
+                                     .ComparisonFunc = D3D12_COMPARISON_FUNC_NONE,
+                                     .BorderColor = {},
+                                     .MinLOD = 0.0f,
+                                     .MaxLOD = 0.0f};
   D3D12_CPU_DESCRIPTOR_HANDLE sampler_handle;
   sampler_handle.ptr =
-      sampler_heap_cpu_start_.ptr + static_cast<u32>(SamplerIndex::kNearestClamp) * sampler_size;
+      sampler_heap_cpu_start_.ptr + static_cast<SIZE_T>(SamplerIndex::kNearestClamp) * sampler_size;
   device->CreateSampler(&sampler_desc, sampler_handle);
   sampler_desc.Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR;
   sampler_handle.ptr =
-      sampler_heap_cpu_start_.ptr + static_cast<u32>(SamplerIndex::kLinearClamp) * sampler_size;
+      sampler_heap_cpu_start_.ptr + static_cast<SIZE_T>(SamplerIndex::kLinearClamp) * sampler_size;
   device->CreateSampler(&sampler_desc, sampler_handle);
   sampler_desc.AddressU = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
   sampler_desc.AddressV = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
   sampler_desc.AddressW = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
   sampler_handle.ptr =
-      sampler_heap_cpu_start_.ptr + static_cast<u32>(SamplerIndex::kLinearRepeat) * sampler_size;
+      sampler_heap_cpu_start_.ptr + static_cast<SIZE_T>(SamplerIndex::kLinearRepeat) * sampler_size;
   device->CreateSampler(&sampler_desc, sampler_handle);
   sampler_desc.Filter = D3D12_FILTER_MIN_MAG_MIP_POINT;
-  sampler_handle.ptr =
-      sampler_heap_cpu_start_.ptr + static_cast<u32>(SamplerIndex::kNearestRepeat) * sampler_size;
+  sampler_handle.ptr = sampler_heap_cpu_start_.ptr +
+                       static_cast<SIZE_T>(SamplerIndex::kNearestRepeat) * sampler_size;
   device->CreateSampler(&sampler_desc, sampler_handle);
 
   vertex_buffer_pool_ = std::make_unique<D3D12UploadBufferPool>(provider_);
@@ -412,10 +416,10 @@ void D3D12ImmediateDrawer::Draw(const gpu::OverlayDraw& draw) {
     return;
   }
   D3D12_RECT scissor;
-  scissor.left = LONG(scissor_left);
-  scissor.top = LONG(scissor_top);
-  scissor.right = LONG(scissor_left + scissor_width);
-  scissor.bottom = LONG(scissor_top + scissor_height);
+  scissor.left = static_cast<LONG>(scissor_left);
+  scissor.top = static_cast<LONG>(scissor_top);
+  scissor.right = static_cast<LONG>(scissor_left) + static_cast<LONG>(scissor_width);
+  scissor.bottom = static_cast<LONG>(scissor_top) + static_cast<LONG>(scissor_height);
   if (current_scissor_.left != scissor.left || current_scissor_.top != scissor.top ||
       current_scissor_.right != scissor.right || current_scissor_.bottom != scissor.bottom) {
     current_scissor_ = scissor;

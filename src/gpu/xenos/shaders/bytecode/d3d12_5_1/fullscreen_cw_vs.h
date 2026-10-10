@@ -8,7 +8,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-const BYTE fullscreen_cw_vs[] = {
+const BYTE kFullscreenCWVS[] = {
     68,  88,  66,  67,  38,  212, 32,  171, 28, 206, 206, 51,  24,  105, 112, 99,  117, 136, 1,
     11,  1,   0,   0,   0,   172, 2,   0,   0,  5,   0,   0,   0,   52,  0,   0,   0,   160, 0,
     0,   0,   212, 0,   0,   0,   8,   1,   0,  0,   16,  2,   0,   0,   82,  68,  69,  70,  100,

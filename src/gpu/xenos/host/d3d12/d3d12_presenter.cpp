@@ -448,12 +448,14 @@ Presenter::PaintResult D3D12Presenter::PaintAndPresentImpl(bool execute_ui_drawe
           D3D12_RECT& letterbox_clear_d3d12_rectangle = letterbox_clear_d3d12_rectangles[i];
           const GuestOutputPaintFlow::ClearRectangle& letterbox_clear_rectangle =
               guest_output_flow.letterbox_clear_rectangles[i];
-          letterbox_clear_d3d12_rectangle.left = LONG(letterbox_clear_rectangle.x);
-          letterbox_clear_d3d12_rectangle.top = LONG(letterbox_clear_rectangle.y);
+          letterbox_clear_d3d12_rectangle.left = static_cast<LONG>(letterbox_clear_rectangle.x);
+          letterbox_clear_d3d12_rectangle.top = static_cast<LONG>(letterbox_clear_rectangle.y);
           letterbox_clear_d3d12_rectangle.right =
-              LONG(letterbox_clear_rectangle.x + letterbox_clear_rectangle.width);
+              static_cast<LONG>(letterbox_clear_rectangle.x) +
+              static_cast<LONG>(letterbox_clear_rectangle.width);
           letterbox_clear_d3d12_rectangle.bottom =
-              LONG(letterbox_clear_rectangle.y + letterbox_clear_rectangle.height);
+              static_cast<LONG>(letterbox_clear_rectangle.y) +
+              static_cast<LONG>(letterbox_clear_rectangle.height);
         }
         command_list->ClearRenderTargetView(back_buffer_rtv, kBackBufferClearColor,
                                             UINT(guest_output_flow.letterbox_clear_rectangle_count),
@@ -624,11 +626,10 @@ bool D3D12Presenter::InitializeSurfaceIndependent() {
           .ReleaseAndGetAddressOf()) = guest_output_paint_root_signature;
   }
 
-  D3D12_GRAPHICS_PIPELINE_STATE_DESC guest_output_paint_pipeline_desc = {};
-  guest_output_paint_pipeline_desc.VS.pShaderBytecode =
-      shaders::guest_output_triangle_strip_rect_vs;
+  auto guest_output_paint_pipeline_desc = util::MakeGraphicsPipelineStateDesc();
+  guest_output_paint_pipeline_desc.VS.pShaderBytecode = shaders::kGuestOutputTriangleStripRectVS;
   guest_output_paint_pipeline_desc.VS.BytecodeLength =
-      sizeof(shaders::guest_output_triangle_strip_rect_vs);
+      sizeof(shaders::kGuestOutputTriangleStripRectVS);
   guest_output_paint_pipeline_desc.BlendState.RenderTarget[0].RenderTargetWriteMask =
       D3D12_COLOR_WRITE_ENABLE_ALL;
   guest_output_paint_pipeline_desc.SampleMask = UINT_MAX;
@@ -642,15 +643,14 @@ bool D3D12Presenter::InitializeSurfaceIndependent() {
     GuestOutputPaintEffect guest_output_paint_effect = GuestOutputPaintEffect(i);
     switch (guest_output_paint_effect) {
       case GuestOutputPaintEffect::kBilinear:
-        guest_output_paint_pipeline_desc.PS.pShaderBytecode = shaders::guest_output_bilinear_ps;
+        guest_output_paint_pipeline_desc.PS.pShaderBytecode = shaders::kGuestOutputBilinearPS;
         guest_output_paint_pipeline_desc.PS.BytecodeLength =
-            sizeof(shaders::guest_output_bilinear_ps);
+            sizeof(shaders::kGuestOutputBilinearPS);
         break;
       case GuestOutputPaintEffect::kBilinearDither:
-        guest_output_paint_pipeline_desc.PS.pShaderBytecode =
-            shaders::guest_output_bilinear_dither_ps;
+        guest_output_paint_pipeline_desc.PS.pShaderBytecode = shaders::kGuestOutputBilinearDitherPS;
         guest_output_paint_pipeline_desc.PS.BytecodeLength =
-            sizeof(shaders::guest_output_bilinear_dither_ps);
+            sizeof(shaders::kGuestOutputBilinearDitherPS);
         break;
       default:
         continue;

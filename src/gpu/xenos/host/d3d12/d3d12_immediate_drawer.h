@@ -54,7 +54,7 @@ class D3D12ImmediateDrawer final : public ImmediateDrawer {
   void OnLeavePresenter() override;
 
  private:
-  enum class SamplerIndex {
+  enum class SamplerIndex : u8 {
     kNearestClamp,
     kLinearClamp,
     kNearestRepeat,
@@ -103,7 +103,7 @@ class D3D12ImmediateDrawer final : public ImmediateDrawer {
   const D3D12Provider& provider_;
 
   Microsoft::WRL::ComPtr<ID3D12RootSignature> root_signature_;
-  enum class RootParameter {
+  enum class RootParameter : u8 {
     kTexture,
     kSampler,
     kCoordinateSpaceSizeInv,

@@ -24,7 +24,7 @@ namespace runtime {
 namespace util {
 
 /** Section of an XDBF entry. */
-enum class XdbfSection : u16 {
+enum class XdbfSection : u8 {
   kMetadata = 0x0001,    /**< Metadata entries. */
   kImage = 0x0002,       /**< Image entries. */
   kStringTable = 0x0003, /**< String tables, 1 per language. */

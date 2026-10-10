@@ -8,7 +8,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-const BYTE discrete_triangle_1cp_hs[] = {
+const BYTE kDiscreteTriangle1CPHS[] = {
     68,  88,  66,  67,  227, 140, 35,  65,  156, 178, 224, 139, 122, 75,  128, 231, 90,  78,  65,
     91,  1,   0,   0,   0,   76,  13,  0,   0,   6,   0,   0,   0,   56,  0,   0,   0,   108, 10,
     0,   0,   160, 10,  0,   0,   212, 10,  0,   0,   104, 11,  0,   0,   176, 12,  0,   0,   82,

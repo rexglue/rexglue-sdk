@@ -27,7 +27,7 @@ namespace rex::xenos {
 /** Name and value type of a register in the register table. */
 struct RegisterInfo {
   /** How a register value is interpreted. */
-  enum class Type {
+  enum class Type : u8 {
     kDword, /**< Raw 32 bit integer value. */
     kFloat, /**< 32 bit floating point value. */
   };

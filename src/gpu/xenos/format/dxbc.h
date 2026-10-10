@@ -61,8 +61,7 @@ namespace rex::gpu::dxbc {
 constexpr u8 kAlignmentPadding = 0xAB;
 
 constexpr u32 MakeFourCC(u32 ch0, u32 ch1, u32 ch2, u32 ch3) {
-  return static_cast<u32>(ch0) | (static_cast<u32>(ch1) << 8) | (static_cast<u32>(ch2) << 16) |
-         (static_cast<u32>(ch3) << 24);
+  return ch0 | (ch1 << 8) | (ch2 << 16) | (ch3 << 24);
 }
 
 /** Followed by uint32_t[blob_count] byte offsets from the container start to each blob header. */
@@ -146,6 +145,7 @@ enum CompileFlags : u32 {
 };
 
 // D3D_SHADER_VARIABLE_CLASS
+// NOLINTNEXTLINE(performance-enum-size): DXBC container field width
 enum class RdefVariableClass : u16 {
   kScalar,
   kVector,
@@ -158,6 +158,7 @@ enum class RdefVariableClass : u16 {
 };
 
 // D3D_SHADER_VARIABLE_TYPE subset
+// NOLINTNEXTLINE(performance-enum-size): DXBC container field width
 enum class RdefVariableType : u16 {
   kInt = 2,
   kFloat = 3,
@@ -165,7 +166,7 @@ enum class RdefVariableType : u16 {
 };
 
 // D3D_SHADER_VARIABLE_FLAGS
-enum RdefVariableFlags : u32 {
+enum RdefVariableFlags : u8 {
   kRdefVariableFlagUserPacked = 1 << 0,
   kRdefVariableFlagUsed = 1 << 1,
   kRdefVariableFlagInterfacePointer = 1 << 2,
@@ -173,11 +174,12 @@ enum RdefVariableFlags : u32 {
 };
 
 // D3D_SHADER_CBUFFER_FLAGS
-enum RdefCbufferFlags : u32 {
+enum RdefCbufferFlags : u8 {
   kRdefCbufferFlagUserPacked = 1 << 0,
 };
 
 // D3D_CBUFFER_TYPE
+// NOLINTNEXTLINE(performance-enum-size): DXBC container field width
 enum class RdefCbufferType : u32 {
   kCbuffer,
   kTbuffer,
@@ -186,6 +188,7 @@ enum class RdefCbufferType : u32 {
 };
 
 // D3D_SHADER_INPUT_TYPE
+// NOLINTNEXTLINE(performance-enum-size): DXBC container field width
 enum class RdefInputType : u32 {
   kCbuffer,
   kTbuffer,
@@ -202,6 +205,7 @@ enum class RdefInputType : u32 {
 };
 
 // D3D_RESOURCE_RETURN_TYPE / D3D10_SB_RESOURCE_RETURN_TYPE
+// NOLINTNEXTLINE(performance-enum-size): DXBC container field width
 enum class ResourceReturnType : u32 {
   kVoid,
   kUNorm,
@@ -215,6 +219,7 @@ enum class ResourceReturnType : u32 {
 };
 
 // D3D12_SRV_DIMENSION / D3D12_UAV_DIMENSION
+// NOLINTNEXTLINE(performance-enum-size): DXBC container field width
 enum class RdefDimension : u32 {
   kUnknown = 0,
 
@@ -238,7 +243,7 @@ enum class RdefDimension : u32 {
 };
 
 // D3D_SHADER_INPUT_FLAGS
-enum RdefInputFlags : u32 {
+enum RdefInputFlags : u8 {
   /**
    * For constant buffers, set when declared as `cbuffer` rather than `ConstantBuffer<T>`, which
    * is not dynamically indexable. Differs from kRdefCbufferFlagUserPacked, set in another case.
@@ -380,6 +385,7 @@ struct alignas(u32) RdefHeader {
 REX_STATIC_ASSERT_SIZE(RdefHeader, sizeof(u32) * 15);
 
 // D3D_NAME subset
+// NOLINTNEXTLINE(performance-enum-size): DXBC container field width
 enum class Name : u32 {
   kUndefined = 0,
   kPosition = 1,
@@ -395,6 +401,7 @@ enum class Name : u32 {
 };
 
 // D3D_REGISTER_COMPONENT_TYPE
+// NOLINTNEXTLINE(performance-enum-size): DXBC container field width
 enum class SignatureRegisterComponentType : u32 {
   kUnknown,
   kUInt32,
@@ -403,6 +410,7 @@ enum class SignatureRegisterComponentType : u32 {
 };
 
 // D3D_MIN_PRECISION
+// NOLINTNEXTLINE(performance-enum-size): DXBC container field width
 enum class MinPrecision : u32 {
   kDefault,
   kFloat16,
@@ -475,7 +483,7 @@ struct alignas(u32) Signature {
 REX_STATIC_ASSERT_SIZE(Signature, sizeof(u32) * 2);
 
 /** SHADER_FEATURE, low 32 bits. */
-enum ShaderFeature0 : u32 {
+enum ShaderFeature0 : u16 {
   kShaderFeature0_Doubles = 1 << 0,
   kShaderFeature0_ComputeShadersPlusRawAndStructuredBuffersViaShader_4_X = 1 << 1,
   kShaderFeature0_UAVsAtEveryStage = 1 << 2,
@@ -499,6 +507,7 @@ struct alignas(u32) ShaderFeatureInfo {
 REX_STATIC_ASSERT_SIZE(ShaderFeatureInfo, sizeof(u32) * 2);
 
 // D3D11_SB_TESSELLATOR_DOMAIN
+// NOLINTNEXTLINE(performance-enum-size): DXBC container field width
 enum class TessellatorDomain : u32 {
   kUndefined,
   kIsoline,
@@ -507,6 +516,7 @@ enum class TessellatorDomain : u32 {
 };
 
 // D3D10_SB_PRIMITIVE_TOPOLOGY
+// NOLINTNEXTLINE(performance-enum-size): DXBC container field width
 enum class PrimitiveTopology : u32 {
   kUndefined = 0,
   kPointList = 1,
@@ -521,6 +531,7 @@ enum class PrimitiveTopology : u32 {
 };
 
 // D3D10_SB_PRIMITIVE
+// NOLINTNEXTLINE(performance-enum-size): DXBC container field width
 enum class Primitive : u32 {
   kUndefined = 0,
   kPoint = 1,
@@ -615,7 +626,7 @@ REX_STATIC_ASSERT_SIZE(Statistics, sizeof(u32) * 37);
  * A shader blob begins with a version token and the shader length in dwords, including the
  * version token and the length token itself.
  */
-enum class ProgramType : u32 {
+enum class ProgramType : u8 {
   kPixelShader,
   kVertexShader,
   kGeometryShader,
@@ -629,7 +640,7 @@ constexpr u32 VersionToken(ProgramType program_type, u32 major_version, u32 mino
 }
 
 // D3D10_SB_CUSTOMDATA_CLASS
-enum class CustomDataClass : u32 {
+enum class CustomDataClass : u8 {
   kComment,
   kDebugInfo,
   kOpaque,
@@ -639,7 +650,7 @@ enum class CustomDataClass : u32 {
 };
 
 // D3D10_SB_OPERAND_TYPE subset
-enum class OperandType : u32 {
+enum class OperandType : u8 {
   kTemp = 0,
   kInput = 1,
   kOutput = 2,
@@ -668,7 +679,7 @@ enum class OperandType : u32 {
 };
 
 // D3D10_SB_OPERAND_NUM_COMPONENTS
-enum class OperandDimension : u32 {
+enum class OperandDimension : u8 {
   kNoData, /**< D3D10_SB_OPERAND_0_COMPONENT */
   kScalar, /**< D3D10_SB_OPERAND_1_COMPONENT */
   kVector, /**< D3D10_SB_OPERAND_4_COMPONENT */
@@ -696,7 +707,7 @@ constexpr OperandDimension GetOperandDimension(OperandType type, bool in_dcl = f
 }
 
 // D3D10_SB_OPERAND_4_COMPONENT_SELECTION_MODE
-enum class ComponentSelection : u32 {
+enum class ComponentSelection : u8 {
   kMask,
   kSwizzle,
   kSelect1,
@@ -704,7 +715,7 @@ enum class ComponentSelection : u32 {
 
 struct Index {
   // D3D10_SB_OPERAND_INDEX_REPRESENTATION
-  enum class Representation : u32 {
+  enum class Representation : u8 {
     kImmediate32,
     kImmediate64,
     kRelative,
@@ -779,7 +790,7 @@ struct OperandAddress {
     }
     return operand_token;
   }
-  u32 GetLength() const {
+  u32 GetAddressLength() const {
     u32 length = 0;
     if (index_dimension_ > 0) {
       length += index_1d_.GetLength();
@@ -806,13 +817,13 @@ struct OperandAddress {
 };
 
 // D3D10_SB_EXTENDED_OPERAND_TYPE
-enum class ExtendedOperandType : u32 {
+enum class ExtendedOperandType : u8 {
   kEmpty,
   kModifier,
 };
 
 // D3D10_SB_OPERAND_MODIFIER
-enum class OperandModifier : u32 {
+enum class OperandModifier : u8 {
   kNone,
   kNegate,
   kAbsolute,
@@ -915,7 +926,7 @@ struct Dest : OperandAddress {
     return GetMaskSingleComponent(GetMask(in_dcl));
   }
 
-  u32 GetLength() const { return 1 + OperandAddress::GetLength(); }
+  u32 GetLength() const { return 1 + OperandAddress::GetAddressLength(); }
   void Write(std::vector<u32>& code, bool in_dcl = false) const {
     u32 operand_token = GetOperandTokenTypeAndIndex();
     OperandDimension dimension = GetDimension(in_dcl);
@@ -934,7 +945,7 @@ struct Dest : OperandAddress {
 };
 
 struct Src : OperandAddress {
-  enum : u32 {
+  enum : u8 {
     kXYZW = 0b11100100,
     kXXXX = 0b00000000,
     kYYYY = 0b01010101,
@@ -1071,7 +1082,7 @@ struct Src : OperandAddress {
     if (type_ == OperandType::kImmediate32) {
       return is_vector ? 5 : 2;
     }
-    return ((absolute_ || negate_) ? 2 : 1) + OperandAddress::GetLength();
+    return ((absolute_ || negate_) ? 2 : 1) + OperandAddress::GetAddressLength();
   }
   static constexpr u32 GetModifiedImmediate(u32 value, bool is_integer, bool absolute,
                                             bool negate) {
@@ -1202,20 +1213,20 @@ enum GlobalFlags : u32 {
 };
 
 // D3D10_SB_SAMPLER_MODE
-enum class SamplerMode : u32 {
+enum class SamplerMode : u8 {
   kDefault,
   kComparison,
   kMono,
 };
 
 // D3D10_SB_CONSTANT_BUFFER_ACCESS_PATTERN
-enum class ConstantBufferAccessPattern : u32 {
+enum class ConstantBufferAccessPattern : u8 {
   kImmediateIndexed,
   kDynamicIndexed,
 };
 
 // D3D10_SB_INTERPOLATION_MODE
-enum class InterpolationMode : u32 {
+enum class InterpolationMode : u8 {
   kUndefined,
   kConstant,
   kLinear,
@@ -1227,7 +1238,7 @@ enum class InterpolationMode : u32 {
 };
 
 // D3D10_SB_RESOURCE_DIMENSION
-enum class ResourceDimension : u32 {
+enum class ResourceDimension : u8 {
   kUnknown,
   kBuffer,
   kTexture1D,
@@ -1251,7 +1262,7 @@ enum UAVFlags : u32 {
 };
 
 // D3D10_SB_OPCODE_TYPE subset
-enum class Opcode : u32 {
+enum class Opcode : u8 {
   kAdd = 0,
   kAnd = 1,
   kBreak = 2,
@@ -1376,7 +1387,7 @@ enum class Opcode : u32 {
 };
 
 // D3D10_SB_EXTENDED_OPCODE_TYPE
-enum class ExtendedOpcodeType : u32 {
+enum class ExtendedOpcodeType : u8 {
   kEmpty,
   kSampleControls,
   kResourceDim,

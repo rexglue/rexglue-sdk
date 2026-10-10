@@ -92,18 +92,18 @@ struct N_XSOCKADDR_IN {
 };
 
 /** The address families a socket object supports. */
-enum SocketAddressFamily {
+enum SocketAddressFamily : u8 {
   X_AF_INET = 2, /**< IPv4 address family. */
 };
 
 /** The socket types a socket object supports. */
-enum SocketType {
+enum SocketType : u8 {
   X_SOCK_STREAM = 1, /**< Reliable byte stream socket. */
   X_SOCK_DGRAM = 2,  /**< Datagram socket. */
 };
 
 /** The protocols a socket object supports. */
-enum SocketProtocol {
+enum SocketProtocol : u8 {
   X_IPPROTO_TCP = 6,  /**< TCP over IPv4. */
   X_IPPROTO_UDP = 17, /**< UDP over IPv4. */
 

@@ -137,7 +137,7 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
 
  private:
   /** Ordered by how strong the barrier conditions are. */
-  enum class EdramBufferModificationStatus {
+  enum class EdramBufferModificationStatus : u8 {
     kUnmodified,
     /** Needs a commit before the next overlapping ROV usage. */
     kAsROV,
@@ -167,7 +167,7 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
       EdramBufferModificationStatus::kUnmodified;
 
   /** Pre-created SRV and UAV descriptors of the EDRAM buffer in a non shader visible heap. */
-  enum class EdramBufferDescriptorIndex : u32 {
+  enum class EdramBufferDescriptorIndex : u8 {
     kRawSRV,
     kR32UintSRV,
     kR32G32UintSRV,
@@ -274,19 +274,19 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
     u32 temporary_sort_index_ = 0;
   };
 
-  enum TransferCBVRegister : u32 {
+  enum TransferCBVRegister : u8 {
     kTransferCBVRegisterStencilMask,
     kTransferCBVRegisterAddress,
     kTransferCBVRegisterHostDepthAddress,
   };
-  enum TransferSRVRegister : u32 {
+  enum TransferSRVRegister : u8 {
     kTransferSRVRegisterColor,
     kTransferSRVRegisterDepth,
     kTransferSRVRegisterStencil,
     kTransferSRVRegisterHostDepth,
     kTransferSRVRegisterCount,
   };
-  enum TransferUsedRootParameter : u32 {
+  enum TransferUsedRootParameter : u8 {
     /** Changed 8 times per transfer. */
     kTransferUsedRootParameterStencilMaskConstant,
     kTransferUsedRootParameterColorSRV,
@@ -319,7 +319,7 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
         kTransferUsedRootParameterColorSRVBit | kTransferUsedRootParameterDepthSRVBit |
         kTransferUsedRootParameterStencilSRVBit | kTransferUsedRootParameterHostDepthSRVBit,
   };
-  enum class TransferRootSignatureIndex {
+  enum class TransferRootSignatureIndex : u8 {
     kColor,
     kDepth,
     kDepthStencil,
@@ -338,6 +338,7 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
    * (significantly modified, possibly cleared). Stencil for SV_StencilRef always comes from the
    * guest source.
    */
+  // NOLINTNEXTLINE(performance-enum-size): packed key bit field, MSVC packs per type
   enum class TransferMode : u32 {
     /** 1 SRV (color texture), source constant. */
     kColorToDepth,
@@ -371,7 +372,7 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
 
     kCount,
   };
-  enum class TransferOutput {
+  enum class TransferOutput : u8 {
     kColor,
     kDepth,
     /** Uses kTransferCBVRegisterStencilMask. */
@@ -473,7 +474,7 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
     }
   };
 
-  enum {
+  enum : u8 {
     kHostDepthStoreRootParameterConstants,
     kHostDepthStoreRootParameterSource,
     kHostDepthStoreRootParameterDest,
@@ -536,13 +537,13 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
     bool operator!=(const DumpPitches& other_pitches) const { return !(*this == other_pitches); }
   };
 
-  enum DumpCbuffer : u32 {
+  enum DumpCbuffer : u8 {
     kDumpCbufferOffsets,
     kDumpCbufferPitches,
     kDumpCbufferCount,
   };
 
-  enum DumpRootParameter : u32 {
+  enum DumpRootParameter : u8 {
     /** May be changed multiple times for the same source. */
     kDumpRootParameterOffsets,
     /** One resolve may need multiple sources. */

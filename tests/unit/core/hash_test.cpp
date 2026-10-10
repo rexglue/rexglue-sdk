@@ -35,7 +35,7 @@ REX_TEST_CASE("hash_file matches hash_bytes over the same content", "[hash]") {
   fs::create_directories(root);
 
   const std::string small = "binary bytes";
-  const std::string large = std::string(1024 * 1024, 'x') + "tail";
+  const std::string large = std::string(size_t{1024} * 1024, 'x') + "tail";
 
   auto write = [&](std::string_view name, const std::string& content) {
     auto path = root / fs::path(name);

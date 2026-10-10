@@ -28,6 +28,84 @@ inline constexpr D3D12_HEAP_PROPERTIES kHeapPropertiesUpload = {
 inline constexpr D3D12_HEAP_PROPERTIES kHeapPropertiesReadback = {
     D3D12_HEAP_TYPE_READBACK, D3D12_CPU_PAGE_PROPERTY_UNKNOWN, D3D12_MEMORY_POOL_UNKNOWN, 0, 0};
 
+/**
+ * Builds a graphics pipeline state description with every field named, the enum fields valid.
+ *
+ * @return The description, zero for the fields without an enum type.
+ */
+inline D3D12_GRAPHICS_PIPELINE_STATE_DESC MakeGraphicsPipelineStateDesc() {
+  constexpr D3D12_RENDER_TARGET_BLEND_DESC kBlend = {.BlendEnable = FALSE,
+                                                     .LogicOpEnable = FALSE,
+                                                     .SrcBlend = D3D12_BLEND_ONE,
+                                                     .DestBlend = D3D12_BLEND_ZERO,
+                                                     .BlendOp = D3D12_BLEND_OP_ADD,
+                                                     .SrcBlendAlpha = D3D12_BLEND_ONE,
+                                                     .DestBlendAlpha = D3D12_BLEND_ZERO,
+                                                     .BlendOpAlpha = D3D12_BLEND_OP_ADD,
+                                                     .LogicOp = D3D12_LOGIC_OP_CLEAR,
+                                                     .RenderTargetWriteMask = 0};
+  constexpr D3D12_DEPTH_STENCILOP_DESC kStencil = {.StencilFailOp = D3D12_STENCIL_OP_KEEP,
+                                                   .StencilDepthFailOp = D3D12_STENCIL_OP_KEEP,
+                                                   .StencilPassOp = D3D12_STENCIL_OP_KEEP,
+                                                   .StencilFunc = D3D12_COMPARISON_FUNC_NONE};
+  return D3D12_GRAPHICS_PIPELINE_STATE_DESC{
+      .pRootSignature = nullptr,
+      .VS = {},
+      .PS = {},
+      .DS = {},
+      .HS = {},
+      .GS = {},
+      .StreamOutput = {},
+      .BlendState = {.AlphaToCoverageEnable = FALSE,
+                     .IndependentBlendEnable = FALSE,
+                     .RenderTarget = {kBlend, kBlend, kBlend, kBlend, kBlend, kBlend, kBlend,
+                                      kBlend}},
+      .SampleMask = 0,
+      .RasterizerState = {.FillMode = D3D12_FILL_MODE_SOLID,
+                          .CullMode = D3D12_CULL_MODE_BACK,
+                          .FrontCounterClockwise = FALSE,
+                          .DepthBias = 0,
+                          .DepthBiasClamp = 0.0f,
+                          .SlopeScaledDepthBias = 0.0f,
+                          .DepthClipEnable = FALSE,
+                          .MultisampleEnable = FALSE,
+                          .AntialiasedLineEnable = FALSE,
+                          .ForcedSampleCount = 0,
+                          .ConservativeRaster = D3D12_CONSERVATIVE_RASTERIZATION_MODE_OFF},
+      .DepthStencilState = {.DepthEnable = FALSE,
+                            .DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ZERO,
+                            .DepthFunc = D3D12_COMPARISON_FUNC_NONE,
+                            .StencilEnable = FALSE,
+                            .StencilReadMask = 0,
+                            .StencilWriteMask = 0,
+                            .FrontFace = kStencil,
+                            .BackFace = kStencil},
+      .InputLayout = {},
+      .IBStripCutValue = D3D12_INDEX_BUFFER_STRIP_CUT_VALUE_DISABLED,
+      .PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_UNDEFINED,
+      .NumRenderTargets = 0,
+      .RTVFormats = {},
+      .DSVFormat = DXGI_FORMAT_UNKNOWN,
+      .SampleDesc = {.Count = 0, .Quality = 0},
+      .NodeMask = 0,
+      .CachedPSO = {},
+      .Flags = D3D12_PIPELINE_STATE_FLAG_NONE};
+}
+
+/**
+ * Builds a default type heap description with every field named.
+ *
+ * @param size_in_bytes The heap size.
+ * @param flags The heap flags.
+ * @return The description.
+ */
+inline D3D12_HEAP_DESC MakeDefaultHeapDesc(u64 size_in_bytes, D3D12_HEAP_FLAGS flags) {
+  return D3D12_HEAP_DESC{.SizeInBytes = size_in_bytes,
+                         .Properties = kHeapPropertiesDefault,
+                         .Alignment = 0,
+                         .Flags = flags};
+}
+
 template <typename T>
 bool ReleaseAndNull(T& object) {
   if (object != nullptr) {

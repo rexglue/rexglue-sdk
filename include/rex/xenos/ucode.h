@@ -53,6 +53,7 @@
 namespace rex::xenos::ucode {
 
 /** Control flow opcodes used to schedule instructions. */
+// NOLINTNEXTLINE(performance-enum-size): Xenos bit field, MSVC packs per type
 enum class ControlFlowOpcode : u32 {
   /** No operation, used to fill space. */
   kNop = 0,
@@ -162,6 +163,7 @@ constexpr bool DoesControlFlowCondExecHaveCleanPredicate(ControlFlowOpcode opcod
 }
 
 /** Selects whether addressing is based on a0 or aL. */
+// NOLINTNEXTLINE(performance-enum-size): Xenos bit field, MSVC packs per type
 enum class AddressingMode : u32 {
   /** Indexing into register sets is based on aL, allowing forms like c[aL + 5]. */
   kRelative = 0,
@@ -173,6 +175,7 @@ enum class AddressingMode : u32 {
  * Type of a ControlFlowOpcode::kAlloc instruction. An allocation is a size reservation and a shader
  * may contain several.
  */
+// NOLINTNEXTLINE(performance-enum-size): Xenos bit field, MSVC packs per type
 enum class AllocType : u32 {
   /** Allocation type a shader holds before any alloc instruction sets one. */
   kNone = 0,
@@ -509,6 +512,7 @@ inline void UnpackControlFlowInstructions(const u32* dwords, ControlFlowInstruct
 }
 
 /** Opcode of a fetch instruction, either a vertex fetch or a texture operation. */
+// NOLINTNEXTLINE(performance-enum-size): Xenos bit field, MSVC packs per type
 enum class FetchOpcode : u32 {
   /** Fetches vertex data through a vertex fetch constant. */
   kVertexFetch = 0,
@@ -620,7 +624,7 @@ enum class FetchOpcode : u32 {
  * Fetch destination swizzle. The component indices are absolute, not relative to the component
  * itself like in ALU operation sources.
  */
-enum class FetchDestinationSwizzle {
+enum class FetchDestinationSwizzle : u8 {
   kX = 0, /**< Fetched X component. */
   kY = 1, /**< Fetched Y component. */
   kZ = 2, /**< Fetched Z component. */
@@ -796,10 +800,10 @@ struct alignas(u32) TextureFetchInstruction {
   bool use_register_lod() const { return data_.use_reg_lod == 1; }
   bool use_register_gradients() const { return data_.use_reg_gradients == 1; }
   xenos::SampleLocation sample_location() const { return data_.sample_location; }
-  f32 lod_bias() const { return data_.lod_bias * (1.0f / 16.0f); }
-  f32 offset_x() const { return data_.offset_x * 0.5f; }
-  f32 offset_y() const { return data_.offset_y * 0.5f; }
-  f32 offset_z() const { return data_.offset_z * 0.5f; }
+  f32 lod_bias() const { return static_cast<f32>(data_.lod_bias) * (1.0f / 16.0f); }
+  f32 offset_x() const { return static_cast<f32>(data_.offset_x) * 0.5f; }
+  f32 offset_y() const { return static_cast<f32>(data_.offset_y) * 0.5f; }
+  f32 offset_z() const { return static_cast<f32>(data_.offset_z) * 0.5f; }
 
  private:
   struct Data {
@@ -909,7 +913,7 @@ REX_STATIC_ASSERT_SIZE(FetchInstruction, sizeof(u32) * 3);
  * State changes of an ALU operation, used to analyze shaders and skip instructions that write
  * nothing.
  */
-enum AluOpChangedState {
+enum AluOpChangedState : u8 {
   /** The operation changes no state besides its destination. */
   kAluOpChangedStateNone = 0,
   /** The operation writes the address register, set for maxas and maxasf. */
@@ -951,6 +955,7 @@ enum AluOpChangedState {
  *   add. The DXBC translator emits separate mul and add instead of mad, and the SPIR-V translator
  *   marks them NoContraction.
  */
+// NOLINTNEXTLINE(performance-enum-size): Xenos bit field, MSVC packs per type
 enum class AluScalarOpcode : u32 {
   /**
    * Floating Point Add.
@@ -1531,6 +1536,7 @@ inline const AluScalarOpcodeInfo& GetAluScalarOpcodeInfo(AluScalarOpcode opcode)
 }
 
 /** Vector ALU opcodes. */
+// NOLINTNEXTLINE(performance-enum-size): Xenos bit field, MSVC packs per type
 enum class AluVectorOpcode : u32 {
   /**
    * Per Component Floating Point Add.
@@ -2121,7 +2127,7 @@ constexpr u32 kMaxMemExportElementCount = 5;
  * Destination of an export ALU instruction. Vertex and pixel shaders use different subsets of the
  * values.
  */
-enum class ExportRegister : u32 {
+enum class ExportRegister : u8 {
   /** @name Vertex shader interpolators 0 to 15, export registers 0 to 15. */
   /** @{ */
   kVSInterpolator0 = 0,

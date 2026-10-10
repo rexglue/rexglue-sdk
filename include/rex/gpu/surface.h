@@ -29,7 +29,7 @@ class Surface : public rex::NonCopyable {
    * rex::bit_scan_forward can try every type supported by both the graphics
    * provider and the window.
    */
-  enum TypeIndex {
+  enum TypeIndex : u8 {
     kTypeIndex_WaylandSurface, /**< Preferred over xcb, which needs XWayland there. */
     kTypeIndex_XcbWindow,      /**< X11 window through the XCB library. */
     kTypeIndex_Win32Hwnd,      /**< Windows window handle. */
@@ -37,7 +37,7 @@ class Surface : public rex::NonCopyable {
   };
   /** Bit mask of `TypeIndex` values, 1 bit per surface type. */
   using TypeFlags = u32;
-  enum : TypeFlags {
+  enum : u8 {
     /** Bit of kTypeIndex_WaylandSurface. */
     kTypeFlag_WaylandSurface = TypeFlags(1) << kTypeIndex_WaylandSurface,
     kTypeFlag_XcbWindow = TypeFlags(1) << kTypeIndex_XcbWindow, /**< Bit of kTypeIndex_XcbWindow. */

@@ -8,7 +8,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-const BYTE texture_load_depth_unorm_cs[] = {
+const BYTE kTextureLoadDepthUNormCS[] = {
     68,  88,  66,  67,  33,  0,   105, 181, 119, 225, 102, 78,  236, 232, 57,  130, 171, 22,  211,
     240, 1,   0,   0,   0,   240, 19,  0,   0,   5,   0,   0,   0,   52,  0,   0,   0,   20,  4,
     0,   0,   36,  4,   0,   0,   52,  4,   0,   0,   84,  19,  0,   0,   82,  68,  69,  70,  216,

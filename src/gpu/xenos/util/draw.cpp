@@ -75,8 +75,8 @@ void GetPreferredFacePolygonOffset(const xenos::RegisterFile& regs, bool primiti
       scale = regs.Get<f32>(xenos::Register::PA_SU_POLY_OFFSET_FRONT_SCALE);
       offset = regs.Get<f32>(xenos::Register::PA_SU_POLY_OFFSET_FRONT_OFFSET);
     }
-    if (pa_su_sc_mode_cntl.poly_offset_back_enable && !pa_su_sc_mode_cntl.cull_back && !scale &&
-        !offset) {
+    if (pa_su_sc_mode_cntl.poly_offset_back_enable && !pa_su_sc_mode_cntl.cull_back &&
+        scale == 0.0f && offset == 0.0f) {
       scale = regs.Get<f32>(xenos::Register::PA_SU_POLY_OFFSET_BACK_SCALE);
       offset = regs.Get<f32>(xenos::Register::PA_SU_POLY_OFFSET_BACK_OFFSET);
     }
@@ -208,9 +208,9 @@ void GetHostViewportInfo(const xenos::RegisterFile& regs, u32 draw_resolution_sc
       if (axis_extent_int) {
         f32 axis_extent_rounded = static_cast<f32>(axis_extent_int);
         ndc_scale_axis = scale_axis * 2.0f / axis_extent_rounded;
-        ndc_offset_axis = (static_cast<f32>(offset_axis) -
-                           (static_cast<f32>(axis_0_int) + axis_extent_rounded * 0.5f)) *
-                          2.0f / axis_extent_rounded;
+        ndc_offset_axis =
+            (offset_axis - (static_cast<f32>(axis_0_int) + axis_extent_rounded * 0.5f)) * 2.0f /
+            axis_extent_rounded;
       } else {
         ndc_scale_axis = 1.0f;
         ndc_offset_axis = 0.0f;

@@ -42,7 +42,7 @@ i32 FloatToD3D11Fixed16p8(float f32) {
   u32 extra_bits = static_cast<u32>(15 - exponent);
   if (extra_bits) {
     result.u += (1 << (extra_bits - 1)) - 1 + ((result.u >> extra_bits) & 1);
-    result.s >>= extra_bits;
+    result.s >>= static_cast<i32>(extra_bits);
   }
   return result.s;
 }

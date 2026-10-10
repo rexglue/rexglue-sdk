@@ -11,7 +11,7 @@
 #include <rex/types.h>
 
 // Generated with `xb buildshaders`.
-const u32 guest_output_triangle_strip_rect_vs[] = {
+const u32 kGuestOutputTriangleStripRectVS[] = {
     0x07230203, 0x00010000, 0x0008000B, 0x00005DCC, 0x00000000, 0x00020011, 0x00000001, 0x0006000B,
     0x00000001, 0x4C534C47, 0x6474732E, 0x3035342E, 0x00000000, 0x0003000E, 0x00000000, 0x00000001,
     0x0007000F, 0x00000000, 0x0000161F, 0x6E69616D, 0x00000000, 0x00001342, 0x00001029, 0x00030047,

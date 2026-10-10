@@ -14,11 +14,12 @@ constexpr uintptr_t kXenonDialect = 0x1 | 0x4 | 0x4000 | 0x8000000 | 0x200 | 0x1
 
 thread_local DisassemblerEngine gBigEndianDisassembler{BFD_ENDIAN_BIG, nullptr};
 
-DisassemblerEngine::DisassemblerEngine(bfd_endian endian, const char* options) {
+DisassemblerEngine::DisassemblerEngine(bfd_endian endian, const char* options) noexcept {
   INIT_DISASSEMBLE_INFO(info, stdout, fprintf);
   info.arch = bfd_arch_powerpc;
   info.endian = endian;
   info.disassembler_options = options;
+  // NOLINTNEXTLINE(performance-no-int-to-ptr): disassemble_info carries the dialect as a pointer
   info.private_data = reinterpret_cast<void*>(kXenonDialect);
 }
 

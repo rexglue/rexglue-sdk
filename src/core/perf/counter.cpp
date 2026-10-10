@@ -47,8 +47,11 @@ constexpr bool IsGauge(size_t index) {
   return id == CounterId::kActiveThreads || id == CounterId::kCriticalRegionContentions;
 }
 
-std::ofstream g_csv_file;
-std::string g_csv_path;
+std::ofstream& CSVFile() {
+  static std::ofstream file;
+  return file;
+}
+
 int g_csv_frame_count = 0;
 
 }  // namespace
@@ -95,51 +98,50 @@ void InitCounters() {
 }
 
 void SetCSVLogPath(const std::string& path) {
-  if (g_csv_file.is_open()) {
-    g_csv_file.close();
+  auto& csv = CSVFile();
+  if (csv.is_open()) {
+    csv.close();
   }
-  g_csv_path = path;
   g_csv_frame_count = 0;
 
   if (path.empty())
     return;
 
-  g_csv_file.open(rex::to_path(path), std::ios::out | std::ios::trunc);
-  if (!g_csv_file) {
+  csv.open(rex::to_path(path), std::ios::out | std::ios::trunc);
+  if (!csv) {
     REXLOG_WARN(core, "perf: failed to open CSV log: {}", path);
-    g_csv_path.clear();
     return;
   }
 
   for (size_t i = 0; i < kNumCounters; ++i) {
     if (i > 0)
-      g_csv_file << ',';
-    g_csv_file << kCounterNames[i];
+      csv << ',';
+    csv << kCounterNames[i];
   }
-  g_csv_file << '\n';
+  csv << '\n';
 }
 
 void WriteCSVFrame() {
-  if (!g_csv_file.is_open())
+  auto& csv = CSVFile();
+  if (!csv.is_open())
     return;
 
   for (size_t i = 0; i < kNumCounters; ++i) {
     if (i > 0)
-      g_csv_file << ',';
-    g_csv_file << std::format("{}", g_snapshot[i].load(std::memory_order_relaxed));
+      csv << ',';
+    csv << std::format("{}", g_snapshot[i].load(std::memory_order_relaxed));
   }
-  g_csv_file << '\n';
+  csv << '\n';
 
   if (++g_csv_frame_count % 60 == 0) {
-    g_csv_file.flush();
+    csv.flush();
   }
 }
 
 void FlushCSV() {
-  if (g_csv_file.is_open()) {
-    g_csv_file.close();
+  if (CSVFile().is_open()) {
+    CSVFile().close();
   }
-  g_csv_path.clear();
 }
 
 }  // namespace rex::platform

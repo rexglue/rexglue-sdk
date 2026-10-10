@@ -40,7 +40,7 @@ constexpr u32 kFunctionCount = 4;
 // Big-endian `blr` (0x4E800020), one instruction per test function.
 std::vector<u8> MakeBlrBinary(u32 functionCount) {
   std::vector<u8> data;
-  data.reserve(functionCount * 4);
+  data.reserve(size_t{functionCount} * 4);
   for (u32 i = 0; i < functionCount; ++i) {
     data.insert(data.end(), {0x4E, 0x80, 0x00, 0x20});
   }

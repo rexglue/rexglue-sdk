@@ -1466,8 +1466,8 @@ bool VulkanPresenter::InitializeSurfaceIndependent() {
   shader_module_create_info.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
   shader_module_create_info.pNext = nullptr;
   shader_module_create_info.flags = 0;
-  shader_module_create_info.codeSize = sizeof(shaders::guest_output_triangle_strip_rect_vs);
-  shader_module_create_info.pCode = shaders::guest_output_triangle_strip_rect_vs;
+  shader_module_create_info.codeSize = sizeof(shaders::kGuestOutputTriangleStripRectVS);
+  shader_module_create_info.pCode = shaders::kGuestOutputTriangleStripRectVS;
   if (dfn.vkCreateShaderModule(device, &shader_module_create_info, nullptr,
                                &guest_output_paint_vs_) != VK_SUCCESS) {
     REX_FAIL(ui, false,
@@ -1478,12 +1478,12 @@ bool VulkanPresenter::InitializeSurfaceIndependent() {
     GuestOutputPaintEffect guest_output_paint_effect = GuestOutputPaintEffect(i);
     switch (guest_output_paint_effect) {
       case GuestOutputPaintEffect::kBilinear:
-        shader_module_create_info.codeSize = sizeof(shaders::guest_output_bilinear_ps);
-        shader_module_create_info.pCode = shaders::guest_output_bilinear_ps;
+        shader_module_create_info.codeSize = sizeof(shaders::kGuestOutputBilinearPS);
+        shader_module_create_info.pCode = shaders::kGuestOutputBilinearPS;
         break;
       case GuestOutputPaintEffect::kBilinearDither:
-        shader_module_create_info.codeSize = sizeof(shaders::guest_output_bilinear_dither_ps);
-        shader_module_create_info.pCode = shaders::guest_output_bilinear_dither_ps;
+        shader_module_create_info.codeSize = sizeof(shaders::kGuestOutputBilinearDitherPS);
+        shader_module_create_info.pCode = shaders::kGuestOutputBilinearDitherPS;
         break;
       default:
         continue;
@@ -1557,13 +1557,9 @@ bool VulkanPresenter::InitializeSurfaceIndependent() {
 
 VkPipeline VulkanPresenter::CreateGuestOutputPaintPipeline(GuestOutputPaintEffect effect,
                                                            VkRenderPass render_pass) {
-  VkPipelineShaderStageCreateInfo stages[2] = {};
-  for (u32 i = 0; i < 2; ++i) {
-    VkPipelineShaderStageCreateInfo& stage = stages[i];
-    stage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-    stage.stage = i ? VK_SHADER_STAGE_FRAGMENT_BIT : VK_SHADER_STAGE_VERTEX_BIT;
-    stage.pName = "main";
-  }
+  VkPipelineShaderStageCreateInfo stages[2] = {
+      util::MakeShaderStage(VK_SHADER_STAGE_VERTEX_BIT, VK_NULL_HANDLE),
+      util::MakeShaderStage(VK_SHADER_STAGE_FRAGMENT_BIT, VK_NULL_HANDLE)};
   stages[0].module = guest_output_paint_vs_;
   stages[1].module = guest_output_paint_fs_[static_cast<size_t>(effect)];
   REX_ASSERT(stages[1].module != VK_NULL_HANDLE);
@@ -1587,9 +1583,8 @@ VkPipeline VulkanPresenter::CreateGuestOutputPaintPipeline(GuestOutputPaintEffec
   rasterization_state.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
   rasterization_state.lineWidth = 1.0f;
 
-  VkPipelineMultisampleStateCreateInfo multisample_state = {};
-  multisample_state.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
-  multisample_state.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+  VkPipelineMultisampleStateCreateInfo multisample_state =
+      util::MakeMultisampleState(VK_SAMPLE_COUNT_1_BIT);
 
   VkPipelineColorBlendAttachmentState color_blend_attachment_state = {};
   color_blend_attachment_state.colorWriteMask = VK_COLOR_COMPONENT_R_BIT |

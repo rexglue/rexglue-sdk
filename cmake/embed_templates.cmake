@@ -25,6 +25,7 @@ foreach(TEMPLATE_FILE ${INJA_TEMPLATE_FILES})
 
     string(REPLACE "/" "_" VAR_NAME "${CANONICAL_ID}")
     string(REPLACE "-" "_" VAR_NAME "${VAR_NAME}")
+    string(REGEX REPLACE "_+" "_" VAR_NAME "${VAR_NAME}")
 
     set(HEADER_FILE "${TEMPLATE_OUTPUT_DIR}/${VAR_NAME}.inja.h")
     file(WRITE "${HEADER_FILE}"

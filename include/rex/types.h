@@ -373,7 +373,7 @@ class MappedPtr {
    */
   auto value() const {
     if constexpr (is_be_type_v<T>) {
-      return static_cast<typename T::value_type>(*host_ptr_);
+      return static_cast<T::value_type>(*host_ptr_);
     } else {
       return *host_ptr_;
     }

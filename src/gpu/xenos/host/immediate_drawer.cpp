@@ -64,8 +64,8 @@ bool ImmediateDrawer::ScissorToRenderTarget(const gpu::OverlayDraw& draw, u32& o
   const gpu::OverlayRect& scissor = *draw.scissor;
   f32 render_target_width_float = static_cast<f32>(render_target_width);
   f32 render_target_height_float = static_cast<f32>(render_target_height);
-  f32 scale_x = render_target_width / coordinate_space_width();
-  f32 scale_y = render_target_height / coordinate_space_height();
+  f32 scale_x = render_target_width_float / coordinate_space_width();
+  f32 scale_y = render_target_height_float / coordinate_space_height();
   f32 x0_float = rex::clamp_float(scissor.left * scale_x, 0.0f, render_target_width_float);
   f32 y0_float = rex::clamp_float(scissor.top * scale_y, 0.0f, render_target_height_float);
   f32 x1_float = rex::clamp_float(scissor.right * scale_x, x0_float, render_target_width_float);

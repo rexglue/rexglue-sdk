@@ -23,7 +23,7 @@ struct DisassemblerEngine {
   DisassemblerEngine(const DisassemblerEngine&) = default;
   DisassemblerEngine& operator=(const DisassemblerEngine&) = delete;
 
-  DisassemblerEngine(bfd_endian endian, const char* options);
+  DisassemblerEngine(bfd_endian endian, const char* options) noexcept;
   ~DisassemblerEngine() = default;
 
   /**

@@ -19,7 +19,7 @@
 namespace rex::filesystem {
 
 /** Filesystem error codes, stored in rex::Error::code. */
-enum class Error : i32 {
+enum class Error : u8 {
   kNone = 0,         /**< No error. */
   kNotFound,         /**< The path or 1 of its parents does not exist. */
   kExists,           /**< The path exists and the request needs it absent. */

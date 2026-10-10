@@ -311,8 +311,7 @@ void SpirvShaderTranslator::StartTranslation() {
   spv::Id type_system_constants = builder_->makeStructType(id_vector_temp_, "XeSystemConstants");
   for (size_t i = 0; i < rex::countof(system_constants); ++i) {
     const SystemConstant& system_constant = system_constants[i];
-    builder_->addMemberName(type_system_constants, static_cast<unsigned int>(i),
-                            system_constant.name);
+    builder_->addMemberName(type_system_constants, static_cast<int>(i), system_constant.name);
     builder_->addMemberDecoration(type_system_constants, static_cast<unsigned int>(i),
                                   spv::DecorationOffset, int(system_constant.offset));
   }
@@ -1599,13 +1598,15 @@ void SpirvShaderTranslator::StartVertexOrTessEvalShaderBeforeMain() {
   builder_->addMemberDecoration(type_struct_per_vertex, kOutputPerVertexMemberPosition,
                                 spv::DecorationBuiltIn, spv::BuiltInPosition);
   if (output_per_vertex_member_clip_distance_ != UINT32_MAX) {
-    builder_->addMemberName(type_struct_per_vertex, output_per_vertex_member_clip_distance_,
+    builder_->addMemberName(type_struct_per_vertex,
+                            static_cast<int>(output_per_vertex_member_clip_distance_),
                             "gl_ClipDistance");
     builder_->addMemberDecoration(type_struct_per_vertex, output_per_vertex_member_clip_distance_,
                                   spv::DecorationBuiltIn, spv::BuiltInClipDistance);
   }
   if (output_per_vertex_member_cull_distance_ != UINT32_MAX) {
-    builder_->addMemberName(type_struct_per_vertex, output_per_vertex_member_cull_distance_,
+    builder_->addMemberName(type_struct_per_vertex,
+                            static_cast<int>(output_per_vertex_member_cull_distance_),
                             "gl_CullDistance");
     builder_->addMemberDecoration(type_struct_per_vertex, output_per_vertex_member_cull_distance_,
                                   spv::DecorationBuiltIn, spv::BuiltInCullDistance);

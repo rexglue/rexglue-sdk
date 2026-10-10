@@ -38,7 +38,7 @@ bool SamplerInfo::Prepare(const xenos::TextureFetch& fetch,
                                : fetch_instr.attributes.aniso_filter;
 
   out_info->border_color = fetch.border_color;
-  out_info->lod_bias = (fetch.lod_bias) / 32.f;
+  out_info->lod_bias = static_cast<f32>(fetch.lod_bias) / 32.f;
   out_info->mip_min_level = fetch.mip_min_level;
   out_info->mip_max_level = fetch.mip_max_level;
 

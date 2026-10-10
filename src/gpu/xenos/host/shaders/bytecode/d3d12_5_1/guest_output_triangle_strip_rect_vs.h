@@ -8,7 +8,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-const BYTE guest_output_triangle_strip_rect_vs[] = {
+const BYTE kGuestOutputTriangleStripRectVS[] = {
     68,  88,  66,  67,  50,  140, 173, 83,  164, 102, 25,  145, 174, 164, 206, 34,  69,  212, 161,
     224, 1,   0,   0,   0,   200, 3,   0,   0,   5,   0,   0,   0,   52,  0,   0,   0,   168, 1,
     0,   0,   220, 1,   0,   0,   16,  2,   0,   0,   44,  3,   0,   0,   82,  68,  69,  70,  108,

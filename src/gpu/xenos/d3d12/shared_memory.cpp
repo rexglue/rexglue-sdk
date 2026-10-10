@@ -271,10 +271,8 @@ bool D3D12SharedMemory::AllocateSparseHostGpuMemoryRange(u32 offset_allocations,
   ID3D12Device* device = provider.GetDevice();
   ID3D12CommandQueue* direct_queue = provider.GetDirectQueue();
 
-  D3D12_HEAP_DESC heap_desc = {};
-  heap_desc.SizeInBytes = length_bytes;
-  heap_desc.Properties.Type = D3D12_HEAP_TYPE_DEFAULT;
-  heap_desc.Flags = D3D12_HEAP_FLAG_ALLOW_ONLY_BUFFERS | provider.GetHeapFlagCreateNotZeroed();
+  const D3D12_HEAP_DESC heap_desc = util::MakeDefaultHeapDesc(
+      length_bytes, D3D12_HEAP_FLAG_ALLOW_ONLY_BUFFERS | provider.GetHeapFlagCreateNotZeroed());
   ID3D12Heap* heap;
   if (FAILED(device->CreateHeap(&heap_desc, IID_PPV_ARGS(&heap)))) {
     REX_FAIL(gpu, false, "Shared memory: Failed to create a tile heap");

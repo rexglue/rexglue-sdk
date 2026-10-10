@@ -45,7 +45,7 @@ namespace rex::ui {
 class Window : public IWindow, public gpu::IPresentationHost {
  public:
   /** Life cycle phase of the window. */
-  enum class Phase {
+  enum class Phase : u8 {
     kClosedOpenable,         /**< Not open. State changes update only the desired state. */
     kOpening,                /**< OpenImpl runs. External state changes are dropped. */
     kOpen,                   /**< Fully interactive. The only phase that creates a surface. */
@@ -752,7 +752,7 @@ class Window : public IWindow, public gpu::IPresentationHost {
   struct InputListenerIterationContext {
     explicit InputListenerIterationContext(
         InputListenerIterationContext* outer_context,
-        std::multimap<size_t, WindowInputListener*>::const_reverse_iterator first_iterator,
+        const std::multimap<size_t, WindowInputListener*>::const_reverse_iterator& first_iterator,
         size_t first_z_order = SIZE_MAX)
         : outer_context(outer_context),
           next_iterator(first_iterator),

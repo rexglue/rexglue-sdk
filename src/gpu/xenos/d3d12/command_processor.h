@@ -143,7 +143,7 @@ class D3D12CommandProcessor : public CommandProcessor {
   bool RequestOneUseSingleViewDescriptors(
       u32 count, gpu::d3d12::util::DescriptorCpuGpuHandlePair* handles_out);
   /** Needed often, so always allocated. */
-  enum class SystemBindlessView : u32 {
+  enum class SystemBindlessView : u8 {
     /** Both may be bound as one root parameter. */
     kSharedMemoryRawSRVAndNullRawUAVStart,
     kSharedMemoryRawSRV = kSharedMemoryRawSRVAndNullRawUAVStart,
@@ -276,7 +276,7 @@ class D3D12CommandProcessor : public CommandProcessor {
    * multiple root signatures depending on extra parameters. Bindless resources use 2 global root
    * signatures, for non tessellated and tessellated drawing.
    */
-  enum RootParameter : UINT {
+  enum RootParameter : u8 {
     /** Changes often, especially for UI draws and models drawn in parts. Holds fetch constants. */
     kRootParameter_Bindful_FetchConstants = 0, /**< +2 dwords = 2 in all. */
     /** Changes often, such as for an object drawn repeatedly. May hold projection matrices. */
@@ -445,11 +445,11 @@ class D3D12CommandProcessor : public CommandProcessor {
     u32 current_index = 0;
     u64 last_used_frame = 0;
   };
-  void EvictOldReadbackBuffers(std::unordered_map<u64, ReadbackBuffer>& buffer_map);
+  void EvictOldReadbackBuffers(std::unordered_map<u64, ReadbackBuffer>& buffer_map) const;
   static constexpr u32 kReadbackBufferSizeIncrement = 16 * 1024 * 1024;
   static constexpr size_t kMaxReadbackBuffers = 256;
   static constexpr u64 kReadbackBufferEvictionAgeFrames = 60;
-  static inline u32 AlignReadbackBufferSize(u32 size) {
+  static u32 AlignReadbackBufferSize(u32 size) {
     if (size < 1 * 1024 * 1024) {
       return rex::align(size, 256u * 1024u);
     }
@@ -458,10 +458,10 @@ class D3D12CommandProcessor : public CommandProcessor {
     }
     return rex::align(size, kReadbackBufferSizeIncrement);
   }
-  static inline u64 MakeReadbackResolveKey(u32 address, u32 length) {
+  static u64 MakeReadbackResolveKey(u32 address, u32 length) {
     return (static_cast<u64>(address) << 32) | static_cast<u64>(length);
   }
-  static inline u64 MakeMemexportReadbackKey(u32 first_base_address_dwords, u32 total_size) {
+  static u64 MakeMemexportReadbackKey(u32 first_base_address_dwords, u32 total_size) {
     return (static_cast<u64>(first_base_address_dwords) << 32) | static_cast<u64>(total_size);
   }
 
@@ -629,7 +629,7 @@ class D3D12CommandProcessor : public CommandProcessor {
   struct ApplyGammaConstants {
     u32 size[2];
   };
-  enum class ApplyGammaRootParameter : UINT {
+  enum class ApplyGammaRootParameter : u8 {
     kConstants,
     kDestination,
     kSource,
@@ -647,7 +647,7 @@ class D3D12CommandProcessor : public CommandProcessor {
     u32 size[2];
     f32 size_inv[2];
   };
-  enum class FxaaRootParameter : UINT {
+  enum class FxaaRootParameter : u8 {
     kConstants,
     kDestination,
     kSource,
@@ -665,7 +665,7 @@ class D3D12CommandProcessor : public CommandProcessor {
     u32 tile_count;
     u32 half_pixel_offset;
   };
-  enum class ResolveDownscaleRootParameter : UINT {
+  enum class ResolveDownscaleRootParameter : u8 {
     kConstants,
     kSource,
     kDestination,

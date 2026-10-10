@@ -15,7 +15,8 @@
 
 #include <rex/macros.h>
 #include <rex/platform/thread.h>
-#include <rex/runtime/xobject.h>
+#include <rex/propagate_const.h>
+#include <rex/runtime/object.h>
 #include <rex/runtime/xtypes.h>
 
 namespace rex::runtime {
@@ -41,7 +42,7 @@ struct SemaphoreObject {
   REX_RUNTIME_API explicit SemaphoreObject(const X_KSEMAPHORE& header);
 
   /** Host semaphore that carries the count and wakes waiters. */
-  std::unique_ptr<rex::platform::Semaphore> semaphore;
+  PropagateConst<std::unique_ptr<rex::platform::Semaphore>> semaphore;
   u32 maximum_count = 0; /**< Maximum count the semaphore was created with. */
 };
 

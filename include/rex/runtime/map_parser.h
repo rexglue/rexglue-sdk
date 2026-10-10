@@ -39,7 +39,7 @@ struct MapParseOptions {
 /**
  * Error types for map parsing operations.
  */
-enum class MapParseError { FileNotFound, FileReadError, InvalidFormat, Empty };
+enum class MapParseError : u8 { FileNotFound, FileReadError, InvalidFormat, Empty };
 
 /**
  * Returns a readable description of a MapParseError.

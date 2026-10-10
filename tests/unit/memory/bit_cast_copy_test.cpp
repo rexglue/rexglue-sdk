@@ -11,6 +11,7 @@
 
 #include "rex_test.h"
 
+#include <array>
 #include <bit>
 #include <cstring>
 #include <string>
@@ -39,7 +40,8 @@ Dst MemcpyCopy(const Src& src) {
 
 template <typename T>
 bool SameBytes(const T& a, const T& b) {
-  return std::memcmp(&a, &b, sizeof(T)) == 0;
+  return std::bit_cast<std::array<rex::u8, sizeof(T)>>(a) ==
+         std::bit_cast<std::array<rex::u8, sizeof(T)>>(b);
 }
 
 }  // namespace

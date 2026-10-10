@@ -489,7 +489,7 @@ class D3D12TextureCache final : public TextureCache {
   size_t GetScaledResolveBufferCount() const {
     REX_ASSERT(IsDrawResolutionScaled());
     u64 address_space_size = static_cast<u64>(SharedMemory::kBufferSize) *
-                             (draw_resolution_scale_x() * draw_resolution_scale_y());
+                             (u64{draw_resolution_scale_x()} * draw_resolution_scale_y());
     return static_cast<size_t>((address_space_size - 1) >> 30);
   }
   /**
@@ -540,7 +540,7 @@ class D3D12TextureCache final : public TextureCache {
   std::vector<u32> srv_descriptor_cache_free_;
   u32 srv_descriptor_cache_free_count_ = 0;
 
-  enum class NullSRVDescriptorIndex : u32 {
+  enum class NullSRVDescriptorIndex : u8 {
     k2DArray,
     k3D,
     kCube,
@@ -571,7 +571,7 @@ class D3D12TextureCache final : public TextureCache {
    */
   std::array<std::unique_ptr<ScaledResolveVirtualBuffer>,
              (static_cast<u64>(SharedMemory::kBufferSize) *
-                  (kMaxDrawResolutionScaleAlongAxis * kMaxDrawResolutionScaleAlongAxis) -
+                  (u64{kMaxDrawResolutionScaleAlongAxis} * kMaxDrawResolutionScaleAlongAxis) -
               1) /
                  (UINT32_C(1) << 30)>
       scaled_resolve_2gb_buffers_;

@@ -78,16 +78,20 @@ void Trap(PPCContext& ctx, u8* base, u16 trap_type) {
 }
 
 namespace {
-thread_local std::unordered_map<u32, std::jmp_buf> t_jump_buffers;
+std::unordered_map<u32, std::jmp_buf>& JumpBuffers() {
+  thread_local std::unordered_map<u32, std::jmp_buf> buffers;
+  return buffers;
+}
 }  // namespace
 
 std::jmp_buf& JumpBuffer(u32 address) {
-  return t_jump_buffers[address];
+  return JumpBuffers()[address];
 }
 
 void LongJump(u32 address, int value) {
-  const auto it = t_jump_buffers.find(address);
-  if (it != t_jump_buffers.end()) {
+  auto& buffers = JumpBuffers();
+  const auto it = buffers.find(address);
+  if (it != buffers.end()) {
     std::longjmp(it->second, value);
   }
   std::abort();

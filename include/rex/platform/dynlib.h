@@ -24,7 +24,7 @@ namespace rex::platform {
 /**
  * Controls when a loaded library's imported symbols are resolved.
  */
-enum class SymbolResolution {
+enum class SymbolResolution : u8 {
   kLazy,      /**< Resolve on first use. RTLD_LAZY on POSIX. */
   kImmediate, /**< Resolve all at load. RTLD_NOW on POSIX, the Windows behavior. */
 };

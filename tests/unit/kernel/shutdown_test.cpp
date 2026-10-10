@@ -176,7 +176,7 @@ void MarkAPC(PPCContext&, u8*) {
   g_apc_ran.store(true);
 }
 
-u32 StopsWithin(Caller& c, std::function<void(Caller&)> body) {
+u32 StopsWithin(Caller& c, const std::function<void(Caller&)>& body) {
   auto started = std::make_shared<std::atomic<bool>>(false);
   const u32 thread = c.Spawn([started, body](Caller& t) {
     started->store(true);
@@ -805,8 +805,8 @@ u32 OpenSocket(Caller& c, u32 type, u32 protocol, bool bound, u32 port = 0) {
   return sock;
 }
 
-void CheckTerminateWakesSocketCall(std::function<u32(Caller&)> open,
-                                   std::function<void(Caller&, u32)> call) {
+void CheckTerminateWakesSocketCall(const std::function<u32(Caller&)>& open,
+                                   const std::function<void(Caller&, u32)>& call) {
   KernelFixture fixture;
   u32 thread = 0;
   fixture.RunOnGuestThread([&thread, open, call](Caller& c) {

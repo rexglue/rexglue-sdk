@@ -105,9 +105,7 @@ REX_TEST_CASE_METHOD(OpenRoot, "An open file outlives the unmount of its mount",
   CHECK(reader.file->Info().name == "held.dat");
   CHECK(ReadText(*reader.file) == "held");
   auto entry = (*list)->Next();
-  REQUIRE(entry);
-  // NOLINTNEXTLINE(bugprone-unchecked-optional-access) checked by REQUIRE above
-  CHECK(entry->name == "held.dat");
+  CHECK((entry && entry->name == "held.dat"));
 
   fs().Clear();
   CHECK(reader.file->Info().absolute_path == "\\OpenRoot\\held.dat");

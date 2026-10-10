@@ -16,6 +16,15 @@
 
 namespace rex::hid {
 
+using rex::HasFlags;
+using rex::operator|;
+using rex::operator&;
+using rex::operator^;
+using rex::operator~;
+using rex::operator|=;
+using rex::operator&=;
+using rex::operator^=;
+
 /** How the window treats the pointer. */
 enum class PointerMode : u8 {
   Free,   /**< The arrow shows and moves freely. */

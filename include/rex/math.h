@@ -35,7 +35,7 @@ namespace rex {
  * @return The number of elements in a C array.
  */
 template <typename T, size_t N>
-constexpr size_t countof(T (&)[N]) {
+constexpr size_t countof(T (&)[N]) noexcept {
   return std::extent<T[N]>::value;
 }
 
@@ -491,10 +491,10 @@ i64 m128_i64(const simde__m128& v) {
  */
 template <typename T>
 inline T sat_add(T a, T b) {
-  using TU = typename std::make_unsigned<T>::type;
+  using TU = std::make_unsigned<T>::type;
   TU result = TU(a) + TU(b);
   if (std::is_unsigned<T>::value) {
-    result |= TU(-static_cast<typename std::make_signed<T>::type>(result < TU(a)));
+    result |= TU(-static_cast<std::make_signed<T>::type>(result < TU(a)));
   } else {
     TU overflowed = (TU(a) >> (sizeof(T) * 8 - 1)) + std::numeric_limits<T>::max();
     if (T((overflowed ^ TU(b)) | ~(TU(b) ^ result)) >= 0) {
@@ -514,10 +514,10 @@ inline T sat_add(T a, T b) {
  */
 template <typename T>
 inline T sat_sub(T a, T b) {
-  using TU = typename std::make_unsigned<T>::type;
+  using TU = std::make_unsigned<T>::type;
   TU result = TU(a) - TU(b);
   if (std::is_unsigned<T>::value) {
-    result &= TU(-static_cast<typename std::make_signed<T>::type>(result <= TU(a)));
+    result &= TU(-static_cast<std::make_signed<T>::type>(result <= TU(a)));
   } else {
     TU overflowed = (TU(a) >> (sizeof(T) * 8 - 1)) + std::numeric_limits<T>::max();
     if (T((overflowed ^ TU(b)) & (overflowed ^ result)) < 0) {

@@ -8,7 +8,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-const BYTE passthrough_position_xy_vs[] = {
+const BYTE kPassthroughPositionXYVS[] = {
     68,  88,  66,  67,  92, 220, 0,  199, 190, 67,  183, 153, 171, 192, 4,   39,  67,  55,  215,
     255, 1,   0,   0,   0,  12,  2,  0,   0,   5,   0,   0,   0,   52,  0,   0,   0,   160, 0,
     0,   0,   212, 0,   0,  0,   8,  1,   0,   0,   112, 1,   0,   0,   82,  68,  69,  70,  100,

@@ -7,6 +7,7 @@
 #include <chrono>
 #include <ctime>
 #include <format>
+#include <utility>
 
 namespace rexglue::ui {
 
@@ -24,7 +25,7 @@ ProgressView::ProgressView(std::string_view title) : title_(title) {
   }
   if (tty_) {
     detail::SetSinkActiveProgress(true);
-    spinner_thread_ = std::jthread([this](std::stop_token stop) { spinnerLoop(stop); });
+    spinner_thread_ = std::jthread([this](const std::stop_token& stop) { spinnerLoop(stop); });
   }
 }
 
@@ -64,7 +65,7 @@ void ProgressView::renderActiveLine() {
   acc.flush();
 }
 
-void ProgressView::spinnerLoop(std::stop_token stop) {
+void ProgressView::spinnerLoop(const std::stop_token& stop) {
   std::unique_lock cv_lock(state_mutex_);
   while (!stop.stop_requested()) {
     if (active_line_kind_ != ActiveLineKind::None)
@@ -138,7 +139,7 @@ void ProgressView::moduleFinished(std::chrono::milliseconds elapsed) {
   if (!tty_) {
     detail::GlobalSinkAccessor acc;
     acc.writeLine(std::format("  done   {} ({:.1f}s)", modules_[current_module_].name,
-                              elapsed.count() / 1000.0));
+                              std::chrono::duration<f64>(elapsed).count()));
     return;
   }
 
@@ -149,7 +150,8 @@ void ProgressView::moduleFinished(std::chrono::milliseconds elapsed) {
   acc.writeRaw(" ");
   acc.writeRaw(modules_[current_module_].name);
   acc.writeRaw(" ");
-  acc.writeColored(color::kDim, std::format("({:.1f}s)", elapsed.count() / 1000.0));
+  acc.writeColored(color::kDim,
+                   std::format("({:.1f}s)", std::chrono::duration<f64>(elapsed).count()));
   acc.writeRaw("\n");
   active_line_kind_ = ActiveLineKind::None;
 }

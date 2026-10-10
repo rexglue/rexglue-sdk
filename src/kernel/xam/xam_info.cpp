@@ -267,8 +267,7 @@ u32 XamLoaderGetLaunchData_entry(mapped_void buffer_ptr, u32 buffer_size) {
     return X_ERROR_NOT_FOUND;
   }
 
-  u32 copy_size =
-      std::min(static_cast<u32>(loader_data.launch_data.size()), static_cast<u32>(buffer_size));
+  u32 copy_size = std::min(static_cast<u32>(loader_data.launch_data.size()), buffer_size);
   std::memcpy(buffer_ptr, loader_data.launch_data.data(), copy_size);
   return X_ERROR_SUCCESS;
 }

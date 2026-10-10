@@ -189,7 +189,7 @@ inline u32 GetTiledAddressLowerBound3D(u32 left, u32 top, u32 front, u32 pitch, 
   return static_cast<u32>(GetTiledOffset3D(
       static_cast<i32>(left & ~(xenos::kTextureTileWidthHeight - 1)),
       static_cast<i32>(top & ~(xenos::kTextureTileWidthHeight - 1)),
-      static_cast<i32>(front & ~(xenos::kTextureTileDepth)), pitch, height, bytes_per_block_log2));
+      static_cast<i32>(front & ~xenos::kTextureTileDepth), pitch, height, bytes_per_block_log2));
 }
 
 /**

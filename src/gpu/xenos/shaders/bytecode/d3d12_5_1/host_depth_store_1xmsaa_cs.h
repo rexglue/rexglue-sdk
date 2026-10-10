@@ -8,7 +8,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-const BYTE host_depth_store_1xmsaa_cs[] = {
+const BYTE kHostDepthStore1xMSAACS[] = {
     68,  88,  66,  67,  249, 1,   88,  144, 104, 118, 47,  144, 121, 3,   160, 190, 176, 193, 78,
     101, 1,   0,   0,   0,   120, 9,   0,   0,   5,   0,   0,   0,   52,  0,   0,   0,   48,  2,
     0,   0,   64,  2,   0,   0,   80,  2,   0,   0,   220, 8,   0,   0,   82,  68,  69,  70,  244,

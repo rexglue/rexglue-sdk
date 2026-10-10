@@ -450,7 +450,7 @@ class DeferredCommandList {
   }
 
  private:
-  enum class Command {
+  enum class Command : u8 {
     kD3DClearDepthStencilView,
     kD3DClearRenderTargetView,
     kD3DClearUnorderedAccessViewUint,

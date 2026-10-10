@@ -8,7 +8,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-const BYTE resolve_downscale_cs[] = {
+const BYTE kResolveDownscaleCS[] = {
     68,  88,  66, 67, 235, 139, 102, 94, 189, 150, 220, 235, 94,  229, 59, 205, 74,  78,  159, 167,
     1,   0,   0,  0,  164, 8,   0,   0,  3,   0,   0,   0,   44,  0,   0,  0,   60,  0,   0,   0,
     76,  0,   0,  0,  73,  83,  71,  78, 8,   0,   0,   0,   0,   0,   0,  0,   8,   0,   0,   0,

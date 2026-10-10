@@ -8,7 +8,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-const BYTE resolve_clear_32bpp_cs[] = {
+const BYTE kResolveClear32BPPCS[] = {
     68,  88,  66,  67,  151, 0,   134, 61,  129, 80,  182, 152, 119, 11,  63,  144, 63,  10,  180,
     65,  1,   0,   0,   0,   152, 7,   0,   0,   5,   0,   0,   0,   52,  0,   0,   0,   64,  2,
     0,   0,   80,  2,   0,   0,   96,  2,   0,   0,   252, 6,   0,   0,   82,  68,  69,  70,  4,

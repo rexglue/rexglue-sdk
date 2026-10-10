@@ -106,6 +106,7 @@ class VulkanPipelineCache {
     static constexpr u32 kVersion = 0x20261017;
   });
 
+  // NOLINTNEXTLINE(performance-enum-size): packed key bit field, MSVC packs per type
   enum class PipelineGeometryShader : u32 {
     kNone,
     kPointList,
@@ -113,6 +114,7 @@ class VulkanPipelineCache {
     kQuadList,
   };
 
+  // NOLINTNEXTLINE(performance-enum-size): packed key bit field, MSVC packs per type
   enum class PipelinePrimitiveTopology : u32 {
     kPointList,
     kLineList,
@@ -124,12 +126,14 @@ class VulkanPipelineCache {
     kPatchList,
   };
 
+  // NOLINTNEXTLINE(performance-enum-size): packed key bit field, MSVC packs per type
   enum class PipelinePolygonMode : u32 {
     kFill,
     kLine,
     kPoint,
   };
 
+  // NOLINTNEXTLINE(performance-enum-size): packed key bit field, MSVC packs per type
   enum class PipelineBlendFactor : u32 {
     kZero,
     kOne,

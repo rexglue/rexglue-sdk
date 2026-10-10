@@ -45,7 +45,7 @@ void
 
 #define REX_EXPORT_ROW_kFunction(ordinal, text, symbol) \
   ExportEntry {                                         \
-    ordinal, ExportKind::Function, text, &symbol        \
+    (ordinal), ExportKind::Function, (text), &(symbol)  \
   }
 /**
  * Builds the table entry of a variable export, which has no function pointer.

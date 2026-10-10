@@ -101,7 +101,8 @@ X_STATUS SocketClose(SocketObject& sock) {
     return X_STATUS_SUCCESS;
   }
 
-  int ret = rex::platform::socket_close(sock.native_handle);
+  int ret =
+      rex::platform::socket_close(static_cast<rex::platform::SocketHandle>(sock.native_handle));
   sock.native_handle = static_cast<u64>(-1);
   if (ret != 0) {
     return X_STATUS_UNSUCCESSFUL;
@@ -119,8 +120,8 @@ X_STATUS SocketSetOption(SocketObject& sock, u32 level, u32 optname, void* optva
   if (optlen > kMaxSocketLength) {
     return X_STATUS_INVALID_PARAMETER;
   }
-  int ret = setsockopt(sock.native_handle, level, optname, static_cast<char*>(optval_ptr),
-                       static_cast<int>(optlen));
+  int ret = setsockopt(sock.native_handle, static_cast<int>(level), static_cast<int>(optname),
+                       static_cast<char*>(optval_ptr), static_cast<int>(optlen));
   if (ret < 0) {
     return X_STATUS_UNSUCCESSFUL;
   }
@@ -140,7 +141,8 @@ X_STATUS SocketIOControl(SocketObject& sock, u32 cmd, u8* arg_ptr) {
     return X_STATUS_SUCCESS;
   }
 
-  int ret = rex::platform::socket_ioctl(sock.native_handle, cmd, arg_ptr);
+  int ret = rex::platform::socket_ioctl(
+      static_cast<rex::platform::SocketHandle>(sock.native_handle), cmd, arg_ptr);
   if (ret < 0) {
     return X_STATUS_UNSUCCESSFUL;
   }
@@ -203,7 +205,7 @@ X_HANDLE SocketAccept(Runtime& runtime, SocketObject& sock, N_XSOCKADDR* name, i
   Result<X_HANDLE> added =
       table.Emplace<SocketObject>(AddOptions{}, sock.af, sock.type, sock.proto);
   if (!added) {
-    rex::platform::socket_close(ret);
+    rex::platform::socket_close(static_cast<rex::platform::SocketHandle>(ret));
     return X_INVALID_HANDLE_VALUE;
   }
   const X_HANDLE handle = *added;

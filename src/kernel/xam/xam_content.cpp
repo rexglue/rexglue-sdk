@@ -76,7 +76,7 @@ u32 XamContentCreateEnumerator_entry([[maybe_unused]] u32 user_index, u32 device
 
   if (!device_info || device_info->device_id == DummyDeviceId::HDD) {
     auto content_datas = runtime::Current().content_manager().ListContent(
-        std::to_underlying(DummyDeviceId::HDD), xuid, XContentType(static_cast<u32>(content_type)));
+        std::to_underlying(DummyDeviceId::HDD), xuid, XContentType(content_type));
     for (const auto& content_data : content_datas) {
       auto item = items.Append<XCONTENT_DATA>();
       *item = content_data;
@@ -84,7 +84,7 @@ u32 XamContentCreateEnumerator_entry([[maybe_unused]] u32 user_index, u32 device
 
     if (xuid != 0) {
       auto common_datas = runtime::Current().content_manager().ListContent(
-          std::to_underlying(DummyDeviceId::HDD), 0, XContentType(static_cast<u32>(content_type)));
+          std::to_underlying(DummyDeviceId::HDD), 0, XContentType(content_type));
       for (const auto& content_data : common_datas) {
         auto item = items.Append<XCONTENT_DATA>();
         *item = content_data;

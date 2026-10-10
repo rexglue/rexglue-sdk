@@ -62,7 +62,7 @@ class VulkanShader : public SpirvShader {
  private:
   const gpu::vulkan::VulkanDevice* vulkan_device_;
 
-  std::atomic_flag binding_layout_user_uids_set_up_ = ATOMIC_FLAG_INIT;
+  std::atomic_flag binding_layout_user_uids_set_up_;
   size_t texture_binding_layout_user_uid_ = 0;
   size_t sampler_binding_layout_user_uid_ = 0;
 };

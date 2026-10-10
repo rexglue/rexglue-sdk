@@ -20,10 +20,6 @@ namespace {
 constexpr u64 kUnixToFileTimeTicks = 116444736000000000ULL;
 constexpr u64 kTicksPerSecond = 10000000ULL;
 
-int Native(std::intptr_t native) {
-  return static_cast<int>(native);
-}
-
 u64 ToFileTime(time_t seconds) {
   return (static_cast<u64>(seconds) * kTicksPerSecond) + kUnixToFileTimeTicks;
 }
@@ -95,11 +91,11 @@ int MoveNoReplace(const std::filesystem::path& from, const std::filesystem::path
 
 }  // namespace
 
-HostFile::HostFile(Key /*key*/, std::filesystem::path path, std::intptr_t native)
+HostFile::HostFile(Key /*key*/, std::filesystem::path path, NativeHandle native)
     : path_(std::move(path)), native_(native) {}
 
 HostFile::~HostFile() {
-  close(Native(native_));
+  close(native_);
 }
 
 Result<std::unique_ptr<HostFile>> HostFile::OpenExisting(const std::filesystem::path& path,
@@ -134,8 +130,7 @@ Result<std::unique_ptr<HostFile>> HostFile::OpenExisting(const std::filesystem::
 }
 
 Result<size_t> HostFile::Read(u64 offset, std::span<u8> buffer) {
-  const ssize_t count =
-      pread(Native(native_), buffer.data(), buffer.size(), static_cast<off_t>(offset));
+  const ssize_t count = pread(native_, buffer.data(), buffer.size(), static_cast<off_t>(offset));
   if (count < 0) {
     return Err<size_t>(HostError("read", path_));
   }
@@ -143,8 +138,7 @@ Result<size_t> HostFile::Read(u64 offset, std::span<u8> buffer) {
 }
 
 Result<size_t> HostFile::Write(u64 offset, std::span<const u8> buffer) {
-  const ssize_t count =
-      pwrite(Native(native_), buffer.data(), buffer.size(), static_cast<off_t>(offset));
+  const ssize_t count = pwrite(native_, buffer.data(), buffer.size(), static_cast<off_t>(offset));
   if (count < 0) {
     return Err<size_t>(HostError("write", path_));
   }
@@ -152,14 +146,14 @@ Result<size_t> HostFile::Write(u64 offset, std::span<const u8> buffer) {
 }
 
 Result<void> HostFile::SetLength(u64 length) {
-  if (ftruncate(Native(native_), static_cast<off_t>(length)) < 0) {
+  if (ftruncate(native_, static_cast<off_t>(length)) < 0) {
     return Err(HostError("set length of", path_));
   }
   return Ok();
 }
 
 Result<void> HostFile::Flush() const {
-  if (fsync(Native(native_)) < 0) {
+  if (fsync(native_) < 0) {
     return Err(HostError("flush", path_));
   }
   return Ok();

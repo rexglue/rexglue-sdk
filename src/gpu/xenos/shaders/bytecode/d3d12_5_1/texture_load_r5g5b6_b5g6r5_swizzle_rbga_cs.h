@@ -8,7 +8,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-const BYTE texture_load_r5g5b6_b5g6r5_swizzle_rbga_cs[] = {
+const BYTE kTextureLoadR5G5B6B5G6R5SwizzleRBGACS[] = {
     68,  88,  66,  67,  202, 164, 170, 174, 93,  200, 186, 29,  32,  41,  245, 108, 163, 179, 215,
     250, 1,   0,   0,   0,   120, 18,  0,   0,   5,   0,   0,   0,   52,  0,   0,   0,   20,  4,
     0,   0,   36,  4,   0,   0,   52,  4,   0,   0,   220, 17,  0,   0,   82,  68,  69,  70,  216,

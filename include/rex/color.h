@@ -19,7 +19,9 @@ namespace rex {
 namespace detail {
 
 constexpr u32 ColorByte(f32 channel) {
-  return static_cast<u32>(std::clamp(channel, 0.0f, 1.0f) * 255.0f + 0.5f);
+  const f32 scaled = std::clamp(channel, 0.0f, 1.0f) * 255.0f;
+  const u32 whole = static_cast<u32>(scaled);
+  return whole + ((scaled - static_cast<f32>(whole)) >= 0.5f ? 1u : 0u);
 }
 
 }  // namespace detail

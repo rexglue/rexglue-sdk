@@ -8,7 +8,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-const BYTE immediate_vs[] = {
+const BYTE kImmediateVS[] = {
     68,  88,  66,  67,  150, 136, 152, 237, 155, 249, 84,  3,   80,  221, 206, 175, 204, 144, 211,
     193, 1,   0,   0,   0,   16,  4,   0,   0,   5,   0,   0,   0,   52,  0,   0,   0,   96,  1,
     0,   0,   208, 1,   0,   0,   68,  2,   0,   0,   116, 3,   0,   0,   82,  68,  69,  70,  36,

@@ -23,7 +23,7 @@
 namespace rex::xenos {
 
 /** Every GPU register, valued by its dword register index. */
-enum class Register : u32 {  // NOLINT(readability-identifier-naming)
+enum class Register : u16 {
 /**
  * Defines 1 enumerator of Register. The register table includes this once per register.
  *
@@ -35,7 +35,7 @@ enum class Register : u32 {  // NOLINT(readability-identifier-naming)
  * REXGPU_REGISTER(0x05C8, kDword, WAIT_UNTIL)
  * @endcode
  */
-#define REXGPU_REGISTER(index, type, name) name = index,
+#define REXGPU_REGISTER(index, type, name) name = (index),
 #include <rex/xenos/register_table.inc>
 #undef REXGPU_REGISTER
 };
@@ -71,7 +71,7 @@ union alignas(u32) COHER_STATUS_HOST {
     u32 dest_base_6_ena : 1;
     u32 dest_base_7_ena : 1;
     /** @} */
-    u32 _pad_17 : 7;
+    u32 pad_17 : 7;
     /**
      * Bit 24. Requests a vertex cache action. The command processor only names it in the coherency
      * trace log.
@@ -83,7 +83,7 @@ union alignas(u32) COHER_STATUS_HOST {
      */
     u32 tc_action_ena : 1;
     u32 pglb_action_ena : 1; /**< Bit 26. No code reads it. */
-    u32 _pad_27 : 4;
+    u32 pad_27 : 4;
     /**
      * Bit 31. Set by a write to request coherency of the COHER_BASE_HOST range. The command
      * processor clears the register after logging the request.
@@ -99,23 +99,23 @@ REX_STATIC_ASSERT_SIZE(COHER_STATUS_HOST, sizeof(u32));
 union alignas(u32) WAIT_UNTIL {
   u32 value; /**< Raw 32 bit register value, sharing storage with the bit fields. */
   struct {
-    u32 _pad_0 : 1;
+    u32 pad_0 : 1;
     u32 wait_re_vsync : 1;  /**< Bit 1. No code reads it. */
     u32 wait_fe_vsync : 1;  /**< Bit 2. No code reads it. */
     u32 wait_vsync : 1;     /**< Bit 3. No code reads it. */
     u32 wait_dsply_id0 : 1; /**< Bit 4. No code reads it. */
     u32 wait_dsply_id1 : 1; /**< Bit 5. No code reads it. */
     u32 wait_dsply_id2 : 1; /**< Bit 6. No code reads it. */
-    u32 _pad_7 : 3;
+    u32 pad_7 : 3;
     u32 wait_cmdfifo : 1; /**< Bit 10. No code reads it. */
-    u32 _pad_11 : 3;
+    u32 pad_11 : 3;
     u32 wait_2d_idle : 1;      /**< Bit 14. No code reads it. */
     u32 wait_3d_idle : 1;      /**< Bit 15. No code reads it. */
     u32 wait_2d_idleclean : 1; /**< Bit 16. No code reads it. */
     u32 wait_3d_idleclean : 1; /**< Bit 17. No code reads it. */
-    u32 _pad_18 : 2;
+    u32 pad_18 : 2;
     u32 cmdfifo_entries : 4; /**< Bits 20 to 23. No code reads it. */
-    u32 _pad_24 : 8;
+    u32 pad_24 : 8;
   };
   /** Register that RegisterFile::Get reads this layout from. */
   static constexpr Register register_index = xenos::Register::WAIT_UNTIL;
@@ -131,9 +131,9 @@ union alignas(u32) SQ_PROGRAM_CNTL {
   struct {
     /** GPR count. The field is 6 bits wide and bits 7:6 are never set. */
     u32 vs_num_reg : 6; /**< Bits 0 to 5. Vertex shader GPR count minus 1. */
-    u32 _pad_6 : 2;
+    u32 pad_6 : 2;
     u32 ps_num_reg : 6; /**< Bits 8 to 13. Pixel shader GPR count minus 1. */
-    u32 _pad_14 : 2;
+    u32 pad_14 : 2;
     u32 vs_resource : 1; /**< Bit 16. No code reads it. */
     u32 ps_resource : 1; /**< Bit 17. No code reads it. */
     /**
@@ -168,7 +168,7 @@ union alignas(u32) SQ_CONTEXT_MISC {
     u32 sc_output_screen_xy : 1; /**< Bit 1. No code reads it. */
     /** Bits 2 to 3. Interpolation sample location mode, passed to the pipeline caches. */
     xenos::SampleControl sc_sample_cntl : 2;
-    u32 _pad_4 : 4;
+    u32 pad_4 : 4;
     /**
      * Pixel shader interpolator index that receives the pixel parameters. It is limited to the
      * interpolator count of 16, not the total register count of 64.
@@ -186,7 +186,7 @@ union alignas(u32) SQ_CONTEXT_MISC {
     u32 perfcounter_ref : 1; /**< Bit 16. No code reads it. */
     u32 yield_optimize : 1;  /**< Bit 17. No code reads it. */
     u32 tx_cache_sel : 1;    /**< Bit 18. No code reads it. */
-    u32 _pad_19 : 13;
+    u32 pad_19 : 13;
   };
   /** Register that RegisterFile::Get reads this layout from. */
   static constexpr Register register_index = xenos::Register::SQ_CONTEXT_MISC;
@@ -218,9 +218,9 @@ union alignas(u32) SQ_VS_CONST {
      * processor asserts the register is 0x000FF000 or 0.
      */
     u32 base : 9;
-    u32 _pad_9 : 3;
+    u32 pad_9 : 3;
     u32 size : 9; /**< Bits 12 to 20. Number of vec4 float constants in the range minus 1. */
-    u32 _pad_21 : 11;
+    u32 pad_21 : 11;
   };
   /** Register that RegisterFile::Get reads this layout from. */
   static constexpr Register register_index = xenos::Register::SQ_VS_CONST;
@@ -236,9 +236,9 @@ union alignas(u32) SQ_PS_CONST {
      * processor asserts the register is 0x000FF100 or 0.
      */
     u32 base : 9;
-    u32 _pad_9 : 3;
+    u32 pad_9 : 3;
     u32 size : 9; /**< Bits 12 to 20. Number of vec4 float constants in the range minus 1. */
-    u32 _pad_21 : 11;
+    u32 pad_21 : 11;
   };
   /** Register that RegisterFile::Get reads this layout from. */
   static constexpr Register register_index = xenos::Register::SQ_PS_CONST;
@@ -253,7 +253,7 @@ union alignas(u32) VGT_DMA_SIZE {
      * Bits 0 to 23. Number of 32 bit words of the index buffer fetched by DMA. No code reads it.
      */
     u32 num_words : 24;
-    u32 _pad_24 : 6; /**< +24 */
+    u32 pad_24 : 6; /**< +24 */
     /**
      * Bits 30 to 31. Endian swap applied to the DMA index buffer, passed to the index buffer info
      * of the draw packet handler.
@@ -279,11 +279,11 @@ union alignas(u32) VGT_DRAW_INITIATOR {
      * tessellation enabled is ignored in the implicit major mode.
      */
     xenos::MajorMode major_mode : 2;
-    u32 _pad_10 : 1;
+    u32 pad_10 : 1;
     /** Bit 11. Index element format, 16 bit or 32 bit, which sets the index buffer element size. */
     xenos::IndexFormat index_size : 1;
     u32 not_eop : 1; /**< Bit 12. No code reads it. */
-    u32 _pad_13 : 3;
+    u32 pad_13 : 3;
     /**
      * Bits 16 to 31. Number of indices to draw, passed to IssueDraw and used as the DMA index
      * count.
@@ -308,7 +308,7 @@ union alignas(u32) VGT_MULTI_PRIM_IB_RESET_INDX {
      * reset when this is 0xFFFFFF.
      */
     u32 reset_indx : 24;
-    u32 _pad_24 : 8;
+    u32 pad_24 : 8;
   };
   /** Register that RegisterFile::Get reads this layout from. */
   static constexpr Register register_index = xenos::Register::VGT_MULTI_PRIM_IB_RESET_INDX;
@@ -325,7 +325,7 @@ union alignas(u32) VGT_INDX_OFFSET {
      * entire register and the upper 8 bits are ignored.
      */
     u32 indx_offset : 24;
-    u32 _pad_24 : 8;
+    u32 pad_24 : 8;
   };
   /** Register that RegisterFile::Get reads this layout from. */
   static constexpr Register register_index = xenos::Register::VGT_INDX_OFFSET;
@@ -341,7 +341,7 @@ union alignas(u32) VGT_MIN_VTX_INDX {
      * the draw extent estimator.
      */
     u32 min_indx : 24;
-    u32 _pad_24 : 8;
+    u32 pad_24 : 8;
   };
   /** Register that RegisterFile::Get reads this layout from. */
   static constexpr Register register_index = xenos::Register::VGT_MIN_VTX_INDX;
@@ -355,7 +355,7 @@ union alignas(u32) VGT_MAX_VTX_INDX {
     /** Bits 0 to 23. Upper clamp for vertex indices, passed to the shaders and read by the draw
      * extent estimator. */
     u32 max_indx : 24;
-    u32 _pad_24 : 8;
+    u32 pad_24 : 8;
   };
   /** Register that RegisterFile::Get reads this layout from. */
   static constexpr Register register_index = xenos::Register::VGT_MAX_VTX_INDX;
@@ -371,7 +371,7 @@ union alignas(u32) VGT_OUTPUT_PATH_CNTL {
      * packet handler.
      */
     xenos::VGTOutputPath path_select : 2;
-    u32 _pad_2 : 30;
+    u32 pad_2 : 30;
   };
   /** Register that RegisterFile::Get reads this layout from. */
   static constexpr Register register_index = xenos::Register::VGT_OUTPUT_PATH_CNTL;
@@ -387,7 +387,7 @@ union alignas(u32) VGT_HOS_CNTL {
      * kAdaptive.
      */
     xenos::TessellationMode tess_mode : 2;
-    u32 _pad_2 : 30;
+    u32 pad_2 : 30;
   };
   /** Register that RegisterFile::Get reads this layout from. */
   static constexpr Register register_index = xenos::Register::VGT_HOS_CNTL;
@@ -460,14 +460,14 @@ union alignas(u32) PA_SU_SC_MODE_CNTL {
     u32 poly_offset_back_enable : 1;
     /** Bit 13. Applies the front polygon offset registers to non polygonal primitives. */
     u32 poly_offset_para_enable : 1;
-    u32 _pad_14 : 1;
+    u32 pad_14 : 1;
     u32 msaa_enable : 1; /**< Bit 15. No code reads it. */
     /**
      * Bit 16. Adds PA_SC_WINDOW_OFFSET to vertex positions, read by the draw code and the draw
      * extent estimator.
      */
     u32 vtx_window_offset_enable : 1;
-    u32 _pad_17 : 2;
+    u32 pad_17 : 2;
     u32 provoking_vtx_last : 1; /**< Bit 19. No code reads it. */
     u32 persp_corr_dis : 1;     /**< Bit 20. No code reads it. */
     /**
@@ -475,10 +475,10 @@ union alignas(u32) PA_SU_SC_MODE_CNTL {
      * extent estimator.
      */
     u32 multi_prim_ib_ena : 1;
-    u32 _pad_22 : 1;
+    u32 pad_22 : 1;
     u32 quad_order_enable : 1;     /**< Bit 23. No code reads it. */
     u32 sc_one_quad_per_clock : 1; /**< Bit 24. No code reads it. */
-    u32 _pad_25 : 7;
+    u32 pad_25 : 7;
   };
   /** Register that RegisterFile::Get reads this layout from. */
   static constexpr Register register_index = xenos::Register::PA_SU_SC_MODE_CNTL;
@@ -495,7 +495,7 @@ union alignas(u32) PA_SU_VTX_CNTL {
     xenos::PixelCenter pix_center : 1;
     xenos::VertexRounding round_mode : 2;     /**< Bits 1 to 2. No code reads it. */
     xenos::VertexQuantization quant_mode : 3; /**< Bits 3 to 5. No code reads it. */
-    u32 _pad_6 : 26;
+    u32 pad_6 : 26;
   };
   /** Register that RegisterFile::Get reads this layout from. */
   static constexpr Register register_index = xenos::Register::PA_SU_VTX_CNTL;
@@ -507,7 +507,7 @@ union alignas(u32) PA_SC_MPASS_PS_CNTL {
   u32 value; /**< Raw 32 bit register value, sharing storage with the bit fields. */
   struct {
     u32 mpass_pix_vec_per_pass : 20; /**< Bits 0 to 19. No code reads it. */
-    u32 _pad_20 : 11;
+    u32 pad_20 : 11;
     u32 mpass_ps_ena : 1; /**< Bit 31. No code reads it. */
   };
   /** Register that RegisterFile::Get reads this layout from. */
@@ -528,7 +528,7 @@ union alignas(u32) PA_SC_VIZ_QUERY {
     /** Discards geometry after the test but still uses it for testing. */
     u32 kill_pix_post_hi_z : 1;
     u32 kill_pix_post_detail_mask : 1; /**< Bit 8. Unused by Direct3D. */
-    u32 _pad_9 : 23;
+    u32 pad_9 : 23;
   };
   /** Register that RegisterFile::Get reads this layout from. */
   static constexpr Register register_index = xenos::Register::PA_SC_VIZ_QUERY;
@@ -551,7 +551,7 @@ union alignas(u32) PA_CL_CLIP_CNTL {
     u32 ucp_ena_4 : 1;
     u32 ucp_ena_5 : 1;
     /** @} */
-    u32 _pad_6 : 8;
+    u32 pad_6 : 8;
     /**
      * Bits 14 to 15. User clip plane mode for point sprites, passed to the vertex shader
      * modification.
@@ -579,7 +579,7 @@ union alignas(u32) PA_CL_CLIP_CNTL {
     u32 xy_nan_retain : 1; /**< Bit 22. No code reads it. */
     u32 z_nan_retain : 1;  /**< Bit 23. No code reads it. */
     u32 w_nan_retain : 1;  /**< Bit 24. No code reads it. */
-    u32 _pad_25 : 7;
+    u32 pad_25 : 7;
   };
   struct {
     /**
@@ -609,7 +609,7 @@ union alignas(u32) PA_CL_VTE_CNTL {
     u32 vport_z_scale_ena : 1;
     /** Bit 5. Applies PA_CL_VPORT_ZOFFSET, otherwise the draw code uses an offset of 0. */
     u32 vport_z_offset_ena : 1;
-    u32 _pad_6 : 2;
+    u32 pad_6 : 2;
     /**
      * Bit 8. Set when vertex X and Y are already divided by W, which sets the XYDividedByW system
      * flag of the shader translators.
@@ -626,7 +626,7 @@ union alignas(u32) PA_CL_VTE_CNTL {
      */
     u32 vtx_w0_fmt : 1;
     u32 perfcounter_ref : 1; /**< Bit 11. No code reads it. */
-    u32 _pad_12 : 20;
+    u32 pad_12 : 20;
   };
   /** Register that RegisterFile::Get reads this layout from. */
   static constexpr Register register_index = xenos::Register::PA_CL_VTE_CNTL;
@@ -641,12 +641,12 @@ union alignas(u32) PA_SC_SCREEN_SCISSOR_TL {
      * Bits 0 to 14. Left edge in pixels, signed, read by the draw code to clip the window scissor.
      */
     i32 tl_x : 15;
-    u32 _pad_15 : 1;
+    u32 pad_15 : 1;
     /**
      * Bits 16 to 30. Top edge in pixels, signed, read by the draw code to clip the window scissor.
      */
     i32 tl_y : 15;
-    u32 _pad_31 : 1;
+    u32 pad_31 : 1;
   };
   /** Register that RegisterFile::Get reads this layout from. */
   static constexpr Register register_index = xenos::Register::PA_SC_SCREEN_SCISSOR_TL;
@@ -661,13 +661,13 @@ union alignas(u32) PA_SC_SCREEN_SCISSOR_BR {
      * Bits 0 to 14. Right edge in pixels, signed, read by the draw code to clip the window scissor.
      */
     i32 br_x : 15;
-    u32 _pad_15 : 1;
+    u32 pad_15 : 1;
     /**
      * Bits 16 to 30. Bottom edge in pixels, signed, read by the draw code to clip the window
      * scissor.
      */
     i32 br_y : 15;
-    u32 _pad_31 : 1;
+    u32 pad_31 : 1;
   };
   /** Register that RegisterFile::Get reads this layout from. */
   static constexpr Register register_index = xenos::Register::PA_SC_SCREEN_SCISSOR_BR;
@@ -683,13 +683,13 @@ union alignas(u32) PA_SC_WINDOW_OFFSET {
      * the draw code.
      */
     i32 window_x_offset : 15;
-    u32 _pad_15 : 1;
+    u32 pad_15 : 1;
     /**
      * Bits 16 to 30. Signed Y offset in pixels added to vertex positions and the window scissor by
      * the draw code.
      */
     i32 window_y_offset : 15;
-    u32 _pad_31 : 1;
+    u32 pad_31 : 1;
   };
   /** Register that RegisterFile::Get reads this layout from. */
   static constexpr Register register_index = xenos::Register::PA_SC_WINDOW_OFFSET;
@@ -701,9 +701,9 @@ union alignas(u32) PA_SC_WINDOW_SCISSOR_TL {
   u32 value; /**< Raw 32 bit register value, sharing storage with the bit fields. */
   struct {
     u32 tl_x : 14; /**< Bits 0 to 13. Left edge in pixels, read by the draw code. */
-    u32 _pad_14 : 2;
+    u32 pad_14 : 2;
     u32 tl_y : 14; /**< Bits 16 to 29. Top edge in pixels, read by the draw code. */
-    u32 _pad_30 : 1;
+    u32 pad_30 : 1;
     /**
      * Bit 31. Skips PA_SC_WINDOW_OFFSET for the window scissor, read by the draw code and the draw
      * extent estimator.
@@ -720,9 +720,9 @@ union alignas(u32) PA_SC_WINDOW_SCISSOR_BR {
   u32 value; /**< Raw 32 bit register value, sharing storage with the bit fields. */
   struct {
     u32 br_x : 14; /**< Bits 0 to 13. Right edge in pixels, read by the draw code. */
-    u32 _pad_14 : 2;
+    u32 pad_14 : 2;
     u32 br_y : 14; /**< Bits 16 to 29. Bottom edge in pixels, read by the draw code. */
-    u32 _pad_30 : 2;
+    u32 pad_30 : 2;
   };
   /** Register that RegisterFile::Get reads this layout from. */
   static constexpr Register register_index = xenos::Register::PA_SC_WINDOW_SCISSOR_BR;
@@ -738,7 +738,7 @@ union alignas(u32) RB_MODECONTROL {
      * tell drawing from copying.
      */
     xenos::EDRAMMode edram_mode : 3;
-    u32 _pad_3 : 29;
+    u32 pad_3 : 29;
   };
   /** Register that RegisterFile::Get reads this layout from. */
   static constexpr Register register_index = xenos::Register::RB_MODECONTROL;
@@ -751,7 +751,7 @@ union alignas(u32) RB_SURFACE_INFO {
   struct {
     /** Bits 0 to 13. Render target pitch in pixels. The draw code skips draws when it is 0. */
     u32 surface_pitch : 14;
-    u32 _pad_14 : 2;
+    u32 pad_14 : 2;
     /**
      * Bits 16 to 17. Multisample count, read by the command processors, the pipeline caches and the
      * render target cache.
@@ -776,7 +776,7 @@ union alignas(u32) RB_COLORCONTROL {
      * Bit 4. Enables alpha to mask, which also passes bits 24 to 31 of the register to the shaders.
      */
     u32 alpha_to_mask_enable : 1;
-    u32 _pad_5 : 19;
+    u32 pad_5 : 19;
     /**
      * Alpha to mask threshold offsets for the 4 pixels of each quad. Offsets lower the coverage
      * thresholds by offset / 4 / sample count. 2, 2, 2, 2 makes the test symmetric and is common
@@ -817,7 +817,7 @@ union alignas(u32) RB_COLOR_INFO {
     /** Bits 0 to 10. EDRAM base of the render target in tiles, low 11 bits. */
     u32 color_base : 11;
     u32 color_base_bit_11 : 1; /**< Bit 11. Bit 11 of the EDRAM base in tiles. */
-    u32 _pad_12 : 4;
+    u32 pad_12 : 4;
     /**
      * Bits 16 to 19. Render target format, read by the command processors and the render target
      * cache.
@@ -828,7 +828,7 @@ union alignas(u32) RB_COLOR_INFO {
      * the Direct3D 12 command processor.
      */
     i32 color_exp_bias : 6;
-    u32 _pad_26 : 6;
+    u32 pad_26 : 6;
   };
   /** Register that RegisterFile::Get reads this layout from. */
   static constexpr Register register_index = xenos::Register::RB_COLOR_INFO;
@@ -863,7 +863,7 @@ union alignas(u32) RB_COLOR_MASK {
     u32 write_blue3 : 1;
     u32 write_alpha3 : 1;
     /** @} */
-    u32 _pad_16 : 16;
+    u32 pad_16 : 16;
   };
   /** Register that RegisterFile::Get reads this layout from. */
   static constexpr Register register_index = xenos::Register::RB_COLOR_MASK;
@@ -879,13 +879,13 @@ union alignas(u32) RB_BLENDCONTROL {
     xenos::BlendOp color_comb_fcn : 3;
     /** Bits 8 to 12. Destination factor of the color blend. */
     xenos::BlendFactor color_destblend : 5;
-    u32 _pad_13 : 3;
+    u32 pad_13 : 3;
     xenos::BlendFactor alpha_srcblend : 5; /**< Bits 16 to 20. Source factor of the alpha blend. */
     /** Bits 21 to 23. Operation combining source and destination in the alpha blend. */
     xenos::BlendOp alpha_comb_fcn : 3;
     /** Bits 24 to 28. Destination factor of the alpha blend. */
     xenos::BlendFactor alpha_destblend : 5;
-    u32 _pad_29 : 3;
+    u32 pad_29 : 3;
   };
   /** Register that RegisterFile::Get reads this layout from. */
   static constexpr Register register_index = xenos::Register::RB_BLENDCONTROL0;
@@ -901,7 +901,7 @@ union alignas(u32) RB_DEPTHCONTROL {
     u32 stencil_enable : 1; /**< Bit 0. Enables the stencil test. */
     u32 z_enable : 1;       /**< Bit 1. Enables the depth test. */
     u32 z_write_enable : 1; /**< Bit 2. Allows depth writes. */
-    u32 _pad_3 : 1;
+    u32 pad_3 : 1;
     xenos::CompareFunction zfunc : 3; /**< Bits 4 to 6. Depth test comparison. */
     /** Bit 7. Uses the _bf stencil fields for back faces of polygons. */
     u32 backface_enable : 1;
@@ -936,7 +936,7 @@ union alignas(u32) RB_STENCILREFMASK {
     /** Bits 8 to 15. Mask applied to the stencil reference and buffer values in the test. */
     u32 stencilmask : 8;
     u32 stencilwritemask : 8; /**< Bits 16 to 23. Mask of stencil bits that can be written. */
-    u32 _pad_24 : 8;
+    u32 pad_24 : 8;
   };
   /** Register that RegisterFile::Get reads this layout from. */
   static constexpr Register register_index = xenos::Register::RB_STENCILREFMASK;
@@ -951,13 +951,13 @@ union alignas(u32) RB_DEPTH_INFO {
     /** Bits 0 to 10. EDRAM base of the depth target in tiles, low 11 bits. */
     u32 depth_base : 11;
     u32 depth_base_bit_11 : 1; /**< Bit 11. Bit 11 of the EDRAM base in tiles. */
-    u32 _pad_12 : 4;
+    u32 pad_12 : 4;
     /**
      * Bit 16. Depth target format, read by the command processors, the pipeline caches and the
      * render target cache.
      */
     xenos::DepthRenderTargetFormat depth_format : 1;
-    u32 _pad_17 : 15;
+    u32 pad_17 : 15;
   };
   /** Register that RegisterFile::Get reads this layout from. */
   static constexpr Register register_index = xenos::Register::RB_DEPTH_INFO;
@@ -970,21 +970,21 @@ union alignas(u32) RB_COPY_CONTROL {
   struct {
     /** Bits 0 to 2. Source of the copy, where 4 selects depth. The draw code reads it. */
     u32 copy_src_select : 3;
-    u32 _pad_3 : 1;
+    u32 pad_3 : 1;
     /**
      * Bits 4 to 6. Which samples the copy resolves, read by the draw code and the render target
      * cache.
      */
     xenos::CopySampleSelect copy_sample_select : 3;
-    u32 _pad_7 : 1;
+    u32 pad_7 : 1;
     /** Bit 8. Clears the color target after the copy, read by the draw code. */
     u32 color_clear_enable : 1;
     /** Bit 9. Clears the depth target after the copy, read by the draw code. */
     u32 depth_clear_enable : 1;
-    u32 _pad_10 : 10;
+    u32 pad_10 : 10;
     /** Bits 20 to 21. Copy operation, where the draw code accepts only kRaw and kConvert. */
     xenos::CopyCommand copy_command : 2;
-    u32 _pad_22 : 10;
+    u32 pad_22 : 10;
   };
   /** Register that RegisterFile::Get reads this layout from. */
   static constexpr Register register_index = xenos::Register::RB_COPY_CONTROL;
@@ -1019,10 +1019,10 @@ union alignas(u32) RB_COPY_DEST_INFO {
      * draw code.
      */
     i32 copy_dest_exp_bias : 6;
-    u32 _pad_22 : 2;
+    u32 pad_22 : 2;
     /** Bit 24. Written as 0 by the draw code when it builds copy info. */
     u32 copy_dest_swap : 1;
-    u32 _pad_25 : 7;
+    u32 pad_25 : 7;
   };
   /** Register that RegisterFile::Get reads this layout from. */
   static constexpr Register register_index = xenos::Register::RB_COPY_DEST_INFO;
@@ -1035,10 +1035,10 @@ union alignas(u32) RB_COPY_DEST_PITCH {
   struct {
     /** Bits 0 to 13. Destination pitch in pixels, read by the draw code. */
     u32 copy_dest_pitch : 14;
-    u32 _pad_14 : 2;
+    u32 pad_14 : 2;
     /** Bits 16 to 29. Destination height in pixels, read by the draw code. */
     u32 copy_dest_height : 14;
-    u32 _pad_30 : 2;
+    u32 pad_30 : 2;
   };
   /** Register that RegisterFile::Get reads this layout from. */
   static constexpr Register register_index = xenos::Register::RB_COPY_DEST_PITCH;
@@ -1054,7 +1054,7 @@ union alignas(u32) DC_LUT_RW_INDEX {
      * 0. For PWL, bit 7 is ignored.
      */
     u32 rw_index : 8;
-    u32 _pad_8 : 24;
+    u32 pad_8 : 24;
   };
   /** Register that RegisterFile::Get reads this layout from. */
   static constexpr Register register_index = xenos::Register::DC_LUT_RW_INDEX;
@@ -1070,7 +1070,7 @@ union alignas(u32) DC_LUT_SEQ_COLOR {
      * command processor keeps bits 6 to 15. Bits 0 to 5 are hardwired to 0.
      */
     u32 seq_color : 16;
-    u32 _pad_16 : 16;
+    u32 pad_16 : 16;
   };
   /** Register that RegisterFile::Get reads this layout from. */
   static constexpr Register register_index = xenos::Register::DC_LUT_SEQ_COLOR;
@@ -1106,7 +1106,7 @@ union alignas(u32) DC_LUT_30_COLOR {
     u32 color_10_blue : 10;  /**< Bits 0 to 9. Blue channel of the entry, 10 bits. */
     u32 color_10_green : 10; /**< Bits 10 to 19. Green channel of the entry, 10 bits. */
     u32 color_10_red : 10;   /**< Bits 20 to 29. Red channel of the entry, 10 bits. */
-    u32 _pad_30 : 2;
+    u32 pad_30 : 2;
   };
   /** Register that RegisterFile::Get reads this layout from. */
   static constexpr Register register_index = xenos::Register::DC_LUT_30_COLOR;

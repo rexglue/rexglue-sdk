@@ -82,6 +82,7 @@ REX_TEST_CASE("A function stays in its bucket when an earlier function grows",
 REX_TEST_CASE("The file count survives functions growing far past the budget",
               "[output_partition]") {
   std::vector<FunctionSize> first;
+  first.reserve(20);
   for (u32 i = 0; i < 20; ++i) {
     first.push_back({0x8200'0000 + i * 0x100, 10});
   }

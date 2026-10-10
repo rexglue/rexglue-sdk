@@ -14,8 +14,6 @@
 
 namespace rex::runtime::cvars {
 
-// NOLINTBEGIN(bugprone-throwing-static-initialization) constant descriptors registered at Connect
-
 REXCVAR_BOOL(runtime, writable_code_segments, false,
              "Enables a program to write to its own code segments in memory")
     .lifecycle(rex::cvar::Lifecycle::RequiresRestart);
@@ -34,7 +32,5 @@ REXCVAR_INT32(apu, max_queued_frames, 8,
     .range(4, 64)
     .lifecycle(rex::cvar::Lifecycle::RequiresRestart);
 REXCVAR_TABLE(kAPUCvars, max_queued_frames);
-
-// NOLINTEND(bugprone-throwing-static-initialization)
 
 }  // namespace rex::runtime::cvars

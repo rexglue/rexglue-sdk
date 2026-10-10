@@ -31,6 +31,7 @@ namespace rex::platform {
   storage.push_back(exe);
   storage.insert(storage.end(), args.begin(), args.end());
   std::vector<char*> argv;
+  argv.reserve(storage.size() + 1);
   for (std::string& arg : storage) {
     argv.push_back(arg.data());
   }

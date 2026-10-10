@@ -19,15 +19,18 @@ namespace rex::runtime {
 #pragma pack(push, 4)
 
 /** File attribute flags. */
-enum X_FILE_ATTRIBUTES : u32 {
-  X_FILE_ATTRIBUTE_NONE = 0x0000,
-  X_FILE_ATTRIBUTE_READONLY = 0x0001,
-  X_FILE_ATTRIBUTE_HIDDEN = 0x0002,
-  X_FILE_ATTRIBUTE_SYSTEM = 0x0004,
-  X_FILE_ATTRIBUTE_DIRECTORY = 0x0010,
-  X_FILE_ATTRIBUTE_ARCHIVE = 0x0020,
-  X_FILE_ATTRIBUTE_DEVICE = 0x0040,
-  X_FILE_ATTRIBUTE_NORMAL = 0x0080,
+enum X_FILE_ATTRIBUTES : u16 {
+  X_FILE_ATTRIBUTE_NONE = 0x0000,     /**< No attribute bit is set. */
+  X_FILE_ATTRIBUTE_READONLY = 0x0001, /**< The file cannot be written. */
+  X_FILE_ATTRIBUTE_HIDDEN =
+      0x0002, /**< NT attribute bit the XDK does not list, no code reads it. */
+  X_FILE_ATTRIBUTE_SYSTEM =
+      0x0004, /**< NT attribute bit the XDK does not list, no code reads it. */
+  X_FILE_ATTRIBUTE_DIRECTORY = 0x0010, /**< The entry is a directory. */
+  X_FILE_ATTRIBUTE_ARCHIVE = 0x0020,   /**< The entry is an archive file or directory. */
+  X_FILE_ATTRIBUTE_DEVICE = 0x0040,    /**< Reserved, titles do not use it. */
+  X_FILE_ATTRIBUTE_NORMAL = 0x0080, /**< The file has no other attribute, valid only on its own. */
+  /** NT attribute bit the XDK does not list, no code reads it. */
   X_FILE_ATTRIBUTE_TEMPORARY = 0x0100,
   X_FILE_ATTRIBUTE_COMPRESSED =
       0x0800, /**< NT attribute bit the XDK does not list, no code reads it. */

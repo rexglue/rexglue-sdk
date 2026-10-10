@@ -128,7 +128,7 @@ using XSystemClock = detail::NtSystemClock<detail::Domain::Guest>;
 
 }  // namespace rex
 
-// NOLINTNEXTLINE(bugprone-std-namespace-modification) permitted specialization
+// NOLINTNEXTLINE(bugprone-std-namespace-modification): permitted program defined clock
 namespace std::chrono {
 
 #ifdef __APPLE__

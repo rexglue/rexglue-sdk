@@ -145,7 +145,7 @@ enum X_MEM : u32 {
 };
 
 /** PAGE_* flags used by NtAllocateVirtualMemory. */
-enum X_PAGE : u32 {
+enum X_PAGE : u16 {
   X_PAGE_NOACCESS = 0x00000001,          /**< Any access faults. */
   X_PAGE_READONLY = 0x00000002,          /**< Pages can be read. */
   X_PAGE_READWRITE = 0x00000004,         /**< Pages can be read and written. */

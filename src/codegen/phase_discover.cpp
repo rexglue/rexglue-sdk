@@ -26,8 +26,6 @@
 
 #include <ppc.h>
 
-using rex::codegen::ppc::Opcode;
-
 namespace rex::codegen {
 
 namespace {

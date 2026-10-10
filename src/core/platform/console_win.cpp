@@ -20,6 +20,7 @@ bool EnableANSIEscapes(FILE* stream) {
   if (!stream) {
     return false;
   }
+  // NOLINTNEXTLINE(performance-no-int-to-ptr): _get_osfhandle returns the HANDLE as an intptr_t
   HANDLE handle = reinterpret_cast<HANDLE>(_get_osfhandle(_fileno(stream)));
   if (handle == INVALID_HANDLE_VALUE) {
     return false;

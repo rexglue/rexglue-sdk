@@ -31,6 +31,7 @@ class SpirvShaderTranslator : public ShaderTranslator {
     /** Pipeline storage version, incremented when the layout changes incompatibly. */
     static constexpr u32 kVersion = 12;
 
+    // NOLINTNEXTLINE(performance-enum-size): packed key bit field, MSVC packs per type
     enum class DepthStencilMode : u32 {
       kNoModifiers,
       /**
@@ -285,7 +286,7 @@ class SpirvShaderTranslator : public ShaderTranslator {
     f32 tessellation_factor_range_max;
   };
 
-  enum ConstantBuffer : u32 {
+  enum ConstantBuffer : u8 {
     kConstantBufferSystem,
     kConstantBufferFloatVertex,
     kConstantBufferFloatPixel,
@@ -301,7 +302,7 @@ class SpirvShaderTranslator : public ShaderTranslator {
    * texel buffers. Sets with an immutable layout come first, in reverse frequency of change,
    * followed by sets that vary per pipeline state.
    */
-  enum DescriptorSet : u32 {
+  enum DescriptorSet : u8 {
 
     kDescriptorSetSharedMemoryAndEdram,
     kDescriptorSetConstants,
@@ -1155,7 +1156,7 @@ class SpirvShaderTranslator : public ShaderTranslator {
   };
   spv::Id const_float2_0_1_;
 
-  enum SystemConstantIndex : unsigned int {
+  enum SystemConstantIndex : u8 {
     kSystemConstantFlags,
     kSystemConstantVertexIndexLoadAddress,
     kSystemConstantVertexIndexEndian,
@@ -1240,7 +1241,7 @@ class SpirvShaderTranslator : public ShaderTranslator {
   /** float, VS only when needed. */
   spv::Id output_point_size_;
 
-  enum OutputPerVertexMember : unsigned int {
+  enum OutputPerVertexMember : u8 {
     kOutputPerVertexMemberPosition,
     kOutputPerVertexMemberClipDistance,
     kOutputPerVertexMemberCullDistance,

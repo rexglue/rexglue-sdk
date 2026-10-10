@@ -300,7 +300,7 @@ bool VulkanSharedMemory::UploadRanges(const std::vector<std::pair<u32, u32>>& up
       upload_buffer_previous = upload_buffer;
       VkBufferCopy& upload_region = upload_regions_.emplace_back();
       upload_region.srcOffset = upload_buffer_offset;
-      upload_region.dstOffset = VkDeviceSize(upload_range_start << page_size_log2());
+      upload_region.dstOffset = static_cast<VkDeviceSize>(upload_range_start) << page_size_log2();
       upload_region.size = upload_buffer_size;
       u32 upload_buffer_pages = static_cast<u32>(upload_buffer_size >> page_size_log2());
       upload_range_start += upload_buffer_pages;

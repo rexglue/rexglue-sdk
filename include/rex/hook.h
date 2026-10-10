@@ -211,8 +211,10 @@ struct ImportFunction<R(Args...)> {
  * REX_IMPORT(ExampleFunction, example_function, u32(u32, u32));
  * @endcode
  */
+// NOLINTBEGIN(bugprone-macro-parentheses): callable is a declared name
 #define REX_IMPORT(symbol, callable, sig)                          \
   REX_EXTERN(symbol);                                              \
   [[maybe_unused]] static rex::ppc::ImportFunction<sig> callable { \
     symbol                                                         \
   }
+// NOLINTEND(bugprone-macro-parentheses)

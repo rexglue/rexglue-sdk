@@ -8,7 +8,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-const BYTE adaptive_quad_hs[] = {
+const BYTE kAdaptiveQuadHS[] = {
     68,  88,  66,  67,  239, 150, 141, 161, 148, 167, 208, 252, 147, 2,   216, 119, 8,   207, 171,
     137, 1,   0,   0,   0,   40,  15,  0,   0,   6,   0,   0,   0,   56,  0,   0,   0,   108, 10,
     0,   0,   164, 10,  0,   0,   216, 10,  0,   0,   156, 11,  0,   0,   140, 14,  0,   0,   82,

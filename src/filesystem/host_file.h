@@ -14,7 +14,6 @@
 
 #pragma once
 
-#include <cstdint>
 #include <filesystem>
 #include <memory>
 #include <optional>
@@ -22,10 +21,19 @@
 #include <vector>
 
 #include <rex/filesystem/open.h>
+#include <rex/platform.h>
 #include <rex/result.h>
 #include <rex/types.h>
 
 namespace rex::filesystem {
+
+#if REX_PLATFORM_WIN32
+/** Host file handle, a HANDLE. */
+using NativeHandle = void*;
+#else
+/** Host file handle, a file descriptor. */
+using NativeHandle = int;
+#endif
 
 /** Host view of 1 file or folder. */
 struct HostInfo {
@@ -62,7 +70,7 @@ class HostFile : public NonCopyable {
    * @param path The host file.
    * @param native The open host handle, closed by the destructor.
    */
-  HostFile(Key key, std::filesystem::path path, std::intptr_t native);
+  HostFile(Key key, std::filesystem::path path, NativeHandle native);
 
   ~HostFile();
 
@@ -108,7 +116,7 @@ class HostFile : public NonCopyable {
 
  private:
   std::filesystem::path path_;
-  std::intptr_t native_;
+  NativeHandle native_;
 };
 
 /**

@@ -181,13 +181,13 @@ u32 Clock::ScaleGuestDurationMillis(u32 guest_ms) {
   } else if (!guest_ms) {
     return 0;
   }
-  u64 scaled_ms = static_cast<u64>((static_cast<u64>(guest_ms) * g_guest_time_scalar));
+  u64 scaled_ms = static_cast<u64>(static_cast<f64>(guest_ms) * g_guest_time_scalar);
   return static_cast<u32>(std::min(scaled_ms, kMax));
 }
 
 i64 Clock::ScaleGuestDurationFileTime(i64 guest_file_time) {
   if (REXCVAR_GET(::rex::cvars::no_scaling)) {
-    return static_cast<u64>(guest_file_time);
+    return guest_file_time;
   }
 
   if (!guest_file_time) {
@@ -195,7 +195,7 @@ i64 Clock::ScaleGuestDurationFileTime(i64 guest_file_time) {
   } else if (guest_file_time > 0) {
     u64 guest_time = Clock::QueryGuestSystemTime();
     i64 relative_time = guest_file_time - static_cast<i64>(guest_time);
-    i64 scaled_time = static_cast<i64>(relative_time * g_guest_time_scalar);
+    i64 scaled_time = static_cast<i64>(static_cast<f64>(relative_time) * g_guest_time_scalar);
     return static_cast<i64>(guest_time) + scaled_time;
   } else {
     const i64 scaled_file_time =

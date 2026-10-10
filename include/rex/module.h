@@ -27,10 +27,11 @@ struct Config;
 /**
  * Result of an interface request at the module boundary.
  */
-enum class InterfaceStatus : i32 {  // NOLINT(performance-enum-size): the C export reports it as i32
-  Ok = 0,                           /**< The interface is served. */
-  NotFound = 1,                     /**< No interface of that name. */
-  VersionMismatch = 2,              /**< The name is served at a different version. */
+// NOLINTNEXTLINE(performance-enum-size): the C export reports the status as i32
+enum class InterfaceStatus : i32 {
+  Ok = 0,              /**< The interface is served. */
+  NotFound = 1,        /**< No interface of that name. */
+  VersionMismatch = 2, /**< The name is served at a different version. */
 };
 
 /**

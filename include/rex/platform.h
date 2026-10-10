@@ -106,6 +106,7 @@
  * REX_DETAIL_PACKED_SCOPE(struct Header { u8 tag; u32 size; })
  * @endcode
  */
+// NOLINTBEGIN(bugprone-macro-parentheses): body is a whole declaration
 #if REX_COMPILER_MSVC
 #define REX_DETAIL_PACKED_SCOPE(body) __pragma(pack(push, 1)) body __pragma(pack(pop));
 #else
@@ -113,6 +114,7 @@
   _Pragma("pack(push, 1)") body;      \
   _Pragma("pack(pop)");
 #endif  // REX_COMPILER_MSVC
+// NOLINTEND(bugprone-macro-parentheses)
 
 /**
  * Declares a struct with 1 byte packing.

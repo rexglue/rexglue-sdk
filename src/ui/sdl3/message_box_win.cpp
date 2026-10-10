@@ -19,6 +19,7 @@ BOOL CALLBACK MinimizeProcessWindow(HWND hwnd, LPARAM param) {
   if (pid == GetCurrentProcessId() && IsWindowVisible(hwnd) && !IsIconic(hwnd) &&
       ::GetWindow(hwnd, GW_OWNER) == nullptr) {
     ShowWindowAsync(hwnd, SW_FORCEMINIMIZE);
+    // NOLINTNEXTLINE(performance-no-int-to-ptr): EnumWindows passes the context as an LPARAM
     reinterpret_cast<std::vector<HWND>*>(param)->push_back(hwnd);
   }
   return TRUE;

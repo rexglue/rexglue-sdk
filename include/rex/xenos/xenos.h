@@ -27,6 +27,7 @@ namespace rex::xenos {
 constexpr memory::fourcc_t kSwapSignature = memory::make_fourcc("SWAP");
 
 /** Shader stage. */
+// NOLINTNEXTLINE(performance-enum-size): packed key bit field, MSVC packs per type
 enum class ShaderType : u32 {
   kVertex = 0, /**< Vertex shader. */
   kPixel = 1,  /**< Pixel shader. */
@@ -44,6 +45,7 @@ constexpr u32 kVertexIndexMask = (static_cast<u32>(1) << kVertexIndexBits) - 1;
  * output path is VGTOutputPath::kTessellationEnable, that range holds tessellation patch types,
  * and the vertex shader receives the patch index instead of control point indices.
  */
+// NOLINTNEXTLINE(performance-enum-size): Xenos bit field, MSVC packs per type
 enum class PrimitiveType : u32 {
   kNone = 0x00,                        /**< No primitive. */
   kPointList = 0x01,                   /**< Point list. */
@@ -72,6 +74,7 @@ enum class PrimitiveType : u32 {
 };
 
 /** Texture fetch constant dimension. Stacked textures are stored as 2D. */
+// NOLINTNEXTLINE(performance-enum-size): Xenos bit field, MSVC packs per type
 enum class DataDimension : u32 {
   k1D = 0,          /**< 1D texture. */
   k2DOrStacked = 1, /**< 2D or stacked texture. */
@@ -80,6 +83,7 @@ enum class DataDimension : u32 {
 };
 
 /** Texture coordinate clamp mode. */
+// NOLINTNEXTLINE(performance-enum-size): Xenos bit field, MSVC packs per type
 enum class ClampMode : u32 {
   kRepeat = 0,               /**< Repeat. */
   kMirroredRepeat = 1,       /**< Mirrored repeat. */
@@ -102,6 +106,7 @@ constexpr bool ClampModeUsesBorder(ClampMode clamp_mode) {
 }
 
 /** Texture component signedness (TEX_FORMAT_COMP, GPUSIGN on Xenos). */
+// NOLINTNEXTLINE(performance-enum-size): Xenos bit field, MSVC packs per type
 enum class TextureSign : u32 {
   kUnsigned = 0,       /**< Unsigned data. */
   kSigned = 1,         /**< Two's complement data. */
@@ -110,6 +115,7 @@ enum class TextureSign : u32 {
 };
 
 /** Texture filter. */
+// NOLINTNEXTLINE(performance-enum-size): Xenos bit field, MSVC packs per type
 enum class TextureFilter : u32 {
   kPoint = 0,         /**< Point sampling. */
   kLinear = 1,        /**< Linear filtering. */
@@ -118,6 +124,7 @@ enum class TextureFilter : u32 {
 };
 
 /** Anisotropic filter ratio. */
+// NOLINTNEXTLINE(performance-enum-size): Xenos bit field, MSVC packs per type
 enum class AnisoFilter : u32 {
   kDisabled = 0,      /**< Anisotropic filtering off. */
   kMax_1_1 = 1,       /**< Up to 1:1. */
@@ -129,6 +136,7 @@ enum class AnisoFilter : u32 {
 };
 
 /** Texture border color. */
+// NOLINTNEXTLINE(performance-enum-size): Xenos bit field, MSVC packs per type
 enum class BorderColor : u32 {
   k_ABGR_Black = 0,   /**< Black (0, 0, 0). */
   k_ABGR_White = 1,   /**< White (1, 1, 1, 1). */
@@ -137,6 +145,7 @@ enum class BorderColor : u32 {
 };
 
 /** Dimension of the tfetch instruction. Stacked textures are accessed with tfetch3D. */
+// NOLINTNEXTLINE(performance-enum-size): Xenos bit field, MSVC packs per type
 enum class FetchOpDimension : u32 {
   k1D = 0,          /**< 1D fetch. */
   k2D = 1,          /**< 2D fetch. */
@@ -166,12 +175,14 @@ inline int GetFetchOpDimensionComponentCount(FetchOpDimension dimension) {
 }
 
 /** Interpolation location within a pixel. */
+// NOLINTNEXTLINE(performance-enum-size): Xenos bit field, MSVC packs per type
 enum class SampleLocation : u32 {
   kCentroid = 0, /**< Centroid. */
   kCenter = 1,   /**< Pixel center. */
 };
 
 /** Endian swap mode for 32-bit data. */
+// NOLINTNEXTLINE(performance-enum-size): Xenos bit field, MSVC packs per type
 enum class Endian : u32 {
   kNone = 0,   /**< No swap. */
   k8in16 = 1,  /**< Swap bytes in 16-bit words. */
@@ -180,6 +191,7 @@ enum class Endian : u32 {
 };
 
 /** Endian swap mode for up to 128-bit data. */
+// NOLINTNEXTLINE(performance-enum-size): Xenos bit field, MSVC packs per type
 enum class Endian128 : u32 {
   kNone = 0,   /**< No swap. */
   k8in16 = 1,  /**< Swap bytes in 16-bit words. */
@@ -190,12 +202,14 @@ enum class Endian128 : u32 {
 };
 
 /** Index buffer element size. */
+// NOLINTNEXTLINE(performance-enum-size): Xenos bit field, MSVC packs per type
 enum class IndexFormat : u32 {
   kInt16, /**< 16-bit indices. */
   kInt32, /**< 32-bit indices. */
 };
 
 /** Surface number format (SurfaceNumberX). */
+// NOLINTNEXTLINE(performance-enum-size): Xenos bit field, MSVC packs per type
 enum class SurfaceNumberFormat : u32 {
   kUnsignedRepeatingFraction = 0, /**< Unsigned normalized. */
   kSignedRepeatingFraction = 1,   /**< Signed normalized with scale 2^(n-1) - 1. */
@@ -205,6 +219,7 @@ enum class SurfaceNumberFormat : u32 {
 };
 
 /** EDRAM multisample count. */
+// NOLINTNEXTLINE(performance-enum-size): Xenos bit field, MSVC packs per type
 enum class MSAASamples : u32 {
   k1X = 0, /**< 1 sample. */
   k2X = 1, /**< 2 samples, 1x2 per pixel. */
@@ -220,6 +235,7 @@ constexpr u32 kColorRenderTargetIndexBits = 2;
 constexpr u32 kMaxColorRenderTargets = 4;
 
 /** Color render target format. */
+// NOLINTNEXTLINE(performance-enum-size): Xenos bit field, MSVC packs per type
 enum class ColorRenderTargetFormat : u32 {
   k_8_8_8_8 = 0,                          /**< 4 8-bit unorm components. */
   k_8_8_8_8_GAMMA = 1,                    /**< 4 8-bit components with gamma. */
@@ -302,6 +318,7 @@ constexpr ColorRenderTargetFormat GetStorageColorFormat(ColorRenderTargetFormat 
 }
 
 /** Depth render target format. */
+// NOLINTNEXTLINE(performance-enum-size): Xenos bit field, MSVC packs per type
 enum class DepthRenderTargetFormat : u32 {
   kD24S8 = 0,  /**< 24-bit unorm depth, 8-bit stencil. */
   kD24FS8 = 1, /**< 20e4 [0, 2) floating-point depth, 8-bit stencil. */
@@ -388,8 +405,8 @@ constexpr u32 kEDRAMTileHeightSamples = 16;
 /** Number of EDRAM tiles. Tile addressing wraps around at this count. */
 constexpr u32 kEDRAMTileCount = 2048;
 /** EDRAM size in bytes. */
-constexpr u32 kEDRAMSizeBytes =
-    kEDRAMTileCount * kEDRAMTileHeightSamples * kEDRAMTileWidthSamples * sizeof(u32);
+constexpr u32 kEDRAMSizeBytes = static_cast<u32>(u64{kEDRAMTileCount} * kEDRAMTileHeightSamples *
+                                                 kEDRAMTileWidthSamples * sizeof(u32));
 
 /** Width of RB_SURFACE_INFO::surface_pitch. */
 constexpr u32 kEDRAMPitchPixelsBits = 14;
@@ -420,6 +437,7 @@ constexpr u32 kEDRAMPitchTilesBits = 10;
 constexpr u32 kFormatBits = 6;
 
 /** Texture format (a2xx_sq_surfaceformat). */
+// NOLINTNEXTLINE(performance-enum-size): Xenos bit field, MSVC packs per type
 enum class TextureFormat : u32 {
   k_1_REVERSE = 0,                  /**< 1-bit, reversed. */
   k_1 = 1,                          /**< 1-bit. */
@@ -488,6 +506,7 @@ enum class TextureFormat : u32 {
 };
 
 /** Subset of TextureFormat that render targets can be resolved to. */
+// NOLINTNEXTLINE(performance-enum-size): Xenos bit field, MSVC packs per type
 enum class ColorFormat : u32 {
   k_8 = 2,                          /**< TextureFormat::k_8. */
   k_1_5_5_5 = 3,                    /**< TextureFormat::k_1_5_5_5. */
@@ -552,6 +571,7 @@ constexpr bool IsColorResolveFormatBitwiseEquivalent(ColorRenderTargetFormat ren
 }
 
 /** Vertex fetch format. */
+// NOLINTNEXTLINE(performance-enum-size): Xenos bit field, MSVC packs per type
 enum class VertexFormat : u32 {
   kUndefined = 0,           /**< No format. */
   k_8_8_8_8 = 6,            /**< TextureFormat::k_8_8_8_8. */
@@ -648,6 +668,7 @@ inline u32 GetVertexFormatNeededWords(VertexFormat format, u32 used_components) 
 }
 
 /** Depth, stencil and alpha test comparison function. */
+// NOLINTNEXTLINE(performance-enum-size): Xenos bit field, MSVC packs per type
 enum class CompareFunction : u32 {
   kNever = 0b000,        /**< Never passes. */
   kLess = 0b001,         /**< Passes if less. */
@@ -660,6 +681,7 @@ enum class CompareFunction : u32 {
 };
 
 /** Stencil operation. */
+// NOLINTNEXTLINE(performance-enum-size): Xenos bit field, MSVC packs per type
 enum class StencilOp : u32 {
   kKeep = 0,           /**< Keep the value. */
   kZero = 1,           /**< Set to 0. */
@@ -672,6 +694,7 @@ enum class StencilOp : u32 {
 };
 
 /** Blend factor (adreno_rb_blend_factor). */
+// NOLINTNEXTLINE(performance-enum-size): Xenos bit field, MSVC packs per type
 enum class BlendFactor : u32 {
   kZero = 0,                   /**< 0. */
   kOne = 1,                    /**< 1. */
@@ -691,6 +714,7 @@ enum class BlendFactor : u32 {
 };
 
 /** Blend operation. */
+// NOLINTNEXTLINE(performance-enum-size): Xenos bit field, MSVC packs per type
 enum class BlendOp : u32 {
   kAdd = 0,         /**< Source plus destination. */
   kSubtract = 1,    /**< Source minus destination. */
@@ -700,13 +724,14 @@ enum class BlendOp : u32 {
 };
 
 /** State invalidation mask. */
-enum class InvalidateMask : u32 {
+enum class InvalidateMask : u16 {
   VertexShader = 1 << 8, /**< Vertex shader state. */
   PixelShader = 1 << 9,  /**< Pixel shader state. */
   All = 0x7FFF,          /**< All state. */
 };
 
 /** Index source of a draw (VGT_DRAW_INITIATOR::DI_SRC_SEL). */
+// NOLINTNEXTLINE(performance-enum-size): Xenos bit field, MSVC packs per type
 enum class SourceSelect : u32 {
   kDMA,       /**< Indices fetched from memory. */
   kImmediate, /**< Indices embedded in the packet. */
@@ -714,6 +739,7 @@ enum class SourceSelect : u32 {
 };
 
 /** Major mode of a draw (VGT_DRAW_INITIATOR::DI_MAJOR_MODE). */
+// NOLINTNEXTLINE(performance-enum-size): Xenos bit field, MSVC packs per type
 enum class MajorMode : u32 {
   kImplicit, /**< Implicit major mode. */
   kExplicit, /**< Explicit major mode. */
@@ -732,12 +758,14 @@ inline bool IsMajorModeExplicit(MajorMode major_mode, PrimitiveType primitive_ty
 }
 
 /** Signed normalized value mapping. */
+// NOLINTNEXTLINE(performance-enum-size): Xenos bit field, MSVC packs per type
 enum class SignedRepeatingFractionMode : u32 {
   kZeroClampMinusOne, /**< 2 representations of -1, 1 of them clamped. */
   kNoZero,            /**< Alternate mapping with no representation for 0. */
 };
 
 /** Arbitrary texture filter kernel. Deprecated in the R400 documentation. */
+// NOLINTNEXTLINE(performance-enum-size): Xenos bit field, MSVC packs per type
 enum class ArbitraryFilter : u32 {
   k2x4Sym = 0,        /**< 2x4 symmetric. */
   k2x4Asym = 1,       /**< 2x4 asymmetric. */
@@ -754,6 +782,7 @@ constexpr u32 kMaxShaderTempRegistersLog2 = 6;
 constexpr u32 kMaxShaderTempRegisters = UINT32_C(1) << kMaxShaderTempRegistersLog2;
 
 /** Vertex shader export mode (a2xx_sq_ps_vtx_mode). */
+// NOLINTNEXTLINE(performance-enum-size): Xenos bit field, MSVC packs per type
 enum class VertexShaderExportMode : u32 {
   kPosition1Vector = 0,            /**< 1 position vector. */
   kPosition2VectorsSprite = 2,     /**< 2 position vectors, sprite. */
@@ -768,6 +797,7 @@ enum class VertexShaderExportMode : u32 {
 constexpr u32 kMaxInterpolators = 16;
 
 /** Interpolation sample location control (SQ_CONTEXT_MISC::sc_sample_cntl). */
+// NOLINTNEXTLINE(performance-enum-size): Xenos bit field, MSVC packs per type
 enum class SampleControl : u32 {
   kCentroidsOnly = 0,       /**< All interpolators at centroids. */
   kCentersOnly = 1,         /**< All interpolators at centers. */
@@ -795,6 +825,7 @@ inline u32 GetInterpolatorSamplingPattern(MSAASamples msaa_samples, SampleContro
 }
 
 /** VGT output path (VGT_OUTPUT_PATH_CNTL::path_select). */
+// NOLINTNEXTLINE(performance-enum-size): Xenos bit field, MSVC packs per type
 enum class VGTOutputPath : u32 {
   kVertexReuse = 0,        /**< Vertex reuse. */
   kTessellationEnable = 1, /**< Tessellation. */
@@ -802,6 +833,7 @@ enum class VGTOutputPath : u32 {
 };
 
 /** Tessellation mode. */
+// NOLINTNEXTLINE(performance-enum-size): Xenos bit field, MSVC packs per type
 enum class TessellationMode : u32 {
   kDiscrete = 0,   /**< Discrete tessellation. */
   kContinuous = 1, /**< Continuous tessellation. */
@@ -814,12 +846,14 @@ enum class TessellationMode : u32 {
  * Any value other than kDualMode renders filled triangles, so only kDualMode applies the
  * front and back polygon types.
  */
+// NOLINTNEXTLINE(performance-enum-size): Xenos bit field, MSVC packs per type
 enum class PolygonModeEnable : u32 {
   kDisabled = 0, /**< Render triangles. */
   kDualMode = 1, /**< Use the front and back polygon types. */
 };
 
 /** Polygon fill type. */
+// NOLINTNEXTLINE(performance-enum-size): Xenos bit field, MSVC packs per type
 enum class PolygonType : u32 {
   kPoints = 0,    /**< Points. */
   kLines = 1,     /**< Lines. */
@@ -827,12 +861,14 @@ enum class PolygonType : u32 {
 };
 
 /** Pixel center convention (PA_SU_VTX_CNTL::pix_center). */
+// NOLINTNEXTLINE(performance-enum-size): Xenos bit field, MSVC packs per type
 enum class PixelCenter : u32 {
   kD3DZero = 0, /**< Center at .0, as in Direct3D 9. */
   kOGLHalf = 1, /**< Center at .5, as in OpenGL. */
 };
 
 /** Vertex position rounding. */
+// NOLINTNEXTLINE(performance-enum-size): Xenos bit field, MSVC packs per type
 enum class VertexRounding : u32 {
   kTruncate = 0,    /**< Truncate, as in OpenGL. */
   kRound = 1,       /**< Round. */
@@ -841,6 +877,7 @@ enum class VertexRounding : u32 {
 };
 
 /** Vertex position quantization. */
+// NOLINTNEXTLINE(performance-enum-size): Xenos bit field, MSVC packs per type
 enum class VertexQuantization : u32 {
   k_1_16th = 0, /**< 1/16 pixel. */
   k_1_8th = 1,  /**< 1/8 pixel. */
@@ -850,6 +887,7 @@ enum class VertexQuantization : u32 {
 };
 
 /** EDRAM operation mode of a draw. */
+// NOLINTNEXTLINE(performance-enum-size): Xenos bit field, MSVC packs per type
 enum class EDRAMMode : u32 {
   kNoOperation = 0, /**< No EDRAM access. */
   kColorDepth = 4,  /**< Color and depth output. */
@@ -873,6 +911,7 @@ constexpr u32 kResolveSizeBits = 14;
 constexpr u32 kMaxResolveSize = (1 << kResolveSizeBits) - kResolveAlignmentPixels;
 
 /** Resolve copy command. */
+// NOLINTNEXTLINE(performance-enum-size): Xenos bit field, MSVC packs per type
 enum class CopyCommand : u32 {
   kRaw = 0,         /**< Raw copy. */
   kConvert = 1,     /**< Copy with format conversion. */
@@ -881,6 +920,7 @@ enum class CopyCommand : u32 {
 };
 
 /** Samples a resolve reads (a2xx_rb_copy_sample_select). */
+// NOLINTNEXTLINE(performance-enum-size): Xenos bit field, MSVC packs per type
 enum class CopySampleSelect : u32 {
   k0,    /**< Sample 0. */
   k1,    /**< Sample 1. */
@@ -917,7 +957,7 @@ constexpr bool IsSingleCopySampleSelected(CopySampleSelect copy_sample_select) {
    ((::rex::xenos::REXGPU_SWIZZLE_##z) << 6) | ((::rex::xenos::REXGPU_SWIZZLE_##w) << 9))
 
 /** Texture swizzle component selectors and common packed swizzles. */
-enum TextureSwizzle : u32 {
+enum TextureSwizzle : u16 {
   REXGPU_SWIZZLE_X = 0,                             /**< Component X. */
   REXGPU_SWIZZLE_R = 0,                             /**< Component R. */
   REXGPU_SWIZZLE_Y = 1,                             /**< Component Y. */
@@ -1016,15 +1056,16 @@ inline u32 CPUToGPU(u32 p) {
 union alignas(u32) LoopConstant {
   u32 value; /**< Raw register value. */
   struct {
-    u32 count : 8;   /**< Bit 0, iteration count. */
-    u32 start : 8;   /**< Bit 8, aL start. aL is iterator * step + start, in [-256, 256]. */
-    i32 step : 8;    /**< Bit 16, aL step. */
-    u32 _pad_24 : 8; /**< Bit 24, padding. */
+    u32 count : 8;  /**< Bit 0, iteration count. */
+    u32 start : 8;  /**< Bit 8, aL start. aL is iterator * step + start, in [-256, 256]. */
+    i32 step : 8;   /**< Bit 16, aL step. */
+    u32 pad_24 : 8; /**< Bit 24, padding. */
   };
 };
 REX_STATIC_ASSERT_SIZE(LoopConstant, sizeof(u32));
 
 /** Fetch constant type (SQ_TEX_VTX_INVALID/VALID_TEXTURE/BUFFER). */
+// NOLINTNEXTLINE(performance-enum-size): Xenos bit field, MSVC packs per type
 enum class FetchConstantType : u32 {
   kInvalidTexture, /**< Invalid texture. */
   kInvalidVertex,  /**< Invalid vertex buffer. */
@@ -1049,7 +1090,7 @@ union alignas(u32) VertexFetch {
 
     Endian endian : 2; /**< Dword 1 bit 0, endian swap. */
     u32 size : 24;     /**< Dword 1 bit 2, size in words. */
-    u32 _pad_1_26 : 6; /**< Dword 1 bit 26, padding. */
+    u32 pad_26 : 6;    /**< Dword 1 bit 26, padding. */
   };
 };
 REX_STATIC_ASSERT_SIZE(VertexFetch, sizeof(u32) * 2);
@@ -1151,7 +1192,7 @@ union alignas(u32) TextureFetch {
     ClampMode clamp_x : 3;      /**< Dword 0 bit 10, X clamp mode. */
     ClampMode clamp_y : 3;      /**< Dword 0 bit 13, Y clamp mode. */
     ClampMode clamp_z : 3;      /**< Dword 0 bit 16, Z clamp mode. */
-    u32 _pad_0_19 : 3;          /**< Dword 0 bit 19, padding. */
+    u32 pad_19 : 3;             /**< Dword 0 bit 19, padding. */
     u32 pitch : 9;              /**< Dword 0 bit 22, base row pitch in pixels >> 5. */
     u32 tiled : 1;              /**< Dword 0 bit 31, tiled layout. */
 
@@ -1164,9 +1205,9 @@ union alignas(u32) TextureFetch {
 
     union {
       struct {
-        u32 width : 24;       /**< Width minus 1. */
-        u32 _pad_size_1d : 8; /**< Padding. */
-      } size_1d;              /**< Dword 2, 1D size. */
+        u32 width : 24; /**< Width minus 1. */
+        u32 pad_24 : 8; /**< Padding. */
+      } size_1d;        /**< Dword 2, 1D size. */
       struct {
         u32 width : 13;      /**< Width minus 1. */
         u32 height : 13;     /**< Height minus 1. */
@@ -1300,7 +1341,7 @@ struct alignas(u32) DepthSampleCounts {
 REX_STATIC_ASSERT_SIZE(DepthSampleCounts, sizeof(u32) * 8);
 
 /** Event values for VGT_EVENT_INITIATOR. */
-enum Event {
+enum Event : u8 {
   VS_DEALLOC = 0,                    /**< Vertex shader deallocation. */
   PS_DEALLOC = 1,                    /**< Pixel shader deallocation. */
   VS_DONE_TS = 2,                    /**< Vertex shader done timestamp. */
@@ -1329,7 +1370,7 @@ enum Event {
 
 // clang-format off
 /** Type 3 packet opcodes (IT_OPCODE) in the ring buffer. */
-enum Type3Opcode {
+enum Type3Opcode : u8 {
   PM4_ME_INIT               = 0x48, /**< Initialize the CP micro engine. */
   PM4_NOP                   = 0x10, /**< Skip N 32-bit words. */
   PM4_INDIRECT_BUFFER       = 0x3f, /**< Indirect buffer dispatch, prefetched. */
@@ -1417,7 +1458,7 @@ inline u32 MakePacketType1(u16 index_1, u16 index_2) {
  *
  * @return Packet header.
  */
-constexpr inline u32 MakePacketType2() {
+constexpr u32 MakePacketType2() {
   return (2u << 30);
 }
 

@@ -43,7 +43,7 @@ class REX_API Category : public NonCopyable {
    * @param name Identifier, lowercase, unique across the process.
    * @param description Shown by the console and by ILogger::Categories.
    */
-  constexpr Category(std::string_view name, std::string_view description)
+  constexpr Category(std::string_view name, std::string_view description) noexcept
       : name_(name), description_(description) {}
 
   /**
@@ -145,7 +145,7 @@ REX_API void WriteStub(std::atomic_flag& seen, std::string_view name, std::strin
  */
 template <typename... Categories>
 constexpr std::array<const Category*, sizeof...(Categories)> MakeTable(
-    const Categories&... categories) {
+    const Categories&... categories) noexcept {
   return {static_cast<const Category*>(&categories)...};
 }
 

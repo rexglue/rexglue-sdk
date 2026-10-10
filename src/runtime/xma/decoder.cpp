@@ -153,7 +153,7 @@ int XMADecoder::GetContextId(u32 guest_ptr) const {
     return -1;
   }
   REX_ASSERT((guest_ptr & 0x3F) == 0);
-  return (guest_ptr - context_data_first_ptr_) >> 6;
+  return static_cast<int>((guest_ptr - context_data_first_ptr_) >> 6);
 }
 
 u32 XMADecoder::AllocateContext() {

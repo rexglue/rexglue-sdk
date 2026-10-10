@@ -11,12 +11,13 @@
 #include "rex_test.h"
 
 #include <string>
+#include <string_view>
 
 #include <rex/string/utf8.h>
 
 namespace {
 
-const std::string kReplacementUTF8 = "\xEF\xBF\xBD";
+constexpr std::string_view kReplacementUTF8 = "\xEF\xBF\xBD";
 
 std::u16string Replacements(std::size_t count) {
   return std::u16string(count, char16_t{0xFFFD});
@@ -49,9 +50,11 @@ REX_TEST_CASE("Malformed UTF-8 becomes U+FFFD", "[core][utf8]") {
 
 REX_TEST_CASE("Lone surrogates become U+FFFD", "[core][utf8]") {
   CHECK_NOTHROW(rex::to_utf8(std::u16string{char16_t{0xD800}}));
-  CHECK(rex::to_utf8(std::u16string{char16_t{0xD800}, u'a'}) == kReplacementUTF8 + "a");
+  CHECK(rex::to_utf8(std::u16string{char16_t{0xD800}, u'a'}) ==
+        std::string(kReplacementUTF8) + "a");
   CHECK(rex::to_utf8(std::u16string{char16_t{0xDC00}}) == kReplacementUTF8);
-  CHECK(rex::to_utf8(std::u16string{u'a', char16_t{0xD83D}}) == "a" + kReplacementUTF8);
+  CHECK(rex::to_utf8(std::u16string{u'a', char16_t{0xD83D}}) ==
+        "a" + std::string(kReplacementUTF8));
 }
 
 REX_TEST_CASE("Code points are counted, not bytes", "[core][utf8]") {

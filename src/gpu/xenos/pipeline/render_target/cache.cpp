@@ -321,7 +321,7 @@ void RenderTargetCache::ClearCache() {
       }
     }
     if (render_targets_.size() != used_render_targets.size()) {
-      typename decltype(render_targets_)::iterator it_next;
+      decltype(render_targets_)::iterator it_next;
       for (auto it = render_targets_.begin(); it != render_targets_.end(); it = it_next) {
         it_next = std::next(it);
         if (!it->second) {
@@ -449,7 +449,7 @@ bool RenderTargetCache::Update(bool is_rasterization_done,
   }
 
   if (!depth_and_color_rts_used_bits) {
-    std::memset(last_update_used_render_targets_, 0, sizeof(last_update_used_render_targets_));
+    std::ranges::fill(last_update_used_render_targets_, nullptr);
     if (are_accumulated_render_targets_valid_) {
       for (const RenderTarget* render_target : last_update_accumulated_render_targets_) {
         if (!render_target) {
@@ -464,8 +464,7 @@ bool RenderTargetCache::Update(bool is_rasterization_done,
       }
     }
     if (!are_accumulated_render_targets_valid_) {
-      std::memset(last_update_accumulated_render_targets_, 0,
-                  sizeof(last_update_accumulated_render_targets_));
+      std::ranges::fill(last_update_accumulated_render_targets_, nullptr);
     }
     return true;
   }
@@ -613,8 +612,8 @@ bool RenderTargetCache::Update(bool is_rasterization_done,
     }
   }
   if (!are_accumulated_render_targets_valid_) {
-    std::memcpy(last_update_accumulated_render_targets_, last_update_used_render_targets_,
-                sizeof(last_update_accumulated_render_targets_));
+    std::ranges::copy(last_update_used_render_targets_,
+                      std::begin(last_update_accumulated_render_targets_));
     are_accumulated_render_targets_valid_ = true;
   }
 

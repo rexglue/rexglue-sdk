@@ -24,7 +24,6 @@ using rex::hid::VirtualKey;
 using rex::ui::BindTable;
 using rex::ui::KeyEvent;
 using rex::ui::UIEvent;
-using rex::operator|;
 
 namespace {
 

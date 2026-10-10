@@ -89,7 +89,7 @@ void SpirvShaderTranslator::ProcessVertexFetchInstruction(
   while (rex::bit_scan_forward(words_remaining, &word_index)) {
     words_remaining &= ~(1 << word_index);
     spv::Id word_address = address;
-    i32 word_offset = instr.attributes.offset + word_index;
+    i32 word_offset = instr.attributes.offset + static_cast<i32>(word_index);
     if (word_offset) {
       word_address = builder_->createBinOp(spv::OpIAdd, type_int_, word_address,
                                            builder_->makeIntConstant(int(word_offset)));
@@ -443,7 +443,6 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
       used_result_nonzero_components = 0;
       break;
     case xenos::ucode::FetchOpcode::kGetTextureComputedLod:
-      break;
     case xenos::ucode::FetchOpcode::kGetTextureGradients:
       break;
     case xenos::ucode::FetchOpcode::kGetTextureWeights:
@@ -611,7 +610,7 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
     }
     u32 offsets_not_zero = 0b000;
     for (u32 i = 0; i < 3; ++i) {
-      if (offset_values[i]) {
+      if (offset_values[i] != 0.0f) {
         offsets_not_zero |= 1 << i;
       }
     }
@@ -873,7 +872,7 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
                                                                 result_component, size_component);
         }
         f32 component_offset = offset_values[coordinate_component_index];
-        if (component_offset) {
+        if (component_offset != 0.0f) {
           result_component =
               builder_->createNoContractionBinOp(spv::OpFAdd, type_float_, result_component,
                                                  builder_->makeFloatConstant(component_offset));
@@ -885,8 +884,9 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
     } else {
       for (u32 i = 0; i <= static_cast<u32>(instr.dimension != xenos::FetchOpDimension::k1D); ++i) {
         spv::Id& coordinate_ref = coordinates[i];
-        spv::Id component_offset =
-            offset_values[i] ? builder_->makeFloatConstant(offset_values[i]) : spv::NoResult;
+        spv::Id component_offset = offset_values[i] != 0.0f
+                                       ? builder_->makeFloatConstant(offset_values[i])
+                                       : spv::NoResult;
         if (component_offset != spv::NoResult && texture_resolution_scaled != spv::NoResult &&
             (revert_resolution_scale_axes & (UINT32_C(1) << i))) {
           spv::Id component_offset_resolution_scaled =
@@ -917,8 +917,8 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
       }
       if (instr.dimension == xenos::FetchOpDimension::k3DOrStacked) {
         spv::Id& z_coordinate_ref = coordinates[2];
-        spv::Id z_offset =
-            offset_values[2] ? builder_->makeFloatConstant(offset_values[2]) : spv::NoResult;
+        spv::Id z_offset = offset_values[2] != 0.0f ? builder_->makeFloatConstant(offset_values[2])
+                                                    : spv::NoResult;
         spv::Id z_size = size[2];
         if (instr.attributes.unnormalized_coordinates) {
           if (z_offset != spv::NoResult) {
@@ -995,7 +995,7 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
         }
         // OpConvertFToU is undefined for out-of-range values, so clamp the face index to 0...5.
         spv::Id face = coordinates[2];
-        if (offset_values[2]) {
+        if (offset_values[2] != 0.0f) {
           face = builder_->createNoContractionBinOp(spv::OpFAdd, type_float_, face,
                                                     builder_->makeFloatConstant(offset_values[2]));
         }
@@ -1094,8 +1094,10 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
 
       id_vector_temp_.clear();
       id_vector_temp_.push_back(builder_->makeIntConstant(kSystemConstantTextureSwizzledSigns));
-      id_vector_temp_.push_back(builder_->makeIntConstant(fetch_constant_index >> 4));
-      id_vector_temp_.push_back(builder_->makeIntConstant((fetch_constant_index >> 2) & 3));
+      id_vector_temp_.push_back(
+          builder_->makeIntConstant(static_cast<int>(fetch_constant_index >> 4)));
+      id_vector_temp_.push_back(
+          builder_->makeIntConstant(static_cast<int>((fetch_constant_index >> 2) & 3)));
       spv::Id swizzled_signs_word = builder_->createLoad(
           builder_->createAccessChain(spv::StorageClassUniform, uniform_system_constants_,
                                       id_vector_temp_),
@@ -1223,7 +1225,7 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
               spv::OpFAdd, type_float_,
               builder_->createLoad(var_main_tfetch_lod_, spv::NoPrecision), lod);
         }
-        if (instr.attributes.lod_bias) {
+        if (instr.attributes.lod_bias != 0.0f) {
           lod = builder_->createNoContractionBinOp(
               spv::OpFAdd, type_float_, lod,
               builder_->makeFloatConstant(instr.attributes.lod_bias));
@@ -1577,8 +1579,10 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
         if (!features_.image_view_format_swizzle) {
           id_vector_temp_.clear();
           id_vector_temp_.push_back(builder_->makeIntConstant(kSystemConstantTextureSwizzles));
-          id_vector_temp_.push_back(builder_->makeIntConstant(fetch_constant_index >> 3));
-          id_vector_temp_.push_back(builder_->makeIntConstant((fetch_constant_index >> 1) & 3));
+          id_vector_temp_.push_back(
+              builder_->makeIntConstant(static_cast<int>(fetch_constant_index >> 3)));
+          id_vector_temp_.push_back(
+              builder_->makeIntConstant(static_cast<int>((fetch_constant_index >> 1) & 3)));
           spv::Id swizzle_word = builder_->createLoad(
               builder_->createAccessChain(spv::StorageClassUniform, uniform_system_constants_,
                                           id_vector_temp_),

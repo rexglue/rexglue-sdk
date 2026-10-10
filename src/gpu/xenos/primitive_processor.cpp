@@ -83,10 +83,9 @@ bool PrimitiveProcessor::InitializeCommon(bool full_32bit_vertex_indices_support
   if (builtin_index_buffer_size) {
     if (!InitializeBuiltinIndexBuffer(
             builtin_index_buffer_size, [this, builtin_ib_two_triangle_strip_count](void* mapping) {
-              u32* mapping_32bit = reinterpret_cast<u32*>(mapping);
               if (builtin_ib_offset_two_triangle_strips_ != SIZE_MAX) {
-                u32* two_triangle_strip_ptr =
-                    mapping_32bit + builtin_ib_offset_two_triangle_strips_ / sizeof(u32);
+                u32* two_triangle_strip_ptr = reinterpret_cast<u32*>(
+                    static_cast<u8*>(mapping) + builtin_ib_offset_two_triangle_strips_);
                 for (u32 i = 0; i < builtin_ib_two_triangle_strip_count; ++i) {
                   if (i) {
                     *(two_triangle_strip_ptr++) = UINT32_MAX;
@@ -98,10 +97,9 @@ bool PrimitiveProcessor::InitializeCommon(bool full_32bit_vertex_indices_support
                   }
                 }
               }
-              u16* mapping_16bit = reinterpret_cast<u16*>(mapping);
               if (builtin_ib_offset_triangle_fans_to_lists_ != SIZE_MAX) {
-                u16* triangle_list_ptr =
-                    mapping_16bit + builtin_ib_offset_triangle_fans_to_lists_ / sizeof(u16);
+                u16* triangle_list_ptr = reinterpret_cast<u16*>(
+                    static_cast<u8*>(mapping) + builtin_ib_offset_triangle_fans_to_lists_);
                 for (u32 i = 2; i < UINT16_MAX; ++i) {
                   *(triangle_list_ptr++) = static_cast<u16>(i - 1);
                   *(triangle_list_ptr++) = static_cast<u16>(i);
@@ -109,8 +107,8 @@ bool PrimitiveProcessor::InitializeCommon(bool full_32bit_vertex_indices_support
                 }
               }
               if (builtin_ib_offset_quad_lists_to_triangle_lists_ != SIZE_MAX) {
-                u16* triangle_list_ptr =
-                    mapping_16bit + builtin_ib_offset_quad_lists_to_triangle_lists_ / sizeof(u16);
+                u16* triangle_list_ptr = reinterpret_cast<u16*>(
+                    static_cast<u8*>(mapping) + builtin_ib_offset_quad_lists_to_triangle_lists_);
                 for (u32 i = 0; i < UINT16_MAX / 4; ++i) {
                   u16 quad_first_index = static_cast<u16>(i * 4);
                   *(triangle_list_ptr++) = quad_first_index;
@@ -181,8 +179,6 @@ bool PrimitiveProcessor::Process(ProcessingResult& result_out) {
         // Triangle strips and fans would need conversion to triangle lists and are unsupported.
         switch (tessellation_mode) {
           case xenos::TessellationMode::kDiscrete:
-            host_vertex_shader_type = Shader::HostVertexShaderType::kTriangleDomainCPIndexed;
-            break;
           case xenos::TessellationMode::kContinuous:
             host_vertex_shader_type = Shader::HostVertexShaderType::kTriangleDomainCPIndexed;
             break;
@@ -194,8 +190,6 @@ bool PrimitiveProcessor::Process(ProcessingResult& result_out) {
         switch (tessellation_mode) {
           // Quad strips would need conversion to quad lists and are unsupported.
           case xenos::TessellationMode::kDiscrete:
-            host_vertex_shader_type = Shader::HostVertexShaderType::kQuadDomainCPIndexed;
-            break;
           case xenos::TessellationMode::kContinuous:
             host_vertex_shader_type = Shader::HostVertexShaderType::kQuadDomainCPIndexed;
             break;
@@ -1039,7 +1033,7 @@ void PrimitiveProcessor::LineLoopToStrip(
 
 template <std::invocable<u32> F>
 u32 PrimitiveProcessor::GetMultiPrimitiveHostIndexCountAndRanges(
-    F single_primitive_guest_to_host_count, const u16* source, u32 source_index_count,
+    const F& single_primitive_guest_to_host_count, const u16* source, u32 source_index_count,
     u16 reset_index_guest_endian, std::deque<SinglePrimitiveRange>& ranges_append_out) {
   u32 host_total_index_count = 0;
   u32 guest_index_offset = 0;
@@ -1069,7 +1063,7 @@ u32 PrimitiveProcessor::GetMultiPrimitiveHostIndexCountAndRanges(
 
 template <std::invocable<u32> F>
 u32 PrimitiveProcessor::GetMultiPrimitiveHostIndexCountAndRanges(
-    F single_primitive_guest_to_host_count, const u32* source, u32 source_index_count,
+    const F& single_primitive_guest_to_host_count, const u32* source, u32 source_index_count,
     u32 reset_index_guest_endian, u32 low_bits_mask_guest_endian,
     std::deque<SinglePrimitiveRange>& ranges_append_out) {
   u32 host_total_index_count = 0;

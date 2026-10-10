@@ -157,6 +157,7 @@ class SVODReader {
     u32 parent = 0;
     bool emit = false;
     DirectoryEntry entry{};
+    // NOLINTNEXTLINE(readability-redundant-member-init) designated initializers omit this field
     std::string name = {};
   };
 

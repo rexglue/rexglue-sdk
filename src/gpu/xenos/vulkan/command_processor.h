@@ -49,7 +49,7 @@ namespace rex::gpu::vulkan {
 
 class VulkanCommandProcessor : public CommandProcessor {
  public:
-  enum class SingleTransientDescriptorLayout {
+  enum class SingleTransientDescriptorLayout : u8 {
     kStorageBufferCompute,
     kStorageBufferPairCompute,
     kCount,
@@ -421,13 +421,13 @@ class VulkanCommandProcessor : public CommandProcessor {
     VkDescriptorSet set;
   };
 
-  enum SwapApplyGammaDescriptorSet : u32 {
+  enum SwapApplyGammaDescriptorSet : u8 {
     kSwapApplyGammaDescriptorSetRamp,
     kSwapApplyGammaDescriptorSetSource,
 
     kSwapApplyGammaDescriptorSetCount,
   };
-  enum SwapApplyGammaComputeDescriptorSet : u32 {
+  enum SwapApplyGammaComputeDescriptorSet : u8 {
     kSwapApplyGammaComputeDescriptorSetRamp,
     kSwapApplyGammaComputeDescriptorSetSource,
     kSwapApplyGammaComputeDescriptorSetDestination,
@@ -437,7 +437,7 @@ class VulkanCommandProcessor : public CommandProcessor {
   struct SwapApplyGammaConstants {
     u32 size[2];
   };
-  enum SwapFxaaDescriptorSet : u32 {
+  enum SwapFxaaDescriptorSet : u8 {
     kSwapFxaaDescriptorSetSource,
     kSwapFxaaDescriptorSetDestination,
 
@@ -524,11 +524,11 @@ class VulkanCommandProcessor : public CommandProcessor {
     u32 current_index = 0;
     u64 last_used_frame = 0;
   };
-  void EvictOldReadbackBuffers(std::unordered_map<u64, ReadbackBuffer>& buffer_map);
+  void EvictOldReadbackBuffers(std::unordered_map<u64, ReadbackBuffer>& buffer_map) const;
   static constexpr u32 kReadbackBufferSizeIncrement = 16 * 1024 * 1024;
   static constexpr size_t kMaxReadbackBuffers = 256;
   static constexpr u64 kReadbackBufferEvictionAgeFrames = 60;
-  static inline u32 AlignReadbackBufferSize(u32 size) {
+  static u32 AlignReadbackBufferSize(u32 size) {
     if (size < 1 * 1024 * 1024) {
       return rex::align(size, 256u * 1024u);
     }
@@ -537,10 +537,10 @@ class VulkanCommandProcessor : public CommandProcessor {
     }
     return rex::align(size, kReadbackBufferSizeIncrement);
   }
-  static inline u64 MakeReadbackResolveKey(u32 address, u32 length) {
+  static u64 MakeReadbackResolveKey(u32 address, u32 length) {
     return (static_cast<u64>(address) << 32) | static_cast<u64>(length);
   }
-  static inline u64 MakeMemexportReadbackKey(u32 first_base_address_dwords, u32 total_size) {
+  static u64 MakeMemexportReadbackKey(u32 first_base_address_dwords, u32 total_size) {
     return (static_cast<u64>(first_base_address_dwords) << 32) | static_cast<u64>(total_size);
   }
   struct ResolveDownscaleConstants {
@@ -706,7 +706,7 @@ class VulkanCommandProcessor : public CommandProcessor {
   u32 gamma_ramp_upload_memory_type_;
   /** Maps gamma_ramp_buffer_memory_ when host visible, else gamma_ramp_upload_buffer_memory_. */
   void* gamma_ramp_upload_mapping_;
-  std::array<VkBufferView, 2 * kMaxFramesInFlight> gamma_ramp_buffer_views_{};
+  std::array<VkBufferView, size_t{2} * kMaxFramesInFlight> gamma_ramp_buffer_views_{};
   /** UINT32_MAX when outdated. */
   u32 gamma_ramp_256_entry_table_current_frame_ = UINT32_MAX;
   u32 gamma_ramp_pwl_current_frame_ = UINT32_MAX;
@@ -721,7 +721,7 @@ class VulkanCommandProcessor : public CommandProcessor {
    * Interleaved 256 entry table and PWL texel buffer descriptors, kMaxFramesInFlight pairs when
    * the ramps are host visible and uploaded directly, otherwise 1.
    */
-  std::array<VkDescriptorSet, 2 * kMaxFramesInFlight> swap_descriptors_gamma_ramp_;
+  std::array<VkDescriptorSet, size_t{2} * kMaxFramesInFlight> swap_descriptors_gamma_ramp_;
   std::array<VkDescriptorSet, kMaxFramesInFlight> swap_descriptors_source_;
   std::array<VkDescriptorSet, kMaxFramesInFlight> swap_descriptors_fxaa_source_;
   std::array<VkDescriptorSet, kMaxFramesInFlight> swap_descriptors_destination_storage_;
@@ -780,7 +780,7 @@ class VulkanCommandProcessor : public CommandProcessor {
   std::vector<PendingBarrier> pending_barriers_;
   PendingBarrier current_pending_barrier_;
 
-  static constexpr VkDeviceSize kScratchBufferSizeIncrement = 16 * 1024 * 1024;
+  static constexpr VkDeviceSize kScratchBufferSizeIncrement = VkDeviceSize{16} * 1024 * 1024;
   VkDeviceMemory scratch_buffer_memory_ = VK_NULL_HANDLE;
   VkBuffer scratch_buffer_ = VK_NULL_HANDLE;
   VkDeviceSize scratch_buffer_size_ = 0;

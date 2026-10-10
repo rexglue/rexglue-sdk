@@ -97,6 +97,8 @@ X_HRESULT XamApp::DispatchMessageSync(u32 message, u32 buffer_ptr, u32 buffer_le
                    static_cast<u32>(data->unk_04));
       return X_E_SUCCESS;
     }
+    default:
+      break;
   }
   REX_FAIL(kernel, X_E_FAIL,
            "Unimplemented XAM message app={:08X}, msg={:08X}, arg1={:08X}, "

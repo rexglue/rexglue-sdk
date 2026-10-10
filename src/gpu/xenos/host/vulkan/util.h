@@ -26,6 +26,44 @@ namespace gpu {
 namespace vulkan {
 namespace util {
 
+/**
+ * Builds a multisample state with every field named.
+ *
+ * @param samples The rasterization sample count.
+ * @return The state, with sample shading and alpha to coverage off.
+ */
+inline VkPipelineMultisampleStateCreateInfo MakeMultisampleState(VkSampleCountFlagBits samples) {
+  return VkPipelineMultisampleStateCreateInfo{
+      .sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
+      .pNext = nullptr,
+      .flags = 0,
+      .rasterizationSamples = samples,
+      .sampleShadingEnable = VK_FALSE,
+      .minSampleShading = 0.0f,
+      .pSampleMask = nullptr,
+      .alphaToCoverageEnable = VK_FALSE,
+      .alphaToOneEnable = VK_FALSE};
+}
+
+/**
+ * Builds a shader stage with every field named and the entry point main.
+ *
+ * @param stage The stage.
+ * @param module The shader module.
+ * @return The stage description.
+ */
+inline VkPipelineShaderStageCreateInfo MakeShaderStage(VkShaderStageFlagBits stage,
+                                                       VkShaderModule module) {
+  return VkPipelineShaderStageCreateInfo{
+      .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+      .pNext = nullptr,
+      .flags = 0,
+      .stage = stage,
+      .module = module,
+      .pName = "main",
+      .pSpecializationInfo = nullptr};
+}
+
 template <typename Structure>
 constexpr Structure InitializeStructure(VkStructureType type) {
   Structure structure = {};
@@ -54,7 +92,7 @@ inline bool DestroyAndNullHandle(DestroyFunction* const destroy_function, const 
   return false;
 }
 
-enum class MemoryPurpose {
+enum class MemoryPurpose : u8 {
   kDeviceLocal,
   kUpload,
   kReadback,

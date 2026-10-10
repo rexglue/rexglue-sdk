@@ -46,10 +46,10 @@ class ProgressView final : public rex::codegen::ProgressReporter, public rex::No
     bool finished = false;
   };
 
-  enum class ActiveLineKind { None, Module, ProjectPhase };
+  enum class ActiveLineKind : u8 { None, Module, ProjectPhase };
 
   void renderActiveLine();
-  void spinnerLoop(std::stop_token stop);
+  void spinnerLoop(const std::stop_token& stop);
 
   std::mutex state_mutex_;
   std::string title_;

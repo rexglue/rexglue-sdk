@@ -146,7 +146,7 @@ bool Protect(void* base_address, size_t length, PageAccess access, PageAccess* o
     return false;
   }
   if (out_old_access) {
-    *out_old_access = ToXeniaProtectFlags(DWORD(old_protect));
+    *out_old_access = ToXeniaProtectFlags(old_protect);
   }
   return true;
 }
@@ -186,12 +186,12 @@ FileMappingHandle CreateFileMappingHandle(const std::filesystem::path& path, siz
     CloseHandle(h);
     return kFileMappingHandleInvalid;
   }
-  return reinterpret_cast<FileMappingHandle>(h);
+  return h;
 }
 
 void CloseFileMappingHandle(FileMappingHandle handle,
                             [[maybe_unused]] const std::filesystem::path& path) {
-  CloseHandle(reinterpret_cast<HANDLE>(handle));
+  CloseHandle(handle);
 }
 
 void* MapFileView(FileMappingHandle handle, void* base_address, size_t length, PageAccess access,
@@ -218,8 +218,8 @@ void* MapFileView(FileMappingHandle handle, void* base_address, size_t length, P
       REX_UNHANDLED_CASE(access);
       return nullptr;
   }
-  return MapViewOfFileEx(reinterpret_cast<HANDLE>(handle), file_access, target_address_high,
-                         target_address_low, length, base_address);
+  return MapViewOfFileEx(handle, file_access, target_address_high, target_address_low, length,
+                         base_address);
 #else
   // VirtualAlloc2FromApp and MapViewOfFile3FromApp require 10.0.17134.0.
   HANDLE process = GetCurrentProcess();
@@ -229,9 +229,9 @@ void* MapFileView(FileMappingHandle handle, void* base_address, size_t length, P
   if (!placeholder) {
     return nullptr;
   }
-  void* mapping = MapViewOfFile3FromApp(reinterpret_cast<HANDLE>(handle), process, placeholder,
-                                        ULONG64(file_offset), length, MEM_REPLACE_PLACEHOLDER,
-                                        ULONG(ToWin32ProtectFlags(access)), nullptr, 0);
+  void* mapping = MapViewOfFile3FromApp(handle, process, placeholder, ULONG64(file_offset), length,
+                                        MEM_REPLACE_PLACEHOLDER, ULONG(ToWin32ProtectFlags(access)),
+                                        nullptr, 0);
   if (!mapping) {
     VirtualFree(placeholder, length, MEM_RELEASE);
     return nullptr;

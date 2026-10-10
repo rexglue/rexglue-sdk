@@ -177,7 +177,8 @@ inline size_t copy_and_swap_truncating(char16_t* dest, const std::u16string_view
     return 0;
   }
   size_t chars_copied = std::min(source.size(), dest_buffer_count - static_cast<size_t>(1));
-  memory::copy_and_swap(dest, source.data(), chars_copied);
+  const std::u16string_view head = source.substr(0, chars_copied);
+  memory::copy_and_swap(dest, head.data(), head.size());
   dest[chars_copied] = u'\0';
   return chars_copied;
 }

@@ -8,7 +8,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-const BYTE adaptive_triangle_hs[] = {
+const BYTE kAdaptiveTriangleHS[] = {
     68,  88,  66,  67,  213, 151, 26,  214, 48,  115, 215, 10,  67,  36,  129, 21,  5,   111, 231,
     249, 1,   0,   0,   0,   88,  14,  0,   0,   6,   0,   0,   0,   56,  0,   0,   0,   108, 10,
     0,   0,   164, 10,  0,   0,   216, 10,  0,   0,   108, 11,  0,   0,   188, 13,  0,   0,   82,

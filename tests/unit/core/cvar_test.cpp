@@ -11,10 +11,14 @@
 #include "rex_test.h"
 
 #include <memory>
+#include <stdexcept>
 #include <string>
+#include <string_view>
+#include <type_traits>
 #include <vector>
 
 #include <rex/cvar.h>
+#include <rex/logging/category.h>
 
 #include "core/cvar_registry.h"
 
@@ -70,6 +74,13 @@ namespace {
 struct Fixture {
   std::unique_ptr<rex::detail::CvarRegistryImpl> registry = rex::detail::CreateCvarRegistry();
   rex::detail::CvarRegistryImpl& reg() const { return *registry; }
+  const rex::cvar::IVar& Var(std::string_view name) const {
+    const auto found = reg().Find(name);
+    if (!found) {
+      throw std::logic_error("cvar not registered");
+    }
+    return found->get();
+  }
 };
 
 }  // namespace
@@ -121,15 +132,11 @@ REX_TEST_CASE_METHOD(Fixture, "set on an unregistered var fails NotFound", "[cva
 
 REX_TEST_CASE_METHOD(Fixture, "Register exposes descriptors, scopes and order", "[cvar]") {
   REQUIRE(reg().Register("test", test_cvars::kTestCvars));
-  auto found = reg().Find("test.count");
-  REQUIRE(found);
-  // NOLINTNEXTLINE(bugprone-unchecked-optional-access) checked by REQUIRE above
-  const rex::cvar::IVar& d = found->get();
+  const rex::cvar::IVar& d = Var("test.count");
   REQUIRE(d.desc().type == rex::cvar::Type::Int32);
   REQUIRE(d.DefaultText() == "42");
   REQUIRE(d.desc().lifecycle == rex::cvar::Lifecycle::HotReload);
-  // NOLINTNEXTLINE(bugprone-unchecked-optional-access) checked by REQUIRE above
-  REQUIRE(reg().Find("test.once")->get().desc().lifecycle == rex::cvar::Lifecycle::InitOnly);
+  REQUIRE(Var("test.once").desc().lifecycle == rex::cvar::Lifecycle::InitOnly);
   auto all = reg().Enumerate("test");
   REQUIRE(all.size() == 10);
   REQUIRE(all[0]->desc().name == "test.flag");
@@ -170,8 +177,7 @@ REX_TEST_CASE_METHOD(Fixture, "A duplicate full name in a free scope fails Dupli
   auto dupe = reg().Register("test", other_scope_dupe);
   REQUIRE_FALSE(dupe);
   REQUIRE(dupe.error().code == static_cast<int>(rex::cvar::Error::DuplicateScope));
-  // NOLINTNEXTLINE(bugprone-unchecked-optional-access) registered above
-  REQUIRE(&reg().Find("test.flag")->get() == &test_cvars::flag);
+  REQUIRE(&Var("test.flag") == &test_cvars::flag);
 }
 
 REX_TEST_CASE_METHOD(Fixture, "Unregister frees the scope and re registration works", "[cvar]") {
@@ -229,8 +235,7 @@ REX_TEST_CASE_METHOD(Fixture, "SetDefault applies only while the source is Defau
   REQUIRE(reg().ResetToDefault("test.count"));
   REQUIRE(test_cvars::count.get() == 6);
   REQUIRE(reg().Source("test.count") == rex::cvar::CvarSource::Default);
-  // NOLINTNEXTLINE(bugprone-unchecked-optional-access) registered above
-  REQUIRE(reg().Find("test.count")->get().DefaultText() == "42");
+  REQUIRE(Var("test.count").DefaultText() == "42");
   REQUIRE(reg().Get("test.count").value() == "6");
   REQUIRE(test_cvars::count.Parse("42"));
 }
@@ -438,7 +443,7 @@ REX_TEST_CASE("A no_save var is absent from Serialize", "[cvar]") {
   registry->Unregister(kTest6aCvars);
 }
 
-REX_TEST_CASE("cvar and log category descriptors construct without throwing", "[cvar]") {
+TEST_CASE("cvar and log category descriptors construct without throwing", "[cvar]") {
   STATIC_REQUIRE(std::is_nothrow_copy_constructible_v<rex::cvar::Var<bool>>);
   STATIC_REQUIRE(noexcept(rex::cvar::Var<bool>("a.b", true, "d")));
   STATIC_REQUIRE(noexcept(rex::cvar::Var<bool>("a.b", true, "d").range(0, 1)));

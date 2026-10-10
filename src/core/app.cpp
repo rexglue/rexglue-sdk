@@ -139,7 +139,7 @@ void RemoveSignalHandlers() {
   }
   if (g_signal_stop) {
     g_signal_stop->store(true);
-    // NOLINTNEXTLINE(bugprone-bad-signal-to-kill-thread): only wakes sigwait
+    // NOLINTNEXTLINE(bugprone-bad-signal-to-kill-thread): SIGTERM wakes sigwait, nothing is killed
     pthread_kill(g_signal_thread.native_handle(), SIGTERM);
     g_signal_thread = {};
     g_signal_stop.reset();

@@ -130,32 +130,34 @@ class PipelineCache {
   });
 
   // Changing any Pipeline* enum requires updating PipelineDescription::kVersion.
+  // NOLINTNEXTLINE(performance-enum-size): packed key bit field, MSVC packs per type
   enum class PipelineStripCutIndex : u32 {
     kNone,
     kFFFF,
     kFFFFFFFF,
   };
 
-  enum class PipelineTessellationMode : u32 {
+  enum class PipelineTessellationMode : u8 {
     kNone,
     kDiscrete,
     kContinuous,
     kAdaptive,
   };
 
-  enum class PipelinePatchType : u32 {
+  enum class PipelinePatchType : u8 {
     kNone,
     kLine,
     kTriangle,
     kQuad,
   };
 
-  enum class PipelinePrimitiveTopologyType : u32 {
+  enum class PipelinePrimitiveTopologyType : u8 {
     kPoint,
     kLine,
     kTriangle,
   };
 
+  // NOLINTNEXTLINE(performance-enum-size): packed key bit field, MSVC packs per type
   enum class PipelineGeometryShader : u32 {
     kNone,
     kPointList,
@@ -163,6 +165,7 @@ class PipelineCache {
     kQuadList,
   };
 
+  // NOLINTNEXTLINE(performance-enum-size): packed key bit field, MSVC packs per type
   enum class PipelineCullMode : u32 {
     kNone,
     kFront,
@@ -171,6 +174,7 @@ class PipelineCache {
     kDisableRasterization,
   };
 
+  // NOLINTNEXTLINE(performance-enum-size): packed key bit field, MSVC packs per type
   enum class PipelineBlendFactor : u32 {
     kZero,
     kOne,
@@ -198,6 +202,8 @@ class PipelineCache {
     PipelineBlendFactor dest_blend_alpha : 4;
     xenos::BlendOp blend_op_alpha : 3;
     u32 write_mask : 4;
+
+    bool operator==(const PipelineRenderTarget&) const = default;
   });
 
   REX_PACKED_STRUCT(PipelineDescription, {
@@ -240,6 +246,8 @@ class PipelineCache {
     xenos::CompareFunction stencil_back_func : 3;
 
     PipelineRenderTarget render_targets[xenos::kMaxColorRenderTargets];
+
+    bool operator==(const PipelineDescription&) const = default;
 
     static constexpr u32 kVersion = 0x20210425;
   });

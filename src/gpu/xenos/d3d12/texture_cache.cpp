@@ -374,8 +374,9 @@ bool D3D12TextureCache::Initialize() {
     std::memset(scaled_resolve_1gb_buffer_indices_, UINT8_MAX,
                 sizeof(scaled_resolve_1gb_buffer_indices_));
     REX_ASSERT(scaled_resolve_heaps_.empty());
-    u64 scaled_resolve_address_space_size = static_cast<u64>(SharedMemory::kBufferSize) *
-                                            (draw_resolution_scale_x() * draw_resolution_scale_y());
+    u64 scaled_resolve_address_space_size =
+        static_cast<u64>(SharedMemory::kBufferSize) *
+        (u64{draw_resolution_scale_x()} * draw_resolution_scale_y());
     scaled_resolve_heaps_.resize(
         static_cast<size_t>(scaled_resolve_address_space_size >> kScaledResolveHeapSizeLog2));
   }
@@ -426,107 +427,102 @@ bool D3D12TextureCache::Initialize() {
 
   D3D12_SHADER_BYTECODE load_shader_code[kLoadShaderCount] = {};
   load_shader_code[kLoadShaderIndex8bpb] =
-      D3D12_SHADER_BYTECODE{shaders::texture_load_8bpb_cs, sizeof(shaders::texture_load_8bpb_cs)};
+      D3D12_SHADER_BYTECODE{shaders::kTextureLoad8BPBCS, sizeof(shaders::kTextureLoad8BPBCS)};
   load_shader_code[kLoadShaderIndex16bpb] =
-      D3D12_SHADER_BYTECODE{shaders::texture_load_16bpb_cs, sizeof(shaders::texture_load_16bpb_cs)};
+      D3D12_SHADER_BYTECODE{shaders::kTextureLoad16BPBCS, sizeof(shaders::kTextureLoad16BPBCS)};
   load_shader_code[kLoadShaderIndex32bpb] =
-      D3D12_SHADER_BYTECODE{shaders::texture_load_32bpb_cs, sizeof(shaders::texture_load_32bpb_cs)};
+      D3D12_SHADER_BYTECODE{shaders::kTextureLoad32BPBCS, sizeof(shaders::kTextureLoad32BPBCS)};
   load_shader_code[kLoadShaderIndex64bpb] =
-      D3D12_SHADER_BYTECODE{shaders::texture_load_64bpb_cs, sizeof(shaders::texture_load_64bpb_cs)};
-  load_shader_code[kLoadShaderIndex128bpb] = D3D12_SHADER_BYTECODE{
-      shaders::texture_load_128bpb_cs, sizeof(shaders::texture_load_128bpb_cs)};
-  load_shader_code[kLoadShaderIndexR5G5B5A1ToB5G5R5A1] =
-      D3D12_SHADER_BYTECODE{shaders::texture_load_r5g5b5a1_b5g5r5a1_cs,
-                            sizeof(shaders::texture_load_r5g5b5a1_b5g5r5a1_cs)};
+      D3D12_SHADER_BYTECODE{shaders::kTextureLoad64BPBCS, sizeof(shaders::kTextureLoad64BPBCS)};
+  load_shader_code[kLoadShaderIndex128bpb] =
+      D3D12_SHADER_BYTECODE{shaders::kTextureLoad128BPBCS, sizeof(shaders::kTextureLoad128BPBCS)};
+  load_shader_code[kLoadShaderIndexR5G5B5A1ToB5G5R5A1] = D3D12_SHADER_BYTECODE{
+      shaders::kTextureLoadR5G5B5A1B5G5R5A1CS, sizeof(shaders::kTextureLoadR5G5B5A1B5G5R5A1CS)};
   load_shader_code[kLoadShaderIndexR5G6B5ToB5G6R5] = D3D12_SHADER_BYTECODE{
-      shaders::texture_load_r5g6b5_b5g6r5_cs, sizeof(shaders::texture_load_r5g6b5_b5g6r5_cs)};
+      shaders::kTextureLoadR5G6B5B5G6R5CS, sizeof(shaders::kTextureLoadR5G6B5B5G6R5CS)};
   load_shader_code[kLoadShaderIndexR5G5B6ToB5G6R5WithRBGASwizzle] =
-      D3D12_SHADER_BYTECODE{shaders::texture_load_r5g5b6_b5g6r5_swizzle_rbga_cs,
-                            sizeof(shaders::texture_load_r5g5b6_b5g6r5_swizzle_rbga_cs)};
-  load_shader_code[kLoadShaderIndexRGBA4ToBGRA4] =
-      D3D12_SHADER_BYTECODE{shaders::texture_load_r4g4b4a4_b4g4r4a4_cs,
-                            sizeof(shaders::texture_load_r4g4b4a4_b4g4r4a4_cs)};
+      D3D12_SHADER_BYTECODE{shaders::kTextureLoadR5G5B6B5G6R5SwizzleRBGACS,
+                            sizeof(shaders::kTextureLoadR5G5B6B5G6R5SwizzleRBGACS)};
+  load_shader_code[kLoadShaderIndexRGBA4ToBGRA4] = D3D12_SHADER_BYTECODE{
+      shaders::kTextureLoadR4G4B4A4B4G4R4A4CS, sizeof(shaders::kTextureLoadR4G4B4A4B4G4R4A4CS)};
   load_shader_code[kLoadShaderIndexGBGR8ToGRGB8] = D3D12_SHADER_BYTECODE{
-      shaders::texture_load_gbgr8_grgb8_cs, sizeof(shaders::texture_load_gbgr8_grgb8_cs)};
+      shaders::kTextureLoadGBGR8GRGB8CS, sizeof(shaders::kTextureLoadGBGR8GRGB8CS)};
   load_shader_code[kLoadShaderIndexGBGR8ToRGB8] = D3D12_SHADER_BYTECODE{
-      shaders::texture_load_gbgr8_rgb8_cs, sizeof(shaders::texture_load_gbgr8_rgb8_cs)};
+      shaders::kTextureLoadGBGR8RGB8CS, sizeof(shaders::kTextureLoadGBGR8RGB8CS)};
   load_shader_code[kLoadShaderIndexBGRG8ToRGBG8] = D3D12_SHADER_BYTECODE{
-      shaders::texture_load_bgrg8_rgbg8_cs, sizeof(shaders::texture_load_bgrg8_rgbg8_cs)};
+      shaders::kTextureLoadBGRG8RGBG8CS, sizeof(shaders::kTextureLoadBGRG8RGBG8CS)};
   load_shader_code[kLoadShaderIndexBGRG8ToRGB8] = D3D12_SHADER_BYTECODE{
-      shaders::texture_load_bgrg8_rgb8_cs, sizeof(shaders::texture_load_bgrg8_rgb8_cs)};
+      shaders::kTextureLoadBGRG8RGB8CS, sizeof(shaders::kTextureLoadBGRG8RGB8CS)};
   load_shader_code[kLoadShaderIndexR10G11B11ToRGBA16] = D3D12_SHADER_BYTECODE{
-      shaders::texture_load_r10g11b11_rgba16_cs, sizeof(shaders::texture_load_r10g11b11_rgba16_cs)};
+      shaders::kTextureLoadR10G11B11RGBA16CS, sizeof(shaders::kTextureLoadR10G11B11RGBA16CS)};
   load_shader_code[kLoadShaderIndexR10G11B11ToRGBA16SNorm] =
-      D3D12_SHADER_BYTECODE{shaders::texture_load_r10g11b11_rgba16_snorm_cs,
-                            sizeof(shaders::texture_load_r10g11b11_rgba16_snorm_cs)};
+      D3D12_SHADER_BYTECODE{shaders::kTextureLoadR10G11B11RGBA16SNormCS,
+                            sizeof(shaders::kTextureLoadR10G11B11RGBA16SNormCS)};
   load_shader_code[kLoadShaderIndexR11G11B10ToRGBA16] = D3D12_SHADER_BYTECODE{
-      shaders::texture_load_r11g11b10_rgba16_cs, sizeof(shaders::texture_load_r11g11b10_rgba16_cs)};
+      shaders::kTextureLoadR11G11B10RGBA16CS, sizeof(shaders::kTextureLoadR11G11B10RGBA16CS)};
   load_shader_code[kLoadShaderIndexR11G11B10ToRGBA16SNorm] =
-      D3D12_SHADER_BYTECODE{shaders::texture_load_r11g11b10_rgba16_snorm_cs,
-                            sizeof(shaders::texture_load_r11g11b10_rgba16_snorm_cs)};
+      D3D12_SHADER_BYTECODE{shaders::kTextureLoadR11G11B10RGBA16SNormCS,
+                            sizeof(shaders::kTextureLoadR11G11B10RGBA16SNormCS)};
   load_shader_code[kLoadShaderIndexDXT1ToRGBA8] = D3D12_SHADER_BYTECODE{
-      shaders::texture_load_dxt1_rgba8_cs, sizeof(shaders::texture_load_dxt1_rgba8_cs)};
+      shaders::kTextureLoadDXT1RGBA8CS, sizeof(shaders::kTextureLoadDXT1RGBA8CS)};
   load_shader_code[kLoadShaderIndexDXT3ToRGBA8] = D3D12_SHADER_BYTECODE{
-      shaders::texture_load_dxt3_rgba8_cs, sizeof(shaders::texture_load_dxt3_rgba8_cs)};
+      shaders::kTextureLoadDXT3RGBA8CS, sizeof(shaders::kTextureLoadDXT3RGBA8CS)};
   load_shader_code[kLoadShaderIndexDXT5ToRGBA8] = D3D12_SHADER_BYTECODE{
-      shaders::texture_load_dxt5_rgba8_cs, sizeof(shaders::texture_load_dxt5_rgba8_cs)};
-  load_shader_code[kLoadShaderIndexDXNToRG8] = D3D12_SHADER_BYTECODE{
-      shaders::texture_load_dxn_rg8_cs, sizeof(shaders::texture_load_dxn_rg8_cs)};
+      shaders::kTextureLoadDXT5RGBA8CS, sizeof(shaders::kTextureLoadDXT5RGBA8CS)};
+  load_shader_code[kLoadShaderIndexDXNToRG8] =
+      D3D12_SHADER_BYTECODE{shaders::kTextureLoadDXNRG8CS, sizeof(shaders::kTextureLoadDXNRG8CS)};
   load_shader_code[kLoadShaderIndexDXT3A] =
-      D3D12_SHADER_BYTECODE{shaders::texture_load_dxt3a_cs, sizeof(shaders::texture_load_dxt3a_cs)};
-  load_shader_code[kLoadShaderIndexDXT3AAs1111ToBGRA4] =
-      D3D12_SHADER_BYTECODE{shaders::texture_load_dxt3aas1111_bgra4_cs,
-                            sizeof(shaders::texture_load_dxt3aas1111_bgra4_cs)};
-  load_shader_code[kLoadShaderIndexDXT5AToR8] = D3D12_SHADER_BYTECODE{
-      shaders::texture_load_dxt5a_r8_cs, sizeof(shaders::texture_load_dxt5a_r8_cs)};
+      D3D12_SHADER_BYTECODE{shaders::kTextureLoadDXT3ACS, sizeof(shaders::kTextureLoadDXT3ACS)};
+  load_shader_code[kLoadShaderIndexDXT3AAs1111ToBGRA4] = D3D12_SHADER_BYTECODE{
+      shaders::kTextureLoadDXT3AAS1111BGRA4CS, sizeof(shaders::kTextureLoadDXT3AAS1111BGRA4CS)};
+  load_shader_code[kLoadShaderIndexDXT5AToR8] =
+      D3D12_SHADER_BYTECODE{shaders::kTextureLoadDXT5AR8CS, sizeof(shaders::kTextureLoadDXT5AR8CS)};
   load_shader_code[kLoadShaderIndexCTX1] =
-      D3D12_SHADER_BYTECODE{shaders::texture_load_ctx1_cs, sizeof(shaders::texture_load_ctx1_cs)};
+      D3D12_SHADER_BYTECODE{shaders::kTextureLoadCTX1CS, sizeof(shaders::kTextureLoadCTX1CS)};
   load_shader_code[kLoadShaderIndexDepthUnorm] = D3D12_SHADER_BYTECODE{
-      shaders::texture_load_depth_unorm_cs, sizeof(shaders::texture_load_depth_unorm_cs)};
+      shaders::kTextureLoadDepthUNormCS, sizeof(shaders::kTextureLoadDepthUNormCS)};
   load_shader_code[kLoadShaderIndexDepthFloat] = D3D12_SHADER_BYTECODE{
-      shaders::texture_load_depth_float_cs, sizeof(shaders::texture_load_depth_float_cs)};
+      shaders::kTextureLoadDepthFloatCS, sizeof(shaders::kTextureLoadDepthFloatCS)};
   D3D12_SHADER_BYTECODE load_shader_code_scaled[kLoadShaderCount] = {};
   if (IsDrawResolutionScaled()) {
     load_shader_code_scaled[kLoadShaderIndex8bpb] = D3D12_SHADER_BYTECODE{
-        shaders::texture_load_8bpb_scaled_cs, sizeof(shaders::texture_load_8bpb_scaled_cs)};
+        shaders::kTextureLoad8BPBScaledCS, sizeof(shaders::kTextureLoad8BPBScaledCS)};
     load_shader_code_scaled[kLoadShaderIndex16bpb] = D3D12_SHADER_BYTECODE{
-        shaders::texture_load_16bpb_scaled_cs, sizeof(shaders::texture_load_16bpb_scaled_cs)};
+        shaders::kTextureLoad16BPBScaledCS, sizeof(shaders::kTextureLoad16BPBScaledCS)};
     load_shader_code_scaled[kLoadShaderIndex32bpb] = D3D12_SHADER_BYTECODE{
-        shaders::texture_load_32bpb_scaled_cs, sizeof(shaders::texture_load_32bpb_scaled_cs)};
+        shaders::kTextureLoad32BPBScaledCS, sizeof(shaders::kTextureLoad32BPBScaledCS)};
     load_shader_code_scaled[kLoadShaderIndex64bpb] = D3D12_SHADER_BYTECODE{
-        shaders::texture_load_64bpb_scaled_cs, sizeof(shaders::texture_load_64bpb_scaled_cs)};
+        shaders::kTextureLoad64BPBScaledCS, sizeof(shaders::kTextureLoad64BPBScaledCS)};
     load_shader_code_scaled[kLoadShaderIndex128bpb] = D3D12_SHADER_BYTECODE{
-        shaders::texture_load_128bpb_scaled_cs, sizeof(shaders::texture_load_128bpb_scaled_cs)};
+        shaders::kTextureLoad128BPBScaledCS, sizeof(shaders::kTextureLoad128BPBScaledCS)};
     load_shader_code_scaled[kLoadShaderIndexR5G5B5A1ToB5G5R5A1] =
-        D3D12_SHADER_BYTECODE{shaders::texture_load_r5g5b5a1_b5g5r5a1_scaled_cs,
-                              sizeof(shaders::texture_load_r5g5b5a1_b5g5r5a1_scaled_cs)};
+        D3D12_SHADER_BYTECODE{shaders::kTextureLoadR5G5B5A1B5G5R5A1ScaledCS,
+                              sizeof(shaders::kTextureLoadR5G5B5A1B5G5R5A1ScaledCS)};
     load_shader_code_scaled[kLoadShaderIndexR5G6B5ToB5G6R5] =
-        D3D12_SHADER_BYTECODE{shaders::texture_load_r5g6b5_b5g6r5_scaled_cs,
-                              sizeof(shaders::texture_load_r5g6b5_b5g6r5_scaled_cs)};
+        D3D12_SHADER_BYTECODE{shaders::kTextureLoadR5G6B5B5G6R5ScaledCS,
+                              sizeof(shaders::kTextureLoadR5G6B5B5G6R5ScaledCS)};
     load_shader_code_scaled[kLoadShaderIndexR5G5B6ToB5G6R5WithRBGASwizzle] =
-        D3D12_SHADER_BYTECODE{shaders::texture_load_r5g5b6_b5g6r5_swizzle_rbga_scaled_cs,
-                              sizeof(shaders::texture_load_r5g5b6_b5g6r5_swizzle_rbga_scaled_cs)};
+        D3D12_SHADER_BYTECODE{shaders::kTextureLoadR5G5B6B5G6R5SwizzleRBGAScaledCS,
+                              sizeof(shaders::kTextureLoadR5G5B6B5G6R5SwizzleRBGAScaledCS)};
     load_shader_code_scaled[kLoadShaderIndexRGBA4ToBGRA4] =
-        D3D12_SHADER_BYTECODE{shaders::texture_load_r4g4b4a4_b4g4r4a4_scaled_cs,
-                              sizeof(shaders::texture_load_r4g4b4a4_b4g4r4a4_scaled_cs)};
+        D3D12_SHADER_BYTECODE{shaders::kTextureLoadR4G4B4A4B4G4R4A4ScaledCS,
+                              sizeof(shaders::kTextureLoadR4G4B4A4B4G4R4A4ScaledCS)};
     load_shader_code_scaled[kLoadShaderIndexR10G11B11ToRGBA16] =
-        D3D12_SHADER_BYTECODE{shaders::texture_load_r10g11b11_rgba16_scaled_cs,
-                              sizeof(shaders::texture_load_r10g11b11_rgba16_scaled_cs)};
+        D3D12_SHADER_BYTECODE{shaders::kTextureLoadR10G11B11RGBA16ScaledCS,
+                              sizeof(shaders::kTextureLoadR10G11B11RGBA16ScaledCS)};
     load_shader_code_scaled[kLoadShaderIndexR10G11B11ToRGBA16SNorm] =
-        D3D12_SHADER_BYTECODE{shaders::texture_load_r10g11b11_rgba16_snorm_scaled_cs,
-                              sizeof(shaders::texture_load_r10g11b11_rgba16_snorm_scaled_cs)};
+        D3D12_SHADER_BYTECODE{shaders::kTextureLoadR10G11B11RGBA16SNormScaledCS,
+                              sizeof(shaders::kTextureLoadR10G11B11RGBA16SNormScaledCS)};
     load_shader_code_scaled[kLoadShaderIndexR11G11B10ToRGBA16] =
-        D3D12_SHADER_BYTECODE{shaders::texture_load_r11g11b10_rgba16_scaled_cs,
-                              sizeof(shaders::texture_load_r11g11b10_rgba16_scaled_cs)};
+        D3D12_SHADER_BYTECODE{shaders::kTextureLoadR11G11B10RGBA16ScaledCS,
+                              sizeof(shaders::kTextureLoadR11G11B10RGBA16ScaledCS)};
     load_shader_code_scaled[kLoadShaderIndexR11G11B10ToRGBA16SNorm] =
-        D3D12_SHADER_BYTECODE{shaders::texture_load_r11g11b10_rgba16_snorm_scaled_cs,
-                              sizeof(shaders::texture_load_r11g11b10_rgba16_snorm_scaled_cs)};
-    load_shader_code_scaled[kLoadShaderIndexDepthUnorm] =
-        D3D12_SHADER_BYTECODE{shaders::texture_load_depth_unorm_scaled_cs,
-                              sizeof(shaders::texture_load_depth_unorm_scaled_cs)};
-    load_shader_code_scaled[kLoadShaderIndexDepthFloat] =
-        D3D12_SHADER_BYTECODE{shaders::texture_load_depth_float_scaled_cs,
-                              sizeof(shaders::texture_load_depth_float_scaled_cs)};
+        D3D12_SHADER_BYTECODE{shaders::kTextureLoadR11G11B10RGBA16SNormScaledCS,
+                              sizeof(shaders::kTextureLoadR11G11B10RGBA16SNormScaledCS)};
+    load_shader_code_scaled[kLoadShaderIndexDepthUnorm] = D3D12_SHADER_BYTECODE{
+        shaders::kTextureLoadDepthUNormScaledCS, sizeof(shaders::kTextureLoadDepthUNormScaledCS)};
+    load_shader_code_scaled[kLoadShaderIndexDepthFloat] = D3D12_SHADER_BYTECODE{
+        shaders::kTextureLoadDepthFloatScaledCS, sizeof(shaders::kTextureLoadDepthFloatScaledCS)};
   }
 
   for (size_t i = 0; i < kLoadShaderCount; ++i) {
@@ -1039,7 +1035,7 @@ bool D3D12TextureCache::ClampDrawResolutionScaleToMaxSupported(
   u32 virtual_address_bits_per_resource = provider.GetVirtualAddressBitsPerResource();
   while (scale_x > 1 || scale_y > 1) {
     u64 highest_scaled_address =
-        static_cast<u64>(SharedMemory::kBufferSize) * (scale_x * scale_y) - 1;
+        static_cast<u64>(SharedMemory::kBufferSize) * (u64{scale_x} * scale_y) - 1;
     if (static_cast<u32>(64) - rex::lzcnt(highest_scaled_address) <=
         virtual_address_bits_per_resource) {
       break;
@@ -1118,10 +1114,9 @@ bool D3D12TextureCache::EnsureScaledResolveMemoryCommitted(u32 start_unscaled, u
       continue;
     }
     auto direct_queue = provider.GetDirectQueue();
-    D3D12_HEAP_DESC heap_desc = {};
-    heap_desc.SizeInBytes = kScaledResolveHeapSize;
-    heap_desc.Properties.Type = D3D12_HEAP_TYPE_DEFAULT;
-    heap_desc.Flags = D3D12_HEAP_FLAG_ALLOW_ONLY_BUFFERS | provider.GetHeapFlagCreateNotZeroed();
+    const D3D12_HEAP_DESC heap_desc = util::MakeDefaultHeapDesc(
+        kScaledResolveHeapSize,
+        D3D12_HEAP_FLAG_ALLOW_ONLY_BUFFERS | provider.GetHeapFlagCreateNotZeroed());
     Microsoft::WRL::ComPtr<ID3D12Heap> scaled_resolve_heap;
     if (FAILED(device->CreateHeap(&heap_desc, IID_PPV_ARGS(&scaled_resolve_heap)))) {
       REX_FAIL(gpu, false, "D3D12TextureCache: Failed to create a scaled resolve tile heap");
@@ -1423,14 +1418,15 @@ u32 D3D12TextureCache::GetMaxHostTextureWidthHeight(xenos::DataDimension dimensi
   }
 }
 
+static_assert(D3D12_REQ_TEXTURE2D_ARRAY_AXIS_DIMENSION == D3D12_REQ_TEXTURE3D_U_V_OR_W_DIMENSION);
+
 u32 D3D12TextureCache::GetMaxHostTextureDepthOrArraySize(xenos::DataDimension dimension) const {
   switch (dimension) {
     case xenos::DataDimension::k1D:
     case xenos::DataDimension::k2DOrStacked:
+    case xenos::DataDimension::k3D:
       // 1D and 2D are emulated as 2D arrays.
       return D3D12_REQ_TEXTURE2D_ARRAY_AXIS_DIMENSION;
-    case xenos::DataDimension::k3D:
-      return D3D12_REQ_TEXTURE3D_U_V_OR_W_DIMENSION;
     case xenos::DataDimension::kCube:
       return D3D12_REQ_TEXTURE2D_ARRAY_AXIS_DIMENSION / 6 * 6;
     default:
@@ -1736,11 +1732,10 @@ bool D3D12TextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture, 
     for (u32 slice = 0; slice < array_size; ++slice) {
       if (slice != 0) {
         command_list.D3DSetComputeRoot32BitConstants(
-            0, sizeof(load_constants.guest_offset) / sizeof(u32), &load_constants.guest_offset,
+            0, 1, &load_constants.guest_offset,
             offsetof(LoadConstants, guest_offset) / sizeof(u32));
         command_list.D3DSetComputeRoot32BitConstants(
-            0, sizeof(load_constants.host_offset) / sizeof(u32), &load_constants.host_offset,
-            offsetof(LoadConstants, host_offset) / sizeof(u32));
+            0, 1, &load_constants.host_offset, offsetof(LoadConstants, host_offset) / sizeof(u32));
       }
       REX_ASSERT(copy_buffer_state == D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
       command_processor_.SubmitBarriers();

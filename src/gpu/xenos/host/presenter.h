@@ -215,7 +215,7 @@ class Presenter : public gpu::IPresenter, public rex::NonCopyable {
    */
   void PaintFromUIThread(bool force_paint = false);
 
-  enum class PaintResult {
+  enum class PaintResult : u8 {
     kPresented,
     kPresentedSuboptimal,
     /** Refused for internal reasons or a host API failure, presenting may retry without a reset. */
@@ -225,7 +225,7 @@ class Presenter : public gpu::IPresenter, public rex::NonCopyable {
     kGpuLostResponsible,
   };
 
-  enum class SurfacePaintConnectResult {
+  enum class SurfacePaintConnectResult : u8 {
     /** Nothing changed so no redraw is needed. Never returned for a new connection. */
     kSuccessUnchanged,
     kSuccess,
@@ -260,7 +260,7 @@ class Presenter : public gpu::IPresenter, public rex::NonCopyable {
     }
   };
 
-  enum class GuestOutputPaintEffect {
+  enum class GuestOutputPaintEffect : u8 {
     kBilinear,
     kBilinearDither,
 
@@ -416,7 +416,7 @@ class Presenter : public gpu::IPresenter, public rex::NonCopyable {
   void ExecuteUIDrawersFromUIThread(gpu::OverlayDrawContext& ui_draw_context);
 
  private:
-  enum class PaintMode {
+  enum class PaintMode : u8 {
     /**
      * Does not paint, and the painting lifecycle is UI thread only.
      *
@@ -441,7 +441,7 @@ class Presenter : public gpu::IPresenter, public rex::NonCopyable {
     kGuestOutputThreadImmediately,
   };
 
-  enum class SurfacePaintConnectionState {
+  enum class SurfacePaintConnectionState : u8 {
     /**
      * No surface, or connecting failed for the current surface state such as a zero size from
      * minimizing, or an outdated connection failed to reconnect.

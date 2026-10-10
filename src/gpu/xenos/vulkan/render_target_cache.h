@@ -218,7 +218,7 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
    * operations), then compute reads. Fragment reads and compute reads normally do not follow
    * each other, so a wider barrier in the normal scenario would not pay off.
    */
-  enum class EdramBufferUsage {
+  enum class EdramBufferUsage : u8 {
     /** Host depth copy storing. */
     kFragmentRead,
     /** Fragment shader interlock depth, stencil and color operations. */
@@ -232,7 +232,7 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
   };
 
   /** Values are ordered by how strong the barrier conditions are. */
-  enum class EdramBufferModificationStatus {
+  enum class EdramBufferModificationStatus : u8 {
     /** No uncommitted shader writes. */
     kUnmodified,
     /** Must commit before the next fragment shader interlock usage with overlap. */
@@ -241,7 +241,7 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
     kViaUnordered,
   };
 
-  enum ResolveCopyDescriptorSet : u32 {
+  enum ResolveCopyDescriptorSet : u8 {
     /** Never changes. */
     kResolveCopyDescriptorSetEdram,
     /** Shared memory or a region in it. */
@@ -444,7 +444,7 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
                 std::has_unique_object_representations_v<FramebufferKey>);
 
   /** Ordered from the least to the most frequently changed. */
-  enum TransferUsedDescriptorSet : u32 {
+  enum TransferUsedDescriptorSet : u8 {
     kTransferUsedDescriptorSetHostDepthBuffer,
     kTransferUsedDescriptorSetHostDepthStencilTextures,
     kTransferUsedDescriptorSetDepthStencilTextures,
@@ -464,7 +464,7 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
   };
 
   /** 32 bit push constants keep size calculation simple and avoid std140 packing issues. */
-  enum TransferUsedPushConstantDword : u32 {
+  enum TransferUsedPushConstantDword : u8 {
     kTransferUsedPushConstantDwordHostDepthAddress,
     kTransferUsedPushConstantDwordAddress,
     /** Changed 8 times per transfer. */
@@ -480,7 +480,7 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
                                                    << kTransferUsedPushConstantDwordStencilMask,
   };
 
-  enum class TransferPipelineLayoutIndex {
+  enum class TransferPipelineLayoutIndex : u8 {
     kColor,
     kDepth,
     kColorToStencilBit,
@@ -501,6 +501,7 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
   static const TransferPipelineLayoutInfo
       kTransferPipelineLayoutInfos[static_cast<size_t>(TransferPipelineLayoutIndex::kCount)];
 
+  // NOLINTNEXTLINE(performance-enum-size): packed key bit field, MSVC packs per type
   enum class TransferMode : u32 {
     kColorToDepth,
     kColorToColor,
@@ -532,7 +533,7 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
     kCount,
   };
 
-  enum class TransferOutput {
+  enum class TransferOutput : u8 {
     kColor,
     kDepth,
     kStencilBit,
@@ -723,7 +724,7 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
     bool operator!=(const DumpOffsets& other_offsets) const { return !(*this == other_offsets); }
   };
 
-  enum DumpDescriptorSet : u32 {
+  enum DumpDescriptorSet : u8 {
     /**
      * Never changes. Same in both color and depth pipeline layouts and kept first for pipeline
      * layout compatibility, so it is set once.
@@ -735,7 +736,7 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
     kDumpDescriptorSetCount,
   };
 
-  enum DumpPushConstant : u32 {
+  enum DumpPushConstant : u8 {
     /** May be different for different sources. */
     kDumpPushConstantPitches,
     /** May be changed multiple times for the same source. */

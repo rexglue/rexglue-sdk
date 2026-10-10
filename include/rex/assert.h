@@ -155,7 +155,7 @@ constexpr const char* AssertMessage(const char* message) {
  * @endcode
  */
 #define REX_STATIC_ASSERT_SIZE(type, size) \
-  static_assert(sizeof(type) == size, "bad definition for " #type ": must be " #size " bytes")
+  static_assert(sizeof(type) == (size), "bad definition for " #type ": must be " #size " bytes")
 
 /**
  * Writes a Critical message, flushes every sink and aborts.

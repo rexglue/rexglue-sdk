@@ -37,7 +37,7 @@ i32 XamUserGetXUID_entry(u32 user_index, u32 type_mask, mapped_u64 xuid_ptr) {
   REX_ASSERT(type_mask == 1 || type_mask == 2 || type_mask == 3 || type_mask == 4 ||
              type_mask == 7);
   if (!xuid_ptr) {
-    return X_E_INVALIDARG;
+    return static_cast<i32>(X_E_INVALIDARG);
   }
   u32 result = X_E_NO_SUCH_USER;
   u64 xuid = 0;
@@ -54,7 +54,7 @@ i32 XamUserGetXUID_entry(u32 user_index, u32 type_mask, mapped_u64 xuid_ptr) {
     result = X_E_INVALIDARG;
   }
   *xuid_ptr = xuid;
-  return result;
+  return static_cast<i32>(result);
 }
 
 u32 XamUserGetSigninState_entry(u32 user_index) {
@@ -81,12 +81,12 @@ REX_STATIC_ASSERT_SIZE(X_USER_SIGNIN_INFO, 40);
 i32 XamUserGetSigninInfo_entry(u32 user_index, [[maybe_unused]] u32 flags,
                                ppc_ptr_t<X_USER_SIGNIN_INFO> info) {
   if (!info) {
-    return X_E_INVALIDARG;
+    return static_cast<i32>(X_E_INVALIDARG);
   }
 
   std::memset(info, 0, sizeof(X_USER_SIGNIN_INFO));
   if (user_index) {
-    return X_E_NO_SUCH_USER;
+    return static_cast<i32>(X_E_NO_SUCH_USER);
   }
 
   auto& user_profile = runtime::Current().content_manager().user_profile();

@@ -26,7 +26,7 @@ namespace rex::memory {
 class REX_API MappedMemory : public rex::NonCopyable {
  public:
   /** Access mode of the mapping. */
-  enum class Mode {
+  enum class Mode : u8 {
     kRead,      /**< Read only. */
     kReadWrite, /**< Read and write. */
   };
@@ -63,7 +63,7 @@ class REX_API MappedMemory : public rex::NonCopyable {
    * @param length Byte count of the view.
    * @return The view.
    */
-  std::unique_ptr<MappedMemory> Slice(size_t offset, size_t length) {
+  std::unique_ptr<MappedMemory> Slice(size_t offset, size_t length) const {
     return std::make_unique<MappedMemory>(data() + offset, length);
   }
 

@@ -645,7 +645,7 @@ void SpirvShaderTranslator::CompleteFragmentShaderInMain() {
         builder_->createBranch(&block_alpha_to_coverage_msaa_merge);
         builder_->setBuildPoint(&block_alpha_to_coverage_msaa_merge);
         id_vector_temp_.clear();
-        id_vector_temp_.reserve(2 * 3);
+        id_vector_temp_.reserve(size_t{2} * 3);
         id_vector_temp_.push_back(alpha_to_coverage_mask_1x);
         id_vector_temp_.push_back(block_alpha_to_coverage_msaa_1x.getId());
         id_vector_temp_.push_back(alpha_to_coverage_mask_2x);
@@ -819,10 +819,11 @@ void SpirvShaderTranslator::CompleteFragmentShaderInMain() {
             fsi_color_written, spv::SelectionControlDontFlattenMask, *builder_, 2, 1);
 
         // Per render target uint2 arrays are passed as uint4 arrays for std140 element alignment.
-        spv::Id rt_uint2_index_array = builder_->makeIntConstant(color_target_index >> 1);
+        spv::Id rt_uint2_index_array =
+            builder_->makeIntConstant(static_cast<int>(color_target_index >> 1));
         spv::Id rt_uint2_index_element[] = {
-            builder_->makeIntConstant((color_target_index & 1) << 1),
-            builder_->makeIntConstant(((color_target_index & 1) << 1) + 1),
+            builder_->makeIntConstant(static_cast<int>((color_target_index & 1) << 1)),
+            builder_->makeIntConstant(static_cast<int>(((color_target_index & 1) << 1) + 1)),
         };
 
         id_vector_temp_.clear();
@@ -848,7 +849,8 @@ void SpirvShaderTranslator::CompleteFragmentShaderInMain() {
         SpirvBuilder::IfBuilder if_rt_write_mask_not_empty(
             rt_write_mask_not_empty, spv::SelectionControlDontFlattenMask, *builder_);
 
-        spv::Id const_int_rt_index = builder_->makeIntConstant(color_target_index);
+        spv::Id const_int_rt_index =
+            builder_->makeIntConstant(static_cast<int>(color_target_index));
 
         id_vector_temp_.clear();
         id_vector_temp_.push_back(builder_->makeIntConstant(kSystemConstantEdramRTFormatFlags));
@@ -1327,7 +1329,7 @@ void SpirvShaderTranslator::FSI_LoadSampleMask(spv::Id msaa_samples) {
 
   builder_->setBuildPoint(&block_msaa_merge);
   id_vector_temp_.clear();
-  id_vector_temp_.reserve(2 * 3);
+  id_vector_temp_.reserve(size_t{2} * 3);
   id_vector_temp_.push_back(input_sample_mask_value);
   id_vector_temp_.push_back(block_msaa_1x.getId());
   id_vector_temp_.push_back(sample_mask_2x);
@@ -1455,14 +1457,15 @@ spv::Id SpirvShaderTranslator::FSI_AddSampleOffset(spv::Id sample_0_address, u32
   spv::Id sample_offset;
   u32 tile_width = xenos::kEDRAMTileWidthSamples * draw_resolution_scale_x_;
   if (sample_index == 1) {
-    sample_offset = builder_->makeIntConstant(tile_width);
+    sample_offset = builder_->makeIntConstant(static_cast<int>(tile_width));
   } else {
-    spv::Id sample_offset_32bpp =
-        builder_->makeIntConstant(tile_width * (sample_index & 1) + (sample_index >> 1));
+    spv::Id sample_offset_32bpp = builder_->makeIntConstant(
+        static_cast<int>(tile_width * (sample_index & 1) + (sample_index >> 1)));
     if (is_64bpp != spv::NoResult) {
       sample_offset = builder_->createTriOp(
           spv::OpSelect, type_int_, is_64bpp,
-          builder_->makeIntConstant(tile_width * (sample_index & 1) + 2 * (sample_index >> 1)),
+          builder_->makeIntConstant(
+              static_cast<int>(tile_width * (sample_index & 1) + 2 * (sample_index >> 1))),
           sample_offset_32bpp);
     } else {
       sample_offset = sample_offset_32bpp;
@@ -1698,14 +1701,16 @@ void SpirvShaderTranslator::FSI_DepthStencilTest(spv::Id msaa_samples,
         case 0: {
           for (u32 j = 0; j < 2; ++j) {
             sample_location[j] = builder_->makeFloatConstant(
-                draw_util::kD3D10StandardSamplePositions4x[0][j] * (1.0f / 16.0f));
+                static_cast<f32>(draw_util::kD3D10StandardSamplePositions4x[0][j]) *
+                (1.0f / 16.0f));
           }
           if (native_2x_msaa_no_attachments_) {
             for (u32 j = 0; j < 2; ++j) {
               sample_location[j] = builder_->createTriOp(
                   spv::OpSelect, type_float_, msaa_is_4x, sample_location[j],
-                  builder_->makeFloatConstant(draw_util::kD3D10StandardSamplePositions2x[1][j] *
-                                              (1.0f / 16.0f)));
+                  builder_->makeFloatConstant(
+                      static_cast<f32>(draw_util::kD3D10StandardSamplePositions2x[1][j]) *
+                      (1.0f / 16.0f)));
             }
           }
           for (u32 j = 0; j < 2; ++j) {
@@ -1717,12 +1722,13 @@ void SpirvShaderTranslator::FSI_DepthStencilTest(spv::Id msaa_samples,
           for (u32 j = 0; j < 2; ++j) {
             sample_location[j] = builder_->createTriOp(
                 spv::OpSelect, type_float_, msaa_is_4x,
-                builder_->makeFloatConstant(draw_util::kD3D10StandardSamplePositions4x[2][j] *
-                                            (1.0f / 16.0f)),
                 builder_->makeFloatConstant(
-                    (native_2x_msaa_no_attachments_
-                         ? draw_util::kD3D10StandardSamplePositions2x[0][j]
-                         : draw_util::kD3D10StandardSamplePositions4x[3][j]) *
+                    static_cast<f32>(draw_util::kD3D10StandardSamplePositions4x[2][j]) *
+                    (1.0f / 16.0f)),
+                builder_->makeFloatConstant(
+                    static_cast<f32>(native_2x_msaa_no_attachments_
+                                         ? draw_util::kD3D10StandardSamplePositions2x[0][j]
+                                         : draw_util::kD3D10StandardSamplePositions4x[3][j]) *
                     (1.0f / 16.0f)));
           }
         } break;
@@ -1730,8 +1736,8 @@ void SpirvShaderTranslator::FSI_DepthStencilTest(spv::Id msaa_samples,
           const i8* sample_location_int =
               draw_util::kD3D10StandardSamplePositions4x[i ^ (((i & 1) ^ (i >> 1)) * 0b11)];
           for (u32 j = 0; j < 2; ++j) {
-            sample_location[j] =
-                builder_->makeFloatConstant(sample_location_int[j] * (1.0f / 16.0f));
+            sample_location[j] = builder_->makeFloatConstant(
+                static_cast<f32>(sample_location_int[j]) * (1.0f / 16.0f));
           }
         } break;
       }
@@ -1895,7 +1901,7 @@ void SpirvShaderTranslator::FSI_DepthStencilTest(spv::Id msaa_samples,
       builder_->createBranch(&block_stencil_op_merge);
       builder_->setBuildPoint(&block_stencil_op_merge);
       id_vector_temp_.clear();
-      id_vector_temp_.reserve(2 * 8);
+      id_vector_temp_.reserve(size_t{2} * 8);
       id_vector_temp_.push_back(old_depth_stencil);
       id_vector_temp_.push_back(block_stencil_op_keep.getId());
       id_vector_temp_.push_back(const_uint_0_);
@@ -2296,7 +2302,7 @@ std::array<spv::Id, 2> SpirvShaderTranslator::FSI_ClampAndPackColor(spv::Id colo
 
   builder_->setBuildPoint(&block_format_merge);
   std::array<spv::Id, 2> packed;
-  id_vector_temp_.reserve(2 * 7);
+  id_vector_temp_.reserve(size_t{2} * 7);
   id_vector_temp_.clear();
   id_vector_temp_.push_back(packed_8_8_8_8);
   id_vector_temp_.push_back(block_format_8_8_8_8_end.getId());
@@ -2545,7 +2551,7 @@ std::array<spv::Id, 4> SpirvShaderTranslator::FSI_UnpackColor(std::array<spv::Id
 
   builder_->setBuildPoint(&block_format_merge);
   std::array<spv::Id, 4> unpacked;
-  id_vector_temp_.reserve(2 * 10);
+  id_vector_temp_.reserve(size_t{2} * 10);
   for (u32 i = 0; i < 4; ++i) {
     id_vector_temp_.clear();
     id_vector_temp_.push_back(unpacked_8_8_8_8_and_gamma[0][i]);
@@ -2747,7 +2753,7 @@ spv::Id SpirvShaderTranslator::FSI_ApplyColorBlendFactor(
 
   builder_->setBuildPoint(&block_factor_merge);
   id_vector_temp_.clear();
-  id_vector_temp_.reserve(2 * 14);
+  id_vector_temp_.reserve(size_t{2} * 14);
   id_vector_temp_.push_back(value);
   id_vector_temp_.push_back(block_factor_one.getId());
   for (u32 i = 0; i < 3; ++i) {
@@ -2882,7 +2888,7 @@ spv::Id SpirvShaderTranslator::FSI_ApplyAlphaBlendFactor(spv::Id value, spv::Id 
 
   builder_->setBuildPoint(&block_factor_merge);
   id_vector_temp_.clear();
-  id_vector_temp_.reserve(2 * 8);
+  id_vector_temp_.reserve(size_t{2} * 8);
   id_vector_temp_.push_back(value);
   id_vector_temp_.push_back(block_factor_one.getId());
   for (u32 i = 0; i < 3; ++i) {
@@ -3008,7 +3014,7 @@ spv::Id SpirvShaderTranslator::FSI_BlendColorOrAlphaWithUnclampedResult(
 
     builder_->setBuildPoint(&block_signs_merge);
     id_vector_temp_.clear();
-    id_vector_temp_.reserve(2 * 3);
+    id_vector_temp_.reserve(size_t{2} * 3);
     id_vector_temp_.push_back(result_add);
     id_vector_temp_.push_back(block_signs_add.getId());
     id_vector_temp_.push_back(result_subtract);
@@ -3022,7 +3028,7 @@ spv::Id SpirvShaderTranslator::FSI_BlendColorOrAlphaWithUnclampedResult(
 
   builder_->setBuildPoint(&block_min_max_merge);
   id_vector_temp_.clear();
-  id_vector_temp_.reserve(2 * 3);
+  id_vector_temp_.reserve(size_t{2} * 3);
   id_vector_temp_.push_back(result_min);
   id_vector_temp_.push_back(block_min_max_min.getId());
   id_vector_temp_.push_back(result_max);

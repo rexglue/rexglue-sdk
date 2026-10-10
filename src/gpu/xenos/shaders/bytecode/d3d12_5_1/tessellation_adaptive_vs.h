@@ -8,7 +8,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-const BYTE tessellation_adaptive_vs[] = {
+const BYTE kTessellationAdaptiveVS[] = {
     68,  88,  66,  67,  124, 10,  20,  236, 52,  205, 17,  163, 29,  96,  4,   68,  69,  43,  2,
     171, 1,   0,   0,   0,   116, 13,  0,   0,   5,   0,   0,   0,   52,  0,   0,   0,   104, 10,
     0,   0,   156, 10,  0,   0,   212, 10,  0,   0,   216, 12,  0,   0,   82,  68,  69,  70,  44,

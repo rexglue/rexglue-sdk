@@ -109,12 +109,12 @@ PrologInfo scanProlog(const BinaryView& binary, u32 funcAddr, u32 prologLength) 
   }
 
   for (u32 i = 0; i < prologLength; i++) {
-    u32 raw = memory::load<be_u32>(code + i * 4);
+    u32 raw = memory::load<be_u32>(code + size_t{i} * 4);
     u32 addr = funcAddr + i * 4;
     auto decoded = decode_instruction(addr, raw);
 
     if (decoded.opcode == Opcode::addi && decoded.D.RT == 31 && decoded.D.RA == 1) {
-      i16 simm = decoded.D.SIMM();
+      i32 simm = decoded.D.SIMM();
       if (simm < 0) {
         info.frameSize = static_cast<u32>(-simm);
         info.valid = true;

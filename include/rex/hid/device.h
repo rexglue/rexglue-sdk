@@ -23,6 +23,7 @@ constexpr u32 kMaxGuestUsers = 4;
  * Driver-scoped device handle. Never reused within a process run, so a handle that outlives its
  * device resolves to nothing rather than aliasing whichever device took the freed slot.
  */
+// NOLINTNEXTLINE(performance-enum-size): u64 counter, ids never reused
 enum class DeviceId : u64 { kInvalid = 0 };
 
 /** A device a driver reports. */

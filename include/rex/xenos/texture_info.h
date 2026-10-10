@@ -64,41 +64,29 @@ inline xenos::TextureFormat GetBaseFormat(xenos::TextureFormat texture_format) {
  */
 inline size_t GetTexelSize(xenos::TextureFormat format) {
   switch (format) {
-    case xenos::TextureFormat::k_1_5_5_5:
-      return 2;
-    case xenos::TextureFormat::k_2_10_10_10:
-      return 4;
-    case xenos::TextureFormat::k_4_4_4_4:
-      return 2;
-    case xenos::TextureFormat::k_5_6_5:
-      return 2;
     case xenos::TextureFormat::k_8:
       return 1;
+    case xenos::TextureFormat::k_1_5_5_5:
+    case xenos::TextureFormat::k_4_4_4_4:
+    case xenos::TextureFormat::k_5_6_5:
     case xenos::TextureFormat::k_8_8:
       return 2;
+    case xenos::TextureFormat::k_2_10_10_10:
     case xenos::TextureFormat::k_8_8_8_8:
-      return 4;
     case xenos::TextureFormat::k_16:
-      return 4;
     case xenos::TextureFormat::k_16_FLOAT:
-      return 4;
     case xenos::TextureFormat::k_16_16:
-      return 4;
     case xenos::TextureFormat::k_16_16_FLOAT:
+    case xenos::TextureFormat::k_32_FLOAT:
+    case xenos::TextureFormat::k_10_11_11:
+    case xenos::TextureFormat::k_11_11_10:
       return 4;
     case xenos::TextureFormat::k_16_16_16_16:
-      return 8;
     case xenos::TextureFormat::k_16_16_16_16_FLOAT:
-      return 8;
-    case xenos::TextureFormat::k_32_FLOAT:
-      return 4;
     case xenos::TextureFormat::k_32_32_FLOAT:
       return 8;
     case xenos::TextureFormat::k_32_32_32_32_FLOAT:
       return 16;
-    case xenos::TextureFormat::k_10_11_11:
-    case xenos::TextureFormat::k_11_11_10:
-      return 4;
     default:
       REX_UNHANDLED_CASE(format);
       return 0;
@@ -131,7 +119,7 @@ inline xenos::TextureFormat DepthRenderTargetToTextureFormat(
 }
 
 /** Storage class of a texture format. */
-enum class FormatType {
+enum class FormatType : u8 {
   kResolvable,   /**< Uncompressed and also a ColorFormat. */
   kUncompressed, /**< Uncompressed, not a resolve or memory export target. */
   kCompressed,   /**< Block compressed. */
@@ -314,7 +302,7 @@ struct REX_API TextureInfo {
    * @return False when the level is too large to be packed, with both offsets set to 0.
    */
   static bool GetPackedTileOffset(u32 width, u32 height, const FormatInfo* format_info,
-                                  int packed_tile, u32* offset_x, u32* offset_y);
+                                  u32 packed_tile, u32* offset_x, u32* offset_y);
 
   /**
    * @param packed_tile Index of the level within the packed tile.
@@ -322,7 +310,7 @@ struct REX_API TextureInfo {
    * @param offset_y Receives the Y offset in blocks.
    * @return False when the texture has no packed mips or the level is not packed.
    */
-  bool GetPackedTileOffset(int packed_tile, u32* offset_x, u32* offset_y) const;
+  bool GetPackedTileOffset(u32 packed_tile, u32* offset_x, u32* offset_y) const;
 
   /** @return The 64 bit XXH3 hash of every field. */
   u64 hash() const;

@@ -107,7 +107,7 @@ class UserProfile {
   /** A profile setting identified by id, which can write itself into a guest value. */
   struct Setting {
     /** Value type of a setting, matching the XUSER_DATA type byte. */
-    enum class Type {
+    enum class Type : u8 {
       CONTENT = 0,  /**< Context value. */
       INT32 = 1,    /**< 32 bit integer. */
       INT64 = 2,    /**< 64 bit integer. */
@@ -164,7 +164,7 @@ class UserProfile {
      *
      * @param data The saved bytes.
      */
-    virtual void Deserialize(std::vector<u8>) {}
+    virtual void Deserialize(const std::vector<u8>&) {}
     /**
      * Reports whether the setting is saved per title.
      *
@@ -301,7 +301,7 @@ class UserProfile {
      *
      * @param setting_id The id of the setting.
      */
-    BinarySetting(u32 setting_id) : Setting(setting_id, Type::BINARY, 8, false), value() {}
+    BinarySetting(u32 setting_id) : Setting(setting_id, Type::BINARY, 8, false) {}
     /**
      * Constructs a setting holding data.
      *
@@ -343,7 +343,7 @@ class UserProfile {
      *
      * @param data The saved bytes.
      */
-    void Deserialize(std::vector<u8> data) override {
+    void Deserialize(const std::vector<u8>& data) override {
       value = data;
       is_set = true;
     }

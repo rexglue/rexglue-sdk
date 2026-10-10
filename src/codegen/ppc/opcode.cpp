@@ -507,6 +507,8 @@ Opcode lookup_opcode(u32 code) {
       return Opcode::stfd;
     case 55:
       return Opcode::stfdu;
+    default:
+      break;
   }
 
   u32 extended = 0;
@@ -599,6 +601,8 @@ Opcode lookup_opcode(u32 code) {
         return Opcode::extsh;
       case 954:
         return Opcode::extsb;
+      default:
+        break;
     }
   } else if (primary == 58) {
     extended = extract_bits(code, 30, 2);
@@ -637,6 +641,8 @@ Opcode lookup_opcode(u32 code) {
         return Opcode::fnmsubs;
       case 31:
         return Opcode::fnmadds;
+      default:
+        break;
     }
   } else if (primary == 63) {
     extended = extract_bits(code, 21, 10);
@@ -669,6 +675,8 @@ Opcode lookup_opcode(u32 code) {
         return Opcode::fctidz;
       case 846:
         return Opcode::fcfid;
+      default:
+        break;
     }
     extended = extract_bits(code, 26, 5);
     switch (extended) {
@@ -696,6 +704,8 @@ Opcode lookup_opcode(u32 code) {
         return Opcode::fnmsub;
       case 31:
         return Opcode::fnmadd;
+      default:
+        break;
     }
   } else if (primary == 4) {
     extended = extract_bits(code, 26, 6);
@@ -710,6 +720,8 @@ Opcode lookup_opcode(u32 code) {
         return Opcode::vperm;
       case 44:
         return Opcode::vsel;
+      default:
+        break;
     }
 
     extended = extract_bits(code, 21, 11);
@@ -906,6 +918,8 @@ Opcode lookup_opcode(u32 code) {
         return Opcode::mfvscr;
       case 1604:
         return Opcode::mtvscr;
+      default:
+        break;
     }
 
     extended = extract_bits(code, 21, 10);
@@ -937,6 +951,8 @@ Opcode lookup_opcode(u32 code) {
         return Opcode::vcmpgtsh;
       case 902:
         return Opcode::vcmpgtsw;
+      default:
+        break;
     }
 
     u32 bits_30_31 = code & 0x3;
@@ -975,6 +991,8 @@ Opcode lookup_opcode(u32 code) {
           return Opcode::stvlxl128;
         case 116:
           return Opcode::stvrxl128;
+        default:
+          break;
       }
       if ((code & 0x10) == 0x10) {
         return Opcode::vsldoi128;
@@ -1021,6 +1039,8 @@ Opcode lookup_opcode(u32 code) {
           return Opcode::vslo128;
         case 15:
           return Opcode::vsro128;
+        default:
+          break;
       }
     } else {
       switch (op4) {
@@ -1042,6 +1062,8 @@ Opcode lookup_opcode(u32 code) {
           return Opcode::vpkuwum128;
         case 15:
           return Opcode::vpkuwus128;
+        default:
+          break;
       }
     }
   }
@@ -1072,6 +1094,8 @@ Opcode lookup_opcode(u32 code) {
           return Opcode::vmrghw128;
         case 13:
           return Opcode::vmrglw128;
+        default:
+          break;
       }
     } else {
       switch (bits_21_27) {
@@ -1105,6 +1129,8 @@ Opcode lookup_opcode(u32 code) {
           return Opcode::vspltisw128;
         case 0x7F:
           return Opcode::vupkd3d128;
+        default:
+          break;
       }
       u32 bits_25_27 = extract_bits(code, 25, 3);
       if (bits_25_27 == 1) {

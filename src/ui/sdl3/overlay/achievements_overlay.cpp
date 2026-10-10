@@ -66,7 +66,8 @@ void AchievementsOverlayDialog::OnDraw(ImGuiIO& io) {
     ImGui::SameLine();
     ImGui::TextColored(ToImVec4(style.badge_gamerscore), "%dG / %dG", earned_gs, total_gs);
 
-    f32 frac = total_count > 0 ? static_cast<f32>(unlocked_count) / total_count : 0.0f;
+    f32 frac =
+        total_count > 0 ? static_cast<f32>(unlocked_count) / static_cast<f32>(total_count) : 0.0f;
     ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ToImVec4(style.progress_bar));
     ImGui::ProgressBar(frac, ImVec2(-1.0f, 6.0f), "");
     ImGui::PopStyleColor();

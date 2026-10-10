@@ -34,12 +34,12 @@ class D3D12CpuDescriptorPool : public std::enable_shared_from_this<D3D12CpuDescr
    public:
     Descriptor() = default;
     Descriptor(std::shared_ptr<D3D12CpuDescriptorPool> pool, size_t index)
-        : pool_(pool), index_(index) {}
-    Descriptor(Descriptor&& descriptor) {
+        : pool_(std::move(pool)), index_(index) {}
+    Descriptor(Descriptor&& descriptor) noexcept {
       pool_ = std::move(descriptor.pool_);
       index_ = descriptor.index_;
     }
-    Descriptor& operator=(Descriptor&& descriptor) {
+    Descriptor& operator=(Descriptor&& descriptor) noexcept {
       if (IsValid() && pool_ == descriptor.pool_ && index_ == descriptor.index_) {
         return *this;
       }
@@ -56,7 +56,7 @@ class D3D12CpuDescriptorPool : public std::enable_shared_from_this<D3D12CpuDescr
       pool_->FreeDescriptor(index_);
       pool_.reset();
     }
-    bool IsValid() const { return pool_.get() != nullptr; }
+    bool IsValid() const { return pool_ != nullptr; }
     operator bool() const { return IsValid(); }
     D3D12_CPU_DESCRIPTOR_HANDLE GetHandle() const {
       REX_ASSERT(IsValid());

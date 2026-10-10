@@ -286,9 +286,13 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
   VulkanFeatures<VkPhysicalDevicePortabilitySubsetFeaturesKHR,
                  VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PORTABILITY_SUBSET_FEATURES_KHR>
       features_KHR_portability_subset;
-  auto properties_1_2_KHR_driver_properties =
-      util::InitializeStructure<VkPhysicalDeviceDriverPropertiesKHR>(
-          VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DRIVER_PROPERTIES);
+  VkPhysicalDeviceDriverPropertiesKHR properties_1_2_KHR_driver_properties = {
+      .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DRIVER_PROPERTIES,
+      .pNext = nullptr,
+      .driverID = VkDriverId(0),
+      .driverName = {},
+      .driverInfo = {},
+      .conformanceVersion = {}};
   auto properties_1_2_KHR_shader_float_controls =
       util::InitializeStructure<VkPhysicalDeviceFloatControlsProperties>(
           VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FLOAT_CONTROLS_PROPERTIES);
@@ -553,9 +557,9 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
  * REXVK_PROPERTY_2(properties_1_2_KHR_shader_float_controls, shaderDenormFlushToZeroFloat32)
  * @endcode
  */
-#define REXVK_PROPERTY_2(structure, name)    \
-  device->properties_.name = structure.name; \
-  REXLOG_DEBUG(ui, "* " #name ": {}", structure.name);
+#define REXVK_PROPERTY_2(structure, name)      \
+  device->properties_.name = (structure).name; \
+  REXLOG_DEBUG(ui, "* " #name ": {}", (structure).name);
 /**
  * Copies an enumeration property from an extension properties structure and logs it by name.
  *
@@ -568,8 +572,8 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
  * @endcode
  */
 #define REXVK_ENUM_PROPERTY_2(structure, name, type) \
-  device->properties_.name = structure.name;         \
-  REXLOG_DEBUG(ui, "* " #name ": {}", vk::to_string(vk::type(structure.name)));
+  device->properties_.name = (structure).name;       \
+  REXLOG_DEBUG(ui, "* " #name ": {}", vk::to_string(vk::type((structure).name)));
 /**
  * Enables a feature from an extension features structure when supported and stores the result.
  *
@@ -580,11 +584,11 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
  * REXVK_FEATURE_2(features_1_2, uniformBufferStandardLayout)
  * @endcode
  */
-#define REXVK_FEATURE_2(structure, name)               \
-  structure.enabled.name = structure.supported.name;   \
-  device->properties_.name = structure.supported.name; \
-  if (structure.supported.name) {                      \
-    REXLOG_DEBUG(ui, "* " #name);                      \
+#define REXVK_FEATURE_2(structure, name)                 \
+  (structure).enabled.name = (structure).supported.name; \
+  device->properties_.name = (structure).supported.name; \
+  if ((structure).supported.name) {                      \
+    REXLOG_DEBUG(ui, "* " #name);                        \
   }
 /**
  * Marks a feature as supported that an enabled extension or core version implies without a query.

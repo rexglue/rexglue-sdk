@@ -84,7 +84,7 @@ enum class FunctionAuthority : u8 {
 };
 
 /** Classification of a branch target for code generation. */
-enum class TargetKind {
+enum class TargetKind : u8 {
   InternalLabel, /**< Target inside the caller function, a PIC pattern */
   Function,      /**< Target is a function in the graph. */
   Import,        /**< Target is an import thunk, emitted as a call to the import. */

@@ -17,7 +17,7 @@ namespace rex {
 namespace runtime {
 
 /** Volume information class selecting the layout of a query request. */
-enum X_FILE_FS_INFORMATION_CLASS {
+enum X_FILE_FS_INFORMATION_CLASS : u8 {
   XFileFsVolumeInformation = 1,    /**< Volume label and serial number. */
   XFileFsSizeInformation = 3,      /**< Volume size and allocation unit geometry. */
   XFileFsDeviceInformation,        /**< Device type and characteristics. */
@@ -25,6 +25,7 @@ enum X_FILE_FS_INFORMATION_CLASS {
 };
 
 /** Device type reported for a volume. */
+// NOLINTNEXTLINE(performance-enum-size): guest memory field width
 enum X_FILE_DEVICE_TYPE : u32 {
   FILE_DEVICE_UNKNOWN = 0x00000022, /**< Device type the volume device query reports. */
   FILE_DEVICE_EHSTOR = 0x00000046,  /**< Device type 0x46. No code uses it. */

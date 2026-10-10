@@ -14,12 +14,14 @@
 #include <string>
 #include <utility>
 
+#include <rex/types.h>
+
 namespace rex {
 
 /**
  * Broad classification of an error. Specific codes go in Error::code.
  */
-enum class ErrorCategory {
+enum class ErrorCategory : u8 {
   NoError,        /**< Success. */
   IO,             /**< File I/O. */
   Memory,         /**< Memory allocation or mapping. */

@@ -57,7 +57,7 @@ function Invoke-ReXLint {
     Write-Host "=== Running clang-tidy on $($targets.Count) file(s) ==="
     $failed = 0
     foreach ($file in $targets) {
-        $output = & clang-tidy --quiet --config-file="$root/.clang-tidy" -p $lintDir $file 2>&1
+        $output = & clang-tidy --quiet -p $lintDir $file 2>&1
         if ($LASTEXITCODE -ne 0 -or ($output -match 'warning:|error:')) {
             $output | Write-Host
             $failed++

@@ -16,6 +16,7 @@
 
 #include <rex/chrono/chrono.h>
 
+// NOLINTNEXTLINE(bugprone-std-namespace-modification): permitted program defined clock
 namespace std::chrono {
 
 /**
@@ -36,7 +37,7 @@ struct clock_time_conversion<::rex::WinSystemClock, std::chrono::steady_clock> {
    * @return The same instant on WinSystemClock.
    */
   template <typename Duration>
-  typename WinSystemClock_::time_point operator()(
+  WinSystemClock_::time_point operator()(
       const std::chrono::time_point<steady_clock_, Duration>& t) const {
     std::atomic_thread_fence(std::memory_order_acq_rel);
     auto steady_now = steady_clock_::now();

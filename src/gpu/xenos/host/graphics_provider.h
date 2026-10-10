@@ -30,7 +30,7 @@ class Window;
  */
 class GraphicsProvider : public rex::NonCopyable {
  public:
-  enum class GpuVendorID {
+  enum class GpuVendorID : u16 {
     kAMD = 0x1002,
     kApple = 0x106B,
     kArm = 0x13B5,

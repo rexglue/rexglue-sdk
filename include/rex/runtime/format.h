@@ -29,7 +29,7 @@
 namespace rex::runtime::format {
 
 /** States of the printf format specifier parser. */
-enum FormatState {
+enum FormatState : u8 {
   FS_Invalid = 0,    /**< Invalid state. */
   FS_Unknown,        /**< Copying literal text outside a specifier. */
   FS_Start,          /**< After the percent sign. */
@@ -43,7 +43,7 @@ enum FormatState {
 };
 
 /** Flags collected while parsing a printf format specifier. */
-enum FormatFlags {
+enum FormatFlags : u16 {
   FF_LeftJustify = 1 << 0,        /**< Left justify the field. */
   FF_AddLeadingZeros = 1 << 1,    /**< Pad the field with zeros. */
   FF_AddPositive = 1 << 2,        /**< Print a plus sign on positive values. */
@@ -60,7 +60,7 @@ enum FormatFlags {
 };
 
 /** Size prefix of a printf conversion. */
-enum ArgumentSize {
+enum ArgumentSize : u8 {
   AS_Default = 0, /**< No size prefix. */
   AS_Short,       /**< Short size prefix. */
   AS_Long,        /**< Long size prefix. */
@@ -653,8 +653,6 @@ i32 format_core(u8* base, Data& data, Args& args, const bool wide) {
 
             if (flags & FF_IsLongLong) {
               value = static_cast<i64>(args.get64());
-            } else if (flags & FF_IsLong) {
-              value = static_cast<i32>(args.get32());
             } else if (flags & FF_IsShort) {
               value = static_cast<i16>(args.get32());
             } else {
@@ -874,7 +872,7 @@ i32 format_core(u8* base, Data& data, Args& args, const bool wide) {
       }
     }
 
-    if ((flags & FF_AddLeadingZeros) && !(flags & (FF_LeftJustify)) && padding > 0) {
+    if ((flags & FF_AddLeadingZeros) && !(flags & FF_LeftJustify) && padding > 0) {
       count += padding;
       while (padding-- > 0) {
         if (!data.put('0')) {

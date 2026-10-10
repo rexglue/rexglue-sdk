@@ -33,8 +33,6 @@ void ConsoleFind(std::string_view args);
 
 namespace rex::ui::cvars {
 
-// NOLINTBEGIN(bugprone-throwing-static-initialization) constant descriptors registered at Connect
-
 REXCVAR_COMMAND_ARGS(console, echo, ConsoleEcho, "Echo arguments to the console");
 REXCVAR_COMMAND_ARGS(console, find, ConsoleFind, "List cvar/command names containing a substring");
 REXCVAR_TABLE(kConsoleCvars, echo, find);
@@ -68,7 +66,5 @@ REXCVAR_DOUBLE(ui, cursor_timeout, 0.0,
 REXCVAR_TABLE(kUICvars, window_width, window_height, fullscreen, fullscreen_exclusive, monitor,
               video_mode_width, video_mode_height, resolution, video_mode_refresh_rate,
               cursor_timeout);
-
-// NOLINTEND(bugprone-throwing-static-initialization)
 
 }  // namespace rex::ui::cvars

@@ -52,7 +52,6 @@ namespace rex {
 struct Config;
 
 namespace apu {
-class IBackend;
 class NullBackend;
 }  // namespace apu
 

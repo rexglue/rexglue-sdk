@@ -892,7 +892,6 @@ bool ThreadRecord::GetTLSValue(u32 slot, u32* value_out) const {
   return true;
 }
 
-// NOLINTNEXTLINE(readability-make-member-function-const): writes guest memory
 bool ThreadRecord::SetTLSValue(u32 slot, u32 value) {
   if (slot >= tls_slot_count_.load(std::memory_order_acquire)) {
     return false;
@@ -978,8 +977,8 @@ void ThreadRecord::TakeDeferredSuspend() {
   suspend_cv_.wait(lock, [this] { return !suspend_deferred_.load(std::memory_order_acquire); });
 }
 
-// NOLINTNEXTLINE(readability-make-member-function-const): waits on the host thread
-X_STATUS ThreadRecord::Delay([[maybe_unused]] u32 processor_mode, u32 alertable, u64 interval) {
+X_STATUS ThreadRecord::Delay([[maybe_unused]] u32 processor_mode, u32 alertable,
+                             u64 interval) const {
   const u32 timeout_ms =
       Clock::ScaleGuestDurationMillis(TimeoutTicksToMs(static_cast<i64>(interval)));
   CheckStop();

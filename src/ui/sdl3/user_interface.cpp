@@ -162,7 +162,7 @@ void SDL3UserInterface::ApplyWindowCvars() {
     window_->RefreshFullscreen();
   });
   auto apply_cursor = [this](std::string_view value) {
-    const f64 seconds = from_string<f64>(value, 0.0);
+    const f64 seconds = from_string<f64>(value);
     if (seconds > 0.0) {
       window_->SetCursorAutoHideDelayMs(static_cast<u32>(seconds * 1000.0));
       window_->SetCursorVisibility(CursorVisibility::AutoHidden);

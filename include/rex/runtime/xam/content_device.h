@@ -19,13 +19,13 @@ namespace runtime {
 namespace xam {
 
 /** Storage device type. */
-enum class DeviceType : u32 {
+enum class DeviceType : u8 {
   HDD = 1, /**< Hard disk. */
   ODD = 4, /**< Optical disc. */
 };
 
 /** Ids of the placeholder devices reported to the title. */
-enum class DummyDeviceId : u32 {
+enum class DummyDeviceId : u8 {
   HDD = 1, /**< Placeholder hard disk. */
   ODD = 2, /**< Placeholder optical disc. */
 };

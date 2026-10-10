@@ -36,7 +36,7 @@ class VulkanSharedMemory : public SharedMemory {
   void CompletedSubmissionUpdated();
   void EndSubmission();
 
-  enum class Usage {
+  enum class Usage : u8 {
     /** Index buffer, vfetch, compute read, transfer source. */
     kRead,
     /** Index buffer, vfetch, memexport. */

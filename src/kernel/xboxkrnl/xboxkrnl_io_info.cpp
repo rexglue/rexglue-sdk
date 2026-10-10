@@ -402,7 +402,7 @@ u32 NtQueryVolumeInformationFile_entry(u32 file_handle,
       const auto& name = volume.name;
       auto info = info_ptr.as<X_FILE_FS_ATTRIBUTE_INFORMATION*>();
       info->attributes = volume.attributes;
-      info->component_name_max_length = volume.component_name_max_length;
+      info->component_name_max_length = static_cast<i32>(volume.component_name_max_length);
       info->name_length = static_cast<u32>(name.size());
       if (info_length >= 12 + name.size()) {
         std::memcpy(info->name, name.data(), name.size());

@@ -124,7 +124,8 @@ inline std::vector<u8> CompressedBlock(std::span<const u8> payload, size_t chunk
     const size_t chunk = std::min(chunk_limit, payload.size() - offset);
     block.push_back(static_cast<u8>(chunk >> 8));
     block.push_back(static_cast<u8>(chunk));
-    block.insert(block.end(), payload.begin() + offset, payload.begin() + offset + chunk);
+    const auto piece = payload.subspan(offset, chunk);
+    block.insert(block.end(), piece.begin(), piece.end());
   }
   block.push_back(0);
   block.push_back(0);

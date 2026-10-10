@@ -8,7 +8,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-const BYTE float24_truncate_ps[] = {
+const BYTE kFloat24TruncatePS[] = {
     68,  88,  66,  67,  234, 72,  187, 196, 185, 155, 10,  179, 119, 204, 17,  88,  131, 142, 107,
     205, 1,   0,   0,   0,   140, 4,   0,   0,   5,   0,   0,   0,   52,  0,   0,   0,   160, 0,
     0,   0,   120, 2,   0,   0,   180, 2,   0,   0,   240, 3,   0,   0,   82,  68,  69,  70,  100,

@@ -8,7 +8,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-const BYTE continuous_quad_1cp_hs[] = {
+const BYTE kContinuousQuad1CPHS[] = {
     68,  88,  66,  67,  255, 166, 36,  40,  167, 89,  99,  45,  74,  91,  165, 30,  112, 56,  14,
     246, 1,   0,   0,   0,   220, 13,  0,   0,   6,   0,   0,   0,   56,  0,   0,   0,   108, 10,
     0,   0,   160, 10,  0,   0,   212, 10,  0,   0,   152, 11,  0,   0,   64,  13,  0,   0,   82,

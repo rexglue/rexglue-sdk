@@ -207,12 +207,14 @@
  * REX_TRY(auto file, Open(path));
  * @endcode
  */
+// NOLINTBEGIN(bugprone-macro-parentheses): decl is a declaration
 #define REX_TRY(decl, expr)                                                         \
   auto REX_TRY_CONCAT(_rex_try_, __LINE__) = (expr);                                \
   if (!REX_TRY_CONCAT(_rex_try_, __LINE__)) {                                       \
     return std::unexpected(std::move(REX_TRY_CONCAT(_rex_try_, __LINE__)).error()); \
   }                                                                                 \
-  decl = *std::move(REX_TRY_CONCAT(_rex_try_, __LINE__)) /* NOLINT(bugprone-macro-parentheses) */
+  decl = *std::move(REX_TRY_CONCAT(_rex_try_, __LINE__))
+// NOLINTEND(bugprone-macro-parentheses)
 
 /**
  * Returns the error of a rex::Result expression from the enclosing function.

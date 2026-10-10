@@ -137,7 +137,7 @@ X_RESULT XamDispatchPrompt(ui::PromptDesc desc, Close close, u32 overlapped) {
   }
 }
 
-X_RESULT XamDispatchHeadless(std::function<X_RESULT()> run_callback, u32 overlapped) {
+X_RESULT XamDispatchHeadless(const std::function<X_RESULT()>& run_callback, u32 overlapped) {
   auto pre = []() {
     REXLOG_DEBUG(kernel, "XamDispatchHeadless: Broadcasting XN_SYS_UI = true");
     runtime::Current().notifier().BroadcastNotification(0x9, true);

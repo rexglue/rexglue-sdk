@@ -187,8 +187,8 @@ class XMAContext {
 
   runtime::Memory* memory() const { return memory_; }
 
-  u32 id() { return id_; }
-  u32 guest_ptr() { return guest_ptr_; }
+  u32 id() const { return id_; }
+  u32 guest_ptr() const { return guest_ptr_; }
   bool is_allocated() { return is_allocated_.load(std::memory_order_acquire); }
   bool is_enabled() { return is_enabled_.load(std::memory_order_acquire); }
 
@@ -212,9 +212,9 @@ class XMAContext {
   kPacketInfo GetPacketInfo(u8* packet, u32 frame_offset);
   u32 GetAmountOfBitsToRead(u32 remaining_stream_bits, u32 frame_size);
   const u8* GetNextPacket(XMA_CONTEXT_DATA* data, u32 next_packet_index,
-                          u32 current_input_packet_count);
+                          u32 current_input_packet_count) const;
   u32 GetNextPacketReadOffset(u8* buffer, u32 next_packet_index, u32 current_input_packet_count);
-  u8* GetCurrentInputBuffer(XMA_CONTEXT_DATA* data);
+  u8* GetCurrentInputBuffer(XMA_CONTEXT_DATA* data) const;
 
   /**
    * Decodes 1 frame from the current input buffer.
@@ -239,7 +239,7 @@ class XMAContext {
   memory::RingBuffer PrepareOutputRingBuffer(XMA_CONTEXT_DATA* data);
   int PrepareDecoder(int sample_rate, bool is_two_channel);
   void PreparePacket(u32 frame_size, u32 frame_padding);
-  bool DecodePacket(AVCodecContext* av_context, const AVPacket* av_packet, AVFrame* av_frame);
+  bool DecodePacket(AVCodecContext* av_context, const AVPacket* av_packet, AVFrame* av_frame) const;
 
   void StoreContextMerged(const XMA_CONTEXT_DATA& data, const XMA_CONTEXT_DATA& initial_data,
                           u8* context_ptr);
@@ -269,15 +269,15 @@ class XMAContext {
   AVFrame* av_frame_ = nullptr;
 
   /** Holds 2 packets of data for split frame handling */
-  std::array<u8, kBytesPerPacketData * 2> input_buffer_;
+  std::array<u8, size_t{kBytesPerPacketData} * 2> input_buffer_;
   /** First byte holds the bit offset */
   std::array<u8, 1 + 4096> xma_frame_;
   /** Conversion buffer for a frame of up to 2 channels */
-  std::array<u8, kBytesPerFrameChannel * 2> raw_frame_;
+  std::array<u8, size_t{kBytesPerFrameChannel} * 2> raw_frame_;
   /** Freshly decoded block, before start padding realignment */
-  std::array<u8, kBytesPerFrameChannel * 2> decoded_frame_;
+  std::array<u8, size_t{kBytesPerFrameChannel} * 2> decoded_frame_;
   /** Tail of the previous decoded block, awaiting the next block padding head */
-  std::array<u8, kBytesPerFrameChannel * 2> carry_frame_;
+  std::array<u8, size_t{kBytesPerFrameChannel} * 2> carry_frame_;
 
   i32 remaining_subframe_blocks_in_output_buffer_ = 0;
   u8 current_frame_remaining_subframes_ = 0;

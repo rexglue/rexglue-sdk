@@ -11,7 +11,7 @@
 #include <rex/types.h>
 
 // Generated with `xb buildshaders`.
-const u32 texture_load_r16_unorm_float_scaled_cs[] = {
+const u32 kTextureLoadR16UNormFloatScaledCS[] = {
     0x07230203, 0x00010000, 0x0008000B, 0x00006243, 0x00000000, 0x00020011, 0x00000001, 0x0006000B,
     0x00000001, 0x4C534C47, 0x6474732E, 0x3035342E, 0x00000000, 0x0003000E, 0x00000000, 0x00000001,
     0x0006000F, 0x00000005, 0x0000161F, 0x6E69616D, 0x00000000, 0x00000F48, 0x00060010, 0x0000161F,

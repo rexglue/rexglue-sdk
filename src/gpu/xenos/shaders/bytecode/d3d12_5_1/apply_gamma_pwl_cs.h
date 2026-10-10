@@ -8,7 +8,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-const BYTE apply_gamma_pwl_cs[] = {
+const BYTE kApplyGammaPWLCS[] = {
     68,  88,  66,  67,  92,  6,   102, 66,  107, 123, 97,  185, 70,  227, 155, 50,  177, 34,  170,
     181, 1,   0,   0,   0,   120, 7,   0,   0,   5,   0,   0,   0,   52,  0,   0,   0,   16,  2,
     0,   0,   32,  2,   0,   0,   48,  2,   0,   0,   220, 6,   0,   0,   82,  68,  69,  70,  212,

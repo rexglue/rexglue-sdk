@@ -64,7 +64,7 @@ bool ReXHeap::Init(u32 heap_size_bytes, rex::runtime::Memory* memory) {
 
   const auto diagnostics = GetDiagnosticsLocked();
   REXLOG_DEBUG(kernel, "shim_heap: initialized with {} segment(s), capacity={}MB", segments_.size(),
-               diagnostics.capacity / (1024 * 1024));
+               diagnostics.capacity >> 20);
   return true;
 }
 
@@ -185,8 +185,7 @@ bool ReXHeap::AllocateSegmentLocked(u32 segment_size_bytes) {
              segment_size_bytes);
   }
 
-  segments_.push_back(
-      HeapSegment{heap, guest_base, static_cast<u32>(guest_base + segment_size_bytes)});
+  segments_.push_back(HeapSegment{heap, guest_base, (guest_base + segment_size_bytes)});
   REXLOG_DEBUG(kernel, "shim_heap: added segment guest=0x{:08X}-0x{:08X} size={}MB", guest_base,
                guest_base + segment_size_bytes, segment_size_bytes / (1024 * 1024));
   return true;
@@ -234,9 +233,8 @@ u32 ReXHeap::AllocLocked(u32 size, bool zero) {
     REXLOG_WARN(kernel,
                 "rexshim_RtlAllocateHeap: o1heapAllocate({}) failed (segments={}, capacity={}MB, "
                 "allocated={}MB, free={}MB, oom_count={}, invariants_ok={})",
-                size, segments_.size(), diagnostics.capacity / (1024 * 1024),
-                diagnostics.allocated / (1024 * 1024), free_bytes / (1024 * 1024),
-                diagnostics.oom_count, invariants_ok);
+                size, segments_.size(), diagnostics.capacity >> 20, diagnostics.allocated >> 20,
+                free_bytes >> 20, diagnostics.oom_count, invariants_ok);
     return 0;
   }
 
@@ -249,9 +247,8 @@ u32 ReXHeap::AllocLocked(u32 size, bool zero) {
   REXLOG_WARN(kernel,
               "rexshim_RtlAllocateHeap: allocation still failed after growth for {} bytes "
               "(segments={}, capacity={}MB, allocated={}MB, free={}MB, oom_count={})",
-              size, segments_.size(), diagnostics.capacity / (1024 * 1024),
-              diagnostics.allocated / (1024 * 1024), free_bytes / (1024 * 1024),
-              diagnostics.oom_count);
+              size, segments_.size(), diagnostics.capacity >> 20, diagnostics.allocated >> 20,
+              free_bytes >> 20, diagnostics.oom_count);
   return 0;
 }
 
@@ -283,16 +280,16 @@ REX_SHIM_FN(RtlAllocateHeap, u32, [[maybe_unused]] u32 hHeap, u32 dwFlags, u32 d
 }
 
 REX_SHIM_FN(RtlFreeHeap, u32, [[maybe_unused]] u32 hHeap, [[maybe_unused]] u32 dwFlags, u32 ptr) {
-  g_heap.Free(static_cast<u32>(ptr));
+  g_heap.Free(ptr);
   return 1;
 }
 
 REX_SHIM_FN(RtlSizeHeap, u32, [[maybe_unused]] u32 hHeap, [[maybe_unused]] u32 dwFlags, u32 ptr) {
-  return g_heap.Size(static_cast<u32>(ptr));
+  return g_heap.Size(ptr);
 }
 
 REX_SHIM_FN(RtlReAllocateHeap, u32, [[maybe_unused]] u32 hHeap, u32 dwFlags, u32 ptr, u32 dwBytes) {
-  return g_heap.Realloc(static_cast<u32>(ptr), dwBytes, dwFlags & HEAP_ZERO_MEMORY);
+  return g_heap.Realloc(ptr, dwBytes, dwFlags & HEAP_ZERO_MEMORY);
 }
 
 bool InitHeap(u32 heap_size_mb, rex::runtime::Memory* memory) {
