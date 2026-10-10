@@ -305,7 +305,7 @@ template <bool LOWER>
 inline size_t HashFNV1a(const std::string_view view) {
   const size_t offset_basis = 0xCBF29CE484222325ull;
   const size_t prime = 0x00000100000001B3ull;
-  auto work = [&prime](size_t hash, u8 byte_of_data) {
+  auto work = [](size_t hash, u8 byte_of_data) {
     hash ^= byte_of_data;
     hash *= prime;
     return hash;

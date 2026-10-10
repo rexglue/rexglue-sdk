@@ -26,20 +26,7 @@
 #include <rex/memory/utils.h>
 #include <rex/platform.h>
 
-// macOS off_t is 64-bit and provides no *64 large-file variants; the base
-// names already are the large-file interfaces. Linux still ships legacy 32-bit
-// off_t on some distributions, so keep the explicit *64 forms there.
-#if defined(__APPLE__)
-using rex_stat64_t = struct stat;
-using rex_off64_t = off_t;
-#define rex_fstat64 fstat
-#define rex_ftruncate64 ftruncate
-#else
-using rex_stat64_t = struct stat64;
-using rex_off64_t = off64_t;
-#define rex_fstat64 fstat64
-#define rex_ftruncate64 ftruncate64
-#endif
+static_assert(sizeof(off_t) == 8);
 
 namespace rex::memory {
 
@@ -72,8 +59,8 @@ class PosixMappedMemory : public MappedMemory {
 
     size_t map_length = length;
     if (!length) {
-      rex_stat64_t file_stat;
-      if (rex_fstat64(file_descriptor, &file_stat)) {
+      struct stat file_stat;
+      if (fstat(file_descriptor, &file_stat)) {
         close(file_descriptor);
         return nullptr;
       }
@@ -96,7 +83,7 @@ class PosixMappedMemory : public MappedMemory {
     }
     if (file_descriptor_ >= 0) {
       if (truncate_size) {
-        rex_ftruncate64(file_descriptor_, rex_off64_t(truncate_size));
+        ftruncate(file_descriptor_, static_cast<off_t>(truncate_size));
       }
       close(file_descriptor_);
       file_descriptor_ = -1;
@@ -189,7 +176,7 @@ class PosixChunkedMappedMemoryWriter : public ChunkedMappedMemoryWriter {
       if (file_descriptor_ < 0) {
         return false;
       }
-      if (rex_ftruncate64(file_descriptor_, static_cast<rex_off64_t>(capacity_)) != 0) {
+      if (ftruncate(file_descriptor_, static_cast<off_t>(capacity_)) != 0) {
         return false;
       }
       if (!low_address_space) {

@@ -110,9 +110,9 @@ uint32_t DrawExtentEstimator::EstimateVertexMaxY(const Shader& vertex_shader) {
   xenos::Endian index_endian = vgt_dma_size.swap_mode;
   if (vgt_draw_initiator.source_select == xenos::SourceSelect::kDMA) {
     xenos::IndexFormat index_format = vgt_draw_initiator.index_size;
-    uint32_t index_buffer_base = regs[std::to_underlying(xenos::Register::VGT_DMA_BASE)];
-    if (vgt_draw_initiator.index_size == xenos::IndexFormat::kInt16) {
-      // Handle the index endianness to same way as the PrimitiveProcessor.
+    u32 index_buffer_base = regs[std::to_underlying(xenos::Register::VGT_DMA_BASE)];
+    if (index_format == xenos::IndexFormat::kInt16) {
+      // Index endianness is handled as in the PrimitiveProcessor.
       if (index_endian == xenos::Endian::k8in32) {
         index_endian = xenos::Endian::k8in16;
       } else if (index_endian == xenos::Endian::k16in32) {
@@ -120,8 +120,8 @@ uint32_t DrawExtentEstimator::EstimateVertexMaxY(const Shader& vertex_shader) {
       }
       index_buffer_base &= ~static_cast<uint32_t>(sizeof(uint16_t) - 1);
     } else {
-      REX_ASSERT(vgt_draw_initiator.index_size == xenos::IndexFormat::kInt32);
-      index_buffer_base &= ~static_cast<uint32_t>(sizeof(uint32_t) - 1);
+      REX_ASSERT(index_format == xenos::IndexFormat::kInt32);
+      index_buffer_base &= ~static_cast<u32>(sizeof(u32) - 1);
     }
     index_buffer = memory_.TranslatePhysical(index_buffer_base);
   }
@@ -278,7 +278,7 @@ uint32_t DrawExtentEstimator::EstimateMaxY(bool try_to_estimate_vertex_max_y,
         estimate_vertex_max_y = true;
       } else {
         estimate_vertex_max_y = false;
-        if (scissor_bottom >= xenos::kTexture2DCubeMaxWidthHeight) {
+        if (scissor_bottom >= static_cast<i32>(xenos::kTexture2DCubeMaxWidthHeight)) {
           // Handle the usual special 8192x8192 case in Direct3D 9 - 8192
           // may be a normal render target height (80x8192 is well within the
           // EDRAM size, for instance), no need to process the vertices on the
@@ -289,7 +289,7 @@ uint32_t DrawExtentEstimator::EstimateMaxY(bool try_to_estimate_vertex_max_y,
           }
           scissor_right =
               std::min(scissor_right, static_cast<int32_t>(pa_sc_screen_scissor_br.br_x));
-          if (scissor_right >= xenos::kTexture2DCubeMaxWidthHeight) {
+          if (scissor_right >= static_cast<i32>(xenos::kTexture2DCubeMaxWidthHeight)) {
             estimate_vertex_max_y = true;
           }
         }

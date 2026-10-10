@@ -18,8 +18,10 @@ project(ReXGlue
 #==========================================================
 # Build Options
 #==========================================================
-option(REXGLUE_BUILD_TESTS       "Build PPC instruction and unit tests" OFF)
+option(REXGLUE_BUILD_TESTS       "Build unit tests" ON)
+option(REXGLUE_BUILD_PPC_TESTS   "Build PPC instruction tests" OFF)
 option(REXGLUE_ENABLE_SANITIZERS "Enable UndefinedBehaviorSanitizer" OFF)
+option(REXGLUE_ENABLE_TSAN       "Enable ThreadSanitizer" OFF)
 option(REXGLUE_ENABLE_TRACY                "Enable Tracy profiler integration" ON)
 option(REXGLUE_ENABLE_PERF_COUNTERS        "Enable lightweight perf counter registry and overlay" ON)
 # Propagate profiling defines globally (compiled out in Release)
@@ -212,9 +214,13 @@ configure_file(
 )
 
 # Output directories (multi-config appends /<Config>/ automatically)
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${REXGLUE_ROOT}/out/${REX_PLATFORM}")
-set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${REXGLUE_ROOT}/out/${REX_PLATFORM}")
-set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${REXGLUE_ROOT}/out/${REX_PLATFORM}")
+set(REX_OUTPUT_DIR "${REXGLUE_ROOT}/out/${REX_PLATFORM}")
+if(REXGLUE_ENABLE_TSAN)
+    string(APPEND REX_OUTPUT_DIR "-tsan")
+endif()
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${REX_OUTPUT_DIR}")
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${REX_OUTPUT_DIR}")
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${REX_OUTPUT_DIR}")
 
 # Sanitizer support for debugging memory corruption and undefined behavior
 if(REXGLUE_ENABLE_SANITIZERS)
@@ -222,6 +228,11 @@ if(REXGLUE_ENABLE_SANITIZERS)
     # Note: ASan doesn't work well with the custom mmap at 0x100000000, so we only use UBSan
     add_compile_options(-fsanitize=undefined -fno-omit-frame-pointer -g)
     add_link_options(-fsanitize=undefined)
+endif()
+
+if(REXGLUE_ENABLE_TSAN)
+    add_compile_options(-fsanitize=thread -fno-omit-frame-pointer -g)
+    add_link_options(-fsanitize=thread)
 endif()
 
 if(REXGLUE_BUILD_TESTS)
@@ -236,6 +247,7 @@ add_subdirectory(thirdparty)
 add_compile_options(
     -Wall
     -Wextra
+    -Werror
 )
 
 if(MSVC)

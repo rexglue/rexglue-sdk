@@ -139,8 +139,6 @@ target_include_directories(rex-gpu-xenos PRIVATE
     ${REXGLUE_ROOT}
 )
 
-target_compile_options(rex-gpu-xenos PRIVATE -Wno-unused-variable)
-
 rex_target_pch(rex-gpu-xenos
     <mutex>
     <unordered_map>
@@ -155,7 +153,7 @@ rex_target_pch(rex-gpu-xenos
 
 if(REXGPU_XENOS_DXBC_THIRDPARTY_SOURCES)
     set_source_files_properties(${REXGPU_XENOS_DXBC_THIRDPARTY_SOURCES}
-        PROPERTIES SKIP_PRECOMPILE_HEADERS ON)
+        PROPERTIES SKIP_PRECOMPILE_HEADERS ON COMPILE_OPTIONS -w)
 endif()
 
 target_link_libraries(rex-gpu-xenos PRIVATE

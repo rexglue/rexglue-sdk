@@ -9,9 +9,6 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-// Disable warnings about unused parameters for kernel functions
-#pragma GCC diagnostic ignored "-Wunused-parameter"
-
 #include <rex/kernel/xam/private.h>
 #include <rex/kernel/xboxkrnl/error.h>
 #include <rex/logging.h>
@@ -54,7 +51,7 @@ struct XMSGSTARTIOREQUEST_UNKNOWNARG {
 
 X_HRESULT XMsgStartIORequestEx(uint32_t app, uint32_t message, uint32_t overlapped_ptr,
                                uint32_t buffer_ptr, uint32_t buffer_length,
-                               XMSGSTARTIOREQUEST_UNKNOWNARG* unknown) {
+                               [[maybe_unused]] XMSGSTARTIOREQUEST_UNKNOWNARG* unknown) {
   auto result = runtime::Current().content_manager().app_manager().DispatchMessageAsync(
       app, message, buffer_ptr, buffer_length);
   if (result == X_E_NOTFOUND) {
@@ -102,7 +99,7 @@ u32 XMsgCompleteIORequest_entry(ppc_ptr_t<XAM_OVERLAPPED> overlapped_ptr, u32 re
 }
 
 u32 XamGetOverlappedResult_entry(ppc_ptr_t<XAM_OVERLAPPED> overlapped_ptr, mapped_u32 length_ptr,
-                                 u32 unknown) {
+                                 [[maybe_unused]] u32 unknown) {
   XAM_OVERLAPPED* overlapped = overlapped_ptr.host_address();
   uint32_t result = XOverlappedGetResult(overlapped);
   if (result == X_ERROR_IO_PENDING && !overlapped->event) {

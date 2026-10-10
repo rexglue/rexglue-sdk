@@ -156,6 +156,7 @@ add_subdirectory(vulkan-headers)
 # VulkanMemoryAllocator
 set(VMA_ENABLE_INSTALL ON CACHE BOOL "" FORCE)
 add_subdirectory(vulkan-memory-allocator)
+set_target_properties(VulkanMemoryAllocator PROPERTIES SYSTEM ON)
 
 if(APPLE)
     # Build the loader and MoltenVK revisions shipped by the pinned SDK.
@@ -235,6 +236,11 @@ if(UNIX AND NOT APPLE)
 endif()
 
 add_subdirectory(sdl3)
+foreach(sdl_target SDL3-static SDL3-shared SDL3_test SDL_uclibc)
+    if(TARGET ${sdl_target})
+        target_compile_options(${sdl_target} PRIVATE -w)
+    endif()
+endforeach()
 
 #=============================================================================
 # DXC API headers (vendored from DirectXShaderCompiler, runtime-loaded)

@@ -72,14 +72,14 @@ struct LoopFunction {
 TEST_CASE("An SEH function leaves its scope at every return", "[codegen][seh]") {
   const std::string code = LoopFunction(true, true).Emit();
   CHECK(code.find("SEH_TRY") != std::string::npos);
-  CHECK(code.find("SEH_RETURN;") != std::string::npos);
+  CHECK(code.find("REX_SEH_RETURN;") != std::string::npos);
   CHECK(code.find(" return;") == std::string::npos);
   CHECK(code.find("\treturn;") == std::string::npos);
 }
 
 TEST_CASE("A function with SEH generation off returns plainly", "[codegen][seh]") {
   const std::string code = LoopFunction(false, true).Emit();
-  CHECK(code.find("SEH_RETURN") == std::string::npos);
+  CHECK(code.find("REX_SEH_RETURN") == std::string::npos);
   CHECK(code.find("return;") != std::string::npos);
 }
 

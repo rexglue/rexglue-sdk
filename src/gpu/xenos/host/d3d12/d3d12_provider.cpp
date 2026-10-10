@@ -237,7 +237,7 @@ bool D3D12Provider::Initialize(int32_t adapter_index_wanted) {
       if (SUCCEEDED(pfn_d3d12_create_device_(adapter, D3D_FEATURE_LEVEL_11_0, _uuidof(ID3D12Device),
                                              nullptr))) {
         if (adapter_index_wanted >= 0) {
-          if (adapter_index == adapter_index_wanted) {
+          if (adapter_index == static_cast<u32>(adapter_index_wanted)) {
             break;
           }
         } else if (adapter_index_wanted == -2) {

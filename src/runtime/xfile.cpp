@@ -215,9 +215,9 @@ X_STATUS FileReadScatter(Runtime& runtime, FileObject& file, u32 segments_guest_
     u32 bytes_read = 0;
     result = ReadInternal(
         runtime, file, read_buffer, read_length,
-        byte_offset
-            ? ((byte_offset != -1 && byte_offset != -2) ? byte_offset + read_total : byte_offset)
-            : -1,
+        byte_offset ? ((byte_offset != ~u64{0} && byte_offset != ~u64{1}) ? byte_offset + read_total
+                                                                          : byte_offset)
+                    : -1,
         &bytes_read, apc_context, false);
 
     if (result != X_STATUS_SUCCESS) {

@@ -144,7 +144,7 @@ void gapFillCodeRegions(CodegenContext& ctx) {
         continue;
 
       // Skip if this segment's start is inside another function
-      if (auto* containingFunc = graph.getFunctionContaining(segment.start)) {
+      if (graph.getFunctionContaining(segment.start)) {
         continue;
       }
 

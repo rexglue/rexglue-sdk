@@ -347,7 +347,7 @@ spv::Id SpirvShaderTranslator::ProcessVectorAluOperation(
         // All components are identical - mov (with the correct length in case
         // of maxa). Don't access operand_1 at all in this case (operand_0 is
         // already accessed for W in case of maxa).
-        REX_ASSERT(builder_->getNumComponents(operand_0_per_component) ==
+        REX_ASSERT(static_cast<u32>(builder_->getNumComponents(operand_0_per_component)) ==
                    used_result_component_count);
         return operand_0_per_component;
       }
@@ -359,7 +359,7 @@ spv::Id SpirvShaderTranslator::ProcessVectorAluOperation(
       if (!identical) {
         // All components are different - max/min of the scalars or the entire
         // vectors (with the correct length in case of maxa).
-        REX_ASSERT(builder_->getNumComponents(operand_0_per_component) ==
+        REX_ASSERT(static_cast<u32>(builder_->getNumComponents(operand_0_per_component)) ==
                    used_result_component_count);
         return builder_->createTriOp(
             spv::OpSelect, result_type,

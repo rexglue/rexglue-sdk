@@ -26,10 +26,10 @@ REX_SHIM_FN(strncmp, int, const char* s1, const char* s2, u32 n) {
 }
 
 REX_SHIM_FN(strncpy, char*, char* dst, const char* src, u32 n) {
-#if REX_PLATFORM_WIN32
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-#endif
-  return std::strncpy(dst, src, n);
+  const size_t length = strnlen(src, n);
+  std::memcpy(dst, src, length);
+  std::memset(dst + length, 0, n - length);
+  return dst;
 }
 
 REX_SHIM_FN(strchr, char*, const char* s, int c) {

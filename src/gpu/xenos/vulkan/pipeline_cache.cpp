@@ -493,7 +493,7 @@ void VulkanPipelineCache::InitializeShaderStorage(const std::filesystem::path& c
   shader_storage_file_path_ = shader_storage_file_path;
   if (!OpenStorageFile(shader_storage_file_, shader_storage_file_path)) {
     REXLOG_ERROR(gpu,
-                 "Failed to open the guest shader storage file for writing, persistent "
+                 "Failed to open the title shader storage file for writing, persistent "
                  "shader storage will be disabled: {}",
                  rex::path_to_utf8(shader_storage_file_path));
     pipeline_storage_file_.close();
@@ -1840,7 +1840,6 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
   }
   SpirvBuilder builder(spirv_version, (SpirvShaderTranslator::kSpirvMagicToolId << 16) | 1,
                        builder_logger_ptr);
-  spv::Id ext_inst_glsl_std_450 = builder.import("GLSL.std.450");
   builder.addCapability(spv::CapabilityGeometry);
   if (clip_distance_count) {
     builder.addCapability(spv::CapabilityClipDistance);

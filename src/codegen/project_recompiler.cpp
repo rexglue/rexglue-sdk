@@ -417,7 +417,7 @@ Result<void> ProjectRecompiler::Run(const ProjectRecompilerOptions& opts) {
       opts.reporter->phaseChanged("Write");
     }
     REXLOG_TRACE(codegen, "Writing output for '{}'...", entry.module->targetName);
-    CodegenWriter writer(entry.ctx, runtime);
+    CodegenWriter writer(entry.ctx);
     if (!writer.write(opts.force)) {
       return Err<void>(ErrorCategory::Validation,
                        std::format("Write failed for '{}'", entry.module->targetName));

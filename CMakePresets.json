@@ -126,6 +126,15 @@
             "inherits": "linux-base"
         },
         {
+            "name": "linux-amd64-tsan",
+            "displayName": "Linux AMD64 ThreadSanitizer",
+            "description": "Multi-config build for Linux AMD64 using Clang with ThreadSanitizer",
+            "inherits": "linux-amd64",
+            "cacheVariables": {
+                "REXGLUE_ENABLE_TSAN": "ON"
+            }
+        },
+        {
             "name": "linux-arm64",
             "displayName": "Linux ARM64",
             "description": "Multi-config build for Linux ARM64 using Clang",
@@ -189,6 +198,11 @@
             "name": "linux-amd64-relwithdebinfo",
             "configurePreset": "linux-amd64",
             "configuration": "RelWithDebInfo"
+        },
+        {
+            "name": "linux-amd64-tsan",
+            "configurePreset": "linux-amd64-tsan",
+            "configuration": "Debug"
         },
         {
             "name": "linux-arm64-debug",
@@ -281,6 +295,11 @@
             "name": "linux-amd64-relwithdebinfo",
             "configurePreset": "linux-amd64",
             "configuration": "RelWithDebInfo"
+        },
+        {
+            "name": "linux-amd64-tsan",
+            "configurePreset": "linux-amd64-tsan",
+            "configuration": "Debug"
         },
         {
             "name": "linux-arm64-debug",

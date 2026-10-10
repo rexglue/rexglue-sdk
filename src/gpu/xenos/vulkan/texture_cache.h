@@ -78,7 +78,7 @@ class VulkanTextureCache final : public TextureCache {
     if (!texture_cache->Initialize()) {
       return nullptr;
     }
-    return std::move(texture_cache);
+    return texture_cache;
   }
 
   ~VulkanTextureCache();

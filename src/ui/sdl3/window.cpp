@@ -29,9 +29,9 @@ namespace ui {
 Window::Window(WindowedAppContext& app_context, const std::string_view title,
                uint32_t desired_logical_width, uint32_t desired_logical_height)
     : app_context_(app_context),
-      title_(title),
       desired_logical_width_(desired_logical_width),
-      desired_logical_height_(desired_logical_height) {}
+      desired_logical_height_(desired_logical_height),
+      title_(title) {}
 
 Window::~Window() {
   // In case the implementation didn't need to call EnterDestructor. Though

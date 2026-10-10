@@ -76,7 +76,7 @@ Result<void> CodegenPipeline::RunAnalyze() {
 }
 
 Result<void> CodegenPipeline::RunWrite(bool force) {
-  CodegenWriter writer(*ctx_, &runtime_->runtime());
+  CodegenWriter writer(*ctx_);
   if (!writer.write(force))
     return Err(ErrorCategory::Validation, "Code generation failed.");
   return Ok();

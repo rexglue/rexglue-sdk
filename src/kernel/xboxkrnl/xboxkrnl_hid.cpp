@@ -9,9 +9,6 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-// Disable warnings about unused parameters for kernel functions
-#pragma GCC diagnostic ignored "-Wunused-parameter"
-
 #include <rex/kernel/xboxkrnl/private.h>
 #include <rex/logging.h>
 #include <rex/hook.h>
@@ -21,7 +18,8 @@
 
 namespace rex::kernel::xboxkrnl {
 
-u32 HidReadKeys_entry(u32 unk1, u32 unk2, u32 unk3) {
+u32 HidReadKeys_entry([[maybe_unused]] u32 unk1, [[maybe_unused]] u32 unk2,
+                      [[maybe_unused]] u32 unk3) {
   /* TODO(gibbed):
    * Games check for the following errors:
    *   0xC000009D - translated to 0x48F  - ERROR_DEVICE_NOT_CONNECTED
@@ -35,7 +33,7 @@ u32 HidReadKeys_entry(u32 unk1, u32 unk2, u32 unk3) {
   return 0xC000009D;
 }
 
-u32 HidGetCapabilities_entry(u32 unk1, u32 caps_ptr) {
+u32 HidGetCapabilities_entry([[maybe_unused]] u32 unk1, [[maybe_unused]] u32 caps_ptr) {
   // HidGetCapabilities - ordinal 0x01EA
   // Returns capabilities for HID device (keyboard/mouse)
   // Not supported in rexglue - return unsuccessful
@@ -51,7 +49,7 @@ u32 HidGetLastInputTime_entry(mapped_u32 time_ptr) {
   return X_STATUS_SUCCESS;
 }
 
-u32 HidReadMouseChanges_entry(u32 unk1, u32 unk2) {
+u32 HidReadMouseChanges_entry([[maybe_unused]] u32 unk1, [[maybe_unused]] u32 unk2) {
   // HidReadMouseChanges - ordinal 0x0273
   // Reads mouse input changes - not supported in rexglue
   return X_STATUS_UNSUCCESSFUL;

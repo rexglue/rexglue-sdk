@@ -368,7 +368,6 @@ int32_t format_core(uint8_t* base, Data& data, Args& args, const bool wide) {
 
       state = FS_Start;
       c = data.get();
-      // fall through
     }
 
     // in any state, if c is \0, it's bad
@@ -408,7 +407,7 @@ int32_t format_core(uint8_t* base, Data& data, Args& args, const bool wide) {
         prefix.buffer[0] = '\0';
         prefix.length = 0;
 
-        // fall through, don't need to goto restart
+        [[fallthrough]];
       }
 
       case FS_Flags: {
@@ -429,7 +428,7 @@ int32_t format_core(uint8_t* base, Data& data, Args& args, const bool wide) {
           continue;
         }
         state = FS_Width;
-        // fall through
+        [[fallthrough]];
       }
 
       case FS_Width: {
@@ -447,7 +446,7 @@ int32_t format_core(uint8_t* base, Data& data, Args& args, const bool wide) {
           continue;
         }
         state = FS_PrecisionStart;
-        // fall through
+        [[fallthrough]];
       }
 
       case FS_PrecisionStart: {
@@ -474,7 +473,7 @@ int32_t format_core(uint8_t* base, Data& data, Args& args, const bool wide) {
           continue;
         }
         state = FS_Size;
-        // fall through
+        [[fallthrough]];
       }
 
       case FS_Size: {
@@ -513,7 +512,7 @@ int32_t format_core(uint8_t* base, Data& data, Args& args, const bool wide) {
             continue;
           }
         }
-        // fall through
+        [[fallthrough]];
       }
 
       case FS_Type: {

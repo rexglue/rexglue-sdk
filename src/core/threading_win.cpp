@@ -351,7 +351,7 @@ class Win32Timer : public Win32Handle<Timer> {
     return SetRepeatingAt(WClock_::now() + rel_time, period, std::move(opt_callback));
   }
   bool SetRepeatingAt(GClock_::time_point due_time, std::chrono::milliseconds period,
-                      std::function<void()> opt_callback = nullptr) {
+                      std::function<void()> opt_callback = nullptr) override {
     return SetRepeatingAt(std::chrono::clock_cast<WClock_>(due_time), period,
                           std::move(opt_callback));
   }

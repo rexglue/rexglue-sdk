@@ -9,10 +9,14 @@ add_subdirectory(samples)
 
 add_subdirectory(core)
 
+add_subdirectory(headers)
+
 add_subdirectory(filesystem)
 
 # Unit tests for core components
 add_subdirectory(unit)
 
 # PPC instruction tests (requires PPC toolchain)
-add_subdirectory(ppc)
+if(REXGLUE_BUILD_PPC_TESTS)
+    add_subdirectory(ppc)
+endif()

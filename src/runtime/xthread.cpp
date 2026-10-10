@@ -505,7 +505,7 @@ void ThreadRecord::Abandon() {
   rex::platform::Wait(thread_.get(), false, std::chrono::milliseconds::max());
 }
 
-void ThreadRecord::NoteKernelTime() {
+void ThreadRecord::WriteKernelTime() {
   ThreadRecord* self = GetBoundCurrentThread();
   if (!self || !self->guest_object_ptr_) {
     return;
@@ -519,7 +519,7 @@ void ThreadRecord::WriteExitState(u32 exit_code) {
   thread->terminated = 1;
   thread->thread_state = KTHREAD_STATE_TERMINATED;
   if (IsInThread(this)) {
-    NoteKernelTime();
+    WriteKernelTime();
   }
   thread->exit_time = Clock::QueryGuestSystemTime();
   thread->exit_status = exit_code;
@@ -1024,7 +1024,7 @@ X_STATUS ThreadRecord::Delay([[maybe_unused]] u32 processor_mode, u32 alertable,
   const u32 timeout_ms =
       Clock::ScaleGuestDurationMillis(TimeoutTicksToMs(static_cast<i64>(interval)));
   CheckStop();
-  NoteKernelTime();
+  WriteKernelTime();
   if (alertable) {
     auto result = rex::platform::AlertableSleep(std::chrono::milliseconds(timeout_ms));
     CheckStop();

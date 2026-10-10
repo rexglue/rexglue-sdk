@@ -34,23 +34,30 @@ function Invoke-ReXLint {
     if ($debugEntries.Count -eq 0) { $debugEntries = @($entries) }
     ConvertTo-Json -InputObject $debugEntries -Depth 4 | Set-Content (Join-Path $lintDir "compile_commands.json")
 
+    $headerUnits = [System.IO.Path]::GetFullPath((Join-Path $BuildDir "tests/headers"))
+    $roots = @((Join-Path $root "src"), (Join-Path $root "tests"), $headerUnits) |
+        ForEach-Object { [System.IO.Path]::GetFullPath($_) + [System.IO.Path]::DirectorySeparatorChar }
+    $units = @($debugEntries | ForEach-Object { [System.IO.Path]::GetFullPath($_.file) } | Sort-Object -Unique)
+    $inScope = { param($path) @($roots | Where-Object { $path.StartsWith($_, [System.StringComparison]::OrdinalIgnoreCase) }).Count -gt 0 }
+
     if ($Since) {
         $Files = @(git -C $root diff --name-only --diff-filter=ACMR "$Since...HEAD" -- include src tests)
     }
     if (-not $PSBoundParameters.ContainsKey('Files') -and -not $Since) {
-        $Files = @(Get-ChildItem -Path (Join-Path $root "include"), (Join-Path $root "src") `
-            -Recurse -Include *.cpp, *.h | ForEach-Object { $_.FullName })
+        $targets = @($units | Where-Object { & $inScope $_ })
+    } else {
+        $targets = @($Files | ForEach-Object {
+            $full = [System.IO.Path]::GetFullPath($(if ([System.IO.Path]::IsPathRooted($_)) { $_ } else { Join-Path $root $_ }))
+            if ($full -match '[\\/]include[\\/](rex[\\/].+\.h)$') { Join-Path $headerUnits "$($Matches[1]).cpp" }
+            elseif ($full -match '\.(cpp|c)$') { $full }
+        } | ForEach-Object { [System.IO.Path]::GetFullPath($_) } |
+            Where-Object { $units -contains $_ } | Sort-Object -Unique)
     }
-    $targets = $Files | Where-Object { $_ -match '\.(cpp|h)$' } | ForEach-Object {
-        if ([System.IO.Path]::IsPathRooted($_)) { $_ } else { Join-Path $root $_ }
-    } | Where-Object { Test-Path $_ }
 
     Write-Host "=== Running clang-tidy on $($targets.Count) file(s) ==="
     $failed = 0
     foreach ($file in $targets) {
-        $extra = @()
-        if ($file -match '[\\/]tests[\\/]') { $extra += '--checks=-bugprone-throwing-static-initialization' }
-        $output = & clang-tidy --quiet --config-file="$root/.clang-tidy" @extra -p $lintDir $file 2>&1
+        $output = & clang-tidy --quiet --config-file="$root/.clang-tidy" -p $lintDir $file 2>&1
         if ($LASTEXITCODE -ne 0 -or ($output -match 'warning:|error:')) {
             $output | Write-Host
             $failed++

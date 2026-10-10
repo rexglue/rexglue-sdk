@@ -57,6 +57,22 @@ REX_RECOMPILED_CODE_SECTION extern "C" void SpinInSehScope(const volatile rex::u
 
 namespace {
 
+std::atomic<bool> g_extern_c_unwound{false};
+
+struct SetOnUnwind {
+  ~SetOnUnwind() { g_extern_c_unwound.store(true); }
+};
+
+}  // namespace
+
+extern "C" void StopInsideExternC() {
+  SetOnUnwind guard;
+  rex::runtime::ThreadRecord::CheckStop();
+}
+
+namespace {
+
+void (*volatile g_stop_inside_extern_c)() = &StopInsideExternC;
 void (*volatile g_spin_in_generated_code)(const volatile rex::u32*) = &SpinInGeneratedCode;
 void (*volatile g_spin_in_seh_scope)(const volatile rex::u32*) = &SpinInSehScope;
 
@@ -547,7 +563,8 @@ TEST_CASE("A terminate notification that waits forever is stopped with no kill",
   CHECK(elapsed < 3500);
 }
 
-TEST_CASE("TerminateTitle stops a guest thread spinning in generated code", "[kernel][shutdown]") {
+TEST_CASE("TerminateTitle stops a guest thread spinning in generated code",
+          "[kernel][shutdown][forced_stop]") {
   KernelFixture fixture;
   fixture.runtime().function_dispatcher()->AddRecompiledCode(REX_RECOMPILED_CODE());
   auto started = std::make_shared<std::atomic<bool>>(false);
@@ -568,7 +585,8 @@ TEST_CASE("TerminateTitle stops a guest thread spinning in generated code", "[ke
   CHECK(unwound->load());
 }
 
-TEST_CASE("TerminateTitle stops a guest thread spinning in an SEH scope", "[kernel][shutdown]") {
+TEST_CASE("TerminateTitle stops a guest thread spinning in an SEH scope",
+          "[kernel][shutdown][forced_stop]") {
   KernelFixture fixture;
   fixture.runtime().function_dispatcher()->AddRecompiledCode(REX_RECOMPILED_CODE());
   auto started = std::make_shared<std::atomic<bool>>(false);

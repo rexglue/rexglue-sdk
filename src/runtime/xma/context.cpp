@@ -24,15 +24,8 @@
 #include <simde/x86/ssse3.h>
 
 extern "C" {
-#if REX_COMPILER_MSVC
-#pragma warning(push)
-#pragma warning(disable : 4101 4244 5033)
-#endif
 #include "libavcodec/avcodec.h"
 #include "libavutil/error.h"
-#if REX_COMPILER_MSVC
-#pragma warning(pop)
-#endif
 }  // extern "C"
 
 // Credits for most of this code goes to:

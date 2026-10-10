@@ -17,8 +17,6 @@
 #include <rex/runtime.h>
 #include <rex/runtime/xtypes.h>
 
-#pragma GCC diagnostic ignored "-Wunused-parameter"
-
 namespace rex {
 namespace kernel {
 namespace xam {
@@ -44,7 +42,7 @@ void XamResetInactivity_entry() {
   // Do we need to do anything?
 }
 
-u32 XamEnableInactivityProcessing_entry(u32 unk, u32 enable) {
+u32 XamEnableInactivityProcessing_entry([[maybe_unused]] u32 unk, [[maybe_unused]] u32 enable) {
   return X_ERROR_SUCCESS;
 }
 
@@ -209,7 +207,7 @@ u32 XamInputGetKeystrokeEx_entry(mapped_u32 user_index_ptr, u32 flags,
   return X_ERROR_SUCCESS;
 }
 
-i32 XamUserGetDeviceContext_entry(u32 user_index, u32 unk, mapped_u32 out_ptr) {
+i32 XamUserGetDeviceContext_entry(u32 user_index, [[maybe_unused]] u32 unk, mapped_u32 out_ptr) {
   // Games check the result - usually with some masking.
   // If this function fails they assume zero, so let's fail AND
   // set zero to be safe.

@@ -41,7 +41,7 @@ add_library(rex-core SHARED
 )
 
 set_source_files_properties(${PROJECT_SOURCE_DIR}/thirdparty/crypto/rijndael-alg-fst.c
-    PROPERTIES LANGUAGE CXX)
+    PROPERTIES LANGUAGE CXX COMPILE_OPTIONS -w)
 
 add_library(rex::core ALIAS rex-core)
 set_target_properties(rex-core PROPERTIES

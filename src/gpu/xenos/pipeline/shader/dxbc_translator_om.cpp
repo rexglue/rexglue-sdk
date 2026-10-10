@@ -369,7 +369,6 @@ void DxbcShaderTranslator::ROV_DepthStencilTest() {
   dxbc::Dest temp_x_dest(dxbc::Dest::R(temp, 0b0001));
   dxbc::Src temp_x_src(dxbc::Src::R(temp, dxbc::Src::kXXXX));
   dxbc::Dest temp_y_dest(dxbc::Dest::R(temp, 0b0010));
-  dxbc::Src temp_y_src(dxbc::Src::R(temp, dxbc::Src::kYYYY));
   dxbc::Dest temp_z_dest(dxbc::Dest::R(temp, 0b0100));
   dxbc::Src temp_z_src(dxbc::Src::R(temp, dxbc::Src::kZZZZ));
   dxbc::Dest temp_w_dest(dxbc::Dest::R(temp, 0b1000));
@@ -1069,10 +1068,6 @@ void DxbcShaderTranslator::ROV_UnpackColor(uint32_t rt_index, uint32_t packed_te
   REX_ASSERT(color_temp != packed_temp || packed_temp_components == 0);
 
   dxbc::Src packed_temp_low(dxbc::Src::R(packed_temp).Select(packed_temp_components));
-  dxbc::Dest temp1_dest(dxbc::Dest::R(temp1, 1 << temp1_component));
-  dxbc::Src temp1_src(dxbc::Src::R(temp1).Select(temp1_component));
-  dxbc::Dest temp2_dest(dxbc::Dest::R(temp2, 1 << temp2_component));
-  dxbc::Src temp2_src(dxbc::Src::R(temp2).Select(temp2_component));
 
   // Break register dependencies and initialize if there are not enough
   // components. The rest of the function will write at least RG (k_32_FLOAT and

@@ -9,9 +9,6 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-// Disable warnings about unused parameters for kernel functions
-#pragma GCC diagnostic ignored "-Wunused-parameter"
-
 #include <cstring>
 
 #include <rex/api.h>
@@ -81,7 +78,8 @@ struct X_USER_SIGNIN_INFO {
 };
 REX_STATIC_ASSERT_SIZE(X_USER_SIGNIN_INFO, 40);
 
-i32 XamUserGetSigninInfo_entry(u32 user_index, u32 flags, ppc_ptr_t<X_USER_SIGNIN_INFO> info) {
+i32 XamUserGetSigninInfo_entry(u32 user_index, [[maybe_unused]] u32 flags,
+                               ppc_ptr_t<X_USER_SIGNIN_INFO> info) {
   if (!info) {
     return X_E_INVALIDARG;
   }
@@ -139,10 +137,9 @@ struct X_USER_READ_PROFILE_SETTINGS {
 REX_STATIC_ASSERT_SIZE(X_USER_READ_PROFILE_SETTINGS, 8);
 
 // https://github.com/oukiar/freestyledash/blob/master/Freestyle/Tools/Generic/xboxtools.cpp
-uint32_t XamUserReadProfileSettingsEx(uint32_t title_id, uint32_t user_index, uint32_t xuid_count,
-                                      be_u64* xuids, uint32_t setting_count, be_u32* setting_ids,
-                                      uint32_t unk, be_u32* buffer_size_ptr, uint8_t* buffer,
-                                      XAM_OVERLAPPED* overlapped) {
+u32 XamUserReadProfileSettingsEx([[maybe_unused]] u32 title_id, u32 user_index, u32 xuid_count,
+                                 be_u64* xuids, u32 setting_count, be_u32* setting_ids, u32 unk,
+                                 be_u32* buffer_size_ptr, u8* buffer, XAM_OVERLAPPED* overlapped) {
   if (!xuid_count) {
     REX_ASSERT(xuids == nullptr);
   } else {
@@ -292,8 +289,8 @@ u32 XamUserReadProfileSettingsEx_entry(u32 title_id, u32 user_index, u32 xuid_co
                                       setting_ids, unk_2, buffer_size_ptr, buffer_ptr, overlapped);
 }
 
-u32 XamUserWriteProfileSettings_entry(u32 title_id, u32 user_index, u32 setting_count,
-                                      ppc_ptr_t<X_USER_PROFILE_SETTING> settings,
+u32 XamUserWriteProfileSettings_entry([[maybe_unused]] u32 title_id, u32 user_index,
+                                      u32 setting_count, ppc_ptr_t<X_USER_PROFILE_SETTING> settings,
                                       ppc_ptr_t<XAM_OVERLAPPED> overlapped) {
   if (!setting_count || !settings) {
     return X_ERROR_INVALID_PARAMETER;
@@ -364,7 +361,7 @@ u32 XamUserWriteProfileSettings_entry(u32 title_id, u32 user_index, u32 setting_
   return X_ERROR_SUCCESS;
 }
 
-u32 XamUserCheckPrivilege_entry(u32 user_index, u32 mask, mapped_u32 out_value) {
+u32 XamUserCheckPrivilege_entry(u32 user_index, [[maybe_unused]] u32 mask, mapped_u32 out_value) {
   // checking all users?
   if (user_index != 0xFF) {
     if (user_index >= 4) {
@@ -391,8 +388,8 @@ u32 XamUserContentRestrictionGetFlags_entry(u32 user_index, mapped_u32 out_flags
   return X_ERROR_SUCCESS;
 }
 
-u32 XamUserContentRestrictionGetRating_entry(u32 user_index, u32 unk1, mapped_u32 out_unk2,
-                                             mapped_u32 out_unk3) {
+u32 XamUserContentRestrictionGetRating_entry(u32 user_index, [[maybe_unused]] u32 unk1,
+                                             mapped_u32 out_unk2, mapped_u32 out_unk3) {
   if (user_index) {
     return X_ERROR_NO_SUCH_USER;
   }
@@ -404,8 +401,10 @@ u32 XamUserContentRestrictionGetRating_entry(u32 user_index, u32 unk1, mapped_u3
   return X_ERROR_SUCCESS;
 }
 
-u32 XamUserContentRestrictionCheckAccess_entry(u32 user_index, u32 unk1, u32 unk2, u32 unk3,
-                                               u32 unk4, mapped_u32 out_unk5, u32 overlapped_ptr) {
+u32 XamUserContentRestrictionCheckAccess_entry([[maybe_unused]] u32 user_index,
+                                               [[maybe_unused]] u32 unk1, [[maybe_unused]] u32 unk2,
+                                               [[maybe_unused]] u32 unk3, [[maybe_unused]] u32 unk4,
+                                               mapped_u32 out_unk5, u32 overlapped_ptr) {
   *out_unk5 = 1;
 
   if (overlapped_ptr) {
@@ -416,7 +415,7 @@ u32 XamUserContentRestrictionCheckAccess_entry(u32 user_index, u32 unk1, u32 unk
   return X_ERROR_SUCCESS;
 }
 
-u32 XamUserIsOnlineEnabled_entry(u32 user_index) {
+u32 XamUserIsOnlineEnabled_entry([[maybe_unused]] u32 user_index) {
   return 1;
 }
 
@@ -430,7 +429,8 @@ u32 XamUserGetMembershipTier_entry(u32 user_index) {
   return 6 /* 6 appears to be Gold */;
 }
 
-u32 XamUserAreUsersFriends_entry(u32 user_index, u32 unk1, u32 unk2, mapped_u32 out_value,
+u32 XamUserAreUsersFriends_entry(u32 user_index, [[maybe_unused]] u32 unk1,
+                                 [[maybe_unused]] u32 unk2, mapped_u32 out_value,
                                  u32 overlapped_ptr) {
   uint32_t are_friends = 0;
   X_RESULT result;
@@ -469,7 +469,7 @@ u32 XamUserAreUsersFriends_entry(u32 user_index, u32 unk1, u32 unk2, mapped_u32 
   }
 }
 
-u32 XamShowSigninUI_entry(u32 unk, u32 unk_mask) {
+u32 XamShowSigninUI_entry([[maybe_unused]] u32 unk, [[maybe_unused]] u32 unk_mask) {
   // Mask values vary. Probably matching user types? Local/remote?
 
   // To fix game modes that display a 4 profile signin UI (even if playing
@@ -534,7 +534,7 @@ class AchievementItems {
     auto string_buffer =
         StringBuffer{buffer_ptr + static_cast<uint32_t>(string_offset), &buffer_data[string_offset],
                      count * X_ACHIEVEMENT_DETAILS::kStringBufferSize};
-    for (size_t i = 0, o = current_item_; i < count; ++i, ++current_item_) {
+    for (size_t i = 0; i < count; ++i, ++current_item_) {
       const auto& item = items_[current_item_];
       details[i].id = item.id;
       details[i].label_ptr = !!(flags_ & 1) ? AppendString(string_buffer, item.label) : 0;
@@ -583,9 +583,10 @@ class AchievementItems {
   size_t current_item_ = 0;
 };
 
-u32 XamUserCreateAchievementEnumerator_entry(u32 title_id, u32 user_index, u32 xuid, u32 flags,
-                                             u32 offset, u32 count, mapped_u32 buffer_size_ptr,
-                                             mapped_u32 handle_ptr) {
+u32 XamUserCreateAchievementEnumerator_entry([[maybe_unused]] u32 title_id, u32 user_index,
+                                             [[maybe_unused]] u32 xuid, u32 flags,
+                                             [[maybe_unused]] u32 offset, u32 count,
+                                             mapped_u32 buffer_size_ptr, mapped_u32 handle_ptr) {
   if (!count || !buffer_size_ptr || !handle_ptr) {
     return X_ERROR_INVALID_PARAMETER;
   }
@@ -675,16 +676,17 @@ u32 XamUserCreateAchievementEnumerator_entry(u32 title_id, u32 user_index, u32 x
   return X_ERROR_SUCCESS;
 }
 
-u32 XamParseGamerTileKey_entry(mapped_u32 key_ptr, mapped_u32 out1_ptr, mapped_u32 out2_ptr,
-                               mapped_u32 out3_ptr) {
+u32 XamParseGamerTileKey_entry([[maybe_unused]] mapped_u32 key_ptr, mapped_u32 out1_ptr,
+                               mapped_u32 out2_ptr, mapped_u32 out3_ptr) {
   *out1_ptr = 0xC0DE0001;
   *out2_ptr = 0xC0DE0002;
   *out3_ptr = 0xC0DE0003;
   return X_ERROR_SUCCESS;
 }
 
-u32 XamReadTileToTexture_entry(u32 unknown, u32 title_id, u64 tile_id, u32 user_index,
-                               mapped_void buffer_ptr, u32 stride, u32 height, u32 overlapped_ptr) {
+u32 XamReadTileToTexture_entry([[maybe_unused]] u32 unknown, [[maybe_unused]] u32 title_id,
+                               u64 tile_id, [[maybe_unused]] u32 user_index, mapped_void buffer_ptr,
+                               u32 stride, u32 height, u32 overlapped_ptr) {
   // TODO(gibbed): unknown=0,2,3,9
   if (!tile_id) {
     return X_ERROR_INVALID_PARAMETER;
@@ -700,7 +702,9 @@ u32 XamReadTileToTexture_entry(u32 unknown, u32 title_id, u64 tile_id, u32 user_
   return X_ERROR_SUCCESS;
 }
 
-u32 XamWriteGamerTile_entry(u32 arg1, u32 arg2, u32 arg3, u32 arg4, u32 arg5, u32 overlapped_ptr) {
+u32 XamWriteGamerTile_entry([[maybe_unused]] u32 arg1, [[maybe_unused]] u32 arg2,
+                            [[maybe_unused]] u32 arg3, [[maybe_unused]] u32 arg4,
+                            [[maybe_unused]] u32 arg5, u32 overlapped_ptr) {
   if (overlapped_ptr) {
     runtime::Current().dispatcher().CompleteOverlappedImmediate(overlapped_ptr, X_ERROR_SUCCESS);
     return X_ERROR_IO_PENDING;

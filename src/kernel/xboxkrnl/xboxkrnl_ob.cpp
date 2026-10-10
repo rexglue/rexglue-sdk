@@ -9,9 +9,6 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-// Disable warnings about unused parameters for kernel functions
-#pragma GCC diagnostic ignored "-Wunused-parameter"
-
 #include <variant>
 
 #include <rex/assert.h>
@@ -31,7 +28,8 @@
 namespace rex::kernel::xboxkrnl {
 using namespace rex::runtime;
 
-u32 ObOpenObjectByName_entry(mapped_void obj_attributes_ptr, mapped_void object_type_ptr, u32 unk,
+u32 ObOpenObjectByName_entry(mapped_void obj_attributes_ptr,
+                             [[maybe_unused]] mapped_void object_type_ptr, [[maybe_unused]] u32 unk,
                              mapped_u32 handle_ptr) {
   // r3 = ptr to info?
   //   +0 = -4
@@ -141,8 +139,9 @@ u32 ObReferenceObjectByHandle_entry(u32 handle, u32 object_type_ptr, mapped_u32 
   return X_STATUS_SUCCESS;
 }
 
-u32 ObReferenceObjectByName_entry(mapped_string name, u32 attributes, u32 object_type_ptr,
-                                  mapped_void parse_context, mapped_u32 out_object_ptr) {
+u32 ObReferenceObjectByName_entry(mapped_string name, [[maybe_unused]] u32 attributes,
+                                  u32 object_type_ptr, [[maybe_unused]] mapped_void parse_context,
+                                  mapped_u32 out_object_ptr) {
   auto opened = runtime::Current().object_table().OpenByName(name.value());
   if (opened) {
     return ObReferenceObjectByHandle_entry(*opened, object_type_ptr, out_object_ptr);

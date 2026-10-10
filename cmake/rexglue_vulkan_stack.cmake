@@ -10,7 +10,3 @@ set(REXGLUE_VULKAN_SDK_PINS
     "spirv-headers=29981f65241605e08b0ede4cfeb999fe3b723c6a"
     "spirv-tools=9a49b0883b9b635689a85b5647dbfcb223268151"
 )
-
-set(REXGLUE_VULKAN_SDK_EXEMPT
-    "glslang"
-)

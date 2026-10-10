@@ -18,9 +18,8 @@ namespace rex::kernel::xboxkrnl {
 
 struct X_RTL_CRITICAL_SECTION;
 
-REX_RUNTIME_API void RtlInitializeCriticalSection(X_RTL_CRITICAL_SECTION* cs, uint32_t cs_ptr);
+REX_RUNTIME_API void RtlInitializeCriticalSection(X_RTL_CRITICAL_SECTION* cs);
 REX_RUNTIME_API X_STATUS RtlInitializeCriticalSectionAndSpinCount(X_RTL_CRITICAL_SECTION* cs,
-                                                                  uint32_t cs_ptr,
                                                                   uint32_t spin_count);
 
 }  // namespace rex::kernel::xboxkrnl

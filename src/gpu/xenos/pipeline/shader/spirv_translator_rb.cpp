@@ -2400,10 +2400,7 @@ std::array<spv::Id, 2> SpirvShaderTranslator::FSI_ClampAndPackColor(spv::Id colo
     uint_vector_temp_.push_back(2);
     spv::Id color_rgb = builder_->createRvalueSwizzle(spv::NoPrecision, type_float3_, color_float4,
                                                       uint_vector_temp_);
-    spv::Id rgb_gamma =
-        LinearToPWLGamma(builder_->createRvalueSwizzle(spv::NoPrecision, type_float3_, color_float4,
-                                                       uint_vector_temp_),
-                         false);
+    spv::Id rgb_gamma = LinearToPWLGamma(color_rgb, false);
     spv::Id alpha_clamped = builder_->createTriBuiltinCall(
         type_float_, ext_inst_glsl_std_450_, GLSLstd450NClamp,
         builder_->createCompositeExtract(color_float4, type_float_, 3), const_float_0_,

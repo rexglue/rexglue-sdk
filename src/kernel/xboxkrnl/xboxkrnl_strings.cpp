@@ -9,8 +9,6 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-#pragma GCC diagnostic ignored "-Wunused-parameter"
-
 #include <algorithm>
 #include <cctype>
 #include <cstring>

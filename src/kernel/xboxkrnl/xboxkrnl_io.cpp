@@ -9,9 +9,6 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-// Disable warnings about unused parameters for kernel functions
-#pragma GCC diagnostic ignored "-Wunused-parameter"
-
 #include <rex/filesystem.h>
 #include <rex/kernel/xboxkrnl/private.h>
 #include <rex/logging.h>
@@ -102,9 +99,9 @@ static bool IsValidPath(const std::string_view s, bool is_pattern) {
 
 u32 NtCreateFile_entry(mapped_u32 handle_out, u32 desired_access,
                        ppc_ptr_t<X_OBJECT_ATTRIBUTES> object_attrs,
-                       ppc_ptr_t<X_IO_STATUS_BLOCK> io_status_block, mapped_u64 allocation_size_ptr,
-                       u32 file_attributes, u32 share_access, u32 creation_disposition,
-                       u32 create_options) {
+                       ppc_ptr_t<X_IO_STATUS_BLOCK> io_status_block,
+                       [[maybe_unused]] mapped_u64 allocation_size_ptr, u32 file_attributes,
+                       u32 share_access, u32 creation_disposition, u32 create_options) {
   // note used. maybe later
   // uint64_t allocation_size = 0;  // is this correct???
   // if (allocation_size_ptr) {
@@ -463,8 +460,9 @@ u32 NtWriteFile_entry(u32 file_handle, u32 event_handle, u32 apc_routine, mapped
   return result;
 }
 
-u32 NtCreateIoCompletion_entry(mapped_u32 out_handle, u32 desired_access,
-                               mapped_void object_attribs, u32 num_concurrent_threads) {
+u32 NtCreateIoCompletion_entry(mapped_u32 out_handle, [[maybe_unused]] u32 desired_access,
+                               [[maybe_unused]] mapped_void object_attribs,
+                               [[maybe_unused]] u32 num_concurrent_threads) {
   X_HANDLE handle = 0;
   auto added = runtime::Current().object_table().Emplace<IOCompletionObject>(AddOptions{});
   if (added) {
@@ -569,8 +567,9 @@ u32 NtQueryFullAttributesFile_entry(ppc_ptr_t<X_OBJECT_ATTRIBUTES> obj_attribs,
   return X_STATUS_NO_SUCH_FILE;
 }
 
-u32 NtQueryDirectoryFile_entry(u32 file_handle, u32 event_handle, u32 apc_routine,
-                               mapped_void apc_context,
+u32 NtQueryDirectoryFile_entry(u32 file_handle, [[maybe_unused]] u32 event_handle,
+                               [[maybe_unused]] u32 apc_routine,
+                               [[maybe_unused]] mapped_void apc_context,
                                ppc_ptr_t<X_IO_STATUS_BLOCK> io_status_block,
                                ppc_ptr_t<X_FILE_DIRECTORY_INFORMATION> file_info_ptr, u32 length,
                                ppc_ptr_t<X_ANSI_STRING> file_name, u32 restart_scan) {
@@ -689,11 +688,11 @@ u32 NtQuerySymbolicLinkObject_entry(u32 handle, ppc_ptr_t<X_ANSI_STRING> target)
   return X_STATUS_SUCCESS;
 }
 
-u32 FscGetCacheElementCount_entry(u32 r3) {
+u32 FscGetCacheElementCount_entry([[maybe_unused]] u32 r3) {
   return 0;
 }
 
-u32 FscSetCacheElementCount_entry(u32 unk_0, u32 unk_1) {
+u32 FscSetCacheElementCount_entry([[maybe_unused]] u32 unk_0, [[maybe_unused]] u32 unk_1) {
   // unk_0 = 0
   // unk_1 looks like a count? in what units? 256 is a common value
   return X_STATUS_SUCCESS;
@@ -711,9 +710,11 @@ struct X_DISK_CACHE_PARTITION {
 };
 REX_STATIC_ASSERT_SIZE(X_DISK_CACHE_PARTITION, 0x10);
 
-u32 NtDeviceIoControlFile_entry(u32 handle, u32 event_handle, u32 apc_routine, u32 apc_context,
-                                u32 io_status_block, u32 io_control_code, mapped_void input_buffer,
-                                u32 input_buffer_len, mapped_void output_buffer,
+u32 NtDeviceIoControlFile_entry([[maybe_unused]] u32 handle, [[maybe_unused]] u32 event_handle,
+                                [[maybe_unused]] u32 apc_routine, [[maybe_unused]] u32 apc_context,
+                                [[maybe_unused]] u32 io_status_block, u32 io_control_code,
+                                [[maybe_unused]] mapped_void input_buffer,
+                                [[maybe_unused]] u32 input_buffer_len, mapped_void output_buffer,
                                 u32 output_buffer_len) {
   // Called by XMountUtilityDrive cache-mounting code
   // (checks if the returned values look valid, values below seem to pass the
@@ -748,7 +749,9 @@ u32 NtDeviceIoControlFile_entry(u32 handle, u32 event_handle, u32 apc_routine, u
   return X_STATUS_SUCCESS;
 }
 
-u32 IoCreateDevice_entry(u32 device_struct, u32 r4, u32 r5, u32 r6, u32 r7, mapped_u32 out_struct) {
+u32 IoCreateDevice_entry([[maybe_unused]] u32 device_struct, [[maybe_unused]] u32 r4,
+                         [[maybe_unused]] u32 r5, [[maybe_unused]] u32 r6, [[maybe_unused]] u32 r7,
+                         mapped_u32 out_struct) {
   // Called from XMountUtilityDrive XAM-task code
   // That code tries writing things to a pointer at out_struct+0x18
   // We'll alloc some scratch space for it so it doesn't cause any exceptions
@@ -773,27 +776,34 @@ u32 IoDismountVolumeByFileHandle_entry(u32 handle) {
   return X_STATUS_SUCCESS;
 }
 
-u32 IoDismountVolumeByName_entry(ppc_ptr_t<X_ANSI_STRING> name) {
+u32 IoDismountVolumeByName_entry([[maybe_unused]] ppc_ptr_t<X_ANSI_STRING> name) {
   REX_KERNEL_STUB("IoDismountVolumeByName");
   return X_STATUS_SUCCESS;
 }
 
-u32 IoSynchronousDeviceIoControlRequest_entry(u32 ioctl, mapped_void device_object,
-                                              mapped_void input_buffer, u32 input_length,
-                                              mapped_void output_buffer, u32 output_length,
-                                              mapped_u32 returned_length, u32 unk) {
+u32 IoSynchronousDeviceIoControlRequest_entry(u32 ioctl, [[maybe_unused]] mapped_void device_object,
+                                              [[maybe_unused]] mapped_void input_buffer,
+                                              [[maybe_unused]] u32 input_length,
+                                              [[maybe_unused]] mapped_void output_buffer,
+                                              [[maybe_unused]] u32 output_length,
+                                              [[maybe_unused]] mapped_u32 returned_length,
+                                              [[maybe_unused]] u32 unk) {
   REX_KERNEL_STUB("IoSynchronousDeviceIoControlRequest({:#x})", static_cast<uint32_t>(ioctl));
   return X_STATUS_SUCCESS;
 }
 
-u32 StfsCreateDevice_entry(mapped_void device_object, u32 flags, mapped_u32 out_device) {
+u32 StfsCreateDevice_entry([[maybe_unused]] mapped_void device_object, [[maybe_unused]] u32 flags,
+                           [[maybe_unused]] mapped_u32 out_device) {
   REX_KERNEL_STUB("StfsCreateDevice");
   // if (out_device) *out_device = 0;
   return X_STATUS_SUCCESS;
 }
 
-u32 StfsControlDevice_entry(mapped_void device_object, u32 ioctl, mapped_void input_buffer,
-                            u32 input_length, mapped_void output_buffer, u32 output_length) {
+u32 StfsControlDevice_entry([[maybe_unused]] mapped_void device_object, u32 ioctl,
+                            [[maybe_unused]] mapped_void input_buffer,
+                            [[maybe_unused]] u32 input_length,
+                            [[maybe_unused]] mapped_void output_buffer,
+                            [[maybe_unused]] u32 output_length) {
   REX_KERNEL_STUB("StfsControlDevice({:#x})", static_cast<uint32_t>(ioctl));
   return X_STATUS_SUCCESS;
 }

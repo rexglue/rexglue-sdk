@@ -21,24 +21,25 @@ REX_SHIM_FN(lstrlenA, int, const char* s) {
   return s ? static_cast<int>(std::strlen(s)) : 0;
 }
 
-#if REX_PLATFORM_WIN32
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-#endif
-
 REX_SHIM_FN(lstrcpyA, char*, char* dst, const char* src) {
-  return std::strcpy(dst, src);
+  std::memcpy(dst, src, std::strlen(src) + 1);
+  return dst;
 }
 
 REX_SHIM_FN(lstrcpynA, char*, char* dst, const char* src, int maxlen) {
   if (maxlen <= 0)
     return dst;
-  std::strncpy(dst, src, static_cast<size_t>(maxlen) - 1);
+  const size_t limit = static_cast<size_t>(maxlen) - 1;
+  const size_t length = strnlen(src, limit);
+  std::memcpy(dst, src, length);
+  std::memset(dst + length, 0, limit - length);
   dst[maxlen - 1] = '\0';
   return dst;
 }
 
 REX_SHIM_FN(lstrcatA, char*, char* dst, const char* src) {
-  return std::strcat(dst, src);
+  std::memcpy(dst + std::strlen(dst), src, std::strlen(src) + 1);
+  return dst;
 }
 
 }  // namespace rex::kernel::xam

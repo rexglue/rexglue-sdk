@@ -9,9 +9,6 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-// Disable warnings about unused parameters for kernel functions
-#pragma GCC diagnostic ignored "-Wunused-parameter"
-
 #include <cstring>
 
 #include <rex/assert.h>
@@ -617,7 +614,7 @@ struct X_POOL_ALLOC_HEADER {
 };
 REX_STATIC_ASSERT_SIZE(X_POOL_ALLOC_HEADER, 8);
 
-u32 ExAllocatePoolTypeWithTag_entry(u32 size, u32 tag, u32 zero) {
+u32 ExAllocatePoolTypeWithTag_entry(u32 size, u32 tag, [[maybe_unused]] u32 zero) {
   if (size <= 0xFD8) {
     uint32_t adjusted_size = size + sizeof(X_POOL_ALLOC_HEADER);
     uint32_t addr = runtime::Current().memory()->SystemHeapAlloc(adjusted_size, 64);
@@ -708,7 +705,8 @@ u32 MmIsAddressValid_entry(u32 address) {
   return heap->QueryRangeAccess(address, address) != rex::memory::PageAccess::kNoAccess;
 }
 
-u32 NtAllocateEncryptedMemory_entry(u32 unk, u32 region_size, mapped_u32 base_addr_ptr) {
+u32 NtAllocateEncryptedMemory_entry([[maybe_unused]] u32 unk, u32 region_size,
+                                    mapped_u32 base_addr_ptr) {
   if (!region_size) {
     return X_STATUS_INVALID_PARAMETER;
   }
@@ -739,7 +737,7 @@ u32 NtAllocateEncryptedMemory_entry(u32 unk, u32 region_size, mapped_u32 base_ad
   return X_STATUS_SUCCESS;
 }
 
-u32 NtFreeEncryptedMemory_entry(u32 region_type, mapped_u32 base_address_ptr) {
+u32 NtFreeEncryptedMemory_entry([[maybe_unused]] u32 region_type, mapped_u32 base_address_ptr) {
   REX_KERNEL_ARG(base_address_ptr);
 
   auto heap = runtime::Current().memory()->LookupHeap(0x80000000);

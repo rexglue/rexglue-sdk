@@ -53,18 +53,19 @@ using LockOrderHandler = void (*)(LockRank held, LockRank acquiring);
 REX_API LockOrderHandler SetLockOrderHandler(LockOrderHandler handler);
 
 /**
- * Notes an acquire on the calling thread and reports an order violation in a debug build.
+ * Pushes the rank of a lock the calling thread takes and reports an order violation in a debug
+ * build.
  *
  * @param rank The rank being taken.
  */
-REX_API void NoteLockAcquire(LockRank rank);
+REX_API void PushLockRank(LockRank rank);
 
 /**
- * Notes a release on the calling thread.
+ * Pops the rank of a lock the calling thread releases.
  *
  * @param rank The rank being released.
  */
-REX_API void NoteLockRelease(LockRank rank);
+REX_API void PopLockRank(LockRank rank);
 
 /** A non recursive mutex that reports order violations in a debug build. */
 class RankedMutex : public rex::NonCopyable {
@@ -76,7 +77,7 @@ class RankedMutex : public rex::NonCopyable {
 
   /** Locks the mutex. */
   void lock() {
-    NoteLockAcquire(rank_);
+    PushLockRank(rank_);
     mutex_.lock();
   }
 
@@ -89,13 +90,13 @@ class RankedMutex : public rex::NonCopyable {
     if (!mutex_.try_lock()) {
       return false;
     }
-    NoteLockAcquire(rank_);
+    PushLockRank(rank_);
     return true;
   }
 
   /** Unlocks the mutex. */
   void unlock() {
-    NoteLockRelease(rank_);
+    PopLockRank(rank_);
     mutex_.unlock();
   }
 
@@ -114,25 +115,25 @@ class RankedSharedMutex : public rex::NonCopyable {
 
   /** Locks the mutex exclusively. */
   void lock() {
-    NoteLockAcquire(rank_);
+    PushLockRank(rank_);
     mutex_.lock();
   }
 
   /** Unlocks the exclusive lock. */
   void unlock() {
-    NoteLockRelease(rank_);
+    PopLockRank(rank_);
     mutex_.unlock();
   }
 
   /** Locks the mutex for shared use. */
   void lock_shared() {
-    NoteLockAcquire(rank_);
+    PushLockRank(rank_);
     mutex_.lock_shared();
   }
 
   /** Unlocks the shared lock. */
   void unlock_shared() {
-    NoteLockRelease(rank_);
+    PopLockRank(rank_);
     mutex_.unlock_shared();
   }
 

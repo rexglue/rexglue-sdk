@@ -32,7 +32,7 @@ LockOrderHandler SetLockOrderHandler(LockOrderHandler handler) {
   return g_handler.exchange(handler ? handler : &DefaultHandler);
 }
 
-void NoteLockAcquire(LockRank rank) {
+void PushLockRank(LockRank rank) {
 #ifndef NDEBUG
   HeldStack& held = t_held;
   if (held.depth > 0) {
@@ -51,7 +51,7 @@ void NoteLockAcquire(LockRank rank) {
 #endif
 }
 
-void NoteLockRelease(LockRank rank) {
+void PopLockRank(LockRank rank) {
 #ifndef NDEBUG
   HeldStack& held = t_held;
   for (size_t i = held.depth; i > 0; --i) {

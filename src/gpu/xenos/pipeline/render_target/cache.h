@@ -189,9 +189,9 @@ class RenderTargetCache {
   RenderTargetCache(const xenos::RegisterFile& register_file, const runtime::Memory& memory,
                     uint32_t draw_resolution_scale_x, uint32_t draw_resolution_scale_y)
       : register_file_(register_file),
-        draw_extent_estimator_(register_file, memory),
         draw_resolution_scale_x_(draw_resolution_scale_x),
-        draw_resolution_scale_y_(draw_resolution_scale_y) {
+        draw_resolution_scale_y_(draw_resolution_scale_y),
+        draw_extent_estimator_(register_file, memory) {
     REX_ASSERT(draw_resolution_scale_x != 0);
     REX_ASSERT(draw_resolution_scale_y != 0);
   }

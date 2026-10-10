@@ -52,10 +52,6 @@ namespace rex::codegen {
     return discoverResult;
   }
 
-  // 3.5. Function pointer scan: find lis/addi pairs loading code addresses
-  // TODO(tomc): disabled, causes too many false positives
-  // functionPointerScan(ctx);
-
   // 4. Gap fill uncovered regions + discover blocks for gap-filled functions + cleanup
   if (reporter)
     reporter->phaseChanged("GapFill");

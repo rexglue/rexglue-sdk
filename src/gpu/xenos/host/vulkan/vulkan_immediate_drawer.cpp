@@ -403,8 +403,6 @@ void VulkanImmediateDrawer::End() {
     if (setup_command_buffer != VK_NULL_HANDLE) {
       size_t texture_uploads_pending_count = texture_uploads_pending_.size();
       const VulkanDevice::Functions& dfn = vulkan_device_->functions();
-      const VulkanOverlayDrawContext& vulkan_ui_draw_context =
-          *static_cast<const VulkanOverlayDrawContext*>(ui_draw_context());
 
       // Transition to VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL.
       std::vector<VkImageMemoryBarrier> image_memory_barriers;

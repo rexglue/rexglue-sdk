@@ -90,7 +90,7 @@ PipelineCache::PipelineCache(D3D12CommandProcessor& command_processor,
       render_target_cache_.draw_resolution_scale_y(), provider.GetGraphicsAnalysis() != nullptr);
 
   if (edram_rov_used) {
-    depth_only_pixel_shader_ = std::move(shader_translator_->CreateDepthOnlyPixelShader());
+    depth_only_pixel_shader_ = shader_translator_->CreateDepthOnlyPixelShader();
   }
 }
 
@@ -314,7 +314,7 @@ void PipelineCache::InitializeShaderStorage(const std::filesystem::path& cache_r
   shader_storage_file_path_ = shader_storage_file_path;
   if (!OpenStorageFile(shader_storage_file_, shader_storage_file_path)) {
     REXLOG_ERROR(gpu,
-                 "Failed to open the guest shader storage file for writing, persistent "
+                 "Failed to open the title shader storage file for writing, persistent "
                  "shader storage will be disabled: {}",
                  rex::path_to_utf8(shader_storage_file_path));
     pipeline_storage_file_.close();
@@ -1538,8 +1538,6 @@ bool PipelineCache::GetCurrentStateDescription(
       }
       PipelineRenderTarget& rt = description_out.render_targets[i];
       rt.used = 1;
-      auto color_info =
-          regs.Get<xenos::reg::RB_COLOR_INFO>(xenos::reg::RB_COLOR_INFO::rt_register_indices[i]);
       rt.format =
           xenos::ColorRenderTargetFormat(bound_depth_and_color_render_target_formats[1 + i]);
       rt.write_mask = (normalized_color_mask >> (i * 4)) & 0xF;

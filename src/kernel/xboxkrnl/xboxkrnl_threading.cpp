@@ -9,9 +9,6 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-// Disable warnings about unused parameters for kernel functions
-#pragma GCC diagnostic ignored "-Wunused-parameter"
-
 #include <algorithm>
 #include <atomic>
 #include <bit>
@@ -115,7 +112,7 @@ u32 ExCreateThread_entry(mapped_u32 handle_ptr, u32 stack_size, mapped_u32 threa
   auto& runtime = runtime::Current();
   uint32_t guest_process = runtime.GetTitleProcess();
   if (creation_flags & 2) {
-    REXLOG_WARN(kernel, "ExCreateThread Guest is creating a system thread!");
+    REXLOG_WARN(kernel, "ExCreateThread Title is creating a system thread!");
     guest_process = runtime.GetSystemProcess();
   }
 
@@ -376,7 +373,7 @@ u32 KeDelayExecutionThread_entry(u32 processor_mode, u32 alertable, mapped_u64 i
 
 u32 NtYieldExecution_entry() {
   ThreadRecord::CheckStop();
-  ThreadRecord::NoteKernelTime();
+  ThreadRecord::WriteKernelTime();
   rex::platform::MaybeYield();
   return X_STATUS_SUCCESS;
 }
@@ -478,7 +475,7 @@ void KeInitializeEvent_entry(ppc_ptr_t<X_KEVENT> event_ptr, u32 event_type, u32 
   }
 }
 
-uint32_t KeSetEvent(u32 event_address, uint32_t increment, uint32_t wait) {
+u32 KeSetEvent(u32 event_address, [[maybe_unused]] u32 increment, [[maybe_unused]] u32 wait) {
   auto ev = runtime::Current().object_table().ResolveGuest<EventObject>(event_address);
   if (!ev) {
     REX_ASSERT_ALWAYS();
@@ -492,7 +489,8 @@ u32 KeSetEvent_entry(ppc_ptr_t<X_KEVENT> event_ptr, u32 increment, u32 wait) {
   return KeSetEvent(event_ptr.guest_address(), increment, wait);
 }
 
-u32 KePulseEvent_entry(ppc_ptr_t<X_KEVENT> event_ptr, u32 increment, u32 wait) {
+u32 KePulseEvent_entry(ppc_ptr_t<X_KEVENT> event_ptr, [[maybe_unused]] u32 increment,
+                       [[maybe_unused]] u32 wait) {
   auto ev = runtime::Current().object_table().ResolveGuest<EventObject>(event_ptr.guest_address());
   if (!ev) {
     REX_ASSERT_ALWAYS();
@@ -599,8 +597,8 @@ void KeInitializeSemaphore_entry(ppc_ptr_t<X_KSEMAPHORE> semaphore_ptr, u32 coun
   }
 }
 
-uint32_t KeReleaseSemaphore(u32 semaphore_address, uint32_t increment, uint32_t adjustment,
-                            uint32_t wait) {
+u32 KeReleaseSemaphore(u32 semaphore_address, [[maybe_unused]] u32 increment, u32 adjustment,
+                       [[maybe_unused]] u32 wait) {
   auto sem = runtime::Current().object_table().ResolveGuest<SemaphoreObject>(semaphore_address);
   if (!sem) {
     REX_ASSERT_ALWAYS();
@@ -733,7 +731,8 @@ void KeInitializeMutant_entry(ppc_ptr_t<X_KMUTANT> mutant, u32 initial_owner) {
                                                                      DISPATCHER_MUTANT);
 }
 
-u32 KeReleaseMutant_entry(ppc_ptr_t<X_KMUTANT> mutant, u32 increment, u32 abandoned, u32 wait) {
+u32 KeReleaseMutant_entry(ppc_ptr_t<X_KMUTANT> mutant, [[maybe_unused]] u32 increment,
+                          u32 abandoned, [[maybe_unused]] u32 wait) {
   auto object =
       runtime::Current().object_table().ResolveGuest<MutantObject>(mutant.guest_address());
   if (!object) {
@@ -924,7 +923,8 @@ u32 NtWaitForSingleObjectEx_entry(u32 object_handle, u32 wait_mode, u32 alertabl
 
 u32 KeWaitForMultipleObjects_entry(u32 count, mapped_u32 objects_ptr, u32 wait_type,
                                    u32 wait_reason, u32 processor_mode, u32 alertable,
-                                   mapped_u64 timeout_ptr, mapped_void wait_block_array_ptr) {
+                                   mapped_u64 timeout_ptr,
+                                   [[maybe_unused]] mapped_void wait_block_array_ptr) {
   REX_ASSERT(wait_type <= 1);
 
   std::vector<X_HANDLE> handles;
@@ -971,7 +971,7 @@ u32 NtWaitForMultipleObjectsEx_entry(u32 count, mapped_u32 handles, u32 wait_typ
 }
 
 u32 NtSignalAndWaitForSingleObjectEx_entry(u32 signal_handle, u32 wait_handle, u32 alertable,
-                                           u32 r6, mapped_u64 timeout_ptr) {
+                                           [[maybe_unused]] u32 r6, mapped_u64 timeout_ptr) {
   uint64_t timeout = timeout_ptr ? static_cast<uint64_t>(*timeout_ptr) : 0u;
   X_STATUS result = SignalAndWaitOn(runtime::Current(), signal_handle, wait_handle, 3, 1, alertable,
                                     timeout_ptr ? &timeout : nullptr);
@@ -1043,7 +1043,7 @@ void KeInitializeApc(XAPC* apc, uint32_t thread_ptr, uint32_t kernel_routine,
 }
 
 uint32_t KeInsertQueueApc(runtime::Memory& memory, XAPC* apc, uint32_t arg1, uint32_t arg2,
-                          uint32_t priority_increment, PPCContext* ctx) {
+                          [[maybe_unused]] u32 priority_increment, PPCContext* ctx) {
   uint32_t thread_guest_pointer = apc->thread_ptr;
   if (!thread_guest_pointer) {
     return 0;
@@ -1249,7 +1249,8 @@ u32 KeRemoveQueueApc_entry(ppc_ptr_t<XAPC> apc) {
   return result ? 1 : 0;
 }
 
-u32 KiApcNormalRoutineNop_entry(u32 unk0 /* output? */, u32 unk1 /* 0x13 */) {
+u32 KiApcNormalRoutineNop_entry([[maybe_unused]] u32 unk0 /* output? */,
+                                [[maybe_unused]] u32 unk1 /* 0x13 */) {
   return 0;
 }
 

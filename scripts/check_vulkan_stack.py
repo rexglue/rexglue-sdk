@@ -20,7 +20,6 @@ _SET_BLOCK = re.compile(r"set\(\s*([A-Z0-9_]+)\s+(.*?)\)", re.DOTALL)
 class StackConfig:
     sdk_version: str = ""
     pins: dict[str, str] = field(default_factory=dict)
-    exemptions: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -55,16 +54,12 @@ def parse_stack_config(text: str) -> StackConfig:
             config.sdk_version = values[0]
         elif name == "REXGLUE_VULKAN_SDK_PINS":
             config.pins = _split_pairs(values)
-        elif name == "REXGLUE_VULKAN_SDK_EXEMPT":
-            config.exemptions = [value.strip() for value in values]
     return config
 
 
 def evaluate(config: StackConfig, actual: dict[str, str]) -> list[Mismatch]:
     mismatches = []
     for submodule, expected in config.pins.items():
-        if submodule in config.exemptions:
-            continue
         found = actual.get(submodule, "")
         if found != expected:
             mismatches.append(Mismatch(submodule, expected, found))
@@ -107,9 +102,6 @@ def main() -> int:
 
     actual = read_gitlinks(args.repo_root, list(config.pins))
     mismatches = evaluate(config, actual)
-
-    for submodule in sorted(config.exemptions):
-        print(f"exempt: {submodule}")
 
     if not mismatches:
         print(f"Vulkan stack matches SDK {config.sdk_version}")

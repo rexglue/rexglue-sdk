@@ -17,15 +17,11 @@
 
 #include <rex/codegen/codegen_context.h>
 
-namespace rex {
-class Runtime;
-}
-
 namespace rex::codegen {
 
 class CodegenWriter {
  public:
-  CodegenWriter(CodegenContext& ctx, Runtime* runtime = nullptr);
+  CodegenWriter(CodegenContext& ctx);
 
   /// Run the full output pipeline: validate, generate, flush, sweep.
   bool write(bool force);
@@ -47,7 +43,6 @@ class CodegenWriter {
 
  private:
   CodegenContext& ctx_;
-  Runtime* runtime_;
 
   std::string out;
   std::vector<std::pair<std::string, std::string>> pendingWrites;

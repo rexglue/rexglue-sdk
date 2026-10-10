@@ -190,7 +190,7 @@ int XMADecoder::GetContextId(uint32_t guest_ptr) const {
 
 uint32_t XMADecoder::AllocateContext() {
   size_t index = context_bitmap_.Acquire();
-  if (index == -1) {
+  if (index == static_cast<size_t>(-1)) {
     // Out of contexts.
     return 0;
   }
@@ -323,18 +323,12 @@ void XMADecoder::WriteRegister(uint32_t addr, uint32_t value) {
   } else {
     // 0601h (1804h) is written to with 0x02000000 and 0x03000000 around a lock
     // operation
-    switch (r) {
-      default: {
-        const auto register_info = register_file_.GetRegisterInfo(r);
-        if (register_info) {
-          REXLOG_DEBUG(apu, "XMA: Write to unhandled register ({:04X}, {}): {:08X}", r,
-                       register_info->name, value);
-        } else {
-          REXLOG_DEBUG(apu, "XMA: Write to unknown register ({:04X}): {:08X}", r, value);
-        }
-        break;
-      }
-#pragma warning(suppress : 4065)
+    const auto register_info = register_file_.GetRegisterInfo(r);
+    if (register_info) {
+      REXLOG_DEBUG(apu, "XMA: Write to unhandled register ({:04X}, {}): {:08X}", r,
+                   register_info->name, value);
+    } else {
+      REXLOG_DEBUG(apu, "XMA: Write to unknown register ({:04X}): {:08X}", r, value);
     }
   }
 }

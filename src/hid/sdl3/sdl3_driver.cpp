@@ -156,9 +156,9 @@ uint8_t GamepadSubType(SDL_Gamepad* gamepad) {
 }  // namespace
 
 SDL3Driver::SDL3Driver(std::filesystem::path mappings_file)
-    : mappings_file_(std::move(mappings_file)),
-      sdl_events_initialized_(false),
+    : sdl_events_initialized_(false),
       SDL_Gamepad_initialized_(false),
+      mappings_file_(std::move(mappings_file)),
       sdl_events_unflushed_(0),
       sdl_pumpevents_queued_(false),
       controllers_(),

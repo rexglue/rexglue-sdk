@@ -9,9 +9,6 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-// Disable warnings about unused parameters for kernel functions
-#pragma GCC diagnostic ignored "-Wunused-parameter"
-
 #include <rex/kernel/xam/private.h>
 #include <rex/logging.h>
 #include <rex/hook.h>
@@ -28,19 +25,19 @@ u32 XamVoiceIsActiveProcess_entry() {
   return 0;
 }
 
-u32 XamVoiceCreate_entry(u32 unk1,  // 0
-                         u32 unk2,  // 0xF
+u32 XamVoiceCreate_entry([[maybe_unused]] u32 unk1,  // 0
+                         [[maybe_unused]] u32 unk2,  // 0xF
                          mapped_u32 out_voice_ptr) {
   // Null out the ptr.
   out_voice_ptr.Zero();
   return X_ERROR_ACCESS_DENIED;
 }
 
-u32 XamVoiceClose_entry(mapped_void voice_ptr) {
+u32 XamVoiceClose_entry([[maybe_unused]] mapped_void voice_ptr) {
   return 0;
 }
 
-u32 XamVoiceHeadsetPresent_entry(mapped_void voice_ptr) {
+u32 XamVoiceHeadsetPresent_entry([[maybe_unused]] mapped_void voice_ptr) {
   return 0;
 }
 

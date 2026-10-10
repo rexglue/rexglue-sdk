@@ -1517,7 +1517,6 @@ std::optional<JumpTable> detectJumpTable(DecodedBinary& decoded, const Limits& l
     // IMPORTANT: Stop tracing if another instruction writes to indexReg (breaks the chain)
     if (foundLoad && indexReg != 0xFF) {
       // Check if this instruction writes to indexReg
-      bool writesToIndexReg = false;
       uint8_t destReg = 0xFF;
 
       // Check common instruction forms that write to a register
@@ -1546,8 +1545,6 @@ std::optional<JumpTable> detectJumpTable(DecodedBinary& decoded, const Limits& l
       }
 
       if (destReg == indexReg) {
-        writesToIndexReg = true;
-
         // Check for slwi pattern: if it matches, trace back; otherwise stop tracing
         if (insn->opcode == Opcode::rlwinm) {
           uint8_t sh = insn->M.SH;

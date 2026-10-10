@@ -24,7 +24,6 @@
 #include <rex/codegen/output_partition.h>
 #include <rex/codegen/template_registry.h>
 #include <rex/logging.h>
-#include <rex/runtime.h>
 
 #include "file_io.h"
 #include "mmio_analysis.h"
@@ -187,8 +186,7 @@ nlohmann::json BuildMMIOReport(const std::vector<MMIOReportSite>& sites) {
 
 }  // namespace
 
-CodegenWriter::CodegenWriter(CodegenContext& ctx, Runtime* runtime)
-    : ctx_(ctx), runtime_(runtime) {}
+CodegenWriter::CodegenWriter(CodegenContext& ctx) : ctx_(ctx) {}
 
 // Convenience accessors
 FunctionGraph& CodegenWriter::graph() {

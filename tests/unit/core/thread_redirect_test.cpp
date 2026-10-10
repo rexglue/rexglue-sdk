@@ -156,23 +156,23 @@ void CheckRedirectUnwinds(Spin spin) {
 }  // namespace
 
 TEST_CASE("Redirect unwinds a thread in compiled code of the recompiled code section",
-          "[core][thread]") {
+          "[core][thread][forced_stop]") {
   CheckRedirectUnwinds(&SpinInSection);
 }
 
 #if REX_TEST_ASM_SPINS
 TEST_CASE("Redirect unwinds a thread at the first instruction of a frameless leaf",
-          "[core][thread]") {
+          "[core][thread][forced_stop]") {
   CheckRedirectUnwinds(&rex_test_spin_leaf);
 }
 
-TEST_CASE("Redirect unwinds a thread inside a prologue", "[core][thread]") {
+TEST_CASE("Redirect unwinds a thread inside a prologue", "[core][thread][forced_stop]") {
   CheckRedirectUnwinds(&rex_test_spin_prologue);
 }
 #endif
 
 TEST_CASE("Redirect leaves a thread outside the recompiled code section running",
-          "[core][thread]") {
+          "[core][thread][forced_stop]") {
   g_spinning = false;
   g_release = false;
   auto thread = rex::platform::Thread::Create({}, [] {

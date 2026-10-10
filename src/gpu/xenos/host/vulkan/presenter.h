@@ -181,7 +181,7 @@ class VulkanPresenter final : public Presenter {
       if (!image->Initialize()) {
         return nullptr;
       }
-      return std::move(image);
+      return image;
     }
 
     ~GuestOutputImage();

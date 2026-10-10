@@ -19,7 +19,6 @@ def test_parses_the_shipped_stack_file():
     assert config.sdk_version
     assert config.pins
     assert all(SHA.match(sha) for sha in config.pins.values())
-    assert all(name not in config.pins for name in config.exemptions)
 
 
 def test_evaluate_flags_a_moved_submodule():
@@ -33,8 +32,10 @@ def test_evaluate_flags_a_moved_submodule():
     assert mismatches[0].actual == "0" * 40
 
 
-def test_evaluate_skips_exempt_submodules_until_unexempted():
-    config = StackConfig(sdk_version="1.0.0.0", pins={"glslang": "a" * 40}, exemptions=["glslang"])
-    assert evaluate(config, {}) == []
-    config.exemptions = []
+def test_evaluate_flags_every_pinned_submodule():
+    config = StackConfig(sdk_version="1.0.0.0", pins={"glslang": "a" * 40})
     assert [m.submodule for m in evaluate(config, {})] == ["glslang"]
+
+
+def test_config_has_no_exemptions():
+    assert not hasattr(StackConfig(), "exemptions")

@@ -257,7 +257,7 @@ void PrimitiveProcessor::ClearPerFrameCache() {
     return;
   }
   std::lock_guard<std::mutex> cache_lock(cache_mutex_);
-  for (const std::pair<CacheKey, size_t>& cache_map_entry : cache_map_) {
+  for (const std::pair<const CacheKey, size_t>& cache_map_entry : cache_map_) {
     cache_entry_pool_[cache_map_entry.second].free_next = cache_bucket_free_first_entry_;
     cache_bucket_free_first_entry_ = cache_map_entry.second;
   }

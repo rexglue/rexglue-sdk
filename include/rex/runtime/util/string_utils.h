@@ -17,6 +17,7 @@
 #include <rex/memory.h>
 #include <rex/string.h>
 #include <rex/runtime/xio.h>  // X_ANSI_STRING, X_UNICODE_STRING
+#include <rex/runtime/xmemory.h>
 #include <rex/runtime/xtypes.h>
 
 namespace rex {

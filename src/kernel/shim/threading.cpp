@@ -9,8 +9,6 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-#pragma GCC diagnostic ignored "-Wunused-parameter"
-
 #include <algorithm>
 #include <cstring>
 #include <memory>

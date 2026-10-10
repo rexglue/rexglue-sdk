@@ -71,7 +71,6 @@ void ConvertTexelCTX1ToR8G8(xenos::Endian endian, void* output, const void* inpu
 
 void ConvertTexelDXT3AToDXT3(xenos::Endian endian, void* output, const void* input,
                              [[maybe_unused]] size_t length) {
-  const u32 bytes_per_block = 16;
   auto output_bytes = static_cast<u8*>(output);
   CopySwapBlock(endian, &output_bytes[0], input, 8);
   std::memset(&output_bytes[8], 0, 8);

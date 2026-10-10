@@ -59,19 +59,6 @@ static_assert(REX_PLATFORM_LINUX || REX_PLATFORM_MAC, "This file is POSIX-only")
 #include <rex/string.h>
 #endif
 
-#if REX_PLATFORM_LINUX
-// SIGEV_THREAD_ID in timer_create(...) is a Linux extension
-#define REX_HAS_SIGEV_THREAD_ID 1
-#ifdef __GLIBC__
-#define sigev_notify_thread_id _sigev_un._tid
-#endif
-#if __GLIBC__ == 2 && __GLIBC_MINOR__ < 30
-#define gettid() syscall(SYS_gettid)
-#endif
-#else
-#define REX_HAS_SIGEV_THREAD_ID 0
-#endif
-
 namespace rex::platform {
 
 #if REX_PLATFORM_ANDROID
@@ -914,7 +901,7 @@ class PosixCondition<Thread> : public PosixConditionBase {
 #endif
     uint64_t result = 0;
     auto cpu_count = std::min(CPU_SETSIZE, 64);
-    for (auto i = 0u; i < cpu_count; i++) {
+    for (int i = 0; i < cpu_count; i++) {
       auto set = CPU_ISSET(i, &cpu_set);
       result |= set << i;
     }

@@ -9,9 +9,6 @@
 * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
 */
 
-// Disable warnings about unused parameters for kernel functions
-#pragma GCC diagnostic ignored "-Wunused-parameter"
-
 #include <algorithm>
 
 #include <rex/kernel/xboxkrnl/private.h>
@@ -30,11 +27,9 @@
 #endif
 
 #include "crypto/TinySHA1.hpp"
-#include "crypto/des/des.cpp"
 #include "crypto/des/des.h"
 #include "crypto/des/des3.h"
 #include "crypto/des/descbc.h"
-#include "crypto/sha256.cpp"
 #include "crypto/sha256.h"
 
 extern "C" {
@@ -50,7 +45,8 @@ struct XECRYPT_RC4_STATE {
 };
 REX_STATIC_ASSERT_SIZE(XECRYPT_RC4_STATE, 0x102);
 
-void XeCryptRc4Key_entry(ppc_ptr_t<XECRYPT_RC4_STATE> rc4_ctx, mapped_void key, u32 key_size) {
+void XeCryptRc4Key_entry(ppc_ptr_t<XECRYPT_RC4_STATE> rc4_ctx, mapped_void key,
+                         [[maybe_unused]] u32 key_size) {
   // Setup RC4 state
   rc4_ctx->i = rc4_ctx->j = 0;
   for (uint32_t x = 0; x < 0x100; x++) {
@@ -222,9 +218,17 @@ struct XECRYPT_RSA {
 };
 REX_STATIC_ASSERT_SIZE(XECRYPT_RSA, 0x10);
 
-u32 XeCryptBnQwNeRsaPubCrypt_entry(ppc_ptr_t<uint64_t> qw_a, ppc_ptr_t<uint64_t> qw_b,
-                                   ppc_ptr_t<XECRYPT_RSA> rsa) {
-  // 0 indicates failure (but not a BOOL return value)
+/**
+ * Applies the RSA public key to qw_a.
+ *
+ * @param qw_a The input quadwords.
+ * @param qw_b Receives the result.
+ * @param rsa The key.
+ * @return 0 on failure, which is not a BOOL return value.
+ */
+u32 XeCryptBnQwNeRsaPubCrypt_entry([[maybe_unused]] ppc_ptr_t<u64> qw_a,
+                                   [[maybe_unused]] ppc_ptr_t<u64> qw_b,
+                                   [[maybe_unused]] ppc_ptr_t<XECRYPT_RSA> rsa) {
 #if !REX_PLATFORM_WIN32
   REXLOG_ERROR(kernel,
                "XeCryptBnQwNeRsaPubCrypt called but no implementation available for "
@@ -317,7 +321,8 @@ u32 XeCryptBnQwNeRsaPubCrypt_entry(ppc_ptr_t<uint64_t> qw_a, ppc_ptr_t<uint64_t>
 #endif
 }
 
-u32 XeCryptBnDwLePkcs1Verify_entry(mapped_void hash, mapped_void sig, u32 size) {
+u32 XeCryptBnDwLePkcs1Verify_entry([[maybe_unused]] mapped_void hash,
+                                   [[maybe_unused]] mapped_void sig, [[maybe_unused]] u32 size) {
   // BOOL return value
   return 1;
 }
@@ -634,13 +639,15 @@ u32 XeKeysHmacShaUsingKey_entry(mapped_void obscured_key, mapped_void inp_1, u32
   return X_STATUS_SUCCESS;
 }
 
-u32 XeKeysConsolePrivateKeySign_entry(mapped_void hash, mapped_void signature) {
+u32 XeKeysConsolePrivateKeySign_entry([[maybe_unused]] mapped_void hash,
+                                      [[maybe_unused]] mapped_void signature) {
   REX_KERNEL_STUB("XeKeysConsolePrivateKeySign");
   return 0;  // Success
 }
 
-u32 XeKeysConsoleSignatureVerification_entry(mapped_void hash, mapped_void signature,
-                                             mapped_void pubkey) {
+u32 XeKeysConsoleSignatureVerification_entry([[maybe_unused]] mapped_void hash,
+                                             [[maybe_unused]] mapped_void signature,
+                                             [[maybe_unused]] mapped_void pubkey) {
   REX_KERNEL_STUB("XeKeysConsoleSignatureVerification");
   return 0;  // Success (signature valid)
 }

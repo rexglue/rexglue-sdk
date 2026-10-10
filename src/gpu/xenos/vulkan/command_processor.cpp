@@ -5585,11 +5585,7 @@ void VulkanCommandProcessor::UpdateDynamicState(
   uint32_t draw_resolution_scale_x = texture_cache_ ? texture_cache_->draw_resolution_scale_x() : 1;
   uint32_t draw_resolution_scale_y = texture_cache_ ? texture_cache_->draw_resolution_scale_y() : 1;
 
-  // Window parameters.
-  // http://ftp.tku.edu.tw/NetBSD/NetBSD-current/xsrc/external/mit/xf86-video-ati/dist/src/r600_reg_auto_r6xx.h
-  // See r200UpdateWindow:
-  // https://github.com/freedreno/mesa/blob/master/src/mesa/drivers/dri/r200/r200_state.c
-  auto pa_sc_window_offset = regs.Get<xenos::reg::PA_SC_WINDOW_OFFSET>();
+  // Window parameters follow r200UpdateWindow in Mesa's r200_state.c.
 
   // Viewport.
   VkViewport viewport;
@@ -6165,10 +6161,10 @@ void VulkanCommandProcessor::UpdateSystemConstantValues(
     // Exponent bias is in bits 20:25 of RB_COLOR_INFO.
     int32_t color_exp_bias = color_info.color_exp_bias;
     if (render_target_cache_->GetPath() == RenderTargetCache::Path::kHostRenderTargets &&
-        (color_info.color_format == xenos::ColorRenderTargetFormat::k_16_16 &&
-             !render_target_cache_->IsFixedRG16TruncatedToMinus1To1() ||
-         color_info.color_format == xenos::ColorRenderTargetFormat::k_16_16_16_16 &&
-             !render_target_cache_->IsFixedRGBA16TruncatedToMinus1To1())) {
+        ((color_info.color_format == xenos::ColorRenderTargetFormat::k_16_16 &&
+          !render_target_cache_->IsFixedRG16TruncatedToMinus1To1()) ||
+         (color_info.color_format == xenos::ColorRenderTargetFormat::k_16_16_16_16 &&
+          !render_target_cache_->IsFixedRGBA16TruncatedToMinus1To1()))) {
       // Remap from -32...32 to -1...1 by dividing the output values by 32,
       // losing blending correctness, but getting the full range.
       color_exp_bias -= 5;

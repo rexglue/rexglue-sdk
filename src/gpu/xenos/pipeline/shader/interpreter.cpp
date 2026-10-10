@@ -864,8 +864,7 @@ void ShaderInterpreter::ExecuteAluInstruction(xenos::ucode::AluInstruction instr
         export_value[i] = export_component;
       }
       export_sink_->Export(xenos::ucode::ExportRegister(instr.vector_dest()), export_value,
-                           vector_result_write_mask | scalar_result_write_mask |
-                               instr.GetConstant0WriteMask() | export_constant_1_mask);
+                           export_mask);
     }
   } else {
     if (vector_result_write_mask) {
@@ -1114,9 +1113,8 @@ void ShaderInterpreter::ExecuteVertexFetchInstruction(xenos::ucode::VertexFetchI
           if (!(packed_components & (UINT32_C(1) << i))) {
             continue;
           }
-          uint32_t packed_width = packed_widths[i];
-          result[i] =
-              static_cast<float>(packed_dwords[i >> 1] & ((UINT32_C(1) << packed_widths[i]) - 1));
+          u32 packed_width = packed_widths[i];
+          result[i] = static_cast<f32>(packed_dwords[i >> 1] & ((UINT32_C(1) << packed_width) - 1));
         }
         if (instr.is_normalized()) {
           for (uint32_t i = 0; i < 4; ++i) {

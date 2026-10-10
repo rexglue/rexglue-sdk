@@ -39,15 +39,7 @@
 #include "core/proc_maps.h"
 #endif
 
-// macOS off_t is 64-bit with no *64 large-file variants; Linux keeps the
-// explicit *64 forms for legacy 32-bit off_t distributions.
-#if defined(__APPLE__)
-#define rex_mmap64 mmap
-#define rex_ftruncate64 ftruncate
-#else
-#define rex_mmap64 mmap64
-#define rex_ftruncate64 ftruncate64
-#endif
+static_assert(sizeof(off_t) == 8);
 
 #if REX_PLATFORM_ANDROID
 #include <string.h>
@@ -387,7 +379,7 @@ bool QueryProtect(void* base_address, size_t& length, PageAccess& access_out) {
 }
 
 FileMappingHandle CreateFileMappingHandle(const std::filesystem::path& path, size_t length,
-                                          PageAccess access, bool commit) {
+                                          PageAccess access, [[maybe_unused]] bool commit) {
 #if REX_PLATFORM_ANDROID
   // TODO(Triang3l): Check if memfd can be used instead on API 30+.
   if (android_ASharedMemory_create_) {
@@ -435,7 +427,7 @@ FileMappingHandle CreateFileMappingHandle(const std::filesystem::path& path, siz
   if (ret < 0) {
     return kFileMappingHandleInvalid;
   }
-  if (rex_ftruncate64(ret, static_cast<off_t>(length)) != 0) {
+  if (ftruncate(ret, static_cast<off_t>(length)) != 0) {
     close(ret);
     shm_unlink(full_path.c_str());
     return kFileMappingHandleInvalid;
@@ -470,8 +462,8 @@ void* MapFileView(FileMappingHandle handle, void* base_address, size_t length, P
   }
 
   uint32_t prot = ToPosixProtectFlags(access);
-  void* result = rex_mmap64(base_address, length, prot, flags, static_cast<int>(handle),
-                            static_cast<off_t>(file_offset));
+  void* result = mmap(base_address, length, prot, flags, static_cast<int>(handle),
+                      static_cast<off_t>(file_offset));
   if (result == MAP_FAILED) {
     return nullptr;
   }
@@ -485,7 +477,7 @@ void* MapFileView(FileMappingHandle handle, void* base_address, size_t length, P
   return result;
 }
 
-bool UnmapFileView(FileMappingHandle handle, void* base_address, size_t length) {
+bool UnmapFileView([[maybe_unused]] FileMappingHandle handle, void* base_address, size_t length) {
   return munmap(base_address, length) == 0;
 }
 

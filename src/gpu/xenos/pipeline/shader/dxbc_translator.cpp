@@ -62,14 +62,14 @@ DxbcShaderTranslator::DxbcShaderTranslator(gpu::GraphicsProvider::GpuVendorID ve
                                            bool force_emit_source_map)
     : a_(shader_code_, statistics_),
       ao_(shader_object_, statistics_),
+      emit_source_map_(force_emit_source_map || REXCVAR_GET(::rex::gpu::cvars::dxbc_source_map)),
       vendor_id_(vendor_id),
       bindless_resources_used_(bindless_resources_used),
       edram_rov_used_(edram_rov_used),
       gamma_render_target_as_unorm8_(gamma_render_target_as_unorm8),
       msaa_2x_supported_(msaa_2x_supported),
       draw_resolution_scale_x_(draw_resolution_scale_x),
-      draw_resolution_scale_y_(draw_resolution_scale_y),
-      emit_source_map_(force_emit_source_map || REXCVAR_GET(::rex::gpu::cvars::dxbc_source_map)) {
+      draw_resolution_scale_y_(draw_resolution_scale_y) {
   REX_ASSERT(draw_resolution_scale_x != 0);
   REX_ASSERT(draw_resolution_scale_y != 0);
   // Don't allocate again and again for the first shader.
@@ -3194,9 +3194,7 @@ void DxbcShaderTranslator::WriteShaderCode() {
       // Bindless sampler heap.
       ao_.OpDclSampler(dxbc::Src::S(dxbc::Src::Dcl, 0, 0, UINT32_MAX));
     } else {
-      // Bindful samplers.
-      for (uint32_t i = 0; i < uint32_t(sampler_bindings_.size()); ++i) {
-        const SamplerBinding& sampler_binding = sampler_bindings_[i];
+      for (u32 i = 0; i < u32(sampler_bindings_.size()); ++i) {
         ao_.OpDclSampler(dxbc::Src::S(dxbc::Src::Dcl, i, i, i));
       }
     }

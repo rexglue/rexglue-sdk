@@ -4054,7 +4054,6 @@ void D3D12RenderTargetCache::PerformTransfersAndResolveClears(
     if (!dest_rt) {
       continue;
     }
-    bool dest_is_depth = dest_rt->key().is_depth;
     for (const Transfer& transfer : render_target_transfers[i]) {
       REX_ASSERT(transfer.source != nullptr);
       auto& source_d3d12_rt = *static_cast<D3D12RenderTarget*>(transfer.source);
@@ -4070,7 +4069,6 @@ void D3D12RenderTargetCache::PerformTransfersAndResolveClears(
         current_temporary_descriptors_cpu_.push_back(
             source_d3d12_rt.descriptor_srv_stencil().GetHandle());
       }
-      bool source_is_depth = source_d3d12_rt.key().is_depth;
       auto* host_depth_source_d3d12_rt =
           static_cast<D3D12RenderTarget*>(transfer.host_depth_source);
       // The host_depth_source_d3d12_rt == dest_rt case would use the EDRAM

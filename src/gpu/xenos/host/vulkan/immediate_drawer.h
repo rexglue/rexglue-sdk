@@ -157,8 +157,6 @@ class VulkanImmediateDrawer : public ImmediateDrawer {
   // texture deletion.
   uint64_t last_completed_submission_index_ = 0;
 
-  VkCommandBuffer current_command_buffer_ = VK_NULL_HANDLE;
-  VkExtent2D current_render_target_extent_;
   VkRect2D current_scissor_;
   VkPipeline current_pipeline_;
   uint32_t current_texture_descriptor_index_;

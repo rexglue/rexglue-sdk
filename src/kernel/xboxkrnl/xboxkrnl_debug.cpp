@@ -9,9 +9,6 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-// Disable warnings about unused parameters for kernel functions
-#pragma GCC diagnostic ignored "-Wunused-parameter"
-
 #include <rex/dbg.h>
 #include <rex/kernel/xboxkrnl/private.h>
 #include <rex/logging.h>
@@ -63,7 +60,7 @@ void HandleSetThreadName(ppc_ptr_t<X_EXCEPTION_RECORD> record) {
   std::replace_if(name.begin(), name.end(), [](auto c) { return c < 32 || c > 127; }, '?');
 
   ThreadPin thread;
-  if (thread_info->thread_id == -1) {
+  if (thread_info->thread_id == ~u32{0}) {
     // Current thread.
     thread =
         runtime::Current().thread_registry().Find(ThreadRecord::GetCurrentThread()->thread_id());
@@ -80,32 +77,6 @@ void HandleSetThreadName(ppc_ptr_t<X_EXCEPTION_RECORD> record) {
   // TODO(benvanik): unwinding required here?
 }
 
-struct x_PMD {
-  be_i32 mdisp;
-  be_i32 pdisp;
-  be_i32 vdisp;
-};
-
-struct x_s__CatchableType {
-  be_u32 properties;
-  be_u32 type_ptr;
-  x_PMD this_displacement;
-  be_i32 size_or_offset;
-  be_u32 copy_function_ptr;
-};
-
-struct x_s__CatchableTypeArray {
-  be_i32 number_catchable_types;
-  be_u32 catchable_type_ptrs[1];
-};
-
-struct x_s__ThrowInfo {
-  be_u32 attributes;
-  be_u32 unwind_ptr;
-  be_u32 forward_compat_ptr;
-  be_u32 catchable_type_array_ptr;
-};
-
 void HandleCppException(ppc_ptr_t<X_EXCEPTION_RECORD> record) {
   // C++ exception.
   // https://blogs.msdn.com/b/oldnewthing/archive/2010/07/30/10044061.aspx
@@ -114,15 +85,6 @@ void HandleCppException(ppc_ptr_t<X_EXCEPTION_RECORD> record) {
 
   REX_ASSERT(record->number_parameters == 3);
   REX_ASSERT(record->exception_information[0] == 0x19930520);
-
-  auto thrown_ptr = record->exception_information[1];
-  auto thrown = runtime::Current().memory()->TranslateVirtual(thrown_ptr);
-  auto vftable_ptr = *reinterpret_cast<be_u32*>(thrown);
-
-  auto throw_info_ptr = record->exception_information[2];
-  auto throw_info = runtime::Current().memory()->TranslateVirtual<x_s__ThrowInfo*>(throw_info_ptr);
-  auto catchable_types = runtime::Current().memory()->TranslateVirtual<x_s__CatchableTypeArray*>(
-      throw_info->catchable_type_array_ptr);
 
   rex::platform::Break();
 }

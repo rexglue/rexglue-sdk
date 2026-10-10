@@ -139,14 +139,14 @@ inline void initialize_seh() {
 #define SEH_END }
 
 /** Returns from the function that holds the SEH scope. */
-#define SEH_RETURN return
+#define REX_SEH_RETURN return
 
 #else  // !REX_PLATFORM_WIN32
 
 /**
  * Opens an SEH scope. A fault inside it resumes at the handler through sigsetjmp, so the scope adds
  * no C++ cleanup to the function. Pair with SEH_CATCH or SEH_CATCH_ALL and SEH_END, and leave the
- * body early only through SEH_RETURN.
+ * body early only through REX_SEH_RETURN.
  *
  * @code
  * SEH_TRY {
@@ -178,7 +178,7 @@ inline void initialize_seh() {
   }
 
 /** Returns from the function that holds the SEH scope. */
-#define SEH_RETURN                             \
+#define REX_SEH_RETURN                         \
   do {                                         \
     ::rex::platform::seh_leave(rex_seh_scope); \
     return;                                    \

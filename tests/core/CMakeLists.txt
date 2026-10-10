@@ -2,7 +2,7 @@ add_executable(core_tests assert_test.cpp core_test.cpp container_test.cpp high_
     ${PROJECT_SOURCE_DIR}/thirdparty/crypto/rijndael-alg-fst.c)
 
 set_source_files_properties(${PROJECT_SOURCE_DIR}/thirdparty/crypto/rijndael-alg-fst.c
-    PROPERTIES LANGUAGE CXX)
+    PROPERTIES LANGUAGE CXX COMPILE_OPTIONS -w)
 
 target_compile_definitions(core_tests PRIVATE
     REXGLUE_FIXTURE_DIR="${PROJECT_SOURCE_DIR}/tests/fixtures/filesystem"

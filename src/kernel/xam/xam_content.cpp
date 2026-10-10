@@ -44,12 +44,11 @@ u32 XamContentGetLicenseMask_entry(mapped_u32 mask_ptr, mapped_void overlapped_p
   }
 }
 
-u32 XamContentResolve_entry([[maybe_unused]] u32 user_index, mapped_void content_data_ptr,
+u32 XamContentResolve_entry([[maybe_unused]] u32 user_index,
+                            [[maybe_unused]] mapped_void content_data_ptr,
                             [[maybe_unused]] mapped_void buffer_ptr,
                             [[maybe_unused]] u32 buffer_size, [[maybe_unused]] u32 unk1,
                             [[maybe_unused]] u32 unk2, [[maybe_unused]] u32 unk3) {
-  auto content_data = content_data_ptr.as<XCONTENT_DATA*>();
-
   // Result of buffer_ptr is sent to RtlInitAnsiString.
   // buffer_size is usually 260 (max path).
   // Games expect zero if resolve was successful.

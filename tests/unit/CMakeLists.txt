@@ -109,7 +109,7 @@ target_sources(unit_tests PRIVATE
 )
 
 set_source_files_properties(${PROJECT_SOURCE_DIR}/thirdparty/crypto/rijndael-alg-fst.c
-    PROPERTIES LANGUAGE CXX)
+    PROPERTIES LANGUAGE CXX COMPILE_OPTIONS -w)
 
 target_include_directories(unit_tests PRIVATE
     ${PROJECT_SOURCE_DIR}/include
@@ -179,7 +179,20 @@ endif()
 
 # Discover tests
 include(Catch)
+set(_unit_test_spec "")
+if(REXGLUE_ENABLE_TSAN)
+    set(_unit_test_spec TEST_SPEC "~[forced_stop]~[crash_report]") # TSan defers asynchronous signals to the next interceptor, so the forced stop redirect cannot land
+    catch_discover_tests(unit_tests
+        TEST_SPEC "[crash_report]"
+        TEST_PREFIX "unit."
+        PROPERTIES
+            LABELS "unit"
+            TIMEOUT 60
+            ENVIRONMENT "TSAN_OPTIONS=handle_segv=0" # TSan takes SIGSEGV for its own report unless handle_segv is 0
+    )
+endif()
 catch_discover_tests(unit_tests
+    ${_unit_test_spec}
     TEST_PREFIX "unit."
     PROPERTIES
         LABELS "unit"

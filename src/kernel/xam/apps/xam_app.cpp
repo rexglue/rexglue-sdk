@@ -95,8 +95,6 @@ X_HRESULT XamApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
         be_u32 unk_04;  // ? value/jump to? ?
       }* data = reinterpret_cast<message_data*>(buffer);
       REX_ASSERT(buffer_length == sizeof(message_data));
-      auto unk = memory_->TranslateVirtual<be_u32*>(data->unk_00);
-      auto adr = *unk;
       REXLOG_DEBUG(kernel, "XamApp(0x00022005)(%.8X, %.8X)", static_cast<uint32_t>(data->unk_00),
                    static_cast<uint32_t>(data->unk_04));
       return X_E_SUCCESS;

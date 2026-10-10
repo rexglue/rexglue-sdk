@@ -526,7 +526,7 @@ void ImGuiDrawer::OnMouseDown(MouseEvent& e) {
       break;
     }
   }
-  if (button >= 0 && button < std::size(io.MouseDown)) {
+  if (button >= 0 && button < std::ssize(io.MouseDown)) {
     if (!io.MouseDown[button]) {
       if (!ImGui::IsAnyMouseDown()) {
         window_->CaptureMouse();
@@ -558,7 +558,7 @@ void ImGuiDrawer::OnMouseUp(MouseEvent& e) {
       break;
     }
   }
-  if (button >= 0 && button < std::size(io.MouseDown)) {
+  if (button >= 0 && button < std::ssize(io.MouseDown)) {
     if (io.MouseDown[button]) {
       io.MouseDown[button] = false;
       if (!ImGui::IsAnyMouseDown()) {

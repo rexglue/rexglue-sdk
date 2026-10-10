@@ -595,7 +595,6 @@ std::string FunctionNode::emitCpp(const EmitContext& ctx) const {
 
   // --- Second pass: emit instruction code ---
   const JumpTable* activeJt = nullptr;
-  bool allRecompiled = true;
   CSRState csrState = CSRState::Unknown;
   RecompilerLocalVariables localVariables;
 
@@ -661,7 +660,6 @@ std::string FunctionNode::emitCpp(const EmitContext& ctx) const {
         if (!DispatchInstruction(id, builderCtx)) {
           REXLOG_WARN(codegen, "Unrecognized instruction at 0x{:X}: {}", blockBase,
                       insn.opcode->name);
-          allRecompiled = false;
         }
 
         // Check for mid-asm hook AFTER instruction
@@ -749,7 +747,7 @@ std::string FunctionNode::emitCpp(const EmitContext& ctx) const {
   if (generateSeh) {
     emit_println(out, "\tSEH_TRY {{");
     constexpr std::string_view kReturn = "return;";
-    constexpr std::string_view kSehReturn = "SEH_RETURN;";
+    constexpr std::string_view kSehReturn = "REX_SEH_RETURN;";
     for (size_t at = body.find(kReturn); at != std::string::npos;
          at = body.find(kReturn, at + kSehReturn.size())) {
       body.replace(at, kReturn.size(), kSehReturn);

@@ -43,7 +43,6 @@ uint8_t XamGetOnlineCountryFromLocale(uint8_t id) {
       2,  6,  5,  8,  13, 16, 19, 20, 21,  23, 25, 32, 34,  24, 37,  39, 42,  46, 44, 50, 53, 56,
       71, 74, 76, 75, 82, 84, 91, 93, 109, 31, 90, 18, 101, 35, 103, 88, 236, 99, 4,  89, 45, 1,
   };
-#pragma warning(suppress : 6385)
   return id < rex::countof(table) ? table[id] : 0;
 }
 
@@ -72,7 +71,6 @@ const char16_t* XamGetOnlineCountryString(uint8_t id) {
       u"TZ",   u"TL", u"TG",   u"TK", u"TO", u"TM", u"TC",   u"TV", u"UG",   u"VU", u"VA",
       nullptr, u"VG", u"WF",   u"EH", u"ZM", u"ZZ",
   };
-#pragma warning(suppress : 6385)
   return id < rex::countof(table) ? table[id] : nullptr;
 }
 
@@ -88,7 +86,6 @@ const char16_t* XamGetCountryString(uint8_t id) {
       u"SG", u"SI", u"SK", nullptr, u"SV",   u"SY", u"TH", u"TN", u"TR", u"TT", u"TW", u"UA", u"US",
       u"UY", u"UZ", u"VE", u"VN",   u"YE",   u"ZA", u"ZW", u"ZZ",
   };
-#pragma warning(suppress : 6385)
   return id < rex::countof(table) ? table[id] : nullptr;
 }
 
@@ -97,7 +94,6 @@ const char16_t* XamGetLanguageString(uint8_t id) {
       u"zz", u"en",   u"ja", u"de", u"fr", u"es", u"it", u"ko", u"zh",
       u"pt", nullptr, u"pl", u"ru", u"sv", u"tr", u"nb", u"nl", u"zh",
   };
-#pragma warning(suppress : 6385)
   return id < rex::countof(table) ? table[id] : nullptr;
 }
 
@@ -108,7 +104,6 @@ const char16_t* XamGetLocaleString(uint8_t id) {
       u"MX", u"NL", u"NZ", u"NO", u"PL", u"PT", u"SG", u"SK", u"ZA", u"ES", u"SE",
       u"CH", u"TW", u"GB", u"US", u"RU", u"ZZ", u"TR", u"AR", u"SA", u"IL", u"AE",
   };
-#pragma warning(suppress : 6385)
   return id < rex::countof(table) ? table[id] : nullptr;
 }
 
@@ -125,7 +120,6 @@ uint8_t XamGetLocaleFromOnlineCountry(uint8_t id) {
       0,  0,  0,  0,  0,  0,  0, 0,  0,  0, 0,  0,  0,  0,  0, 0,  0,  0,  0,  0,  0,  0,  0,  0,
       0,  0,  0,  0,  0,  0,  0, 0,  0,  0, 0,  0,  0,  0,  0, 0,  0,  0,  0,  0,  38,
   };
-#pragma warning(suppress : 6385)
   return id < rex::countof(table) ? table[id] : 0;
 }
 
@@ -135,7 +129,6 @@ uint8_t XamGetLanguageFromOnlineLanguage(uint8_t id) {
       1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,  1,  1,  1, 1, 14, 1,  1,  1, 1, 1,
       1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,  1,  1,  1, 1, 1,  1,  1,  1,
   };
-#pragma warning(suppress : 6385)
   return id < rex::countof(table) ? table[id] : 0;
 }
 
@@ -147,7 +140,6 @@ const char16_t* XamGetOnlineLanguageString(uint8_t id) {
       u"ps", u"sq", u"hy", u"bn", u"be", u"km", u"am", u"fo", u"ka", u"kl", u"sw", u"ky", u"lb",
       u"mk", u"mt", u"mn", u"ne", u"ur", u"rw", u"wo", u"si", u"tk",
   };
-#pragma warning(suppress : 6385)
   return id < rex::countof(table) ? table[id] : nullptr;
 }
 
@@ -166,7 +158,6 @@ uint8_t XamGetCountryFromOnlineCountry(uint8_t id) {
       0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,  0,  0,  0,  0,  0,   0,  0,  0,
       0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,  0,  0,  0,  0,  111,
   };
-#pragma warning(suppress : 6385)
   return id < rex::countof(table) ? table[id] : 0;
 }
 
@@ -178,7 +169,6 @@ uint8_t XamGetLocaleFromCountry(uint8_t id) {
       0,  0,  22, 0, 0,  23, 25, 24, 0,  0,  0,  0,  0,  26, 0,  27, 0,  0,  0,  37, 41, 32, 28,
       0,  29, 0,  0, 0,  0,  0,  39, 0,  34, 0,  36, 0,  0,  0,  0,  0,  30, 0,  38,
   };
-#pragma warning(suppress : 6385)
   return id < rex::countof(table) ? table[id] : 0;
 }
 

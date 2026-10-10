@@ -9,9 +9,6 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-// Disable warnings about unused parameters for kernel functions
-#pragma GCC diagnostic ignored "-Wunused-parameter"
-
 #include <rex/runtime/xthread.h>
 #include <rex/kernel/xboxkrnl/private.h>
 #include <rex/logging.h>
@@ -42,14 +39,14 @@ u32 XAudioGetVoiceCategoryVolumeChangeMask_entry(mapped_void driver_ptr, mapped_
   return X_ERROR_SUCCESS;
 }
 
-u32 XAudioGetVoiceCategoryVolume_entry(u32 unk, mapped_f32 out_ptr) {
+u32 XAudioGetVoiceCategoryVolume_entry([[maybe_unused]] u32 unk, mapped_f32 out_ptr) {
   // Expects a floating point single. Volume %?
   *out_ptr = 1.0f;
 
   return X_ERROR_SUCCESS;
 }
 
-u32 XAudioEnableDucker_entry(u32 unk) {
+u32 XAudioEnableDucker_entry([[maybe_unused]] u32 unk) {
   return X_ERROR_SUCCESS;
 }
 

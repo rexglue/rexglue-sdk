@@ -233,16 +233,16 @@ Result<void> Runtime::Setup(const rex::PPCImageInfo& image_info, const RuntimeCo
     int duplicates = 0;
     int rejected = 0;
     for (int i = 0; image_info.func_mappings[i].guest != 0; ++i) {
-      uint32_t guest = static_cast<uint32_t>(image_info.func_mappings[i].guest);
+      uint32_t address = static_cast<uint32_t>(image_info.func_mappings[i].guest);
       auto* host = image_info.func_mappings[i].host;
       if (!host) {
         continue;
       }
-      if (function_dispatcher_->GetFunction(guest)) {
-        REXLOG_WARN(system, "func_mappings: duplicate guest address {:08X}", guest);
+      if (function_dispatcher_->GetFunction(address)) {
+        REXLOG_WARN(system, "func_mappings: duplicate guest address {:08X}", address);
         ++duplicates;
       }
-      if (!function_dispatcher_->SetFunction(guest, host)) {
+      if (!function_dispatcher_->SetFunction(address, host)) {
         ++rejected;
       } else {
         ++count;

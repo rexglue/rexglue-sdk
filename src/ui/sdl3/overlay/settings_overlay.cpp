@@ -39,18 +39,6 @@ static void WarnIfFailed(std::string_view name, const Result<void>& status) {
   }
 }
 
-static const char* LifecycleBadge(rex::cvar::Lifecycle lc) {
-  switch (lc) {
-    case rex::cvar::Lifecycle::HotReload:
-      return " [live]";
-    case rex::cvar::Lifecycle::RequiresRestart:
-      return " [restart]";
-    case rex::cvar::Lifecycle::InitOnly:
-      return " [init-only]";
-  }
-  return "";
-}
-
 static Color LifecycleColor(rex::cvar::Lifecycle lc, const SettingsStyle& style) {
   switch (lc) {
     case rex::cvar::Lifecycle::HotReload:

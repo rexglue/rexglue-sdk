@@ -205,7 +205,7 @@ X_STATUS WaitOn(Runtime& runtime, X_HANDLE handle, [[maybe_unused]] u32 wait_rea
   }
   const auto timeout = TimeoutOf(opt_timeout);
   ThreadRecord::CheckStop();
-  ThreadRecord::NoteKernelTime();
+  ThreadRecord::WriteKernelTime();
   auto result = WaitGuest(
       alertable, timeout,
       [&](std::chrono::milliseconds left) {
@@ -230,7 +230,7 @@ X_STATUS SignalAndWaitOn(Runtime& runtime, X_HANDLE signal_handle, X_HANDLE wait
     return X_STATUS_INVALID_HANDLE;
   }
   ThreadRecord::CheckStop();
-  ThreadRecord::NoteKernelTime();
+  ThreadRecord::WriteKernelTime();
   bool signaled = false;
   auto result = WaitGuest(
       alertable, TimeoutOf(opt_timeout),
@@ -269,7 +269,7 @@ X_STATUS WaitOnMany(Runtime& runtime, std::span<const X_HANDLE> handles, u32 wai
   }
   const auto timeout = TimeoutOf(opt_timeout);
   ThreadRecord::CheckStop();
-  ThreadRecord::NoteKernelTime();
+  ThreadRecord::WriteKernelTime();
   if (wait_type) {
     auto result = WaitGuest(
         alertable, timeout,

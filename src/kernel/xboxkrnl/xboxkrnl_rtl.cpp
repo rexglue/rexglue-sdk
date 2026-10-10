@@ -9,9 +9,6 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-// Disable warnings about unused parameters for kernel functions
-#pragma GCC diagnostic ignored "-Wunused-parameter"
-
 #include <algorithm>
 #include <string>
 
@@ -340,7 +337,7 @@ struct X_RTL_CRITICAL_SECTION {
 #pragma pack(pop)
 REX_STATIC_ASSERT_SIZE(X_RTL_CRITICAL_SECTION, 28);
 
-void RtlInitializeCriticalSection(X_RTL_CRITICAL_SECTION* cs, uint32_t cs_ptr) {
+void RtlInitializeCriticalSection(X_RTL_CRITICAL_SECTION* cs) {
   cs->header.type = 1;      // EventSynchronizationObject (auto reset)
   cs->header.absolute = 0;  // spin count div 256
   cs->header.signal_state = 0;
@@ -354,11 +351,10 @@ void RtlInitializeCriticalSection_entry(ppc_ptr_t<X_RTL_CRITICAL_SECTION> cs) {
                "RtlInitializeCriticalSection "
                "cs={:#x}",
                cs.guest_address());
-  RtlInitializeCriticalSection(cs, cs.guest_address());
+  RtlInitializeCriticalSection(cs);
 }
 
-X_STATUS RtlInitializeCriticalSectionAndSpinCount(X_RTL_CRITICAL_SECTION* cs, uint32_t cs_ptr,
-                                                  uint32_t spin_count) {
+X_STATUS RtlInitializeCriticalSectionAndSpinCount(X_RTL_CRITICAL_SECTION* cs, uint32_t spin_count) {
   // Spin count is rounded up to 256 intervals then packed in.
   // uint32_t spin_count_div_256 = (uint32_t)floor(spin_count / 256.0f + 0.5f);
   uint32_t spin_count_div_256 = (spin_count + 255) >> 8;
@@ -378,7 +374,7 @@ X_STATUS RtlInitializeCriticalSectionAndSpinCount(X_RTL_CRITICAL_SECTION* cs, ui
 
 u32 RtlInitializeCriticalSectionAndSpinCount_entry(ppc_ptr_t<X_RTL_CRITICAL_SECTION> cs,
                                                    u32 spin_count) {
-  return RtlInitializeCriticalSectionAndSpinCount(cs, cs.guest_address(), spin_count);
+  return RtlInitializeCriticalSectionAndSpinCount(cs, spin_count);
 }
 
 void RtlEnterCriticalSection_entry(ppc_ptr_t<X_RTL_CRITICAL_SECTION> cs) {

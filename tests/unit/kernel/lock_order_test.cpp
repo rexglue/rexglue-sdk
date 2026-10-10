@@ -100,8 +100,8 @@ TEST_CASE("an interrupt lock comes before every other rank", "[lock_order]") {
     }
     CHECK(g_violations == 0);
     std::lock_guard identity_lock(identity);
-    rex::platform::NoteLockAcquire(LockRank::Interrupt);
-    rex::platform::NoteLockRelease(LockRank::Interrupt);
+    rex::platform::PushLockRank(LockRank::Interrupt);
+    rex::platform::PopLockRank(LockRank::Interrupt);
     CHECK(g_violations == 1);
   }
   rex::platform::SetLockOrderHandler(previous);

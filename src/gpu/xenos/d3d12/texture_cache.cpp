@@ -1638,7 +1638,7 @@ bool D3D12TextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture, 
   }
   UINT64 copy_buffer_size = 0;
   D3D12_PLACED_SUBRESOURCE_FOOTPRINT host_slice_layout_base;
-  UINT64 host_slice_size_base;
+  u64 host_slice_size_base = 0;
   // Indexing is the same as for guest stored mips:
   // 1...min(level_last, level_packed) if level_packed is not 0, or only 0 if
   // level_packed == 0.
@@ -1752,9 +1752,6 @@ bool D3D12TextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture, 
     command_list.D3DSetComputeRootDescriptorTable(1, descriptor_unscaled_source.second);
   }
 
-  // Submit the copy buffer population commands.
-
-  auto& cbuffer_pool = command_processor_.GetConstantBufferPool();
   LoadConstants load_constants;
   // 3 bits for each.
   REX_ASSERT(texture_resolution_scale_x <= 7);

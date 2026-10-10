@@ -546,7 +546,7 @@ std::unique_lock<std::mutex> Presenter::ConsumeGuestOutput(
   if (properties_out) {
     *properties_out = properties;
   }
-  return std::move(consumer_lock);
+  return consumer_lock;
 }
 
 Presenter::GuestOutputPaintFlow Presenter::GetGuestOutputPaintFlow(
@@ -961,7 +961,8 @@ bool Presenter::RequestPaintOrConnectionRecoveryViaWindow(bool force_ui_thread_p
   return true;
 }
 
-void Presenter::UpdateSurfaceMonitorFromUIThread(bool old_monitor_potentially_disconnected) {
+void Presenter::UpdateSurfaceMonitorFromUIThread(
+    [[maybe_unused]] bool old_monitor_potentially_disconnected) {
   // For dropping the monitor when the window is closing and is losing its
   // surface, the existence of `surface_` (which implies that `host_` exists
   // too) must be the condition for a non-null monitor, not only the existence
@@ -1160,7 +1161,7 @@ Microsoft::WRL::ComPtr<IDXGIOutput> Presenter::GetDXGIOutputForMonitor(IDXGIFact
          ++output_index) {
       DXGI_OUTPUT_DESC output_desc;
       if (SUCCEEDED(output->GetDesc(&output_desc)) && output_desc.Monitor == monitor) {
-        return std::move(output);
+        return output;
       }
     }
   }

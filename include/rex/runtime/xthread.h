@@ -417,8 +417,9 @@ class REX_RUNTIME_API ThreadRecord : public rex::NonCopyable {
    */
   static void Sleep(std::chrono::microseconds duration);
 
-  /** Writes the CPU time of the calling thread to its KTHREAD. Does nothing without a record. */
-  static void NoteKernelTime();
+  /** Writes the CPU time of the calling thread to its KTHREAD. Does nothing without a
+   * `ThreadRecord`. */
+  static void WriteKernelTime();
 
   /**
    * Returns the last error of the calling thread.

@@ -79,6 +79,11 @@ function(rexglue_configure_target target_name)
     target_compile_definitions(${target_name} PRIVATE
         REXGLUE_BUILD_CONFIG="$<CONFIG>")
 
+    if(MSVC)
+        target_compile_options(${target_name} PRIVATE
+            $<$<COMPILE_LANGUAGE:CXX>:/EHs> $<$<COMPILE_LANGUAGE:CXX>:/EHc->)
+    endif()
+
     if(UNIX AND NOT APPLE)
         set_target_properties(${target_name} PROPERTIES
             INSTALL_RPATH "$ORIGIN"

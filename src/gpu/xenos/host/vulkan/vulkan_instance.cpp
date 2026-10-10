@@ -367,7 +367,7 @@ std::unique_ptr<VulkanInstance> VulkanInstance::Create(const bool with_surface,
     for (bool* const extension_enablement : enabled_layer_extension_enablement_bools) {
       *extension_enablement = false;
     }
-    for (const std::pair<std::string, bool*>& requested_layer : requested_layers) {
+    for (const std::pair<const std::string, bool*>& requested_layer : requested_layers) {
       *requested_layer.second = false;
     }
     instance_create_info.enabledLayerCount = 0;

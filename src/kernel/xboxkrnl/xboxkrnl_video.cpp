@@ -9,9 +9,6 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-// Disable warnings about unused parameters for kernel functions
-#pragma GCC diagnostic ignored "-Wunused-parameter"
-
 #include <algorithm>
 #include <atomic>
 #include <string>
@@ -223,7 +220,7 @@ u32 VdQueryVideoFlags_entry() {
   return flags;
 }
 
-u32 VdSetDisplayMode_entry(u32 flags) {
+u32 VdSetDisplayMode_entry([[maybe_unused]] u32 flags) {
   // Often 0x40000000.
 
   // 0?ccf000 00000000 00000000 000000r0
@@ -241,13 +238,16 @@ u32 VdSetDisplayMode_entry(u32 flags) {
   return 0;
 }
 
-u32 VdSetDisplayModeOverride_entry(u32 unk0, u32 unk1, f64 refresh_rate, u32 unk3, u32 unk4) {
+u32 VdSetDisplayModeOverride_entry([[maybe_unused]] u32 unk0, [[maybe_unused]] u32 unk1,
+                                   [[maybe_unused]] f64 refresh_rate, [[maybe_unused]] u32 unk3,
+                                   [[maybe_unused]] u32 unk4) {
   // refresh_rate = 0, 50 or 59.9
   return 0;
 }
 
-u32 VdInitializeEngines_entry(u32 unk0, u32 callback, mapped_void arg, mapped_u32 pfp_ptr,
-                              mapped_u32 me_ptr) {
+u32 VdInitializeEngines_entry([[maybe_unused]] u32 unk0, [[maybe_unused]] u32 callback,
+                              [[maybe_unused]] mapped_void arg, [[maybe_unused]] mapped_u32 pfp_ptr,
+                              [[maybe_unused]] mapped_u32 me_ptr) {
   // r3 = 0x4F810000
   // r4 = function ptr (cleanup callback?)
   // r5 = function arg
@@ -268,7 +268,7 @@ u32 VdGetGraphicsAsicID_entry() {
   return 0x11;
 }
 
-u32 VdEnableDisableClockGating_entry(u32 enabled) {
+u32 VdEnableDisableClockGating_entry([[maybe_unused]] u32 enabled) {
   // Ignored, as it doesn't matter.
   return 0;
 }
@@ -316,7 +316,7 @@ void VdGetSystemCommandBuffer_entry(mapped_void p0_ptr, mapped_void p1_ptr) {
   memory::store<be_u32>(p1_ptr, 0xBEEF0001);
 }
 
-void VdSetSystemCommandBufferGpuIdentifierAddress_entry(mapped_void unk) {
+void VdSetSystemCommandBufferGpuIdentifierAddress_entry([[maybe_unused]] mapped_void unk) {
   // r3 = 0x2B10(d3d?) + 8
 }
 
@@ -326,16 +326,16 @@ void VdSetSystemCommandBufferGpuIdentifierAddress_entry(mapped_void unk) {
 // no op?
 
 u32 VdInitializeScalerCommandBuffer_entry(
-    u32 scaler_source_xy,                                      // ((uint16_t)y << 16) | (uint16_t)x
-    u32 scaler_source_wh,                                      // ((uint16_t)h << 16) | (uint16_t)w
-    u32 scaled_output_xy,                                      // ((uint16_t)y << 16) | (uint16_t)x
-    u32 scaled_output_wh,                                      // ((uint16_t)h << 16) | (uint16_t)w
-    u32 front_buffer_wh,                                       // ((uint16_t)h << 16) | (uint16_t)w
-    u32 vertical_filter_type,                                  // 7?
-    ppc_ptr_t<X_D3DFILTER_PARAMETERS> vertical_filter_params,  //
-    u32 horizontal_filter_type,                                // 7?
-    ppc_ptr_t<X_D3DFILTER_PARAMETERS> horizontal_filter_params,  //
-    mapped_void unk9,                                            //
+    [[maybe_unused]] u32 scaler_source_xy,      // ((u16)y << 16) | (u16)x
+    [[maybe_unused]] u32 scaler_source_wh,      // ((u16)h << 16) | (u16)w
+    [[maybe_unused]] u32 scaled_output_xy,      // ((u16)y << 16) | (u16)x
+    [[maybe_unused]] u32 scaled_output_wh,      // ((u16)h << 16) | (u16)w
+    [[maybe_unused]] u32 front_buffer_wh,       // ((u16)h << 16) | (u16)w
+    [[maybe_unused]] u32 vertical_filter_type,  // 7?
+    [[maybe_unused]] ppc_ptr_t<X_D3DFILTER_PARAMETERS> vertical_filter_params,    //
+    [[maybe_unused]] u32 horizontal_filter_type,                                  // 7?
+    [[maybe_unused]] ppc_ptr_t<X_D3DFILTER_PARAMETERS> horizontal_filter_params,  //
+    [[maybe_unused]] mapped_void unk9,                                            //
     mapped_void dest_ptr,  // Points to the first 80000000h where the memcpy
                            // sources from.
     u32 dest_count         // Count in words.
@@ -357,7 +357,8 @@ struct BufferScaling {
   be_u16 bb_height;
 };
 
-u32 VdCallGraphicsNotificationRoutines_entry(u32 unk0, ppc_ptr_t<BufferScaling> args_ptr) {
+u32 VdCallGraphicsNotificationRoutines_entry(u32 unk0,
+                                             [[maybe_unused]] ppc_ptr_t<BufferScaling> args_ptr) {
   REX_ASSERT(unk0 == 1);
 
   // TODO(benvanik): what does this mean, I forget:
@@ -371,7 +372,7 @@ u32 VdIsHSIOTrainingSucceeded_entry() {
   return 1;
 }
 
-u32 VdPersistDisplay_entry(u32 unk0, mapped_u32 unk1_ptr) {
+u32 VdPersistDisplay_entry([[maybe_unused]] u32 unk0, mapped_u32 unk1_ptr) {
   // unk1_ptr needs to be populated with a pointer passed to
   // MmFreePhysicalMemory(1, *unk1_ptr).
   if (unk1_ptr) {
@@ -385,20 +386,22 @@ u32 VdPersistDisplay_entry(u32 unk0, mapped_u32 unk1_ptr) {
   return 1;
 }
 
-u32 VdRetrainEDRAMWorker_entry(u32 unk0) {
+u32 VdRetrainEDRAMWorker_entry([[maybe_unused]] u32 unk0) {
   return 0;
 }
 
-u32 VdRetrainEDRAM_entry(u32 unk0, u32 unk1, u32 unk2, u32 unk3, u32 unk4, u32 unk5) {
+u32 VdRetrainEDRAM_entry([[maybe_unused]] u32 unk0, [[maybe_unused]] u32 unk1,
+                         [[maybe_unused]] u32 unk2, [[maybe_unused]] u32 unk3,
+                         [[maybe_unused]] u32 unk4, [[maybe_unused]] u32 unk5) {
   return 0;
 }
 
-void VdSwap_entry(mapped_void buffer_ptr,      // ptr into primary ringbuffer
-                  mapped_void fetch_ptr,       // frontbuffer Direct3D 9 texture header fetch
-                  mapped_void unk2,            // system writeback ptr
-                  mapped_void unk3,            // buffer from VdGetSystemCommandBuffer
-                  mapped_void unk4,            // from VdGetSystemCommandBuffer (0xBEEF0001)
-                  mapped_u32 frontbuffer_ptr,  // ptr to frontbuffer address
+void VdSwap_entry(mapped_void buffer_ptr,             // ptr into primary ringbuffer
+                  mapped_void fetch_ptr,              // frontbuffer Direct3D 9 texture header fetch
+                  [[maybe_unused]] mapped_void unk2,  // system writeback ptr
+                  [[maybe_unused]] mapped_void unk3,  // buffer from VdGetSystemCommandBuffer
+                  [[maybe_unused]] mapped_void unk4,  // from VdGetSystemCommandBuffer (0xBEEF0001)
+                  mapped_u32 frontbuffer_ptr,         // ptr to frontbuffer address
                   mapped_u32 texture_format_ptr, mapped_u32 color_space_ptr, mapped_u32 width,
                   mapped_u32 height) {
   // All of these parameters are REQUIRED.
@@ -501,7 +504,7 @@ void RegisterVideoExports(ModuleObject& module, Runtime& runtime) {
   uint32_t pVdHSIOCalibrationLock = memory->SystemHeapAlloc(28, 32, runtime::kSystemHeapPhysical);
   KernelModuleSetVariable(module, 0x01C1, pVdHSIOCalibrationLock);
   auto hsio_lock = memory->TranslateVirtual<X_RTL_CRITICAL_SECTION*>(pVdHSIOCalibrationLock);
-  RtlInitializeCriticalSectionAndSpinCount(hsio_lock, pVdHSIOCalibrationLock, 10000);
+  RtlInitializeCriticalSectionAndSpinCount(hsio_lock, 10000);
 }
 
 }  // namespace rex::kernel::xboxkrnl

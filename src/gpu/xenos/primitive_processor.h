@@ -11,7 +11,6 @@
  */
 
 #include <algorithm>
-#include <climits>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -309,18 +308,10 @@ class PrimitiveProcessor {
   static SimdVectorU16 ReplicateU16(uint16_t value) { return vdupq_n_u16(value); }
   static SimdVectorU32 ReplicateU32(uint32_t value) { return vdupq_n_u32(value); }
   static SimdVectorU16 LoadAlignedVectorU16(const uint16_t* source) {
-#if REX_COMPILER_MSVC
-    return vld1q_u16_ex(source, sizeof(uint16x8_t) * CHAR_BIT);
-#else
     return vld1q_u16(std::assume_aligned<sizeof(uint16x8_t)>(source));
-#endif
   }
   static SimdVectorU32 LoadAlignedVectorU32(const uint32_t* source) {
-#if REX_COMPILER_MSVC
-    return vld1q_u32_ex(source, sizeof(uint16x8_t) * CHAR_BIT);
-#else
     return vld1q_u32(std::assume_aligned<sizeof(uint32x4_t)>(source));
-#endif
   }
   static void StoreUnalignedVectorU16(uint16_t* dest, SimdVectorU16 source) {
     vst1q_u16(dest, source);

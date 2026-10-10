@@ -876,7 +876,6 @@ bool D3D12CommandProcessor::SetupContext() {
 
   const gpu::d3d12::D3D12Provider& provider = GetD3D12Provider();
   ID3D12Device* device = provider.GetDevice();
-  ID3D12CommandQueue* direct_queue = provider.GetDirectQueue();
 
   fence_completion_event_ = CreateEvent(nullptr, FALSE, FALSE, nullptr);
   if (fence_completion_event_ == nullptr) {
@@ -2289,7 +2288,6 @@ bool D3D12CommandProcessor::IssueDraw([[maybe_unused]] xenos::PrimitiveType prim
   REX_PROFILE_SCOPE("gpu");
 #endif  // REXGPU_FINE_GRAINED_DRAW_SCOPES
 
-  ID3D12Device* device = GetD3D12Provider().GetDevice();
   const xenos::RegisterFile& regs = *register_file_;
 
   xenos::EDRAMMode edram_mode = regs.Get<xenos::reg::RB_MODECONTROL>().edram_mode;
@@ -3620,8 +3618,6 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
   auto rb_stencilrefmask_bf =
       regs.Get<xenos::reg::RB_STENCILREFMASK>(xenos::Register::RB_STENCILREFMASK_BF);
   auto rb_surface_info = regs.Get<xenos::reg::RB_SURFACE_INFO>();
-  auto sq_context_misc = regs.Get<xenos::reg::SQ_CONTEXT_MISC>();
-  auto sq_program_cntl = regs.Get<xenos::reg::SQ_PROGRAM_CNTL>();
   auto vgt_draw_initiator = regs.Get<xenos::reg::VGT_DRAW_INITIATOR>();
   uint32_t vgt_indx_offset = regs.Get<xenos::reg::VGT_INDX_OFFSET>().indx_offset;
   uint32_t vgt_max_vtx_indx = regs.Get<xenos::reg::VGT_MAX_VTX_INDX>().max_indx;

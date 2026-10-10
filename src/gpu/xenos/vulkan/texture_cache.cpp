@@ -1143,8 +1143,6 @@ std::unique_ptr<TextureCache::Texture> VulkanTextureCache::CreateTexture(Texture
   }
 
   const gpu::vulkan::VulkanDevice* const vulkan_device = command_processor_.GetVulkanDevice();
-  const gpu::vulkan::VulkanDevice::Functions& dfn = vulkan_device->functions();
-  const VkDevice device = vulkan_device->device();
 
   bool is_3d = key.dimension == xenos::DataDimension::k3D;
   uint32_t depth_or_array_size = key.GetDepthOrArraySize();

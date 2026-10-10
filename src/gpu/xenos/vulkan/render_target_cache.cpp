@@ -4128,7 +4128,6 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(TransferShaderKey key)
                     spv::NoPrecision));
           }
           spv::Block* depth24_to_depth32_header = builder.getBuildPoint();
-          spv::Id depth24_to_depth32_convert_id = spv::NoResult;
           spv::Block* depth24_to_depth32_merge = nullptr;
           spv::Id host_depth24 = spv::NoResult;
           if (host_depth32 != spv::NoResult) {

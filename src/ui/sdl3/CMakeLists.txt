@@ -44,10 +44,8 @@ function(rex_ui_sdl3_configure target_name)
         VISIBILITY_INLINES_HIDDEN ON
     )
     rex_target_pch(${target_name} <rex/math.h>)
-    target_include_directories(${target_name} PRIVATE
-        ${REXGLUE_ROOT}/src
-        ${REXGLUE_ROOT}/thirdparty/stb
-    )
+    target_include_directories(${target_name} PRIVATE ${REXGLUE_ROOT}/src)
+    target_include_directories(${target_name} SYSTEM PRIVATE ${REXGLUE_ROOT}/thirdparty/stb)
     target_link_libraries(${target_name} PRIVATE
         rex-core rex-ui rex-gpu rex-imgui rex-runtime SDL3::SDL3)
     if(APPLE)

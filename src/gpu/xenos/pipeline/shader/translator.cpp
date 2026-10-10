@@ -450,7 +450,7 @@ void Shader::GatherTextureFetchInformation(const TextureFetchInstruction& op,
       // Continue.
       break;
   }
-  binding.binding_index = -1;
+  binding.binding_index = SIZE_MAX;
   binding.fetch_constant = binding.fetch_instr.operands[1].storage_index;
 
   // Check and see if this fetch constant was previously used...
@@ -461,7 +461,7 @@ void Shader::GatherTextureFetchInformation(const TextureFetchInstruction& op,
     }
   }
 
-  if (binding.binding_index == -1) {
+  if (binding.binding_index == SIZE_MAX) {
     // Assign a unique binding index.
     binding.binding_index = unique_texture_bindings++;
   }
