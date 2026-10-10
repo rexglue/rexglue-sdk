@@ -90,6 +90,9 @@ u32 NtCreateFile_entry(mapped_u32 handle_out, u32 desired_access,
     // object_attrs is not optional, though some titles pass null.
     return X_STATUS_INVALID_PARAMETER;
   }
+  if (creation_disposition > std::to_underlying(filesystem::Disposition::kOverwriteIf)) {
+    return X_STATUS_INVALID_PARAMETER;
+  }
   REX_ASSERT(handle_out != nullptr);
 
   auto object_name =

@@ -371,7 +371,7 @@ Result<void> InitAchievements(const InitAchievementsOptions& opts, const CLICont
   }
 
   const rex::runtime::XLanguage lang =
-      db.GetExistingLanguage(static_cast<rex::runtime::XLanguage>(opts.language));
+      db.GetExistingLanguage(rex::runtime::ToXLanguage(opts.language));
   const auto achievements = db.GetAchievements();
   const u32 title_id = runtime->content_manager().title_id();
 

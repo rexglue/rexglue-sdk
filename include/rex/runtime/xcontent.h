@@ -18,6 +18,7 @@
 #include <cstring>
 #include <string>
 #include <string_view>
+#include <utility>
 
 #include <rex/assert.h>
 #include <rex/math.h>
@@ -31,7 +32,7 @@ namespace rex::runtime {
 using XNotificationID = u32;
 
 /** Title language ids. */
-enum class XLanguage : u32 {
+enum class XLanguage : u8 {
   kInvalid = 0,      /**< No language. */
   kEnglish = 1,      /**< English. */
   kJapanese = 2,     /**< Japanese. */
@@ -47,6 +48,17 @@ enum class XLanguage : u32 {
   kRussian = 12,     /**< Russian. */
   kMaxLanguages = 13 /**< Number of language ids, not a language. */
 };
+
+/**
+ * Converts a language id read from guest memory, a file or a config value.
+ *
+ * @param value The language id.
+ * @return The language, or XLanguage::kInvalid when value names none.
+ */
+constexpr XLanguage ToXLanguage(u32 value) noexcept {
+  return value < std::to_underlying(XLanguage::kMaxLanguages) ? static_cast<XLanguage>(value)
+                                                              : XLanguage::kInvalid;
+}
 
 /** Type of a content package. */
 enum class XContentType : u32 {

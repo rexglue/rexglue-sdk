@@ -245,3 +245,18 @@ TEST_CASE("files: full attributes report the size", "[char][files]") {
     CHECK(c.Load32(info + 0x2C) == 16);
   });
 }
+
+TEST_CASE("files: a creation disposition above overwrite if is an invalid parameter",
+          "[char][files]") {
+  KernelFixture fixture([](const std::filesystem::path& root) { WriteScratch(root, "d.bin", 4); });
+  MountScratch(fixture);
+  fixture.RunOnGuestThread([](Caller& c) {
+    const u32 handle_ptr = c.Alloc(4);
+    const u32 status_block = c.Alloc(8);
+    for (const u32 disposition : {6u, 0x101u}) {
+      CHECK(c.Kernel("NtCreateFile", {handle_ptr, kReadWriteAccess, c.Attributes("scratch:\\d.bin"),
+                                      status_block, 0, 0, 3, disposition, 0x20}) ==
+            rex::X_STATUS_INVALID_PARAMETER);
+    }
+  });
+}

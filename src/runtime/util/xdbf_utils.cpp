@@ -119,7 +119,7 @@ XLanguage XDBFGameData::default_language() const {
   }
   auto xstc = reinterpret_cast<const XdbfXstc*>(block.buffer);
   REX_ASSERT(xstc->magic == kXdbfSignatureXstc);
-  return static_cast<XLanguage>(static_cast<u32>(xstc->default_language));
+  return ToXLanguage(xstc->default_language);
 }
 
 std::string XDBFGameData::title() const {

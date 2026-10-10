@@ -40,3 +40,12 @@ TEST_CASE("a full file name stops at the field end before a guard page", "[xcont
 
   rex::memory::DeallocFixed(base, 0, DeallocationType::kRelease);
 }
+
+TEST_CASE("a language id outside the language range converts to no language", "[xcontent]") {
+  using rex::runtime::ToXLanguage;
+  using rex::runtime::XLanguage;
+  STATIC_REQUIRE(ToXLanguage(1) == XLanguage::kEnglish);
+  STATIC_REQUIRE(ToXLanguage(12) == XLanguage::kRussian);
+  STATIC_REQUIRE(ToXLanguage(13) == XLanguage::kInvalid);
+  STATIC_REQUIRE(ToXLanguage(0x101) == XLanguage::kInvalid);
+}

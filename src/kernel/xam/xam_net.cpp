@@ -520,6 +520,21 @@ u32 NetDll_inet_addr_entry(mapped_string addr_ptr) {
 }
 
 u32 NetDll_socket_entry([[maybe_unused]] u32 caller, u32 af, u32 type, u32 protocol) {
+  if (af > 0xFF) {
+    // WSAEAFNOSUPPORT
+    ThreadRecord::SetLastError(0x273F);
+    return -1;
+  }
+  if (type > 0xFF) {
+    // WSAESOCKTNOSUPPORT
+    ThreadRecord::SetLastError(0x273C);
+    return -1;
+  }
+  if (protocol > 0xFF) {
+    // WSAEPROTONOSUPPORT
+    ThreadRecord::SetLastError(0x273B);
+    return -1;
+  }
   auto& table = runtime::Current().object_table();
   X_HANDLE handle = X_INVALID_HANDLE_VALUE;
   auto added = table.Emplace<SocketObject>(AddOptions{}, SocketAddressFamily(static_cast<u32>(af)),

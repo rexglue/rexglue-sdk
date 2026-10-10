@@ -605,7 +605,7 @@ u32 XamUserCreateAchievementEnumerator_entry([[maybe_unused]] u32 title_id, u32 
     const util::XDBFGameData db = runtime.content_manager().title_xdbf();
     if (db.is_valid()) {
       const XLanguage language = db.GetExistingLanguage(
-          static_cast<XLanguage>(runtime::Current().config().runtime.kernel.user_language));
+          ToXLanguage(runtime::Current().config().runtime.kernel.user_language));
       for (const util::XdbfAchievementTableEntry& entry : db.GetAchievements()) {
         auto item = AchievementItems::AchievementDetails{
             entry.id,
