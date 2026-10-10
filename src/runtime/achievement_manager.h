@@ -26,7 +26,8 @@ namespace rex::runtime {
 class REX_RUNTIME_API AchievementManager final : public IAchievementManager {
  public:
   [[nodiscard]] Result<void> RegisterAchievement(AchievementInfo info) override;
-  void RegisterAchievements(std::span<const AchievementInfo> achievements) override;
+  [[nodiscard]] Result<void> RegisterAchievements(
+      std::span<const AchievementInfo> achievements) override;
   void ReplaceAchievements(std::vector<AchievementInfo> achievements) override;
   [[nodiscard]] Result<void> LoadMetadataFile(const std::filesystem::path& path) override;
   std::vector<AchievementInfo> ListAchievements() const override;

@@ -62,11 +62,13 @@ class IAchievementManager {
   [[nodiscard]] virtual Result<void> RegisterAchievement(AchievementInfo info) = 0;
 
   /**
-   * Adds or replaces several achievements.
+   * Adds or replaces several achievements, all or none.
    *
    * @param achievements The achievements.
+   * @return Ok, or a Validation error for an id 0 entry, in which case nothing is registered.
    */
-  virtual void RegisterAchievements(std::span<const AchievementInfo> achievements) = 0;
+  [[nodiscard]] virtual Result<void> RegisterAchievements(
+      std::span<const AchievementInfo> achievements) = 0;
 
   /**
    * Replaces the whole catalog.

@@ -9,6 +9,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
+#include <array>
 #include <algorithm>
 #include <atomic>
 #include <chrono>
@@ -110,10 +111,27 @@ flags = 4
   CHECK(second->label == "Recomp override");
 }
 
+REX_TEST_CASE("an achievement batch with an invalid id registers nothing", "[achievements]") {
+  rex::runtime::AchievementManager manager;
+  const std::array batch{MakeAchievement(1, "One"), MakeAchievement(0, "Reserved"),
+                         MakeAchievement(2, "Two")};
+  const auto registered = manager.RegisterAchievements(batch);
+  REQUIRE_FALSE(registered);
+  CHECK(registered.error().category == rex::ErrorCategory::Validation);
+  CHECK(manager.ListAchievements().empty());
+}
+
+REX_TEST_CASE("a valid achievement batch registers every entry", "[achievements]") {
+  rex::runtime::AchievementManager manager;
+  const std::array batch{MakeAchievement(1, "One"), MakeAchievement(2, "Two")};
+  REQUIRE(manager.RegisterAchievements(batch));
+  CHECK(manager.ListAchievements().size() == 2);
+}
+
 REX_TEST_CASE("achievement notifications follow the unlock request", "[achievements]") {
   rex::runtime::AchievementManager manager;
-  (void)manager.RegisterAchievement(MakeAchievement(1, "One"));
-  (void)manager.RegisterAchievement(MakeAchievement(2, "Two"));
+  REQUIRE(manager.RegisterAchievement(MakeAchievement(1, "One")).has_value());
+  REQUIRE(manager.RegisterAchievement(MakeAchievement(2, "Two")).has_value());
 
   int notification_count = 0;
   auto notification_listener = manager.RegisterNotificationCallback(

@@ -39,10 +39,24 @@ Result<void> AchievementManager::RegisterAchievement(AchievementInfo info) {
   return Ok();
 }
 
-void AchievementManager::RegisterAchievements(std::span<const AchievementInfo> achievements) {
-  for (const auto& achievement : achievements) {
-    (void)RegisterAchievement(achievement);
+Result<void> AchievementManager::RegisterAchievements(
+    std::span<const AchievementInfo> achievements) {
+  if (std::ranges::any_of(achievements, [](const AchievementInfo& info) { return info.id == 0; })) {
+    REXLOG_WARN(system, "Achievement store: refusing a batch with achievement ID 0");
+    return Err(ErrorCategory::Validation, "achievement ID 0 is reserved");
   }
+
+  std::lock_guard lock(mutex_);
+  for (const auto& info : achievements) {
+    auto existing = std::ranges::find(achievements_, info.id,
+                                      [](const AchievementInfo& current) { return current.id; });
+    if (existing != achievements_.end()) {
+      *existing = info;
+    } else {
+      achievements_.push_back(info);
+    }
+  }
+  return Ok();
 }
 
 void AchievementManager::ReplaceAchievements(std::vector<AchievementInfo> achievements) {
