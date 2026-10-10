@@ -514,6 +514,31 @@ TEST_CASE("TerminateTitle stops every thread launched while it runs", "[kernel][
   }
 }
 
+TEST_CASE("A thread created after TerminateTitle leaves the title process thread list as it was",
+          "[kernel][shutdown]") {
+  KernelFixture fixture;
+  fixture.runtime().TerminateTitle();
+
+  rex::runtime::ThreadState host_state(0, 0, 0, fixture.runtime().memory(), &fixture.runtime());
+  rex::runtime::ThreadState* previous = rex::runtime::ThreadState::Get();
+  rex::runtime::ThreadState::Bind(&host_state);
+  Caller c(*host_state.context(), fixture.runtime().memory()->virtual_membase(), fixture.runtime());
+
+  const u32 process = fixture.runtime().GetTitleProcess();
+  const u32 count = c.Load32(process + 0x14);
+  const u32 flink = c.Load32(process + 0x04);
+  const u32 blink = c.Load32(process + 0x08);
+  const u32 handle_ptr = c.Alloc(4);
+  const u32 body = Caller::PutBodyForTest([](Caller&) {});
+  CHECK(c.Kernel("ExCreateThread", {handle_ptr, 0x10000, 0, 0, Caller::start_thunk, body, 0}) ==
+        rex::X_STATUS_PROCESS_IS_TERMINATING);
+  CHECK(c.Load32(process + 0x14) == count);
+  CHECK(c.Load32(process + 0x04) == flink);
+  CHECK(c.Load32(process + 0x08) == blink);
+
+  rex::runtime::ThreadState::Bind(previous);
+}
+
 TEST_CASE("TerminateTitle from a guest thread ends the caller last", "[kernel][shutdown]") {
   KernelFixture fixture;
   auto terminator = std::make_shared<std::atomic<u32>>(0);

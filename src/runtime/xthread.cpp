@@ -454,6 +454,7 @@ X_STATUS ThreadRecord::Create() {
   }
 
   if (!thread_) {
+    (void)runtime_->object_table().Close(handle_);
     REX_FAIL(system, X_STATUS_NO_MEMORY, "CreateThread failed");
   }
 
@@ -480,6 +481,7 @@ void ThreadRecord::Abandon() {
   abandoned_.store(true, std::memory_order_release);
   thread_->Resume();
   rex::platform::Wait(thread_.get(), false, std::chrono::milliseconds::max());
+  WriteExitState(X_STATUS_PROCESS_IS_TERMINATING);
 }
 
 void ThreadRecord::WriteKernelTime() {

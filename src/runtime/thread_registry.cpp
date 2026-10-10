@@ -56,6 +56,7 @@ Result<X_HANDLE> ThreadRegistry::Launch(std::unique_ptr<ThreadRecord> record) {
   raw->SetHandle(*handle);
   const X_STATUS status = raw->Create();
   if (XFAILED(status)) {
+    raw->WriteExitState(status);
     (void)table_.Close(*handle);
     return Err<X_HANDLE>(StatusError(status));
   }
