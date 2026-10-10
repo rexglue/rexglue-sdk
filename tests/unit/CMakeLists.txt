@@ -96,6 +96,7 @@ add_executable(unit_tests
     ui/null_user_interface_test.cpp
     ui/prompt_test.cpp
     ui/xam_prompt_test.cpp
+    ui/settings_overlay_test.cpp
     ui/style_test.cpp
     ui/imgui_style_test.cpp
     ui/title_app_test.cpp
