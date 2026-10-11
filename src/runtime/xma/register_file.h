@@ -14,13 +14,13 @@
 #include <cstdint>
 #include <cstdlib>
 
+#include <rex/types.h>
+
 namespace rex::runtime {
 
 struct XMARegister {
 #define REX_XMA_REGISTER(index, name) static const u32 name = index;
 #include "runtime/xma/register_table.inc"
-
-#include <rex/types.h>
 #undef REX_XMA_REGISTER
 };
 

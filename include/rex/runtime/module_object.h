@@ -146,7 +146,7 @@ struct ModuleObject : public rex::NonCopyable {
   std::string name; /**< Module name, the file name of `path` for a user module. */
   std::string path; /**< Absolute path of the file a user module was loaded from. */
   /** Loaded XEX or ELF image of a user module, owned by this object, null until loaded. */
-  rex::runtime::Module* processor_module = nullptr;
+  std::unique_ptr<rex::runtime::Module> processor_module;
 
   /** Guest address of the module X_LDR_DATA_TABLE_ENTRY, the HMODULE titles use. */
   u32 hmodule_ptr = 0;

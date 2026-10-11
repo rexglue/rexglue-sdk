@@ -11,6 +11,7 @@
 
 #include <algorithm>
 #include <rex/logging.h>
+#include <rex/math.h>
 #include <rex/runtime/elf_module.h>
 #include <rex/runtime/function_dispatcher.h>
 #include <rex/types.h>

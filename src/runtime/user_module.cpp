@@ -72,7 +72,7 @@ X_HANDLE CreateUserModule(Runtime& runtime) {
 
 rex::runtime::XEXModule* ModuleObject::xex() const {
   REX_ASSERT(user.module_format == ModuleFormat::XEX);
-  return static_cast<rex::runtime::XEXModule*>(processor_module);
+  return static_cast<rex::runtime::XEXModule*>(processor_module.get());
 }
 
 u32 ModuleObject::title_id() const {
@@ -162,7 +162,7 @@ X_STATUS ModuleObject::LoadFromMemory(Runtime& runtime, const void* addr, size_t
       return X_STATUS_UNSUCCESSFUL;
     }
 
-    processor_module = xex_module.release();
+    processor_module = std::move(xex_module);
     return X_STATUS_PENDING;
   }
 
@@ -176,7 +176,7 @@ X_STATUS ModuleObject::LoadFromMemory(Runtime& runtime, const void* addr, size_t
     user.stack_size = 1024 * 1024;
     user.is_dll_module = false;
 
-    processor_module = elf_module.release();
+    processor_module = std::move(elf_module);
     return X_STATUS_SUCCESS;
   }
 
