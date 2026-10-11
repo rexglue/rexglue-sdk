@@ -9,7 +9,8 @@
  */
 
 #include "rex_test.h"
-#include "support/temp_folder.h"
+#include "file_text.h"
+#include "temp_folder.h"
 
 #include <filesystem>
 #include <fstream>
@@ -85,6 +86,17 @@ REX_TEST_CASE("The init manifest writes each module's guest path", "[codegen]") 
   rex::codegen::TemplateRegistry registry;
   const auto text = registry.render("init/manifest_toml", data.dump());
   REQUIRE(text.find("guest_path = \"game/a.xex\"") != std::string::npos);
+}
+
+REX_TEST_CASE("An init module entry renders from an override directory", "[codegen]") {
+  rex::test::TempFolder folder;
+  fs::create_directories(folder.path / "init");
+  rex::test::WriteText(folder.path / "init" / "manifest_module.inja",
+                       "override {{ m.guest_path }}\n");
+  rex::codegen::TemplateRegistry registry;
+  registry.loadOverrides(folder.path);
+  const nlohmann::json data = {{"m", ModuleData()}};
+  REQUIRE(registry.render("init/manifest_module", data.dump()) == "override game/a.xex\n");
 }
 
 REX_TEST_CASE("An init module entry loads back with its guest path", "[codegen]") {

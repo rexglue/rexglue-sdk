@@ -325,6 +325,8 @@ Result<void> InitModule(const InitModuleOptions& opts, const CLIContext& ctx) {
                                   {"file_path", xexRel},
                                   {"out_directory_path", "generated/" + moduleName}}}};
   rex::codegen::TemplateRegistry registry;
+  if (!opts.template_dir.empty())
+    registry.loadOverrides(opts.template_dir);
   content += "\n" + registry.render("init/manifest_module", entry.dump());
 
   REX_TRY_VOID(rex::platform::WriteWholeFile(
@@ -576,12 +578,13 @@ void RegisterInit(CLI::App& parent, const CLIContext& ctx, DeferredAction& pendi
       return InitProject(opts, ctx);
     };
   });
-  mod->callback([modArgs, &ctx, &pending]() {
-    pending = [modArgs, &ctx]() -> Result<void> {
+  mod->callback([args, modArgs, &ctx, &pending]() {
+    pending = [args, modArgs, &ctx]() -> Result<void> {
       InitModuleOptions opts;
       opts.app_root = modArgs->app_root;
       opts.xex_path = modArgs->xex_path;
       opts.guest_path = modArgs->guest_path;
+      opts.template_dir = args->template_dir;
       return InitModule(opts, ctx);
     };
   });
