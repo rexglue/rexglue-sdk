@@ -32,7 +32,7 @@ using namespace xenos::ucode;
 
 // x# is accessed only by mov, CBs are indexed CBx[y][z] with x binding, y register, z vector.
 
-DxbcShaderTranslator::DxbcShaderTranslator(gpu::GraphicsProvider::GpuVendorID vendor_id,
+DXBCShaderTranslator::DXBCShaderTranslator(gpu::GraphicsProvider::GPUVendorID vendor_id,
                                            bool bindless_resources_used, bool edram_rov_used,
                                            bool gamma_render_target_as_unorm8,
                                            bool msaa_2x_supported, u32 draw_resolution_scale_x,
@@ -52,9 +52,9 @@ DxbcShaderTranslator::DxbcShaderTranslator(gpu::GraphicsProvider::GpuVendorID ve
   shader_code_.reserve(8192);
   shader_object_.reserve(16384);
 }
-DxbcShaderTranslator::~DxbcShaderTranslator() = default;
+DXBCShaderTranslator::~DXBCShaderTranslator() = default;
 
-std::vector<u8> DxbcShaderTranslator::CreateDepthOnlyPixelShader() {
+std::vector<u8> DXBCShaderTranslator::CreateDepthOnlyPixelShader() {
   is_depth_only_pixel_shader_ = true;
   Shader shader(xenos::ShaderType::kPixel, 0, nullptr, 0);
   shader.AnalyzeUcode(instruction_disassembly_buffer_);
@@ -64,7 +64,7 @@ std::vector<u8> DxbcShaderTranslator::CreateDepthOnlyPixelShader() {
   return translation.translated_binary();
 }
 
-u64 DxbcShaderTranslator::GetDefaultVertexShaderModification(
+u64 DXBCShaderTranslator::GetDefaultVertexShaderModification(
     u32 dynamic_addressable_register_count,
     Shader::HostVertexShaderType host_vertex_shader_type) const {
   Modification shader_modification;
@@ -75,7 +75,7 @@ u64 DxbcShaderTranslator::GetDefaultVertexShaderModification(
   return shader_modification.value;
 }
 
-u64 DxbcShaderTranslator::GetDefaultPixelShaderModification(
+u64 DXBCShaderTranslator::GetDefaultPixelShaderModification(
     u32 dynamic_addressable_register_count) const {
   Modification shader_modification;
   shader_modification.pixel.dynamic_addressable_register_count = dynamic_addressable_register_count;
@@ -84,7 +84,7 @@ u64 DxbcShaderTranslator::GetDefaultPixelShaderModification(
   return shader_modification.value;
 }
 
-void DxbcShaderTranslator::Reset() {
+void DXBCShaderTranslator::Reset() {
   ShaderTranslator::Reset();
 
   shader_code_.clear();
@@ -139,19 +139,19 @@ void DxbcShaderTranslator::Reset() {
   statistics_ = {};
 }
 
-u32 DxbcShaderTranslator::GetModificationRegisterCount() const {
-  Modification modification = GetDxbcShaderModification();
+u32 DXBCShaderTranslator::GetModificationRegisterCount() const {
+  Modification modification = GetDXBCShaderModification();
   return is_vertex_shader() ? modification.vertex.dynamic_addressable_register_count
                             : modification.pixel.dynamic_addressable_register_count;
 }
 
-bool DxbcShaderTranslator::UseSwitchForControlFlow() const {
+bool DXBCShaderTranslator::UseSwitchForControlFlow() const {
   // Intel HD Graphics 4000 crashes with switch.
   return REXCVAR_GET(::rex::gpu::cvars::dxbc_switch) &&
-         vendor_id_ != gpu::GraphicsProvider::GpuVendorID::kIntel;
+         vendor_id_ != gpu::GraphicsProvider::GPUVendorID::kIntel;
 }
 
-u32 DxbcShaderTranslator::PushSystemTemp(u32 zero_mask, u32 count) {
+u32 DXBCShaderTranslator::PushSystemTemp(u32 zero_mask, u32 count) {
   u32 register_index = system_temp_count_current_;
   if (!is_depth_only_pixel_shader_ && !current_shader().uses_register_dynamic_addressing()) {
     register_index += register_count();
@@ -167,12 +167,12 @@ u32 DxbcShaderTranslator::PushSystemTemp(u32 zero_mask, u32 count) {
   return register_index;
 }
 
-void DxbcShaderTranslator::PopSystemTemp(u32 count) {
+void DXBCShaderTranslator::PopSystemTemp(u32 count) {
   REX_ASSERT(count <= system_temp_count_current_);
   system_temp_count_current_ -= std::min(count, system_temp_count_current_);
 }
 
-void DxbcShaderTranslator::PWLGammaToLinear(dxbc::Assembler& a, u32 target_temp,
+void DXBCShaderTranslator::PWLGammaToLinear(dxbc::Assembler& a, u32 target_temp,
                                             u32 target_temp_component, u32 source_temp,
                                             u32 source_temp_component, bool source_pre_saturated,
                                             u32 temp1, u32 temp1_component, u32 temp2,
@@ -216,7 +216,7 @@ void DxbcShaderTranslator::PWLGammaToLinear(dxbc::Assembler& a, u32 target_temp,
   a.OpMul(target_dest, target_src, dxbc::Src::LF(1.0f / 1023.0f));
 }
 
-void DxbcShaderTranslator::PreSaturatedLinearToPWLGamma(
+void DXBCShaderTranslator::PreSaturatedLinearToPWLGamma(
     dxbc::Assembler& a, u32 target_temp, u32 target_temp_component, u32 source_temp,
     u32 source_temp_component, u32 temp_or_target, u32 temp_or_target_component,
     u32 temp_non_target, u32 temp_non_target_component) {
@@ -258,7 +258,7 @@ void DxbcShaderTranslator::PreSaturatedLinearToPWLGamma(
   a.OpMAd(target_dest, target_src, dxbc::Src::LF(1.0f / 255.0f), temp_non_target_src);
 }
 
-void DxbcShaderTranslator::RemapAndConvertVertexIndices(u32 dest_temp, u32 dest_temp_components,
+void DXBCShaderTranslator::RemapAndConvertVertexIndices(u32 dest_temp, u32 dest_temp_components,
                                                         const dxbc::Src& src) {
   dxbc::Dest dest(dxbc::Dest::R(dest_temp, dest_temp_components));
   dxbc::Src dest_src(dxbc::Src::R(dest_temp));
@@ -280,7 +280,7 @@ void DxbcShaderTranslator::RemapAndConvertVertexIndices(u32 dest_temp, u32 dest_
   a_.OpUToF(dest, dest_src);
 }
 
-void DxbcShaderTranslator::StartVertexShader_LoadVertexIndex() {
+void DXBCShaderTranslator::StartVertexShader_LoadVertexIndex() {
   if (register_count() < 1) {
     return;
   }
@@ -341,7 +341,7 @@ void DxbcShaderTranslator::StartVertexShader_LoadVertexIndex() {
   }
 }
 
-void DxbcShaderTranslator::StartVertexOrDomainShader() {
+void DXBCShaderTranslator::StartVertexOrDomainShader() {
   bool uses_register_dynamic_addressing = current_shader().uses_register_dynamic_addressing();
 
   for (u32 i = 0; i < register_count(); ++i) {
@@ -356,7 +356,7 @@ void DxbcShaderTranslator::StartVertexOrDomainShader() {
 
   // x# registers are accessible only by mov load or store, so compute in a temporary.
   Shader::HostVertexShaderType host_vertex_shader_type =
-      GetDxbcShaderModification().vertex.host_vertex_shader_type;
+      GetDXBCShaderModification().vertex.host_vertex_shader_type;
   switch (host_vertex_shader_type) {
     case Shader::HostVertexShaderType::kVertex:
       StartVertexShader_LoadVertexIndex();
@@ -451,7 +451,7 @@ void DxbcShaderTranslator::StartVertexOrDomainShader() {
   }
 }
 
-void DxbcShaderTranslator::StartPixelShader() {
+void DXBCShaderTranslator::StartPixelShader() {
   if (edram_rov_used_) {
     StartPixelShader_LoadROVParameters();
 
@@ -473,7 +473,7 @@ void DxbcShaderTranslator::StartPixelShader() {
   }
 
   bool uses_register_dynamic_addressing = current_shader().uses_register_dynamic_addressing();
-  Modification shader_modification = GetDxbcShaderModification();
+  Modification shader_modification = GetDXBCShaderModification();
 
   u32 param_gen_interpolator = (shader_modification.pixel.param_gen_enable &&
                                 shader_modification.pixel.param_gen_interpolator < register_count())
@@ -579,8 +579,8 @@ void DxbcShaderTranslator::StartPixelShader() {
   }
 }
 
-void DxbcShaderTranslator::StartTranslation() {
-  Modification shader_modification = GetDxbcShaderModification();
+void DXBCShaderTranslator::StartTranslation() {
+  Modification shader_modification = GetDXBCShaderModification();
   u32 interpolator_register_mask = GetModificationInterpolatorMask();
   u32 interpolator_register_count = rex::bit_count(interpolator_register_mask);
   if (is_vertex_shader()) {
@@ -693,7 +693,7 @@ void DxbcShaderTranslator::StartTranslation() {
   }
 }
 
-void DxbcShaderTranslator::CompleteVertexOrDomainShader() {
+void DXBCShaderTranslator::CompleteVertexOrDomainShader() {
   u32 temp = PushSystemTemp();
   dxbc::Dest temp_x_dest(dxbc::Dest::R(temp, 0b0001));
   dxbc::Src temp_x_src(dxbc::Src::R(temp, dxbc::Src::kXXXX));
@@ -719,7 +719,7 @@ void DxbcShaderTranslator::CompleteVertexOrDomainShader() {
            dxbc::Src::R(system_temp_position_, dxbc::Src::kWWWW));
   a_.OpEndIf();
 
-  Modification shader_modification = GetDxbcShaderModification();
+  Modification shader_modification = GetDXBCShaderModification();
   u32 clip_distance_next_component = 0;
   u32 cull_distance_next_component = shader_modification.GetVertexClipDistanceCount();
 
@@ -783,7 +783,7 @@ void DxbcShaderTranslator::CompleteVertexOrDomainShader() {
   PopSystemTemp();
 }
 
-void DxbcShaderTranslator::CompleteShaderCode() {
+void DXBCShaderTranslator::CompleteShaderCode() {
   if (!is_depth_only_pixel_shader_) {
     CloseExecConditionals();
     if (UseSwitchForControlFlow()) {
@@ -831,7 +831,7 @@ void DxbcShaderTranslator::CompleteShaderCode() {
   }
 }
 
-std::vector<u8> DxbcShaderTranslator::CompleteTranslation() {
+std::vector<u8> DXBCShaderTranslator::CompleteTranslation() {
   // shader_object_.resize() invalidates pointers and zeroes the new memory.
 
   CompleteShaderCode();
@@ -839,7 +839,7 @@ std::vector<u8> DxbcShaderTranslator::CompleteTranslation() {
   shader_object_.clear();
 
   // The container holds 6 or 7 blobs, RDEF, ISGN, optional PCSG, OSGN, SHEX, SFI0 and STAT.
-  u32 blob_count = 6 + static_cast<u32>(IsDxbcDomainShader());
+  u32 blob_count = 6 + static_cast<u32>(IsDXBCDomainShader());
   shader_object_.resize(sizeof(dxbc::ContainerHeader) / sizeof(u32) + blob_count);
 
   u32 blob_offset_position_dwords = sizeof(dxbc::ContainerHeader) / sizeof(u32);
@@ -872,7 +872,7 @@ std::vector<u8> DxbcShaderTranslator::CompleteTranslation() {
                              shader_object_[blob_offset_position_dwords++];
   }
 
-  if (IsDxbcDomainShader()) {
+  if (IsDXBCDomainShader()) {
     shader_object_[blob_offset_position_dwords] =
         static_cast<u32>(blob_position_dwords * sizeof(u32));
     shader_object_.resize(blob_position_dwords + kBlobHeaderSizeDwords);
@@ -960,19 +960,19 @@ std::vector<u8> DxbcShaderTranslator::CompleteTranslation() {
   return shader_object_bytes;
 }
 
-void DxbcShaderTranslator::PostTranslation() {
+void DXBCShaderTranslator::PostTranslation() {
   Shader::Translation& translation = current_translation();
   if (!translation.is_valid()) {
     return;
   }
-  DxbcShader* dxbc_shader = dynamic_cast<DxbcShader*>(&translation.shader());
+  DXBCShader* dxbc_shader = dynamic_cast<DXBCShader*>(&translation.shader());
   if (dxbc_shader &&
       !dxbc_shader->bindings_setup_entered_.test_and_set(std::memory_order_relaxed)) {
     dxbc_shader->texture_bindings_.clear();
     dxbc_shader->texture_bindings_.reserve(texture_bindings_.size());
     dxbc_shader->used_texture_mask_ = 0;
     for (const TextureBinding& translator_binding : texture_bindings_) {
-      DxbcShader::TextureBinding& shader_binding = dxbc_shader->texture_bindings_.emplace_back();
+      DXBCShader::TextureBinding& shader_binding = dxbc_shader->texture_bindings_.emplace_back();
       std::memset(&shader_binding, 0, sizeof(shader_binding));
       shader_binding.bindless_descriptor_index = translator_binding.bindless_descriptor_index;
       shader_binding.fetch_constant = translator_binding.fetch_constant;
@@ -983,7 +983,7 @@ void DxbcShaderTranslator::PostTranslation() {
     dxbc_shader->sampler_bindings_.clear();
     dxbc_shader->sampler_bindings_.reserve(sampler_bindings_.size());
     for (const SamplerBinding& translator_binding : sampler_bindings_) {
-      DxbcShader::SamplerBinding& shader_binding = dxbc_shader->sampler_bindings_.emplace_back();
+      DXBCShader::SamplerBinding& shader_binding = dxbc_shader->sampler_bindings_.emplace_back();
       shader_binding.bindless_descriptor_index = translator_binding.bindless_descriptor_index;
       shader_binding.fetch_constant = translator_binding.fetch_constant;
       shader_binding.mag_filter = translator_binding.mag_filter;
@@ -994,7 +994,7 @@ void DxbcShaderTranslator::PostTranslation() {
   }
 }
 
-void DxbcShaderTranslator::EmitInstructionDisassembly() {
+void DXBCShaderTranslator::EmitInstructionDisassembly() {
   if (!emit_source_map_) {
     return;
   }
@@ -1016,7 +1016,7 @@ void DxbcShaderTranslator::EmitInstructionDisassembly() {
   dest[length] = '\0';
 }
 
-dxbc::Src DxbcShaderTranslator::LoadOperand(const InstructionOperand& operand,
+dxbc::Src DXBCShaderTranslator::LoadOperand(const InstructionOperand& operand,
                                             u32 needed_components, bool& temp_pushed_out) {
   temp_pushed_out = false;
 
@@ -1098,7 +1098,7 @@ dxbc::Src DxbcShaderTranslator::LoadOperand(const InstructionOperand& operand,
   return src.WithModifiers(operand.is_absolute_value, operand.is_negated);
 }
 
-void DxbcShaderTranslator::StoreResult(const InstructionResult& result, const dxbc::Src& src,
+void DXBCShaderTranslator::StoreResult(const InstructionResult& result, const dxbc::Src& src,
                                        bool can_store_memexport_address) {
   u32 used_write_mask = result.GetUsedWriteMask();
   if (!used_write_mask) {
@@ -1233,7 +1233,7 @@ void DxbcShaderTranslator::StoreResult(const InstructionResult& result, const dx
   }
 }
 
-void DxbcShaderTranslator::UpdateExecConditionalsAndEmitDisassembly(
+void DXBCShaderTranslator::UpdateExecConditionalsAndEmitDisassembly(
     ParsedExecInstruction::Type type, u32 bool_constant_index, bool condition) {
   bool merge = false;
   if (type == ParsedExecInstruction::Type::kConditional) {
@@ -1284,7 +1284,7 @@ void DxbcShaderTranslator::UpdateExecConditionalsAndEmitDisassembly(
   }
 }
 
-void DxbcShaderTranslator::CloseExecConditionals() {
+void DXBCShaderTranslator::CloseExecConditionals() {
   CloseInstructionPredication();
   if (cf_exec_bool_constant_ != kCfExecBoolConstantNone || cf_exec_predicated_) {
     a_.OpEndIf();
@@ -1294,7 +1294,7 @@ void DxbcShaderTranslator::CloseExecConditionals() {
   cf_exec_predicate_written_ = false;
 }
 
-void DxbcShaderTranslator::UpdateInstructionPredicationAndEmitDisassembly(bool predicated,
+void DXBCShaderTranslator::UpdateInstructionPredicationAndEmitDisassembly(bool predicated,
                                                                           bool condition) {
   if (!predicated) {
     CloseInstructionPredication();
@@ -1322,19 +1322,19 @@ void DxbcShaderTranslator::UpdateInstructionPredicationAndEmitDisassembly(bool p
   cf_instruction_predicate_condition_ = condition;
 }
 
-void DxbcShaderTranslator::CloseInstructionPredication() {
+void DXBCShaderTranslator::CloseInstructionPredication() {
   if (cf_instruction_predicate_if_open_) {
     a_.OpEndIf();
     cf_instruction_predicate_if_open_ = false;
   }
 }
 
-void DxbcShaderTranslator::JumpToLabel(u32 address) {
+void DXBCShaderTranslator::JumpToLabel(u32 address) {
   a_.OpMov(dxbc::Dest::R(system_temp_ps_pc_p0_a0_, 0b0010), dxbc::Src::LU(address));
   a_.OpContinue();
 }
 
-void DxbcShaderTranslator::ProcessLabel(u32 cf_index) {
+void DXBCShaderTranslator::ProcessLabel(u32 cf_index) {
   if (cf_index == 0) {
     return;
   }
@@ -1354,7 +1354,7 @@ void DxbcShaderTranslator::ProcessLabel(u32 cf_index) {
   }
 }
 
-void DxbcShaderTranslator::ProcessExecInstructionBegin(const ParsedExecInstruction& instr) {
+void DXBCShaderTranslator::ProcessExecInstructionBegin(const ParsedExecInstruction& instr) {
   if (emit_source_map_) {
     instruction_disassembly_buffer_.Reset();
     instr.Disassemble(&instruction_disassembly_buffer_);
@@ -1362,7 +1362,7 @@ void DxbcShaderTranslator::ProcessExecInstructionBegin(const ParsedExecInstructi
   UpdateExecConditionalsAndEmitDisassembly(instr.type, instr.bool_constant_index, instr.condition);
 }
 
-void DxbcShaderTranslator::ProcessExecInstructionEnd(const ParsedExecInstruction& instr) {
+void DXBCShaderTranslator::ProcessExecInstructionEnd(const ParsedExecInstruction& instr) {
   if (instr.is_end) {
     CloseInstructionPredication();
     if (UseSwitchForControlFlow()) {
@@ -1374,7 +1374,7 @@ void DxbcShaderTranslator::ProcessExecInstructionEnd(const ParsedExecInstruction
   }
 }
 
-void DxbcShaderTranslator::ProcessLoopStartInstruction(const ParsedLoopStartInstruction& instr) {
+void DXBCShaderTranslator::ProcessLoopStartInstruction(const ParsedLoopStartInstruction& instr) {
   CloseExecConditionals();
 
   if (emit_source_map_) {
@@ -1416,7 +1416,7 @@ void DxbcShaderTranslator::ProcessLoopStartInstruction(const ParsedLoopStartInst
   }
 }
 
-void DxbcShaderTranslator::ProcessLoopEndInstruction(const ParsedLoopEndInstruction& instr) {
+void DXBCShaderTranslator::ProcessLoopEndInstruction(const ParsedLoopEndInstruction& instr) {
   CloseExecConditionals();
 
   if (emit_source_map_) {
@@ -1472,7 +1472,7 @@ void DxbcShaderTranslator::ProcessLoopEndInstruction(const ParsedLoopEndInstruct
   a_.OpEndIf();
 }
 
-void DxbcShaderTranslator::ProcessJumpInstruction(const ParsedJumpInstruction& instr) {
+void DXBCShaderTranslator::ProcessJumpInstruction(const ParsedJumpInstruction& instr) {
   if (emit_source_map_) {
     instruction_disassembly_buffer_.Reset();
     instr.Disassemble(&instruction_disassembly_buffer_);
@@ -1493,7 +1493,7 @@ void DxbcShaderTranslator::ProcessJumpInstruction(const ParsedJumpInstruction& i
   JumpToLabel(instr.target_address);
 }
 
-void DxbcShaderTranslator::ProcessAllocInstruction(const ParsedAllocInstruction& instr,
+void DXBCShaderTranslator::ProcessAllocInstruction(const ParsedAllocInstruction& instr,
                                                    u8 export_eM) {
   bool start_memexport =
       instr.type == AllocType::kMemory && current_shader().memexport_eM_written();
@@ -1524,8 +1524,8 @@ void DxbcShaderTranslator::ProcessAllocInstruction(const ParsedAllocInstruction&
   }
 }
 
-const DxbcShaderTranslator::ShaderRdefType DxbcShaderTranslator::rdef_types_[static_cast<size_t>(
-    DxbcShaderTranslator::ShaderRdefTypeIndex::kCount)] = {
+const DXBCShaderTranslator::ShaderRdefType DXBCShaderTranslator::rdef_types_[static_cast<size_t>(
+    DXBCShaderTranslator::ShaderRdefTypeIndex::kCount)] = {
     {"float", dxbc::RdefVariableClass::kScalar, dxbc::RdefVariableType::kFloat, 1, 1, 0,
      ShaderRdefTypeIndex::kUnknown},
     {"float2", dxbc::RdefVariableClass::kVector, dxbc::RdefVariableType::kFloat, 1, 2, 0,
@@ -1556,9 +1556,9 @@ const DxbcShaderTranslator::ShaderRdefType DxbcShaderTranslator::rdef_types_[sta
      ShaderRdefTypeIndex::kUint4},
 };
 
-const DxbcShaderTranslator::SystemConstantRdef
-    DxbcShaderTranslator::system_constant_rdef_[static_cast<size_t>(
-        DxbcShaderTranslator::SystemConstants::Index::kCount)] = {
+const DXBCShaderTranslator::SystemConstantRdef
+    DXBCShaderTranslator::system_constant_rdef_[static_cast<size_t>(
+        DXBCShaderTranslator::SystemConstants::Index::kCount)] = {
         {"xe_flags", ShaderRdefTypeIndex::kUint, sizeof(u32)},
         {"xe_tessellation_factor_range", ShaderRdefTypeIndex::kFloat2, sizeof(f32) * 2},
         {"xe_line_loop_closing_index", ShaderRdefTypeIndex::kUint, sizeof(u32)},
@@ -1608,7 +1608,7 @@ const DxbcShaderTranslator::SystemConstantRdef
         {"xe_edram_blend_constant", ShaderRdefTypeIndex::kFloat4, sizeof(f32) * 4},
 };
 
-void DxbcShaderTranslator::WriteResourceDefinition() {
+void DXBCShaderTranslator::WriteResourceDefinition() {
   // shader_object_.resize() invalidates pointers and zeroes the new memory.
 
   u32 blob_position_dwords = static_cast<u32>(shader_object_.size());
@@ -2073,9 +2073,9 @@ void DxbcShaderTranslator::WriteResourceDefinition() {
     header.input_bind_count = (bindings_end_position_dwords - bindings_position_dwords) *
                               sizeof(u32) / sizeof(dxbc::RdefInputBind);
     header.input_binds_ptr = (bindings_position_dwords - blob_position_dwords) * sizeof(u32);
-    if (IsDxbcVertexShader()) {
+    if (IsDXBCVertexShader()) {
       header.shader_model = dxbc::RdefShaderModel::kVertexShader5_1;
-    } else if (IsDxbcDomainShader()) {
+    } else if (IsDXBCDomainShader()) {
       header.shader_model = dxbc::RdefShaderModel::kDomainShader5_1;
     } else {
       REX_ASSERT(is_pixel_shader());
@@ -2092,14 +2092,14 @@ void DxbcShaderTranslator::WriteResourceDefinition() {
   }
 }
 
-void DxbcShaderTranslator::WriteInputSignature() {
+void DXBCShaderTranslator::WriteInputSignature() {
   // shader_object_.resize() invalidates pointers and zeroes the new memory.
   u32 blob_position = static_cast<u32>(shader_object_.size());
   shader_object_.resize(shader_object_.size() + sizeof(dxbc::Signature) / sizeof(u32));
   u32 parameter_count = 0;
   constexpr size_t kParameterDwords = sizeof(dxbc::SignatureParameter) / sizeof(u32);
 
-  if (IsDxbcVertexShader()) {
+  if (IsDXBCVertexShader()) {
     size_t vertex_id_position = shader_object_.size();
     shader_object_.resize(shader_object_.size() + kParameterDwords);
     ++parameter_count;
@@ -2120,7 +2120,7 @@ void DxbcShaderTranslator::WriteInputSignature() {
       vertex_id.semantic_name_ptr = semantic_offset;
     }
     semantic_offset += dxbc::AppendAlignedString(shader_object_, "SV_VertexID");
-  } else if (IsDxbcDomainShader()) {
+  } else if (IsDXBCDomainShader()) {
     size_t control_point_index_position = shader_object_.size();
     shader_object_.resize(shader_object_.size() + kParameterDwords);
     ++parameter_count;
@@ -2264,8 +2264,8 @@ void DxbcShaderTranslator::WriteInputSignature() {
   }
 }
 
-void DxbcShaderTranslator::WritePatchConstantSignature() {
-  REX_ASSERT(IsDxbcDomainShader());
+void DXBCShaderTranslator::WritePatchConstantSignature() {
+  REX_ASSERT(IsDXBCDomainShader());
   // shader_object_.resize() invalidates pointers and zeroes the new memory.
   u32 blob_position = static_cast<u32>(shader_object_.size());
   shader_object_.resize(shader_object_.size() + sizeof(dxbc::Signature) / sizeof(u32));
@@ -2278,7 +2278,7 @@ void DxbcShaderTranslator::WritePatchConstantSignature() {
   u32 tess_factor_inside_count = 0;
   dxbc::Name tess_factor_inside_system_value = dxbc::Name::kUndefined;
   Shader::HostVertexShaderType host_vertex_shader_type =
-      GetDxbcShaderModification().vertex.host_vertex_shader_type;
+      GetDXBCShaderModification().vertex.host_vertex_shader_type;
   switch (host_vertex_shader_type) {
     case Shader::HostVertexShaderType::kTriangleDomainCPIndexed:
     case Shader::HostVertexShaderType::kTriangleDomainPatchIndexed:
@@ -2356,14 +2356,14 @@ void DxbcShaderTranslator::WritePatchConstantSignature() {
   }
 }
 
-void DxbcShaderTranslator::WriteOutputSignature() {
+void DXBCShaderTranslator::WriteOutputSignature() {
   // shader_object_.resize() invalidates pointers and zeroes the new memory.
   u32 blob_position = static_cast<u32>(shader_object_.size());
   shader_object_.resize(shader_object_.size() + sizeof(dxbc::Signature) / sizeof(u32));
   u32 parameter_count = 0;
   constexpr size_t kParameterDwords = sizeof(dxbc::SignatureParameter) / sizeof(u32);
 
-  Modification shader_modification = GetDxbcShaderModification();
+  Modification shader_modification = GetDXBCShaderModification();
 
   if (is_vertex_shader()) {
     size_t interpolator_position = shader_object_.size();
@@ -2598,13 +2598,13 @@ void DxbcShaderTranslator::WriteOutputSignature() {
   }
 }
 
-void DxbcShaderTranslator::WriteShaderCode() {
+void DXBCShaderTranslator::WriteShaderCode() {
   u32 blob_position_dwords = static_cast<u32>(shader_object_.size());
 
   dxbc::ProgramType program_type;
-  if (IsDxbcVertexShader()) {
+  if (IsDXBCVertexShader()) {
     program_type = dxbc::ProgramType::kVertexShader;
-  } else if (IsDxbcDomainShader()) {
+  } else if (IsDXBCDomainShader()) {
     program_type = dxbc::ProgramType::kDomainShader;
   } else {
     REX_ASSERT(is_pixel_shader());
@@ -2613,10 +2613,10 @@ void DxbcShaderTranslator::WriteShaderCode() {
   shader_object_.push_back(dxbc::VersionToken(program_type, 5, 1));
   shader_object_.push_back(0);
 
-  Modification shader_modification = GetDxbcShaderModification();
+  Modification shader_modification = GetDXBCShaderModification();
 
   u32 control_point_count = 1;
-  if (IsDxbcDomainShader()) {
+  if (IsDXBCDomainShader()) {
     dxbc::TessellatorDomain tessellator_domain = dxbc::TessellatorDomain::kTriangle;
     switch (shader_modification.vertex.host_vertex_shader_type) {
       case Shader::HostVertexShaderType::kTriangleDomainCPIndexed:
@@ -2771,7 +2771,7 @@ void DxbcShaderTranslator::WriteShaderCode() {
   }
 
   if (is_vertex_shader()) {
-    if (IsDxbcDomainShader()) {
+    if (IsDXBCDomainShader()) {
       if (in_domain_location_used_) {
         ao_.OpDclInput(dxbc::Dest::VDomain(in_domain_location_used_));
       }
@@ -2867,7 +2867,7 @@ void DxbcShaderTranslator::WriteShaderCode() {
         ao_.OpDclOutput(dxbc::Dest::OMask());
       }
       if (is_writing_float24_depth || shader_writes_depth) {
-        if (!shader_writes_depth && GetDxbcShaderModification().pixel.depth_stencil_mode ==
+        if (!shader_writes_depth && GetDXBCShaderModification().pixel.depth_stencil_mode ==
                                         Modification::DepthStencilMode::kFloat24Truncating) {
           ao_.OpDclOutput(dxbc::Dest::ODepthLE());
         } else {

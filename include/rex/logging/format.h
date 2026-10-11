@@ -37,7 +37,7 @@ struct LineFormat {
 };
 
 /** 1 message as sinks receive it. The views are valid for the duration of ISink::Write. */
-struct Record {
+struct Message {
   Level level = Level::kInfo;                 /**< Message level. */
   std::string_view category;                  /**< Category name. */
   std::string_view text;                      /**< Formatted message. */
@@ -49,10 +49,10 @@ struct Record {
 /**
  * Renders a message as 1 line without a line break.
  *
- * @param record The message.
+ * @param message The message.
  * @param format What to write around the message.
  * @return The line. Color is written as ANSI SGR codes.
  */
-REX_API std::string FormatLine(const Record& record, const LineFormat& format);
+REX_API std::string FormatLine(const Message& message, const LineFormat& format);
 
 }  // namespace rex::log

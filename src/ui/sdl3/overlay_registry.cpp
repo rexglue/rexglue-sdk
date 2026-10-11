@@ -24,15 +24,15 @@ struct StandardEntry {
 };
 
 template <typename T>
-std::unique_ptr<ImGuiDialog> MakeStandard(const ModuleOverlayContext& context) {
+std::unique_ptr<ImGuiDialog> BuildStandard(const ModuleOverlayContext& context) {
   return std::make_unique<T>(context);
 }
 
 constexpr StandardEntry kStandardFactories[] = {
-    {"debug", &MakeStandard<DebugOverlayDialog>},
-    {"console", &MakeStandard<ConsoleDialog>},
-    {"settings", &MakeStandard<SettingsDialog>},
-    {"achievements", &MakeStandard<AchievementsOverlayDialog>},
+    {"debug", &BuildStandard<DebugOverlayDialog>},
+    {"console", &BuildStandard<ConsoleDialog>},
+    {"settings", &BuildStandard<SettingsDialog>},
+    {"achievements", &BuildStandard<AchievementsOverlayDialog>},
 };
 
 }  // namespace

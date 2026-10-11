@@ -8,8 +8,8 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-REXVK_FUNCTION(vkAcquireNextImageKHR)
-REXVK_FUNCTION(vkCreateSwapchainKHR)
-REXVK_FUNCTION(vkDestroySwapchainKHR)
-REXVK_FUNCTION(vkGetSwapchainImagesKHR)
-REXVK_FUNCTION(vkQueuePresentKHR)
+REX_VK_FUNCTION(vkAcquireNextImageKHR)
+REX_VK_FUNCTION(vkCreateSwapchainKHR)
+REX_VK_FUNCTION(vkDestroySwapchainKHR)
+REX_VK_FUNCTION(vkGetSwapchainImagesKHR)
+REX_VK_FUNCTION(vkQueuePresentKHR)

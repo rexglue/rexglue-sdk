@@ -101,8 +101,8 @@ u32 DescribeCrashAddress(u64 host_address, std::span<char> out) {
              memory->HostToGuestVirtual(std::bit_cast<const void*>(host_address)));
     }
   }
-  if (const ThreadRecord* thread =
-          ThreadRecord::IsInThread() ? ThreadRecord::GetCurrentThread() : nullptr) {
+  if (const KernelThread* thread =
+          KernelThread::IsInThread() ? KernelThread::GetCurrentThread() : nullptr) {
     append("{}guest thread {:08X} {}", cursor == out.data() ? "" : ", ", thread->thread_id(),
            thread->crash_name());
   }
@@ -226,9 +226,9 @@ bool Memory::Initialize() {
                               0x40000000, 4096);
   heaps_.v40000000.Initialize(this, virtual_membase_, runtime::HeapType::kGuestVirtual, 0x40000000,
                               0x40000000 - 0x01000000, 64 * 1024);
-  heaps_.v80000000.Initialize(this, virtual_membase_, runtime::HeapType::kGuestXex, 0x80000000,
+  heaps_.v80000000.Initialize(this, virtual_membase_, runtime::HeapType::kGuestXEX, 0x80000000,
                               0x10000000, 64 * 1024);
-  heaps_.v90000000.Initialize(this, virtual_membase_, runtime::HeapType::kGuestXex, 0x90000000,
+  heaps_.v90000000.Initialize(this, virtual_membase_, runtime::HeapType::kGuestXEX, 0x90000000,
                               0x10000000, 4096);
 
   heaps_.physical.Initialize(this, physical_membase_, runtime::HeapType::kGuestPhysical, 0x00000000,

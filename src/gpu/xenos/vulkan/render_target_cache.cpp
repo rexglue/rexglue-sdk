@@ -30,14 +30,14 @@
 #include "gpu/xenos/pipeline/shader/spirv_translator.h"
 #include "gpu/xenos/pipeline/texture/cache.h"
 #include <rex/xenos/registers.h>
-#include "gpu/xenos/util/draw.h"
+#include "gpu/xenos/draw_state.h"
 #include "gpu/xenos/vulkan/command_processor.h"
 #include "gpu/xenos/vulkan/deferred_command_buffer.h"
 #include "gpu/xenos/vulkan/render_target_cache.h"
 #include <rex/xenos/xenos.h>
 #include <rex/logging.h>
 #include <rex/math.h>
-#include "gpu/xenos/host/vulkan/util.h"
+#include "gpu/xenos/host/vulkan/objects.h"
 
 #include "gpu/xenos/cvar_table.h"
 
@@ -74,7 +74,7 @@ namespace shaders {
 
 const VulkanRenderTargetCache::ResolveCopyShaderCode
     VulkanRenderTargetCache::kResolveCopyShaders[static_cast<size_t>(
-        draw_util::ResolveCopyShaderIndex::kCount)] = {
+        draw_state::ResolveCopyShaderIndex::kCount)] = {
         {shaders::kResolveFast32BPP1x2xMSAACS, sizeof(shaders::kResolveFast32BPP1x2xMSAACS),
          shaders::kResolveFast32BPP1x2xMSAAScaledCS,
          sizeof(shaders::kResolveFast32BPP1x2xMSAAScaledCS)},
@@ -427,23 +427,23 @@ bool VulkanRenderTargetCache::Initialize(u32 shared_memory_binding_count) {
           descriptor_set_layout_sampled_image_x2_);
 
   // 90 MB at 9x resolution scaling, within the minimum maxStorageBufferRange.
-  if (!gpu::vulkan::util::CreateDedicatedAllocationBuffer(
+  if (!gpu::vulkan::objects::CreateDedicatedAllocationBuffer(
           vulkan_device,
           VkDeviceSize{xenos::kEDRAMSizeBytes} * draw_resolution_scale_x() *
               draw_resolution_scale_y(),
           VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT |
               VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
-          gpu::vulkan::util::MemoryPurpose::kDeviceLocal, edram_buffer_, edram_buffer_memory_)) {
+          gpu::vulkan::objects::MemoryPurpose::kDeviceLocal, edram_buffer_, edram_buffer_memory_)) {
     REXLOG_ERROR(gpu, "VulkanRenderTargetCache: Failed to create the EDRAM buffer");
     Shutdown();
     return false;
   }
   if (GetPath() == Path::kPixelShaderInterlock) {
-    edram_buffer_usage_ = EdramBufferUsage::kFragmentReadWrite;
+    edram_buffer_usage_ = EDRAMBufferUsage::kFragmentReadWrite;
   } else {
-    edram_buffer_usage_ = EdramBufferUsage::kFragmentRead;
+    edram_buffer_usage_ = EDRAMBufferUsage::kFragmentRead;
   }
-  edram_buffer_modification_status_ = EdramBufferModificationStatus::kUnmodified;
+  edram_buffer_modification_status_ = EDRAMBufferModificationStatus::kUnmodified;
   VkDescriptorPoolSize edram_storage_buffer_descriptor_pool_size;
   edram_storage_buffer_descriptor_pool_size.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
   edram_storage_buffer_descriptor_pool_size.descriptorCount = 1;
@@ -501,7 +501,7 @@ bool VulkanRenderTargetCache::Initialize(u32 shared_memory_binding_count) {
   bool draw_resolution_scaled = IsDrawResolutionScaled();
 
   VkDescriptorSetLayout resolve_copy_descriptor_set_layouts[kResolveCopyDescriptorSetCount] = {};
-  resolve_copy_descriptor_set_layouts[kResolveCopyDescriptorSetEdram] =
+  resolve_copy_descriptor_set_layouts[kResolveCopyDescriptorSetEDRAM] =
       descriptor_set_layout_storage_buffer_;
   resolve_copy_descriptor_set_layouts[kResolveCopyDescriptorSetDest] =
       command_processor_.GetSingleTransientDescriptorLayout(
@@ -511,8 +511,8 @@ bool VulkanRenderTargetCache::Initialize(u32 shared_memory_binding_count) {
   resolve_copy_push_constant_range.offset = 0;
   // Unscaled resolve may bind all of shared memory, scaled resolve only portions of it.
   resolve_copy_push_constant_range.size =
-      draw_resolution_scaled ? sizeof(draw_util::ResolveCopyShaderConstants::DestRelative)
-                             : sizeof(draw_util::ResolveCopyShaderConstants);
+      draw_resolution_scaled ? sizeof(draw_state::ResolveCopyShaderConstants::DestRelative)
+                             : sizeof(draw_state::ResolveCopyShaderConstants);
   VkPipelineLayoutCreateInfo resolve_copy_pipeline_layout_create_info;
   resolve_copy_pipeline_layout_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
   resolve_copy_pipeline_layout_create_info.pNext = nullptr;
@@ -560,13 +560,13 @@ bool VulkanRenderTargetCache::Initialize(u32 shared_memory_binding_count) {
   create_direct_resolve_pipeline_layout(descriptor_set_layout_sampled_image_x2_,
                                         &direct_resolve_pipeline_layout_depth_);
 
-  for (size_t i = 0; i < size_t(draw_util::ResolveCopyShaderIndex::kCount); ++i) {
-    const draw_util::ResolveCopyShaderInfo& resolve_copy_shader_info =
-        draw_util::resolve_copy_shader_info[i];
+  for (size_t i = 0; i < size_t(draw_state::ResolveCopyShaderIndex::kCount); ++i) {
+    const draw_state::ResolveCopyShaderInfo& resolve_copy_shader_info =
+        draw_state::resolve_copy_shader_info[i];
     const ResolveCopyShaderCode& resolve_copy_shader_code = kResolveCopyShaders[i];
     REX_ASSERT(resolve_copy_shader_code.unscaled && resolve_copy_shader_code.unscaled_size_bytes &&
                resolve_copy_shader_code.scaled && resolve_copy_shader_code.scaled_size_bytes);
-    VkPipeline resolve_copy_pipeline = gpu::vulkan::util::CreateComputePipeline(
+    VkPipeline resolve_copy_pipeline = gpu::vulkan::objects::CreateComputePipeline(
         vulkan_device, resolve_copy_pipeline_layout_,
         draw_resolution_scaled ? resolve_copy_shader_code.scaled
                                : resolve_copy_shader_code.unscaled,
@@ -629,7 +629,7 @@ bool VulkanRenderTargetCache::Initialize(u32 shared_memory_binding_count) {
     };
     for (size_t i = 0; i < rex::countof(host_depth_store_shaders); ++i) {
       const std::pair<const u32*, size_t> host_depth_store_shader = host_depth_store_shaders[i];
-      VkPipeline host_depth_store_pipeline = gpu::vulkan::util::CreateComputePipeline(
+      VkPipeline host_depth_store_pipeline = gpu::vulkan::objects::CreateComputePipeline(
           vulkan_device, host_depth_store_pipeline_layout_, host_depth_store_shader.first,
           host_depth_store_shader.second);
       if (host_depth_store_pipeline == VK_NULL_HANDLE) {
@@ -651,8 +651,8 @@ bool VulkanRenderTargetCache::Initialize(u32 shared_memory_binding_count) {
             sizeof(f32) * 2 * 6 * Transfer::kMaxCutoutBorderRectangles * xenos::kEDRAMTileCount));
 
     transfer_passthrough_vertex_shader_ =
-        gpu::vulkan::util::CreateShaderModule(vulkan_device, shaders::kPassthroughPositionXYVS,
-                                              sizeof(shaders::kPassthroughPositionXYVS));
+        gpu::vulkan::objects::CreateShaderModule(vulkan_device, shaders::kPassthroughPositionXYVS,
+                                                 sizeof(shaders::kPassthroughPositionXYVS));
     if (transfer_passthrough_vertex_shader_ == VK_NULL_HANDLE) {
       REXLOG_ERROR(gpu,
                    "VulkanRenderTargetCache: Failed to create the render target "
@@ -722,7 +722,7 @@ bool VulkanRenderTargetCache::Initialize(u32 shared_memory_binding_count) {
     }
 
     VkDescriptorSetLayout dump_pipeline_layout_descriptor_set_layouts[kDumpDescriptorSetCount];
-    dump_pipeline_layout_descriptor_set_layouts[kDumpDescriptorSetEdram] =
+    dump_pipeline_layout_descriptor_set_layouts[kDumpDescriptorSetEDRAM] =
         descriptor_set_layout_storage_buffer_;
     dump_pipeline_layout_descriptor_set_layouts[kDumpDescriptorSetSource] =
         descriptor_set_layout_sampled_image_;
@@ -773,7 +773,7 @@ bool VulkanRenderTargetCache::Initialize(u32 shared_memory_binding_count) {
     VkPushConstantRange resolve_fsi_clear_push_constant_range;
     resolve_fsi_clear_push_constant_range.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
     resolve_fsi_clear_push_constant_range.offset = 0;
-    resolve_fsi_clear_push_constant_range.size = sizeof(draw_util::ResolveClearShaderConstants);
+    resolve_fsi_clear_push_constant_range.size = sizeof(draw_state::ResolveClearShaderConstants);
     VkPipelineLayoutCreateInfo resolve_fsi_clear_pipeline_layout_create_info;
     resolve_fsi_clear_pipeline_layout_create_info.sType =
         VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
@@ -793,7 +793,7 @@ bool VulkanRenderTargetCache::Initialize(u32 shared_memory_binding_count) {
       Shutdown();
       return false;
     }
-    resolve_fsi_clear_32bpp_pipeline_ = gpu::vulkan::util::CreateComputePipeline(
+    resolve_fsi_clear_32bpp_pipeline_ = gpu::vulkan::objects::CreateComputePipeline(
         vulkan_device, resolve_fsi_clear_pipeline_layout_,
         draw_resolution_scaled ? shaders::kResolveClear32BPPScaledCS
                                : shaders::kResolveClear32BPPCS,
@@ -806,7 +806,7 @@ bool VulkanRenderTargetCache::Initialize(u32 shared_memory_binding_count) {
       Shutdown();
       return false;
     }
-    resolve_fsi_clear_64bpp_pipeline_ = gpu::vulkan::util::CreateComputePipeline(
+    resolve_fsi_clear_64bpp_pipeline_ = gpu::vulkan::objects::CreateComputePipeline(
         vulkan_device, resolve_fsi_clear_pipeline_layout_,
         draw_resolution_scaled ? shaders::kResolveClear64BPPScaledCS
                                : shaders::kResolveClear64BPPCS,
@@ -902,16 +902,16 @@ void VulkanRenderTargetCache::Shutdown(bool from_destructor) {
   // Must precede pool destruction, as ShutdownCommon runs too late from the destructor.
   DestroyAllRenderTargets();
 
-  gpu::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyPipeline, device,
-                                          resolve_fsi_clear_64bpp_pipeline_);
-  gpu::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyPipeline, device,
-                                          resolve_fsi_clear_32bpp_pipeline_);
-  gpu::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyPipelineLayout, device,
-                                          resolve_fsi_clear_pipeline_layout_);
+  gpu::vulkan::objects::DestroyAndNullHandle(dfn.vkDestroyPipeline, device,
+                                             resolve_fsi_clear_64bpp_pipeline_);
+  gpu::vulkan::objects::DestroyAndNullHandle(dfn.vkDestroyPipeline, device,
+                                             resolve_fsi_clear_32bpp_pipeline_);
+  gpu::vulkan::objects::DestroyAndNullHandle(dfn.vkDestroyPipelineLayout, device,
+                                             resolve_fsi_clear_pipeline_layout_);
 
-  gpu::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyFramebuffer, device,
-                                          fsi_framebuffer_.framebuffer);
-  gpu::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyRenderPass, device, fsi_render_pass_);
+  gpu::vulkan::objects::DestroyAndNullHandle(dfn.vkDestroyFramebuffer, device,
+                                             fsi_framebuffer_.framebuffer);
+  gpu::vulkan::objects::DestroyAndNullHandle(dfn.vkDestroyRenderPass, device, fsi_render_pass_);
 
   for (const auto& dump_pipeline_pair : dump_pipelines_) {
     if (dump_pipeline_pair.second != VK_NULL_HANDLE) {
@@ -932,14 +932,14 @@ void VulkanRenderTargetCache::Shutdown(bool from_destructor) {
     }
   }
   direct_resolve_pipelines_.clear();
-  gpu::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyPipelineLayout, device,
-                                          direct_resolve_pipeline_layout_depth_);
-  gpu::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyPipelineLayout, device,
-                                          direct_resolve_pipeline_layout_color_);
-  gpu::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyPipelineLayout, device,
-                                          dump_pipeline_layout_depth_);
-  gpu::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyPipelineLayout, device,
-                                          dump_pipeline_layout_color_);
+  gpu::vulkan::objects::DestroyAndNullHandle(dfn.vkDestroyPipelineLayout, device,
+                                             direct_resolve_pipeline_layout_depth_);
+  gpu::vulkan::objects::DestroyAndNullHandle(dfn.vkDestroyPipelineLayout, device,
+                                             direct_resolve_pipeline_layout_color_);
+  gpu::vulkan::objects::DestroyAndNullHandle(dfn.vkDestroyPipelineLayout, device,
+                                             dump_pipeline_layout_depth_);
+  gpu::vulkan::objects::DestroyAndNullHandle(dfn.vkDestroyPipelineLayout, device,
+                                             dump_pipeline_layout_color_);
 
   for (const auto& transfer_pipeline_array_pair : transfer_pipelines_) {
     for (VkPipeline transfer_pipeline : transfer_pipeline_array_pair.second) {
@@ -956,18 +956,18 @@ void VulkanRenderTargetCache::Shutdown(bool from_destructor) {
   }
   transfer_shaders_.clear();
   for (size_t i = 0; i < size_t(TransferPipelineLayoutIndex::kCount); ++i) {
-    gpu::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyPipelineLayout, device,
-                                            transfer_pipeline_layouts_[i]);
+    gpu::vulkan::objects::DestroyAndNullHandle(dfn.vkDestroyPipelineLayout, device,
+                                               transfer_pipeline_layouts_[i]);
   }
-  gpu::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyShaderModule, device,
-                                          transfer_passthrough_vertex_shader_);
+  gpu::vulkan::objects::DestroyAndNullHandle(dfn.vkDestroyShaderModule, device,
+                                             transfer_passthrough_vertex_shader_);
   transfer_vertex_buffer_pool_.reset();
 
   for (auto& pipeline : host_depth_store_pipelines_) {
-    gpu::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyPipeline, device, pipeline);
+    gpu::vulkan::objects::DestroyAndNullHandle(dfn.vkDestroyPipeline, device, pipeline);
   }
-  gpu::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyPipelineLayout, device,
-                                          host_depth_store_pipeline_layout_);
+  gpu::vulkan::objects::DestroyAndNullHandle(dfn.vkDestroyPipelineLayout, device,
+                                             host_depth_store_pipeline_layout_);
 
   last_update_framebuffer_ = VK_NULL_HANDLE;
   for (const auto& framebuffer_pair : framebuffers_) {
@@ -984,25 +984,26 @@ void VulkanRenderTargetCache::Shutdown(bool from_destructor) {
   render_passes_.clear();
 
   for (VkPipeline& resolve_copy_pipeline : resolve_copy_pipelines_) {
-    gpu::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyPipeline, device, resolve_copy_pipeline);
+    gpu::vulkan::objects::DestroyAndNullHandle(dfn.vkDestroyPipeline, device,
+                                               resolve_copy_pipeline);
   }
-  gpu::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyPipelineLayout, device,
-                                          resolve_copy_pipeline_layout_);
+  gpu::vulkan::objects::DestroyAndNullHandle(dfn.vkDestroyPipelineLayout, device,
+                                             resolve_copy_pipeline_layout_);
 
-  gpu::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyDescriptorPool, device,
-                                          edram_storage_buffer_descriptor_pool_);
-  gpu::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyBuffer, device, edram_buffer_);
-  gpu::vulkan::util::DestroyAndNullHandle(dfn.vkFreeMemory, device, edram_buffer_memory_);
+  gpu::vulkan::objects::DestroyAndNullHandle(dfn.vkDestroyDescriptorPool, device,
+                                             edram_storage_buffer_descriptor_pool_);
+  gpu::vulkan::objects::DestroyAndNullHandle(dfn.vkDestroyBuffer, device, edram_buffer_);
+  gpu::vulkan::objects::DestroyAndNullHandle(dfn.vkFreeMemory, device, edram_buffer_memory_);
 
   descriptor_set_pool_sampled_image_x2_.reset();
   descriptor_set_pool_sampled_image_.reset();
 
-  gpu::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyDescriptorSetLayout, device,
-                                          descriptor_set_layout_sampled_image_x2_);
-  gpu::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyDescriptorSetLayout, device,
-                                          descriptor_set_layout_sampled_image_);
-  gpu::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyDescriptorSetLayout, device,
-                                          descriptor_set_layout_storage_buffer_);
+  gpu::vulkan::objects::DestroyAndNullHandle(dfn.vkDestroyDescriptorSetLayout, device,
+                                             descriptor_set_layout_sampled_image_x2_);
+  gpu::vulkan::objects::DestroyAndNullHandle(dfn.vkDestroyDescriptorSetLayout, device,
+                                             descriptor_set_layout_sampled_image_);
+  gpu::vulkan::objects::DestroyAndNullHandle(dfn.vkDestroyDescriptorSetLayout, device,
+                                             descriptor_set_layout_storage_buffer_);
 
   if (!from_destructor) {
     ShutdownCommon();
@@ -1051,10 +1052,10 @@ bool VulkanRenderTargetCache::Resolve(const runtime::Memory& memory,
 
   bool draw_resolution_scaled = IsDrawResolutionScaled();
 
-  draw_util::ResolveInfo resolve_info;
-  if (!draw_util::GetResolveInfo(register_file(), memory, draw_resolution_scale_x(),
-                                 draw_resolution_scale_y(), IsFixedRG16TruncatedToMinus1To1(),
-                                 IsFixedRGBA16TruncatedToMinus1To1(), resolve_info)) {
+  draw_state::ResolveInfo resolve_info;
+  if (!draw_state::GetResolveInfo(register_file(), memory, draw_resolution_scale_x(),
+                                  draw_resolution_scale_y(), IsFixedRG16TruncatedToMinus1To1(),
+                                  IsFixedRGBA16TruncatedToMinus1To1(), resolve_info)) {
     return false;
   }
 
@@ -1069,15 +1070,15 @@ bool VulkanRenderTargetCache::Resolve(const runtime::Memory& memory,
 
   bool copied = false;
   if (resolve_info.copy_dest_extent_length) {
-    draw_util::ResolveCopyShaderConstants copy_shader_constants;
+    draw_state::ResolveCopyShaderConstants copy_shader_constants;
     u32 copy_group_count_x, copy_group_count_y;
-    draw_util::ResolveCopyShaderIndex copy_shader =
+    draw_state::ResolveCopyShaderIndex copy_shader =
         resolve_info.GetCopyShader(draw_resolution_scale_x(), draw_resolution_scale_y(),
                                    copy_shader_constants, copy_group_count_x, copy_group_count_y);
     REX_ASSERT(copy_group_count_x && copy_group_count_y);
-    if (copy_shader != draw_util::ResolveCopyShaderIndex::kUnknown) {
-      const draw_util::ResolveCopyShaderInfo& copy_shader_info =
-          draw_util::resolve_copy_shader_info[static_cast<size_t>(copy_shader)];
+    if (copy_shader != draw_state::ResolveCopyShaderIndex::kUnknown) {
+      const draw_state::ResolveCopyShaderInfo& copy_shader_info =
+          draw_state::resolve_copy_shader_info[static_cast<size_t>(copy_shader)];
       bool direct_resolved = false;
       if (GetPath() == Path::kHostRenderTargets) {
         if (REXCVAR_GET(::rex::gpu::cvars::direct_host_resolve)) {
@@ -1094,7 +1095,7 @@ bool VulkanRenderTargetCache::Resolve(const runtime::Memory& memory,
           u32 dump_row_length_used;
           u32 dump_rows;
           u32 dump_pitch;
-          resolve_info.GetCopyEdramTileSpan(dump_base, dump_row_length_used, dump_rows, dump_pitch);
+          resolve_info.GetCopyEDRAMTileSpan(dump_base, dump_row_length_used, dump_rows, dump_pitch);
           if (!DumpRenderTargets(dump_base, dump_row_length_used, dump_rows, dump_pitch)) {
             REX_FAIL(gpu, false,
                      "VulkanRenderTargetCache: Failed to dump host render targets for resolve");
@@ -1165,11 +1166,11 @@ bool VulkanRenderTargetCache::Resolve(const runtime::Memory& memory,
                               std::pair<u32, u32>(static_cast<u32>(copy_dest_use_start),
                                                   static_cast<u32>(copy_dest_use_length)));
           }
-          UseEdramBuffer(EdramBufferUsage::kComputeRead);
+          UseEDRAMBuffer(EDRAMBufferUsage::kComputeRead);
           command_processor_.BindExternalComputePipeline(
               resolve_copy_pipelines_[static_cast<size_t>(copy_shader)]);
           VkDescriptorSet descriptor_sets[kResolveCopyDescriptorSetCount] = {};
-          descriptor_sets[kResolveCopyDescriptorSetEdram] = edram_storage_buffer_descriptor_set_;
+          descriptor_sets[kResolveCopyDescriptorSetEDRAM] = edram_storage_buffer_descriptor_set_;
           descriptor_sets[kResolveCopyDescriptorSetDest] = descriptor_set_dest;
           command_buffer.CmdVkBindDescriptorSets(
               VK_PIPELINE_BIND_POINT_COMPUTE, resolve_copy_pipeline_layout_, 0,
@@ -1222,9 +1223,9 @@ bool VulkanRenderTargetCache::Resolve(const runtime::Memory& memory,
         cleared = true;
       } break;
       case Path::kPixelShaderInterlock: {
-        UseEdramBuffer(EdramBufferUsage::kComputeWrite);
+        UseEDRAMBuffer(EDRAMBufferUsage::kComputeWrite);
         // The depth and color ranges are assumed not to overlap, so committing once is enough.
-        CommitEdramBufferShaderWrites();
+        CommitEDRAMBufferShaderWrites();
         command_buffer.CmdVkBindDescriptorSets(VK_PIPELINE_BIND_POINT_COMPUTE,
                                                resolve_fsi_clear_pipeline_layout_, 0, 1,
                                                &edram_storage_buffer_descriptor_set_, 0, nullptr);
@@ -1233,7 +1234,7 @@ bool VulkanRenderTargetCache::Resolve(const runtime::Memory& memory,
         REX_ASSERT(clear_group_count.first && clear_group_count.second);
         if (clear_depth) {
           command_processor_.BindExternalComputePipeline(resolve_fsi_clear_32bpp_pipeline_);
-          draw_util::ResolveClearShaderConstants depth_clear_constants;
+          draw_state::ResolveClearShaderConstants depth_clear_constants;
           resolve_info.GetDepthClearShaderConstants(depth_clear_constants);
           command_buffer.CmdVkPushConstants(resolve_fsi_clear_pipeline_layout_,
                                             VK_SHADER_STAGE_COMPUTE_BIT, 0,
@@ -1245,13 +1246,13 @@ bool VulkanRenderTargetCache::Resolve(const runtime::Memory& memory,
           command_processor_.BindExternalComputePipeline(
               resolve_info.color_edram_info.format_is_64bpp ? resolve_fsi_clear_64bpp_pipeline_
                                                             : resolve_fsi_clear_32bpp_pipeline_);
-          draw_util::ResolveClearShaderConstants color_clear_constants;
+          draw_state::ResolveClearShaderConstants color_clear_constants;
           resolve_info.GetColorClearShaderConstants(color_clear_constants);
           if (clear_depth) {
             // The constants shared across render targets are set.
             command_buffer.CmdVkPushConstants(
                 resolve_fsi_clear_pipeline_layout_, VK_SHADER_STAGE_COMPUTE_BIT,
-                static_cast<u32>(offsetof(draw_util::ResolveClearShaderConstants, rt_specific)),
+                static_cast<u32>(offsetof(draw_state::ResolveClearShaderConstants, rt_specific)),
                 sizeof(color_clear_constants.rt_specific), &color_clear_constants.rt_specific);
           } else {
             command_buffer.CmdVkPushConstants(
@@ -1261,7 +1262,7 @@ bool VulkanRenderTargetCache::Resolve(const runtime::Memory& memory,
           command_processor_.SubmitBarriers(true);
           command_buffer.CmdVkDispatch(clear_group_count.first, clear_group_count.second, 1);
         }
-        MarkEdramBufferModified();
+        MarkEDRAMBufferModified();
         cleared = true;
       } break;
       default:
@@ -1373,7 +1374,7 @@ bool VulkanRenderTargetCache::Update(bool is_rasterization_done,
                                          &rt_new_layout);
         command_processor_.PushImageMemoryBarrier(
             vulkan_rt.image(),
-            gpu::vulkan::util::InitializeSubresourceRange(
+            gpu::vulkan::objects::InitializeSubresourceRange(
                 i ? VK_IMAGE_ASPECT_COLOR_BIT
                   : (VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT)),
             vulkan_rt.current_stage_mask(), rt_dst_stage_mask, vulkan_rt.current_access_mask(),
@@ -1383,10 +1384,10 @@ bool VulkanRenderTargetCache::Update(bool is_rasterization_done,
     } break;
 
     case Path::kPixelShaderInterlock: {
-      UseEdramBuffer(EdramBufferUsage::kFragmentReadWrite);
+      UseEDRAMBuffer(EDRAMBufferUsage::kFragmentReadWrite);
       // Unordered writes like clears are not synchronized with FSI accesses, so commit them.
-      CommitEdramBufferShaderWrites(EdramBufferModificationStatus::kViaUnordered);
-      MarkEdramBufferModified(EdramBufferModificationStatus::kViaFragmentShaderInterlock);
+      CommitEDRAMBufferShaderWrites(EDRAMBufferModificationStatus::kViaUnordered);
+      MarkEDRAMBufferModified(EDRAMBufferModificationStatus::kViaFragmentShaderInterlock);
       last_update_render_pass_key_ = render_pass_key;
       last_update_render_pass_ = fsi_render_pass_;
       last_update_framebuffer_ = &fsi_framebuffer_;
@@ -1461,7 +1462,7 @@ VkRenderPass VulkanRenderTargetCache::GetHostRenderTargetsRenderPass(RenderPassK
       samples = VK_SAMPLE_COUNT_1_BIT;
       break;
     case xenos::MSAASamples::k2X:
-      samples = IsMsaa2xSupported(key.depth_and_color_used != 0) ? VK_SAMPLE_COUNT_2_BIT
+      samples = IsMSAA2xSupported(key.depth_and_color_used != 0) ? VK_SAMPLE_COUNT_2_BIT
                                                                  : VK_SAMPLE_COUNT_4_BIT;
       break;
     case xenos::MSAASamples::k4X:
@@ -1790,9 +1791,9 @@ std::unique_ptr<RenderTargetCache::RenderTarget> VulkanRenderTargetCache::Create
   }
   VkImage image;
   VkDeviceMemory memory;
-  if (!gpu::vulkan::util::CreateDedicatedAllocationImage(
-          vulkan_device, image_create_info, gpu::vulkan::util::MemoryPurpose::kDeviceLocal, image,
-          memory)) {
+  if (!gpu::vulkan::objects::CreateDedicatedAllocationImage(
+          vulkan_device, image_create_info, gpu::vulkan::objects::MemoryPurpose::kDeviceLocal,
+          image, memory)) {
     REX_FAIL(gpu, nullptr,
              "VulkanRenderTarget: Failed to create a {}x{} {}xMSAA {} render target "
              "image",
@@ -1811,7 +1812,7 @@ std::unique_ptr<RenderTargetCache::RenderTarget> VulkanRenderTargetCache::Create
   view_create_info.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
   view_create_info.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
   view_create_info.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
-  view_create_info.subresourceRange = gpu::vulkan::util::InitializeSubresourceRange(
+  view_create_info.subresourceRange = gpu::vulkan::objects::InitializeSubresourceRange(
       key.is_depth ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT);
   VkImageView view_depth_color;
   if (dfn.vkCreateImageView(device, &view_create_info, nullptr, &view_depth_color) != VK_SUCCESS) {
@@ -1973,34 +1974,34 @@ bool VulkanRenderTargetCache::IsGammaFormatHostStorageSeparate() const {
 
 void VulkanRenderTargetCache::RequestPixelShaderInterlockBarrier() {
   // Commit all pending EDRAM shader writes, not only FSI writes, like D3D12 ROV.
-  CommitEdramBufferShaderWrites();
+  CommitEDRAMBufferShaderWrites();
 }
 
-void VulkanRenderTargetCache::GetEdramBufferUsageMasks(EdramBufferUsage usage,
+void VulkanRenderTargetCache::GetEDRAMBufferUsageMasks(EDRAMBufferUsage usage,
                                                        VkPipelineStageFlags& stage_mask_out,
                                                        VkAccessFlags& access_mask_out) {
   switch (usage) {
-    case EdramBufferUsage::kFragmentRead:
+    case EDRAMBufferUsage::kFragmentRead:
       stage_mask_out = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
       access_mask_out = VK_ACCESS_SHADER_READ_BIT;
       break;
-    case EdramBufferUsage::kFragmentReadWrite:
+    case EDRAMBufferUsage::kFragmentReadWrite:
       stage_mask_out = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
       access_mask_out = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
       break;
-    case EdramBufferUsage::kComputeRead:
+    case EDRAMBufferUsage::kComputeRead:
       stage_mask_out = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
       access_mask_out = VK_ACCESS_SHADER_READ_BIT;
       break;
-    case EdramBufferUsage::kComputeWrite:
+    case EDRAMBufferUsage::kComputeWrite:
       stage_mask_out = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
       access_mask_out = VK_ACCESS_SHADER_WRITE_BIT;
       break;
-    case EdramBufferUsage::kTransferRead:
+    case EDRAMBufferUsage::kTransferRead:
       stage_mask_out = VK_PIPELINE_STAGE_TRANSFER_BIT;
       access_mask_out = VK_ACCESS_TRANSFER_READ_BIT;
       break;
-    case EdramBufferUsage::kTransferWrite:
+    case EDRAMBufferUsage::kTransferWrite:
       stage_mask_out = VK_PIPELINE_STAGE_TRANSFER_BIT;
       access_mask_out = VK_ACCESS_TRANSFER_WRITE_BIT;
       break;
@@ -2009,34 +2010,34 @@ void VulkanRenderTargetCache::GetEdramBufferUsageMasks(EdramBufferUsage usage,
   }
 }
 
-void VulkanRenderTargetCache::UseEdramBuffer(EdramBufferUsage new_usage) {
+void VulkanRenderTargetCache::UseEDRAMBuffer(EDRAMBufferUsage new_usage) {
   if (edram_buffer_usage_ == new_usage) {
     return;
   }
   VkPipelineStageFlags src_stage_mask, dst_stage_mask;
   VkAccessFlags src_access_mask, dst_access_mask;
-  GetEdramBufferUsageMasks(edram_buffer_usage_, src_stage_mask, src_access_mask);
-  GetEdramBufferUsageMasks(new_usage, dst_stage_mask, dst_access_mask);
+  GetEDRAMBufferUsageMasks(edram_buffer_usage_, src_stage_mask, src_access_mask);
+  GetEDRAMBufferUsageMasks(new_usage, dst_stage_mask, dst_access_mask);
   if (command_processor_.PushBufferMemoryBarrier(edram_buffer_, 0, VK_WHOLE_SIZE, src_stage_mask,
                                                  dst_stage_mask, src_access_mask,
                                                  dst_access_mask)) {
-    edram_buffer_modification_status_ = EdramBufferModificationStatus::kUnmodified;
+    edram_buffer_modification_status_ = EDRAMBufferModificationStatus::kUnmodified;
   }
   edram_buffer_usage_ = new_usage;
 }
 
-void VulkanRenderTargetCache::MarkEdramBufferModified(
-    EdramBufferModificationStatus modification_status) {
-  REX_ASSERT(modification_status != EdramBufferModificationStatus::kUnmodified);
+void VulkanRenderTargetCache::MarkEDRAMBufferModified(
+    EDRAMBufferModificationStatus modification_status) {
+  REX_ASSERT(modification_status != EDRAMBufferModificationStatus::kUnmodified);
   switch (edram_buffer_usage_) {
-    case EdramBufferUsage::kFragmentReadWrite:
+    case EDRAMBufferUsage::kFragmentReadWrite:
       // Unordered modification needs stricter synchronization than interlock, hence max.
       edram_buffer_modification_status_ =
           std::max(edram_buffer_modification_status_, modification_status);
       break;
-    case EdramBufferUsage::kComputeWrite:
-      REX_ASSERT(modification_status == EdramBufferModificationStatus::kViaUnordered);
-      modification_status = EdramBufferModificationStatus::kViaUnordered;
+    case EDRAMBufferUsage::kComputeWrite:
+      REX_ASSERT(modification_status == EDRAMBufferModificationStatus::kViaUnordered);
+      modification_status = EDRAMBufferModificationStatus::kViaUnordered;
       edram_buffer_modification_status_ =
           std::max(edram_buffer_modification_status_, modification_status);
       break;
@@ -2052,26 +2053,26 @@ void VulkanRenderTargetCache::MarkEdramBufferModified(
   }
 }
 
-void VulkanRenderTargetCache::CommitEdramBufferShaderWrites(
-    EdramBufferModificationStatus commit_status) {
-  REX_ASSERT(commit_status != EdramBufferModificationStatus::kUnmodified);
+void VulkanRenderTargetCache::CommitEDRAMBufferShaderWrites(
+    EDRAMBufferModificationStatus commit_status) {
+  REX_ASSERT(commit_status != EDRAMBufferModificationStatus::kUnmodified);
   if (edram_buffer_modification_status_ < commit_status) {
     return;
   }
   VkPipelineStageFlags stage_mask;
   VkAccessFlags access_mask;
-  GetEdramBufferUsageMasks(edram_buffer_usage_, stage_mask, access_mask);
+  GetEDRAMBufferUsageMasks(edram_buffer_usage_, stage_mask, access_mask);
   if (!(access_mask & VK_ACCESS_SHADER_WRITE_BIT)) {
     REX_ASSERT_ALWAYS("EDRAM writes committed from a non-shader-write usage");
-    edram_buffer_modification_status_ = EdramBufferModificationStatus::kUnmodified;
-    PixelShaderInterlockFullEdramBarrierPlaced();
+    edram_buffer_modification_status_ = EDRAMBufferModificationStatus::kUnmodified;
+    PixelShaderInterlockFullEDRAMBarrierPlaced();
     return;
   }
   command_processor_.PushBufferMemoryBarrier(
       edram_buffer_, 0, VK_WHOLE_SIZE, stage_mask, stage_mask, access_mask, access_mask,
       VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED, false);
-  edram_buffer_modification_status_ = EdramBufferModificationStatus::kUnmodified;
-  PixelShaderInterlockFullEdramBarrierPlaced();
+  edram_buffer_modification_status_ = EDRAMBufferModificationStatus::kUnmodified;
+  PixelShaderInterlockFullEDRAMBarrierPlaced();
 }
 
 const VulkanRenderTargetCache::Framebuffer*
@@ -2179,7 +2180,7 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(TransferShaderKey key)
   std::vector<spv::Id> id_vector_temp;
   std::vector<unsigned int> uint_vector_temp;
 
-  SpirvBuilder builder(spv::Spv_1_0, (SpirvShaderTranslator::kSpirvMagicToolId << 16) | 1, nullptr);
+  SPIRVBuilder builder(spv::Spv_1_0, (SPIRVShaderTranslator::kSPIRVMagicToolId << 16) | 1, nullptr);
   spv::Id ext_inst_glsl_std_450 = builder.import("GLSL.std.450");
   builder.addCapability(spv::CapabilityShader);
   builder.setMemoryModel(spv::AddressingModelLogical, spv::MemoryModelGLSL450);
@@ -3083,12 +3084,12 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(TransferShaderKey key)
           spv::Id width_a = builder.makeUintConstant(2);
           for (u32 i = 0; i < 2; ++i) {
             // Float16 has a wider range for color and alpha, and NaNs, so clamp and convert.
-            packed[i] = SpirvShaderTranslator::UnclampedFloat32To7e3(builder, source_color[i][0],
+            packed[i] = SPIRVShaderTranslator::UnclampedFloat32To7e3(builder, source_color[i][0],
                                                                      ext_inst_glsl_std_450);
             for (u32 j = 1; j < 3; ++j) {
               packed[i] =
                   builder.createQuadOp(spv::OpBitFieldInsert, type_uint, packed[i],
-                                       SpirvShaderTranslator::UnclampedFloat32To7e3(
+                                       SPIRVShaderTranslator::UnclampedFloat32To7e3(
                                            builder, source_color[i][j], ext_inst_glsl_std_450),
                                        builder.makeUintConstant(10 * j), width_rgb);
             }
@@ -3156,7 +3157,7 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(TransferShaderKey key)
                                         builder.makeFloatConstant(static_cast<f32>(0xFFFFFF)))));
           } break;
           case xenos::DepthRenderTargetFormat::kD24FS8: {
-            depth24 = SpirvShaderTranslator::PreClampedDepthTo20e4(
+            depth24 = SPIRVShaderTranslator::PreClampedDepthTo20e4(
                 builder, source_depth_float[i], depth_float24_round(), true, ext_inst_glsl_std_450);
           } break;
         }
@@ -3351,14 +3352,14 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(TransferShaderKey key)
                 output_fragment_data);
           } else {
             // Float16 has a wider range for color and alpha, and NaNs, so clamp and convert.
-            packed = SpirvShaderTranslator::UnclampedFloat32To7e3(builder, source_color[0][0],
+            packed = SPIRVShaderTranslator::UnclampedFloat32To7e3(builder, source_color[0][0],
                                                                   ext_inst_glsl_std_450);
             if (mode.output != TransferOutput::kStencilBit) {
               spv::Id width_rgb = builder.makeUintConstant(10);
               for (u32 i = 1; i < 3; ++i) {
                 packed =
                     builder.createQuadOp(spv::OpBitFieldInsert, type_uint, packed,
-                                         SpirvShaderTranslator::UnclampedFloat32To7e3(
+                                         SPIRVShaderTranslator::UnclampedFloat32To7e3(
                                              builder, source_color[0][i], ext_inst_glsl_std_450),
                                          builder.makeUintConstant(10 * i), width_rgb);
               }
@@ -3414,7 +3415,7 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(TransferShaderKey key)
                                         builder.makeFloatConstant(static_cast<f32>(0xFFFFFF)))));
           } break;
           case xenos::DepthRenderTargetFormat::kD24FS8: {
-            packed = SpirvShaderTranslator::PreClampedDepthTo20e4(
+            packed = SPIRVShaderTranslator::PreClampedDepthTo20e4(
                 builder, source_depth_float[0], depth_float24_round(), true, ext_inst_glsl_std_450);
           } break;
         }
@@ -3480,7 +3481,7 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(TransferShaderKey key)
             case xenos::ColorRenderTargetFormat::k_2_10_10_10_FLOAT_AS_16_16_16_16: {
               id_vector_temp.clear();
               for (u32 i = 0; i < 3; ++i) {
-                id_vector_temp.push_back(SpirvShaderTranslator::Float7e3To32(
+                id_vector_temp.push_back(SPIRVShaderTranslator::Float7e3To32(
                     builder, packed, 10 * i, false, ext_inst_glsl_std_450));
               }
               id_vector_temp.push_back(builder.createBinOp(
@@ -3764,7 +3765,7 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(TransferShaderKey key)
                             builder.makeFloatConstant(static_cast<f32>(0xFFFFFF)))));
               } break;
               case xenos::DepthRenderTargetFormat::kD24FS8: {
-                host_depth24 = SpirvShaderTranslator::PreClampedDepthTo20e4(
+                host_depth24 = SPIRVShaderTranslator::PreClampedDepthTo20e4(
                     builder, host_depth32, depth_float24_round(), true, ext_inst_glsl_std_450);
               } break;
             }
@@ -3798,7 +3799,7 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(TransferShaderKey key)
                   builder.makeFloatConstant(1.0f / static_cast<f32>(1 << 24)));
             } break;
             case xenos::DepthRenderTargetFormat::kD24FS8: {
-              guest_depth32 = SpirvShaderTranslator::Depth20e4To32(builder, guest_depth24, 0, true,
+              guest_depth32 = SPIRVShaderTranslator::Depth20e4To32(builder, guest_depth24, 0, true,
                                                                    false, ext_inst_glsl_std_450);
             } break;
           }
@@ -3836,7 +3837,7 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(TransferShaderKey key)
               builder.createLoad(builder.createAccessChain(spv::StorageClassPushConstant,
                                                            push_constants, id_vector_temp),
                                  spv::NoPrecision);
-          SpirvBuilder::IfBuilder stencil_kill_if(
+          SPIRVBuilder::IfBuilder stencil_kill_if(
               builder.createBinOp(
                   spv::OpIEqual, type_bool,
                   builder.createBinOp(spv::OpBitwiseAnd, type_uint, packed, stencil_mask_constant),
@@ -3867,12 +3868,12 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(TransferShaderKey key)
   std::vector<unsigned int> shader_code;
   builder.dump(shader_code);
   if (!REXCVAR_GET(::rex::gpu::cvars::dump_shaders).empty()) {
-    gpu::vulkan::util::DumpShader(REXCVAR_GET(::rex::gpu::cvars::dump_shaders),
-                                  std::format("transfer_{:08X}", key.key), shader_code);
+    gpu::vulkan::objects::DumpShader(REXCVAR_GET(::rex::gpu::cvars::dump_shaders),
+                                     std::format("transfer_{:08X}", key.key), shader_code);
   }
 
   // The handle is stored even on failure, so creation is not retried.
-  VkShaderModule shader_module = gpu::vulkan::util::CreateShaderModule(
+  VkShaderModule shader_module = gpu::vulkan::objects::CreateShaderModule(
       vulkan_device, reinterpret_cast<const u32*>(shader_code.data()),
       sizeof(u32) * shader_code.size());
   if (shader_module == VK_NULL_HANDLE) {
@@ -3992,9 +3993,9 @@ VkPipeline const* VulkanRenderTargetCache::GetTransferPipelines(TransferPipeline
 
   VkSampleMask sample_mask = UINT32_MAX;
   VkPipelineMultisampleStateCreateInfo multisample_state =
-      util::MakeMultisampleState((dest_sample_count == 2 && !msaa_2x_attachments_supported_)
-                                     ? VK_SAMPLE_COUNT_4_BIT
-                                     : VkSampleCountFlagBits(dest_sample_count));
+      objects::BuildMultisampleState((dest_sample_count == 2 && !msaa_2x_attachments_supported_)
+                                         ? VK_SAMPLE_COUNT_4_BIT
+                                         : VkSampleCountFlagBits(dest_sample_count));
   if (dest_sample_count > 1) {
     if (device_properties.sampleRateShading) {
       multisample_state.sampleShadingEnable = VK_TRUE;
@@ -4212,12 +4213,12 @@ void VulkanRenderTargetCache::PerformTransfersAndResolveClears(
             sizeof(host_depth_store_render_target_constant),
             &host_depth_store_render_target_constant);
         // Barriers stay separate, as SHADER_READ to DEPTH_STENCIL_ATTACHMENT_WRITE follows anyway.
-        UseEdramBuffer(EdramBufferUsage::kComputeWrite);
+        UseEDRAMBuffer(EDRAMBufferUsage::kComputeWrite);
         // Depth and stencil always transition together, as usage flags are not stored separately.
         command_processor_.PushImageMemoryBarrier(
             dest_vulkan_rt.image(),
-            gpu::vulkan::util::InitializeSubresourceRange(VK_IMAGE_ASPECT_DEPTH_BIT |
-                                                          VK_IMAGE_ASPECT_STENCIL_BIT),
+            gpu::vulkan::objects::InitializeSubresourceRange(VK_IMAGE_ASPECT_DEPTH_BIT |
+                                                             VK_IMAGE_ASPECT_STENCIL_BIT),
             dest_vulkan_rt.current_stage_mask(), VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
             dest_vulkan_rt.current_access_mask(), VK_ACCESS_SHADER_READ_BIT,
             dest_vulkan_rt.current_layout(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
@@ -4242,7 +4243,7 @@ void VulkanRenderTargetCache::PerformTransfersAndResolveClears(
             sizeof(host_depth_store_rectangle_constant), &host_depth_store_rectangle_constant);
         command_processor_.SubmitBarriers(true);
         command_buffer.CmdVkDispatch(group_count_x, group_count_y, 1);
-        MarkEdramBufferModified();
+        MarkEDRAMBufferModified();
       }
     }
     break;
@@ -4279,7 +4280,7 @@ void VulkanRenderTargetCache::PerformTransfersAndResolveClears(
       dest_vulkan_rt.GetDrawUsage(&dest_dst_stage_mask, &dest_dst_access_mask, &dest_new_layout);
       command_processor_.PushImageMemoryBarrier(
           dest_vulkan_rt.image(),
-          gpu::vulkan::util::InitializeSubresourceRange(
+          gpu::vulkan::objects::InitializeSubresourceRange(
               dest_vulkan_rt.key().is_depth
                   ? (VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT)
                   : VK_IMAGE_ASPECT_COLOR_BIT),
@@ -4307,7 +4308,7 @@ void VulkanRenderTargetCache::PerformTransfersAndResolveClears(
         auto& source_vulkan_rt = *static_cast<VulkanRenderTarget*>(transfer.source);
         command_processor_.PushImageMemoryBarrier(
             source_vulkan_rt.image(),
-            gpu::vulkan::util::InitializeSubresourceRange(
+            gpu::vulkan::objects::InitializeSubresourceRange(
                 source_vulkan_rt.key().is_depth
                     ? (VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT)
                     : VK_IMAGE_ASPECT_COLOR_BIT),
@@ -4323,8 +4324,8 @@ void VulkanRenderTargetCache::PerformTransfersAndResolveClears(
             *static_cast<VulkanRenderTarget*>(transfer.host_depth_source);
         command_processor_.PushImageMemoryBarrier(
             host_depth_source_vulkan_rt.image(),
-            gpu::vulkan::util::InitializeSubresourceRange(VK_IMAGE_ASPECT_DEPTH_BIT |
-                                                          VK_IMAGE_ASPECT_STENCIL_BIT),
+            gpu::vulkan::objects::InitializeSubresourceRange(VK_IMAGE_ASPECT_DEPTH_BIT |
+                                                             VK_IMAGE_ASPECT_STENCIL_BIT),
             host_depth_source_vulkan_rt.current_stage_mask(), kSourceStageMask,
             host_depth_source_vulkan_rt.current_access_mask(), kSourceAccessMask,
             host_depth_source_vulkan_rt.current_layout(), kSourceLayout);
@@ -4333,7 +4334,7 @@ void VulkanRenderTargetCache::PerformTransfersAndResolveClears(
     }
   }
   if (host_depth_store_set_up) {
-    UseEdramBuffer(EdramBufferUsage::kFragmentRead);
+    UseEDRAMBuffer(EDRAMBufferUsage::kFragmentRead);
   }
 
   TransferPipelineLayoutIndex last_transfer_pipeline_layout_index =
@@ -4368,7 +4369,7 @@ void VulkanRenderTargetCache::PerformTransfersAndResolveClears(
       dest_vulkan_rt.GetDrawUsage(&dest_dst_stage_mask, &dest_dst_access_mask, &dest_new_layout);
       command_processor_.PushImageMemoryBarrier(
           dest_vulkan_rt.image(),
-          gpu::vulkan::util::InitializeSubresourceRange(
+          gpu::vulkan::objects::InitializeSubresourceRange(
               dest_rt_key.is_depth ? (VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT)
                                    : VK_IMAGE_ASPECT_COLOR_BIT),
           dest_vulkan_rt.current_stage_mask(), dest_dst_stage_mask,
@@ -4492,7 +4493,7 @@ void VulkanRenderTargetCache::PerformTransfersAndResolveClears(
         auto& source_vulkan_rt = *static_cast<VulkanRenderTarget*>(it->transfer.source);
         command_processor_.PushImageMemoryBarrier(
             source_vulkan_rt.image(),
-            gpu::vulkan::util::InitializeSubresourceRange(
+            gpu::vulkan::objects::InitializeSubresourceRange(
                 source_vulkan_rt.key().is_depth
                     ? (VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT)
                     : VK_IMAGE_ASPECT_COLOR_BIT),
@@ -4506,12 +4507,12 @@ void VulkanRenderTargetCache::PerformTransfersAndResolveClears(
           TransferShaderKey transfer_shader_key = it->shader_key;
           if (transfer_shader_key.mode == TransferMode::kDepthAndHostDepthCopyToDepth ||
               transfer_shader_key.mode == TransferMode::kColorAndHostDepthCopyToDepth) {
-            UseEdramBuffer(EdramBufferUsage::kFragmentRead);
+            UseEDRAMBuffer(EDRAMBufferUsage::kFragmentRead);
           } else {
             command_processor_.PushImageMemoryBarrier(
                 host_depth_source_vulkan_rt->image(),
-                gpu::vulkan::util::InitializeSubresourceRange(VK_IMAGE_ASPECT_DEPTH_BIT |
-                                                              VK_IMAGE_ASPECT_STENCIL_BIT),
+                gpu::vulkan::objects::InitializeSubresourceRange(VK_IMAGE_ASPECT_DEPTH_BIT |
+                                                                 VK_IMAGE_ASPECT_STENCIL_BIT),
                 host_depth_source_vulkan_rt->current_stage_mask(), kSourceStageMask,
                 host_depth_source_vulkan_rt->current_access_mask(), kSourceAccessMask,
                 host_depth_source_vulkan_rt->current_layout(), kSourceLayout);
@@ -4946,7 +4947,7 @@ VkPipeline VulkanRenderTargetCache::GetDumpPipeline(DumpPipelineKey key) {
 
   std::vector<spv::Id> id_vector_temp;
 
-  SpirvBuilder builder(spv::Spv_1_0, (SpirvShaderTranslator::kSpirvMagicToolId << 16) | 1, nullptr);
+  SPIRVBuilder builder(spv::Spv_1_0, (SPIRVShaderTranslator::kSPIRVMagicToolId << 16) | 1, nullptr);
   spv::Id ext_inst_glsl_std_450 = builder.import("GLSL.std.450");
   builder.addCapability(spv::CapabilityShader);
   builder.setMemoryModel(spv::AddressingModelLogical, spv::MemoryModelGLSL450);
@@ -4976,7 +4977,7 @@ VkPipeline VulkanRenderTargetCache::GetDumpPipeline(DumpPipelineKey key) {
   // Uniform rather than StorageBuffer, as SPIR-V 1.0 is generated.
   spv::Id edram_buffer =
       builder.createVariable(spv::NoPrecision, spv::StorageClassUniform, type_edram, "xe_edram");
-  builder.addDecoration(edram_buffer, spv::DecorationDescriptorSet, kDumpDescriptorSetEdram);
+  builder.addDecoration(edram_buffer, spv::DecorationDescriptorSet, kDumpDescriptorSetEDRAM);
   builder.addDecoration(edram_buffer, spv::DecorationBinding, 0);
   bool source_is_multisampled = key.msaa_samples != xenos::MSAASamples::k1X;
   bool source_is_uint;
@@ -5146,9 +5147,9 @@ VkPipeline VulkanRenderTargetCache::GetDumpPipeline(DumpPipelineKey key) {
               builder.createBinOp(spv::OpBitwiseAnd, type_uint, source_sample_y, const_uint_1),
               const_uint_0),
           builder.makeUintConstant(
-              draw_util::GetD3D10SampleIndexForGuest2xMSAA(1, msaa_2x_attachments_supported_)),
+              draw_state::GetD3D10SampleIndexForGuest2xMSAA(1, msaa_2x_attachments_supported_)),
           builder.makeUintConstant(
-              draw_util::GetD3D10SampleIndexForGuest2xMSAA(0, msaa_2x_attachments_supported_)));
+              draw_state::GetD3D10SampleIndexForGuest2xMSAA(0, msaa_2x_attachments_supported_)));
     }
   }
 
@@ -5265,7 +5266,7 @@ VkPipeline VulkanRenderTargetCache::GetDumpPipeline(DumpPipelineKey key) {
                                     builder.makeFloatConstant(static_cast<f32>(0xFFFFFF)))));
       } break;
       case xenos::DepthRenderTargetFormat::kD24FS8: {
-        packed[0] = SpirvShaderTranslator::PreClampedDepthTo20e4(
+        packed[0] = SPIRVShaderTranslator::PreClampedDepthTo20e4(
             builder, source_depth32, depth_float24_round(), true, ext_inst_glsl_std_450);
       } break;
     }
@@ -5346,14 +5347,14 @@ VkPipeline VulkanRenderTargetCache::GetDumpPipeline(DumpPipelineKey key) {
       case xenos::ColorRenderTargetFormat::k_2_10_10_10_FLOAT:
       case xenos::ColorRenderTargetFormat::k_2_10_10_10_FLOAT_AS_16_16_16_16: {
         // Float16 has a wider range for color and alpha, and NaNs, so clamp and convert.
-        packed[0] = SpirvShaderTranslator::UnclampedFloat32To7e3(
+        packed[0] = SPIRVShaderTranslator::UnclampedFloat32To7e3(
             builder, builder.createCompositeExtract(source_vec4, type_float, 0),
             ext_inst_glsl_std_450);
         spv::Id width_rgb = builder.makeUintConstant(10);
         for (u32 i = 1; i < 3; ++i) {
           packed[0] = builder.createQuadOp(
               spv::OpBitFieldInsert, type_uint, packed[0],
-              SpirvShaderTranslator::UnclampedFloat32To7e3(
+              SPIRVShaderTranslator::UnclampedFloat32To7e3(
                   builder, builder.createCompositeExtract(source_vec4, type_float, i),
                   ext_inst_glsl_std_450),
               builder.makeUintConstant(10 * i), width_rgb);
@@ -5422,12 +5423,12 @@ VkPipeline VulkanRenderTargetCache::GetDumpPipeline(DumpPipelineKey key) {
   std::vector<unsigned int> shader_code;
   builder.dump(shader_code);
   if (!REXCVAR_GET(::rex::gpu::cvars::dump_shaders).empty()) {
-    gpu::vulkan::util::DumpShader(REXCVAR_GET(::rex::gpu::cvars::dump_shaders),
-                                  std::format("edram_dump_{:08X}", key.key), shader_code);
+    gpu::vulkan::objects::DumpShader(REXCVAR_GET(::rex::gpu::cvars::dump_shaders),
+                                     std::format("edram_dump_{:08X}", key.key), shader_code);
   }
 
   // The handle is stored even on failure, so creation is not retried.
-  VkPipeline pipeline = gpu::vulkan::util::CreateComputePipeline(
+  VkPipeline pipeline = gpu::vulkan::objects::CreateComputePipeline(
       command_processor_.GetVulkanDevice(),
       key.is_depth ? dump_pipeline_layout_depth_ : dump_pipeline_layout_color_,
       reinterpret_cast<const u32*>(shader_code.data()), sizeof(u32) * shader_code.size());
@@ -5451,15 +5452,15 @@ VkPipeline VulkanRenderTargetCache::GetDirectResolvePipeline(DirectResolvePipeli
   VkPipeline pipeline = VK_NULL_HANDLE;
   // Reuses the resolve copy pipelines, as no dedicated direct resolve shaders exist.
   size_t copy_shader_index = static_cast<size_t>(key.copy_shader);
-  if (copy_shader_index < size_t(draw_util::ResolveCopyShaderIndex::kCount)) {
+  if (copy_shader_index < size_t(draw_state::ResolveCopyShaderIndex::kCount)) {
     pipeline = resolve_copy_pipelines_[copy_shader_index];
   }
   direct_resolve_pipelines_.emplace(key, pipeline);
   return pipeline;
 }
 
-bool VulkanRenderTargetCache::TryResolveCopyDirectly(const draw_util::ResolveInfo& resolve_info,
-                                                     draw_util::ResolveCopyShaderIndex copy_shader,
+bool VulkanRenderTargetCache::TryResolveCopyDirectly(const draw_state::ResolveInfo& resolve_info,
+                                                     draw_state::ResolveCopyShaderIndex copy_shader,
                                                      bool draw_resolution_scaled) {
   ++direct_resolve_attempt_count_;
   (void)copy_shader;
@@ -5473,7 +5474,7 @@ bool VulkanRenderTargetCache::TryResolveCopyDirectly(const draw_util::ResolveInf
   u32 dump_row_length_used;
   u32 dump_rows;
   u32 dump_pitch;
-  resolve_info.GetCopyEdramTileSpan(dump_base, dump_row_length_used, dump_rows, dump_pitch);
+  resolve_info.GetCopyEDRAMTileSpan(dump_base, dump_row_length_used, dump_rows, dump_pitch);
   GetResolveCopyDispatchesToDump(dump_base, dump_row_length_used, dump_rows, dump_pitch,
                                  dump_rectangles_, direct_resolve_dispatches_);
   if (direct_resolve_dispatches_.empty()) {
@@ -5518,7 +5519,7 @@ bool VulkanRenderTargetCache::DumpRenderTargets(u32 dump_base, u32 dump_row_leng
   for (const ResolveCopyDumpRectangle& rectangle : dump_rectangles_) {
     static_cast<VulkanRenderTarget*>(rectangle.render_target)->SetTemporarySortIndex(UINT32_MAX);
   }
-  UseEdramBuffer(EdramBufferUsage::kComputeWrite);
+  UseEDRAMBuffer(EDRAMBufferUsage::kComputeWrite);
   dump_invocations_.clear();
   dump_invocations_.reserve(dump_rectangles_.size());
   u32 rt_sort_index = 0;
@@ -5527,7 +5528,7 @@ bool VulkanRenderTargetCache::DumpRenderTargets(u32 dump_base, u32 dump_row_leng
     RenderTargetKey rt_key = vulkan_rt.key();
     command_processor_.PushImageMemoryBarrier(
         vulkan_rt.image(),
-        gpu::vulkan::util::InitializeSubresourceRange(
+        gpu::vulkan::objects::InitializeSubresourceRange(
             rt_key.is_depth ? (VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT)
                             : VK_IMAGE_ASPECT_COLOR_BIT),
         vulkan_rt.current_stage_mask(), VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
@@ -5573,7 +5574,7 @@ bool VulkanRenderTargetCache::DumpRenderTargets(u32 dump_base, u32 dump_row_leng
     if (!edram_buffer_bound) {
       edram_buffer_bound = true;
       command_buffer.CmdVkBindDescriptorSets(VK_PIPELINE_BIND_POINT_COMPUTE, pipeline_layout,
-                                             kDumpDescriptorSetEdram, 1,
+                                             kDumpDescriptorSetEDRAM, 1,
                                              &edram_storage_buffer_descriptor_set_, 0, nullptr);
     }
 
@@ -5628,7 +5629,7 @@ bool VulkanRenderTargetCache::DumpRenderTargets(u32 dump_base, u32 dump_row_leng
               kDumpSamplesPerGroupY,
           1);
     }
-    MarkEdramBufferModified();
+    MarkEDRAMBufferModified();
   }
   return all_pipelines_available;
 }

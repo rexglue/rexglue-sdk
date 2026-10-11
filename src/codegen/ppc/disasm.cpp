@@ -4,7 +4,7 @@
 
 #include <rex/types.h>
 
-namespace rex::codegen::ppc {
+namespace rex::codegen::detail {
 
 /**
  * Binutils PPC_OPCODE_* dialect bits, the OR of PPC, 64, POWER4, CELL, ALTIVEC, VMX_128 and
@@ -41,4 +41,4 @@ int Disassemble(const void* code, u64 base, ppc_insn* out, size_t nOut) {
   return static_cast<int>(nOut) * 4;
 }
 
-}  // namespace rex::codegen::ppc
+}  // namespace rex::codegen::detail

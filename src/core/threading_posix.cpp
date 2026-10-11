@@ -113,7 +113,7 @@ static void* android_libc_;
 static int (*android_pthread_getname_np_)(pthread_t pthread, char* buf, size_t n);
 
 void AndroidInitialize() {
-  if (rex::GetAndroidApiLevel() >= 26) {
+  if (rex::GetAndroidAPILevel() >= 26) {
     android_libc_ = dlopen("libc.so", RTLD_NOW);
     REX_ASSERT(android_libc_ != nullptr);
     if (android_libc_) {
@@ -910,13 +910,13 @@ class PosixCondition<Thread> : public PosixConditionBase {
       pthread_setname_np(thread_, std::string(name).c_str());
 #endif
 #if REX_PLATFORM_ANDROID
-      SetAndroidPreApi26Name(name);
+      SetAndroidPreAPI26Name(name);
 #endif
     }
   }
 
 #if REX_PLATFORM_ANDROID
-  void SetAndroidPreApi26Name(const std::string_view name) {
+  void SetAndroidPreAPI26Name(const std::string_view name) {
     if (android_pthread_getname_np_) {
       return;
     }
@@ -1352,7 +1352,7 @@ bool DispatchCurrentThreadUserCallback() {
 
 namespace {
 
-constexpr auto kAlertablePollSlice = std::chrono::milliseconds(1);
+constexpr auto kAlertablePollInterval = std::chrono::milliseconds(1);
 
 class ScopedAlertableState {
  public:
@@ -1386,14 +1386,14 @@ bool HasAlertableTimeoutElapsed(std::chrono::steady_clock::time_point deadline) 
 std::chrono::milliseconds ComputeAlertableWaitTimeout(
     std::chrono::steady_clock::time_point deadline) {
   if (deadline == std::chrono::steady_clock::time_point::max()) {
-    return kAlertablePollSlice;
+    return kAlertablePollInterval;
   }
   auto remaining = std::chrono::duration_cast<std::chrono::milliseconds>(
       deadline - std::chrono::steady_clock::now());
   if (remaining <= std::chrono::milliseconds::zero()) {
     return std::chrono::milliseconds::zero();
   }
-  return std::min(remaining, kAlertablePollSlice);
+  return std::min(remaining, kAlertablePollInterval);
 }
 
 }  // namespace
@@ -1486,10 +1486,10 @@ WaitResult socket_wait(std::span<const SocketWait> sockets, bool alertable,
     if (alertable && DispatchCurrentThreadUserCallback()) {
       return WaitResult::kUserCallback;
     }
-    const auto slice = alertable ? ComputeAlertableWaitTimeout(deadline) : timeout;
+    const auto quantum = alertable ? ComputeAlertableWaitTimeout(deadline) : timeout;
     const int ready =
         poll(fds.data(), fds.size(),
-             slice == std::chrono::milliseconds::max() ? -1 : static_cast<int>(slice.count()));
+             quantum == std::chrono::milliseconds::max() ? -1 : static_cast<int>(quantum.count()));
     if (ready > 0) {
       return WaitResult::kSuccess;
     }
@@ -1871,7 +1871,7 @@ void set_current_thread_name(const std::string_view name) {
 #endif
 #if REX_PLATFORM_ANDROID
   if (!android_pthread_getname_np_ && current_thread_) {
-    current_thread_->condition().SetAndroidPreApi26Name(name);
+    current_thread_->condition().SetAndroidPreAPI26Name(name);
   }
 #endif
 }

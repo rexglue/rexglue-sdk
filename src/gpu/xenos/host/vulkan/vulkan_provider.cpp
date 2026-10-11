@@ -139,7 +139,7 @@ std::unique_ptr<VulkanProvider> VulkanProvider::Create(const bool with_gpu_emula
 }
 
 std::unique_ptr<Presenter> VulkanProvider::CreatePresenter(
-    Presenter::HostGpuLossCallback host_gpu_loss_callback) {
+    Presenter::HostGPULossCallback host_gpu_loss_callback) {
   return VulkanPresenter::Create(std::move(host_gpu_loss_callback), vulkan_device(), ui_samplers());
 }
 

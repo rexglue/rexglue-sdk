@@ -49,7 +49,7 @@ class D3D12Presenter final : public Presenter {
   struct Key {};
 
  public:
-  explicit D3D12Presenter(Key, HostGpuLossCallback host_gpu_loss_callback,
+  explicit D3D12Presenter(Key, HostGPULossCallback host_gpu_loss_callback,
                           const D3D12Provider& provider)
       : Presenter(std::move(host_gpu_loss_callback)), provider_(provider) {}
 
@@ -80,7 +80,7 @@ class D3D12Presenter final : public Presenter {
     Microsoft::WRL::ComPtr<ID3D12Resource> resource_;
   };
 
-  static std::unique_ptr<D3D12Presenter> Create(HostGpuLossCallback host_gpu_loss_callback,
+  static std::unique_ptr<D3D12Presenter> Create(HostGPULossCallback host_gpu_loss_callback,
                                                 const D3D12Provider& provider) {
     auto presenter =
         std::make_unique<D3D12Presenter>(Key{}, std::move(host_gpu_loss_callback), provider);

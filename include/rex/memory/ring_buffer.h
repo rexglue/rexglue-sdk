@@ -19,7 +19,7 @@
 
 #include <rex/macros.h>
 #include <rex/assert.h>
-#include <rex/memory/utils.h>
+#include <rex/memory/byte_swap.h>
 #include <rex/types.h>
 
 namespace rex::memory {

@@ -17,6 +17,6 @@
 REX_TEST_CASE("Disassemble decodes nothing from a size above the int range", "[codegen][disasm]") {
   const std::array<rex::u8, 4> nop{0x60, 0x00, 0x00, 0x00};
   ppc_insn insn{};
-  CHECK(rex::codegen::ppc::Disassemble(nop.data(), 4, 0x82000000, insn) == 4);
-  CHECK(rex::codegen::ppc::Disassemble(nop.data(), 0x80000000, 0x82000000, insn) == 0);
+  CHECK(rex::codegen::detail::Disassemble(nop.data(), 4, 0x82000000, insn) == 4);
+  CHECK(rex::codegen::detail::Disassemble(nop.data(), 0x80000000, 0x82000000, insn) == 0);
 }

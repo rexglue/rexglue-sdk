@@ -28,7 +28,7 @@
 #include "gpu/xenos/command_processor.h"
 #include "gpu/xenos/pipeline/shader/spirv_translator.h"
 #include <rex/xenos/registers.h>
-#include "gpu/xenos/util/draw.h"
+#include "gpu/xenos/draw_state.h"
 #include "gpu/xenos/vulkan/deferred_command_buffer.h"
 #include "gpu/xenos/vulkan/graphics_system.h"
 #include "gpu/xenos/vulkan/pipeline_cache.h"
@@ -129,7 +129,7 @@ class VulkanCommandProcessor : public CommandProcessor {
   ~VulkanCommandProcessor();
 
   void ClearCaches() override;
-  void InvalidateGpuMemory() override;
+  void InvalidateGPUMemory() override;
   void InitializeShaderStorage(const std::filesystem::path& cache_root, u32 title_id,
                                bool blocking) override;
 
@@ -138,7 +138,7 @@ class VulkanCommandProcessor : public CommandProcessor {
         ->vulkan_device();
   }
 
-  bool CompileGlslToSpirv(VkShaderStageFlagBits stage, std::string_view source,
+  bool CompileGLSLToSPIRV(VkShaderStageFlagBits stage, std::string_view source,
                           std::vector<u32>& spirv_out, std::string& error_out) const;
 
   /**
@@ -274,7 +274,7 @@ class VulkanCommandProcessor : public CommandProcessor {
    * @param initial_access_mask Access of the initial usage.
    * @return The acquisition, with a null buffer on failure.
    */
-  ScratchBufferAcquisition AcquireScratchGpuBuffer(VkDeviceSize size,
+  ScratchBufferAcquisition AcquireScratchGPUBuffer(VkDeviceSize size,
                                                    VkPipelineStageFlags initial_stage_mask,
                                                    VkAccessFlags initial_access_mask);
 
@@ -537,10 +537,10 @@ class VulkanCommandProcessor : public CommandProcessor {
     }
     return rex::align(size, kReadbackBufferSizeIncrement);
   }
-  static u64 MakeReadbackResolveKey(u32 address, u32 length) {
+  static u64 BuildReadbackResolveKey(u32 address, u32 length) {
     return (static_cast<u64>(address) << 32) | static_cast<u64>(length);
   }
-  static u64 MakeMemexportReadbackKey(u32 first_base_address_dwords, u32 total_size) {
+  static u64 BuildMemexportReadbackKey(u32 first_base_address_dwords, u32 total_size) {
     return (static_cast<u64>(first_base_address_dwords) << 32) | static_cast<u64>(total_size);
   }
   struct ResolveDownscaleConstants {
@@ -554,7 +554,7 @@ class VulkanCommandProcessor : public CommandProcessor {
   bool EnsureSwapFxaaSourceImage(u32 width, u32 height);
   void DestroySwapFxaaSourceImage();
 
-  void UpdateDynamicState(const draw_util::ViewportInfo& viewport_info, bool primitive_polygonal,
+  void UpdateDynamicState(const draw_state::ViewportInfo& viewport_info, bool primitive_polygonal,
                           xenos::reg::RB_DEPTHCONTROL normalized_depth_control);
   /**
    * Updates the system constants. W0 division follows PA_CL_VTE_CNTL. Bit 8 VTX_XY_FMT true
@@ -575,7 +575,7 @@ class VulkanCommandProcessor : public CommandProcessor {
       bool primitive_polygonal,
       const PrimitiveProcessor::ProcessingResult& primitive_processing_result,
       bool shader_32bit_index_dma, u32 compute_memexport_vertex_count,
-      const draw_util::ViewportInfo& viewport_info, u32 used_texture_mask,
+      const draw_state::ViewportInfo& viewport_info, u32 used_texture_mask,
       xenos::reg::RB_DEPTHCONTROL normalized_depth_control, u32 normalized_color_mask);
   bool UpdateBindings(const VulkanShader* vertex_shader, const VulkanShader* pixel_shader);
   /**
@@ -855,10 +855,10 @@ class VulkanCommandProcessor : public CommandProcessor {
 
   const PipelineLayout* current_guest_graphics_pipeline_layout_;
   VkDescriptorBufferInfo
-      current_constant_buffer_infos_[SpirvShaderTranslator::kConstantBufferCount];
+      current_constant_buffer_infos_[SPIRVShaderTranslator::kConstantBufferCount];
   /** Mask of constant buffers with up to date data that current_constant_buffer_infos_ cover. */
   u32 current_constant_buffers_up_to_date_;
-  VkDescriptorSet current_graphics_descriptor_sets_[SpirvShaderTranslator::kDescriptorSetCount];
+  VkDescriptorSet current_graphics_descriptor_sets_[SPIRVShaderTranslator::kDescriptorSetCount];
   /** Mask of sets in current_graphics_descriptor_sets_ that point to up to date data. */
   u32 current_graphics_descriptor_set_values_up_to_date_;
   /**
@@ -867,19 +867,19 @@ class VulkanCommandProcessor : public CommandProcessor {
    * may hold bits for nonexistent set layouts, which readers ignore.
    */
   u32 current_graphics_descriptor_sets_bound_up_to_date_;
-  static_assert(SpirvShaderTranslator::kDescriptorSetCount <=
+  static_assert(SPIRVShaderTranslator::kDescriptorSetCount <=
                     sizeof(current_graphics_descriptor_set_values_up_to_date_) * CHAR_BIT,
                 "Bit fields storing descriptor set validity must be large enough");
-  static_assert(SpirvShaderTranslator::kDescriptorSetCount <=
+  static_assert(SPIRVShaderTranslator::kDescriptorSetCount <=
                     sizeof(current_graphics_descriptor_sets_bound_up_to_date_) * CHAR_BIT,
                 "Bit fields storing descriptor set validity must be large enough");
 
   u64 current_float_constant_map_vertex_[4];
   u64 current_float_constant_map_pixel_[4];
 
-  SpirvShaderTranslator::SystemConstants system_constants_;
+  SPIRVShaderTranslator::SystemConstants system_constants_;
 
-  std::vector<draw_util::MemExportRange> memexport_ranges_;
+  std::vector<draw_state::MemExportRange> memexport_ranges_;
 };
 
 }  // namespace rex::gpu::vulkan

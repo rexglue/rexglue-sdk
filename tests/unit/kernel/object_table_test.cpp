@@ -224,16 +224,15 @@ REX_TEST_CASE("ObjectTable keeps a name while any handle is open",
   CHECK(ToXStatus(table.OpenByName("Gamma")) == rex::X_STATUS_OBJECT_NAME_NOT_FOUND);
 }
 
-REX_TEST_CASE("ObjectTable GetAll returns one pin per object of the type",
-              "[kernel][object_table]") {
+REX_TEST_CASE("ObjectTable All returns one pin per object of the type", "[kernel][object_table]") {
   ObjectTable table(nullptr);
   const X_HANDLE a = AddEvent(table);
   AddEvent(table);
   REQUIRE(table.Duplicate(a).has_value());
   REQUIRE(table.Emplace<SemaphoreObject>(AddOptions{}, 1, 2).has_value());
-  CHECK(table.GetAll<EventObject>().size() == 2);
-  CHECK(table.GetAll<SemaphoreObject>().size() == 1);
-  CHECK(table.GetAll().size() == 3);
+  CHECK(table.All<EventObject>().size() == 2);
+  CHECK(table.All<SemaphoreObject>().size() == 1);
+  CHECK(table.All().size() == 3);
 }
 
 REX_TEST_CASE("ObjectTable Reset closes everything", "[kernel][object_table]") {

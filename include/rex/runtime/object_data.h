@@ -18,19 +18,19 @@
 
 #include <rex/macros.h>
 #include <rex/runtime/pin_count.h>
-#include <rex/runtime/xenumerator.h>
-#include <rex/runtime/xevent.h>
-#include <rex/runtime/xfile.h>
-#include <rex/runtime/xiocompletion.h>
-#include <rex/runtime/xmodule.h>
-#include <rex/runtime/xmutant.h>
-#include <rex/runtime/xnotifylistener.h>
-#include <rex/runtime/xobject.h>
-#include <rex/runtime/xsemaphore.h>
-#include <rex/runtime/xsocket.h>
-#include <rex/runtime/xsymboliclink.h>
+#include <rex/runtime/enumerator_object.h>
+#include <rex/runtime/event_object.h>
+#include <rex/runtime/file_object.h>
+#include <rex/runtime/io_completion_object.h>
+#include <rex/runtime/module_object.h>
+#include <rex/runtime/mutant_object.h>
+#include <rex/runtime/notify_listener_object.h>
+#include <rex/runtime/object.h>
+#include <rex/runtime/semaphore_object.h>
+#include <rex/runtime/socket_object.h>
+#include <rex/runtime/symbolic_link_object.h>
 #include <rex/runtime/xthread.h>
-#include <rex/runtime/xtimer.h>
+#include <rex/runtime/timer_object.h>
 #include <rex/runtime/xtypes.h>
 #include <rex/types.h>
 
@@ -39,7 +39,7 @@ namespace rex::runtime {
 class WorkspaceHeap;
 
 /** A guest block that backs an object, with whether the table owns and frees it. */
-struct GuestBlock {
+struct ObjectBlock {
   u32 address = 0;    /**< Guest address of the object body, after the X_OBJECT_HEADER. */
   bool owned = false; /**< True when the table frees the block when the object dies. */
   /** The workspace that holds the block, null for the system heap. */
@@ -54,26 +54,26 @@ struct GuestBlock {
  * @param workspace The workspace for the header and body, null for the system heap.
  * @return The block with owned set, address 0 when the allocation failed.
  */
-REX_RUNTIME_API GuestBlock AllocateGuestBlock(runtime::Memory* memory, u32 size,
-                                              WorkspaceHeap* workspace = nullptr);
+REX_RUNTIME_API ObjectBlock AllocObjectBlock(runtime::Memory* memory, u32 size,
+                                             WorkspaceHeap* workspace = nullptr);
 
 /**
- * Frees a block made by AllocateGuestBlock, with its X_OBJECT_TYPE.
+ * Frees a block made by AllocObjectBlock, with its X_OBJECT_TYPE.
  *
  * @param memory The guest memory.
  * @param address The address of the object body, 0 for none.
- * @param workspace The workspace AllocateGuestBlock used, null for the system heap.
+ * @param workspace The workspace AllocObjectBlock used, null for the system heap.
  */
-REX_RUNTIME_API void FreeGuestBlock(runtime::Memory* memory, u32 address,
-                                    WorkspaceHeap* workspace = nullptr);
+REX_RUNTIME_API void FreeObjectBlock(runtime::Memory* memory, u32 address,
+                                     WorkspaceHeap* workspace = nullptr);
 
-/** The data an `ObjectRecord` owns, 1 alternative per ObjectKind in enumerator order. */
+/** The data an `KernelObject` owns, 1 alternative per ObjectKind in enumerator order. */
 using ObjectData = std::variant<EventObject, SemaphoreObject, MutantObject, TimerObject, FileObject,
                                 SocketObject, NotifyListenerObject, IOCompletionObject,
                                 EnumeratorObject, SymbolicLinkObject, ModuleObject, ThreadRef>;
 
 /** One kernel object, owned by the table and shared by every handle that names it. */
-struct ObjectRecord {
+struct KernelObject {
   /**
    * @tparam T The alternative of ObjectData to construct.
    * @tparam Args The constructor argument types of T.
@@ -81,10 +81,10 @@ struct ObjectRecord {
    * @param args The constructor arguments of T.
    */
   template <typename T, typename... Args>
-  explicit ObjectRecord(std::in_place_type_t<T> tag, Args&&... args)
+  explicit KernelObject(std::in_place_type_t<T> tag, Args&&... args)
       : data(tag, std::forward<Args>(args)...) {}
   /** Frees the guest block the object owns. */
-  REX_RUNTIME_API ~ObjectRecord();
+  REX_RUNTIME_API ~KernelObject();
 
   /**
    * Returns the data kind.
@@ -104,25 +104,25 @@ struct ObjectRecord {
   PinCount pins; /**< Transient pins that keep the object alive while a caller uses it. */
 };
 
-/** A transient pin on an `ObjectRecord`. Never stored. Move only. */
+/** A transient pin on an `KernelObject`. Never stored. Move only. */
 class PinnedSlot : public rex::MoveOnly {
  public:
   PinnedSlot() = default;
   /**
-   * Takes a pin already taken on an `ObjectRecord`.
+   * Takes a pin already taken on an `KernelObject`.
    *
-   * @param record The pinned `ObjectRecord`.
+   * @param object The pinned `KernelObject`.
    * @param handle The handle the pin was resolved from.
    */
-  PinnedSlot(ObjectRecord* record, X_HANDLE handle) noexcept : record_(record), handle_(handle) {}
+  PinnedSlot(KernelObject* object, X_HANDLE handle) noexcept : object_(object), handle_(handle) {}
 
   /**
    * Takes over the pin of another slot.
    *
    * @param other The slot left empty.
    */
-  PinnedSlot(PinnedSlot&& other) noexcept : record_(other.record_), handle_(other.handle_) {
-    other.record_ = nullptr;
+  PinnedSlot(PinnedSlot&& other) noexcept : object_(other.object_), handle_(other.handle_) {
+    other.object_ = nullptr;
   }
   /**
    * Takes over the pin of another slot and releases the pin this slot held.
@@ -133,41 +133,41 @@ class PinnedSlot : public rex::MoveOnly {
   PinnedSlot& operator=(PinnedSlot&& other) noexcept {
     if (this != &other) {
       Reset();
-      record_ = other.record_;
+      object_ = other.object_;
       handle_ = other.handle_;
-      other.record_ = nullptr;
+      other.object_ = nullptr;
     }
     return *this;
   }
   ~PinnedSlot() { Reset(); }
 
   /**
-   * Reports whether the pin holds an `ObjectRecord`.
+   * Reports whether the pin holds an `KernelObject`.
    *
    * @return True when it does.
    */
-  explicit operator bool() const noexcept { return record_ != nullptr; }
+  explicit operator bool() const noexcept { return object_ != nullptr; }
 
   /**
-   * Returns the pinned `ObjectRecord` kind.
+   * Returns the pinned `KernelObject` kind.
    *
    * @return The kind.
    */
-  [[nodiscard]] ObjectKind kind() const { return record_->kind(); }
+  [[nodiscard]] ObjectKind kind() const { return object_->kind(); }
 
   /**
-   * Returns the data of the pinned `ObjectRecord`.
+   * Returns the data of the pinned `KernelObject`.
    *
    * @return The data.
    */
-  [[nodiscard]] ObjectData& data() const { return record_->data; }
+  [[nodiscard]] ObjectData& data() const { return object_->data; }
 
   /**
-   * Returns the `ObjectRecord`.
+   * Returns the `KernelObject`.
    *
-   * @return The `ObjectRecord`.
+   * @return The `KernelObject`.
    */
-  [[nodiscard]] ObjectRecord& record() const { return *record_; }
+  [[nodiscard]] KernelObject& object() const { return *object_; }
 
   /**
    * Returns the handle value the pin was looked up by.
@@ -181,27 +181,27 @@ class PinnedSlot : public rex::MoveOnly {
    *
    * @return The address, 0 when the object has no guest block.
    */
-  [[nodiscard]] u32 guest_object() const { return record_->guest_ptr; }
+  [[nodiscard]] u32 guest_object() const { return object_->guest_ptr; }
 
   /** Drops the pin. */
   void Reset() noexcept {
-    if (record_ != nullptr) {
-      if (record_->pins.Unpin()) {
-        delete record_;
+    if (object_ != nullptr) {
+      if (object_->pins.Unpin()) {
+        delete object_;
       }
-      record_ = nullptr;
+      object_ = nullptr;
     }
   }
 
  private:
-  ObjectRecord* record_ = nullptr;
+  KernelObject* object_ = nullptr;
   X_HANDLE handle_ = 0;
 };
 
 /**
  * A pin that exposes the object struct of a known kind.
  *
- * @tparam T The object struct the `ObjectRecord` is expected to hold.
+ * @tparam T The object struct the `KernelObject` is expected to hold.
  */
 template <typename T>
 class Pinned {

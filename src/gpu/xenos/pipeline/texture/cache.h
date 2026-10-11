@@ -21,7 +21,7 @@
 #include <vector>
 
 #include <rex/assert.h>
-#include <rex/xenos/texture_util.h>
+#include <rex/xenos/texture_layout.h>
 #include <rex/xenos/register_file.h>
 #include "gpu/xenos/shared_memory.h"
 #include <rex/xenos/xenos.h>
@@ -148,8 +148,8 @@ class TextureCache : public rex::NonCopyable {
     u32 is_valid : 1;
     u32 padding : 30;
 
-    TextureKey() { MakeInvalid(); }
-    void MakeInvalid() {
+    TextureKey() { Invalidate(); }
+    void Invalidate() {
       // Zero everything, including the padding, for a stable hash.
       std::memset(this, 0, sizeof(*this));
     }
@@ -206,7 +206,7 @@ class TextureCache : public rex::NonCopyable {
         [[maybe_unused]] const std::unique_lock<rex::platform::RankedMutex>& watch_lock) const {
       return mips_outdated_;
     }
-    void MakeUpToDateAndWatch(const std::unique_lock<rex::platform::RankedMutex>& watch_lock);
+    void UpdateAndWatch(const std::unique_lock<rex::platform::RankedMutex>& watch_lock);
 
     void WatchCallback(bool is_mip);
 

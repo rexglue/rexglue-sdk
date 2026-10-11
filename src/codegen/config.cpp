@@ -99,7 +99,7 @@ std::string_view NearestShimName(std::string_view name) {
   return best;
 }
 
-bool ApplyToml(const toml::table& toml, RecompilerConfig& cfg, const std::string& filePath) {
+bool ApplyTOML(const toml::table& toml, RecompilerConfig& cfg, const std::string& filePath) {
   if (auto* retired = toml["rexcrt"].as_table()) {
     std::string converted = "[shim]";
     for (const auto& [name, val] : *retired) {
@@ -475,7 +475,7 @@ bool ApplyTableWithIncludes(const toml::table& tbl, const std::filesystem::path&
       }
     }
   }
-  return ApplyToml(tbl, cfg, description);
+  return ApplyTOML(tbl, cfg, description);
 }
 
 }  // namespace

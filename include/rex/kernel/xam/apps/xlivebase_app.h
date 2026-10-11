@@ -23,7 +23,7 @@ namespace apps {
 /**
  * XLiveBase app 0xFC, which serves online service queries such as the logon ID and NAT type.
  */
-class XLiveBaseApp : public runtime::xam::App {
+class XLiveBaseApp : public runtime::App {
  public:
   /**
    * @param runtime The runtime the app serves.

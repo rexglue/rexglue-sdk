@@ -30,8 +30,8 @@ class D3D12Provider : public GraphicsProvider {
 
   static std::unique_ptr<D3D12Provider> Create(i32 adapter_index);
 
-  std::unique_ptr<Presenter> CreatePresenter(Presenter::HostGpuLossCallback host_gpu_loss_callback =
-                                                 Presenter::FatalErrorHostGpuLossCallback) override;
+  std::unique_ptr<Presenter> CreatePresenter(Presenter::HostGPULossCallback host_gpu_loss_callback =
+                                                 Presenter::FatalErrorHostGPULossCallback) override;
 
   std::unique_ptr<ImmediateDrawer> CreateImmediateDrawer() override;
 
@@ -76,7 +76,7 @@ class D3D12Provider : public GraphicsProvider {
     return start;
   }
 
-  GpuVendorID GetAdapterVendorID() const { return adapter_vendor_id_; }
+  GPUVendorID GetAdapterVendorID() const { return adapter_vendor_id_; }
 
   D3D12_HEAP_FLAGS GetHeapFlagCreateNotZeroed() const { return heap_flag_create_not_zeroed_; }
   D3D12_PROGRAMMABLE_SAMPLE_POSITIONS_TIER
@@ -102,7 +102,7 @@ class D3D12Provider : public GraphicsProvider {
     }
     return pfn_d3d_disassemble_(src_data, src_data_size, flags, comments, disassembly_out);
   }
-  HRESULT DxbcConverterCreateInstance(const CLSID& rclsid, const IID& riid, void** ppv) const {
+  HRESULT DXBCConverterCreateInstance(const CLSID& rclsid, const IID& riid, void** ppv) const {
     if (!pfn_dxilconv_dxc_create_instance_) {
       return E_NOINTERFACE;
     }
@@ -150,7 +150,7 @@ class D3D12Provider : public GraphicsProvider {
 
   u32 descriptor_sizes_[D3D12_DESCRIPTOR_HEAP_TYPE_NUM_TYPES];
 
-  GpuVendorID adapter_vendor_id_;
+  GPUVendorID adapter_vendor_id_;
 
   D3D12_HEAP_FLAGS heap_flag_create_not_zeroed_;
   D3D12_PROGRAMMABLE_SAMPLE_POSITIONS_TIER programmable_sample_positions_tier_;

@@ -19,7 +19,7 @@
 #include <rex/dbg.h>
 #include "gpu/xenos/pipeline/texture/cache.h"
 #include <rex/xenos/texture_info.h>
-#include <rex/xenos/texture_util.h>
+#include <rex/xenos/texture_layout.h>
 #include <rex/xenos/register_file.h>
 #include <rex/xenos/xenos.h>
 #include <rex/logging.h>
@@ -165,7 +165,7 @@ void TextureCache::MarkRangeAsResolved(u32 start_unscaled, u32 length_unscaled) 
   }
 
   // Toggling a texture between scaled and unscaled relies on this invalidation.
-  shared_memory().RangeWrittenByGpu(start_unscaled, length_unscaled);
+  shared_memory().RangeWrittenByGPU(start_unscaled, length_unscaled);
 }
 
 u32 TextureCache::GuestToHostSwizzle(u32 guest_swizzle, u32 host_format_swizzle) {
@@ -254,7 +254,7 @@ bool TextureCache::CommitPreparedTextureLoad(const PendingTextureLoad& pending_l
   }
 
   // Scaled resolves are watched too, to detect CPU reuse of the memory.
-  texture.MakeUpToDateAndWatch(shared_memory().AcquireLock());
+  texture.UpdateAndWatch(shared_memory().AcquireLock());
   texture.LogAction("Loaded");
 
   return true;
@@ -477,7 +477,7 @@ TextureCache::Texture::~Texture() {
   texture_cache_.UpdateTexturesTotalHostMemoryUsage(0, host_memory_usage_);
 }
 
-void TextureCache::Texture::MakeUpToDateAndWatch(
+void TextureCache::Texture::UpdateAndWatch(
     const std::unique_lock<rex::platform::RankedMutex>& watch_lock) {
   SharedMemory& shared_memory = texture_cache().shared_memory();
   if (base_outdated_) {
@@ -682,7 +682,7 @@ bool TextureCache::LoadTextureData(Texture& texture) {
 
 void TextureCache::BindingInfoFromFetchConstant(const xenos::TextureFetch& fetch,
                                                 TextureKey& key_out, u8* swizzled_signs_out) {
-  key_out.MakeInvalid();
+  key_out.Invalidate();
   if (swizzled_signs_out != nullptr) {
     *swizzled_signs_out =
         static_cast<u8>(xenos::TextureSign::kUnsigned) * static_cast<u8>(0b01010101);

@@ -291,7 +291,7 @@ REX_TEST_CASE("A thread suspended as it exits finishes once resumed", "[core][th
 
 REX_TEST_CASE("A thread handle destroyed right after its body ends frees nothing still in use",
               "[core][thread]") {
-  const rex::u64 before = rex::platform::detail::LiveCount();
+  const rex::u64 before = rex::platform::detail::ThreadCount();
   for (int i = 0; i < 200; ++i) {
     std::atomic<bool> done{false};
     auto thread = rex::platform::Thread::Create({}, [&done] { done.store(true); });
@@ -302,9 +302,9 @@ REX_TEST_CASE("A thread handle destroyed right after its body ends frees nothing
     thread.reset();
   }
   const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
-  while (rex::platform::detail::LiveCount() > before &&
+  while (rex::platform::detail::ThreadCount() > before &&
          std::chrono::steady_clock::now() < deadline) {
     std::this_thread::sleep_for(std::chrono::milliseconds(1));
   }
-  CHECK(rex::platform::detail::LiveCount() == before);
+  CHECK(rex::platform::detail::ThreadCount() == before);
 }

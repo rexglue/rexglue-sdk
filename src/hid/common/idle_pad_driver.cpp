@@ -7,7 +7,7 @@ namespace {
 constexpr DeviceId kIdleDevice = static_cast<DeviceId>(0x4E4F5000);
 
 rex::Error NotTheIdlePad() {
-  return MakeError(Error::NotConnected, "not the idle pad");
+  return BuildError(HIDError::NotConnected, "not the idle pad");
 }
 
 }  // namespace
@@ -57,7 +57,7 @@ Result<X_INPUT_KEYSTROKE> IdlePadDriver::GetDeviceKeystroke(DeviceId id, u32) {
   if (id != kIdleDevice) {
     return std::unexpected(NotTheIdlePad());
   }
-  return std::unexpected(MakeError(Error::Empty, "the idle pad has no keystrokes"));
+  return std::unexpected(BuildError(HIDError::Empty, "the idle pad has no keystrokes"));
 }
 
 }  // namespace rex::hid

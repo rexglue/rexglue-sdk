@@ -35,7 +35,7 @@ constexpr u32 kDisplayGammaType = 2;
 /** Display gamma power, used with gamma type 3. */
 constexpr f64 kDisplayGammaPower = 2.22222233;
 
-void WarnNoGpuEmulation(const char* export_name, std::atomic<bool>& warned) {
+void WarnNoGPUEmulation(const char* export_name, std::atomic<bool>& warned) {
   if (!warned.exchange(true)) {
     REXLOG_WARN(kernel, "{}: tool mode runs without a GPU, call ignored", export_name);
   }
@@ -294,7 +294,7 @@ void VdSetGraphicsInterruptCallback_entry(u32 callback, mapped_void user_data) {
   auto* gpu = runtime::Current().gpu();
   if (!gpu) {
     static std::atomic<bool> warned{false};
-    WarnNoGpuEmulation("VdSetGraphicsInterruptCallback", warned);
+    WarnNoGPUEmulation("VdSetGraphicsInterruptCallback", warned);
     return;
   }
   gpu->SetInterruptCallback(callback, user_data.guest_address());
@@ -312,7 +312,7 @@ void VdInitializeRingBuffer_entry(mapped_void ptr, i32 size_log2) {
   auto* gpu = runtime::Current().gpu();
   if (!gpu) {
     static std::atomic<bool> warned{false};
-    WarnNoGpuEmulation("VdInitializeRingBuffer", warned);
+    WarnNoGPUEmulation("VdInitializeRingBuffer", warned);
     return;
   }
   gpu->InitializeRingBuffer(ptr.guest_address(), size_log2);
@@ -328,7 +328,7 @@ void VdEnableRingBufferRPtrWriteBack_entry(mapped_void ptr, i32 block_size_log2)
   auto* gpu = runtime::Current().gpu();
   if (!gpu) {
     static std::atomic<bool> warned{false};
-    WarnNoGpuEmulation("VdEnableRingBufferRPtrWriteBack", warned);
+    WarnNoGPUEmulation("VdEnableRingBufferRPtrWriteBack", warned);
     return;
   }
   gpu->EnableReadPointerWriteBack(ptr.guest_address(), block_size_log2);
@@ -488,7 +488,7 @@ void VdSwap_entry(mapped_void buffer_ptr, mapped_void fetch_ptr, [[maybe_unused]
   u32 offset = 0;
   auto dwords = buffer_ptr.as_array<u32>();
 
-  dwords[offset++] = xenos::MakePacketType0(
+  dwords[offset++] = xenos::BuildPacketType0(
       std::to_underlying(rex::xenos::Register::SHADER_CONSTANT_FETCH_00_0), 6);
   dwords[offset++] = gpu_fetch.dword_0;
   dwords[offset++] = gpu_fetch.dword_1;
@@ -497,7 +497,7 @@ void VdSwap_entry(mapped_void buffer_ptr, mapped_void fetch_ptr, [[maybe_unused]
   dwords[offset++] = gpu_fetch.dword_4;
   dwords[offset++] = gpu_fetch.dword_5;
 
-  dwords[offset++] = xenos::MakePacketType3(xenos::PM4_XE_SWAP, 4);
+  dwords[offset++] = xenos::BuildPacketType3(xenos::PM4_XE_SWAP, 4);
   dwords[offset++] = rex::xenos::kSwapSignature;
   dwords[offset++] = frontbuffer_physical_address;
 
@@ -505,7 +505,7 @@ void VdSwap_entry(mapped_void buffer_ptr, mapped_void fetch_ptr, [[maybe_unused]
   dwords[offset++] = *height;
 
   for (u32 i = offset; i < 64; i++) {
-    dwords[i] = xenos::MakePacketType2();
+    dwords[i] = xenos::BuildPacketType2();
   }
 }
 

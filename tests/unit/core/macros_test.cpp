@@ -25,7 +25,12 @@ namespace {
 }
 
 [[nodiscard]] rex::Result<void> Check(bool ok) {
-  REX_CHECK(ok, rex::Error(rex::ErrorCategory::Validation, "check failed"));
+  REX_ERROR_IF(!ok, rex::Error(rex::ErrorCategory::Validation, "check failed"));
+  return rex::Ok();
+}
+
+[[nodiscard]] rex::Result<void> ErrorWhen(bool fail) {
+  REX_ERROR_IF(fail, rex::Error(rex::ErrorCategory::Validation, "condition held"));
   return rex::Ok();
 }
 
@@ -48,11 +53,18 @@ REX_TEST_CASE("REX_TRY unwraps a value and propagates an error", "[macros]") {
   REQUIRE(failed.error().category == rex::ErrorCategory::Validation);
 }
 
-REX_TEST_CASE("REX_TRY_VOID and REX_CHECK propagate", "[macros]") {
+REX_TEST_CASE("REX_TRY_VOID and REX_ERROR_IF propagate", "[macros]") {
   REQUIRE(UseTryVoid(true));
   auto failed = UseTryVoid(false);
   REQUIRE_FALSE(failed);
   REQUIRE(failed.error().message == "check failed");
+}
+
+REX_TEST_CASE("REX_ERROR_IF returns the error when its condition holds", "[macros]") {
+  auto failed = ErrorWhen(true);
+  REQUIRE_FALSE(failed);
+  REQUIRE(failed.error().message == "condition held");
+  REQUIRE(ErrorWhen(false));
 }
 
 REX_TEST_CASE("Result<void> is the void result", "[macros]") {

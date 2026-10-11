@@ -14,12 +14,17 @@
 #include <cstring>
 
 #include <rex/logging.h>
-#include <rex/memory/utils.h>
+#include <rex/memory/byte_swap.h>
 #include <rex/hook.h>
 #include <rex/runtime/format.h>
 
-using namespace rex::runtime::format;
+using rex::runtime::ArrayArgList;
+using rex::runtime::format_core;
 using rex::runtime::GuestPtr;
+using rex::runtime::StackArgList;
+using rex::runtime::StringFormatData;
+using rex::runtime::WideCountFormatData;
+using rex::runtime::WideStringFormatData;
 
 REX_HOOK_RAW(__imp__DbgPrint) {
   u32 format_ptr = ctx.r3.u32;

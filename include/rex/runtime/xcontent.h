@@ -98,10 +98,6 @@ enum class XContentType : u32 {
   kCommunityGame = 0x02000000,      /**< Used only as the hex folder name of the package path. */
 };
 
-}  // namespace rex::runtime
-
-namespace rex::runtime::xam {
-
 /** Placeholder in XCONTENT_AGGREGATE_DATA, substituted with the running title ID. */
 constexpr u32 kCurrentlyRunningTitleId = 0xFFFFFFFF;
 
@@ -212,4 +208,4 @@ struct XCONTENT_AGGREGATE_DATA : XCONTENT_DATA {
 };
 REX_STATIC_ASSERT_SIZE(XCONTENT_AGGREGATE_DATA, 0x148);
 
-}  // namespace rex::runtime::xam
+}  // namespace rex::runtime

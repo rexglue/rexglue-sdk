@@ -18,7 +18,7 @@
 
 #include <rex/runtime.h>
 #include <rex/runtime/error.h>
-#include <rex/runtime/xobject.h>
+#include <rex/runtime/object.h>
 
 #include "kernel_fixture.h"
 
@@ -31,15 +31,15 @@ using rex::runtime::ToXStatus;
 using rex::testing::Caller;
 using rex::testing::KernelFixture;
 
-REX_TEST_CASE("WaitOn returns invalid handle for a missing handle", "[wait]") {
+REX_TEST_CASE("Wait returns invalid handle for a missing handle", "[wait]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    CHECK(rex::runtime::WaitOn(c.runtime(), 0xF8001230, 3, 1, 0, nullptr) ==
+    CHECK(rex::runtime::Wait(c.runtime(), 0xF8001230, 3, 1, 0, nullptr) ==
           rex::X_STATUS_INVALID_HANDLE);
   });
 }
 
-REX_TEST_CASE("WaitOn on a kind without a wait handle succeeds at once", "[wait]") {
+REX_TEST_CASE("Wait on a kind without a wait handle succeeds at once", "[wait]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     auto& table = c.runtime().object_table();
@@ -48,12 +48,12 @@ REX_TEST_CASE("WaitOn on a kind without a wait handle succeeds at once", "[wait]
       FAIL_CHECK("the check above failed");
       return;
     }
-    CHECK(rex::runtime::WaitOn(c.runtime(), *added, 3, 1, 0, nullptr) == rex::X_STATUS_SUCCESS);
+    CHECK(rex::runtime::Wait(c.runtime(), *added, 3, 1, 0, nullptr) == rex::X_STATUS_SUCCESS);
     CHECK(table.Close(*added));
   });
 }
 
-REX_TEST_CASE("WaitOn keeps the object alive when its handle closes mid wait", "[wait][pin]") {
+REX_TEST_CASE("Wait keeps the object alive when its handle closes mid wait", "[wait][pin]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     auto& table = c.runtime().object_table();
@@ -70,7 +70,7 @@ REX_TEST_CASE("WaitOn keeps the object alive when its handle closes mid wait", "
     const u32 waiter = c.Spawn([handle, result, started](Caller& w) {
       started->set_value();
       u64 timeout = static_cast<u64>(-100000000);
-      result->set_value(rex::runtime::WaitOn(w.runtime(), handle, 3, 1, 0, &timeout));
+      result->set_value(rex::runtime::Wait(w.runtime(), handle, 3, 1, 0, &timeout));
     });
     running.wait();
     std::this_thread::sleep_for(std::chrono::milliseconds(100));

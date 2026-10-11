@@ -20,14 +20,14 @@
 #include <rex/codegen/config.h>
 #include <rex/logging.h>
 
-#include <rex/memory/utils.h>
+#include <rex/memory/byte_swap.h>
 #include <rex/runtime/exports.h>
 #include <rex/types.h>
 
 #include <ppc.h>
 
-using rex::codegen::ppc::decode_instruction;
-using rex::codegen::ppc::Opcode;
+using rex::codegen::detail::decode_instruction;
+using rex::codegen::detail::Opcode;
 
 namespace rex::codegen {
 
@@ -695,13 +695,13 @@ void detectSaveRestoreHelpers(const BinaryView& binary, AnalysisState& state) {
 
 }  // anonymous namespace
 
-namespace phases {
+namespace detail {
 
 [[nodiscard]] Result<void> Register(CodegenContext& ctx, ProgressReporter* reporter) {
   (void)reporter;
   return registerEntryPoints(ctx);
 }
 
-}  // namespace phases
+}  // namespace detail
 
 }  // namespace rex::codegen

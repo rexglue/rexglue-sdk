@@ -35,7 +35,7 @@ namespace rex::runtime {
 /**
  * Maps an error to the NT status the kernel reports.
  *
- * @param error An error built by StatusError or by filesystem::MakeError.
+ * @param error An error built by StatusError or by filesystem::BuildError.
  * @param unsupported The status for the filesystem code kUnsupported.
  * @return The code of a Runtime error, otherwise the status of the filesystem code.
  */

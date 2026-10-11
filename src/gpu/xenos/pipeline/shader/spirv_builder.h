@@ -24,9 +24,9 @@
 namespace rex::gpu {
 
 /** SpvBuilder with extra helpers. */
-class SpirvBuilder : public spv::Builder {
+class SPIRVBuilder : public spv::Builder {
  public:
-  SpirvBuilder(unsigned int spv_version, unsigned int user_number, spv::SpvBuildLogger* logger)
+  SPIRVBuilder(unsigned int spv_version, unsigned int user_number, spv::SpvBuildLogger* logger)
       : spv::Builder(spv_version, user_number, logger) {}
 
   using spv::Builder::createSelectionMerge;
@@ -48,7 +48,7 @@ class SpirvBuilder : public spv::Builder {
   /** Builds nested if-then-else control flow, extending SpvBuilder::If. */
   class IfBuilder : public rex::NonCopyable {
    public:
-    IfBuilder(spv::Id condition, unsigned int control, SpirvBuilder& builder,
+    IfBuilder(spv::Id condition, unsigned int control, SPIRVBuilder& builder,
               unsigned int thenWeight = 0, unsigned int elseWeight = 0);
 
     ~IfBuilder() {
@@ -72,7 +72,7 @@ class SpirvBuilder : public spv::Builder {
       kMerge,
     };
 
-    SpirvBuilder& builder;
+    SPIRVBuilder& builder;
     spv::Id condition;
     unsigned int control;
     unsigned int thenWeight;
@@ -96,7 +96,7 @@ class SpirvBuilder : public spv::Builder {
   /** Switch builder allowing multiple cases to share a block, unlike makeSwitch. */
   class SwitchBuilder {
    public:
-    SwitchBuilder(spv::Id selector, unsigned int selection_control, SpirvBuilder& builder);
+    SwitchBuilder(spv::Id selector, unsigned int selection_control, SPIRVBuilder& builder);
     ~SwitchBuilder() { REX_ASSERT(current_branch_ == Branch::kMerge); }
 
     void makeBeginDefault();
@@ -116,7 +116,7 @@ class SpirvBuilder : public spv::Builder {
 
     void endSegment();
 
-    SpirvBuilder& builder_;
+    SPIRVBuilder& builder_;
     spv::Id selector_;
     unsigned int selection_control_;
 

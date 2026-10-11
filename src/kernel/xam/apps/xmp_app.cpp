@@ -19,7 +19,6 @@ namespace rex {
 namespace kernel {
 namespace xam {
 using namespace rex::runtime;
-using namespace rex::runtime::xam;
 namespace apps {
 using namespace rex::runtime;
 
@@ -70,9 +69,9 @@ XmpApp::XmpApp(Runtime& runtime)
       next_song_handle_(1) {}
 
 X_HRESULT XmpApp::XMPGetStatus(u32 state_ptr) {
-  if (!ThreadRecord::GetCurrentThread()->main_thread()) {
+  if (!KernelThread::GetCurrentThread()->main_thread()) {
     // Titles poll this in a loop, the delay keeps them from starving other threads.
-    rex::runtime::ThreadRecord::Sleep(std::chrono::milliseconds(1));
+    rex::runtime::KernelThread::Sleep(std::chrono::milliseconds(1));
   }
 
   REXLOG_TRACE(kernel, "XMPGetStatus({:08X})", state_ptr);
@@ -434,9 +433,9 @@ X_HRESULT XmpApp::DispatchMessageSync(u32 message, u32 buffer_ptr, u32 buffer_le
       *memory_->TranslateVirtual<be_u32*>(args->controller_ptr) = 0;
       *memory_->TranslateVirtual<be_u32*>(args->locked_ptr) = 0;
 
-      if (!ThreadRecord::GetCurrentThread()->main_thread()) {
+      if (!KernelThread::GetCurrentThread()->main_thread()) {
         // Titles poll this in a loop, the delay keeps them from starving other threads.
-        rex::runtime::ThreadRecord::Sleep(std::chrono::milliseconds(10));
+        rex::runtime::KernelThread::Sleep(std::chrono::milliseconds(10));
       }
 
       return X_E_SUCCESS;

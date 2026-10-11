@@ -33,12 +33,12 @@ void AppendModules(Config& config, std::string_view list) {
   }
 }
 
-struct StructuralField {
+struct APIVar {
   std::string_view flag;
   void (*apply)(Config&, std::string_view);
 };
 
-constexpr std::array<StructuralField, 8> kStructuralFields = {{
+constexpr std::array<APIVar, 8> kRequiredVars = {{
     {"--modules", [](Config& c, std::string_view v) { AppendModules(c, v); }},
     {"--game_data_root", [](Config& c, std::string_view v) { c.paths.game_data_root = v; }},
     {"--user_data_root", [](Config& c, std::string_view v) { c.paths.user_data_root = v; }},
@@ -119,9 +119,9 @@ std::vector<std::string> ParseCommandLine(Config& config, const CLIArgList& args
     const std::string text =
         option.value ? std::format("--{}={}", option.name, *option.value) : "--" + option.name;
     if (auto field = std::ranges::find_if(
-            kStructuralFields,
-            [&](const StructuralField& entry) { return entry.flag.substr(2) == option.name; });
-        field != std::ranges::end(kStructuralFields)) {
+            kRequiredVars,
+            [&](const APIVar& entry) { return entry.flag.substr(2) == option.name; });
+        field != std::ranges::end(kRequiredVars)) {
       if (!option.value) {
         unknown.push_back(text);
         continue;

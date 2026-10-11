@@ -32,14 +32,14 @@ REX_TEST_CASE("NoThrow logs an exception from its step and returns", "[core][no_
   rex::log::NoThrow(rex::log::core, [&] { ran = true; });
   rex::log::NoThrow(rex::log::core, [] { throw std::runtime_error("socket already closed"); });
 
-  std::vector<rex::log::CapturedRecord> records;
-  sink.CopySince(0, records);
+  std::vector<rex::log::CapturedMessage> messages;
+  sink.CopySince(0, messages);
   logger->RemoveSink(sink);
   rex::Shutdown();
 
   CHECK(ran);
-  CHECK(std::ranges::any_of(records, [](const rex::log::CapturedRecord& record) {
-    return record.text == "teardown step failed, socket already closed";
+  CHECK(std::ranges::any_of(messages, [](const rex::log::CapturedMessage& message) {
+    return message.text == "teardown step failed, socket already closed";
   }));
 }
 

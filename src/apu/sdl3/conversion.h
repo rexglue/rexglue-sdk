@@ -16,7 +16,6 @@
 #include <cstdint>
 
 #include <rex/assert.h>
-#include <rex/memory/utils.h>
 #include <rex/apu/backend.h>
 #include <rex/platform.h>
 #include <rex/types.h>

@@ -16,7 +16,7 @@
 #include <utility>
 
 #include <rex/exception_handler.h>
-#include <rex/memory/utils.h>
+#include <rex/memory/virtual_memory.h>
 #include <rex/platform.h>
 #include <rex/runtime/xmemory.h>
 

@@ -76,10 +76,10 @@ class VulkanPipelineCache {
   void AnalyzeShaderUcode(Shader& shader) { shader.AnalyzeUcode(ucode_disasm_buffer_); }
 
   // The shader must have microcode analyzed.
-  SpirvShaderTranslator::Modification GetCurrentVertexShaderModification(
+  SPIRVShaderTranslator::Modification GetCurrentVertexShaderModification(
       const Shader& shader, Shader::HostVertexShaderType host_vertex_shader_type,
       u32 interpolator_mask, bool ps_param_gen_used) const;
-  SpirvShaderTranslator::Modification GetCurrentPixelShaderModification(
+  SPIRVShaderTranslator::Modification GetCurrentPixelShaderModification(
       const Shader& shader, u32 interpolator_mask, u32 param_gen_pos,
       xenos::reg::RB_DEPTHCONTROL normalized_depth_control) const;
 
@@ -321,7 +321,7 @@ class VulkanPipelineCache {
                            u64 data_hash);
 
   // Can be called from multiple threads.
-  bool TranslateAnalyzedShader(SpirvShaderTranslator& translator,
+  bool TranslateAnalyzedShader(SPIRVShaderTranslator& translator,
                                VulkanShader::VulkanTranslation& translation);
 
   void WritePipelineRenderTargetDescription(xenos::reg::RB_BLENDCONTROL blend_control,
@@ -344,8 +344,8 @@ class VulkanPipelineCache {
   bool ArePipelineRequirementsMet(const PipelineDescription& description) const;
 
   static bool GetGeometryShaderKey(PipelineGeometryShader geometry_shader_type,
-                                   SpirvShaderTranslator::Modification vertex_shader_modification,
-                                   SpirvShaderTranslator::Modification pixel_shader_modification,
+                                   SPIRVShaderTranslator::Modification vertex_shader_modification,
+                                   SPIRVShaderTranslator::Modification pixel_shader_modification,
                                    GeometryShaderKey& key_out);
   static u32 GetTessellationPatchControlPointCount(
       Shader::HostVertexShaderType host_vertex_shader_type,
@@ -379,7 +379,7 @@ class VulkanPipelineCache {
   VkShaderStageFlags guest_shader_vertex_stages_;
 
   StringBuffer ucode_disasm_buffer_;
-  std::unique_ptr<SpirvShaderTranslator> shader_translator_;
+  std::unique_ptr<SPIRVShaderTranslator> shader_translator_;
 
   struct LayoutUID {
     size_t uid;

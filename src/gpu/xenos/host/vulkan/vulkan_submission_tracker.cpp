@@ -13,7 +13,7 @@
 
 #include <rex/assert.h>
 #include "gpu/xenos/host/vulkan/submission_tracker.h"
-#include "gpu/xenos/host/vulkan/util.h"
+#include "gpu/xenos/host/vulkan/objects.h"
 
 namespace rex {
 namespace gpu {
@@ -54,7 +54,7 @@ void VulkanSubmissionTracker::Shutdown() {
   }
   fences_pending_.clear();
   REX_ASSERT(fence_acquired_ == VK_NULL_HANDLE);
-  util::DestroyAndNullHandle(dfn.vkDestroyFence, device, fence_acquired_);
+  objects::DestroyAndNullHandle(dfn.vkDestroyFence, device, fence_acquired_);
 }
 
 void VulkanSubmissionTracker::FenceAcquisition::SubmissionFailedOrDropped() {

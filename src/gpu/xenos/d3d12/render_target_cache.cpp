@@ -29,13 +29,13 @@
 #include "gpu/xenos/d3d12/texture_cache.h"
 #include "gpu/xenos/format/dxbc.h"
 #include "gpu/xenos/pipeline/shader/dxbc_translator.h"
-#include "gpu/xenos/util/draw.h"
+#include "gpu/xenos/draw_state.h"
 #include <rex/xenos/xenos.h>
 #include <rex/logging.h>
 #include <rex/math.h>
 #include <rex/string.h>
 #include "gpu/xenos/host/d3d12/d3d12_provider.h"
-#include "gpu/xenos/host/d3d12/d3d12_util.h"
+#include "gpu/xenos/host/d3d12/d3d12_objects.h"
 
 #include "gpu/xenos/cvar_table.h"
 
@@ -74,7 +74,7 @@ namespace shaders {
 
 const D3D12RenderTargetCache::ResolveCopyShaderCode
     D3D12RenderTargetCache::kResolveCopyShaders[static_cast<size_t>(
-        draw_util::ResolveCopyShaderIndex::kCount)] = {
+        draw_state::ResolveCopyShaderIndex::kCount)] = {
         {shaders::kResolveFast32BPP1x2xMSAACS, sizeof(shaders::kResolveFast32BPP1x2xMSAACS),
          shaders::kResolveFast32BPP1x2xMSAAScaledCS,
          sizeof(shaders::kResolveFast32BPP1x2xMSAAScaledCS)},
@@ -154,11 +154,11 @@ bool D3D12RenderTargetCache::Initialize() {
     path_ = Path::kPixelShaderInterlock;
   } else {
 #if 1
-    path_ = provider.GetAdapterVendorID() == gpu::GraphicsProvider::GpuVendorID::kIntel
+    path_ = provider.GetAdapterVendorID() == gpu::GraphicsProvider::GPUVendorID::kIntel
                 ? Path::kPixelShaderInterlock
                 : Path::kHostRenderTargets;
 #else
-    path_ = provider.GetAdapterVendorID() == gpu::GraphicsProvider::GpuVendorID::kAMD
+    path_ = provider.GetAdapterVendorID() == gpu::GraphicsProvider::GPUVendorID::kAMD
                 ? Path::kHostRenderTargets
                 : Path::kPixelShaderInterlock;
 #endif
@@ -170,25 +170,25 @@ bool D3D12RenderTargetCache::Initialize() {
   u32 edram_buffer_size =
       xenos::kEDRAMSizeBytes * (draw_resolution_scale_x() * draw_resolution_scale_y());
   D3D12_RESOURCE_DESC edram_buffer_desc;
-  gpu::d3d12::util::FillBufferResourceDesc(edram_buffer_desc, edram_buffer_size,
-                                           D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
+  gpu::d3d12::objects::FillBufferResourceDesc(edram_buffer_desc, edram_buffer_size,
+                                              D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
   // Depth self comparison with host render targets and ROV drawing use the buffer as a UAV.
   edram_buffer_state_ = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
   // Zeroed for a stable initial value with ROV and to not leak data outside host render targets.
   if (FAILED(device->CreateCommittedResource(
-          &gpu::d3d12::util::kHeapPropertiesDefault, D3D12_HEAP_FLAG_NONE, &edram_buffer_desc,
+          &gpu::d3d12::objects::kHeapPropertiesDefault, D3D12_HEAP_FLAG_NONE, &edram_buffer_desc,
           edram_buffer_state_, nullptr, IID_PPV_ARGS(&edram_buffer_)))) {
     REXLOG_ERROR(gpu, "D3D12RenderTargetCache: Failed to create the EDRAM buffer");
     Shutdown();
     return false;
   }
   edram_buffer_->SetName(L"EDRAM Buffer");
-  edram_buffer_modification_status_ = EdramBufferModificationStatus::kUnmodified;
+  edram_buffer_modification_status_ = EDRAMBufferModificationStatus::kUnmodified;
 
   D3D12_DESCRIPTOR_HEAP_DESC edram_buffer_descriptor_heap_desc;
   edram_buffer_descriptor_heap_desc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
   edram_buffer_descriptor_heap_desc.NumDescriptors =
-      std::to_underlying(EdramBufferDescriptorIndex::kCount);
+      std::to_underlying(EDRAMBufferDescriptorIndex::kCount);
   edram_buffer_descriptor_heap_desc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
   edram_buffer_descriptor_heap_desc.NodeMask = 0;
   if (FAILED(device->CreateDescriptorHeap(&edram_buffer_descriptor_heap_desc,
@@ -201,47 +201,47 @@ bool D3D12RenderTargetCache::Initialize() {
   }
   edram_buffer_descriptor_heap_start_ =
       edram_buffer_descriptor_heap_->GetCPUDescriptorHandleForHeapStart();
-  gpu::d3d12::util::CreateBufferRawSRV(
+  gpu::d3d12::objects::CreateBufferRawSRV(
       device,
       provider.OffsetViewDescriptor(edram_buffer_descriptor_heap_start_,
-                                    std::to_underlying(EdramBufferDescriptorIndex::kRawSRV)),
+                                    std::to_underlying(EDRAMBufferDescriptorIndex::kRawSRV)),
       edram_buffer_, edram_buffer_size);
-  gpu::d3d12::util::CreateBufferTypedSRV(
+  gpu::d3d12::objects::CreateBufferTypedSRV(
       device,
       provider.OffsetViewDescriptor(edram_buffer_descriptor_heap_start_,
-                                    std::to_underlying(EdramBufferDescriptorIndex::kR32UintSRV)),
+                                    std::to_underlying(EDRAMBufferDescriptorIndex::kR32UintSRV)),
       edram_buffer_, DXGI_FORMAT_R32_UINT, edram_buffer_size >> 2);
-  gpu::d3d12::util::CreateBufferTypedSRV(
+  gpu::d3d12::objects::CreateBufferTypedSRV(
       device,
       provider.OffsetViewDescriptor(edram_buffer_descriptor_heap_start_,
-                                    std::to_underlying(EdramBufferDescriptorIndex::kR32G32UintSRV)),
+                                    std::to_underlying(EDRAMBufferDescriptorIndex::kR32G32UintSRV)),
       edram_buffer_, DXGI_FORMAT_R32G32_UINT, edram_buffer_size >> 3);
-  gpu::d3d12::util::CreateBufferTypedSRV(
+  gpu::d3d12::objects::CreateBufferTypedSRV(
       device,
       provider.OffsetViewDescriptor(
           edram_buffer_descriptor_heap_start_,
-          std::to_underlying(EdramBufferDescriptorIndex::kR32G32B32A32UintSRV)),
+          std::to_underlying(EDRAMBufferDescriptorIndex::kR32G32B32A32UintSRV)),
       edram_buffer_, DXGI_FORMAT_R32G32B32A32_UINT, edram_buffer_size >> 4);
-  gpu::d3d12::util::CreateBufferRawUAV(
+  gpu::d3d12::objects::CreateBufferRawUAV(
       device,
       provider.OffsetViewDescriptor(edram_buffer_descriptor_heap_start_,
-                                    std::to_underlying(EdramBufferDescriptorIndex::kRawUAV)),
+                                    std::to_underlying(EDRAMBufferDescriptorIndex::kRawUAV)),
       edram_buffer_, edram_buffer_size);
-  gpu::d3d12::util::CreateBufferTypedUAV(
+  gpu::d3d12::objects::CreateBufferTypedUAV(
       device,
       provider.OffsetViewDescriptor(edram_buffer_descriptor_heap_start_,
-                                    std::to_underlying(EdramBufferDescriptorIndex::kR32UintUAV)),
+                                    std::to_underlying(EDRAMBufferDescriptorIndex::kR32UintUAV)),
       edram_buffer_, DXGI_FORMAT_R32_UINT, edram_buffer_size >> 2);
-  gpu::d3d12::util::CreateBufferTypedUAV(
+  gpu::d3d12::objects::CreateBufferTypedUAV(
       device,
       provider.OffsetViewDescriptor(edram_buffer_descriptor_heap_start_,
-                                    std::to_underlying(EdramBufferDescriptorIndex::kR32G32UintUAV)),
+                                    std::to_underlying(EDRAMBufferDescriptorIndex::kR32G32UintUAV)),
       edram_buffer_, DXGI_FORMAT_R32G32_UINT, edram_buffer_size >> 3);
-  gpu::d3d12::util::CreateBufferTypedUAV(
+  gpu::d3d12::objects::CreateBufferTypedUAV(
       device,
       provider.OffsetViewDescriptor(
           edram_buffer_descriptor_heap_start_,
-          std::to_underlying(EdramBufferDescriptorIndex::kR32G32B32A32UintUAV)),
+          std::to_underlying(EDRAMBufferDescriptorIndex::kR32G32B32A32UintUAV)),
       edram_buffer_, DXGI_FORMAT_R32G32B32A32_UINT, edram_buffer_size >> 4);
 
   bool draw_resolution_scaled = IsDrawResolutionScaled();
@@ -252,8 +252,8 @@ bool D3D12RenderTargetCache::Initialize() {
   resolve_copy_root_parameters[0].Constants.RegisterSpace = 0;
   // Shared memory is bound whole at 1x resolution, and in portions with scaled resolution.
   resolve_copy_root_parameters[0].Constants.Num32BitValues =
-      (draw_resolution_scaled ? sizeof(draw_util::ResolveCopyShaderConstants::DestRelative)
-                              : sizeof(draw_util::ResolveCopyShaderConstants)) /
+      (draw_resolution_scaled ? sizeof(draw_state::ResolveCopyShaderConstants::DestRelative)
+                              : sizeof(draw_state::ResolveCopyShaderConstants)) /
       sizeof(u32);
   resolve_copy_root_parameters[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
   D3D12_DESCRIPTOR_RANGE resolve_copy_dest_range;
@@ -283,7 +283,7 @@ bool D3D12RenderTargetCache::Initialize() {
   resolve_copy_root_signature_desc.pStaticSamplers = nullptr;
   resolve_copy_root_signature_desc.Flags = D3D12_ROOT_SIGNATURE_FLAG_NONE;
   resolve_copy_root_signature_ =
-      gpu::d3d12::util::CreateRootSignature(provider, resolve_copy_root_signature_desc);
+      gpu::d3d12::objects::CreateRootSignature(provider, resolve_copy_root_signature_desc);
   if (resolve_copy_root_signature_ == nullptr) {
     REXLOG_ERROR(gpu,
                  "D3D12RenderTargetCache: Failed to create the resolve copy root "
@@ -296,13 +296,13 @@ bool D3D12RenderTargetCache::Initialize() {
   direct_resolve_root_signature_color_->AddRef();
   direct_resolve_root_signature_depth_->AddRef();
 
-  for (size_t i = 0; i < size_t(draw_util::ResolveCopyShaderIndex::kCount); ++i) {
-    const draw_util::ResolveCopyShaderInfo& resolve_copy_shader_info =
-        draw_util::resolve_copy_shader_info[i];
+  for (size_t i = 0; i < size_t(draw_state::ResolveCopyShaderIndex::kCount); ++i) {
+    const draw_state::ResolveCopyShaderInfo& resolve_copy_shader_info =
+        draw_state::resolve_copy_shader_info[i];
     const ResolveCopyShaderCode& resolve_copy_shader_code = kResolveCopyShaders[i];
     REX_ASSERT(resolve_copy_shader_code.unscaled && resolve_copy_shader_code.unscaled_size &&
                resolve_copy_shader_code.scaled && resolve_copy_shader_code.scaled_size);
-    ID3D12PipelineState* resolve_copy_pipeline = gpu::d3d12::util::CreateComputePipeline(
+    ID3D12PipelineState* resolve_copy_pipeline = gpu::d3d12::objects::CreateComputePipeline(
         device,
         draw_resolution_scaled ? resolve_copy_shader_code.scaled
                                : resolve_copy_shader_code.unscaled,
@@ -325,7 +325,7 @@ bool D3D12RenderTargetCache::Initialize() {
       REXCVAR_GET(::rex::gpu::cvars::native_stencil_value_output) &&
       provider.IsPSSpecifiedStencilReferenceSupported() &&
       (REXCVAR_GET(::rex::gpu::cvars::native_stencil_value_output_d3d12_intel) ||
-       provider.GetAdapterVendorID() != gpu::GraphicsProvider::GpuVendorID::kIntel);
+       provider.GetAdapterVendorID() != gpu::GraphicsProvider::GPUVendorID::kIntel);
 
   if (path_ == Path::kHostRenderTargets) {
     gamma_render_target_as_unorm16_ =
@@ -456,7 +456,7 @@ bool D3D12RenderTargetCache::Initialize() {
     host_depth_store_root_desc.pStaticSamplers = nullptr;
     host_depth_store_root_desc.Flags = D3D12_ROOT_SIGNATURE_FLAG_NONE;
     host_depth_store_root_signature_ =
-        gpu::d3d12::util::CreateRootSignature(provider, host_depth_store_root_desc);
+        gpu::d3d12::objects::CreateRootSignature(provider, host_depth_store_root_desc);
     if (!host_depth_store_root_signature_) {
       REXLOG_ERROR(gpu,
                    "D3D12RenderTargetCache: Failed to create the host depth storing "
@@ -465,9 +465,9 @@ bool D3D12RenderTargetCache::Initialize() {
       return false;
     }
     host_depth_store_pipelines_[std::to_underlying(xenos::MSAASamples::k1X)] =
-        gpu::d3d12::util::CreateComputePipeline(device, shaders::kHostDepthStore1xMSAACS,
-                                                sizeof(shaders::kHostDepthStore1xMSAACS),
-                                                host_depth_store_root_signature_);
+        gpu::d3d12::objects::CreateComputePipeline(device, shaders::kHostDepthStore1xMSAACS,
+                                                   sizeof(shaders::kHostDepthStore1xMSAACS),
+                                                   host_depth_store_root_signature_);
     if (!host_depth_store_pipelines_[std::to_underlying(xenos::MSAASamples::k1X)]) {
       REXLOG_ERROR(gpu,
                    "D3D12RenderTargetCache: Failed to create the 1-sample host depth "
@@ -478,9 +478,9 @@ bool D3D12RenderTargetCache::Initialize() {
     host_depth_store_pipelines_[std::to_underlying(xenos::MSAASamples::k1X)]->SetName(
         L"Host Depth Store 1xMSAA");
     host_depth_store_pipelines_[std::to_underlying(xenos::MSAASamples::k2X)] =
-        gpu::d3d12::util::CreateComputePipeline(device, shaders::kHostDepthStore2xMSAACS,
-                                                sizeof(shaders::kHostDepthStore2xMSAACS),
-                                                host_depth_store_root_signature_);
+        gpu::d3d12::objects::CreateComputePipeline(device, shaders::kHostDepthStore2xMSAACS,
+                                                   sizeof(shaders::kHostDepthStore2xMSAACS),
+                                                   host_depth_store_root_signature_);
     if (!host_depth_store_pipelines_[std::to_underlying(xenos::MSAASamples::k2X)]) {
       REXLOG_ERROR(gpu,
                    "D3D12RenderTargetCache: Failed to create the 2-sample host depth "
@@ -491,9 +491,9 @@ bool D3D12RenderTargetCache::Initialize() {
     host_depth_store_pipelines_[std::to_underlying(xenos::MSAASamples::k2X)]->SetName(
         L"Host Depth Store 2xMSAA");
     host_depth_store_pipelines_[std::to_underlying(xenos::MSAASamples::k4X)] =
-        gpu::d3d12::util::CreateComputePipeline(device, shaders::kHostDepthStore4xMSAACS,
-                                                sizeof(shaders::kHostDepthStore4xMSAACS),
-                                                host_depth_store_root_signature_);
+        gpu::d3d12::objects::CreateComputePipeline(device, shaders::kHostDepthStore4xMSAACS,
+                                                   sizeof(shaders::kHostDepthStore4xMSAACS),
+                                                   host_depth_store_root_signature_);
     if (!host_depth_store_pipelines_[std::to_underlying(xenos::MSAASamples::k4X)]) {
       REXLOG_ERROR(gpu,
                    "D3D12RenderTargetCache: Failed to create the 4-sample host depth "
@@ -616,7 +616,7 @@ bool D3D12RenderTargetCache::Initialize() {
       transfer_root_desc.NumParameters = rex::bit_count(transfer_root_mask);
       REX_ASSERT(transfer_root_desc.NumParameters <= kTransferUsedRootParameterCount);
       transfer_root_signatures_[i] =
-          gpu::d3d12::util::CreateRootSignature(provider, transfer_root_desc);
+          gpu::d3d12::objects::CreateRootSignature(provider, transfer_root_desc);
       if (!transfer_root_signatures_[i]) {
         REXLOG_ERROR(gpu,
                      "D3D12RenderTargetCache: Failed to create the render target "
@@ -682,8 +682,8 @@ bool D3D12RenderTargetCache::Initialize() {
       dump_root_pitches.Constants.Num32BitValues = sizeof(DumpPitches) / sizeof(u32);
       dump_root_pitches.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
       D3D12_ROOT_PARAMETER& dump_root_edram =
-          i ? dump_root_depth_parameters[kDumpRootParameterDepthEdram]
-            : dump_root_color_parameters[kDumpRootParameterColorEdram];
+          i ? dump_root_depth_parameters[kDumpRootParameterDepthEDRAM]
+            : dump_root_color_parameters[kDumpRootParameterColorEDRAM];
       dump_root_edram.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
       dump_root_edram.DescriptorTable.NumDescriptorRanges = 1;
       dump_root_edram.DescriptorTable.pDescriptorRanges = &dump_root_edram_range;
@@ -695,7 +695,7 @@ bool D3D12RenderTargetCache::Initialize() {
     dump_root_desc.NumStaticSamplers = 0;
     dump_root_desc.pStaticSamplers = nullptr;
     dump_root_desc.Flags = D3D12_ROOT_SIGNATURE_FLAG_NONE;
-    dump_root_signature_color_ = gpu::d3d12::util::CreateRootSignature(provider, dump_root_desc);
+    dump_root_signature_color_ = gpu::d3d12::objects::CreateRootSignature(provider, dump_root_desc);
     if (!dump_root_signature_color_) {
       REXLOG_ERROR(gpu,
                    "D3D12RenderTargetCache: Failed to create the color render target "
@@ -705,7 +705,7 @@ bool D3D12RenderTargetCache::Initialize() {
     }
     dump_root_desc.NumParameters = UINT(rex::countof(dump_root_depth_parameters));
     dump_root_desc.pParameters = dump_root_depth_parameters;
-    dump_root_signature_depth_ = gpu::d3d12::util::CreateRootSignature(provider, dump_root_desc);
+    dump_root_signature_depth_ = gpu::d3d12::objects::CreateRootSignature(provider, dump_root_desc);
     if (!dump_root_signature_depth_) {
       REXLOG_ERROR(gpu,
                    "D3D12RenderTargetCache: Failed to create the depth render target "
@@ -727,7 +727,7 @@ bool D3D12RenderTargetCache::Initialize() {
     uint32_rtv_clear_root_desc.pStaticSamplers = nullptr;
     uint32_rtv_clear_root_desc.Flags = D3D12_ROOT_SIGNATURE_FLAG_NONE;
     uint32_rtv_clear_root_signature_ =
-        gpu::d3d12::util::CreateRootSignature(provider, uint32_rtv_clear_root_desc);
+        gpu::d3d12::objects::CreateRootSignature(provider, uint32_rtv_clear_root_desc);
     if (!uint32_rtv_clear_root_signature_) {
       REXLOG_ERROR(gpu,
                    "D3D12RenderTargetCache: Failed to create the k_32_FLOAT / "
@@ -735,7 +735,7 @@ bool D3D12RenderTargetCache::Initialize() {
       Shutdown();
       return false;
     }
-    auto uint32_rtv_clear_pipeline_desc = util::MakeGraphicsPipelineStateDesc();
+    auto uint32_rtv_clear_pipeline_desc = objects::BuildGraphicsPipelineStateDesc();
     uint32_rtv_clear_pipeline_desc.pRootSignature = uint32_rtv_clear_root_signature_;
     uint32_rtv_clear_pipeline_desc.VS.pShaderBytecode = shaders::kFullscreenCWVS;
     uint32_rtv_clear_pipeline_desc.VS.BytecodeLength = sizeof(shaders::kFullscreenCWVS);
@@ -799,7 +799,7 @@ bool D3D12RenderTargetCache::Initialize() {
     resolve_rov_clear_root_parameters[0].Constants.ShaderRegister = 0;
     resolve_rov_clear_root_parameters[0].Constants.RegisterSpace = 0;
     resolve_rov_clear_root_parameters[0].Constants.Num32BitValues =
-        sizeof(draw_util::ResolveClearShaderConstants) / sizeof(u32);
+        sizeof(draw_state::ResolveClearShaderConstants) / sizeof(u32);
     resolve_rov_clear_root_parameters[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
     D3D12_DESCRIPTOR_RANGE resolve_rov_clear_dest_range;
     resolve_rov_clear_dest_range.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
@@ -820,7 +820,7 @@ bool D3D12RenderTargetCache::Initialize() {
     resolve_rov_clear_root_signature_desc.pStaticSamplers = nullptr;
     resolve_rov_clear_root_signature_desc.Flags = D3D12_ROOT_SIGNATURE_FLAG_NONE;
     resolve_rov_clear_root_signature_ =
-        gpu::d3d12::util::CreateRootSignature(provider, resolve_rov_clear_root_signature_desc);
+        gpu::d3d12::objects::CreateRootSignature(provider, resolve_rov_clear_root_signature_desc);
     if (resolve_rov_clear_root_signature_ == nullptr) {
       REXLOG_ERROR(gpu,
                    "D3D12RenderTargetCache: Failed to create the resolve EDRAM buffer "
@@ -829,7 +829,7 @@ bool D3D12RenderTargetCache::Initialize() {
       return false;
     }
 
-    resolve_rov_clear_32bpp_pipeline_ = gpu::d3d12::util::CreateComputePipeline(
+    resolve_rov_clear_32bpp_pipeline_ = gpu::d3d12::objects::CreateComputePipeline(
         device,
         draw_resolution_scaled ? shaders::kResolveClear32BPPScaledCS
                                : shaders::kResolveClear32BPPCS,
@@ -844,7 +844,7 @@ bool D3D12RenderTargetCache::Initialize() {
       return false;
     }
     resolve_rov_clear_32bpp_pipeline_->SetName(L"Resolve Clear 32bpp");
-    resolve_rov_clear_64bpp_pipeline_ = gpu::d3d12::util::CreateComputePipeline(
+    resolve_rov_clear_64bpp_pipeline_ = gpu::d3d12::objects::CreateComputePipeline(
         device,
         draw_resolution_scaled ? shaders::kResolveClear64BPPScaledCS
                                : shaders::kResolveClear64BPPCS,
@@ -871,17 +871,17 @@ bool D3D12RenderTargetCache::Initialize() {
 }
 
 void D3D12RenderTargetCache::Shutdown(bool from_destructor) {
-  gpu::d3d12::util::ReleaseAndNull(resolve_rov_clear_64bpp_pipeline_);
-  gpu::d3d12::util::ReleaseAndNull(resolve_rov_clear_32bpp_pipeline_);
-  gpu::d3d12::util::ReleaseAndNull(resolve_rov_clear_root_signature_);
+  gpu::d3d12::objects::ReleaseAndNull(resolve_rov_clear_64bpp_pipeline_);
+  gpu::d3d12::objects::ReleaseAndNull(resolve_rov_clear_32bpp_pipeline_);
+  gpu::d3d12::objects::ReleaseAndNull(resolve_rov_clear_root_signature_);
 
   for (size_t i = 0; i < 2; ++i) {
     for (size_t j = static_cast<size_t>(xenos::MSAASamples::k1X);
          j <= static_cast<size_t>(xenos::MSAASamples::k4X); ++j) {
-      gpu::d3d12::util::ReleaseAndNull(uint32_rtv_clear_pipelines_[i][j]);
+      gpu::d3d12::objects::ReleaseAndNull(uint32_rtv_clear_pipelines_[i][j]);
     }
   }
-  gpu::d3d12::util::ReleaseAndNull(uint32_rtv_clear_root_signature_);
+  gpu::d3d12::objects::ReleaseAndNull(uint32_rtv_clear_root_signature_);
 
   for (const auto& dump_pipeline_pair : dump_pipelines_) {
     if (dump_pipeline_pair.second) {
@@ -902,10 +902,10 @@ void D3D12RenderTargetCache::Shutdown(bool from_destructor) {
     }
   }
   direct_resolve_pipelines_.clear();
-  gpu::d3d12::util::ReleaseAndNull(direct_resolve_root_signature_depth_);
-  gpu::d3d12::util::ReleaseAndNull(direct_resolve_root_signature_color_);
-  gpu::d3d12::util::ReleaseAndNull(dump_root_signature_depth_);
-  gpu::d3d12::util::ReleaseAndNull(dump_root_signature_color_);
+  gpu::d3d12::objects::ReleaseAndNull(direct_resolve_root_signature_depth_);
+  gpu::d3d12::objects::ReleaseAndNull(direct_resolve_root_signature_color_);
+  gpu::d3d12::objects::ReleaseAndNull(dump_root_signature_depth_);
+  gpu::d3d12::objects::ReleaseAndNull(dump_root_signature_color_);
 
   for (const auto& transfer_pipeline_array_pair : transfer_stencil_bit_pipelines_) {
     for (ID3D12PipelineState* transfer_pipeline : transfer_pipeline_array_pair.second) {
@@ -922,15 +922,15 @@ void D3D12RenderTargetCache::Shutdown(bool from_destructor) {
   }
   transfer_pipelines_.clear();
   for (auto& root_signature : transfer_root_signatures_) {
-    gpu::d3d12::util::ReleaseAndNull(root_signature);
+    gpu::d3d12::objects::ReleaseAndNull(root_signature);
   }
 
   transfer_vertex_buffer_pool_.reset();
 
   for (auto& pipeline : host_depth_store_pipelines_) {
-    gpu::d3d12::util::ReleaseAndNull(pipeline);
+    gpu::d3d12::objects::ReleaseAndNull(pipeline);
   }
-  gpu::d3d12::util::ReleaseAndNull(host_depth_store_root_signature_);
+  gpu::d3d12::objects::ReleaseAndNull(host_depth_store_root_signature_);
 
   null_rtv_descriptor_ms_.Free();
   null_rtv_descriptor_ss_.Free();
@@ -939,12 +939,12 @@ void D3D12RenderTargetCache::Shutdown(bool from_destructor) {
   descriptor_pool_color_.reset();
 
   for (auto& pipeline : resolve_copy_pipelines_) {
-    gpu::d3d12::util::ReleaseAndNull(pipeline);
+    gpu::d3d12::objects::ReleaseAndNull(pipeline);
   }
-  gpu::d3d12::util::ReleaseAndNull(resolve_copy_root_signature_);
+  gpu::d3d12::objects::ReleaseAndNull(resolve_copy_root_signature_);
 
-  gpu::d3d12::util::ReleaseAndNull(edram_buffer_descriptor_heap_);
-  gpu::d3d12::util::ReleaseAndNull(edram_buffer_);
+  gpu::d3d12::objects::ReleaseAndNull(edram_buffer_descriptor_heap_);
+  gpu::d3d12::objects::ReleaseAndNull(edram_buffer_);
 
   if (!from_destructor) {
     ShutdownCommon();
@@ -960,10 +960,10 @@ void D3D12RenderTargetCache::CompletedSubmissionUpdated() {
 void D3D12RenderTargetCache::BeginSubmission() {
   InvalidateCommandListRenderTargets();
   // ExecuteCommandLists is a full UAV barrier.
-  if (edram_buffer_modification_status_ != EdramBufferModificationStatus::kUnmodified) {
+  if (edram_buffer_modification_status_ != EDRAMBufferModificationStatus::kUnmodified) {
     REX_ASSERT(edram_buffer_state_ == D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-    edram_buffer_modification_status_ = EdramBufferModificationStatus::kUnmodified;
-    PixelShaderInterlockFullEdramBarrierPlaced();
+    edram_buffer_modification_status_ = EDRAMBufferModificationStatus::kUnmodified;
+    PixelShaderInterlockFullEDRAMBarrierPlaced();
   }
 }
 
@@ -983,10 +983,10 @@ bool D3D12RenderTargetCache::Update(bool is_rasterization_done,
       SetCommandListRenderTargets(depth_and_color_render_targets);
     } break;
     case Path::kPixelShaderInterlock: {
-      TransitionEdramBuffer(D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+      TransitionEDRAMBuffer(D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
       // UAV writes such as clears are not synchronized with ROV accesses, so commit them first.
-      CommitEdramBufferUAVWrites(EdramBufferModificationStatus::kAsUAV);
-      MarkEdramBufferModified(EdramBufferModificationStatus::kAsROV);
+      CommitEDRAMBufferUAVWrites(EDRAMBufferModificationStatus::kAsUAV);
+      MarkEDRAMBufferModified(EDRAMBufferModificationStatus::kAsROV);
     } break;
     default:
       REX_UNHANDLED_CASE(GetPath());
@@ -995,38 +995,38 @@ bool D3D12RenderTargetCache::Update(bool is_rasterization_done,
   return true;
 }
 
-void D3D12RenderTargetCache::WriteEdramRawSRVDescriptor(D3D12_CPU_DESCRIPTOR_HANDLE handle) {
+void D3D12RenderTargetCache::WriteEDRAMRawSRVDescriptor(D3D12_CPU_DESCRIPTOR_HANDLE handle) {
   const gpu::d3d12::D3D12Provider& provider = command_processor_.GetD3D12Provider();
   ID3D12Device* device = provider.GetDevice();
   device->CopyDescriptorsSimple(
       1, handle,
       provider.OffsetViewDescriptor(edram_buffer_descriptor_heap_start_,
-                                    std::to_underlying(EdramBufferDescriptorIndex::kRawSRV)),
+                                    std::to_underlying(EDRAMBufferDescriptorIndex::kRawSRV)),
       D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 }
 
-void D3D12RenderTargetCache::WriteEdramRawUAVDescriptor(D3D12_CPU_DESCRIPTOR_HANDLE handle) {
+void D3D12RenderTargetCache::WriteEDRAMRawUAVDescriptor(D3D12_CPU_DESCRIPTOR_HANDLE handle) {
   const gpu::d3d12::D3D12Provider& provider = command_processor_.GetD3D12Provider();
   ID3D12Device* device = provider.GetDevice();
   device->CopyDescriptorsSimple(
       1, handle,
       provider.OffsetViewDescriptor(edram_buffer_descriptor_heap_start_,
-                                    std::to_underlying(EdramBufferDescriptorIndex::kRawUAV)),
+                                    std::to_underlying(EDRAMBufferDescriptorIndex::kRawUAV)),
       D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 }
 
-void D3D12RenderTargetCache::WriteEdramUintPow2SRVDescriptor(D3D12_CPU_DESCRIPTOR_HANDLE handle,
+void D3D12RenderTargetCache::WriteEDRAMUintPow2SRVDescriptor(D3D12_CPU_DESCRIPTOR_HANDLE handle,
                                                              u32 element_size_bytes_pow2) {
-  EdramBufferDescriptorIndex descriptor_index;
+  EDRAMBufferDescriptorIndex descriptor_index;
   switch (element_size_bytes_pow2) {
     case 2:
-      descriptor_index = EdramBufferDescriptorIndex::kR32UintSRV;
+      descriptor_index = EDRAMBufferDescriptorIndex::kR32UintSRV;
       break;
     case 3:
-      descriptor_index = EdramBufferDescriptorIndex::kR32G32UintSRV;
+      descriptor_index = EDRAMBufferDescriptorIndex::kR32G32UintSRV;
       break;
     case 4:
-      descriptor_index = EdramBufferDescriptorIndex::kR32G32B32A32UintSRV;
+      descriptor_index = EDRAMBufferDescriptorIndex::kR32G32B32A32UintSRV;
       break;
     default:
       REX_UNHANDLED_CASE(element_size_bytes_pow2);
@@ -1040,18 +1040,18 @@ void D3D12RenderTargetCache::WriteEdramUintPow2SRVDescriptor(D3D12_CPU_DESCRIPTO
                                 D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 }
 
-void D3D12RenderTargetCache::WriteEdramUintPow2UAVDescriptor(D3D12_CPU_DESCRIPTOR_HANDLE handle,
+void D3D12RenderTargetCache::WriteEDRAMUintPow2UAVDescriptor(D3D12_CPU_DESCRIPTOR_HANDLE handle,
                                                              u32 element_size_bytes_pow2) {
-  EdramBufferDescriptorIndex descriptor_index;
+  EDRAMBufferDescriptorIndex descriptor_index;
   switch (element_size_bytes_pow2) {
     case 2:
-      descriptor_index = EdramBufferDescriptorIndex::kR32UintUAV;
+      descriptor_index = EDRAMBufferDescriptorIndex::kR32UintUAV;
       break;
     case 3:
-      descriptor_index = EdramBufferDescriptorIndex::kR32G32UintUAV;
+      descriptor_index = EDRAMBufferDescriptorIndex::kR32G32UintUAV;
       break;
     case 4:
-      descriptor_index = EdramBufferDescriptorIndex::kR32G32B32A32UintUAV;
+      descriptor_index = EDRAMBufferDescriptorIndex::kR32G32B32A32UintUAV;
       break;
     default:
       REX_UNHANDLED_CASE(element_size_bytes_pow2);
@@ -1074,11 +1074,11 @@ bool D3D12RenderTargetCache::Resolve(const runtime::Memory& memory,
 
   bool draw_resolution_scaled = IsDrawResolutionScaled();
 
-  draw_util::ResolveInfo resolve_info;
+  draw_state::ResolveInfo resolve_info;
   bool fixed_16_truncated_to_minus_1_to_1 = IsFixed16TruncatedToMinus1To1();
-  if (!draw_util::GetResolveInfo(register_file(), memory, draw_resolution_scale_x(),
-                                 draw_resolution_scale_y(), fixed_16_truncated_to_minus_1_to_1,
-                                 fixed_16_truncated_to_minus_1_to_1, resolve_info)) {
+  if (!draw_state::GetResolveInfo(register_file(), memory, draw_resolution_scale_x(),
+                                  draw_resolution_scale_y(), fixed_16_truncated_to_minus_1_to_1,
+                                  fixed_16_truncated_to_minus_1_to_1, resolve_info)) {
     return false;
   }
 
@@ -1090,15 +1090,15 @@ bool D3D12RenderTargetCache::Resolve(const runtime::Memory& memory,
 
   bool copied = false;
   if (resolve_info.copy_dest_extent_length) {
-    draw_util::ResolveCopyShaderConstants copy_shader_constants;
+    draw_state::ResolveCopyShaderConstants copy_shader_constants;
     u32 copy_group_count_x, copy_group_count_y;
-    draw_util::ResolveCopyShaderIndex copy_shader =
+    draw_state::ResolveCopyShaderIndex copy_shader =
         resolve_info.GetCopyShader(draw_resolution_scale_x(), draw_resolution_scale_y(),
                                    copy_shader_constants, copy_group_count_x, copy_group_count_y);
     REX_ASSERT(copy_group_count_x && copy_group_count_y);
-    if (copy_shader != draw_util::ResolveCopyShaderIndex::kUnknown) {
-      const draw_util::ResolveCopyShaderInfo& copy_shader_info =
-          draw_util::resolve_copy_shader_info[static_cast<size_t>(copy_shader)];
+    if (copy_shader != draw_state::ResolveCopyShaderIndex::kUnknown) {
+      const draw_state::ResolveCopyShaderInfo& copy_shader_info =
+          draw_state::resolve_copy_shader_info[static_cast<size_t>(copy_shader)];
       bool direct_resolved = false;
       if (GetPath() == Path::kHostRenderTargets) {
         if (REXCVAR_GET(::rex::gpu::cvars::direct_host_resolve)) {
@@ -1115,7 +1115,7 @@ bool D3D12RenderTargetCache::Resolve(const runtime::Memory& memory,
           u32 dump_row_length_used;
           u32 dump_rows;
           u32 dump_pitch;
-          resolve_info.GetCopyEdramTileSpan(dump_base, dump_row_length_used, dump_rows, dump_pitch);
+          resolve_info.GetCopyEDRAMTileSpan(dump_base, dump_row_length_used, dump_rows, dump_pitch);
           if (!DumpRenderTargets(dump_base, dump_row_length_used, dump_rows, dump_pitch)) {
             REX_FAIL(gpu, false,
                      "D3D12RenderTargetCache: Failed to dump host render targets for resolve");
@@ -1129,18 +1129,18 @@ bool D3D12RenderTargetCache::Resolve(const runtime::Memory& memory,
         copy_dest_committed =
             texture_cache.EnsureScaledResolveMemoryCommitted(
                 resolve_info.copy_dest_extent_start, resolve_info.copy_dest_extent_length) &&
-            texture_cache.MakeScaledResolveRangeCurrent(resolve_info.copy_dest_base,
-                                                        resolve_info.copy_dest_extent_start -
-                                                            resolve_info.copy_dest_base +
-                                                            resolve_info.copy_dest_extent_length);
+            texture_cache.UpdateScaledResolveRange(resolve_info.copy_dest_base,
+                                                   resolve_info.copy_dest_extent_start -
+                                                       resolve_info.copy_dest_base +
+                                                       resolve_info.copy_dest_extent_length);
       } else {
         copy_dest_committed = shared_memory.RequestRange(resolve_info.copy_dest_extent_start,
                                                          resolve_info.copy_dest_extent_length);
       }
       if (copy_dest_committed) {
-        gpu::d3d12::util::DescriptorCpuGpuHandlePair descriptor_dest;
-        gpu::d3d12::util::DescriptorCpuGpuHandlePair descriptor_source;
-        gpu::d3d12::util::DescriptorCpuGpuHandlePair descriptors[2];
+        gpu::d3d12::objects::DescriptorCPUGPUHandlePair descriptor_dest;
+        gpu::d3d12::objects::DescriptorCPUGPUHandlePair descriptor_source;
+        gpu::d3d12::objects::DescriptorCPUGPUHandlePair descriptors[2];
         if (command_processor_.RequestOneUseSingleViewDescriptors(
                 bindless_resources_used_ ? static_cast<u32>(draw_resolution_scaled) : 2,
                 descriptors)) {
@@ -1155,7 +1155,7 @@ bool D3D12RenderTargetCache::Resolve(const runtime::Memory& memory,
               descriptor_source = command_processor_.GetSystemBindlessViewHandlePair(
                   D3D12CommandProcessor::SystemBindlessView::kEDRAMRawSRV);
             } else {
-              descriptor_source = command_processor_.GetEdramUintPow2BindlessSRVHandlePair(
+              descriptor_source = command_processor_.GetEDRAMUintPow2BindlessSRVHandlePair(
                   copy_shader_info.source_bpe_log2);
             }
           } else {
@@ -1166,9 +1166,9 @@ bool D3D12RenderTargetCache::Resolve(const runtime::Memory& memory,
             }
             descriptor_source = descriptors[1];
             if (copy_shader_info.source_is_raw) {
-              WriteEdramRawSRVDescriptor(descriptor_source.first);
+              WriteEDRAMRawSRVDescriptor(descriptor_source.first);
             } else {
-              WriteEdramUintPow2SRVDescriptor(descriptor_source.first,
+              WriteEDRAMUintPow2SRVDescriptor(descriptor_source.first,
                                               copy_shader_info.source_bpe_log2);
             }
           }
@@ -1180,7 +1180,7 @@ bool D3D12RenderTargetCache::Resolve(const runtime::Memory& memory,
           } else {
             shared_memory.UseForWriting();
           }
-          TransitionEdramBuffer(D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+          TransitionEDRAMBuffer(D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
 
           command_list.D3DSetComputeRootSignature(resolve_copy_root_signature_);
           command_list.D3DSetComputeRootDescriptorTable(2, descriptor_source.second);
@@ -1242,7 +1242,7 @@ bool D3D12RenderTargetCache::Resolve(const runtime::Memory& memory,
         cleared = true;
       } break;
       case Path::kPixelShaderInterlock: {
-        gpu::d3d12::util::DescriptorCpuGpuHandlePair descriptor_edram;
+        gpu::d3d12::objects::DescriptorCPUGPUHandlePair descriptor_edram;
         bool descriptor_edram_obtained;
         if (bindless_resources_used_) {
           descriptor_edram = command_processor_.GetSystemBindlessViewHandlePair(
@@ -1252,20 +1252,20 @@ bool D3D12RenderTargetCache::Resolve(const runtime::Memory& memory,
           descriptor_edram_obtained =
               command_processor_.RequestOneUseSingleViewDescriptors(1, &descriptor_edram);
           if (descriptor_edram_obtained) {
-            WriteEdramUintPow2UAVDescriptor(descriptor_edram.first, 4);
+            WriteEDRAMUintPow2UAVDescriptor(descriptor_edram.first, 4);
           }
         }
         if (descriptor_edram_obtained) {
-          TransitionEdramBuffer(D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+          TransitionEDRAMBuffer(D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
           // The depth and color ranges are assumed not to overlap, so committing once is enough.
-          CommitEdramBufferUAVWrites();
+          CommitEDRAMBufferUAVWrites();
           command_list.D3DSetComputeRootSignature(resolve_rov_clear_root_signature_);
           command_list.D3DSetComputeRootDescriptorTable(1, descriptor_edram.second);
           std::pair<u32, u32> clear_group_count = resolve_info.GetClearShaderGroupCount(
               draw_resolution_scale_x(), draw_resolution_scale_y());
           REX_ASSERT(clear_group_count.first && clear_group_count.second);
           if (clear_depth) {
-            draw_util::ResolveClearShaderConstants depth_clear_constants;
+            draw_state::ResolveClearShaderConstants depth_clear_constants;
             resolve_info.GetDepthClearShaderConstants(depth_clear_constants);
             command_list.D3DSetComputeRoot32BitConstants(
                 0, sizeof(depth_clear_constants) / sizeof(u32), &depth_clear_constants, 0);
@@ -1274,14 +1274,14 @@ bool D3D12RenderTargetCache::Resolve(const runtime::Memory& memory,
             command_list.D3DDispatch(clear_group_count.first, clear_group_count.second, 1);
           }
           if (clear_color) {
-            draw_util::ResolveClearShaderConstants color_clear_constants;
+            draw_state::ResolveClearShaderConstants color_clear_constants;
             resolve_info.GetColorClearShaderConstants(color_clear_constants);
             if (clear_depth) {
               // The depth clear already set the constants that are not render target specific.
               command_list.D3DSetComputeRoot32BitConstants(
                   0, sizeof(color_clear_constants.rt_specific) / sizeof(u32),
                   &color_clear_constants.rt_specific,
-                  offsetof(draw_util::ResolveClearShaderConstants, rt_specific) / sizeof(u32));
+                  offsetof(draw_state::ResolveClearShaderConstants, rt_specific) / sizeof(u32));
             } else {
               command_list.D3DSetComputeRoot32BitConstants(
                   0, sizeof(color_clear_constants) / sizeof(u32), &color_clear_constants, 0);
@@ -1292,7 +1292,7 @@ bool D3D12RenderTargetCache::Resolve(const runtime::Memory& memory,
             command_processor_.SubmitBarriers();
             command_list.D3DDispatch(clear_group_count.first, clear_group_count.second, 1);
           }
-          MarkEdramBufferModified();
+          MarkEDRAMBufferModified();
           cleared = true;
         }
       } break;
@@ -1486,7 +1486,7 @@ std::unique_ptr<RenderTargetCache::RenderTarget> D3D12RenderTargetCache::CreateR
   }
   // Created zeroed for determinism with compression and float24 / float32 depth mirroring.
   Microsoft::WRL::ComPtr<ID3D12Resource> resource;
-  if (FAILED(device->CreateCommittedResource(&gpu::d3d12::util::kHeapPropertiesDefault,
+  if (FAILED(device->CreateCommittedResource(&gpu::d3d12::objects::kHeapPropertiesDefault,
                                              D3D12_HEAP_FLAG_NONE, &resource_desc, resource_state,
                                              &optimized_clear_value, IID_PPV_ARGS(&resource)))) {
     return nullptr;
@@ -1589,20 +1589,20 @@ bool D3D12RenderTargetCache::IsGammaFormatHostStorageSeparate() const {
 }
 
 void D3D12RenderTargetCache::RequestPixelShaderInterlockBarrier() {
-  CommitEdramBufferUAVWrites();
+  CommitEDRAMBufferUAVWrites();
 }
 
-void D3D12RenderTargetCache::TransitionEdramBuffer(D3D12_RESOURCE_STATES new_state) {
+void D3D12RenderTargetCache::TransitionEDRAMBuffer(D3D12_RESOURCE_STATES new_state) {
   if (command_processor_.PushTransitionBarrier(edram_buffer_, edram_buffer_state_, new_state)) {
     // Resets only when a barrier is inserted, as barriers for an unchanged state are dropped.
-    edram_buffer_modification_status_ = EdramBufferModificationStatus::kUnmodified;
+    edram_buffer_modification_status_ = EDRAMBufferModificationStatus::kUnmodified;
   }
   edram_buffer_state_ = new_state;
 }
 
-void D3D12RenderTargetCache::MarkEdramBufferModified(
-    EdramBufferModificationStatus modification_status) {
-  REX_ASSERT(modification_status != EdramBufferModificationStatus::kUnmodified);
+void D3D12RenderTargetCache::MarkEDRAMBufferModified(
+    EDRAMBufferModificationStatus modification_status) {
+  REX_ASSERT(modification_status != EDRAMBufferModificationStatus::kUnmodified);
   REX_ASSERT(edram_buffer_state_ == D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
   if (edram_buffer_state_ != D3D12_RESOURCE_STATE_UNORDERED_ACCESS) {
     return;
@@ -1612,9 +1612,9 @@ void D3D12RenderTargetCache::MarkEdramBufferModified(
       std::max(edram_buffer_modification_status_, modification_status);
 }
 
-void D3D12RenderTargetCache::CommitEdramBufferUAVWrites(
-    EdramBufferModificationStatus commit_status) {
-  REX_ASSERT(commit_status != EdramBufferModificationStatus::kUnmodified);
+void D3D12RenderTargetCache::CommitEDRAMBufferUAVWrites(
+    EDRAMBufferModificationStatus commit_status) {
+  REX_ASSERT(commit_status != EDRAMBufferModificationStatus::kUnmodified);
   if (edram_buffer_modification_status_ < commit_status) {
     return;
   }
@@ -1622,8 +1622,8 @@ void D3D12RenderTargetCache::CommitEdramBufferUAVWrites(
   if (edram_buffer_state_ == D3D12_RESOURCE_STATE_UNORDERED_ACCESS) {
     command_processor_.PushUAVBarrier(edram_buffer_);
   }
-  edram_buffer_modification_status_ = EdramBufferModificationStatus::kUnmodified;
-  PixelShaderInterlockFullEdramBarrierPlaced();
+  edram_buffer_modification_status_ = EDRAMBufferModificationStatus::kUnmodified;
+  PixelShaderInterlockFullEDRAMBarrierPlaced();
 }
 
 ID3D12PipelineState* const* D3D12RenderTargetCache::GetOrCreateTransferPipelines(
@@ -2542,7 +2542,7 @@ ID3D12PipelineState* const* D3D12RenderTargetCache::GetOrCreateTransferPipelines
           // 8_8_8_8_GAMMA is stored as linear in R16G16B16A16_UNORM.
           for (u32 i = 0; i < 2; ++i) {
             for (u32 j = 0; j < 3; ++j) {
-              DxbcShaderTranslator::PreSaturatedLinearToPWLGamma(a, i, j, i, j, 2, 0, 2, 1);
+              DXBCShaderTranslator::PreSaturatedLinearToPWLGamma(a, i, j, i, j, 2, 0, 2, 1);
             }
           }
         }
@@ -2578,7 +2578,7 @@ ID3D12PipelineState* const* D3D12RenderTargetCache::GetOrCreateTransferPipelines
           for (u32 i = 0; i < 2; ++i) {
             // Float16 has a wider range for color and alpha, and NaNs, so clamp and convert.
             for (u32 j = 0; j < 3; ++j) {
-              DxbcShaderTranslator::UnclampedFloat32To7e3(a, i, j, i, j, 2, 0);
+              DXBCShaderTranslator::UnclampedFloat32To7e3(a, i, j, i, j, 2, 0);
               if (j) {
                 a.OpBFI(dxbc::Dest::R(i, 0b0001), dxbc::Src::LU(10), dxbc::Src::LU(j * 10),
                         dxbc::Src::R(i).Select(j), dxbc::Src::R(i, dxbc::Src::kXXXX));
@@ -2639,7 +2639,7 @@ ID3D12PipelineState* const* D3D12RenderTargetCache::GetOrCreateTransferPipelines
           } break;
           case xenos::DepthRenderTargetFormat::kD24FS8: {
             // Uses r1.y as a temp. Conversion in pixel shaders is exact, so it truncates.
-            DxbcShaderTranslator::PreClampedDepthTo20e4(
+            DXBCShaderTranslator::PreClampedDepthTo20e4(
                 a, i, 3, i, 3, 1, 1,
                 !depth_float24_convert_in_pixel_shader() && depth_float24_round(), true);
           } break;
@@ -2669,7 +2669,7 @@ ID3D12PipelineState* const* D3D12RenderTargetCache::GetOrCreateTransferPipelines
         case xenos::ColorRenderTargetFormat::k_8_8_8_8_GAMMA: {
           if (dest_is_stencil_bit) {
             if (source_color_format == xenos::ColorRenderTargetFormat::k_8_8_8_8_GAMMA) {
-              DxbcShaderTranslator::PreSaturatedLinearToPWLGamma(a, 1, 0, 1, 0, 2, 0, 2, 1);
+              DXBCShaderTranslator::PreSaturatedLinearToPWLGamma(a, 1, 0, 1, 0, 2, 0, 2, 1);
             }
             a.OpMAd(dxbc::Dest::R(1, 0b0001), dxbc::Src::R(1, dxbc::Src::kXXXX),
                     dxbc::Src::LF(255.0f), dxbc::Src::LF(0.5f));
@@ -2680,11 +2680,11 @@ ID3D12PipelineState* const* D3D12RenderTargetCache::GetOrCreateTransferPipelines
             if (source_color_format != dest_color_format) {
               if (dest_color_format != xenos::ColorRenderTargetFormat::k_8_8_8_8) {
                 for (u32 i = 0; i < 3; ++i) {
-                  DxbcShaderTranslator::PreSaturatedLinearToPWLGamma(a, 1, i, 1, i, 2, 0, 2, 1);
+                  DXBCShaderTranslator::PreSaturatedLinearToPWLGamma(a, 1, i, 1, i, 2, 0, 2, 1);
                 }
               } else {
                 for (u32 i = 0; i < 3; ++i) {
-                  DxbcShaderTranslator::PWLGammaToLinear(a, 1, i, 1, i, true, 2, 0, 2, 1);
+                  DXBCShaderTranslator::PWLGammaToLinear(a, 1, i, 1, i, true, 2, 0, 2, 1);
                 }
               }
             }
@@ -2692,7 +2692,7 @@ ID3D12PipelineState* const* D3D12RenderTargetCache::GetOrCreateTransferPipelines
           } else if (mode.output == TransferOutput::kDepth) {
             if (source_color_format == xenos::ColorRenderTargetFormat::k_8_8_8_8_GAMMA) {
               for (u32 i = osgn_parameter_index_sv_stencil_ref != UINT32_MAX ? 0 : 1; i < 3; ++i) {
-                DxbcShaderTranslator::PreSaturatedLinearToPWLGamma(a, 1, i, 1, i, 2, 0, 2, 1);
+                DXBCShaderTranslator::PreSaturatedLinearToPWLGamma(a, 1, i, 1, i, 2, 0, 2, 1);
               }
             }
             // Skips the red component when only depth is needed, not stencil.
@@ -2712,7 +2712,7 @@ ID3D12PipelineState* const* D3D12RenderTargetCache::GetOrCreateTransferPipelines
           } else {
             if (source_color_format == xenos::ColorRenderTargetFormat::k_8_8_8_8_GAMMA) {
               for (u32 i = 0; i < 3; ++i) {
-                DxbcShaderTranslator::PreSaturatedLinearToPWLGamma(a, 1, i, 1, i, 2, 0, 2, 1);
+                DXBCShaderTranslator::PreSaturatedLinearToPWLGamma(a, 1, i, 1, i, 2, 0, 2, 1);
               }
             }
             color_packed_in_r1x = true;
@@ -2750,7 +2750,7 @@ ID3D12PipelineState* const* D3D12RenderTargetCache::GetOrCreateTransferPipelines
         case xenos::ColorRenderTargetFormat::k_2_10_10_10_FLOAT:
         case xenos::ColorRenderTargetFormat::k_2_10_10_10_FLOAT_AS_16_16_16_16: {
           if (dest_is_stencil_bit) {
-            DxbcShaderTranslator::UnclampedFloat32To7e3(a, 1, 0, 1, 0, 2, 0);
+            DXBCShaderTranslator::UnclampedFloat32To7e3(a, 1, 0, 1, 0, 2, 0);
           } else if (dest_is_color &&
                      (dest_color_format == xenos::ColorRenderTargetFormat::k_2_10_10_10_FLOAT ||
                       dest_color_format ==
@@ -2760,7 +2760,7 @@ ID3D12PipelineState* const* D3D12RenderTargetCache::GetOrCreateTransferPipelines
             color_packed_in_r1x = true;
             // Float16 has a wider range for color and alpha, and NaNs, so clamp and convert.
             for (u32 i = 0; i < 3; ++i) {
-              DxbcShaderTranslator::UnclampedFloat32To7e3(a, 1, i, 1, i, 2, 0);
+              DXBCShaderTranslator::UnclampedFloat32To7e3(a, 1, i, 1, i, 2, 0);
               if (i) {
                 a.OpBFI(dxbc::Dest::R(1, 0b0001), dxbc::Src::LU(10), dxbc::Src::LU(i * 10),
                         dxbc::Src::R(1).Select(i), dxbc::Src::R(1, dxbc::Src::kXXXX));
@@ -2809,7 +2809,7 @@ ID3D12PipelineState* const* D3D12RenderTargetCache::GetOrCreateTransferPipelines
           } break;
           case xenos::DepthRenderTargetFormat::kD24FS8: {
             // Uses r1.y as a temp. Conversion in pixel shaders is exact, so it truncates.
-            DxbcShaderTranslator::PreClampedDepthTo20e4(
+            DXBCShaderTranslator::PreClampedDepthTo20e4(
                 a, 1, 3, 1, 3, 1, 1,
                 !depth_float24_convert_in_pixel_shader() && depth_float24_round(), true);
           } break;
@@ -2840,7 +2840,7 @@ ID3D12PipelineState* const* D3D12RenderTargetCache::GetOrCreateTransferPipelines
               a.OpMul(dxbc::Dest::R(1, 0b0111), dxbc::Src::R(1), dxbc::Src::LF(1.0f / 255.0f));
               a.OpMul(dxbc::Dest::O(0, 0b1000), dxbc::Src::R(1), dxbc::Src::LF(1.0f / 255.0f));
               for (u32 i = 0; i < 3; ++i) {
-                DxbcShaderTranslator::PWLGammaToLinear(a, 1, i, 1, i, true, 0, 0, 0, 1);
+                DXBCShaderTranslator::PWLGammaToLinear(a, 1, i, 1, i, true, 0, 0, 0, 1);
               }
               a.OpMov(dxbc::Dest::O(0, 0b0111), dxbc::Src::R(1));
             } break;
@@ -2856,7 +2856,7 @@ ID3D12PipelineState* const* D3D12RenderTargetCache::GetOrCreateTransferPipelines
             case xenos::ColorRenderTargetFormat::k_2_10_10_10_FLOAT_AS_16_16_16_16: {
               // Color uses r1.yz as temps.
               for (u32 i = 0; i < 3; ++i) {
-                DxbcShaderTranslator::Float7e3To32(a, dxbc::Dest::O(0, 1 << i), 1, 0, i * 10, 1, 1,
+                DXBCShaderTranslator::Float7e3To32(a, dxbc::Dest::O(0, 1 << i), 1, 0, i * 10, 1, 1,
                                                    1, 2);
               }
               a.OpUBFE(dxbc::Dest::R(1, 0b1000), dxbc::Src::LU(2), dxbc::Src::LU(30),
@@ -3059,7 +3059,7 @@ ID3D12PipelineState* const* D3D12RenderTargetCache::GetOrCreateTransferPipelines
               } break;
               case xenos::DepthRenderTargetFormat::kD24FS8: {
                 // Conversion in pixel shaders is exact, so it truncates.
-                DxbcShaderTranslator::PreClampedDepthTo20e4(
+                DXBCShaderTranslator::PreClampedDepthTo20e4(
                     a, 0, 1, 0, 0, 0, 2,
                     !depth_float24_convert_in_pixel_shader() && depth_float24_round(), true);
               } break;
@@ -3083,7 +3083,7 @@ ID3D12PipelineState* const* D3D12RenderTargetCache::GetOrCreateTransferPipelines
                       dxbc::Src::LF(1.0f / static_cast<f32>(1 << 24)));
             } break;
             case xenos::DepthRenderTargetFormat::kD24FS8: {
-              DxbcShaderTranslator::Depth20e4To32(a, dxbc::Dest::R(1, 0b1000), 1, 3, 0, 1, 3, 0, 0,
+              DXBCShaderTranslator::Depth20e4To32(a, dxbc::Dest::R(1, 0b1000), 1, 3, 0, 1, 3, 0, 0,
                                                   true);
             } break;
           }
@@ -3179,7 +3179,7 @@ ID3D12PipelineState* const* D3D12RenderTargetCache::GetOrCreateTransferPipelines
   pipeline_input_element_desc.AlignedByteOffset = 0;
   pipeline_input_element_desc.InputSlotClass = D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA;
   pipeline_input_element_desc.InstanceDataStepRate = 0;
-  auto pipeline_desc = util::MakeGraphicsPipelineStateDesc();
+  auto pipeline_desc = objects::BuildGraphicsPipelineStateDesc();
   pipeline_desc.pRootSignature = transfer_root_signatures_[static_cast<size_t>(
       use_stencil_reference_output_ ? mode.root_signature_with_stencil_ref
                                     : mode.root_signature_no_stencil_ref)];
@@ -3343,7 +3343,7 @@ void D3D12RenderTargetCache::PerformTransfersAndResolveClears(
       }
       if (!host_depth_store_set_up) {
         // Descriptor 0 is the source, and 1 is EDRAM when bindful.
-        gpu::d3d12::util::DescriptorCpuGpuHandlePair host_depth_store_descriptors[2];
+        gpu::d3d12::objects::DescriptorCPUGPUHandlePair host_depth_store_descriptors[2];
         if (!command_processor_.RequestOneUseSingleViewDescriptors(
                 1 + static_cast<u32>(!bindless_resources_used_), host_depth_store_descriptors)) {
           continue;
@@ -3352,15 +3352,15 @@ void D3D12RenderTargetCache::PerformTransfersAndResolveClears(
         if (bindless_resources_used_) {
           command_list.D3DSetComputeRootDescriptorTable(
               kHostDepthStoreRootParameterDest,
-              command_processor_.GetEdramUintPow2BindlessUAVHandlePair(4).second);
+              command_processor_.GetEDRAMUintPow2BindlessUAVHandlePair(4).second);
         } else {
-          const gpu::d3d12::util::DescriptorCpuGpuHandlePair& host_depth_store_descriptor_dest =
+          const gpu::d3d12::objects::DescriptorCPUGPUHandlePair& host_depth_store_descriptor_dest =
               host_depth_store_descriptors[1];
-          WriteEdramUintPow2UAVDescriptor(host_depth_store_descriptor_dest.first, 4);
+          WriteEDRAMUintPow2UAVDescriptor(host_depth_store_descriptor_dest.first, 4);
           command_list.D3DSetComputeRootDescriptorTable(kHostDepthStoreRootParameterDest,
                                                         host_depth_store_descriptor_dest.second);
         }
-        const gpu::d3d12::util::DescriptorCpuGpuHandlePair& host_depth_store_descriptor_source =
+        const gpu::d3d12::objects::DescriptorCPUGPUHandlePair& host_depth_store_descriptor_source =
             host_depth_store_descriptors[0];
         device->CopyDescriptorsSimple(1, host_depth_store_descriptor_source.first,
                                       dest_d3d12_rt.descriptor_srv().GetHandle(),
@@ -3376,7 +3376,7 @@ void D3D12RenderTargetCache::PerformTransfersAndResolveClears(
             &host_depth_store_render_target_constant,
             offsetof(HostDepthStoreConstants, render_target) / sizeof(u32));
         // Not combined with transfer barriers, as the transition to DEPTH_WRITE follows anyway.
-        TransitionEdramBuffer(D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+        TransitionEDRAMBuffer(D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
         command_processor_.PushTransitionBarrier(
             dest_d3d12_rt.resource(),
             dest_d3d12_rt.SetResourceState(D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE),
@@ -3403,7 +3403,7 @@ void D3D12RenderTargetCache::PerformTransfersAndResolveClears(
             offsetof(HostDepthStoreConstants, rectangle) / sizeof(u32));
         command_processor_.SubmitBarriers();
         command_list.D3DDispatch(group_count_x, group_count_y, 1);
-        MarkEdramBufferModified();
+        MarkEDRAMBufferModified();
       }
     }
     break;
@@ -3472,7 +3472,7 @@ void D3D12RenderTargetCache::PerformTransfersAndResolveClears(
     }
   }
   if (host_depth_store_set_up) {
-    TransitionEdramBuffer(D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+    TransitionEDRAMBuffer(D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
   }
 
   for (u32 i = 0; i < render_target_count; ++i) {
@@ -3499,7 +3499,7 @@ void D3D12RenderTargetCache::PerformTransfersAndResolveClears(
     host_depth_copy_srv_index = static_cast<u32>(current_temporary_descriptors_cpu_.size());
     current_temporary_descriptors_cpu_.push_back(
         provider.OffsetViewDescriptor(edram_buffer_descriptor_heap_start_,
-                                      std::to_underlying(EdramBufferDescriptorIndex::kR32UintSRV)));
+                                      std::to_underlying(EDRAMBufferDescriptorIndex::kR32UintSRV)));
   } else {
     host_depth_copy_srv_index = UINT32_MAX;
   }
@@ -3770,7 +3770,7 @@ void D3D12RenderTargetCache::PerformTransfersAndResolveClears(
             D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
         if (host_depth_source_d3d12_rt) {
           if (transfer_shader_key.host_depth_source_is_copy) {
-            TransitionEdramBuffer(D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+            TransitionEDRAMBuffer(D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
           } else {
             command_processor_.PushTransitionBarrier(
                 host_depth_source_d3d12_rt->resource(),
@@ -4532,8 +4532,8 @@ ID3D12PipelineState* D3D12RenderTargetCache::GetOrCreateDumpPipeline(DumpPipelin
       // 2x sample index in r0.w is the vertical sample, converted from the guest to Direct3D 10.1+.
       a.OpAnd(dxbc::Dest::R(0, 0b1000), dxbc::Src::R(0, dxbc::Src::kYYYY), dxbc::Src::LU(1));
       a.OpMovC(dxbc::Dest::R(0, 0b1000), dxbc::Src::R(0, dxbc::Src::kWWWW),
-               dxbc::Src::LU(draw_util::GetD3D10SampleIndexForGuest2xMSAA(1, msaa_2x_supported_)),
-               dxbc::Src::LU(draw_util::GetD3D10SampleIndexForGuest2xMSAA(0, msaa_2x_supported_)));
+               dxbc::Src::LU(draw_state::GetD3D10SampleIndexForGuest2xMSAA(1, msaa_2x_supported_)),
+               dxbc::Src::LU(draw_state::GetD3D10SampleIndexForGuest2xMSAA(0, msaa_2x_supported_)));
       a.OpUShR(dxbc::Dest::R(0, 0b0010), dxbc::Src::R(0, dxbc::Src::kYYYY), dxbc::Src::LU(1));
     }
     a.OpLdMS(dxbc::Dest::R(1, (1 << source_component_count) - 1), source_address_src, 0b0011,
@@ -4564,7 +4564,7 @@ ID3D12PipelineState* D3D12RenderTargetCache::GetOrCreateDumpPipeline(DumpPipelin
         break;
       case xenos::DepthRenderTargetFormat::kD24FS8:
         // Uses r0.x as a temp. Conversion in pixel shaders is exact, so it truncates.
-        DxbcShaderTranslator::PreClampedDepthTo20e4(
+        DXBCShaderTranslator::PreClampedDepthTo20e4(
             a, 1, 0, 1, 0, 0, 0, !depth_float24_convert_in_pixel_shader() && depth_float24_round(),
             true);
         break;
@@ -4577,7 +4577,7 @@ ID3D12PipelineState* D3D12RenderTargetCache::GetOrCreateDumpPipeline(DumpPipelin
         // 8_8_8_8_GAMMA is stored as linear in R16G16B16A16_UNORM.
         REX_ASSERT(!source_is_uint);
         for (u32 i = 0; i < 3; ++i) {
-          DxbcShaderTranslator::PreSaturatedLinearToPWLGamma(a, 1, i, 1, i, 0, 0, 0, 1);
+          DXBCShaderTranslator::PreSaturatedLinearToPWLGamma(a, 1, i, 1, i, 0, 0, 0, 1);
         }
         a.OpMAd(dxbc::Dest::R(1), dxbc::Src::R(1), dxbc::Src::LF(255.0f), dxbc::Src::LF(0.5f));
         a.OpFToU(dxbc::Dest::R(1), dxbc::Src::R(1));
@@ -4611,9 +4611,9 @@ ID3D12PipelineState* D3D12RenderTargetCache::GetOrCreateDumpPipeline(DumpPipelin
       case xenos::ColorRenderTargetFormat::k_2_10_10_10_FLOAT:
       case xenos::ColorRenderTargetFormat::k_2_10_10_10_FLOAT_AS_16_16_16_16:
         // Float16 has a wider range for color and alpha, and NaNs, so color is clamped.
-        DxbcShaderTranslator::UnclampedFloat32To7e3(a, 1, 0, 1, 0, 0, 0);
+        DXBCShaderTranslator::UnclampedFloat32To7e3(a, 1, 0, 1, 0, 0, 0);
         for (u32 i = 1; i < 3; ++i) {
-          DxbcShaderTranslator::UnclampedFloat32To7e3(a, 0, 0, 1, i, 0, 1);
+          DXBCShaderTranslator::UnclampedFloat32To7e3(a, 0, 0, 1, i, 0, 1);
           a.OpBFI(dxbc::Dest::R(1, 0b0001), dxbc::Src::LU(10), dxbc::Src::LU(i * 10),
                   dxbc::Src::R(0, dxbc::Src::kXXXX), dxbc::Src::R(1, dxbc::Src::kXXXX));
         }
@@ -4684,7 +4684,7 @@ ID3D12PipelineState* D3D12RenderTargetCache::GetOrCreateDumpPipeline(DumpPipelin
                           container_header.hash);
   }
 
-  ID3D12PipelineState* pipeline = gpu::d3d12::util::CreateComputePipeline(
+  ID3D12PipelineState* pipeline = gpu::d3d12::objects::CreateComputePipeline(
       command_processor_.GetD3D12Provider().GetDevice(), built_shader_.data(),
       built_shader_size_bytes,
       key.is_depth ? dump_root_signature_depth_ : dump_root_signature_color_);
@@ -4714,15 +4714,15 @@ ID3D12PipelineState* D3D12RenderTargetCache::GetOrCreateDirectResolvePipeline(
   }
   ID3D12PipelineState* pipeline = nullptr;
   size_t copy_shader_index = static_cast<size_t>(key.copy_shader);
-  if (copy_shader_index < size_t(draw_util::ResolveCopyShaderIndex::kCount)) {
+  if (copy_shader_index < size_t(draw_state::ResolveCopyShaderIndex::kCount)) {
     pipeline = resolve_copy_pipelines_[copy_shader_index];
   }
   direct_resolve_pipelines_.emplace(key, pipeline);
   return pipeline;
 }
 
-bool D3D12RenderTargetCache::TryResolveCopyDirectly(const draw_util::ResolveInfo& resolve_info,
-                                                    draw_util::ResolveCopyShaderIndex copy_shader,
+bool D3D12RenderTargetCache::TryResolveCopyDirectly(const draw_state::ResolveInfo& resolve_info,
+                                                    draw_state::ResolveCopyShaderIndex copy_shader,
                                                     bool draw_resolution_scaled) {
   ++direct_resolve_attempt_count_;
   (void)copy_shader;
@@ -4735,7 +4735,7 @@ bool D3D12RenderTargetCache::TryResolveCopyDirectly(const draw_util::ResolveInfo
   u32 dump_row_length_used;
   u32 dump_rows;
   u32 dump_pitch;
-  resolve_info.GetCopyEdramTileSpan(dump_base, dump_row_length_used, dump_rows, dump_pitch);
+  resolve_info.GetCopyEDRAMTileSpan(dump_base, dump_row_length_used, dump_rows, dump_pitch);
   GetResolveCopyDispatchesToDump(dump_base, dump_row_length_used, dump_rows, dump_pitch,
                                  dump_rectangles_, direct_resolve_dispatches_);
   if (direct_resolve_dispatches_.empty()) {
@@ -4782,7 +4782,7 @@ bool D3D12RenderTargetCache::DumpRenderTargets(u32 dump_base, u32 dump_row_lengt
     d3d12_rt.SetTemporarySRVDescriptorIndex(UINT32_MAX);
     d3d12_rt.SetTemporarySRVDescriptorIndexStencil(UINT32_MAX);
   }
-  TransitionEdramBuffer(D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+  TransitionEDRAMBuffer(D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
   dump_invocations_.clear();
   dump_invocations_.reserve(dump_rectangles_.size());
   current_temporary_descriptors_cpu_.clear();
@@ -4822,13 +4822,13 @@ bool D3D12RenderTargetCache::DumpRenderTargets(u32 dump_base, u32 dump_row_lengt
       edram_uav_indices[0] = current_temporary_descriptors_cpu_.size();
       current_temporary_descriptors_cpu_.push_back(provider.OffsetViewDescriptor(
           edram_buffer_descriptor_heap_start_,
-          std::to_underlying(EdramBufferDescriptorIndex::kR32UintUAV)));
+          std::to_underlying(EDRAMBufferDescriptorIndex::kR32UintUAV)));
     }
     if (any_sources_32bpp_64bpp[1]) {
       edram_uav_indices[1] = current_temporary_descriptors_cpu_.size();
       current_temporary_descriptors_cpu_.push_back(provider.OffsetViewDescriptor(
           edram_buffer_descriptor_heap_start_,
-          std::to_underlying(EdramBufferDescriptorIndex::kR32G32UintUAV)));
+          std::to_underlying(EDRAMBufferDescriptorIndex::kR32G32UintUAV)));
     }
   }
 
@@ -4877,7 +4877,7 @@ bool D3D12RenderTargetCache::DumpRenderTargets(u32 dump_base, u32 dump_row_lengt
     }
 
     DumpRootParameter root_parameter_edram =
-        pipeline_key.is_depth ? kDumpRootParameterDepthEdram : kDumpRootParameterColorEdram;
+        pipeline_key.is_depth ? kDumpRootParameterDepthEDRAM : kDumpRootParameterColorEDRAM;
     u32 root_parameter_edram_bit = static_cast<u32>(1) << root_parameter_edram;
     bool format_is_64bpp = rt_key.Is64bpp();
     if (last_edram_uav_is_64bpp != format_is_64bpp) {
@@ -4888,7 +4888,7 @@ bool D3D12RenderTargetCache::DumpRenderTargets(u32 dump_base, u32 dump_row_lengt
       D3D12_GPU_DESCRIPTOR_HANDLE descriptor_handle_edram;
       if (bindless_resources_used_) {
         descriptor_handle_edram = command_processor_
-                                      .GetEdramUintPow2BindlessUAVHandlePair(
+                                      .GetEDRAMUintPow2BindlessUAVHandlePair(
                                           2 + static_cast<u32>(last_edram_uav_is_64bpp))
                                       .second;
       } else {
@@ -4972,7 +4972,7 @@ bool D3D12RenderTargetCache::DumpRenderTargets(u32 dump_base, u32 dump_row_lengt
                                    << u32(!format_is_64bpp),
                                dispatch.height_tiles * draw_resolution_scale_y(), 1);
     }
-    MarkEdramBufferModified();
+    MarkEDRAMBufferModified();
   }
   return all_pipelines_available;
 }

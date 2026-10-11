@@ -33,7 +33,7 @@ using rex::X_STATUS;
 
 namespace {
 
-class RecordingBackend final : public rex::apu::IBackend {
+class RecordingBackend final : public rex::apu::IAPUBackend {
  public:
   [[nodiscard]] rex::Result<rex::u32> OpenStream(
       rex::MoveOnlyFunction<void()> on_frame_played) override {

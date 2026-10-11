@@ -55,8 +55,8 @@ class REX_RUNTIME_API XMADecoder {
   u32 context_array_ptr() const { return register_file_[XMARegister::ContextArrayAddress]; }
 
   u32 AllocateContext();
-  void ReleaseContext(u32 guest_ptr);
-  bool BlockOnContext(u32 guest_ptr, bool poll);
+  void ReleaseContext(u32 context_ptr);
+  bool BlockOnContext(u32 context_ptr, bool poll);
 
   /**
    * Reads an APU register.
@@ -74,7 +74,7 @@ class REX_RUNTIME_API XMADecoder {
   void Resume();
 
  protected:
-  int GetContextId(u32 guest_ptr) const;
+  int GetContextId(u32 context_ptr) const;
 
  private:
   void WorkerThreadMain(const std::stop_token& stop);

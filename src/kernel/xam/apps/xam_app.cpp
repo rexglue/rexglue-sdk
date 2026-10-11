@@ -12,14 +12,13 @@
 #include <rex/kernel/xam/apps/app.h>
 #include <rex/logging.h>
 #include <rex/runtime.h>
-#include <rex/runtime/xenumerator.h>
+#include <rex/runtime/enumerator_object.h>
 #include <rex/platform/thread.h>
 
 namespace rex {
 namespace kernel {
 namespace xam {
 using namespace rex::runtime;
-using namespace rex::runtime::xam;
 namespace apps {
 using namespace rex::runtime;
 
@@ -52,7 +51,7 @@ X_HRESULT XamApp::DispatchMessageSync(u32 message, u32 buffer_ptr, u32 buffer_le
       if (!e || !buffer || !extra) {
         return X_E_INVALIDARG;
       }
-      REX_ASSERT(extra->magic == kXObjSignature);
+      REX_ASSERT(extra->magic == kStashSignature);
       if (data->buffer_size) {
         std::memset(buffer, 0, data->buffer_size);
       }

@@ -429,12 +429,12 @@ struct XContentMetadata {
   /** Languages of version 2 metadata, 3 of them inside the version 1 thumbnail space. */
   static constexpr u32 kNumLanguagesV2 = 12;
 
-  be<XContentType> content_type;          /**< Content type of the package. */
-  be_u32 metadata_version;                /**< 1 or 2. */
-  be_u64 content_size;                    /**< Content bytes. */
-  xex2_opt_execution_info execution_info; /**< Title and media the package is for. */
-  u8 console_id[5];                       /**< Console that created the package. */
-  be_u64 profile_id;                      /**< Profile that created the package. */
+  be<XContentType> content_type;      /**< Content type of the package. */
+  be_u32 metadata_version;            /**< 1 or 2. */
+  be_u64 content_size;                /**< Content bytes. */
+  XEXOptExecutionInfo execution_info; /**< Title and media the package is for. */
+  u8 console_id[5];                   /**< Console that created the package. */
+  be_u64 profile_id;                  /**< Profile that created the package. */
   /** Volume descriptor, chosen by volume_type. */
   union {
     STFSVolumeDescriptor stfs; /**< STFS layout. */

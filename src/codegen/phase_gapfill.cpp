@@ -18,12 +18,12 @@
 
 #include <rex/logging.h>
 
-#include <rex/memory/utils.h>
+#include <rex/memory/byte_swap.h>
 
 #include <ppc.h>
 
-using rex::codegen::ppc::decode_instruction;
-using rex::codegen::ppc::Opcode;
+using rex::codegen::detail::decode_instruction;
+using rex::codegen::detail::Opcode;
 
 namespace rex::codegen {
 
@@ -205,7 +205,7 @@ void cleanupAbsorbedGapFills(CodegenContext& ctx) {
 
 }  // anonymous namespace
 
-namespace phases {
+namespace detail {
 
 [[nodiscard]] Result<void> GapFill(CodegenContext& ctx, ProgressReporter* reporter) {
   (void)reporter;
@@ -220,6 +220,6 @@ namespace phases {
   return Ok();
 }
 
-}  // namespace phases
+}  // namespace detail
 
 }  // namespace rex::codegen

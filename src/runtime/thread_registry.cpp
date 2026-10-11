@@ -19,7 +19,7 @@
 namespace rex::runtime {
 
 ThreadRef::~ThreadRef() {
-  registry->NoteHandlesClosed(thread_id);
+  registry->MarkHandlesClosed(thread_id);
 }
 
 ThreadRegistry::ThreadRegistry(Runtime& runtime, ObjectTable& table)
@@ -27,21 +27,21 @@ ThreadRegistry::ThreadRegistry(Runtime& runtime, ObjectTable& table)
 
 ThreadRegistry::~ThreadRegistry() = default;
 
-void ThreadRegistry::Dispose(std::unique_ptr<ThreadRecord> record) {
-  if (!record) {
+void ThreadRegistry::Dispose(std::unique_ptr<KernelThread> thread) {
+  if (!thread) {
     return;
   }
-  ThreadRecord* raw = record.release();
+  KernelThread* raw = thread.release();
   if (raw->pins.Retire()) {
     delete raw;
   }
 }
 
-Result<X_HANDLE> ThreadRegistry::Launch(std::unique_ptr<ThreadRecord> record) {
-  ThreadRecord* raw = record.get();
+Result<X_HANDLE> ThreadRegistry::Launch(std::unique_ptr<KernelThread> thread) {
+  KernelThread* raw = thread.get();
   raw->thread_id_ = ++next_id_;
   raw->registry_ = this;
-  GuestBlock block = AllocateGuestBlock(raw->memory(), sizeof(X_KTHREAD));
+  ObjectBlock block = AllocObjectBlock(raw->memory(), sizeof(X_KTHREAD));
   if (!block.address) {
     return Err<X_HANDLE>(StatusError(X_STATUS_NO_MEMORY));
   }
@@ -64,7 +64,7 @@ Result<X_HANDLE> ThreadRegistry::Launch(std::unique_ptr<ThreadRecord> record) {
   {
     std::unique_lock lock(mutex_);
     if (!raw->is_guest_thread() || !runtime_.is_terminating_title()) {
-      threads_.emplace(raw->thread_id(), std::move(record));
+      threads_.emplace(raw->thread_id(), std::move(thread));
       published = true;
     }
   }
@@ -100,20 +100,20 @@ std::vector<ThreadPin> ThreadRegistry::All() {
   std::vector<ThreadPin> results;
   std::shared_lock lock(mutex_);
   results.reserve(threads_.size());
-  for (auto& [id, record] : threads_) {
-    record->pins.Pin();
-    results.emplace_back(record.get());
+  for (auto& [id, thread] : threads_) {
+    thread->pins.Pin();
+    results.emplace_back(thread.get());
   }
   return results;
 }
 
-void ThreadRegistry::NoteExited(ThreadRecord& record) {
-  std::unique_ptr<ThreadRecord> retired;
+void ThreadRegistry::MarkExited(KernelThread& thread) {
+  std::unique_ptr<KernelThread> retired;
   {
     std::unique_lock lock(mutex_);
-    record.exited_ = true;
-    if (record.handles_closed_) {
-      auto it = threads_.find(record.thread_id());
+    thread.exited_ = true;
+    if (thread.handles_closed_) {
+      auto it = threads_.find(thread.thread_id());
       retired = std::move(it->second);
       threads_.erase(it);
     }
@@ -121,8 +121,8 @@ void ThreadRegistry::NoteExited(ThreadRecord& record) {
   Dispose(std::move(retired));
 }
 
-void ThreadRegistry::NoteHandlesClosed(u32 thread_id) {
-  std::unique_ptr<ThreadRecord> retired;
+void ThreadRegistry::MarkHandlesClosed(u32 thread_id) {
+  std::unique_ptr<KernelThread> retired;
   {
     std::unique_lock lock(mutex_);
     auto it = threads_.find(thread_id);
@@ -144,13 +144,13 @@ std::optional<u32> ThreadRegistry::AllocateTLS(PPCContext* context) {
   }
 
   auto globals =
-      runtime_.memory()->TranslateVirtual<KernelGuestGlobals*>(runtime_.GetKernelGuestGlobals());
+      runtime_.memory()->TranslateVirtual<KernelGuestGlobals*>(runtime_.kernel_globals());
   auto tls_lock = &globals->tls_lock;
   auto old_irql = kernel::xboxkrnl::KeKfAcquireSpinLock(*runtime_.memory(), context, tls_lock);
 
   std::optional<u32> result;
 
-  auto current_thread = ThreadRecord::GetCurrentThread();
+  auto current_thread = KernelThread::GetCurrentThread();
   if (!current_thread) {
     REXLOG_ERROR(system, "AllocateTLS: no current thread");
     kernel::xboxkrnl::KeKfReleaseSpinLock(*runtime_.memory(), context, tls_lock, old_irql);
@@ -197,7 +197,7 @@ void ThreadRegistry::FreeTLS(PPCContext* context, u32 slot) {
     return;
   }
 
-  auto current_thread = ThreadRecord::GetCurrentThread();
+  auto current_thread = KernelThread::GetCurrentThread();
   if (!current_thread) {
     REXLOG_ERROR(system, "FreeTLS: no current thread");
     return;
@@ -217,7 +217,7 @@ void ThreadRegistry::FreeTLS(PPCContext* context, u32 slot) {
   }
 
   auto globals =
-      runtime_.memory()->TranslateVirtual<KernelGuestGlobals*>(runtime_.GetKernelGuestGlobals());
+      runtime_.memory()->TranslateVirtual<KernelGuestGlobals*>(runtime_.kernel_globals());
   auto tls_lock = &globals->tls_lock;
   auto old_irql = kernel::xboxkrnl::KeKfAcquireSpinLock(*runtime_.memory(), context, tls_lock);
 

@@ -16,22 +16,21 @@
 #include <rex/types.h>
 #include <rex/runtime.h>
 #include <rex/runtime/xam/content_device.h>
-#include <rex/runtime/xenumerator.h>
+#include <rex/runtime/enumerator_object.h>
 #include <rex/runtime/xtypes.h>
 
 namespace rex {
 namespace kernel {
 namespace xam {
 using namespace rex::runtime;
-using namespace rex::runtime::xam;
 
-constexpr u64 ONE_GB = 1024ull * 1024ull * 1024ull;
+constexpr u64 kOneGB = 1024ull * 1024ull * 1024ull;
 
 static const DummyDeviceInfo dummy_hdd_device_info_ = {
-    DummyDeviceId::HDD, DeviceType::HDD, 20ull * ONE_GB, 3ull * ONE_GB, u"Dummy HDD",
+    DummyDeviceId::HDD, DeviceType::HDD, 20ull * kOneGB, 3ull * kOneGB, u"Dummy HDD",
 };
 static const DummyDeviceInfo dummy_odd_device_info_ = {
-    DummyDeviceId::ODD, DeviceType::ODD, 7ull * ONE_GB, 0ull * ONE_GB, u"Dummy ODD",
+    DummyDeviceId::ODD, DeviceType::ODD, 7ull * kOneGB, 0ull * kOneGB, u"Dummy ODD",
 };
 static const DummyDeviceInfo* dummy_device_infos_[] = {
     &dummy_hdd_device_info_,
@@ -156,13 +155,11 @@ u32 XamContentCreateDeviceEnumerator_entry([[maybe_unused]] u32 content_type,
 
 namespace rex {
 namespace runtime {
-namespace xam {
 
 const DummyDeviceInfo* GetDummyDeviceInfo(u32 device_id) {
   return rex::kernel::xam::GetDummyDeviceInfo(device_id);
 }
 
-}  // namespace xam
 }  // namespace runtime
 }  // namespace rex
 

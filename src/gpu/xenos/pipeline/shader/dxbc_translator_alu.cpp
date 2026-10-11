@@ -19,7 +19,7 @@
 namespace rex::gpu {
 using namespace xenos::ucode;
 
-void DxbcShaderTranslator::KillPixel(bool condition, const dxbc::Src& condition_src,
+void DXBCShaderTranslator::KillPixel(bool condition, const dxbc::Src& condition_src,
                                      u8 memexport_eM_potentially_written_before) {
   a_.OpIf(condition, condition_src);
   // Perform outstanding memory exports before the invocation goes inactive and UAV writes stop.
@@ -32,7 +32,7 @@ void DxbcShaderTranslator::KillPixel(bool condition, const dxbc::Src& condition_
   a_.OpEndIf();
 }
 
-void DxbcShaderTranslator::ProcessVectorAluOperation(const ParsedAluInstruction& instr,
+void DXBCShaderTranslator::ProcessVectorAluOperation(const ParsedAluInstruction& instr,
                                                      u8 memexport_eM_potentially_written_before,
                                                      u32& result_swizzle, bool& predicate_written) {
   result_swizzle = dxbc::Src::kXYZW;
@@ -530,7 +530,7 @@ void DxbcShaderTranslator::ProcessVectorAluOperation(const ParsedAluInstruction&
   PopSystemTemp(operand_temps);
 }
 
-void DxbcShaderTranslator::ProcessScalarAluOperation(const ParsedAluInstruction& instr,
+void DXBCShaderTranslator::ProcessScalarAluOperation(const ParsedAluInstruction& instr,
                                                      u8 memexport_eM_potentially_written_before,
                                                      bool& predicate_written) {
   predicate_written = false;
@@ -850,7 +850,7 @@ void DxbcShaderTranslator::ProcessScalarAluOperation(const ParsedAluInstruction&
   PopSystemTemp(operand_temps);
 }
 
-void DxbcShaderTranslator::ProcessAluInstruction(const ParsedAluInstruction& instr,
+void DXBCShaderTranslator::ProcessAluInstruction(const ParsedAluInstruction& instr,
                                                  u8 memexport_eM_potentially_written_before) {
   if (instr.IsNop()) {
     return;

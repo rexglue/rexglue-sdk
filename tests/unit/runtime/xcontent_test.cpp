@@ -14,13 +14,13 @@
 #include <memory>
 #include <string>
 
-#include <rex/memory/utils.h>
+#include <rex/memory/virtual_memory.h>
 #include <rex/runtime/xcontent.h>
 
 using rex::memory::AllocationType;
 using rex::memory::DeallocationType;
 using rex::memory::PageAccess;
-using rex::runtime::xam::XCONTENT_DATA;
+using rex::runtime::XCONTENT_DATA;
 
 REX_TEST_CASE("a full file name stops at the field end before a guard page", "[xcontent]") {
   const size_t page = rex::memory::page_size();

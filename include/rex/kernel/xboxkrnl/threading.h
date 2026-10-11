@@ -13,7 +13,7 @@
 
 #include <rex/macros.h>
 #include <rex/ppc/context.h>
-#include <rex/runtime/xevent.h>
+#include <rex/runtime/event_object.h>
 #include <rex/runtime/xthread.h>
 #include <rex/runtime/xtypes.h>
 #include <rex/types.h>

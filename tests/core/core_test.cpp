@@ -93,10 +93,10 @@ REX_TEST_CASE_METHOD(Fixture, "Logging writes through a capture sink with no mod
   rex::log::CaptureSink sink;
   logger->AddSink(sink);
   REXLOG_INFO(core, "core test entry {}", 42);
-  std::vector<rex::log::CapturedRecord> entries;
+  std::vector<rex::log::CapturedMessage> entries;
   sink.CopySince(0, entries);
   logger->RemoveSink(sink);
-  REQUIRE(std::ranges::any_of(entries, [](const rex::log::CapturedRecord& entry) {
+  REQUIRE(std::ranges::any_of(entries, [](const rex::log::CapturedMessage& entry) {
     return entry.text.find("core test entry 42") != std::string::npos;
   }));
 }

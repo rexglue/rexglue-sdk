@@ -26,7 +26,7 @@
 
 namespace {
 
-constexpr u32 kXinputSlotCount = 4;
+constexpr u32 kXInputSlotCount = 4;
 
 /**
  * Builds the device handle for a native slot. XInput has 4 fixed slots, so the slot index
@@ -41,7 +41,7 @@ constexpr rex::hid::DeviceId DeviceForSlot(u32 slot) {
 
 bool SlotForDevice(rex::hid::DeviceId id, u32* out_slot) {
   const u64 raw = static_cast<u64>(id);
-  if ((raw & ~0xFFull) != 0x58490000ull || (raw & 0xFF) >= kXinputSlotCount) {
+  if ((raw & ~0xFFull) != 0x58490000ull || (raw & 0xFF) >= kXInputSlotCount) {
     return false;
   }
   *out_slot = static_cast<u32>(raw & 0xFF);
@@ -50,7 +50,7 @@ bool SlotForDevice(rex::hid::DeviceId id, u32* out_slot) {
 
 /** Milliseconds to skip an empty slot after a miss, since querying one is slow. */
 constexpr u64 SKIP_INVALID_CONTROLLER_TIME = 1100;
-u64 last_invalid_time[kXinputSlotCount];
+u64 last_invalid_time[kXInputSlotCount];
 
 DWORD should_skip(u32 user_index) {
   u64 time = last_invalid_time[user_index];
@@ -97,7 +97,7 @@ void XInputDriver::EnumerateDevices(std::vector<DeviceInfo>& out) {
   if (!xigc) {
     return;
   }
-  for (u32 slot = 0; slot < kXinputSlotCount; slot++) {
+  for (u32 slot = 0; slot < kXInputSlotCount; slot++) {
     if (should_skip(slot)) {
       continue;
     }

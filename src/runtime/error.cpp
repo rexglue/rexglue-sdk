@@ -18,28 +18,28 @@ X_STATUS ToXStatus(const rex::Error& error, X_STATUS unsupported) {
   if (error.category == ErrorCategory::Runtime) {
     return static_cast<X_STATUS>(error.code);
   }
-  using filesystem::Error;
+  using filesystem::FileSystemError;
   switch (filesystem::CodeOf(error)) {
-    case Error::kNotFound:
-    case Error::kNoMount:
+    case FileSystemError::kNotFound:
+    case FileSystemError::kNoMount:
       return X_STATUS_NO_SUCH_FILE;
-    case Error::kExists:
+    case FileSystemError::kExists:
       return X_STATUS_OBJECT_NAME_COLLISION;
-    case Error::kIsDirectory:
+    case FileSystemError::kIsDirectory:
       return X_STATUS_FILE_IS_A_DIRECTORY;
-    case Error::kNotDirectory:
+    case FileSystemError::kNotDirectory:
       return X_STATUS_NOT_A_DIRECTORY;
-    case Error::kAccessDenied:
+    case FileSystemError::kAccessDenied:
       return X_STATUS_ACCESS_DENIED;
-    case Error::kSharingViolation:
+    case FileSystemError::kSharingViolation:
       return X_STATUS_SHARING_VIOLATION;
-    case Error::kNotSameDevice:
+    case FileSystemError::kNotSameDevice:
       return X_STATUS_NOT_SAME_DEVICE;
-    case Error::kEndOfFile:
+    case FileSystemError::kEndOfFile:
       return X_STATUS_END_OF_FILE;
-    case Error::kUnsupported:
+    case FileSystemError::kUnsupported:
       return unsupported;
-    case Error::kInvalidPath:
+    case FileSystemError::kInvalidPath:
       return X_STATUS_OBJECT_NAME_INVALID;
     default:
       return X_STATUS_UNSUCCESSFUL;

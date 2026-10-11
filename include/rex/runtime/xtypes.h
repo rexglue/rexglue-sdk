@@ -82,7 +82,7 @@ inline constexpr X_STATUS X_STATUS_DRIVER_ENTRYPOINT_NOT_FOUND = 0xC0000263;
 
 /** Win32 error code type, holding ERROR_* values. */
 using X_RESULT = u32;
-inline constexpr i32 X_FACILITY_WIN32 = 0x0007;
+inline constexpr i32 kFacilityWin32 = 0x0007;
 [[nodiscard]] constexpr X_RESULT X_RESULT_FROM_WIN32(u32 x) {
   return x;
 }
@@ -113,7 +113,7 @@ inline constexpr X_RESULT X_ERROR_EMPTY = X_RESULT_FROM_WIN32(0x000010D2);
 /** HRESULT code type. */
 using X_HRESULT = u32;
 [[nodiscard]] constexpr X_HRESULT X_HRESULT_FROM_WIN32(u32 x) {
-  return static_cast<i32>(x) <= 0 ? x : ((x & 0xFFFF) | (X_FACILITY_WIN32 << 16) | 0x80000000);
+  return static_cast<i32>(x) <= 0 ? x : ((x & 0xFFFF) | (kFacilityWin32 << 16) | 0x80000000);
 }
 
 inline constexpr X_HRESULT X_E_FALSE = 0x80000000;
@@ -198,7 +198,7 @@ REX_STATIC_ASSERT_SIZE(X_KSPINLOCK, 4);
  * @tparam T The pointee type, for documentation only.
  */
 template <typename T>
-struct TypedGuestPointer {
+struct be_ptr {
   be_u32 value; /**< Guest address. */
 
   operator u32() const { return value; }
@@ -208,7 +208,7 @@ struct TypedGuestPointer {
    * @param v The guest address.
    * @return This pointer.
    */
-  TypedGuestPointer& operator=(u32 v) {
+  be_ptr& operator=(u32 v) {
     value = v;
     return *this;
   }

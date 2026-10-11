@@ -20,14 +20,13 @@
 #include <rex/runtime.h>
 #include <rex/runtime/user_module.h>
 #include <rex/runtime/xam/content_device.h>
-#include <rex/runtime/xenumerator.h>
+#include <rex/runtime/enumerator_object.h>
 #include <rex/runtime/xtypes.h>
 
 namespace rex {
 namespace kernel {
 namespace xam {
 using namespace rex::runtime;
-using namespace rex::runtime::xam;
 
 void AddODDContentTest(StaticItems& items, XContentType content_type) {
   constexpr std::string_view kRoot = "game:\\Content\\0000000000000000";
@@ -135,7 +134,7 @@ u32 XamContentAggregateCreateEnumerator_entry(u64 xuid, u32 device_id, u32 conte
   }
 
   auto* extra = static_cast<X_KENUMERATOR_CONTENT_AGGREGATE*>(extra_buffer);
-  extra->magic = kXObjSignature;
+  extra->magic = kStashSignature;
   extra->handle = handle;
 
   *handle_out = handle;

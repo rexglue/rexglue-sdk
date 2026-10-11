@@ -63,7 +63,7 @@ class REX_API MappedMemory : public rex::NonCopyable {
    * @param length Byte count of the view.
    * @return The view.
    */
-  std::unique_ptr<MappedMemory> Slice(size_t offset, size_t length) const {
+  std::unique_ptr<MappedMemory> Range(size_t offset, size_t length) const {
     return std::make_unique<MappedMemory>(data() + offset, length);
   }
 

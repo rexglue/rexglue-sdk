@@ -10,18 +10,18 @@ set(REXSYSTEM_SOURCES
     thread_registry.cpp
     guest_stack.cpp
     workspace_heap.cpp
-    xevent.cpp
-    xfile.cpp
-    xmutant.cpp
-    xsemaphore.cpp
-    xtimer.cpp
-    xiocompletion.cpp
-    xnotifylistener.cpp
-    xenumerator.cpp
-    xsocket.cpp
-    xsymboliclink.cpp
-    xobject.cpp
-    xmodule.cpp
+    event_object.cpp
+    file_object.cpp
+    mutant_object.cpp
+    semaphore_object.cpp
+    timer_object.cpp
+    io_completion_object.cpp
+    notify_listener_object.cpp
+    enumerator_object.cpp
+    socket_object.cpp
+    symbolic_link_object.cpp
+    object.cpp
+    module_object.cpp
     module_registry.cpp
     notifier.cpp
     dispatcher.cpp
@@ -30,7 +30,7 @@ set(REXSYSTEM_SOURCES
 
     # Utilities
     object_table.cpp
-    util/xdbf_utils.cpp
+    xdbf.cpp
 
     # XAM services
     xam/app_manager.cpp

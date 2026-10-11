@@ -144,7 +144,7 @@ REX_API void WriteStub(std::atomic_flag& seen, std::string_view name, std::strin
  * @return Their addresses.
  */
 template <typename... Categories>
-constexpr std::array<const Category*, sizeof...(Categories)> MakeTable(
+constexpr std::array<const Category*, sizeof...(Categories)> BuildTable(
     const Categories&... categories) noexcept {
   return {static_cast<const Category*>(&categories)...};
 }

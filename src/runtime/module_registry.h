@@ -20,7 +20,7 @@
 #include <rex/platform/dynlib.h>
 #include <rex/platform/lock_order.h>
 #include <rex/runtime/module_registry.h>
-#include <rex/runtime/xmodule.h>
+#include <rex/runtime/module_object.h>
 
 #include "runtime/object_table.h"
 
@@ -82,7 +82,7 @@ class ModuleRegistry final : public IModuleRegistry {
    *
    * @param handle Any handle of the module, or 0 to clear it.
    */
-  void SetExecutable(X_HANDLE handle);
+  void set_executable(X_HANDLE handle);
 
   /**
    * Marks a path as being loaded.

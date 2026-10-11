@@ -16,7 +16,7 @@
 #include <rex/codegen/config.h>
 #include <rex/logging.h>
 
-#include <rex/memory/utils.h>
+#include <rex/memory/byte_swap.h>
 
 namespace rex::codegen {
 
@@ -155,7 +155,7 @@ void scanBinary(CodegenContext& ctx) {
 
 }  // anonymous namespace
 
-namespace phases {
+namespace detail {
 
 [[nodiscard]] Result<void> Scan(CodegenContext& ctx, ProgressReporter* reporter) {
   (void)reporter;
@@ -163,6 +163,6 @@ namespace phases {
   return Ok();
 }
 
-}  // namespace phases
+}  // namespace detail
 
 }  // namespace rex::codegen

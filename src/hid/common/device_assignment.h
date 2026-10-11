@@ -49,7 +49,7 @@ class SlotAssignment final : public DeviceAssignment {
   void DevicesForUser(u32 user_index, std::vector<DeviceId>& out) const override;
 
  private:
-  std::vector<std::vector<DeviceId>> users_ = std::vector<std::vector<DeviceId>>(kMaxGuestUsers);
+  std::vector<std::vector<DeviceId>> users_ = std::vector<std::vector<DeviceId>>(kMaxTitleUsers);
 };
 
 /**

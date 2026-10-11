@@ -14,14 +14,13 @@
 #include <rex/hook.h>
 #include <rex/types.h>
 #include <rex/runtime.h>
-#include <rex/runtime/xnotifylistener.h>
+#include <rex/runtime/notify_listener_object.h>
 #include <rex/runtime/xtypes.h>
 
 namespace rex {
 namespace kernel {
 namespace xam {
 using namespace rex::runtime;
-using namespace rex::runtime::xam;
 
 u32 XamNotifyCreateListener(u64 mask, u32 is_system, u32 max_version) {
   REX_ASSERT(max_version < 11);

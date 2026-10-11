@@ -21,7 +21,7 @@
 #include "gpu/xenos/vulkan/shared_memory.h"
 #include <rex/logging.h>
 #include <rex/math.h>
-#include "gpu/xenos/host/vulkan/util.h"
+#include "gpu/xenos/host/vulkan/objects.h"
 
 #include "gpu/xenos/cvar_table.h"
 
@@ -72,8 +72,8 @@ bool VulkanSharedMemory::Initialize() {
             &allocation_size_log2);
         if (allocation_size_log2 < kBufferSizeLog2) {
           // Windows drivers cap allocations at 4096 in total, so use at most 1024 here.
-          InitializeSparseHostGpuMemory(
-              std::max(allocation_size_log2, std::max(kHostGpuMemoryOptimalSparseAllocationLog2,
+          InitializeSparseHostGPUMemory(
+              std::max(allocation_size_log2, std::max(kHostGPUMemoryOptimalSparseAllocationLog2,
                                                       kBufferSizeLog2 - static_cast<u32>(10))));
         } else {
           dfn.vkDestroyBuffer(device, buffer_, nullptr);
@@ -169,7 +169,7 @@ void VulkanSharedMemory::Shutdown(bool from_destructor) {
   const gpu::vulkan::VulkanDevice::Functions& dfn = vulkan_device->functions();
   const VkDevice device = vulkan_device->device();
 
-  gpu::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyBuffer, device, buffer_);
+  gpu::vulkan::objects::DestroyAndNullHandle(dfn.vkDestroyBuffer, device, buffer_);
   for (VkDeviceMemory memory : buffer_memory_) {
     dfn.vkFreeMemory(device, memory, nullptr);
   }
@@ -214,7 +214,7 @@ void VulkanSharedMemory::Use(Usage usage, std::pair<u32, u32> written_range) {
   last_written_range_ = written_range;
 }
 
-bool VulkanSharedMemory::AllocateSparseHostGpuMemoryRange(u32 offset_allocations,
+bool VulkanSharedMemory::AllocateSparseHostGPUMemoryRange(u32 offset_allocations,
                                                           u32 length_allocations) {
   if (!length_allocations) {
     return true;
@@ -285,7 +285,7 @@ bool VulkanSharedMemory::UploadRanges(const std::vector<std::pair<u32, u32>>& up
         successful = false;
         break;
       }
-      MakeRangeValid(upload_range_start << page_size_log2(), static_cast<u32>(upload_buffer_size),
+      MarkRangeValid(upload_range_start << page_size_log2(), static_cast<u32>(upload_buffer_size),
                      false);
       std::memcpy(upload_buffer_mapping,
                   memory().TranslatePhysical(upload_range_start << page_size_log2()),

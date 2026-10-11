@@ -30,16 +30,16 @@
 #include <rex/runtime/thread_state.h>
 #include <rex/runtime/user_module.h>
 #include <rex/runtime/workspace_heap.h>
-#include <rex/runtime/util/native_list.h>
+#include <rex/runtime/kernel_list.h>
 #include <rex/runtime/xam/app_manager.h>
 #include <rex/runtime/xam/user_profile.h>
-#include <rex/runtime/xevent.h>
+#include <rex/runtime/event_object.h>
 #include <rex/runtime/xexception.h>
-#include <rex/runtime/xmodule.h>
-#include <rex/runtime/xmutant.h>
-#include <rex/runtime/xsemaphore.h>
+#include <rex/runtime/module_object.h>
+#include <rex/runtime/mutant_object.h>
+#include <rex/runtime/semaphore_object.h>
 #include <rex/runtime/xthread.h>
-#include <rex/runtime/xtimer.h>
+#include <rex/runtime/timer_object.h>
 #include <rex/string.h>
 
 #include "runtime/achievement_manager.h"
@@ -60,16 +60,16 @@ using namespace rex::runtime;
 namespace {
 
 void ShutDownSockets(IObjectTable& table) {
-  for (auto& sock : table.GetAll<SocketObject>()) {
+  for (auto& sock : table.All<SocketObject>()) {
     SocketShutdown(*sock, 2);
   }
 }
 
 }  // namespace
 
-void Runtime::CreateConcerns() {
-  app_manager_ = std::make_unique<runtime::xam::AppManager>();
-  user_profile_ = std::make_unique<runtime::xam::UserProfile>(*this);
+void Runtime::CreateSubsystems() {
+  app_manager_ = std::make_unique<runtime::AppManager>();
+  user_profile_ = std::make_unique<runtime::UserProfile>(*this);
   object_table_ = std::make_unique<runtime::ObjectTable>(memory_.get());
   CreateWorkspace(WorkspaceHeap::ResolveSize(0));
   thread_registry_ = std::make_unique<runtime::ThreadRegistry>(*this, *object_table_);
@@ -121,7 +121,7 @@ void Runtime::CreateConcerns() {
   SetProcessTLSVars(&globals->title_process, 0, 0, 0);
 }
 
-void Runtime::DestroyConcerns() {
+void Runtime::DestroySubsystems() {
   terminating_title_.store(true, std::memory_order_release);
   app_manager_.reset();
   if (dispatcher_) {
@@ -200,8 +200,8 @@ void Runtime::InitializeProcess(X_KPROCESS* process, u32 process_type, u8 unk_18
   process->kernel_stack_size = kDefaultGuestStackSize;
   process->tls_slot_size = 0x80;
   process->process_type = static_cast<u8>(process_type);
-  runtime::util::XeInitializeListHead(&process->thread_list, memory_.get());
-  runtime::util::XeInitializeListHead(&process->unk_54, memory_.get());
+  runtime::InitializeListHead(&process->thread_list, memory_.get());
+  runtime::InitializeListHead(&process->unk_54, memory_.get());
 }
 
 void Runtime::SetProcessTLSVars(X_KPROCESS* process, u32 num_slots, u32 tls_data_size,
@@ -219,7 +219,7 @@ void Runtime::SetProcessTLSVars(X_KPROCESS* process, u32 num_slots, u32 tls_data
 void Runtime::LoadAchievementsData() {
   std::vector<AchievementInfo> achievements;
 
-  const util::XDBFGameData db = content_manager_->title_xdbf();
+  const runtime::XDBFGameData db = content_manager_->title_xdbf();
   if (db.is_valid()) {
     const XLanguage language =
         db.GetExistingLanguage(ToXLanguage(config_.runtime.kernel.user_language));
@@ -326,7 +326,7 @@ void Runtime::SetExecutableModule(X_HANDLE module_handle) {
       current && module && &*current == &*module) {
     return;
   }
-  module_registry_->SetExecutable(module_handle);
+  module_registry_->set_executable(module_handle);
   if (!module) {
     return;
   }
@@ -338,20 +338,21 @@ void Runtime::SetExecutableModule(X_HANDLE module_handle) {
   pib->unk_1A = 17;
 
   u32 default_stack_size = 0;
-  UserModuleGetOptHeader(*module, XEX_HEADER_DEFAULT_STACK_SIZE, &default_stack_size);
+  UserModuleGetOptHeader(*module, filesystem::XEX_HEADER_DEFAULT_STACK_SIZE, &default_stack_size);
   if (default_stack_size) {
     pib->kernel_stack_size = ResolveGuestStackSize(default_stack_size, 0, kMinimumThreadStackSize);
   }
 
-  xex2_opt_tls_info* tls_header = nullptr;
-  UserModuleGetOptHeader(*module, XEX_HEADER_TLS_INFO, &tls_header);
+  filesystem::XEXOptTLSInfo* tls_header = nullptr;
+  UserModuleGetOptHeader(*module, filesystem::XEX_HEADER_TLS_INFO, &tls_header);
   if (tls_header) {
     pib->tls_raw_data_size = tls_header->raw_data_size;
     SetProcessTLSVars(pib, tls_header->slot_count, tls_header->data_size,
                       tls_header->raw_data_address);
   }
   u32 workspace_size_address = 0;
-  UserModuleGetOptHeader(*module, XEX_HEADER_TITLE_WORKSPACE_SIZE, &workspace_size_address);
+  UserModuleGetOptHeader(*module, filesystem::XEX_HEADER_TITLE_WORKSPACE_SIZE,
+                         &workspace_size_address);
   const u32 workspace_size = WorkspaceHeap::ResolveSize(
       workspace_size_address
           ? u32{*memory_->TranslateVirtual<const be_u32*>(workspace_size_address)}
@@ -382,16 +383,16 @@ void Runtime::SetExecutableModule(X_HANDLE module_handle) {
 
 void Runtime::TerminateTitle() {
   REXLOG_DEBUG(system, "Runtime::TerminateTitle");
-  if (ThreadRecord::IsInThread() && terminate_claimed_.exchange(true, std::memory_order_acq_rel)) {
-    ThreadRecord::GetCurrentThread()->Exit(0);
+  if (KernelThread::IsInThread() && terminate_claimed_.exchange(true, std::memory_order_acq_rel)) {
+    KernelThread::GetCurrentThread()->Exit(0);
   }
 
   const auto timeout = config_.runtime.terminate_timeout;
   RunTerminateNotifications(timeout);
   StopGuestThreads(timeout);
 
-  if (ThreadRecord::IsInThread()) {
-    ThreadRecord::GetCurrentThread()->Exit(0);
+  if (KernelThread::IsInThread()) {
+    KernelThread::GetCurrentThread()->Exit(0);
   }
 }
 
@@ -403,7 +404,7 @@ void Runtime::StopGuestThreads(std::chrono::milliseconds timeout) {
 
   std::vector<ThreadPin> target_threads;
   for (ThreadPin& thread : thread_registry_->All()) {
-    if (!ThreadRecord::IsInThread(thread.get()) && thread->is_guest_thread()) {
+    if (!KernelThread::IsInThread(thread.get()) && thread->is_guest_thread()) {
       target_threads.push_back(std::move(thread));
     }
   }

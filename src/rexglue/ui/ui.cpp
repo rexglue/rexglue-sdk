@@ -72,7 +72,7 @@ std::string_view LevelColor(rex::log::Level level) {
 PresentationSink::PresentationSink(std::ostream& out, bool tty, bool color)
     : out_(out), tty_(tty), color_(color) {}
 
-void PresentationSink::Write(const rex::log::Record& record) {
+void PresentationSink::Write(const rex::log::Message& message) {
   std::lock_guard lock(mutex_);
   if (active_progress_ && tty_) {
     out_.write("\r\033[K", 4);
@@ -80,18 +80,18 @@ void PresentationSink::Write(const rex::log::Record& record) {
   if (tty_) {
     out_.put('[');
     if (color_) {
-      auto col = LevelColor(record.level);
+      auto col = LevelColor(message.level);
       out_.write(col.data(), static_cast<std::streamsize>(col.size()));
-      auto letter = LevelLetter(record.level);
+      auto letter = LevelLetter(message.level);
       out_.write(letter.data(), static_cast<std::streamsize>(letter.size()));
       out_.write(color::kReset.data(), static_cast<std::streamsize>(color::kReset.size()));
     } else {
-      auto letter = LevelLetter(record.level);
+      auto letter = LevelLetter(message.level);
       out_.write(letter.data(), static_cast<std::streamsize>(letter.size()));
     }
     out_.write("] ", 2);
   }
-  out_.write(record.text.data(), static_cast<std::streamsize>(record.text.size()));
+  out_.write(message.text.data(), static_cast<std::streamsize>(message.text.size()));
   out_.put('\n');
 }
 

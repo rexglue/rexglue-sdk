@@ -118,7 +118,7 @@ REX_TEST_CASE("KeTlsFree after a thread with the slot exited writes no released 
 REX_TEST_CASE("The TLS data block is copied with a slot count of 0", "[char][tls]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    const u32 process = c.runtime().GetTitleProcess();
+    const u32 process = c.runtime().title_process();
     const u32 raw = c.Alloc(8);
     c.Store32(raw, 0x11223344);
     c.Store32(raw + 4, 0x55667788);

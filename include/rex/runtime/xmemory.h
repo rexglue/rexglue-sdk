@@ -22,7 +22,7 @@
 #include <vector>
 
 #include <rex/macros.h>
-#include <rex/memory/utils.h>
+#include <rex/memory/virtual_memory.h>
 #include <rex/ppc/func.h>
 #include <rex/platform/lock_order.h>
 #include <rex/types.h>
@@ -84,7 +84,7 @@ enum SystemHeapFlag : u8 {
 /** Address range that a heap manages. */
 enum class HeapType : u8 {
   kGuestVirtual,  /**< Guest virtual memory. */
-  kGuestXex,      /**< Memory that executable images are mapped into. */
+  kGuestXEX,      /**< Memory that executable images are mapped into. */
   kGuestPhysical, /**< Physical memory views. */
 };
 

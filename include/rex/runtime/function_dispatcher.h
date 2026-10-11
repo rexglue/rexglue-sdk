@@ -206,8 +206,8 @@ class REX_RUNTIME_API FunctionDispatcher : public IModuleRegistrar {
   /** Code base of the entrypoint module, 0 until registered. */
   u32 entrypoint_code_base_ = 0;
 
-  bool recording_ = false;
-  std::vector<u32> recording_addresses_;
+  bool registering_ = false;
+  std::vector<u32> registered_addresses_;
 
   struct ModuleRegistration {
     u32 code_base;

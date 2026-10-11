@@ -95,7 +95,8 @@ void ReportBinaryInfo(ProgressReporter* reporter, std::string_view display_name,
   BinaryInfo info{};
   info.name = display_name;
   info.pe_time_date_stamp = xex.pe().time_date_stamp;
-  if (auto* exec = xex.image().OptHeader<xex2_opt_execution_info>(XEX_HEADER_EXECUTION_INFO)) {
+  if (auto* exec = xex.image().OptHeader<filesystem::XEXOptExecutionInfo>(
+          filesystem::XEX_HEADER_EXECUTION_INFO)) {
     info.title_id = exec->title_id;
     info.media_id = exec->media_id;
     auto version = exec->version();

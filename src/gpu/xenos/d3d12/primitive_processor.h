@@ -46,12 +46,12 @@ class D3D12PrimitiveProcessor final : public PrimitiveProcessor {
   void BeginFrame();
   void EndFrame();
 
-  D3D12_GPU_VIRTUAL_ADDRESS GetBuiltinIndexBufferGpuAddress(size_t handle) const {
+  D3D12_GPU_VIRTUAL_ADDRESS GetBuiltinIndexBufferGPUAddress(size_t handle) const {
     REX_ASSERT(builtin_index_buffer_ != nullptr);
     return D3D12_GPU_VIRTUAL_ADDRESS(builtin_index_buffer_gpu_address_ +
                                      GetBuiltinIndexBufferOffsetBytes(handle));
   }
-  D3D12_GPU_VIRTUAL_ADDRESS GetConvertedIndexBufferGpuAddress(size_t handle) const {
+  D3D12_GPU_VIRTUAL_ADDRESS GetConvertedIndexBufferGPUAddress(size_t handle) const {
     return frame_index_buffers_[handle];
   }
 

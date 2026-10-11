@@ -38,7 +38,7 @@ constexpr u32 kBaseAddress = 0x82000000;
 constexpr u32 kFunctionCount = 4;
 
 // Big-endian `blr` (0x4E800020), one instruction per test function.
-std::vector<u8> MakeBlrBinary(u32 functionCount) {
+std::vector<u8> BuildBlrBinary(u32 functionCount) {
   std::vector<u8> data;
   data.reserve(size_t{functionCount} * 4);
   for (u32 i = 0; i < functionCount; ++i) {
@@ -62,7 +62,7 @@ struct WriterFixture {
 
   explicit WriterFixture(std::string_view name, u32 functionCount = kFunctionCount)
       : root(fs::temp_directory_path() / "rexglue_writer_test" / fs::path(name)),
-        data(MakeBlrBinary(functionCount)) {
+        data(BuildBlrBinary(functionCount)) {
     fs::remove_all(root);
     fs::create_directories(root);
 

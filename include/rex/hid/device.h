@@ -17,7 +17,7 @@
 namespace rex::hid {
 
 /** The number of title users. */
-constexpr u32 kMaxGuestUsers = 4;
+constexpr u32 kMaxTitleUsers = 4;
 
 /**
  * Driver-scoped device handle. Never reused within a process run, so a handle that outlives its

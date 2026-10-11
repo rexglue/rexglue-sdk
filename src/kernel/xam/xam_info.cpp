@@ -18,7 +18,7 @@
 #include <rex/runtime.h>
 #include <rex/runtime/user_module.h>
 #include <rex/runtime/workspace_heap.h>
-#include <rex/runtime/xenumerator.h>
+#include <rex/runtime/enumerator_object.h>
 #include <rex/runtime/xthread.h>
 #include <rex/runtime/xtypes.h>
 #include "kernel/kernel_macros.h"
@@ -200,10 +200,10 @@ u32 XGetGameRegion_entry() {
 u32 XGetLanguage_entry() {
   auto desired_language = XLanguage::kEnglish;
 
-  u32 game_region = XEX_REGION_NTSCU;
-  if (game_region & XEX_REGION_NTSCU) {
+  u32 game_region = filesystem::XEX_REGION_NTSCU;
+  if (game_region & filesystem::XEX_REGION_NTSCU) {
     desired_language = XLanguage::kEnglish;
-  } else if (game_region & XEX_REGION_NTSCJ) {
+  } else if (game_region & filesystem::XEX_REGION_NTSCJ) {
     desired_language = XLanguage::kJapanese;
   }
 
@@ -225,7 +225,8 @@ u32 XamGetExecutionId_entry(mapped_u32 info_ptr) {
   REX_ASSERT(module);
 
   u32 guest_hdr_ptr;
-  X_STATUS result = UserModuleGetOptHeader(*module, XEX_HEADER_EXECUTION_INFO, &guest_hdr_ptr);
+  X_STATUS result =
+      UserModuleGetOptHeader(*module, filesystem::XEX_HEADER_EXECUTION_INFO, &guest_hdr_ptr);
 
   if (XFAILED(result)) {
     return result;

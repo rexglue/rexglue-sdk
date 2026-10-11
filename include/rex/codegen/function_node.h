@@ -73,7 +73,7 @@ class FunctionNode {
    * @param labels Internal branch target addresses
    */
   void discover(std::vector<Block> blocks,
-                std::vector<rex::codegen::ppc::Instruction*> instructions, std::set<u32> labels);
+                std::vector<rex::codegen::detail::Instruction*> instructions, std::set<u32> labels);
 
   /** Transitions kRegistered to kDiscovered for an import function, which has no blocks. */
   void discoverAsImport();
@@ -110,7 +110,7 @@ class FunctionNode {
    *
    * @return Instruction pointers
    */
-  std::span<rex::codegen::ppc::Instruction* const> instructions() const { return instructions_; }
+  std::span<rex::codegen::detail::Instruction* const> instructions() const { return instructions_; }
 
   const std::vector<Block>& blocks() const { return blocks_; }
   /**
@@ -195,7 +195,7 @@ class FunctionNode {
   bool sharesRegisters_ = false;
 
   std::vector<Block> blocks_;
-  std::vector<rex::codegen::ppc::Instruction*> instructions_; /**< Point into DecodedBinary */
+  std::vector<rex::codegen::detail::Instruction*> instructions_; /**< Point into DecodedBinary */
   std::set<u32> labels_;
 
   std::vector<CallEdge> calls_;

@@ -55,7 +55,7 @@ Result<FileSystem::Resolved> FileSystem::ResolveMount(std::string_view path,
     }
     if (depth == kMaxLinkDepth) {
       return Err<Resolved>(
-          MakeError(Error::kInvalidPath, std::format("links of '{}' do not end", path)));
+          BuildError(FileSystemError::kInvalidPath, std::format("links of '{}' do not end", path)));
     }
     resolved = link->second + resolved.substr(link->first.size());
   }
@@ -66,7 +66,8 @@ Result<FileSystem::Resolved> FileSystem::ResolveMount(std::string_view path,
     if (log_missing) {
       REXLOG_ERROR(filesystem, "no mount covers '{}'", path);
     }
-    return Err<Resolved>(MakeError(Error::kNoMount, std::format("no mount covers '{}'", path)));
+    return Err<Resolved>(
+        BuildError(FileSystemError::kNoMount, std::format("no mount covers '{}'", path)));
   }
   return Resolved{provider->get(), resolved.substr((*provider)->mount_path().size())};
 }
@@ -76,7 +77,8 @@ Result<Node*> FileSystem::ResolveNode(std::string_view path) const {
   Node* node = resolved.provider->Resolve(resolved.relative);
   if (!node) {
     REXLOG_DEBUG(filesystem, "'{}' is not on mount '{}'", path, resolved.provider->mount_path());
-    return Err<Node*>(MakeError(Error::kNotFound, std::format("'{}' does not exist", path)));
+    return Err<Node*>(
+        BuildError(FileSystemError::kNotFound, std::format("'{}' does not exist", path)));
   }
   REXLOG_TRACE(filesystem, "'{}' resolves to '{}'", path, node->absolute_path());
   return node;
@@ -102,7 +104,8 @@ Result<Node*> FileSystem::CreatePath(Node* root, std::string_view path, FileAttr
   }
   const std::vector<std::string_view> parts = utf8_split_path(relative);
   if (parts.empty()) {
-    return Err<Node*>(MakeError(Error::kInvalidPath, std::format("'{}' names a mount root", path)));
+    return Err<Node*>(
+        BuildError(FileSystemError::kInvalidPath, std::format("'{}' names a mount root", path)));
   }
   Node* parent = root ? root : &provider->root();
   std::string partial;
@@ -125,7 +128,8 @@ Result<Opened> FileSystem::OpenFrom(Node* root, std::string_view requested,
   const auto mount_lock = root ? std::unique_lock(root->provider().mutex()) : LockMount(path);
   Access access = ExpandAccess(options.access);
   auto not_found = [&] {
-    return Err<Opened>(MakeError(Error::kNotFound, std::format("'{}' does not exist", path)));
+    return Err<Opened>(
+        BuildError(FileSystemError::kNotFound, std::format("'{}' does not exist", path)));
   };
 
   Node* parent = nullptr;
@@ -149,7 +153,8 @@ Result<Opened> FileSystem::OpenFrom(Node* root, std::string_view requested,
 
   if (node) {
     if (node->is_directory() && options.require_file) {
-      return Err<Opened>(MakeError(Error::kIsDirectory, std::format("'{}' is a directory", path)));
+      return Err<Opened>(
+          BuildError(FileSystemError::kIsDirectory, std::format("'{}' is a directory", path)));
     }
     if (parent && parent->ChildVanished(*node)) {
       parent->DropChild(*node);
@@ -166,7 +171,7 @@ Result<Opened> FileSystem::OpenFrom(Node* root, std::string_view requested,
       break;
     case Disposition::kCreate:
       if (node) {
-        return Err<Opened>(MakeError(Error::kExists, std::format("'{}' exists", path)));
+        return Err<Opened>(BuildError(FileSystemError::kExists, std::format("'{}' exists", path)));
       }
       break;
     default:
@@ -184,7 +189,7 @@ Result<Opened> FileSystem::OpenFrom(Node* root, std::string_view requested,
     if (!node->Truncate()) {
       if (!node->Delete()) {
         return Err<OpenAction>(
-            MakeError(Error::kAccessDenied, std::format("cannot replace '{}'", path)));
+            BuildError(FileSystemError::kAccessDenied, std::format("cannot replace '{}'", path)));
       }
       node = nullptr;
     }
@@ -217,12 +222,13 @@ Result<Opened> FileSystem::OpenFrom(Node* root, std::string_view requested,
         options.create_directory ? FileAttributes::kDirectory : FileAttributes::kNormal;
     auto created = CreatePath(root, path, attributes);
     if (!created) {
-      const bool exists = CodeOf(created.error()) == Error::kExists;
+      const bool exists = CodeOf(created.error()) == FileSystemError::kExists;
       if (exists && options.disposition != Disposition::kCreate && !retried) {
         return OpenFrom(root, requested, options, true);
       }
       return Err<Opened>(
-          MakeError(exists ? Error::kExists : Error::kAccessDenied, created.error().message));
+          BuildError(exists ? FileSystemError::kExists : FileSystemError::kAccessDenied,
+                     created.error().message));
     }
     node = *created;
   }
@@ -235,7 +241,8 @@ Result<void> FileSystem::Mount(const MountEntry& entry) {
   std::lock_guard lock(mutex_);
   if (std::ranges::any_of(providers_,
                           [&](const auto& p) { return p->mount_path() == entry.path; })) {
-    return Err(MakeError(Error::kMountExists, std::format("'{}' is mounted", entry.path)));
+    return Err(
+        BuildError(FileSystemError::kMountExists, std::format("'{}' is mounted", entry.path)));
   }
   REX_TRY(std::unique_ptr<Provider> provider, CreateProvider(entry));
   providers_.push_back(std::move(provider));
@@ -248,7 +255,7 @@ Result<void> FileSystem::Unmount(std::string_view path) {
   const auto it =
       std::ranges::find_if(providers_, [&](const auto& p) { return p->mount_path() == path; });
   if (it == providers_.end()) {
-    return Err(MakeError(Error::kNoMount, std::format("'{}' is not mounted", path)));
+    return Err(BuildError(FileSystemError::kNoMount, std::format("'{}' is not mounted", path)));
   }
   REXLOG_DEBUG(filesystem, "unmounted '{}'", path);
   providers_.erase(it);
@@ -269,7 +276,7 @@ Result<void> FileSystem::Link(std::string_view link, std::string_view target) {
   std::lock_guard lock(mutex_);
   if (std::ranges::any_of(links_,
                           [&](const auto& entry) { return utf8_equal_case(entry.first, link); })) {
-    return Err(MakeError(Error::kExists, std::format("link '{}' exists", link)));
+    return Err(BuildError(FileSystemError::kExists, std::format("link '{}' exists", link)));
   }
   links_.emplace_back(link, target);
   REXLOG_DEBUG(filesystem, "linked '{}' to '{}'", link, target);
@@ -281,7 +288,7 @@ Result<void> FileSystem::Unlink(std::string_view link) {
   const auto it = std::ranges::find_if(
       links_, [&](const auto& entry) { return utf8_equal_case(link, entry.first); });
   if (it == links_.end()) {
-    return Err(MakeError(Error::kNotFound, std::format("no link '{}'", link)));
+    return Err(BuildError(FileSystemError::kNotFound, std::format("no link '{}'", link)));
   }
   REXLOG_DEBUG(filesystem, "unlinked '{}' from '{}'", it->first, it->second);
   links_.erase(it);
@@ -304,8 +311,9 @@ Result<void> FileSystem::ConfigureStandardMounts(const PathsConfig& paths) {
   std::error_code ec;
   const std::filesystem::path game_root = std::filesystem::absolute(paths.game_data_root, ec);
   if (paths.game_data_root.empty() || !std::filesystem::is_directory(game_root, ec)) {
-    return Err(MakeError(Error::kNotFound, std::format("game_data_root '{}' is not a folder",
-                                                       path_to_utf8(paths.game_data_root))));
+    return Err(BuildError(
+        FileSystemError::kNotFound,
+        std::format("game_data_root '{}' is not a folder", path_to_utf8(paths.game_data_root))));
   }
   REX_TRY_VOID(Mount(
       {std::string(kGamePartition), ProviderKind::kHostDirectory, game_root, game_mount_flags_}));
@@ -345,8 +353,8 @@ Result<Opened> FileSystem::OpenRelative(IFile& root, std::string_view path,
                                         const OpenOptions& options) {
   auto* file = dynamic_cast<NodeFile*>(&root);
   if (!file) {
-    return Err<Opened>(
-        MakeError(Error::kInvalidPath, "the root file was not opened by this mount table"));
+    return Err<Opened>(BuildError(FileSystemError::kInvalidPath,
+                                  "the root file was not opened by this mount table"));
   }
   return OpenFrom(&file->node(), path, options);
 }
@@ -365,7 +373,7 @@ Result<std::unique_ptr<IDirectory>> FileSystem::List(std::string_view path,
   REX_TRY(Node * node, ResolveNode(path));
   if (!node->is_directory()) {
     return Err<std::unique_ptr<IDirectory>>(
-        MakeError(Error::kNotDirectory, std::format("'{}' is not a directory", path)));
+        BuildError(FileSystemError::kNotDirectory, std::format("'{}' is not a directory", path)));
   }
   return std::unique_ptr<IDirectory>(std::make_unique<NodeDirectory>(*node, pattern));
 }
@@ -375,7 +383,7 @@ Result<void> FileSystem::CreateDirectories(std::string_view path) {
   const auto mount_lock = LockMount(path);
   if (auto node = ResolveNode(path)) {
     if (!(*node)->is_directory()) {
-      return Err(MakeError(Error::kNotDirectory, std::format("'{}' is a file", path)));
+      return Err(BuildError(FileSystemError::kNotDirectory, std::format("'{}' is a file", path)));
     }
     return Ok();
   }
@@ -418,20 +426,23 @@ Result<void> FileSystem::Move(Node& node, std::string_view to, bool replace_exis
   } else {
     REX_TRY(Resolved resolved, ResolveMount(base));
     if (resolved.provider != &node.provider()) {
-      return Err(MakeError(Error::kNotSameDevice, std::format("'{}' is not on the mount of '{}'",
-                                                              to, node.absolute_path())));
+      return Err(
+          BuildError(FileSystemError::kNotSameDevice,
+                     std::format("'{}' is not on the mount of '{}'", to, node.absolute_path())));
     }
     parent = resolved.provider->Resolve(resolved.relative);
   }
   if (root && &root->provider() != &node.provider()) {
-    return Err(MakeError(Error::kNotSameDevice, std::format("'{}' is not on the mount of '{}'", to,
-                                                            node.absolute_path())));
+    return Err(
+        BuildError(FileSystemError::kNotSameDevice,
+                   std::format("'{}' is not on the mount of '{}'", to, node.absolute_path())));
   }
   if (!parent || !parent->is_directory()) {
-    return Err(MakeError(Error::kNotFound, std::format("the folder of '{}' does not exist", to)));
+    return Err(BuildError(FileSystemError::kNotFound,
+                          std::format("the folder of '{}' does not exist", to)));
   }
   if (name.empty()) {
-    return Err(MakeError(Error::kInvalidPath, std::format("'{}' has no name", to)));
+    return Err(BuildError(FileSystemError::kInvalidPath, std::format("'{}' has no name", to)));
   }
   return node.MoveTo(*parent, name, replace_existing);
 }

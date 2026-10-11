@@ -24,7 +24,7 @@
 namespace rex::apu::sdl3 {
 
 /** The SDL3 audio output. 1 SDL audio stream on the default device per open stream. */
-class SDL3Backend final : public IBackend, public NonCopyable {
+class SDL3Backend final : public IAPUBackend, public NonCopyable {
  public:
   SDL3Backend();
   ~SDL3Backend() override;

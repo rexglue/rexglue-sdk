@@ -20,7 +20,6 @@
 
 namespace rex {
 namespace runtime {
-namespace xam {
 
 UserProfile::UserProfile(Runtime& runtime) : runtime_(runtime) {
   // A title rejects any XUID with bits 54 or 55 set (mask 0x00C0000000000000).
@@ -152,6 +151,5 @@ void UserProfile::SaveSetting(UserProfile::Setting* setting) {
   }
 }
 
-}  // namespace xam
 }  // namespace runtime
 }  // namespace rex

@@ -23,7 +23,7 @@
 #include <sys/mman.h>
 #include <unistd.h>
 
-#include <rex/memory/utils.h>
+#include <rex/memory/virtual_memory.h>
 
 #include "core/proc_maps.h"
 

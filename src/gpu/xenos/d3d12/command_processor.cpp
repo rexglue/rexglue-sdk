@@ -16,6 +16,7 @@
 #include <sstream>
 #include <utility>
 
+#include <rex/bit.h>
 #include <rex/assert.h>
 #include <rex/cvar.h>
 #include <rex/dbg.h>
@@ -24,13 +25,13 @@
 #include "gpu/xenos/d3d12/graphics_system.h"
 #include "gpu/xenos/d3d12/shader.h"
 #include <rex/xenos/registers.h>
-#include "gpu/xenos/util/draw.h"
+#include "gpu/xenos/draw_state.h"
 #include <rex/xenos/xenos.h>
 #include <rex/kernel/xboxkrnl/video.h>
 #include <rex/logging.h>
-#include <rex/memory/utils.h>
+#include <rex/memory/byte_swap.h>
 #include "gpu/xenos/host/d3d12/d3d12_presenter.h"
-#include "gpu/xenos/host/d3d12/d3d12_util.h"
+#include "gpu/xenos/host/d3d12/d3d12_objects.h"
 #include "gpu/xenos/host/renderdoc_api.h"
 
 #include "gpu/xenos/cvar_table.h"
@@ -119,7 +120,7 @@ void D3D12CommandProcessor::ClearCaches() {
   cache_clear_requested_ = true;
 }
 
-void D3D12CommandProcessor::InvalidateGpuMemory() {
+void D3D12CommandProcessor::InvalidateGPUMemory() {
   if (shared_memory_) {
     shared_memory_->InvalidateAllPages();
   }
@@ -271,8 +272,8 @@ void D3D12CommandProcessor::SubmitBarriers() {
   }
 }
 
-ID3D12RootSignature* D3D12CommandProcessor::GetRootSignature(const DxbcShader* vertex_shader,
-                                                             const DxbcShader* pixel_shader,
+ID3D12RootSignature* D3D12CommandProcessor::GetRootSignature(const DXBCShader* vertex_shader,
+                                                             const DXBCShader* pixel_shader,
                                                              bool tessellated) {
   if (bindless_resources_used_) {
     return tessellated ? root_signature_bindless_ds_ : root_signature_bindless_vs_;
@@ -324,7 +325,7 @@ ID3D12RootSignature* D3D12CommandProcessor::GetRootSignature(const DxbcShader* v
     auto& parameter = parameters[kRootParameter_Bindful_FetchConstants];
     parameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
     parameter.Descriptor.ShaderRegister =
-        std::to_underlying(DxbcShaderTranslator::CbufferRegister::kFetchConstants);
+        std::to_underlying(DXBCShaderTranslator::CbufferRegister::kFetchConstants);
     parameter.Descriptor.RegisterSpace = 0;
     parameter.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
   }
@@ -333,7 +334,7 @@ ID3D12RootSignature* D3D12CommandProcessor::GetRootSignature(const DxbcShader* v
     auto& parameter = parameters[kRootParameter_Bindful_FloatConstantsVertex];
     parameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
     parameter.Descriptor.ShaderRegister =
-        std::to_underlying(DxbcShaderTranslator::CbufferRegister::kFloatConstants);
+        std::to_underlying(DXBCShaderTranslator::CbufferRegister::kFloatConstants);
     parameter.Descriptor.RegisterSpace = 0;
     parameter.ShaderVisibility = vertex_visibility;
   }
@@ -342,7 +343,7 @@ ID3D12RootSignature* D3D12CommandProcessor::GetRootSignature(const DxbcShader* v
     auto& parameter = parameters[kRootParameter_Bindful_FloatConstantsPixel];
     parameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
     parameter.Descriptor.ShaderRegister =
-        std::to_underlying(DxbcShaderTranslator::CbufferRegister::kFloatConstants);
+        std::to_underlying(DXBCShaderTranslator::CbufferRegister::kFloatConstants);
     parameter.Descriptor.RegisterSpace = 0;
     parameter.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
   }
@@ -351,7 +352,7 @@ ID3D12RootSignature* D3D12CommandProcessor::GetRootSignature(const DxbcShader* v
     auto& parameter = parameters[kRootParameter_Bindful_SystemConstants];
     parameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
     parameter.Descriptor.ShaderRegister =
-        std::to_underlying(DxbcShaderTranslator::CbufferRegister::kSystemConstants);
+        std::to_underlying(DXBCShaderTranslator::CbufferRegister::kSystemConstants);
     parameter.Descriptor.RegisterSpace = 0;
     parameter.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
   }
@@ -360,14 +361,14 @@ ID3D12RootSignature* D3D12CommandProcessor::GetRootSignature(const DxbcShader* v
     auto& parameter = parameters[kRootParameter_Bindful_BoolLoopConstants];
     parameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
     parameter.Descriptor.ShaderRegister =
-        std::to_underlying(DxbcShaderTranslator::CbufferRegister::kBoolLoopConstants);
+        std::to_underlying(DXBCShaderTranslator::CbufferRegister::kBoolLoopConstants);
     parameter.Descriptor.RegisterSpace = 0;
     parameter.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
   }
 
   D3D12_DESCRIPTOR_RANGE shared_memory_and_edram_ranges[3];
   {
-    auto& parameter = parameters[kRootParameter_Bindful_SharedMemoryAndEdram];
+    auto& parameter = parameters[kRootParameter_Bindful_SharedMemoryAndEDRAM];
     parameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
     parameter.DescriptorTable.NumDescriptorRanges = 2;
     parameter.DescriptorTable.pDescriptorRanges = shared_memory_and_edram_ranges;
@@ -375,14 +376,14 @@ ID3D12RootSignature* D3D12CommandProcessor::GetRootSignature(const DxbcShader* v
     shared_memory_and_edram_ranges[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
     shared_memory_and_edram_ranges[0].NumDescriptors = 1;
     shared_memory_and_edram_ranges[0].BaseShaderRegister =
-        std::to_underlying(DxbcShaderTranslator::SRVMainRegister::kSharedMemory);
+        std::to_underlying(DXBCShaderTranslator::SRVMainRegister::kSharedMemory);
     shared_memory_and_edram_ranges[0].RegisterSpace =
-        std::to_underlying(DxbcShaderTranslator::SRVSpace::kMain);
+        std::to_underlying(DXBCShaderTranslator::SRVSpace::kMain);
     shared_memory_and_edram_ranges[0].OffsetInDescriptorsFromTableStart = 0;
     shared_memory_and_edram_ranges[1].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
     shared_memory_and_edram_ranges[1].NumDescriptors = 1;
     shared_memory_and_edram_ranges[1].BaseShaderRegister =
-        UINT(DxbcShaderTranslator::UAVRegister::kSharedMemory);
+        UINT(DXBCShaderTranslator::UAVRegister::kSharedMemory);
     shared_memory_and_edram_ranges[1].RegisterSpace = 0;
     shared_memory_and_edram_ranges[1].OffsetInDescriptorsFromTableStart = 1;
     if (render_target_cache_->GetPath() == RenderTargetCache::Path::kPixelShaderInterlock) {
@@ -390,7 +391,7 @@ ID3D12RootSignature* D3D12CommandProcessor::GetRootSignature(const DxbcShader* v
       shared_memory_and_edram_ranges[2].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
       shared_memory_and_edram_ranges[2].NumDescriptors = 1;
       shared_memory_and_edram_ranges[2].BaseShaderRegister =
-          UINT(DxbcShaderTranslator::UAVRegister::kEDRAM);
+          UINT(DXBCShaderTranslator::UAVRegister::kEDRAM);
       shared_memory_and_edram_ranges[2].RegisterSpace = 0;
       shared_memory_and_edram_ranges[2].OffsetInDescriptorsFromTableStart = 2;
     }
@@ -406,8 +407,8 @@ ID3D12RootSignature* D3D12CommandProcessor::GetRootSignature(const DxbcShader* v
     range_textures_pixel.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
     range_textures_pixel.NumDescriptors = texture_count_pixel;
     range_textures_pixel.BaseShaderRegister =
-        std::to_underlying(DxbcShaderTranslator::SRVMainRegister::kBindfulTexturesStart);
-    range_textures_pixel.RegisterSpace = std::to_underlying(DxbcShaderTranslator::SRVSpace::kMain);
+        std::to_underlying(DXBCShaderTranslator::SRVMainRegister::kBindfulTexturesStart);
+    range_textures_pixel.RegisterSpace = std::to_underlying(DXBCShaderTranslator::SRVSpace::kMain);
     range_textures_pixel.OffsetInDescriptorsFromTableStart = 0;
     ++desc.NumParameters;
   }
@@ -437,8 +438,8 @@ ID3D12RootSignature* D3D12CommandProcessor::GetRootSignature(const DxbcShader* v
     range_textures_vertex.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
     range_textures_vertex.NumDescriptors = texture_count_vertex;
     range_textures_vertex.BaseShaderRegister =
-        std::to_underlying(DxbcShaderTranslator::SRVMainRegister::kBindfulTexturesStart);
-    range_textures_vertex.RegisterSpace = std::to_underlying(DxbcShaderTranslator::SRVSpace::kMain);
+        std::to_underlying(DXBCShaderTranslator::SRVMainRegister::kBindfulTexturesStart);
+    range_textures_vertex.RegisterSpace = std::to_underlying(DXBCShaderTranslator::SRVSpace::kMain);
     range_textures_vertex.OffsetInDescriptorsFromTableStart = 0;
     ++desc.NumParameters;
   }
@@ -459,7 +460,7 @@ ID3D12RootSignature* D3D12CommandProcessor::GetRootSignature(const DxbcShader* v
   }
 
   ID3D12RootSignature* root_signature =
-      gpu::d3d12::util::CreateRootSignature(GetD3D12Provider(), desc);
+      gpu::d3d12::objects::CreateRootSignature(GetD3D12Provider(), desc);
   if (root_signature == nullptr) {
     REX_FAIL(gpu, nullptr,
              "Failed to create a root signature with {} pixel textures, {} pixel "
@@ -471,7 +472,7 @@ ID3D12RootSignature* D3D12CommandProcessor::GetRootSignature(const DxbcShader* v
 }
 
 u32 D3D12CommandProcessor::GetRootBindfulExtraParameterIndices(
-    const DxbcShader* vertex_shader, const DxbcShader* pixel_shader,
+    const DXBCShader* vertex_shader, const DXBCShader* pixel_shader,
     RootBindfulExtraParameterIndices& indices_out) {
   u32 index = kRootParameter_Bindful_Count_Base;
   if (pixel_shader && !pixel_shader->GetTextureBindingsAfterTranslation().empty()) {
@@ -541,7 +542,7 @@ void D3D12CommandProcessor::ReleaseViewBindlessDescriptorImmediately(
 }
 
 bool D3D12CommandProcessor::RequestOneUseSingleViewDescriptors(
-    u32 count, gpu::d3d12::util::DescriptorCpuGpuHandlePair* handles_out) {
+    u32 count, gpu::d3d12::objects::DescriptorCPUGPUHandlePair* handles_out) {
   REX_ASSERT(submission_open_);
   if (!count) {
     return true;
@@ -583,8 +584,8 @@ bool D3D12CommandProcessor::RequestOneUseSingleViewDescriptors(
   return true;
 }
 
-gpu::d3d12::util::DescriptorCpuGpuHandlePair D3D12CommandProcessor::GetSystemBindlessViewHandlePair(
-    SystemBindlessView view) const {
+gpu::d3d12::objects::DescriptorCPUGPUHandlePair
+D3D12CommandProcessor::GetSystemBindlessViewHandlePair(SystemBindlessView view) const {
   REX_ASSERT(bindless_resources_used_);
   const gpu::d3d12::D3D12Provider& provider = GetD3D12Provider();
   return std::make_pair(
@@ -592,7 +593,7 @@ gpu::d3d12::util::DescriptorCpuGpuHandlePair D3D12CommandProcessor::GetSystemBin
       provider.OffsetViewDescriptor(view_bindless_heap_gpu_start_, static_cast<u32>(view)));
 }
 
-gpu::d3d12::util::DescriptorCpuGpuHandlePair
+gpu::d3d12::objects::DescriptorCPUGPUHandlePair
 D3D12CommandProcessor::GetSharedMemoryUintPow2BindlessSRVHandlePair(
     u32 element_size_bytes_pow2) const {
   SystemBindlessView view;
@@ -613,7 +614,7 @@ D3D12CommandProcessor::GetSharedMemoryUintPow2BindlessSRVHandlePair(
   return GetSystemBindlessViewHandlePair(view);
 }
 
-gpu::d3d12::util::DescriptorCpuGpuHandlePair
+gpu::d3d12::objects::DescriptorCPUGPUHandlePair
 D3D12CommandProcessor::GetSharedMemoryUintPow2BindlessUAVHandlePair(
     u32 element_size_bytes_pow2) const {
   SystemBindlessView view;
@@ -634,8 +635,8 @@ D3D12CommandProcessor::GetSharedMemoryUintPow2BindlessUAVHandlePair(
   return GetSystemBindlessViewHandlePair(view);
 }
 
-gpu::d3d12::util::DescriptorCpuGpuHandlePair
-D3D12CommandProcessor::GetEdramUintPow2BindlessSRVHandlePair(u32 element_size_bytes_pow2) const {
+gpu::d3d12::objects::DescriptorCPUGPUHandlePair
+D3D12CommandProcessor::GetEDRAMUintPow2BindlessSRVHandlePair(u32 element_size_bytes_pow2) const {
   SystemBindlessView view;
   switch (element_size_bytes_pow2) {
     case 2:
@@ -654,8 +655,8 @@ D3D12CommandProcessor::GetEdramUintPow2BindlessSRVHandlePair(u32 element_size_by
   return GetSystemBindlessViewHandlePair(view);
 }
 
-gpu::d3d12::util::DescriptorCpuGpuHandlePair
-D3D12CommandProcessor::GetEdramUintPow2BindlessUAVHandlePair(u32 element_size_bytes_pow2) const {
+gpu::d3d12::objects::DescriptorCPUGPUHandlePair
+D3D12CommandProcessor::GetEDRAMUintPow2BindlessUAVHandlePair(u32 element_size_bytes_pow2) const {
   SystemBindlessView view;
   switch (element_size_bytes_pow2) {
     case 2:
@@ -720,10 +721,10 @@ ID3D12Resource* D3D12CommandProcessor::RequestScratchGPUBuffer(u32 size,
   const gpu::d3d12::D3D12Provider& provider = GetD3D12Provider();
   ID3D12Device* device = provider.GetDevice();
   D3D12_RESOURCE_DESC buffer_desc;
-  gpu::d3d12::util::FillBufferResourceDesc(buffer_desc, size,
-                                           D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
+  gpu::d3d12::objects::FillBufferResourceDesc(buffer_desc, size,
+                                              D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
   ID3D12Resource* buffer;
-  if (FAILED(device->CreateCommittedResource(&gpu::d3d12::util::kHeapPropertiesDefault,
+  if (FAILED(device->CreateCommittedResource(&gpu::d3d12::objects::kHeapPropertiesDefault,
                                              provider.GetHeapFlagCreateNotZeroed(), &buffer_desc,
                                              state, nullptr, IID_PPV_ARGS(&buffer)))) {
     REX_FAIL(gpu, nullptr, "Failed to create a {} MB scratch GPU buffer", size >> 20);
@@ -961,7 +962,7 @@ bool D3D12CommandProcessor::SetupContext() {
       auto& parameter = root_parameters_bindless[kRootParameter_Bindless_FetchConstants];
       parameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
       parameter.Descriptor.ShaderRegister =
-          std::to_underlying(DxbcShaderTranslator::CbufferRegister::kFetchConstants);
+          std::to_underlying(DXBCShaderTranslator::CbufferRegister::kFetchConstants);
       parameter.Descriptor.RegisterSpace = 0;
       parameter.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
     }
@@ -969,7 +970,7 @@ bool D3D12CommandProcessor::SetupContext() {
       auto& parameter = root_parameters_bindless[kRootParameter_Bindless_FloatConstantsVertex];
       parameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
       parameter.Descriptor.ShaderRegister =
-          std::to_underlying(DxbcShaderTranslator::CbufferRegister::kFloatConstants);
+          std::to_underlying(DXBCShaderTranslator::CbufferRegister::kFloatConstants);
       parameter.Descriptor.RegisterSpace = 0;
       parameter.ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;
     }
@@ -977,7 +978,7 @@ bool D3D12CommandProcessor::SetupContext() {
       auto& parameter = root_parameters_bindless[kRootParameter_Bindless_FloatConstantsPixel];
       parameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
       parameter.Descriptor.ShaderRegister =
-          std::to_underlying(DxbcShaderTranslator::CbufferRegister::kFloatConstants);
+          std::to_underlying(DXBCShaderTranslator::CbufferRegister::kFloatConstants);
       parameter.Descriptor.RegisterSpace = 0;
       parameter.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
     }
@@ -985,7 +986,7 @@ bool D3D12CommandProcessor::SetupContext() {
       auto& parameter = root_parameters_bindless[kRootParameter_Bindless_DescriptorIndicesPixel];
       parameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
       parameter.Descriptor.ShaderRegister =
-          std::to_underlying(DxbcShaderTranslator::CbufferRegister::kDescriptorIndices);
+          std::to_underlying(DXBCShaderTranslator::CbufferRegister::kDescriptorIndices);
       parameter.Descriptor.RegisterSpace = 0;
       parameter.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
     }
@@ -993,7 +994,7 @@ bool D3D12CommandProcessor::SetupContext() {
       auto& parameter = root_parameters_bindless[kRootParameter_Bindless_DescriptorIndicesVertex];
       parameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
       parameter.Descriptor.ShaderRegister =
-          std::to_underlying(DxbcShaderTranslator::CbufferRegister::kDescriptorIndices);
+          std::to_underlying(DXBCShaderTranslator::CbufferRegister::kDescriptorIndices);
       parameter.Descriptor.RegisterSpace = 0;
       parameter.ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;
     }
@@ -1001,7 +1002,7 @@ bool D3D12CommandProcessor::SetupContext() {
       auto& parameter = root_parameters_bindless[kRootParameter_Bindless_SystemConstants];
       parameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
       parameter.Descriptor.ShaderRegister =
-          std::to_underlying(DxbcShaderTranslator::CbufferRegister::kSystemConstants);
+          std::to_underlying(DXBCShaderTranslator::CbufferRegister::kSystemConstants);
       parameter.Descriptor.RegisterSpace = 0;
       parameter.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
     }
@@ -1009,7 +1010,7 @@ bool D3D12CommandProcessor::SetupContext() {
       auto& parameter = root_parameters_bindless[kRootParameter_Bindless_BoolLoopConstants];
       parameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
       parameter.Descriptor.ShaderRegister =
-          std::to_underlying(DxbcShaderTranslator::CbufferRegister::kBoolLoopConstants);
+          std::to_underlying(DXBCShaderTranslator::CbufferRegister::kBoolLoopConstants);
       parameter.Descriptor.RegisterSpace = 0;
       parameter.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
     }
@@ -1025,15 +1026,15 @@ bool D3D12CommandProcessor::SetupContext() {
         auto& range = root_shared_memory_view_ranges[0];
         range.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
         range.NumDescriptors = 1;
-        range.BaseShaderRegister = UINT(DxbcShaderTranslator::SRVMainRegister::kSharedMemory);
-        range.RegisterSpace = UINT(DxbcShaderTranslator::SRVSpace::kMain);
+        range.BaseShaderRegister = UINT(DXBCShaderTranslator::SRVMainRegister::kSharedMemory);
+        range.RegisterSpace = UINT(DXBCShaderTranslator::SRVSpace::kMain);
         range.OffsetInDescriptorsFromTableStart = 0;
       }
       {
         auto& range = root_shared_memory_view_ranges[1];
         range.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
         range.NumDescriptors = 1;
-        range.BaseShaderRegister = UINT(DxbcShaderTranslator::UAVRegister::kSharedMemory);
+        range.BaseShaderRegister = UINT(DXBCShaderTranslator::UAVRegister::kSharedMemory);
         range.RegisterSpace = 0;
         range.OffsetInDescriptorsFromTableStart = 1;
       }
@@ -1064,7 +1065,7 @@ bool D3D12CommandProcessor::SetupContext() {
         auto& range = root_bindless_view_ranges[parameter.DescriptorTable.NumDescriptorRanges++];
         range.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
         range.NumDescriptors = 1;
-        range.BaseShaderRegister = UINT(DxbcShaderTranslator::UAVRegister::kEDRAM);
+        range.BaseShaderRegister = UINT(DXBCShaderTranslator::UAVRegister::kEDRAM);
         range.RegisterSpace = 0;
         range.OffsetInDescriptorsFromTableStart = UINT(SystemBindlessView::kEDRAMR32UintUAV);
       }
@@ -1076,7 +1077,7 @@ bool D3D12CommandProcessor::SetupContext() {
         range.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
         range.NumDescriptors = UINT_MAX;
         range.BaseShaderRegister = 0;
-        range.RegisterSpace = UINT(DxbcShaderTranslator::SRVSpace::kBindlessTextures2DArray);
+        range.RegisterSpace = UINT(DXBCShaderTranslator::SRVSpace::kBindlessTextures2DArray);
         range.OffsetInDescriptorsFromTableStart = UINT(SystemBindlessView::kUnboundedSRVsStart);
       }
       {
@@ -1086,7 +1087,7 @@ bool D3D12CommandProcessor::SetupContext() {
         range.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
         range.NumDescriptors = UINT_MAX;
         range.BaseShaderRegister = 0;
-        range.RegisterSpace = UINT(DxbcShaderTranslator::SRVSpace::kBindlessTextures3D);
+        range.RegisterSpace = UINT(DXBCShaderTranslator::SRVSpace::kBindlessTextures3D);
         range.OffsetInDescriptorsFromTableStart = UINT(SystemBindlessView::kUnboundedSRVsStart);
       }
       {
@@ -1096,12 +1097,12 @@ bool D3D12CommandProcessor::SetupContext() {
         range.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
         range.NumDescriptors = UINT_MAX;
         range.BaseShaderRegister = 0;
-        range.RegisterSpace = UINT(DxbcShaderTranslator::SRVSpace::kBindlessTexturesCube);
+        range.RegisterSpace = UINT(DXBCShaderTranslator::SRVSpace::kBindlessTexturesCube);
         range.OffsetInDescriptorsFromTableStart = UINT(SystemBindlessView::kUnboundedSRVsStart);
       }
     }
     root_signature_bindless_vs_ =
-        gpu::d3d12::util::CreateRootSignature(provider, root_signature_bindless_desc);
+        gpu::d3d12::objects::CreateRootSignature(provider, root_signature_bindless_desc);
     if (!root_signature_bindless_vs_) {
       REX_FAIL(gpu, false,
                "Failed to create the global root signature for bindless resources, "
@@ -1112,7 +1113,7 @@ bool D3D12CommandProcessor::SetupContext() {
     root_parameters_bindless[kRootParameter_Bindless_DescriptorIndicesVertex].ShaderVisibility =
         D3D12_SHADER_VISIBILITY_DOMAIN;
     root_signature_bindless_ds_ =
-        gpu::d3d12::util::CreateRootSignature(provider, root_signature_bindless_desc);
+        gpu::d3d12::objects::CreateRootSignature(provider, root_signature_bindless_desc);
     if (!root_signature_bindless_ds_) {
       REX_FAIL(gpu, false,
                "Failed to create the global root signature for bindless resources, "
@@ -1144,17 +1145,17 @@ bool D3D12CommandProcessor::SetupContext() {
   gamma_ramp_256_entry_table_up_to_date_ = false;
   gamma_ramp_pwl_up_to_date_ = false;
   D3D12_RESOURCE_DESC gamma_ramp_buffer_desc;
-  gpu::d3d12::util::FillBufferResourceDesc(gamma_ramp_buffer_desc, u64{256 + 128 * 3} * 4,
-                                           D3D12_RESOURCE_FLAG_NONE);
+  gpu::d3d12::objects::FillBufferResourceDesc(gamma_ramp_buffer_desc, u64{256 + 128 * 3} * 4,
+                                              D3D12_RESOURCE_FLAG_NONE);
   gamma_ramp_buffer_state_ = D3D12_RESOURCE_STATE_COPY_DEST;
-  if (FAILED(device->CreateCommittedResource(&gpu::d3d12::util::kHeapPropertiesDefault,
+  if (FAILED(device->CreateCommittedResource(&gpu::d3d12::objects::kHeapPropertiesDefault,
                                              heap_flag_create_not_zeroed, &gamma_ramp_buffer_desc,
                                              gamma_ramp_buffer_state_, nullptr,
                                              IID_PPV_ARGS(&gamma_ramp_buffer_)))) {
     REX_FAIL(gpu, false, "Failed to create the gamma ramp buffer");
   }
   gamma_ramp_buffer_desc.Width *= kQueueFrames;
-  if (FAILED(device->CreateCommittedResource(&gpu::d3d12::util::kHeapPropertiesUpload,
+  if (FAILED(device->CreateCommittedResource(&gpu::d3d12::objects::kHeapPropertiesUpload,
                                              heap_flag_create_not_zeroed, &gamma_ramp_buffer_desc,
                                              D3D12_RESOURCE_STATE_GENERIC_READ, nullptr,
                                              IID_PPV_ARGS(&gamma_ramp_upload_buffer_)))) {
@@ -1232,37 +1233,39 @@ bool D3D12CommandProcessor::SetupContext() {
   apply_gamma_root_signature_desc.pStaticSamplers = nullptr;
   apply_gamma_root_signature_desc.Flags = D3D12_ROOT_SIGNATURE_FLAG_NONE;
   *(apply_gamma_root_signature_.ReleaseAndGetAddressOf()) =
-      gpu::d3d12::util::CreateRootSignature(provider, apply_gamma_root_signature_desc);
+      gpu::d3d12::objects::CreateRootSignature(provider, apply_gamma_root_signature_desc);
   if (!apply_gamma_root_signature_) {
     REX_FAIL(gpu, false, "Failed to create the gamma ramp application root signature");
   }
-  *(apply_gamma_table_pipeline_.ReleaseAndGetAddressOf()) = gpu::d3d12::util::CreateComputePipeline(
-      device, shaders::kApplyGammaTableCS, sizeof(shaders::kApplyGammaTableCS),
-      apply_gamma_root_signature_.Get());
+  *(apply_gamma_table_pipeline_.ReleaseAndGetAddressOf()) =
+      gpu::d3d12::objects::CreateComputePipeline(device, shaders::kApplyGammaTableCS,
+                                                 sizeof(shaders::kApplyGammaTableCS),
+                                                 apply_gamma_root_signature_.Get());
   if (!apply_gamma_table_pipeline_) {
     REX_FAIL(gpu, false,
              "Failed to create the 256-entry table gamma ramp application compute "
              "pipeline");
   }
   *(apply_gamma_table_fxaa_luma_pipeline_.ReleaseAndGetAddressOf()) =
-      gpu::d3d12::util::CreateComputePipeline(device, shaders::kApplyGammaTableFXAALumaCS,
-                                              sizeof(shaders::kApplyGammaTableFXAALumaCS),
-                                              apply_gamma_root_signature_.Get());
+      gpu::d3d12::objects::CreateComputePipeline(device, shaders::kApplyGammaTableFXAALumaCS,
+                                                 sizeof(shaders::kApplyGammaTableFXAALumaCS),
+                                                 apply_gamma_root_signature_.Get());
   if (!apply_gamma_table_fxaa_luma_pipeline_) {
     REX_FAIL(gpu, false,
              "Failed to create the 256-entry table gamma ramp application compute "
              "pipeline with perceptual luma output");
   }
-  *(apply_gamma_pwl_pipeline_.ReleaseAndGetAddressOf()) = gpu::d3d12::util::CreateComputePipeline(
-      device, shaders::kApplyGammaPWLCS, sizeof(shaders::kApplyGammaPWLCS),
-      apply_gamma_root_signature_.Get());
+  *(apply_gamma_pwl_pipeline_.ReleaseAndGetAddressOf()) =
+      gpu::d3d12::objects::CreateComputePipeline(device, shaders::kApplyGammaPWLCS,
+                                                 sizeof(shaders::kApplyGammaPWLCS),
+                                                 apply_gamma_root_signature_.Get());
   if (!apply_gamma_pwl_pipeline_) {
     REX_FAIL(gpu, false, "Failed to create the PWL gamma ramp application compute pipeline");
   }
   *(apply_gamma_pwl_fxaa_luma_pipeline_.ReleaseAndGetAddressOf()) =
-      gpu::d3d12::util::CreateComputePipeline(device, shaders::kApplyGammaPWLFXAALumaCS,
-                                              sizeof(shaders::kApplyGammaPWLFXAALumaCS),
-                                              apply_gamma_root_signature_.Get());
+      gpu::d3d12::objects::CreateComputePipeline(device, shaders::kApplyGammaPWLFXAALumaCS,
+                                                 sizeof(shaders::kApplyGammaPWLFXAALumaCS),
+                                                 apply_gamma_root_signature_.Get());
   if (!apply_gamma_pwl_fxaa_luma_pipeline_) {
     REX_FAIL(gpu, false,
              "Failed to create the PWL gamma ramp application compute pipeline with "
@@ -1329,16 +1332,16 @@ bool D3D12CommandProcessor::SetupContext() {
   fxaa_root_signature_desc.pStaticSamplers = &fxaa_root_sampler;
   fxaa_root_signature_desc.Flags = D3D12_ROOT_SIGNATURE_FLAG_NONE;
   *(fxaa_root_signature_.ReleaseAndGetAddressOf()) =
-      gpu::d3d12::util::CreateRootSignature(provider, fxaa_root_signature_desc);
+      gpu::d3d12::objects::CreateRootSignature(provider, fxaa_root_signature_desc);
   if (!fxaa_root_signature_) {
     REX_FAIL(gpu, false, "Failed to create the FXAA root signature");
   }
-  *(fxaa_pipeline_.ReleaseAndGetAddressOf()) = gpu::d3d12::util::CreateComputePipeline(
+  *(fxaa_pipeline_.ReleaseAndGetAddressOf()) = gpu::d3d12::objects::CreateComputePipeline(
       device, shaders::kFXAACS, sizeof(shaders::kFXAACS), fxaa_root_signature_.Get());
   if (!fxaa_pipeline_) {
     REX_FAIL(gpu, false, "Failed to create the FXAA compute pipeline");
   }
-  *(fxaa_extreme_pipeline_.ReleaseAndGetAddressOf()) = gpu::d3d12::util::CreateComputePipeline(
+  *(fxaa_extreme_pipeline_.ReleaseAndGetAddressOf()) = gpu::d3d12::objects::CreateComputePipeline(
       device, shaders::kFXAAExtremeCS, sizeof(shaders::kFXAAExtremeCS), fxaa_root_signature_.Get());
   if (!fxaa_pipeline_) {
     REX_FAIL(gpu, false, "Failed to create the extreme-quality FXAA compute pipeline");
@@ -1390,12 +1393,12 @@ bool D3D12CommandProcessor::SetupContext() {
   resolve_downscale_root_signature_desc.pStaticSamplers = nullptr;
   resolve_downscale_root_signature_desc.Flags = D3D12_ROOT_SIGNATURE_FLAG_NONE;
   *(resolve_downscale_root_signature_.ReleaseAndGetAddressOf()) =
-      gpu::d3d12::util::CreateRootSignature(provider, resolve_downscale_root_signature_desc);
+      gpu::d3d12::objects::CreateRootSignature(provider, resolve_downscale_root_signature_desc);
   if (resolve_downscale_root_signature_) {
     *(resolve_downscale_pipeline_.ReleaseAndGetAddressOf()) =
-        gpu::d3d12::util::CreateComputePipeline(device, shaders::kResolveDownscaleCS,
-                                                sizeof(shaders::kResolveDownscaleCS),
-                                                resolve_downscale_root_signature_.Get());
+        gpu::d3d12::objects::CreateComputePipeline(device, shaders::kResolveDownscaleCS,
+                                                   sizeof(shaders::kResolveDownscaleCS),
+                                                   resolve_downscale_root_signature_.Get());
   }
   if (!resolve_downscale_root_signature_ || !resolve_downscale_pipeline_) {
     resolve_downscale_pipeline_.Reset();
@@ -1405,12 +1408,12 @@ bool D3D12CommandProcessor::SetupContext() {
 
   if (bindless_resources_used_) {
     // System bindless descriptors are created once all resources are initialized.
-    gpu::d3d12::util::CreateBufferRawSRV(
+    gpu::d3d12::objects::CreateBufferRawSRV(
         device,
         provider.OffsetViewDescriptor(view_bindless_heap_cpu_start_,
                                       std::to_underlying(SystemBindlessView::kNullRawSRV)),
         nullptr, 0);
-    gpu::d3d12::util::CreateBufferRawUAV(
+    gpu::d3d12::objects::CreateBufferRawUAV(
         device,
         provider.OffsetViewDescriptor(view_bindless_heap_cpu_start_,
                                       std::to_underlying(SystemBindlessView::kNullRawUAV)),
@@ -1483,32 +1486,32 @@ bool D3D12CommandProcessor::SetupContext() {
             view_bindless_heap_cpu_start_,
             std::to_underlying(SystemBindlessView::kSharedMemoryR32G32B32A32UintUAV)),
         4);
-    render_target_cache_->WriteEdramRawSRVDescriptor(provider.OffsetViewDescriptor(
+    render_target_cache_->WriteEDRAMRawSRVDescriptor(provider.OffsetViewDescriptor(
         view_bindless_heap_cpu_start_, std::to_underlying(SystemBindlessView::kEDRAMRawSRV)));
-    render_target_cache_->WriteEdramUintPow2SRVDescriptor(
+    render_target_cache_->WriteEDRAMUintPow2SRVDescriptor(
         provider.OffsetViewDescriptor(view_bindless_heap_cpu_start_,
                                       std::to_underlying(SystemBindlessView::kEDRAMR32UintSRV)),
         2);
-    render_target_cache_->WriteEdramUintPow2SRVDescriptor(
+    render_target_cache_->WriteEDRAMUintPow2SRVDescriptor(
         provider.OffsetViewDescriptor(view_bindless_heap_cpu_start_,
                                       std::to_underlying(SystemBindlessView::kEDRAMR32G32UintSRV)),
         3);
-    render_target_cache_->WriteEdramUintPow2SRVDescriptor(
+    render_target_cache_->WriteEDRAMUintPow2SRVDescriptor(
         provider.OffsetViewDescriptor(
             view_bindless_heap_cpu_start_,
             std::to_underlying(SystemBindlessView::kEDRAMR32G32B32A32UintSRV)),
         4);
-    render_target_cache_->WriteEdramRawUAVDescriptor(provider.OffsetViewDescriptor(
+    render_target_cache_->WriteEDRAMRawUAVDescriptor(provider.OffsetViewDescriptor(
         view_bindless_heap_cpu_start_, std::to_underlying(SystemBindlessView::kEDRAMRawUAV)));
-    render_target_cache_->WriteEdramUintPow2UAVDescriptor(
+    render_target_cache_->WriteEDRAMUintPow2UAVDescriptor(
         provider.OffsetViewDescriptor(view_bindless_heap_cpu_start_,
                                       std::to_underlying(SystemBindlessView::kEDRAMR32UintUAV)),
         2);
-    render_target_cache_->WriteEdramUintPow2UAVDescriptor(
+    render_target_cache_->WriteEDRAMUintPow2UAVDescriptor(
         provider.OffsetViewDescriptor(view_bindless_heap_cpu_start_,
                                       std::to_underlying(SystemBindlessView::kEDRAMR32G32UintUAV)),
         3);
-    render_target_cache_->WriteEdramUintPow2UAVDescriptor(
+    render_target_cache_->WriteEDRAMUintPow2UAVDescriptor(
         provider.OffsetViewDescriptor(
             view_bindless_heap_cpu_start_,
             std::to_underlying(SystemBindlessView::kEDRAMR32G32B32A32UintUAV)),
@@ -1534,7 +1537,7 @@ void D3D12CommandProcessor::ShutdownContext() {
   InvalidateAllVertexBufferResidency();
   ShutdownOcclusionQueryResources();
 
-  gpu::d3d12::util::ReleaseAndNull(readback_buffer_);
+  gpu::d3d12::objects::ReleaseAndNull(readback_buffer_);
   readback_buffer_size_ = 0;
   for (auto& resolve_readback_pair : readback_buffers_) {
     auto& readback = resolve_readback_pair.second;
@@ -1571,7 +1574,7 @@ void D3D12CommandProcessor::ShutdownContext() {
   }
   memexport_readback_buffers_.clear();
 
-  gpu::d3d12::util::ReleaseAndNull(scratch_buffer_);
+  gpu::d3d12::objects::ReleaseAndNull(scratch_buffer_);
   scratch_buffer_size_ = 0;
   resolve_downscale_buffer_size_ = 0;
   resolve_downscale_buffer_.Reset();
@@ -1607,8 +1610,8 @@ void D3D12CommandProcessor::ShutdownContext() {
   primitive_processor_.reset();
 
   // Root signatures are used by pipelines, so they are freed after the pipelines.
-  gpu::d3d12::util::ReleaseAndNull(root_signature_bindless_ds_);
-  gpu::d3d12::util::ReleaseAndNull(root_signature_bindless_vs_);
+  gpu::d3d12::objects::ReleaseAndNull(root_signature_bindless_ds_);
+  gpu::d3d12::objects::ReleaseAndNull(root_signature_bindless_vs_);
   for (auto it : root_signatures_bindful_) {
     it.second->Release();
   }
@@ -1621,11 +1624,11 @@ void D3D12CommandProcessor::ShutdownContext() {
     }
     sampler_bindless_heaps_overflowed_.clear();
     sampler_bindless_heap_allocated_ = 0;
-    gpu::d3d12::util::ReleaseAndNull(sampler_bindless_heap_current_);
+    gpu::d3d12::objects::ReleaseAndNull(sampler_bindless_heap_current_);
     view_bindless_one_use_descriptors_.clear();
     view_bindless_heap_free_.clear();
     view_bindless_heap_free_count_ = 0;
-    gpu::d3d12::util::ReleaseAndNull(view_bindless_heap_);
+    gpu::d3d12::objects::ReleaseAndNull(view_bindless_heap_);
   } else {
     sampler_bindful_heap_pool_.reset();
     view_bindful_heap_pool_.reset();
@@ -1637,8 +1640,8 @@ void D3D12CommandProcessor::ShutdownContext() {
   shared_memory_.reset();
 
   deferred_command_list_.Reset();
-  gpu::d3d12::util::ReleaseAndNull(command_list_1_);
-  gpu::d3d12::util::ReleaseAndNull(command_list_);
+  gpu::d3d12::objects::ReleaseAndNull(command_list_1_);
+  gpu::d3d12::objects::ReleaseAndNull(command_list_);
   ClearCommandAllocatorCache();
 
   frame_open_ = false;
@@ -1649,9 +1652,9 @@ void D3D12CommandProcessor::ShutdownContext() {
   // Release the fences first, as they may reference fence_completion_event_.
   queue_operations_done_since_submission_signal_ = false;
   queue_operations_since_submission_fence_last_ = 0;
-  gpu::d3d12::util::ReleaseAndNull(queue_operations_since_submission_fence_);
+  gpu::d3d12::objects::ReleaseAndNull(queue_operations_since_submission_fence_);
 
-  gpu::d3d12::util::ReleaseAndNull(submission_fence_);
+  gpu::d3d12::objects::ReleaseAndNull(submission_fence_);
   submission_open_ = false;
   submission_current_ = 1;
   submission_completed_ = 0;
@@ -1922,7 +1925,7 @@ void D3D12CommandProcessor::IssueSwap([[maybe_unused]] u32 frontbuffer_ptr, u32 
             fxaa_source_texture_desc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
             fxaa_source_texture_desc.Flags = D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
             if (FAILED(device->CreateCommittedResource(
-                    &gpu::d3d12::util::kHeapPropertiesDefault,
+                    &gpu::d3d12::objects::kHeapPropertiesDefault,
                     provider.GetHeapFlagCreateNotZeroed(), &fxaa_source_texture_desc,
                     D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, nullptr,
                     IID_PPV_ARGS(&fxaa_source_texture_)))) {
@@ -1977,8 +1980,8 @@ void D3D12CommandProcessor::IssueSwap([[maybe_unused]] u32 frontbuffer_ptr, u32 
                               : gamma_ramp_256_entry_table_up_to_date_) = true;
         }
 
-        gpu::d3d12::util::DescriptorCpuGpuHandlePair apply_gamma_descriptors[3];
-        gpu::d3d12::util::DescriptorCpuGpuHandlePair apply_gamma_descriptor_gamma_ramp;
+        gpu::d3d12::objects::DescriptorCPUGPUHandlePair apply_gamma_descriptors[3];
+        gpu::d3d12::objects::DescriptorCPUGPUHandlePair apply_gamma_descriptor_gamma_ramp;
         if (!RequestOneUseSingleViewDescriptors(bindless_resources_used_ ? 2 : 3,
                                                 apply_gamma_descriptors)) {
           return false;
@@ -2055,7 +2058,7 @@ void D3D12CommandProcessor::IssueSwap([[maybe_unused]] u32 frontbuffer_ptr, u32 
         deferred_command_list_.D3DDispatch(group_count_x, group_count_y, 1);
 
         if (use_fxaa) {
-          gpu::d3d12::util::DescriptorCpuGpuHandlePair fxaa_descriptors[2];
+          gpu::d3d12::objects::DescriptorCPUGPUHandlePair fxaa_descriptors[2];
           if (!RequestOneUseSingleViewDescriptors(static_cast<u32>(rex::countof(fxaa_descriptors)),
                                                   fxaa_descriptors)) {
             PushTransitionBarrier(apply_gamma_dest, D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
@@ -2171,8 +2174,9 @@ bool D3D12CommandProcessor::IssueDraw([[maybe_unused]] xenos::PrimitiveType prim
   pipeline_cache_->AnalyzeShaderUcode(*vertex_shader);
   bool memexport_used_vertex = vertex_shader->memexport_eM_written() != 0;
 
-  bool primitive_polygonal = draw_util::IsPrimitivePolygonal(regs);
-  bool is_rasterization_done = draw_util::IsRasterizationPotentiallyDone(regs, primitive_polygonal);
+  bool primitive_polygonal = draw_state::IsPrimitivePolygonal(regs);
+  bool is_rasterization_done =
+      draw_state::IsRasterizationPotentiallyDone(regs, primitive_polygonal);
   if (surface_pitch_is_zero && is_rasterization_done) {
     return true;
   }
@@ -2183,7 +2187,7 @@ bool D3D12CommandProcessor::IssueDraw([[maybe_unused]] xenos::PrimitiveType prim
       pixel_shader = static_cast<D3D12Shader*>(active_pixel_shader());
       if (pixel_shader) {
         pipeline_cache_->AnalyzeShaderUcode(*pixel_shader);
-        if (!draw_util::IsPixelShaderNeededWithRasterization(*pixel_shader, regs)) {
+        if (!draw_state::IsPixelShaderNeededWithRasterization(*pixel_shader, regs)) {
           pixel_shader = nullptr;
         }
       }
@@ -2209,7 +2213,8 @@ bool D3D12CommandProcessor::IssueDraw([[maybe_unused]] xenos::PrimitiveType prim
     return true;
   }
 
-  xenos::reg::RB_DEPTHCONTROL normalized_depth_control = draw_util::GetNormalizedDepthControl(regs);
+  xenos::reg::RB_DEPTHCONTROL normalized_depth_control =
+      draw_state::GetNormalizedDepthControl(regs);
 
   u32 ps_param_gen_pos = UINT32_MAX;
   u32 interpolator_mask = pixel_shader
@@ -2218,17 +2223,17 @@ bool D3D12CommandProcessor::IssueDraw([[maybe_unused]] xenos::PrimitiveType prim
                                      regs.Get<xenos::reg::SQ_PROGRAM_CNTL>(),
                                      regs.Get<xenos::reg::SQ_CONTEXT_MISC>(), ps_param_gen_pos))
                               : 0;
-  DxbcShaderTranslator::Modification vertex_shader_modification =
+  DXBCShaderTranslator::Modification vertex_shader_modification =
       pipeline_cache_->GetCurrentVertexShaderModification(
           *vertex_shader, primitive_processing_result.host_vertex_shader_type, interpolator_mask);
-  DxbcShaderTranslator::Modification pixel_shader_modification =
+  DXBCShaderTranslator::Modification pixel_shader_modification =
       pixel_shader
           ? pipeline_cache_->GetCurrentPixelShaderModification(
                 *pixel_shader, interpolator_mask, ps_param_gen_pos, normalized_depth_control)
-          : DxbcShaderTranslator::Modification(0);
+          : DXBCShaderTranslator::Modification(0);
 
   u32 normalized_color_mask =
-      pixel_shader ? draw_util::GetNormalizedColorMask(regs, pixel_shader->writes_color_targets())
+      pixel_shader ? draw_state::GetNormalizedColorMask(regs, pixel_shader->writes_color_targets())
                    : 0;
   if (!render_target_cache_->Update(is_rasterization_done, normalized_depth_control,
                                     normalized_color_mask, *vertex_shader)) {
@@ -2301,21 +2306,21 @@ bool D3D12CommandProcessor::IssueDraw([[maybe_unused]] xenos::PrimitiveType prim
                        (static_cast<u32>(host_render_targets_used) << 1) |
                        (static_cast<u32>(ps_writes_depth) << 2);
 
-  draw_util::ViewportInfo viewport_info;
+  draw_state::ViewportInfo viewport_info;
   if (viewport_cache_valid_ && viewport_key == previous_viewport_key_) {
     viewport_info = previous_viewport_info_;
   } else {
-    draw_util::GetHostViewportInfo(regs, draw_resolution_scale_x, draw_resolution_scale_y, true,
-                                   D3D12_VIEWPORT_BOUNDS_MAX, D3D12_VIEWPORT_BOUNDS_MAX, false,
-                                   normalized_depth_control, convert_z_to_float24,
-                                   host_render_targets_used, ps_writes_depth, viewport_info);
+    draw_state::GetHostViewportInfo(regs, draw_resolution_scale_x, draw_resolution_scale_y, true,
+                                    D3D12_VIEWPORT_BOUNDS_MAX, D3D12_VIEWPORT_BOUNDS_MAX, false,
+                                    normalized_depth_control, convert_z_to_float24,
+                                    host_render_targets_used, ps_writes_depth, viewport_info);
     previous_viewport_key_ = viewport_key;
     previous_viewport_info_ = viewport_info;
     viewport_cache_valid_ = true;
   }
 
-  draw_util::Scissor scissor;
-  draw_util::GetScissor(regs, scissor);
+  draw_state::Scissor scissor;
+  draw_state::GetScissor(regs, scissor);
   scissor.offset[0] *= draw_resolution_scale_x;
   scissor.offset[1] *= draw_resolution_scale_y;
   scissor.extent[0] *= draw_resolution_scale_x;
@@ -2382,12 +2387,12 @@ bool D3D12CommandProcessor::IssueDraw([[maybe_unused]] xenos::PrimitiveType prim
 
   memexport_ranges_.clear();
   if (memexport_used_vertex) {
-    draw_util::AddMemExportRanges(regs, *vertex_shader, memexport_ranges_);
+    draw_state::AddMemExportRanges(regs, *vertex_shader, memexport_ranges_);
   }
   if (memexport_used_pixel) {
-    draw_util::AddMemExportRanges(regs, *pixel_shader, memexport_ranges_);
+    draw_state::AddMemExportRanges(regs, *pixel_shader, memexport_ranges_);
   }
-  for (const draw_util::MemExportRange& memexport_range : memexport_ranges_) {
+  for (const draw_state::MemExportRange& memexport_range : memexport_ranges_) {
     if (!shared_memory_->RequestRange(memexport_range.base_address_dwords << 2,
                                       memexport_range.size_bytes)) {
       REX_FAIL(gpu, false,
@@ -2512,12 +2517,12 @@ bool D3D12CommandProcessor::IssueDraw([[maybe_unused]] xenos::PrimitiveType prim
         }
       } break;
       case PrimitiveProcessor::ProcessedIndexBufferType::kHostConverted:
-        index_buffer_view.BufferLocation = primitive_processor_->GetConvertedIndexBufferGpuAddress(
+        index_buffer_view.BufferLocation = primitive_processor_->GetConvertedIndexBufferGPUAddress(
             primitive_processing_result.host_index_buffer_handle);
         break;
       case PrimitiveProcessor::ProcessedIndexBufferType::kHostBuiltinForAuto:
       case PrimitiveProcessor::ProcessedIndexBufferType::kHostBuiltinForDMA:
-        index_buffer_view.BufferLocation = primitive_processor_->GetBuiltinIndexBufferGpuAddress(
+        index_buffer_view.BufferLocation = primitive_processor_->GetBuiltinIndexBufferGPUAddress(
             primitive_processing_result.host_index_buffer_handle);
         break;
       default:
@@ -2543,18 +2548,18 @@ bool D3D12CommandProcessor::IssueDraw([[maybe_unused]] xenos::PrimitiveType prim
   if (memexport_used) {
     shared_memory_->MarkUAVWritesCommitNeeded();
     if (!memexport_ranges_.empty()) {
-      for (const draw_util::MemExportRange& memexport_range : memexport_ranges_) {
-        shared_memory_->RangeWrittenByGpu(memexport_range.base_address_dwords << 2,
+      for (const draw_state::MemExportRange& memexport_range : memexport_ranges_) {
+        shared_memory_->RangeWrittenByGPU(memexport_range.base_address_dwords << 2,
                                           memexport_range.size_bytes);
       }
     } else {
       // Stream constants can be invalid or dynamic, so destinations may be unknown.
-      shared_memory_->RangeWrittenByGpu(0, SharedMemory::kBufferSize);
+      shared_memory_->RangeWrittenByGPU(0, SharedMemory::kBufferSize);
     }
     if (IsReadbackMemexportEnabled(REXCVAR_GET(::rex::gpu::cvars::d3d12_readback_memexport)) &&
         !memexport_ranges_.empty()) {
       u32 memexport_total_size = 0;
-      for (const draw_util::MemExportRange& memexport_range : memexport_ranges_) {
+      for (const draw_state::MemExportRange& memexport_range : memexport_ranges_) {
         memexport_total_size += memexport_range.size_bytes;
       }
       if (memexport_total_size != 0) {
@@ -2584,7 +2589,7 @@ bool D3D12CommandProcessor::IssueDraw_MemexportReadbackFullPath(u32 total_size) 
   SubmitBarriers();
   ID3D12Resource* shared_memory_buffer = shared_memory_->GetBuffer();
   u32 readback_buffer_offset = 0;
-  for (const draw_util::MemExportRange& memexport_range : memexport_ranges_) {
+  for (const draw_state::MemExportRange& memexport_range : memexport_ranges_) {
     deferred_command_list_.D3DCopyBufferRegion(
         readback_buffer, readback_buffer_offset, shared_memory_buffer,
         memexport_range.base_address_dwords << 2, memexport_range.size_bytes);
@@ -2604,7 +2609,7 @@ bool D3D12CommandProcessor::IssueDraw_MemexportReadbackFullPath(u32 total_size) 
   }
 
   const u8* readback_bytes = reinterpret_cast<const u8*>(readback_mapping);
-  for (const draw_util::MemExportRange& memexport_range : memexport_ranges_) {
+  for (const draw_state::MemExportRange& memexport_range : memexport_ranges_) {
     std::memcpy(memory_->TranslatePhysical(memexport_range.base_address_dwords << 2),
                 readback_bytes, memexport_range.size_bytes);
     readback_bytes += memexport_range.size_bytes;
@@ -2621,7 +2626,7 @@ bool D3D12CommandProcessor::IssueDraw_MemexportReadbackFastPath(u32 total_size) 
   }
 
   const u64 readback_key =
-      MakeMemexportReadbackKey(memexport_ranges_.front().base_address_dwords, total_size);
+      BuildMemexportReadbackKey(memexport_ranges_.front().base_address_dwords, total_size);
   ReadbackBuffer& readback = memexport_readback_buffers_[readback_key];
   readback.last_used_frame = frame_current_;
 
@@ -2633,10 +2638,10 @@ bool D3D12CommandProcessor::IssueDraw_MemexportReadbackFastPath(u32 total_size) 
     const gpu::d3d12::D3D12Provider& provider = GetD3D12Provider();
     ID3D12Device* device = provider.GetDevice();
     D3D12_RESOURCE_DESC buffer_desc;
-    gpu::d3d12::util::FillBufferResourceDesc(buffer_desc, size, D3D12_RESOURCE_FLAG_NONE);
+    gpu::d3d12::objects::FillBufferResourceDesc(buffer_desc, size, D3D12_RESOURCE_FLAG_NONE);
     ID3D12Resource* buffer = nullptr;
     if (FAILED(device->CreateCommittedResource(
-            &gpu::d3d12::util::kHeapPropertiesReadback, provider.GetHeapFlagCreateNotZeroed(),
+            &gpu::d3d12::objects::kHeapPropertiesReadback, provider.GetHeapFlagCreateNotZeroed(),
             &buffer_desc, D3D12_RESOURCE_STATE_COPY_DEST, nullptr, IID_PPV_ARGS(&buffer)))) {
       return false;
     }
@@ -2679,7 +2684,7 @@ bool D3D12CommandProcessor::IssueDraw_MemexportReadbackFastPath(u32 total_size) 
   SubmitBarriers();
   ID3D12Resource* shared_memory_buffer = shared_memory_->GetBuffer();
   u32 readback_offset = 0;
-  for (const draw_util::MemExportRange& memexport_range : memexport_ranges_) {
+  for (const draw_state::MemExportRange& memexport_range : memexport_ranges_) {
     deferred_command_list_.D3DCopyBufferRegion(
         readback.buffers[write_index], readback_offset, shared_memory_buffer,
         memexport_range.base_address_dwords << 2, memexport_range.size_bytes);
@@ -2701,7 +2706,7 @@ bool D3D12CommandProcessor::IssueDraw_MemexportReadbackFastPath(u32 total_size) 
   }
 
   const u8* readback_bytes = static_cast<const u8*>(readback.mapped_data[read_index]);
-  for (const draw_util::MemExportRange& memexport_range : memexport_ranges_) {
+  for (const draw_state::MemExportRange& memexport_range : memexport_ranges_) {
     std::memcpy(memory_->TranslatePhysical(memexport_range.base_address_dwords << 2),
                 readback_bytes, memexport_range.size_bytes);
     readback_bytes += memexport_range.size_bytes;
@@ -2743,7 +2748,7 @@ bool D3D12CommandProcessor::IssueCopy_ReadbackResolvePath() {
   }
 
   bool is_scaled = texture_cache_->IsDrawResolutionScaled();
-  u64 resolve_key = MakeReadbackResolveKey(written_address, written_length);
+  u64 resolve_key = BuildReadbackResolveKey(written_address, written_length);
   ReadbackBuffer& rb = readback_buffers_[resolve_key];
   rb.last_used_frame = frame_current_;
 
@@ -2754,10 +2759,10 @@ bool D3D12CommandProcessor::IssueCopy_ReadbackResolvePath() {
     const gpu::d3d12::D3D12Provider& provider = GetD3D12Provider();
     ID3D12Device* device = provider.GetDevice();
     D3D12_RESOURCE_DESC buffer_desc;
-    gpu::d3d12::util::FillBufferResourceDesc(buffer_desc, size, D3D12_RESOURCE_FLAG_NONE);
+    gpu::d3d12::objects::FillBufferResourceDesc(buffer_desc, size, D3D12_RESOURCE_FLAG_NONE);
     ID3D12Resource* buffer = nullptr;
     if (FAILED(device->CreateCommittedResource(
-            &gpu::d3d12::util::kHeapPropertiesReadback, provider.GetHeapFlagCreateNotZeroed(),
+            &gpu::d3d12::objects::kHeapPropertiesReadback, provider.GetHeapFlagCreateNotZeroed(),
             &buffer_desc, D3D12_RESOURCE_STATE_COPY_DEST, nullptr, IID_PPV_ARGS(&buffer)))) {
       REX_FAIL(gpu, true, "Failed to create a {} MB readback buffer", size >> 20);
     }
@@ -2818,11 +2823,11 @@ bool D3D12CommandProcessor::IssueCopy_ReadbackResolvePath() {
       const gpu::d3d12::D3D12Provider& provider = GetD3D12Provider();
       ID3D12Device* device = provider.GetDevice();
       D3D12_RESOURCE_DESC buffer_desc;
-      gpu::d3d12::util::FillBufferResourceDesc(buffer_desc, downscale_buffer_size,
-                                               D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
+      gpu::d3d12::objects::FillBufferResourceDesc(buffer_desc, downscale_buffer_size,
+                                                  D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
       ID3D12Resource* buffer = nullptr;
       if (FAILED(device->CreateCommittedResource(
-              &gpu::d3d12::util::kHeapPropertiesDefault, provider.GetHeapFlagCreateNotZeroed(),
+              &gpu::d3d12::objects::kHeapPropertiesDefault, provider.GetHeapFlagCreateNotZeroed(),
               &buffer_desc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr,
               IID_PPV_ARGS(&buffer)))) {
         REX_FAIL(gpu, true, "Failed to create a {} MB resolve downscale buffer",
@@ -2851,7 +2856,7 @@ bool D3D12CommandProcessor::IssueCopy_ReadbackResolvePath() {
     }
     u64 source_offset = scaled_address - scaled_buffer_base;
 
-    gpu::d3d12::util::DescriptorCpuGpuHandlePair downscale_descriptors[2];
+    gpu::d3d12::objects::DescriptorCPUGPUHandlePair downscale_descriptors[2];
     if (!RequestOneUseSingleViewDescriptors(2, downscale_descriptors)) {
       return true;
     }
@@ -2860,14 +2865,14 @@ bool D3D12CommandProcessor::IssueCopy_ReadbackResolvePath() {
     ID3D12Device* device = provider.GetDevice();
     u32 aligned_scaled_length =
         rex::align(scaled_length, static_cast<u32>(D3D12_RAW_UAV_SRV_BYTE_ALIGNMENT));
-    gpu::d3d12::util::CreateBufferRawSRV(device, downscale_descriptors[0].first,
-                                         scaled_resolve_buffer, aligned_scaled_length,
-                                         source_offset);
+    gpu::d3d12::objects::CreateBufferRawSRV(device, downscale_descriptors[0].first,
+                                            scaled_resolve_buffer, aligned_scaled_length,
+                                            source_offset);
     u32 aligned_written_length =
         rex::align(written_length, static_cast<u32>(D3D12_RAW_UAV_SRV_BYTE_ALIGNMENT));
-    gpu::d3d12::util::CreateBufferRawUAV(device, downscale_descriptors[1].first,
-                                         resolve_downscale_buffer_.Get(), aligned_written_length,
-                                         0);
+    gpu::d3d12::objects::CreateBufferRawUAV(device, downscale_descriptors[1].first,
+                                            resolve_downscale_buffer_.Get(), aligned_written_length,
+                                            0);
 
     PushUAVBarrier(scaled_resolve_buffer);
     texture_cache_->TransitionCurrentScaledResolveRange(
@@ -3106,7 +3111,7 @@ bool D3D12CommandProcessor::BeginSubmission(bool is_guest_command) {
     device_removed_ = true;
     LogDeviceRemovalDiagnostics(device, device_removed_reason);
     if (graphics_system_) {
-      graphics_system_->OnHostGpuLossFromAnyThread(device_removed_reason !=
+      graphics_system_->OnHostGPULossFromAnyThread(device_removed_reason !=
                                                    DXGI_ERROR_DEVICE_REMOVED);
     }
     return false;
@@ -3266,7 +3271,7 @@ bool D3D12CommandProcessor::EndSubmission(bool is_swap) {
 
   if (is_closing_frame) {
     if (REXCVAR_GET(::rex::gpu::cvars::clear_memory_page_state) && shared_memory_) {
-      shared_memory_->SetSystemPageBlocksValidWithGpuDataWritten();
+      shared_memory_->SetSystemPageBlocksValidWithGPUDataWritten();
     }
     frame_open_ = false;
     closed_frame_submissions_[(frame_current_++) % kQueueFrames] = submission_current_ - 1;
@@ -3276,7 +3281,7 @@ bool D3D12CommandProcessor::EndSubmission(bool is_swap) {
 
       ClearCommandAllocatorCache();
 
-      gpu::d3d12::util::ReleaseAndNull(scratch_buffer_);
+      gpu::d3d12::objects::ReleaseAndNull(scratch_buffer_);
       scratch_buffer_size_ = 0;
 
       if (bindless_resources_used_) {
@@ -3329,7 +3334,7 @@ void D3D12CommandProcessor::ClearCommandAllocatorCache() {
 }
 
 void D3D12CommandProcessor::UpdateFixedFunctionState(
-    const draw_util::ViewportInfo& viewport_info, const draw_util::Scissor& scissor,
+    const draw_state::ViewportInfo& viewport_info, const draw_state::Scissor& scissor,
     bool primitive_polygonal, xenos::reg::RB_DEPTHCONTROL normalized_depth_control) {
 #if REXGPU_FINE_GRAINED_DRAW_SCOPES
   REX_PROFILE_SCOPE("gpu");
@@ -3361,7 +3366,7 @@ void D3D12CommandProcessor::UpdateFixedFunctionState(
         regs.Get<f32>(xenos::Register::RB_BLEND_ALPHA),
     };
     // Bit pattern comparison instead of != so NaN does not invalidate it on every draw.
-    ff_blend_factor_update_needed_ |= !draw_util::BitsEqual(ff_blend_factor_, blend_factor);
+    ff_blend_factor_update_needed_ |= !draw_state::BitsEqual(ff_blend_factor_, blend_factor);
     if (ff_blend_factor_update_needed_) {
       std::memcpy(ff_blend_factor_, blend_factor, sizeof(f32) * 4);
       deferred_command_list_.D3DOMSetBlendFactor(ff_blend_factor_);
@@ -3389,8 +3394,9 @@ void D3D12CommandProcessor::UpdateFixedFunctionState(
 
 void D3D12CommandProcessor::UpdateSystemConstantValues(
     bool shared_memory_is_uav, bool primitive_polygonal, u32 line_loop_closing_index,
-    xenos::Endian index_endian, const draw_util::ViewportInfo& viewport_info, u32 used_texture_mask,
-    xenos::reg::RB_DEPTHCONTROL normalized_depth_control, u32 normalized_color_mask) {
+    xenos::Endian index_endian, const draw_state::ViewportInfo& viewport_info,
+    u32 used_texture_mask, xenos::reg::RB_DEPTHCONTROL normalized_depth_control,
+    u32 normalized_color_mask) {
 #if REXGPU_FINE_GRAINED_DRAW_SCOPES
   REX_PROFILE_SCOPE("gpu");
 #endif  // REXGPU_FINE_GRAINED_DRAW_SCOPES
@@ -3450,59 +3456,59 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
   u32 flags = 0;
   // A resource cannot be in UAV and read only states at once, so memexport requires a UAV.
   if (shared_memory_is_uav) {
-    flags |= DxbcShaderTranslator::kSysFlag_SharedMemoryIsUAV;
+    flags |= DXBCShaderTranslator::kSysFlag_SharedMemoryIsUAV;
   }
   // Set VTX_XY_FMT and VTX_Z_FMT mean pre divided by W0, set VTX_W0_FMT means W0 is not 1/W0.
   if (pa_cl_vte_cntl.vtx_xy_fmt) {
-    flags |= DxbcShaderTranslator::kSysFlag_XYDividedByW;
+    flags |= DXBCShaderTranslator::kSysFlag_XYDividedByW;
   }
   if (pa_cl_vte_cntl.vtx_z_fmt) {
-    flags |= DxbcShaderTranslator::kSysFlag_ZDividedByW;
+    flags |= DXBCShaderTranslator::kSysFlag_ZDividedByW;
   }
   if (pa_cl_vte_cntl.vtx_w0_fmt) {
-    flags |= DxbcShaderTranslator::kSysFlag_WNotReciprocal;
+    flags |= DXBCShaderTranslator::kSysFlag_WNotReciprocal;
   }
   if (primitive_polygonal) {
-    flags |= DxbcShaderTranslator::kSysFlag_PrimitivePolygonal;
+    flags |= DXBCShaderTranslator::kSysFlag_PrimitivePolygonal;
   }
-  if (draw_util::IsPrimitiveLine(regs)) {
-    flags |= DxbcShaderTranslator::kSysFlag_PrimitiveLine;
+  if (draw_state::IsPrimitiveLine(regs)) {
+    flags |= DXBCShaderTranslator::kSysFlag_PrimitiveLine;
   }
   if (rb_depth_info.depth_format == xenos::DepthRenderTargetFormat::kD24FS8) {
-    flags |= DxbcShaderTranslator::kSysFlag_DepthFloat24;
+    flags |= DXBCShaderTranslator::kSysFlag_DepthFloat24;
   }
   xenos::CompareFunction alpha_test_function = rb_colorcontrol.alpha_test_enable
                                                    ? rb_colorcontrol.alpha_func
                                                    : xenos::CompareFunction::kAlways;
   flags |= static_cast<u32>(alpha_test_function)
-           << DxbcShaderTranslator::kSysFlag_AlphaPassIfLess_Shift;
+           << DXBCShaderTranslator::kSysFlag_AlphaPassIfLess_Shift;
   if (!render_target_cache_->gamma_render_target_as_unorm16()) {
     for (u32 i = 0; i < 4; ++i) {
       if (color_infos[i].color_format == xenos::ColorRenderTargetFormat::k_8_8_8_8_GAMMA) {
-        flags |= DxbcShaderTranslator::kSysFlag_ConvertColor0ToGamma << i;
+        flags |= DXBCShaderTranslator::kSysFlag_ConvertColor0ToGamma << i;
       }
     }
   }
   if (edram_rov_used && depth_stencil_enabled) {
-    flags |= DxbcShaderTranslator::kSysFlag_ROVDepthStencil;
+    flags |= DXBCShaderTranslator::kSysFlag_ROVDepthStencil;
     if (normalized_depth_control.z_enable) {
       flags |= static_cast<u32>(normalized_depth_control.zfunc)
-               << DxbcShaderTranslator::kSysFlag_ROVDepthPassIfLess_Shift;
+               << DXBCShaderTranslator::kSysFlag_ROVDepthPassIfLess_Shift;
       if (normalized_depth_control.z_write_enable) {
-        flags |= DxbcShaderTranslator::kSysFlag_ROVDepthWrite;
+        flags |= DXBCShaderTranslator::kSysFlag_ROVDepthWrite;
       }
     } else {
       // Stencil without depth testing always passes and keeps the stored depth.
-      flags |= DxbcShaderTranslator::kSysFlag_ROVDepthPassIfLess |
-               DxbcShaderTranslator::kSysFlag_ROVDepthPassIfEqual |
-               DxbcShaderTranslator::kSysFlag_ROVDepthPassIfGreater;
+      flags |= DXBCShaderTranslator::kSysFlag_ROVDepthPassIfLess |
+               DXBCShaderTranslator::kSysFlag_ROVDepthPassIfEqual |
+               DXBCShaderTranslator::kSysFlag_ROVDepthPassIfGreater;
     }
     if (normalized_depth_control.stencil_enable) {
-      flags |= DxbcShaderTranslator::kSysFlag_ROVStencilTest;
+      flags |= DXBCShaderTranslator::kSysFlag_ROVStencilTest;
     }
     if (alpha_test_function == xenos::CompareFunction::kAlways &&
         !rb_colorcontrol.alpha_to_mask_enable) {
-      flags |= DxbcShaderTranslator::kSysFlag_ROVDepthStencilEarlyWrite;
+      flags |= DXBCShaderTranslator::kSysFlag_ROVDepthStencilEarlyWrite;
     }
   }
   dirty |= system_constants_.flags != flags;
@@ -3546,8 +3552,8 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
           regs.Get<f32>(user_clip_plane_reg + 2),
           regs.Get<f32>(user_clip_plane_reg + 3),
       };
-      if (!draw_util::BitsEqual(std::span<const f32>(user_clip_plane_write_ptr, 4),
-                                user_clip_plane_regs)) {
+      if (!draw_state::BitsEqual(std::span<const f32>(user_clip_plane_write_ptr, 4),
+                                 user_clip_plane_regs)) {
         dirty = true;
         std::ranges::copy(user_clip_plane_regs, user_clip_plane_write_ptr);
       }
@@ -3655,7 +3661,7 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
       }
     }
     auto color_exp_bias_scale =
-        rex::memory::Reinterpret<f32>(static_cast<i32>(0x3F800000 + (color_exp_bias << 23)));
+        rex::Reinterpret<f32>(static_cast<i32>(0x3F800000 + (color_exp_bias << 23)));
     dirty |= system_constants_.color_exp_bias[i] != color_exp_bias_scale;
     system_constants_.color_exp_bias[i] = color_exp_bias_scale;
     if (edram_rov_used) {
@@ -3671,7 +3677,7 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
         dirty |= system_constants_.edram_rt_format_flags[i] != format_flags;
         system_constants_.edram_rt_format_flags[i] = format_flags;
         // Float comparisons would make NaNs always set the dirty flag.
-        dirty |= !draw_util::BitsEqual(system_constants_.edram_rt_clamp[i], rt_clamp[i]);
+        dirty |= !draw_state::BitsEqual(system_constants_.edram_rt_clamp[i], rt_clamp[i]);
         std::memcpy(system_constants_.edram_rt_clamp[i], rt_clamp[i], 4 * sizeof(f32));
         u32 blend_factors_ops =
             regs[xenos::reg::RB_BLENDCONTROL::rt_register_indices[i]] & 0x1FFF1FFF;
@@ -3808,7 +3814,7 @@ bool D3D12CommandProcessor::UpdateBindings(const D3D12Shader* vertex_shader,
                                                : kRootParameter_Bindful_BoolLoopConstants;
   u32 root_parameter_shared_memory_and_bindful_edram =
       bindless_resources_used_ ? kRootParameter_Bindless_SharedMemory
-                               : kRootParameter_Bindful_SharedMemoryAndEdram;
+                               : kRootParameter_Bindful_SharedMemoryAndEDRAM;
 
   // Shader constant base addresses are hardcoded, as they never differ in practice.
   REX_ASSERT(regs[std::to_underlying(xenos::Register::SQ_VS_CONST)] == 0x000FF000 ||
@@ -4249,27 +4255,27 @@ bool D3D12CommandProcessor::UpdateBindings(const D3D12Shader* vertex_shader,
       shared_memory_->WriteRawSRVDescriptor(view_cpu_handle);
       view_cpu_handle.ptr += descriptor_size_view;
       view_gpu_handle.ptr += descriptor_size_view;
-      gpu::d3d12::util::CreateBufferRawUAV(device, view_cpu_handle, nullptr, 0);
+      gpu::d3d12::objects::CreateBufferRawUAV(device, view_cpu_handle, nullptr, 0);
       view_cpu_handle.ptr += descriptor_size_view;
       view_gpu_handle.ptr += descriptor_size_view;
       if (edram_rov_used) {
-        render_target_cache_->WriteEdramUintPow2UAVDescriptor(view_cpu_handle, 2);
+        render_target_cache_->WriteEDRAMUintPow2UAVDescriptor(view_cpu_handle, 2);
         view_cpu_handle.ptr += descriptor_size_view;
         view_gpu_handle.ptr += descriptor_size_view;
       }
       gpu_handle_shared_memory_uav_and_edram_ = view_gpu_handle;
-      gpu::d3d12::util::CreateBufferRawSRV(device, view_cpu_handle, nullptr, 0);
+      gpu::d3d12::objects::CreateBufferRawSRV(device, view_cpu_handle, nullptr, 0);
       view_cpu_handle.ptr += descriptor_size_view;
       view_gpu_handle.ptr += descriptor_size_view;
       shared_memory_->WriteRawUAVDescriptor(view_cpu_handle);
       view_cpu_handle.ptr += descriptor_size_view;
       view_gpu_handle.ptr += descriptor_size_view;
       if (edram_rov_used) {
-        render_target_cache_->WriteEdramUintPow2UAVDescriptor(view_cpu_handle, 2);
+        render_target_cache_->WriteEDRAMUintPow2UAVDescriptor(view_cpu_handle, 2);
         view_cpu_handle.ptr += descriptor_size_view;
         view_gpu_handle.ptr += descriptor_size_view;
       }
-      current_graphics_root_up_to_date_ &= ~(1u << kRootParameter_Bindful_SharedMemoryAndEdram);
+      current_graphics_root_up_to_date_ &= ~(1u << kRootParameter_Bindful_SharedMemoryAndEDRAM);
     }
     if (sampler_heap_index != gpu::d3d12::D3D12DescriptorHeapPool::kHeapIndexInvalid &&
         draw_sampler_bindful_heap_index_ != sampler_heap_index) {
@@ -4494,10 +4500,10 @@ ID3D12Resource* D3D12CommandProcessor::RequestReadbackBuffer(u32 size) {
     const gpu::d3d12::D3D12Provider& provider = GetD3D12Provider();
     ID3D12Device* device = provider.GetDevice();
     D3D12_RESOURCE_DESC buffer_desc;
-    gpu::d3d12::util::FillBufferResourceDesc(buffer_desc, size, D3D12_RESOURCE_FLAG_NONE);
+    gpu::d3d12::objects::FillBufferResourceDesc(buffer_desc, size, D3D12_RESOURCE_FLAG_NONE);
     ID3D12Resource* buffer;
     if (FAILED(device->CreateCommittedResource(
-            &gpu::d3d12::util::kHeapPropertiesReadback, provider.GetHeapFlagCreateNotZeroed(),
+            &gpu::d3d12::objects::kHeapPropertiesReadback, provider.GetHeapFlagCreateNotZeroed(),
             &buffer_desc, D3D12_RESOURCE_STATE_COPY_DEST, nullptr, IID_PPV_ARGS(&buffer)))) {
       REX_FAIL(gpu, nullptr, "Failed to create a {} MB readback buffer", size >> 20);
     }
@@ -4535,9 +4541,9 @@ bool D3D12CommandProcessor::InitializeOcclusionQueryResources() {
   }
 
   D3D12_RESOURCE_DESC buffer_desc;
-  gpu::d3d12::util::FillBufferResourceDesc(buffer_desc, sizeof(u64) * kMaxOcclusionQueries,
-                                           D3D12_RESOURCE_FLAG_NONE);
-  if (FAILED(device->CreateCommittedResource(&gpu::d3d12::util::kHeapPropertiesReadback,
+  gpu::d3d12::objects::FillBufferResourceDesc(buffer_desc, sizeof(u64) * kMaxOcclusionQueries,
+                                              D3D12_RESOURCE_FLAG_NONE);
+  if (FAILED(device->CreateCommittedResource(&gpu::d3d12::objects::kHeapPropertiesReadback,
                                              GetD3D12Provider().GetHeapFlagCreateNotZeroed(),
                                              &buffer_desc, D3D12_RESOURCE_STATE_COPY_DEST, nullptr,
                                              IID_PPV_ARGS(&occlusion_query_readback_)))) {

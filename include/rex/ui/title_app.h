@@ -269,7 +269,7 @@ class REX_RUNTIME_API TitleApp : public App, public gpu::IUIThread {
   [[nodiscard]] Result<void> LaunchFailure(std::string_view message);
 
   PPCImageInfo image_{};
-  gpu::IBackend* gpu_ = nullptr;
+  gpu::IGPUBackend* gpu_ = nullptr;
   IUserInterface* ui_ = nullptr;
   NullUserInterface null_ui_;
   std::unique_ptr<Runtime> runtime_;

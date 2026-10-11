@@ -44,13 +44,13 @@ namespace rex::gpu {
  * RS.
  * - XEPSIZE point size goes VS to GS only.
  */
-class DxbcShaderTranslator : public ShaderTranslator {
+class DXBCShaderTranslator : public ShaderTranslator {
  public:
-  DxbcShaderTranslator(gpu::GraphicsProvider::GpuVendorID vendor_id, bool bindless_resources_used,
+  DXBCShaderTranslator(gpu::GraphicsProvider::GPUVendorID vendor_id, bool bindless_resources_used,
                        bool edram_rov_used, bool gamma_render_target_as_unorm8 = false,
                        bool msaa_2x_supported = true, u32 draw_resolution_scale_x = 1,
                        u32 draw_resolution_scale_y = 1, bool force_emit_source_map = false);
-  ~DxbcShaderTranslator() override;
+  ~DXBCShaderTranslator() override;
 
   union Modification {
     /** Layout version in 0xYYYYMMDD form, increased on incompatible changes to invalidate pipeline
@@ -302,7 +302,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
     f32 edram_blend_constant[4];
 
    private:
-    friend class DxbcShaderTranslator;
+    friend class DXBCShaderTranslator;
 
     enum class Index : u8 {
       kFlags,
@@ -639,28 +639,28 @@ class DxbcShaderTranslator : public ShaderTranslator {
                               dxbc::Src::kXXXX);
   }
 
-  Modification GetDxbcShaderModification() const {
+  Modification GetDXBCShaderModification() const {
     return Modification(current_translation().modification());
   }
 
-  bool IsDxbcVertexShader() const {
+  bool IsDXBCVertexShader() const {
     return is_vertex_shader() && !Shader::IsHostVertexShaderTypeDomain(
-                                     GetDxbcShaderModification().vertex.host_vertex_shader_type);
+                                     GetDXBCShaderModification().vertex.host_vertex_shader_type);
   }
-  bool IsDxbcDomainShader() const {
+  bool IsDXBCDomainShader() const {
     return is_vertex_shader() && Shader::IsHostVertexShaderTypeDomain(
-                                     GetDxbcShaderModification().vertex.host_vertex_shader_type);
+                                     GetDXBCShaderModification().vertex.host_vertex_shader_type);
   }
 
   bool IsForceEarlyDepthStencilGlobalFlagEnabled() const {
     return is_pixel_shader() &&
-           GetDxbcShaderModification().pixel.depth_stencil_mode ==
+           GetDXBCShaderModification().pixel.depth_stencil_mode ==
                Modification::DepthStencilMode::kEarlyHint &&
            !edram_rov_used_ && current_shader().implicit_early_z_write_allowed();
   }
 
   u32 GetModificationInterpolatorMask() const {
-    Modification modification = GetDxbcShaderModification();
+    Modification modification = GetDXBCShaderModification();
     return is_vertex_shader() ? modification.vertex.interpolator_mask
                               : modification.pixel.interpolator_mask;
   }
@@ -718,7 +718,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
       return false;
     }
     Modification::DepthStencilMode depth_stencil_mode =
-        GetDxbcShaderModification().pixel.depth_stencil_mode;
+        GetDXBCShaderModification().pixel.depth_stencil_mode;
     return depth_stencil_mode == Modification::DepthStencilMode::kFloat24Truncating ||
            depth_stencil_mode == Modification::DepthStencilMode::kFloat24Rounding;
   }
@@ -1019,7 +1019,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
 
   bool emit_source_map_;
 
-  gpu::GraphicsProvider::GpuVendorID vendor_id_;
+  gpu::GraphicsProvider::GPUVendorID vendor_id_;
 
   bool bindless_resources_used_;
 

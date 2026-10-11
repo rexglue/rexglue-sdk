@@ -13,7 +13,7 @@
 
 #include <rex/logging.h>
 #include <rex/runtime.h>
-#include <rex/runtime/util/string_utils.h>
+#include <rex/runtime/kernel_string.h>
 
 /**
  * Looks a handle up in the object table and returns X_STATUS_INVALID_HANDLE when it is absent.
@@ -82,7 +82,7 @@
         rex_runtime_.memory()->TranslateVirtual<X_OBJECT_ATTRIBUTES*>((ATTRS).guest_address()); \
     REX_ASSERT(rex_attrs_->name_ptr != 0);                                                      \
     auto rex_name_ =                                                                            \
-        util::TranslateAnsiStringAddress(rex_runtime_.memory(), rex_attrs_->name_ptr);          \
+        runtime::TranslateAnsiStringAddress(rex_runtime_.memory(), rex_attrs_->name_ptr);       \
     auto& rex_table_ = rex_runtime_.object_table();                                             \
     if (!rex_name_.empty()) {                                                                   \
       if (auto rex_opened_ = rex_table_.OpenByName(rex_name_)) {                                \

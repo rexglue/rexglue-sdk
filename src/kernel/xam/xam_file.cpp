@@ -22,7 +22,7 @@
 #include <rex/string.h>
 #include <rex/runtime.h>
 #include <rex/runtime/thread_state.h>
-#include <rex/runtime/xfile.h>
+#include <rex/runtime/file_object.h>
 #include <rex/runtime/xtypes.h>
 
 using rex::X_STATUS;

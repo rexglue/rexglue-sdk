@@ -24,7 +24,7 @@ using rex::u8;
 using rex::filesystem::Access;
 using rex::filesystem::CodeOf;
 using rex::filesystem::Disposition;
-using rex::filesystem::Error;
+using rex::filesystem::FileSystemError;
 using rex::filesystem::MountFlags;
 using rex::filesystem::ProviderKind;
 using rex::filesystem::test::Fixture;
@@ -53,7 +53,7 @@ REX_TEST_CASE_METHOD(OpenRoot, "A file with an open handle cannot be deleted",
 
   auto removed = fs().Remove(kPath);
   REQUIRE_FALSE(removed);
-  CHECK(CodeOf(removed.error()) == Error::kAccessDenied);
+  CHECK(CodeOf(removed.error()) == FileSystemError::kAccessDenied);
   CHECK(std::filesystem::exists(HostPath()));
   CHECK(ReadText(*reader.file) == "held");
 

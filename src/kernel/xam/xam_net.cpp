@@ -28,8 +28,8 @@
 #include <rex/types.h>
 #include <rex/string.h>
 #include <rex/runtime.h>
-#include <rex/runtime/xevent.h>
-#include <rex/runtime/xsocket.h>
+#include <rex/runtime/event_object.h>
+#include <rex/runtime/socket_object.h>
 #include <rex/runtime/xthread.h>
 #include <rex/runtime/xtypes.h>
 #include "kernel/kernel_macros.h"
@@ -54,7 +54,6 @@ namespace xam {
 constexpr u32 kWSAEFAULT = 0x271E;
 constexpr u32 kMaxSocketLength = static_cast<u32>(std::numeric_limits<i32>::max());
 using namespace rex::runtime;
-using namespace rex::runtime::xam;
 
 enum : u8 {
   XNCALLER_INVALID = 0x0,
@@ -222,7 +221,7 @@ u32 NetDll_WSACleanup_entry([[maybe_unused]] u32 caller) {
 }
 
 u32 NetDll_WSAGetLastError_entry() {
-  return ThreadRecord::GetLastError();
+  return KernelThread::GetLastError();
 }
 
 u32 NetDll_WSARecvFrom_entry([[maybe_unused]] u32 caller, [[maybe_unused]] u32 socket,
@@ -265,7 +264,7 @@ u32 NetDll_WSASendTo_entry([[maybe_unused]] u32 caller, u32 socket_handle,
   auto socket = runtime::Current().object_table().Get<SocketObject>(socket_handle);
   if (!socket) {
     // WSAENOTSOCK
-    ThreadRecord::SetLastError(0x2736);
+    KernelThread::SetLastError(0x2736);
     return -1;
   }
 
@@ -294,7 +293,7 @@ u32 NetDll_WSAWaitForMultipleEvents_entry(u32 num_events, mapped_u32 events, u32
                                           u32 timeout, u32 alertable) {
   if (num_events > 64) {
     // ERROR_INVALID_PARAMETER
-    ThreadRecord::SetLastError(87);
+    KernelThread::SetLastError(87);
     return ~0u;
   }
 
@@ -308,15 +307,15 @@ u32 NetDll_WSAWaitForMultipleEvents_entry(u32 num_events, mapped_u32 events, u32
 
   if (XFAILED(result)) {
     u32 error = xboxkrnl::RtlNtStatusToDosError(result);
-    ThreadRecord::SetLastError(error);
+    KernelThread::SetLastError(error);
     return ~0u;
   }
   return result;
 }
 
 u32 NetDll_WSACreateEvent_entry() {
-  auto added = runtime::Current().object_table().CreateWithBlock<EventObject>(0, sizeof(X_KEVENT),
-                                                                              true, false);
+  auto added =
+      runtime::Current().object_table().CreateObject<EventObject>(0, sizeof(X_KEVENT), true, false);
   if (!added) {
     return 0;
   }
@@ -327,7 +326,7 @@ u32 NetDll_WSACloseEvent_entry(u32 event_handle) {
   X_STATUS result = ToXStatus(runtime::Current().object_table().Close(event_handle));
   if (XFAILED(result)) {
     u32 error = xboxkrnl::RtlNtStatusToDosError(result);
-    ThreadRecord::SetLastError(error);
+    KernelThread::SetLastError(error);
     return 0;
   }
   return 1;
@@ -337,7 +336,7 @@ u32 NetDll_WSAResetEvent_entry(u32 event_handle) {
   X_STATUS result = xboxkrnl::NtClearEvent(event_handle);
   if (XFAILED(result)) {
     u32 error = xboxkrnl::RtlNtStatusToDosError(result);
-    ThreadRecord::SetLastError(error);
+    KernelThread::SetLastError(error);
     return 0;
   }
   return 1;
@@ -347,7 +346,7 @@ u32 NetDll_WSASetEvent_entry(u32 event_handle) {
   X_STATUS result = xboxkrnl::NtSetEvent(event_handle, nullptr);
   if (XFAILED(result)) {
     u32 error = xboxkrnl::RtlNtStatusToDosError(result);
-    ThreadRecord::SetLastError(error);
+    KernelThread::SetLastError(error);
     return 0;
   }
   return 1;
@@ -528,17 +527,17 @@ u32 NetDll_inet_addr_entry(mapped_string addr_ptr) {
 u32 NetDll_socket_entry([[maybe_unused]] u32 caller, u32 af, u32 type, u32 protocol) {
   if (af > 0xFF) {
     // WSAEAFNOSUPPORT
-    ThreadRecord::SetLastError(0x273F);
+    KernelThread::SetLastError(0x273F);
     return -1;
   }
   if (type > 0xFF) {
     // WSAESOCKTNOSUPPORT
-    ThreadRecord::SetLastError(0x273C);
+    KernelThread::SetLastError(0x273C);
     return -1;
   }
   if (protocol > 0xFF) {
     // WSAEPROTONOSUPPORT
-    ThreadRecord::SetLastError(0x273B);
+    KernelThread::SetLastError(0x273B);
     return -1;
   }
   auto& table = runtime::Current().object_table();
@@ -558,7 +557,7 @@ u32 NetDll_socket_entry([[maybe_unused]] u32 caller, u32 af, u32 type, u32 proto
 
   if (XFAILED(result)) {
     u32 error = xboxkrnl::RtlNtStatusToDosError(result);
-    ThreadRecord::SetLastError(error);
+    KernelThread::SetLastError(error);
     return -1;
   }
 
@@ -569,14 +568,14 @@ u32 NetDll_closesocket_entry([[maybe_unused]] u32 caller, u32 socket_handle) {
   auto socket = runtime::Current().object_table().Get<SocketObject>(socket_handle);
   if (!socket) {
     // WSAENOTSOCK
-    ThreadRecord::SetLastError(0x2736);
+    KernelThread::SetLastError(0x2736);
     return -1;
   }
 
   SocketClose(*socket);
   if (const auto closed = runtime::Current().object_table().Close(socket_handle); !closed) {
     // WSAENOTSOCK
-    ThreadRecord::SetLastError(0x2736);
+    KernelThread::SetLastError(0x2736);
     return -1;
   }
   return 0;
@@ -586,7 +585,7 @@ i32 NetDll_shutdown_entry([[maybe_unused]] u32 caller, u32 socket_handle, i32 ho
   auto socket = runtime::Current().object_table().Get<SocketObject>(socket_handle);
   if (!socket) {
     // WSAENOTSOCK
-    ThreadRecord::SetLastError(0x2736);
+    KernelThread::SetLastError(0x2736);
     return -1;
   }
 
@@ -594,9 +593,9 @@ i32 NetDll_shutdown_entry([[maybe_unused]] u32 caller, u32 socket_handle, i32 ho
   if (ret == -1) {
 #if REX_PLATFORM_WIN32
     u32 error_code = WSAGetLastError();
-    ThreadRecord::SetLastError(error_code);
+    KernelThread::SetLastError(error_code);
 #else
-    ThreadRecord::SetLastError(0x0);
+    KernelThread::SetLastError(0x0);
 #endif
   }
   return ret;
@@ -607,7 +606,7 @@ u32 NetDll_setsockopt_entry([[maybe_unused]] u32 caller, u32 socket_handle, u32 
   auto socket = runtime::Current().object_table().Get<SocketObject>(socket_handle);
   if (!socket) {
     // WSAENOTSOCK
-    ThreadRecord::SetLastError(0x2736);
+    KernelThread::SetLastError(0x2736);
     return -1;
   }
 
@@ -620,13 +619,13 @@ u32 NetDll_ioctlsocket_entry([[maybe_unused]] u32 caller, u32 socket_handle, u32
   auto socket = runtime::Current().object_table().Get<SocketObject>(socket_handle);
   if (!socket) {
     // WSAENOTSOCK
-    ThreadRecord::SetLastError(0x2736);
+    KernelThread::SetLastError(0x2736);
     return -1;
   }
 
   X_STATUS status = SocketIOControl(*socket, cmd, arg_ptr);
   if (XFAILED(status)) {
-    ThreadRecord::SetLastError(xboxkrnl::RtlNtStatusToDosError(status));
+    KernelThread::SetLastError(xboxkrnl::RtlNtStatusToDosError(status));
     return -1;
   }
 
@@ -638,14 +637,14 @@ u32 NetDll_bind_entry([[maybe_unused]] u32 caller, u32 socket_handle, ppc_ptr_t<
   auto socket = runtime::Current().object_table().Get<SocketObject>(socket_handle);
   if (!socket) {
     // WSAENOTSOCK
-    ThreadRecord::SetLastError(0x2736);
+    KernelThread::SetLastError(0x2736);
     return -1;
   }
 
   N_XSOCKADDR_IN native_name(name);
   X_STATUS status = SocketBind(*socket, &native_name, namelen);
   if (XFAILED(status)) {
-    ThreadRecord::SetLastError(xboxkrnl::RtlNtStatusToDosError(status));
+    KernelThread::SetLastError(xboxkrnl::RtlNtStatusToDosError(status));
     return -1;
   }
 
@@ -657,14 +656,14 @@ u32 NetDll_connect_entry([[maybe_unused]] u32 caller, u32 socket_handle, ppc_ptr
   auto socket = runtime::Current().object_table().Get<SocketObject>(socket_handle);
   if (!socket) {
     // WSAENOTSOCK
-    ThreadRecord::SetLastError(0x2736);
+    KernelThread::SetLastError(0x2736);
     return -1;
   }
 
   N_XSOCKADDR native_name(name);
   X_STATUS status = SocketConnect(*socket, &native_name, namelen);
   if (XFAILED(status)) {
-    ThreadRecord::SetLastError(xboxkrnl::RtlNtStatusToDosError(status));
+    KernelThread::SetLastError(xboxkrnl::RtlNtStatusToDosError(status));
     return -1;
   }
 
@@ -675,13 +674,13 @@ u32 NetDll_listen_entry([[maybe_unused]] u32 caller, u32 socket_handle, i32 back
   auto socket = runtime::Current().object_table().Get<SocketObject>(socket_handle);
   if (!socket) {
     // WSAENOTSOCK
-    ThreadRecord::SetLastError(0x2736);
+    KernelThread::SetLastError(0x2736);
     return -1;
   }
 
   X_STATUS status = SocketListen(*socket, backlog);
   if (XFAILED(status)) {
-    ThreadRecord::SetLastError(xboxkrnl::RtlNtStatusToDosError(status));
+    KernelThread::SetLastError(xboxkrnl::RtlNtStatusToDosError(status));
     return -1;
   }
 
@@ -692,14 +691,14 @@ u32 NetDll_accept_entry([[maybe_unused]] u32 caller, u32 socket_handle,
                         ppc_ptr_t<XSOCKADDR> addr_ptr, mapped_u32 addrlen_ptr) {
   if (!addr_ptr) {
     // WSAEFAULT
-    ThreadRecord::SetLastError(0x271E);
+    KernelThread::SetLastError(0x271E);
     return -1;
   }
 
   auto socket = runtime::Current().object_table().Get<SocketObject>(socket_handle);
   if (!socket) {
     // WSAENOTSOCK
-    ThreadRecord::SetLastError(0x2736);
+    KernelThread::SetLastError(0x2736);
     return -1;
   }
 
@@ -868,12 +867,12 @@ u32 NetDll_recv_entry([[maybe_unused]] u32 caller, u32 socket_handle, mapped_voi
   auto socket = runtime::Current().object_table().Get<SocketObject>(socket_handle);
   if (!socket) {
     // WSAENOTSOCK
-    ThreadRecord::SetLastError(0x2736);
+    KernelThread::SetLastError(0x2736);
     return -1;
   }
 
   if (buf_len > kMaxSocketLength) {
-    ThreadRecord::SetLastError(kWSAEFAULT);
+    KernelThread::SetLastError(kWSAEFAULT);
     return -1;
   }
 
@@ -886,12 +885,12 @@ u32 NetDll_recvfrom_entry([[maybe_unused]] u32 caller, u32 socket_handle, mapped
   auto socket = runtime::Current().object_table().Get<SocketObject>(socket_handle);
   if (!socket) {
     // WSAENOTSOCK
-    ThreadRecord::SetLastError(0x2736);
+    KernelThread::SetLastError(0x2736);
     return -1;
   }
 
   if (buf_len > kMaxSocketLength) {
-    ThreadRecord::SetLastError(kWSAEFAULT);
+    KernelThread::SetLastError(kWSAEFAULT);
     return -1;
   }
 
@@ -916,9 +915,9 @@ u32 NetDll_recvfrom_entry([[maybe_unused]] u32 caller, u32 socket_handle, mapped
   if (ret == -1) {
 #if REX_PLATFORM_WIN32
     u32 error_code = WSAGetLastError();
-    ThreadRecord::SetLastError(error_code);
+    KernelThread::SetLastError(error_code);
 #else
-    ThreadRecord::SetLastError(0x0);
+    KernelThread::SetLastError(0x0);
 #endif
   }
 
@@ -930,12 +929,12 @@ u32 NetDll_send_entry([[maybe_unused]] u32 caller, u32 socket_handle, mapped_voi
   auto socket = runtime::Current().object_table().Get<SocketObject>(socket_handle);
   if (!socket) {
     // WSAENOTSOCK
-    ThreadRecord::SetLastError(0x2736);
+    KernelThread::SetLastError(0x2736);
     return -1;
   }
 
   if (buf_len > kMaxSocketLength) {
-    ThreadRecord::SetLastError(kWSAEFAULT);
+    KernelThread::SetLastError(kWSAEFAULT);
     return -1;
   }
 
@@ -947,12 +946,12 @@ u32 NetDll_sendto_entry([[maybe_unused]] u32 caller, u32 socket_handle, mapped_v
   auto socket = runtime::Current().object_table().Get<SocketObject>(socket_handle);
   if (!socket) {
     // WSAENOTSOCK
-    ThreadRecord::SetLastError(0x2736);
+    KernelThread::SetLastError(0x2736);
     return -1;
   }
 
   if (buf_len > kMaxSocketLength) {
-    ThreadRecord::SetLastError(kWSAEFAULT);
+    KernelThread::SetLastError(kWSAEFAULT);
     return -1;
   }
 
@@ -971,7 +970,7 @@ u32 NetDll___WSAFDIsSet_entry(u32 socket_handle, ppc_ptr_t<x_fd_set> fd_set) {
 }
 
 void NetDll_WSASetLastError_entry(u32 error_code) {
-  ThreadRecord::SetLastError(error_code);
+  KernelThread::SetLastError(error_code);
 }
 
 }  // namespace xam

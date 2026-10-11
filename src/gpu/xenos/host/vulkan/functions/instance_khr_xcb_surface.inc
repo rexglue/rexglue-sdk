@@ -8,4 +8,4 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-REXVK_FUNCTION(vkCreateXcbSurfaceKHR)
+REX_VK_FUNCTION(vkCreateXcbSurfaceKHR)

@@ -24,17 +24,17 @@
 
 namespace rex::runtime {
 
-/** A transient pin on a `ThreadRecord`. Never stored. Move only. */
+/** A transient pin on a `KernelThread`. Never stored. Move only. */
 class ThreadPin : public rex::MoveOnly {
  public:
   ThreadPin() = default;
   /**
-   * Takes a pin already taken on a `ThreadRecord`.
+   * Takes a pin already taken on a `KernelThread`.
    *
-   * @param record The pinned `ThreadRecord`.
+   * @param thread The pinned `KernelThread`.
    */
-  explicit ThreadPin(ThreadRecord* record) noexcept : record_(record) {}
-  ThreadPin(ThreadPin&& other) noexcept : record_(other.record_) { other.record_ = nullptr; }
+  explicit ThreadPin(KernelThread* thread) noexcept : thread_(thread) {}
+  ThreadPin(ThreadPin&& other) noexcept : thread_(other.thread_) { other.thread_ = nullptr; }
   /**
    * Takes over the pin of another slot and releases the pin this pin held.
    *
@@ -44,41 +44,41 @@ class ThreadPin : public rex::MoveOnly {
   ThreadPin& operator=(ThreadPin&& other) noexcept {
     if (this != &other) {
       Reset();
-      record_ = other.record_;
-      other.record_ = nullptr;
+      thread_ = other.thread_;
+      other.thread_ = nullptr;
     }
     return *this;
   }
   ~ThreadPin() { Reset(); }
 
   /**
-   * Reports whether the pin holds a `ThreadRecord`.
+   * Reports whether the pin holds a `KernelThread`.
    *
    * @return True when it does.
    */
-  explicit operator bool() const noexcept { return record_ != nullptr; }
-  ThreadRecord* operator->() const noexcept { return record_; }
-  ThreadRecord& operator*() const noexcept { return *record_; }
+  explicit operator bool() const noexcept { return thread_ != nullptr; }
+  KernelThread* operator->() const noexcept { return thread_; }
+  KernelThread& operator*() const noexcept { return *thread_; }
 
   /**
-   * Returns the `ThreadRecord`.
+   * Returns the `KernelThread`.
    *
-   * @return The `ThreadRecord`, null when empty.
+   * @return The `KernelThread`, null when empty.
    */
-  [[nodiscard]] ThreadRecord* get() const noexcept { return record_; }
+  [[nodiscard]] KernelThread* get() const noexcept { return thread_; }
 
   /** Drops the pin. */
   void Reset() noexcept {
-    if (record_ != nullptr) {
-      if (record_->pins.Unpin()) {
-        delete record_;
+    if (thread_ != nullptr) {
+      if (thread_->pins.Unpin()) {
+        delete thread_;
       }
-      record_ = nullptr;
+      thread_ = nullptr;
     }
   }
 
  private:
-  ThreadRecord* record_ = nullptr;
+  KernelThread* thread_ = nullptr;
 };
 
 /** Host data of a fiber the shim fiber routines manage. */
@@ -91,26 +91,26 @@ struct FiberInfo {
   bool is_thread_fiber;   /**< True for ConvertThreadToFiber, whose stack the thread owns. */
 };
 
-/** Owns every `ThreadRecord`, finds them by id or handle, and keeps the TLS slots and fibers. */
+/** Owns every `KernelThread`, finds them by id or handle, and keeps the TLS slots and fibers. */
 class IThreadRegistry {
  public:
   REX_INTERFACE(IThreadRegistry, "rex.runtime.thread_registry", 1);
   virtual ~IThreadRegistry() = default;
 
   /**
-   * Takes ownership of a `ThreadRecord`, assigns its thread id, gives it a thread handle with a
+   * Takes ownership of a `KernelThread`, assigns its thread id, gives it a thread handle with a
    * count of 1, allocates its guest thread block and starts its host thread.
    *
-   * @param record The `ThreadRecord`.
+   * @param thread The `KernelThread`.
    * @return The creation handle, or the status of the allocation or the thread creation.
    */
-  [[nodiscard]] virtual Result<X_HANDLE> Launch(std::unique_ptr<ThreadRecord> record) = 0;
+  [[nodiscard]] virtual Result<X_HANDLE> Launch(std::unique_ptr<KernelThread> thread) = 0;
 
   /**
    * Finds a thread by id and pins it.
    *
    * @param thread_id The thread id.
-   * @return The pin, empty when no `ThreadRecord` has the id.
+   * @return The pin, empty when no `KernelThread` has the id.
    */
   [[nodiscard]] virtual ThreadPin Find(u32 thread_id) = 0;
 
@@ -123,7 +123,7 @@ class IThreadRegistry {
   [[nodiscard]] virtual ThreadPin FindByHandle(X_HANDLE handle) = 0;
 
   /**
-   * Pins every `ThreadRecord`.
+   * Pins every `KernelThread`.
    *
    * @return The pins.
    */
@@ -154,7 +154,7 @@ class IThreadRegistry {
   [[nodiscard]] virtual std::optional<FiberInfo> LookupFiber(u32 address) = 0;
 
   /**
-   * Registers a fiber, replacing a `ThreadRecord` with the same address.
+   * Registers a fiber, replacing a `KernelThread` with the same address.
    *
    * @param address The guest address of the fiber context block.
    * @param info The fiber data.

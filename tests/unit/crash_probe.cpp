@@ -23,7 +23,7 @@
 #include <utility>
 
 #include <rex/logging.h>
-#include <rex/memory/utils.h>
+#include <rex/memory/virtual_memory.h>
 #include <rex/platform.h>
 #include <rex/platform/crash.h>
 #include <rex/platform/exceptions.h>

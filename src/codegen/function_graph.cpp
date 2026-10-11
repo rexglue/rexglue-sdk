@@ -19,12 +19,12 @@
 #include <rex/codegen/function_graph.h>
 #include <rex/codegen/function_scanner.h>
 #include <rex/logging.h>
-#include <rex/memory/utils.h>
+#include <rex/memory/byte_swap.h>
 
 #include <dis-asm.h>
 #include <ppc.h>
 
-using rex::codegen::ppc::Disassemble;
+using rex::codegen::detail::Disassemble;
 
 namespace rex::codegen {
 
@@ -57,7 +57,7 @@ FunctionNode::FunctionNode(u32 base, u32 size, FunctionAuthority authority)
 }
 
 void FunctionNode::discover(std::vector<Block> blocks,
-                            std::vector<rex::codegen::ppc::Instruction*> instructions,
+                            std::vector<rex::codegen::detail::Instruction*> instructions,
                             std::set<u32> labels) {
   assert(canDiscover() && "Invalid state transition: must be kRegistered");
 
@@ -603,7 +603,7 @@ std::string FunctionNode::emitCpp(const EmitContext& ctx) const {
   }
 
   if (generateSeh) {
-    emit_println(body, "\t\t}} SEH_CATCH_ALL {{");
+    emit_println(body, "\t\t}} REX_SEH_CATCH_ALL {{");
     emit_println(body, "\t\t\tREXLOG_WARN(\"SEH exception caught in sub_{:08X}\");", base());
 
     if (sehInfo->frameSize > 0) {
@@ -627,8 +627,8 @@ std::string FunctionNode::emitCpp(const EmitContext& ctx) const {
       }
     }
 
-    emit_println(body, "\t\t\tSEH_RETHROW;");
-    emit_println(body, "\t\t}} SEH_END");
+    emit_println(body, "\t\t\tREX_SEH_RETHROW;");
+    emit_println(body, "\t\t}} REX_SEH_END");
     emit_println(body, "\t}}\n");
   } else {
     emit_println(body, "}}\n");
@@ -671,7 +671,7 @@ std::string FunctionNode::emitCpp(const EmitContext& ctx) const {
     emit_println(out, "\tu32 ea{{}};");
 
   if (generateSeh) {
-    emit_println(out, "\tSEH_TRY {{");
+    emit_println(out, "\tREX_SEH_TRY {{");
     constexpr std::string_view kReturn = "return;";
     constexpr std::string_view kSehReturn = "REX_SEH_RETURN;";
     for (size_t at = body.find(kReturn); at != std::string::npos;

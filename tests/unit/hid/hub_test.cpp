@@ -92,7 +92,7 @@ class FakePad final : public rex::hid::Driver {
   }
   [[nodiscard]] rex::Result<rex::hid::X_INPUT_KEYSTROKE> GetDeviceKeystroke(rex::hid::DeviceId,
                                                                             rex::u32) override {
-    return std::unexpected(rex::hid::MakeError(rex::hid::Error::Empty, "none"));
+    return std::unexpected(rex::hid::BuildError(rex::hid::HIDError::Empty, "none"));
   }
   rex::u16 buttons = 0;
 };

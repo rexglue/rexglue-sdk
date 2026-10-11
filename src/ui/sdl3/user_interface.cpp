@@ -27,7 +27,7 @@ SDL3UserInterface::~SDL3UserInterface() {
 }
 
 void SDL3UserInterface::Connect(const Config& config, cvar::ICvarRegistry& cvars,
-                                hid::IBackend* hid, gpu::IBackend* gpu,
+                                hid::IHIDBackend* hid, gpu::IGPUBackend* gpu,
                                 runtime::IAchievementManager* achievements, ILogger* logger) {
   ui_thread_ = std::this_thread::get_id();
   config_ = &config;

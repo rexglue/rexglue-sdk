@@ -3,7 +3,7 @@
 #include <mutex>
 
 #include <rex/logging.h>
-#include <rex/runtime/xnotifylistener.h>
+#include <rex/runtime/notify_listener_object.h>
 
 namespace rex::runtime {
 

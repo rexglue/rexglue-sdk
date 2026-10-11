@@ -21,7 +21,7 @@
 #include <rex/math.h>
 #include "gpu/xenos/host/d3d12/d3d12_immediate_drawer.h"
 #include "gpu/xenos/host/d3d12/d3d12_presenter.h"
-#include "gpu/xenos/host/d3d12/d3d12_util.h"
+#include "gpu/xenos/host/d3d12/d3d12_objects.h"
 
 namespace rex::gpu::d3d12 {
 
@@ -108,12 +108,12 @@ bool D3D12ImmediateDrawer::Initialize() {
   root_signature_desc.pStaticSamplers = nullptr;
   root_signature_desc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
   *(root_signature_.ReleaseAndGetAddressOf()) =
-      util::CreateRootSignature(provider_, root_signature_desc);
+      objects::CreateRootSignature(provider_, root_signature_desc);
   if (!root_signature_) {
     REX_FAIL(ui, false, "D3D12ImmediateDrawer: Failed to create the root signature");
   }
 
-  auto pipeline_desc = util::MakeGraphicsPipelineStateDesc();
+  auto pipeline_desc = objects::BuildGraphicsPipelineStateDesc();
   pipeline_desc.pRootSignature = root_signature_.Get();
   pipeline_desc.VS.pShaderBytecode = shaders::kImmediateVS;
   pipeline_desc.VS.BytecodeLength = sizeof(shaders::kImmediateVS);
@@ -228,7 +228,7 @@ Result<std::unique_ptr<gpu::OverlayTexture>> D3D12ImmediateDrawer::CreateTexture
   resource_desc.Flags = D3D12_RESOURCE_FLAG_NONE;
   Microsoft::WRL::ComPtr<ID3D12Resource> resource;
   if (FAILED(device->CreateCommittedResource(
-          &util::kHeapPropertiesDefault, heap_flag_create_not_zeroed, &resource_desc,
+          &objects::kHeapPropertiesDefault, heap_flag_create_not_zeroed, &resource_desc,
           D3D12_RESOURCE_STATE_COPY_DEST, nullptr, IID_PPV_ARGS(&resource)))) {
     REXLOG_ERROR(ui, "D3D12ImmediateDrawer: Failed to create a {}x{} texture", width, height);
     return Err<std::unique_ptr<gpu::OverlayTexture>>(
@@ -239,10 +239,10 @@ Result<std::unique_ptr<gpu::OverlayTexture>> D3D12ImmediateDrawer::CreateTexture
   device->GetCopyableFootprints(&resource_desc, 0, 1, 0, &upload_footprint, nullptr, nullptr,
                                 &upload_size);
   D3D12_RESOURCE_DESC upload_buffer_desc;
-  util::FillBufferResourceDesc(upload_buffer_desc, upload_size, D3D12_RESOURCE_FLAG_NONE);
+  objects::FillBufferResourceDesc(upload_buffer_desc, upload_size, D3D12_RESOURCE_FLAG_NONE);
   Microsoft::WRL::ComPtr<ID3D12Resource> upload_buffer;
   if (FAILED(device->CreateCommittedResource(
-          &util::kHeapPropertiesUpload, heap_flag_create_not_zeroed, &upload_buffer_desc,
+          &objects::kHeapPropertiesUpload, heap_flag_create_not_zeroed, &upload_buffer_desc,
           D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&upload_buffer)))) {
     REXLOG_ERROR(ui,
                  "D3D12ImmediateDrawer: Failed to create an upload buffer for a {}x{} "

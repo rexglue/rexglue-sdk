@@ -18,6 +18,7 @@
 
 #include <format>
 
+#include <rex/bit.h>
 #include <rex/cvar.h>
 #include <rex/dbg.h>
 #include <rex/perf/counter.h>
@@ -100,12 +101,12 @@ bool CommandProcessor::Initialize() {
   }
 
   worker_running_ = true;
-  auto record = std::make_unique<runtime::ThreadRecord>(*runtime_, 128 * 1024, 0, [this]() {
+  auto thread = std::make_unique<runtime::KernelThread>(*runtime_, 128 * 1024, 0, [this]() {
     WorkerThreadMain();
     return 0;
   });
-  record->set_name("GPU Commands");
-  worker_thread_ = runtime_->thread_registry().Launch(std::move(record)).value_or(0);
+  thread->set_name("GPU Commands");
+  worker_thread_ = runtime_->thread_registry().Launch(std::move(thread)).value_or(0);
 
   return true;
 }
@@ -113,7 +114,7 @@ bool CommandProcessor::Initialize() {
 void CommandProcessor::Shutdown() {
   worker_running_ = false;
   write_ptr_index_event_->Set();
-  runtime::WaitOn(*runtime_, worker_thread_, 0, 0, 0, nullptr);
+  runtime::Wait(*runtime_, worker_thread_, 0, 0, 0, nullptr);
   runtime::CloseOwned(runtime_->object_table(), worker_thread_);
   worker_thread_ = 0;
 }
@@ -123,7 +124,7 @@ void CommandProcessor::InitializeShaderStorage(
     [[maybe_unused]] bool blocking) {}
 
 bool CommandProcessor::IsWorkerThread() {
-  return runtime::ThreadRecord::IsInThread(
+  return runtime::KernelThread::IsInThread(
       runtime_->thread_registry().FindByHandle(worker_thread_).get());
 }
 
@@ -174,7 +175,7 @@ void CommandProcessor::CallInThreadAndWait(rex::MoveOnlyFunction<void()> fn) {
 
 void CommandProcessor::ClearCaches() {}
 
-void CommandProcessor::InvalidateGpuMemory() {}
+void CommandProcessor::InvalidateGPUMemory() {}
 
 ReadbackResolveMode CommandProcessor::GetReadbackResolveMode(
     bool legacy_readback_resolve_enabled) const {
@@ -354,7 +355,7 @@ void CommandProcessor::WriteRegister(u32 index, u32 value) {
           xenos::reg::DC_LUT_RW_INDEX new_gamma_ramp_rw_index = gamma_ramp_rw_index;
           ++new_gamma_ramp_rw_index.rw_index;
           WriteRegister(std::to_underlying(xenos::Register::DC_LUT_RW_INDEX),
-                        rex::memory::Reinterpret<u32>(new_gamma_ramp_rw_index));
+                        rex::Reinterpret<u32>(new_gamma_ramp_rw_index));
         }
         if (write_gamma_ramp_component) {
           OnGammaRamp256EntryTableValueWritten();
@@ -384,7 +385,7 @@ void CommandProcessor::WriteRegister(u32 index, u32 value) {
           new_gamma_ramp_rw_index.rw_index = (gamma_ramp_rw_index.rw_index & ~UINT32_C(0x7F)) |
                                              ((gamma_ramp_rw_index_pwl + 1) & 0x7F);
           WriteRegister(std::to_underlying(xenos::Register::DC_LUT_RW_INDEX),
-                        rex::memory::Reinterpret<u32>(new_gamma_ramp_rw_index));
+                        rex::Reinterpret<u32>(new_gamma_ramp_rw_index));
         }
         if (write_gamma_ramp_component) {
           OnGammaRampPWLValueWritten();
@@ -414,7 +415,7 @@ void CommandProcessor::WriteRegister(u32 index, u32 value) {
         xenos::reg::DC_LUT_RW_INDEX new_gamma_ramp_rw_index = gamma_ramp_rw_index;
         ++new_gamma_ramp_rw_index.rw_index;
         WriteRegister(std::to_underlying(xenos::Register::DC_LUT_RW_INDEX),
-                      rex::memory::Reinterpret<u32>(new_gamma_ramp_rw_index));
+                      rex::Reinterpret<u32>(new_gamma_ramp_rw_index));
         if (gamma_ramp_write_enable_mask) {
           OnGammaRamp256EntryTableValueWritten();
         }
@@ -497,12 +498,12 @@ void CommandProcessor::WriteREGISTERSRangeFromMem(u32 start_index, u32* base, u3
   WriteRegistersFromMem(start_index + 0x2000, base, num_registers);
 }
 
-void CommandProcessor::MakeCoherent() {
+void CommandProcessor::SyncCoherency() {
   REX_PROFILE_SCOPE("gpu");
 
   // Volatile because this may be called from the WAIT_REG_MEM loop.
   volatile u32* regs_volatile = register_file_->values;
-  auto status_host = rex::memory::Reinterpret<xenos::reg::COHER_STATUS_HOST>(
+  auto status_host = rex::Reinterpret<xenos::reg::COHER_STATUS_HOST>(
       static_cast<u32>(regs_volatile[std::to_underlying(xenos::Register::COHER_STATUS_HOST)]));
   u32 base_host = regs_volatile[std::to_underlying(xenos::Register::COHER_BASE_HOST)];
   u32 size_host = regs_volatile[std::to_underlying(xenos::Register::COHER_SIZE_HOST)];
@@ -888,7 +889,7 @@ bool CommandProcessor::ExecutePacketType3_WAIT_REG_MEM(memory::RingBuffer* reade
     } else {
       value = ReadRegisterValue(poll_reg_addr);
       if (poll_reg_addr == std::to_underlying(xenos::Register::COHER_STATUS_HOST)) {
-        MakeCoherent();
+        SyncCoherency();
         value = ReadRegisterValue(poll_reg_addr);
       }
     }

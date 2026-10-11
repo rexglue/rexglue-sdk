@@ -15,7 +15,7 @@
 #include <memory>
 #include <rex/runtime/error.h>
 #include <rex/runtime/object_table.h>
-#include <rex/runtime/xobject.h>
+#include <rex/runtime/object.h>
 #include <rex/runtime/xtypes.h>
 
 #include "kernel/object_reference.h"

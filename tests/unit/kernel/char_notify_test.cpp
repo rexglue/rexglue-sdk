@@ -46,7 +46,7 @@ void SlowTerminateRoutine(PPCContext& ctx, u8*) {
 }
 
 void ThreadNotifyRoutine(PPCContext& ctx, u8*) {
-  const u32 id = rex::runtime::ThreadRecord::GetCurrentThread()->thread_id();
+  const u32 id = rex::runtime::KernelThread::GetCurrentThread()->thread_id();
   std::lock_guard lock(g_mutex);
   g_thread_calls.emplace_back(id, ctx.r3.u32);
   ctx.r3.u64 = 0;
@@ -149,7 +149,7 @@ REX_TEST_CASE("thread notify runs on create and on return from the start routine
   fixture.RunOnGuestThread([](Caller& c) {
     ThreadNotification(c);
     const u32 thread = c.Spawn([](Caller&) {
-      g_spawned_id = rex::runtime::ThreadRecord::GetCurrentThread()->thread_id();
+      g_spawned_id = rex::runtime::KernelThread::GetCurrentThread()->thread_id();
     });
     CHECK(c.Kernel("NtWaitForSingleObjectEx", {thread, 1, 0, c.Quad(-50000000)}) == 0);
     c.Kernel("NtClose", {thread});
@@ -163,7 +163,7 @@ REX_TEST_CASE("thread notify runs on ExTerminateThread", "[char][notify]") {
   fixture.RunOnGuestThread([](Caller& c) {
     ThreadNotification(c);
     const u32 thread = c.Spawn([](Caller& o) {
-      g_spawned_id = rex::runtime::ThreadRecord::GetCurrentThread()->thread_id();
+      g_spawned_id = rex::runtime::KernelThread::GetCurrentThread()->thread_id();
       o.Kernel("ExTerminateThread", {7});
     });
     CHECK(c.Kernel("NtWaitForSingleObjectEx", {thread, 1, 0, c.Quad(-50000000)}) == 0);
@@ -185,7 +185,7 @@ REX_TEST_CASE("thread notify does not run for a thread stopped by title terminat
     }
     const u32 event = c.Load32(event_ptr);
     c.Spawn([event](Caller& o) {
-      g_spawned_id = rex::runtime::ThreadRecord::GetCurrentThread()->thread_id();
+      g_spawned_id = rex::runtime::KernelThread::GetCurrentThread()->thread_id();
       o.Kernel("NtWaitForSingleObjectEx", {event, 1, 0, 0});
     });
     for (int i = 0; i < 200 && g_spawned_id == 0; ++i) {
@@ -203,7 +203,7 @@ REX_TEST_CASE("a removed thread notification is not called", "[char][notify]") {
     const u32 notification = ThreadNotification(c);
     c.XAM("XRegisterThreadNotifyRoutine", {notification, 0});
     const u32 thread = c.Spawn([](Caller&) {
-      g_spawned_id = rex::runtime::ThreadRecord::GetCurrentThread()->thread_id();
+      g_spawned_id = rex::runtime::KernelThread::GetCurrentThread()->thread_id();
     });
     CHECK(c.Kernel("NtWaitForSingleObjectEx", {thread, 1, 0, c.Quad(-50000000)}) == 0);
     c.Kernel("NtClose", {thread});

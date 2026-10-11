@@ -34,13 +34,13 @@
 #include "gpu/xenos/pipeline/shader/dxbc.h"
 #include "gpu/xenos/pipeline/shader/dxbc_translator.h"
 #include <rex/xenos/registers.h>
-#include "gpu/xenos/util/draw.h"
+#include "gpu/xenos/draw_state.h"
 #include <rex/xenos/xenos.h>
 #include <rex/runtime.h>
 #include "gpu/xenos/host/d3d12/d3d12_descriptor_heap_pool.h"
 #include "gpu/xenos/host/d3d12/d3d12_provider.h"
 #include "gpu/xenos/host/d3d12/d3d12_upload_buffer_pool.h"
-#include "gpu/xenos/host/d3d12/d3d12_util.h"
+#include "gpu/xenos/host/d3d12/d3d12_objects.h"
 
 namespace rex::gpu::d3d12 {
 
@@ -50,7 +50,7 @@ class D3D12CommandProcessor : public CommandProcessor {
   ~D3D12CommandProcessor();
 
   void ClearCaches() override;
-  void InvalidateGpuMemory() override;
+  void InvalidateGPUMemory() override;
 
   void InitializeShaderStorage(const std::filesystem::path& cache_root, u32 title_id,
                                bool blocking) override;
@@ -108,8 +108,8 @@ class D3D12CommandProcessor : public CommandProcessor {
    * @param tessellated True when the pipeline is tessellated.
    * @return The root signature.
    */
-  ID3D12RootSignature* GetRootSignature(const DxbcShader* vertex_shader,
-                                        const DxbcShader* pixel_shader, bool tessellated);
+  ID3D12RootSignature* GetRootSignature(const DXBCShader* vertex_shader,
+                                        const DXBCShader* pixel_shader, bool tessellated);
 
   gpu::d3d12::D3D12UploadBufferPool& GetConstantBufferPool() const {
     return *constant_buffer_pool_;
@@ -141,7 +141,7 @@ class D3D12CommandProcessor : public CommandProcessor {
    * @return True when the descriptors were allocated.
    */
   bool RequestOneUseSingleViewDescriptors(
-      u32 count, gpu::d3d12::util::DescriptorCpuGpuHandlePair* handles_out);
+      u32 count, gpu::d3d12::objects::DescriptorCPUGPUHandlePair* handles_out);
   /** Needed often, so always allocated. */
   enum class SystemBindlessView : u8 {
     /** Both may be bound as one root parameter. */
@@ -184,15 +184,15 @@ class D3D12CommandProcessor : public CommandProcessor {
 
     kCount,
   };
-  gpu::d3d12::util::DescriptorCpuGpuHandlePair GetSystemBindlessViewHandlePair(
+  gpu::d3d12::objects::DescriptorCPUGPUHandlePair GetSystemBindlessViewHandlePair(
       SystemBindlessView view) const;
-  gpu::d3d12::util::DescriptorCpuGpuHandlePair GetSharedMemoryUintPow2BindlessSRVHandlePair(
+  gpu::d3d12::objects::DescriptorCPUGPUHandlePair GetSharedMemoryUintPow2BindlessSRVHandlePair(
       u32 element_size_bytes_pow2) const;
-  gpu::d3d12::util::DescriptorCpuGpuHandlePair GetSharedMemoryUintPow2BindlessUAVHandlePair(
+  gpu::d3d12::objects::DescriptorCPUGPUHandlePair GetSharedMemoryUintPow2BindlessUAVHandlePair(
       u32 element_size_bytes_pow2) const;
-  gpu::d3d12::util::DescriptorCpuGpuHandlePair GetEdramUintPow2BindlessSRVHandlePair(
+  gpu::d3d12::objects::DescriptorCPUGPUHandlePair GetEDRAMUintPow2BindlessSRVHandlePair(
       u32 element_size_bytes_pow2) const;
-  gpu::d3d12::util::DescriptorCpuGpuHandlePair GetEdramUintPow2BindlessUAVHandlePair(
+  gpu::d3d12::objects::DescriptorCPUGPUHandlePair GetEDRAMUintPow2BindlessUAVHandlePair(
       u32 element_size_bytes_pow2) const;
 
   /**
@@ -292,7 +292,7 @@ class D3D12CommandProcessor : public CommandProcessor {
      * and UAV. Holds the shared memory byte address buffer (SRV and UAV, either may be null) and,
      * if ROV is used for EDRAM, the EDRAM R32_UINT UAV.
      */
-    kRootParameter_Bindful_SharedMemoryAndEdram, /**< +1 = 9 in all. */
+    kRootParameter_Bindful_SharedMemoryAndEDRAM, /**< +1 = 9 in all. */
 
     kRootParameter_Bindful_Count_Base,
 
@@ -338,8 +338,8 @@ class D3D12CommandProcessor : public CommandProcessor {
    * @param indices_out Receives the indices.
    * @return The total parameter count.
    */
-  static u32 GetRootBindfulExtraParameterIndices(const DxbcShader* vertex_shader,
-                                                 const DxbcShader* pixel_shader,
+  static u32 GetRootBindfulExtraParameterIndices(const DXBCShader* vertex_shader,
+                                                 const DXBCShader* pixel_shader,
                                                  RootBindfulExtraParameterIndices& indices_out);
 
   /**
@@ -413,12 +413,12 @@ class D3D12CommandProcessor : public CommandProcessor {
                                        D3D12_CPU_DESCRIPTOR_HANDLE& cpu_handle_out,
                                        D3D12_GPU_DESCRIPTOR_HANDLE& gpu_handle_out);
 
-  void UpdateFixedFunctionState(const draw_util::ViewportInfo& viewport_info,
-                                const draw_util::Scissor& scissor, bool primitive_polygonal,
+  void UpdateFixedFunctionState(const draw_state::ViewportInfo& viewport_info,
+                                const draw_state::Scissor& scissor, bool primitive_polygonal,
                                 xenos::reg::RB_DEPTHCONTROL normalized_depth_control);
   void UpdateSystemConstantValues(bool shared_memory_is_uav, bool primitive_polygonal,
                                   u32 line_loop_closing_index, xenos::Endian index_endian,
-                                  const draw_util::ViewportInfo& viewport_info,
+                                  const draw_state::ViewportInfo& viewport_info,
                                   u32 used_texture_mask,
                                   xenos::reg::RB_DEPTHCONTROL normalized_depth_control,
                                   u32 normalized_color_mask);
@@ -458,10 +458,10 @@ class D3D12CommandProcessor : public CommandProcessor {
     }
     return rex::align(size, kReadbackBufferSizeIncrement);
   }
-  static u64 MakeReadbackResolveKey(u32 address, u32 length) {
+  static u64 BuildReadbackResolveKey(u32 address, u32 length) {
     return (static_cast<u64>(address) << 32) | static_cast<u64>(length);
   }
-  static u64 MakeMemexportReadbackKey(u32 first_base_address_dwords, u32 total_size) {
+  static u64 BuildMemexportReadbackKey(u32 first_base_address_dwords, u32 total_size) {
     return (static_cast<u64>(first_base_address_dwords) << 32) | static_cast<u64>(total_size);
   }
 
@@ -536,7 +536,7 @@ class D3D12CommandProcessor : public CommandProcessor {
     bool operator==(const ViewportCacheKey&) const = default;
   };
   ViewportCacheKey previous_viewport_key_{};
-  draw_util::ViewportInfo previous_viewport_info_{};
+  draw_state::ViewportInfo previous_viewport_info_{};
   bool viewport_cache_valid_ = false;
 
   /**
@@ -744,7 +744,7 @@ class D3D12CommandProcessor : public CommandProcessor {
   /** Bits of the root parameters that are up to date, reset when a new signature is bound. */
   u32 current_graphics_root_up_to_date_;
 
-  DxbcShaderTranslator::SystemConstants system_constants_;
+  DXBCShaderTranslator::SystemConstants system_constants_;
 
   /** Float constant usage masks of the last draw call. */
   u64 current_float_constant_map_vertex_[4];
@@ -807,7 +807,7 @@ class D3D12CommandProcessor : public CommandProcessor {
 
   D3D_PRIMITIVE_TOPOLOGY primitive_topology_;
 
-  std::vector<draw_util::MemExportRange> memexport_ranges_;
+  std::vector<draw_state::MemExportRange> memexport_ranges_;
 };
 
 }  // namespace rex::gpu::d3d12

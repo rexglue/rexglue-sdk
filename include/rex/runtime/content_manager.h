@@ -17,7 +17,7 @@
 
 #include <rex/macros.h>
 #include <rex/result.h>
-#include <rex/runtime/util/xdbf_utils.h>
+#include <rex/runtime/xdbf.h>
 #include <rex/runtime/xam/app_manager.h>
 #include <rex/runtime/xam/user_profile.h>
 #include <rex/runtime/xcontent.h>
@@ -43,7 +43,7 @@ class IContentManager {
    * @param title_id The title, 0xFFFFFFFF for the running title.
    * @return The content data of every package found.
    */
-  [[nodiscard]] virtual std::vector<xam::XCONTENT_AGGREGATE_DATA> ListContent(
+  [[nodiscard]] virtual std::vector<runtime::XCONTENT_AGGREGATE_DATA> ListContent(
       u32 device_id, u64 xuid, XContentType content_type, u32 title_id = 0xFFFFFFFF) = 0;
 
   /**
@@ -53,7 +53,8 @@ class IContentManager {
    * @param data The content data.
    * @return True when it exists.
    */
-  [[nodiscard]] virtual bool ContentExists(u64 xuid, const xam::XCONTENT_AGGREGATE_DATA& data) = 0;
+  [[nodiscard]] virtual bool ContentExists(u64 xuid,
+                                           const runtime::XCONTENT_AGGREGATE_DATA& data) = 0;
 
   /**
    * Creates a package and mounts it under a root name.
@@ -63,8 +64,8 @@ class IContentManager {
    * @param data The content data.
    * @return Ok, or X_ERROR_ALREADY_EXISTS or X_ERROR_ACCESS_DENIED.
    */
-  [[nodiscard]] virtual Result<void> CreateContent(std::string_view root_name, u64 xuid,
-                                                   const xam::XCONTENT_AGGREGATE_DATA& data) = 0;
+  [[nodiscard]] virtual Result<void> CreateContent(
+      std::string_view root_name, u64 xuid, const runtime::XCONTENT_AGGREGATE_DATA& data) = 0;
 
   /**
    * Opens an existing package and mounts it under a root name.
@@ -75,7 +76,7 @@ class IContentManager {
    * @return The license mask, or X_ERROR_ALREADY_EXISTS or X_ERROR_FILE_NOT_FOUND.
    */
   [[nodiscard]] virtual Result<u32> OpenContent(std::string_view root_name, u64 xuid,
-                                                const xam::XCONTENT_AGGREGATE_DATA& data) = 0;
+                                                const runtime::XCONTENT_AGGREGATE_DATA& data) = 0;
 
   /**
    * Unmounts the package under a root name and closes its open files.
@@ -93,7 +94,7 @@ class IContentManager {
    * @return The thumbnail bytes, or X_ERROR_FILE_NOT_FOUND.
    */
   [[nodiscard]] virtual Result<std::vector<u8>> GetContentThumbnail(
-      u64 xuid, const xam::XCONTENT_AGGREGATE_DATA& data) = 0;
+      u64 xuid, const runtime::XCONTENT_AGGREGATE_DATA& data) = 0;
 
   /**
    * Writes the thumbnail of a package.
@@ -103,9 +104,8 @@ class IContentManager {
    * @param buffer The thumbnail bytes.
    * @return Ok, or X_ERROR_FILE_NOT_FOUND.
    */
-  [[nodiscard]] virtual Result<void> SetContentThumbnail(u64 xuid,
-                                                         const xam::XCONTENT_AGGREGATE_DATA& data,
-                                                         std::vector<u8> buffer) = 0;
+  [[nodiscard]] virtual Result<void> SetContentThumbnail(
+      u64 xuid, const runtime::XCONTENT_AGGREGATE_DATA& data, std::vector<u8> buffer) = 0;
 
   /**
    * Deletes a package that is not open.
@@ -114,8 +114,8 @@ class IContentManager {
    * @param data The content data.
    * @return Ok, or X_ERROR_ACCESS_DENIED or X_ERROR_FILE_NOT_FOUND.
    */
-  [[nodiscard]] virtual Result<void> DeleteContent(u64 xuid,
-                                                   const xam::XCONTENT_AGGREGATE_DATA& data) = 0;
+  [[nodiscard]] virtual Result<void> DeleteContent(
+      u64 xuid, const runtime::XCONTENT_AGGREGATE_DATA& data) = 0;
 
   /**
    * Writes the header file of a package.
@@ -126,7 +126,7 @@ class IContentManager {
    * @return Ok, or X_ERROR_ACCESS_DENIED or X_ERROR_FILE_NOT_FOUND.
    */
   [[nodiscard]] virtual Result<void> WriteContentHeaderFile(u64 xuid,
-                                                            xam::XCONTENT_AGGREGATE_DATA data,
+                                                            runtime::XCONTENT_AGGREGATE_DATA data,
                                                             u32 license_mask = 0) = 0;
 
   /**
@@ -138,7 +138,7 @@ class IContentManager {
    * @param content_type The content type.
    * @return The content data, or X_ERROR_FILE_NOT_FOUND.
    */
-  [[nodiscard]] virtual Result<xam::XCONTENT_AGGREGATE_DATA> ReadContentHeaderFile(
+  [[nodiscard]] virtual Result<runtime::XCONTENT_AGGREGATE_DATA> ReadContentHeaderFile(
       std::string_view file_name, u64 xuid, u32 title_id, XContentType content_type) const = 0;
 
   /**
@@ -154,7 +154,7 @@ class IContentManager {
    * @param data The content data.
    * @return True when it is open.
    */
-  [[nodiscard]] virtual bool IsContentOpen(const xam::XCONTENT_AGGREGATE_DATA& data) const = 0;
+  [[nodiscard]] virtual bool IsContentOpen(const runtime::XCONTENT_AGGREGATE_DATA& data) const = 0;
 
   /**
    * Closes every open file under a root name.
@@ -171,7 +171,7 @@ class IContentManager {
    * @return The content data written to the header file, kExists when the package is open, or
    *         the Container::Open or Extract error.
    */
-  [[nodiscard]] virtual Result<xam::XCONTENT_AGGREGATE_DATA> InstallContent(
+  [[nodiscard]] virtual Result<runtime::XCONTENT_AGGREGATE_DATA> InstallContent(
       const std::filesystem::path& package_path) = 0;
 
   /**
@@ -186,21 +186,21 @@ class IContentManager {
    *
    * @return The data, invalid when the executable has no XDBF section.
    */
-  [[nodiscard]] virtual util::XDBFGameData title_xdbf() const = 0;
+  [[nodiscard]] virtual runtime::XDBFGameData title_xdbf() const = 0;
 
   /**
    * Returns the signed in profile.
    *
    * @return The profile.
    */
-  [[nodiscard]] virtual xam::UserProfile& user_profile() = 0;
+  [[nodiscard]] virtual runtime::UserProfile& user_profile() = 0;
 
   /**
    * Returns the Xam app manager.
    *
    * @return The app manager.
    */
-  [[nodiscard]] virtual xam::AppManager& app_manager() = 0;
+  [[nodiscard]] virtual runtime::AppManager& app_manager() = 0;
 };
 
 }  // namespace rex::runtime

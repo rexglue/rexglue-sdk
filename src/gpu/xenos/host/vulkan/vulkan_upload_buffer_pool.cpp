@@ -14,7 +14,7 @@
 #include <rex/logging.h>
 #include <rex/math.h>
 #include "gpu/xenos/host/vulkan/upload_buffer_pool.h"
-#include "gpu/xenos/host/vulkan/util.h"
+#include "gpu/xenos/host/vulkan/objects.h"
 
 namespace rex {
 namespace gpu {
@@ -82,8 +82,8 @@ std::unique_ptr<GraphicsUploadBufferPool::Page> VulkanUploadBufferPool::CreatePa
   if (memory_type_ == kMemoryTypeUnknown) {
     VkMemoryRequirements memory_requirements;
     dfn.vkGetBufferMemoryRequirements(device, buffer, &memory_requirements);
-    memory_type_ = util::ChooseHostMemoryType(vulkan_device_->memory_types(),
-                                              memory_requirements.memoryTypeBits, false);
+    memory_type_ = objects::ChooseHostMemoryType(vulkan_device_->memory_types(),
+                                                 memory_requirements.memoryTypeBits, false);
     if (memory_type_ == UINT32_MAX) {
       REXLOG_ERROR(ui,
                    "No host-visible memory types can store an Vulkan upload buffer with "
@@ -102,7 +102,7 @@ std::unique_ptr<GraphicsUploadBufferPool::Page> VulkanUploadBufferPool::CreatePa
           VK_SUCCESS) {
         VkMemoryRequirements memory_requirements_expanded;
         dfn.vkGetBufferMemoryRequirements(device, buffer_expanded, &memory_requirements_expanded);
-        u32 memory_type_expanded = util::ChooseHostMemoryType(
+        u32 memory_type_expanded = objects::ChooseHostMemoryType(
             vulkan_device_->memory_types(), memory_requirements.memoryTypeBits, false);
         if (memory_requirements_expanded.size <= allocation_size_ &&
             memory_type_expanded != UINT32_MAX) {
@@ -161,9 +161,9 @@ std::unique_ptr<GraphicsUploadBufferPool::Page> VulkanUploadBufferPool::CreatePa
 }
 
 void VulkanUploadBufferPool::FlushPageWrites(Page* page, size_t offset, size_t size) {
-  util::FlushMappedMemoryRange(vulkan_device_, static_cast<const VulkanPage*>(page)->memory_,
-                               memory_type_, VkDeviceSize(offset), allocation_size_,
-                               VkDeviceSize(size));
+  objects::FlushMappedMemoryRange(vulkan_device_, static_cast<const VulkanPage*>(page)->memory_,
+                                  memory_type_, VkDeviceSize(offset), allocation_size_,
+                                  VkDeviceSize(size));
 }
 
 VulkanUploadBufferPool::VulkanPage::~VulkanPage() {

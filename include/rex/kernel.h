@@ -14,13 +14,13 @@
 
 #include <rex/runtime/xio.h>
 
-#include <rex/runtime/xevent.h>
-#include <rex/runtime/xfile.h>
-#include <rex/runtime/xmutant.h>
-#include <rex/runtime/xobject.h>
-#include <rex/runtime/xsemaphore.h>
+#include <rex/runtime/event_object.h>
+#include <rex/runtime/file_object.h>
+#include <rex/runtime/mutant_object.h>
+#include <rex/runtime/object.h>
+#include <rex/runtime/semaphore_object.h>
 #include <rex/runtime/xthread.h>
-#include <rex/runtime/xtimer.h>
+#include <rex/runtime/timer_object.h>
 
 #include <rex/runtime/xmemory.h>
 

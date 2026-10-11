@@ -135,7 +135,7 @@ X_HANDLE CreateXboxkrnlModule(Runtime& runtime) {
       std::chrono::milliseconds(1),
       [timestamp_bundle]() { timestamp_bundle->tick_count = Clock::QueryGuestUptimeMillis(); });
 
-  auto kgg = runtime.GetKernelGuestGlobals();
+  auto kgg = runtime.kernel_globals();
   REX_ASSERT(kgg != 0);
   KernelModuleSetVariable(module, 0x001B, kgg + offsetof(KernelGuestGlobals, ExThreadObjectType));
   KernelModuleSetVariable(module, 0x000E, kgg + offsetof(KernelGuestGlobals, ExEventObjectType));

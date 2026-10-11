@@ -50,7 +50,7 @@ class ScopedTitleInputBlock : public rex::NonCopyable {
   ~ScopedTitleInputBlock() { hid_.ReleaseUIBlock(); }
 
  private:
-  rex::hid::IBackend& hid_;
+  rex::hid::IHIDBackend& hid_;
 };
 
 bool HasWindow() {
@@ -102,7 +102,7 @@ template <typename Close>
 X_RESULT XamDispatchPrompt(ui::PromptDesc desc, Close close, u32 overlapped) {
   auto pre = []() { runtime::Current().notifier().BroadcastNotification(0x9, true); };
   auto post = []() {
-    rex::runtime::ThreadRecord::Sleep(std::chrono::milliseconds(100));
+    rex::runtime::KernelThread::Sleep(std::chrono::milliseconds(100));
     runtime::Current().notifier().BroadcastNotification(0x9, false);
   };
   if constexpr (std::is_invocable_r_v<X_RESULT, Close&, const ui::PromptResult&, u32&, u32&>) {
@@ -143,7 +143,7 @@ X_RESULT XamDispatchHeadless(const std::function<X_RESULT()>& run_callback, u32 
     runtime::Current().notifier().BroadcastNotification(0x9, true);
   };
   auto post = []() {
-    rex::runtime::ThreadRecord::Sleep(std::chrono::milliseconds(100));
+    rex::runtime::KernelThread::Sleep(std::chrono::milliseconds(100));
     REXLOG_DEBUG(kernel, "XamDispatchHeadless: Broadcasting XN_SYS_UI = false");
     runtime::Current().notifier().BroadcastNotification(0x9, false);
   };

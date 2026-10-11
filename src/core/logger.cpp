@@ -43,18 +43,18 @@ std::string Lowercase(std::string_view text) {
   return out;
 }
 
-CapturedRecord Capture(const Record& record) {
-  return CapturedRecord{record.level,
-                        std::string(record.category),
-                        std::string(record.text),
-                        record.time,
-                        record.thread_id,
-                        record.sequence};
+CapturedMessage Capture(const Message& message) {
+  return CapturedMessage{message.level,
+                         std::string(message.category),
+                         std::string(message.text),
+                         message.time,
+                         message.thread_id,
+                         message.sequence};
 }
 
-Record View(const CapturedRecord& record) {
-  return Record{record.level, record.category,  record.text,
-                record.time,  record.thread_id, record.sequence};
+Message View(const CapturedMessage& message) {
+  return Message{message.level, message.category,  message.text,
+                 message.time,  message.thread_id, message.sequence};
 }
 
 }  // namespace
@@ -426,22 +426,22 @@ std::filesystem::path Logger::FilePath() const {
 }
 
 void Logger::Write(const Category& category, Level level, std::string_view text) {
-  const Record record{level,
-                      category.name(),
-                      text,
-                      std::chrono::system_clock::now(),
-                      platform::current_thread_system_id(),
-                      sequence_.fetch_add(1, std::memory_order_relaxed) + 1};
+  const Message message{level,
+                        category.name(),
+                        text,
+                        std::chrono::system_clock::now(),
+                        platform::current_thread_system_id(),
+                        sequence_.fetch_add(1, std::memory_order_relaxed) + 1};
   std::lock_guard lock(sinks_mutex_);
   const InSinks in_sinks;
   if (buffering_) {
-    if (bootstrap_.size() == kBootstrapRecords) {
+    if (bootstrap_.size() == kBootstrapMessages) {
       bootstrap_.pop_front();
     }
-    bootstrap_.push_back(Capture(record));
+    bootstrap_.push_back(Capture(message));
   }
   for (ISink* sink : sinks_) {
-    sink->Write(record);
+    sink->Write(message);
   }
   if (level >= flush_level_) {
     FlushLocked();
@@ -464,12 +464,12 @@ bool Logger::LockSinks(std::unique_lock<std::mutex>& lock, std::chrono::millisec
 
 bool Logger::TryWrite(const Category& category, Level level, std::string_view text,
                       std::chrono::milliseconds timeout) {
-  const Record record{level,
-                      category.name(),
-                      text,
-                      std::chrono::system_clock::now(),
-                      platform::current_thread_system_id(),
-                      sequence_.fetch_add(1, std::memory_order_relaxed) + 1};
+  const Message message{level,
+                        category.name(),
+                        text,
+                        std::chrono::system_clock::now(),
+                        platform::current_thread_system_id(),
+                        sequence_.fetch_add(1, std::memory_order_relaxed) + 1};
   std::unique_lock lock(sinks_mutex_, std::defer_lock);
   if (!LockSinks(lock, timeout)) {
     return false;
@@ -479,7 +479,7 @@ bool Logger::TryWrite(const Category& category, Level level, std::string_view te
     return false;
   }
   for (ISink* sink : sinks_) {
-    sink->Write(record);
+    sink->Write(message);
   }
   return !sinks_.empty();
 }
@@ -504,8 +504,8 @@ void Logger::OpenSinks(const LogConfig& config) {
   flush_level_ = config.flush_level;
   started_ = true;
   RebuildSinksLocked();
-  for (const CapturedRecord& record : bootstrap_) {
-    const Record view = View(record);
+  for (const CapturedMessage& message : bootstrap_) {
+    const Message view = View(message);
     for (ISink* sink : sinks_) {
       if (sink != debugger_.get() && !std::ranges::contains(consumer_sinks_, sink)) {
         sink->Write(view);
@@ -585,8 +585,8 @@ void Logger::OpenFile(const LogFileConfig& file, std::chrono::seconds interval) 
       if (auto opened = FileSink::Open(path, file.format)) {
         file_ = std::move(*opened);
         SetCrashFile(path);
-        for (const CapturedRecord& record : bootstrap_) {
-          file_->Write(View(record));
+        for (const CapturedMessage& message : bootstrap_) {
+          file_->Write(View(message));
         }
       } else {
         file_error = opened.error().message;

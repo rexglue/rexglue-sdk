@@ -142,7 +142,7 @@ class CountedDialog final : public rex::ui::ImGuiDialog {
 
 REX_TEST_CASE("A title window opens and Shutdown joins every thread", "[title_app]") {
   rex::platform::detail::ShutdownTimerQueue();
-  const rex::u64 before = rex::platform::detail::LiveCount();
+  const rex::u64 before = rex::platform::detail::ThreadCount();
   FooApp app;
   if (!Open(app)) {
     app.Shutdown();
@@ -152,7 +152,7 @@ REX_TEST_CASE("A title window opens and Shutdown joins every thread", "[title_ap
   rex::RequestShutdown(0);
   REQUIRE_FALSE(app.RunFrame());
   REQUIRE(app.Shutdown() == 0);
-  REQUIRE(rex::platform::detail::LiveCount() == before);
+  REQUIRE(rex::platform::detail::ThreadCount() == before);
 }
 
 REX_TEST_CASE("A consumed Close keeps the app running", "[title_app]") {
@@ -192,7 +192,7 @@ REX_TEST_CASE("InvokeFunction runs on the UI thread and fails after Shutdown", "
 }
 
 REX_TEST_CASE("LaunchTitle without a game directory fails", "[title_app]") {
-  const rex::u64 before = rex::platform::detail::LiveCount();
+  const rex::u64 before = rex::platform::detail::ThreadCount();
   FooApp app;
   if (!Open(app)) {
     app.Shutdown();
@@ -200,7 +200,7 @@ REX_TEST_CASE("LaunchTitle without a game directory fails", "[title_app]") {
   }
   REQUIRE_FALSE(app.LaunchTitle());
   REQUIRE(app.Shutdown() == 1);
-  REQUIRE(rex::platform::detail::LiveCount() == before);
+  REQUIRE(rex::platform::detail::ThreadCount() == before);
 }
 
 REX_TEST_CASE("Shutdown closes the window and reports Closing before OnShutdown", "[title_app]") {
@@ -446,12 +446,12 @@ REX_TEST_CASE("A pending UI function that throws at shutdown is logged", "[ui][a
       context.CallInUIThreadDeferred([&] { later_ran = true; });
     }).join();
   }
-  std::vector<rex::log::CapturedRecord> records;
-  sink.CopySince(0, records);
+  std::vector<rex::log::CapturedMessage> messages;
+  sink.CopySince(0, messages);
   logger->RemoveSink(sink);
   rex::Shutdown();
-  CHECK(std::ranges::any_of(records, [](const rex::log::CapturedRecord& record) {
-    return record.text == "teardown step failed, pending function failed";
+  CHECK(std::ranges::any_of(messages, [](const rex::log::CapturedMessage& message) {
+    return message.text == "teardown step failed, pending function failed";
   }));
   CHECK(later_ran);
 }

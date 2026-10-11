@@ -18,7 +18,8 @@ class NullStream final : public NodeStream {
     (void)buffer;
     (void)offset;
     if (!HasFlags(access_, Access::kReadData)) {
-      return Err<size_t>(MakeError(Error::kAccessDenied, "the file was opened without read"));
+      return Err<size_t>(
+          BuildError(FileSystemError::kAccessDenied, "the file was opened without read"));
     }
     return size_t{0};
   }
@@ -27,7 +28,8 @@ class NullStream final : public NodeStream {
     (void)buffer;
     (void)offset;
     if ((access_ & (Access::kWriteData | Access::kAppendData)) == Access::kNone) {
-      return Err<size_t>(MakeError(Error::kAccessDenied, "the file was opened without write"));
+      return Err<size_t>(
+          BuildError(FileSystemError::kAccessDenied, "the file was opened without write"));
     }
     return size_t{0};
   }
@@ -35,7 +37,7 @@ class NullStream final : public NodeStream {
   [[nodiscard]] Result<void> SetLength(u64 length) override {
     (void)length;
     if (!HasFlags(access_, Access::kWriteData)) {
-      return Err(MakeError(Error::kAccessDenied, "the file was opened without write"));
+      return Err(BuildError(FileSystemError::kAccessDenied, "the file was opened without write"));
     }
     return Ok();
   }
@@ -82,8 +84,9 @@ NullNode::NullNode(NullProvider& provider, Node* parent, std::string path)
 
 Result<std::unique_ptr<NodeStream>> NullNode::Open(Access access) {
   if (read_only() && (access & (Access::kWriteData | Access::kAppendData)) != Access::kNone) {
-    return Err<std::unique_ptr<NodeStream>>(MakeError(
-        Error::kAccessDenied, std::format("'{}' is on a read only mount", absolute_path_)));
+    return Err<std::unique_ptr<NodeStream>>(
+        BuildError(FileSystemError::kAccessDenied,
+                   std::format("'{}' is on a read only mount", absolute_path_)));
   }
   return std::unique_ptr<NodeStream>(std::make_unique<NullStream>(access));
 }

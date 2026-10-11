@@ -110,8 +110,6 @@ class REX_API DynamicLibrary : public rex::MoveOnly {
 REX_API std::span<const u8> FindImageSection(const void* image, std::string_view name);
 #endif
 
-namespace lib_names {
-
 #if REX_PLATFORM_WIN32
 
 /**
@@ -175,7 +173,5 @@ inline constexpr const char* kSPIRVToolsSDKPath = "lib/libSPIRV-Tools-shared.dyl
 #else
 #error No library names provided for the target platform.
 #endif
-
-}  // namespace lib_names
 
 }  // namespace rex::platform

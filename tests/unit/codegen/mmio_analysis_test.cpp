@@ -26,7 +26,7 @@
 #include <rex/codegen/codegen_writer.h>
 #include <rex/codegen/config.h>
 #include <rex/codegen/test_support.h>
-#include <rex/memory/utils.h>
+#include <rex/memory/byte_swap.h>
 #include <rex/mmio.h>
 
 #include "codegen/mmio_analysis.h"

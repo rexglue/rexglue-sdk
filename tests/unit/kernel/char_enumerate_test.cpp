@@ -14,9 +14,9 @@
 #include <cstring>
 
 #include <rex/runtime.h>
-#include <rex/runtime/xenumerator.h>
+#include <rex/runtime/enumerator_object.h>
 #include <rex/runtime/xmemory.h>
-#include <rex/runtime/xobject.h>
+#include <rex/runtime/object.h>
 #include <rex/runtime/xtypes.h>
 
 #include "kernel_fixture.h"
@@ -71,7 +71,7 @@ REX_TEST_CASE("enumerate: the aggregate message takes an item with a buffer size
         sizeof(rex::runtime::X_KENUMERATOR_CONTENT_AGGREGATE), &extra_buffer);
     REQUIRE(status == rex::X_STATUS_SUCCESS);
     auto* extra = static_cast<rex::runtime::X_KENUMERATOR_CONTENT_AGGREGATE*>(extra_buffer);
-    extra->magic = rex::runtime::kXObjSignature;
+    extra->magic = rex::runtime::kStashSignature;
     extra->handle = handle;
 
     const u32 buffer = c.Alloc(kItemSize);

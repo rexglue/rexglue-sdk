@@ -15,7 +15,7 @@
 #include <rex/hook.h>
 #include <rex/types.h>
 #include <rex/runtime.h>
-#include <rex/runtime/xevent.h>
+#include <rex/runtime/event_object.h>
 #include <rex/runtime/xio.h>
 #include <rex/runtime/xthread.h>
 #include <rex/runtime/xtypes.h>
@@ -24,7 +24,6 @@ namespace rex {
 namespace kernel {
 namespace xam {
 using namespace rex::runtime;
-using namespace rex::runtime::xam;
 
 u32 XMsgInProcessCall_entry(u32 app, u32 message, u32 arg1, u32 arg2) {
   auto result = runtime::Current().content_manager().app_manager().DispatchMessageSync(app, message,
@@ -57,14 +56,14 @@ X_HRESULT XMsgStartIORequestEx(u32 app, u32 message, u32 overlapped_ptr, u32 buf
   if (result == X_E_NOTFOUND) {
     REXLOG_ERROR(kernel, "XMsgStartIORequestEx: app {:08X} undefined", app);
     result = X_E_INVALIDARG;
-    ThreadRecord::SetLastError(X_ERROR_NOT_FOUND);
+    KernelThread::SetLastError(X_ERROR_NOT_FOUND);
   }
   if (overlapped_ptr) {
     runtime::Current().dispatcher().CompleteOverlappedImmediate(overlapped_ptr, result);
     result = X_ERROR_IO_PENDING;
   }
   if (result == X_ERROR_SUCCESS || result == X_ERROR_IO_PENDING) {
-    ThreadRecord::SetLastError(0);
+    KernelThread::SetLastError(0);
   }
   return result;
 }
@@ -85,7 +84,7 @@ u32 XMsgStartIORequest_entry(u32 app, u32 message, ppc_ptr_t<XAM_OVERLAPPED> ove
 u32 XMsgCancelIORequest_entry(ppc_ptr_t<XAM_OVERLAPPED> overlapped_ptr, u32 wait) {
   X_HANDLE event_handle = XOverlappedGetEvent(overlapped_ptr);
   if (event_handle && wait) {
-    WaitOn(runtime::Current(), event_handle, 0, 0, true, nullptr);
+    Wait(runtime::Current(), event_handle, 0, 0, true, nullptr);
   }
 
   return 0;
@@ -105,7 +104,7 @@ u32 XamGetOverlappedResult_entry(ppc_ptr_t<XAM_OVERLAPPED> overlapped_ptr, mappe
   if (result == X_ERROR_IO_PENDING && !overlapped->event) {
     result = X_ERROR_IO_INCOMPLETE;
   } else if (result == X_ERROR_IO_PENDING) {
-    result = WaitOn(runtime::Current(), overlapped->event, 3, 1, 0, nullptr);
+    result = Wait(runtime::Current(), overlapped->event, 3, 1, 0, nullptr);
     result = XSUCCEEDED(result) ? XOverlappedGetResult(overlapped)
                                 : xboxkrnl::RtlNtStatusToDosError(result);
   }

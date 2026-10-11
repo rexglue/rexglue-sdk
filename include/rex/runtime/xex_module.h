@@ -17,6 +17,7 @@
 
 #include <rex/filesystem/xex.h>
 #include <rex/macros.h>
+#include <rex/memory/fourcc.h>
 #include <rex/runtime/module.h>
 
 namespace rex {
@@ -44,8 +45,8 @@ class REX_RUNTIME_API XexModule : public Module {
    public:
     std::string name;                     /**< Library name. */
     u32 id;                               /**< Library id in the image. */
-    xe_xex2_version_t version;            /**< Version the image was linked against. */
-    xe_xex2_version_t min_version;        /**< Oldest version the image accepts. */
+    filesystem::XEXVersion version;       /**< Version the image was linked against. */
+    filesystem::XEXVersion min_version;   /**< Oldest version the image accepts. */
     std::vector<ImportLibraryFn> imports; /**< Imports in ordinal order. */
   };
 
@@ -78,7 +79,7 @@ class REX_RUNTIME_API XexModule : public Module {
    * @return The guest address, 0 when the image has none.
    */
   u32 entry_point() const override {
-    return image_.OptHeaderValue(XEX_HEADER_ENTRY_POINT).value_or(0);
+    return image_.OptHeaderValue(filesystem::XEX_HEADER_ENTRY_POINT).value_or(0);
   }
 
   u32 export_table_address() const override { return image_.security().export_table; }
@@ -160,7 +161,7 @@ class REX_RUNTIME_API XexModule : public Module {
    * @return True when the module flags mark a title.
    */
   bool is_executable() const override {
-    return (static_cast<u32>(image_.header().module_flags) & XEX_MODULE_TITLE) != 0;
+    return (static_cast<u32>(image_.header().module_flags) & filesystem::XEX_MODULE_TITLE) != 0;
   }
 
  private:

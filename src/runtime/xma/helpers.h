@@ -44,7 +44,7 @@ inline u8 GetPacketMetadata(const u8* packet) {
   return packet[2] & 0x7;
 }
 
-inline bool IsPacketXma2Type(const u8* packet) {
+inline bool IsPacketXMA2Type(const u8* packet) {
   return GetPacketMetadata(packet) == 1;
 }
 

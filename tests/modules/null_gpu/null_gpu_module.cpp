@@ -20,7 +20,7 @@
 
 #include "../test_module_common.h"
 
-REXMOD_TEST_SINK()
+REX_TEST_MODULE_SINK()
 
 namespace {
 
@@ -95,13 +95,14 @@ class NullPresenter final : public rex::gpu::IPresenter {
   std::multimap<size_t, rex::gpu::IOverlayLayer*> layers_;
 };
 
-class NullGPUModule final : public rex::IModule, public rex::gpu::IBackend {
+class NullGPUModule final : public rex::IModule, public rex::gpu::IGPUBackend {
  public:
   static void* GetModule() { return static_cast<rex::IModule*>(&Instance()); }
-  static void* GetBackend() { return static_cast<rex::gpu::IBackend*>(&Instance()); }
+  static void* GetBackend() { return static_cast<rex::gpu::IGPUBackend*>(&Instance()); }
   static constexpr std::array<rex::InterfaceEntry, 2> kInterfaces = {{
       {rex::IModule::kInterfaceName, rex::IModule::kInterfaceVersion, &GetModule},
-      {rex::gpu::IBackend::kInterfaceName, rex::gpu::IBackend::kInterfaceVersion, &GetBackend},
+      {rex::gpu::IGPUBackend::kInterfaceName, rex::gpu::IGPUBackend::kInterfaceVersion,
+       &GetBackend},
   }};
 
   const char* Name() const override { return kName; }

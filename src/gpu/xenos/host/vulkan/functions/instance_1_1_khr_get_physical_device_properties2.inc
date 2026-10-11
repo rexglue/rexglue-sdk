@@ -8,7 +8,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-REXVK_FUNCTION_PROMOTED(vkGetPhysicalDeviceFeatures2KHR, vkGetPhysicalDeviceFeatures2)
-REXVK_FUNCTION_PROMOTED(vkGetPhysicalDeviceMemoryProperties2KHR,
+REX_VK_FUNCTION_PROMOTED(vkGetPhysicalDeviceFeatures2KHR, vkGetPhysicalDeviceFeatures2)
+REX_VK_FUNCTION_PROMOTED(vkGetPhysicalDeviceMemoryProperties2KHR,
                         vkGetPhysicalDeviceMemoryProperties2)
-REXVK_FUNCTION_PROMOTED(vkGetPhysicalDeviceProperties2KHR, vkGetPhysicalDeviceProperties2)
+REX_VK_FUNCTION_PROMOTED(vkGetPhysicalDeviceProperties2KHR, vkGetPhysicalDeviceProperties2)

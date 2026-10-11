@@ -62,7 +62,7 @@ inline bool InBounds(std::span<const u8> bytes, u64 offset, u64 length) {
  * @return The error.
  */
 inline rex::Error Corrupt(std::string message) {
-  return MakeError(Error::kCorrupt, std::move(message));
+  return BuildError(FileSystemError::kCorrupt, std::move(message));
 }
 
 /**

@@ -17,10 +17,10 @@
 #include <rex/hook.h>
 #include <rex/types.h>
 #include <rex/runtime.h>
-#include <rex/runtime/util/string_utils.h>
-#include <rex/runtime/xevent.h>
-#include <rex/runtime/xobject.h>
-#include <rex/runtime/xsemaphore.h>
+#include <rex/runtime/kernel_string.h>
+#include <rex/runtime/event_object.h>
+#include <rex/runtime/object.h>
+#include <rex/runtime/semaphore_object.h>
 #include <rex/runtime/xthread.h>
 #include <rex/runtime/xtypes.h>
 #include "kernel/kernel_macros.h"
@@ -74,7 +74,7 @@ u32 ObOpenObjectByName_entry(mapped_void obj_attributes_ptr,
       obj_attributes_ptr.guest_address());
   REX_ASSERT(obj_attributes->name_ptr != 0);
   auto name =
-      util::TranslateAnsiStringAddress(runtime::Current().memory(), obj_attributes->name_ptr);
+      runtime::TranslateAnsiStringAddress(runtime::Current().memory(), obj_attributes->name_ptr);
 
   auto opened = runtime::Current().object_table().OpenByName(name);
   if (opened) {
@@ -86,7 +86,7 @@ u32 ObOpenObjectByName_entry(mapped_void obj_attributes_ptr,
 
 u32 ObOpenObjectByPointer_entry(mapped_void object_ptr, mapped_u32 out_handle_ptr) {
   auto& table = runtime::Current().object_table();
-  const X_HANDLE handle = table.ResolveGuestObject(object_ptr.guest_address(), -1).value_or(0);
+  const X_HANDLE handle = table.ResolveHandle(object_ptr.guest_address(), -1).value_or(0);
   auto object = table.Get(handle);
   if (!object) {
     return X_STATUS_UNSUCCESSFUL;
@@ -134,7 +134,7 @@ u32 ObReferenceObjectByHandle_entry(u32 handle, u32 object_type_ptr, mapped_u32 
   }
 
   if (object_type_ptr) {
-    u32 globals_base = runtime::Current().GetKernelGuestGlobals();
+    u32 globals_base = runtime::Current().kernel_globals();
     u32 expected_type = 0;
     switch (object.kind()) {
       case ObjectKind::Thread:
@@ -196,7 +196,7 @@ u32 ObDereferenceObject_entry(u32 native_ptr) {
   }
 
   auto& table = runtime::Current().object_table();
-  auto object = table.Get(table.ResolveGuestObject(native_ptr, -1).value_or(0));
+  auto object = table.Get(table.ResolveHandle(native_ptr, -1).value_or(0));
   if (object) {
     if (auto released = table.ReleasePrimary(object); !released) {
       REXLOG_WARN(kernel, "ObDereferenceObject: {:#x} not released, {}", native_ptr,
@@ -210,16 +210,16 @@ u32 ObDereferenceObject_entry(u32 native_ptr) {
 u32 ObCreateSymbolicLink_entry(ppc_ptr_t<X_ANSI_STRING> path_ptr,
                                ppc_ptr_t<X_ANSI_STRING> target_ptr) {
   auto path = rex::utf8_canonicalize_guest_path(
-      util::TranslateAnsiPath(runtime::Current().memory(), path_ptr));
+      runtime::TranslateAnsiPath(runtime::Current().memory(), path_ptr));
   auto target = rex::utf8_canonicalize_guest_path(
-      util::TranslateAnsiPath(runtime::Current().memory(), target_ptr));
+      runtime::TranslateAnsiPath(runtime::Current().memory(), target_ptr));
 
   if (rex::utf8_starts_with(path, u8"\\??\\")) {
     path = path.substr(4);
   }
 
   if (auto linked = runtime::Current().file_system()->Link(path, target);
-      !linked && filesystem::CodeOf(linked.error()) != filesystem::Error::kExists) {
+      !linked && filesystem::CodeOf(linked.error()) != filesystem::FileSystemError::kExists) {
     return X_STATUS_UNSUCCESSFUL;
   }
 
@@ -227,7 +227,7 @@ u32 ObCreateSymbolicLink_entry(ppc_ptr_t<X_ANSI_STRING> path_ptr,
 }
 
 u32 ObDeleteSymbolicLink_entry(ppc_ptr_t<X_ANSI_STRING> path_ptr) {
-  auto path = util::TranslateAnsiPath(runtime::Current().memory(), path_ptr);
+  auto path = runtime::TranslateAnsiPath(runtime::Current().memory(), path_ptr);
   if (!runtime::Current().file_system()->Unlink(path)) {
     return X_STATUS_UNSUCCESSFUL;
   }

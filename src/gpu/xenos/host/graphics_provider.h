@@ -30,7 +30,7 @@ class Window;
  */
 class GraphicsProvider : public rex::NonCopyable {
  public:
-  enum class GpuVendorID : u16 {
+  enum class GPUVendorID : u16 {
     kAMD = 0x1002,
     kApple = 0x106B,
     kArm = 0x13B5,
@@ -53,8 +53,8 @@ class GraphicsProvider : public rex::NonCopyable {
    * @return The new presenter.
    */
   virtual std::unique_ptr<Presenter> CreatePresenter(
-      Presenter::HostGpuLossCallback host_gpu_loss_callback =
-          Presenter::FatalErrorHostGpuLossCallback) = 0;
+      Presenter::HostGPULossCallback host_gpu_loss_callback =
+          Presenter::FatalErrorHostGPULossCallback) = 0;
 
   virtual std::unique_ptr<ImmediateDrawer> CreateImmediateDrawer() = 0;
 

@@ -199,7 +199,8 @@ REX_TEST_CASE("OpenExisting of a file another handle locks is kSharingViolation"
   auto handle = HostFile::OpenExisting(path, Access::kGenericRead);
   std::fclose(locked);
   REQUIRE_FALSE(handle);
-  CHECK(rex::filesystem::CodeOf(handle.error()) == rex::filesystem::Error::kSharingViolation);
+  CHECK(rex::filesystem::CodeOf(handle.error()) ==
+        rex::filesystem::FileSystemError::kSharingViolation);
 }
 #endif
 
@@ -207,5 +208,5 @@ REX_TEST_CASE("OpenExisting of a missing file is kNotFound", "[filesystem][host]
   TempFolder temp;
   auto handle = HostFile::OpenExisting(temp.path / "missing.bin", Access::kGenericRead);
   REQUIRE_FALSE(handle);
-  CHECK(rex::filesystem::CodeOf(handle.error()) == rex::filesystem::Error::kNotFound);
+  CHECK(rex::filesystem::CodeOf(handle.error()) == rex::filesystem::FileSystemError::kNotFound);
 }

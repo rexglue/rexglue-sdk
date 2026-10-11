@@ -18,7 +18,7 @@
 #include <rex/platform/file.h>
 #include <rex/platform/thread.h>
 #include <rex/runtime.h>
-#include <rex/runtime/xobject.h>
+#include <rex/runtime/object.h>
 #include <rex/runtime/xthread.h>
 #include <rex/string/utf8.h>
 #include <rex/system.h>
@@ -161,7 +161,7 @@ Result<void> TitleApp::CreateTitleWindow() {
   com_initialized_ = ::rex::detail::InitializeCOM();
   ::rex::detail::SetShutdownWake([ui = ui_] { ui->Quit(); });
 
-  gpu_ = api().Get<gpu::IBackend>();
+  gpu_ = api().Get<gpu::IGPUBackend>();
   if (gpu_) {
     if (auto presented = gpu_->SetupPresentation(*this); !presented) {
       return LaunchFailure(
@@ -246,7 +246,7 @@ Result<void> TitleApp::LaunchTitle() {
 
   runtime_ = std::make_unique<Runtime>(api().config());
 
-  RuntimeConfig runtime_config;
+  RuntimeDesc runtime_config;
   runtime_config.kernel_init = kernel::InitializeKernel;
   runtime_config.gpu = gpu_;
   runtime_config.file_system = api().Get<filesystem::IFileSystem>();
@@ -296,7 +296,7 @@ Result<void> TitleApp::LaunchTitle() {
   });
   runtime_->thread_registry().FindByHandle(main_thread)->Resume();
   title_monitor_ = platform::Spawn("Title Monitor", [this, main_thread](const std::stop_token&) {
-    runtime::WaitOn(*runtime_, main_thread, 0, 0, 0, nullptr);
+    runtime::Wait(*runtime_, main_thread, 0, 0, 0, nullptr);
     runtime::CloseOwned(runtime_->object_table(), main_thread);
     runtime_->ReportTitleExit(runtime::TitleExitReason::NormalExit);
   });

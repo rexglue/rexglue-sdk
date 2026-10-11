@@ -43,9 +43,9 @@
  * logger->Register(rex::log::kGPULog);
  * @endcode
  */
-#define REXLOG_TABLE(table, ...)                                            \
-  namespace rex::log {                                                      \
-  inline constexpr auto table = ::rex::log::detail::MakeTable(__VA_ARGS__); \
+#define REXLOG_TABLE(table, ...)                                             \
+  namespace rex::log {                                                       \
+  inline constexpr auto table = ::rex::log::detail::BuildTable(__VA_ARGS__); \
   }
 
 /**

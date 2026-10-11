@@ -235,7 +235,7 @@ class ConsoleModel : public NonCopyable {
   std::filesystem::path history_path_;
   std::deque<ConsoleLine> lines_;
   std::deque<std::string> history_;
-  std::vector<log::CapturedRecord> poll_buffer_;
+  std::vector<log::CapturedMessage> poll_buffer_;
   std::set<std::string, std::less<>> categories_;
   std::set<std::string, std::less<>> hidden_;
   std::string input_;

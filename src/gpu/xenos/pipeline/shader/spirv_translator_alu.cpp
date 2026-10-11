@@ -22,7 +22,7 @@
 
 namespace rex::gpu {
 
-spv::Id SpirvShaderTranslator::ZeroIfAnyOperandIsZero(spv::Id value, spv::Id operand_0_abs,
+spv::Id SPIRVShaderTranslator::ZeroIfAnyOperandIsZero(spv::Id value, spv::Id operand_0_abs,
                                                       spv::Id operand_1_abs) {
   EnsureBuildPointAvailable();
   int num_components = builder_->getNumComponents(value);
@@ -38,9 +38,9 @@ spv::Id SpirvShaderTranslator::ZeroIfAnyOperandIsZero(spv::Id value, spv::Id ope
       const_float_vectors_0_[num_components - 1], value);
 }
 
-void SpirvShaderTranslator::KillPixel(spv::Id condition,
+void SPIRVShaderTranslator::KillPixel(spv::Id condition,
                                       u8 memexport_eM_potentially_written_before) {
-  SpirvBuilder::IfBuilder kill_if(condition, spv::SelectionControlMaskNone, *builder_);
+  SPIRVBuilder::IfBuilder kill_if(condition, spv::SelectionControlMaskNone, *builder_);
   {
     ExportToMemory(memexport_eM_potentially_written_before);
     if (var_main_kill_pixel_ != spv::NoResult) {
@@ -53,7 +53,7 @@ void SpirvShaderTranslator::KillPixel(spv::Id condition,
   kill_if.makeEndIf();
 }
 
-void SpirvShaderTranslator::ProcessAluInstruction(const ParsedAluInstruction& instr,
+void SPIRVShaderTranslator::ProcessAluInstruction(const ParsedAluInstruction& instr,
                                                   u8 memexport_eM_potentially_written_before) {
   if (instr.IsNop()) {
     return;
@@ -88,7 +88,7 @@ void SpirvShaderTranslator::ProcessAluInstruction(const ParsedAluInstruction& in
   }
 }
 
-spv::Id SpirvShaderTranslator::ProcessVectorAluOperation(const ParsedAluInstruction& instr,
+spv::Id SPIRVShaderTranslator::ProcessVectorAluOperation(const ParsedAluInstruction& instr,
                                                          u8 memexport_eM_potentially_written_before,
                                                          bool& predicate_written) {
   predicate_written = false;
@@ -459,7 +459,7 @@ spv::Id SpirvShaderTranslator::ProcessVectorAluOperation(const ParsedAluInstruct
 
       spv::Id ma_z_result[4] = {}, ma_yx_result[4] = {};
 
-      SpirvBuilder::IfBuilder ma_z_if(
+      SPIRVBuilder::IfBuilder ma_z_if(
           builder_->createBinOp(spv::OpLogicalAnd, type_bool_,
                                 builder_->createBinOp(spv::OpFOrdGreaterThanEqual, type_bool_,
                                                       operand_abs[2], operand_abs[0]),
@@ -487,7 +487,7 @@ spv::Id SpirvShaderTranslator::ProcessVectorAluOperation(const ParsedAluInstruct
       {
         spv::Id ma_y_result[4] = {}, ma_x_result[4] = {};
 
-        SpirvBuilder::IfBuilder ma_y_if(
+        SPIRVBuilder::IfBuilder ma_y_if(
             builder_->createBinOp(spv::OpFOrdGreaterThanEqual, type_bool_, operand_abs[1],
                                   operand_abs[0]),
             spv::SelectionControlMaskNone, *builder_);
@@ -695,7 +695,7 @@ spv::Id SpirvShaderTranslator::ProcessVectorAluOperation(const ParsedAluInstruct
   return spv::NoResult;
 }
 
-spv::Id SpirvShaderTranslator::ProcessScalarAluOperation(const ParsedAluInstruction& instr,
+spv::Id SPIRVShaderTranslator::ProcessScalarAluOperation(const ParsedAluInstruction& instr,
                                                          u8 memexport_eM_potentially_written_before,
                                                          bool& predicate_written) {
   predicate_written = false;
@@ -824,7 +824,7 @@ spv::Id SpirvShaderTranslator::ProcessScalarAluOperation(const ParsedAluInstruct
       condition = builder_->createBinOp(
           spv::OpLogicalAnd, type_bool_, condition,
           builder_->createBinOp(spv::OpFOrdGreaterThan, type_bool_, b, const_float_0_));
-      SpirvBuilder::IfBuilder multiply_if(condition, spv::SelectionControlMaskNone, *builder_);
+      SPIRVBuilder::IfBuilder multiply_if(condition, spv::SelectionControlMaskNone, *builder_);
       spv::Id product;
       {
         spv::Id a =

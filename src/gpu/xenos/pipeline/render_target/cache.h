@@ -26,8 +26,8 @@
 #include "gpu/xenos/pipeline/shader/shader.h"
 #include <rex/xenos/register_file.h>
 #include <rex/xenos/registers.h>
-#include "gpu/xenos/util/draw.h"
-#include "gpu/xenos/util/draw_extent_estimator.h"
+#include "gpu/xenos/draw_state.h"
+#include "gpu/xenos/draw_extent_estimator.h"
 #include <rex/xenos/xenos.h>
 #include <rex/types.h>
 
@@ -522,7 +522,7 @@ class RenderTargetCache {
 
   /**
    * Returns mappings between ranges within the tile rectangle (not the render target texture
-   * rectangle, as textures may have any pitch) from ResolveInfo::GetCopyEdramTileSpan and the
+   * rectangle, as textures may have any pitch) from ResolveInfo::GetCopyEDRAMTileSpan and the
    * render targets owning them.
    *
    * @param base First tile.
@@ -539,7 +539,7 @@ class RenderTargetCache {
 
   /**
    * Sets up the render targets and transfers needed to clear in a resolve operation through a host
-   * render target clear. resolve_info is expected to come from draw_util::GetResolveInfo.
+   * render target clear. resolve_info is expected to come from draw_state::GetResolveInfo.
    *
    * @param resolve_info Resolve information.
    * @param clear_rectangle_out Receives the area to clear.
@@ -549,7 +549,7 @@ class RenderTargetCache {
    * @param color_transfers_out Receives the transfers needed for the color render target.
    * @return True when any clears need to be done (false when there are none and on error).
    */
-  bool PrepareHostRenderTargetsResolveClear(const draw_util::ResolveInfo& resolve_info,
+  bool PrepareHostRenderTargetsResolveClear(const draw_state::ResolveInfo& resolve_info,
                                             Transfer::Rectangle& clear_rectangle_out,
                                             RenderTarget*& depth_render_target_out,
                                             std::vector<Transfer>& depth_transfers_out,
@@ -560,7 +560,7 @@ class RenderTargetCache {
 
   /** Called by the implementation when interlocked writes to all of the EDRAM are committed with a
    * memory barrier. */
-  void PixelShaderInterlockFullEdramBarrierPlaced();
+  void PixelShaderInterlockFullEDRAMBarrierPlaced();
 
  private:
   const xenos::RegisterFile& register_file_;

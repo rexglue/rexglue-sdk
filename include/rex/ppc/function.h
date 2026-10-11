@@ -584,8 +584,8 @@ inline void stack_bounds_check(PPCContext& ctx, u8* base, u32 new_r1) {
   }
   const u32 stack_base = *rex::runtime::GuestPtr<be_u32*>(base, ctx.r13.u32 + 0x70);
   if (ctx.r1.u32 > limit && ctx.r1.u32 <= stack_base) {
-    REX_FATAL_IF(cpu, new_r1 > limit, "PPC stack overflow: r1 ({:#x}) below stack_end_ptr ({:#x})",
-                 new_r1, limit);
+    REX_CHECK(cpu, new_r1 > limit, "PPC stack overflow: r1 ({:#x}) below stack_end_ptr ({:#x})",
+              new_r1, limit);
   }
 }
 
@@ -601,8 +601,7 @@ inline void stack_bounds_check(PPCContext& ctx, u8* base, u32 new_r1) {
  */
 inline u32 FrameBelow(PPCContext& ctx, u8* base, u32 size) {
   const u32 r1 = ctx.r1.u32;
-  REX_FATAL_IF(cpu, size <= r1, "PPC stack underflow: r1 ({:#x}) below a {:#x} byte frame", r1,
-               size);
+  REX_CHECK(cpu, size <= r1, "PPC stack underflow: r1 ({:#x}) below a {:#x} byte frame", r1, size);
   const u32 new_r1 = (r1 - size) & ~0xFu;
   if (base) {
     stack_bounds_check(ctx, base, new_r1);

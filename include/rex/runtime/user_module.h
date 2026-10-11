@@ -16,7 +16,7 @@
 #include <rex/filesystem/xex_types.h>
 #include <rex/macros.h>
 #include <rex/runtime/xex_module.h>
-#include <rex/runtime/xmodule.h>
+#include <rex/runtime/module_object.h>
 #include <rex/runtime/xtypes.h>
 
 namespace rex {
@@ -26,7 +26,7 @@ class Runtime;
 namespace rex::runtime {
 
 /**
- * Creates the `ObjectRecord` of a user module with its first handle.
+ * Creates the `KernelObject` of a user module with its first handle.
  *
  * @param runtime The runtime the call runs in.
  * @return The handle with a count of 1, 0 when the table cannot grow.
@@ -89,7 +89,7 @@ REX_RUNTIME_API X_STATUS UserModuleUnload(ModuleObject& module);
  * @param out_ptr Receives the header value or a pointer to its data.
  * @return X_STATUS_SUCCESS, X_STATUS_NOT_FOUND, or X_STATUS_UNSUCCESSFUL for an ELF.
  */
-REX_RUNTIME_API X_STATUS UserModuleGetOptHeader(ModuleObject& module, xex2_header_keys key,
+REX_RUNTIME_API X_STATUS UserModuleGetOptHeader(ModuleObject& module, filesystem::XEXHeaderKey key,
                                                 void** out_ptr);
 
 /**
@@ -102,7 +102,7 @@ REX_RUNTIME_API X_STATUS UserModuleGetOptHeader(ModuleObject& module, xex2_heade
  * @return X_STATUS_SUCCESS, X_STATUS_NOT_FOUND, or X_STATUS_UNSUCCESSFUL for an ELF.
  */
 template <typename T>
-X_STATUS UserModuleGetOptHeader(ModuleObject& module, xex2_header_keys key, T* out_ptr) {
+X_STATUS UserModuleGetOptHeader(ModuleObject& module, filesystem::XEXHeaderKey key, T* out_ptr) {
   return UserModuleGetOptHeader(module, key, reinterpret_cast<void**>(out_ptr));
 }
 
@@ -114,7 +114,7 @@ X_STATUS UserModuleGetOptHeader(ModuleObject& module, xex2_header_keys key, T* o
  * @param out_header_guest_ptr Receives the header value or the guest address of its data.
  * @return X_STATUS_SUCCESS, X_STATUS_NOT_FOUND, or X_STATUS_UNSUCCESSFUL for an ELF.
  */
-REX_RUNTIME_API X_STATUS UserModuleGetOptHeader(ModuleObject& module, xex2_header_keys key,
+REX_RUNTIME_API X_STATUS UserModuleGetOptHeader(ModuleObject& module, filesystem::XEXHeaderKey key,
                                                 u32* out_header_guest_ptr);
 
 /**
@@ -128,7 +128,8 @@ REX_RUNTIME_API X_STATUS UserModuleGetOptHeader(ModuleObject& module, xex2_heade
  * @return X_STATUS_SUCCESS, or X_STATUS_NOT_FOUND.
  */
 REX_RUNTIME_API X_STATUS UserModuleGetOptHeader(const runtime::Memory* memory,
-                                                const xex2_header* header, xex2_header_keys key,
+                                                const filesystem::XEXHeader* header,
+                                                filesystem::XEXHeaderKey key,
                                                 u32* out_header_guest_ptr);
 
 }  // namespace rex::runtime

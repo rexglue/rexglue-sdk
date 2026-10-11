@@ -30,13 +30,13 @@
 #include <rex/runtime/object_table.h>
 #include <rex/runtime/user_module.h>
 #include <rex/runtime/xam/content_device.h>
-#include <rex/runtime/xfile.h>
-#include <rex/runtime/xmodule.h>
-#include <rex/runtime/xobject.h>
+#include <rex/runtime/file_object.h>
+#include <rex/runtime/module_object.h>
+#include <rex/runtime/object.h>
 
 #include "runtime/xam/content_manager.h"
 
-namespace rex::runtime::xam {
+namespace rex::runtime {
 
 namespace {
 
@@ -100,14 +100,6 @@ void ContentPackage::LoadPackageLicenseMask(const std::filesystem::path& header_
   file.read(reinterpret_cast<char*>(&license_), sizeof(license_));
 }
 
-}  // namespace rex::runtime::xam
-
-namespace rex::runtime {
-
-using xam::ContentPackage;
-using xam::kCurrentlyRunningTitleId;
-using xam::XCONTENT_AGGREGATE_DATA;
-
 namespace {
 
 constexpr std::string_view kThumbnailFileName = "__thumbnail.png";
@@ -119,7 +111,7 @@ constexpr std::string_view kGameContentHeaderDirName = "Headers";
 }  // namespace
 
 ContentManager::ContentManager(Runtime& runtime, const std::filesystem::path& root_path,
-                               xam::AppManager& app_manager, xam::UserProfile& user_profile)
+                               runtime::AppManager& app_manager, runtime::UserProfile& user_profile)
     : runtime_(runtime),
       root_path_(root_path),
       app_manager_(app_manager),
@@ -445,7 +437,7 @@ void ContentManager::CloseOpenedFilesFromContent(const std::string_view root_nam
   const auto is_separator = [](char c) { return c == '\\' || c == '/'; };
   const std::string_view root = *resolved_path;
   const std::vector<Pinned<FileObject>> all_files_handles =
-      runtime_.object_table().GetAll<FileObject>();
+      runtime_.object_table().All<FileObject>();
   for (const Pinned<FileObject>& file : all_files_handles) {
     const std::string file_path = file->file->Info().absolute_path;
     if (!rex::utf8_starts_with(file_path, root)) {
@@ -463,14 +455,15 @@ Result<XCONTENT_AGGREGATE_DATA> ContentManager::InstallContent(
   REX_TRY(filesystem::Container container, filesystem::Container::Open(package_path));
   const filesystem::STFSHeader* header = container.header();
   if (!header) {
-    return Err<XCONTENT_AGGREGATE_DATA>(filesystem::MakeError(
-        filesystem::Error::kCorrupt, std::format("'{}' is a disc image, not a content package",
-                                                 rex::path_to_utf8(package_path))));
+    return Err<XCONTENT_AGGREGATE_DATA>(
+        filesystem::BuildError(filesystem::FileSystemError::kCorrupt,
+                               std::format("'{}' is a disc image, not a content package",
+                                           rex::path_to_utf8(package_path))));
   }
   const auto& metadata = header->metadata;
 
   XCONTENT_AGGREGATE_DATA content_data;
-  content_data.device_id = std::to_underlying(xam::DummyDeviceId::HDD);
+  content_data.device_id = std::to_underlying(runtime::DummyDeviceId::HDD);
   content_data.content_type = metadata.content_type;
   content_data.title_id = metadata.execution_info.title_id;
   content_data.xuid = 0;
@@ -483,8 +476,8 @@ Result<XCONTENT_AGGREGATE_DATA> ContentManager::InstallContent(
 
   std::lock_guard lock(mutex_);
   if (IsContentOpen(content_data)) {
-    return Err<XCONTENT_AGGREGATE_DATA>(filesystem::MakeError(
-        filesystem::Error::kExists,
+    return Err<XCONTENT_AGGREGATE_DATA>(filesystem::BuildError(
+        filesystem::FileSystemError::kExists,
         std::format("'{}' is open", rex::path_to_utf8(package_path.filename()))));
   }
 
@@ -497,8 +490,8 @@ Result<XCONTENT_AGGREGATE_DATA> ContentManager::InstallContent(
   std::filesystem::rename(staging, install_path, ec);
   if (ec) {
     std::filesystem::remove_all(staging, ec);
-    return Err<XCONTENT_AGGREGATE_DATA>(filesystem::MakeError(
-        filesystem::Error::kIO,
+    return Err<XCONTENT_AGGREGATE_DATA>(filesystem::BuildError(
+        filesystem::FileSystemError::kIO,
         std::format("cannot move the package into '{}'", rex::path_to_utf8(install_path))));
   }
 
@@ -516,8 +509,8 @@ Result<XCONTENT_AGGREGATE_DATA> ContentManager::InstallContent(
     }
   }
   if (!WriteContentHeaderFile(0, content_data, license_mask)) {
-    return Err<XCONTENT_AGGREGATE_DATA>(filesystem::MakeError(
-        filesystem::Error::kIO,
+    return Err<XCONTENT_AGGREGATE_DATA>(filesystem::BuildError(
+        filesystem::FileSystemError::kIO,
         std::format("cannot write the header file of '{}'", rex::path_to_utf8(install_path))));
   }
   return content_data;
@@ -528,8 +521,8 @@ u32 ContentManager::title_id() const {
       runtime_.module_registry().executable().value_or(0));
   REX_ASSERT(module);
 
-  xex2_opt_execution_info* exec_info = 0;
-  UserModuleGetOptHeader(*module, XEX_HEADER_EXECUTION_INFO, &exec_info);
+  filesystem::XEXOptExecutionInfo* exec_info = 0;
+  UserModuleGetOptHeader(*module, filesystem::XEX_HEADER_EXECUTION_INFO, &exec_info);
 
   if (exec_info) {
     return exec_info->title_id;
@@ -538,23 +531,23 @@ u32 ContentManager::title_id() const {
   return 0;
 }
 
-util::XDBFGameData ContentManager::title_xdbf() const {
+runtime::XDBFGameData ContentManager::title_xdbf() const {
   auto module = runtime_.object_table().Get<ModuleObject>(
       runtime_.module_registry().executable().value_or(0));
   REX_ASSERT(module);
   return module_xdbf(*module);
 }
 
-util::XDBFGameData ContentManager::module_xdbf(const ModuleObject& exec_module) const {
+runtime::XDBFGameData ContentManager::module_xdbf(const ModuleObject& exec_module) const {
   u32 resource_data = 0;
   u32 resource_size = 0;
   if (XSUCCEEDED(ModuleGetSection(exec_module,
                                   std::format("{:08X}", UserModuleTitleID(exec_module)),
                                   &resource_data, &resource_size))) {
-    util::XDBFGameData db(runtime_.memory()->TranslateVirtual(resource_data), resource_size);
+    runtime::XDBFGameData db(runtime_.memory()->TranslateVirtual(resource_data), resource_size);
     return db;
   }
-  return util::XDBFGameData(nullptr, resource_size);
+  return runtime::XDBFGameData(nullptr, resource_size);
 }
 
 }  // namespace rex::runtime

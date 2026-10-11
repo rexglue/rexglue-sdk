@@ -52,16 +52,16 @@ namespace rex {
 struct Config;
 
 namespace apu {
-class NullBackend;
+class NullAPUBackend;
 }  // namespace apu
 
 namespace hid {
-class IBackend;
-class NullBackend;
+class IHIDBackend;
+class NullHIDBackend;
 }  // namespace hid
 
 namespace gpu {
-class IBackend;
+class IGPUBackend;
 }  // namespace gpu
 
 namespace runtime {
@@ -76,19 +76,17 @@ class ContentManager;
 class AchievementManager;
 class Dispatcher;
 class WorkspaceHeap;
-namespace xam {
 class AppManager;
 class UserProfile;
-}  // namespace xam
 
 /** The display mode the title queries through VdQueryVideoMode and XGetVideoMode. */
 using VideoMode = ui::VideoMode;
 }  // namespace runtime
 
 /** The subsystems Runtime::Setup builds the runtime over. */
-struct RuntimeConfig {
+struct RuntimeDesc {
   /** The GPU backend, owned by its module. Null runs on the runtime's null GPU. */
-  gpu::IBackend* gpu = nullptr;
+  gpu::IGPUBackend* gpu = nullptr;
   /** The mount table. Required, Setup fails without it. */
   filesystem::IFileSystem* file_system = nullptr;
   /** Registers the Xam apps and the kernel modules. Setup fails with its error. */
@@ -141,7 +139,7 @@ class REX_RUNTIME_API Runtime : public rex::NonCopyable {
    *
    * @return The backend, null in tool mode.
    */
-  gpu::IBackend* gpu() const { return gpu_; }
+  gpu::IGPUBackend* gpu() const { return gpu_; }
 
   /**
    * Returns the APU the XAudio and XMA exports reach.
@@ -165,7 +163,7 @@ class REX_RUNTIME_API Runtime : public rex::NonCopyable {
   bool audio_paused() const;
 
   /**
-   * Returns the display mode Setup took from RuntimeConfig.
+   * Returns the display mode Setup took from RuntimeDesc.
    *
    * @return The video mode.
    */
@@ -177,7 +175,7 @@ class REX_RUNTIME_API Runtime : public rex::NonCopyable {
    *
    * @return The backend. Valid between Setup and Shutdown.
    */
-  hid::IBackend& hid() const { return *hid_; }
+  hid::IHIDBackend& hid() const { return *hid_; }
 
   /**
    * Returns the function dispatcher that runs guest functions and interrupts.
@@ -253,7 +251,7 @@ class REX_RUNTIME_API Runtime : public rex::NonCopyable {
    * @param config The subsystems to create. tool_mode skips the GPU.
    * @return Ok, or a Runtime error whose code is the status of the step that failed.
    */
-  [[nodiscard]] Result<void> Setup(const RuntimeConfig& config = {});
+  [[nodiscard]] Result<void> Setup(const RuntimeDesc& config = {});
 
   /**
    * Builds the runtime and the function dispatch table of a recompiled image.
@@ -262,8 +260,7 @@ class REX_RUNTIME_API Runtime : public rex::NonCopyable {
    * @param config The subsystems to create.
    * @return Ok, or a Runtime error whose code is the status of the step that failed.
    */
-  [[nodiscard]] Result<void> Setup(const PPCImageInfo& image_info,
-                                   const RuntimeConfig& config = {});
+  [[nodiscard]] Result<void> Setup(const PPCImageInfo& image_info, const RuntimeDesc& config = {});
 
   /**
    * Returns the codegen flags of the recompiled image.
@@ -376,14 +373,14 @@ class REX_RUNTIME_API Runtime : public rex::NonCopyable {
    *
    * @return The address.
    */
-  u32 GetKernelGuestGlobals() const { return kernel_guest_globals_; }
+  u32 kernel_globals() const { return kernel_guest_globals_; }
 
   /**
    * Returns the guest address of the title process block.
    *
    * @return The address.
    */
-  u32 GetTitleProcess() const {
+  u32 title_process() const {
     return kernel_guest_globals_ + offsetof(runtime::KernelGuestGlobals, title_process);
   }
 
@@ -392,7 +389,7 @@ class REX_RUNTIME_API Runtime : public rex::NonCopyable {
    *
    * @return The address.
    */
-  u32 GetSystemProcess() const {
+  u32 system_process() const {
     return kernel_guest_globals_ + offsetof(runtime::KernelGuestGlobals, system_process);
   }
 
@@ -401,7 +398,7 @@ class REX_RUNTIME_API Runtime : public rex::NonCopyable {
    *
    * @return The address.
    */
-  u32 process_info_block_address() const { return kernel_guest_globals_ ? GetTitleProcess() : 0; }
+  u32 process_info_block_address() const { return kernel_guest_globals_ ? title_process() : 0; }
 
   /**
    * Sets the process type of the title process block.
@@ -459,8 +456,8 @@ class REX_RUNTIME_API Runtime : public rex::NonCopyable {
   void RemoveTitleTerminateNotification(u32 registration);
 
  private:
-  void CreateConcerns();
-  void DestroyConcerns();
+  void CreateSubsystems();
+  void DestroySubsystems();
 
   /**
    * Stops every guest thread except the caller and waits for them.
@@ -500,8 +497,8 @@ class REX_RUNTIME_API Runtime : public rex::NonCopyable {
   std::unique_ptr<runtime::Memory> memory_;
   std::unique_ptr<runtime::FunctionDispatcher> function_dispatcher_;
   filesystem::IFileSystem* file_system_ = nullptr;
-  std::unique_ptr<runtime::xam::AppManager> app_manager_;
-  std::unique_ptr<runtime::xam::UserProfile> user_profile_;
+  std::unique_ptr<runtime::AppManager> app_manager_;
+  std::unique_ptr<runtime::UserProfile> user_profile_;
   std::unique_ptr<runtime::ObjectTable> object_table_;
   std::unique_ptr<runtime::ThreadRegistry> thread_registry_;
   std::unique_ptr<runtime::ModuleRegistry> module_registry_;
@@ -515,12 +512,12 @@ class REX_RUNTIME_API Runtime : public rex::NonCopyable {
   std::atomic<bool> terminate_claimed_{false};
   rex::platform::RankedMutex terminate_mutex_{rex::platform::LockRank::Leaf};
   std::vector<u32> terminate_registrations_;
-  gpu::IBackend* gpu_ = nullptr;
+  gpu::IGPUBackend* gpu_ = nullptr;
   std::unique_ptr<runtime::NullGPU> null_gpu_;
-  std::unique_ptr<apu::NullBackend> null_apu_;
+  std::unique_ptr<apu::NullAPUBackend> null_apu_;
   std::unique_ptr<runtime::APU> apu_;
-  std::unique_ptr<hid::NullBackend> null_hid_;
-  hid::IBackend* hid_ = nullptr;
+  std::unique_ptr<hid::NullHIDBackend> null_hid_;
+  hid::IHIDBackend* hid_ = nullptr;
 };
 
 }  // namespace rex

@@ -19,7 +19,7 @@
 namespace rex::hid {
 
 /** HID error codes, stored in rex::Error::code. */
-enum class Error : u8 {
+enum class HIDError : u8 {
   NotConnected = 1, /**< No device answers for the user. */
   Empty = 2,        /**< The device has no keystroke queued. */
   BadArguments = 3, /**< The request is malformed. */
@@ -33,18 +33,18 @@ enum class Error : u8 {
  * @param message Human readable detail.
  * @return The error, in category Platform.
  */
-[[nodiscard]] inline rex::Error MakeError(Error code, std::string message) {
+[[nodiscard]] inline rex::Error BuildError(HIDError code, std::string message) {
   return {ErrorCategory::Platform, std::move(message), static_cast<int>(code)};
 }
 
 /**
  * Returns the HID code of an error.
  *
- * @param error An error built by MakeError.
+ * @param error An error built by BuildError.
  * @return The code.
  */
-[[nodiscard]] inline Error CodeOf(const rex::Error& error) {
-  return static_cast<Error>(error.code);
+[[nodiscard]] inline HIDError CodeOf(const rex::Error& error) {
+  return static_cast<HIDError>(error.code);
 }
 
 /**
@@ -53,16 +53,16 @@ enum class Error : u8 {
  * @param result A failing Win32 code.
  * @return NotConnected, Empty or BadArguments for their codes, Failed for any other.
  */
-[[nodiscard]] inline Error ErrorOf(X_RESULT result) {
+[[nodiscard]] inline HIDError ErrorOf(X_RESULT result) {
   switch (result) {
     case X_ERROR_DEVICE_NOT_CONNECTED:
-      return Error::NotConnected;
+      return HIDError::NotConnected;
     case X_ERROR_EMPTY:
-      return Error::Empty;
+      return HIDError::Empty;
     case X_ERROR_BAD_ARGUMENTS:
-      return Error::BadArguments;
+      return HIDError::BadArguments;
     default:
-      return Error::Failed;
+      return HIDError::Failed;
   }
 }
 
@@ -72,15 +72,15 @@ enum class Error : u8 {
  * @param code The HID code.
  * @return The Win32 code.
  */
-[[nodiscard]] inline X_RESULT ToXResult(Error code) {
+[[nodiscard]] inline X_RESULT ToXResult(HIDError code) {
   switch (code) {
-    case Error::NotConnected:
+    case HIDError::NotConnected:
       return X_ERROR_DEVICE_NOT_CONNECTED;
-    case Error::Empty:
+    case HIDError::Empty:
       return X_ERROR_EMPTY;
-    case Error::BadArguments:
+    case HIDError::BadArguments:
       return X_ERROR_BAD_ARGUMENTS;
-    case Error::Failed:
+    case HIDError::Failed:
       break;
   }
   return X_ERROR_FUNCTION_FAILED;

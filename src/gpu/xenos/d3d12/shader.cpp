@@ -23,10 +23,10 @@ namespace rex::gpu::d3d12 {
 D3D12Shader::D3D12Shader(xenos::ShaderType shader_type, u64 ucode_data_hash,
                          const u32* ucode_dwords, size_t ucode_dword_count,
                          std::endian ucode_source_endian)
-    : DxbcShader(shader_type, ucode_data_hash, ucode_dwords, ucode_dword_count,
+    : DXBCShader(shader_type, ucode_data_hash, ucode_dwords, ucode_dword_count,
                  ucode_source_endian) {}
 
-void D3D12Shader::D3D12Translation::DisassembleDxbcAndDxil(
+void D3D12Shader::D3D12Translation::DisassembleDXBCAndDxil(
     const gpu::d3d12::D3D12Provider& provider, bool disassemble_dxbc,
     IDxbcConverter* dxbc_converter, IDxcUtils* dxc_utils, IDxcCompiler* dxc_compiler) {
   std::string disassembly;

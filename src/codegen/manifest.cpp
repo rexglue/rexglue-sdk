@@ -177,7 +177,7 @@ bool LineSetsKey(std::string_view line, std::string_view key) {
 
 }  // namespace
 
-bool ManifestConfig::WriteSdkVersionStamp(const std::filesystem::path& path,
+bool ManifestConfig::WriteSDKVersionStamp(const std::filesystem::path& path,
                                           std::string_view version) {
   std::ifstream in(path);
   if (!in) {

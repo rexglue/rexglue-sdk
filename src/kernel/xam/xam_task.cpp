@@ -32,7 +32,6 @@ namespace rex {
 namespace kernel {
 namespace xam {
 using namespace rex::runtime;
-using namespace rex::runtime::xam;
 
 struct XTASK_MESSAGE {
   be_u32 unknown_00;
@@ -49,11 +48,11 @@ u32 XamTaskSchedule_entry(mapped_void callback, ppc_ptr_t<XTASK_MESSAGE> message
                           [[maybe_unused]] mapped_u32 unknown, mapped_u32 handle_ptr) {
   *handle_ptr = 12345;
 
-  auto record = std::make_unique<ThreadRecord>(runtime::Current(), 0, 0, callback.guest_address(),
+  auto thread = std::make_unique<KernelThread>(runtime::Current(), 0, 0, callback.guest_address(),
                                                message.guest_address(), 0, true);
 
   X_HANDLE task_thread = 0;
-  auto launched = runtime::Current().thread_registry().Launch(std::move(record));
+  auto launched = runtime::Current().thread_registry().Launch(std::move(thread));
   if (launched) {
     task_thread = *launched;
   }
@@ -78,6 +77,16 @@ u32 XamTaskCloseHandle_entry(u32 handle) {
   return X_STATUS_SUCCESS;
 }
 
+void XRegisterThreadNotifyRoutine_entry(ppc_ptr_t<runtime::X_THREAD_NOTIFICATION> notification,
+                                        u32 register_notification) {
+  auto& registry = runtime::Current().thread_registry();
+  if (register_notification) {
+    registry.RegisterThreadNotify(notification.guest_address());
+  } else {
+    registry.RemoveThreadNotify(notification.guest_address());
+  }
+}
+
 }  // namespace xam
 }  // namespace kernel
 }  // namespace rex
@@ -85,6 +94,8 @@ u32 XamTaskCloseHandle_entry(u32 handle) {
 REX_EXPORT(__imp__XamTaskSchedule, rex::kernel::xam::XamTaskSchedule_entry)
 REX_EXPORT(__imp__XamTaskShouldExit, rex::kernel::xam::XamTaskShouldExit_entry)
 REX_EXPORT(__imp__XamTaskCloseHandle, rex::kernel::xam::XamTaskCloseHandle_entry)
+REX_EXPORT(__imp__XRegisterThreadNotifyRoutine,
+           rex::kernel::xam::XRegisterThreadNotifyRoutine_entry)
 
 REX_EXPORT_STUB(__imp__XamTaskCancel);
 REX_EXPORT_STUB(__imp__XamTaskCancelWaitAndCloseWaitTask);

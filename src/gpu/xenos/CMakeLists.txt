@@ -12,8 +12,8 @@ set(REXGPU_XENOS_SOURCES
     command_processor.cpp
     null/null_command_processor.cpp
     null/null_graphics_system.cpp
-    util/draw_extent_estimator.cpp
-    util/draw.cpp
+    draw_extent_estimator.cpp
+    draw_state.cpp
     primitive_processor.cpp
     pipeline/render_target/cache.cpp
     shared_memory.cpp
@@ -80,7 +80,7 @@ endif()
 
 set(REXGPU_XENOS_HOST_SOURCES
     host/graphics_upload_buffer_pool.cpp
-    host/graphics_util.cpp
+    host/fixed_point.cpp
     host/immediate_drawer.cpp
     host/presenter.cpp
     host/renderdoc_api.cpp
@@ -96,7 +96,7 @@ set(REXGPU_XENOS_HOST_SOURCES
     host/vulkan/vulkan_provider.cpp
     host/vulkan/vulkan_submission_tracker.cpp
     host/vulkan/vulkan_upload_buffer_pool.cpp
-    host/vulkan/vulkan_util.cpp
+    host/vulkan/vulkan_objects.cpp
 )
 if(REXGLUE_GPU_D3D12)
     list(APPEND REXGPU_XENOS_HOST_SOURCES
@@ -107,7 +107,7 @@ if(REXGLUE_GPU_D3D12)
         host/d3d12/d3d12_provider.cpp
         host/d3d12/d3d12_submission_tracker.cpp
         host/d3d12/d3d12_upload_buffer_pool.cpp
-        host/d3d12/d3d12_util.cpp)
+        host/d3d12/d3d12_objects.cpp)
 endif()
 
 list(APPEND REXGPU_XENOS_SOURCES

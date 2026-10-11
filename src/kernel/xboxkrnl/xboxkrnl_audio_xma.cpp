@@ -68,7 +68,7 @@ u32 XMAReleaseContext_entry(mapped_void context_ptr) {
   return 0;
 }
 
-void StoreXmaContextIndexedRegister(Runtime& runtime, u32 base_reg, u32 context_ptr) {
+void StoreXMAContextIndexedRegister(Runtime& runtime, u32 base_reg, u32 context_ptr) {
   u32 context_physical_address = runtime.memory()->GetPhysicalAddress(context_ptr);
   REX_ASSERT(context_physical_address != UINT32_MAX);
   auto* xma_decoder = Decoder(runtime);
@@ -168,7 +168,7 @@ u32 XMAInitializeContext_entry(mapped_void context_ptr, ppc_ptr_t<XMA_CONTEXT_IN
 
   context.Store(context_ptr);
 
-  StoreXmaContextIndexedRegister(runtime::Current(), 0x1A80, context_ptr.guest_address());
+  StoreXMAContextIndexedRegister(runtime::Current(), 0x1A80, context_ptr.guest_address());
 
   return 0;
 }
@@ -301,13 +301,13 @@ u32 XMAGetPacketMetadata_entry(mapped_void context_ptr) {
 }
 
 u32 XMAEnableContext_entry(mapped_void context_ptr) {
-  StoreXmaContextIndexedRegister(runtime::Current(), 0x1940, context_ptr.guest_address());
+  StoreXMAContextIndexedRegister(runtime::Current(), 0x1940, context_ptr.guest_address());
   return 0;
 }
 
 u32 XMADisableContext_entry(mapped_void context_ptr, u32 wait) {
   X_HRESULT result = X_E_SUCCESS;
-  StoreXmaContextIndexedRegister(runtime::Current(), 0x1A40, context_ptr.guest_address());
+  StoreXMAContextIndexedRegister(runtime::Current(), 0x1A40, context_ptr.guest_address());
   auto* xma_decoder = Decoder(runtime::Current());
   if (xma_decoder && !xma_decoder->BlockOnContext(context_ptr.guest_address(), !wait)) {
     result = X_E_FALSE;
@@ -324,7 +324,7 @@ u32 XMABlockWhileInUse_entry(mapped_void context_ptr) {
     if (!context.work_buffer_ptr) {
       break;
     }
-    rex::runtime::ThreadRecord::Sleep(std::chrono::milliseconds(1));
+    rex::runtime::KernelThread::Sleep(std::chrono::milliseconds(1));
   } while (true);
   return 0;
 }

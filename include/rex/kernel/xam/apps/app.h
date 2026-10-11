@@ -23,7 +23,7 @@ namespace apps {
 /**
  * Xam app 0xFE, which serves content enumeration messages.
  */
-class XamApp : public runtime::xam::App {
+class XamApp : public runtime::App {
  public:
   /**
    * @param runtime The runtime the app serves.

@@ -31,8 +31,8 @@ namespace rex::runtime {
 
 namespace {
 
-bool SameRecord(const PinnedSlot& a, const PinnedSlot& b) {
-  return &a.record() == &b.record();
+bool SameObject(const PinnedSlot& a, const PinnedSlot& b) {
+  return &a.object() == &b.object();
 }
 
 }  // namespace
@@ -76,7 +76,7 @@ bool ModuleRegistry::RemoveUser(X_HANDLE handle) {
   }
   X_HANDLE listed = 0;
   for (X_HANDLE candidate : user_modules()) {
-    if (auto pin = table_.Get(candidate); pin && SameRecord(pin, target)) {
+    if (auto pin = table_.Get(candidate); pin && SameObject(pin, target)) {
       listed = candidate;
       break;
     }
@@ -124,7 +124,7 @@ std::optional<X_HANDLE> ModuleRegistry::executable() const {
   return executable_;
 }
 
-void ModuleRegistry::SetExecutable(X_HANDLE handle) {
+void ModuleRegistry::set_executable(X_HANDLE handle) {
   X_HANDLE owned = 0;
   if (handle) {
     Result<X_HANDLE> duplicate = table_.Duplicate(handle);
@@ -354,11 +354,11 @@ Result<X_HANDLE> ModuleRegistry::LoadUserModule(std::string_view raw_name, bool 
   const X_HANDLE loaded = FindUser(module->path).value_or(0);
 
   if (module->user.is_dll_module && module->user.entry_point && call_entry) {
-    if (!ThreadRecord::IsInThread()) {
+    if (!KernelThread::IsInThread()) {
       REXLOG_WARN(system, "DllMain(DLL_PROCESS_ATTACH) skipped for '{}': not on a guest thread",
                   module->name);
     } else {
-      auto* thread = ThreadRecord::GetCurrentThread();
+      auto* thread = KernelThread::GetCurrentThread();
       u64 args[] = {module->hmodule_ptr, 1 /* DLL_PROCESS_ATTACH */, 0};
       u64 dllmain_ret = runtime_.function_dispatcher()->Execute(thread->thread_state(),
                                                                 module->user.entry_point, args, 3);
@@ -383,11 +383,11 @@ void ModuleRegistry::UnloadUserModule(X_HANDLE module_handle, bool call_entry) {
   }
 
   if (module->user.is_dll_module && module->user.entry_point && call_entry) {
-    if (!ThreadRecord::IsInThread()) {
+    if (!KernelThread::IsInThread()) {
       REXLOG_WARN(system, "DllMain(DLL_PROCESS_DETACH) skipped for '{}': not on a guest thread",
                   module->name);
     } else {
-      auto* thread = ThreadRecord::GetCurrentThread();
+      auto* thread = KernelThread::GetCurrentThread();
       u64 args[] = {module->hmodule_ptr, 0 /* DLL_PROCESS_DETACH */, 0};
       runtime_.function_dispatcher()->Execute(thread->thread_state(), module->user.entry_point,
                                               args, 3);

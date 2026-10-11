@@ -35,7 +35,7 @@ std::string_view TrimBlanks(std::string_view text) {
   return text.substr(first, text.find_last_not_of(kBlanks) - first + 1);
 }
 
-KeyModifiers LiveModifiers(const bool (&key_down)[256]) {
+KeyModifiers HeldModifiers(const bool (&key_down)[256]) {
   KeyModifiers mods = KeyModifiers::None;
   if (key_down[std::to_underlying(VirtualKey::kShift)])
     mods |= KeyModifiers::Shift;
@@ -47,7 +47,7 @@ KeyModifiers LiveModifiers(const bool (&key_down)[256]) {
 }
 
 bool IsBindPressed(const bool (&key_down)[256], const std::vector<KeyChord>& chords) {
-  const KeyModifiers live = LiveModifiers(key_down);
+  const KeyModifiers live = HeldModifiers(key_down);
   return std::ranges::any_of(chords, [&](const KeyChord& chord) {
     const u16 index = static_cast<u16>(chord.key);
     return chord.mods == live && index < 256 && key_down[index];
@@ -309,7 +309,8 @@ void KeyboardMouseDriver::EnumerateDevices(std::vector<DeviceInfo>& out) {
 
 Result<X_INPUT_CAPABILITIES> KeyboardMouseDriver::GetDeviceCapabilities(DeviceId id, u32) {
   if (!IsEnabled() || id != kKeyboardMouseDevice) {
-    return std::unexpected(MakeError(Error::NotConnected, "keyboard and mouse emulation is off"));
+    return std::unexpected(
+        BuildError(HIDError::NotConnected, "keyboard and mouse emulation is off"));
   }
   X_INPUT_CAPABILITIES caps{};
   if (IsPassthroughEnabled()) {
@@ -334,13 +335,14 @@ Result<X_INPUT_CAPABILITIES> KeyboardMouseDriver::GetDeviceCapabilities(DeviceId
 
 Result<X_INPUT_STATE> KeyboardMouseDriver::GetDeviceState(DeviceId id) {
   if (!IsEnabled() || id != kKeyboardMouseDevice) {
-    return std::unexpected(MakeError(Error::NotConnected, "keyboard and mouse emulation is off"));
+    return std::unexpected(
+        BuildError(HIDError::NotConnected, "keyboard and mouse emulation is off"));
   }
 
   // Passthrough delivers keys through GetDeviceKeystroke only, leaving the title user free.
   if (IsPassthroughEnabled()) {
     return std::unexpected(
-        MakeError(Error::NotConnected, "passthrough keeps the user free for a pad"));
+        BuildError(HIDError::NotConnected, "passthrough keeps the user free for a pad"));
   }
 
   // Mouse look is opt in, else keyboard input alone would hide and lock the cursor over ImGui.
@@ -444,18 +446,20 @@ Result<X_INPUT_STATE> KeyboardMouseDriver::GetDeviceState(DeviceId id) {
 
 Result<void> KeyboardMouseDriver::SetDeviceVibration(DeviceId id, const X_INPUT_VIBRATION&) {
   if (!IsEnabled() || id != kKeyboardMouseDevice) {
-    return std::unexpected(MakeError(Error::NotConnected, "keyboard and mouse emulation is off"));
+    return std::unexpected(
+        BuildError(HIDError::NotConnected, "keyboard and mouse emulation is off"));
   }
   return Ok();
 }
 
 Result<X_INPUT_KEYSTROKE> KeyboardMouseDriver::GetDeviceKeystroke(DeviceId id, u32) {
   if (!IsEnabled() || id != kKeyboardMouseDevice) {
-    return std::unexpected(MakeError(Error::NotConnected, "keyboard and mouse emulation is off"));
+    return std::unexpected(
+        BuildError(HIDError::NotConnected, "keyboard and mouse emulation is off"));
   }
   std::lock_guard lock(state_mutex_);
   if (keystroke_queue_.empty()) {
-    return std::unexpected(MakeError(Error::Empty, "no keystroke is queued"));
+    return std::unexpected(BuildError(HIDError::Empty, "no keystroke is queued"));
   }
   X_INPUT_KEYSTROKE keystroke = keystroke_queue_.front();
   keystroke_queue_.pop();

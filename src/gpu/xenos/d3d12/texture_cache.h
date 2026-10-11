@@ -23,7 +23,7 @@
 #include "gpu/xenos/d3d12/shader.h"
 #include "gpu/xenos/d3d12/shared_memory.h"
 #include "gpu/xenos/pipeline/texture/cache.h"
-#include <rex/xenos/texture_util.h>
+#include <rex/xenos/texture_layout.h>
 #include <rex/xenos/register_file.h>
 #include <rex/xenos/xenos.h>
 #include "gpu/xenos/host/d3d12/d3d12_api.h"
@@ -179,10 +179,10 @@ class D3D12TextureCache final : public TextureCache {
    * @param length_scaled_alignment_log2 Log2 of the scaled length alignment.
    * @return True when the range is current.
    */
-  bool MakeScaledResolveRangeCurrent(u32 start_unscaled, u32 length_unscaled,
-                                     u32 length_scaled_alignment_log2 = 0);
+  bool UpdateScaledResolveRange(u32 start_unscaled, u32 length_unscaled,
+                                u32 length_scaled_alignment_log2 = 0);
   /**
-   * Creates a view of the range from the last successful MakeScaledResolveRangeCurrent call.
+   * Creates a view of the range from the last successful UpdateScaledResolveRange call.
    *
    * @param handle Destination descriptor.
    * @param element_size_bytes_pow2 Log2 of the element size in bytes.
@@ -190,7 +190,7 @@ class D3D12TextureCache final : public TextureCache {
   void CreateCurrentScaledResolveRangeUintPow2SRV(D3D12_CPU_DESCRIPTOR_HANDLE handle,
                                                   u32 element_size_bytes_pow2);
   /**
-   * Creates a UAV of the range from the last successful MakeScaledResolveRangeCurrent call.
+   * Creates a UAV of the range from the last successful UpdateScaledResolveRange call.
    *
    * @param handle Destination descriptor.
    * @param element_size_bytes_pow2 Log2 of the element size in bytes.
@@ -595,7 +595,7 @@ class D3D12TextureCache final : public TextureCache {
                                                  kMaxDrawResolutionScaleAlongAxis +
                                              ((static_cast<u32>(1) << 30) - 1)) >>
                                             30];
-  /** Range from the last successful MakeScaledResolveRangeCurrent call. */
+  /** Range from the last successful UpdateScaledResolveRange call. */
   u64 scaled_resolve_current_range_start_scaled_;
   u64 scaled_resolve_current_range_length_scaled_;
 };

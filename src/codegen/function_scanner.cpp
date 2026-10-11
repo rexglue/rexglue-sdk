@@ -15,14 +15,14 @@
 #include <rex/codegen/function_scanner.h>
 #include <rex/logging.h>
 
-#include <rex/memory/utils.h>
+#include <rex/memory/byte_swap.h>
 #include <rex/types.h>
 
 namespace rex::codegen {
 
-using rex::codegen::ppc::decode_instruction;
-using rex::codegen::ppc::Instruction;
-using rex::codegen::ppc::Opcode;
+using rex::codegen::detail::decode_instruction;
+using rex::codegen::detail::Instruction;
+using rex::codegen::detail::Opcode;
 
 FunctionScanner::FunctionScanner(const BinaryView& binary, const Limits& limits)
     : binary_(&binary), limits_(&limits) {}
@@ -1031,7 +1031,7 @@ namespace {
  * @return True when it opens a prologue.
  */
 bool isProloguePattern(const DecodedInsn& insn) {
-  using namespace rex::codegen::ppc;
+  using namespace rex::codegen::detail;
   switch (insn.opcode) {
     case Opcode::mflr:
     case Opcode::mfspr:
@@ -1056,7 +1056,7 @@ bool isProloguePattern(const DecodedInsn& insn) {
  */
 bool isBlockTerminator(const DecodedInsn& insn, const CodeRegion& region,
                        const std::unordered_set<u32>& knownFunctions) {
-  using namespace rex::codegen::ppc;
+  using namespace rex::codegen::detail;
 
   u32 raw = static_cast<u32>(insn.code);
   if (raw == 0x00000000 || raw == 0xFFFFFFFF) {
@@ -1120,7 +1120,7 @@ BoundsInfo scanForBounds(DecodedBinary& decoded, const Limits& limits, u32 bctrA
     if (isTerminator(*insn) && !isConditional(*insn))
       break;
 
-    using namespace rex::codegen::ppc;
+    using namespace rex::codegen::detail;
 
     if (insn->opcode == Opcode::cmpli) {
       REXLOG_TRACE(codegen, "scanForBounds: found cmpli at 0x{:08X} RA=r{} UIMM={} (expecting r{})",
@@ -1187,7 +1187,7 @@ BoundsInfo scanForBounds(DecodedBinary& decoded, const Limits& limits, u32 bctrA
 std::optional<JumpTable> detectJumpTable(DecodedBinary& decoded, const Limits& limits, u32 bctrAddr,
                                          const CodeRegion& containingRegion, u32 funcStart,
                                          u32 funcEnd) {
-  using namespace rex::codegen::ppc;
+  using namespace rex::codegen::detail;
 
   const int kMaxBackwardScan = static_cast<int>(limits.backward_scan_limit);
   const u32 kMaxTableEntries = limits.max_jump_table_entries;
@@ -1657,7 +1657,7 @@ BlockDiscoveryResult discoverBlocks(DecodedBinary& decoded, const Limits& limits
         } else if (isReturn(*insn)) {
           block.size = addr - blockStart + 4;
           break;
-        } else if (insn->opcode == rex::codegen::ppc::Opcode::bcctr && isConditional(*insn)) {
+        } else if (insn->opcode == rex::codegen::detail::Opcode::bcctr && isConditional(*insn)) {
           u32 fallthrough = addr + 4;
           if (isInternalTarget(fallthrough)) {
             result.labels.insert(fallthrough);
@@ -1666,7 +1666,7 @@ BlockDiscoveryResult discoverBlocks(DecodedBinary& decoded, const Limits& limits
               worklist.push(fallthrough);
             }
           }
-        } else if (insn->opcode == rex::codegen::ppc::Opcode::bcctr) {
+        } else if (insn->opcode == rex::codegen::detail::Opcode::bcctr) {
           REXLOG_TRACE(codegen,
                        "discoverBlocks: bctr at 0x{:08X} in func 0x{:08X}, funcEnd=0x{:08X}", addr,
                        entryPoint, funcEnd);

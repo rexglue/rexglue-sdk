@@ -202,7 +202,7 @@ REX_TEST_CASE("A write to a page with stale host protection resumes and teardown
   CHECK_FALSE(result.Reported());
 }
 
-REX_TEST_CASE("An access violation inside SEH_TRY is not reported", "[crash][crash_report]") {
+REX_TEST_CASE("An access violation inside REX_SEH_TRY is not reported", "[crash][crash_report]") {
   const auto result = RunProbe("seh");
   CHECK(result.status == 0);
   CHECK(result.Has("seh caught"));
@@ -210,7 +210,7 @@ REX_TEST_CASE("An access violation inside SEH_TRY is not reported", "[crash][cra
 }
 
 #if !REX_PLATFORM_WIN32
-REX_TEST_CASE("A fault in recompiled code under a host frame is not caught by an outer SEH_TRY",
+REX_TEST_CASE("A fault in recompiled code under a host frame is not caught by an outer REX_SEH_TRY",
               "[core][seh][crash_report]") {
   const auto result = RunProbe("seh-host-frame");
   CHECK(result.status != 0);

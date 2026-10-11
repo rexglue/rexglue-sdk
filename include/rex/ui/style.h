@@ -306,7 +306,7 @@ struct SettingsStyle {
   /** Key conflict marker. */
   Color warning = detail::kWarning;
   /** Badge of a live cvar. */
-  Color lifecycle_live = detail::kSuccess;
+  Color lifecycle_hot_reload = detail::kSuccess;
   /** Badge of a cvar that needs a restart. */
   Color lifecycle_restart = Color::RGBA(1.00f, 1.00f, 0.40f, 1.00f);
   /** Badge of an init only cvar. */

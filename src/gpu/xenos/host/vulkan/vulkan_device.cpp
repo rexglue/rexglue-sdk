@@ -21,7 +21,7 @@
 #include <rex/platform.h>
 #include <rex/string.h>
 #include "gpu/xenos/host/vulkan/device.h"
-#include "gpu/xenos/host/vulkan/util.h"
+#include "gpu/xenos/host/vulkan/objects.h"
 
 #include "gpu/xenos/cvar_table.h"
 
@@ -31,8 +31,8 @@ namespace vulkan {
 
 template <typename Structure, VkStructureType StructureType>
 struct VulkanFeatures {
-  Structure supported = util::InitializeStructure<Structure>(StructureType);
-  Structure enabled = util::InitializeStructure<Structure>(StructureType);
+  Structure supported = objects::InitializeStructure<Structure>(StructureType);
+  Structure enabled = objects::InitializeStructure<Structure>(StructureType);
 
   void Link(VkPhysicalDeviceFeatures2& supported_features_2,
             VkDeviceCreateInfo& device_create_info) {
@@ -124,7 +124,7 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
     }
   };
 
-#define REXVK_STRUCT_EXTENSION(name) \
+#define REX_VK_STRUCT_EXTENSION(name) \
   requested_extensions.emplace("VK_" #name, &device->extensions_.ext_##name);
 /**
  * Requests a device extension whose support flag is a local variable.
@@ -132,10 +132,10 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
  * @param name Extension name without the VK_ prefix.
  *
  * @code
- * REXVK_LOCAL_EXTENSION(KHR_portability_subset)
+ * REX_VK_LOCAL_EXTENSION(KHR_portability_subset)
  * @endcode
  */
-#define REXVK_LOCAL_EXTENSION(name) requested_extensions.emplace("VK_" #name, &ext_##name);
+#define REX_VK_LOCAL_EXTENSION(name) requested_extensions.emplace("VK_" #name, &ext_##name);
 /**
  * Requests an extension promoted to core, with its support flag in the extensions struct.
  *
@@ -144,11 +144,11 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
  * @param minor Minor number of the core version that promoted it.
  *
  * @code
- * REXVK_STRUCT_PROMOTED_EXTENSION(KHR_dedicated_allocation, 1, 1)
+ * REX_VK_STRUCT_PROMOTED_EXTENSION(KHR_dedicated_allocation, 1, 1)
  * @endcode
  */
-#define REXVK_STRUCT_PROMOTED_EXTENSION(name, major, minor) \
-  request_promoted_extension("VK_" #name, major, minor,     \
+#define REX_VK_STRUCT_PROMOTED_EXTENSION(name, major, minor) \
+  request_promoted_extension("VK_" #name, major, minor,      \
                              &device->extensions_.ext_##major##_##minor##_##name);
 /**
  * Requests an extension promoted to core, with its support flag as a local variable.
@@ -158,35 +158,35 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
  * @param minor Minor number of the core version that promoted it.
  *
  * @code
- * REXVK_LOCAL_PROMOTED_EXTENSION(KHR_driver_properties, 1, 2)
+ * REX_VK_LOCAL_PROMOTED_EXTENSION(KHR_driver_properties, 1, 2)
  * @endcode
  */
-#define REXVK_LOCAL_PROMOTED_EXTENSION(name, major, minor) \
+#define REX_VK_LOCAL_PROMOTED_EXTENSION(name, major, minor) \
   request_promoted_extension("VK_" #name, major, minor, &ext_##major##_##minor##_##name);
 
   bool ext_KHR_portability_subset = false;
   bool ext_1_2_KHR_driver_properties = false;
   if (get_physical_device_properties2_supported) {
     // Must be enabled when the physical device is a portability subset device.
-    REXVK_LOCAL_EXTENSION(KHR_portability_subset)
-    REXVK_LOCAL_PROMOTED_EXTENSION(KHR_driver_properties, 1, 2)
+    REX_VK_LOCAL_EXTENSION(KHR_portability_subset)
+    REX_VK_LOCAL_PROMOTED_EXTENSION(KHR_driver_properties, 1, 2)
   }
 
-  REXVK_STRUCT_PROMOTED_EXTENSION(KHR_dedicated_allocation, 1, 1)
+  REX_VK_STRUCT_PROMOTED_EXTENSION(KHR_dedicated_allocation, 1, 1)
   // Also required by VK_KHR_dedicated_allocation and VK_KHR_sampler_ycbcr_conversion.
-  REXVK_STRUCT_PROMOTED_EXTENSION(KHR_get_memory_requirements2, 1, 1)
+  REX_VK_STRUCT_PROMOTED_EXTENSION(KHR_get_memory_requirements2, 1, 1)
   // Also required by VK_KHR_sampler_ycbcr_conversion.
-  REXVK_STRUCT_PROMOTED_EXTENSION(KHR_bind_memory2, 1, 1)
+  REX_VK_STRUCT_PROMOTED_EXTENSION(KHR_bind_memory2, 1, 1)
   if (get_physical_device_properties2_supported) {
-    REXVK_STRUCT_EXTENSION(EXT_memory_budget)
+    REX_VK_STRUCT_EXTENSION(EXT_memory_budget)
   }
   if (properties.apiVersion >= VK_MAKE_API_VERSION(0, 1, 1, 0)) {
-    REXVK_STRUCT_PROMOTED_EXTENSION(KHR_maintenance4, 1, 3)
-    REXVK_STRUCT_PROMOTED_EXTENSION(KHR_dynamic_rendering, 1, 3)
+    REX_VK_STRUCT_PROMOTED_EXTENSION(KHR_maintenance4, 1, 3)
+    REX_VK_STRUCT_PROMOTED_EXTENSION(KHR_dynamic_rendering, 1, 3)
   }
 
   if (with_swapchain) {
-    REXVK_STRUCT_EXTENSION(KHR_swapchain)
+    REX_VK_STRUCT_EXTENSION(KHR_swapchain)
   }
 
   bool ext_1_2_KHR_sampler_mirror_clamp_to_edge = false;
@@ -197,33 +197,33 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
   bool ext_1_3_KHR_dynamic_rendering = false;
   bool ext_EXT_non_seamless_cube_map = false;
   if (with_gpu_emulation) {
-    REXVK_LOCAL_PROMOTED_EXTENSION(KHR_sampler_mirror_clamp_to_edge, 1, 2)
+    REX_VK_LOCAL_PROMOTED_EXTENSION(KHR_sampler_mirror_clamp_to_edge, 1, 2)
     // Required by VK_KHR_sampler_ycbcr_conversion.
-    REXVK_LOCAL_PROMOTED_EXTENSION(KHR_maintenance1, 1, 1)
-    REXVK_STRUCT_EXTENSION(EXT_shader_stencil_export)
-    REXVK_STRUCT_PROMOTED_EXTENSION(KHR_image_format_list, 1, 2)
+    REX_VK_LOCAL_PROMOTED_EXTENSION(KHR_maintenance1, 1, 1)
+    REX_VK_STRUCT_EXTENSION(EXT_shader_stencil_export)
+    REX_VK_STRUCT_PROMOTED_EXTENSION(KHR_image_format_list, 1, 2)
     if (get_physical_device_properties2_supported) {
-      REXVK_STRUCT_PROMOTED_EXTENSION(KHR_sampler_ycbcr_conversion, 1, 1)
+      REX_VK_STRUCT_PROMOTED_EXTENSION(KHR_sampler_ycbcr_conversion, 1, 1)
       // Also required by VK_KHR_spirv_1_4.
-      REXVK_LOCAL_PROMOTED_EXTENSION(KHR_shader_float_controls, 1, 2)
-      REXVK_LOCAL_EXTENSION(EXT_fragment_shader_interlock)
-      REXVK_LOCAL_PROMOTED_EXTENSION(KHR_dynamic_rendering, 1, 3)
-      REXVK_LOCAL_PROMOTED_EXTENSION(EXT_shader_demote_to_helper_invocation, 1, 3)
-      REXVK_LOCAL_EXTENSION(EXT_non_seamless_cube_map)
+      REX_VK_LOCAL_PROMOTED_EXTENSION(KHR_shader_float_controls, 1, 2)
+      REX_VK_LOCAL_EXTENSION(EXT_fragment_shader_interlock)
+      REX_VK_LOCAL_PROMOTED_EXTENSION(KHR_dynamic_rendering, 1, 3)
+      REX_VK_LOCAL_PROMOTED_EXTENSION(EXT_shader_demote_to_helper_invocation, 1, 3)
+      REX_VK_LOCAL_EXTENSION(EXT_non_seamless_cube_map)
       // Required for non-black YCbCr border color parity with D3D12.
-      REXVK_STRUCT_EXTENSION(EXT_custom_border_color)
+      REX_VK_STRUCT_EXTENSION(EXT_custom_border_color)
       // Required for true null descriptors in bindless texture bindings.
-      REXVK_STRUCT_EXTENSION(EXT_robustness2)
+      REX_VK_STRUCT_EXTENSION(EXT_robustness2)
     }
     if (properties.apiVersion >= VK_MAKE_API_VERSION(0, 1, 1, 0)) {
-      REXVK_STRUCT_PROMOTED_EXTENSION(KHR_spirv_1_4, 1, 2)
+      REX_VK_STRUCT_PROMOTED_EXTENSION(KHR_spirv_1_4, 1, 2)
     }
   }
 
-#undef REXVK_STRUCT_EXTENSION
-#undef REXVK_LOCAL_EXTENSION
-#undef REXVK_STRUCT_PROMOTED_EXTENSION
-#undef REXVK_LOCAL_PROMOTED_EXTENSION
+#undef REX_VK_STRUCT_EXTENSION
+#undef REX_VK_LOCAL_EXTENSION
+#undef REX_VK_STRUCT_PROMOTED_EXTENSION
+#undef REX_VK_LOCAL_PROMOTED_EXTENSION
 
   std::vector<const char*> enabled_extensions;
   {
@@ -266,15 +266,15 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
   }
 
   auto device_create_info =
-      util::InitializeStructure<VkDeviceCreateInfo>(VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO);
+      objects::InitializeStructure<VkDeviceCreateInfo>(VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO);
 
   device_create_info.enabledExtensionCount = static_cast<u32>(enabled_extensions.size());
   device_create_info.ppEnabledExtensionNames = enabled_extensions.data();
 
-  auto properties_2 = util::InitializeStructure<VkPhysicalDeviceProperties2>(
+  auto properties_2 = objects::InitializeStructure<VkPhysicalDeviceProperties2>(
       VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2);
 
-  auto supported_features_2 = util::InitializeStructure<VkPhysicalDeviceFeatures2>(
+  auto supported_features_2 = objects::InitializeStructure<VkPhysicalDeviceFeatures2>(
       VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2);
 
   VulkanFeatures<VkPhysicalDeviceVulkan12Features,
@@ -294,7 +294,7 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
       .driverInfo = {},
       .conformanceVersion = {}};
   auto properties_1_2_KHR_shader_float_controls =
-      util::InitializeStructure<VkPhysicalDeviceFloatControlsProperties>(
+      objects::InitializeStructure<VkPhysicalDeviceFloatControlsProperties>(
           VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FLOAT_CONTROLS_PROPERTIES);
   VulkanFeatures<VkPhysicalDeviceFragmentShaderInterlockFeaturesEXT,
                  VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FRAGMENT_SHADER_INTERLOCK_FEATURES_EXT>
@@ -312,7 +312,7 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
                  VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_CUSTOM_BORDER_COLOR_FEATURES_EXT>
       features_EXT_custom_border_color;
   auto properties_EXT_custom_border_color =
-      util::InitializeStructure<VkPhysicalDeviceCustomBorderColorPropertiesEXT>(
+      objects::InitializeStructure<VkPhysicalDeviceCustomBorderColorPropertiesEXT>(
           VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_CUSTOM_BORDER_COLOR_PROPERTIES_EXT);
   VulkanFeatures<VkPhysicalDeviceRobustness2FeaturesEXT,
                  VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ROBUSTNESS_2_FEATURES_EXT>
@@ -516,7 +516,7 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
   VkPhysicalDeviceFeatures enabled_features = {};
   device_create_info.pEnabledFeatures = &enabled_features;
 
-#define REXVK_LIMIT(name)                            \
+#define REX_VK_LIMIT(name)                           \
   device->properties_.name = properties.limits.name; \
   REXLOG_DEBUG(ui, "* " #name ": {}", properties.limits.name);
 /**
@@ -526,10 +526,10 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
  * @param type Vulkan C++ flags type used to format the value.
  *
  * @code
- * REXVK_ENUM_LIMIT(framebufferColorSampleCounts, SampleCountFlags)
+ * REX_VK_ENUM_LIMIT(framebufferColorSampleCounts, SampleCountFlags)
  * @endcode
  */
-#define REXVK_ENUM_LIMIT(name, type)                 \
+#define REX_VK_ENUM_LIMIT(name, type)                \
   device->properties_.name = properties.limits.name; \
   REXLOG_DEBUG(ui, "* " #name ": {}", vk::to_string(vk::type(properties.limits.name)));
 /**
@@ -538,10 +538,10 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
  * @param name Member of VkPhysicalDeviceFeatures to enable.
  *
  * @code
- * REXVK_FEATURE(samplerAnisotropy)
+ * REX_VK_FEATURE(samplerAnisotropy)
  * @endcode
  */
-#define REXVK_FEATURE(name)                           \
+#define REX_VK_FEATURE(name)                          \
   enabled_features.name = supported_features.name;    \
   device->properties_.name = supported_features.name; \
   if (supported_features.name) {                      \
@@ -554,10 +554,10 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
  * @param name Member of the structure to copy.
  *
  * @code
- * REXVK_PROPERTY_2(properties_1_2_KHR_shader_float_controls, shaderDenormFlushToZeroFloat32)
+ * REX_VK_PROPERTY_2(properties_1_2_KHR_shader_float_controls, shaderDenormFlushToZeroFloat32)
  * @endcode
  */
-#define REXVK_PROPERTY_2(structure, name)      \
+#define REX_VK_PROPERTY_2(structure, name)     \
   device->properties_.name = (structure).name; \
   REXLOG_DEBUG(ui, "* " #name ": {}", (structure).name);
 /**
@@ -568,11 +568,11 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
  * @param type Vulkan C++ enumeration type used to format the value.
  *
  * @code
- * REXVK_ENUM_PROPERTY_2(properties_1_2_KHR_driver_properties, driverID, DriverId)
+ * REX_VK_ENUM_PROPERTY_2(properties_1_2_KHR_driver_properties, driverID, DriverId)
  * @endcode
  */
-#define REXVK_ENUM_PROPERTY_2(structure, name, type) \
-  device->properties_.name = (structure).name;       \
+#define REX_VK_ENUM_PROPERTY_2(structure, name, type) \
+  device->properties_.name = (structure).name;        \
   REXLOG_DEBUG(ui, "* " #name ": {}", vk::to_string(vk::type((structure).name)));
 /**
  * Enables a feature from an extension features structure when supported and stores the result.
@@ -581,10 +581,10 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
  * @param name Feature member to enable.
  *
  * @code
- * REXVK_FEATURE_2(features_1_2, uniformBufferStandardLayout)
+ * REX_VK_FEATURE_2(features_1_2, uniformBufferStandardLayout)
  * @endcode
  */
-#define REXVK_FEATURE_2(structure, name)                 \
+#define REX_VK_FEATURE_2(structure, name)                \
   (structure).enabled.name = (structure).supported.name; \
   device->properties_.name = (structure).supported.name; \
   if ((structure).supported.name) {                      \
@@ -596,15 +596,15 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
  * @param name Name of the implied feature.
  *
  * @code
- * REXVK_FEATURE_IMPLIED(separateStencilMaskRef)
+ * REX_VK_FEATURE_IMPLIED(separateStencilMaskRef)
  * @endcode
  */
-#define REXVK_FEATURE_IMPLIED(name) \
-  device->properties_.name = true;  \
+#define REX_VK_FEATURE_IMPLIED(name) \
+  device->properties_.name = true;   \
   REXLOG_DEBUG(ui, "* " #name);
 
   if (ext_1_2_KHR_driver_properties) {
-    REXVK_ENUM_PROPERTY_2(properties_1_2_KHR_driver_properties, driverID, DriverId);
+    REX_VK_ENUM_PROPERTY_2(properties_1_2_KHR_driver_properties, driverID, DriverId);
     REXLOG_DEBUG(ui, "* driverName: {}", properties_1_2_KHR_driver_properties.driverName);
     if (properties_1_2_KHR_driver_properties.driverInfo[0]) {
       REXLOG_DEBUG(ui, "* driverInfo: {}", properties_1_2_KHR_driver_properties.driverInfo);
@@ -616,150 +616,150 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
                  properties_1_2_KHR_driver_properties.conformanceVersion.patch);
   }
 
-  REXVK_LIMIT(maxImageDimension2D)
-  REXVK_LIMIT(maxImageDimension3D)
-  REXVK_LIMIT(maxImageDimensionCube)
-  REXVK_LIMIT(maxImageArrayLayers)
-  REXVK_LIMIT(maxStorageBufferRange)
-  REXVK_LIMIT(maxSamplerAllocationCount)
-  REXVK_LIMIT(maxPerStageDescriptorSamplers)
-  REXVK_LIMIT(maxPerStageDescriptorStorageBuffers)
-  REXVK_LIMIT(maxPerStageDescriptorSampledImages)
-  REXVK_LIMIT(maxPerStageResources)
-  REXVK_LIMIT(maxVertexOutputComponents)
-  REXVK_LIMIT(maxTessellationEvaluationOutputComponents)
-  REXVK_LIMIT(maxGeometryInputComponents)
-  REXVK_LIMIT(maxGeometryOutputComponents)
-  REXVK_LIMIT(maxFragmentInputComponents)
-  REXVK_LIMIT(maxFragmentCombinedOutputResources)
-  REXVK_LIMIT(maxSamplerAnisotropy)
-  REXVK_LIMIT(maxViewportDimensions[0])
-  REXVK_LIMIT(maxViewportDimensions[1])
-  REXVK_LIMIT(minUniformBufferOffsetAlignment)
-  REXVK_LIMIT(minStorageBufferOffsetAlignment)
-  REXVK_LIMIT(maxFramebufferWidth)
-  REXVK_LIMIT(maxFramebufferHeight)
-  REXVK_ENUM_LIMIT(framebufferColorSampleCounts, SampleCountFlags)
-  REXVK_ENUM_LIMIT(framebufferDepthSampleCounts, SampleCountFlags)
-  REXVK_ENUM_LIMIT(framebufferStencilSampleCounts, SampleCountFlags)
-  REXVK_ENUM_LIMIT(framebufferNoAttachmentsSampleCounts, SampleCountFlags)
-  REXVK_ENUM_LIMIT(sampledImageColorSampleCounts, SampleCountFlags)
-  REXVK_ENUM_LIMIT(sampledImageIntegerSampleCounts, SampleCountFlags)
-  REXVK_ENUM_LIMIT(sampledImageDepthSampleCounts, SampleCountFlags)
-  REXVK_ENUM_LIMIT(sampledImageStencilSampleCounts, SampleCountFlags)
-  REXVK_LIMIT(standardSampleLocations)
-  REXVK_LIMIT(optimalBufferCopyOffsetAlignment)
-  REXVK_LIMIT(optimalBufferCopyRowPitchAlignment)
-  REXVK_LIMIT(nonCoherentAtomSize)
+  REX_VK_LIMIT(maxImageDimension2D)
+  REX_VK_LIMIT(maxImageDimension3D)
+  REX_VK_LIMIT(maxImageDimensionCube)
+  REX_VK_LIMIT(maxImageArrayLayers)
+  REX_VK_LIMIT(maxStorageBufferRange)
+  REX_VK_LIMIT(maxSamplerAllocationCount)
+  REX_VK_LIMIT(maxPerStageDescriptorSamplers)
+  REX_VK_LIMIT(maxPerStageDescriptorStorageBuffers)
+  REX_VK_LIMIT(maxPerStageDescriptorSampledImages)
+  REX_VK_LIMIT(maxPerStageResources)
+  REX_VK_LIMIT(maxVertexOutputComponents)
+  REX_VK_LIMIT(maxTessellationEvaluationOutputComponents)
+  REX_VK_LIMIT(maxGeometryInputComponents)
+  REX_VK_LIMIT(maxGeometryOutputComponents)
+  REX_VK_LIMIT(maxFragmentInputComponents)
+  REX_VK_LIMIT(maxFragmentCombinedOutputResources)
+  REX_VK_LIMIT(maxSamplerAnisotropy)
+  REX_VK_LIMIT(maxViewportDimensions[0])
+  REX_VK_LIMIT(maxViewportDimensions[1])
+  REX_VK_LIMIT(minUniformBufferOffsetAlignment)
+  REX_VK_LIMIT(minStorageBufferOffsetAlignment)
+  REX_VK_LIMIT(maxFramebufferWidth)
+  REX_VK_LIMIT(maxFramebufferHeight)
+  REX_VK_ENUM_LIMIT(framebufferColorSampleCounts, SampleCountFlags)
+  REX_VK_ENUM_LIMIT(framebufferDepthSampleCounts, SampleCountFlags)
+  REX_VK_ENUM_LIMIT(framebufferStencilSampleCounts, SampleCountFlags)
+  REX_VK_ENUM_LIMIT(framebufferNoAttachmentsSampleCounts, SampleCountFlags)
+  REX_VK_ENUM_LIMIT(sampledImageColorSampleCounts, SampleCountFlags)
+  REX_VK_ENUM_LIMIT(sampledImageIntegerSampleCounts, SampleCountFlags)
+  REX_VK_ENUM_LIMIT(sampledImageDepthSampleCounts, SampleCountFlags)
+  REX_VK_ENUM_LIMIT(sampledImageStencilSampleCounts, SampleCountFlags)
+  REX_VK_LIMIT(standardSampleLocations)
+  REX_VK_LIMIT(optimalBufferCopyOffsetAlignment)
+  REX_VK_LIMIT(optimalBufferCopyRowPitchAlignment)
+  REX_VK_LIMIT(nonCoherentAtomSize)
 
   if (with_gpu_emulation) {
-    REXVK_FEATURE(robustBufferAccess)
-    REXVK_FEATURE(fullDrawIndexUint32)
-    REXVK_FEATURE(independentBlend)
-    REXVK_FEATURE(geometryShader)
-    REXVK_FEATURE(tessellationShader)
-    REXVK_FEATURE(sampleRateShading)
-    REXVK_FEATURE(depthClamp)
-    REXVK_FEATURE(fillModeNonSolid)
-    REXVK_FEATURE(samplerAnisotropy)
-    REXVK_FEATURE(occlusionQueryPrecise)
-    REXVK_FEATURE(vertexPipelineStoresAndAtomics)
-    REXVK_FEATURE(fragmentStoresAndAtomics)
-    REXVK_FEATURE(shaderClipDistance)
-    REXVK_FEATURE(shaderCullDistance)
-    REXVK_FEATURE(sparseBinding)
-    REXVK_FEATURE(sparseResidencyBuffer)
+    REX_VK_FEATURE(robustBufferAccess)
+    REX_VK_FEATURE(fullDrawIndexUint32)
+    REX_VK_FEATURE(independentBlend)
+    REX_VK_FEATURE(geometryShader)
+    REX_VK_FEATURE(tessellationShader)
+    REX_VK_FEATURE(sampleRateShading)
+    REX_VK_FEATURE(depthClamp)
+    REX_VK_FEATURE(fillModeNonSolid)
+    REX_VK_FEATURE(samplerAnisotropy)
+    REX_VK_FEATURE(occlusionQueryPrecise)
+    REX_VK_FEATURE(vertexPipelineStoresAndAtomics)
+    REX_VK_FEATURE(fragmentStoresAndAtomics)
+    REX_VK_FEATURE(shaderClipDistance)
+    REX_VK_FEATURE(shaderCullDistance)
+    REX_VK_FEATURE(sparseBinding)
+    REX_VK_FEATURE(sparseResidencyBuffer)
   }
 
   if (properties.apiVersion >= VK_MAKE_API_VERSION(0, 1, 2, 0)) {
     if (with_gpu_emulation) {
-      REXVK_FEATURE_2(features_1_2, samplerMirrorClampToEdge);
-      REXVK_FEATURE_2(features_1_2, uniformBufferStandardLayout);
-      REXVK_FEATURE_2(features_1_2, scalarBlockLayout);
+      REX_VK_FEATURE_2(features_1_2, samplerMirrorClampToEdge);
+      REX_VK_FEATURE_2(features_1_2, uniformBufferStandardLayout);
+      REX_VK_FEATURE_2(features_1_2, scalarBlockLayout);
     }
   } else {
     if (ext_1_2_KHR_sampler_mirror_clamp_to_edge) {
-      REXVK_FEATURE_IMPLIED(samplerMirrorClampToEdge)
+      REX_VK_FEATURE_IMPLIED(samplerMirrorClampToEdge)
     }
   }
 
   if (properties.apiVersion >= VK_MAKE_API_VERSION(0, 1, 3, 0)) {
     if (with_gpu_emulation) {
-      REXVK_FEATURE_2(features_1_3, shaderDemoteToHelperInvocation);
-      REXVK_FEATURE_2(features_1_3, dynamicRendering);
+      REX_VK_FEATURE_2(features_1_3, shaderDemoteToHelperInvocation);
+      REX_VK_FEATURE_2(features_1_3, dynamicRendering);
     }
   } else {
     if (ext_1_3_KHR_dynamic_rendering) {
       if (with_gpu_emulation) {
-        REXVK_FEATURE_2(features_1_3_KHR_dynamic_rendering, dynamicRendering);
+        REX_VK_FEATURE_2(features_1_3_KHR_dynamic_rendering, dynamicRendering);
       }
     }
     if (ext_1_3_EXT_shader_demote_to_helper_invocation) {
       if (with_gpu_emulation) {
-        REXVK_FEATURE_2(features_1_3_EXT_shader_demote_to_helper_invocation,
-                        shaderDemoteToHelperInvocation);
+        REX_VK_FEATURE_2(features_1_3_EXT_shader_demote_to_helper_invocation,
+                         shaderDemoteToHelperInvocation);
       }
     }
   }
 
   if (ext_KHR_portability_subset) {
     if (with_gpu_emulation) {
-      REXVK_FEATURE_2(features_KHR_portability_subset, constantAlphaColorBlendFactors)
-      REXVK_FEATURE_2(features_KHR_portability_subset, imageViewFormatReinterpretation)
-      REXVK_FEATURE_2(features_KHR_portability_subset, imageViewFormatSwizzle)
-      REXVK_FEATURE_2(features_KHR_portability_subset, pointPolygons)
-      REXVK_FEATURE_2(features_KHR_portability_subset, separateStencilMaskRef)
-      REXVK_FEATURE_2(features_KHR_portability_subset, shaderSampleRateInterpolationFunctions)
+      REX_VK_FEATURE_2(features_KHR_portability_subset, constantAlphaColorBlendFactors)
+      REX_VK_FEATURE_2(features_KHR_portability_subset, imageViewFormatReinterpretation)
+      REX_VK_FEATURE_2(features_KHR_portability_subset, imageViewFormatSwizzle)
+      REX_VK_FEATURE_2(features_KHR_portability_subset, pointPolygons)
+      REX_VK_FEATURE_2(features_KHR_portability_subset, separateStencilMaskRef)
+      REX_VK_FEATURE_2(features_KHR_portability_subset, shaderSampleRateInterpolationFunctions)
     }
   } else {
-    REXVK_FEATURE_IMPLIED(constantAlphaColorBlendFactors)
-    REXVK_FEATURE_IMPLIED(imageViewFormatReinterpretation)
-    REXVK_FEATURE_IMPLIED(imageViewFormatSwizzle)
-    REXVK_FEATURE_IMPLIED(pointPolygons)
-    REXVK_FEATURE_IMPLIED(separateStencilMaskRef)
-    REXVK_FEATURE_IMPLIED(shaderSampleRateInterpolationFunctions)
+    REX_VK_FEATURE_IMPLIED(constantAlphaColorBlendFactors)
+    REX_VK_FEATURE_IMPLIED(imageViewFormatReinterpretation)
+    REX_VK_FEATURE_IMPLIED(imageViewFormatSwizzle)
+    REX_VK_FEATURE_IMPLIED(pointPolygons)
+    REX_VK_FEATURE_IMPLIED(separateStencilMaskRef)
+    REX_VK_FEATURE_IMPLIED(shaderSampleRateInterpolationFunctions)
   }
 
   if (ext_1_2_KHR_shader_float_controls) {
-    REXVK_PROPERTY_2(properties_1_2_KHR_shader_float_controls,
-                     shaderSignedZeroInfNanPreserveFloat32);
-    REXVK_PROPERTY_2(properties_1_2_KHR_shader_float_controls, shaderDenormFlushToZeroFloat32);
-    REXVK_PROPERTY_2(properties_1_2_KHR_shader_float_controls, shaderRoundingModeRTEFloat32);
+    REX_VK_PROPERTY_2(properties_1_2_KHR_shader_float_controls,
+                      shaderSignedZeroInfNanPreserveFloat32);
+    REX_VK_PROPERTY_2(properties_1_2_KHR_shader_float_controls, shaderDenormFlushToZeroFloat32);
+    REX_VK_PROPERTY_2(properties_1_2_KHR_shader_float_controls, shaderRoundingModeRTEFloat32);
   }
 
   if (ext_EXT_fragment_shader_interlock) {
     if (with_gpu_emulation) {
-      REXVK_FEATURE_2(features_EXT_fragment_shader_interlock, fragmentShaderSampleInterlock)
-      REXVK_FEATURE_2(features_EXT_fragment_shader_interlock, fragmentShaderPixelInterlock)
+      REX_VK_FEATURE_2(features_EXT_fragment_shader_interlock, fragmentShaderSampleInterlock)
+      REX_VK_FEATURE_2(features_EXT_fragment_shader_interlock, fragmentShaderPixelInterlock)
     }
   }
 
   if (ext_EXT_non_seamless_cube_map) {
     if (with_gpu_emulation) {
-      REXVK_FEATURE_2(features_EXT_non_seamless_cube_map, nonSeamlessCubeMap)
+      REX_VK_FEATURE_2(features_EXT_non_seamless_cube_map, nonSeamlessCubeMap)
     }
   }
 
   if (device->extensions_.ext_EXT_custom_border_color) {
     if (with_gpu_emulation) {
-      REXVK_FEATURE_2(features_EXT_custom_border_color, customBorderColors)
-      REXVK_FEATURE_2(features_EXT_custom_border_color, customBorderColorWithoutFormat)
+      REX_VK_FEATURE_2(features_EXT_custom_border_color, customBorderColors)
+      REX_VK_FEATURE_2(features_EXT_custom_border_color, customBorderColorWithoutFormat)
     }
-    REXVK_PROPERTY_2(properties_EXT_custom_border_color, maxCustomBorderColorSamplers)
+    REX_VK_PROPERTY_2(properties_EXT_custom_border_color, maxCustomBorderColorSamplers)
   }
 
   if (device->extensions_.ext_EXT_robustness2) {
     if (with_gpu_emulation) {
-      REXVK_FEATURE_2(features_EXT_robustness2, nullDescriptor)
+      REX_VK_FEATURE_2(features_EXT_robustness2, nullDescriptor)
     }
   }
 
-#undef REXVK_LIMIT
-#undef REXVK_ENUM_LIMIT
-#undef REXVK_FEATURE
-#undef REXVK_PROPERTY_2
-#undef REXVK_ENUM_PROPERTY_2
-#undef REXVK_FEATURE_2
+#undef REX_VK_LIMIT
+#undef REX_VK_ENUM_LIMIT
+#undef REX_VK_FEATURE
+#undef REX_VK_PROPERTY_2
+#undef REX_VK_ENUM_PROPERTY_2
+#undef REX_VK_FEATURE_2
 
   const VkResult device_create_result =
       ifn.vkCreateDevice(physical_device, &device_create_info, nullptr, &device->device_);
@@ -774,14 +774,14 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
 
   Functions& dfn = device->functions_;
 
-#define REXVK_FUNCTION(name) \
-  functions_loaded &=        \
+#define REX_VK_FUNCTION(name) \
+  functions_loaded &=         \
       (dfn.name = PFN_##name(ifn.vkGetDeviceProcAddr(device->device_, #name))) != nullptr;
 
 #include "gpu/xenos/host/vulkan/functions/device_1_0.inc"
 
   // Promoted functions load by their core names when the device supports that core version.
-#define REXVK_FUNCTION_PROMOTED(extension_name, core_name)                                       \
+#define REX_VK_FUNCTION_PROMOTED(extension_name, core_name)                                      \
   functions_loaded &=                                                                            \
       (dfn.core_name = PFN_##core_name(ifn.vkGetDeviceProcAddr(device->device_, #core_name))) != \
       nullptr;
@@ -793,11 +793,11 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
 #include "gpu/xenos/host/vulkan/functions/device_1_3_khr_dynamic_rendering.inc"
 #include "gpu/xenos/host/vulkan/functions/device_1_3_khr_maintenance4.inc"
   }
-#undef REXVK_FUNCTION_PROMOTED
+#undef REX_VK_FUNCTION_PROMOTED
 
   // Below that core version they load by their extension names.
-#define REXVK_FUNCTION_PROMOTED(extension_name, core_name) \
-  functions_loaded &= (dfn.core_name = PFN_##core_name(    \
+#define REX_VK_FUNCTION_PROMOTED(extension_name, core_name) \
+  functions_loaded &= (dfn.core_name = PFN_##core_name(     \
                            ifn.vkGetDeviceProcAddr(device->device_, #extension_name))) != nullptr;
   if (properties.apiVersion < VK_MAKE_API_VERSION(0, 1, 1, 0)) {
     if (device->extensions_.ext_1_1_KHR_get_memory_requirements2) {
@@ -818,9 +818,9 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
   if (device->extensions_.ext_KHR_swapchain) {
 #include "gpu/xenos/host/vulkan/functions/device_khr_swapchain.inc"
   }
-#undef REXVK_FUNCTION_PROMOTED
+#undef REX_VK_FUNCTION_PROMOTED
 
-#undef REXVK_FUNCTION
+#undef REX_VK_FUNCTION
 
   if (!functions_loaded) {
     REX_FAIL(ui, nullptr, "Failed to get all Vulkan device function pointers for '{}'",

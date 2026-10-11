@@ -18,14 +18,14 @@
 
 namespace rex::gpu::d3d12 {
 
-class D3D12Shader : public DxbcShader {
+class D3D12Shader : public DXBCShader {
  public:
-  class D3D12Translation : public DxbcTranslation {
+  class D3D12Translation : public DXBCTranslation {
    public:
     D3D12Translation(D3D12Shader& shader, u64 modification)
-        : DxbcTranslation(shader, modification) {}
+        : DXBCTranslation(shader, modification) {}
 
-    void DisassembleDxbcAndDxil(const gpu::d3d12::D3D12Provider& provider, bool disassemble_dxbc,
+    void DisassembleDXBCAndDxil(const gpu::d3d12::D3D12Provider& provider, bool disassemble_dxbc,
                                 IDxbcConverter* dxbc_converter = nullptr,
                                 IDxcUtils* dxc_utils = nullptr,
                                 IDxcCompiler* dxc_compiler = nullptr);

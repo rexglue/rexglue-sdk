@@ -37,12 +37,12 @@ class REX_RUNTIME_API ObjectTable final : public IObjectTable {
   /** Closes every handle and destroys every object. */
   void Reset();
 
+  using IObjectTable::All;
   using IObjectTable::Get;
-  using IObjectTable::GetAll;
 
-  [[nodiscard]] Result<X_HANDLE> Add(std::unique_ptr<ObjectRecord> record,
+  [[nodiscard]] Result<X_HANDLE> Add(std::unique_ptr<KernelObject> object,
                                      const AddOptions& options) override;
-  [[nodiscard]] Result<X_HANDLE> AddWithBlock(std::unique_ptr<ObjectRecord> record,
+  [[nodiscard]] Result<X_HANDLE> AddWithBlock(std::unique_ptr<KernelObject> object,
                                               u32 attributes_ptr, u32 block_size) override;
   [[nodiscard]] Result<X_HANDLE> Duplicate(X_HANDLE handle) override;
   [[nodiscard]] Result<void> Retain(X_HANDLE handle) override;
@@ -52,22 +52,22 @@ class REX_RUNTIME_API ObjectTable final : public IObjectTable {
   [[nodiscard]] Result<void> ReleasePrimary(const PinnedSlot& slot) override;
   std::optional<X_HANDLE> PrimaryHandle(const PinnedSlot& slot) override;
   PinnedSlot Get(X_HANDLE handle) override;
-  std::vector<PinnedSlot> GetAll() override;
+  std::vector<PinnedSlot> All() override;
   [[nodiscard]] Result<void> AddName(std::string_view name, X_HANDLE handle) override;
   [[nodiscard]] Result<X_HANDLE> OpenByName(std::string_view name) override;
-  std::optional<X_HANDLE> ResolveGuestObject(u32 address, i32 as_type) override;
+  std::optional<X_HANDLE> ResolveHandle(u32 address, i32 as_type) override;
 
  private:
   struct Slot {
-    ObjectRecord* record = nullptr;
+    KernelObject* object = nullptr;
     u32 ref_count = 0;
   };
 
   X_HANDLE Translate(X_HANDLE handle) const;
   Slot* FindSlot(X_HANDLE handle);
-  u32 AllocateSlot();
-  ObjectRecord* Detach(Slot& slot, X_HANDLE handle);
-  static void Retire(ObjectRecord* record);
+  u32 AllocSlot();
+  KernelObject* Detach(Slot& slot, X_HANDLE handle);
+  static void Retire(KernelObject* object);
 
   static constexpr u32 GetHandleSlot(X_HANDLE handle) { return (handle - kHandleBase) >> 2; }
 
@@ -77,7 +77,7 @@ class REX_RUNTIME_API ObjectTable final : public IObjectTable {
   rex::platform::RankedMutex name_mutex_{rex::platform::LockRank::Name};
   std::vector<Slot> slots_;
   u32 last_free_slot_ = 0;
-  std::unordered_map<ObjectRecord*, std::unique_ptr<ObjectRecord>> records_;
+  std::unordered_map<KernelObject*, std::unique_ptr<KernelObject>> objects_;
   std::unordered_map<string_key_case, X_HANDLE> names_;
 };
 

@@ -13,7 +13,7 @@
 
 #include <rex/logging.h>
 
-#include <rex/memory/utils.h>
+#include <rex/memory/byte_swap.h>
 
 namespace rex::codegen {
 
@@ -84,7 +84,7 @@ void mergeAndSeal(CodegenContext& ctx) {
 
 }  // anonymous namespace
 
-namespace phases {
+namespace detail {
 
 [[nodiscard]] Result<void> Merge(CodegenContext& ctx, ProgressReporter* reporter) {
   (void)reporter;
@@ -92,6 +92,6 @@ namespace phases {
   return Ok();
 }
 
-}  // namespace phases
+}  // namespace detail
 
 }  // namespace rex::codegen

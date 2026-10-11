@@ -16,7 +16,6 @@
 
 namespace rex {
 namespace runtime {
-namespace xam {
 
 /** Storage device type. */
 enum class DeviceType : u8 {
@@ -47,6 +46,5 @@ struct DummyDeviceInfo {
  */
 REX_RUNTIME_API const DummyDeviceInfo* GetDummyDeviceInfo(u32 device_id);
 
-}  // namespace xam
 }  // namespace runtime
 }  // namespace rex

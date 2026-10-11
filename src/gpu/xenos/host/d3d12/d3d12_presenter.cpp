@@ -21,7 +21,7 @@
 #include <rex/math.h>
 #include "gpu/xenos/host/d3d12/d3d12_presenter.h"
 #include "gpu/xenos/host/d3d12/d3d12_provider.h"
-#include "gpu/xenos/host/d3d12/d3d12_util.h"
+#include "gpu/xenos/host/d3d12/d3d12_objects.h"
 #include <rex/gpu/surface_win.h>
 #include <rex/move_only_function.h>
 
@@ -216,7 +216,7 @@ bool D3D12Presenter::RefreshGuestOutputImpl(
     guest_output_resource_new_desc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
     guest_output_resource_new_desc.Flags = D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
     if (FAILED(device->CreateCommittedResource(
-            &util::kHeapPropertiesDefault, provider_.GetHeapFlagCreateNotZeroed(),
+            &objects::kHeapPropertiesDefault, provider_.GetHeapFlagCreateNotZeroed(),
             &guest_output_resource_new_desc, kGuestOutputInternalState, nullptr,
             IID_PPV_ARGS(&guest_output_resource_ref.second)))) {
       REX_FAIL(ui, false, "D3D12Presenter: Failed to create the guest output {}x{} texture",
@@ -532,9 +532,9 @@ Presenter::PaintResult D3D12Presenter::PaintAndPresentImpl(bool execute_ui_drawe
   paint_context_.present_submission_tracker.NextSubmission();
   switch (present_result) {
     case DXGI_ERROR_DEVICE_REMOVED:
-      return PaintResult::kGpuLostExternally;
+      return PaintResult::kGPULostExternally;
     case DXGI_ERROR_DEVICE_RESET:
-      return PaintResult::kGpuLostResponsible;
+      return PaintResult::kGPULostResponsible;
     default:
       return SUCCEEDED(present_result) ? PaintResult::kPresented : PaintResult::kNotPresented;
   }
@@ -616,7 +616,7 @@ bool D3D12Presenter::InitializeSurfaceIndependent() {
       sizeof(BilinearConstants) / sizeof(u32);
   {
     ID3D12RootSignature* guest_output_paint_root_signature =
-        util::CreateRootSignature(provider_, guest_output_paint_root_signature_desc);
+        objects::CreateRootSignature(provider_, guest_output_paint_root_signature_desc);
     if (!guest_output_paint_root_signature) {
       REX_FAIL(ui, false,
                "D3D12Presenter: Failed to create the guest output bilinear "
@@ -626,7 +626,7 @@ bool D3D12Presenter::InitializeSurfaceIndependent() {
           .ReleaseAndGetAddressOf()) = guest_output_paint_root_signature;
   }
 
-  auto guest_output_paint_pipeline_desc = util::MakeGraphicsPipelineStateDesc();
+  auto guest_output_paint_pipeline_desc = objects::BuildGraphicsPipelineStateDesc();
   guest_output_paint_pipeline_desc.VS.pShaderBytecode = shaders::kGuestOutputTriangleStripRectVS;
   guest_output_paint_pipeline_desc.VS.BytecodeLength =
       sizeof(shaders::kGuestOutputTriangleStripRectVS);

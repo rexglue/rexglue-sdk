@@ -24,10 +24,10 @@
 
 namespace rex::runtime {
 
-/** Placement options for a new `ObjectRecord`. */
+/** Placement options for a new `KernelObject`. */
 struct AddOptions {
   std::string_view name; /**< The name to register, empty for none. */
-  GuestBlock block;      /**< The guest block that backs the object. */
+  ObjectBlock block;     /**< The guest block that backs the object. */
 };
 
 /**
@@ -40,25 +40,25 @@ class IObjectTable {
   virtual ~IObjectTable() = default;
 
   /**
-   * Takes ownership of an `ObjectRecord` and gives it its first handle with a count of 1.
+   * Takes ownership of an `KernelObject` and gives it its first handle with a count of 1.
    *
-   * @param record The `ObjectRecord`.
+   * @param object The `KernelObject`.
    * @param options The name to register and the guest block that backs the object.
    * @return The handle.
    */
-  [[nodiscard]] virtual Result<X_HANDLE> Add(std::unique_ptr<ObjectRecord> record,
+  [[nodiscard]] virtual Result<X_HANDLE> Add(std::unique_ptr<KernelObject> object,
                                              const AddOptions& options) = 0;
 
   /**
-   * Allocates a guest block when block_size is not 0, adds the `ObjectRecord` under the name of the
+   * Allocates a guest block when block_size is not 0, adds the `KernelObject` under the name of the
    * object attributes, and stashes the handle in the block.
    *
-   * @param record The `ObjectRecord`.
+   * @param object The `KernelObject`.
    * @param attributes_ptr The guest address of an X_OBJECT_ATTRIBUTES, 0 for no name.
    * @param block_size The size of the guest object body, 0 for no block.
    * @return The handle, or X_STATUS_NO_MEMORY when the block cannot be allocated.
    */
-  [[nodiscard]] virtual Result<X_HANDLE> AddWithBlock(std::unique_ptr<ObjectRecord> record,
+  [[nodiscard]] virtual Result<X_HANDLE> AddWithBlock(std::unique_ptr<KernelObject> object,
                                                       u32 attributes_ptr, u32 block_size) = 0;
 
   /**
@@ -118,7 +118,7 @@ class IObjectTable {
   [[nodiscard]] virtual std::optional<X_HANDLE> PrimaryHandle(const PinnedSlot& slot) = 0;
 
   /**
-   * Looks a handle up and pins its `ObjectRecord`.
+   * Looks a handle up and pins its `KernelObject`.
    *
    * @param handle The handle, pseudo handles are translated.
    * @return The pin, empty when the handle is invalid.
@@ -126,11 +126,11 @@ class IObjectTable {
   [[nodiscard]] virtual PinnedSlot Get(X_HANDLE handle) = 0;
 
   /**
-   * Pins every `ObjectRecord`, once per `ObjectRecord`.
+   * Pins every `KernelObject`, once per `KernelObject`.
    *
    * @return The pins.
    */
-  [[nodiscard]] virtual std::vector<PinnedSlot> GetAll() = 0;
+  [[nodiscard]] virtual std::vector<PinnedSlot> All() = 0;
 
   /**
    * Registers a name for a handle.
@@ -157,7 +157,7 @@ class IObjectTable {
    * @param as_type The dispatcher object type to create, -1 for the type in the header.
    * @return The handle, empty for a null address or a header type the table cannot create.
    */
-  [[nodiscard]] virtual std::optional<X_HANDLE> ResolveGuestObject(u32 address, i32 as_type) = 0;
+  [[nodiscard]] virtual std::optional<X_HANDLE> ResolveHandle(u32 address, i32 as_type) = 0;
 
   /**
    * Constructs an object in place and gives it its first handle with a count of 1.
@@ -170,7 +170,7 @@ class IObjectTable {
    */
   template <typename T, typename... Args>
   [[nodiscard]] Result<X_HANDLE> Emplace(const AddOptions& options, Args&&... args) {
-    return Add(std::make_unique<ObjectRecord>(std::in_place_type<T>, std::forward<Args>(args)...),
+    return Add(std::make_unique<KernelObject>(std::in_place_type<T>, std::forward<Args>(args)...),
                options);
   }
 
@@ -185,15 +185,14 @@ class IObjectTable {
    * @return The handle, or X_STATUS_NO_MEMORY.
    */
   template <typename T, typename... Args>
-  [[nodiscard]] Result<X_HANDLE> CreateWithBlock(u32 attributes_ptr, u32 block_size,
-                                                 Args&&... args) {
+  [[nodiscard]] Result<X_HANDLE> CreateObject(u32 attributes_ptr, u32 block_size, Args&&... args) {
     return AddWithBlock(
-        std::make_unique<ObjectRecord>(std::in_place_type<T>, std::forward<Args>(args)...),
+        std::make_unique<KernelObject>(std::in_place_type<T>, std::forward<Args>(args)...),
         attributes_ptr, block_size);
   }
 
   /**
-   * Looks a handle up and pins its `ObjectRecord` when it holds a T.
+   * Looks a handle up and pins its `KernelObject` when it holds a T.
    *
    * @tparam T The expected object struct.
    * @param handle The handle, pseudo handles are translated.
@@ -205,15 +204,15 @@ class IObjectTable {
   }
 
   /**
-   * Pins every `ObjectRecord` that holds a T, once per `ObjectRecord`.
+   * Pins every `KernelObject` that holds a T, once per `KernelObject`.
    *
    * @tparam T The object struct.
    * @return The pins.
    */
   template <typename T>
-  [[nodiscard]] std::vector<Pinned<T>> GetAll() {
+  [[nodiscard]] std::vector<Pinned<T>> All() {
     std::vector<Pinned<T>> results;
-    for (PinnedSlot& slot : GetAll()) {
+    for (PinnedSlot& slot : All()) {
       Pinned<T> pin(std::move(slot));
       if (pin) {
         results.push_back(std::move(pin));
@@ -223,7 +222,7 @@ class IObjectTable {
   }
 
   /**
-   * Resolves a guest dispatch header and pins its `ObjectRecord` when it holds a T.
+   * Resolves a guest dispatch header and pins its `KernelObject` when it holds a T.
    *
    * @tparam T The expected object struct.
    * @param address The guest address of the dispatch header.
@@ -231,8 +230,8 @@ class IObjectTable {
    * @return The pin, empty when the header cannot be resolved or the kind differs.
    */
   template <typename T>
-  [[nodiscard]] Pinned<T> ResolveGuest(u32 address, i32 as_type = -1) {
-    const std::optional<X_HANDLE> handle = ResolveGuestObject(address, as_type);
+  [[nodiscard]] Pinned<T> Resolve(u32 address, i32 as_type = -1) {
+    const std::optional<X_HANDLE> handle = ResolveHandle(address, as_type);
     return handle ? Get<T>(*handle) : Pinned<T>();
   }
 };

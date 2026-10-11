@@ -24,7 +24,7 @@
 
 namespace rex::gpu {
 
-void SpirvShaderTranslator::ProcessVertexFetchInstruction(
+void SPIRVShaderTranslator::ProcessVertexFetchInstruction(
     const ParsedVertexFetchInstruction& instr) {
   UpdateInstructionPredication(instr.is_predicated, instr.predicate_condition);
 
@@ -406,7 +406,7 @@ void SpirvShaderTranslator::ProcessVertexFetchInstruction(
   StoreResult(instr.result, result);
 }
 
-void SpirvShaderTranslator::ProcessTextureFetchInstruction(
+void SPIRVShaderTranslator::ProcessTextureFetchInstruction(
     const ParsedTextureFetchInstruction& instr) {
   UpdateInstructionPredication(instr.is_predicated, instr.predicate_condition);
 
@@ -926,7 +926,7 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
                                                                   z_coordinate_ref, z_offset);
           }
           REX_ASSERT(data_is_3d != spv::NoResult);
-          SpirvBuilder::IfBuilder if_data_is_3d(data_is_3d, spv::SelectionControlDontFlattenMask,
+          SPIRVBuilder::IfBuilder if_data_is_3d(data_is_3d, spv::SelectionControlDontFlattenMask,
                                                 *builder_);
           spv::Id z_3d;
           {
@@ -1118,7 +1118,7 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
         // OpSampledImage must be in the same block as its use.
         if (instr.dimension == xenos::FetchOpDimension::k3DOrStacked) {
           REX_ASSERT(data_is_3d != spv::NoResult);
-          SpirvBuilder::IfBuilder if_data_is_3d(data_is_3d, spv::SelectionControlDontFlattenMask,
+          SPIRVBuilder::IfBuilder if_data_is_3d(data_is_3d, spv::SelectionControlDontFlattenMask,
                                                 *builder_);
           spv::Id lod_3d;
           {
@@ -1385,7 +1385,7 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
         }
         if (instr.dimension == xenos::FetchOpDimension::k3DOrStacked) {
           REX_ASSERT(data_is_3d != spv::NoResult);
-          SpirvBuilder::IfBuilder if_data_is_3d(data_is_3d, spv::SelectionControlDontFlattenMask,
+          SPIRVBuilder::IfBuilder if_data_is_3d(data_is_3d, spv::SelectionControlDontFlattenMask,
                                                 *builder_);
           spv::Id sample_result_unsigned_3d, sample_result_signed_3d;
           {
@@ -1605,7 +1605,7 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
                 builder_->createBinOp(spv::OpBitwiseAnd, type_uint_, swizzle_word,
                                       builder_->makeUintConstant(swizzle_bit_0_value << 2)),
                 const_uint_0_);
-            SpirvBuilder::IfBuilder if_swizzle_constant(
+            SPIRVBuilder::IfBuilder if_swizzle_constant(
                 swizzle_bit_2, spv::SelectionControlDontFlattenMask, *builder_);
             spv::Id swizzle_result_constant;
             {
@@ -1760,7 +1760,7 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
   StoreResult(instr.result, result_vector);
 }
 
-size_t SpirvShaderTranslator::FindOrAddTextureBinding(u32 fetch_constant,
+size_t SPIRVShaderTranslator::FindOrAddTextureBinding(u32 fetch_constant,
                                                       xenos::FetchOpDimension dimension,
                                                       bool is_signed) {
   if (dimension == xenos::FetchOpDimension::k1D) {
@@ -1814,7 +1814,7 @@ size_t SpirvShaderTranslator::FindOrAddTextureBinding(u32 fetch_constant,
   return new_texture_binding_index;
 }
 
-size_t SpirvShaderTranslator::FindOrAddSamplerBinding(u32 fetch_constant,
+size_t SPIRVShaderTranslator::FindOrAddSamplerBinding(u32 fetch_constant,
                                                       xenos::TextureFilter mag_filter,
                                                       xenos::TextureFilter min_filter,
                                                       xenos::TextureFilter mip_filter,
@@ -1861,7 +1861,7 @@ size_t SpirvShaderTranslator::FindOrAddSamplerBinding(u32 fetch_constant,
   return new_sampler_binding_index;
 }
 
-void SpirvShaderTranslator::SampleTexture(spv::Builder::TextureParameters& texture_parameters,
+void SPIRVShaderTranslator::SampleTexture(spv::Builder::TextureParameters& texture_parameters,
                                           spv::ImageOperandsMask image_operands_mask,
                                           spv::Id image_unsigned, spv::Id image_signed,
                                           spv::Id sampler, spv::Id is_any_unsigned,
@@ -1869,7 +1869,7 @@ void SpirvShaderTranslator::SampleTexture(spv::Builder::TextureParameters& textu
                                           spv::Id& result_signed_out, spv::Id lerp_factor,
                                           spv::Id lerp_first_unsigned, spv::Id lerp_first_signed) {
   for (u32 i = 0; i < 2; ++i) {
-    SpirvBuilder::IfBuilder sign_if(i ? is_any_signed : is_any_unsigned,
+    SPIRVBuilder::IfBuilder sign_if(i ? is_any_signed : is_any_unsigned,
                                     spv::SelectionControlDontFlattenMask, *builder_);
     spv::Id sign_result;
     {
@@ -1900,11 +1900,11 @@ void SpirvShaderTranslator::SampleTexture(spv::Builder::TextureParameters& textu
   }
 }
 
-spv::Id SpirvShaderTranslator::QueryTextureLod(spv::Builder::TextureParameters& texture_parameters,
+spv::Id SPIRVShaderTranslator::QueryTextureLod(spv::Builder::TextureParameters& texture_parameters,
                                                spv::Id image_unsigned, spv::Id image_signed,
                                                spv::Id sampler, spv::Id is_all_signed) {
   // OpSampledImage must be in the same block as its use.
-  SpirvBuilder::IfBuilder if_signed(is_all_signed, spv::SelectionControlDontFlattenMask, *builder_);
+  SPIRVBuilder::IfBuilder if_signed(is_all_signed, spv::SelectionControlDontFlattenMask, *builder_);
   spv::Id lod_signed;
   {
     texture_parameters.sampler = builder_->createBinOp(

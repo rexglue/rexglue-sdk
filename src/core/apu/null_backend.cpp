@@ -17,7 +17,7 @@
 
 namespace rex::apu {
 
-NullBackend::NullBackend() {
+NullAPUBackend::NullAPUBackend() {
   clock_ = platform::Spawn("APU Null Clock", [this](const std::stop_token& stop) {
     using Clock = std::chrono::steady_clock;
     const auto period = std::chrono::duration_cast<Clock::duration>(
@@ -31,30 +31,30 @@ NullBackend::NullBackend() {
   });
 }
 
-NullBackend::~NullBackend() {
+NullAPUBackend::~NullAPUBackend() {
   clock_ = {};
 }
 
-Result<u32> NullBackend::OpenStream(rex::MoveOnlyFunction<void()> on_frame_played) {
+Result<u32> NullAPUBackend::OpenStream(rex::MoveOnlyFunction<void()> on_frame_played) {
   std::lock_guard lock(mutex_);
   const u32 id = next_stream_++;
   streams_.emplace(id, Stream{std::move(on_frame_played), 0});
   return id;
 }
 
-void NullBackend::CloseStream(u32 stream) {
+void NullAPUBackend::CloseStream(u32 stream) {
   std::lock_guard lock(mutex_);
   streams_.erase(stream);
 }
 
-void NullBackend::Submit(u32 stream, Frame) {
+void NullAPUBackend::Submit(u32 stream, Frame) {
   std::lock_guard lock(mutex_);
   if (auto it = streams_.find(stream); it != streams_.end()) {
     ++it->second.queued;
   }
 }
 
-void NullBackend::Tick() {
+void NullAPUBackend::Tick() {
   std::lock_guard lock(mutex_);
   for (auto& [id, stream] : streams_) {
     if (stream.queued == 0) {
@@ -65,32 +65,32 @@ void NullBackend::Tick() {
   }
 }
 
-void NullBackend::SetStereoFold(const StereoFold& fold) {
+void NullAPUBackend::SetStereoFold(const StereoFold& fold) {
   std::lock_guard lock(mutex_);
   fold_ = fold;
 }
 
-StereoFold NullBackend::stereo_fold() const {
+StereoFold NullAPUBackend::stereo_fold() const {
   std::lock_guard lock(mutex_);
   return fold_;
 }
 
-void NullBackend::SetSurroundMix(const SurroundMix& mix) {
+void NullAPUBackend::SetSurroundMix(const SurroundMix& mix) {
   std::lock_guard lock(mutex_);
   mix_ = mix;
 }
 
-SurroundMix NullBackend::surround_mix() const {
+SurroundMix NullAPUBackend::surround_mix() const {
   std::lock_guard lock(mutex_);
   return mix_;
 }
 
-void NullBackend::SetOutputGain(f32 linear) {
+void NullAPUBackend::SetOutputGain(f32 linear) {
   std::lock_guard lock(mutex_);
   gain_ = linear;
 }
 
-f32 NullBackend::output_gain() const {
+f32 NullAPUBackend::output_gain() const {
   std::lock_guard lock(mutex_);
   return gain_;
 }

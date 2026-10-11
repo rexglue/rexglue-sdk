@@ -16,7 +16,7 @@
 #include <rex/types.h>
 #include <rex/string.h>
 #include <rex/runtime.h>
-#include <rex/runtime/xenumerator.h>
+#include <rex/runtime/enumerator_object.h>
 #include <rex/runtime/xtypes.h>
 #include "kernel/kernel_macros.h"
 #include "kernel/object_reference.h"
@@ -31,7 +31,6 @@ namespace rex {
 namespace kernel {
 namespace xam {
 using namespace rex::runtime;
-using namespace rex::runtime::xam;
 
 u32 XamEnumerate(u32 handle, u32 flags, mapped_void buffer_ptr, u32* items_returned,
                  u32 overlapped_ptr) {

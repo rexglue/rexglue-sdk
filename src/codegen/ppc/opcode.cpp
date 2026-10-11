@@ -6,7 +6,7 @@
 
 using namespace rex;
 
-namespace rex::codegen::ppc {
+namespace rex::codegen::detail {
 
 /**
  * Extracts count bits starting at PPC bit position start, where bit 0 is the most significant.
@@ -1175,4 +1175,4 @@ const OpcodeInfo& get_opcode_info(Opcode opcode) {
   return unknown;
 }
 
-}  // namespace rex::codegen::ppc
+}  // namespace rex::codegen::detail

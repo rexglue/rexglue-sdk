@@ -45,7 +45,7 @@ class ConsoleWindow : public NonCopyable {
    * @return The window, or ErrorCategory::Runtime when the window or its presenter fails.
    */
   [[nodiscard]] static Result<std::unique_ptr<ConsoleWindow>> Create(
-      WindowedAppContext& context, gpu::IBackend& backend, const ImGuiStyle& imgui_style,
+      WindowedAppContext& context, gpu::IGPUBackend& backend, const ImGuiStyle& imgui_style,
       const Style& style, ConsoleModel& model, ConsoleHost& host);
 
   /**

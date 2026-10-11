@@ -24,7 +24,7 @@ using rex::hid::DeviceAssignment;
 using rex::hid::DeviceId;
 using rex::hid::DeviceInfo;
 using rex::hid::Driver;
-using rex::hid::Error;
+using rex::hid::HIDError;
 using rex::hid::Hub;
 using rex::hid::SharedAssignment;
 using rex::hid::SlotAssignment;
@@ -110,13 +110,15 @@ class FakeDriver final : public Driver {
     }
     auto it = keystrokes_.find(id);
     if (it == keystrokes_.end()) {
-      return std::unexpected(rex::hid::MakeError(Error::Empty, "empty"));
+      return std::unexpected(rex::hid::BuildError(HIDError::Empty, "empty"));
     }
     return it->second;
   }
 
  private:
-  static rex::Error Unplugged() { return rex::hid::MakeError(Error::NotConnected, "unplugged"); }
+  static rex::Error Unplugged() {
+    return rex::hid::BuildError(HIDError::NotConnected, "unplugged");
+  }
 
   std::vector<DeviceInfo> devices_;
   std::map<DeviceId, X_INPUT_STATE> states_;
@@ -240,5 +242,5 @@ REX_TEST_CASE("A synthetic device does not push the first pad off title user 0",
   auto state = system->GetState(0);
   REQUIRE(state);
   REQUIRE(static_cast<rex::u16>(state->gamepad.buttons) == X_INPUT_GAMEPAD_B);
-  CHECK(CodeOf(system->GetState(1).error()) == Error::NotConnected);
+  CHECK(CodeOf(system->GetState(1).error()) == HIDError::NotConnected);
 }

@@ -13,7 +13,7 @@
 
 #include <rex/assert.h>
 #include <rex/math.h>
-#include "gpu/xenos/host/graphics_util.h"
+#include "gpu/xenos/host/fixed_point.h"
 #include "gpu/xenos/host/immediate_drawer.h"
 #include "gpu/xenos/host/presenter.h"
 

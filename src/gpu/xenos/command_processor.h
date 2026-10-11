@@ -105,7 +105,7 @@ class CommandProcessor {
   void CallInThreadAndWait(rex::MoveOnlyFunction<void()> fn);
 
   virtual void ClearCaches();
-  virtual void InvalidateGpuMemory();
+  virtual void InvalidateGPUMemory();
 
   // "Desired" is for the external thread managing the post-processing effect.
   void SetDesiredSwapPostEffect(SwapPostEffect swap_post_effect);
@@ -202,7 +202,7 @@ class CommandProcessor {
    * VC (vertex cache) or TC (texture cache) action it enables is logged. May run from the
    * WAIT_REG_MEM loop.
    */
-  virtual void MakeCoherent();
+  virtual void SyncCoherency();
   virtual void PrepareForWait();
   virtual void ReturnFromWait();
 

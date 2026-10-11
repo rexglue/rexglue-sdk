@@ -22,8 +22,8 @@
 #include <rex/string.h>
 #include <rex/runtime.h>
 #include <rex/runtime/user_module.h>
-#include <rex/runtime/util/string_utils.h>
-#include <rex/runtime/xevent.h>
+#include <rex/runtime/kernel_string.h>
+#include <rex/runtime/event_object.h>
 #include <rex/runtime/xthread.h>
 #include <rex/platform/thread.h>
 #include <rex/platform/atomic.h>
@@ -189,7 +189,7 @@ void RtlCopyUnicodeString_entry(ppc_ptr_t<X_UNICODE_STRING> destination,
 u32 RtlUnicodeStringToAnsiString_entry(ppc_ptr_t<X_ANSI_STRING> destination_ptr,
                                        ppc_ptr_t<X_UNICODE_STRING> source_ptr, u32 alloc_dest) {
   std::u16string unicode_str =
-      util::TranslateUnicodeString(runtime::Current().memory(), source_ptr);
+      runtime::TranslateUnicodeString(runtime::Current().memory(), source_ptr);
   std::string ansi_str = rex::to_utf8(unicode_str);
   if (ansi_str.size() > 0xFFFF - 1) {
     return X_STATUS_INVALID_PARAMETER_2;
@@ -273,11 +273,11 @@ u32 RtlImageNtHeader_entry(mapped_void module) {
   return runtime::Current().memory()->HostToGuestVirtual(nt_header);
 }
 
-u32 RtlImageXexHeaderField_entry(ppc_ptr_t<xex2_header> xex_header, u32 field_dword) {
+u32 RtlImageXexHeaderField_entry(ppc_ptr_t<filesystem::XEXHeader> xex_header, u32 field_dword) {
   u32 field_value = 0;
   u32 field = field_dword;
 
-  UserModuleGetOptHeader(runtime::Current().memory(), xex_header, xex2_header_keys(field),
+  UserModuleGetOptHeader(runtime::Current().memory(), xex_header, filesystem::XEXHeaderKey(field),
                          &field_value);
 
   return field_value;
@@ -342,7 +342,7 @@ u32 RtlInitializeCriticalSectionAndSpinCount_entry(ppc_ptr_t<X_RTL_CRITICAL_SECT
 }
 
 void RtlEnterCriticalSection_entry(ppc_ptr_t<X_RTL_CRITICAL_SECTION> cs) {
-  u32 cur_thread = ThreadRecord::GetCurrentThread()->guest_object();
+  u32 cur_thread = KernelThread::GetCurrentThread()->guest_object();
   u32 spin_count = cs->header.absolute * 256;
 
   if (cs->owning_thread == cur_thread) {
@@ -369,7 +369,7 @@ void RtlEnterCriticalSection_entry(ppc_ptr_t<X_RTL_CRITICAL_SECTION> cs) {
 }
 
 u32 RtlTryEnterCriticalSection_entry(ppc_ptr_t<X_RTL_CRITICAL_SECTION> cs) {
-  u32 thread = ThreadRecord::GetCurrentThread()->guest_object();
+  u32 thread = KernelThread::GetCurrentThread()->guest_object();
 
   if (rex::platform::atomic_cas(-1, 0, &cs->lock_count)) {
     cs->owning_thread = thread;
@@ -385,7 +385,7 @@ u32 RtlTryEnterCriticalSection_entry(ppc_ptr_t<X_RTL_CRITICAL_SECTION> cs) {
 }
 
 void RtlLeaveCriticalSection_entry(ppc_ptr_t<X_RTL_CRITICAL_SECTION> cs) {
-  REX_ASSERT(cs->owning_thread == ThreadRecord::GetCurrentThread()->guest_object());
+  REX_ASSERT(cs->owning_thread == KernelThread::GetCurrentThread()->guest_object());
 
   REX_ASSERT(cs->recursion_count > 0);
   if (--cs->recursion_count != 0) {

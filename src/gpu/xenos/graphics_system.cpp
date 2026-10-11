@@ -80,7 +80,7 @@ Result<void> GraphicsSystem::SetupPresentation(gpu::IUIThread& ui_thread) {
 
   ui_thread_ = &ui_thread;
   auto loss_cb = [this](bool is_responsible, [[maybe_unused]] bool statically_from_ui_thread) {
-    OnHostGpuLossFromAnyThread(is_responsible);
+    OnHostGPULossFromAnyThread(is_responsible);
   };
   ui_thread.RunSynchronous([this, loss_cb] { presenter_ = provider_->CreatePresenter(loss_cb); });
 
@@ -113,7 +113,7 @@ Result<void> GraphicsSystem::SetupGuestGPU(runtime::FunctionDispatcher& dispatch
   rex::AttachMMIO(rex::MMIOBlock::GPU, {this, ReadRegisterThunk, WriteRegisterThunk});
 
   vsync_worker_running_ = true;
-  auto record = std::make_unique<runtime::ThreadRecord>(*runtime_, 128 * 1024, 0, [this]() {
+  auto thread = std::make_unique<runtime::KernelThread>(*runtime_, 128 * 1024, 0, [this]() {
     f64 refresh_rate_hz = std::max(1.0, static_cast<f64>(runtime_->video_mode().refresh_rate));
     u64 guest_tick_frequency = Clock::guest_tick_frequency();
     u64 vsync_interval_ticks =
@@ -133,8 +133,8 @@ Result<void> GraphicsSystem::SetupGuestGPU(runtime::FunctionDispatcher& dispatch
     }
     return 0;
   });
-  record->set_name("GPU VSync");
-  vsync_worker_thread_ = runtime_->thread_registry().Launch(std::move(record)).value_or(0);
+  thread->set_name("GPU VSync");
+  vsync_worker_thread_ = runtime_->thread_registry().Launch(std::move(thread)).value_or(0);
 
   return Ok();
 }
@@ -171,7 +171,7 @@ void GraphicsSystem::Shutdown() {
   rex::DetachMMIO(rex::MMIOBlock::GPU, this);
   if (vsync_worker_thread_) {
     vsync_worker_running_ = false;
-    runtime::WaitOn(*runtime_, vsync_worker_thread_, 0, 0, 0, nullptr);
+    runtime::Wait(*runtime_, vsync_worker_thread_, 0, 0, 0, nullptr);
     runtime::CloseOwned(runtime_->object_table(), vsync_worker_thread_);
     vsync_worker_thread_ = 0;
   }
@@ -191,7 +191,7 @@ void GraphicsSystem::Shutdown() {
   provider_.reset();
 }
 
-void GraphicsSystem::OnHostGpuLossFromAnyThread([[maybe_unused]] bool is_responsible) {
+void GraphicsSystem::OnHostGPULossFromAnyThread([[maybe_unused]] bool is_responsible) {
   if (host_gpu_loss_reported_.test_and_set(std::memory_order_relaxed)) {
     return;
   }
@@ -274,7 +274,7 @@ void GraphicsSystem::DispatchInterruptCallback(u32 source, u32 cpu) {
     return;
   }
 
-  auto thread = runtime::ThreadRecord::GetCurrentThread();
+  auto thread = runtime::KernelThread::GetCurrentThread();
   REX_ASSERT(thread != nullptr);
 
   if (cpu == 0xFFFFFFFF) {
@@ -299,8 +299,8 @@ void GraphicsSystem::ClearCaches() {
   command_processor_->CallInThread([&]() { command_processor_->ClearCaches(); });
 }
 
-void GraphicsSystem::InvalidateGpuMemory() {
-  command_processor_->CallInThread([&]() { command_processor_->InvalidateGpuMemory(); });
+void GraphicsSystem::InvalidateGPUMemory() {
+  command_processor_->CallInThread([&]() { command_processor_->InvalidateGPUMemory(); });
 }
 
 Result<void> GraphicsSystem::InitializeShaderStorage(const std::filesystem::path& root,

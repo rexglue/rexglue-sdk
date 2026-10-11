@@ -1,6 +1,6 @@
 /**
  * @file        runtime/pin_count.h
- * @brief       Transient pin count with a retire handshake for `ObjectRecord` entries
+ * @brief       Transient pin count with a retire handshake for `KernelObject` entries
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -18,7 +18,7 @@
 namespace rex::runtime {
 
 /**
- * Counts transient pins on an `ObjectRecord` and decides who destroys it. The destroyer is
+ * Counts transient pins on an `KernelObject` and decides who destroys it. The destroyer is
  * whichever of the final Retire and the last Unpin happens second.
  */
 class PinCount {

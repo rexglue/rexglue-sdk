@@ -2,7 +2,6 @@
 #include "../ui/progress.h"
 #include "../ui/ui.h"
 #include "project_scan.h"
-#include "template_utils.h"
 
 #include <filesystem>
 #include <memory>
@@ -209,7 +208,7 @@ Result<void> CodegenFromConfig(const std::string& config_path, const CLIContext&
     return run_result;
   }
 
-  if (!rex::codegen::ManifestConfig::WriteSdkVersionStamp(manifest_path, current_version)) {
+  if (!rex::codegen::ManifestConfig::WriteSDKVersionStamp(manifest_path, current_version)) {
     REXLOG_WARN(rexglue, "Failed to stamp manifest sdkVersion");
   }
   return rex::Ok();

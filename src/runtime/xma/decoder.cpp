@@ -76,9 +76,9 @@ X_STATUS XMADecoder::Setup() {
       memory()->GetPhysicalAddress(context_data_first_ptr_);
 
   for (size_t i = 0; i < kContextCount; ++i) {
-    u32 guest_ptr = context_data_first_ptr_ + i * sizeof(XMA_CONTEXT_DATA);
+    u32 context_ptr = context_data_first_ptr_ + i * sizeof(XMA_CONTEXT_DATA);
     XMAContext& context = contexts_[i];
-    if (context.Setup(i, memory(), guest_ptr)) {
+    if (context.Setup(i, memory(), context_ptr)) {
       REX_ASSERT_ALWAYS();
     }
   }
@@ -147,13 +147,13 @@ void XMADecoder::Shutdown() {
   context_data_last_ptr_ = 0;
 }
 
-int XMADecoder::GetContextId(u32 guest_ptr) const {
+int XMADecoder::GetContextId(u32 context_ptr) const {
   REX_STATIC_ASSERT_SIZE(XMA_CONTEXT_DATA, 64);
-  if (guest_ptr < context_data_first_ptr_ || guest_ptr > context_data_last_ptr_) {
+  if (context_ptr < context_data_first_ptr_ || context_ptr > context_data_last_ptr_) {
     return -1;
   }
-  REX_ASSERT((guest_ptr & 0x3F) == 0);
-  return static_cast<int>((guest_ptr - context_data_first_ptr_) >> 6);
+  REX_ASSERT((context_ptr & 0x3F) == 0);
+  return static_cast<int>((context_ptr - context_data_first_ptr_) >> 6);
 }
 
 u32 XMADecoder::AllocateContext() {
@@ -168,8 +168,8 @@ u32 XMADecoder::AllocateContext() {
   return context.guest_ptr();
 }
 
-void XMADecoder::ReleaseContext(u32 guest_ptr) {
-  auto context_id = GetContextId(guest_ptr);
+void XMADecoder::ReleaseContext(u32 context_ptr) {
+  auto context_id = GetContextId(context_ptr);
   REX_ASSERT(context_id >= 0);
 
   XMAContext& context = contexts_[context_id];
@@ -178,8 +178,8 @@ void XMADecoder::ReleaseContext(u32 guest_ptr) {
   context_bitmap_.Release(context_id);
 }
 
-bool XMADecoder::BlockOnContext(u32 guest_ptr, bool poll) {
-  auto context_id = GetContextId(guest_ptr);
+bool XMADecoder::BlockOnContext(u32 context_ptr, bool poll) {
+  auto context_id = GetContextId(context_ptr);
   REX_ASSERT(context_id >= 0);
 
   XMAContext& context = contexts_[context_id];

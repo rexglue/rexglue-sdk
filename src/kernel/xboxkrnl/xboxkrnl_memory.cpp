@@ -451,7 +451,7 @@ void MmSetAddressProtect_entry(mapped_void base_address, u32 region_size, u32 pr
   if (!heap) {
     return;
   }
-  if (heap->heap_type() == runtime::HeapType::kGuestXex) {
+  if (heap->heap_type() == runtime::HeapType::kGuestXEX) {
     return;
   }
 
@@ -635,7 +635,7 @@ void ExFreePool_entry(mapped_void base_address) {
 
 u32 KeGetImagePageTableEntry_entry(mapped_void address) {
   auto heap = runtime::Current().memory()->LookupHeap(address.guest_address());
-  if (!heap || heap->heap_type() != runtime::HeapType::kGuestXex) {
+  if (!heap || heap->heap_type() != runtime::HeapType::kGuestXEX) {
     return 0;
   }
   u32 result = address.guest_address() - heap->heap_base();
@@ -656,7 +656,7 @@ u32 MmCreateKernelStack_entry(u32 stack_size, u32 r4) {
   REX_ASSERT(r4 == 0);
   auto& runtime = runtime::Current();
   const auto* process =
-      runtime.memory()->TranslateVirtual<const X_KPROCESS*>(runtime.GetTitleProcess());
+      runtime.memory()->TranslateVirtual<const X_KPROCESS*>(runtime.title_process());
   const u32 size =
       ResolveGuestStackSize(stack_size, process->kernel_stack_size, kMinimumThreadStackSize);
   Result<GuestStack> stack = AllocateGuestStack(*runtime.memory(), size, 0, true);
@@ -666,7 +666,7 @@ u32 MmCreateKernelStack_entry(u32 stack_size, u32 r4) {
 u32 MmDeleteKernelStack_entry(mapped_void stack_base, mapped_void stack_end) {
   auto* memory = runtime::Current().memory();
   const u32 base = stack_base.guest_address();
-  if (base <= ThreadRecord::kStackAddressRangeBegin || base > ThreadRecord::kStackAddressRangeEnd ||
+  if (base <= KernelThread::kStackAddressRangeBegin || base > KernelThread::kStackAddressRangeEnd ||
       stack_end.guest_address() >= base) {
     return X_STATUS_INVALID_PARAMETER;
   }
@@ -731,7 +731,7 @@ u32 NtFreeEncryptedMemory_entry([[maybe_unused]] u32 region_type, mapped_u32 bas
   const u32 encrypt_address = heap->heap_base() + heap->page_size() * (*base_address_ptr);
 
   auto encrypt_heap = runtime::Current().memory()->LookupHeap(encrypt_address);
-  if (!encrypt_heap || encrypt_heap->heap_type() != runtime::HeapType::kGuestXex) {
+  if (!encrypt_heap || encrypt_heap->heap_type() != runtime::HeapType::kGuestXEX) {
     return X_STATUS_INVALID_PARAMETER;
   }
 

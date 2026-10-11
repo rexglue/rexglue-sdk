@@ -19,7 +19,7 @@
 #include <rex/string.h>
 #include <rex/runtime.h>
 #include <rex/runtime/xam/content_device.h>
-#include <rex/runtime/xenumerator.h>
+#include <rex/runtime/enumerator_object.h>
 #include <rex/runtime/xtypes.h>
 #include "kernel/kernel_macros.h"
 
@@ -27,7 +27,6 @@ namespace rex {
 namespace kernel {
 namespace xam {
 using namespace rex::runtime;
-using namespace rex::runtime::xam;
 
 u32 XamContentGetLicenseMask_entry(mapped_u32 mask_ptr, mapped_void overlapped_ptr) {
   // Bits of the licenses applicable to the title, combined with OR.

@@ -55,7 +55,7 @@ class VulkanSharedMemory : public SharedMemory {
   VkBuffer buffer() const { return buffer_; }
 
  protected:
-  bool AllocateSparseHostGpuMemoryRange(u32 offset_allocations, u32 length_allocations) override;
+  bool AllocateSparseHostGPUMemoryRange(u32 offset_allocations, u32 length_allocations) override;
 
   bool UploadRanges(const std::vector<std::pair<u32, u32>>& upload_page_ranges) override;
 

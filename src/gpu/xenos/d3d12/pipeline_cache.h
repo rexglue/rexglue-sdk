@@ -79,16 +79,16 @@ class PipelineCache {
    * @param interpolator_mask Mask of the interpolators the pixel shader reads.
    * @return The vertex shader modification.
    */
-  DxbcShaderTranslator::Modification GetCurrentVertexShaderModification(
+  DXBCShaderTranslator::Modification GetCurrentVertexShaderModification(
       const Shader& shader, Shader::HostVertexShaderType host_vertex_shader_type,
       u32 interpolator_mask) const;
-  DxbcShaderTranslator::Modification GetCurrentPixelShaderModification(
+  DXBCShaderTranslator::Modification GetCurrentPixelShaderModification(
       const Shader& shader, u32 interpolator_mask, u32 param_gen_pos,
       xenos::reg::RB_DEPTHCONTROL normalized_depth_control) const;
 
   /**
    * Configures the pipeline for the current state. If
-   * draw_util::IsRasterizationPotentiallyDone is false, the pixel shader must be nullptr.
+   * draw_state::IsRasterizationPotentiallyDone is false, the pixel shader must be nullptr.
    *
    * @param vertex_shader Translated vertex shader.
    * @param pixel_shader Translated pixel shader, or nullptr.
@@ -294,14 +294,14 @@ class PipelineCache {
                           u64 data_hash);
 
   // Can be called from multiple threads.
-  bool TranslateAnalyzedShader(DxbcShaderTranslator& translator,
+  bool TranslateAnalyzedShader(DXBCShaderTranslator& translator,
                                D3D12Shader::D3D12Translation& translation,
                                IDxbcConverter* dxbc_converter = nullptr,
                                IDxcUtils* dxc_utils = nullptr,
                                IDxcCompiler* dxc_compiler = nullptr);
 
   /**
-   * Builds the description of the current state. If draw_util::IsRasterizationPotentiallyDone
+   * Builds the description of the current state. If draw_state::IsRasterizationPotentiallyDone
    * is false, the pixel shader must be nullptr. The shaders must be translated and valid unless
    * for_placeholder is true.
    *
@@ -334,8 +334,8 @@ class PipelineCache {
       PipelineRuntimeDescription& runtime_description_out, bool for_placeholder = false);
 
   static bool GetGeometryShaderKey(PipelineGeometryShader geometry_shader_type,
-                                   DxbcShaderTranslator::Modification vertex_shader_modification,
-                                   DxbcShaderTranslator::Modification pixel_shader_modification,
+                                   DXBCShaderTranslator::Modification vertex_shader_modification,
+                                   DXBCShaderTranslator::Modification pixel_shader_modification,
                                    GeometryShaderKey& key_out);
   /**
    * Builds a DXBC geometry shader container for the key.
@@ -362,7 +362,7 @@ class PipelineCache {
    * @param key Geometry shader key.
    * @param shader_out Receives the shader dwords.
    */
-  static void CreateDxbcGeometryShader(GeometryShaderKey key, std::vector<u32>& shader_out);
+  static void CreateDXBCGeometryShader(GeometryShaderKey key, std::vector<u32>& shader_out);
   const std::vector<u32>& GetGeometryShader(GeometryShaderKey key);
 
   /**
@@ -387,7 +387,7 @@ class PipelineCache {
 
   StringBuffer ucode_disasm_buffer_;
   /** Used on the processor thread only. */
-  std::unique_ptr<DxbcShaderTranslator> shader_translator_;
+  std::unique_ptr<DXBCShaderTranslator> shader_translator_;
   std::mutex translation_request_lock_;
 
   /** Command processor thread DXIL conversion interfaces, null unless DXIL disassembly is on. */

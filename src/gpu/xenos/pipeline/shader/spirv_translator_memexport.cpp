@@ -25,7 +25,7 @@
 
 namespace rex::gpu {
 
-void SpirvShaderTranslator::ExportToMemory(u8 export_eM) {
+void SPIRVShaderTranslator::ExportToMemory(u8 export_eM) {
   if (!export_eM) {
     return;
   }
@@ -36,13 +36,13 @@ void SpirvShaderTranslator::ExportToMemory(u8 export_eM) {
     return;
   }
 
-  std::optional<SpirvBuilder::IfBuilder> if_memexport_allowed;
+  std::optional<SPIRVBuilder::IfBuilder> if_memexport_allowed;
   if (main_memexport_allowed_ != spv::NoResult) {
     if_memexport_allowed.emplace(main_memexport_allowed_, spv::SelectionControlDontFlattenMask,
                                  *builder_);
   }
 
-  std::optional<SpirvBuilder::IfBuilder> if_pixel_not_killed;
+  std::optional<SPIRVBuilder::IfBuilder> if_pixel_not_killed;
   if (var_main_kill_pixel_ != spv::NoResult) {
     if_pixel_not_killed.emplace(
         builder_->createUnaryOp(spv::OpLogicalNot, type_bool_,
@@ -65,7 +65,7 @@ void SpirvShaderTranslator::ExportToMemory(u8 export_eM) {
   id_vector_temp_.push_back(id_vector_temp_.back());
   id_vector_temp_.push_back(id_vector_temp_.back());
   spv::Id address_validation_value = builder_->makeCompositeConstant(type_uint4_, id_vector_temp_);
-  SpirvBuilder::IfBuilder if_address_valid(
+  SPIRVBuilder::IfBuilder if_address_valid(
       builder_->createUnaryOp(
           spv::OpAll, type_bool_,
           builder_->createBinOp(spv::OpIEqual, type_bool4_,
@@ -190,10 +190,10 @@ void SpirvShaderTranslator::ExportToMemory(u8 export_eM) {
 
     EMIdArray eM_flushed = flush_nan(eM_unflushed);
 
-    SpirvBuilder::IfBuilder if_signed(is_signed, spv::SelectionControlDontFlattenMask, *builder_);
+    SPIRVBuilder::IfBuilder if_signed(is_signed, spv::SelectionControlDontFlattenMask, *builder_);
     EMIdArray eM_signed;
     {
-      SpirvBuilder::IfBuilder if_norm(is_norm, spv::SelectionControlDontFlattenMask, *builder_);
+      SPIRVBuilder::IfBuilder if_norm(is_norm, spv::SelectionControlDontFlattenMask, *builder_);
       EMIdArray eM_norm;
       {
         id_vector_temp_.clear();
@@ -240,7 +240,7 @@ void SpirvShaderTranslator::ExportToMemory(u8 export_eM) {
     if_signed.makeBeginElse();
     EMIdArray eM_unsigned;
     {
-      SpirvBuilder::IfBuilder if_norm(is_norm, spv::SelectionControlDontFlattenMask, *builder_);
+      SPIRVBuilder::IfBuilder if_norm(is_norm, spv::SelectionControlDontFlattenMask, *builder_);
       EMIdArray eM_norm;
       {
         id_vector_temp_.clear();
@@ -304,7 +304,7 @@ void SpirvShaderTranslator::ExportToMemory(u8 export_eM) {
     return eM_packed;
   };
 
-  SpirvBuilder::SwitchBuilder format_switch(
+  SPIRVBuilder::SwitchBuilder format_switch(
       builder_->createTriOp(spv::OpBitFieldUExtract, type_uint_, format_info,
                             builder_->makeUintConstant(8), builder_->makeUintConstant(6)),
       spv::SelectionControlDontFlattenMask, *builder_);
@@ -373,10 +373,10 @@ void SpirvShaderTranslator::ExportToMemory(u8 export_eM) {
   {
     EMIdArray fixed16_flushed = flush_nan(eM_swapped);
 
-    SpirvBuilder::IfBuilder if_signed(is_signed, spv::SelectionControlDontFlattenMask, *builder_);
+    SPIRVBuilder::IfBuilder if_signed(is_signed, spv::SelectionControlDontFlattenMask, *builder_);
     EMIdArray fixed16_signed;
     {
-      SpirvBuilder::IfBuilder if_norm(is_norm, spv::SelectionControlDontFlattenMask, *builder_);
+      SPIRVBuilder::IfBuilder if_norm(is_norm, spv::SelectionControlDontFlattenMask, *builder_);
       EMIdArray fixed16_norm;
       {
         id_vector_temp_.clear();
@@ -415,7 +415,7 @@ void SpirvShaderTranslator::ExportToMemory(u8 export_eM) {
     if_signed.makeBeginElse();
     EMIdArray fixed16_unsigned;
     {
-      SpirvBuilder::IfBuilder if_norm(is_norm, spv::SelectionControlDontFlattenMask, *builder_);
+      SPIRVBuilder::IfBuilder if_norm(is_norm, spv::SelectionControlDontFlattenMask, *builder_);
       EMIdArray fixed16_norm;
       {
         id_vector_temp_.clear();
@@ -637,7 +637,7 @@ void SpirvShaderTranslator::ExportToMemory(u8 export_eM) {
 
   auto store_needed_eM = [&]<std::invocable<u32> F>(F&& fn) {
     for_each_eM([&](u32 eM_index) {
-      SpirvBuilder::IfBuilder if_eM_needed(
+      SPIRVBuilder::IfBuilder if_eM_needed(
           builder_->createBinOp(
               spv::OpINotEqual, type_bool_,
               builder_->createBinOp(spv::OpBitwiseAnd, type_uint_, eM_indices_to_store,
@@ -648,7 +648,7 @@ void SpirvShaderTranslator::ExportToMemory(u8 export_eM) {
       if_eM_needed.makeEndIf();
     });
   };
-  SpirvBuilder::SwitchBuilder element_size_switch(element_bytes_log2,
+  SPIRVBuilder::SwitchBuilder element_size_switch(element_bytes_log2,
                                                   spv::SelectionControlDontFlattenMask, *builder_);
   element_size_switch.makeBeginCase(0);
   {

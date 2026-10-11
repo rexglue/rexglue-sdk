@@ -304,7 +304,7 @@ REX_TEST_CASE_METHOD(Fixture, "unknown Config override warns and Init succeeds",
   cfg.log.sinks.push_back(&sink);
   auto api = rex::Init(cfg);
   REQUIRE(api);
-  std::vector<rex::log::CapturedRecord> entries;
+  std::vector<rex::log::CapturedMessage> entries;
   sink.CopySince(0, entries);
   bool warned = false;
   for (const auto& entry : entries) {
@@ -379,7 +379,7 @@ REX_TEST_CASE_METHOD(Fixture, "Locks apply after values and unknown locks fail",
   REQUIRE(registry->Get("echo.value").value() == "3");
   auto set = registry->Set("echo.value", "4");
   REQUIRE_FALSE(set);
-  REQUIRE(set.error().code == static_cast<int>(rex::cvar::Error::Locked));
+  REQUIRE(set.error().code == static_cast<int>(rex::cvar::CvarError::Locked));
   rex::Shutdown();
   cfg.cvars.locked = {"nope.value"};
   api = rex::Init(cfg);

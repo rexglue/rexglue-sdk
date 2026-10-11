@@ -29,7 +29,7 @@ namespace apps {
 /**
  * Xmp app 0xFA, which serves the music player state and title playlists.
  */
-class REX_RUNTIME_API XmpApp : public runtime::xam::App {
+class REX_RUNTIME_API XmpApp : public runtime::App {
  public:
   /** Playback state reported to the title. */
   enum class State : u8 {
@@ -89,10 +89,10 @@ class REX_RUNTIME_API XmpApp : public runtime::xam::App {
   /**
    * Writes the playback state.
    *
-   * @param status_ptr Guest address that receives the State value.
+   * @param state_ptr Guest address that receives the State value.
    * @return X_E_SUCCESS.
    */
-  X_HRESULT XMPGetStatus(u32 status_ptr);
+  X_HRESULT XMPGetStatus(u32 state_ptr);
 
   /**
    * Creates a playlist from songs in guest memory.

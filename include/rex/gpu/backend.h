@@ -30,11 +30,11 @@ class FunctionDispatcher;
 namespace rex::gpu {
 
 /** A GPU backend, served by a backend module. */
-class IBackend {
+class IGPUBackend {
  public:
-  REX_INTERFACE(IBackend, "rex.gpu.backend", 1);
+  REX_INTERFACE(IGPUBackend, "rex.gpu.backend", 1);
 
-  virtual ~IBackend() = default;
+  virtual ~IGPUBackend() = default;
 
   /**
    * Builds the device and the guest output presenter. Runs before SetupGuestGPU.

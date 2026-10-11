@@ -19,7 +19,7 @@
 namespace rex::filesystem {
 
 /** Filesystem error codes, stored in rex::Error::code. */
-enum class Error : u8 {
+enum class FileSystemError : u8 {
   kNone = 0,         /**< No error. */
   kNotFound,         /**< The path or 1 of its parents does not exist. */
   kExists,           /**< The path exists and the request needs it absent. */
@@ -45,17 +45,17 @@ enum class Error : u8 {
  * @return The error, with the category NotFound for kNotFound and kNoMount, Format for kCorrupt,
  *         NotImplemented for kUnsupported and IO for every other code.
  */
-[[nodiscard]] inline rex::Error MakeError(Error code, std::string message) {
+[[nodiscard]] inline rex::Error BuildError(FileSystemError code, std::string message) {
   ErrorCategory category = ErrorCategory::IO;
   switch (code) {
-    case Error::kNotFound:
-    case Error::kNoMount:
+    case FileSystemError::kNotFound:
+    case FileSystemError::kNoMount:
       category = ErrorCategory::NotFound;
       break;
-    case Error::kCorrupt:
+    case FileSystemError::kCorrupt:
       category = ErrorCategory::Format;
       break;
-    case Error::kUnsupported:
+    case FileSystemError::kUnsupported:
       category = ErrorCategory::NotImplemented;
       break;
     default:
@@ -67,11 +67,11 @@ enum class Error : u8 {
 /**
  * Returns the filesystem code of an error.
  *
- * @param error An error built by MakeError.
+ * @param error An error built by BuildError.
  * @return The code.
  */
-[[nodiscard]] inline Error CodeOf(const rex::Error& error) {
-  return static_cast<Error>(error.code);
+[[nodiscard]] inline FileSystemError CodeOf(const rex::Error& error) {
+  return static_cast<FileSystemError>(error.code);
 }
 
 }  // namespace rex::filesystem

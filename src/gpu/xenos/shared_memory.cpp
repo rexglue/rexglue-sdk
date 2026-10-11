@@ -42,7 +42,7 @@ void SharedMemory::InitializeCommon() {
       memory_.RegisterPhysicalMemoryInvalidationCallback(MemoryInvalidationCallbackThunk, this);
 }
 
-void SharedMemory::InitializeSparseHostGpuMemory(u32 granularity_log2) {
+void SharedMemory::InitializeSparseHostGPUMemory(u32 granularity_log2) {
   REX_ASSERT(granularity_log2 <= kBufferSizeLog2);
   REX_ASSERT(host_gpu_memory_sparse_granularity_log2_ == UINT32_MAX);
   host_gpu_memory_sparse_granularity_log2_ = granularity_log2;
@@ -94,7 +94,7 @@ void SharedMemory::InvalidateAllPages() {
             system_page_flags_valid_and_gpu_written_.end(), static_cast<u64>(0));
 }
 
-void SharedMemory::SetSystemPageBlocksValidWithGpuDataWritten() {
+void SharedMemory::SetSystemPageBlocksValidWithGPUDataWritten() {
   auto lock = AcquireLock();
 
   system_page_flags_valid_ = system_page_flags_valid_and_gpu_written_;
@@ -110,7 +110,7 @@ void SharedMemory::ClearCache() {
   watch_range_first_free_ = nullptr;
   watch_range_current_pool_allocated_ = 0;
   watch_range_pools_.clear();
-  SetSystemPageBlocksValidWithGpuDataWritten();
+  SetSystemPageBlocksValidWithGPUDataWritten();
 }
 
 SharedMemory::GlobalWatchHandle SharedMemory::RegisterGlobalWatch(GlobalWatchCallback callback,
@@ -240,7 +240,7 @@ void SharedMemory::FireWatchesLocked(u32 page_first, u32 page_last, bool invalid
   }
 }
 
-void SharedMemory::RangeWrittenByGpu(u32 start, u32 length) {
+void SharedMemory::RangeWrittenByGPU(u32 start, u32 length) {
   if (length == 0 || start >= kBufferSize) {
     return;
   }
@@ -251,18 +251,18 @@ void SharedMemory::RangeWrittenByGpu(u32 start, u32 length) {
 
   FireWatches(page_first, page_last, true);
 
-  MakeRangeValid(start, length, true);
+  MarkRangeValid(start, length, true);
 }
 
-bool SharedMemory::AllocateSparseHostGpuMemoryRange([[maybe_unused]] u32 offset_allocations,
+bool SharedMemory::AllocateSparseHostGPUMemoryRange([[maybe_unused]] u32 offset_allocations,
                                                     [[maybe_unused]] u32 length_allocations) {
   REX_ASSERT_ALWAYS(
       "Sparse host GPU memory allocation has been initialized, but the "
-      "implementation doesn't provide AllocateSparseHostGpuMemoryRange");
+      "implementation doesn't provide AllocateSparseHostGPUMemoryRange");
   return false;
 }
 
-void SharedMemory::MakeRangeValid(u32 start, u32 length, bool written_by_gpu) {
+void SharedMemory::MarkRangeValid(u32 start, u32 length, bool written_by_gpu) {
   if (length == 0 || start >= kBufferSize) {
     return;
   }
@@ -366,7 +366,7 @@ bool SharedMemory::RequestRanges(const std::pair<u32, u32>* ranges, size_t count
   merged_ranges.resize(merged_write + 1);
 
   for (const std::pair<u32, u32>& range : merged_ranges) {
-    if (!EnsureHostGpuMemoryAllocated(range.first, range.second)) {
+    if (!EnsureHostGPUMemoryAllocated(range.first, range.second)) {
       return false;
     }
   }
@@ -501,7 +501,7 @@ std::pair<u32, u32> SharedMemory::MemoryInvalidationCallback(u32 physical_addres
                                                            << page_size_log2_);
 }
 
-bool SharedMemory::EnsureHostGpuMemoryAllocated(u32 start, u32 length) {
+bool SharedMemory::EnsureHostGPUMemoryAllocated(u32 start, u32 length) {
   if (host_gpu_memory_sparse_granularity_log2_ == UINT32_MAX) {
     return true;
   }
@@ -522,7 +522,7 @@ bool SharedMemory::EnsureHostGpuMemoryAllocated(u32 start, u32 length) {
     if (!allocation_range.second) {
       break;
     }
-    if (!AllocateSparseHostGpuMemoryRange(static_cast<u32>(allocation_range.first),
+    if (!AllocateSparseHostGPUMemoryRange(static_cast<u32>(allocation_range.first),
                                           static_cast<u32>(allocation_range.second))) {
       return false;
     }

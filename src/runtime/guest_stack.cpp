@@ -28,13 +28,13 @@ u32 ResolveTLSSlotCount(u32 xex_slot_count) {
 }
 
 Result<GuestStack> AllocateGuestStack(Memory& memory, u32 size, u32 tls_size, bool title_memory) {
-  BaseHeap* heap = memory.LookupHeap(ThreadRecord::kStackAddressRangeBegin);
+  BaseHeap* heap = memory.LookupHeap(KernelThread::kStackAddressRangeBegin);
   size = rex::round_up(size, 4096u);
   tls_size = rex::round_up(tls_size, 16u, false);
   const u32 committed_size = rex::round_up(size + tls_size, kGuestStackPageSize);
   const u32 alloc_size = committed_size + kGuestStackPageSize;
   u32 alloc_base = 0;
-  if (!heap->AllocRange(ThreadRecord::kStackAddressRangeBegin, ThreadRecord::kStackAddressRangeEnd,
+  if (!heap->AllocRange(KernelThread::kStackAddressRangeBegin, KernelThread::kStackAddressRangeEnd,
                         alloc_size, kGuestStackPageSize, kMemoryAllocationReserve,
                         kMemoryProtectNoAccess, false, &alloc_base)) {
     return Err<GuestStack>(StatusError(X_STATUS_NO_MEMORY));

@@ -16,7 +16,7 @@
 #include <rex/assert.h>
 #include <rex/logging.h>
 #include "gpu/xenos/host/vulkan/linked_type_descriptor_set_allocator.h"
-#include "gpu/xenos/host/vulkan/util.h"
+#include "gpu/xenos/host/vulkan/objects.h"
 
 namespace rex {
 namespace gpu {
@@ -25,8 +25,8 @@ namespace vulkan {
 void LinkedTypeDescriptorSetAllocator::Reset() {
   const VulkanDevice::Functions& dfn = vulkan_device_->functions();
   const VkDevice device = vulkan_device_->device();
-  gpu::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyDescriptorPool, device,
-                                          page_usable_latest_.pool);
+  gpu::vulkan::objects::DestroyAndNullHandle(dfn.vkDestroyDescriptorPool, device,
+                                             page_usable_latest_.pool);
   page_usable_latest_.descriptors_remaining.reset();
   for (const std::pair<const u32, Page>& page_pair : pages_usable_) {
     dfn.vkDestroyDescriptorPool(device, page_pair.second.pool, nullptr);

@@ -2,7 +2,7 @@
 
 #include <algorithm>
 
-#include <rex/memory/utils.h>
+#include <rex/memory/byte_swap.h>
 #include <rex/types.h>
 
 namespace rex::codegen {
@@ -28,7 +28,7 @@ void DecodedBinary::decode() {
         u32 addr = section.baseAddress + offset;
         u32 raw = memory::load<be_u32>(section.data + offset);
 
-        auto insn = rex::codegen::ppc::decode_instruction(addr, raw);
+        auto insn = rex::codegen::detail::decode_instruction(addr, raw);
         sec.instructions.push_back(insn);
       }
     }

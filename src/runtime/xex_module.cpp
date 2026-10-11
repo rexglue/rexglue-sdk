@@ -22,7 +22,7 @@
 #include <rex/runtime/function_dispatcher.h>
 #include <rex/runtime/kernel_module.h>
 #include <rex/runtime/xex_module.h>
-#include <rex/runtime/xmodule.h>
+#include <rex/runtime/module_object.h>
 #include <rex/types.h>
 #include "runtime/cvar_table.h"
 
@@ -45,7 +45,8 @@ u32 XexModule::image_size() const {
 
 u32 XexModule::GetProcAddress(u16 ordinal) const {
   if (const u32 table_address = image_.security().export_table) {
-    auto export_table = memory()->TranslateVirtual<const xex2_export_table*>(table_address);
+    auto export_table =
+        memory()->TranslateVirtual<const filesystem::XEXExportTable*>(table_address);
     ordinal -= export_table->base;
     if (ordinal >= export_table->count) {
       REX_FAIL(system, 0, "GetProcAddress({:03X}): ordinal out of bounds", ordinal);
@@ -56,10 +57,10 @@ u32 XexModule::GetProcAddress(u16 ordinal) const {
   }
 
   REX_ASSERT(base_address_ != 0);
-  if (const auto* directory =
-          image_.OptHeader<xex2_opt_data_directory>(XEX_HEADER_EXPORTS_BY_NAME)) {
-    auto e = memory()->TranslateVirtual<const X_IMAGE_EXPORT_DIRECTORY*>(base_address_ +
-                                                                         directory->offset);
+  if (const auto* directory = image_.OptHeader<filesystem::XEXOptDataDirectory>(
+          filesystem::XEX_HEADER_EXPORTS_BY_NAME)) {
+    auto e = memory()->TranslateVirtual<const filesystem::X_IMAGE_EXPORT_DIRECTORY*>(
+        base_address_ + directory->offset);
     REX_ASSERT(e != nullptr);
     const auto* bytes = reinterpret_cast<const u8*>(e);
     auto* function_table = reinterpret_cast<const u32*>(bytes + e->AddressOfFunctions);
@@ -72,12 +73,13 @@ u32 XexModule::GetProcAddress(u16 ordinal) const {
 
 u32 XexModule::GetProcAddress(const std::string_view name) const {
   REX_ASSERT(base_address_ != 0);
-  const auto* directory = image_.OptHeader<xex2_opt_data_directory>(XEX_HEADER_EXPORTS_BY_NAME);
+  const auto* directory =
+      image_.OptHeader<filesystem::XEXOptDataDirectory>(filesystem::XEX_HEADER_EXPORTS_BY_NAME);
   if (!directory) {
     return 0;
   }
-  auto e = memory()->TranslateVirtual<const X_IMAGE_EXPORT_DIRECTORY*>(base_address_ +
-                                                                       directory->offset);
+  auto e = memory()->TranslateVirtual<const filesystem::X_IMAGE_EXPORT_DIRECTORY*>(
+      base_address_ + directory->offset);
   REX_ASSERT(e != nullptr);
   const auto* bytes = reinterpret_cast<const u8*>(e);
   auto* function_table = reinterpret_cast<const u32*>(bytes + e->AddressOfFunctions);
@@ -134,8 +136,8 @@ int XexModule::ApplyPatch(XexModule* module) {
     }
   }
 
-  const auto* descriptor =
-      image_.OptHeader<xex2_opt_delta_patch_descriptor>(XEX_HEADER_DELTA_PATCH_DESCRIPTOR);
+  const auto* descriptor = image_.OptHeader<filesystem::XEXOptDeltaPatchDescriptor>(
+      filesystem::XEX_HEADER_DELTA_PATCH_DESCRIPTOR);
   const auto source = descriptor->source_version();
   const auto target = descriptor->target_version();
   REXLOG_INFO(system,
@@ -157,8 +159,8 @@ bool XexModule::Load(const std::string_view name, const std::string_view path, c
   loaded_ = true;
   image_ = std::move(*parsed);
 
-  base_address_ =
-      image_.OptHeaderValue(XEX_HEADER_IMAGE_BASE_ADDRESS).value_or(image_.security().load_address);
+  base_address_ = image_.OptHeaderValue(filesystem::XEX_HEADER_IMAGE_BASE_ADDRESS)
+                      .value_or(image_.security().load_address);
   name_ = name;
   path_ = path;
 
@@ -166,13 +168,15 @@ bool XexModule::Load(const std::string_view name, const std::string_view path, c
     return true;
   }
 
-  const auto* format = image_.OptHeader<xex2_opt_file_format_info>(XEX_HEADER_FILE_FORMAT_INFO);
+  const auto* format =
+      image_.OptHeader<filesystem::XEXOptFileFormatInfo>(filesystem::XEX_HEADER_FILE_FORMAT_INFO);
   if (!format) {
     REX_FAIL(system, false, "XEX has no file format header");
   }
-  const u32 alloc_size = static_cast<u16>(format->compression_type) == XEX_COMPRESSION_NONE
-                             ? static_cast<u32>(xex_length - image_.header_bytes().size())
-                             : image_size();
+  const u32 alloc_size =
+      static_cast<u16>(format->compression_type) == filesystem::XEX_COMPRESSION_NONE
+          ? static_cast<u32>(xex_length - image_.header_bytes().size())
+          : image_size();
 
   auto* heap = memory()->LookupHeap(base_address_);
   if (!heap->AllocFixed(base_address_, alloc_size, 4096,
@@ -220,14 +224,14 @@ bool XexModule::LoadContinue() {
     const u32 address = base_address_ + page * page_size;
     const u32 size = range.page_count * page_size;
     switch (range.type) {
-      case XEX_SECTION_CODE:
-      case XEX_SECTION_READONLY_DATA:
+      case filesystem::XEX_SECTION_CODE:
+      case filesystem::XEX_SECTION_READONLY_DATA:
         heap->Protect(address, size,
                       REXCVAR_GET(::rex::runtime::cvars::writable_code_segments)
                           ? kMemoryProtectRead | kMemoryProtectWrite
                           : kMemoryProtectRead);
         break;
-      case XEX_SECTION_DATA:
+      case filesystem::XEX_SECTION_DATA:
         heap->Protect(address, size, kMemoryProtectRead | kMemoryProtectWrite);
         break;
     }
@@ -327,8 +331,8 @@ void XexModule::PopulateBinaryData() {
     sec.virtual_address = pe_sec.address;
     sec.virtual_size = pe_sec.size;
     sec.host_data = memory()->TranslateVirtual<u8*>(pe_sec.address);
-    sec.executable = (pe_sec.flags & kXEPESectionMemoryExecute) != 0;
-    sec.writable = (pe_sec.flags & kXEPESectionMemoryWrite) != 0;
+    sec.executable = (pe_sec.flags & filesystem::kPESectionMemoryExecute) != 0;
+    sec.writable = (pe_sec.flags & filesystem::kPESectionMemoryWrite) != 0;
     binary_sections_.push_back(std::move(sec));
   }
   for (const auto& lib : import_libs_) {

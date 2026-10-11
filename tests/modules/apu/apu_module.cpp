@@ -27,11 +27,12 @@ class APUModule final : public rex::IModule {
     if (!backend) {
       backend.emplace();
     }
-    return static_cast<rex::apu::IBackend*>(&*backend);
+    return static_cast<rex::apu::IAPUBackend*>(&*backend);
   }
   static constexpr std::array<rex::InterfaceEntry, 2> kInterfaces = {{
       {rex::IModule::kInterfaceName, rex::IModule::kInterfaceVersion, &GetModule},
-      {rex::apu::IBackend::kInterfaceName, rex::apu::IBackend::kInterfaceVersion, &GetBackend},
+      {rex::apu::IAPUBackend::kInterfaceName, rex::apu::IAPUBackend::kInterfaceVersion,
+       &GetBackend},
   }};
 
   const char* Name() const override { return "rexmod-test-apu"; }
@@ -48,7 +49,7 @@ class APUModule final : public rex::IModule {
     static APUModule instance;
     return instance;
   }
-  std::optional<rex::apu::NullBackend> backend_;
+  std::optional<rex::apu::NullAPUBackend> backend_;
 };
 
 }  // namespace

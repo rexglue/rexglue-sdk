@@ -22,7 +22,7 @@
 #include "gpu/xenos/pipeline/render_target/cache.h"
 #include <rex/xenos/register_file.h>
 #include <rex/xenos/registers.h>
-#include "gpu/xenos/util/draw.h"
+#include "gpu/xenos/draw_state.h"
 #include <rex/xenos/xenos.h>
 #include <rex/logging.h>
 #include <rex/math.h>
@@ -774,7 +774,7 @@ void RenderTargetCache::GetResolveCopyDispatchesToDump(
 }
 
 bool RenderTargetCache::PrepareHostRenderTargetsResolveClear(
-    const draw_util::ResolveInfo& resolve_info, Transfer::Rectangle& clear_rectangle_out,
+    const draw_state::ResolveInfo& resolve_info, Transfer::Rectangle& clear_rectangle_out,
     RenderTarget*& depth_render_target_out, std::vector<Transfer>& depth_transfers_out,
     RenderTarget*& color_render_target_out, std::vector<Transfer>& color_transfers_out) {
   REX_ASSERT(GetPath() == Path::kHostRenderTargets);
@@ -949,7 +949,7 @@ bool RenderTargetCache::PrepareHostRenderTargetsResolveClear(
   return true;
 }
 
-void RenderTargetCache::PixelShaderInterlockFullEdramBarrierPlaced() {
+void RenderTargetCache::PixelShaderInterlockFullEDRAMBarrierPlaced() {
   REX_ASSERT(GetPath() == Path::kPixelShaderInterlock);
   OwnershipRange empty_range(xenos::kEDRAMTileCount, RenderTargetKey(), RenderTargetKey(),
                              RenderTargetKey());

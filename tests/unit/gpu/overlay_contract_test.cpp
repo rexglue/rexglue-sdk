@@ -82,7 +82,7 @@ class TestDrawContext final : public rex::gpu::OverlayDrawContext {
 class NullGPUApp : public rex::ui::TitleApp {
  public:
   using TitleApp::UI;
-  rex::gpu::IPresenter* TitlePresenter() { return api().Get<rex::gpu::IBackend>()->presenter(); }
+  rex::gpu::IPresenter* TitlePresenter() { return api().Get<rex::gpu::IGPUBackend>()->presenter(); }
 
  protected:
   [[nodiscard]] rex::Result<void> OnConfigure(rex::Config& config) override {

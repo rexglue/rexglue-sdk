@@ -25,10 +25,10 @@ ConsoleSink::ConsoleSink(LineFormat format) : format_(format) {
 
 DebuggerSink::DebuggerSink(LineFormat format) : format_(format) {}
 
-void DebuggerSink::Write(const Record& record) {
+void DebuggerSink::Write(const Message& message) {
   LineFormat format = format_;
   format.color = false;
-  std::string line = FormatLine(record, format);
+  std::string line = FormatLine(message, format);
   line += '\n';
   const int length =
       MultiByteToWideChar(CP_UTF8, 0, line.data(), static_cast<int>(line.size()), nullptr, 0);

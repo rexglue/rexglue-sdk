@@ -78,7 +78,7 @@ class D3D12SharedMemory : public SharedMemory {
   void WriteUintPow2UAVDescriptor(D3D12_CPU_DESCRIPTOR_HANDLE handle, u32 element_size_bytes_pow2);
 
  protected:
-  bool AllocateSparseHostGpuMemoryRange(u32 offset_allocations, u32 length_allocations) override;
+  bool AllocateSparseHostGPUMemoryRange(u32 offset_allocations, u32 length_allocations) override;
 
   bool UploadRanges(const std::vector<std::pair<u32, u32>>& upload_page_ranges) override;
 

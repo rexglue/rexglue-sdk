@@ -113,7 +113,7 @@ bool NameContainsCI(const char* name, std::string_view needle) {
  * @param name  Device name, used to refine gamepad types.
  * @return XINPUT_DEVSUBTYPE_* value.
  */
-u8 SdlTypeToXInputSubType(SDL_JoystickType t, const char* name) {
+u8 SDLTypeToXInputSubType(SDL_JoystickType t, const char* name) {
   switch (t) {
     case SDL_JOYSTICK_TYPE_GAMEPAD:
       // SDL's XInput backend puts the SubType in the device name, such as "XInput Guitar #1".
@@ -160,7 +160,7 @@ u8 SdlTypeToXInputSubType(SDL_JoystickType t, const char* name) {
 }
 
 u8 GamepadSubType(SDL_Gamepad* gamepad) {
-  return SdlTypeToXInputSubType(SDL_GetJoystickType(SDL_GetGamepadJoystick(gamepad)),
+  return SDLTypeToXInputSubType(SDL_GetJoystickType(SDL_GetGamepadJoystick(gamepad)),
                                 SDL_GetGamepadName(gamepad));
 }
 
@@ -440,13 +440,11 @@ X_RESULT SDL3Driver::ReadDeviceKeystroke(DeviceId id, X_INPUT_KEYSTROKE* out_key
   KeystrokeState& last = controller->keystroke;
 
   auto guest_now = rex::Clock::QueryGuestUptimeMillis();
-  static_assert(HID_SDL_REPEAT_DELAY >= HID_SDL_REPEAT_RATE);
-  if (last.repeat_state == RepeatState::Waiting &&
-      (last.repeat_time + HID_SDL_REPEAT_DELAY < guest_now)) {
+  static_assert(kRepeatDelay >= kRepeatRate);
+  if (last.repeat_state == RepeatState::Waiting && (last.repeat_time + kRepeatDelay < guest_now)) {
     last.repeat_state = RepeatState::Repeating;
   }
-  if (last.repeat_state == RepeatState::Repeating &&
-      (last.repeat_time + HID_SDL_REPEAT_RATE < guest_now)) {
+  if (last.repeat_state == RepeatState::Repeating && (last.repeat_time + kRepeatRate < guest_now)) {
     last.repeat_time = guest_now;
     VirtualKey vk = kVkLookup.at(last.repeat_butt_idx);
     REX_ASSERT(vk != VirtualKey::kNone);
@@ -822,16 +820,16 @@ void SDL3Driver::QueueControllerUpdate() {
 inline u64 SDL3Driver::AnalogToKeyfield(const X_INPUT_GAMEPAD& gamepad) const {
   u64 f = 0;
 
-  f |= static_cast<u64>(gamepad.left_trigger > HID_SDL_TRIGG_THRES) << 16;
-  f |= static_cast<u64>(gamepad.right_trigger > HID_SDL_TRIGG_THRES) << 17;
+  f |= static_cast<u64>(gamepad.left_trigger > kXInputTriggerThreshold) << 16;
+  f |= static_cast<u64>(gamepad.right_trigger > kXInputTriggerThreshold) << 17;
 
   auto thumb_x = static_cast<i16>(gamepad.thumb_lx);
   auto thumb_y = static_cast<i16>(gamepad.thumb_ly);
   for (size_t i = 0; i <= 8; i = i + 8) {
-    u64 u = thumb_y > HID_SDL_THUMB_THRES;
-    u64 d = thumb_y < ~HID_SDL_THUMB_THRES;
-    u64 r = thumb_x > HID_SDL_THUMB_THRES;
-    u64 l = thumb_x < ~HID_SDL_THUMB_THRES;
+    u64 u = thumb_y > kThumbThreshold;
+    u64 d = thumb_y < ~kThumbThreshold;
+    u64 r = thumb_x > kThumbThreshold;
+    u64 l = thumb_x < ~kThumbThreshold;
     if (u && l) {
       u = l = 0;
       f |= static_cast<u64>(1) << (22 + i);

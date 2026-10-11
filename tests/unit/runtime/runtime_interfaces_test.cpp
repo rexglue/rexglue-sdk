@@ -70,17 +70,17 @@ REX_TEST_CASE("Current returns the runtime inside an interrupt callback", "[runt
   CHECK(g_seen_runtime.load() == &fixture.runtime());
 }
 
-REX_TEST_CASE("A host thread with no thread state launches a worker record", "[runtime][current]") {
+REX_TEST_CASE("A host thread with no thread state launches a worker thread", "[runtime][current]") {
   rex::testing::KernelFixture fixture;
   std::atomic<bool> ran{false};
   bool launched = false;
   std::jthread host([&] {
-    auto record =
-        std::make_unique<rex::runtime::ThreadRecord>(fixture.runtime(), 64 * 1024, 0, [&] {
+    auto thread =
+        std::make_unique<rex::runtime::KernelThread>(fixture.runtime(), 64 * 1024, 0, [&] {
           ran = true;
           return 0;
         });
-    launched = fixture.runtime().thread_registry().Launch(std::move(record)).has_value();
+    launched = fixture.runtime().thread_registry().Launch(std::move(thread)).has_value();
   });
   host.join();
   REQUIRE(launched);
@@ -135,7 +135,7 @@ REX_TEST_CASE("A second runtime in the same process is served", "[runtime][inter
 REX_TEST_CASE("Setup fails while another runtime is active", "[runtime][interfaces]") {
   rex::testing::KernelFixture fixture;
   rex::Runtime other(fixture.api().config());
-  rex::RuntimeConfig config;
+  rex::RuntimeDesc config;
   config.tool_mode = true;
   CHECK_FALSE(other.Setup(config));
   CheckServed(fixture.api(), fixture.runtime());
@@ -149,7 +149,7 @@ REX_TEST_CASE("process_type reads what set_process_type wrote", "[runtime][inter
   CHECK(fixture.runtime().process_type() == rex::runtime::X_PROCTYPE_USER);
 }
 
-REX_TEST_CASE("ResolveGuestObject takes the guest address of a dispatch header",
+REX_TEST_CASE("ResolveHandle takes the guest address of a dispatch header",
               "[runtime][interfaces]") {
   rex::testing::KernelFixture fixture;
   fixture.RunOnGuestThread([](rex::testing::Caller& c) {
@@ -157,13 +157,13 @@ REX_TEST_CASE("ResolveGuestObject takes the guest address of a dispatch header",
     auto* event = c.runtime().memory()->TranslateVirtual<rex::runtime::X_KEVENT*>(address);
     std::memset(event, 0, sizeof(rex::runtime::X_KEVENT));
     auto& table = c.runtime().object_table();
-    const std::optional<rex::X_HANDLE> handle = table.ResolveGuestObject(address, -1);
+    const std::optional<rex::X_HANDLE> handle = table.ResolveHandle(address, -1);
     CHECKED_ELSE(handle.has_value()) {
       FAIL_CHECK("the check above failed");
       return;
     }
-    CHECK(table.ResolveGuestObject(address, -1) == handle);
-    CHECK(table.ResolveGuest<rex::runtime::EventObject>(address));
+    CHECK(table.ResolveHandle(address, -1) == handle);
+    CHECK(table.Resolve<rex::runtime::EventObject>(address));
   });
 }
 
@@ -172,7 +172,7 @@ REX_TEST_CASE("is_setup holds only between a successful Setup and Shutdown",
   rex::testing::KernelFixture fixture;
   CHECK(fixture.runtime().is_setup());
   rex::Runtime other(fixture.api().config());
-  rex::RuntimeConfig config;
+  rex::RuntimeDesc config;
   config.tool_mode = true;
   CHECK_FALSE(other.Setup(config));
   CHECK_FALSE(other.is_setup());

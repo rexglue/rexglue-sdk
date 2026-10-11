@@ -36,7 +36,7 @@ using namespace xenos::ucode;
  *
  * @param instr Parsed vertex fetch instruction.
  */
-void DxbcShaderTranslator::ProcessVertexFetchInstruction(
+void DXBCShaderTranslator::ProcessVertexFetchInstruction(
     const ParsedVertexFetchInstruction& instr) {
   if (emit_source_map_) {
     instruction_disassembly_buffer_.Reset();
@@ -383,7 +383,7 @@ void DxbcShaderTranslator::ProcessVertexFetchInstruction(
   StoreResult(instr.result, dxbc::Src::R(system_temp_result_));
 }
 
-u32 DxbcShaderTranslator::FindOrAddTextureBinding(u32 fetch_constant,
+u32 DXBCShaderTranslator::FindOrAddTextureBinding(u32 fetch_constant,
                                                   xenos::FetchOpDimension dimension,
                                                   bool is_signed) {
   // 1D and 2D textures, stacked ones included, are treated as 2D arrays.
@@ -433,7 +433,7 @@ u32 DxbcShaderTranslator::FindOrAddTextureBinding(u32 fetch_constant,
   return texture_binding_index;
 }
 
-u32 DxbcShaderTranslator::FindOrAddSamplerBinding(u32 fetch_constant,
+u32 DXBCShaderTranslator::FindOrAddSamplerBinding(u32 fetch_constant,
                                                   xenos::TextureFilter mag_filter,
                                                   xenos::TextureFilter min_filter,
                                                   xenos::TextureFilter mip_filter,
@@ -506,7 +506,7 @@ u32 DxbcShaderTranslator::FindOrAddSamplerBinding(u32 fetch_constant,
  *
  * @param instr Parsed texture fetch instruction.
  */
-void DxbcShaderTranslator::ProcessTextureFetchInstruction(
+void DXBCShaderTranslator::ProcessTextureFetchInstruction(
     const ParsedTextureFetchInstruction& instr) {
   if (emit_source_map_) {
     instruction_disassembly_buffer_.Reset();

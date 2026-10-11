@@ -18,7 +18,7 @@
 #include "echo.h"
 #include "test_module_common.h"
 
-REXMOD_TEST_SINK()
+REX_TEST_MODULE_SINK()
 
 namespace {
 

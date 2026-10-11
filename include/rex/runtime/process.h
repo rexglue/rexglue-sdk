@@ -10,7 +10,7 @@
 
 #pragma once
 
-#include <rex/runtime/xobject.h>
+#include <rex/runtime/object.h>
 #include <rex/runtime/xtypes.h>
 
 namespace rex::runtime {

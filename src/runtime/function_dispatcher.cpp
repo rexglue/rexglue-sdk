@@ -307,8 +307,8 @@ bool FunctionDispatcher::SetFunction(u32 guest_address, ::PPCFunc* func) {
     return false;
   }
 
-  if (recording_) {
-    recording_addresses_.push_back(guest_address);
+  if (registering_) {
+    registered_addresses_.push_back(guest_address);
   }
   return true;
 }
@@ -356,8 +356,8 @@ void FunctionDispatcher::RegisterModule(const std::string& module_id, u32 code_b
                                         RegisterFn register_func,
                                         std::span<const u8> recompiled_code) {
   std::lock_guard<std::recursive_mutex> lock(dispatch_mutex_);
-  if (recording_) {
-    REX_FATAL(cpu, "RegisterModule called while already recording (re-entrancy)");
+  if (registering_) {
+    REX_FATAL(cpu, "RegisterModule called while already registering (re-entrancy)");
     return;
   }
 
@@ -369,14 +369,14 @@ void FunctionDispatcher::RegisterModule(const std::string& module_id, u32 code_b
 
   REXLOG_DEBUG(cpu, "Registering module: {} (code_base={:08X})", module_id, code_base);
 
-  recording_addresses_.clear();
-  recording_ = true;
+  registered_addresses_.clear();
+  registering_ = true;
 
-  struct RecordingGuard {
+  struct RegistrationGuard {
     FunctionDispatcher* self;
-    ~RecordingGuard() {
-      self->recording_ = false;
-      self->recording_addresses_.clear();
+    ~RegistrationGuard() {
+      self->registering_ = false;
+      self->registered_addresses_.clear();
     }
   } guard{this};
 
@@ -384,7 +384,7 @@ void FunctionDispatcher::RegisterModule(const std::string& module_id, u32 code_b
 
   ModuleRegistration reg;
   reg.code_base = code_base;
-  reg.addresses = std::move(recording_addresses_);
+  reg.addresses = std::move(registered_addresses_);
   if (!recompiled_code.empty() && rex::platform::AddRecompiledCode(recompiled_code)) {
     std::lock_guard host_lock(recompiled_code_mutex_);
     recompiled_code_.emplace_back(module_id, recompiled_code);

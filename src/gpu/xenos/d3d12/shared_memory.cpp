@@ -19,7 +19,7 @@
 #include "gpu/xenos/d3d12/shared_memory.h"
 #include <rex/logging.h>
 #include <rex/math.h>
-#include "gpu/xenos/host/d3d12/d3d12_util.h"
+#include "gpu/xenos/host/d3d12/d3d12_objects.h"
 
 #include "gpu/xenos/cvar_table.h"
 
@@ -40,8 +40,8 @@ bool D3D12SharedMemory::Initialize() {
   ID3D12Device* device = provider.GetDevice();
 
   D3D12_RESOURCE_DESC buffer_desc;
-  gpu::d3d12::util::FillBufferResourceDesc(buffer_desc, kBufferSize,
-                                           D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
+  gpu::d3d12::objects::FillBufferResourceDesc(buffer_desc, kBufferSize,
+                                              D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
   buffer_state_ = D3D12_RESOURCE_STATE_COPY_DEST;
   if (REXCVAR_GET(::rex::gpu::cvars::d3d12_tiled_shared_memory) &&
       provider.GetTiledResourcesTier() != D3D12_TILED_RESOURCES_TIER_NOT_SUPPORTED &&
@@ -54,8 +54,8 @@ bool D3D12SharedMemory::Initialize() {
       return false;
     }
     static_assert(D3D12_TILED_RESOURCE_TILE_SIZE_IN_BYTES == (1 << 16));
-    InitializeSparseHostGpuMemory(
-        std::max(kHostGpuMemoryOptimalSparseAllocationLog2, static_cast<u32>(16)));
+    InitializeSparseHostGPUMemory(
+        std::max(kHostGPUMemoryOptimalSparseAllocationLog2, static_cast<u32>(16)));
   } else {
     REXLOG_INFO(gpu,
                 "Direct3D 12 tiled resources are not used for shared memory "
@@ -67,7 +67,7 @@ bool D3D12SharedMemory::Initialize() {
                   "This is caused by PIX being attached, which doesn't support tiled "
                   "resources yet.");
     }
-    if (FAILED(device->CreateCommittedResource(&gpu::d3d12::util::kHeapPropertiesDefault,
+    if (FAILED(device->CreateCommittedResource(&gpu::d3d12::objects::kHeapPropertiesDefault,
                                                provider.GetHeapFlagCreateNotZeroed(), &buffer_desc,
                                                buffer_state_, nullptr, IID_PPV_ARGS(&buffer_)))) {
       REXLOG_ERROR(gpu, "Shared memory: Failed to create the {} MB buffer", kBufferSize >> 20);
@@ -90,43 +90,43 @@ bool D3D12SharedMemory::Initialize() {
     return false;
   }
   buffer_descriptor_heap_start_ = buffer_descriptor_heap_->GetCPUDescriptorHandleForHeapStart();
-  gpu::d3d12::util::CreateBufferRawSRV(
+  gpu::d3d12::objects::CreateBufferRawSRV(
       device,
       provider.OffsetViewDescriptor(buffer_descriptor_heap_start_,
                                     std::to_underlying(BufferDescriptorIndex::kRawSRV)),
       buffer_, kBufferSize);
-  gpu::d3d12::util::CreateBufferTypedSRV(
+  gpu::d3d12::objects::CreateBufferTypedSRV(
       device,
       provider.OffsetViewDescriptor(buffer_descriptor_heap_start_,
                                     std::to_underlying(BufferDescriptorIndex::kR32UintSRV)),
       buffer_, DXGI_FORMAT_R32_UINT, kBufferSize >> 2);
-  gpu::d3d12::util::CreateBufferTypedSRV(
+  gpu::d3d12::objects::CreateBufferTypedSRV(
       device,
       provider.OffsetViewDescriptor(buffer_descriptor_heap_start_,
                                     std::to_underlying(BufferDescriptorIndex::kR32G32UintSRV)),
       buffer_, DXGI_FORMAT_R32G32_UINT, kBufferSize >> 3);
-  gpu::d3d12::util::CreateBufferTypedSRV(
+  gpu::d3d12::objects::CreateBufferTypedSRV(
       device,
       provider.OffsetViewDescriptor(
           buffer_descriptor_heap_start_,
           std::to_underlying(BufferDescriptorIndex::kR32G32B32A32UintSRV)),
       buffer_, DXGI_FORMAT_R32G32B32A32_UINT, kBufferSize >> 4);
-  gpu::d3d12::util::CreateBufferRawUAV(
+  gpu::d3d12::objects::CreateBufferRawUAV(
       device,
       provider.OffsetViewDescriptor(buffer_descriptor_heap_start_,
                                     std::to_underlying(BufferDescriptorIndex::kRawUAV)),
       buffer_, kBufferSize);
-  gpu::d3d12::util::CreateBufferTypedUAV(
+  gpu::d3d12::objects::CreateBufferTypedUAV(
       device,
       provider.OffsetViewDescriptor(buffer_descriptor_heap_start_,
                                     std::to_underlying(BufferDescriptorIndex::kR32UintUAV)),
       buffer_, DXGI_FORMAT_R32_UINT, kBufferSize >> 2);
-  gpu::d3d12::util::CreateBufferTypedUAV(
+  gpu::d3d12::objects::CreateBufferTypedUAV(
       device,
       provider.OffsetViewDescriptor(buffer_descriptor_heap_start_,
                                     std::to_underlying(BufferDescriptorIndex::kR32G32UintUAV)),
       buffer_, DXGI_FORMAT_R32G32_UINT, kBufferSize >> 3);
-  gpu::d3d12::util::CreateBufferTypedUAV(
+  gpu::d3d12::objects::CreateBufferTypedUAV(
       device,
       provider.OffsetViewDescriptor(
           buffer_descriptor_heap_start_,
@@ -143,10 +143,10 @@ bool D3D12SharedMemory::Initialize() {
 void D3D12SharedMemory::Shutdown(bool from_destructor) {
   upload_buffer_pool_.reset();
 
-  gpu::d3d12::util::ReleaseAndNull(buffer_descriptor_heap_);
+  gpu::d3d12::objects::ReleaseAndNull(buffer_descriptor_heap_);
 
   // First free the buffer to detach it from the heaps.
-  gpu::d3d12::util::ReleaseAndNull(buffer_);
+  gpu::d3d12::objects::ReleaseAndNull(buffer_);
 
   for (ID3D12Heap* heap : buffer_tiled_heaps_) {
     heap->Release();
@@ -258,7 +258,7 @@ void D3D12SharedMemory::WriteUintPow2UAVDescriptor(D3D12_CPU_DESCRIPTOR_HANDLE h
                                 D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 }
 
-bool D3D12SharedMemory::AllocateSparseHostGpuMemoryRange(u32 offset_allocations,
+bool D3D12SharedMemory::AllocateSparseHostGPUMemoryRange(u32 offset_allocations,
                                                          u32 length_allocations) {
   if (!length_allocations) {
     return true;
@@ -271,7 +271,7 @@ bool D3D12SharedMemory::AllocateSparseHostGpuMemoryRange(u32 offset_allocations,
   ID3D12Device* device = provider.GetDevice();
   ID3D12CommandQueue* direct_queue = provider.GetDirectQueue();
 
-  const D3D12_HEAP_DESC heap_desc = util::MakeDefaultHeapDesc(
+  const D3D12_HEAP_DESC heap_desc = objects::BuildDefaultHeapDesc(
       length_bytes, D3D12_HEAP_FLAG_ALLOW_ONLY_BUFFERS | provider.GetHeapFlagCreateNotZeroed());
   ID3D12Heap* heap;
   if (FAILED(device->CreateHeap(&heap_desc, IID_PPV_ARGS(&heap)))) {
@@ -316,7 +316,7 @@ bool D3D12SharedMemory::UploadRanges(const std::vector<std::pair<u32, u32>>& upl
       if (upload_buffer_mapping == nullptr) {
         REX_FAIL(gpu, false, "Shared memory: Failed to get an upload buffer");
       }
-      MakeRangeValid(upload_range_start << page_size_log2(), static_cast<u32>(upload_buffer_size),
+      MarkRangeValid(upload_range_start << page_size_log2(), static_cast<u32>(upload_buffer_size),
                      false);
       std::memcpy(upload_buffer_mapping,
                   memory().TranslatePhysical(upload_range_start << page_size_log2()),

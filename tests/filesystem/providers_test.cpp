@@ -24,8 +24,8 @@ using rex::u8;
 using rex::filesystem::Access;
 using rex::filesystem::CodeOf;
 using rex::filesystem::Disposition;
-using rex::filesystem::Error;
 using rex::filesystem::FileAttributes;
+using rex::filesystem::FileSystemError;
 using rex::filesystem::MountFlags;
 using rex::filesystem::OpenAction;
 using rex::filesystem::ProviderKind;
@@ -77,10 +77,10 @@ void CheckContainer(Fixture& fixture, ProviderKind kind, const char* image,
   auto created = fixture.fs().Open("\\Device\\Test\\new.txt", {.disposition = Disposition::kCreate,
                                                                .access = Access::kGenericWrite});
   REQUIRE_FALSE(created);
-  CHECK(CodeOf(created.error()) == Error::kAccessDenied);
+  CHECK(CodeOf(created.error()) == FileSystemError::kAccessDenied);
   auto removed = fixture.fs().Remove("\\Device\\Test\\a.txt");
   REQUIRE_FALSE(removed);
-  CHECK(CodeOf(removed.error()) == Error::kAccessDenied);
+  CHECK(CodeOf(removed.error()) == FileSystemError::kAccessDenied);
 }
 
 }  // namespace
@@ -172,7 +172,7 @@ REX_TEST_CASE_METHOD(Fixture, "Create of a name that exists only on the host is 
   auto created = fs().Open("\\Device\\Test\\late.txt",
                            {.disposition = Disposition::kCreate, .access = Access::kGenericWrite});
   REQUIRE_FALSE(created);
-  CHECK(CodeOf(created.error()) == Error::kExists);
+  CHECK(CodeOf(created.error()) == FileSystemError::kExists);
   auto host = rex::platform::ReadWholeFile(temp() / "late.txt");
   REQUIRE(host);
   CHECK(std::string(host->begin(), host->end()) == "late");
@@ -219,7 +219,7 @@ REX_TEST_CASE_METHOD(Fixture, "Null provider answers only its paths", "[filesyst
 
   auto missing = fs().Open("\\Device\\Null\\Cache2", {});
   REQUIRE_FALSE(missing);
-  CHECK(CodeOf(missing.error()) == Error::kNotFound);
+  CHECK(CodeOf(missing.error()) == FileSystemError::kNotFound);
 }
 
 REX_TEST_CASE_METHOD(Fixture, "STFS provider mounts the fixture read only",
@@ -237,8 +237,8 @@ REX_TEST_CASE_METHOD(Fixture, "A container of the wrong kind is kCorrupt",
   auto mounted =
       fs().Mount({std::string(kRoot), ProviderKind::kDiscImage, Fixtures() / "stfs_con.bin"});
   REQUIRE_FALSE(mounted);
-  CHECK(CodeOf(mounted.error()) == Error::kCorrupt);
+  CHECK(CodeOf(mounted.error()) == FileSystemError::kCorrupt);
   auto missing = fs().Mount({std::string(kRoot), ProviderKind::kSTFS, temp() / "none.bin"});
   REQUIRE_FALSE(missing);
-  CHECK(CodeOf(missing.error()) == Error::kNotFound);
+  CHECK(CodeOf(missing.error()) == FileSystemError::kNotFound);
 }

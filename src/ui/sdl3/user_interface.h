@@ -57,8 +57,8 @@ class SDL3UserInterface final : public IUserInterface, public IDialogHost {
   SDL3UserInterface();
   ~SDL3UserInterface() override;
 
-  void Connect(const Config& config, cvar::ICvarRegistry& cvars, hid::IBackend* hid,
-               gpu::IBackend* gpu, runtime::IAchievementManager* achievements, ILogger* logger);
+  void Connect(const Config& config, cvar::ICvarRegistry& cvars, hid::IHIDBackend* hid,
+               gpu::IGPUBackend* gpu, runtime::IAchievementManager* achievements, ILogger* logger);
   void Disconnect();
 
   [[nodiscard]] Result<IWindow*> OpenWindow(const UIConfig& config,
@@ -110,8 +110,8 @@ class SDL3UserInterface final : public IUserInterface, public IDialogHost {
 
   const Config* config_ = nullptr;
   cvar::ICvarRegistry* cvars_ = nullptr;
-  hid::IBackend* hid_ = nullptr;
-  gpu::IBackend* gpu_ = nullptr;
+  hid::IHIDBackend* hid_ = nullptr;
+  gpu::IGPUBackend* gpu_ = nullptr;
   runtime::IAchievementManager* achievements_ = nullptr;
   ILogger* logger_ = nullptr;
   Runtime* runtime_ = nullptr;

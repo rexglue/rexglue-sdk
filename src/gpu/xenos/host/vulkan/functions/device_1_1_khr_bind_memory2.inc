@@ -8,5 +8,5 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-REXVK_FUNCTION_PROMOTED(vkBindBufferMemory2KHR, vkBindBufferMemory2)
-REXVK_FUNCTION_PROMOTED(vkBindImageMemory2KHR, vkBindImageMemory2)
+REX_VK_FUNCTION_PROMOTED(vkBindBufferMemory2KHR, vkBindBufferMemory2)
+REX_VK_FUNCTION_PROMOTED(vkBindImageMemory2KHR, vkBindImageMemory2)

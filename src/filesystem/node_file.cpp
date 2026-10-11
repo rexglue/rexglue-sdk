@@ -63,8 +63,9 @@ void NodeFile::SetDeleteOnClose(bool delete_on_close) {
 
 Result<std::unique_ptr<IDirectory>> NodeFile::List(std::string_view pattern) {
   if (!node_->is_directory()) {
-    return Err<std::unique_ptr<IDirectory>>(MakeError(
-        Error::kNotDirectory, std::format("'{}' is not a directory", node_->absolute_path())));
+    return Err<std::unique_ptr<IDirectory>>(
+        BuildError(FileSystemError::kNotDirectory,
+                   std::format("'{}' is not a directory", node_->absolute_path())));
   }
   return std::unique_ptr<IDirectory>(std::make_unique<NodeDirectory>(*node_, pattern));
 }

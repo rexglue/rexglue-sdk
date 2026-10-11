@@ -9,11 +9,11 @@
 
 #include <rex/codegen/codegen_context.h>
 #include <rex/logging.h>
-#include <rex/memory/utils.h>
+#include <rex/memory/byte_swap.h>
 #include <rex/runtime/binary_types.h>
 #include <rex/types.h>
 
-using rex::codegen::ppc::decode_instruction;
+using rex::codegen::detail::decode_instruction;
 
 namespace rex::codegen {
 

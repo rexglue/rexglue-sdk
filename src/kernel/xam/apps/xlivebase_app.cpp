@@ -18,7 +18,6 @@ namespace rex {
 namespace kernel {
 namespace xam {
 using namespace rex::runtime;
-using namespace rex::runtime::xam;
 namespace apps {
 using namespace rex::runtime;
 

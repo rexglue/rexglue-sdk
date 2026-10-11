@@ -8,13 +8,13 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-REXVK_FUNCTION(vkCreateDevice)
-REXVK_FUNCTION(vkDestroyDevice)
-REXVK_FUNCTION(vkEnumerateDeviceExtensionProperties)
-REXVK_FUNCTION(vkEnumeratePhysicalDevices)
-REXVK_FUNCTION(vkGetDeviceProcAddr)
-REXVK_FUNCTION(vkGetPhysicalDeviceFeatures)
-REXVK_FUNCTION(vkGetPhysicalDeviceFormatProperties)
-REXVK_FUNCTION(vkGetPhysicalDeviceMemoryProperties)
-REXVK_FUNCTION(vkGetPhysicalDeviceProperties)
-REXVK_FUNCTION(vkGetPhysicalDeviceQueueFamilyProperties)
+REX_VK_FUNCTION(vkCreateDevice)
+REX_VK_FUNCTION(vkDestroyDevice)
+REX_VK_FUNCTION(vkEnumerateDeviceExtensionProperties)
+REX_VK_FUNCTION(vkEnumeratePhysicalDevices)
+REX_VK_FUNCTION(vkGetDeviceProcAddr)
+REX_VK_FUNCTION(vkGetPhysicalDeviceFeatures)
+REX_VK_FUNCTION(vkGetPhysicalDeviceFormatProperties)
+REX_VK_FUNCTION(vkGetPhysicalDeviceMemoryProperties)
+REX_VK_FUNCTION(vkGetPhysicalDeviceProperties)
+REX_VK_FUNCTION(vkGetPhysicalDeviceQueueFamilyProperties)

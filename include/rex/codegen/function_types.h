@@ -26,9 +26,9 @@
 
 #include <rex/types.h>
 
-namespace rex::codegen::ppc {
+namespace rex::codegen::detail {
 struct Instruction;
-}  // namespace rex::codegen::ppc
+}  // namespace rex::codegen::detail
 
 namespace rex::codegen {
 

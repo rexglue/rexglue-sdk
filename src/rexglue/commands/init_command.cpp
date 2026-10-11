@@ -1,6 +1,7 @@
 #include "init_command.h"
 #include "../ui/ui.h"
-#include "template_utils.h"
+#include "app_name.h"
+#include "template_io.h"
 #include "codegen/tool_runtime.h"
 
 #include <algorithm>
@@ -22,7 +23,7 @@
 #include <rex/platform/file.h>
 #include <rex/result.h>
 #include <rex/runtime.h>
-#include <rex/runtime/util/xdbf_utils.h>
+#include <rex/runtime/xdbf.h>
 #include <rex/version.h>
 
 #include <CLI/CLI.hpp>
@@ -365,7 +366,7 @@ Result<void> InitAchievements(const InitAchievementsOptions& opts, const CLICont
                                                     loaded.error().message));
   }
 
-  const rex::runtime::util::XDBFGameData db = runtime->content_manager().title_xdbf();
+  const rex::runtime::XDBFGameData db = runtime->content_manager().title_xdbf();
   if (!db.is_valid()) {
     return Err<void>(ErrorCategory::IO, "No XDBF resource found in XEX (title_id section absent)");
   }
@@ -455,7 +456,7 @@ Result<void> InitAchievements(const InitAchievementsOptions& opts, const CLICont
         continue;
       seen.push_back(img_id);
 
-      auto block = db.GetEntry(rex::runtime::util::XdbfSection::kImage, static_cast<u64>(img_id));
+      auto block = db.GetEntry(rex::runtime::XDBFSection::kImage, static_cast<u64>(img_id));
       if (!block || !block.buffer || block.size == 0) {
         ++icons_missing;
         continue;

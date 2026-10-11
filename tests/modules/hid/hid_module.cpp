@@ -21,10 +21,11 @@ namespace {
 class HIDModule final : public rex::IModule {
  public:
   static void* GetModule() { return static_cast<rex::IModule*>(&Instance()); }
-  static void* GetBackend() { return static_cast<rex::hid::IBackend*>(&Instance().backend_); }
+  static void* GetBackend() { return static_cast<rex::hid::IHIDBackend*>(&Instance().backend_); }
   static constexpr std::array<rex::InterfaceEntry, 2> kInterfaces = {{
       {rex::IModule::kInterfaceName, rex::IModule::kInterfaceVersion, &GetModule},
-      {rex::hid::IBackend::kInterfaceName, rex::hid::IBackend::kInterfaceVersion, &GetBackend},
+      {rex::hid::IHIDBackend::kInterfaceName, rex::hid::IHIDBackend::kInterfaceVersion,
+       &GetBackend},
   }};
 
   const char* Name() const override { return "rexmod-test-hid"; }
@@ -41,7 +42,7 @@ class HIDModule final : public rex::IModule {
     static HIDModule instance;
     return instance;
   }
-  rex::hid::NullBackend backend_;
+  rex::hid::NullHIDBackend backend_;
 };
 
 }  // namespace

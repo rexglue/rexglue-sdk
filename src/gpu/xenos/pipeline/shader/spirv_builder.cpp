@@ -18,7 +18,7 @@
 
 namespace rex::gpu {
 
-spv::Id SpirvBuilder::createQuadOp(spv::Op op_code, spv::Id type_id, spv::Id operand1,
+spv::Id SPIRVBuilder::createQuadOp(spv::Op op_code, spv::Id type_id, spv::Id operand1,
                                    spv::Id operand2, spv::Id operand3, spv::Id operand4) {
   if (generatingOpCodeForSpecConst) {
     std::vector<spv::Id> operands(4);
@@ -39,21 +39,21 @@ spv::Id SpirvBuilder::createQuadOp(spv::Op op_code, spv::Id type_id, spv::Id ope
   return result;
 }
 
-spv::Id SpirvBuilder::createNoContractionUnaryOp(spv::Op op_code, spv::Id type_id,
+spv::Id SPIRVBuilder::createNoContractionUnaryOp(spv::Op op_code, spv::Id type_id,
                                                  spv::Id operand) {
   spv::Id result = createUnaryOp(op_code, type_id, operand);
   addDecoration(result, spv::DecorationNoContraction);
   return result;
 }
 
-spv::Id SpirvBuilder::createNoContractionBinOp(spv::Op op_code, spv::Id type_id, spv::Id operand1,
+spv::Id SPIRVBuilder::createNoContractionBinOp(spv::Op op_code, spv::Id type_id, spv::Id operand1,
                                                spv::Id operand2) {
   spv::Id result = createBinOp(op_code, type_id, operand1, operand2);
   addDecoration(result, spv::DecorationNoContraction);
   return result;
 }
 
-spv::Id SpirvBuilder::createUnaryBuiltinCall(spv::Id result_type, spv::Id builtins, int entry_point,
+spv::Id SPIRVBuilder::createUnaryBuiltinCall(spv::Id result_type, spv::Id builtins, int entry_point,
                                              spv::Id operand) {
   std::unique_ptr<spv::Instruction> instruction =
       std::make_unique<spv::Instruction>(getUniqueId(), result_type, spv::OpExtInst);
@@ -65,7 +65,7 @@ spv::Id SpirvBuilder::createUnaryBuiltinCall(spv::Id result_type, spv::Id builti
   return result;
 }
 
-spv::Id SpirvBuilder::createBinBuiltinCall(spv::Id result_type, spv::Id builtins, int entry_point,
+spv::Id SPIRVBuilder::createBinBuiltinCall(spv::Id result_type, spv::Id builtins, int entry_point,
                                            spv::Id operand1, spv::Id operand2) {
   std::unique_ptr<spv::Instruction> instruction =
       std::make_unique<spv::Instruction>(getUniqueId(), result_type, spv::OpExtInst);
@@ -78,7 +78,7 @@ spv::Id SpirvBuilder::createBinBuiltinCall(spv::Id result_type, spv::Id builtins
   return result;
 }
 
-spv::Id SpirvBuilder::createTriBuiltinCall(spv::Id result_type, spv::Id builtins, int entry_point,
+spv::Id SPIRVBuilder::createTriBuiltinCall(spv::Id result_type, spv::Id builtins, int entry_point,
                                            spv::Id operand1, spv::Id operand2, spv::Id operand3) {
   std::unique_ptr<spv::Instruction> instruction =
       std::make_unique<spv::Instruction>(getUniqueId(), result_type, spv::OpExtInst);
@@ -92,7 +92,7 @@ spv::Id SpirvBuilder::createTriBuiltinCall(spv::Id result_type, spv::Id builtins
   return result;
 }
 
-SpirvBuilder::IfBuilder::IfBuilder(spv::Id condition, unsigned int control, SpirvBuilder& builder,
+SPIRVBuilder::IfBuilder::IfBuilder(spv::Id condition, unsigned int control, SPIRVBuilder& builder,
                                    unsigned int thenWeight, unsigned int elseWeight)
     : builder(builder),
       condition(condition),
@@ -114,7 +114,7 @@ SpirvBuilder::IfBuilder::IfBuilder(spv::Id condition, unsigned int control, Spir
   builder.setBuildPoint(thenBlock);
 }
 
-void SpirvBuilder::IfBuilder::makeBeginElse(bool branchToMerge) {
+void SPIRVBuilder::IfBuilder::makeBeginElse(bool branchToMerge) {
 #ifndef NDEBUG
   REX_ASSERT(currentBranch == Branch::kThen);
 #endif
@@ -134,7 +134,7 @@ void SpirvBuilder::IfBuilder::makeBeginElse(bool branchToMerge) {
 #endif
 }
 
-void SpirvBuilder::IfBuilder::makeEndIf(bool branchToMerge) {
+void SPIRVBuilder::IfBuilder::makeEndIf(bool branchToMerge) {
 #ifndef NDEBUG
   REX_ASSERT(currentBranch == Branch::kThen || currentBranch == Branch::kElse);
 #endif
@@ -170,15 +170,15 @@ void SpirvBuilder::IfBuilder::makeEndIf(bool branchToMerge) {
 #endif
 }
 
-spv::Id SpirvBuilder::IfBuilder::createMergePhi(spv::Id then_variable,
+spv::Id SPIRVBuilder::IfBuilder::createMergePhi(spv::Id then_variable,
                                                 spv::Id else_variable) const {
   REX_ASSERT(builder.getBuildPoint() == mergeBlock);
   return builder.createQuadOp(spv::OpPhi, builder.getTypeId(then_variable), then_variable,
                               getThenPhiParent(), else_variable, getElsePhiParent());
 }
 
-SpirvBuilder::SwitchBuilder::SwitchBuilder(spv::Id selector, unsigned int selection_control,
-                                           SpirvBuilder& builder)
+SPIRVBuilder::SwitchBuilder::SwitchBuilder(spv::Id selector, unsigned int selection_control,
+                                           SPIRVBuilder& builder)
     : builder_(builder),
       selector_(selector),
       selection_control_(selection_control),
@@ -188,7 +188,7 @@ SpirvBuilder::SwitchBuilder::SwitchBuilder(spv::Id selector, unsigned int select
   merge_block_ = new spv::Block(builder_.getUniqueId(), function_);
 }
 
-void SpirvBuilder::SwitchBuilder::makeBeginDefault() {
+void SPIRVBuilder::SwitchBuilder::makeBeginDefault() {
   REX_ASSERT(default_block_ == nullptr);
 
   endSegment();
@@ -201,7 +201,7 @@ void SpirvBuilder::SwitchBuilder::makeBeginDefault() {
   current_branch_ = Branch::kDefault;
 }
 
-void SpirvBuilder::SwitchBuilder::makeBeginCase(unsigned int literal) {
+void SPIRVBuilder::SwitchBuilder::makeBeginCase(unsigned int literal) {
   endSegment();
 
   auto case_block = new spv::Block(builder_.getUniqueId(), function_);
@@ -213,13 +213,13 @@ void SpirvBuilder::SwitchBuilder::makeBeginCase(unsigned int literal) {
   current_branch_ = Branch::kCase;
 }
 
-void SpirvBuilder::SwitchBuilder::addCurrentCaseLiteral(unsigned int literal) {
+void SPIRVBuilder::SwitchBuilder::addCurrentCaseLiteral(unsigned int literal) {
   REX_ASSERT(current_branch_ == Branch::kCase);
 
   cases_.emplace_back(literal, cases_.back().second);
 }
 
-void SpirvBuilder::SwitchBuilder::makeEndSwitch() {
+void SPIRVBuilder::SwitchBuilder::makeEndSwitch() {
   endSegment();
 
   builder_.setBuildPoint(header_block_);
@@ -247,7 +247,7 @@ void SpirvBuilder::SwitchBuilder::makeEndSwitch() {
   current_branch_ = Branch::kMerge;
 }
 
-void SpirvBuilder::SwitchBuilder::endSegment() {
+void SPIRVBuilder::SwitchBuilder::endSegment() {
   REX_ASSERT(current_branch_ == Branch::kSelection || current_branch_ == Branch::kDefault ||
              current_branch_ == Branch::kCase);
 

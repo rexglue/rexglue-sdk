@@ -19,11 +19,11 @@ namespace rex::hid::xinput {
 class XInputModule final : public HIDModuleBase {
  public:
   static void* GetModule() { return static_cast<IModule*>(&Instance()); }
-  static void* GetBackend() { return static_cast<hid::IBackend*>(&Instance().hub()); }
+  static void* GetBackend() { return static_cast<hid::IHIDBackend*>(&Instance().hub()); }
 
   static constexpr std::array<InterfaceEntry, 2> kInterfaces = {{
       {IModule::kInterfaceName, IModule::kInterfaceVersion, &GetModule},
-      {hid::IBackend::kInterfaceName, hid::IBackend::kInterfaceVersion, &GetBackend},
+      {hid::IHIDBackend::kInterfaceName, hid::IHIDBackend::kInterfaceVersion, &GetBackend},
   }};
 
   const char* Name() const override { return "rex-hid-xinput"; }

@@ -19,7 +19,6 @@ namespace rex {
 namespace kernel {
 namespace xam {
 using namespace rex::runtime;
-using namespace rex::runtime::xam;
 
 std::atomic<int> xam_dialogs_shown_ = {0};
 

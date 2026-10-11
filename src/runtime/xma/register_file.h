@@ -17,20 +17,20 @@
 namespace rex::runtime {
 
 struct XMARegister {
-#define XE_XMA_REGISTER(index, name) static const u32 name = index;
+#define REX_XMA_REGISTER(index, name) static const u32 name = index;
 #include "runtime/xma/register_table.inc"
 
 #include <rex/types.h>
-#undef XE_XMA_REGISTER
+#undef REX_XMA_REGISTER
 };
 
-struct XmaRegisterInfo {
+struct XMARegisterInfo {
   const char* name;
 };
 
 class XMARegisterFile {
  public:
-  static const XmaRegisterInfo* GetRegisterInfo(u32 index);
+  static const XMARegisterInfo* GetRegisterInfo(u32 index);
 
   static const size_t kRegisterCount = (0xFFFF + 1) / 4;
   u32 values[kRegisterCount]{};

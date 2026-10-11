@@ -22,7 +22,7 @@ namespace {
 
 using rex::filesystem::Access;
 using rex::filesystem::CodeOf;
-using rex::filesystem::Error;
+using rex::filesystem::FileSystemError;
 using rex::filesystem::MountFlags;
 using rex::filesystem::ProviderKind;
 using rex::filesystem::test::Fixture;
@@ -75,7 +75,7 @@ REX_TEST_CASE_METHOD(Fixture, "Rename of a folder waits for the files below it t
   auto child = Open("\\Device\\Test\\old\\sub\\c.txt");
   auto refused = fs().Rename("\\Device\\Test\\old", "\\Device\\Test\\new", false);
   REQUIRE_FALSE(refused);
-  CHECK(CodeOf(refused.error()) == Error::kAccessDenied);
+  CHECK(CodeOf(refused.error()) == FileSystemError::kAccessDenied);
   CHECK(std::filesystem::exists(temp() / "old" / "sub" / "c.txt"));
   child.file.reset();
 
@@ -95,7 +95,7 @@ REX_TEST_CASE_METHOD(Fixture, "Rename onto an existing name without replace is k
 
   auto renamed = fs().Rename("\\Device\\Test\\a.txt", "\\Device\\Test\\b.txt", false);
   REQUIRE_FALSE(renamed);
-  CHECK(CodeOf(renamed.error()) == Error::kExists);
+  CHECK(CodeOf(renamed.error()) == FileSystemError::kExists);
   CHECK(HostText(temp() / "a.txt") == "alpha");
   CHECK(HostText(temp() / "b.txt") == "bravo");
 }
@@ -122,11 +122,11 @@ REX_TEST_CASE_METHOD(Fixture, "Rename refuses to replace an open file or a folde
   auto held = Open("\\Device\\Test\\b.txt");
   auto open_target = fs().Rename("\\Device\\Test\\a.txt", "\\Device\\Test\\b.txt", true);
   REQUIRE_FALSE(open_target);
-  CHECK(CodeOf(open_target.error()) == Error::kAccessDenied);
+  CHECK(CodeOf(open_target.error()) == FileSystemError::kAccessDenied);
   held.file.reset();
   auto folder_target = fs().Rename("\\Device\\Test\\a.txt", "\\Device\\Test\\dir", true);
   REQUIRE_FALSE(folder_target);
-  CHECK(CodeOf(folder_target.error()) == Error::kAccessDenied);
+  CHECK(CodeOf(folder_target.error()) == FileSystemError::kAccessDenied);
   CHECK(HostText(temp() / "a.txt") == "alpha");
   CHECK(HostText(temp() / "b.txt") == "bravo");
 }
@@ -141,7 +141,7 @@ REX_TEST_CASE_METHOD(Fixture, "Rename to another mount is kNotSameDevice", "[fil
 
   auto renamed = fs().Rename("\\Device\\One\\a.txt", "\\Device\\Two\\a.txt", false);
   REQUIRE_FALSE(renamed);
-  CHECK(CodeOf(renamed.error()) == Error::kNotSameDevice);
+  CHECK(CodeOf(renamed.error()) == FileSystemError::kNotSameDevice);
   CHECK(std::filesystem::exists(temp() / "one" / "a.txt"));
 }
 
@@ -152,7 +152,7 @@ REX_TEST_CASE_METHOD(Fixture, "Rename into its own subfolder is kInvalidPath",
 
   auto renamed = fs().Rename("\\Device\\Test\\a", "\\Device\\Test\\a\\b\\a", false);
   REQUIRE_FALSE(renamed);
-  CHECK(CodeOf(renamed.error()) == Error::kInvalidPath);
+  CHECK(CodeOf(renamed.error()) == FileSystemError::kInvalidPath);
   CHECK(std::filesystem::exists(temp() / "a" / "b" / "c.txt"));
 }
 

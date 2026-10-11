@@ -19,12 +19,12 @@
 
 namespace rex::gpu::vulkan {
 
-class VulkanShader : public SpirvShader {
+class VulkanShader : public SPIRVShader {
  public:
-  class VulkanTranslation : public SpirvTranslation {
+  class VulkanTranslation : public SPIRVTranslation {
    public:
     explicit VulkanTranslation(VulkanShader& shader, u64 modification)
-        : SpirvTranslation(shader, modification) {}
+        : SPIRVTranslation(shader, modification) {}
     ~VulkanTranslation() override;
 
     VkShaderModule GetOrCreateShaderModule();

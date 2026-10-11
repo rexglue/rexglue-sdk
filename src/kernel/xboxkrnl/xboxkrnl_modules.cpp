@@ -45,7 +45,7 @@ u32 XexCheckExecutablePrivilege_entry(u32 privilege) {
   }
 
   u32 flags = 0;
-  UserModuleGetOptHeader<u32>(*module, XEX_HEADER_SYSTEM_FLAGS, &flags);
+  UserModuleGetOptHeader<u32>(*module, filesystem::XEX_HEADER_SYSTEM_FLAGS, &flags);
 
   return (flags & mask) > 0;
 }
@@ -156,7 +156,7 @@ u32 XexGetProcedureAddress_entry(mapped_void hmodule, u32 ordinal, mapped_u32 ou
   REX_ASSERT(ordinal != 0);
 
   u32 caller_address = 0;
-  auto* thread = ThreadRecord::GetCurrentThread();
+  auto* thread = KernelThread::GetCurrentThread();
   if (thread && thread->thread_state() && thread->thread_state()->context()) {
     caller_address = static_cast<u32>(thread->thread_state()->context()->lr);
   }

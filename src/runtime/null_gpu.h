@@ -27,7 +27,7 @@ namespace rex::runtime {
  * pointer back as the read pointer. It executes no PM4, so a title that waits on a fence written
  * by a PM4 packet stops there. Headless title runs use rex-gpu-xenos with backend null instead.
  */
-class REX_RUNTIME_API NullGPU final : public gpu::IBackend, public NonCopyable {
+class REX_RUNTIME_API NullGPU final : public gpu::IGPUBackend, public NonCopyable {
  public:
   ~NullGPU() override;
 

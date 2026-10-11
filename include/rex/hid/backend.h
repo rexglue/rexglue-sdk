@@ -36,11 +36,11 @@ struct HIDConfig {
 };
 
 /** Pads, keyboard and pointer, served by a hid module. Every method is safe on any thread. */
-class IBackend {
+class IHIDBackend {
  public:
-  REX_INTERFACE(IBackend, "rex.hid.backend", 1);
+  REX_INTERFACE(IHIDBackend, "rex.hid.backend", 1);
 
-  virtual ~IBackend() = default;
+  virtual ~IHIDBackend() = default;
 
   /**
    * Reads the capabilities of the device a user holds.
@@ -208,7 +208,7 @@ class IBackend {
 };
 
 /** The null HID backend. 1 idle pad on user 0, no keyboard and no pointer. */
-class REX_API NullBackend final : public IBackend, public NonCopyable {
+class REX_API NullHIDBackend final : public IHIDBackend, public NonCopyable {
  public:
   /**
    * Reports the gamepad capabilities of the idle pad.

@@ -49,13 +49,13 @@ REX_RECOMPILED_CODE_SECTION extern "C" void SpinInGeneratedCode(const volatile r
 }
 
 REX_RECOMPILED_CODE_SECTION extern "C" void SpinInSehScope(const volatile rex::u32* release) {
-  SEH_TRY {
+  REX_SEH_TRY {
     while (*release == 0) {}
   }
-  SEH_CATCH_ALL {
-    SEH_RETHROW;
+  REX_SEH_CATCH_ALL {
+    REX_SEH_RETHROW;
   }
-  SEH_END
+  REX_SEH_END
 }
 
 namespace {
@@ -70,7 +70,7 @@ struct SetOnUnwind {
 
 extern "C" void StopInsideExternC() {
   SetOnUnwind guard;
-  rex::runtime::ThreadRecord::CheckStop();
+  rex::runtime::KernelThread::CheckStop();
 }
 
 namespace {
@@ -134,14 +134,14 @@ struct SetOnDestroy {
 };
 
 void GuardedWait(Caller& t, u32 event, std::atomic<bool>& handled,
-                 std::atomic<bool>& waiting){SEH_TRY{waiting.store(true);
+                 std::atomic<bool>& waiting){REX_SEH_TRY{waiting.store(true);
 WaitForever(t, event, 1);
 }  // namespace
-SEH_CATCH_ALL {
+REX_SEH_CATCH_ALL {
   handled.store(true);
-  SEH_RETHROW;
+  REX_SEH_RETHROW;
 }
-SEH_END
+REX_SEH_END
 }
 
 std::atomic<u32> g_fiber_event{0};
@@ -267,7 +267,7 @@ void ProbeScopeOnFiber(PPCContext&, u8*) {
 
 bool SwitchToFiberInScope(Caller& t, u32 fiber_entry) {
   bool kept = false;
-  SEH_TRY {
+  REX_SEH_TRY {
     PPCContext& ctx = t.ctx();
     u8* base = t.runtime().memory()->virtual_membase();
     rex::platform::SehScope* const scope = rex::platform::seh_thread_state().top;
@@ -281,10 +281,10 @@ bool SwitchToFiberInScope(Caller& t, u32 fiber_entry) {
     rexshim_SwitchToFiber(ctx, base);
     kept = rex::platform::seh_thread_state().top == scope;
   }
-  SEH_CATCH_ALL {
-    SEH_RETHROW;
+  REX_SEH_CATCH_ALL {
+    REX_SEH_RETHROW;
   }
-  SEH_END
+  REX_SEH_END
   return kept;
 }
 #endif
@@ -529,7 +529,7 @@ REX_TEST_CASE(
   rex::runtime::ThreadState::Bind(&host_state);
   Caller c(*host_state.context(), fixture.runtime().memory()->virtual_membase(), fixture.runtime());
 
-  const u32 process = fixture.runtime().GetTitleProcess();
+  const u32 process = fixture.runtime().title_process();
   const u32 count = c.Load32(process + 0x14);
   const u32 flink = c.Load32(process + 0x04);
   const u32 blink = c.Load32(process + 0x08);
@@ -641,15 +641,15 @@ REX_TEST_CASE("A stop requested before a thread launches ends it at its first ch
               "[kernel][shutdown]") {
   KernelFixture fixture;
   auto ran_on = std::make_shared<std::atomic<bool>>(false);
-  auto record =
-      std::make_unique<rex::runtime::ThreadRecord>(fixture.runtime(), 128 * 1024, 0, [ran_on] {
-        rex::runtime::ThreadRecord::Sleep(1h);
+  auto thread =
+      std::make_unique<rex::runtime::KernelThread>(fixture.runtime(), 128 * 1024, 0, [ran_on] {
+        rex::runtime::KernelThread::Sleep(1h);
         ran_on->store(true);
         return 0;
       });
-  record->RequestStop();
-  CHECK_FALSE(record->ForceStop());
-  auto handle = fixture.runtime().thread_registry().Launch(std::move(record));
+  thread->RequestStop();
+  CHECK_FALSE(thread->ForceStop());
+  auto handle = fixture.runtime().thread_registry().Launch(std::move(thread));
   REQUIRE(handle);
   CHECK(StoppedWithin(fixture.runtime(), *handle, 1000ms));
   CHECK_FALSE(ran_on->load());
@@ -688,7 +688,7 @@ REX_TEST_CASE("A ThreadStop unwinds through an extern C frame", "[kernel][shutdo
   g_extern_c_unwound.store(false);
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 thread = c.Spawn([](Caller&) {
-      rex::runtime::ThreadRecord::GetCurrentThread()->RequestStop();
+      rex::runtime::KernelThread::GetCurrentThread()->RequestStop();
       g_stop_inside_extern_c();
     });
     CHECK(Joined(c, thread, 1000ms));
@@ -1113,7 +1113,7 @@ REX_TEST_CASE("Setup fails when kernel initialization fails", "[runtime][kernel_
   REQUIRE(api);
   {
     rex::Runtime runtime((*api)->config());
-    rex::RuntimeConfig setup;
+    rex::RuntimeDesc setup;
     setup.file_system = (*api)->Get<rex::filesystem::IFileSystem>();
     setup.kernel_init = [](rex::Runtime&) -> rex::Result<void> {
       return rex::Err(rex::ErrorCategory::Runtime, "kernel module did not load");

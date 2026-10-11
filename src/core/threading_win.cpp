@@ -22,7 +22,7 @@ static_assert(REX_PLATFORM_WIN32, "This file is Windows-only");
 #include <rex/chrono/chrono_steady_cast.h>
 #include <rex/move_only_function.h>
 
-#define LOG_LASTERROR() \
+#define REX_LOG_LAST_ERROR() \
   { REXLOG_ERROR(core, "Win32 error 0x{:08X} in {}", GetLastError(), __FUNCTION__); }
 
 using SetThreadDescriptionFn = HANDLE (*)(HANDLE hThread, PCWSTR lpThreadDescription);
@@ -269,7 +269,7 @@ std::unique_ptr<Event> Event::CreateManualResetEvent(bool initial_state) {
   if (handle) {
     return std::make_unique<Win32Event>(handle);
   } else {
-    LOG_LASTERROR();
+    REX_LOG_LAST_ERROR();
     return nullptr;
   }
 }
@@ -279,7 +279,7 @@ std::unique_ptr<Event> Event::CreateAutoResetEvent(bool initial_state) {
   if (handle) {
     return std::make_unique<Win32Event>(handle);
   } else {
-    LOG_LASTERROR();
+    REX_LOG_LAST_ERROR();
     return nullptr;
   }
 }
@@ -300,7 +300,7 @@ std::unique_ptr<Semaphore> Semaphore::Create(int initial_count, int maximum_coun
   if (handle) {
     return std::make_unique<Win32Semaphore>(handle);
   } else {
-    LOG_LASTERROR();
+    REX_LOG_LAST_ERROR();
     return nullptr;
   }
 }
@@ -317,7 +317,7 @@ std::unique_ptr<Mutant> Mutant::Create(bool initial_owner) {
   if (handle) {
     return std::make_unique<Win32Mutant>(handle);
   } else {
-    LOG_LASTERROR();
+    REX_LOG_LAST_ERROR();
     return nullptr;
   }
 }
@@ -406,7 +406,7 @@ std::unique_ptr<Timer> Timer::CreateManualResetTimer() {
   if (handle) {
     return std::make_unique<Win32Timer>(handle);
   } else {
-    LOG_LASTERROR();
+    REX_LOG_LAST_ERROR();
     return nullptr;
   }
 }
@@ -416,7 +416,7 @@ std::unique_ptr<Timer> Timer::CreateSynchronizationTimer() {
   if (handle) {
     return std::make_unique<Win32Timer>(handle);
   } else {
-    LOG_LASTERROR();
+    REX_LOG_LAST_ERROR();
     return nullptr;
   }
 }
@@ -479,19 +479,21 @@ class Win32Thread : public Win32Handle<Thread> {
     SetThreadAffinityMask(handle_, new_affinity_mask);
   }
 
-  struct ApcData {
+  struct APCData {
     rex::MoveOnlyFunction<void()> callback;
   };
-  static void NTAPI DispatchApc(ULONG_PTR parameter) {
+  static void NTAPI DispatchAPC(ULONG_PTR parameter) {
     // NOLINTNEXTLINE(performance-no-int-to-ptr): QueueUserAPC delivers its parameter as a ULONG_PTR
-    std::unique_ptr<ApcData> apc_data(reinterpret_cast<ApcData*>(parameter));
+    std::unique_ptr<APCData> apc_data(reinterpret_cast<APCData*>(parameter));
     apc_data->callback();
   }
 
   void QueueUserCallback(rex::MoveOnlyFunction<void()> callback) override {
-    auto apc_data = std::make_unique<ApcData>(std::move(callback));
-    if (QueueUserAPC(DispatchApc, handle_, reinterpret_cast<ULONG_PTR>(apc_data.get()))) {
-      apc_data.release();
+    auto apc_data = std::make_unique<APCData>(std::move(callback));
+    auto* const apc = apc_data.release();
+    if (!QueueUserAPC(DispatchAPC, handle_, reinterpret_cast<ULONG_PTR>(apc))) {
+      apc_data.reset(apc);
+      REX_LOG_LAST_ERROR();
     }
   }
 
@@ -602,7 +604,7 @@ std::unique_ptr<Thread> Thread::Create(CreationParameters params,
     return std::make_unique<Win32Thread>(handle);
   }
   start_data.reset(start);
-  LOG_LASTERROR();
+  REX_LOG_LAST_ERROR();
   return nullptr;
 }
 

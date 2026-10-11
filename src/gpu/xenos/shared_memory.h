@@ -35,7 +35,7 @@ class SharedMemory {
   virtual ~SharedMemory();
   /** Clears the cache. Implementations call it from their ClearCache. */
   virtual void ClearCache();
-  void SetSystemPageBlocksValidWithGpuDataWritten();
+  void SetSystemPageBlocksValidWithGPUDataWritten();
   void InvalidateAllPages();
 
   using GlobalWatchCallback = void (*)(void* context, u32 address_first, u32 address_last,
@@ -129,13 +129,13 @@ class SharedMemory {
    * @param start The start of the range.
    * @param length The length of the range.
    */
-  void RangeWrittenByGpu(u32 start, u32 length);
+  void RangeWrittenByGPU(u32 start, u32 length);
 
  protected:
   SharedMemory(runtime::Memory& memory);
   /** Initializes the common state. Implementations call it from their initialization. */
   void InitializeCommon();
-  void InitializeSparseHostGpuMemory(u32 granularity_log2);
+  void InitializeSparseHostGPUMemory(u32 granularity_log2);
   /** Shuts down the common state. Runs last in implementation shutdown and in the destructor. */
   void ShutdownCommon();
 
@@ -143,8 +143,8 @@ class SharedMemory {
    * Sparse allocations are 4 MB, which keeps their count low without much padding. 16 MB pads
    * too much.
    */
-  static constexpr u32 kHostGpuMemoryOptimalSparseAllocationLog2 = 22;
-  static_assert(kHostGpuMemoryOptimalSparseAllocationLog2 <= kBufferSizeLog2);
+  static constexpr u32 kHostGPUMemoryOptimalSparseAllocationLog2 = 22;
+  static_assert(kHostGPUMemoryOptimalSparseAllocationLog2 <= kBufferSizeLog2);
 
   runtime::Memory& memory() const { return memory_; }
 
@@ -163,7 +163,7 @@ class SharedMemory {
    * @param length_allocations The length of the range in allocations.
    * @return True when the allocation succeeded.
    */
-  virtual bool AllocateSparseHostGpuMemoryRange(u32 offset_allocations, u32 length_allocations);
+  virtual bool AllocateSparseHostGPUMemoryRange(u32 offset_allocations, u32 length_allocations);
 
   /**
    * Marks the memory range as updated and protects it.
@@ -172,13 +172,13 @@ class SharedMemory {
    * @param length The length of the range.
    * @param written_by_gpu True when the range holds GPU written data.
    */
-  void MakeRangeValid(u32 start, u32 length, bool written_by_gpu);
+  void MarkRangeValid(u32 start, u32 length, bool written_by_gpu);
 
   /**
    * Uploads a range of host pages, only when the sparse host GPU memory allocation succeeded.
-   * While uploading, MakeRangeValid must run for each uploaded range as early as possible, before
+   * While uploading, MarkRangeValid must run for each uploaded range as early as possible, before
    * the memcpy, so invalidation during the CPU to GPU memcpy is not missed. The ranges are in
-   * pages because MakeRangeValid has page granularity. They are sorted in ascending address order,
+   * pages because MarkRangeValid has page granularity. They are sorted in ascending address order,
    * so front and back give the overall bounds of the pages to upload.
    *
    * @param upload_page_ranges The page ranges as start and count pairs.
@@ -195,7 +195,7 @@ class SharedMemory {
    */
   u32 page_size_log2_;
 
-  bool EnsureHostGpuMemoryAllocated(u32 start, u32 length);
+  bool EnsureHostGPUMemoryAllocated(u32 start, u32 length);
   u32 host_gpu_memory_sparse_granularity_log2_ = UINT32_MAX;
   std::vector<u64> host_gpu_memory_sparse_allocated_;
   u32 host_gpu_memory_sparse_allocations_ = 0;

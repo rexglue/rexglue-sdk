@@ -21,7 +21,7 @@
 #include <rex/string.h>
 #include <rex/runtime.h>
 #include <rex/runtime/xam/user_profile.h>
-#include <rex/runtime/xenumerator.h>
+#include <rex/runtime/enumerator_object.h>
 #include <rex/runtime/xio.h>
 #include <rex/runtime/xthread.h>
 #include <rex/runtime/xtypes.h>
@@ -31,7 +31,6 @@ namespace rex {
 namespace kernel {
 namespace xam {
 using namespace rex::runtime;
-using namespace rex::runtime::xam;
 
 i32 XamUserGetXUID_entry(u32 user_index, u32 type_mask, mapped_u64 xuid_ptr) {
   REX_ASSERT(type_mask == 1 || type_mask == 2 || type_mask == 3 || type_mask == 4 ||
@@ -319,7 +318,7 @@ u32 XamUserWriteProfileSettings_entry([[maybe_unused]] u32 title_id, u32 user_in
           bytes.resize(binary_size, 0);
         }
         user_profile.AddSetting(
-            std::make_unique<xam::UserProfile::BinarySetting>(setting.setting_id, bytes));
+            std::make_unique<runtime::UserProfile::BinarySetting>(setting.setting_id, bytes));
       } break;
       case UserProfile::Setting::Type::WSTRING:
       case UserProfile::Setting::Type::DOUBLE:
@@ -602,11 +601,11 @@ u32 XamUserCreateAchievementEnumerator_entry([[maybe_unused]] u32 title_id, u32 
       items.Append(item);
     }
   } else {
-    const util::XDBFGameData db = runtime.content_manager().title_xdbf();
+    const runtime::XDBFGameData db = runtime.content_manager().title_xdbf();
     if (db.is_valid()) {
       const XLanguage language = db.GetExistingLanguage(
           ToXLanguage(runtime::Current().config().runtime.kernel.user_language));
-      for (const util::XdbfAchievementTableEntry& entry : db.GetAchievements()) {
+      for (const runtime::XDBFAchievementTableEntry& entry : db.GetAchievements()) {
         auto item = AchievementItems::AchievementDetails{
             entry.id,
             rex::to_utf16(db.GetStringTableEntry(language, entry.label_id)),

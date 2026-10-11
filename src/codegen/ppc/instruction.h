@@ -19,7 +19,7 @@
 
 #include <rex/types.h>
 
-namespace rex::codegen::ppc {
+namespace rex::codegen::detail {
 
 /**
  * PowerPC instruction with decoded fields
@@ -365,4 +365,4 @@ struct Instruction {
  */
 Instruction decode_instruction(u32 address, u32 code);
 
-}  // namespace rex::codegen::ppc
+}  // namespace rex::codegen::detail

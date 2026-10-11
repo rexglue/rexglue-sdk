@@ -17,7 +17,7 @@
 
 #include <rex/codegen/codegen_context.h>
 #include <rex/codegen/test_support.h>
-#include <rex/memory/utils.h>
+#include <rex/memory/byte_swap.h>
 
 using namespace rex::codegen;
 using rex::u32;
@@ -72,7 +72,7 @@ struct LoopFunction {
 
 REX_TEST_CASE("An SEH function leaves its scope at every return", "[codegen][seh]") {
   const std::string code = LoopFunction(true, true).Emit();
-  CHECK(code.find("SEH_TRY") != std::string::npos);
+  CHECK(code.find("REX_SEH_TRY") != std::string::npos);
   CHECK(code.find("REX_SEH_RETURN;") != std::string::npos);
   CHECK(code.find(" return;") == std::string::npos);
   CHECK(code.find("\treturn;") == std::string::npos);

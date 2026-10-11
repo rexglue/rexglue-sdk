@@ -17,7 +17,7 @@
 #include <thread>
 
 #include <rex/runtime/function_dispatcher.h>
-#include <rex/runtime/xtimer.h>
+#include <rex/runtime/timer_object.h>
 #include <rex/runtime/xtypes.h>
 
 #include "kernel_fixture.h"

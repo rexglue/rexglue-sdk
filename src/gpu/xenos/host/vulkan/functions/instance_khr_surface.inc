@@ -8,8 +8,8 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-REXVK_FUNCTION(vkDestroySurfaceKHR)
-REXVK_FUNCTION(vkGetPhysicalDeviceSurfaceCapabilitiesKHR)
-REXVK_FUNCTION(vkGetPhysicalDeviceSurfaceFormatsKHR)
-REXVK_FUNCTION(vkGetPhysicalDeviceSurfacePresentModesKHR)
-REXVK_FUNCTION(vkGetPhysicalDeviceSurfaceSupportKHR)
+REX_VK_FUNCTION(vkDestroySurfaceKHR)
+REX_VK_FUNCTION(vkGetPhysicalDeviceSurfaceCapabilitiesKHR)
+REX_VK_FUNCTION(vkGetPhysicalDeviceSurfaceFormatsKHR)
+REX_VK_FUNCTION(vkGetPhysicalDeviceSurfacePresentModesKHR)
+REX_VK_FUNCTION(vkGetPhysicalDeviceSurfaceSupportKHR)

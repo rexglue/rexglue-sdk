@@ -16,7 +16,7 @@
 #include <rex/codegen/progress_reporter.h>
 #include <rex/result.h>
 
-namespace rex::codegen::phases {
+namespace rex::codegen::detail {
 
 /**
  * Registers PDATA, CONFIG, helpers and imports into FunctionGraph.
@@ -72,4 +72,4 @@ namespace rex::codegen::phases {
  */
 [[nodiscard]] Result<void> Validate(CodegenContext& ctx, ProgressReporter* reporter = nullptr);
 
-}  // namespace rex::codegen::phases
+}  // namespace rex::codegen::detail

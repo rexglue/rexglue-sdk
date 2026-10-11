@@ -16,12 +16,12 @@ namespace rex::hid {
 namespace {
 
 rex::Error NotConnected() {
-  return MakeError(Error::NotConnected, "only user 0 has the idle pad");
+  return BuildError(HIDError::NotConnected, "only user 0 has the idle pad");
 }
 
 }  // namespace
 
-Result<X_INPUT_CAPABILITIES> NullBackend::GetCapabilities(u32 user, u32) {
+Result<X_INPUT_CAPABILITIES> NullHIDBackend::GetCapabilities(u32 user, u32) {
   if (user != 0) {
     return std::unexpected(NotConnected());
   }
@@ -40,7 +40,7 @@ Result<X_INPUT_CAPABILITIES> NullBackend::GetCapabilities(u32 user, u32) {
   return caps;
 }
 
-Result<X_INPUT_STATE> NullBackend::GetState(u32 user) {
+Result<X_INPUT_STATE> NullHIDBackend::GetState(u32 user) {
   if (user != 0) {
     return std::unexpected(NotConnected());
   }
@@ -54,21 +54,21 @@ Result<X_INPUT_STATE> NullBackend::GetState(u32 user) {
   return X_INPUT_STATE{};
 }
 
-Result<void> NullBackend::SetVibration(u32 user, const X_INPUT_VIBRATION&) {
+Result<void> NullHIDBackend::SetVibration(u32 user, const X_INPUT_VIBRATION&) {
   if (user != 0) {
     return std::unexpected(NotConnected());
   }
   return Ok();
 }
 
-Result<X_INPUT_KEYSTROKE> NullBackend::GetKeystroke(u32 user, u32) {
+Result<X_INPUT_KEYSTROKE> NullHIDBackend::GetKeystroke(u32 user, u32) {
   if (user != 0) {
     return std::unexpected(NotConnected());
   }
-  return std::unexpected(MakeError(Error::Empty, "the idle pad has no keystrokes"));
+  return std::unexpected(BuildError(HIDError::Empty, "the idle pad has no keystrokes"));
 }
 
-void NullBackend::SetConnectionListener(rex::MoveOnlyFunction<void(u32, bool)> listener) {
+void NullHIDBackend::SetConnectionListener(rex::MoveOnlyFunction<void(u32, bool)> listener) {
   std::lock_guard lock(mutex_);
   listener_ = std::move(listener);
 }

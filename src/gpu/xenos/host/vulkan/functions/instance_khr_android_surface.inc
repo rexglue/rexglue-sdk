@@ -8,4 +8,4 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-REXVK_FUNCTION(vkCreateAndroidSurfaceKHR)
+REX_VK_FUNCTION(vkCreateAndroidSurfaceKHR)

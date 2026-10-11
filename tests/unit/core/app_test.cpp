@@ -279,10 +279,10 @@ REX_TEST_CASE_METHOD(Fixture, "A failed relaunch reaches the log before logging 
   logger->AddSink(sink);
   rex::RequestRestart();
   REQUIRE(app.Shutdown() == 0);
-  std::vector<rex::log::CapturedRecord> entries;
+  std::vector<rex::log::CapturedMessage> entries;
   sink.CopySince(0, entries);
   logger->RemoveSink(sink);
-  REQUIRE(std::ranges::any_of(entries, [](const rex::log::CapturedRecord& entry) {
+  REQUIRE(std::ranges::any_of(entries, [](const rex::log::CapturedMessage& entry) {
     return entry.text.find("relaunch failed") != std::string::npos;
   }));
 }
@@ -321,11 +321,11 @@ REX_TEST_CASE("A category keeps writing after the logger stops and starts", "[ap
   rex::log::CaptureSink sink;
   logger->AddSink(sink);
   REXLOG_WARN(core, "after logging shut down");
-  std::vector<rex::log::CapturedRecord> entries;
+  std::vector<rex::log::CapturedMessage> entries;
   sink.CopySince(0, entries);
   logger->RemoveSink(sink);
   rex::Shutdown();
-  REQUIRE(std::ranges::any_of(entries, [](const rex::log::CapturedRecord& entry) {
+  REQUIRE(std::ranges::any_of(entries, [](const rex::log::CapturedMessage& entry) {
     return entry.text.find("after logging shut down") != std::string::npos;
   }));
 }
@@ -401,3 +401,28 @@ REX_TEST_CASE("RunGuarded turns an escaping exception into exit code 1", "[app][
   CHECK(rex::detail::RunGuarded([]() -> int { throw std::runtime_error("entry failed"); }) == 1);
   CHECK(rex::detail::RunGuarded([]() -> int { throw 5; }) == 1);
 }
+
+#if REX_PLATFORM_WIN32
+REX_TEST_CASE("A callback queued to an exited thread is logged", "[core][thread]") {
+  rex::Shutdown();
+  auto started = rex::Init({});
+  REQUIRE(started);
+  auto* logger = (*started)->Get<rex::ILogger>();
+  REQUIRE(logger);
+  auto thread = rex::platform::Thread::Create({}, [] {});
+  REQUIRE(thread);
+  REQUIRE(rex::platform::Wait(thread.get(), false) == rex::platform::WaitResult::kSuccess);
+
+  rex::log::CaptureSink sink;
+  logger->AddSink(sink);
+  thread->QueueUserCallback([] {});
+  std::vector<rex::log::CapturedMessage> messages;
+  sink.CopySince(0, messages);
+  logger->RemoveSink(sink);
+  thread.reset();
+  rex::Shutdown();
+  CHECK(std::ranges::any_of(messages, [](const rex::log::CapturedMessage& message) {
+    return message.text.find("QueueUserCallback") != std::string::npos;
+  }));
+}
+#endif

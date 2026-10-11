@@ -20,7 +20,7 @@
 #include "gpu/xenos/d3d12/primitive_processor.h"
 #include <rex/logging.h>
 #include "gpu/xenos/host/d3d12/d3d12_provider.h"
-#include "gpu/xenos/host/d3d12/d3d12_util.h"
+#include "gpu/xenos/host/d3d12/d3d12_objects.h"
 
 namespace rex::gpu::d3d12 {
 
@@ -88,11 +88,11 @@ bool D3D12PrimitiveProcessor::InitializeBuiltinIndexBuffer(
   ID3D12Device* device = provider.GetDevice();
 
   D3D12_RESOURCE_DESC resource_desc;
-  gpu::d3d12::util::FillBufferResourceDesc(resource_desc, UINT64(size_bytes),
-                                           D3D12_RESOURCE_FLAG_NONE);
+  gpu::d3d12::objects::FillBufferResourceDesc(resource_desc, UINT64(size_bytes),
+                                              D3D12_RESOURCE_FLAG_NONE);
   Microsoft::WRL::ComPtr<ID3D12Resource> draw_resource;
   if (FAILED(device->CreateCommittedResource(
-          &gpu::d3d12::util::kHeapPropertiesDefault, provider.GetHeapFlagCreateNotZeroed(),
+          &gpu::d3d12::objects::kHeapPropertiesDefault, provider.GetHeapFlagCreateNotZeroed(),
           &resource_desc, D3D12_RESOURCE_STATE_COPY_DEST, nullptr, IID_PPV_ARGS(&draw_resource)))) {
     REX_FAIL(gpu, false,
              "D3D12 primitive processor: Failed to create the built-in index "
@@ -100,7 +100,7 @@ bool D3D12PrimitiveProcessor::InitializeBuiltinIndexBuffer(
              size_bytes);
   }
   Microsoft::WRL::ComPtr<ID3D12Resource> upload_resource;
-  if (FAILED(device->CreateCommittedResource(&gpu::d3d12::util::kHeapPropertiesUpload,
+  if (FAILED(device->CreateCommittedResource(&gpu::d3d12::objects::kHeapPropertiesUpload,
                                              provider.GetHeapFlagCreateNotZeroed(), &resource_desc,
                                              D3D12_RESOURCE_STATE_GENERIC_READ, nullptr,
                                              IID_PPV_ARGS(&upload_resource)))) {

@@ -16,7 +16,7 @@
 #include <cstring>
 #include <string>
 
-#include <rex/memory/utils.h>
+#include <rex/bit.h>
 #include <rex/string/numeric.h>
 #include <rex/types.h>
 
@@ -49,23 +49,23 @@ bool SameBytes(const T& a, const T& b) {
 REX_TEST_CASE("Reinterpret copies the same bytes as memcpy for f32", "[memory][bit_cast]") {
   for (const rex::u32 bits : kF32Patterns) {
     const rex::f32 expected = MemcpyCopy<rex::f32>(bits);
-    CHECK(SameBytes(rex::memory::Reinterpret<rex::f32>(bits), expected));
+    CHECK(SameBytes(rex::Reinterpret<rex::f32>(bits), expected));
     CHECK(SameBytes(std::bit_cast<rex::f32>(bits), expected));
     rex::f32 out;
-    rex::memory::Reinterpret(out, bits);
+    rex::Reinterpret(out, bits);
     CHECK(SameBytes(out, expected));
-    CHECK(rex::memory::Reinterpret<rex::u32>(expected) == bits);
+    CHECK(rex::Reinterpret<rex::u32>(expected) == bits);
   }
 }
 
 REX_TEST_CASE("Reinterpret copies the same bytes as memcpy for f64", "[memory][bit_cast]") {
   for (const rex::u64 bits : kF64Patterns) {
     const rex::f64 expected = MemcpyCopy<rex::f64>(bits);
-    CHECK(SameBytes(rex::memory::Reinterpret<rex::f64>(bits), expected));
+    CHECK(SameBytes(rex::Reinterpret<rex::f64>(bits), expected));
     rex::f64 out;
-    rex::memory::Reinterpret(out, bits);
+    rex::Reinterpret(out, bits);
     CHECK(SameBytes(out, expected));
-    CHECK(rex::memory::Reinterpret<rex::u64>(expected) == bits);
+    CHECK(rex::Reinterpret<rex::u64>(expected) == bits);
   }
 }
 

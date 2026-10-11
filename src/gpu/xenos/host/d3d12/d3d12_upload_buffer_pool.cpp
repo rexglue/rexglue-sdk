@@ -12,7 +12,7 @@
 #include <rex/logging.h>
 #include <rex/math.h>
 #include "gpu/xenos/host/d3d12/d3d12_upload_buffer_pool.h"
-#include "gpu/xenos/host/d3d12/d3d12_util.h"
+#include "gpu/xenos/host/d3d12/d3d12_objects.h"
 
 namespace rex::gpu::d3d12 {
 
@@ -69,10 +69,10 @@ u8* D3D12UploadBufferPool::RequestPartial(u64 submission_index, size_t size, siz
 
 std::unique_ptr<GraphicsUploadBufferPool::Page> D3D12UploadBufferPool::CreatePageImplementation() {
   D3D12_RESOURCE_DESC buffer_desc;
-  util::FillBufferResourceDesc(buffer_desc, page_size_, D3D12_RESOURCE_FLAG_NONE);
+  objects::FillBufferResourceDesc(buffer_desc, page_size_, D3D12_RESOURCE_FLAG_NONE);
   Microsoft::WRL::ComPtr<ID3D12Resource> buffer;
   if (FAILED(provider_.GetDevice()->CreateCommittedResource(
-          &util::kHeapPropertiesUpload, provider_.GetHeapFlagCreateNotZeroed(), &buffer_desc,
+          &objects::kHeapPropertiesUpload, provider_.GetHeapFlagCreateNotZeroed(), &buffer_desc,
           D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&buffer)))) {
     REX_FAIL(ui, nullptr, "Failed to create a D3D upload buffer with {} bytes", page_size_);
   }

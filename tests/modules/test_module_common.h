@@ -25,10 +25,10 @@ using RexModTestSink = void (*)(const char* module, const char* event);
  * the sink.
  *
  * @code
- * REXMOD_TEST_SINK()
+ * REX_TEST_MODULE_SINK()
  * @endcode
  */
-#define REXMOD_TEST_SINK()                                                      \
+#define REX_TEST_MODULE_SINK()                                                  \
   static RexModTestSink g_rexmod_sink = nullptr;                                \
   extern "C" REX_DETAIL_EXPORT void rexmod_test_set_sink(RexModTestSink sink) { \
     g_rexmod_sink = sink;                                                       \

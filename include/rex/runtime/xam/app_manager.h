@@ -30,7 +30,6 @@ class Memory;
 
 namespace rex {
 namespace runtime {
-namespace xam {
 
 /** Base class of a Xam app, which receives messages dispatched by app id. */
 class REX_RUNTIME_API App {
@@ -103,6 +102,5 @@ class AppManager {
   std::unordered_map<u32, App*> app_lookup_;
 };
 
-}  // namespace xam
 }  // namespace runtime
 }  // namespace rex

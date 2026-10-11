@@ -95,7 +95,7 @@ struct ManifestConfig {
    * @param version The SDK version to store.
    * @return True when the stamp was written, false on parse or write failure.
    */
-  static bool WriteSdkVersionStamp(const std::filesystem::path& path, std::string_view version);
+  static bool WriteSDKVersionStamp(const std::filesystem::path& path, std::string_view version);
 };
 
 }  // namespace rex::codegen

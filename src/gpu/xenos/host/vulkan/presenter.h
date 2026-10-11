@@ -65,7 +65,7 @@ class VulkanPresenter final : public Presenter {
   struct Key {};
 
  public:
-  explicit VulkanPresenter(Key, HostGpuLossCallback host_gpu_loss_callback,
+  explicit VulkanPresenter(Key, HostGPULossCallback host_gpu_loss_callback,
                            const VulkanDevice* vulkan_device, const UISamplers* ui_samplers)
       : Presenter(std::move(host_gpu_loss_callback)),
         vulkan_device_(vulkan_device),
@@ -137,7 +137,7 @@ class VulkanPresenter final : public Presenter {
     bool image_ever_written_previously_;
   };
 
-  static std::unique_ptr<VulkanPresenter> Create(HostGpuLossCallback host_gpu_loss_callback,
+  static std::unique_ptr<VulkanPresenter> Create(HostGPULossCallback host_gpu_loss_callback,
                                                  const VulkanDevice* vulkan_device,
                                                  const UISamplers* ui_samplers) {
     auto presenter = std::make_unique<VulkanPresenter>(Key{}, std::move(host_gpu_loss_callback),

@@ -14,7 +14,7 @@
 
 #include <rex/types.h>
 
-namespace rex::codegen::ppc {
+namespace rex::codegen::detail {
 
 /**
  * PowerPC instruction formats
@@ -552,4 +552,4 @@ Opcode lookup_opcode(u32 code);
  */
 const OpcodeInfo& get_opcode_info(Opcode opcode);
 
-}  // namespace rex::codegen::ppc
+}  // namespace rex::codegen::detail

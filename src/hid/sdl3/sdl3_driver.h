@@ -22,10 +22,10 @@
 
 #include <SDL3/SDL.h>
 
-inline constexpr i32 HID_SDL_THUMB_THRES = 0x4E00;
-inline constexpr i32 HID_SDL_TRIGG_THRES = 0x1F;
-inline constexpr i32 HID_SDL_REPEAT_DELAY = 400;
-inline constexpr i32 HID_SDL_REPEAT_RATE = 100;
+inline constexpr i32 kThumbThreshold = 0x4E00;
+inline constexpr i32 kXInputTriggerThreshold = 0x1F;
+inline constexpr i32 kRepeatDelay = 400;
+inline constexpr i32 kRepeatRate = 100;
 
 namespace rex::hid::sdl3 {
 

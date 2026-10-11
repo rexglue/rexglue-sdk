@@ -1,6 +1,6 @@
 /**
  * @file        tests/unit/apu/null_backend_test.cpp
- * @brief       apu::NullBackend paces frames at the device rate
+ * @brief       apu::NullAPUBackend paces frames at the device rate
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -24,8 +24,8 @@ std::array<rex::be_f32, rex::apu::kFrameSamples> g_silence{};
 
 }  // namespace
 
-REX_TEST_CASE("NullBackend plays 1 frame per period", "[apu]") {
-  rex::apu::NullBackend backend;
+REX_TEST_CASE("NullAPUBackend plays 1 frame per period", "[apu]") {
+  rex::apu::NullAPUBackend backend;
   std::atomic<rex::u32> played{0};
   auto stream = backend.OpenStream([&played] { played.fetch_add(1); });
   REQUIRE(stream);
@@ -51,8 +51,8 @@ REX_TEST_CASE("NullBackend plays 1 frame per period", "[apu]") {
   backend.CloseStream(*stream);
 }
 
-REX_TEST_CASE("NullBackend calls back only for submitted frames", "[apu]") {
-  rex::apu::NullBackend backend;
+REX_TEST_CASE("NullAPUBackend calls back only for submitted frames", "[apu]") {
+  rex::apu::NullAPUBackend backend;
   std::atomic<rex::u32> played{0};
   auto stream = backend.OpenStream([&played] { played.fetch_add(1); });
   REQUIRE(stream);
@@ -63,8 +63,8 @@ REX_TEST_CASE("NullBackend calls back only for submitted frames", "[apu]") {
   backend.CloseStream(*stream);
 }
 
-REX_TEST_CASE("NullBackend drops queued frames on CloseStream", "[apu]") {
-  rex::apu::NullBackend backend;
+REX_TEST_CASE("NullAPUBackend drops queued frames on CloseStream", "[apu]") {
+  rex::apu::NullAPUBackend backend;
   std::atomic<rex::u32> played{0};
   auto stream = backend.OpenStream([&played] { played.fetch_add(1); });
   REQUIRE(stream);
@@ -77,8 +77,8 @@ REX_TEST_CASE("NullBackend drops queued frames on CloseStream", "[apu]") {
   CHECK(played.load() == after_close);
 }
 
-REX_TEST_CASE("NullBackend keeps the mix values it was given", "[apu]") {
-  rex::apu::NullBackend backend;
+REX_TEST_CASE("NullAPUBackend keeps the mix values it was given", "[apu]") {
+  rex::apu::NullAPUBackend backend;
   backend.SetOutputGain(0.5f);
   backend.SetStereoFold({.center = 1.0f, .surround = 0.5f, .lfe = 0.25f, .scale = 0.4f});
   backend.SetSurroundMix({.center = 0.9f, .surround = 0.8f, .lfe = 0.0f});

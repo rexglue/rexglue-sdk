@@ -18,7 +18,7 @@
 
 #include <rex/macros.h>
 #include <rex/assert.h>
-#include <rex/memory/utils.h>
+#include <rex/memory/fourcc.h>
 #include <rex/types.h>
 
 namespace rex::xenos {
@@ -1129,7 +1129,7 @@ constexpr u32 kTextureMaxMips =
 constexpr u32 kTextureTileWidthHeightLog2 = 5;
 /** Texture tile width and height. */
 constexpr u32 kTextureTileWidthHeight = 1 << kTextureTileWidthHeightLog2;
-/** Log2 of the 3D texture tile depth. Slices 0:3 and 4:7 use separate address ranges. */
+/** Log2 of the 3D texture tile depth. Depths 0 to 3 and 4 to 7 use separate address ranges. */
 constexpr u32 kTextureTileDepthLog2 = 2;
 /** 3D texture tile depth. */
 constexpr u32 kTextureTileDepth = 1 << kTextureTileDepthLog2;
@@ -1432,7 +1432,7 @@ enum Type3Opcode : u8 {
  * @param one_reg Writes every value to index.
  * @return Packet header.
  */
-inline u32 MakePacketType0(u16 index, u16 count, bool one_reg = false) {
+inline u32 BuildPacketType0(u16 index, u16 count, bool one_reg = false) {
   assert(index <= 0x7FFF);
   assert(count >= 1 && count <= 0x4000);
   return (0u << 30) | (((count - 1) & 0x3FFF) << 16) | (one_reg ? 1u << 15 : 0u) | (index & 0x7FFF);
@@ -1447,7 +1447,7 @@ inline u32 MakePacketType0(u16 index, u16 count, bool one_reg = false) {
  * @param index_2 Second register index, up to 0x7FF.
  * @return Packet header.
  */
-inline u32 MakePacketType1(u16 index_1, u16 index_2) {
+inline u32 BuildPacketType1(u16 index_1, u16 index_2) {
   assert(index_1 <= 0x7FF);
   assert(index_2 <= 0x7FF);
   return (1u << 30) | ((index_2 & 0x7FF) << 11) | (index_1 & 0x7FF);
@@ -1458,7 +1458,7 @@ inline u32 MakePacketType1(u16 index_1, u16 index_2) {
  *
  * @return Packet header.
  */
-constexpr u32 MakePacketType2() {
+constexpr u32 BuildPacketType2() {
   return (2u << 30);
 }
 
@@ -1472,7 +1472,7 @@ constexpr u32 MakePacketType2() {
  * @param predicate Whether the packet is predicated.
  * @return Packet header.
  */
-inline u32 MakePacketType3(Type3Opcode opcode, u16 count, bool predicate = false) {
+inline u32 BuildPacketType3(Type3Opcode opcode, u16 count, bool predicate = false) {
   assert(opcode <= 0x7F);
   assert(count >= 1 && count <= 0x4000);
   return (3u << 30) | (((count - 1) & 0x3FFF) << 16) | ((opcode & 0x7F) << 8) | (predicate ? 1 : 0);

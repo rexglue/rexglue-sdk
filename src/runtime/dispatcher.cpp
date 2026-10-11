@@ -28,10 +28,10 @@
 #include <rex/runtime/error.h>
 #include <rex/runtime/function_dispatcher.h>
 #include <rex/runtime/thread_state.h>
-#include <rex/runtime/util/native_list.h>
-#include <rex/runtime/xevent.h>
+#include <rex/runtime/kernel_list.h>
+#include <rex/runtime/event_object.h>
 #include <rex/runtime/xio.h>
-#include <rex/runtime/xobject.h>
+#include <rex/runtime/object.h>
 #include <rex/runtime/xthread.h>
 #include <rex/move_only_function.h>
 
@@ -60,8 +60,8 @@ bool LeaveInterrupt() {
 Dispatcher::Dispatcher(Runtime& runtime) : runtime_(runtime) {
   auto* memory = runtime.memory();
   dpc_list_head_ = memory->SystemHeapAlloc(sizeof(X_LIST_ENTRY));
-  util::XeInitializeListHead(memory->TranslateVirtual<X_LIST_ENTRY*>(dpc_list_head_),
-                             dpc_list_head_);
+  runtime::InitializeListHead(memory->TranslateVirtual<X_LIST_ENTRY*>(dpc_list_head_),
+                              dpc_list_head_);
 }
 
 Dispatcher::~Dispatcher() {
@@ -95,24 +95,10 @@ void Dispatcher::CompleteOverlappedEx(u32 overlapped_ptr, X_RESULT result, u32 e
   }
 }
 
-void Dispatcher::CompleteOverlappedImmediate(u32 overlapped_ptr, X_RESULT result) {
-  u32 length = !result ? 0 : 0xFFFFFFFF;
-  CompleteOverlappedImmediateEx(overlapped_ptr, result, result, length);
-}
-
-void Dispatcher::CompleteOverlappedImmediateEx(u32 overlapped_ptr, X_RESULT result,
-                                               u32 extended_error, u32 length) {
-  auto ptr = runtime_.memory()->TranslateVirtual(overlapped_ptr);
-  XOverlappedSetContext(ptr, ThreadRecord::GetCurrentThreadHandle());
-  CompleteOverlappedEx(overlapped_ptr, result, extended_error, length);
-}
-
-void Dispatcher::CompleteOverlappedDeferred(std::function<void()> completion_callback,
-                                            u32 overlapped_ptr, X_RESULT result,
-                                            std::function<void()> pre_callback,
-                                            std::function<void()> post_callback) {
-  CompleteOverlappedDeferredEx(std::move(completion_callback), overlapped_ptr, result, result, 0,
-                               pre_callback, post_callback);
+void Dispatcher::Complete(u32 overlapped, const CompletionOptions& options) {
+  auto ptr = runtime_.memory()->TranslateVirtual(overlapped);
+  XOverlappedSetContext(ptr, KernelThread::GetCurrentThreadHandle());
+  CompleteOverlappedEx(overlapped, options.result, ExtendedError(options), Length(options));
 }
 
 void Dispatcher::CompleteOverlappedDeferredEx(std::function<void()> completion_callback,
@@ -151,7 +137,7 @@ void Dispatcher::CompleteOverlappedDeferredEx(
                overlapped_ptr);
   auto ptr = runtime_.memory()->TranslateVirtual(overlapped_ptr);
   XOverlappedSetResult(ptr, X_ERROR_IO_PENDING);
-  XOverlappedSetContext(ptr, ThreadRecord::GetCurrentThreadHandle());
+  XOverlappedSetContext(ptr, KernelThread::GetCurrentThreadHandle());
   std::lock_guard lock(dispatch_mutex_);
   dispatch_queue_.push_back(
       [this, completion_callback, overlapped_ptr, pre_callback, post_callback]() {
@@ -192,45 +178,45 @@ void Dispatcher::EndDPCImpersonation(X_KPCR& pcr, const DPCImpersonationScope& s
 bool Dispatcher::QueueDPC(u32 dpc, u32 arg1, u32 arg2) {
   auto* memory = runtime_.memory();
   std::lock_guard lock(dpc_mutex_);
-  auto* object = memory->TranslateVirtual<XDPC*>(dpc);
-  if (object->selected_cpu_number) {
+  auto* object = memory->TranslateVirtual<X_KDPC*>(dpc);
+  if (object->inserted_number) {
     return false;
   }
-  object->selected_cpu_number = 1;
+  object->inserted_number = 1;
   object->arg1 = arg1;
   object->arg2 = arg2;
-  util::XeInsertTailList(dpc_list_head_, dpc + kDPCListEntryOffset, memory);
+  runtime::InsertTailList(dpc_list_head_, dpc + kDPCListEntryOffset, memory);
   return true;
 }
 
 bool Dispatcher::RemoveDPC(u32 dpc) {
   auto* memory = runtime_.memory();
   std::lock_guard lock(dpc_mutex_);
-  auto* object = memory->TranslateVirtual<XDPC*>(dpc);
-  if (!object->selected_cpu_number) {
+  auto* object = memory->TranslateVirtual<X_KDPC*>(dpc);
+  if (!object->inserted_number) {
     return false;
   }
-  util::XeRemoveEntryList(&object->list_entry, memory);
-  object->selected_cpu_number = 0;
+  runtime::RemoveEntryList(&object->list_entry, memory);
+  object->inserted_number = 0;
   return true;
 }
 
 bool Dispatcher::HasQueuedDPCs() {
   auto* memory = runtime_.memory();
   std::lock_guard lock(dpc_mutex_);
-  return !util::XeIsListEmpty(memory->TranslateVirtual<X_LIST_ENTRY*>(dpc_list_head_), memory);
+  return !runtime::IsListEmpty(memory->TranslateVirtual<X_LIST_ENTRY*>(dpc_list_head_), memory);
 }
 
 std::optional<Dispatcher::QueuedDPC> Dispatcher::PopDPC() {
   auto* memory = runtime_.memory();
   std::lock_guard lock(dpc_mutex_);
   auto* head = memory->TranslateVirtual<X_LIST_ENTRY*>(dpc_list_head_);
-  if (util::XeIsListEmpty(head, memory)) {
+  if (runtime::IsListEmpty(head, memory)) {
     return std::nullopt;
   }
-  const u32 address = util::XeRemoveHeadList(head, memory) - kDPCListEntryOffset;
-  auto* object = memory->TranslateVirtual<XDPC*>(address);
-  object->selected_cpu_number = 0;
+  const u32 address = runtime::RemoveHeadList(head, memory) - kDPCListEntryOffset;
+  auto* object = memory->TranslateVirtual<X_KDPC*>(address);
+  object->inserted_number = 0;
   return QueuedDPC{address, object->routine, object->context, object->arg1, object->arg2};
 }
 
@@ -279,8 +265,8 @@ void Dispatcher::PostDrain() {
 }
 
 bool Dispatcher::IsDispatchThread() const {
-  return dispatch_thread_ && ThreadRecord::IsInThread() &&
-         ThreadRecord::GetCurrentThread()->handle() == dispatch_thread_;
+  return dispatch_thread_ && KernelThread::IsInThread() &&
+         KernelThread::GetCurrentThread()->handle() == dispatch_thread_;
 }
 
 bool Dispatcher::IsRunning() const {
@@ -315,7 +301,7 @@ void Dispatcher::Start() {
     }
   }
   dispatch_thread_running_ = true;
-  auto record = std::make_unique<ThreadRecord>(runtime_, 128 * 1024, 0, [this]() {
+  auto thread = std::make_unique<KernelThread>(runtime_, 128 * 1024, 0, [this]() {
     std::unique_lock lock(dispatch_mutex_);
     for (;;) {
       dispatch_cond_.wait(lock,
@@ -342,8 +328,8 @@ void Dispatcher::Start() {
     }
     return 0;
   });
-  record->set_name("Kernel Dispatch");
-  Result<X_HANDLE> launched = runtime_.thread_registry().Launch(std::move(record));
+  thread->set_name("Kernel Dispatch");
+  Result<X_HANDLE> launched = runtime_.thread_registry().Launch(std::move(thread));
   if (!launched) {
     dispatch_thread_running_ = false;
     dispatch_thread_ = 0;

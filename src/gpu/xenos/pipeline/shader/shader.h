@@ -716,7 +716,7 @@ class Shader {
         const std::filesystem::path& base_path, const char* path_prefix) const;
 
    protected:
-    void MakeInvalid() { is_valid_ = false; }
+    void Invalidate() { is_valid_ = false; }
 
    private:
     friend class Shader;

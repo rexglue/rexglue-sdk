@@ -161,7 +161,7 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
 
   bool msaa_2x_attachments_supported() const { return msaa_2x_attachments_supported_; }
   bool msaa_2x_no_attachments_supported() const { return msaa_2x_no_attachments_supported_; }
-  bool IsMsaa2xSupported(bool subpass_has_attachments) const {
+  bool IsMSAA2xSupported(bool subpass_has_attachments) const {
     return subpass_has_attachments ? msaa_2x_attachments_supported_
                                    : msaa_2x_no_attachments_supported_;
   }
@@ -218,7 +218,7 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
    * operations), then compute reads. Fragment reads and compute reads normally do not follow
    * each other, so a wider barrier in the normal scenario would not pay off.
    */
-  enum class EdramBufferUsage : u8 {
+  enum class EDRAMBufferUsage : u8 {
     /** Host depth copy storing. */
     kFragmentRead,
     /** Fragment shader interlock depth, stencil and color operations. */
@@ -232,7 +232,7 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
   };
 
   /** Values are ordered by how strong the barrier conditions are. */
-  enum class EdramBufferModificationStatus : u8 {
+  enum class EDRAMBufferModificationStatus : u8 {
     /** No uncommitted shader writes. */
     kUnmodified,
     /** Must commit before the next fragment shader interlock usage with overlap. */
@@ -243,7 +243,7 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
 
   enum ResolveCopyDescriptorSet : u8 {
     /** Never changes. */
-    kResolveCopyDescriptorSetEdram,
+    kResolveCopyDescriptorSetEDRAM,
     /** Shared memory or a region in it. */
     kResolveCopyDescriptorSetDest,
 
@@ -257,15 +257,15 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
     size_t scaled_size_bytes;
   };
 
-  static void GetEdramBufferUsageMasks(EdramBufferUsage usage, VkPipelineStageFlags& stage_mask_out,
+  static void GetEDRAMBufferUsageMasks(EDRAMBufferUsage usage, VkPipelineStageFlags& stage_mask_out,
                                        VkAccessFlags& access_mask_out);
   bool IsColor16FormatFloatLike(xenos::ColorRenderTargetFormat format) const;
-  void UseEdramBuffer(EdramBufferUsage new_usage);
-  void MarkEdramBufferModified(EdramBufferModificationStatus modification_status =
-                                   EdramBufferModificationStatus::kViaUnordered);
-  void CommitEdramBufferShaderWrites(
-      EdramBufferModificationStatus commit_status =
-          EdramBufferModificationStatus::kViaFragmentShaderInterlock);
+  void UseEDRAMBuffer(EDRAMBufferUsage new_usage);
+  void MarkEDRAMBufferModified(EDRAMBufferModificationStatus modification_status =
+                                   EDRAMBufferModificationStatus::kViaUnordered);
+  void CommitEDRAMBufferShaderWrites(
+      EDRAMBufferModificationStatus commit_status =
+          EDRAMBufferModificationStatus::kViaFragmentShaderInterlock);
 
   VulkanCommandProcessor& command_processor_;
 
@@ -281,16 +281,16 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
 
   VkDeviceMemory edram_buffer_memory_ = VK_NULL_HANDLE;
   VkBuffer edram_buffer_ = VK_NULL_HANDLE;
-  EdramBufferUsage edram_buffer_usage_;
-  EdramBufferModificationStatus edram_buffer_modification_status_ =
-      EdramBufferModificationStatus::kUnmodified;
+  EDRAMBufferUsage edram_buffer_usage_;
+  EDRAMBufferModificationStatus edram_buffer_modification_status_ =
+      EDRAMBufferModificationStatus::kUnmodified;
   VkDescriptorPool edram_storage_buffer_descriptor_pool_ = VK_NULL_HANDLE;
   VkDescriptorSet edram_storage_buffer_descriptor_set_;
 
   VkPipelineLayout resolve_copy_pipeline_layout_ = VK_NULL_HANDLE;
   static const ResolveCopyShaderCode
-      kResolveCopyShaders[static_cast<size_t>(draw_util::ResolveCopyShaderIndex::kCount)];
-  std::array<VkPipeline, static_cast<size_t>(draw_util::ResolveCopyShaderIndex::kCount)>
+      kResolveCopyShaders[static_cast<size_t>(draw_state::ResolveCopyShaderIndex::kCount)];
+  std::array<VkPipeline, static_cast<size_t>(draw_state::ResolveCopyShaderIndex::kCount)>
       resolve_copy_pipelines_{};
 
   /** On the fragment shader interlock path it only passes parameters to pipeline setup. */
@@ -729,7 +729,7 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
      * Never changes. Same in both color and depth pipeline layouts and kept first for pipeline
      * layout compatibility, so it is set once.
      */
-    kDumpDescriptorSetEdram,
+    kDumpDescriptorSetEDRAM,
     /** One resolve may need multiple sources. Layouts differ for color and depth. */
     kDumpDescriptorSetSource,
 
@@ -772,7 +772,7 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
   };
 
   struct DirectResolvePushConstants {
-    draw_util::ResolveCopyShaderConstants resolve;
+    draw_state::ResolveCopyShaderConstants resolve;
     u32 source_base_tiles;
     u32 source_pitch_tiles;
     u32 dispatch_first_tile;
@@ -780,7 +780,7 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
 
   struct DirectResolvePipelineKey {
     DumpPipelineKey dump_pipeline_key;
-    draw_util::ResolveCopyShaderIndex copy_shader;
+    draw_state::ResolveCopyShaderIndex copy_shader;
     bool draw_resolution_scaled;
     u64 packed() const {
       return static_cast<u64>(dump_pipeline_key.key) |
@@ -915,13 +915,13 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
    */
   VkPipeline GetDumpPipeline(DumpPipelineKey key);
   VkPipeline GetDirectResolvePipeline(DirectResolvePipelineKey key);
-  bool TryResolveCopyDirectly(const draw_util::ResolveInfo& resolve_info,
-                              draw_util::ResolveCopyShaderIndex copy_shader,
+  bool TryResolveCopyDirectly(const draw_state::ResolveInfo& resolve_info,
+                              draw_state::ResolveCopyShaderIndex copy_shader,
                               bool draw_resolution_scaled);
 
   /**
    * Writes contents of host render targets within rectangles from
-   * ResolveInfo::GetCopyEdramTileSpan to edram_buffer_.
+   * ResolveInfo::GetCopyEDRAMTileSpan to edram_buffer_.
    *
    * @param dump_base First EDRAM tile to dump.
    * @param dump_row_length_used Used row length in tiles.

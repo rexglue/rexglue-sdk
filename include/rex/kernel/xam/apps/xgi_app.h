@@ -23,7 +23,7 @@ namespace apps {
 /**
  * Xgi app 0xFB, which serves XGI messages such as user contexts and properties.
  */
-class XgiApp : public runtime::xam::App {
+class XgiApp : public runtime::App {
  public:
   /**
    * @param runtime The runtime the app serves.

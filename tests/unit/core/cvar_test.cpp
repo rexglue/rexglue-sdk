@@ -126,7 +126,7 @@ REX_TEST_CASE_METHOD(Fixture, "Var parses and renders each type", "[cvar]") {
 REX_TEST_CASE_METHOD(Fixture, "set on an unregistered var fails NotFound", "[cvar]") {
   auto status = test_cvars::count.set(5);
   REQUIRE_FALSE(status);
-  REQUIRE(status.error().code == static_cast<int>(rex::cvar::Error::NotFound));
+  REQUIRE(status.error().code == static_cast<int>(rex::cvar::CvarError::NotFound));
   REQUIRE(test_cvars::count.get() == 42);
 }
 
@@ -150,13 +150,13 @@ REX_TEST_CASE_METHOD(Fixture, "Register rejects duplicates and bad names and reg
   REQUIRE(reg().Register("test", test_cvars::kTestCvars));
   auto twice = reg().Register("test", test_cvars::kTestCvars);
   REQUIRE_FALSE(twice);
-  REQUIRE(twice.error().code == static_cast<int>(rex::cvar::Error::DuplicateScope));
+  REQUIRE(twice.error().code == static_cast<int>(rex::cvar::CvarError::DuplicateScope));
   auto dupe = reg().Register("test2", dupe_cvars::kDupeCvars);
   REQUIRE_FALSE(dupe);
-  REQUIRE(dupe.error().code == static_cast<int>(rex::cvar::Error::BadName));
+  REQUIRE(dupe.error().code == static_cast<int>(rex::cvar::CvarError::BadName));
   auto wrong = reg().Register("test3", dupe_cvars::kWrongScope);
   REQUIRE_FALSE(wrong);
-  REQUIRE(wrong.error().code == static_cast<int>(rex::cvar::Error::BadName));
+  REQUIRE(wrong.error().code == static_cast<int>(rex::cvar::CvarError::BadName));
   REQUIRE(reg().Enumerate().size() == 10);
   REQUIRE(dupe_cvars::wrong_scope.registry() == nullptr);
 }
@@ -170,13 +170,13 @@ REX_TEST_CASE_METHOD(Fixture, "A duplicate full name in a free scope fails Dupli
   const rex::cvar::IVar* again[] = {&test_cvars::flag};
   auto status = reg().Register("test", again);
   REQUIRE_FALSE(status);
-  REQUIRE(status.error().code == static_cast<int>(rex::cvar::Error::DuplicateScope));
+  REQUIRE(status.error().code == static_cast<int>(rex::cvar::CvarError::DuplicateScope));
   const rex::cvar::IVar* other_scope_dupe[] = {&dupe_cvars::flag};
   reg().Unregister(dupe_cvars::kDupeCvars);
   REQUIRE(reg().Register("test", test_cvars::kTestCvars));
   auto dupe = reg().Register("test", other_scope_dupe);
   REQUIRE_FALSE(dupe);
-  REQUIRE(dupe.error().code == static_cast<int>(rex::cvar::Error::DuplicateScope));
+  REQUIRE(dupe.error().code == static_cast<int>(rex::cvar::CvarError::DuplicateScope));
   REQUIRE(&Var("test.flag") == &test_cvars::flag);
 }
 
@@ -248,7 +248,7 @@ REX_TEST_CASE_METHOD(Fixture, "Lock rejects Set and keeps applied values", "[cva
   REQUIRE(reg().ApplyLocks(locks));
   auto status = reg().Set("test.count", "13");
   REQUIRE_FALSE(status);
-  REQUIRE(status.error().code == static_cast<int>(rex::cvar::Error::Locked));
+  REQUIRE(status.error().code == static_cast<int>(rex::cvar::CvarError::Locked));
   REQUIRE(test_cvars::count.get() == 12);
   std::vector<std::string> bad = {"test.nope"};
   REQUIRE_FALSE(reg().ApplyLocks(bad));
@@ -259,7 +259,7 @@ REX_TEST_CASE_METHOD(Fixture, "Constraints reject with Invalid and keep the valu
   REQUIRE(reg().Register("test", test_cvars::kTestCvars));
   auto range = reg().Set("test.count", "101");
   REQUIRE_FALSE(range);
-  REQUIRE(range.error().code == static_cast<int>(rex::cvar::Error::Invalid));
+  REQUIRE(range.error().code == static_cast<int>(rex::cvar::CvarError::Invalid));
   REQUIRE(test_cvars::count.get() == 42);
   REQUIRE_FALSE(reg().Set("test.ratio", "1.5"));
   REQUIRE(test_cvars::ratio.get() == 0.5);
@@ -284,7 +284,7 @@ REX_TEST_CASE_METHOD(Fixture, "InitOnly and RequiresRestart follow Finalize", "[
   REQUIRE(reg().IsFinalized());
   auto status = reg().Set("test.once", "3");
   REQUIRE_FALSE(status);
-  REQUIRE(status.error().code == static_cast<int>(rex::cvar::Error::InitOnly));
+  REQUIRE(status.error().code == static_cast<int>(rex::cvar::CvarError::InitOnly));
   REQUIRE(test_cvars::once.get() == 2);
   REQUIRE(reg().Set("test.restart", "4"));
   REQUIRE(reg().PendingRestart() == std::vector<std::string>{"test.restart"});
@@ -336,10 +336,10 @@ REX_TEST_CASE_METHOD(Fixture, "Commands invoke and refuse Set", "[cvar]") {
   REQUIRE(g_last_command_args == "a b");
   auto on_var = reg().Invoke("test.count", "");
   REQUIRE_FALSE(on_var);
-  REQUIRE(on_var.error().code == static_cast<int>(rex::cvar::Error::NotACommand));
+  REQUIRE(on_var.error().code == static_cast<int>(rex::cvar::CvarError::NotACommand));
   auto set_cmd = reg().Set("test.run", "x");
   REQUIRE_FALSE(set_cmd);
-  REQUIRE(set_cmd.error().code == static_cast<int>(rex::cvar::Error::NotAVar));
+  REQUIRE(set_cmd.error().code == static_cast<int>(rex::cvar::CvarError::NotAVar));
 }
 
 REX_TEST_CASE_METHOD(Fixture, "Serialize writes scoped tables of non default values", "[cvar]") {
@@ -370,11 +370,11 @@ REX_TEST_CASE_METHOD(Fixture, "Add extends a reserved scope and pinned scopes su
   REQUIRE(reg().Get("bind.console").value() == "Backtick");
   auto dupe = reg().Add(one);
   REQUIRE_FALSE(dupe);
-  REQUIRE(dupe.error().code == static_cast<int>(rex::cvar::Error::DuplicateName));
+  REQUIRE(dupe.error().code == static_cast<int>(rex::cvar::CvarError::DuplicateName));
   const rex::cvar::IVar* unreserved[] = {&test_cvars::flag};
   auto bad = reg().Add(unreserved);
   REQUIRE_FALSE(bad);
-  REQUIRE(bad.error().code == static_cast<int>(rex::cvar::Error::BadName));
+  REQUIRE(bad.error().code == static_cast<int>(rex::cvar::CvarError::BadName));
   reg().Unregister(one);
   REQUIRE_FALSE(reg().Find("bind.console"));
   REQUIRE(reg().Scopes() == std::vector<std::string_view>{"bind"});

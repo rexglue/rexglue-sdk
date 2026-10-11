@@ -260,7 +260,7 @@ bool D3D12Provider::Initialize(i32 adapter_index_wanted) {
     dxgi_factory->Release();
     return false;
   }
-  adapter_vendor_id_ = GpuVendorID(adapter_desc.VendorId);
+  adapter_vendor_id_ = GPUVendorID(adapter_desc.VendorId);
   int adapter_name_mb_size =
       WideCharToMultiByte(CP_UTF8, 0, adapter_desc.Description, -1, nullptr, 0, nullptr, nullptr);
   if (adapter_name_mb_size != 0) {
@@ -421,7 +421,7 @@ bool D3D12Provider::Initialize(i32 adapter_index_wanted) {
 }
 
 std::unique_ptr<Presenter> D3D12Provider::CreatePresenter(
-    Presenter::HostGpuLossCallback host_gpu_loss_callback) {
+    Presenter::HostGPULossCallback host_gpu_loss_callback) {
   return D3D12Presenter::Create(std::move(host_gpu_loss_callback), *this);
 }
 

@@ -133,13 +133,13 @@ REX_TEST_CASE("A host worker starts from the host policy FP control word", "[ker
   fixture.RunOnGuestThread([](Caller& c) {
     auto csr = std::make_shared<std::atomic<u32>>(0);
     auto host = std::make_shared<std::atomic<u32>>(0);
-    auto record =
-        std::make_unique<rex::runtime::ThreadRecord>(c.runtime(), 0x20000, 0, [csr, host]() {
+    auto thread =
+        std::make_unique<rex::runtime::KernelThread>(c.runtime(), 0x20000, 0, [csr, host]() {
           csr->store(rex::runtime::ThreadState::Get()->context()->fpscr.csr);
           host->store(FPSCRPlatform::getcsr());
           return 0;
         });
-    auto launched = c.runtime().thread_registry().Launch(std::move(record));
+    auto launched = c.runtime().thread_registry().Launch(std::move(thread));
     CHECKED_ELSE(launched) {
       FAIL_CHECK("the check above failed");
       return;

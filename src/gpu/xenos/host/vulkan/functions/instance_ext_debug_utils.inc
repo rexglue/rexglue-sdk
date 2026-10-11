@@ -8,6 +8,6 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-REXVK_FUNCTION(vkCreateDebugUtilsMessengerEXT)
-REXVK_FUNCTION(vkDestroyDebugUtilsMessengerEXT)
-REXVK_FUNCTION(vkSetDebugUtilsObjectNameEXT)
+REX_VK_FUNCTION(vkCreateDebugUtilsMessengerEXT)
+REX_VK_FUNCTION(vkDestroyDebugUtilsMessengerEXT)
+REX_VK_FUNCTION(vkSetDebugUtilsObjectNameEXT)

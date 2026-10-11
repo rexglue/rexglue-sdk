@@ -20,7 +20,7 @@
 namespace rex::gpu {
 using namespace xenos::ucode;
 
-void DxbcShaderTranslator::ExportToMemory(u8 export_eM) {
+void DXBCShaderTranslator::ExportToMemory(u8 export_eM) {
   if (!export_eM) {
     return;
   }

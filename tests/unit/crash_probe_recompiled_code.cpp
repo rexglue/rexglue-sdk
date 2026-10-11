@@ -26,13 +26,13 @@ void (*volatile g_fault_in_recompiled_code)(volatile int*) = &ProbeFaultInRecomp
 
 REX_RECOMPILED_CODE_SECTION extern "C" int ProbeFaultInScope(volatile int* address) {
   int caught = 0;
-  SEH_TRY {
+  REX_SEH_TRY {
     *address = 1;
   }
-  SEH_CATCH_ALL {
+  REX_SEH_CATCH_ALL {
     caught = 1;
   }
-  SEH_END
+  REX_SEH_END
   return caught;
 }
 
@@ -51,12 +51,12 @@ void (*volatile g_host_frame)(volatile int*) = &ProbeHostFrame;
 
 REX_RECOMPILED_CODE_SECTION extern "C" int ProbeFaultBelowHostFrame(volatile int* address) {
   int caught = 0;
-  SEH_TRY {
+  REX_SEH_TRY {
     g_host_frame(address);
   }
-  SEH_CATCH_ALL {
+  REX_SEH_CATCH_ALL {
     caught = 1;
   }
-  SEH_END
+  REX_SEH_END
   return caught;
 }

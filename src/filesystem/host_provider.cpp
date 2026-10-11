@@ -33,26 +33,28 @@ class HostStream final : public NodeStream {
 
   [[nodiscard]] Result<size_t> Read(std::span<u8> buffer, u64 offset) override {
     if (!CanRead(access_)) {
-      return Err<size_t>(MakeError(Error::kAccessDenied, "the file was opened without read"));
+      return Err<size_t>(
+          BuildError(FileSystemError::kAccessDenied, "the file was opened without read"));
     }
     REX_TRY(const size_t count, file_->Read(offset, buffer));
     if (count == 0 && !buffer.empty()) {
       return Err<size_t>(
-          MakeError(Error::kEndOfFile, "read starts at or past the end of the file"));
+          BuildError(FileSystemError::kEndOfFile, "read starts at or past the end of the file"));
     }
     return count;
   }
 
   [[nodiscard]] Result<size_t> Write(std::span<const u8> buffer, u64 offset) override {
     if (!CanWrite(access_)) {
-      return Err<size_t>(MakeError(Error::kAccessDenied, "the file was opened without write"));
+      return Err<size_t>(
+          BuildError(FileSystemError::kAccessDenied, "the file was opened without write"));
     }
     return file_->Write(offset, buffer);
   }
 
   [[nodiscard]] Result<void> SetLength(u64 length) override {
     if (!CanSetLength(access_)) {
-      return Err(MakeError(Error::kAccessDenied, "the file was opened without write"));
+      return Err(BuildError(FileSystemError::kAccessDenied, "the file was opened without write"));
     }
     return file_->SetLength(length);
   }
@@ -64,8 +66,8 @@ class HostStream final : public NodeStream {
       const std::filesystem::path host_path = node_.host_path();
       map_ = memory::MappedMemory::Open(host_path, memory::MappedMemory::Mode::kRead);
       if (!map_) {
-        return Err<std::span<const u8>>(
-            MakeError(Error::kIO, std::format("cannot map '{}'", path_to_utf8(host_path))));
+        return Err<std::span<const u8>>(BuildError(
+            FileSystemError::kIO, std::format("cannot map '{}'", path_to_utf8(host_path))));
       }
     }
     return std::span<const u8>(map_->data(), map_->size());
@@ -88,8 +90,8 @@ Result<std::unique_ptr<Provider>> HostProvider::Create(const MountEntry& entry) 
   if (!std::filesystem::exists(entry.source, ec)) {
     if (provider->read_only()) {
       return Err<std::unique_ptr<Provider>>(
-          MakeError(Error::kNotFound,
-                    std::format("host folder '{}' does not exist", path_to_utf8(entry.source))));
+          BuildError(FileSystemError::kNotFound,
+                     std::format("host folder '{}' does not exist", path_to_utf8(entry.source))));
     }
     std::filesystem::create_directories(entry.source, ec);
   }
@@ -196,8 +198,9 @@ void HostNode::Populate(std::vector<std::pair<u64, u64>>& ancestors) {
 
 Result<std::unique_ptr<NodeStream>> HostNode::Open(Access access) {
   if (read_only() && (access & (Access::kWriteData | Access::kAppendData)) != Access::kNone) {
-    return Err<std::unique_ptr<NodeStream>>(MakeError(
-        Error::kAccessDenied, std::format("'{}' is on a read only mount", absolute_path_)));
+    return Err<std::unique_ptr<NodeStream>>(
+        BuildError(FileSystemError::kAccessDenied,
+                   std::format("'{}' is on a read only mount", absolute_path_)));
   }
   REX_TRY(std::unique_ptr<HostFile> file, HostFile::OpenExisting(host_path_, access));
   return std::unique_ptr<NodeStream>(std::make_unique<HostStream>(*this, access, std::move(file)));
@@ -205,16 +208,16 @@ Result<std::unique_ptr<NodeStream>> HostNode::Open(Access access) {
 
 Result<void> HostNode::Truncate() {
   if (read_only() || is_directory()) {
-    return Err(
-        MakeError(Error::kAccessDenied, std::format("cannot truncate '{}'", absolute_path_)));
+    return Err(BuildError(FileSystemError::kAccessDenied,
+                          std::format("cannot truncate '{}'", absolute_path_)));
   }
   if (auto file = HostFile::OpenExisting(host_path_, Access::kGenericWrite)) {
     REX_TRY_VOID((*file)->SetLength(0));
   } else {
     std::ofstream stream(host_path_, std::ios::binary | std::ios::trunc);
     if (!stream) {
-      return Err(
-          MakeError(Error::kIO, std::format("cannot truncate '{}'", path_to_utf8(host_path_))));
+      return Err(BuildError(FileSystemError::kIO,
+                            std::format("cannot truncate '{}'", path_to_utf8(host_path_))));
     }
   }
   std::lock_guard lock(provider().mutex());
@@ -240,8 +243,8 @@ bool HostNode::ChildVanished(const Node& child) const {
 
 Result<void> HostNode::SetAttributes(FileAttributes attributes) {
   if (read_only()) {
-    return Err(MakeError(Error::kAccessDenied,
-                         std::format("'{}' is on a read only mount", absolute_path_)));
+    return Err(BuildError(FileSystemError::kAccessDenied,
+                          std::format("'{}' is on a read only mount", absolute_path_)));
   }
   std::lock_guard lock(provider().mutex());
   attributes_ = attributes;
@@ -250,8 +253,8 @@ Result<void> HostNode::SetAttributes(FileAttributes attributes) {
 
 Result<void> HostNode::SetTimes(const FileTimes& times) {
   if (read_only()) {
-    return Err(MakeError(Error::kAccessDenied,
-                         std::format("'{}' is on a read only mount", absolute_path_)));
+    return Err(BuildError(FileSystemError::kAccessDenied,
+                          std::format("'{}' is on a read only mount", absolute_path_)));
   }
   std::lock_guard lock(provider().mutex());
   create_time_ = times.create.value_or(create_time_);
@@ -263,20 +266,22 @@ Result<void> HostNode::SetTimes(const FileTimes& times) {
 Result<std::unique_ptr<Node>> HostNode::CreateChildImpl(std::string_view name,
                                                         FileAttributes attributes) {
   if (!IsHostName(name)) {
-    return Err<std::unique_ptr<Node>>(
-        MakeError(Error::kInvalidPath, std::format("'{}' is not a valid host name", name)));
+    return Err<std::unique_ptr<Node>>(BuildError(
+        FileSystemError::kInvalidPath, std::format("'{}' is not a valid host name", name)));
   }
   const std::filesystem::path full_path = host_path_ / to_path(name);
   auto refuse = [&] {
-    return Err<std::unique_ptr<Node>>(MakeError(
-        Error::kAccessDenied, std::format("cannot create '{}'", path_to_utf8(full_path))));
+    return Err<std::unique_ptr<Node>>(
+        BuildError(FileSystemError::kAccessDenied,
+                   std::format("cannot create '{}'", path_to_utf8(full_path))));
   };
   if (HasFlags(attributes, FileAttributes::kDirectory)) {
     std::error_code ec;
     if (!std::filesystem::create_directory(full_path, ec)) {
       if (!ec) {
-        return Err<std::unique_ptr<Node>>(MakeError(
-            Error::kExists, std::format("'{}' exists on the host", path_to_utf8(full_path))));
+        return Err<std::unique_ptr<Node>>(
+            BuildError(FileSystemError::kExists,
+                       std::format("'{}' exists on the host", path_to_utf8(full_path))));
       }
       return refuse();
     }
@@ -293,8 +298,8 @@ Result<std::unique_ptr<Node>> HostNode::CreateChildImpl(std::string_view name,
 Result<void> HostNode::DeleteChildImpl(Node& child) {
   const std::filesystem::path full_path = host_path_ / to_path(child.name());
   auto refuse = [&] {
-    return Err(MakeError(Error::kAccessDenied,
-                         std::format("cannot delete '{}'", path_to_utf8(full_path))));
+    return Err(BuildError(FileSystemError::kAccessDenied,
+                          std::format("cannot delete '{}'", path_to_utf8(full_path))));
   };
   std::error_code ec;
   if (child.is_directory()) {
@@ -314,7 +319,8 @@ Result<void> HostNode::DeleteChildImpl(Node& child) {
 
 Result<void> HostNode::MoveImpl(Node& new_parent, std::string_view name, bool replace_existing) {
   if (!IsHostName(name)) {
-    return Err(MakeError(Error::kInvalidPath, std::format("'{}' is not a valid host name", name)));
+    return Err(BuildError(FileSystemError::kInvalidPath,
+                          std::format("'{}' is not a valid host name", name)));
   }
   return HostMove(host_path_, static_cast<HostNode&>(new_parent).host_path_ / to_path(name),
                   replace_existing);

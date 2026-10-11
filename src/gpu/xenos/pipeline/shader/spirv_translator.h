@@ -25,7 +25,7 @@
 
 namespace rex::gpu {
 
-class SpirvShaderTranslator : public ShaderTranslator {
+class SPIRVShaderTranslator : public ShaderTranslator {
  public:
   union Modification {
     /** Pipeline storage version, incremented when the layout changes incompatibly. */
@@ -109,8 +109,8 @@ class SpirvShaderTranslator : public ShaderTranslator {
     kSysFlag_WNotReciprocal_Shift,
     kSysFlag_PrimitivePolygonal_Shift,
     kSysFlag_PrimitiveLine_Shift,
-    kSysFlag_MsaaSamples_Shift,
-    kSysFlag_DepthFloat24_Shift = kSysFlag_MsaaSamples_Shift + xenos::kMSAASamplesBits,
+    kSysFlag_MSAASamples_Shift,
+    kSysFlag_DepthFloat24_Shift = kSysFlag_MSAASamples_Shift + xenos::kMSAASamplesBits,
     kSysFlag_AlphaPassIfLess_Shift,
     kSysFlag_AlphaPassIfEqual_Shift,
     kSysFlag_AlphaPassIfGreater_Shift,
@@ -304,7 +304,7 @@ class SpirvShaderTranslator : public ShaderTranslator {
    */
   enum DescriptorSet : u8 {
 
-    kDescriptorSetSharedMemoryAndEdram,
+    kDescriptorSetSharedMemoryAndEDRAM,
     kDescriptorSetConstants,
 
     kDescriptorSetMutableLayoutsStart,
@@ -322,7 +322,7 @@ class SpirvShaderTranslator : public ShaderTranslator {
                 "drivers");
 
   /** SPIR-V generator magic tool ID of the ReXGlue Emulator Microcode Translator. */
-  static constexpr u32 kSpirvMagicToolId = 26;
+  static constexpr u32 kSPIRVMagicToolId = 26;
 
   struct Features {
     explicit Features(const gpu::vulkan::VulkanDevice* vulkan_device);
@@ -352,7 +352,7 @@ class SpirvShaderTranslator : public ShaderTranslator {
     bool sample_rate_shading;
   };
 
-  SpirvShaderTranslator(const Features& features, bool native_2x_msaa_with_attachments,
+  SPIRVShaderTranslator(const Features& features, bool native_2x_msaa_with_attachments,
                         bool native_2x_msaa_no_attachments, bool edram_fragment_shader_interlock,
                         u32 draw_resolution_scale_x = 1, u32 draw_resolution_scale_y = 1)
       : features_(features),
@@ -398,7 +398,7 @@ class SpirvShaderTranslator : public ShaderTranslator {
    * @param ext_inst_glsl_std_450 Id of the imported GLSL.std.450 instruction set.
    * @return Id of the 7e3 value as a uint.
    */
-  static spv::Id PreClampedFloat32To7e3(SpirvBuilder& builder, spv::Id f32_scalar,
+  static spv::Id PreClampedFloat32To7e3(SPIRVBuilder& builder, spv::Id f32_scalar,
                                         spv::Id ext_inst_glsl_std_450);
   /**
    * As PreClampedFloat32To7e3, but clamps the input to [0, 31.875].
@@ -408,7 +408,7 @@ class SpirvShaderTranslator : public ShaderTranslator {
    * @param ext_inst_glsl_std_450 Id of the imported GLSL.std.450 instruction set.
    * @return Id of the 7e3 value as a uint.
    */
-  static spv::Id UnclampedFloat32To7e3(SpirvBuilder& builder, spv::Id f32_scalar,
+  static spv::Id UnclampedFloat32To7e3(SPIRVBuilder& builder, spv::Id f32_scalar,
                                        spv::Id ext_inst_glsl_std_450);
   /**
    * Converts the 7e3 number in bits [f10_shift, f10_shift + 10) to a 32 bit float.
@@ -420,7 +420,7 @@ class SpirvShaderTranslator : public ShaderTranslator {
    * @param ext_inst_glsl_std_450 Id of the imported GLSL.std.450 instruction set.
    * @return Id of the converted value.
    */
-  static spv::Id Float7e3To32(SpirvBuilder& builder, spv::Id f10_uint_scalar, u32 f10_shift,
+  static spv::Id Float7e3To32(SPIRVBuilder& builder, spv::Id f10_uint_scalar, u32 f10_shift,
                               bool result_as_uint, spv::Id ext_inst_glsl_std_450);
   /**
    * Converts a depth value clamped to [0, 2) to 20e4 float with zeros in bits 24:31, rounding to
@@ -433,7 +433,7 @@ class SpirvShaderTranslator : public ShaderTranslator {
    * @param ext_inst_glsl_std_450 Id of the imported GLSL.std.450 instruction set.
    * @return Id of the 20e4 value as a uint.
    */
-  static spv::Id PreClampedDepthTo20e4(SpirvBuilder& builder, spv::Id f32_scalar,
+  static spv::Id PreClampedDepthTo20e4(SPIRVBuilder& builder, spv::Id f32_scalar,
                                        bool round_to_nearest_even, bool remap_from_0_to_0_5,
                                        spv::Id ext_inst_glsl_std_450);
   /**
@@ -447,7 +447,7 @@ class SpirvShaderTranslator : public ShaderTranslator {
    * @param ext_inst_glsl_std_450 Id of the imported GLSL.std.450 instruction set.
    * @return Id of the converted value.
    */
-  static spv::Id Depth20e4To32(SpirvBuilder& builder, spv::Id f24_uint_scalar, u32 f24_shift,
+  static spv::Id Depth20e4To32(SPIRVBuilder& builder, spv::Id f24_uint_scalar, u32 f24_shift,
                                bool remap_to_0_to_0_5, bool result_as_uint,
                                spv::Id ext_inst_glsl_std_450);
 
@@ -554,32 +554,32 @@ class SpirvShaderTranslator : public ShaderTranslator {
     spv::Id variable;
   };
 
-  spv::Id SpirvSmearScalarResultOrConstant(spv::Id scalar, spv::Id vector_type);
+  spv::Id SPIRVSmearScalarResultOrConstant(spv::Id scalar, spv::Id vector_type);
 
-  Modification GetSpirvShaderModification() const {
+  Modification GetSPIRVShaderModification() const {
     return Modification(current_translation().modification());
   }
 
-  bool IsSpirvVertexShader() const {
+  bool IsSPIRVVertexShader() const {
     return is_vertex_shader() && !Shader::IsHostVertexShaderTypeDomain(
-                                     GetSpirvShaderModification().vertex.host_vertex_shader_type);
+                                     GetSPIRVShaderModification().vertex.host_vertex_shader_type);
   }
-  bool IsSpirvTessEvalShader() const {
+  bool IsSPIRVTessEvalShader() const {
     return is_vertex_shader() && Shader::IsHostVertexShaderTypeDomain(
-                                     GetSpirvShaderModification().vertex.host_vertex_shader_type);
+                                     GetSPIRVShaderModification().vertex.host_vertex_shader_type);
   }
-  bool IsSpirvComputeShader() const {
-    return is_vertex_shader() && GetSpirvShaderModification().vertex.host_vertex_shader_type ==
+  bool IsSPIRVComputeShader() const {
+    return is_vertex_shader() && GetSPIRVShaderModification().vertex.host_vertex_shader_type ==
                                      Shader::HostVertexShaderType::kMemExportCompute;
   }
-  bool IsSpirvRectangleListVertexLoopEnabled() const {
-    return IsSpirvVertexShader() && GetSpirvShaderModification().vertex.host_vertex_shader_type ==
+  bool IsSPIRVRectangleListVertexLoopEnabled() const {
+    return IsSPIRVVertexShader() && GetSPIRVShaderModification().vertex.host_vertex_shader_type ==
                                         Shader::HostVertexShaderType::kRectangleListAsTriangleStrip;
   }
 
   bool IsExecutionModeEarlyFragmentTests() const {
     return is_pixel_shader() &&
-           GetSpirvShaderModification().pixel.depth_stencil_mode ==
+           GetSPIRVShaderModification().pixel.depth_stencil_mode ==
                Modification::DepthStencilMode::kEarlyHint &&
            !edram_fragment_shader_interlock_ && current_shader().implicit_early_z_write_allowed();
   }
@@ -589,7 +589,7 @@ class SpirvShaderTranslator : public ShaderTranslator {
       return false;
     }
     Modification::DepthStencilMode depth_stencil_mode =
-        GetSpirvShaderModification().pixel.depth_stencil_mode;
+        GetSPIRVShaderModification().pixel.depth_stencil_mode;
     return depth_stencil_mode == Modification::DepthStencilMode::kFloat24Truncating ||
            depth_stencil_mode == Modification::DepthStencilMode::kFloat24Rounding;
   }
@@ -599,7 +599,7 @@ class SpirvShaderTranslator : public ShaderTranslator {
   }
 
   u32 GetModificationInterpolatorMask() const {
-    Modification modification = GetSpirvShaderModification();
+    Modification modification = GetSPIRVShaderModification();
     return is_vertex_shader() ? modification.vertex.interpolator_mask
                               : modification.pixel.interpolator_mask;
   }
@@ -841,7 +841,7 @@ class SpirvShaderTranslator : public ShaderTranslator {
     if (is_pixel_shader()) {
       return features_.fragment_stores_and_atomics;
     }
-    return features_.vertex_pipeline_stores_and_atomics || IsSpirvComputeShader();
+    return features_.vertex_pipeline_stores_and_atomics || IsSPIRVComputeShader();
   }
 
   bool IsMemoryExportUsed() const {
@@ -934,7 +934,7 @@ class SpirvShaderTranslator : public ShaderTranslator {
                           spv::Id image_unsigned, spv::Id image_signed, spv::Id sampler,
                           spv::Id is_all_signed);
 
-  spv::Id LoadMsaaSamplesFromFlags();
+  spv::Id LoadMSAASamplesFromFlags();
   /**
    * Reports whether skipping the translated shader for 2x2 quads is possible and worthwhile.
    *
@@ -961,7 +961,7 @@ class SpirvShaderTranslator : public ShaderTranslator {
    *
    * @param msaa_samples Uint Id of the MSAA sample count.
    */
-  void FSI_LoadEdramOffsets(spv::Id msaa_samples);
+  void FSI_LoadEDRAMOffsets(spv::Id msaa_samples);
   /**
    * The address must be a signed int.
    *
@@ -1084,7 +1084,7 @@ class SpirvShaderTranslator : public ShaderTranslator {
   /** Reports whether the empty depth only pixel shader is being written. */
   bool is_depth_only_fragment_shader_ = false;
 
-  std::unique_ptr<SpirvBuilder> builder_;
+  std::unique_ptr<SPIRVBuilder> builder_;
 
   std::vector<spv::Id> id_vector_temp_;
   std::vector<spv::Id> id_vector_temp_util_;
@@ -1178,22 +1178,22 @@ class SpirvShaderTranslator : public ShaderTranslator {
     kSystemConstantTextureSwizzles,
     kSystemConstantAlphaTestReference,
     kSystemConstantAlphaToMask,
-    kSystemConstantEdram32bppTilePitchDwordsScaled,
-    kSystemConstantEdramDepthBaseDwordsScaled,
+    kSystemConstantEDRAM32bppTilePitchDwordsScaled,
+    kSystemConstantEDRAMDepthBaseDwordsScaled,
     kSystemConstantColorExpBias,
-    kSystemConstantEdramPolyOffsetFrontScale,
-    kSystemConstantEdramPolyOffsetBackScale,
-    kSystemConstantEdramPolyOffsetFrontOffset,
-    kSystemConstantEdramPolyOffsetBackOffset,
-    kSystemConstantEdramStencilFront,
-    kSystemConstantEdramStencilBack,
-    kSystemConstantEdramRTBaseDwordsScaled,
-    kSystemConstantEdramRTFormatFlags,
-    kSystemConstantEdramRTBlendFactorsOps,
+    kSystemConstantEDRAMPolyOffsetFrontScale,
+    kSystemConstantEDRAMPolyOffsetBackScale,
+    kSystemConstantEDRAMPolyOffsetFrontOffset,
+    kSystemConstantEDRAMPolyOffsetBackOffset,
+    kSystemConstantEDRAMStencilFront,
+    kSystemConstantEDRAMStencilBack,
+    kSystemConstantEDRAMRTBaseDwordsScaled,
+    kSystemConstantEDRAMRTFormatFlags,
+    kSystemConstantEDRAMRTBlendFactorsOps,
     // Accessed as float4[2], not float2[4], due to std140 array stride alignment.
-    kSystemConstantEdramRTKeepMask,
-    kSystemConstantEdramRTClamp,
-    kSystemConstantEdramBlendConstant,
+    kSystemConstantEDRAMRTKeepMask,
+    kSystemConstantEDRAMRTClamp,
+    kSystemConstantEDRAMBlendConstant,
   };
   spv::Id uniform_system_constants_;
   spv::Id uniform_float_constants_;
@@ -1328,7 +1328,7 @@ class SpirvShaderTranslator : public ShaderTranslator {
    * rejection of the pixel is possible when bits 0:3 and 4:7 are both zero.
    */
   spv::Id main_fsi_sample_mask_;
-  /** Loaded by FSI_LoadEdramOffsets, including the depth render target base. */
+  /** Loaded by FSI_LoadEDRAMOffsets, including the depth render target base. */
   spv::Id main_fsi_address_depth_;
   /** Excludes the render target base. */
   spv::Id main_fsi_offset_32bpp_;

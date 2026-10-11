@@ -20,7 +20,7 @@
 #include <rex/platform.h>
 #include "gpu/xenos/host/vulkan/instance.h"
 #include "gpu/xenos/host/vulkan/presenter.h"
-#include "gpu/xenos/host/vulkan/util.h"
+#include "gpu/xenos/host/vulkan/objects.h"
 
 #if REX_PLATFORM_MAC
 #include "vulkan_moltenvk.h"
@@ -47,7 +47,7 @@ std::unique_ptr<VulkanInstance> VulkanInstance::Create(const bool with_surface,
   ConfigureMacOSVulkanEnvironment(macos_runtime_paths);
 
   std::vector<std::filesystem::path> loader_candidates = macos_runtime_paths.loader_candidates;
-  loader_candidates.emplace_back(platform::lib_names::kVulkanLoader);
+  loader_candidates.emplace_back(platform::kVulkanLoader);
   loader_candidates.emplace_back("libvulkan.dylib");
   loader_candidates.emplace_back("libMoltenVK.dylib");
 
@@ -72,17 +72,17 @@ std::unique_ptr<VulkanInstance> VulkanInstance::Create(const bool with_surface,
     return nullptr;
   }
 #else
-  loader_loaded = vulkan_instance->loader_.Load(platform::lib_names::kVulkanLoader);
+  loader_loaded = vulkan_instance->loader_.Load(platform::kVulkanLoader);
   if (!loader_loaded) {
-    REX_FAIL(ui, nullptr, "Failed to load {}", platform::lib_names::kVulkanLoader);
+    REX_FAIL(ui, nullptr, "Failed to load {}", platform::kVulkanLoader);
   }
 #endif
 
-#define REXVK_LOAD_LOADER_FUNCTION(name) \
+#define REX_VK_LOAD_LOADER_FUNCTION(name) \
   functions_loaded &= (ifn.name = vulkan_instance->loader_.GetSymbol<PFN_##name>(#name)) != nullptr;
-  REXVK_LOAD_LOADER_FUNCTION(vkGetInstanceProcAddr);
-  REXVK_LOAD_LOADER_FUNCTION(vkDestroyInstance);
-#undef REXVK_LOAD_LOADER_FUNCTION
+  REX_VK_LOAD_LOADER_FUNCTION(vkGetInstanceProcAddr);
+  REX_VK_LOAD_LOADER_FUNCTION(vkDestroyInstance);
+#undef REX_VK_LOAD_LOADER_FUNCTION
   if (!functions_loaded) {
     REX_FAIL(ui, nullptr, "Failed to get Vulkan loader function pointers");
   }
@@ -304,7 +304,7 @@ std::unique_ptr<VulkanInstance> VulkanInstance::Create(const bool with_surface,
   application_info.pEngineName = nullptr;
   application_info.engineVersion = 0;
   application_info.apiVersion = vulkan_instance->api_version_ >= VK_MAKE_API_VERSION(0, 1, 1, 0)
-                                    ? VulkanDevice::kHighestUsedApiMinorVersion
+                                    ? VulkanDevice::kHighestUsedAPIMinorVersion
                                     : VK_MAKE_API_VERSION(0, 1, 0, 0);
 
   VkInstanceCreateInfo instance_create_info;
@@ -345,7 +345,7 @@ std::unique_ptr<VulkanInstance> VulkanInstance::Create(const bool with_surface,
              vk::to_string(vk::Result(instance_create_result)));
   }
 
-#define REXVK_FUNCTION(name)                                                                   \
+#define REX_VK_FUNCTION(name)                                                                  \
   functions_loaded &=                                                                          \
       (ifn.name = PFN_##name(ifn.vkGetInstanceProcAddr(vulkan_instance->instance_, #name))) != \
       nullptr;
@@ -353,16 +353,16 @@ std::unique_ptr<VulkanInstance> VulkanInstance::Create(const bool with_surface,
 #include "gpu/xenos/host/vulkan/functions/instance_1_0.inc"
 
   // Promoted functions load by their core names when the instance supports that core version.
-#define REXVK_FUNCTION_PROMOTED(extension_name, core_name)                        \
+#define REX_VK_FUNCTION_PROMOTED(extension_name, core_name)                       \
   functions_loaded &= (ifn.core_name = PFN_##core_name(ifn.vkGetInstanceProcAddr( \
                            vulkan_instance->instance_, #core_name))) != nullptr;
   if (vulkan_instance->api_version_ >= VK_MAKE_API_VERSION(0, 1, 1, 0)) {
 #include "gpu/xenos/host/vulkan/functions/instance_1_1_khr_get_physical_device_properties2.inc"
   }
-#undef REXVK_FUNCTION_PROMOTED
+#undef REX_VK_FUNCTION_PROMOTED
 
   // Below that core version they load by their extension names.
-#define REXVK_FUNCTION_PROMOTED(extension_name, core_name)                        \
+#define REX_VK_FUNCTION_PROMOTED(extension_name, core_name)                       \
   functions_loaded &= (ifn.core_name = PFN_##core_name(ifn.vkGetInstanceProcAddr( \
                            vulkan_instance->instance_, #extension_name))) != nullptr;
   if (vulkan_instance->api_version_ < VK_MAKE_API_VERSION(0, 1, 1, 0)) {
@@ -401,9 +401,9 @@ std::unique_ptr<VulkanInstance> VulkanInstance::Create(const bool with_surface,
   if (vulkan_instance->extensions_.ext_EXT_debug_utils) {
 #include "gpu/xenos/host/vulkan/functions/instance_ext_debug_utils.inc"
   }
-#undef REXVK_FUNCTION_PROMOTED
+#undef REX_VK_FUNCTION_PROMOTED
 
-#undef REXVK_FUNCTION
+#undef REX_VK_FUNCTION
 
   if (!functions_loaded) {
     REX_FAIL(ui, nullptr, "Failed to get all Vulkan instance function pointers");
@@ -431,7 +431,7 @@ std::unique_ptr<VulkanInstance> VulkanInstance::Create(const bool with_surface,
   if (vulkan_instance->extensions_.ext_EXT_debug_utils &&
       REXCVAR_GET(::rex::gpu::cvars::log_debug_messages)) {
     auto debug_utils_messenger_create_info =
-        util::InitializeStructure<VkDebugUtilsMessengerCreateInfoEXT>(
+        objects::InitializeStructure<VkDebugUtilsMessengerCreateInfoEXT>(
             VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT);
     if (rex::log::gpu.Enabled(rex::log::Level::kDebug)) {
       debug_utils_messenger_create_info.messageSeverity |=

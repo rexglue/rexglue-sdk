@@ -1006,7 +1006,7 @@ union alignas(u32) RB_COPY_DEST_INFO {
      * Bits 4 to 6. Z layer offset of 3D destinations, read by the draw code when it computes their
      * extent.
      */
-    u32 copy_dest_slice : 3;
+    u32 copy_dest_layer : 3;
     /**
      * Bits 7 to 12. Destination color format, read by the draw code and the Direct3D 12 command
      * processor.

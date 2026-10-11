@@ -286,7 +286,7 @@ REX_TEST_CASE("threads: title termination ends a thread that suspends itself",
 REX_TEST_CASE("threads: a stack of size 0 takes the process default", "[char][threads][stack]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    const u32 process = c.runtime().GetTitleProcess();
+    const u32 process = c.runtime().title_process();
     CHECK(c.Load32(process + 0x1C) == 0x10000);
     CHECK(StackSizeOf(c, 0) == 0x10000);
     c.Store32(process + 0x1C, 0x6000);
@@ -399,7 +399,7 @@ REX_TEST_CASE("threads: exit writes the exit code, state 4, the exit time and th
               "[char][threads][exit]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    const u32 process = c.runtime().GetTitleProcess();
+    const u32 process = c.runtime().title_process();
     const u32 count = c.Load32(process + 0x14);
     auto stage = std::make_shared<std::atomic<int>>(0);
     const u32 handle = c.Spawn([stage](Caller& t) {
@@ -428,7 +428,7 @@ REX_TEST_CASE("threads: a stop writes the same exit state before a waiter wakes"
               "[char][threads][exit]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    const u32 process = c.runtime().GetTitleProcess();
+    const u32 process = c.runtime().title_process();
     const u32 handle = c.Spawn([](Caller&) {}, 1);
     const u32 kthread = Reference(c, handle);
     const u32 count = c.Load32(process + 0x14);

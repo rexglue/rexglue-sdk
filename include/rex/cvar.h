@@ -64,7 +64,7 @@ enum class CvarSource : u8 {
 };
 
 /** Error codes under ErrorCategory::Config. */
-enum class Error : u8 {
+enum class CvarError : u8 {
   NotFound = 1,   /**< No cvar or command of that name is registered. */
   Invalid,        /**< The value does not parse or breaks a constraint. */
   InitOnly,       /**< A Runtime set of an InitOnly cvar after Init completes. */
@@ -83,7 +83,7 @@ enum class Error : u8 {
  * @param message The error text.
  * @return The error.
  */
-inline rex::Error MakeError(Error code, std::string message) {
+inline rex::Error BuildError(CvarError code, std::string message) {
   return rex::Error(ErrorCategory::Config, std::move(message), static_cast<int>(code));
 }
 
@@ -334,9 +334,9 @@ class Var final : public IVar {
    * @param description Shown by the console and the settings overlay.
    */
   constexpr Var(std::string_view name, Init default_value, std::string_view description) noexcept
-      : default_text_(MakeDefaultText(default_value)),
-        default_string_(MakeDefaultString(default_value)),
-        cell_(MakeCell(default_value)) {
+      : default_text_(BuildDefaultText(default_value)),
+        default_string_(BuildDefaultString(default_value)),
+        cell_(BuildCell(default_value)) {
     desc_.name = name;
     desc_.scope = name.substr(0, name.find('.'));
     desc_.type = detail::TypeOf<T>();
@@ -456,23 +456,23 @@ class Var final : public IVar {
    * @return NotACommand.
    */
   [[nodiscard]] Result<void> Invoke(std::string_view) override {
-    return Err(MakeError(Error::NotACommand, std::string(desc_.name) + " is not a command"));
+    return Err(BuildError(CvarError::NotACommand, std::string(desc_.name) + " is not a command"));
   }
 
  private:
-  static constexpr detail::DefaultText MakeDefaultText(Init v) noexcept {
+  static constexpr detail::DefaultText BuildDefaultText(Init v) noexcept {
     if constexpr (kIsString)
       return {};
     else
       return detail::RenderDefault(v);
   }
-  static constexpr detail::StringCell MakeDefaultString(Init v) noexcept {
+  static constexpr detail::StringCell BuildDefaultString(Init v) noexcept {
     if constexpr (kIsString)
       return detail::StringCell(v);
     else
       return {};
   }
-  static constexpr Cell MakeCell(Init v) noexcept {
+  static constexpr Cell BuildCell(Init v) noexcept {
     if constexpr (kIsString)
       return detail::StringCell(v);
     else
@@ -539,7 +539,7 @@ class Command final : public IVar {
    * @return NotAVar.
    */
   [[nodiscard]] Result<void> Parse(std::string_view) override {
-    return Err(MakeError(Error::NotAVar, std::string(desc_.name) + " is a command"));
+    return Err(BuildError(CvarError::NotAVar, std::string(desc_.name) + " is a command"));
   }
   /**
    * Returns the placeholder value text.
@@ -585,7 +585,7 @@ REX_API void ApplyEnvironment(rex::Config& config);
 namespace detail {
 
 template <typename... Vars>
-constexpr std::array<const IVar*, sizeof...(Vars)> MakeTable(const Vars&... vars) noexcept {
+constexpr std::array<const IVar*, sizeof...(Vars)> BuildTable(const Vars&... vars) noexcept {
   return {static_cast<const IVar*>(&vars)...};
 }
 
@@ -650,7 +650,7 @@ template <typename T>
 Result<void> Var<T>::set(const T& value) {
   auto* reg = registry();
   if (!reg) {
-    return Err(MakeError(Error::NotFound, std::string(desc_.name) + " is not registered"));
+    return Err(BuildError(CvarError::NotFound, std::string(desc_.name) + " is not registered"));
   }
   return reg->Set(desc_.name, Render(value));
 }
@@ -659,8 +659,8 @@ template <typename T>
 Result<void> Var<T>::Parse(std::string_view text) {
   auto parsed = detail::ParseValue<T>(text);
   if (!parsed) {
-    return Err(MakeError(Error::Invalid,
-                         std::string(desc_.name) + " cannot parse '" + std::string(text) + "'"));
+    return Err(BuildError(CvarError::Invalid,
+                          std::string(desc_.name) + " cannot parse '" + std::string(text) + "'"));
   }
   Store(*parsed);
   return Ok();
@@ -912,7 +912,7 @@ struct CvarConfig {
  * @endcode
  */
 #define REXCVAR_TABLE(table, ...) \
-  inline constexpr auto table = ::rex::cvar::detail::MakeTable(__VA_ARGS__)
+  inline constexpr auto table = ::rex::cvar::detail::BuildTable(__VA_ARGS__)
 /**
  * Reads a cvar.
  *

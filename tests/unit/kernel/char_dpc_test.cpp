@@ -147,7 +147,7 @@ void Reset() {
   g_safe_results.clear();
 }
 
-u32 MakeDPC(Caller& c, void (*routine)(PPCContext&, u8*), u32 context = 0) {
+u32 BuildDPC(Caller& c, void (*routine)(PPCContext&, u8*), u32 context = 0) {
   const u32 thunk = c.runtime().function_dispatcher()->AllocateThunk(routine, 0);
   CHECKED_ELSE(thunk != 0) {
     FAIL_CHECK("the check above failed");
@@ -179,7 +179,7 @@ REX_TEST_CASE("A DPC queued by an ISR runs after the ISR returns", "[kernel][dpc
   Reset();
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    g_isr_dpc = MakeDPC(c, &CountingDPC);
+    g_isr_dpc = BuildDPC(c, &CountingDPC);
     auto* dispatcher = c.runtime().function_dispatcher();
     const u32 isr = dispatcher->AllocateThunk(&QueueingISR, 0);
     const u32 pcr = c.Alloc(0x1000);
@@ -199,7 +199,7 @@ REX_TEST_CASE("A DPC inserted at passive level runs before KeInsertQueueDpc retu
   Reset();
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    const u32 dpc = MakeDPC(c, &CountingDPC, 7);
+    const u32 dpc = BuildDPC(c, &CountingDPC, 7);
     CHECK(c.Kernel("KeInsertQueueDpc", {dpc, 1, 2}) == 1);
     CHECK(g_runs == 1);
     CHECK(Order() == std::vector<u32>{7});
@@ -210,7 +210,7 @@ REX_TEST_CASE("A DPC inserted at raised IRQL runs when KfLowerIrql lowers it", "
   Reset();
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    const u32 dpc = MakeDPC(c, &CountingDPC);
+    const u32 dpc = BuildDPC(c, &CountingDPC);
     const u32 old_irql = c.Kernel("KeRaiseIrqlToDpcLevel");
     CHECK(c.Kernel("KeInsertQueueDpc", {dpc, 0, 0}) == 1);
     CHECK(c.Kernel("KeInsertQueueDpc", {dpc, 0, 0}) == 0);
@@ -224,8 +224,8 @@ REX_TEST_CASE("A DPC queued from a DPC runs after it", "[kernel][dpc]") {
   Reset();
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    g_chained_dpc = MakeDPC(c, &ChainedDPC);
-    const u32 first = MakeDPC(c, &ChainingDPC);
+    g_chained_dpc = BuildDPC(c, &ChainedDPC);
+    const u32 first = BuildDPC(c, &ChainingDPC);
     CHECK(c.Kernel("KeInsertQueueDpc", {first, 0, 0}) == 1);
     CHECK(Order() == std::vector<u32>{1, 2, 3});
   });
@@ -235,7 +235,7 @@ REX_TEST_CASE("A DPC that queues itself runs again once after it returns", "[ker
   Reset();
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    g_self_dpc = MakeDPC(c, &RequeueingDPC);
+    g_self_dpc = BuildDPC(c, &RequeueingDPC);
     CHECK(c.Kernel("KeInsertQueueDpc", {g_self_dpc.load(), 0, 0}) == 1);
   });
   CHECK(g_runs == 2);
@@ -248,7 +248,7 @@ REX_TEST_CASE("DPCs inserted from 2 threads never overlap", "[kernel][dpc]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     auto worker = [](Caller& o) {
-      const u32 dpc = MakeDPC(o, &OverlapDPC);
+      const u32 dpc = BuildDPC(o, &OverlapDPC);
       for (int i = 0; i < 200; ++i) {
         o.Kernel("KeInsertQueueDpc", {dpc, 0, 0});
       }
@@ -268,7 +268,7 @@ REX_TEST_CASE("KeRemoveQueueDpc removes a queued DPC once", "[kernel][dpc]") {
   Reset();
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    const u32 dpc = MakeDPC(c, &CountingDPC);
+    const u32 dpc = BuildDPC(c, &CountingDPC);
     const u32 old_irql = c.Kernel("KeRaiseIrqlToDpcLevel");
     CHECK(c.Kernel("KeInsertQueueDpc", {dpc, 0, 0}) == 1);
     CHECK(c.Kernel("KeRemoveQueueDpc", {dpc}) == 1);
@@ -282,7 +282,7 @@ REX_TEST_CASE("KeRetireDpcList runs the queue", "[kernel][dpc]") {
   Reset();
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    const u32 dpc = MakeDPC(c, &CountingDPC);
+    const u32 dpc = BuildDPC(c, &CountingDPC);
     const u32 old_irql = c.Kernel("KeRaiseIrqlToDpcLevel");
     CHECK(c.Kernel("KeInsertQueueDpc", {dpc, 0, 0}) == 1);
     c.Kernel("KeRetireDpcList");
@@ -296,7 +296,7 @@ REX_TEST_CASE("A DPC runs on the DPC stack at DISPATCH_LEVEL", "[kernel][dpc]") 
   Reset();
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    const u32 dpc = MakeDPC(c, &StackDPC);
+    const u32 dpc = BuildDPC(c, &StackDPC);
     CHECK(c.Kernel("KeInsertQueueDpc", {dpc, 0, 0}) == 1);
   });
   REQUIRE(g_runs == 1);
@@ -317,7 +317,7 @@ REX_TEST_CASE("The DPC safe calls work inside a DPC", "[kernel][dpc]") {
     c.Kernel("KeInitializeSemaphore", {g_safe_semaphore, 0, 10});
     g_safe_mutant = c.Alloc(0x20);
     c.Kernel("KeInitializeMutant", {g_safe_mutant, 1});
-    const u32 dpc = MakeDPC(c, &SafeCallDPC);
+    const u32 dpc = BuildDPC(c, &SafeCallDPC);
     CHECK(c.Kernel("KeInsertQueueDpc", {dpc, 0, 0}) == 1);
   });
   REQUIRE(g_runs == 1);

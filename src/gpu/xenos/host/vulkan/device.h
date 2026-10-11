@@ -65,7 +65,7 @@ class VulkanDevice : public rex::NonCopyable {
    * Raise when functionality from a higher version is used. The patch version is ignored when
    * creating an instance.
    */
-  static constexpr u32 kHighestUsedApiMinorVersion = VK_MAKE_API_VERSION(0, 1, 3, 0);
+  static constexpr u32 kHighestUsedAPIMinorVersion = VK_MAKE_API_VERSION(0, 1, 3, 0);
 
   struct Properties {
     u32 apiVersion = VK_MAKE_API_VERSION(0, 1, 0, 0);
@@ -232,7 +232,7 @@ class VulkanDevice : public rex::NonCopyable {
   VkDevice device() const { return device_; }
 
   struct Functions {
-#define REXVK_FUNCTION(name) PFN_##name name = nullptr;
+#define REX_VK_FUNCTION(name) PFN_##name name = nullptr;
 /**
  * Declares a member function pointer named after the core function of a promoted extension.
  *
@@ -240,18 +240,18 @@ class VulkanDevice : public rex::NonCopyable {
  * @param core_name Name of the core function, used as the member name.
  *
  * @code
- * REXVK_FUNCTION_PROMOTED(vkBindBufferMemory2KHR, vkBindBufferMemory2)
+ * REX_VK_FUNCTION_PROMOTED(vkBindBufferMemory2KHR, vkBindBufferMemory2)
  * @endcode
  */
-#define REXVK_FUNCTION_PROMOTED(extension_name, core_name) PFN_##core_name core_name = nullptr;
+#define REX_VK_FUNCTION_PROMOTED(extension_name, core_name) PFN_##core_name core_name = nullptr;
 #include "gpu/xenos/host/vulkan/functions/device_1_0.inc"
 #include "gpu/xenos/host/vulkan/functions/device_khr_swapchain.inc"
 #include "gpu/xenos/host/vulkan/functions/device_1_1_khr_get_memory_requirements2.inc"
 #include "gpu/xenos/host/vulkan/functions/device_1_1_khr_bind_memory2.inc"
 #include "gpu/xenos/host/vulkan/functions/device_1_3_khr_maintenance4.inc"
 #include "gpu/xenos/host/vulkan/functions/device_1_3_khr_dynamic_rendering.inc"
-#undef REXVK_FUNCTION_PROMOTED
-#undef REXVK_FUNCTION
+#undef REX_VK_FUNCTION_PROMOTED
+#undef REX_VK_FUNCTION
   };
 
   const Functions& functions() const { return functions_; }

@@ -49,7 +49,7 @@ struct GuestThreadPtrs {
  * @param thread The thread.
  * @return The resolved pointers.
  */
-GuestThreadPtrs GetGuestThreadPtrs(ThreadRecord* thread) {
+GuestThreadPtrs GetGuestThreadPtrs(KernelThread* thread) {
   auto* ctx = thread->thread_state()->context();
   auto* mem = thread->runtime().memory();
   auto* pcr = mem->TranslateVirtual<X_KPCR*>(static_cast<u32>(ctx->r13.u64));
@@ -87,7 +87,7 @@ struct FiberEntryArgs {
 
 static void FiberEntryPoint(void* raw_arg) {
   auto args = std::unique_ptr<FiberEntryArgs>(static_cast<FiberEntryArgs*>(raw_arg));
-  auto* thread = ThreadRecord::GetCurrentThread();
+  auto* thread = KernelThread::GetCurrentThread();
   auto* mem = args->runtime->memory();
   PPCContext& ctx = *thread->thread_state()->context();
   ctx.fpscr.setcsr(ctx.fpscr.csr);
@@ -119,7 +119,7 @@ static void FiberEntryPoint(void* raw_arg) {
  * @param thread The thread.
  * @return 1 on success, 0 when the thread is not a fiber.
  */
-u32 ConvertFiberToThread_impl(ThreadRecord* thread) {
+u32 ConvertFiberToThread_impl(KernelThread* thread) {
   Runtime& runtime = thread->runtime();
   auto [kthread, pcr, ctx, mem] = GetGuestThreadPtrs(thread);
 
@@ -137,7 +137,7 @@ u32 ConvertFiberToThread_impl(ThreadRecord* thread) {
   }
 
   kthread->fiber_ptr = 0u;
-  // Null main_fiber_ after Destroy, ~ThreadRecord destroys it again when non null.
+  // Null main_fiber_ after Destroy, ~KernelThread destroys it again when non null.
   thread->set_main_fiber(nullptr);
   mem->SystemHeapFree(fiber_addr);
 
@@ -147,7 +147,7 @@ u32 ConvertFiberToThread_impl(ThreadRecord* thread) {
 }  // namespace
 
 REX_SHIM_FN(ConvertThreadToFiber, u32, mapped_void lpParameter) {
-  auto* thread = ThreadRecord::GetCurrentThread();
+  auto* thread = KernelThread::GetCurrentThread();
   Runtime& runtime = thread->runtime();
   auto [kthread, pcr, ctx, mem] = GetGuestThreadPtrs(thread);
 
@@ -189,7 +189,7 @@ REX_SHIM_FN(ConvertThreadToFiber, u32, mapped_void lpParameter) {
 }
 
 REX_SHIM_FN(ConvertFiberToThread, u32) {
-  auto* thread = ThreadRecord::GetCurrentThread();
+  auto* thread = KernelThread::GetCurrentThread();
   auto result = ConvertFiberToThread_impl(thread);
   if (result) {
     REXLOG_DEBUG(kernel, "ConvertFiberToThread: success");
@@ -198,7 +198,7 @@ REX_SHIM_FN(ConvertFiberToThread, u32) {
 }
 
 REX_SHIM_FN(CreateFiber, u32, u32 dwStackSize, u32 lpStartAddress, mapped_void lpParameter) {
-  auto* thread = ThreadRecord::GetCurrentThread();
+  auto* thread = KernelThread::GetCurrentThread();
   Runtime& runtime = thread->runtime();
   auto* mem = runtime.memory();
   auto [kthread, pcr, ctx, _mem] = GetGuestThreadPtrs(thread);
@@ -256,7 +256,7 @@ REX_SHIM_FN(CreateFiber, u32, u32 dwStackSize, u32 lpStartAddress, mapped_void l
 }
 
 REX_SHIM_FN(DeleteFiber, void, mapped_void lpFiber) {
-  auto* thread = ThreadRecord::GetCurrentThread();
+  auto* thread = KernelThread::GetCurrentThread();
   Runtime& runtime = thread->runtime();
   auto* mem = runtime.memory();
   auto [kthread, pcr, ctx, _mem] = GetGuestThreadPtrs(thread);
@@ -287,7 +287,7 @@ REX_SHIM_FN(DeleteFiber, void, mapped_void lpFiber) {
 }
 
 REX_SHIM_FN(SwitchToFiber, void, mapped_void lpFiber) {
-  auto* thread = ThreadRecord::GetCurrentThread();
+  auto* thread = KernelThread::GetCurrentThread();
   Runtime& runtime = thread->runtime();
   auto* mem = runtime.memory();
   auto [kthread, pcr, ctx, _mem] = GetGuestThreadPtrs(thread);
@@ -334,7 +334,7 @@ REX_SHIM_FN(SwitchToFiber, void, mapped_void lpFiber) {
   rex::platform::seh_thread_state().top = scope;
 #endif
   ctx->fpscr.setcsr(ctx->fpscr.csr);
-  ThreadRecord::CheckStop();
+  KernelThread::CheckStop();
 }
 
 }  // namespace rex::kernel::shim

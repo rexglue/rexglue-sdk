@@ -15,7 +15,7 @@
 #include <format>
 #include <random>
 
-#include <rex/memory/utils.h>
+#include <rex/memory/virtual_memory.h>
 
 using rex::memory::CloseFileMappingHandle;
 using rex::memory::CreateFileMappingHandle;

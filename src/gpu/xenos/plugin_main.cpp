@@ -44,7 +44,7 @@ class XenosModule final : public rex::IModule {
 
   static constexpr std::array<rex::InterfaceEntry, 2> kInterfaces = {{
       {rex::IModule::kInterfaceName, rex::IModule::kInterfaceVersion, &GetModule},
-      {gpu::IBackend::kInterfaceName, gpu::IBackend::kInterfaceVersion, &GetBackend},
+      {gpu::IGPUBackend::kInterfaceName, gpu::IGPUBackend::kInterfaceVersion, &GetBackend},
   }};
 
   const char* Name() const override { return "rex-gpu-xenos"; }
@@ -135,7 +135,7 @@ void* XenosModule::GetModule() {
 }
 
 void* XenosModule::GetBackend() {
-  return static_cast<gpu::IBackend*>(Instance().backend_.get());
+  return static_cast<gpu::IGPUBackend*>(Instance().backend_.get());
 }
 
 }  // namespace rex::gpu

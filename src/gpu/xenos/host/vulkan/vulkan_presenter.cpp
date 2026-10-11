@@ -25,7 +25,7 @@
 #include <rex/math.h>
 #include <rex/platform.h>
 #include "gpu/xenos/host/vulkan/presenter.h"
-#include "gpu/xenos/host/vulkan/util.h"
+#include "gpu/xenos/host/vulkan/objects.h"
 
 #if REX_PLATFORM_GNU_LINUX
 #include <rex/gpu/surface_gnulinux.h>
@@ -132,23 +132,23 @@ VulkanPresenter::~VulkanPresenter() {
     dfn.vkDestroyCommandPool(device, ui_setup_command_buffer.command_pool, nullptr);
   }
 
-  util::DestroyAndNullHandle(dfn.vkDestroyDescriptorPool, device,
-                             paint_context_.guest_output_descriptor_pool);
+  objects::DestroyAndNullHandle(dfn.vkDestroyDescriptorPool, device,
+                                paint_context_.guest_output_descriptor_pool);
   for (PaintContext::GuestOutputPaintPipeline& guest_output_paint_pipeline :
        paint_context_.guest_output_paint_pipelines) {
-    util::DestroyAndNullHandle(dfn.vkDestroyPipeline, device,
-                               guest_output_paint_pipeline.swapchain_pipeline);
+    objects::DestroyAndNullHandle(dfn.vkDestroyPipeline, device,
+                                  guest_output_paint_pipeline.swapchain_pipeline);
   }
 
   for (VkShaderModule& shader_module : guest_output_paint_fs_) {
-    util::DestroyAndNullHandle(dfn.vkDestroyShaderModule, device, shader_module);
+    objects::DestroyAndNullHandle(dfn.vkDestroyShaderModule, device, shader_module);
   }
-  util::DestroyAndNullHandle(dfn.vkDestroyShaderModule, device, guest_output_paint_vs_);
+  objects::DestroyAndNullHandle(dfn.vkDestroyShaderModule, device, guest_output_paint_vs_);
   for (VkPipelineLayout& pipeline_layout : guest_output_paint_pipeline_layouts_) {
-    util::DestroyAndNullHandle(dfn.vkDestroyPipelineLayout, device, pipeline_layout);
+    objects::DestroyAndNullHandle(dfn.vkDestroyPipelineLayout, device, pipeline_layout);
   }
-  util::DestroyAndNullHandle(dfn.vkDestroyDescriptorSetLayout, device,
-                             guest_output_paint_image_descriptor_set_layout_);
+  objects::DestroyAndNullHandle(dfn.vkDestroyDescriptorSetLayout, device,
+                                guest_output_paint_image_descriptor_set_layout_);
 }
 
 gpu::Surface::TypeFlags VulkanPresenter::GetSurfaceTypesSupportedByInstance(
@@ -371,8 +371,8 @@ VulkanPresenter::ConnectOrReconnectPaintingToSurfaceFromUIThread(
 
   // On failure from here, call paint_context_.DestroySwapchainAndVulkanSurface before returning.
   if (paint_context_.swapchain_render_pass_format != new_swapchain_format) {
-    util::DestroyAndNullHandle(dfn.vkDestroyRenderPass, device,
-                               paint_context_.swapchain_render_pass);
+    objects::DestroyAndNullHandle(dfn.vkDestroyRenderPass, device,
+                                  paint_context_.swapchain_render_pass);
     paint_context_.swapchain_render_pass_format = new_swapchain_format;
   }
   if (paint_context_.swapchain_render_pass == VK_NULL_HANDLE) {
@@ -527,7 +527,8 @@ bool VulkanPresenter::RefreshGuestOutputImpl(
     bool& is_8bpc_out_ref) {
   REX_ASSERT(frontbuffer_width != 0);
   REX_ASSERT(frontbuffer_height != 0);
-  VkExtent2D max_framebuffer_extent = util::GetMax2DFramebufferExtent(vulkan_device_->properties());
+  VkExtent2D max_framebuffer_extent =
+      objects::GetMax2DFramebufferExtent(vulkan_device_->properties());
   if (frontbuffer_width > max_framebuffer_extent.width ||
       frontbuffer_height > max_framebuffer_extent.height) {
     // Guest output writes do not rescale, and a guest texture above the maximum cannot load.
@@ -594,7 +595,8 @@ VkSwapchainKHR VulkanPresenter::PaintContext::CreateSwapchainForVulkanSurface(
     return VK_NULL_HANDLE;
   }
 
-  VkExtent2D max_framebuffer_extent = util::GetMax2DFramebufferExtent(vulkan_device->properties());
+  VkExtent2D max_framebuffer_extent =
+      objects::GetMax2DFramebufferExtent(vulkan_device->properties());
   VkExtent2D image_extent;
   image_extent.width = std::min(std::max(std::min(width, max_framebuffer_extent.width),
                                          surface_capabilities.minImageExtent.width),
@@ -898,9 +900,9 @@ bool VulkanPresenter::GuestOutputImage::Initialize() {
   image_create_info.queueFamilyIndexCount = 0;
   image_create_info.pQueueFamilyIndices = nullptr;
   image_create_info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-  if (!gpu::vulkan::util::CreateDedicatedAllocationImage(
-          vulkan_device_, image_create_info, gpu::vulkan::util::MemoryPurpose::kDeviceLocal, image_,
-          memory_)) {
+  if (!gpu::vulkan::objects::CreateDedicatedAllocationImage(
+          vulkan_device_, image_create_info, gpu::vulkan::objects::MemoryPurpose::kDeviceLocal,
+          image_, memory_)) {
     REX_FAIL(ui, false, "VulkanPresenter: Failed to create a guest output image");
   }
 
@@ -973,7 +975,7 @@ Presenter::PaintResult VulkanPresenter::PaintAndPresentImpl(bool execute_ui_draw
     case VK_SUBOPTIMAL_KHR:
       break;
     case VK_ERROR_DEVICE_LOST:
-      REX_FAIL(ui, PaintResult::kGpuLostResponsible,
+      REX_FAIL(ui, PaintResult::kGPULostResponsible,
                "VulkanPresenter: Failed to acquire the swapchain image as the "
                "device has been lost");
     case VK_ERROR_OUT_OF_DATE_KHR:
@@ -1037,7 +1039,7 @@ Presenter::PaintResult VulkanPresenter::PaintAndPresentImpl(bool execute_ui_draw
 
   if (guest_output_image) {
     VkExtent2D max_framebuffer_extent =
-        util::GetMax2DFramebufferExtent(vulkan_device_->properties());
+        objects::GetMax2DFramebufferExtent(vulkan_device_->properties());
     GuestOutputPaintFlow guest_output_flow = GetGuestOutputPaintFlow(
         guest_output_properties, paint_context_.swapchain_extent.width,
         paint_context_.swapchain_extent.height, max_framebuffer_extent.width,
@@ -1106,8 +1108,8 @@ Presenter::PaintResult VulkanPresenter::PaintAndPresentImpl(bool execute_ui_draw
                 paint_context_.swapchain_render_pass_format) {
           paint_context_.submission_tracker.AwaitSubmissionCompletion(
               paint_context_.guest_output_image_paint_last_submission);
-          util::DestroyAndNullHandle(dfn.vkDestroyPipeline, device,
-                                     swapchain_effect_pipeline.swapchain_pipeline);
+          objects::DestroyAndNullHandle(dfn.vkDestroyPipeline, device,
+                                        swapchain_effect_pipeline.swapchain_pipeline);
         }
         if (swapchain_effect_pipeline.swapchain_pipeline == VK_NULL_HANDLE) {
           REX_ASSERT(guest_output_paint_fs_[static_cast<size_t>(swapchain_effect)] !=
@@ -1367,7 +1369,7 @@ Presenter::PaintResult VulkanPresenter::PaintAndPresentImpl(bool execute_ui_draw
     case VK_SUBOPTIMAL_KHR:
       return PaintResult::kPresentedSuboptimal;
     case VK_ERROR_DEVICE_LOST:
-      REX_FAIL(ui, PaintResult::kGpuLostResponsible,
+      REX_FAIL(ui, PaintResult::kGPULostResponsible,
                "VulkanPresenter: Failed to present the swapchain image as the "
                "device has been lost");
     case VK_ERROR_OUT_OF_DATE_KHR:
@@ -1558,8 +1560,8 @@ bool VulkanPresenter::InitializeSurfaceIndependent() {
 VkPipeline VulkanPresenter::CreateGuestOutputPaintPipeline(GuestOutputPaintEffect effect,
                                                            VkRenderPass render_pass) {
   VkPipelineShaderStageCreateInfo stages[2] = {
-      util::MakeShaderStage(VK_SHADER_STAGE_VERTEX_BIT, VK_NULL_HANDLE),
-      util::MakeShaderStage(VK_SHADER_STAGE_FRAGMENT_BIT, VK_NULL_HANDLE)};
+      objects::BuildShaderStage(VK_SHADER_STAGE_VERTEX_BIT, VK_NULL_HANDLE),
+      objects::BuildShaderStage(VK_SHADER_STAGE_FRAGMENT_BIT, VK_NULL_HANDLE)};
   stages[0].module = guest_output_paint_vs_;
   stages[1].module = guest_output_paint_fs_[static_cast<size_t>(effect)];
   REX_ASSERT(stages[1].module != VK_NULL_HANDLE);
@@ -1584,7 +1586,7 @@ VkPipeline VulkanPresenter::CreateGuestOutputPaintPipeline(GuestOutputPaintEffec
   rasterization_state.lineWidth = 1.0f;
 
   VkPipelineMultisampleStateCreateInfo multisample_state =
-      util::MakeMultisampleState(VK_SAMPLE_COUNT_1_BIT);
+      objects::BuildMultisampleState(VK_SAMPLE_COUNT_1_BIT);
 
   VkPipelineColorBlendAttachmentState color_blend_attachment_state = {};
   color_blend_attachment_state.colorWriteMask = VK_COLOR_COMPONENT_R_BIT |

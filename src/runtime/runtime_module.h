@@ -58,14 +58,14 @@ class REX_RUNTIME_API RuntimeModule final : public IModule {
    *
    * @return The backend, null when no apu module is loaded.
    */
-  [[nodiscard]] static apu::IBackend* apu_backend();
+  [[nodiscard]] static apu::IAPUBackend* apu_backend();
 
   /**
    * Returns the HID backend a loaded hid module serves.
    *
    * @return The backend, null when no hid module is loaded.
    */
-  [[nodiscard]] static hid::IBackend* hid_backend();
+  [[nodiscard]] static hid::IHIDBackend* hid_backend();
 
   static void* GetObjectTable();
   static void* GetThreadRegistry();
@@ -130,8 +130,8 @@ class REX_RUNTIME_API RuntimeModule final : public IModule {
   ILogger* logger_ = nullptr;
   size_t registered_ = 0;
   std::atomic<Runtime*> runtime_{nullptr};
-  apu::IBackend* apu_ = nullptr;
-  hid::IBackend* hid_ = nullptr;
+  apu::IAPUBackend* apu_ = nullptr;
+  hid::IHIDBackend* hid_ = nullptr;
 };
 
 }  // namespace rex::runtime

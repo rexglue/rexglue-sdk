@@ -20,18 +20,18 @@
 #include <rex/logging.h>
 #include <rex/no_throw.h>
 #include <rex/runtime/error.h>
-#include <rex/runtime/xevent.h>
-#include <rex/runtime/xmutant.h>
-#include <rex/runtime/xobject.h>
-#include <rex/runtime/xsemaphore.h>
+#include <rex/runtime/event_object.h>
+#include <rex/runtime/mutant_object.h>
+#include <rex/runtime/object.h>
+#include <rex/runtime/semaphore_object.h>
 #include <rex/runtime/xthread.h>
-#include <rex/runtime/xtimer.h>
+#include <rex/runtime/timer_object.h>
 
 namespace rex::runtime {
 
-ObjectRecord::~ObjectRecord() {
+KernelObject::~KernelObject() {
   if (owns_guest_block && memory != nullptr) {
-    FreeGuestBlock(memory, guest_ptr, workspace);
+    FreeObjectBlock(memory, guest_ptr, workspace);
   }
 }
 
@@ -42,26 +42,26 @@ ObjectTable::~ObjectTable() {
 }
 
 void ObjectTable::Reset() {
-  std::vector<ObjectRecord*> retired;
+  std::vector<KernelObject*> retired;
   {
     std::unique_lock lock(mutex_);
     std::lock_guard name_lock(name_mutex_);
-    for (auto& [raw, owned] : records_) {
+    for (auto& [raw, owned] : objects_) {
       retired.push_back(owned.release());
     }
-    records_.clear();
+    objects_.clear();
     names_.clear();
     slots_.clear();
     last_free_slot_ = 0;
   }
-  for (ObjectRecord* record : retired) {
-    Retire(record);
+  for (KernelObject* object : retired) {
+    Retire(object);
   }
 }
 
-void ObjectTable::Retire(ObjectRecord* record) {
-  if (record->pins.Retire()) {
-    delete record;
+void ObjectTable::Retire(KernelObject* object) {
+  if (object->pins.Retire()) {
+    delete object;
   }
 }
 
@@ -70,7 +70,7 @@ X_HANDLE ObjectTable::Translate(X_HANDLE handle) const {
     return 0;
   }
   if (handle == 0xFFFFFFFE) {
-    return ThreadRecord::IsInThread() ? ThreadRecord::GetCurrentThreadHandle() : 0;
+    return KernelThread::IsInThread() ? KernelThread::GetCurrentThreadHandle() : 0;
   }
   return handle;
 }
@@ -84,14 +84,14 @@ ObjectTable::Slot* ObjectTable::FindSlot(X_HANDLE handle) {
     return nullptr;
   }
   Slot* slot = &slots_[index];
-  return slot->record != nullptr ? slot : nullptr;
+  return slot->object != nullptr ? slot : nullptr;
 }
 
-u32 ObjectTable::AllocateSlot() {
+u32 ObjectTable::AllocSlot() {
   const u32 capacity = static_cast<u32>(slots_.size());
   u32 slot = last_free_slot_;
   for (u32 scanned = 0; scanned < capacity; ++scanned) {
-    if (slot != 0 && slots_[slot].record == nullptr) {
+    if (slot != 0 && slots_[slot].object == nullptr) {
       last_free_slot_ = slot;
       return slot;
     }
@@ -103,38 +103,38 @@ u32 ObjectTable::AllocateSlot() {
   return last_free_slot_;
 }
 
-Result<X_HANDLE> ObjectTable::Add(std::unique_ptr<ObjectRecord> record, const AddOptions& options) {
-  record->memory = memory_;
-  record->guest_ptr = options.block.address;
-  record->owns_guest_block = options.block.owned;
-  record->workspace = options.block.workspace;
+Result<X_HANDLE> ObjectTable::Add(std::unique_ptr<KernelObject> object, const AddOptions& options) {
+  object->memory = memory_;
+  object->guest_ptr = options.block.address;
+  object->owns_guest_block = options.block.owned;
+  object->workspace = options.block.workspace;
   std::unique_lock lock(mutex_);
-  const u32 index = AllocateSlot();
+  const u32 index = AllocSlot();
   const X_HANDLE handle = kHandleBase + (index << 2);
-  ObjectRecord* raw = record.get();
+  KernelObject* raw = object.get();
   raw->handles.push_back(handle);
   slots_[index] = Slot{raw, 1};
   if (!options.name.empty() && AddName(options.name, handle)) {
     raw->name = std::string(options.name);
   }
-  records_.emplace(raw, std::move(record));
+  objects_.emplace(raw, std::move(object));
   return handle;
 }
 
-Result<X_HANDLE> ObjectTable::AddWithBlock(std::unique_ptr<ObjectRecord> record, u32 attributes_ptr,
+Result<X_HANDLE> ObjectTable::AddWithBlock(std::unique_ptr<KernelObject> object, u32 attributes_ptr,
                                            u32 block_size) {
-  GuestBlock block;
+  ObjectBlock block;
   if (block_size) {
-    block = AllocateGuestBlock(memory_, block_size);
+    block = AllocObjectBlock(memory_, block_size);
     if (!block.address) {
       return Err<X_HANDLE>(StatusError(X_STATUS_NO_MEMORY));
     }
   }
   const std::string name = NameFromAttributes(memory_, attributes_ptr);
-  Result<X_HANDLE> handle = Add(std::move(record), AddOptions{name, block});
+  Result<X_HANDLE> handle = Add(std::move(object), AddOptions{name, block});
   if (!handle) {
     if (block.address) {
-      FreeGuestBlock(memory_, block.address);
+      FreeObjectBlock(memory_, block.address);
     }
     return handle;
   }
@@ -151,38 +151,38 @@ Result<X_HANDLE> ObjectTable::Duplicate(X_HANDLE handle) {
   if (!source) {
     return Err<X_HANDLE>(StatusError(X_STATUS_INVALID_HANDLE));
   }
-  ObjectRecord* record = source->record;
-  const u32 index = AllocateSlot();
+  KernelObject* object = source->object;
+  const u32 index = AllocSlot();
   const X_HANDLE copy = kHandleBase + (index << 2);
-  slots_[index] = Slot{record, 1};
-  record->handles.push_back(copy);
+  slots_[index] = Slot{object, 1};
+  object->handles.push_back(copy);
   return copy;
 }
 
-ObjectRecord* ObjectTable::Detach(Slot& slot, X_HANDLE handle) {
-  ObjectRecord* record = slot.record;
+KernelObject* ObjectTable::Detach(Slot& slot, X_HANDLE handle) {
+  KernelObject* object = slot.object;
   slot = Slot{};
-  auto handle_entry = std::find(record->handles.begin(), record->handles.end(), handle);
-  if (handle_entry != record->handles.end()) {
-    record->handles.erase(handle_entry);
+  auto handle_entry = std::find(object->handles.begin(), object->handles.end(), handle);
+  if (handle_entry != object->handles.end()) {
+    object->handles.erase(handle_entry);
   }
-  if (!record->name.empty()) {
+  if (!object->name.empty()) {
     std::lock_guard name_lock(name_mutex_);
-    auto it = names_.find(string_key_case(record->name));
+    auto it = names_.find(string_key_case(object->name));
     if (it != names_.end() && it->second == handle) {
-      if (record->handles.empty()) {
+      if (object->handles.empty()) {
         names_.erase(it);
       } else {
-        it->second = record->handles.front();
+        it->second = object->handles.front();
       }
     }
   }
-  if (!record->handles.empty()) {
+  if (!object->handles.empty()) {
     return nullptr;
   }
-  auto owned = records_.find(record);
-  ObjectRecord* released = owned->second.release();
-  records_.erase(owned);
+  auto owned = objects_.find(object);
+  KernelObject* released = owned->second.release();
+  objects_.erase(owned);
   return released;
 }
 
@@ -202,7 +202,7 @@ Result<void> ObjectTable::Close(X_HANDLE handle) {
   if (!handle) {
     return Err(StatusError(X_STATUS_INVALID_HANDLE));
   }
-  ObjectRecord* retired = nullptr;
+  KernelObject* retired = nullptr;
   {
     std::unique_lock lock(mutex_);
     Slot* slot = FindSlot(handle);
@@ -225,7 +225,7 @@ Result<void> ObjectTable::Remove(X_HANDLE handle) {
   if (!handle) {
     return Err(StatusError(X_STATUS_INVALID_HANDLE));
   }
-  ObjectRecord* retired = nullptr;
+  KernelObject* retired = nullptr;
   {
     std::unique_lock lock(mutex_);
     Slot* slot = FindSlot(handle);
@@ -243,11 +243,11 @@ Result<void> ObjectTable::Remove(X_HANDLE handle) {
 
 Result<void> ObjectTable::RetainPrimary(const PinnedSlot& slot) {
   std::unique_lock lock(mutex_);
-  const ObjectRecord& record = slot.record();
-  if (record.handles.empty()) {
+  const KernelObject& object = slot.object();
+  if (object.handles.empty()) {
     return Err(StatusError(X_STATUS_INVALID_HANDLE));
   }
-  Slot* primary = FindSlot(record.handles.front());
+  Slot* primary = FindSlot(object.handles.front());
   if (!primary) {
     return Err(StatusError(X_STATUS_INVALID_HANDLE));
   }
@@ -262,7 +262,7 @@ Result<void> ObjectTable::ReleasePrimary(const PinnedSlot& slot) {
 
 std::optional<X_HANDLE> ObjectTable::PrimaryHandle(const PinnedSlot& slot) {
   std::shared_lock lock(mutex_);
-  const std::vector<X_HANDLE>& handles = slot.record().handles;
+  const std::vector<X_HANDLE>& handles = slot.object().handles;
   if (handles.empty()) {
     return std::nullopt;
   }
@@ -279,15 +279,15 @@ PinnedSlot ObjectTable::Get(X_HANDLE handle) {
   if (!slot) {
     return {};
   }
-  slot->record->pins.Pin();
-  return PinnedSlot(slot->record, handle);
+  slot->object->pins.Pin();
+  return PinnedSlot(slot->object, handle);
 }
 
-std::vector<PinnedSlot> ObjectTable::GetAll() {
+std::vector<PinnedSlot> ObjectTable::All() {
   std::vector<PinnedSlot> results;
   std::shared_lock lock(mutex_);
-  results.reserve(records_.size());
-  for (auto& [raw, owned] : records_) {
+  results.reserve(objects_.size());
+  for (auto& [raw, owned] : objects_) {
     raw->pins.Pin();
     results.emplace_back(raw, raw->handles.empty() ? 0 : raw->handles.front());
   }
@@ -317,12 +317,12 @@ Result<X_HANDLE> ObjectTable::OpenByName(std::string_view name) {
   if (!slot) {
     return Err<X_HANDLE>(StatusError(X_STATUS_OBJECT_NAME_NOT_FOUND));
   }
-  Slot* primary = FindSlot(slot->record->handles.front());
+  Slot* primary = FindSlot(slot->object->handles.front());
   ++primary->ref_count;
   return handle;
 }
 
-std::optional<X_HANDLE> ObjectTable::ResolveGuestObject(u32 address, i32 as_type) {
+std::optional<X_HANDLE> ObjectTable::ResolveHandle(u32 address, i32 as_type) {
   REX_ASSERT(memory_ != nullptr);
   if (address == 0) {
     return std::nullopt;
@@ -333,7 +333,7 @@ std::optional<X_HANDLE> ObjectTable::ResolveGuestObject(u32 address, i32 as_type
   if (as_type == -1) {
     as_type = header->type;
   }
-  if (header->wait_list_flink == kXObjSignature) {
+  if (header->wait_list_flink == kStashSignature) {
     return X_HANDLE(header->wait_list_blink);
   }
   Result<X_HANDLE> added = Err<X_HANDLE>(StatusError(X_STATUS_NO_MEMORY));
@@ -345,8 +345,8 @@ std::optional<X_HANDLE> ObjectTable::ResolveGuestObject(u32 address, i32 as_type
     case DISPATCHER_MUTANT: {
       const auto* mutant = reinterpret_cast<const X_KMUTANT*>(native_ptr);
       const bool owned_here = static_cast<i32>(static_cast<u32>(header->signal_state)) <= 0 &&
-                              ThreadRecord::IsInThread() &&
-                              ThreadRecord::GetCurrentThread()->guest_object() ==
+                              KernelThread::IsInThread() &&
+                              KernelThread::GetCurrentThread()->guest_object() ==
                                   static_cast<u32>(mutant->owner_thread);
       added = Emplace<MutantObject>(AddOptions{}, owned_here, address);
       break;

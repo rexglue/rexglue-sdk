@@ -7,7 +7,7 @@
 #include <vector>
 
 #include <rex/runtime.h>
-#include <rex/runtime/util/xdbf_utils.h>
+#include <rex/runtime/xdbf.h>
 #include "ui/sdl3/image_decode.h"
 
 namespace rex::ui {
@@ -35,7 +35,7 @@ gpu::OverlayTexture* AchievementIconCache::GetIcon(
                                   (std::to_string(achievement.image_id) + ".png"));
   }
   if (!texture && achievement.image_id != 0) {
-    texture = LoadXdbfTexture(achievement.image_id);
+    texture = LoadXDBFTexture(achievement.image_id);
   }
 
   if (!texture && texture_create_failed_) {
@@ -99,7 +99,7 @@ std::unique_ptr<gpu::OverlayTexture> AchievementIconCache::LoadMetadataTexture(
   return nullptr;
 }
 
-std::unique_ptr<gpu::OverlayTexture> AchievementIconCache::LoadXdbfTexture(u32 image_id) {
+std::unique_ptr<gpu::OverlayTexture> AchievementIconCache::LoadXDBFTexture(u32 image_id) {
   if (!runtime_ || !runtime_->is_setup()) {
     return nullptr;
   }
@@ -109,8 +109,7 @@ std::unique_ptr<gpu::OverlayTexture> AchievementIconCache::LoadXdbfTexture(u32 i
     return nullptr;
   }
 
-  const auto block =
-      db.GetEntry(rex::runtime::util::XdbfSection::kImage, static_cast<u64>(image_id));
+  const auto block = db.GetEntry(rex::runtime::XDBFSection::kImage, static_cast<u64>(image_id));
   if (!block) {
     return nullptr;
   }

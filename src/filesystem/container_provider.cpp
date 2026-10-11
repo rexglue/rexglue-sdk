@@ -28,8 +28,8 @@ class ContainerStream final : public NodeStream {
   [[nodiscard]] Result<std::span<const u8>> View() override {
     const std::span<const u8> bytes = container_.View(node_);
     if (bytes.empty() && node_.size != 0) {
-      return Err<std::span<const u8>>(
-          MakeError(Error::kUnsupported, std::format("'{}' is not 1 extent", node_.name)));
+      return Err<std::span<const u8>>(BuildError(FileSystemError::kUnsupported,
+                                                 std::format("'{}' is not 1 extent", node_.name)));
     }
     return bytes;
   }
@@ -59,9 +59,10 @@ ContainerProvider::ContainerProvider(Key, MountEntry entry, Container container)
 Result<std::unique_ptr<Provider>> ContainerProvider::Create(const MountEntry& entry) {
   REX_TRY(Container container, Container::Open(entry.source));
   if (!KindMatches(entry.kind, container.kind())) {
-    return Err<std::unique_ptr<Provider>>(MakeError(
-        Error::kCorrupt, std::format("'{}' does not hold the container kind mount '{}' names",
-                                     path_to_utf8(entry.source), entry.path)));
+    return Err<std::unique_ptr<Provider>>(
+        BuildError(FileSystemError::kCorrupt,
+                   std::format("'{}' does not hold the container kind mount '{}' names",
+                               path_to_utf8(entry.source), entry.path)));
   }
   auto provider = std::make_unique<ContainerProvider>(Key{}, entry, std::move(container));
   auto root = std::make_unique<ContainerNodeImpl>(*provider, nullptr, std::string(),

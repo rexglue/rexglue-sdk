@@ -16,6 +16,7 @@
 #include <cstring>
 #include <vector>
 
+#include <rex/bit.h>
 #include <rex/assert.h>
 #include <rex/math.h>
 #include <rex/memory.h>
@@ -60,13 +61,13 @@ namespace rex::gpu::dxbc {
  */
 constexpr u8 kAlignmentPadding = 0xAB;
 
-constexpr u32 MakeFourCC(u32 ch0, u32 ch1, u32 ch2, u32 ch3) {
+constexpr u32 BuildFourCC(u32 ch0, u32 ch1, u32 ch2, u32 ch3) {
   return ch0 | (ch1 << 8) | (ch2 << 16) | (ch3 << 24);
 }
 
 /** Followed by uint32_t[blob_count] byte offsets from the container start to each blob header. */
 struct alignas(u32) ContainerHeader {
-  static constexpr u32 kFourCC = MakeFourCC('D', 'X', 'B', 'C');
+  static constexpr u32 kFourCC = BuildFourCC('D', 'X', 'B', 'C');
   static constexpr u16 kVersionMajor = 1;
   static constexpr u16 kVersionMinor = 0;
   u32 fourcc;
@@ -87,16 +88,16 @@ REX_STATIC_ASSERT_SIZE(ContainerHeader, sizeof(u32) * 8);
 struct alignas(u32) BlobHeader {
   /** FourCC values in order of appearance in a container. */
   enum class FourCC : u32 {
-    kResourceDefinition = MakeFourCC('R', 'D', 'E', 'F'),
-    kInputSignature = MakeFourCC('I', 'S', 'G', 'N'),
-    kInputSignature_11_1 = MakeFourCC('I', 'S', 'G', '1'),
-    kPatchConstantSignature = MakeFourCC('P', 'C', 'S', 'G'),
-    kOutputSignature = MakeFourCC('O', 'S', 'G', 'N'),
-    kOutputSignatureForGS = MakeFourCC('O', 'S', 'G', '5'),
-    kOutputSignature_11_1 = MakeFourCC('O', 'S', 'G', '1'),
-    kShaderEx = MakeFourCC('S', 'H', 'E', 'X'),
-    kShaderFeatureInfo = MakeFourCC('S', 'F', 'I', '0'),
-    kStatistics = MakeFourCC('S', 'T', 'A', 'T'),
+    kResourceDefinition = BuildFourCC('R', 'D', 'E', 'F'),
+    kInputSignature = BuildFourCC('I', 'S', 'G', 'N'),
+    kInputSignature_11_1 = BuildFourCC('I', 'S', 'G', '1'),
+    kPatchConstantSignature = BuildFourCC('P', 'C', 'S', 'G'),
+    kOutputSignature = BuildFourCC('O', 'S', 'G', 'N'),
+    kOutputSignatureForGS = BuildFourCC('O', 'S', 'G', '5'),
+    kOutputSignature_11_1 = BuildFourCC('O', 'S', 'G', '1'),
+    kShaderEx = BuildFourCC('S', 'H', 'E', 'X'),
+    kShaderFeatureInfo = BuildFourCC('S', 'F', 'I', '0'),
+    kStatistics = BuildFourCC('S', 'T', 'A', 'T'),
   };
   FourCC fourcc;
   u32 size_bytes;
@@ -352,7 +353,7 @@ REX_STATIC_ASSERT_SIZE(RdefInputBind, sizeof(u32) * 10);
 struct alignas(u32) RdefHeader {
   enum class FourCC : u32 {
     /** RD11 in Shader Model 5_0 shaders. */
-    k5_0 = MakeFourCC('R', 'D', '1', '1'),
+    k5_0 = BuildFourCC('R', 'D', '1', '1'),
     /** RD11 with reversed nibbles in Shader Model 5_0 shaders. */
     k5_1 = 0x25441313u,
   };
@@ -996,8 +997,8 @@ struct Src : OperandAddress {
   }
   static Src LI(i32 x) { return LI(x, x, x, x); }
   static Src LF(f32 x, f32 y, f32 z, f32 w) {
-    return LU(rex::memory::Reinterpret<u32>(x), rex::memory::Reinterpret<u32>(y),
-              rex::memory::Reinterpret<u32>(z), rex::memory::Reinterpret<u32>(w));
+    return LU(rex::Reinterpret<u32>(x), rex::Reinterpret<u32>(y), rex::Reinterpret<u32>(z),
+              rex::Reinterpret<u32>(w));
   }
   static Src LF(f32 x) { return LF(x, x, x, x); }
   static Src LP(const u32* xyzw) { return LU(xyzw[0], xyzw[1], xyzw[2], xyzw[3]); }

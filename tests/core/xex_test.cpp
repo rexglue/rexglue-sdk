@@ -33,7 +33,7 @@ std::vector<u8> DecodeAll(std::span<const u8> file, XEXImage& image) {
   return out;
 }
 
-std::vector<u8> MakePatchBody() {
+std::vector<u8> BuildPatchBody() {
   std::vector<u8> records;
   auto record = [&](u32 old_addr, u32 new_addr, u16 length, u16 compressed) {
     const size_t at = records.size();
@@ -51,7 +51,7 @@ std::vector<u8> MakePatchBody() {
   return block;
 }
 
-std::vector<u8> MakePatchDescriptor(const XEXImage& base) {
+std::vector<u8> BuildPatchDescriptor(const XEXImage& base) {
   std::vector<u8> desc(0x4C + 13, 0);
   test::PutBE32(desc, 0x0, static_cast<u32>(desc.size()));
   const auto digest = test::SHA1Of(base.security().rsa_signature);
@@ -94,23 +94,26 @@ REX_TEST_CASE("XEX optional headers that end past the header are not returned", 
   const u32 header_size = GetBE32(file, 0x8);
 
   auto fixed = file;
-  MoveOptHeader(fixed, XEX_HEADER_EXECUTION_INFO, header_size - 4);
+  MoveOptHeader(fixed, filesystem::XEX_HEADER_EXECUTION_INFO, header_size - 4);
   auto fixed_image = XEXImage::Parse(fixed);
   REQUIRE(fixed_image);
-  CHECK_FALSE(fixed_image->OptHeader<xex2_opt_execution_info>(XEX_HEADER_EXECUTION_INFO));
+  CHECK_FALSE(fixed_image->OptHeader<filesystem::XEXOptExecutionInfo>(
+      filesystem::XEX_HEADER_EXECUTION_INFO));
 
   auto variable = file;
-  MoveOptHeader(variable, XEX_HEADER_ALTERNATE_TITLE_IDS, header_size - 2);
+  MoveOptHeader(variable, filesystem::XEX_HEADER_ALTERNATE_TITLE_IDS, header_size - 2);
   auto variable_image = XEXImage::Parse(variable);
   REQUIRE(variable_image);
-  CHECK_FALSE(variable_image->OptHeader<xex2_opt_generic_u32>(XEX_HEADER_ALTERNATE_TITLE_IDS));
+  CHECK_FALSE(variable_image->OptHeader<filesystem::XEXOptGenericU32>(
+      filesystem::XEX_HEADER_ALTERNATE_TITLE_IDS));
 
   auto long_length = file;
-  MoveOptHeader(long_length, XEX_HEADER_ALTERNATE_TITLE_IDS, header_size - 8);
+  MoveOptHeader(long_length, filesystem::XEX_HEADER_ALTERNATE_TITLE_IDS, header_size - 8);
   test::PutBE32(long_length, header_size - 8, 0x100);
   auto long_image = XEXImage::Parse(long_length);
   REQUIRE(long_image);
-  CHECK_FALSE(long_image->OptHeader<xex2_opt_generic_u32>(XEX_HEADER_ALTERNATE_TITLE_IDS));
+  CHECK_FALSE(long_image->OptHeader<filesystem::XEXOptGenericU32>(
+      filesystem::XEX_HEADER_ALTERNATE_TITLE_IDS));
   CHECK(long_image->alternate_title_ids().empty());
 }
 
@@ -121,15 +124,16 @@ REX_TEST_CASE("XEX header and optional headers parse", "[xex]") {
   const auto file = BuildXEX(spec);
   auto image = XEXImage::Parse(file);
   REQUIRE(image);
-  CHECK(image->OptHeaderValue(XEX_HEADER_ENTRY_POINT) == 0x82000100u);
-  const auto* exec = image->OptHeader<xex2_opt_execution_info>(XEX_HEADER_EXECUTION_INFO);
+  CHECK(image->OptHeaderValue(filesystem::XEX_HEADER_ENTRY_POINT) == 0x82000100u);
+  const auto* exec =
+      image->OptHeader<filesystem::XEXOptExecutionInfo>(filesystem::XEX_HEADER_EXECUTION_INFO);
   REQUIRE(exec);
   CHECK(static_cast<u32>(exec->title_id) == 0x4D5307E6u);
   CHECK(image->alternate_title_ids() == std::vector<u32>{0x11111111, 0x22222222});
-  CHECK_FALSE(image->OptHeaderValue(XEX_HEADER_DEFAULT_STACK_SIZE));
+  CHECK_FALSE(image->OptHeaderValue(filesystem::XEX_HEADER_DEFAULT_STACK_SIZE));
   CHECK(image->security().load_address == 0x82000000u);
   REQUIRE(image->security().pages.size() == 1);
-  CHECK(image->security().pages[0].type == XEX_SECTION_CODE);
+  CHECK(image->security().pages[0].type == filesystem::XEX_SECTION_CODE);
   CHECK(image->security().pages[0].page_count == 1u);
   CHECK_FALSE(image->is_patch());
 }
@@ -149,7 +153,8 @@ REX_TEST_CASE("XEX image size follows the 4 KB page flag", "[xex]") {
 REX_TEST_CASE("XEX decodes every compression and key", "[xex]") {
   const auto expected = TestImage(0x1000);
   for (const auto compression :
-       {XEX_COMPRESSION_NONE, XEX_COMPRESSION_BASIC, XEX_COMPRESSION_NORMAL}) {
+       {filesystem::XEX_COMPRESSION_NONE, filesystem::XEX_COMPRESSION_BASIC,
+        filesystem::XEX_COMPRESSION_NORMAL}) {
     for (const bool encrypted : {false, true}) {
       for (const auto key : {filesystem::XEXKey::Retail, filesystem::XEXKey::DevKit,
                              filesystem::XEXKey::RetailXEX1, filesystem::XEXKey::DevKitXEX1}) {
@@ -182,7 +187,7 @@ REX_TEST_CASE("XEX rejects bad input", "[xex]") {
 
   CHECK_FALSE(XEXImage::Parse(std::span(file).first(0x20)));
 
-  spec.compression = XEX_COMPRESSION_NORMAL;
+  spec.compression = filesystem::XEX_COMPRESSION_NORMAL;
   auto compressed = BuildXEX(spec);
   compressed[compressed.size() - 100] ^= 0xFF;
   auto image = XEXImage::Parse(compressed);
@@ -202,10 +207,10 @@ REX_TEST_CASE("XEX delta patch applies to header and image", "[xex]") {
   auto decoded = DecodeAll(base_file, *base);
 
   XEXSpec patch_spec;
-  patch_spec.module_flags = XEX_MODULE_PATCH_DELTA;
-  patch_spec.compression = XEX_COMPRESSION_DELTA;
-  patch_spec.patch_descriptor = MakePatchDescriptor(*base);
-  patch_spec.patch_body = MakePatchBody();
+  patch_spec.module_flags = filesystem::XEX_MODULE_PATCH_DELTA;
+  patch_spec.compression = filesystem::XEX_COMPRESSION_DELTA;
+  patch_spec.patch_descriptor = BuildPatchDescriptor(*base);
+  patch_spec.patch_body = BuildPatchBody();
   const auto patch_file = BuildXEX(patch_spec);
   auto patch = XEXImage::Parse(patch_file);
   REQUIRE(patch);
@@ -243,7 +248,7 @@ REX_TEST_CASE("PE headers parse from a decoded image", "[xex]") {
   std::memcpy(section->Name, ".text\0\0\0", 8);
   section->VirtualAddress = 0x1000;
   section->Misc.VirtualSize = 0x200;
-  section->Characteristics = kXEPESectionMemoryExecute;
+  section->Characteristics = filesystem::kPESectionMemoryExecute;
 
   auto info = filesystem::ParsePE(image);
   REQUIRE(info);

@@ -66,7 +66,7 @@ ConsoleWindow::~ConsoleWindow() {
 }
 
 Result<std::unique_ptr<ConsoleWindow>> ConsoleWindow::Create(
-    WindowedAppContext& context, gpu::IBackend& backend, const ImGuiStyle& imgui_style,
+    WindowedAppContext& context, gpu::IGPUBackend& backend, const ImGuiStyle& imgui_style,
     const Style& style, ConsoleModel& model, ConsoleHost& host) {
   using Created = std::unique_ptr<ConsoleWindow>;
   Created console = std::make_unique<ConsoleWindow>(Key{});

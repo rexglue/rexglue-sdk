@@ -111,8 +111,8 @@ REX_RUNTIME_API std::jmp_buf& JumpBuffer(u32 address);
 
 /** Maps a guest function address to its recompiled function. */
 struct PPCFuncMapping {
-  size_t guest;  /**< Guest address of the function. */
-  PPCFunc* host; /**< Recompiled function. */
+  size_t address; /**< Entry point of the function in guest memory. */
+  PPCFunc* host;  /**< Recompiled function. */
 };
 
 extern PPCFuncMapping PPCFuncMappings[];

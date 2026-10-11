@@ -8,4 +8,4 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-REXVK_FUNCTION(vkCreateMetalSurfaceEXT)
+REX_VK_FUNCTION(vkCreateMetalSurfaceEXT)

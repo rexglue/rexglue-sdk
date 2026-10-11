@@ -8,5 +8,5 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-REXVK_FUNCTION(vkCreateWin32SurfaceKHR)
-REXVK_FUNCTION(vkGetPhysicalDeviceWin32PresentationSupportKHR)
+REX_VK_FUNCTION(vkCreateWin32SurfaceKHR)
+REX_VK_FUNCTION(vkGetPhysicalDeviceWin32PresentationSupportKHR)

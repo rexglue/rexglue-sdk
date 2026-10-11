@@ -31,7 +31,7 @@ u32 XAudioGetSpeakerConfig_entry(mapped_u32 config_ptr) {
 u32 XAudioGetVoiceCategoryVolumeChangeMask_entry(mapped_void driver_ptr, mapped_u32 out_ptr) {
   REX_ASSERT((driver_ptr.guest_address() & 0xFFFF0000) == 0x41550000);
 
-  rex::runtime::ThreadRecord::Sleep(std::chrono::microseconds(1));
+  rex::runtime::KernelThread::Sleep(std::chrono::microseconds(1));
 
   *out_ptr = 0;
   return X_ERROR_SUCCESS;

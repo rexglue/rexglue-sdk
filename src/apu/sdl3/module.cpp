@@ -15,11 +15,11 @@ namespace rex::apu::sdl3 {
 class SDL3Module final : public IModule {
  public:
   static void* GetModule() { return static_cast<IModule*>(&Instance()); }
-  static void* GetBackend() { return static_cast<apu::IBackend*>(&Instance().backend_); }
+  static void* GetBackend() { return static_cast<apu::IAPUBackend*>(&Instance().backend_); }
 
   static constexpr std::array<InterfaceEntry, 2> kInterfaces = {{
       {IModule::kInterfaceName, IModule::kInterfaceVersion, &GetModule},
-      {apu::IBackend::kInterfaceName, apu::IBackend::kInterfaceVersion, &GetBackend},
+      {apu::IAPUBackend::kInterfaceName, apu::IAPUBackend::kInterfaceVersion, &GetBackend},
   }};
 
   const char* Name() const override { return "rex-apu-sdl3"; }

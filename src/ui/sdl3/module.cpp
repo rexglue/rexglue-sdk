@@ -75,12 +75,12 @@ class UIModule final : public IModule {
       Disconnect();
       return status;
     }
-    hid::IBackend* hid = nullptr;
-    if (auto backend = factory->Get<hid::IBackend>(); backend) {
+    hid::IHIDBackend* hid = nullptr;
+    if (auto backend = factory->Get<hid::IHIDBackend>(); backend) {
       hid = *backend;
     }
-    gpu::IBackend* gpu = nullptr;
-    if (auto backend = factory->Get<gpu::IBackend>(); backend) {
+    gpu::IGPUBackend* gpu = nullptr;
+    if (auto backend = factory->Get<gpu::IGPUBackend>(); backend) {
       gpu = *backend;
     }
     runtime::IAchievementManager* achievements = nullptr;

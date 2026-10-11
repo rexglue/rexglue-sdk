@@ -23,7 +23,7 @@ set(REXKERNEL_SOURCES
     xam/xam_user.cpp
     xam/xam_video.cpp
     xam/xam_voice.cpp
-    xam/xam_misc.cpp
+    xam/xam_stubs.cpp
     xam/xam_file.cpp
     xam/xam_memory.cpp
     xam/xam_string.cpp
@@ -34,7 +34,7 @@ set(REXKERNEL_SOURCES
 
     # XBDM subsystem - provides __imp__Xbdm* symbols
     xbdm/xbdm_module.cpp
-    xbdm/xbdm_misc.cpp
+    xbdm/xbdm_stubs.cpp
 
     # xboxkrnl exports - provides __imp__ symbols for generated code
     xboxkrnl/xboxkrnl_crypt.cpp
@@ -45,7 +45,7 @@ set(REXKERNEL_SOURCES
     xboxkrnl/xboxkrnl_io.cpp
     xboxkrnl/xboxkrnl_io_info.cpp
     xboxkrnl/xboxkrnl_memory.cpp
-    xboxkrnl/xboxkrnl_misc.cpp
+    xboxkrnl/xboxkrnl_stubs.cpp
     xboxkrnl/xboxkrnl_module.cpp
     xboxkrnl/xboxkrnl_modules.cpp
     xboxkrnl/xboxkrnl_ob.cpp

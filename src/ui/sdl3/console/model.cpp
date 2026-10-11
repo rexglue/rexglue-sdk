@@ -80,9 +80,9 @@ ConsoleModel::ConsoleModel(cvar::ICvarRegistry& cvars, log::CaptureSink& capture
 
 void ConsoleModel::Poll() {
   last_sequence_ = capture_.CopySince(last_sequence_, poll_buffer_);
-  for (log::CapturedRecord& record : poll_buffer_) {
-    categories_.insert(record.category);
-    Append(record.level, record.category, record.text, record.sequence);
+  for (log::CapturedMessage& message : poll_buffer_) {
+    categories_.insert(message.category);
+    Append(message.level, message.category, message.text, message.sequence);
   }
   poll_buffer_.clear();
 }

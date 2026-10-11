@@ -34,7 +34,7 @@ namespace rex::log {
 inline constexpr size_t kMaxCategories = 256;
 
 /** Entries kept before the logger starts. */
-inline constexpr size_t kBootstrapRecords = 512;
+inline constexpr size_t kBootstrapMessages = 512;
 
 /** The logger. 1 instance per process, returned by GetLoggerInstance. */
 class Logger final : public ILogger {
@@ -197,7 +197,7 @@ class Logger final : public ILogger {
   std::unique_ptr<ConsoleSink> console_;
   std::unique_ptr<FileSink> file_;
   std::atomic<int> crash_fd_{-1};
-  std::deque<CapturedRecord> bootstrap_;
+  std::deque<CapturedMessage> bootstrap_;
   bool buffering_ = true;
   bool started_ = false;
   bool standalone_ = false;

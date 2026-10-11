@@ -63,9 +63,9 @@ void TestStart(PPCContext& ctx, u8* base) {
   ctx.r3.u64 = 0;
 }
 
-codegen::ToolRuntime MakeTool(const std::filesystem::path& root,
-                              const std::function<void(const std::filesystem::path&)>& populate,
-                              std::span<const std::string> modules, ui::IUserInterface* ui) {
+codegen::ToolRuntime BuildTool(const std::filesystem::path& root,
+                               const std::function<void(const std::filesystem::path&)>& populate,
+                               std::span<const std::string> modules, ui::IUserInterface* ui) {
   if (populate) {
     populate(root);
   }
@@ -197,12 +197,13 @@ u32 Caller::Spawn(std::function<void(Caller&)> body, u32 creation_flags) {
   return Load32(handle_ptr);
 }
 
-KernelFixture::ThreadDrain::ThreadDrain() : baseline(platform::detail::LiveCount()) {}
+KernelFixture::ThreadDrain::ThreadDrain() : baseline(platform::detail::ThreadCount()) {}
 
 KernelFixture::ThreadDrain::~ThreadDrain() {
   platform::detail::ShutdownTimerQueue();
   const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(10);
-  while (platform::detail::LiveCount() > baseline && std::chrono::steady_clock::now() < deadline) {
+  while (platform::detail::ThreadCount() > baseline &&
+         std::chrono::steady_clock::now() < deadline) {
     std::this_thread::sleep_for(std::chrono::milliseconds(1));
   }
 }
@@ -220,7 +221,7 @@ KernelFixture::TempRoot::~TempRoot() {
 
 KernelFixture::KernelFixture(const std::function<void(const std::filesystem::path&)>& populate,
                              std::span<const std::string> modules, ui::IUserInterface* ui)
-    : tool_((ReleaseTestMemory(), MakeTool(root_.path, populate, modules, ui))) {
+    : tool_((ReleaseTestMemory(), BuildTool(root_.path, populate, modules, ui))) {
   auto* dispatcher = runtime().function_dispatcher();
   REQUIRE(dispatcher->InitializeFunctionTable(kCodeBase, kCodeSize, kCodeBase, kImageSize,
                                               /*is_entrypoint=*/true));

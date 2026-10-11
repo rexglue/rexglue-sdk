@@ -52,7 +52,7 @@ class ActiveDeviceTracker {
   void Forget(DeviceId id);
 
  private:
-  std::array<DeviceId, kMaxGuestUsers> active_ = {};
+  std::array<DeviceId, kMaxTitleUsers> active_ = {};
 };
 
 }  // namespace rex::hid

@@ -39,7 +39,7 @@ class KeyboardMouseDriver;
  * pointer state and applies the pointer mode through the input host. Holds 1 keyboard and mouse
  * driver and 1 idle pad driver behind the pad drivers a module adds.
  */
-class Hub final : public IBackend, public NonCopyable {
+class Hub final : public IHIDBackend, public NonCopyable {
  public:
   Hub();
   ~Hub() override;
@@ -125,9 +125,9 @@ class Hub final : public IBackend, public NonCopyable {
   ActiveDeviceTracker active_devices_;
   std::vector<DeviceInfo> devices_;
   std::vector<Driver*> device_owners_;
-  std::bitset<kMaxGuestUsers> connected_users_;
-  std::array<std::pair<JoystickValue, JoystickValue>, kMaxGuestUsers> user_max_joystick_value_{};
-  std::array<u16, kMaxGuestUsers> consumed_buttons_{};
+  std::bitset<kMaxTitleUsers> connected_users_;
+  std::array<std::pair<JoystickValue, JoystickValue>, kMaxTitleUsers> user_max_joystick_value_{};
+  std::array<u16, kMaxTitleUsers> consumed_buttons_{};
   std::atomic<i32> ui_blocks_{0};
   rex::MoveOnlyFunction<void(u32, bool)> connection_listener_;
 

@@ -19,7 +19,7 @@ namespace {
 constexpr u32 kSyntheticOrdinal = UINT32_MAX;
 
 rex::Error NotConnected() {
-  return MakeError(Error::NotConnected, "no device answers for the user");
+  return BuildError(HIDError::NotConnected, "no device answers for the user");
 }
 
 u32 ButtonBit(MouseButton button) {
@@ -202,7 +202,7 @@ Result<X_INPUT_CAPABILITIES> Hub::GetCapabilities(u32 user, u32 flags) {
 }
 
 void Hub::UpdateConnectedUserLocked(u32 user, bool connected) {
-  if (user >= kMaxGuestUsers || connected_users_.test(user) == connected) {
+  if (user >= kMaxTitleUsers || connected_users_.test(user) == connected) {
     return;
   }
   connected_users_.set(user, connected);
@@ -245,7 +245,7 @@ Result<X_INPUT_STATE> Hub::GetState(u32 user) {
     return X_INPUT_STATE{};
   }
   auto state = ReadStateLocked(user);
-  if (state && user < kMaxGuestUsers && consumed_buttons_[user] != 0) {
+  if (state && user < kMaxTitleUsers && consumed_buttons_[user] != 0) {
     const u16 buttons = state->gamepad.buttons;
     consumed_buttons_[user] &= buttons;
     state->gamepad.buttons = static_cast<u16>(buttons & ~consumed_buttons_[user]);
@@ -299,7 +299,7 @@ void Hub::AcquireUIBlock() {
 void Hub::ReleaseUIBlock() {
   std::lock_guard lock(mutex_);
   // Held buttons stay masked until released so the dismissing press never reaches the title.
-  for (u32 user = 0; user < kMaxGuestUsers; user++) {
+  for (u32 user = 0; user < kMaxTitleUsers; user++) {
     if (auto state = ReadStateLocked(user)) {
       consumed_buttons_[user] |= static_cast<u16>(state->gamepad.buttons);
     }
@@ -308,7 +308,7 @@ void Hub::ReleaseUIBlock() {
 }
 
 void Hub::AdjustDeadzoneLevels(u32 user, X_INPUT_GAMEPAD& gamepad) const {
-  if (user >= kMaxGuestUsers) {
+  if (user >= kMaxTitleUsers) {
     return;
   }
 
@@ -418,11 +418,11 @@ Result<X_INPUT_KEYSTROKE> Hub::GetKeystroke(u32 user, u32 flags) {
       keystroke->user_index = static_cast<u8>(user);
       return keystroke;
     }
-    if (CodeOf(keystroke.error()) != Error::NotConnected) {
+    if (CodeOf(keystroke.error()) != HIDError::NotConnected) {
       any_connected = true;
     }
   }
-  return std::unexpected(any_connected ? MakeError(Error::Empty, "no keystroke is queued")
+  return std::unexpected(any_connected ? BuildError(HIDError::Empty, "no keystroke is queued")
                                        : NotConnected());
 }
 

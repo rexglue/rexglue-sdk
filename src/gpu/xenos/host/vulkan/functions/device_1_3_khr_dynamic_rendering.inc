@@ -8,5 +8,5 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-REXVK_FUNCTION_PROMOTED(vkCmdBeginRenderingKHR, vkCmdBeginRendering)
-REXVK_FUNCTION_PROMOTED(vkCmdEndRenderingKHR, vkCmdEndRendering)
+REX_VK_FUNCTION_PROMOTED(vkCmdBeginRenderingKHR, vkCmdBeginRendering)
+REX_VK_FUNCTION_PROMOTED(vkCmdEndRenderingKHR, vkCmdEndRendering)

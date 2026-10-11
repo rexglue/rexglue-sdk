@@ -60,7 +60,7 @@ Result<ToolRuntime> OpenToolRuntime(const std::filesystem::path& game_root,
                     filesystem::IFileSystem::kInterfaceVersion));
   }
   auto runtime = std::make_unique<Runtime>(api->config());
-  auto setup = runtime->Setup(RuntimeConfig{
+  auto setup = runtime->Setup(RuntimeDesc{
       .file_system = file_system,
       .kernel_init = kernel::InitializeKernel,
       .tool_mode = true,

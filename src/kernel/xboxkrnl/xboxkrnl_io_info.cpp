@@ -9,6 +9,7 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
+#include <rex/hash.h>
 #include <rex/filesystem.h>
 #include <rex/kernel/xboxkrnl/private.h>
 #include <rex/logging.h>
@@ -18,11 +19,11 @@
 #include <rex/runtime/info/file.h>
 #include <rex/runtime/info/volume.h>
 #include <rex/runtime.h>
-#include <rex/runtime/util/string_utils.h>
-#include <rex/runtime/xevent.h>
-#include <rex/runtime/xfile.h>
-#include <rex/runtime/xiocompletion.h>
-#include <rex/runtime/xsymboliclink.h>
+#include <rex/runtime/kernel_string.h>
+#include <rex/runtime/event_object.h>
+#include <rex/runtime/file_object.h>
+#include <rex/runtime/io_completion_object.h>
+#include <rex/runtime/symbolic_link_object.h>
 #include <rex/runtime/xthread.h>
 #include <rex/runtime/xtypes.h>
 #include "kernel/kernel_macros.h"
@@ -120,7 +121,7 @@ u32 NtQueryInformationFile_entry(u32 file_handle, ppc_ptr_t<X_IO_STATUS_BLOCK> i
   switch (info_class) {
     case XFileInternalInformation: {
       auto info = info_ptr.as<X_FILE_INTERNAL_INFORMATION*>();
-      info->index_number = rex::memory::hash_combine(0, file->file->Info().path);
+      info->index_number = rex::hash_combine(0, file->file->Info().path);
       out_length = sizeof(*info);
       break;
     }
@@ -133,7 +134,7 @@ u32 NtQueryInformationFile_entry(u32 file_handle, ppc_ptr_t<X_IO_STATUS_BLOCK> i
     case XFileSectorInformation: {
       REX_KERNEL_STUB("XFileSectorInformation");
       auto info = info_ptr.as<u32*>();
-      size_t fname_hash = rex::memory::hash_combine(82589933LL, file->file->Info().path);
+      size_t fname_hash = rex::hash_combine(82589933LL, file->file->Info().path);
       *info = static_cast<u32>(fname_hash ^ (fname_hash >> 32));
       out_length = sizeof(u32);
       break;
@@ -276,7 +277,8 @@ u32 NtSetInformationFile_entry(u32 file_handle, ppc_ptr_t<X_IO_STATUS_BLOCK> io_
     }
     case XFileRenameInformation: {
       auto info = info_ptr.as<X_FILE_RENAME_INFORMATION*>();
-      auto target_path = util::TranslateAnsiPath(runtime::Current().memory(), &info->ansi_string);
+      auto target_path =
+          runtime::TranslateAnsiPath(runtime::Current().memory(), &info->ansi_string);
       if (!IsValidPath(target_path, false)) {
         return X_STATUS_OBJECT_NAME_INVALID;
       }

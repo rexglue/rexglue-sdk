@@ -40,7 +40,7 @@ enum class XEXKey : u8 {
 /** Section kind and page count of 1 XEX page descriptor. */
 struct XEXPageRange {
   /** Code, data or read only data. */
-  xex2_section_type type = XEX_SECTION_CODE;
+  XEXSectionType type = XEX_SECTION_CODE;
   /** Number of pages the range covers. */
   u32 page_count = 0;
 };
@@ -53,7 +53,7 @@ struct XEXSecurityInfo {
   std::array<u8, 0x10> aes_key{};
   /** Image size the security info stores. */
   u32 image_size = 0;
-  /** `xex2_image_flags` bits. */
+  /** `XEXImageFlags` bits. */
   u32 image_flags = 0;
   /** Guest address of the export table, 0 for none. */
   u32 export_table = 0;
@@ -70,9 +70,9 @@ struct XEXImportLibrary {
   /** Library ID. */
   u32 id = 0;
   /** Library version. */
-  xe_xex2_version_t version{};
+  XEXVersion version{};
   /** Minimum library version. */
-  xe_xex2_version_t min_version{};
+  XEXVersion min_version{};
   /** Guest addresses of the import records. */
   std::vector<u32> records;
 };
@@ -105,7 +105,7 @@ struct PEInfo {
  * @return The entry, or nothing when the key is absent or the table is out of range.
  */
 REX_API std::optional<XEXOptHeaderEntry> FindOptHeaderEntry(std::span<const u8> header,
-                                                            xex2_header_keys key);
+                                                            XEXHeaderKey key);
 
 /** Parsed XEX header, security info and import libraries. */
 class REX_API XEXImage : public MoveOnly {
@@ -126,7 +126,7 @@ class REX_API XEXImage : public MoveOnly {
    *
    * @return The byte swapped XEX header at the start of the file.
    */
-  const xex2_header& header() const;
+  const XEXHeader& header() const;
 
   /**
    * Returns the header bytes.
@@ -143,7 +143,7 @@ class REX_API XEXImage : public MoveOnly {
    * @return The data, or null when absent or out of range.
    */
   template <typename T>
-  const T* OptHeader(xex2_header_keys key) const {
+  const T* OptHeader(XEXHeaderKey key) const {
     return static_cast<const T*>(FindOptHeader(key));
   }
 
@@ -153,7 +153,7 @@ class REX_API XEXImage : public MoveOnly {
    * @param key The header key.
    * @return The value, or nothing when absent.
    */
-  std::optional<u32> OptHeaderValue(xex2_header_keys key) const;
+  std::optional<u32> OptHeaderValue(XEXHeaderKey key) const;
 
   /**
    * Returns the security info.
@@ -225,11 +225,11 @@ class REX_API XEXImage : public MoveOnly {
   [[nodiscard]] Result<void> ApplyImageDelta(const XEXImage& patch, std::span<u8> image) const;
 
  private:
-  const void* FindOptHeader(xex2_header_keys key) const;
+  const void* FindOptHeader(XEXHeaderKey key) const;
   [[nodiscard]] Result<void> ReadHeader();
   [[nodiscard]] Result<void> ReadSecurityInfo();
   [[nodiscard]] Result<void> ReadImports();
-  [[nodiscard]] Result<void> DecodeWith(const xex2_opt_file_format_info& format,
+  [[nodiscard]] Result<void> DecodeWith(const XEXOptFileFormatInfo& format,
                                         std::span<const u8> data, std::span<u8> image) const;
   XEXImage Clone() const;
 

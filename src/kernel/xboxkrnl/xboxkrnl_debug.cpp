@@ -52,7 +52,7 @@ void HandleSetThreadName(ppc_ptr_t<X_EXCEPTION_RECORD> record) {
   ThreadPin thread;
   if (thread_info->thread_id == ~u32{0}) {
     thread =
-        runtime::Current().thread_registry().Find(ThreadRecord::GetCurrentThread()->thread_id());
+        runtime::Current().thread_registry().Find(KernelThread::GetCurrentThread()->thread_id());
   } else {
     thread = runtime::Current().thread_registry().Find(thread_info->thread_id);
   }

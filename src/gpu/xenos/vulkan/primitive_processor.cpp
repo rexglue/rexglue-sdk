@@ -18,7 +18,7 @@
 #include "gpu/xenos/vulkan/deferred_command_buffer.h"
 #include "gpu/xenos/vulkan/primitive_processor.h"
 #include <rex/logging.h>
-#include "gpu/xenos/host/vulkan/util.h"
+#include "gpu/xenos/host/vulkan/objects.h"
 
 #include "gpu/xenos/cvar_table.h"
 
@@ -65,12 +65,13 @@ void VulkanPrimitiveProcessor::Shutdown(bool from_destructor) {
 
   frame_index_buffers_.clear();
   frame_index_buffer_pool_.reset();
-  gpu::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyBuffer, device,
-                                          builtin_index_buffer_upload_);
-  gpu::vulkan::util::DestroyAndNullHandle(dfn.vkFreeMemory, device,
-                                          builtin_index_buffer_upload_memory_);
-  gpu::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyBuffer, device, builtin_index_buffer_);
-  gpu::vulkan::util::DestroyAndNullHandle(dfn.vkFreeMemory, device, builtin_index_buffer_memory_);
+  gpu::vulkan::objects::DestroyAndNullHandle(dfn.vkDestroyBuffer, device,
+                                             builtin_index_buffer_upload_);
+  gpu::vulkan::objects::DestroyAndNullHandle(dfn.vkFreeMemory, device,
+                                             builtin_index_buffer_upload_memory_);
+  gpu::vulkan::objects::DestroyAndNullHandle(dfn.vkDestroyBuffer, device, builtin_index_buffer_);
+  gpu::vulkan::objects::DestroyAndNullHandle(dfn.vkFreeMemory, device,
+                                             builtin_index_buffer_memory_);
 
   if (!from_destructor) {
     ShutdownCommon();
@@ -83,10 +84,10 @@ void VulkanPrimitiveProcessor::CompletedSubmissionUpdated() {
     const gpu::vulkan::VulkanDevice* const vulkan_device = command_processor_.GetVulkanDevice();
     const gpu::vulkan::VulkanDevice::Functions& dfn = vulkan_device->functions();
     const VkDevice device = vulkan_device->device();
-    gpu::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyBuffer, device,
-                                            builtin_index_buffer_upload_);
-    gpu::vulkan::util::DestroyAndNullHandle(dfn.vkFreeMemory, device,
-                                            builtin_index_buffer_upload_memory_);
+    gpu::vulkan::objects::DestroyAndNullHandle(dfn.vkDestroyBuffer, device,
+                                               builtin_index_buffer_upload_);
+    gpu::vulkan::objects::DestroyAndNullHandle(dfn.vkFreeMemory, device,
+                                               builtin_index_buffer_upload_memory_);
   }
 }
 
@@ -139,10 +140,10 @@ bool VulkanPrimitiveProcessor::InitializeBuiltinIndexBuffer(
   const VkDevice device = vulkan_device->device();
 
   builtin_index_buffer_size_ = VkDeviceSize(size_bytes);
-  if (!gpu::vulkan::util::CreateDedicatedAllocationBuffer(
+  if (!gpu::vulkan::objects::CreateDedicatedAllocationBuffer(
           vulkan_device, builtin_index_buffer_size_,
           VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
-          gpu::vulkan::util::MemoryPurpose::kDeviceLocal, builtin_index_buffer_,
+          gpu::vulkan::objects::MemoryPurpose::kDeviceLocal, builtin_index_buffer_,
           builtin_index_buffer_memory_)) {
     REX_FAIL(gpu, false,
              "Vulkan primitive processor: Failed to create the built-in index "
@@ -150,16 +151,17 @@ bool VulkanPrimitiveProcessor::InitializeBuiltinIndexBuffer(
              size_bytes);
   }
   u32 upload_memory_type;
-  if (!gpu::vulkan::util::CreateDedicatedAllocationBuffer(
+  if (!gpu::vulkan::objects::CreateDedicatedAllocationBuffer(
           vulkan_device, builtin_index_buffer_size_, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-          gpu::vulkan::util::MemoryPurpose::kUpload, builtin_index_buffer_upload_,
+          gpu::vulkan::objects::MemoryPurpose::kUpload, builtin_index_buffer_upload_,
           builtin_index_buffer_upload_memory_, &upload_memory_type)) {
     REXLOG_ERROR(gpu,
                  "Vulkan primitive processor: Failed to create the built-in index "
                  "buffer upload resource with {} bytes",
                  size_bytes);
-    gpu::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyBuffer, device, builtin_index_buffer_);
-    gpu::vulkan::util::DestroyAndNullHandle(dfn.vkFreeMemory, device, builtin_index_buffer_memory_);
+    gpu::vulkan::objects::DestroyAndNullHandle(dfn.vkDestroyBuffer, device, builtin_index_buffer_);
+    gpu::vulkan::objects::DestroyAndNullHandle(dfn.vkFreeMemory, device,
+                                               builtin_index_buffer_memory_);
     return false;
   }
 
@@ -170,17 +172,18 @@ bool VulkanPrimitiveProcessor::InitializeBuiltinIndexBuffer(
                  "Vulkan primitive processor: Failed to map the built-in index buffer "
                  "upload resource with {} bytes",
                  size_bytes);
-    gpu::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyBuffer, device,
-                                            builtin_index_buffer_upload_);
-    gpu::vulkan::util::DestroyAndNullHandle(dfn.vkFreeMemory, device,
-                                            builtin_index_buffer_upload_memory_);
-    gpu::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyBuffer, device, builtin_index_buffer_);
-    gpu::vulkan::util::DestroyAndNullHandle(dfn.vkFreeMemory, device, builtin_index_buffer_memory_);
+    gpu::vulkan::objects::DestroyAndNullHandle(dfn.vkDestroyBuffer, device,
+                                               builtin_index_buffer_upload_);
+    gpu::vulkan::objects::DestroyAndNullHandle(dfn.vkFreeMemory, device,
+                                               builtin_index_buffer_upload_memory_);
+    gpu::vulkan::objects::DestroyAndNullHandle(dfn.vkDestroyBuffer, device, builtin_index_buffer_);
+    gpu::vulkan::objects::DestroyAndNullHandle(dfn.vkFreeMemory, device,
+                                               builtin_index_buffer_memory_);
     return false;
   }
   fill_callback(mapping);
-  gpu::vulkan::util::FlushMappedMemoryRange(vulkan_device, builtin_index_buffer_memory_,
-                                            upload_memory_type);
+  gpu::vulkan::objects::FlushMappedMemoryRange(vulkan_device, builtin_index_buffer_memory_,
+                                               upload_memory_type);
   dfn.vkUnmapMemory(device, builtin_index_buffer_upload_memory_);
 
   builtin_index_buffer_upload_submission_ = UINT64_MAX;

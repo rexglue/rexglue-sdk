@@ -44,14 +44,14 @@ bool IsNeutral(const X_INPUT_GAMEPAD& gamepad) {
 }
 
 void ActiveDeviceTracker::Observe(u32 user_index, DeviceId id, const X_INPUT_GAMEPAD& gamepad) {
-  if (user_index >= kMaxGuestUsers || IsNeutral(gamepad)) {
+  if (user_index >= kMaxTitleUsers || IsNeutral(gamepad)) {
     return;
   }
   active_[user_index] = id;
 }
 
 DeviceId ActiveDeviceTracker::Active(u32 user_index) const {
-  if (user_index >= kMaxGuestUsers) {
+  if (user_index >= kMaxTitleUsers) {
     return DeviceId::kInvalid;
   }
   return active_[user_index];

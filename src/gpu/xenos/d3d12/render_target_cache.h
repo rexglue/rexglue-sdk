@@ -26,13 +26,13 @@
 #include "gpu/xenos/d3d12/shared_memory.h"
 #include "gpu/xenos/d3d12/texture_cache.h"
 #include "gpu/xenos/pipeline/render_target/cache.h"
-#include "gpu/xenos/util/draw.h"
+#include "gpu/xenos/draw_state.h"
 #include <rex/xenos/xenos.h>
 #include <rex/memory.h>
 #include "gpu/xenos/host/d3d12/d3d12_cpu_descriptor_pool.h"
 #include "gpu/xenos/host/d3d12/d3d12_provider.h"
 #include "gpu/xenos/host/d3d12/d3d12_upload_buffer_pool.h"
-#include "gpu/xenos/host/d3d12/d3d12_util.h"
+#include "gpu/xenos/host/d3d12/d3d12_objects.h"
 namespace rex::gpu::d3d12 {
 
 class D3D12CommandProcessor;
@@ -74,11 +74,11 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
 
   bool msaa_2x_supported() const { return msaa_2x_supported_; }
 
-  void WriteEdramRawSRVDescriptor(D3D12_CPU_DESCRIPTOR_HANDLE handle);
-  void WriteEdramRawUAVDescriptor(D3D12_CPU_DESCRIPTOR_HANDLE handle);
-  void WriteEdramUintPow2SRVDescriptor(D3D12_CPU_DESCRIPTOR_HANDLE handle,
+  void WriteEDRAMRawSRVDescriptor(D3D12_CPU_DESCRIPTOR_HANDLE handle);
+  void WriteEDRAMRawUAVDescriptor(D3D12_CPU_DESCRIPTOR_HANDLE handle);
+  void WriteEDRAMUintPow2SRVDescriptor(D3D12_CPU_DESCRIPTOR_HANDLE handle,
                                        u32 element_size_bytes_pow2);
-  void WriteEdramUintPow2UAVDescriptor(D3D12_CPU_DESCRIPTOR_HANDLE handle,
+  void WriteEDRAMUintPow2UAVDescriptor(D3D12_CPU_DESCRIPTOR_HANDLE handle,
                                        u32 element_size_bytes_pow2);
 
   /**
@@ -137,18 +137,18 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
 
  private:
   /** Ordered by how strong the barrier conditions are. */
-  enum class EdramBufferModificationStatus : u8 {
+  enum class EDRAMBufferModificationStatus : u8 {
     kUnmodified,
     /** Needs a commit before the next overlapping ROV usage. */
     kAsROV,
     /** Needs a commit before any next ROV usage. */
     kAsUAV,
   };
-  void TransitionEdramBuffer(D3D12_RESOURCE_STATES new_state);
-  void MarkEdramBufferModified(
-      EdramBufferModificationStatus modification_status = EdramBufferModificationStatus::kAsUAV);
-  void CommitEdramBufferUAVWrites(
-      EdramBufferModificationStatus commit_status = EdramBufferModificationStatus::kAsROV);
+  void TransitionEDRAMBuffer(D3D12_RESOURCE_STATES new_state);
+  void MarkEDRAMBufferModified(
+      EDRAMBufferModificationStatus modification_status = EDRAMBufferModificationStatus::kAsUAV);
+  void CommitEDRAMBufferUAVWrites(
+      EDRAMBufferModificationStatus commit_status = EDRAMBufferModificationStatus::kAsROV);
 
   D3D12CommandProcessor& command_processor_;
   bool bindless_resources_used_;
@@ -163,11 +163,11 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
    */
   ID3D12Resource* edram_buffer_ = nullptr;
   D3D12_RESOURCE_STATES edram_buffer_state_;
-  EdramBufferModificationStatus edram_buffer_modification_status_ =
-      EdramBufferModificationStatus::kUnmodified;
+  EDRAMBufferModificationStatus edram_buffer_modification_status_ =
+      EDRAMBufferModificationStatus::kUnmodified;
 
   /** Pre-created SRV and UAV descriptors of the EDRAM buffer in a non shader visible heap. */
-  enum class EdramBufferDescriptorIndex : u8 {
+  enum class EDRAMBufferDescriptorIndex : u8 {
     kRawSRV,
     kR32UintSRV,
     kR32G32UintSRV,
@@ -183,7 +183,7 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
   D3D12_CPU_DESCRIPTOR_HANDLE edram_buffer_descriptor_heap_start_;
 
   /**
-   * Resolve copying root signature. Parameter 0 is draw_util::ResolveCopyShaderConstants or its
+   * Resolve copying root signature. Parameter 0 is draw_state::ResolveCopyShaderConstants or its
    * DestRelative, parameter 1 the destination (shared memory or a part of it), parameter 2 the
    * source (EDRAM).
    */
@@ -195,9 +195,9 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
     size_t scaled_size;
   };
   static const ResolveCopyShaderCode
-      kResolveCopyShaders[static_cast<size_t>(draw_util::ResolveCopyShaderIndex::kCount)];
+      kResolveCopyShaders[static_cast<size_t>(draw_state::ResolveCopyShaderIndex::kCount)];
   ID3D12PipelineState*
-      resolve_copy_pipelines_[static_cast<size_t>(draw_util::ResolveCopyShaderIndex::kCount)] = {};
+      resolve_copy_pipelines_[static_cast<size_t>(draw_state::ResolveCopyShaderIndex::kCount)] = {};
 
   class D3D12RenderTarget final : public RenderTarget {
    public:
@@ -552,7 +552,7 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
     /** May be different for different sources. */
     kDumpRootParameterColorPitches = kDumpRootParameterSource + 1,
     /** Only changed between 32bpp and 64bpp. */
-    kDumpRootParameterColorEdram,
+    kDumpRootParameterColorEDRAM,
 
     kDumpRootParameterColorCount,
 
@@ -562,7 +562,7 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
      */
     kDumpRootParameterDepthStencil = kDumpRootParameterSource + 1,
     kDumpRootParameterDepthPitches,
-    kDumpRootParameterDepthEdram,
+    kDumpRootParameterDepthEDRAM,
 
     kDumpRootParameterDepthCount,
   };
@@ -601,7 +601,7 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
   };
 
   struct DirectResolvePushConstants {
-    draw_util::ResolveCopyShaderConstants resolve;
+    draw_state::ResolveCopyShaderConstants resolve;
     u32 source_base_tiles;
     u32 source_pitch_tiles;
     u32 dispatch_first_tile;
@@ -609,7 +609,7 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
 
   struct DirectResolvePipelineKey {
     DumpPipelineKey dump_pipeline_key;
-    draw_util::ResolveCopyShaderIndex copy_shader;
+    draw_state::ResolveCopyShaderIndex copy_shader;
     bool draw_resolution_scaled;
 
     u64 packed() const {
@@ -698,13 +698,13 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
    */
   ID3D12PipelineState* GetOrCreateDumpPipeline(DumpPipelineKey key);
   ID3D12PipelineState* GetOrCreateDirectResolvePipeline(DirectResolvePipelineKey key);
-  bool TryResolveCopyDirectly(const draw_util::ResolveInfo& resolve_info,
-                              draw_util::ResolveCopyShaderIndex copy_shader,
+  bool TryResolveCopyDirectly(const draw_state::ResolveInfo& resolve_info,
+                              draw_state::ResolveCopyShaderIndex copy_shader,
                               bool draw_resolution_scaled);
 
   /**
    * Writes contents of host render targets within rectangles from
-   * ResolveInfo::GetCopyEdramTileSpan to edram_buffer_.
+   * ResolveInfo::GetCopyEDRAMTileSpan to edram_buffer_.
    *
    * @param dump_base First EDRAM tile to dump.
    * @param dump_row_length_used Used length of a row in tiles.
@@ -736,7 +736,7 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
    * Temporary storage for descriptors of PerformTransfersAndResolveClears and DumpRenderTargets.
    */
   std::vector<D3D12_CPU_DESCRIPTOR_HANDLE> current_temporary_descriptors_cpu_;
-  std::vector<gpu::d3d12::util::DescriptorCpuGpuHandlePair> current_temporary_descriptors_gpu_;
+  std::vector<gpu::d3d12::objects::DescriptorCPUGPUHandlePair> current_temporary_descriptors_gpu_;
 
   ID3D12RootSignature* host_depth_store_root_signature_ = nullptr;
   ID3D12PipelineState*

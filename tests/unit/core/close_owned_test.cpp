@@ -18,7 +18,7 @@
 #include <rex/logging.h>
 #include <rex/runtime.h>
 #include <rex/runtime/object_table.h>
-#include <rex/runtime/xobject.h>
+#include <rex/runtime/object.h>
 
 #include "kernel/kernel_fixture.h"
 
@@ -49,10 +49,10 @@ REX_TEST_CASE("CloseOwned logs a handle that does not close", "[runtime][close_o
   rex::log::CaptureSink sink;
   logger->AddSink(sink);
   fixture.RunOnGuestThread([](Caller& c) { CloseOwned(c.runtime().object_table(), 0xF8FFFFF0); });
-  std::vector<rex::log::CapturedRecord> records;
-  sink.CopySince(0, records);
+  std::vector<rex::log::CapturedMessage> messages;
+  sink.CopySince(0, messages);
   logger->RemoveSink(sink);
-  CHECK(std::ranges::any_of(records, [](const rex::log::CapturedRecord& record) {
-    return record.text.starts_with("Handle F8FFFFF0 did not close, ");
+  CHECK(std::ranges::any_of(messages, [](const rex::log::CapturedMessage& message) {
+    return message.text.starts_with("Handle F8FFFFF0 did not close, ");
   }));
 }

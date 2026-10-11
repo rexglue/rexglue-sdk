@@ -3,7 +3,7 @@
 
 #include <rex/types.h>
 
-namespace rex::codegen::ppc {
+namespace rex::codegen::detail {
 
 constexpr u32 SPR_LR = 8;
 constexpr u32 SPR_CTR = 9;
@@ -147,4 +147,4 @@ std::string Instruction::to_string() const {
   const auto& info = get_opcode_info(opcode);
   return std::string(info.name);
 }
-}  // namespace rex::codegen::ppc
+}  // namespace rex::codegen::detail

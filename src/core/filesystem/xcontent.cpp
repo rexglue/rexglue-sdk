@@ -117,14 +117,15 @@ void XContentMetadata::set_title_name(std::u16string_view value) {
 
 [[nodiscard]] Result<STFSHeader> ReadSTFSHeader(std::span<const u8> bytes) {
   if (bytes.size() < sizeof(STFSHeader)) {
-    return Err<STFSHeader>(
-        MakeError(Error::kCorrupt, std::format("package header needs {:#x} bytes, {:#x} present",
-                                               sizeof(STFSHeader), bytes.size())));
+    return Err<STFSHeader>(BuildError(FileSystemError::kCorrupt,
+                                      std::format("package header needs {:#x} bytes, {:#x} present",
+                                                  sizeof(STFSHeader), bytes.size())));
   }
   STFSHeader header;
   std::memcpy(&header, bytes.data(), sizeof(STFSHeader));
   if (!header.header.is_magic_valid()) {
-    return Err<STFSHeader>(MakeError(Error::kCorrupt, "package magic is not CON, LIVE or PIRS"));
+    return Err<STFSHeader>(
+        BuildError(FileSystemError::kCorrupt, "package magic is not CON, LIVE or PIRS"));
   }
   return header;
 }
@@ -132,8 +133,8 @@ void XContentMetadata::set_title_name(std::u16string_view value) {
 [[nodiscard]] Result<STFSHeader> ReadSTFSHeader(const std::filesystem::path& path) {
   auto map = memory::MappedMemory::Open(path, memory::MappedMemory::Mode::kRead);
   if (!map) {
-    return Err<STFSHeader>(
-        MakeError(Error::kNotFound, std::format("cannot open '{}'", path_to_utf8(path))));
+    return Err<STFSHeader>(BuildError(FileSystemError::kNotFound,
+                                      std::format("cannot open '{}'", path_to_utf8(path))));
   }
   return ReadSTFSHeader(std::span<const u8>(map->data(), map->size()));
 }

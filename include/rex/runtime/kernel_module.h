@@ -15,7 +15,7 @@
 
 #include <rex/macros.h>
 #include <rex/runtime/exports.h>
-#include <rex/runtime/xmodule.h>
+#include <rex/runtime/module_object.h>
 
 namespace rex {
 class Runtime;
@@ -24,7 +24,7 @@ class Runtime;
 namespace rex::runtime {
 
 /**
- * Creates the `ObjectRecord` of a kernel module with its first handle.
+ * Creates the `KernelObject` of a kernel module with its first handle.
  *
  * @param runtime The runtime the call runs in.
  * @param path The guest path of the module, its name is the file name of the path.

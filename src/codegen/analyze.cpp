@@ -19,42 +19,42 @@ namespace rex::codegen {
 
   if (reporter)
     reporter->phaseChanged("Register");
-  auto regResult = phases::Register(ctx, reporter);
+  auto regResult = detail::Register(ctx, reporter);
   if (!regResult) {
     return regResult;
   }
 
   if (reporter)
     reporter->phaseChanged("Scan");
-  auto scanResult = phases::Scan(ctx, reporter);
+  auto scanResult = detail::Scan(ctx, reporter);
   if (!scanResult) {
     return scanResult;
   }
 
   if (reporter)
     reporter->phaseChanged("Discover");
-  auto discoverResult = phases::Discover(ctx, reporter);
+  auto discoverResult = detail::Discover(ctx, reporter);
   if (!discoverResult) {
     return discoverResult;
   }
 
   if (reporter)
     reporter->phaseChanged("GapFill");
-  auto gapFillResult = phases::GapFill(ctx, reporter);
+  auto gapFillResult = detail::GapFill(ctx, reporter);
   if (!gapFillResult) {
     return gapFillResult;
   }
 
   if (reporter)
     reporter->phaseChanged("Merge");
-  auto mergeResult = phases::Merge(ctx, reporter);
+  auto mergeResult = detail::Merge(ctx, reporter);
   if (!mergeResult) {
     return mergeResult;
   }
 
   if (reporter)
     reporter->phaseChanged("Validate");
-  auto validateResult = phases::Validate(ctx, reporter);
+  auto validateResult = detail::Validate(ctx, reporter);
   if (!validateResult) {
     return validateResult;
   }

@@ -14,7 +14,6 @@
 
 namespace rex {
 namespace runtime {
-namespace xam {
 
 App::App(Runtime& runtime, u32 app_id)
     : runtime_(runtime), memory_(runtime.memory()), app_id_(app_id) {}
@@ -51,6 +50,5 @@ X_HRESULT AppManager::DispatchMessageAsync(u32 app_id, u32 message, u32 buffer_p
   return app->DispatchMessageSync(message, buffer_ptr, buffer_length);
 }
 
-}  // namespace xam
 }  // namespace runtime
 }  // namespace rex

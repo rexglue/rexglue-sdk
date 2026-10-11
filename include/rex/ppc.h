@@ -18,6 +18,6 @@
 #include <rex/ppc/intrinsics.h>
 #include <rex/ppc/stack.h>
 
-using rex::ppc::GuestToHostFunction;
 using rex::ppc::HostToGuestFunction;
 using rex::ppc::ImportFunction;
+using rex::ppc::GuestToHostFunction;

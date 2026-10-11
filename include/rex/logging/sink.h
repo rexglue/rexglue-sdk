@@ -35,9 +35,9 @@ class ISink {
   /**
    * Writes 1 message.
    *
-   * @param record The message.
+   * @param message The message.
    */
-  virtual void Write(const Record& record) = 0;
+  virtual void Write(const Message& message) = 0;
 
   /** Writes buffered output. */
   virtual void Flush() = 0;
@@ -57,9 +57,9 @@ class REX_API ConsoleSink final : public ISink {
   /**
    * Writes 1 message.
    *
-   * @param record The message.
+   * @param message The message.
    */
-  void Write(const Record& record) override;
+  void Write(const Message& message) override;
 
   /** Flushes standard output. */
   void Flush() override;
@@ -89,9 +89,9 @@ class REX_API DebuggerSink final : public ISink {
   /**
    * Writes 1 message.
    *
-   * @param record The message.
+   * @param message The message.
    */
-  void Write(const Record& record) override;
+  void Write(const Message& message) override;
 
   /** Flushes standard error where it is the target. */
   void Flush() override;
@@ -126,9 +126,9 @@ class REX_API FileSink final : public ISink, public NonCopyable {
   /**
    * Writes 1 message.
    *
-   * @param record The message.
+   * @param message The message.
    */
-  void Write(const Record& record) override;
+  void Write(const Message& message) override;
 
   /** Writes buffered output to the file. */
   void Flush() override;
@@ -156,7 +156,7 @@ class REX_API FileSink final : public ISink, public NonCopyable {
 };
 
 /** 1 captured message, owning its text. */
-struct CapturedRecord {
+struct CapturedMessage {
   Level level = Level::kInfo;                 /**< Message level. */
   std::string category;                       /**< Category name. */
   std::string text;                           /**< Formatted message. */
@@ -174,9 +174,9 @@ class REX_API CaptureSink final : public ISink {
   /**
    * Keeps 1 message, dropping the oldest at capacity.
    *
-   * @param record The message.
+   * @param message The message.
    */
-  void Write(const Record& record) override;
+  void Write(const Message& message) override;
 
   /** Does nothing, the messages are in memory. */
   void Flush() override;
@@ -188,7 +188,7 @@ class REX_API CaptureSink final : public ISink {
    * @param out Receives the messages. Cleared first.
    * @return The sequence of the newest message kept, or after when nothing is newer.
    */
-  u64 CopySince(u64 after, std::vector<CapturedRecord>& out) const;
+  u64 CopySince(u64 after, std::vector<CapturedMessage>& out) const;
 
   /**
    * Returns the sequence of the newest message kept.
@@ -199,7 +199,7 @@ class REX_API CaptureSink final : public ISink {
 
  private:
   mutable std::mutex mutex_;
-  std::deque<CapturedRecord> records_;
+  std::deque<CapturedMessage> messages_;
 };
 
 }  // namespace rex::log

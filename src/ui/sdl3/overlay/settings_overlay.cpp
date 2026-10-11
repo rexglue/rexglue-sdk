@@ -60,7 +60,7 @@ static void WarnIfFailed(std::string_view name, const Result<void>& status) {
 static Color LifecycleColor(rex::cvar::Lifecycle lc, const SettingsStyle& style) {
   switch (lc) {
     case rex::cvar::Lifecycle::HotReload:
-      return style.lifecycle_live;
+      return style.lifecycle_hot_reload;
     case rex::cvar::Lifecycle::RequiresRestart:
       return style.lifecycle_restart;
     case rex::cvar::Lifecycle::InitOnly:
@@ -432,7 +432,7 @@ void SettingsDialog::OnDraw(ImGuiIO& io) {
         const char* lifecycle_label = "";
         switch (desc.lifecycle) {
           case rex::cvar::Lifecycle::HotReload:
-            lifecycle_label = "Live - changes apply immediately";
+            lifecycle_label = "Changes apply immediately";
             break;
           case rex::cvar::Lifecycle::RequiresRestart:
             lifecycle_label = "Requires restart to take effect";

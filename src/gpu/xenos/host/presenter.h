@@ -102,9 +102,9 @@ class Presenter : public gpu::IPresenter, public rex::NonCopyable {
    * May run on the UI thread even when statically_from_ui_thread is false, such as when the UI
    * thread refreshes the guest output.
    */
-  using HostGpuLossCallback =
+  using HostGPULossCallback =
       rex::MoveOnlyFunction<void(bool is_responsible, bool statically_from_ui_thread)>;
-  static void FatalErrorHostGpuLossCallback(bool is_responsible, bool statically_from_ui_thread);
+  static void FatalErrorHostGPULossCallback(bool is_responsible, bool statically_from_ui_thread);
 
   class GuestOutputRefreshContext : public rex::NonCopyable {
    public:
@@ -221,8 +221,8 @@ class Presenter : public gpu::IPresenter, public rex::NonCopyable {
     /** Refused for internal reasons or a host API failure, presenting may retry without a reset. */
     kNotPresented,
     kNotPresentedConnectionOutdated,
-    kGpuLostExternally,
-    kGpuLostResponsible,
+    kGPULostExternally,
+    kGPULostResponsible,
   };
 
   enum class SurfacePaintConnectResult : u8 {
@@ -306,7 +306,7 @@ class Presenter : public gpu::IPresenter, public rex::NonCopyable {
     }
   };
 
-  explicit Presenter(HostGpuLossCallback host_gpu_loss_callback)
+  explicit Presenter(HostGPULossCallback host_gpu_loss_callback)
       : host_gpu_loss_callback_(std::move(host_gpu_loss_callback)) {}
 
   /**
@@ -584,7 +584,7 @@ class Presenter : public gpu::IPresenter, public rex::NonCopyable {
    * The handler may reinitialize the presenter when called from the UI thread, even when the UI
    * thread argument is false, such as when the UI thread refreshes the guest output.
    */
-  HostGpuLossCallback host_gpu_loss_callback_;
+  HostGPULossCallback host_gpu_loss_callback_;
 
   /**
    * Accessed by the guest output thread when the paint mode is not kNone, to request painting

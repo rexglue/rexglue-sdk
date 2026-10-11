@@ -47,15 +47,18 @@ REX_TEST_CASE("ToXStatus maps a Result", "[runtime][error]") {
 }
 
 REX_TEST_CASE("ToXStatus keeps the filesystem mapping", "[runtime][error]") {
-  using rex::filesystem::Error;
-  using rex::filesystem::MakeError;
-  CHECK(rt::ToXStatus(MakeError(Error::kNotFound, "a")) == rex::X_STATUS_NO_SUCH_FILE);
-  CHECK(rt::ToXStatus(MakeError(Error::kExists, "a")) == rex::X_STATUS_OBJECT_NAME_COLLISION);
-  CHECK(rt::ToXStatus(MakeError(Error::kUnsupported, "a"), rex::X_STATUS_NOT_SUPPORTED) ==
-        rex::X_STATUS_NOT_SUPPORTED);
-  CHECK(rt::ToXStatus(MakeError(Error::kIO, "a")) == rex::X_STATUS_UNSUCCESSFUL);
-  CHECK(rt::ToXStatus(MakeError(Error::kSharingViolation, "a")) == rex::X_STATUS_SHARING_VIOLATION);
-  CHECK(rt::ToXStatus(MakeError(Error::kNotSameDevice, "a")) == rex::X_STATUS_NOT_SAME_DEVICE);
+  using rex::filesystem::BuildError;
+  using rex::filesystem::FileSystemError;
+  CHECK(rt::ToXStatus(BuildError(FileSystemError::kNotFound, "a")) == rex::X_STATUS_NO_SUCH_FILE);
+  CHECK(rt::ToXStatus(BuildError(FileSystemError::kExists, "a")) ==
+        rex::X_STATUS_OBJECT_NAME_COLLISION);
+  CHECK(rt::ToXStatus(BuildError(FileSystemError::kUnsupported, "a"),
+                      rex::X_STATUS_NOT_SUPPORTED) == rex::X_STATUS_NOT_SUPPORTED);
+  CHECK(rt::ToXStatus(BuildError(FileSystemError::kIO, "a")) == rex::X_STATUS_UNSUCCESSFUL);
+  CHECK(rt::ToXStatus(BuildError(FileSystemError::kSharingViolation, "a")) ==
+        rex::X_STATUS_SHARING_VIOLATION);
+  CHECK(rt::ToXStatus(BuildError(FileSystemError::kNotSameDevice, "a")) ==
+        rex::X_STATUS_NOT_SAME_DEVICE);
 }
 
 REX_TEST_CASE("ToXResult maps another category to the fallback", "[runtime][error]") {

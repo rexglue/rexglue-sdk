@@ -23,7 +23,7 @@
 
 namespace rex::codegen {
 
-using DecodedInsn = rex::codegen::ppc::Instruction;
+using DecodedInsn = rex::codegen::detail::Instruction;
 
 class InsnRange {
  public:
@@ -237,7 +237,7 @@ inline bool isReturn(const DecodedInsn& insn) {
  * @return True when it is a terminator.
  */
 inline bool isTerminator(const DecodedInsn& insn) {
-  return rex::codegen::ppc::is_terminator_instruction(insn.opcode);
+  return rex::codegen::detail::is_terminator_instruction(insn.opcode);
 }
 
 /**
@@ -257,7 +257,7 @@ inline bool isConditional(const DecodedInsn& insn) {
  * @return True when it is lis.
  */
 inline bool isLis(const DecodedInsn& insn) {
-  return insn.opcode == rex::codegen::ppc::Opcode::lis;
+  return insn.opcode == rex::codegen::detail::Opcode::lis;
 }
 
 /**
@@ -279,7 +279,7 @@ inline std::optional<u32> getBranchTarget(const DecodedInsn& insn) {
 inline bool isInvalid(const DecodedInsn& insn) {
   u32 raw = static_cast<u32>(insn.code);
   return raw == 0x00000000 || raw == 0xFFFFFFFF ||
-         insn.opcode == rex::codegen::ppc::Opcode::kUnknown;
+         insn.opcode == rex::codegen::detail::Opcode::kUnknown;
 }
 
 }  // namespace rex::codegen

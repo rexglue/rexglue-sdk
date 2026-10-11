@@ -13,6 +13,7 @@
 
 #pragma once
 
+#include <bit>
 #include <climits>
 #include <cstddef>
 #include <cstdint>
@@ -294,6 +295,46 @@ constexpr E& operator^=(E& lhs, E rhs) {
 template <FlagsEnum E>
 [[nodiscard]] constexpr bool HasFlags(E value, E flags) {
   return (value & flags) == flags;
+}
+
+/**
+ * Restrict qualifier for variable declarations. Not for return values or the this pointer.
+ *
+ * @code
+ * void Copy(u8* REX_RESTRICT_VAR dst, const u8* REX_RESTRICT_VAR src);
+ * @endcode
+ */
+#define REX_RESTRICT_VAR __restrict
+
+/**
+ * Copies the bits of 1 trivially copyable object into another of the same size.
+ *
+ * @tparam Dst Destination type.
+ * @tparam Src Source type, the same size as Dst.
+ * @param dst Object that receives the bits.
+ * @param src Object the bits come from.
+ */
+template <typename Dst, typename Src>
+void Reinterpret(Dst& REX_RESTRICT_VAR dst, const Src& REX_RESTRICT_VAR src) {
+  static_assert(sizeof(Dst) == sizeof(Src));
+  static_assert(std::is_trivially_copyable_v<Dst>);
+  static_assert(std::is_trivially_copyable_v<Src>);
+  dst = std::bit_cast<Dst>(src);
+}
+
+/**
+ * Returns the bits of a trivially copyable object as another type of the same size.
+ *
+ * @tparam Dst Result type.
+ * @tparam Src Source type, the same size as Dst.
+ * @param src Object the bits come from.
+ * @return A Dst holding the bits of src.
+ */
+template <typename Dst, typename Src>
+Dst Reinterpret(const Src& REX_RESTRICT_VAR src) {
+  Dst dst;
+  Reinterpret(dst, src);
+  return dst;
 }
 
 }  // namespace rex

@@ -35,7 +35,7 @@ class PresentationSink final : public rex::log::ISink {
  public:
   PresentationSink(std::ostream& out, bool tty, bool color);
 
-  void Write(const rex::log::Record& record) override;
+  void Write(const rex::log::Message& message) override;
   void Flush() override;
 
   bool tty() const { return tty_; }

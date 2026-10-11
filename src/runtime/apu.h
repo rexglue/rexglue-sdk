@@ -43,7 +43,7 @@ class REX_RUNTIME_API APU : public NonCopyable {
    * @param backend The audio output the clients play to.
    * @param max_queued_frames Credits each client starts with, 4 to 64.
    */
-  APU(Runtime& runtime, apu::IBackend& backend, u32 max_queued_frames);
+  APU(Runtime& runtime, apu::IAPUBackend& backend, u32 max_queued_frames);
 
   /** Shuts down. */
   ~APU();
@@ -112,7 +112,7 @@ class REX_RUNTIME_API APU : public NonCopyable {
    *
    * @return The backend.
    */
-  apu::IBackend& backend() { return backend_; }
+  apu::IAPUBackend& backend() { return backend_; }
 
   /**
    * Returns the credits a slot holds. Test seam.
@@ -142,7 +142,7 @@ class REX_RUNTIME_API APU : public NonCopyable {
   void WorkerMain();
 
   Runtime& runtime_;
-  apu::IBackend& backend_;
+  apu::IAPUBackend& backend_;
   u32 queued_frames_;
   std::unique_ptr<XMADecoder> xma_decoder_;
   std::atomic<bool> worker_running_{false};

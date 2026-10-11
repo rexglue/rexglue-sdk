@@ -27,10 +27,10 @@
 #include <rex/platform/fiber.h>
 #include <rex/runtime/pin_count.h>
 #include <rex/runtime/thread_state.h>
-#include <rex/runtime/util/native_list.h>
-#include <rex/runtime/xobject.h>
-#include <rex/runtime/xsemaphore.h>
-#include <rex/runtime/xtimer.h>
+#include <rex/runtime/kernel_list.h>
+#include <rex/runtime/object.h>
+#include <rex/runtime/semaphore_object.h>
+#include <rex/runtime/timer_object.h>
 #include <rex/runtime/xtypes.h>
 #include <rex/platform/thread.h>
 #include <rex/types.h>
@@ -81,10 +81,10 @@ constexpr u32 X_CREATE_SUSPENDED = 0x00000001;
 constexpr u32 X_TLS_OUT_OF_INDEXES = UINT32_MAX;
 
 /** Guest layout of a deferred procedure call. */
-struct XDPC {
+struct X_KDPC {
   be_u16 type;             /**< Object type, 19 for a DPC. */
-  u8 selected_cpu_number;  /**< 1 while the DPC is queued, else 0. */
-  u8 desired_cpu_number;   /**< Cleared by Initialize and read by no code. */
+  u8 inserted_number;      /**< 1 while the DPC is queued, else 0. */
+  u8 target_number;        /**< Cleared by Initialize and read by no code. */
   X_LIST_ENTRY list_entry; /**< Links the DPC in the processor queue. */
   be_u32 routine;          /**< Guest address of the routine. */
   be_u32 context;          /**< First argument of the routine. */
@@ -99,8 +99,8 @@ struct XDPC {
    */
   void Initialize(u32 guest_func, u32 guest_context) {
     type = 19;
-    selected_cpu_number = 0;
-    desired_cpu_number = 0;
+    inserted_number = 0;
+    target_number = 0;
     list_entry.flink_ptr = 0;
     list_entry.blink_ptr = 0;
     routine = guest_func;
@@ -109,7 +109,9 @@ struct XDPC {
     arg2 = 0;
   }
 };
-REX_STATIC_ASSERT_SIZE(XDPC, 0x1C);
+static_assert(offsetof(X_KDPC, inserted_number) == 0x2);
+static_assert(offsetof(X_KDPC, target_number) == 0x3);
+REX_STATIC_ASSERT_SIZE(X_KDPC, 0x1C);
 
 /** A guest XTHREAD_NOTIFICATION. */
 struct X_THREAD_NOTIFICATION {
@@ -172,9 +174,9 @@ struct X_KPROCESS;
 /** Guest layout of a wait block, which ties a thread to an object it waits on. */
 struct X_KWAIT_BLOCK {
   X_LIST_ENTRY wait_list_entry;
-  TypedGuestPointer<X_KTHREAD> thread;
-  TypedGuestPointer<X_DISPATCH_HEADER> object;
-  TypedGuestPointer<X_KWAIT_BLOCK> next_wait_block;
+  be_ptr<X_KTHREAD> thread;
+  be_ptr<X_DISPATCH_HEADER> object;
+  be_ptr<X_KWAIT_BLOCK> next_wait_block;
   be_u16 wait_result_xstatus;
   be_u16 wait_type;
 };
@@ -182,10 +184,10 @@ REX_STATIC_ASSERT_SIZE(X_KWAIT_BLOCK, 0x18);
 
 /** Guest layout of the processor control block embedded in `X_KPCR`. */
 struct X_KPRCB {
-  TypedGuestPointer<X_KTHREAD> current_thread; /**< Thread running on this processor. */
-  TypedGuestPointer<X_KTHREAD> next_thread;    /**< Thread chosen to run next on this processor. */
-  TypedGuestPointer<X_KTHREAD> idle_thread;    /**< Idle thread of this processor. */
-  u8 current_cpu;                              /**< Index of this processor. */
+  be_ptr<X_KTHREAD> current_thread; /**< Thread running on this processor. */
+  be_ptr<X_KTHREAD> next_thread;    /**< Thread chosen to run next on this processor. */
+  be_ptr<X_KTHREAD> idle_thread;    /**< Idle thread of this processor. */
+  u8 current_cpu;                   /**< Index of this processor. */
   u8 pad_0D[3];
   be_u32 processor_mask;         /**< Mask with only the bit of this processor set. */
   be_u32 dpc_clock;              /**< Ticks this processor spent running DPCs. */
@@ -195,10 +197,10 @@ struct X_KPRCB {
   be_u32 ipi_args[3];            /**< Arguments passed to `ipi_function`. */
   be_u32 targeted_ipi_cpus_mask; /**< Mask of the processors an interprocessor interrupt targets. */
   be_u32 ipi_function; /**< Guest address of the function an interprocessor interrupt runs. */
-  TypedGuestPointer<X_KPRCB> ipi_initiator_prcb; /**< Control block of the sender. */
-  be_u32 request_summary;                        /**< Request summary of this processor. */
-  be_u32 dpc_interrupt_requested;                /**< Nonzero while a DPC interrupt is requested. */
-  be_u32 dpc_lock;                               /**< Lock that guards `queued_dpcs_list_head`. */
+  be_ptr<X_KPRCB> ipi_initiator_prcb; /**< Control block of the sender. */
+  be_u32 request_summary;             /**< Request summary of this processor. */
+  be_u32 dpc_interrupt_requested;     /**< Nonzero while a DPC interrupt is requested. */
+  be_u32 dpc_lock;                    /**< Lock that guards `queued_dpcs_list_head`. */
   X_LIST_ENTRY queued_dpcs_list_head; /**< Head of the list of DPCs queued on this processor. */
   be_u32 dpc_active;                  /**< Nonzero while this processor runs a DPC. */
   X_KSPINLOCK ready_list_lock;        /**< Lock that guards the ready lists of this processor. */
@@ -207,9 +209,9 @@ struct X_KPRCB {
   be_u32 has_ready_thread_by_priority;         /**< Flags each priority that has a ready thread. */
   be_u32 ready_summary_mask;                   /**< Mask for `has_ready_thread_by_priority`. */
   X_LIST_ENTRY dispatcher_ready_list_head[32]; /**< Dispatcher ready list per priority. */
-  XDPC thread_exit_dpc;                        /**< DPC that finishes the exit of a thread. */
+  X_KDPC thread_exit_dpc;                      /**< DPC that finishes the exit of a thread. */
   X_LIST_ENTRY terminating_threads_list; /**< Threads that are terminating on this processor. */
-  XDPC switch_thread_processor_dpc;      /**< DPC that moves a thread to another processor. */
+  X_KDPC switch_thread_processor_dpc;    /**< DPC that moves a thread to another processor. */
 };
 REX_STATIC_ASSERT_SIZE(X_KPRCB, 0x1A8);
 
@@ -252,7 +254,7 @@ struct X_KPCR {
   be_u32 alt_stack_end_ptr;
   be_u32 interrupt_handlers[32];
   X_KPRCB prcb_data;
-  TypedGuestPointer<X_KPRCB> prcb;
+  be_ptr<X_KPRCB> prcb;
   u8 unk_2AC[0x2C];
 };
 static_assert(offsetof(X_KPCR, prcb_data) == 0x100);
@@ -277,8 +279,8 @@ struct X_KTHREAD {
   u8 fpu_exceptions_on;
   u8 process_type_dup; /**< Same as process_type. */
   u8 process_type;
-  util::X_TYPED_LIST<XAPC, offsetof(XAPC, list_entry)> apc_lists[2]; /**< Per mode. */
-  TypedGuestPointer<X_KPROCESS> process;
+  runtime::X_TYPED_LIST<XAPC, offsetof(XAPC, list_entry)> apc_lists[2]; /**< Per mode. */
+  be_ptr<X_KPROCESS> process;
   u8 executing_kernel_apc;
   u8 deferred_apc_software_interrupt_state;
   u8 user_apc_pending;
@@ -300,8 +302,8 @@ struct X_KTHREAD {
   u8 was_preempted;
   u8 terminated;
   u8 current_cpu; /**< Index of this processor. */
-  TypedGuestPointer<X_KPRCB> a_prcb_ptr;
-  TypedGuestPointer<X_KPRCB> another_prcb_ptr;
+  be_ptr<X_KPRCB> a_prcb_ptr;
+  be_ptr<X_KPRCB> another_prcb_ptr;
   u8 unk_C8;
   u8 unk_C9;
   u8 unk_CA;
@@ -336,23 +338,23 @@ REX_STATIC_ASSERT_SIZE(X_KTHREAD, 0xAB0);
 
 class ThreadRegistry;
 
-/** The table slot data of a thread, naming the `ThreadRecord` in the registry by thread id. */
+/** The table slot data of a thread, naming the `KernelThread` in the registry by thread id. */
 struct ThreadRef : public rex::NonCopyable {
   /**
    * @param thread_id_in The thread id.
-   * @param registry_in The registry that owns the `ThreadRecord`.
+   * @param registry_in The registry that owns the `KernelThread`.
    */
   ThreadRef(u32 thread_id_in, ThreadRegistry* registry_in)
       : thread_id(thread_id_in), registry(registry_in) {}
   /** Tells the registry the thread lost its handles. */
   REX_RUNTIME_API ~ThreadRef();
 
-  u32 thread_id;            /**< Id of the thread whose `ThreadRecord` the registry holds. */
+  u32 thread_id;            /**< Id of the thread whose `KernelThread` the registry holds. */
   ThreadRegistry* registry; /**< Registry told when the thread loses its handles. */
 };
 
 /** A guest thread or a host worker, owned by the thread registry. */
-class REX_RUNTIME_API ThreadRecord : public rex::NonCopyable {
+class REX_RUNTIME_API KernelThread : public rex::NonCopyable {
  public:
   /** Lowest guest address AllocateGuestStack places a stack at. */
   static constexpr u32 kStackAddressRangeBegin = 0x70000000;
@@ -366,12 +368,12 @@ class REX_RUNTIME_API ThreadRecord : public rex::NonCopyable {
     u32 start_address;       /**< Guest address of the entry point. */
     u32 start_context;       /**< Argument passed to the entry point. */
     u32 creation_flags;      /**< Creation flag bits, bit 0 is `X_CREATE_SUSPENDED`. */
-    u32 guest_process;       /**< Guest address of the process block, 0 for the title process. */
+    u32 title_process;       /**< Guest address of the process block, 0 for the title process. */
   };
 
   /**
-   * Builds a guest `ThreadRecord`. The host thread starts when the registry launches the
-   * `ThreadRecord`.
+   * Builds a guest `KernelThread`. The host thread starts when the registry launches the
+   * `KernelThread`.
    *
    * @param runtime The runtime the thread belongs to.
    * @param stack_size The guest stack size, 0 for the process default.
@@ -381,46 +383,46 @@ class REX_RUNTIME_API ThreadRecord : public rex::NonCopyable {
    * @param creation_flags The creation flags, bit 0 creates the thread suspended.
    * @param guest_thread True for a thread created by the guest.
    * @param main_thread True for the entry point thread.
-   * @param guest_process The title process block address, 0 for the title process.
+   * @param title_process The title process block address, 0 for the title process.
    */
-  ThreadRecord(Runtime& runtime, u32 stack_size, u32 xapi_thread_startup, u32 start_address,
+  KernelThread(Runtime& runtime, u32 stack_size, u32 xapi_thread_startup, u32 start_address,
                u32 start_context, u32 creation_flags, bool guest_thread, bool main_thread = false,
-               u32 guest_process = 0);
+               u32 title_process = 0);
 
   /**
-   * Builds a host worker `ThreadRecord`.
+   * Builds a host worker `KernelThread`.
    *
    * @param runtime The runtime the thread belongs to.
    * @param stack_size The guest stack size.
    * @param creation_flags The creation flags.
    * @param host_fn The function the worker runs. Its result is the exit code.
    */
-  ThreadRecord(Runtime& runtime, u32 stack_size, u32 creation_flags,
+  KernelThread(Runtime& runtime, u32 stack_size, u32 creation_flags,
                rex::MoveOnlyFunction<int()> host_fn);
   /** Frees the host thread, the scratch block, the stack, the PCR and the kernel thread block. */
-  ~ThreadRecord();
+  ~KernelThread();
 
   /**
-   * Reports whether the calling thread is the given `ThreadRecord`.
+   * Reports whether the calling thread is the given `KernelThread`.
    *
-   * @param other The `ThreadRecord`.
+   * @param other The `KernelThread`.
    * @return True when it is.
    */
-  static bool IsInThread(const ThreadRecord* other);
+  static bool IsInThread(const KernelThread* other);
 
   /**
-   * Reports whether the calling thread has a `ThreadRecord`.
+   * Reports whether the calling thread has a `KernelThread`.
    *
    * @return True when it does.
    */
   static bool IsInThread();
 
   /**
-   * Returns the `ThreadRecord` of the calling thread.
+   * Returns the `KernelThread` of the calling thread.
    *
-   * @return The `ThreadRecord`.
+   * @return The `KernelThread`.
    */
-  static ThreadRecord* GetCurrentThread();
+  static KernelThread* GetCurrentThread();
 
   /**
    * Returns the handle of the calling thread.
@@ -448,7 +450,7 @@ class REX_RUNTIME_API ThreadRecord : public rex::NonCopyable {
   static void Sleep(std::chrono::microseconds duration);
 
   /** Writes the CPU time of the calling thread to its KTHREAD. Does nothing without a
-   * `ThreadRecord`. */
+   * `KernelThread`. */
   static void WriteKernelTime();
 
   /**

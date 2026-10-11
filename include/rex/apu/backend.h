@@ -68,11 +68,11 @@ struct APUConfig {
 };
 
 /** An audio output, served by an apu module. Every method is safe on any thread. */
-class IBackend {
+class IAPUBackend {
  public:
-  REX_INTERFACE(IBackend, "rex.apu.backend", 1);
+  REX_INTERFACE(IAPUBackend, "rex.apu.backend", 1);
 
-  virtual ~IBackend() = default;
+  virtual ~IAPUBackend() = default;
 
   /**
    * Opens an output stream. on_frame_played runs on a backend thread and must not call into the
@@ -143,13 +143,13 @@ class IBackend {
 };
 
 /** The null audio output. A clock thread plays 1 queued frame per stream every frame period. */
-class REX_API NullBackend final : public IBackend, public NonCopyable {
+class REX_API NullAPUBackend final : public IAPUBackend, public NonCopyable {
  public:
   /** Starts the "APU Null Clock" thread. */
-  NullBackend();
+  NullAPUBackend();
 
   /** Stops the clock thread. */
-  ~NullBackend() override;
+  ~NullAPUBackend() override;
 
   /**
    * Opens a stream the clock thread plays.

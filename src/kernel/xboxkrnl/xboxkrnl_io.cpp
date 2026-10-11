@@ -17,11 +17,11 @@
 #include <rex/types.h>
 #include <rex/runtime/info/file.h>
 #include <rex/runtime.h>
-#include <rex/runtime/util/string_utils.h>
-#include <rex/runtime/xevent.h>
-#include <rex/runtime/xfile.h>
-#include <rex/runtime/xiocompletion.h>
-#include <rex/runtime/xsymboliclink.h>
+#include <rex/runtime/kernel_string.h>
+#include <rex/runtime/event_object.h>
+#include <rex/runtime/file_object.h>
+#include <rex/runtime/io_completion_object.h>
+#include <rex/runtime/symbolic_link_object.h>
 #include <rex/runtime/xthread.h>
 #include <rex/runtime/xtypes.h>
 #include "kernel/kernel_macros.h"
@@ -98,7 +98,7 @@ u32 NtCreateFile_entry(mapped_u32 handle_out, u32 desired_access,
   auto object_name =
       runtime::Current().memory()->TranslateVirtual<X_ANSI_STRING*>(object_attrs->name_ptr);
 
-  auto target_path = util::TranslateAnsiPath(runtime::Current().memory(), object_name);
+  auto target_path = runtime::TranslateAnsiPath(runtime::Current().memory(), object_name);
   REXLOG_TRACE(kernel,
                "NtCreateFile "
                "path={} access={:#x} attrs={:#x} share={:#x} disp={:#x} options={:#x}",
@@ -131,7 +131,7 @@ u32 NtCreateFile_entry(mapped_u32 handle_out, u32 desired_access,
     file_action = opened->action;
   } else {
     result = ToXStatus(opened.error());
-    if (filesystem::CodeOf(opened.error()) == filesystem::Error::kExists) {
+    if (filesystem::CodeOf(opened.error()) == filesystem::FileSystemError::kExists) {
       file_action = filesystem::OpenAction::kExists;
     }
   }
@@ -230,7 +230,7 @@ u32 NtReadFile_entry(u32 file_handle, u32 event_handle, mapped_void apc_routine_
       // The APC must go through the APC mechanism even when completing immediately.
       if (static_cast<u32>(apc_routine_ptr) & ~1) {
         if (apc_context && result == X_STATUS_SUCCESS) {
-          auto thread = ThreadRecord::GetCurrentThread();
+          auto thread = KernelThread::GetCurrentThread();
           u32 apc_routine = static_cast<u32>(apc_routine_ptr) & ~1u;
           u32 apc_ctx = apc_context.guest_address();
           u32 apc_arg1 = io_status_block.guest_address();
@@ -336,7 +336,7 @@ u32 NtReadFileScatter_entry(u32 file_handle, u32 event_handle, mapped_void apc_r
       // The APC must go through the APC mechanism even when completing immediately.
       if (static_cast<u32>(apc_routine_ptr) & ~1) {
         if (apc_context) {
-          auto thread = ThreadRecord::GetCurrentThread();
+          auto thread = KernelThread::GetCurrentThread();
           thread->EnqueueAPC(static_cast<u32>(apc_routine_ptr) & ~1u, apc_context.guest_address(),
                              io_status_block.guest_address(), 0);
         }
@@ -415,7 +415,7 @@ u32 NtWriteFile_entry(u32 file_handle, u32 event_handle, u32 apc_routine, mapped
       // The APC must go through the APC mechanism even when completing immediately.
       if (apc_routine & ~1) {
         if (apc_context) {
-          auto thread = ThreadRecord::GetCurrentThread();
+          auto thread = KernelThread::GetCurrentThread();
           thread->EnqueueAPC(apc_routine & ~1u, apc_context.guest_address(),
                              io_status_block.guest_address(), 0);
         }
@@ -521,7 +521,7 @@ u32 NtQueryFullAttributesFile_entry(ppc_ptr_t<X_OBJECT_ATTRIBUTES> obj_attribs,
                                     ppc_ptr_t<X_FILE_NETWORK_OPEN_INFORMATION> file_info) {
   auto object_name =
       runtime::Current().memory()->TranslateVirtual<X_ANSI_STRING*>(obj_attribs->name_ptr);
-  auto path_str = util::TranslateAnsiPath(runtime::Current().memory(), object_name);
+  auto path_str = runtime::TranslateAnsiPath(runtime::Current().memory(), object_name);
   REXLOG_TRACE(kernel,
                "NtQueryFullAttributesFile "
                "path={}",
@@ -535,7 +535,7 @@ u32 NtQueryFullAttributesFile_entry(ppc_ptr_t<X_OBJECT_ATTRIBUTES> obj_attribs,
     REX_ASSERT_ALWAYS();
   }
 
-  auto target_path = util::TranslateAnsiPath(runtime::Current().memory(), object_name);
+  auto target_path = runtime::TranslateAnsiPath(runtime::Current().memory(), object_name);
 
   if (!IsValidPath(target_path, false)) {
     return X_STATUS_OBJECT_NAME_INVALID;
@@ -577,7 +577,7 @@ u32 NtQueryDirectoryFile_entry(u32 file_handle, [[maybe_unused]] u32 event_handl
   u32 info = 0;
 
   auto file = runtime::Current().object_table().Get<FileObject>(file_handle);
-  auto name = util::TranslateAnsiPath(runtime::Current().memory(), file_name);
+  auto name = runtime::TranslateAnsiPath(runtime::Current().memory(), file_name);
 
   if (!IsValidPath(name, true)) {
     return X_STATUS_INVALID_PARAMETER;
@@ -631,7 +631,7 @@ u32 NtOpenSymbolicLinkObject_entry(mapped_u32 handle_out,
   auto object_name =
       runtime::Current().memory()->TranslateVirtual<X_ANSI_STRING*>(object_attrs->name_ptr);
 
-  auto target_path = util::TranslateAnsiPath(runtime::Current().memory(), object_name);
+  auto target_path = runtime::TranslateAnsiPath(runtime::Current().memory(), object_name);
 
   if (!IsValidPath(target_path, false)) {
     return X_STATUS_OBJECT_NAME_INVALID;

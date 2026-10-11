@@ -64,7 +64,7 @@ class VulkanInstance : public rex::NonCopyable {
     PFN_vkEnumerateInstanceVersion vkEnumerateInstanceVersion = nullptr;
 
     // From vkGetInstanceProcAddr for the instance.
-#define REXVK_FUNCTION(name) PFN_##name name = nullptr;
+#define REX_VK_FUNCTION(name) PFN_##name name = nullptr;
 /**
  * Declares a member function pointer named after the core function of a promoted extension.
  *
@@ -72,10 +72,10 @@ class VulkanInstance : public rex::NonCopyable {
  * @param core_name Name of the core function, used as the member name.
  *
  * @code
- * REXVK_FUNCTION_PROMOTED(vkBindBufferMemory2KHR, vkBindBufferMemory2)
+ * REX_VK_FUNCTION_PROMOTED(vkBindBufferMemory2KHR, vkBindBufferMemory2)
  * @endcode
  */
-#define REXVK_FUNCTION_PROMOTED(extension_name, core_name) PFN_##core_name core_name = nullptr;
+#define REX_VK_FUNCTION_PROMOTED(extension_name, core_name) PFN_##core_name core_name = nullptr;
 #include "gpu/xenos/host/vulkan/functions/instance_1_0.inc"
 #include "gpu/xenos/host/vulkan/functions/instance_khr_surface.inc"
 #ifdef VK_USE_PLATFORM_XCB_KHR
@@ -95,8 +95,8 @@ class VulkanInstance : public rex::NonCopyable {
 #endif
 #include "gpu/xenos/host/vulkan/functions/instance_1_1_khr_get_physical_device_properties2.inc"
 #include "gpu/xenos/host/vulkan/functions/instance_ext_debug_utils.inc"
-#undef REXVK_FUNCTION_PROMOTED
-#undef REXVK_FUNCTION
+#undef REX_VK_FUNCTION_PROMOTED
+#undef REX_VK_FUNCTION
   };
 
   const Functions& functions() const { return functions_; }

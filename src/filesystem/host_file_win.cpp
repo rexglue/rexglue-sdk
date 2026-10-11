@@ -29,8 +29,8 @@ OVERLAPPED At(u64 offset) {
 }
 
 rex::Error HostError(std::string_view what, const std::filesystem::path& path) {
-  return MakeError(Error::kIO, std::format("{} '{}' failed, error {}", what, path_to_utf8(path),
-                                           GetLastError()));
+  return BuildError(FileSystemError::kIO, std::format("{} '{}' failed, error {}", what,
+                                                      path_to_utf8(path), GetLastError()));
 }
 
 }  // namespace
@@ -71,15 +71,15 @@ Result<std::unique_ptr<HostFile>> HostFile::OpenExisting(const std::filesystem::
                               FILE_ATTRIBUTE_NORMAL | FILE_FLAG_BACKUP_SEMANTICS, nullptr);
   if (handle == INVALID_HANDLE_VALUE) {
     const DWORD error = GetLastError();
-    Error code = Error::kIO;
+    FileSystemError code = FileSystemError::kIO;
     if (error == ERROR_FILE_NOT_FOUND || error == ERROR_PATH_NOT_FOUND) {
-      code = Error::kNotFound;
+      code = FileSystemError::kNotFound;
     } else if (error == ERROR_SHARING_VIOLATION || error == ERROR_LOCK_VIOLATION) {
-      code = Error::kSharingViolation;
+      code = FileSystemError::kSharingViolation;
     } else if (error == ERROR_ACCESS_DENIED) {
-      code = Error::kAccessDenied;
+      code = FileSystemError::kAccessDenied;
     }
-    return Err<std::unique_ptr<HostFile>>(MakeError(
+    return Err<std::unique_ptr<HostFile>>(BuildError(
         code, std::format("cannot open host file '{}', error {}", path_to_utf8(path), error)));
   }
   return std::make_unique<HostFile>(Key{}, path, handle);
@@ -133,13 +133,13 @@ Result<void> HostFile::Flush() const {
                               nullptr, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, nullptr);
   if (handle == INVALID_HANDLE_VALUE) {
     const DWORD error = GetLastError();
-    Error code = Error::kIO;
+    FileSystemError code = FileSystemError::kIO;
     if (error == ERROR_FILE_EXISTS || error == ERROR_ALREADY_EXISTS) {
-      code = Error::kExists;
+      code = FileSystemError::kExists;
     } else if (error == ERROR_ACCESS_DENIED) {
-      code = Error::kAccessDenied;
+      code = FileSystemError::kAccessDenied;
     }
-    return Err(MakeError(
+    return Err(BuildError(
         code, std::format("cannot create host file '{}', error {}", path_to_utf8(path), error)));
   }
   CloseHandle(handle);
@@ -152,16 +152,18 @@ Result<void> HostFile::Flush() const {
     return Ok();
   }
   const DWORD error = GetLastError();
-  Error code = Error::kIO;
+  FileSystemError code = FileSystemError::kIO;
   if (error == ERROR_ALREADY_EXISTS || error == ERROR_FILE_EXISTS) {
-    code = Error::kExists;
+    code = FileSystemError::kExists;
   } else if (error == ERROR_SHARING_VIOLATION) {
-    code = Error::kSharingViolation;
+    code = FileSystemError::kSharingViolation;
   } else if (error == ERROR_ACCESS_DENIED) {
-    code = Error::kAccessDenied;
+    code = FileSystemError::kAccessDenied;
+  } else if (error == ERROR_NOT_SAME_DEVICE) {
+    code = FileSystemError::kNotSameDevice;
   }
-  return Err(MakeError(code, std::format("cannot move '{}' to '{}', error {}", path_to_utf8(from),
-                                         path_to_utf8(to), error)));
+  return Err(BuildError(code, std::format("cannot move '{}' to '{}', error {}", path_to_utf8(from),
+                                          path_to_utf8(to), error)));
 }
 
 std::optional<HostInfo> HostStat(const std::filesystem::path& path) {

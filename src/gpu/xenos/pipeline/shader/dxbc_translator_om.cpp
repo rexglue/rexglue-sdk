@@ -15,7 +15,7 @@
 #include "gpu/xenos/pipeline/render_target/cache.h"
 #include "gpu/xenos/pipeline/shader/dxbc_translator.h"
 #include "gpu/xenos/pipeline/texture/cache.h"
-#include "gpu/xenos/util/draw.h"
+#include "gpu/xenos/draw_state.h"
 #include <rex/math.h>
 
 #include "gpu/xenos/cvar_table.h"
@@ -23,7 +23,7 @@
 namespace rex::gpu {
 using namespace xenos::ucode;
 
-void DxbcShaderTranslator::StartPixelShader_LoadROVParameters() {
+void DXBCShaderTranslator::StartPixelShader_LoadROVParameters() {
   bool any_color_targets_written = current_shader().writes_color_targets() != 0;
 
   // system_temp_rov_params_.y is the absolute depth offset, .z 32bpp and .w 64bpp base relative.
@@ -157,7 +157,7 @@ void DxbcShaderTranslator::StartPixelShader_LoadROVParameters() {
   a_.OpEndIf();
 }
 
-void DxbcShaderTranslator::ROV_DepthStencilTest() {
+void DXBCShaderTranslator::ROV_DepthStencilTest() {
   u32 temp = PushSystemTemp();
   dxbc::Dest temp_x_dest(dxbc::Dest::R(temp, 0b0001));
   dxbc::Src temp_x_src(dxbc::Src::R(temp, dxbc::Src::kXXXX));
@@ -243,12 +243,12 @@ void DxbcShaderTranslator::ROV_DepthStencilTest() {
         case 0:
           a_.OpMAd(
               sample_depth_stencil_dest, z_ddx_src,
-              dxbc::Src::LF(static_cast<f32>(draw_util::kD3D10StandardSamplePositions4x[0][0]) *
+              dxbc::Src::LF(static_cast<f32>(draw_state::kD3D10StandardSamplePositions4x[0][0]) *
                             (1.0f / 16.0f)),
               temp_z_src);
           a_.OpMAd(
               sample_depth_stencil_dest, z_ddy_src,
-              dxbc::Src::LF(static_cast<f32>(draw_util::kD3D10StandardSamplePositions4x[0][1]) *
+              dxbc::Src::LF(static_cast<f32>(draw_state::kD3D10StandardSamplePositions4x[0][1]) *
                             (1.0f / 16.0f)),
               sample_depth_stencil_src);
           a_.OpMovC(
@@ -264,23 +264,23 @@ void DxbcShaderTranslator::ROV_DepthStencilTest() {
                                            dxbc::Src::kXXXX));
           a_.OpMAd(
               sample_depth_stencil_dest, z_ddx_src,
-              dxbc::Src::LF(static_cast<f32>(draw_util::kD3D10StandardSamplePositions4x[2][0]) *
+              dxbc::Src::LF(static_cast<f32>(draw_state::kD3D10StandardSamplePositions4x[2][0]) *
                             (1.0f / 16.0f)),
               temp_z_src);
           a_.OpMAd(
               sample_depth_stencil_dest, z_ddy_src,
-              dxbc::Src::LF(static_cast<f32>(draw_util::kD3D10StandardSamplePositions4x[2][1]) *
+              dxbc::Src::LF(static_cast<f32>(draw_state::kD3D10StandardSamplePositions4x[2][1]) *
                             (1.0f / 16.0f)),
               sample_depth_stencil_src, true);
           a_.OpElse();
           a_.OpMAd(
               sample_depth_stencil_dest, z_ddx_src,
-              dxbc::Src::LF(static_cast<f32>(draw_util::kD3D10StandardSamplePositions4x[3][0]) *
+              dxbc::Src::LF(static_cast<f32>(draw_state::kD3D10StandardSamplePositions4x[3][0]) *
                             (1.0f / 16.0f)),
               temp_z_src);
           a_.OpMAd(
               sample_depth_stencil_dest, z_ddy_src,
-              dxbc::Src::LF(static_cast<f32>(draw_util::kD3D10StandardSamplePositions4x[3][1]) *
+              dxbc::Src::LF(static_cast<f32>(draw_state::kD3D10StandardSamplePositions4x[3][1]) *
                             (1.0f / 16.0f)),
               sample_depth_stencil_src, true);
           a_.OpEndIf();
@@ -288,7 +288,7 @@ void DxbcShaderTranslator::ROV_DepthStencilTest() {
         default: {
           // Samples 2 and 3 (top right and bottom right) map to Direct3D 11 samples 1 and 3.
           const i8* sample_position =
-              draw_util::kD3D10StandardSamplePositions4x[i ^ (((i & 1) ^ (i >> 1)) * 0b11)];
+              draw_state::kD3D10StandardSamplePositions4x[i ^ (((i & 1) ^ (i >> 1)) * 0b11)];
           a_.OpMAd(sample_depth_stencil_dest, z_ddx_src,
                    dxbc::Src::LF(static_cast<f32>(sample_position[0]) * (1.0f / 16.0f)),
                    temp_z_src);
@@ -524,7 +524,7 @@ void DxbcShaderTranslator::ROV_DepthStencilTest() {
   PopSystemTemp();
 }
 
-void DxbcShaderTranslator::ROV_UnpackColor(u32 rt_index, u32 packed_temp,
+void DXBCShaderTranslator::ROV_UnpackColor(u32 rt_index, u32 packed_temp,
                                            u32 packed_temp_components, u32 color_temp, u32 temp1,
                                            u32 temp1_component, u32 temp2, u32 temp2_component) {
   REX_ASSERT(color_temp != packed_temp || packed_temp_components == 0);
@@ -618,7 +618,7 @@ void DxbcShaderTranslator::ROV_UnpackColor(u32 rt_index, u32 packed_temp,
   a_.OpEndSwitch();
 }
 
-void DxbcShaderTranslator::ROV_PackPreClampedColor(u32 rt_index, u32 color_temp, u32 packed_temp,
+void DXBCShaderTranslator::ROV_PackPreClampedColor(u32 rt_index, u32 color_temp, u32 packed_temp,
                                                    u32 packed_temp_components, u32 temp1,
                                                    u32 temp1_component, u32 temp2,
                                                    u32 temp2_component) {
@@ -742,7 +742,7 @@ void DxbcShaderTranslator::ROV_PackPreClampedColor(u32 rt_index, u32 color_temp,
   a_.OpEndSwitch();
 }
 
-void DxbcShaderTranslator::ROV_HandleColorBlendFactorCases(u32 src_temp, u32 dst_temp,
+void DXBCShaderTranslator::ROV_HandleColorBlendFactorCases(u32 src_temp, u32 dst_temp,
                                                            u32 factor_temp) {
   dxbc::Dest factor_dest(dxbc::Dest::R(factor_temp, 0b0111));
   dxbc::Src one_src(dxbc::Src::LF(1.0f));
@@ -822,7 +822,7 @@ void DxbcShaderTranslator::ROV_HandleColorBlendFactorCases(u32 src_temp, u32 dst
   a_.OpBreak();
 }
 
-void DxbcShaderTranslator::ROV_HandleAlphaBlendFactorCases(u32 src_temp, u32 dst_temp,
+void DXBCShaderTranslator::ROV_HandleAlphaBlendFactorCases(u32 src_temp, u32 dst_temp,
                                                            u32 factor_temp, u32 factor_component) {
   dxbc::Dest factor_dest(dxbc::Dest::R(factor_temp, 1 << factor_component));
   dxbc::Src one_src(dxbc::Src::LF(1.0f));
@@ -875,7 +875,7 @@ void DxbcShaderTranslator::ROV_HandleAlphaBlendFactorCases(u32 src_temp, u32 dst
   a_.OpBreak();
 }
 
-void DxbcShaderTranslator::CompletePixelShader_WriteToRTVs() {
+void DXBCShaderTranslator::CompletePixelShader_WriteToRTVs() {
   u32 shader_writes_color_targets = current_shader().writes_color_targets();
   if (!shader_writes_color_targets) {
     return;
@@ -907,7 +907,7 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToRTVs() {
   PopSystemTemp();
 }
 
-void DxbcShaderTranslator::CompletePixelShader_DSV_DepthTo24Bit() {
+void DXBCShaderTranslator::CompletePixelShader_DSV_DepthTo24Bit() {
   bool shader_writes_depth = current_shader().writes_depth();
 
   if (!DSV_IsWritingFloat24Depth()) {
@@ -940,7 +940,7 @@ void DxbcShaderTranslator::CompletePixelShader_DSV_DepthTo24Bit() {
   dxbc::Dest temp_y_dest(dxbc::Dest::R(temp, 0b0010));
   dxbc::Src temp_y_src(dxbc::Src::R(temp, dxbc::Src::kYYYY));
 
-  if (GetDxbcShaderModification().pixel.depth_stencil_mode ==
+  if (GetDXBCShaderModification().pixel.depth_stencil_mode ==
       Modification::DepthStencilMode::kFloat24Truncating) {
     // 20e4 drops 3 mantissa bits at exponent -14 or above, up to 23 at -34, anything lower is 0.
     dxbc::Dest truncate_dest(shader_writes_depth ? dxbc::Dest::ODepth() : dxbc::Dest::ODepthLE());
@@ -966,7 +966,7 @@ void DxbcShaderTranslator::CompletePixelShader_DSV_DepthTo24Bit() {
   }
 }
 
-void DxbcShaderTranslator::CompletePixelShader_AlphaToMaskSample(
+void DXBCShaderTranslator::CompletePixelShader_AlphaToMaskSample(
     bool initialize, u32 sample_index, f32 threshold_base, dxbc::Src threshold_offset,
     f32 threshold_offset_scale, u32 coverage_temp, u32 coverage_temp_component, u32 temp,
     u32 temp_component) {
@@ -994,7 +994,7 @@ void DxbcShaderTranslator::CompletePixelShader_AlphaToMaskSample(
   }
 }
 
-void DxbcShaderTranslator::CompletePixelShader_AlphaToMask() {
+void DXBCShaderTranslator::CompletePixelShader_AlphaToMask() {
   if (!current_shader().writes_color_target(0) || IsForceEarlyDepthStencilGlobalFlagEnabled()) {
     return;
   }
@@ -1070,7 +1070,7 @@ void DxbcShaderTranslator::CompletePixelShader_AlphaToMask() {
   a_.OpEndIf();
 }
 
-void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
+void DXBCShaderTranslator::CompletePixelShader_WriteToROV() {
   u32 temp = PushSystemTemp();
   dxbc::Dest temp_x_dest(dxbc::Dest::R(temp, 0b0001));
   dxbc::Src temp_x_src(dxbc::Src::R(temp, dxbc::Src::kXXXX));
@@ -1483,7 +1483,7 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
   PopSystemTemp();
 }
 
-void DxbcShaderTranslator::CompletePixelShader() {
+void DXBCShaderTranslator::CompletePixelShader() {
   if (is_depth_only_pixel_shader_) {
     if (edram_rov_used_) {
       CompletePixelShader_WriteToROV();
@@ -1583,7 +1583,7 @@ void DxbcShaderTranslator::CompletePixelShader() {
   }
 }
 
-void DxbcShaderTranslator::PreClampedFloat32To7e3(dxbc::Assembler& a, u32 f10_temp,
+void DXBCShaderTranslator::PreClampedFloat32To7e3(dxbc::Assembler& a, u32 f10_temp,
                                                   u32 f10_temp_component, u32 f32_temp,
                                                   u32 f32_temp_component, u32 temp_temp,
                                                   u32 temp_temp_component) {
@@ -1617,7 +1617,7 @@ void DxbcShaderTranslator::PreClampedFloat32To7e3(dxbc::Assembler& a, u32 f10_te
   a.OpUBFE(f10_dest, dxbc::Src::LU(10), dxbc::Src::LU(16), f10_src);
 }
 
-void DxbcShaderTranslator::UnclampedFloat32To7e3(dxbc::Assembler& a, u32 f10_temp,
+void DXBCShaderTranslator::UnclampedFloat32To7e3(dxbc::Assembler& a, u32 f10_temp,
                                                  u32 f10_temp_component, u32 f32_temp,
                                                  u32 f32_temp_component, u32 temp_temp,
                                                  u32 temp_temp_component) {
@@ -1630,7 +1630,7 @@ void DxbcShaderTranslator::UnclampedFloat32To7e3(dxbc::Assembler& a, u32 f10_tem
                          temp_temp_component);
 }
 
-void DxbcShaderTranslator::Float7e3To32(dxbc::Assembler& a, const dxbc::Dest& f32, u32 f10_temp,
+void DXBCShaderTranslator::Float7e3To32(dxbc::Assembler& a, const dxbc::Dest& f32, u32 f10_temp,
                                         u32 f10_temp_component, u32 f10_shift, u32 temp1_temp,
                                         u32 temp1_temp_component, u32 temp2_temp,
                                         u32 temp2_temp_component) {
@@ -1672,7 +1672,7 @@ void DxbcShaderTranslator::Float7e3To32(dxbc::Assembler& a, const dxbc::Dest& f3
   a.OpBFI(f32, dxbc::Src::LU(7), dxbc::Src::LU(23 - 7), mantissa_src, exponent_src);
 }
 
-void DxbcShaderTranslator::PreClampedDepthTo20e4(
+void DXBCShaderTranslator::PreClampedDepthTo20e4(
     dxbc::Assembler& a, u32 f24_temp, u32 f24_temp_component, u32 f32_temp, u32 f32_temp_component,
     u32 temp_temp, u32 temp_temp_component, bool round_to_nearest_even, bool remap_from_0_to_0_5) {
   REX_ASSERT(temp_temp != f24_temp || temp_temp_component != f24_temp_component);
@@ -1709,7 +1709,7 @@ void DxbcShaderTranslator::PreClampedDepthTo20e4(
   a.OpUBFE(f24_dest, dxbc::Src::LU(24), dxbc::Src::LU(3), f24_src);
 }
 
-void DxbcShaderTranslator::Depth20e4To32(dxbc::Assembler& a, const dxbc::Dest& f32, u32 f24_temp,
+void DXBCShaderTranslator::Depth20e4To32(dxbc::Assembler& a, const dxbc::Dest& f32, u32 f24_temp,
                                          u32 f24_temp_component, u32 f24_shift, u32 temp1_temp,
                                          u32 temp1_temp_component, u32 temp2_temp,
                                          u32 temp2_temp_component, bool remap_to_0_to_0_5) {
@@ -1754,7 +1754,7 @@ void DxbcShaderTranslator::Depth20e4To32(dxbc::Assembler& a, const dxbc::Dest& f
   a.OpBFI(f32, dxbc::Src::LU(20), dxbc::Src::LU(23 - 20), mantissa_src, exponent_src);
 }
 
-void DxbcShaderTranslator::ROV_DepthTo24Bit(u32 d24_temp, u32 d24_temp_component, u32 d32_temp,
+void DXBCShaderTranslator::ROV_DepthTo24Bit(u32 d24_temp, u32 d24_temp_component, u32 d32_temp,
                                             u32 d32_temp_component, u32 temp_temp,
                                             u32 temp_temp_component) {
   REX_ASSERT(temp_temp != d32_temp || temp_temp_component != d32_temp_component);

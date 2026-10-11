@@ -19,7 +19,6 @@
 #include <rex/api.h>
 #include <rex/filesystem.h>
 #include <rex/gpu.h>
-#include <rex/memory/utils.h>
 #include <rex/mmio.h>
 #include <rex/runtime.h>
 #include <rex/runtime/xmemory.h>
@@ -55,10 +54,10 @@ constexpr rex::u32 kWritePointerRegister = 0x01C5;
 REX_TEST_CASE_METHOD(Fixture, "backend null runs a MEM_WRITE and an EVENT_WRITE_SHD", "[gpu]") {
   auto api = rex::Init(NullConfig());
   REQUIRE(api);
-  auto* backend = (*api)->Get<rex::gpu::IBackend>();
+  auto* backend = (*api)->Get<rex::gpu::IGPUBackend>();
   REQUIRE(backend != nullptr);
   rex::Runtime runtime((*api)->config());
-  rex::RuntimeConfig setup;
+  rex::RuntimeDesc setup;
   setup.file_system = (*api)->Get<rex::filesystem::IFileSystem>();
   setup.gpu = backend;
   REQUIRE(runtime.Setup(setup));
@@ -73,10 +72,10 @@ REX_TEST_CASE_METHOD(Fixture, "backend null runs a MEM_WRITE and an EVENT_WRITE_
   const auto swap = std::to_underlying(rex::xenos::Endian::k8in32);
 
   const rex::u32 packets[] = {
-      rex::xenos::MakePacketType3(rex::xenos::PM4_MEM_WRITE, 2),
+      rex::xenos::BuildPacketType3(rex::xenos::PM4_MEM_WRITE, 2),
       target | swap,
       0xCAFEF00D,
-      rex::xenos::MakePacketType3(rex::xenos::PM4_EVENT_WRITE_SHD, 3),
+      rex::xenos::BuildPacketType3(rex::xenos::PM4_EVENT_WRITE_SHD, 3),
       0,
       (target + 4) | swap,
       0x12345678,
@@ -112,10 +111,10 @@ REX_TEST_CASE_METHOD(Fixture, "Setting the interrupt callback while vblanks disp
                      "[gpu]") {
   auto api = rex::Init(NullConfig());
   REQUIRE(api);
-  auto* backend = (*api)->Get<rex::gpu::IBackend>();
+  auto* backend = (*api)->Get<rex::gpu::IGPUBackend>();
   REQUIRE(backend != nullptr);
   rex::Runtime runtime((*api)->config());
-  rex::RuntimeConfig setup;
+  rex::RuntimeDesc setup;
   setup.file_system = (*api)->Get<rex::filesystem::IFileSystem>();
   setup.gpu = backend;
   REQUIRE(runtime.Setup(setup));
@@ -134,10 +133,10 @@ REX_TEST_CASE_METHOD(Fixture, "Shutdown stops vblanks before the command process
     config.cvars.values.push_back({"gpu.vsync", "false"});
     auto api = rex::Init(config);
     REQUIRE(api);
-    auto* backend = (*api)->Get<rex::gpu::IBackend>();
+    auto* backend = (*api)->Get<rex::gpu::IGPUBackend>();
     REQUIRE(backend != nullptr);
     rex::Runtime runtime((*api)->config());
-    rex::RuntimeConfig setup;
+    rex::RuntimeDesc setup;
     setup.file_system = (*api)->Get<rex::filesystem::IFileSystem>();
     setup.gpu = backend;
     REQUIRE(runtime.Setup(setup));

@@ -42,8 +42,8 @@ class VulkanProvider : public GraphicsProvider {
    */
   const UISamplers* ui_samplers() const { return ui_samplers_.get(); }
 
-  std::unique_ptr<Presenter> CreatePresenter(Presenter::HostGpuLossCallback host_gpu_loss_callback =
-                                                 Presenter::FatalErrorHostGpuLossCallback) override;
+  std::unique_ptr<Presenter> CreatePresenter(Presenter::HostGPULossCallback host_gpu_loss_callback =
+                                                 Presenter::FatalErrorHostGPULossCallback) override;
 
   std::unique_ptr<ImmediateDrawer> CreateImmediateDrawer() override;
 

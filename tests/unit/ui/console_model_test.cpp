@@ -62,12 +62,12 @@ struct Harness {
   }
 
   void Write(Level level, std::string_view category, std::string_view text) {
-    rex::log::Record record;
-    record.level = level;
-    record.category = category;
-    record.text = text;
-    record.sequence = ++sequence;
-    capture.Write(record);
+    rex::log::Message message;
+    message.level = level;
+    message.category = category;
+    message.text = text;
+    message.sequence = ++sequence;
+    capture.Write(message);
   }
 
   std::unique_ptr<rex::detail::CvarRegistryImpl> registry;

@@ -31,13 +31,12 @@
 #include <rex/no_throw.h>
 #include <rex/platform/thread.h>
 #include <rex/memory.h>
-#include "gpu/xenos/util/draw.h"
-#include "gpu/xenos/pipeline_util.h"
+#include "gpu/xenos/draw_state.h"
+#include "gpu/xenos/pipeline_priority.h"
 #include "gpu/xenos/pipeline/shader/spirv_builder.h"
 #include "gpu/xenos/pipeline/shader/spirv_translator.h"
 #include <rex/xenos/register_file.h>
 #include <rex/xenos/registers.h>
-#include "gpu/xenos/util/draw.h"
 #include "gpu/xenos/vulkan/command_processor.h"
 #include "gpu/xenos/vulkan/pipeline_cache.h"
 #include "gpu/xenos/vulkan/shader.h"
@@ -46,7 +45,7 @@
 #include <rex/logging.h>
 #include <rex/math.h>
 #include <rex/types.h>
-#include "gpu/xenos/host/vulkan/util.h"
+#include "gpu/xenos/host/vulkan/objects.h"
 
 #include "gpu/xenos/cvar_table.h"
 #include "gpu/xenos/storage_file.h"
@@ -81,31 +80,31 @@ constexpr bool IsPatchIndexedHostVertexShaderType(
          host_vertex_shader_type == Shader::HostVertexShaderType::kQuadDomainPatchIndexed;
 }
 
-std::string GetTessellationSystemConstantsBlockGlsl() {
+std::string GetTessellationSystemConstantsBlockGLSL() {
   std::string source;
   source += "layout(set = 0, binding = 0, std140) uniform XeSystemConstants {\n";
   source += std::format("  layout(offset = {}) uint xe_vertex_index_endian;\n",
-                        offsetof(SpirvShaderTranslator::SystemConstants, vertex_index_endian));
+                        offsetof(SPIRVShaderTranslator::SystemConstants, vertex_index_endian));
   source += std::format("  layout(offset = {}) int xe_vertex_base_index;\n",
-                        offsetof(SpirvShaderTranslator::SystemConstants, vertex_base_index));
+                        offsetof(SPIRVShaderTranslator::SystemConstants, vertex_base_index));
   source += std::format("  layout(offset = {}) uint xe_vertex_index_min;\n",
-                        offsetof(SpirvShaderTranslator::SystemConstants, vertex_index_min));
+                        offsetof(SPIRVShaderTranslator::SystemConstants, vertex_index_min));
   source += std::format("  layout(offset = {}) uint xe_vertex_index_max;\n",
-                        offsetof(SpirvShaderTranslator::SystemConstants, vertex_index_max));
+                        offsetof(SPIRVShaderTranslator::SystemConstants, vertex_index_max));
   source +=
       std::format("  layout(offset = {}) float xe_tessellation_factor_range_min;\n",
-                  offsetof(SpirvShaderTranslator::SystemConstants, tessellation_factor_range_min));
+                  offsetof(SPIRVShaderTranslator::SystemConstants, tessellation_factor_range_min));
   source +=
       std::format("  layout(offset = {}) float xe_tessellation_factor_range_max;\n",
-                  offsetof(SpirvShaderTranslator::SystemConstants, tessellation_factor_range_max));
+                  offsetof(SPIRVShaderTranslator::SystemConstants, tessellation_factor_range_max));
   source += "} xe_system_cbuffer;\n";
   return source;
 }
 
-std::string GetTessellationIndexedVertexShaderGlsl() {
+std::string GetTessellationIndexedVertexShaderGLSL() {
   std::string source;
   source += "#version 450\n";
-  source += GetTessellationSystemConstantsBlockGlsl();
+  source += GetTessellationSystemConstantsBlockGLSL();
   source += R"(
 layout(location = 0) out float xe_out_value;
 
@@ -136,10 +135,10 @@ void main() {
   return source;
 }
 
-std::string GetTessellationAdaptiveVertexShaderGlsl() {
+std::string GetTessellationAdaptiveVertexShaderGLSL() {
   std::string source;
   source += "#version 450\n";
-  source += GetTessellationSystemConstantsBlockGlsl();
+  source += GetTessellationSystemConstantsBlockGLSL();
   source += R"(
 layout(location = 0) out float xe_out_value;
 
@@ -171,12 +170,12 @@ void main() {
   return source;
 }
 
-std::string GetTessellationControlShaderGlsl(Shader::HostVertexShaderType host_vertex_shader_type,
+std::string GetTessellationControlShaderGLSL(Shader::HostVertexShaderType host_vertex_shader_type,
                                              xenos::TessellationMode tessellation_mode,
                                              u32 input_control_points, u32 output_control_points) {
   std::string source;
   source += "#version 450\n";
-  source += GetTessellationSystemConstantsBlockGlsl();
+  source += GetTessellationSystemConstantsBlockGLSL();
   source += "layout(location = 0) in float xe_input_value[];\n";
   source += "layout(location = 0) patch out vec4 xe_out_patch_control_point_indices;\n";
   source += std::format("layout(vertices = {}) out;\n", output_control_points);
@@ -280,8 +279,8 @@ bool VulkanPipelineCache::Initialize() {
   bool edram_fragment_shader_interlock =
       render_target_cache_.GetPath() == RenderTargetCache::Path::kPixelShaderInterlock;
 
-  shader_translator_ = std::make_unique<SpirvShaderTranslator>(
-      SpirvShaderTranslator::Features(vulkan_device),
+  shader_translator_ = std::make_unique<SPIRVShaderTranslator>(
+      SPIRVShaderTranslator::Features(vulkan_device),
       render_target_cache_.msaa_2x_attachments_supported(),
       render_target_cache_.msaa_2x_no_attachments_supported(), edram_fragment_shader_interlock,
       render_target_cache_.draw_resolution_scale_x(),
@@ -290,7 +289,7 @@ bool VulkanPipelineCache::Initialize() {
   if (edram_fragment_shader_interlock) {
     std::vector<u8> depth_only_fragment_shader_code =
         shader_translator_->CreateDepthOnlyFragmentShader();
-    depth_only_fragment_shader_ = gpu::vulkan::util::CreateShaderModule(
+    depth_only_fragment_shader_ = gpu::vulkan::objects::CreateShaderModule(
         vulkan_device, reinterpret_cast<const u32*>(depth_only_fragment_shader_code.data()),
         depth_only_fragment_shader_code.size());
     if (depth_only_fragment_shader_ == VK_NULL_HANDLE) {
@@ -302,8 +301,8 @@ bool VulkanPipelineCache::Initialize() {
   } else {
     std::vector<u8> depth_float24_truncate_fragment_shader_code =
         shader_translator_->CreateDepthOnlyFragmentShader(
-            SpirvShaderTranslator::Modification::DepthStencilMode::kFloat24Truncating);
-    depth_float24_truncate_fragment_shader_ = gpu::vulkan::util::CreateShaderModule(
+            SPIRVShaderTranslator::Modification::DepthStencilMode::kFloat24Truncating);
+    depth_float24_truncate_fragment_shader_ = gpu::vulkan::objects::CreateShaderModule(
         vulkan_device,
         reinterpret_cast<const u32*>(depth_float24_truncate_fragment_shader_code.data()),
         depth_float24_truncate_fragment_shader_code.size());
@@ -314,8 +313,8 @@ bool VulkanPipelineCache::Initialize() {
     }
     std::vector<u8> depth_float24_round_fragment_shader_code =
         shader_translator_->CreateDepthOnlyFragmentShader(
-            SpirvShaderTranslator::Modification::DepthStencilMode::kFloat24Rounding);
-    depth_float24_round_fragment_shader_ = gpu::vulkan::util::CreateShaderModule(
+            SPIRVShaderTranslator::Modification::DepthStencilMode::kFloat24Rounding);
+    depth_float24_round_fragment_shader_ = gpu::vulkan::objects::CreateShaderModule(
         vulkan_device,
         reinterpret_cast<const u32*>(depth_float24_round_fragment_shader_code.data()),
         depth_float24_round_fragment_shader_code.size());
@@ -328,12 +327,12 @@ bool VulkanPipelineCache::Initialize() {
 
   std::vector<u32> placeholder_pixel_shader_spirv;
   std::string placeholder_pixel_shader_compile_error;
-  if (command_processor_.CompileGlslToSpirv(
+  if (command_processor_.CompileGLSLToSPIRV(
           VK_SHADER_STAGE_FRAGMENT_BIT, kPlaceholderPixelShaderSource,
           placeholder_pixel_shader_spirv, placeholder_pixel_shader_compile_error)) {
-    placeholder_pixel_shader_ =
-        gpu::vulkan::util::CreateShaderModule(vulkan_device, placeholder_pixel_shader_spirv.data(),
-                                              placeholder_pixel_shader_spirv.size() * sizeof(u32));
+    placeholder_pixel_shader_ = gpu::vulkan::objects::CreateShaderModule(
+        vulkan_device, placeholder_pixel_shader_spirv.data(),
+        placeholder_pixel_shader_spirv.size() * sizeof(u32));
   } else {
     REXLOG_WARN(gpu, "VulkanPipelineCache: Failed to compile placeholder pixel shader: {}",
                 placeholder_pixel_shader_compile_error);
@@ -416,7 +415,7 @@ void VulkanPipelineCache::InitializeShaderStorage(const std::filesystem::path& c
   const u32 pipeline_storage_magic = 0x53504558;
   const u32 pipeline_storage_magic_api = edram_fragment_shader_interlock ? 1u : 0u;
   const u32 pipeline_storage_version =
-      std::max(PipelineDescription::kVersion, SpirvShaderTranslator::Modification::kVersion);
+      std::max(PipelineDescription::kVersion, SPIRVShaderTranslator::Modification::kVersion);
   struct {
     u32 magic;
     u32 magic_api;
@@ -588,7 +587,7 @@ void VulkanPipelineCache::InitializeShaderStorage(const std::filesystem::path& c
     bool shader_writes_depth = creation_arguments.pixel_shader
                                    ? creation_arguments.pixel_shader->shader().writes_depth()
                                    : pipeline_description.depth_write_enable != 0;
-    creation_arguments.priority = pipeline_util::CalculatePipelinePriority(
+    creation_arguments.priority = pipeline_priority::CalculatePipelinePriority(
         bound_rts, shader_writes_color_targets, shader_writes_depth);
     pipeline_creations.push_back(creation_arguments);
   }
@@ -797,14 +796,14 @@ void VulkanPipelineCache::Shutdown() {
   }
   pipelines_.clear();
 
-  gpu::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyShaderModule, device,
-                                          depth_only_fragment_shader_);
-  gpu::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyShaderModule, device,
-                                          depth_float24_truncate_fragment_shader_);
-  gpu::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyShaderModule, device,
-                                          depth_float24_round_fragment_shader_);
-  gpu::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyShaderModule, device,
-                                          placeholder_pixel_shader_);
+  gpu::vulkan::objects::DestroyAndNullHandle(dfn.vkDestroyShaderModule, device,
+                                             depth_only_fragment_shader_);
+  gpu::vulkan::objects::DestroyAndNullHandle(dfn.vkDestroyShaderModule, device,
+                                             depth_float24_truncate_fragment_shader_);
+  gpu::vulkan::objects::DestroyAndNullHandle(dfn.vkDestroyShaderModule, device,
+                                             depth_float24_round_fragment_shader_);
+  gpu::vulkan::objects::DestroyAndNullHandle(dfn.vkDestroyShaderModule, device,
+                                             placeholder_pixel_shader_);
   if (tessellation_indexed_vertex_shader_ != VK_NULL_HANDLE) {
     dfn.vkDestroyShaderModule(device, tessellation_indexed_vertex_shader_, nullptr);
     tessellation_indexed_vertex_shader_ = VK_NULL_HANDLE;
@@ -856,7 +855,7 @@ VulkanShader* VulkanPipelineCache::LoadShader(xenos::ShaderType shader_type,
   return raw;
 }
 
-SpirvShaderTranslator::Modification VulkanPipelineCache::GetCurrentVertexShaderModification(
+SPIRVShaderTranslator::Modification VulkanPipelineCache::GetCurrentVertexShaderModification(
     const Shader& shader, Shader::HostVertexShaderType host_vertex_shader_type,
     u32 interpolator_mask, bool ps_param_gen_used) const {
   REX_ASSERT(shader.type() == xenos::ShaderType::kVertex);
@@ -864,7 +863,7 @@ SpirvShaderTranslator::Modification VulkanPipelineCache::GetCurrentVertexShaderM
   const auto& regs = register_file_;
   const auto& device_properties = command_processor_.GetVulkanDevice()->properties();
 
-  SpirvShaderTranslator::Modification modification(
+  SPIRVShaderTranslator::Modification modification(
       shader_translator_->GetDefaultVertexShaderModification(
           shader.GetDynamicAddressableRegisterCount(
               regs.Get<xenos::reg::SQ_PROGRAM_CNTL>().vs_num_reg),
@@ -910,14 +909,14 @@ SpirvShaderTranslator::Modification VulkanPipelineCache::GetCurrentVertexShaderM
   return modification;
 }
 
-SpirvShaderTranslator::Modification VulkanPipelineCache::GetCurrentPixelShaderModification(
+SPIRVShaderTranslator::Modification VulkanPipelineCache::GetCurrentPixelShaderModification(
     const Shader& shader, u32 interpolator_mask, u32 param_gen_pos,
     xenos::reg::RB_DEPTHCONTROL normalized_depth_control) const {
   REX_ASSERT(shader.type() == xenos::ShaderType::kPixel);
   REX_ASSERT(shader.is_ucode_analyzed());
   const auto& regs = register_file_;
 
-  SpirvShaderTranslator::Modification modification(
+  SPIRVShaderTranslator::Modification modification(
       shader_translator_->GetDefaultPixelShaderModification(
           shader.GetDynamicAddressableRegisterCount(
               regs.Get<xenos::reg::SQ_PROGRAM_CNTL>().ps_num_reg)));
@@ -941,7 +940,7 @@ SpirvShaderTranslator::Modification VulkanPipelineCache::GetCurrentPixelShaderMo
   }
 
   if (render_target_cache_.GetPath() == RenderTargetCache::Path::kHostRenderTargets) {
-    using DepthStencilMode = SpirvShaderTranslator::Modification::DepthStencilMode;
+    using DepthStencilMode = SPIRVShaderTranslator::Modification::DepthStencilMode;
     if (render_target_cache_.depth_float24_convert_in_pixel_shader() &&
         normalized_depth_control.z_enable &&
         regs.Get<xenos::reg::RB_DEPTH_INFO>().depth_format ==
@@ -952,7 +951,7 @@ SpirvShaderTranslator::Modification VulkanPipelineCache::GetCurrentPixelShaderMo
     } else {
       if (shader.implicit_early_z_write_allowed() &&
           (!shader.writes_color_target(0) ||
-           !draw_util::DoesCoverageDependOnAlpha(regs.Get<xenos::reg::RB_COLORCONTROL>()))) {
+           !draw_state::DoesCoverageDependOnAlpha(regs.Get<xenos::reg::RB_COLORCONTROL>()))) {
         modification.pixel.depth_stencil_mode = DepthStencilMode::kEarlyHint;
       } else {
         modification.pixel.depth_stencil_mode = DepthStencilMode::kNoModifiers;
@@ -1062,14 +1061,14 @@ bool VulkanPipelineCache::ConfigurePipeline(
   bool use_async = REXCVAR_GET(::rex::gpu::cvars::async_shader_compilation) &&
                    !creation_threads_.empty() && pixel_shader &&
                    placeholder_pixel_shader_ != VK_NULL_HANDLE;
-  u8 async_priority = pipeline_util::kPriorityLowest;
+  u8 async_priority = pipeline_priority::kPriorityLowest;
   if (use_async) {
-    u32 bound_rts = pipeline_util::GetBoundRTMaskFromNormalizedColorMask(normalized_color_mask);
+    u32 bound_rts = pipeline_priority::GetBoundRTMaskFromNormalizedColorMask(normalized_color_mask);
     u32 shader_writes_color_targets =
         pixel_shader ? pixel_shader->shader().writes_color_targets() : 0;
     bool shader_writes_depth = pixel_shader ? pixel_shader->shader().writes_depth()
                                             : normalized_depth_control.z_write_enable != 0;
-    async_priority = pipeline_util::CalculatePipelinePriority(
+    async_priority = pipeline_priority::CalculatePipelinePriority(
         bound_rts, shader_writes_color_targets, shader_writes_depth);
   }
 
@@ -1179,7 +1178,7 @@ void VulkanPipelineCache::GetPipelineAndLayoutByHandle(
   }
 }
 
-bool VulkanPipelineCache::TranslateAnalyzedShader(SpirvShaderTranslator& translator,
+bool VulkanPipelineCache::TranslateAnalyzedShader(SPIRVShaderTranslator& translator,
                                                   VulkanShader::VulkanTranslation& translation) {
   VulkanShader& shader = static_cast<VulkanShader&>(translation.shader());
 
@@ -1315,16 +1314,16 @@ bool VulkanPipelineCache::GetCurrentStateDescription(
 
   description_out.vertex_shader_hash = vertex_shader->shader().ucode_data_hash();
   description_out.vertex_shader_modification = vertex_shader->modification();
-  SpirvShaderTranslator::Modification vertex_shader_modification(
+  SPIRVShaderTranslator::Modification vertex_shader_modification(
       description_out.vertex_shader_modification);
   Shader::HostVertexShaderType host_vertex_shader_type =
       vertex_shader_modification.vertex.host_vertex_shader_type;
   if (pixel_shader) {
     description_out.pixel_shader_hash = pixel_shader->shader().ucode_data_hash();
     description_out.pixel_shader_modification = pixel_shader->modification();
-    SpirvShaderTranslator::Modification pixel_shader_modification(
+    SPIRVShaderTranslator::Modification pixel_shader_modification(
         description_out.pixel_shader_modification);
-    using DepthStencilMode = SpirvShaderTranslator::Modification::DepthStencilMode;
+    using DepthStencilMode = SPIRVShaderTranslator::Modification::DepthStencilMode;
     description_out.sample_rate_shading =
         !pixel_shader->shader().writes_depth() &&
         (pixel_shader_modification.pixel.depth_stencil_mode ==
@@ -1400,8 +1399,9 @@ bool VulkanPipelineCache::GetCurrentStateDescription(
       device_properties.depthClamp && regs.Get<xenos::reg::PA_CL_CLIP_CNTL>().clip_disable;
 
   // Tessellated patch draws are always polygonal, even when the major mode is not explicit.
-  bool primitive_polygonal = tessellated ? true : draw_util::IsPrimitivePolygonal(regs);
-  bool rasterization_enabled = draw_util::IsRasterizationPotentiallyDone(regs, primitive_polygonal);
+  bool primitive_polygonal = tessellated ? true : draw_state::IsPrimitivePolygonal(regs);
+  bool rasterization_enabled =
+      draw_state::IsRasterizationPotentiallyDone(regs, primitive_polygonal);
   if (!rasterization_enabled) {
     description_out.rasterizer_discard = 1;
     return true;
@@ -1495,7 +1495,7 @@ bool VulkanPipelineCache::GetCurrentStateDescription(
 bool VulkanPipelineCache::ArePipelineRequirementsMet(const PipelineDescription& description) const {
   VkShaderStageFlags vertex_shader_stage =
       Shader::IsHostVertexShaderTypeDomain(
-          SpirvShaderTranslator::Modification(description.vertex_shader_modification)
+          SPIRVShaderTranslator::Modification(description.vertex_shader_modification)
               .vertex.host_vertex_shader_type)
           ? VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT
           : VK_SHADER_STAGE_VERTEX_BIT;
@@ -1592,9 +1592,9 @@ VkShaderModule VulkanPipelineCache::GetTessellationVertexShader(bool adaptive) {
 
   std::vector<u32> shader_spirv;
   std::string compile_error;
-  std::string source = adaptive ? GetTessellationAdaptiveVertexShaderGlsl()
-                                : GetTessellationIndexedVertexShaderGlsl();
-  if (!command_processor_.CompileGlslToSpirv(VK_SHADER_STAGE_VERTEX_BIT, source, shader_spirv,
+  std::string source = adaptive ? GetTessellationAdaptiveVertexShaderGLSL()
+                                : GetTessellationIndexedVertexShaderGLSL();
+  if (!command_processor_.CompileGLSLToSPIRV(VK_SHADER_STAGE_VERTEX_BIT, source, shader_spirv,
                                              compile_error)) {
     REXLOG_ERROR(gpu,
                  "VulkanPipelineCache: Failed to compile tessellation {} vertex "
@@ -1604,7 +1604,7 @@ VkShaderModule VulkanPipelineCache::GetTessellationVertexShader(bool adaptive) {
     return shader_module;
   }
 
-  shader_module = gpu::vulkan::util::CreateShaderModule(
+  shader_module = gpu::vulkan::objects::CreateShaderModule(
       command_processor_.GetVulkanDevice(), shader_spirv.data(), sizeof(u32) * shader_spirv.size());
   if (shader_module == VK_NULL_HANDLE) {
     REXLOG_ERROR(gpu,
@@ -1644,9 +1644,9 @@ VkShaderModule VulkanPipelineCache::GetTessellationControlShader(
 
   std::vector<u32> shader_spirv;
   std::string compile_error;
-  std::string source = GetTessellationControlShaderGlsl(
+  std::string source = GetTessellationControlShaderGLSL(
       host_vertex_shader_type, tessellation_mode, input_control_points, output_control_points);
-  if (!command_processor_.CompileGlslToSpirv(VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT, source,
+  if (!command_processor_.CompileGLSLToSPIRV(VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT, source,
                                              shader_spirv, compile_error)) {
     REXLOG_ERROR(gpu,
                  "VulkanPipelineCache: Failed to compile tessellation control shader "
@@ -1656,7 +1656,7 @@ VkShaderModule VulkanPipelineCache::GetTessellationControlShader(
     return VK_NULL_HANDLE;
   }
 
-  VkShaderModule shader_module = gpu::vulkan::util::CreateShaderModule(
+  VkShaderModule shader_module = gpu::vulkan::objects::CreateShaderModule(
       command_processor_.GetVulkanDevice(), shader_spirv.data(), sizeof(u32) * shader_spirv.size());
   if (shader_module == VK_NULL_HANDLE) {
     REXLOG_ERROR(gpu,
@@ -1670,8 +1670,8 @@ VkShaderModule VulkanPipelineCache::GetTessellationControlShader(
 
 bool VulkanPipelineCache::GetGeometryShaderKey(
     PipelineGeometryShader geometry_shader_type,
-    SpirvShaderTranslator::Modification vertex_shader_modification,
-    SpirvShaderTranslator::Modification pixel_shader_modification, GeometryShaderKey& key_out) {
+    SPIRVShaderTranslator::Modification vertex_shader_modification,
+    SPIRVShaderTranslator::Modification pixel_shader_modification, GeometryShaderKey& key_out) {
   if (geometry_shader_type == PipelineGeometryShader::kNone) {
     return false;
   }
@@ -1760,7 +1760,7 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
     spirv_version = spv::Spv_1_0;
     builder_logger_ptr = &builder_logger;
   }
-  SpirvBuilder builder(spirv_version, (SpirvShaderTranslator::kSpirvMagicToolId << 16) | 1,
+  SPIRVBuilder builder(spirv_version, (SPIRVShaderTranslator::kSPIRVMagicToolId << 16) | 1,
                        builder_logger_ptr);
   builder.addCapability(spv::CapabilityGeometry);
   if (clip_distance_count) {
@@ -1826,24 +1826,24 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
                           "point_constant_diameter");
     builder.addMemberDecoration(
         type_system_constants, kPointConstantConstantDiameter, spv::DecorationOffset,
-        int(offsetof(SpirvShaderTranslator::SystemConstants, point_constant_diameter)));
+        int(offsetof(SPIRVShaderTranslator::SystemConstants, point_constant_diameter)));
     builder.addMemberName(type_system_constants, kPointConstantScreenDiameterToNdcRadius,
                           "point_screen_diameter_to_ndc_radius");
     builder.addMemberDecoration(
         type_system_constants, kPointConstantScreenDiameterToNdcRadius, spv::DecorationOffset,
-        int(offsetof(SpirvShaderTranslator::SystemConstants, point_screen_diameter_to_ndc_radius)));
+        int(offsetof(SPIRVShaderTranslator::SystemConstants, point_screen_diameter_to_ndc_radius)));
     builder.addMemberName(type_system_constants, kPointConstantNdcScale, "ndc_scale");
     builder.addMemberDecoration(type_system_constants, kPointConstantNdcScale,
                                 spv::DecorationOffset,
-                                int(offsetof(SpirvShaderTranslator::SystemConstants, ndc_scale)));
+                                int(offsetof(SPIRVShaderTranslator::SystemConstants, ndc_scale)));
     builder.addMemberName(type_system_constants, kPointConstantNdcOffset, "ndc_offset");
     builder.addMemberDecoration(type_system_constants, kPointConstantNdcOffset,
                                 spv::DecorationOffset,
-                                int(offsetof(SpirvShaderTranslator::SystemConstants, ndc_offset)));
+                                int(offsetof(SPIRVShaderTranslator::SystemConstants, ndc_offset)));
     builder.addMemberName(type_system_constants, kPointConstantUserClipPlanes, "user_clip_planes");
     builder.addMemberDecoration(
         type_system_constants, kPointConstantUserClipPlanes, spv::DecorationOffset,
-        int(offsetof(SpirvShaderTranslator::SystemConstants, user_clip_planes)));
+        int(offsetof(SPIRVShaderTranslator::SystemConstants, user_clip_planes)));
   }
   spv::Id uniform_system_constants = spv::NoResult;
   if (type_system_constants != spv::NoType) {
@@ -1852,9 +1852,9 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
         builder.createVariable(spv::NoPrecision, spv::StorageClassUniform, type_system_constants,
                                "xe_uniform_system_constants");
     builder.addDecoration(uniform_system_constants, spv::DecorationDescriptorSet,
-                          int(SpirvShaderTranslator::kDescriptorSetConstants));
+                          int(SPIRVShaderTranslator::kDescriptorSetConstants));
     builder.addDecoration(uniform_system_constants, spv::DecorationBinding,
-                          int(SpirvShaderTranslator::kConstantBufferSystem));
+                          int(SPIRVShaderTranslator::kConstantBufferSystem));
     main_interface.push_back(uniform_system_constants);
   }
 
@@ -2664,12 +2664,12 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
   std::vector<unsigned int> shader_code;
   builder.dump(shader_code);
   if (!REXCVAR_GET(::rex::gpu::cvars::dump_shaders).empty()) {
-    gpu::vulkan::util::DumpShader(REXCVAR_GET(::rex::gpu::cvars::dump_shaders),
-                                  std::format("gs_{:08X}", key.key), shader_code);
+    gpu::vulkan::objects::DumpShader(REXCVAR_GET(::rex::gpu::cvars::dump_shaders),
+                                     std::format("gs_{:08X}", key.key), shader_code);
   }
 
   // The handle is stored even when creation fails so it is not retried.
-  VkShaderModule shader_module = gpu::vulkan::util::CreateShaderModule(
+  VkShaderModule shader_module = gpu::vulkan::objects::CreateShaderModule(
       command_processor_.GetVulkanDevice(), reinterpret_cast<const u32*>(shader_code.data()),
       sizeof(u32) * shader_code.size());
   if (shader_module == VK_NULL_HANDLE) {
@@ -2714,7 +2714,7 @@ bool VulkanPipelineCache::TryGetPipelineCreationArgumentsForDescription(
   if (!vertex_shader || !vertex_shader->is_translated() || !vertex_shader->is_valid()) {
     return fail("vertex_shader_translation_missing_or_invalid");
   }
-  SpirvShaderTranslator::Modification vertex_shader_modification(
+  SPIRVShaderTranslator::Modification vertex_shader_modification(
       description.vertex_shader_modification);
   Shader::HostVertexShaderType host_vertex_shader_type =
       vertex_shader_modification.vertex.host_vertex_shader_type;
@@ -2732,7 +2732,7 @@ bool VulkanPipelineCache::TryGetPipelineCreationArgumentsForDescription(
       return fail("pixel_shader_translation_missing_or_invalid");
     }
   }
-  SpirvShaderTranslator::Modification pixel_shader_modification(
+  SPIRVShaderTranslator::Modification pixel_shader_modification(
       description.pixel_shader_modification);
 
   VkShaderModule tessellation_vertex_shader = VK_NULL_HANDLE;
@@ -3059,13 +3059,13 @@ bool VulkanPipelineCache::EnsurePipelineCreated(const PipelineCreationArguments&
       !edram_fragment_shader_interlock && description.render_pass_key.depth_and_color_used != 0;
   VkSampleMask sample_mask = UINT32_MAX;
   VkPipelineMultisampleStateCreateInfo multisample_state =
-      util::MakeMultisampleState(VK_SAMPLE_COUNT_1_BIT);
+      objects::BuildMultisampleState(VK_SAMPLE_COUNT_1_BIT);
   if (description.rasterizer_discard ||
       (!edram_fragment_shader_interlock && !subpass_has_attachments)) {
     // Rasterizer discard and attachmentless draws run at 1 sample.
     multisample_state.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
   } else if (description.render_pass_key.msaa_samples == xenos::MSAASamples::k2X &&
-             !render_target_cache_.IsMsaa2xSupported(subpass_has_attachments)) {
+             !render_target_cache_.IsMSAA2xSupported(subpass_has_attachments)) {
     // 4 samples with samples 0 and 3 stand in for 2x, still top left and bottom right.
     multisample_state.rasterizationSamples = VK_SAMPLE_COUNT_4_BIT;
     // Sample masks are ignored without attachments.

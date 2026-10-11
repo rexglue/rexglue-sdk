@@ -8,5 +8,5 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-REXVK_FUNCTION_PROMOTED(vkGetDeviceBufferMemoryRequirementsKHR, vkGetDeviceBufferMemoryRequirements)
-REXVK_FUNCTION_PROMOTED(vkGetDeviceImageMemoryRequirementsKHR, vkGetDeviceImageMemoryRequirements)
+REX_VK_FUNCTION_PROMOTED(vkGetDeviceBufferMemoryRequirementsKHR, vkGetDeviceBufferMemoryRequirements)
+REX_VK_FUNCTION_PROMOTED(vkGetDeviceImageMemoryRequirementsKHR, vkGetDeviceImageMemoryRequirements)

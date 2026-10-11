@@ -23,7 +23,7 @@
 #include <rex/logging.h>
 #include <rex/math.h>
 #include <rex/memory/mapped_memory.h>
-#include <rex/memory/utils.h>
+#include <rex/memory/virtual_memory.h>
 #include <rex/platform.h>
 
 static_assert(sizeof(off_t) == 8);

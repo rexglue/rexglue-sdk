@@ -14,17 +14,17 @@
 
 namespace rex::runtime {
 
-const XmaRegisterInfo* XMARegisterFile::GetRegisterInfo(u32 index) {
+const XMARegisterInfo* XMARegisterFile::GetRegisterInfo(u32 index) {
   switch (index) {
-#define XE_XMA_REGISTER(index, name)          \
+#define REX_XMA_REGISTER(index, name)         \
   case index: {                               \
-    static const XmaRegisterInfo reg_info = { \
+    static const XMARegisterInfo reg_info = { \
         #name,                                \
     };                                        \
     return &reg_info;                         \
   }
 #include "runtime/xma/register_table.inc"
-#undef XE_XMA_REGISTER
+#undef REX_XMA_REGISTER
     default:
       return nullptr;
   }

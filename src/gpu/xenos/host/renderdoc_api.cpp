@@ -23,7 +23,7 @@ std::unique_ptr<RenderDocAPI> RenderDocAPI::CreateIfConnected() {
 
   pRENDERDOC_GetAPI get_api = nullptr;
 
-  if (!renderdoc_api->library_.Load(platform::lib_names::kRenderDoc)) {
+  if (!renderdoc_api->library_.Load(platform::kRenderDoc)) {
     return nullptr;
   }
   get_api = renderdoc_api->library_.GetSymbol<pRENDERDOC_GetAPI>("RENDERDOC_GetAPI");

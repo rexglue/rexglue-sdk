@@ -39,7 +39,7 @@ class ThreadRegistry final : public IThreadRegistry {
   ThreadRegistry(Runtime& runtime, ObjectTable& table);
   ~ThreadRegistry() override;
 
-  [[nodiscard]] Result<X_HANDLE> Launch(std::unique_ptr<ThreadRecord> record) override;
+  [[nodiscard]] Result<X_HANDLE> Launch(std::unique_ptr<KernelThread> thread) override;
   ThreadPin Find(u32 thread_id) override;
   ThreadPin FindByHandle(X_HANDLE handle) override;
   std::vector<ThreadPin> All() override;
@@ -53,20 +53,20 @@ class ThreadRegistry final : public IThreadRegistry {
   void RemoveThreadNotify(u32 notification) override;
 
   /**
-   * Marks that a thread finished running. The `ThreadRecord` is destroyed when its last handle is
+   * Marks that a thread finished running. The `KernelThread` is destroyed when its last handle is
    * closed and no pin is held.
    *
-   * @param record The finished thread.
+   * @param thread The finished thread.
    */
-  void NoteExited(ThreadRecord& record);
+  void MarkExited(KernelThread& thread);
 
   /**
-   * Marks that the last handle of a thread closed. The `ThreadRecord` is destroyed when the thread
+   * Marks that the last handle of a thread closed. The `KernelThread` is destroyed when the thread
    * finished and no pin is held.
    *
    * @param thread_id The thread id.
    */
-  void NoteHandlesClosed(u32 thread_id);
+  void MarkHandlesClosed(u32 thread_id);
 
   /** Destroys the host fibers no title deleted and frees their guest stacks and context blocks. */
   void DestroyFibers();
@@ -79,12 +79,12 @@ class ThreadRegistry final : public IThreadRegistry {
   std::vector<u32> ThreadNotifications();
 
  private:
-  static void Dispose(std::unique_ptr<ThreadRecord> record);
+  static void Dispose(std::unique_ptr<KernelThread> thread);
 
   Runtime& runtime_;
   ObjectTable& table_;
   rex::platform::RankedSharedMutex mutex_{rex::platform::LockRank::ThreadRegistry};
-  std::unordered_map<u32, std::unique_ptr<ThreadRecord>> threads_;
+  std::unordered_map<u32, std::unique_ptr<KernelThread>> threads_;
   std::atomic<u32> next_id_{0};
   rex::platform::RankedMutex fiber_mutex_{rex::platform::LockRank::Leaf};
   rex::platform::RankedMutex notify_mutex_{rex::platform::LockRank::Leaf};

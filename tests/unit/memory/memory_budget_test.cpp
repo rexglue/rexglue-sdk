@@ -524,7 +524,7 @@ X_STATUS SetupWithBudget(u32 megabytes, u32* out_budget_pages) {
   X_STATUS status = rex::X_STATUS_UNSUCCESSFUL;
   {
     rex::Runtime runtime((*api)->config());
-    rex::RuntimeConfig setup;
+    rex::RuntimeDesc setup;
     setup.file_system = (*api)->Get<rex::filesystem::IFileSystem>();
     setup.kernel_init = rex::kernel::InitializeKernel;
     setup.tool_mode = true;

@@ -10,7 +10,7 @@ void SlotAssignment::OnDevicesChanged(const std::vector<DeviceInfo>& devices) {
   for (const auto& device : devices) {
     if (device.synthetic) {
       users_[0].push_back(device.id);
-    } else if (device.ordinal < kMaxGuestUsers) {
+    } else if (device.ordinal < kMaxTitleUsers) {
       users_[device.ordinal].push_back(device.id);
     }
   }
@@ -18,7 +18,7 @@ void SlotAssignment::OnDevicesChanged(const std::vector<DeviceInfo>& devices) {
 
 void SlotAssignment::DevicesForUser(u32 user_index, std::vector<DeviceId>& out) const {
   out.clear();
-  if (user_index >= kMaxGuestUsers) {
+  if (user_index >= kMaxTitleUsers) {
     return;
   }
   out = users_[user_index];

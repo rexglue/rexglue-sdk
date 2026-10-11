@@ -26,7 +26,7 @@ namespace rex::ui {
 class HIDHost final : public hid::IInputHost, public WindowInputListener, public WindowListener {
  public:
   HIDHost(IUserInterface& ui, Window& window, ImGuiDrawer& drawer, OverlayRegistry& overlays,
-          hid::IBackend& backend);
+          hid::IHIDBackend& backend);
 
   void Attach();
   void Detach();
@@ -56,7 +56,7 @@ class HIDHost final : public hid::IInputHost, public WindowInputListener, public
   Window& window_;
   ImGuiDrawer& drawer_;
   OverlayRegistry& overlays_;
-  hid::IBackend& backend_;
+  hid::IHIDBackend& backend_;
   hid::PointerMode applied_ = hid::PointerMode::Free;
   CursorVisibility arrow_ = CursorVisibility::Visible;
 };

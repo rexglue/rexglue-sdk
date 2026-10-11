@@ -39,11 +39,11 @@ inline constexpr Key kSessionKey = {0x10, 0x32, 0x54, 0x76, 0x98, 0xBA, 0xDC, 0x
                                     0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF};
 
 struct XEXSpec {
-  xex2_compression_type compression = XEX_COMPRESSION_NONE;
+  filesystem::XEXCompressionType compression = filesystem::XEX_COMPRESSION_NONE;
   bool encrypted = false;
   filesystem::XEXKey key = filesystem::XEXKey::Retail;
   bool page_size_4kb = true;
-  u32 module_flags = XEX_MODULE_TITLE;
+  u32 module_flags = filesystem::XEX_MODULE_TITLE;
   u32 load_address = 0x82000000;
   u32 entry_point = 0x82000100;
   u32 title_id = 0x4D5307E6;
@@ -144,7 +144,8 @@ inline std::vector<u8> BuildXEX(const XEXSpec& spec) {
   auto normal_format = [&](std::vector<u8> block) {
     format.assign(36, 0);
     PutBE32(format, 0, 36);
-    PutBE16(format, 4, spec.encrypted ? XEX_ENCRYPTION_NORMAL : XEX_ENCRYPTION_NONE);
+    PutBE16(format, 4,
+            spec.encrypted ? filesystem::XEX_ENCRYPTION_NORMAL : filesystem::XEX_ENCRYPTION_NONE);
     PutBE16(format, 6, static_cast<u16>(spec.compression));
     PutBE32(format, 8, 0x8000);
     PutBE32(format, 12, static_cast<u32>(block.size()));
@@ -155,18 +156,20 @@ inline std::vector<u8> BuildXEX(const XEXSpec& spec) {
   };
   if (patch) {
     normal_format(spec.patch_body);
-  } else if (spec.compression == XEX_COMPRESSION_NONE) {
+  } else if (spec.compression == filesystem::XEX_COMPRESSION_NONE) {
     format.assign(8, 0);
     PutBE32(format, 0, 8);
-    PutBE16(format, 4, spec.encrypted ? XEX_ENCRYPTION_NORMAL : XEX_ENCRYPTION_NONE);
-    PutBE16(format, 6, XEX_COMPRESSION_NONE);
+    PutBE16(format, 4,
+            spec.encrypted ? filesystem::XEX_ENCRYPTION_NORMAL : filesystem::XEX_ENCRYPTION_NONE);
+    PutBE16(format, 6, filesystem::XEX_COMPRESSION_NONE);
     data = encrypt(spec.image);
-  } else if (spec.compression == XEX_COMPRESSION_BASIC) {
+  } else if (spec.compression == filesystem::XEX_COMPRESSION_BASIC) {
     const u32 half = static_cast<u32>(spec.image.size() / 2);
     format.assign(16, 0);
     PutBE32(format, 0, 16);
-    PutBE16(format, 4, spec.encrypted ? XEX_ENCRYPTION_NORMAL : XEX_ENCRYPTION_NONE);
-    PutBE16(format, 6, XEX_COMPRESSION_BASIC);
+    PutBE16(format, 4,
+            spec.encrypted ? filesystem::XEX_ENCRYPTION_NORMAL : filesystem::XEX_ENCRYPTION_NONE);
+    PutBE16(format, 6, filesystem::XEX_COMPRESSION_BASIC);
     PutBE32(format, 8, half);
     PutBE32(format, 12, static_cast<u32>(spec.image.size()) - half);
     data = encrypt(std::span(spec.image).first(half));
@@ -190,15 +193,15 @@ inline std::vector<u8> BuildXEX(const XEXSpec& spec) {
     u32 value;
   };
   std::vector<Entry> entries = {
-      {XEX_HEADER_FILE_FORMAT_INFO, format, 0},
-      {XEX_HEADER_ENTRY_POINT, {}, spec.entry_point},
-      {XEX_HEADER_EXECUTION_INFO, exec, 0},
+      {filesystem::XEX_HEADER_FILE_FORMAT_INFO, format, 0},
+      {filesystem::XEX_HEADER_ENTRY_POINT, {}, spec.entry_point},
+      {filesystem::XEX_HEADER_EXECUTION_INFO, exec, 0},
   };
   if (!alt_ids.empty()) {
-    entries.push_back({XEX_HEADER_ALTERNATE_TITLE_IDS, alt_ids, 0});
+    entries.push_back({filesystem::XEX_HEADER_ALTERNATE_TITLE_IDS, alt_ids, 0});
   }
   if (patch) {
-    entries.push_back({XEX_HEADER_DELTA_PATCH_DESCRIPTOR, spec.patch_descriptor, 0});
+    entries.push_back({filesystem::XEX_HEADER_DELTA_PATCH_DESCRIPTOR, spec.patch_descriptor, 0});
   }
 
   std::vector<u8> header(0x18 + entries.size() * 8, 0);
@@ -228,12 +231,13 @@ inline std::vector<u8> BuildXEX(const XEXSpec& spec) {
   PutBE32(header, 0x10, static_cast<u32>(security_offset));
   header.resize(security_offset + 0x184 + 0x18, 0);
   PutBE32(header, security_offset + 0x4, pages * page_size);
-  PutBE32(header, security_offset + 0x10C, spec.page_size_4kb ? XEX_IMAGE_PAGE_SIZE_4KB : 0);
+  PutBE32(header, security_offset + 0x10C,
+          spec.page_size_4kb ? filesystem::XEX_IMAGE_PAGE_SIZE_4KB : 0);
   PutBE32(header, security_offset + 0x110, spec.load_address);
   const Key encrypted_key = EncryptKey(master, kSessionKey);
   std::memcpy(header.data() + security_offset + 0x150, encrypted_key.data(), 16);
   PutBE32(header, security_offset + 0x180, 1);
-  PutBE32(header, security_offset + 0x184, (pages << 4) | XEX_SECTION_CODE);
+  PutBE32(header, security_offset + 0x184, (pages << 4) | filesystem::XEX_SECTION_CODE);
   PutBE32(header, 0x8, static_cast<u32>(header.size()));
 
   header.insert(header.end(), data.begin(), data.end());

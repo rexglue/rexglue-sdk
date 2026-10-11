@@ -20,19 +20,19 @@
 
 namespace rex::gpu {
 
-class DxbcShader : public Shader {
+class DXBCShader : public Shader {
  public:
-  class DxbcTranslation : public Translation {
+  class DXBCTranslation : public Translation {
    public:
-    DxbcTranslation(DxbcShader& shader, u64 modification) : Translation(shader, modification) {}
+    DXBCTranslation(DXBCShader& shader, u64 modification) : Translation(shader, modification) {}
   };
 
-  DxbcShader(xenos::ShaderType shader_type, u64 ucode_data_hash, const u32* ucode_dwords,
+  DXBCShader(xenos::ShaderType shader_type, u64 ucode_data_hash, const u32* ucode_dwords,
              size_t ucode_dword_count, std::endian ucode_source_endian = std::endian::big);
 
   static constexpr u32 kMaxTextureBindingIndexBits =
-      DxbcShaderTranslator::kMaxTextureBindingIndexBits;
-  static constexpr u32 kMaxTextureBindings = DxbcShaderTranslator::kMaxTextureBindings;
+      DXBCShaderTranslator::kMaxTextureBindingIndexBits;
+  static constexpr u32 kMaxTextureBindings = DXBCShaderTranslator::kMaxTextureBindings;
   struct TextureBinding {
     u32 bindless_descriptor_index;
     u32 fetch_constant;
@@ -50,8 +50,8 @@ class DxbcShader : public Shader {
   u32 GetUsedTextureMaskAfterTranslation() const { return used_texture_mask_; }
 
   static constexpr u32 kMaxSamplerBindingIndexBits =
-      DxbcShaderTranslator::kMaxSamplerBindingIndexBits;
-  static constexpr u32 kMaxSamplerBindings = DxbcShaderTranslator::kMaxSamplerBindings;
+      DXBCShaderTranslator::kMaxSamplerBindingIndexBits;
+  static constexpr u32 kMaxSamplerBindings = DXBCShaderTranslator::kMaxSamplerBindings;
   struct SamplerBinding {
     u32 bindless_descriptor_index;
     u32 fetch_constant;
@@ -68,7 +68,7 @@ class DxbcShader : public Shader {
   std::unique_ptr<Translation> CreateTranslationInstance(u64 modification) override;
 
  private:
-  friend class DxbcShaderTranslator;
+  friend class DXBCShaderTranslator;
 
   std::atomic_flag bindings_setup_entered_;
   std::vector<TextureBinding> texture_bindings_;

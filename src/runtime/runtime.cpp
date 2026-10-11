@@ -91,7 +91,7 @@ std::optional<EmbeddedMetadataAsset> Runtime::FindEmbeddedMetadata(
   return FindEmbeddedMetadataAsset(relative_path);
 }
 
-Result<void> Runtime::Setup(const RuntimeConfig& config) {
+Result<void> Runtime::Setup(const RuntimeDesc& config) {
   if (runtime::RuntimeModule::active() != nullptr) {
     return Err(SetupError(X_STATUS_UNSUCCESSFUL, "another runtime is active"));
   }
@@ -128,15 +128,15 @@ Result<void> Runtime::Setup(const RuntimeConfig& config) {
   function_dispatcher_ = std::make_unique<runtime::FunctionDispatcher>(memory_.get());
 
   if (!config.file_system) {
-    return fail(X_STATUS_INVALID_PARAMETER, "RuntimeConfig::file_system is null");
+    return fail(X_STATUS_INVALID_PARAMETER, "RuntimeDesc::file_system is null");
   }
   file_system_ = config.file_system;
 
-  CreateConcerns();
+  CreateSubsystems();
 
   hid_ = runtime::RuntimeModule::hid_backend();
   if (!hid_) {
-    null_hid_ = std::make_unique<hid::NullBackend>();
+    null_hid_ = std::make_unique<hid::NullHIDBackend>();
     hid_ = null_hid_.get();
     REXLOG_INFO(hid, "no hid module is loaded, the title sees 1 idle pad on user 0");
   }
@@ -151,9 +151,9 @@ Result<void> Runtime::Setup(const RuntimeConfig& config) {
   }
 
   if (!tool_mode_) {
-    apu::IBackend* apu_backend = runtime::RuntimeModule::apu_backend();
+    apu::IAPUBackend* apu_backend = runtime::RuntimeModule::apu_backend();
     if (!apu_backend) {
-      null_apu_ = std::make_unique<apu::NullBackend>();
+      null_apu_ = std::make_unique<apu::NullAPUBackend>();
       apu_backend = null_apu_.get();
       REXLOG_INFO(apu, "no apu module is loaded, audio plays to the null backend");
     }
@@ -199,7 +199,7 @@ Result<void> Runtime::Setup(const RuntimeConfig& config) {
   return Ok();
 }
 
-Result<void> Runtime::Setup(const rex::PPCImageInfo& image_info, const RuntimeConfig& config) {
+Result<void> Runtime::Setup(const rex::PPCImageInfo& image_info, const RuntimeDesc& config) {
   REX_TRY_VOID(Setup(config));
 
   codegen_flags_ = image_info.codegen_flags;
@@ -218,8 +218,8 @@ Result<void> Runtime::Setup(const rex::PPCImageInfo& image_info, const RuntimeCo
     int count = 0;
     int duplicates = 0;
     int rejected = 0;
-    for (int i = 0; image_info.func_mappings[i].guest != 0; ++i) {
-      u32 address = static_cast<u32>(image_info.func_mappings[i].guest);
+    for (int i = 0; image_info.func_mappings[i].address != 0; ++i) {
+      u32 address = static_cast<u32>(image_info.func_mappings[i].address);
       auto* host = image_info.func_mappings[i].host;
       if (!host) {
         continue;
@@ -280,7 +280,7 @@ void Runtime::Shutdown() {
   if (runtime::RuntimeModule::active() == this) {
     runtime::RuntimeModule::SetActive(nullptr);
   }
-  DestroyConcerns();
+  DestroySubsystems();
   function_dispatcher_.reset();
   if (file_system_) {
     file_system_->Clear();
@@ -335,11 +335,11 @@ X_HANDLE Runtime::PrepareModuleLaunch() {
   }
   SetExecutableModule(*executable);
   REXLOG_DEBUG(system, "Runtime: Preparing module launch...");
-  auto record = std::make_unique<runtime::ThreadRecord>(*this, module->user.stack_size, 0,
+  auto thread = std::make_unique<runtime::KernelThread>(*this, module->user.stack_size, 0,
                                                         module->user.entry_point, 0,
                                                         runtime::X_CREATE_SUSPENDED, true, true);
-  record->set_name("Main XThread");
-  Result<X_HANDLE> launched = thread_registry_->Launch(std::move(record));
+  thread->set_name("Main XThread");
+  Result<X_HANDLE> launched = thread_registry_->Launch(std::move(thread));
   if (!launched) {
     REX_FAIL(system, 0, "Could not create launch thread: {:08X}", runtime::ToXStatus(launched));
   }

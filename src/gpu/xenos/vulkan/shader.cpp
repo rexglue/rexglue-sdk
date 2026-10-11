@@ -49,7 +49,7 @@ VkShaderModule VulkanShader::VulkanTranslation::GetOrCreateShaderModule() {
                  "VulkanShader::VulkanTranslation: Failed to create a Vulkan shader "
                  "module for shader {:016X} modification {:016X}",
                  shader().ucode_data_hash(), modification());
-    MakeInvalid();
+    Invalidate();
     return VK_NULL_HANDLE;
   }
   return shader_module_;
@@ -59,7 +59,7 @@ VulkanShader::VulkanShader(const gpu::vulkan::VulkanDevice* const vulkan_device,
                            const xenos::ShaderType shader_type, const u64 ucode_data_hash,
                            const u32* const ucode_dwords, const size_t ucode_dword_count,
                            const std::endian ucode_source_endian)
-    : SpirvShader(shader_type, ucode_data_hash, ucode_dwords, ucode_dword_count,
+    : SPIRVShader(shader_type, ucode_data_hash, ucode_dwords, ucode_dword_count,
                   ucode_source_endian),
       vulkan_device_(vulkan_device) {
   REX_ASSERT(vulkan_device != nullptr);

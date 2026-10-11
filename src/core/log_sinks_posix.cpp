@@ -23,10 +23,10 @@ ConsoleSink::ConsoleSink(LineFormat format)
 
 DebuggerSink::DebuggerSink(LineFormat format) : format_(format) {}
 
-void DebuggerSink::Write(const Record& record) {
+void DebuggerSink::Write(const Message& message) {
   LineFormat format = format_;
   format.color = false;
-  std::string line = FormatLine(record, format);
+  std::string line = FormatLine(message, format);
   line += '\n';
   std::fwrite(line.data(), 1, line.size(), stderr);
 }

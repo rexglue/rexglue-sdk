@@ -13,11 +13,11 @@
 
 #include "gpu/xenos/d3d12/command_processor.h"
 #include "gpu/xenos/d3d12/graphics_system.h"
-#include "gpu/xenos/util/draw.h"
+#include "gpu/xenos/draw_state.h"
 #include <rex/logging.h>
 #include <rex/math.h>
 #include <rex/runtime.h>
-#include "gpu/xenos/host/d3d12/d3d12_util.h"
+#include "gpu/xenos/host/d3d12/d3d12_objects.h"
 
 namespace rex::gpu::d3d12 {
 

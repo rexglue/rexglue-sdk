@@ -23,13 +23,13 @@
 #include "gpu/xenos/d3d12/shared_memory.h"
 #include "gpu/xenos/d3d12/texture_cache.h"
 #include <rex/xenos/texture_info.h>
-#include <rex/xenos/texture_util.h>
+#include <rex/xenos/texture_layout.h>
 #include <rex/xenos/xenos.h>
 #include <rex/logging.h>
 #include <rex/perf/counter.h>
 #include <rex/math.h>
 #include "gpu/xenos/host/d3d12/d3d12_upload_buffer_pool.h"
-#include "gpu/xenos/host/d3d12/d3d12_util.h"
+#include "gpu/xenos/host/d3d12/d3d12_objects.h"
 
 #include "gpu/xenos/cvar_table.h"
 
@@ -418,7 +418,7 @@ bool D3D12TextureCache::Initialize() {
   root_signature_desc.pStaticSamplers = nullptr;
   root_signature_desc.Flags = D3D12_ROOT_SIGNATURE_FLAG_NONE;
   *(load_root_signature_.ReleaseAndGetAddressOf()) =
-      gpu::d3d12::util::CreateRootSignature(provider, root_signature_desc);
+      gpu::d3d12::objects::CreateRootSignature(provider, root_signature_desc);
   if (!load_root_signature_) {
     REX_FAIL(gpu, false,
              "D3D12TextureCache: Failed to create the texture loading root "
@@ -530,7 +530,7 @@ bool D3D12TextureCache::Initialize() {
     if (!current_load_shader_code.pShaderBytecode) {
       continue;
     }
-    *(load_pipelines_[i].ReleaseAndGetAddressOf()) = gpu::d3d12::util::CreateComputePipeline(
+    *(load_pipelines_[i].ReleaseAndGetAddressOf()) = gpu::d3d12::objects::CreateComputePipeline(
         device, current_load_shader_code.pShaderBytecode, current_load_shader_code.BytecodeLength,
         load_root_signature_.Get());
     if (!load_pipelines_[i]) {
@@ -543,7 +543,7 @@ bool D3D12TextureCache::Initialize() {
       const D3D12_SHADER_BYTECODE& current_load_shader_code_scaled = load_shader_code_scaled[i];
       if (current_load_shader_code_scaled.pShaderBytecode) {
         *(load_pipelines_scaled_[i].ReleaseAndGetAddressOf()) =
-            gpu::d3d12::util::CreateComputePipeline(
+            gpu::d3d12::objects::CreateComputePipeline(
                 device, current_load_shader_code_scaled.pShaderBytecode,
                 current_load_shader_code_scaled.BytecodeLength, load_root_signature_.Get());
         if (!load_pipelines_scaled_[i]) {
@@ -747,7 +747,7 @@ void D3D12TextureCache::WriteActiveTextureSRVKeys(
     TextureSRVKey& key = keys[i];
     const TextureBinding* binding = GetValidTextureBinding(host_shader_bindings[i].fetch_constant);
     if (!binding) {
-      key.key.MakeInvalid();
+      key.key.Invalidate();
       key.host_swizzle = xenos::REXGPU_SWIZZLE_0000;
       key.swizzled_signs = kSwizzledSignsUnsigned;
       continue;
@@ -1086,7 +1086,7 @@ bool D3D12TextureCache::EnsureScaledResolveMemoryCommitted(u32 start_unscaled, u
     }
     D3D12_RESOURCE_DESC scaled_resolve_buffer_desc;
     // Buffer indices are gigabytes.
-    gpu::d3d12::util::FillBufferResourceDesc(
+    gpu::d3d12::objects::FillBufferResourceDesc(
         scaled_resolve_buffer_desc,
         std::min(static_cast<u64>(1) << 31,
                  static_cast<u64>(SharedMemory::kBufferSize) * draw_resolution_scale_area -
@@ -1114,7 +1114,7 @@ bool D3D12TextureCache::EnsureScaledResolveMemoryCommitted(u32 start_unscaled, u
       continue;
     }
     auto direct_queue = provider.GetDirectQueue();
-    const D3D12_HEAP_DESC heap_desc = util::MakeDefaultHeapDesc(
+    const D3D12_HEAP_DESC heap_desc = objects::BuildDefaultHeapDesc(
         kScaledResolveHeapSize,
         D3D12_HEAP_FLAG_ALLOW_ONLY_BUFFERS | provider.GetHeapFlagCreateNotZeroed());
     Microsoft::WRL::ComPtr<ID3D12Heap> scaled_resolve_heap;
@@ -1155,8 +1155,8 @@ bool D3D12TextureCache::EnsureScaledResolveMemoryCommitted(u32 start_unscaled, u
   return true;
 }
 
-bool D3D12TextureCache::MakeScaledResolveRangeCurrent(u32 start_unscaled, u32 length_unscaled,
-                                                      u32 length_scaled_alignment_log2) {
+bool D3D12TextureCache::UpdateScaledResolveRange(u32 start_unscaled, u32 length_unscaled,
+                                                 u32 length_scaled_alignment_log2) {
   REX_ASSERT(IsDrawResolutionScaled());
 
   if (!length_unscaled || start_unscaled >= SharedMemory::kBufferSize ||
@@ -1266,9 +1266,9 @@ void D3D12TextureCache::CreateCurrentScaledResolveRangeUintPow2SRV(
   size_t buffer_index = GetCurrentScaledResolveBufferIndex();
   const ScaledResolveVirtualBuffer* buffer = scaled_resolve_2gb_buffers_[buffer_index].get();
   REX_ASSERT(buffer != nullptr);
-  gpu::d3d12::util::CreateBufferTypedSRV(
+  gpu::d3d12::objects::CreateBufferTypedSRV(
       command_processor_.GetD3D12Provider().GetDevice(), handle, buffer->resource(),
-      gpu::d3d12::util::GetUintPow2DXGIFormat(element_size_bytes_pow2),
+      gpu::d3d12::objects::GetUintPow2DXGIFormat(element_size_bytes_pow2),
       static_cast<u32>(scaled_resolve_current_range_length_scaled_ >> element_size_bytes_pow2),
       (scaled_resolve_current_range_start_scaled_ - (static_cast<u64>(buffer_index) << 30)) >>
           element_size_bytes_pow2);
@@ -1280,9 +1280,9 @@ void D3D12TextureCache::CreateCurrentScaledResolveRangeUintPow2UAV(
   size_t buffer_index = GetCurrentScaledResolveBufferIndex();
   const ScaledResolveVirtualBuffer* buffer = scaled_resolve_2gb_buffers_[buffer_index].get();
   REX_ASSERT(buffer != nullptr);
-  gpu::d3d12::util::CreateBufferTypedUAV(
+  gpu::d3d12::objects::CreateBufferTypedUAV(
       command_processor_.GetD3D12Provider().GetDevice(), handle, buffer->resource(),
-      gpu::d3d12::util::GetUintPow2DXGIFormat(element_size_bytes_pow2),
+      gpu::d3d12::objects::GetUintPow2DXGIFormat(element_size_bytes_pow2),
       static_cast<u32>(scaled_resolve_current_range_length_scaled_ >> element_size_bytes_pow2),
       (scaled_resolve_current_range_start_scaled_ - (static_cast<u64>(buffer_index) << 30)) >>
           element_size_bytes_pow2);
@@ -1465,7 +1465,7 @@ std::unique_ptr<TextureCache::Texture> D3D12TextureCache::CreateTexture(TextureK
   ID3D12Device* device = provider.GetDevice();
   D3D12_RESOURCE_STATES resource_state = D3D12_RESOURCE_STATE_COPY_DEST;
   Microsoft::WRL::ComPtr<ID3D12Resource> resource;
-  if (FAILED(device->CreateCommittedResource(&gpu::d3d12::util::kHeapPropertiesDefault,
+  if (FAILED(device->CreateCommittedResource(&gpu::d3d12::objects::kHeapPropertiesDefault,
                                              provider.GetHeapFlagCreateNotZeroed(), &desc,
                                              resource_state, nullptr, IID_PPV_ARGS(&resource)))) {
     return nullptr;
@@ -1536,50 +1536,50 @@ bool D3D12TextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture, 
     host_x_blocks_per_thread *= block_width;
   }
   UINT64 copy_buffer_size = 0;
-  D3D12_PLACED_SUBRESOURCE_FOOTPRINT host_slice_layout_base;
-  u64 host_slice_size_base = 0;
+  D3D12_PLACED_SUBRESOURCE_FOOTPRINT host_layer_layout_base;
+  u64 host_layer_size_base = 0;
   // Indexed like guest stored mips, 1 to min(level_last, level_packed), or 0 if level_packed is 0.
   D3D12_PLACED_SUBRESOURCE_FOOTPRINT
-  host_slice_layouts_mips[xenos::kTextureMaxMips];
-  UINT64 host_slice_sizes_mips[xenos::kTextureMaxMips];
+  host_layer_layouts_mips[xenos::kTextureMaxMips];
+  UINT64 host_layer_sizes_mips[xenos::kTextureMaxMips];
   DXGI_FORMAT host_copy_format = GetDXGIResourceFormat(guest_format, width, height);
   for (u32 loop_level = loop_level_first; loop_level <= loop_level_last; ++loop_level) {
     bool is_base = loop_level == 0;
     u32 level = (level_packed == 0) ? 0 : loop_level;
-    D3D12_PLACED_SUBRESOURCE_FOOTPRINT& level_host_slice_layout =
-        is_base ? host_slice_layout_base : host_slice_layouts_mips[level];
-    level_host_slice_layout.Offset = copy_buffer_size;
-    level_host_slice_layout.Footprint.Format = host_copy_format;
+    D3D12_PLACED_SUBRESOURCE_FOOTPRINT& level_host_layer_layout =
+        is_base ? host_layer_layout_base : host_layer_layouts_mips[level];
+    level_host_layer_layout.Offset = copy_buffer_size;
+    level_host_layer_layout.Footprint.Format = host_copy_format;
     if (level == level_packed) {
       // Load the whole packed tail to copy regions out of it.
       const xenos::TextureGuestLayout::Level& guest_layout_packed =
           is_base ? guest_layout.base : guest_layout.mips[level];
-      level_host_slice_layout.Footprint.Width = guest_layout_packed.x_extent_blocks * block_width;
-      level_host_slice_layout.Footprint.Height = guest_layout_packed.y_extent_blocks * block_height;
-      level_host_slice_layout.Footprint.Depth = guest_layout_packed.z_extent;
+      level_host_layer_layout.Footprint.Width = guest_layout_packed.x_extent_blocks * block_width;
+      level_host_layer_layout.Footprint.Height = guest_layout_packed.y_extent_blocks * block_height;
+      level_host_layer_layout.Footprint.Depth = guest_layout_packed.z_extent;
     } else {
-      level_host_slice_layout.Footprint.Width = std::max(width >> level, static_cast<u32>(1));
-      level_host_slice_layout.Footprint.Height = std::max(height >> level, static_cast<u32>(1));
-      level_host_slice_layout.Footprint.Depth = std::max(depth >> level, static_cast<u32>(1));
+      level_host_layer_layout.Footprint.Width = std::max(width >> level, static_cast<u32>(1));
+      level_host_layer_layout.Footprint.Height = std::max(height >> level, static_cast<u32>(1));
+      level_host_layer_layout.Footprint.Depth = std::max(depth >> level, static_cast<u32>(1));
     }
-    level_host_slice_layout.Footprint.Width =
-        rex::round_up(level_host_slice_layout.Footprint.Width * texture_resolution_scale_x,
+    level_host_layer_layout.Footprint.Width =
+        rex::round_up(level_host_layer_layout.Footprint.Width * texture_resolution_scale_x,
                       UINT(host_block_width));
-    level_host_slice_layout.Footprint.Height =
-        rex::round_up(level_host_slice_layout.Footprint.Height * texture_resolution_scale_y,
+    level_host_layer_layout.Footprint.Height =
+        rex::round_up(level_host_layer_layout.Footprint.Height * texture_resolution_scale_y,
                       UINT(host_block_height));
-    level_host_slice_layout.Footprint.RowPitch =
-        rex::align(rex::round_up(level_host_slice_layout.Footprint.Width / host_block_width,
+    level_host_layer_layout.Footprint.RowPitch =
+        rex::align(rex::round_up(level_host_layer_layout.Footprint.Width / host_block_width,
                                  host_x_blocks_per_thread) *
                        load_shader_info.bytes_per_host_block,
                    static_cast<u32>(D3D12_TEXTURE_DATA_PITCH_ALIGNMENT));
-    UINT64 level_host_slice_size =
-        rex::align(UINT64(level_host_slice_layout.Footprint.RowPitch) *
-                       (level_host_slice_layout.Footprint.Height / host_block_height) *
-                       level_host_slice_layout.Footprint.Depth,
+    UINT64 level_host_layer_size =
+        rex::align(UINT64(level_host_layer_layout.Footprint.RowPitch) *
+                       (level_host_layer_layout.Footprint.Height / host_block_height) *
+                       level_host_layer_layout.Footprint.Depth,
                    UINT64(D3D12_TEXTURE_DATA_PLACEMENT_ALIGNMENT));
-    (is_base ? host_slice_size_base : host_slice_sizes_mips[level]) = level_host_slice_size;
-    copy_buffer_size += level_host_slice_size * array_size;
+    (is_base ? host_layer_size_base : host_layer_sizes_mips[level]) = level_host_layer_size;
+    copy_buffer_size += level_host_layer_size * array_size;
   }
   D3D12_RESOURCE_STATES copy_buffer_state = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
   ID3D12Resource* copy_buffer = command_processor_.RequestScratchGPUBuffer(
@@ -1596,7 +1596,7 @@ bool D3D12TextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture, 
       ++descriptor_count;
     }
   }
-  gpu::d3d12::util::DescriptorCpuGpuHandlePair descriptors_allocated[3];
+  gpu::d3d12::objects::DescriptorCPUGPUHandlePair descriptors_allocated[3];
   if (!command_processor_.RequestOneUseSingleViewDescriptors(descriptor_count,
                                                              descriptors_allocated)) {
     command_processor_.ReleaseScratchGPUBuffer(copy_buffer, copy_buffer_state);
@@ -1606,18 +1606,18 @@ bool D3D12TextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture, 
   command_processor_.SetExternalPipeline(pipeline);
   command_list.D3DSetComputeRootSignature(load_root_signature_.Get());
   REX_ASSERT(descriptor_write_index < descriptor_count);
-  gpu::d3d12::util::DescriptorCpuGpuHandlePair descriptor_dest =
+  gpu::d3d12::objects::DescriptorCPUGPUHandlePair descriptor_dest =
       descriptors_allocated[descriptor_write_index++];
-  gpu::d3d12::util::CreateBufferTypedUAV(
+  gpu::d3d12::objects::CreateBufferTypedUAV(
       device, descriptor_dest.first, copy_buffer,
-      gpu::d3d12::util::GetUintPow2DXGIFormat(load_shader_info.dest_bpe_log2),
+      gpu::d3d12::objects::GetUintPow2DXGIFormat(load_shader_info.dest_bpe_log2),
       static_cast<u32>(copy_buffer_size) >> load_shader_info.dest_bpe_log2);
   command_list.D3DSetComputeRootDescriptorTable(2, descriptor_dest.second);
   // Scaled sources depend on the current buffer, so their descriptors are set later in the loop.
   if (!texture_resolution_scaled) {
     D3D12SharedMemory& d3d12_shared_memory = static_cast<D3D12SharedMemory&>(shared_memory());
     d3d12_shared_memory.UseForReading();
-    gpu::d3d12::util::DescriptorCpuGpuHandlePair descriptor_unscaled_source;
+    gpu::d3d12::objects::DescriptorCPUGPUHandlePair descriptor_unscaled_source;
     if (bindless_resources_used_) {
       descriptor_unscaled_source = command_processor_.GetSharedMemoryUintPow2BindlessSRVHandlePair(
           load_shader_info.source_bpe_log2);
@@ -1651,14 +1651,14 @@ bool D3D12TextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture, 
     if (texture_resolution_scaled && (is_base || !scaled_mips_source_set_up)) {
       u32 guest_size_unscaled =
           is_base ? d3d12_texture.GetGuestBaseSize() : d3d12_texture.GetGuestMipsSize();
-      if (!MakeScaledResolveRangeCurrent(guest_address, guest_size_unscaled,
-                                         load_shader_info.source_bpe_log2)) {
+      if (!UpdateScaledResolveRange(guest_address, guest_size_unscaled,
+                                    load_shader_info.source_bpe_log2)) {
         command_processor_.ReleaseScratchGPUBuffer(copy_buffer, copy_buffer_state);
         return false;
       }
       TransitionCurrentScaledResolveRange(D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
       REX_ASSERT(descriptor_write_index < descriptor_count);
-      gpu::d3d12::util::DescriptorCpuGpuHandlePair descriptor_scaled_source =
+      gpu::d3d12::objects::DescriptorCPUGPUHandlePair descriptor_scaled_source =
           descriptors_allocated[descriptor_write_index++];
       CreateCurrentScaledResolveRangeUintPow2SRV(descriptor_scaled_source.first,
                                                  load_shader_info.source_bpe_log2);
@@ -1687,7 +1687,7 @@ bool D3D12TextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture, 
       REX_ASSERT((level_guest_pitch & (xenos::kTextureTileWidthHeight - 1)) == 0);
     }
     load_constants.guest_pitch_aligned = level_guest_pitch;
-    load_constants.guest_z_stride_block_rows_aligned = level_guest_layout.z_slice_stride_block_rows;
+    load_constants.guest_z_stride_block_rows_aligned = level_guest_layout.z_layer_stride_block_rows;
     REX_ASSERT(!is_3d_tiling || !(load_constants.guest_z_stride_block_rows_aligned &
                                   (xenos::kTextureTileWidthHeight - 1)));
 
@@ -1716,21 +1716,21 @@ bool D3D12TextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture, 
         (load_constants.size_blocks[1] + ((UINT32_C(1) << kLoadGuestYBlocksPerGroupLog2) - 1)) >>
         kLoadGuestYBlocksPerGroupLog2;
 
-    const D3D12_PLACED_SUBRESOURCE_FOOTPRINT& level_host_slice_layout =
-        is_base ? host_slice_layout_base : host_slice_layouts_mips[level];
-    u32 host_slice_size =
-        static_cast<u32>(is_base ? host_slice_size_base : host_slice_sizes_mips[level]);
-    load_constants.host_offset = static_cast<u32>(level_host_slice_layout.Offset);
-    load_constants.host_pitch = level_host_slice_layout.Footprint.RowPitch;
+    const D3D12_PLACED_SUBRESOURCE_FOOTPRINT& level_host_layer_layout =
+        is_base ? host_layer_layout_base : host_layer_layouts_mips[level];
+    u32 host_layer_size =
+        static_cast<u32>(is_base ? host_layer_size_base : host_layer_sizes_mips[level]);
+    load_constants.host_offset = static_cast<u32>(level_host_layer_layout.Offset);
+    load_constants.host_pitch = level_host_layer_layout.Footprint.RowPitch;
 
     command_list.D3DSetComputeRoot32BitConstants(0, sizeof(load_constants) / sizeof(u32),
                                                  &load_constants, 0);
 
-    u32 level_array_slice_stride_bytes_scaled =
-        level_guest_layout.array_slice_stride_bytes *
+    u32 level_array_layer_stride_bytes_scaled =
+        level_guest_layout.array_layer_stride_bytes *
         (texture_resolution_scale_x * texture_resolution_scale_y);
-    for (u32 slice = 0; slice < array_size; ++slice) {
-      if (slice != 0) {
+    for (u32 layer = 0; layer < array_size; ++layer) {
+      if (layer != 0) {
         command_list.D3DSetComputeRoot32BitConstants(
             0, 1, &load_constants.guest_offset,
             offsetof(LoadConstants, guest_offset) / sizeof(u32));
@@ -1740,8 +1740,8 @@ bool D3D12TextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture, 
       REX_ASSERT(copy_buffer_state == D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
       command_processor_.SubmitBarriers();
       command_list.D3DDispatch(group_count_x, group_count_y, load_constants.size_blocks[2]);
-      load_constants.guest_offset += level_array_slice_stride_bytes_scaled;
-      load_constants.host_offset += host_slice_size;
+      load_constants.guest_offset += level_array_layer_stride_bytes_scaled;
+      load_constants.host_offset += host_layer_size;
     }
   }
 
@@ -1764,9 +1764,9 @@ bool D3D12TextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture, 
   for (u32 level = level_first; level <= level_last; ++level) {
     u32 guest_level = std::min(level, level_packed);
     location_source.PlacedFootprint =
-        level ? host_slice_layouts_mips[guest_level] : host_slice_layout_base;
+        level ? host_layer_layouts_mips[guest_level] : host_layer_layout_base;
     location_dest.SubresourceIndex = level;
-    UINT64 host_slice_size = level ? host_slice_sizes_mips[guest_level] : host_slice_size_base;
+    UINT64 host_layer_size = level ? host_layer_sizes_mips[guest_level] : host_layer_size_base;
     D3D12_BOX source_box;
     const D3D12_BOX* source_box_ptr;
     if (level >= level_packed) {
@@ -1789,10 +1789,10 @@ bool D3D12TextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture, 
     } else {
       source_box_ptr = nullptr;
     }
-    for (u32 slice = 0; slice < array_size; ++slice) {
+    for (u32 layer = 0; layer < array_size; ++layer) {
       command_list.D3DCopyTextureRegion(&location_dest, 0, 0, 0, &location_source, source_box_ptr);
       location_dest.SubresourceIndex += texture_level_count;
-      location_source.PlacedFootprint.Offset += host_slice_size;
+      location_source.PlacedFootprint.Offset += host_layer_size;
     }
   }
 
@@ -1874,7 +1874,7 @@ ID3D12Resource* D3D12TextureCache::D3D12Texture::GetOrCreate3DAs2DResource(
 
   D3D12_RESOURCE_STATES initial_state = D3D12_RESOURCE_STATE_COPY_DEST;
   Microsoft::WRL::ComPtr<ID3D12Resource> resource_2d;
-  if (FAILED(device->CreateCommittedResource(&gpu::d3d12::util::kHeapPropertiesDefault,
+  if (FAILED(device->CreateCommittedResource(&gpu::d3d12::objects::kHeapPropertiesDefault,
                                              provider.GetHeapFlagCreateNotZeroed(), &desc,
                                              initial_state, nullptr, IID_PPV_ARGS(&resource_2d)))) {
     REX_FAIL(gpu, nullptr, "D3D12TextureCache: Failed to create 3D-as-2D wrapper resource");

@@ -359,7 +359,7 @@ kPacketInfo XMAContext::GetPacketInfo(u8* packet, u32 frame_offset) {
     }
   }
 
-  if (xma::IsPacketXma2Type(packet)) {
+  if (xma::IsPacketXMA2Type(packet)) {
     const u8 xma2_frame_count = xma::GetPacketFrameCount(packet);
     if (xma2_frame_count > packet_info.frame_count_) {
       if (packet_info.current_frame_size_ == 0) {

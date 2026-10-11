@@ -282,7 +282,7 @@ struct BlockDiscoveryResult {
   std::vector<JumpTable> jumpTables;                /**< Detected jump tables */
   std::set<u32> labels;                             /**< Internal branch target addresses */
 
-  std::vector<rex::codegen::ppc::Instruction*> instructions; /**< Handed to FunctionNode */
+  std::vector<rex::codegen::detail::Instruction*> instructions; /**< Handed to FunctionNode */
 
   std::vector<u32> externalCalls; /**< bl to unknown targets */
   std::vector<u32> tailCalls;     /**< b to external targets */

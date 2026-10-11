@@ -43,19 +43,19 @@ using rex::log::Level;
 
 class RecordingSink final : public rex::log::ISink {
  public:
-  void Write(const rex::log::Record& record) override {
-    records.push_back({record.level, std::string(record.category), std::string(record.text),
-                       record.time, record.thread_id, record.sequence});
+  void Write(const rex::log::Message& message) override {
+    messages.push_back({message.level, std::string(message.category), std::string(message.text),
+                        message.time, message.thread_id, message.sequence});
   }
   void Flush() override {}
 
   bool Contains(std::string_view text) const {
-    return std::ranges::any_of(records, [&](const rex::log::CapturedRecord& record) {
-      return record.text.find(text) != std::string::npos;
+    return std::ranges::any_of(messages, [&](const rex::log::CapturedMessage& message) {
+      return message.text.find(text) != std::string::npos;
     });
   }
 
-  std::vector<rex::log::CapturedRecord> records;
+  std::vector<rex::log::CapturedMessage> messages;
 };
 
 struct TempFolder : rex::test::TempFolder {
@@ -174,7 +174,7 @@ REX_TEST_CASE_METHOD(Fixture, "A category nobody registered is listed and report
   REQUIRE_FALSE(orphan->registered);
 }
 
-REX_TEST_CASE_METHOD(Fixture, "Sinks receive records in order until removed", "[logger]") {
+REX_TEST_CASE_METHOD(Fixture, "Sinks receive messages in order until removed", "[logger]") {
   rex::ILogger& logger = Start();
   RecordingSink sink;
   logger.AddSink(sink);
@@ -183,33 +183,33 @@ REX_TEST_CASE_METHOD(Fixture, "Sinks receive records in order until removed", "[
   REXLOG_WARN(core, "second");
   logger.RemoveSink(sink);
   REXLOG_WARN(core, "third");
-  REQUIRE(sink.records.size() == 2);
-  REQUIRE(sink.records[0].text == "first");
-  REQUIRE(sink.records[1].text == "second");
-  REQUIRE(sink.records[0].sequence < sink.records[1].sequence);
+  REQUIRE(sink.messages.size() == 2);
+  REQUIRE(sink.messages[0].text == "first");
+  REQUIRE(sink.messages[1].text == "second");
+  REQUIRE(sink.messages[0].sequence < sink.messages[1].sequence);
 }
 
 REX_TEST_CASE("FormatLine writes the columns it is asked for and never the level", "[logger]") {
-  rex::log::Record record;
-  record.level = Level::kWarn;
-  record.category = "gpu";
-  record.text = "hello";
-  record.time = std::chrono::system_clock::now();
-  record.thread_id = 42;
+  rex::log::Message message;
+  message.level = Level::kWarn;
+  message.category = "gpu";
+  message.text = "hello";
+  message.time = std::chrono::system_clock::now();
+  message.thread_id = 42;
   rex::log::LineFormat plain{rex::log::TimestampStyle::kNone, false, false, false};
-  REQUIRE(rex::log::FormatLine(record, plain) == "hello");
+  REQUIRE(rex::log::FormatLine(message, plain) == "hello");
   rex::log::LineFormat full{rex::log::TimestampStyle::kClock, true, true, false};
-  const std::string line = rex::log::FormatLine(record, full);
+  const std::string line = rex::log::FormatLine(message, full);
   REQUIRE(line.find("gpu") != std::string::npos);
   REQUIRE(line.find("t00042") != std::string::npos);
   REQUIRE(line.ends_with("hello"));
   REQUIRE(line.find("warn") == std::string::npos);
   rex::log::LineFormat dated{rex::log::TimestampStyle::kDateTime, false, false, false};
-  REQUIRE(rex::log::FormatLine(record, dated).find('-') == 4);
+  REQUIRE(rex::log::FormatLine(message, dated).find('-') == 4);
   rex::log::LineFormat elapsed{rex::log::TimestampStyle::kElapsed, false, false, false};
-  REQUIRE(rex::log::FormatLine(record, elapsed).starts_with("+"));
+  REQUIRE(rex::log::FormatLine(message, elapsed).starts_with("+"));
   rex::log::LineFormat colored{rex::log::TimestampStyle::kNone, false, false, true};
-  REQUIRE(rex::log::FormatLine(record, colored).starts_with("\x1b["));
+  REQUIRE(rex::log::FormatLine(message, colored).starts_with("\x1b["));
 }
 
 REX_TEST_CASE("A file sink writes a level letter column", "[logger]") {
@@ -219,11 +219,11 @@ REX_TEST_CASE("A file sink writes a level letter column", "[logger]") {
     auto sink =
         rex::log::FileSink::Open(path, {rex::log::TimestampStyle::kNone, true, false, false});
     REQUIRE(sink);
-    rex::log::Record record;
-    record.level = Level::kError;
-    record.category = "core";
-    record.text = "file line";
-    (*sink)->Write(record);
+    rex::log::Message message;
+    message.level = Level::kError;
+    message.category = "core";
+    message.text = "file line";
+    (*sink)->Write(message);
     (*sink)->Flush();
   }
   REQUIRE(ReadText(path).starts_with("E core"));
@@ -247,14 +247,14 @@ REX_TEST_CASE_METHOD(Fixture, "Sequential log files count up and old runs are pr
   REQUIRE_FALSE(std::filesystem::exists(temp.path / "run_001.log"));
 }
 
-REX_TEST_CASE("A capture sink returns only newer records and keeps its capacity", "[logger]") {
+REX_TEST_CASE("A capture sink returns only newer messages and keeps its capacity", "[logger]") {
   rex::log::CaptureSink sink;
-  rex::log::Record record;
+  rex::log::Message message;
   for (rex::u64 i = 1; i <= rex::log::CaptureSink::kCapacity + 10; ++i) {
-    record.sequence = i;
-    sink.Write(record);
+    message.sequence = i;
+    sink.Write(message);
   }
-  std::vector<rex::log::CapturedRecord> out;
+  std::vector<rex::log::CapturedMessage> out;
   REQUIRE(sink.CopySince(0, out) == rex::log::CaptureSink::kCapacity + 10);
   REQUIRE(out.size() == rex::log::CaptureSink::kCapacity);
   REQUIRE(out.front().sequence == 11);
@@ -282,9 +282,10 @@ REX_TEST_CASE_METHOD(Fixture, "A stub warns once and writes Dev after", "[logger
   rex::log::detail::WriteStub(seen, "TestStub", {});
   rex::log::detail::WriteStub(seen, "TestStub", "again");
   logger.RemoveSink(sink);
-  std::vector<rex::log::CapturedRecord> stubs;
-  std::ranges::copy_if(sink.records, std::back_inserter(stubs),
-                       [](const auto& record) { return record.text.starts_with("TestStub stub"); });
+  std::vector<rex::log::CapturedMessage> stubs;
+  std::ranges::copy_if(sink.messages, std::back_inserter(stubs), [](const auto& message) {
+    return message.text.starts_with("TestStub stub");
+  });
   REQUIRE(stubs.size() == 2);
   REQUIRE(stubs[0].level == Level::kWarn);
   REQUIRE(stubs[1].level == Level::kDev);
@@ -299,7 +300,7 @@ REX_TEST_CASE_METHOD(Fixture, "A log.flush_interval of 0 starts no flush thread"
   config.log.flush_interval = std::chrono::seconds(0);
   Start(config);
   std::this_thread::sleep_for(std::chrono::milliseconds(200));
-  const rex::u64 without_flush = rex::platform::detail::LiveCount();
+  const rex::u64 without_flush = rex::platform::detail::ThreadCount();
   rex::Shutdown();
   api = nullptr;
 
@@ -307,7 +308,7 @@ REX_TEST_CASE_METHOD(Fixture, "A log.flush_interval of 0 starts no flush thread"
   config.cvars.values.push_back({"log.flush_interval", "0", rex::cvar::CvarSource::CommandLine});
   Start(config);
   std::this_thread::sleep_for(std::chrono::milliseconds(200));
-  CHECK(rex::platform::detail::LiveCount() == without_flush);
+  CHECK(rex::platform::detail::ThreadCount() == without_flush);
   CHECK(Cvars().ResetToDefault("log.flush_interval"));
 }
 

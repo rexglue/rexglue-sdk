@@ -22,12 +22,12 @@ namespace rex::codegen {
 /** Identifying fields from a loaded XEX, surfaced before recompilation work starts. */
 struct BinaryInfo {
   std::string_view name; /**< Filename of the input XEX */
-  u32 title_id = 0;      /**< xex2_opt_execution_info.title_id */
-  u32 media_id = 0;      /**< xex2_opt_execution_info.media_id */
-  u32 version_major = 0; /**< xex2_version.major, 4 bits */
-  u32 version_minor = 0; /**< xex2_version.minor, 4 bits */
-  u32 version_build = 0; /**< xex2_version.build, 16 bits */
-  u32 version_qfe = 0;   /**< xex2_version.qfe, 8 bits */
+  u32 title_id = 0;      /**< XEXOptExecutionInfo.title_id */
+  u32 media_id = 0;      /**< XEXOptExecutionInfo.media_id */
+  u32 version_major = 0; /**< XEXVersion.major, 4 bits */
+  u32 version_minor = 0; /**< XEXVersion.minor, 4 bits */
+  u32 version_build = 0; /**< XEXVersion.build, 16 bits */
+  u32 version_qfe = 0;   /**< XEXVersion.qfe, 8 bits */
   /** IMAGE_FILE_HEADER.TimeDateStamp in Unix epoch seconds. */
   u32 pe_time_date_stamp = 0;
 };

@@ -114,21 +114,21 @@ int LZXDecompress(std::span<const u8> input, std::span<u8> output, u32 window_si
 }
 
 int LZXApplyDelta(std::span<const u8> patch, u32 window_size, std::span<u8> image) {
-  constexpr size_t kRecordHeader = 12;
+  constexpr size_t kPatchHeaderSize = 12;
   size_t offset = 0;
-  while (offset + kRecordHeader <= patch.size()) {
-    const auto* record = reinterpret_cast<const xex2_delta_patch*>(patch.data() + offset);
-    const u32 old_addr = record->old_addr;
-    const u32 new_addr = record->new_addr;
-    const u32 length = record->uncompressed_len;
-    const u32 compressed = record->compressed_len;
+  while (offset + kPatchHeaderSize <= patch.size()) {
+    const auto* entry = reinterpret_cast<const XEXDeltaPatch*>(patch.data() + offset);
+    const u32 old_addr = entry->old_addr;
+    const u32 new_addr = entry->new_addr;
+    const u32 length = entry->uncompressed_len;
+    const u32 compressed = entry->compressed_len;
     if (!old_addr && !new_addr && !length && !compressed) {
       break;
     }
     if (u64{new_addr} + length > image.size()) {
       return 1;
     }
-    size_t record_size = kRecordHeader;
+    size_t entry_size = kPatchHeaderSize;
     switch (compressed) {
       case 0:
         std::memset(image.data() + new_addr, 0, length);
@@ -140,20 +140,20 @@ int LZXApplyDelta(std::span<const u8> patch, u32 window_size, std::span<u8> imag
         std::memmove(image.data() + new_addr, image.data() + old_addr, length);
         break;
       default: {
-        if (offset + kRecordHeader + compressed > patch.size() ||
+        if (offset + kPatchHeaderSize + compressed > patch.size() ||
             u64{old_addr} + length > image.size()) {
           return 1;
         }
-        const int result = LZXDecompress(patch.subspan(offset + kRecordHeader, compressed),
+        const int result = LZXDecompress(patch.subspan(offset + kPatchHeaderSize, compressed),
                                          image.subspan(new_addr, length), window_size,
                                          image.subspan(old_addr, length));
         if (result) {
           return result;
         }
-        record_size += compressed;
+        entry_size += compressed;
       } break;
     }
-    offset += record_size;
+    offset += entry_size;
   }
   return 0;
 }

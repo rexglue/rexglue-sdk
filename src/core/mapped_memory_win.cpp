@@ -20,7 +20,7 @@
 #include <rex/logging.h>
 #include <rex/math.h>
 #include <rex/memory/mapped_memory.h>
-#include <rex/memory/utils.h>
+#include <rex/memory/virtual_memory.h>
 
 #if WINAPI_FAMILY_PARTITION(WINAPI_PARTITION_DESKTOP | WINAPI_PARTITION_SYSTEM | \
                             WINAPI_PARTITION_GAMES)

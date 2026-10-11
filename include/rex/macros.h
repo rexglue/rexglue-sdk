@@ -234,18 +234,18 @@
   } while (0)
 
 /**
- * Returns an error from the enclosing function when a condition is false.
+ * Returns an error from the enclosing function when a condition holds.
  *
- * @param cond The condition that must hold.
- * @param error The rex::Error to return when it does not.
+ * @param cond The condition that triggers the error.
+ * @param error The rex::Error to return when it holds.
  *
  * @code
- * REX_CHECK(ptr != nullptr, rex::Error(rex::ErrorCategory::Validation, "null"));
+ * REX_ERROR_IF(ptr == nullptr, rex::Error(rex::ErrorCategory::Validation, "null"));
  * @endcode
  */
-#define REX_CHECK(cond, error)       \
+#define REX_ERROR_IF(cond, error)    \
   do {                               \
-    if (!(cond)) {                   \
+    if (cond) {                      \
       return std::unexpected(error); \
     }                                \
   } while (0)

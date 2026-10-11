@@ -21,14 +21,14 @@
 #include <rex/runtime.h>
 #include <rex/runtime/user_module.h>
 #include <rex/runtime/xex_module.h>
-#include <rex/runtime/xfile.h>
+#include <rex/runtime/file_object.h>
 
 namespace rex::runtime {
 
 namespace {
 
-X_STATUS LoadXexContinue(Runtime& runtime, ModuleObject& module) {
-  if (!UserModuleXEX(module)) {
+X_STATUS LoadXEXContinue(Runtime& runtime, ModuleObject& module) {
+  if (!module.xex()) {
     return X_STATUS_UNSUCCESSFUL;
   }
 
@@ -49,10 +49,10 @@ X_STATUS LoadXexContinue(Runtime& runtime, ModuleObject& module) {
   std::memcpy(xex_header_ptr, header.data(), header.size());
 
   module.user.entry_point =
-      image.OptHeaderValue(XEX_HEADER_ENTRY_POINT).value_or(module.user.entry_point);
-  module.user.stack_size =
-      image.OptHeaderValue(XEX_HEADER_DEFAULT_STACK_SIZE).value_or(module.user.stack_size);
-  module.user.is_dll_module = !!(image.header().module_flags & XEX_MODULE_DLL_MODULE);
+      image.OptHeaderValue(filesystem::XEX_HEADER_ENTRY_POINT).value_or(module.user.entry_point);
+  module.user.stack_size = image.OptHeaderValue(filesystem::XEX_HEADER_DEFAULT_STACK_SIZE)
+                               .value_or(module.user.stack_size);
+  module.user.is_dll_module = !!(image.header().module_flags & filesystem::XEX_MODULE_DLL_MODULE);
 
   auto ldr_data = memory->TranslateVirtual<X_LDR_DATA_TABLE_ENTRY*>(module.hmodule_ptr);
   ldr_data->dll_base = 0;
@@ -84,8 +84,8 @@ u32 ModuleObject::title_id() const {
   if (user.module_format != ModuleFormat::XEX) {
     return 0;
   }
-  const auto* info =
-      UserModuleXEX(module)->image().OptHeader<xex2_opt_execution_info>(XEX_HEADER_EXECUTION_INFO);
+  const auto* info = UserModuleXEX(module)->image().OptHeader<filesystem::XEXOptExecutionInfo>(
+      filesystem::XEX_HEADER_EXECUTION_INFO);
   return info ? static_cast<u32>(info->title_id) : 0;
 }
 
@@ -143,7 +143,7 @@ X_STATUS UserModuleLoadFromFile(Runtime& runtime, ModuleObject& module, std::str
     }
   }
 
-  return LoadXexContinue(runtime, module);
+  return LoadXEXContinue(runtime, *this);
 }
 
 X_STATUS UserModuleLoadFromMemory(Runtime& runtime, ModuleObject& module, const void* addr,
@@ -203,7 +203,8 @@ X_STATUS UserModuleUnload(ModuleObject& module) {
   return X_STATUS_UNSUCCESSFUL;
 }
 
-X_STATUS UserModuleGetOptHeader(ModuleObject& module, xex2_header_keys key, void** out_ptr) {
+X_STATUS UserModuleGetOptHeader(ModuleObject& module, filesystem::XEXHeaderKey key,
+                                void** out_ptr) {
   REX_ASSERT(out_ptr != nullptr);
 
   if (module.user.module_format == ModuleFormat::Elf) {
@@ -227,22 +228,22 @@ X_STATUS UserModuleGetOptHeader(ModuleObject& module, xex2_header_keys key, void
   return X_STATUS_SUCCESS;
 }
 
-X_STATUS UserModuleGetOptHeader(ModuleObject& module, xex2_header_keys key,
-                                u32* out_header_guest_ptr) {
-  if (module.user.module_format == ModuleFormat::Elf) {
+X_STATUS ModuleObject::OptHeader(filesystem::XEXHeaderKey key, u32* out_header_guest_ptr) const {
+  if (user.module_format == ModuleFormat::Elf) {
     return X_STATUS_UNSUCCESSFUL;
   }
 
   auto* memory = module.runtime->memory();
-  auto header = memory->TranslateVirtual<const xex2_header*>(module.user.guest_xex_header);
+  auto header =
+      memory->TranslateVirtual<const filesystem::XEXHeader*>(module.user.guest_xex_header);
   if (!header) {
     return X_STATUS_UNSUCCESSFUL;
   }
   return UserModuleGetOptHeader(memory, header, key, out_header_guest_ptr);
 }
 
-X_STATUS UserModuleGetOptHeader(const runtime::Memory* memory, const xex2_header* header,
-                                xex2_header_keys key, u32* out_header_guest_ptr) {
+X_STATUS UserModuleGetOptHeader(const runtime::Memory* memory, const filesystem::XEXHeader* header,
+                                filesystem::XEXHeaderKey key, u32* out_header_guest_ptr) {
   REX_ASSERT(out_header_guest_ptr != nullptr);
   const auto entry = filesystem::FindOptHeaderEntry(
       std::span(reinterpret_cast<const u8*>(header), header->header_size), key);

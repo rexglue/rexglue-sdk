@@ -1,6 +1,6 @@
 /**
  * @file        hid/common/x_result.h
- * @brief       Win32 input results as hid::Error results
+ * @brief       Win32 input results as hid::HIDError results
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -31,7 +31,7 @@ template <typename T>
   if (result == X_ERROR_SUCCESS) {
     return value;
   }
-  return std::unexpected(MakeError(ErrorOf(result), std::format("device result {:08X}", result)));
+  return std::unexpected(BuildError(ErrorOf(result), std::format("device result {:08X}", result)));
 }
 
 /**
@@ -44,7 +44,7 @@ template <typename T>
   if (result == X_ERROR_SUCCESS) {
     return Ok();
   }
-  return std::unexpected(MakeError(ErrorOf(result), std::format("device result {:08X}", result)));
+  return std::unexpected(BuildError(ErrorOf(result), std::format("device result {:08X}", result)));
 }
 
 }  // namespace rex::hid

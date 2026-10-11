@@ -30,7 +30,7 @@ using rex::hid::X_INPUT_VIBRATION;
 constexpr u32 XINPUT_FLAG_GAMEPAD = 0x01;
 constexpr u32 XINPUT_FLAG_ANY_USER = 1 << 30;
 
-rex::hid::IBackend& HID() {
+rex::hid::IHIDBackend& HID() {
   return runtime::Current().hid();
 }
 

@@ -10,7 +10,7 @@
 
 #pragma once
 
-#include "../cli_utils.h"
+#include "../cli_context.h"
 
 #include <string>
 #include <vector>

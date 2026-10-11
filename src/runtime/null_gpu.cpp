@@ -5,13 +5,12 @@
 
 #include <rex/chrono/clock.h>
 #include <rex/logging.h>
-#include <rex/memory/utils.h>
 #include <rex/platform/thread.h>
 #include <rex/runtime.h>
 #include <rex/runtime/function_dispatcher.h>
 #include <rex/runtime/thread_registry.h>
 #include <rex/runtime/xmemory.h>
-#include <rex/runtime/xobject.h>
+#include <rex/runtime/object.h>
 #include <rex/runtime/xthread.h>
 
 namespace rex::runtime {
@@ -47,7 +46,7 @@ Result<void> NullGPU::SetupGuestGPU(FunctionDispatcher& dispatcher, Runtime& run
   AttachMMIO(MMIOBlock::GPU, {this, ReadRegisterThunk, WriteRegisterThunk});
   mmio_attached_ = true;
   vsync_running_.store(true, std::memory_order_release);
-  auto record = std::make_unique<ThreadRecord>(runtime, 128 * 1024, 0, [this]() {
+  auto thread = std::make_unique<KernelThread>(runtime, 128 * 1024, 0, [this]() {
     const f64 refresh_hz = std::max(1.0, static_cast<f64>(runtime_->video_mode().refresh_rate));
     const u64 interval = std::max<u64>(
         1, static_cast<u64>(static_cast<f64>(Clock::guest_tick_frequency()) / refresh_hz));
@@ -62,8 +61,8 @@ Result<void> NullGPU::SetupGuestGPU(FunctionDispatcher& dispatcher, Runtime& run
     }
     return 0;
   });
-  record->set_name("GPU VSync");
-  auto launched = runtime.thread_registry().Launch(std::move(record));
+  thread->set_name("GPU VSync");
+  auto launched = runtime.thread_registry().Launch(std::move(thread));
   if (!launched) {
     vsync_running_.store(false, std::memory_order_release);
     return Err(ErrorCategory::Runtime, "the null GPU vsync thread cannot start");
@@ -105,7 +104,7 @@ void NullGPU::Shutdown() {
   }
   if (vsync_thread_) {
     vsync_running_.store(false, std::memory_order_release);
-    WaitOn(*runtime_, vsync_thread_, 0, 0, 0, nullptr);
+    Wait(*runtime_, vsync_thread_, 0, 0, 0, nullptr);
     CloseOwned(runtime_->object_table(), vsync_thread_);
     vsync_thread_ = 0;
   }
@@ -155,7 +154,7 @@ void NullGPU::RaiseVblank() {
   if (callback == 0) {
     return;
   }
-  ThreadRecord* thread = ThreadRecord::GetCurrentThread();
+  KernelThread* thread = KernelThread::GetCurrentThread();
   thread->SetActiveCPU(kInterruptCPU);
   u64 args[] = {0, callback_data_.load(std::memory_order_relaxed)};
   dispatcher_->ExecuteInterrupt(thread->thread_state(), callback, args, std::size(args));

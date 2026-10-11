@@ -26,7 +26,7 @@ const std::array<ScopeTable, 3> kTables = {{
     {"hid", {}},
 }};
 
-[[nodiscard]] Result<void> ValidateSlices(const Config& config) {
+[[nodiscard]] Result<void> ValidateLayers(const Config& config) {
   auto fail = [](const std::string& message) {
     REX_FAIL(system, Err(Error(ErrorCategory::Config, message)), "{}", message);
   };
@@ -96,11 +96,11 @@ void* RuntimeModule::GetDispatcher() {
   return runtime != nullptr ? static_cast<IDispatcher*>(&runtime->dispatcher()) : nullptr;
 }
 
-apu::IBackend* RuntimeModule::apu_backend() {
+apu::IAPUBackend* RuntimeModule::apu_backend() {
   return Instance().apu_;
 }
 
-hid::IBackend* RuntimeModule::hid_backend() {
+hid::IHIDBackend* RuntimeModule::hid_backend() {
   return Instance().hid_;
 }
 
@@ -114,7 +114,7 @@ std::span<const char* const> RuntimeModule::RequiredInterfaces() const {
 }
 
 Result<void> RuntimeModule::Connect(IInterfaceFactory* factory, const Config& config) {
-  REX_TRY_VOID(ValidateSlices(config));
+  REX_TRY_VOID(ValidateLayers(config));
   REX_TRY(cvars_, factory->Get<cvar::ICvarRegistry>());
   registered_ = 0;
   for (const ScopeTable& table : kTables) {
@@ -148,10 +148,10 @@ Result<void> RuntimeModule::Connect(IInterfaceFactory* factory, const Config& co
     Disconnect();
     return status;
   }
-  if (auto backend = factory->Get<apu::IBackend>(); backend) {
+  if (auto backend = factory->Get<apu::IAPUBackend>(); backend) {
     apu_ = *backend;
   }
-  if (auto backend = factory->Get<hid::IBackend>(); backend) {
+  if (auto backend = factory->Get<hid::IHIDBackend>(); backend) {
     hid_ = *backend;
   }
   return Ok();

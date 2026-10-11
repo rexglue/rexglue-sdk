@@ -6,7 +6,7 @@
 namespace rex::ui {
 
 HIDHost::HIDHost(IUserInterface& ui, Window& window, ImGuiDrawer& drawer, OverlayRegistry& overlays,
-                 hid::IBackend& backend)
+                 hid::IHIDBackend& backend)
     : ui_(ui), window_(window), drawer_(drawer), overlays_(overlays), backend_(backend) {}
 
 void HIDHost::Attach() {

@@ -15,7 +15,7 @@
 
 #include <rex/types.h>
 
-namespace rex::codegen::ppc {
+namespace rex::codegen::detail {
 
 /** Decodes raw bytes into a ppc_insn using GNU binutils. */
 struct DisassemblerEngine {
@@ -50,4 +50,4 @@ inline int Disassemble(const void* code, u64 base, ppc_insn& out) {
 
 int Disassemble(const void* code, u64 base, ppc_insn* out, size_t nOut);
 
-}  // namespace rex::codegen::ppc
+}  // namespace rex::codegen::detail

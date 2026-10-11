@@ -30,12 +30,12 @@ bool CanSetLength(Access access) {
 Result<size_t> NodeStream::Write(std::span<const u8> buffer, u64 offset) {
   (void)buffer;
   (void)offset;
-  return Err<size_t>(MakeError(Error::kAccessDenied, "the provider has no writes"));
+  return Err<size_t>(BuildError(FileSystemError::kAccessDenied, "the provider has no writes"));
 }
 
 Result<void> NodeStream::SetLength(u64 length) {
   (void)length;
-  return Err(MakeError(Error::kUnsupported, "the provider has no size change"));
+  return Err(BuildError(FileSystemError::kUnsupported, "the provider has no size change"));
 }
 
 Result<void> NodeStream::Flush() {
@@ -43,7 +43,8 @@ Result<void> NodeStream::Flush() {
 }
 
 Result<std::span<const u8>> NodeStream::View() {
-  return Err<std::span<const u8>>(MakeError(Error::kUnsupported, "the provider has no view"));
+  return Err<std::span<const u8>>(
+      BuildError(FileSystemError::kUnsupported, "the provider has no view"));
 }
 
 Node::Node(Provider& provider, Node* parent, std::string path)
@@ -154,12 +155,12 @@ void Node::ReleaseOpen() {
 Result<Node*> Node::CreateChild(std::string_view name, FileAttributes attributes) {
   std::lock_guard lock(provider_->mutex());
   if (read_only()) {
-    return Err<Node*>(MakeError(Error::kAccessDenied,
-                                std::format("'{}' is on a read only mount", absolute_path_)));
+    return Err<Node*>(BuildError(FileSystemError::kAccessDenied,
+                                 std::format("'{}' is on a read only mount", absolute_path_)));
   }
   if (GetChild(name)) {
     return Err<Node*>(
-        MakeError(Error::kExists, std::format("'{}\\{}' exists", absolute_path_, name)));
+        BuildError(FileSystemError::kExists, std::format("'{}\\{}' exists", absolute_path_, name)));
   }
   REX_TRY(std::unique_ptr<Node> child, CreateChildImpl(name, attributes));
   return children_.emplace_back(std::move(child)).get();
@@ -168,15 +169,16 @@ Result<Node*> Node::CreateChild(std::string_view name, FileAttributes attributes
 Result<void> Node::DeleteChild(Node& child) {
   std::lock_guard lock(provider_->mutex());
   if (read_only()) {
-    return Err(MakeError(Error::kAccessDenied,
-                         std::format("'{}' is on a read only mount", absolute_path_)));
+    return Err(BuildError(FileSystemError::kAccessDenied,
+                          std::format("'{}' is on a read only mount", absolute_path_)));
   }
   if (child.parent_ != this) {
-    return Err(MakeError(Error::kNotFound,
-                         std::format("'{}' is not a child of '{}'", child.name_, absolute_path_)));
+    return Err(BuildError(FileSystemError::kNotFound,
+                          std::format("'{}' is not a child of '{}'", child.name_, absolute_path_)));
   }
   if (child.open_count_ != 0) {
-    return Err(MakeError(Error::kAccessDenied, std::format("'{}' is open", child.absolute_path_)));
+    return Err(BuildError(FileSystemError::kAccessDenied,
+                          std::format("'{}' is open", child.absolute_path_)));
   }
   REX_TRY_VOID(DeleteChildImpl(child));
   DropChild(child);
@@ -185,8 +187,8 @@ Result<void> Node::DeleteChild(Node& child) {
 
 Result<void> Node::Delete() {
   if (!parent_) {
-    return Err(MakeError(Error::kAccessDenied,
-                         std::format("the root of '{}' cannot be deleted", absolute_path_)));
+    return Err(BuildError(FileSystemError::kAccessDenied,
+                          std::format("the root of '{}' cannot be deleted", absolute_path_)));
   }
   return parent_->DeleteChild(*this);
 }
@@ -194,23 +196,23 @@ Result<void> Node::Delete() {
 Result<void> Node::MoveTo(Node& new_parent, std::string_view name, bool replace_existing) {
   std::lock_guard lock(provider_->mutex());
   if (read_only()) {
-    return Err(MakeError(Error::kAccessDenied,
-                         std::format("'{}' is on a read only mount", absolute_path_)));
+    return Err(BuildError(FileSystemError::kAccessDenied,
+                          std::format("'{}' is on a read only mount", absolute_path_)));
   }
   if (!parent_) {
-    return Err(MakeError(Error::kAccessDenied,
-                         std::format("the root of '{}' cannot be moved", absolute_path_)));
+    return Err(BuildError(FileSystemError::kAccessDenied,
+                          std::format("the root of '{}' cannot be moved", absolute_path_)));
   }
   for (const Node* node = &new_parent; node; node = node->parent_) {
     if (node == this) {
-      return Err(MakeError(Error::kInvalidPath,
-                           std::format("'{}' cannot move below itself", absolute_path_)));
+      return Err(BuildError(FileSystemError::kInvalidPath,
+                            std::format("'{}' cannot move below itself", absolute_path_)));
     }
   }
   if (std::ranges::any_of(
           children_, [](const std::unique_ptr<Node>& child) { return child->open_count_ != 0; })) {
-    return Err(MakeError(Error::kAccessDenied,
-                         std::format("'{}' has an open file below it", absolute_path_)));
+    return Err(BuildError(FileSystemError::kAccessDenied,
+                          std::format("'{}' has an open file below it", absolute_path_)));
   }
   Node* existing = provider_->Resolve(utf8_join_guest_paths(new_parent.path_, name));
   if (existing == this) {
@@ -218,11 +220,12 @@ Result<void> Node::MoveTo(Node& new_parent, std::string_view name, bool replace_
   }
   if (existing) {
     if (!replace_existing) {
-      return Err(MakeError(Error::kExists, std::format("'{}' exists", existing->absolute_path_)));
+      return Err(BuildError(FileSystemError::kExists,
+                            std::format("'{}' exists", existing->absolute_path_)));
     }
     if (existing->is_directory() || existing->open_count_ != 0) {
-      return Err(MakeError(Error::kAccessDenied,
-                           std::format("'{}' cannot be replaced", existing->absolute_path_)));
+      return Err(BuildError(FileSystemError::kAccessDenied,
+                            std::format("'{}' cannot be replaced", existing->absolute_path_)));
     }
   }
   REX_TRY_VOID(MoveImpl(new_parent, name, existing != nullptr));
@@ -260,7 +263,7 @@ Result<void> Node::MoveTo(Node& new_parent, std::string_view name, bool replace_
 }
 
 Result<void> Node::Truncate() {
-  return Err(MakeError(Error::kUnsupported, "the provider cannot truncate"));
+  return Err(BuildError(FileSystemError::kUnsupported, "the provider cannot truncate"));
 }
 
 void Node::Refresh() {}
@@ -272,31 +275,32 @@ bool Node::ChildVanished(const Node& child) const {
 
 Result<void> Node::SetAttributes(FileAttributes attributes) {
   (void)attributes;
-  return Err(MakeError(Error::kUnsupported, "the provider has no attribute change"));
+  return Err(BuildError(FileSystemError::kUnsupported, "the provider has no attribute change"));
 }
 
 Result<void> Node::SetTimes(const FileTimes& times) {
   (void)times;
-  return Err(MakeError(Error::kUnsupported, "the provider has no time change"));
+  return Err(BuildError(FileSystemError::kUnsupported, "the provider has no time change"));
 }
 
 Result<std::unique_ptr<Node>> Node::CreateChildImpl(std::string_view name,
                                                     FileAttributes attributes) {
   (void)name;
   (void)attributes;
-  return Err<std::unique_ptr<Node>>(MakeError(Error::kUnsupported, "the provider cannot create"));
+  return Err<std::unique_ptr<Node>>(
+      BuildError(FileSystemError::kUnsupported, "the provider cannot create"));
 }
 
 Result<void> Node::DeleteChildImpl(Node& child) {
   (void)child;
-  return Err(MakeError(Error::kUnsupported, "the provider cannot delete"));
+  return Err(BuildError(FileSystemError::kUnsupported, "the provider cannot delete"));
 }
 
 Result<void> Node::MoveImpl(Node& new_parent, std::string_view name, bool replace_existing) {
   (void)new_parent;
   (void)name;
   (void)replace_existing;
-  return Err(MakeError(Error::kUnsupported, "the provider cannot rename"));
+  return Err(BuildError(FileSystemError::kUnsupported, "the provider cannot rename"));
 }
 
 void Node::OnMoved() {}

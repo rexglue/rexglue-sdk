@@ -6,13 +6,12 @@
 
 #include <rex/dbg.h>
 #include <rex/logging.h>
-#include <rex/memory/utils.h>
 #include <rex/runtime.h>
 #include <rex/runtime/error.h>
 #include <rex/runtime/function_dispatcher.h>
 #include <rex/runtime/thread_registry.h>
 #include <rex/runtime/xmemory.h>
-#include <rex/runtime/xobject.h>
+#include <rex/runtime/object.h>
 #include <rex/runtime/xthread.h>
 
 #include "runtime/thread_wait.h"
@@ -28,7 +27,7 @@ constexpr u32 kMaxQueuedFrames = 64;
 
 }  // namespace
 
-APU::APU(Runtime& runtime, apu::IBackend& backend, u32 max_queued_frames)
+APU::APU(Runtime& runtime, apu::IAPUBackend& backend, u32 max_queued_frames)
     : runtime_(runtime),
       backend_(backend),
       queued_frames_(std::clamp(max_queued_frames, kMinQueuedFrames, kMaxQueuedFrames)) {
@@ -51,12 +50,12 @@ Result<void> APU::Setup() {
     return Err(StatusError(status));
   }
   worker_running_ = true;
-  auto record = std::make_unique<ThreadRecord>(runtime_, 128 * 1024, 0, [this]() {
+  auto thread = std::make_unique<KernelThread>(runtime_, 128 * 1024, 0, [this]() {
     WorkerMain();
     return 0;
   });
-  record->set_name("Audio Worker");
-  auto launched = runtime_.thread_registry().Launch(std::move(record));
+  thread->set_name("Audio Worker");
+  auto launched = runtime_.thread_registry().Launch(std::move(thread));
   if (!launched) {
     worker_running_ = false;
     return std::unexpected(launched.error());
@@ -95,7 +94,7 @@ void APU::WorkerMain() {
       if (client_callback) {
         REX_PROFILE_SCOPE_TEXT("apu", "rex::runtime::APU->client_callback");
         u64 args[] = {client_callback_arg};
-        runtime_.function_dispatcher()->Execute(ThreadRecord::GetCurrentThread()->thread_state(),
+        runtime_.function_dispatcher()->Execute(KernelThread::GetCurrentThread()->thread_state(),
                                                 client_callback, args, std::size(args));
       }
       pumped = true;

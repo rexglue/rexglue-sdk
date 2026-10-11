@@ -184,10 +184,10 @@ constexpr const char* AssertMessage(const char* message) {
  * @param ... Format arguments.
  *
  * @code
- * REX_FATAL_IF(system, base != nullptr, "the guest memory base is not mapped");
+ * REX_CHECK(system, base != nullptr, "the guest memory base is not mapped");
  * @endcode
  */
-#define REX_FATAL_IF(category, cond, fmt, ...)                                               \
+#define REX_CHECK(category, cond, fmt, ...)                                                  \
   do {                                                                                       \
     if (!(cond)) {                                                                           \
       REXLOG_CRITICAL(category, "check failed: " #cond ". " fmt __VA_OPT__(, ) __VA_ARGS__); \

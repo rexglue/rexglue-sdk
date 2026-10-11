@@ -33,7 +33,7 @@
 
 #include <rex/logging.h>
 #include <rex/math.h>
-#include <rex/memory/utils.h>
+#include <rex/memory/virtual_memory.h>
 #include <rex/platform.h>
 #include <rex/string.h>
 
@@ -62,7 +62,7 @@ namespace memory {
  * @param path The path to convert.
  * @return A name starting with '/' and holding no other slash.
  */
-static std::string MakeShmName(const std::filesystem::path& path) {
+static std::string BuildShmName(const std::filesystem::path& path) {
   std::string name = path.string();
   for (char& c : name) {
     if (c == '/') {
@@ -89,7 +89,7 @@ static void* libandroid_;
 static int (*android_ASharedMemory_create_)(const char* name, size_t size);
 
 void AndroidInitialize() {
-  if (rex::GetAndroidApiLevel() >= 26) {
+  if (rex::GetAndroidAPILevel() >= 26) {
     libandroid_ = dlopen("libandroid.so", RTLD_NOW);
     REX_ASSERT(libandroid_ != nullptr);
     if (libandroid_) {
@@ -410,7 +410,7 @@ FileMappingHandle CreateFileMappingHandle(const std::filesystem::path& path, siz
       return kFileMappingHandleInvalid;
   }
   oflag |= O_CREAT | O_EXCL;
-  auto full_path = MakeShmName(path);
+  auto full_path = BuildShmName(path);
   int ret = shm_open(full_path.c_str(), oflag, 0777);
   if (ret < 0) {
     return kFileMappingHandleInvalid;
@@ -427,7 +427,7 @@ FileMappingHandle CreateFileMappingHandle(const std::filesystem::path& path, siz
 void CloseFileMappingHandle(FileMappingHandle handle, const std::filesystem::path& path) {
   close(handle);
 #if !REX_PLATFORM_ANDROID
-  auto full_path = MakeShmName(path);
+  auto full_path = BuildShmName(path);
   shm_unlink(full_path.c_str());
 #endif
 }

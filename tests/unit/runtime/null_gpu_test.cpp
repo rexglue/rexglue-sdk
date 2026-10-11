@@ -15,7 +15,6 @@
 #include <chrono>
 #include <thread>
 
-#include <rex/memory/utils.h>
 #include <rex/mmio.h>
 #include <rex/runtime.h>
 #include <rex/runtime/function_dispatcher.h>

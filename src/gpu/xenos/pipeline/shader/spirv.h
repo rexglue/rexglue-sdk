@@ -20,15 +20,15 @@
 
 namespace rex::gpu {
 
-class SpirvShader : public Shader {
+class SPIRVShader : public Shader {
  public:
-  class SpirvTranslation : public Translation {
+  class SPIRVTranslation : public Translation {
    public:
-    explicit SpirvTranslation(SpirvShader& shader, u64 modification)
+    explicit SPIRVTranslation(SPIRVShader& shader, u64 modification)
         : Translation(shader, modification) {}
   };
 
-  explicit SpirvShader(xenos::ShaderType shader_type, u64 ucode_data_hash, const u32* ucode_dwords,
+  explicit SPIRVShader(xenos::ShaderType shader_type, u64 ucode_data_hash, const u32* ucode_dwords,
                        size_t ucode_dword_count,
                        std::endian ucode_source_endian = std::endian::big);
 
@@ -58,7 +58,7 @@ class SpirvShader : public Shader {
   std::unique_ptr<Translation> CreateTranslationInstance(u64 modification) override;
 
  private:
-  friend class SpirvShaderTranslator;
+  friend class SPIRVShaderTranslator;
 
   std::atomic_flag bindings_setup_entered_;
   std::vector<TextureBinding> texture_bindings_;

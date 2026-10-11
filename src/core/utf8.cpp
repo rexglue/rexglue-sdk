@@ -258,14 +258,14 @@ bool EqualASCIICase(const u32 l, const u32 r) {
   return l == r || LowerASCII(l) == LowerASCII(r);
 }
 
-std::pair<CodepointIterator, CodepointIterator> MakeIterators(const std::string_view view) {
+std::pair<CodepointIterator, CodepointIterator> BuildIterators(const std::string_view view) {
   const char* first = view.data();
   const char* last = first + view.size();
   return {CodepointIterator(first, first, last), CodepointIterator(last, first, last)};
 }
 
-std::pair<CodepointIterator, CodepointIterator> MakeIterators(const CodepointIterator begin,
-                                                              const CodepointIterator end) {
+std::pair<CodepointIterator, CodepointIterator> BuildIterators(const CodepointIterator begin,
+                                                               const CodepointIterator end) {
   return {CodepointIterator(begin.Base(), begin.Base(), end.Base()),
           CodepointIterator(end.Base(), begin.Base(), end.Base())};
 }
@@ -276,12 +276,12 @@ size_t ByteLength(CodepointIterator begin, CodepointIterator end) {
 }  // namespace
 
 size_t utf8_count(const std::string_view view) {
-  auto [begin, end] = MakeIterators(view);
+  auto [begin, end] = BuildIterators(view);
   return static_cast<size_t>(std::distance(begin, end));
 }
 
 std::string utf8_lower_ascii(const std::string_view view) {
-  auto [begin, end] = MakeIterators(view);
+  auto [begin, end] = BuildIterators(view);
   std::string result;
   for (auto it = begin; it != end; ++it) {
     EncodeUTF8(static_cast<char32_t>(LowerASCII(*it)), result);
@@ -290,7 +290,7 @@ std::string utf8_lower_ascii(const std::string_view view) {
 }
 
 std::string utf8_upper_ascii(const std::string_view view) {
-  auto [begin, end] = MakeIterators(view);
+  auto [begin, end] = BuildIterators(view);
   std::string result;
   for (auto it = begin; it != end; ++it) {
     EncodeUTF8(static_cast<char32_t>(UpperASCII(*it)), result);
@@ -309,7 +309,7 @@ inline size_t HashFNV1a(const std::string_view view) {
     return hash;
   };
   auto hash = offset_basis;
-  auto [begin, end] = MakeIterators(view);
+  auto [begin, end] = BuildIterators(view);
   for (auto it = begin; it != end; ++it) {
     u32 c;
     if constexpr (LOWER) {
@@ -366,8 +366,8 @@ std::vector<std::string_view> utf8_split(const std::string_view haystack,
                                          const std::string_view needles, bool remove_empty) {
   std::vector<std::string_view> result;
 
-  auto [haystack_begin, haystack_end] = MakeIterators(haystack);
-  auto [needle_begin, needle_end] = MakeIterators(needles);
+  auto [haystack_begin, haystack_end] = BuildIterators(haystack);
+  auto [needle_begin, needle_end] = BuildIterators(needles);
 
   auto it = haystack_begin;
   auto last = it;
@@ -403,8 +403,8 @@ bool utf8_equal_z(const std::string_view left, const std::string_view right) {
   } else if (right.empty()) {
     return false;
   }
-  auto [left_begin, left_end] = MakeIterators(left);
-  auto [right_begin, right_end] = MakeIterators(right);
+  auto [left_begin, left_end] = BuildIterators(left);
+  auto [right_begin, right_end] = BuildIterators(right);
   auto left_it = left_begin;
   auto right_it = right_begin;
   for (; left_it != left_end && *left_it != 0 && right_it != right_end && *right_it != 0;
@@ -422,8 +422,8 @@ bool utf8_equal_case(const std::string_view left, const std::string_view right) 
   } else if (right.empty()) {
     return false;
   }
-  auto [left_begin, left_end] = MakeIterators(left);
-  auto [right_begin, right_end] = MakeIterators(right);
+  auto [left_begin, left_end] = BuildIterators(left);
+  auto [right_begin, right_end] = BuildIterators(right);
   return std::equal(left_begin, left_end, right_begin, right_end, EqualASCIICase);
 }
 
@@ -433,8 +433,8 @@ bool utf8_equal_case_z(const std::string_view left, const std::string_view right
   } else if (right.empty()) {
     return false;
   }
-  auto [left_begin, left_end] = MakeIterators(left);
-  auto [right_begin, right_end] = MakeIterators(right);
+  auto [left_begin, left_end] = BuildIterators(left);
+  auto [right_begin, right_end] = BuildIterators(right);
   auto left_it = left_begin;
   auto right_it = right_begin;
   for (; left_it != left_end && *left_it != 0 && right_it != right_end && *right_it != 0;
@@ -454,8 +454,8 @@ std::string_view::size_type utf8_find_any_of(const std::string_view haystack,
     return std::string_view::npos;
   }
 
-  auto [haystack_begin, haystack_end] = MakeIterators(haystack);
-  auto [needle_begin, needle_end] = MakeIterators(needles);
+  auto [haystack_begin, haystack_end] = BuildIterators(haystack);
+  auto [needle_begin, needle_end] = BuildIterators(needles);
 
   auto it = FindNeedle(haystack_begin, haystack_end, needle_begin, needle_end);
   if (it == haystack_end) {
@@ -473,8 +473,8 @@ std::string_view::size_type utf8_find_any_of_case(const std::string_view haystac
     return std::string_view::npos;
   }
 
-  auto [haystack_begin, haystack_end] = MakeIterators(haystack);
-  auto [needle_begin, needle_end] = MakeIterators(needles);
+  auto [haystack_begin, haystack_end] = BuildIterators(haystack);
+  auto [needle_begin, needle_end] = BuildIterators(needles);
 
   auto it = FindNeedleCase(haystack_begin, haystack_end, needle_begin, needle_end);
   if (it == haystack_end) {
@@ -492,8 +492,8 @@ std::string_view::size_type utf8_find_first_of(const std::string_view haystack,
     return std::string_view::npos;
   }
 
-  auto [haystack_begin, haystack_end] = MakeIterators(haystack);
-  auto [needle_begin, needle_end] = MakeIterators(needle);
+  auto [haystack_begin, haystack_end] = BuildIterators(haystack);
+  auto [needle_begin, needle_end] = BuildIterators(needle);
   auto needle_count = utf8_count(needle);
 
   auto it = haystack_begin;
@@ -511,7 +511,7 @@ std::string_view::size_type utf8_find_first_of(const std::string_view haystack,
       ++end;
     }
 
-    auto [sub_start, sub_end] = MakeIterators(it, end);
+    auto [sub_start, sub_end] = BuildIterators(it, end);
     if (std::equal(needle_begin, needle_end, sub_start, sub_end)) {
       return std::string_view::size_type(ByteLength(haystack_begin, it));
     }
@@ -528,8 +528,8 @@ std::string_view::size_type utf8_find_first_of_case(const std::string_view hayst
     return std::string_view::npos;
   }
 
-  auto [haystack_begin, haystack_end] = MakeIterators(haystack);
-  auto [needle_begin, needle_end] = MakeIterators(needle);
+  auto [haystack_begin, haystack_end] = BuildIterators(haystack);
+  auto [needle_begin, needle_end] = BuildIterators(needle);
   auto needle_count = utf8_count(needle);
   auto nc = *needle_begin;
 
@@ -548,7 +548,7 @@ std::string_view::size_type utf8_find_first_of_case(const std::string_view hayst
       ++end;
     }
 
-    auto [sub_start, sub_end] = MakeIterators(it, end);
+    auto [sub_start, sub_end] = BuildIterators(it, end);
     if (std::equal(needle_begin, needle_end, sub_start, sub_end, EqualASCIICase)) {
       return std::string_view::size_type(ByteLength(haystack_begin, it));
     }
@@ -562,7 +562,7 @@ bool StartsWithCodePoint(const std::string_view haystack, char32_t needle) {
   if (haystack.empty()) {
     return false;
   }
-  auto [it, end] = MakeIterators(haystack);
+  auto [it, end] = BuildIterators(haystack);
   return *it == static_cast<u32>(needle);
 }
 }  // namespace
@@ -574,8 +574,8 @@ bool utf8_starts_with(const std::string_view haystack, const std::string_view ne
     return false;
   }
 
-  auto [haystack_begin, haystack_end] = MakeIterators(haystack);
-  auto [needle_begin, needle_end] = MakeIterators(needle);
+  auto [haystack_begin, haystack_end] = BuildIterators(haystack);
+  auto [needle_begin, needle_end] = BuildIterators(needle);
   auto needle_count = utf8_count(needle);
 
   auto it = haystack_begin;
@@ -587,7 +587,7 @@ bool utf8_starts_with(const std::string_view haystack, const std::string_view ne
     ++end;
   }
 
-  auto [sub_start, sub_end] = MakeIterators(it, end);
+  auto [sub_start, sub_end] = BuildIterators(it, end);
   return std::equal(needle_begin, needle_end, sub_start, sub_end);
 }
 
@@ -598,8 +598,8 @@ bool utf8_starts_with_case(const std::string_view haystack, const std::string_vi
     return false;
   }
 
-  auto [haystack_begin, haystack_end] = MakeIterators(haystack);
-  auto [needle_begin, needle_end] = MakeIterators(needle);
+  auto [haystack_begin, haystack_end] = BuildIterators(haystack);
+  auto [needle_begin, needle_end] = BuildIterators(needle);
   auto needle_count = utf8_count(needle);
 
   auto it = haystack_begin;
@@ -611,7 +611,7 @@ bool utf8_starts_with_case(const std::string_view haystack, const std::string_vi
     ++end;
   }
 
-  auto [sub_start, sub_end] = MakeIterators(it, end);
+  auto [sub_start, sub_end] = BuildIterators(it, end);
   return std::equal(needle_begin, needle_end, sub_start, sub_end, EqualASCIICase);
 }
 
@@ -622,8 +622,8 @@ bool utf8_ends_with(const std::string_view haystack, const std::string_view need
     return false;
   }
 
-  auto [haystack_begin, haystack_end] = MakeIterators(haystack);
-  auto [needle_begin, needle_end] = MakeIterators(needle);
+  auto [haystack_begin, haystack_end] = BuildIterators(haystack);
+  auto [needle_begin, needle_end] = BuildIterators(needle);
   auto needle_count = utf8_count(needle);
 
   auto it = haystack_end;
@@ -637,7 +637,7 @@ bool utf8_ends_with(const std::string_view haystack, const std::string_view need
     --it;
   }
 
-  auto [sub_start, sub_end] = MakeIterators(it, end);
+  auto [sub_start, sub_end] = BuildIterators(it, end);
   return std::equal(needle_begin, needle_end, sub_start, sub_end);
 }
 
@@ -648,8 +648,8 @@ bool utf8_ends_with_case(const std::string_view haystack, const std::string_view
     return false;
   }
 
-  auto [haystack_begin, haystack_end] = MakeIterators(haystack);
-  auto [needle_begin, needle_end] = MakeIterators(needle);
+  auto [haystack_begin, haystack_end] = BuildIterators(haystack);
+  auto [needle_begin, needle_end] = BuildIterators(needle);
   auto needle_count = utf8_count(needle);
 
   auto it = haystack_end;
@@ -663,7 +663,7 @@ bool utf8_ends_with_case(const std::string_view haystack, const std::string_view
     --it;
   }
 
-  auto [sub_start, sub_end] = MakeIterators(it, end);
+  auto [sub_start, sub_end] = BuildIterators(it, end);
   return std::equal(needle_begin, needle_end, sub_start, sub_end, EqualASCIICase);
 }
 
@@ -680,7 +680,7 @@ std::string utf8_join_paths(const std::string_view left_path, const std::string_
   }
 
   CodepointIterator it;
-  std::tie(std::ignore, it) = MakeIterators(left_path);
+  std::tie(std::ignore, it) = BuildIterators(left_path);
   --it;
 
   std::string result = std::string(left_path);
@@ -721,7 +721,7 @@ std::string utf8_fix_path_separators(const std::string_view path, char32_t new_s
 
   const char32_t old_separator = new_separator == U'\\' ? U'/' : U'\\';
 
-  auto [path_begin, path_end] = MakeIterators(path);
+  auto [path_begin, path_end] = BuildIterators(path);
 
   std::string result;
   auto it = path_begin;
@@ -771,7 +771,7 @@ std::string utf8_find_name_from_path(const std::string_view path, char32_t separ
     return std::string();
   }
 
-  auto [begin, end] = MakeIterators(path);
+  auto [begin, end] = BuildIterators(path);
 
   auto it = end;
   --it;
@@ -807,7 +807,7 @@ std::string utf8_find_base_name_from_path(const std::string_view path, char32_t 
     return std::string();
   }
 
-  auto [begin, end] = MakeIterators(name);
+  auto [begin, end] = BuildIterators(name);
 
   auto it = end;
   --it;
@@ -833,7 +833,7 @@ std::string utf8_find_base_path(const std::string_view path, char32_t separator)
     return std::string();
   }
 
-  auto [begin, end] = MakeIterators(path);
+  auto [begin, end] = BuildIterators(path);
 
   auto it = end;
   --it;

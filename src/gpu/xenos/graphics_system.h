@@ -33,7 +33,7 @@ namespace rex::gpu {
 
 class CommandProcessor;
 
-class GraphicsSystem : public gpu::IBackend {
+class GraphicsSystem : public gpu::IGPUBackend {
  public:
   virtual ~GraphicsSystem();
 
@@ -73,7 +73,7 @@ class GraphicsSystem : public gpu::IBackend {
    *
    * @param is_responsible True when the caller is responsible for the recovery.
    */
-  void OnHostGpuLossFromAnyThread(bool is_responsible);
+  void OnHostGPULossFromAnyThread(bool is_responsible);
 
   xenos::RegisterFile* register_file() { return &register_file_; }
   CommandProcessor* command_processor() const { return command_processor_.get(); }
@@ -85,7 +85,7 @@ class GraphicsSystem : public gpu::IBackend {
   void DispatchInterruptCallback(u32 source, u32 cpu);
 
   virtual void ClearCaches();
-  virtual void InvalidateGpuMemory();
+  virtual void InvalidateGPUMemory();
 
   [[nodiscard]] Result<void> InitializeShaderStorage(const std::filesystem::path& root,
                                                      u32 title_id, bool blocking) override;

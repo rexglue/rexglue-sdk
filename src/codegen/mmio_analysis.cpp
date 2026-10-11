@@ -6,7 +6,7 @@
 #include <optional>
 #include <utility>
 
-#include <rex/memory/utils.h>
+#include <rex/memory/byte_swap.h>
 #include <rex/mmio.h>
 
 namespace rex::codegen {

@@ -22,7 +22,7 @@
 #include <rex/codegen/vtable_scanner.h>
 #include <rex/logging.h>
 
-#include <rex/memory/utils.h>
+#include <rex/memory/byte_swap.h>
 
 #include <ppc.h>
 
@@ -253,7 +253,7 @@ size_t discoverPendingFunctions(CodegenContext& ctx,
   return pending.size();
 }
 
-namespace phases {
+namespace detail {
 
 [[nodiscard]] Result<void> Discover(CodegenContext& ctx, ProgressReporter* reporter) {
   (void)reporter;
@@ -261,6 +261,6 @@ namespace phases {
   return Ok();
 }
 
-}  // namespace phases
+}  // namespace detail
 
 }  // namespace rex::codegen

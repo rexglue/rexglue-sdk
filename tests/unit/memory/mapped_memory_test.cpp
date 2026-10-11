@@ -1,6 +1,6 @@
 /**
  * @file        tests/unit/memory/mapped_memory_test.cpp
- * @brief       MappedMemory slices are non owning views, chunked writers spill to new files
+ * @brief       MappedMemory ranges are non owning views, chunked writers spill to new files
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -21,7 +21,7 @@
 #include <vector>
 
 #include <rex/memory/mapped_memory.h>
-#include <rex/memory/utils.h>
+#include <rex/memory/virtual_memory.h>
 #include <rex/platform.h>
 
 #if REX_PLATFORM_WIN32
@@ -40,10 +40,10 @@ std::vector<rex::u8> ReadFile(const std::filesystem::path& path) {
 
 static_assert(std::is_constructible_v<MappedMemory, void*, size_t>);
 
-REX_TEST_CASE("Slice returns a non owning view of the same bytes", "[memory][mapped_memory]") {
+REX_TEST_CASE("Range returns a non owning view of the same bytes", "[memory][mapped_memory]") {
   std::array<rex::u8, 16> bytes{};
   MappedMemory mapping(bytes.data(), bytes.size());
-  auto view = mapping.Slice(4, 8);
+  auto view = mapping.Range(4, 8);
   REQUIRE(view != nullptr);
   CHECK(view->data() == bytes.data() + 4);
   CHECK(view->size() == 8);

@@ -741,7 +741,7 @@ REX_API void RegisterCurrentThread();
  *
  * @return The number of registered threads.
  */
-REX_API u64 LiveCount();
+REX_API u64 ThreadCount();
 
 /** Destroys the timer queue and joins its thread. The next timer creates it again. */
 REX_API void ShutdownTimerQueue();

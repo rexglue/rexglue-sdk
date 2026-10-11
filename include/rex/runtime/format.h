@@ -21,12 +21,12 @@
 #include <string>
 
 #include <rex/assert.h>
-#include <rex/memory/utils.h>
+#include <rex/memory/byte_swap.h>
 #include <rex/ppc/context.h>
 #include <rex/ppc/function.h>
 #include <rex/types.h>
 
-namespace rex::runtime::format {
+namespace rex::runtime::detail {
 
 /** States of the printf format specifier parser. */
 enum FormatState : u8 {
@@ -123,6 +123,10 @@ inline std::string format_double(f64 value, i32 precision, u16 c, u32 flags) {
   temp << value;
   return temp.str();
 }
+
+}  // namespace rex::runtime::detail
+
+namespace rex::runtime {
 
 /**
  * Reads variadic arguments from PPC registers and the stack, for sprintf, _snprintf, DbgPrint and
@@ -410,7 +414,7 @@ class WideCountFormatData {
  * @param wide True when the format string is wide.
  * @return The number of characters written, or -1 on failure.
  */
-template <FormatDataSource Data, ArgListSource Args>
+template <detail::FormatDataSource Data, detail::ArgListSource Args>
 i32 format_core(u8* base, Data& data, Args& args, const bool wide) {
   i32 count = 0;
 
@@ -429,11 +433,11 @@ i32 format_core(u8* base, Data& data, Args& args, const bool wide) {
     i32 length;
   } prefix;
 
-  auto state = FS_Unknown;
+  auto state = detail::FS_Unknown;
   u32 flags = 0;
   i32 width = 0;
   i32 precision = -1;
-  [[maybe_unused]] ArgumentSize size = AS_Default;
+  [[maybe_unused]] detail::ArgumentSize size = detail::AS_Default;
   i32 radix = 0;
   const char* digits = nullptr;
 
@@ -445,7 +449,7 @@ i32 format_core(u8* base, Data& data, Args& args, const bool wide) {
   prefix.length = 0;
 
   for (u16 c = data.get();; c = data.get()) {
-    if (state == FS_Unknown) {
+    if (state == detail::FS_Unknown) {
       if (!c) {
         return count;
       } else if (c != '%') {
@@ -457,7 +461,7 @@ i32 format_core(u8* base, Data& data, Args& args, const bool wide) {
         continue;
       }
 
-      state = FS_Start;
+      state = detail::FS_Start;
       c = data.get();
     }
 
@@ -467,25 +471,25 @@ i32 format_core(u8* base, Data& data, Args& args, const bool wide) {
 
   restart:
     switch (state) {
-      case FS_Invalid:
-      case FS_Unknown:
-      case FS_End:
+      case detail::FS_Invalid:
+      case detail::FS_Unknown:
+      case detail::FS_End:
       default: {
         REX_ASSERT_ALWAYS();
       }
 
-      case FS_Start: {
+      case detail::FS_Start: {
         if (c == '%') {
-          state = FS_Unknown;
+          state = detail::FS_Unknown;
           goto output;
         }
 
-        state = FS_Flags;
+        state = detail::FS_Flags;
 
         flags = 0;
         width = 0;
         precision = -1;
-        size = AS_Default;
+        size = detail::AS_Default;
         radix = 0;
         digits = nullptr;
 
@@ -499,126 +503,126 @@ i32 format_core(u8* base, Data& data, Args& args, const bool wide) {
         [[fallthrough]];
       }
 
-      case FS_Flags: {
+      case detail::FS_Flags: {
         if (c == '-') {
-          flags |= FF_LeftJustify;
+          flags |= detail::FF_LeftJustify;
           continue;
         } else if (c == '+') {
-          flags |= FF_AddPositive;
+          flags |= detail::FF_AddPositive;
           continue;
         } else if (c == '0') {
-          flags |= FF_AddLeadingZeros;
+          flags |= detail::FF_AddLeadingZeros;
           continue;
         } else if (c == ' ') {
-          flags |= FF_AddPositiveAsSpace;
+          flags |= detail::FF_AddPositiveAsSpace;
           continue;
         } else if (c == '#') {
-          flags |= FF_AddPrefix;
+          flags |= detail::FF_AddPrefix;
           continue;
         }
-        state = FS_Width;
+        state = detail::FS_Width;
         [[fallthrough]];
       }
 
-      case FS_Width: {
+      case detail::FS_Width: {
         if (c == '*') {
           width = static_cast<i32>(args.get32());
           if (width < 0) {
-            flags |= FF_LeftJustify;
+            flags |= detail::FF_LeftJustify;
             width = -width;
           }
-          state = FS_PrecisionStart;
+          state = detail::FS_PrecisionStart;
           continue;
         } else if (c >= '0' && c <= '9') {
           width *= 10;
           width += c - '0';
           continue;
         }
-        state = FS_PrecisionStart;
+        state = detail::FS_PrecisionStart;
         [[fallthrough]];
       }
 
-      case FS_PrecisionStart: {
+      case detail::FS_PrecisionStart: {
         if (c == '.') {
-          state = FS_Precision;
+          state = detail::FS_Precision;
           precision = 0;
           continue;
         }
-        state = FS_Size;
+        state = detail::FS_Size;
         goto restart;
       }
 
-      case FS_Precision: {
+      case detail::FS_Precision: {
         if (c == '*') {
           precision = static_cast<i32>(args.get32());
           if (precision < 0) {
             precision = -1;
           }
-          state = FS_Size;
+          state = detail::FS_Size;
           continue;
         } else if (c >= '0' && c <= '9') {
           precision *= 10;
           precision += c - '0';
           continue;
         }
-        state = FS_Size;
+        state = detail::FS_Size;
         [[fallthrough]];
       }
 
-      case FS_Size: {
+      case detail::FS_Size: {
         if (c == 'l') {
           if (data.peek(0) == 'l') {
             data.skip(1);
-            flags |= FF_IsLongLong;
+            flags |= detail::FF_IsLongLong;
           } else {
-            flags |= FF_IsLong;
+            flags |= detail::FF_IsLong;
           }
-          state = FS_Type;
+          state = detail::FS_Type;
           continue;
         } else if (c == 'L') {
-          state = FS_Type;
+          state = detail::FS_Type;
           continue;
         } else if (c == 'h') {
-          flags |= FF_IsShort;
-          state = FS_Type;
+          flags |= detail::FF_IsShort;
+          state = detail::FS_Type;
           continue;
         } else if (c == 'w') {
-          flags |= FF_IsWide;
-          state = FS_Type;
+          flags |= detail::FF_IsWide;
+          state = detail::FS_Type;
           continue;
         } else if (c == 'I') {
           if (data.peek(0) == '6' && data.peek(1) == '4') {
             data.skip(2);
-            flags |= FF_IsLongLong;
-            state = FS_Type;
+            flags |= detail::FF_IsLongLong;
+            state = detail::FS_Type;
             continue;
           } else if (data.peek(0) == '3' && data.peek(1) == '2') {
             data.skip(2);
-            state = FS_Type;
+            state = detail::FS_Type;
             continue;
           } else {
-            state = FS_Type;
+            state = detail::FS_Type;
             continue;
           }
         }
         [[fallthrough]];
       }
 
-      case FS_Type: {
+      case detail::FS_Type: {
         switch (c) {
           case 'C': {
-            flags |= FF_InvertWide;
+            flags |= detail::FF_InvertWide;
             [[fallthrough]];
           }
 
           case 'c': {
             bool is_wide;
-            if (flags & (FF_IsLong | FF_IsWide)) {
+            if (flags & (detail::FF_IsLong | detail::FF_IsWide)) {
               is_wide = true;
-            } else if (flags & FF_IsShort) {
+            } else if (flags & detail::FF_IsShort) {
               is_wide = false;
             } else {
-              is_wide = ((flags & FF_InvertWide) != 0) ^ wide;
+              is_wide = ((flags & detail::FF_InvertWide) != 0) ^ wide;
             }
 
             auto value = args.get32();
@@ -641,7 +645,7 @@ i32 format_core(u8* base, Data& data, Args& args, const bool wide) {
 
           case 'd':
           case 'i': {
-            flags |= FF_IsSigned;
+            flags |= detail::FF_IsSigned;
             digits = "0123456789";
             radix = 10;
 
@@ -651,9 +655,9 @@ i32 format_core(u8* base, Data& data, Args& args, const bool wide) {
 
             i64 value;
 
-            if (flags & FF_IsLongLong) {
+            if (flags & detail::FF_IsLongLong) {
               value = static_cast<i64>(args.get64());
-            } else if (flags & FF_IsShort) {
+            } else if (flags & detail::FF_IsShort) {
               value = static_cast<i16>(args.get32());
             } else {
               value = static_cast<i32>(args.get32());
@@ -665,12 +669,12 @@ i32 format_core(u8* base, Data& data, Args& args, const bool wide) {
               precision = 1;
             }
 
-            if ((flags & FF_IsSigned) && value < 0) {
+            if ((flags & detail::FF_IsSigned) && value < 0) {
               value = -value;
-              flags |= FF_AddNegative;
+              flags |= detail::FF_AddNegative;
             }
 
-            if (!(flags & FF_IsLongLong)) {
+            if (!(flags & detail::FF_IsLongLong)) {
               value &= UINT32_MAX;
             }
 
@@ -689,7 +693,7 @@ i32 format_core(u8* base, Data& data, Args& args, const bool wide) {
               *--start = digits[digit];
             }
 
-            if ((flags & FF_ForceLeadingZero) && (start == end || *start != '0')) {
+            if ((flags & detail::FF_ForceLeadingZero) && (start == end || *start != '0')) {
               *--start = '0';
             }
 
@@ -702,8 +706,8 @@ i32 format_core(u8* base, Data& data, Args& args, const bool wide) {
           case 'o': {
             digits = "01234567";
             radix = 8;
-            if (flags & FF_AddPrefix) {
-              flags |= FF_ForceLeadingZero;
+            if (flags & detail::FF_AddPrefix) {
+              flags |= detail::FF_ForceLeadingZero;
             }
             goto integer;
           }
@@ -719,7 +723,7 @@ i32 format_core(u8* base, Data& data, Args& args, const bool wide) {
             digits = c == 'x' ? "0123456789abcdef" : "0123456789ABCDEF";
             radix = 16;
 
-            if (flags & FF_AddPrefix) {
+            if (flags & detail::FF_AddPrefix) {
               prefix.buffer[0] = '0';
               prefix.buffer[1] = c == 'x' ? 'x' : 'X';
               prefix.length = 2;
@@ -735,17 +739,17 @@ i32 format_core(u8* base, Data& data, Args& args, const bool wide) {
           case 'G':
           case 'a':
           case 'A': {
-            flags |= FF_IsSigned;
+            flags |= detail::FF_IsSigned;
 
             i64 dummy = args.get64();
             f64 value = std::bit_cast<f64>(dummy);
 
             if (value < 0) {
               value = -value;
-              flags |= FF_AddNegative;
+              flags |= detail::FF_AddNegative;
             }
 
-            auto s = format_double(value, precision, c, flags);
+            auto s = detail::format_double(value, precision, c, flags);
             auto length = static_cast<i32>(s.size());
             REX_ASSERT(length < static_cast<i32>(std::size(work8)));
 
@@ -763,7 +767,7 @@ i32 format_core(u8* base, Data& data, Args& args, const bool wide) {
 
           case 'n': {
             auto pointer = static_cast<u32>(args.get32());
-            if (flags & FF_IsShort) {
+            if (flags & detail::FF_IsShort) {
               *rex::runtime::GuestPtr<be_u16*>(base, pointer) = static_cast<u16>(count);
             } else {
               *rex::runtime::GuestPtr<be_u32*>(base, pointer) = static_cast<u32>(count);
@@ -775,13 +779,13 @@ i32 format_core(u8* base, Data& data, Args& args, const bool wide) {
             digits = "0123456789ABCDEF";
             radix = 16;
             precision = 8;
-            flags &= ~(FF_IsLongLong | FF_IsShort);
-            flags |= FF_IsLong;
+            flags &= ~(detail::FF_IsLongLong | detail::FF_IsShort);
+            flags |= detail::FF_IsLong;
             goto integer;
           }
 
           case 'S': {
-            flags |= FF_InvertWide;
+            flags |= detail::FF_InvertWide;
             [[fallthrough]];
           }
 
@@ -797,12 +801,12 @@ i32 format_core(u8* base, Data& data, Args& args, const bool wide) {
             } else {
               void* str = rex::runtime::GuestPtr<void*>(base, pointer);
               bool is_wide;
-              if (flags & (FF_IsLong | FF_IsWide)) {
+              if (flags & (detail::FF_IsLong | detail::FF_IsWide)) {
                 is_wide = true;
-              } else if (flags & FF_IsShort) {
+              } else if (flags & detail::FF_IsShort) {
                 is_wide = false;
               } else {
-                is_wide = ((flags & FF_InvertWide) != 0) ^ wide;
+                is_wide = ((flags & detail::FF_InvertWide) != 0) ^ wide;
               }
               i32 length;
 
@@ -837,14 +841,14 @@ i32 format_core(u8* base, Data& data, Args& args, const bool wide) {
       }
     }
 
-    if (flags & FF_IsSigned) {
-      if (flags & FF_AddNegative) {
+    if (flags & detail::FF_IsSigned) {
+      if (flags & detail::FF_AddNegative) {
         prefix.buffer[0] = '-';
         prefix.length = 1;
-      } else if (flags & FF_AddPositive) {
+      } else if (flags & detail::FF_AddPositive) {
         prefix.buffer[0] = '+';
         prefix.length = 1;
-      } else if (flags & FF_AddPositiveAsSpace) {
+      } else if (flags & detail::FF_AddPositiveAsSpace) {
         prefix.buffer[0] = ' ';
         prefix.length = 1;
       }
@@ -852,7 +856,7 @@ i32 format_core(u8* base, Data& data, Args& args, const bool wide) {
 
     i32 padding = width - text.length - prefix.length;
 
-    if (!(flags & (FF_LeftJustify | FF_AddLeadingZeros)) && padding > 0) {
+    if (!(flags & (detail::FF_LeftJustify | detail::FF_AddLeadingZeros)) && padding > 0) {
       count += padding;
       while (padding-- > 0) {
         if (!data.put(' ')) {
@@ -872,7 +876,7 @@ i32 format_core(u8* base, Data& data, Args& args, const bool wide) {
       }
     }
 
-    if ((flags & FF_AddLeadingZeros) && !(flags & FF_LeftJustify) && padding > 0) {
+    if ((flags & detail::FF_AddLeadingZeros) && !(flags & detail::FF_LeftJustify) && padding > 0) {
       count += padding;
       while (padding-- > 0) {
         if (!data.put('0')) {
@@ -907,7 +911,7 @@ i32 format_core(u8* base, Data& data, Args& args, const bool wide) {
     }
     count += text.length;
 
-    if ((flags & FF_LeftJustify) && padding > 0) {
+    if ((flags & detail::FF_LeftJustify) && padding > 0) {
       count += padding;
       while (padding-- > 0) {
         if (!data.put(' ')) {
@@ -916,10 +920,10 @@ i32 format_core(u8* base, Data& data, Args& args, const bool wide) {
       }
     }
 
-    state = FS_Unknown;
+    state = detail::FS_Unknown;
   }
 
   return count;
 }
 
-}  // namespace rex::runtime::format
+}  // namespace rex::runtime

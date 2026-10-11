@@ -278,7 +278,7 @@ REX_TEST_CASE("files: XamContentCreate fails when the content header cannot be w
                              std::format("{:08X}", 1u) / "rexsave.header";
     std::filesystem::create_directories(header_path);
 
-    using rex::runtime::xam::XCONTENT_AGGREGATE_DATA;
+    using rex::runtime::XCONTENT_AGGREGATE_DATA;
     const u32 data = c.Alloc(sizeof(XCONTENT_AGGREGATE_DATA));
     auto* host = c.runtime().memory()->TranslateVirtual<XCONTENT_AGGREGATE_DATA*>(data);
     std::memset(static_cast<void*>(host), 0, sizeof(XCONTENT_AGGREGATE_DATA));

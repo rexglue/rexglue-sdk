@@ -112,31 +112,31 @@ inline void initialize_seh() {
 #if REX_PLATFORM_WIN32
 
 /**
- * Opens an SEH scope. Pair with SEH_CATCH or SEH_CATCH_ALL and SEH_END.
+ * Opens an SEH scope. Pair with REX_SEH_CATCH or REX_SEH_CATCH_ALL and REX_SEH_END.
  *
  * @code
- * SEH_TRY {
+ * REX_SEH_TRY {
  *   body();
- * } SEH_CATCH_ALL {
+ * } REX_SEH_CATCH_ALL {
  *   cleanup();
- *   SEH_RETHROW;
- * } SEH_END
+ *   REX_SEH_RETHROW;
+ * } REX_SEH_END
  * @endcode
  */
-#define SEH_TRY __try {
-/** Closes the SEH_TRY body and opens a handler for the exceptions seh_filter accepts. */
-#define SEH_CATCH \
-  }               \
-  __except (::rex::platform::seh_filter(GetExceptionCode(), GetExceptionInformation())) {
-/** Same as SEH_CATCH on Windows. */
-#define SEH_CATCH_ALL \
+#define REX_SEH_TRY __try {
+/** Closes the REX_SEH_TRY body and opens a handler for the exceptions seh_filter accepts. */
+#define REX_SEH_CATCH \
   }                   \
   __except (::rex::platform::seh_filter(GetExceptionCode(), GetExceptionInformation())) {
+/** Same as REX_SEH_CATCH on Windows. */
+#define REX_SEH_CATCH_ALL \
+  }                       \
+  __except (::rex::platform::seh_filter(GetExceptionCode(), GetExceptionInformation())) {
 /** Raises the captured exception again from inside a handler. */
-#define SEH_RETHROW ::rex::platform::seh_rethrow()
+#define REX_SEH_RETHROW ::rex::platform::seh_rethrow()
 
 /** Closes the SEH scope. */
-#define SEH_END }
+#define REX_SEH_END }
 
 /** Returns from the function that holds the SEH scope. */
 #define REX_SEH_RETURN return
@@ -145,35 +145,35 @@ inline void initialize_seh() {
 
 /**
  * Opens an SEH scope. A fault inside it resumes at the handler through sigsetjmp, so the scope adds
- * no C++ cleanup to the function. Pair with SEH_CATCH or SEH_CATCH_ALL and SEH_END, and leave the
- * body early only through REX_SEH_RETURN.
+ * no C++ cleanup to the function. Pair with REX_SEH_CATCH or REX_SEH_CATCH_ALL and REX_SEH_END, and
+ * leave the body early only through REX_SEH_RETURN.
  *
  * @code
- * SEH_TRY {
+ * REX_SEH_TRY {
  *   body();
- * } SEH_CATCH_ALL {
+ * } REX_SEH_CATCH_ALL {
  *   cleanup();
- *   SEH_RETHROW;
- * } SEH_END
+ *   REX_SEH_RETHROW;
+ * } REX_SEH_END
  * @endcode
  */
-#define SEH_TRY                                \
+#define REX_SEH_TRY                            \
   {                                            \
     ::rex::platform::SehScope rex_seh_scope;   \
     ::rex::platform::seh_enter(rex_seh_scope); \
     if (sigsetjmp(rex_seh_scope.env, 0) == 0)
 
 /** Opens the handler of the scope. */
-#define SEH_CATCH else
+#define REX_SEH_CATCH else
 
-/** Same as SEH_CATCH on POSIX. */
-#define SEH_CATCH_ALL else
+/** Same as REX_SEH_CATCH on POSIX. */
+#define REX_SEH_CATCH_ALL else
 
 /** Passes the captured exception to the next open scope from inside a handler. */
-#define SEH_RETHROW ::rex::platform::seh_rethrow()
+#define REX_SEH_RETHROW ::rex::platform::seh_rethrow()
 
 /** Closes the SEH scope. */
-#define SEH_END                              \
+#define REX_SEH_END                          \
   ::rex::platform::seh_leave(rex_seh_scope); \
   }
 

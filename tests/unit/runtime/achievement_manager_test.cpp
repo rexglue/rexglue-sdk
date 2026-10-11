@@ -47,7 +47,7 @@ class TempDirectory {
   std::filesystem::path path_;
 };
 
-rex::runtime::AchievementInfo MakeAchievement(u32 id, std::string label) {
+rex::runtime::AchievementInfo BuildAchievement(u32 id, std::string label) {
   rex::runtime::AchievementInfo info;
   info.id = id;
   info.label = std::move(label);
@@ -92,7 +92,7 @@ flags = 4
 )");
 
   rex::runtime::AchievementManager manager;
-  manager.ReplaceAchievements({MakeAchievement(1, "Embedded")});
+  manager.ReplaceAchievements({BuildAchievement(1, "Embedded")});
   REQUIRE(manager.LoadMetadataFile(metadata_path).has_value());
 
   const auto achievements = manager.ListAchievements();
@@ -102,7 +102,7 @@ flags = 4
   CHECK(first->icon_path == "custom/one.png");
   CHECK(achievements.size() == 2);
 
-  REQUIRE(manager.RegisterAchievement(MakeAchievement(2, "Recomp override")).has_value());
+  REQUIRE(manager.RegisterAchievement(BuildAchievement(2, "Recomp override")).has_value());
   const auto updated = manager.ListAchievements();
   const auto second = std::ranges::find(updated, 2u, &rex::runtime::AchievementInfo::id);
   REQUIRE(second != updated.end());
@@ -111,8 +111,8 @@ flags = 4
 
 REX_TEST_CASE("an achievement batch with an invalid id registers nothing", "[achievements]") {
   rex::runtime::AchievementManager manager;
-  const std::array batch{MakeAchievement(1, "One"), MakeAchievement(0, "Reserved"),
-                         MakeAchievement(2, "Two")};
+  const std::array batch{BuildAchievement(1, "One"), BuildAchievement(0, "Reserved"),
+                         BuildAchievement(2, "Two")};
   const auto registered = manager.RegisterAchievements(batch);
   REQUIRE_FALSE(registered);
   CHECK(registered.error().category == rex::ErrorCategory::Validation);
@@ -121,15 +121,15 @@ REX_TEST_CASE("an achievement batch with an invalid id registers nothing", "[ach
 
 REX_TEST_CASE("a valid achievement batch registers every entry", "[achievements]") {
   rex::runtime::AchievementManager manager;
-  const std::array batch{MakeAchievement(1, "One"), MakeAchievement(2, "Two")};
+  const std::array batch{BuildAchievement(1, "One"), BuildAchievement(2, "Two")};
   REQUIRE(manager.RegisterAchievements(batch));
   CHECK(manager.ListAchievements().size() == 2);
 }
 
 REX_TEST_CASE("achievement notifications follow the unlock request", "[achievements]") {
   rex::runtime::AchievementManager manager;
-  REQUIRE(manager.RegisterAchievement(MakeAchievement(1, "One")).has_value());
-  REQUIRE(manager.RegisterAchievement(MakeAchievement(2, "Two")).has_value());
+  REQUIRE(manager.RegisterAchievement(BuildAchievement(1, "One")).has_value());
+  REQUIRE(manager.RegisterAchievement(BuildAchievement(2, "Two")).has_value());
 
   int notification_count = 0;
   auto notification_listener = manager.RegisterNotificationCallback(
@@ -156,7 +156,7 @@ REX_TEST_CASE("achievement unlock state persists across manager instances", "[ac
   auto save_path = temp.path() / "saves" / "12345678.toml";
 
   rex::runtime::AchievementManager first;
-  REQUIRE(first.RegisterAchievement(MakeAchievement(1, "One")).has_value());
+  REQUIRE(first.RegisterAchievement(BuildAchievement(1, "One")).has_value());
   first.SetUnlockSavePath(save_path);
   REQUIRE(first.UnlockAchievement(1) == rex::runtime::AchievementUnlockResult::kUnlocked);
   REQUIRE(std::filesystem::exists(save_path));
@@ -164,7 +164,7 @@ REX_TEST_CASE("achievement unlock state persists across manager instances", "[ac
   REQUIRE(unlock_time.has_value());
 
   rex::runtime::AchievementManager second;
-  REQUIRE(second.RegisterAchievement(MakeAchievement(1, "One")).has_value());
+  REQUIRE(second.RegisterAchievement(BuildAchievement(1, "One")).has_value());
   second.SetUnlockSavePath(save_path);
   second.LoadUnlockState();
   CHECK(second.IsUnlocked(1));
@@ -178,7 +178,7 @@ REX_TEST_CASE("achievement unlock saves serialize concurrent writers", "[achieve
   rex::runtime::AchievementManager manager;
   manager.SetUnlockSavePath(save_path);
   for (u32 id = 1; id <= 8; ++id) {
-    REQUIRE(manager.RegisterAchievement(MakeAchievement(id, "Achievement " + std::to_string(id)))
+    REQUIRE(manager.RegisterAchievement(BuildAchievement(id, "Achievement " + std::to_string(id)))
                 .has_value());
   }
 
@@ -193,7 +193,7 @@ REX_TEST_CASE("achievement unlock saves serialize concurrent writers", "[achieve
   rex::runtime::AchievementManager reloaded;
   reloaded.SetUnlockSavePath(save_path);
   for (u32 id = 1; id <= 8; ++id) {
-    REQUIRE(reloaded.RegisterAchievement(MakeAchievement(id, "Achievement " + std::to_string(id)))
+    REQUIRE(reloaded.RegisterAchievement(BuildAchievement(id, "Achievement " + std::to_string(id)))
                 .has_value());
   }
   reloaded.LoadUnlockState();

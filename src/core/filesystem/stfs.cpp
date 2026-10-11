@@ -69,15 +69,16 @@ class STFSReader {
             if (!cache_.contains(offset_lv2) && !Load(offset_lv2, offset_lv2 + secondary)) {
               return nullptr;
             }
-            const u32 record = (block_index / kBlocksPerHashLevel[1]) % kBlocksPerHashLevel[0];
-            secondary = cache_[offset_lv2].entries[record].levelN_active_index() ? kBlockSize : 0;
+            const u32 entry_index = (block_index / kBlocksPerHashLevel[1]) % kBlocksPerHashLevel[0];
+            secondary =
+                cache_[offset_lv2].entries[entry_index].levelN_active_index() ? kBlockSize : 0;
           }
           if (!Load(offset_lv1, offset_lv1 + secondary)) {
             return nullptr;
           }
         }
-        const u32 record = (block_index / kBlocksPerHashLevel[0]) % kBlocksPerHashLevel[0];
-        secondary = cache_[offset_lv1].entries[record].levelN_active_index() ? kBlockSize : 0;
+        const u32 entry_index = (block_index / kBlocksPerHashLevel[0]) % kBlocksPerHashLevel[0];
+        secondary = cache_[offset_lv1].entries[entry_index].levelN_active_index() ? kBlockSize : 0;
       }
       if (!Load(offset_lv0, offset_lv0 + secondary)) {
         return nullptr;

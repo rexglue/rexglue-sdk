@@ -18,7 +18,7 @@
 #include <rex/codegen/function_types.h>
 #include <rex/logging.h>
 
-#include <rex/memory/utils.h>
+#include <rex/memory/byte_swap.h>
 
 #include <ppc.h>
 
@@ -201,13 +201,13 @@ void validateConfigBoundaries(CodegenContext& ctx) {
 
 }  // anonymous namespace
 
-namespace phases {
+namespace detail {
 
 [[nodiscard]] Result<void> Validate(CodegenContext& ctx, ProgressReporter* reporter) {
   (void)reporter;
   return validateGraph(ctx);
 }
 
-}  // namespace phases
+}  // namespace detail
 
 }  // namespace rex::codegen

@@ -8,7 +8,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-#include "cli_utils.h"
+#include "cli_context.h"
 #include "log_categories.h"
 #include "commands/codegen_command.h"
 #include "commands/init_command.h"

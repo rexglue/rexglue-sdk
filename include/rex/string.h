@@ -20,7 +20,7 @@
 
 #include <string.h>
 
-#include <rex/memory/utils.h>
+#include <rex/memory/byte_swap.h>
 #include <rex/platform.h>
 #include <rex/string/utf8.h>
 #include <rex/types.h>

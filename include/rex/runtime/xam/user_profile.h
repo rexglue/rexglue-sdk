@@ -29,7 +29,6 @@ class Runtime;
 
 namespace rex {
 namespace runtime {
-namespace xam {
 
 /** Guest ABI value of a profile setting, laid out as XUSER_DATA. */
 struct X_USER_PROFILE_SETTING_DATA {
@@ -408,13 +407,12 @@ class UserProfile {
   REX_RUNTIME_API void SaveSetting(UserProfile::Setting*);
 };
 
-}  // namespace xam
 }  // namespace runtime
 }  // namespace rex
 
 /** Formats the enum as its underlying integer. */
 template <>
-struct std::formatter<rex::runtime::xam::UserProfile::Setting::Type> : std::formatter<rex::i32> {
+struct std::formatter<rex::runtime::UserProfile::Setting::Type> : std::formatter<rex::i32> {
   /**
    * Formats the value.
    *
@@ -422,7 +420,7 @@ struct std::formatter<rex::runtime::xam::UserProfile::Setting::Type> : std::form
    * @param ctx The format context.
    * @return The output iterator.
    */
-  auto format(rex::runtime::xam::UserProfile::Setting::Type value, std::format_context& ctx) const {
+  auto format(rex::runtime::UserProfile::Setting::Type value, std::format_context& ctx) const {
     return std::formatter<rex::i32>::format(static_cast<rex::i32>(value), ctx);
   }
 };

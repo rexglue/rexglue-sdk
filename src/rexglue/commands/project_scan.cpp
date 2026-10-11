@@ -1,5 +1,6 @@
 #include "project_scan.h"
-#include "template_utils.h"
+#include "app_name.h"
+#include "template_io.h"
 
 #include <algorithm>
 #include <cctype>

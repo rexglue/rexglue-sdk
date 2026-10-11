@@ -16,7 +16,7 @@
 #include <span>
 
 #include <rex/hook.h>
-#include <rex/memory/utils.h>
+#include <rex/memory/byte_swap.h>
 #include <rex/ppc/context.h>
 #include <rex/ppc/function.h>
 #include <rex/runtime/function_dispatcher.h>

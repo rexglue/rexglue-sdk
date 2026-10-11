@@ -42,7 +42,7 @@ GuestOutputPaintConfig BuildGuestOutputPaintConfigFromCVar() {
 namespace rex {
 namespace gpu {
 
-void Presenter::FatalErrorHostGpuLossCallback([[maybe_unused]] bool is_responsible,
+void Presenter::FatalErrorHostGPULossCallback([[maybe_unused]] bool is_responsible,
                                               [[maybe_unused]] bool statically_from_ui_thread) {
   REX_FATAL(gpu, "Graphics device lost (probably due to an internal error)");
 }
@@ -188,10 +188,10 @@ void Presenter::PaintFromUIThread(bool force_paint) {
   }
   is_in_ui_thread_paint_ = false;
 
-  if (paint_result == PaintResult::kGpuLostExternally ||
-      paint_result == PaintResult::kGpuLostResponsible) {
+  if (paint_result == PaintResult::kGPULostExternally ||
+      paint_result == PaintResult::kGPULostResponsible) {
     if (host_gpu_loss_callback_) {
-      host_gpu_loss_callback_(paint_result == PaintResult::kGpuLostResponsible, true);
+      host_gpu_loss_callback_(paint_result == PaintResult::kGPULostResponsible, true);
     }
     // The loss callback may have destroyed the presenter, so never touch this afterwards.
     return;
@@ -273,9 +273,9 @@ bool Presenter::RefreshGuestOutput(
     }
   }
   if (host_gpu_loss_callback_) {
-    if (paint_result == PaintResult::kGpuLostResponsible) {
+    if (paint_result == PaintResult::kGPULostResponsible) {
       host_gpu_loss_callback_(true, false);
-    } else if (paint_result == PaintResult::kGpuLostExternally) {
+    } else if (paint_result == PaintResult::kGPULostExternally) {
       host_gpu_loss_callback_(false, false);
     }
   }

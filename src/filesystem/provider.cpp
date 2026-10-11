@@ -41,8 +41,8 @@ Result<std::unique_ptr<Provider>> CreateProvider(const MountEntry& entry) {
     case ProviderKind::kNull:
       return NullProvider::Create(entry);
   }
-  return Err<std::unique_ptr<Provider>>(
-      MakeError(Error::kUnsupported, std::format("mount '{}' names provider kind {}", entry.path,
+  return Err<std::unique_ptr<Provider>>(BuildError(
+      FileSystemError::kUnsupported, std::format("mount '{}' names provider kind {}", entry.path,
                                                  std::to_underlying(entry.kind))));
 }
 

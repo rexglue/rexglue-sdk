@@ -21,7 +21,7 @@
 #include <rex/math.h>
 #include "gpu/xenos/host/vulkan/immediate_drawer.h"
 #include "gpu/xenos/host/vulkan/presenter.h"
-#include "gpu/xenos/host/vulkan/util.h"
+#include "gpu/xenos/host/vulkan/objects.h"
 
 namespace rex {
 namespace gpu {
@@ -60,10 +60,10 @@ VulkanImmediateDrawer::~VulkanImmediateDrawer() {
   const VulkanDevice::Functions& dfn = vulkan_device_->functions();
   const VkDevice device = vulkan_device_->device();
 
-  util::DestroyAndNullHandle(dfn.vkDestroyPipeline, device, pipeline_line_);
-  util::DestroyAndNullHandle(dfn.vkDestroyPipeline, device, pipeline_triangle_);
+  objects::DestroyAndNullHandle(dfn.vkDestroyPipeline, device, pipeline_line_);
+  objects::DestroyAndNullHandle(dfn.vkDestroyPipeline, device, pipeline_triangle_);
 
-  util::DestroyAndNullHandle(dfn.vkDestroyPipelineLayout, device, pipeline_layout_);
+  objects::DestroyAndNullHandle(dfn.vkDestroyPipelineLayout, device, pipeline_layout_);
 
   for (auto& deleted_texture : textures_deleted_) {
     DestroyTextureResource(deleted_texture.first);
@@ -92,8 +92,8 @@ VulkanImmediateDrawer::~VulkanImmediateDrawer() {
     dfn.vkDestroyDescriptorPool(device, pool->pool, nullptr);
     delete pool;
   }
-  util::DestroyAndNullHandle(dfn.vkDestroyDescriptorSetLayout, device,
-                             texture_descriptor_set_layout_);
+  objects::DestroyAndNullHandle(dfn.vkDestroyDescriptorSetLayout, device,
+                                texture_descriptor_set_layout_);
 }
 
 VulkanImmediateDrawer::VulkanImmediateDrawer(Key, const VulkanDevice* const vulkan_device,
@@ -389,7 +389,7 @@ void VulkanImmediateDrawer::End() {
       image_memory_barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
       image_memory_barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
       image_memory_barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-      image_memory_barrier.subresourceRange = util::InitializeSubresourceRange();
+      image_memory_barrier.subresourceRange = objects::InitializeSubresourceRange();
       for (const PendingTextureUpload& pending_texture_upload : texture_uploads_pending_) {
         image_memory_barriers.emplace_back(image_memory_barrier).image =
             pending_texture_upload.image;
@@ -504,21 +504,21 @@ bool VulkanImmediateDrawer::EnsurePipelinesCreatedForCurrentRenderPass() {
   const VkDevice device = vulkan_device_->device();
 
   // Safe to destroy as usage of a recreated render pass was already awaited.
-  util::DestroyAndNullHandle(dfn.vkDestroyPipeline, device, pipeline_line_);
-  util::DestroyAndNullHandle(dfn.vkDestroyPipeline, device, pipeline_triangle_);
+  objects::DestroyAndNullHandle(dfn.vkDestroyPipeline, device, pipeline_line_);
+  objects::DestroyAndNullHandle(dfn.vkDestroyPipeline, device, pipeline_triangle_);
   // A failed creation is not retried every frame.
   pipeline_framebuffer_format_ = render_pass_format;
 
   VkPipelineShaderStageCreateInfo stages[2] = {
-      util::MakeShaderStage(VK_SHADER_STAGE_VERTEX_BIT, VK_NULL_HANDLE),
-      util::MakeShaderStage(VK_SHADER_STAGE_FRAGMENT_BIT, VK_NULL_HANDLE)};
-  stages[0].module = util::CreateShaderModule(vulkan_device_, shaders::kImmediateVS,
-                                              sizeof(shaders::kImmediateVS));
+      objects::BuildShaderStage(VK_SHADER_STAGE_VERTEX_BIT, VK_NULL_HANDLE),
+      objects::BuildShaderStage(VK_SHADER_STAGE_FRAGMENT_BIT, VK_NULL_HANDLE)};
+  stages[0].module = objects::CreateShaderModule(vulkan_device_, shaders::kImmediateVS,
+                                                 sizeof(shaders::kImmediateVS));
   if (stages[0].module == VK_NULL_HANDLE) {
     REX_FAIL(ui, false, "VulkanImmediateDrawer: Failed to create the vertex shader module");
   }
-  stages[1].module = util::CreateShaderModule(vulkan_device_, shaders::kImmediatePS,
-                                              sizeof(shaders::kImmediatePS));
+  stages[1].module = objects::CreateShaderModule(vulkan_device_, shaders::kImmediatePS,
+                                                 sizeof(shaders::kImmediatePS));
   if (stages[1].module == VK_NULL_HANDLE) {
     REXLOG_ERROR(ui, "VulkanImmediateDrawer: Failed to create the fragment shader module");
     dfn.vkDestroyShaderModule(device, stages[0].module, nullptr);
@@ -576,7 +576,7 @@ bool VulkanImmediateDrawer::EnsurePipelinesCreatedForCurrentRenderPass() {
   rasterization_state.lineWidth = 1.0f;
 
   VkPipelineMultisampleStateCreateInfo multisample_state =
-      util::MakeMultisampleState(VK_SAMPLE_COUNT_1_BIT);
+      objects::BuildMultisampleState(VK_SAMPLE_COUNT_1_BIT);
 
   VkPipelineColorBlendAttachmentState color_blend_attachment_state;
   color_blend_attachment_state.blendEnable = VK_TRUE;
@@ -787,9 +787,9 @@ bool VulkanImmediateDrawer::CreateTextureResource(u32 width, u32 height,
   image_create_info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
   VkImage image;
   VkDeviceMemory image_memory;
-  if (!util::CreateDedicatedAllocationImage(vulkan_device_, image_create_info,
-                                            util::MemoryPurpose::kDeviceLocal, image,
-                                            image_memory)) {
+  if (!objects::CreateDedicatedAllocationImage(vulkan_device_, image_create_info,
+                                               objects::MemoryPurpose::kDeviceLocal, image,
+                                               image_memory)) {
     REX_FAIL(ui, false,
              "VulkanImmediateDrawer: Failed to create an image with dedicated "
              "memory for a {}x{} texture",
@@ -810,7 +810,7 @@ bool VulkanImmediateDrawer::CreateTextureResource(u32 width, u32 height,
   image_view_create_info.components.g = swizzle;
   image_view_create_info.components.b = swizzle;
   image_view_create_info.components.a = swizzle;
-  image_view_create_info.subresourceRange = util::InitializeSubresourceRange();
+  image_view_create_info.subresourceRange = objects::InitializeSubresourceRange();
   VkImageView image_view;
   if (dfn.vkCreateImageView(device, &image_view_create_info, nullptr, &image_view) != VK_SUCCESS) {
     REXLOG_ERROR(ui,
@@ -860,10 +860,10 @@ bool VulkanImmediateDrawer::CreateTextureResource(u32 width, u32 height,
   if (data) {
     size_t data_size = sizeof(u32) * width * height;
     u32 upload_buffer_memory_type;
-    if (!util::CreateDedicatedAllocationBuffer(vulkan_device_, VkDeviceSize(data_size),
-                                               VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-                                               util::MemoryPurpose::kUpload, upload_buffer,
-                                               upload_buffer_memory, &upload_buffer_memory_type)) {
+    if (!objects::CreateDedicatedAllocationBuffer(
+            vulkan_device_, VkDeviceSize(data_size), VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+            objects::MemoryPurpose::kUpload, upload_buffer, upload_buffer_memory,
+            &upload_buffer_memory_type)) {
       REXLOG_ERROR(ui,
                    "VulkanImmediateDrawer: Failed to create an upload buffer for a "
                    "{}x{} image",
@@ -890,7 +890,8 @@ bool VulkanImmediateDrawer::CreateTextureResource(u32 width, u32 height,
       return false;
     }
     std::memcpy(upload_buffer_mapping, data, data_size);
-    util::FlushMappedMemoryRange(vulkan_device_, upload_buffer_memory, upload_buffer_memory_type);
+    objects::FlushMappedMemoryRange(vulkan_device_, upload_buffer_memory,
+                                    upload_buffer_memory_type);
     dfn.vkUnmapMemory(device, upload_buffer_memory);
   }
 

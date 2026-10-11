@@ -76,7 +76,7 @@ REX_API void seh_initialize();
 /**
  * Links a scope into the chain of the calling thread.
  *
- * @param scope The scope SEH_TRY opens.
+ * @param scope The scope REX_SEH_TRY opens.
  */
 inline void seh_enter(SehScope& scope) {
   SehThreadState& state = seh_thread_state();
@@ -88,7 +88,7 @@ inline void seh_enter(SehScope& scope) {
 /**
  * Unlinks a scope when it is still the innermost one.
  *
- * @param scope The scope SEH_TRY opened.
+ * @param scope The scope REX_SEH_TRY opened.
  */
 inline void seh_leave(SehScope& scope) {
   SehThreadState& state = seh_thread_state();

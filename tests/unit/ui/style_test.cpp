@@ -50,7 +50,7 @@ REX_TEST_CASE("Default Metrics hold the former overlay literals", "[style]") {
 REX_TEST_CASE("Default section colors reference the palette roles they equal", "[style]") {
   const Style style;
   CHECK(style.settings.warning == style.palette.warning);
-  CHECK(style.settings.lifecycle_live == style.palette.success);
+  CHECK(style.settings.lifecycle_hot_reload == style.palette.success);
   CHECK(style.settings.lifecycle_init_only == style.palette.error);
   CHECK(style.achievements.header_text == style.palette.info);
   CHECK(style.debug.muted_text == style.palette.text_muted);

@@ -26,7 +26,7 @@ add_library(rex-core SHARED
     log_file.cpp
     log_sinks.cpp
     logger.cpp
-    memory.cpp
+    byte_swap.cpp
     mmio.cpp
     module_loader.cpp
     lock_order.cpp
@@ -114,7 +114,7 @@ target_sources(rex-core PRIVATE
     xenos/texture_info.cpp
     xenos/texture_info_formats.cpp
     xenos/texture_extent.cpp
-    xenos/texture_util.cpp
+    xenos/texture_layout.cpp
     xenos/texture_conversion.cpp
 )
 

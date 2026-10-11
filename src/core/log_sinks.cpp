@@ -23,21 +23,21 @@ namespace {
 constexpr std::string_view kColorReset = "\x1b[0m";
 constexpr size_t kCategoryWidth = 10;
 
-void AppendTimestamp(std::string& out, const Record& record, TimestampStyle style) {
+void AppendTimestamp(std::string& out, const Message& message, TimestampStyle style) {
   if (style == TimestampStyle::kNone) {
     return;
   }
-  const auto since_epoch = record.time.time_since_epoch();
+  const auto since_epoch = message.time.time_since_epoch();
   const auto millis =
       std::chrono::duration_cast<std::chrono::milliseconds>(since_epoch).count() % 1000;
   if (style == TimestampStyle::kElapsed) {
     const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
-        record.time - GetLoggerInstance().start_time());
+        message.time - GetLoggerInstance().start_time());
     std::format_to(std::back_inserter(out), "+{}.{:03d} ", elapsed.count() / 1000,
                    elapsed.count() % 1000);
     return;
   }
-  const std::tm local = ToLocalTime(std::chrono::system_clock::to_time_t(record.time));
+  const std::tm local = ToLocalTime(std::chrono::system_clock::to_time_t(message.time));
   if (style == TimestampStyle::kDateTime) {
     std::format_to(std::back_inserter(out), "{:04d}-{:02d}-{:02d} ", local.tm_year + 1900,
                    local.tm_mon + 1, local.tm_mday);
@@ -46,22 +46,22 @@ void AppendTimestamp(std::string& out, const Record& record, TimestampStyle styl
                  local.tm_min, local.tm_sec, millis);
 }
 
-std::string Render(const Record& record, const LineFormat& format, bool color, char letter) {
+std::string Render(const Message& message, const LineFormat& format, bool color, char letter) {
   std::string out;
-  const std::string_view prefix = color ? LevelColor(record.level) : std::string_view{};
+  const std::string_view prefix = color ? LevelColor(message.level) : std::string_view{};
   out += prefix;
-  AppendTimestamp(out, record, format.timestamp);
+  AppendTimestamp(out, message, format.timestamp);
   if (letter != '\0') {
     out += letter;
     out += ' ';
   }
   if (format.category) {
-    std::format_to(std::back_inserter(out), "{:<{}} ", record.category, kCategoryWidth);
+    std::format_to(std::back_inserter(out), "{:<{}} ", message.category, kCategoryWidth);
   }
   if (format.thread) {
-    std::format_to(std::back_inserter(out), "t{:05d} ", record.thread_id);
+    std::format_to(std::back_inserter(out), "t{:05d} ", message.thread_id);
   }
-  out += record.text;
+  out += message.text;
   if (!prefix.empty()) {
     out += kColorReset;
   }
@@ -96,12 +96,12 @@ char LevelLetter(Level level) {
   return kLetters[std::to_underlying(level)];
 }
 
-std::string FormatLine(const Record& record, const LineFormat& format) {
-  return Render(record, format, format.color, '\0');
+std::string FormatLine(const Message& message, const LineFormat& format) {
+  return Render(message, format, format.color, '\0');
 }
 
-void ConsoleSink::Write(const Record& record) {
-  std::string line = Render(record, format_, format_.color && color_supported_, '\0');
+void ConsoleSink::Write(const Message& message) {
+  std::string line = Render(message, format_, format_.color && color_supported_, '\0');
   line += '\n';
   std::fwrite(line.data(), 1, line.size(), stdout);
 }
@@ -135,8 +135,8 @@ Result<std::unique_ptr<FileSink>> FileSink::Open(const std::filesystem::path& pa
 FileSink::FileSink(std::filesystem::path path, std::ofstream file, LineFormat format)
     : path_(std::move(path)), file_(std::move(file)), format_(format) {}
 
-void FileSink::Write(const Record& record) {
-  file_ << Render(record, format_, false, LevelLetter(record.level)) << '\n';
+void FileSink::Write(const Message& message) {
+  file_ << Render(message, format_, false, LevelLetter(message.level)) << '\n';
 }
 
 void FileSink::Flush() {
@@ -147,32 +147,32 @@ const std::filesystem::path& FileSink::path() const {
   return path_;
 }
 
-void CaptureSink::Write(const Record& record) {
+void CaptureSink::Write(const Message& message) {
   std::lock_guard lock(mutex_);
-  if (records_.size() == kCapacity) {
-    records_.pop_front();
+  if (messages_.size() == kCapacity) {
+    messages_.pop_front();
   }
-  records_.push_back(CapturedRecord{record.level, std::string(record.category),
-                                    std::string(record.text), record.time, record.thread_id,
-                                    record.sequence});
+  messages_.push_back(CapturedMessage{message.level, std::string(message.category),
+                                      std::string(message.text), message.time, message.thread_id,
+                                      message.sequence});
 }
 
 void CaptureSink::Flush() {}
 
-u64 CaptureSink::CopySince(u64 after, std::vector<CapturedRecord>& out) const {
+u64 CaptureSink::CopySince(u64 after, std::vector<CapturedMessage>& out) const {
   out.clear();
   std::lock_guard lock(mutex_);
-  for (const CapturedRecord& record : records_) {
-    if (record.sequence > after) {
-      out.push_back(record);
+  for (const CapturedMessage& message : messages_) {
+    if (message.sequence > after) {
+      out.push_back(message);
     }
   }
-  return records_.empty() ? after : std::max(after, records_.back().sequence);
+  return messages_.empty() ? after : std::max(after, messages_.back().sequence);
 }
 
 u64 CaptureSink::latest() const {
   std::lock_guard lock(mutex_);
-  return records_.empty() ? 0 : records_.back().sequence;
+  return messages_.empty() ? 0 : messages_.back().sequence;
 }
 
 }  // namespace rex::log

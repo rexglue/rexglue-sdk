@@ -38,8 +38,8 @@ HostInfo FromStat(std::filesystem::path name, const struct stat& st) {
 }
 
 rex::Error HostError(std::string_view what, const std::filesystem::path& path) {
-  return MakeError(Error::kIO, std::format("{} '{}' failed, {}", what, path_to_utf8(path),
-                                           std::strerror(errno)));
+  return BuildError(FileSystemError::kIO, std::format("{} '{}' failed, {}", what,
+                                                      path_to_utf8(path), std::strerror(errno)));
 }
 
 bool NoNativeExclusiveMove(int error) {
@@ -114,15 +114,15 @@ Result<std::unique_ptr<HostFile>> HostFile::OpenExisting(const std::filesystem::
   const int handle = open(path.c_str(), mode);
   if (handle == -1) {
     const int error = errno;
-    Error code = Error::kIO;
+    FileSystemError code = FileSystemError::kIO;
     if (error == ENOENT || error == ENOTDIR) {
-      code = Error::kNotFound;
+      code = FileSystemError::kNotFound;
     } else if (error == EACCES || error == EPERM || error == EROFS) {
-      code = Error::kAccessDenied;
+      code = FileSystemError::kAccessDenied;
     } else if (error == ETXTBSY) {
-      code = Error::kSharingViolation;
+      code = FileSystemError::kSharingViolation;
     }
-    return Err<std::unique_ptr<HostFile>>(MakeError(
+    return Err<std::unique_ptr<HostFile>>(BuildError(
         code,
         std::format("cannot open host file '{}', {}", path_to_utf8(path), std::strerror(error))));
   }
@@ -163,14 +163,14 @@ Result<void> HostFile::Flush() const {
   const int handle = open(path.c_str(), O_WRONLY | O_CREAT | O_EXCL, 0644);
   if (handle == -1) {
     const int error = errno;
-    Error code = Error::kIO;
+    FileSystemError code = FileSystemError::kIO;
     if (error == EEXIST) {
-      code = Error::kExists;
+      code = FileSystemError::kExists;
     } else if (error == EACCES || error == EPERM || error == EROFS) {
-      code = Error::kAccessDenied;
+      code = FileSystemError::kAccessDenied;
     }
-    return Err(MakeError(code, std::format("cannot create host file '{}', {}", path_to_utf8(path),
-                                           std::strerror(error))));
+    return Err(BuildError(code, std::format("cannot create host file '{}', {}", path_to_utf8(path),
+                                            std::strerror(error))));
   }
   close(handle);
   return Ok();
@@ -182,16 +182,16 @@ Result<void> HostFile::Flush() const {
   if (error == 0) {
     return Ok();
   }
-  Error code = Error::kIO;
+  FileSystemError code = FileSystemError::kIO;
   if (error == EEXIST || error == ENOTEMPTY) {
-    code = Error::kExists;
+    code = FileSystemError::kExists;
   } else if (error == EACCES || error == EPERM || error == EROFS) {
-    code = Error::kAccessDenied;
+    code = FileSystemError::kAccessDenied;
   } else if (error == EXDEV) {
-    code = Error::kNotSameDevice;
+    code = FileSystemError::kNotSameDevice;
   }
-  return Err(MakeError(code, std::format("cannot move '{}' to '{}', {}", path_to_utf8(from),
-                                         path_to_utf8(to), std::strerror(error))));
+  return Err(BuildError(code, std::format("cannot move '{}' to '{}', {}", path_to_utf8(from),
+                                          path_to_utf8(to), std::strerror(error))));
 }
 
 std::optional<HostInfo> HostStat(const std::filesystem::path& path) {

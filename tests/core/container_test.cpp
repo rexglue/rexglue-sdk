@@ -109,7 +109,7 @@ void CheckTree(const fs::Container& container) {
   std::vector<rex::u8> past(4);
   auto end = container.Read(*a, kAText.size(), past);
   REQUIRE_FALSE(end);
-  CHECK(fs::CodeOf(end.error()) == fs::Error::kEndOfFile);
+  CHECK(fs::CodeOf(end.error()) == fs::FileSystemError::kEndOfFile);
 
   const auto view = container.View(*big);
   REQUIRE(view.size() == expected.size());
@@ -171,7 +171,7 @@ TEST_CASE("ReadSTFSHeader reads the fixture and refuses short bytes", "[core][co
   const auto bytes = Fixture("stfs_con.bin");
   auto shorter = fs::ReadSTFSHeader(std::span(bytes).first(0x100));
   REQUIRE_FALSE(shorter);
-  CHECK(fs::CodeOf(shorter.error()) == fs::Error::kCorrupt);
+  CHECK(fs::CodeOf(shorter.error()) == fs::FileSystemError::kCorrupt);
   CHECK_FALSE(fs::ReadSTFSHeader(Fixtures() / "missing.bin"));
 }
 
@@ -217,7 +217,7 @@ REX_TEST_CASE("Container refuses a dot dot name and removes its output", "[core]
   const auto out = temp.path / "out";
   auto extracted = container->Extract(out);
   REQUIRE_FALSE(extracted);
-  CHECK(fs::CodeOf(extracted.error()) == fs::Error::kInvalidPath);
+  CHECK(fs::CodeOf(extracted.error()) == fs::FileSystemError::kInvalidPath);
   CHECK_FALSE(std::filesystem::exists(out));
 }
 
@@ -255,7 +255,7 @@ REX_TEST_CASE("Container reports truncated and out of range images as corrupt",
   stfs.resize(0xA800);
   auto truncated = fs::Container::Open(WriteVariant(temp, "short.bin", stfs));
   REQUIRE_FALSE(truncated);
-  CHECK(fs::CodeOf(truncated.error()) == fs::Error::kCorrupt);
+  CHECK(fs::CodeOf(truncated.error()) == fs::FileSystemError::kCorrupt);
 
   auto gdfx = Fixture("gdfx.iso");
   const size_t folder_entry = (size_t{33} * 0x800) + (size_t{11} * 4);
@@ -264,9 +264,9 @@ REX_TEST_CASE("Container reports truncated and out of range images as corrupt",
   gdfx[folder_entry + 6] = 0xFF;
   auto out_of_range = fs::Container::Open(WriteVariant(temp, "range.iso", gdfx));
   REQUIRE_FALSE(out_of_range);
-  CHECK(fs::CodeOf(out_of_range.error()) == fs::Error::kCorrupt);
+  CHECK(fs::CodeOf(out_of_range.error()) == fs::FileSystemError::kCorrupt);
 
   auto garbage = fs::Container::Open(WriteVariant(temp, "garbage.bin", {1, 2, 3, 4, 5}));
   REQUIRE_FALSE(garbage);
-  CHECK(fs::CodeOf(garbage.error()) == fs::Error::kCorrupt);
+  CHECK(fs::CodeOf(garbage.error()) == fs::FileSystemError::kCorrupt);
 }
