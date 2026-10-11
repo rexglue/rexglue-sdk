@@ -26,9 +26,7 @@
 #include <rex/ppc/function.h>
 #include <rex/runtime.h>
 #include <rex/runtime/function_dispatcher.h>
-#include <rex/runtime/kernel_module.h>
 #include <rex/runtime/thread_state.h>
-#include <rex/runtime/user_module.h>
 #include <rex/runtime/workspace_heap.h>
 #include <rex/runtime/kernel_list.h>
 #include <rex/runtime/xam/app_manager.h>
@@ -61,7 +59,7 @@ namespace {
 
 void ShutDownSockets(IObjectTable& table) {
   for (auto& sock : table.All<SocketObject>()) {
-    SocketShutdown(*sock, 2);
+    sock->Shutdown(2);
   }
 }
 
@@ -338,21 +336,20 @@ void Runtime::SetExecutableModule(X_HANDLE module_handle) {
   pib->unk_1A = 17;
 
   u32 default_stack_size = 0;
-  UserModuleGetOptHeader(*module, filesystem::XEX_HEADER_DEFAULT_STACK_SIZE, &default_stack_size);
+  module->OptHeader(filesystem::XEX_HEADER_DEFAULT_STACK_SIZE, &default_stack_size);
   if (default_stack_size) {
     pib->kernel_stack_size = ResolveGuestStackSize(default_stack_size, 0, kMinimumThreadStackSize);
   }
 
   filesystem::XEXOptTLSInfo* tls_header = nullptr;
-  UserModuleGetOptHeader(*module, filesystem::XEX_HEADER_TLS_INFO, &tls_header);
+  module->OptHeader(filesystem::XEX_HEADER_TLS_INFO, &tls_header);
   if (tls_header) {
     pib->tls_raw_data_size = tls_header->raw_data_size;
     SetProcessTLSVars(pib, tls_header->slot_count, tls_header->data_size,
                       tls_header->raw_data_address);
   }
   u32 workspace_size_address = 0;
-  UserModuleGetOptHeader(*module, filesystem::XEX_HEADER_TITLE_WORKSPACE_SIZE,
-                         &workspace_size_address);
+  module->OptHeader(filesystem::XEX_HEADER_TITLE_WORKSPACE_SIZE, &workspace_size_address);
   const u32 workspace_size = WorkspaceHeap::ResolveSize(
       workspace_size_address
           ? u32{*memory_->TranslateVirtual<const be_u32*>(workspace_size_address)}
@@ -365,12 +362,11 @@ void Runtime::SetExecutableModule(X_HANDLE module_handle) {
   auto xboxkrnl =
       object_table_->Get<ModuleObject>(module_registry_->FindKernel("xboxkrnl.exe").value_or(0));
   if (xboxkrnl) {
-    if (const u32 address =
-            KernelModuleVariable(*xboxkrnl, 0x0193 /* executable module handle */)) {
+    if (const u32 address = xboxkrnl->Variable(0x0193 /* executable module handle */)) {
       auto variable_ptr = memory_->TranslateVirtual<be_u32*>(address);
       *variable_ptr = module->hmodule_ptr;
     }
-    if (const u32 address = KernelModuleVariable(*xboxkrnl, 0x01AF /* ExLoadedImageName */)) {
+    if (const u32 address = xboxkrnl->Variable(0x01AF /* ExLoadedImageName */)) {
       char* variable_ptr = memory_->TranslateVirtual<char*>(address);
       rex::copy_truncating(variable_ptr, module->path, kExLoadedImageNameSize);
     }

@@ -63,16 +63,18 @@ u32 XamContentGetDeviceState_entry(u32 device_id, mapped_void overlapped_ptr) {
   auto device_info = GetDummyDeviceInfo(device_id);
   if (device_info == nullptr) {
     if (overlapped_ptr) {
-      runtime::Current().dispatcher().CompleteOverlappedImmediateEx(
-          overlapped_ptr.guest_address(), X_ERROR_FUNCTION_FAILED, X_ERROR_DEVICE_NOT_CONNECTED, 0);
+      runtime::Current().dispatcher().Complete(overlapped_ptr.guest_address(),
+                                               {.result = X_ERROR_FUNCTION_FAILED,
+                                                .extended_error = X_ERROR_DEVICE_NOT_CONNECTED,
+                                                .length = 0});
       return X_ERROR_IO_PENDING;
     } else {
       return X_ERROR_DEVICE_NOT_CONNECTED;
     }
   }
   if (overlapped_ptr) {
-    runtime::Current().dispatcher().CompleteOverlappedImmediate(overlapped_ptr.guest_address(),
-                                                                X_ERROR_SUCCESS);
+    runtime::Current().dispatcher().Complete(overlapped_ptr.guest_address(),
+                                             {.result = X_ERROR_SUCCESS});
     return X_ERROR_IO_PENDING;
   } else {
     return X_ERROR_SUCCESS;

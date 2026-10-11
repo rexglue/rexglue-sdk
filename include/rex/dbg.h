@@ -129,16 +129,17 @@ void DebugPrint(std::format_string<const Args&...> format, const Args&... args) 
   } while (0)
 #else
 /**
- * Disabled fiber macros, which expand to nothing without TRACY_FIBERS.
+ * Disabled fiber macros without TRACY_FIBERS. The enter form type checks the name without
+ * evaluating it, and the leave form expands to nothing.
  *
- * @param name Ignored.
+ * @param name The fiber name, never evaluated.
  *
  * @code
  * REX_PROFILE_FIBER_ENTER(fiber->name());
  * REX_PROFILE_FIBER_LEAVE();
  * @endcode
  */
-#define REX_PROFILE_FIBER_ENTER(name)
+#define REX_PROFILE_FIBER_ENTER(name) ((void)sizeof(decltype(name)))
 #define REX_PROFILE_FIBER_LEAVE()
 #endif
 
@@ -161,9 +162,10 @@ void DebugPrint(std::format_string<const Args&...> format, const Args&... args) 
 #else  // !REXGLUE_ENABLE_PROFILING
 
 /**
- * Disabled profiling macros, which expand to nothing without REXGLUE_ENABLE_PROFILING.
+ * Disabled profiling macros without REXGLUE_ENABLE_PROFILING. REX_PROFILE_FIBER_ENTER type checks
+ * its name without evaluating it, and the others expand to nothing.
  *
- * @param name Ignored.
+ * @param name Ignored, or never evaluated for REX_PROFILE_FIBER_ENTER.
  * @param detail Ignored.
  * @param value Ignored.
  *
@@ -174,7 +176,7 @@ void DebugPrint(std::format_string<const Args&...> format, const Args&... args) 
 #define REX_PROFILE_SCOPE(name)
 #define REX_PROFILE_SCOPE_TEXT(name, detail)
 #define REX_PROFILE_THREAD(name)
-#define REX_PROFILE_FIBER_ENTER(name)
+#define REX_PROFILE_FIBER_ENTER(name) ((void)sizeof(decltype(name)))
 #define REX_PROFILE_FIBER_LEAVE()
 #define REX_PROFILE_PLOT(name, value)
 

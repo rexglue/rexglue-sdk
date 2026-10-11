@@ -127,7 +127,7 @@ u32 NtQueryInformationFile_entry(u32 file_handle, ppc_ptr_t<X_IO_STATUS_BLOCK> i
     }
     case XFilePositionInformation: {
       auto info = info_ptr.as<X_FILE_POSITION_INFORMATION*>();
-      info->current_byte_offset = FilePosition(*file);
+      info->current_byte_offset = file->position();
       out_length = sizeof(*info);
       break;
     }
@@ -271,7 +271,7 @@ u32 NtSetInformationFile_entry(u32 file_handle, ppc_ptr_t<X_IO_STATUS_BLOCK> io_
     }
     case XFilePositionInformation: {
       auto info = info_ptr.as<X_FILE_POSITION_INFORMATION*>();
-      FileSetPosition(*file, info->current_byte_offset);
+      file->set_position(info->current_byte_offset);
       out_length = sizeof(*info);
       break;
     }
@@ -295,14 +295,14 @@ u32 NtSetInformationFile_entry(u32 file_handle, ppc_ptr_t<X_IO_STATUS_BLOCK> io_
           return X_STATUS_INVALID_HANDLE;
         }
       }
-      result = FileRename(*runtime::Current().file_system(), *file, target_path,
-                          info->replace_existing != 0, root ? &*root : nullptr);
+      result = file->Rename(*runtime::Current().file_system(), target_path,
+                            info->replace_existing != 0, root ? &*root : nullptr);
       out_length = sizeof(*info);
       break;
     }
     case XFileAllocationInformation: {
       auto info = info_ptr.as<X_FILE_ALLOCATION_INFORMATION*>();
-      result = FileSetAllocation(*file, info->allocation_size);
+      result = file->SetAllocation(info->allocation_size);
       out_length = sizeof(*info);
 
       file->file->Refresh();
@@ -310,7 +310,7 @@ u32 NtSetInformationFile_entry(u32 file_handle, ppc_ptr_t<X_IO_STATUS_BLOCK> io_
     }
     case XFileEndOfFileInformation: {
       auto info = info_ptr.as<X_FILE_END_OF_FILE_INFORMATION*>();
-      result = FileSetLength(*file, info->end_of_file);
+      result = file->SetLength(info->end_of_file);
       out_length = sizeof(*info);
 
       file->file->Refresh();
@@ -325,7 +325,7 @@ u32 NtSetInformationFile_entry(u32 file_handle, ppc_ptr_t<X_IO_STATUS_BLOCK> io_
       if (!port) {
         result = X_STATUS_INVALID_HANDLE;
       } else {
-        FileRegisterIOCompletionPort(runtime::Current(), *file, key, port.handle());
+        file->RegisterIOCompletionPort(runtime::Current(), key, port.handle());
       }
       break;
     }

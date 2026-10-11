@@ -59,7 +59,7 @@ X_HRESULT XMsgStartIORequestEx(u32 app, u32 message, u32 overlapped_ptr, u32 buf
     KernelThread::SetLastError(X_ERROR_NOT_FOUND);
   }
   if (overlapped_ptr) {
-    runtime::Current().dispatcher().CompleteOverlappedImmediate(overlapped_ptr, result);
+    runtime::Current().dispatcher().Complete(overlapped_ptr, {.result = result});
     result = X_ERROR_IO_PENDING;
   }
   if (result == X_ERROR_SUCCESS || result == X_ERROR_IO_PENDING) {
@@ -92,8 +92,9 @@ u32 XMsgCancelIORequest_entry(ppc_ptr_t<XAM_OVERLAPPED> overlapped_ptr, u32 wait
 
 u32 XMsgCompleteIORequest_entry(ppc_ptr_t<XAM_OVERLAPPED> overlapped_ptr, u32 result,
                                 u32 extended_error, u32 length) {
-  runtime::Current().dispatcher().CompleteOverlappedImmediateEx(overlapped_ptr.guest_address(),
-                                                                result, extended_error, length);
+  runtime::Current().dispatcher().Complete(
+      overlapped_ptr.guest_address(),
+      {.result = result, .extended_error = extended_error, .length = length});
   return X_ERROR_SUCCESS;
 }
 

@@ -51,6 +51,7 @@ add_executable(unit_tests
     kernel/char_tls_test.cpp
     kernel/char_fiber_test.cpp
     kernel/char_workspace_test.cpp
+    kernel/overlapped_test.cpp
     core/app_test.cpp
     core/close_owned_test.cpp
     core/no_throw_test.cpp

@@ -22,50 +22,50 @@ NotifyListenerObject::NotifyListenerObject(u64 mask_in, u32 max_version_in)
   REX_ASSERT(wait_handle != nullptr);
 }
 
-void NotifyListenerEnqueue(NotifyListenerObject& listener, XNotificationID id, u32 data) {
+void NotifyListenerObject::Enqueue(XNotificationID id, u32 data) {
   auto key = XNotificationKey(id);
-  if ((listener.mask & static_cast<u64>(1ULL << key.mask_index)) == 0) {
+  if ((mask & static_cast<u64>(1ULL << key.mask_index)) == 0) {
     return;
   }
-  if (key.version > listener.max_version) {
+  if (key.version > max_version) {
     return;
   }
-  std::lock_guard<std::mutex> lock(listener.notifications_lock);
-  listener.notifications.push_back(std::pair<XNotificationID, u32>(id, data));
-  listener.wait_handle->Set();
+  std::lock_guard<std::mutex> lock(notifications_lock);
+  notifications.push_back(std::pair<XNotificationID, u32>(id, data));
+  wait_handle->Set();
 }
 
-bool NotifyListenerDequeue(NotifyListenerObject& listener, XNotificationID* out_id, u32* out_data) {
-  std::lock_guard<std::mutex> lock(listener.notifications_lock);
+bool NotifyListenerObject::Dequeue(XNotificationID* out_id, u32* out_data) {
+  std::lock_guard<std::mutex> lock(notifications_lock);
   bool dequeued = false;
-  if (!listener.notifications.empty()) {
+  if (!notifications.empty()) {
     dequeued = true;
-    auto it = listener.notifications.begin();
+    auto it = notifications.begin();
     *out_id = it->first;
     *out_data = it->second;
-    listener.notifications.erase(it);
-    if (listener.notifications.empty()) {
-      listener.wait_handle->Reset();
+    notifications.erase(it);
+    if (notifications.empty()) {
+      wait_handle->Reset();
     }
   }
   return dequeued;
 }
 
-bool NotifyListenerDequeueByID(NotifyListenerObject& listener, XNotificationID id, u32* out_data) {
-  std::lock_guard<std::mutex> lock(listener.notifications_lock);
-  if (listener.notifications.empty()) {
+bool NotifyListenerObject::DequeueByID(XNotificationID id, u32* out_data) {
+  std::lock_guard<std::mutex> lock(notifications_lock);
+  if (notifications.empty()) {
     return false;
   }
   bool dequeued = false;
-  for (auto it = listener.notifications.begin(); it != listener.notifications.end(); ++it) {
+  for (auto it = notifications.begin(); it != notifications.end(); ++it) {
     if (it->first != id) {
       continue;
     }
     dequeued = true;
     *out_data = it->second;
-    listener.notifications.erase(it);
-    if (listener.notifications.empty()) {
-      listener.wait_handle->Reset();
+    notifications.erase(it);
+    if (notifications.empty()) {
+      wait_handle->Reset();
     }
     break;
   }

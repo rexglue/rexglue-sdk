@@ -69,40 +69,39 @@ TimerObject::~TimerObject() {
   Disarm(*this);
 }
 
-X_STATUS TimerSet(TimerObject& timer, Runtime& runtime, i64 due_time, u32 period_ms, u32 routine,
-                  u32 routine_arg, bool resume) {
+X_STATUS TimerObject::Set(Runtime& runtime, i64 due_time, u32 period_ms, u32 routine,
+                          u32 routine_arg, bool resume) {
   if (resume) {
     return X_STATUS_TIMER_RESUME_IGNORED;
   }
-  timer.callback_thread_id = KernelThread::GetCurrentThread()->thread_id();
-  timer.callback_routine = routine;
-  timer.callback_routine_arg = routine_arg;
+  callback_thread_id = KernelThread::GetCurrentThread()->thread_id();
+  callback_routine = routine;
+  callback_routine_arg = routine_arg;
   std::function<void()> callback = nullptr;
   if (routine) {
-    callback = [runtime = &runtime, thread_id = timer.callback_thread_id, routine, routine_arg]() {
+    callback = [runtime = &runtime, thread_id = callback_thread_id, routine, routine_arg]() {
       const u64 time = rex::Clock::QueryGuestSystemTime();
       const u32 time_low = static_cast<u32>(time);
       const u32 time_high = static_cast<u32>(time >> 32);
-      REXLOG_DEBUG(system, "timer enqueuing callback to {:08X}({:08X}, {:08X}, {:08X})", routine,
+      REXLOG_DEBUG(system, "*this enqueuing callback to {:08X}({:08X}, {:08X}, {:08X})", routine,
                    routine_arg, time_low, time_high);
       if (auto thread = runtime->thread_registry().Find(thread_id)) {
         thread->EnqueueAPC(routine, routine_arg, time_low, time_high);
       }
     };
   }
-  return Arm(timer, due_time, Clock::ScaleGuestDurationMillis(period_ms), std::move(callback))
+  return Arm(*this, due_time, Clock::ScaleGuestDurationMillis(period_ms), std::move(callback))
              ? X_STATUS_SUCCESS
              : X_STATUS_UNSUCCESSFUL;
 }
 
-X_STATUS TimerSetDPC(TimerObject& timer, Runtime& runtime, u32 ktimer, i64 due_time, u32 period_ms,
-                     u32 dpc) {
-  Disarm(timer);
-  if (!timer.timer->Reset()) {
+X_STATUS TimerObject::SetDPC(Runtime& runtime, u32 ktimer, i64 due_time, u32 period_ms, u32 dpc) {
+  Disarm(*this);
+  if (!timer->Reset()) {
     return X_STATUS_UNSUCCESSFUL;
   }
   const u32 scaled_period = Clock::ScaleGuestDurationMillis(period_ms);
-  auto callback = [runtime = &runtime, host = timer.timer.get(), ktimer, dpc,
+  auto callback = [runtime = &runtime, host = timer.get(), ktimer, dpc,
                    periodic = scaled_period != 0](void*) {
     auto* object = runtime->memory()->TranslateVirtual<X_KTIMER*>(ktimer);
     object->header.signal_state = 1;
@@ -123,20 +122,20 @@ X_STATUS TimerSetDPC(TimerObject& timer, Runtime& runtime, u32 ktimer, i64 due_t
       due_time < 0 ? rex::hundrednanoseconds(-due_time)
                    : rex::XSystemClock::from_file_time(due_time) - rex::XSystemClock::now());
   const auto due = QueueClock::now() + std::chrono::duration_cast<QueueClock::duration>(wait);
-  timer.expiry = scaled_period
-                     ? rex::platform::QueueTimerRecurring(std::move(callback), nullptr, due,
-                                                          std::chrono::milliseconds(scaled_period))
-                     : rex::platform::QueueTimerOnce(std::move(callback), nullptr, due);
-  if (!static_cast<Dispatcher&>(runtime.dispatcher()).TrackTimerExpiry(timer.expiry)) {
-    Disarm(timer);
+  expiry = scaled_period
+               ? rex::platform::QueueTimerRecurring(std::move(callback), nullptr, due,
+                                                    std::chrono::milliseconds(scaled_period))
+               : rex::platform::QueueTimerOnce(std::move(callback), nullptr, due);
+  if (!static_cast<Dispatcher&>(runtime.dispatcher()).TrackTimerExpiry(expiry)) {
+    Disarm(*this);
     return X_STATUS_UNSUCCESSFUL;
   }
   return X_STATUS_SUCCESS;
 }
 
-X_STATUS TimerCancel(TimerObject& timer) {
-  Disarm(timer);
-  return timer.timer->Cancel() ? X_STATUS_SUCCESS : X_STATUS_UNSUCCESSFUL;
+X_STATUS TimerObject::Cancel() {
+  Disarm(*this);
+  return timer->Cancel() ? X_STATUS_SUCCESS : X_STATUS_UNSUCCESSFUL;
 }
 
 }  // namespace rex::runtime

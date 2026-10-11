@@ -14,7 +14,7 @@
 #include <rex/hook.h>
 #include <rex/types.h>
 #include <rex/runtime.h>
-#include <rex/runtime/user_module.h>
+#include <rex/runtime/module_object.h>
 #include <rex/runtime/xexception.h>
 #include <rex/runtime/xthread.h>
 #include <rex/runtime/xtypes.h>
@@ -45,7 +45,7 @@ u32 XexCheckExecutablePrivilege_entry(u32 privilege) {
   }
 
   u32 flags = 0;
-  UserModuleGetOptHeader<u32>(*module, filesystem::XEX_HEADER_SYSTEM_FLAGS, &flags);
+  module->OptHeader<u32>(filesystem::XEX_HEADER_SYSTEM_FLAGS, &flags);
 
   return (flags & mask) > 0;
 }
@@ -75,11 +75,11 @@ u32 XexGetModuleSection_entry(mapped_void hmodule, mapped_string name, mapped_u3
   X_STATUS result = X_STATUS_SUCCESS;
 
   auto module = runtime::Current().object_table().Get<ModuleObject>(
-      ModuleFromHModule(runtime::Current(), hmodule));
+      ModuleObject::FromHModule(runtime::Current(), hmodule));
   if (module) {
     u32 section_data = 0;
     u32 section_size = 0;
-    result = ModuleGetSection(*module, name.value(), &section_data, &section_size);
+    result = module->GetSection(name.value(), &section_data, &section_size);
     if (XSUCCEEDED(result)) {
       *data_ptr = section_data;
       *size_ptr = section_size;
@@ -128,7 +128,7 @@ u32 XexLoadImage_entry(mapped_string module_name, [[maybe_unused]] u32 module_fl
 }
 
 u32 XexUnloadImage_entry(mapped_void hmodule) {
-  const X_HANDLE module_handle = ModuleFromHModule(runtime::Current(), hmodule);
+  const X_HANDLE module_handle = ModuleObject::FromHModule(runtime::Current(), hmodule);
   auto module = runtime::Current().object_table().Get<ModuleObject>(module_handle);
   if (!module) {
     return X_STATUS_INVALID_HANDLE;
@@ -171,15 +171,15 @@ u32 XexGetProcedureAddress_entry(mapped_void hmodule, u32 ordinal, mapped_u32 ou
   if (!hmodule) {
     module_handle = runtime::Current().module_registry().executable().value_or(0);
   } else {
-    module_handle = ModuleFromHModule(runtime::Current(), hmodule);
+    module_handle = ModuleObject::FromHModule(runtime::Current(), hmodule);
   }
   auto module = runtime::Current().object_table().Get<ModuleObject>(module_handle);
   if (module) {
     u32 ptr;
     if (is_string_name) {
-      ptr = ModuleGetProcAddressByName(*module, string_name);
+      ptr = module->GetProcAddress(string_name);
     } else {
-      ptr = ModuleGetProcAddressByOrdinal(runtime::Current(), *module, ordinal, caller_address);
+      ptr = module->GetProcAddress(runtime::Current(), ordinal, caller_address);
     }
     if (ptr) {
       *out_function_ptr = ptr;

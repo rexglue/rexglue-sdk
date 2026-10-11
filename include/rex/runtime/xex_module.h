@@ -31,7 +31,7 @@ constexpr memory::fourcc_t kXEX2Signature = memory::make_fourcc("XEX2");
 constexpr memory::fourcc_t kElfSignature = memory::make_fourcc(0x7F, 'E', 'L', 'F');
 
 /** A module loaded from an XEX image, or an XEX patch for 1. */
-class REX_RUNTIME_API XexModule : public Module {
+class REX_RUNTIME_API XEXModule : public Module {
  public:
   /** 1 import of an `ImportLibrary`. */
   struct ImportLibraryFn {
@@ -56,9 +56,9 @@ class REX_RUNTIME_API XexModule : public Module {
    * @param function_dispatcher The dispatcher whose memory the module loads into.
    * @param runtime The runtime the module belongs to.
    */
-  XexModule(FunctionDispatcher* function_dispatcher, Runtime& runtime);
+  XEXModule(FunctionDispatcher* function_dispatcher, Runtime& runtime);
   /** Destroys the module. */
-  ~XexModule() override;
+  ~XEXModule() override;
 
   bool loaded() const { return loaded_; }
   const filesystem::XEXImage& image() const { return image_; }
@@ -129,7 +129,7 @@ class REX_RUNTIME_API XexModule : public Module {
    * @param module The module to patch.
    * @return 0 on success, 1 when this image is not a patch, another nonzero value on failure.
    */
-  int ApplyPatch(XexModule* module);
+  int ApplyPatch(XEXModule* module);
   /**
    * Parses and decodes an XEX image into guest memory.
    *

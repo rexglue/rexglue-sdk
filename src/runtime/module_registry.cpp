@@ -22,8 +22,7 @@
 #include <rex/runtime/error.h>
 #include <rex/runtime/function_dispatcher.h>
 #include <rex/runtime/guest_path.h>
-#include <rex/runtime/kernel_module.h>
-#include <rex/runtime/user_module.h>
+#include <rex/runtime/module_object.h>
 #include <rex/runtime/xthread.h>
 #include <rex/string.h>
 
@@ -96,7 +95,7 @@ bool ModuleRegistry::RemoveUser(X_HANDLE handle) {
 
 std::optional<X_HANDLE> ModuleRegistry::FindKernel(std::string_view name) {
   for (X_HANDLE handle : kernel_modules()) {
-    if (auto module = table_.Get<ModuleObject>(handle); module && ModuleMatches(*module, name)) {
+    if (auto module = table_.Get<ModuleObject>(handle); module && module->Matches(name)) {
       return handle;
     }
   }
@@ -105,7 +104,7 @@ std::optional<X_HANDLE> ModuleRegistry::FindKernel(std::string_view name) {
 
 std::optional<X_HANDLE> ModuleRegistry::FindUser(std::string_view name) {
   for (X_HANDLE handle : user_modules()) {
-    if (auto module = table_.Get<ModuleObject>(handle); module && ModuleMatches(*module, name)) {
+    if (auto module = table_.Get<ModuleObject>(handle); module && module->Matches(name)) {
       return handle;
     }
   }
@@ -266,7 +265,7 @@ Result<X_HANDLE> ModuleRegistry::LoadUserModule(std::string_view raw_name, bool 
     return Err<X_HANDLE>(StatusError(X_STATUS_UNSUCCESSFUL));
   }
   auto module = table_.Get<ModuleObject>(created);
-  X_STATUS status = UserModuleLoadFromFile(runtime_, *module, path);
+  X_STATUS status = module->LoadFromFile(runtime_, path);
   if (XFAILED(status)) {
     CloseOwned(table_, created);
     return Err<X_HANDLE>(StatusError(status));
@@ -304,7 +303,7 @@ Result<X_HANDLE> ModuleRegistry::LoadUserModule(std::string_view raw_name, bool 
       } else if (!get_image_info) {
         REXLOG_ERROR(system, "ReXModule_GetImageInfo not found in '{}'", recomp->shared_lib_name);
       } else {
-        auto* xex = UserModuleXEX(*module);
+        auto* xex = module->xex();
         const auto* image_info = get_image_info();
         if (!image_info) {
           REXLOG_ERROR(system, "ReXModule_GetImageInfo returned null for '{}'",
@@ -401,8 +400,7 @@ void ModuleRegistry::UnloadUserModule(X_HANDLE module_handle, bool call_entry) {
     if (cleared_range) {
       for (X_HANDLE kernel_handle : kernel_modules()) {
         if (auto kernel_module = table_.Get<ModuleObject>(kernel_handle)) {
-          KernelModuleInvalidateThunkCacheInRange(*kernel_module, cleared_range->first,
-                                                  cleared_range->second);
+          kernel_module->InvalidateThunkCache(cleared_range->first, cleared_range->second);
         }
       }
     }
@@ -419,8 +417,8 @@ void ModuleRegistry::UnloadUserModule(X_HANDLE module_handle, bool call_entry) {
 
   const bool found_module = RemoveUser(module_handle);
   if (found_module) {
-    CloseOwned(table_,
-               ModuleHandleFromHModule(runtime_.memory()->TranslateVirtual(module->hmodule_ptr)));
+    CloseOwned(table_, ModuleObject::HandleFromHModule(
+                           runtime_.memory()->TranslateVirtual(module->hmodule_ptr)));
   }
 
   if (!found_module) {

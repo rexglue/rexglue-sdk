@@ -193,8 +193,9 @@ u32 XamUserReadProfileSettingsEx([[maybe_unused]] u32 title_id, u32 user_index, 
 
   if (!xuids && user_index) {
     if (overlapped) {
-      runtime::Current().dispatcher().CompleteOverlappedImmediate(
-          runtime::Current().memory()->HostToGuestVirtual(overlapped), X_ERROR_NO_SUCH_USER);
+      runtime::Current().dispatcher().Complete(
+          runtime::Current().memory()->HostToGuestVirtual(overlapped),
+          {.result = X_ERROR_NO_SUCH_USER});
       return X_ERROR_IO_PENDING;
     }
     return X_ERROR_NO_SUCH_USER;
@@ -215,8 +216,9 @@ u32 XamUserReadProfileSettingsEx([[maybe_unused]] u32 title_id, u32 user_index, 
   }
   if (any_missing) {
     if (overlapped) {
-      runtime::Current().dispatcher().CompleteOverlappedImmediate(
-          runtime::Current().memory()->HostToGuestVirtual(overlapped), X_ERROR_INVALID_PARAMETER);
+      runtime::Current().dispatcher().Complete(
+          runtime::Current().memory()->HostToGuestVirtual(overlapped),
+          {.result = X_ERROR_INVALID_PARAMETER});
       return X_ERROR_IO_PENDING;
     }
     return X_ERROR_INVALID_PARAMETER;
@@ -249,8 +251,8 @@ u32 XamUserReadProfileSettingsEx([[maybe_unused]] u32 title_id, u32 user_index, 
   }
 
   if (overlapped) {
-    runtime::Current().dispatcher().CompleteOverlappedImmediate(
-        runtime::Current().memory()->HostToGuestVirtual(overlapped), X_ERROR_SUCCESS);
+    runtime::Current().dispatcher().Complete(
+        runtime::Current().memory()->HostToGuestVirtual(overlapped), {.result = X_ERROR_SUCCESS});
     return X_ERROR_IO_PENDING;
   }
   return X_ERROR_SUCCESS;
@@ -282,8 +284,8 @@ u32 XamUserWriteProfileSettings_entry([[maybe_unused]] u32 title_id, u32 user_in
 
   if (user_index) {
     if (overlapped) {
-      runtime::Current().dispatcher().CompleteOverlappedImmediate(overlapped.guest_address(),
-                                                                  X_ERROR_NO_SUCH_USER);
+      runtime::Current().dispatcher().Complete(overlapped.guest_address(),
+                                               {.result = X_ERROR_NO_SUCH_USER});
       return X_ERROR_IO_PENDING;
     }
     return X_ERROR_NO_SUCH_USER;
@@ -333,8 +335,8 @@ u32 XamUserWriteProfileSettings_entry([[maybe_unused]] u32 title_id, u32 user_in
   }
 
   if (overlapped) {
-    runtime::Current().dispatcher().CompleteOverlappedImmediate(overlapped.guest_address(),
-                                                                X_ERROR_SUCCESS);
+    runtime::Current().dispatcher().Complete(overlapped.guest_address(),
+                                             {.result = X_ERROR_SUCCESS});
     return X_ERROR_IO_PENDING;
   }
   return X_ERROR_SUCCESS;
@@ -383,7 +385,7 @@ u32 XamUserContentRestrictionCheckAccess_entry([[maybe_unused]] u32 user_index,
   *out_unk5 = 1;
 
   if (overlapped_ptr) {
-    runtime::Current().dispatcher().CompleteOverlappedImmediate(overlapped_ptr, X_ERROR_SUCCESS);
+    runtime::Current().dispatcher().Complete(overlapped_ptr, {.result = X_ERROR_SUCCESS});
   }
 
   return X_ERROR_SUCCESS;
@@ -431,9 +433,11 @@ u32 XamUserAreUsersFriends_entry(u32 user_index, [[maybe_unused]] u32 unk1,
     return result;
   } else if (overlapped_ptr) {
     REX_ASSERT(!out_value);
-    runtime::Current().dispatcher().CompleteOverlappedImmediateEx(
-        overlapped_ptr, result == X_ERROR_SUCCESS ? X_ERROR_SUCCESS : X_ERROR_FUNCTION_FAILED,
-        X_HRESULT_FROM_WIN32(result), result == X_ERROR_SUCCESS ? are_friends : 0);
+    runtime::Current().dispatcher().Complete(
+        overlapped_ptr,
+        {.result = result == X_ERROR_SUCCESS ? X_ERROR_SUCCESS : X_ERROR_FUNCTION_FAILED,
+         .extended_error = X_HRESULT_FROM_WIN32(result),
+         .length = result == X_ERROR_SUCCESS ? are_friends : 0});
     return X_ERROR_IO_PENDING;
   } else {
     REX_ASSERT_ALWAYS();
@@ -659,7 +663,7 @@ u32 XamReadTileToTexture_entry([[maybe_unused]] u32 unknown, [[maybe_unused]] u3
   std::memset(buffer_ptr, 0xFF, size);
 
   if (overlapped_ptr) {
-    runtime::Current().dispatcher().CompleteOverlappedImmediate(overlapped_ptr, X_ERROR_SUCCESS);
+    runtime::Current().dispatcher().Complete(overlapped_ptr, {.result = X_ERROR_SUCCESS});
     return X_ERROR_IO_PENDING;
   }
   return X_ERROR_SUCCESS;
@@ -669,7 +673,7 @@ u32 XamWriteGamerTile_entry([[maybe_unused]] u32 arg1, [[maybe_unused]] u32 arg2
                             [[maybe_unused]] u32 arg3, [[maybe_unused]] u32 arg4,
                             [[maybe_unused]] u32 arg5, u32 overlapped_ptr) {
   if (overlapped_ptr) {
-    runtime::Current().dispatcher().CompleteOverlappedImmediate(overlapped_ptr, X_ERROR_SUCCESS);
+    runtime::Current().dispatcher().Complete(overlapped_ptr, {.result = X_ERROR_SUCCESS});
     return X_ERROR_IO_PENDING;
   }
   return X_ERROR_SUCCESS;

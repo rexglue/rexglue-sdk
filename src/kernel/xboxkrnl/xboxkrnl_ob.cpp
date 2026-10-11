@@ -280,7 +280,7 @@ u32 NtQueryEvent_entry(u32 handle, mapped_u32 out_struc) {
   auto ev = runtime::Current().object_table().Get<EventObject>(handle);
   if (ev) {
     u32 type_tmp, state_tmp;
-    EventQuery(*ev, &type_tmp, &state_tmp);
+    ev->Query(&type_tmp, &state_tmp);
     out_struc[0] = type_tmp;
     out_struc[1] = state_tmp;
   } else {

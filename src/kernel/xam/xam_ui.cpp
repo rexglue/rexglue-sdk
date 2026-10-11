@@ -120,7 +120,16 @@ X_RESULT XamDispatchPrompt(ui::PromptDesc desc, Close close, u32 overlapped) {
       post();
       return result;
     }
-    runtime::Current().dispatcher().CompleteOverlappedDeferredEx(run, overlapped, pre, post);
+    runtime::Current().dispatcher().CompleteDeferred(
+        overlapped,
+        [run = std::move(run)]() mutable {
+          u32 extended_error = 0;
+          u32 length = 0;
+          const X_RESULT result = run(extended_error, length);
+          return runtime::CompletionOptions{
+              .result = result, .extended_error = extended_error, .length = length};
+        },
+        pre, post);
     return X_ERROR_IO_PENDING;
   } else {
     auto run = [desc = std::move(desc), close = std::move(close)]() -> X_RESULT {
@@ -132,7 +141,12 @@ X_RESULT XamDispatchPrompt(ui::PromptDesc desc, Close close, u32 overlapped) {
       post();
       return result;
     }
-    runtime::Current().dispatcher().CompleteOverlappedDeferred(run, overlapped, pre, post);
+    runtime::Current().dispatcher().CompleteDeferred(
+        overlapped,
+        [run = std::move(run)]() mutable {
+          return runtime::CompletionOptions{.result = run(), .length = 0};
+        },
+        pre, post);
     return X_ERROR_IO_PENDING;
   }
 }
@@ -153,7 +167,12 @@ X_RESULT XamDispatchHeadless(const std::function<X_RESULT()>& run_callback, u32 
     post();
     return result;
   } else {
-    runtime::Current().dispatcher().CompleteOverlappedDeferred(run_callback, overlapped, pre, post);
+    runtime::Current().dispatcher().CompleteDeferred(
+        overlapped,
+        [run_callback]() {
+          return runtime::CompletionOptions{.result = run_callback(), .length = 0};
+        },
+        pre, post);
     return X_ERROR_IO_PENDING;
   }
 }

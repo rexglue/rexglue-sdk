@@ -21,7 +21,7 @@
 #include <rex/types.h>
 #include <rex/string.h>
 #include <rex/runtime.h>
-#include <rex/runtime/user_module.h>
+#include <rex/runtime/module_object.h>
 #include <rex/runtime/kernel_string.h>
 #include <rex/runtime/event_object.h>
 #include <rex/runtime/xthread.h>
@@ -277,8 +277,8 @@ u32 RtlImageXexHeaderField_entry(ppc_ptr_t<filesystem::XEXHeader> xex_header, u3
   u32 field_value = 0;
   u32 field = field_dword;
 
-  UserModuleGetOptHeader(runtime::Current().memory(), xex_header, filesystem::XEXHeaderKey(field),
-                         &field_value);
+  ModuleObject::OptHeader(runtime::Current().memory(), xex_header, filesystem::XEXHeaderKey(field),
+                          &field_value);
 
   return field_value;
 }

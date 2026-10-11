@@ -19,14 +19,14 @@ void Notifier::RegisterNotifyListener(X_HANDLE listener_handle) {
   listeners_.push_back(*owned);
   if (!has_notified_startup_ && listener->mask & 0x00000001) {
     has_notified_startup_ = true;
-    NotifyListenerEnqueue(*listener, 0x00000009, 1);
-    NotifyListenerEnqueue(*listener, 0x00000009, 0);
-    NotifyListenerEnqueue(*listener, 0x0000000A, 1);
-    NotifyListenerEnqueue(*listener, 0x0000000A, 1);
-    NotifyListenerEnqueue(*listener, 0x00000012, 0);
-    NotifyListenerEnqueue(*listener, 0x00000012, 0);
-    NotifyListenerEnqueue(*listener, 0x00000013, 0);
-    NotifyListenerEnqueue(*listener, 0x00000013, 0);
+    listener->Enqueue(0x00000009, 1);
+    listener->Enqueue(0x00000009, 0);
+    listener->Enqueue(0x0000000A, 1);
+    listener->Enqueue(0x0000000A, 1);
+    listener->Enqueue(0x00000012, 0);
+    listener->Enqueue(0x00000012, 0);
+    listener->Enqueue(0x00000013, 0);
+    listener->Enqueue(0x00000013, 0);
   }
 }
 
@@ -40,7 +40,7 @@ void Notifier::BroadcastNotification(XNotificationID id, u32 data) {
   }
   for (X_HANDLE handle : snapshot) {
     if (auto listener = table_.Get<NotifyListenerObject>(handle)) {
-      NotifyListenerEnqueue(*listener, id, data);
+      listener->Enqueue(id, data);
     }
   }
 }

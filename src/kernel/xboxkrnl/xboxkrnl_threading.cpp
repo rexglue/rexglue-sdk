@@ -28,7 +28,7 @@
 #include <rex/runtime.h>
 #include <rex/runtime/function_dispatcher.h>
 #include <rex/runtime/thread_state.h>
-#include <rex/runtime/user_module.h>
+#include <rex/runtime/module_object.h>
 #include <rex/runtime/kernel_string.h>
 #include <rex/runtime/event_object.h>
 #include <rex/runtime/mutant_object.h>
@@ -443,7 +443,7 @@ void KeInitializeEvent_entry(ppc_ptr_t<X_KEVENT> event_ptr, u32 event_type, u32 
         existing && existing->manual_reset == (event_type == 0)) {
       event_ptr->header.type = static_cast<u8>(event_type);
       event_ptr->header.signal_state = initial_state;
-      initial_state ? EventSet(*existing) : EventReset(*existing);
+      initial_state ? existing->Set() : existing->Reset();
       return;
     }
     DropStash(event_ptr->header);
@@ -464,7 +464,7 @@ u32 KeSetEvent(u32 event_address, [[maybe_unused]] u32 increment, [[maybe_unused
     return 0;
   }
 
-  return EventSet(*ev);
+  return ev->Set();
 }
 
 u32 KeSetEvent_entry(ppc_ptr_t<X_KEVENT> event_ptr, u32 increment, u32 wait) {
@@ -479,7 +479,7 @@ u32 KePulseEvent_entry(ppc_ptr_t<X_KEVENT> event_ptr, [[maybe_unused]] u32 incre
     return 0;
   }
 
-  return EventPulse(*ev);
+  return ev->Pulse();
 }
 
 u32 KeResetEvent_entry(ppc_ptr_t<X_KEVENT> event_ptr) {
@@ -489,7 +489,7 @@ u32 KeResetEvent_entry(ppc_ptr_t<X_KEVENT> event_ptr) {
     return 0;
   }
 
-  return EventReset(*ev);
+  return ev->Reset();
 }
 
 u32 NtCreateEvent_entry(mapped_u32 handle_ptr, ppc_ptr_t<X_OBJECT_ATTRIBUTES> obj_attributes_ptr,
@@ -517,7 +517,7 @@ u32 NtSetEvent(u32 handle, be_u32* previous_state_ptr) {
 
   auto ev = runtime::Current().object_table().Get<EventObject>(handle);
   if (ev) {
-    i32 was_signalled = EventSet(*ev);
+    i32 was_signalled = ev->Set();
     if (previous_state_ptr) {
       *previous_state_ptr = static_cast<u32>(was_signalled);
     }
@@ -537,7 +537,7 @@ u32 NtPulseEvent_entry(u32 handle, mapped_u32 previous_state_ptr) {
 
   auto ev = runtime::Current().object_table().Get<EventObject>(handle);
   if (ev) {
-    i32 was_signalled = EventPulse(*ev);
+    i32 was_signalled = ev->Pulse();
     if (previous_state_ptr) {
       *previous_state_ptr = static_cast<u32>(was_signalled);
     }
@@ -553,7 +553,7 @@ u32 NtClearEvent(u32 handle) {
 
   auto ev = runtime::Current().object_table().Get<EventObject>(handle);
   if (ev) {
-    EventReset(*ev);
+    ev->Reset();
   } else {
     result = X_STATUS_INVALID_HANDLE;
   }
@@ -588,8 +588,7 @@ u32 KeReleaseSemaphore(u32 semaphore_address, [[maybe_unused]] u32 increment, u3
   }
 
   i32 previous_count = 0;
-  [[maybe_unused]] bool success =
-      SemaphoreRelease(*sem, static_cast<i32>(adjustment), &previous_count);
+  [[maybe_unused]] bool success = sem->Release(static_cast<i32>(adjustment), &previous_count);
   return static_cast<u32>(previous_count);
 }
 
@@ -638,7 +637,7 @@ u32 NtReleaseSemaphore_entry(u32 sem_handle, u32 release_count, mapped_u32 previ
 
   auto sem = runtime::Current().object_table().Get<SemaphoreObject>(sem_handle);
   if (sem) {
-    bool success = SemaphoreRelease(*sem, static_cast<i32>(release_count), &previous_count);
+    bool success = sem->Release(static_cast<i32>(release_count), &previous_count);
     if (!success) {
       result = X_STATUS_SEMAPHORE_LIMIT_EXCEEDED;
     }
@@ -688,7 +687,7 @@ u32 NtReleaseMutant_entry(u32 mutant_handle, u32 unknown) {
 
   auto mutant = runtime::Current().object_table().Get<MutantObject>(mutant_handle);
   if (mutant) {
-    result = MutantRelease(*mutant, abandon);
+    result = mutant->Release(abandon);
   } else {
     result = X_STATUS_INVALID_HANDLE;
   }
@@ -718,7 +717,7 @@ u32 KeReleaseMutant_entry(ppc_ptr_t<X_KMUTANT> mutant, [[maybe_unused]] u32 incr
     return X_STATUS_INVALID_HANDLE;
   }
   i32 previous = 0;
-  const X_STATUS status = MutantRelease(*object, abandoned != 0, &previous);
+  const X_STATUS status = object->Release(abandoned != 0, &previous);
   if (XFAILED(status)) {
     return status;
   }
@@ -791,8 +790,8 @@ u32 NtSetTimerEx_entry(u32 timer_handle, mapped_u64 due_time_ptr, mapped_void ro
   auto timer = runtime::Current().object_table().Get<TimerObject>(timer_handle);
   if (timer) {
     result =
-        TimerSet(*timer, runtime::Current(), static_cast<i64>(due_time), period_ms,
-                 routine_ptr.guest_address(), routine_arg.guest_address(), resume ? true : false);
+        timer->Set(runtime::Current(), static_cast<i64>(due_time), period_ms,
+                   routine_ptr.guest_address(), routine_arg.guest_address(), resume ? true : false);
   } else {
     result = X_STATUS_INVALID_HANDLE;
   }
@@ -805,7 +804,7 @@ u32 NtCancelTimer_entry(u32 timer_handle, mapped_u32 current_state_ptr) {
 
   auto timer = runtime::Current().object_table().Get<TimerObject>(timer_handle);
   if (timer) {
-    result = TimerCancel(*timer);
+    result = timer->Cancel();
   } else {
     result = X_STATUS_INVALID_HANDLE;
   }
@@ -824,15 +823,15 @@ u32 ArmKeTimer(ppc_ptr_t<X_KTIMER> timer, i64 due_time, u32 period_ms, ppc_ptr_t
   if (!object) {
     return 0;
   }
-  (void)TimerCancel(*object);
+  (void)object->Cancel();
   const u32 was_set = timer->header.inserted;
   timer->header.inserted = 1;
   timer->header.signal_state = 0;
   timer->due_time = static_cast<u64>(due_time);
   timer->period = period_ms;
   timer->dpc = dpc.guest_address();
-  if (XFAILED(TimerSetDPC(*object, runtime, timer.guest_address(), due_time, period_ms,
-                          dpc.guest_address()))) {
+  if (XFAILED(object->SetDPC(runtime, timer.guest_address(), due_time, period_ms,
+                             dpc.guest_address()))) {
     timer->header.inserted = 0;
   }
   return was_set ? 1 : 0;
@@ -852,7 +851,7 @@ u32 KeSetTimer_entry(ppc_ptr_t<X_KTIMER> timer, i64 due_time, ppc_ptr_t<X_KDPC> 
 u32 KeCancelTimer_entry(ppc_ptr_t<X_KTIMER> timer) {
   auto object = runtime::Current().object_table().Resolve<TimerObject>(timer.guest_address());
   if (object) {
-    (void)TimerCancel(*object);
+    (void)object->Cancel();
   }
   const u32 was_set = timer->header.inserted;
   timer->header.inserted = 0;

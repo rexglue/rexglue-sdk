@@ -28,7 +28,6 @@
 #include <rex/runtime.h>
 #include <rex/runtime/error.h>
 #include <rex/runtime/object_table.h>
-#include <rex/runtime/user_module.h>
 #include <rex/runtime/xam/content_device.h>
 #include <rex/runtime/file_object.h>
 #include <rex/runtime/module_object.h>
@@ -522,7 +521,7 @@ u32 ContentManager::title_id() const {
   REX_ASSERT(module);
 
   filesystem::XEXOptExecutionInfo* exec_info = 0;
-  UserModuleGetOptHeader(*module, filesystem::XEX_HEADER_EXECUTION_INFO, &exec_info);
+  module->OptHeader(filesystem::XEX_HEADER_EXECUTION_INFO, &exec_info);
 
   if (exec_info) {
     return exec_info->title_id;
@@ -541,9 +540,8 @@ runtime::XDBFGameData ContentManager::title_xdbf() const {
 runtime::XDBFGameData ContentManager::module_xdbf(const ModuleObject& exec_module) const {
   u32 resource_data = 0;
   u32 resource_size = 0;
-  if (XSUCCEEDED(ModuleGetSection(exec_module,
-                                  std::format("{:08X}", UserModuleTitleID(exec_module)),
-                                  &resource_data, &resource_size))) {
+  if (XSUCCEEDED(exec_module.GetSection(std::format("{:08X}", exec_module.title_id()),
+                                        &resource_data, &resource_size))) {
     runtime::XDBFGameData db(runtime_.memory()->TranslateVirtual(resource_data), resource_size);
     return db;
   }

@@ -33,8 +33,8 @@ u32 XamContentGetLicenseMask_entry(mapped_u32 mask_ptr, mapped_void overlapped_p
   *mask_ptr = runtime::Current().config().runtime.kernel.license_mask;
 
   if (overlapped_ptr) {
-    runtime::Current().dispatcher().CompleteOverlappedImmediate(overlapped_ptr.guest_address(),
-                                                                X_ERROR_SUCCESS);
+    runtime::Current().dispatcher().Complete(overlapped_ptr.guest_address(),
+                                             {.result = X_ERROR_SUCCESS});
     return X_ERROR_IO_PENDING;
   } else {
     return X_ERROR_SUCCESS;
@@ -249,8 +249,14 @@ u32 XamContentCreate(mapped_string root_name, mapped_void content_data_ptr, u32 
     u32 extended_error, length;
     return run(extended_error, length);
   } else {
-    runtime::Current().dispatcher().CompleteOverlappedDeferredEx(run,
-                                                                 overlapped_ptr.guest_address());
+    runtime::Current().dispatcher().CompleteDeferred(
+        overlapped_ptr.guest_address(), [run = std::move(run)]() mutable {
+          u32 extended_error = 0;
+          u32 length = 0;
+          const X_RESULT result = run(extended_error, length);
+          return runtime::CompletionOptions{
+              .result = result, .extended_error = extended_error, .length = length};
+        });
     return X_ERROR_IO_PENDING;
   }
 }
@@ -290,8 +296,7 @@ u32 XamContentOpenFile_entry([[maybe_unused]] u32 user_index,
 u32 XamContentFlush_entry([[maybe_unused]] mapped_string root_name, mapped_void overlapped_ptr) {
   X_RESULT result = X_ERROR_SUCCESS;
   if (overlapped_ptr) {
-    runtime::Current().dispatcher().CompleteOverlappedImmediate(overlapped_ptr.guest_address(),
-                                                                result);
+    runtime::Current().dispatcher().Complete(overlapped_ptr.guest_address(), {.result = result});
     return X_ERROR_IO_PENDING;
   } else {
     return result;
@@ -302,8 +307,7 @@ u32 XamContentClose_entry(mapped_string root_name, mapped_void overlapped_ptr) {
   auto result = ToXResult(runtime::Current().content_manager().CloseContent(root_name.value()));
 
   if (overlapped_ptr) {
-    runtime::Current().dispatcher().CompleteOverlappedImmediate(overlapped_ptr.guest_address(),
-                                                                result);
+    runtime::Current().dispatcher().Complete(overlapped_ptr.guest_address(), {.result = result});
     return X_ERROR_IO_PENDING;
   } else {
     return result;
@@ -337,8 +341,7 @@ u32 XamContentGetCreator_entry([[maybe_unused]] u32 user_index, mapped_void cont
   }
 
   if (overlapped_ptr) {
-    runtime::Current().dispatcher().CompleteOverlappedImmediate(overlapped_ptr.guest_address(),
-                                                                result);
+    runtime::Current().dispatcher().Complete(overlapped_ptr.guest_address(), {.result = result});
     return X_ERROR_IO_PENDING;
   } else {
     return result;
@@ -373,8 +376,7 @@ u32 XamContentGetThumbnail_entry([[maybe_unused]] u32 user_index, mapped_void co
   }
 
   if (overlapped_ptr) {
-    runtime::Current().dispatcher().CompleteOverlappedImmediate(overlapped_ptr.guest_address(),
-                                                                result);
+    runtime::Current().dispatcher().Complete(overlapped_ptr.guest_address(), {.result = result});
     return X_ERROR_IO_PENDING;
   } else {
     return result;
@@ -394,8 +396,7 @@ u32 XamContentSetThumbnail_entry([[maybe_unused]] u32 user_index, mapped_void co
       xuid, content_data, std::move(buffer)));
 
   if (overlapped_ptr) {
-    runtime::Current().dispatcher().CompleteOverlappedImmediate(overlapped_ptr.guest_address(),
-                                                                result);
+    runtime::Current().dispatcher().Complete(overlapped_ptr.guest_address(), {.result = result});
     return X_ERROR_IO_PENDING;
   } else {
     return result;
@@ -410,8 +411,7 @@ u32 XamContentDelete_entry([[maybe_unused]] u32 user_index, mapped_void content_
   auto result = ToXResult(runtime::Current().content_manager().DeleteContent(xuid, content_data));
 
   if (overlapped_ptr) {
-    runtime::Current().dispatcher().CompleteOverlappedImmediate(overlapped_ptr.guest_address(),
-                                                                result);
+    runtime::Current().dispatcher().Complete(overlapped_ptr.guest_address(), {.result = result});
     return X_ERROR_IO_PENDING;
   } else {
     return result;
@@ -426,8 +426,7 @@ u32 XamContentDeleteInternal_entry(mapped_void content_data_ptr, mapped_void ove
   auto result = ToXResult(runtime::Current().content_manager().DeleteContent(xuid, content_data));
 
   if (overlapped_ptr) {
-    runtime::Current().dispatcher().CompleteOverlappedImmediate(overlapped_ptr.guest_address(),
-                                                                result);
+    runtime::Current().dispatcher().Complete(overlapped_ptr.guest_address(), {.result = result});
     return X_ERROR_IO_PENDING;
   } else {
     return result;

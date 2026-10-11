@@ -67,7 +67,14 @@ u32 XamEnumerate(u32 handle, u32 flags, mapped_void buffer_ptr, u32* items_retur
     return result;
   } else if (overlapped_ptr) {
     REX_ASSERT(!items_returned);
-    runtime::Current().dispatcher().CompleteOverlappedDeferredEx(run, overlapped_ptr);
+    runtime::Current().dispatcher().CompleteDeferred(
+        overlapped_ptr, [run = std::move(run)]() mutable {
+          u32 extended_error = 0;
+          u32 length = 0;
+          const X_RESULT result = run(extended_error, length);
+          return runtime::CompletionOptions{
+              .result = result, .extended_error = extended_error, .length = length};
+        });
     return X_ERROR_IO_PENDING;
   } else {
     REX_ASSERT_ALWAYS();

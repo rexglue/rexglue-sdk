@@ -63,38 +63,32 @@ struct NotifyListenerObject {
   std::vector<std::pair<XNotificationID, u32>> notifications;
   u64 mask = 0; /**< Bit mask of notification areas, bit N admits ids whose mask_index is N. */
   u32 max_version = 0; /**< Highest notification version admitted, a higher version is dropped. */
+
+  /**
+   * Queues a notification when it matches the mask and version of the listener.
+   *
+   * @param id The notification id.
+   * @param data The notification data.
+   */
+  REX_RUNTIME_API void Enqueue(XNotificationID id, u32 data);
+
+  /**
+   * Removes the oldest notification with a given id.
+   *
+   * @param id The id to look for.
+   * @param out_data Receives the data.
+   * @return True when a notification was removed.
+   */
+  REX_RUNTIME_API bool DequeueByID(XNotificationID id, u32* out_data);
+
+  /**
+   * Removes the oldest notification.
+   *
+   * @param out_id Receives the id.
+   * @param out_data Receives the data.
+   * @return True when a notification was removed.
+   */
+  REX_RUNTIME_API bool Dequeue(XNotificationID* out_id, u32* out_data);
 };
-
-/**
- * Queues a notification when it matches the mask and version of the listener.
- *
- * @param listener The listener.
- * @param id The notification id.
- * @param data The notification data.
- */
-REX_RUNTIME_API void NotifyListenerEnqueue(NotifyListenerObject& listener, XNotificationID id,
-                                           u32 data);
-
-/**
- * Removes the oldest notification.
- *
- * @param listener The listener.
- * @param out_id Receives the id.
- * @param out_data Receives the data.
- * @return True when a notification was removed.
- */
-REX_RUNTIME_API bool NotifyListenerDequeue(NotifyListenerObject& listener, XNotificationID* out_id,
-                                           u32* out_data);
-
-/**
- * Removes the oldest notification with a given id.
- *
- * @param listener The listener.
- * @param id The id to look for.
- * @param out_data Receives the data.
- * @return True when a notification was removed.
- */
-REX_RUNTIME_API bool NotifyListenerDequeueByID(NotifyListenerObject& listener, XNotificationID id,
-                                               u32* out_data);
 
 }  // namespace rex::runtime

@@ -219,9 +219,9 @@ u32 NtReadFile_entry(u32 file_handle, u32 event_handle, mapped_void apc_routine_
   if (XSUCCEEDED(result)) {
     if (true || file->is_synchronous) {
       u32 bytes_read = 0;
-      result = FileRead(runtime::Current(), *file, buffer.guest_address(), buffer_length,
-                        byte_offset_ptr ? static_cast<u64>(*byte_offset_ptr) : -1, &bytes_read,
-                        apc_context.guest_address());
+      result = file->Read(runtime::Current(), buffer.guest_address(), buffer_length,
+                          byte_offset_ptr ? static_cast<u64>(*byte_offset_ptr) : -1, &bytes_read,
+                          apc_context.guest_address());
       if (io_status_block) {
         io_status_block->status = result;
         io_status_block->information = bytes_read;
@@ -270,7 +270,7 @@ u32 NtReadFile_entry(u32 file_handle, u32 event_handle, mapped_void apc_routine_
   }
 
   if (ev && signal_event) {
-    EventSet(*ev);
+    ev->Set();
   }
 
   if (file) {
@@ -325,9 +325,9 @@ u32 NtReadFileScatter_entry(u32 file_handle, u32 event_handle, mapped_void apc_r
   if (XSUCCEEDED(result)) {
     if (true || file->is_synchronous) {
       u32 bytes_read = 0;
-      result = FileReadScatter(runtime::Current(), *file, segment_array.guest_address(), length,
-                               byte_offset_ptr ? static_cast<u64>(*byte_offset_ptr) : -1,
-                               &bytes_read, apc_context.guest_address());
+      result = file->ReadScatter(runtime::Current(), segment_array.guest_address(), length,
+                                 byte_offset_ptr ? static_cast<u64>(*byte_offset_ptr) : -1,
+                                 &bytes_read, apc_context.guest_address());
       if (io_status_block) {
         io_status_block->status = result;
         io_status_block->information = bytes_read;
@@ -364,7 +364,7 @@ u32 NtReadFileScatter_entry(u32 file_handle, u32 event_handle, mapped_void apc_r
   }
 
   if (ev && signal_event) {
-    EventSet(*ev);
+    ev->Set();
   }
 
   return result;
@@ -403,9 +403,9 @@ u32 NtWriteFile_entry(u32 file_handle, u32 event_handle, u32 apc_routine, mapped
   if (XSUCCEEDED(result)) {
     if (true || file->is_synchronous) {
       u32 bytes_written = 0;
-      result = FileWrite(runtime::Current(), *file, buffer.guest_address(), buffer_length,
-                         byte_offset_ptr ? static_cast<u64>(*byte_offset_ptr) : -1, &bytes_written,
-                         apc_context.guest_address());
+      result = file->Write(runtime::Current(), buffer.guest_address(), buffer_length,
+                           byte_offset_ptr ? static_cast<u64>(*byte_offset_ptr) : -1,
+                           &bytes_written, apc_context.guest_address());
 
       if (io_status_block) {
         io_status_block->status = result;
@@ -443,7 +443,7 @@ u32 NtWriteFile_entry(u32 file_handle, u32 event_handle, u32 apc_routine, mapped
   }
 
   if (ev && signal_event) {
-    EventSet(*ev);
+    ev->Set();
   }
 
   return result;
@@ -475,7 +475,7 @@ u32 NtSetIoCompletion_entry(u32 handle, u32 key_context, u32 apc_context, u32 co
   notification.num_bytes = num_bytes;
   notification.status = completion_status;
 
-  IOCompletionQueue(*port, notification);
+  port->Queue(notification);
   return X_STATUS_SUCCESS;
 }
 
@@ -498,7 +498,7 @@ u32 NtRemoveIoCompletion_entry(u32 handle, mapped_u32 key_context, mapped_u32 ap
   u64 timeout_ticks =
       timeout ? static_cast<u32>(*timeout) : static_cast<u64>(std::numeric_limits<i64>::min());
   IONotification notification;
-  if (IOCompletionWait(*port, timeout_ticks, &notification)) {
+  if (port->Wait(timeout_ticks, &notification)) {
     if (key_context) {
       *key_context = notification.key_context;
     }
@@ -584,8 +584,8 @@ u32 NtQueryDirectoryFile_entry(u32 file_handle, [[maybe_unused]] u32 event_handl
   }
 
   if (file) {
-    result = FileQueryDirectory(runtime::Current(), *file, file_info_ptr, length, name,
-                                restart_scan != 0);
+    result =
+        file->QueryDirectory(runtime::Current(), file_info_ptr, length, name, restart_scan != 0);
     if (XSUCCEEDED(result)) {
       info = length;
     }

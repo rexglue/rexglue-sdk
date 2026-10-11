@@ -73,9 +73,9 @@ u32 XNotifyGetNext_entry(u32 handle, u32 match_id, mapped_u32 id_ptr, mapped_u32
   u32 param = 0;
   if (match_id) {
     id = match_id;
-    dequeued = NotifyListenerDequeueByID(*listener, match_id, &param);
+    dequeued = listener->DequeueByID(match_id, &param);
   } else {
-    dequeued = NotifyListenerDequeue(*listener, &id, &param);
+    dequeued = listener->Dequeue(&id, &param);
   }
 
   *id_ptr = dequeued ? id : 0;

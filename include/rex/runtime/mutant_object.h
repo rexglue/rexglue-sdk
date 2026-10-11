@@ -54,25 +54,22 @@ struct MutantObject {
   std::atomic<bool> abandoned{false};
   /** The guest KMUTANT the object backs, 0 for none. */
   u32 guest_mutant = 0;
+
+  /**
+   * Releases a mutant held by the current thread.
+   *
+   * @param abandon True to release every hold and mark the mutant abandoned.
+   * @param previous_state Receives the signal state before the release, may be null.
+   * @return X_STATUS_SUCCESS, or X_STATUS_MUTANT_NOT_OWNED when the caller does not own it.
+   */
+  REX_RUNTIME_API X_STATUS Release(bool abandon, i32* previous_state = nullptr);
+
+  /**
+   * Sets the current thread as the owner after a successful wait.
+   *
+   * @return True when the mutant was abandoned since its last acquire.
+   */
+  REX_RUNTIME_API bool OnAcquired();
 };
-
-/**
- * Releases a mutant held by the current thread.
- *
- * @param mutant Host state of the mutant.
- * @param abandon True to release every hold and mark the mutant abandoned.
- * @param previous_state Receives the signal state before the release, may be null.
- * @return X_STATUS_SUCCESS, or X_STATUS_MUTANT_NOT_OWNED when the caller does not own it.
- */
-REX_RUNTIME_API X_STATUS MutantRelease(MutantObject& mutant, bool abandon,
-                                       i32* previous_state = nullptr);
-
-/**
- * Sets the current thread as the owner after a successful wait.
- *
- * @param mutant The mutant.
- * @return True when the mutant was abandoned since its last acquire.
- */
-REX_RUNTIME_API bool MutantAcquired(MutantObject& mutant);
 
 }  // namespace rex::runtime

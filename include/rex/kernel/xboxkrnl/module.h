@@ -13,7 +13,7 @@
 
 #include <rex/macros.h>
 #include <rex/ppc/function.h>
-#include <rex/runtime/kernel_module.h>
+#include <rex/runtime/module_object.h>
 #include <rex/runtime.h>
 #include <rex/platform/thread.h>
 

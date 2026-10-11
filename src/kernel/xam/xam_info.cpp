@@ -16,7 +16,7 @@
 #include <rex/types.h>
 #include <rex/string.h>
 #include <rex/runtime.h>
-#include <rex/runtime/user_module.h>
+#include <rex/runtime/module_object.h>
 #include <rex/runtime/workspace_heap.h>
 #include <rex/runtime/enumerator_object.h>
 #include <rex/runtime/xthread.h>
@@ -214,7 +214,7 @@ u32 XamGetCurrentTitleId_entry() {
   auto module = runtime::Current().object_table().Get<ModuleObject>(
       runtime::Current().module_registry().executable().value_or(0));
   if (module) {
-    return UserModuleTitleID(*module);
+    return module->title_id();
   }
   return 0;
 }
@@ -225,8 +225,7 @@ u32 XamGetExecutionId_entry(mapped_u32 info_ptr) {
   REX_ASSERT(module);
 
   u32 guest_hdr_ptr;
-  X_STATUS result =
-      UserModuleGetOptHeader(*module, filesystem::XEX_HEADER_EXECUTION_INFO, &guest_hdr_ptr);
+  X_STATUS result = module->OptHeader(filesystem::XEX_HEADER_EXECUTION_INFO, &guest_hdr_ptr);
 
   if (XFAILED(result)) {
     return result;

@@ -47,6 +47,14 @@ constexpr u32 kDPCListEntryOffset = 4;
 thread_local u32 t_interrupt_depth = 0;
 thread_local bool t_draining = false;
 
+u32 ExtendedError(const CompletionOptions& options) {
+  return options.extended_error.value_or(options.result);
+}
+
+u32 Length(const CompletionOptions& options) {
+  return options.length.value_or(options.result ? 0xFFFFFFFF : 0);
+}
+
 }  // namespace
 
 void EnterInterrupt() {
@@ -71,9 +79,9 @@ Dispatcher::~Dispatcher() {
   }
 }
 
-void Dispatcher::CompleteOverlappedEx(u32 overlapped_ptr, X_RESULT result, u32 extended_error,
+void Dispatcher::CompleteOverlappedEx(u32 overlapped, X_RESULT result, u32 extended_error,
                                       u32 length) {
-  auto ptr = runtime_.memory()->TranslateVirtual(overlapped_ptr);
+  auto ptr = runtime_.memory()->TranslateVirtual(overlapped);
   XOverlappedSetExtendedError(ptr, extended_error);
   XOverlappedSetLength(ptr, length);
   XOverlappedSetResult(ptr, result);
@@ -82,7 +90,7 @@ void Dispatcher::CompleteOverlappedEx(u32 overlapped_ptr, X_RESULT result, u32 e
     auto ev = runtime_.object_table().Get<EventObject>(event_handle);
     REX_ASSERT(static_cast<bool>(ev));
     if (ev) {
-      EventSet(*ev);
+      ev->Set();
     }
   }
   if (XOverlappedGetCompletionRoutine(ptr)) {
@@ -90,75 +98,57 @@ void Dispatcher::CompleteOverlappedEx(u32 overlapped_ptr, X_RESULT result, u32 e
     auto thread = runtime_.thread_registry().FindByHandle(thread_handle);
     if (thread) {
       u32 routine = XOverlappedGetCompletionRoutine(ptr);
-      thread->EnqueueAPC(routine, result, length, overlapped_ptr);
+      thread->EnqueueAPC(routine, result, length, overlapped);
     }
   }
 }
 
 void Dispatcher::Complete(u32 overlapped, const CompletionOptions& options) {
   auto ptr = runtime_.memory()->TranslateVirtual(overlapped);
-  XOverlappedSetContext(ptr, KernelThread::GetCurrentThreadHandle());
+  XOverlappedSetContext(ptr, ThreadRecord::GetCurrentThreadHandle());
   CompleteOverlappedEx(overlapped, options.result, ExtendedError(options), Length(options));
 }
 
-void Dispatcher::CompleteOverlappedDeferredEx(std::function<void()> completion_callback,
-                                              u32 overlapped_ptr, X_RESULT result,
-                                              u32 extended_error, u32 length,
-                                              std::function<void()> pre_callback,
-                                              std::function<void()> post_callback) {
-  CompleteOverlappedDeferredEx(
-      [completion_callback, result, extended_error, length](u32& cb_extended_error,
-                                                            u32& cb_length) -> X_RESULT {
-        completion_callback();
-        cb_extended_error = extended_error;
-        cb_length = length;
-        return result;
+void Dispatcher::CompleteDeferred(u32 overlapped, rex::MoveOnlyFunction<void()> work,
+                                  const CompletionOptions& options,
+                                  rex::MoveOnlyFunction<void()> pre,
+                                  rex::MoveOnlyFunction<void()> post) {
+  CompleteDeferred(
+      overlapped,
+      [work = std::move(work), options]() mutable {
+        work();
+        return options;
       },
-      overlapped_ptr, pre_callback, post_callback);
+      std::move(pre), std::move(post));
 }
 
-void Dispatcher::CompleteOverlappedDeferred(std::function<X_RESULT()> completion_callback,
-                                            u32 overlapped_ptr, std::function<void()> pre_callback,
-                                            std::function<void()> post_callback) {
-  CompleteOverlappedDeferredEx(
-      [completion_callback](u32& extended_error, u32& length) -> X_RESULT {
-        auto result = completion_callback();
-        extended_error = static_cast<u32>(result);
-        length = 0;
-        return result;
-      },
-      overlapped_ptr, pre_callback, post_callback);
-}
-
-void Dispatcher::CompleteOverlappedDeferredEx(
-    std::function<X_RESULT(u32&, u32&)> completion_callback, u32 overlapped_ptr,
-    std::function<void()> pre_callback, std::function<void()> post_callback) {
-  REXLOG_DEBUG(system, "CompleteOverlappedDeferredEx: queuing for overlapped {:08X}",
-               overlapped_ptr);
-  auto ptr = runtime_.memory()->TranslateVirtual(overlapped_ptr);
+void Dispatcher::CompleteDeferred(u32 overlapped, rex::MoveOnlyFunction<CompletionOptions()> work,
+                                  rex::MoveOnlyFunction<void()> pre,
+                                  rex::MoveOnlyFunction<void()> post) {
+  REXLOG_DEBUG(system, "CompleteDeferred: queuing for overlapped {:08X}", overlapped);
+  auto ptr = runtime_.memory()->TranslateVirtual(overlapped);
   XOverlappedSetResult(ptr, X_ERROR_IO_PENDING);
   XOverlappedSetContext(ptr, KernelThread::GetCurrentThreadHandle());
   std::lock_guard lock(dispatch_mutex_);
-  dispatch_queue_.push_back(
-      [this, completion_callback, overlapped_ptr, pre_callback, post_callback]() {
-        REXLOG_DEBUG(system, "Deferred overlapped {:08X}: running pre_callback", overlapped_ptr);
-        if (pre_callback) {
-          pre_callback();
-        }
-        REXLOG_DEBUG(system, "Deferred overlapped {:08X}: sleeping {}ms", overlapped_ptr,
-                     kDeferredOverlappedDelayMillis);
-        rex::platform::Sleep(std::chrono::milliseconds(kDeferredOverlappedDelayMillis));
-        u32 extended_error, length;
-        REXLOG_DEBUG(system, "Deferred overlapped {:08X}: running completion", overlapped_ptr);
-        auto result = completion_callback(extended_error, length);
-        REXLOG_DEBUG(system, "Deferred overlapped {:08X}: completing with result {:08X}",
-                     overlapped_ptr, result);
-        CompleteOverlappedEx(overlapped_ptr, result, extended_error, length);
-        if (post_callback) {
-          REXLOG_DEBUG(system, "Deferred overlapped {:08X}: running post_callback", overlapped_ptr);
-          post_callback();
-        }
-      });
+  dispatch_queue_.push_back([this, work = std::move(work), overlapped, pre = std::move(pre),
+                             post = std::move(post)]() mutable {
+    REXLOG_DEBUG(system, "Deferred overlapped {:08X}: running pre", overlapped);
+    if (pre) {
+      pre();
+    }
+    REXLOG_DEBUG(system, "Deferred overlapped {:08X}: sleeping {}ms", overlapped,
+                 kDeferredOverlappedDelayMillis);
+    rex::platform::Sleep(std::chrono::milliseconds(kDeferredOverlappedDelayMillis));
+    REXLOG_DEBUG(system, "Deferred overlapped {:08X}: running completion", overlapped);
+    const CompletionOptions options = work();
+    REXLOG_DEBUG(system, "Deferred overlapped {:08X}: completing with result {:08X}", overlapped,
+                 options.result);
+    CompleteOverlappedEx(overlapped, options.result, ExtendedError(options), Length(options));
+    if (post) {
+      REXLOG_DEBUG(system, "Deferred overlapped {:08X}: running post", overlapped);
+      post();
+    }
+  });
   dispatch_cond_.notify_all();
 }
 

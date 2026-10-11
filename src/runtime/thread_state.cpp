@@ -29,7 +29,7 @@ thread_local ThreadState* thread_state_ = nullptr;
 
 ThreadState::ThreadState(u32 thread_id, u32 stack_base, u32 pcr_address, Memory* memory,
                          Runtime* runtime)
-    : memory_(memory), runtime_(runtime), pcr_address_(pcr_address), thread_id_(thread_id) {
+    : memory_(memory), runtime_(runtime), thread_id_(thread_id) {
   if (thread_id_ == UINT_MAX) {
     // System thread IDs set bit 31.
     u32 system_thread_handle = rex::platform::current_thread_system_id();

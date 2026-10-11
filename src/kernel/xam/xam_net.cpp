@@ -283,8 +283,7 @@ u32 NetDll_WSASendTo_entry([[maybe_unused]] u32 caller, u32 socket_handle,
   }
 
   N_XSOCKADDR_IN native_to(to_ptr);
-  SocketSendTo(*socket, combined_buffer_mem.data(), combined_buffer_size, flags, &native_to,
-               to_len);
+  socket->SendTo(combined_buffer_mem.data(), combined_buffer_size, flags, &native_to, to_len);
 
   return 0;
 }
@@ -467,7 +466,7 @@ u32 NetDll_XNetDnsLookup_entry([[maybe_unused]] u32 caller, [[maybe_unused]] map
     auto ev = runtime::Current().object_table().Get<EventObject>(event_handle);
     REX_ASSERT(static_cast<bool>(ev));
     if (ev) {
-      EventSet(*ev);
+      ev->Set();
     }
   }
   return 0;
@@ -492,7 +491,7 @@ u32 NetDll_XNetQosServiceLookup_entry([[maybe_unused]] u32 caller, [[maybe_unuse
     auto ev = runtime::Current().object_table().Get<EventObject>(event_handle);
     REX_ASSERT(static_cast<bool>(ev));
     if (ev) {
-      EventSet(*ev);
+      ev->Set();
     }
   }
   return 0;
@@ -549,7 +548,7 @@ u32 NetDll_socket_entry([[maybe_unused]] u32 caller, u32 af, u32 type, u32 proto
   }
   X_STATUS result = ToXStatus(added);
   if (XSUCCEEDED(result)) {
-    result = SocketInitialize(*table.Get<SocketObject>(handle));
+    result = (*table.Get<SocketObject>(handle)).Initialize();
     if (XFAILED(result)) {
       runtime::CloseOwned(table, handle);
     }
@@ -572,7 +571,7 @@ u32 NetDll_closesocket_entry([[maybe_unused]] u32 caller, u32 socket_handle) {
     return -1;
   }
 
-  SocketClose(*socket);
+  socket->Close();
   if (const auto closed = runtime::Current().object_table().Close(socket_handle); !closed) {
     // WSAENOTSOCK
     KernelThread::SetLastError(0x2736);
@@ -589,7 +588,7 @@ i32 NetDll_shutdown_entry([[maybe_unused]] u32 caller, u32 socket_handle, i32 ho
     return -1;
   }
 
-  auto ret = SocketShutdown(*socket, how);
+  auto ret = socket->Shutdown(how);
   if (ret == -1) {
 #if REX_PLATFORM_WIN32
     u32 error_code = WSAGetLastError();
@@ -610,7 +609,7 @@ u32 NetDll_setsockopt_entry([[maybe_unused]] u32 caller, u32 socket_handle, u32 
     return -1;
   }
 
-  X_STATUS status = SocketSetOption(*socket, level, optname, optval_ptr, optlen);
+  X_STATUS status = socket->SetOption(level, optname, optval_ptr, optlen);
   return XSUCCEEDED(status) ? 0 : -1;
 }
 
@@ -623,7 +622,7 @@ u32 NetDll_ioctlsocket_entry([[maybe_unused]] u32 caller, u32 socket_handle, u32
     return -1;
   }
 
-  X_STATUS status = SocketIOControl(*socket, cmd, arg_ptr);
+  X_STATUS status = socket->IOControl(cmd, arg_ptr);
   if (XFAILED(status)) {
     KernelThread::SetLastError(xboxkrnl::RtlNtStatusToDosError(status));
     return -1;
@@ -642,7 +641,7 @@ u32 NetDll_bind_entry([[maybe_unused]] u32 caller, u32 socket_handle, ppc_ptr_t<
   }
 
   N_XSOCKADDR_IN native_name(name);
-  X_STATUS status = SocketBind(*socket, &native_name, namelen);
+  X_STATUS status = socket->Bind(&native_name, namelen);
   if (XFAILED(status)) {
     KernelThread::SetLastError(xboxkrnl::RtlNtStatusToDosError(status));
     return -1;
@@ -661,7 +660,7 @@ u32 NetDll_connect_entry([[maybe_unused]] u32 caller, u32 socket_handle, ppc_ptr
   }
 
   N_XSOCKADDR native_name(name);
-  X_STATUS status = SocketConnect(*socket, &native_name, namelen);
+  X_STATUS status = socket->Connect(&native_name, namelen);
   if (XFAILED(status)) {
     KernelThread::SetLastError(xboxkrnl::RtlNtStatusToDosError(status));
     return -1;
@@ -678,7 +677,7 @@ u32 NetDll_listen_entry([[maybe_unused]] u32 caller, u32 socket_handle, i32 back
     return -1;
   }
 
-  X_STATUS status = SocketListen(*socket, backlog);
+  X_STATUS status = socket->Listen(backlog);
   if (XFAILED(status)) {
     KernelThread::SetLastError(xboxkrnl::RtlNtStatusToDosError(status));
     return -1;
@@ -704,7 +703,7 @@ u32 NetDll_accept_entry([[maybe_unused]] u32 caller, u32 socket_handle,
 
   N_XSOCKADDR native_addr(addr_ptr);
   int native_len = static_cast<int>(std::min<u32>(*addrlen_ptr, sizeof(N_XSOCKADDR)));
-  X_HANDLE new_socket = SocketAccept(runtime::Current(), *socket, &native_addr, &native_len);
+  X_HANDLE new_socket = socket->Accept(runtime::Current(), &native_addr, &native_len);
   if (new_socket != X_INVALID_HANDLE_VALUE) {
     addr_ptr->address_family = native_addr.address_family;
     std::memcpy(addr_ptr->sa_data, native_addr.sa_data,
@@ -876,7 +875,7 @@ u32 NetDll_recv_entry([[maybe_unused]] u32 caller, u32 socket_handle, mapped_voi
     return -1;
   }
 
-  return SocketRecv(*socket, buf_ptr, buf_len, flags);
+  return socket->Recv(buf_ptr, buf_len, flags);
 }
 
 u32 NetDll_recvfrom_entry([[maybe_unused]] u32 caller, u32 socket_handle, mapped_void buf_ptr,
@@ -899,8 +898,8 @@ u32 NetDll_recvfrom_entry([[maybe_unused]] u32 caller, u32 socket_handle, mapped
     native_from = *from_ptr;
   }
   u32 native_fromlen = fromlen_ptr ? fromlen_ptr.value() : 0;
-  int ret = SocketRecvFrom(*socket, buf_ptr, buf_len, flags, &native_from,
-                           fromlen_ptr ? &native_fromlen : 0);
+  int ret =
+      socket->RecvFrom(buf_ptr, buf_len, flags, &native_from, fromlen_ptr ? &native_fromlen : 0);
 
   if (from_ptr) {
     from_ptr->sin_family = native_from.sin_family;
@@ -938,7 +937,7 @@ u32 NetDll_send_entry([[maybe_unused]] u32 caller, u32 socket_handle, mapped_voi
     return -1;
   }
 
-  return SocketSend(*socket, buf_ptr, buf_len, flags);
+  return socket->Send(buf_ptr, buf_len, flags);
 }
 
 u32 NetDll_sendto_entry([[maybe_unused]] u32 caller, u32 socket_handle, mapped_void buf_ptr,
@@ -956,7 +955,7 @@ u32 NetDll_sendto_entry([[maybe_unused]] u32 caller, u32 socket_handle, mapped_v
   }
 
   N_XSOCKADDR_IN native_to(to_ptr);
-  return SocketSendTo(*socket, buf_ptr, buf_len, flags, &native_to, to_len);
+  return socket->SendTo(buf_ptr, buf_len, flags, &native_to, to_len);
 }
 
 u32 NetDll___WSAFDIsSet_entry(u32 socket_handle, ppc_ptr_t<x_fd_set> fd_set) {

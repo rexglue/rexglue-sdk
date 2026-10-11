@@ -105,8 +105,8 @@ REX_SHIM_FN(ReadFile, u32, u32 hFile, mapped_void lpBuffer, u32 nNumberOfBytesTo
   }
 
   u32 bytes_read = 0;
-  X_STATUS status = rex::runtime::FileRead(runtime::Current(), *file, lpBuffer.guest_address(),
-                                           nNumberOfBytesToRead, offset, &bytes_read, 0);
+  X_STATUS status = file->Read(runtime::Current(), lpBuffer.guest_address(), nNumberOfBytesToRead,
+                               offset, &bytes_read, 0);
 
   if (lpOverlapped) {
     auto* ov = lpOverlapped.as_array<u32>();
@@ -135,8 +135,8 @@ REX_SHIM_FN(WriteFile, u32, u32 hFile, mapped_void lpBuffer, u32 nNumberOfBytesT
   }
 
   u32 bytes_written = 0;
-  X_STATUS status = rex::runtime::FileWrite(runtime::Current(), *file, lpBuffer.guest_address(),
-                                            nNumberOfBytesToWrite, offset, &bytes_written, 0);
+  X_STATUS status = file->Write(runtime::Current(), lpBuffer.guest_address(), nNumberOfBytesToWrite,
+                                offset, &bytes_written, 0);
 
   if (lpOverlapped) {
     auto* ov = lpOverlapped.as_array<u32>();
@@ -166,7 +166,7 @@ REX_SHIM_FN(SetFilePointer, u32, u32 hFile, u32 lDistanceToMove, mapped_u32 lpDi
       new_pos = static_cast<u64>(distance);
       break;
     case kFileCurrent:
-      new_pos = rex::runtime::FilePosition(*file) + distance;
+      new_pos = file->position() + distance;
       break;
     case kFileEnd:
       new_pos = file->file->Info().size + distance;
@@ -175,7 +175,7 @@ REX_SHIM_FN(SetFilePointer, u32, u32 hFile, u32 lDistanceToMove, mapped_u32 lpDi
       return kInvalidHandleValue;
   }
 
-  rex::runtime::FileSetPosition(*file, new_pos);
+  file->set_position(new_pos);
   if (lpDistanceToMoveHigh)
     *lpDistanceToMoveHigh = static_cast<u32>(new_pos >> 32);
   return static_cast<u32>(new_pos & 0xFFFFFFFF);
@@ -210,7 +210,7 @@ REX_SHIM_FN(SetEndOfFile, u32, u32 hFile) {
   auto file = runtime::Current().object_table().Get<rex::runtime::FileObject>(hFile);
   if (!file)
     return 0;
-  X_STATUS status = rex::runtime::FileSetLength(*file, rex::runtime::FilePosition(*file));
+  X_STATUS status = file->SetLength(file->position());
   return XSUCCEEDED(status) ? 1u : 0u;
 }
 
@@ -290,9 +290,9 @@ REX_SHIM_FN(FindFirstFileA, u32, mapped_string lpFileName, mapped_void lpFindFil
   }
   const X_HANDLE handle = *added;
   auto xfile = runtime.object_table().Get<rex::runtime::FileObject>(handle);
-  rex::runtime::FileSetFindPattern(*xfile, pattern);
+  xfile->SetFindPattern(pattern);
 
-  auto entry = rex::runtime::FileFindNext(*xfile);
+  auto entry = xfile->FindNext();
   if (!entry) {
     REXLOG_DEBUG(kernel, "rexshim_FindFirstFileA: no matches for '{}' in '{}'", pattern, dir);
     runtime::CloseOwned(runtime::Current().object_table(), handle);
@@ -310,7 +310,7 @@ REX_SHIM_FN(FindNextFileA, u32, u32 hFindFile, mapped_void lpFindFileData) {
   if (!file)
     return 0;
 
-  auto entry = rex::runtime::FileFindNext(*file);
+  auto entry = file->FindNext();
   if (!entry)
     return 0;
 
@@ -378,7 +378,7 @@ REX_SHIM_FN(SetFilePointerEx, u32, u32 hFile, u32 distHigh, u32 distLow,
       new_pos = static_cast<u64>(distance);
       break;
     case kFileCurrent:
-      new_pos = rex::runtime::FilePosition(*file) + distance;
+      new_pos = file->position() + distance;
       break;
     case kFileEnd:
       new_pos = file->file->Info().size + distance;
@@ -387,7 +387,7 @@ REX_SHIM_FN(SetFilePointerEx, u32, u32 hFile, u32 distHigh, u32 distLow,
       return 0;
   }
 
-  rex::runtime::FileSetPosition(*file, new_pos);
+  file->set_position(new_pos);
 
   if (lpNewFilePointer) {
     auto* out = lpNewFilePointer.as_array<u32>();

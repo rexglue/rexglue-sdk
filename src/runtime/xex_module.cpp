@@ -10,7 +10,9 @@
  */
 
 #include <algorithm>
+#include <optional>
 #include <unordered_map>
+#include <utility>
 
 #include <format>
 
@@ -20,7 +22,6 @@
 #include <rex/runtime.h>
 #include <rex/runtime/exports.h>
 #include <rex/runtime/function_dispatcher.h>
-#include <rex/runtime/kernel_module.h>
 #include <rex/runtime/xex_module.h>
 #include <rex/runtime/module_object.h>
 #include <rex/types.h>
@@ -28,12 +29,12 @@
 
 namespace rex::runtime {
 
-XexModule::XexModule(FunctionDispatcher* function_dispatcher, Runtime& runtime)
+XEXModule::XEXModule(FunctionDispatcher* function_dispatcher, Runtime& runtime)
     : Module(function_dispatcher), runtime_(&runtime) {}
 
-XexModule::~XexModule() = default;
+XEXModule::~XEXModule() = default;
 
-u32 XexModule::image_size() const {
+u32 XEXModule::image_size() const {
   REX_ASSERT(base_address_ != 0);
   const u32 page_size = memory()->LookupHeap(base_address_)->page_size();
   u32 total = 0;
@@ -43,7 +44,7 @@ u32 XexModule::image_size() const {
   return total;
 }
 
-u32 XexModule::GetProcAddress(u16 ordinal) const {
+u32 XEXModule::GetProcAddress(u16 ordinal) const {
   if (const u32 table_address = image_.security().export_table) {
     auto export_table =
         memory()->TranslateVirtual<const filesystem::XEXExportTable*>(table_address);
@@ -71,7 +72,7 @@ u32 XexModule::GetProcAddress(u16 ordinal) const {
   return 0;
 }
 
-u32 XexModule::GetProcAddress(const std::string_view name) const {
+u32 XEXModule::GetProcAddress(const std::string_view name) const {
   REX_ASSERT(base_address_ != 0);
   const auto* directory =
       image_.OptHeader<filesystem::XEXOptDataDirectory>(filesystem::XEX_HEADER_EXPORTS_BY_NAME);
@@ -94,7 +95,7 @@ u32 XexModule::GetProcAddress(const std::string_view name) const {
   return 0;
 }
 
-int XexModule::ApplyPatch(XexModule* module) {
+int XEXModule::ApplyPatch(XEXModule* module) {
   if (!image_.is_patch()) {
     return 1;
   }
@@ -148,7 +149,7 @@ int XexModule::ApplyPatch(XexModule* module) {
   return 0;
 }
 
-bool XexModule::Load(const std::string_view name, const std::string_view path, const void* xex_addr,
+bool XEXModule::Load(const std::string_view name, const std::string_view path, const void* xex_addr,
                      size_t xex_length) {
   const std::span<const u8> file(static_cast<const u8*>(xex_addr), xex_length);
   auto parsed = filesystem::XEXImage::Parse(file);
@@ -196,7 +197,7 @@ bool XexModule::Load(const std::string_view name, const std::string_view path, c
   return true;
 }
 
-bool XexModule::LoadContinue() {
+bool XEXModule::LoadContinue() {
   REX_ASSERT(!finished_load_);
   if (finished_load_) {
     return true;
@@ -242,7 +243,7 @@ bool XexModule::LoadContinue() {
   return true;
 }
 
-bool XexModule::Unload() {
+bool XEXModule::Unload() {
   if (!loaded_) {
     return true;
   }
@@ -255,15 +256,21 @@ bool XexModule::Unload() {
   return true;
 }
 
-bool XexModule::SetupLibraryImports(std::string_view name,
+bool XEXModule::SetupLibraryImports(std::string_view name,
                                     const filesystem::XEXImportLibrary& library) {
   auto base_name = rex::utf8_find_base_name_from_guest_path(name);
 
-  const auto kernel_module_id = rex::runtime::ModuleFromName(base_name);
-  runtime::Pinned<runtime::ModuleObject> kernel_module;
-  if (kernel_module_id && runtime_->module_registry().IsKernel(base_name)) {
-    kernel_module = runtime_->object_table().Get<ModuleObject>(
-        runtime_->module_registry().FindKernel(base_name).value_or(0));
+  struct KernelModule {
+    rex::runtime::ExportModule exports;
+    runtime::Pinned<runtime::ModuleObject> object;
+  };
+  std::optional<KernelModule> kernel;
+  if (const auto exports = rex::runtime::ModuleFromName(base_name);
+      exports && runtime_->module_registry().IsKernel(base_name)) {
+    if (auto object = runtime_->object_table().Get<ModuleObject>(
+            runtime_->module_registry().FindKernel(base_name).value_or(0))) {
+      kernel.emplace(*exports, std::move(object));
+    }
   }
 
   ImportLibrary library_info;
@@ -286,10 +293,10 @@ bool XexModule::SetupLibraryImports(std::string_view name,
     import_info.ordinal = ordinal;
     if (record_type == 0) {
       import_info.value_address = record_addr;
-      if (kernel_module) {
-        const auto* kernel_export = rex::runtime::FindByOrdinal(*kernel_module_id, ordinal);
+      if (kernel) {
+        const auto* kernel_export = rex::runtime::FindByOrdinal(kernel->exports, ordinal);
         if (kernel_export && kernel_export->kind == rex::runtime::ExportKind::Variable) {
-          const u32 variable_ptr = runtime::KernelModuleVariable(*kernel_module, ordinal);
+          const u32 variable_ptr = kernel->object->Variable(ordinal);
           if (variable_ptr) {
             *record_slot = variable_ptr;
             REXLOG_DEBUG(system, "Patched variable import {}:{:#x} ({}) -> {:#x}", base_name,
@@ -322,7 +329,7 @@ bool XexModule::SetupLibraryImports(std::string_view name,
   return true;
 }
 
-void XexModule::PopulateBinaryData() {
+void XEXModule::PopulateBinaryData() {
   binary_sections_.clear();
   binary_symbols_.clear();
   for (const auto& pe_sec : pe_.sections) {
@@ -347,11 +354,11 @@ void XexModule::PopulateBinaryData() {
   }
 }
 
-std::span<const BinarySection> XexModule::binary_sections() const {
+std::span<const BinarySection> XEXModule::binary_sections() const {
   return binary_sections_;
 }
 
-std::span<const BinarySymbol> XexModule::binary_symbols() const {
+std::span<const BinarySymbol> XEXModule::binary_symbols() const {
   return binary_symbols_;
 }
 

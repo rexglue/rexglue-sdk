@@ -43,17 +43,15 @@ struct SemaphoreObject {
   /** Host semaphore that carries the count and wakes waiters. */
   PropagateConst<std::unique_ptr<rex::platform::Semaphore>> semaphore;
   u32 maximum_count = 0; /**< Maximum count the semaphore was created with. */
-};
 
-/**
- * Releases a semaphore.
- *
- * @param semaphore The semaphore.
- * @param release_count The count to add.
- * @param out_previous_count Receives the count before the release, may be null.
- * @return True when the release stayed within the maximum count.
- */
-REX_RUNTIME_API bool SemaphoreRelease(SemaphoreObject& semaphore, i32 release_count,
-                                      i32* out_previous_count);
+  /**
+   * Releases a semaphore.
+   *
+   * @param release_count The count to add.
+   * @param out_previous_count Receives the count before the release, may be null.
+   * @return True when the release stayed within the maximum count.
+   */
+  REX_RUNTIME_API bool Release(i32 release_count, i32* out_previous_count);
+};
 
 }  // namespace rex::runtime

@@ -43,39 +43,36 @@ struct EventObject {
   /** True for a notification event, false for a synchronization event that resets on a wait. */
   bool manual_reset = false;
   /** Host event that carries the signal state and wakes waiters. */
-  PropagateConst<std::unique_ptr<rex::platform::Event>> event;
+  std::unique_ptr<rex::platform::Event> event;
 
-/**
- * Reads the type and the live state of an event.
- *
- * @param event The event.
- * @param out_type Receives 0 for a manual reset event and 1 otherwise, may be null.
- * @param out_state Receives 1 when signaled and 0 otherwise, may be null.
- */
-REX_RUNTIME_API void EventQuery(EventObject& event, u32* out_type, u32* out_state);
+  /**
+   * Reads the type and the live state of an event.
+   *
+   * @param out_type Receives 0 for a manual reset event and 1 otherwise, may be null.
+   * @param out_state Receives 1 when signaled and 0 otherwise, may be null.
+   */
+  REX_RUNTIME_API void Query(u32* out_type, u32* out_state);
 
-/**
- * Signals an event.
- *
- * @param event The event.
- * @return The previous state as the kernel reports it, always 1.
- */
-REX_RUNTIME_API i32 EventSet(EventObject& event);
+  /**
+   * Signals an event.
+   *
+   * @return The previous state as the kernel reports it, always 1.
+   */
+  REX_RUNTIME_API i32 Set();
 
-/**
- * Signals an event and releases the current waiters.
- *
- * @param event The event.
- * @return The previous state as the kernel reports it, always 1.
- */
-REX_RUNTIME_API i32 EventPulse(EventObject& event);
+  /**
+   * Signals an event and releases the current waiters.
+   *
+   * @return The previous state as the kernel reports it, always 1.
+   */
+  REX_RUNTIME_API i32 Pulse();
 
-/**
- * Clears an event.
- *
- * @param event The event.
- * @return The previous state as the kernel reports it, always 1.
- */
-REX_RUNTIME_API i32 EventReset(EventObject& event);
+  /**
+   * Clears an event.
+   *
+   * @return The previous state as the kernel reports it, always 1.
+   */
+  REX_RUNTIME_API i32 Reset();
+};
 
 }  // namespace rex::runtime

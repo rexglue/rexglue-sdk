@@ -18,7 +18,7 @@
 #include <rex/string.h>
 #include <rex/string/numeric.h>
 #include <rex/runtime.h>
-#include <rex/runtime/user_module.h>
+#include <rex/runtime/module_object.h>
 #include <rex/runtime/xam/content_device.h>
 #include <rex/runtime/enumerator_object.h>
 #include <rex/runtime/xtypes.h>
@@ -79,8 +79,8 @@ u32 XamContentAggregateCreateEnumerator_entry(u64 xuid, u32 device_id, u32 conte
     std::vector<u32> title_ids{kCurrentlyRunningTitleId};
     auto exe_module = runtime::Current().object_table().Get<ModuleObject>(
         runtime::Current().module_registry().executable().value_or(0));
-    if (exe_module && UserModuleXEX(*exe_module)) {
-      const auto alt_ids = UserModuleXEX(*exe_module)->image().alternate_title_ids();
+    if (exe_module && exe_module->xex()) {
+      const auto alt_ids = exe_module->xex()->image().alternate_title_ids();
       std::copy(alt_ids.cbegin(), alt_ids.cend(), std::back_inserter(title_ids));
     }
 

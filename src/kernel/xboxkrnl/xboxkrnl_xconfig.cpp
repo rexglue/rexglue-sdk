@@ -16,7 +16,7 @@
 #include <rex/hook.h>
 #include <rex/types.h>
 #include <rex/runtime.h>
-#include <rex/runtime/user_module.h>
+#include <rex/runtime/module_object.h>
 #include <rex/runtime/xtypes.h>
 #include "kernel/kernel_macros.h"
 

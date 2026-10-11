@@ -21,7 +21,7 @@
 #include <rex/kernel/init.h>
 #include <rex/logging.h>
 #include <rex/runtime.h>
-#include <rex/runtime/user_module.h>
+#include <rex/runtime/module_object.h>
 #include <rex/runtime/xex_module.h>
 
 #include <chrono>
@@ -89,7 +89,7 @@ std::string FingerprintModule(const RecompilerConfig& cfg,
 }
 
 void ReportBinaryInfo(ProgressReporter* reporter, std::string_view display_name,
-                      const rex::runtime::XexModule& xex) {
+                      const rex::runtime::XEXModule& xex) {
   if (!reporter)
     return;
   BinaryInfo info{};
@@ -250,7 +250,7 @@ Result<void> ProjectRecompiler::Run(const ProjectRecompilerOptions& opts) {
   {
     auto executable = runtime->object_table().Get<rex::runtime::ModuleObject>(
         runtime->module_registry().executable().value_or(0));
-    ReportBinaryInfo(opts.reporter, entry_display_name, *rex::runtime::UserModuleXEX(*executable));
+    ReportBinaryInfo(opts.reporter, entry_display_name, *executable->xex());
   }
 
   std::vector<rex::runtime::Pinned<rex::runtime::ModuleObject>> dllModules;
@@ -280,9 +280,9 @@ Result<void> ProjectRecompiler::Run(const ProjectRecompilerOptions& opts) {
                        std::format("Failed to load DLL module: {}", targeted[i].targetName));
     }
     REXLOG_TRACE(codegen, "Loaded DLL module '{}' at base 0x{:08X}", targeted[i].targetName,
-                 rex::runtime::UserModuleXEX(*userMod)->base_address());
+                 userMod->xex()->base_address());
     auto dll_display_name = std::filesystem::path(targeted[i].config.filePath).filename().string();
-    ReportBinaryInfo(opts.reporter, dll_display_name, *rex::runtime::UserModuleXEX(*userMod));
+    ReportBinaryInfo(opts.reporter, dll_display_name, *userMod->xex());
     dllModules.push_back(std::move(userMod));
   }
 
@@ -300,7 +300,7 @@ Result<void> ProjectRecompiler::Run(const ProjectRecompilerOptions& opts) {
   {
     auto execMod = runtime->object_table().Get<rex::runtime::ModuleObject>(
         runtime->module_registry().executable().value_or(0));
-    auto bv = BinaryView::fromModule(*rex::runtime::UserModuleXEX(*execMod));
+    auto bv = BinaryView::fromModule(*execMod->xex());
 
     auto entry_display = make_display_name(targeted[0].config.filePath);
     RecompilerConfig cfg = std::move(targeted[0].config);
@@ -323,7 +323,7 @@ Result<void> ProjectRecompiler::Run(const ProjectRecompilerOptions& opts) {
 
   for (size_t i = 0; i < dllModules.size(); ++i) {
     auto& userMod = dllModules[i];
-    auto bv = BinaryView::fromModule(*rex::runtime::UserModuleXEX(*userMod));
+    auto bv = BinaryView::fromModule(*userMod->xex());
 
     auto dll_display = make_display_name(targeted[i + 1].config.filePath);
     RecompilerConfig cfg = std::move(targeted[i + 1].config);

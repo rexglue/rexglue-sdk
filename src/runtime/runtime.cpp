@@ -11,7 +11,7 @@
 #include <rex/platform/exceptions.h>
 #include <rex/runtime.h>
 #include <rex/runtime/function_dispatcher.h>
-#include <rex/runtime/user_module.h>
+#include <rex/runtime/module_object.h>
 #include <rex/runtime/workspace_heap.h>
 #include <rex/runtime/xam/app_manager.h>
 #include <rex/runtime/xam/user_profile.h>
@@ -312,7 +312,7 @@ Result<void> Runtime::LoadXEXImage(const std::string_view module_path) {
     return Err(SetupError(X_STATUS_NO_MEMORY, "no module object for the image"));
   }
   auto module = object_table_->Get<runtime::ModuleObject>(handle);
-  X_STATUS status = runtime::UserModuleLoadFromFile(*this, *module, module_path);
+  X_STATUS status = module->LoadFromFile(*this, module_path);
   if (XFAILED(status)) {
     runtime::CloseOwned(*object_table_, handle);
     return Err(

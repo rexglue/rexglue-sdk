@@ -28,7 +28,7 @@
 #include <rex/hook.h>
 #include <rex/types.h>
 #include <rex/runtime.h>
-#include <rex/runtime/user_module.h>
+#include <rex/runtime/module_object.h>
 #include <rex/runtime/xthread.h>
 #include "runtime/cvar_table.h"
 
@@ -78,29 +78,29 @@ X_HANDLE CreateXboxkrnlModule(Runtime& runtime) {
   for (const u32 ordinal : {0x0059u, 0x0266u}) {
     const u32 monitor_data = mem->SystemHeapAlloc(4);
     *mem->TranslateVirtual<be_u32*>(monitor_data) = 0;
-    KernelModuleSetVariable(module, ordinal, monitor_data);
+    module.SetVariable(ordinal, monitor_data);
   }
 
   // Titles test bit 5 (0x20) of flags. Bit 27 (debug mode) breaks allocations when set.
   u32 pXboxHardwareInfo = mem->SystemHeapAlloc(sizeof(X_HARDWARE_INFO));
   auto* hardware_info = mem->TranslateVirtual<X_HARDWARE_INFO*>(pXboxHardwareInfo);
-  KernelModuleSetVariable(module, 0x0156, pXboxHardwareInfo);
+  module.SetVariable(0x0156, pXboxHardwareInfo);
   hardware_info->flags = 0x20;
   hardware_info->cpu_count = 0x06;
 
   // All 0xFF satisfies any region check.
   u32 pExConsoleGameRegion = mem->SystemHeapAlloc(4);
   auto lpExConsoleGameRegion = mem->TranslateVirtual(pExConsoleGameRegion);
-  KernelModuleSetVariable(module, 0x000C, pExConsoleGameRegion);
+  module.SetVariable(0x000C, pExConsoleGameRegion);
   memory::store<u32>(lpExConsoleGameRegion, 0xFFFFFFFF);
 
   // Titles dereference this to find the XexHeaderBase used by RtlImageXexHeaderField.
   u32 ppXexExecutableModuleHandle = mem->SystemHeapAlloc(4);
-  KernelModuleSetVariable(module, 0x0193, ppXexExecutableModuleHandle);
+  module.SetVariable(0x0193, ppXexExecutableModuleHandle);
 
   // The full path of the loaded image including its name.
   u32 ppExLoadedImageName = mem->SystemHeapAlloc(kExLoadedImageNameSize);
-  KernelModuleSetVariable(module, 0x01AF, ppExLoadedImageName);
+  module.SetVariable(0x01AF, ppExLoadedImageName);
 
   // The quoted xex name followed by the command line.
   std::string command_line("\"default.xex\"");
@@ -110,14 +110,14 @@ X_HANDLE CreateXboxkrnlModule(Runtime& runtime) {
   u32 command_line_length = rex::align(static_cast<u32>(command_line.length()) + 1, 1024u);
   u32 pExLoadedCommandLine = mem->SystemHeapAlloc(command_line_length);
   auto lpExLoadedCommandLine = mem->TranslateVirtual(pExLoadedCommandLine);
-  KernelModuleSetVariable(module, 0x01AE, pExLoadedCommandLine);
+  module.SetVariable(0x01AE, pExLoadedCommandLine);
   std::memset(lpExLoadedCommandLine, 0, command_line_length);
   std::memcpy(lpExLoadedCommandLine, command_line.c_str(), command_line.length());
 
   // Titles only compare the version with >=.
   u32 pXboxKrnlVersion = mem->SystemHeapAlloc(sizeof(X_KERNEL_VERSION));
   auto* kernel_version = mem->TranslateVirtual<X_KERNEL_VERSION*>(pXboxKrnlVersion);
-  KernelModuleSetVariable(module, 0x0158, pXboxKrnlVersion);
+  module.SetVariable(0x0158, pXboxKrnlVersion);
   kernel_version->major = 2;
   kernel_version->minor = 0xFFFF;
   kernel_version->build = 0xFFFF;
@@ -126,7 +126,7 @@ X_HANDLE CreateXboxkrnlModule(Runtime& runtime) {
   // Updated at 1 ms intervals by a system timer.
   u32 pKeTimeStampBundle = mem->SystemHeapAlloc(sizeof(X_KE_TIMESTAMP_BUNDLE));
   auto* timestamp_bundle = mem->TranslateVirtual<X_KE_TIMESTAMP_BUNDLE*>(pKeTimeStampBundle);
-  KernelModuleSetVariable(module, 0x00AD, pKeTimeStampBundle);
+  module.SetVariable(0x00AD, pKeTimeStampBundle);
   timestamp_bundle->interrupt_time = 0;
   timestamp_bundle->system_time = 0;
   timestamp_bundle->tick_count = Clock::QueryGuestUptimeMillis();
@@ -137,22 +137,17 @@ X_HANDLE CreateXboxkrnlModule(Runtime& runtime) {
 
   auto kgg = runtime.kernel_globals();
   REX_ASSERT(kgg != 0);
-  KernelModuleSetVariable(module, 0x001B, kgg + offsetof(KernelGuestGlobals, ExThreadObjectType));
-  KernelModuleSetVariable(module, 0x000E, kgg + offsetof(KernelGuestGlobals, ExEventObjectType));
-  KernelModuleSetVariable(module, 0x0012, kgg + offsetof(KernelGuestGlobals, ExMutantObjectType));
-  KernelModuleSetVariable(module, 0x0017,
-                          kgg + offsetof(KernelGuestGlobals, ExSemaphoreObjectType));
-  KernelModuleSetVariable(module, 0x001C, kgg + offsetof(KernelGuestGlobals, ExTimerObjectType));
-  KernelModuleSetVariable(module, 0x0036,
-                          kgg + offsetof(KernelGuestGlobals, IoCompletionObjectType));
-  KernelModuleSetVariable(module, 0x003A, kgg + offsetof(KernelGuestGlobals, IoDeviceObjectType));
-  KernelModuleSetVariable(module, 0x003E, kgg + offsetof(KernelGuestGlobals, IoFileObjectType));
-  KernelModuleSetVariable(module, 0x0106,
-                          kgg + offsetof(KernelGuestGlobals, ObDirectoryObjectType));
-  KernelModuleSetVariable(module, 0x0112,
-                          kgg + offsetof(KernelGuestGlobals, ObSymbolicLinkObjectType));
-  KernelModuleSetVariable(module, 0x02DB,
-                          kgg + offsetof(KernelGuestGlobals, UsbdBootEnumerationDoneEvent));
+  module.SetVariable(0x001B, kgg + offsetof(KernelGuestGlobals, ExThreadObjectType));
+  module.SetVariable(0x000E, kgg + offsetof(KernelGuestGlobals, ExEventObjectType));
+  module.SetVariable(0x0012, kgg + offsetof(KernelGuestGlobals, ExMutantObjectType));
+  module.SetVariable(0x0017, kgg + offsetof(KernelGuestGlobals, ExSemaphoreObjectType));
+  module.SetVariable(0x001C, kgg + offsetof(KernelGuestGlobals, ExTimerObjectType));
+  module.SetVariable(0x0036, kgg + offsetof(KernelGuestGlobals, IoCompletionObjectType));
+  module.SetVariable(0x003A, kgg + offsetof(KernelGuestGlobals, IoDeviceObjectType));
+  module.SetVariable(0x003E, kgg + offsetof(KernelGuestGlobals, IoFileObjectType));
+  module.SetVariable(0x0106, kgg + offsetof(KernelGuestGlobals, ObDirectoryObjectType));
+  module.SetVariable(0x0112, kgg + offsetof(KernelGuestGlobals, ObSymbolicLinkObjectType));
+  module.SetVariable(0x02DB, kgg + offsetof(KernelGuestGlobals, UsbdBootEnumerationDoneEvent));
 
   return handle;
 }

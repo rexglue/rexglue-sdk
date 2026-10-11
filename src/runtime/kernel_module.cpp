@@ -12,7 +12,7 @@
 #include <functional>
 
 #include <rex/string.h>
-#include <rex/runtime/kernel_module.h>
+#include <rex/runtime/module_object.h>
 #include <rex/runtime.h>
 
 namespace rex::runtime {
@@ -32,8 +32,8 @@ X_HANDLE CreateKernelModule(Runtime& runtime, std::string_view path) {
   return handle;
 }
 
-void KernelModuleInvalidateThunkCacheInRange(ModuleObject& module, u32 lo, u32 hi) {
-  std::erase_if(module.kernel.thunk_cache,
+void ModuleObject::InvalidateThunkCache(u32 lo, u32 hi) {
+  std::erase_if(kernel.thunk_cache,
                 [lo, hi](const auto& entry) { return entry.second >= lo && entry.second < hi; });
 }
 

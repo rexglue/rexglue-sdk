@@ -35,7 +35,7 @@
 #include <rex/memory/ring_buffer.h>
 #include <rex/runtime.h>
 #include <rex/runtime/thread_registry.h>
-#include <rex/runtime/user_module.h>
+#include <rex/runtime/module_object.h>
 #include <rex/move_only_function.h>
 
 #include "gpu/xenos/cvar_table.h"

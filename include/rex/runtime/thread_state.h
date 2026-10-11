@@ -110,7 +110,6 @@ class REX_RUNTIME_API ThreadState {
   Memory* memory_;
   Runtime* runtime_;
 
-  u32 pcr_address_ = 0;
   u32 thread_id_ = 0;
 
   alignas(64)::PPCContext context_storage_{};

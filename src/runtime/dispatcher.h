@@ -53,23 +53,13 @@ class REX_RUNTIME_API Dispatcher final : public IDispatcher {
   explicit Dispatcher(Runtime& runtime);
   ~Dispatcher() override;
 
-  void CompleteOverlappedImmediate(u32 overlapped_ptr, X_RESULT result) override;
-  void CompleteOverlappedImmediateEx(u32 overlapped_ptr, X_RESULT result, u32 extended_error,
-                                     u32 length) override;
-  void CompleteOverlappedDeferred(std::function<void()> completion_callback, u32 overlapped_ptr,
-                                  X_RESULT result, std::function<void()> pre_callback = nullptr,
-                                  std::function<void()> post_callback = nullptr) override;
-  void CompleteOverlappedDeferredEx(std::function<void()> completion_callback, u32 overlapped_ptr,
-                                    X_RESULT result, u32 extended_error, u32 length,
-                                    std::function<void()> pre_callback = nullptr,
-                                    std::function<void()> post_callback = nullptr) override;
-  void CompleteOverlappedDeferred(std::function<X_RESULT()> completion_callback, u32 overlapped_ptr,
-                                  std::function<void()> pre_callback = nullptr,
-                                  std::function<void()> post_callback = nullptr) override;
-  void CompleteOverlappedDeferredEx(std::function<X_RESULT(u32&, u32&)> completion_callback,
-                                    u32 overlapped_ptr,
-                                    std::function<void()> pre_callback = nullptr,
-                                    std::function<void()> post_callback = nullptr) override;
+  void Complete(u32 overlapped, const CompletionOptions& options) override;
+  void CompleteDeferred(u32 overlapped, rex::MoveOnlyFunction<void()> work,
+                        const CompletionOptions& options, rex::MoveOnlyFunction<void()> pre = {},
+                        rex::MoveOnlyFunction<void()> post = {}) override;
+  void CompleteDeferred(u32 overlapped, rex::MoveOnlyFunction<CompletionOptions()> work,
+                        rex::MoveOnlyFunction<void()> pre = {},
+                        rex::MoveOnlyFunction<void()> post = {}) override;
   bool QueueDPC(u32 dpc, u32 arg1, u32 arg2) override;
   bool RemoveDPC(u32 dpc) override;
   void DrainDPCs() override;
@@ -144,7 +134,7 @@ class REX_RUNTIME_API Dispatcher final : public IDispatcher {
   void EndDPCImpersonation(X_KPCR& pcr, const DPCImpersonationScope& scope);
   std::optional<QueuedDPC> PopDPC();
   void RunQueuedDPCs(ThreadState& state);
-  void CompleteOverlappedEx(u32 overlapped_ptr, X_RESULT result, u32 extended_error, u32 length);
+  void CompleteOverlappedEx(u32 overlapped, X_RESULT result, u32 extended_error, u32 length);
 
   Runtime& runtime_;
   u32 dpc_list_head_ = 0;

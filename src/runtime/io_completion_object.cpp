@@ -25,22 +25,22 @@ IOCompletionObject::IOCompletionObject() {
   REX_ASSERT(notification_semaphore != nullptr);
 }
 
-void IOCompletionQueue(IOCompletionObject& port, const IONotification& notification) {
-  std::unique_lock<std::mutex> lock(port.notification_lock);
+void IOCompletionObject::Queue(const IONotification& notification) {
+  std::unique_lock<std::mutex> lock(notification_lock);
 
-  port.notifications.push(notification);
-  port.notification_semaphore->Release(1, nullptr);
+  notifications.push(notification);
+  notification_semaphore->Release(1, nullptr);
 }
 
-bool IOCompletionWait(IOCompletionObject& port, u64 wait_ticks, IONotification* notify) {
+bool IOCompletionObject::Wait(u64 wait_ticks, IONotification* notify) {
   auto ms = TimeoutFromTicks(static_cast<i64>(wait_ticks));
-  auto res = WaitHostObject(port.notification_semaphore.get(), ms);
+  auto res = WaitHostObject(notification_semaphore.get(), ms);
   if (res == rex::platform::WaitResult::kSuccess) {
-    std::unique_lock<std::mutex> lock(port.notification_lock);
-    REX_ASSERT(!port.notifications.empty());
+    std::unique_lock<std::mutex> lock(notification_lock);
+    REX_ASSERT(!notifications.empty());
 
-    *notify = port.notifications.front();
-    port.notifications.pop();
+    *notify = notifications.front();
+    notifications.pop();
 
     return true;
   }

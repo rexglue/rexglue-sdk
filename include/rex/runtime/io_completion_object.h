@@ -43,26 +43,22 @@ struct IOCompletionObject {
   std::queue<IONotification> notifications;
   /** Counts the queued notifications, waited on to receive the next one. */
   std::unique_ptr<rex::platform::Semaphore> notification_semaphore;
+
+  /**
+   * Queues a notification and wakes one waiter.
+   *
+   * @param notification The notification to queue.
+   */
+  REX_RUNTIME_API void Queue(const IONotification& notification);
+
+  /**
+   * Waits for a notification and dequeues it.
+   *
+   * @param wait_ticks The timeout in 100 nanosecond ticks, negative for relative.
+   * @param notify Receives the notification when one arrived.
+   * @return True when the wait ended because a notification was received.
+   */
+  REX_RUNTIME_API bool Wait(u64 wait_ticks, IONotification* notify);
 };
-
-/**
- * Queues a notification and wakes one waiter.
- *
- * @param port The port.
- * @param notification The notification to queue.
- */
-REX_RUNTIME_API void IOCompletionQueue(IOCompletionObject& port,
-                                       const IONotification& notification);
-
-/**
- * Waits for a notification and dequeues it.
- *
- * @param port The port.
- * @param wait_ticks The timeout in 100 nanosecond ticks, negative for relative.
- * @param notify Receives the notification when one arrived.
- * @return True when the wait ended because a notification was received.
- */
-REX_RUNTIME_API bool IOCompletionWait(IOCompletionObject& port, u64 wait_ticks,
-                                      IONotification* notify);
 
 }  // namespace rex::runtime

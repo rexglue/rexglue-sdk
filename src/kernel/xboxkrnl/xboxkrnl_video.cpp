@@ -26,7 +26,7 @@
 #include <rex/types.h>
 #include <rex/runtime.h>
 #include <rex/string/buffer.h>
-#include <rex/runtime/kernel_module.h>
+#include <rex/runtime/module_object.h>
 #include <rex/runtime/xtypes.h>
 
 namespace {
@@ -514,21 +514,21 @@ void RegisterVideoExports(ModuleObject& module, Runtime& runtime) {
 
   // Titles only write the global D3D device pointer.
   u32 pVdGlobalDevice = memory->SystemHeapAlloc(4, 32, runtime::kSystemHeapPhysical);
-  KernelModuleSetVariable(module, 0x01BE, pVdGlobalDevice);
+  module.SetVariable(0x01BE, pVdGlobalDevice);
   *memory->TranslateVirtual<be_u32*>(pVdGlobalDevice) = 0;
 
   // No Xam D3D device exists, so the pointer stays 0.
   u32 pVdGlobalXamDevice = memory->SystemHeapAlloc(4, 32, runtime::kSystemHeapPhysical);
-  KernelModuleSetVariable(module, 0x01BF, pVdGlobalXamDevice);
+  module.SetVariable(0x01BF, pVdGlobalXamDevice);
   *memory->TranslateVirtual<be_u32*>(pVdGlobalXamDevice) = 0;
 
   // The Xenos clock is 500 MHz.
   u32 pVdGpuClockInMHz = memory->SystemHeapAlloc(4, 32, runtime::kSystemHeapPhysical);
-  KernelModuleSetVariable(module, 0x01C0, pVdGpuClockInMHz);
+  module.SetVariable(0x01C0, pVdGpuClockInMHz);
   *memory->TranslateVirtual<be_u32*>(pVdGpuClockInMHz) = 500;
 
   u32 pVdHSIOCalibrationLock = memory->SystemHeapAlloc(28, 32, runtime::kSystemHeapPhysical);
-  KernelModuleSetVariable(module, 0x01C1, pVdHSIOCalibrationLock);
+  module.SetVariable(0x01C1, pVdHSIOCalibrationLock);
   auto hsio_lock = memory->TranslateVirtual<X_RTL_CRITICAL_SECTION*>(pVdHSIOCalibrationLock);
   RtlInitializeCriticalSectionAndSpinCount(hsio_lock, 10000);
 }

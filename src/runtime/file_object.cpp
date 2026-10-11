@@ -36,17 +36,19 @@ void NotifyIOCompletionPorts(Runtime& runtime, FileObject& file, IONotification&
     auto pin = runtime.object_table().Get<IOCompletionObject>(port.second);
     if (pin) {
       notification.key_context = port.first;
-      IOCompletionQueue(*pin, notification);
+      pin->Queue(notification);
     }
   }
 }
 
-X_STATUS ReadInternal(Runtime& runtime, FileObject& file, u32 buffer_address, u32 buffer_length,
-                      u64 byte_offset, u32* out_bytes_read, u32 apc_context,
-                      bool notify_completion) {
+}  // namespace
+
+X_STATUS FileObject::ReadInternal(Runtime& runtime, u32 buffer_address, u32 buffer_length,
+                                  u64 byte_offset, u32* out_bytes_read, u32 apc_context,
+                                  bool notify_completion) {
   auto* memory = runtime.memory();
   if (byte_offset == static_cast<u64>(-1)) {
-    byte_offset = file.position;
+    byte_offset = position_;
   }
 
   size_t bytes_read = 0;
@@ -74,7 +76,7 @@ X_STATUS ReadInternal(Runtime& runtime, FileObject& file, u32 buffer_address, u3
                 memory::PageAccess::kReadWrite) {
           result = X_STATUS_ACCESS_VIOLATION;
         } else {
-          auto read = file.file->Read(
+          auto read = file->Read(
               std::span<u8>(buffer_physical_heap
                                 ? memory->TranslatePhysical(
                                       buffer_physical_heap->GetPhysicalAddress(buffer_address))
@@ -92,9 +94,9 @@ X_STATUS ReadInternal(Runtime& runtime, FileObject& file, u32 buffer_address, u3
             }
 
             if (byte_offset) {
-              file.position = byte_offset;
+              position_ = byte_offset;
             }
-            file.position += bytes_read;
+            position_ += bytes_read;
           }
         }
       }
@@ -111,15 +113,13 @@ X_STATUS ReadInternal(Runtime& runtime, FileObject& file, u32 buffer_address, u3
     notify.num_bytes = static_cast<u32>(bytes_read);
     notify.status = result;
 
-    NotifyIOCompletionPorts(runtime, file, notify);
+    NotifyIOCompletionPorts(runtime, *this, notify);
 
-    file.async_event->Set();
+    async_event->Set();
   }
 
   return result;
 }
-
-}  // namespace
 
 FileObject::FileObject(std::unique_ptr<filesystem::IFile> file_in, bool synchronous)
     : file(std::move(file_in)), is_synchronous(synchronous) {
@@ -136,27 +136,27 @@ FileObject::~FileObject() {
   }
 }
 
-X_STATUS FileQueryDirectory(Runtime&, FileObject& file, X_FILE_DIRECTORY_INFORMATION* out_info,
-                            size_t length, std::string_view file_name, bool restart) {
-  std::lock_guard<std::mutex> lock(file.file_lock);
+X_STATUS FileObject::QueryDirectory(Runtime&, X_FILE_DIRECTORY_INFORMATION* out_info, size_t length,
+                                    std::string_view file_name, bool restart) {
+  std::lock_guard<std::mutex> lock(file_lock);
   REX_ASSERT(out_info != nullptr);
 
   std::optional<filesystem::FileInfo> entry;
 
   if (!file_name.empty()) {
     REX_ASSERT(rex::utf8_find_any_of(file_name, "\\") == std::string_view::npos);
-    FileSetFindPattern(file, file_name);
-    entry = FileFindNext(file);
+    SetFindPattern(file_name);
+    entry = FindNext();
     if (!entry) {
       return X_STATUS_NO_SUCH_FILE;
     }
   } else {
-    if (!file.find) {
-      FileSetFindPattern(file, {});
+    if (!find) {
+      SetFindPattern({});
     } else if (restart) {
-      file.find->Restart();
+      find->Restart();
     }
-    entry = FileFindNext(file);
+    entry = FindNext();
     if (!entry) {
       return X_STATUS_NO_MORE_FILES;
     }
@@ -170,7 +170,7 @@ X_STATUS FileQueryDirectory(Runtime&, FileObject& file, X_FILE_DIRECTORY_INFORMA
   }
 
   out_info->next_entry_offset = 0;
-  out_info->file_index = static_cast<u32>(file.find->position());
+  out_info->file_index = static_cast<u32>(find->position());
   out_info->creation_time = entry->create_time;
   out_info->last_access_time = entry->access_time;
   out_info->last_write_time = entry->write_time;
@@ -184,16 +184,16 @@ X_STATUS FileQueryDirectory(Runtime&, FileObject& file, X_FILE_DIRECTORY_INFORMA
   return X_STATUS_SUCCESS;
 }
 
-X_STATUS FileRead(Runtime& runtime, FileObject& file, u32 buffer_address, u32 buffer_length,
-                  u64 byte_offset, u32* out_bytes_read, u32 apc_context, bool notify_completion) {
-  std::lock_guard<std::mutex> lock(file.file_lock);
-  return ReadInternal(runtime, file, buffer_address, buffer_length, byte_offset, out_bytes_read,
+X_STATUS FileObject::Read(Runtime& runtime, u32 buffer_address, u32 buffer_length, u64 byte_offset,
+                          u32* out_bytes_read, u32 apc_context, bool notify_completion) {
+  std::lock_guard<std::mutex> lock(file_lock);
+  return ReadInternal(runtime, buffer_address, buffer_length, byte_offset, out_bytes_read,
                       apc_context, notify_completion);
 }
 
-X_STATUS FileReadScatter(Runtime& runtime, FileObject& file, u32 segments_address, u32 length,
-                         u64 byte_offset, u32* out_bytes_read, u32 apc_context) {
-  std::lock_guard<std::mutex> lock(file.file_lock);
+X_STATUS FileObject::ReadScatter(Runtime& runtime, u32 segments_address, u32 length,
+                                 u64 byte_offset, u32* out_bytes_read, u32 apc_context) {
+  std::lock_guard<std::mutex> lock(file_lock);
   X_STATUS result = X_STATUS_SUCCESS;
 
   be_u32* segments =
@@ -213,7 +213,7 @@ X_STATUS FileReadScatter(Runtime& runtime, FileObject& file, u32 segments_addres
 
     u32 bytes_read = 0;
     result = ReadInternal(
-        runtime, file, read_buffer, read_length,
+        runtime, read_buffer, read_length,
         byte_offset ? ((byte_offset != ~u64{0} && byte_offset != ~u64{1}) ? byte_offset + read_total
                                                                           : byte_offset)
                     : -1,
@@ -236,23 +236,23 @@ X_STATUS FileReadScatter(Runtime& runtime, FileObject& file, u32 segments_addres
   notify.num_bytes = read_total;
   notify.status = result;
 
-  NotifyIOCompletionPorts(runtime, file, notify);
+  NotifyIOCompletionPorts(runtime, *this, notify);
 
-  file.async_event->Set();
+  async_event->Set();
 
   return result;
 }
 
-X_STATUS FileWrite(Runtime& runtime, FileObject& file, u32 buffer_address, u32 buffer_length,
-                   u64 byte_offset, u32* out_bytes_written, u32 apc_context) {
-  std::lock_guard<std::mutex> lock(file.file_lock);
+X_STATUS FileObject::Write(Runtime& runtime, u32 buffer_address, u32 buffer_length, u64 byte_offset,
+                           u32* out_bytes_written, u32 apc_context) {
+  std::lock_guard<std::mutex> lock(file_lock);
   if (byte_offset == static_cast<u64>(-1)) {
-    byte_offset = file.position;
+    byte_offset = position_;
   }
 
   size_t bytes_written = 0;
   X_STATUS result = X_STATUS_SUCCESS;
-  auto written = file.file->Write(
+  auto written = file->Write(
       std::span<const u8>(runtime.memory()->TranslateVirtual(buffer_address), buffer_length),
       byte_offset);
   if (written) {
@@ -261,7 +261,7 @@ X_STATUS FileWrite(Runtime& runtime, FileObject& file, u32 buffer_address, u32 b
     result = ToXStatus(written.error());
   }
   if (XSUCCEEDED(result)) {
-    file.position += bytes_written;
+    position_ += bytes_written;
   }
 
   IONotification notify;
@@ -269,72 +269,72 @@ X_STATUS FileWrite(Runtime& runtime, FileObject& file, u32 buffer_address, u32 b
   notify.num_bytes = static_cast<u32>(bytes_written);
   notify.status = result;
 
-  NotifyIOCompletionPorts(runtime, file, notify);
+  NotifyIOCompletionPorts(runtime, *this, notify);
 
   if (out_bytes_written) {
     *out_bytes_written = static_cast<u32>(bytes_written);
   }
 
-  file.async_event->Set();
+  async_event->Set();
   return result;
 }
 
-X_STATUS FileSetLength(FileObject& file, u64 length) {
-  std::lock_guard<std::mutex> lock(file.file_lock);
-  auto status = file.file->SetLength(length);
+X_STATUS FileObject::SetLength(u64 length) {
+  std::lock_guard<std::mutex> lock(file_lock);
+  auto status = file->SetLength(length);
   return status ? X_STATUS_SUCCESS : ToXStatus(status.error(), X_STATUS_NOT_IMPLEMENTED);
 }
 
-X_STATUS FileSetAllocation(FileObject& file, u64 size) {
-  std::lock_guard<std::mutex> lock(file.file_lock);
-  file.file->Refresh();
-  if (size >= file.file->Info().size) {
+X_STATUS FileObject::SetAllocation(u64 size) {
+  std::lock_guard<std::mutex> lock(file_lock);
+  file->Refresh();
+  if (size >= file->Info().size) {
     return X_STATUS_SUCCESS;
   }
-  auto status = file.file->SetLength(size);
+  auto status = file->SetLength(size);
   return status ? X_STATUS_SUCCESS : ToXStatus(status.error(), X_STATUS_NOT_IMPLEMENTED);
 }
 
-X_STATUS FileRename(filesystem::IFileSystem& file_system, FileObject& file, std::string_view path,
-                    bool replace_existing, FileObject* root) {
-  std::lock_guard<std::mutex> lock(file.file_lock);
+X_STATUS FileObject::Rename(filesystem::IFileSystem& file_system, std::string_view path,
+                            bool replace_existing, FileObject* root) {
+  std::lock_guard<std::mutex> lock(file_lock);
   auto status =
-      file_system.Rename(*file.file, path, replace_existing, root ? root->file.get() : nullptr);
+      file_system.Rename(*file, path, replace_existing, root ? root->file.get() : nullptr);
   return status ? X_STATUS_SUCCESS : ToXStatus(status.error(), X_STATUS_NOT_SUPPORTED);
 }
 
-u64 FilePosition(FileObject& file) {
-  std::lock_guard<std::mutex> lock(file.file_lock);
-  return file.position;
+u64 FileObject::position() {
+  std::lock_guard<std::mutex> lock(file_lock);
+  return position_;
 }
 
-void FileSetPosition(FileObject& file, u64 value) {
-  std::lock_guard<std::mutex> lock(file.file_lock);
-  file.position = value;
+void FileObject::set_position(u64 value) {
+  std::lock_guard<std::mutex> lock(file_lock);
+  position_ = value;
 }
 
-void FileSetFindPattern(FileObject& file, std::string_view pattern) {
-  auto listing = file.file->List(pattern);
-  file.find = listing ? std::move(*listing) : nullptr;
+void FileObject::SetFindPattern(std::string_view pattern) {
+  auto listing = file->List(pattern);
+  find = listing ? std::move(*listing) : nullptr;
 }
 
-std::optional<filesystem::FileInfo> FileFindNext(FileObject& file) {
-  if (!file.find) {
+std::optional<filesystem::FileInfo> FileObject::FindNext() {
+  if (!find) {
     return std::nullopt;
   }
-  return file.find->Next();
+  return find->Next();
 }
 
-void FileRegisterIOCompletionPort(Runtime& runtime, FileObject& file, u32 key, X_HANDLE port) {
+void FileObject::RegisterIOCompletionPort(Runtime& runtime, u32 key, X_HANDLE port) {
   IObjectTable* table = &runtime.object_table();
   Result<X_HANDLE> owned = table->Duplicate(port);
   if (!owned) {
     return;
   }
 
-  std::lock_guard<std::mutex> lock(file.completion_port_lock);
-  file.port_table = table;
-  file.completion_ports.emplace_back(key, *owned);
+  std::lock_guard<std::mutex> lock(completion_port_lock);
+  port_table = table;
+  completion_ports.emplace_back(key, *owned);
 }
 
 }  // namespace rex::runtime

@@ -6,7 +6,7 @@
 #include <rex/logging.h>
 
 #include <rex/runtime.h>
-#include <rex/runtime/user_module.h>
+#include <rex/runtime/module_object.h>
 #include <rex/runtime/xex_module.h>
 
 namespace rex::codegen {
@@ -45,10 +45,10 @@ Result<CodegenContext> CodegenContext::Create(const std::filesystem::path& confi
                                "Failed to get executable module after loading");
   }
 
-  auto* module = rex::runtime::UserModuleXEX(*user_module);
+  auto* module = user_module->xex();
   if (!module) {
     return Err<CodegenContext>(ErrorCategory::Format,
-                               "Failed to get XexModule from the executable module");
+                               "Failed to get XEXModule from the executable module");
   }
 
   ctx.binary_ = BinaryView::fromModule(*module);

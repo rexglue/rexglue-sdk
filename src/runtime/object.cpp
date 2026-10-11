@@ -215,7 +215,7 @@ X_STATUS Wait(Runtime& runtime, X_HANDLE handle, [[maybe_unused]] u32 wait_reaso
   KernelThread::CheckStop();
   const X_STATUS status = MapResult(result);
   if ((status == X_STATUS_SUCCESS || status == X_STATUS_ABANDONED_WAIT_0) && target.mutant &&
-      MutantAcquired(*target.mutant)) {
+      target.mutant->OnAcquired()) {
     return X_STATUS_ABANDONED_WAIT_0;
   }
   return status;
@@ -245,7 +245,7 @@ X_STATUS SignalAndWait(Runtime& runtime, X_HANDLE signal_handle, X_HANDLE wait_h
   KernelThread::CheckStop();
   const X_STATUS status = MapResult(result);
   if ((status == X_STATUS_SUCCESS || status == X_STATUS_ABANDONED_WAIT_0) && wait.mutant &&
-      MutantAcquired(*wait.mutant)) {
+      wait.mutant->OnAcquired()) {
     return X_STATUS_ABANDONED_WAIT_0;
   }
   return status;
@@ -280,7 +280,7 @@ X_STATUS WaitMultiple(Runtime& runtime, std::span<const X_HANDLE> handles, u32 w
     KernelThread::CheckStop();
     switch (result.first) {
       case rex::platform::WaitResult::kSuccess:
-        if (targets[result.second].mutant && MutantAcquired(*targets[result.second].mutant)) {
+        if (targets[result.second].mutant && targets[result.second].mutant->OnAcquired()) {
           return X_STATUS(X_STATUS_ABANDONED_WAIT_0 + result.second);
         }
         return X_STATUS(result.second);
@@ -293,7 +293,7 @@ X_STATUS WaitMultiple(Runtime& runtime, std::span<const X_HANDLE> handles, u32 w
         return X_STATUS_UNSUCCESSFUL;
       default:
         if (targets[result.second].mutant) {
-          (void)MutantAcquired(*targets[result.second].mutant);
+          (void)targets[result.second].mutant->OnAcquired();
         }
         return X_STATUS(X_STATUS_ABANDONED_WAIT_0 + result.second);
     }
@@ -309,7 +309,7 @@ X_STATUS WaitMultiple(Runtime& runtime, std::span<const X_HANDLE> handles, u32 w
     case rex::platform::WaitResult::kSuccess: {
       bool abandoned = false;
       for (WaitTarget& target : targets) {
-        if (target.mutant && MutantAcquired(*target.mutant)) {
+        if (target.mutant && target.mutant->OnAcquired()) {
           abandoned = true;
         }
       }
@@ -323,7 +323,7 @@ X_STATUS WaitMultiple(Runtime& runtime, std::span<const X_HANDLE> handles, u32 w
     default:
       for (WaitTarget& target : targets) {
         if (target.mutant) {
-          (void)MutantAcquired(*target.mutant);
+          (void)target.mutant->OnAcquired();
         }
       }
       return X_STATUS_ABANDONED_WAIT_0;

@@ -10,13 +10,25 @@
 
 #pragma once
 
-#include <functional>
+#include <optional>
 
 #include <rex/macros.h>
+#include <rex/move_only_function.h>
 #include <rex/runtime/xtypes.h>
 #include <rex/types.h>
 
 namespace rex::runtime {
+
+/**
+ * The values an overlapped completion writes. An empty extended error is the result, and an empty
+ * length is 0 on success and 0xFFFFFFFF on failure.
+ */
+struct CompletionOptions {
+  X_RESULT result; /**< The result. */
+  std::optional<u32> extended_error =
+      std::nullopt;                         /**< The extended error, empty for the result. */
+  std::optional<u32> length = std::nullopt; /**< The length, empty for the default of the result. */
+};
 
 /**
  * Completes overlapped operations on the calling thread or on the dispatch thread, and holds the
@@ -28,85 +40,40 @@ class IDispatcher {
   virtual ~IDispatcher() = default;
 
   /**
-   * Completes an overlapped operation on the calling thread, with length 0 on success and
-   * 0xFFFFFFFF on failure.
-   *
-   * @param overlapped_ptr The guest XOVERLAPPED.
-   * @param result The result.
-   */
-  virtual void CompleteOverlappedImmediate(u32 overlapped_ptr, X_RESULT result) = 0;
-
-  /**
    * Completes an overlapped operation on the calling thread.
    *
-   * @param overlapped_ptr The guest XOVERLAPPED.
-   * @param result The result.
-   * @param extended_error The extended error.
-   * @param length The length.
+   * @param overlapped The guest XOVERLAPPED.
+   * @param options The result, extended error and length to write.
    */
-  virtual void CompleteOverlappedImmediateEx(u32 overlapped_ptr, X_RESULT result,
-                                             u32 extended_error, u32 length) = 0;
+  virtual void Complete(u32 overlapped, const CompletionOptions& options) = 0;
 
   /**
-   * Marks an overlapped operation pending and completes it on the dispatch thread after the
-   * callback ran.
+   * Marks an overlapped operation pending and completes it on the dispatch thread after the work
+   * ran.
    *
-   * @param completion_callback The work.
-   * @param overlapped_ptr The guest XOVERLAPPED.
-   * @param result The result.
-   * @param pre_callback Runs before the work, may be empty.
-   * @param post_callback Runs after the completion, may be empty.
+   * @param overlapped The guest XOVERLAPPED.
+   * @param work The work.
+   * @param options The result, extended error and length to write.
+   * @param pre Runs before the work, may be empty.
+   * @param post Runs after the completion, may be empty.
    */
-  virtual void CompleteOverlappedDeferred(std::function<void()> completion_callback,
-                                          u32 overlapped_ptr, X_RESULT result,
-                                          std::function<void()> pre_callback = nullptr,
-                                          std::function<void()> post_callback = nullptr) = 0;
+  virtual void CompleteDeferred(u32 overlapped, rex::MoveOnlyFunction<void()> work,
+                                const CompletionOptions& options,
+                                rex::MoveOnlyFunction<void()> pre = {},
+                                rex::MoveOnlyFunction<void()> post = {}) = 0;
 
   /**
-   * Marks an overlapped operation pending and completes it on the dispatch thread after the
-   * callback ran.
+   * Marks an overlapped operation pending and completes it on the dispatch thread with the options
+   * the work returns.
    *
-   * @param completion_callback The work.
-   * @param overlapped_ptr The guest XOVERLAPPED.
-   * @param result The result.
-   * @param extended_error The extended error.
-   * @param length The length.
-   * @param pre_callback Runs before the work, may be empty.
-   * @param post_callback Runs after the completion, may be empty.
+   * @param overlapped The guest XOVERLAPPED.
+   * @param work The work, returning the result, extended error and length to write.
+   * @param pre Runs before the work, may be empty.
+   * @param post Runs after the completion, may be empty.
    */
-  virtual void CompleteOverlappedDeferredEx(std::function<void()> completion_callback,
-                                            u32 overlapped_ptr, X_RESULT result, u32 extended_error,
-                                            u32 length,
-                                            std::function<void()> pre_callback = nullptr,
-                                            std::function<void()> post_callback = nullptr) = 0;
-
-  /**
-   * Marks an overlapped operation pending and completes it on the dispatch thread with the result
-   * the callback returns.
-   *
-   * @param completion_callback The work, returning the result.
-   * @param overlapped_ptr The guest XOVERLAPPED.
-   * @param pre_callback Runs before the work, may be empty.
-   * @param post_callback Runs after the completion, may be empty.
-   */
-  virtual void CompleteOverlappedDeferred(std::function<X_RESULT()> completion_callback,
-                                          u32 overlapped_ptr,
-                                          std::function<void()> pre_callback = nullptr,
-                                          std::function<void()> post_callback = nullptr) = 0;
-
-  /**
-   * Marks an overlapped operation pending and completes it on the dispatch thread with the
-   * result, extended error and length the callback returns.
-   *
-   * @param completion_callback The work, writing the extended error and length.
-   * @param overlapped_ptr The guest XOVERLAPPED.
-   * @param pre_callback Runs before the work, may be empty.
-   * @param post_callback Runs after the completion, may be empty.
-   */
-  virtual void CompleteOverlappedDeferredEx(std::function<X_RESULT(u32&, u32&)> completion_callback,
-                                            u32 overlapped_ptr,
-                                            std::function<void()> pre_callback = nullptr,
-                                            std::function<void()> post_callback = nullptr) = 0;
+  virtual void CompleteDeferred(u32 overlapped, rex::MoveOnlyFunction<CompletionOptions()> work,
+                                rex::MoveOnlyFunction<void()> pre = {},
+                                rex::MoveOnlyFunction<void()> post = {}) = 0;
 
   /**
    * Queues a DPC unless it is queued. The caller drains when its IRQL allows it.

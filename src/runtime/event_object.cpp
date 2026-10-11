@@ -40,33 +40,33 @@ EventObject::EventObject(const X_DISPATCH_HEADER& header) {
   REX_ASSERT(event != nullptr);
 }
 
-void EventQuery(EventObject& event, u32* out_type, u32* out_state) {
+void EventObject::Query(u32* out_type, u32* out_state) {
   if (out_type) {
-    *out_type = event.manual_reset ? 0x00 : 0x01;
+    *out_type = manual_reset ? 0x00 : 0x01;
   }
   if (out_state) {
-    auto result = rex::platform::Wait(event.event.get(), false, std::chrono::milliseconds(0));
+    auto result = rex::platform::Wait(event.get(), false, std::chrono::milliseconds(0));
     if (result == rex::platform::WaitResult::kSuccess) {
       *out_state = 1;
-      event.event->Set();
+      event->Set();
     } else {
       *out_state = 0;
     }
   }
 }
 
-i32 EventSet(EventObject& event) {
-  event.event->Set();
+i32 EventObject::Set() {
+  event->Set();
   return 1;
 }
 
-i32 EventPulse(EventObject& event) {
-  event.event->Pulse();
+i32 EventObject::Pulse() {
+  event->Pulse();
   return 1;
 }
 
-i32 EventReset(EventObject& event) {
-  event.event->Reset();
+i32 EventObject::Reset() {
+  event->Reset();
   return 1;
 }
 

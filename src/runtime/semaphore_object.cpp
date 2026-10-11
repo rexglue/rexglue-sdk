@@ -30,9 +30,9 @@ SemaphoreObject::SemaphoreObject(const X_KSEMAPHORE& header) {
   semaphore = rex::platform::Semaphore::Create(static_cast<i32>(count), static_cast<i32>(limit));
 }
 
-bool SemaphoreRelease(SemaphoreObject& semaphore, i32 release_count, i32* out_previous_count) {
+bool SemaphoreObject::Release(i32 release_count, i32* out_previous_count) {
   i32 previous_count = 0;
-  const bool success = semaphore.semaphore->Release(release_count, &previous_count);
+  const bool success = semaphore->Release(release_count, &previous_count);
   if (out_previous_count) {
     *out_previous_count = previous_count;
   }

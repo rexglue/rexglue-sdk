@@ -371,7 +371,7 @@ REX_TEST_CASE("Loading an XEX keeps the other allocations in its heap",
   spec.image = rex::test::TestImage(0x1000);
   const auto file = rex::test::BuildXEX(spec);
   const u32 before = memory.title_pages();
-  rex::runtime::XexModule module(runtime.function_dispatcher(), runtime);
+  rex::runtime::XEXModule module(runtime.function_dispatcher(), runtime);
   REQUIRE(module.Load("budget", "game:\budget.xex", file.data(), file.size()));
 
   HeapAllocationInfo info{};

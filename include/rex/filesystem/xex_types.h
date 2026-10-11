@@ -27,11 +27,11 @@ enum PESectionFlags : u32 {
   kPESectionContainsDataInit = 0x00000040,
   /** IMAGE_SCN_CNT_UNINITIALIZED_DATA. The section holds zero filled data. */
   kPESectionContainsDataUninit = 0x00000080,
-  /** IMAGE_SCN_MEM_EXECUTE. XexModule reads it to mark the section executable. */
+  /** IMAGE_SCN_MEM_EXECUTE. XEXModule reads it to mark the section executable. */
   kPESectionMemoryExecute = 0x20000000,
   /** IMAGE_SCN_MEM_READ. The section is readable. No code reads it. */
   kPESectionMemoryRead = 0x40000000,
-  /** IMAGE_SCN_MEM_WRITE. XexModule reads it to mark the section writable. */
+  /** IMAGE_SCN_MEM_WRITE. XEXModule reads it to mark the section writable. */
   kPESectionMemoryWrite = 0x80000000,
 };
 
