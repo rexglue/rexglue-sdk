@@ -1,0 +1,5 @@
+[[modules]]
+guest_path = "{{ m.guest_path }}"
+file_path = "{{ m.file_path }}"
+out_directory_path = "{{ m.out_directory_path }}"
+includes = []

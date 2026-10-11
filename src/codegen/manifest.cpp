@@ -120,16 +120,16 @@ std::optional<ManifestConfig> ManifestConfig::Load(const std::filesystem::path& 
       if (!LoadBinaryConfig(*modTbl, manifest.manifestDir, manifest.projectName, binary)) {
         return std::nullopt;
       }
-      auto guest_path = (*modTbl)["guest_path"].value_or<std::string>("");
+      auto guest_path = (*modTbl)[kModuleGuestPathKey].value_or<std::string>("");
       if (guest_path.empty()) {
-        REX_FAIL(codegen, std::nullopt, "Manifest [[modules]] entry #{} missing guest_path", index);
+        REX_FAIL(codegen, std::nullopt, "Manifest [[modules]] entry #{} missing {}", index,
+                 kModuleGuestPathKey);
       }
       binary.guestPath = CanonicalizeModuleGuestPath(guest_path, manifest.projectName);
       for (const auto& existing : manifest.modules) {
         if (existing.guestPath == binary.guestPath) {
-          REX_FAIL(codegen, std::nullopt,
-                   "Manifest [[modules]] duplicate guest_path '{}' (entry #{})", binary.guestPath,
-                   index);
+          REX_FAIL(codegen, std::nullopt, "Manifest [[modules]] duplicate {} '{}' (entry #{})",
+                   kModuleGuestPathKey, binary.guestPath, index);
         }
       }
       manifest.modules.push_back(std::move(binary));

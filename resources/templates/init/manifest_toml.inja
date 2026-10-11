@@ -13,9 +13,4 @@ file_path = "{{ xex_path }}"
 out_directory_path = "{{ out_directory_path }}"
 includes = []
 {% for m in modules %}
-[[modules]]
-guest_path = "{{ m.guest_path }}"
-file_path = "{{ m.file_path }}"
-out_directory_path = "{{ m.out_directory_path }}"
-includes = []
-{% endfor -%}
+{% include "init/manifest_module" %}{% endfor -%}

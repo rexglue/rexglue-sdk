@@ -158,8 +158,8 @@ Result<void> InitProject(const InitOptions& opts, const CLIContext& ctx) {
         continue;
       }
       modulesJson.push_back({
-          {"guest_path", rex::codegen::CanonicalizeModuleGuestPath(relUnderGame.generic_string(),
-                                                                   names.original)},
+          {rex::codegen::kModuleGuestPathKey, rex::codegen::CanonicalizeModuleGuestPath(
+                                                  relUnderGame.generic_string(), names.original)},
           {"file_path", ManifestPath(dllAbs, projectRoot)},
           {"out_directory_path", "generated/" + ModuleStem(dllAbs)},
       });
@@ -302,7 +302,7 @@ Result<void> InitModule(const InitModuleOptions& opts, const CLIContext& ctx) {
       if (!modTbl)
         continue;
       if ((*modTbl)["file_path"].value_or<std::string>("") == xexRel ||
-          (*modTbl)["guest_path"].value_or<std::string>("") == guestPath) {
+          (*modTbl)[rex::codegen::kModuleGuestPathKey].value_or<std::string>("") == guestPath) {
         REXLOG_TRACE(rexglue, "Manifest already lists this module; nothing to do.");
         return Ok();
       }
@@ -320,17 +320,19 @@ Result<void> InitModule(const InitModuleOptions& opts, const CLIContext& ctx) {
 
   if (!content.empty() && content.back() != '\n')
     content.push_back('\n');
-  content += std::format(
-      "\n[[modules]]\nguest_path = \"{}\"\nfile_path = \"{}\"\nout_directory_path = "
-      "\"generated/{}\"\nincludes = []\n",
-      guestPath, xexRel, moduleName);
+  const nlohmann::json entry = {{"m",
+                                 {{rex::codegen::kModuleGuestPathKey, guestPath},
+                                  {"file_path", xexRel},
+                                  {"out_directory_path", "generated/" + moduleName}}}};
+  rex::codegen::TemplateRegistry registry;
+  content += "\n" + registry.render("init/manifest_module", entry.dump());
 
   REX_TRY_VOID(rex::platform::WriteWholeFile(
       manifestPath, std::span(reinterpret_cast<const u8*>(content.data()), content.size())));
 
   std::vector<ui::KeyValueRow> rows;
   rows.push_back({"file_path", xexRel});
-  rows.push_back({"guest_path", guestPath});
+  rows.push_back({rex::codegen::kModuleGuestPathKey, guestPath});
   ui::KeyValueBlock(std::format("Module '{}' added to manifest:", moduleName), rows);
   return Ok();
 }

@@ -493,7 +493,7 @@ Result<void> ProjectRecompiler::Run(const ProjectRecompilerOptions& opts) {
       std::replace(guestPath.begin(), guestPath.end(), '\\', '/');
       nlohmann::json dllEntry;
       dllEntry["pe_name"] = fs::path(mod.guestPath).filename().string();
-      dllEntry["guest_path"] = guestPath;
+      dllEntry[kModuleGuestPathKey] = guestPath;
       dllEntry["shared_lib_name"] = manifest_.projectName + "_" + mod.targetName;
       dllArray.push_back(dllEntry);
     }

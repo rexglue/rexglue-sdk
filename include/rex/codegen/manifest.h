@@ -21,6 +21,9 @@
 
 namespace rex::codegen {
 
+/** Manifest key that holds the guest path of a [[modules]] entry. */
+inline constexpr std::string_view kModuleGuestPathKey = "guest_path";
+
 /**
  * Codegen settings for a single binary inside a manifest. The entrypoint
  * uses an empty `guestPath`, and module entries set it to the canonicalized
