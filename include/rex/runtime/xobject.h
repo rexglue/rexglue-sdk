@@ -68,37 +68,16 @@ REX_STATIC_ASSERT_SIZE(X_DISPATCH_HEADER, 0x10);
 
 /** The object body follows this header. */
 struct X_OBJECT_HEADER {
-  /** Offset 0x0. Reference count of the object, zeroed when the block is allocated. */
-  be_u32 pointer_count;
-  union {
-    /** Offset 0x4. Shares its dword with next_to_free, zeroed when the block is allocated. */
-    be_u32 handle_count;
-    be_u32 next_to_free; /**< Offset 0x4. Shares its dword with handle_count. */
-  };
-  u8 name_info_offset;   /**< Offset 0x8. Zero, no name info block precedes the header. */
-  u8 handle_info_offset; /**< Offset 0x9. Zero, no handle info block precedes the header. */
-  u8 quota_info_offset;  /**< Offset 0xA. Zero, no quota info block precedes the header. */
-  u8 flags;              /**< Offset 0xB. Zero, no object flag is set. */
-  union {
-    be_u32 object_create_info;  /**< Points to an X_OBJECT_CREATE_INFORMATION. */
-    be_u32 quota_block_charged; /**< Offset 0xC. Shares its dword with object_create_info. */
-  };
-  be_u32 object_type_ptr; /**< Offset -0x8. POBJECT_TYPE. */
-  be_u32 unk_04;          /**< Offset -0x4. */
+  be_u32 pointer_count;   /**< Reference count of the object, zeroed when the block is allocated. */
+  be_u32 handle_count;    /**< Handle count of the object, zeroed when the block is allocated. */
+  be_u32 object_type_ptr; /**< Guest address of the X_OBJECT_TYPE of the object. */
+  be_u16 flags;           /**< Zero, no object flag is set. */
+  u8 hash_index;          /**< Zero when the block is allocated. */
+  u8 pad_0F;
 };
-
-/** A SECURITY_QUALITY_OF_SERVICE follows the last field. */
-struct X_OBJECT_CREATE_INFORMATION {
-  be_u32 attributes;                 /**< Offset 0x0. */
-  be_u32 root_directory_ptr;         /**< Offset 0x4. */
-  be_u32 parse_context_ptr;          /**< Offset 0x8. */
-  be_u32 probe_mode;                 /**< Offset 0xC. */
-  be_u32 paged_pool_charge;          /**< Offset 0x10. */
-  be_u32 non_paged_pool_charge;      /**< Offset 0x14. */
-  be_u32 security_descriptor_charge; /**< Offset 0x18. */
-  be_u32 security_descriptor;        /**< Offset 0x1C. */
-  be_u32 security_qos_ptr;           /**< Offset 0x20. */
-};
+static_assert(offsetof(X_OBJECT_HEADER, object_type_ptr) == 0x8);
+static_assert(offsetof(X_OBJECT_HEADER, flags) == 0xC);
+REX_STATIC_ASSERT_SIZE(X_OBJECT_HEADER, 0x10);
 
 /** Guest object type descriptor. */
 struct X_OBJECT_TYPE {

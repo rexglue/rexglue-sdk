@@ -15,6 +15,7 @@
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
+#include <cstddef>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -185,33 +186,32 @@ struct X_KPRCB {
   TypedGuestPointer<X_KTHREAD> next_thread;    /**< Thread chosen to run next on this processor. */
   TypedGuestPointer<X_KTHREAD> idle_thread;    /**< Idle thread of this processor. */
   u8 current_cpu;                              /**< Index of this processor. */
-  u8 unk_D[3];                                 /**< Padding. */
-  be_u32 processor_mask;                       /**< Mask with only the bit of this processor set. */
-  be_u32 dpc_clock;                            /**< Ticks this processor spent running DPCs. */
+  u8 pad_0D[3];
+  be_u32 processor_mask;         /**< Mask with only the bit of this processor set. */
+  be_u32 dpc_clock;              /**< Ticks this processor spent running DPCs. */
   be_u32 interrupt_clock;        /**< Ticks this processor spent servicing interrupts. */
-  be_u32 unk_1C;                 /**< Interrupt count of this processor. */
-  be_u32 unk_20;                 /**< Interprocessor interrupt freeze state of this processor. */
+  be_u32 interrupt_count;        /**< Interrupt count of this processor. */
+  be_u32 ipi_frozen;             /**< Interprocessor interrupt freeze state of this processor. */
   be_u32 ipi_args[3];            /**< Arguments passed to `ipi_function`. */
   be_u32 targeted_ipi_cpus_mask; /**< Mask of the processors an interprocessor interrupt targets. */
   be_u32 ipi_function; /**< Guest address of the function an interprocessor interrupt runs. */
   TypedGuestPointer<X_KPRCB> ipi_initiator_prcb; /**< Control block of the sender. */
-  be_u32 unk_3C;                                 /**< Request summary of this processor. */
-  be_u32 dpc_related_40;                         /**< Nonzero while a DPC interrupt is requested. */
+  be_u32 request_summary;                        /**< Request summary of this processor. */
+  be_u32 dpc_interrupt_requested;                /**< Nonzero while a DPC interrupt is requested. */
   be_u32 dpc_lock;                               /**< Lock that guards `queued_dpcs_list_head`. */
   X_LIST_ENTRY queued_dpcs_list_head; /**< Head of the list of DPCs queued on this processor. */
   be_u32 dpc_active;                  /**< Nonzero while this processor runs a DPC. */
-  X_KSPINLOCK spin_lock;              /**< Lock that guards the ready lists of this processor. */
-  TypedGuestPointer<X_KTHREAD>
-      running_idle_thread; /**< Nonzero while the idle thread of this processor runs. */
-  X_SINGLE_LIST_ENTRY enqueued_threads_list; /**< Threads waiting to be readied. */
-  be_u32 has_ready_thread_by_priority;       /**< Flags each priority that has a ready thread. */
-  be_u32 unk_mask_64;                        /**< Mask for `has_ready_thread_by_priority`. */
-  X_LIST_ENTRY
-  unk_68[32];                            /**< Dispatcher ready list of each of the 32 priorities. */
-  XDPC thread_exit_dpc;                  /**< DPC that finishes the exit of a thread. */
+  X_KSPINLOCK ready_list_lock;        /**< Lock that guards the ready lists of this processor. */
+  be_u32 idle_thread_active;          /**< Nonzero while the idle thread of this processor runs. */
+  X_SINGLE_LIST_ENTRY enqueued_threads_list;   /**< Threads waiting to be readied. */
+  be_u32 has_ready_thread_by_priority;         /**< Flags each priority that has a ready thread. */
+  be_u32 ready_summary_mask;                   /**< Mask for `has_ready_thread_by_priority`. */
+  X_LIST_ENTRY dispatcher_ready_list_head[32]; /**< Dispatcher ready list per priority. */
+  XDPC thread_exit_dpc;                        /**< DPC that finishes the exit of a thread. */
   X_LIST_ENTRY terminating_threads_list; /**< Threads that are terminating on this processor. */
   XDPC switch_thread_processor_dpc;      /**< DPC that moves a thread to another processor. */
 };
+REX_STATIC_ASSERT_SIZE(X_KPRCB, 0x1A8);
 
 /** Processor Control Region. */
 struct X_KPCR {
@@ -255,6 +255,7 @@ struct X_KPCR {
   TypedGuestPointer<X_KPRCB> prcb;
   u8 unk_2AC[0x2C];
 };
+static_assert(offsetof(X_KPCR, prcb_data) == 0x100);
 REX_STATIC_ASSERT_SIZE(X_KPCR, 0x2D8);
 
 /** Guest layout of a kernel thread object. */

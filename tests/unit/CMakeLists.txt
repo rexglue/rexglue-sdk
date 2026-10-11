@@ -76,6 +76,7 @@ add_executable(unit_tests
     ppc/import_function_test.cpp
     ppc/stack_test.cpp
     runtime/guest_path_test.cpp
+    runtime/object_block_test.cpp
     runtime/achievement_manager_test.cpp
     runtime/xcontent_test.cpp
     runtime/xsemaphore_test.cpp
