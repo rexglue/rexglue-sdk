@@ -296,9 +296,9 @@ u32 RtlImageXexHeaderField_entry(ppc_ptr_t<xex2_header> xex_header, u32 field_dw
 #pragma pack(push, 1)
 struct X_RTL_CRITICAL_SECTION {
   X_DISPATCH_HEADER header;
-  i32 lock_count;         /**< Offset 0x10, -1 becomes 0 on first lock. */
-  be_i32 recursion_count; /**< Offset 0x14, 0 becomes 1 on first lock. */
-  be_u32 owning_thread;   /**< Offset 0x18, PKTHREAD or 0 when unlocked. */
+  i32 lock_count;         /**< -1 becomes 0 on first lock. */
+  be_i32 recursion_count; /**< 0 becomes 1 on first lock. */
+  be_u32 owning_thread;   /**< PKTHREAD or 0 when unlocked. */
 };
 #pragma pack(pop)
 REX_STATIC_ASSERT_SIZE(X_RTL_CRITICAL_SECTION, 28);

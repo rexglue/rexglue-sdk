@@ -29,8 +29,8 @@ namespace rex::runtime {
 
 /** Guest layout of a generic socket address. */
 struct XSOCKADDR {
-  be_u16 address_family; /**< Offset 0x0. Address family. */
-  char sa_data[14];      /**< Offset 0x2. Address bytes. */
+  be_u16 address_family; /**< Address family. */
+  char sa_data[14];      /**< Address bytes. */
 };
 
 /** Host byte order copy of `XSOCKADDR`. */
@@ -50,18 +50,18 @@ struct N_XSOCKADDR {
     return *this;
   }
 
-  u16 address_family; /**< Offset 0x0. Address family. */
-  char sa_data[14];   /**< Offset 0x2. Address bytes. */
+  u16 address_family; /**< Address family. */
+  char sa_data[14];   /**< Address bytes. */
 };
 
 /** Guest layout of an IPv4 socket address. */
 struct XSOCKADDR_IN {
-  be_u16 sin_family; /**< Offset 0x0. Address family. */
+  be_u16 sin_family; /**< Address family. */
 
-  be_u16 sin_port; /**< Offset 0x2. Port. */
-  be_u32 sin_addr; /**< Offset 0x4. IPv4 address. */
+  be_u16 sin_port; /**< Port. */
+  be_u32 sin_addr; /**< IPv4 address. */
   /** Prefixed because Android defines sin_zero as __pad. */
-  char x_sin_zero[8]; /**< Offset 0x8. Zero padding. */
+  char x_sin_zero[8]; /**< Zero padding. */
 };
 
 /** Native sockaddr_in. */
@@ -84,11 +84,11 @@ struct N_XSOCKADDR_IN {
     return *this;
   }
 
-  u16 sin_family;  /**< Offset 0x0. Address family. */
-  be_u16 sin_port; /**< Offset 0x2. Port. */
-  be_u32 sin_addr; /**< Offset 0x4. IPv4 address. */
+  u16 sin_family;  /**< Address family. */
+  be_u16 sin_port; /**< Port. */
+  be_u32 sin_addr; /**< IPv4 address. */
   /** Prefixed because Android defines sin_zero as __pad. */
-  char x_sin_zero[8]; /**< Offset 0x8. Zero padding. */
+  char x_sin_zero[8]; /**< Zero padding. */
 };
 
 /** The address families a socket object supports. */

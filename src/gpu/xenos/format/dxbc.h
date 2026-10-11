@@ -576,47 +576,47 @@ enum class Primitive : u32 {
 /** The STAT blob, with the byte offset of each member in its trailing comment. */
 struct alignas(u32) Statistics {
   /** Not increased by declarations and labels. */
-  u32 instruction_count;   /**< +0 */
-  u32 temp_register_count; /**< +4 */
-  u32 def_count;           /**< +8 */
+  u32 instruction_count;
+  u32 temp_register_count;
+  u32 def_count;
   /** Only inputs and outputs, not CBVs, SRVs, UAVs and samplers. */
-  u32 dcl_count;               /**< +C */
-  u32 float_instruction_count; /**< +10 */
-  u32 int_instruction_count;   /**< +14 */
-  u32 uint_instruction_count;  /**< +18 */
+  u32 dcl_count;
+  u32 float_instruction_count;
+  u32 int_instruction_count;
+  u32 uint_instruction_count;
   /** Counts endif and ret. */
-  u32 static_flow_control_count; /**< +1C */
+  u32 static_flow_control_count;
   /** Counts if but not else. */
-  u32 dynamic_flow_control_count;    /**< +20 */
-  u32 macro_instruction_count;       /**< +24 */
-  u32 temp_array_count;              /**< +28 */
-  u32 array_instruction_count;       /**< +2C */
-  u32 cut_instruction_count;         /**< +30 */
-  u32 emit_instruction_count;        /**< +34 */
-  u32 texture_normal_instructions;   /**< +38 */
-  u32 texture_load_instructions;     /**< +3C */
-  u32 texture_comp_instructions;     /**< +40 */
-  u32 texture_bias_instructions;     /**< +44 */
-  u32 texture_gradient_instructions; /**< +48 */
+  u32 dynamic_flow_control_count;
+  u32 macro_instruction_count;
+  u32 temp_array_count;
+  u32 array_instruction_count;
+  u32 cut_instruction_count;
+  u32 emit_instruction_count;
+  u32 texture_normal_instructions;
+  u32 texture_load_instructions;
+  u32 texture_comp_instructions;
+  u32 texture_bias_instructions;
+  u32 texture_gradient_instructions;
   /** Not including indexable temp load and store. */
-  u32 mov_instruction_count;            /**< +4C */
-  u32 movc_instruction_count;           /**< +50 */
-  u32 conversion_instruction_count;     /**< +54 */
-  u32 unknown_22;                       /**< +58 */
-  Primitive input_primitive;            /**< +5C */
-  PrimitiveTopology gs_output_topology; /**< +60 */
-  u32 gs_max_output_vertex_count;       /**< +64 */
-  u32 unknown_26;                       /**< +68 */
-  u32 lod_instructions;                 /**< +6C */
-  u32 unknown_28;                       /**< +70 */
-  u32 unknown_29;                       /**< +74 */
-  u32 c_control_points;                 /**< +78 */
-  u32 hs_output_primitive;              /**< +7C */
-  u32 hs_partitioning;                  /**< +80 */
-  TessellatorDomain tessellator_domain; /**< +84 */
-  u32 c_barrier_instructions;           /**< +88 */
-  u32 c_interlocked_instructions;       /**< +8C */
-  u32 c_texture_store_instructions;     /**< +90 */
+  u32 mov_instruction_count;
+  u32 movc_instruction_count;
+  u32 conversion_instruction_count;
+  u32 unknown_22;
+  Primitive input_primitive;
+  PrimitiveTopology gs_output_topology;
+  u32 gs_max_output_vertex_count;
+  u32 unknown_26;
+  u32 lod_instructions;
+  u32 unknown_28;
+  u32 unknown_29;
+  u32 c_control_points;
+  u32 hs_output_primitive;
+  u32 hs_partitioning;
+  TessellatorDomain tessellator_domain;
+  u32 c_barrier_instructions;
+  u32 c_interlocked_instructions;
+  u32 c_texture_store_instructions;
 };
 REX_STATIC_ASSERT_SIZE(Statistics, sizeof(u32) * 37);
 

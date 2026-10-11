@@ -104,7 +104,7 @@ struct Instruction {
    * Fields RT/RS (5-bit), RA (5-bit), RB (5-bit), XO (10-bit), Rc (1-bit)
    */
   struct FormatX {
-    u32 Rc : 1;     /**< Bit 31, updates CR0. */
+    u32 Rc : 1;     /**< Updates CR0. */
     u32 XO : 10;    /**< Extended opcode (bits 21-30). */
     u32 RB : 5;     /**< Register B (bits 16-20). */
     u32 RA : 5;     /**< Register A (bits 11-15). */
@@ -157,7 +157,7 @@ struct Instruction {
    * Fields RT (5-bit), RA (5-bit), RB (5-bit), OE (1-bit), XO (9-bit), Rc (1-bit)
    */
   struct FormatXO {
-    u32 Rc : 1;     /**< Bit 31, updates CR0. */
+    u32 Rc : 1;     /**< Updates CR0. */
     u32 XO : 9;     /**< Extended opcode (bits 22-30). */
     u32 OE : 1;     /**< Overflow enable (bit 21). */
     u32 RB : 5;     /**< Register B (bits 16-20). */
@@ -171,7 +171,7 @@ struct Instruction {
    * Fields RS (5-bit), RA (5-bit), SH/RB (5-bit), MB (5-bit), ME (5-bit), Rc (1-bit)
    */
   struct FormatM {
-    u32 Rc : 1;     /**< Bit 31, updates CR0. */
+    u32 Rc : 1;     /**< Updates CR0. */
     u32 ME : 5;     /**< Mask end (bits 26-30). */
     u32 MB : 5;     /**< Mask begin (bits 21-25). */
     u32 SH : 5;     /**< Shift amount (bits 16-20). */
@@ -188,7 +188,7 @@ struct Instruction {
    * Fields RS (5-bit), RA (5-bit), sh (6-bit), mb (6-bit), XO (3-bit), Rc (1-bit)
    */
   struct FormatMD {
-    u32 Rc : 1;     /**< Bit 31, updates CR0. */
+    u32 Rc : 1;     /**< Updates CR0. */
     u32 XO : 3;     /**< Extended opcode (bits 27-30, includes sh bit 5). */
     u32 mb : 6;     /**< Mask begin (bits 21-26, includes bit 5). */
     u32 sh : 6;     /**< Shift amount (bits 16-20, includes bit 30). */
@@ -202,7 +202,7 @@ struct Instruction {
    * Fields FRT (5-bit), FRA (5-bit), FRB (5-bit), FRC (5-bit), XO (5-bit), Rc (1-bit)
    */
   struct FormatA {
-    u32 Rc : 1;     /**< Bit 31, updates CR0. */
+    u32 Rc : 1;     /**< Updates CR0. */
     u32 XO : 5;     /**< Extended opcode (bits 26-30). */
     u32 FRC : 5;    /**< FPR C (bits 21-25). */
     u32 FRB : 5;    /**< FPR B (bits 16-20). */
@@ -248,7 +248,7 @@ struct Instruction {
    */
   struct FormatVXR {
     u32 XO : 10;    /**< Extended opcode (bits 21-30). */
-    u32 Rc : 1;     /**< Bit 31, sets CR6. */
+    u32 Rc : 1;     /**< Sets CR6. */
     u32 VRB : 5;    /**< Vector register B (bits 16-20). */
     u32 VRA : 5;    /**< Vector register A (bits 11-15). */
     u32 VRT : 5;    /**< Vector register T (bits 6-10). */

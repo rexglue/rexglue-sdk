@@ -23,8 +23,8 @@ namespace rex::runtime {
 
 /** Guest layout of a kernel semaphore. */
 struct X_KSEMAPHORE {
-  X_DISPATCH_HEADER header; /**< Offset 0x0. Dispatch header. */
-  be_u32 limit;             /**< Offset 0x10. Largest count the semaphore reaches. */
+  X_DISPATCH_HEADER header; /**< Dispatch header. */
+  be_u32 limit;             /**< Largest count the semaphore reaches. */
 };
 REX_STATIC_ASSERT_SIZE(X_KSEMAPHORE, 0x14);
 

@@ -34,30 +34,30 @@ namespace rex::runtime {
 struct XMA_CONTEXT_DATA {
   // DWORD 0
   u32 input_buffer_0_packet_count : 12; /**< XMASetInputBuffer0, 2KB packets, max 4095 */
-  u32 loop_count : 8;                   /**< +12bit, XMASetLoopData NumLoops */
-  u32 input_buffer_0_valid : 1;         /**< +20bit, XMAIsInputBuffer0Valid */
-  u32 input_buffer_1_valid : 1;         /**< +21bit, XMAIsInputBuffer1Valid */
-  u32 output_buffer_block_count : 5;    /**< +22bit, SizeWrite in 256 byte blocks */
-  /** +27bit, XMAGetOutputBufferWriteOffset (OffsetWrite) */
+  u32 loop_count : 8;                   /**< XMASetLoopData NumLoops */
+  u32 input_buffer_0_valid : 1;         /**< XMAIsInputBuffer0Valid */
+  u32 input_buffer_1_valid : 1;         /**< XMAIsInputBuffer1Valid */
+  u32 output_buffer_block_count : 5;    /**< SizeWrite in 256 byte blocks */
+  /** XMAGetOutputBufferWriteOffset (OffsetWrite) */
   u32 output_buffer_write_offset : 5;
 
   // DWORD 1
   u32 input_buffer_1_packet_count : 12; /**< XMASetInputBuffer1, 2KB packets, max 4095 */
-  /** +12bit, XMAPlaybackSetLoop dwLoopSubframeEnd, the last loop frame plays subframes 0..end */
+  /** XMAPlaybackSetLoop dwLoopSubframeEnd, the last loop frame plays subframes 0..end */
   u32 loop_subframe_end : 2;
-  u32 unk_dword_1_a : 3; /**< +14bit */
+  u32 unk_dword_1_a : 3;
   /**
-   * +17bit, XMAPlaybackSetLoop dwLoopSubframeSkip, subframes discarded at loop start.
+   * XMAPlaybackSetLoop dwLoopSubframeSkip, subframes discarded at loop start.
    * 4 means a whole warm up frame (frame aligned loops).
    */
   u32 loop_subframe_skip : 3;
-  u32 subframe_decode_count : 4; /**< +20bit */
-  /** +24bit, extra output blocks reserved per decoded frame */
+  u32 subframe_decode_count : 4;
+  /** Extra output blocks reserved per decoded frame */
   u32 output_buffer_padding : 3;
-  u32 sample_rate : 2;         /**< +27bit, index into kIdToSampleRate */
-  u32 is_stereo : 1;           /**< +29bit */
-  u32 unk_dword_1_c : 1;       /**< +30bit */
-  u32 output_buffer_valid : 1; /**< +31bit, XMAIsOutputBufferValid */
+  u32 sample_rate : 2; /**< Index into kIdToSampleRate */
+  u32 is_stereo : 1;
+  u32 unk_dword_1_c : 1;
+  u32 output_buffer_valid : 1; /**< XMAIsOutputBufferValid */
 
   // DWORD 2
   u32 input_buffer_read_offset : 26; /**< XMAGetInputBufferReadOffset */
@@ -84,11 +84,11 @@ struct XMA_CONTEXT_DATA {
   u32 work_buffer_ptr;
 
   // DWORD 9
-  /** +0bit, XMAGetOutputBufferReadOffset (WriteBufferOffsetRead) */
+  /** XMAGetOutputBufferReadOffset (WriteBufferOffsetRead) */
   u32 output_buffer_read_offset : 5;
   u32 : 25;
-  u32 stop_when_done : 1;      /**< +30bit */
-  u32 interrupt_when_done : 1; /**< +31bit */
+  u32 stop_when_done : 1;
+  u32 interrupt_when_done : 1;
 
   // DWORD 10-15
   u32 unk_dwords_10_15[6];

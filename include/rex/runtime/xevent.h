@@ -23,7 +23,7 @@ namespace rex::runtime {
 
 /** Guest layout of a kernel event. */
 struct X_KEVENT {
-  X_DISPATCH_HEADER header; /**< Offset 0x0. Dispatch header. */
+  X_DISPATCH_HEADER header; /**< Dispatch header. */
 };
 REX_STATIC_ASSERT_SIZE(X_KEVENT, 0x10);
 

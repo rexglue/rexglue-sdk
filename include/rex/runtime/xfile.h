@@ -19,6 +19,7 @@
 #include <utility>
 #include <vector>
 
+#include <rex/assert.h>
 #include <rex/filesystem.h>
 #include <rex/macros.h>
 #include <rex/platform/thread.h>
@@ -41,17 +42,17 @@ class IObjectTable;
 /** Guest layout of 1 entry of a directory listing, chained through next_entry_offset. */
 class X_FILE_DIRECTORY_INFORMATION {
  public:
-  be_u32 next_entry_offset; /**< Offset 0x0. */
-  be_u32 file_index;        /**< Offset 0x4. */
-  be_u64 creation_time;     /**< Offset 0x8. */
-  be_u64 last_access_time;  /**< Offset 0x10. */
-  be_u64 last_write_time;   /**< Offset 0x18. */
-  be_u64 change_time;       /**< Offset 0x20. */
-  be_u64 end_of_file;       /**< Offset 0x28. Size in bytes. */
-  be_u64 allocation_size;   /**< Offset 0x30. */
-  be_u32 attributes;        /**< Offset 0x38. X_FILE_ATTRIBUTES. */
-  be_u32 file_name_length;  /**< Offset 0x3C. */
-  char file_name[1];        /**< Offset 0x40. */
+  be_u32 next_entry_offset;
+  be_u32 file_index;
+  be_u64 creation_time;
+  be_u64 last_access_time;
+  be_u64 last_write_time;
+  be_u64 change_time;
+  be_u64 end_of_file; /**< Size in bytes. */
+  be_u64 allocation_size;
+  be_u32 attributes; /**< X_FILE_ATTRIBUTES. */
+  be_u32 file_name_length;
+  char file_name[1];
 
   /**
    * Copies this entry and the entries chained after it into guest memory.
@@ -83,6 +84,7 @@ class X_FILE_DIRECTORY_INFORMATION {
     } while (right->next_entry_offset != 0);
   }
 };
+REX_STATIC_ASSERT_SIZE(X_FILE_DIRECTORY_INFORMATION, 0x48);
 
 /** The host state of a file or directory object. */
 struct FileObject {

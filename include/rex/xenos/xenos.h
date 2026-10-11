@@ -1056,10 +1056,10 @@ inline u32 CPUToGPU(u32 p) {
 union alignas(u32) LoopConstant {
   u32 value; /**< Raw register value. */
   struct {
-    u32 count : 8;  /**< Bit 0, iteration count. */
-    u32 start : 8;  /**< Bit 8, aL start. aL is iterator * step + start, in [-256, 256]. */
-    i32 step : 8;   /**< Bit 16, aL step. */
-    u32 pad_24 : 8; /**< Bit 24, padding. */
+    u32 count : 8;  /**< Iteration count. */
+    u32 start : 8;  /**< AL start. aL is iterator * step + start, in [-256, 256]. */
+    i32 step : 8;   /**< AL step. */
+    u32 pad_24 : 8; /**< Padding. */
   };
 };
 REX_STATIC_ASSERT_SIZE(LoopConstant, sizeof(u32));
@@ -1085,12 +1085,12 @@ union alignas(u32) VertexFetch {
     u32 dword_1; /**< Raw dword 1. */
   };
   struct {
-    FetchConstantType type : 2; /**< Dword 0 bit 0, constant type. */
-    u32 address : 30;           /**< Dword 0 bit 2, address in dwords. */
+    FetchConstantType type : 2; /**< Constant type. */
+    u32 address : 30;           /**< Address in dwords. */
 
-    Endian endian : 2; /**< Dword 1 bit 0, endian swap. */
-    u32 size : 24;     /**< Dword 1 bit 2, size in words. */
-    u32 pad_26 : 6;    /**< Dword 1 bit 26, padding. */
+    Endian endian : 2; /**< Endian swap. */
+    u32 size : 24;     /**< Size in words. */
+    u32 pad_26 : 6;    /**< Padding. */
   };
 };
 REX_STATIC_ASSERT_SIZE(VertexFetch, sizeof(u32) * 2);
@@ -1184,24 +1184,24 @@ union alignas(u32) TextureFetch {
     u32 dword_5; /**< Raw dword 5. */
   };
   struct {
-    FetchConstantType type : 2; /**< Dword 0 bit 0, constant type. */
-    TextureSign sign_x : 2;     /**< Dword 0 bit 2, X signedness before the swizzle. */
-    TextureSign sign_y : 2;     /**< Dword 0 bit 4, Y signedness. */
-    TextureSign sign_z : 2;     /**< Dword 0 bit 6, Z signedness. */
-    TextureSign sign_w : 2;     /**< Dword 0 bit 8, W signedness. */
-    ClampMode clamp_x : 3;      /**< Dword 0 bit 10, X clamp mode. */
-    ClampMode clamp_y : 3;      /**< Dword 0 bit 13, Y clamp mode. */
-    ClampMode clamp_z : 3;      /**< Dword 0 bit 16, Z clamp mode. */
-    u32 pad_19 : 3;             /**< Dword 0 bit 19, padding. */
-    u32 pitch : 9;              /**< Dword 0 bit 22, base row pitch in pixels >> 5. */
-    u32 tiled : 1;              /**< Dword 0 bit 31, tiled layout. */
+    FetchConstantType type : 2; /**< Constant type. */
+    TextureSign sign_x : 2;     /**< X signedness before the swizzle. */
+    TextureSign sign_y : 2;     /**< Y signedness. */
+    TextureSign sign_z : 2;     /**< Z signedness. */
+    TextureSign sign_w : 2;     /**< W signedness. */
+    ClampMode clamp_x : 3;      /**< X clamp mode. */
+    ClampMode clamp_y : 3;      /**< Y clamp mode. */
+    ClampMode clamp_z : 3;      /**< Z clamp mode. */
+    u32 pad_19 : 3;             /**< Padding. */
+    u32 pitch : 9;              /**< Base row pitch in pixels >> 5. */
+    u32 tiled : 1;              /**< Tiled layout. */
 
-    TextureFormat format : 6;     /**< Dword 1 bit 0, texture format. */
-    Endian endianness : 2;        /**< Dword 1 bit 6, endian swap. */
-    u32 request_size : 2;         /**< Dword 1 bit 8, request size. */
-    u32 stacked : 1;              /**< Dword 1 bit 10, stacked 2D texture. */
-    u32 nearest_clamp_policy : 1; /**< Dword 1 bit 11, Direct3D or OpenGL nearest clamp. */
-    u32 base_address : 20;        /**< Dword 1 bit 12, base address >> 12. */
+    TextureFormat format : 6;     /**< Texture format. */
+    Endian endianness : 2;        /**< Endian swap. */
+    u32 request_size : 2;         /**< Request size. */
+    u32 stacked : 1;              /**< Stacked 2D texture. */
+    u32 nearest_clamp_policy : 1; /**< Direct3D or OpenGL nearest clamp. */
+    u32 base_address : 20;        /**< Base address >> 12. */
 
     union {
       struct {
@@ -1220,33 +1220,33 @@ union alignas(u32) TextureFetch {
       } size_3d;         /**< Dword 2, 3D size. */
     };
 
-    u32 num_format : 1;                   /**< Dword 3 bit 0, fraction or integer. */
-    u32 swizzle : 12;                     /**< Dword 3 bit 1, XYZW TextureSwizzle, 3 bits each. */
-    i32 exp_adjust : 6;                   /**< Dword 3 bit 13, exponent adjustment. */
-    TextureFilter mag_filter : 2;         /**< Dword 3 bit 19, magnification filter. */
-    TextureFilter min_filter : 2;         /**< Dword 3 bit 21, minification filter. */
-    TextureFilter mip_filter : 2;         /**< Dword 3 bit 23, mip filter. */
-    AnisoFilter aniso_filter : 3;         /**< Dword 3 bit 25, anisotropic filter. */
-    ArbitraryFilter arbitrary_filter : 3; /**< Dword 3 bit 28, arbitrary filter. */
-    u32 border_size : 1;                  /**< Dword 3 bit 31, border size. */
+    u32 num_format : 1;                   /**< Fraction or integer. */
+    u32 swizzle : 12;                     /**< XYZW TextureSwizzle, 3 bits each. */
+    i32 exp_adjust : 6;                   /**< Exponent adjustment. */
+    TextureFilter mag_filter : 2;         /**< Magnification filter. */
+    TextureFilter min_filter : 2;         /**< Minification filter. */
+    TextureFilter mip_filter : 2;         /**< Mip filter. */
+    AnisoFilter aniso_filter : 3;         /**< Anisotropic filter. */
+    ArbitraryFilter arbitrary_filter : 3; /**< Arbitrary filter. */
+    u32 border_size : 1;                  /**< Border size. */
 
-    u32 vol_mag_filter : 1;    /**< Dword 4 bit 0, volume magnification filter. */
-    u32 vol_min_filter : 1;    /**< Dword 4 bit 1, volume minification filter. */
-    u32 mip_min_level : 4;     /**< Dword 4 bit 2, lowest mip level. */
-    u32 mip_max_level : 4;     /**< Dword 4 bit 6, highest mip level. */
-    u32 mag_aniso_walk : 1;    /**< Dword 4 bit 10, magnification anisotropic walk. */
-    u32 min_aniso_walk : 1;    /**< Dword 4 bit 11, minification anisotropic walk. */
-    i32 lod_bias : 10;         /**< Dword 4 bit 12, LOD bias with 5 fractional bits. */
-    i32 grad_exp_adjust_h : 5; /**< Dword 4 bit 22, horizontal gradient exponent adjustment. */
-    i32 grad_exp_adjust_v : 5; /**< Dword 4 bit 27, vertical gradient exponent adjustment. */
+    u32 vol_mag_filter : 1;    /**< Volume magnification filter. */
+    u32 vol_min_filter : 1;    /**< Volume minification filter. */
+    u32 mip_min_level : 4;     /**< Lowest mip level. */
+    u32 mip_max_level : 4;     /**< Highest mip level. */
+    u32 mag_aniso_walk : 1;    /**< Magnification anisotropic walk. */
+    u32 min_aniso_walk : 1;    /**< Minification anisotropic walk. */
+    i32 lod_bias : 10;         /**< LOD bias with 5 fractional bits. */
+    i32 grad_exp_adjust_h : 5; /**< Horizontal gradient exponent adjustment. */
+    i32 grad_exp_adjust_v : 5; /**< Vertical gradient exponent adjustment. */
 
-    BorderColor border_color : 2; /**< Dword 5 bit 0, border color. */
-    u32 force_bc_w_to_max : 1;    /**< Dword 5 bit 2, force block compression W to max. */
-    u32 tri_clamp : 2;            /**< Dword 5 bit 3, trilinear clamp. */
-    i32 aniso_bias : 4;           /**< Dword 5 bit 5, anisotropic bias. */
-    DataDimension dimension : 2;  /**< Dword 5 bit 9, dimension. */
-    u32 packed_mips : 1;          /**< Dword 5 bit 11, packed mips. */
-    u32 mip_address : 20;         /**< Dword 5 bit 12, mip address >> 12. */
+    BorderColor border_color : 2; /**< Border color. */
+    u32 force_bc_w_to_max : 1;    /**< Force block compression W to max. */
+    u32 tri_clamp : 2;            /**< Trilinear clamp. */
+    i32 aniso_bias : 4;           /**< Anisotropic bias. */
+    DataDimension dimension : 2;  /**< Dimension. */
+    u32 packed_mips : 1;          /**< Packed mips. */
+    u32 mip_address : 20;         /**< Mip address >> 12. */
   };
 };
 REX_STATIC_ASSERT_SIZE(TextureFetch, sizeof(u32) * 6);
@@ -1303,21 +1303,21 @@ union alignas(u32) MemExportStream {
     u32 dword_3; /**< Raw dword 3. */
   };
   struct {
-    u32 base_address : 30; /**< Dword 0 bit 0, physical address >> 2. */
-    u32 const_0x1 : 2;     /**< Dword 0 bit 30, 0b01. */
+    u32 base_address : 30; /**< Physical address >> 2. */
+    u32 const_0x1 : 2;     /**< 0b01. */
 
     u32 const_0x4b000000; /**< Dword 1, 2^23 with the offset added by the shader. */
 
-    Endian128 endianness : 3;           /**< Dword 2 bit 0, endian swap. */
-    u32 unused_0 : 5;                   /**< Dword 2 bit 3, unused. */
-    ColorFormat format : 6;             /**< Dword 2 bit 8, element format. */
-    u32 unused_1 : 2;                   /**< Dword 2 bit 14, unused. */
-    SurfaceNumberFormat num_format : 3; /**< Dword 2 bit 16, number format. */
-    u32 red_blue_swap : 1;              /**< Dword 2 bit 19, swap red and blue. */
-    u32 const_0x4b0 : 12;               /**< Dword 2 bit 20, exponent 23. */
+    Endian128 endianness : 3;           /**< Endian swap. */
+    u32 unused_0 : 5;                   /**< Unused. */
+    ColorFormat format : 6;             /**< Element format. */
+    u32 unused_1 : 2;                   /**< Unused. */
+    SurfaceNumberFormat num_format : 3; /**< Number format. */
+    u32 red_blue_swap : 1;              /**< Swap red and blue. */
+    u32 const_0x4b0 : 12;               /**< Exponent 23. */
 
-    u32 index_count : 23; /**< Dword 3 bit 0, element count. */
-    u32 const_0x96 : 9;   /**< Dword 3 bit 23, exponent 23. */
+    u32 index_count : 23; /**< Element count. */
+    u32 const_0x96 : 9;   /**< Exponent 23. */
   };
 };
 REX_STATIC_ASSERT_SIZE(MemExportStream, sizeof(u32) * 4);

@@ -28,19 +28,19 @@ namespace rex::runtime {
 
 /** Guest block of an enumerator, followed by the extra bytes of its creator. */
 struct X_KENUMERATOR {
-  be_u32 app_id;              /**< Offset 0x0. Id of the Xam app the messages go to. */
-  be_u32 open_message;        /**< Offset 0x4. Message sent to the app to open the enumerator. */
-  be_u32 close_message;       /**< Offset 0x8. Message sent to the app to close the enumerator. */
-  be_u32 user_index;          /**< Offset 0xC. Index of the user the enumerator belongs to. */
-  be_u32 items_per_enumerate; /**< Offset 0x10. Items 1 enumerate call returns. */
-  be_u32 flags;               /**< Offset 0x14. Set from EnumeratorInit::flags, 0 at every call. */
+  be_u32 app_id;              /**< Id of the Xam app the messages go to. */
+  be_u32 open_message;        /**< Message sent to the app to open the enumerator. */
+  be_u32 close_message;       /**< Message sent to the app to close the enumerator. */
+  be_u32 user_index;          /**< Index of the user the enumerator belongs to. */
+  be_u32 items_per_enumerate; /**< Items 1 enumerate call returns. */
+  be_u32 flags;               /**< Set from EnumeratorInit::flags, 0 at every call. */
 };
 REX_STATIC_ASSERT_SIZE(X_KENUMERATOR, 0x18);
 
 /** Extra block after `X_KENUMERATOR` for the content aggregate enumerator. */
 struct X_KENUMERATOR_CONTENT_AGGREGATE {
-  be_u32 magic;  /**< Offset 0x0. `kXObjSignature`. */
-  be_u32 handle; /**< Offset 0x4. Handle of the enumerator. */
+  be_u32 magic;  /**< `kXObjSignature`. */
+  be_u32 handle; /**< Handle of the enumerator. */
 };
 
 /**

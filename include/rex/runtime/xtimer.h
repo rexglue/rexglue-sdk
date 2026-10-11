@@ -29,11 +29,11 @@ struct XDPC;
 
 /** Guest layout of a kernel timer. */
 struct X_KTIMER {
-  X_DISPATCH_HEADER header;        /**< Offset 0x0. */
-  be_u64 due_time;                 /**< Offset 0x10. */
-  X_LIST_ENTRY table_bucket_entry; /**< Offset 0x18. */
-  TypedGuestPointer<XDPC> dpc;     /**< Offset 0x20. */
-  be_u32 period;                   /**< Offset 0x24. */
+  X_DISPATCH_HEADER header;
+  be_u64 due_time;
+  X_LIST_ENTRY table_bucket_entry;
+  TypedGuestPointer<XDPC> dpc;
+  be_u32 period;
 };
 REX_STATIC_ASSERT_SIZE(X_KTIMER, 0x28);
 

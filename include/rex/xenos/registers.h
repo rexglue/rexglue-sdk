@@ -56,7 +56,7 @@ union alignas(u32) COHER_STATUS_HOST {
   u32 value; /**< Raw 32 bit register value, sharing storage with the bit fields. */
   struct {
     u32 matching_contexts : 8;     /**< Bits 0 to 7. No code reads it. */
-    u32 rb_copy_dest_base_ena : 1; /**< Bit 8. No code reads it. */
+    u32 rb_copy_dest_base_ena : 1; /**< No code reads it. */
     /**
      * @name Bits 9 to 16. Destination base enables dest_base_0_ena to dest_base_7_ena, 1 bit per
      * destination base register. No code reads them.
@@ -73,19 +73,19 @@ union alignas(u32) COHER_STATUS_HOST {
     /** @} */
     u32 pad_17 : 7;
     /**
-     * Bit 24. Requests a vertex cache action. The command processor only names it in the coherency
+     * Requests a vertex cache action. The command processor only names it in the coherency
      * trace log.
      */
     u32 vc_action_ena : 1;
     /**
-     * Bit 25. Requests a texture cache action. The command processor only names it in the coherency
+     * Requests a texture cache action. The command processor only names it in the coherency
      * trace log.
      */
     u32 tc_action_ena : 1;
-    u32 pglb_action_ena : 1; /**< Bit 26. No code reads it. */
+    u32 pglb_action_ena : 1; /**< No code reads it. */
     u32 pad_27 : 4;
     /**
-     * Bit 31. Set by a write to request coherency of the COHER_BASE_HOST range. The command
+     * Set by a write to request coherency of the COHER_BASE_HOST range. The command
      * processor clears the register after logging the request.
      */
     u32 status : 1;
@@ -100,19 +100,19 @@ union alignas(u32) WAIT_UNTIL {
   u32 value; /**< Raw 32 bit register value, sharing storage with the bit fields. */
   struct {
     u32 pad_0 : 1;
-    u32 wait_re_vsync : 1;  /**< Bit 1. No code reads it. */
-    u32 wait_fe_vsync : 1;  /**< Bit 2. No code reads it. */
-    u32 wait_vsync : 1;     /**< Bit 3. No code reads it. */
-    u32 wait_dsply_id0 : 1; /**< Bit 4. No code reads it. */
-    u32 wait_dsply_id1 : 1; /**< Bit 5. No code reads it. */
-    u32 wait_dsply_id2 : 1; /**< Bit 6. No code reads it. */
+    u32 wait_re_vsync : 1;  /**< No code reads it. */
+    u32 wait_fe_vsync : 1;  /**< No code reads it. */
+    u32 wait_vsync : 1;     /**< No code reads it. */
+    u32 wait_dsply_id0 : 1; /**< No code reads it. */
+    u32 wait_dsply_id1 : 1; /**< No code reads it. */
+    u32 wait_dsply_id2 : 1; /**< No code reads it. */
     u32 pad_7 : 3;
-    u32 wait_cmdfifo : 1; /**< Bit 10. No code reads it. */
+    u32 wait_cmdfifo : 1; /**< No code reads it. */
     u32 pad_11 : 3;
-    u32 wait_2d_idle : 1;      /**< Bit 14. No code reads it. */
-    u32 wait_3d_idle : 1;      /**< Bit 15. No code reads it. */
-    u32 wait_2d_idleclean : 1; /**< Bit 16. No code reads it. */
-    u32 wait_3d_idleclean : 1; /**< Bit 17. No code reads it. */
+    u32 wait_2d_idle : 1;      /**< No code reads it. */
+    u32 wait_3d_idle : 1;      /**< No code reads it. */
+    u32 wait_2d_idleclean : 1; /**< No code reads it. */
+    u32 wait_3d_idleclean : 1; /**< No code reads it. */
     u32 pad_18 : 2;
     u32 cmdfifo_entries : 4; /**< Bits 20 to 23. No code reads it. */
     u32 pad_24 : 8;
@@ -134,14 +134,14 @@ union alignas(u32) SQ_PROGRAM_CNTL {
     u32 pad_6 : 2;
     u32 ps_num_reg : 6; /**< Bits 8 to 13. Pixel shader GPR count minus 1. */
     u32 pad_14 : 2;
-    u32 vs_resource : 1; /**< Bit 16. No code reads it. */
-    u32 ps_resource : 1; /**< Bit 17. No code reads it. */
+    u32 vs_resource : 1; /**< No code reads it. */
+    u32 ps_resource : 1; /**< No code reads it. */
     /**
-     * Bit 18. Enables pixel parameter generation, which the shader translator applies at
+     * Enables pixel parameter generation, which the shader translator applies at
      * SQ_CONTEXT_MISC::param_gen_pos.
      */
     u32 param_gen : 1;
-    u32 gen_index_pix : 1;   /**< Bit 19. No code reads it. */
+    u32 gen_index_pix : 1;   /**< No code reads it. */
     u32 vs_export_count : 4; /**< Bits 20 to 23. Interpolator output count minus 1. */
     /**
      * Bits 24 to 26. Vertex shader export mode. The draw code rejects kMultipass and the pipeline
@@ -149,7 +149,7 @@ union alignas(u32) SQ_PROGRAM_CNTL {
      */
     xenos::VertexShaderExportMode vs_export_mode : 3;
     u32 ps_export_mode : 4; /**< Bits 27 to 30. No code reads it. */
-    /** Bit 31. Vertex index generation. The pipeline caches assert it is clear. */
+    /** Vertex index generation. The pipeline caches assert it is clear. */
     u32 gen_index_vtx : 1;
   };
   /** Register that RegisterFile::Get reads this layout from. */
@@ -164,8 +164,8 @@ REX_STATIC_ASSERT_SIZE(SQ_PROGRAM_CNTL, sizeof(u32));
 union alignas(u32) SQ_CONTEXT_MISC {
   u32 value; /**< Raw 32 bit register value, sharing storage with the bit fields. */
   struct {
-    u32 inst_pred_optimize : 1;  /**< Bit 0. No code reads it. */
-    u32 sc_output_screen_xy : 1; /**< Bit 1. No code reads it. */
+    u32 inst_pred_optimize : 1;  /**< No code reads it. */
+    u32 sc_output_screen_xy : 1; /**< No code reads it. */
     /** Bits 2 to 3. Interpolation sample location mode, passed to the pipeline caches. */
     xenos::SampleControl sc_sample_cntl : 2;
     u32 pad_4 : 4;
@@ -183,9 +183,9 @@ union alignas(u32) SQ_CONTEXT_MISC {
      * - The sign bit of Z is set for a line.
      */
     u32 param_gen_pos : 8;
-    u32 perfcounter_ref : 1; /**< Bit 16. No code reads it. */
-    u32 yield_optimize : 1;  /**< Bit 17. No code reads it. */
-    u32 tx_cache_sel : 1;    /**< Bit 18. No code reads it. */
+    u32 perfcounter_ref : 1; /**< No code reads it. */
+    u32 yield_optimize : 1;  /**< No code reads it. */
+    u32 tx_cache_sel : 1;    /**< No code reads it. */
     u32 pad_19 : 13;
   };
   /** Register that RegisterFile::Get reads this layout from. */
@@ -253,7 +253,7 @@ union alignas(u32) VGT_DMA_SIZE {
      * Bits 0 to 23. Number of 32 bit words of the index buffer fetched by DMA. No code reads it.
      */
     u32 num_words : 24;
-    u32 pad_24 : 6; /**< +24 */
+    u32 pad_24 : 6;
     /**
      * Bits 30 to 31. Endian swap applied to the DMA index buffer, passed to the index buffer info
      * of the draw packet handler.
@@ -280,9 +280,9 @@ union alignas(u32) VGT_DRAW_INITIATOR {
      */
     xenos::MajorMode major_mode : 2;
     u32 pad_10 : 1;
-    /** Bit 11. Index element format, 16 bit or 32 bit, which sets the index buffer element size. */
+    /** Index element format, 16 bit or 32 bit, which sets the index buffer element size. */
     xenos::IndexFormat index_size : 1;
-    u32 not_eop : 1; /**< Bit 12. No code reads it. */
+    u32 not_eop : 1; /**< No code reads it. */
     u32 pad_13 : 3;
     /**
      * Bits 16 to 31. Number of indices to draw, passed to IssueDraw and used as the DMA index
@@ -425,14 +425,14 @@ union alignas(u32) PA_SU_SC_MODE_CNTL {
   u32 value; /**< Raw 32 bit register value, sharing storage with the bit fields. */
   struct {
     /**
-     * Bit 0. Culls front faces. The pipeline caches assert it is not set together with cull_back.
+     * Culls front faces. The pipeline caches assert it is not set together with cull_back.
      */
     u32 cull_front : 1;
     /**
-     * Bit 1. Culls back faces, read by the pipeline caches and the Direct3D 12 command processor.
+     * Culls back faces, read by the pipeline caches and the Direct3D 12 command processor.
      */
     u32 cull_back : 1;
-    /** Bit 2. Front face winding, where 0 is counter clockwise front and 1 is clockwise front. */
+    /** Front face winding, where 0 is counter clockwise front and 1 is clockwise front. */
     u32 face : 1;
     /**
      * Titles may use poly_mode 2 for triangles, with polymode_front_ptype and polymode_back_ptype
@@ -451,33 +451,33 @@ union alignas(u32) PA_SU_SC_MODE_CNTL {
      */
     xenos::PolygonType polymode_back_ptype : 3;
     /**
-     * Bit 11. Applies the front polygon offset scale and offset registers to polygonal primitives.
+     * Applies the front polygon offset scale and offset registers to polygonal primitives.
      */
     u32 poly_offset_front_enable : 1;
     /**
-     * Bit 12. Applies the back polygon offset scale and offset registers to polygonal primitives.
+     * Applies the back polygon offset scale and offset registers to polygonal primitives.
      */
     u32 poly_offset_back_enable : 1;
-    /** Bit 13. Applies the front polygon offset registers to non polygonal primitives. */
+    /** Applies the front polygon offset registers to non polygonal primitives. */
     u32 poly_offset_para_enable : 1;
     u32 pad_14 : 1;
-    u32 msaa_enable : 1; /**< Bit 15. No code reads it. */
+    u32 msaa_enable : 1; /**< No code reads it. */
     /**
-     * Bit 16. Adds PA_SC_WINDOW_OFFSET to vertex positions, read by the draw code and the draw
+     * Adds PA_SC_WINDOW_OFFSET to vertex positions, read by the draw code and the draw
      * extent estimator.
      */
     u32 vtx_window_offset_enable : 1;
     u32 pad_17 : 2;
-    u32 provoking_vtx_last : 1; /**< Bit 19. No code reads it. */
-    u32 persp_corr_dis : 1;     /**< Bit 20. No code reads it. */
+    u32 provoking_vtx_last : 1; /**< No code reads it. */
+    u32 persp_corr_dis : 1;     /**< No code reads it. */
     /**
-     * Bit 21. Enables the primitive reset index, read by the primitive processor and the draw
+     * Enables the primitive reset index, read by the primitive processor and the draw
      * extent estimator.
      */
     u32 multi_prim_ib_ena : 1;
     u32 pad_22 : 1;
-    u32 quad_order_enable : 1;     /**< Bit 23. No code reads it. */
-    u32 sc_one_quad_per_clock : 1; /**< Bit 24. No code reads it. */
+    u32 quad_order_enable : 1;     /**< No code reads it. */
+    u32 sc_one_quad_per_clock : 1; /**< No code reads it. */
     u32 pad_25 : 7;
   };
   /** Register that RegisterFile::Get reads this layout from. */
@@ -490,7 +490,7 @@ union alignas(u32) PA_SU_VTX_CNTL {
   u32 value; /**< Raw 32 bit register value, sharing storage with the bit fields. */
   struct {
     /**
-     * Bit 0. Pixel center convention. kD3DZero makes the draw code shift positions by half a pixel.
+     * Pixel center convention. kD3DZero makes the draw code shift positions by half a pixel.
      */
     xenos::PixelCenter pix_center : 1;
     xenos::VertexRounding round_mode : 2;     /**< Bits 1 to 2. No code reads it. */
@@ -508,7 +508,7 @@ union alignas(u32) PA_SC_MPASS_PS_CNTL {
   struct {
     u32 mpass_pix_vec_per_pass : 20; /**< Bits 0 to 19. No code reads it. */
     u32 pad_20 : 11;
-    u32 mpass_ps_ena : 1; /**< Bit 31. No code reads it. */
+    u32 mpass_ps_ena : 1; /**< No code reads it. */
   };
   /** Register that RegisterFile::Get reads this layout from. */
   static constexpr Register register_index = xenos::Register::PA_SC_MPASS_PS_CNTL;
@@ -520,14 +520,14 @@ union alignas(u32) PA_SC_VIZ_QUERY {
   u32 value; /**< Raw 32 bit register value, sharing storage with the bit fields. */
   struct {
     /**
-     * Bit 0. Enables the visibility query. The draw packet handler skips the draw when
+     * Enables the visibility query. The draw packet handler skips the draw when
      * kill_pix_post_hi_z is also set.
      */
     u32 viz_query_ena : 1;
     u32 viz_query_id : 6; /**< Bits 1 to 6. No code reads it. */
     /** Discards geometry after the test but still uses it for testing. */
     u32 kill_pix_post_hi_z : 1;
-    u32 kill_pix_post_detail_mask : 1; /**< Bit 8. Unused by Direct3D. */
+    u32 kill_pix_post_detail_mask : 1; /**< Unused by Direct3D. */
     u32 pad_9 : 23;
   };
   /** Register that RegisterFile::Get reads this layout from. */
@@ -557,28 +557,28 @@ union alignas(u32) PA_CL_CLIP_CNTL {
      * modification.
      */
     u32 ps_ucp_mode : 2;
-    /** Bit 16. Disables clipping, which also disables the user clip planes and depth clip. */
+    /** Disables clipping, which also disables the user clip planes and depth clip. */
     u32 clip_disable : 1;
     /**
-     * Bit 17. Makes the user clip planes cull primitives instead of clipping them, read by the
+     * Makes the user clip planes cull primitives instead of clipping them, read by the
      * pipeline caches.
      */
     u32 ucp_cull_only_ena : 1;
-    u32 boundary_edge_flag_ena : 1; /**< Bit 18. No code reads it. */
+    u32 boundary_edge_flag_ena : 1; /**< No code reads it. */
     /**
-     * Bit 19. Selects the Direct3D clip space Z range, which the viewport computation of the draw
+     * Selects the Direct3D clip space Z range, which the viewport computation of the draw
      * code honors.
      */
     u32 dx_clip_space_def : 1;
-    u32 dis_clip_err_detect : 1; /**< Bit 20. No code reads it. */
+    u32 dis_clip_err_detect : 1; /**< No code reads it. */
     /**
-     * Bit 21. Read by the pipeline caches together with the kill vertex export of the vertex
+     * Read by the pipeline caches together with the kill vertex export of the vertex
      * shader.
      */
     u32 vtx_kill_or : 1;
-    u32 xy_nan_retain : 1; /**< Bit 22. No code reads it. */
-    u32 z_nan_retain : 1;  /**< Bit 23. No code reads it. */
-    u32 w_nan_retain : 1;  /**< Bit 24. No code reads it. */
+    u32 xy_nan_retain : 1; /**< No code reads it. */
+    u32 z_nan_retain : 1;  /**< No code reads it. */
+    u32 w_nan_retain : 1;  /**< No code reads it. */
     u32 pad_25 : 7;
   };
   struct {
@@ -597,35 +597,35 @@ REX_STATIC_ASSERT_SIZE(PA_CL_CLIP_CNTL, sizeof(u32));
 union alignas(u32) PA_CL_VTE_CNTL {
   u32 value; /**< Raw 32 bit register value, sharing storage with the bit fields. */
   struct {
-    /** Bit 0. Applies PA_CL_VPORT_XSCALE, otherwise the draw code uses a scale of 1. */
+    /** Applies PA_CL_VPORT_XSCALE, otherwise the draw code uses a scale of 1. */
     u32 vport_x_scale_ena : 1;
-    /** Bit 1. Applies PA_CL_VPORT_XOFFSET, otherwise the draw code uses an offset of 0. */
+    /** Applies PA_CL_VPORT_XOFFSET, otherwise the draw code uses an offset of 0. */
     u32 vport_x_offset_ena : 1;
-    /** Bit 2. Applies PA_CL_VPORT_YSCALE, otherwise the draw code uses a scale of 1. */
+    /** Applies PA_CL_VPORT_YSCALE, otherwise the draw code uses a scale of 1. */
     u32 vport_y_scale_ena : 1;
-    /** Bit 3. Applies PA_CL_VPORT_YOFFSET, otherwise the draw code uses an offset of 0. */
+    /** Applies PA_CL_VPORT_YOFFSET, otherwise the draw code uses an offset of 0. */
     u32 vport_y_offset_ena : 1;
-    /** Bit 4. Applies PA_CL_VPORT_ZSCALE, otherwise the draw code uses a scale of 1. */
+    /** Applies PA_CL_VPORT_ZSCALE, otherwise the draw code uses a scale of 1. */
     u32 vport_z_scale_ena : 1;
-    /** Bit 5. Applies PA_CL_VPORT_ZOFFSET, otherwise the draw code uses an offset of 0. */
+    /** Applies PA_CL_VPORT_ZOFFSET, otherwise the draw code uses an offset of 0. */
     u32 vport_z_offset_ena : 1;
     u32 pad_6 : 2;
     /**
-     * Bit 8. Set when vertex X and Y are already divided by W, which sets the XYDividedByW system
+     * Set when vertex X and Y are already divided by W, which sets the XYDividedByW system
      * flag of the shader translators.
      */
     u32 vtx_xy_fmt : 1;
     /**
-     * Bit 9. Set when vertex Z is already divided by W, which sets the ZDividedByW system flag of
+     * Set when vertex Z is already divided by W, which sets the ZDividedByW system flag of
      * the shader translators.
      */
     u32 vtx_z_fmt : 1;
     /**
-     * Bit 10. Set when W0 is not the reciprocal of W, which sets the WNotReciprocal system flag of
+     * Set when W0 is not the reciprocal of W, which sets the WNotReciprocal system flag of
      * the shader translators.
      */
     u32 vtx_w0_fmt : 1;
-    u32 perfcounter_ref : 1; /**< Bit 11. No code reads it. */
+    u32 perfcounter_ref : 1; /**< No code reads it. */
     u32 pad_12 : 20;
   };
   /** Register that RegisterFile::Get reads this layout from. */
@@ -705,7 +705,7 @@ union alignas(u32) PA_SC_WINDOW_SCISSOR_TL {
     u32 tl_y : 14; /**< Bits 16 to 29. Top edge in pixels, read by the draw code. */
     u32 pad_30 : 1;
     /**
-     * Bit 31. Skips PA_SC_WINDOW_OFFSET for the window scissor, read by the draw code and the draw
+     * Skips PA_SC_WINDOW_OFFSET for the window scissor, read by the draw code and the draw
      * extent estimator.
      */
     u32 window_offset_disable : 1;
@@ -770,10 +770,10 @@ union alignas(u32) RB_COLORCONTROL {
   struct {
     /** Bits 0 to 2. Alpha test comparison, used when alpha_test_enable is set. */
     xenos::CompareFunction alpha_func : 3;
-    /** Bit 3. Enables the alpha test, read by the command processors and the draw code. */
+    /** Enables the alpha test, read by the command processors and the draw code. */
     u32 alpha_test_enable : 1;
     /**
-     * Bit 4. Enables alpha to mask, which also passes bits 24 to 31 of the register to the shaders.
+     * Enables alpha to mask, which also passes bits 24 to 31 of the register to the shaders.
      */
     u32 alpha_to_mask_enable : 1;
     u32 pad_5 : 19;
@@ -816,7 +816,7 @@ union alignas(u32) RB_COLOR_INFO {
     /** Split from the 12 bit R400 field because EDRAM tile addressing is periodic with 11 bits. */
     /** Bits 0 to 10. EDRAM base of the render target in tiles, low 11 bits. */
     u32 color_base : 11;
-    u32 color_base_bit_11 : 1; /**< Bit 11. Bit 11 of the EDRAM base in tiles. */
+    u32 color_base_bit_11 : 1; /**< Bit 11 of the EDRAM base in tiles. */
     u32 pad_12 : 4;
     /**
      * Bits 16 to 19. Render target format, read by the command processors and the render target
@@ -898,12 +898,12 @@ REX_STATIC_ASSERT_SIZE(RB_BLENDCONTROL, sizeof(u32));
 union alignas(u32) RB_DEPTHCONTROL {
   u32 value; /**< Raw 32 bit register value, sharing storage with the bit fields. */
   struct {
-    u32 stencil_enable : 1; /**< Bit 0. Enables the stencil test. */
-    u32 z_enable : 1;       /**< Bit 1. Enables the depth test. */
-    u32 z_write_enable : 1; /**< Bit 2. Allows depth writes. */
+    u32 stencil_enable : 1; /**< Enables the stencil test. */
+    u32 z_enable : 1;       /**< Enables the depth test. */
+    u32 z_write_enable : 1; /**< Allows depth writes. */
     u32 pad_3 : 1;
     xenos::CompareFunction zfunc : 3; /**< Bits 4 to 6. Depth test comparison. */
-    /** Bit 7. Uses the _bf stencil fields for back faces of polygons. */
+    /** Uses the _bf stencil fields for back faces of polygons. */
     u32 backface_enable : 1;
     xenos::CompareFunction stencilfunc : 3; /**< Bits 8 to 10. Front face stencil comparison. */
     /** Bits 11 to 13. Front face operation when the stencil test fails. */
@@ -950,10 +950,10 @@ union alignas(u32) RB_DEPTH_INFO {
     /** Split from the 12 bit R400 field because EDRAM tile addressing is periodic with 11 bits. */
     /** Bits 0 to 10. EDRAM base of the depth target in tiles, low 11 bits. */
     u32 depth_base : 11;
-    u32 depth_base_bit_11 : 1; /**< Bit 11. Bit 11 of the EDRAM base in tiles. */
+    u32 depth_base_bit_11 : 1; /**< Bit 11 of the EDRAM base in tiles. */
     u32 pad_12 : 4;
     /**
-     * Bit 16. Depth target format, read by the command processors, the pipeline caches and the
+     * Depth target format, read by the command processors, the pipeline caches and the
      * render target cache.
      */
     xenos::DepthRenderTargetFormat depth_format : 1;
@@ -977,9 +977,9 @@ union alignas(u32) RB_COPY_CONTROL {
      */
     xenos::CopySampleSelect copy_sample_select : 3;
     u32 pad_7 : 1;
-    /** Bit 8. Clears the color target after the copy, read by the draw code. */
+    /** Clears the color target after the copy, read by the draw code. */
     u32 color_clear_enable : 1;
-    /** Bit 9. Clears the depth target after the copy, read by the draw code. */
+    /** Clears the depth target after the copy, read by the draw code. */
     u32 depth_clear_enable : 1;
     u32 pad_10 : 10;
     /** Bits 20 to 21. Copy operation, where the draw code accepts only kRaw and kConvert. */
@@ -998,7 +998,7 @@ union alignas(u32) RB_COPY_DEST_INFO {
     /** Bits 0 to 2. Endian swap applied to the copy destination. */
     xenos::Endian128 copy_dest_endian : 3;
     /**
-     * Bit 3. Destination is an array layout, which changes how the draw code computes its tiled
+     * Destination is an array layout, which changes how the draw code computes its tiled
      * extent.
      */
     u32 copy_dest_array : 1;
@@ -1020,7 +1020,7 @@ union alignas(u32) RB_COPY_DEST_INFO {
      */
     i32 copy_dest_exp_bias : 6;
     u32 pad_22 : 2;
-    /** Bit 24. Written as 0 by the draw code when it builds copy info. */
+    /** Written as 0 by the draw code when it builds copy info. */
     u32 copy_dest_swap : 1;
     u32 pad_25 : 7;
   };

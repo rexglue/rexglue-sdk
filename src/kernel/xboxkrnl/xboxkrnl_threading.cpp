@@ -1300,13 +1300,13 @@ u64 KeQueryInterruptTime_entry() {
 }
 
 struct X_ERWLOCK {
-  be_i32 lock_count;             /**< Offset 0x0 */
-  be_u32 writers_waiting_count;  /**< Offset 0x4 */
-  be_u32 readers_waiting_count;  /**< Offset 0x8 */
-  be_u32 readers_entry_count;    /**< Offset 0xC */
-  X_KEVENT writer_event;         /**< Offset 0x10 */
-  X_KSEMAPHORE reader_semaphore; /**< Offset 0x20 */
-  X_KSPINLOCK spin_lock;         /**< Offset 0x34 */
+  be_i32 lock_count;
+  be_u32 writers_waiting_count;
+  be_u32 readers_waiting_count;
+  be_u32 readers_entry_count;
+  X_KEVENT writer_event;
+  X_KSEMAPHORE reader_semaphore;
+  X_KSPINLOCK spin_lock;
 };
 REX_STATIC_ASSERT_SIZE(X_ERWLOCK, 0x38);
 

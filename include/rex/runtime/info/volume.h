@@ -35,38 +35,38 @@ enum X_FILE_DEVICE_TYPE : u32 {
 
 /** Label and serial number of a volume. */
 struct X_FILE_FS_VOLUME_INFORMATION {
-  be_u64 creation_time; /**< Offset 0x00. Creation time. */
-  be_u32 serial_number; /**< Offset 0x08. */
-  be_u32 label_length;  /**< Offset 0x0C. Label length in bytes. */
-  u8 supports_objects;  /**< Offset 0x10. Nonzero when the volume supports objects. */
-  char label[1];        /**< Offset 0x11. First character of the label. */
-  u8 pad[6];            /**< Offset 0x12. */
+  be_u64 creation_time; /**< Creation time. */
+  be_u32 serial_number;
+  be_u32 label_length; /**< Label length in bytes. */
+  u8 supports_objects; /**< Nonzero when the volume supports objects. */
+  char label[1];       /**< First character of the label. */
+  u8 pad[6];
 };
 REX_STATIC_ASSERT_SIZE(X_FILE_FS_VOLUME_INFORMATION, 24);
 
 /** Size and allocation unit geometry of a volume. */
 struct X_FILE_FS_SIZE_INFORMATION {
-  be_u64 total_allocation_units;      /**< Offset 0x00. */
-  be_u64 available_allocation_units;  /**< Offset 0x08. */
-  be_u32 sectors_per_allocation_unit; /**< Offset 0x10. */
-  be_u32 bytes_per_sector;            /**< Offset 0x14. */
+  be_u64 total_allocation_units;
+  be_u64 available_allocation_units;
+  be_u32 sectors_per_allocation_unit;
+  be_u32 bytes_per_sector;
 };
 REX_STATIC_ASSERT_SIZE(X_FILE_FS_SIZE_INFORMATION, 24);
 
 /** File system name and capabilities of a volume. */
 struct X_FILE_FS_ATTRIBUTE_INFORMATION {
-  be_u32 attributes;                /**< Offset 0x00. File system attribute flags. */
-  be_i32 component_name_max_length; /**< Offset 0x04. Longest path component in characters. */
-  be_u32 name_length;               /**< Offset 0x08. Name length in bytes. */
-  char name[1];                     /**< Offset 0x0C. First character of the file system name. */
-  u8 pad[3];                        /**< Offset 0x0D. */
+  be_u32 attributes;                /**< File system attribute flags. */
+  be_i32 component_name_max_length; /**< Longest path component in characters. */
+  be_u32 name_length;               /**< Name length in bytes. */
+  char name[1];                     /**< First character of the file system name. */
+  u8 pad[3];
 };
 REX_STATIC_ASSERT_SIZE(X_FILE_FS_ATTRIBUTE_INFORMATION, 16);
 
 /** Device type and characteristics of a volume. */
 struct X_FILE_FS_DEVICE_INFORMATION {
-  be<X_FILE_DEVICE_TYPE> device_type; /**< Offset 0x00. */
-  be_u32 characteristics;             /**< Offset 0x04. */
+  be<X_FILE_DEVICE_TYPE> device_type;
+  be_u32 characteristics;
 };
 REX_STATIC_ASSERT_SIZE(X_FILE_FS_DEVICE_INFORMATION, 8);
 

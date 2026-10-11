@@ -20,6 +20,7 @@
 #include <string>
 #include <vector>
 
+#include <rex/assert.h>
 #include <rex/macros.h>
 #include <rex/platform/thread.h>
 #include <rex/runtime/xmemory.h>
@@ -36,32 +37,32 @@ constexpr memory::fourcc_t kXObjSignature = memory::make_fourcc('R', 'E', 'X', '
 /** Header at the start of every waitable kernel object. */
 struct X_DISPATCH_HEADER {
   struct {
-    u8 type; /**< Offset 0x0. Object type, 1 of `X_DISPATCHER_FLAGS`. */
+    u8 type; /**< Object type, 1 of `X_DISPATCHER_FLAGS`. */
 
     union {
-      /** Offset 0x1. Shares its byte with absolute, npx_irql and signalling. */
+      /** Shares its byte with absolute, npx_irql and signalling. */
       u8 abandoned;
-      /** Offset 0x1. Holds the spin count divided by 256 in a critical section. */
+      /** Holds the spin count divided by 256 in a critical section. */
       u8 absolute;
-      u8 npx_irql;   /**< Offset 0x1. No code reads it. */
-      u8 signalling; /**< Offset 0x1. No code reads it. */
+      u8 npx_irql;   /**< No code reads it. */
+      u8 signalling; /**< No code reads it. */
     };
     union {
-      u8 size; /**< Offset 0x2. Shares its byte with hand and process_type. */
-      u8 hand; /**< Offset 0x2. No code reads it. */
-      /** Offset 0x2. Process type a timer was initialized with by KeInitializeTimerEx. */
+      u8 size; /**< Shares its byte with hand and process_type. */
+      u8 hand; /**< No code reads it. */
+      /** Process type a timer was initialized with by KeInitializeTimerEx. */
       u8 process_type;
     };
     union {
-      u8 inserted;     /**< Offset 0x3. Shares its byte with debug_active and dpc_active. */
-      u8 debug_active; /**< Offset 0x3. No code reads it. */
-      u8 dpc_active;   /**< Offset 0x3. No code reads it. */
+      u8 inserted;     /**< Shares its byte with debug_active and dpc_active. */
+      u8 debug_active; /**< No code reads it. */
+      u8 dpc_active;   /**< No code reads it. */
     };
   };
 
-  be_u32 signal_state;    /**< Offset 0x4. Signal count of the object. */
-  be_u32 wait_list_flink; /**< Offset 0x8. First entry of the wait list. */
-  be_u32 wait_list_blink; /**< Offset 0xC. Last entry of the wait list. */
+  be_u32 signal_state;    /**< Signal count of the object. */
+  be_u32 wait_list_flink; /**< First entry of the wait list. */
+  be_u32 wait_list_blink; /**< Last entry of the wait list. */
 };
 REX_STATIC_ASSERT_SIZE(X_DISPATCH_HEADER, 0x10);
 
@@ -101,14 +102,15 @@ struct X_OBJECT_CREATE_INFORMATION {
 
 /** Guest object type descriptor. */
 struct X_OBJECT_TYPE {
-  be_u32 constructor; /**< Offset 0x0. */
-  be_u32 destructor;  /**< Offset 0x4. */
-  be_u32 unk_08;      /**< Offset 0x8. */
-  be_u32 unk_0C;      /**< Offset 0xC. */
-  be_u32 unk_10;      /**< Offset 0x10. */
-  be_u32 unk_14;      /**< Offset 0x14. */
-  be_u32 pool_tag;    /**< Offset 0x18. */
+  be_u32 constructor;
+  be_u32 destructor;
+  be_u32 unk_08;
+  be_u32 unk_0C;
+  be_u32 unk_10;
+  be_u32 unk_14;
+  be_u32 pool_tag;
 };
+REX_STATIC_ASSERT_SIZE(X_OBJECT_TYPE, 0x1C);
 
 /** Kinds of kernel object a handle can name. */
 enum class ObjectKind : u8 {

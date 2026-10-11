@@ -17,6 +17,7 @@
 #include <string>
 #include <string_view>
 
+#include <rex/assert.h>
 #include <rex/macros.h>
 #include <rex/result.h>
 #include <rex/filesystem/xex_types.h>
@@ -134,7 +135,7 @@ struct STFSVolumeDescriptor {
     return descriptor_length == sizeof(STFSVolumeDescriptor);
   }
 };
-static_assert(sizeof(STFSVolumeDescriptor) == 0x24);
+REX_STATIC_ASSERT_SIZE(STFSVolumeDescriptor, 0x24);
 
 #pragma pack(pop)
 
@@ -246,7 +247,7 @@ struct STFSHashEntry {
     info_raw = (info_raw & ~0x80000000u) | (value ? 0x80000000u : 0u);
   }
 };
-static_assert(sizeof(STFSHashEntry) == 0x18);
+REX_STATIC_ASSERT_SIZE(STFSHashEntry, 0x18);
 
 /** 1 STFS hash table block. */
 struct STFSHashTable {
@@ -254,7 +255,7 @@ struct STFSHashTable {
   be_u32 num_blocks;          /**< Level 0 blocks this table covers. */
   u8 padding[12];             /**< Unused. */
 };
-static_assert(sizeof(STFSHashTable) == 0x1000);
+REX_STATIC_ASSERT_SIZE(STFSHashTable, 0x1000);
 
 /** 1 STFS directory entry. */
 struct STFSDirectoryEntry {
@@ -327,13 +328,13 @@ struct STFSDirectoryEntry {
     store_uint24_le(start_block_number_raw, value);
   }
 };
-static_assert(sizeof(STFSDirectoryEntry) == 0x40);
+REX_STATIC_ASSERT_SIZE(STFSDirectoryEntry, 0x40);
 
 /** 1 STFS directory block of 64 entries. */
 struct STFSDirectoryBlock {
   STFSDirectoryEntry entries[0x40]; /**< The entries, unused ones have a 0 name length. */
 };
-static_assert(sizeof(STFSDirectoryBlock) == 0x1000);
+REX_STATIC_ASSERT_SIZE(STFSDirectoryBlock, 0x1000);
 
 /** SVOD device descriptor inside the XContent metadata. */
 struct SVODDeviceDescriptor {
@@ -374,7 +375,7 @@ struct SVODDeviceDescriptor {
     return load_uint24_le(start_data_block_raw);
   }
 };
-static_assert(sizeof(SVODDeviceDescriptor) == 0x24);
+REX_STATIC_ASSERT_SIZE(SVODDeviceDescriptor, 0x24);
 
 /** 1 package license entry. */
 struct XContentLicense {
@@ -382,7 +383,7 @@ struct XContentLicense {
   be_u32 license_bits;  /**< License mask. */
   be_u32 license_flags; /**< License flags, 0 for an unused entry. */
 };
-static_assert(sizeof(XContentLicense) == 0x10);
+REX_STATIC_ASSERT_SIZE(XContentLicense, 0x10);
 
 /** Media metadata of a video package. */
 struct XContentMediaData {
@@ -391,7 +392,7 @@ struct XContentMediaData {
   be_u16 season_number;  /**< Season number. */
   be_u16 episode_number; /**< Episode number. */
 };
-static_assert(sizeof(XContentMediaData) == 0x24);
+REX_STATIC_ASSERT_SIZE(XContentMediaData, 0x24);
 
 /** Avatar asset metadata of an avatar item package. */
 struct XContentAvatarAssetData {
@@ -401,7 +402,7 @@ struct XContentAvatarAssetData {
   u8 skeleton_version_mask; /**< Skeleton versions the asset supports. */
   u8 reserved[0xB];         /**< Unused. */
 };
-static_assert(sizeof(XContentAvatarAssetData) == 0x24);
+REX_STATIC_ASSERT_SIZE(XContentAvatarAssetData, 0x24);
 
 /** Package transfer and feature bits. */
 struct XContentAttributes {
@@ -413,7 +414,7 @@ struct XContentAttributes {
   u8 deep_link_supported : 1;     /**< The package supports deep links. */
   u8 reserved : 2;                /**< Unused. */
 };
-static_assert(sizeof(XContentAttributes) == 1);
+REX_STATIC_ASSERT_SIZE(XContentAttributes, 1);
 
 #pragma pack(push, 1)
 
@@ -553,7 +554,7 @@ struct XContentMetadata {
    */
   REX_API void set_title_name(std::u16string_view value);
 };
-static_assert(sizeof(XContentMetadata) == 0x93D6);
+REX_STATIC_ASSERT_SIZE(XContentMetadata, 0x93D6);
 
 /** Signed package header. */
 struct XContentHeader {
@@ -573,7 +574,7 @@ struct XContentHeader {
            magic == XContentPackageType::kPirs;
   }
 };
-static_assert(sizeof(XContentHeader) == 0x344);
+REX_STATIC_ASSERT_SIZE(XContentHeader, 0x344);
 
 #pragma pack(pop)
 
@@ -582,7 +583,7 @@ struct STFSHeader {
   XContentHeader header;     /**< Signed header. */
   XContentMetadata metadata; /**< Metadata. */
 };
-static_assert(sizeof(STFSHeader) == 0x971A);
+REX_STATIC_ASSERT_SIZE(STFSHeader, 0x971A);
 
 /**
  * Reads the package header from the first bytes of a package.

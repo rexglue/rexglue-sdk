@@ -109,51 +109,51 @@ enum X_INPUT_KEYSTROKE_FLAGS : u16 {
 
 /** The XInput gamepad state. */
 struct X_INPUT_GAMEPAD {
-  be_u16 buttons;   /**< Offset 0x0. Bitmask of pressed buttons, see X_INPUT_GAMEPAD_BUTTON. */
-  u8 left_trigger;  /**< Offset 0x2. Left trigger analog value, 0 to 255. */
-  u8 right_trigger; /**< Offset 0x3. Right trigger analog value, 0 to 255. */
-  be_i16 thumb_lx;  /**< Offset 0x4. Left thumbstick x axis, 0 centered and positive right. */
-  be_i16 thumb_ly;  /**< Offset 0x6. Left thumbstick y axis, 0 centered and positive up. */
-  be_i16 thumb_rx;  /**< Offset 0x8. Right thumbstick x axis, 0 centered and positive right. */
-  be_i16 thumb_ry;  /**< Offset 0xA. Right thumbstick y axis, 0 centered and positive up. */
+  be_u16 buttons;   /**< Bitmask of pressed buttons, see X_INPUT_GAMEPAD_BUTTON. */
+  u8 left_trigger;  /**< Left trigger analog value, 0 to 255. */
+  u8 right_trigger; /**< Right trigger analog value, 0 to 255. */
+  be_i16 thumb_lx;  /**< Left thumbstick x axis, 0 centered and positive right. */
+  be_i16 thumb_ly;  /**< Left thumbstick y axis, 0 centered and positive up. */
+  be_i16 thumb_rx;  /**< Right thumbstick x axis, 0 centered and positive right. */
+  be_i16 thumb_ry;  /**< Right thumbstick y axis, 0 centered and positive up. */
 };
 REX_STATIC_ASSERT_SIZE(X_INPUT_GAMEPAD, 12);
 
 /** An XInput state packet. */
 struct X_INPUT_STATE {
-  /** Offset 0x0. Changes only when the device state changed since the last poll. */
+  /** Changes only when the device state changed since the last poll. */
   be_u32 packet_number;
-  X_INPUT_GAMEPAD gamepad; /**< Offset 0x4. Current gamepad state. */
+  X_INPUT_GAMEPAD gamepad; /**< Current gamepad state. */
 };
 REX_STATIC_ASSERT_SIZE(X_INPUT_STATE, sizeof(X_INPUT_GAMEPAD) + 4);
 
 /** XInput motor speeds. */
 struct X_INPUT_VIBRATION {
-  /** Offset 0x0. Low frequency motor speed, 0 for off to 65535 for full. */
+  /** Low frequency motor speed, 0 for off to 65535 for full. */
   be_u16 left_motor_speed;
-  /** Offset 0x2. High frequency motor speed, 0 for off to 65535 for full. */
+  /** High frequency motor speed, 0 for off to 65535 for full. */
   be_u16 right_motor_speed;
 };
 REX_STATIC_ASSERT_SIZE(X_INPUT_VIBRATION, 4);
 
 /** XInput device capabilities. */
 struct X_INPUT_CAPABILITIES {
-  u8 type;                     /**< Offset 0x0. Device type, see X_INPUT_DEVTYPE. */
-  u8 sub_type;                 /**< Offset 0x1. Device subtype, see X_INPUT_DEVSUBTYPE. */
-  be_u16 flags;                /**< Offset 0x2. Capability bits, see X_INPUT_CAPS. */
-  X_INPUT_GAMEPAD gamepad;     /**< Offset 0x4. Supported gamepad controls and their resolution. */
-  X_INPUT_VIBRATION vibration; /**< Offset 0x10. Supported vibration motors and their resolution. */
+  u8 type;                     /**< Device type, see X_INPUT_DEVTYPE. */
+  u8 sub_type;                 /**< Device subtype, see X_INPUT_DEVSUBTYPE. */
+  be_u16 flags;                /**< Capability bits, see X_INPUT_CAPS. */
+  X_INPUT_GAMEPAD gamepad;     /**< Supported gamepad controls and their resolution. */
+  X_INPUT_VIBRATION vibration; /**< Supported vibration motors and their resolution. */
 };
 REX_STATIC_ASSERT_SIZE(X_INPUT_CAPABILITIES,
                        sizeof(X_INPUT_GAMEPAD) + sizeof(X_INPUT_VIBRATION) + 4);
 
 /** https://msdn.microsoft.com/en-us/library/windows/desktop/microsoft.directx_sdk.reference.xinput_keystroke(v=vs.85).aspx */
 struct X_INPUT_KEYSTROKE {
-  be_u16 virtual_key; /**< Offset 0x0. VirtualKey code of the key, button or stick movement. */
-  be_u16 unicode;     /**< Offset 0x2. Character the input produced, 0 when none. */
-  be_u16 flags;       /**< Offset 0x4. Keyboard state at the input, see X_INPUT_KEYSTROKE_FLAGS. */
-  u8 user_index;      /**< Offset 0x6. Index of the signed in user the device belongs to, 0 to 3. */
-  u8 hid_code;        /**< Offset 0x7. USB HID usage of the key, 0 when none. */
+  be_u16 virtual_key; /**< VirtualKey code of the key, button or stick movement. */
+  be_u16 unicode;     /**< Character the input produced, 0 when none. */
+  be_u16 flags;       /**< Keyboard state at the input, see X_INPUT_KEYSTROKE_FLAGS. */
+  u8 user_index;      /**< Index of the signed in user the device belongs to, 0 to 3. */
+  u8 hid_code;        /**< USB HID usage of the key, 0 when none. */
 };
 REX_STATIC_ASSERT_SIZE(X_INPUT_KEYSTROKE, 8);
 

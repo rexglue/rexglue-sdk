@@ -20,6 +20,7 @@
 #include <string>
 #include <string_view>
 
+#include <rex/assert.h>
 #include <rex/macros.h>
 #include <rex/platform.h>
 #include <rex/platform/fiber.h>
@@ -80,14 +81,14 @@ constexpr u32 X_TLS_OUT_OF_INDEXES = UINT32_MAX;
 
 /** Guest layout of a deferred procedure call. */
 struct XDPC {
-  be_u16 type;             /**< Offset 0x0. Object type, 19 for a DPC. */
-  u8 selected_cpu_number;  /**< Offset 0x2. 1 while the DPC is queued, else 0. */
-  u8 desired_cpu_number;   /**< Offset 0x3. Cleared by Initialize and read by no code. */
-  X_LIST_ENTRY list_entry; /**< Offset 0x4. Links the DPC in the processor queue. */
-  be_u32 routine;          /**< Offset 0xC. Guest address of the routine. */
-  be_u32 context;          /**< Offset 0x10. First argument of the routine. */
-  be_u32 arg1;             /**< Offset 0x14. Second argument of the routine. */
-  be_u32 arg2;             /**< Offset 0x18. Third argument of the routine. */
+  be_u16 type;             /**< Object type, 19 for a DPC. */
+  u8 selected_cpu_number;  /**< 1 while the DPC is queued, else 0. */
+  u8 desired_cpu_number;   /**< Cleared by Initialize and read by no code. */
+  X_LIST_ENTRY list_entry; /**< Links the DPC in the processor queue. */
+  be_u32 routine;          /**< Guest address of the routine. */
+  be_u32 context;          /**< First argument of the routine. */
+  be_u32 arg1;             /**< Second argument of the routine. */
+  be_u32 arg2;             /**< Third argument of the routine. */
 
   /**
    * Sets the routine and context and clears the queue links and arguments.
@@ -130,34 +131,34 @@ struct XAPC {
   /** Rundown routine address stored beside kDummyKernelRoutine in an APC the host queued itself. */
   static constexpr u32 kDummyRundownRoutine = 0xF00DFF01;
 
-  u16 type;                /**< Offset 0x0. */
-  u8 apc_mode;             /**< Offset 0x2. */
-  u8 enqueued;             /**< Offset 0x3. */
-  be_u32 thread_ptr;       /**< Offset 0x4. */
-  X_LIST_ENTRY list_entry; /**< Offset 0x8. */
-  be_u32 kernel_routine;   /**< Offset 0x10. */
-  be_u32 rundown_routine;  /**< Offset 0x14. */
-  be_u32 normal_routine;   /**< Offset 0x18. */
-  be_u32 normal_context;   /**< Offset 0x1C. */
-  be_u32 arg1;             /**< Offset 0x20. */
-  be_u32 arg2;             /**< Offset 0x24. */
+  u16 type;
+  u8 apc_mode;
+  u8 enqueued;
+  be_u32 thread_ptr;
+  X_LIST_ENTRY list_entry;
+  be_u32 kernel_routine;
+  be_u32 rundown_routine;
+  be_u32 normal_routine;
+  be_u32 normal_context;
+  be_u32 arg1;
+  be_u32 arg2;
 };
 REX_STATIC_ASSERT_SIZE(XAPC, 40);
 
 /** Guest fiber context buffer layout. */
 struct X_FIBER_CONTEXT {
-  be_u32 fiber_data;       /**< Offset 0x00. lpParameter. */
-  be_u32 stack_alloc_base; /**< Offset 0x04. KTHREAD.stack_alloc_base (0xD0). */
-  /** Offset 0x08. KTHREAD.stack_base (0x5C), PCR.stack_base_ptr. */
+  be_u32 fiber_data;       /**< lpParameter. */
+  be_u32 stack_alloc_base; /**< KTHREAD.stack_alloc_base (0xD0). */
+  /** KTHREAD.stack_base (0x5C), PCR.stack_base_ptr. */
   be_u32 stack_base;
-  /** Offset 0x0C. KTHREAD.stack_limit (0x60), PCR.stack_end_ptr. */
+  /** KTHREAD.stack_limit (0x60), PCR.stack_end_ptr. */
   be_u32 stack_limit;
-  rex::be_u32 cr_save;  /**< Offset 0x10. Saved CR. */
-  u8 reserved_14[0x08]; /**< Offset 0x14. Padding. */
-  rex::be_u32 lr_save;  /**< Offset 0x1C. Saved LR. */
-  u8 reserved_20[0x10]; /**< Offset 0x20. Padding. */
-  be_u64 sp_save;       /**< Offset 0x30. Saved r1. */
-  /** Non volatile PPCContext register save area, starting at offset 0x38. */
+  rex::be_u32 cr_save;  /**< Saved CR. */
+  u8 reserved_14[0x08]; /**< Padding. */
+  rex::be_u32 lr_save;  /**< Saved LR. */
+  u8 reserved_20[0x10]; /**< Padding. */
+  be_u64 sp_save;       /**< Saved r1. */
+  /** Non volatile PPCContext register save area. */
   u8 register_save_area[0xA50 - 0x38];
 };
 REX_STATIC_ASSERT_SIZE(X_FIBER_CONTEXT, 0xA50);
@@ -169,163 +170,166 @@ struct X_KPROCESS;
 
 /** Guest layout of a wait block, which ties a thread to an object it waits on. */
 struct X_KWAIT_BLOCK {
-  X_LIST_ENTRY wait_list_entry;                     /**< Offset 0x0. */
-  TypedGuestPointer<X_KTHREAD> thread;              /**< Offset 0x8. */
-  TypedGuestPointer<X_DISPATCH_HEADER> object;      /**< Offset 0xC. */
-  TypedGuestPointer<X_KWAIT_BLOCK> next_wait_block; /**< Offset 0x10. */
-  be_u16 wait_result_xstatus;                       /**< Offset 0x14. */
-  be_u16 wait_type;                                 /**< Offset 0x16. */
+  X_LIST_ENTRY wait_list_entry;
+  TypedGuestPointer<X_KTHREAD> thread;
+  TypedGuestPointer<X_DISPATCH_HEADER> object;
+  TypedGuestPointer<X_KWAIT_BLOCK> next_wait_block;
+  be_u16 wait_result_xstatus;
+  be_u16 wait_type;
 };
 REX_STATIC_ASSERT_SIZE(X_KWAIT_BLOCK, 0x18);
 
 /** Guest layout of the processor control block embedded in `X_KPCR`. */
 struct X_KPRCB {
-  TypedGuestPointer<X_KTHREAD> current_thread;      /**< Offset 0x0. */
-  TypedGuestPointer<X_KTHREAD> next_thread;         /**< Offset 0x4. */
-  TypedGuestPointer<X_KTHREAD> idle_thread;         /**< Offset 0x8. */
-  u8 current_cpu;                                   /**< Offset 0xC. */
-  u8 unk_D[3];                                      /**< Offset 0xD. */
-  be_u32 processor_mask;                            /**< Offset 0x10. */
-  be_u32 dpc_clock;                                 /**< Offset 0x14. */
-  be_u32 interrupt_clock;                           /**< Offset 0x18. */
-  be_u32 unk_1C;                                    /**< Offset 0x1C. */
-  be_u32 unk_20;                                    /**< Offset 0x20. */
-  be_u32 ipi_args[3];                               /**< Offset 0x24. */
-  be_u32 targeted_ipi_cpus_mask;                    /**< Offset 0x30. */
-  be_u32 ipi_function;                              /**< Offset 0x34. */
-  TypedGuestPointer<X_KPRCB> ipi_initiator_prcb;    /**< Offset 0x38. */
-  be_u32 unk_3C;                                    /**< Offset 0x3C. */
-  be_u32 dpc_related_40;                            /**< Offset 0x40. */
-  be_u32 dpc_lock;                                  /**< Offset 0x44. */
-  X_LIST_ENTRY queued_dpcs_list_head;               /**< Offset 0x48. */
-  be_u32 dpc_active;                                /**< Offset 0x50. */
-  X_KSPINLOCK spin_lock;                            /**< Offset 0x54. */
-  TypedGuestPointer<X_KTHREAD> running_idle_thread; /**< Offset 0x58. */
-  X_SINGLE_LIST_ENTRY enqueued_threads_list;        /**< Offset 0x5C. */
-  be_u32 has_ready_thread_by_priority;              /**< Offset 0x60. */
-  be_u32 unk_mask_64;                               /**< Offset 0x64. */
-  X_LIST_ENTRY unk_68[32];                          /**< Offset 0x68. */
-  XDPC thread_exit_dpc;                             /**< Offset 0x168. */
-  X_LIST_ENTRY terminating_threads_list;            /**< Offset 0x184. */
-  XDPC switch_thread_processor_dpc;                 /**< Offset 0x18C. */
+  TypedGuestPointer<X_KTHREAD> current_thread; /**< Thread running on this processor. */
+  TypedGuestPointer<X_KTHREAD> next_thread;    /**< Thread chosen to run next on this processor. */
+  TypedGuestPointer<X_KTHREAD> idle_thread;    /**< Idle thread of this processor. */
+  u8 current_cpu;                              /**< Index of this processor. */
+  u8 unk_D[3];                                 /**< Padding. */
+  be_u32 processor_mask;                       /**< Mask with only the bit of this processor set. */
+  be_u32 dpc_clock;                            /**< Ticks this processor spent running DPCs. */
+  be_u32 interrupt_clock;        /**< Ticks this processor spent servicing interrupts. */
+  be_u32 unk_1C;                 /**< Interrupt count of this processor. */
+  be_u32 unk_20;                 /**< Interprocessor interrupt freeze state of this processor. */
+  be_u32 ipi_args[3];            /**< Arguments passed to `ipi_function`. */
+  be_u32 targeted_ipi_cpus_mask; /**< Mask of the processors an interprocessor interrupt targets. */
+  be_u32 ipi_function; /**< Guest address of the function an interprocessor interrupt runs. */
+  TypedGuestPointer<X_KPRCB> ipi_initiator_prcb; /**< Control block of the sender. */
+  be_u32 unk_3C;                                 /**< Request summary of this processor. */
+  be_u32 dpc_related_40;                         /**< Nonzero while a DPC interrupt is requested. */
+  be_u32 dpc_lock;                               /**< Lock that guards `queued_dpcs_list_head`. */
+  X_LIST_ENTRY queued_dpcs_list_head; /**< Head of the list of DPCs queued on this processor. */
+  be_u32 dpc_active;                  /**< Nonzero while this processor runs a DPC. */
+  X_KSPINLOCK spin_lock;              /**< Lock that guards the ready lists of this processor. */
+  TypedGuestPointer<X_KTHREAD>
+      running_idle_thread; /**< Nonzero while the idle thread of this processor runs. */
+  X_SINGLE_LIST_ENTRY enqueued_threads_list; /**< Threads waiting to be readied. */
+  be_u32 has_ready_thread_by_priority;       /**< Flags each priority that has a ready thread. */
+  be_u32 unk_mask_64;                        /**< Mask for `has_ready_thread_by_priority`. */
+  X_LIST_ENTRY
+  unk_68[32];                            /**< Dispatcher ready list of each of the 32 priorities. */
+  XDPC thread_exit_dpc;                  /**< DPC that finishes the exit of a thread. */
+  X_LIST_ENTRY terminating_threads_list; /**< Threads that are terminating on this processor. */
+  XDPC switch_thread_processor_dpc;      /**< DPC that moves a thread to another processor. */
 };
 
 /** Processor Control Region. */
 struct X_KPCR {
-  be_u32 tls_ptr;  /**< Offset 0x0. */
-  be_u32 msr_mask; /**< Offset 0x4. */
+  be_u32 tls_ptr;
+  be_u32 msr_mask;
   union {
-    be_u16 software_interrupt_state; /**< Offset 0x8. */
+    be_u16 software_interrupt_state;
     struct {
-      u8 generic_software_interrupt;   /**< Offset 0x8. */
-      u8 apc_software_interrupt_state; /**< Offset 0x9. */
+      u8 generic_software_interrupt;
+      u8 apc_software_interrupt_state;
     };
   };
-  be_u16 unk_0A;                   /**< Offset 0xA. */
-  u8 processtype_value_in_dpc;     /**< Offset 0xC. */
-  u8 timeslice_ended;              /**< Offset 0xD. */
-  u8 timer_pending;                /**< Offset 0xE. */
-  u8 unk_0F;                       /**< Offset 0xF. */
-  be_u32 thread_fpu_related;       /**< Offset 0x10. */
-  be_u32 thread_vmx_related;       /**< Offset 0x14. */
-  u8 current_irql;                 /**< Offset 0x18. */
-  u8 background_scheduling_active; /**< Offset 0x19. */
-  u8 background_scheduling_1A;     /**< Offset 0x1A. */
-  u8 background_scheduling_1B;     /**< Offset 0x1B. */
-  be_u32 timer_related;            /**< Offset 0x1C. */
-  u8 unk_20[0x10];                 /**< Offset 0x20. */
-  be_u64 pcr_ptr;                  /**< Offset 0x30. */
+  be_u16 unk_0A;
+  u8 processtype_value_in_dpc;
+  u8 timeslice_ended;
+  u8 timer_pending;
+  u8 unk_0F;
+  be_u32 thread_fpu_related;
+  be_u32 thread_vmx_related;
+  u8 current_irql;
+  u8 background_scheduling_active;
+  u8 background_scheduling_1A;
+  u8 background_scheduling_1B;
+  be_u32 timer_related;
+  u8 unk_20[0x10];
+  be_u64 pcr_ptr;
   union {
-    u8 unk_38[8];   /**< Offset 0x38. */
-    u64 host_stash; /**< Offset 0x38. */
+    u8 unk_38[8];
+    u64 host_stash;
   };
-  u8 unk_40[28];                   /**< Offset 0x40. */
-  be_u32 unk_stack_5c;             /**< Offset 0x5C. */
-  u8 unk_60[12];                   /**< Offset 0x60. */
-  be_u32 use_alternative_stack;    /**< Offset 0x6C. */
-  be_u32 stack_base_ptr;           /**< Offset 0x70. Stack base address (high addr). */
-  be_u32 stack_end_ptr;            /**< Offset 0x74. Stack end (low addr). */
-  be_u32 alt_stack_base_ptr;       /**< Offset 0x78. */
-  be_u32 alt_stack_end_ptr;        /**< Offset 0x7C. */
-  be_u32 interrupt_handlers[32];   /**< Offset 0x80. */
-  X_KPRCB prcb_data;               /**< Offset 0x100. */
-  TypedGuestPointer<X_KPRCB> prcb; /**< Offset 0x2A8. */
-  u8 unk_2AC[0x2C];                /**< Offset 0x2AC. */
+  u8 unk_40[28];
+  be_u32 unk_stack_5c;
+  u8 unk_60[12];
+  be_u32 use_alternative_stack;
+  be_u32 stack_base_ptr; /**< Stack base address (high addr). */
+  be_u32 stack_end_ptr;  /**< Stack end (low addr). */
+  be_u32 alt_stack_base_ptr;
+  be_u32 alt_stack_end_ptr;
+  be_u32 interrupt_handlers[32];
+  X_KPRCB prcb_data;
+  TypedGuestPointer<X_KPRCB> prcb;
+  u8 unk_2AC[0x2C];
 };
+REX_STATIC_ASSERT_SIZE(X_KPCR, 0x2D8);
 
 /** Guest layout of a kernel thread object. */
 struct X_KTHREAD {
-  X_DISPATCH_HEADER header;         /**< Offset 0x0. */
-  be_u32 unk_10;                    /**< Offset 0x10. */
-  be_u32 unk_14;                    /**< Offset 0x14. */
-  X_KTIMER wait_timeout_timer;      /**< Offset 0x18. */
-  X_KWAIT_BLOCK wait_timeout_block; /**< Offset 0x40. */
-  rex::be_u32 kernel_time;          /**< Offset 0x58. */
-  be_u32 stack_base;                /**< Offset 0x5C. */
-  be_u32 stack_limit;               /**< Offset 0x60. */
-  be_u32 stack_kernel;              /**< Offset 0x64. */
-  be_u32 tls_address;               /**< Offset 0x68. */
-  u8 thread_state;                  /**< Offset 0x6C. */
-  u8 alerted[2];                    /**< Offset 0x6D. */
-  u8 alertable;                     /**< Offset 0x6F. */
-  u8 priority;                      /**< Offset 0x70. */
-  u8 fpu_exceptions_on;             /**< Offset 0x71. */
-  u8 process_type_dup;              /**< Offset 0x72. Same as process_type. */
-  u8 process_type;                  /**< Offset 0x73. */
-  util::X_TYPED_LIST<XAPC, offsetof(XAPC, list_entry)> apc_lists[2]; /**< Offset 0x74, per mode. */
-  TypedGuestPointer<X_KPROCESS> process;                             /**< Offset 0x84. */
-  u8 executing_kernel_apc;                                           /**< Offset 0x88. */
-  u8 deferred_apc_software_interrupt_state;                          /**< Offset 0x89. */
-  u8 user_apc_pending;                                               /**< Offset 0x8A. */
-  u8 may_queue_apcs;                                                 /**< Offset 0x8B. */
-  X_KSPINLOCK apc_lock;                                              /**< Offset 0x8C. */
-  be_u32 num_context_switches_to;                                    /**< Offset 0x90. */
-  X_LIST_ENTRY ready_prcb_entry;                                     /**< Offset 0x94. */
-  be_u32 msr_mask;                                                   /**< Offset 0x9C. */
-  rex::be<X_STATUS> wait_result;                                     /**< Offset 0xA0. */
-  u8 wait_irql;                                                      /**< Offset 0xA4. */
-  u8 unk_A5[0xB];                                                    /**< Offset 0xA5. */
-  i32 apc_disable_count;                                             /**< Offset 0xB0. */
-  be_i32 quantum;                                                    /**< Offset 0xB4. */
-  u8 unk_B8;                                                         /**< Offset 0xB8. */
-  u8 unk_B9;                                                         /**< Offset 0xB9. */
-  u8 unk_BA;                                                         /**< Offset 0xBA. */
-  u8 boost_disabled;                                                 /**< Offset 0xBB. */
-  u8 suspend_count;                                                  /**< Offset 0xBC. */
-  u8 was_preempted;                                                  /**< Offset 0xBD. */
-  u8 terminated;                                                     /**< Offset 0xBE. */
-  u8 current_cpu;                                                    /**< Offset 0xBF. */
-  TypedGuestPointer<X_KPRCB> a_prcb_ptr;                             /**< Offset 0xC0. */
-  TypedGuestPointer<X_KPRCB> another_prcb_ptr;                       /**< Offset 0xC4. */
-  u8 unk_C8;                                                         /**< Offset 0xC8. */
-  u8 unk_C9;                                                         /**< Offset 0xC9. */
-  u8 unk_CA;                                                         /**< Offset 0xCA. */
-  u8 unk_CB;                                                         /**< Offset 0xCB. */
-  X_KSPINLOCK timer_list_lock;                                       /**< Offset 0xCC. */
-  be_u32 stack_alloc_base;                                           /**< Offset 0xD0. */
-  XAPC on_suspend;                                                   /**< Offset 0xD4. */
-  X_KSEMAPHORE suspend_sema;                                         /**< Offset 0xFC. */
-  X_LIST_ENTRY process_threads;                                      /**< Offset 0x110. */
-  be_u32 unk_118;                                                    /**< Offset 0x118. */
-  X_LIST_ENTRY queue_related;                                        /**< Offset 0x11C. */
-  be_u32 unk_124;                                                    /**< Offset 0x124. */
-  be_u32 unk_128;                                                    /**< Offset 0x128. */
-  be_u32 unk_12C;                                                    /**< Offset 0x12C. */
-  be_u64 create_time;                                                /**< Offset 0x130. */
-  be_u64 exit_time;                                                  /**< Offset 0x138. */
-  be_u32 exit_status;                                                /**< Offset 0x140. */
-  X_LIST_ENTRY timer_list;                                           /**< Offset 0x144. */
-  be_u32 thread_id;                                                  /**< Offset 0x14C. */
-  be_u32 start_address;                                              /**< Offset 0x150. */
-  X_LIST_ENTRY unk_154;                                              /**< Offset 0x154. */
-  u8 unk_15C[0x4];                                                   /**< Offset 0x15C. */
-  be_u32 last_error;                                                 /**< Offset 0x160. */
-  be_u32 fiber_ptr;                                                  /**< Offset 0x164. */
-  u8 unk_168[0x4];                                                   /**< Offset 0x168. */
-  be_u32 creation_flags;                                             /**< Offset 0x16C. */
-  u8 unk_170[0xC];                                                   /**< Offset 0x170. */
-  be_u32 unk_17C;                                                    /**< Offset 0x17C. */
-  u8 unk_180[0x930];                                                 /**< Offset 0x180. */
+  X_DISPATCH_HEADER header;
+  be_u32 unk_10;
+  be_u32 unk_14;
+  X_KTIMER wait_timeout_timer;
+  X_KWAIT_BLOCK wait_timeout_block;
+  rex::be_u32 kernel_time;
+  be_u32 stack_base;
+  be_u32 stack_limit;
+  be_u32 stack_kernel;
+  be_u32 tls_address;
+  u8 thread_state;
+  u8 alerted[2];
+  u8 alertable;
+  u8 priority;
+  u8 fpu_exceptions_on;
+  u8 process_type_dup; /**< Same as process_type. */
+  u8 process_type;
+  util::X_TYPED_LIST<XAPC, offsetof(XAPC, list_entry)> apc_lists[2]; /**< Per mode. */
+  TypedGuestPointer<X_KPROCESS> process;
+  u8 executing_kernel_apc;
+  u8 deferred_apc_software_interrupt_state;
+  u8 user_apc_pending;
+  u8 may_queue_apcs;
+  X_KSPINLOCK apc_lock;
+  be_u32 num_context_switches_to;
+  X_LIST_ENTRY ready_prcb_entry;
+  be_u32 msr_mask;
+  rex::be<X_STATUS> wait_result;
+  u8 wait_irql;
+  u8 unk_A5[0xB];
+  i32 apc_disable_count;
+  be_i32 quantum;
+  u8 unk_B8;
+  u8 unk_B9;
+  u8 unk_BA;
+  u8 boost_disabled;
+  u8 suspend_count;
+  u8 was_preempted;
+  u8 terminated;
+  u8 current_cpu; /**< Index of this processor. */
+  TypedGuestPointer<X_KPRCB> a_prcb_ptr;
+  TypedGuestPointer<X_KPRCB> another_prcb_ptr;
+  u8 unk_C8;
+  u8 unk_C9;
+  u8 unk_CA;
+  u8 unk_CB;
+  X_KSPINLOCK timer_list_lock;
+  be_u32 stack_alloc_base;
+  XAPC on_suspend;
+  X_KSEMAPHORE suspend_sema;
+  X_LIST_ENTRY process_threads;
+  be_u32 unk_118;
+  X_LIST_ENTRY queue_related;
+  be_u32 unk_124;
+  be_u32 unk_128;
+  be_u32 unk_12C;
+  be_u64 create_time;
+  be_u64 exit_time;
+  be_u32 exit_status;
+  X_LIST_ENTRY timer_list;
+  be_u32 thread_id;
+  be_u32 start_address;
+  X_LIST_ENTRY unk_154;
+  u8 unk_15C[0x4];
+  be_u32 last_error;
+  be_u32 fiber_ptr;
+  u8 unk_168[0x4];
+  be_u32 creation_flags;
+  u8 unk_170[0xC];
+  be_u32 unk_17C;
+  u8 unk_180[0x930];
 };
 REX_STATIC_ASSERT_SIZE(X_KTHREAD, 0xAB0);
 

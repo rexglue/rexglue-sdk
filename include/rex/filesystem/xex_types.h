@@ -11,8 +11,10 @@
 
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
 
+#include <rex/assert.h>
 #include <rex/types.h>
 
 /**
@@ -406,53 +408,58 @@ enum xex2_approval_type : u8 {
 
 /** Age rating of the title for each rating board. */
 struct xex2_game_ratings_t {
-  be<xex2_rating_esrb_value> esrb;      /**< Offset 0x0. */
-  be<xex2_rating_pegi_value> pegi;      /**< Offset 0x4. */
-  be<xex2_rating_pegi_fi_value> pegifi; /**< Offset 0x8. */
-  be<xex2_rating_pegi_pt_value> pegipt; /**< Offset 0xC. */
-  be<xex2_rating_bbfc_value> bbfc;      /**< Offset 0x10. */
-  be<xex2_rating_cero_value> cero;      /**< Offset 0x14. */
-  be<xex2_rating_usk_value> usk;        /**< Offset 0x18. */
-  be<xex2_rating_oflc_au_value> oflcau; /**< Offset 0x1C. */
-  be<xex2_rating_oflc_nz_value> oflcnz; /**< Offset 0x20. */
-  be<xex2_rating_kmrb_value> kmrb;      /**< Offset 0x24. */
-  be<xex2_rating_brazil_value> brazil;  /**< Offset 0x28. */
-  be<xex2_rating_fpb_value> fpb;        /**< Offset 0x2C. */
+  be<xex2_rating_esrb_value> esrb;      /**< ESRB rating. */
+  be<xex2_rating_pegi_value> pegi;      /**< PEGI rating. */
+  be<xex2_rating_pegi_fi_value> pegifi; /**< PEGI rating for Finland. */
+  be<xex2_rating_pegi_pt_value> pegipt; /**< PEGI rating for Portugal. */
+  be<xex2_rating_bbfc_value> bbfc;      /**< BBFC rating. */
+  be<xex2_rating_cero_value> cero;      /**< CERO rating. */
+  be<xex2_rating_usk_value> usk;        /**< USK rating. */
+  be<xex2_rating_oflc_au_value> oflcau; /**< OFLC rating for Australia. */
+  be<xex2_rating_oflc_nz_value> oflcnz; /**< OFLC rating for New Zealand. */
+  be<xex2_rating_kmrb_value> kmrb;      /**< KMRB rating. */
+  be<xex2_rating_brazil_value> brazil;  /**< Brazilian rating. */
+  be<xex2_rating_fpb_value> fpb;        /**< FPB rating. */
 };
 
 /** 1 run of basic compressed data followed by a run of zeros. */
 struct xex2_file_basic_compression_block {
-  be_u32 data_size; /**< Offset 0x0. */
-  be_u32 zero_size; /**< Offset 0x4. */
+  be_u32 data_size;
+  be_u32 zero_size;
 };
+REX_STATIC_ASSERT_SIZE(xex2_file_basic_compression_block, 0x8);
 
 /** Compression info of a basic compressed image. */
 struct xex2_file_basic_compression_info {
-  xex2_file_basic_compression_block blocks[1]; /**< Offset 0x0. */
+  xex2_file_basic_compression_block blocks[1];
 };
+REX_STATIC_ASSERT_SIZE(xex2_file_basic_compression_info, 0x8);
 
 /** Size and hash of the next compressed block. */
 struct xex2_compressed_block_info {
-  be_u32 block_size; /**< Offset 0x0. */
-  u8 block_hash[20]; /**< Offset 0x4. */
+  be_u32 block_size;
+  u8 block_hash[20];
 };
+REX_STATIC_ASSERT_SIZE(xex2_compressed_block_info, 0x18);
 
 /** Compression info of a normal compressed image. */
 struct xex2_file_normal_compression_info {
-  be_u32 window_size;                     /**< Offset 0x0. */
-  xex2_compressed_block_info first_block; /**< Offset 0x4. */
+  be_u32 window_size;
+  xex2_compressed_block_info first_block;
 };
+REX_STATIC_ASSERT_SIZE(xex2_file_normal_compression_info, 0x1C);
 
 /** Optional header describing the encryption and compression of the image. */
 struct xex2_opt_file_format_info {
-  be_u32 info_size;                           /**< Offset 0x0. */
-  be<xex2_encryption_type> encryption_type;   /**< Offset 0x4. */
-  be<xex2_compression_type> compression_type; /**< Offset 0x6. */
+  be_u32 info_size;
+  be<xex2_encryption_type> encryption_type;
+  be<xex2_compression_type> compression_type;
   union {
     xex2_file_basic_compression_info basic;   /**< Valid when compression_type is basic. */
     xex2_file_normal_compression_info normal; /**< Valid when compression_type is normal. */
-  } compression_info;                         /**< Offset 0x8. */
+  } compression_info;
 };
+REX_STATIC_ASSERT_SIZE(xex2_opt_file_format_info, 0x24);
 
 /** Same layout as xe_xex2_version_t. */
 union xex2_version {
@@ -467,92 +474,100 @@ union xex2_version {
 
 /** Optional header holding the LAN key. */
 struct xex2_opt_lan_key {
-  u8 key[0x10]; /**< Offset 0x0. */
+  u8 key[0x10]; /**< LAN key, 16 bytes. */
 };
 
 /** Optional header holding the path the image is bound to. */
 struct xex2_opt_bound_path {
-  be_u32 size;  /**< Offset 0x0. */
-  char path[1]; /**< Offset 0x4. */
+  be_u32 size;
+  char path[1];
 };
+static_assert(offsetof(xex2_opt_bound_path, path) == 0x4);
+REX_STATIC_ASSERT_SIZE(xex2_opt_bound_path, 0x8);
 
 /** 1 static library linked into the image. */
 struct xex2_opt_static_library {
-  char name[8];         /**< Offset 0x0. */
-  be_u16 version_major; /**< Offset 0x8. */
-  be_u16 version_minor; /**< Offset 0xA. */
-  be_u16 version_build; /**< Offset 0xC. */
-  u8 approval_type;     /**< Offset 0xE. */
-  u8 version_qfe;       /**< Offset 0xF. */
+  char name[8];
+  be_u16 version_major;
+  be_u16 version_minor;
+  be_u16 version_build;
+  u8 approval_type;
+  u8 version_qfe;
 };
 REX_STATIC_ASSERT_SIZE(xex2_opt_static_library, 0x10);
 
 /** Optional header listing the static libraries linked into the image. */
 struct xex2_opt_static_libraries {
-  be_u32 size;                          /**< Offset 0x0. */
-  xex2_opt_static_library libraries[1]; /**< Offset 0x4. */
+  be_u32 size; /**< Size of this header in bytes, the size field included. */
+  xex2_opt_static_library libraries[1]; /**< First of the static library entries. */
 };
 
 /** Optional header holding the original PE file name. */
 struct xex2_opt_original_pe_name {
-  be_u32 size;  /**< Offset 0x0. */
-  char name[1]; /**< Offset 0x4. */
+  be_u32 size;
+  char name[1];
 };
+static_assert(offsetof(xex2_opt_original_pe_name, name) == 0x4);
+REX_STATIC_ASSERT_SIZE(xex2_opt_original_pe_name, 0x8);
 
 /** Optional header locating a PE data directory in the image. */
 struct xex2_opt_data_directory {
-  be_u32 offset; /**< Offset 0x0. */
-  be_u32 size;   /**< Offset 0x4. */
+  be_u32 offset;
+  be_u32 size;
 };
 REX_STATIC_ASSERT_SIZE(xex2_opt_data_directory, 0x8);
 
 /** Optional header describing the thread local storage of the image. */
 struct xex2_opt_tls_info {
-  be_u32 slot_count;       /**< Offset 0x0. */
-  be_u32 raw_data_address; /**< Offset 0x4. */
-  be_u32 data_size;        /**< Offset 0x8. */
-  be_u32 raw_data_size;    /**< Offset 0xC. */
+  be_u32 slot_count;
+  be_u32 raw_data_address;
+  be_u32 data_size;
+  be_u32 raw_data_size;
 };
 REX_STATIC_ASSERT_SIZE(xex2_opt_tls_info, 0x10);
 
 /** 1 resource embedded in the image. */
 struct xex2_resource {
-  char name[8];   /**< Offset 0x0. */
-  be_u32 address; /**< Offset 0x8. */
-  be_u32 size;    /**< Offset 0xC. */
+  char name[8];
+  be_u32 address;
+  be_u32 size;
 };
 REX_STATIC_ASSERT_SIZE(xex2_resource, 0x10);
 
 /** Optional header listing the resources embedded in the image. */
 struct xex2_opt_resource_info {
-  be_u32 size;                /**< Offset 0x0. Resource count is (size - 4) / 16. */
-  xex2_resource resources[1]; /**< Offset 0x4. */
+  be_u32 size; /**< Resource count is (size - 4) / 16. */
+  xex2_resource resources[1];
 };
+static_assert(offsetof(xex2_opt_resource_info, resources) == 0x4);
+REX_STATIC_ASSERT_SIZE(xex2_opt_resource_info, 0x14);
 
 /** 1 delta patch entry. */
 struct xex2_delta_patch {
-  be_u32 old_addr;         /**< Offset 0x0. */
-  be_u32 new_addr;         /**< Offset 0x4. */
-  be_u16 uncompressed_len; /**< Offset 0x8. */
-  be_u16 compressed_len;   /**< Offset 0xA. */
-  char patch_data[1];      /**< Offset 0xC. */
+  be_u32 old_addr;
+  be_u32 new_addr;
+  be_u16 uncompressed_len;
+  be_u16 compressed_len;
+  char patch_data[1];
 };
+static_assert(offsetof(xex2_delta_patch, patch_data) == 0xC);
+REX_STATIC_ASSERT_SIZE(xex2_delta_patch, 0x10);
 
 /** Optional header describing a delta patch against a base image. */
 struct xex2_opt_delta_patch_descriptor {
-  be_u32 size;                        /**< Offset 0x0. */
-  be_u32 target_version_value;        /**< Offset 0x4. */
-  be_u32 source_version_value;        /**< Offset 0x8. */
-  u8 digest_source[0x14];             /**< Offset 0xC. */
-  u8 image_key_source[0x10];          /**< Offset 0x20. */
-  be_u32 size_of_target_headers;      /**< Offset 0x30. */
-  be_u32 delta_headers_source_offset; /**< Offset 0x34. */
-  be_u32 delta_headers_source_size;   /**< Offset 0x38. */
-  be_u32 delta_headers_target_offset; /**< Offset 0x3C. */
-  be_u32 delta_image_source_offset;   /**< Offset 0x40. */
-  be_u32 delta_image_source_size;     /**< Offset 0x44. */
-  be_u32 delta_image_target_offset;   /**< Offset 0x48. */
-  xex2_delta_patch info;              /**< Offset 0x4C. */
+  be_u32 size;
+  be_u32 target_version_value;
+  be_u32 source_version_value;
+  u8 digest_source[0x14];
+  u8 image_key_source[0x10];
+  be_u32 size_of_target_headers;
+  be_u32 delta_headers_source_offset;
+  be_u32 delta_headers_source_size;
+  be_u32 delta_headers_target_offset;
+  be_u32 delta_image_source_offset;
+  be_u32 delta_image_source_size;
+  be_u32 delta_image_target_offset;
+  xex2_delta_patch info;
 
   xex2_version target_version() const { return xex2_version{target_version_value}; }
 
@@ -562,18 +577,20 @@ struct xex2_opt_delta_patch_descriptor {
 
   void set_source_version(xex2_version version) { source_version_value = version.value; }
 };
+static_assert(offsetof(xex2_opt_delta_patch_descriptor, info) == 0x4C);
+REX_STATIC_ASSERT_SIZE(xex2_opt_delta_patch_descriptor, 0x5C);
 
 /** Optional header holding the identity and version of the title. */
 struct xex2_opt_execution_info {
-  be_u32 media_id;           /**< Offset 0x0. */
-  be_u32 version_value;      /**< Offset 0x4. */
-  be_u32 base_version_value; /**< Offset 0x8. */
-  be_u32 title_id;           /**< Offset 0xC. */
-  u8 platform;               /**< Offset 0x10. */
-  u8 executable_table;       /**< Offset 0x11. */
-  u8 disc_number;            /**< Offset 0x12. */
-  u8 disc_count;             /**< Offset 0x13. */
-  be_u32 savegame_id;        /**< Offset 0x14. */
+  be_u32 media_id;
+  be_u32 version_value;
+  be_u32 base_version_value;
+  be_u32 title_id;
+  u8 platform;
+  u8 executable_table;
+  u8 disc_number;
+  u8 disc_count;
+  be_u32 savegame_id;
 
   xex2_version version() const { return xex2_version{version_value}; }
 
@@ -587,24 +604,26 @@ REX_STATIC_ASSERT_SIZE(xex2_opt_execution_info, 0x18);
 
 /** Optional header listing the libraries the image imports from. */
 struct xex2_opt_import_libraries {
-  be_u32 size; /**< Offset 0x0. */
+  be_u32 size;
   struct {
-    be_u32 size;  /**< Offset 0x4. */
-    be_u32 count; /**< Offset 0x8. */
-    char data[1]; /**< Offset 0xC. string_table_size bytes. */
+    be_u32 size;
+    be_u32 count;
+    char data[1]; /**< string_table_size bytes. */
   } string_table;
 };
+static_assert(offsetof(xex2_opt_import_libraries, string_table.data) == 0xC);
+REX_STATIC_ASSERT_SIZE(xex2_opt_import_libraries, 0x10);
 
 /** 1 imported library with its version range and import table. */
 struct xex2_import_library {
-  be_u32 size;                   /**< Offset 0x0. */
-  char next_import_digest[0x14]; /**< Offset 0x4. */
-  be_u32 id;                     /**< Offset 0x18. */
-  be_u32 version_value;          /**< Offset 0x1C. */
-  be_u32 version_min_value;      /**< Offset 0x20. */
-  be_u16 name_index;             /**< Offset 0x24. */
-  be_u16 count;                  /**< Offset 0x26. */
-  be_u32 import_table[1];        /**< Offset 0x28. */
+  be_u32 size;
+  char next_import_digest[0x14];
+  be_u32 id;
+  be_u32 version_value;
+  be_u32 version_min_value;
+  be_u16 name_index;
+  be_u16 count;
+  be_u32 import_table[1];
 
   xex2_version version() const { return xex2_version{version_value}; }
 
@@ -614,11 +633,13 @@ struct xex2_import_library {
 
   void set_version_min(xex2_version version) { version_min_value = version.value; }
 };
+static_assert(offsetof(xex2_import_library, import_table) == 0x28);
+REX_STATIC_ASSERT_SIZE(xex2_import_library, 0x2C);
 
-/** Optional header holding an array of 32 bit values. */
+/** SDK shape of an optional header that is a byte size followed by 32 bit words. */
 struct xex2_opt_generic_u32 {
-  be_u32 size;      /**< Offset 0x0. */
-  be_u32 values[1]; /**< Offset 0x4. */
+  be_u32 size;      /**< Size of this header in bytes, the size field included. */
+  be_u32 values[1]; /**< First of the `count()` values. */
 
   u32 count() const { return (size - 4) / 4; }
 };
@@ -631,88 +652,97 @@ struct xex2_opt_generic_u32 {
  * other low byte N holds the offset of a block of N 32 bit words.
  */
 struct xex2_opt_header {
-  be_u32 key; /**< Offset 0x0. Header id, its low byte selects the use of the second field. */
+  be_u32 key; /**< Header id, its low byte selects the use of the second field. */
 
   union {
-    be_u32 value;  /**< Offset 0x4. Data held inline. */
-    be_u32 offset; /**< Offset 0x4. Offset of the data block from the start of the file. */
+    be_u32 value;  /**< Data held inline. */
+    be_u32 offset; /**< Offset of the data block from the start of the file. */
   };
 };
 
 /** Fixed header at the start of an XEX2 file. */
 struct xex2_header {
-  be_u32 magic;                       /**< Offset 0x0. Value 'XEX2'. */
-  be<xex2_module_flags> module_flags; /**< Offset 0x4. */
-  be_u32 header_size;                 /**< Offset 0x8. */
-  be_u32 reserved;                    /**< Offset 0xC. */
-  be_u32 security_offset;             /**< Offset 0x10. */
-  be_u32 header_count;                /**< Offset 0x14. */
+  be_u32 magic; /**< Value 'XEX2'. */
+  be<xex2_module_flags> module_flags;
+  be_u32 header_size;
+  be_u32 reserved;
+  be_u32 security_offset;
+  be_u32 header_count;
 
-  xex2_opt_header headers[1]; /**< Offset 0x18. */
+  xex2_opt_header headers[1];
 };
+static_assert(offsetof(xex2_header, headers) == 0x18);
+REX_STATIC_ASSERT_SIZE(xex2_header, 0x20);
 
 /** Section type, page count and digest of a run of image pages. */
 struct xex2_page_descriptor {
   union {
-    be_u32 value; /**< Offset 0x0. */
+    be_u32 value;
     struct {
       xex2_section_type info : 4; /**< Bits 0 to 3 of value. Section type of the pages. */
       u32 page_count : 28;        /**< Bits 4 to 31 of value. Number of pages in the run. */
     };
   };
-  char data_digest[0x14]; /**< Offset 0x4. */
+  char data_digest[0x14];
 };
+REX_STATIC_ASSERT_SIZE(xex2_page_descriptor, 0x18);
 
 /** Security info of an XEX2 image. */
 struct xex2_security_info {
-  be_u32 header_size;                       /**< Offset 0x0. */
-  be_u32 image_size;                        /**< Offset 0x4. */
-  char rsa_signature[0x100];                /**< Offset 0x8. */
-  be_u32 unk_108;                           /**< Offset 0x108. */
-  be_u32 image_flags;                       /**< Offset 0x10C. */
-  be_u32 load_address;                      /**< Offset 0x110. */
-  char section_digest[0x14];                /**< Offset 0x114. */
-  be_u32 import_table_count;                /**< Offset 0x128. */
-  char import_table_digest[0x14];           /**< Offset 0x12C. */
-  char xgd2_media_id[0x10];                 /**< Offset 0x140. */
-  char aes_key[0x10];                       /**< Offset 0x150. */
-  be_u32 export_table;                      /**< Offset 0x160. */
-  char header_digest[0x14];                 /**< Offset 0x164. */
-  be_u32 region;                            /**< Offset 0x178. */
-  be_u32 allowed_media_types;               /**< Offset 0x17C. */
-  be_u32 page_descriptor_count;             /**< Offset 0x180. */
-  xex2_page_descriptor page_descriptors[1]; /**< Offset 0x184. */
+  be_u32 header_size;
+  be_u32 image_size;
+  char rsa_signature[0x100];
+  be_u32 unk_108;
+  be_u32 image_flags;
+  be_u32 load_address;
+  char section_digest[0x14];
+  be_u32 import_table_count;
+  char import_table_digest[0x14];
+  char xgd2_media_id[0x10];
+  char aes_key[0x10];
+  be_u32 export_table;
+  char header_digest[0x14];
+  be_u32 region;
+  be_u32 allowed_media_types;
+  be_u32 page_descriptor_count;
+  xex2_page_descriptor page_descriptors[1];
 };
+static_assert(offsetof(xex2_security_info, page_descriptors) == 0x184);
+REX_STATIC_ASSERT_SIZE(xex2_security_info, 0x19C);
 
 /** Security info of an XEX1 image. */
 struct xex1_security_info {
-  be_u32 header_size;                       /**< Offset 0x0. */
-  be_u32 image_size;                        /**< Offset 0x4. */
-  char rsa_signature[0x100];                /**< Offset 0x8. */
-  char image_digest[0x14];                  /**< Offset 0x108. */
-  char import_table_digest[0x14];           /**< Offset 0x11C. */
-  be_u32 load_address;                      /**< Offset 0x130. */
-  char aes_key[0x10];                       /**< Offset 0x134. */
-  char xgd2_media_id[0x10];                 /**< Offset 0x144. */
-  be_u32 region;                            /**< Offset 0x154. */
-  be_u32 image_flags;                       /**< Offset 0x158. */
-  be_u32 export_table;                      /**< Offset 0x15C. */
-  be_u32 allowed_media_types;               /**< Offset 0x160. */
-  be_u32 page_descriptor_count;             /**< Offset 0x164. */
-  xex2_page_descriptor page_descriptors[1]; /**< Offset 0x168. */
+  be_u32 header_size;
+  be_u32 image_size;
+  char rsa_signature[0x100];
+  char image_digest[0x14];
+  char import_table_digest[0x14];
+  be_u32 load_address;
+  char aes_key[0x10];
+  char xgd2_media_id[0x10];
+  be_u32 region;
+  be_u32 image_flags;
+  be_u32 export_table;
+  be_u32 allowed_media_types;
+  be_u32 page_descriptor_count;
+  xex2_page_descriptor page_descriptors[1];
 };
+static_assert(offsetof(xex1_security_info, page_descriptors) == 0x168);
+REX_STATIC_ASSERT_SIZE(xex1_security_info, 0x180);
 
 /** Export table of an image, indexed by ordinal. */
 struct xex2_export_table {
-  be_u32 magic[3];        /**< Offset 0x0. */
-  be_u32 modulenumber[2]; /**< Offset 0xC. */
-  be_u32 version[3];      /**< Offset 0x14. */
-  be_u32 imagebaseaddr;   /**< Offset 0x20. Shifted left 16 for the true address. */
-  be_u32 count;           /**< Offset 0x24. */
-  be_u32 base;            /**< Offset 0x28. */
-  /** Offset 0x2C. ordOffset[0] + (imagebaseaddr << 16) is the function address. */
+  be_u32 magic[3];
+  be_u32 modulenumber[2];
+  be_u32 version[3];
+  be_u32 imagebaseaddr; /**< Shifted left 16 for the true address. */
+  be_u32 count;
+  be_u32 base;
+  /** ordOffset[0] + (imagebaseaddr << 16) is the function address. */
   be_u32 ordOffset[1];
 };
+static_assert(offsetof(xex2_export_table, ordOffset) == 0x2C);
+REX_STATIC_ASSERT_SIZE(xex2_export_table, 0x30);
 
 /** Little endian PE export directory from winnt.h. */
 struct X_IMAGE_EXPORT_DIRECTORY {

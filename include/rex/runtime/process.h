@@ -47,10 +47,10 @@ REX_STATIC_ASSERT_SIZE(X_KPROCESS, 0x60);
 
 /** An object with a self referencing list head that titles read. */
 struct X_UNKNOWN_TYPE_REFED {
-  be_u32 field0;          /**< Offset 0x0. Set to 0x1000000 at setup, no host code reads it. */
-  be_u32 field4;          /**< Offset 0x4. Set to 1 at setup, no host code reads it. */
-  be_u32 points_to_self;  /**< Offset 0x8. Guest address of this field, the empty list head. */
-  be_u32 points_to_prior; /**< Offset 0xC. Same address as points_to_self, the empty list head. */
+  be_u32 field0;          /**< Set to 0x1000000 at setup, no host code reads it. */
+  be_u32 field4;          /**< Set to 1 at setup, no host code reads it. */
+  be_u32 points_to_self;  /**< Guest address of this field, the empty list head. */
+  be_u32 points_to_prior; /**< Same address as points_to_self, the empty list head. */
 };
 REX_STATIC_ASSERT_SIZE(X_UNKNOWN_TYPE_REFED, 16);
 

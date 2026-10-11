@@ -107,47 +107,47 @@ void VdGetCurrentDisplayGamma_entry(mapped_u32 type_ptr, mapped_f32 power_ptr) {
 }
 
 struct X_D3DPRIVATE_RECT {
-  be_u32 x1; /**< Offset 0x0 */
-  be_u32 y1; /**< Offset 0x4 */
-  be_u32 x2; /**< Offset 0x8 */
-  be_u32 y2; /**< Offset 0xC */
+  be_u32 x1;
+  be_u32 y1;
+  be_u32 x2;
+  be_u32 y2;
 };
 REX_STATIC_ASSERT_SIZE(X_D3DPRIVATE_RECT, 0x10);
 
 struct X_D3DFILTER_PARAMETERS {
-  be_f32 nyquist;        /**< Offset 0x0 */
-  be_f32 flicker_filter; /**< Offset 0x4 */
-  be_f32 beta;           /**< Offset 0x8 */
+  be_f32 nyquist;
+  be_f32 flicker_filter;
+  be_f32 beta;
 };
 REX_STATIC_ASSERT_SIZE(X_D3DFILTER_PARAMETERS, 0xC);
 
 struct X_D3DPRIVATE_SCALER_PARAMETERS {
-  X_D3DPRIVATE_RECT scaler_source_rect;                /**< Offset 0x0 */
-  be_u32 scaled_output_width;                          /**< Offset 0x10 */
-  be_u32 scaled_output_height;                         /**< Offset 0x14 */
-  be_u32 vertical_filter_type;                         /**< Offset 0x18 */
-  X_D3DFILTER_PARAMETERS vertical_filter_parameters;   /**< Offset 0x1C */
-  be_u32 horizontal_filter_type;                       /**< Offset 0x28 */
-  X_D3DFILTER_PARAMETERS horizontal_filter_parameters; /**< Offset 0x2C */
+  X_D3DPRIVATE_RECT scaler_source_rect;
+  be_u32 scaled_output_width;
+  be_u32 scaled_output_height;
+  be_u32 vertical_filter_type;
+  X_D3DFILTER_PARAMETERS vertical_filter_parameters;
+  be_u32 horizontal_filter_type;
+  X_D3DFILTER_PARAMETERS horizontal_filter_parameters;
 };
 REX_STATIC_ASSERT_SIZE(X_D3DPRIVATE_SCALER_PARAMETERS, 0x38);
 
 struct X_DISPLAY_INFO {
-  be_u16 front_buffer_width;                        /**< Offset 0x0 */
-  be_u16 front_buffer_height;                       /**< Offset 0x2 */
-  u8 front_buffer_color_format;                     /**< Offset 0x4 */
-  u8 front_buffer_pixel_format;                     /**< Offset 0x5 */
-  X_D3DPRIVATE_SCALER_PARAMETERS scaler_parameters; /**< Offset 0x8 */
-  be_u16 display_window_overscan_left;              /**< Offset 0x40 */
-  be_u16 display_window_overscan_top;               /**< Offset 0x42 */
-  be_u16 display_window_overscan_right;             /**< Offset 0x44 */
-  be_u16 display_window_overscan_bottom;            /**< Offset 0x46 */
-  be_u16 display_width;                             /**< Offset 0x48 */
-  be_u16 display_height;                            /**< Offset 0x4A */
-  be_f32 display_refresh_rate;                      /**< Offset 0x4C */
-  be_u32 display_interlaced;                        /**< Offset 0x50 */
-  u8 display_color_format;                          /**< Offset 0x54 */
-  be_u16 actual_display_width;                      /**< Offset 0x56 */
+  be_u16 front_buffer_width;
+  be_u16 front_buffer_height;
+  u8 front_buffer_color_format;
+  u8 front_buffer_pixel_format;
+  X_D3DPRIVATE_SCALER_PARAMETERS scaler_parameters;
+  be_u16 display_window_overscan_left;
+  be_u16 display_window_overscan_top;
+  be_u16 display_window_overscan_right;
+  be_u16 display_window_overscan_bottom;
+  be_u16 display_width;
+  be_u16 display_height;
+  be_f32 display_refresh_rate;
+  be_u32 display_interlaced;
+  u8 display_color_format;
+  be_u16 actual_display_width;
 };
 REX_STATIC_ASSERT_SIZE(X_DISPLAY_INFO, 0x58);
 

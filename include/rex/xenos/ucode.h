@@ -484,8 +484,8 @@ union ControlFlowInstruction {
   ControlFlowAllocInstruction alloc;                 /**< kAlloc */
 
   struct {
-    u32 dword_0; /**< Offset 0x0. Low dword of the 64 bit instruction. */
-    u32 dword_1; /**< Offset 0x4. High dword of the 64 bit instruction. */
+    u32 dword_0; /**< Low dword of the 64 bit instruction. */
+    u32 dword_1; /**< High dword of the 64 bit instruction. */
   };
   struct {
     u32 unused_0 : 32;                  /**< Bits 0 to 31 of the instruction. No code reads it. */

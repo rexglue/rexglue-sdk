@@ -38,41 +38,41 @@ struct X_USER_PROFILE_SETTING_DATA {
    * after it.
    */
   u8 type;
-  u8 unk_1[3];  /**< Offset 0x01. Padding after the type byte. */
-  be_u32 unk_4; /**< Offset 0x04. Padding before the 8 byte aligned value union. */
+  u8 unk_1[3];  /**< Padding after the type byte. */
+  be_u32 unk_4; /**< Padding before the 8 byte aligned value union. */
   /** Union of the XUSER_DATA value types. */
   union {
-    be_i32 s32; /**< Offset 0x08. XUSER_DATA_TYPE_INT32 value. */
-    be_i64 s64; /**< Offset 0x08. XUSER_DATA_TYPE_INT64 value. */
-    be_u32 u32; /**< Offset 0x08. Unsigned view of the 32 bit value. */
-    be_f64 f64; /**< Offset 0x08. XUSER_DATA_TYPE_DOUBLE value. */
+    be_i32 s32; /**< XUSER_DATA_TYPE_INT32 value. */
+    be_i64 s64; /**< XUSER_DATA_TYPE_INT64 value. */
+    be_u32 u32; /**< Unsigned view of the 32 bit value. */
+    be_f64 f64; /**< XUSER_DATA_TYPE_DOUBLE value. */
     struct {
-      be_u32 size; /**< Offset 0x08. Text size in bytes including the terminator. */
-      be_u32 ptr;  /**< Offset 0x0C. Guest address of the UTF-16 text, 0 when empty. */
+      be_u32 size; /**< Text size in bytes including the terminator. */
+      be_u32 ptr;  /**< Guest address of the UTF-16 text, 0 when empty. */
     } unicode;     /**< XUSER_DATA_TYPE_UNICODE value. */
-    be_f32 f32;    /**< Offset 0x08. XUSER_DATA_TYPE_FLOAT value. */
+    be_f32 f32;    /**< XUSER_DATA_TYPE_FLOAT value. */
     struct {
-      be_u32 size;   /**< Offset 0x08. Data size in bytes. */
-      be_u32 ptr;    /**< Offset 0x0C. Guest address of the data, 0 when empty. */
+      be_u32 size;   /**< Data size in bytes. */
+      be_u32 ptr;    /**< Guest address of the data, 0 when empty. */
     } binary;        /**< XUSER_DATA_TYPE_BINARY value. */
-    be_u64 filetime; /**< Offset 0x08. XUSER_DATA_TYPE_DATETIME value. */
+    be_u64 filetime; /**< XUSER_DATA_TYPE_DATETIME value. */
   };
 };
 REX_STATIC_ASSERT_SIZE(X_USER_PROFILE_SETTING_DATA, 16);
 
 /** Guest ABI entry of a profile settings read result, laid out as XUSER_PROFILE_SETTING. */
 struct X_USER_PROFILE_SETTING {
-  be_u32 from;  /**< Offset 0x00. Source of the value, an XUSER_PROFILE_SOURCE value. */
-  be_u32 unk04; /**< Offset 0x04. Padding before the 8 byte aligned union. */
+  be_u32 from;  /**< Source of the value, an XUSER_PROFILE_SOURCE value. */
+  be_u32 unk04; /**< Padding before the 8 byte aligned union. */
   union {
-    be_u32 user_index; /**< Offset 0x08. User index when the read named a user index. */
-    be_u64 xuid;       /**< Offset 0x08. XUID when the read named XUIDs. */
+    be_u32 user_index; /**< User index when the read named a user index. */
+    be_u64 xuid;       /**< XUID when the read named XUIDs. */
   };
-  be_u32 setting_id; /**< Offset 0x10. Setting id. */
-  be_u32 unk14;      /**< Offset 0x14. Padding before the 8 byte aligned data. */
+  be_u32 setting_id; /**< Setting id. */
+  be_u32 unk14;      /**< Padding before the 8 byte aligned data. */
   union {
-    u8 data_bytes[sizeof(X_USER_PROFILE_SETTING_DATA)]; /**< Offset 0x18. Raw bytes. */
-    X_USER_PROFILE_SETTING_DATA data;                   /**< Offset 0x18. Value. */
+    u8 data_bytes[sizeof(X_USER_PROFILE_SETTING_DATA)]; /**< Raw bytes. */
+    X_USER_PROFILE_SETTING_DATA data;                   /**< Value. */
   };
 };
 REX_STATIC_ASSERT_SIZE(X_USER_PROFILE_SETTING, 40);

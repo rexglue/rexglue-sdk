@@ -11,6 +11,7 @@
 
 #pragma once
 
+#include <rex/assert.h>
 #include <rex/memory.h>
 #include <rex/runtime/xtypes.h>
 
@@ -40,13 +41,13 @@ enum X_FILE_ATTRIBUTES : u16 {
 
 /** The overlapped IO block, known as XOVERLAPPED to the title. */
 struct XAM_OVERLAPPED {
-  be_u32 result;             /**< Offset 0x0. */
-  be_u32 length;             /**< Offset 0x4. */
-  be_u32 context;            /**< Offset 0x8. */
-  be_u32 event;              /**< Offset 0xC. */
-  be_u32 completion_routine; /**< Offset 0x10. */
-  be_u32 completion_context; /**< Offset 0x14. */
-  be_u32 extended_error;     /**< Offset 0x18. */
+  be_u32 result;
+  be_u32 length;
+  be_u32 context;
+  be_u32 event;
+  be_u32 completion_routine;
+  be_u32 completion_context;
+  be_u32 extended_error;
 };
 
 REX_STATIC_ASSERT_SIZE(XAM_OVERLAPPED, 0x1C);
@@ -133,9 +134,9 @@ inline void XOverlappedSetExtendedError(void* ptr, u32 value) {
 
 /** A counted 8-bit string in guest memory. */
 struct X_ANSI_STRING {
-  be_u16 length;         /**< Offset 0x0. Used bytes of the string, without a terminator. */
-  be_u16 maximum_length; /**< Offset 0x2. Capacity in bytes of the buffer at pointer. */
-  be_u32 pointer;        /**< Offset 0x4. Guest address of the characters. */
+  be_u16 length;         /**< Used bytes of the string, without a terminator. */
+  be_u16 maximum_length; /**< Capacity in bytes of the buffer at pointer. */
+  be_u32 pointer;        /**< Guest address of the characters. */
 
   /** Clears the length, capacity and pointer. */
   void reset() {
@@ -148,9 +149,9 @@ REX_STATIC_ASSERT_SIZE(X_ANSI_STRING, 8);
 
 /** A counted 16-bit string in guest memory. */
 struct X_UNICODE_STRING {
-  be_u16 length;         /**< Offset 0x0. */
-  be_u16 maximum_length; /**< Offset 0x2. */
-  be_u32 pointer;        /**< Offset 0x4. */
+  be_u16 length;
+  be_u16 maximum_length;
+  be_u32 pointer;
 
   /** Clears the length, capacity and pointer. */
   void reset() {
@@ -164,19 +165,20 @@ REX_STATIC_ASSERT_SIZE(X_UNICODE_STRING, 8);
 /** The status and information of a completed IO call. */
 struct X_IO_STATUS_BLOCK {
   union {
-    be<X_STATUS> status; /**< Offset 0x0. Final status of the call. */
-    be_u32 pointer;      /**< Offset 0x0. Shares its dword with status. */
+    be<X_STATUS> status; /**< Final status of the call. */
+    be_u32 pointer;      /**< Shares its dword with status. */
   };
-  /** Offset 0x4. Call specific result, such as the bytes transferred or the file action. */
+  /** Call specific result, such as the bytes transferred or the file action. */
   be_u32 information;
 };
 
 /** The root directory, name and attributes of an object to open. */
 struct X_OBJECT_ATTRIBUTES {
-  be_u32 root_directory; /**< Offset 0x0. */
-  be_u32 name_ptr;       /**< Offset 0x4. PANSI_STRING. */
-  be_u32 attributes;     /**< Offset 0xC. */
+  be_u32 root_directory;
+  be_u32 name_ptr; /**< PANSI_STRING. */
+  be_u32 attributes;
 };
+REX_STATIC_ASSERT_SIZE(X_OBJECT_ATTRIBUTES, 0xC);
 
 #pragma pack(pop)
 

@@ -17,6 +17,7 @@
 #include <unordered_map>
 #include <vector>
 
+#include <rex/assert.h>
 #include <rex/macros.h>
 #include <rex/platform/thread.h>
 #include <rex/runtime/exports.h>
@@ -34,31 +35,32 @@ namespace rex::runtime {
 
 /** HMODULE points to this struct. */
 struct X_LDR_DATA_TABLE_ENTRY {
-  X_LIST_ENTRY in_load_order_links;           /**< Offset 0x0. */
-  X_LIST_ENTRY in_memory_order_links;         /**< Offset 0x8. */
-  X_LIST_ENTRY in_initialization_order_links; /**< Offset 0x10. */
+  X_LIST_ENTRY in_load_order_links;
+  X_LIST_ENTRY in_memory_order_links;
+  X_LIST_ENTRY in_initialization_order_links;
 
-  be_u32 dll_base;   /**< Offset 0x18. */
-  be_u32 image_base; /**< Offset 0x1C. */
-  be_u32 image_size; /**< Offset 0x20. */
+  be_u32 dll_base;
+  be_u32 image_base;
+  be_u32 image_size;
 
-  X_UNICODE_STRING full_dll_name; /**< Offset 0x24. */
-  X_UNICODE_STRING base_dll_name; /**< Offset 0x2C. */
+  X_UNICODE_STRING full_dll_name;
+  X_UNICODE_STRING base_dll_name;
 
-  be_u32 flags;             /**< Offset 0x34. */
-  be_u32 full_image_size;   /**< Offset 0x38. */
-  be_u32 entry_point;       /**< Offset 0x3C. */
-  be_u16 load_count;        /**< Offset 0x40. */
-  be_u16 module_index;      /**< Offset 0x42. */
-  be_u32 dll_base_original; /**< Offset 0x44. */
-  be_u32 checksum;          /**< Offset 0x48. Holds the kernel handle. */
-  be_u32 load_flags;        /**< Offset 0x4C. */
-  be_u32 time_date_stamp;   /**< Offset 0x50. */
-  be_u32 loaded_imports;    /**< Offset 0x54. */
-  be_u32 xex_header_base;   /**< Offset 0x58. */
-  be_u32 closure_root;      /**< Offset 0x5C. */
-  be_u32 traversal_parent;  /**< Offset 0x60. */
+  be_u32 flags;
+  be_u32 full_image_size;
+  be_u32 entry_point;
+  be_u16 load_count;
+  be_u16 module_index;
+  be_u32 dll_base_original;
+  be_u32 checksum; /**< Holds the kernel handle. */
+  be_u32 load_flags;
+  be_u32 time_date_stamp;
+  be_u32 loaded_imports;
+  be_u32 xex_header_base;
+  be_u32 closure_root;
+  be_u32 traversal_parent;
 };
+REX_STATIC_ASSERT_SIZE(X_LDR_DATA_TABLE_ENTRY, 0x64);
 
 /** Module kind, HLE kernel code or a loaded title image. */
 enum class ModuleType : u8 { Kernel, User };

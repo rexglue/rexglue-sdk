@@ -107,22 +107,22 @@ constexpr u32 kCurrentlyRunningTitleId = 0xFFFFFFFF;
 
 /** Metadata of a content package on a storage device, as the title lays it out. */
 struct XCONTENT_DATA {
-  be_u32 device_id; /**< Offset 0x0. Id of the storage device that holds the package. */
-  be<XContentType> content_type; /**< Offset 0x4. Type of the package. */
+  be_u32 device_id;              /**< Id of the storage device that holds the package. */
+  be<XContentType> content_type; /**< Type of the package. */
   union {
     /** Plain u16 because be_u16 would stop the copy constructor being generated. */
     u16 uint[128];
     /** The same 256 bytes as uint, used to write the name through the swapping copy. */
     char16_t chars[128];
-  } display_name_raw; /**< Offset 0x8. Big endian UTF-16 name shown to the player. */
+  } display_name_raw; /**< Big endian UTF-16 name shown to the player. */
 
-  char file_name_raw[42]; /**< Offset 0x108. File name of the package. */
+  char file_name_raw[42]; /**< File name of the package. */
 
   /**
    * Downloadable content fills all of file_name_raw, so some titles use this padding as its null
    * terminator. Not every title zeroes it, so reads of file_name_raw stop at 42 chars.
    */
-  u8 padding[2]; /**< Offset 0x132. Trailing bytes after the file name. */
+  u8 padding[2]; /**< Trailing bytes after the file name. */
 
   /**
    * Compares the fields that locate a package, device_id, content_type and file_name.
@@ -180,8 +180,8 @@ REX_STATIC_ASSERT_SIZE(XCONTENT_DATA, 0x134);
 
 /** Content data with the owner of the package, as the aggregate enumerator returns it. */
 struct XCONTENT_AGGREGATE_DATA : XCONTENT_DATA {
-  be_u64 xuid;     /**< Offset 0x138. Id of the profile that owns the package, 0 when none. */
-  be_u32 title_id; /**< Offset 0x140. Id of the title that owns the package. */
+  be_u64 xuid;     /**< Id of the profile that owns the package, 0 when none. */
+  be_u32 title_id; /**< Id of the title that owns the package. */
 
   XCONTENT_AGGREGATE_DATA() = default;
   /**

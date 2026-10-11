@@ -40,9 +40,9 @@ extern "C" {
 namespace rex::kernel::xboxkrnl {
 
 struct XECRYPT_RC4_STATE {
-  u8 S[256]; /**< Offset 0x0 */
-  u8 i;      /**< Offset 0x100 */
-  u8 j;      /**< Offset 0x101 */
+  u8 S[256];
+  u8 i;
+  u8 j;
 };
 REX_STATIC_ASSERT_SIZE(XECRYPT_RC4_STATE, 0x102);
 
@@ -83,9 +83,9 @@ void XeCryptRc4_entry(mapped_void key, u32 key_size, mapped_void data, u32 size)
 }
 
 struct XECRYPT_SHA_STATE {
-  be_u32 count;    /**< Offset 0x0 */
-  be_u32 state[5]; /**< Offset 0x4 */
-  u8 buffer[64];   /**< Offset 0x18 */
+  be_u32 count;
+  be_u32 state[5];
+  u8 buffer[64];
 };
 REX_STATIC_ASSERT_SIZE(XECRYPT_SHA_STATE, 0x58);
 
@@ -155,9 +155,9 @@ void XeCryptSha_entry(mapped_void input_1, u32 input_1_size, mapped_void input_2
 }
 
 struct XECRYPT_SHA256_STATE {
-  be_u32 count;    /**< Offset 0x0 */
-  be_u32 state[8]; /**< Offset 0x4 */
-  u8 buffer[64];   /**< Offset 0x24 */
+  be_u32 count;
+  be_u32 state[8];
+  u8 buffer[64];
 };
 
 void XeCryptSha256Init_entry(ppc_ptr_t<XECRYPT_SHA256_STATE> sha_state) {
@@ -400,8 +400,8 @@ void XeCryptDes3Cbc_entry(ppc_ptr_t<XECRYPT_DES3_STATE> state_ptr, mapped_u64 in
 }
 
 struct XECRYPT_AES_STATE {
-  u8 keytabenc[11][4][4]; /**< Offset 0x0 */
-  u8 keytabdec[11][4][4]; /**< Offset 0xB0 */
+  u8 keytabenc[11][4][4];
+  u8 keytabdec[11][4][4];
 };
 REX_STATIC_ASSERT_SIZE(XECRYPT_AES_STATE, 0x160);
 

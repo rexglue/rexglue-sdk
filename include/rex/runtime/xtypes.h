@@ -174,21 +174,21 @@ REX_STATIC_ASSERT_SIZE(X_LIST_ENTRY, 8);
 
 /** Guest layout of an entry of a singly linked list. */
 struct X_SINGLE_LIST_ENTRY {
-  be_u32 next; /**< Offset 0x0. Points to the next entry. */
+  be_u32 next; /**< Points to the next entry. */
 };
 REX_STATIC_ASSERT_SIZE(X_SINGLE_LIST_ENTRY, 4);
 
 /** Guest layout of the head of an interlocked singly linked list. */
 struct X_SLIST_HEADER {
-  X_SINGLE_LIST_ENTRY next; /**< Offset 0x0. */
-  be_u16 depth;             /**< Offset 0x4. */
-  be_u16 sequence;          /**< Offset 0x6. */
+  X_SINGLE_LIST_ENTRY next;
+  be_u16 depth;
+  be_u16 sequence;
 };
 REX_STATIC_ASSERT_SIZE(X_SLIST_HEADER, 8);
 
 /** Guest layout of a spin lock. */
 struct X_KSPINLOCK {
-  be_u32 prcb_of_owner; /**< Offset 0x0. Address of the owner's PCR, 0 when free. */
+  be_u32 prcb_of_owner; /**< Address of the owner's PCR, 0 when free. */
 };
 REX_STATIC_ASSERT_SIZE(X_KSPINLOCK, 4);
 

@@ -62,75 +62,75 @@ enum X_FILE_INFORMATION_CLASS : u8 {
 
 /** Timestamps and attributes of a file. */
 struct X_FILE_BASIC_INFORMATION {
-  be_u64 creation_time;    /**< Offset 0x00. Creation time. */
-  be_u64 last_access_time; /**< Offset 0x08. Last access time. */
-  be_u64 last_write_time;  /**< Offset 0x10. Last write time. */
-  be_u64 change_time;      /**< Offset 0x18. Last metadata change time. */
-  be_u64 attributes;       /**< Offset 0x20. File attribute flags. */
+  be_u64 creation_time;    /**< Creation time. */
+  be_u64 last_access_time; /**< Last access time. */
+  be_u64 last_write_time;  /**< Last write time. */
+  be_u64 change_time;      /**< Last metadata change time. */
+  be_u64 attributes;       /**< File attribute flags. */
 };
 REX_STATIC_ASSERT_SIZE(X_FILE_BASIC_INFORMATION, 0x28);
 
 /** Unique index of a file on its volume. */
 struct X_FILE_INTERNAL_INFORMATION {
-  be_u64 index_number; /**< Offset 0x00. */
+  be_u64 index_number;
 };
 REX_STATIC_ASSERT_SIZE(X_FILE_INTERNAL_INFORMATION, 8);
 
 /** Rename request for a file. */
 struct X_FILE_RENAME_INFORMATION {
-  be_u32 replace_existing;   /**< Offset 0x00. Nonzero to replace an existing target. */
-  be_u32 root_dir_handle;    /**< Offset 0x04. Directory handle the target is relative to, or 0. */
-  X_ANSI_STRING ansi_string; /**< Offset 0x08. Target path. */
+  be_u32 replace_existing;   /**< Nonzero to replace an existing target. */
+  be_u32 root_dir_handle;    /**< Directory handle the target is relative to, or 0. */
+  X_ANSI_STRING ansi_string; /**< Target path. */
 };
 REX_STATIC_ASSERT_SIZE(X_FILE_RENAME_INFORMATION, 16);
 
 /** Delete on close request for a file. */
 struct X_FILE_DISPOSITION_INFORMATION {
-  u8 delete_file; /**< Offset 0x00. Nonzero to delete the file on close. */
+  u8 delete_file; /**< Nonzero to delete the file on close. */
 };
 REX_STATIC_ASSERT_SIZE(X_FILE_DISPOSITION_INFORMATION, 1);
 
 /** Current byte position of a file. */
 struct X_FILE_POSITION_INFORMATION {
-  be_u64 current_byte_offset; /**< Offset 0x00. */
+  be_u64 current_byte_offset;
 };
 REX_STATIC_ASSERT_SIZE(X_FILE_POSITION_INFORMATION, 8);
 
 /** End of file position of a file. */
 struct X_FILE_END_OF_FILE_INFORMATION {
-  be_u64 end_of_file; /**< Offset 0x00. Size in bytes. */
+  be_u64 end_of_file; /**< Size in bytes. */
 };
 REX_STATIC_ASSERT_SIZE(X_FILE_END_OF_FILE_INFORMATION, 8);
 
 /** Allocation size of a file. */
 struct X_FILE_ALLOCATION_INFORMATION {
-  be_u64 allocation_size; /**< Offset 0x00. Size in bytes. */
+  be_u64 allocation_size; /**< Size in bytes. */
 };
 REX_STATIC_ASSERT_SIZE(X_FILE_ALLOCATION_INFORMATION, 8);
 
 /** Result of the XFileXctdCompressionInformation query. */
 struct X_FILE_XCTD_COMPRESSION_INFORMATION {
-  be_u32 unknown; /**< Offset 0x00. */
+  be_u32 unknown;
 };
 REX_STATIC_ASSERT_SIZE(X_FILE_XCTD_COMPRESSION_INFORMATION, 4);
 
 /** Association of a file with an I/O completion port. */
 struct X_FILE_COMPLETION_INFORMATION {
-  be_u32 handle; /**< Offset 0x00. I/O completion port handle. */
-  be_u32 key;    /**< Offset 0x04. Completion key reported with each completion. */
+  be_u32 handle; /**< I/O completion port handle. */
+  be_u32 key;    /**< Completion key reported with each completion. */
 };
 REX_STATIC_ASSERT_SIZE(X_FILE_COMPLETION_INFORMATION, 8);
 
 /** Timestamps, sizes and attributes of a file. */
 struct X_FILE_NETWORK_OPEN_INFORMATION {
-  be_u64 creation_time;    /**< Offset 0x00. Creation time. */
-  be_u64 last_access_time; /**< Offset 0x08. Last access time. */
-  be_u64 last_write_time;  /**< Offset 0x10. Last write time. */
-  be_u64 change_time;      /**< Offset 0x18. Last metadata change time. */
-  be_u64 allocation_size;  /**< Offset 0x20. Size in bytes. */
-  be_u64 end_of_file;      /**< Offset 0x28. Size in bytes. */
-  be_u32 attributes;       /**< Offset 0x30. File attribute flags. */
-  be_u32 pad;              /**< Offset 0x34. */
+  be_u64 creation_time;    /**< Creation time. */
+  be_u64 last_access_time; /**< Last access time. */
+  be_u64 last_write_time;  /**< Last write time. */
+  be_u64 change_time;      /**< Last metadata change time. */
+  be_u64 allocation_size;  /**< Size in bytes. */
+  be_u64 end_of_file;      /**< Size in bytes. */
+  be_u32 attributes;       /**< File attribute flags. */
+  be_u32 pad;
 };
 REX_STATIC_ASSERT_SIZE(X_FILE_NETWORK_OPEN_INFORMATION, 56);
 

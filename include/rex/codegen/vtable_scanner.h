@@ -36,7 +36,7 @@ struct RTTICompleteObjectLocator {
   be_u32 signature;       /**< Always 0 for 32 bit */
   be_u32 offset;          /**< Offset of this vtable in the complete class */
   be_u32 cdOffset;        /**< Constructor displacement offset */
-  be_u32 pTypeDescriptor; /**< Offset 0x0C. Guest address of the RTTITypeDescriptor of the class. */
+  be_u32 pTypeDescriptor; /**< Guest address of the RTTITypeDescriptor of the class. */
   be_u32 pClassHierarchy; /**< Pointer to the class hierarchy descriptor */
 };
 REX_STATIC_ASSERT_SIZE(RTTICompleteObjectLocator, 20);
