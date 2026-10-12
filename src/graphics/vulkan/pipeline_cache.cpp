@@ -91,7 +91,13 @@ constexpr bool IsPatchIndexedHostVertexShaderType(
 
 std::string GetTessellationSystemConstantsBlockGlsl() {
   std::string source;
-  source += "layout(set = 0, binding = 0, std140) uniform XeSystemConstants {\n";
+  // The system constants of guest draws: set 0 binding 0 is the shared memory
+  // storage buffer, so reading the block from there gave the tessellation
+  // shaders whatever guest memory is at those offsets as factors and index
+  // bounds.
+  source += fmt::format("layout(set = {}, binding = {}, std140) uniform XeSystemConstants {{\n",
+                        uint32_t(SpirvShaderTranslator::kDescriptorSetConstants),
+                        uint32_t(SpirvShaderTranslator::kConstantBufferSystem));
   source += fmt::format("  layout(offset = {}) uint xe_vertex_index_endian;\n",
                         offsetof(SpirvShaderTranslator::SystemConstants, vertex_index_endian));
   source += fmt::format("  layout(offset = {}) int xe_vertex_base_index;\n",

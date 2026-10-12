@@ -511,6 +511,27 @@ class PrimitiveProcessor {
     }
   }
 
+  // Triangle strips as triangle lists, keeping the winding of every other
+  // triangle: (v0, v1, v2), (v2, v1, v3), (v2, v3, v4)... as in Direct3D. Only
+  // needed for tessellation, where the host draws patches from lists.
+  static constexpr uint32_t GetTriangleStripListIndexCount(uint32_t strip_index_count) {
+    return strip_index_count > 2 ? (strip_index_count - 2) * 3 : 0;
+  }
+  template <typename Index, typename IndexTransform>
+  static void TriangleStripToList(Index* dest, const Index* source, uint32_t source_index_count,
+                                  const IndexTransform& index_transform) {
+    for (uint32_t i = 2; i < source_index_count; ++i) {
+      Index a = index_transform(source[i - 2]);
+      Index b = index_transform(source[i - 1]);
+      if (i & 1) {
+        std::swap(a, b);
+      }
+      *(dest++) = a;
+      *(dest++) = b;
+      *(dest++) = index_transform(source[i]);
+    }
+  }
+
   static constexpr uint32_t GetLineLoopStripIndexCount(uint32_t loop_index_count) {
     // Even if 2 vertices are supplied, two lines are still drawn between them.
     // https://www.khronos.org/opengl/wiki/Primitive
@@ -599,6 +620,14 @@ class PrimitiveProcessor {
              ++range_it) {
           TriangleFanToList(dest_write_ptr, source + range_it->guest_offset,
                             range_it->guest_index_count, index_transform);
+          dest_write_ptr += range_it->host_index_count;
+        }
+        break;
+      case xenos::PrimitiveType::kTriangleStrip:
+        for (PrimitiveRangeIterator range_it = ranges_beginning; range_it != ranges_end;
+             ++range_it) {
+          TriangleStripToList(dest_write_ptr, source + range_it->guest_offset,
+                              range_it->guest_index_count, index_transform);
           dest_write_ptr += range_it->host_index_count;
         }
         break;
