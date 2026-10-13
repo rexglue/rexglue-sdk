@@ -535,11 +535,9 @@ void RegisterInit(CLI::App& parent, const CLIContext& ctx, DeferredAction& pendi
   auto args = std::make_shared<InitArgs>();
   init->add_option("--project-name", args->project_name,
                    "Project name (becomes [project].name in the manifest)")
-      ->type_name("NAME")
-      ->required();
+      ->type_name("NAME");
   init->add_option("--xex-path", args->xex_path, "Path to entrypoint XEX (e.g. assets/Default.xex)")
-      ->type_name("PATH")
-      ->required();
+      ->type_name("PATH");
   init->add_option("--game-root", args->game_root, "Game asset root for DLL guest-path derivation")
       ->type_name("PATH");
   init->add_option("--project-root", args->project_root,
@@ -566,6 +564,10 @@ void RegisterInit(CLI::App& parent, const CLIContext& ctx, DeferredAction& pendi
   init->callback([args, &ctx, &pending]() {
     if (pending)
       return;
+    if (args->project_name.empty())
+      throw CLI::RequiredError("--project-name");
+    if (args->xex_path.empty())
+      throw CLI::RequiredError("--xex-path");
     pending = [args, &ctx]() -> Result<void> {
       InitOptions opts;
       opts.project_name = args->project_name;

@@ -120,6 +120,7 @@ add_executable(unit_tests
     codegen/shim_config_test.cpp
     codegen/tool_runtime_test.cpp
     codegen/mmio_analysis_test.cpp
+    rexglue/init_command_test.cpp
 )
 
 target_sources(unit_tests PRIVATE
@@ -127,6 +128,7 @@ target_sources(unit_tests PRIVATE
     ${PROJECT_SOURCE_DIR}/src/gpu/xenos/pipeline/shader/shader.cpp
     ${PROJECT_SOURCE_DIR}/src/rexglue/ui/ui.cpp
     ${PROJECT_SOURCE_DIR}/src/rexglue/ui/progress.cpp
+    ${PROJECT_SOURCE_DIR}/src/rexglue/commands/init_command.cpp
     ${PROJECT_SOURCE_DIR}/thirdparty/crypto/rijndael-alg-fst.c
 )
 
@@ -139,6 +141,7 @@ target_include_directories(unit_tests PRIVATE
     ${PROJECT_SOURCE_DIR}/tests
     ${PROJECT_SOURCE_DIR}/thirdparty
     ${PROJECT_SOURCE_DIR}/thirdparty/disasm
+    ${PROJECT_SOURCE_DIR}/thirdparty/cli11/include
     ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
