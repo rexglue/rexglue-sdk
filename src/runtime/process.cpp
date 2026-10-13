@@ -371,6 +371,12 @@ void Runtime::SetExecutableModule(X_HANDLE module_handle) {
       char* variable_ptr = memory_->TranslateVirtual<char*>(address);
       rex::copy_truncating(variable_ptr, module->path, kExLoadedImageNameSize);
     }
+    if (const u32 address = xboxkrnl->Variable(0x01AE /* ExLoadedCommandLine */)) {
+      const std::string& arguments = config_.runtime.kernel.command_line;
+      rex::copy_truncating(memory_->TranslateVirtual<char*>(address),
+                           LoadedCommandLine(module->path, arguments),
+                           LoadedCommandLineCapacity(arguments));
+    }
   }
 
   dispatcher_->Start();

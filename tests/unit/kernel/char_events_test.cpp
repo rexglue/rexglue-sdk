@@ -136,3 +136,23 @@ REX_TEST_CASE("events: guest KEVENT initialized and lazily created", "[char][eve
     CHECK(c.Kernel("KeWaitForSingleObject", {inlined, 0, 0, 0, Poll(c)}) == 0);
   });
 }
+
+REX_TEST_CASE("events: Ke calls on an object that does not resolve keep their results",
+              "[char][events]") {
+  KernelFixture fixture;
+  fixture.RunOnGuestThread([](Caller& c) {
+    const u32 unsupported = c.Alloc(32);
+    c.Store32(unsupported, 0x7F000000);
+    CHECK(c.Kernel("KeSetEvent", {unsupported, 0, 0}) == 0);
+    CHECK(c.Kernel("KePulseEvent", {unsupported, 0, 0}) == 0);
+    CHECK(c.Kernel("KeResetEvent", {unsupported}) == 0);
+    CHECK(c.Kernel("KeReleaseSemaphore", {unsupported, 0, 1, 0}) == 0);
+    CHECK(c.Kernel("KeWaitForSingleObject", {unsupported, 0, 0, 0, Poll(c)}) ==
+          rex::X_STATUS_ABANDONED_WAIT_0);
+
+    const u32 reused = c.Alloc(32);
+    c.Kernel("KeInitializeEvent", {reused, 0, 0});
+    c.Kernel("KeInitializeSemaphore", {reused, 1, 1});
+    CHECK(c.Kernel("KeReleaseSemaphore", {reused, 0, 1, 0}) == 0);
+  });
+}

@@ -38,6 +38,16 @@ struct CreateOptions {
   static const u32 FILE_RANDOM_ACCESS = 0x00000800;
 };
 
+static bool QueueCompletionAPC(u32 apc_routine, u32 apc_context, u32 io_status_block,
+                               X_STATUS result) {
+  const u32 routine = apc_routine & ~1u;
+  if (!routine || (result != X_STATUS_SUCCESS && result != X_STATUS_PENDING)) {
+    return false;
+  }
+  KernelThread::GetCurrentThread()->EnqueueAPC(routine, apc_context, io_status_block, 0);
+  return true;
+}
+
 static bool IsValidPath(const std::string_view s, bool is_pattern) {
   bool got_asterisk = false;
   for (const auto& c : s) {
@@ -114,7 +124,9 @@ u32 NtCreateFile_entry(mapped_u32 handle_out, u32 desired_access,
   // 0xFFFFFFFD is ObDosDevices.
   if (object_attrs->root_directory != 0xFFFFFFFD && object_attrs->root_directory != 0) {
     root_file = runtime::Current().object_table().Get<FileObject>(object_attrs->root_directory);
-    REX_ASSERT(static_cast<bool>(root_file));
+    if (!root_file) {
+      return X_STATUS_INVALID_HANDLE;
+    }
   }
 
   filesystem::OpenOptions options;
@@ -227,26 +239,9 @@ u32 NtReadFile_entry(u32 file_handle, u32 event_handle, mapped_void apc_routine_
         io_status_block->information = bytes_read;
       }
 
-      // The APC must go through the APC mechanism even when completing immediately.
-      if (static_cast<u32>(apc_routine_ptr) & ~1) {
-        if (apc_context && result == X_STATUS_SUCCESS) {
-          auto thread = KernelThread::GetCurrentThread();
-          u32 apc_routine = static_cast<u32>(apc_routine_ptr) & ~1u;
-          u32 apc_ctx = apc_context.guest_address();
-          u32 apc_arg1 = io_status_block.guest_address();
-          REXLOG_TRACE(kernel,
-                       "NtReadFile "
-                       "queue_apc thid={} normal={:#x} ctx={:#x} arg1={:#x} arg2=0",
-                       thread ? thread->thread_id() : 0, apc_routine, apc_ctx, apc_arg1);
-          thread->EnqueueAPC(apc_routine, apc_ctx, apc_arg1, 0);
-          apc_queued = true;
-        } else {
-          REXLOG_TRACE(kernel,
-                       "NtReadFile "
-                       "skip_apc_queue (apc_ctx={:#x}, status={:#x})",
-                       apc_context.guest_address(), result);
-        }
-      }
+      apc_queued =
+          QueueCompletionAPC(static_cast<u32>(apc_routine_ptr), apc_context.guest_address(),
+                             io_status_block.guest_address(), result);
 
       if (!file->is_synchronous && result != X_STATUS_END_OF_FILE) {
         result = X_STATUS_PENDING;
@@ -333,14 +328,8 @@ u32 NtReadFileScatter_entry(u32 file_handle, u32 event_handle, mapped_void apc_r
         io_status_block->information = bytes_read;
       }
 
-      // The APC must go through the APC mechanism even when completing immediately.
-      if (static_cast<u32>(apc_routine_ptr) & ~1) {
-        if (apc_context) {
-          auto thread = KernelThread::GetCurrentThread();
-          thread->EnqueueAPC(static_cast<u32>(apc_routine_ptr) & ~1u, apc_context.guest_address(),
-                             io_status_block.guest_address(), 0);
-        }
-      }
+      QueueCompletionAPC(static_cast<u32>(apc_routine_ptr), apc_context.guest_address(),
+                         io_status_block.guest_address(), result);
 
       if (!file->is_synchronous) {
         result = X_STATUS_PENDING;
@@ -412,14 +401,8 @@ u32 NtWriteFile_entry(u32 file_handle, u32 event_handle, u32 apc_routine, mapped
         io_status_block->information = bytes_written;
       }
 
-      // The APC must go through the APC mechanism even when completing immediately.
-      if (apc_routine & ~1) {
-        if (apc_context) {
-          auto thread = KernelThread::GetCurrentThread();
-          thread->EnqueueAPC(apc_routine & ~1u, apc_context.guest_address(),
-                             io_status_block.guest_address(), 0);
-        }
-      }
+      QueueCompletionAPC(apc_routine, apc_context.guest_address(), io_status_block.guest_address(),
+                         result);
 
       if (!file->is_synchronous) {
         result = X_STATUS_PENDING;
@@ -517,6 +500,12 @@ u32 NtRemoveIoCompletion_entry(u32 handle, mapped_u32 key_context, mapped_u32 ap
   return status;
 }
 
+static Result<filesystem::FileInfo> StatRelative(filesystem::IFile& root, std::string_view path) {
+  REX_TRY(filesystem::Opened opened,
+          runtime::Current().file_system()->OpenRelative(root, path, filesystem::OpenOptions{}));
+  return opened.file->Info();
+}
+
 u32 NtQueryFullAttributesFile_entry(ppc_ptr_t<X_OBJECT_ATTRIBUTES> obj_attribs,
                                     ppc_ptr_t<X_FILE_NETWORK_OPEN_INFORMATION> file_info) {
   auto object_name =
@@ -531,8 +520,9 @@ u32 NtQueryFullAttributesFile_entry(ppc_ptr_t<X_OBJECT_ATTRIBUTES> obj_attribs,
   // 0xFFFFFFFD is ObDosDevices.
   if (obj_attribs->root_directory != 0xFFFFFFFD && obj_attribs->root_directory != 0) {
     root_file = runtime::Current().object_table().Get<FileObject>(obj_attribs->root_directory);
-    REX_ASSERT(static_cast<bool>(root_file));
-    REX_ASSERT_ALWAYS();
+    if (!root_file) {
+      return X_STATUS_INVALID_HANDLE;
+    }
   }
 
   auto target_path = runtime::TranslateAnsiPath(runtime::Current().memory(), object_name);
@@ -541,7 +531,8 @@ u32 NtQueryFullAttributesFile_entry(ppc_ptr_t<X_OBJECT_ATTRIBUTES> obj_attribs,
     return X_STATUS_OBJECT_NAME_INVALID;
   }
 
-  if (auto entry = runtime::Current().file_system()->Stat(target_path)) {
+  if (auto entry = root_file ? StatRelative(*root_file->file, target_path)
+                             : runtime::Current().file_system()->Stat(target_path)) {
     file_info->creation_time = entry->create_time;
     file_info->last_access_time = entry->access_time;
     file_info->last_write_time = entry->write_time;
@@ -563,9 +554,8 @@ u32 NtQueryFullAttributesFile_entry(ppc_ptr_t<X_OBJECT_ATTRIBUTES> obj_attribs,
   return X_STATUS_NO_SUCH_FILE;
 }
 
-u32 NtQueryDirectoryFile_entry(u32 file_handle, [[maybe_unused]] u32 event_handle,
-                               [[maybe_unused]] u32 apc_routine,
-                               [[maybe_unused]] mapped_void apc_context,
+u32 NtQueryDirectoryFile_entry(u32 file_handle, u32 event_handle, u32 apc_routine,
+                               mapped_void apc_context,
                                ppc_ptr_t<X_IO_STATUS_BLOCK> io_status_block,
                                ppc_ptr_t<X_FILE_DIRECTORY_INFORMATION> file_info_ptr, u32 length,
                                ppc_ptr_t<X_ANSI_STRING> file_name, u32 restart_scan) {
@@ -602,6 +592,14 @@ u32 NtQueryDirectoryFile_entry(u32 file_handle, [[maybe_unused]] u32 event_handl
     io_status_block->information = info;
   }
 
+  if (XSUCCEEDED(result)) {
+    if (auto ev = runtime::Current().object_table().Get<EventObject>(event_handle)) {
+      ev->Set();
+    }
+    QueueCompletionAPC(apc_routine, apc_context.guest_address(), io_status_block.guest_address(),
+                       result);
+  }
+
   return result;
 }
 
@@ -635,10 +633,6 @@ u32 NtOpenSymbolicLinkObject_entry(mapped_u32 handle_out,
 
   if (!IsValidPath(target_path, false)) {
     return X_STATUS_OBJECT_NAME_INVALID;
-  }
-
-  if (object_attrs->root_directory != 0) {
-    REX_ASSERT_ALWAYS();
   }
 
   if (rex::utf8_starts_with(target_path, "\\??\\")) {
@@ -712,10 +706,10 @@ REX_STATIC_ASSERT_SIZE(X_DISK_CACHE_PARTITION, 0x10);
  * XMountUtilityDrive, which validates the returned values.
  *
  * @param handle Unused.
- * @param event_handle Unused.
- * @param apc_routine Unused.
- * @param apc_context Unused.
- * @param io_status_block Unused.
+ * @param event_handle The event signaled on completion, may be 0.
+ * @param apc_routine The completion APC routine, bit 0 is masked off.
+ * @param apc_context The APC context.
+ * @param io_status_block Receives the status and byte count, may be 0.
  * @param io_control_code X_IOCTL_DISK_GET_DRIVE_GEOMETRY or X_IOCTL_DISK_GET_PARTITION_INFO.
  * @param input_buffer Unused.
  * @param input_buffer_len Unused.
@@ -723,9 +717,8 @@ REX_STATIC_ASSERT_SIZE(X_DISK_CACHE_PARTITION, 0x10);
  * @param output_buffer_len The size of output_buffer in bytes.
  * @return X_STATUS_SUCCESS, X_STATUS_BUFFER_TOO_SMALL or X_STATUS_INVALID_PARAMETER.
  */
-u32 NtDeviceIoControlFile_entry([[maybe_unused]] u32 handle, [[maybe_unused]] u32 event_handle,
-                                [[maybe_unused]] u32 apc_routine, [[maybe_unused]] u32 apc_context,
-                                [[maybe_unused]] u32 io_status_block, u32 io_control_code,
+u32 NtDeviceIoControlFile_entry([[maybe_unused]] u32 handle, u32 event_handle, u32 apc_routine,
+                                u32 apc_context, u32 io_status_block, u32 io_control_code,
                                 [[maybe_unused]] mapped_void input_buffer,
                                 [[maybe_unused]] u32 input_buffer_len, mapped_void output_buffer,
                                 u32 output_buffer_len) {
@@ -734,6 +727,7 @@ u32 NtDeviceIoControlFile_entry([[maybe_unused]] u32 handle, [[maybe_unused]] u3
   const u32 X_IOCTL_DISK_GET_DRIVE_GEOMETRY = 0x70000;
   const u32 X_IOCTL_DISK_GET_PARTITION_INFO = 0x74004;
 
+  u32 information = 0;
   if (io_control_code == X_IOCTL_DISK_GET_DRIVE_GEOMETRY) {
     if (output_buffer_len < 0x8) {
       REX_ASSERT_ALWAYS();
@@ -742,6 +736,7 @@ u32 NtDeviceIoControlFile_entry([[maybe_unused]] u32 handle, [[maybe_unused]] u3
     auto* geometry = output_buffer.as<X_DISK_CACHE_GEOMETRY*>();
     geometry->sector_count = cache_size / 512;
     geometry->sector_size = 512;
+    information = sizeof(X_DISK_CACHE_GEOMETRY);
   } else if (io_control_code == X_IOCTL_DISK_GET_PARTITION_INFO) {
     if (output_buffer_len < 0x10) {
       REX_ASSERT_ALWAYS();
@@ -750,12 +745,23 @@ u32 NtDeviceIoControlFile_entry([[maybe_unused]] u32 handle, [[maybe_unused]] u3
     auto* partition = output_buffer.as<X_DISK_CACHE_PARTITION*>();
     partition->start_offset = 0;
     partition->length = cache_size;
+    information = sizeof(X_DISK_CACHE_PARTITION);
   } else {
     REX_KERNEL_STUB("NtDeviceIoControlFile(0x{:X})", static_cast<u32>(io_control_code));
     REX_ASSERT_ALWAYS();
     return X_STATUS_INVALID_PARAMETER;
   }
 
+  if (io_status_block) {
+    auto* status_block =
+        runtime::Current().memory()->TranslateVirtual<X_IO_STATUS_BLOCK*>(io_status_block);
+    status_block->status = X_STATUS_SUCCESS;
+    status_block->information = information;
+  }
+  if (auto ev = runtime::Current().object_table().Get<EventObject>(event_handle)) {
+    ev->Set();
+  }
+  QueueCompletionAPC(apc_routine, apc_context, io_status_block, X_STATUS_SUCCESS);
   return X_STATUS_SUCCESS;
 }
 

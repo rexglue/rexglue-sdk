@@ -303,6 +303,29 @@ X_STATUS FileObject::Rename(filesystem::IFileSystem& file_system, std::string_vi
   return status ? X_STATUS_SUCCESS : ToXStatus(status.error(), X_STATUS_NOT_SUPPORTED);
 }
 
+u64 FileObject::Seek(i64 distance, SeekOrigin origin) {
+  std::lock_guard<std::mutex> lock(file_lock);
+  u64 base = 0;
+  switch (origin) {
+    case SeekOrigin::kBegin:
+      break;
+    case SeekOrigin::kCurrent:
+      base = position_;
+      break;
+    case SeekOrigin::kEnd:
+      base = file->Info().size;
+      break;
+  }
+  position_ = base + static_cast<u64>(distance);
+  return position_;
+}
+
+X_STATUS FileObject::SetLengthToPosition() {
+  std::lock_guard<std::mutex> lock(file_lock);
+  auto status = file->SetLength(position_);
+  return status ? X_STATUS_SUCCESS : ToXStatus(status.error(), X_STATUS_NOT_IMPLEMENTED);
+}
+
 u64 FileObject::position() {
   std::lock_guard<std::mutex> lock(file_lock);
   return position_;

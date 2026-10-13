@@ -31,6 +31,7 @@
 #include <rex/runtime/module_object.h>
 #include <rex/runtime/xthread.h>
 #include "runtime/cvar_table.h"
+#include "runtime/module_registry.h"
 
 namespace rex::kernel::xboxkrnl {
 using namespace rex::runtime;
@@ -102,12 +103,9 @@ X_HANDLE CreateXboxkrnlModule(Runtime& runtime) {
   u32 ppExLoadedImageName = mem->SystemHeapAlloc(kExLoadedImageNameSize);
   module.SetVariable(0x01AF, ppExLoadedImageName);
 
-  // The quoted xex name followed by the command line.
-  std::string command_line("\"default.xex\"");
-  if (!runtime.config().runtime.kernel.command_line.empty()) {
-    command_line += " " + runtime.config().runtime.kernel.command_line;
-  }
-  u32 command_line_length = rex::align(static_cast<u32>(command_line.length()) + 1, 1024u);
+  const std::string& arguments = runtime.config().runtime.kernel.command_line;
+  const std::string command_line = runtime::LoadedCommandLine("default.xex", arguments);
+  const u32 command_line_length = runtime::LoadedCommandLineCapacity(arguments);
   u32 pExLoadedCommandLine = mem->SystemHeapAlloc(command_line_length);
   auto lpExLoadedCommandLine = mem->TranslateVirtual(pExLoadedCommandLine);
   module.SetVariable(0x01AE, pExLoadedCommandLine);

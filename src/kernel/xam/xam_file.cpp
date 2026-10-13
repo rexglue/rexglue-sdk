@@ -35,8 +35,6 @@ constexpr u32 kOpenExisting = 3;
 constexpr u32 kOpenAlways = 4;
 constexpr u32 kTruncateExisting = 5;
 
-constexpr u32 kFileBegin = 0;
-constexpr u32 kFileCurrent = 1;
 constexpr u32 kFileEnd = 2;
 
 constexpr u32 kInvalidHandleValue = 0xFFFFFFFF;
@@ -160,22 +158,9 @@ REX_SHIM_FN(SetFilePointer, u32, u32 hFile, u32 lDistanceToMove, mapped_u32 lpDi
     distance |= static_cast<i64>(static_cast<i32>(static_cast<u32>(*lpDistanceToMoveHigh))) << 32;
   }
 
-  u64 new_pos = 0;
-  switch (dwMoveMethod) {
-    case kFileBegin:
-      new_pos = static_cast<u64>(distance);
-      break;
-    case kFileCurrent:
-      new_pos = file->position() + distance;
-      break;
-    case kFileEnd:
-      new_pos = file->file->Info().size + distance;
-      break;
-    default:
-      return kInvalidHandleValue;
-  }
-
-  file->set_position(new_pos);
+  if (dwMoveMethod > kFileEnd)
+    return kInvalidHandleValue;
+  const u64 new_pos = file->Seek(distance, static_cast<rex::runtime::SeekOrigin>(dwMoveMethod));
   if (lpDistanceToMoveHigh)
     *lpDistanceToMoveHigh = static_cast<u32>(new_pos >> 32);
   return static_cast<u32>(new_pos & 0xFFFFFFFF);
@@ -210,7 +195,7 @@ REX_SHIM_FN(SetEndOfFile, u32, u32 hFile) {
   auto file = runtime::Current().object_table().Get<rex::runtime::FileObject>(hFile);
   if (!file)
     return 0;
-  X_STATUS status = file->SetLength(file->position());
+  X_STATUS status = file->SetLengthToPosition();
   return XSUCCEEDED(status) ? 1u : 0u;
 }
 
@@ -372,22 +357,9 @@ REX_SHIM_FN(SetFilePointerEx, u32, u32 hFile, u32 distHigh, u32 distLow,
 
   i64 distance = static_cast<i64>((static_cast<u64>(distHigh) << 32) | distLow);
 
-  u64 new_pos = 0;
-  switch (dwMoveMethod) {
-    case kFileBegin:
-      new_pos = static_cast<u64>(distance);
-      break;
-    case kFileCurrent:
-      new_pos = file->position() + distance;
-      break;
-    case kFileEnd:
-      new_pos = file->file->Info().size + distance;
-      break;
-    default:
-      return 0;
-  }
-
-  file->set_position(new_pos);
+  if (dwMoveMethod > kFileEnd)
+    return 0;
+  const u64 new_pos = file->Seek(distance, static_cast<rex::runtime::SeekOrigin>(dwMoveMethod));
 
   if (lpNewFilePointer) {
     auto* out = lpNewFilePointer.as_array<u32>();

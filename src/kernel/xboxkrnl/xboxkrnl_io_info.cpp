@@ -169,7 +169,7 @@ u32 NtQueryInformationFile_entry(u32 file_handle, ppc_ptr_t<X_IO_STATUS_BLOCK> i
       break;
     }
     default: {
-      REX_ASSERT_ALWAYS();
+      REXLOG_WARN(kernel, "NtQueryInformationFile class {} is unsupported", info_class);
       status = X_STATUS_INVALID_PARAMETER;
       out_length = 0;
       break;
@@ -330,7 +330,7 @@ u32 NtSetInformationFile_entry(u32 file_handle, ppc_ptr_t<X_IO_STATUS_BLOCK> io_
       break;
     }
     default:
-      REX_ASSERT_ALWAYS();
+      REXLOG_WARN(kernel, "NtSetInformationFile class {} is unsupported", info_class);
       out_length = 0;
       break;
   }
@@ -424,7 +424,6 @@ u32 NtQueryVolumeInformationFile_entry(u32 file_handle,
       break;
     }
     default: {
-      REX_ASSERT_ALWAYS();
       out_length = 0;
       break;
     }

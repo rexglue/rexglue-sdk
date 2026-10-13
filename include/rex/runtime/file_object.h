@@ -39,6 +39,13 @@ namespace rex::runtime {
 
 class IObjectTable;
 
+/** Origin a seek distance is measured from, in the title move method values. */
+enum class SeekOrigin : u8 {
+  kBegin = 0,   /**< The start of the file. */
+  kCurrent = 1, /**< The current position. */
+  kEnd = 2,     /**< The end of the file. */
+};
+
 /** Guest layout of 1 entry of a directory listing, chained through next_entry_offset. */
 class X_FILE_DIRECTORY_INFORMATION {
  public:
@@ -194,6 +201,22 @@ struct FileObject {
    */
   REX_RUNTIME_API X_STATUS Rename(filesystem::IFileSystem& file_system, std::string_view path,
                                   bool replace_existing, FileObject* root);
+
+  /**
+   * Moves the current position by a distance from an origin.
+   *
+   * @param distance The signed byte distance.
+   * @param origin The origin the distance is measured from.
+   * @return The new position.
+   */
+  REX_RUNTIME_API u64 Seek(i64 distance, SeekOrigin origin);
+
+  /**
+   * Sets the length of the file to the current position.
+   *
+   * @return X_STATUS_SUCCESS, or the mapped filesystem error.
+   */
+  REX_RUNTIME_API X_STATUS SetLengthToPosition();
 
   /**
    * Sets the current position of the file.

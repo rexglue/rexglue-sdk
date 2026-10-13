@@ -124,16 +124,18 @@ u32 NtAllocateVirtualMemory_entry(mapped_u32 base_addr_ptr, mapped_u32 region_si
   // Without a base address the allocation granularity is 64 KB, otherwise the heap page size.
   adjusted_size = rex::round_up(adjusted_size, adjusted_base ? page_size : 64 * 1024);
 
+  if (alloc_type & X_MEM_RESET) {
+    *base_addr_ptr = adjusted_base;
+    *region_size_ptr = adjusted_size;
+    return X_STATUS_SUCCESS;
+  }
+
   u32 allocation_type = 0;
   if (alloc_type & X_MEM_RESERVE) {
     allocation_type |= runtime::kMemoryAllocationReserve;
   }
   if (alloc_type & X_MEM_COMMIT) {
     allocation_type |= runtime::kMemoryAllocationCommit | runtime::kMemoryAllocationTitle;
-  }
-  if (alloc_type & X_MEM_RESET) {
-    REX_KERNEL_STUB("X_MEM_RESET");
-    REX_ASSERT_ALWAYS();
   }
   u32 protect = FromXdkProtectFlags(protect_bits);
   u32 address = 0;

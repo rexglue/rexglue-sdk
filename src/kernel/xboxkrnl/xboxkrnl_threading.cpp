@@ -460,7 +460,7 @@ void KeInitializeEvent_entry(ppc_ptr_t<X_KEVENT> event_ptr, u32 event_type, u32 
 u32 KeSetEvent(u32 event_address, [[maybe_unused]] u32 increment, [[maybe_unused]] u32 wait) {
   auto ev = runtime::Current().object_table().Resolve<EventObject>(event_address);
   if (!ev) {
-    REX_ASSERT_ALWAYS();
+    REXLOG_WARN(kernel, "KeSetEvent({:08X}) found no event", event_address);
     return 0;
   }
 
@@ -475,7 +475,7 @@ u32 KePulseEvent_entry(ppc_ptr_t<X_KEVENT> event_ptr, [[maybe_unused]] u32 incre
                        [[maybe_unused]] u32 wait) {
   auto ev = runtime::Current().object_table().Resolve<EventObject>(event_ptr.guest_address());
   if (!ev) {
-    REX_ASSERT_ALWAYS();
+    REXLOG_WARN(kernel, "KePulseEvent({:08X}) found no event", event_ptr.guest_address());
     return 0;
   }
 
@@ -485,7 +485,7 @@ u32 KePulseEvent_entry(ppc_ptr_t<X_KEVENT> event_ptr, [[maybe_unused]] u32 incre
 u32 KeResetEvent_entry(ppc_ptr_t<X_KEVENT> event_ptr) {
   auto ev = runtime::Current().object_table().Resolve<EventObject>(event_ptr.guest_address());
   if (!ev) {
-    REX_ASSERT_ALWAYS();
+    REXLOG_WARN(kernel, "KeResetEvent({:08X}) found no event", event_ptr.guest_address());
     return 0;
   }
 
@@ -574,8 +574,8 @@ void KeInitializeSemaphore_entry(ppc_ptr_t<X_KSEMAPHORE> semaphore_ptr, u32 coun
   auto sem =
       runtime::Current().object_table().Resolve<SemaphoreObject>(semaphore_ptr.guest_address(), 5);
   if (!sem) {
-    REX_ASSERT_ALWAYS();
-    return;
+    REXLOG_WARN(kernel, "KeInitializeSemaphore({:08X}) could not create the semaphore",
+                semaphore_ptr.guest_address());
   }
 }
 
@@ -583,7 +583,7 @@ u32 KeReleaseSemaphore(u32 semaphore_address, [[maybe_unused]] u32 increment, u3
                        [[maybe_unused]] u32 wait) {
   auto sem = runtime::Current().object_table().Resolve<SemaphoreObject>(semaphore_address);
   if (!sem) {
-    REX_ASSERT_ALWAYS();
+    REXLOG_WARN(kernel, "KeReleaseSemaphore({:08X}) found no semaphore", semaphore_address);
     return 0;
   }
 
@@ -864,7 +864,7 @@ u32 KeWaitForSingleObject(u32 object_address, u32 wait_reason, u32 processor_mod
       runtime::Current().object_table().ResolveHandle(object_address, -1).value_or(0);
 
   if (!handle) {
-    REX_ASSERT_ALWAYS();
+    REXLOG_WARN(kernel, "KeWaitForSingleObject({:08X}) found no object", object_address);
     return X_STATUS_ABANDONED_WAIT_0;
   }
 

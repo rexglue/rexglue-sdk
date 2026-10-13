@@ -13,6 +13,7 @@
 #include <memory>
 #include <string>
 
+#include <rex/ppc/function.h>
 #include <rex/runtime.h>
 #include <rex/runtime/module.h>
 #include <rex/runtime/module_object.h>
@@ -22,6 +23,7 @@
 
 #include "core/xex_builder.h"
 #include "kernel/kernel_fixture.h"
+#include "runtime/module_registry.h"
 
 namespace {
 
@@ -108,4 +110,19 @@ REX_TEST_CASE("A user module object unloads its XEX image before freeing the mod
   CHECK_FALSE(loaded_at_destroy);
   REQUIRE(heap->QueryRegionInfo(spec.load_address, &info));
   CHECK(info.state == 0);
+}
+
+REX_TEST_CASE("The loaded command line quotes the image name and appends the arguments",
+              "[runtime][module]") {
+  using rex::runtime::LoadedCommandLine;
+  CHECK(LoadedCommandLine("game:\\title.xex", "") == "\"title.xex\"");
+  CHECK(LoadedCommandLine("game:\\bin\\title.xex", "-level 2") == "\"title.xex\" -level 2");
+  CHECK(LoadedCommandLine("game:\\default.xex", "") == "\"default.xex\"");
+}
+
+REX_TEST_CASE("The loaded command line fits the capacity for the longest image name",
+              "[runtime][module]") {
+  const std::string longest(kExLoadedImageNameSize - 1, 'a');
+  CHECK(rex::runtime::LoadedCommandLine(longest, "-x").size() <
+        rex::runtime::LoadedCommandLineCapacity("-x"));
 }
