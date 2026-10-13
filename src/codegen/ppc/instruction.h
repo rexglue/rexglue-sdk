@@ -354,6 +354,14 @@ struct Instruction {
    * @return True for tw and twi with a TO field of 31
    */
   bool IsTrapAlways() const;
+
+  /**
+   * Reports whether a branch is always taken, which is b, ba and the bc, bca, bclr and bcctr
+   * forms whose BO field ignores both the condition and the count.
+   *
+   * @return True when control never continues to the next instruction without a link
+   */
+  bool IsBranchAlways() const;
 };
 
 /**

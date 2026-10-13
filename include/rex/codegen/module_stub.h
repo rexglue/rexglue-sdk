@@ -22,7 +22,7 @@ namespace rex::codegen {
 /**
  * @brief Lightweight Module for loading raw binary test data
  *
- * StubModule provides the Module interface needed by Recompiler without requiring a full
+ * TestModule provides the Module interface needed by Recompiler without requiring a full
  * Runtime/FunctionDispatcher setup. It accepts raw binary data by reference (caller owns the
  * buffer).
  *

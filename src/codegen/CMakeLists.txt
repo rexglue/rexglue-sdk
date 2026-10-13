@@ -11,7 +11,6 @@ set(CODEGEN_CORE_SOURCES
     config.cpp
     function_graph.cpp
     function_scanner.cpp
-    sig_scanner.cpp
     vtable_scanner.cpp
     binary_view.cpp
     instruction_dispatch.cpp

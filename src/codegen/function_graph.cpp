@@ -19,7 +19,7 @@
 #include <rex/assert.h>
 #include <rex/codegen/binary_view.h>
 #include <rex/codegen/function_graph.h>
-#include <rex/logging/log.h>
+#include <rex/logging.h>
 #include <rex/memory/byte_swap.h>
 
 #include <dis-asm.h>
@@ -376,9 +376,6 @@ MMIOClassification ClassifyFunctionMMIO(const FunctionNode& node, const EmitCont
       }
     }
   }
-  for (const auto& [address, table] : late_jump_tables) {
-    jump_tables.push_back(table);
-  }
   return ClassifyMMIO(
       {blocks, jump_tables, hook_sites, hook_targets, &ctx.config.declared_mmio_accesses});
 }
@@ -399,10 +396,11 @@ bool FallsThrough(const FunctionGraph& graph, const rex::codegen::detail::Instru
   switch (insn.opcode) {
     case Opcode::b:
     case Opcode::ba:
-      return false;
+    case Opcode::bc:
+    case Opcode::bca:
     case Opcode::bclr:
     case Opcode::bcctr:
-      return insn.XL.BO != 20;
+      return !insn.IsBranchAlways();
     case Opcode::bl:
     case Opcode::bla:
       return !(insn.branch_target && graph.IsNoReturn(*insn.branch_target));
@@ -531,14 +529,7 @@ std::string FunctionNode::EmitCpp(const EmitContext& ctx) const {
     }
   }
 
-  const auto late_jump_tables = DetectLateJumpTables(*this, ctx);
-  for (const auto& [address, table] : late_jump_tables) {
-    for (auto label : table.targets) {
-      labels.emplace(label);
-    }
-  }
-
-  const MMIOClassification mmio = ClassifyFunctionMMIO(*this, ctx, late_jump_tables);
+  const MMIOClassification mmio = ClassifyFunctionMMIO(*this, ctx);
   for (const MMIOSite& site : mmio.sites) {
     if (site.reason == MMIOReason::kUnsupported) {
       REXLOG_ERROR(codegen,
@@ -796,8 +787,6 @@ namespace {
 using rex::codegen::detail::Instruction;
 using rex::codegen::detail::Opcode;
 
-constexpr u32 kBranchAlways = 20;
-
 /**
  * Finds the fixed point of the functions that never return.
  */
@@ -909,13 +898,15 @@ class NoReturnSolver {
           break;
         case Opcode::bc:
         case Opcode::bca:
-          if (!insn.branch_target || go(*insn.branch_target) || go(next))
+          if (!insn.branch_target || go(*insn.branch_target) ||
+              (!insn.IsBranchAlways() && go(next))) {
             return true;
+          }
           break;
         case Opcode::bclr:
           return true;
         case Opcode::bcctr: {
-          if (insn.XL.BO != kBranchAlways)
+          if (!insn.IsBranchAlways())
             return true;
           const auto& tables = flow.node->GetJumpTables();
           const auto table = std::ranges::find(tables, insn.address, &JumpTable::bctr_address);

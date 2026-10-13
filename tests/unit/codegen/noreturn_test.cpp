@@ -25,6 +25,7 @@ using rex::u32;
 
 constexpr u32 kBlr = 0x4E800020;
 constexpr u32 kBeqlr = 0x4D820020;
+constexpr u32 kBranchAlwaysToSelf = 0x42800000;
 constexpr u32 kLiR3Zero = 0x38600000;
 constexpr u32 kLiR3One = 0x38600001;
 constexpr u32 kAddiR3One = 0x38630001;
@@ -189,4 +190,16 @@ REX_TEST_CASE("A function whose every path ends in a call with no return path ne
   const auto tree = Generate(std::move(image), kKeDelayExecutionThread);
   CHECK_FALSE(Calls(tree, 2));
   CHECK(Calls(tree, 11));
+}
+
+REX_TEST_CASE("A conditional branch whose condition is ignored ends the path like a branch",
+              "[codegen][noreturn]") {
+  Image image;
+  AddFunction(image, BranchLink(1, 4));
+  AddFunction(image, kBlr);
+  AddFunction(image, kBranchAlwaysToSelf);
+  AddFunction(image, kBlr);
+  const auto tree = Generate(std::move(image), kKeDelayExecutionThread);
+  CHECK_FALSE(Calls(tree, 2));
+  CHECK_FALSE(Calls(tree, 6));
 }

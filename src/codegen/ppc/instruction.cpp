@@ -7,6 +7,8 @@ namespace rex::codegen::detail {
 
 namespace {
 
+constexpr u32 kIgnoreBranchConditions = 0x14;
+
 InstrFormat FormatOf(Opcode opcode) {
   switch (opcode) {
     case Opcode::b:
@@ -84,8 +86,23 @@ bool Instruction::IsConditional() const {
     case Opcode::bclrl:
     case Opcode::bcctr:
     case Opcode::bcctrl:
-      // BO=20 branches always
-      return XL.BO != 20;
+      return (XL.BO & kIgnoreBranchConditions) != kIgnoreBranchConditions;
+    default:
+      return false;
+  }
+}
+
+bool Instruction::IsBranchAlways() const {
+  switch (opcode) {
+    case Opcode::b:
+    case Opcode::ba:
+      return true;
+    case Opcode::bc:
+    case Opcode::bca:
+      return (B.BO & kIgnoreBranchConditions) == kIgnoreBranchConditions;
+    case Opcode::bclr:
+    case Opcode::bcctr:
+      return (XL.BO & kIgnoreBranchConditions) == kIgnoreBranchConditions;
     default:
       return false;
   }

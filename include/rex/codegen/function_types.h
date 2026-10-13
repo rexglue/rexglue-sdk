@@ -302,8 +302,6 @@ struct FunctionAnalysis {
   enum class CSRRequirement : u8 { kNone, kFPU, kVMX };
 
   bool uses_ctr = false;   /**< No code sets it, always false. */
-  bool uses_xer = false;   /**< No code sets it, always false. */
-  bool uses_cr = false;    /**< No code sets it, always false. */
   bool uses_fpscr = false; /**< No code sets it, always false. */
 
   CSRRequirement csr_requirement = CSRRequirement::kNone; /**< No code sets it, always None. */
