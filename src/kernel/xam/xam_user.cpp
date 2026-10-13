@@ -22,10 +22,13 @@
 #include <rex/runtime.h>
 #include <rex/runtime/xam/user_profile.h>
 #include <rex/runtime/enumerator_object.h>
+#include <rex/runtime/object_data.h>
+#include <rex/runtime/object_table.h>
 #include <rex/runtime/xio.h>
 #include <rex/runtime/xthread.h>
 #include <rex/runtime/xtypes.h>
 #include "kernel/kernel_macros.h"
+#include "kernel/object_reference.h"
 
 namespace rex {
 namespace kernel {
@@ -136,18 +139,11 @@ struct X_USER_READ_PROFILE_SETTINGS {
 REX_STATIC_ASSERT_SIZE(X_USER_READ_PROFILE_SETTINGS, 8);
 
 u32 XamUserReadProfileSettingsEx([[maybe_unused]] u32 title_id, u32 user_index, u32 xuid_count,
-                                 be_u64* xuids, u32 setting_count, be_u32* setting_ids, u32 unk,
-                                 be_u32* buffer_size_ptr, u8* buffer, XAM_OVERLAPPED* overlapped) {
-  if (!xuid_count) {
-    REX_ASSERT(xuids == nullptr);
-  } else {
-    REX_ASSERT(xuid_count == 1);
-    REX_ASSERT(xuids != nullptr);
-    auto& user_profile = runtime::Current().content_manager().user_profile();
-    REX_ASSERT(static_cast<u64>(xuids[0]) == user_profile.xuid());
-    xuid_count = 1;
-  }
-  REX_ASSERT(unk == 0);
+                                 be_u64* xuids, u32 setting_count, be_u32* setting_ids,
+                                 [[maybe_unused]] u32 unk, be_u32* buffer_size_ptr, u8* buffer,
+                                 XAM_OVERLAPPED* overlapped) {
+  const bool by_xuid = xuid_count && xuids;
+  const u32 xuid_entries = by_xuid ? xuid_count : 1;
 
   if (setting_count < 1 || setting_count > 32) {
     return X_ERROR_INVALID_PARAMETER;
@@ -177,10 +173,8 @@ u32 XamUserReadProfileSettingsEx([[maybe_unused]] u32 title_id, u32 user_index, 
         break;
     }
   }
-  if (xuids) {
-    needed_header_size *= xuid_count;
-    needed_data_size *= xuid_count;
-  }
+  needed_header_size *= xuid_entries;
+  needed_data_size *= xuid_entries;
   needed_header_size += sizeof(X_USER_READ_PROFILE_SETTINGS);
 
   u32 needed_size = needed_header_size + needed_data_size;
@@ -191,7 +185,7 @@ u32 XamUserReadProfileSettingsEx([[maybe_unused]] u32 title_id, u32 user_index, 
     return X_ERROR_INSUFFICIENT_BUFFER;
   }
 
-  if (!xuids && user_index) {
+  if (!by_xuid && user_index) {
     if (overlapped) {
       runtime::Current().dispatcher().Complete(
           runtime::Current().memory()->HostToGuestVirtual(overlapped),
@@ -203,51 +197,37 @@ u32 XamUserReadProfileSettingsEx([[maybe_unused]] u32 title_id, u32 user_index, 
 
   auto& user_profile = runtime::Current().content_manager().user_profile();
 
-  // The first call returns the size in buffer_size_ptr, the second call fills the buffer.
-
-  bool any_missing = false;
-  for (u32 i = 0; i < setting_count; ++i) {
-    auto setting_id = static_cast<u32>(setting_ids[i]);
-    auto setting = user_profile.GetSetting(setting_id);
-    if (!setting) {
-      any_missing = true;
-      REX_KERNEL_STUB("XamUserReadProfileSettingsEx setting {:08X}", setting_id);
-    }
-  }
-  if (any_missing) {
-    if (overlapped) {
-      runtime::Current().dispatcher().Complete(
-          runtime::Current().memory()->HostToGuestVirtual(overlapped),
-          {.result = X_ERROR_INVALID_PARAMETER});
-      return X_ERROR_IO_PENDING;
-    }
-    return X_ERROR_INVALID_PARAMETER;
-  }
-
   auto out_header = reinterpret_cast<X_USER_READ_PROFILE_SETTINGS*>(buffer);
   auto out_setting = reinterpret_cast<X_USER_PROFILE_SETTING*>(&out_header[1]);
-  out_header->setting_count = setting_count;
+  out_header->setting_count = xuid_entries * setting_count;
   out_header->settings_ptr = runtime::Current().memory()->HostToGuestVirtual(out_setting);
 
   UserProfile::SettingByteStream out_stream(runtime::Current().memory()->HostToGuestVirtual(buffer),
                                             buffer, buffer_size, needed_header_size);
-  for (u32 n = 0; n < setting_count; ++n) {
-    u32 setting_id = setting_ids[n];
-    auto setting = user_profile.GetSetting(setting_id);
+  for (u32 x = 0; x < xuid_entries; ++x) {
+    const u64 xuid = by_xuid ? static_cast<u64>(xuids[x]) : 0;
+    const bool own_profile = !by_xuid || xuid == user_profile.xuid();
+    for (u32 n = 0; n < setting_count; ++n) {
+      u32 setting_id = setting_ids[n];
+      UserProfile::Setting* setting = own_profile ? user_profile.GetSetting(setting_id) : nullptr;
+      if (own_profile && !setting) {
+        REX_KERNEL_STUB("XamUserReadProfileSettingsEx setting {:08X}", setting_id);
+      }
 
-    std::memset(out_setting, 0, sizeof(X_USER_PROFILE_SETTING));
-    out_setting->from = !setting || !setting->is_set ? 0 : setting->is_title_specific() ? 2 : 1;
-    if (xuids) {
-      out_setting->xuid = user_profile.xuid();
-    } else {
-      out_setting->user_index = user_index;
-    }
-    out_setting->setting_id = setting_id;
+      std::memset(out_setting, 0, sizeof(X_USER_PROFILE_SETTING));
+      out_setting->from = !setting || !setting->is_set ? 0 : setting->is_title_specific() ? 2 : 1;
+      if (by_xuid) {
+        out_setting->xuid = xuid;
+      } else {
+        out_setting->user_index = user_index;
+      }
+      out_setting->setting_id = setting_id;
 
-    if (setting && setting->is_set) {
-      setting->Append(&out_setting->data, &out_stream);
+      if (setting && setting->is_set) {
+        setting->Append(&out_setting->data, &out_stream);
+      }
+      ++out_setting;
     }
-    ++out_setting;
   }
 
   if (overlapped) {
@@ -680,13 +660,31 @@ u32 XamWriteGamerTile_entry([[maybe_unused]] u32 arg1, [[maybe_unused]] u32 arg2
 }
 
 u32 XamSessionCreateHandle_entry(mapped_u32 handle_ptr) {
-  *handle_ptr = 0xCAFEDEAD;
+  auto& runtime = runtime::Current();
+  ObjectBlock block = AllocObjectBlock(runtime.memory(), sizeof(X_DISPATCH_HEADER));
+  if (!block.address) {
+    return X_ERROR_NOT_ENOUGH_MEMORY;
+  }
+  Result<X_HANDLE> added = runtime.object_table().Emplace<SessionObject>(AddOptions{{}, block});
+  if (!added) {
+    return X_ERROR_NOT_ENOUGH_MEMORY;
+  }
+  StashHandle(runtime.memory()->TranslateVirtual<X_DISPATCH_HEADER*>(block.address), *added);
+  *handle_ptr = *added;
   return X_ERROR_SUCCESS;
 }
 
 u32 XamSessionRefObjByHandle_entry(u32 handle, mapped_u32 obj_ptr) {
-  REX_ASSERT(handle == 0xCAFEDEAD);
-  *obj_ptr = 0xDEADF00D;
+  auto& table = runtime::Current().object_table();
+  auto object = table.Get(handle);
+  if (!object || object.kind() != ObjectKind::Session) {
+    return X_ERROR_INVALID_HANDLE;
+  }
+  auto referenced = kernel::ReferencePrimary(table, object, object.guest_object());
+  if (!referenced) {
+    return X_ERROR_INVALID_HANDLE;
+  }
+  *obj_ptr = *referenced;
   return X_ERROR_SUCCESS;
 }
 

@@ -46,7 +46,6 @@ u32 XamContentResolve_entry([[maybe_unused]] u32 user_index,
                             [[maybe_unused]] mapped_void buffer_ptr,
                             [[maybe_unused]] u32 buffer_size, [[maybe_unused]] u32 unk1,
                             [[maybe_unused]] u32 unk2, [[maybe_unused]] u32 unk3) {
-  REX_ASSERT_ALWAYS();
   REX_KERNEL_STUB("XamContentResolve");
   return X_ERROR_NOT_FOUND;
 }

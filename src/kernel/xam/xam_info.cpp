@@ -292,7 +292,7 @@ void XamLoaderLaunchTitle_entry(mapped_string raw_name_ptr, u32 flags) {
         loader_data.launch_path = path;
       }
     } else {
-      REX_ASSERT_ALWAYS("Game requested exit to dashboard via XamLoaderLaunchTitle");
+      REXLOG_INFO(kernel, "The title exits to the dashboard");
     }
   }
 

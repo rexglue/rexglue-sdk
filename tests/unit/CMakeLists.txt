@@ -42,6 +42,7 @@ add_executable(unit_tests
     kernel/char_files_test.cpp
     kernel/char_memory_test.cpp
     kernel/char_net_test.cpp
+    kernel/char_xam_test.cpp
     kernel/char_xmp_test.cpp
     kernel/char_identity_test.cpp
     kernel/interrupt_test.cpp
@@ -83,6 +84,8 @@ add_executable(unit_tests
     runtime/achievement_manager_test.cpp
     runtime/xcontent_test.cpp
     runtime/xsemaphore_test.cpp
+    runtime/user_profile_test.cpp
+    runtime/xdbf_test.cpp
     runtime/xtypes_test.cpp
     runtime/function_dispatcher_test.cpp
     runtime/call_test.cpp

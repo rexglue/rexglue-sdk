@@ -142,6 +142,8 @@ class UserProfile {
      */
     Setting(u32 setting_id, Type type, size_t size, bool is_set)
         : setting_id(setting_id), type(type), size(size), is_set(is_set), loaded_title_id(0) {}
+    /** Destroys the setting through its base. */
+    virtual ~Setting() = default;
     /**
      * Writes the setting into a guest value.
      *

@@ -190,11 +190,6 @@ u32 ObDereferenceObject_entry(u32 native_ptr) {
                "ObDereferenceObject "
                "ptr={:#x}",
                static_cast<u32>(native_ptr));
-  // 0xDEADF00D is the dummy value from ObReferenceObjectByHandle.
-  if (native_ptr == 0xDEADF00D) {
-    return 0;
-  }
-
   auto& table = runtime::Current().object_table();
   auto object = table.Get(table.ResolveHandle(native_ptr, -1).value_or(0));
   if (object) {

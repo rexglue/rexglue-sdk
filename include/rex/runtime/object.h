@@ -107,6 +107,7 @@ enum class ObjectKind : u8 {
   SymbolicLink,   /**< Selects `SymbolicLinkObject` in `ObjectData`. */
   Module,         /**< Selects `ModuleObject` in `ObjectData`. */
   Thread,         /**< Selects `ThreadRef` in `ObjectData`. */
+  Session,        /**< Selects `SessionObject` in `ObjectData`. */
 };
 
 /** The value added to a table slot index, shifted left by 2, to form a handle. */

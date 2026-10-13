@@ -27,6 +27,7 @@
 #include <rex/runtime/notify_listener_object.h>
 #include <rex/runtime/object.h>
 #include <rex/runtime/semaphore_object.h>
+#include <rex/runtime/session_object.h>
 #include <rex/runtime/socket_object.h>
 #include <rex/runtime/symbolic_link_object.h>
 #include <rex/runtime/xthread.h>
@@ -68,9 +69,10 @@ REX_RUNTIME_API void FreeObjectBlock(runtime::Memory* memory, u32 address,
                                      WorkspaceHeap* workspace = nullptr);
 
 /** The data an `KernelObject` owns, 1 alternative per ObjectKind in enumerator order. */
-using ObjectData = std::variant<EventObject, SemaphoreObject, MutantObject, TimerObject, FileObject,
-                                SocketObject, NotifyListenerObject, IOCompletionObject,
-                                EnumeratorObject, SymbolicLinkObject, ModuleObject, ThreadRef>;
+using ObjectData =
+    std::variant<EventObject, SemaphoreObject, MutantObject, TimerObject, FileObject, SocketObject,
+                 NotifyListenerObject, IOCompletionObject, EnumeratorObject, SymbolicLinkObject,
+                 ModuleObject, ThreadRef, SessionObject>;
 
 /** One kernel object, owned by the table and shared by every handle that names it. */
 struct KernelObject {
