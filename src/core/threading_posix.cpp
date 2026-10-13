@@ -16,6 +16,7 @@ static_assert(REX_PLATFORM_LINUX || REX_PLATFORM_MAC, "This file is POSIX-only")
 
 #include <signal.h>
 
+#include <algorithm>
 #include <atomic>
 #include <condition_variable>
 #include <array>
@@ -35,12 +36,15 @@ static_assert(REX_PLATFORM_LINUX || REX_PLATFORM_MAC, "This file is POSIX-only")
 #include <pthread.h>
 #include <semaphore.h>
 
+#include <fcntl.h>
 #if defined(__APPLE__)
 #include <cstdio>
 
-#include <fcntl.h>
 #include <mach/mach.h>
+#else
+#include <sys/eventfd.h>
 #endif
+#include <sys/socket.h>
 #include <sys/syscall.h>
 #include <sys/time.h>
 #include <sys/types.h>
@@ -542,29 +546,98 @@ class PosixCondition<Event> : public PosixConditionBase {
  public:
   PosixCondition(bool manual_reset, bool initial_state)
       : signal_(initial_state), manual_reset_(manual_reset) {}
-  virtual ~PosixCondition() = default;
+  ~PosixCondition() override {
+    if (poll_read_ != -1) {
+      close(poll_read_);
+    }
+    if (poll_write_ != -1 && poll_write_ != poll_read_) {
+      close(poll_write_);
+    }
+  }
 
   bool Signal() override {
     auto lock = std::unique_lock<std::mutex>(mutex_);
-    signal_ = true;
+    Raise();
     cond_.notify_all();
     return true;
   }
 
   void Reset() {
     auto lock = std::unique_lock<std::mutex>(mutex_);
-    signal_ = false;
+    Lower();
+  }
+
+  /**
+   * Returns a descriptor that polls readable while the event is set, creating it on first use.
+   *
+   * @return The descriptor, or -1 when it cannot be created.
+   */
+  int PollFD() {
+    auto lock = std::unique_lock<std::mutex>(mutex_);
+    if (poll_read_ != -1) {
+      return poll_read_;
+    }
+#if defined(__APPLE__)
+    int ends[2];
+    if (pipe(ends) != 0) {
+      return -1;
+    }
+    for (const int end : ends) {
+      const int flags = fcntl(end, F_GETFL);
+      if (flags == -1 || fcntl(end, F_SETFL, flags | O_NONBLOCK) == -1 ||
+          fcntl(end, F_SETFD, FD_CLOEXEC) == -1) {
+        close(ends[0]);
+        close(ends[1]);
+        return -1;
+      }
+    }
+    poll_read_ = ends[0];
+    poll_write_ = ends[1];
+#else
+    poll_read_ = eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC);
+    poll_write_ = poll_read_;
+    if (poll_read_ == -1) {
+      return -1;
+    }
+#endif
+    if (signal_) {
+      Post();
+    }
+    return poll_read_;
   }
 
  private:
   bool signaled() const override { return signal_; }
   void post_execution() override {
     if (!manual_reset_) {
+      Lower();
+    }
+  }
+  void Raise() {
+    if (!signal_) {
+      signal_ = true;
+      Post();
+    }
+  }
+  void Lower() {
+    if (signal_) {
       signal_ = false;
+      if (poll_read_ != -1) {
+        u64 count;
+        [[maybe_unused]] const ssize_t drained = read(poll_read_, &count, sizeof(count));
+      }
+    }
+  }
+  void Post() const {
+    if (poll_write_ != -1) {
+      const u64 one = 1;
+      [[maybe_unused]] const ssize_t posted = write(poll_write_, &one, sizeof(one));
     }
   }
   bool signal_;
   const bool manual_reset_;
+  int poll_read_ = -1;
+  int poll_write_ = -1;
 };
 
 template <>
@@ -1462,6 +1535,33 @@ WaitResult Wait(WaitHandle* wait_handle, bool is_alertable, std::chrono::millise
   }
 }
 
+namespace {
+
+int EventPollFD(WaitHandle* event) {
+  auto* condition = dynamic_cast<PosixConditionHandle<Event>*>(event);
+  return condition ? condition->condition().PollFD() : -1;
+}
+
+}  // namespace
+
+int socket_prepare(SocketHandle handle, WaitHandle* event) {
+  const int flags = fcntl(static_cast<int>(handle), F_GETFL);
+  if (flags == -1) {
+    return -1;
+  }
+#if defined(SO_NOSIGPIPE)
+  const int enable = 1;
+  if (setsockopt(static_cast<int>(handle), SOL_SOCKET, SO_NOSIGPIPE, &enable, sizeof(enable)) !=
+      0) {
+    return -1;
+  }
+#endif
+  if (fcntl(static_cast<int>(handle), F_SETFL, flags | O_NONBLOCK) == -1) {
+    return -1;
+  }
+  return EventPollFD(event) == -1 ? -1 : 0;
+}
+
 WaitResult socket_wait(std::span<const SocketWait> sockets, bool alertable,
                        std::chrono::milliseconds timeout) {
   std::vector<pollfd> fds;
@@ -1478,6 +1578,13 @@ WaitResult socket_wait(std::span<const SocketWait> sockets, bool alertable,
       events |= POLLPRI;
     }
     fds.push_back({static_cast<int>(socket.handle), events, 0});
+  }
+  for (const SocketWait& socket : sockets) {
+    const int event_fd = EventPollFD(socket.event);
+    if (event_fd != -1 &&
+        std::ranges::none_of(fds, [event_fd](const pollfd& fd) { return fd.fd == event_fd; })) {
+      fds.push_back({event_fd, POLLIN, 0});
+    }
   }
   const auto deadline = ComputeAlertableDeadline(timeout);
   ScopedAlertableState alertable_state_guard(alertable);

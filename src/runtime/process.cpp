@@ -59,6 +59,7 @@ namespace {
 
 void ShutDownSockets(IObjectTable& table) {
   for (auto& sock : table.All<SocketObject>()) {
+    sock->CancelReceive();
     sock->Shutdown(2);
   }
 }

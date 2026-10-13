@@ -26,8 +26,50 @@ int socket_prepare(SocketHandle handle, WaitHandle* event) {
                         FD_READ | FD_WRITE | FD_OOB | FD_ACCEPT | FD_CONNECT | FD_CLOSE);
 }
 
+int socket_poll(std::span<const SocketWait> sockets, std::span<SocketReady> ready) {
+  std::vector<WSAPOLLFD> fds;
+  fds.reserve(sockets.size());
+  for (const SocketWait& socket : sockets) {
+    SHORT events = 0;
+    if ((socket.ready & SocketReady::kRead) != SocketReady::kNone) {
+      events |= POLLRDNORM;
+    }
+    if ((socket.ready & SocketReady::kWrite) != SocketReady::kNone) {
+      events |= POLLWRNORM;
+    }
+    if ((socket.ready & SocketReady::kExcept) != SocketReady::kNone) {
+      events |= POLLRDBAND;
+    }
+    fds.push_back({static_cast<SOCKET>(socket.handle), events, 0});
+  }
+  if (WSAPoll(fds.data(), static_cast<ULONG>(fds.size()), 0) == SOCKET_ERROR) {
+    return -1;
+  }
+  int count = 0;
+  for (size_t i = 0; i < fds.size(); ++i) {
+    const SHORT revents = fds[i].revents;
+    SocketReady found = SocketReady::kNone;
+    if ((fds[i].events & POLLRDNORM) && (revents & (POLLRDNORM | POLLHUP | POLLERR))) {
+      found |= SocketReady::kRead;
+    }
+    if ((fds[i].events & POLLWRNORM) && (revents & POLLWRNORM)) {
+      found |= SocketReady::kWrite;
+    }
+    if ((fds[i].events & POLLRDBAND) && (revents & (POLLRDBAND | POLLERR))) {
+      found |= SocketReady::kExcept;
+    }
+    ready[i] = found;
+    count += found != SocketReady::kNone ? 1 : 0;
+  }
+  return count;
+}
+
 bool socket_would_block() {
   return WSAGetLastError() == WSAEWOULDBLOCK;
+}
+
+u32 socket_error() {
+  return static_cast<u32>(WSAGetLastError());
 }
 
 WaitResult socket_wait(std::span<const SocketWait> sockets, bool alertable,
@@ -48,6 +90,63 @@ WaitResult socket_wait(std::span<const SocketWait> sockets, bool alertable,
     }
   }
   return result;
+}
+
+Socket Socket::Create(i32 family, i32 type, i32 protocol) {
+  const SOCKET created = socket(family, type, protocol);
+  return Socket(created == INVALID_SOCKET ? kInvalidSocket : static_cast<SocketHandle>(created));
+}
+
+i32 Socket::Connect(const sockaddr* name, i32 name_len) const {
+  return connect(static_cast<SOCKET>(handle_), name, name_len);
+}
+
+i32 Socket::Bind(const sockaddr* name, i32 name_len) const {
+  return bind(static_cast<SOCKET>(handle_), name, name_len);
+}
+
+i32 Socket::Listen(i32 backlog) const {
+  return listen(static_cast<SOCKET>(handle_), backlog);
+}
+
+Socket Socket::Accept(sockaddr* name, i32* name_len) const {
+  const SOCKET accepted = accept(static_cast<SOCKET>(handle_), name, name_len);
+  return Socket(accepted == INVALID_SOCKET ? kInvalidSocket : static_cast<SocketHandle>(accepted));
+}
+
+i32 Socket::Shutdown(i32 how) const {
+  return shutdown(static_cast<SOCKET>(handle_), how);
+}
+
+i32 Socket::Recv(void* buf, i32 len, i32 flags) const {
+  return recv(static_cast<SOCKET>(handle_), static_cast<char*>(buf), len, flags);
+}
+
+i32 Socket::RecvFrom(void* buf, i32 len, i32 flags, sockaddr* from, i32* from_len) const {
+  return recvfrom(static_cast<SOCKET>(handle_), static_cast<char*>(buf), len, flags, from,
+                  from_len);
+}
+
+i32 Socket::Send(const void* buf, i32 len, i32 flags) const {
+  return send(static_cast<SOCKET>(handle_), static_cast<const char*>(buf), len, flags);
+}
+
+i32 Socket::SendTo(const void* buf, i32 len, i32 flags, const sockaddr* to, i32 to_len) const {
+  return sendto(static_cast<SOCKET>(handle_), static_cast<const char*>(buf), len, flags, to,
+                to_len);
+}
+
+i32 Socket::SetOption(i32 level, i32 name, const void* value, i32 len) const {
+  return setsockopt(static_cast<SOCKET>(handle_), level, name, static_cast<const char*>(value),
+                    len);
+}
+
+i32 Socket::GetOption(i32 level, i32 name, void* value, i32* len) const {
+  return getsockopt(static_cast<SOCKET>(handle_), level, name, static_cast<char*>(value), len);
+}
+
+i32 Socket::PeerName(sockaddr* name, i32* name_len) const {
+  return getpeername(static_cast<SOCKET>(handle_), name, name_len);
 }
 
 }  // namespace rex::platform

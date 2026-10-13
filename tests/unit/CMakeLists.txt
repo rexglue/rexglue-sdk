@@ -147,6 +147,9 @@ target_link_libraries(unit_tests PRIVATE
     Catch2::Catch2WithMain
     SDL3::Headers
 )
+if(WIN32)
+    target_link_libraries(unit_tests PRIVATE ws2_32)
+endif()
 
 target_compile_definitions(unit_tests PRIVATE
     REX_TEST_RUNTIME_PATH="$<TARGET_FILE:rex-runtime>")

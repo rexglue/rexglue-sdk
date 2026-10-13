@@ -11,11 +11,15 @@
 
 #pragma once
 
+#include <atomic>
 #include <cstring>
 #include <memory>
+#include <mutex>
 
 #include <rex/macros.h>
 #include <rex/math.h>
+#include <rex/move_only_function.h>
+#include <rex/net/socket.h>
 #include <rex/platform/thread.h>
 #include <rex/runtime/object.h>
 #include <rex/runtime/xtypes.h>
@@ -26,6 +30,10 @@ class Runtime;
 }  // namespace rex
 
 namespace rex::runtime {
+
+class IObjectTable;
+class PinnedSlot;
+struct PendingReceive;
 
 /** Guest layout of a generic socket address. */
 struct XSOCKADDR {
@@ -114,6 +122,21 @@ enum SocketProtocol : u8 {
   X_IPPROTO_VDP = 254,
 };
 
+/** The outcome of 1 receive attempt or of an overlapped receive. */
+struct ReceiveResult {
+  /** True when CancelReceive ended the receive before a datagram arrived. */
+  bool cancelled = false;
+  /** True when the attempt failed only because no datagram was waiting. */
+  bool would_block = false;
+  int received = -1;   /**< The byte count, -1 on failure. */
+  u32 error = 0;       /**< The socket error of a failed receive, 0 otherwise. */
+  N_XSOCKADDR_IN from; /**< The sender. */
+  u32 from_len = 0;    /**< The size of the native sender address. */
+};
+
+/** Writes the end of an overlapped receive into guest memory and signals it. */
+using ReceiveCompletion = rex::MoveOnlyFunction<void(const ReceiveResult&)>;
+
 /** The host state of a socket object. */
 struct SocketObject {
   /**
@@ -127,8 +150,6 @@ struct SocketObject {
   /** Closes the native socket. */
   REX_RUNTIME_API ~SocketObject();
 
-  /** Host socket handle, all bits set when no native socket is open. */
-  u64 native_handle = static_cast<u64>(-1);
   SocketAddressFamily af; /**< Address family the socket was created with. */
   SocketType type;        /**< Socket type the socket was created with. */
   SocketProtocol proto;   /**< Protocol the socket was created with. */
@@ -143,6 +164,14 @@ struct SocketObject {
   bool nonblocking = false;
   /** Event that Prepare binds to the native socket for readiness waits. */
   std::unique_ptr<rex::platform::Event> event;
+  /** True once Cancel ran. Every later call fails, and the native socket stays open. */
+  std::atomic<bool> closed = false;
+  /** The native socket, set once by Initialize or Accept and closed with the object. */
+  rex::platform::Socket socket;
+  /** Guards pending_receive. The receive thread never takes it. */
+  std::mutex receive_mutex;
+  /** The overlapped receive that has not been joined, empty when there is none. */
+  std::unique_ptr<PendingReceive> pending_receive;
 
   /**
    * Creates the native socket for the address family, type and protocol of the object. The native
@@ -153,11 +182,12 @@ struct SocketObject {
   REX_RUNTIME_API X_STATUS Initialize();
 
   /**
-   * Closes the native socket.
+   * Marks the socket closed and wakes every call waiting on it. The native socket stays open until
+   * the object is destroyed.
    *
-   * @return X_STATUS_SUCCESS, or X_STATUS_UNSUCCESSFUL.
+   * @return True when this call marked the socket closed, false when it was already closed.
    */
-  REX_RUNTIME_API X_STATUS Close();
+  REX_RUNTIME_API bool Cancel();
 
   /**
    * Sets a socket option.
@@ -186,7 +216,7 @@ struct SocketObject {
    * @param name_len The size of the address.
    * @return X_STATUS_SUCCESS, or X_STATUS_UNSUCCESSFUL.
    */
-  REX_RUNTIME_API X_STATUS Connect(N_XSOCKADDR* name, u32 name_len);
+  REX_RUNTIME_API X_STATUS Connect(N_XSOCKADDR* name, u32 name_len) const;
 
   /**
    * Binds to an address.
@@ -203,7 +233,7 @@ struct SocketObject {
    * @param backlog The length of the pending connection queue.
    * @return X_STATUS_SUCCESS, or X_STATUS_UNSUCCESSFUL.
    */
-  REX_RUNTIME_API X_STATUS Listen(int backlog);
+  REX_RUNTIME_API X_STATUS Listen(int backlog) const;
 
   /**
    * Accepts a connection and creates a socket object for it.
@@ -221,7 +251,7 @@ struct SocketObject {
    * @param how Which directions to shut down.
    * @return The native result.
    */
-  REX_RUNTIME_API int Shutdown(int how);
+  REX_RUNTIME_API int Shutdown(int how) const;
 
   /**
    * Receives a datagram.
@@ -234,7 +264,7 @@ struct SocketObject {
    * @return The native result.
    */
   REX_RUNTIME_API int RecvFrom(u8* buf, u32 buf_len, u32 flags, N_XSOCKADDR_IN* from,
-                               u32* from_len);
+                               u32* from_len) const;
 
   /**
    * Receives data.
@@ -244,7 +274,38 @@ struct SocketObject {
    * @param flags The native flags.
    * @return The native result.
    */
-  REX_RUNTIME_API int Recv(u8* buf, u32 buf_len, u32 flags);
+  REX_RUNTIME_API int Recv(u8* buf, u32 buf_len, u32 flags) const;
+
+  /**
+   * Receives a datagram once, without waiting.
+   *
+   * @param buf The buffer.
+   * @param buf_len The size of the buffer.
+   * @param flags The native flags.
+   * @return The outcome of the attempt.
+   */
+  REX_RUNTIME_API ReceiveResult TryRecvFrom(u8* buf, u32 buf_len, u32 flags) const;
+
+  /**
+   * Receives a datagram on a new thread once 1 arrives, then calls complete on that thread. The
+   * receive holds pin and 1 reference on the first handle until a joiner releases them.
+   *
+   * @param table The table that owns the socket.
+   * @param pin A pin on this socket.
+   * @param buf The buffer, which must stay mapped until the receive is joined.
+   * @param buf_len The size of the buffer.
+   * @param flags The native flags.
+   * @param complete Called once with the outcome.
+   * @return False when a receive is pending or the receive cannot start.
+   */
+  REX_RUNTIME_API bool StartReceive(IObjectTable& table, PinnedSlot pin, u8* buf, u32 buf_len,
+                                    u32 flags, ReceiveCompletion complete);
+
+  /**
+   * Stops the pending receive and joins its thread. A receive that had not ended gets its
+   * completion called as cancelled before this returns.
+   */
+  REX_RUNTIME_API void CancelReceive();
 
   /**
    * Sends a datagram.
@@ -256,7 +317,7 @@ struct SocketObject {
    * @param to_len The size of the destination address.
    * @return The native result.
    */
-  REX_RUNTIME_API int SendTo(u8* buf, u32 buf_len, u32 flags, N_XSOCKADDR_IN* to, u32 to_len);
+  REX_RUNTIME_API int SendTo(u8* buf, u32 buf_len, u32 flags, N_XSOCKADDR_IN* to, u32 to_len) const;
 
   /**
    * Sends data.
@@ -266,7 +327,7 @@ struct SocketObject {
    * @param flags The native flags.
    * @return The native result.
    */
-  REX_RUNTIME_API int Send(const u8* buf, u32 buf_len, u32 flags);
+  REX_RUNTIME_API int Send(const u8* buf, u32 buf_len, u32 flags) const;
 };
 
 }  // namespace rex::runtime
