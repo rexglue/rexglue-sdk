@@ -32,13 +32,13 @@ constexpr u64 kFileTimeTicksPerSecond = 10000000;
 f64 g_guest_time_scalar = 1.0;
 u64 g_guest_tick_frequency = Clock::host_tick_frequency_platform();
 u64 g_guest_system_time_base = Clock::QueryHostSystemTime();
-std::pair<u64, u64> g_guest_tick_ratio = std::make_pair(1, 1);
+constinit std::pair<u64, u64> g_guest_tick_ratio{1, 1};
 
 u64 g_last_guest_tick_count = 0;
 u64 g_last_host_tick_count = Clock::QueryHostTickCount();
 std::mutex g_tick_mutex;
 
-void RecomputeGuestTickScalar() {
+void RecomputeGuestTickScalarLocked() {
   auto frac = std::make_pair(g_guest_tick_frequency, Clock::QueryHostTickFrequency());
   if (g_guest_time_scalar > 1.0) {
     frac.first *= static_cast<u64>(g_guest_time_scalar * 10.0);
@@ -48,44 +48,40 @@ void RecomputeGuestTickScalar() {
     frac.second *= static_cast<u64>(10.0 / g_guest_time_scalar);
   }
   reduce_fraction(frac);
-
-  std::lock_guard<std::mutex> lock(g_tick_mutex);
   g_guest_tick_ratio = frac;
 }
 
-u64 UpdateGuestClock() {
-  u64 host_tick_count = Clock::QueryHostTickCount();
-
-  if (REXCVAR_GET(::rex::cvars::no_scaling)) {
-    return host_tick_count * g_guest_tick_ratio.first / g_guest_tick_ratio.second;
-  }
-
-  std::unique_lock<std::mutex> lock(g_tick_mutex, std::defer_lock);
-  if (lock.try_lock()) {
-    u64 host_tick_delta =
-        host_tick_count > g_last_host_tick_count ? host_tick_count - g_last_host_tick_count : 0;
-    g_last_host_tick_count = host_tick_count;
-    u64 guest_tick_delta = host_tick_delta * g_guest_tick_ratio.first / g_guest_tick_ratio.second;
-    g_last_guest_tick_count += guest_tick_delta;
-    return g_last_guest_tick_count;
-  } else {
+std::unique_lock<std::mutex> LockAndUpdateGuestClock() {
+  const u64 host_tick_count = Clock::QueryHostTickCount();
+  std::unique_lock<std::mutex> lock(g_tick_mutex, std::try_to_lock);
+  if (!lock.owns_lock()) {
     lock.lock();
-    return g_last_guest_tick_count;
+    return lock;
   }
+  const u64 host_tick_delta =
+      host_tick_count > g_last_host_tick_count ? host_tick_count - g_last_host_tick_count : 0;
+  g_last_host_tick_count = host_tick_count;
+  g_last_guest_tick_count +=
+      mul_div(host_tick_delta, g_guest_tick_ratio.first, g_guest_tick_ratio.second);
+  return lock;
 }
 
-inline u64 QueryGuestSystemTimeOffset() {
-  if (REXCVAR_GET(::rex::cvars::no_scaling)) {
-    return Clock::QueryHostSystemTime() - g_guest_system_time_base;
-  }
-
-  auto guest_tick_count = UpdateGuestClock();
-
+u64 GuestSystemTimeOffsetLocked() {
   u64 numerator = kFileTimeTicksPerSecond;
   u64 denominator = g_guest_tick_frequency;
   reduce_fraction(numerator, denominator);
+  return mul_div(g_last_guest_tick_count, numerator, denominator);
+}
 
-  return guest_tick_count * numerator / denominator;
+u64 QueryGuestSystemTimeOffset() {
+  if (REXCVAR_GET(::rex::cvars::no_scaling)) {
+    const u64 host_system_time = Clock::QueryHostSystemTime();
+    std::lock_guard<std::mutex> lock(g_tick_mutex);
+    return host_system_time - g_guest_system_time_base;
+  }
+
+  const auto lock = LockAndUpdateGuestClock();
+  return GuestSystemTimeOffsetLocked();
 }
 }  // namespace
 
@@ -107,6 +103,7 @@ u64 Clock::QueryHostTickCount() noexcept {
 }
 
 f64 Clock::guest_time_scalar() {
+  std::lock_guard<std::mutex> lock(g_tick_mutex);
   return g_guest_time_scalar;
 }
 
@@ -115,8 +112,9 @@ void Clock::set_guest_time_scalar(f64 scalar) {
     return;
   }
 
+  std::lock_guard<std::mutex> lock(g_tick_mutex);
   g_guest_time_scalar = scalar;
-  RecomputeGuestTickScalar();
+  RecomputeGuestTickScalarLocked();
 }
 
 std::pair<u64, u64> Clock::guest_tick_ratio() {
@@ -125,25 +123,35 @@ std::pair<u64, u64> Clock::guest_tick_ratio() {
 }
 
 u64 Clock::guest_tick_frequency() {
+  std::lock_guard<std::mutex> lock(g_tick_mutex);
   return g_guest_tick_frequency;
 }
 
 void Clock::set_guest_tick_frequency(u64 frequency) {
+  std::lock_guard<std::mutex> lock(g_tick_mutex);
   g_guest_tick_frequency = frequency;
-  RecomputeGuestTickScalar();
+  RecomputeGuestTickScalarLocked();
 }
 
 u64 Clock::guest_system_time_base() {
+  std::lock_guard<std::mutex> lock(g_tick_mutex);
   return g_guest_system_time_base;
 }
 
 void Clock::set_guest_system_time_base(u64 time_base) {
+  std::lock_guard<std::mutex> lock(g_tick_mutex);
   g_guest_system_time_base = time_base;
 }
 
 u64 Clock::QueryGuestTickCount() {
-  auto guest_tick_count = UpdateGuestClock();
-  return guest_tick_count;
+  if (REXCVAR_GET(::rex::cvars::no_scaling)) {
+    const u64 host_tick_count = QueryHostTickCount();
+    std::lock_guard<std::mutex> lock(g_tick_mutex);
+    return mul_div(host_tick_count, g_guest_tick_ratio.first, g_guest_tick_ratio.second);
+  }
+
+  const auto lock = LockAndUpdateGuestClock();
+  return g_last_guest_tick_count;
 }
 
 u64 Clock::QueryGuestSystemTime() {
@@ -151,8 +159,8 @@ u64 Clock::QueryGuestSystemTime() {
     return Clock::QueryHostSystemTime();
   }
 
-  auto guest_system_time_offset = QueryGuestSystemTimeOffset();
-  return g_guest_system_time_base + guest_system_time_offset;
+  const auto lock = LockAndUpdateGuestClock();
+  return g_guest_system_time_base + GuestSystemTimeOffsetLocked();
 }
 
 u32 Clock::QueryGuestUptimeMillis() {
@@ -165,8 +173,8 @@ void Clock::SetGuestSystemTime(u64 system_time) {
     return;
   }
 
-  auto guest_system_time_offset = QueryGuestSystemTimeOffset();
-  g_guest_system_time_base = system_time - guest_system_time_offset;
+  const auto lock = LockAndUpdateGuestClock();
+  g_guest_system_time_base = system_time - GuestSystemTimeOffsetLocked();
 }
 
 u32 Clock::ScaleGuestDurationMillis(u32 guest_ms) {
@@ -181,7 +189,7 @@ u32 Clock::ScaleGuestDurationMillis(u32 guest_ms) {
   } else if (!guest_ms) {
     return 0;
   }
-  u64 scaled_ms = static_cast<u64>(static_cast<f64>(guest_ms) * g_guest_time_scalar);
+  u64 scaled_ms = static_cast<u64>(static_cast<f64>(guest_ms) * guest_time_scalar());
   return static_cast<u32>(std::min(scaled_ms, kMax));
 }
 
@@ -193,13 +201,14 @@ i64 Clock::ScaleGuestDurationFileTime(i64 guest_file_time) {
   if (!guest_file_time) {
     return 0;
   } else if (guest_file_time > 0) {
-    u64 guest_time = Clock::QueryGuestSystemTime();
+    const auto lock = LockAndUpdateGuestClock();
+    const u64 guest_time = g_guest_system_time_base + GuestSystemTimeOffsetLocked();
     i64 relative_time = guest_file_time - static_cast<i64>(guest_time);
     i64 scaled_time = static_cast<i64>(static_cast<f64>(relative_time) * g_guest_time_scalar);
     return static_cast<i64>(guest_time) + scaled_time;
   } else {
     const i64 scaled_file_time =
-        static_cast<i64>(static_cast<f64>(guest_file_time) * g_guest_time_scalar);
+        static_cast<i64>(static_cast<f64>(guest_file_time) * guest_time_scalar());
     return scaled_file_time;
   }
 }
@@ -211,7 +220,7 @@ void Clock::ScaleGuestDurationTimeval(i32* tv_sec, i32* tv_usec) {
 
   constexpr i64 kMicrosPerSecond = 1'000'000;
   const i64 total = i64{*tv_sec} * kMicrosPerSecond + i64{*tv_usec};
-  const i64 scaled = static_cast<i64>(static_cast<f64>(total) * g_guest_time_scalar);
+  const i64 scaled = static_cast<i64>(static_cast<f64>(total) * guest_time_scalar());
   i64 scaled_sec = scaled / kMicrosPerSecond;
   i64 scaled_usec = scaled % kMicrosPerSecond;
   if (scaled_usec < 0) {

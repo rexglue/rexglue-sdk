@@ -21,6 +21,7 @@
 #include <numeric>
 #include <type_traits>
 
+#include <rex/assert.h>
 #include <rex/macros.h>
 #include <rex/platform.h>
 #include <rex/types.h>
@@ -171,6 +172,59 @@ constexpr void reduce_fraction(T& numerator, T& denominator) {
 template <typename T>
 constexpr void reduce_fraction(std::pair<T, T>& fraction) {
   reduce_fraction<T>(fraction.first, fraction.second);
+}
+
+/**
+ * Multiplies a value by a fraction through a 128-bit product and a 128 by 64 bit division.
+ *
+ * @param value The value to scale.
+ * @param numerator The fraction numerator.
+ * @param denominator The fraction denominator, not 0.
+ * @return The floor of value * numerator / denominator, saturated at the u64 maximum. A 0
+ *         denominator also returns the u64 maximum.
+ */
+constexpr u64 mul_div(u64 value, u64 numerator, u64 denominator) {
+  REX_ASSERT(denominator != 0);
+  constexpr u64 kMax = std::numeric_limits<u64>::max();
+  constexpr u64 kHalfMask = 0xFFFFFFFF;
+  if (denominator == 0) {
+    return kMax;
+  }
+  const unsigned __int128 product = static_cast<unsigned __int128>(value) * numerator;
+  u64 high = static_cast<u64>(product >> 64);
+  u64 low = static_cast<u64>(product);
+  if (high >= denominator) {
+    return kMax;
+  }
+  if (high == 0) {
+    return low / denominator;
+  }
+
+  const int shift = std::countl_zero(denominator);
+  denominator <<= shift;
+  high = (high << shift) | (shift == 0 ? 0 : low >> (64 - shift));
+  low <<= shift;
+  const u64 divisor_high = denominator >> 32;
+  const u64 divisor_low = denominator & kHalfMask;
+
+  const auto divide_step = [&](u64 dividend, u64 next_half) {
+    u64 quotient = dividend / divisor_high;
+    u64 remainder = dividend % divisor_high;
+    while ((quotient >> 32) != 0 || quotient * divisor_low > ((remainder << 32) | next_half)) {
+      --quotient;
+      remainder += divisor_high;
+      if ((remainder >> 32) != 0) {
+        break;
+      }
+    }
+    return quotient;
+  };
+
+  const u64 low_high = low >> 32;
+  const u64 quotient_high = divide_step(high, low_high);
+  const u64 partial = ((high << 32) | low_high) - quotient_high * denominator;
+  const u64 quotient_low = divide_step(partial, low & kHalfMask);
+  return (quotient_high << 32) | quotient_low;
 }
 
 /**

@@ -10,6 +10,8 @@
 
 #include "rex_test.h"
 
+#include <limits>
+
 #include <rex/math.h>
 #include <rex/types.h>
 
@@ -73,4 +75,40 @@ REX_TEST_CASE("bit_scan_forward finds the lowest set bit", "[core][math]") {
   CHECK(index == 0);
   CHECK(rex::bit_scan_forward(i64{-8}, &index));
   CHECK(index == 3);
+}
+
+REX_TEST_CASE("mul_div keeps the exact quotient of a product past u64", "[core][math]") {
+  CHECK(rex::mul_div(u64{1} << 62, 12, 8) == 0x6000000000000000);
+  CHECK(rex::mul_div(std::numeric_limits<u64>::max(), 3, 4) == 0xBFFFFFFFFFFFFFFF);
+}
+
+REX_TEST_CASE("mul_div saturates a quotient past u64", "[core][math]") {
+  CHECK(rex::mul_div(u64{1} << 63, 4, 2) == std::numeric_limits<u64>::max());
+}
+
+REX_TEST_CASE("mul_div divides by a denominator with its top bit set", "[core][math]") {
+  CHECK(rex::mul_div(std::numeric_limits<u64>::max(), 0x8000000000000001, 0x8000000000000003) ==
+        0xFFFFFFFFFFFFFFFB);
+}
+
+REX_TEST_CASE("mul_div keeps the largest quotient that fits", "[core][math]") {
+  constexpr u64 kDenominator = 0x123456789;
+  CHECK(rex::mul_div(u64{1} << 63, 2 * (kDenominator - 1), kDenominator) == 0xFFFFFFFF1EFFFFFF);
+}
+
+REX_TEST_CASE("mul_div saturates when the high half reaches the denominator", "[core][math]") {
+  constexpr u64 kDenominator = 0x123456789;
+  CHECK(rex::mul_div(u64{1} << 63, 2 * kDenominator, kDenominator) ==
+        std::numeric_limits<u64>::max());
+}
+
+REX_TEST_CASE("mul_div by a denominator of 1 is the product", "[core][math]") {
+  CHECK(rex::mul_div(0xFFFFFFFF, 0xFFFFFFFF, 1) == 0xFFFFFFFE00000001);
+}
+
+static_assert(rex::mul_div(u64{1} << 62, 12, 8) == 0x6000000000000000);
+
+REX_TEST_CASE("mul_div matches plain arithmetic for small ratios", "[core][math]") {
+  CHECK(rex::mul_div(1'000'003, 5, 1) == 5'000'015);
+  CHECK(rex::mul_div(1'000'003, 1, 20) == 50'000);
 }
