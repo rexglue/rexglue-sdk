@@ -108,10 +108,12 @@ add_executable(unit_tests
     ui/imgui_style_test.cpp
     ui/title_app_test.cpp
     ui/ui_event_test.cpp
+    codegen/barrier_test.cpp
     codegen/codegen_writer_test.cpp
     codegen/disasm_test.cpp
     codegen/manifest_test.cpp
     codegen/midasm_hook_config_test.cpp
+    codegen/opcode_test.cpp
     codegen/output_partition_test.cpp
     codegen/output_stamp_test.cpp
     codegen/seh_scope_test.cpp

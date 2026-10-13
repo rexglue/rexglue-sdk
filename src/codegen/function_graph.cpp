@@ -15,6 +15,7 @@
 
 #include <format>
 
+#include <rex/assert.h>
 #include <rex/codegen/binary_view.h>
 #include <rex/codegen/function_graph.h>
 #include <rex/codegen/function_scanner.h>
@@ -103,9 +104,8 @@ bool FunctionNode::canSeal() const {
 }
 
 const FunctionAnalysis& FunctionNode::analysis() const {
-  assert(state_ == FunctionState::kSealed && "Analysis only valid after seal");
-  assert(analysis_.has_value() && "Analysis not computed");
-  return *analysis_;
+  REX_ASSERT(state_ == FunctionState::kSealed, "Analysis only valid after seal");
+  return analysis_;
 }
 
 void FunctionNode::addBlock(Block block) {

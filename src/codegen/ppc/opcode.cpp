@@ -217,16 +217,22 @@ static const std::array<OpcodeInfo, 320> g_opcode_table = {{
     {Opcode::mtfsb1, InstrFormat::kX, OpcodeGroup::kFloat, "mtfsb1", 63, 38, true},
 
     // VMX load and store
-    {Opcode::lvx, InstrFormat::kX, OpcodeGroup::kVector, "lvx", 4, 103, true},
-    {Opcode::lvxl, InstrFormat::kX, OpcodeGroup::kVector, "lvxl", 4, 359, true},
-    {Opcode::stvx, InstrFormat::kX, OpcodeGroup::kVector, "stvx", 4, 231, true},
-    {Opcode::stvxl, InstrFormat::kX, OpcodeGroup::kVector, "stvxl", 4, 487, true},
-    {Opcode::lvlx, InstrFormat::kX, OpcodeGroup::kVector, "lvlx", 4, 39, true},
-    {Opcode::lvrx, InstrFormat::kX, OpcodeGroup::kVector, "lvrx", 4, 71, true},
-    {Opcode::stvlx, InstrFormat::kX, OpcodeGroup::kVector, "stvlx", 4, 167, true},
-    {Opcode::stvrx, InstrFormat::kX, OpcodeGroup::kVector, "stvrx", 4, 199, true},
-    {Opcode::lvsl, InstrFormat::kX, OpcodeGroup::kVector, "lvsl", 4, 6, true},
-    {Opcode::lvsr, InstrFormat::kX, OpcodeGroup::kVector, "lvsr", 4, 38, true},
+    {Opcode::lvx, InstrFormat::kX, OpcodeGroup::kVector, "lvx", 31, 103, true},
+    {Opcode::lvxl, InstrFormat::kX, OpcodeGroup::kVector, "lvxl", 31, 359, true},
+    {Opcode::stvx, InstrFormat::kX, OpcodeGroup::kVector, "stvx", 31, 231, true},
+    {Opcode::stvxl, InstrFormat::kX, OpcodeGroup::kVector, "stvxl", 31, 487, true},
+    {Opcode::lvlx, InstrFormat::kX, OpcodeGroup::kVector, "lvlx", 31, 519, true},
+    {Opcode::lvrx, InstrFormat::kX, OpcodeGroup::kVector, "lvrx", 31, 551, true},
+    {Opcode::stvlx, InstrFormat::kX, OpcodeGroup::kVector, "stvlx", 31, 647, true},
+    {Opcode::stvrx, InstrFormat::kX, OpcodeGroup::kVector, "stvrx", 31, 679, true},
+    {Opcode::lvsl, InstrFormat::kX, OpcodeGroup::kVector, "lvsl", 31, 6, true},
+    {Opcode::lvsr, InstrFormat::kX, OpcodeGroup::kVector, "lvsr", 31, 38, true},
+    {Opcode::lvebx, InstrFormat::kX, OpcodeGroup::kVector, "lvebx", 31, 7, true},
+    {Opcode::lvehx, InstrFormat::kX, OpcodeGroup::kVector, "lvehx", 31, 39, true},
+    {Opcode::lvewx, InstrFormat::kX, OpcodeGroup::kVector, "lvewx", 31, 71, true},
+    {Opcode::stvebx, InstrFormat::kX, OpcodeGroup::kVector, "stvebx", 31, 135, true},
+    {Opcode::stvehx, InstrFormat::kX, OpcodeGroup::kVector, "stvehx", 31, 167, true},
+    {Opcode::stvewx, InstrFormat::kX, OpcodeGroup::kVector, "stvewx", 31, 199, true},
 
     // VMX floating point arithmetic
     {Opcode::vaddfp, InstrFormat::kX, OpcodeGroup::kVector, "vaddfp", 4, 10, true},
@@ -593,6 +599,38 @@ Opcode lookup_opcode(u32 code) {
         return Opcode::srw;
       case 598:
         return Opcode::sync;
+      case 6:
+        return Opcode::lvsl;
+      case 7:
+        return Opcode::lvebx;
+      case 38:
+        return Opcode::lvsr;
+      case 39:
+        return Opcode::lvehx;
+      case 71:
+        return Opcode::lvewx;
+      case 103:
+        return Opcode::lvx;
+      case 135:
+        return Opcode::stvebx;
+      case 167:
+        return Opcode::stvehx;
+      case 199:
+        return Opcode::stvewx;
+      case 231:
+        return Opcode::stvx;
+      case 359:
+        return Opcode::lvxl;
+      case 487:
+        return Opcode::stvxl;
+      case 519:
+        return Opcode::lvlx;
+      case 551:
+        return Opcode::lvrx;
+      case 647:
+        return Opcode::stvlx;
+      case 679:
+        return Opcode::stvrx;
       case 792:
         return Opcode::sraw;
       case 824:
@@ -726,31 +764,6 @@ Opcode lookup_opcode(u32 code) {
 
     extended = extract_bits(code, 21, 11);
     switch (extended) {
-      case 7:
-        return Opcode::lvx;
-      case 39:
-        return Opcode::lvlx;
-      case 71:
-        return Opcode::lvrx;
-      case 103:
-        return Opcode::lvx;
-      case 135:
-        return Opcode::stvx;
-      case 167:
-        return Opcode::stvlx;
-      case 199:
-        return Opcode::stvrx;
-      case 231:
-        return Opcode::stvx;
-      case 359:
-        return Opcode::lvxl;
-      case 487:
-        return Opcode::stvxl;
-      case 6:
-        return Opcode::lvsl;
-      case 38:
-        return Opcode::lvsr;
-
       case 10:
         return Opcode::vaddfp;
       case 74:

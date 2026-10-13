@@ -206,7 +206,7 @@ class FunctionNode {
 
   std::optional<ExceptionInfo> exceptionInfo_;
 
-  std::optional<FunctionAnalysis> analysis_;
+  FunctionAnalysis analysis_;
 };
 
 }  // namespace rex::codegen

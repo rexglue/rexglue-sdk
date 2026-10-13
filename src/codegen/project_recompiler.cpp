@@ -315,8 +315,8 @@ Result<void> ProjectRecompiler::Run(const ProjectRecompilerOptions& opts) {
     ctx.analysisState().entryPoint = ctx.binary().entryPoint();
     ctx.analysisState().imageSize = ctx.binary().imageSize();
     ctx.setHasDllModules(!manifest_.modules.empty());
-    if (ctx.Config().isDll.has_value())
-      ctx.setDllModule(*ctx.Config().isDll);
+    if (const auto& is_dll = ctx.Config().isDll)
+      ctx.setDllModule(*is_dll);
 
     contexts.push_back({std::move(ctx), &targeted[0], std::move(entry_display)});
   }

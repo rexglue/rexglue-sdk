@@ -242,16 +242,22 @@ enum class Opcode : u16 {
   // VMX and VMX128 vector instructions
 
   // Vector load and store (standard VMX)
-  lvx,   /**< Load vector indexed. */
-  lvxl,  /**< Load vector indexed LRU. */
-  stvx,  /**< Store vector indexed. */
-  stvxl, /**< Store vector indexed LRU. */
-  lvlx,  /**< Load vector left indexed. */
-  lvrx,  /**< Load vector right indexed. */
-  stvlx, /**< Store vector left indexed. */
-  stvrx, /**< Store vector right indexed. */
-  lvsl,  /**< Load vector for shift left. */
-  lvsr,  /**< Load vector for shift right. */
+  lvx,    /**< Load vector indexed. */
+  lvxl,   /**< Load vector indexed LRU. */
+  stvx,   /**< Store vector indexed. */
+  stvxl,  /**< Store vector indexed LRU. */
+  lvlx,   /**< Load vector left indexed. */
+  lvrx,   /**< Load vector right indexed. */
+  stvlx,  /**< Store vector left indexed. */
+  stvrx,  /**< Store vector right indexed. */
+  lvsl,   /**< Load vector for shift left. */
+  lvsr,   /**< Load vector for shift right. */
+  lvebx,  /**< Load vector element byte indexed. */
+  lvehx,  /**< Load vector element halfword indexed. */
+  lvewx,  /**< Load vector element word indexed. */
+  stvebx, /**< Store vector element byte indexed. */
+  stvehx, /**< Store vector element halfword indexed. */
+  stvewx, /**< Store vector element word indexed. */
 
   // Vector load and store, VMX128 with 128 registers
   lvx128,    /**< Load vector indexed (128-reg). */
