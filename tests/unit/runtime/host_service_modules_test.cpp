@@ -22,14 +22,11 @@
 #include "runtime/apu.h"
 #include "runtime/runtime_module.h"
 #include "test_memory.h"
+#include "support/base_config.h"
 
 namespace {
 
-rex::Config BaseConfig() {
-  rex::Config config;
-  config.paths.config_file.clear();
-  return config;
-}
+using rex::test::BaseConfig;
 
 struct Fixture {
   Fixture() {
@@ -48,7 +45,7 @@ rex::RuntimeDesc SetupConfig(rex::API& api) {
 }  // namespace
 
 REX_TEST_CASE_METHOD(Fixture, "Without an apu module the runtime plays to its null backend",
-                     "[modules][apu]") {
+                     "[runtime][modules]") {
   rex::Config config = BaseConfig();
   config.modules = {"rex-filesystem", "rex-runtime"};
   auto api = rex::Init(config);
@@ -62,7 +59,7 @@ REX_TEST_CASE_METHOD(Fixture, "Without an apu module the runtime plays to its nu
 }
 
 REX_TEST_CASE_METHOD(Fixture, "A loaded apu module serves the runtime's backend",
-                     "[modules][apu]") {
+                     "[runtime][modules]") {
   rex::Config config = BaseConfig();
   config.modules = {"rex-filesystem", "rex-runtime", "rexmod-test-apu"};
   auto api = rex::Init(config);
@@ -75,7 +72,7 @@ REX_TEST_CASE_METHOD(Fixture, "A loaded apu module serves the runtime's backend"
   runtime.Shutdown();
 }
 
-REX_TEST_CASE_METHOD(Fixture, "Tool mode builds no APU", "[modules][apu]") {
+REX_TEST_CASE_METHOD(Fixture, "Tool mode builds no APU", "[runtime][modules]") {
   rex::Config config = BaseConfig();
   config.modules = {"rex-filesystem", "rex-runtime"};
   auto api = rex::Init(config);
@@ -91,7 +88,7 @@ REX_TEST_CASE_METHOD(Fixture, "Tool mode builds no APU", "[modules][apu]") {
 }
 
 REX_TEST_CASE_METHOD(Fixture, "Init rejects apu.max_queued_frames outside 4 to 64",
-                     "[modules][apu]") {
+                     "[runtime][modules]") {
   for (rex::u32 value : {3u, 65u}) {
     rex::Config config = BaseConfig();
     config.modules = {"rex-filesystem", "rex-runtime"};
@@ -103,7 +100,7 @@ REX_TEST_CASE_METHOD(Fixture, "Init rejects apu.max_queued_frames outside 4 to 6
 }
 
 REX_TEST_CASE_METHOD(Fixture, "Without a hid module the title sees the idle pad",
-                     "[modules][hid]") {
+                     "[runtime][modules]") {
   rex::Config config = BaseConfig();
   config.modules = {"rex-filesystem", "rex-runtime"};
   auto api = rex::Init(config);
@@ -117,7 +114,7 @@ REX_TEST_CASE_METHOD(Fixture, "Without a hid module the title sees the idle pad"
 }
 
 REX_TEST_CASE_METHOD(Fixture, "A loaded hid module serves the runtime's backend",
-                     "[modules][hid]") {
+                     "[runtime][modules]") {
   rex::Config config = BaseConfig();
   config.modules = {"rex-filesystem", "rex-runtime", "rexmod-test-hid"};
   auto api = rex::Init(config);
@@ -130,7 +127,7 @@ REX_TEST_CASE_METHOD(Fixture, "A loaded hid module serves the runtime's backend"
   runtime.Shutdown();
 }
 
-REX_TEST_CASE_METHOD(Fixture, "Tool mode keeps the hid fallback", "[modules][hid]") {
+REX_TEST_CASE_METHOD(Fixture, "Tool mode keeps the hid fallback", "[runtime][modules]") {
   rex::Config config = BaseConfig();
   config.modules = {"rex-filesystem", "rex-runtime"};
   auto api = rex::Init(config);
@@ -144,7 +141,7 @@ REX_TEST_CASE_METHOD(Fixture, "Tool mode keeps the hid fallback", "[modules][hid
 }
 
 REX_TEST_CASE_METHOD(Fixture, "Without a GPU module the runtime runs on the null GPU",
-                     "[modules][gpu]") {
+                     "[runtime][modules]") {
   rex::Config config = BaseConfig();
   config.modules = {"rex-filesystem", "rex-runtime"};
   auto api = rex::Init(config);
@@ -157,7 +154,7 @@ REX_TEST_CASE_METHOD(Fixture, "Without a GPU module the runtime runs on the null
   runtime.Shutdown();
 }
 
-REX_TEST_CASE_METHOD(Fixture, "Tool mode builds no GPU", "[modules][gpu]") {
+REX_TEST_CASE_METHOD(Fixture, "Tool mode builds no GPU", "[runtime][modules]") {
   rex::Config config = BaseConfig();
   config.modules = {"rex-filesystem", "rex-runtime"};
   auto api = rex::Init(config);

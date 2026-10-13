@@ -9,6 +9,7 @@
  */
 
 #include "rex_test.h"
+#include "support/temp_folder.h"
 
 #include <algorithm>
 #include <atomic>
@@ -143,7 +144,7 @@ class CountedDialog final : public rex::ui::ImGuiDialog {
 
 }  // namespace
 
-REX_TEST_CASE("A title window opens and Shutdown joins every thread", "[title_app]") {
+REX_TEST_CASE("A title window opens and Shutdown joins every thread", "[ui][title_app]") {
   rex::platform::detail::ShutdownTimerQueue();
   const rex::u64 before = rex::platform::detail::GetThreadCount();
   FooApp app;
@@ -158,7 +159,7 @@ REX_TEST_CASE("A title window opens and Shutdown joins every thread", "[title_ap
   REQUIRE(rex::platform::detail::GetThreadCount() == before);
 }
 
-REX_TEST_CASE("A consumed Close keeps the app running", "[title_app]") {
+REX_TEST_CASE("A consumed Close keeps the app running", "[ui][title_app]") {
   FooApp app;
   if (!Open(app)) {
     app.Shutdown();
@@ -176,7 +177,7 @@ REX_TEST_CASE("A consumed Close keeps the app running", "[title_app]") {
   REQUIRE(app.Shutdown() == 0);
 }
 
-REX_TEST_CASE("InvokeFunction runs on the UI thread and fails after Shutdown", "[title_app]") {
+REX_TEST_CASE("InvokeFunction runs on the UI thread and fails after Shutdown", "[ui][title_app]") {
   FooApp app;
   if (!Open(app)) {
     app.Shutdown();
@@ -194,7 +195,7 @@ REX_TEST_CASE("InvokeFunction runs on the UI thread and fails after Shutdown", "
   REQUIRE_FALSE(rex::ui::InvokeFunction([] {}));
 }
 
-REX_TEST_CASE("LaunchTitle without a game directory fails", "[title_app]") {
+REX_TEST_CASE("LaunchTitle without a game directory fails", "[ui][title_app]") {
   const rex::u64 before = rex::platform::detail::GetThreadCount();
   FooApp app;
   if (!Open(app)) {
@@ -208,9 +209,8 @@ REX_TEST_CASE("LaunchTitle without a game directory fails", "[title_app]") {
 
 REX_TEST_CASE("LaunchTitle finds an entrypoint whose file name differs in case",
               "[ui][title_app]") {
-  const std::filesystem::path root =
-      std::filesystem::temp_directory_path() / "rexglue_title_app_case_test";
-  std::filesystem::create_directories(root);
+  const rex::test::TempFolder folder("rexglue_title_app_case_test_");
+  const std::filesystem::path& root = folder.path;
   { std::ofstream(root / "DEFAULT.XEX", std::ios::binary) << "not an xex"; }
   FooApp app;
   app.game_root = root;
@@ -223,14 +223,12 @@ REX_TEST_CASE("LaunchTitle finds an entrypoint whose file name differs in case",
   };
   if (!Open(app, image)) {
     app.Shutdown();
-    std::filesystem::remove_all(root);
     SKIP("SDL dummy video driver unavailable");
   }
   auto launched = app.LaunchTitle();
   REQUIRE_FALSE(launched);
   CHECK(launched.error().message.find("Entrypoint XEX not found") == std::string::npos);
   app.Shutdown();
-  std::filesystem::remove_all(root);
 }
 
 REX_TEST_CASE("Shutdown closes the window and reports Closing before OnShutdown",
@@ -246,7 +244,7 @@ REX_TEST_CASE("Shutdown closes the window and reports Closing before OnShutdown"
 }
 
 REX_TEST_CASE("A prompt pending on a guest thread completes cancelled when Stop runs",
-              "[title_app]") {
+              "[ui][title_app]") {
   FooApp app;
   if (!Open(app)) {
     app.Shutdown();
@@ -277,7 +275,7 @@ REX_TEST_CASE("A prompt pending on a guest thread completes cancelled when Stop 
   REQUIRE(on_ui);
 }
 
-REX_TEST_CASE("Prompt after the UI loop quits completes cancelled at once", "[title_app]") {
+REX_TEST_CASE("Prompt after the UI loop quits completes cancelled at once", "[ui][title_app]") {
   FooApp app;
   if (!Open(app)) {
     app.Shutdown();
@@ -300,7 +298,7 @@ REX_TEST_CASE("Prompt after the UI loop quits completes cancelled at once", "[ti
   REQUIRE(app.Shutdown() == 0);
 }
 
-REX_TEST_CASE("Stop destroys the prompts before the window closes", "[title_app]") {
+REX_TEST_CASE("Stop destroys the prompts before the window closes", "[ui][title_app]") {
   FooApp app;
   if (!Open(app)) {
     app.Shutdown();
@@ -315,7 +313,7 @@ REX_TEST_CASE("Stop destroys the prompts before the window closes", "[title_app]
   REQUIRE_FALSE(app.dialogs_at_closing);
 }
 
-REX_TEST_CASE("CloseWindow leaves a dialog its owner holds to the owner", "[title_app]") {
+REX_TEST_CASE("CloseWindow leaves a dialog its owner holds to the owner", "[ui][title_app]") {
   g_dialogs_destroyed = 0;
   FooApp app;
   if (!Open(app)) {
@@ -331,7 +329,7 @@ REX_TEST_CASE("CloseWindow leaves a dialog its owner holds to the owner", "[titl
   REQUIRE(g_dialogs_destroyed == 1);
 }
 
-REX_TEST_CASE("Closing the window destroys the overlays", "[title_app]") {
+REX_TEST_CASE("Closing the window destroys the overlays", "[ui][title_app]") {
   g_constructed = 0;
   g_destroyed = 0;
   FooApp app;
@@ -351,7 +349,7 @@ REX_TEST_CASE("Closing the window destroys the overlays", "[title_app]") {
 }
 
 REX_TEST_CASE("Overlay tables bind, toggle without destroying, and die with the app",
-              "[title_app]") {
+              "[ui][title_app]") {
   g_constructed = 0;
   g_destroyed = 0;
   FooApp app;
@@ -369,7 +367,7 @@ REX_TEST_CASE("Overlay tables bind, toggle without destroying, and die with the 
   REQUIRE(g_destroyed == 1);
 }
 
-REX_TEST_CASE("RequestShutdown before Run ends Run at once", "[title_app]") {
+REX_TEST_CASE("RequestShutdown before Run ends Run at once", "[ui][title_app]") {
   FooApp app;
   if (!Open(app)) {
     app.Shutdown();
@@ -380,7 +378,8 @@ REX_TEST_CASE("RequestShutdown before Run ends Run at once", "[title_app]") {
   REQUIRE(app.Shutdown() == 4);
 }
 
-REX_TEST_CASE("A shutdown requested during Init skips the window and the title", "[title_app]") {
+REX_TEST_CASE("A shutdown requested during Init skips the window and the title",
+              "[ui][title_app]") {
   FooApp app;
   REQUIRE(app.Init(rex::CLIArgList::Parse(std::span<const std::string>{}), rex::PPCImageInfo{}));
   rex::RequestShutdown(6);
@@ -391,7 +390,7 @@ REX_TEST_CASE("A shutdown requested during Init skips the window and the title",
   REQUIRE(app.Shutdown() == 6);
 }
 
-REX_TEST_CASE("OnEvent receives nothing before OnCreateWindow returns", "[title_app]") {
+REX_TEST_CASE("OnEvent receives nothing before OnCreateWindow returns", "[ui][title_app]") {
   FooApp app;
   if (!Open(app)) {
     app.Shutdown();
@@ -402,7 +401,7 @@ REX_TEST_CASE("OnEvent receives nothing before OnCreateWindow returns", "[title_
   REQUIRE(app.closing_events == 1);
 }
 
-REX_TEST_CASE("TitleApp puts rex-filesystem and rex-runtime first", "[title_app]") {
+REX_TEST_CASE("TitleApp puts rex-filesystem and rex-runtime first", "[ui][title_app]") {
   FooApp app;
   app.modules = {"rexmod-test-good"};
   REQUIRE(app.Init(rex::CLIArgList::Parse(std::span<const std::string>{}), rex::PPCImageInfo{}));
@@ -412,7 +411,7 @@ REX_TEST_CASE("TitleApp puts rex-filesystem and rex-runtime first", "[title_app]
 }
 
 REX_TEST_CASE("A title app with no ui module runs headless and Shutdown returns 0",
-              "[title_app][headless]") {
+              "[ui][title_app][headless]") {
   FooApp app;
   app.modules = {};
   REQUIRE(Open(app));
@@ -430,7 +429,7 @@ REX_TEST_CASE("A title app with no ui module runs headless and Shutdown returns 
 }
 
 REX_TEST_CASE("InvokeFunction from a guest thread runs on the null provider loop",
-              "[title_app][headless]") {
+              "[ui][title_app][headless]") {
   FooApp app;
   app.modules = {};
   REQUIRE(Open(app));

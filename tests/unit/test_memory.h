@@ -16,14 +16,15 @@
 namespace rex::testing {
 
 /**
- * Returns the process wide guest Memory, creating it on first use.
+ * Returns the guest Memory shared by the test case, creating it on first use. It is destroyed when
+ * the test case ends, so a later test case can create its own.
  *
  * @return The shared Memory.
  */
 rex::runtime::Memory& GetTestMemory();
 
 /**
- * Destroys the shared Memory so another owner can create its own.
+ * Destroys the shared Memory so another owner can create its own within the same test case.
  */
 void ReleaseTestMemory();
 

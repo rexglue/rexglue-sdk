@@ -24,7 +24,7 @@ rex::CLIArgList Args(std::vector<std::string> args) {
 
 }  // namespace
 
-REX_TEST_CASE("CLIArgList splits options, values and positionals", "[cli]") {
+REX_TEST_CASE("CLIArgList splits options, values and positionals", "[core][cli]") {
   auto args = Args({"first", "--a=1", "--b", "2", "--c", "--d", "last"});
   REQUIRE(args.Get("a") == "1");
   REQUIRE(args.Get("b") == "2");
@@ -38,7 +38,7 @@ REX_TEST_CASE("CLIArgList splits options, values and positionals", "[cli]") {
   REQUIRE(args.GetOptions()[1].name == "b");
 }
 
-REX_TEST_CASE("CLIArgList skips argv[0]", "[cli]") {
+REX_TEST_CASE("CLIArgList skips argv[0]", "[core][cli]") {
   char program[] = "foo.exe";
   char option[] = "--x=1";
   char* argv[] = {program, option};
@@ -47,13 +47,14 @@ REX_TEST_CASE("CLIArgList skips argv[0]", "[cli]") {
   REQUIRE(args.Get("x") == "1");
 }
 
-REX_TEST_CASE("A trailing option without a value has none", "[cli]") {
+REX_TEST_CASE("A trailing option without a value has none", "[core][cli]") {
   auto args = Args({"--last"});
   REQUIRE(args.Has("last"));
   REQUIRE_FALSE(args.Get("last").has_value());
 }
 
-REX_TEST_CASE("ParseCommandLine fills fields and cvars and returns unknown options", "[cli]") {
+REX_TEST_CASE("ParseCommandLine fills fields and cvars and returns unknown options",
+              "[core][cli]") {
   rex::Config config;
   auto unknown = rex::ParseCommandLine(
       config, Args({"--game_data_root=C:/g", "--gpu.vsync", "--no-ui.fullscreen", "--foo",
@@ -65,7 +66,7 @@ REX_TEST_CASE("ParseCommandLine fills fields and cvars and returns unknown optio
   REQUIRE(unknown == std::vector<std::string>{"--foo", "--Bad.Name=1"});
 }
 
-REX_TEST_CASE("A structural option without a value is unknown", "[cli]") {
+REX_TEST_CASE("A structural option without a value is unknown", "[core][cli]") {
   rex::Config config;
   auto unknown = rex::ParseCommandLine(config, Args({"--game_data_root"}));
   REQUIRE(unknown == std::vector<std::string>{"--game_data_root"});

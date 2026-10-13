@@ -20,7 +20,7 @@
 
 using namespace std::chrono_literals;
 
-REX_TEST_CASE("Spawn registers a thread until it ends", "[thread_registry]") {
+REX_TEST_CASE("Spawn registers a thread until it ends", "[core][thread_registry]") {
   const rex::u64 before = rex::platform::detail::GetThreadCount();
   std::latch started(1);
   std::latch release(1);
@@ -36,7 +36,8 @@ REX_TEST_CASE("Spawn registers a thread until it ends", "[thread_registry]") {
   REQUIRE(rex::platform::detail::GetThreadCount() == before);
 }
 
-REX_TEST_CASE("A thread leaving through Thread::Exit leaves the registry", "[thread_registry]") {
+REX_TEST_CASE("A thread leaving through Thread::Exit leaves the registry",
+              "[core][thread_registry]") {
   const rex::u64 before = rex::platform::detail::GetThreadCount();
   auto thread = rex::platform::Thread::Create({}, [] { rex::platform::Thread::Exit(0); });
   REQUIRE(thread != nullptr);
@@ -44,7 +45,7 @@ REX_TEST_CASE("A thread leaving through Thread::Exit leaves the registry", "[thr
   REQUIRE(rex::platform::detail::GetThreadCount() == before);
 }
 
-REX_TEST_CASE("A thread asked to stop leaves the registry", "[thread_registry]") {
+REX_TEST_CASE("A thread asked to stop leaves the registry", "[core][thread_registry]") {
   const rex::u64 before = rex::platform::detail::GetThreadCount();
   std::latch started(1);
   std::atomic<bool> stop{false};
@@ -62,7 +63,7 @@ REX_TEST_CASE("A thread asked to stop leaves the registry", "[thread_registry]")
   REQUIRE(rex::platform::detail::GetThreadCount() == before);
 }
 
-REX_TEST_CASE("Shutdown joins the timer queue thread", "[thread_registry]") {
+REX_TEST_CASE("Shutdown joins the timer queue thread", "[core][thread_registry]") {
   const rex::u64 before = rex::platform::detail::GetThreadCount();
   REQUIRE(rex::Init(rex::Config{}));
   const auto item = rex::platform::QueueTimerOnce(
@@ -72,7 +73,7 @@ REX_TEST_CASE("Shutdown joins the timer queue thread", "[thread_registry]") {
   CHECK(rex::platform::detail::GetThreadCount() == before);
 }
 
-REX_TEST_CASE("ShutdownTimerQueue without a queue does nothing", "[thread_registry]") {
+REX_TEST_CASE("ShutdownTimerQueue without a queue does nothing", "[core][thread_registry]") {
   const rex::u64 before = rex::platform::detail::GetThreadCount();
   rex::platform::detail::ShutdownTimerQueue();
   REQUIRE(rex::platform::detail::GetThreadCount() == before);

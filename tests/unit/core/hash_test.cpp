@@ -9,6 +9,7 @@
  */
 
 #include "rex_test.h"
+#include "support/temp_folder.h"
 
 #include <filesystem>
 #include <fstream>
@@ -18,21 +19,20 @@
 
 namespace fs = std::filesystem;
 
-REX_TEST_CASE("hash_bytes is stable and 128 bits wide", "[hash]") {
+REX_TEST_CASE("hash_bytes is stable and 128 bits wide", "[core][hash]") {
   auto digest = rex::HashBytes("hello world");
   CHECK(digest.size() == 32);
   CHECK(digest == rex::HashBytes("hello world"));
   CHECK(digest != rex::HashBytes("hello worlds"));
 }
 
-REX_TEST_CASE("hash_bytes handles empty input", "[hash]") {
+REX_TEST_CASE("hash_bytes handles empty input", "[core][hash]") {
   CHECK(rex::HashBytes("").size() == 32);
 }
 
-REX_TEST_CASE("hash_file matches hash_bytes over the same content", "[hash]") {
-  auto root = fs::temp_directory_path() / "rexglue_hash_test";
-  fs::remove_all(root);
-  fs::create_directories(root);
+REX_TEST_CASE("hash_file matches hash_bytes over the same content", "[core][hash]") {
+  const rex::test::TempFolder folder("rexglue_hash_test_");
+  const fs::path& root = folder.path;
 
   const std::string small = "binary bytes";
   const std::string large = std::string(size_t{1024} * 1024, 'x') + "tail";
@@ -45,15 +45,12 @@ REX_TEST_CASE("hash_file matches hash_bytes over the same content", "[hash]") {
 
   CHECK(rex::HashFile(write("small.bin", small)) == rex::HashBytes(small));
   CHECK(rex::HashFile(write("large.bin", large)) == rex::HashBytes(large));
-
-  std::error_code ec;
-  fs::remove_all(root, ec);
 }
 
-REX_TEST_CASE("hash_file returns empty for a missing file", "[hash]") {
+REX_TEST_CASE("hash_file returns empty for a missing file", "[core][hash]") {
   CHECK(rex::HashFile(fs::temp_directory_path() / "rexglue_hash_test_absent.bin").empty());
 }
 
-REX_TEST_CASE("hash_file returns empty for a directory", "[hash]") {
+REX_TEST_CASE("hash_file returns empty for a directory", "[core][hash]") {
   CHECK(rex::HashFile(fs::temp_directory_path()).empty());
 }

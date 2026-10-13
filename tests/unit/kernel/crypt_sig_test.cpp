@@ -20,7 +20,9 @@
 #include "kernel_fixture.h"
 
 using rex::testing::Caller;
+using rex::testing::Get;
 using rex::testing::KernelFixture;
+using rex::testing::Put;
 
 namespace {
 
@@ -213,25 +215,6 @@ constexpr u8 kSigExpectedExp3[] = {
     0x15, 0xB8, 0x53, 0xF0, 0xBF, 0x6B, 0x5A, 0x16, 0x3C, 0x39, 0x94, 0xEF, 0xEC, 0x23, 0xC6, 0xEF,
     0x13, 0xA9, 0xD9, 0x43, 0x6B, 0x01, 0x3E, 0xE8, 0x3F, 0xAA, 0x3C, 0xEE, 0x9F, 0xDB, 0xED, 0x62,
     0x4A, 0xDE, 0x2A, 0xCB, 0xF0, 0x3F, 0x78, 0x4A, 0x18, 0x31, 0x6B, 0x88, 0x44, 0xF7, 0x9E, 0x73};
-
-u32 Put(Caller& c, std::span<const u8> bytes) {
-  const u32 address = c.Alloc(static_cast<u32>(bytes.size()) + 8);
-  for (u32 offset = 0; offset < bytes.size(); offset += 4) {
-    u8 word[4]{};
-    std::memcpy(word, bytes.data() + offset, std::min<size_t>(4, bytes.size() - offset));
-    c.Store32(address + offset,
-              (u32{word[0]} << 24) | (u32{word[1]} << 16) | (u32{word[2]} << 8) | word[3]);
-  }
-  return address;
-}
-
-std::vector<u8> Get(Caller& c, u32 address, u32 size) {
-  std::vector<u8> bytes(size);
-  for (u32 i = 0; i < size; ++i) {
-    bytes[i] = c.Load8(address + i);
-  }
-  return bytes;
-}
 
 std::vector<u8> Bytes(std::span<const u8> data) {
   return std::vector<u8>(data.begin(), data.end());

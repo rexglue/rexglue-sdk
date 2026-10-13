@@ -9,6 +9,7 @@
  */
 
 #include "rex_test.h"
+#include "support/validation_errors.h"
 
 #include <algorithm>
 #include <string>
@@ -20,6 +21,8 @@ using namespace rex::codegen;
 
 namespace {
 
+using rex::test::AnyError;
+
 RecompilerConfig HookConfig(std::vector<std::string> registers) {
   RecompilerConfig config;
   config.file_path = "game.xex";
@@ -29,12 +32,6 @@ RecompilerConfig HookConfig(std::vector<std::string> registers) {
   hook.registers = std::move(registers);
   config.mid_asm_hooks.emplace(0x82000000u, std::move(hook));
   return config;
-}
-
-bool AnyError(const RecompilerConfig::ValidationResult& result, std::string_view text) {
-  return std::ranges::any_of(result.errors, [text](const std::string& error) {
-    return error.find(text) != std::string::npos;
-  });
 }
 
 }  // namespace

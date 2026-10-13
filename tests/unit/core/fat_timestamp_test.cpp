@@ -14,14 +14,14 @@
 
 using rex::filesystem::DecodeFATTimestamp;
 
-REX_TEST_CASE("A FAT date and time decode to their FILETIME", "[filesystem]") {
+REX_TEST_CASE("A FAT date and time decode to their FILETIME", "[core]") {
   CHECK(DecodeFATTimestamp(0x5D43, 0x645C) == 134355044960000000ull);
 }
 
-REX_TEST_CASE("The FAT epoch decodes to 1980-01-01", "[filesystem]") {
+REX_TEST_CASE("The FAT epoch decodes to 1980-01-01", "[core]") {
   CHECK(DecodeFATTimestamp(0x0021, 0x0000) == 119600064000000000ull);
 }
 
-REX_TEST_CASE("Month 0 carries back to December of the year before", "[filesystem]") {
+REX_TEST_CASE("Month 0 carries back to December of the year before", "[core]") {
   CHECK(DecodeFATTimestamp(0x0001, 0x0000) == 119573280000000000ull);
 }

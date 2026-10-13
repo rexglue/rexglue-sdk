@@ -10,6 +10,7 @@
  */
 
 #include "rex_test.h"
+#include "support/temp_folder.h"
 
 #include <filesystem>
 #include <string>
@@ -22,9 +23,8 @@
 
 REX_TEST_CASE("The tool runtime opens under the log categories the rexglue tool registers",
               "[codegen][tool]") {
-  const std::filesystem::path root =
-      std::filesystem::temp_directory_path() / "rex_tool_runtime_log_test";
-  std::filesystem::create_directories(root);
+  const rex::test::TempFolder folder("rex_tool_runtime_log_test_");
+  const std::filesystem::path& root = folder.path;
   rex::testing::ReleaseTestMemory();
   rex::LogConfig config;
   config.debugger = false;
@@ -36,5 +36,4 @@ REX_TEST_CASE("The tool runtime opens under the log categories the rexglue tool 
     CHECK(tool.has_value());
   }
   rex::log::Stop();
-  std::filesystem::remove_all(root);
 }

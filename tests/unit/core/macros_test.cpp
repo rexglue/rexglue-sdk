@@ -46,28 +46,28 @@ namespace {
 
 }  // namespace
 
-REX_TEST_CASE("REX_TRY unwraps a value and propagates an error", "[macros]") {
+REX_TEST_CASE("REX_TRY unwraps a value and propagates an error", "[core][macros]") {
   REQUIRE(UseTry(true).value() == 8);
   auto failed = UseTry(false);
   REQUIRE_FALSE(failed);
   REQUIRE(failed.error().category == rex::ErrorCategory::kValidation);
 }
 
-REX_TEST_CASE("REX_TRY_VOID and REX_ERROR_IF propagate", "[macros]") {
+REX_TEST_CASE("REX_TRY_VOID and REX_ERROR_IF propagate", "[core][macros]") {
   REQUIRE(UseTryVoid(true));
   auto failed = UseTryVoid(false);
   REQUIRE_FALSE(failed);
   REQUIRE(failed.error().message == "check failed");
 }
 
-REX_TEST_CASE("REX_ERROR_IF returns the error when its condition holds", "[macros]") {
+REX_TEST_CASE("REX_ERROR_IF returns the error when its condition holds", "[core][macros]") {
   auto failed = ErrorWhen(true);
   REQUIRE_FALSE(failed);
   REQUIRE(failed.error().message == "condition held");
   REQUIRE(ErrorWhen(false));
 }
 
-REX_TEST_CASE("Result<void> is the void result", "[macros]") {
+REX_TEST_CASE("Result<void> is the void result", "[core][macros]") {
   rex::Result<void> s = rex::Ok();
   REQUIRE(s);
   static_assert(std::is_same_v<rex::Result<void>, rex::Result<void>>);

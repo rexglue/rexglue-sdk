@@ -31,7 +31,7 @@ using rex::runtime::ToXStatus;
 using rex::testing::Caller;
 using rex::testing::KernelFixture;
 
-REX_TEST_CASE("Wait returns invalid handle for a missing handle", "[wait]") {
+REX_TEST_CASE("Wait returns invalid handle for a missing handle", "[kernel][wait]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     CHECK(rex::runtime::Wait(c.GetRuntime(), 0xF8001230, 3, 1, 0, nullptr) ==
@@ -39,7 +39,7 @@ REX_TEST_CASE("Wait returns invalid handle for a missing handle", "[wait]") {
   });
 }
 
-REX_TEST_CASE("Wait on a kind without a wait handle succeeds at once", "[wait]") {
+REX_TEST_CASE("Wait on a kind without a wait handle succeeds at once", "[kernel][wait]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     auto& table = c.GetRuntime().GetObjectTable();
@@ -53,7 +53,8 @@ REX_TEST_CASE("Wait on a kind without a wait handle succeeds at once", "[wait]")
   });
 }
 
-REX_TEST_CASE("Wait keeps the object alive when its handle closes mid wait", "[wait][pin]") {
+REX_TEST_CASE("Wait keeps the object alive when its handle closes mid wait",
+              "[kernel][wait][pin]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     auto& table = c.GetRuntime().GetObjectTable();

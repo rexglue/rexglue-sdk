@@ -10,6 +10,7 @@
 
 #include "rex_test.h"
 #include "support/temp_folder.h"
+#include "support/validation_errors.h"
 
 #include <algorithm>
 #include <filesystem>
@@ -23,16 +24,14 @@ using namespace rex::codegen;
 
 namespace {
 
+using rex::test::AnyError;
+
 struct Scratch {
+  rex::test::TempFolder folder;
   fs::path root;
 
   explicit Scratch(std::string_view name)
-      : root(fs::temp_directory_path() / "rexglue_shim_config_test" / fs::path(name)) {
-    fs::remove_all(root);
-    fs::create_directories(root);
-  }
-
-  ~Scratch() { rex::test::RemoveTree(root); }
+      : folder(std::string("rexglue_shim_config_") + std::string(name) + "_"), root(folder.path) {}
 
   std::string Write(std::string_view body) const {
     auto path = root / "game.toml";
@@ -42,12 +41,6 @@ struct Scratch {
     return path.string();
   }
 };
-
-bool AnyError(const RecompilerConfig::ValidationResult& result, std::string_view text) {
-  return std::ranges::any_of(result.errors, [text](const std::string& error) {
-    return error.find(text) != std::string::npos;
-  });
-}
 
 }  // namespace
 

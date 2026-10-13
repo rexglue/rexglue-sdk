@@ -42,7 +42,7 @@ constexpr rex::u32 kWritePointerRegister = 0x01C5;
 
 }  // namespace
 
-REX_TEST_CASE("NullGPU raises the vblank interrupt at the refresh rate", "[gpu]") {
+REX_TEST_CASE("NullGPU raises the vblank interrupt at the refresh rate", "[runtime]") {
   g_vblanks = 0;
   KernelFixture fixture;
   auto& runtime = fixture.GetRuntime();
@@ -63,7 +63,7 @@ REX_TEST_CASE("NullGPU raises the vblank interrupt at the refresh rate", "[gpu]"
   CHECK(g_user_data == 0x1234);
 }
 
-REX_TEST_CASE("NullGPU without a callback raises nothing", "[gpu]") {
+REX_TEST_CASE("NullGPU without a callback raises nothing", "[runtime]") {
   g_vblanks = 0;
   KernelFixture fixture;
   auto& runtime = fixture.GetRuntime();
@@ -74,7 +74,7 @@ REX_TEST_CASE("NullGPU without a callback raises nothing", "[gpu]") {
   CHECK(g_vblanks == 0);
 }
 
-REX_TEST_CASE("NullGPU writes the write pointer back as the read pointer", "[gpu]") {
+REX_TEST_CASE("NullGPU writes the write pointer back as the read pointer", "[runtime]") {
   KernelFixture fixture;
   auto& runtime = fixture.GetRuntime();
   auto* memory = runtime.GetMemory();
@@ -96,7 +96,7 @@ REX_TEST_CASE("NullGPU writes the write pointer back as the read pointer", "[gpu
   CHECK(*memory->TranslatePhysical<const be_u32*>(writeback) == 0x20);
 }
 
-REX_TEST_CASE("NullGPU has no presentation", "[gpu]") {
+REX_TEST_CASE("NullGPU has no presentation", "[runtime]") {
   rex::runtime::NullGPU gpu;
   CHECK_FALSE(gpu.HasPresentation());
   CHECK(gpu.GetPresenter() == nullptr);

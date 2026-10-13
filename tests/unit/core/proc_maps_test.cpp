@@ -10,6 +10,7 @@
  */
 
 #include "rex_test.h"
+#include "support/temp_folder.h"
 
 #include <rex/platform.h>
 
@@ -54,7 +55,7 @@ rex::memory::PageAccess AccessOf(void* address) {
 }  // namespace
 
 REX_TEST_CASE("QueryProtect reports the protection of read only, read write and no access pages",
-              "[core][memory]") {
+              "[core]") {
   const Mapping read_only(PROT_READ);
   const Mapping read_write(PROT_READ | PROT_WRITE);
   const Mapping no_access(PROT_NONE);
@@ -68,8 +69,9 @@ REX_TEST_CASE("QueryProtect reports the protection of read only, read write and 
 
 REX_TEST_CASE(
     "A mapped file with a path longer than the line buffer keeps its fields and the next line",
-    "[core][memory]") {
-  std::filesystem::path folder = std::filesystem::temp_directory_path() / "rex-proc-maps";
+    "[core]") {
+  const rex::test::TempFolder base("rex-proc-maps-");
+  std::filesystem::path folder = base.path;
   for (int i = 0; i < 6; ++i) {
     folder /= std::string(200, static_cast<char>('a' + i));
   }
@@ -102,7 +104,6 @@ REX_TEST_CASE(
   CHECK(seen);
   CHECK(AccessOf(mapped.address) == rex::memory::PageAccess::kReadOnly);
   CHECK(AccessOf(after.address) == rex::memory::PageAccess::kReadWrite);
-  std::filesystem::remove_all(std::filesystem::temp_directory_path() / "rex-proc-maps");
 }
 
 #endif

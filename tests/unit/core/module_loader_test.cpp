@@ -71,7 +71,8 @@ rex::Config With(std::vector<std::string> modules) {
 
 }  // namespace
 
-REX_TEST_CASE_METHOD(Fixture, "Init with no modules succeeds and can repeat", "[module_loader]") {
+REX_TEST_CASE_METHOD(Fixture, "Init with no modules succeeds and can repeat",
+                     "[core][module_loader]") {
   auto api = rex::Init(rex::Config{});
   REQUIRE(api);
   REQUIRE_FALSE(api.value()->IsLoaded("anything"));
@@ -79,13 +80,13 @@ REX_TEST_CASE_METHOD(Fixture, "Init with no modules succeeds and can repeat", "[
   REQUIRE(rex::Init(rex::Config{}));
 }
 
-REX_TEST_CASE_METHOD(Fixture, "Shutdown without Init is a no-op", "[module_loader]") {
+REX_TEST_CASE_METHOD(Fixture, "Shutdown without Init is a no-op", "[core][module_loader]") {
   rex::Shutdown();
   rex::Shutdown();
   REQUIRE(rex::Init(rex::Config{}));
 }
 
-REX_TEST_CASE_METHOD(Fixture, "Init twice fails and keeps the first", "[module_loader]") {
+REX_TEST_CASE_METHOD(Fixture, "Init twice fails and keeps the first", "[core][module_loader]") {
   Pinned pin("rexmod-test-good");
   REQUIRE(rex::Init(With({"rexmod-test-good"})));
   auto second = rex::Init(With({"rexmod-test-good"}));
@@ -95,7 +96,7 @@ REX_TEST_CASE_METHOD(Fixture, "Init twice fails and keeps the first", "[module_l
 }
 
 REX_TEST_CASE_METHOD(Fixture, "Good module loads, serves echo and unwinds in order",
-                     "[module_loader]") {
+                     "[core][module_loader]") {
   Pinned pin("rexmod-test-good");
   auto api = rex::Init(With({"rexmod-test-good"}));
   REQUIRE(api);
@@ -114,7 +115,7 @@ REX_TEST_CASE_METHOD(Fixture, "Good module loads, serves echo and unwinds in ord
 
 REX_TEST_CASE_METHOD(Fixture,
                      "The only interface request before Init is the rex.cvar fetch at Connect",
-                     "[module_loader]") {
+                     "[core][module_loader]") {
   Pinned pin("rexmod-test-good");
   REQUIRE(rex::Init(With({"rexmod-test-good"})));
   REQUIRE(rex::detail::GetInterfaceRequestCount() == 1);
@@ -123,7 +124,7 @@ REX_TEST_CASE_METHOD(Fixture,
 }
 
 REX_TEST_CASE_METHOD(Fixture, "The interface factory reports a missing or mismatched interface",
-                     "[module_loader]") {
+                     "[core][module_loader]") {
   REQUIRE(rex::Init(rex::Config{}));
   rex::IInterfaceFactory& factory = rex::detail::ModuleLoader::GetInstance();
   using Registry = rex::cvar::ICvarRegistry;
@@ -139,7 +140,7 @@ REX_TEST_CASE_METHOD(Fixture, "The interface factory reports a missing or mismat
 }
 
 REX_TEST_CASE_METHOD(Fixture, "rex_create_interface with a null name reports NotFound",
-                     "[module_loader]") {
+                     "[core][module_loader]") {
   Pinned pin("rexmod-test-good");
   auto create = pin.Library().GetSymbol<rex::CreateInterfaceFn>(rex::kCreateInterfaceSymbol);
   REQUIRE(create != nullptr);
@@ -151,7 +152,8 @@ REX_TEST_CASE_METHOD(Fixture, "rex_create_interface with a null name reports Not
   REQUIRE(status == std::to_underlying(rex::InterfaceStatus::kVersionMismatch));
 }
 
-REX_TEST_CASE_METHOD(Fixture, "Missing requirement fails before any Connect", "[module_loader]") {
+REX_TEST_CASE_METHOD(Fixture, "Missing requirement fails before any Connect",
+                     "[core][module_loader]") {
   Pinned good("rexmod-test-good");
   Pinned missing("rexmod-test-missing");
   auto api = rex::Init(With({"rexmod-test-good", "rexmod-test-missing"}));
@@ -164,14 +166,14 @@ REX_TEST_CASE_METHOD(Fixture, "Missing requirement fails before any Connect", "[
   }
 }
 
-REX_TEST_CASE_METHOD(Fixture, "Bad module version is rejected", "[module_loader]") {
+REX_TEST_CASE_METHOD(Fixture, "Bad module version is rejected", "[core][module_loader]") {
   auto api = rex::Init(With({"rexmod-test-badversion"}));
   REQUIRE_FALSE(api);
   REQUIRE(api.error().message ==
           "module 'rexmod-test-badversion' does not serve rex.module version 1 (status 2)");
 }
 
-REX_TEST_CASE_METHOD(Fixture, "Unknown module reports the composed path", "[module_loader]") {
+REX_TEST_CASE_METHOD(Fixture, "Unknown module reports the composed path", "[core][module_loader]") {
   auto api = rex::Init(With({"rexmod-test-nowhere"}));
   REQUIRE_FALSE(api);
   auto expected =
@@ -180,7 +182,8 @@ REX_TEST_CASE_METHOD(Fixture, "Unknown module reports the composed path", "[modu
   REQUIRE(api.error().message == "module 'rexmod-test-nowhere' not found at '" + expected + "'");
 }
 
-REX_TEST_CASE_METHOD(Fixture, "Init failure unwinds the modules before it", "[module_loader]") {
+REX_TEST_CASE_METHOD(Fixture, "Init failure unwinds the modules before it",
+                     "[core][module_loader]") {
   Pinned good("rexmod-test-good");
   Pinned failinit("rexmod-test-failinit");
   auto api = rex::Init(With({"rexmod-test-good", "rexmod-test-failinit"}));
@@ -196,7 +199,7 @@ REX_TEST_CASE_METHOD(Fixture, "Init failure unwinds the modules before it", "[mo
 }
 
 REX_TEST_CASE_METHOD(Fixture, "Duplicate name and invalid name are rejected before load",
-                     "[module_loader]") {
+                     "[core][module_loader]") {
   auto dup = rex::Init(With({"rexmod-test-good", "rexmod-test-good"}));
   REQUIRE_FALSE(dup);
   REQUIRE(dup.error().message == "module 'rexmod-test-good' listed twice");
@@ -210,7 +213,8 @@ REX_TEST_CASE_METHOD(Fixture, "Duplicate name and invalid name are rejected befo
   REQUIRE(rex::detail::IsValidModuleName("rex-gpu-xenos"));
 }
 
-REX_TEST_CASE_METHOD(Fixture, "An interface served by 2 modules is rejected", "[module_loader]") {
+REX_TEST_CASE_METHOD(Fixture, "An interface served by 2 modules is rejected",
+                     "[core][module_loader]") {
   Pinned good("rexmod-test-good");
   Pinned dup("rexmod-test-dupecho");
   auto api = rex::Init(With({"rexmod-test-good", "rexmod-test-dupecho"}));
@@ -222,7 +226,7 @@ REX_TEST_CASE_METHOD(Fixture, "An interface served by 2 modules is rejected", "[
   }
 }
 
-REX_TEST_CASE("ParseCommandLine reads --modules in both forms", "[module_loader]") {
+REX_TEST_CASE("ParseCommandLine reads --modules in both forms", "[core][module_loader]") {
   rex::Config cfg;
   char a0[] = "app";
   char a1[] = "--modules=alpha,beta";
@@ -255,7 +259,7 @@ bool Ran(const char* event) {
 }  // namespace
 
 REX_TEST_CASE_METHOD(Fixture, "Init registers consumer and module tables and serves rex.cvar",
-                     "[module_loader][cvar]") {
+                     "[core][module_loader][cvar]") {
   Pinned pin("rexmod-test-good");
   auto cfg = With({"rexmod-test-good"});
   cfg.cvars.tables.push_back({"app", app_cvars::kAppCvars});
@@ -284,7 +288,7 @@ REX_TEST_CASE_METHOD(Fixture, "Init registers consumer and module tables and ser
 }
 
 REX_TEST_CASE_METHOD(Fixture, "Unknown CommandLine override fails Init before any module Init",
-                     "[module_loader][cvar]") {
+                     "[core][module_loader][cvar]") {
   Pinned pin("rexmod-test-good");
   auto cfg = With({"rexmod-test-good"});
   cfg.cvars.Set("nope.value", "1");
@@ -296,7 +300,7 @@ REX_TEST_CASE_METHOD(Fixture, "Unknown CommandLine override fails Init before an
 }
 
 REX_TEST_CASE_METHOD(Fixture, "unknown Config override warns and Init succeeds",
-                     "[module_loader][cvar]") {
+                     "[core][module_loader][cvar]") {
   Pinned pin("rexmod-test-good");
   auto cfg = With({"rexmod-test-good"});
   cfg.cvars.values.push_back({"vsync", "false", rex::cvar::CvarSource::kConfig});
@@ -316,7 +320,7 @@ REX_TEST_CASE_METHOD(Fixture, "unknown Config override warns and Init succeeds",
 }
 
 REX_TEST_CASE_METHOD(Fixture, "Init rejects an unparsable command line value",
-                     "[module_loader][cvar]") {
+                     "[core][module_loader][cvar]") {
   Pinned pin("rexmod-test-good");
   auto cfg = With({"rexmod-test-good"});
   cfg.cvars.Set("echo.value", "abc");
@@ -328,7 +332,7 @@ REX_TEST_CASE_METHOD(Fixture, "Init rejects an unparsable command line value",
 }
 
 REX_TEST_CASE_METHOD(Fixture, "Init rejects an unparsable environment value",
-                     "[module_loader][cvar]") {
+                     "[core][module_loader][cvar]") {
   Pinned pin("rexmod-test-good");
   auto cfg = With({"rexmod-test-good"});
   cfg.cvars.values.push_back({"echo.ready", "off-ish", rex::cvar::CvarSource::kEnvironment});
@@ -339,7 +343,7 @@ REX_TEST_CASE_METHOD(Fixture, "Init rejects an unparsable environment value",
 }
 
 REX_TEST_CASE_METHOD(Fixture, "A consumer table with a bad name fails before any load",
-                     "[module_loader][cvar]") {
+                     "[core][module_loader][cvar]") {
   Pinned pin("rexmod-test-good");
   auto cfg = With({"rexmod-test-good"});
   static const rex::cvar::IVar* wrong_scope[] = {&app_cvars::debug};
@@ -351,7 +355,7 @@ REX_TEST_CASE_METHOD(Fixture, "A consumer table with a bad name fails before any
 }
 
 REX_TEST_CASE_METHOD(Fixture, "Config validation fails before any module connects",
-                     "[module_loader][cvar]") {
+                     "[core][module_loader][cvar]") {
   Pinned pin("rexmod-test-good");
   auto cfg = With({"rex-filesystem", "rex-runtime", "rexmod-test-good"});
   cfg.runtime.heap_size_mb = 0;
@@ -368,7 +372,7 @@ REX_TEST_CASE_METHOD(Fixture, "Config validation fails before any module connect
 }
 
 REX_TEST_CASE_METHOD(Fixture, "Locks apply after values and unknown locks fail",
-                     "[module_loader][cvar]") {
+                     "[core][module_loader][cvar]") {
   Pinned pin("rexmod-test-good");
   auto cfg = With({"rexmod-test-good"});
   cfg.cvars.Set("echo.value", "3");
@@ -388,7 +392,7 @@ REX_TEST_CASE_METHOD(Fixture, "Locks apply after values and unknown locks fail",
 }
 
 REX_TEST_CASE_METHOD(Fixture, "Every SDK cvar name is scope.leaf in a charter scope",
-                     "[module_loader][cvar]") {
+                     "[core][module_loader][cvar]") {
   static const std::vector<std::string_view> kScopes = {
       "log", "clock", "perf",  "runtime", "apu",     "hid", "ui",
       "gpu", "xenos", "d3d12", "vulkan",  "console", "bind"};
@@ -422,7 +426,7 @@ REX_TEST_CASE_METHOD(Fixture, "Every SDK cvar name is scope.leaf in a charter sc
 }
 
 REX_TEST_CASE_METHOD(Fixture, "rex-runtime registers the module scopes at Connect",
-                     "[module_loader][cvar]") {
+                     "[core][module_loader][cvar]") {
   auto api = rex::Init(With({"rex-filesystem", "rex-runtime"}));
   REQUIRE(api);
   REQUIRE(api.value()->IsLoaded("rex-runtime"));
@@ -434,7 +438,7 @@ REX_TEST_CASE_METHOD(Fixture, "rex-runtime registers the module scopes at Connec
 }
 
 REX_TEST_CASE_METHOD(Fixture, "Runtime config sets the code segment and zero page defaults",
-                     "[module_loader][cvar]") {
+                     "[core][module_loader][cvar]") {
   auto cfg = With({"rex-filesystem", "rex-runtime"});
   cfg.runtime.writable_code_segments = true;
   cfg.runtime.protect_zero = false;
@@ -446,7 +450,7 @@ REX_TEST_CASE_METHOD(Fixture, "Runtime config sets the code segment and zero pag
 }
 
 REX_TEST_CASE_METHOD(Fixture, "Without rex-runtime no module scope exists",
-                     "[module_loader][cvar]") {
+                     "[core][module_loader][cvar]") {
   auto api = rex::Init(rex::Config{});
   REQUIRE(api);
   auto* registry = api.value()->Get<rex::cvar::ICvarRegistry>();

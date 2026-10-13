@@ -22,7 +22,12 @@
 #include "kernel_fixture.h"
 
 using rex::testing::Caller;
+using rex::testing::Get;
+using rex::testing::Hex;
 using rex::testing::KernelFixture;
+using rex::testing::Put;
+using rex::testing::PutFilled;
+using rex::testing::ToHex;
 
 namespace {
 
@@ -213,41 +218,6 @@ const MeasuredCase kMeasuredCases[] = {
      "9e9eaeaececefeff1f1f2f2f4f4f7f7f8f8fbfbfdfdfefe"},
 };
 
-std::vector<u8> Hex(std::string_view text) {
-  std::vector<u8> bytes(text.size() / 2);
-  for (size_t i = 0; i < bytes.size(); ++i) {
-    bytes[i] = static_cast<u8>(std::stoi(std::string(text.substr(i * 2, 2)), nullptr, 16));
-  }
-  return bytes;
-}
-
-u32 Put(Caller& c, std::span<const u8> bytes) {
-  const u32 address = c.Alloc(static_cast<u32>(bytes.size()) + 8);
-  for (u32 offset = 0; offset < bytes.size(); offset += 4) {
-    u8 word[4]{};
-    std::memcpy(word, bytes.data() + offset, std::min<size_t>(4, bytes.size() - offset));
-    c.Store32(address + offset,
-              (u32{word[0]} << 24) | (u32{word[1]} << 16) | (u32{word[2]} << 8) | word[3]);
-  }
-  return address;
-}
-
-std::vector<u8> Get(Caller& c, u32 address, u32 size) {
-  std::vector<u8> bytes(size);
-  for (u32 i = 0; i < size; ++i) {
-    bytes[i] = c.Load8(address + i);
-  }
-  return bytes;
-}
-
-u32 PutFilled(Caller& c, u32 size) {
-  std::vector<u8> bytes(size);
-  for (u32 i = 0; i < size; ++i) {
-    bytes[i] = std::array<u8, 4>{0xDE, 0xAD, 0xBE, 0xEF}[i % 4];
-  }
-  return Put(c, bytes);
-}
-
 const char* HashExport(std::string_view kind) {
   if (kind == "sha") {
     return "XeCryptSha";
@@ -296,16 +266,6 @@ void RunMeasuredCase(Caller& c, const MeasuredCase& item) {
     c.Kernel("XeCryptDesParity", {Put(c, first), first.size(), output});
   }
   CHECK(Get(c, output, item.output_size) == Hex(item.output));
-}
-
-std::string ToHex(const std::vector<u8>& bytes) {
-  static constexpr char kDigits[] = "0123456789abcdef";
-  std::string text;
-  for (const u8 byte : bytes) {
-    text.push_back(kDigits[byte >> 4]);
-    text.push_back(kDigits[byte & 15]);
-  }
-  return text;
 }
 
 void CheckState(Caller& c, u32 state, const char* expected) {

@@ -93,7 +93,7 @@ std::vector<std::string> VisibleText(const ConsoleModel& model) {
 
 }  // namespace
 
-REX_TEST_CASE_METHOD(Harness, "Execute sets, prints, reports, runs and clears", "[console]") {
+REX_TEST_CASE_METHOD(Harness, "Execute sets, prints, reports, runs and clears", "[ui][console]") {
   ConsoleModel model(*registry, capture, {});
   model.Execute("zeta.count 6");
   REQUIRE(registry->Get("zeta.count").value() == "6");
@@ -112,7 +112,7 @@ REX_TEST_CASE_METHOD(Harness, "Execute sets, prints, reports, runs and clears", 
 }
 
 REX_TEST_CASE_METHOD(Harness, "Complete sorts by scope then name with built ins first",
-                     "[console]") {
+                     "[ui][console]") {
   ConsoleModel model(*registry, capture, {});
   REQUIRE(model.Complete("").empty());
   REQUIRE(model.Complete("alpha.mode x").empty());
@@ -147,7 +147,7 @@ REX_TEST_CASE_METHOD(Harness, "Complete sorts by scope then name with built ins 
 }
 
 REX_TEST_CASE_METHOD(Harness, "HelpLine describes a cvar, a command and nothing else",
-                     "[console]") {
+                     "[ui][console]") {
   ConsoleModel model(*registry, capture, {});
   REQUIRE(model.HelpLine("alpha.mode") ==
           "alpha.mode string = low, default low, allowed low high. Quality mode");
@@ -158,7 +158,8 @@ REX_TEST_CASE_METHOD(Harness, "HelpLine describes a cvar, a command and nothing 
   REQUIRE(model.HelpLine("zeta.nope").empty());
 }
 
-REX_TEST_CASE_METHOD(Harness, "History walks, skips repeats, caps and round trips", "[console]") {
+REX_TEST_CASE_METHOD(Harness, "History walks, skips repeats, caps and round trips",
+                     "[ui][console]") {
   TempFolder temp;
   const auto path = temp.path / "history.txt";
   std::string newest;
@@ -185,7 +186,7 @@ REX_TEST_CASE_METHOD(Harness, "History walks, skips repeats, caps and round trip
   REQUIRE(reloaded.StepHistoryBack() == newest);
 }
 
-REX_TEST_CASE_METHOD(Harness, "Output interleaves by sequence, caps and filters", "[console]") {
+REX_TEST_CASE_METHOD(Harness, "Output interleaves by sequence, caps and filters", "[ui][console]") {
   ConsoleModel model(*registry, capture, {});
   Write(Level::kInfo, "kernel", "first");
   model.Execute("zeta.count");

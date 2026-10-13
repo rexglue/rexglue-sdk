@@ -10,6 +10,7 @@
  */
 
 #include "rex_test.h"
+#include "support/base_config.h"
 
 #include <algorithm>
 #include <string>
@@ -22,14 +23,10 @@
 
 namespace {
 
+using rex::test::BaseConfig;
+
 bool HasScope(const rex::cvar::ICvarRegistry& cvars, std::string_view scope) {
   return std::ranges::contains(cvars.GetScopes(), scope);
-}
-
-rex::Config BaseConfig() {
-  rex::Config config;
-  config.paths.config_file.clear();
-  return config;
 }
 
 struct Fixture {
@@ -85,7 +82,7 @@ REX_TEST_CASE_METHOD(Fixture, "An old GPU key is unknown after the move", "[gpu]
 }
 
 REX_TEST_CASE_METHOD(Fixture, "The runtime reserves apu and rex-apu-sdl3 adds apu.mute",
-                     "[apu][cvar]") {
+                     "[gpu][cvar]") {
   rex::platform::SetEnvironmentValue("SDL_AUDIO_DRIVER", "dummy");
   rex::Config config = BaseConfig();
   config.modules = {"rex-filesystem", "rex-runtime", "rex-apu-sdl3"};
@@ -100,7 +97,7 @@ REX_TEST_CASE_METHOD(Fixture, "The runtime reserves apu and rex-apu-sdl3 adds ap
 }
 
 REX_TEST_CASE_METHOD(Fixture, "apu.max_queued_frames takes its default from Config::apu",
-                     "[apu][cvar]") {
+                     "[gpu][cvar]") {
   rex::Config config = BaseConfig();
   config.modules = {"rex-filesystem", "rex-runtime"};
   config.apu.max_queued_frames = 16;
@@ -111,7 +108,7 @@ REX_TEST_CASE_METHOD(Fixture, "apu.max_queued_frames takes its default from Conf
 }
 
 REX_TEST_CASE_METHOD(Fixture, "rex-hid-sdl3 adds the 33 hid cvars to the reserved scope",
-                     "[hid][cvar]") {
+                     "[gpu][cvar]") {
   rex::Config config = BaseConfig();
   config.modules = {"rex-filesystem", "rex-runtime", "rex-hid-sdl3"};
   auto api = rex::Init(config);
@@ -125,7 +122,7 @@ REX_TEST_CASE_METHOD(Fixture, "rex-hid-sdl3 adds the 33 hid cvars to the reserve
 
 #if REX_PLATFORM_WIN32
 REX_TEST_CASE_METHOD(Fixture, "A second hid module fails Init naming the shared interface",
-                     "[hid][cvar]") {
+                     "[gpu][cvar]") {
   rex::Config config = BaseConfig();
   config.modules = {"rex-filesystem", "rex-runtime", "rex-hid-sdl3", "rex-hid-xinput"};
   auto api = rex::Init(config);
@@ -135,7 +132,7 @@ REX_TEST_CASE_METHOD(Fixture, "A second hid module fails Init naming the shared 
 #endif
 
 REX_TEST_CASE_METHOD(Fixture, "Without a hid module the hid scope is reserved and empty",
-                     "[hid][cvar]") {
+                     "[gpu][cvar]") {
   rex::Config config = BaseConfig();
   config.modules = {"rex-filesystem", "rex-runtime"};
   auto api = rex::Init(config);
@@ -145,8 +142,7 @@ REX_TEST_CASE_METHOD(Fixture, "Without a hid module the hid scope is reserved an
   CHECK(cvars.Enumerate("hid").empty());
 }
 
-REX_TEST_CASE_METHOD(Fixture, "The default host modules bring the SDK to 70 cvars",
-                     "[apu][hid][cvar]") {
+REX_TEST_CASE_METHOD(Fixture, "The default host modules bring the SDK to 70 cvars", "[gpu][cvar]") {
   rex::platform::SetEnvironmentValue("SDL_AUDIO_DRIVER", "dummy");
   rex::Config config = BaseConfig();
   config.modules = {"rex-filesystem", "rex-runtime", "rex-apu-sdl3", "rex-hid-sdl3", "rex-ui-sdl3"};

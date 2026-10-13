@@ -11,9 +11,12 @@
 
 #include "rex_test.h"
 
+#include <atomic>
 #include <map>
 #include <memory>
 #include <optional>
+#include <string>
+#include <thread>
 #include <vector>
 
 #include <rex/hid.h>
@@ -75,6 +78,7 @@ class FakePad final : public rex::hid::Driver {
   void EnumerateDevices(std::vector<rex::hid::DeviceInfo>& out) override {
     rex::hid::DeviceInfo info;
     info.id = static_cast<rex::hid::DeviceId>(7);
+    info.name = "Fake controller with a name past the small string buffer";
     out.push_back(info);
   }
   [[nodiscard]] rex::Result<rex::hid::X_INPUT_STATE> GetDeviceState(rex::hid::DeviceId) override {
@@ -384,4 +388,31 @@ REX_TEST_CASE("Keyboard pad binds fire only with their exact modifiers and follo
   REQUIRE(registry->ResetToDefault("hid.keybind_x"));
   REQUIRE(REXCVAR_SET(rex::hid::cvars::mnk_mode, false));
   registry->Unregister(rex::hid::cvars::kHIDCvars);
+}
+
+REX_TEST_CASE("Hub serves polls from 4 threads at once", "[hid]") {
+  Hub hub;
+  hub.AddPadDriver(std::make_unique<FakePad>());
+  constexpr int kThreads = 4;
+  constexpr int kIterations = 2000;
+  std::atomic<int> answered{0};
+  std::vector<std::thread> threads;
+  threads.reserve(kThreads);
+  for (int t = 0; t < kThreads; ++t) {
+    threads.emplace_back([&hub, &answered] {
+      for (int i = 0; i < kIterations; ++i) {
+        int count = 0;
+        count += hub.GetState(0).has_value();
+        count += hub.GetCapabilities(0, 0).has_value();
+        count += hub.SetVibration(0, rex::hid::X_INPUT_VIBRATION{}).has_value();
+        count += hub.GetKeystroke(0, 0).has_value();
+        answered.fetch_add(count);
+      }
+    });
+  }
+  for (auto& thread : threads) {
+    thread.join();
+  }
+  CHECK(answered.load() >= kThreads * kIterations * 3);
+  CHECK(hub.GetState(0));
 }

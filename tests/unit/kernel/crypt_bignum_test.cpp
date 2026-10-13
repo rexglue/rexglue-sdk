@@ -21,7 +21,10 @@
 #include "kernel_fixture.h"
 
 using rex::testing::Caller;
+using rex::testing::Get;
+using rex::testing::Hex;
 using rex::testing::KernelFixture;
+using rex::testing::Put;
 
 namespace {
 
@@ -443,39 +446,8 @@ const ModMulCase kModMulCases[] = {
      0x9287E246D6A84F0DULL, 0xA390A03C36A517C5ULL},
 };
 
-std::vector<u8> Hex(std::string_view text) {
-  std::vector<u8> bytes(text.size() / 2);
-  for (size_t i = 0; i < bytes.size(); ++i) {
-    bytes[i] = static_cast<u8>(std::stoi(std::string(text.substr(i * 2, 2)), nullptr, 16));
-  }
-  return bytes;
-}
-
 std::vector<u8> Bytes(std::span<const u8> bytes) {
   return std::vector<u8>(bytes.begin(), bytes.end());
-}
-
-u32 Put(Caller& c, std::span<const u8> bytes) {
-  const u32 address = c.Alloc(static_cast<u32>(bytes.size()) + 8);
-  for (u32 offset = 0; offset < bytes.size(); offset += 4) {
-    u8 word[4]{};
-    std::memcpy(word, bytes.data() + offset, std::min<size_t>(4, bytes.size() - offset));
-    c.Store32(address + offset,
-              (u32{word[0]} << 24) | (u32{word[1]} << 16) | (u32{word[2]} << 8) | word[3]);
-  }
-  return address;
-}
-
-u32 PutFilled(Caller& c, u32 size) {
-  return Put(c, std::vector<u8>(size, 0xA5));
-}
-
-std::vector<u8> Get(Caller& c, u32 address, u32 size) {
-  std::vector<u8> bytes(size);
-  for (u32 i = 0; i < size; ++i) {
-    bytes[i] = c.Load8(address + i);
-  }
-  return bytes;
 }
 
 }  // namespace
@@ -537,7 +509,7 @@ REX_TEST_CASE("Montgomery multiplication matches big integer arithmetic",
     for (const ModMulCase& item : kModMulCases) {
       INFO(item.name);
       const u32 size = item.digits * 8;
-      const u32 out = PutFilled(c, size);
+      const u32 out = Put(c, std::vector<u8>(size, 0xA5));
       c.Kernel("XeCryptBnQwNeModMul", {Put(c, Hex(item.first)), Put(c, Hex(item.second)), out,
                                        item.inverse, Put(c, Hex(item.modulus)), item.digits});
       CHECK(Get(c, out, size) == Hex(item.product));

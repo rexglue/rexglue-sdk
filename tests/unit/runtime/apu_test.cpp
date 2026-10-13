@@ -78,7 +78,7 @@ class RecordingBackend final : public rex::apu::IAPUBackend {
 
 }  // namespace
 
-REX_TEST_CASE("APU gives a client its queue depth in credits", "[apu]") {
+REX_TEST_CASE("APU gives a client its queue depth in credits", "[runtime]") {
   rex::testing::KernelFixture fixture;
   RecordingBackend backend;
   rex::runtime::APU apu(fixture.GetRuntime(), backend, 4);
@@ -92,7 +92,7 @@ REX_TEST_CASE("APU gives a client its queue depth in credits", "[apu]") {
   apu.Shutdown();
 }
 
-REX_TEST_CASE("APU gets 1 credit back per played frame", "[apu]") {
+REX_TEST_CASE("APU gets 1 credit back per played frame", "[runtime]") {
   rex::testing::KernelFixture fixture;
   RecordingBackend backend;
   rex::runtime::APU apu(fixture.GetRuntime(), backend, 4);
@@ -106,7 +106,7 @@ REX_TEST_CASE("APU gets 1 credit back per played frame", "[apu]") {
   apu.Shutdown();
 }
 
-REX_TEST_CASE("APU refuses a 9th client with X_STATUS_NO_MEMORY", "[apu]") {
+REX_TEST_CASE("APU refuses a 9th client with X_STATUS_NO_MEMORY", "[runtime]") {
   rex::testing::KernelFixture fixture;
   RecordingBackend backend;
   rex::runtime::APU apu(fixture.GetRuntime(), backend, 4);
@@ -120,7 +120,7 @@ REX_TEST_CASE("APU refuses a 9th client with X_STATUS_NO_MEMORY", "[apu]") {
   apu.Shutdown();
 }
 
-REX_TEST_CASE("APU pause is idempotent and resume restores it", "[apu]") {
+REX_TEST_CASE("APU pause is idempotent and resume restores it", "[runtime]") {
   rex::testing::KernelFixture fixture;
   RecordingBackend backend;
   rex::runtime::APU apu(fixture.GetRuntime(), backend, 4);
@@ -135,7 +135,7 @@ REX_TEST_CASE("APU pause is idempotent and resume restores it", "[apu]") {
   apu.Shutdown();
 }
 
-REX_TEST_CASE("APU shutdown releases a paused worker", "[apu]") {
+REX_TEST_CASE("APU shutdown releases a paused worker", "[runtime]") {
   rex::testing::KernelFixture fixture;
   RecordingBackend backend;
   rex::runtime::APU apu(fixture.GetRuntime(), backend, 4);

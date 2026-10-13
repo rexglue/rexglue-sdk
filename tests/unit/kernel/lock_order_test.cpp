@@ -28,7 +28,7 @@ void CountViolation(LockRank, LockRank) {
 }
 }  // namespace
 
-REX_TEST_CASE("lock order accepts ascending ranks", "[lock_order]") {
+REX_TEST_CASE("lock order accepts ascending ranks", "[kernel][lock_order]") {
 #ifdef NDEBUG
   SKIP("lock order is checked in debug builds only");
 #endif
@@ -48,7 +48,7 @@ REX_TEST_CASE("lock order accepts ascending ranks", "[lock_order]") {
   CHECK(g_violations == 0);
 }
 
-REX_TEST_CASE("lock order reports a descending acquire", "[lock_order]") {
+REX_TEST_CASE("lock order reports a descending acquire", "[kernel][lock_order]") {
 #ifdef NDEBUG
   SKIP("lock order is checked in debug builds only");
 #endif
@@ -64,7 +64,8 @@ REX_TEST_CASE("lock order reports a descending acquire", "[lock_order]") {
   CHECK(g_violations == 1);
 }
 
-REX_TEST_CASE("a leaf lock may follow any lock and nothing may follow a leaf", "[lock_order]") {
+REX_TEST_CASE("a leaf lock may follow any lock and nothing may follow a leaf",
+              "[kernel][lock_order]") {
 #ifdef NDEBUG
   SKIP("lock order is checked in debug builds only");
 #endif
@@ -83,7 +84,7 @@ REX_TEST_CASE("a leaf lock may follow any lock and nothing may follow a leaf", "
   rex::platform::SetLockOrderHandler(previous);
 }
 
-REX_TEST_CASE("an interrupt lock comes before every other rank", "[lock_order]") {
+REX_TEST_CASE("an interrupt lock comes before every other rank", "[kernel][lock_order]") {
 #ifdef NDEBUG
   SKIP("lock order is checked in debug builds only");
 #endif
@@ -107,7 +108,7 @@ REX_TEST_CASE("an interrupt lock comes before every other rank", "[lock_order]")
   rex::platform::SetLockOrderHandler(previous);
 }
 
-REX_TEST_CASE("lock order is tracked per thread", "[lock_order]") {
+REX_TEST_CASE("lock order is tracked per thread", "[kernel][lock_order]") {
 #ifdef NDEBUG
   SKIP("lock order is checked in debug builds only");
 #endif

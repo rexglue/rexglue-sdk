@@ -79,7 +79,8 @@ constexpr std::array kExpected = {
 
 }  // namespace
 
-REX_TEST_CASE("ApplyDefaultStyle on the default palette keeps every former slot color", "[style]") {
+REX_TEST_CASE("ApplyDefaultStyle on the default palette keeps every former slot color",
+              "[ui][style]") {
   ImGuiStyle style;
   const rex::ui::Style defaults;
   rex::ui::ApplyDefaultStyle(style, defaults.palette, defaults.metrics);
@@ -92,7 +93,7 @@ REX_TEST_CASE("ApplyDefaultStyle on the default palette keeps every former slot 
   }
 }
 
-REX_TEST_CASE("ApplyDefaultStyle on the default metrics keeps the ImGui sizes", "[style]") {
+REX_TEST_CASE("ApplyDefaultStyle on the default metrics keeps the ImGui sizes", "[ui][style]") {
   const ImGuiStyle reference;
   ImGuiStyle style;
   const rex::ui::Style defaults;
@@ -110,7 +111,7 @@ REX_TEST_CASE("ApplyDefaultStyle on the default metrics keeps the ImGui sizes", 
   CHECK(style.FramePadding.y == reference.FramePadding.y);
 }
 
-REX_TEST_CASE("ApplyDefaultStyle re-themes the slots from an overridden palette", "[style]") {
+REX_TEST_CASE("ApplyDefaultStyle re-themes the slots from an overridden palette", "[ui][style]") {
   ImGuiStyle style;
   rex::ui::Style custom;
   custom.palette.accent = rex::Color::RGBA(0.2f, 0.3f, 0.4f);
@@ -119,7 +120,7 @@ REX_TEST_CASE("ApplyDefaultStyle re-themes the slots from an overridden palette"
   CHECK(style.Colors[ImGuiCol_Button].w == 0.60f);
 }
 
-REX_TEST_CASE("ApplyDefaultStyle takes the button alpha from the palette", "[style]") {
+REX_TEST_CASE("ApplyDefaultStyle takes the button alpha from the palette", "[ui][style]") {
   ImGuiStyle style;
   rex::ui::Style custom;
   custom.palette.accent = rex::Color::RGBA(0.2f, 0.3f, 0.4f);
@@ -129,7 +130,7 @@ REX_TEST_CASE("ApplyDefaultStyle takes the button alpha from the palette", "[sty
   CHECK(style.Colors[ImGuiCol_Button].w == 1.0f);
 }
 
-REX_TEST_CASE("ApplyDefaultStyle maps every control role to its slot", "[style]") {
+REX_TEST_CASE("ApplyDefaultStyle maps every control role to its slot", "[ui][style]") {
   ImGuiStyle style;
   rex::ui::Style custom;
   rex::ui::ControlPalette& controls = custom.palette.controls;
@@ -165,7 +166,7 @@ REX_TEST_CASE("ApplyDefaultStyle maps every control role to its slot", "[style]"
   }
 }
 
-REX_TEST_CASE("a palette changed before SetPresenter reaches ImGuiStyle", "[style]") {
+REX_TEST_CASE("a palette changed before SetPresenter reaches ImGuiStyle", "[ui][style]") {
   ImGuiStyle imgui_style;
   rex::ui::Style style;
   style.palette.accent = rex::Color::RGBA(0.7f, 0.1f, 0.3f);
@@ -177,7 +178,7 @@ REX_TEST_CASE("a palette changed before SetPresenter reaches ImGuiStyle", "[styl
   CHECK(imgui_style.Colors[ImGuiCol_Button].w == expected.w);
 }
 
-REX_TEST_CASE("metrics rounding reaches the ImGui roundings", "[style]") {
+REX_TEST_CASE("metrics rounding reaches the ImGui roundings", "[ui][style]") {
   ImGuiStyle imgui_style;
   rex::ui::Style style;
   style.metrics.window_rounding = 7.0f;

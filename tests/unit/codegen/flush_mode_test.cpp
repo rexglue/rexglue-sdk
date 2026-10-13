@@ -10,6 +10,7 @@
 
 #include "rex_test.h"
 #include "support/temp_folder.h"
+#include "support/ppc_words.h"
 
 #include <filesystem>
 #include <fstream>
@@ -28,6 +29,8 @@ using namespace rex::codegen;
 
 namespace {
 
+using rex::test::Encode;
+
 constexpr u32 kBase = 0x82000000;
 constexpr u32 kVaddfp = 0x1020180A;
 constexpr u32 kVsubfp = 0x1040184A;
@@ -36,19 +39,9 @@ constexpr u32 kFadd = 0xFC22182A;
 constexpr u32 kBlr = 0x4E800020;
 constexpr std::string_view kSet = "ctx.fpscr.SetFlushMode(ctx.vscr_nj);";
 
-std::vector<u8> Encode(std::initializer_list<u32> words) {
-  std::vector<u8> data;
-  for (const u32 word : words) {
-    data.insert(data.end(), {static_cast<u8>(word >> 24), static_cast<u8>(word >> 16),
-                             static_cast<u8>(word >> 8), static_cast<u8>(word)});
-  }
-  return data;
-}
-
 std::string EmitFunction(std::string_view name, std::initializer_list<u32> words) {
-  const fs::path root = fs::temp_directory_path() / "rexglue_flush_mode_test" / fs::path(name);
-  fs::remove_all(root);
-  fs::create_directories(root);
+  const rex::test::TempFolder folder(std::string("rexglue_flush_mode_") + std::string(name) + "_");
+  const fs::path& root = folder.path;
   const std::vector<u8> data = Encode(words);
   TestModule module;
   module.Load(kBase, data.data(), data.size());
@@ -72,7 +65,6 @@ std::string EmitFunction(std::string_view name, std::initializer_list<u32> words
   REQUIRE(writer.Write(false));
   std::ifstream in(root / "generated" / "testproj_recomp.0.cpp", std::ios::binary);
   std::string code{std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>()};
-  rex::test::RemoveTree(root);
   return code;
 }
 

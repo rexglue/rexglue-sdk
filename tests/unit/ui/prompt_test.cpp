@@ -10,6 +10,7 @@
  */
 
 #include "rex_test.h"
+#include "support/temp_folder.h"
 
 #include <chrono>
 #include <filesystem>
@@ -57,7 +58,7 @@ class ModuleFixture {
   ModuleFixture() : registry_(rex::detail::CreateCvarRegistry()) {
     SDL_SetHint(SDL_HINT_VIDEO_DRIVER, "dummy");
     config.ui.video_driver = "dummy";
-    config.paths.user_data_root = std::filesystem::temp_directory_path() / "rex_prompt_test";
+    config.paths.user_data_root = user_root_.path;
     factory_.registry = registry_.get();
     rex::i32 status = 0;
     module = static_cast<rex::IModule*>(rex_create_interface("rex.module", 1, &status));
@@ -78,6 +79,7 @@ class ModuleFixture {
   rex::ui::IUserInterface* ui = nullptr;
 
  private:
+  rex::test::TempFolder user_root_{"rex_prompt_test_"};
   std::unique_ptr<rex::detail::CvarRegistryImpl> registry_;
   TestFactory factory_;
 };

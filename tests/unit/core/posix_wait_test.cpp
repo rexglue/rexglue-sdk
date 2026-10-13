@@ -68,7 +68,7 @@ bool WaitUntil(Predicate ready, std::chrono::milliseconds limit = 5s) {
 
 }  // namespace
 
-REX_TEST_CASE("A multi wait on a plain thread sleeps until an event is set", "[posix_wait]") {
+REX_TEST_CASE("A multi wait on a plain thread sleeps until an event is set", "[core][posix_wait]") {
   auto first = Event::CreateManualResetEvent(false);
   auto second = Event::CreateManualResetEvent(false);
   ThreadUsage spent;
@@ -94,7 +94,8 @@ REX_TEST_CASE("A multi wait on a plain thread sleeps until an event is set", "[p
   REQUIRE(latency < 50ms);
 }
 
-REX_TEST_CASE("An alertable multi wait on a plain thread uses no CPU while idle", "[posix_wait]") {
+REX_TEST_CASE("An alertable multi wait on a plain thread uses no CPU while idle",
+              "[core][posix_wait]") {
   auto first = Event::CreateManualResetEvent(false);
   auto second = Event::CreateManualResetEvent(false);
   ThreadUsage spent;
@@ -116,7 +117,7 @@ REX_TEST_CASE("An alertable multi wait on a plain thread uses no CPU while idle"
 #endif
 }
 
-REX_TEST_CASE("A wait all ends only after both events are set", "[posix_wait]") {
+REX_TEST_CASE("A wait all ends only after both events are set", "[core][posix_wait]") {
   for (const bool first_then_second : {true, false}) {
     auto first = Event::CreateManualResetEvent(false);
     auto second = Event::CreateManualResetEvent(false);
@@ -136,7 +137,7 @@ REX_TEST_CASE("A wait all ends only after both events are set", "[posix_wait]") 
 }
 
 REX_TEST_CASE("A wait any reports the index of an event set before the wait began",
-              "[posix_wait]") {
+              "[core][posix_wait]") {
   auto first = Event::CreateManualResetEvent(false);
   auto second = Event::CreateManualResetEvent(false);
   auto third = Event::CreateAutoResetEvent(false);
@@ -148,7 +149,7 @@ REX_TEST_CASE("A wait any reports the index of an event set before the wait bega
   REQUIRE(rex::platform::WaitAny(handles, 3, false, 20ms).first == WaitResult::kTimeout);
 }
 
-REX_TEST_CASE("A timed multi wait ends at its deadline", "[posix_wait]") {
+REX_TEST_CASE("A timed multi wait ends at its deadline", "[core][posix_wait]") {
   auto first = Event::CreateManualResetEvent(false);
   auto second = Event::CreateManualResetEvent(false);
   WaitHandle* handles[2] = {first.get(), second.get()};
@@ -162,7 +163,7 @@ REX_TEST_CASE("A timed multi wait ends at its deadline", "[posix_wait]") {
   }
 }
 
-REX_TEST_CASE("A queued callback ends every kind of alertable wait", "[posix_wait]") {
+REX_TEST_CASE("A queued callback ends every kind of alertable wait", "[core][posix_wait]") {
   auto never = Event::CreateManualResetEvent(false);
   auto other = Event::CreateManualResetEvent(false);
   auto signal = Event::CreateManualResetEvent(false);
@@ -197,7 +198,7 @@ REX_TEST_CASE("A queued callback ends every kind of alertable wait", "[posix_wai
 }
 
 REX_TEST_CASE("A callback that waits does not disturb the alertable wait that ran it",
-              "[posix_wait]") {
+              "[core][posix_wait]") {
   auto first = Event::CreateManualResetEvent(false);
   auto second = Event::CreateManualResetEvent(false);
   auto inner_first = Event::CreateManualResetEvent(true);
@@ -229,7 +230,7 @@ REX_TEST_CASE("A callback that waits does not disturb the alertable wait that ra
   REQUIRE(after.load() == static_cast<int>(WaitResult::kSuccess));
 }
 
-REX_TEST_CASE("An abandoned mutant ends a multi wait with its index", "[posix_wait]") {
+REX_TEST_CASE("An abandoned mutant ends a multi wait with its index", "[core][posix_wait]") {
   std::unique_ptr<Mutant> mutant;
   auto thread = Thread::Create({}, [&] { mutant = Mutant::Create(true); });
   REQUIRE(thread != nullptr);
@@ -241,7 +242,8 @@ REX_TEST_CASE("An abandoned mutant ends a multi wait with its index", "[posix_wa
   REQUIRE(result.second == 0);
 }
 
-REX_TEST_CASE("One release lets exactly one multi waiter through a semaphore", "[posix_wait]") {
+REX_TEST_CASE("One release lets exactly one multi waiter through a semaphore",
+              "[core][posix_wait]") {
   auto semaphore = Semaphore::Create(0, 10);
   auto never = Event::CreateManualResetEvent(false);
   std::atomic<int> through{0};
@@ -267,7 +269,7 @@ REX_TEST_CASE("One release lets exactly one multi waiter through a semaphore", "
   REQUIRE(through.load() == 2);
 }
 
-REX_TEST_CASE("Many multi waiters lose no wakeup under contention", "[posix_wait]") {
+REX_TEST_CASE("Many multi waiters lose no wakeup under contention", "[core][posix_wait]") {
   constexpr int kEvents = 4;
   constexpr int kWaiters = 8;
   constexpr int kRounds = 10000;

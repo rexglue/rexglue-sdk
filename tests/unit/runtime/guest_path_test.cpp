@@ -13,20 +13,20 @@
 
 using rex::runtime::NormalizeGuestPath;
 
-REX_TEST_CASE("Guest path normalization: strip device prefix", "[system][path]") {
+REX_TEST_CASE("Guest path normalization: strip device prefix", "[runtime][system][path]") {
   CHECK(NormalizeGuestPath("game:\\bin\\somelib.dll") == "bin/somelib.dll");
   CHECK(NormalizeGuestPath("GAME:\\BIN\\SomeLib.DLL") == "bin/somelib.dll");
   CHECK(NormalizeGuestPath("d:\\content\\modules\\test.dll") == "content/modules/test.dll");
 }
 
-REX_TEST_CASE("Guest path normalization: already normalized", "[system][path]") {
+REX_TEST_CASE("Guest path normalization: already normalized", "[runtime][system][path]") {
   CHECK(NormalizeGuestPath("bin/somelib.dll") == "bin/somelib.dll");
 }
 
-REX_TEST_CASE("Guest path normalization: backslash to forward slash", "[system][path]") {
+REX_TEST_CASE("Guest path normalization: backslash to forward slash", "[runtime][system][path]") {
   CHECK(NormalizeGuestPath("data\\libs\\foo.dll") == "data/libs/foo.dll");
 }
 
-REX_TEST_CASE("Guest path normalization: case folding", "[system][path]") {
+REX_TEST_CASE("Guest path normalization: case folding", "[runtime][system][path]") {
   CHECK(NormalizeGuestPath("BIN/SomeLib.DLL") == "bin/somelib.dll");
 }

@@ -146,7 +146,7 @@ struct Fixture {
 
 }  // namespace
 
-REX_TEST_CASE_METHOD(Fixture, "App runs its steps in lifecycle order", "[app]") {
+REX_TEST_CASE_METHOD(Fixture, "App runs its steps in lifecycle order", "[core][app]") {
   Pinned pin("rexmod-test-good");
   TestApp app;
   app.code = 3;
@@ -161,7 +161,7 @@ REX_TEST_CASE_METHOD(Fixture, "App runs its steps in lifecycle order", "[app]") 
                                                "rexmod-test-good:disconnect"});
 }
 
-REX_TEST_CASE_METHOD(Fixture, "A failing OnConfigure loads nothing", "[app]") {
+REX_TEST_CASE_METHOD(Fixture, "A failing OnConfigure loads nothing", "[core][app]") {
   TestApp app;
   app.fail_configure = true;
   REQUIRE_FALSE(app.Init(Args()));
@@ -169,7 +169,7 @@ REX_TEST_CASE_METHOD(Fixture, "A failing OnConfigure loads nothing", "[app]") {
   REQUIRE(g_events == std::vector<std::string>{"app:configure"});
 }
 
-REX_TEST_CASE_METHOD(Fixture, "A failing OnInit disconnects every module", "[app]") {
+REX_TEST_CASE_METHOD(Fixture, "A failing OnInit disconnects every module", "[core][app]") {
   Pinned pin("rexmod-test-good");
   TestApp app;
   app.fail_init = true;
@@ -179,7 +179,7 @@ REX_TEST_CASE_METHOD(Fixture, "A failing OnInit disconnects every module", "[app
   REQUIRE(std::ranges::find(g_events, "rexmod-test-good:init") == g_events.end());
 }
 
-REX_TEST_CASE_METHOD(Fixture, "command line overrides OnConfigure", "[app]") {
+REX_TEST_CASE_METHOD(Fixture, "command line overrides OnConfigure", "[core][app]") {
   Pinned pin("rexmod-test-good");
   TestApp app;
   app.game_root = "C:/from_configure";
@@ -188,7 +188,7 @@ REX_TEST_CASE_METHOD(Fixture, "command line overrides OnConfigure", "[app]") {
   app.Shutdown();
 }
 
-REX_TEST_CASE_METHOD(Fixture, "An unknown option fails Init and names it", "[app]") {
+REX_TEST_CASE_METHOD(Fixture, "An unknown option fails Init and names it", "[core][app]") {
   TestApp app;
   app.modules = {};
   auto result = app.Init(Args({"--nope=1"}));
@@ -197,7 +197,7 @@ REX_TEST_CASE_METHOD(Fixture, "An unknown option fails Init and names it", "[app
   REQUIRE(app.Shutdown() == 1);
 }
 
-REX_TEST_CASE_METHOD(Fixture, "args returns the command line", "[app]") {
+REX_TEST_CASE_METHOD(Fixture, "args returns the command line", "[core][app]") {
   TestApp app;
   app.modules = {"rex-filesystem", "rex-runtime", "rex-ui-sdl3"};
   REQUIRE(app.Init(Args({"pos", "--ui.fullscreen=false"})));
@@ -206,7 +206,8 @@ REX_TEST_CASE_METHOD(Fixture, "args returns the command line", "[app]") {
   app.Shutdown();
 }
 
-REX_TEST_CASE_METHOD(Fixture, "RequestShutdown from another thread sets the exit code", "[app]") {
+REX_TEST_CASE_METHOD(Fixture, "RequestShutdown from another thread sets the exit code",
+                     "[core][app]") {
   TestApp app;
   app.modules = {};
   app.poll = true;
@@ -217,7 +218,7 @@ REX_TEST_CASE_METHOD(Fixture, "RequestShutdown from another thread sets the exit
 }
 
 REX_TEST_CASE_METHOD(Fixture, "single_instance held elsewhere fails Init before any module",
-                     "[app]") {
+                     "[core][app]") {
   auto held = rex::platform::InstanceLock::Acquire("rex-app-test");
   REQUIRE(held);
   TestApp app;
@@ -227,7 +228,7 @@ REX_TEST_CASE_METHOD(Fixture, "single_instance held elsewhere fails Init before 
   REQUIRE(g_events == std::vector<std::string>{"app:configure"});
 }
 
-REX_TEST_CASE_METHOD(Fixture, "Shutdown is idempotent after any failure", "[app]") {
+REX_TEST_CASE_METHOD(Fixture, "Shutdown is idempotent after any failure", "[core][app]") {
   TestApp app;
   app.fail_configure = true;
   REQUIRE_FALSE(app.Init(Args()));
@@ -238,7 +239,7 @@ REX_TEST_CASE_METHOD(Fixture, "Shutdown is idempotent after any failure", "[app]
 }
 
 REX_TEST_CASE_METHOD(Fixture, "Shutdown is idempotent after a run and after a failed OnInit",
-                     "[app]") {
+                     "[core][app]") {
   Pinned pin("rexmod-test-good");
   TestApp ran;
   ran.code = 5;
@@ -258,7 +259,7 @@ REX_TEST_CASE_METHOD(Fixture, "Shutdown is idempotent after a run and after a fa
   REQUIRE(g_events == events);
 }
 
-REX_TEST_CASE_METHOD(Fixture, "Init names the log after the executable", "[app]") {
+REX_TEST_CASE_METHOD(Fixture, "Init names the log after the executable", "[core][app]") {
   TestApp app;
   app.modules = {};
   REQUIRE(app.Init(Args()));
@@ -270,7 +271,7 @@ REX_TEST_CASE_METHOD(Fixture, "Init names the log after the executable", "[app]"
 }
 
 REX_TEST_CASE_METHOD(Fixture, "A failed relaunch reaches the log before logging shuts down",
-                     "[app]") {
+                     "[core][app]") {
   rex::detail::SetRelaunchForTest(&FailRelaunch, true);
   TestApp app;
   app.modules = {};
@@ -288,13 +289,13 @@ REX_TEST_CASE_METHOD(Fixture, "A failed relaunch reaches the log before logging 
   }));
 }
 
-REX_TEST_CASE_METHOD(Fixture, "Shutdown without Init returns 0", "[app]") {
+REX_TEST_CASE_METHOD(Fixture, "Shutdown without Init returns 0", "[core][app]") {
   TestApp app;
   REQUIRE(app.Shutdown() == 0);
   REQUIRE(g_events.empty());
 }
 
-REX_TEST_CASE_METHOD(Fixture, "RequestRestart relaunches with the given arguments", "[app]") {
+REX_TEST_CASE_METHOD(Fixture, "RequestRestart relaunches with the given arguments", "[core][app]") {
   TestApp app;
   app.modules = {"rex-filesystem", "rex-runtime", "rex-ui-sdl3"};
   REQUIRE(app.Init(Args({"--ui.fullscreen=false"})));
@@ -303,7 +304,8 @@ REX_TEST_CASE_METHOD(Fixture, "RequestRestart relaunches with the given argument
   REQUIRE(g_relaunched == std::vector<std::string>{"--profile", "b"});
 }
 
-REX_TEST_CASE_METHOD(Fixture, "RequestRestart without relaunch support starts nothing", "[app]") {
+REX_TEST_CASE_METHOD(Fixture, "RequestRestart without relaunch support starts nothing",
+                     "[core][app]") {
   rex::detail::SetRelaunchForTest(&FakeRelaunch, false);
   TestApp app;
   app.modules = {};
@@ -313,7 +315,7 @@ REX_TEST_CASE_METHOD(Fixture, "RequestRestart without relaunch support starts no
   REQUIRE(std::ranges::find(g_events, "relaunch") == g_events.end());
 }
 
-REX_TEST_CASE("A category keeps writing after the logger stops and starts", "[app]") {
+REX_TEST_CASE("A category keeps writing after the logger stops and starts", "[core][app]") {
   auto first = rex::Init(rex::Config{});
   REQUIRE(first);
   auto* logger = first.value()->Get<rex::ILogger>();
@@ -331,7 +333,7 @@ REX_TEST_CASE("A category keeps writing after the logger stops and starts", "[ap
   }));
 }
 
-REX_TEST_CASE_METHOD(Fixture, "App teardown runs twice in 1 process", "[app]") {
+REX_TEST_CASE_METHOD(Fixture, "App teardown runs twice in 1 process", "[core][app]") {
   Pinned pin("rexmod-test-good");
   TestApp first;
   REQUIRE(first.Init(Args()));
@@ -348,7 +350,8 @@ REX_TEST_CASE_METHOD(Fixture, "App teardown runs twice in 1 process", "[app]") {
   REQUIRE(g_events == events);
 }
 
-REX_TEST_CASE_METHOD(Fixture, "The logger outlives the timer queue and the relaunch log", "[app]") {
+REX_TEST_CASE_METHOD(Fixture, "The logger outlives the timer queue and the relaunch log",
+                     "[core][app]") {
   rex::detail::SetRelaunchForTest(&FailRelaunch, true);
   TestApp app;
   app.modules = {};
@@ -361,7 +364,7 @@ REX_TEST_CASE_METHOD(Fixture, "The logger outlives the timer queue and the relau
   REQUIRE(text.find("relaunch failed") != std::string::npos);
 }
 
-REX_TEST_CASE_METHOD(Fixture, "Module libraries close after the timer queue stops", "[app]") {
+REX_TEST_CASE_METHOD(Fixture, "Module libraries close after the timer queue stops", "[core][app]") {
   TestApp app;
   REQUIRE(app.Init(Args()));
   app.Run();
@@ -394,11 +397,11 @@ REX_TEST_CASE_METHOD(Fixture, "Module libraries close after the timer queue stop
   CHECK_FALSE(AddressMapped(code));
 }
 
-REX_TEST_CASE("RunGuarded returns the exit code of the entry body", "[app][entry]") {
+REX_TEST_CASE("RunGuarded returns the exit code of the entry body", "[core][app][entry]") {
   CHECK(rex::detail::RunGuarded([] { return 7; }) == 7);
 }
 
-REX_TEST_CASE("RunGuarded turns an escaping exception into exit code 1", "[app][entry]") {
+REX_TEST_CASE("RunGuarded turns an escaping exception into exit code 1", "[core][app][entry]") {
   CHECK(rex::detail::RunGuarded([]() -> int { throw std::runtime_error("entry failed"); }) == 1);
   CHECK(rex::detail::RunGuarded([]() -> int { throw 5; }) == 1);
 }

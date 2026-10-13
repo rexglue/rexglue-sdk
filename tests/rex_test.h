@@ -13,6 +13,7 @@
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/catch_tostring.hpp>
+#include <catch2/reporters/catch_reporter_registrars.hpp>
 
 #include <format>
 #include <string>
@@ -39,6 +40,27 @@ struct StringMaker<std::vector<unsigned char>> {
 };
 
 }  // namespace Catch
+
+namespace rex::testing {
+
+/**
+ * Registers an event listener through a noexcept function, so no throwing constructor runs
+ * during static initialization.
+ *
+ * @tparam ListenerType Listener class derived from Catch::EventListenerBase.
+ * @param name Name Catch reports for the listener.
+ * @return The registrar, held by a namespace scope variable for the life of the program.
+ *
+ * @code
+ * const auto g_registrar = rex::testing::RegisterListener<MyListener>("MyListener"_catch_sr);
+ * @endcode
+ */
+template <typename ListenerType>
+Catch::ListenerRegistrar<ListenerType> RegisterListener(Catch::StringRef name) noexcept {
+  return Catch::ListenerRegistrar<ListenerType>(name);
+}
+
+}  // namespace rex::testing
 
 /**
  * Defines a test function and registers it through a noexcept function. REX_TEST_CASE expands

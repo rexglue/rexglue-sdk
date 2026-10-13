@@ -174,7 +174,7 @@ rex::u32 WaitOverlapped(rex::Runtime& runtime, rex::u32 overlapped) {
 
 }  // namespace
 
-REX_TEST_CASE("XamShowMessageBoxUI returns the pressed button and sends the buttons", "[xam][ui]") {
+REX_TEST_CASE("XamShowMessageBoxUI returns the pressed button and sends the buttons", "[ui][xam]") {
   ScriptedUI scripted;
   scripted.answer = {.cancelled = false, .button = 1};
   rex::testing::KernelFixture fixture({}, {}, &scripted);
@@ -194,7 +194,7 @@ REX_TEST_CASE("XamShowMessageBoxUI returns the pressed button and sends the butt
 }
 
 REX_TEST_CASE("XamShowMessageBoxUI returns the focused button when the prompt is cancelled",
-              "[xam][ui]") {
+              "[ui][xam]") {
   ScriptedUI scripted;
   scripted.answer = {.cancelled = true};
   rex::testing::KernelFixture fixture({}, {}, &scripted);
@@ -207,7 +207,7 @@ REX_TEST_CASE("XamShowMessageBoxUI returns the focused button when the prompt is
   });
 }
 
-REX_TEST_CASE("XamShowMessageBoxUI without a ui returns the focused button", "[xam][ui]") {
+REX_TEST_CASE("XamShowMessageBoxUI without a ui returns the focused button", "[ui][xam]") {
   rex::testing::KernelFixture fixture;
   fixture.RunOnGuestThread([&](rex::testing::Caller& caller) {
     const rex::u32 result_ptr = caller.Alloc(4);
@@ -218,7 +218,7 @@ REX_TEST_CASE("XamShowMessageBoxUI without a ui returns the focused button", "[x
 }
 
 REX_TEST_CASE("XamShowMessageBoxUI over a NullUserInterface returns the focused button",
-              "[xam][ui]") {
+              "[ui][xam]") {
   rex::ui::NullUserInterface null_ui;
   rex::testing::KernelFixture fixture({}, {}, &null_ui);
   fixture.RunOnGuestThread([&](rex::testing::Caller& caller) {
@@ -229,7 +229,7 @@ REX_TEST_CASE("XamShowMessageBoxUI over a NullUserInterface returns the focused 
   });
 }
 
-REX_TEST_CASE("XamShowKeyboardUI writes the typed text and completes the overlapped", "[xam][ui]") {
+REX_TEST_CASE("XamShowKeyboardUI writes the typed text and completes the overlapped", "[ui][xam]") {
   ScriptedUI scripted;
   scripted.answer = {.cancelled = false, .button = 0, .text = "Tom"};
   rex::testing::KernelFixture fixture({}, {}, &scripted);
@@ -251,7 +251,7 @@ REX_TEST_CASE("XamShowKeyboardUI writes the typed text and completes the overlap
 }
 
 REX_TEST_CASE("XamShowKeyboardUI uses the description as the title when no title is given",
-              "[xam][ui]") {
+              "[ui][xam]") {
   ScriptedUI scripted;
   scripted.answer = {.cancelled = false, .button = 0, .text = "x"};
   rex::testing::KernelFixture fixture({}, {}, &scripted);
@@ -268,7 +268,7 @@ REX_TEST_CASE("XamShowKeyboardUI uses the description as the title when no title
 }
 
 REX_TEST_CASE("XamShowKeyboardUI reports a cancelled prompt as cancelled and leaves the buffer",
-              "[xam][ui]") {
+              "[ui][xam]") {
   ScriptedUI scripted;
   scripted.answer = {.cancelled = true};
   rex::testing::KernelFixture fixture({}, {}, &scripted);
@@ -282,7 +282,7 @@ REX_TEST_CASE("XamShowKeyboardUI reports a cancelled prompt as cancelled and lea
   });
 }
 
-REX_TEST_CASE("XamShowKeyboardUI without a ui copies the default text", "[xam][ui]") {
+REX_TEST_CASE("XamShowKeyboardUI without a ui copies the default text", "[ui][xam]") {
   rex::testing::KernelFixture fixture;
   fixture.RunOnGuestThread([&](rex::testing::Caller& caller) {
     const rex::u32 buffer = caller.Alloc(32);
@@ -295,7 +295,7 @@ REX_TEST_CASE("XamShowKeyboardUI without a ui copies the default text", "[xam][u
 }
 
 REX_TEST_CASE("A XAM message box on the module waits until the prompts are cancelled",
-              "[xam][ui]") {
+              "[ui][xam]") {
   const std::vector<std::string> modules{"rex-ui-sdl3"};
   rex::testing::KernelFixture fixture({}, modules);
   auto* ui = fixture.GetAPI().Get<rex::ui::IUserInterface>();
@@ -326,7 +326,7 @@ REX_TEST_CASE("A XAM message box on the module waits until the prompts are cance
   ui->CloseWindow();
 }
 
-REX_TEST_CASE("Teardown stops a prompt still running on the dispatcher", "[xam][ui][shutdown]") {
+REX_TEST_CASE("Teardown stops a prompt still running on the dispatcher", "[ui][xam][shutdown]") {
   ScriptedUI scripted;
   scripted.hold = true;
   {
@@ -346,7 +346,7 @@ REX_TEST_CASE("Teardown stops a prompt still running on the dispatcher", "[xam][
   scripted.held(rex::ui::PromptResult{});
 }
 
-REX_TEST_CASE("A stop ends a guest thread waiting on a prompt", "[xam][ui][shutdown]") {
+REX_TEST_CASE("A stop ends a guest thread waiting on a prompt", "[ui][xam][shutdown]") {
   ScriptedUI scripted;
   scripted.hold = true;
   rex::testing::KernelFixture fixture({}, {}, &scripted);

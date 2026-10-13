@@ -19,7 +19,9 @@
 #include "kernel_fixture.h"
 
 using rex::testing::Caller;
+using rex::testing::Get;
 using rex::testing::KernelFixture;
+using rex::testing::Put;
 
 namespace {
 
@@ -121,25 +123,6 @@ constexpr u8 kPkcs1F2S256[] = {
     0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
     0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
     0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x01, 0x00};
-
-u32 Put(Caller& c, std::span<const u8> bytes) {
-  const u32 address = c.Alloc(static_cast<u32>(bytes.size()) + 8);
-  for (u32 offset = 0; offset < bytes.size(); offset += 4) {
-    u8 word[4]{};
-    std::memcpy(word, bytes.data() + offset, std::min<size_t>(4, bytes.size() - offset));
-    c.Store32(address + offset,
-              (u32{word[0]} << 24) | (u32{word[1]} << 16) | (u32{word[2]} << 8) | word[3]);
-  }
-  return address;
-}
-
-std::vector<u8> Get(Caller& c, u32 address, u32 size) {
-  std::vector<u8> bytes(size);
-  for (u32 i = 0; i < size; ++i) {
-    bytes[i] = c.Load8(address + i);
-  }
-  return bytes;
-}
 
 void CheckPkcs1(Caller& c, u32 format, std::span<const u8> expected) {
   const u32 size = static_cast<u32>(expected.size());

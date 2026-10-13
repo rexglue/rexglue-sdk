@@ -115,15 +115,11 @@ const MMIOSite* SiteAt(const MMIOClassification& result, u32 address) {
 }
 
 struct Scratch {
+  rex::test::TempFolder folder;
   fs::path root;
 
   explicit Scratch(std::string_view name)
-      : root(fs::temp_directory_path() / "rexglue_mmio_test" / fs::path(name)) {
-    fs::remove_all(root);
-    fs::create_directories(root);
-  }
-
-  ~Scratch() { rex::test::RemoveTree(root); }
+      : folder(std::string("rexglue_mmio_") + std::string(name) + "_"), root(folder.path) {}
 
   std::string Write(std::string_view body) const {
     auto path = root / "game.toml";
@@ -331,6 +327,7 @@ REX_TEST_CASE("An address declared twice fails the load", "[codegen][mmio]") {
 namespace {
 
 struct EmitFixture {
+  rex::test::TempFolder folder;
   fs::path root;
   std::vector<u8> data;
   TestModule module;
@@ -339,7 +336,8 @@ struct EmitFixture {
   EmitFixture(std::string_view name, std::initializer_list<u32> words,
               std::initializer_list<u32> function_sizes,
               std::unordered_map<u32, MMIODeclaredAccess> declared = {})
-      : root(fs::temp_directory_path() / "rexglue_mmio_emit_test" / fs::path(name)),
+      : folder(std::string("rexglue_mmio_emit_") + std::string(name) + "_"),
+        root(folder.path),
         data(Encode(words)),
         ctx(MakeContext(root, module, data, std::move(declared))) {
     u32 address = kBase;
@@ -355,8 +353,6 @@ struct EmitFixture {
   static CodegenContext MakeContext(const fs::path& root, TestModule& module,
                                     const std::vector<u8>& data,
                                     std::unordered_map<u32, MMIODeclaredAccess> declared) {
-    fs::remove_all(root);
-    fs::create_directories(root);
     module.Load(kBase, data.data(), data.size());
 
     RecompilerConfig config;
@@ -372,8 +368,6 @@ struct EmitFixture {
     ctx.GetAnalysisState().image_size = static_cast<u32>(data.size());
     return ctx;
   }
-
-  ~EmitFixture() { rex::test::RemoveTree(root); }
 
   std::string Read(std::string_view file) const {
     std::ifstream in(root / "generated" / fs::path(file), std::ios::binary);

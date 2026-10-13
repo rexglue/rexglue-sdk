@@ -28,7 +28,7 @@ using rex::runtime::SymbolicLinkObject;
 using rex::testing::Caller;
 using rex::testing::KernelFixture;
 
-REX_TEST_CASE("CloseOwned closes the handle it is given", "[runtime][close_owned]") {
+REX_TEST_CASE("CloseOwned closes the handle it is given", "[core][close_owned]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     auto& table = c.GetRuntime().GetObjectTable();
@@ -42,7 +42,7 @@ REX_TEST_CASE("CloseOwned closes the handle it is given", "[runtime][close_owned
   });
 }
 
-REX_TEST_CASE("CloseOwned logs a handle that does not close", "[runtime][close_owned]") {
+REX_TEST_CASE("CloseOwned logs a handle that does not close", "[core][close_owned]") {
   KernelFixture fixture;
   auto* logger = fixture.GetAPI().Get<rex::ILogger>();
   REQUIRE(logger);

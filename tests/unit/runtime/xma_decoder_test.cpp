@@ -24,7 +24,7 @@
 
 using rex::X_STATUS;
 
-REX_TEST_CASE("An XMA decoder destroyed without Shutdown stops its worker", "[apu][xma]") {
+REX_TEST_CASE("An XMA decoder destroyed without Shutdown stops its worker", "[runtime][xma]") {
   rex::testing::KernelFixture fixture;
   auto decoder =
       std::make_unique<rex::runtime::XMADecoder>(fixture.GetRuntime().GetFunctionDispatcher());
@@ -38,7 +38,7 @@ REX_TEST_CASE("An XMA decoder destroyed without Shutdown stops its worker", "[ap
   CHECK(done.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
 }
 
-REX_TEST_CASE("An XMA decoder serves the APU block until it is destroyed", "[apu][xma][mmio]") {
+REX_TEST_CASE("An XMA decoder serves the APU block until it is destroyed", "[runtime][xma][mmio]") {
   rex::testing::KernelFixture fixture;
   auto decoder =
       std::make_unique<rex::runtime::XMADecoder>(fixture.GetRuntime().GetFunctionDispatcher());

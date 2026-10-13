@@ -60,7 +60,8 @@ void ClobberingISR(PPCContext& ctx, u8* base) {
 
 }  // namespace
 
-REX_TEST_CASE("interrupt callbacks never overlap and never block guest threads", "[interrupt]") {
+REX_TEST_CASE("interrupt callbacks never overlap and never block guest threads",
+              "[kernel][interrupt]") {
   g_active = 0;
   g_max = 0;
   KernelFixture fixture;
@@ -94,7 +95,7 @@ REX_TEST_CASE("interrupt callbacks never overlap and never block guest threads",
   CHECK(g_max == 1);
 }
 
-REX_TEST_CASE("interrupts leave the guest thread state intact", "[interrupt]") {
+REX_TEST_CASE("interrupts leave the guest thread state intact", "[kernel][interrupt]") {
   g_active = 0;
   g_max = 0;
   KernelFixture fixture;
@@ -115,7 +116,8 @@ REX_TEST_CASE("interrupts leave the guest thread state intact", "[interrupt]") {
   CHECK(g_max == 1);
 }
 
-REX_TEST_CASE("DPC init and removal from 2 guest threads leaves the list empty", "[interrupt]") {
+REX_TEST_CASE("DPC init and removal from 2 guest threads leaves the list empty",
+              "[kernel][interrupt]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     auto worker = [](Caller& o) {
@@ -136,7 +138,8 @@ REX_TEST_CASE("DPC init and removal from 2 guest threads leaves the list empty",
   });
 }
 
-REX_TEST_CASE("An interrupt runs at IRQL 3 and leaves no register change behind", "[interrupt]") {
+REX_TEST_CASE("An interrupt runs at IRQL 3 and leaves no register change behind",
+              "[kernel][interrupt]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     auto* dispatcher = c.GetRuntime().GetFunctionDispatcher();

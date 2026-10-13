@@ -14,7 +14,7 @@
 
 using rex::ui::UIEvent;
 
-REX_TEST_CASE("As returns the class that carries the type", "[ui_event]") {
+REX_TEST_CASE("As returns the class that carries the type", "[ui][ui_event]") {
   rex::ui::KeyEvent key(UIEvent::Type::kKeyDown, nullptr, rex::hid::VirtualKey::kF3, 1, false,
                         false, false, false);
   const UIEvent& event = key;
@@ -23,7 +23,7 @@ REX_TEST_CASE("As returns the class that carries the type", "[ui_event]") {
   REQUIRE(event.As<rex::ui::MouseEvent>() == nullptr);
 }
 
-REX_TEST_CASE("ResizeEvent and FocusEvent are setup events with their data", "[ui_event]") {
+REX_TEST_CASE("ResizeEvent and FocusEvent are setup events with their data", "[ui][ui_event]") {
   rex::ui::ResizeEvent resize(nullptr, {1280, 720});
   const UIEvent& event = resize;
   REQUIRE(event.As<rex::ui::ResizeEvent>()->GetSize().width_px == 1280);
@@ -32,7 +32,7 @@ REX_TEST_CASE("ResizeEvent and FocusEvent are setup events with their data", "[u
   REQUIRE(static_cast<const UIEvent&>(focus).As<rex::ui::FocusEvent>()->GetFocused() == false);
 }
 
-REX_TEST_CASE("A plain event carries no subclass", "[ui_event]") {
+REX_TEST_CASE("A plain event carries no subclass", "[ui][ui_event]") {
   UIEvent close(UIEvent::Type::kClose, nullptr);
   REQUIRE(close.As<rex::ui::KeyEvent>() == nullptr);
   REQUIRE(close.As<rex::ui::UISetupEvent>() == nullptr);

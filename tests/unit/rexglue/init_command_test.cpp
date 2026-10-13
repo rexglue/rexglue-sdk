@@ -24,18 +24,12 @@
 #include "rexglue/cli_context.h"
 #include "rexglue/commands/init_command.h"
 #include "rexglue/ui/ui.h"
+#include "support/file_text.h"
 
 namespace {
 
-void WriteText(const std::filesystem::path& path, std::string_view text) {
-  std::filesystem::create_directories(path.parent_path());
-  std::ofstream(path, std::ios::binary) << text;
-}
-
-std::string ReadText(const std::filesystem::path& path) {
-  std::ifstream in(path, std::ios::binary);
-  return {std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>()};
-}
+using rex::test::ReadText;
+using rex::test::WriteText;
 
 void Parse(CLI::App& app, std::vector<std::string> args) {
   std::ranges::reverse(args);

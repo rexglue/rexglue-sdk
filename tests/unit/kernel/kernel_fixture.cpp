@@ -3,6 +3,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include <algorithm>
+#include <array>
 #include <atomic>
 #include <chrono>
 #include <cstdio>
@@ -25,7 +26,6 @@
 
 #include "../test_memory.h"
 #include "runtime/dispatcher.h"
-#include "support/temp_folder.h"
 
 namespace rex::testing {
 
@@ -41,7 +41,6 @@ std::unordered_map<u32, std::function<void(Caller&)>>& Bodies() {
   return bodies;
 }
 u32 g_next_body = 1;
-std::atomic<u32> g_next_root{0};
 
 u32 PutBody(std::function<void(Caller&)> body) {
   std::lock_guard lock(g_bodies_mutex);
@@ -213,17 +212,6 @@ KernelFixture::ThreadDrain::~ThreadDrain() {
   }
 }
 
-KernelFixture::TempRoot::TempRoot() {
-  path = std::filesystem::temp_directory_path() /
-         ("rexglue_kernel_fixture_" + std::to_string(g_next_root.fetch_add(1)) + "_" +
-          std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
-  std::filesystem::create_directories(path);
-}
-
-KernelFixture::TempRoot::~TempRoot() {
-  rex::test::RemoveTree(path);
-}
-
 KernelFixture::KernelFixture(const std::function<void(const std::filesystem::path&)>& populate,
                              std::span<const std::string> modules, ui::IUserInterface* ui)
     : tool_((ReleaseTestMemory(), BuildTool(root_.path, populate, modules, ui))) {
@@ -266,6 +254,62 @@ void KernelFixture::RunOnGuestThread(const std::function<void(Caller&)>& body) {
     main_caller.Kernel("NtClose", {handle});
   }
   runtime::ThreadState::Bind(previous);
+}
+
+u32 Put(Caller& c, std::span<const u8> bytes) {
+  const u32 address = c.Alloc(static_cast<u32>(bytes.size()) + 8);
+  for (u32 offset = 0; offset < bytes.size(); offset += 4) {
+    u8 word[4]{};
+    std::memcpy(word, bytes.data() + offset, std::min<size_t>(4, bytes.size() - offset));
+    c.Store32(address + offset,
+              (u32{word[0]} << 24) | (u32{word[1]} << 16) | (u32{word[2]} << 8) | word[3]);
+  }
+  return address;
+}
+
+u32 PutFilled(Caller& c, u32 size) {
+  std::vector<u8> bytes(size);
+  for (u32 i = 0; i < size; ++i) {
+    bytes[i] = std::array<u8, 4>{0xDE, 0xAD, 0xBE, 0xEF}[i % 4];
+  }
+  return Put(c, bytes);
+}
+
+std::vector<u8> Get(Caller& c, u32 address, u32 size) {
+  std::vector<u8> bytes(size);
+  for (u32 i = 0; i < size; ++i) {
+    bytes[i] = c.Load8(address + i);
+  }
+  return bytes;
+}
+
+std::vector<u8> Hex(std::string_view text) {
+  std::vector<u8> bytes(text.size() / 2);
+  for (size_t i = 0; i < bytes.size(); ++i) {
+    bytes[i] = static_cast<u8>(std::stoi(std::string(text.substr(i * 2, 2)), nullptr, 16));
+  }
+  return bytes;
+}
+
+std::string ToHex(std::span<const u8> bytes) {
+  static constexpr char kDigits[] = "0123456789abcdef";
+  std::string text;
+  for (const u8 byte : bytes) {
+    text.push_back(kDigits[byte >> 4]);
+    text.push_back(kDigits[byte & 15]);
+  }
+  return text;
+}
+
+void Join(Caller& c, u32 handle) {
+  CHECK(c.Kernel("NtWaitForSingleObjectEx", {handle, 1, 0, c.Quad(-50000000)}) == 0);
+  c.Kernel("NtClose", {handle});
+}
+
+u64 SystemTime(Caller& c) {
+  const u32 time = c.Alloc(8);
+  c.Kernel("KeQuerySystemTime", {time});
+  return (static_cast<u64>(c.Load32(time)) << 32) | c.Load32(time + 4);
 }
 
 }  // namespace rex::testing

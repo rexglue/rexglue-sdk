@@ -85,7 +85,7 @@ struct Fixture {
 
 }  // namespace
 
-REX_TEST_CASE_METHOD(Fixture, "Var descriptors are constant initialized", "[cvar]") {
+REX_TEST_CASE_METHOD(Fixture, "Var descriptors are constant initialized", "[core][cvar]") {
   REQUIRE(g_constinit_proof.GetDesc().name == "test.proof");
   REQUIRE(g_constinit_proof.GetDesc().scope == "test");
   REQUIRE(g_constinit_proof.GetDefaultText() == "7");
@@ -101,7 +101,7 @@ REX_TEST_CASE_METHOD(Fixture, "Var descriptors are constant initialized", "[cvar
   REQUIRE(test_cvars::run.GetDesc().type == rex::cvar::Type::kCommand);
 }
 
-REX_TEST_CASE_METHOD(Fixture, "Var builders chain Range, Lifecycle and NoSave", "[cvar]") {
+REX_TEST_CASE_METHOD(Fixture, "Var builders chain Range, Lifecycle and NoSave", "[core][cvar]") {
   const auto chained = rex::cvar::Var<i32>("test.chain", 3, "chained")
                            .SetRange(0, 5)
                            .SetLifecycle(rex::cvar::Lifecycle::kInitOnly)
@@ -111,7 +111,7 @@ REX_TEST_CASE_METHOD(Fixture, "Var builders chain Range, Lifecycle and NoSave", 
   REQUIRE(chained.GetDesc().no_save);
 }
 
-REX_TEST_CASE_METHOD(Fixture, "Var parses and renders each type", "[cvar]") {
+REX_TEST_CASE_METHOD(Fixture, "Var parses and renders each type", "[core][cvar]") {
   REQUIRE(test_cvars::flag.Parse("no"));
   REQUIRE_FALSE(test_cvars::flag.Get());
   REQUIRE(test_cvars::flag.Render() == "false");
@@ -133,14 +133,14 @@ REX_TEST_CASE_METHOD(Fixture, "Var parses and renders each type", "[cvar]") {
   REQUIRE(test_cvars::big.Parse("5"));
 }
 
-REX_TEST_CASE_METHOD(Fixture, "set on an unregistered var fails NotFound", "[cvar]") {
+REX_TEST_CASE_METHOD(Fixture, "set on an unregistered var fails NotFound", "[core][cvar]") {
   auto status = test_cvars::count.Set(5);
   REQUIRE_FALSE(status);
   REQUIRE(status.error().code == static_cast<int>(rex::cvar::CvarError::kNotFound));
   REQUIRE(test_cvars::count.Get() == 42);
 }
 
-REX_TEST_CASE_METHOD(Fixture, "Register exposes descriptors, scopes and order", "[cvar]") {
+REX_TEST_CASE_METHOD(Fixture, "Register exposes descriptors, scopes and order", "[core][cvar]") {
   REQUIRE(GetReg().Register("test", test_cvars::kTestCvars));
   const rex::cvar::IVar& d = Var("test.count");
   REQUIRE(d.GetDesc().type == rex::cvar::Type::kInt32);
@@ -156,7 +156,7 @@ REX_TEST_CASE_METHOD(Fixture, "Register exposes descriptors, scopes and order", 
 }
 
 REX_TEST_CASE_METHOD(Fixture, "Register rejects duplicates and bad names and registers nothing",
-                     "[cvar]") {
+                     "[core][cvar]") {
   REQUIRE(GetReg().Register("test", test_cvars::kTestCvars));
   auto twice = GetReg().Register("test", test_cvars::kTestCvars);
   REQUIRE_FALSE(twice);
@@ -172,7 +172,7 @@ REX_TEST_CASE_METHOD(Fixture, "Register rejects duplicates and bad names and reg
 }
 
 REX_TEST_CASE_METHOD(Fixture, "A duplicate full name in a free scope fails DuplicateName",
-                     "[cvar]") {
+                     "[core][cvar]") {
   REQUIRE(GetReg().Register("test", test_cvars::kTestCvars));
   GetReg().Unregister(test_cvars::kTestCvars);
   REQUIRE(GetReg().GetScopes().empty());
@@ -190,7 +190,8 @@ REX_TEST_CASE_METHOD(Fixture, "A duplicate full name in a free scope fails Dupli
   REQUIRE(&Var("test.flag") == &test_cvars::flag);
 }
 
-REX_TEST_CASE_METHOD(Fixture, "Unregister frees the scope and re registration works", "[cvar]") {
+REX_TEST_CASE_METHOD(Fixture, "Unregister frees the scope and re registration works",
+                     "[core][cvar]") {
   REQUIRE(GetReg().Register("test", test_cvars::kTestCvars));
   GetReg().Unregister(test_cvars::kTestCvars);
   REQUIRE_FALSE(GetReg().Find("test.flag"));
@@ -201,7 +202,7 @@ REX_TEST_CASE_METHOD(Fixture, "Unregister frees the scope and re registration wo
 }
 
 REX_TEST_CASE_METHOD(Fixture, "Precedence is Default, Config, Environment, CommandLine, Runtime",
-                     "[cvar]") {
+                     "[core][cvar]") {
   using S = rex::cvar::CvarSource;
   REQUIRE(GetReg().Register("test", test_cvars::kTestCvars));
   const S order[] = {S::kDefault, S::kConfig, S::kEnvironment, S::kCommandLine};
@@ -233,7 +234,8 @@ REX_TEST_CASE_METHOD(Fixture, "Precedence is Default, Config, Environment, Comma
   REQUIRE(GetReg().Set("test.count", "42"));
 }
 
-REX_TEST_CASE_METHOD(Fixture, "SetDefault applies only while the source is Default", "[cvar]") {
+REX_TEST_CASE_METHOD(Fixture, "SetDefault applies only while the source is Default",
+                     "[core][cvar]") {
   REQUIRE(GetReg().Register("test", test_cvars::kTestCvars));
   REQUIRE(GetReg().SetDefault("test.count", "5"));
   REQUIRE(test_cvars::count.Get() == 5);
@@ -250,7 +252,7 @@ REX_TEST_CASE_METHOD(Fixture, "SetDefault applies only while the source is Defau
   REQUIRE(test_cvars::count.Parse("42"));
 }
 
-REX_TEST_CASE_METHOD(Fixture, "Lock rejects Set and keeps applied values", "[cvar]") {
+REX_TEST_CASE_METHOD(Fixture, "Lock rejects Set and keeps applied values", "[core][cvar]") {
   REQUIRE(GetReg().Register("test", test_cvars::kTestCvars));
   std::vector<rex::CvarOverride> cli = {{"test.count", "12", rex::cvar::CvarSource::kCommandLine}};
   REQUIRE(GetReg().ApplyOverrides(cli));
@@ -265,7 +267,8 @@ REX_TEST_CASE_METHOD(Fixture, "Lock rejects Set and keeps applied values", "[cva
   REQUIRE(test_cvars::count.Parse("42"));
 }
 
-REX_TEST_CASE_METHOD(Fixture, "Constraints reject with Invalid and keep the value", "[cvar]") {
+REX_TEST_CASE_METHOD(Fixture, "Constraints reject with Invalid and keep the value",
+                     "[core][cvar]") {
   REQUIRE(GetReg().Register("test", test_cvars::kTestCvars));
   auto range = GetReg().Set("test.count", "101");
   REQUIRE_FALSE(range);
@@ -283,7 +286,7 @@ REX_TEST_CASE_METHOD(Fixture, "Constraints reject with Invalid and keep the valu
   REQUIRE(GetReg().Set("test.big", "5"));
 }
 
-REX_TEST_CASE_METHOD(Fixture, "InitOnly and RequiresRestart follow Finalize", "[cvar]") {
+REX_TEST_CASE_METHOD(Fixture, "InitOnly and RequiresRestart follow Finalize", "[core][cvar]") {
   REQUIRE(GetReg().Register("test", test_cvars::kTestCvars));
   REQUIRE(GetReg().Set("test.once", "2"));
   std::vector<rex::CvarOverride> cfg = {{"test.restart", "3", rex::cvar::CvarSource::kConfig}};
@@ -303,7 +306,7 @@ REX_TEST_CASE_METHOD(Fixture, "InitOnly and RequiresRestart follow Finalize", "[
 }
 
 REX_TEST_CASE_METHOD(Fixture, "Callbacks fire on Set, apply and reset, and stop with the handle",
-                     "[cvar]") {
+                     "[core][cvar]") {
   REQUIRE(GetReg().Register("test", test_cvars::kTestCvars));
   std::vector<std::string> seen;
   auto handle = GetReg().OnChange("test.count", [&](std::string_view n, std::string_view v) {
@@ -324,7 +327,7 @@ REX_TEST_CASE_METHOD(Fixture, "Callbacks fire on Set, apply and reset, and stop 
 }
 
 REX_TEST_CASE_METHOD(Fixture, "a callback may call the registry and release its own handle",
-                     "[cvar]") {
+                     "[core][cvar]") {
   REQUIRE(GetReg().Register("test", test_cvars::kTestCvars));
   rex::cvar::CallbackHandle self;
   int fired = 0;
@@ -340,7 +343,7 @@ REX_TEST_CASE_METHOD(Fixture, "a callback may call the registry and release its 
   REQUIRE(test_cvars::count.Parse("42"));
 }
 
-REX_TEST_CASE_METHOD(Fixture, "Commands invoke and refuse Set", "[cvar]") {
+REX_TEST_CASE_METHOD(Fixture, "Commands invoke and refuse Set", "[core][cvar]") {
   REQUIRE(GetReg().Register("test", test_cvars::kTestCvars));
   REQUIRE(GetReg().Invoke("test.run", "a b"));
   REQUIRE(g_last_command_args == "a b");
@@ -352,7 +355,8 @@ REX_TEST_CASE_METHOD(Fixture, "Commands invoke and refuse Set", "[cvar]") {
   REQUIRE(set_cmd.error().code == static_cast<int>(rex::cvar::CvarError::kNotAVar));
 }
 
-REX_TEST_CASE_METHOD(Fixture, "Serialize writes scoped tables of non default values", "[cvar]") {
+REX_TEST_CASE_METHOD(Fixture, "Serialize writes scoped tables of non default values",
+                     "[core][cvar]") {
   REQUIRE(GetReg().Register("test", test_cvars::kTestCvars));
   REQUIRE(GetReg().Register("other", test_cvars::kOtherCvars));
   REQUIRE(GetReg().Set("test.count", "7"));
@@ -371,7 +375,8 @@ REX_TEST_CASE_METHOD(Fixture, "Serialize writes scoped tables of non default val
   REQUIRE(test_cvars::flag2.Parse("false"));
 }
 
-REX_TEST_CASE_METHOD(Fixture, "Add extends a reserved scope and pinned scopes survive", "[cvar]") {
+REX_TEST_CASE_METHOD(Fixture, "Add extends a reserved scope and pinned scopes survive",
+                     "[core][cvar]") {
   REQUIRE(GetReg().Register("bind", {}));
   REQUIRE(GetReg().GetScopes() == std::vector<std::string_view>{"bind"});
   auto dynamic = std::make_unique<rex::cvar::Var<std::string>>("bind.console", "Backtick", "d");
@@ -396,7 +401,7 @@ REX_TEST_CASE_METHOD(Fixture, "Add extends a reserved scope and pinned scopes su
   GetReg().Unregister(two);
 }
 
-REX_TEST_CASE_METHOD(Fixture, "Values for a reserved scope wait for Add", "[cvar]") {
+REX_TEST_CASE_METHOD(Fixture, "Values for a reserved scope wait for Add", "[core][cvar]") {
   REQUIRE(GetReg().Register("test", test_cvars::kTestCvars));
   REQUIRE(GetReg().Register("bind", {}));
   std::vector<rex::CvarOverride> cfg = {{"bind.console", "F9", rex::cvar::CvarSource::kConfig},
@@ -426,7 +431,7 @@ REX_TEST_CASE_METHOD(Fixture, "Values for a reserved scope wait for Add", "[cvar
   GetReg().Unregister(both);
 }
 
-REX_TEST_CASE_METHOD(Fixture, "Reset clears registrations and the finalized flag", "[cvar]") {
+REX_TEST_CASE_METHOD(Fixture, "Reset clears registrations and the finalized flag", "[core][cvar]") {
   REQUIRE(GetReg().Register("test", test_cvars::kTestCvars));
   GetReg().Finalize();
   REQUIRE(GetReg().GetRegisteredNames().size() == 10);
@@ -442,7 +447,7 @@ REXCVAR_STRING(test6a, transient, "a", "Never written").SetNoSave();
 REXCVAR_TABLE(kTest6aCvars, kept, transient);
 }  // namespace
 
-REX_TEST_CASE("A no_save var is absent from Serialize", "[cvar]") {
+REX_TEST_CASE("A no_save var is absent from Serialize", "[core][cvar]") {
   auto registry = rex::detail::CreateCvarRegistry();
   REQUIRE(registry->Register("test6a", kTest6aCvars));
   REQUIRE(registry->Set("test6a.kept", "b"));
@@ -453,7 +458,7 @@ REX_TEST_CASE("A no_save var is absent from Serialize", "[cvar]") {
   registry->Unregister(kTest6aCvars);
 }
 
-TEST_CASE("cvar and log category descriptors construct without throwing", "[cvar]") {
+REX_TEST_CASE("cvar and log category descriptors construct without throwing", "[core][cvar]") {
   STATIC_REQUIRE(std::is_nothrow_copy_constructible_v<rex::cvar::Var<bool>>);
   STATIC_REQUIRE(noexcept(rex::cvar::Var<bool>("a.b", true, "d")));
   STATIC_REQUIRE(noexcept(rex::cvar::Var<bool>("a.b", true, "d").SetRange(0, 1)));

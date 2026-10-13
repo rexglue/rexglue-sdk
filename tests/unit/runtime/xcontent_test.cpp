@@ -22,7 +22,8 @@ using rex::memory::DeallocationType;
 using rex::memory::PageAccess;
 using rex::runtime::XCONTENT_DATA;
 
-REX_TEST_CASE("a full file name stops at the field end before a guard page", "[xcontent]") {
+REX_TEST_CASE("a full file name stops at the field end before a guard page",
+              "[runtime][xcontent]") {
   const size_t page = rex::memory::PageSize();
   auto* base = static_cast<u8*>(rex::memory::AllocFixed(
       nullptr, page * 2, AllocationType::kReserveCommit, PageAccess::kReadWrite));
@@ -41,7 +42,8 @@ REX_TEST_CASE("a full file name stops at the field end before a guard page", "[x
   rex::memory::DeallocFixed(base, 0, DeallocationType::kRelease);
 }
 
-REX_TEST_CASE("a language id outside the language range converts to no language", "[xcontent]") {
+REX_TEST_CASE("a language id outside the language range converts to no language",
+              "[runtime][xcontent]") {
   using rex::runtime::ToXLanguage;
   using rex::runtime::XLanguage;
   STATIC_REQUIRE(ToXLanguage(1) == XLanguage::kEnglish);

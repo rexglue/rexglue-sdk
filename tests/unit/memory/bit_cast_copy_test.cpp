@@ -69,7 +69,8 @@ REX_TEST_CASE("Reinterpret copies the same bytes as memcpy for f64", "[memory][b
   }
 }
 
-REX_TEST_CASE("to_hex_string of a float prints the bits memcpy would read", "[string][bit_cast]") {
+REX_TEST_CASE("to_hex_string of a float prints the bits memcpy would read",
+              "[memory][string][bit_cast]") {
   for (const rex::u32 bits : kF32Patterns) {
     CHECK(rex::to_hex_string(MemcpyCopy<rex::f32>(bits)) == rex::to_hex_string(bits));
   }
@@ -80,7 +81,8 @@ REX_TEST_CASE("to_hex_string of a float prints the bits memcpy would read", "[st
   CHECK(rex::to_hex_string(1.0) == "3FF0000000000000");
 }
 
-REX_TEST_CASE("from_string hex floats carry the bits memcpy would write", "[string][bit_cast]") {
+REX_TEST_CASE("from_string hex floats carry the bits memcpy would write",
+              "[memory][string][bit_cast]") {
   for (const rex::u32 bits : kF32Patterns) {
     const std::string text = "0x" + rex::to_hex_string(bits);
     CHECK(SameBytes(rex::from_string<rex::f32>(text), MemcpyCopy<rex::f32>(bits)));

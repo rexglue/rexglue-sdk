@@ -14,6 +14,8 @@
 #include <string>
 #include <atomic>
 #include <chrono>
+#include <condition_variable>
+#include <format>
 #include <functional>
 #include <memory>
 #include <mutex>
@@ -30,6 +32,7 @@
 #include <rex/runtime/xthread.h>
 
 #include "kernel_fixture.h"
+#include "support/elapsed.h"
 
 #if REX_PLATFORM_WIN32
 #include <windows.h>
@@ -59,6 +62,8 @@ REX_RECOMPILED_CODE_SECTION extern "C" void SpinInSEHScope(const volatile rex::u
 }
 
 namespace {
+
+using rex::test::MillisSince;
 
 std::atomic<bool> g_extern_c_unwound{false};
 
@@ -210,12 +215,6 @@ bool ExitedWithin(rex::Runtime& runtime, u32 thread, std::chrono::milliseconds b
     std::this_thread::sleep_for(1ms);
   }
   return false;
-}
-
-i64 MillisSince(std::chrono::steady_clock::time_point start) {
-  return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() -
-                                                               start)
-      .count();
 }
 
 std::atomic<u32> g_notify_event{0};
@@ -717,24 +716,58 @@ REX_TEST_CASE("A stop wakes an IO completion wait with no timeout", "[kernel][sh
   });
 }
 
+struct CallerGate {
+  std::mutex mutex;
+  std::condition_variable changed;
+  int arrived = 0;
+  bool open = false;
+  std::atomic<bool> timed_out{false};
+
+  void ArriveAndWait(int expected) {
+    std::unique_lock lock(mutex);
+    ++arrived;
+    changed.notify_all();
+    if (!changed.wait_for(lock, 20s, [&] { return open && arrived >= expected; })) {
+      timed_out.store(true);
+    }
+  }
+
+  void Open() {
+    std::lock_guard lock(mutex);
+    open = true;
+    changed.notify_all();
+  }
+};
+
+std::string DescribeThread(rex::Runtime& runtime, u32 handle) {
+  auto pin = runtime.GetThreadRegistry().FindByHandle(handle);
+  if (!pin) {
+    return std::format("thread {:08X} is gone", handle);
+  }
+  return std::format("thread {:08X} '{}' running {} suspend count {} terminated {}", handle,
+                     pin->GetName(), pin->IsRunning(), pin->SuspendCount(),
+                     pin->GetGuestObject<rex::runtime::X_KTHREAD>()->terminated);
+}
+
 REX_TEST_CASE("2 guest threads that call TerminateTitle at once both end", "[kernel][shutdown]") {
   KernelFixture fixture;
-  auto ready = std::make_shared<std::atomic<int>>(0);
-  auto spawned = std::make_shared<std::atomic<bool>>(false);
+  auto gate = std::make_shared<CallerGate>();
   std::vector<u32> callers;
-  fixture.RunOnGuestThread([&callers, ready, spawned](Caller& c) {
+  fixture.RunOnGuestThread([&callers, gate](Caller& c) {
     for (int i = 0; i < 2; ++i) {
-      callers.push_back(c.Spawn([ready, spawned](Caller& t) {
-        ready->fetch_add(1);
-        while (!spawned->load() || ready->load() < 2) {}
+      callers.push_back(c.Spawn([gate](Caller& t) {
+        gate->ArriveAndWait(2);
         t.GetRuntime().TerminateTitle();
       }));
     }
   });
-  spawned->store(true);
+  gate->Open();
   for (const u32 thread : callers) {
-    CHECK(StoppedWithin(fixture.GetRuntime(), thread, 3000ms));
+    CHECKED_ELSE(StoppedWithin(fixture.GetRuntime(), thread, 3000ms)) {
+      FAIL_CHECK(DescribeThread(fixture.GetRuntime(), thread));
+    }
   }
+  CHECK_FALSE(gate->timed_out.load());
 }
 
 REX_TEST_CASE("TerminateTitle ends a thread suspended after the stop request",
@@ -1111,7 +1144,7 @@ REX_TEST_CASE("A suspend never parks a guest thread inside a host allocation", "
   CHECK(allocated_every_time);
 }
 
-REX_TEST_CASE("Setup fails when kernel initialization fails", "[runtime][kernel_init]") {
+REX_TEST_CASE("Setup fails when kernel initialization fails", "[kernel][kernel_init]") {
   rex::Config config;
   config.modules = {"rex-filesystem", "rex-runtime"};
   auto api = rex::Init(config);

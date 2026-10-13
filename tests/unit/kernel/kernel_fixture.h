@@ -14,9 +14,13 @@
 #include <filesystem>
 #include <functional>
 #include <initializer_list>
+#include <span>
+#include <string>
 #include <string_view>
+#include <vector>
 
 #include "codegen/tool_runtime.h"
+#include "support/temp_folder.h"
 #include <rex/ppc/context.h>
 #include <rex/runtime.h>
 #include <rex/runtime/exports.h>
@@ -182,12 +186,6 @@ class KernelFixture {
   void RunOnGuestThread(const std::function<void(Caller&)>& body);
 
  private:
-  struct TempRoot {
-    TempRoot();
-    ~TempRoot();
-    std::filesystem::path path;
-  };
-
   struct ThreadDrain {
     ThreadDrain();
     ~ThreadDrain();
@@ -195,8 +193,69 @@ class KernelFixture {
   };
 
   ThreadDrain drain_;
-  TempRoot root_;
+  test::TempFolder root_{"rexglue_kernel_fixture_"};
   codegen::ToolRuntime tool_;
 };
+
+/**
+ * Copies bytes into freshly allocated guest memory, padded by 8 zero bytes.
+ *
+ * @param c The caller.
+ * @param bytes The bytes.
+ * @return The guest address.
+ */
+u32 Put(Caller& c, std::span<const u8> bytes);
+
+/**
+ * Fills freshly allocated guest memory with the repeating bytes DE AD BE EF.
+ *
+ * @param c The caller.
+ * @param size The size in bytes.
+ * @return The guest address.
+ */
+u32 PutFilled(Caller& c, u32 size);
+
+/**
+ * Reads bytes from guest memory.
+ *
+ * @param c The caller.
+ * @param address The guest address.
+ * @param size The size in bytes.
+ * @return The bytes.
+ */
+std::vector<u8> Get(Caller& c, u32 address, u32 size);
+
+/**
+ * Decodes hexadecimal text into bytes.
+ *
+ * @param text Pairs of hexadecimal digits.
+ * @return The bytes.
+ */
+std::vector<u8> Hex(std::string_view text);
+
+/**
+ * Formats bytes as lowercase hexadecimal text.
+ *
+ * @param bytes The bytes.
+ * @return The text.
+ */
+std::string ToHex(std::span<const u8> bytes);
+
+/**
+ * Waits for a thread handle for up to 5 seconds, checks that the wait succeeded and closes the
+ * handle.
+ *
+ * @param c The caller.
+ * @param handle The thread handle.
+ */
+void Join(Caller& c, u32 handle);
+
+/**
+ * Reads the system time through KeQuerySystemTime.
+ *
+ * @param c The caller.
+ * @return The time in 100ns ticks.
+ */
+u64 SystemTime(Caller& c);
 
 }  // namespace rex::testing

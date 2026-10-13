@@ -26,26 +26,11 @@
 #include <rex/embedded_metadata.h>
 #include "runtime/achievement_manager.h"
 #include "support/temp_folder.h"
+#include "support/file_text.h"
 
 namespace {
 
-class TempDirectory {
- public:
-  explicit TempDirectory(std::string_view name) {
-    static std::atomic<u64> next_id{0};
-    auto suffix = std::chrono::steady_clock::now().time_since_epoch().count();
-    path_ = std::filesystem::temp_directory_path() /
-            (std::string(name) + "_" + std::to_string(suffix) + "_" + std::to_string(next_id++));
-    std::filesystem::create_directories(path_);
-  }
-
-  ~TempDirectory() { rex::test::RemoveTree(path_); }
-
-  const std::filesystem::path& GetPath() const { return path_; }
-
- private:
-  std::filesystem::path path_;
-};
+using rex::test::WriteText;
 
 rex::runtime::AchievementInfo BuildAchievement(u32 id, std::string label) {
   rex::runtime::AchievementInfo info;
@@ -58,19 +43,13 @@ rex::runtime::AchievementInfo BuildAchievement(u32 id, std::string label) {
   return info;
 }
 
-void WriteFile(const std::filesystem::path& path, std::string_view content) {
-  std::filesystem::create_directories(path.parent_path());
-  std::ofstream file(path);
-  REQUIRE(file);
-  file << content;
-}
-
 }  // namespace
 
-REX_TEST_CASE("achievement metadata layers embedded, TOML, and recomp entries", "[achievements]") {
-  TempDirectory temp("rex_achievement_metadata");
-  auto metadata_path = temp.GetPath() / "achievements.toml";
-  WriteFile(metadata_path, R"(
+REX_TEST_CASE("achievement metadata layers embedded, TOML, and recomp entries",
+              "[runtime][achievements]") {
+  rex::test::TempFolder temp("rex_achievement_metadata_");
+  auto metadata_path = temp.path / "achievements.toml";
+  WriteText(metadata_path, R"(
 [[achievements]]
 id = 1
 label = "Metadata override"
@@ -109,7 +88,8 @@ flags = 4
   CHECK(second->label == "Recomp override");
 }
 
-REX_TEST_CASE("an achievement batch with an invalid id registers nothing", "[achievements]") {
+REX_TEST_CASE("an achievement batch with an invalid id registers nothing",
+              "[runtime][achievements]") {
   rex::runtime::AchievementManager manager;
   const std::array batch{BuildAchievement(1, "One"), BuildAchievement(0, "Reserved"),
                          BuildAchievement(2, "Two")};
@@ -119,14 +99,14 @@ REX_TEST_CASE("an achievement batch with an invalid id registers nothing", "[ach
   CHECK(manager.ListAchievements().empty());
 }
 
-REX_TEST_CASE("a valid achievement batch registers every entry", "[achievements]") {
+REX_TEST_CASE("a valid achievement batch registers every entry", "[runtime][achievements]") {
   rex::runtime::AchievementManager manager;
   const std::array batch{BuildAchievement(1, "One"), BuildAchievement(2, "Two")};
   REQUIRE(manager.RegisterAchievements(batch));
   CHECK(manager.ListAchievements().size() == 2);
 }
 
-REX_TEST_CASE("achievement notifications follow the unlock request", "[achievements]") {
+REX_TEST_CASE("achievement notifications follow the unlock request", "[runtime][achievements]") {
   rex::runtime::AchievementManager manager;
   REQUIRE(manager.RegisterAchievement(BuildAchievement(1, "One")).has_value());
   REQUIRE(manager.RegisterAchievement(BuildAchievement(2, "Two")).has_value());
@@ -151,9 +131,10 @@ REX_TEST_CASE("achievement notifications follow the unlock request", "[achieveme
   CHECK(notification_count == 1);
 }
 
-REX_TEST_CASE("achievement unlock state persists across manager instances", "[achievements]") {
-  TempDirectory temp("rex_achievement_save");
-  auto save_path = temp.GetPath() / "saves" / "12345678.toml";
+REX_TEST_CASE("achievement unlock state persists across manager instances",
+              "[runtime][achievements]") {
+  rex::test::TempFolder temp("rex_achievement_save_");
+  auto save_path = temp.path / "saves" / "12345678.toml";
 
   rex::runtime::AchievementManager first;
   REQUIRE(first.RegisterAchievement(BuildAchievement(1, "One")).has_value());
@@ -171,9 +152,9 @@ REX_TEST_CASE("achievement unlock state persists across manager instances", "[ac
   CHECK(second.GetUnlockTime(1) == unlock_time);
 }
 
-REX_TEST_CASE("achievement unlock saves serialize concurrent writers", "[achievements]") {
-  TempDirectory temp("rex_achievement_concurrent_save");
-  auto save_path = temp.GetPath() / "saves" / "12345678.toml";
+REX_TEST_CASE("achievement unlock saves serialize concurrent writers", "[runtime][achievements]") {
+  rex::test::TempFolder temp("rex_achievement_concurrent_save_");
+  auto save_path = temp.path / "saves" / "12345678.toml";
 
   rex::runtime::AchievementManager manager;
   manager.SetUnlockSavePath(save_path);
@@ -202,40 +183,39 @@ REX_TEST_CASE("achievement unlock saves serialize concurrent writers", "[achieve
   }
 }
 
-REX_TEST_CASE("runtime metadata root overrides legacy metadata discovery", "[achievements]") {
-  TempDirectory temp("rex_metadata_root");
-  auto game_root = temp.GetPath() / "game";
+REX_TEST_CASE("runtime metadata root overrides legacy metadata discovery",
+              "[runtime][achievements]") {
+  rex::test::TempFolder temp("rex_metadata_root_");
+  auto game_root = temp.path / "game";
   auto local_metadata = game_root / "metadata" / "achievements.toml";
-  auto parent_metadata = temp.GetPath() / "metadata" / "achievements.toml";
-  auto explicit_metadata = temp.GetPath() / "custom" / "achievements.toml";
-  WriteFile(local_metadata, "local");
-  WriteFile(parent_metadata, "parent");
-  WriteFile(explicit_metadata, "explicit");
+  auto parent_metadata = temp.path / "metadata" / "achievements.toml";
+  auto explicit_metadata = temp.path / "custom" / "achievements.toml";
+  WriteText(local_metadata, "local");
+  WriteText(parent_metadata, "parent");
+  WriteText(explicit_metadata, "explicit");
 
   {
     rex::Config config;
     config.paths.game_data_root = game_root;
     rex::Runtime runtime(config);
-    REQUIRE(runtime.FindMetadataPath("achievements.toml"));
-    CHECK(*runtime.FindMetadataPath("achievements.toml") == local_metadata);
+    CHECK(runtime.FindMetadataPath("achievements.toml") == local_metadata);
 
     std::filesystem::remove(local_metadata);
-    REQUIRE(runtime.FindMetadataPath("achievements.toml"));
-    CHECK(*runtime.FindMetadataPath("achievements.toml") == parent_metadata);
+    CHECK(runtime.FindMetadataPath("achievements.toml") == parent_metadata);
   }
 
   {
     rex::Config config;
     config.paths.game_data_root = game_root;
-    config.paths.metadata_root = temp.GetPath() / "custom";
+    config.paths.metadata_root = temp.path / "custom";
     rex::Runtime runtime(config);
-    REQUIRE(runtime.FindMetadataPath("achievements.toml"));
-    CHECK(*runtime.FindMetadataPath("achievements.toml") == explicit_metadata);
+    CHECK(runtime.FindMetadataPath("achievements.toml") == explicit_metadata);
     CHECK_FALSE(runtime.FindMetadataPath("missing.toml"));
   }
 }
 
-REX_TEST_CASE("embedded metadata assets resolve by metadata-relative path", "[achievements]") {
+REX_TEST_CASE("embedded metadata assets resolve by metadata-relative path",
+              "[runtime][achievements]") {
   static constexpr u8 kIconBytes[] = {0x89, 0x50, 0x4E, 0x47};
   REQUIRE(rex::RegisterEmbeddedMetadataAsset("icons/custom/unit-test.png", kIconBytes,
                                              sizeof(kIconBytes)));
@@ -251,4 +231,13 @@ REX_TEST_CASE("embedded metadata assets resolve by metadata-relative path", "[ac
   CHECK(asset->bytes[1] == 0x50);
   CHECK(asset->bytes[2] == 0x4E);
   CHECK(asset->bytes[3] == 0x47);
+}
+
+REX_TEST_CASE("the unlock save is found under names that differ in case",
+              "[runtime][achievements][case]") {
+  rex::test::TempFolder temp("rex_achievement_save_case_");
+  std::filesystem::create_directories(temp.path / "Achievements");
+  std::ofstream(temp.path / "Achievements" / "abcdef01.toml") << "";
+  const auto found = rex::runtime::ResolveUnlockSavePath(temp.path, 0xABCDEF01);
+  CHECK(std::filesystem::exists(found));
 }

@@ -18,7 +18,8 @@
 
 using rex::runtime::TitleExitReason;
 
-REX_TEST_CASE("ReportTitleExit calls the callback once with the first reason", "[title_exit]") {
+REX_TEST_CASE("ReportTitleExit calls the callback once with the first reason",
+              "[kernel][title_exit]") {
   rex::Config config;
   rex::Runtime runtime(config);
   std::vector<TitleExitReason> seen;

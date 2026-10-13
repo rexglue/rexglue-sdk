@@ -266,7 +266,7 @@ u32 AvailablePages(Caller& c) {
 }  // namespace
 
 REX_TEST_CASE("NtAllocateVirtualMemory counts its commit and fails past the budget",
-              "[memory][budget][kernel]") {
+              "[memory][budget]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     Memory& memory = *c.GetRuntime().GetMemory();
@@ -287,7 +287,7 @@ REX_TEST_CASE("NtAllocateVirtualMemory counts its commit and fails past the budg
   });
 }
 
-REX_TEST_CASE("MmAllocatePhysicalMemoryEx counts the parent pages", "[memory][budget][kernel]") {
+REX_TEST_CASE("MmAllocatePhysicalMemoryEx counts the parent pages", "[memory][budget]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     Memory& memory = *c.GetRuntime().GetMemory();
@@ -304,8 +304,7 @@ REX_TEST_CASE("MmAllocatePhysicalMemoryEx counts the parent pages", "[memory][bu
   });
 }
 
-REX_TEST_CASE("MmQueryStatistics available pages track the title pages",
-              "[memory][budget][kernel]") {
+REX_TEST_CASE("MmQueryStatistics available pages track the title pages", "[memory][budget]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     Memory& memory = *c.GetRuntime().GetMemory();
@@ -324,7 +323,7 @@ REX_TEST_CASE("MmQueryStatistics available pages track the title pages",
 }
 
 REX_TEST_CASE("MmQueryStatistics without a cap reports the free physical pages",
-              "[memory][budget][kernel]") {
+              "[memory][budget]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     Memory& memory = *c.GetRuntime().GetMemory();
@@ -352,8 +351,7 @@ REX_TEST_CASE("SetBudget saturates instead of wrapping", "[memory][budget]") {
   CHECK(memory.GetBudgetPages() == 480 * 256);
 }
 
-REX_TEST_CASE("Loading an XEX keeps the other allocations in its heap",
-              "[memory][budget][kernel]") {
+REX_TEST_CASE("Loading an XEX keeps the other allocations in its heap", "[memory][budget]") {
   KernelFixture fixture;
   rex::Runtime& runtime = fixture.GetRuntime();
   Memory& memory = *runtime.GetMemory();
@@ -410,7 +408,7 @@ u32 PageState(BaseHeap* heap, u32 address) {
 }  // namespace
 
 REX_TEST_CASE("A decommit of size 0 at a region base decommits only that region",
-              "[memory][budget][kernel]") {
+              "[memory][budget]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     Memory& memory = *c.GetRuntime().GetMemory();
@@ -455,7 +453,7 @@ REX_TEST_CASE("A decommit of size 0 at a region base decommits only that region"
 }
 
 REX_TEST_CASE("A decommit of size 0 inside a region fails and changes nothing",
-              "[memory][budget][kernel]") {
+              "[memory][budget]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     Memory& memory = *c.GetRuntime().GetMemory();
@@ -483,7 +481,7 @@ REX_TEST_CASE("A decommit of size 0 inside a region fails and changes nothing",
 }
 
 REX_TEST_CASE("A decommit range that crosses a page boundary decommits both pages",
-              "[memory][budget][kernel]") {
+              "[memory][budget]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     Memory& memory = *c.GetRuntime().GetMemory();
@@ -539,7 +537,7 @@ X_STATUS SetupWithBudget(u32 megabytes, u32* out_budget_pages) {
 
 }  // namespace
 
-REX_TEST_CASE("Setup rejects a title memory budget above 512 MB", "[memory][budget][runtime]") {
+REX_TEST_CASE("Setup rejects a title memory budget above 512 MB", "[memory][budget]") {
   u32 budget_pages = 1;
   CHECK(SetupWithBudget(513, &budget_pages) == rex::X_STATUS_INVALID_PARAMETER);
   CHECK(SetupWithBudget(512, &budget_pages) == rex::X_STATUS_SUCCESS);
@@ -549,7 +547,7 @@ REX_TEST_CASE("Setup rejects a title memory budget above 512 MB", "[memory][budg
 }
 
 REX_TEST_CASE("A release of the free first page of a heap fails and changes nothing",
-              "[memory][budget][kernel]") {
+              "[memory][budget]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     Memory& memory = *c.GetRuntime().GetMemory();
@@ -569,8 +567,7 @@ REX_TEST_CASE("A release of the free first page of a heap fails and changes noth
   });
 }
 
-REX_TEST_CASE("A release with a nonzero size fails and changes nothing",
-              "[memory][budget][kernel]") {
+REX_TEST_CASE("A release with a nonzero size fails and changes nothing", "[memory][budget]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     Memory& memory = *c.GetRuntime().GetMemory();

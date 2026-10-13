@@ -10,6 +10,7 @@
 
 #include "rex_test.h"
 #include "support/temp_folder.h"
+#include "support/file_text.h"
 
 #include <format>
 
@@ -34,6 +35,8 @@ using namespace rex::codegen;
 
 namespace {
 
+using rex::test::ReadText;
+
 constexpr u32 kBaseAddress = 0x82000000;
 constexpr u32 kFunctionCount = 4;
 
@@ -47,25 +50,18 @@ std::vector<u8> BuildBlrBinary(u32 function_count) {
   return data;
 }
 
-/// Whole-file contents, for asserting on emitted text.
-std::string ReadAll(const fs::path& path) {
-  std::ifstream in(path, std::ios::binary);
-  return std::string((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
-}
-
 /// Fake module, context with a sealed function per `blr`, scratch output tree.
 struct WriterFixture {
+  rex::test::TempFolder folder;
   fs::path root;
   std::vector<u8> data;
   TestModule module;
   std::unique_ptr<CodegenContext> ctx;
 
   explicit WriterFixture(std::string_view name, u32 function_count = kFunctionCount)
-      : root(fs::temp_directory_path() / "rexglue_writer_test" / fs::path(name)),
+      : folder(std::string("rexglue_writer_") + std::string(name) + "_"),
+        root(folder.path),
         data(BuildBlrBinary(function_count)) {
-    fs::remove_all(root);
-    fs::create_directories(root);
-
     module.Load(kBaseAddress, data.data(), data.size());
 
     RecompilerConfig config;
@@ -89,14 +85,12 @@ struct WriterFixture {
     }
   }
 
-  ~WriterFixture() { rex::test::RemoveTree(root); }
-
   fs::path GetOutputDir() const { return root / "generated"; }
 };
 
 }  // namespace
 
-REX_TEST_CASE("Second write with unchanged inputs writes nothing", "[codegen_writer]") {
+REX_TEST_CASE("Second write with unchanged inputs writes nothing", "[codegen][codegen_writer]") {
   WriterFixture fx("unchanged");
 
   CodegenWriter first(*fx.ctx);
@@ -111,7 +105,7 @@ REX_TEST_CASE("Second write with unchanged inputs writes nothing", "[codegen_wri
   CHECK(second.GetDeletedFiles().empty());
 }
 
-REX_TEST_CASE("Unchanged files keep their modification time", "[codegen_writer]") {
+REX_TEST_CASE("Unchanged files keep their modification time", "[codegen][codegen_writer]") {
   WriterFixture fx("mtime");
 
   CodegenWriter first(*fx.ctx);
@@ -128,7 +122,7 @@ REX_TEST_CASE("Unchanged files keep their modification time", "[codegen_writer]"
   CHECK(unchanged);
 }
 
-REX_TEST_CASE("Stale generated files are swept after the write", "[codegen_writer]") {
+REX_TEST_CASE("Stale generated files are swept after the write", "[codegen][codegen_writer]") {
   WriterFixture fx("stale");
 
   CodegenWriter first(*fx.ctx);
@@ -146,7 +140,8 @@ REX_TEST_CASE("Stale generated files are swept after the write", "[codegen_write
                   std::string("testproj_recomp.99.cpp")) != second.GetDeletedFiles().end());
 }
 
-REX_TEST_CASE("Unrelated files in the output directory survive the sweep", "[codegen_writer]") {
+REX_TEST_CASE("Unrelated files in the output directory survive the sweep",
+              "[codegen][codegen_writer]") {
   WriterFixture fx("bystander");
 
   CodegenWriter first(*fx.ctx);
@@ -161,7 +156,8 @@ REX_TEST_CASE("Unrelated files in the output directory survive the sweep", "[cod
   CHECK(fs::exists(bystander));
 }
 
-REX_TEST_CASE("The stamp is owned by the recompiler and survives the sweep", "[codegen_writer]") {
+REX_TEST_CASE("The stamp is owned by the recompiler and survives the sweep",
+              "[codegen][codegen_writer]") {
   WriterFixture fx("stamp");
 
   CodegenWriter first(*fx.ctx);
@@ -177,7 +173,8 @@ REX_TEST_CASE("The stamp is owned by the recompiler and survives the sweep", "[c
   CHECK(second.GetDeletedFiles().empty());
 }
 
-REX_TEST_CASE("A changed function rewrites only the files that differ", "[codegen_writer]") {
+REX_TEST_CASE("A changed function rewrites only the files that differ",
+              "[codegen][codegen_writer]") {
   WriterFixture fx("changed");
 
   CodegenWriter first(*fx.ctx);
@@ -197,7 +194,8 @@ REX_TEST_CASE("A changed function rewrites only the files that differ", "[codege
                   std::string("sources.cmake")) == second.GetWrittenFiles().end());
 }
 
-REX_TEST_CASE("Recomp files are stable when one function's size changes", "[codegen_writer]") {
+REX_TEST_CASE("Recomp files are stable when one function's size changes",
+              "[codegen][codegen_writer]") {
   WriterFixture fx("partition", 8);
 
   CodegenWriter first(*fx.ctx);
@@ -217,7 +215,8 @@ REX_TEST_CASE("Recomp files are stable when one function's size changes", "[code
   CHECK(fs::exists(fx.GetOutputDir() / "codegen.partition.json"));
 }
 
-REX_TEST_CASE("Every name a recomp file calls is declared in its header", "[codegen_writer]") {
+REX_TEST_CASE("Every name a recomp file calls is declared in its header",
+              "[codegen][codegen_writer]") {
   WriterFixture fx("declarations", 8);
 
   CodegenWriter writer(*fx.ctx);
@@ -236,8 +235,8 @@ REX_TEST_CASE("Every name a recomp file calls is declared in its header", "[code
     auto header = fx.GetOutputDir() / std::format("testproj_funcs.{}.h", index);
     REQUIRE(fs::exists(header));
 
-    std::string body = ReadAll(entry.path());
-    std::string decls = ReadAll(header);
+    std::string body = ReadText(entry.path());
+    std::string decls = ReadText(header);
 
     std::set<std::string> declared;
     for (std::sregex_iterator it(decls.begin(), decls.end(), kDeclRe), end; it != end; ++it) {

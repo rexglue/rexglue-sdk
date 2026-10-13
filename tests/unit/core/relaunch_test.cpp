@@ -23,7 +23,7 @@
 
 #include <rex/platform/process.h>
 
-REX_TEST_CASE("BuildCommandLine round trips through CommandLineToArgvW", "[relaunch]") {
+REX_TEST_CASE("BuildCommandLine round trips through CommandLineToArgvW", "[core][relaunch]") {
   const std::vector<std::string> args{R"(D:\Games\Blue Dragon\)",
                                       "--flag",
                                       R"(say "hi")",
