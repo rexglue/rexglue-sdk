@@ -106,6 +106,7 @@ add_executable(unit_tests
     ui/settings_overlay_test.cpp
     ui/style_test.cpp
     ui/imgui_style_test.cpp
+    ui/input_listener_list_test.cpp
     ui/title_app_test.cpp
     ui/ui_event_test.cpp
     codegen/barrier_test.cpp

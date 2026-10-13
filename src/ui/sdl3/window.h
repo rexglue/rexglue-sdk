@@ -15,7 +15,6 @@
 
 #include <cstddef>
 #include <functional>
-#include <map>
 #include <memory>
 #include <string>
 #include <utility>
@@ -30,6 +29,7 @@
 #include <rex/gpu/surface.h>
 #include <rex/ui/ui_event.h>
 #include <rex/hid/virtual_key.h>
+#include "ui/sdl3/input_listener_list.h"
 #include "ui/sdl3/window_listener.h"
 #include "ui/sdl3/app_context.h"
 
@@ -749,19 +749,6 @@ class Window : public IWindow, public gpu::IPresentationHost {
     size_t next_index;
   };
 
-  struct InputListenerIterationContext {
-    explicit InputListenerIterationContext(
-        InputListenerIterationContext* outer_context,
-        const std::multimap<size_t, WindowInputListener*>::const_reverse_iterator& first_iterator,
-        size_t first_z_order = SIZE_MAX)
-        : outer_context(outer_context),
-          next_iterator(first_iterator),
-          current_z_order(first_z_order) {}
-    InputListenerIterationContext* outer_context;
-    std::multimap<size_t, WindowInputListener*>::const_reverse_iterator next_iterator;
-    size_t current_z_order;
-  };
-
   bool CanApplyState() const {
     return phase_ >= Phase::kOpen && phase_ <= Phase::kOpenBeforeClosing;
   }
@@ -788,9 +775,8 @@ class Window : public IWindow, public gpu::IPresentationHost {
   WindowDestructionReceiver* innermost_destruction_receiver_ = nullptr;
 
   std::vector<WindowListener*> listeners_;
-  std::multimap<size_t, WindowInputListener*> input_listeners_;
+  InputListenerList input_listeners_;
   ListenerIterationContext* innermost_listener_iteration_context_ = nullptr;
-  InputListenerIterationContext* innermost_input_listener_iteration_context_ = nullptr;
 
   u32 desired_logical_width_ = 0;
   u32 desired_logical_height_ = 0;

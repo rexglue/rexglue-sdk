@@ -80,57 +80,12 @@ void Window::RemoveListener(WindowListener* listener) {
 
 void Window::AddInputListener(WindowInputListener* listener, size_t z_order) {
   REX_ASSERT(listener != nullptr);
-  for (auto it_existing = input_listeners_.rbegin(); it_existing != input_listeners_.rend();
-       ++it_existing) {
-    if (it_existing->second != listener) {
-      continue;
-    }
-    if (it_existing->first == z_order) {
-      return;
-    }
-    // Advance iterators that point at the erased listener, a multimap erase invalidates only it.
-    InputListenerIterationContext* iteration_context = innermost_input_listener_iteration_context_;
-    while (iteration_context) {
-      if (iteration_context->next_iterator == it_existing) {
-        ++iteration_context->next_iterator;
-      }
-      iteration_context = iteration_context->outer_context;
-    }
-    input_listeners_.erase(std::prev(it_existing.base()));
-  }
-  auto it_new = std::prev(std::make_reverse_iterator(input_listeners_.emplace(z_order, listener)));
-  // A new listener in a layer between the current and the next one runs in this loop.
-  {
-    InputListenerIterationContext* iteration_context = innermost_input_listener_iteration_context_;
-    while (iteration_context) {
-      if (z_order < iteration_context->current_z_order &&
-          (iteration_context->next_iterator == input_listeners_.crend() ||
-           z_order >= iteration_context->next_iterator->first)) {
-        iteration_context->next_iterator = it_new;
-      }
-      iteration_context = iteration_context->outer_context;
-    }
-  }
+  input_listeners_.Add(listener, z_order);
 }
 
 void Window::RemoveInputListener(WindowInputListener* listener) {
   REX_ASSERT(listener != nullptr);
-  for (auto it_existing = input_listeners_.rbegin(); it_existing != input_listeners_.rend();
-       ++it_existing) {
-    if (it_existing->second != listener) {
-      continue;
-    }
-    // Advance iterators that point at the erased listener, a multimap erase invalidates only it.
-    InputListenerIterationContext* iteration_context = innermost_input_listener_iteration_context_;
-    while (iteration_context) {
-      if (iteration_context->next_iterator == it_existing) {
-        ++iteration_context->next_iterator;
-      }
-      iteration_context = iteration_context->outer_context;
-    }
-    input_listeners_.erase(std::prev(it_existing.base()));
-    return;
-  }
+  input_listeners_.Remove(listener);
 }
 
 bool Window::Open() {
@@ -436,7 +391,7 @@ void Window::OnAfterClose() {
   if (phase_ != Phase::kClosing) {
     return;
   }
-  phase_ = (innermost_listener_iteration_context_ || innermost_input_listener_iteration_context_)
+  phase_ = (innermost_listener_iteration_context_ || input_listeners_.propagating())
                ? Phase::kClosedLeavingListeners
                : Phase::kClosedOpenable;
 }
@@ -660,7 +615,7 @@ void Window::SendEventToListeners(F&& fn, WindowDestructionReceiver& destruction
   REX_ASSERT(innermost_listener_iteration_context_ == &iteration_context);
   innermost_listener_iteration_context_ = innermost_listener_iteration_context_->outer_context;
   if (phase_ == Phase::kClosedLeavingListeners && !innermost_listener_iteration_context_ &&
-      !innermost_input_listener_iteration_context_) {
+      !input_listeners_.propagating()) {
     phase_ = Phase::kClosedOpenable;
   }
 }
@@ -671,29 +626,21 @@ void Window::PropagateEventThroughInputListeners(F&& fn,
   if (!CanSendEventsToListeners()) {
     return;
   }
-  InputListenerIterationContext iteration_context(innermost_input_listener_iteration_context_,
-                                                  input_listeners_.crbegin());
-  innermost_input_listener_iteration_context_ = &iteration_context;
-  while (iteration_context.next_iterator != input_listeners_.crend()) {
-    // The current iterator can be invalidated and next_iterator changed by list edits.
-    iteration_context.current_z_order = iteration_context.next_iterator->first;
-    bool event_handled = fn((iteration_context.next_iterator++)->second);
+  const bool finished = input_listeners_.Propagate([&](WindowInputListener* listener) {
+    const bool event_handled = fn(listener);
     if (destruction_receiver.IsWindowDestroyed()) {
-      // The listener destroyed the window, so *this and the iteration context are inaccessible.
-      return;
+      return InputListenerStep::kAbandon;
     }
-    if (event_handled) {
-      break;
+    if (event_handled || !CanSendEventsToListeners()) {
+      return InputListenerStep::kStop;
     }
-    if (!CanSendEventsToListeners()) {
-      break;
-    }
+    return InputListenerStep::kNext;
+  });
+  if (!finished) {
+    return;
   }
-  REX_ASSERT(innermost_input_listener_iteration_context_ == &iteration_context);
-  innermost_input_listener_iteration_context_ =
-      innermost_input_listener_iteration_context_->outer_context;
   if (phase_ == Phase::kClosedLeavingListeners && !innermost_listener_iteration_context_ &&
-      !innermost_input_listener_iteration_context_) {
+      !input_listeners_.propagating()) {
     phase_ = Phase::kClosedOpenable;
   }
 }

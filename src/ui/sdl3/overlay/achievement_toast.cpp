@@ -27,10 +27,11 @@ void AchievementToastDialog::OnDraw(ImGuiIO& io) {
   {
     std::lock_guard<std::mutex> lock(mutex_);
     while (!queue_.empty()) {
-      if (!queue_.front().visible_since) {
-        queue_.front().visible_since = now;
+      auto& visible_since = queue_.front().visible_since;
+      if (!visible_since) {
+        visible_since = now;
       }
-      age = std::chrono::duration<f32>(now - *queue_.front().visible_since).count();
+      age = std::chrono::duration<f32>(now - *visible_since).count();
       if (age >= kDisplaySeconds) {
         queue_.pop_front();
       } else {
