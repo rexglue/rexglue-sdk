@@ -26,7 +26,7 @@ using namespace rex::runtime;
 /**
  * Reports whether the executable has a system flag set.
  *
- * The privilege is the bit index, so 6 selects 0x40 (XEX_SYSTEM_INSECURE_SOCKETS).
+ * The privilege is the bit index, so 6 selects 0x40 (kXEXSystemInsecureSockets).
  *
  * @param privilege Bit position in the XEX system flags.
  * @return 1 when the flag is set, otherwise 0.
@@ -38,28 +38,29 @@ u32 XexCheckExecutablePrivilege_entry(u32 privilege) {
                static_cast<u32>(privilege));
   u32 mask = 1 << privilege;
 
-  auto module = runtime::Current().object_table().Get<ModuleObject>(
-      runtime::Current().module_registry().executable().value_or(0));
+  auto module = runtime::GetCurrent().GetObjectTable().Get<ModuleObject>(
+      runtime::GetCurrent().GetModuleRegistry().GetExecutable().value_or(0));
   if (!module) {
     return 0;
   }
 
   u32 flags = 0;
-  module->OptHeader<u32>(filesystem::XEX_HEADER_SYSTEM_FLAGS, &flags);
+  module->OptHeader<u32>(filesystem::kXEXHeaderSystemFlags, &flags);
 
   return (flags & mask) > 0;
 }
 
-u32 XexGetModuleHandle_entry(mapped_string module_name, mapped_u32 hmodule_ptr) {
+u32 XexGetModuleHandle_entry(MappedString module_name, MappedU32 hmodule_ptr) {
   X_HANDLE module_handle = 0;
 
   if (!module_name) {
-    module_handle = runtime::Current().module_registry().executable().value_or(0);
+    module_handle = runtime::GetCurrent().GetModuleRegistry().GetExecutable().value_or(0);
   } else {
-    module_handle = runtime::Current().module_registry().GetModule(module_name.value()).value_or(0);
+    module_handle =
+        runtime::GetCurrent().GetModuleRegistry().GetModule(module_name.GetValue()).value_or(0);
   }
 
-  auto module = runtime::Current().object_table().Get<ModuleObject>(module_handle);
+  auto module = runtime::GetCurrent().GetObjectTable().Get<ModuleObject>(module_handle);
   if (!module) {
     *hmodule_ptr = 0;
     return X_ERROR_NOT_FOUND;
@@ -70,16 +71,16 @@ u32 XexGetModuleHandle_entry(mapped_string module_name, mapped_u32 hmodule_ptr) 
   return X_ERROR_SUCCESS;
 }
 
-u32 XexGetModuleSection_entry(mapped_void hmodule, mapped_string name, mapped_u32 data_ptr,
-                              mapped_u32 size_ptr) {
+u32 XexGetModuleSection_entry(MappedVoid hmodule, MappedString name, MappedU32 data_ptr,
+                              MappedU32 size_ptr) {
   X_STATUS result = X_STATUS_SUCCESS;
 
-  auto module = runtime::Current().object_table().Get<ModuleObject>(
-      ModuleObject::FromHModule(runtime::Current(), hmodule));
+  auto module = runtime::GetCurrent().GetObjectTable().Get<ModuleObject>(
+      ModuleObject::FromHModule(runtime::GetCurrent(), hmodule));
   if (module) {
     u32 section_data = 0;
     u32 section_size = 0;
-    result = module->GetSection(name.value(), &section_data, &section_size);
+    result = module->GetSection(name.GetValue(), &section_data, &section_size);
     if (XSUCCEEDED(result)) {
       *data_ptr = section_data;
       *size_ptr = section_size;
@@ -91,32 +92,32 @@ u32 XexGetModuleSection_entry(mapped_void hmodule, mapped_string name, mapped_u3
   return result;
 }
 
-u32 XexLoadImage_entry(mapped_string module_name, [[maybe_unused]] u32 module_flags,
-                       [[maybe_unused]] u32 min_version, mapped_u32 hmodule_ptr) {
+u32 XexLoadImage_entry(MappedString module_name, [[maybe_unused]] u32 module_flags,
+                       [[maybe_unused]] u32 min_version, MappedU32 hmodule_ptr) {
   X_STATUS result = X_STATUS_NO_SUCH_FILE;
 
-  auto& runtime = runtime::Current();
-  auto& modules = runtime.module_registry();
+  auto& runtime = runtime::GetCurrent();
+  auto& modules = runtime.GetModuleRegistry();
   u32 hmodule = 0;
   {
-    std::lock_guard lock(modules.load_count_mutex());
-    auto module = runtime.object_table().Get<ModuleObject>(
-        modules.GetModule(module_name.value()).value_or(0));
+    std::lock_guard lock(modules.GetLoadCountMutex());
+    auto module = runtime.GetObjectTable().Get<ModuleObject>(
+        modules.GetModule(module_name.GetValue()).value_or(0));
     if (module) {
       hmodule = module->hmodule_ptr;
-      auto ldr_data = runtime.memory()->TranslateVirtual<X_LDR_DATA_TABLE_ENTRY*>(hmodule);
+      auto ldr_data = runtime.GetMemory()->TranslateVirtual<X_LDR_DATA_TABLE_ENTRY*>(hmodule);
       ldr_data->load_count++;
       result = X_STATUS_SUCCESS;
     }
   }
 
   if (!hmodule) {
-    auto loaded = modules.LoadUserModule(module_name.value());
-    auto user_module = runtime.object_table().Get<ModuleObject>(loaded ? *loaded : X_HANDLE(0));
+    auto loaded = modules.LoadUserModule(module_name.GetValue());
+    auto user_module = runtime.GetObjectTable().Get<ModuleObject>(loaded ? *loaded : X_HANDLE(0));
     if (user_module) {
       hmodule = user_module->hmodule_ptr;
-      std::lock_guard lock(modules.load_count_mutex());
-      auto ldr_data = runtime.memory()->TranslateVirtual<X_LDR_DATA_TABLE_ENTRY*>(hmodule);
+      std::lock_guard lock(modules.GetLoadCountMutex());
+      auto ldr_data = runtime.GetMemory()->TranslateVirtual<X_LDR_DATA_TABLE_ENTRY*>(hmodule);
       ldr_data->load_count++;
       result = X_STATUS_SUCCESS;
     }
@@ -127,59 +128,59 @@ u32 XexLoadImage_entry(mapped_string module_name, [[maybe_unused]] u32 module_fl
   return result;
 }
 
-u32 XexUnloadImage_entry(mapped_void hmodule) {
-  const X_HANDLE module_handle = ModuleObject::FromHModule(runtime::Current(), hmodule);
-  auto module = runtime::Current().object_table().Get<ModuleObject>(module_handle);
+u32 XexUnloadImage_entry(MappedVoid hmodule) {
+  const X_HANDLE module_handle = ModuleObject::FromHModule(runtime::GetCurrent(), hmodule);
+  auto module = runtime::GetCurrent().GetObjectTable().Get<ModuleObject>(module_handle);
   if (!module) {
     return X_STATUS_INVALID_HANDLE;
   }
-  if (module->type == ModuleType::Kernel) {
+  if (module->type == ModuleType::kKernel) {
     return X_STATUS_SUCCESS;
   }
 
   // Decrement and check under the lock so concurrent unloads cannot both see 0 and double free.
   bool last_ref;
   {
-    std::lock_guard lock(runtime::Current().module_registry().load_count_mutex());
-    auto ldr_data = hmodule.as<X_LDR_DATA_TABLE_ENTRY*>();
+    std::lock_guard lock(runtime::GetCurrent().GetModuleRegistry().GetLoadCountMutex());
+    auto ldr_data = hmodule.As<X_LDR_DATA_TABLE_ENTRY*>();
     last_ref = (--ldr_data->load_count == 0);
   }
 
   if (last_ref) {
-    runtime::Current().module_registry().UnloadUserModule(module_handle);
+    runtime::GetCurrent().GetModuleRegistry().UnloadUserModule(module_handle);
   }
 
   return X_STATUS_SUCCESS;
 }
 
-u32 XexGetProcedureAddress_entry(mapped_void hmodule, u32 ordinal, mapped_u32 out_function_ptr) {
+u32 XexGetProcedureAddress_entry(MappedVoid hmodule, u32 ordinal, MappedU32 out_function_ptr) {
   REX_ASSERT(ordinal != 0);
 
   u32 caller_address = 0;
   auto* thread = KernelThread::GetCurrentThread();
-  if (thread && thread->thread_state() && thread->thread_state()->context()) {
-    caller_address = static_cast<u32>(thread->thread_state()->context()->lr);
+  if (thread && thread->GetThreadState() && thread->GetThreadState()->GetContext()) {
+    caller_address = static_cast<u32>(thread->GetThreadState()->GetContext()->lr);
   }
 
   bool is_string_name = (ordinal & 0xFFFF0000) != 0;
   auto string_name =
-      reinterpret_cast<const char*>(runtime::Current().memory()->TranslateVirtual(ordinal));
+      reinterpret_cast<const char*>(runtime::GetCurrent().GetMemory()->TranslateVirtual(ordinal));
 
   X_STATUS result = X_STATUS_INVALID_HANDLE;
 
   X_HANDLE module_handle = 0;
   if (!hmodule) {
-    module_handle = runtime::Current().module_registry().executable().value_or(0);
+    module_handle = runtime::GetCurrent().GetModuleRegistry().GetExecutable().value_or(0);
   } else {
-    module_handle = ModuleObject::FromHModule(runtime::Current(), hmodule);
+    module_handle = ModuleObject::FromHModule(runtime::GetCurrent(), hmodule);
   }
-  auto module = runtime::Current().object_table().Get<ModuleObject>(module_handle);
+  auto module = runtime::GetCurrent().GetObjectTable().Get<ModuleObject>(module_handle);
   if (module) {
     u32 ptr;
     if (is_string_name) {
       ptr = module->GetProcAddress(string_name);
     } else {
-      ptr = module->GetProcAddress(runtime::Current(), ordinal, caller_address);
+      ptr = module->GetProcAddress(runtime::GetCurrent(), ordinal, caller_address);
     }
     if (ptr) {
       *out_function_ptr = ptr;
@@ -202,17 +203,17 @@ u32 XexGetProcedureAddress_entry(mapped_void hmodule, u32 ordinal, mapped_u32 ou
   return result;
 }
 
-void ExRegisterTitleTerminateNotification_entry(ppc_ptr_t<X_EX_TITLE_TERMINATE_REGISTRATION> reg,
+void ExRegisterTitleTerminateNotification_entry(GuestPtrT<X_EX_TITLE_TERMINATE_REGISTRATION> reg,
                                                 u32 create) {
   if (create) {
-    runtime::Current().RegisterTitleTerminateNotification(reg.guest_address());
+    runtime::GetCurrent().RegisterTitleTerminateNotification(reg.GetGuestAddress());
   } else {
-    runtime::Current().RemoveTitleTerminateNotification(reg.guest_address());
+    runtime::GetCurrent().RemoveTitleTerminateNotification(reg.GetGuestAddress());
   }
 }
 
-u32 XexLoadImageHeaders_entry(mapped_string path, [[maybe_unused]] mapped_void headers) {
-  REX_KERNEL_STUB("XexLoadImageHeaders({})", path.value());
+u32 XexLoadImageHeaders_entry(MappedString path, [[maybe_unused]] MappedVoid headers) {
+  REX_KERNEL_STUB("XexLoadImageHeaders({})", path.GetValue());
   return X_STATUS_NOT_IMPLEMENTED;
 }
 

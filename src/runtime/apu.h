@@ -79,7 +79,7 @@ class REX_RUNTIME_API APU : public NonCopyable {
   void UnregisterClient(u32 index);
 
   /**
-   * Submits 1 title frame of a client.
+   * Submits a title frame of a client.
    *
    * @param index A slot index from RegisterClient.
    * @param samples_ptr Guest address of the frame.
@@ -98,21 +98,21 @@ class REX_RUNTIME_API APU : public NonCopyable {
    *
    * @return True while paused.
    */
-  bool paused() const { return paused_.load(); }
+  bool GetPaused() const { return paused_.load(); }
 
   /**
    * Returns the XMA decoder.
    *
    * @return The decoder.
    */
-  XMADecoder& xma_decoder() { return *xma_decoder_; }
+  XMADecoder& GetXMADecoder() { return *xma_decoder_; }
 
   /**
    * Returns the audio output the clients play to.
    *
    * @return The backend.
    */
-  apu::IAPUBackend& backend() { return backend_; }
+  apu::IAPUBackend& GetBackend() { return backend_; }
 
   /**
    * Returns the credits a slot holds. Test seam.
@@ -120,10 +120,10 @@ class REX_RUNTIME_API APU : public NonCopyable {
    * @param index A slot index.
    * @return The semaphore count.
    */
-  u32 credits(u32 index);
+  u32 TakeCredits(u32 index);
 
   /**
-   * Takes 1 credit without waiting. Test seam.
+   * Takes a credit without waiting. Test seam.
    *
    * @param index A slot index.
    * @return True when a credit was taken.
@@ -147,7 +147,7 @@ class REX_RUNTIME_API APU : public NonCopyable {
   std::unique_ptr<XMADecoder> xma_decoder_;
   std::atomic<bool> worker_running_{false};
   X_HANDLE worker_thread_ = 0;
-  platform::RankedMutex mutex_{platform::LockRank::Object};
+  platform::RankedMutex mutex_{platform::LockRank::kObject};
   std::array<Client, kMaxClients> clients_{};
   std::array<std::unique_ptr<platform::Semaphore>, kMaxClients> semaphores_;
   std::unique_ptr<platform::Event> shutdown_event_;

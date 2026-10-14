@@ -37,7 +37,7 @@ class PosixMappedMemory : public MappedMemory {
 
   ~PosixMappedMemory() override {
     if (data_) {
-      munmap(data_, size());
+      munmap(data_, GetSize());
     }
     if (file_descriptor_ >= 0) {
       close(file_descriptor_);
@@ -79,7 +79,7 @@ class PosixMappedMemory : public MappedMemory {
 
   void Close(u64 truncate_size) override {
     if (data_) {
-      munmap(data_, size());
+      munmap(data_, GetSize());
       data_ = nullptr;
     }
     if (file_descriptor_ >= 0) {
@@ -91,7 +91,7 @@ class PosixMappedMemory : public MappedMemory {
     }
   }
 
-  void Flush() override { msync(data(), size(), MS_ASYNC); }
+  void Flush() override { msync(GetData(), GetSize(), MS_ASYNC); }
 
  private:
   int file_descriptor_;
@@ -223,7 +223,7 @@ class PosixChunkedMappedMemoryWriter : public ChunkedMappedMemoryWriter {
     void Flush() { msync(data_, offset_, MS_ASYNC); }
 
     void FlushNew() {
-      size_t start = last_flush_offset_ & ~(page_size() - 1);
+      size_t start = last_flush_offset_ & ~(PageSize() - 1);
       msync(data_ + start, offset_ - start, MS_ASYNC);
       last_flush_offset_ = offset_;
     }
@@ -251,7 +251,7 @@ class PosixChunkedMappedMemoryWriter : public ChunkedMappedMemoryWriter {
 std::unique_ptr<ChunkedMappedMemoryWriter> ChunkedMappedMemoryWriter::Open(
     const std::filesystem::path& path, size_t chunk_size, bool low_address_space) {
   return std::make_unique<PosixChunkedMappedMemoryWriter>(
-      path, rex::round_up(chunk_size, allocation_granularity()), low_address_space);
+      path, rex::round_up(chunk_size, AllocationGranularity()), low_address_space);
 }
 
 }  // namespace rex::memory

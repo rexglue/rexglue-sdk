@@ -37,8 +37,9 @@ void PushLockRank(LockRank rank) {
   HeldStack& held = t_held;
   if (held.depth > 0) {
     const LockRank top = held.ranks[held.depth - 1];
-    const bool violation = top == LockRank::Leaf || (rank != LockRank::Leaf &&
-                                                     static_cast<u8>(rank) <= static_cast<u8>(top));
+    const bool violation =
+        top == LockRank::kLeaf ||
+        (rank != LockRank::kLeaf && static_cast<u8>(rank) <= static_cast<u8>(top));
     if (violation) {
       g_handler.load()(top, rank);
     }

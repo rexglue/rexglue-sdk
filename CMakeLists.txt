@@ -247,6 +247,9 @@ add_subdirectory(thirdparty)
 add_compile_options(
     -Wall
     -Wextra
+    -Wshadow
+    -Wshadow-field
+    -Wshadow-field-in-constructor-modified
     -Werror
 )
 

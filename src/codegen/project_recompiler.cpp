@@ -43,19 +43,19 @@ std::string DeriveTargetNameFromFilePath(const std::string& file_path) {
 }
 
 std::vector<std::filesystem::path> CollectModuleInputs(const RecompilerConfig& cfg,
-                                                       const std::filesystem::path& configDir,
-                                                       const std::filesystem::path& manifestPath) {
+                                                       const std::filesystem::path& config_dir,
+                                                       const std::filesystem::path& manifest_path) {
   namespace fs = std::filesystem;
 
   std::vector<fs::path> inputs;
-  inputs.push_back(configDir / cfg.filePath);
-  inputs.push_back(manifestPath);
-  for (const auto& loaded : cfg.loadedFiles) {
+  inputs.push_back(config_dir / cfg.file_path);
+  inputs.push_back(manifest_path);
+  for (const auto& loaded : cfg.loaded_files) {
     inputs.emplace_back(loaded);
   }
-  if (!cfg.templateDir.empty()) {
+  if (!cfg.template_dir.empty()) {
     std::error_code ec;
-    for (const auto& entry : fs::recursive_directory_iterator(configDir / cfg.templateDir, ec)) {
+    for (const auto& entry : fs::recursive_directory_iterator(config_dir / cfg.template_dir, ec)) {
       if (entry.is_regular_file())
         inputs.push_back(entry.path());
     }
@@ -66,12 +66,12 @@ std::vector<std::filesystem::path> CollectModuleInputs(const RecompilerConfig& c
 
 std::string FingerprintModule(const RecompilerConfig& cfg,
                               std::span<const std::filesystem::path> inputs, const Limits& limits,
-                              std::string_view sdkVersion) {
+                              std::string_view sdk_version) {
   std::vector<std::string> flags{
-      std::format("templates={}", EmbeddedTemplatesHash()),
-      std::format("generate_exception_handlers={}", cfg.generateExceptionHandlers),
-      std::format("max_jump_extension={}", cfg.maxJumpExtension),
-      std::format("data_region_threshold={}", cfg.dataRegionThreshold),
+      std::format("templates={}", GetEmbeddedTemplatesHash()),
+      std::format("generate_exception_handlers={}", cfg.generate_exception_handlers),
+      std::format("max_jump_extension={}", cfg.max_jump_extension),
+      std::format("data_region_threshold={}", cfg.data_region_threshold),
       std::format("max_file_size_bytes={}", limits.max_file_size_bytes),
       std::format("max_discovery_iterations={}", limits.max_discovery_iterations),
       std::format("max_vtable_iterations={}", limits.max_vtable_iterations),
@@ -85,7 +85,7 @@ std::string FingerprintModule(const RecompilerConfig& cfg,
       std::format("max_blocks_per_function={}", limits.max_blocks_per_function),
   };
 
-  return ComputeInputFingerprint(inputs, sdkVersion, flags);
+  return ComputeInputFingerprint(inputs, sdk_version, flags);
 }
 
 void ReportBinaryInfo(ProgressReporter* reporter, std::string_view display_name,
@@ -94,18 +94,18 @@ void ReportBinaryInfo(ProgressReporter* reporter, std::string_view display_name,
     return;
   BinaryInfo info{};
   info.name = display_name;
-  info.pe_time_date_stamp = xex.pe().time_date_stamp;
-  if (auto* exec = xex.image().OptHeader<filesystem::XEXOptExecutionInfo>(
-          filesystem::XEX_HEADER_EXECUTION_INFO)) {
+  info.pe_time_date_stamp = xex.GetPe().time_date_stamp;
+  if (auto* exec = xex.GetImage().OptHeader<filesystem::XEXOptExecutionInfo>(
+          filesystem::kXEXHeaderExecutionInfo)) {
     info.title_id = exec->title_id;
     info.media_id = exec->media_id;
-    auto version = exec->version();
+    auto version = exec->GetVersion();
     info.version_major = version.major;
     info.version_minor = version.minor;
     info.version_build = version.build;
     info.version_qfe = version.qfe;
   }
-  reporter->binaryInfo(info);
+  reporter->BinaryLoaded(info);
 }
 
 }  // namespace
@@ -115,21 +115,21 @@ ProjectRecompiler::ProjectRecompiler(ManifestConfig manifest) : manifest_(std::m
 Result<void> ProjectRecompiler::Run(const ProjectRecompilerOptions& opts) {
   namespace fs = std::filesystem;
 
-  deletedFiles_.clear();
-  writtenFiles_.clear();
-  unchangedFiles_.clear();
+  deleted_files_.clear();
+  written_files_.clear();
+  unchanged_files_.clear();
 
   if (manifest_.modules.empty()) {
-    REXLOG_TRACE(codegen, "Recompiling '{}' (entrypoint)", manifest_.projectName);
+    REXLOG_TRACE(codegen, "Recompiling '{}' (entrypoint)", manifest_.project_name);
   } else {
-    REXLOG_TRACE(codegen, "Recompiling '{}' (entrypoint + {} DLL{})", manifest_.projectName,
+    REXLOG_TRACE(codegen, "Recompiling '{}' (entrypoint + {} DLL{})", manifest_.project_name,
                  manifest_.modules.size(), manifest_.modules.size() == 1 ? "" : "s");
   }
 
   struct ModuleEntry {
     ModuleEntry(std::string target_name, std::string guest_path, RecompilerConfig recompiler_config)
-        : targetName(std::move(target_name)),
-          guestPath(std::move(guest_path)),
+        : target_name(std::move(target_name)),
+          guest_path(std::move(guest_path)),
           config(std::move(recompiler_config)) {}
     ModuleEntry(const ModuleEntry&) = default;
     ModuleEntry& operator=(const ModuleEntry&) = default;
@@ -137,34 +137,34 @@ Result<void> ProjectRecompiler::Run(const ProjectRecompilerOptions& opts) {
     ModuleEntry& operator=(ModuleEntry&&) noexcept(false) = default;
     ~ModuleEntry() = default;
 
-    std::string targetName;
-    std::string guestPath;
+    std::string target_name;
+    std::string guest_path;
     RecompilerConfig config;
   };
 
-  std::vector<ModuleEntry> allModules;
-  allModules.emplace_back(DeriveTargetNameFromFilePath(manifest_.entrypoint.recompiler.filePath),
-                          "", std::move(manifest_.entrypoint.recompiler));
+  std::vector<ModuleEntry> all_modules;
+  all_modules.emplace_back(DeriveTargetNameFromFilePath(manifest_.entrypoint.recompiler.file_path),
+                           "", std::move(manifest_.entrypoint.recompiler));
   for (auto& mod : manifest_.modules) {
-    allModules.emplace_back(DeriveTargetNameFromFilePath(mod.recompiler.filePath), mod.guestPath,
-                            std::move(mod.recompiler));
+    all_modules.emplace_back(DeriveTargetNameFromFilePath(mod.recompiler.file_path), mod.guest_path,
+                             std::move(mod.recompiler));
   }
 
   if (!opts.targets.empty()) {
     std::vector<std::string> unknown;
     for (const auto& t : opts.targets) {
-      bool match = std::any_of(allModules.begin() + 1, allModules.end(),
-                               [&t](const ModuleEntry& m) { return m.targetName == t; });
+      bool match = std::any_of(all_modules.begin() + 1, all_modules.end(),
+                               [&t](const ModuleEntry& m) { return m.target_name == t; });
       if (!match) {
         unknown.push_back(t);
       }
     }
     if (!unknown.empty()) {
       std::string known;
-      for (size_t i = 1; i < allModules.size(); ++i) {
+      for (size_t i = 1; i < all_modules.size(); ++i) {
         if (i > 1)
           known += ", ";
-        known += allModules[i].targetName;
+        known += all_modules[i].target_name;
       }
       std::string list;
       for (size_t i = 0; i < unknown.size(); ++i) {
@@ -172,118 +172,119 @@ Result<void> ProjectRecompiler::Run(const ProjectRecompilerOptions& opts) {
           list += ", ";
         list += unknown[i];
       }
-      return Err<void>(ErrorCategory::Config,
+      return Err<void>(ErrorCategory::kConfig,
                        std::format("Unknown --target value(s): {}. Known DLL targets: {}", list,
                                    known.empty() ? "(none)" : known));
     }
   }
 
   std::vector<ModuleEntry> targeted;
-  targeted.push_back(std::move(allModules[0]));
-  for (size_t i = 1; i < allModules.size(); ++i) {
+  targeted.push_back(std::move(all_modules[0]));
+  for (size_t i = 1; i < all_modules.size(); ++i) {
     if (opts.targets.empty() || std::find(opts.targets.begin(), opts.targets.end(),
-                                          allModules[i].targetName) != opts.targets.end()) {
-      targeted.push_back(std::move(allModules[i]));
+                                          all_modules[i].target_name) != opts.targets.end()) {
+      targeted.push_back(std::move(all_modules[i]));
     }
   }
 
   // Binaries sharing an out_directory_path would clobber each other's sources.cmake on emit.
-  std::unordered_map<std::string, std::string> outDirOwner;
+  std::unordered_map<std::string, std::string> out_dir_owner;
   for (const auto& m : targeted) {
-    const auto& outDir = m.config.outDirectoryPath;
-    if (outDir.empty())
+    const auto& out_dir = m.config.out_directory_path;
+    if (out_dir.empty())
       continue;
-    auto [it, inserted] = outDirOwner.emplace(outDir, m.targetName);
+    auto [it, inserted] = out_dir_owner.emplace(out_dir, m.target_name);
     if (!inserted) {
       return Err<void>(
-          ErrorCategory::Validation,
+          ErrorCategory::kValidation,
           std::format("out_directory_path '{}' is shared by '{}' and '{}'; each binary "
                       "needs its own output directory",
-                      outDir, it->second, m.targetName));
+                      out_dir, it->second, m.target_name));
     }
   }
 
-  const auto& entryConfig = targeted[0].config;
-  auto configDir = manifest_.manifestDir;
-  fs::path entryXexPath = configDir / entryConfig.filePath;
-  if (!fs::exists(entryXexPath)) {
-    return Err<void>(ErrorCategory::IO,
-                     std::format("Entrypoint XEX not found: {}", entryXexPath.string()));
+  const auto& entry_config = targeted[0].config;
+  auto config_dir = manifest_.manifest_dir;
+  fs::path entry_xex_path = config_dir / entry_config.file_path;
+  if (!fs::exists(entry_xex_path)) {
+    return Err<void>(ErrorCategory::kIO,
+                     std::format("Entrypoint XEX not found: {}", entry_xex_path.string()));
   }
-  entryXexPath = fs::canonical(entryXexPath);
+  entry_xex_path = fs::canonical(entry_xex_path);
 
-  fs::path gameRoot;
-  if (manifest_.gameRoot && !manifest_.gameRoot->empty()) {
-    fs::path resolved = configDir / *manifest_.gameRoot;
+  fs::path game_root;
+  if (manifest_.game_root && !manifest_.game_root->empty()) {
+    fs::path resolved = config_dir / *manifest_.game_root;
     if (!fs::exists(resolved) || !fs::is_directory(resolved)) {
-      return Err<void>(ErrorCategory::Validation,
+      return Err<void>(ErrorCategory::kValidation,
                        std::format("[project].game_root '{}' does not resolve to a directory",
                                    resolved.string()));
     }
-    gameRoot = fs::canonical(resolved);
+    game_root = fs::canonical(resolved);
   } else {
-    gameRoot = fs::canonical(entryXexPath.parent_path());
+    game_root = fs::canonical(entry_xex_path.parent_path());
   }
 
-  fs::path entryRel = fs::relative(entryXexPath, gameRoot);
-  if (entryRel.empty() || *entryRel.begin() == "..") {
-    return Err<void>(ErrorCategory::Validation,
+  fs::path entry_rel = fs::relative(entry_xex_path, game_root);
+  if (entry_rel.empty() || *entry_rel.begin() == "..") {
+    return Err<void>(ErrorCategory::kValidation,
                      std::format("Entrypoint XEX '{}' resolves outside game root '{}'",
-                                 entryXexPath.string(), gameRoot.string()));
+                                 entry_xex_path.string(), game_root.string()));
   }
 
-  auto tool = OpenToolRuntime(gameRoot);
+  auto tool = OpenToolRuntime(game_root);
   if (!tool) {
     return Err<void>(tool.error());
   }
-  Runtime* runtime = &tool->runtime();
+  Runtime* runtime = &tool->GetRuntime();
 
-  std::string entryRelStr = entryRel.string();
-  std::replace(entryRelStr.begin(), entryRelStr.end(), '/', '\\');
-  auto entryVfsPath = "game:\\" + entryRelStr;
-  if (auto loaded = runtime->LoadXEXImage(entryVfsPath); !loaded) {
-    return Err<void>(ErrorCategory::IO,
+  std::string entry_rel_str = entry_rel.string();
+  std::replace(entry_rel_str.begin(), entry_rel_str.end(), '/', '\\');
+  auto entry_vfs_path = "game:\\" + entry_rel_str;
+  if (auto loaded = runtime->LoadXEXImage(entry_vfs_path); !loaded) {
+    return Err<void>(ErrorCategory::kIO,
                      std::format("Failed to load entrypoint XEX: {}", loaded.error().message));
   }
 
-  auto entry_display_name = std::filesystem::path(targeted[0].config.filePath).filename().string();
+  auto entry_display_name = std::filesystem::path(targeted[0].config.file_path).filename().string();
   {
-    auto executable = runtime->object_table().Get<rex::runtime::ModuleObject>(
-        runtime->module_registry().executable().value_or(0));
-    ReportBinaryInfo(opts.reporter, entry_display_name, *executable->xex());
+    auto executable = runtime->GetObjectTable().Get<rex::runtime::ModuleObject>(
+        runtime->GetModuleRegistry().GetExecutable().value_or(0));
+    ReportBinaryInfo(opts.reporter, entry_display_name, *executable->GetXEX());
   }
 
-  std::vector<rex::runtime::Pinned<rex::runtime::ModuleObject>> dllModules;
+  std::vector<rex::runtime::Pinned<rex::runtime::ModuleObject>> dll_modules;
   for (size_t i = 1; i < targeted.size(); ++i) {
-    const auto& dllConfig = targeted[i].config;
-    fs::path dllXexPath = configDir / dllConfig.filePath;
-    if (!fs::exists(dllXexPath)) {
-      return Err<void>(ErrorCategory::IO,
-                       std::format("DLL XEX not found: {}", dllXexPath.string()));
+    const auto& dll_config = targeted[i].config;
+    fs::path dll_xex_path = config_dir / dll_config.file_path;
+    if (!fs::exists(dll_xex_path)) {
+      return Err<void>(ErrorCategory::kIO,
+                       std::format("DLL XEX not found: {}", dll_xex_path.string()));
     }
-    dllXexPath = fs::canonical(dllXexPath);
+    dll_xex_path = fs::canonical(dll_xex_path);
 
-    auto relPath = fs::relative(dllXexPath, gameRoot);
-    if (relPath.empty() || *relPath.begin() == "..") {
-      return Err<void>(ErrorCategory::Validation,
-                       std::format("DLL '{}' resolves outside game root '{}': {}",
-                                   targeted[i].targetName, gameRoot.string(), dllXexPath.string()));
+    auto rel_path = fs::relative(dll_xex_path, game_root);
+    if (rel_path.empty() || *rel_path.begin() == "..") {
+      return Err<void>(
+          ErrorCategory::kValidation,
+          std::format("DLL '{}' resolves outside game root '{}': {}", targeted[i].target_name,
+                      game_root.string(), dll_xex_path.string()));
     }
-    std::string relStr = relPath.string();
-    std::replace(relStr.begin(), relStr.end(), '/', '\\');
-    auto dllVfsPath = "game:\\" + relStr;
-    auto loaded = runtime->module_registry().LoadUserModule(dllVfsPath, false);
-    auto userMod = runtime->object_table().Get<rex::runtime::ModuleObject>(
+    std::string rel_str = rel_path.string();
+    std::replace(rel_str.begin(), rel_str.end(), '/', '\\');
+    auto dll_vfs_path = "game:\\" + rel_str;
+    auto loaded = runtime->GetModuleRegistry().LoadUserModule(dll_vfs_path, false);
+    auto user_mod = runtime->GetObjectTable().Get<rex::runtime::ModuleObject>(
         loaded ? *loaded : rex::X_HANDLE(0));
-    if (!userMod) {
-      return Err<void>(ErrorCategory::IO,
-                       std::format("Failed to load DLL module: {}", targeted[i].targetName));
+    if (!user_mod) {
+      return Err<void>(ErrorCategory::kIO,
+                       std::format("Failed to load DLL module: {}", targeted[i].target_name));
     }
-    REXLOG_TRACE(codegen, "Loaded DLL module '{}' at base 0x{:08X}", targeted[i].targetName,
-                 userMod->xex()->base_address());
-    auto dll_display_name = std::filesystem::path(targeted[i].config.filePath).filename().string();
-    ReportBinaryInfo(opts.reporter, dll_display_name, *userMod->xex());
-    dllModules.push_back(std::move(userMod));
+    REXLOG_TRACE(codegen, "Loaded DLL module '{}' at base 0x{:08X}", targeted[i].target_name,
+                 user_mod->GetXEX()->GetBaseAddress());
+    auto dll_display_name = std::filesystem::path(targeted[i].config.file_path).filename().string();
+    ReportBinaryInfo(opts.reporter, dll_display_name, *user_mod->GetXEX());
+    dll_modules.push_back(std::move(user_mod));
   }
 
   struct ContextEntry {
@@ -293,77 +294,78 @@ Result<void> ProjectRecompiler::Run(const ProjectRecompilerOptions& opts) {
   };
   std::vector<ContextEntry> contexts;
 
-  auto make_display_name = [](const std::string& filePath) {
-    return std::filesystem::path(filePath).filename().string();
+  auto make_display_name = [](const std::string& file_path) {
+    return std::filesystem::path(file_path).filename().string();
   };
 
   {
-    auto execMod = runtime->object_table().Get<rex::runtime::ModuleObject>(
-        runtime->module_registry().executable().value_or(0));
-    auto bv = BinaryView::fromModule(*execMod->xex());
+    auto exec_mod = runtime->GetObjectTable().Get<rex::runtime::ModuleObject>(
+        runtime->GetModuleRegistry().GetExecutable().value_or(0));
+    auto bv = BinaryView::FromModule(*exec_mod->GetXEX());
 
-    auto entry_display = make_display_name(targeted[0].config.filePath);
+    auto entry_display = make_display_name(targeted[0].config.file_path);
     RecompilerConfig cfg = std::move(targeted[0].config);
-    if (opts.enableExceptionHandlers)
-      cfg.generateExceptionHandlers = true;
+    if (opts.enable_exception_handlers)
+      cfg.generate_exception_handlers = true;
 
     auto ctx = CodegenContext::Create(std::move(bv), std::move(cfg));
-    ctx.setLimits(opts.limits);
-    ctx.setConfigDir(configDir);
-    ctx.analysisState().format = "xex";
-    ctx.analysisState().loadAddress = ctx.binary().baseAddress();
-    ctx.analysisState().entryPoint = ctx.binary().entryPoint();
-    ctx.analysisState().imageSize = ctx.binary().imageSize();
-    ctx.setHasDllModules(!manifest_.modules.empty());
-    if (const auto& is_dll = ctx.Config().isDll)
-      ctx.setDllModule(*is_dll);
+    ctx.SetLimits(opts.limits);
+    ctx.SetConfigDir(config_dir);
+    ctx.GetAnalysisState().format = "xex";
+    ctx.GetAnalysisState().load_address = ctx.GetBinary().GetBaseAddress();
+    ctx.GetAnalysisState().entry_point = ctx.GetBinary().GetEntryPoint();
+    ctx.GetAnalysisState().image_size = ctx.GetBinary().GetImageSize();
+    ctx.SetHasDLLModules(!manifest_.modules.empty());
+    if (const auto& is_dll = ctx.GetConfig().is_dll)
+      ctx.SetDLLModule(*is_dll);
 
     contexts.push_back({std::move(ctx), &targeted[0], std::move(entry_display)});
   }
 
-  for (size_t i = 0; i < dllModules.size(); ++i) {
-    auto& userMod = dllModules[i];
-    auto bv = BinaryView::fromModule(*userMod->xex());
+  for (size_t i = 0; i < dll_modules.size(); ++i) {
+    auto& user_mod = dll_modules[i];
+    auto bv = BinaryView::FromModule(*user_mod->GetXEX());
 
-    auto dll_display = make_display_name(targeted[i + 1].config.filePath);
+    auto dll_display = make_display_name(targeted[i + 1].config.file_path);
     RecompilerConfig cfg = std::move(targeted[i + 1].config);
-    if (opts.enableExceptionHandlers)
-      cfg.generateExceptionHandlers = true;
+    if (opts.enable_exception_handlers)
+      cfg.generate_exception_handlers = true;
 
     auto ctx = CodegenContext::Create(std::move(bv), std::move(cfg));
-    ctx.setLimits(opts.limits);
-    ctx.setConfigDir(configDir);
-    ctx.analysisState().format = "xex";
-    ctx.analysisState().loadAddress = ctx.binary().baseAddress();
-    ctx.analysisState().entryPoint = ctx.binary().entryPoint();
-    ctx.analysisState().imageSize = ctx.binary().imageSize();
-    ctx.setDllModule(ctx.Config().isDll.value_or(true));
-    ctx.setHasDllModules(true);
+    ctx.SetLimits(opts.limits);
+    ctx.SetConfigDir(config_dir);
+    ctx.GetAnalysisState().format = "xex";
+    ctx.GetAnalysisState().load_address = ctx.GetBinary().GetBaseAddress();
+    ctx.GetAnalysisState().entry_point = ctx.GetBinary().GetEntryPoint();
+    ctx.GetAnalysisState().image_size = ctx.GetBinary().GetImageSize();
+    ctx.SetDLLModule(ctx.GetConfig().is_dll.value_or(true));
+    ctx.SetHasDLLModules(true);
 
     contexts.push_back({std::move(ctx), &targeted[i + 1], std::move(dll_display)});
   }
 
-  skippedModules_.clear();
+  skipped_modules_.clear();
   std::vector<std::string> fingerprints(contexts.size());
   std::vector<bool> skip(contexts.size(), false);
-  std::vector<fs::path> allInputs;
+  std::vector<fs::path> all_inputs;
 
   for (size_t i = 0; i < contexts.size(); ++i) {
     auto& entry = contexts[i];
-    auto outDir = entry.ctx.configDir() / entry.ctx.Config().outDirectoryPath;
-    auto inputs =
-        CollectModuleInputs(entry.ctx.Config(), entry.ctx.configDir(), manifest_.manifestPath);
-    fingerprints[i] = FingerprintModule(entry.ctx.Config(), inputs, opts.limits, opts.sdkVersion);
-    allInputs.insert(allInputs.end(), inputs.begin(), inputs.end());
+    auto out_dir = entry.ctx.GetConfigDir() / entry.ctx.GetConfig().out_directory_path;
+    auto inputs = CollectModuleInputs(entry.ctx.GetConfig(), entry.ctx.GetConfigDir(),
+                                      manifest_.manifest_path);
+    fingerprints[i] =
+        FingerprintModule(entry.ctx.GetConfig(), inputs, opts.limits, opts.sdk_version);
+    all_inputs.insert(all_inputs.end(), inputs.begin(), inputs.end());
 
-    if (opts.ignoreStamp || opts.force)
+    if (opts.ignore_stamp || opts.force)
       continue;
 
-    auto stamp = OutputStamp::Load(outDir / kStampFileName);
-    if (stamp && OutputsAreUpToDate(*stamp, fingerprints[i], outDir)) {
-      REXLOG_TRACE(codegen, "'{}' is up to date, skipping", entry.module->targetName);
+    auto stamp = OutputStamp::Load(out_dir / kStampFileName);
+    if (stamp && AreOutputsUpToDate(*stamp, fingerprints[i], out_dir)) {
+      REXLOG_TRACE(codegen, "'{}' is up to date, skipping", entry.module->target_name);
       skip[i] = true;
-      skippedModules_.push_back(entry.module->targetName);
+      skipped_modules_.push_back(entry.module->target_name);
     }
   }
 
@@ -373,32 +375,32 @@ Result<void> ProjectRecompiler::Run(const ProjectRecompilerOptions& opts) {
       continue;
     auto& entry = contexts[i];
     if (opts.reporter) {
-      opts.reporter->moduleStarted(entry.display_name, i, contexts.size());
+      opts.reporter->ModuleStarted(entry.display_name, i, contexts.size());
     }
     module_started_at[i] = std::chrono::steady_clock::now();
-    REXLOG_TRACE(codegen, "Analyzing '{}'...", entry.module->targetName);
+    REXLOG_TRACE(codegen, "Analyzing '{}'...", entry.module->target_name);
     auto result = Analyze(entry.ctx, opts.reporter);
     if (!result) {
-      if (opts.force && result.error().category == ErrorCategory::Validation) {
+      if (opts.force && result.error().category == ErrorCategory::kValidation) {
         REXLOG_WARN(codegen, "Analysis errors for '{}' (continuing due to --force): {}",
-                    entry.module->targetName, result.error().message);
+                    entry.module->target_name, result.error().message);
       } else {
-        REX_FAIL(codegen, result, "Analysis failed for '{}'", entry.module->targetName);
+        REX_FAIL(codegen, result, "Analysis failed for '{}'", entry.module->target_name);
       }
     }
   }
 
   for (size_t i = 0; i < contexts.size(); ++i) {
-    u32 a_base = contexts[i].ctx.binary().baseAddress();
-    u32 a_end = a_base + contexts[i].ctx.binary().imageSize();
+    u32 a_base = contexts[i].ctx.GetBinary().GetBaseAddress();
+    u32 a_end = a_base + contexts[i].ctx.GetBinary().GetImageSize();
     for (size_t j = i + 1; j < contexts.size(); ++j) {
-      u32 b_base = contexts[j].ctx.binary().baseAddress();
-      u32 b_end = b_base + contexts[j].ctx.binary().imageSize();
+      u32 b_base = contexts[j].ctx.GetBinary().GetBaseAddress();
+      u32 b_end = b_base + contexts[j].ctx.GetBinary().GetImageSize();
       if (a_base < b_end && b_base < a_end) {
-        return Err<void>(ErrorCategory::Validation,
+        return Err<void>(ErrorCategory::kValidation,
                          std::format("Module '{}' [{:08X}, {:08X}) overlaps '{}' [{:08X}, {:08X})",
-                                     contexts[i].module->targetName, a_base, a_end,
-                                     contexts[j].module->targetName, b_base, b_end));
+                                     contexts[i].module->target_name, a_base, a_end,
+                                     contexts[j].module->target_name, b_base, b_end));
       }
     }
   }
@@ -408,52 +410,53 @@ Result<void> ProjectRecompiler::Run(const ProjectRecompilerOptions& opts) {
       continue;
     auto& entry = contexts[i];
     if (opts.reporter) {
-      opts.reporter->moduleStarted(entry.display_name, i, contexts.size());
-      opts.reporter->phaseChanged("Write");
+      opts.reporter->ModuleStarted(entry.display_name, i, contexts.size());
+      opts.reporter->PhaseChanged("Write");
     }
-    REXLOG_TRACE(codegen, "Writing output for '{}'...", entry.module->targetName);
+    REXLOG_TRACE(codegen, "Writing output for '{}'...", entry.module->target_name);
     CodegenWriter writer(entry.ctx);
-    if (!writer.write(opts.force)) {
-      return Err<void>(ErrorCategory::Validation,
-                       std::format("Write failed for '{}'", entry.module->targetName));
+    if (!writer.Write(opts.force)) {
+      return Err<void>(ErrorCategory::kValidation,
+                       std::format("Write failed for '{}'", entry.module->target_name));
     }
-    deletedFiles_.insert(deletedFiles_.end(), writer.deletedFiles().begin(),
-                         writer.deletedFiles().end());
-    writtenFiles_.insert(writtenFiles_.end(), writer.writtenFiles().begin(),
-                         writer.writtenFiles().end());
-    unchangedFiles_.insert(unchangedFiles_.end(), writer.unchangedFiles().begin(),
-                           writer.unchangedFiles().end());
+    deleted_files_.insert(deleted_files_.end(), writer.GetDeletedFiles().begin(),
+                          writer.GetDeletedFiles().end());
+    written_files_.insert(written_files_.end(), writer.GetWrittenFiles().begin(),
+                          writer.GetWrittenFiles().end());
+    unchanged_files_.insert(unchanged_files_.end(), writer.GetUnchangedFiles().begin(),
+                            writer.GetUnchangedFiles().end());
 
     OutputStamp stamp;
     stamp.fingerprint = fingerprints[i];
-    stamp.outputs.insert(stamp.outputs.end(), writer.writtenFiles().begin(),
-                         writer.writtenFiles().end());
-    stamp.outputs.insert(stamp.outputs.end(), writer.unchangedFiles().begin(),
-                         writer.unchangedFiles().end());
+    stamp.outputs.insert(stamp.outputs.end(), writer.GetWrittenFiles().begin(),
+                         writer.GetWrittenFiles().end());
+    stamp.outputs.insert(stamp.outputs.end(), writer.GetUnchangedFiles().begin(),
+                         writer.GetUnchangedFiles().end());
     std::sort(stamp.outputs.begin(), stamp.outputs.end());
 
-    auto outDir = entry.ctx.configDir() / entry.ctx.Config().outDirectoryPath;
-    if (WriteIfChanged(outDir / kStampFileName, stamp.Serialize()) == WriteOutcome::Failed) {
-      return Err<void>(ErrorCategory::IO,
-                       std::format("Failed to write stamp for '{}'", entry.module->targetName));
+    auto out_dir = entry.ctx.GetConfigDir() / entry.ctx.GetConfig().out_directory_path;
+    if (WriteIfChanged(out_dir / kStampFileName, stamp.Serialize()) == WriteOutcome::kFailed) {
+      return Err<void>(ErrorCategory::kIO,
+                       std::format("Failed to write stamp for '{}'", entry.module->target_name));
     }
 
     if (opts.reporter) {
       auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
           std::chrono::steady_clock::now() - module_started_at[i]);
-      opts.reporter->moduleFinished(elapsed);
+      opts.reporter->ModuleFinished(elapsed);
     }
   }
 
   if (!contexts.empty()) {
-    auto buildDir = contexts[0].ctx.configDir() / contexts[0].ctx.Config().outDirectoryPath;
-    std::sort(allInputs.begin(), allInputs.end());
-    allInputs.erase(std::unique(allInputs.begin(), allInputs.end()), allInputs.end());
+    auto build_dir =
+        contexts[0].ctx.GetConfigDir() / contexts[0].ctx.GetConfig().out_directory_path;
+    std::sort(all_inputs.begin(), all_inputs.end());
+    all_inputs.erase(std::unique(all_inputs.begin(), all_inputs.end()), all_inputs.end());
 
-    auto buildStamp = fs::absolute(buildDir / kBuildStampFileName);
-    if (!WriteDepfile(buildDir / kDepfileName, buildStamp, allInputs)) {
-      return Err<void>(ErrorCategory::IO,
-                       std::format("Failed to write {}", (buildDir / kDepfileName).string()));
+    auto build_stamp = fs::absolute(build_dir / kBuildStampFileName);
+    if (!WriteDepfile(build_dir / kDepfileName, build_stamp, all_inputs)) {
+      return Err<void>(ErrorCategory::kIO,
+                       std::format("Failed to write {}", (build_dir / kDepfileName).string()));
     }
     std::string stamp_text;
     for (const auto& fingerprint : fingerprints) {
@@ -461,8 +464,8 @@ Result<void> ProjectRecompiler::Run(const ProjectRecompilerOptions& opts) {
       stamp_text += '\n';
     }
     // Never WriteIfChanged, as the build rule reruns until this mtime passes its inputs.
-    if (!WriteFileBytes(buildStamp, stamp_text)) {
-      return Err<void>(ErrorCategory::IO, std::format("Failed to write {}", buildStamp.string()));
+    if (!WriteFileBytes(build_stamp, stamp_text)) {
+      return Err<void>(ErrorCategory::kIO, std::format("Failed to write {}", build_stamp.string()));
     }
   }
 
@@ -471,89 +474,91 @@ Result<void> ProjectRecompiler::Run(const ProjectRecompilerOptions& opts) {
     return Ok();
   }
 
-  auto outputPath = contexts[0].ctx.configDir() / contexts[0].ctx.Config().outDirectoryPath;
+  auto output_path =
+      contexts[0].ctx.GetConfigDir() / contexts[0].ctx.GetConfig().out_directory_path;
   std::error_code mk_ec;
-  fs::create_directories(outputPath, mk_ec);
+  fs::create_directories(output_path, mk_ec);
   if (mk_ec) {
-    return Err<void>(ErrorCategory::IO, std::format("Failed to create output dir {}: {}",
-                                                    outputPath.string(), mk_ec.message()));
+    return Err<void>(ErrorCategory::kIO, std::format("Failed to create output dir {}: {}",
+                                                     output_path.string(), mk_ec.message()));
   }
 
   if (opts.reporter)
-    opts.reporter->projectPhaseStarted("module_registry");
+    opts.reporter->ProjectPhaseStarted("module_registry");
   {
-    nlohmann::json registryData;
-    registryData["project"] = manifest_.projectName;
+    nlohmann::json registry_data;
+    registry_data["project"] = manifest_.project_name;
 
-    auto& dllArray = registryData["dll_modules"];
-    dllArray = nlohmann::json::array();
+    auto& dll_array = registry_data["dll_modules"];
+    dll_array = nlohmann::json::array();
     for (size_t i = 1; i < targeted.size(); ++i) {
       auto& mod = targeted[i];
-      auto guestPath = mod.guestPath;
-      std::replace(guestPath.begin(), guestPath.end(), '\\', '/');
-      nlohmann::json dllEntry;
-      dllEntry["pe_name"] = fs::path(mod.guestPath).filename().string();
-      dllEntry[kModuleGuestPathKey] = guestPath;
-      dllEntry["shared_lib_name"] = manifest_.projectName + "_" + mod.targetName;
-      dllArray.push_back(dllEntry);
+      auto guest_path = mod.guest_path;
+      std::replace(guest_path.begin(), guest_path.end(), '\\', '/');
+      nlohmann::json dll_entry;
+      dll_entry["pe_name"] = fs::path(mod.guest_path).filename().string();
+      dll_entry[kModuleGuestPathKey] = guest_path;
+      dll_entry["shared_lib_name"] = manifest_.project_name + "_" + mod.target_name;
+      dll_array.push_back(dll_entry);
     }
 
     TemplateRegistry registry;
-    auto registryContent = renderWithJson(registry, "codegen/module_registry_cpp", registryData);
+    auto registry_content = RenderWithJSON(registry, "codegen/module_registry_cpp", registry_data);
 
-    auto registryPath = outputPath / "module_registry.cpp";
-    switch (WriteIfChanged(registryPath, registryContent)) {
-      case WriteOutcome::Failed:
-        return Err<void>(ErrorCategory::IO,
-                         std::format("Failed while writing {}", registryPath.string()));
-      case WriteOutcome::Unchanged:
-        unchangedFiles_.push_back(registryPath.filename().string());
+    auto registry_path = output_path / "module_registry.cpp";
+    switch (WriteIfChanged(registry_path, registry_content)) {
+      case WriteOutcome::kFailed:
+        return Err<void>(ErrorCategory::kIO,
+                         std::format("Failed while writing {}", registry_path.string()));
+      case WriteOutcome::kUnchanged:
+        unchanged_files_.push_back(registry_path.filename().string());
         break;
-      case WriteOutcome::Written:
-        writtenFiles_.push_back(registryPath.filename().string());
+      case WriteOutcome::kWritten:
+        written_files_.push_back(registry_path.filename().string());
         break;
     }
-    REXLOG_TRACE(codegen, "Wrote {}", registryPath.string());
+    REXLOG_TRACE(codegen, "Wrote {}", registry_path.string());
   }
   if (opts.reporter)
-    opts.reporter->projectPhaseFinished();
+    opts.reporter->ProjectPhaseFinished();
 
   if (opts.reporter)
-    opts.reporter->projectPhaseStarted("dll_targets.cmake");
+    opts.reporter->ProjectPhaseStarted("dll_targets.cmake");
   {
-    nlohmann::json dllTargetsData;
-    dllTargetsData["project"] = manifest_.projectName;
-    auto& dllTargetsArray = dllTargetsData["dll_modules"];
-    dllTargetsArray = nlohmann::json::array();
-    for (size_t i = 0; i < dllModules.size(); ++i) {
+    nlohmann::json dll_targets_data;
+    dll_targets_data["project"] = manifest_.project_name;
+    auto& dll_targets_array = dll_targets_data["dll_modules"];
+    dll_targets_array = nlohmann::json::array();
+    for (size_t i = 0; i < dll_modules.size(); ++i) {
       auto& mod = targeted[i + 1];
-      auto& dllCtx = contexts[i + 1].ctx;
+      auto& dll_ctx = contexts[i + 1].ctx;
       nlohmann::json entry;
-      entry["target_name"] = mod.targetName;
-      entry["lib_name"] = manifest_.projectName + "_" + mod.targetName;
-      entry["output_dir"] = dllCtx.Config().outDirectoryPath;
-      dllTargetsArray.push_back(entry);
+      entry["target_name"] = mod.target_name;
+      entry["lib_name"] = manifest_.project_name + "_" + mod.target_name;
+      entry["output_dir"] = dll_ctx.GetConfig().out_directory_path;
+      dll_targets_array.push_back(entry);
     }
 
     TemplateRegistry registry;
-    auto dllCmakeContent = renderWithJson(registry, "codegen/dll_targets_cmake", dllTargetsData);
+    auto dll_cmake_content =
+        RenderWithJSON(registry, "codegen/dll_targets_cmake", dll_targets_data);
 
-    auto dllCmakePath = outputPath / "dll_targets.cmake";
-    switch (WriteIfChanged(dllCmakePath, dllCmakeContent)) {
-      case WriteOutcome::Failed:
-        return Err<void>(ErrorCategory::IO,
-                         std::format("Failed while writing {}", dllCmakePath.string()));
-      case WriteOutcome::Unchanged:
-        unchangedFiles_.push_back(dllCmakePath.filename().string());
+    auto dll_cmake_path = output_path / "dll_targets.cmake";
+    switch (WriteIfChanged(dll_cmake_path, dll_cmake_content)) {
+      case WriteOutcome::kFailed:
+        return Err<void>(ErrorCategory::kIO,
+                         std::format("Failed while writing {}", dll_cmake_path.string()));
+      case WriteOutcome::kUnchanged:
+        unchanged_files_.push_back(dll_cmake_path.filename().string());
         break;
-      case WriteOutcome::Written:
-        writtenFiles_.push_back(dllCmakePath.filename().string());
+      case WriteOutcome::kWritten:
+        written_files_.push_back(dll_cmake_path.filename().string());
         break;
     }
-    REXLOG_TRACE(codegen, "Wrote {}", dllCmakePath.string());
+    REXLOG_TRACE(codegen, "Wrote {}", dll_cmake_path.string());
   }
   if (opts.reporter)
-    opts.reporter->projectPhaseFinished();
+    opts.reporter->ProjectPhaseFinished();
 
   REXLOG_TRACE(codegen, "Project recompiler complete");
   return Ok();

@@ -21,37 +21,37 @@
 namespace rex {
 
 /** Ratio of 1 FILETIME tick, 100ns, to 1 second. */
-using hundrednano = std::ratio<1, 10000000>;
+using HundredNano = std::ratio<1, 10000000>;
 
 /** Duration in 100ns FILETIME ticks. */
-using hundrednanoseconds = std::chrono::duration<i64, hundrednano>;
+using HundredNanoseconds = std::chrono::duration<i64, HundredNano>;
 
 namespace detail {
 
 /** Time domain an NtSystemClock reads. */
 enum class Domain : u8 {
-  Host, /**< Unscaled host time. */
-  Guest /**< guest time, with the Clock time scalar and time base applied. */
+  kHost, /**< Unscaled host time. */
+  kGuest /**< Guest time, with the Clock time scalar and time base applied. */
 };
 
 /**
  * std::chrono clock over NT FILETIME, 100ns ticks since Jan 1 1601.
  *
- * @tparam domain_ The time domain the clock reads.
+ * @tparam Domain The time domain the clock reads.
  */
-template <Domain domain_>
+template <Domain Domain>
 struct NtSystemClock {
-  using rep = i64;                                                    /**< Tick count type. */
-  using period = hundrednano;                                         /**< Tick period. */
-  using duration = hundrednanoseconds;                                /**< Duration type. */
-  using time_point = std::chrono::time_point<NtSystemClock<domain_>>; /**< Time point type. */
+  using rep = i64;                                                   /**< Tick count type. */
+  using period = HundredNano;                                        /**< Tick period. */
+  using duration = HundredNanoseconds;                               /**< Duration type. */
+  using time_point = std::chrono::time_point<NtSystemClock<Domain>>; /**< Time point type. */
 
  public:
   /**
    * @return The offset from the std::chrono::system_clock epoch, Jan 1 1970, to the FILETIME
    *         epoch, Jan 1 1601, in seconds.
    */
-  static constexpr std::chrono::seconds unix_epoch_delta() {
+  static constexpr std::chrono::seconds GetUnixEpochDelta() {
     using std::chrono::steady_clock;
     auto filetime_epoch = std::chrono::year{1601} / std::chrono::month{1} / std::chrono::day{1};
     auto system_clock_epoch = std::chrono::year{1970} / std::chrono::month{1} / std::chrono::day{1};
@@ -66,7 +66,7 @@ struct NtSystemClock {
    * @param tp The time point to convert.
    * @return The time point as a FILETIME.
    */
-  static constexpr u64 to_file_time(time_point const& tp) noexcept {
+  static constexpr u64 ToFileTime(time_point const& tp) noexcept {
     return static_cast<u64>(tp.time_since_epoch().count());
   }
 
@@ -74,7 +74,7 @@ struct NtSystemClock {
    * @param tp The FILETIME to convert.
    * @return The FILETIME as a time point.
    */
-  static constexpr time_point from_file_time(u64 const& tp) noexcept {
+  static constexpr time_point FromFileTime(u64 const& tp) noexcept {
     return time_point{duration{tp}};
   }
 
@@ -86,9 +86,9 @@ struct NtSystemClock {
    * @return The same instant as std::chrono::sys_time.
    */
   static constexpr std::chrono::sys_time<duration> to_sys(const time_point& tp)
-    requires(domain_ == Domain::Host)
+    requires(Domain == Domain::kHost)
   {
-    return std::chrono::sys_time<duration>{tp.time_since_epoch() + unix_epoch_delta()};
+    return std::chrono::sys_time<duration>{tp.time_since_epoch() + GetUnixEpochDelta()};
   }
 
   /**
@@ -100,20 +100,20 @@ struct NtSystemClock {
    */
   template <typename SysDuration>
   static constexpr time_point from_sys(const std::chrono::sys_time<SysDuration>& tp)
-    requires(domain_ == Domain::Host)
+    requires(Domain == Domain::kHost)
   {
     auto ctp = std::chrono::time_point_cast<duration>(tp);
-    return time_point{ctp.time_since_epoch() - unix_epoch_delta()};
+    return time_point{ctp.time_since_epoch() - GetUnixEpochDelta()};
   }
 
   /**
    * @return The current time from Clock::QueryHostSystemTime or Clock::QueryGuestSystemTime.
    */
   [[nodiscard]] static time_point now() noexcept {
-    if constexpr (domain_ == Domain::Host) {
-      return from_file_time(Clock::QueryHostSystemTime());
-    } else if constexpr (domain_ == Domain::Guest) {
-      return from_file_time(Clock::QueryGuestSystemTime());
+    if constexpr (Domain == Domain::kHost) {
+      return FromFileTime(Clock::QueryHostSystemTime());
+    } else if constexpr (Domain == Domain::kGuest) {
+      return FromFileTime(Clock::QueryGuestSystemTime());
     }
   }
 };
@@ -121,10 +121,10 @@ struct NtSystemClock {
 }  // namespace detail
 
 /** Unscaled host FILETIME clock. It converts to and from std::chrono::sys_time. */
-using WinSystemClock = detail::NtSystemClock<detail::Domain::Host>;
+using WinSystemClock = detail::NtSystemClock<detail::Domain::kHost>;
 
 /** Scaled guest FILETIME clock. Convert it with clock_cast to WinSystemClock. */
-using XSystemClock = detail::NtSystemClock<detail::Domain::Guest>;
+using XSystemClock = detail::NtSystemClock<detail::Domain::kGuest>;
 
 }  // namespace rex
 
@@ -160,9 +160,9 @@ auto clock_cast(const std::chrono::time_point<SourceClock, Duration>& t) {
 template <>
 struct clock_time_conversion<::rex::WinSystemClock, ::rex::XSystemClock> {
   /** Destination clock. */
-  using WClock_ = ::rex::WinSystemClock;
+  using WClock = ::rex::WinSystemClock;
   /** Source clock. */
-  using XClock_ = ::rex::XSystemClock;
+  using XClock = ::rex::XSystemClock;
 
   /**
    * @tparam Duration The duration of the source time point.
@@ -170,15 +170,15 @@ struct clock_time_conversion<::rex::WinSystemClock, ::rex::XSystemClock> {
    * @return The same instant in host time.
    */
   template <typename Duration>
-  WClock_::time_point operator()(const std::chrono::time_point<XClock_, Duration>& t) const {
+  WClock::time_point operator()(const std::chrono::time_point<XClock, Duration>& t) const {
     std::atomic_thread_fence(std::memory_order_acq_rel);
-    auto w_now = WClock_::now();
-    auto x_now = XClock_::now();
+    auto w_now = WClock::now();
+    auto x_now = XClock::now();
     std::atomic_thread_fence(std::memory_order_acq_rel);
 
     auto delta = (t - x_now);
-    if (!rex::Clock::no_scaling()) {
-      delta = std::chrono::floor<WClock_::duration>(delta * rex::Clock::guest_time_scalar());
+    if (!rex::Clock::GetNoScaling()) {
+      delta = std::chrono::floor<WClock::duration>(delta * rex::Clock::GetGuestTimeScalar());
     }
     return w_now + delta;
   }
@@ -191,9 +191,9 @@ struct clock_time_conversion<::rex::WinSystemClock, ::rex::XSystemClock> {
 template <>
 struct clock_time_conversion<::rex::XSystemClock, ::rex::WinSystemClock> {
   /** Source clock. */
-  using WClock_ = ::rex::WinSystemClock;
+  using WClock = ::rex::WinSystemClock;
   /** Destination clock. */
-  using XClock_ = ::rex::XSystemClock;
+  using XClock = ::rex::XSystemClock;
 
   /**
    * @tparam Duration The duration of the source time point.
@@ -201,15 +201,15 @@ struct clock_time_conversion<::rex::XSystemClock, ::rex::WinSystemClock> {
    * @return The same instant in guest time.
    */
   template <typename Duration>
-  XClock_::time_point operator()(const std::chrono::time_point<WClock_, Duration>& t) const {
+  XClock::time_point operator()(const std::chrono::time_point<WClock, Duration>& t) const {
     std::atomic_thread_fence(std::memory_order_acq_rel);
-    auto w_now = WClock_::now();
-    auto x_now = XClock_::now();
+    auto w_now = WClock::now();
+    auto x_now = XClock::now();
     std::atomic_thread_fence(std::memory_order_acq_rel);
 
-    rex::hundrednanoseconds delta = (t - w_now);
-    if (!rex::Clock::no_scaling()) {
-      delta = std::chrono::floor<WClock_::duration>(delta / rex::Clock::guest_time_scalar());
+    rex::HundredNanoseconds delta = (t - w_now);
+    if (!rex::Clock::GetNoScaling()) {
+      delta = std::chrono::floor<WClock::duration>(delta / rex::Clock::GetGuestTimeScalar());
     }
     return x_now + delta;
   }

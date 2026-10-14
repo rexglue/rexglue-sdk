@@ -40,8 +40,8 @@ class GoodModule final : public rex::IModule, public rex::test::IEcho {
 
   GoodModule() { Record(kName, "constructor"); }
 
-  const char* Name() const override { return kName; }
-  std::span<const char* const> RequiredInterfaces() const override {
+  const char* GetName() const override { return kName; }
+  std::span<const char* const> GetRequiredInterfaces() const override {
     static constexpr std::array<const char*, 1> kRequired = {"rex.cvar@1"};
     return kRequired;
   }
@@ -62,23 +62,23 @@ class GoodModule final : public rex::IModule, public rex::test::IEcho {
     return rex::Ok();
   }
   void Shutdown() override { Record(kName, "shutdown"); }
-  int Echo(int value) override { return value; }
-  int Value() override { return value.get(); }
+  int Echo(int input) override { return input; }
+  int Value() override { return value.Get(); }
 
  private:
   rex::cvar::ICvarRegistry* cvars_ = nullptr;
-  static GoodModule& Instance() {
+  static GoodModule& GetInstance() {
     static GoodModule instance;
     return instance;
   }
 };
 
 void* GoodModule::GetModule() {
-  return static_cast<rex::IModule*>(&Instance());
+  return static_cast<rex::IModule*>(&GetInstance());
 }
 
 void* GoodModule::GetEcho() {
-  return static_cast<rex::test::IEcho*>(&Instance());
+  return static_cast<rex::test::IEcho*>(&GetInstance());
 }
 
 }  // namespace

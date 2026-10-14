@@ -20,30 +20,30 @@
 namespace rex::runtime {
 
 /** Loads libxenon executables. */
-class REX_RUNTIME_API ElfModule : public Module {
+class REX_RUNTIME_API ELFModule : public Module {
  public:
   /**
    * Builds an unloaded module.
    *
    * @param function_dispatcher The dispatcher whose memory the module loads into.
    */
-  explicit ElfModule(FunctionDispatcher* function_dispatcher);
+  explicit ELFModule(FunctionDispatcher* function_dispatcher);
   /** Destroys the module. */
-  virtual ~ElfModule();
+  virtual ~ELFModule();
 
-  bool loaded() const { return loaded_; }
-  const std::string& name() const override { return name_; }
+  bool GetLoaded() const { return loaded_; }
+  const std::string& GetName() const override { return name_; }
   /**
    * Reports whether the image has an entry point.
    *
    * @return True when it does.
    */
-  bool is_executable() const override;
-  const std::string& path() const { return path_; }
+  bool IsExecutable() const override;
+  const std::string& GetPath() const { return path_; }
 
-  u32 base_address() const override { return base_address_; }
-  u32 image_size() const override { return image_size_; }
-  u32 entry_point() const override { return entry_point_; }
+  u32 GetBaseAddress() const override { return base_address_; }
+  u32 GetImageSize() const override { return image_size_; }
+  u32 GetEntryPoint() const override { return entry_point_; }
 
   /**
    * Copies the loadable segments of an ELF image into guest memory.

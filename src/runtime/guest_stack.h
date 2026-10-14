@@ -19,7 +19,7 @@ namespace rex::runtime {
 
 class Memory;
 
-/** Bytes in 1 page of the stack heap, the guard below every guest stack. */
+/** Bytes in a page of the stack heap, the guard below every guest stack. */
 inline constexpr u32 kGuestStackPageSize = 64 * 1024;
 
 /** Smallest thread and kernel stack. */

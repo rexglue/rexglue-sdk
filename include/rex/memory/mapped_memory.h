@@ -64,7 +64,7 @@ class REX_API MappedMemory : public rex::NonCopyable {
    * @return The view.
    */
   std::unique_ptr<MappedMemory> Range(size_t offset, size_t length) const {
-    return std::make_unique<MappedMemory>(data() + offset, length);
+    return std::make_unique<MappedMemory>(GetData() + offset, length);
   }
 
   /**
@@ -72,14 +72,14 @@ class REX_API MappedMemory : public rex::NonCopyable {
    *
    * @return Pointer to the first byte, or nullptr once closed.
    */
-  u8* data() const { return reinterpret_cast<u8*>(data_); }
+  u8* GetData() const { return reinterpret_cast<u8*>(data_); }
 
   /**
    * Returns the size of the mapped memory.
    *
    * @return Byte count.
    */
-  size_t size() const { return size_; }
+  size_t GetSize() const { return size_; }
 
   /**
    * Unmaps the memory and closes the file.
@@ -92,7 +92,7 @@ class REX_API MappedMemory : public rex::NonCopyable {
   virtual void Flush() {}
 
   /**
-   * Maps a different range of the file. data() and size() change to match.
+   * Maps a different range of the file. GetData() and GetSize() change to match.
    *
    * @param offset Byte offset of the new range in the file.
    * @param length Byte count of the new range, or 0 to map to the end of the file.

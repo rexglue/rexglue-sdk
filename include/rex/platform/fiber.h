@@ -66,7 +66,7 @@ struct REX_API Fiber {
    *
    * @return The current fiber, or null when the thread was never converted.
    */
-  static Fiber* Current();
+  static Fiber* GetCurrent();
 
  private:
 #if REX_PLATFORM_WIN32

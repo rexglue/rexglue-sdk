@@ -9,7 +9,7 @@
 namespace rex::filesystem {
 
 NodeFile::NodeFile(Node& node, Access access, std::unique_ptr<NodeStream> stream)
-    : provider_(node.provider().shared_from_this()),
+    : provider_(node.GetProvider().shared_from_this()),
       node_(&node),
       access_(access),
       stream_(std::move(stream)) {
@@ -21,16 +21,16 @@ NodeFile::~NodeFile() {
   node_->ReleaseOpen();
 }
 
-FileInfo NodeFile::Info() const {
-  return node_->Info();
+FileInfo NodeFile::GetInfo() const {
+  return node_->GetInfo();
 }
 
 void NodeFile::Refresh() {
   node_->Refresh();
 }
 
-VolumeInfo NodeFile::Volume() const {
-  return node_->provider().Volume();
+VolumeInfo NodeFile::GetVolume() const {
+  return node_->GetProvider().GetVolume();
 }
 
 Result<size_t> NodeFile::Read(std::span<u8> buffer, u64 offset) {
@@ -58,14 +58,14 @@ Result<void> NodeFile::SetTimes(const FileTimes& times) {
 }
 
 void NodeFile::SetDeleteOnClose(bool delete_on_close) {
-  node_->set_delete_on_close(delete_on_close);
+  node_->SetDeleteOnClose(delete_on_close);
 }
 
 Result<std::unique_ptr<IDirectory>> NodeFile::List(std::string_view pattern) {
-  if (!node_->is_directory()) {
+  if (!node_->IsDirectory()) {
     return Err<std::unique_ptr<IDirectory>>(
         BuildError(FileSystemError::kNotDirectory,
-                   std::format("'{}' is not a directory", node_->absolute_path())));
+                   std::format("'{}' is not a directory", node_->GetAbsolutePath())));
   }
   return std::unique_ptr<IDirectory>(std::make_unique<NodeDirectory>(*node_, pattern));
 }
@@ -75,7 +75,7 @@ Result<std::span<const u8>> NodeFile::View() {
 }
 
 NodeDirectory::NodeDirectory(Node& node, std::string_view pattern)
-    : provider_(node.provider().shared_from_this()), node_(&node), matcher_(pattern) {
+    : provider_(node.GetProvider().shared_from_this()), node_(&node), matcher_(pattern) {
   node_->AddOpen();
 }
 
@@ -88,7 +88,7 @@ std::optional<FileInfo> NodeDirectory::Next() {
   if (!child) {
     return std::nullopt;
   }
-  return child->Info();
+  return child->GetInfo();
 }
 
 }  // namespace rex::filesystem

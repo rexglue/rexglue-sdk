@@ -28,7 +28,7 @@ class VulkanShader : public SPIRVShader {
     ~VulkanTranslation() override;
 
     VkShaderModule GetOrCreateShaderModule();
-    VkShaderModule shader_module() const { return shader_module_; }
+    VkShaderModule GetShaderModule() const { return shader_module_; }
 
    private:
     VkShaderModule shader_module_ = VK_NULL_HANDLE;

@@ -36,7 +36,7 @@ namespace rex {
  * @return The number of elements in a C array.
  */
 template <typename T, size_t N>
-constexpr size_t countof(T (&)[N]) noexcept {
+constexpr size_t CountOf(T (&)[N]) noexcept {
   return std::extent<T[N]>::value;
 }
 
@@ -57,7 +57,7 @@ constexpr bool is_pow2(T value) {
  * @return value rounded up to a multiple of alignment.
  */
 template <typename T>
-constexpr T align(T value, T alignment) {
+constexpr T Align(T value, T alignment) {
   return (value + alignment - 1) & ~(alignment - 1);
 }
 
@@ -130,7 +130,7 @@ T next_pow2(T value) {
  * @return The greatest common divisor of a and b.
  */
 template <typename T>
-constexpr T greatest_common_divisor(T a, T b) {
+constexpr T GreatestCommonDivisor(T a, T b) {
   return std::gcd(a, b);
 }
 #else
@@ -141,7 +141,7 @@ constexpr T greatest_common_divisor(T a, T b) {
  * @return The greatest common divisor of a and b.
  */
 template <typename T>
-constexpr T greatest_common_divisor(T a, T b) {
+constexpr T GreatestCommonDivisor(T a, T b) {
   while (b) {
     a = std::exchange(b, a % b);
   }
@@ -158,7 +158,7 @@ constexpr T greatest_common_divisor(T a, T b) {
  */
 template <typename T>
 constexpr void reduce_fraction(T& numerator, T& denominator) {
-  auto gcd = greatest_common_divisor(numerator, denominator);
+  auto gcd = GreatestCommonDivisor(numerator, denominator);
   numerator /= gcd;
   denominator /= gcd;
 }
@@ -232,7 +232,7 @@ constexpr u64 mul_div(u64 value, u64 numerator, u64 denominator) {
  * @param b Index of the highest set bit.
  * @return A mask with bits a through b set.
  */
-constexpr u32 make_bitmask(u32 a, u32 b) {
+constexpr u32 MakeBitmask(u32 a, u32 b) {
   return (static_cast<u32>(-1) >> (31 - b)) & ~((1u << a) - 1);
 }
 
@@ -243,7 +243,7 @@ constexpr u32 make_bitmask(u32 a, u32 b) {
  * @return Bits a through b of value, shifted down to bit 0.
  */
 constexpr u32 select_bits(u32 value, u32 a, u32 b) {
-  return (value & make_bitmask(a, b)) >> a;
+  return (value & MakeBitmask(a, b)) >> a;
 }
 
 /**
@@ -252,7 +252,7 @@ constexpr u32 select_bits(u32 value, u32 a, u32 b) {
  * @return The number of set bits in v.
  */
 template <class T>
-constexpr u32 bit_count(T v) {
+constexpr u32 BitCount(T v) {
   return static_cast<u32>(std::popcount(v));
 }
 
@@ -463,7 +463,7 @@ inline T log2_ceil(T v) {
  * @return v rotated left by sh bits.
  */
 template <typename T>
-inline T rotate_left(T v, u8 sh) {
+inline T RotateLeft(T v, u8 sh) {
   return (T(v) << sh) | (T(v) >> ((sizeof(T) * 8) - sh));
 }
 
@@ -544,7 +544,7 @@ i64 m128_i64(const simde__m128& v) {
  * @return a + b clamped to the range of T.
  */
 template <typename T>
-inline T sat_add(T a, T b) {
+inline T SatAdd(T a, T b) {
   using TU = std::make_unsigned<T>::type;
   TU result = TU(a) + TU(b);
   if (std::is_unsigned<T>::value) {
@@ -567,7 +567,7 @@ inline T sat_add(T a, T b) {
  * @return a - b clamped to the range of T.
  */
 template <typename T>
-inline T sat_sub(T a, T b) {
+inline T SatSub(T a, T b) {
   using TU = std::make_unsigned<T>::type;
   TU result = TU(a) - TU(b);
   if (std::is_unsigned<T>::value) {

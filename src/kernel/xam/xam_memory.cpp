@@ -1,6 +1,6 @@
 /**
  * @file        kernel/xam/xam_memory.cpp
- * @brief       Memory routines served to the Xam import table and to the shim layer
+ * @brief       Memory routines served to the XAM import table and to the shim layer
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

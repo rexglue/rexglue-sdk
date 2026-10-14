@@ -31,14 +31,14 @@ u32 KernelProcAddressByOrdinal(Runtime& runtime, ModuleObject& module, u16 ordin
     return 0;
   }
 
-  if (export_entry->kind == rex::runtime::ExportKind::Variable) {
+  if (export_entry->kind == rex::runtime::ExportKind::kVariable) {
     const u32 address = module.Variable(ordinal);
     REXLOG_DEBUG(system, "GetProcAddressByOrdinal: {} ({:04X}) -> variable at {:08X}",
                  export_entry->name, ordinal, address);
     return address;
   }
 
-  auto* dispatcher = runtime.function_dispatcher();
+  auto* dispatcher = runtime.GetFunctionDispatcher();
   const u32 caller_module_base = dispatcher->FindCallerModuleBase(caller_address);
   const KernelModuleData::ThunkKey key{caller_module_base, ordinal};
 
@@ -64,12 +64,12 @@ u32 KernelProcAddressByOrdinal(Runtime& runtime, ModuleObject& module, u16 ordin
 
 u32 UserProcAddressByOrdinal(Runtime& runtime, ModuleObject& module, u16 ordinal,
                              u32 caller_address) {
-  const u32 guest_addr = module.xex()->GetProcAddress(ordinal);
+  const u32 guest_addr = module.GetXEX()->GetProcAddress(ordinal);
   if (!guest_addr || !caller_address) {
     return guest_addr;
   }
 
-  auto* dispatcher = runtime.function_dispatcher();
+  auto* dispatcher = runtime.GetFunctionDispatcher();
   auto* func = dispatcher->GetFunction(guest_addr);
   if (!func) {
     return guest_addr;
@@ -82,49 +82,50 @@ u32 UserProcAddressByOrdinal(Runtime& runtime, ModuleObject& module, u16 ordinal
 
 ModuleObject::ModuleObject(Runtime* runtime_in, ModuleType type_in)
     : type(type_in), runtime(runtime_in) {
-  hmodule_ptr = runtime->memory()->SystemHeapAlloc(sizeof(X_LDR_DATA_TABLE_ENTRY));
+  hmodule_ptr = runtime->GetMemory()->SystemHeapAlloc(sizeof(X_LDR_DATA_TABLE_ENTRY));
 }
 
 ModuleObject::~ModuleObject() {
-  if (type == ModuleType::User) {
+  if (type == ModuleType::kUser) {
     Unload();
   }
-  runtime->memory()->SystemHeapFree(hmodule_ptr);
+  runtime->GetMemory()->SystemHeapFree(hmodule_ptr);
 }
 
 X_HANDLE CreateModule(Runtime& runtime, ModuleType type) {
   Result<X_HANDLE> added =
-      runtime.object_table().Emplace<ModuleObject>(AddOptions{}, &runtime, type);
+      runtime.GetObjectTable().Emplace<ModuleObject>(AddOptions{}, &runtime, type);
   if (!added) {
     return 0;
   }
   const X_HANDLE handle = *added;
-  auto module = runtime.object_table().Get<ModuleObject>(handle);
-  auto ldr_data = runtime.memory()->TranslateVirtual<X_LDR_DATA_TABLE_ENTRY*>(module->hmodule_ptr);
+  auto module = runtime.GetObjectTable().Get<ModuleObject>(handle);
+  auto ldr_data =
+      runtime.GetMemory()->TranslateVirtual<X_LDR_DATA_TABLE_ENTRY*>(module->hmodule_ptr);
   ldr_data->checksum = handle;
   return handle;
 }
 
-bool ModuleObject::Matches(std::string_view name) const {
-  return rex::utf8_equal_case(rex::utf8_find_name_from_guest_path(path), name) ||
-         rex::utf8_equal_case(this->name, name) || rex::utf8_equal_case(path, name);
+bool ModuleObject::Matches(std::string_view query) const {
+  return rex::utf8_equal_case(rex::utf8_find_name_from_guest_path(path), query) ||
+         rex::utf8_equal_case(name, query) || rex::utf8_equal_case(path, query);
 }
 
-X_STATUS ModuleObject::GetSection(std::string_view name, u32* out_section_data,
+X_STATUS ModuleObject::GetSection(std::string_view section_name, u32* out_section_data,
                                   u32* out_section_size) const {
-  if (type == ModuleType::Kernel) {
+  if (type == ModuleType::kKernel) {
     return X_STATUS_UNSUCCESSFUL;
   }
 
-  const auto* resource_header = xex()->image().OptHeader<filesystem::XEXOptResourceInfo>(
-      filesystem::XEX_HEADER_RESOURCE_INFO);
+  const auto* resource_header = GetXEX()->GetImage().OptHeader<filesystem::XEXOptResourceInfo>(
+      filesystem::kXEXHeaderResourceInfo);
   if (!resource_header) {
     return X_STATUS_NOT_FOUND;
   }
   const u32 count = (resource_header->size - 4) / sizeof(filesystem::XEXResource);
   for (u32 i = 0; i < count; i++) {
     const auto& res = resource_header->resources[i];
-    if (rex::utf8_equal_z(name, std::string_view(res.name, 8))) {
+    if (rex::utf8_equal_z(section_name, std::string_view(res.name, 8))) {
       *out_section_data = res.address;
       *out_section_size = res.size;
       return X_STATUS_SUCCESS;
@@ -141,24 +142,25 @@ u32 ModuleObject::HandleFromHModule(void* hmodule) {
 
 X_HANDLE ModuleObject::FromHModule(Runtime& runtime, void* hmodule) {
   const X_HANDLE handle = HandleFromHModule(hmodule);
-  if (auto pin = runtime.object_table().Get(handle); pin && pin.kind() == ObjectKind::Module) {
+  if (auto pin = runtime.GetObjectTable().Get(handle);
+      pin && pin.GetKind() == ObjectKind::kModule) {
     return handle;
   }
   return 0;
 }
 
-u32 ModuleObject::GetProcAddress(Runtime& runtime, u16 ordinal, u32 caller_address) {
-  if (type == ModuleType::Kernel) {
-    return KernelProcAddressByOrdinal(runtime, *this, ordinal, caller_address);
+u32 ModuleObject::GetProcAddress(Runtime& owning_runtime, u16 ordinal, u32 caller_address) {
+  if (type == ModuleType::kKernel) {
+    return KernelProcAddressByOrdinal(owning_runtime, *this, ordinal, caller_address);
   }
-  return UserProcAddressByOrdinal(runtime, *this, ordinal, caller_address);
+  return UserProcAddressByOrdinal(owning_runtime, *this, ordinal, caller_address);
 }
 
-u32 ModuleObject::GetProcAddress(std::string_view name) const {
-  if (type == ModuleType::Kernel) {
+u32 ModuleObject::GetProcAddress(std::string_view export_name) const {
+  if (type == ModuleType::kKernel) {
     REX_FAIL(system, 0, "GetProcAddress by name is not implemented for kernel modules");
   }
-  return xex()->GetProcAddress(name);
+  return GetXEX()->GetProcAddress(export_name);
 }
 
 }  // namespace rex::runtime

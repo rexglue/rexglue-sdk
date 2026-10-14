@@ -37,7 +37,7 @@ constexpr SocketHandle kInvalidSocket = -1;
  * @param handle The socket to close.
  * @return 0 on success, or the platform error return value.
  */
-REX_API int socket_close(SocketHandle handle);
+REX_API int SocketClose(SocketHandle handle);
 
 /**
  * Runs an ioctl request on a socket with ioctlsocket on Windows or ioctl on POSIX.
@@ -47,7 +47,7 @@ REX_API int socket_close(SocketHandle handle);
  * @param arg The request argument buffer, read and written in place.
  * @return 0 on success, or the platform error return value.
  */
-REX_API int socket_ioctl(SocketHandle handle, u32 cmd, u8* arg);
+REX_API int SocketIoctl(SocketHandle handle, u32 cmd, u8* arg);
 
 /** The readiness a socket wait asks for. */
 enum class SocketReady : u8 {
@@ -60,7 +60,7 @@ enum class SocketReady : u8 {
 /** A socket a wait watches. */
 struct SocketWait {
   SocketHandle handle = kInvalidSocket;   /**< The socket. */
-  WaitHandle* event = nullptr;            /**< The readiness event passed to socket_prepare. */
+  WaitHandle* event = nullptr;            /**< The readiness event passed to SocketPrepare. */
   SocketReady ready = SocketReady::kNone; /**< The readiness to wait for. */
 };
 
@@ -69,36 +69,36 @@ struct SocketWait {
  * event when it becomes ready.
  *
  * @param handle The socket.
- * @param event A manual reset event whose Set ends a socket_wait on the socket.
+ * @param event A manual reset event whose Set ends a WaitSockets on the socket.
  * @return 0 on success, or the platform error return value.
  */
-REX_API int socket_prepare(SocketHandle handle, WaitHandle* event);
+REX_API int SocketPrepare(SocketHandle handle, WaitHandle* event);
 
 /**
  * Reports whether the last socket call of the calling thread failed only because it would block.
  *
  * @return True when the error is a would block error or a connect in progress.
  */
-REX_API bool socket_would_block();
+REX_API bool SocketWouldBlock();
 
 /**
  * Returns the last socket error of the calling thread.
  *
  * @return The error as a WSA code, WSAEINVAL when the host error has no WSA equivalent.
  */
-REX_API u32 socket_error();
+REX_API u32 SocketError();
 
 /**
  * Reports the readiness of each socket without waiting.
  *
  * @param sockets The sockets to check.
  * @param ready Receives, for each socket, the readiness it asked for that holds now.
- * @return The count of ready sockets, or -1 with socket_error set.
+ * @return The count of ready sockets, or -1 with SocketError set.
  */
-REX_API int socket_poll(std::span<const SocketWait> sockets, std::span<SocketReady> ready);
+REX_API int PollSockets(std::span<const SocketWait> sockets, std::span<SocketReady> ready);
 
 /**
- * Waits until 1 socket may be ready.
+ * Waits until a socket may be ready.
  *
  * @param sockets The sockets to watch.
  * @param alertable True when a queued user callback ends the wait.
@@ -106,7 +106,7 @@ REX_API int socket_poll(std::span<const SocketWait> sockets, std::span<SocketRea
  * @return kSuccess when a socket may be ready or its event is set, kUserCallback, kTimeout or
  *         kFailed.
  */
-REX_API WaitResult socket_wait(std::span<const SocketWait> sockets, bool alertable,
+REX_API WaitResult WaitSockets(std::span<const SocketWait> sockets, bool alertable,
                                std::chrono::milliseconds timeout);
 
 /**
@@ -154,7 +154,7 @@ class Socket : public MoveOnly {
    * @param family The address family.
    * @param type The socket type.
    * @param protocol The protocol.
-   * @return The socket, empty with socket_error set on failure.
+   * @return The socket, empty with SocketError set on failure.
    */
   REX_API static Socket Create(i32 family, i32 type, i32 protocol);
 
@@ -163,21 +163,21 @@ class Socket : public MoveOnly {
    *
    * @return True when a native socket is held.
    */
-  bool valid() const { return handle_ != kInvalidSocket; }
+  bool GetValid() const { return handle_ != kInvalidSocket; }
 
   /**
    * Returns the native socket.
    *
    * @return The handle, kInvalidSocket when empty.
    */
-  SocketHandle handle() const { return handle_; }
+  SocketHandle GetHandle() const { return handle_; }
 
   /**
    * Connects to an address.
    *
    * @param name The host address.
    * @param name_len The size of the address.
-   * @return 0 on success, -1 with socket_error set.
+   * @return 0 on success, -1 with SocketError set.
    */
   REX_API i32 Connect(const sockaddr* name, i32 name_len) const;
 
@@ -186,7 +186,7 @@ class Socket : public MoveOnly {
    *
    * @param name The host address.
    * @param name_len The size of the address.
-   * @return 0 on success, -1 with socket_error set.
+   * @return 0 on success, -1 with SocketError set.
    */
   REX_API i32 Bind(const sockaddr* name, i32 name_len) const;
 
@@ -194,7 +194,7 @@ class Socket : public MoveOnly {
    * Starts listening for connections.
    *
    * @param backlog The length of the pending connection queue.
-   * @return 0 on success, -1 with socket_error set.
+   * @return 0 on success, -1 with SocketError set.
    */
   REX_API i32 Listen(i32 backlog) const;
 
@@ -203,7 +203,7 @@ class Socket : public MoveOnly {
    *
    * @param name Receives the peer address.
    * @param name_len The size of the address buffer, then the size of the peer address.
-   * @return The connected socket, empty with socket_error set on failure.
+   * @return The connected socket, empty with SocketError set on failure.
    */
   REX_API Socket Accept(sockaddr* name, i32* name_len) const;
 
@@ -211,7 +211,7 @@ class Socket : public MoveOnly {
    * Shuts a connection down.
    *
    * @param how Which directions to shut down.
-   * @return 0 on success, -1 with socket_error set.
+   * @return 0 on success, -1 with SocketError set.
    */
   REX_API i32 Shutdown(i32 how) const;
 
@@ -221,7 +221,7 @@ class Socket : public MoveOnly {
    * @param buf The buffer.
    * @param len The size of the buffer.
    * @param flags The host flags.
-   * @return The byte count, or -1 with socket_error set.
+   * @return The byte count, or -1 with SocketError set.
    */
   REX_API i32 Recv(void* buf, i32 len, i32 flags) const;
 
@@ -233,7 +233,7 @@ class Socket : public MoveOnly {
    * @param flags The host flags.
    * @param from Receives the sender address.
    * @param from_len The size of the address buffer, then the size of the sender address.
-   * @return The byte count, or -1 with socket_error set.
+   * @return The byte count, or -1 with SocketError set.
    */
   REX_API i32 RecvFrom(void* buf, i32 len, i32 flags, sockaddr* from, i32* from_len) const;
 
@@ -243,7 +243,7 @@ class Socket : public MoveOnly {
    * @param buf The data.
    * @param len The size of the data.
    * @param flags The host flags.
-   * @return The byte count, or -1 with socket_error set.
+   * @return The byte count, or -1 with SocketError set.
    */
   REX_API i32 Send(const void* buf, i32 len, i32 flags) const;
 
@@ -255,7 +255,7 @@ class Socket : public MoveOnly {
    * @param flags The host flags.
    * @param to The destination, null for the connected peer.
    * @param to_len The size of the destination address.
-   * @return The byte count, or -1 with socket_error set.
+   * @return The byte count, or -1 with SocketError set.
    */
   REX_API i32 SendTo(const void* buf, i32 len, i32 flags, const sockaddr* to, i32 to_len) const;
 
@@ -266,7 +266,7 @@ class Socket : public MoveOnly {
    * @param name The option name.
    * @param value The option value.
    * @param len The size of the value.
-   * @return 0 on success, -1 with socket_error set.
+   * @return 0 on success, -1 with SocketError set.
    */
   REX_API i32 SetOption(i32 level, i32 name, const void* value, i32 len) const;
 
@@ -277,7 +277,7 @@ class Socket : public MoveOnly {
    * @param name The option name.
    * @param value Receives the option value.
    * @param len The size of the value buffer, then the size of the value.
-   * @return 0 on success, -1 with socket_error set.
+   * @return 0 on success, -1 with SocketError set.
    */
   REX_API i32 GetOption(i32 level, i32 name, void* value, i32* len) const;
 
@@ -286,31 +286,31 @@ class Socket : public MoveOnly {
    *
    * @param name Receives the peer address.
    * @param name_len The size of the address buffer, then the size of the peer address.
-   * @return 0 on success, -1 with socket_error set.
+   * @return 0 on success, -1 with SocketError set.
    */
   REX_API i32 PeerName(sockaddr* name, i32* name_len) const;
 
   /**
-   * Runs an ioctl request through socket_ioctl.
+   * Runs an ioctl request through SocketIoctl.
    *
    * @param cmd The platform ioctl request code.
    * @param arg The request argument buffer, read and written in place.
    * @return 0 on success, or the platform error return value.
    */
-  i32 Ioctl(u32 cmd, u8* arg) const { return socket_ioctl(handle_, cmd, arg); }
+  i32 Ioctl(u32 cmd, u8* arg) const { return SocketIoctl(handle_, cmd, arg); }
 
   /**
-   * Makes the socket nonblocking and binds an event to its waits through socket_prepare.
+   * Makes the socket nonblocking and binds an event to its waits through SocketPrepare.
    *
-   * @param event A manual reset event whose Set ends a socket_wait on the socket.
+   * @param event A manual reset event whose Set ends a WaitSockets on the socket.
    * @return 0 on success, or the platform error return value.
    */
-  i32 Prepare(WaitHandle* event) const { return socket_prepare(handle_, event); }
+  i32 Prepare(WaitHandle* event) const { return SocketPrepare(handle_, event); }
 
  private:
   void Reset() {
-    if (valid()) {
-      socket_close(std::exchange(handle_, kInvalidSocket));
+    if (GetValid()) {
+      SocketClose(std::exchange(handle_, kInvalidSocket));
     }
   }
 

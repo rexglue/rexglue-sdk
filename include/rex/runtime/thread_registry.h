@@ -65,7 +65,7 @@ class ThreadPin : public rex::MoveOnly {
    *
    * @return The `KernelThread`, null when empty.
    */
-  [[nodiscard]] KernelThread* get() const noexcept { return thread_; }
+  [[nodiscard]] KernelThread* GetThread() const noexcept { return thread_; }
 
   /** Drops the pin. */
   void Reset() noexcept {

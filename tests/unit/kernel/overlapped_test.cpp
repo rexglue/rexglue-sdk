@@ -29,7 +29,7 @@ REX_TEST_CASE("Complete writes the result, the extended error and the length", "
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 overlapped = c.Alloc(sizeof(XAM_OVERLAPPED));
-    c.runtime().dispatcher().Complete(
+    c.GetRuntime().GetDispatcher().Complete(
         overlapped, {.result = rex::X_ERROR_SUCCESS, .extended_error = 5, .length = 64});
     REQUIRE(c.Load32(overlapped + offsetof(XAM_OVERLAPPED, result)) == rex::X_ERROR_SUCCESS);
     REQUIRE(c.Load32(overlapped + offsetof(XAM_OVERLAPPED, length)) == 64);
@@ -41,7 +41,7 @@ REX_TEST_CASE("Complete derives the extended error and the length from a failure
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 overlapped = c.Alloc(sizeof(XAM_OVERLAPPED));
-    c.runtime().dispatcher().Complete(overlapped, {.result = rex::X_ERROR_NO_SUCH_USER});
+    c.GetRuntime().GetDispatcher().Complete(overlapped, {.result = rex::X_ERROR_NO_SUCH_USER});
     REQUIRE(c.Load32(overlapped + offsetof(XAM_OVERLAPPED, result)) == rex::X_ERROR_NO_SUCH_USER);
     REQUIRE(c.Load32(overlapped + offsetof(XAM_OVERLAPPED, length)) == 0xFFFFFFFF);
     REQUIRE(c.Load32(overlapped + offsetof(XAM_OVERLAPPED, extended_error)) ==
@@ -53,7 +53,7 @@ REX_TEST_CASE("CompleteDeferred writes an explicit length on a failure", "[kerne
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 overlapped = c.Alloc(sizeof(XAM_OVERLAPPED));
-    c.runtime().dispatcher().CompleteDeferred(overlapped, [] {
+    c.GetRuntime().GetDispatcher().CompleteDeferred(overlapped, [] {
       return rex::runtime::CompletionOptions{.result = rex::X_ERROR_FUNCTION_FAILED, .length = 0};
     });
     const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);

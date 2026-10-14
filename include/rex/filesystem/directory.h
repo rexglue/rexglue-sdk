@@ -40,7 +40,7 @@ class IDirectory {
    *
    * @return The index the kernel writes into FileIndex.
    */
-  [[nodiscard]] virtual u64 position() const = 0;
+  [[nodiscard]] virtual u64 GetPosition() const = 0;
 };
 
 }  // namespace rex::filesystem

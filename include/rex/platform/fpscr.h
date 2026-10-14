@@ -26,55 +26,55 @@ namespace rex::platform {
 
 /** Host floating point control register access for x86-64 MXCSR. */
 struct FPSCRPlatform {
-  static constexpr size_t RoundShift = 13;                    /**< MXCSR RC field shift. */
-  static constexpr size_t RoundMaskVal = SIMDE_MM_ROUND_MASK; /**< MXCSR RC field mask. */
+  static constexpr size_t kRoundShift = 13;                    /**< MXCSR RC field shift. */
+  static constexpr size_t kRoundMaskVal = SIMDE_MM_ROUND_MASK; /**< MXCSR RC field mask. */
   /** MXCSR FTZ and DAZ bits. */
-  static constexpr size_t FlushMask = SIMDE_MM_FLUSH_ZERO_MASK | _MM_DENORMALS_ZERO_MASK;
+  static constexpr size_t kFlushMask = SIMDE_MM_FLUSH_ZERO_MASK | _MM_DENORMALS_ZERO_MASK;
   /** MXCSR IM, DM, ZM, OM, UM and PM bits. A set bit masks the exception. */
-  static constexpr u32 ExceptionMask =
+  static constexpr u32 kExceptionMask =
       (1 << 7) | (1 << 8) | (1 << 9) | (1 << 10) | (1 << 11) | (1 << 12);
   /** MXCSR rounding bits indexed by the PowerPC FPSCR RN field. */
-  static constexpr size_t GuestToHost[] = {SIMDE_MM_ROUND_NEAREST, SIMDE_MM_ROUND_TOWARD_ZERO,
-                                           SIMDE_MM_ROUND_UP, SIMDE_MM_ROUND_DOWN};
+  static constexpr size_t kGuestToHost[] = {SIMDE_MM_ROUND_NEAREST, SIMDE_MM_ROUND_TOWARD_ZERO,
+                                            SIMDE_MM_ROUND_UP, SIMDE_MM_ROUND_DOWN};
   /** PowerPC FPSCR RN values indexed by the MXCSR RC field. */
-  static constexpr u32 HostToReX[] = {0, 3, 2, 1};
+  static constexpr u32 kHostToReX[] = {0, 3, 2, 1};
 
   /**
    * Reads MXCSR.
    *
    * @return Current MXCSR value.
    */
-  static u32 getcsr() noexcept { return simde_mm_getcsr(); }
+  static u32 GetCSR() noexcept { return simde_mm_getcsr(); }
 
   /**
    * Writes MXCSR.
    *
    * @param csr New MXCSR value.
    */
-  static void setcsr(u32 csr) noexcept { simde_mm_setcsr(csr); }
+  static void SetCSR(u32 csr) noexcept { simde_mm_setcsr(csr); }
 
   /**
    * Masks every floating point exception in a control word.
    *
    * @param csr Control word to update.
    */
-  static void InitHostExceptions(u32& csr) noexcept { csr |= ExceptionMask; }
+  static void InitHostExceptions(u32& csr) noexcept { csr |= kExceptionMask; }
 };
 
 #elif defined(__aarch64__) || defined(_M_ARM64)
 
 /** Host floating point control register access for ARM64 FPCR. */
 struct FPSCRPlatform {
-  static constexpr size_t RoundShift = 22;                   /**< FPCR RMode field shift. */
-  static constexpr size_t RoundMaskVal = 3 << RoundShift;    /**< FPCR RMode field mask. */
-  static constexpr size_t FlushMask = (1 << 19) | (1 << 24); /**< FPCR FZ16 and FZ bits. */
+  static constexpr size_t kRoundShift = 22;                   /**< FPCR RMode field shift. */
+  static constexpr size_t kRoundMaskVal = 3 << kRoundShift;   /**< FPCR RMode field mask. */
+  static constexpr size_t kFlushMask = (1 << 19) | (1 << 24); /**< FPCR FZ16 and FZ bits. */
   /** FPCR rounding bits indexed by the PowerPC FPSCR RN field. */
-  static constexpr size_t GuestToHost[] = {0 << RoundShift, 3 << RoundShift, 1 << RoundShift,
-                                           2 << RoundShift};
+  static constexpr size_t kGuestToHost[] = {0 << kRoundShift, 3 << kRoundShift, 1 << kRoundShift,
+                                            2 << kRoundShift};
   /** PowerPC FPSCR RN values indexed by the FPCR RMode field. */
-  static constexpr u32 HostToReX[] = {0, 2, 3, 1};
+  static constexpr u32 kHostToReX[] = {0, 2, 3, 1};
   /** FPCR IOE, DZE, OFE, UFE, IXE and IDE bits. A clear bit disables the trap. */
-  static constexpr u32 ExceptionMask =
+  static constexpr u32 kExceptionMask =
       (1 << 8) | (1 << 9) | (1 << 10) | (1 << 11) | (1 << 12) | (1 << 15);
 
   /**
@@ -82,7 +82,7 @@ struct FPSCRPlatform {
    *
    * @return Current FPCR value.
    */
-  static inline u32 getcsr() noexcept {
+  static inline u32 GetCSR() noexcept {
     u64 csr;
     __asm__ __volatile__("mrs %0, fpcr" : "=r"(csr));
     return static_cast<u32>(csr);
@@ -93,7 +93,7 @@ struct FPSCRPlatform {
    *
    * @param csr New FPCR value.
    */
-  static inline void setcsr(u32 csr) noexcept {
+  static inline void SetCSR(u32 csr) noexcept {
     __asm__ __volatile__("msr fpcr, %0" : : "r"(static_cast<u64>(csr)));
   }
 
@@ -102,7 +102,7 @@ struct FPSCRPlatform {
    *
    * @param csr Control word to update.
    */
-  static inline void InitHostExceptions(u32& csr) noexcept { csr &= ~ExceptionMask; }
+  static inline void InitHostExceptions(u32& csr) noexcept { csr &= ~kExceptionMask; }
 };
 
 #else

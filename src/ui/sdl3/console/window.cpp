@@ -72,13 +72,13 @@ Result<std::unique_ptr<ConsoleWindow>> ConsoleWindow::Create(
   Created console = std::make_unique<ConsoleWindow>(Key{});
   console->window_ = Window::Create(context, "Console");
   if (!console->window_) {
-    return Err<Created>(ErrorCategory::Runtime, "console window creation failed");
+    return Err<Created>(ErrorCategory::kRuntime, "console window creation failed");
   }
   console->listener_ = std::make_unique<Listener>(host);
   console->window_->AddListener(console->listener_.get());
   console->window_->SetDesiredLogicalSize(960, 540);
   if (!console->window_->Open()) {
-    return Err<Created>(ErrorCategory::Runtime, "console window open failed");
+    return Err<Created>(ErrorCategory::kRuntime, "console window open failed");
   }
   auto presenter = backend.CreatePresenter();
   if (!presenter) {
@@ -92,7 +92,7 @@ Result<std::unique_ptr<ConsoleWindow>> ConsoleWindow::Create(
   }
   console->overlay_drawer_ = std::move(*overlay_drawer);
   console->drawer_ = std::make_unique<ImGuiDrawer>(console->window_.get(), 0);
-  console->drawer_->imgui_style() = imgui_style;
+  console->drawer_->GetImGuiStyle() = imgui_style;
   console->drawer_->SetPresenterAndOverlayDrawer(console->presenter_.get(),
                                                  console->overlay_drawer_.get());
   console->dialog_ = std::make_unique<Dialog>(style, model, host);

@@ -93,7 +93,7 @@ struct KernelObject {
    *
    * @return The kind.
    */
-  [[nodiscard]] ObjectKind kind() const { return static_cast<ObjectKind>(data.index()); }
+  [[nodiscard]] ObjectKind GetKind() const { return static_cast<ObjectKind>(data.index()); }
 
   ObjectData data;  /**< Host state of the object, the alternative kind() reports. */
   std::string name; /**< Name the object was created with, empty for an unnamed object. */
@@ -155,35 +155,35 @@ class PinnedSlot : public rex::MoveOnly {
    *
    * @return The kind.
    */
-  [[nodiscard]] ObjectKind kind() const { return object_->kind(); }
+  [[nodiscard]] ObjectKind GetKind() const { return object_->GetKind(); }
 
   /**
    * Returns the data of the pinned `KernelObject`.
    *
    * @return The data.
    */
-  [[nodiscard]] ObjectData& data() const { return object_->data; }
+  [[nodiscard]] ObjectData& GetData() const { return object_->data; }
 
   /**
    * Returns the `KernelObject`.
    *
    * @return The `KernelObject`.
    */
-  [[nodiscard]] KernelObject& object() const { return *object_; }
+  [[nodiscard]] KernelObject& GetKernelObject() const { return *object_; }
 
   /**
    * Returns the handle value the pin was looked up by.
    *
    * @return The handle, with pseudo handles already translated.
    */
-  [[nodiscard]] X_HANDLE handle() const noexcept { return handle_; }
+  [[nodiscard]] X_HANDLE GetHandle() const noexcept { return handle_; }
 
   /**
    * Returns the guest block address of the object.
    *
    * @return The address, 0 when the object has no guest block.
    */
-  [[nodiscard]] u32 guest_object() const { return object_->guest_ptr; }
+  [[nodiscard]] u32 GetGuestObject() const { return object_->guest_ptr; }
 
   /** Drops the pin. */
   void Reset() noexcept {
@@ -216,7 +216,7 @@ class Pinned {
    */
   explicit Pinned(PinnedSlot slot) : slot_(std::move(slot)) {
     if (slot_) {
-      value_ = std::get_if<T>(&slot_.data());
+      value_ = std::get_if<T>(&slot_.GetData());
       if (value_ == nullptr) {
         slot_.Reset();
       }
@@ -237,21 +237,21 @@ class Pinned {
    *
    * @return The handle.
    */
-  [[nodiscard]] X_HANDLE handle() const noexcept { return slot_.handle(); }
+  [[nodiscard]] X_HANDLE GetHandle() const noexcept { return slot_.GetHandle(); }
 
   /**
    * Returns the guest block address of the object.
    *
    * @return The address, 0 when the object has no guest block.
    */
-  [[nodiscard]] u32 guest_object() const { return slot_.guest_object(); }
+  [[nodiscard]] u32 GetGuestObject() const { return slot_.GetGuestObject(); }
 
   /**
    * Returns the underlying pin.
    *
    * @return The pin.
    */
-  [[nodiscard]] const PinnedSlot& slot() const noexcept { return slot_; }
+  [[nodiscard]] const PinnedSlot& GetSlot() const noexcept { return slot_; }
 
  private:
   PinnedSlot slot_;

@@ -42,7 +42,7 @@ class ConsoleWindow : public NonCopyable {
    * @param style The overlay style the window copies.
    * @param model The console model shown. Outlives the window.
    * @param host Receives dock changes. Outlives the window.
-   * @return The window, or ErrorCategory::Runtime when the window or its presenter fails.
+   * @return The window, or ErrorCategory::kRuntime when the window or its presenter fails.
    */
   [[nodiscard]] static Result<std::unique_ptr<ConsoleWindow>> Create(
       WindowedAppContext& context, gpu::IGPUBackend& backend, const ImGuiStyle& imgui_style,

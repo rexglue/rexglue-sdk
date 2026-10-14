@@ -25,7 +25,7 @@
 
 namespace rex::log {
 
-class detail_access;
+class DetailAccess;
 
 /**
  * Constant initialized log category. Declared with REXLOG_CATEGORY and registered at Connect with
@@ -51,14 +51,14 @@ class REX_API Category : public NonCopyable {
    *
    * @return The name.
    */
-  constexpr std::string_view name() const { return name_; }
+  constexpr std::string_view GetName() const { return name_; }
 
   /**
    * Returns the category description.
    *
    * @return The description.
    */
-  constexpr std::string_view description() const { return description_; }
+  constexpr std::string_view GetDescription() const { return description_; }
 
   /**
    * Reports whether a message at a level would be written.
@@ -66,10 +66,10 @@ class REX_API Category : public NonCopyable {
    * @param level The message level.
    * @return True when the level is at or above the category's effective level.
    */
-  bool Enabled(Level level) const;
+  bool IsEnabled(Level level) const;
 
  private:
-  friend class detail_access;
+  friend class DetailAccess;
 
   std::string_view name_;
   std::string_view description_;

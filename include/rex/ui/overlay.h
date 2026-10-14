@@ -67,7 +67,7 @@ inline constexpr std::span<const OverlayDesc> kStandardOverlays{kStandardOverlay
 }  // namespace rex::ui
 
 /**
- * Builds 1 overlay table entry. Class must be constructible from
+ * Builds an overlay table entry. Class must be constructible from
  * const rex::ui::OverlayContext&.
  *
  * @param Class Overlay class derived from rex::ui::ImGuiDialog.

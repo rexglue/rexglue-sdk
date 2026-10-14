@@ -16,15 +16,15 @@ std::string BindCvarName(std::string_view name) {
 }
 
 hid::KeyModifiers ModifiersOf(const KeyEvent& e) {
-  hid::KeyModifiers mods = hid::KeyModifiers::None;
-  if (e.is_shift_pressed()) {
-    mods |= hid::KeyModifiers::Shift;
+  hid::KeyModifiers mods = hid::KeyModifiers::kNone;
+  if (e.IsShiftPressed()) {
+    mods |= hid::KeyModifiers::kShift;
   }
-  if (e.is_ctrl_pressed()) {
-    mods |= hid::KeyModifiers::Ctrl;
+  if (e.IsCtrlPressed()) {
+    mods |= hid::KeyModifiers::kCtrl;
   }
-  if (e.is_alt_pressed()) {
-    mods |= hid::KeyModifiers::Alt;
+  if (e.IsAltPressed()) {
+    mods |= hid::KeyModifiers::kAlt;
   }
   return mods;
 }
@@ -79,7 +79,7 @@ void BindTable::AddToRegistry(Entry& entry) {
   } else {
     entry.handle = std::move(*handle);
   }
-  OnChanged(entry.name, entry.var->get());
+  OnChanged(entry.name, entry.var->Get());
 }
 
 void BindTable::RemoveFromRegistry(Entry& entry) {
@@ -138,7 +138,7 @@ bool BindTable::Process(const KeyEvent& e) {
     std::lock_guard lock(mutex_);
     for (const Entry& entry : entries_) {
       if (entry.callback && entry.chord.key != hid::VirtualKey::kNone &&
-          entry.chord.key == e.virtual_key() && entry.chord.mods == mods) {
+          entry.chord.key == e.GetVirtualKey() && entry.chord.mods == mods) {
         callback = entry.callback;
         break;
       }

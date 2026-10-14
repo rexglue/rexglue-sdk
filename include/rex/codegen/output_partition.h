@@ -51,16 +51,16 @@ class OutputPartition {
   static OutputPartition Load(const std::filesystem::path& path);
 
   /**
-   * Assigns entries to output files. The file count is derived from `maxFileBytes` and
-   * persisted, so growth alone does not reshuffle the emitted set while a new `maxFileBytes`
+   * Assigns entries to output files. The file count is derived from `max_file_bytes` and
+   * persisted, so growth alone does not reshuffle the emitted set while a new `max_file_bytes`
    * repartitions from scratch. Serialize() persists the result.
    *
    * @param entries Functions to place
-   * @param maxFileBytes Size limit of an output file in bytes
+   * @param max_file_bytes Size limit of an output file in bytes
    * @return One bucket per output file holding indices into `entries`
    */
   std::vector<std::vector<size_t>> Assign(std::span<const FunctionSize> entries,
-                                          size_t maxFileBytes);
+                                          size_t max_file_bytes);
 
   /**
    * Serializes the partition as JSON for its sidecar file.
@@ -70,9 +70,9 @@ class OutputPartition {
   std::string Serialize() const;
 
  private:
-  std::unordered_map<u32, size_t> addressToFile_;
-  size_t fileCount_ = 0;
-  size_t maxFileBytes_ = 0;
+  std::unordered_map<u32, size_t> address_to_file_;
+  size_t file_count_ = 0;
+  size_t max_file_bytes_ = 0;
 };
 
 }  // namespace rex::codegen

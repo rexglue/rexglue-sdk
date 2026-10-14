@@ -44,7 +44,7 @@ D3D12Presenter::~D3D12Presenter() {
 gpu::Surface::TypeFlags D3D12Presenter::GetSupportedSurfaceTypes() const {
   gpu::Surface::TypeFlags types = 0;
 #if WINAPI_FAMILY_PARTITION(WINAPI_PARTITION_DESKTOP | WINAPI_PARTITION_GAMES)
-  types |= gpu::Surface::kTypeFlag_Win32Hwnd;
+  types |= gpu::Surface::kTypeFlagWin32HWND;
 #endif
   return types;
 }
@@ -121,8 +121,8 @@ D3D12Presenter::ConnectOrReconnectPaintingToSurfaceFromUIThread(gpu::Surface& ne
     Microsoft::WRL::ComPtr<IDXGISwapChain1> swap_chain_1;
     switch (surface_type) {
 #if WINAPI_FAMILY_PARTITION(WINAPI_PARTITION_DESKTOP | WINAPI_PARTITION_GAMES)
-      case gpu::Surface::kTypeIndex_Win32Hwnd: {
-        HWND surface_hwnd = static_cast<const gpu::Win32HwndSurface&>(new_surface).hwnd();
+      case gpu::Surface::kTypeIndexWin32HWND: {
+        HWND surface_hwnd = static_cast<const gpu::Win32HWNDSurface&>(new_surface).GetHWND();
         if (FAILED(dxgi_factory->CreateSwapChainForHwnd(
                 direct_queue, surface_hwnd, &swap_chain_desc, nullptr, nullptr, &swap_chain_1))) {
           REX_FAIL(ui, SurfacePaintConnectResult::kFailure,
@@ -270,7 +270,7 @@ Presenter::PaintResult D3D12Presenter::PaintAndPresentImpl(bool execute_ui_drawe
   bool back_buffer_acquired = false;
   bool back_buffer_bound = false;
   bool back_buffer_clear_needed = true;
-  const f32 kBackBufferClearColor[] = {0.0f, 0.0f, 0.0f, 1.0f};
+  constexpr f32 kBackBufferClearColor[] = {0.0f, 0.0f, 0.0f, 1.0f};
 
   GuestOutputProperties guest_output_properties;
   GuestOutputPaintConfig guest_output_paint_config;
@@ -345,7 +345,7 @@ Presenter::PaintResult D3D12Presenter::PaintAndPresentImpl(bool execute_ui_drawe
         device->CreateShaderResourceView(
             guest_output_resource.Get(), &guest_output_resource_srv_desc,
             provider_.OffsetViewDescriptor(
-                view_heap_cpu_start, PaintContext::kViewIndexGuestOutput0Srv +
+                view_heap_cpu_start, PaintContext::kViewIndexGuestOutput0SRV +
                                          static_cast<u32>(guest_output_resource_paint_ref_index)));
       }
 
@@ -401,7 +401,7 @@ Presenter::PaintResult D3D12Presenter::PaintAndPresentImpl(bool execute_ui_drawe
               .Get());
 
       UINT effect_src_view_index =
-          UINT(PaintContext::kViewIndexGuestOutput0Srv + guest_output_resource_paint_ref_index);
+          UINT(PaintContext::kViewIndexGuestOutput0SRV + guest_output_resource_paint_ref_index);
       command_list->SetGraphicsRootDescriptorTable(
           UINT(GuestOutputPaintRootParameter::kSource),
           provider_.OffsetViewDescriptor(view_heap_gpu_start, effect_src_view_index));

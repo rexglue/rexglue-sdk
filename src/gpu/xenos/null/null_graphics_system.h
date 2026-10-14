@@ -23,7 +23,7 @@ class NullGraphicsSystem final : public GraphicsSystem {
   NullGraphicsSystem();
   ~NullGraphicsSystem() override;
 
-  std::string name() const override;
+  std::string GetName() const override;
   [[nodiscard]] Result<void> SetupPresentation(gpu::IUIThread& ui_thread) override;
 
  protected:

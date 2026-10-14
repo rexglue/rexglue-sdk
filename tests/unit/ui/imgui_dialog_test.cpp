@@ -71,17 +71,17 @@ REX_TEST_CASE("A closed dialog is removed from its host by the next Draw", "[ui]
   RecordingHost host;
   ProbeDialog dialog;
   dialog.Attach(&host);
-  REQUIRE(dialog.Attached());
-  REQUIRE_FALSE(dialog.Closed());
+  REQUIRE(dialog.IsAttached());
+  REQUIRE_FALSE(dialog.IsClosed());
   dialog.Close();
-  REQUIRE_FALSE(dialog.Closed());
+  REQUIRE_FALSE(dialog.IsClosed());
   dialog.Draw();
   REQUIRE(dialog.draws == 1);
   REQUIRE(dialog.closes == 1);
   REQUIRE(host.removed == 1);
   REQUIRE(host.last == &dialog);
-  REQUIRE(dialog.Closed());
-  REQUIRE_FALSE(dialog.Attached());
+  REQUIRE(dialog.IsClosed());
+  REQUIRE_FALSE(dialog.IsAttached());
   dialog.Draw();
   REQUIRE(dialog.closes == 1);
   REQUIRE(host.removed == 1);
@@ -97,8 +97,8 @@ REX_TEST_CASE("A dialog that never closes stays attached across Draw", "[ui][img
   REQUIRE(dialog.draws == 2);
   REQUIRE(dialog.closes == 0);
   REQUIRE(host.removed == 0);
-  REQUIRE(dialog.Attached());
-  REQUIRE_FALSE(dialog.Closed());
+  REQUIRE(dialog.IsAttached());
+  REQUIRE_FALSE(dialog.IsClosed());
 }
 
 REX_TEST_CASE("Destroying an attached dialog removes it from its host", "[ui][imgui]") {
@@ -119,7 +119,7 @@ REX_TEST_CASE("Attach with nullptr detaches without touching the host", "[ui][im
     ProbeDialog dialog;
     dialog.Attach(&host);
     dialog.Attach(nullptr);
-    REQUIRE_FALSE(dialog.Attached());
+    REQUIRE_FALSE(dialog.IsAttached());
   }
   REQUIRE(host.removed == 0);
 }

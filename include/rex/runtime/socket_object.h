@@ -54,7 +54,7 @@ struct N_XSOCKADDR {
    */
   N_XSOCKADDR& operator=(const XSOCKADDR& other) {
     address_family = other.address_family;
-    std::memcpy(sa_data, other.sa_data, rex::countof(sa_data));
+    std::memcpy(sa_data, other.sa_data, rex::CountOf(sa_data));
     return *this;
   }
 
@@ -101,25 +101,25 @@ struct N_XSOCKADDR_IN {
 
 /** The address families a socket object supports. */
 enum SocketAddressFamily : u8 {
-  X_AF_INET = 2, /**< IPv4 address family. */
+  kXAFInet = 2, /**< IPv4 address family. */
 };
 
 /** The socket types a socket object supports. */
 enum SocketType : u8 {
-  X_SOCK_STREAM = 1, /**< Reliable byte stream socket. */
-  X_SOCK_DGRAM = 2,  /**< Datagram socket. */
+  kXSockStream = 1, /**< Reliable byte stream socket. */
+  kXSockDgram = 2,  /**< Datagram socket. */
 };
 
 /** The protocols a socket object supports. */
 enum SocketProtocol : u8 {
-  X_IPPROTO_TCP = 6,  /**< TCP over IPv4. */
-  X_IPPROTO_UDP = 17, /**< UDP over IPv4. */
+  kXIPProtoTCP = 6,  /**< TCP over IPv4. */
+  kXIPProtoUDP = 17, /**< UDP over IPv4. */
 
   /**
    * LIVE Voice and Data Protocol, framed as
    * [cbGameData][GameData(encrypted)][VoiceData(unencrypted)].
    */
-  X_IPPROTO_VDP = 254,
+  kXIPProtoVDP = 254,
 };
 
 /** The outcome of 1 receive attempt or of an overlapped receive. */
@@ -241,7 +241,7 @@ struct SocketObject {
    * @param runtime The runtime the call runs in.
    * @param name Receives the peer address.
    * @param name_len Receives the size of the peer address.
-   * @return The handle of the new socket with a count of 1, or X_INVALID_HANDLE_VALUE.
+   * @return The handle of the new socket with a count of 1, or kXInvalidHandleValue.
    */
   REX_RUNTIME_API X_HANDLE Accept(Runtime& runtime, N_XSOCKADDR* name, int* name_len);
 

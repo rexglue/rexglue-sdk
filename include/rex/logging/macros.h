@@ -63,7 +63,7 @@
  */
 #define REXLOG_DETAIL_WRITE(category, level, fmt, ...)                    \
   do {                                                                    \
-    if (::rex::log::category.Enabled(level)) {                            \
+    if (::rex::log::category.IsEnabled(level)) {                          \
       ::rex::log::detail::WriteFormatted(::rex::log::category, level,     \
                                          fmt __VA_OPT__(, ) __VA_ARGS__); \
     }                                                                     \

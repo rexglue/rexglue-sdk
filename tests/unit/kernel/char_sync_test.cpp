@@ -137,7 +137,7 @@ REX_TEST_CASE("timers: completion routine runs as an APC on the setting thread",
   fixture.RunOnGuestThread([](Caller& c) {
     static std::atomic<u32> g_routine_calls;
     g_routine_calls = 0;
-    auto* dispatcher = c.runtime().function_dispatcher();
+    auto* dispatcher = c.GetRuntime().GetFunctionDispatcher();
     const u32 routine = dispatcher->AllocateThunk(
         +[](PPCContext& ctx, u8*) {
           ++g_routine_calls;
@@ -359,7 +359,7 @@ REX_TEST_CASE("timers: a Ke timer queues its DPC with the expiry time", "[char][
   g_timer_dpc_time = 0;
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    const u32 routine = c.runtime().function_dispatcher()->AllocateThunk(&TimerDPC, 0);
+    const u32 routine = c.GetRuntime().GetFunctionDispatcher()->AllocateThunk(&TimerDPC, 0);
     const u32 dpc = c.Alloc(0x20);
     c.Kernel("KeInitializeDpc", {dpc, routine, 0});
     const u32 timer = KeTimer(c, 0);
@@ -379,7 +379,7 @@ REX_TEST_CASE("timers: a periodic Ke timer rearms until canceled", "[char][timer
   g_timer_dpc_runs = 0;
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    const u32 routine = c.runtime().function_dispatcher()->AllocateThunk(&TimerDPC, 0);
+    const u32 routine = c.GetRuntime().GetFunctionDispatcher()->AllocateThunk(&TimerDPC, 0);
     const u32 dpc = c.Alloc(0x20);
     c.Kernel("KeInitializeDpc", {dpc, routine, 0});
     const u32 timer = KeTimer(c, 1);
@@ -418,10 +418,10 @@ REX_TEST_CASE("interrupts: KeQueryInterruptTime grows in 100 ns units", "[char][
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     c.Kernel("KeQueryInterruptTime");
-    const u64 first = c.ctx().r3.u64;
+    const u64 first = c.GetCtx().r3.u64;
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
     c.Kernel("KeQueryInterruptTime");
-    const u64 second = c.ctx().r3.u64;
+    const u64 second = c.GetCtx().r3.u64;
     CHECK(second - first >= 400000);
     CHECK(second - first < 50000000);
   });
@@ -444,9 +444,9 @@ REX_TEST_CASE("timers: stopping the dispatcher disarms Ke timer expiries", "[cha
     timer = KeTimer(c, 1);
     CHECK(c.Kernel("KeSetTimerEx", {timer, static_cast<u64>(-100000), 10, 0}) == 0);
   });
-  static_cast<rex::runtime::Dispatcher&>(fixture.runtime().dispatcher())
+  static_cast<rex::runtime::Dispatcher&>(fixture.GetRuntime().GetDispatcher())
       .Stop(std::chrono::milliseconds(1000));
-  auto* object = fixture.runtime().memory()->TranslateVirtual<rex::runtime::X_KTIMER*>(timer);
+  auto* object = fixture.GetRuntime().GetMemory()->TranslateVirtual<rex::runtime::X_KTIMER*>(timer);
   object->header.signal_state = 0;
   std::this_thread::sleep_for(std::chrono::milliseconds(100));
   CHECK(static_cast<u32>(object->header.signal_state) == 0);

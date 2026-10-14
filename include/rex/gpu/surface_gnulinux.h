@@ -23,7 +23,7 @@ namespace rex {
 namespace gpu {
 
 /** Presentation target backed by an X11 window reached through XCB. */
-class XcbWindowSurface final : public Surface {
+class XCBWindowSurface final : public Surface {
  public:
   /**
    * Wraps an XCB window.
@@ -31,11 +31,11 @@ class XcbWindowSurface final : public Surface {
    * @param connection The XCB connection that owns the window.
    * @param window The window to present to.
    */
-  explicit XcbWindowSurface(xcb_connection_t* connection, xcb_window_t window)
+  explicit XCBWindowSurface(xcb_connection_t* connection, xcb_window_t window)
       : connection_(connection), window_(window) {}
-  TypeIndex GetType() const override { return kTypeIndex_XcbWindow; }
-  xcb_connection_t* connection() const { return connection_; }
-  xcb_window_t window() const { return window_; }
+  TypeIndex GetType() const override { return kTypeIndexXCBWindow; }
+  xcb_connection_t* GetConnection() const { return connection_; }
+  xcb_window_t GetWindow() const { return window_; }
 
  protected:
   /**
@@ -64,9 +64,9 @@ class WaylandSurface final : public Surface {
    */
   explicit WaylandSurface(::wl_display* display, ::wl_surface* surface, SDL_Window* sdl_window)
       : display_(display), surface_(surface), sdl_window_(sdl_window) {}
-  TypeIndex GetType() const override { return kTypeIndex_WaylandSurface; }
-  ::wl_display* display() const { return display_; }
-  ::wl_surface* surface() const { return surface_; }
+  TypeIndex GetType() const override { return kTypeIndexWaylandSurface; }
+  ::wl_display* GetDisplay() const { return display_; }
+  ::wl_surface* GetSurface() const { return surface_; }
 
  protected:
   /**

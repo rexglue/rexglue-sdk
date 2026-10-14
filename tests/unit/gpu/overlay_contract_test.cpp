@@ -81,8 +81,10 @@ class TestDrawContext final : public rex::gpu::OverlayDrawContext {
 
 class NullGPUApp : public rex::ui::TitleApp {
  public:
-  using TitleApp::UI;
-  rex::gpu::IPresenter* TitlePresenter() { return api().Get<rex::gpu::IGPUBackend>()->presenter(); }
+  using TitleApp::GetUI;
+  rex::gpu::IPresenter* TitlePresenter() {
+    return GetAPI().Get<rex::gpu::IGPUBackend>()->GetPresenter();
+  }
 
  protected:
   [[nodiscard]] rex::Result<void> OnConfigure(rex::Config& config) override {
@@ -92,8 +94,8 @@ class NullGPUApp : public rex::ui::TitleApp {
     return rex::Ok();
   }
   void OnCreateWindow(rex::ui::TitleUI& title_ui) override {
-    REQUIRE(title_ui.Overlays().AddOverlays(kContractOverlays));
-    title_ui.Overlays().ShowOverlay("contract", true);
+    REQUIRE(title_ui.GetOverlays().AddOverlays(kContractOverlays));
+    title_ui.GetOverlays().ShowOverlay("contract", true);
   }
 };
 
@@ -160,10 +162,10 @@ REX_TEST_CASE("The title window reports its SDL window", "[gpu][overlay]") {
     app.Shutdown();
     SKIP("SDL dummy video driver unavailable");
   }
-  CHECK(app.UI().GetWindow()->Native().sdl != nullptr);
-  ImGuiIO* io = app.UI().GetImGuiIO();
+  CHECK(app.GetUI().GetWindow()->GetNative().sdl != nullptr);
+  ImGuiIO* io = app.GetUI().GetImGuiIO();
   REQUIRE(io != nullptr);
-  CHECK(io->Fonts == app.UI().Fonts());
+  CHECK(io->Fonts == app.GetUI().GetFonts());
   REQUIRE(app.Shutdown() == 0);
 }
 
@@ -177,11 +179,11 @@ REX_TEST_CASE("DrawOverlays draws the shown overlays through the overlay drawer"
     SKIP("SDL dummy video driver unavailable");
   }
   REQUIRE(app.TitlePresenter() != nullptr);
-  REQUIRE(app.UI().OverlayDrawer() != nullptr);
+  REQUIRE(app.GetUI().GetOverlayDrawer() != nullptr);
   app.TitlePresenter()->Paint(true);
   g_events.clear();
   TestDrawContext context(app.TitlePresenter());
-  app.UI().DrawOverlays(context);
+  app.GetUI().DrawOverlays(context);
   const auto begin = std::ranges::find(g_events, std::string("begin_batch"));
   const auto draw = std::ranges::find(g_events, std::string("draw"));
   const auto end = std::ranges::find(g_events, std::string("end_batch"));
@@ -221,15 +223,15 @@ REX_TEST_CASE("A dialog closed while its owner holds it survives the frame", "[g
     SKIP("SDL dummy video driver unavailable");
   }
   REQUIRE(app.TitlePresenter() != nullptr);
-  app.UI().ShowOverlay("contract", false);
-  REQUIRE_FALSE(app.UI().HasDialogs());
+  app.GetUI().ShowOverlay("contract", false);
+  REQUIRE_FALSE(app.GetUI().HasDialogs());
   auto dialog = std::make_unique<OwnedDialog>();
-  app.UI().AddDialog(*dialog);
-  REQUIRE(app.UI().HasDialogs());
+  app.GetUI().AddDialog(*dialog);
+  REQUIRE(app.GetUI().HasDialogs());
   dialog->Close();
   app.TitlePresenter()->Paint(true);
-  CHECK(dialog->Closed());
-  CHECK_FALSE(app.UI().HasDialogs());
+  CHECK(dialog->IsClosed());
+  CHECK_FALSE(app.GetUI().HasDialogs());
   CHECK(g_owned_destroyed == 0);
   dialog.reset();
   CHECK(g_owned_destroyed == 1);

@@ -20,7 +20,7 @@ namespace rex {
 
 /** Value the title uses to name a kernel object. */
 using X_HANDLE = u32;
-inline constexpr X_HANDLE X_INVALID_HANDLE_VALUE = static_cast<X_HANDLE>(-1);
+inline constexpr X_HANDLE kXInvalidHandleValue = static_cast<X_HANDLE>(-1);
 
 /** NT status code type, holding STATUS_* values. */
 using X_STATUS = u32;
@@ -83,87 +83,86 @@ inline constexpr X_STATUS X_STATUS_DRIVER_ENTRYPOINT_NOT_FOUND = 0xC0000263;
 /** Win32 error code type, holding ERROR_* values. */
 using X_RESULT = u32;
 inline constexpr i32 kFacilityWin32 = 0x0007;
-[[nodiscard]] constexpr X_RESULT X_RESULT_FROM_WIN32(u32 x) {
+[[nodiscard]] constexpr X_RESULT XResultFromWin32(u32 x) {
   return x;
 }
 
-inline constexpr X_RESULT X_ERROR_SUCCESS = X_RESULT_FROM_WIN32(0x00000000);
-inline constexpr X_RESULT X_ERROR_FILE_NOT_FOUND = X_RESULT_FROM_WIN32(0x00000002);
-inline constexpr X_RESULT X_ERROR_PATH_NOT_FOUND = X_RESULT_FROM_WIN32(0x00000003);
-inline constexpr X_RESULT X_ERROR_ACCESS_DENIED = X_RESULT_FROM_WIN32(0x00000005);
-inline constexpr X_RESULT X_ERROR_INVALID_HANDLE = X_RESULT_FROM_WIN32(0x00000006);
-inline constexpr X_RESULT X_ERROR_NOT_ENOUGH_MEMORY = X_RESULT_FROM_WIN32(0x00000008);
-inline constexpr X_RESULT X_ERROR_NO_MORE_FILES = X_RESULT_FROM_WIN32(0x00000012);
-inline constexpr X_RESULT X_ERROR_INVALID_PARAMETER = X_RESULT_FROM_WIN32(0x00000057);
-inline constexpr X_RESULT X_ERROR_INSUFFICIENT_BUFFER = X_RESULT_FROM_WIN32(0x0000007A);
-inline constexpr X_RESULT X_ERROR_INVALID_NAME = X_RESULT_FROM_WIN32(0x0000007B);
-inline constexpr X_RESULT X_ERROR_BAD_ARGUMENTS = X_RESULT_FROM_WIN32(0x000000A0);
-inline constexpr X_RESULT X_ERROR_BUSY = X_RESULT_FROM_WIN32(0x000000AA);
-inline constexpr X_RESULT X_ERROR_ALREADY_EXISTS = X_RESULT_FROM_WIN32(0x000000B7);
-inline constexpr X_RESULT X_ERROR_IO_INCOMPLETE = X_RESULT_FROM_WIN32(0x000003E4);
-inline constexpr X_RESULT X_ERROR_IO_PENDING = X_RESULT_FROM_WIN32(0x000003E5);
-inline constexpr X_RESULT X_ERROR_DEVICE_NOT_CONNECTED = X_RESULT_FROM_WIN32(0x0000048F);
-inline constexpr X_RESULT X_ERROR_NOT_FOUND = X_RESULT_FROM_WIN32(0x00000490);
-inline constexpr X_RESULT X_ERROR_CANCELLED = X_RESULT_FROM_WIN32(0x000004C7);
-inline constexpr X_RESULT X_ERROR_NOT_LOGGED_ON = X_RESULT_FROM_WIN32(0x000004DD);
-inline constexpr X_RESULT X_ERROR_NO_SUCH_USER = X_RESULT_FROM_WIN32(0x00000525);
-inline constexpr X_RESULT X_ERROR_FUNCTION_FAILED = X_RESULT_FROM_WIN32(0x0000065B);
-inline constexpr X_RESULT X_ERROR_EMPTY = X_RESULT_FROM_WIN32(0x000010D2);
+inline constexpr X_RESULT X_ERROR_SUCCESS = XResultFromWin32(0x00000000);
+inline constexpr X_RESULT X_ERROR_FILE_NOT_FOUND = XResultFromWin32(0x00000002);
+inline constexpr X_RESULT X_ERROR_PATH_NOT_FOUND = XResultFromWin32(0x00000003);
+inline constexpr X_RESULT X_ERROR_ACCESS_DENIED = XResultFromWin32(0x00000005);
+inline constexpr X_RESULT X_ERROR_INVALID_HANDLE = XResultFromWin32(0x00000006);
+inline constexpr X_RESULT X_ERROR_NOT_ENOUGH_MEMORY = XResultFromWin32(0x00000008);
+inline constexpr X_RESULT X_ERROR_NO_MORE_FILES = XResultFromWin32(0x00000012);
+inline constexpr X_RESULT X_ERROR_INVALID_PARAMETER = XResultFromWin32(0x00000057);
+inline constexpr X_RESULT X_ERROR_INSUFFICIENT_BUFFER = XResultFromWin32(0x0000007A);
+inline constexpr X_RESULT X_ERROR_INVALID_NAME = XResultFromWin32(0x0000007B);
+inline constexpr X_RESULT X_ERROR_BAD_ARGUMENTS = XResultFromWin32(0x000000A0);
+inline constexpr X_RESULT X_ERROR_BUSY = XResultFromWin32(0x000000AA);
+inline constexpr X_RESULT X_ERROR_ALREADY_EXISTS = XResultFromWin32(0x000000B7);
+inline constexpr X_RESULT X_ERROR_IO_INCOMPLETE = XResultFromWin32(0x000003E4);
+inline constexpr X_RESULT X_ERROR_IO_PENDING = XResultFromWin32(0x000003E5);
+inline constexpr X_RESULT X_ERROR_DEVICE_NOT_CONNECTED = XResultFromWin32(0x0000048F);
+inline constexpr X_RESULT X_ERROR_NOT_FOUND = XResultFromWin32(0x00000490);
+inline constexpr X_RESULT X_ERROR_CANCELLED = XResultFromWin32(0x000004C7);
+inline constexpr X_RESULT X_ERROR_NOT_LOGGED_ON = XResultFromWin32(0x000004DD);
+inline constexpr X_RESULT X_ERROR_NO_SUCH_USER = XResultFromWin32(0x00000525);
+inline constexpr X_RESULT X_ERROR_FUNCTION_FAILED = XResultFromWin32(0x0000065B);
+inline constexpr X_RESULT X_ERROR_EMPTY = XResultFromWin32(0x000010D2);
 
 /** HRESULT code type. */
 using X_HRESULT = u32;
-[[nodiscard]] constexpr X_HRESULT X_HRESULT_FROM_WIN32(u32 x) {
+[[nodiscard]] constexpr X_HRESULT XHResultFromWin32(u32 x) {
   return static_cast<i32>(x) <= 0 ? x : ((x & 0xFFFF) | (kFacilityWin32 << 16) | 0x80000000);
 }
 
 inline constexpr X_HRESULT X_E_FALSE = 0x80000000;
-inline constexpr X_HRESULT X_E_SUCCESS = X_HRESULT_FROM_WIN32(X_ERROR_SUCCESS);
+inline constexpr X_HRESULT X_E_SUCCESS = XHResultFromWin32(X_ERROR_SUCCESS);
 inline constexpr X_HRESULT X_E_FAIL = 0x80004005;
-inline constexpr X_HRESULT X_E_NO_MORE_FILES = X_HRESULT_FROM_WIN32(X_ERROR_NO_MORE_FILES);
-inline constexpr X_HRESULT X_E_INVALIDARG = X_HRESULT_FROM_WIN32(X_ERROR_INVALID_PARAMETER);
+inline constexpr X_HRESULT X_E_NO_MORE_FILES = XHResultFromWin32(X_ERROR_NO_MORE_FILES);
+inline constexpr X_HRESULT X_E_INVALIDARG = XHResultFromWin32(X_ERROR_INVALID_PARAMETER);
 inline constexpr X_HRESULT X_E_DEVICE_NOT_CONNECTED =
-    X_HRESULT_FROM_WIN32(X_ERROR_DEVICE_NOT_CONNECTED);
-inline constexpr X_HRESULT X_E_NOTFOUND = X_HRESULT_FROM_WIN32(X_ERROR_NOT_FOUND);
-inline constexpr X_HRESULT X_E_NO_SUCH_USER = X_HRESULT_FROM_WIN32(X_ERROR_NO_SUCH_USER);
+    XHResultFromWin32(X_ERROR_DEVICE_NOT_CONNECTED);
+inline constexpr X_HRESULT X_E_NOTFOUND = XHResultFromWin32(X_ERROR_NOT_FOUND);
+inline constexpr X_HRESULT X_E_NO_SUCH_USER = XHResultFromWin32(X_ERROR_NO_SUCH_USER);
 
 /** MEM_* flags used by NtAllocateVirtualMemory. */
 enum X_MEM : u32 {
-  X_MEM_COMMIT = 0x00001000,   /**< Commits the pages. */
-  X_MEM_RESERVE = 0x00002000,  /**< Reserves the address range. */
-  X_MEM_DECOMMIT = 0x00004000, /**< Decommits the pages and keeps the reservation. */
-  X_MEM_RELEASE = 0x00008000,  /**< Releases the whole reservation. */
-  X_MEM_FREE = 0x00010000,    /**< State NtQueryVirtualMemory reports for pages neither reserved nor
-                                 committed. */
-  X_MEM_PRIVATE = 0x00020000, /**< Type NtQueryVirtualMemory reports for every region. */
-  X_MEM_RESET = 0x00080000,   /**< Valid only alone, NtAllocateVirtualMemory logs it as a stub. */
-  X_MEM_TOP_DOWN = 0x00100000, /**< Allocates at the highest free address. */
-  X_MEM_NOZERO = 0x00800000,   /**< Leaves the new pages unzeroed. */
-  X_MEM_LARGE_PAGES =
-      0x20000000,               /**< Backs the allocation with 64 KB pages instead of 4 KB pages. */
-  X_MEM_HEAP = 0x40000000,      /**< No code reads it. */
-  X_MEM_16MB_PAGES = 0x80000000 /**< Backs the allocation with 16 MB pages. */
+  kXMemCommit = 0x00001000,   /**< Commits the pages. */
+  kXMemReserve = 0x00002000,  /**< Reserves the address range. */
+  kXMemDecommit = 0x00004000, /**< Decommits the pages and keeps the reservation. */
+  kXMemRelease = 0x00008000,  /**< Releases the whole reservation. */
+  kXMemFree = 0x00010000,     /**< State NtQueryVirtualMemory reports for pages neither reserved nor
+                                  committed. */
+  kXMemPrivate = 0x00020000,  /**< Type NtQueryVirtualMemory reports for every region. */
+  kXMemReset = 0x00080000,    /**< Valid only alone, NtAllocateVirtualMemory logs it as a stub. */
+  kXMemTopDown = 0x00100000,  /**< Allocates at the highest free address. */
+  kXMemNoZero = 0x00800000,   /**< Leaves the new pages unzeroed. */
+  kXMemLargePages = 0x20000000, /**< Backs the allocation with 64 KB pages instead of 4 KB pages. */
+  kXMemHeap = 0x40000000,       /**< No code reads it. */
+  kXMem16MBPages = 0x80000000   /**< Backs the allocation with 16 MB pages. */
 };
 
 /** PAGE_* flags used by NtAllocateVirtualMemory. */
 enum X_PAGE : u16 {
-  X_PAGE_NOACCESS = 0x00000001,          /**< Any access faults. */
-  X_PAGE_READONLY = 0x00000002,          /**< Pages can be read. */
-  X_PAGE_READWRITE = 0x00000004,         /**< Pages can be read and written. */
-  X_PAGE_WRITECOPY = 0x00000008,         /**< No code reads it. */
-  X_PAGE_EXECUTE = 0x00000010,           /**< Equivalent to X_PAGE_READONLY. */
-  X_PAGE_EXECUTE_READ = 0x00000020,      /**< Equivalent to X_PAGE_READONLY. */
-  X_PAGE_EXECUTE_READWRITE = 0x00000040, /**< Equivalent to X_PAGE_READWRITE. */
-  X_PAGE_EXECUTE_WRITECOPY =
-      0x00000080,            /**< NtAllocateVirtualMemory logs it as an execute request. */
-  X_PAGE_GUARD = 0x00000100, /**< First access raises a guard page exception and clears the flag. */
-  X_PAGE_NOCACHE =
+  kXPageNoAccess = 0x00000001,         /**< Any access faults. */
+  kXPageReadOnly = 0x00000002,         /**< Pages can be read. */
+  kXPageReadWrite = 0x00000004,        /**< Pages can be read and written. */
+  kXPageWriteCopy = 0x00000008,        /**< No code reads it. */
+  kXPageExecute = 0x00000010,          /**< Equivalent to kXPageReadOnly. */
+  kXPageExecuteRead = 0x00000020,      /**< Equivalent to kXPageReadOnly. */
+  kXPageExecuteReadWrite = 0x00000040, /**< Equivalent to kXPageReadWrite. */
+  kXPageExecuteWriteCopy =
+      0x00000080,           /**< NtAllocateVirtualMemory logs it as an execute request. */
+  kXPageGuard = 0x00000100, /**< First access raises a guard page exception and clears the flag. */
+  kXPageNoCache =
       0x00000200, /**< Pages are not cached, which the XDK warns gives poor performance. */
-  X_PAGE_WRITECOMBINE =
+  kXPageWriteCombine =
       0x00000400 /**< Pages are not cached and writes are combined into larger batches. */
 };
 
-inline constexpr u32 X_INVALID_SOCKET = ~u32{0};
-inline constexpr u32 X_SOCKET_ERROR = static_cast<u32>(-1);
+inline constexpr u32 kXInvalidSocket = ~u32{0};
+inline constexpr u32 kXSocketError = static_cast<u32>(-1);
 
 /** Guest layout of an entry of a doubly linked list. */
 struct X_LIST_ENTRY {

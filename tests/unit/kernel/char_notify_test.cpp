@@ -46,7 +46,7 @@ void SlowTerminateRoutine(PPCContext& ctx, u8*) {
 }
 
 void ThreadNotifyRoutine(PPCContext& ctx, u8*) {
-  const u32 id = rex::runtime::KernelThread::GetCurrentThread()->thread_id();
+  const u32 id = rex::runtime::KernelThread::GetCurrentThread()->GetThreadId();
   std::lock_guard lock(g_mutex);
   g_thread_calls.emplace_back(id, ctx.r3.u32);
   ctx.r3.u64 = 0;
@@ -86,7 +86,8 @@ u32 Registration(Caller& c, u32 routine, u32 priority) {
 }
 
 u32 ThreadNotification(Caller& c) {
-  const u32 routine = c.runtime().function_dispatcher()->AllocateThunk(&ThreadNotifyRoutine, 0);
+  const u32 routine =
+      c.GetRuntime().GetFunctionDispatcher()->AllocateThunk(&ThreadNotifyRoutine, 0);
   const u32 notification = c.Alloc(0xC);
   c.Store32(notification + 8, routine);
   c.XAM("XRegisterThreadNotifyRoutine", {notification, 1});
@@ -111,7 +112,7 @@ REX_TEST_CASE("terminate notifications run by priority with their registration",
   std::vector<u32> expected;
   KernelFixture fixture;
   fixture.RunOnGuestThread([&expected](Caller& c) {
-    const u32 routine = c.runtime().function_dispatcher()->AllocateThunk(&TerminateRoutine, 0);
+    const u32 routine = c.GetRuntime().GetFunctionDispatcher()->AllocateThunk(&TerminateRoutine, 0);
     const u32 low = Registration(c, routine, 1);
     const u32 high = Registration(c, routine, 5);
     const u32 middle_first = Registration(c, routine, 3);
@@ -120,7 +121,7 @@ REX_TEST_CASE("terminate notifications run by priority with their registration",
     c.Kernel("ExRegisterTitleTerminateNotification", {removed, 0});
     expected = {high, middle_first, middle_second, low};
   });
-  fixture.runtime().TerminateTitle();
+  fixture.GetRuntime().TerminateTitle();
   std::lock_guard lock(g_mutex);
   CHECK(g_registrations == expected);
 }
@@ -130,11 +131,12 @@ REX_TEST_CASE("a blocking terminate notification ends after the terminate timeou
   Reset();
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    const u32 routine = c.runtime().function_dispatcher()->AllocateThunk(&SlowTerminateRoutine, 0);
+    const u32 routine =
+        c.GetRuntime().GetFunctionDispatcher()->AllocateThunk(&SlowTerminateRoutine, 0);
     Registration(c, routine, 1);
   });
   const auto start = std::chrono::steady_clock::now();
-  fixture.runtime().TerminateTitle();
+  fixture.GetRuntime().TerminateTitle();
   const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
                            std::chrono::steady_clock::now() - start)
                            .count();
@@ -149,7 +151,7 @@ REX_TEST_CASE("thread notify runs on create and on return from the start routine
   fixture.RunOnGuestThread([](Caller& c) {
     ThreadNotification(c);
     const u32 thread = c.Spawn([](Caller&) {
-      g_spawned_id = rex::runtime::KernelThread::GetCurrentThread()->thread_id();
+      g_spawned_id = rex::runtime::KernelThread::GetCurrentThread()->GetThreadId();
     });
     CHECK(c.Kernel("NtWaitForSingleObjectEx", {thread, 1, 0, c.Quad(-50000000)}) == 0);
     c.Kernel("NtClose", {thread});
@@ -163,7 +165,7 @@ REX_TEST_CASE("thread notify runs on ExTerminateThread", "[char][notify]") {
   fixture.RunOnGuestThread([](Caller& c) {
     ThreadNotification(c);
     const u32 thread = c.Spawn([](Caller& o) {
-      g_spawned_id = rex::runtime::KernelThread::GetCurrentThread()->thread_id();
+      g_spawned_id = rex::runtime::KernelThread::GetCurrentThread()->GetThreadId();
       o.Kernel("ExTerminateThread", {7});
     });
     CHECK(c.Kernel("NtWaitForSingleObjectEx", {thread, 1, 0, c.Quad(-50000000)}) == 0);
@@ -185,14 +187,14 @@ REX_TEST_CASE("thread notify does not run for a thread stopped by title terminat
     }
     const u32 event = c.Load32(event_ptr);
     c.Spawn([event](Caller& o) {
-      g_spawned_id = rex::runtime::KernelThread::GetCurrentThread()->thread_id();
+      g_spawned_id = rex::runtime::KernelThread::GetCurrentThread()->GetThreadId();
       o.Kernel("NtWaitForSingleObjectEx", {event, 1, 0, 0});
     });
     for (int i = 0; i < 200 && g_spawned_id == 0; ++i) {
       std::this_thread::sleep_for(std::chrono::milliseconds(5));
     }
   });
-  fixture.runtime().TerminateTitle();
+  fixture.GetRuntime().TerminateTitle();
   CHECK(CallsFor(g_spawned_id) == std::vector<u32>{1});
 }
 
@@ -203,7 +205,7 @@ REX_TEST_CASE("a removed thread notification is not called", "[char][notify]") {
     const u32 notification = ThreadNotification(c);
     c.XAM("XRegisterThreadNotifyRoutine", {notification, 0});
     const u32 thread = c.Spawn([](Caller&) {
-      g_spawned_id = rex::runtime::KernelThread::GetCurrentThread()->thread_id();
+      g_spawned_id = rex::runtime::KernelThread::GetCurrentThread()->GetThreadId();
     });
     CHECK(c.Kernel("NtWaitForSingleObjectEx", {thread, 1, 0, c.Quad(-50000000)}) == 0);
     c.Kernel("NtClose", {thread});
@@ -216,11 +218,12 @@ REX_TEST_CASE("a terminate notification that never returns ends exit after the t
   Reset();
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    const u32 routine = c.runtime().function_dispatcher()->AllocateThunk(&StuckTerminateRoutine, 0);
+    const u32 routine =
+        c.GetRuntime().GetFunctionDispatcher()->AllocateThunk(&StuckTerminateRoutine, 0);
     Registration(c, routine, 1);
   });
   const auto start = std::chrono::steady_clock::now();
-  fixture.runtime().TerminateTitle();
+  fixture.GetRuntime().TerminateTitle();
   const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
                            std::chrono::steady_clock::now() - start)
                            .count();
@@ -233,7 +236,7 @@ REX_TEST_CASE("title termination during an exit notify routine lets the thread e
   Reset();
   g_in_exit_routine = false;
   KernelFixture fixture;
-  g_runtime = &fixture.runtime();
+  g_runtime = &fixture.GetRuntime();
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 event_ptr = c.Alloc(4);
     CHECKED_ELSE(c.Kernel("NtCreateEvent", {event_ptr, 0, 0, 0}) == 0) {
@@ -242,7 +245,7 @@ REX_TEST_CASE("title termination during an exit notify routine lets the thread e
     }
     g_exit_event = c.Load32(event_ptr);
     const u32 routine =
-        c.runtime().function_dispatcher()->AllocateThunk(&WaitingExitNotifyRoutine, 0);
+        c.GetRuntime().GetFunctionDispatcher()->AllocateThunk(&WaitingExitNotifyRoutine, 0);
     const u32 notification = c.Alloc(0xC);
     c.Store32(notification + 8, routine);
     c.XAM("XRegisterThreadNotifyRoutine", {notification, 1});
@@ -253,7 +256,7 @@ REX_TEST_CASE("title termination during an exit notify routine lets the thread e
   });
   REQUIRE(g_in_exit_routine);
   const auto start = std::chrono::steady_clock::now();
-  fixture.runtime().TerminateTitle();
+  fixture.GetRuntime().TerminateTitle();
   const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
                            std::chrono::steady_clock::now() - start)
                            .count();

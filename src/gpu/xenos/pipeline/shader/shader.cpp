@@ -40,7 +40,7 @@ Shader::~Shader() = default;
 
 std::pair<std::filesystem::path, std::filesystem::path> Shader::Translation::Dump(
     const std::filesystem::path& base_path, const char* path_prefix) const {
-  if (!is_valid()) {
+  if (!IsValid()) {
     return std::make_pair(std::filesystem::path(), std::filesystem::path());
   }
 
@@ -50,11 +50,12 @@ std::pair<std::filesystem::path, std::filesystem::path> Shader::Translation::Dum
     std::filesystem::create_directories(target_path);
   }
 
-  const char* type_extension = shader().type() == xenos::ShaderType::kVertex ? "vert" : "frag";
+  const char* type_extension =
+      GetShader().GetType() == xenos::ShaderType::kVertex ? "vert" : "frag";
 
   std::filesystem::path binary_path =
-      target_path / std::format("shader_{:016X}_{:016X}.{}.bin.{}", shader().ucode_data_hash(),
-                                modification(), path_prefix, type_extension);
+      target_path / std::format("shader_{:016X}_{:016X}.{}.bin.{}", GetShader().GetUcodeDataHash(),
+                                GetModification(), path_prefix, type_extension);
   std::ofstream binary_file(binary_path, std::ios::binary | std::ios::trunc);
   binary_file.write(
       reinterpret_cast<const char*>(translated_binary_.data()),
@@ -63,8 +64,8 @@ std::pair<std::filesystem::path, std::filesystem::path> Shader::Translation::Dum
   std::filesystem::path disasm_path;
   if (!host_disassembly_.empty()) {
     disasm_path =
-        target_path / std::format("shader_{:016X}_{:016X}.{}.{}", shader().ucode_data_hash(),
-                                  modification(), path_prefix, type_extension);
+        target_path / std::format("shader_{:016X}_{:016X}.{}.{}", GetShader().GetUcodeDataHash(),
+                                  GetModification(), path_prefix, type_extension);
     std::ofstream disasm_file(disasm_path, std::ios::trunc);
     disasm_file.write(host_disassembly_.data(),
                       static_cast<std::streamsize>(host_disassembly_.size()));
@@ -104,22 +105,22 @@ std::pair<std::filesystem::path, std::filesystem::path> Shader::DumpUcode(
     std::filesystem::create_directories(target_path);
   }
 
-  const char* type_extension = type() == xenos::ShaderType::kVertex ? "vert" : "frag";
+  const char* type_extension = GetType() == xenos::ShaderType::kVertex ? "vert" : "frag";
 
   std::filesystem::path binary_path =
-      target_path / std::format("shader_{:016X}.ucode.bin.{}", ucode_data_hash(), type_extension);
+      target_path / std::format("shader_{:016X}.ucode.bin.{}", GetUcodeDataHash(), type_extension);
   std::ofstream binary_file(binary_path, std::ios::binary | std::ios::trunc);
   binary_file.write(
-      reinterpret_cast<const char*>(ucode_data().data()),
-      static_cast<std::streamsize>(ucode_data().size() * sizeof(*ucode_data().data())));
+      reinterpret_cast<const char*>(GetUcodeData().data()),
+      static_cast<std::streamsize>(GetUcodeData().size() * sizeof(*GetUcodeData().data())));
 
   std::filesystem::path disasm_path;
-  if (is_ucode_analyzed()) {
+  if (IsUcodeAnalyzed()) {
     disasm_path =
-        target_path / std::format("shader_{:016X}.ucode.{}", ucode_data_hash(), type_extension);
+        target_path / std::format("shader_{:016X}.ucode.{}", GetUcodeDataHash(), type_extension);
     std::ofstream disasm_file(disasm_path, std::ios::trunc);
-    disasm_file.write(ucode_disassembly().data(),
-                      static_cast<std::streamsize>(ucode_disassembly().size()));
+    disasm_file.write(GetUcodeDisassembly().data(),
+                      static_cast<std::streamsize>(GetUcodeDisassembly().size()));
   }
 
   return std::make_pair(std::move(binary_path), std::move(disasm_path));

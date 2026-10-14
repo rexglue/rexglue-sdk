@@ -29,33 +29,33 @@ static constexpr u64 kFt2021 = 132539328000000000;      /**< 2021-01-01 */
 
 REX_TEST_CASE("unix_epoch_delta computes correct 1601-to-1970 offset", "[chrono]") {
   // 369 years from 1601 to 1970, with 89 leap days
-  constexpr i64 expected_seconds = (369LL * 365 + 89) * 86400LL;
+  constexpr i64 kExpectedSeconds = (369LL * 365 + 89) * 86400LL;
 
-  CHECK(WinSystemClock::unix_epoch_delta().count() == -expected_seconds);
-  CHECK(WinSystemClock::unix_epoch_delta().count() < 0);
+  CHECK(WinSystemClock::GetUnixEpochDelta().count() == -kExpectedSeconds);
+  CHECK(WinSystemClock::GetUnixEpochDelta().count() < 0);
 }
 
 REX_TEST_CASE("from_file_time and to_file_time are exact inverses", "[chrono]") {
   SECTION("zero (NT epoch)") {
-    auto tp = WinSystemClock::from_file_time(kFtNtEpoch);
-    CHECK(WinSystemClock::to_file_time(tp) == kFtNtEpoch);
+    auto tp = WinSystemClock::FromFileTime(kFtNtEpoch);
+    CHECK(WinSystemClock::ToFileTime(tp) == kFtNtEpoch);
   }
   SECTION("Unix epoch") {
-    auto tp = WinSystemClock::from_file_time(kFtUnixEpoch);
-    CHECK(WinSystemClock::to_file_time(tp) == kFtUnixEpoch);
+    auto tp = WinSystemClock::FromFileTime(kFtUnixEpoch);
+    CHECK(WinSystemClock::ToFileTime(tp) == kFtUnixEpoch);
   }
   SECTION("large value") {
     // Near year 9999.
-    constexpr u64 large = 2650467743990000000ULL;
-    auto tp = WinSystemClock::from_file_time(large);
-    CHECK(WinSystemClock::to_file_time(tp) == large);
+    constexpr u64 kLarge = 2650467743990000000ULL;
+    auto tp = WinSystemClock::FromFileTime(kLarge);
+    CHECK(WinSystemClock::ToFileTime(tp) == kLarge);
   }
 }
 
 REX_TEST_CASE("to_file_time then from_file_time round-trips", "[chrono]") {
-  auto tp = WinSystemClock::from_file_time(kFtSubDay);
-  auto ft = WinSystemClock::to_file_time(tp);
-  auto tp2 = WinSystemClock::from_file_time(ft);
+  auto tp = WinSystemClock::FromFileTime(kFtSubDay);
+  auto ft = WinSystemClock::ToFileTime(tp);
+  auto tp2 = WinSystemClock::FromFileTime(ft);
   CHECK(tp == tp2);
 }
 
@@ -63,18 +63,18 @@ REX_TEST_CASE("to_sys converts known FILETIMEs to correct system_clock values", 
   using namespace std::chrono;
 
   SECTION("Unix epoch FILETIME -> system_clock epoch") {
-    auto tp = WinSystemClock::to_sys(WinSystemClock::from_file_time(kFtUnixEpoch));
+    auto tp = WinSystemClock::to_sys(WinSystemClock::FromFileTime(kFtUnixEpoch));
     auto since_epoch = tp.time_since_epoch();
     CHECK(duration_cast<seconds>(since_epoch).count() == 0);
   }
   SECTION("Y2K FILETIME -> 30 years after Unix epoch") {
-    auto tp = WinSystemClock::to_sys(WinSystemClock::from_file_time(kFtY2k));
+    auto tp = WinSystemClock::to_sys(WinSystemClock::FromFileTime(kFtY2k));
     auto since_epoch = tp.time_since_epoch();
     // 2000-01-01 is 10957 days after 1970-01-01 (including leap days)
     CHECK(duration_cast<seconds>(since_epoch).count() == 10957LL * 86400);
   }
   SECTION("2021 FILETIME -> known seconds since Unix epoch") {
-    auto tp = WinSystemClock::to_sys(WinSystemClock::from_file_time(kFt2021));
+    auto tp = WinSystemClock::to_sys(WinSystemClock::FromFileTime(kFt2021));
     auto since_epoch = tp.time_since_epoch();
     // 2021-01-01 is 18628 days after 1970-01-01
     CHECK(duration_cast<seconds>(since_epoch).count() == 18628LL * 86400);
@@ -83,10 +83,10 @@ REX_TEST_CASE("to_sys converts known FILETIMEs to correct system_clock values", 
 
 REX_TEST_CASE("from_sys then to_sys round-trips for whole-second values", "[chrono]") {
   for (u64 ft : {kFtNtEpoch, kFtUnixEpoch, kFtY2k, kFt2021}) {
-    auto nt_tp = WinSystemClock::from_file_time(ft);
+    auto nt_tp = WinSystemClock::FromFileTime(ft);
     auto sys_tp = WinSystemClock::to_sys(nt_tp);
     auto nt_tp2 = WinSystemClock::from_sys(sys_tp);
-    auto ft2 = WinSystemClock::to_file_time(nt_tp2);
+    auto ft2 = WinSystemClock::ToFileTime(nt_tp2);
     CHECK(ft2 == ft);
   }
 }
@@ -109,8 +109,8 @@ struct TimeFields {
  * @param filetime The FILETIME in 100 nanosecond intervals since 1601-01-01.
  * @return The calendar fields.
  */
-static TimeFields decompose(u64 filetime) {
-  auto tp = WinSystemClock::to_sys(WinSystemClock::from_file_time(filetime));
+static TimeFields Decompose(u64 filetime) {
+  auto tp = WinSystemClock::to_sys(WinSystemClock::FromFileTime(filetime));
   auto dp = std::chrono::floor<std::chrono::days>(tp);
   auto ymd = std::chrono::year_month_day{dp};
   auto wd = std::chrono::weekday{dp};
@@ -128,7 +128,7 @@ static TimeFields decompose(u64 filetime) {
 }
 
 REX_TEST_CASE("calendar decomposition: NT epoch (1601-01-01)", "[chrono]") {
-  auto tf = decompose(kFtNtEpoch);
+  auto tf = Decompose(kFtNtEpoch);
   CHECK(tf.year == 1601);
   CHECK(tf.month == 1);
   CHECK(tf.day == 1);
@@ -140,7 +140,7 @@ REX_TEST_CASE("calendar decomposition: NT epoch (1601-01-01)", "[chrono]") {
 }
 
 REX_TEST_CASE("calendar decomposition: Unix epoch (1970-01-01)", "[chrono]") {
-  auto tf = decompose(kFtUnixEpoch);
+  auto tf = Decompose(kFtUnixEpoch);
   CHECK(tf.year == 1970);
   CHECK(tf.month == 1);
   CHECK(tf.day == 1);
@@ -152,7 +152,7 @@ REX_TEST_CASE("calendar decomposition: Unix epoch (1970-01-01)", "[chrono]") {
 }
 
 REX_TEST_CASE("calendar decomposition: Y2K (2000-01-01)", "[chrono]") {
-  auto tf = decompose(kFtY2k);
+  auto tf = Decompose(kFtY2k);
   CHECK(tf.year == 2000);
   CHECK(tf.month == 1);
   CHECK(tf.day == 1);
@@ -164,7 +164,7 @@ REX_TEST_CASE("calendar decomposition: Y2K (2000-01-01)", "[chrono]") {
 }
 
 REX_TEST_CASE("calendar decomposition: leap day (2000-02-29)", "[chrono]") {
-  auto tf = decompose(kFtLeapDay);
+  auto tf = Decompose(kFtLeapDay);
   CHECK(tf.year == 2000);
   CHECK(tf.month == 2);
   CHECK(tf.day == 29);
@@ -176,7 +176,7 @@ REX_TEST_CASE("calendar decomposition: leap day (2000-02-29)", "[chrono]") {
 }
 
 REX_TEST_CASE("calendar decomposition: sub-day (2020-12-30 12:00:12.345)", "[chrono]") {
-  auto tf = decompose(kFtSubDay);
+  auto tf = Decompose(kFtSubDay);
   CHECK(tf.year == 2020);
   CHECK(tf.month == 12);
   CHECK(tf.day == 30);
@@ -188,7 +188,7 @@ REX_TEST_CASE("calendar decomposition: sub-day (2020-12-30 12:00:12.345)", "[chr
 }
 
 REX_TEST_CASE("calendar decomposition: 2021-01-01", "[chrono]") {
-  auto tf = decompose(kFt2021);
+  auto tf = Decompose(kFt2021);
   CHECK(tf.year == 2021);
   CHECK(tf.month == 1);
   CHECK(tf.day == 1);
@@ -211,34 +211,34 @@ REX_TEST_CASE("calendar decomposition: 2021-01-01", "[chrono]") {
  * @param ms The millisecond.
  * @return The FILETIME, or 0 when the date is invalid.
  */
-static u64 recompose(int y, unsigned m, unsigned d, int hour, int min, int sec, int ms) {
+static u64 Recompose(int y, unsigned m, unsigned d, int hour, int min, int sec, int ms) {
   auto ymd =
       std::chrono::year_month_day{std::chrono::year{y}, std::chrono::month{m}, std::chrono::day{d}};
   if (!ymd.ok())
     return 0;
   auto dp = static_cast<std::chrono::sys_days>(ymd);
-  std::chrono::sys_time<rex::hundrednanoseconds> time = dp;
+  std::chrono::sys_time<rex::HundredNanoseconds> time = dp;
   time += std::chrono::hours{hour};
   time += std::chrono::minutes{min};
   time += std::chrono::seconds{sec};
   time += std::chrono::milliseconds{ms};
-  return WinSystemClock::to_file_time(WinSystemClock::from_sys(time));
+  return WinSystemClock::ToFileTime(WinSystemClock::from_sys(time));
 }
 
 REX_TEST_CASE("calendar recomposition: known dates produce correct FILETIMEs", "[chrono]") {
-  CHECK(recompose(1601, 1, 1, 0, 0, 0, 0) == kFtNtEpoch);
-  CHECK(recompose(1970, 1, 1, 0, 0, 0, 0) == kFtUnixEpoch);
-  CHECK(recompose(2000, 1, 1, 0, 0, 0, 0) == kFtY2k);
-  CHECK(recompose(2000, 2, 29, 0, 0, 0, 0) == kFtLeapDay);
-  CHECK(recompose(2020, 12, 30, 12, 0, 12, 345) == kFtSubDay);
-  CHECK(recompose(2021, 1, 1, 0, 0, 0, 0) == kFt2021);
+  CHECK(Recompose(1601, 1, 1, 0, 0, 0, 0) == kFtNtEpoch);
+  CHECK(Recompose(1970, 1, 1, 0, 0, 0, 0) == kFtUnixEpoch);
+  CHECK(Recompose(2000, 1, 1, 0, 0, 0, 0) == kFtY2k);
+  CHECK(Recompose(2000, 2, 29, 0, 0, 0, 0) == kFtLeapDay);
+  CHECK(Recompose(2020, 12, 30, 12, 0, 12, 345) == kFtSubDay);
+  CHECK(Recompose(2021, 1, 1, 0, 0, 0, 0) == kFt2021);
 }
 
 REX_TEST_CASE("calendar recomposition: decompose then recompose round-trips", "[chrono]") {
   for (u64 ft : {kFtNtEpoch, kFtUnixEpoch, kFtY2k, kFtLeapDay, kFtSubDay, kFt2021}) {
-    auto tf = decompose(ft);
+    auto tf = Decompose(ft);
     auto result =
-        recompose(tf.year, tf.month, tf.day, tf.hours, tf.minutes, tf.seconds, tf.milliseconds);
+        Recompose(tf.year, tf.month, tf.day, tf.hours, tf.minutes, tf.seconds, tf.milliseconds);
     CHECK(result == ft);
   }
 }
@@ -268,10 +268,10 @@ REX_TEST_CASE("year_month_day::ok rejects invalid dates", "[chrono]") {
 }
 
 REX_TEST_CASE("recompose returns 0 for invalid dates", "[chrono]") {
-  CHECK(recompose(2000, 2, 30, 0, 0, 0, 0) == 0);
-  CHECK(recompose(2001, 2, 29, 0, 0, 0, 0) == 0);
-  CHECK(recompose(2000, 13, 1, 0, 0, 0, 0) == 0);
-  CHECK(recompose(2000, 1, 0, 0, 0, 0, 0) == 0);
+  CHECK(Recompose(2000, 2, 30, 0, 0, 0, 0) == 0);
+  CHECK(Recompose(2001, 2, 29, 0, 0, 0, 0) == 0);
+  CHECK(Recompose(2000, 13, 1, 0, 0, 0, 0) == 0);
+  CHECK(Recompose(2000, 1, 0, 0, 0, 0, 0) == 0);
 }
 
 REX_TEST_CASE("weekday c_encoding returns 0=Sunday through 6=Saturday", "[chrono]") {
@@ -306,28 +306,28 @@ REX_TEST_CASE("The host tick count advances at the rate of steady_clock", "[chro
 }
 
 REX_TEST_CASE("A scaled relative file time stays negative", "[chrono]") {
-  const rex::f64 scalar = rex::Clock::guest_time_scalar();
-  rex::Clock::set_guest_time_scalar(0.5);
+  const rex::f64 scalar = rex::Clock::GetGuestTimeScalar();
+  rex::Clock::SetGuestTimeScalar(0.5);
   CHECK(rex::Clock::ScaleGuestDurationFileTime(-10'000'000) == -5'000'000);
-  rex::Clock::set_guest_time_scalar(2.0);
+  rex::Clock::SetGuestTimeScalar(2.0);
   CHECK(rex::Clock::ScaleGuestDurationFileTime(-10'000'000) == -20'000'000);
-  rex::Clock::set_guest_time_scalar(scalar);
+  rex::Clock::SetGuestTimeScalar(scalar);
 }
 
 REX_TEST_CASE("A scaled negative timeval stays negative", "[chrono]") {
-  const rex::f64 scalar = rex::Clock::guest_time_scalar();
-  rex::Clock::set_guest_time_scalar(2.0);
+  const rex::f64 scalar = rex::Clock::GetGuestTimeScalar();
+  rex::Clock::SetGuestTimeScalar(2.0);
   rex::i32 sec = -1;
   rex::i32 usec = -1;
   rex::Clock::ScaleGuestDurationTimeval(&sec, &usec);
   CHECK(sec == -3);
   CHECK(usec == 999'998);
-  rex::Clock::set_guest_time_scalar(scalar);
+  rex::Clock::SetGuestTimeScalar(scalar);
 }
 
 REX_TEST_CASE("A scaled timeval carries microseconds into seconds at 1 second", "[chrono]") {
-  const rex::f64 scalar = rex::Clock::guest_time_scalar();
-  rex::Clock::set_guest_time_scalar(2.0);
+  const rex::f64 scalar = rex::Clock::GetGuestTimeScalar();
+  rex::Clock::SetGuestTimeScalar(2.0);
   rex::i32 sec = 0;
   rex::i32 usec = 600'000;
   rex::Clock::ScaleGuestDurationTimeval(&sec, &usec);
@@ -338,12 +338,12 @@ REX_TEST_CASE("A scaled timeval carries microseconds into seconds at 1 second", 
   rex::Clock::ScaleGuestDurationTimeval(&sec, &usec);
   CHECK(sec == -4);
   CHECK(usec == 800'000);
-  rex::Clock::set_guest_time_scalar(scalar);
+  rex::Clock::SetGuestTimeScalar(scalar);
 }
 
 REX_TEST_CASE("A scaled timeval keeps the fraction of its seconds", "[chrono]") {
-  const rex::f64 scalar = rex::Clock::guest_time_scalar();
-  rex::Clock::set_guest_time_scalar(0.5);
+  const rex::f64 scalar = rex::Clock::GetGuestTimeScalar();
+  rex::Clock::SetGuestTimeScalar(0.5);
   rex::i32 sec = 1;
   rex::i32 usec = 0;
   rex::Clock::ScaleGuestDurationTimeval(&sec, &usec);
@@ -354,5 +354,5 @@ REX_TEST_CASE("A scaled timeval keeps the fraction of its seconds", "[chrono]") 
   rex::Clock::ScaleGuestDurationTimeval(&sec, &usec);
   CHECK(sec == 0);
   CHECK(usec == 0);
-  rex::Clock::set_guest_time_scalar(scalar);
+  rex::Clock::SetGuestTimeScalar(scalar);
 }

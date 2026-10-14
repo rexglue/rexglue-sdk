@@ -49,15 +49,15 @@ bool SlotForDevice(rex::hid::DeviceId id, u32* out_slot) {
 }
 
 /** Milliseconds to skip an empty slot after a miss, since querying one is slow. */
-constexpr u64 SKIP_INVALID_CONTROLLER_TIME = 1100;
+constexpr u64 kSkipInvalidControllerTime = 1100;
 u64 last_invalid_time[kXInputSlotCount];
 
-DWORD should_skip(u32 user_index) {
+DWORD ShouldSkip(u32 user_index) {
   u64 time = last_invalid_time[user_index];
   if (time) {
     u64 deltatime = rex::Clock::QueryHostUptimeMillis() - time;
 
-    if (deltatime < SKIP_INVALID_CONTROLLER_TIME) {
+    if (deltatime < kSkipInvalidControllerTime) {
       return ERROR_DEVICE_NOT_CONNECTED;
     }
     last_invalid_time[user_index] = 0;
@@ -65,7 +65,7 @@ DWORD should_skip(u32 user_index) {
   return 0;
 }
 
-void set_skip(u32 user_index) {
+void SetSkip(u32 user_index) {
   last_invalid_time[user_index] = rex::Clock::QueryHostUptimeMillis();
 }
 
@@ -75,8 +75,8 @@ namespace rex::hid::xinput {
 
 Result<void> XInputDriver::Setup() {
   if (!library_.Load("xinput1_4.dll")) {
-    return Err(ErrorCategory::Platform,
-               std::format("xinput1_4.dll cannot be loaded, {}", library_.last_error()));
+    return Err(ErrorCategory::kPlatform,
+               std::format("xinput1_4.dll cannot be loaded, {}", library_.GetLastError()));
   }
   get_capabilities_ = library_.GetSymbol<decltype(get_capabilities_)>("XInputGetCapabilities");
   get_state_ = library_.GetSymbol<decltype(get_state_)>("XInputGetState");
@@ -87,7 +87,7 @@ Result<void> XInputDriver::Setup() {
   set_state_ = library_.GetSymbol<decltype(set_state_)>("XInputSetState");
   if (!get_capabilities_ || !get_state_ || !get_keystroke_ || !set_state_) {
     library_.Close();
-    return Err(ErrorCategory::Platform, "xinput1_4.dll lacks a required export");
+    return Err(ErrorCategory::kPlatform, "xinput1_4.dll lacks a required export");
   }
   return Ok();
 }
@@ -98,14 +98,14 @@ void XInputDriver::EnumerateDevices(std::vector<DeviceInfo>& out) {
     return;
   }
   for (u32 slot = 0; slot < kXInputSlotCount; slot++) {
-    if (should_skip(slot)) {
+    if (ShouldSkip(slot)) {
       continue;
     }
     XINPUT_CAPABILITIES native_caps;
     DWORD result = xigc(slot, 0, &native_caps);
     if (result) {
       if (result == ERROR_DEVICE_NOT_CONNECTED) {
-        set_skip(slot);
+        SetSkip(slot);
       }
       continue;
     }
@@ -145,16 +145,16 @@ X_RESULT XInputDriver::ReadDeviceCapabilities(DeviceId id, u32 flags,
   if (!SlotForDevice(id, &user_index)) {
     return X_ERROR_DEVICE_NOT_CONNECTED;
   }
-  DWORD skipper = should_skip(user_index);
+  DWORD skipper = ShouldSkip(user_index);
   if (skipper) {
     return skipper;
   }
   XINPUT_CAPABILITIES native_caps;
   auto xigc = get_capabilities_;
-  DWORD result = xigc(user_index, flags & ~X_INPUT_DEVTYPE::XINPUT_DEVTYPE_KEYBOARD, &native_caps);
+  DWORD result = xigc(user_index, flags & ~X_INPUT_DEVTYPE::kXInputDevTypeKeyboard, &native_caps);
   if (result) {
     if (result == ERROR_DEVICE_NOT_CONNECTED) {
-      set_skip(user_index);
+      SetSkip(user_index);
     }
     return result;
   }
@@ -180,7 +180,7 @@ X_RESULT XInputDriver::ReadDeviceState(DeviceId id, X_INPUT_STATE* out_state) {
   if (!SlotForDevice(id, &user_index)) {
     return X_ERROR_DEVICE_NOT_CONNECTED;
   }
-  DWORD skipper = should_skip(user_index);
+  DWORD skipper = ShouldSkip(user_index);
   if (skipper) {
     return skipper;
   }
@@ -196,7 +196,7 @@ X_RESULT XInputDriver::ReadDeviceState(DeviceId id, X_INPUT_STATE* out_state) {
   DWORD result = xigs(user_index, &native_state.state);
   if (result) {
     if (result == ERROR_DEVICE_NOT_CONNECTED) {
-      set_skip(user_index);
+      SetSkip(user_index);
     }
     return result;
   }
@@ -218,7 +218,7 @@ X_RESULT XInputDriver::WriteDeviceVibration(DeviceId id, X_INPUT_VIBRATION* vibr
   if (!SlotForDevice(id, &user_index)) {
     return X_ERROR_DEVICE_NOT_CONNECTED;
   }
-  DWORD skipper = should_skip(user_index);
+  DWORD skipper = ShouldSkip(user_index);
   if (skipper) {
     return skipper;
   }
@@ -228,7 +228,7 @@ X_RESULT XInputDriver::WriteDeviceVibration(DeviceId id, X_INPUT_VIBRATION* vibr
   auto xiss = set_state_;
   DWORD result = xiss(user_index, &native_vibration);
   if (result == ERROR_DEVICE_NOT_CONNECTED) {
-    set_skip(user_index);
+    SetSkip(user_index);
   }
   return result;
 }

@@ -420,7 +420,7 @@ struct ParsedTextureFetchInstruction {
   bool is_predicated = false;
   bool predicate_condition = false;
 
-  bool has_result() const { return result.storage_target != InstructionStorageTarget::kNone; }
+  bool HasResult() const { return result.storage_target != InstructionStorageTarget::kNone; }
   InstructionResult result;
 
   size_t operand_count = 0;
@@ -661,10 +661,10 @@ class Shader {
       }
       u32 offset = 0;
       for (u32 i = 0; i < block_index; ++i) {
-        offset += rex::bit_count(float_bitmap[i]);
+        offset += rex::BitCount(float_bitmap[i]);
       }
       return offset +
-             rex::bit_count(float_bitmap[block_index] & ((static_cast<u64>(1) << bit_index) - 1));
+             rex::BitCount(float_bitmap[block_index] & ((static_cast<u64>(1) << bit_index) - 1));
     }
   };
 
@@ -672,10 +672,10 @@ class Shader {
     /** Which eM elements are potentially written, regardless of conditionals, loop iteration counts
      * and predication, earlier in the predecessor graph of the instruction since an `alloc export`.
      */
-    u8 eM_potentially_written_before = 0;
+    u8 em_potentially_written_before = 0;
     /** For exec sequences, which eM elements are potentially written by the instructions,
      * regardless of predication. 0 for other control flow instructions. */
-    u8 eM_potentially_written_by_exec = 0;
+    u8 em_potentially_written_by_exec = 0;
   };
 
   class Translation {
@@ -683,26 +683,24 @@ class Shader {
     Translation(Shader& shader, u64 modification) : shader_(shader), modification_(modification) {}
     virtual ~Translation() {}
 
-    Shader& shader() const { return shader_; }
+    Shader& GetShader() const { return shader_; }
 
-    u64 modification() const { return modification_; }
+    u64 GetModification() const { return modification_; }
 
-    bool is_valid() const { return is_valid_; }
+    bool IsValid() const { return is_valid_; }
 
-    bool is_translated() const { return is_translated_; }
+    bool IsTranslated() const { return is_translated_; }
 
-    const std::vector<Error>& errors() const { return errors_; }
+    const std::vector<Error>& GetErrors() const { return errors_; }
 
-    const std::vector<u8>& translated_binary() const { return translated_binary_; }
+    const std::vector<u8>& GetTranslatedBinary() const { return translated_binary_; }
 
     /**
      * Sets the host disassembly when it depends on the GPU backend.
      *
      * @param disassembly Host disassembly text.
      */
-    void set_host_disassembly(std::string disassembly) {
-      host_disassembly_ = std::move(disassembly);
-    }
+    void SetHostDisassembly(std::string disassembly) { host_disassembly_ = std::move(disassembly); }
 
     /**
      * Dumps the translated code and, if available, the translated disassembly to files in the given
@@ -745,15 +743,15 @@ class Shader {
          size_t ucode_dword_count, std::endian ucode_source_endian = std::endian::big);
   virtual ~Shader();
 
-  xenos::ShaderType type() const { return shader_type_; }
+  xenos::ShaderType GetType() const { return shader_type_; }
 
   /** Microcode dwords in host endianness. */
-  const std::vector<u32>& ucode_data() const { return ucode_data_; }
-  u64 ucode_data_hash() const { return ucode_data_hash_; }
-  const u32* ucode_dwords() const { return ucode_data_.data(); }
-  size_t ucode_dword_count() const { return ucode_data_.size(); }
+  const std::vector<u32>& GetUcodeData() const { return ucode_data_; }
+  u64 GetUcodeDataHash() const { return ucode_data_hash_; }
+  const u32* GetUcodeDwords() const { return ucode_data_.data(); }
+  size_t GetUcodeDwordCount() const { return ucode_data_.size(); }
 
-  bool is_ucode_analyzed() const { return is_ucode_analyzed_; }
+  bool IsUcodeAnalyzed() const { return is_ucode_analyzed_; }
   /**
    * Analyzes the microcode and gathers the information below.
    *
@@ -765,24 +763,24 @@ class Shader {
   // The accessors below are valid only after AnalyzeUcode.
 
   /** Microcode disassembly in D3D format. */
-  const std::string& ucode_disassembly() const { return ucode_disassembly_; }
+  const std::string& GetUcodeDisassembly() const { return ucode_disassembly_; }
 
-  const std::vector<TextureBinding>& texture_bindings() const { return texture_bindings_; }
+  const std::vector<TextureBinding>& GetTextureBindings() const { return texture_bindings_; }
 
-  const ConstantRegisterMap& constant_register_map() const { return constant_register_map_; }
+  const ConstantRegisterMap& GetConstantRegisterMap() const { return constant_register_map_; }
 
   /**
    * Memory export state at each control flow instruction, empty when there are no eM# writes.
    *
    * @return Memory export state per control flow instruction.
    */
-  const std::vector<ControlFlowMemExportInfo>& cf_memexport_info() const {
+  const std::vector<ControlFlowMemExportInfo>& GetCfMemexportInfo() const {
     return cf_memexport_info_;
   }
 
-  u8 memexport_eM_written() const { return memexport_eM_written_; }
-  u8 memexport_eM_potentially_written_before_end() const {
-    return memexport_eM_potentially_written_before_end_;
+  u8 GetMemExportEMWritten() const { return memexport_em_written_; }
+  u8 GetMemExportEMPotentiallyWrittenBeforeEnd() const {
+    return memexport_em_potentially_written_before_end_;
   }
 
   /**
@@ -790,13 +788,13 @@ class Shader {
    *
    * @return Set of c# register indices.
    */
-  const std::set<u32>& memexport_stream_constants() const { return memexport_stream_constants_; }
+  const std::set<u32>& GetMemexportStreamConstants() const { return memexport_stream_constants_; }
 
-  const std::set<u32>& label_addresses() const { return label_addresses_; }
+  const std::set<u32>& GetLabelAddresses() const { return label_addresses_; }
 
   /** Exclusive upper bound of the indexes of paired control flow instructions, each corresponding
    * to 3 dwords. */
-  u32 cf_pair_index_bound() const { return cf_pair_index_bound_; }
+  u32 GetCfPairIndexBound() const { return cf_pair_index_bound_; }
 
   /**
    * Returns the upper bound of temporary registers addressed statically, the highest static
@@ -807,11 +805,11 @@ class Shader {
    * loaded, so it may hold less than the pixel shader needs. SQ_PROGRAM_CNTL should be used to go
    * above this count only if uses_register_dynamic_addressing is true.
    */
-  u32 register_static_address_bound() const { return register_static_address_bound_; }
+  u32 GetRegisterStaticAddressBound() const { return register_static_address_bound_; }
 
   /** Reports whether temporary registers are addressed dynamically, so SQ_PROGRAM_CNTL determines
    * the register count in addition to register_static_address_bound. */
-  bool uses_register_dynamic_addressing() const { return uses_register_dynamic_addressing_; }
+  bool UsesRegisterDynamicAddressing() const { return uses_register_dynamic_addressing_; }
 
   /**
    * Returns the number of temporary registers to allocate, for building and normalizing shader
@@ -824,32 +822,32 @@ class Shader {
    * @return Number of dynamically addressable registers.
    */
   u32 GetDynamicAddressableRegisterCount(u32 program_cntl_num_reg) const {
-    if (!uses_register_dynamic_addressing()) {
+    if (!UsesRegisterDynamicAddressing()) {
       return 0;
     }
-    return std::max(program_cntl_num_reg + static_cast<u32>(1), register_static_address_bound());
+    return std::max(program_cntl_num_reg + static_cast<u32>(1), GetRegisterStaticAddressBound());
   }
 
-  bool kills_pixels() const { return kills_pixels_; }
+  bool GetKillsPixels() const { return kills_pixels_; }
 
   /**
    * Reports whether any fetch instruction other than vertex fetch writes non constant components.
    *
    * @return True when such a fetch instruction exists.
    */
-  bool uses_texture_fetch_instruction_results() const {
+  bool UsesTextureFetchInstructionResults() const {
     return uses_texture_fetch_instruction_results_;
   }
 
   /** Mask of interpolators written on any execution path. */
-  u32 writes_interpolators() const { return writes_interpolators_; }
+  u32 GetWritesInterpolators() const { return writes_interpolators_; }
 
   /**
    * Mask of system vertex shader exports written on any execution path.
    *
    * @return Mask of written system exports.
    */
-  u32 writes_point_size_edge_flag_kill_vertex() const {
+  u32 GetWritesPointSizeEdgeFlagKillVertex() const {
     return writes_point_size_edge_flag_kill_vertex_;
   }
 
@@ -865,7 +863,7 @@ class Shader {
                                xenos::reg::SQ_CONTEXT_MISC sq_context_misc,
                                u32& param_gen_pos_out) const;
 
-  bool writes_depth() const { return writes_depth_; }
+  bool GetWritesDepth() const { return writes_depth_; }
 
   /**
    * Reports whether the shader can have early depth and stencil writing enabled, unless alpha test
@@ -873,14 +871,14 @@ class Shader {
    *
    * @return True when early depth and stencil writing is allowed.
    */
-  bool implicit_early_z_write_allowed() const {
-    return !kills_pixels() && !writes_depth() && !memexport_eM_written();
+  bool GetImplicitEarlyZWriteAllowed() const {
+    return !GetKillsPixels() && !GetWritesDepth() && !GetMemExportEMWritten();
   }
 
   /** Mask of color render targets written on any execution path. */
-  u32 writes_color_targets() const { return writes_color_targets_; }
-  bool writes_color_target(u32 i) const {
-    return (writes_color_targets() & (static_cast<u32>(1) << i)) != 0;
+  u32 GetWritesColorTargets() const { return writes_color_targets_; }
+  bool GetWritesColorTarget(u32 i) const {
+    return (GetWritesColorTargets() & (static_cast<u32>(1) << i)) != 0;
   }
 
   /**
@@ -889,7 +887,7 @@ class Shader {
    *
    * @return Translations keyed by modification bits.
    */
-  const std::unordered_map<u64, std::unique_ptr<Translation>>& translations() const {
+  const std::unordered_map<u64, std::unique_ptr<Translation>>& GetTranslations() const {
     return translations_;
   }
   Translation* GetTranslation(u64 modification) const {
@@ -910,8 +908,8 @@ class Shader {
 
   /** Externally managed identifier of the shader storage the microcode was last written to or
    * loaded from, so the microcode is written to the storage once. UINT32_MAX by default. */
-  u32 ucode_storage_index() const { return ucode_storage_index_; }
-  void set_ucode_storage_index(u32 storage_index) { ucode_storage_index_ = storage_index; }
+  u32 GetUcodeStorageIndex() const { return ucode_storage_index_; }
+  void SetUcodeStorageIndex(u32 storage_index) { ucode_storage_index_ = storage_index; }
 
   /**
    * Dumps the microcode binary and, if analyzed, the disassembly to files in the given directory
@@ -963,11 +961,11 @@ class Shader {
    * writes. */
   std::vector<ControlFlowMemExportInfo> cf_memexport_info_;
   /** Which memexport elements (eM#) are written by any memexport in the shader. */
-  u8 memexport_eM_written_ = 0;
+  u8 memexport_em_written_ = 0;
   /** Equivalent of ControlFlowMemExportInfo::eM_potentially_written_before for the end of the
    * shader, covering the last memory export or exports if the end has multiple predecessor chains
    * exporting to memory. */
-  u8 memexport_eM_potentially_written_before_end_ = 0;
+  u8 memexport_em_potentially_written_before_end_ = 0;
   std::set<u32> memexport_stream_constants_;
 
   std::unordered_map<u64, std::unique_ptr<Translation>> translations_;

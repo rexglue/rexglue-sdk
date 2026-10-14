@@ -49,7 +49,7 @@ class PinCount {
    *
    * @return The pins, without the retired bit.
    */
-  [[nodiscard]] u32 pins() const noexcept {
+  [[nodiscard]] u32 GetPins() const noexcept {
     return count_.load(std::memory_order_acquire) & ~kRetired;
   }
 

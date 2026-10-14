@@ -14,10 +14,10 @@
 namespace rex {
 namespace runtime {
 
-constexpr memory::fourcc_t kXDBFSignatureXDBF = memory::make_fourcc("XDBF");
-constexpr memory::fourcc_t kXDBFSignatureXstc = memory::make_fourcc("XSTC");
-constexpr memory::fourcc_t kXDBFSignatureXstr = memory::make_fourcc("XSTR");
-constexpr memory::fourcc_t kXDBFSignatureXach = memory::make_fourcc("XACH");
+constexpr memory::FourCCT kXDBFSignatureXDBF = memory::make_fourcc("XDBF");
+constexpr memory::FourCCT kXDBFSignatureXstc = memory::make_fourcc("XSTC");
+constexpr memory::FourCCT kXDBFSignatureXstr = memory::make_fourcc("XSTR");
+constexpr memory::FourCCT kXDBFSignatureXach = memory::make_fourcc("XACH");
 
 constexpr u64 kXDBFIdTitle = 0x8000;
 constexpr u64 kXDBFIdXstc = 0x58535443;
@@ -60,7 +60,7 @@ XDBFReader::XDBFReader(const u8* data, size_t data_size) : data_(data), data_siz
 }
 
 XDBFBlock XDBFReader::GetEntry(XDBFSection section, u64 id) const {
-  if (!is_valid()) {
+  if (!IsValid()) {
     return {};
   }
   const size_t content_size = data_size_ - static_cast<size_t>(content_offset_ - data_);
@@ -131,14 +131,14 @@ std::vector<XDBFAchievementTableEntry> XDBFReader::GetAchievements() const {
 }
 
 XLanguage XDBFGameData::GetExistingLanguage(XLanguage language_to_check) const {
-  return title(language_to_check).empty() ? default_language() : language_to_check;
+  return GetTitle(language_to_check).empty() ? GetDefaultLanguage() : language_to_check;
 }
 
-XDBFBlock XDBFGameData::icon() const {
+XDBFBlock XDBFGameData::GetIcon() const {
   return GetEntry(XDBFSection::kImage, kXDBFIdTitle);
 }
 
-XLanguage XDBFGameData::default_language() const {
+XLanguage XDBFGameData::GetDefaultLanguage() const {
   const auto* xstc = RecordAt<XDBFXstc>(GetEntry(XDBFSection::kMetadata, kXDBFIdXstc), 0);
   if (!xstc) {
     return XLanguage::kEnglish;
@@ -147,11 +147,11 @@ XLanguage XDBFGameData::default_language() const {
   return ToXLanguage(xstc->default_language);
 }
 
-std::string XDBFGameData::title() const {
-  return GetStringTableEntry(default_language(), kXDBFIdTitle);
+std::string XDBFGameData::GetTitle() const {
+  return GetStringTableEntry(GetDefaultLanguage(), kXDBFIdTitle);
 }
 
-std::string XDBFGameData::title(XLanguage language) const {
+std::string XDBFGameData::GetTitle(XLanguage language) const {
   return GetStringTableEntry(language, kXDBFIdTitle);
 }
 

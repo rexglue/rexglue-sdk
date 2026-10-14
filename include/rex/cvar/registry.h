@@ -114,7 +114,7 @@ class ICvarRegistry {
    *
    * @param name Dotted cvar name such as gpu.vsync.
    * @return The var, or empty when the name is not registered. Valid until the var is
-   *         unregistered. Only desc(), Render() and DefaultText() are read on it.
+   *         unregistered. Only GetDesc(), Render() and GetDefaultText() are read on it.
    */
   [[nodiscard]] virtual std::optional<std::reference_wrapper<const IVar>> Find(
       std::string_view name) const = 0;
@@ -137,7 +137,7 @@ class ICvarRegistry {
    *
    * @return Every reserved scope, in reservation order.
    */
-  virtual std::vector<std::string_view> Scopes() const = 0;
+  virtual std::vector<std::string_view> GetScopes() const = 0;
   /**
    * Registers a change callback. Fails with NotFound.
    *
@@ -160,7 +160,7 @@ class ICvarRegistry {
    *
    * @return RequiresRestart vars changed after finalize.
    */
-  virtual std::vector<std::string> PendingRestart() const = 0;
+  virtual std::vector<std::string> GetPendingRestart() const = 0;
   /**
    * Renders the non default values as TOML.
    *
@@ -177,7 +177,7 @@ class ICvarRegistry {
  protected:
   friend class CallbackHandle;
   /**
-   * Removes 1 change callback registration by id.
+   * Removes a change callback registration by id.
    *
    * @param id The registration id.
    */
@@ -194,7 +194,7 @@ class CallbackHandle : public MoveOnly {
    */
   CallbackHandle() = default;
   /**
-   * Constructs a handle that owns 1 registration.
+   * Constructs a handle that owns a registration.
    *
    * @param registry The registry that issued the handle.
    * @param id The registration id inside the registry.

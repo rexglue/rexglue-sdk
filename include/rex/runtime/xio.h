@@ -21,21 +21,19 @@ namespace rex::runtime {
 
 /** File attribute flags. */
 enum X_FILE_ATTRIBUTES : u16 {
-  X_FILE_ATTRIBUTE_NONE = 0x0000,     /**< No attribute bit is set. */
-  X_FILE_ATTRIBUTE_READONLY = 0x0001, /**< The file cannot be written. */
-  X_FILE_ATTRIBUTE_HIDDEN =
-      0x0002, /**< NT attribute bit the XDK does not list, no code reads it. */
-  X_FILE_ATTRIBUTE_SYSTEM =
-      0x0004, /**< NT attribute bit the XDK does not list, no code reads it. */
-  X_FILE_ATTRIBUTE_DIRECTORY = 0x0010, /**< The entry is a directory. */
-  X_FILE_ATTRIBUTE_ARCHIVE = 0x0020,   /**< The entry is an archive file or directory. */
-  X_FILE_ATTRIBUTE_DEVICE = 0x0040,    /**< Reserved, titles do not use it. */
-  X_FILE_ATTRIBUTE_NORMAL = 0x0080, /**< The file has no other attribute, valid only on its own. */
+  kXFileAttributeNone = 0x0000,     /**< No attribute bit is set. */
+  kXFileAttributeReadOnly = 0x0001, /**< The file cannot be written. */
+  kXFileAttributeHidden = 0x0002, /**< NT attribute bit the XDK does not list, no code reads it. */
+  kXFileAttributeSystem = 0x0004, /**< NT attribute bit the XDK does not list, no code reads it. */
+  kXFileAttributeDirectory = 0x0010, /**< The entry is a directory. */
+  kXFileAttributeArchive = 0x0020,   /**< The entry is an archive file or directory. */
+  kXFileAttributeDevice = 0x0040,    /**< Reserved, titles do not use it. */
+  kXFileAttributeNormal = 0x0080,    /**< The file has no other attribute, valid only on its own. */
   /** NT attribute bit the XDK does not list, no code reads it. */
-  X_FILE_ATTRIBUTE_TEMPORARY = 0x0100,
-  X_FILE_ATTRIBUTE_COMPRESSED =
+  kXFileAttributeTemporary = 0x0100,
+  kXFileAttributeCompressed =
       0x0800, /**< NT attribute bit the XDK does not list, no code reads it. */
-  X_FILE_ATTRIBUTE_ENCRYPTED =
+  kXFileAttributeEncrypted =
       0x4000, /**< NT attribute bit the XDK does not list, no code reads it. */
 };
 
@@ -59,7 +57,7 @@ REX_STATIC_ASSERT_SIZE(XAM_OVERLAPPED, 0x1C);
  * @param value The result.
  */
 inline void XOverlappedSetResult(void* ptr, u32 value) {
-  static_cast<XAM_OVERLAPPED*>(ptr)->result.store(value, std::memory_order_release);
+  static_cast<XAM_OVERLAPPED*>(ptr)->result.Store(value, std::memory_order_release);
 }
 
 /**
@@ -69,7 +67,7 @@ inline void XOverlappedSetResult(void* ptr, u32 value) {
  * @return The result.
  */
 inline u32 XOverlappedGetResult(void* ptr) {
-  return static_cast<XAM_OVERLAPPED*>(ptr)->result.load(std::memory_order_acquire);
+  return static_cast<XAM_OVERLAPPED*>(ptr)->result.Load(std::memory_order_acquire);
 }
 
 /**
@@ -139,7 +137,7 @@ struct X_ANSI_STRING {
   be_u32 pointer;        /**< Guest address of the characters. */
 
   /** Clears the length, capacity and pointer. */
-  void reset() {
+  void Reset() {
     length = 0;
     maximum_length = 0;
     pointer = 0;
@@ -154,7 +152,7 @@ struct X_UNICODE_STRING {
   be_u32 pointer;
 
   /** Clears the length, capacity and pointer. */
-  void reset() {
+  void Reset() {
     length = 0;
     maximum_length = 0;
     pointer = 0;
@@ -165,7 +163,7 @@ REX_STATIC_ASSERT_SIZE(X_UNICODE_STRING, 8);
 /** The status and information of a completed IO call. */
 struct X_IO_STATUS_BLOCK {
   union {
-    be<X_STATUS> status; /**< Final status of the call. */
+    BE<X_STATUS> status; /**< Final status of the call. */
     be_u32 pointer;      /**< Shares its dword with status. */
   };
   /** Call specific result, such as the bytes transferred or the file action. */

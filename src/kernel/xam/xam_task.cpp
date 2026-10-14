@@ -44,15 +44,15 @@ struct XTASK_MESSAGE {
 };
 REX_STATIC_ASSERT_SIZE(XTASK_MESSAGE, 0x1C);
 
-u32 XamTaskSchedule_entry(mapped_void callback, ppc_ptr_t<XTASK_MESSAGE> message,
-                          [[maybe_unused]] mapped_u32 unknown, mapped_u32 handle_ptr) {
+u32 XamTaskSchedule_entry(MappedVoid callback, GuestPtrT<XTASK_MESSAGE> message,
+                          [[maybe_unused]] MappedU32 unknown, MappedU32 handle_ptr) {
   *handle_ptr = 12345;
 
-  auto thread = std::make_unique<KernelThread>(runtime::Current(), 0, 0, callback.guest_address(),
-                                               message.guest_address(), 0, true);
+  auto thread = std::make_unique<KernelThread>(
+      runtime::GetCurrent(), 0, 0, callback.GetGuestAddress(), message.GetGuestAddress(), 0, true);
 
   X_HANDLE task_thread = 0;
-  auto launched = runtime::Current().thread_registry().Launch(std::move(thread));
+  auto launched = runtime::GetCurrent().GetThreadRegistry().Launch(std::move(thread));
   if (launched) {
     task_thread = *launched;
   }
@@ -61,9 +61,9 @@ u32 XamTaskSchedule_entry(mapped_void callback, ppc_ptr_t<XTASK_MESSAGE> message
   if (XFAILED(result)) {
     REX_FAIL(kernel, result, "XAM task creation failed: {:08X}", result);
   }
-  runtime::CloseOwned(runtime::Current().object_table(), task_thread);
+  runtime::CloseOwned(runtime::GetCurrent().GetObjectTable(), task_thread);
 
-  REXLOG_DEBUG(kernel, "XAM task ({:08X}) scheduled asynchronously", callback.guest_address());
+  REXLOG_DEBUG(kernel, "XAM task ({:08X}) scheduled asynchronously", callback.GetGuestAddress());
 
   return X_STATUS_SUCCESS;
 }
@@ -77,13 +77,13 @@ u32 XamTaskCloseHandle_entry(u32 handle) {
   return X_STATUS_SUCCESS;
 }
 
-void XRegisterThreadNotifyRoutine_entry(ppc_ptr_t<runtime::X_THREAD_NOTIFICATION> notification,
+void XRegisterThreadNotifyRoutine_entry(GuestPtrT<runtime::X_THREAD_NOTIFICATION> notification,
                                         u32 register_notification) {
-  auto& registry = runtime::Current().thread_registry();
+  auto& registry = runtime::GetCurrent().GetThreadRegistry();
   if (register_notification) {
-    registry.RegisterThreadNotify(notification.guest_address());
+    registry.RegisterThreadNotify(notification.GetGuestAddress());
   } else {
-    registry.RemoveThreadNotify(notification.guest_address());
+    registry.RemoveThreadNotify(notification.GetGuestAddress());
   }
 }
 

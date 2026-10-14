@@ -39,7 +39,7 @@ struct RecompilerConfig;
 struct Limits;
 struct MMIOReportSite;
 
-/** Lightweight context passed to FunctionNode::emitCpp() and BuilderContext. Holds non owning
+/** Lightweight context passed to FunctionNode::EmitCpp() and BuilderContext. Holds non owning
  * references, so the caller keeps them alive. */
 struct EmitContext {
   const BinaryView& binary; /**< Binary the function was read from. */
@@ -47,7 +47,7 @@ struct EmitContext {
   const RecompilerConfig& config;
   const FunctionGraph& graph; /**< Graph that classifies branch targets and resolves calls. */
   const Limits& limits;       /**< Codegen limits such as the maximum output file size. */
-  u32 entryPoint = 0;         /**< Used for xstart naming */
+  u32 entry_point = 0;        /**< Used for xstart naming */
 
   /**
    * Every function name emitted as a call. The writer turns this into the per file declaration
@@ -63,7 +63,7 @@ struct EmitContext {
    *
    * @param name Name of the function emitted as a call
    */
-  void reference(std::string_view name) const {
+  void Reference(std::string_view name) const {
     if (referenced)
       referenced->emplace(name);
   }
@@ -74,21 +74,21 @@ struct EmitContext {
  * vacancy merging, all others are immutable entry points.
  */
 enum class FunctionAuthority : u8 {
-  GAP_FILL = 0,   /**< Found in an unclaimed gap, can be absorbed */
-  DISCOVERED = 1, /**< Found through bl or bcl */
-  VTABLE = 2,     /**< Found in a vtable */
-  HELPER = 3,     /**< Save and restore helpers, fixed, overlaps allowed */
-  PDATA = 4,      /**< From .pdata, entry fixed, can extend */
-  CONFIG = 5,     /**< User config with exact boundaries */
-  IMPORT = 6,     /**< Import thunk for an external function */
+  kGapFill = 0,    /**< Found in an unclaimed gap, can be absorbed */
+  kDiscovered = 1, /**< Found through bl or bcl */
+  kVTable = 2,     /**< Found in a vtable */
+  kHelper = 3,     /**< Save and restore helpers, fixed, overlaps allowed */
+  kPData = 4,      /**< From .pdata, entry fixed, can extend */
+  kConfig = 5,     /**< User config with exact boundaries */
+  kImport = 6,     /**< Import thunk for an external function */
 };
 
 /** Classification of a branch target for code generation. */
 enum class TargetKind : u8 {
-  InternalLabel, /**< Target inside the caller function, a PIC pattern */
-  Function,      /**< Target is a function in the graph. */
-  Import,        /**< Target is an import thunk, emitted as a call to the import. */
-  Unknown,       /**< Target is in no function or import, emitted as an error and a fatal call. */
+  kInternalLabel, /**< Target inside the caller function, a PIC pattern */
+  kFunction,      /**< Target is a function in the graph. */
+  kImport,        /**< Target is an import thunk, emitted as a call to the import. */
+  kUnknown,       /**< Target is in no function or import, emitted as an error and a fatal call. */
 };
 
 /**
@@ -106,33 +106,33 @@ enum class FunctionState : u8 {
   kSealed,     /**< All branches resolved, ready for code generation */
 };
 
-constexpr FunctionState PENDING = FunctionState::kRegistered;
-constexpr FunctionState SEALED = FunctionState::kSealed;
+constexpr FunctionState kPending = FunctionState::kRegistered;
+constexpr FunctionState kSealed = FunctionState::kSealed;
 
 /** 1 scope table entry of an SEH function. */
-struct SehScope {
-  u32 tryStart; /**< Offset +0, start of the __try block */
-  u32 tryEnd;   /**< Offset +4, end of the __try block */
-  u32 handler;  /**< Offset +8, __finally or __except body */
-  u32 filter;   /**< Offset +C, 0 for __finally and the address for __except */
+struct SEHScope {
+  u32 try_start; /**< Offset +0, start of the __try block */
+  u32 try_end;   /**< Offset +4, end of the __try block */
+  u32 handler;   /**< Offset +8, __finally or __except body */
+  u32 filter;    /**< Offset +C, 0 for __finally and the address for __except */
 };
 
 /** SEH data of 1 function. */
-struct SehExceptionInfo {
-  u32 handlerThunk;             /**< Thunk address such as __C_specific_handler */
-  u32 scopeTableAddr;           /**< Pointer to the scope table in .rdata */
-  std::vector<SehScope> scopes; /**< Scope table entries */
-  u32 frameSize = 0;            /**< Stack frame size for the r12 setup during unwind */
-  u32 restoreHelper = 0;        /**< __restgprlr_N address to call on unwind */
+struct SEHExceptionInfo {
+  u32 handler_thunk;            /**< Thunk address such as __C_specific_handler */
+  u32 scope_table_addr;         /**< Pointer to the scope table in .rdata */
+  std::vector<SEHScope> scopes; /**< Scope table entries */
+  u32 frame_size = 0;           /**< Stack frame size for the r12 setup during unwind */
+  u32 restore_helper = 0;       /**< __restgprlr_N address to call on unwind */
 };
 
 /** FuncInfo magic of C++ EH. */
-constexpr u32 CXX_EH_MAGIC = 0x19930522;
+constexpr u32 kCXXEHMagic = 0x19930522;
 
 /** 1 entry of the C++ EH unwind map. */
 struct CxxUnwindEntry {
-  i32 toState; /**< Previous state, -1 for terminal */
-  u32 action;  /**< Cleanup or destructor function address */
+  i32 to_state; /**< Previous state, -1 for terminal */
+  u32 action;   /**< Cleanup or destructor function address */
 };
 
 /** Maps a code address to a C++ EH state. */
@@ -143,52 +143,52 @@ struct CxxIPStateEntry {
 
 /** 1 catch clause of a C++ try block. */
 struct CxxCatchHandler {
-  u32 adjectives;           /**< Catch type flags */
-  u32 typeDescriptor;       /**< Pointer to the RTTI type descriptor */
-  i32 catchObjDisplacement; /**< Frame displacement of the caught object */
-  u32 handlerAddress;       /**< Address of the catch body */
+  u32 adjectives;             /**< Catch type flags */
+  u32 type_descriptor;        /**< Pointer to the RTTI type descriptor */
+  i32 catch_obj_displacement; /**< Frame displacement of the caught object */
+  u32 handler_address;        /**< Address of the catch body */
 };
 
 /** 1 C++ try block with its state range and catch clauses. */
 struct CxxTryBlock {
-  i32 tryLow;                            /**< Lowest state inside the try body */
-  i32 tryHigh;                           /**< Highest state inside the try body */
-  i32 catchHigh;                         /**< Highest state inside the catch bodies */
+  i32 try_low;                           /**< Lowest state inside the try body */
+  i32 try_high;                          /**< Highest state inside the try body */
+  i32 catch_high;                        /**< Highest state inside the catch bodies */
   std::vector<CxxCatchHandler> handlers; /**< Catch clauses of the block */
 };
 
 /** C++ EH data of 1 function. */
 struct CxxExceptionInfo {
-  u32 handlerThunk;                          /**< Thunk address of the EH handler */
-  u32 funcInfoAddr;                          /**< Address of FuncInfo in .rdata */
-  u32 maxState;                              /**< Number of unwind states */
-  std::vector<CxxUnwindEntry> unwindMap;     /**< Unwind action per state */
-  std::vector<CxxTryBlock> tryBlocks;        /**< Try blocks of the function */
-  std::vector<CxxIPStateEntry> ipToStateMap; /**< Code address to state transitions */
+  u32 handler_thunk;                            /**< Thunk address of the EH handler */
+  u32 func_info_addr;                           /**< Address of FuncInfo in .rdata */
+  u32 max_state;                                /**< Number of unwind states */
+  std::vector<CxxUnwindEntry> unwind_map;       /**< Unwind action per state */
+  std::vector<CxxTryBlock> try_blocks;          /**< Try blocks of the function */
+  std::vector<CxxIPStateEntry> ip_to_state_map; /**< Code address to state transitions */
 };
 
 /** Variant of SEH or C++ EH info. */
 struct ExceptionInfo {
   /** Held info, SEH or C++ EH. `std::monostate` when the function has none. */
-  std::variant<std::monostate, SehExceptionInfo, CxxExceptionInfo> data;
+  std::variant<std::monostate, SEHExceptionInfo, CxxExceptionInfo> data;
 
-  bool hasInfo() const { return !std::holds_alternative<std::monostate>(data); }
-  bool isSeh() const { return std::holds_alternative<SehExceptionInfo>(data); }
-  bool isCxx() const { return std::holds_alternative<CxxExceptionInfo>(data); }
+  bool HasInfo() const { return !std::holds_alternative<std::monostate>(data); }
+  bool IsSEH() const { return std::holds_alternative<SEHExceptionInfo>(data); }
+  bool IsCxx() const { return std::holds_alternative<CxxExceptionInfo>(data); }
 
-  const SehExceptionInfo* asSeh() const { return std::get_if<SehExceptionInfo>(&data); }
-  const CxxExceptionInfo* asCxx() const { return std::get_if<CxxExceptionInfo>(&data); }
+  const SEHExceptionInfo* AsSEH() const { return std::get_if<SEHExceptionInfo>(&data); }
+  const CxxExceptionInfo* AsCxx() const { return std::get_if<CxxExceptionInfo>(&data); }
 
   /**
    * Returns the handler thunk address of the held info.
    *
    * @return Thunk address, or 0 when no info is held
    */
-  u32 handlerThunk() const {
-    if (auto* seh = asSeh())
-      return seh->handlerThunk;
-    if (auto* cxx = asCxx())
-      return cxx->handlerThunk;
+  u32 GetHandlerThunk() const {
+    if (auto* seh = AsSEH())
+      return seh->handler_thunk;
+    if (auto* cxx = AsCxx())
+      return cxx->handler_thunk;
     return 0;
   }
 };
@@ -212,22 +212,22 @@ struct CallTarget {
   /** Resolved destination, a function, an import thunk or an unresolved address. */
   std::variant<ToFunction, ToImport, Unresolved> value;
 
-  bool isResolved() const { return !std::holds_alternative<Unresolved>(value); }
-  bool isFunction() const { return std::holds_alternative<ToFunction>(value); }
-  bool isImport() const { return std::holds_alternative<ToImport>(value); }
+  bool IsResolved() const { return !std::holds_alternative<Unresolved>(value); }
+  bool IsFunction() const { return std::holds_alternative<ToFunction>(value); }
+  bool IsImport() const { return std::holds_alternative<ToImport>(value); }
 
   /**
    * Returns the function destination.
    *
    * @return The node, or null when the target is not a function
    */
-  FunctionNode* asFunction() const {
+  FunctionNode* AsFunction() const {
     if (auto* f = std::get_if<ToFunction>(&value))
       return f->node;
     return nullptr;
   }
 
-  static CallTarget function(FunctionNode* fn) { return {ToFunction{fn}}; }
+  static CallTarget MakeFunction(FunctionNode* fn) { return {ToFunction{fn}}; }
   /**
    * Creates a target for an import.
    *
@@ -235,8 +235,10 @@ struct CallTarget {
    * @param name Import name
    * @return The import target
    */
-  static CallTarget import(u32 addr, std::string name) { return {ToImport{addr, std::move(name)}}; }
-  static CallTarget unresolved(u32 addr) { return {Unresolved{addr}}; }
+  static CallTarget MakeImport(u32 addr, std::string name) {
+    return {ToImport{addr, std::move(name)}};
+  }
+  static CallTarget MakeUnresolved(u32 addr) { return {Unresolved{addr}}; }
 };
 
 /** A call site within a function. */
@@ -250,37 +252,37 @@ struct Block {
   u32 base; /**< Start address */
   u32 size; /**< Size in bytes */
 
-  u32 end() const { return base + size; }
-  bool contains(u32 addr) const { return addr >= base && addr < end(); }
+  u32 GetEnd() const { return base + size; }
+  bool Contains(u32 addr) const { return addr >= base && addr < GetEnd(); }
 };
 
 /** Jump table behind an indirect branch. */
 struct JumpTable {
-  u32 bctrAddress;          /**< Address of the bctr instruction */
-  u32 tableAddress;         /**< Address of the jump table data */
-  u8 indexRegister;         /**< Register holding the switch index */
+  u32 bctr_address;         /**< Address of the bctr instruction */
+  u32 table_address;        /**< Address of the jump table data */
+  u8 index_register;        /**< Register holding the switch index */
   std::vector<u32> targets; /**< Resolved case targets, internal labels */
 };
 
 /** Analysis computed at seal time. */
 struct FunctionAnalysis {
   /** CSR requirement for denormal handling. */
-  enum class CsrRequirement : u8 { None, Fpu, Vmx };
+  enum class CSRRequirement : u8 { kNone, kFPU, kVMX };
 
-  bool usesCtr = false;   /**< No code sets it, always false. */
-  bool usesXer = false;   /**< No code sets it, always false. */
-  bool usesCr = false;    /**< No code sets it, always false. */
-  bool usesFpscr = false; /**< No code sets it, always false. */
+  bool uses_ctr = false;   /**< No code sets it, always false. */
+  bool uses_xer = false;   /**< No code sets it, always false. */
+  bool uses_cr = false;    /**< No code sets it, always false. */
+  bool uses_fpscr = false; /**< No code sets it, always false. */
 
-  CsrRequirement csrRequirement = CsrRequirement::None; /**< No code sets it, always None. */
+  CSRRequirement csr_requirement = CSRRequirement::kNone; /**< No code sets it, always None. */
 };
 
 /** Internal jump awaiting resolution. */
 struct UnresolvedJump {
-  u32 site;           /**< Address of the branch instruction */
-  u32 target;         /**< Address of the branch destination. */
-  bool isCall;        /**< True for bl, false for b */
-  bool isConditional; /**< True for bc, beq, bne and other conditional branches */
+  u32 site;            /**< Address of the branch instruction */
+  u32 target;          /**< Address of the branch destination. */
+  bool is_call;        /**< True for bl, false for b */
+  bool is_conditional; /**< True for bc, beq, bne and other conditional branches */
 };
 
 }  // namespace rex::codegen

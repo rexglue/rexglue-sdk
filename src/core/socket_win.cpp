@@ -12,21 +12,22 @@ static_assert(REX_PLATFORM_WIN32, "This file is Windows-only");
 
 namespace rex::platform {
 
-int socket_close(SocketHandle handle) {
+int SocketClose(SocketHandle handle) {
   return closesocket(static_cast<SOCKET>(handle));
 }
 
-int socket_ioctl(SocketHandle handle, u32 cmd, u8* arg) {
+int SocketIoctl(SocketHandle handle, u32 cmd, u8* arg) {
   return ioctlsocket(static_cast<SOCKET>(handle), static_cast<long>(cmd),
                      reinterpret_cast<u_long*>(arg));
 }
 
-int socket_prepare(SocketHandle handle, WaitHandle* event) {
-  return WSAEventSelect(static_cast<SOCKET>(handle), static_cast<WSAEVENT>(event->native_handle()),
+int SocketPrepare(SocketHandle handle, WaitHandle* event) {
+  return WSAEventSelect(static_cast<SOCKET>(handle),
+                        static_cast<WSAEVENT>(event->GetNativeHandle()),
                         FD_READ | FD_WRITE | FD_OOB | FD_ACCEPT | FD_CONNECT | FD_CLOSE);
 }
 
-int socket_poll(std::span<const SocketWait> sockets, std::span<SocketReady> ready) {
+int PollSockets(std::span<const SocketWait> sockets, std::span<SocketReady> ready) {
   std::vector<WSAPOLLFD> fds;
   fds.reserve(sockets.size());
   for (const SocketWait& socket : sockets) {
@@ -64,15 +65,15 @@ int socket_poll(std::span<const SocketWait> sockets, std::span<SocketReady> read
   return count;
 }
 
-bool socket_would_block() {
+bool SocketWouldBlock() {
   return WSAGetLastError() == WSAEWOULDBLOCK;
 }
 
-u32 socket_error() {
+u32 SocketError() {
   return static_cast<u32>(WSAGetLastError());
 }
 
-WaitResult socket_wait(std::span<const SocketWait> sockets, bool alertable,
+WaitResult WaitSockets(std::span<const SocketWait> sockets, bool alertable,
                        std::chrono::milliseconds timeout) {
   std::vector<WaitHandle*> events;
   for (const SocketWait& socket : sockets) {
@@ -86,7 +87,7 @@ WaitResult socket_wait(std::span<const SocketWait> sockets, bool alertable,
     for (const SocketWait& socket : sockets) {
       WSANETWORKEVENTS network_events;
       WSAEnumNetworkEvents(static_cast<SOCKET>(socket.handle),
-                           static_cast<WSAEVENT>(socket.event->native_handle()), &network_events);
+                           static_cast<WSAEVENT>(socket.event->GetNativeHandle()), &network_events);
     }
   }
   return result;

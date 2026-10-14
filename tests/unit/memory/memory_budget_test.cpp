@@ -50,15 +50,15 @@ BaseHeap* VirtualHeap4K(Memory& memory) {
 }
 
 u32 RoomAfter(Memory& memory, u32 room_pages) {
-  memory.SetBudget(memory.title_pages() / 256 + 1);
-  const u32 room = memory.budget_pages() - memory.title_pages();
+  memory.SetBudget(memory.GetTitlePages() / 256 + 1);
+  const u32 room = memory.GetBudgetPages() - memory.GetTitlePages();
   REQUIRE(room >= room_pages);
   u32 filler = 0;
   if (room > room_pages) {
     REQUIRE(VirtualHeap4K(memory)->Alloc((room - room_pages) * 4096, 4096, kTitle, kRW, false,
                                          &filler));
   }
-  REQUIRE(memory.budget_pages() - memory.title_pages() == room_pages);
+  REQUIRE(memory.GetBudgetPages() - memory.GetTitlePages() == room_pages);
   return filler;
 }
 
@@ -74,23 +74,23 @@ void ReleaseFiller(Memory& memory, u32 filler) {
 REX_TEST_CASE("A title commit counts its pages and a release returns them", "[memory][budget]") {
   Memory& memory = GetTestMemory();
   memory.SetBudget(0);
-  const u32 before = memory.title_pages();
+  const u32 before = memory.GetTitlePages();
   u32 address = 0;
   REQUIRE(VirtualHeap4K(memory)->Alloc(0x10000, 4096, kTitle, kRW, false, &address));
-  CHECK(memory.title_pages() == before + 16);
+  CHECK(memory.GetTitlePages() == before + 16);
   REQUIRE(VirtualHeap4K(memory)->Release(address));
-  CHECK(memory.title_pages() == before);
+  CHECK(memory.GetTitlePages() == before);
 }
 
 REX_TEST_CASE("Commits without the title flag and system heap blocks are not counted",
               "[memory][budget]") {
   Memory& memory = GetTestMemory();
   memory.SetBudget(0);
-  const u32 before = memory.title_pages();
+  const u32 before = memory.GetTitlePages();
   u32 address = 0;
   REQUIRE(VirtualHeap4K(memory)->Alloc(0x10000, 4096, kCommit, kRW, false, &address));
   const u32 system = memory.SystemHeapAlloc(0x10000);
-  CHECK(memory.title_pages() == before);
+  CHECK(memory.GetTitlePages() == before);
   memory.SystemHeapFree(system);
   REQUIRE(VirtualHeap4K(memory)->Release(address));
 }
@@ -100,14 +100,14 @@ REX_TEST_CASE("The commit that crosses the budget fails with nothing committed",
   Memory& memory = GetTestMemory();
   const u32 filler = RoomAfter(memory, 8);
   BaseHeap* heap = VirtualHeap4K(memory);
-  const u32 unreserved = heap->unreserved_page_count();
-  const u32 used = memory.title_pages();
+  const u32 unreserved = heap->GetUnreservedPageCount();
+  const u32 used = memory.GetTitlePages();
   u32 address = 0;
   CHECK_FALSE(heap->Alloc(9 * 4096, 4096, kTitle, kRW, false, &address));
-  CHECK(memory.title_pages() == used);
-  CHECK(heap->unreserved_page_count() == unreserved);
+  CHECK(memory.GetTitlePages() == used);
+  CHECK(heap->GetUnreservedPageCount() == unreserved);
   REQUIRE(heap->Alloc(8 * 4096, 4096, kTitle, kRW, false, &address));
-  CHECK(memory.title_pages() == memory.budget_pages());
+  CHECK(memory.GetTitlePages() == memory.GetBudgetPages());
   REQUIRE(heap->Release(address));
   ReleaseFiller(memory, filler);
 }
@@ -117,31 +117,31 @@ REX_TEST_CASE("A commit in pieces counts each page once and a decommit returns i
   Memory& memory = GetTestMemory();
   memory.SetBudget(0);
   BaseHeap* heap = VirtualHeap4K(memory);
-  const u32 before = memory.title_pages();
+  const u32 before = memory.GetTitlePages();
   u32 address = 0;
   REQUIRE(heap->Alloc(0x10000, 4096, rex::runtime::kMemoryAllocationReserve, kRW, false, &address));
-  CHECK(memory.title_pages() == before);
+  CHECK(memory.GetTitlePages() == before);
   const u32 commit = rex::runtime::kMemoryAllocationCommit | rex::runtime::kMemoryAllocationTitle;
   REQUIRE(heap->AllocFixed(address, 0x2000, 4096, commit, kRW));
-  CHECK(memory.title_pages() == before + 2);
+  CHECK(memory.GetTitlePages() == before + 2);
   REQUIRE(heap->AllocFixed(address, 0x4000, 4096, commit, kRW));
-  CHECK(memory.title_pages() == before + 4);
+  CHECK(memory.GetTitlePages() == before + 4);
   REQUIRE(heap->Decommit(address, 0x1000));
-  CHECK(memory.title_pages() == before + 3);
+  CHECK(memory.GetTitlePages() == before + 3);
   REQUIRE(heap->Release(address));
-  CHECK(memory.title_pages() == before);
+  CHECK(memory.GetTitlePages() == before);
 }
 
 REX_TEST_CASE("A physical commit counts its parent pages", "[memory][budget]") {
   Memory& memory = GetTestMemory();
   memory.SetBudget(0);
   BaseHeap* alias = memory.LookupHeapByType(true, 0x10000);
-  const u32 before = memory.title_pages();
+  const u32 before = memory.GetTitlePages();
   u32 address = 0;
   REQUIRE(alias->Alloc(0x10000, 0x10000, kTitle, kRW, true, &address));
-  CHECK(memory.title_pages() == before + 16);
+  CHECK(memory.GetTitlePages() == before + 16);
   REQUIRE(alias->Release(address));
-  CHECK(memory.title_pages() == before);
+  CHECK(memory.GetTitlePages() == before);
 }
 
 REX_TEST_CASE("2 threads racing at the budget pass at most once", "[memory][budget]") {
@@ -178,7 +178,7 @@ REX_TEST_CASE("A budget of 0 removes the cap", "[memory][budget]") {
   u32 address = 0;
   CHECK_FALSE(VirtualHeap4K(memory)->Alloc(0x10000, 4096, kTitle, kRW, false, &address));
   memory.SetBudget(0);
-  CHECK(memory.budget_pages() == 0);
+  CHECK(memory.GetBudgetPages() == 0);
   REQUIRE(VirtualHeap4K(memory)->Alloc(0x10000, 4096, kTitle, kRW, false, &address));
   REQUIRE(VirtualHeap4K(memory)->Release(address));
   ReleaseFiller(memory, filler);
@@ -221,7 +221,7 @@ REX_TEST_CASE("A fixed physical allocation over a partly used range fails", "[me
   const u32 physical = alias->GetPhysicalAddress(address);
   REQUIRE(alias->Release(address));
   REQUIRE(parent->AllocFixed(physical, 0x1000, 0x1000, reserve, kRW));
-  const u32 before = memory.title_pages();
+  const u32 before = memory.GetTitlePages();
 
   CHECK_FALSE(alias->AllocFixed(address, 0x2000, 0x1000, reserve, kRW));
   HeapAllocationInfo info{};
@@ -229,7 +229,7 @@ REX_TEST_CASE("A fixed physical allocation over a partly used range fails", "[me
   CHECK(info.state == 0);
   REQUIRE(parent->QueryRegionInfo(physical, &info));
   CHECK(info.region_size == 0x1000);
-  CHECK(memory.title_pages() == before);
+  CHECK(memory.GetTitlePages() == before);
 
   REQUIRE(parent->Release(physical));
 }
@@ -269,20 +269,20 @@ REX_TEST_CASE("NtAllocateVirtualMemory counts its commit and fails past the budg
               "[memory][budget][kernel]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    Memory& memory = *c.runtime().memory();
-    const u32 before = memory.title_pages();
+    Memory& memory = *c.GetRuntime().GetMemory();
+    const u32 before = memory.GetTitlePages();
     u32 status = 0;
     const u32 address = CommitVirtual(c, 0x100000, &status);
     CHECKED_ELSE(status == 0) {
       FAIL_CHECK("the check above failed");
       return;
     }
-    CHECK(memory.title_pages() == before + 256);
-    memory.SetBudget(memory.title_pages() / 256);
+    CHECK(memory.GetTitlePages() == before + 256);
+    memory.SetBudget(memory.GetTitlePages() / 256);
     CommitVirtual(c, 0x100000, &status);
     CHECK(status == 0xC0000017);
     FreeVirtual(c, address);
-    CHECK(memory.title_pages() == before);
+    CHECK(memory.GetTitlePages() == before);
     memory.SetBudget(480);
   });
 }
@@ -290,17 +290,17 @@ REX_TEST_CASE("NtAllocateVirtualMemory counts its commit and fails past the budg
 REX_TEST_CASE("MmAllocatePhysicalMemoryEx counts the parent pages", "[memory][budget][kernel]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    Memory& memory = *c.runtime().memory();
-    const u32 before = memory.title_pages();
+    Memory& memory = *c.GetRuntime().GetMemory();
+    const u32 before = memory.GetTitlePages();
     const u32 address =
         c.Kernel("MmAllocatePhysicalMemoryEx", {0, 0x10000, 0x04, 0, 0xFFFFFFFF, 0});
     CHECKED_ELSE(address != 0) {
       FAIL_CHECK("the check above failed");
       return;
     }
-    CHECK(memory.title_pages() == before + 16);
+    CHECK(memory.GetTitlePages() == before + 16);
     c.Kernel("MmFreePhysicalMemory", {0, address});
-    CHECK(memory.title_pages() == before);
+    CHECK(memory.GetTitlePages() == before);
   });
 }
 
@@ -308,9 +308,9 @@ REX_TEST_CASE("MmQueryStatistics available pages track the title pages",
               "[memory][budget][kernel]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    Memory& memory = *c.runtime().memory();
+    Memory& memory = *c.GetRuntime().GetMemory();
     const u32 first = AvailablePages(c);
-    CHECK(first == memory.budget_pages() - memory.title_pages());
+    CHECK(first == memory.GetBudgetPages() - memory.GetTitlePages());
     u32 status = 0;
     const u32 address = CommitVirtual(c, 0x100000, &status);
     CHECKED_ELSE(status == 0) {
@@ -327,7 +327,7 @@ REX_TEST_CASE("MmQueryStatistics without a cap reports the free physical pages",
               "[memory][budget][kernel]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    Memory& memory = *c.runtime().memory();
+    Memory& memory = *c.GetRuntime().GetMemory();
     memory.SetBudget(0);
     const u32 first = AvailablePages(c);
     const u32 address =
@@ -345,18 +345,18 @@ REX_TEST_CASE("MmQueryStatistics without a cap reports the free physical pages",
 
 REX_TEST_CASE("SetBudget saturates instead of wrapping", "[memory][budget]") {
   KernelFixture fixture;
-  Memory& memory = *fixture.runtime().memory();
+  Memory& memory = *fixture.GetRuntime().GetMemory();
   memory.SetBudget(0x01000000);
-  CHECK(memory.budget_pages() == UINT32_MAX);
+  CHECK(memory.GetBudgetPages() == UINT32_MAX);
   memory.SetBudget(480);
-  CHECK(memory.budget_pages() == 480 * 256);
+  CHECK(memory.GetBudgetPages() == 480 * 256);
 }
 
 REX_TEST_CASE("Loading an XEX keeps the other allocations in its heap",
               "[memory][budget][kernel]") {
   KernelFixture fixture;
-  rex::Runtime& runtime = fixture.runtime();
-  Memory& memory = *runtime.memory();
+  rex::Runtime& runtime = fixture.GetRuntime();
+  Memory& memory = *runtime.GetMemory();
   BaseHeap* heap = memory.LookupHeap(0x82000000);
   REQUIRE(heap == memory.LookupHeap(0x80000000));
   REQUIRE(heap == memory.LookupHeap(0x8F100000));
@@ -370,8 +370,8 @@ REX_TEST_CASE("Loading an XEX keeps the other allocations in its heap",
   rex::test::XEXSpec spec;
   spec.image = rex::test::TestImage(0x1000);
   const auto file = rex::test::BuildXEX(spec);
-  const u32 before = memory.title_pages();
-  rex::runtime::XEXModule module(runtime.function_dispatcher(), runtime);
+  const u32 before = memory.GetTitlePages();
+  rex::runtime::XEXModule module(runtime.GetFunctionDispatcher(), runtime);
   REQUIRE(module.Load("budget", "game:\budget.xex", file.data(), file.size()));
 
   HeapAllocationInfo info{};
@@ -380,9 +380,9 @@ REX_TEST_CASE("Loading an XEX keeps the other allocations in its heap",
   REQUIRE(heap->QueryRegionInfo(0x8F100000, &info));
   CHECK(info.state == table.state);
   REQUIRE(heap->QueryRegionInfo(0x82000000, &info));
-  CHECK(memory.title_pages() == before + info.allocation_size / 4096);
+  CHECK(memory.GetTitlePages() == before + info.allocation_size / 4096);
   REQUIRE(heap->Release(0x82000000));
-  CHECK(memory.title_pages() == before);
+  CHECK(memory.GetTitlePages() == before);
 }
 
 namespace {
@@ -413,7 +413,7 @@ REX_TEST_CASE("A decommit of size 0 at a region base decommits only that region"
               "[memory][budget][kernel]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    Memory& memory = *c.runtime().memory();
+    Memory& memory = *c.GetRuntime().GetMemory();
     BaseHeap* heap = memory.LookupHeap(0x40000000);
     CHECKED_ELSE(PageState(heap, 0x40000000) == 0) {
       FAIL_CHECK("the check above failed");
@@ -431,7 +431,7 @@ REX_TEST_CASE("A decommit of size 0 at a region base decommits only that region"
       FAIL_CHECK("the check above failed");
       return;
     }
-    const u32 before = memory.title_pages();
+    const u32 before = memory.GetTitlePages();
 
     u32 address = 0;
     u32 size = 0;
@@ -441,7 +441,7 @@ REX_TEST_CASE("A decommit of size 0 at a region base decommits only that region"
     CHECK(PageState(heap, 0x40000000) == rex::runtime::kMemoryAllocationReserve);
     CHECK(PageState(heap, 0x40010000) == rex::runtime::kMemoryAllocationReserve);
     CHECK(PageState(heap, 0x40100000) == kCommit);
-    CHECK(memory.title_pages() == before - 32);
+    CHECK(memory.GetTitlePages() == before - 32);
 
     CHECKED_ELSE(heap->Release(0x40000000)) {
       FAIL_CHECK("the check above failed");
@@ -458,14 +458,14 @@ REX_TEST_CASE("A decommit of size 0 inside a region fails and changes nothing",
               "[memory][budget][kernel]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    Memory& memory = *c.runtime().memory();
+    Memory& memory = *c.GetRuntime().GetMemory();
     BaseHeap* heap = VirtualHeap4K(memory);
     u32 region = 0;
     CHECKED_ELSE(heap->Alloc(0x3000, 4096, kTitle, kRW, false, &region)) {
       FAIL_CHECK("the check above failed");
       return;
     }
-    const u32 before = memory.title_pages();
+    const u32 before = memory.GetTitlePages();
 
     u32 address = 0;
     u32 size = 0;
@@ -473,7 +473,7 @@ REX_TEST_CASE("A decommit of size 0 inside a region fails and changes nothing",
     CHECK(PageState(heap, region) == kCommit);
     CHECK(PageState(heap, region + 0x1000) == kCommit);
     CHECK(PageState(heap, region + 0x2000) == kCommit);
-    CHECK(memory.title_pages() == before);
+    CHECK(memory.GetTitlePages() == before);
 
     CHECKED_ELSE(heap->Release(region)) {
       FAIL_CHECK("the check above failed");
@@ -486,14 +486,14 @@ REX_TEST_CASE("A decommit range that crosses a page boundary decommits both page
               "[memory][budget][kernel]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    Memory& memory = *c.runtime().memory();
+    Memory& memory = *c.GetRuntime().GetMemory();
     BaseHeap* heap = VirtualHeap4K(memory);
     u32 region = 0;
     CHECKED_ELSE(heap->Alloc(0x3000, 4096, kTitle, kRW, false, &region)) {
       FAIL_CHECK("the check above failed");
       return;
     }
-    const u32 before = memory.title_pages();
+    const u32 before = memory.GetTitlePages();
 
     u32 address = 0;
     u32 size = 0;
@@ -503,7 +503,7 @@ REX_TEST_CASE("A decommit range that crosses a page boundary decommits both page
     CHECK(PageState(heap, region) == rex::runtime::kMemoryAllocationReserve);
     CHECK(PageState(heap, region + 0x1000) == rex::runtime::kMemoryAllocationReserve);
     CHECK(PageState(heap, region + 0x2000) == kCommit);
-    CHECK(memory.title_pages() == before - 2);
+    CHECK(memory.GetTitlePages() == before - 2);
 
     CHECKED_ELSE(heap->Release(region)) {
       FAIL_CHECK("the check above failed");
@@ -523,14 +523,14 @@ X_STATUS SetupWithBudget(u32 megabytes, u32* out_budget_pages) {
   REQUIRE(api);
   X_STATUS status = rex::X_STATUS_UNSUCCESSFUL;
   {
-    rex::Runtime runtime((*api)->config());
+    rex::Runtime runtime((*api)->GetConfig());
     rex::RuntimeDesc setup;
     setup.file_system = (*api)->Get<rex::filesystem::IFileSystem>();
     setup.kernel_init = rex::kernel::InitializeKernel;
     setup.tool_mode = true;
     const rex::Result<void> result = runtime.Setup(setup);
     status = result ? rex::X_STATUS_SUCCESS : rex::runtime::ToXStatus(result.error());
-    *out_budget_pages = result ? runtime.memory()->budget_pages() : 0;
+    *out_budget_pages = result ? runtime.GetMemory()->GetBudgetPages() : 0;
     runtime.Shutdown();
   }
   rex::Shutdown();
@@ -552,20 +552,20 @@ REX_TEST_CASE("A release of the free first page of a heap fails and changes noth
               "[memory][budget][kernel]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    Memory& memory = *c.runtime().memory();
+    Memory& memory = *c.GetRuntime().GetMemory();
     BaseHeap* heap = memory.LookupHeap(0x40000000);
     CHECKED_ELSE(PageState(heap, 0x40000000) == 0) {
       FAIL_CHECK("the check above failed");
       return;
     }
-    const u32 before = memory.title_pages();
+    const u32 before = memory.GetTitlePages();
 
     const u32 base_ptr = c.Alloc(4);
     const u32 size_ptr = c.Alloc(4);
     c.Store32(base_ptr, 0x40000000);
     CHECK(c.Kernel("NtFreeVirtualMemory", {base_ptr, size_ptr, 0x8000, 0}) != 0);
     CHECK(PageState(heap, 0x40000000) == 0);
-    CHECK(memory.title_pages() == before);
+    CHECK(memory.GetTitlePages() == before);
   });
 }
 
@@ -573,14 +573,14 @@ REX_TEST_CASE("A release with a nonzero size fails and changes nothing",
               "[memory][budget][kernel]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    Memory& memory = *c.runtime().memory();
+    Memory& memory = *c.GetRuntime().GetMemory();
     BaseHeap* heap = VirtualHeap4K(memory);
     u32 region = 0;
     CHECKED_ELSE(heap->Alloc(0x3000, 4096, kTitle, kRW, false, &region)) {
       FAIL_CHECK("the check above failed");
       return;
     }
-    const u32 before = memory.title_pages();
+    const u32 before = memory.GetTitlePages();
 
     const u32 base_ptr = c.Alloc(4);
     const u32 size_ptr = c.Alloc(4);
@@ -588,7 +588,7 @@ REX_TEST_CASE("A release with a nonzero size fails and changes nothing",
     c.Store32(size_ptr, 0x3000);
     CHECK(c.Kernel("NtFreeVirtualMemory", {base_ptr, size_ptr, 0x8000, 0}) == 0xC000000D);
     CHECK(PageState(heap, region) == kCommit);
-    CHECK(memory.title_pages() == before);
+    CHECK(memory.GetTitlePages() == before);
 
     CHECKED_ELSE(heap->Release(region)) {
       FAIL_CHECK("the check above failed");

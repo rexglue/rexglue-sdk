@@ -22,8 +22,8 @@ namespace xam {
 
 u32 XamAvatarInitialize_entry([[maybe_unused]] u32 unk1, [[maybe_unused]] u32 unk2,
                               [[maybe_unused]] u32 processor_number,
-                              [[maybe_unused]] mapped_u32 function_ptrs,
-                              [[maybe_unused]] mapped_void unk5, [[maybe_unused]] u32 unk6) {
+                              [[maybe_unused]] MappedU32 function_ptrs,
+                              [[maybe_unused]] MappedVoid unk5, [[maybe_unused]] u32 unk6) {
   return ~0u;
 }
 

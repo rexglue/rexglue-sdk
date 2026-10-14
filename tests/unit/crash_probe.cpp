@@ -110,7 +110,7 @@ int Run(std::string_view mode) {
       if (!memory.Initialize()) {
         return 2;
       }
-      const auto host_page = static_cast<rex::u32>(rex::memory::page_size());
+      const auto host_page = static_cast<rex::u32>(rex::memory::PageSize());
       const rex::u32 address =
           memory.SystemHeapAlloc(host_page, host_page, rex::runtime::kSystemHeapPhysical);
       auto* host = memory.TranslateVirtual<volatile rex::u32*>(address);
@@ -127,13 +127,13 @@ int Run(std::string_view mode) {
     }
     return 0;
   } else if (mode == "seh") {
-    rex::initialize_seh();
+    rex::InitializeSEH();
     rex::platform::AddRecompiledCode(REX_RECOMPILED_CODE());
     const bool caught = ProbeFaultInScope(nullptr) == 1;
     std::puts(caught ? "seh caught" : "seh missed");
     return caught ? 0 : 3;
   } else if (mode == "seh-host-frame") {
-    rex::initialize_seh();
+    rex::InitializeSEH();
     rex::platform::AddRecompiledCode(REX_RECOMPILED_CODE());
     const bool caught = ProbeFaultBelowHostFrame(nullptr) == 1;
     std::puts(caught ? "seh caught" : "seh missed");

@@ -27,10 +27,10 @@
  * @endcode
  */
 // NOLINTBEGIN(bugprone-macro-parentheses): VAR is a declared name
-#define REX_KERNEL_LOOKUP(VAR, TYPE, HANDLE)                             \
-  auto VAR = ::rex::runtime::Current().object_table().Get<TYPE>(HANDLE); \
-  if (!(VAR)) {                                                          \
-    return X_STATUS_INVALID_HANDLE;                                      \
+#define REX_KERNEL_LOOKUP(VAR, TYPE, HANDLE)                                  \
+  auto VAR = ::rex::runtime::GetCurrent().GetObjectTable().Get<TYPE>(HANDLE); \
+  if (!(VAR)) {                                                               \
+    return X_STATUS_INVALID_HANDLE;                                           \
   }
 // NOLINTEND(bugprone-macro-parentheses)
 
@@ -75,29 +75,29 @@
  * REX_KERNEL_NAMED_CREATE(Event, handle_ptr, obj_attributes_ptr);
  * @endcode
  */
-#define REX_KERNEL_NAMED_CREATE(KIND, HANDLE_OUT, ATTRS)                                        \
-  if (ATTRS) {                                                                                  \
-    auto& rex_runtime_ = ::rex::runtime::Current();                                             \
-    auto rex_attrs_ =                                                                           \
-        rex_runtime_.memory()->TranslateVirtual<X_OBJECT_ATTRIBUTES*>((ATTRS).guest_address()); \
-    REX_ASSERT(rex_attrs_->name_ptr != 0);                                                      \
-    auto rex_name_ =                                                                            \
-        runtime::TranslateAnsiStringAddress(rex_runtime_.memory(), rex_attrs_->name_ptr);       \
-    auto& rex_table_ = rex_runtime_.object_table();                                             \
-    if (!rex_name_.empty()) {                                                                   \
-      if (auto rex_opened_ = rex_table_.OpenByName(rex_name_)) {                                \
-        const X_HANDLE rex_handle_ = *rex_opened_;                                              \
-        auto rex_existing_ = rex_table_.Get(rex_handle_);                                       \
-        const bool rex_same_kind_ =                                                             \
-            rex_existing_ && rex_existing_.kind() == ::rex::runtime::ObjectKind::KIND;          \
-        if (rex_same_kind_ && (HANDLE_OUT)) {                                                   \
-          *(HANDLE_OUT) = rex_handle_;                                                          \
-          return X_STATUS_OBJECT_NAME_EXISTS;                                                   \
-        }                                                                                       \
-        ::rex::runtime::CloseOwned(rex_table_, rex_handle_);                                    \
-        if (rex_same_kind_) {                                                                   \
-          return X_STATUS_OBJECT_NAME_EXISTS;                                                   \
-        }                                                                                       \
-      }                                                                                         \
-    }                                                                                           \
+#define REX_KERNEL_NAMED_CREATE(KIND, HANDLE_OUT, ATTRS)                                     \
+  if (ATTRS) {                                                                               \
+    auto& rex_runtime_ = ::rex::runtime::GetCurrent();                                       \
+    auto rex_attrs_ = rex_runtime_.GetMemory()->TranslateVirtual<X_OBJECT_ATTRIBUTES*>(      \
+        (ATTRS).GetGuestAddress());                                                          \
+    REX_ASSERT(rex_attrs_->name_ptr != 0);                                                   \
+    auto rex_name_ =                                                                         \
+        runtime::TranslateAnsiStringAddress(rex_runtime_.GetMemory(), rex_attrs_->name_ptr); \
+    auto& rex_table_ = rex_runtime_.GetObjectTable();                                        \
+    if (!rex_name_.empty()) {                                                                \
+      if (auto rex_opened_ = rex_table_.OpenByName(rex_name_)) {                             \
+        const X_HANDLE rex_handle_ = *rex_opened_;                                           \
+        auto rex_existing_ = rex_table_.Get(rex_handle_);                                    \
+        const bool rex_same_kind_ =                                                          \
+            rex_existing_ && rex_existing_.GetKind() == ::rex::runtime::ObjectKind::KIND;    \
+        if (rex_same_kind_ && (HANDLE_OUT)) {                                                \
+          *(HANDLE_OUT) = rex_handle_;                                                       \
+          return X_STATUS_OBJECT_NAME_EXISTS;                                                \
+        }                                                                                    \
+        ::rex::runtime::CloseOwned(rex_table_, rex_handle_);                                 \
+        if (rex_same_kind_) {                                                                \
+          return X_STATUS_OBJECT_NAME_EXISTS;                                                \
+        }                                                                                    \
+      }                                                                                      \
+    }                                                                                        \
   }

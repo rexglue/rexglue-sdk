@@ -16,11 +16,11 @@ namespace rex::runtime {
 
 Module::Module(FunctionDispatcher* function_dispatcher)
     : function_dispatcher_(function_dispatcher),
-      memory_(function_dispatcher ? function_dispatcher->memory() : nullptr) {}
+      memory_(function_dispatcher ? function_dispatcher->GetMemory() : nullptr) {}
 
 Module::~Module() = default;
 
-std::span<const BinarySection> Module::binary_sections() const {
+std::span<const BinarySection> Module::GetBinarySections() const {
   return binary_sections_;
 }
 
@@ -33,11 +33,11 @@ const BinarySection* Module::FindSectionByAddress(u32 address) const {
   return nullptr;
 }
 
-std::span<const BinarySymbol> Module::binary_symbols() const {
+std::span<const BinarySymbol> Module::GetBinarySymbols() const {
   return binary_symbols_;
 }
 
-bool Module::isExecutableSection(u32 address) const {
+bool Module::IsExecutableSection(u32 address) const {
   for (const auto& sec : binary_sections_) {
     if (address >= sec.virtual_address && address < sec.virtual_address + sec.virtual_size) {
       return sec.executable;

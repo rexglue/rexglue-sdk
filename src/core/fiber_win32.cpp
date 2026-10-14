@@ -22,7 +22,7 @@ namespace {
 thread_local Fiber* g_current_fiber = nullptr;
 }  // namespace
 
-Fiber* Fiber::Current() {
+Fiber* Fiber::GetCurrent() {
   return g_current_fiber;
 }
 

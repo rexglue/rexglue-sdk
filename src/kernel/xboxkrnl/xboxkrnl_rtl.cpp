@@ -32,7 +32,7 @@
 namespace rex::kernel::xboxkrnl {
 using namespace rex::runtime;
 
-u32 RtlCompareMemory_entry(mapped_void source1, mapped_void source2, u32 length) {
+u32 RtlCompareMemory_entry(MappedVoid source1, MappedVoid source2, u32 length) {
   u8* p1 = source1;
   u8* p2 = source2;
 
@@ -48,14 +48,14 @@ u32 RtlCompareMemory_entry(mapped_void source1, mapped_void source2, u32 length)
   return c;
 }
 
-u32 RtlCompareMemoryUlong_entry(mapped_void source, u32 length, u32 pattern) {
-  if (source.guest_address() % 4 || length % 4) {
+u32 RtlCompareMemoryUlong_entry(MappedVoid source, u32 length, u32 pattern) {
+  if (source.GetGuestAddress() % 4 || length % 4) {
     return 0;
   }
 
   u32 n = 0;
   for (u32 i = 0; i < (length / 4); i++) {
-    u32 val = source.as_array<u32>()[i];
+    u32 val = source.AsArray<u32>()[i];
     if (val == pattern) {
       n++;
     }
@@ -64,9 +64,9 @@ u32 RtlCompareMemoryUlong_entry(mapped_void source, u32 length, u32 pattern) {
   return n;
 }
 
-void RtlFillMemoryUlong_entry(mapped_void destination, u32 length, u32 pattern) {
+void RtlFillMemoryUlong_entry(MappedVoid destination, u32 length, u32 pattern) {
   // length must be a multiple of 4.
-  std::fill_n(destination.as<be_u32*>(), length >> 2, pattern);
+  std::fill_n(destination.As<be_u32*>(), length >> 2, pattern);
 }
 
 u32 RtlUpperChar_entry(u32 in) {
@@ -87,14 +87,14 @@ u32 RtlLowerChar_entry(u32 in) {
   return c;
 }
 
-u32 RtlCompareString_entry(mapped_string string_1, mapped_string string_2, u32 case_insensitive) {
+u32 RtlCompareString_entry(MappedString string_1, MappedString string_2, u32 case_insensitive) {
   int ret =
-      case_insensitive ? rex::compare_case(string_1, string_2) : std::strcmp(string_1, string_2);
+      case_insensitive ? rex::CompareCase(string_1, string_2) : std::strcmp(string_1, string_2);
 
   return ret;
 }
 
-u32 RtlCompareStringN_entry(mapped_string string_1, u32 string_1_len, mapped_string string_2,
+u32 RtlCompareStringN_entry(MappedString string_1, u32 string_1_len, MappedString string_2,
                             u32 string_2_len, u32 case_insensitive) {
   u32 len1 = string_1_len;
   u32 len2 = string_2_len;
@@ -107,55 +107,55 @@ u32 RtlCompareStringN_entry(mapped_string string_1, u32 string_1_len, mapped_str
   }
   auto len = std::min(len1, len2);
 
-  int ret = case_insensitive ? rex::compare_case_n(string_1, string_2, len)
+  int ret = case_insensitive ? rex::CompareCaseN(string_1, string_2, len)
                              : std::strncmp(string_1, string_2, len);
 
   return ret;
 }
 
-void RtlInitAnsiString_entry(ppc_ptr_t<X_ANSI_STRING> destination, mapped_string source) {
+void RtlInitAnsiString_entry(GuestPtrT<X_ANSI_STRING> destination, MappedString source) {
   REXLOG_TRACE(kernel,
                "RtlInitAnsiString "
                "str={}",
-               source ? source.value() : "(null)");
+               source ? source.GetValue() : "(null)");
   if (source) {
     u16 length = static_cast<u16>(strlen(source));
     destination->length = length;
     destination->maximum_length = length + 1;
   } else {
-    destination->reset();
+    destination->Reset();
   }
 
-  destination->pointer = source.guest_address();
+  destination->pointer = source.GetGuestAddress();
 }
 
-void RtlFreeAnsiString_entry(ppc_ptr_t<X_ANSI_STRING> string) {
+void RtlFreeAnsiString_entry(GuestPtrT<X_ANSI_STRING> string) {
   if (string->pointer) {
-    runtime::Current().memory()->SystemHeapFree(string->pointer);
+    runtime::GetCurrent().GetMemory()->SystemHeapFree(string->pointer);
   }
 
-  string->reset();
+  string->Reset();
 }
 
-void RtlInitUnicodeString_entry(ppc_ptr_t<X_UNICODE_STRING> destination, mapped_wstring source) {
+void RtlInitUnicodeString_entry(GuestPtrT<X_UNICODE_STRING> destination, MappedWString source) {
   if (source) {
-    destination->length = static_cast<u16>(source.value().size()) * 2;
-    destination->maximum_length = static_cast<u16>(source.value().size() + 1) * 2;
-    destination->pointer = source.guest_address();
+    destination->length = static_cast<u16>(source.GetValue().size()) * 2;
+    destination->maximum_length = static_cast<u16>(source.GetValue().size() + 1) * 2;
+    destination->pointer = source.GetGuestAddress();
   } else {
-    destination->reset();
+    destination->Reset();
   }
 }
 
-void RtlFreeUnicodeString_entry(ppc_ptr_t<X_UNICODE_STRING> string) {
+void RtlFreeUnicodeString_entry(GuestPtrT<X_UNICODE_STRING> string) {
   if (string->pointer) {
-    runtime::Current().memory()->SystemHeapFree(string->pointer);
+    runtime::GetCurrent().GetMemory()->SystemHeapFree(string->pointer);
   }
 
-  string->reset();
+  string->Reset();
 }
 
-void RtlCopyString_entry(ppc_ptr_t<X_ANSI_STRING> destination, ppc_ptr_t<X_ANSI_STRING> source) {
+void RtlCopyString_entry(GuestPtrT<X_ANSI_STRING> destination, GuestPtrT<X_ANSI_STRING> source) {
   if (!source) {
     destination->length = 0;
     return;
@@ -163,15 +163,15 @@ void RtlCopyString_entry(ppc_ptr_t<X_ANSI_STRING> destination, ppc_ptr_t<X_ANSI_
 
   auto length = std::min(destination->maximum_length, source->length);
   if (length > 0) {
-    auto dst_buf = runtime::Current().memory()->TranslateVirtual(destination->pointer);
-    auto src_buf = runtime::Current().memory()->TranslateVirtual(source->pointer);
+    auto dst_buf = runtime::GetCurrent().GetMemory()->TranslateVirtual(destination->pointer);
+    auto src_buf = runtime::GetCurrent().GetMemory()->TranslateVirtual(source->pointer);
     std::memcpy(dst_buf, src_buf, length);
   }
   destination->length = length;
 }
 
-void RtlCopyUnicodeString_entry(ppc_ptr_t<X_UNICODE_STRING> destination,
-                                ppc_ptr_t<X_UNICODE_STRING> source) {
+void RtlCopyUnicodeString_entry(GuestPtrT<X_UNICODE_STRING> destination,
+                                GuestPtrT<X_UNICODE_STRING> source) {
   if (!source) {
     destination->length = 0;
     return;
@@ -179,18 +179,18 @@ void RtlCopyUnicodeString_entry(ppc_ptr_t<X_UNICODE_STRING> destination,
 
   auto length = std::min(destination->maximum_length, source->length);
   if (length > 0) {
-    auto dst_buf = runtime::Current().memory()->TranslateVirtual(destination->pointer);
-    auto src_buf = runtime::Current().memory()->TranslateVirtual(source->pointer);
+    auto dst_buf = runtime::GetCurrent().GetMemory()->TranslateVirtual(destination->pointer);
+    auto src_buf = runtime::GetCurrent().GetMemory()->TranslateVirtual(source->pointer);
     std::memcpy(dst_buf, src_buf, static_cast<size_t>(length) * 2);
   }
   destination->length = length;
 }
 
-u32 RtlUnicodeStringToAnsiString_entry(ppc_ptr_t<X_ANSI_STRING> destination_ptr,
-                                       ppc_ptr_t<X_UNICODE_STRING> source_ptr, u32 alloc_dest) {
+u32 RtlUnicodeStringToAnsiString_entry(GuestPtrT<X_ANSI_STRING> destination_ptr,
+                                       GuestPtrT<X_UNICODE_STRING> source_ptr, u32 alloc_dest) {
   std::u16string unicode_str =
-      runtime::TranslateUnicodeString(runtime::Current().memory(), source_ptr);
-  std::string ansi_str = rex::to_utf8(unicode_str);
+      runtime::TranslateUnicodeString(runtime::GetCurrent().GetMemory(), source_ptr);
+  std::string ansi_str = rex::ToUTF8(unicode_str);
   if (ansi_str.size() > 0xFFFF - 1) {
     return X_STATUS_INVALID_PARAMETER_2;
   }
@@ -198,16 +198,16 @@ u32 RtlUnicodeStringToAnsiString_entry(ppc_ptr_t<X_ANSI_STRING> destination_ptr,
   X_STATUS result = X_STATUS_SUCCESS;
   if (alloc_dest) {
     u32 buffer_ptr =
-        runtime::Current().memory()->SystemHeapAlloc(static_cast<u32>(ansi_str.size() + 1));
+        runtime::GetCurrent().GetMemory()->SystemHeapAlloc(static_cast<u32>(ansi_str.size() + 1));
 
-    memcpy(runtime::Current().memory()->TranslateVirtual(buffer_ptr), ansi_str.data(),
+    memcpy(runtime::GetCurrent().GetMemory()->TranslateVirtual(buffer_ptr), ansi_str.data(),
            ansi_str.size() + 1);
     destination_ptr->length = static_cast<u16>(ansi_str.size());
     destination_ptr->maximum_length = static_cast<u16>(ansi_str.size() + 1);
     destination_ptr->pointer = buffer_ptr;
   } else {
     u32 buffer_capacity = destination_ptr->maximum_length;
-    auto buffer_ptr = runtime::Current().memory()->TranslateVirtual(destination_ptr->pointer);
+    auto buffer_ptr = runtime::GetCurrent().GetMemory()->TranslateVirtual(destination_ptr->pointer);
     if (buffer_capacity < ansi_str.size() + 1) {
       result = X_STATUS_BUFFER_OVERFLOW;
       memcpy(buffer_ptr, ansi_str.data(), buffer_capacity - 1);
@@ -219,8 +219,8 @@ u32 RtlUnicodeStringToAnsiString_entry(ppc_ptr_t<X_ANSI_STRING> destination_ptr,
   return result;
 }
 
-u32 RtlMultiByteToUnicodeN_entry(mapped_u16 destination_ptr, u32 destination_len,
-                                 mapped_u32 written_ptr, ppc_ptr_t<u8> source_ptr, u32 source_len) {
+u32 RtlMultiByteToUnicodeN_entry(MappedU16 destination_ptr, u32 destination_len,
+                                 MappedU32 written_ptr, GuestPtrT<u8> source_ptr, u32 source_len) {
   u32 copy_len = destination_len >> 1;
   copy_len = copy_len < source_len ? copy_len : source_len;
 
@@ -228,15 +228,15 @@ u32 RtlMultiByteToUnicodeN_entry(mapped_u16 destination_ptr, u32 destination_len
     destination_ptr[i] = source_ptr[i];
   }
 
-  if (written_ptr.guest_address() != 0) {
+  if (written_ptr.GetGuestAddress() != 0) {
     *written_ptr = copy_len << 1;
   }
 
   return 0;
 }
 
-u32 RtlUnicodeToMultiByteN_entry(ppc_ptr_t<u8> destination_ptr, u32 destination_len,
-                                 mapped_u32 written_ptr, mapped_u16 source_ptr, u32 source_len) {
+u32 RtlUnicodeToMultiByteN_entry(GuestPtrT<u8> destination_ptr, u32 destination_len,
+                                 MappedU32 written_ptr, MappedU16 source_ptr, u32 source_len) {
   u32 copy_len = source_len >> 1;
   copy_len = copy_len < destination_len ? copy_len : destination_len;
 
@@ -245,20 +245,20 @@ u32 RtlUnicodeToMultiByteN_entry(ppc_ptr_t<u8> destination_ptr, u32 destination_
     destination_ptr[i] = c < 256 ? static_cast<u8>(c) : '?';
   }
 
-  if (written_ptr.guest_address() != 0) {
+  if (written_ptr.GetGuestAddress() != 0) {
     *written_ptr = copy_len;
   }
   return 0;
 }
 
-u32 RtlImageNtHeader_entry(mapped_void module) {
+u32 RtlImageNtHeader_entry(MappedVoid module) {
   if (!module) {
     return 0;
   }
 
   // PE headers are little endian, so no swapping.
 
-  auto dos_header = module.as<const u8*>();
+  auto dos_header = module.As<const u8*>();
   auto dos_magic = *reinterpret_cast<const u16*>(&dos_header[0x00]);
   if (dos_magic != 0x5A4D) {
     return 0;
@@ -270,15 +270,15 @@ u32 RtlImageNtHeader_entry(mapped_void module) {
   if (nt_magic != 0x4550) {
     return 0;
   }
-  return runtime::Current().memory()->HostToGuestVirtual(nt_header);
+  return runtime::GetCurrent().GetMemory()->HostToGuestVirtual(nt_header);
 }
 
-u32 RtlImageXexHeaderField_entry(ppc_ptr_t<filesystem::XEXHeader> xex_header, u32 field_dword) {
+u32 RtlImageXexHeaderField_entry(GuestPtrT<filesystem::XEXHeader> xex_header, u32 field_dword) {
   u32 field_value = 0;
   u32 field = field_dword;
 
-  ModuleObject::OptHeader(runtime::Current().memory(), xex_header, filesystem::XEXHeaderKey(field),
-                          &field_value);
+  ModuleObject::OptHeader(runtime::GetCurrent().GetMemory(), xex_header,
+                          filesystem::XEXHeaderKey(field), &field_value);
 
   return field_value;
 }
@@ -312,11 +312,11 @@ void RtlInitializeCriticalSection(X_RTL_CRITICAL_SECTION* cs) {
   cs->owning_thread = 0;
 }
 
-void RtlInitializeCriticalSection_entry(ppc_ptr_t<X_RTL_CRITICAL_SECTION> cs) {
+void RtlInitializeCriticalSection_entry(GuestPtrT<X_RTL_CRITICAL_SECTION> cs) {
   REXLOG_TRACE(kernel,
                "RtlInitializeCriticalSection "
                "cs={:#x}",
-               cs.guest_address());
+               cs.GetGuestAddress());
   RtlInitializeCriticalSection(cs);
 }
 
@@ -336,13 +336,13 @@ X_STATUS RtlInitializeCriticalSectionAndSpinCount(X_RTL_CRITICAL_SECTION* cs, u3
   return X_STATUS_SUCCESS;
 }
 
-u32 RtlInitializeCriticalSectionAndSpinCount_entry(ppc_ptr_t<X_RTL_CRITICAL_SECTION> cs,
+u32 RtlInitializeCriticalSectionAndSpinCount_entry(GuestPtrT<X_RTL_CRITICAL_SECTION> cs,
                                                    u32 spin_count) {
   return RtlInitializeCriticalSectionAndSpinCount(cs, spin_count);
 }
 
-void RtlEnterCriticalSection_entry(ppc_ptr_t<X_RTL_CRITICAL_SECTION> cs) {
-  u32 cur_thread = KernelThread::GetCurrentThread()->guest_object();
+void RtlEnterCriticalSection_entry(GuestPtrT<X_RTL_CRITICAL_SECTION> cs) {
+  u32 cur_thread = KernelThread::GetCurrentThread()->GetGuestObject();
   u32 spin_count = cs->header.absolute * 256;
 
   if (cs->owning_thread == cur_thread) {
@@ -360,7 +360,7 @@ void RtlEnterCriticalSection_entry(ppc_ptr_t<X_RTL_CRITICAL_SECTION> cs) {
   }
 
   if (rex::platform::atomic_inc(&cs->lock_count) != 0) {
-    KeWaitForSingleObject(cs.guest_address(), 8, 0, 0, nullptr);
+    KeWaitForSingleObject(cs.GetGuestAddress(), 8, 0, 0, nullptr);
   }
 
   REX_ASSERT(cs->owning_thread == 0);
@@ -368,8 +368,8 @@ void RtlEnterCriticalSection_entry(ppc_ptr_t<X_RTL_CRITICAL_SECTION> cs) {
   cs->recursion_count = 1;
 }
 
-u32 RtlTryEnterCriticalSection_entry(ppc_ptr_t<X_RTL_CRITICAL_SECTION> cs) {
-  u32 thread = KernelThread::GetCurrentThread()->guest_object();
+u32 RtlTryEnterCriticalSection_entry(GuestPtrT<X_RTL_CRITICAL_SECTION> cs) {
+  u32 thread = KernelThread::GetCurrentThread()->GetGuestObject();
 
   if (rex::platform::atomic_cas(-1, 0, &cs->lock_count)) {
     cs->owning_thread = thread;
@@ -384,8 +384,8 @@ u32 RtlTryEnterCriticalSection_entry(ppc_ptr_t<X_RTL_CRITICAL_SECTION> cs) {
   return 0;
 }
 
-void RtlLeaveCriticalSection_entry(ppc_ptr_t<X_RTL_CRITICAL_SECTION> cs) {
-  REX_ASSERT(cs->owning_thread == KernelThread::GetCurrentThread()->guest_object());
+void RtlLeaveCriticalSection_entry(GuestPtrT<X_RTL_CRITICAL_SECTION> cs) {
+  REX_ASSERT(cs->owning_thread == KernelThread::GetCurrentThread()->GetGuestObject());
 
   REX_ASSERT(cs->recursion_count > 0);
   if (--cs->recursion_count != 0) {
@@ -397,7 +397,7 @@ void RtlLeaveCriticalSection_entry(ppc_ptr_t<X_RTL_CRITICAL_SECTION> cs) {
 
   cs->owning_thread = 0;
   if (rex::platform::atomic_dec(&cs->lock_count) != -1) {
-    KeSetEvent(cs.guest_address(), 1, 0);
+    KeSetEvent(cs.GetGuestAddress(), 1, 0);
   }
 }
 
@@ -413,10 +413,10 @@ struct X_TIME_FIELDS {
 };
 REX_STATIC_ASSERT_SIZE(X_TIME_FIELDS, 16);
 
-void RtlTimeToTimeFields_entry(mapped_u64 time_ptr, ppc_ptr_t<X_TIME_FIELDS> time_fields_ptr) {
+void RtlTimeToTimeFields_entry(MappedU64 time_ptr, GuestPtrT<X_TIME_FIELDS> time_fields_ptr) {
   // Use the host clock because scaling must not apply, only conversion.
   using rex::WinSystemClock;
-  auto tp = WinSystemClock::to_sys(WinSystemClock::from_file_time(time_ptr.value()));
+  auto tp = WinSystemClock::to_sys(WinSystemClock::FromFileTime(time_ptr.GetValue()));
   auto dp = std::chrono::floor<std::chrono::days>(tp);
   auto year_month_day = std::chrono::year_month_day{dp};
   auto weekday = std::chrono::weekday{dp};
@@ -431,7 +431,7 @@ void RtlTimeToTimeFields_entry(mapped_u64 time_ptr, ppc_ptr_t<X_TIME_FIELDS> tim
   time_fields_ptr->milliseconds = static_cast<u16>(time.subseconds().count());
 }
 
-u32 RtlTimeFieldsToTime_entry(ppc_ptr_t<X_TIME_FIELDS> time_fields_ptr, mapped_u64 time_ptr) {
+u32 RtlTimeFieldsToTime_entry(GuestPtrT<X_TIME_FIELDS> time_fields_ptr, MappedU64 time_ptr) {
   using rex::WinSystemClock;
   if (time_fields_ptr->year < 1601 || time_fields_ptr->month < 1 || time_fields_ptr->month > 12 ||
       time_fields_ptr->day < 1 || time_fields_ptr->day > 31 || time_fields_ptr->hour > 23 ||
@@ -447,12 +447,12 @@ u32 RtlTimeFieldsToTime_entry(ppc_ptr_t<X_TIME_FIELDS> time_fields_ptr, mapped_u
     return 0;
   }
   auto dp = static_cast<std::chrono::sys_days>(year_month_day);
-  std::chrono::sys_time<rex::hundrednanoseconds> time = dp;
+  std::chrono::sys_time<rex::HundredNanoseconds> time = dp;
   time += std::chrono::hours{time_fields_ptr->hour};
   time += std::chrono::minutes{time_fields_ptr->minute};
   time += std::chrono::seconds{time_fields_ptr->second};
   time += std::chrono::milliseconds{time_fields_ptr->milliseconds};
-  *time_ptr = WinSystemClock::to_file_time(WinSystemClock::from_sys(time));
+  *time_ptr = WinSystemClock::ToFileTime(WinSystemClock::from_sys(time));
   return 1;
 }
 
@@ -496,7 +496,7 @@ static u32 crc32_table[256] = {
     0xB40BBE37u, 0xC30C8EA1u, 0x5A05DF1Bu, 0x2D02EF8Du,
 };
 
-u32 RtlComputeCrc32_entry(u32 seed, mapped_void buffer, u32 length) {
+u32 RtlComputeCrc32_entry(u32 seed, MappedVoid buffer, u32 length) {
   if (!length) {
     return seed;
   }

@@ -27,7 +27,7 @@ namespace rex::runtime {
 
 /**
  * Creates, opens, lists and deletes content packages under the user data root, and reports the
- * running title, its XDBF data, the signed in profile and the Xam apps.
+ * running title, its XDBF data, the signed in profile and the XAM apps.
  */
 class IContentManager {
  public:
@@ -179,28 +179,28 @@ class IContentManager {
    *
    * @return The title id, 0 when the executable has no execution info.
    */
-  [[nodiscard]] virtual u32 title_id() const = 0;
+  [[nodiscard]] virtual u32 GetTitleId() const = 0;
 
   /**
    * Returns the XDBF data of the executable.
    *
    * @return The data, invalid when the executable has no XDBF section.
    */
-  [[nodiscard]] virtual runtime::XDBFGameData title_xdbf() const = 0;
+  [[nodiscard]] virtual runtime::XDBFGameData GetTitleXDBF() const = 0;
 
   /**
    * Returns the signed in profile.
    *
    * @return The profile.
    */
-  [[nodiscard]] virtual runtime::UserProfile& user_profile() = 0;
+  [[nodiscard]] virtual runtime::UserProfile& GetUserProfile() = 0;
 
   /**
-   * Returns the Xam app manager.
+   * Returns the XAM app manager.
    *
    * @return The app manager.
    */
-  [[nodiscard]] virtual runtime::AppManager& app_manager() = 0;
+  [[nodiscard]] virtual runtime::AppManager& GetAppManager() = 0;
 };
 
 }  // namespace rex::runtime

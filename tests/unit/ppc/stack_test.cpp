@@ -113,7 +113,7 @@ REX_TEST_CASE("stack_guard restores r1 on scope exit", "[ppc][stack]") {
   ctx.r1.u32 = 0x8000;
 
   {
-    rex::ppc::stack_guard guard(ctx);
+    rex::ppc::StackGuard guard(ctx);
     rex::ppc::stack_push_string(ctx, g_mem, "temporary");
     CHECK(ctx.r1.u32 < 0x8000);
   }
@@ -126,7 +126,7 @@ REX_TEST_CASE("stack_guard restores after multiple pushes", "[ppc][stack]") {
   ctx.r1.u32 = 0x8000;
 
   {
-    rex::ppc::stack_guard guard(ctx);
+    rex::ppc::StackGuard guard(ctx);
     rex::ppc::stack_push(ctx, g_mem, u32{1});
     rex::ppc::stack_push(ctx, g_mem, u32{2});
     rex::ppc::stack_push_string(ctx, g_mem, "three");
@@ -141,11 +141,11 @@ REX_TEST_CASE("nested stack_guards restore correctly", "[ppc][stack]") {
   ctx.r1.u32 = 0x8000;
 
   {
-    rex::ppc::stack_guard outer(ctx);
+    rex::ppc::StackGuard outer(ctx);
     rex::ppc::stack_push_string(ctx, g_mem, "outer");
 
     {
-      rex::ppc::stack_guard inner(ctx);
+      rex::ppc::StackGuard inner(ctx);
       rex::ppc::stack_push_string(ctx, g_mem, "inner");
     }
     CHECK(ctx.r1.u32 == 0x8000 - 8);
@@ -156,7 +156,7 @@ REX_TEST_CASE("nested stack_guards restore correctly", "[ppc][stack]") {
 REX_TEST_CASE("stack_push and the PCR read reach the 0xE0 heap through its page offset",
               "[ppc][stack]") {
   rex::testing::KernelFixture fixture;
-  rex::runtime::Memory& memory = *fixture.runtime().memory();
+  rex::runtime::Memory& memory = *fixture.GetRuntime().GetMemory();
   rex::runtime::BaseHeap* heap = memory.LookupHeapByType(true, 4096);
   u32 block = 0;
   REQUIRE(heap->Alloc(
@@ -164,7 +164,7 @@ REX_TEST_CASE("stack_push and the PCR read reach the 0xE0 heap through its page 
       rex::runtime::kMemoryAllocationReserve | rex::runtime::kMemoryAllocationCommit,
       rex::runtime::kMemoryProtectRead | rex::runtime::kMemoryProtectWrite, false, &block));
   REQUIRE(block >= 0xE0000000);
-  u8* base = memory.virtual_membase();
+  u8* base = memory.GetVirtualMembase();
 
   *memory.TranslateVirtual<be_u32*>(block + 0x74) = block;
   PPCContext ctx{};

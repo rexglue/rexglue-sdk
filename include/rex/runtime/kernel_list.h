@@ -267,7 +267,7 @@ void InsertHeadList(X_LIST_ENTRY* list_head, X_LIST_ENTRY* entry, VirtualTransla
 template <typename TObject, size_t EntryListOffset>
 struct X_TYPED_LIST : public X_LIST_ENTRY {
   /** This list type. */
-  using this_type = X_TYPED_LIST<TObject, EntryListOffset>;
+  using ThisType = X_TYPED_LIST<TObject, EntryListOffset>;
 
   /**
    * Returns the list entry embedded in an object.
@@ -336,8 +336,8 @@ struct X_TYPED_LIST : public X_LIST_ENTRY {
    */
   template <typename VirtualTranslator>
   struct ForwardIteratorBegin {
-    VirtualTranslator vt;  /**< The translator. */
-    this_type* const thiz; /**< The list head. */
+    VirtualTranslator vt; /**< The translator. */
+    ThisType* const thiz; /**< The list head. */
 
     /**
      * Returns an iterator at the first object.

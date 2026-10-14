@@ -23,7 +23,7 @@ using rex::memory::PageAccess;
 using rex::runtime::XCONTENT_DATA;
 
 REX_TEST_CASE("a full file name stops at the field end before a guard page", "[xcontent]") {
-  const size_t page = rex::memory::page_size();
+  const size_t page = rex::memory::PageSize();
   auto* base = static_cast<u8*>(rex::memory::AllocFixed(
       nullptr, page * 2, AllocationType::kReserveCommit, PageAccess::kReadWrite));
   REQUIRE(base != nullptr);
@@ -32,11 +32,11 @@ REX_TEST_CASE("a full file name stops at the field end before a guard page", "[x
   auto* data =
       std::construct_at(reinterpret_cast<XCONTENT_DATA*>(base + page - sizeof(XCONTENT_DATA)));
   const std::string name(42, 'A');
-  data->set_file_name(name);
+  data->SetFileName(name);
   data->padding[0] = 'B';
   data->padding[1] = 'C';
 
-  CHECK(data->file_name() == name);
+  CHECK(data->GetFileName() == name);
 
   rex::memory::DeallocFixed(base, 0, DeallocationType::kRelease);
 }

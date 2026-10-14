@@ -16,19 +16,19 @@ static_assert(REX_PLATFORM_LINUX || REX_PLATFORM_MAC, "This file is POSIX-only")
 
 namespace rex::platform {
 
-int socket_close(SocketHandle handle) {
+int SocketClose(SocketHandle handle) {
   return close(static_cast<int>(handle));
 }
 
-int socket_ioctl(SocketHandle handle, u32 cmd, u8* arg) {
+int SocketIoctl(SocketHandle handle, u32 cmd, u8* arg) {
   return ioctl(static_cast<int>(handle), cmd, arg);
 }
 
-bool socket_would_block() {
+bool SocketWouldBlock() {
   return errno == EAGAIN || errno == EWOULDBLOCK || errno == EINPROGRESS;
 }
 
-int socket_poll(std::span<const SocketWait> sockets, std::span<SocketReady> ready) {
+int PollSockets(std::span<const SocketWait> sockets, std::span<SocketReady> ready) {
   std::vector<pollfd> fds;
   fds.reserve(sockets.size());
   for (const SocketWait& socket : sockets) {
@@ -70,7 +70,7 @@ int socket_poll(std::span<const SocketWait> sockets, std::span<SocketReady> read
   return count;
 }
 
-u32 socket_error() {
+u32 SocketError() {
   constexpr u32 kWSAEINVAL = 10022;
   constexpr std::pair<int, u32> kCodes[] = {
       {EINTR, 10004},         {EBADF, 10009},           {EACCES, 10013},

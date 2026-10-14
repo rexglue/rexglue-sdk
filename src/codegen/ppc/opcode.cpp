@@ -16,11 +16,11 @@ namespace rex::codegen::detail {
  * @param count Number of bits
  * @return The extracted field
  */
-constexpr u32 extract_bits(u32 value, u32 start, u32 count) {
+constexpr u32 ExtractBits(u32 value, u32 start, u32 count) {
   return (value >> (32 - start - count)) & ((1u << count) - 1);
 }
 
-static const std::array<OpcodeInfo, 320> g_opcode_table = {{
+static const std::array<OpcodeInfo, 320> kGOpcodeTable = {{
     // Primary opcode 16, bcx conditional branch, all variants
     {Opcode::bc, InstrFormat::kB, OpcodeGroup::kBranch, "bc", 16, 0, false},
     {Opcode::bca, InstrFormat::kB, OpcodeGroup::kBranch, "bca", 16, 0, false},
@@ -407,8 +407,8 @@ static const std::array<OpcodeInfo, 320> g_opcode_table = {{
     {Opcode::stdx, InstrFormat::kX, OpcodeGroup::kMemory, "stdx", 31, 149, true},
 }};
 
-Opcode lookup_opcode(u32 code) {
-  u32 primary = extract_bits(code, 0, 6);
+Opcode LookupOpcode(u32 code) {
+  u32 primary = ExtractBits(code, 0, 6);
 
   switch (primary) {
     case 3:
@@ -519,7 +519,7 @@ Opcode lookup_opcode(u32 code) {
 
   u32 extended = 0;
   if (primary == 19) {
-    extended = extract_bits(code, 21, 10);
+    extended = ExtractBits(code, 21, 10);
     bool lk = code & 1;
     if (extended == 16)
       return lk ? Opcode::bclrl : Opcode::bclr;
@@ -528,7 +528,7 @@ Opcode lookup_opcode(u32 code) {
     if (extended == 150)
       return Opcode::isync;
   } else if (primary == 31) {
-    extended = extract_bits(code, 21, 10);
+    extended = ExtractBits(code, 21, 10);
 
     switch (extended) {
       case 0:
@@ -643,19 +643,19 @@ Opcode lookup_opcode(u32 code) {
         break;
     }
   } else if (primary == 58) {
-    extended = extract_bits(code, 30, 2);
+    extended = ExtractBits(code, 30, 2);
     if (extended == 0)
       return Opcode::ld;
     if (extended == 1)
       return Opcode::ldu;
   } else if (primary == 62) {
-    extended = extract_bits(code, 30, 2);
+    extended = ExtractBits(code, 30, 2);
     if (extended == 0)
       return Opcode::std;
     if (extended == 1)
       return Opcode::stdu;
   } else if (primary == 59) {
-    extended = extract_bits(code, 26, 5);
+    extended = ExtractBits(code, 26, 5);
     switch (extended) {
       case 18:
         return Opcode::fdivs;
@@ -683,7 +683,7 @@ Opcode lookup_opcode(u32 code) {
         break;
     }
   } else if (primary == 63) {
-    extended = extract_bits(code, 21, 10);
+    extended = ExtractBits(code, 21, 10);
     switch (extended) {
       case 0:
         return Opcode::fcmpu;
@@ -716,7 +716,7 @@ Opcode lookup_opcode(u32 code) {
       default:
         break;
     }
-    extended = extract_bits(code, 26, 5);
+    extended = ExtractBits(code, 26, 5);
     switch (extended) {
       case 18:
         return Opcode::fdiv;
@@ -746,7 +746,7 @@ Opcode lookup_opcode(u32 code) {
         break;
     }
   } else if (primary == 4) {
-    extended = extract_bits(code, 26, 6);
+    extended = ExtractBits(code, 26, 6);
     switch (extended) {
       case 32:
         // vmaddfp vD, vA, vC, vB
@@ -762,7 +762,7 @@ Opcode lookup_opcode(u32 code) {
         break;
     }
 
-    extended = extract_bits(code, 21, 11);
+    extended = ExtractBits(code, 21, 11);
     switch (extended) {
       case 10:
         return Opcode::vaddfp;
@@ -935,8 +935,8 @@ Opcode lookup_opcode(u32 code) {
         break;
     }
 
-    extended = extract_bits(code, 21, 10);
-    u32 rc = extract_bits(code, 31, 1);
+    extended = ExtractBits(code, 21, 10);
+    u32 rc = ExtractBits(code, 31, 1);
     switch (extended) {
       case 198:
         return rc ? Opcode::vcmpeqfp_ : Opcode::vcmpeqfp;
@@ -970,7 +970,7 @@ Opcode lookup_opcode(u32 code) {
 
     u32 bits_30_31 = code & 0x3;
     if (bits_30_31 == 3) {
-      u32 vmx128_xo = extract_bits(code, 21, 7);
+      u32 vmx128_xo = ExtractBits(code, 21, 7);
       switch (vmx128_xo) {
         case 0:
           return Opcode::lvsl128;
@@ -1014,9 +1014,9 @@ Opcode lookup_opcode(u32 code) {
   }
 
   else if (primary == 5) {
-    u32 op4 = extract_bits(code, 22, 4);
-    u32 bit27 = extract_bits(code, 27, 1);
-    u32 bit26 = extract_bits(code, 26, 1);
+    u32 op4 = ExtractBits(code, 22, 4);
+    u32 bit27 = ExtractBits(code, 27, 1);
+    u32 bit26 = ExtractBits(code, 26, 1);
 
     if (bit27 == 1) {
       switch (op4) {
@@ -1082,10 +1082,10 @@ Opcode lookup_opcode(u32 code) {
   }
 
   else if (primary == 6) {
-    u32 op4 = extract_bits(code, 22, 4);
-    u32 bit27 = extract_bits(code, 27, 1);
-    [[maybe_unused]] u32 bit26 = extract_bits(code, 26, 1);
-    u32 bits_21_27 = extract_bits(code, 21, 7);
+    u32 op4 = ExtractBits(code, 22, 4);
+    u32 bit27 = ExtractBits(code, 27, 1);
+    [[maybe_unused]] u32 bit26 = ExtractBits(code, 26, 1);
+    u32 bits_21_27 = ExtractBits(code, 21, 7);
 
     if (bit27 == 0) {
       switch (op4) {
@@ -1145,15 +1145,15 @@ Opcode lookup_opcode(u32 code) {
         default:
           break;
       }
-      u32 bits_25_27 = extract_bits(code, 25, 3);
+      u32 bits_25_27 = ExtractBits(code, 25, 3);
       if (bits_25_27 == 1) {
         return Opcode::vpermwi128;
       }
       if (bits_25_27 == 5) {
         return Opcode::vrlimi128;
       }
-      u32 bits_23_25 = extract_bits(code, 23, 3);
-      if (extract_bits(code, 21, 2) == 3 && (bits_23_25 >= 4)) {
+      u32 bits_23_25 = ExtractBits(code, 23, 3);
+      if (ExtractBits(code, 21, 2) == 3 && (bits_23_25 >= 4)) {
         return Opcode::vpkd3d128;
       }
       if (op4 == 3)
@@ -1170,22 +1170,22 @@ Opcode lookup_opcode(u32 code) {
   return Opcode::kUnknown;
 }
 
-const OpcodeInfo& get_opcode_info(Opcode opcode) {
-  static const OpcodeInfo unknown = {
+const OpcodeInfo& GetOpcodeInfo(Opcode opcode) {
+  static const OpcodeInfo kUnknown = {
       Opcode::kUnknown, InstrFormat::kUnknown, OpcodeGroup::kGeneral, "unknown", 0, 0, false};
 
   if (opcode == Opcode::kUnknown) {
-    return unknown;
+    return kUnknown;
   }
 
-  for (const auto& info : g_opcode_table) {
+  for (const auto& info : kGOpcodeTable) {
     if (info.name == nullptr)
       continue;
     if (info.opcode == opcode) {
       return info;
     }
   }
-  return unknown;
+  return kUnknown;
 }
 
 }  // namespace rex::codegen::detail

@@ -157,7 +157,7 @@ class REX_RUNTIME_API XmpApp : public runtime::App {
   X_HRESULT XMPPrevious();
 
   /**
-   * Handles 1 message sent to the Xmp app.
+   * Handles a message sent to the Xmp app.
    *
    * @param message The message identifier.
    * @param buffer_ptr Guest address of the message buffer.
@@ -182,7 +182,7 @@ class REX_RUNTIME_API XmpApp : public runtime::App {
   Playlist* active_playlist_;
   size_t active_song_index_;
 
-  rex::platform::RankedMutex mutex_{rex::platform::LockRank::Leaf};
+  rex::platform::RankedMutex mutex_{rex::platform::LockRank::kLeaf};
   std::unordered_map<u32, std::unique_ptr<Playlist>> playlists_;
   u32 next_playlist_handle_;
   u32 next_song_handle_;

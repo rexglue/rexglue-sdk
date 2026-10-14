@@ -64,7 +64,7 @@ class VulkanSubmissionTracker : public rex::NonCopyable {
      *
      * @return The fence, or null when creating or resetting it failed.
      */
-    VkFence fence() { return fence_; }
+    VkFence GetFence() { return fence_; }
 
     /**
      * Marks the submission as failed or dropped, so releasing it does not increment the

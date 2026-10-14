@@ -35,7 +35,7 @@ class IFile {
    *
    * @return The name, paths, attributes, sizes and times.
    */
-  [[nodiscard]] virtual FileInfo Info() const = 0;
+  [[nodiscard]] virtual FileInfo GetInfo() const = 0;
 
   /** Reads the size of the node again from its provider. */
   virtual void Refresh() = 0;
@@ -45,14 +45,14 @@ class IFile {
    *
    * @return The access bits.
    */
-  [[nodiscard]] virtual Access access() const = 0;
+  [[nodiscard]] virtual Access GetAccess() const = 0;
 
   /**
    * Returns the volume the file resides on.
    *
    * @return The volume information of the mount.
    */
-  [[nodiscard]] virtual VolumeInfo Volume() const = 0;
+  [[nodiscard]] virtual VolumeInfo GetVolume() const = 0;
 
   /**
    * Copies bytes of the file.

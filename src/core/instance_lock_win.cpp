@@ -30,15 +30,15 @@ struct detail::LockHandle {
 };
 
 Result<InstanceLock> InstanceLock::Acquire(std::string_view name) {
-  const std::u16string wide = rex::to_utf16(std::format("Local\\rex-{}", name));
+  const std::u16string wide = rex::ToUTF16(std::format("Local\\rex-{}", name));
   HANDLE mutex = CreateMutexW(nullptr, TRUE, reinterpret_cast<LPCWSTR>(wide.c_str()));
   if (!mutex) {
-    return Err<InstanceLock>(ErrorCategory::Platform,
+    return Err<InstanceLock>(ErrorCategory::kPlatform,
                              std::format("CreateMutexW failed ({})", GetLastError()));
   }
   if (GetLastError() == ERROR_ALREADY_EXISTS) {
     CloseHandle(mutex);
-    return Err<InstanceLock>(ErrorCategory::Platform,
+    return Err<InstanceLock>(ErrorCategory::kPlatform,
                              std::format("another instance holds '{}'", name));
   }
   auto handle = std::make_unique<detail::LockHandle>();

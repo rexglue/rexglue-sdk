@@ -12,17 +12,17 @@ void ShowSimpleMessageBox(SimpleMessageBoxType type, std::string_view message) {
   UINT flags = MB_OK | MB_TOPMOST | MB_SETFOREGROUND;
   const wchar_t* title = L"ReXGlue";
   switch (type) {
-    case SimpleMessageBoxType::Help:
+    case SimpleMessageBoxType::kHelp:
       flags |= MB_ICONINFORMATION;
       break;
-    case SimpleMessageBoxType::Warning:
+    case SimpleMessageBoxType::kWarning:
       flags |= MB_ICONWARNING;
       break;
-    case SimpleMessageBoxType::Error:
+    case SimpleMessageBoxType::kError:
       flags |= MB_ICONERROR;
       break;
   }
-  auto wide = rex::to_utf16(message);
+  auto wide = rex::ToUTF16(message);
   ::MessageBoxW(nullptr, reinterpret_cast<const wchar_t*>(wide.c_str()), title, flags);
 }
 

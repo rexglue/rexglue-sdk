@@ -53,7 +53,7 @@ u32 WorkspaceHeap::ResolveSize(u32 header_size) {
   return rex::round_up(std::max(header_size, kMinimumSize), kSizeStep);
 }
 
-u32 WorkspaceHeap::size() const {
+u32 WorkspaceHeap::GetSize() const {
   return size_;
 }
 

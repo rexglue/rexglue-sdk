@@ -19,11 +19,11 @@
 
 namespace rex {
 
-std::string to_string(const vec128_t& value) {
+std::string to_string(const Vec128T& value) {
   return std::format("({}, {}, {}, {})", value.x, value.y, value.z, value.w);
 }
 
-std::ostream& operator<<(std::ostream& os, const vec128_t& value) {
+std::ostream& operator<<(std::ostream& os, const Vec128T& value) {
   os << std::format("[{:08X} {:08X} {:08X} {:08X}]", value.u32[0], value.u32[1], value.u32[2],
                     value.u32[3]);
   return os;

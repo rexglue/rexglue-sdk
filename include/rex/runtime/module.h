@@ -36,46 +36,46 @@ class REX_RUNTIME_API Module {
   /** Destroys the module. */
   virtual ~Module();
 
-  runtime::Memory* memory() const { return memory_; }
-  FunctionDispatcher* function_dispatcher() const { return function_dispatcher_; }
+  runtime::Memory* GetMemory() const { return memory_; }
+  FunctionDispatcher* GetFunctionDispatcher() const { return function_dispatcher_; }
 
   /**
    * Returns the module name.
    *
    * @return The name.
    */
-  virtual const std::string& name() const = 0;
+  virtual const std::string& GetName() const = 0;
   /**
    * Reports whether the module is the title executable.
    *
    * @return True when it is.
    */
-  virtual bool is_executable() const = 0;
+  virtual bool IsExecutable() const = 0;
 
-  virtual u32 base_address() const { return 0; }
-  virtual u32 image_size() const { return 0; }
-  virtual u32 entry_point() const { return 0; }
-  virtual u32 export_table_address() const { return 0; }
+  virtual u32 GetBaseAddress() const { return 0; }
+  virtual u32 GetImageSize() const { return 0; }
+  virtual u32 GetEntryPoint() const { return 0; }
+  virtual u32 GetExportTableAddress() const { return 0; }
 
   /**
    * Returns the RVA of the PDATA table from the PE optional header exception data directory.
    *
    * @return The RVA, 0 by default.
    */
-  virtual u32 exception_directory_rva() const { return 0; }
+  virtual u32 GetExceptionDirectoryRva() const { return 0; }
   /**
    * Returns the size of the PDATA table from the PE optional header exception data directory.
    *
    * @return The size in bytes, 0 by default.
    */
-  virtual u32 exception_directory_size() const { return 0; }
+  virtual u32 GetExceptionDirectorySize() const { return 0; }
   /**
    * Returns the guest address of the PDATA table from the PE optional header exception data
    * directory.
    *
    * @return The guest address, 0 by default.
    */
-  virtual u32 exception_directory_address() const { return 0; }
+  virtual u32 GetExceptionDirectoryAddress() const { return 0; }
 
   /**
    * Reports whether an address is in an executable section.
@@ -83,14 +83,14 @@ class REX_RUNTIME_API Module {
    * @param address The guest address.
    * @return True when the section is executable.
    */
-  bool isExecutableSection(u32 address) const;
+  bool IsExecutableSection(u32 address) const;
 
   /**
    * Returns the binary sections, empty by default.
    *
    * @return The sections.
    */
-  virtual std::span<const BinarySection> binary_sections() const;
+  virtual std::span<const BinarySection> GetBinarySections() const;
   /**
    * Returns the section containing an address.
    *
@@ -104,7 +104,7 @@ class REX_RUNTIME_API Module {
    *
    * @return The symbols.
    */
-  virtual std::span<const BinarySymbol> binary_symbols() const;
+  virtual std::span<const BinarySymbol> GetBinarySymbols() const;
 
  protected:
   /** Dispatcher that resolves the functions of the module, null until the module is set up. */
@@ -113,7 +113,7 @@ class REX_RUNTIME_API Module {
 
   /** Populated by derived classes. */
   std::vector<BinarySection> binary_sections_;
-  /** Symbols of the module, returned by binary_symbols(). */
+  /** Symbols of the module, returned by GetBinarySymbols(). */
   std::vector<BinarySymbol> binary_symbols_;
 };
 

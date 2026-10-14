@@ -46,9 +46,9 @@ class D3D12UploadBufferPool : public GraphicsUploadBufferPool {
      * @param mapping CPU mapping of the buffer.
      */
     D3D12Page(ID3D12Resource* buffer, void* mapping);
-    Microsoft::WRL::ComPtr<ID3D12Resource> buffer_;
-    void* mapping_;
-    D3D12_GPU_VIRTUAL_ADDRESS gpu_address_;
+    Microsoft::WRL::ComPtr<ID3D12Resource> buffer;
+    void* mapping;
+    D3D12_GPU_VIRTUAL_ADDRESS gpu_address;
   };
 
   const D3D12Provider& provider_;

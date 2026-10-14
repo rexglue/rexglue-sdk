@@ -74,7 +74,7 @@ void Runtime::CreateSubsystems() {
   thread_registry_ = std::make_unique<runtime::ThreadRegistry>(*this, *object_table_);
   module_registry_ = std::make_unique<runtime::ModuleRegistry>(*this, *object_table_);
   notifier_ = std::make_unique<runtime::Notifier>(*object_table_);
-  std::filesystem::path user_data_root = this->user_data_root();
+  std::filesystem::path user_data_root = this->GetUserDataRoot();
   if (!user_data_root.empty()) {
     user_data_root = std::filesystem::absolute(user_data_root);
   }
@@ -110,13 +110,13 @@ void Runtime::CreateSubsystems() {
       oddobject_offset + offsetof(X_UNKNOWN_TYPE_REFED, points_to_self);
   globals->OddObj.points_to_prior = globals->OddObj.points_to_self;
 
-  InitializeProcess(&globals->idle_process, X_PROCTYPE_IDLE, 0, 0, 0);
+  InitializeProcess(&globals->idle_process, kXProcTypeIdle, 0, 0, 0);
   globals->idle_process.quantum = 0x7F;
 
-  InitializeProcess(&globals->system_process, X_PROCTYPE_SYSTEM, 2, 5, 9);
+  InitializeProcess(&globals->system_process, kXProcTypeSystem, 2, 5, 9);
   SetProcessTLSVars(&globals->system_process, 32, 0, 0);
 
-  InitializeProcess(&globals->title_process, X_PROCTYPE_USER, 0, 0, 0);
+  InitializeProcess(&globals->title_process, kXProcTypeUser, 0, 0, 0);
   SetProcessTLSVars(&globals->title_process, 0, 0, 0);
 }
 
@@ -130,15 +130,15 @@ void Runtime::DestroySubsystems() {
     std::vector<ThreadPin> threads = thread_registry_->All();
     for (ThreadPin& thread : threads) {
       thread->RequestStop();
-      while (thread->suspend_count() > 0 && thread->Resume() == X_STATUS_SUCCESS) {}
+      while (thread->SuspendCount() > 0 && thread->Resume() == X_STATUS_SUCCESS) {}
     }
     if (object_table_) {
       ShutDownSockets(*object_table_);
     }
     const auto interval = config_.runtime.terminate_timeout;
     WaitForThreadsToStop(threads, interval, [interval](const ThreadPin& thread) {
-      REXLOG_WARN(system, "Thread {:08X} '{}' still running after {} ms", thread->thread_id(),
-                  thread->name(), interval.count());
+      REXLOG_WARN(system, "Thread {:08X} '{}' still running after {} ms", thread->GetThreadId(),
+                  thread->GetName(), interval.count());
     });
   }
   if (module_registry_) {
@@ -181,18 +181,18 @@ void Runtime::CreateWorkspace(u32 size) {
   Result<std::unique_ptr<WorkspaceHeap>> workspace = WorkspaceHeap::Create(*memory_, size);
   if (!workspace) {
     REXLOG_ERROR(system, "Cannot commit a {:#x} byte title workspace, keeping {:#x} bytes", size,
-                 workspace_ ? workspace_->size() : 0u);
+                 workspace_ ? workspace_->GetSize() : 0u);
     return;
   }
   workspace_ = std::move(*workspace);
 }
 
 void Runtime::InitializeProcess(X_KPROCESS* process, u32 process_type, u8 unk_18, u8 unk_19,
-                                u8 unk_1A) {
+                                u8 unk_1a) {
   process->unk_18 = unk_18;
   process->unk_19 = unk_19;
-  process->unk_1A = unk_1A;
-  process->unk_1B = 0x06;
+  process->unk_1a = unk_1a;
+  process->unk_1b = 0x06;
   process->quantum = 60;
   process->clrdataa_masked_ptr = 0;
   process->thread_count = 0;
@@ -218,8 +218,8 @@ void Runtime::SetProcessTLSVars(X_KPROCESS* process, u32 num_slots, u32 tls_data
 void Runtime::LoadAchievementsData() {
   std::vector<AchievementInfo> achievements;
 
-  const runtime::XDBFGameData db = content_manager_->title_xdbf();
-  if (db.is_valid()) {
+  const runtime::XDBFGameData db = content_manager_->GetTitleXDBF();
+  if (db.IsValid()) {
     const XLanguage language =
         db.GetExistingLanguage(ToXLanguage(config_.runtime.kernel.user_language));
     for (const auto& entry : db.GetAchievements()) {
@@ -238,25 +238,25 @@ void Runtime::LoadAchievementsData() {
   achievement_manager_->ReplaceAchievements(std::move(achievements));
   if (auto metadata_path = FindMetadataPath("achievements.toml")) {
     if (auto loaded = achievement_manager_->LoadMetadataFile(*metadata_path); !loaded) {
-      REXLOG_WARN(system, "achievements metadata {} ignored, {}", rex::path_to_utf8(*metadata_path),
+      REXLOG_WARN(system, "achievements metadata {} ignored, {}", rex::PathToUTF8(*metadata_path),
                   loaded.error().message);
     }
   }
 
-  const auto user_root = user_data_root();
+  const auto user_root = GetUserDataRoot();
   if (!user_root.empty()) {
     achievement_manager_->SetUnlockSavePath(
-        user_root / "achievements" / std::format("{:08X}.toml", content_manager_->title_id()));
+        user_root / "achievements" / std::format("{:08X}.toml", content_manager_->GetTitleId()));
     achievement_manager_->LoadUnlockState();
   }
 }
 
-u32 Runtime::process_type() const {
+u32 Runtime::GetProcessType() const {
   auto globals = memory_->TranslateVirtual<const KernelGuestGlobals*>(kernel_guest_globals_);
   return globals->title_process.process_type;
 }
 
-void Runtime::set_process_type(u32 value) {
+void Runtime::SetProcessType(u32 value) {
   auto globals = memory_->TranslateVirtual<KernelGuestGlobals*>(kernel_guest_globals_);
   globals->title_process.process_type = static_cast<u8>(value);
 }
@@ -302,7 +302,7 @@ void Runtime::RunTerminateNotifications(std::chrono::milliseconds timeout) {
       REXLOG_INFO(system, "Title terminate notification {:08X} with registration {:08X}", routine,
                   registration);
       u64 args[] = {registration};
-      functions->ExecuteTrap(state, routine, args, rex::countof(args));
+      functions->ExecuteTrap(state, routine, args, rex::CountOf(args));
     }
     progress->routine = 0;
     progress->done.set_value();
@@ -321,11 +321,12 @@ void Runtime::RunTerminateNotifications(std::chrono::milliseconds timeout) {
 
 void Runtime::SetExecutableModule(X_HANDLE module_handle) {
   auto module = object_table_->Get<ModuleObject>(module_handle);
-  if (auto current = object_table_->Get<ModuleObject>(module_registry_->executable().value_or(0));
+  if (auto current =
+          object_table_->Get<ModuleObject>(module_registry_->GetExecutable().value_or(0));
       current && module && &*current == &*module) {
     return;
   }
-  module_registry_->set_executable(module_handle);
+  module_registry_->SetExecutable(module_handle);
   if (!module) {
     return;
   }
@@ -334,28 +335,28 @@ void Runtime::SetExecutableModule(X_HANDLE module_handle) {
   auto* pib = &globals->title_process;
   pib->unk_18 = 10;
   pib->unk_19 = 13;
-  pib->unk_1A = 17;
+  pib->unk_1a = 17;
 
   u32 default_stack_size = 0;
-  module->OptHeader(filesystem::XEX_HEADER_DEFAULT_STACK_SIZE, &default_stack_size);
+  module->OptHeader(filesystem::kXEXHeaderDefaultStackSize, &default_stack_size);
   if (default_stack_size) {
     pib->kernel_stack_size = ResolveGuestStackSize(default_stack_size, 0, kMinimumThreadStackSize);
   }
 
   filesystem::XEXOptTLSInfo* tls_header = nullptr;
-  module->OptHeader(filesystem::XEX_HEADER_TLS_INFO, &tls_header);
+  module->OptHeader(filesystem::kXEXHeaderTLSInfo, &tls_header);
   if (tls_header) {
     pib->tls_raw_data_size = tls_header->raw_data_size;
     SetProcessTLSVars(pib, tls_header->slot_count, tls_header->data_size,
                       tls_header->raw_data_address);
   }
   u32 workspace_size_address = 0;
-  module->OptHeader(filesystem::XEX_HEADER_TITLE_WORKSPACE_SIZE, &workspace_size_address);
+  module->OptHeader(filesystem::kXEXHeaderTitleWorkspaceSize, &workspace_size_address);
   const u32 workspace_size = WorkspaceHeap::ResolveSize(
       workspace_size_address
           ? u32{*memory_->TranslateVirtual<const be_u32*>(workspace_size_address)}
           : 0);
-  if (!workspace_ || workspace_->size() != workspace_size) {
+  if (!workspace_ || workspace_->GetSize() != workspace_size) {
     CreateWorkspace(workspace_size);
   }
 
@@ -407,14 +408,14 @@ void Runtime::StopGuestThreads(std::chrono::milliseconds timeout) {
 
   std::vector<ThreadPin> target_threads;
   for (ThreadPin& thread : thread_registry_->All()) {
-    if (!KernelThread::IsInThread(thread.get()) && thread->is_guest_thread()) {
+    if (!KernelThread::IsInThread(thread.GetThread()) && thread->IsGuestThread()) {
       target_threads.push_back(std::move(thread));
     }
   }
 
   for (auto& thread : target_threads) {
     thread->RequestStop();
-    while (thread->suspend_count() > 0 && thread->Resume() == X_STATUS_SUCCESS) {}
+    while (thread->SuspendCount() > 0 && thread->Resume() == X_STATUS_SUCCESS) {}
   }
   if (object_table_) {
     ShutDownSockets(*object_table_);
@@ -422,8 +423,8 @@ void Runtime::StopGuestThreads(std::chrono::milliseconds timeout) {
 
   WaitForThreadsToStop(target_threads, timeout, [timeout](const ThreadPin& thread) {
     REXLOG_WARN(system, "Guest thread {:08X} '{}' entry {:08X} still running after {} ms",
-                thread->thread_id(), thread->name(), thread->creation_params()->start_address,
-                timeout.count());
+                thread->GetThreadId(), thread->GetName(),
+                thread->GetCreationParams()->start_address, timeout.count());
   });
 }
 

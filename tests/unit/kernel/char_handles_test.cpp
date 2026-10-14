@@ -255,7 +255,7 @@ REX_TEST_CASE("handles: a lookup whose object lost its last handle takes no refe
               "[char][handles][pin]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    auto& table = c.runtime().object_table();
+    auto& table = c.GetRuntime().GetObjectTable();
     auto added =
         table.Emplace<rex::runtime::SymbolicLinkObject>(rex::runtime::AddOptions{}, "a", "b");
     if (!added) {

@@ -38,7 +38,7 @@ namespace rex::platform {
   argv.push_back(nullptr);
   const pid_t pid = fork();
   if (pid < 0) {
-    return Err<void>(ErrorCategory::Platform,
+    return Err<void>(ErrorCategory::kPlatform,
                      std::format("fork failed ({})", std::strerror(errno)));
   }
   if (pid == 0) {

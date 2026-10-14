@@ -27,10 +27,10 @@ using rex::ui::UIEvent;
 
 namespace {
 
-KeyEvent Down(VirtualKey key, KeyModifiers mods = KeyModifiers::None) {
-  return KeyEvent(UIEvent::Type::KeyDown, nullptr, key, 1, false,
-                  rex::HasFlags(mods, KeyModifiers::Shift), rex::HasFlags(mods, KeyModifiers::Ctrl),
-                  rex::HasFlags(mods, KeyModifiers::Alt));
+KeyEvent Down(VirtualKey key, KeyModifiers mods = KeyModifiers::kNone) {
+  return KeyEvent(
+      UIEvent::Type::kKeyDown, nullptr, key, 1, false, rex::HasFlags(mods, KeyModifiers::kShift),
+      rex::HasFlags(mods, KeyModifiers::kCtrl), rex::HasFlags(mods, KeyModifiers::kAlt));
 }
 
 struct Harness {
@@ -52,7 +52,7 @@ REX_TEST_CASE("A bind writes its cvar from the default chord", "[bind]") {
   CHECK(h.registry->Get("bind.console").value() == "Backtick");
   CHECK(h.table.Process(Down(VirtualKey::kOem3)));
   CHECK(h.fired == 1);
-  h.table.Register("settings", {VirtualKey::kF4, KeyModifiers::Alt}, "Toggle settings",
+  h.table.Register("settings", {VirtualKey::kF4, KeyModifiers::kAlt}, "Toggle settings",
                    [&h] { ++h.fired; });
   CHECK(h.registry->Get("bind.settings").value() == "Alt+F4");
 }
@@ -63,7 +63,7 @@ REX_TEST_CASE("A bind cvar change moves the bind to the new chord", "[bind]") {
   REQUIRE(h.registry->Set("bind.test", "Ctrl+K"));
   CHECK_FALSE(h.table.Process(Down(VirtualKey::kF9)));
   CHECK_FALSE(h.table.Process(Down(VirtualKey::kK)));
-  CHECK(h.table.Process(Down(VirtualKey::kK, KeyModifiers::Ctrl)));
+  CHECK(h.table.Process(Down(VirtualKey::kK, KeyModifiers::kCtrl)));
   CHECK(h.fired == 1);
   REQUIRE(h.registry->ResetToDefault("bind.test"));
   CHECK(h.table.Process(Down(VirtualKey::kF9)));
@@ -72,12 +72,12 @@ REX_TEST_CASE("A bind cvar change moves the bind to the new chord", "[bind]") {
 
 REX_TEST_CASE("A chord with Ctrl fires only with Ctrl held", "[bind]") {
   Harness h;
-  h.table.Register("test", {VirtualKey::kK, KeyModifiers::Ctrl}, "Test bind", [&h] { ++h.fired; });
+  h.table.Register("test", {VirtualKey::kK, KeyModifiers::kCtrl}, "Test bind", [&h] { ++h.fired; });
   CHECK_FALSE(h.table.Process(Down(VirtualKey::kK)));
-  CHECK_FALSE(h.table.Process(Down(VirtualKey::kK, KeyModifiers::Shift)));
-  CHECK_FALSE(h.table.Process(Down(VirtualKey::kK, KeyModifiers::Ctrl | KeyModifiers::Shift)));
+  CHECK_FALSE(h.table.Process(Down(VirtualKey::kK, KeyModifiers::kShift)));
+  CHECK_FALSE(h.table.Process(Down(VirtualKey::kK, KeyModifiers::kCtrl | KeyModifiers::kShift)));
   CHECK(h.fired == 0);
-  CHECK(h.table.Process(Down(VirtualKey::kK, KeyModifiers::Ctrl)));
+  CHECK(h.table.Process(Down(VirtualKey::kK, KeyModifiers::kCtrl)));
   CHECK(h.fired == 1);
 }
 

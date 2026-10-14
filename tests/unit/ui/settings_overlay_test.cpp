@@ -30,16 +30,16 @@ rex::cvar::Desc IntegerDesc(rex::cvar::Type type) {
 
 REX_TEST_CASE("an Int64 cvar beyond 32 bits survives an edit round trip", "[ui][settings]") {
   const std::string text = std::to_string(i64{1} << 40);
-  CHECK(rex::ui::ClampIntegerCvarText(IntegerDesc(rex::cvar::Type::Int64), text) == text);
+  CHECK(rex::ui::ClampIntegerCvarText(IntegerDesc(rex::cvar::Type::kInt64), text) == text);
 }
 
 REX_TEST_CASE("a UInt64 cvar beyond 32 bits survives an edit round trip", "[ui][settings]") {
   const std::string text = std::to_string(u64{1} << 40);
-  CHECK(rex::ui::ClampIntegerCvarText(IntegerDesc(rex::cvar::Type::UInt64), text) == text);
+  CHECK(rex::ui::ClampIntegerCvarText(IntegerDesc(rex::cvar::Type::kUInt64), text) == text);
 }
 
 REX_TEST_CASE("an integer cvar clamps to its constraints", "[ui][settings]") {
-  rex::cvar::Desc desc = IntegerDesc(rex::cvar::Type::Int64);
+  rex::cvar::Desc desc = IntegerDesc(rex::cvar::Type::kInt64);
   desc.constraints.min = 2.0;
   desc.constraints.max = 8.0;
   CHECK(rex::ui::ClampIntegerCvarText(desc, "1") == "2");

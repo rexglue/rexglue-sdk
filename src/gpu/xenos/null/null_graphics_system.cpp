@@ -8,7 +8,7 @@ NullGraphicsSystem::NullGraphicsSystem() = default;
 
 NullGraphicsSystem::~NullGraphicsSystem() = default;
 
-std::string NullGraphicsSystem::name() const {
+std::string NullGraphicsSystem::GetName() const {
   return "null";
 }
 

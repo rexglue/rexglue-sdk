@@ -37,7 +37,7 @@ void EnableAffinityConfiguration() {
   SetProcessAffinityMask(process_handle, system_affinity_mask);
 }
 
-u32 current_thread_system_id() {
+u32 CurrentThreadSystemId() {
   return static_cast<u32>(GetCurrentThreadId());
 }
 
@@ -51,7 +51,7 @@ struct THREADNAME_INFO {
 };
 #pragma pack(pop)
 
-void raise_thread_name_exception(HANDLE thread, const std::string& name) {
+void RaiseThreadNameException(HANDLE thread, const std::string& name) {
   if (!IsDebuggerPresent()) {
     return;
   }
@@ -66,7 +66,7 @@ void raise_thread_name_exception(HANDLE thread, const std::string& name) {
   } __except (EXCEPTION_EXECUTE_HANDLER) {}
 }
 
-static void set_thread_name_impl(HANDLE thread, const std::string_view name) {
+static void SetThreadNameImpl(HANDLE thread, const std::string_view name) {
   auto kernel = GetModuleHandleW(L"kernel32.dll");
   if (kernel) {
     auto func = (SetThreadDescriptionFn)GetProcAddress(kernel, "SetThreadDescription");
@@ -79,11 +79,11 @@ static void set_thread_name_impl(HANDLE thread, const std::string_view name) {
       func(thread, u16name.c_str());
     }
   }
-  raise_thread_name_exception(thread, std::string(name));
+  RaiseThreadNameException(thread, std::string(name));
 }
 
-void set_current_thread_name(const std::string_view name) {
-  set_thread_name_impl(GetCurrentThread(), name);
+void SetCurrentThreadName(const std::string_view name) {
+  SetThreadNameImpl(GetCurrentThread(), name);
 }
 
 void MaybeYield() {
@@ -185,13 +185,13 @@ class Win32Handle : public T {
   }
 
  protected:
-  void* native_handle() const override { return handle_; }
+  void* GetNativeHandle() const override { return handle_; }
 
   HANDLE handle_ = nullptr;
 };
 
 WaitResult Wait(WaitHandle* wait_handle, bool is_alertable, std::chrono::milliseconds timeout) {
-  HANDLE handle = wait_handle->native_handle();
+  HANDLE handle = wait_handle->GetNativeHandle();
   DWORD result = WaitForSingleObjectEx(handle, DWORD(timeout.count()), is_alertable ? TRUE : FALSE);
   switch (result) {
     case WAIT_OBJECT_0:
@@ -210,8 +210,8 @@ WaitResult Wait(WaitHandle* wait_handle, bool is_alertable, std::chrono::millise
 
 WaitResult SignalAndWait(WaitHandle* wait_handle_to_signal, WaitHandle* wait_handle_to_wait_on,
                          bool is_alertable, std::chrono::milliseconds timeout) {
-  HANDLE handle_to_signal = wait_handle_to_signal->native_handle();
-  HANDLE handle_to_wait_on = wait_handle_to_wait_on->native_handle();
+  HANDLE handle_to_signal = wait_handle_to_signal->GetNativeHandle();
+  HANDLE handle_to_wait_on = wait_handle_to_wait_on->GetNativeHandle();
   DWORD result = SignalObjectAndWait(handle_to_signal, handle_to_wait_on, DWORD(timeout.count()),
                                      is_alertable ? TRUE : FALSE);
   switch (result) {
@@ -234,7 +234,7 @@ std::pair<WaitResult, size_t> WaitMultiple(WaitHandle* wait_handles[], size_t wa
                                            std::chrono::milliseconds timeout) {
   std::vector<HANDLE> handles(wait_handle_count);
   for (size_t i = 0; i < wait_handle_count; ++i) {
-    handles[i] = wait_handles[i]->native_handle();
+    handles[i] = wait_handles[i]->GetNativeHandle();
   }
   DWORD result =
       WaitForMultipleObjectsEx(DWORD(handles.size()), handles.data(), wait_all ? TRUE : FALSE,
@@ -323,45 +323,45 @@ std::unique_ptr<Mutant> Mutant::Create(bool initial_owner) {
 }
 
 class Win32Timer : public Win32Handle<Timer> {
-  using WClock_ = Timer::WClock_;
-  using GClock_ = Timer::GClock_;
+  using WClock = Timer::WClock;
+  using GClock = Timer::GClock;
 
  public:
   explicit Win32Timer(HANDLE handle) : Win32Handle(handle) {}
   ~Win32Timer() = default;
 
-  bool SetOnceAfter(rex::hundrednanoseconds rel_time, std::function<void()> opt_callback) override {
-    return SetOnceAt(WClock_::now() + rel_time, std::move(opt_callback));
+  bool SetOnceAfter(rex::HundredNanoseconds rel_time, std::function<void()> opt_callback) override {
+    return SetOnceAt(WClock::now() + rel_time, std::move(opt_callback));
   }
-  bool SetOnceAt(GClock_::time_point due_time, std::function<void()> opt_callback) override {
-    return SetOnceAt(std::chrono::clock_cast<WClock_>(due_time), std::move(opt_callback));
+  bool SetOnceAt(GClock::time_point due_time, std::function<void()> opt_callback) override {
+    return SetOnceAt(std::chrono::clock_cast<WClock>(due_time), std::move(opt_callback));
   }
-  bool SetOnceAt(WClock_::time_point due_time, std::function<void()> opt_callback) override {
+  bool SetOnceAt(WClock::time_point due_time, std::function<void()> opt_callback) override {
     std::lock_guard<std::mutex> lock(mutex_);
     callback_ = std::move(opt_callback);
     LARGE_INTEGER due_time_li;
-    due_time_li.QuadPart = static_cast<LONGLONG>(WClock_::to_file_time(due_time));
+    due_time_li.QuadPart = static_cast<LONGLONG>(WClock::ToFileTime(due_time));
     auto completion_routine =
         callback_ ? reinterpret_cast<PTIMERAPCROUTINE>(CompletionRoutine) : nullptr;
     return SetWaitableTimer(handle_, &due_time_li, 0, completion_routine, this, FALSE) ? true
                                                                                        : false;
   }
 
-  bool SetRepeatingAfter(rex::hundrednanoseconds rel_time, std::chrono::milliseconds period,
+  bool SetRepeatingAfter(rex::HundredNanoseconds rel_time, std::chrono::milliseconds period,
                          std::function<void()> opt_callback = nullptr) override {
-    return SetRepeatingAt(WClock_::now() + rel_time, period, std::move(opt_callback));
+    return SetRepeatingAt(WClock::now() + rel_time, period, std::move(opt_callback));
   }
-  bool SetRepeatingAt(GClock_::time_point due_time, std::chrono::milliseconds period,
+  bool SetRepeatingAt(GClock::time_point due_time, std::chrono::milliseconds period,
                       std::function<void()> opt_callback = nullptr) override {
-    return SetRepeatingAt(std::chrono::clock_cast<WClock_>(due_time), period,
+    return SetRepeatingAt(std::chrono::clock_cast<WClock>(due_time), period,
                           std::move(opt_callback));
   }
-  bool SetRepeatingAt(WClock_::time_point due_time, std::chrono::milliseconds period,
+  bool SetRepeatingAt(WClock::time_point due_time, std::chrono::milliseconds period,
                       std::function<void()> opt_callback) override {
     std::lock_guard<std::mutex> lock(mutex_);
     callback_ = std::move(opt_callback);
     LARGE_INTEGER due_time_li;
-    due_time_li.QuadPart = static_cast<LONGLONG>(WClock_::to_file_time(due_time));
+    due_time_li.QuadPart = static_cast<LONGLONG>(WClock::ToFileTime(due_time));
     auto completion_routine =
         callback_ ? reinterpret_cast<PTIMERAPCROUTINE>(CompletionRoutine) : nullptr;
     return SetWaitableTimer(handle_, &due_time_li, static_cast<i32>(period.count()),
@@ -381,7 +381,7 @@ class Win32Timer : public Win32Handle<Timer> {
     callback_ = nullptr;
     LARGE_INTEGER due_time_li;
     due_time_li.QuadPart =
-        -std::chrono::duration_cast<rex::hundrednanoseconds>(std::chrono::hours(1)).count();
+        -std::chrono::duration_cast<rex::HundredNanoseconds>(std::chrono::hours(1)).count();
     return SetWaitableTimer(handle_, &due_time_li, 0, nullptr, nullptr, FALSE) &&
            CancelWaitableTimer(handle_);
   }
@@ -457,17 +457,17 @@ class Win32Thread : public Win32Handle<Thread> {
   explicit Win32Thread(HANDLE handle) : Win32Handle(handle) {}
   ~Win32Thread() = default;
 
-  void set_name(std::string name) override {
-    set_thread_name_impl(handle_, name);
-    Thread::set_name(name);
+  void SetName(std::string name) override {
+    SetThreadNameImpl(handle_, name);
+    Thread::SetName(name);
   }
 
-  i32 priority() override { return GetThreadPriority(handle_); }
-  u32 system_id() const override { return GetThreadId(handle_); }
+  i32 GetPriority() override { return GetThreadPriority(handle_); }
+  u32 GetSystemId() const override { return GetThreadId(handle_); }
 
-  void set_priority(i32 new_priority) override { SetThreadPriority(handle_, new_priority); }
+  void SetPriority(i32 new_priority) override { SetThreadPriority(handle_, new_priority); }
 
-  u64 affinity_mask() override {
+  u64 GetAffinityMask() override {
     DWORD_PTR prev = SetThreadAffinityMask(handle_, 1);
     if (prev) {
       SetThreadAffinityMask(handle_, prev);
@@ -475,7 +475,7 @@ class Win32Thread : public Win32Handle<Thread> {
     return static_cast<u64>(prev);
   }
 
-  void set_affinity_mask(u64 new_affinity_mask) override {
+  void SetAffinityMask(u64 new_affinity_mask) override {
     SetThreadAffinityMask(handle_, new_affinity_mask);
   }
 
@@ -583,7 +583,7 @@ class Win32Thread : public Win32Handle<Thread> {
   void AssertCallingThread() { REX_ASSERT(GetCurrentThreadId() == GetThreadId(handle_)); }
 };
 
-thread_local std::unique_ptr<Win32Thread> current_thread_ = nullptr;
+thread_local std::unique_ptr<Win32Thread> current_thread = nullptr;
 
 struct ThreadStartData {
   rex::MoveOnlyFunction<void()> start_routine;
@@ -591,7 +591,7 @@ struct ThreadStartData {
 DWORD WINAPI ThreadStartRoutine(LPVOID parameter) {
   detail::RegisterCurrentThread();
   PrepareThreadForCrash();
-  current_thread_ = std::make_unique<Win32Thread>(::GetCurrentThread());
+  current_thread = std::make_unique<Win32Thread>(::GetCurrentThread());
 
   std::unique_ptr<ThreadStartData> start_data(static_cast<ThreadStartData*>(parameter));
   start_data->start_routine();
@@ -613,8 +613,8 @@ std::unique_ptr<Thread> Thread::Create(CreationParameters params,
 }
 
 Thread* Thread::GetCurrentThread() {
-  if (current_thread_) {
-    return current_thread_.get();
+  if (current_thread) {
+    return current_thread.get();
   }
 
   HANDLE handle = ::GetCurrentThread();
@@ -622,8 +622,8 @@ Thread* Thread::GetCurrentThread() {
     return nullptr;
   }
 
-  current_thread_ = std::make_unique<Win32Thread>(handle);
-  return current_thread_.get();
+  current_thread = std::make_unique<Win32Thread>(handle);
+  return current_thread.get();
 }
 
 void Thread::Exit(int exit_code) {

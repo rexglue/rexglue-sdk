@@ -37,61 +37,61 @@ class CodegenWriter {
    * @param force Rewrite outputs whose content is unchanged
    * @return True on success
    */
-  bool write(bool force);
+  bool Write(bool force);
 
   /**
    * Returns the basenames of stale outputs removed by the sweep that follows the flush.
-   * Populated only after write() completes, empty otherwise.
+   * Populated only after Write() completes, empty otherwise.
    *
    * @return Removed basenames
    */
-  const std::vector<std::string>& deletedFiles() const { return deletedFiles_; }
+  const std::vector<std::string>& GetDeletedFiles() const { return deleted_files_; }
 
   /**
-   * Returns the basenames of files written to disk by FlushPendingWrites() during write().
-   * Populated only after write() completes, empty otherwise.
+   * Returns the basenames of files written to disk by FlushPendingWrites() during Write().
+   * Populated only after Write() completes, empty otherwise.
    *
    * @return Written basenames
    */
-  const std::vector<std::string>& writtenFiles() const { return writtenFiles_; }
+  const std::vector<std::string>& GetWrittenFiles() const { return written_files_; }
 
   /**
    * Returns the basenames whose on disk content already matched, so nothing was written.
    *
    * @return Unchanged basenames
    */
-  const std::vector<std::string>& unchangedFiles() const { return unchangedFiles_; }
+  const std::vector<std::string>& GetUnchangedFiles() const { return unchanged_files_; }
 
  private:
   CodegenContext& ctx_;
 
-  std::string out;
-  std::vector<std::pair<std::string, std::string>> pendingWrites;
-  std::vector<std::string> deletedFiles_;
-  std::vector<std::string> writtenFiles_;
-  std::vector<std::string> unchangedFiles_;
+  std::string out_;
+  std::vector<std::pair<std::string, std::string>> pending_writes_;
+  std::vector<std::string> deleted_files_;
+  std::vector<std::string> written_files_;
+  std::vector<std::string> unchanged_files_;
 
   template <class... Args>
-  void print(std::format_string<Args...> fmt, Args&&... args) {
-    std::vformat_to(std::back_inserter(out), fmt.get(), std::make_format_args(args...));
+  void Print(std::format_string<Args...> fmt, Args&&... args) {
+    std::vformat_to(std::back_inserter(out_), fmt.get(), std::make_format_args(args...));
   }
 
   template <class... Args>
-  void println(std::format_string<Args...> fmt, Args&&... args) {
-    std::vformat_to(std::back_inserter(out), fmt.get(), std::make_format_args(args...));
-    out += '\n';
+  void Println(std::format_string<Args...> fmt, Args&&... args) {
+    std::vformat_to(std::back_inserter(out_), fmt.get(), std::make_format_args(args...));
+    out_ += '\n';
   }
 
   void SaveCurrentOutData(std::string_view name);
   bool FlushPendingWrites();
 
-  FunctionGraph& graph();
-  const FunctionGraph& graph() const;
-  const BinaryView& binary() const;
-  RecompilerConfig& config();
-  const RecompilerConfig& config() const;
-  AnalysisState& analysisState();
-  const AnalysisState& analysisState() const;
+  FunctionGraph& GetGraph();
+  const FunctionGraph& GetGraph() const;
+  const BinaryView& GetBinary() const;
+  RecompilerConfig& GetConfig();
+  const RecompilerConfig& GetConfig() const;
+  AnalysisState& GetAnalysisState();
+  const AnalysisState& GetAnalysisState() const;
 };
 
 }  // namespace rex::codegen

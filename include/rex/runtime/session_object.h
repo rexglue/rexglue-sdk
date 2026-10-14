@@ -12,7 +12,7 @@
 
 namespace rex::runtime {
 
-/** The host state of a Xam session object, which keeps none beyond its guest block. */
+/** The host state of an XAM session object, which keeps none beyond its guest block. */
 struct SessionObject {};
 
 }  // namespace rex::runtime

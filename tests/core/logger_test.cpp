@@ -154,7 +154,7 @@ REX_TEST_CASE_METHOD(Fixture, "A config file value reaches a category registered
                      "[logger]") {
   rex::Config config;
   config.log.categories = {&rex::log::test_gamma};
-  config.cvars.values.push_back({"log.test_gamma", "debug", rex::cvar::CvarSource::Config});
+  config.cvars.values.push_back({"log.test_gamma", "debug", rex::cvar::CvarSource::kConfig});
   rex::ILogger& logger = Start(config);
   REQUIRE(logger.GetLevel("test_gamma").value() == Level::kDebug);
 }
@@ -167,7 +167,7 @@ REX_TEST_CASE_METHOD(Fixture, "A category nobody registered is listed and report
   REXLOG_ERROR(test_orphan, "orphan line");
   logger.RemoveSink(sink);
   REQUIRE(sink.Contains("orphan line"));
-  const auto categories = logger.Categories();
+  const auto categories = logger.GetCategories();
   auto orphan =
       std::ranges::find(categories, std::string("test_orphan"), &rex::log::CategoryInfo::name);
   REQUIRE(orphan != categories.end());
@@ -236,11 +236,11 @@ REX_TEST_CASE_METHOD(Fixture, "Sequential log files count up and old runs are pr
   config.log.file.folder = temp.path;
   config.log.file.name = "run";
   rex::ILogger& first = Start(config);
-  REQUIRE(first.FilePath().filename() == "run_001.log");
+  REQUIRE(first.GetFilePath().filename() == "run_001.log");
   REXLOG_ERROR(core, "{}", std::string(4096, 'x'));
   rex::Shutdown();
   rex::ILogger& second = Start(config);
-  REQUIRE(second.FilePath().filename() == "run_002.log");
+  REQUIRE(second.GetFilePath().filename() == "run_002.log");
   rex::Shutdown();
   config.log.file.folder_budget = 1;
   Start(config);
@@ -300,15 +300,15 @@ REX_TEST_CASE_METHOD(Fixture, "A log.flush_interval of 0 starts no flush thread"
   config.log.flush_interval = std::chrono::seconds(0);
   Start(config);
   std::this_thread::sleep_for(std::chrono::milliseconds(200));
-  const rex::u64 without_flush = rex::platform::detail::ThreadCount();
+  const rex::u64 without_flush = rex::platform::detail::GetThreadCount();
   rex::Shutdown();
   api = nullptr;
 
   config.log.flush_interval = std::chrono::seconds(1);
-  config.cvars.values.push_back({"log.flush_interval", "0", rex::cvar::CvarSource::CommandLine});
+  config.cvars.values.push_back({"log.flush_interval", "0", rex::cvar::CvarSource::kCommandLine});
   Start(config);
   std::this_thread::sleep_for(std::chrono::milliseconds(200));
-  CHECK(rex::platform::detail::ThreadCount() == without_flush);
+  CHECK(rex::platform::detail::GetThreadCount() == without_flush);
   CHECK(Cvars().ResetToDefault("log.flush_interval"));
 }
 
@@ -319,10 +319,10 @@ REX_TEST_CASE_METHOD(Fixture, "The log config sets levels and log.file overrides
   config.log.categories = {&rex::log::test_gamma};
   config.log.levels.emplace("test_gamma", Level::kDebug);
   const auto path = temp.path / "override.log";
-  config.cvars.values.push_back({"log.file", path.string(), rex::cvar::CvarSource::CommandLine});
+  config.cvars.values.push_back({"log.file", path.string(), rex::cvar::CvarSource::kCommandLine});
   rex::ILogger& logger = Start(config);
   REQUIRE(logger.GetLevel("test_gamma").value() == Level::kDebug);
-  REQUIRE(logger.FilePath() == path);
+  REQUIRE(logger.GetFilePath() == path);
 }
 
 namespace {

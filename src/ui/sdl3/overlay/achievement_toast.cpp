@@ -10,7 +10,7 @@ namespace rex::ui {
 
 AchievementToastDialog::AchievementToastDialog(const ModuleOverlayContext& context)
     : AchievementNotificationDialog(context),
-      icon_cache_(context.base.ui.OverlayDrawer(), context.runtime) {}
+      icon_cache_(context.base.ui.GetOverlayDrawer(), context.runtime) {}
 
 AchievementToastDialog::~AchievementToastDialog() {}
 

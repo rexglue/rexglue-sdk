@@ -58,7 +58,7 @@ class REX_API InstanceLock : public MoveOnly {
    * Takes the lock.
    *
    * @param name Lock name, shared by every process of the app.
-   * @return The held lock, or ErrorCategory::Platform when another process holds it.
+   * @return The held lock, or ErrorCategory::kPlatform when another process holds it.
    */
   [[nodiscard]] static Result<InstanceLock> Acquire(std::string_view name);
 
@@ -71,7 +71,7 @@ class REX_API InstanceLock : public MoveOnly {
  * Starts this executable again as a new process and returns without waiting.
  *
  * @param args Arguments for the new process.
- * @return Ok, or ErrorCategory::Platform with the OS error.
+ * @return Ok, or ErrorCategory::kPlatform with the OS error.
  */
 [[nodiscard]] REX_API Result<void> Relaunch(std::span<const std::string> args);
 

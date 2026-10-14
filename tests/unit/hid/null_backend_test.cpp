@@ -26,11 +26,11 @@ REX_TEST_CASE("NullHIDBackend reports an idle pad on user 0 only", "[hid]") {
   CHECK(static_cast<rex::u16>(state->gamepad.buttons) == 0);
   auto caps = backend.GetCapabilities(0, 0);
   REQUIRE(caps);
-  CHECK(caps->type == rex::hid::XINPUT_DEVTYPE_GAMEPAD);
+  CHECK(caps->type == rex::hid::kXInputDevTypeGamepad);
   for (rex::u32 user = 1; user < rex::hid::kMaxTitleUsers; ++user) {
     auto missing = backend.GetState(user);
     REQUIRE_FALSE(missing);
-    CHECK(CodeOf(missing.error()) == HIDError::NotConnected);
+    CHECK(CodeOf(missing.error()) == HIDError::kNotConnected);
   }
 }
 
@@ -38,7 +38,7 @@ REX_TEST_CASE("NullHIDBackend has no keystrokes and accepts vibration", "[hid]")
   NullHIDBackend backend;
   auto keystroke = backend.GetKeystroke(0, 0);
   REQUIRE_FALSE(keystroke);
-  CHECK(CodeOf(keystroke.error()) == HIDError::Empty);
+  CHECK(CodeOf(keystroke.error()) == HIDError::kEmpty);
   CHECK(backend.SetVibration(0, {}));
   CHECK_FALSE(backend.SetVibration(1, {}));
 }
@@ -58,8 +58,8 @@ REX_TEST_CASE("NullHIDBackend reports the idle pad connected once", "[hid]") {
 
 REX_TEST_CASE("NullHIDBackend has no keyboard or pointer", "[hid]") {
   NullHIDBackend backend;
-  backend.OnEvent({.kind = rex::hid::InputEvent::Kind::KeyDown, .key = rex::hid::VirtualKey::kA});
+  backend.OnEvent({.kind = rex::hid::InputEvent::Kind::kKeyDown, .key = rex::hid::VirtualKey::kA});
   CHECK_FALSE(backend.IsKeyDown(rex::hid::VirtualKey::kA));
-  CHECK_FALSE(backend.pointer().has_position);
-  CHECK(backend.pointer_mode() == rex::hid::PointerMode::Free);
+  CHECK_FALSE(backend.GetPointer().has_position);
+  CHECK(backend.GetPointerMode() == rex::hid::PointerMode::kFree);
 }

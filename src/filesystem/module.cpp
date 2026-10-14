@@ -11,7 +11,7 @@ namespace rex::filesystem {
 
 namespace {
 
-FilesystemModule& Instance() {
+FilesystemModule& GetInstance() {
   static FilesystemModule instance;
   return instance;
 }
@@ -19,25 +19,25 @@ FilesystemModule& Instance() {
 }  // namespace
 
 void* FilesystemModule::GetModule() {
-  return static_cast<IModule*>(&Instance());
+  return static_cast<IModule*>(&GetInstance());
 }
 
 void* FilesystemModule::GetFileSystem() {
-  return static_cast<IFileSystem*>(&Instance().file_system());
+  return static_cast<IFileSystem*>(&GetInstance().file_system_);
 }
 
-const char* FilesystemModule::Name() const {
+const char* FilesystemModule::GetName() const {
   return "rex-filesystem";
 }
 
-std::span<const char* const> FilesystemModule::RequiredInterfaces() const {
+std::span<const char* const> FilesystemModule::GetRequiredInterfaces() const {
   return {};
 }
 
 Result<void> FilesystemModule::Connect(IInterfaceFactory* factory, const Config& config) {
   REX_TRY(logger_, factory->Get<ILogger>());
   REX_TRY_VOID(logger_->Register(log::kFilesystemLog));
-  file_system_.set_game_mount_flags(config.filesystem.game_mount_flags);
+  file_system_.SetGameMountFlags(config.filesystem.game_mount_flags);
   return Ok();
 }
 

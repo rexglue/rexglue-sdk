@@ -67,13 +67,13 @@ struct X_LDR_DATA_TABLE_ENTRY {
 REX_STATIC_ASSERT_SIZE(X_LDR_DATA_TABLE_ENTRY, 0x64);
 
 /** Module kind, HLE kernel code or a loaded title image. */
-enum class ModuleType : u8 { Kernel, User };
+enum class ModuleType : u8 { kKernel, kUser };
 
 /** The container format of a loaded user module. */
-enum class ModuleFormat : u8 { Undefined, XEX, Elf };
+enum class ModuleFormat : u8 { kUndefined, kXEX, kELF };
 
-/** The launch request state that the Xam loader exports keep on the Xam module. */
-struct XamLoaderData {
+/** The launch request state that the XAM loader exports keep on the XAM module. */
+struct XAMLoaderData {
   /** True once XamLoaderSetLaunchData stored a non empty block. */
   bool launch_data_present = false;
 
@@ -108,7 +108,7 @@ struct KernelModuleData {
 
   /** Guest addresses of the variable exports of the module, bound at module creation. */
   rex::runtime::ExportVariables variables;
-  XamLoaderData loader_data; /**< Launch request state, used only by the Xam module. */
+  XAMLoaderData loader_data; /**< Launch request state, used only by the XAM module. */
   /** 1 ms timer that refreshes the tick count of KeTimeStampBundle, set only on Xboxkrnl. */
   std::unique_ptr<rex::platform::HighResolutionTimer> timestamp_timer;
 };
@@ -119,7 +119,7 @@ struct UserModuleData {
   u32 guest_xex_header = 0;
 
   /** Container format detected when the module was loaded. */
-  ModuleFormat module_format = ModuleFormat::Undefined;
+  ModuleFormat module_format = ModuleFormat::kUndefined;
 
   /** True when the XEX header sets the DLL flag, so load and unload call the entry point. */
   bool is_dll_module = false;
@@ -157,73 +157,80 @@ struct ModuleObject : public rex::NonCopyable {
   /**
    * Reports whether a module answers to a name.
    *
-   * @param name A path, a file name or a module name, compared case insensitively.
-   * @return True when the name matches the path, the file name or the name of the module.
+   * @param query A path, a file name or a module name, compared case insensitively.
+   * @return True when the query matches the path, the file name or the name of the module.
    */
-  REX_RUNTIME_API bool Matches(std::string_view name) const;
+  REX_RUNTIME_API bool Matches(std::string_view query) const;
 
   /**
    * Finds a resource section of a module.
    *
-   * @param name The section name.
+   * @param section_name The section name.
    * @param out_section_data Receives the guest address of the section.
    * @param out_section_size Receives the size of the section.
    * @return X_STATUS_SUCCESS, X_STATUS_NOT_FOUND, or X_STATUS_UNSUCCESSFUL for a kernel module.
    */
-  REX_RUNTIME_API X_STATUS GetSection(std::string_view name, u32* out_section_data,
+  REX_RUNTIME_API X_STATUS GetSection(std::string_view section_name, u32* out_section_data,
                                       u32* out_section_size) const;
 
   /**
    * Finds an exported function of a module. A kernel module returns a thunk.
    *
-   * @param runtime The runtime the call runs in.
+   * @param owning_runtime The runtime the call runs in.
    * @param ordinal The export ordinal.
    * @param caller_address The guest address of the caller, used to key kernel thunks.
    * @return The guest address, 0 when the module has no such export.
    */
-  REX_RUNTIME_API u32 GetProcAddress(Runtime& runtime, u16 ordinal, u32 caller_address = 0);
+  REX_RUNTIME_API u32 GetProcAddress(Runtime& owning_runtime, u16 ordinal, u32 caller_address = 0);
 
   /**
    * Finds an exported function of a module by name.
    *
-   * @param name The export name.
+   * @param export_name The export name.
    * @return The guest address, 0 when the module has no such export.
    */
-  REX_RUNTIME_API u32 GetProcAddress(std::string_view name) const;
+  REX_RUNTIME_API u32 GetProcAddress(std::string_view export_name) const;
 
   /**
    * Returns the XEX image of a user module.
    *
    * @return The XEX module.
    */
-  REX_RUNTIME_API rex::runtime::XEXModule* xex() const;
+  REX_RUNTIME_API rex::runtime::XEXModule* GetXEX();
+
+  /**
+   * Returns the XEX image of a user module for reading.
+   *
+   * @return The XEX module.
+   */
+  REX_RUNTIME_API const rex::runtime::XEXModule* GetXEX() const;
 
   /**
    * Returns the title ID of a user module.
    *
    * @return The title ID of the XEX header, 0 when the module is not an XEX or has none.
    */
-  REX_RUNTIME_API u32 title_id() const;
+  REX_RUNTIME_API u32 GetTitleId() const;
 
   /**
    * Loads a module image from a file and applies a sibling XEX patch when one exists.
    *
-   * @param runtime The runtime the call runs in.
-   * @param path The guest path of the file.
+   * @param owning_runtime The runtime the call runs in.
+   * @param guest_path The guest path of the file.
    * @return X_STATUS_SUCCESS, or the status of the first step that failed.
    */
-  REX_RUNTIME_API X_STATUS LoadFromFile(Runtime& runtime, std::string_view path);
+  REX_RUNTIME_API X_STATUS LoadFromFile(Runtime& owning_runtime, std::string_view guest_path);
 
   /**
    * Loads a module image from memory.
    *
-   * @param runtime The runtime the call runs in.
+   * @param owning_runtime The runtime the call runs in.
    * @param addr The host address of the image.
    * @param length The size of the image.
    * @return X_STATUS_PENDING for an XEX that needs its second load step, X_STATUS_SUCCESS for an
    * ELF, or the failure status.
    */
-  REX_RUNTIME_API X_STATUS LoadFromMemory(Runtime& runtime, const void* addr, size_t length);
+  REX_RUNTIME_API X_STATUS LoadFromMemory(Runtime& owning_runtime, const void* addr, size_t length);
 
   /**
    * Unloads the image of a user module.

@@ -28,7 +28,7 @@ namespace rex::platform::detail {
  * @param signal_context The ucontext_t the signal handler receives.
  * @return The interrupted instruction pointer.
  */
-inline u64 SignalPc(void* signal_context) {
+inline u64 SignalPC(void* signal_context) {
   auto* ucontext = static_cast<ucontext_t*>(signal_context);
 #if REX_ARCH_AMD64 && REX_PLATFORM_MAC
   return ucontext->uc_mcontext->__ss.__rip;

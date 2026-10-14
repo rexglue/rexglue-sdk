@@ -35,7 +35,7 @@ using rex::testing::KernelFixture;
 namespace {
 
 u32 KThread(Caller& c) {
-  return c.Load32(c.ctx().r13.u32 + 0x100);
+  return c.Load32(c.GetCtx().r13.u32 + 0x100);
 }
 
 u32 SpawnWithStack(Caller& c, u32 stack_size, std::function<void(Caller&)> body, u32 flags = 0) {
@@ -66,10 +66,10 @@ u32 StackSizeOf(Caller& c, u32 stack_size) {
 
 bool WaitForTitlePages(rex::runtime::Memory& memory, u32 pages) {
   const auto until = std::chrono::steady_clock::now() + std::chrono::seconds(2);
-  while (memory.title_pages() != pages && std::chrono::steady_clock::now() < until) {
+  while (memory.GetTitlePages() != pages && std::chrono::steady_clock::now() < until) {
     std::this_thread::sleep_for(std::chrono::milliseconds(1));
   }
-  return memory.title_pages() == pages;
+  return memory.GetTitlePages() == pages;
 }
 
 u32 Reference(Caller& c, u32 handle) {
@@ -190,7 +190,7 @@ REX_TEST_CASE("threads: a queued user APC runs during an alertable wait", "[char
   g_apc_calls = 0;
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    auto* dispatcher = c.runtime().function_dispatcher();
+    auto* dispatcher = c.GetRuntime().GetFunctionDispatcher();
     const u32 routine = dispatcher->AllocateThunk(
         +[](PPCContext& ctx, u8*) {
           ++g_apc_calls;
@@ -229,7 +229,7 @@ REX_TEST_CASE("threads: a guest APC with a kernel routine is delivered without f
   g_normal_at = 0;
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    auto* dispatcher = c.runtime().function_dispatcher();
+    auto* dispatcher = c.GetRuntime().GetFunctionDispatcher();
     const u32 kernel_routine = dispatcher->AllocateThunk(
         +[](PPCContext& ctx, u8*) {
           g_kernel_at = ++g_sequence;
@@ -250,7 +250,7 @@ REX_TEST_CASE("threads: a guest APC with a kernel routine is delivered without f
     CHECK(g_kernel_at == 1);
     CHECK(g_normal_at == 2);
     rex::runtime::HeapAllocationInfo info{};
-    REQUIRE(c.runtime().memory()->LookupHeap(apc)->QueryRegionInfo(apc, &info));
+    REQUIRE(c.GetRuntime().GetMemory()->LookupHeap(apc)->QueryRegionInfo(apc, &info));
     CHECK((info.state & rex::runtime::kMemoryAllocationCommit) != 0);
   });
 }
@@ -261,7 +261,7 @@ REX_TEST_CASE("threads: an APC queued before a non-alertable wait runs at the ne
   g_apc_calls = 0;
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    const u32 routine = c.runtime().function_dispatcher()->AllocateThunk(
+    const u32 routine = c.GetRuntime().GetFunctionDispatcher()->AllocateThunk(
         +[](PPCContext& ctx, u8*) {
           ++g_apc_calls;
           ctx.r3.u64 = 0;
@@ -324,7 +324,7 @@ REX_TEST_CASE("threads: title termination ends a thread that suspends itself",
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
   });
   const auto start = std::chrono::steady_clock::now();
-  fixture.runtime().TerminateTitle();
+  fixture.GetRuntime().TerminateTitle();
   const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
                            std::chrono::steady_clock::now() - start)
                            .count();
@@ -334,7 +334,7 @@ REX_TEST_CASE("threads: title termination ends a thread that suspends itself",
 REX_TEST_CASE("threads: a stack of size 0 takes the process default", "[char][threads][stack]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    const u32 process = c.runtime().title_process();
+    const u32 process = c.GetRuntime().GetTitleProcess();
     CHECK(c.Load32(process + 0x1C) == 0x10000);
     CHECK(StackSizeOf(c, 0) == 0x10000);
     c.Store32(process + 0x1C, 0x6000);
@@ -357,7 +357,7 @@ REX_TEST_CASE("threads: the guard page is invalid and the TLS block starts at th
     CHECK(c.Kernel("MmIsAddressValid", {guard + 0xFFFF}) == 0);
     CHECK(c.Kernel("MmIsAddressValid", {limit}) == 1);
     CHECK(c.Kernel("MmIsAddressValid", {base - 4}) == 1);
-    CHECK(c.Load32(c.ctx().r13.u32) == base);
+    CHECK(c.Load32(c.GetCtx().r13.u32) == base);
     CHECK(c.Load32(kthread + 0x68) == base);
   });
 }
@@ -366,11 +366,11 @@ REX_TEST_CASE("threads: a guest stack counts against the budget while the thread
               "[char][threads][stack]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    auto* memory = c.runtime().memory();
-    const u32 before = memory->title_pages();
+    auto* memory = c.GetRuntime().GetMemory();
+    const u32 before = memory->GetTitlePages();
     auto used = std::make_shared<std::atomic<u32>>(0);
-    const u32 handle =
-        SpawnWithStack(c, 0x10000, [used, memory](Caller&) { used->store(memory->title_pages()); });
+    const u32 handle = SpawnWithStack(
+        c, 0x10000, [used, memory](Caller&) { used->store(memory->GetTitlePages()); });
     Join(c, handle);
     CHECK(used->load() - before == 32);
     CHECK(WaitForTitlePages(*memory, before));
@@ -381,9 +381,9 @@ REX_TEST_CASE("threads: ExCreateThread past the budget returns X_STATUS_NO_MEMOR
               "[char][threads][stack]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    auto* memory = c.runtime().memory();
-    memory->SetBudget(memory->title_pages() / 256 + 1);
-    const u32 room = memory->budget_pages() - memory->title_pages();
+    auto* memory = c.GetRuntime().GetMemory();
+    memory->SetBudget(memory->GetTitlePages() / 256 + 1);
+    const u32 room = memory->GetBudgetPages() - memory->GetTitlePages();
     u32 filler = 0;
     if (room > 8) {
       CHECKED_ELSE(memory->LookupHeap(0x10000000)
@@ -412,17 +412,17 @@ REX_TEST_CASE(
     "[char][threads][stack]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    auto* memory = c.runtime().memory();
-    const u32 before = memory->title_pages();
+    auto* memory = c.GetRuntime().GetMemory();
+    const u32 before = memory->GetTitlePages();
     const u32 base = c.Kernel("MmCreateKernelStack", {0x4000, 0});
     CHECKED_ELSE(base != 0) {
       FAIL_CHECK("the check above failed");
       return;
     }
     CHECK(c.Kernel("MmIsAddressValid", {base - 0x4000}) == 1);
-    CHECK(memory->title_pages() == before + 16);
+    CHECK(memory->GetTitlePages() == before + 16);
     CHECK(c.Kernel("MmDeleteKernelStack", {base, base - 0x4000}) == 0);
-    CHECK(memory->title_pages() == before);
+    CHECK(memory->GetTitlePages() == before);
   });
 }
 
@@ -447,7 +447,7 @@ REX_TEST_CASE("threads: exit writes the exit code, state 4, the exit time and th
               "[char][threads][exit]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    const u32 process = c.runtime().title_process();
+    const u32 process = c.GetRuntime().GetTitleProcess();
     const u32 count = c.Load32(process + 0x14);
     auto stage = std::make_shared<std::atomic<int>>(0);
     const u32 handle = c.Spawn([stage](Caller& t) {
@@ -476,7 +476,7 @@ REX_TEST_CASE("threads: a stop writes the same exit state before a waiter wakes"
               "[char][threads][exit]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    const u32 process = c.runtime().title_process();
+    const u32 process = c.GetRuntime().GetTitleProcess();
     const u32 handle = c.Spawn([](Caller&) {}, 1);
     const u32 kthread = Reference(c, handle);
     const u32 count = c.Load32(process + 0x14);
@@ -487,7 +487,7 @@ REX_TEST_CASE("threads: a stop writes the same exit state before a waiter wakes"
     });
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
     {
-      auto pin = c.runtime().thread_registry().FindByHandle(handle);
+      auto pin = c.GetRuntime().GetThreadRegistry().FindByHandle(handle);
       CHECKED_ELSE(pin) {
         FAIL_CHECK("the check above failed");
         return;
@@ -533,14 +533,14 @@ REX_TEST_CASE("threads: kernel time grows across a busy loop and a wait",
 REX_TEST_CASE("threads: a new thread starts on its creator's processor", "[char][threads][cpu]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    CHECK(c.Load8(c.ctx().r13.u32 + 0x10C) == 0);
+    CHECK(c.Load8(c.GetCtx().r13.u32 + 0x10C) == 0);
     auto parent = std::make_shared<std::atomic<u32>>(0xFF);
     auto child = std::make_shared<std::atomic<u32>>(0xFF);
     const u32 handle = c.Spawn(
         [parent, child](Caller& t) {
-          parent->store(t.Load8(t.ctx().r13.u32 + 0x10C));
+          parent->store(t.Load8(t.GetCtx().r13.u32 + 0x10C));
           const u32 inner =
-              t.Spawn([child](Caller& u) { child->store(u.Load8(u.ctx().r13.u32 + 0x10C)); });
+              t.Spawn([child](Caller& u) { child->store(u.Load8(u.GetCtx().r13.u32 + 0x10C)); });
           t.Kernel("NtWaitForSingleObjectEx", {inner, 1, 0, t.Quad(-50000000)});
           t.Kernel("NtClose", {inner});
         },

@@ -52,7 +52,7 @@ class HostProvider final : public Provider {
    *
    * @return The name and geometry.
    */
-  [[nodiscard]] VolumeInfo Volume() const override;
+  [[nodiscard]] VolumeInfo GetVolume() const override;
 
   /**
    * Returns the node at a path, looking it up on the host when the tree lacks it, case
@@ -95,7 +95,7 @@ class HostNode final : public Node {
    *
    * @return A copy of the host path.
    */
-  [[nodiscard]] std::filesystem::path host_path() const;
+  [[nodiscard]] std::filesystem::path GetHostPath() const;
 
   /**
    * Reads the host tree under this folder into child nodes. A folder already on the walk, reached
@@ -106,7 +106,7 @@ class HostNode final : public Node {
   [[nodiscard]] Result<std::unique_ptr<NodeStream>> Open(Access access) override;
   [[nodiscard]] Result<void> Truncate() override;
   void Refresh() override;
-  [[nodiscard]] bool ChildVanished(const Node& child) const override;
+  [[nodiscard]] bool HasChildVanished(const Node& child) const override;
   [[nodiscard]] Result<void> SetAttributes(FileAttributes attributes) override;
   [[nodiscard]] Result<void> SetTimes(const FileTimes& times) override;
 
@@ -119,7 +119,7 @@ class HostNode final : public Node {
   void OnMoved() override;
   void Populate(std::vector<std::pair<u64, u64>>& ancestors);
 
-  [[nodiscard]] HostProvider& host() const { return static_cast<HostProvider&>(provider()); }
+  [[nodiscard]] HostProvider& GetHost() const { return static_cast<HostProvider&>(GetProvider()); }
 
   std::filesystem::path host_path_;
 };

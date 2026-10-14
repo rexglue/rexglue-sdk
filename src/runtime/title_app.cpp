@@ -36,7 +36,7 @@ namespace rex {
 namespace detail {
 
 #if REX_PLATFORM_WIN32
-CLIArgList WindowsCommandLine() {
+CLIArgList GetWindowsCommandLine() {
   i32 count = 0;
   LPWSTR* wide = CommandLineToArgvW(GetCommandLineW(), &count);
   if (!wide) {
@@ -44,7 +44,7 @@ CLIArgList WindowsCommandLine() {
   }
   std::vector<std::string> args;
   for (i32 index = 1; index < count; ++index) {
-    args.push_back(rex::to_utf8(reinterpret_cast<const char16_t*>(wide[index])));
+    args.push_back(rex::ToUTF8(reinterpret_cast<const char16_t*>(wide[index])));
   }
   LocalFree(static_cast<HLOCAL>(wide));
   return CLIArgList::Parse(args);
@@ -80,11 +80,11 @@ void SetInvokeTarget(IUserInterface* target) {
 
 std::string ExitMessage(runtime::TitleExitReason reason) {
   switch (reason) {
-    case runtime::TitleExitReason::NormalExit:
+    case runtime::TitleExitReason::kNormalExit:
       return "The title has exited.";
-    case runtime::TitleExitReason::HardExit:
+    case runtime::TitleExitReason::kHardExit:
       return "The title returned to the dashboard.";
-    case runtime::TitleExitReason::TitleDataError:
+    case runtime::TitleExitReason::kTitleDataError:
       return "The title could not read its data from the disc.";
   }
   return "The title has exited.";
@@ -100,8 +100,8 @@ bool InvokeFunction(rex::MoveOnlyFunction<void()> fn) {
   return g_invoke_target->Post(std::move(fn));
 }
 
-ImFontAtlas& TitleUI::Fonts() {
-  return *app_.ui_->Fonts();
+ImFontAtlas& TitleUI::GetFonts() {
+  return *app_.ui_->GetFonts();
 }
 
 ImGuiStyle& TitleUI::GetImGuiStyle() {
@@ -116,7 +116,7 @@ IWindow& TitleUI::GetWindow() {
   return *app_.ui_->GetWindow();
 }
 
-IUserInterface& TitleUI::Overlays() {
+IUserInterface& TitleUI::GetOverlays() {
   return *app_.ui_;
 }
 
@@ -136,13 +136,13 @@ Result<void> TitleApp::Init(const CLIArgList& args, const PPCImageInfo& image) {
   image_ = image;
   const std::filesystem::path exe = platform::GetExecutablePath();
   const std::string name = exe.stem().string();
-  Config& cfg = config();
+  Config& cfg = GetConfig();
   cfg.modules = {"rex-apu-sdl3", "rex-hid-sdl3", "rex-gpu-xenos", "rex-ui-sdl3"};
   cfg.paths.user_data_root = platform::GetUserFolder() / name;
   cfg.paths.cache_root = cfg.paths.user_data_root / "cache";
   cfg.paths.config_file = exe.parent_path() / (name + ".toml");
   REX_TRY_VOID(App::Init(args));
-  ui_ = api().Get<IUserInterface>();
+  ui_ = GetAPI().Get<IUserInterface>();
   if (!ui_) {
     REXLOG_INFO(ui, "no module serves rex.ui, running headless");
     ui_ = &null_ui_;
@@ -161,7 +161,7 @@ Result<void> TitleApp::CreateTitleWindow() {
   com_initialized_ = ::rex::detail::InitializeCOM();
   ::rex::detail::SetShutdownWake([ui = ui_] { ui->Quit(); });
 
-  gpu_ = api().Get<gpu::IGPUBackend>();
+  gpu_ = GetAPI().Get<gpu::IGPUBackend>();
   if (gpu_) {
     if (auto presented = gpu_->SetupPresentation(*this); !presented) {
       return LaunchFailure(
@@ -174,7 +174,7 @@ Result<void> TitleApp::CreateTitleWindow() {
     return Ok();
   }
 
-  UIConfig ui_config = api().config().ui;
+  UIConfig ui_config = GetAPI().GetConfig().ui;
   if (ui_config.title.empty()) {
     ui_config.title = platform::GetExecutablePath().stem().string() + " " + REXGLUE_BUILD_TITLE;
   }
@@ -184,7 +184,7 @@ Result<void> TitleApp::CreateTitleWindow() {
     return LaunchFailure(std::format("window open failed, {}", opened.error().message));
   }
 
-  gpu::IPresenter* presenter = gpu_ ? gpu_->presenter() : nullptr;
+  gpu::IPresenter* presenter = gpu_ ? gpu_->GetPresenter() : nullptr;
   if (presenter) {
     if (auto drawer = gpu_->CreateOverlayDrawer(*presenter); drawer) {
       ui_->SetOverlayDrawer(std::move(*drawer));
@@ -218,14 +218,14 @@ void TitleApp::Run() {
 
 bool TitleApp::OnWindowEvent(const UIEvent& event) {
   const bool consumed = events_ready_ && OnEvent(event);
-  if (!consumed && event.type() == UIEvent::Type::Close) {
+  if (!consumed && event.GetType() == UIEvent::Type::kClose) {
     RequestShutdown(0);
   }
   return consumed;
 }
 
 Result<void> TitleApp::LaunchFailure(std::string_view message) {
-  return Fail("title", Error(ErrorCategory::Runtime, std::string(message)));
+  return Fail("title", Error(ErrorCategory::kRuntime, std::string(message)));
 }
 
 Result<void> TitleApp::LaunchTitle() {
@@ -235,7 +235,7 @@ Result<void> TitleApp::LaunchTitle() {
   if (!events_ready_) {
     return LaunchFailure("LaunchTitle needs CreateTitleWindow first");
   }
-  const PathsConfig& paths = api().config().paths;
+  const PathsConfig& paths = GetAPI().GetConfig().paths;
   if (paths.game_data_root.empty()) {
     return LaunchFailure("--game_data_root was not provided");
   }
@@ -244,19 +244,19 @@ Result<void> TitleApp::LaunchTitle() {
         std::format("--game_data_root does not exist: {}", paths.game_data_root.string()));
   }
 
-  runtime_ = std::make_unique<Runtime>(api().config());
+  runtime_ = std::make_unique<Runtime>(GetAPI().GetConfig());
 
   RuntimeDesc runtime_config;
   runtime_config.kernel_init = kernel::InitializeKernel;
   runtime_config.gpu = gpu_;
-  runtime_config.file_system = api().Get<filesystem::IFileSystem>();
+  runtime_config.file_system = GetAPI().Get<filesystem::IFileSystem>();
   runtime_config.video_mode = ui_->GetVideoMode();
   runtime_config.ui = ui_;
   if (auto setup = runtime_->Setup(image_, runtime_config); !setup) {
     return LaunchFailure(std::format("runtime setup failed, {}", setup.error().message));
   }
   if (image_.register_modules) {
-    image_.register_modules(runtime_->module_registry());
+    image_.register_modules(runtime_->GetModuleRegistry());
   }
 
   constexpr std::string_view kImage = "game:\\default.xex";
@@ -269,7 +269,7 @@ Result<void> TitleApp::LaunchTitle() {
         std::format("Failed to load XEX ({}), {}", kImage, loaded.error().message));
   }
   if (image_.shim_heap &&
-      !kernel::shim::InitHeap(api().config().runtime.heap_size_mb, runtime_->memory())) {
+      !kernel::shim::InitHeap(GetAPI().GetConfig().runtime.heap_size_mb, runtime_->GetMemory())) {
     return LaunchFailure("shim heap initialization failed");
   }
 
@@ -283,9 +283,9 @@ Result<void> TitleApp::LaunchTitle() {
   if (!main_thread) {
     return LaunchFailure("the title's main thread could not be created");
   }
-  if (gpu_ && !runtime_->cache_root().empty()) {
-    if (const u32 title_id = runtime_->content_manager().title_id(); title_id != 0) {
-      if (auto storage = gpu_->InitializeShaderStorage(runtime_->cache_root(), title_id, true);
+  if (gpu_ && !runtime_->GetCacheRoot().empty()) {
+    if (const u32 title_id = runtime_->GetContentManager().GetTitleId(); title_id != 0) {
+      if (auto storage = gpu_->InitializeShaderStorage(runtime_->GetCacheRoot(), title_id, true);
           !storage) {
         REXLOG_WARN(ui, "{}", storage.error().message);
       }
@@ -294,11 +294,11 @@ Result<void> TitleApp::LaunchTitle() {
   runtime_->OnTitleExit([this](runtime::TitleExitReason reason) {
     InvokeFunction([this, reason] { OnTitleExit(reason); });
   });
-  runtime_->thread_registry().FindByHandle(main_thread)->Resume();
+  runtime_->GetThreadRegistry().FindByHandle(main_thread)->Resume();
   title_monitor_ = platform::Spawn("Title Monitor", [this, main_thread](const std::stop_token&) {
     runtime::Wait(*runtime_, main_thread, 0, 0, 0, nullptr);
-    runtime::CloseOwned(runtime_->object_table(), main_thread);
-    runtime_->ReportTitleExit(runtime::TitleExitReason::NormalExit);
+    runtime::CloseOwned(runtime_->GetObjectTable(), main_thread);
+    runtime_->ReportTitleExit(runtime::TitleExitReason::kNormalExit);
   });
   return Ok();
 }
@@ -338,18 +338,18 @@ void TitleApp::OnTitleExit(runtime::TitleExitReason reason) {
 
 void TitleApp::ReportError(std::string_view message) {
   App::ReportError(message);
-  if (config().ui.video_driver == "dummy") {
+  if (GetConfig().ui.video_driver == "dummy") {
     return;
   }
   if (ui_ && ui_ != &null_ui_) {
-    ui_->ShowMessage(MessageKind::Error, platform::GetExecutablePath().stem().string(), message);
+    ui_->ShowMessage(MessageKind::kError, platform::GetExecutablePath().stem().string(), message);
   } else {
-    ShowSimpleMessageBox(SimpleMessageBoxType::Error, message);
+    ShowSimpleMessageBox(SimpleMessageBoxType::kError, message);
   }
 }
 
-platform::CrashReporterOptions TitleApp::CrashOptions() {
-  return {.show_dialog = config().ui.video_driver != "dummy"};
+platform::CrashReporterOptions TitleApp::GetCrashOptions() {
+  return {.show_dialog = GetConfig().ui.video_driver != "dummy"};
 }
 
 void TitleApp::RequireModules(Config& config) {
@@ -369,7 +369,7 @@ void TitleApp::Stop() {
     ui_->CancelPrompts();
     ui_->SetRuntime(nullptr);
   }
-  if (runtime_ && runtime_->is_setup()) {
+  if (runtime_ && runtime_->IsSetup()) {
     runtime_->TerminateTitle();
   }
   if (ui_) {
@@ -401,7 +401,7 @@ IWindow& TitleApp::GetWindow() {
   return *ui_->GetWindow();
 }
 
-IUserInterface& TitleApp::UI() {
+IUserInterface& TitleApp::GetUI() {
   return *ui_;
 }
 

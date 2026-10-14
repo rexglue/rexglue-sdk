@@ -34,7 +34,7 @@ class Runtime;
 
 namespace rex::runtime {
 
-constexpr memory::fourcc_t kStashSignature = memory::make_fourcc('R', 'E', 'X', '\0');
+constexpr memory::FourCCT kStashSignature = memory::make_fourcc('R', 'E', 'X', '\0');
 
 /** Header at the start of every waitable kernel object. */
 struct X_DISPATCH_HEADER {
@@ -75,7 +75,7 @@ struct X_OBJECT_HEADER {
   be_u32 object_type_ptr; /**< Guest address of the X_OBJECT_TYPE of the object. */
   be_u16 flags;           /**< Zero, no object flag is set. */
   u8 hash_index;          /**< Zero when the block is allocated. */
-  u8 pad_0F;
+  u8 pad_15;
 };
 static_assert(offsetof(X_OBJECT_HEADER, object_type_ptr) == 0x8);
 static_assert(offsetof(X_OBJECT_HEADER, flags) == 0xC);
@@ -86,7 +86,7 @@ struct X_OBJECT_TYPE {
   be_u32 constructor;
   be_u32 destructor;
   be_u32 unk_08;
-  be_u32 unk_0C;
+  be_u32 unk_0c;
   be_u32 unk_10;
   be_u32 unk_14;
   be_u32 pool_tag;
@@ -95,19 +95,19 @@ REX_STATIC_ASSERT_SIZE(X_OBJECT_TYPE, 0x1C);
 
 /** Kinds of kernel object a handle can name. */
 enum class ObjectKind : u8 {
-  Event,          /**< Selects `EventObject` in `ObjectData`. */
-  Semaphore,      /**< Selects `SemaphoreObject` in `ObjectData`. */
-  Mutant,         /**< Selects `MutantObject` in `ObjectData`. */
-  Timer,          /**< Selects `TimerObject` in `ObjectData`. */
-  File,           /**< Selects `FileObject` in `ObjectData`. */
-  Socket,         /**< Selects `SocketObject` in `ObjectData`. */
-  NotifyListener, /**< Selects `NotifyListenerObject` in `ObjectData`. */
-  IOCompletion,   /**< Selects `IOCompletionObject` in `ObjectData`. */
-  Enumerator,     /**< Selects `EnumeratorObject` in `ObjectData`. */
-  SymbolicLink,   /**< Selects `SymbolicLinkObject` in `ObjectData`. */
-  Module,         /**< Selects `ModuleObject` in `ObjectData`. */
-  Thread,         /**< Selects `ThreadRef` in `ObjectData`. */
-  Session,        /**< Selects `SessionObject` in `ObjectData`. */
+  kEvent,          /**< Selects `EventObject` in `ObjectData`. */
+  kSemaphore,      /**< Selects `SemaphoreObject` in `ObjectData`. */
+  kMutant,         /**< Selects `MutantObject` in `ObjectData`. */
+  kTimer,          /**< Selects `TimerObject` in `ObjectData`. */
+  kFile,           /**< Selects `FileObject` in `ObjectData`. */
+  kSocket,         /**< Selects `SocketObject` in `ObjectData`. */
+  kNotifyListener, /**< Selects `NotifyListenerObject` in `ObjectData`. */
+  kIOCompletion,   /**< Selects `IOCompletionObject` in `ObjectData`. */
+  kEnumerator,     /**< Selects `EnumeratorObject` in `ObjectData`. */
+  kSymbolicLink,   /**< Selects `SymbolicLinkObject` in `ObjectData`. */
+  kModule,         /**< Selects `ModuleObject` in `ObjectData`. */
+  kThread,         /**< Selects `ThreadRef` in `ObjectData`. */
+  kSession,        /**< Selects `SessionObject` in `ObjectData`. */
 };
 
 /** The value added to a table slot index, shifted left by 2, to form a handle. */

@@ -5,15 +5,15 @@
 
 namespace rex::codegen::detail {
 
-constexpr u32 SPR_LR = 8;
-constexpr u32 SPR_CTR = 9;
+constexpr u32 kSPRLR = 8;
+constexpr u32 kSPRCTR = 9;
 
-bool Instruction::is_branch() const {
-  const auto& info = get_opcode_info(opcode);
+bool Instruction::IsBranch() const {
+  const auto& info = GetOpcodeInfo(opcode);
   return info.group == OpcodeGroup::kBranch;
 }
 
-bool Instruction::is_call() const {
+bool Instruction::IsCall() const {
   switch (opcode) {
     case Opcode::bl:
     case Opcode::bla:
@@ -27,7 +27,7 @@ bool Instruction::is_call() const {
   }
 }
 
-bool Instruction::is_return() const {
+bool Instruction::IsReturn() const {
   // blr is bclr with BO=20, the unconditional form
   if (opcode == Opcode::bclr) {
     return (raw == 0x4E800020);
@@ -35,7 +35,7 @@ bool Instruction::is_return() const {
   return false;
 }
 
-bool Instruction::is_conditional() const {
+bool Instruction::IsConditional() const {
   switch (opcode) {
     case Opcode::bc:
     case Opcode::bca:
@@ -53,24 +53,24 @@ bool Instruction::is_conditional() const {
   }
 }
 
-Instruction decode_instruction(guest_addr_t address, u32 code) {
+Instruction DecodeInstruction(GuestAddrT address, u32 code) {
   Instruction instr;
   instr.address = address;
   instr.code = code;
   instr.raw = code;
 
-  instr.opcode = lookup_opcode(code);
+  instr.opcode = LookupOpcode(code);
 
-  const auto& info = get_opcode_info(instr.opcode);
+  const auto& info = GetOpcodeInfo(instr.opcode);
   instr.format = info.format;
 
-  if (instr.is_branch()) {
+  if (instr.IsBranch()) {
     switch (instr.format) {
       case InstrFormat::kI: {
-        i32 offset = Instruction::get_i_offset(code);
+        i32 offset = Instruction::GetIOffset(code);
         bool aa = (code >> 1) & 1;
         if (aa) {
-          instr.branch_target = static_cast<guest_addr_t>(offset & 0xFFFFFFFF);
+          instr.branch_target = static_cast<GuestAddrT>(offset & 0xFFFFFFFF);
         } else {
           instr.branch_target = address + offset;
         }
@@ -78,10 +78,10 @@ Instruction decode_instruction(guest_addr_t address, u32 code) {
       }
 
       case InstrFormat::kB: {
-        i32 offset = Instruction::get_b_offset(code);
+        i32 offset = Instruction::GetBOffset(code);
         bool aa = (code >> 1) & 1;
         if (aa) {
-          instr.branch_target = static_cast<guest_addr_t>(offset & 0xFFFF);
+          instr.branch_target = static_cast<GuestAddrT>(offset & 0xFFFF);
         } else {
           instr.branch_target = address + offset;
         }
@@ -124,27 +124,27 @@ Instruction decode_instruction(guest_addr_t address, u32 code) {
     instr.opcode = Opcode::mr;
   }
 
-  if (instr.opcode == Opcode::mfspr && instr.XFX.spr_num() == SPR_LR) {
+  if (instr.opcode == Opcode::mfspr && instr.XFX.GetSPRNum() == kSPRLR) {
     instr.opcode = Opcode::mflr;
   }
 
-  if (instr.opcode == Opcode::mtspr && instr.XFX.spr_num() == SPR_LR) {
+  if (instr.opcode == Opcode::mtspr && instr.XFX.GetSPRNum() == kSPRLR) {
     instr.opcode = Opcode::mtlr;
   }
 
-  if (instr.opcode == Opcode::mfspr && instr.XFX.spr_num() == SPR_CTR) {
+  if (instr.opcode == Opcode::mfspr && instr.XFX.GetSPRNum() == kSPRCTR) {
     instr.opcode = Opcode::mfctr;
   }
 
-  if (instr.opcode == Opcode::mtspr && instr.XFX.spr_num() == SPR_CTR) {
+  if (instr.opcode == Opcode::mtspr && instr.XFX.GetSPRNum() == kSPRCTR) {
     instr.opcode = Opcode::mtctr;
   }
 
   return instr;
 }
 
-std::string Instruction::to_string() const {
-  const auto& info = get_opcode_info(opcode);
+std::string Instruction::ToString() const {
+  const auto& info = GetOpcodeInfo(opcode);
   return std::string(info.name);
 }
 }  // namespace rex::codegen::detail

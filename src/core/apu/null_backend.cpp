@@ -70,7 +70,7 @@ void NullAPUBackend::SetStereoFold(const StereoFold& fold) {
   fold_ = fold;
 }
 
-StereoFold NullAPUBackend::stereo_fold() const {
+StereoFold NullAPUBackend::GetStereoFold() const {
   std::lock_guard lock(mutex_);
   return fold_;
 }
@@ -80,7 +80,7 @@ void NullAPUBackend::SetSurroundMix(const SurroundMix& mix) {
   mix_ = mix;
 }
 
-SurroundMix NullAPUBackend::surround_mix() const {
+SurroundMix NullAPUBackend::GetSurroundMix() const {
   std::lock_guard lock(mutex_);
   return mix_;
 }
@@ -90,7 +90,7 @@ void NullAPUBackend::SetOutputGain(f32 linear) {
   gain_ = linear;
 }
 
-f32 NullAPUBackend::output_gain() const {
+f32 NullAPUBackend::GetOutputGain() const {
   std::lock_guard lock(mutex_);
   return gain_;
 }

@@ -30,20 +30,20 @@ class Surface : public rex::NonCopyable {
    * provider and the window.
    */
   enum TypeIndex : u8 {
-    kTypeIndex_WaylandSurface, /**< Preferred over xcb, which needs XWayland there. */
-    kTypeIndex_XcbWindow,      /**< X11 window through the XCB library. */
-    kTypeIndex_Win32Hwnd,      /**< Windows window handle. */
-    kTypeIndex_CAMetalLayer,   /**< Presented via MoltenVK with VK_EXT_metal_surface. */
+    kTypeIndexWaylandSurface, /**< Preferred over xcb, which needs XWayland there. */
+    kTypeIndexXCBWindow,      /**< X11 window through the XCB library. */
+    kTypeIndexWin32HWND,      /**< Windows window handle. */
+    kTypeIndexCAMetalLayer,   /**< Presented via MoltenVK with VK_EXT_metal_surface. */
   };
   /** Bit mask of `TypeIndex` values, 1 bit per surface type. */
   using TypeFlags = u32;
   enum : u8 {
-    /** Bit of kTypeIndex_WaylandSurface. */
-    kTypeFlag_WaylandSurface = TypeFlags(1) << kTypeIndex_WaylandSurface,
-    kTypeFlag_XcbWindow = TypeFlags(1) << kTypeIndex_XcbWindow, /**< Bit of kTypeIndex_XcbWindow. */
-    kTypeFlag_Win32Hwnd = TypeFlags(1) << kTypeIndex_Win32Hwnd, /**< Bit of kTypeIndex_Win32Hwnd. */
-    /** Bit of kTypeIndex_CAMetalLayer. */
-    kTypeFlag_CAMetalLayer = TypeFlags(1) << kTypeIndex_CAMetalLayer,
+    /** Bit of kTypeIndexWaylandSurface. */
+    kTypeFlagWaylandSurface = TypeFlags(1) << kTypeIndexWaylandSurface,
+    kTypeFlagXCBWindow = TypeFlags(1) << kTypeIndexXCBWindow, /**< Bit of kTypeIndexXCBWindow. */
+    kTypeFlagWin32HWND = TypeFlags(1) << kTypeIndexWin32HWND, /**< Bit of kTypeIndexWin32HWND. */
+    /** Bit of kTypeIndexCAMetalLayer. */
+    kTypeFlagCAMetalLayer = TypeFlags(1) << kTypeIndexCAMetalLayer,
   };
 
   virtual ~Surface() = default;

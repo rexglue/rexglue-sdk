@@ -57,7 +57,7 @@ class SDLWindowedAppContext final : public WindowedAppContext {
    *
    * @return The event type.
    */
-  u32 paint_event_type() const { return paint_event_type_; }
+  u32 GetPaintEventType() const { return paint_event_type_; }
 
   /**
    * Registers a window for event routing. UI thread only.
@@ -75,7 +75,7 @@ class SDLWindowedAppContext final : public WindowedAppContext {
   }
 
   /**
-   * Dispatches 1 SDL event. A paint event first drains a queued quit request, since CAMetalLayer
+   * Dispatches an SDL event. A paint event first drains a queued quit request, since CAMetalLayer
    * nextDrawable can block forever once Cocoa requests termination. The pump is needed because a
    * continuous stream of paint events keeps SDL_WaitEvent from returning to Cocoa to collect the
    * application menu quit.

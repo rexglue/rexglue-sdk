@@ -56,32 +56,32 @@ bool IsArm64LoadPrefetchStore(u32 instruction, bool& is_store_out) {
     return true;
   }
   switch (Arm64LoadStoreOp(instruction & kArm64LoadStoreMask)) {
-    case Arm64LoadStoreOp::kLDRB_w:
-    case Arm64LoadStoreOp::kLDRH_w:
-    case Arm64LoadStoreOp::kLDR_w:
-    case Arm64LoadStoreOp::kLDR_x:
-    case Arm64LoadStoreOp::kLDRSB_x:
-    case Arm64LoadStoreOp::kLDRSH_x:
-    case Arm64LoadStoreOp::kLDRSW_x:
-    case Arm64LoadStoreOp::kLDRSB_w:
-    case Arm64LoadStoreOp::kLDRSH_w:
-    case Arm64LoadStoreOp::kLDR_b:
-    case Arm64LoadStoreOp::kLDR_h:
-    case Arm64LoadStoreOp::kLDR_s:
-    case Arm64LoadStoreOp::kLDR_d:
-    case Arm64LoadStoreOp::kLDR_q:
+    case Arm64LoadStoreOp::kLDRBW:
+    case Arm64LoadStoreOp::kLDRHW:
+    case Arm64LoadStoreOp::kLDRW:
+    case Arm64LoadStoreOp::kLDRX:
+    case Arm64LoadStoreOp::kLDRSBX:
+    case Arm64LoadStoreOp::kLDRSHX:
+    case Arm64LoadStoreOp::kLDRSWX:
+    case Arm64LoadStoreOp::kLDRSBW:
+    case Arm64LoadStoreOp::kLDRSHW:
+    case Arm64LoadStoreOp::kLDRB:
+    case Arm64LoadStoreOp::kLDRH:
+    case Arm64LoadStoreOp::kLDRS:
+    case Arm64LoadStoreOp::kLDRD:
+    case Arm64LoadStoreOp::kLDRQ:
     case Arm64LoadStoreOp::kPRFM:
       is_store_out = false;
       return true;
-    case Arm64LoadStoreOp::kSTRB_w:
-    case Arm64LoadStoreOp::kSTRH_w:
-    case Arm64LoadStoreOp::kSTR_w:
-    case Arm64LoadStoreOp::kSTR_x:
-    case Arm64LoadStoreOp::kSTR_b:
-    case Arm64LoadStoreOp::kSTR_h:
-    case Arm64LoadStoreOp::kSTR_s:
-    case Arm64LoadStoreOp::kSTR_d:
-    case Arm64LoadStoreOp::kSTR_q:
+    case Arm64LoadStoreOp::kSTRBW:
+    case Arm64LoadStoreOp::kSTRHW:
+    case Arm64LoadStoreOp::kSTRW:
+    case Arm64LoadStoreOp::kSTRX:
+    case Arm64LoadStoreOp::kSTRB:
+    case Arm64LoadStoreOp::kSTRH:
+    case Arm64LoadStoreOp::kSTRS:
+    case Arm64LoadStoreOp::kSTRD:
+    case Arm64LoadStoreOp::kSTRQ:
       is_store_out = true;
       return true;
     default:

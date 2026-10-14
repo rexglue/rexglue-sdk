@@ -38,7 +38,7 @@ namespace rex {
  * @param string2 Second string.
  * @return Negative, 0 or positive as string1 orders before, equal to or after string2.
  */
-inline i32 compare_case(const char* string1, const char* string2) {
+inline i32 CompareCase(const char* string1, const char* string2) {
 #if REX_PLATFORM_WIN32
   return _stricmp(string1, string2);
 #else
@@ -54,7 +54,7 @@ inline i32 compare_case(const char* string1, const char* string2) {
  * @param count Maximum number of characters to compare.
  * @return Negative, 0 or positive as string1 orders before, equal to or after string2.
  */
-inline i32 compare_case_n(const char* string1, const char* string2, size_t count) {
+inline i32 CompareCaseN(const char* string1, const char* string2, size_t count) {
 #if REX_PLATFORM_WIN32
   return _strnicmp(string1, string2, count);
 #else
@@ -72,7 +72,7 @@ inline constexpr std::string_view kWhitespace = " \t\r\n";
  * @param chars Characters to remove.
  * @return View of sv without the leading characters, empty when every character matches.
  */
-inline std::string_view trim_left(std::string_view sv, std::string_view chars = kWhitespace) {
+inline std::string_view TrimLeft(std::string_view sv, std::string_view chars = kWhitespace) {
   auto start = sv.find_first_not_of(chars);
   return start == std::string_view::npos ? std::string_view{} : sv.substr(start);
 }
@@ -84,7 +84,7 @@ inline std::string_view trim_left(std::string_view sv, std::string_view chars = 
  * @param chars Characters to remove.
  * @return View of sv without the trailing characters, empty when every character matches.
  */
-inline std::string_view trim_right(std::string_view sv, std::string_view chars = kWhitespace) {
+inline std::string_view TrimRight(std::string_view sv, std::string_view chars = kWhitespace) {
   auto end = sv.find_last_not_of(chars);
   return end == std::string_view::npos ? std::string_view{} : sv.substr(0, end + 1);
 }
@@ -96,8 +96,8 @@ inline std::string_view trim_right(std::string_view sv, std::string_view chars =
  * @param chars Characters to remove.
  * @return View of sv without the leading and trailing characters.
  */
-inline std::string_view trim(std::string_view sv, std::string_view chars = kWhitespace) {
-  return trim_right(trim_left(sv, chars), chars);
+inline std::string_view Trim(std::string_view sv, std::string_view chars = kWhitespace) {
+  return TrimRight(TrimLeft(sv, chars), chars);
 }
 
 /**
@@ -107,8 +107,8 @@ inline std::string_view trim(std::string_view sv, std::string_view chars = kWhit
  * @param chars Characters to remove.
  * @return Copy of sv without the leading and trailing characters.
  */
-inline std::string trim_string(std::string_view sv, std::string_view chars = kWhitespace) {
-  return std::string(trim(sv, chars));
+inline std::string TrimString(std::string_view sv, std::string_view chars = kWhitespace) {
+  return std::string(Trim(sv, chars));
 }
 
 /**
@@ -117,7 +117,7 @@ inline std::string trim_string(std::string_view sv, std::string_view chars = kWh
  * @param source String to copy.
  * @return The copy. The caller frees it with free.
  */
-inline char* duplicate(const char* source) {
+inline char* Duplicate(const char* source) {
 #if REX_PLATFORM_WIN32
   return _strdup(source);
 #else
@@ -193,8 +193,8 @@ inline size_t copy_and_swap_truncating(char16_t* dest, const std::u16string_view
  * @param dest_buffer_count Size of dest in characters.
  * @return Characters copied.
  */
-inline size_t copy_unterminated(char* dest, const std::string_view source,
-                                size_t dest_buffer_count) {
+inline size_t CopyUnterminated(char* dest, const std::string_view source,
+                               size_t dest_buffer_count) {
   if (!dest_buffer_count) {
     return 0;
   }

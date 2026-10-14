@@ -51,7 +51,7 @@ std::optional<T> ReadAt(std::span<const u8> bytes, u64 offset) {
  * @param length Bytes in the range.
  * @return True when the whole range is inside bytes.
  */
-inline bool InBounds(std::span<const u8> bytes, u64 offset, u64 length) {
+inline bool IsInBounds(std::span<const u8> bytes, u64 offset, u64 length) {
   return offset <= bytes.size() && bytes.size() - offset >= length;
 }
 

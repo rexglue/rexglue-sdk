@@ -115,4 +115,4 @@ struct PPCFuncMapping {
   PPCFunc* host;  /**< Recompiled function. */
 };
 
-extern PPCFuncMapping PPCFuncMappings[];
+extern const PPCFuncMapping kPPCFuncMappings[];

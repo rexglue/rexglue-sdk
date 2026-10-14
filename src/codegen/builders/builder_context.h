@@ -51,7 +51,7 @@ struct RecompilerLocalVariables {
  * - **VMX** flushes denormals to zero. Used by vector floating-point
  *   instructions (vaddfp, vmaddfp and others)
  */
-enum class CSRState : u8 { Unknown, FPU, VMX };
+enum class CSRState : u8 { kUnknown, kFPU, kVMX };
 
 /**
  * @brief Context passed to instruction builders during code generation.
@@ -61,7 +61,7 @@ struct BuilderContext {
   std::string& out;
 
   /** Emission context (binary, config, graph). */
-  const EmitContext& emitCtx;
+  const EmitContext& emit_ctx;
 
   /** The function being recompiled (FunctionNode from graph). */
   const FunctionNode& fn;
@@ -79,10 +79,10 @@ struct BuilderContext {
   RecompilerLocalVariables& locals;
 
   /** Current CSR state for flush mode (FPU vs VMX). */
-  CSRState& csrState;
+  CSRState& csr_state;
 
   /** Pointer to active jump table for bctr dispatch, or nullptr. */
-  const JumpTable* activeJumpTable = nullptr;
+  const JumpTable* active_jump_table = nullptr;
 
   /** MMIO classification of the current function, or nullptr. */
   const MMIOClassification* mmio = nullptr;
@@ -92,14 +92,14 @@ struct BuilderContext {
    *
    * @return The configuration.
    */
-  const RecompilerConfig& config() const;
+  const RecompilerConfig& GetConfig() const;
 
   /**
    * Returns the function graph.
    *
    * @return The graph.
    */
-  const FunctionGraph& graph() const;
+  const FunctionGraph& GetGraph() const;
 
   /**
    * @brief Reports whether non-volatiles may be localized in the current function.
@@ -108,84 +108,84 @@ struct BuilderContext {
    *
    * @return True when localizing is allowed.
    */
-  bool localizeNonVolatiles() const;
+  bool ShouldLocalizeNonVolatiles() const;
 
   /**
    * @brief Returns the expression for general purpose register access.
    * @param index Register index (0-31)
    * @return "rN" for local variables, "ctx.rN" for context access
    */
-  std::string r(size_t index);
+  std::string R(size_t index);
 
   /**
    * @brief Returns the expression for floating point register access.
    * @param index Register index (0-31)
    * @return "fN" for local variables, "ctx.fN" for context access
    */
-  std::string f(size_t index);
+  std::string F(size_t index);
 
   /**
    * @brief Returns the expression for vector register access.
    * @param index Register index (0-127, extended VMX128)
    * @return "vN" for local variables, "ctx.vN" for context access
    */
-  std::string v(size_t index);
+  std::string V(size_t index);
 
   /**
    * @brief Returns the expression for condition register field access.
    * @param index CR field index (0-7)
    * @return "crN" for local variables, "ctx.crN" for context access
    */
-  std::string cr(size_t index);
+  std::string CR(size_t index);
 
   /**
    * Returns the count register expression.
    *
    * @return "ctr" or "ctx.ctr".
    */
-  const char* ctr();
+  const char* CTR();
 
   /**
    * Returns the XER register expression.
    *
    * @return "xer" or "ctx.xer".
    */
-  const char* xer();
+  const char* XER();
 
   /**
    * Returns the reservation register expression, used by lwarx and stwcx.
    *
    * @return The reservation expression.
    */
-  const char* reserved();
+  const char* Reserved();
 
   /**
    * Returns the scalar temporary expression.
    *
    * @return "temp".
    */
-  const char* temp();
+  const char* Temp();
 
   /**
    * Returns the vector temporary expression.
    *
    * @return "vTemp".
    */
-  const char* v_temp();
+  const char* VTemp();
 
   /**
    * Returns the setjmp environment expression.
    *
    * @return "env".
    */
-  const char* env();
+  const char* Env();
 
   /**
    * Returns the effective address temporary expression.
    *
    * @return "ea".
    */
-  const char* ea();
+  const char* EA();
 
   /**
    * @brief Print formatted text to the output buffer (no newline).
@@ -194,7 +194,7 @@ struct BuilderContext {
    * @param args Values to substitute into placeholders
    */
   template <class... Args>
-  void print(std::format_string<Args...> fmt, Args&&... args) {
+  void Print(std::format_string<Args...> fmt, Args&&... args) {
     std::vformat_to(std::back_inserter(out), fmt.get(), std::make_format_args(args...));
   }
 
@@ -205,7 +205,7 @@ struct BuilderContext {
    * @param args Values to substitute into placeholders
    */
   template <class... Args>
-  void println(std::format_string<Args...> fmt, Args&&... args) {
+  void Println(std::format_string<Args...> fmt, Args&&... args) {
     std::vformat_to(std::back_inserter(out), fmt.get(), std::make_format_args(args...));
     out += '\n';
   }
@@ -226,7 +226,7 @@ struct BuilderContext {
    *
    * Searches the FunctionNode's calls and tailCalls for a matching site.
    */
-  const CallTarget* findCallTarget(u32 site) const;
+  const CallTarget* FindCallTarget(u32 site) const;
 
   /**
    * @brief Emit C++ code for a function call.
@@ -240,36 +240,36 @@ struct BuilderContext {
    * caller's frame once spilled to locals. An SEH funclet runs on its owner's frame, so the
    * localized registers are copied through ctx before the call and back after it.
    */
-  void emit_function_call(u32 address);
+  void EmitFunctionCall(u32 address);
 
   /**
    * @brief Emit C++ code for a conditional branch.
-   * @param not_ If true, invert the condition
+   * @param negate If true, invert the condition
    * @param cond Condition field name ("eq", "lt", "gt")
    *
    * Emits either `goto loc_X` for intra-function branches or a function
    * call for inter-function branches.
    */
-  void emit_conditional_branch(bool not_, std::string_view cond);
+  void EmitConditionalBranch(bool negate, std::string_view cond);
 
   /**
    * @brief Emit CSR flush mode change if needed.
    * @param enable true for VMX mode (flush-to-zero), false for FPU mode
    */
-  void emit_set_flush_mode(bool enable);
+  void EmitSetFlushMode(bool enable);
 
   /** Emit mid-asm hook if configured for current address. */
-  void emit_mid_asm_hook();
+  void EmitMidAsmHook();
 
   /**
    * Reports whether a mid asm hook exists for the current address.
    *
    * @return True when a hook exists.
    */
-  bool has_mid_asm_hook() const;
+  bool HasMidAsmHook() const;
 
   /** Clear active jump table pointer (used after processing a switch). */
-  void reset_switch_table() { activeJumpTable = nullptr; }
+  void GetResetSwitchTable() { active_jump_table = nullptr; }
 
   /**
    * @brief Emit binary float vector operation: vD = op(vA, vB)
@@ -278,7 +278,7 @@ struct BuilderContext {
    * Emits `simde_mm_store_ps(vD.f32, simde_mm_OP(load(vA.f32), load(vB.f32)));`
    * Uses operands[0]=vD, operands[1]=vA, operands[2]=vB from current instruction.
    */
-  void emit_vec_fp_binary(const char* simd_op);
+  void EmitVecFPBinary(const char* simd_op);
 
   /**
    * @brief Emit unary float vector operation: vD = op(vA)
@@ -287,9 +287,9 @@ struct BuilderContext {
    * Use when the operation is more complex than a single function call.
    * Emits `simde_mm_store_ps(vD.f32, EXPR);`
    * Uses operands[0]=vD, operands[1]=vA from current instruction.
-   * Example `emit_vec_fp_unary_expr("simde_mm_sqrt_ps(simde_mm_load_ps({vA}.f32))")`
+   * Example `EmitVecFPUnaryExpr("simde_mm_sqrt_ps(simde_mm_load_ps({vA}.f32))")`
    */
-  void emit_vec_fp_unary_expr(std::string_view simd_expr);
+  void EmitVecFPUnaryExpr(std::string_view simd_expr);
 
   /**
    * @brief Emit binary integer vector operation: vD = op(vA, vB)
@@ -299,7 +299,7 @@ struct BuilderContext {
    * Emits `simde_mm_store_si128((simde__m128i*)vD.TYPE, simde_mm_OP(load(vA), load(vB)));`
    * Uses operands[0]=vD, operands[1]=vA, operands[2]=vB from current instruction.
    */
-  void emit_vec_int_binary(const char* simd_op, const char* element_type);
+  void EmitVecIntBinary(const char* simd_op, const char* element_type);
 
   /**
    * @brief Emit binary integer vector operation with swapped operands: vD = op(vB, vA)
@@ -308,7 +308,7 @@ struct BuilderContext {
    *
    * Same as emit_vec_int_binary but swaps vA and vB order (useful for andnot)
    */
-  void emit_vec_int_binary_swapped(const char* simd_op, const char* element_type);
+  void EmitVecIntBinarySwapped(const char* simd_op, const char* element_type);
 
   /**
    * @brief Emit variable shift: vD = rex::ppc::simde_mm_{shift_dir}_{element_type}(vA, vB & mask)
@@ -319,7 +319,7 @@ struct BuilderContext {
    * Uses the custom rex:: variable shift helpers (simde_mm_{sllv,srlv,srav}_epi16).
    * Uses operands[0]=vD, operands[1]=vA, operands[2]=vB from current instruction.
    */
-  void emit_vec_var_shift(const char* shift_dir, const char* element_type, u32 mask_value);
+  void EmitVecVarShift(const char* shift_dir, const char* element_type, u32 mask_value);
 
   /**
    * @brief Emit load with D-form addressing: rD = LOAD(rA + offset)
@@ -329,7 +329,7 @@ struct BuilderContext {
    * Uses operands[0]=rD, operands[1]=offset (D), operands[2]=rA from current instruction.
    * If rA (operands[2]) is 0, omits the base register addition.
    */
-  void emit_load_d_form(const char* load_macro, const char* dest_type);
+  void EmitLoadDForm(const char* load_macro, const char* dest_type);
 
   /**
    * @brief Emit load with X-form addressing: rD = LOAD(rA + rB)
@@ -339,7 +339,7 @@ struct BuilderContext {
    * Uses operands[0]=rD, operands[1]=rA, operands[2]=rB from current instruction.
    * If rA (operands[1]) is 0, omits the first register addition.
    */
-  void emit_load_x_form(const char* load_macro, const char* dest_type);
+  void EmitLoadXForm(const char* load_macro, const char* dest_type);
 
   /**
    * @brief Emit store with D-form addressing: STORE(rA + offset, rS)
@@ -348,7 +348,7 @@ struct BuilderContext {
    *
    * Uses operands[0]=rS, operands[1]=offset (D), operands[2]=rA from current instruction.
    */
-  void emit_store_d_form(const char* store_macro, const char* src_type);
+  void EmitStoreDForm(const char* store_macro, const char* src_type);
 
   /**
    * @brief Emit store with X-form addressing: STORE(rA + rB, rS)
@@ -357,6 +357,6 @@ struct BuilderContext {
    *
    * Uses operands[0]=rS, operands[1]=rA, operands[2]=rB from current instruction.
    */
-  void emit_store_x_form(const char* store_macro, const char* src_type);
+  void EmitStoreXForm(const char* store_macro, const char* src_type);
 };
 }  // namespace rex::codegen

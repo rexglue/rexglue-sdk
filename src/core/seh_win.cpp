@@ -13,13 +13,13 @@ namespace {
 std::atomic<bool> g_seh_initialized{false};
 }  // namespace
 
-static thread_local SehThreadState tls_seh_state;
+static thread_local SEHThreadState tls_seh_state;
 
-SehThreadState& seh_thread_state() {
+SEHThreadState& GetSEHThreadState() {
   return tls_seh_state;
 }
 
-int seh_filter(u32 code, void* ep) {
+int SEHFilter(u32 code, void* ep) {
   auto* pointers = static_cast<EXCEPTION_POINTERS*>(ep);
   switch (code) {
     case EXCEPTION_ACCESS_VIOLATION:
@@ -39,7 +39,7 @@ int seh_filter(u32 code, void* ep) {
   }
 }
 
-[[noreturn]] void seh_rethrow() {
+[[noreturn]] void SEHRethrow() {
   u32 code = tls_seh_state.code;
   ULONG_PTR info[2] = {tls_seh_state.info[0], tls_seh_state.info[1]};
 
@@ -51,7 +51,7 @@ int seh_filter(u32 code, void* ep) {
   std::unreachable();
 }
 
-void seh_initialize() {
+void SEHInitialize() {
   g_seh_initialized.store(true, std::memory_order_relaxed);
 }
 

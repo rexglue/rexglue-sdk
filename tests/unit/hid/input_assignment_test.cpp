@@ -26,11 +26,11 @@ using rex::hid::DeviceInfo;
 using rex::hid::Driver;
 using rex::hid::HIDError;
 using rex::hid::Hub;
+using rex::hid::kXInputGamepadA;
+using rex::hid::kXInputGamepadB;
 using rex::hid::SharedAssignment;
 using rex::hid::SlotAssignment;
 using rex::hid::X_INPUT_CAPABILITIES;
-using rex::hid::X_INPUT_GAMEPAD_A;
-using rex::hid::X_INPUT_GAMEPAD_B;
 using rex::hid::X_INPUT_KEYSTROKE;
 using rex::hid::X_INPUT_STATE;
 using rex::hid::X_INPUT_VIBRATION;
@@ -110,14 +110,14 @@ class FakeDriver final : public Driver {
     }
     auto it = keystrokes_.find(id);
     if (it == keystrokes_.end()) {
-      return std::unexpected(rex::hid::BuildError(HIDError::Empty, "empty"));
+      return std::unexpected(rex::hid::BuildError(HIDError::kEmpty, "empty"));
     }
     return it->second;
   }
 
  private:
   static rex::Error Unplugged() {
-    return rex::hid::BuildError(HIDError::NotConnected, "unplugged");
+    return rex::hid::BuildError(HIDError::kNotConnected, "unplugged");
   }
 
   std::vector<DeviceInfo> devices_;
@@ -159,12 +159,12 @@ REX_TEST_CASE("Both controllers reach one title user", "[hid]") {
   auto system = SharedSystem(&driver);
   driver->Add(1);
   driver->Add(2);
-  driver->SetButtons(1, X_INPUT_GAMEPAD_A);
-  driver->SetButtons(2, X_INPUT_GAMEPAD_B);
+  driver->SetButtons(1, kXInputGamepadA);
+  driver->SetButtons(2, kXInputGamepadB);
 
   auto state = system->GetState(0);
   REQUIRE(state);
-  REQUIRE(static_cast<rex::u16>(state->gamepad.buttons) == (X_INPUT_GAMEPAD_A | X_INPUT_GAMEPAD_B));
+  REQUIRE(static_cast<rex::u16>(state->gamepad.buttons) == (kXInputGamepadA | kXInputGamepadB));
 }
 
 REX_TEST_CASE("Unplugging one controller leaves the other working", "[hid]") {
@@ -176,10 +176,10 @@ REX_TEST_CASE("Unplugging one controller leaves the other working", "[hid]") {
   REQUIRE(system->GetState(0));
 
   driver->Remove(1);
-  driver->SetButtons(2, X_INPUT_GAMEPAD_B);
+  driver->SetButtons(2, kXInputGamepadB);
   auto state = system->GetState(0);
   REQUIRE(state);
-  REQUIRE(static_cast<rex::u16>(state->gamepad.buttons) == X_INPUT_GAMEPAD_B);
+  REQUIRE(static_cast<rex::u16>(state->gamepad.buttons) == kXInputGamepadB);
 }
 
 REX_TEST_CASE("Capabilities follow the controller in hand", "[hid]") {
@@ -188,7 +188,7 @@ REX_TEST_CASE("Capabilities follow the controller in hand", "[hid]") {
   driver->Add(1);
   driver->Add(2);
 
-  driver->SetButtons(2, X_INPUT_GAMEPAD_B);
+  driver->SetButtons(2, kXInputGamepadB);
   REQUIRE(system->GetState(0));
 
   auto caps = system->GetCapabilities(0, 0);
@@ -220,10 +220,10 @@ REX_TEST_CASE("A reconnected pad comes back to title user 0", "[hid]") {
 
   driver->Remove(1);
   driver->Add(2);
-  driver->SetButtons(2, X_INPUT_GAMEPAD_B);
+  driver->SetButtons(2, kXInputGamepadB);
   auto state = system->GetState(0);
   REQUIRE(state);
-  REQUIRE(static_cast<rex::u16>(state->gamepad.buttons) == X_INPUT_GAMEPAD_B);
+  REQUIRE(static_cast<rex::u16>(state->gamepad.buttons) == kXInputGamepadB);
 }
 
 REX_TEST_CASE("A synthetic device does not push the first pad off title user 0", "[hid]") {
@@ -238,9 +238,9 @@ REX_TEST_CASE("A synthetic device does not push the first pad off title user 0",
   REQUIRE(system->GetState(0));
 
   driver->Add(2);
-  driver->SetButtons(2, X_INPUT_GAMEPAD_B);
+  driver->SetButtons(2, kXInputGamepadB);
   auto state = system->GetState(0);
   REQUIRE(state);
-  REQUIRE(static_cast<rex::u16>(state->gamepad.buttons) == X_INPUT_GAMEPAD_B);
-  CHECK(CodeOf(system->GetState(1).error()) == HIDError::NotConnected);
+  REQUIRE(static_cast<rex::u16>(state->gamepad.buttons) == kXInputGamepadB);
+  CHECK(CodeOf(system->GetState(1).error()) == HIDError::kNotConnected);
 }

@@ -91,7 +91,7 @@ REX_TEST_CASE_METHOD(Fixture, "Init twice fails and keeps the first", "[module_l
   auto second = rex::Init(With({"rexmod-test-good"}));
   REQUIRE_FALSE(second);
   REQUIRE(second.error().message == "rex::Init called while initialized");
-  REQUIRE(rex::detail::ModuleLoader::Instance().IsLoaded("rexmod-test-good"));
+  REQUIRE(rex::detail::ModuleLoader::GetInstance().IsLoaded("rexmod-test-good"));
 }
 
 REX_TEST_CASE_METHOD(Fixture, "Good module loads, serves echo and unwinds in order",
@@ -117,7 +117,7 @@ REX_TEST_CASE_METHOD(Fixture,
                      "[module_loader]") {
   Pinned pin("rexmod-test-good");
   REQUIRE(rex::Init(With({"rexmod-test-good"})));
-  REQUIRE(rex::detail::InterfaceRequestCount() == 1);
+  REQUIRE(rex::detail::GetInterfaceRequestCount() == 1);
   REQUIRE(g_events.front() == "rexmod-test-good:constructor");
   REQUIRE(g_events[1] == "rexmod-test-good:connect");
 }
@@ -125,17 +125,17 @@ REX_TEST_CASE_METHOD(Fixture,
 REX_TEST_CASE_METHOD(Fixture, "The interface factory reports a missing or mismatched interface",
                      "[module_loader]") {
   REQUIRE(rex::Init(rex::Config{}));
-  rex::IInterfaceFactory& factory = rex::detail::ModuleLoader::Instance();
+  rex::IInterfaceFactory& factory = rex::detail::ModuleLoader::GetInstance();
   using Registry = rex::cvar::ICvarRegistry;
   auto typed = factory.Get<Registry>();
   REQUIRE(typed);
   CHECK(*typed != nullptr);
   auto missing = factory.Get("rex.nothing", 1);
   REQUIRE_FALSE(missing);
-  CHECK(missing.error().code == static_cast<int>(rex::InterfaceStatus::NotFound));
+  CHECK(missing.error().code == static_cast<int>(rex::InterfaceStatus::kNotFound));
   auto wrong = factory.Get(Registry::kInterfaceName, Registry::kInterfaceVersion + 1);
   REQUIRE_FALSE(wrong);
-  CHECK(wrong.error().code == static_cast<int>(rex::InterfaceStatus::VersionMismatch));
+  CHECK(wrong.error().code == static_cast<int>(rex::InterfaceStatus::kVersionMismatch));
 }
 
 REX_TEST_CASE_METHOD(Fixture, "rex_create_interface with a null name reports NotFound",
@@ -145,10 +145,10 @@ REX_TEST_CASE_METHOD(Fixture, "rex_create_interface with a null name reports Not
   REQUIRE(create != nullptr);
   rex::i32 status = -1;
   REQUIRE(create(nullptr, 1, &status) == nullptr);
-  REQUIRE(status == std::to_underlying(rex::InterfaceStatus::NotFound));
+  REQUIRE(status == std::to_underlying(rex::InterfaceStatus::kNotFound));
   status = -1;
   REQUIRE(create(rex::IModule::kInterfaceName, 99, &status) == nullptr);
-  REQUIRE(status == std::to_underlying(rex::InterfaceStatus::VersionMismatch));
+  REQUIRE(status == std::to_underlying(rex::InterfaceStatus::kVersionMismatch));
 }
 
 REX_TEST_CASE_METHOD(Fixture, "Missing requirement fails before any Connect", "[module_loader]") {
@@ -238,7 +238,7 @@ REX_TEST_CASE("ParseCommandLine reads --modules in both forms", "[module_loader]
 
 namespace app_cvars {
 REXCVAR_BOOL(app, debug, false, "Consumer flag");
-REXCVAR_INT32(app, count, 1, "Consumer count").range(0, 10);
+REXCVAR_INT32(app, count, 1, "Consumer count").SetRange(0, 10);
 REXCVAR_TABLE(kAppCvars, debug, count);
 }  // namespace app_cvars
 
@@ -260,24 +260,24 @@ REX_TEST_CASE_METHOD(Fixture, "Init registers consumer and module tables and ser
   auto cfg = With({"rexmod-test-good"});
   cfg.cvars.tables.push_back({"app", app_cvars::kAppCvars});
   cfg.cvars.Set("echo.value", "5");
-  cfg.cvars.values.push_back({"app.count", "7", rex::cvar::CvarSource::Config});
+  cfg.cvars.values.push_back({"app.count", "7", rex::cvar::CvarSource::kConfig});
   auto api = rex::Init(cfg);
   REQUIRE(api);
   auto* registry = api.value()->Get<rex::cvar::ICvarRegistry>();
   REQUIRE(registry != nullptr);
   REQUIRE(registry->IsFinalized());
-  REQUIRE(HasScope(registry->Scopes(), "app"));
-  REQUIRE(HasScope(registry->Scopes(), "echo"));
+  REQUIRE(HasScope(registry->GetScopes(), "app"));
+  REQUIRE(HasScope(registry->GetScopes(), "echo"));
   REQUIRE(registry->Get("echo.value").value() == "5");
   REQUIRE(api.value()->Get<rex::test::IEcho>()->Value() == 5);
-  REQUIRE(app_cvars::count.get() == 7);
-  REQUIRE(registry->Source("app.count") == rex::cvar::CvarSource::Config);
-  REQUIRE(api.value()->config().modules == std::vector<std::string>{"rexmod-test-good"});
+  REQUIRE(app_cvars::count.Get() == 7);
+  REQUIRE(registry->Source("app.count") == rex::cvar::CvarSource::kConfig);
+  REQUIRE(api.value()->GetConfig().modules == std::vector<std::string>{"rexmod-test-good"});
   rex::Shutdown();
-  REQUIRE(app_cvars::debug.registry() == nullptr);
+  REQUIRE(app_cvars::debug.GetRegistry() == nullptr);
   auto again = rex::Init(rex::Config{});
   REQUIRE(again);
-  auto fresh = again.value()->Get<rex::cvar::ICvarRegistry>()->Scopes();
+  auto fresh = again.value()->Get<rex::cvar::ICvarRegistry>()->GetScopes();
   REQUIRE_FALSE(HasScope(fresh, "app"));
   REQUIRE_FALSE(HasScope(fresh, "echo"));
   REQUIRE(app_cvars::count.Parse("1"));
@@ -299,7 +299,7 @@ REX_TEST_CASE_METHOD(Fixture, "unknown Config override warns and Init succeeds",
                      "[module_loader][cvar]") {
   Pinned pin("rexmod-test-good");
   auto cfg = With({"rexmod-test-good"});
-  cfg.cvars.values.push_back({"vsync", "false", rex::cvar::CvarSource::Config});
+  cfg.cvars.values.push_back({"vsync", "false", rex::cvar::CvarSource::kConfig});
   rex::log::CaptureSink sink;
   cfg.log.sinks.push_back(&sink);
   auto api = rex::Init(cfg);
@@ -331,7 +331,7 @@ REX_TEST_CASE_METHOD(Fixture, "Init rejects an unparsable environment value",
                      "[module_loader][cvar]") {
   Pinned pin("rexmod-test-good");
   auto cfg = With({"rexmod-test-good"});
-  cfg.cvars.values.push_back({"echo.ready", "off-ish", rex::cvar::CvarSource::Environment});
+  cfg.cvars.values.push_back({"echo.ready", "off-ish", rex::cvar::CvarSource::kEnvironment});
   auto api = rex::Init(cfg);
   REQUIRE_FALSE(api);
   REQUIRE(api.error().message.find("rejected value 'off-ish' from Environment") !=
@@ -379,7 +379,7 @@ REX_TEST_CASE_METHOD(Fixture, "Locks apply after values and unknown locks fail",
   REQUIRE(registry->Get("echo.value").value() == "3");
   auto set = registry->Set("echo.value", "4");
   REQUIRE_FALSE(set);
-  REQUIRE(set.error().code == static_cast<int>(rex::cvar::CvarError::Locked));
+  REQUIRE(set.error().code == static_cast<int>(rex::cvar::CvarError::kLocked));
   rex::Shutdown();
   cfg.cvars.locked = {"nope.value"};
   api = rex::Init(cfg);
@@ -405,7 +405,7 @@ REX_TEST_CASE_METHOD(Fixture, "Every SDK cvar name is scope.leaf in a charter sc
   auto* registry = api.value()->Get<rex::cvar::ICvarRegistry>();
   size_t count = 0;
   for (const auto* var : registry->Enumerate()) {
-    const auto& desc = var->desc();
+    const auto& desc = var->GetDesc();
     ++count;
     auto dot = desc.name.find('.');
     REQUIRE(dot != std::string_view::npos);
@@ -429,7 +429,7 @@ REX_TEST_CASE_METHOD(Fixture, "rex-runtime registers the module scopes at Connec
   auto* registry = api.value()->Get<rex::cvar::ICvarRegistry>();
   REQUIRE(registry->Find("runtime.protect_zero"));
   REQUIRE_FALSE(registry->Find("ui.window_width"));
-  auto scopes = registry->Scopes();
+  auto scopes = registry->GetScopes();
   REQUIRE(std::find(scopes.begin(), scopes.end(), "bind") == scopes.end());
 }
 
@@ -452,7 +452,7 @@ REX_TEST_CASE_METHOD(Fixture, "Without rex-runtime no module scope exists",
   auto* registry = api.value()->Get<rex::cvar::ICvarRegistry>();
   REQUIRE_FALSE(registry->Find("runtime.protect_zero"));
   REQUIRE_FALSE(registry->Find("ui.window_width"));
-  auto scopes = registry->Scopes();
+  auto scopes = registry->GetScopes();
   REQUIRE(std::find(scopes.begin(), scopes.end(), "bind") == scopes.end());
   REQUIRE(registry->Find("log.level"));
 }

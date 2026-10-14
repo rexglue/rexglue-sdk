@@ -71,12 +71,12 @@ REX_TEST_CASE("A function stays in its bucket when an earlier function grows",
 
   OutputPartition partition;
   auto before = partition.Assign(first, 100);
-  auto lastBucketBefore = BucketOf(before, first, 0x8200'0200);
+  auto last_bucket_before = BucketOf(before, first, 0x8200'0200);
 
   std::vector<FunctionSize> second{{0x8200'0000, 90}, {0x8200'0100, 40}, {0x8200'0200, 40}};
   auto after = partition.Assign(second, 100);
 
-  CHECK(BucketOf(after, second, 0x8200'0200) == lastBucketBefore);
+  CHECK(BucketOf(after, second, 0x8200'0200) == last_bucket_before);
 }
 
 REX_TEST_CASE("The file count survives functions growing far past the budget",

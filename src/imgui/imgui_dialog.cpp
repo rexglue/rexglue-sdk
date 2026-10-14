@@ -21,11 +21,11 @@ ImGuiDialog::~ImGuiDialog() {
   }
 }
 
-bool ImGuiDialog::Closed() const {
+bool ImGuiDialog::IsClosed() const {
   return closed_;
 }
 
-bool ImGuiDialog::Attached() const {
+bool ImGuiDialog::IsAttached() const {
   return host_ != nullptr;
 }
 

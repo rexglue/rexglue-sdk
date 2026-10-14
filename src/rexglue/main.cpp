@@ -101,7 +101,7 @@ int RunCLI(int argc, char** argv) {
   bool tty = IsStderrTty();
   rexglue::ui::Init({.tty = tty, .color = ColorEnabled(tty)});
   if (auto started = StartLogging(log_level, log_file, verbose); !started) {
-    rexglue::ui::FailureSummary(started.error().what(), std::chrono::milliseconds(0));
+    rexglue::ui::FailureSummary(started.error().GetDescription(), std::chrono::milliseconds(0));
     rexglue::ui::Shutdown();
     return 1;
   }
@@ -114,8 +114,8 @@ int RunCLI(int argc, char** argv) {
 
   int exit_code = 0;
   if (!result) {
-    rexglue::ui::FailureSummary(result.error().what(), elapsed);
-    exit_code = result.error().category == rex::ErrorCategory::UserAbort ? 2 : 1;
+    rexglue::ui::FailureSummary(result.error().GetDescription(), elapsed);
+    exit_code = result.error().category == rex::ErrorCategory::kUserAbort ? 2 : 1;
   } else {
     rexglue::ui::DoneSummary(elapsed);
   }

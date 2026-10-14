@@ -41,7 +41,7 @@ class TempDirectory {
 
   ~TempDirectory() { rex::test::RemoveTree(path_); }
 
-  const std::filesystem::path& path() const { return path_; }
+  const std::filesystem::path& GetPath() const { return path_; }
 
  private:
   std::filesystem::path path_;
@@ -69,7 +69,7 @@ void WriteFile(const std::filesystem::path& path, std::string_view content) {
 
 REX_TEST_CASE("achievement metadata layers embedded, TOML, and recomp entries", "[achievements]") {
   TempDirectory temp("rex_achievement_metadata");
-  auto metadata_path = temp.path() / "achievements.toml";
+  auto metadata_path = temp.GetPath() / "achievements.toml";
   WriteFile(metadata_path, R"(
 [[achievements]]
 id = 1
@@ -115,7 +115,7 @@ REX_TEST_CASE("an achievement batch with an invalid id registers nothing", "[ach
                          BuildAchievement(2, "Two")};
   const auto registered = manager.RegisterAchievements(batch);
   REQUIRE_FALSE(registered);
-  CHECK(registered.error().category == rex::ErrorCategory::Validation);
+  CHECK(registered.error().category == rex::ErrorCategory::kValidation);
   CHECK(manager.ListAchievements().empty());
 }
 
@@ -153,7 +153,7 @@ REX_TEST_CASE("achievement notifications follow the unlock request", "[achieveme
 
 REX_TEST_CASE("achievement unlock state persists across manager instances", "[achievements]") {
   TempDirectory temp("rex_achievement_save");
-  auto save_path = temp.path() / "saves" / "12345678.toml";
+  auto save_path = temp.GetPath() / "saves" / "12345678.toml";
 
   rex::runtime::AchievementManager first;
   REQUIRE(first.RegisterAchievement(BuildAchievement(1, "One")).has_value());
@@ -173,7 +173,7 @@ REX_TEST_CASE("achievement unlock state persists across manager instances", "[ac
 
 REX_TEST_CASE("achievement unlock saves serialize concurrent writers", "[achievements]") {
   TempDirectory temp("rex_achievement_concurrent_save");
-  auto save_path = temp.path() / "saves" / "12345678.toml";
+  auto save_path = temp.GetPath() / "saves" / "12345678.toml";
 
   rex::runtime::AchievementManager manager;
   manager.SetUnlockSavePath(save_path);
@@ -204,10 +204,10 @@ REX_TEST_CASE("achievement unlock saves serialize concurrent writers", "[achieve
 
 REX_TEST_CASE("runtime metadata root overrides legacy metadata discovery", "[achievements]") {
   TempDirectory temp("rex_metadata_root");
-  auto game_root = temp.path() / "game";
+  auto game_root = temp.GetPath() / "game";
   auto local_metadata = game_root / "metadata" / "achievements.toml";
-  auto parent_metadata = temp.path() / "metadata" / "achievements.toml";
-  auto explicit_metadata = temp.path() / "custom" / "achievements.toml";
+  auto parent_metadata = temp.GetPath() / "metadata" / "achievements.toml";
+  auto explicit_metadata = temp.GetPath() / "custom" / "achievements.toml";
   WriteFile(local_metadata, "local");
   WriteFile(parent_metadata, "parent");
   WriteFile(explicit_metadata, "explicit");
@@ -227,7 +227,7 @@ REX_TEST_CASE("runtime metadata root overrides legacy metadata discovery", "[ach
   {
     rex::Config config;
     config.paths.game_data_root = game_root;
-    config.paths.metadata_root = temp.path() / "custom";
+    config.paths.metadata_root = temp.GetPath() / "custom";
     rex::Runtime runtime(config);
     REQUIRE(runtime.FindMetadataPath("achievements.toml"));
     CHECK(*runtime.FindMetadataPath("achievements.toml") == explicit_metadata);

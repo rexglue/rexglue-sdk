@@ -38,10 +38,10 @@ constexpr u32 kBaseAddress = 0x82000000;
 constexpr u32 kFunctionCount = 4;
 
 // Big-endian `blr` (0x4E800020), one instruction per test function.
-std::vector<u8> BuildBlrBinary(u32 functionCount) {
+std::vector<u8> BuildBlrBinary(u32 function_count) {
   std::vector<u8> data;
-  data.reserve(size_t{functionCount} * 4);
-  for (u32 i = 0; i < functionCount; ++i) {
+  data.reserve(size_t{function_count} * 4);
+  for (u32 i = 0; i < function_count; ++i) {
     data.insert(data.end(), {0x4E, 0x80, 0x00, 0x20});
   }
   return data;
@@ -60,38 +60,38 @@ struct WriterFixture {
   TestModule module;
   std::unique_ptr<CodegenContext> ctx;
 
-  explicit WriterFixture(std::string_view name, u32 functionCount = kFunctionCount)
+  explicit WriterFixture(std::string_view name, u32 function_count = kFunctionCount)
       : root(fs::temp_directory_path() / "rexglue_writer_test" / fs::path(name)),
-        data(BuildBlrBinary(functionCount)) {
+        data(BuildBlrBinary(function_count)) {
     fs::remove_all(root);
     fs::create_directories(root);
 
     module.Load(kBaseAddress, data.data(), data.size());
 
     RecompilerConfig config;
-    config.projectName = "testproj";
-    config.outDirectoryPath = "generated";
+    config.project_name = "testproj";
+    config.out_directory_path = "generated";
 
     ctx = std::make_unique<CodegenContext>(
-        CodegenContext::Create(BinaryView::fromModule(module), std::move(config)));
-    ctx->setConfigDir(root);
-    ctx->analysisState().format = "xex";
-    ctx->analysisState().loadAddress = kBaseAddress;
-    ctx->analysisState().entryPoint = kBaseAddress;
-    ctx->analysisState().imageSize = static_cast<u32>(data.size());
+        CodegenContext::Create(BinaryView::FromModule(module), std::move(config)));
+    ctx->SetConfigDir(root);
+    ctx->GetAnalysisState().format = "xex";
+    ctx->GetAnalysisState().load_address = kBaseAddress;
+    ctx->GetAnalysisState().entry_point = kBaseAddress;
+    ctx->GetAnalysisState().image_size = static_cast<u32>(data.size());
 
-    for (u32 i = 0; i < functionCount; ++i) {
+    for (u32 i = 0; i < function_count; ++i) {
       u32 addr = kBaseAddress + i * 4;
-      auto* node = ctx->graph.addFunction(addr, 4, FunctionAuthority::DISCOVERED, true);
+      auto* node = ctx->graph.AddFunction(addr, 4, FunctionAuthority::kDiscovered, true);
       REQUIRE(node != nullptr);
-      node->discover({{addr, 4}}, {}, {});
-      node->seal();
+      node->Discover({{addr, 4}}, {}, {});
+      node->Seal();
     }
   }
 
   ~WriterFixture() { rex::test::RemoveTree(root); }
 
-  fs::path outputDir() const { return root / "generated"; }
+  fs::path GetOutputDir() const { return root / "generated"; }
 };
 
 }  // namespace
@@ -100,29 +100,29 @@ REX_TEST_CASE("Second write with unchanged inputs writes nothing", "[codegen_wri
   WriterFixture fx("unchanged");
 
   CodegenWriter first(*fx.ctx);
-  REQUIRE(first.write(false));
-  REQUIRE_FALSE(first.writtenFiles().empty());
+  REQUIRE(first.Write(false));
+  REQUIRE_FALSE(first.GetWrittenFiles().empty());
 
   CodegenWriter second(*fx.ctx);
-  REQUIRE(second.write(false));
+  REQUIRE(second.Write(false));
 
-  CHECK(second.writtenFiles().empty());
-  CHECK(second.unchangedFiles().size() == first.writtenFiles().size());
-  CHECK(second.deletedFiles().empty());
+  CHECK(second.GetWrittenFiles().empty());
+  CHECK(second.GetUnchangedFiles().size() == first.GetWrittenFiles().size());
+  CHECK(second.GetDeletedFiles().empty());
 }
 
 REX_TEST_CASE("Unchanged files keep their modification time", "[codegen_writer]") {
   WriterFixture fx("mtime");
 
   CodegenWriter first(*fx.ctx);
-  REQUIRE(first.write(false));
+  REQUIRE(first.Write(false));
 
-  auto probe = fx.outputDir() / "testproj_init.h";
+  auto probe = fx.GetOutputDir() / "testproj_init.h";
   REQUIRE(fs::exists(probe));
   auto before = fs::last_write_time(probe);
 
   CodegenWriter second(*fx.ctx);
-  REQUIRE(second.write(false));
+  REQUIRE(second.Write(false));
 
   const bool unchanged = fs::last_write_time(probe) == before;
   CHECK(unchanged);
@@ -132,31 +132,31 @@ REX_TEST_CASE("Stale generated files are swept after the write", "[codegen_write
   WriterFixture fx("stale");
 
   CodegenWriter first(*fx.ctx);
-  REQUIRE(first.write(false));
+  REQUIRE(first.Write(false));
 
-  auto orphan = fx.outputDir() / "testproj_recomp.99.cpp";
+  auto orphan = fx.GetOutputDir() / "testproj_recomp.99.cpp";
   { std::ofstream(orphan) << "// leftover\n"; }
   REQUIRE(fs::exists(orphan));
 
   CodegenWriter second(*fx.ctx);
-  REQUIRE(second.write(false));
+  REQUIRE(second.Write(false));
 
   CHECK_FALSE(fs::exists(orphan));
-  CHECK(std::find(second.deletedFiles().begin(), second.deletedFiles().end(),
-                  std::string("testproj_recomp.99.cpp")) != second.deletedFiles().end());
+  CHECK(std::find(second.GetDeletedFiles().begin(), second.GetDeletedFiles().end(),
+                  std::string("testproj_recomp.99.cpp")) != second.GetDeletedFiles().end());
 }
 
 REX_TEST_CASE("Unrelated files in the output directory survive the sweep", "[codegen_writer]") {
   WriterFixture fx("bystander");
 
   CodegenWriter first(*fx.ctx);
-  REQUIRE(first.write(false));
+  REQUIRE(first.Write(false));
 
-  auto bystander = fx.outputDir() / "notes.txt";
+  auto bystander = fx.GetOutputDir() / "notes.txt";
   { std::ofstream(bystander) << "keep me\n"; }
 
   CodegenWriter second(*fx.ctx);
-  REQUIRE(second.write(false));
+  REQUIRE(second.Write(false));
 
   CHECK(fs::exists(bystander));
 }
@@ -165,87 +165,87 @@ REX_TEST_CASE("The stamp is owned by the recompiler and survives the sweep", "[c
   WriterFixture fx("stamp");
 
   CodegenWriter first(*fx.ctx);
-  REQUIRE(first.write(false));
+  REQUIRE(first.Write(false));
 
-  auto stamp = fx.outputDir() / "codegen.stamp";
+  auto stamp = fx.GetOutputDir() / "codegen.stamp";
   { std::ofstream(stamp) << "{}\n"; }
 
   CodegenWriter second(*fx.ctx);
-  REQUIRE(second.write(false));
+  REQUIRE(second.Write(false));
 
   CHECK(fs::exists(stamp));
-  CHECK(second.deletedFiles().empty());
+  CHECK(second.GetDeletedFiles().empty());
 }
 
 REX_TEST_CASE("A changed function rewrites only the files that differ", "[codegen_writer]") {
   WriterFixture fx("changed");
 
   CodegenWriter first(*fx.ctx);
-  REQUIRE(first.write(false));
-  auto initialCount = first.writtenFiles().size();
-  REQUIRE(initialCount > 1);
+  REQUIRE(first.Write(false));
+  auto initial_count = first.GetWrittenFiles().size();
+  REQUIRE(initial_count > 1);
 
   // Touches init.h, init.cpp, register.cpp and one recomp file, not sources.cmake.
-  fx.ctx->graph.setFunctionName(kBaseAddress + 4, "renamed_function");
+  fx.ctx->graph.SetFunctionName(kBaseAddress + 4, "renamed_function");
 
   CodegenWriter second(*fx.ctx);
-  REQUIRE(second.write(false));
+  REQUIRE(second.Write(false));
 
-  CHECK_FALSE(second.writtenFiles().empty());
-  CHECK(second.writtenFiles().size() < initialCount);
-  CHECK(std::find(second.writtenFiles().begin(), second.writtenFiles().end(),
-                  std::string("sources.cmake")) == second.writtenFiles().end());
+  CHECK_FALSE(second.GetWrittenFiles().empty());
+  CHECK(second.GetWrittenFiles().size() < initial_count);
+  CHECK(std::find(second.GetWrittenFiles().begin(), second.GetWrittenFiles().end(),
+                  std::string("sources.cmake")) == second.GetWrittenFiles().end());
 }
 
 REX_TEST_CASE("Recomp files are stable when one function's size changes", "[codegen_writer]") {
   WriterFixture fx("partition", 8);
 
   CodegenWriter first(*fx.ctx);
-  REQUIRE(first.write(false));
+  REQUIRE(first.Write(false));
 
-  fx.ctx->graph.setFunctionName(kBaseAddress, "a_considerably_longer_function_name");
+  fx.ctx->graph.SetFunctionName(kBaseAddress, "a_considerably_longer_function_name");
 
   CodegenWriter second(*fx.ctx);
-  REQUIRE(second.write(false));
+  REQUIRE(second.Write(false));
 
-  size_t rewrittenRecompFiles = 0;
-  for (const auto& name : second.writtenFiles()) {
+  size_t rewritten_recomp_files = 0;
+  for (const auto& name : second.GetWrittenFiles()) {
     if (name.find("_recomp.") != std::string::npos)
-      ++rewrittenRecompFiles;
+      ++rewritten_recomp_files;
   }
-  CHECK(rewrittenRecompFiles <= 1);
-  CHECK(fs::exists(fx.outputDir() / "codegen.partition.json"));
+  CHECK(rewritten_recomp_files <= 1);
+  CHECK(fs::exists(fx.GetOutputDir() / "codegen.partition.json"));
 }
 
 REX_TEST_CASE("Every name a recomp file calls is declared in its header", "[codegen_writer]") {
   WriterFixture fx("declarations", 8);
 
   CodegenWriter writer(*fx.ctx);
-  REQUIRE(writer.write(false));
+  REQUIRE(writer.Write(false));
 
-  static const std::regex callRe(R"(\b([A-Za-z_][A-Za-z0-9_]*)\(ctx, base\))");
-  static const std::regex declRe(R"(DECLARE_REX_FUNC\(([A-Za-z_][A-Za-z0-9_]*)\))");
+  static const std::regex kCallRe(R"(\b([A-Za-z_][A-Za-z0-9_]*)\(ctx, base\))");
+  static const std::regex kDeclRe(R"(DECLARE_REX_FUNC\(([A-Za-z_][A-Za-z0-9_]*)\))");
 
-  for (const auto& entry : fs::directory_iterator(fx.outputDir())) {
+  for (const auto& entry : fs::directory_iterator(fx.GetOutputDir())) {
     auto name = entry.path().filename().string();
     if (name.find("_recomp.") == std::string::npos)
       continue;
 
     auto index = name.substr(name.find("_recomp.") + 8);
     index = index.substr(0, index.find('.'));
-    auto header = fx.outputDir() / std::format("testproj_funcs.{}.h", index);
+    auto header = fx.GetOutputDir() / std::format("testproj_funcs.{}.h", index);
     REQUIRE(fs::exists(header));
 
     std::string body = ReadAll(entry.path());
     std::string decls = ReadAll(header);
 
     std::set<std::string> declared;
-    for (std::sregex_iterator it(decls.begin(), decls.end(), declRe), end; it != end; ++it) {
+    for (std::sregex_iterator it(decls.begin(), decls.end(), kDeclRe), end; it != end; ++it) {
       declared.insert((*it)[1].str());
     }
 
     // A call may precede its own definition, so being defined here is no excuse.
-    for (std::sregex_iterator it(body.begin(), body.end(), callRe), end; it != end; ++it) {
+    for (std::sregex_iterator it(body.begin(), body.end(), kCallRe), end; it != end; ++it) {
       auto called = (*it)[1].str();
       INFO("file " << name << " calls " << called << " with no declaration");
       CHECK(declared.contains(called));

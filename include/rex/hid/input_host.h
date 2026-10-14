@@ -50,7 +50,7 @@ class IInputHost {
    *
    * @return False while the window is unfocused or an overlay holds the mouse.
    */
-  virtual bool capture_active() const = 0;
+  virtual bool GetCaptureActive() const = 0;
 };
 
 }  // namespace rex::hid

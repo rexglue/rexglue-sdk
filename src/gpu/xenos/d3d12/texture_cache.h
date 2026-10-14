@@ -205,7 +205,7 @@ class D3D12TextureCache final : public TextureCache {
     return scaled_resolve_current_range_length_scaled_;
   }
   ID3D12Resource* GetCurrentScaledResolveBufferResource() {
-    return GetCurrentScaledResolveBuffer().resource();
+    return GetCurrentScaledResolveBuffer().GetResource();
   }
   size_t GetCurrentScaledResolveBufferIndexPublic() const {
     return GetCurrentScaledResolveBufferIndex();
@@ -313,8 +313,8 @@ class D3D12TextureCache final : public TextureCache {
       SRVDescriptorKey() : key(0) { REX_STATIC_ASSERT_SIZE(*this, sizeof(key)); }
 
       struct Hasher {
-        size_t operator()(const SRVDescriptorKey& key) const {
-          return std::hash<decltype(key.key)>{}(key.key);
+        size_t operator()(const SRVDescriptorKey& hashed_key) const {
+          return std::hash<decltype(hashed_key.key)>{}(hashed_key.key);
         }
       };
       bool operator==(const SRVDescriptorKey& other_key) const { return key == other_key.key; }
@@ -328,7 +328,7 @@ class D3D12TextureCache final : public TextureCache {
                           bool track_usage = true);
     ~D3D12Texture();
 
-    ID3D12Resource* resource() const { return resource_.Get(); }
+    ID3D12Resource* GetResource() const { return resource_.Get(); }
 
     D3D12_RESOURCE_STATES SetResourceState(D3D12_RESOURCE_STATES new_state) {
       D3D12_RESOURCE_STATES old_state = resource_state_;
@@ -366,8 +366,8 @@ class D3D12TextureCache final : public TextureCache {
     SRVDescriptorCachePage(SRVDescriptorCachePage&& page) = default;
     SRVDescriptorCachePage& operator=(SRVDescriptorCachePage&& page) = default;
 
-    ID3D12DescriptorHeap* heap() const { return heap_.Get(); }
-    D3D12_CPU_DESCRIPTOR_HANDLE heap_start() const { return heap_start_; }
+    ID3D12DescriptorHeap* GetHeap() const { return heap_.Get(); }
+    D3D12_CPU_DESCRIPTOR_HANDLE GetHeapStart() const { return heap_start_; }
 
    private:
     Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> heap_;
@@ -392,7 +392,7 @@ class D3D12TextureCache final : public TextureCache {
     explicit ScaledResolveVirtualBuffer(ID3D12Resource* resource,
                                         D3D12_RESOURCE_STATES resource_state)
         : resource_(resource), resource_state_(resource_state) {}
-    ID3D12Resource* resource() const { return resource_.Get(); }
+    ID3D12Resource* GetResource() const { return resource_.Get(); }
     D3D12_RESOURCE_STATES SetResourceState(D3D12_RESOURCE_STATES new_state) {
       D3D12_RESOURCE_STATES old_state = resource_state_;
       if (old_state == D3D12_RESOURCE_STATE_UNORDERED_ACCESS) {
@@ -429,7 +429,7 @@ class D3D12TextureCache final : public TextureCache {
    */
   bool IsDecompressionNeeded(xenos::TextureFormat format, u32 width, u32 height) const;
   DXGI_FORMAT GetDXGIResourceFormat(xenos::TextureFormat format, u32 width, u32 height) const {
-    const HostFormat& host_format = host_formats_[static_cast<u32>(format)];
+    const HostFormat& host_format = kHostFormats[static_cast<u32>(format)];
     return IsDecompressionNeeded(format, width, height) ? host_format.dxgi_format_uncompressed
                                                         : host_format.dxgi_format_resource;
   }
@@ -437,7 +437,7 @@ class D3D12TextureCache final : public TextureCache {
     return GetDXGIResourceFormat(key.format, key.GetWidth(), key.GetHeight());
   }
   DXGI_FORMAT GetDXGIUnormFormat(xenos::TextureFormat format, u32 width, u32 height) const {
-    const HostFormat& host_format = host_formats_[static_cast<u32>(format)];
+    const HostFormat& host_format = kHostFormats[static_cast<u32>(format)];
     return IsDecompressionNeeded(format, width, height) ? host_format.dxgi_format_uncompressed
                                                         : host_format.dxgi_format_unsigned;
   }
@@ -489,7 +489,7 @@ class D3D12TextureCache final : public TextureCache {
   size_t GetScaledResolveBufferCount() const {
     REX_ASSERT(IsDrawResolutionScaled());
     u64 address_space_size = static_cast<u64>(SharedMemory::kBufferSize) *
-                             (u64{draw_resolution_scale_x()} * draw_resolution_scale_y());
+                             (u64{GetDrawResolutionScaleX()} * GetDrawResolutionScaleY());
     return static_cast<size_t>((address_space_size - 1) >> 30);
   }
   /**
@@ -526,7 +526,7 @@ class D3D12TextureCache final : public TextureCache {
 
   xenos::ClampMode NormalizeClampMode(xenos::ClampMode clamp_mode) const;
 
-  static const HostFormat host_formats_[64];
+  static const HostFormat kHostFormats[64];
 
   D3D12CommandProcessor& command_processor_;
   bool bindless_resources_used_;

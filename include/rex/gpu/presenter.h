@@ -40,7 +40,7 @@ class IPresenter {
    *
    * @return The surface type flags.
    */
-  virtual Surface::TypeFlags supported_surface_types() const = 0;
+  virtual Surface::TypeFlags GetSupportedSurfaceTypes() const = 0;
 
   /**
    * Attaches to a host and its surface. Attach(nullptr, nullptr) detaches.

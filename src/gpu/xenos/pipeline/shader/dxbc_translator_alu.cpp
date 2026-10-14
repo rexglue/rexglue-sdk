@@ -20,10 +20,10 @@ namespace rex::gpu {
 using namespace xenos::ucode;
 
 void DXBCShaderTranslator::KillPixel(bool condition, const dxbc::Src& condition_src,
-                                     u8 memexport_eM_potentially_written_before) {
+                                     u8 memexport_em_potentially_written_before) {
   a_.OpIf(condition, condition_src);
   // Perform outstanding memory exports before the invocation goes inactive and UAV writes stop.
-  ExportToMemory(memexport_eM_potentially_written_before);
+  ExportToMemory(memexport_em_potentially_written_before);
   // Lanes continue after discard because other lanes in the quad may need them for derivatives.
   a_.OpDiscard(true, dxbc::Src::LU(UINT32_MAX));
   if (edram_rov_used_) {
@@ -33,7 +33,7 @@ void DXBCShaderTranslator::KillPixel(bool condition, const dxbc::Src& condition_
 }
 
 void DXBCShaderTranslator::ProcessVectorAluOperation(const ParsedAluInstruction& instr,
-                                                     u8 memexport_eM_potentially_written_before,
+                                                     u8 memexport_em_potentially_written_before,
                                                      u32& result_swizzle, bool& predicate_written) {
   result_swizzle = dxbc::Src::kXYZW;
   predicate_written = false;
@@ -295,7 +295,7 @@ void DXBCShaderTranslator::ProcessVectorAluOperation(const ParsedAluInstruction&
       // SM4 max is used, which replaces NaN with the non-NaN component.
       u32 remaining_components = 0;
       for (u32 i = 0; i < 4; ++i) {
-        remaining_components |= 1 << ((operands[0].swizzle_ >> (i * 2)) & 3);
+        remaining_components |= 1 << ((operands[0].swizzle >> (i * 2)) & 3);
       }
       u32 unique_component_0;
       rex::bit_scan_forward(remaining_components, &unique_component_0);
@@ -414,7 +414,7 @@ void DXBCShaderTranslator::ProcessVectorAluOperation(const ParsedAluInstruction&
               dxbc::Src::R(system_temp_result_, dxbc::Src::kXXXX),
               dxbc::Src::R(system_temp_result_, dxbc::Src::kYYYY));
       KillPixel(true, dxbc::Src::R(system_temp_result_, dxbc::Src::kXXXX),
-                memexport_eM_potentially_written_before);
+                memexport_em_potentially_written_before);
       if (used_result_components) {
         a_.OpAnd(dxbc::Dest::R(system_temp_result_, 0b0001),
                  dxbc::Src::R(system_temp_result_, dxbc::Src::kXXXX), dxbc::Src::LF(1.0f));
@@ -429,7 +429,7 @@ void DXBCShaderTranslator::ProcessVectorAluOperation(const ParsedAluInstruction&
               dxbc::Src::R(system_temp_result_, dxbc::Src::kXXXX),
               dxbc::Src::R(system_temp_result_, dxbc::Src::kYYYY));
       KillPixel(true, dxbc::Src::R(system_temp_result_, dxbc::Src::kXXXX),
-                memexport_eM_potentially_written_before);
+                memexport_em_potentially_written_before);
       if (used_result_components) {
         a_.OpAnd(dxbc::Dest::R(system_temp_result_, 0b0001),
                  dxbc::Src::R(system_temp_result_, dxbc::Src::kXXXX), dxbc::Src::LF(1.0f));
@@ -444,7 +444,7 @@ void DXBCShaderTranslator::ProcessVectorAluOperation(const ParsedAluInstruction&
               dxbc::Src::R(system_temp_result_, dxbc::Src::kXXXX),
               dxbc::Src::R(system_temp_result_, dxbc::Src::kYYYY));
       KillPixel(true, dxbc::Src::R(system_temp_result_, dxbc::Src::kXXXX),
-                memexport_eM_potentially_written_before);
+                memexport_em_potentially_written_before);
       if (used_result_components) {
         a_.OpAnd(dxbc::Dest::R(system_temp_result_, 0b0001),
                  dxbc::Src::R(system_temp_result_, dxbc::Src::kXXXX), dxbc::Src::LF(1.0f));
@@ -459,7 +459,7 @@ void DXBCShaderTranslator::ProcessVectorAluOperation(const ParsedAluInstruction&
               dxbc::Src::R(system_temp_result_, dxbc::Src::kXXXX),
               dxbc::Src::R(system_temp_result_, dxbc::Src::kYYYY));
       KillPixel(true, dxbc::Src::R(system_temp_result_, dxbc::Src::kXXXX),
-                memexport_eM_potentially_written_before);
+                memexport_em_potentially_written_before);
       if (used_result_components) {
         a_.OpAnd(dxbc::Dest::R(system_temp_result_, 0b0001),
                  dxbc::Src::R(system_temp_result_, dxbc::Src::kXXXX), dxbc::Src::LF(1.0f));
@@ -531,7 +531,7 @@ void DXBCShaderTranslator::ProcessVectorAluOperation(const ParsedAluInstruction&
 }
 
 void DXBCShaderTranslator::ProcessScalarAluOperation(const ParsedAluInstruction& instr,
-                                                     u8 memexport_eM_potentially_written_before,
+                                                     u8 memexport_em_potentially_written_before,
                                                      bool& predicate_written) {
   predicate_written = false;
 
@@ -782,27 +782,27 @@ void DXBCShaderTranslator::ProcessScalarAluOperation(const ParsedAluInstruction&
 
     case AluScalarOpcode::kKillsEq:
       a_.OpEq(ps_dest, operand_0_a, dxbc::Src::LF(0.0f));
-      KillPixel(true, ps_src, memexport_eM_potentially_written_before);
+      KillPixel(true, ps_src, memexport_em_potentially_written_before);
       a_.OpAnd(ps_dest, ps_src, dxbc::Src::LF(1.0f));
       break;
     case AluScalarOpcode::kKillsGt:
       a_.OpLT(ps_dest, dxbc::Src::LF(0.0f), operand_0_a);
-      KillPixel(true, ps_src, memexport_eM_potentially_written_before);
+      KillPixel(true, ps_src, memexport_em_potentially_written_before);
       a_.OpAnd(ps_dest, ps_src, dxbc::Src::LF(1.0f));
       break;
     case AluScalarOpcode::kKillsGe:
       a_.OpGE(ps_dest, operand_0_a, dxbc::Src::LF(0.0f));
-      KillPixel(true, ps_src, memexport_eM_potentially_written_before);
+      KillPixel(true, ps_src, memexport_em_potentially_written_before);
       a_.OpAnd(ps_dest, ps_src, dxbc::Src::LF(1.0f));
       break;
     case AluScalarOpcode::kKillsNe:
       a_.OpNE(ps_dest, operand_0_a, dxbc::Src::LF(0.0f));
-      KillPixel(true, ps_src, memexport_eM_potentially_written_before);
+      KillPixel(true, ps_src, memexport_em_potentially_written_before);
       a_.OpAnd(ps_dest, ps_src, dxbc::Src::LF(1.0f));
       break;
     case AluScalarOpcode::kKillsOne:
       a_.OpEq(ps_dest, operand_0_a, dxbc::Src::LF(1.0f));
-      KillPixel(true, ps_src, memexport_eM_potentially_written_before);
+      KillPixel(true, ps_src, memexport_em_potentially_written_before);
       a_.OpAnd(ps_dest, ps_src, dxbc::Src::LF(1.0f));
       break;
 
@@ -851,7 +851,7 @@ void DXBCShaderTranslator::ProcessScalarAluOperation(const ParsedAluInstruction&
 }
 
 void DXBCShaderTranslator::ProcessAluInstruction(const ParsedAluInstruction& instr,
-                                                 u8 memexport_eM_potentially_written_before) {
+                                                 u8 memexport_em_potentially_written_before) {
   if (instr.IsNop()) {
     return;
   }
@@ -864,10 +864,10 @@ void DXBCShaderTranslator::ProcessAluInstruction(const ParsedAluInstruction& ins
 
   bool predicate_written_vector = false;
   u32 vector_result_swizzle = dxbc::Src::kXYZW;
-  ProcessVectorAluOperation(instr, memexport_eM_potentially_written_before, vector_result_swizzle,
+  ProcessVectorAluOperation(instr, memexport_em_potentially_written_before, vector_result_swizzle,
                             predicate_written_vector);
   bool predicate_written_scalar = false;
-  ProcessScalarAluOperation(instr, memexport_eM_potentially_written_before,
+  ProcessScalarAluOperation(instr, memexport_em_potentially_written_before,
                             predicate_written_scalar);
 
   StoreResult(instr.vector_and_constant_result,

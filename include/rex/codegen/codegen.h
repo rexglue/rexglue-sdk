@@ -29,7 +29,7 @@ class ToolRuntime;
  * Pipeline orchestrator for code generation.
  *
  * @code
- * auto pipeline = CodegenPipeline::Create(configPath);
+ * auto pipeline = CodegenPipeline::Create(config_path);
  * if (!pipeline) { handle error }
  * auto result = pipeline->Run();
  * @endcode
@@ -57,17 +57,17 @@ class CodegenPipeline : public rex::MoveOnly {
    * Create pipeline from config file path.
    * Loads XEX, creates Runtime and CodegenContext.
    *
-   * @param configPath Path to TOML config file
+   * @param config_path Path to TOML config file
    * @return Pipeline on success, error on failure
    */
-  [[nodiscard]] static Result<CodegenPipeline> Create(const std::filesystem::path& configPath);
+  [[nodiscard]] static Result<CodegenPipeline> Create(const std::filesystem::path& config_path);
 
   [[nodiscard]] Result<void> Run(bool force = false);
   [[nodiscard]] Result<void> RunAnalyze();
   [[nodiscard]] Result<void> RunWrite(bool force = false);
 
-  CodegenContext& context() { return *ctx_; }
-  const CodegenContext& context() const { return *ctx_; }
+  CodegenContext& GetContext() { return *ctx_; }
+  const CodegenContext& GetContext() const { return *ctx_; }
 
  private:
   CodegenPipeline() = default;

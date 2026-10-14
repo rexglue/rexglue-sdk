@@ -45,7 +45,7 @@ class DXBCShader : public Shader {
    * @return Texture bindings collected by the translation.
    */
   const std::vector<TextureBinding>& GetTextureBindingsAfterTranslation() const {
-    return texture_bindings_;
+    return translated_texture_bindings_;
   }
   u32 GetUsedTextureMaskAfterTranslation() const { return used_texture_mask_; }
 
@@ -71,7 +71,7 @@ class DXBCShader : public Shader {
   friend class DXBCShaderTranslator;
 
   std::atomic_flag bindings_setup_entered_;
-  std::vector<TextureBinding> texture_bindings_;
+  std::vector<TextureBinding> translated_texture_bindings_;
   std::vector<SamplerBinding> sampler_bindings_;
   u32 used_texture_mask_ = 0;
 };

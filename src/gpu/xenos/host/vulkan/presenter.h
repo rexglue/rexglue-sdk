@@ -46,11 +46,11 @@ class VulkanOverlayDrawContext final : public gpu::OverlayDrawContext {
         render_pass_(render_pass),
         render_pass_format_(render_pass_format) {}
 
-  VkCommandBuffer draw_command_buffer() const { return draw_command_buffer_; }
-  u64 submission_index_current() const { return submission_index_current_; }
-  u64 submission_index_completed() const { return submission_index_completed_; }
-  VkRenderPass render_pass() const { return render_pass_; }
-  VkFormat render_pass_format() const { return render_pass_format_; }
+  VkCommandBuffer GetDrawCommandBuffer() const { return draw_command_buffer_; }
+  u64 GetSubmissionIndexCurrent() const { return submission_index_current_; }
+  u64 GetSubmissionIndexCompleted() const { return submission_index_completed_; }
+  VkRenderPass GetRenderPass() const { return render_pass_; }
+  VkFormat GetRenderPassFormat() const { return render_pass_format_; }
 
  private:
   VkCommandBuffer draw_command_buffer_;
@@ -120,15 +120,15 @@ class VulkanPresenter final : public Presenter {
      *
      * @return The image.
      */
-    VkImage image() const { return image_; }
-    VkImageView image_view() const { return image_view_; }
-    u64 image_version() const { return image_version_; }
+    VkImage GetImage() const { return image_; }
+    VkImageView GetImageView() const { return image_view_; }
+    u64 GetImageVersion() const { return image_version_; }
     /**
      * Reports whether a full barrier must be done to acquire the image.
      *
      * @return True when the image was written before.
      */
-    bool image_ever_written_previously() const { return image_ever_written_previously_; }
+    bool GetImageEverWrittenPreviously() const { return image_ever_written_previously_; }
 
    private:
     VkImage image_;
@@ -161,7 +161,7 @@ class VulkanPresenter final : public Presenter {
    */
   ~VulkanPresenter();
 
-  const VulkanDevice* vulkan_device() const { return vulkan_device_; }
+  const VulkanDevice* GetVulkanDevice() const { return vulkan_device_; }
 
   static gpu::Surface::TypeFlags GetSurfaceTypesSupportedByInstance(
       const VulkanInstance::Extensions& instance_extensions);
@@ -224,11 +224,11 @@ class VulkanPresenter final : public Presenter {
 
     ~GuestOutputImage();
 
-    const VkExtent2D& extent() const { return extent_; }
+    const VkExtent2D& GetExtent() const { return extent_; }
 
-    VkImage image() const { return image_; }
-    VkDeviceMemory memory() const { return memory_; }
-    VkImageView view() const { return view_; }
+    VkImage GetImage() const { return image_; }
+    VkDeviceMemory GetMemory() const { return memory_; }
+    VkImageView GetView() const { return view_; }
 
    private:
     bool Initialize();
@@ -314,10 +314,10 @@ class VulkanPresenter final : public Presenter {
 
       ~Submission();
 
-      VkSemaphore acquire_semaphore() const { return acquire_semaphore_; }
-      VkSemaphore present_semaphore() const { return present_semaphore_; }
-      VkCommandPool draw_command_pool() const { return draw_command_pool_; }
-      VkCommandBuffer draw_command_buffer() const { return draw_command_buffer_; }
+      VkSemaphore GetAcquireSemaphore() const { return acquire_semaphore_; }
+      VkSemaphore GetPresentSemaphore() const { return present_semaphore_; }
+      VkCommandPool GetDrawCommandPool() const { return draw_command_pool_; }
+      VkCommandBuffer GetDrawCommandBuffer() const { return draw_command_buffer_; }
 
      private:
       bool Initialize();

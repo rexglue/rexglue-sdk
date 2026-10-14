@@ -25,7 +25,7 @@
 
 namespace rex::kernel::xboxkrnl {
 
-struct error_lookup_table {
+struct ErrorLookupTable {
   u32 base_code;
   size_t count;
   const u32* entries;
@@ -772,8 +772,8 @@ constexpr u32 error_table_0xC0980001[] = {
     0x00000037,  // 0xC0980008
 };
 
-#define REX_ERROR_TABLE_ENTRY(x) {x, rex::countof(error_table_##x), error_table_##x}
-constexpr error_lookup_table error_tables[] = {
+#define REX_ERROR_TABLE_ENTRY(x) {x, rex::CountOf(error_table_##x), error_table_##x}
+constexpr ErrorLookupTable kErrorTables[] = {
     REX_ERROR_TABLE_ENTRY(0x00000103),
     REX_ERROR_TABLE_ENTRY(0x40000002),
     REX_ERROR_TABLE_ENTRY(0x40020056),
@@ -807,7 +807,7 @@ u32 RtlNtStatusToDosError(u32 source_status) {
     status &= ~0x30000000;
   }
 
-  auto error_table = &error_tables[0];
+  auto error_table = &kErrorTables[0];
   while (error_table->base_code) {
     if (status < error_table->base_code) {
       break;

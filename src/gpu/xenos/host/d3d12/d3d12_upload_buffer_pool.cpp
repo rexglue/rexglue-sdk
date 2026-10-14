@@ -18,7 +18,7 @@ namespace rex::gpu::d3d12 {
 
 D3D12UploadBufferPool::D3D12UploadBufferPool(const D3D12Provider& provider, size_t page_size)
     : GraphicsUploadBufferPool(
-          rex::align(page_size, static_cast<size_t>(D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT))),
+          rex::Align(page_size, static_cast<size_t>(D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT))),
       provider_(provider) {}
 
 u8* D3D12UploadBufferPool::Request(u64 submission_index, size_t size, size_t alignment,
@@ -31,15 +31,15 @@ u8* D3D12UploadBufferPool::Request(u64 submission_index, size_t size, size_t ali
     return nullptr;
   }
   if (buffer_out) {
-    *buffer_out = page->buffer_.Get();
+    *buffer_out = page->buffer.Get();
   }
   if (offset_out) {
     *offset_out = offset;
   }
   if (gpu_address_out) {
-    *gpu_address_out = page->gpu_address_ + offset;
+    *gpu_address_out = page->gpu_address + offset;
   }
-  return reinterpret_cast<u8*>(page->mapping_) + offset;
+  return reinterpret_cast<u8*>(page->mapping) + offset;
 }
 
 u8* D3D12UploadBufferPool::RequestPartial(u64 submission_index, size_t size, size_t alignment,
@@ -53,7 +53,7 @@ u8* D3D12UploadBufferPool::RequestPartial(u64 submission_index, size_t size, siz
     return nullptr;
   }
   if (buffer_out) {
-    *buffer_out = page->buffer_.Get();
+    *buffer_out = page->buffer.Get();
   }
   if (offset_out) {
     *offset_out = offset;
@@ -62,9 +62,9 @@ u8* D3D12UploadBufferPool::RequestPartial(u64 submission_index, size_t size, siz
     *size_out = size_obtained;
   }
   if (gpu_address_out) {
-    *gpu_address_out = page->gpu_address_ + offset;
+    *gpu_address_out = page->gpu_address + offset;
   }
-  return reinterpret_cast<u8*>(page->mapping_) + offset;
+  return reinterpret_cast<u8*>(page->mapping) + offset;
 }
 
 std::unique_ptr<GraphicsUploadBufferPool::Page> D3D12UploadBufferPool::CreatePageImplementation() {
@@ -89,8 +89,8 @@ std::unique_ptr<GraphicsUploadBufferPool::Page> D3D12UploadBufferPool::CreatePag
 }
 
 D3D12UploadBufferPool::D3D12Page::D3D12Page(ID3D12Resource* buffer, void* mapping)
-    : buffer_(buffer), mapping_(mapping) {
-  gpu_address_ = buffer_->GetGPUVirtualAddress();
+    : buffer(buffer), mapping(mapping) {
+  gpu_address = buffer->GetGPUVirtualAddress();
 }
 
 }  // namespace rex::gpu::d3d12

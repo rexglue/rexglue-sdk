@@ -14,36 +14,36 @@ CodegenPipeline::~CodegenPipeline() = default;
 CodegenPipeline::CodegenPipeline(CodegenPipeline&&) noexcept = default;
 CodegenPipeline& CodegenPipeline::operator=(CodegenPipeline&&) noexcept = default;
 
-Result<CodegenPipeline> CodegenPipeline::Create(const std::filesystem::path& configPath) {
+Result<CodegenPipeline> CodegenPipeline::Create(const std::filesystem::path& config_path) {
   CodegenPipeline pipeline;
 
-  RecompilerConfig tempConfig;
-  if (!tempConfig.Load(configPath.string())) {
-    return Err<CodegenPipeline>(ErrorCategory::Config,
-                                std::format("Failed to load config: {}", configPath.string()));
+  RecompilerConfig temp_config;
+  if (!temp_config.Load(config_path.string())) {
+    return Err<CodegenPipeline>(ErrorCategory::kConfig,
+                                std::format("Failed to load config: {}", config_path.string()));
   }
 
-  auto configDir = configPath.parent_path();
+  auto config_dir = config_path.parent_path();
 
-  std::filesystem::path xexPath = configDir / tempConfig.filePath;
+  std::filesystem::path xex_path = config_dir / temp_config.file_path;
 
-  if (!std::filesystem::exists(xexPath)) {
-    return Err<CodegenPipeline>(ErrorCategory::IO,
-                                std::format("XEX file not found: {}", xexPath.string()));
+  if (!std::filesystem::exists(xex_path)) {
+    return Err<CodegenPipeline>(ErrorCategory::kIO,
+                                std::format("XEX file not found: {}", xex_path.string()));
   }
-  xexPath = std::filesystem::canonical(xexPath);
+  xex_path = std::filesystem::canonical(xex_path);
 
-  auto tool = OpenToolRuntime(xexPath.parent_path());
+  auto tool = OpenToolRuntime(xex_path.parent_path());
   if (!tool) {
     return Err<CodegenPipeline>(tool.error());
   }
   pipeline.runtime_ = std::make_unique<ToolRuntime>(std::move(*tool));
 
-  auto ctxResult = CodegenContext::Create(configPath, pipeline.runtime_->runtime());
-  if (!ctxResult) {
-    return Err<CodegenPipeline>(ctxResult.error());
+  auto ctx_result = CodegenContext::Create(config_path, pipeline.runtime_->GetRuntime());
+  if (!ctx_result) {
+    return Err<CodegenPipeline>(ctx_result.error());
   }
-  pipeline.ctx_ = std::make_unique<CodegenContext>(std::move(*ctxResult));
+  pipeline.ctx_ = std::make_unique<CodegenContext>(std::move(*ctx_result));
 
   return Ok(std::move(pipeline));
 }
@@ -56,17 +56,17 @@ Result<void> CodegenPipeline::Run(bool force) {
 }
 
 Result<void> CodegenPipeline::RunAnalyze() {
-  auto analyzeResult = Analyze(*ctx_);
-  if (!analyzeResult) {
-    REX_FAIL(codegen, analyzeResult, "Analysis failed: {}", analyzeResult.error().message);
+  auto analyze_result = Analyze(*ctx_);
+  if (!analyze_result) {
+    REX_FAIL(codegen, analyze_result, "Analysis failed: {}", analyze_result.error().message);
   }
   return Ok();
 }
 
 Result<void> CodegenPipeline::RunWrite(bool force) {
   CodegenWriter writer(*ctx_);
-  if (!writer.write(force))
-    return Err(ErrorCategory::Validation, "Code generation failed.");
+  if (!writer.Write(force))
+    return Err(ErrorCategory::kValidation, "Code generation failed.");
   return Ok();
 }
 

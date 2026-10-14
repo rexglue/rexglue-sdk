@@ -47,7 +47,7 @@ struct Message {
 };
 
 /**
- * Renders a message as 1 line without a line break.
+ * Renders a message as a single line without a line break.
  *
  * @param message The message.
  * @param format What to write around the message.

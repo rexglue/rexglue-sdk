@@ -29,7 +29,7 @@ namespace rex {
  * Big endian element i is stored at u32[i ^ 0x3], u16[i ^ 0x7] and u8[i ^ 0xF]. Code should avoid
  * fixed lane offsets where a loop over the lanes works.
  */
-struct alignas(16) vec128_s {
+struct alignas(16) Vec128S {
   union {
     struct {
       rex::f32 x; /**< f32 lane 0. */
@@ -69,20 +69,20 @@ struct alignas(16) vec128_s {
    * @param b The value to compare with.
    * @return True when all 128 bits match.
    */
-  bool operator==(const vec128_s& b) const { return low == b.low && high == b.high; }
+  bool operator==(const Vec128S& b) const { return low == b.low && high == b.high; }
 
   /**
    * @param b The value to compare with.
    * @return True when any bit differs.
    */
-  bool operator!=(const vec128_s& b) const { return low != b.low || high != b.high; }
+  bool operator!=(const Vec128S& b) const { return low != b.low || high != b.high; }
 
   /**
    * @param b The right operand.
    * @return The bitwise XOR of this and b.
    */
-  vec128_s operator^(const vec128_s& b) const {
-    vec128_s a = *this;
+  Vec128S operator^(const Vec128S& b) const {
+    Vec128S a = *this;
     a.high ^= b.high;
     a.low ^= b.low;
     return a;
@@ -92,7 +92,7 @@ struct alignas(16) vec128_s {
    * @param b The right operand.
    * @return This value after the bitwise XOR with b.
    */
-  vec128_s& operator^=(const vec128_s& b) {
+  Vec128S& operator^=(const Vec128S& b) {
     *this = *this ^ b;
     return *this;
   };
@@ -101,8 +101,8 @@ struct alignas(16) vec128_s {
    * @param b The right operand.
    * @return The bitwise AND of this and b.
    */
-  vec128_s operator&(const vec128_s& b) const {
-    vec128_s a = *this;
+  Vec128S operator&(const Vec128S& b) const {
+    Vec128S a = *this;
     a.high &= b.high;
     a.low &= b.low;
     return a;
@@ -112,7 +112,7 @@ struct alignas(16) vec128_s {
    * @param b The right operand.
    * @return This value after the bitwise AND with b.
    */
-  vec128_s& operator&=(const vec128_s& b) {
+  Vec128S& operator&=(const Vec128S& b) {
     *this = *this & b;
     return *this;
   };
@@ -121,8 +121,8 @@ struct alignas(16) vec128_s {
    * @param b The right operand.
    * @return The bitwise OR of this and b.
    */
-  vec128_s operator|(const vec128_s& b) const {
-    vec128_s a = *this;
+  Vec128S operator|(const Vec128S& b) const {
+    Vec128S a = *this;
     a.high |= b.high;
     a.low |= b.low;
     return a;
@@ -132,21 +132,21 @@ struct alignas(16) vec128_s {
    * @param b The right operand.
    * @return This value after the bitwise OR with b.
    */
-  vec128_s& operator|=(const vec128_s& b) {
+  Vec128S& operator|=(const Vec128S& b) {
     *this = *this | b;
     return *this;
   };
 };
 
 /** 128 bit vector register value. */
-using vec128_t = vec128_s;
+using Vec128T = Vec128S;
 
 /**
  * @param src The value for every u32 lane.
  * @return A vector with src in all 4 u32 lanes.
  */
-static inline vec128_t vec128i(u32 src) {
-  vec128_t v;
+static inline Vec128T vec128i(u32 src) {
+  Vec128T v;
   for (auto i = 0; i < 4; ++i) {
     v.u32[i] = src;
   }
@@ -160,8 +160,8 @@ static inline vec128_t vec128i(u32 src) {
  * @param w u32 lane 3.
  * @return A vector with the given u32 lanes.
  */
-static inline vec128_t vec128i(u32 x, u32 y, u32 z, u32 w) {
-  vec128_t v;
+static inline Vec128T vec128i(u32 x, u32 y, u32 z, u32 w) {
+  Vec128T v;
   v.u32[0] = x;
   v.u32[1] = y;
   v.u32[2] = z;
@@ -173,8 +173,8 @@ static inline vec128_t vec128i(u32 x, u32 y, u32 z, u32 w) {
  * @param src The value for every 64 bit lane.
  * @return A vector with src in both 64 bit lanes.
  */
-static inline vec128_t vec128q(u64 src) {
-  vec128_t v;
+static inline Vec128T vec128q(u64 src) {
+  Vec128T v;
   for (auto i = 0; i < 2; ++i) {
     v.u64[i] = src;
   }
@@ -186,8 +186,8 @@ static inline vec128_t vec128q(u64 src) {
  * @param y 64 bit lane 1.
  * @return A vector with the given 64 bit lanes.
  */
-static inline vec128_t vec128q(u64 x, u64 y) {
-  vec128_t v;
+static inline Vec128T vec128q(u64 x, u64 y) {
+  Vec128T v;
   v.u64[0] = x;
   v.u64[1] = y;
   return v;
@@ -197,8 +197,8 @@ static inline vec128_t vec128q(u64 x, u64 y) {
  * @param src The value for every f64 lane.
  * @return A vector with src in both f64 lanes.
  */
-static inline vec128_t vec128d(f64 src) {
-  vec128_t v;
+static inline Vec128T vec128d(f64 src) {
+  Vec128T v;
   for (auto i = 0; i < 2; ++i) {
     v.f64[i] = src;
   }
@@ -210,8 +210,8 @@ static inline vec128_t vec128d(f64 src) {
  * @param y f64 lane 1.
  * @return A vector with the given f64 lanes.
  */
-static inline vec128_t vec128d(f64 x, f64 y) {
-  vec128_t v;
+static inline Vec128T vec128d(f64 x, f64 y) {
+  Vec128T v;
   v.f64[0] = x;
   v.f64[1] = y;
   return v;
@@ -221,8 +221,8 @@ static inline vec128_t vec128d(f64 x, f64 y) {
  * @param src The value for every f32 lane.
  * @return A vector with src in all 4 f32 lanes.
  */
-static inline vec128_t vec128f(f32 src) {
-  vec128_t v;
+static inline Vec128T vec128f(f32 src) {
+  Vec128T v;
   for (auto i = 0; i < 4; ++i) {
     v.f32[i] = src;
   }
@@ -236,8 +236,8 @@ static inline vec128_t vec128f(f32 src) {
  * @param w f32 lane 3.
  * @return A vector with the given f32 lanes.
  */
-static inline vec128_t vec128f(f32 x, f32 y, f32 z, f32 w) {
-  vec128_t v;
+static inline Vec128T vec128f(f32 x, f32 y, f32 z, f32 w) {
+  Vec128T v;
   v.f32[0] = x;
   v.f32[1] = y;
   v.f32[2] = z;
@@ -249,8 +249,8 @@ static inline vec128_t vec128f(f32 x, f32 y, f32 z, f32 w) {
  * @param src The value for every u16 lane.
  * @return A vector with src in all 8 u16 lanes.
  */
-static inline vec128_t vec128s(u16 src) {
-  vec128_t v;
+static inline Vec128T vec128s(u16 src) {
+  Vec128T v;
   for (auto i = 0; i < 8; ++i) {
     v.u16[i] = src;
   }
@@ -270,8 +270,8 @@ static inline vec128_t vec128s(u16 src) {
  * @param w1 Low half of 32 bit lane 3.
  * @return A vector with the given u16 values.
  */
-static inline vec128_t vec128s(u16 x0, u16 x1, u16 y0, u16 y1, u16 z0, u16 z1, u16 w0, u16 w1) {
-  vec128_t v;
+static inline Vec128T vec128s(u16 x0, u16 x1, u16 y0, u16 y1, u16 z0, u16 z1, u16 w0, u16 w1) {
+  Vec128T v;
   v.u16[0] = x1;
   v.u16[1] = x0;
   v.u16[2] = y1;
@@ -287,8 +287,8 @@ static inline vec128_t vec128s(u16 x0, u16 x1, u16 y0, u16 y1, u16 z0, u16 z1, u
  * @param src The value for every u8 lane.
  * @return A vector with src in all 16 u8 lanes.
  */
-static inline vec128_t vec128b(u8 src) {
-  vec128_t v;
+static inline Vec128T vec128b(u8 src) {
+  Vec128T v;
   for (auto i = 0; i < 16; ++i) {
     v.u8[i] = src;
   }
@@ -316,9 +316,9 @@ static inline vec128_t vec128b(u8 src) {
  * @param w3 Byte 3 of 32 bit lane 3.
  * @return A vector with the given u8 values.
  */
-static inline vec128_t vec128b(u8 x0, u8 x1, u8 x2, u8 x3, u8 y0, u8 y1, u8 y2, u8 y3, u8 z0, u8 z1,
-                               u8 z2, u8 z3, u8 w0, u8 w1, u8 w2, u8 w3) {
-  vec128_t v;
+static inline Vec128T vec128b(u8 x0, u8 x1, u8 x2, u8 x3, u8 y0, u8 y1, u8 y2, u8 y3, u8 z0, u8 z1,
+                              u8 z2, u8 z3, u8 w0, u8 w1, u8 w2, u8 w3) {
+  Vec128T v;
   v.u8[0] = x3;
   v.u8[1] = x2;
   v.u8[2] = x1;
@@ -342,7 +342,7 @@ static inline vec128_t vec128b(u8 x0, u8 x1, u8 x2, u8 x3, u8 y0, u8 y1, u8 y2, 
  * @param value The vector to format.
  * @return The 4 f32 lanes as "(x, y, z, w)".
  */
-std::string to_string(const vec128_t& value);
+std::string to_string(const Vec128T& value);
 
 /**
  * Writes the 4 u32 lanes as 8 digit uppercase hex, "[X X X X]".
@@ -351,6 +351,6 @@ std::string to_string(const vec128_t& value);
  * @param value The vector to write.
  * @return os.
  */
-std::ostream& operator<<(std::ostream& os, const vec128_t& value);
+std::ostream& operator<<(std::ostream& os, const Vec128T& value);
 
 }  // namespace rex

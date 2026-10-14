@@ -46,11 +46,11 @@ class REX_API CvarRegistryImpl final : public cvar::ICvarRegistry {
       std::string_view name) const override;
   cvar::CvarSource Source(std::string_view name) const override;
   std::vector<const cvar::IVar*> Enumerate(std::string_view scope = {}) const override;
-  std::vector<std::string_view> Scopes() const override;
+  std::vector<std::string_view> GetScopes() const override;
   [[nodiscard]] Result<cvar::CallbackHandle> OnChange(std::string_view name,
                                                       cvar::ChangeCallback callback) override;
   [[nodiscard]] Result<void> Invoke(std::string_view name, std::string_view args) override;
-  std::vector<std::string> PendingRestart() const override;
+  std::vector<std::string> GetPendingRestart() const override;
   std::string Serialize() const override;
   bool IsFinalized() const override;
 
@@ -81,14 +81,14 @@ class REX_API CvarRegistryImpl final : public cvar::ICvarRegistry {
    *
    * @return The names.
    */
-  std::vector<std::string> RegisteredNames() const;
+  std::vector<std::string> GetRegisteredNames() const;
 
  private:
   struct Entry {
     const cvar::IVar* var = nullptr;
     std::string default_override;
     bool has_default_override = false;
-    cvar::CvarSource source = cvar::CvarSource::Default;
+    cvar::CvarSource source = cvar::CvarSource::kDefault;
     bool locked = false;
   };
   struct Callback {

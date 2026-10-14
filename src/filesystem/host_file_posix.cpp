@@ -38,8 +38,8 @@ HostInfo FromStat(std::filesystem::path name, const struct stat& st) {
 }
 
 rex::Error HostError(std::string_view what, const std::filesystem::path& path) {
-  return BuildError(FileSystemError::kIO, std::format("{} '{}' failed, {}", what,
-                                                      path_to_utf8(path), std::strerror(errno)));
+  return BuildError(FileSystemError::kIO, std::format("{} '{}' failed, {}", what, PathToUTF8(path),
+                                                      std::strerror(errno)));
 }
 
 bool NoNativeExclusiveMove(int error) {
@@ -124,7 +124,7 @@ Result<std::unique_ptr<HostFile>> HostFile::OpenExisting(const std::filesystem::
     }
     return Err<std::unique_ptr<HostFile>>(BuildError(
         code,
-        std::format("cannot open host file '{}', {}", path_to_utf8(path), std::strerror(error))));
+        std::format("cannot open host file '{}', {}", PathToUTF8(path), std::strerror(error))));
   }
   return std::make_unique<HostFile>(Key{}, path, handle);
 }
@@ -169,7 +169,7 @@ Result<void> HostFile::Flush() const {
     } else if (error == EACCES || error == EPERM || error == EROFS) {
       code = FileSystemError::kAccessDenied;
     }
-    return Err(BuildError(code, std::format("cannot create host file '{}', {}", path_to_utf8(path),
+    return Err(BuildError(code, std::format("cannot create host file '{}', {}", PathToUTF8(path),
                                             std::strerror(error))));
   }
   close(handle);
@@ -190,8 +190,8 @@ Result<void> HostFile::Flush() const {
   } else if (error == EXDEV) {
     code = FileSystemError::kNotSameDevice;
   }
-  return Err(BuildError(code, std::format("cannot move '{}' to '{}', {}", path_to_utf8(from),
-                                          path_to_utf8(to), std::strerror(error))));
+  return Err(BuildError(code, std::format("cannot move '{}' to '{}', {}", PathToUTF8(from),
+                                          PathToUTF8(to), std::strerror(error))));
 }
 
 std::optional<HostInfo> HostStat(const std::filesystem::path& path) {

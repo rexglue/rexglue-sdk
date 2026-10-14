@@ -21,9 +21,9 @@ namespace {
 
 class APUModule final : public rex::IModule {
  public:
-  static void* GetModule() { return static_cast<rex::IModule*>(&Instance()); }
+  static void* GetModule() { return static_cast<rex::IModule*>(&GetInstance()); }
   static void* GetBackend() {
-    auto& backend = Instance().backend_;
+    auto& backend = GetInstance().backend_;
     if (!backend) {
       backend.emplace();
     }
@@ -35,8 +35,8 @@ class APUModule final : public rex::IModule {
        &GetBackend},
   }};
 
-  const char* Name() const override { return "rexmod-test-apu"; }
-  std::span<const char* const> RequiredInterfaces() const override { return {}; }
+  const char* GetName() const override { return "rexmod-test-apu"; }
+  std::span<const char* const> GetRequiredInterfaces() const override { return {}; }
   [[nodiscard]] rex::Result<void> Connect(rex::IInterfaceFactory*, const rex::Config&) override {
     return rex::Ok();
   }
@@ -45,7 +45,7 @@ class APUModule final : public rex::IModule {
   void Shutdown() override {}
 
  private:
-  static APUModule& Instance() {
+  static APUModule& GetInstance() {
     static APUModule instance;
     return instance;
   }

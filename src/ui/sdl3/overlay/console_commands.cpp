@@ -33,7 +33,7 @@ void ConsoleFind(std::string_view args) {
     REXLOG_INFO(console, "find: usage: find <substr>");
     return;
   }
-  auto* registry = ::rex::ui::cvars::echo.registry();
+  auto* registry = ::rex::ui::cvars::echo.GetRegistry();
   if (!registry) {
     REXLOG_INFO(console, "find: no registry");
     return;
@@ -41,7 +41,7 @@ void ConsoleFind(std::string_view args) {
   std::string needle(args);
   int matches = 0;
   for (const rex::cvar::IVar* var : registry->Enumerate()) {
-    const std::string_view n = var->desc().name;
+    const std::string_view n = var->GetDesc().name;
     if (n.find(needle) != std::string_view::npos) {
       REXLOG_INFO(console, "  {}", n);
       ++matches;

@@ -36,7 +36,7 @@ namespace rex::gpu::draw_state {
  * @param b The second run.
  * @return True when both runs have the same length and the same bits.
  */
-inline bool BitsEqual(std::span<const f32> a, std::span<const f32> b) {
+inline bool AreBitsEqual(std::span<const f32> a, std::span<const f32> b) {
   return std::ranges::equal(
       a, b, [](f32 x, f32 y) { return std::bit_cast<u32>(x) == std::bit_cast<u32>(y); });
 }
@@ -530,7 +530,7 @@ struct ResolveCopyShaderInfo {
 };
 
 extern const ResolveCopyShaderInfo
-    resolve_copy_shader_info[static_cast<size_t>(ResolveCopyShaderIndex::kCount)];
+    kResolveCopyShaderInfo[static_cast<size_t>(ResolveCopyShaderIndex::kCount)];
 
 struct ResolveCopyShaderConstants {
   /**

@@ -60,14 +60,14 @@ class IGPUBackend {
    *
    * @return True once the presenter exists.
    */
-  virtual bool has_presentation() const = 0;
+  virtual bool HasPresentation() const = 0;
 
   /**
    * Returns the guest output presenter, owned by the backend.
    *
    * @return The presenter, or null before SetupPresentation.
    */
-  virtual IPresenter* presenter() const = 0;
+  virtual IPresenter* GetPresenter() const = 0;
 
   /**
    * Creates a presenter for another window on the backend's device.

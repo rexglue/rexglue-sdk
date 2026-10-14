@@ -64,7 +64,7 @@ class PromptDialog final : public ImGuiDialog {
   ~PromptDialog() override;
 
   void Choose(u32 button, std::string text);
-  std::string Text() const;
+  std::string GetText() const;
 
  protected:
   void OnDraw(ImGuiIO& io) override;

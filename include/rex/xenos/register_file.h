@@ -86,7 +86,7 @@ class REX_API RegisterFile {
    * @return The register bits as T.
    */
   T Get() const {
-    return Get<T>(T::register_index);
+    return Get<T>(T::kRegisterIndex);
   }
 
   /**

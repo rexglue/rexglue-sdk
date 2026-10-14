@@ -38,8 +38,8 @@ class REX_RUNTIME_API XMADecoder {
   explicit XMADecoder(FunctionDispatcher* function_dispatcher);
   ~XMADecoder();
 
-  Memory* memory() const { return memory_; }
-  FunctionDispatcher* function_dispatcher() const { return function_dispatcher_; }
+  Memory* GetMemory() const { return memory_; }
+  FunctionDispatcher* GetFunctionDispatcher() const { return function_dispatcher_; }
 
   /**
    * Allocates the context array, attaches the APU MMIO block and starts the worker.
@@ -52,7 +52,7 @@ class REX_RUNTIME_API XMADecoder {
   X_STATUS Setup();
   void Shutdown();
 
-  u32 context_array_ptr() const { return register_file_[XMARegister::ContextArrayAddress]; }
+  u32 GetContextArrayPtr() const { return register_file_[XMARegister::kContextArrayAddress]; }
 
   u32 AllocateContext();
   void ReleaseContext(u32 context_ptr);
@@ -69,7 +69,7 @@ class REX_RUNTIME_API XMADecoder {
   u32 ReadRegister(u32 addr);
   void WriteRegister(u32 addr, u32 value);
 
-  bool is_paused() const { return paused_; }
+  bool IsPaused() const { return paused_; }
   void Pause();
   void Resume();
 

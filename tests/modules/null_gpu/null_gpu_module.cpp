@@ -46,7 +46,7 @@ class NullDrawer final : public rex::gpu::IOverlayDrawer {
     if (g_fail_textures > 0) {
       --g_fail_textures;
       Record(kName, "create_texture_failed");
-      return rex::Err<std::unique_ptr<rex::gpu::OverlayTexture>>(rex::ErrorCategory::Runtime,
+      return rex::Err<std::unique_ptr<rex::gpu::OverlayTexture>>(rex::ErrorCategory::kRuntime,
                                                                  "null device not ready");
     }
     Record(kName, "create_texture");
@@ -61,7 +61,7 @@ class NullDrawer final : public rex::gpu::IOverlayDrawer {
 
 class NullPresenter final : public rex::gpu::IPresenter {
  public:
-  rex::gpu::Surface::TypeFlags supported_surface_types() const override { return ~0u; }
+  rex::gpu::Surface::TypeFlags GetSupportedSurfaceTypes() const override { return ~0u; }
   bool Attach(rex::gpu::IPresentationHost* host, rex::gpu::Surface*) override {
     if (host_ && host_ != host) {
       rex::gpu::IPresentationHost* old_host = host_;
@@ -97,16 +97,16 @@ class NullPresenter final : public rex::gpu::IPresenter {
 
 class NullGPUModule final : public rex::IModule, public rex::gpu::IGPUBackend {
  public:
-  static void* GetModule() { return static_cast<rex::IModule*>(&Instance()); }
-  static void* GetBackend() { return static_cast<rex::gpu::IGPUBackend*>(&Instance()); }
+  static void* GetModule() { return static_cast<rex::IModule*>(&GetInstance()); }
+  static void* GetBackend() { return static_cast<rex::gpu::IGPUBackend*>(&GetInstance()); }
   static constexpr std::array<rex::InterfaceEntry, 2> kInterfaces = {{
       {rex::IModule::kInterfaceName, rex::IModule::kInterfaceVersion, &GetModule},
       {rex::gpu::IGPUBackend::kInterfaceName, rex::gpu::IGPUBackend::kInterfaceVersion,
        &GetBackend},
   }};
 
-  const char* Name() const override { return kName; }
-  std::span<const char* const> RequiredInterfaces() const override { return {}; }
+  const char* GetName() const override { return kName; }
+  std::span<const char* const> GetRequiredInterfaces() const override { return {}; }
   [[nodiscard]] rex::Result<void> Connect(rex::IInterfaceFactory*, const rex::Config&) override {
     return rex::Ok();
   }
@@ -122,8 +122,8 @@ class NullGPUModule final : public rex::IModule, public rex::gpu::IGPUBackend {
                                                 rex::Runtime&) override {
     return rex::Ok();
   }
-  bool has_presentation() const override { return presenter_ != nullptr; }
-  rex::gpu::IPresenter* presenter() const override { return presenter_.get(); }
+  bool HasPresentation() const override { return presenter_ != nullptr; }
+  rex::gpu::IPresenter* GetPresenter() const override { return presenter_.get(); }
   [[nodiscard]] rex::Result<std::unique_ptr<rex::gpu::IPresenter>> CreatePresenter() override {
     Record(kName, "create_presenter");
     return std::unique_ptr<rex::gpu::IPresenter>(std::make_unique<NullPresenter>());
@@ -142,7 +142,7 @@ class NullGPUModule final : public rex::IModule, public rex::gpu::IGPUBackend {
   }
 
  private:
-  static NullGPUModule& Instance() {
+  static NullGPUModule& GetInstance() {
     static NullGPUModule instance;
     return instance;
   }

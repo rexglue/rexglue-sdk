@@ -37,43 +37,43 @@ namespace rex::cvar {
 
 /** Value type tag. */
 enum class Type : u8 {
-  Bool,    /**< A bool value. */
-  Int32,   /**< An i32 value. */
-  Int64,   /**< An i64 value. */
-  UInt32,  /**< A u32 value. */
-  UInt64,  /**< A u64 value. */
-  Double,  /**< An f64 value. */
-  String,  /**< A string of at most 255 bytes. */
-  Command, /**< A console command with no value. */
+  kBool,    /**< A bool value. */
+  kInt32,   /**< An i32 value. */
+  kInt64,   /**< An i64 value. */
+  kUInt32,  /**< A u32 value. */
+  kUInt64,  /**< A u64 value. */
+  kDouble,  /**< An f64 value. */
+  kString,  /**< A string of at most 255 bytes. */
+  kCommand, /**< A console command with no value. */
 };
 
 /** When a cvar may change. */
 enum class Lifecycle : u8 {
-  HotReload,       /**< Changes take effect at once. */
-  InitOnly,        /**< Rejects Runtime sets after Init completes. */
-  RequiresRestart, /**< Changes after Init completes mark a restart pending. */
+  kHotReload,       /**< Changes take effect at once. */
+  kInitOnly,        /**< Rejects Runtime sets after Init completes. */
+  kRequiresRestart, /**< Changes after Init completes mark a restart pending. */
 };
 
 /** Where a cvar value came from, ascending precedence. */
 enum class CvarSource : u8 {
-  Default,     /**< The declared default. */
-  Config,      /**< A TOML config file. */
-  Environment, /**< A REX_<SCOPE>_<LEAF> environment variable. */
-  CommandLine, /**< A command line option. */
-  Runtime,     /**< A set after Init through the registry. */
+  kDefault,     /**< The declared default. */
+  kConfig,      /**< A TOML config file. */
+  kEnvironment, /**< A REX_<SCOPE>_<LEAF> environment variable. */
+  kCommandLine, /**< A command line option. */
+  kRuntime,     /**< A set after Init through the registry. */
 };
 
-/** Error codes under ErrorCategory::Config. */
+/** Error codes under ErrorCategory::kConfig. */
 enum class CvarError : u8 {
-  NotFound = 1,   /**< No cvar or command of that name is registered. */
-  Invalid,        /**< The value does not parse or breaks a constraint. */
-  InitOnly,       /**< A Runtime set of an InitOnly cvar after Init completes. */
-  Locked,         /**< The cvar is locked. */
-  DuplicateName,  /**< A cvar of that name is already registered or appears twice. */
-  DuplicateScope, /**< A table for that scope is already registered. */
-  BadName,        /**< The scope or name is not lowercase scope.leaf form. */
-  NotACommand,    /**< Invoke on a var. */
-  NotAVar,        /**< A value operation on a command. */
+  kNotFound = 1,   /**< No cvar or command of that name is registered. */
+  kInvalid,        /**< The value does not parse or breaks a constraint. */
+  kInitOnly,       /**< A Runtime set of an InitOnly cvar after Init completes. */
+  kLocked,         /**< The cvar is locked. */
+  kDuplicateName,  /**< A cvar of that name is already registered or appears twice. */
+  kDuplicateScope, /**< A table for that scope is already registered. */
+  kBadName,        /**< The scope or name is not lowercase scope.leaf form. */
+  kNotACommand,    /**< Invoke on a var. */
+  kNotAVar,        /**< A value operation on a command. */
 };
 
 /**
@@ -84,7 +84,7 @@ enum class CvarError : u8 {
  * @return The error.
  */
 inline rex::Error BuildError(CvarError code, std::string message) {
-  return rex::Error(ErrorCategory::Config, std::move(message), static_cast<int>(code));
+  return rex::Error(ErrorCategory::kConfig, std::move(message), static_cast<int>(code));
 }
 
 /** Value constraints. Constant data. */
@@ -99,18 +99,18 @@ struct Constraints {
   bool (*validator)(std::string_view) = nullptr;
 };
 
-/** Everything the registry and the console know about 1 cvar. */
+/** Everything the registry and the console know about a cvar. */
 struct Desc {
   /** Dotted scope.leaf name such as gpu.vsync. */
   std::string_view name;
   /** Scope part of the name. */
   std::string_view scope;
   /** Value type. */
-  Type type = Type::Bool;
+  Type type = Type::kBool;
   /** Text the console and the settings overlay show. */
   std::string_view description;
   /** When the value may change. */
-  Lifecycle lifecycle = Lifecycle::HotReload;
+  Lifecycle lifecycle = Lifecycle::kHotReload;
   /** Value constraints. */
   Constraints constraints;
   /** True shows the cvar only in debug builds of the settings overlay. */
@@ -119,7 +119,7 @@ struct Desc {
   bool no_save = false;
 };
 
-class detail_access;
+class DetailAccess;
 
 /**
  * Type erased view of a Var<T> or Command. Registered by pointer, never copied.
@@ -137,13 +137,13 @@ class IVar {
    *
    * @return The descriptor.
    */
-  virtual const Desc& desc() const = 0;
+  virtual const Desc& GetDesc() const = 0;
   /**
    * Returns the default as text.
    *
    * @return The default text, from storage that lasts as long as the var.
    */
-  virtual std::string_view DefaultText() const = 0;
+  virtual std::string_view GetDefaultText() const = 0;
   /**
    * Parses text into the value without checking constraints.
    *
@@ -169,17 +169,17 @@ class IVar {
    *
    * @return The registry, or null.
    */
-  ICvarRegistry* registry() const { return registry_.load(std::memory_order_acquire); }
+  ICvarRegistry* GetRegistry() const { return registry_.load(std::memory_order_acquire); }
 
  private:
-  friend class detail_access;
+  friend class DetailAccess;
   mutable std::atomic<ICvarRegistry*> registry_ = nullptr;
 };
 
 /**
  * Lets the registry implementation set IVar::registry_. Nothing else uses it.
  */
-class detail_access {
+class DetailAccess {
  public:
   /**
    * Stores the registry that holds a var.
@@ -187,7 +187,7 @@ class detail_access {
    * @param var The var.
    * @param registry The registry, or null.
    */
-  static void set_registry(const IVar& var, ICvarRegistry* registry) {
+  static void SetRegistry(const IVar& var, ICvarRegistry* registry) {
     var.registry_.store(registry, std::memory_order_release);
   }
 };
@@ -198,7 +198,7 @@ namespace detail {
 struct DefaultText {
   std::array<char, 32> text{};
   u8 size = 0;
-  constexpr std::string_view view() const { return {text.data(), size}; }
+  constexpr std::string_view GetView() const { return {text.data(), size}; }
 };
 
 constexpr DefaultText RenderDefault(bool v) noexcept {
@@ -239,7 +239,7 @@ constexpr DefaultText RenderDefault(f64 v) noexcept {
   auto whole_text = RenderDefault<u64>(whole);
   if (negative)
     out.text[out.size++] = '-';
-  for (char c : whole_text.view())
+  for (char c : whole_text.GetView())
     out.text[out.size++] = c;
   out.text[out.size++] = '.';
   for (i32 i = 0; i < 6; ++i) {
@@ -265,25 +265,25 @@ struct StringCell {
     for (char c : s.substr(0, kCapacity))
       text[size++] = c;
   }
-  constexpr std::string_view view() const { return {text.data(), size}; }
+  constexpr std::string_view GetView() const { return {text.data(), size}; }
 };
 
 template <typename T>
-constexpr Type TypeOf() noexcept {
+constexpr Type GetType() noexcept {
   if constexpr (std::same_as<T, bool>)
-    return Type::Bool;
+    return Type::kBool;
   else if constexpr (std::same_as<T, i32>)
-    return Type::Int32;
+    return Type::kInt32;
   else if constexpr (std::same_as<T, i64>)
-    return Type::Int64;
+    return Type::kInt64;
   else if constexpr (std::same_as<T, u32>)
-    return Type::UInt32;
+    return Type::kUInt32;
   else if constexpr (std::same_as<T, u64>)
-    return Type::UInt64;
+    return Type::kUInt64;
   else if constexpr (std::same_as<T, f64>)
-    return Type::Double;
+    return Type::kDouble;
   else
-    return Type::String;
+    return Type::kString;
 }
 
 /**
@@ -339,7 +339,7 @@ class Var final : public IVar {
         cell_(BuildCell(default_value)) {
     desc_.name = name;
     desc_.scope = name.substr(0, name.find('.'));
-    desc_.type = detail::TypeOf<T>();
+    desc_.type = detail::GetType<T>();
     desc_.description = description;
   }
   constexpr Var(const Var&) noexcept = default;
@@ -351,7 +351,7 @@ class Var final : public IVar {
    * @param max_value The largest value.
    * @return This var with the range set.
    */
-  constexpr Var range(f64 min_value, f64 max_value) && noexcept {
+  constexpr Var SetRange(f64 min_value, f64 max_value) && noexcept {
     desc_.constraints.min = min_value;
     desc_.constraints.max = max_value;
     return *this;
@@ -362,7 +362,7 @@ class Var final : public IVar {
    * @param values Values with static storage, REXCVAR_ALLOWED provides them.
    * @return This var with the allowed values set.
    */
-  constexpr Var allowed(std::span<const std::string_view> values) && noexcept {
+  constexpr Var SetAllowed(std::span<const std::string_view> values) && noexcept {
     desc_.constraints.allowed = values;
     return *this;
   }
@@ -372,7 +372,7 @@ class Var final : public IVar {
    * @param lc The lifecycle.
    * @return This var with the lifecycle set.
    */
-  constexpr Var lifecycle(Lifecycle lc) && noexcept {
+  constexpr Var SetLifecycle(Lifecycle lc) && noexcept {
     desc_.lifecycle = lc;
     return *this;
   }
@@ -382,7 +382,7 @@ class Var final : public IVar {
    * @param fn Returns false for text the var rejects.
    * @return This var with the validator set.
    */
-  constexpr Var validator(bool (*fn)(std::string_view)) && noexcept {
+  constexpr Var SetValidator(bool (*fn)(std::string_view)) && noexcept {
     desc_.constraints.validator = fn;
     return *this;
   }
@@ -391,7 +391,7 @@ class Var final : public IVar {
    *
    * @return This var with Desc::debug_only set.
    */
-  constexpr Var debug_only() && noexcept {
+  constexpr Var SetDebugOnly() && noexcept {
     desc_.debug_only = true;
     return *this;
   }
@@ -401,7 +401,7 @@ class Var final : public IVar {
    *
    * @return This var with Desc::no_save set.
    */
-  constexpr Var no_save() && noexcept {
+  constexpr Var SetNoSave() && noexcept {
     desc_.no_save = true;
     return *this;
   }
@@ -411,31 +411,31 @@ class Var final : public IVar {
    *
    * @return The current value.
    */
-  T get() const;
+  T Get() const;
   /**
    * Sets the cvar.
    *
    * @param value The new value.
    * @return Ok, NotFound when the var is not registered, otherwise as ICvarRegistry::Set.
    */
-  [[nodiscard]] Result<void> set(const T& value);
+  [[nodiscard]] Result<void> Set(const T& value);
 
   /**
    * Returns the descriptor.
    *
    * @return The descriptor.
    */
-  const Desc& desc() const override { return desc_; }
+  const Desc& GetDesc() const override { return desc_; }
   /**
    * Returns the default as text.
    *
    * @return The default text.
    */
-  std::string_view DefaultText() const override {
+  std::string_view GetDefaultText() const override {
     if constexpr (kIsString)
-      return default_string_.view();
+      return default_string_.GetView();
     else
-      return default_text_.view();
+      return default_text_.GetView();
   }
   /**
    * Parses text into the cell.
@@ -456,7 +456,7 @@ class Var final : public IVar {
    * @return NotACommand.
    */
   [[nodiscard]] Result<void> Invoke(std::string_view) override {
-    return Err(BuildError(CvarError::NotACommand, std::string(desc_.name) + " is not a command"));
+    return Err(BuildError(CvarError::kNotACommand, std::string(desc_.name) + " is not a command"));
   }
 
  private:
@@ -518,7 +518,7 @@ class Command final : public IVar {
   constexpr Command(std::string_view name, Fn fn, std::string_view description) noexcept : fn_(fn) {
     desc_.name = name;
     desc_.scope = name.substr(0, name.find('.'));
-    desc_.type = Type::Command;
+    desc_.type = Type::kCommand;
     desc_.description = description;
   }
   /**
@@ -526,20 +526,20 @@ class Command final : public IVar {
    *
    * @return The descriptor.
    */
-  const Desc& desc() const override { return desc_; }
+  const Desc& GetDesc() const override { return desc_; }
   /**
    * Returns the placeholder default text.
    *
    * @return The literal "<command>".
    */
-  std::string_view DefaultText() const override { return "<command>"; }
+  std::string_view GetDefaultText() const override { return "<command>"; }
   /**
    * Rejects the call, a command holds no value.
    *
    * @return NotAVar.
    */
   [[nodiscard]] Result<void> Parse(std::string_view) override {
-    return Err(BuildError(CvarError::NotAVar, std::string(desc_.name) + " is a command"));
+    return Err(BuildError(CvarError::kNotAVar, std::string(desc_.name) + " is a command"));
   }
   /**
    * Returns the placeholder value text.
@@ -570,8 +570,8 @@ class Command final : public IVar {
  * @return True when the var is registered and its value came from anywhere but the default.
  */
 inline bool IsSet(const IVar& var) {
-  auto* registry = var.registry();
-  return registry && registry->Source(var.desc().name) != CvarSource::Default;
+  auto* registry = var.GetRegistry();
+  return registry && registry->Source(var.GetDesc().name) != CvarSource::kDefault;
 }
 
 /**
@@ -622,11 +622,11 @@ std::optional<T> ParseValue(std::string_view text) {
 }  // namespace detail
 
 template <typename T>
-T Var<T>::get() const {
+T Var<T>::Get() const {
   if constexpr (kIsString) {
     std::atomic_ref<u8> lock(lock_);
     while (lock.exchange(1, std::memory_order_acquire)) {}
-    std::string out(cell_.view());
+    std::string out(cell_.GetView());
     lock.store(0, std::memory_order_release);
     return out;
   } else {
@@ -647,10 +647,10 @@ void Var<T>::Store(const T& value) {
 }
 
 template <typename T>
-Result<void> Var<T>::set(const T& value) {
-  auto* reg = registry();
+Result<void> Var<T>::Set(const T& value) {
+  auto* reg = GetRegistry();
   if (!reg) {
-    return Err(BuildError(CvarError::NotFound, std::string(desc_.name) + " is not registered"));
+    return Err(BuildError(CvarError::kNotFound, std::string(desc_.name) + " is not registered"));
   }
   return reg->Set(desc_.name, Render(value));
 }
@@ -659,7 +659,7 @@ template <typename T>
 Result<void> Var<T>::Parse(std::string_view text) {
   auto parsed = detail::ParseValue<T>(text);
   if (!parsed) {
-    return Err(BuildError(CvarError::Invalid,
+    return Err(BuildError(CvarError::kInvalid,
                           std::string(desc_.name) + " cannot parse '" + std::string(text) + "'"));
   }
   Store(*parsed);
@@ -668,7 +668,7 @@ Result<void> Var<T>::Parse(std::string_view text) {
 
 template <typename T>
 std::string Var<T>::Render() const {
-  return Render(get());
+  return Render(Get());
 }
 
 }  // namespace rex::cvar
@@ -682,7 +682,7 @@ struct CvarOverride {
   /** The value as text. */
   std::string value;
   /** Source the registry stores for the value. */
-  cvar::CvarSource source = cvar::CvarSource::CommandLine;
+  cvar::CvarSource source = cvar::CvarSource::kCommandLine;
 };
 
 /** A consumer table, registered before any module. */
@@ -708,7 +708,7 @@ struct CvarConfig {
    * @param value The value as text.
    */
   void SetDefault(std::string_view name, std::string_view value) {
-    values.push_back({std::string(name), std::string(value), cvar::CvarSource::Default});
+    values.push_back({std::string(name), std::string(value), cvar::CvarSource::kDefault});
   }
   /**
    * Appends a CommandLine override.
@@ -717,7 +717,7 @@ struct CvarConfig {
    * @param value The value as text.
    */
   void Set(std::string_view name, std::string_view value) {
-    values.push_back({std::string(name), std::string(value), cvar::CvarSource::CommandLine});
+    values.push_back({std::string(name), std::string(value), cvar::CvarSource::kCommandLine});
   }
   /**
    * Appends to locked.
@@ -887,12 +887,12 @@ struct CvarConfig {
     #scope "." #name, fn, description                      \
   }
 /**
- * Builds static storage for an allowed value list, for use with .allowed().
+ * Builds static storage for an allowed value list, for use with .SetAllowed().
  *
  * @param ... The allowed values as string literals.
  *
  * @code
- * .allowed(REXCVAR_ALLOWED("none", "fast", "some", "full"))
+ * .SetAllowed(REXCVAR_ALLOWED("none", "fast", "some", "full"))
  * @endcode
  */
 #define REXCVAR_ALLOWED(...)                                                                       \
@@ -922,7 +922,7 @@ struct CvarConfig {
  * bool vsync = REXCVAR_GET(vsync);
  * @endcode
  */
-#define REXCVAR_GET(name) ((name).get())
+#define REXCVAR_GET(name) ((name).Get())
 /**
  * Sets a cvar.
  *
@@ -933,4 +933,4 @@ struct CvarConfig {
  * REXCVAR_SET(vsync, false);
  * @endcode
  */
-#define REXCVAR_SET(name, value) ((name).set(value))
+#define REXCVAR_SET(name, value) ((name).Set(value))

@@ -47,8 +47,8 @@ namespace fs = rex::filesystem;
 using rex::ContainerTestFlags;
 
 const std::filesystem::path& Fixtures() {
-  static const std::filesystem::path dir = REXGLUE_FIXTURE_DIR;
-  return dir;
+  static const std::filesystem::path kDir = REXGLUE_FIXTURE_DIR;
+  return kDir;
 }
 constexpr std::string_view kAText = "alpha\n";
 constexpr std::string_view kCText = "charlie in folder\n";
@@ -78,7 +78,7 @@ std::vector<rex::u8> ReadNode(const fs::Container& container, const fs::Containe
 }
 
 void CheckTree(const fs::Container& container) {
-  const fs::ContainerNode& root = container.root();
+  const fs::ContainerNode& root = container.GetRoot();
   REQUIRE(root.children.size() == 3);
   const fs::ContainerNode* a = container.Find("a.txt");
   const fs::ContainerNode* big = container.Find("big.bin");
@@ -178,16 +178,16 @@ TEST_CASE("ReadSTFSHeader reads the fixture and refuses short bytes", "[core][co
 TEST_CASE("Container opens the STFS fixture", "[core][container]") {
   auto container = fs::Container::Open(Fixtures() / "stfs_con.bin");
   REQUIRE(container);
-  CHECK(container->kind() == fs::ContainerKind::kSTFS);
-  REQUIRE(container->header());
+  CHECK(container->GetKind() == fs::ContainerKind::kSTFS);
+  REQUIRE(container->GetHeader());
   CheckTree(*container);
 }
 
 TEST_CASE("Container opens the GDFX fixture", "[core][container]") {
   auto container = fs::Container::Open(Fixtures() / "gdfx.iso");
   REQUIRE(container);
-  CHECK(container->kind() == fs::ContainerKind::kGDFX);
-  CHECK(container->header() == nullptr);
+  CHECK(container->GetKind() == fs::ContainerKind::kGDFX);
+  CHECK(container->GetHeader() == nullptr);
   CheckTree(*container);
 }
 
@@ -245,7 +245,7 @@ REX_TEST_CASE("Container walks a long GDFX sibling chain without recursion", "[c
 
   auto container = fs::Container::Open(WriteVariant(temp, "chain.iso", gdfx));
   REQUIRE(container);
-  CHECK(container->root().children.size() == kEntries);
+  CHECK(container->GetRoot().children.size() == kEntries);
 }
 
 REX_TEST_CASE("Container reports truncated and out of range images as corrupt",

@@ -67,16 +67,16 @@ class VulkanImmediateDrawer : public ImmediateDrawer {
     };
 
     VulkanImmediateTexture(u32 width, u32 height)
-        : OverlayTexture(width, height), immediate_drawer_(nullptr) {}
+        : OverlayTexture(width, height), immediate_drawer(nullptr) {}
     ~VulkanImmediateTexture() override;
 
     /** Null for a blank texture or after the immediate drawer has been destroyed. */
-    VulkanImmediateDrawer* immediate_drawer_;
-    size_t immediate_drawer_index_;
+    VulkanImmediateDrawer* immediate_drawer;
+    size_t immediate_drawer_index;
     /** Invalid when immediate_drawer_ is null, as the immediate drawer manages it. */
-    Resource resource_;
-    size_t pending_upload_index_;
-    u64 last_usage_submission_ = 0;
+    Resource resource;
+    size_t pending_upload_index;
+    u64 last_usage_submission = 0;
   };
 
   struct TextureDescriptorPool {

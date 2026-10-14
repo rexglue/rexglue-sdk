@@ -28,14 +28,14 @@ class MemoryView {
   /**
    * @param memory The guest memory to view.
    */
-  explicit MemoryView(const Memory& memory) : virtual_membase_(memory.virtual_membase()) {}
+  explicit MemoryView(const Memory& memory) : virtual_membase_(memory.GetVirtualMembase()) {}
 
   /**
    * Returns the host base of the guest virtual address space.
    *
    * @return The base.
    */
-  u8* virtual_membase() const { return virtual_membase_; }
+  u8* GetVirtualMembase() const { return virtual_membase_; }
 
   /**
    * Translates a guest virtual address to a host address.

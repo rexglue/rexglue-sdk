@@ -23,459 +23,459 @@ struct BuilderContext;
  */
 bool DispatchInstruction(int id, BuilderContext& ctx);
 
-bool build_cmpd(BuilderContext& ctx);
-bool build_cmpdi(BuilderContext& ctx);
-bool build_cmpld(BuilderContext& ctx);
-bool build_cmpldi(BuilderContext& ctx);
-bool build_cmplw(BuilderContext& ctx);
-bool build_cmplwi(BuilderContext& ctx);
-bool build_cmpw(BuilderContext& ctx);
-bool build_cmpwi(BuilderContext& ctx);
-
-bool build_add(BuilderContext& ctx);
-bool build_addc(BuilderContext& ctx);
-bool build_adde(BuilderContext& ctx);
-bool build_addi(BuilderContext& ctx);
-bool build_addic(BuilderContext& ctx);
-bool build_addis(BuilderContext& ctx);
-bool build_addme(BuilderContext& ctx);
-bool build_addze(BuilderContext& ctx);
-
-bool build_divd(BuilderContext& ctx);
-bool build_divdu(BuilderContext& ctx);
-bool build_divw(BuilderContext& ctx);
-bool build_divwu(BuilderContext& ctx);
-
-bool build_mulhd(BuilderContext& ctx);
-bool build_mulhdu(BuilderContext& ctx);
-bool build_mulhw(BuilderContext& ctx);
-bool build_mulhwu(BuilderContext& ctx);
-bool build_mulld(BuilderContext& ctx);
-bool build_mulli(BuilderContext& ctx);
-bool build_mullw(BuilderContext& ctx);
-
-bool build_neg(BuilderContext& ctx);
-
-bool build_subf(BuilderContext& ctx);
-bool build_subfc(BuilderContext& ctx);
-bool build_subfe(BuilderContext& ctx);
-bool build_subfic(BuilderContext& ctx);
-bool build_subfme(BuilderContext& ctx);
-bool build_subfze(BuilderContext& ctx);
-
-bool build_and(BuilderContext& ctx);
-bool build_andc(BuilderContext& ctx);
-bool build_andi(BuilderContext& ctx);
-bool build_andis(BuilderContext& ctx);
-
-bool build_nand(BuilderContext& ctx);
-bool build_nor(BuilderContext& ctx);
-bool build_not(BuilderContext& ctx);
-bool build_or(BuilderContext& ctx);
-bool build_orc(BuilderContext& ctx);
-bool build_ori(BuilderContext& ctx);
-bool build_oris(BuilderContext& ctx);
-
-bool build_xor(BuilderContext& ctx);
-bool build_xori(BuilderContext& ctx);
-bool build_xoris(BuilderContext& ctx);
-
-bool build_crand(BuilderContext& ctx);
-bool build_crandc(BuilderContext& ctx);
-bool build_creqv(BuilderContext& ctx);
-bool build_crnand(BuilderContext& ctx);
-bool build_crnor(BuilderContext& ctx);
-bool build_cror(BuilderContext& ctx);
-bool build_crorc(BuilderContext& ctx);
-bool build_crxor(BuilderContext& ctx);
-
-bool build_eqv(BuilderContext& ctx);
-
-bool build_cntlzd(BuilderContext& ctx);
-bool build_cntlzw(BuilderContext& ctx);
-
-bool build_extsb(BuilderContext& ctx);
-bool build_extsh(BuilderContext& ctx);
-bool build_extsw(BuilderContext& ctx);
-
-bool build_clrlwi(BuilderContext& ctx);
-
-bool build_rldcl(BuilderContext& ctx);
-bool build_rldcr(BuilderContext& ctx);
-bool build_rldic(BuilderContext& ctx);
-bool build_rldicl(BuilderContext& ctx);
-bool build_rldicr(BuilderContext& ctx);
-bool build_rldimi(BuilderContext& ctx);
-bool build_rotldi(BuilderContext& ctx);
-
-bool build_rlwimi(BuilderContext& ctx);
-bool build_rlwinm(BuilderContext& ctx);
-bool build_rlwnm(BuilderContext& ctx);
-bool build_rotlw(BuilderContext& ctx);
-bool build_rotlwi(BuilderContext& ctx);
-
-bool build_sld(BuilderContext& ctx);
-bool build_slw(BuilderContext& ctx);
-
-bool build_srad(BuilderContext& ctx);
-bool build_sradi(BuilderContext& ctx);
-bool build_sraw(BuilderContext& ctx);
-bool build_srawi(BuilderContext& ctx);
-
-bool build_srd(BuilderContext& ctx);
-bool build_srw(BuilderContext& ctx);
-
-bool build_b(BuilderContext& ctx);
-bool build_bl(BuilderContext& ctx);
-bool build_blr(BuilderContext& ctx);
-bool build_blrl(BuilderContext& ctx);
-
-bool build_bctr(BuilderContext& ctx);
-bool build_bctrl(BuilderContext& ctx);
-bool build_bnectr(BuilderContext& ctx);
-
-bool build_bdz(BuilderContext& ctx);
-bool build_bdzf(BuilderContext& ctx);
-bool build_bdzlr(BuilderContext& ctx);
-bool build_bdnz(BuilderContext& ctx);
-bool build_bdnzf(BuilderContext& ctx);
-bool build_bdnzlr(BuilderContext& ctx);
-bool build_bdnzt(BuilderContext& ctx);
-
-bool build_beq(BuilderContext& ctx);
-bool build_beqlr(BuilderContext& ctx);
-bool build_bne(BuilderContext& ctx);
-bool build_bnelr(BuilderContext& ctx);
-
-bool build_blt(BuilderContext& ctx);
-bool build_bltlr(BuilderContext& ctx);
-bool build_bge(BuilderContext& ctx);
-bool build_bgelr(BuilderContext& ctx);
-
-bool build_bgt(BuilderContext& ctx);
-bool build_bgtlr(BuilderContext& ctx);
-bool build_ble(BuilderContext& ctx);
-bool build_blelr(BuilderContext& ctx);
-
-bool build_bso(BuilderContext& ctx);
-bool build_bsolr(BuilderContext& ctx);
-bool build_bns(BuilderContext& ctx);
-bool build_bnslr(BuilderContext& ctx);
-
-bool build_fabs(BuilderContext& ctx);
-bool build_fnabs(BuilderContext& ctx);
-bool build_fneg(BuilderContext& ctx);
-
-bool build_fmr(BuilderContext& ctx);
-bool build_fcfid(BuilderContext& ctx);
-bool build_fctid(BuilderContext& ctx);
-bool build_fctidz(BuilderContext& ctx);
-bool build_fctiw(BuilderContext& ctx);
-bool build_fctiwz(BuilderContext& ctx);
-bool build_frsp(BuilderContext& ctx);
-
-bool build_fcmpu(BuilderContext& ctx);
-bool build_fcmpo(BuilderContext& ctx);
-
-bool build_fadd(BuilderContext& ctx);
-bool build_fadds(BuilderContext& ctx);
-
-bool build_fsub(BuilderContext& ctx);
-bool build_fsubs(BuilderContext& ctx);
-
-bool build_fmul(BuilderContext& ctx);
-bool build_fmuls(BuilderContext& ctx);
-
-bool build_fdiv(BuilderContext& ctx);
-bool build_fdivs(BuilderContext& ctx);
-
-bool build_fmadd(BuilderContext& ctx);
-bool build_fmadds(BuilderContext& ctx);
-bool build_fmsub(BuilderContext& ctx);
-bool build_fmsubs(BuilderContext& ctx);
-bool build_fnmadd(BuilderContext& ctx);
-bool build_fnmadds(BuilderContext& ctx);
-bool build_fnmsub(BuilderContext& ctx);
-bool build_fnmsubs(BuilderContext& ctx);
-
-bool build_fres(BuilderContext& ctx);
-bool build_frsqrte(BuilderContext& ctx);
-bool build_fsqrt(BuilderContext& ctx);
-bool build_fsqrts(BuilderContext& ctx);
-
-bool build_fsel(BuilderContext& ctx);
-
-bool build_li(BuilderContext& ctx);
-bool build_lis(BuilderContext& ctx);
-
-bool build_lbz(BuilderContext& ctx);
-bool build_lbzu(BuilderContext& ctx);
-bool build_lbzx(BuilderContext& ctx);
-bool build_lbzux(BuilderContext& ctx);
-
-bool build_lha(BuilderContext& ctx);
-bool build_lhau(BuilderContext& ctx);
-bool build_lhaux(BuilderContext& ctx);
-bool build_lhax(BuilderContext& ctx);
-bool build_lhbrx(BuilderContext& ctx);
-bool build_lhz(BuilderContext& ctx);
-bool build_lhzu(BuilderContext& ctx);
-bool build_lhzux(BuilderContext& ctx);
-bool build_lhzx(BuilderContext& ctx);
-
-bool build_lwa(BuilderContext& ctx);
-bool build_lwaux(BuilderContext& ctx);
-bool build_lwax(BuilderContext& ctx);
-bool build_lwbrx(BuilderContext& ctx);
-bool build_lwz(BuilderContext& ctx);
-bool build_lwzu(BuilderContext& ctx);
-bool build_lwzux(BuilderContext& ctx);
-bool build_lwzx(BuilderContext& ctx);
-
-bool build_ld(BuilderContext& ctx);
-bool build_ldu(BuilderContext& ctx);
-bool build_ldx(BuilderContext& ctx);
-bool build_ldux(BuilderContext& ctx);
-
-bool build_lwarx(BuilderContext& ctx);
-bool build_ldarx(BuilderContext& ctx);
-
-bool build_lfd(BuilderContext& ctx);
-bool build_lfdu(BuilderContext& ctx);
-bool build_lfdux(BuilderContext& ctx);
-bool build_lfdx(BuilderContext& ctx);
-bool build_lfs(BuilderContext& ctx);
-bool build_lfsu(BuilderContext& ctx);
-bool build_lfsux(BuilderContext& ctx);
-bool build_lfsx(BuilderContext& ctx);
-
-bool build_stb(BuilderContext& ctx);
-bool build_stbu(BuilderContext& ctx);
-bool build_stbx(BuilderContext& ctx);
-bool build_stbux(BuilderContext& ctx);
-
-bool build_sth(BuilderContext& ctx);
-bool build_sthbrx(BuilderContext& ctx);
-bool build_sthu(BuilderContext& ctx);
-bool build_sthux(BuilderContext& ctx);
-bool build_sthx(BuilderContext& ctx);
-
-bool build_stw(BuilderContext& ctx);
-bool build_stwu(BuilderContext& ctx);
-bool build_stwux(BuilderContext& ctx);
-bool build_stwx(BuilderContext& ctx);
-bool build_stwbrx(BuilderContext& ctx);
-bool build_stmw(BuilderContext& ctx);
-
-bool build_stwcx(BuilderContext& ctx);
-bool build_stdcx(BuilderContext& ctx);
-
-bool build_std(BuilderContext& ctx);
-bool build_stdu(BuilderContext& ctx);
-bool build_stdx(BuilderContext& ctx);
-bool build_stdux(BuilderContext& ctx);
-
-bool build_stfd(BuilderContext& ctx);
-bool build_stfdu(BuilderContext& ctx);
-bool build_stfdux(BuilderContext& ctx);
-bool build_stfdx(BuilderContext& ctx);
-bool build_stfiwx(BuilderContext& ctx);
-bool build_stfs(BuilderContext& ctx);
-bool build_stfsu(BuilderContext& ctx);
-bool build_stfsux(BuilderContext& ctx);
-bool build_stfsx(BuilderContext& ctx);
-
-bool build_lvx(BuilderContext& ctx);
-bool build_lvlx(BuilderContext& ctx);
-bool build_lvrx(BuilderContext& ctx);
-bool build_lvsl(BuilderContext& ctx);
-bool build_lvsr(BuilderContext& ctx);
-
-bool build_stvebx(BuilderContext& ctx);
-bool build_stvehx(BuilderContext& ctx);
-bool build_stvewx(BuilderContext& ctx);
-bool build_stvlx(BuilderContext& ctx);
-bool build_stvrx(BuilderContext& ctx);
-bool build_stvx(BuilderContext& ctx);
-
-bool build_nop(BuilderContext& ctx);
-bool build_attn(BuilderContext& ctx);
-bool build_sync(BuilderContext& ctx);
-bool build_lwsync(BuilderContext& ctx);
-bool build_eieio(BuilderContext& ctx);
-bool build_db16cyc(BuilderContext& ctx);
-bool build_cctpl(BuilderContext& ctx);
-bool build_cctpm(BuilderContext& ctx);
-bool build_cctph(BuilderContext& ctx);
-
-bool build_twi(BuilderContext& ctx);
-bool build_tdi(BuilderContext& ctx);
-bool build_tw(BuilderContext& ctx);
-bool build_td(BuilderContext& ctx);
-
-bool build_dcbf(BuilderContext& ctx);
-bool build_dcbt(BuilderContext& ctx);
-bool build_dcbtst(BuilderContext& ctx);
-bool build_dcbz(BuilderContext& ctx);
-bool build_dcbzl(BuilderContext& ctx);
-bool build_dcbst(BuilderContext& ctx);
-
-bool build_mr(BuilderContext& ctx);
-
-bool build_mcrf(BuilderContext& ctx);
-
-bool build_mfctr(BuilderContext& ctx);
-bool build_mfcr(BuilderContext& ctx);
-bool build_mfxer(BuilderContext& ctx);
-bool build_mfocrf(BuilderContext& ctx);
-bool build_mflr(BuilderContext& ctx);
-bool build_mfmsr(BuilderContext& ctx);
-bool build_mffs(BuilderContext& ctx);
-bool build_mftb(BuilderContext& ctx);
-bool build_mftbu(BuilderContext& ctx);
-
-bool build_mtcr(BuilderContext& ctx);
-bool build_mtcrf(BuilderContext& ctx);
-bool build_mtctr(BuilderContext& ctx);
-bool build_mtlr(BuilderContext& ctx);
-bool build_mtmsrd(BuilderContext& ctx);
-bool build_mtfsf(BuilderContext& ctx);
-bool build_mtxer(BuilderContext& ctx);
-
-bool build_clrldi(BuilderContext& ctx);
-
-bool build_vaddfp(BuilderContext& ctx);
-bool build_vsubfp(BuilderContext& ctx);
-bool build_vmulfp128(BuilderContext& ctx);
-bool build_vmaddfp(BuilderContext& ctx);
-bool build_vnmsubfp(BuilderContext& ctx);
-bool build_vmaxfp(BuilderContext& ctx);
-bool build_vminfp(BuilderContext& ctx);
-bool build_vrefp(BuilderContext& ctx);
-bool build_vrsqrtefp(BuilderContext& ctx);
-bool build_vexptefp(BuilderContext& ctx);
-bool build_vlogefp(BuilderContext& ctx);
-
-bool build_vmsum3fp128(BuilderContext& ctx);
-bool build_vmsum4fp128(BuilderContext& ctx);
-
-bool build_vrfim(BuilderContext& ctx);
-bool build_vrfin(BuilderContext& ctx);
-bool build_vrfip(BuilderContext& ctx);
-bool build_vrfiz(BuilderContext& ctx);
-
-bool build_vaddsbs(BuilderContext& ctx);
-bool build_vaddshs(BuilderContext& ctx);
-bool build_vaddsws(BuilderContext& ctx);
-bool build_vaddubm(BuilderContext& ctx);
-bool build_vaddubs(BuilderContext& ctx);
-bool build_vadduhm(BuilderContext& ctx);
-bool build_vadduwm(BuilderContext& ctx);
-bool build_vadduws(BuilderContext& ctx);
-bool build_vadduhs(BuilderContext& ctx);
-bool build_vsubsbs(BuilderContext& ctx);
-bool build_vsubshs(BuilderContext& ctx);
-bool build_vsubsws(BuilderContext& ctx);
-bool build_vsububm(BuilderContext& ctx);
-bool build_vsububs(BuilderContext& ctx);
-bool build_vsubuws(BuilderContext& ctx);
-bool build_vsubuhs(BuilderContext& ctx);
-bool build_vsubuhm(BuilderContext& ctx);
-bool build_vsubuwm(BuilderContext& ctx);
-bool build_vmaxsh(BuilderContext& ctx);
-bool build_vmaxsb(BuilderContext& ctx);
-bool build_vmaxsw(BuilderContext& ctx);
-bool build_vmaxuh(BuilderContext& ctx);
-bool build_vminsh(BuilderContext& ctx);
-bool build_vminsb(BuilderContext& ctx);
-bool build_vminsw(BuilderContext& ctx);
-bool build_vminuh(BuilderContext& ctx);
-bool build_vminuw(BuilderContext& ctx);
-bool build_vmaxub(BuilderContext& ctx);
-bool build_vminub(BuilderContext& ctx);
-
-bool build_vavgsb(BuilderContext& ctx);
-bool build_vavgsh(BuilderContext& ctx);
-bool build_vavgsw(BuilderContext& ctx);
-bool build_vavgub(BuilderContext& ctx);
-bool build_vavguh(BuilderContext& ctx);
-
-bool build_vand(BuilderContext& ctx);
-bool build_vandc(BuilderContext& ctx);
-bool build_vandc128(BuilderContext& ctx);
-bool build_vor(BuilderContext& ctx);
-bool build_vxor(BuilderContext& ctx);
-bool build_vnor(BuilderContext& ctx);
-bool build_vsel(BuilderContext& ctx);
-
-bool build_vcmpbfp(BuilderContext& ctx);
-bool build_vcmpeqfp(BuilderContext& ctx);
-bool build_vcmpequb(BuilderContext& ctx);
-bool build_vcmpequh(BuilderContext& ctx);
-bool build_vcmpequw(BuilderContext& ctx);
-bool build_vcmpgefp(BuilderContext& ctx);
-bool build_vcmpgtfp(BuilderContext& ctx);
-bool build_vcmpgtub(BuilderContext& ctx);
-bool build_vcmpgtuh(BuilderContext& ctx);
-bool build_vcmpgtuw(BuilderContext& ctx);
-bool build_vcmpgtsb(BuilderContext& ctx);
-bool build_vcmpgtsh(BuilderContext& ctx);
-bool build_vcmpgtsw(BuilderContext& ctx);
-
-bool build_vctsxs(BuilderContext& ctx);
-bool build_vctuxs(BuilderContext& ctx);
-bool build_vcfsx(BuilderContext& ctx);
-bool build_vcfux(BuilderContext& ctx);
-
-bool build_vmrghb(BuilderContext& ctx);
-bool build_vmrghh(BuilderContext& ctx);
-bool build_vmrghw(BuilderContext& ctx);
-bool build_vmrglb(BuilderContext& ctx);
-bool build_vmrglh(BuilderContext& ctx);
-bool build_vmrglw(BuilderContext& ctx);
-
-bool build_vperm(BuilderContext& ctx);
-bool build_vpermwi128(BuilderContext& ctx);
-bool build_vrlimi128(BuilderContext& ctx);
-
-bool build_vsl(BuilderContext& ctx);
-bool build_vslb(BuilderContext& ctx);
-bool build_vslh(BuilderContext& ctx);
-bool build_vsldoi(BuilderContext& ctx);
-bool build_vslw(BuilderContext& ctx);
-bool build_vslo(BuilderContext& ctx);
-bool build_vsr(BuilderContext& ctx);
-bool build_vsrh(BuilderContext& ctx);
-bool build_vsrb(BuilderContext& ctx);
-bool build_vsrab(BuilderContext& ctx);
-bool build_vsrah(BuilderContext& ctx);
-bool build_vsraw(BuilderContext& ctx);
-bool build_vsrw(BuilderContext& ctx);
-bool build_vsro(BuilderContext& ctx);
-bool build_vrlh(BuilderContext& ctx);
-bool build_vrlw(BuilderContext& ctx);
-
-bool build_vspltb(BuilderContext& ctx);
-bool build_vsplth(BuilderContext& ctx);
-bool build_vspltisb(BuilderContext& ctx);
-bool build_vspltish(BuilderContext& ctx);
-bool build_vspltisw(BuilderContext& ctx);
-bool build_vspltw(BuilderContext& ctx);
-
-bool build_vpkuhum(BuilderContext& ctx);
-bool build_vpkuhus(BuilderContext& ctx);
-bool build_vpkuwum(BuilderContext& ctx);
-bool build_vpkuwus(BuilderContext& ctx);
-bool build_vpkshss(BuilderContext& ctx);
-bool build_vpkshus(BuilderContext& ctx);
-bool build_vpkswss(BuilderContext& ctx);
-bool build_vpkswus(BuilderContext& ctx);
-bool build_vpkd3d128(BuilderContext& ctx);
-
-bool build_vupkd3d128(BuilderContext& ctx);
-bool build_vupkhsb(BuilderContext& ctx);
-bool build_vupkhsh(BuilderContext& ctx);
-bool build_vupklsb(BuilderContext& ctx);
-bool build_vupklsh(BuilderContext& ctx);
+bool BuildCmpd(BuilderContext& ctx);
+bool BuildCmpdi(BuilderContext& ctx);
+bool BuildCmpld(BuilderContext& ctx);
+bool BuildCmpldi(BuilderContext& ctx);
+bool BuildCmplw(BuilderContext& ctx);
+bool BuildCmplwi(BuilderContext& ctx);
+bool BuildCmpw(BuilderContext& ctx);
+bool BuildCmpwi(BuilderContext& ctx);
+
+bool BuildAdd(BuilderContext& ctx);
+bool BuildAddc(BuilderContext& ctx);
+bool BuildAdde(BuilderContext& ctx);
+bool BuildAddi(BuilderContext& ctx);
+bool BuildAddic(BuilderContext& ctx);
+bool BuildAddis(BuilderContext& ctx);
+bool BuildAddme(BuilderContext& ctx);
+bool BuildAddze(BuilderContext& ctx);
+
+bool BuildDivd(BuilderContext& ctx);
+bool BuildDivdu(BuilderContext& ctx);
+bool BuildDivw(BuilderContext& ctx);
+bool BuildDivwu(BuilderContext& ctx);
+
+bool BuildMulhd(BuilderContext& ctx);
+bool BuildMulhdu(BuilderContext& ctx);
+bool BuildMulhw(BuilderContext& ctx);
+bool BuildMulhwu(BuilderContext& ctx);
+bool BuildMulld(BuilderContext& ctx);
+bool BuildMulli(BuilderContext& ctx);
+bool BuildMullw(BuilderContext& ctx);
+
+bool BuildNeg(BuilderContext& ctx);
+
+bool BuildSubf(BuilderContext& ctx);
+bool BuildSubfc(BuilderContext& ctx);
+bool BuildSubfe(BuilderContext& ctx);
+bool BuildSubfic(BuilderContext& ctx);
+bool BuildSubfme(BuilderContext& ctx);
+bool BuildSubfze(BuilderContext& ctx);
+
+bool BuildAnd(BuilderContext& ctx);
+bool BuildAndc(BuilderContext& ctx);
+bool BuildAndi(BuilderContext& ctx);
+bool BuildAndis(BuilderContext& ctx);
+
+bool BuildNand(BuilderContext& ctx);
+bool BuildNor(BuilderContext& ctx);
+bool BuildNot(BuilderContext& ctx);
+bool BuildOr(BuilderContext& ctx);
+bool BuildOrc(BuilderContext& ctx);
+bool BuildOri(BuilderContext& ctx);
+bool BuildOris(BuilderContext& ctx);
+
+bool BuildXor(BuilderContext& ctx);
+bool BuildXori(BuilderContext& ctx);
+bool BuildXoris(BuilderContext& ctx);
+
+bool BuildCrand(BuilderContext& ctx);
+bool BuildCrandc(BuilderContext& ctx);
+bool BuildCreqv(BuilderContext& ctx);
+bool BuildCrnand(BuilderContext& ctx);
+bool BuildCrnor(BuilderContext& ctx);
+bool BuildCror(BuilderContext& ctx);
+bool BuildCrorc(BuilderContext& ctx);
+bool BuildCrxor(BuilderContext& ctx);
+
+bool BuildEqv(BuilderContext& ctx);
+
+bool BuildCntlzd(BuilderContext& ctx);
+bool BuildCntlzw(BuilderContext& ctx);
+
+bool BuildExtsb(BuilderContext& ctx);
+bool BuildExtsh(BuilderContext& ctx);
+bool BuildExtsw(BuilderContext& ctx);
+
+bool BuildClrlwi(BuilderContext& ctx);
+
+bool BuildRldcl(BuilderContext& ctx);
+bool BuildRldcr(BuilderContext& ctx);
+bool BuildRldic(BuilderContext& ctx);
+bool BuildRldicl(BuilderContext& ctx);
+bool BuildRldicr(BuilderContext& ctx);
+bool BuildRldimi(BuilderContext& ctx);
+bool BuildRotldi(BuilderContext& ctx);
+
+bool BuildRlwimi(BuilderContext& ctx);
+bool BuildRlwinm(BuilderContext& ctx);
+bool BuildRlwnm(BuilderContext& ctx);
+bool BuildRotlw(BuilderContext& ctx);
+bool BuildRotlwi(BuilderContext& ctx);
+
+bool BuildSld(BuilderContext& ctx);
+bool BuildSlw(BuilderContext& ctx);
+
+bool BuildSrad(BuilderContext& ctx);
+bool BuildSradi(BuilderContext& ctx);
+bool BuildSraw(BuilderContext& ctx);
+bool BuildSrawi(BuilderContext& ctx);
+
+bool BuildSrd(BuilderContext& ctx);
+bool BuildSrw(BuilderContext& ctx);
+
+bool BuildB(BuilderContext& ctx);
+bool BuildBl(BuilderContext& ctx);
+bool BuildBlr(BuilderContext& ctx);
+bool BuildBlrl(BuilderContext& ctx);
+
+bool BuildBctr(BuilderContext& ctx);
+bool BuildBctrl(BuilderContext& ctx);
+bool BuildBnectr(BuilderContext& ctx);
+
+bool BuildBdz(BuilderContext& ctx);
+bool BuildBdzf(BuilderContext& ctx);
+bool BuildBdzlr(BuilderContext& ctx);
+bool BuildBdnz(BuilderContext& ctx);
+bool BuildBdnzf(BuilderContext& ctx);
+bool BuildBdnzlr(BuilderContext& ctx);
+bool BuildBdnzt(BuilderContext& ctx);
+
+bool BuildBeq(BuilderContext& ctx);
+bool BuildBeqlr(BuilderContext& ctx);
+bool BuildBne(BuilderContext& ctx);
+bool BuildBnelr(BuilderContext& ctx);
+
+bool BuildBlt(BuilderContext& ctx);
+bool BuildBltlr(BuilderContext& ctx);
+bool BuildBge(BuilderContext& ctx);
+bool BuildBgelr(BuilderContext& ctx);
+
+bool BuildBgt(BuilderContext& ctx);
+bool BuildBgtlr(BuilderContext& ctx);
+bool BuildBle(BuilderContext& ctx);
+bool BuildBlelr(BuilderContext& ctx);
+
+bool BuildBso(BuilderContext& ctx);
+bool BuildBsolr(BuilderContext& ctx);
+bool BuildBns(BuilderContext& ctx);
+bool BuildBnslr(BuilderContext& ctx);
+
+bool BuildFabs(BuilderContext& ctx);
+bool BuildFnabs(BuilderContext& ctx);
+bool BuildFneg(BuilderContext& ctx);
+
+bool BuildFmr(BuilderContext& ctx);
+bool BuildFcfid(BuilderContext& ctx);
+bool BuildFctid(BuilderContext& ctx);
+bool BuildFctidz(BuilderContext& ctx);
+bool BuildFctiw(BuilderContext& ctx);
+bool BuildFctiwz(BuilderContext& ctx);
+bool BuildFrsp(BuilderContext& ctx);
+
+bool BuildFcmpu(BuilderContext& ctx);
+bool BuildFcmpo(BuilderContext& ctx);
+
+bool BuildFadd(BuilderContext& ctx);
+bool BuildFadds(BuilderContext& ctx);
+
+bool BuildFsub(BuilderContext& ctx);
+bool BuildFsubs(BuilderContext& ctx);
+
+bool BuildFmul(BuilderContext& ctx);
+bool BuildFmuls(BuilderContext& ctx);
+
+bool BuildFdiv(BuilderContext& ctx);
+bool BuildFdivs(BuilderContext& ctx);
+
+bool BuildFmadd(BuilderContext& ctx);
+bool BuildFmadds(BuilderContext& ctx);
+bool BuildFmsub(BuilderContext& ctx);
+bool BuildFmsubs(BuilderContext& ctx);
+bool BuildFnmadd(BuilderContext& ctx);
+bool BuildFnmadds(BuilderContext& ctx);
+bool BuildFnmsub(BuilderContext& ctx);
+bool BuildFnmsubs(BuilderContext& ctx);
+
+bool BuildFres(BuilderContext& ctx);
+bool BuildFrsqrte(BuilderContext& ctx);
+bool BuildFsqrt(BuilderContext& ctx);
+bool BuildFsqrts(BuilderContext& ctx);
+
+bool BuildFsel(BuilderContext& ctx);
+
+bool BuildLi(BuilderContext& ctx);
+bool BuildLis(BuilderContext& ctx);
+
+bool BuildLbz(BuilderContext& ctx);
+bool BuildLbzu(BuilderContext& ctx);
+bool BuildLbzx(BuilderContext& ctx);
+bool BuildLbzux(BuilderContext& ctx);
+
+bool BuildLha(BuilderContext& ctx);
+bool BuildLhau(BuilderContext& ctx);
+bool BuildLhaux(BuilderContext& ctx);
+bool BuildLhax(BuilderContext& ctx);
+bool BuildLhbrx(BuilderContext& ctx);
+bool BuildLhz(BuilderContext& ctx);
+bool BuildLhzu(BuilderContext& ctx);
+bool BuildLhzux(BuilderContext& ctx);
+bool BuildLhzx(BuilderContext& ctx);
+
+bool BuildLwa(BuilderContext& ctx);
+bool BuildLwaux(BuilderContext& ctx);
+bool BuildLwax(BuilderContext& ctx);
+bool BuildLwbrx(BuilderContext& ctx);
+bool BuildLwz(BuilderContext& ctx);
+bool BuildLwzu(BuilderContext& ctx);
+bool BuildLwzux(BuilderContext& ctx);
+bool BuildLwzx(BuilderContext& ctx);
+
+bool BuildLd(BuilderContext& ctx);
+bool BuildLdu(BuilderContext& ctx);
+bool BuildLdx(BuilderContext& ctx);
+bool BuildLdux(BuilderContext& ctx);
+
+bool BuildLwarx(BuilderContext& ctx);
+bool BuildLdarx(BuilderContext& ctx);
+
+bool BuildLfd(BuilderContext& ctx);
+bool BuildLfdu(BuilderContext& ctx);
+bool BuildLfdux(BuilderContext& ctx);
+bool BuildLfdx(BuilderContext& ctx);
+bool BuildLfs(BuilderContext& ctx);
+bool BuildLfsu(BuilderContext& ctx);
+bool BuildLfsux(BuilderContext& ctx);
+bool BuildLfsx(BuilderContext& ctx);
+
+bool BuildStb(BuilderContext& ctx);
+bool BuildStbu(BuilderContext& ctx);
+bool BuildStbx(BuilderContext& ctx);
+bool BuildStbux(BuilderContext& ctx);
+
+bool BuildSth(BuilderContext& ctx);
+bool BuildSthbrx(BuilderContext& ctx);
+bool BuildSthu(BuilderContext& ctx);
+bool BuildSthux(BuilderContext& ctx);
+bool BuildSthx(BuilderContext& ctx);
+
+bool BuildStw(BuilderContext& ctx);
+bool BuildStwu(BuilderContext& ctx);
+bool BuildStwux(BuilderContext& ctx);
+bool BuildStwx(BuilderContext& ctx);
+bool BuildStwbrx(BuilderContext& ctx);
+bool BuildStmw(BuilderContext& ctx);
+
+bool BuildStwcx(BuilderContext& ctx);
+bool BuildStdcx(BuilderContext& ctx);
+
+bool BuildStd(BuilderContext& ctx);
+bool BuildStdu(BuilderContext& ctx);
+bool BuildStdx(BuilderContext& ctx);
+bool BuildStdux(BuilderContext& ctx);
+
+bool BuildStfd(BuilderContext& ctx);
+bool BuildStfdu(BuilderContext& ctx);
+bool BuildStfdux(BuilderContext& ctx);
+bool BuildStfdx(BuilderContext& ctx);
+bool BuildStfiwx(BuilderContext& ctx);
+bool BuildSTFS(BuilderContext& ctx);
+bool BuildStfsu(BuilderContext& ctx);
+bool BuildStfsux(BuilderContext& ctx);
+bool BuildStfsx(BuilderContext& ctx);
+
+bool BuildLvx(BuilderContext& ctx);
+bool BuildLvlx(BuilderContext& ctx);
+bool BuildLvrx(BuilderContext& ctx);
+bool BuildLvsl(BuilderContext& ctx);
+bool BuildLvsr(BuilderContext& ctx);
+
+bool BuildStvebx(BuilderContext& ctx);
+bool BuildStvehx(BuilderContext& ctx);
+bool BuildStvewx(BuilderContext& ctx);
+bool BuildStvlx(BuilderContext& ctx);
+bool BuildStvrx(BuilderContext& ctx);
+bool BuildStvx(BuilderContext& ctx);
+
+bool BuildNop(BuilderContext& ctx);
+bool BuildAttn(BuilderContext& ctx);
+bool BuildSync(BuilderContext& ctx);
+bool BuildLwsync(BuilderContext& ctx);
+bool BuildEieio(BuilderContext& ctx);
+bool BuildDb16cyc(BuilderContext& ctx);
+bool BuildCctpl(BuilderContext& ctx);
+bool BuildCctpm(BuilderContext& ctx);
+bool BuildCctph(BuilderContext& ctx);
+
+bool BuildTwi(BuilderContext& ctx);
+bool BuildTdi(BuilderContext& ctx);
+bool BuildTw(BuilderContext& ctx);
+bool BuildTd(BuilderContext& ctx);
+
+bool BuildDcbf(BuilderContext& ctx);
+bool BuildDcbt(BuilderContext& ctx);
+bool BuildDcbtst(BuilderContext& ctx);
+bool BuildDcbz(BuilderContext& ctx);
+bool BuildDcbzl(BuilderContext& ctx);
+bool BuildDcbst(BuilderContext& ctx);
+
+bool BuildMr(BuilderContext& ctx);
+
+bool BuildMcrf(BuilderContext& ctx);
+
+bool BuildMfctr(BuilderContext& ctx);
+bool BuildMfcr(BuilderContext& ctx);
+bool BuildMfxer(BuilderContext& ctx);
+bool BuildMfocrf(BuilderContext& ctx);
+bool BuildMflr(BuilderContext& ctx);
+bool BuildMfmsr(BuilderContext& ctx);
+bool BuildMffs(BuilderContext& ctx);
+bool BuildMftb(BuilderContext& ctx);
+bool BuildMftbu(BuilderContext& ctx);
+
+bool BuildMtcr(BuilderContext& ctx);
+bool BuildMtcrf(BuilderContext& ctx);
+bool BuildMtctr(BuilderContext& ctx);
+bool BuildMtlr(BuilderContext& ctx);
+bool BuildMtmsrd(BuilderContext& ctx);
+bool BuildMtfsf(BuilderContext& ctx);
+bool BuildMtxer(BuilderContext& ctx);
+
+bool BuildClrldi(BuilderContext& ctx);
+
+bool BuildVaddfp(BuilderContext& ctx);
+bool BuildVsubfp(BuilderContext& ctx);
+bool BuildVmulfp128(BuilderContext& ctx);
+bool BuildVmaddfp(BuilderContext& ctx);
+bool BuildVnmsubfp(BuilderContext& ctx);
+bool BuildVmaxfp(BuilderContext& ctx);
+bool BuildVminfp(BuilderContext& ctx);
+bool BuildVrefp(BuilderContext& ctx);
+bool BuildVrsqrtefp(BuilderContext& ctx);
+bool BuildVexptefp(BuilderContext& ctx);
+bool BuildVlogefp(BuilderContext& ctx);
+
+bool BuildVmsum3fp128(BuilderContext& ctx);
+bool BuildVmsum4fp128(BuilderContext& ctx);
+
+bool BuildVrfim(BuilderContext& ctx);
+bool BuildVrfin(BuilderContext& ctx);
+bool BuildVrfip(BuilderContext& ctx);
+bool BuildVrfiz(BuilderContext& ctx);
+
+bool BuildVaddsbs(BuilderContext& ctx);
+bool BuildVaddshs(BuilderContext& ctx);
+bool BuildVaddsws(BuilderContext& ctx);
+bool BuildVaddubm(BuilderContext& ctx);
+bool BuildVaddubs(BuilderContext& ctx);
+bool BuildVadduhm(BuilderContext& ctx);
+bool BuildVadduwm(BuilderContext& ctx);
+bool BuildVadduws(BuilderContext& ctx);
+bool BuildVadduhs(BuilderContext& ctx);
+bool BuildVsubsbs(BuilderContext& ctx);
+bool BuildVsubshs(BuilderContext& ctx);
+bool BuildVsubsws(BuilderContext& ctx);
+bool BuildVsububm(BuilderContext& ctx);
+bool BuildVsububs(BuilderContext& ctx);
+bool BuildVsubuws(BuilderContext& ctx);
+bool BuildVsubuhs(BuilderContext& ctx);
+bool BuildVsubuhm(BuilderContext& ctx);
+bool BuildVsubuwm(BuilderContext& ctx);
+bool BuildVmaxsh(BuilderContext& ctx);
+bool BuildVmaxsb(BuilderContext& ctx);
+bool BuildVmaxsw(BuilderContext& ctx);
+bool BuildVmaxuh(BuilderContext& ctx);
+bool BuildVminsh(BuilderContext& ctx);
+bool BuildVminsb(BuilderContext& ctx);
+bool BuildVminsw(BuilderContext& ctx);
+bool BuildVminuh(BuilderContext& ctx);
+bool BuildVminuw(BuilderContext& ctx);
+bool BuildVmaxub(BuilderContext& ctx);
+bool BuildVminub(BuilderContext& ctx);
+
+bool BuildVavgsb(BuilderContext& ctx);
+bool BuildVavgsh(BuilderContext& ctx);
+bool BuildVavgsw(BuilderContext& ctx);
+bool BuildVavgub(BuilderContext& ctx);
+bool BuildVavguh(BuilderContext& ctx);
+
+bool BuildVand(BuilderContext& ctx);
+bool BuildVandc(BuilderContext& ctx);
+bool BuildVandc128(BuilderContext& ctx);
+bool BuildVor(BuilderContext& ctx);
+bool BuildVxor(BuilderContext& ctx);
+bool BuildVnor(BuilderContext& ctx);
+bool BuildVsel(BuilderContext& ctx);
+
+bool BuildVcmpbfp(BuilderContext& ctx);
+bool BuildVcmpeqfp(BuilderContext& ctx);
+bool BuildVcmpequb(BuilderContext& ctx);
+bool BuildVcmpequh(BuilderContext& ctx);
+bool BuildVcmpequw(BuilderContext& ctx);
+bool BuildVcmpgefp(BuilderContext& ctx);
+bool BuildVcmpgtfp(BuilderContext& ctx);
+bool BuildVcmpgtub(BuilderContext& ctx);
+bool BuildVcmpgtuh(BuilderContext& ctx);
+bool BuildVcmpgtuw(BuilderContext& ctx);
+bool BuildVcmpgtsb(BuilderContext& ctx);
+bool BuildVcmpgtsh(BuilderContext& ctx);
+bool BuildVcmpgtsw(BuilderContext& ctx);
+
+bool BuildVctsxs(BuilderContext& ctx);
+bool BuildVctuxs(BuilderContext& ctx);
+bool BuildVcfsx(BuilderContext& ctx);
+bool BuildVcfux(BuilderContext& ctx);
+
+bool BuildVmrghb(BuilderContext& ctx);
+bool BuildVmrghh(BuilderContext& ctx);
+bool BuildVmrghw(BuilderContext& ctx);
+bool BuildVmrglb(BuilderContext& ctx);
+bool BuildVmrglh(BuilderContext& ctx);
+bool BuildVmrglw(BuilderContext& ctx);
+
+bool BuildVperm(BuilderContext& ctx);
+bool BuildVpermwi128(BuilderContext& ctx);
+bool BuildVrlimi128(BuilderContext& ctx);
+
+bool BuildVsl(BuilderContext& ctx);
+bool BuildVslb(BuilderContext& ctx);
+bool BuildVslh(BuilderContext& ctx);
+bool BuildVsldoi(BuilderContext& ctx);
+bool BuildVslw(BuilderContext& ctx);
+bool BuildVslo(BuilderContext& ctx);
+bool BuildVsr(BuilderContext& ctx);
+bool BuildVsrh(BuilderContext& ctx);
+bool BuildVsrb(BuilderContext& ctx);
+bool BuildVsrab(BuilderContext& ctx);
+bool BuildVsrah(BuilderContext& ctx);
+bool BuildVsraw(BuilderContext& ctx);
+bool BuildVsrw(BuilderContext& ctx);
+bool BuildVsro(BuilderContext& ctx);
+bool BuildVrlh(BuilderContext& ctx);
+bool BuildVrlw(BuilderContext& ctx);
+
+bool BuildVspltb(BuilderContext& ctx);
+bool BuildVsplth(BuilderContext& ctx);
+bool BuildVspltisb(BuilderContext& ctx);
+bool BuildVspltish(BuilderContext& ctx);
+bool BuildVspltisw(BuilderContext& ctx);
+bool BuildVspltw(BuilderContext& ctx);
+
+bool BuildVpkuhum(BuilderContext& ctx);
+bool BuildVpkuhus(BuilderContext& ctx);
+bool BuildVpkuwum(BuilderContext& ctx);
+bool BuildVpkuwus(BuilderContext& ctx);
+bool BuildVpkshss(BuilderContext& ctx);
+bool BuildVpkshus(BuilderContext& ctx);
+bool BuildVpkswss(BuilderContext& ctx);
+bool BuildVpkswus(BuilderContext& ctx);
+bool BuildVpkd3d128(BuilderContext& ctx);
+
+bool BuildVupkd3d128(BuilderContext& ctx);
+bool BuildVupkhsb(BuilderContext& ctx);
+bool BuildVupkhsh(BuilderContext& ctx);
+bool BuildVupklsb(BuilderContext& ctx);
+bool BuildVupklsh(BuilderContext& ctx);
 
 }  // namespace rex::codegen

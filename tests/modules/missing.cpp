@@ -32,8 +32,8 @@ class MissingModule final : public rex::IModule {
 
   MissingModule() { Record(kName, "constructor"); }
 
-  const char* Name() const override { return kName; }
-  std::span<const char* const> RequiredInterfaces() const override {
+  const char* GetName() const override { return kName; }
+  std::span<const char* const> GetRequiredInterfaces() const override {
     static constexpr const char* kRequired[] = {"rex.test.absent@1"};
     return kRequired;
   }
@@ -49,14 +49,14 @@ class MissingModule final : public rex::IModule {
   void Shutdown() override { Record(kName, "shutdown"); }
 
  private:
-  static MissingModule& Instance() {
+  static MissingModule& GetInstance() {
     static MissingModule instance;
     return instance;
   }
 };
 
 void* MissingModule::GetModule() {
-  return static_cast<rex::IModule*>(&Instance());
+  return static_cast<rex::IModule*>(&GetInstance());
 }
 
 }  // namespace

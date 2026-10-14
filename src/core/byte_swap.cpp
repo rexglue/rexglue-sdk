@@ -36,7 +36,7 @@
 namespace rex {
 namespace memory {
 
-void copy_128_aligned(void* dest, const void* src, size_t count) {
+void Copy128Aligned(void* dest, const void* src, size_t count) {
   std::memcpy(dest, src, count * 16);
 }
 

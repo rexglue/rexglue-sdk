@@ -34,8 +34,8 @@ class REX_RUNTIME_API NullGPU final : public gpu::IGPUBackend, public NonCopyabl
   [[nodiscard]] Result<void> SetupPresentation(gpu::IUIThread& ui_thread) override;
   [[nodiscard]] Result<void> SetupGuestGPU(FunctionDispatcher& dispatcher,
                                            Runtime& runtime) override;
-  bool has_presentation() const override { return false; }
-  gpu::IPresenter* presenter() const override { return nullptr; }
+  bool HasPresentation() const override { return false; }
+  gpu::IPresenter* GetPresenter() const override { return nullptr; }
   [[nodiscard]] Result<std::unique_ptr<gpu::IPresenter>> CreatePresenter() override;
   [[nodiscard]] Result<std::unique_ptr<gpu::IOverlayDrawer>> CreateOverlayDrawer(
       gpu::IPresenter& presenter) override;

@@ -91,7 +91,7 @@ struct TextureGuestLayout {
     u32 x_extent_blocks;               /**< Exclusive X bound of the blocks in use. */
     u32 y_extent_blocks;               /**< Exclusive Y bound of the blocks in use. */
     u32 z_extent;                      /**< Exclusive Z bound of the layers in use. */
-    u32 array_layer_data_extent_bytes; /**< Bytes 1 array layer reads, not 4 KB aligned. */
+    u32 array_layer_data_extent_bytes; /**< Bytes an array layer reads, not 4 KB aligned. */
     u32 level_data_extent_bytes;       /**< Bytes the level reads across all array layers. */
   };
 

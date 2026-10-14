@@ -30,7 +30,7 @@ OVERLAPPED At(u64 offset) {
 
 rex::Error HostError(std::string_view what, const std::filesystem::path& path) {
   return BuildError(FileSystemError::kIO, std::format("{} '{}' failed, error {}", what,
-                                                      path_to_utf8(path), GetLastError()));
+                                                      PathToUTF8(path), GetLastError()));
 }
 
 }  // namespace
@@ -80,7 +80,7 @@ Result<std::unique_ptr<HostFile>> HostFile::OpenExisting(const std::filesystem::
       code = FileSystemError::kAccessDenied;
     }
     return Err<std::unique_ptr<HostFile>>(BuildError(
-        code, std::format("cannot open host file '{}', error {}", path_to_utf8(path), error)));
+        code, std::format("cannot open host file '{}', error {}", PathToUTF8(path), error)));
   }
   return std::make_unique<HostFile>(Key{}, path, handle);
 }
@@ -140,7 +140,7 @@ Result<void> HostFile::Flush() const {
       code = FileSystemError::kAccessDenied;
     }
     return Err(BuildError(
-        code, std::format("cannot create host file '{}', error {}", path_to_utf8(path), error)));
+        code, std::format("cannot create host file '{}', error {}", PathToUTF8(path), error)));
   }
   CloseHandle(handle);
   return Ok();
@@ -162,8 +162,8 @@ Result<void> HostFile::Flush() const {
   } else if (error == ERROR_NOT_SAME_DEVICE) {
     code = FileSystemError::kNotSameDevice;
   }
-  return Err(BuildError(code, std::format("cannot move '{}' to '{}', error {}", path_to_utf8(from),
-                                          path_to_utf8(to), error)));
+  return Err(BuildError(code, std::format("cannot move '{}' to '{}', error {}", PathToUTF8(from),
+                                          PathToUTF8(to), error)));
 }
 
 std::optional<HostInfo> HostStat(const std::filesystem::path& path) {

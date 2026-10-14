@@ -43,7 +43,7 @@ namespace rex::runtime {
                                                  X_STATUS unsupported = X_STATUS_NOT_IMPLEMENTED);
 
 /**
- * Maps an error to the Win32 code Xam reports.
+ * Maps an error to the Win32 code XAM reports.
  *
  * @param error An error built by ResultError.
  * @param unsupported The code for an error of another category.
@@ -65,7 +65,7 @@ template <typename T>
 }
 
 /**
- * Maps a result to the Win32 code Xam reports.
+ * Maps a result to the Win32 code XAM reports.
  *
  * @tparam T The value type of the result.
  * @param result The result.

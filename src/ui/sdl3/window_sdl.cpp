@@ -42,8 +42,8 @@ Uint32 CursorAutoHideTimerCallback(void* userdata, SDL_TimerID timer_id, Uint32 
   (void)timer_id;
   (void)interval;
   auto* window = static_cast<WindowSDL*>(userdata);
-  window->app_context().CallInUIThreadDeferred([window] {
-    if (window->GetCursorVisibility() == CursorVisibility::AutoHidden) {
+  window->GetAppContext().CallInUIThreadDeferred([window] {
+    if (window->GetCursorVisibility() == CursorVisibility::kAutoHidden) {
       SDL_HideCursor();
     }
   });
@@ -101,7 +101,7 @@ bool WindowSDL::OpenImpl() {
     REX_FAIL(ui, false, "SDL_CreateWindow failed: {}", SDL_GetError());
   }
   sdl_window_id_ = SDL_GetWindowID(sdl_window_);
-  sdl_app_context().RegisterWindow(sdl_window_id_, this);
+  GetSDLAppContext().RegisterWindow(sdl_window_id_, this);
   ApplySizeLimits();
 
   CenterOnConfiguredDisplay();
@@ -161,7 +161,7 @@ void WindowSDL::DestroySDLWindow() {
     cursor_hide_timer_ = 0;
   }
   if (sdl_window_) {
-    sdl_app_context().UnregisterWindow(sdl_window_id_);
+    GetSDLAppContext().UnregisterWindow(sdl_window_id_);
     SDL_DestroyWindow(sdl_window_);
     sdl_window_ = nullptr;
     sdl_window_id_ = 0;
@@ -174,7 +174,7 @@ void WindowSDL::Raise() {
   }
 }
 
-NativeWindow WindowSDL::Native() {
+NativeWindow WindowSDL::GetNative() {
   NativeWindow result;
   if (!sdl_window_) {
     return result;
@@ -182,12 +182,12 @@ NativeWindow WindowSDL::Native() {
   result.sdl = sdl_window_;
   const SDL_PropertiesID props = SDL_GetWindowProperties(sdl_window_);
   if (void* hwnd = SDL_GetPointerProperty(props, SDL_PROP_WINDOW_WIN32_HWND_POINTER, nullptr)) {
-    result.kind = NativeWindow::Kind::Win32;
+    result.kind = NativeWindow::Kind::kWin32;
     result.window = hwnd;
     return result;
   }
   if (void* ns = SDL_GetPointerProperty(props, SDL_PROP_WINDOW_COCOA_WINDOW_POINTER, nullptr)) {
-    result.kind = NativeWindow::Kind::Cocoa;
+    result.kind = NativeWindow::Kind::kCocoa;
     result.window = ns;
 #if REX_PLATFORM_MAC
     result.layer = AcquireMetalLayer();
@@ -196,7 +196,7 @@ NativeWindow WindowSDL::Native() {
   }
   if (void* surface =
           SDL_GetPointerProperty(props, SDL_PROP_WINDOW_WAYLAND_SURFACE_POINTER, nullptr)) {
-    result.kind = NativeWindow::Kind::Wayland;
+    result.kind = NativeWindow::Kind::kWayland;
     result.window = surface;
     result.display =
         SDL_GetPointerProperty(props, SDL_PROP_WINDOW_WAYLAND_DISPLAY_POINTER, nullptr);
@@ -205,7 +205,7 @@ NativeWindow WindowSDL::Native() {
   const u64 x11_window =
       static_cast<u64>(SDL_GetNumberProperty(props, SDL_PROP_WINDOW_X11_WINDOW_NUMBER, 0));
   if (x11_window) {
-    result.kind = NativeWindow::Kind::X11;
+    result.kind = NativeWindow::Kind::kX11;
     // NOLINTNEXTLINE(performance-no-int-to-ptr): NativeWindow carries the X11 XID as a pointer
     result.window = reinterpret_cast<void*>(x11_window);
     result.display = SDL_GetPointerProperty(props, SDL_PROP_WINDOW_X11_DISPLAY_POINTER, nullptr);
@@ -225,7 +225,7 @@ void* WindowSDL::AcquireMetalLayer() {
 }
 #endif
 
-SDL_Window* WindowSDL::sdl() const {
+SDL_Window* WindowSDL::GetSDL() const {
   return sdl_window_;
 }
 
@@ -320,13 +320,13 @@ f32 WindowSDL::GetPixelDensity() const {
   return density > 0.0f ? density : 1.0f;
 }
 
-u32 WindowSDL::GetLatestDpiImpl() const {
+u32 WindowSDL::GetLatestDPIImpl() const {
   f32 scale = sdl_window_ ? SDL_GetWindowDisplayScale(sdl_window_)
                           : SDL_GetDisplayContentScale(SDL_GetPrimaryDisplay());
   if (scale <= 0.0f) {
-    return GetMediumDpi();
+    return GetMediumDPI();
   }
-  return static_cast<u32>(std::lround(scale * static_cast<f32>(GetMediumDpi())));
+  return static_cast<u32>(std::lround(scale * static_cast<f32>(GetMediumDPI())));
 }
 
 void WindowSDL::ApplyNewFullscreen() {
@@ -465,21 +465,21 @@ void WindowSDL::ApplyNewCursorVisibility(CursorVisibility old_cursor_visibility)
 
 void WindowSDL::ApplyCursorVisibilityNow() {
   switch (GetCursorVisibility()) {
-    case CursorVisibility::Visible:
+    case CursorVisibility::kVisible:
       if (cursor_hide_timer_) {
         SDL_RemoveTimer(cursor_hide_timer_);
         cursor_hide_timer_ = 0;
       }
       SDL_ShowCursor();
       break;
-    case CursorVisibility::Hidden:
+    case CursorVisibility::kHidden:
       if (cursor_hide_timer_) {
         SDL_RemoveTimer(cursor_hide_timer_);
         cursor_hide_timer_ = 0;
       }
       SDL_HideCursor();
       break;
-    case CursorVisibility::AutoHidden:
+    case CursorVisibility::kAutoHidden:
       // AutoHidden hides at once, mouse motion reveals the cursor and re-arms the timer.
       SDL_HideCursor();
       break;
@@ -506,24 +506,24 @@ std::unique_ptr<gpu::Surface> WindowSDL::CreateSurfaceImpl(gpu::Surface::TypeFla
   }
 #if REX_PLATFORM_WIN32
   SDL_PropertiesID props = SDL_GetWindowProperties(sdl_window_);
-  if (allowed_types & gpu::Surface::kTypeFlag_Win32Hwnd) {
+  if (allowed_types & gpu::Surface::kTypeFlagWin32HWND) {
     HWND hwnd = static_cast<HWND>(
         SDL_GetPointerProperty(props, SDL_PROP_WINDOW_WIN32_HWND_POINTER, nullptr));
     HINSTANCE hinstance = static_cast<HINSTANCE>(
         SDL_GetPointerProperty(props, SDL_PROP_WINDOW_WIN32_INSTANCE_POINTER, nullptr));
     if (hwnd) {
-      return std::make_unique<gpu::Win32HwndSurface>(hinstance, hwnd);
+      return std::make_unique<gpu::Win32HWNDSurface>(hinstance, hwnd);
     }
   }
 #elif REX_PLATFORM_MAC
-  if (allowed_types & gpu::Surface::kTypeFlag_CAMetalLayer) {
+  if (allowed_types & gpu::Surface::kTypeFlagCAMetalLayer) {
     if (void* layer = AcquireMetalLayer()) {
       return std::make_unique<gpu::CAMetalLayerSurface>(sdl_window_, layer);
     }
   }
 #else
   SDL_PropertiesID props = SDL_GetWindowProperties(sdl_window_);
-  if (allowed_types & gpu::Surface::kTypeFlag_WaylandSurface) {
+  if (allowed_types & gpu::Surface::kTypeFlagWaylandSurface) {
     auto* wl_display_ptr = static_cast<struct wl_display*>(
         SDL_GetPointerProperty(props, SDL_PROP_WINDOW_WAYLAND_DISPLAY_POINTER, nullptr));
     auto* wl_surface_ptr = static_cast<struct wl_surface*>(
@@ -532,13 +532,13 @@ std::unique_ptr<gpu::Surface> WindowSDL::CreateSurfaceImpl(gpu::Surface::TypeFla
       return std::make_unique<gpu::WaylandSurface>(wl_display_ptr, wl_surface_ptr, sdl_window_);
     }
   }
-  if (allowed_types & gpu::Surface::kTypeFlag_XcbWindow) {
+  if (allowed_types & gpu::Surface::kTypeFlagXCBWindow) {
     auto* display = static_cast<Display*>(
         SDL_GetPointerProperty(props, SDL_PROP_WINDOW_X11_DISPLAY_POINTER, nullptr));
     auto x11_window = static_cast<xcb_window_t>(
         SDL_GetNumberProperty(props, SDL_PROP_WINDOW_X11_WINDOW_NUMBER, 0));
     if (display && x11_window) {
-      return std::make_unique<gpu::XcbWindowSurface>(XGetXCBConnection(display), x11_window);
+      return std::make_unique<gpu::XCBWindowSurface>(XGetXCBConnection(display), x11_window);
     }
   }
 #endif
@@ -551,7 +551,7 @@ void WindowSDL::RequestPaintImpl() {
     return;
   }
   SDL_Event event{};
-  event.type = sdl_app_context().paint_event_type();
+  event.type = GetSDLAppContext().GetPaintEventType();
   event.user.windowID = sdl_window_id_;
   SDL_PushEvent(&event);
 }
@@ -583,8 +583,8 @@ void WindowSDL::HandleWindowEvent(SDL_Event& event) {
       break;
     }
     case SDL_EVENT_WINDOW_DISPLAY_SCALE_CHANGED: {
-      UISetupEvent e(UIEvent::Type::DpiChanged, this);
-      OnDpiChanged(e, destruction_receiver);
+      UISetupEvent e(UIEvent::Type::kDPIChanged, this);
+      OnDPIChanged(e, destruction_receiver);
       break;
     }
     case SDL_EVENT_WINDOW_DISPLAY_CHANGED: {
@@ -632,8 +632,8 @@ void WindowSDL::HandleKeyEvent(SDL_Event& event) {
     return;
   }
   SDL_Keymod mod = event.key.mod;
-  KeyEvent e(event.type == SDL_EVENT_KEY_DOWN ? UIEvent::Type::KeyDown : UIEvent::Type::KeyUp, this,
-             virtual_key, /*repeat_count=*/1,
+  KeyEvent e(event.type == SDL_EVENT_KEY_DOWN ? UIEvent::Type::kKeyDown : UIEvent::Type::kKeyUp,
+             this, virtual_key, /*repeat_count=*/1,
              /*prev_state=*/event.key.repeat,
              /*modifier_shift_pressed=*/(mod & SDL_KMOD_SHIFT) != 0,
              /*modifier_ctrl_pressed=*/(mod & SDL_KMOD_CTRL) != 0,
@@ -657,7 +657,7 @@ void WindowSDL::HandleTextInputEvent(SDL_Event& event) {
   size_t remaining = std::strlen(text);
   while (remaining > 0) {
     const u32 codepoint = SDL_StepUTF8(&it, &remaining);
-    KeyEvent e(UIEvent::Type::Char, this, hid::VirtualKey(codepoint), 1, false, false, false,
+    KeyEvent e(UIEvent::Type::kChar, this, hid::VirtualKey(codepoint), 1, false, false, false,
                false);
     OnKeyChar(e, destruction_receiver);
     if (destruction_receiver.IsWindowDestroyed()) {
@@ -672,11 +672,11 @@ void WindowSDL::HandleMouseEvent(SDL_Event& event) {
   WindowDestructionReceiver destruction_receiver(this);
   switch (event.type) {
     case SDL_EVENT_MOUSE_MOTION: {
-      if (GetCursorVisibility() == CursorVisibility::AutoHidden) {
+      if (GetCursorVisibility() == CursorVisibility::kAutoHidden) {
         SDL_ShowCursor();
         RearmCursorAutoHideTimer();
       }
-      MouseEvent e(UIEvent::Type::MouseMove, this, MouseEvent::Button::kNone,
+      MouseEvent e(UIEvent::Type::kMouseMove, this, MouseEvent::Button::kNone,
                    static_cast<i32>(event.motion.x * density),
                    static_cast<i32>(event.motion.y * density), 0, 0, event.motion.xrel * density,
                    event.motion.yrel * density);
@@ -685,8 +685,8 @@ void WindowSDL::HandleMouseEvent(SDL_Event& event) {
     }
     case SDL_EVENT_MOUSE_BUTTON_DOWN:
     case SDL_EVENT_MOUSE_BUTTON_UP: {
-      MouseEvent e(event.type == SDL_EVENT_MOUSE_BUTTON_DOWN ? UIEvent::Type::MouseDown
-                                                             : UIEvent::Type::MouseUp,
+      MouseEvent e(event.type == SDL_EVENT_MOUSE_BUTTON_DOWN ? UIEvent::Type::kMouseDown
+                                                             : UIEvent::Type::kMouseUp,
                    this, TranslateSDLMouseButton(event.button.button),
                    static_cast<i32>(event.button.x * density),
                    static_cast<i32>(event.button.y * density));
@@ -699,7 +699,7 @@ void WindowSDL::HandleMouseEvent(SDL_Event& event) {
     }
     case SDL_EVENT_MOUSE_WHEEL: {
       MouseEvent e(
-          UIEvent::Type::MouseWheel, this, MouseEvent::Button::kNone,
+          UIEvent::Type::kMouseWheel, this, MouseEvent::Button::kNone,
           static_cast<i32>(event.wheel.mouse_x * density),
           static_cast<i32>(event.wheel.mouse_y * density),
           static_cast<i32>(event.wheel.x * static_cast<f32>(MouseEvent::kScrollPerDetent)),

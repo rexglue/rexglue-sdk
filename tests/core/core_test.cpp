@@ -36,7 +36,7 @@ REX_TEST_CASE_METHOD(Fixture, "Init with an empty module list succeeds and Shutd
                      "[core]") {
   auto api = rex::Init(rex::Config{});
   REQUIRE(api);
-  REQUIRE(api.value()->config().modules.empty());
+  REQUIRE(api.value()->GetConfig().modules.empty());
   rex::Shutdown();
   REQUIRE(rex::Init(rex::Config{}));
 }
@@ -46,7 +46,7 @@ REX_TEST_CASE_METHOD(Fixture,
                      "[core]") {
   auto api = rex::Init(rex::Config{});
   REQUIRE(api);
-  auto scopes = api.value()->Get<rex::cvar::ICvarRegistry>()->Scopes();
+  auto scopes = api.value()->Get<rex::cvar::ICvarRegistry>()->GetScopes();
   std::ranges::sort(scopes);
   REQUIRE(scopes == std::vector<std::string_view>{"clock", "log", "perf"});
 }
@@ -75,10 +75,10 @@ REX_TEST_CASE_METHOD(Fixture,
   REQUIRE(api);
   auto* cvars = api.value()->Get<rex::cvar::ICvarRegistry>();
   REQUIRE(cvars->Get("perf.profiler").value() == "true");
-  REQUIRE(cvars->Source("perf.profiler") == rex::cvar::CvarSource::Default);
+  REQUIRE(cvars->Source("perf.profiler") == rex::cvar::CvarSource::kDefault);
   rex::Shutdown();
 
-  cfg.cvars.values.push_back({"perf.profiler", "false", rex::cvar::CvarSource::CommandLine});
+  cfg.cvars.values.push_back({"perf.profiler", "false", rex::cvar::CvarSource::kCommandLine});
   api = rex::Init(cfg);
   REQUIRE(api);
   REQUIRE(api.value()->Get<rex::cvar::ICvarRegistry>()->Get("perf.profiler").value() == "false");

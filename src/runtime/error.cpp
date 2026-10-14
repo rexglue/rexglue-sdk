@@ -7,15 +7,17 @@
 namespace rex::runtime {
 
 rex::Error StatusError(X_STATUS status) {
-  return {ErrorCategory::Runtime, std::format("status {:#010x}", status), static_cast<int>(status)};
+  return {ErrorCategory::kRuntime, std::format("status {:#010x}", status),
+          static_cast<int>(status)};
 }
 
 rex::Error ResultError(X_RESULT result) {
-  return {ErrorCategory::Runtime, std::format("result {:#010x}", result), static_cast<int>(result)};
+  return {ErrorCategory::kRuntime, std::format("result {:#010x}", result),
+          static_cast<int>(result)};
 }
 
 X_STATUS ToXStatus(const rex::Error& error, X_STATUS unsupported) {
-  if (error.category == ErrorCategory::Runtime) {
+  if (error.category == ErrorCategory::kRuntime) {
     return static_cast<X_STATUS>(error.code);
   }
   using filesystem::FileSystemError;
@@ -47,7 +49,8 @@ X_STATUS ToXStatus(const rex::Error& error, X_STATUS unsupported) {
 }
 
 X_RESULT ToXResult(const rex::Error& error, X_RESULT unsupported) {
-  return error.category == ErrorCategory::Runtime ? static_cast<X_RESULT>(error.code) : unsupported;
+  return error.category == ErrorCategory::kRuntime ? static_cast<X_RESULT>(error.code)
+                                                   : unsupported;
 }
 
 }  // namespace rex::runtime

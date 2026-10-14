@@ -25,7 +25,7 @@ struct AppNameParts {
   std::string upper_case;
 };
 
-inline bool validate_app_name(const std::string& input, std::string& error) {
+inline bool ValidateAppName(const std::string& input, std::string& error) {
   if (input.empty()) {
     error = "App name must not be empty";
     return false;
@@ -44,13 +44,13 @@ inline bool validate_app_name(const std::string& input, std::string& error) {
   return true;
 }
 
-inline AppNameParts parse_app_name(const std::string& input) {
-  constexpr auto is_separator = [](char c) { return c == ' ' || c == '_' || c == '-'; };
+inline AppNameParts ParseAppName(const std::string& input) {
+  constexpr auto kIsSeparator = [](char c) { return c == ' ' || c == '_' || c == '-'; };
 
-  constexpr auto to_lower = [](char c) {
+  constexpr auto kToLower = [](char c) {
     return static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
   };
-  constexpr auto to_upper = [](char c) {
+  constexpr auto kToUpper = [](char c) {
     return static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
   };
 
@@ -61,14 +61,14 @@ inline AppNameParts parse_app_name(const std::string& input) {
 
   bool at_new_word = true;
   for (char c : input) {
-    if (is_separator(c)) {
+    if (kIsSeparator(c)) {
       at_new_word = true;
       continue;
     }
 
     parts.original += c;
-    parts.upper_case += to_upper(c);
-    parts.pascal_case += at_new_word ? to_upper(c) : to_lower(c);
+    parts.upper_case += kToUpper(c);
+    parts.pascal_case += at_new_word ? kToUpper(c) : kToLower(c);
 
     at_new_word = false;
   }
@@ -76,7 +76,7 @@ inline AppNameParts parse_app_name(const std::string& input) {
   return parts;
 }
 
-inline nlohmann::json names_to_json(const AppNameParts& names) {
+inline nlohmann::json NamesToJSON(const AppNameParts& names) {
   return {{"original", names.original},
           {"pascal_case", names.pascal_case},
           {"upper_case", names.upper_case}};

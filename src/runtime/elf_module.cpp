@@ -18,16 +18,16 @@
 
 namespace rex::runtime {
 
-ElfModule::ElfModule(FunctionDispatcher* function_dispatcher) : Module(function_dispatcher) {}
+ELFModule::ELFModule(FunctionDispatcher* function_dispatcher) : Module(function_dispatcher) {}
 
-ElfModule::~ElfModule() = default;
+ELFModule::~ELFModule() = default;
 
-struct elf32_ehdr {
+struct ELF32Ehdr {
   u8 e_ident[16];
   be_u16 e_type;
   be_u16 e_machine;
   be_u32 e_version;
-  rex::be<u32> e_entry;
+  rex::BE<u32> e_entry;
   be_u32 e_phoff;
   be_u32 e_shoff;
   be_u32 e_flags;
@@ -39,7 +39,7 @@ struct elf32_ehdr {
   be_u16 e_shtrndx;
 };
 
-struct elf32_phdr {
+struct ELF32Phdr {
   be_u32 p_type;
   be_u32 p_offset;
   be_u32 p_vaddr;
@@ -50,19 +50,19 @@ struct elf32_phdr {
   be_u32 p_align;
 };
 
-bool ElfModule::is_executable() const {
-  auto hdr = reinterpret_cast<const elf32_ehdr*>(elf_header_mem_.data());
+bool ELFModule::IsExecutable() const {
+  auto hdr = reinterpret_cast<const ELF32Ehdr*>(elf_header_mem_.data());
   return hdr->e_entry != 0;
 }
 
-bool ElfModule::Load(const std::string_view name, const std::string_view path, const void* elf_addr,
+bool ELFModule::Load(const std::string_view name, const std::string_view path, const void* elf_addr,
                      size_t elf_length) {
   name_ = name;
   path_ = path;
   (void)elf_length;
 
   auto pelf = static_cast<const u8*>(elf_addr);
-  auto hdr = reinterpret_cast<const elf32_ehdr*>(pelf);
+  auto hdr = reinterpret_cast<const ELF32Ehdr*>(pelf);
   if (hdr->e_ident[0] != 0x7F || hdr->e_ident[1] != 'E' || hdr->e_ident[2] != 'L' ||
       hdr->e_ident[3] != 'F') {
     return false;
@@ -95,8 +95,8 @@ bool ElfModule::Load(const std::string_view name, const std::string_view path, c
   elf_header_mem_.resize(hdr->e_ehsize);
   std::memcpy(elf_header_mem_.data(), hdr, hdr->e_ehsize);
 
-  REX_ASSERT(hdr->e_phentsize == sizeof(elf32_phdr));
-  auto phdr = reinterpret_cast<const elf32_phdr*>(pelf + hdr->e_phoff);
+  REX_ASSERT(hdr->e_phentsize == sizeof(ELF32Phdr));
+  auto phdr = reinterpret_cast<const ELF32Phdr*>(pelf + hdr->e_phoff);
 
   u32 min_addr = UINT32_MAX;
   u32 max_addr = 0;
@@ -117,7 +117,7 @@ bool ElfModule::Load(const std::string_view name, const std::string_view path, c
       u32 virtual_size =
           rex::round_up(phdr[i].p_vaddr + phdr[i].p_memsz, static_cast<u32>(phdr[i].p_align)) -
           virtual_addr;
-      if (!memory()
+      if (!GetMemory()
                ->LookupHeap(virtual_addr)
                ->AllocFixed(
                    virtual_addr, virtual_size, phdr[i].p_align,
@@ -126,7 +126,7 @@ bool ElfModule::Load(const std::string_view name, const std::string_view path, c
         REXLOG_ERROR(system, "ELF: Could not allocate memory!");
       }
 
-      auto p = memory()->TranslateVirtual(phdr[i].p_vaddr);
+      auto p = GetMemory()->TranslateVirtual(phdr[i].p_vaddr);
       std::memset(p, 0, phdr[i].p_memsz);
       std::memcpy(p, pelf + phdr[i].p_offset, phdr[i].p_filesz);
 
@@ -142,7 +142,7 @@ bool ElfModule::Load(const std::string_view name, const std::string_view path, c
   return true;
 }
 
-bool ElfModule::Unload() {
+bool ELFModule::Unload() {
   if (!loaded_) {
     return true;
   }

@@ -47,8 +47,8 @@ class XenosModule final : public rex::IModule {
       {gpu::IGPUBackend::kInterfaceName, gpu::IGPUBackend::kInterfaceVersion, &GetBackend},
   }};
 
-  const char* Name() const override { return "rex-gpu-xenos"; }
-  std::span<const char* const> RequiredInterfaces() const override {
+  const char* GetName() const override { return "rex-gpu-xenos"; }
+  std::span<const char* const> GetRequiredInterfaces() const override {
     static constexpr std::array<const char*, 1> kRequired = {"rex.cvar@1"};
     return kRequired;
   }
@@ -57,12 +57,12 @@ class XenosModule final : public rex::IModule {
                                           const rex::Config& config) override {
     const gpu::GPUConfig& gpu = config.gpu;
     if (gpu.resolution_scale_x < 1 || gpu.resolution_scale_x > 8) {
-      return rex::Err(rex::ErrorCategory::Config,
+      return rex::Err(rex::ErrorCategory::kConfig,
                       std::format("config field gpu.resolution_scale_x = {} is outside 1 to 8",
                                   gpu.resolution_scale_x));
     }
     if (gpu.resolution_scale_y < 1 || gpu.resolution_scale_y > 8) {
-      return rex::Err(rex::ErrorCategory::Config,
+      return rex::Err(rex::ErrorCategory::kConfig,
                       std::format("config field gpu.resolution_scale_y = {} is outside 1 to 8",
                                   gpu.resolution_scale_y));
     }
@@ -112,14 +112,14 @@ class XenosModule final : public rex::IModule {
         backend_ = std::make_unique<vulkan::VulkanGraphicsSystem>();
         break;
     }
-    backend_->set_config(config_);
+    backend_->SetConfig(config_);
     return rex::Ok();
   }
 
   void Shutdown() override { backend_.reset(); }
 
  private:
-  static XenosModule& Instance() {
+  static XenosModule& GetInstance() {
     static XenosModule instance;
     return instance;
   }
@@ -131,11 +131,11 @@ class XenosModule final : public rex::IModule {
 };
 
 void* XenosModule::GetModule() {
-  return static_cast<rex::IModule*>(&Instance());
+  return static_cast<rex::IModule*>(&GetInstance());
 }
 
 void* XenosModule::GetBackend() {
-  return static_cast<gpu::IGPUBackend*>(Instance().backend_.get());
+  return static_cast<gpu::IGPUBackend*>(GetInstance().backend_.get());
 }
 
 }  // namespace rex::gpu

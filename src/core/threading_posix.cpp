@@ -145,7 +145,7 @@ inline timespec DurationToTimeSpec(std::chrono::duration<Rep, Period> duration) 
 }
 
 /** User defined signals that interrupt a thread, mapped onto SIGRTMIN through SIGRTMAX. */
-enum class SignalType : u8 { kThreadSuspend, kThreadUserCallback, k_Count };
+enum class SignalType : u8 { kThreadSuspend, kThreadUserCallback, kCount };
 
 int GetSystemSignal(SignalType num) {
 #if defined(__APPLE__)
@@ -170,19 +170,19 @@ int GetSystemSignal(SignalType num) {
 class SuspendSafeMutex {
  public:
   void lock() {
-    if (depth_++ == 0) {
+    if (depth++ == 0) {
       sigset_t suspend;
       sigemptyset(&suspend);
       sigaddset(&suspend, GetSystemSignal(SignalType::kThreadSuspend));
-      pthread_sigmask(SIG_BLOCK, &suspend, &saved_mask_);
+      pthread_sigmask(SIG_BLOCK, &suspend, &saved_mask);
     }
     mutex_.lock();
   }
 
   void unlock() {
     mutex_.unlock();
-    if (--depth_ == 0) {
-      pthread_sigmask(SIG_SETMASK, &saved_mask_, nullptr);
+    if (--depth == 0) {
+      pthread_sigmask(SIG_SETMASK, &saved_mask, nullptr);
     }
   }
 
@@ -194,15 +194,15 @@ class SuspendSafeMutex {
    * @param ready The predicate checked under this mutex.
    */
   template <typename Predicate>
-  void wait(std::condition_variable& signal, Predicate ready) {
+  void Wait(std::condition_variable& signal, Predicate ready) {
     std::unique_lock inner(mutex_, std::adopt_lock);
     signal.wait(inner, ready);
     inner.release();
   }
 
  private:
-  static inline thread_local u32 depth_ = 0;
-  static inline thread_local sigset_t saved_mask_;
+  static inline thread_local u32 depth = 0;
+  static inline thread_local sigset_t saved_mask;
   std::mutex mutex_;
 };
 
@@ -222,12 +222,12 @@ SignalType GetSystemSignalType(int num) {
 #endif
 }
 
-std::array<std::atomic<bool>, static_cast<size_t>(SignalType::k_Count)> signal_handler_installed =
+std::array<std::atomic<bool>, static_cast<size_t>(SignalType::kCount)> signal_handler_installed =
     {};
 
-static void signal_handler(int signal, siginfo_t* info, void* context);
+static void SignalHandler(int signal, siginfo_t* info, void* context);
 
-void install_signal_handler(SignalType type) {
+void InstallSignalHandler(SignalType type) {
   bool expected = false;
   if (!signal_handler_installed[static_cast<size_t>(type)].compare_exchange_strong(expected,
                                                                                    true)) {
@@ -235,7 +235,7 @@ void install_signal_handler(SignalType type) {
   }
   struct sigaction action{};
   action.sa_flags = SA_SIGINFO | SA_RESTART;
-  action.sa_sigaction = signal_handler;
+  action.sa_sigaction = SignalHandler;
   sigemptyset(&action.sa_mask);
   if (sigaction(GetSystemSignal(type), &action, nullptr) != 0) {
     signal_handler_installed[static_cast<size_t>(type)] = false;
@@ -244,7 +244,7 @@ void install_signal_handler(SignalType type) {
 
 void EnableAffinityConfiguration() {}
 
-u32 current_thread_system_id() {
+u32 CurrentThreadSystemId() {
 #if defined(__APPLE__)
   return static_cast<u32>(pthread_mach_thread_np(pthread_self()));
 #else
@@ -292,19 +292,19 @@ std::chrono::milliseconds QueryCurrentThreadCPUTime() {
 #endif
 }
 
-thread_local bool alertable_state_ = false;
+thread_local bool alertable_state = false;
 bool DispatchCurrentThreadUserCallback();
 SleepResult AlertableSleep(std::chrono::microseconds duration) {
-  alertable_state_ = true;
+  alertable_state = true;
   auto deadline = std::chrono::steady_clock::now() + duration;
   while (true) {
     if (DispatchCurrentThreadUserCallback()) {
-      alertable_state_ = false;
+      alertable_state = false;
       return SleepResult::kAlerted;
     }
     auto now = std::chrono::steady_clock::now();
     if (now >= deadline) {
-      alertable_state_ = false;
+      alertable_state = false;
       return SleepResult::kSuccess;
     }
     auto remaining = std::chrono::duration_cast<std::chrono::microseconds>(deadline - now);
@@ -377,7 +377,7 @@ class PosixConditionBase {
 
   WaitResult Wait(std::chrono::milliseconds timeout) {
     bool executed;
-    auto predicate = [this] { return this->signaled(); };
+    auto predicate = [this] { return this->GetSignaled(); };
 #if REX_PLATFORM_LINUX
     auto native_mutex = static_cast<pthread_mutex_t*>(mutex_.native_handle());
     int lock_result = pthread_mutex_lock(native_mutex);
@@ -401,7 +401,7 @@ class PosixConditionBase {
       }
     }
     if (executed) {
-      post_execution();
+      PostExecution();
       return TakeAbandoned() ? WaitResult::kAbandoned : WaitResult::kSuccess;
     } else {
       return WaitResult::kTimeout;
@@ -462,7 +462,7 @@ class PosixConditionBase {
       if (wait_all) {
         bool all_signaled = true;
         for (size_t i = 0; i < handles.size(); ++i) {
-          if (!handles[i]->signaled()) {
+          if (!handles[i]->GetSignaled()) {
             all_signaled = false;
             break;
           }
@@ -473,7 +473,7 @@ class PosixConditionBase {
         condition_met = all_signaled;
       } else {
         for (size_t i = 0; i < handles.size(); ++i) {
-          if (handles[i]->signaled()) {
+          if (handles[i]->GetSignaled()) {
             first_signaled = i;
             condition_met = true;
             break;
@@ -485,14 +485,14 @@ class PosixConditionBase {
         size_t first_abandoned = std::numeric_limits<size_t>::max();
         if (wait_all) {
           for (size_t i = 0; i < handles.size(); ++i) {
-            handles[i]->post_execution();
+            handles[i]->PostExecution();
             if (handles[i]->TakeAbandoned() &&
                 first_abandoned == std::numeric_limits<size_t>::max()) {
               first_abandoned = i;
             }
           }
         } else {
-          handles[first_signaled]->post_execution();
+          handles[first_signaled]->PostExecution();
           if (handles[first_signaled]->TakeAbandoned()) {
             first_abandoned = first_signaled;
           }
@@ -520,13 +520,13 @@ class PosixConditionBase {
     }
   }
 
-  virtual void* native_handle() const {
+  virtual void* GetNativeHandle() const {
     return const_cast<std::condition_variable&>(cond_).native_handle();
   }
 
  protected:
-  inline virtual bool signaled() const = 0;
-  inline virtual void post_execution() = 0;
+  inline virtual bool GetSignaled() const = 0;
+  inline virtual void PostExecution() = 0;
   virtual bool TakeAbandoned() { return false; }
   std::condition_variable cond_;
   std::mutex mutex_;
@@ -607,8 +607,8 @@ class PosixCondition<Event> : public PosixConditionBase {
   }
 
  private:
-  bool signaled() const override { return signal_; }
-  void post_execution() override {
+  bool GetSignaled() const override { return signal_; }
+  void PostExecution() override {
     if (!manual_reset_) {
       Lower();
     }
@@ -662,8 +662,8 @@ class PosixCondition<Semaphore> : public PosixConditionBase {
   }
 
  private:
-  bool signaled() const override { return count_ > 0; }
-  void post_execution() override {
+  bool GetSignaled() const override { return count_ > 0; }
+  void PostExecution() override {
     count_--;
     cond_.notify_all();
   }
@@ -723,7 +723,7 @@ class PosixCondition<Mutant> : public PosixConditionBase {
     }
   }
 
-  void* native_handle() const override { return const_cast<std::mutex&>(mutex_).native_handle(); }
+  void* GetNativeHandle() const override { return const_cast<std::mutex&>(mutex_).native_handle(); }
 
  private:
   struct MutantRegistry {
@@ -736,8 +736,8 @@ class PosixCondition<Mutant> : public PosixConditionBase {
     return registry;
   }
 
-  bool signaled() const override { return count_ == 0 || pthread_equal(owner_, pthread_self()); }
-  void post_execution() override {
+  bool GetSignaled() const override { return count_ == 0 || pthread_equal(owner_, pthread_self()); }
+  void PostExecution() override {
     count_++;
     owner_ = pthread_self();
     ArmMutantAbandonOnExit();
@@ -816,7 +816,7 @@ class PosixCondition<Timer> : public PosixConditionBase {
     signal_ = false;
   }
 
-  void* native_handle() const override {
+  void* GetNativeHandle() const override {
     REX_ASSERT_ALWAYS();
     return nullptr;
   }
@@ -836,8 +836,8 @@ class PosixCondition<Timer> : public PosixConditionBase {
     }
   }
 
-  bool signaled() const override { return signal_; }
-  void post_execution() override {
+  bool GetSignaled() const override { return signal_; }
+  void PostExecution() override {
     if (!manual_reset_) {
       signal_ = false;
     }
@@ -946,7 +946,7 @@ class PosixCondition<Thread> : public PosixConditionBase {
 
   bool Signal() override { return true; }
 
-  std::string name() const {
+  std::string GetName() const {
     WaitStarted();
     auto result = std::array<char, 17>{'\0'};
     std::unique_lock lock(state_mutex_);
@@ -970,7 +970,7 @@ class PosixCondition<Thread> : public PosixConditionBase {
     return std::string(result.data());
   }
 
-  void set_name(const std::string& name) {
+  void SetName(const std::string& name) {
     WaitStarted();
     std::unique_lock lock(state_mutex_);
     if (state_ != State::kUninitialized && state_ != State::kFinished) {
@@ -994,17 +994,17 @@ class PosixCondition<Thread> : public PosixConditionBase {
       return;
     }
     std::lock_guard<std::mutex> lock(android_pre_api_26_name_mutex_);
-    rex::copy_truncating(android_pre_api_26_name_, name, rex::countof(android_pre_api_26_name_));
+    rex::copy_truncating(android_pre_api_26_name_, name, rex::CountOf(android_pre_api_26_name_));
   }
 #endif
 
 #if defined(__APPLE__)
-  u32 system_id() const { return static_cast<u32>(pthread_mach_thread_np(thread_)); }
+  u32 GetSystemId() const { return static_cast<u32>(pthread_mach_thread_np(thread_)); }
 #else
-  u32 system_id() const { return static_cast<u32>(thread_); }
+  u32 GetSystemId() const { return static_cast<u32>(thread_); }
 #endif
 
-  u64 affinity_mask() const {
+  u64 GetAffinityMask() const {
     WaitStarted();
 #if defined(__APPLE__)
     // macOS has no pthread affinity masks, so every logical processor is reported.
@@ -1034,7 +1034,7 @@ class PosixCondition<Thread> : public PosixConditionBase {
 #endif
   }
 
-  void set_affinity_mask(u64 mask) const {
+  void SetAffinityMask(u64 mask) const {
     WaitStarted();
 #if defined(__APPLE__)
     // macOS has no pthread affinity masks, so this does nothing.
@@ -1059,7 +1059,7 @@ class PosixCondition<Thread> : public PosixConditionBase {
 #endif
   }
 
-  int priority() const {
+  int GetPriority() const {
     WaitStarted();
     int policy;
     sched_param param{};
@@ -1071,7 +1071,7 @@ class PosixCondition<Thread> : public PosixConditionBase {
     return param.sched_priority;
   }
 
-  void set_priority(int new_priority) const {
+  void SetPriority(int new_priority) const {
     WaitStarted();
     sched_param param{};
     param.sched_priority = new_priority;
@@ -1106,7 +1106,7 @@ class PosixCondition<Thread> : public PosixConditionBase {
     // Alertable waits drain the queue on the current thread, so no self signal is sent.
     if (pthread_equal(thread_, pthread_self())) {
       lock.unlock();
-      if (alertable_state_) {
+      if (alertable_state) {
         DispatchQueuedUserCallbacks();
       }
       return;
@@ -1171,7 +1171,7 @@ class PosixCondition<Thread> : public PosixConditionBase {
         state_ = State::kRunning;
       }
       // Async-signal-safe wakeup for WaitSuspended() from signal handler path.
-      sem_post(suspend_sem_ptr());
+      sem_post(GetSuspendSemPtr());
     }
     state_signal_.notify_all();
     return true;
@@ -1251,7 +1251,7 @@ class PosixCondition<Thread> : public PosixConditionBase {
 
   void HandleSuspend(void* signal_context) {
     if (suspend_pending_.exchange(false, std::memory_order_acq_rel)) {
-      if (!suspend_filter_(detail::SignalPc(signal_context), suspend_filter_context_)) {
+      if (!suspend_filter_(detail::SignalPC(signal_context), suspend_filter_context_)) {
         suspend_result_.store(kRedirectRefused, std::memory_order_release);
         return;
       }
@@ -1271,7 +1271,7 @@ class PosixCondition<Thread> : public PosixConditionBase {
       return false;
     }
     std::lock_guard lock(redirect_mutex_);
-    install_signal_handler(SignalType::kThreadUserCallback);
+    InstallSignalHandler(SignalType::kThreadUserCallback);
     redirect_filter_ = filter;
     redirect_context_ = context;
     redirect_target_ = target;
@@ -1301,7 +1301,7 @@ class PosixCondition<Thread> : public PosixConditionBase {
       return;
     }
     const auto target = redirect_target_;
-    if (!redirect_filter_(detail::SignalPc(signal_context), redirect_context_)) {
+    if (!redirect_filter_(detail::SignalPC(signal_context), redirect_context_)) {
       redirect_result_.store(kRedirectRefused, std::memory_order_release);
       return;
     }
@@ -1330,19 +1330,19 @@ class PosixCondition<Thread> : public PosixConditionBase {
 
   void WaitStarted() const {
     std::unique_lock lock(state_mutex_);
-    state_mutex_.wait(state_signal_, [this] { return state_ != State::kUninitialized; });
+    state_mutex_.Wait(state_signal_, [this] { return state_ != State::kUninitialized; });
   }
 
   /** Uses sem_wait, since it can run in signal handler context. */
   void WaitSuspended() {
     int ret;
     do {
-      ret = sem_wait(suspend_sem_ptr());
+      ret = sem_wait(GetSuspendSemPtr());
     } while (ret == -1 && errno == EINTR);
   }
 
   // NOLINTNEXTLINE(performance-no-int-to-ptr): the cross platform native handle is a pointer
-  void* native_handle() const override { return reinterpret_cast<void*>(thread_); }
+  void* GetNativeHandle() const override { return reinterpret_cast<void*>(thread_); }
 
  private:
   static void* ThreadStartRoutine(void* parameter);
@@ -1352,8 +1352,8 @@ class PosixCondition<Thread> : public PosixConditionBase {
     signaled_ = true;
     cond_.notify_all();
   }
-  bool signaled() const override { return signaled_; }
-  void post_execution() override {
+  bool GetSignaled() const override { return signaled_; }
+  void PostExecution() override {
     if (thread_ && !std::exchange(joined_, true)) {
       pthread_join(thread_, nullptr);
     }
@@ -1390,10 +1390,10 @@ class PosixCondition<Thread> : public PosixConditionBase {
   u32 suspend_count_; /**< Protected by state_mutex_. */
 #if defined(__APPLE__)
   sem_t* suspend_sem_ = SEM_FAILED;
-  sem_t* suspend_sem_ptr() { return suspend_sem_; }
+  sem_t* GetSuspendSemPtr() { return suspend_sem_; }
 #else
   sem_t suspend_sem_;
-  sem_t* suspend_sem_ptr() { return &suspend_sem_; }
+  sem_t* GetSuspendSemPtr() { return &suspend_sem_; }
 #endif
   mutable SuspendSafeMutex state_mutex_;
   mutable std::mutex callback_mutex_;
@@ -1410,18 +1410,18 @@ class PosixCondition<Thread> : public PosixConditionBase {
 class PosixWaitHandle {
  public:
   virtual ~PosixWaitHandle();
-  virtual PosixConditionBase& condition() = 0;
+  virtual PosixConditionBase& GetCondition() = 0;
 };
 
 PosixWaitHandle::~PosixWaitHandle() = default;
 
-thread_local PosixCondition<Thread>* current_thread_condition_ = nullptr;
+thread_local PosixCondition<Thread>* current_thread_condition = nullptr;
 
 bool DispatchCurrentThreadUserCallback() {
-  if (!current_thread_condition_) {
+  if (!current_thread_condition) {
     Thread::GetCurrentThread();
   }
-  return current_thread_condition_ && current_thread_condition_->DispatchQueuedUserCallbacks();
+  return current_thread_condition && current_thread_condition->DispatchQueuedUserCallbacks();
 }
 
 namespace {
@@ -1432,12 +1432,12 @@ class ScopedAlertableState {
  public:
   explicit ScopedAlertableState(bool alertable) : alertable_(alertable) {
     if (alertable_) {
-      alertable_state_ = true;
+      alertable_state = true;
     }
   }
   ~ScopedAlertableState() {
     if (alertable_) {
-      alertable_state_ = false;
+      alertable_state = false;
     }
   }
 
@@ -1488,8 +1488,8 @@ class PosixConditionHandle : public T, public PosixWaitHandle {
   PosixConditionHandle(int initial_count, int maximum_count);
   ~PosixConditionHandle() override = default;
 
-  PosixCondition<T>& condition() override { return handle_; }
-  void* native_handle() const override { return handle_.native_handle(); }
+  PosixCondition<T>& GetCondition() override { return handle_; }
+  void* GetNativeHandle() const override { return handle_.GetNativeHandle(); }
 
  protected:
   PosixCondition<T> handle_;
@@ -1519,7 +1519,7 @@ WaitResult Wait(WaitHandle* wait_handle, bool is_alertable, std::chrono::millise
     return WaitResult::kFailed;
   }
   if (!is_alertable) {
-    return posix_wait_handle->condition().Wait(timeout);
+    return posix_wait_handle->GetCondition().Wait(timeout);
   }
 
   ScopedAlertableState alertable_state_guard(true);
@@ -1529,7 +1529,7 @@ WaitResult Wait(WaitHandle* wait_handle, bool is_alertable, std::chrono::millise
     if (DispatchCurrentThreadUserCallback()) {
       return WaitResult::kUserCallback;
     }
-    auto result = posix_wait_handle->condition().Wait(ComputeAlertableWaitTimeout(deadline));
+    auto result = posix_wait_handle->GetCondition().Wait(ComputeAlertableWaitTimeout(deadline));
     if (result != WaitResult::kTimeout || HasAlertableTimeoutElapsed(deadline)) {
       return result;
     }
@@ -1540,12 +1540,12 @@ namespace {
 
 int EventPollFD(WaitHandle* event) {
   auto* condition = dynamic_cast<PosixConditionHandle<Event>*>(event);
-  return condition ? condition->condition().PollFD() : -1;
+  return condition ? condition->GetCondition().PollFD() : -1;
 }
 
 }  // namespace
 
-int socket_prepare(SocketHandle handle, WaitHandle* event) {
+int SocketPrepare(SocketHandle handle, WaitHandle* event) {
   const int flags = fcntl(static_cast<int>(handle), F_GETFL);
   if (flags == -1) {
     return -1;
@@ -1563,7 +1563,7 @@ int socket_prepare(SocketHandle handle, WaitHandle* event) {
   return EventPollFD(event) == -1 ? -1 : 0;
 }
 
-WaitResult socket_wait(std::span<const SocketWait> sockets, bool alertable,
+WaitResult WaitSockets(std::span<const SocketWait> sockets, bool alertable,
                        std::chrono::milliseconds timeout) {
   std::vector<pollfd> fds;
   fds.reserve(sockets.size());
@@ -1657,12 +1657,12 @@ WaitResult SignalAndWait(WaitHandle* wait_handle_to_signal, WaitHandle* wait_han
   if (posix_wait_handle_to_signal == nullptr || posix_wait_handle_to_wait_on == nullptr) {
     return WaitResult::kFailed;
   }
-  if (!posix_wait_handle_to_signal->condition().Signal()) {
+  if (!posix_wait_handle_to_signal->GetCondition().Signal()) {
     return WaitResult::kFailed;
   }
 
   if (!is_alertable) {
-    return posix_wait_handle_to_wait_on->condition().Wait(timeout);
+    return posix_wait_handle_to_wait_on->GetCondition().Wait(timeout);
   }
 
   ScopedAlertableState alertable_state_guard(true);
@@ -1671,7 +1671,8 @@ WaitResult SignalAndWait(WaitHandle* wait_handle_to_signal, WaitHandle* wait_han
     if (DispatchCurrentThreadUserCallback()) {
       return WaitResult::kUserCallback;
     }
-    result = posix_wait_handle_to_wait_on->condition().Wait(ComputeAlertableWaitTimeout(deadline));
+    result =
+        posix_wait_handle_to_wait_on->GetCondition().Wait(ComputeAlertableWaitTimeout(deadline));
     if (result != WaitResult::kTimeout || HasAlertableTimeoutElapsed(deadline)) {
       return result;
     }
@@ -1688,7 +1689,7 @@ std::pair<WaitResult, size_t> WaitMultiple(WaitHandle* wait_handles[], size_t wa
     if (handle == nullptr) {
       return std::make_pair(WaitResult::kFailed, 0);
     }
-    conditions.push_back(&handle->condition());
+    conditions.push_back(&handle->GetCondition());
   }
   if (!is_alertable) {
     return PosixConditionBase::WaitMultiple(std::move(conditions), wait_all, timeout);
@@ -1764,37 +1765,37 @@ std::unique_ptr<Mutant> Mutant::Create(bool initial_owner) {
 }
 
 class PosixTimer : public PosixConditionHandle<Timer> {
-  using WClock_ = Timer::WClock_;
-  using GClock_ = Timer::GClock_;
+  using WClock = Timer::WClock;
+  using GClock = Timer::GClock;
 
  public:
   explicit PosixTimer(bool manual_reset) : PosixConditionHandle(manual_reset) {}
   ~PosixTimer() override = default;
 
-  bool SetOnceAfter(rex::hundrednanoseconds rel_time,
+  bool SetOnceAfter(rex::HundredNanoseconds rel_time,
                     std::function<void()> opt_callback = nullptr) override {
-    return SetOnceAt(GClock_::now() + rel_time, std::move(opt_callback));
+    return SetOnceAt(GClock::now() + rel_time, std::move(opt_callback));
   }
-  bool SetOnceAt(WClock_::time_point due_time,
+  bool SetOnceAt(WClock::time_point due_time,
                  std::function<void()> opt_callback = nullptr) override {
-    return SetOnceAt(std::chrono::clock_cast<GClock_>(due_time), std::move(opt_callback));
+    return SetOnceAt(std::chrono::clock_cast<GClock>(due_time), std::move(opt_callback));
   };
-  bool SetOnceAt(GClock_::time_point due_time,
+  bool SetOnceAt(GClock::time_point due_time,
                  std::function<void()> opt_callback = nullptr) override {
     handle_.SetOnce(due_time, std::move(opt_callback));
     return true;
   }
 
-  bool SetRepeatingAfter(rex::hundrednanoseconds rel_time, std::chrono::milliseconds period,
+  bool SetRepeatingAfter(rex::HundredNanoseconds rel_time, std::chrono::milliseconds period,
                          std::function<void()> opt_callback = nullptr) override {
-    return SetRepeatingAt(GClock_::now() + rel_time, period, std::move(opt_callback));
+    return SetRepeatingAt(GClock::now() + rel_time, period, std::move(opt_callback));
   }
-  bool SetRepeatingAt(WClock_::time_point due_time, std::chrono::milliseconds period,
+  bool SetRepeatingAt(WClock::time_point due_time, std::chrono::milliseconds period,
                       std::function<void()> opt_callback = nullptr) override {
-    return SetRepeatingAt(std::chrono::clock_cast<GClock_>(due_time), period,
+    return SetRepeatingAt(std::chrono::clock_cast<GClock>(due_time), period,
                           std::move(opt_callback));
   }
-  bool SetRepeatingAt(GClock_::time_point due_time, std::chrono::milliseconds period,
+  bool SetRepeatingAt(GClock::time_point due_time, std::chrono::milliseconds period,
                       std::function<void()> opt_callback = nullptr) override {
     handle_.SetRepeating(due_time, period, std::move(opt_callback));
     return true;
@@ -1828,22 +1829,22 @@ class PosixThread : public PosixConditionHandle<Thread> {
     return handle_.Initialize(params, std::move(start_data));
   }
 
-  void set_name(std::string name) override {
+  void SetName(std::string name) override {
     handle_.WaitStarted();
-    Thread::set_name(name);
+    Thread::SetName(name);
     if (name.length() > 15) {
       name = name.substr(0, 15);
     }
-    handle_.set_name(name);
+    handle_.SetName(name);
   }
 
-  u32 system_id() const override { return handle_.system_id(); }
+  u32 GetSystemId() const override { return handle_.GetSystemId(); }
 
-  u64 affinity_mask() override { return handle_.affinity_mask(); }
-  void set_affinity_mask(u64 mask) override { handle_.set_affinity_mask(mask); }
+  u64 GetAffinityMask() override { return handle_.GetAffinityMask(); }
+  void SetAffinityMask(u64 mask) override { handle_.SetAffinityMask(mask); }
 
-  int priority() override { return handle_.priority(); }
-  void set_priority(int new_priority) override { handle_.set_priority(new_priority); }
+  int GetPriority() override { return handle_.GetPriority(); }
+  void SetPriority(int new_priority) override { handle_.SetPriority(new_priority); }
 
   void QueueUserCallback(rex::MoveOnlyFunction<void()> callback) override {
     handle_.QueueUserCallback(std::move(callback));
@@ -1876,8 +1877,8 @@ class PosixThread : public PosixConditionHandle<Thread> {
   }
 };
 
-thread_local PosixThread* current_thread_ = nullptr;
-thread_local std::unique_ptr<PosixThread> owned_current_thread_;
+thread_local PosixThread* current_thread = nullptr;
+thread_local std::unique_ptr<PosixThread> owned_current_thread;
 
 void* PosixCondition<Thread>::ThreadStartRoutine(void* parameter) {
 #if !REX_PLATFORM_ANDROID
@@ -1885,7 +1886,7 @@ void* PosixCondition<Thread>::ThreadStartRoutine(void* parameter) {
     REX_ASSERT_ALWAYS();
   }
 #endif
-  set_current_thread_name("");
+  SetCurrentThreadName("");
   detail::RegisterCurrentThread();
   PrepareThreadForCrash();
 
@@ -1898,8 +1899,8 @@ void* PosixCondition<Thread>::ThreadStartRoutine(void* parameter) {
   auto create_suspended = start_data->create_suspended;
   start_data.reset();
 
-  current_thread_ = thread;
-  current_thread_condition_ = &thread->handle_;
+  current_thread = thread;
+  current_thread_condition = &thread->handle_;
   {
     std::unique_lock lock(thread->handle_.state_mutex_);
     thread->handle_.state_ = create_suspended ? State::kSuspended : State::kRunning;
@@ -1912,7 +1913,7 @@ void* PosixCondition<Thread>::ThreadStartRoutine(void* parameter) {
 
   if (create_suspended) {
     std::unique_lock lock(thread->handle_.state_mutex_);
-    thread->handle_.state_mutex_.wait(thread->handle_.state_signal_,
+    thread->handle_.state_mutex_.Wait(thread->handle_.state_signal_,
                                       [thread] { return thread->handle_.suspend_count_ == 0; });
   }
 
@@ -1926,15 +1927,15 @@ void* PosixCondition<Thread>::ThreadStartRoutine(void* parameter) {
 
   thread->handle_.SignalExit(0);
 
-  current_thread_ = nullptr;
-  current_thread_condition_ = nullptr;
+  current_thread = nullptr;
+  current_thread_condition = nullptr;
   return nullptr;
 }
 
 std::unique_ptr<Thread> Thread::Create(CreationParameters params,
                                        rex::MoveOnlyFunction<void()> start_routine) {
-  install_signal_handler(SignalType::kThreadSuspend);
-  install_signal_handler(SignalType::kThreadUserCallback);
+  InstallSignalHandler(SignalType::kThreadSuspend);
+  InstallSignalHandler(SignalType::kThreadUserCallback);
   auto thread = std::make_unique<PosixThread>();
   if (!thread->Initialize(params, std::move(start_routine)))
     return nullptr;
@@ -1943,58 +1944,58 @@ std::unique_ptr<Thread> Thread::Create(CreationParameters params,
 }
 
 Thread* Thread::GetCurrentThread() {
-  if (current_thread_) {
-    return current_thread_;
+  if (current_thread) {
+    return current_thread;
   }
 
   // Threads not created by Thread::Create need the process wide handlers for suspend and APC.
-  install_signal_handler(SignalType::kThreadSuspend);
-  install_signal_handler(SignalType::kThreadUserCallback);
+  InstallSignalHandler(SignalType::kThreadSuspend);
+  InstallSignalHandler(SignalType::kThreadUserCallback);
 
   pthread_t handle = pthread_self();
 
-  owned_current_thread_ = std::make_unique<PosixThread>(handle);
-  current_thread_ = owned_current_thread_.get();
-  current_thread_condition_ = &current_thread_->condition();
+  owned_current_thread = std::make_unique<PosixThread>(handle);
+  current_thread = owned_current_thread.get();
+  current_thread_condition = &current_thread->GetCondition();
 
-  return current_thread_;
+  return current_thread;
 }
 
 void Thread::Exit(int exit_code) {
-  if (current_thread_) {
-    current_thread_->ExitCurrent(exit_code);
+  if (current_thread) {
+    current_thread->ExitCurrent(exit_code);
   } else {
-    // No current_thread_ means the thread was not created by Thread::Create.
+    // No current_thread means the thread was not created by Thread::Create.
     // NOLINTNEXTLINE(performance-no-int-to-ptr): pthread passes the value as a void pointer
     pthread_exit(reinterpret_cast<void*>(exit_code));
   }
   REX_ASSERT_ALWAYS();
 }
 
-void set_current_thread_name(const std::string_view name) {
+void SetCurrentThreadName(const std::string_view name) {
 #if defined(__APPLE__)
   pthread_setname_np(std::string(name).c_str());
 #else
   pthread_setname_np(pthread_self(), std::string(name).c_str());
 #endif
 #if REX_PLATFORM_ANDROID
-  if (!android_pthread_getname_np_ && current_thread_) {
-    current_thread_->condition().SetAndroidPreAPI26Name(name);
+  if (!android_pthread_getname_np_ && current_thread) {
+    current_thread->GetCondition().SetAndroidPreAPI26Name(name);
   }
 #endif
 }
 
-static void signal_handler(int signal, siginfo_t* /*info*/, void* context) {
+static void SignalHandler(int signal, siginfo_t* /*info*/, void* context) {
   switch (GetSystemSignalType(signal)) {
     case SignalType::kThreadSuspend: {
-      if (!current_thread_) {
+      if (!current_thread) {
         return;
       }
-      current_thread_->HandleSuspend(context);
+      current_thread->HandleSuspend(context);
     } break;
     case SignalType::kThreadUserCallback: {
-      if (current_thread_) {
-        current_thread_->HandleRedirect(signal, context);
+      if (current_thread) {
+        current_thread->HandleRedirect(signal, context);
       }
     } break;
     default:

@@ -31,52 +31,52 @@ class FunctionNode {
    */
   FunctionNode(u32 base, u32 size, FunctionAuthority authority);
 
-  u32 base() const { return base_; }
-  u32 size() const { return size_; }
-  u32 end() const { return base_ + size_; }
-  const std::string& name() const { return name_; }
+  u32 GetBase() const { return base_; }
+  u32 GetSize() const { return size_; }
+  u32 GetEnd() const { return base_ + size_; }
+  const std::string& GetName() const { return name_; }
 
   /** Returns the cached pointer to the instruction bytes. */
-  const u8* code() const { return code_; }
-  bool hasCode() const { return code_ != nullptr; }
+  const u8* GetCode() const { return code_; }
+  bool HasCode() const { return code_ != nullptr; }
 
-  FunctionAuthority authority() const { return authority_; }
-  FunctionState state() const { return state_; }
+  FunctionAuthority GetAuthority() const { return authority_; }
+  FunctionState GetState() const { return state_; }
 
-  bool isRegistered() const { return state_ == FunctionState::kRegistered; }
-  bool isDiscovered() const { return state_ == FunctionState::kDiscovered; }
-  bool isSealed() const { return state_ == FunctionState::kSealed; }
+  bool IsRegistered() const { return state_ == FunctionState::kRegistered; }
+  bool IsDiscovered() const { return state_ == FunctionState::kDiscovered; }
+  bool IsSealed() const { return state_ == FunctionState::kSealed; }
 
   /**
    * Reports whether the function is PENDING, which covers kRegistered and kDiscovered.
    *
    * @return True when not sealed
    */
-  bool isPending() const { return state_ != FunctionState::kSealed; }
+  bool IsPending() const { return state_ != FunctionState::kSealed; }
 
-  bool isImport() const { return authority_ == FunctionAuthority::IMPORT; }
-  bool isHelper() const { return authority_ == FunctionAuthority::HELPER; }
+  bool IsImport() const { return authority_ == FunctionAuthority::kImport; }
+  bool IsHelper() const { return authority_ == FunctionAuthority::kHelper; }
 
   /**
    * Reports whether the function can transition from kRegistered to kDiscovered.
    *
    * @return True when state is kRegistered
    */
-  bool canDiscover() const { return state_ == FunctionState::kRegistered; }
+  bool CanDiscover() const { return state_ == FunctionState::kRegistered; }
 
   /**
    * Transitions kRegistered to kDiscovered with blocks and instructions.
-   * Requires canDiscover() and, for non imports, non empty blocks.
+   * Requires CanDiscover() and, for non imports, non empty blocks.
    *
    * @param blocks Discovered blocks
    * @param instructions Instructions of the function
    * @param labels Internal branch target addresses
    */
-  void discover(std::vector<Block> blocks,
+  void Discover(std::vector<Block> blocks,
                 std::vector<rex::codegen::detail::Instruction*> instructions, std::set<u32> labels);
 
   /** Transitions kRegistered to kDiscovered for an import function, which has no blocks. */
-  void discoverAsImport();
+  void DiscoverAsImport();
 
   /**
    * Reports whether the function can transition from kDiscovered to kSealed.
@@ -84,35 +84,37 @@ class FunctionNode {
    *
    * @return True when state is kDiscovered and the conditions hold
    */
-  bool canSeal() const;
+  bool CanSeal() const;
 
   /** Transitions kDiscovered to kSealed, computing FunctionAnalysis and sorting blocks. */
-  void seal();
+  void Seal();
 
   /**
-   * Returns the analysis result. Valid only after seal().
+   * Returns the analysis result. Valid only after Seal().
    *
    * @return Analysis of the sealed function
    */
-  const FunctionAnalysis& analysis() const;
+  const FunctionAnalysis& GetAnalysis() const;
 
   /**
-   * Emits C++ code for this function. Requires state() == kSealed. Imports emit REX_IMPORT and
+   * Emits C++ code for this function. Requires GetState() == kSealed. Imports emit REX_IMPORT and
    * normal functions emit REX_FUNC with blocks and instructions.
    *
    * @param ctx Emit context
    * @return Generated C++ source
    */
-  std::string emitCpp(const EmitContext& ctx) const;
+  std::string EmitCpp(const EmitContext& ctx) const;
 
   /**
-   * Returns the owned instructions, which point into DecodedBinary. Valid after discover().
+   * Returns the owned instructions, which point into DecodedBinary. Valid after Discover().
    *
    * @return Instruction pointers
    */
-  std::span<rex::codegen::detail::Instruction* const> instructions() const { return instructions_; }
+  std::span<rex::codegen::detail::Instruction* const> GetInstructions() const {
+    return instructions_;
+  }
 
-  const std::vector<Block>& blocks() const { return blocks_; }
+  const std::vector<Block>& GetBlocks() const { return blocks_; }
   /**
    * Reports whether an address belongs to the function. Gaps between blocks match only for CONFIG
    * and PDATA functions.
@@ -120,7 +122,7 @@ class FunctionNode {
    * @param addr Address to test
    * @return True when addr is inside the function
    */
-  bool containsAddress(u32 addr) const;
+  bool ContainsAddress(u32 addr) const;
 
   /**
    * Reports whether an address is within the overall function bounds, ignoring blocks. Used for
@@ -129,31 +131,38 @@ class FunctionNode {
    * @param addr Address to test
    * @return True when addr is within bounds
    */
-  bool isWithinBounds(u32 addr) const { return addr >= base_ && addr < base_ + size_; }
+  bool IsWithinBounds(u32 addr) const { return addr >= base_ && addr < base_ + size_; }
 
   /** Returns the internal branch targets of this function. */
-  const std::set<u32>& labels() const { return labels_; }
-  bool isLabel(u32 addr) const { return labels_.contains(addr); }
+  const std::set<u32>& GetLabels() const { return labels_; }
+  bool IsLabel(u32 addr) const { return labels_.contains(addr); }
 
   /** Returns the resolved calls, the bl instructions. */
-  const std::vector<CallEdge>& calls() const { return calls_; }
+  const std::vector<CallEdge>& GetCalls() const { return calls_; }
 
   /** Returns the resolved tail calls, the b instructions to other functions. */
-  const std::vector<CallEdge>& tailCalls() const { return tailCalls_; }
+  const std::vector<CallEdge>& GetTailCalls() const { return tail_calls_; }
 
-  const std::vector<JumpTable>& jumpTables() const { return jumpTables_; }
+  const std::vector<JumpTable>& GetJumpTables() const { return jump_tables_; }
 
-  const std::vector<UnresolvedJump>& unresolvedJumps() const { return unresolvedJumps_; }
+  const std::vector<UnresolvedJump>& GetUnresolvedJumps() const { return unresolved_jumps_; }
 
-  bool hasUnresolvedJumps() const { return !unresolvedJumps_.empty(); }
+  bool HasUnresolvedJumps() const { return !unresolved_jumps_.empty(); }
 
-  bool hasExceptionHandler() const { return hasExceptionHandler_; }
+  bool HasExceptionHandler() const { return has_exception_handler_; }
 
   /** Returns the SEH or C++ EH info. */
-  const std::optional<ExceptionInfo>& exceptionInfo() const { return exceptionInfo_; }
-  bool hasExceptionInfo() const { return exceptionInfo_.has_value() && exceptionInfo_->hasInfo(); }
+  const std::optional<ExceptionInfo>& GetExceptionData() const { return exception_data_; }
+  /**
+   * Reports whether the function has SEH or C++ EH info.
+   *
+   * @return True when exception data is present and holds info
+   */
+  bool HasExceptionInfo() const {
+    return exception_data_.has_value() && exception_data_->HasInfo();
+  }
 
-  void setName(std::string name) { name_ = std::move(name); }
+  void SetName(std::string name) { name_ = std::move(name); }
 
   /**
    * Reports whether this is an SEH funclet. Its non volatiles stay in ctx so it sees what its
@@ -161,29 +170,29 @@ class FunctionNode {
    *
    * @return True for a register sharing funclet
    */
-  bool sharesRegisters() const { return sharesRegisters_; }
-  void setSharesRegisters(bool val) { sharesRegisters_ = val; }
+  bool SharesRegisters() const { return shares_registers_; }
+  void SetSharesRegisters(bool val) { shares_registers_ = val; }
 
  private:
-  void setCode(const u8* ptr) { code_ = ptr; }
-  void setHasExceptionHandler(bool val) { hasExceptionHandler_ = val; }
-  void setExceptionInfo(ExceptionInfo info) { exceptionInfo_ = std::move(info); }
+  void SetCode(const u8* ptr) { code_ = ptr; }
+  void SetHasExceptionHandler(bool val) { has_exception_handler_ = val; }
+  void SetExceptionData(ExceptionInfo info) { exception_data_ = std::move(info); }
 
-  void addBlock(Block block);
-  void addLabel(u32 addr);
+  void AddBlock(Block block);
+  void AddLabel(u32 addr);
 
-  void addCall(u32 site, CallTarget target);
-  void addTailCall(u32 site, CallTarget target);
-  void addJumpTable(JumpTable jt);
-  void addUnresolvedJump(u32 site, u32 target, bool isCall, bool conditional);
+  void AddCall(u32 site, CallTarget target);
+  void AddTailCall(u32 site, CallTarget target);
+  void AddJumpTable(JumpTable jt);
+  void AddUnresolvedJump(u32 site, u32 target, bool is_call, bool conditional);
 
-  bool tryResolveAgainst(FunctionNode* newFunction);
-  bool tryResolveAgainstImport(u32 importAddr, const std::string& importName);
-  bool tryResolveAsInternalLabel(u32 target);
+  bool TryResolveAgainst(FunctionNode* new_function);
+  bool TryResolveAgainstImport(u32 import_addr, const std::string& import_name);
+  bool TryResolveAsInternalLabel(u32 target);
 
-  void absorbRegion(u32 regionBase, u32 regionSize);
+  void AbsorbRegion(u32 region_base, u32 region_size);
 
-  void removeUnresolvedJump(u32 site);
+  void RemoveUnresolvedJump(u32 site);
 
   u32 base_;
   u32 size_;
@@ -191,20 +200,20 @@ class FunctionNode {
   const u8* code_ = nullptr;
   FunctionAuthority authority_;
   FunctionState state_ = FunctionState::kRegistered;
-  bool hasExceptionHandler_ = false;
-  bool sharesRegisters_ = false;
+  bool has_exception_handler_ = false;
+  bool shares_registers_ = false;
 
   std::vector<Block> blocks_;
   std::vector<rex::codegen::detail::Instruction*> instructions_; /**< Point into DecodedBinary */
   std::set<u32> labels_;
 
   std::vector<CallEdge> calls_;
-  std::vector<CallEdge> tailCalls_;
-  std::vector<JumpTable> jumpTables_;
+  std::vector<CallEdge> tail_calls_;
+  std::vector<JumpTable> jump_tables_;
 
-  std::vector<UnresolvedJump> unresolvedJumps_;
+  std::vector<UnresolvedJump> unresolved_jumps_;
 
-  std::optional<ExceptionInfo> exceptionInfo_;
+  std::optional<ExceptionInfo> exception_data_;
 
   FunctionAnalysis analysis_;
 };

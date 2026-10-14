@@ -46,7 +46,7 @@ class TestFactory final : public rex::IInterfaceFactory {
     if (name == rex::cvar::ICvarRegistry::kInterfaceName) {
       return static_cast<void*>(registry);
     }
-    return rex::Err<void*>(rex::ErrorCategory::Module, "not served");
+    return rex::Err<void*>(rex::ErrorCategory::kModule, "not served");
   }
 
   rex::cvar::ICvarRegistry* registry = nullptr;
@@ -175,12 +175,12 @@ REX_TEST_CASE("A text prompt holds max_length characters", "[ui][prompt]") {
   rex::ui::PromptDialog dialog(
       PromptDesc{.title = "Name", .text_input = true, .default_text = "abcdef", .max_length = 4},
       [](const PromptResult&) {});
-  CHECK(dialog.Text() == "abcd");
+  CHECK(dialog.GetText() == "abcd");
 }
 
-REX_TEST_CASE("PreferredLocales returns without a window", "[ui][prompt]") {
+REX_TEST_CASE("GetPreferredLocales returns without a window", "[ui][prompt]") {
   ModuleFixture fixture;
-  const std::vector<rex::ui::HostLocale> locales = fixture.ui->PreferredLocales();
+  const std::vector<rex::ui::HostLocale> locales = fixture.ui->GetPreferredLocales();
   for (const rex::ui::HostLocale& locale : locales) {
     CHECK_FALSE(locale.language.empty());
   }
@@ -204,7 +204,7 @@ REX_TEST_CASE("ShowMessage from a worker thread without a window returns", "[ui]
   std::promise<void> returned;
   std::future<void> done = returned.get_future();
   std::jthread worker([&] {
-    fixture.ui->ShowMessage(MessageKind::Info, "Title", "Body");
+    fixture.ui->ShowMessage(MessageKind::kInfo, "Title", "Body");
     returned.set_value();
   });
   REQUIRE(done.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
@@ -221,7 +221,7 @@ REX_TEST_CASE("ShowMessage from a worker thread returns while the window thread 
   std::promise<void> returned;
   std::future<void> done = returned.get_future();
   std::jthread worker([&] {
-    fixture.ui->ShowMessage(MessageKind::Error, "Title", "Body");
+    fixture.ui->ShowMessage(MessageKind::kError, "Title", "Body");
     returned.set_value();
   });
   const bool returned_while_busy =
@@ -237,7 +237,7 @@ REX_TEST_CASE("A video scope pins the running video driver", "[ui][prompt]") {
   SDL_SetHint(SDL_HINT_VIDEO_DRIVER, "dummy,offscreen");
   {
     rex::ui::VideoScope video;
-    REQUIRE(video.Ok());
+    REQUIRE(video.IsOk());
     const char* pinned = SDL_GetHint(SDL_HINT_VIDEO_DRIVER);
     REQUIRE(pinned != nullptr);
     CHECK(std::string(pinned) == std::string(SDL_GetCurrentVideoDriver()));

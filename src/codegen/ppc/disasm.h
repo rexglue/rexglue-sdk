@@ -38,10 +38,10 @@ struct DisassemblerEngine {
   int Disassemble(const void* code, size_t size, u64 base, ppc_insn& out);
 };
 
-thread_local extern DisassemblerEngine gBigEndianDisassembler;
+thread_local extern DisassemblerEngine g_big_endian_disassembler;
 
 inline int Disassemble(const void* code, size_t size, u64 base, ppc_insn& out) {
-  return gBigEndianDisassembler.Disassemble(code, size, base, out);
+  return g_big_endian_disassembler.Disassemble(code, size, base, out);
 }
 
 inline int Disassemble(const void* code, u64 base, ppc_insn& out) {

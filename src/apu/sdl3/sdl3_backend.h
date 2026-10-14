@@ -43,11 +43,11 @@ class SDL3Backend final : public IAPUBackend, public NonCopyable {
   void CloseStream(u32 stream) override;
   void Submit(u32 stream, Frame frame) override;
   void SetStereoFold(const StereoFold& fold) override;
-  StereoFold stereo_fold() const override;
+  StereoFold GetStereoFold() const override;
   void SetSurroundMix(const SurroundMix& mix) override;
-  SurroundMix surround_mix() const override;
+  SurroundMix GetSurroundMix() const override;
   void SetOutputGain(f32 linear) override;
-  f32 output_gain() const override;
+  f32 GetOutputGain() const override;
 
  private:
   struct Stream {

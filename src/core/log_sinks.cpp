@@ -32,7 +32,7 @@ void AppendTimestamp(std::string& out, const Message& message, TimestampStyle st
       std::chrono::duration_cast<std::chrono::milliseconds>(since_epoch).count() % 1000;
   if (style == TimestampStyle::kElapsed) {
     const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
-        message.time - GetLoggerInstance().start_time());
+        message.time - GetLoggerInstance().GetStartTime());
     std::format_to(std::back_inserter(out), "+{}.{:03d} ", elapsed.count() / 1000,
                    elapsed.count() % 1000);
     return;
@@ -110,11 +110,11 @@ void ConsoleSink::Flush() {
   std::fflush(stdout);
 }
 
-void ConsoleSink::set_format(LineFormat format) {
+void ConsoleSink::SetFormat(LineFormat format) {
   format_ = format;
 }
 
-void DebuggerSink::set_format(LineFormat format) {
+void DebuggerSink::SetFormat(LineFormat format) {
   format_ = format;
 }
 
@@ -127,7 +127,7 @@ Result<std::unique_ptr<FileSink>> FileSink::Open(const std::filesystem::path& pa
   std::ofstream file(path, std::ios::out | std::ios::app | std::ios::binary);
   if (!file) {
     return Err<std::unique_ptr<FileSink>>(
-        ErrorCategory::IO, std::format("log file {} could not be opened", path.string()));
+        ErrorCategory::kIO, std::format("log file {} could not be opened", path.string()));
   }
   return std::make_unique<FileSink>(path, std::move(file), format);
 }
@@ -143,7 +143,7 @@ void FileSink::Flush() {
   file_.flush();
 }
 
-const std::filesystem::path& FileSink::path() const {
+const std::filesystem::path& FileSink::GetPath() const {
   return path_;
 }
 
@@ -170,7 +170,7 @@ u64 CaptureSink::CopySince(u64 after, std::vector<CapturedMessage>& out) const {
   return messages_.empty() ? after : std::max(after, messages_.back().sequence);
 }
 
-u64 CaptureSink::latest() const {
+u64 CaptureSink::GetLatest() const {
   std::lock_guard lock(mutex_);
   return messages_.empty() ? 0 : messages_.back().sequence;
 }

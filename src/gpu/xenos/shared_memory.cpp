@@ -26,7 +26,7 @@
 namespace rex::gpu {
 
 SharedMemory::SharedMemory(runtime::Memory& memory) : memory_(memory) {
-  page_size_log2_ = rex::log2_ceil(static_cast<u32>(rex::memory::page_size()));
+  page_size_log2_ = rex::log2_ceil(static_cast<u32>(rex::memory::PageSize()));
 }
 
 SharedMemory::~SharedMemory() {
@@ -291,7 +291,7 @@ void SharedMemory::MarkRangeValid(u32 start, u32 length, bool written_by_gpu) {
   }
 
   if (memory_invalidation_callback_handle_) {
-    memory().EnablePhysicalMemoryAccessCallbacks(
+    GetMemory().EnablePhysicalMemoryAccessCallbacks(
         valid_page_first << page_size_log2_,
         (valid_page_last - valid_page_first + 1) << page_size_log2_, true, false);
   }

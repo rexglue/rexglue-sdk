@@ -21,11 +21,11 @@ std::string HexDigest(XXH128_hash_t digest) {
 
 }  // namespace
 
-std::string hash_bytes(std::string_view data) {
+std::string HashBytes(std::string_view data) {
   return HexDigest(XXH3_128bits(data.data(), data.size()));
 }
 
-std::string hash_file(const std::filesystem::path& path) {
+std::string HashFile(const std::filesystem::path& path) {
   std::error_code ec;
   if (!std::filesystem::is_regular_file(path, ec)) {
     return {};

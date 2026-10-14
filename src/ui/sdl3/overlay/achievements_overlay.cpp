@@ -36,16 +36,16 @@ void AchievementsOverlayDialog::OnDraw(ImGuiIO& io) {
 
   if (ImGui::Begin("Achievements##overlay", nullptr, ImGuiWindowFlags_NoCollapse)) {
     Runtime* runtime = context_.runtime;
-    if (!runtime || !runtime->is_setup() || !context_.base.ui.OverlayDrawer()) {
+    if (!runtime || !runtime->IsSetup() || !context_.base.ui.GetOverlayDrawer()) {
       ImGui::TextUnformatted("No title is running.");
       ImGui::End();
       ImGui::PopStyleVar(2);
       return;
     }
     if (!icon_cache_) {
-      icon_cache_.emplace(context_.base.ui.OverlayDrawer(), runtime);
+      icon_cache_.emplace(context_.base.ui.GetOverlayDrawer(), runtime);
     }
-    auto& manager = runtime->achievement_manager();
+    auto& manager = runtime->GetAchievementManager();
     const auto achievements = manager.ListAchievements();
 
     int unlocked_count = 0;

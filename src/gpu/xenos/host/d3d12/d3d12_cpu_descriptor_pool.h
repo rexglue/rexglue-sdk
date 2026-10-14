@@ -27,13 +27,13 @@ namespace rex::gpu::d3d12 {
  *
  * Safe when the release order of the descriptor heap and its descriptors is undefined.
  */
-class D3D12CpuDescriptorPool : public std::enable_shared_from_this<D3D12CpuDescriptorPool>,
+class D3D12CPUDescriptorPool : public std::enable_shared_from_this<D3D12CPUDescriptorPool>,
                                public rex::NonCopyable {
  public:
   class Descriptor : public rex::MoveOnly {
    public:
     Descriptor() = default;
-    Descriptor(std::shared_ptr<D3D12CpuDescriptorPool> pool, size_t index)
+    Descriptor(std::shared_ptr<D3D12CPUDescriptorPool> pool, size_t index)
         : pool_(std::move(pool)), index_(index) {}
     Descriptor(Descriptor&& descriptor) noexcept {
       pool_ = std::move(descriptor.pool_);
@@ -64,16 +64,16 @@ class D3D12CpuDescriptorPool : public std::enable_shared_from_this<D3D12CpuDescr
     }
 
    private:
-    std::shared_ptr<D3D12CpuDescriptorPool> pool_;
+    std::shared_ptr<D3D12CPUDescriptorPool> pool_;
     size_t index_ = 0;
   };
 
-  D3D12CpuDescriptorPool(const gpu::d3d12::D3D12Provider& provider, D3D12_DESCRIPTOR_HEAP_TYPE type,
+  D3D12CPUDescriptorPool(const gpu::d3d12::D3D12Provider& provider, D3D12_DESCRIPTOR_HEAP_TYPE type,
                          u32 heap_size_log2)
       : provider_(provider), type_(type), heap_size_log2_(heap_size_log2) {
     REX_ASSERT(heap_size_log2 <= 31);
   }
-  ~D3D12CpuDescriptorPool() {
+  ~D3D12CPUDescriptorPool() {
     for (ID3D12DescriptorHeap* heap : heaps_) {
       heap->Release();
     }

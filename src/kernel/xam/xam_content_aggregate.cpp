@@ -30,7 +30,7 @@ using namespace rex::runtime;
 
 void AddODDContentTest(StaticItems& items, XContentType content_type) {
   constexpr std::string_view kRoot = "game:\\Content\\0000000000000000";
-  auto* fs = runtime::Current().file_system();
+  auto* fs = runtime::GetCurrent().GetFileSystem();
   auto titles = fs->List(kRoot, "????????");
   if (!titles) {
     return;
@@ -49,10 +49,10 @@ void AddODDContentTest(StaticItems& items, XContentType content_type) {
         auto item = items.Append<XCONTENT_AGGREGATE_DATA>();
         REX_ASSERT(item != nullptr);
         if (item) {
-          item->device_id = std::to_underlying(DummyDeviceId::ODD);
+          item->device_id = std::to_underlying(DummyDeviceId::kODD);
           item->content_type = content_type;
-          item->set_display_name(to_utf16(content_entry->name));
-          item->set_file_name(content_entry->name);
+          item->SetDisplayName(ToUTF16(content_entry->name));
+          item->SetFileName(content_entry->name);
           item->title_id = title_id;
         }
       }
@@ -61,7 +61,7 @@ void AddODDContentTest(StaticItems& items, XContentType content_type) {
 }
 
 u32 XamContentAggregateCreateEnumerator_entry(u64 xuid, u32 device_id, u32 content_type,
-                                              [[maybe_unused]] u32 unk3, mapped_u32 handle_out) {
+                                              [[maybe_unused]] u32 unk3, MappedU32 handle_out) {
   REX_ASSERT(handle_out != nullptr);
 
   auto device_info = device_id == 0 ? nullptr : GetDummyDeviceInfo(device_id);
@@ -73,20 +73,20 @@ u32 XamContentAggregateCreateEnumerator_entry(u64 xuid, u32 device_id, u32 conte
 
   auto content_type_enum = XContentType(content_type);
 
-  u64 userxuid = runtime::Current().content_manager().user_profile().xuid();
+  u64 userxuid = runtime::GetCurrent().GetContentManager().GetUserProfile().GetXUID();
 
-  if (!device_info || device_info->device_type == DeviceType::HDD) {
+  if (!device_info || device_info->device_type == DeviceType::kHDD) {
     std::vector<u32> title_ids{kCurrentlyRunningTitleId};
-    auto exe_module = runtime::Current().object_table().Get<ModuleObject>(
-        runtime::Current().module_registry().executable().value_or(0));
-    if (exe_module && exe_module->xex()) {
-      const auto alt_ids = exe_module->xex()->image().alternate_title_ids();
+    auto exe_module = runtime::GetCurrent().GetObjectTable().Get<ModuleObject>(
+        runtime::GetCurrent().GetModuleRegistry().GetExecutable().value_or(0));
+    if (exe_module && exe_module->GetXEX()) {
+      const auto alt_ids = exe_module->GetXEX()->GetImage().GetAlternateTitleIds();
       std::copy(alt_ids.cbegin(), alt_ids.cend(), std::back_inserter(title_ids));
     }
 
     for (auto& title_id : title_ids) {
-      auto content_datas = runtime::Current().content_manager().ListContent(
-          std::to_underlying(DummyDeviceId::HDD), xuid, content_type_enum, title_id);
+      auto content_datas = runtime::GetCurrent().GetContentManager().ListContent(
+          std::to_underlying(DummyDeviceId::kHDD), xuid, content_type_enum, title_id);
       for (const auto& content_data : content_datas) {
         auto item = items.Append<XCONTENT_AGGREGATE_DATA>();
         REX_ASSERT(item != nullptr);
@@ -96,8 +96,8 @@ u32 XamContentAggregateCreateEnumerator_entry(u64 xuid, u32 device_id, u32 conte
       }
 
       if (userxuid != 0) {
-        auto common_datas = runtime::Current().content_manager().ListContent(
-            std::to_underlying(DummyDeviceId::HDD), 0, content_type_enum, title_id);
+        auto common_datas = runtime::GetCurrent().GetContentManager().ListContent(
+            std::to_underlying(DummyDeviceId::kHDD), 0, content_type_enum, title_id);
         for (const auto& content_data : common_datas) {
           auto item = items.Append<XCONTENT_AGGREGATE_DATA>();
           REX_ASSERT(item != nullptr);
@@ -109,17 +109,17 @@ u32 XamContentAggregateCreateEnumerator_entry(u64 xuid, u32 device_id, u32 conte
     }
   }
 
-  if (!device_info || device_info->device_type == DeviceType::ODD) {
+  if (!device_info || device_info->device_type == DeviceType::kODD) {
     AddODDContentTest(items, content_type_enum);
   }
 
   REXLOG_DEBUG(kernel, "XamContentAggregateCreateEnumerator: added {} items to enumerator",
-               items.item_count());
+               items.GetItemCount());
 
-  X_HANDLE handle = X_INVALID_HANDLE_VALUE;
+  X_HANDLE handle = kXInvalidHandleValue;
   void* extra_buffer = nullptr;
   auto result = CreateEnumerator(
-      runtime::Current(), &handle, EnumeratorInit{0xFF, 0xFE, 0x2000E, 0x20010, 0},
+      runtime::GetCurrent(), &handle, EnumeratorInit{0xFF, 0xFE, 0x2000E, 0x20010, 0},
       EnumeratorObject(
           1, sizeof(XCONTENT_AGGREGATE_DATA),
           [items = std::move(items)](u32, u8* buffer_data, u32* written_count) mutable {

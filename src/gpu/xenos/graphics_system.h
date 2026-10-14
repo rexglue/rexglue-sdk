@@ -37,24 +37,24 @@ class GraphicsSystem : public gpu::IGPUBackend {
  public:
   virtual ~GraphicsSystem();
 
-  virtual std::string name() const = 0;
+  virtual std::string GetName() const = 0;
 
-  runtime::Memory* memory() const { return memory_; }
-  runtime::FunctionDispatcher* function_dispatcher() const { return function_dispatcher_; }
+  runtime::Memory* GetMemory() const { return memory_; }
+  runtime::FunctionDispatcher* GetFunctionDispatcher() const { return function_dispatcher_; }
   /**
    * Returns the runtime the GPU workers belong to.
    *
    * @return The runtime, null before SetupGuestGPU.
    */
-  Runtime* runtime() const { return runtime_; }
-  gpu::IPresenter* presenter() const override { return presenter_.get(); }
-  ::rex::gpu::Presenter* host_presenter() const { return presenter_.get(); }
-  ::rex::gpu::GraphicsProvider* provider() const { return provider_.get(); }
+  Runtime* GetRuntime() const { return runtime_; }
+  gpu::IPresenter* GetPresenter() const override { return presenter_.get(); }
+  ::rex::gpu::Presenter* GetHostPresenter() const { return presenter_.get(); }
+  ::rex::gpu::GraphicsProvider* GetProvider() const { return provider_.get(); }
 
   [[nodiscard]] Result<void> SetupPresentation(gpu::IUIThread& ui_thread) override;
   [[nodiscard]] Result<void> SetupGuestGPU(runtime::FunctionDispatcher& dispatcher,
                                            Runtime& runtime) override;
-  bool has_presentation() const override { return presenter_ != nullptr; }
+  bool HasPresentation() const override { return presenter_ != nullptr; }
   [[nodiscard]] Result<std::unique_ptr<gpu::IPresenter>> CreatePresenter() override;
   [[nodiscard]] Result<std::unique_ptr<gpu::IOverlayDrawer>> CreateOverlayDrawer(
       gpu::IPresenter& presenter) override;
@@ -63,8 +63,8 @@ class GraphicsSystem : public gpu::IGPUBackend {
    *
    * @param config The backend config.
    */
-  void set_config(const gpu::GPUConfig* config) { config_ = config; }
-  const gpu::GPUConfig* config() const { return config_; }
+  void SetConfig(const gpu::GPUConfig* config) { config_ = config; }
+  const gpu::GPUConfig* GetConfig() const { return config_; }
   void Shutdown() override;
 
   /**
@@ -75,8 +75,8 @@ class GraphicsSystem : public gpu::IGPUBackend {
    */
   void OnHostGPULossFromAnyThread(bool is_responsible);
 
-  xenos::RegisterFile* register_file() { return &register_file_; }
-  CommandProcessor* command_processor() const { return command_processor_.get(); }
+  xenos::RegisterFile* GetRegisterFile() { return &register_file_; }
+  CommandProcessor* GetCommandProcessor() const { return command_processor_.get(); }
 
   void InitializeRingBuffer(u32 ptr, u32 size_log2) override;
   void EnableReadPointerWriteBack(u32 ptr, u32 block_size_log2) override;

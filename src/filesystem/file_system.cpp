@@ -60,7 +60,7 @@ Result<FileSystem::Resolved> FileSystem::ResolveMount(std::string_view path,
     resolved = link->second + resolved.substr(link->first.size());
   }
   const auto provider = std::ranges::find_if(providers_, [&](const auto& entry) {
-    return StartsWithComponents(resolved, entry->mount_path());
+    return StartsWithComponents(resolved, entry->GetMountPath());
   });
   if (provider == providers_.end()) {
     if (log_missing) {
@@ -69,18 +69,18 @@ Result<FileSystem::Resolved> FileSystem::ResolveMount(std::string_view path,
     return Err<Resolved>(
         BuildError(FileSystemError::kNoMount, std::format("no mount covers '{}'", path)));
   }
-  return Resolved{provider->get(), resolved.substr((*provider)->mount_path().size())};
+  return Resolved{provider->get(), resolved.substr((*provider)->GetMountPath().size())};
 }
 
 Result<Node*> FileSystem::ResolveNode(std::string_view path) const {
   REX_TRY(Resolved resolved, ResolveMount(path));
   Node* node = resolved.provider->Resolve(resolved.relative);
   if (!node) {
-    REXLOG_DEBUG(filesystem, "'{}' is not on mount '{}'", path, resolved.provider->mount_path());
+    REXLOG_DEBUG(filesystem, "'{}' is not on mount '{}'", path, resolved.provider->GetMountPath());
     return Err<Node*>(
         BuildError(FileSystemError::kNotFound, std::format("'{}' does not exist", path)));
   }
-  REXLOG_TRACE(filesystem, "'{}' resolves to '{}'", path, node->absolute_path());
+  REXLOG_TRACE(filesystem, "'{}' resolves to '{}'", path, node->GetAbsolutePath());
   return node;
 }
 
@@ -89,7 +89,7 @@ std::unique_lock<std::recursive_mutex> FileSystem::LockMount(std::string_view pa
   if (!resolved) {
     return {};
   }
-  return std::unique_lock(resolved->provider->mutex());
+  return std::unique_lock(resolved->provider->GetMutex());
 }
 
 Result<Node*> FileSystem::CreatePath(Node* root, std::string_view path, FileAttributes attributes) {
@@ -107,7 +107,7 @@ Result<Node*> FileSystem::CreatePath(Node* root, std::string_view path, FileAttr
     return Err<Node*>(
         BuildError(FileSystemError::kInvalidPath, std::format("'{}' names a mount root", path)));
   }
-  Node* parent = root ? root : &provider->root();
+  Node* parent = root ? root : &provider->GetRoot();
   std::string partial;
   for (size_t i = 0; i + 1 < parts.size(); ++i) {
     partial = utf8_join_guest_paths(partial, parts[i]);
@@ -125,7 +125,7 @@ Result<Opened> FileSystem::OpenFrom(Node* root, std::string_view requested,
   std::lock_guard lock(mutex_);
   const std::string canonical = utf8_canonicalize_guest_path(requested);
   const std::string_view path = canonical;
-  const auto mount_lock = root ? std::unique_lock(root->provider().mutex()) : LockMount(path);
+  const auto mount_lock = root ? std::unique_lock(root->GetProvider().GetMutex()) : LockMount(path);
   Access access = ExpandAccess(options.access);
   auto not_found = [&] {
     return Err<Opened>(
@@ -136,12 +136,12 @@ Result<Opened> FileSystem::OpenFrom(Node* root, std::string_view requested,
   Node* node = nullptr;
   const std::string base = utf8_find_base_guest_path(path);
   if (root) {
-    Provider& provider = root->provider();
-    parent = base.empty() ? root : provider.Resolve(utf8_join_guest_paths(root->path(), base));
+    Provider& provider = root->GetProvider();
+    parent = base.empty() ? root : provider.Resolve(utf8_join_guest_paths(root->GetPath(), base));
     if (!parent) {
       return not_found();
     }
-    node = provider.Resolve(utf8_join_guest_paths(root->path(), path));
+    node = provider.Resolve(utf8_join_guest_paths(root->GetPath(), path));
   } else {
     if (!base.empty()) {
       REX_TRY(parent, ResolveNode(base));
@@ -152,11 +152,11 @@ Result<Opened> FileSystem::OpenFrom(Node* root, std::string_view requested,
   }
 
   if (node) {
-    if (node->is_directory() && options.require_file) {
+    if (node->IsDirectory() && options.require_file) {
       return Err<Opened>(
           BuildError(FileSystemError::kIsDirectory, std::format("'{}' is a directory", path)));
     }
-    if (parent && parent->ChildVanished(*node)) {
+    if (parent && parent->HasChildVanished(*node)) {
       parent->DropChild(*node);
       node = nullptr;
     }
@@ -180,7 +180,7 @@ Result<Opened> FileSystem::OpenFrom(Node* root, std::string_view requested,
 
   const bool wants_write =
       HasFlags(access, Access::kWriteData) || HasFlags(access, Access::kAppendData);
-  if (wants_write && ((parent && parent->read_only()) || (node && node->read_only()))) {
+  if (wants_write && ((parent && parent->IsReadOnly()) || (node && node->IsReadOnly()))) {
     REXLOG_WARN(filesystem, "'{}' is read only, opening it for read", path);
     access = Access::kGenericRead | Access::kReadData;
   }
@@ -240,20 +240,20 @@ Result<Opened> FileSystem::OpenFrom(Node* root, std::string_view requested,
 Result<void> FileSystem::Mount(const MountEntry& entry) {
   std::lock_guard lock(mutex_);
   if (std::ranges::any_of(providers_,
-                          [&](const auto& p) { return p->mount_path() == entry.path; })) {
+                          [&](const auto& p) { return p->GetMountPath() == entry.path; })) {
     return Err(
         BuildError(FileSystemError::kMountExists, std::format("'{}' is mounted", entry.path)));
   }
   REX_TRY(std::unique_ptr<Provider> provider, CreateProvider(entry));
   providers_.push_back(std::move(provider));
-  REXLOG_DEBUG(filesystem, "mounted '{}' at '{}'", path_to_utf8(entry.source), entry.path);
+  REXLOG_DEBUG(filesystem, "mounted '{}' at '{}'", PathToUTF8(entry.source), entry.path);
   return Ok();
 }
 
 Result<void> FileSystem::Unmount(std::string_view path) {
   std::lock_guard lock(mutex_);
   const auto it =
-      std::ranges::find_if(providers_, [&](const auto& p) { return p->mount_path() == path; });
+      std::ranges::find_if(providers_, [&](const auto& p) { return p->GetMountPath() == path; });
   if (it == providers_.end()) {
     return Err(BuildError(FileSystemError::kNoMount, std::format("'{}' is not mounted", path)));
   }
@@ -262,12 +262,12 @@ Result<void> FileSystem::Unmount(std::string_view path) {
   return Ok();
 }
 
-std::vector<MountEntry> FileSystem::Mounts() const {
+std::vector<MountEntry> FileSystem::GetMounts() const {
   std::lock_guard lock(mutex_);
   std::vector<MountEntry> result;
   result.reserve(providers_.size());
   for (const auto& provider : providers_) {
-    result.push_back(provider->entry());
+    result.push_back(provider->GetEntry());
   }
   return result;
 }
@@ -313,7 +313,7 @@ Result<void> FileSystem::ConfigureStandardMounts(const PathsConfig& paths) {
   if (paths.game_data_root.empty() || !std::filesystem::is_directory(game_root, ec)) {
     return Err(BuildError(
         FileSystemError::kNotFound,
-        std::format("game_data_root '{}' is not a folder", path_to_utf8(paths.game_data_root))));
+        std::format("game_data_root '{}' is not a folder", PathToUTF8(paths.game_data_root))));
   }
   REX_TRY_VOID(Mount(
       {std::string(kGamePartition), ProviderKind::kHostDirectory, game_root, game_mount_flags_}));
@@ -356,14 +356,14 @@ Result<Opened> FileSystem::OpenRelative(IFile& root, std::string_view path,
     return Err<Opened>(BuildError(FileSystemError::kInvalidPath,
                                   "the root file was not opened by this mount table"));
   }
-  return OpenFrom(&file->node(), path, options);
+  return OpenFrom(&file->GetNode(), path, options);
 }
 
 Result<FileInfo> FileSystem::Stat(std::string_view path) {
   std::lock_guard lock(mutex_);
   const auto mount_lock = LockMount(path);
   REX_TRY(Node * node, ResolveNode(path));
-  return node->Info();
+  return node->GetInfo();
 }
 
 Result<std::unique_ptr<IDirectory>> FileSystem::List(std::string_view path,
@@ -371,7 +371,7 @@ Result<std::unique_ptr<IDirectory>> FileSystem::List(std::string_view path,
   std::lock_guard lock(mutex_);
   const auto mount_lock = LockMount(path);
   REX_TRY(Node * node, ResolveNode(path));
-  if (!node->is_directory()) {
+  if (!node->IsDirectory()) {
     return Err<std::unique_ptr<IDirectory>>(
         BuildError(FileSystemError::kNotDirectory, std::format("'{}' is not a directory", path)));
   }
@@ -382,7 +382,7 @@ Result<void> FileSystem::CreateDirectories(std::string_view path) {
   std::lock_guard lock(mutex_);
   const auto mount_lock = LockMount(path);
   if (auto node = ResolveNode(path)) {
-    if (!(*node)->is_directory()) {
+    if (!(*node)->IsDirectory()) {
       return Err(BuildError(FileSystemError::kNotDirectory, std::format("'{}' is a file", path)));
     }
     return Ok();
@@ -408,9 +408,10 @@ Result<void> FileSystem::Rename(std::string_view from, std::string_view to, bool
 Result<void> FileSystem::Rename(IFile& file, std::string_view to, bool replace_existing,
                                 IFile* root) {
   std::lock_guard lock(mutex_);
-  Node& node = static_cast<NodeFile&>(file).node();
-  const std::unique_lock mount_lock(node.provider().mutex());
-  return Move(node, to, replace_existing, root ? &static_cast<NodeFile*>(root)->node() : nullptr);
+  Node& node = static_cast<NodeFile&>(file).GetNode();
+  const std::unique_lock mount_lock(node.GetProvider().GetMutex());
+  return Move(node, to, replace_existing,
+              root ? &static_cast<NodeFile*>(root)->GetNode() : nullptr);
 }
 
 Result<void> FileSystem::Move(Node& node, std::string_view to, bool replace_existing, Node* root) {
@@ -419,25 +420,26 @@ Result<void> FileSystem::Move(Node& node, std::string_view to, bool replace_exis
   const std::string name(utf8_find_name_from_guest_path(target));
   Node* parent = nullptr;
   if (root) {
-    parent =
-        base.empty() ? root : root->provider().Resolve(utf8_join_guest_paths(root->path(), base));
+    parent = base.empty()
+                 ? root
+                 : root->GetProvider().Resolve(utf8_join_guest_paths(root->GetPath(), base));
   } else if (base.empty()) {
-    parent = node.parent();
+    parent = node.GetParent();
   } else {
     REX_TRY(Resolved resolved, ResolveMount(base));
-    if (resolved.provider != &node.provider()) {
+    if (resolved.provider != &node.GetProvider()) {
       return Err(
           BuildError(FileSystemError::kNotSameDevice,
-                     std::format("'{}' is not on the mount of '{}'", to, node.absolute_path())));
+                     std::format("'{}' is not on the mount of '{}'", to, node.GetAbsolutePath())));
     }
     parent = resolved.provider->Resolve(resolved.relative);
   }
-  if (root && &root->provider() != &node.provider()) {
+  if (root && &root->GetProvider() != &node.GetProvider()) {
     return Err(
         BuildError(FileSystemError::kNotSameDevice,
-                   std::format("'{}' is not on the mount of '{}'", to, node.absolute_path())));
+                   std::format("'{}' is not on the mount of '{}'", to, node.GetAbsolutePath())));
   }
-  if (!parent || !parent->is_directory()) {
+  if (!parent || !parent->IsDirectory()) {
     return Err(BuildError(FileSystemError::kNotFound,
                           std::format("the folder of '{}' does not exist", to)));
   }
@@ -450,7 +452,7 @@ Result<void> FileSystem::Move(Node& node, std::string_view to, bool replace_exis
 Result<VolumeInfo> FileSystem::Volume(std::string_view path) {
   std::lock_guard lock(mutex_);
   REX_TRY(Resolved resolved, ResolveMount(path));
-  return resolved.provider->Volume();
+  return resolved.provider->GetVolume();
 }
 
 }  // namespace rex::filesystem

@@ -73,7 +73,7 @@ class Pinned {
 }
 
 [[nodiscard]] rex::Result<void> FailRelaunch(std::span<const std::string>) {
-  return rex::Err<void>(rex::ErrorCategory::Runtime, "no relaunch");
+  return rex::Err<void>(rex::ErrorCategory::kRuntime, "no relaunch");
 }
 
 bool AddressMapped(const void* address) {
@@ -106,7 +106,7 @@ class TestApp : public rex::App {
     config.paths.game_data_root = game_root;
     config.single_instance = lock_name;
     if (fail_configure) {
-      return rex::Err<void>(rex::ErrorCategory::Config, "configure failed");
+      return rex::Err<void>(rex::ErrorCategory::kConfig, "configure failed");
     }
     return rex::Ok();
   }
@@ -115,7 +115,7 @@ class TestApp : public rex::App {
     g_events.push_back("app:init");
     saw_echo = api.Get<rex::test::IEcho>() != nullptr;
     if (fail_init) {
-      return rex::Err<void>(rex::ErrorCategory::Config, "init failed");
+      return rex::Err<void>(rex::ErrorCategory::kConfig, "init failed");
     }
     return rex::Ok();
   }
@@ -184,7 +184,7 @@ REX_TEST_CASE_METHOD(Fixture, "command line overrides OnConfigure", "[app]") {
   TestApp app;
   app.game_root = "C:/from_configure";
   REQUIRE(app.Init(Args({"--game_data_root=C:/from_command_line"})));
-  REQUIRE(app.api().config().paths.game_data_root == "C:/from_command_line");
+  REQUIRE(app.GetAPI().GetConfig().paths.game_data_root == "C:/from_command_line");
   app.Shutdown();
 }
 
@@ -201,8 +201,8 @@ REX_TEST_CASE_METHOD(Fixture, "args returns the command line", "[app]") {
   TestApp app;
   app.modules = {"rex-filesystem", "rex-runtime", "rex-ui-sdl3"};
   REQUIRE(app.Init(Args({"pos", "--ui.fullscreen=false"})));
-  REQUIRE(app.args().Positionals()[0] == "pos");
-  REQUIRE(app.args().Get("ui.fullscreen") == "false");
+  REQUIRE(app.GetArgs().GetPositionals()[0] == "pos");
+  REQUIRE(app.GetArgs().Get("ui.fullscreen") == "false");
   app.Shutdown();
 }
 
@@ -262,7 +262,7 @@ REX_TEST_CASE_METHOD(Fixture, "Init names the log after the executable", "[app]"
   TestApp app;
   app.modules = {};
   REQUIRE(app.Init(Args()));
-  const std::filesystem::path file = app.api().Get<rex::ILogger>()->FilePath();
+  const std::filesystem::path file = app.GetAPI().Get<rex::ILogger>()->GetFilePath();
   REQUIRE(file.parent_path() == rex::platform::GetExecutableFolder() / "logs");
   REQUIRE(file.filename().string().starts_with(rex::platform::GetExecutablePath().stem().string() +
                                                "_"));
@@ -275,7 +275,7 @@ REX_TEST_CASE_METHOD(Fixture, "A failed relaunch reaches the log before logging 
   TestApp app;
   app.modules = {};
   REQUIRE(app.Init(Args()));
-  auto* logger = app.api().Get<rex::ILogger>();
+  auto* logger = app.GetAPI().Get<rex::ILogger>();
   rex::log::CaptureSink sink;
   logger->AddSink(sink);
   rex::RequestRestart();
@@ -353,7 +353,7 @@ REX_TEST_CASE_METHOD(Fixture, "The logger outlives the timer queue and the relau
   TestApp app;
   app.modules = {};
   REQUIRE(app.Init(Args()));
-  const std::filesystem::path file = app.api().Get<rex::ILogger>()->FilePath();
+  const std::filesystem::path file = app.GetAPI().Get<rex::ILogger>()->GetFilePath();
   rex::RequestRestart();
   REQUIRE(app.Shutdown() == 0);
   std::ifstream in(file);

@@ -101,7 +101,7 @@ REX_EXPORT_STUB(__imp__VdSetStudioRGBMode);
  * @param type_ptr Receives the gamma type.
  * @param power_ptr Receives the gamma power.
  */
-void VdGetCurrentDisplayGamma_entry(mapped_u32 type_ptr, mapped_f32 power_ptr) {
+void VdGetCurrentDisplayGamma_entry(MappedU32 type_ptr, MappedF32 power_ptr) {
   *type_ptr = kDisplayGammaType;
   *power_ptr = static_cast<f32>(kDisplayGammaPower);
 }
@@ -151,7 +151,7 @@ struct X_DISPLAY_INFO {
 };
 REX_STATIC_ASSERT_SIZE(X_DISPLAY_INFO, 0x58);
 
-void VdGetCurrentDisplayInformation_entry(ppc_ptr_t<X_DISPLAY_INFO> display_info) {
+void VdGetCurrentDisplayInformation_entry(GuestPtrT<X_DISPLAY_INFO> display_info) {
   X_VIDEO_MODE mode;
   VdQueryVideoMode(&mode);
   display_info.Zero();
@@ -178,7 +178,7 @@ void VdGetCurrentDisplayInformation_entry(ppc_ptr_t<X_DISPLAY_INFO> display_info
 }
 
 void VdQueryVideoMode(X_VIDEO_MODE* video_mode) {
-  const runtime::VideoMode& mode = runtime::Current().video_mode();
+  const runtime::VideoMode& mode = runtime::GetCurrent().GetVideoMode();
   const u32 display_width = mode.width;
   const u32 display_height = mode.height;
   const f32 refresh_rate_hz = mode.refresh_rate;
@@ -196,7 +196,7 @@ void VdQueryVideoMode(X_VIDEO_MODE* video_mode) {
   video_mode->unknown_0x01 = 0x01;
 }
 
-void VdQueryVideoMode_entry(ppc_ptr_t<X_VIDEO_MODE> video_mode) {
+void VdQueryVideoMode_entry(GuestPtrT<X_VIDEO_MODE> video_mode) {
   VdQueryVideoMode(video_mode);
 }
 
@@ -253,8 +253,8 @@ u32 VdSetDisplayModeOverride_entry([[maybe_unused]] u32 unk0, [[maybe_unused]] u
  * @return 1.
  */
 u32 VdInitializeEngines_entry([[maybe_unused]] u32 unk0, [[maybe_unused]] u32 callback,
-                              [[maybe_unused]] mapped_void arg, [[maybe_unused]] mapped_u32 pfp_ptr,
-                              [[maybe_unused]] mapped_u32 me_ptr) {
+                              [[maybe_unused]] MappedVoid arg, [[maybe_unused]] MappedU32 pfp_ptr,
+                              [[maybe_unused]] MappedU32 me_ptr) {
   return 1;
 }
 
@@ -290,32 +290,32 @@ u32 VdEnableDisableClockGating_entry([[maybe_unused]] u32 enabled) {
  * @param callback The interrupt routine.
  * @param user_data The context passed to callback.
  */
-void VdSetGraphicsInterruptCallback_entry(u32 callback, mapped_void user_data) {
-  auto* gpu = runtime::Current().gpu();
+void VdSetGraphicsInterruptCallback_entry(u32 callback, MappedVoid user_data) {
+  auto* gpu = runtime::GetCurrent().GetGPU();
   if (!gpu) {
     static std::atomic<bool> warned{false};
     WarnNoGPUEmulation("VdSetGraphicsInterruptCallback", warned);
     return;
   }
-  gpu->SetInterruptCallback(callback, user_data.guest_address());
+  gpu->SetInterruptCallback(callback, user_data.GetGuestAddress());
 }
 
 /**
  * Initializes the primary ring buffer.
  *
- * The buffer is memory from MmAllocatePhysicalMemory with X_PAGE_WRITECOMBINE.
+ * The buffer is memory from MmAllocatePhysicalMemory with kXPageWriteCombine.
  *
  * @param ptr The physical address of the buffer from MmGetPhysicalAddress.
  * @param size_log2 The log2 of the size.
  */
-void VdInitializeRingBuffer_entry(mapped_void ptr, i32 size_log2) {
-  auto* gpu = runtime::Current().gpu();
+void VdInitializeRingBuffer_entry(MappedVoid ptr, i32 size_log2) {
+  auto* gpu = runtime::GetCurrent().GetGPU();
   if (!gpu) {
     static std::atomic<bool> warned{false};
     WarnNoGPUEmulation("VdInitializeRingBuffer", warned);
     return;
   }
-  gpu->InitializeRingBuffer(ptr.guest_address(), size_log2);
+  gpu->InitializeRingBuffer(ptr.GetGuestAddress(), size_log2);
 }
 
 /**
@@ -324,23 +324,23 @@ void VdInitializeRingBuffer_entry(mapped_void ptr, i32 size_log2) {
  * @param ptr The write back address.
  * @param block_size_log2 The log2 of the block size, usually 6 and at most 19.
  */
-void VdEnableRingBufferRPtrWriteBack_entry(mapped_void ptr, i32 block_size_log2) {
-  auto* gpu = runtime::Current().gpu();
+void VdEnableRingBufferRPtrWriteBack_entry(MappedVoid ptr, i32 block_size_log2) {
+  auto* gpu = runtime::GetCurrent().GetGPU();
   if (!gpu) {
     static std::atomic<bool> warned{false};
     WarnNoGPUEmulation("VdEnableRingBufferRPtrWriteBack", warned);
     return;
   }
-  gpu->EnableReadPointerWriteBack(ptr.guest_address(), block_size_log2);
+  gpu->EnableReadPointerWriteBack(ptr.GetGuestAddress(), block_size_log2);
 }
 
-void VdGetSystemCommandBuffer_entry(mapped_void p0_ptr, mapped_void p1_ptr) {
+void VdGetSystemCommandBuffer_entry(MappedVoid p0_ptr, MappedVoid p1_ptr) {
   p0_ptr.Zero(0x94);
   memory::store<be_u32>(p0_ptr, 0xBEEF0000);
   memory::store<be_u32>(p1_ptr, 0xBEEF0001);
 }
 
-void VdSetSystemCommandBufferGpuIdentifierAddress_entry([[maybe_unused]] mapped_void unk) {}
+void VdSetSystemCommandBufferGpuIdentifierAddress_entry([[maybe_unused]] MappedVoid unk) {}
 
 /**
  * Initializes the scaler command buffer by filling it with NOP packets (0x80000000).
@@ -363,11 +363,11 @@ u32 VdInitializeScalerCommandBuffer_entry(
     [[maybe_unused]] u32 scaler_source_xy, [[maybe_unused]] u32 scaler_source_wh,
     [[maybe_unused]] u32 scaled_output_xy, [[maybe_unused]] u32 scaled_output_wh,
     [[maybe_unused]] u32 front_buffer_wh, [[maybe_unused]] u32 vertical_filter_type,
-    [[maybe_unused]] ppc_ptr_t<X_D3DFILTER_PARAMETERS> vertical_filter_params,
+    [[maybe_unused]] GuestPtrT<X_D3DFILTER_PARAMETERS> vertical_filter_params,
     [[maybe_unused]] u32 horizontal_filter_type,
-    [[maybe_unused]] ppc_ptr_t<X_D3DFILTER_PARAMETERS> horizontal_filter_params,
-    [[maybe_unused]] mapped_void unk9, mapped_void dest_ptr, u32 dest_count) {
-  auto dest = dest_ptr.as_array<u32>();
+    [[maybe_unused]] GuestPtrT<X_D3DFILTER_PARAMETERS> horizontal_filter_params,
+    [[maybe_unused]] MappedVoid unk9, MappedVoid dest_ptr, u32 dest_count) {
+  auto dest = dest_ptr.AsArray<u32>();
   for (size_t i = 0; i < dest_count; ++i) {
     dest[i] = 0x80000000;
   }
@@ -382,7 +382,7 @@ struct BufferScaling {
 };
 
 u32 VdCallGraphicsNotificationRoutines_entry(u32 unk0,
-                                             [[maybe_unused]] ppc_ptr_t<BufferScaling> args_ptr) {
+                                             [[maybe_unused]] GuestPtrT<BufferScaling> args_ptr) {
   REX_ASSERT(unk0 == 1);
 
   return 0;
@@ -404,9 +404,9 @@ u32 VdIsHSIOTrainingSucceeded_entry() {
  * @param unk1_ptr Receives a pointer that the guest passes to MmFreePhysicalMemory(1, *unk1_ptr).
  * @return 1.
  */
-u32 VdPersistDisplay_entry([[maybe_unused]] u32 unk0, mapped_u32 unk1_ptr) {
+u32 VdPersistDisplay_entry([[maybe_unused]] u32 unk0, MappedU32 unk1_ptr) {
   if (unk1_ptr) {
-    auto heap = runtime::Current().memory()->LookupHeapByType(true, 16 * 1024);
+    auto heap = runtime::GetCurrent().GetMemory()->LookupHeapByType(true, 16 * 1024);
     u32 unk1_value;
     heap->Alloc(64, 32, runtime::kMemoryAllocationReserve | runtime::kMemoryAllocationCommit,
                 runtime::kMemoryProtectNoAccess, false, &unk1_value);
@@ -448,10 +448,10 @@ u32 VdRetrainEDRAM_entry([[maybe_unused]] u32 unk0, [[maybe_unused]] u32 unk1,
  * @param width The front buffer width.
  * @param height The front buffer height.
  */
-void VdSwap_entry(mapped_void buffer_ptr, mapped_void fetch_ptr, [[maybe_unused]] mapped_void unk2,
-                  [[maybe_unused]] mapped_void unk3, [[maybe_unused]] mapped_void unk4,
-                  mapped_u32 frontbuffer_ptr, mapped_u32 texture_format_ptr,
-                  mapped_u32 color_space_ptr, mapped_u32 width, mapped_u32 height) {
+void VdSwap_entry(MappedVoid buffer_ptr, MappedVoid fetch_ptr, [[maybe_unused]] MappedVoid unk2,
+                  [[maybe_unused]] MappedVoid unk3, [[maybe_unused]] MappedVoid unk4,
+                  MappedU32 frontbuffer_ptr, MappedU32 texture_format_ptr,
+                  MappedU32 color_space_ptr, MappedU32 width, MappedU32 height) {
   assert(buffer_ptr);
   assert(fetch_ptr);
   assert(frontbuffer_ptr);
@@ -460,13 +460,13 @@ void VdSwap_entry(mapped_void buffer_ptr, mapped_void fetch_ptr, [[maybe_unused]
   assert(height);
 
   xenos::TextureFetch gpu_fetch;
-  memory::copy_and_swap_32_unaligned(&gpu_fetch, reinterpret_cast<u32*>(fetch_ptr.host_address()),
+  memory::copy_and_swap_32_unaligned(&gpu_fetch, reinterpret_cast<u32*>(fetch_ptr.GetHostAddress()),
                                      6);
 
   u32 frontbuffer_virtual_address = gpu_fetch.base_address << 12;
   REX_ASSERT(*frontbuffer_ptr == frontbuffer_virtual_address);
   u32 frontbuffer_physical_address =
-      runtime::Current().memory()->GetPhysicalAddress(frontbuffer_virtual_address);
+      runtime::GetCurrent().GetMemory()->GetPhysicalAddress(frontbuffer_virtual_address);
   REX_ASSERT(frontbuffer_physical_address != UINT32_MAX);
   if (frontbuffer_physical_address == UINT32_MAX) {
     REXLOG_ERROR(kernel, "VdSwap: Invalid front buffer virtual address 0x{:08X}",
@@ -475,7 +475,7 @@ void VdSwap_entry(mapped_void buffer_ptr, mapped_void fetch_ptr, [[maybe_unused]
   }
   gpu_fetch.base_address = frontbuffer_physical_address >> 12;
 
-  auto texture_format = rex::xenos::TextureFormat(texture_format_ptr.value());
+  auto texture_format = rex::xenos::TextureFormat(texture_format_ptr.GetValue());
   auto color_space = *color_space_ptr;
   REX_ASSERT(texture_format == rex::xenos::TextureFormat::k_8_8_8_8 ||
              texture_format == rex::xenos::TextureFormat::k_2_10_10_10_AS_16_16_16_16);
@@ -486,7 +486,7 @@ void VdSwap_entry(mapped_void buffer_ptr, mapped_void fetch_ptr, [[maybe_unused]
   buffer_ptr.Zero(size_t{64} * 4);
 
   u32 offset = 0;
-  auto dwords = buffer_ptr.as_array<u32>();
+  auto dwords = buffer_ptr.AsArray<u32>();
 
   dwords[offset++] = xenos::BuildPacketType0(
       std::to_underlying(rex::xenos::Register::SHADER_CONSTANT_FETCH_00_0), 6);
@@ -510,26 +510,26 @@ void VdSwap_entry(mapped_void buffer_ptr, mapped_void fetch_ptr, [[maybe_unused]
 }
 
 void RegisterVideoExports(ModuleObject& module, Runtime& runtime) {
-  auto memory = runtime.memory();
+  auto memory = runtime.GetMemory();
 
   // Titles only write the global D3D device pointer.
-  u32 pVdGlobalDevice = memory->SystemHeapAlloc(4, 32, runtime::kSystemHeapPhysical);
-  module.SetVariable(0x01BE, pVdGlobalDevice);
-  *memory->TranslateVirtual<be_u32*>(pVdGlobalDevice) = 0;
+  u32 p_vd_global_device = memory->SystemHeapAlloc(4, 32, runtime::kSystemHeapPhysical);
+  module.SetVariable(0x01BE, p_vd_global_device);
+  *memory->TranslateVirtual<be_u32*>(p_vd_global_device) = 0;
 
-  // No Xam D3D device exists, so the pointer stays 0.
-  u32 pVdGlobalXamDevice = memory->SystemHeapAlloc(4, 32, runtime::kSystemHeapPhysical);
-  module.SetVariable(0x01BF, pVdGlobalXamDevice);
-  *memory->TranslateVirtual<be_u32*>(pVdGlobalXamDevice) = 0;
+  // No XAM D3D device exists, so the pointer stays 0.
+  u32 p_vd_global_xam_device = memory->SystemHeapAlloc(4, 32, runtime::kSystemHeapPhysical);
+  module.SetVariable(0x01BF, p_vd_global_xam_device);
+  *memory->TranslateVirtual<be_u32*>(p_vd_global_xam_device) = 0;
 
   // The Xenos clock is 500 MHz.
-  u32 pVdGpuClockInMHz = memory->SystemHeapAlloc(4, 32, runtime::kSystemHeapPhysical);
-  module.SetVariable(0x01C0, pVdGpuClockInMHz);
-  *memory->TranslateVirtual<be_u32*>(pVdGpuClockInMHz) = 500;
+  u32 p_vd_gpu_clock_in_mhz = memory->SystemHeapAlloc(4, 32, runtime::kSystemHeapPhysical);
+  module.SetVariable(0x01C0, p_vd_gpu_clock_in_mhz);
+  *memory->TranslateVirtual<be_u32*>(p_vd_gpu_clock_in_mhz) = 500;
 
-  u32 pVdHSIOCalibrationLock = memory->SystemHeapAlloc(28, 32, runtime::kSystemHeapPhysical);
-  module.SetVariable(0x01C1, pVdHSIOCalibrationLock);
-  auto hsio_lock = memory->TranslateVirtual<X_RTL_CRITICAL_SECTION*>(pVdHSIOCalibrationLock);
+  u32 p_vd_hsio_calibration_lock = memory->SystemHeapAlloc(28, 32, runtime::kSystemHeapPhysical);
+  module.SetVariable(0x01C1, p_vd_hsio_calibration_lock);
+  auto hsio_lock = memory->TranslateVirtual<X_RTL_CRITICAL_SECTION*>(p_vd_hsio_calibration_lock);
   RtlInitializeCriticalSectionAndSpinCount(hsio_lock, 10000);
 }
 

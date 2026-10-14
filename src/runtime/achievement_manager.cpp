@@ -13,7 +13,7 @@
 
 namespace rex::runtime {
 
-u64 AchievementManager::CurrentFileTime() {
+u64 AchievementManager::GetCurrentFileTime() {
   using namespace std::chrono;
   auto now = system_clock::now().time_since_epoch();
   auto intervals = duration_cast<duration<i64, std::ratio<1, 10'000'000>>>(now);
@@ -24,7 +24,7 @@ u64 AchievementManager::CurrentFileTime() {
 Result<void> AchievementManager::RegisterAchievement(AchievementInfo info) {
   if (info.id == 0) {
     REXLOG_WARN(system, "Achievement store: refusing achievement with ID 0");
-    return Err(ErrorCategory::Validation, "achievement ID 0 is reserved");
+    return Err(ErrorCategory::kValidation, "achievement ID 0 is reserved");
   }
 
   std::lock_guard lock(mutex_);
@@ -43,7 +43,7 @@ Result<void> AchievementManager::RegisterAchievements(
     std::span<const AchievementInfo> achievements) {
   if (std::ranges::any_of(achievements, [](const AchievementInfo& info) { return info.id == 0; })) {
     REXLOG_WARN(system, "Achievement store: refusing a batch with achievement ID 0");
-    return Err(ErrorCategory::Validation, "achievement ID 0 is reserved");
+    return Err(ErrorCategory::kValidation, "achievement ID 0 is reserved");
   }
 
   std::lock_guard lock(mutex_);
@@ -84,7 +84,7 @@ Result<void> AchievementManager::LoadMetadataFile(const std::filesystem::path& p
     auto table = toml::parse_file(path.string());
     const auto* entries = table["achievements"].as_array();
     if (!entries) {
-      return Err(ErrorCategory::Format,
+      return Err(ErrorCategory::kFormat,
                  std::format("{} has no [[achievements]] entries", path.string()));
     }
 
@@ -111,7 +111,7 @@ Result<void> AchievementManager::LoadMetadataFile(const std::filesystem::path& p
     REXLOG_DEBUG(system, "Loaded achievements.toml: {} entries from {}", loaded, path.string());
     return Ok();
   } catch (const toml::parse_error& error) {
-    return Err(ErrorCategory::Format, error.what());
+    return Err(ErrorCategory::kFormat, error.what());
   }
 }
 
@@ -132,7 +132,7 @@ AchievementUnlockResult AchievementManager::UnlockAchievement(
       return AchievementUnlockResult::kUnknownAchievement;
     }
 
-    u64 filetime = CurrentFileTime();
+    u64 filetime = GetCurrentFileTime();
     auto [it, inserted] = unlocked_achievements_.emplace(id, filetime);
     if (!inserted) {
       return AchievementUnlockResult::kAlreadyUnlocked;
@@ -205,12 +205,12 @@ void AchievementManager::LoadUnlockState() {
         if (const auto* entry = value.as_table()) {
           filetime = static_cast<u64>((*entry)["filetime"].value_or<i64>(0));
         }
-        unlocked_achievements_.emplace(id, filetime != 0 ? filetime : CurrentFileTime());
+        unlocked_achievements_.emplace(id, filetime != 0 ? filetime : GetCurrentFileTime());
       }
-    } else if (const auto* unlocked = table["unlocked"].as_array()) {
+    } else if (const auto* unlocked_ids = table["unlocked"].as_array()) {
       migrated = true;
-      u64 now = CurrentFileTime();
-      for (const auto& node : *unlocked) {
+      u64 now = GetCurrentFileTime();
+      for (const auto& node : *unlocked_ids) {
         if (auto value = node.value<i64>()) {
           u32 id = static_cast<u32>(*value);
           if (id != 0) {

@@ -37,7 +37,7 @@ REX_TEST_CASE("notifications: listener receives a matching broadcast", "[char][n
     const u32 id_ptr = c.Alloc(4);
     const u32 param_ptr = c.Alloc(4);
     while (c.XAM("XNotifyGetNext", {listener, 0, id_ptr, param_ptr}) == 1) {}
-    c.runtime().notifier().BroadcastNotification(0x11, 5);
+    c.GetRuntime().GetNotifier().BroadcastNotification(0x11, 5);
     CHECK(c.Kernel("NtWaitForSingleObjectEx", {listener, 1, 0, c.Quad(-50000000)}) == 0);
     CHECK(c.XAM("XNotifyGetNext", {listener, 0, id_ptr, param_ptr}) == 1);
     CHECK(c.Load32(id_ptr) == 0x11);
@@ -113,10 +113,10 @@ REX_TEST_CASE("notifications: mask filters", "[char][notify]") {
     const u32 id_ptr = c.Alloc(4);
     const u32 param_ptr = c.Alloc(4);
     while (c.XAM("XNotifyGetNext", {listener, 0, id_ptr, param_ptr}) == 1) {}
-    c.runtime().notifier().BroadcastNotification(0x02000011, 9);
+    c.GetRuntime().GetNotifier().BroadcastNotification(0x02000011, 9);
     CHECK(c.XAM("XNotifyGetNext", {listener, 0, id_ptr, param_ptr}) == 0);
     CHECK(c.Load32(id_ptr) == 0);
-    c.runtime().notifier().BroadcastNotification(0x11, 5);
+    c.GetRuntime().GetNotifier().BroadcastNotification(0x11, 5);
     CHECK(c.XAM("XNotifyGetNext", {listener, 0, id_ptr, param_ptr}) == 1);
     CHECK(c.Load32(id_ptr) == 0x11);
     CHECK(c.Kernel("NtClose", {listener}) == 0);

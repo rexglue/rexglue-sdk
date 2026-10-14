@@ -297,9 +297,9 @@ bool D3D12Provider::Initialize(i32 adapter_index_wanted) {
     };
     D3D12_INFO_QUEUE_FILTER d3d12_info_queue_filter = {};
     d3d12_info_queue_filter.DenyList.NumSeverities =
-        UINT(rex::countof(d3d12_info_queue_denied_severities));
+        UINT(rex::CountOf(d3d12_info_queue_denied_severities));
     d3d12_info_queue_filter.DenyList.pSeverityList = d3d12_info_queue_denied_severities;
-    d3d12_info_queue_filter.DenyList.NumIDs = UINT(rex::countof(d3d12_info_queue_denied_messages));
+    d3d12_info_queue_filter.DenyList.NumIDs = UINT(rex::CountOf(d3d12_info_queue_denied_messages));
     d3d12_info_queue_filter.DenyList.pIDList = d3d12_info_queue_denied_messages;
     d3d12_info_queue->PushStorageFilter(&d3d12_info_queue_filter);
     if (REXCVAR_GET(::rex::gpu::cvars::break_on_error)) {

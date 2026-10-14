@@ -52,7 +52,7 @@ class VulkanSharedMemory : public SharedMemory {
    */
   void Use(Usage usage, std::pair<u32, u32> written_range = {});
 
-  VkBuffer buffer() const { return buffer_; }
+  VkBuffer GetBuffer() const { return buffer_; }
 
  protected:
   bool AllocateSparseHostGPUMemoryRange(u32 offset_allocations, u32 length_allocations) override;

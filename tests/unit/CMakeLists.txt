@@ -20,6 +20,7 @@ add_executable(unit_tests
     gpu/packet_header_test.cpp
     gpu/texture_info_test.cpp
     gpu/cvar_scope_test.cpp
+    gpu/dxbc_operand_test.cpp
     gpu/overlay_contract_test.cpp
     gpu/shader_interpreter_test.cpp
     gpu/shader_translation_test.cpp

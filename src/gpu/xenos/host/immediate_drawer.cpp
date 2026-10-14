@@ -36,11 +36,11 @@ void ImmediateDrawer::SetPresenter(Presenter* new_presenter) {
 
 void ImmediateDrawer::Begin(gpu::OverlayDrawContext& context, f32 coordinate_space_width,
                             f32 coordinate_space_height) {
-  REX_ASSERT(context.presenter() == presenter_);
+  REX_ASSERT(context.GetPresenter() == presenter_);
   ui_draw_context_ = &context;
   if (!(coordinate_space_width > 0.0f) || !(coordinate_space_height > 0.0f)) {
-    coordinate_space_width = static_cast<f32>(context.render_target_width());
-    coordinate_space_height = static_cast<f32>(context.render_target_height());
+    coordinate_space_width = static_cast<f32>(context.GetRenderTargetWidth());
+    coordinate_space_height = static_cast<f32>(context.GetRenderTargetHeight());
   }
   coordinate_space_width_ = coordinate_space_width;
   coordinate_space_height_ = coordinate_space_height;
@@ -52,8 +52,8 @@ void ImmediateDrawer::End() {
 
 bool ImmediateDrawer::ScissorToRenderTarget(const gpu::OverlayDraw& draw, u32& out_left,
                                             u32& out_top, u32& out_width, u32& out_height) {
-  u32 render_target_width = ui_draw_context()->render_target_width();
-  u32 render_target_height = ui_draw_context()->render_target_height();
+  u32 render_target_width = GetUIDrawContext()->GetRenderTargetWidth();
+  u32 render_target_height = GetUIDrawContext()->GetRenderTargetHeight();
   if (!draw.scissor) {
     out_left = 0;
     out_top = 0;
@@ -64,8 +64,8 @@ bool ImmediateDrawer::ScissorToRenderTarget(const gpu::OverlayDraw& draw, u32& o
   const gpu::OverlayRect& scissor = *draw.scissor;
   f32 render_target_width_float = static_cast<f32>(render_target_width);
   f32 render_target_height_float = static_cast<f32>(render_target_height);
-  f32 scale_x = render_target_width_float / coordinate_space_width();
-  f32 scale_y = render_target_height_float / coordinate_space_height();
+  f32 scale_x = render_target_width_float / GetCoordinateSpaceWidth();
+  f32 scale_y = render_target_height_float / GetCoordinateSpaceHeight();
   f32 x0_float = rex::clamp_float(scissor.left * scale_x, 0.0f, render_target_width_float);
   f32 y0_float = rex::clamp_float(scissor.top * scale_y, 0.0f, render_target_height_float);
   f32 x1_float = rex::clamp_float(scissor.right * scale_x, x0_float, render_target_width_float);

@@ -40,7 +40,7 @@ struct BinaryConfig {
   RecompilerConfig recompiler; /**< Codegen settings of the binary, loaded from its TOML table. */
   /** Canonical guest path the host runtime resolves the module against, empty for the entrypoint.
    */
-  std::string guestPath;
+  std::string guest_path;
 };
 
 /**
@@ -64,13 +64,13 @@ struct ManifestConfig {
   ManifestConfig& operator=(ManifestConfig&&) noexcept(false) = default;
   ~ManifestConfig() = default;
 
-  std::string projectName;               /**< Value of `[project].name`, a valid identifier. */
-  std::optional<std::string> sdkVersion; /**< Last SDK that ran codegen on this project */
-  std::filesystem::path manifestPath;    /**< Path the manifest was loaded from. */
-  /** Game asset root relative to manifestDir. Set by `rexglue init` to anchor DLL guest paths. */
-  std::optional<std::string> gameRoot;
+  std::string project_name;               /**< Value of `[project].name`, a valid identifier. */
+  std::optional<std::string> sdk_version; /**< Last SDK that ran codegen on this project */
+  std::filesystem::path manifest_path;    /**< Path the manifest was loaded from. */
+  /** Game asset root relative to manifest_dir. Set by `rexglue init` to anchor DLL guest paths. */
+  std::optional<std::string> game_root;
   /** Directory of the manifest, which relative paths in it resolve against. */
-  std::filesystem::path manifestDir;
+  std::filesystem::path manifest_dir;
   BinaryConfig entrypoint;           /**< Settings of the `[entrypoint]` binary. */
   std::vector<BinaryConfig> modules; /**< Settings of each `[[modules]]` binary in file order. */
 

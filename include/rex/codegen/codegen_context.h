@@ -49,41 +49,41 @@ struct AnalysisState {
 
   std::string format; /**< "xex" or "elf" */
   /** Guest address the image is loaded at, copied from the BinaryView base address. */
-  u64 loadAddress = 0;
+  u64 load_address = 0;
   /** Guest address of the image entry point, which the writer names xstart. */
-  u64 entryPoint = 0;
-  u64 imageSize = 0; /**< Image size in bytes, copied from the BinaryView. */
+  u64 entry_point = 0;
+  u64 image_size = 0; /**< Image size in bytes, copied from the BinaryView. */
 
-  std::vector<SectionInfo> sections;            /**< No code reads or writes it. */
-  std::vector<FunctionEntry> analyzedFunctions; /**< No code reads or writes it. */
+  std::vector<SectionInfo> sections;             /**< No code reads or writes it. */
+  std::vector<FunctionEntry> analyzed_functions; /**< No code reads or writes it. */
   /** Entry addresses of the chunks of each parent function, keyed by parent address, from the
    * `parent` field of the function configs. */
-  std::unordered_map<u32, std::vector<u32>> chunksByParent;
+  std::unordered_map<u32, std::vector<u32>> chunks_by_parent;
 
   /** ABI helper addresses found by analysis, 0 when not found. */
-  u32 restGpr14Address = 0;
+  u32 rest_gpr14_address = 0;
   /** Address of the first `__savegprlr_14` helper, 0 when not found. */
-  u32 saveGpr14Address = 0;
+  u32 save_gpr14_address = 0;
   /** Address of the first `__restfpr_14` helper, 0 when not found. */
-  u32 restFpr14Address = 0;
+  u32 rest_fpr14_address = 0;
   /** Address of the first `__savefpr_14` helper, 0 when not found. */
-  u32 saveFpr14Address = 0;
+  u32 save_fpr14_address = 0;
   /** Address of the first `__restvmx_14` helper, 0 when not found. */
-  u32 restVmx14Address = 0;
+  u32 rest_vmx14_address = 0;
   /** Address of the first `__savevmx_14` helper, 0 when not found. */
-  u32 saveVmx14Address = 0;
+  u32 save_vmx14_address = 0;
   /** Address of the first `__restvmx_64` helper, 0 when not found. */
-  u32 restVmx64Address = 0;
+  u32 rest_vmx64_address = 0;
   /** Address of the first `__savevmx_64` helper, 0 when not found. */
-  u32 saveVmx64Address = 0;
+  u32 save_vmx64_address = 0;
 
-  std::unordered_map<u32, u32> invalidInstructions; /**< Maps address to size */
-  std::unordered_set<u32> knownIndirectCalls;       /**< bctr addresses */
+  std::unordered_map<u32, u32> invalid_instructions; /**< Maps address to size */
+  std::unordered_set<u32> known_indirect_calls;      /**< bctr addresses */
   /** Entry addresses of exception handler functions, copied from `analysis.exception_handler_funcs`
    * in the TOML. */
-  std::vector<u32> exceptionHandlerFuncs;
+  std::vector<u32> exception_handler_funcs;
   /** Entry addresses found in SEH scope tables, queued as functions after the .pdata functions. */
-  std::vector<u32> ehDiscoveredFuncs;
+  std::vector<u32> eh_discovered_funcs;
 };
 
 /**
@@ -104,11 +104,11 @@ class CodegenContext : public rex::MoveOnly {
    * Loads the configuration from the TOML file, loads the XEX through Runtime and builds the
    * BinaryView from the loaded module.
    *
-   * @param configPath Path to the TOML config file
+   * @param config_path Path to the TOML config file
    * @param runtime Runtime instance set up with the correct content_root
    * @return CodegenContext on success, error on failure
    */
-  [[nodiscard]] static Result<CodegenContext> Create(const std::filesystem::path& configPath,
+  [[nodiscard]] static Result<CodegenContext> Create(const std::filesystem::path& config_path,
                                                      Runtime& runtime);
 
   /**
@@ -150,63 +150,63 @@ class CodegenContext : public rex::MoveOnly {
     ScanArtifacts& operator=(ScanArtifacts&&) noexcept(false) = default;
     ~ScanArtifacts() = default;
 
-    std::vector<CodeRegion> codeRegions; /**< Null delimited code regions */
-    /** Address ranges `[first, second)` of runs of at least `dataRegionThreshold` words equal to 0
-     * or 0xFFFFFFFF. */
-    std::vector<std::pair<u32, u32>> dataRegions;
-    std::unordered_map<u32, u32> pdataSizes; /**< Maps address to size */
+    std::vector<CodeRegion> code_regions; /**< Null delimited code regions */
+    /** Address ranges `[first, second)` of runs of at least `data_region_threshold` words equal to
+     * 0 or 0xFFFFFFFF. */
+    std::vector<std::pair<u32, u32>> data_regions;
+    std::unordered_map<u32, u32> pdata_sizes; /**< Maps address to size */
   } scan;
 
-  const BinaryView& binary() const { return binary_; }
-  BinaryView& binary() { return binary_; }
+  const BinaryView& GetBinary() const { return binary_; }
+  BinaryView& GetBinary() { return binary_; }
 
   /**
-   * Returns the decoded binary. Valid only after initDecoded().
+   * Returns the decoded binary. Valid only after InitDecoded().
    *
    * @return Decoded binary owned by the context
    */
-  DecodedBinary& decoded();
+  DecodedBinary& GetDecoded();
   /**
-   * Returns the decoded binary. Valid only after initDecoded().
+   * Returns the decoded binary. Valid only after InitDecoded().
    *
    * @return Decoded binary owned by the context
    */
-  const DecodedBinary& decoded() const;
+  const DecodedBinary& GetDecoded() const;
 
   /** Creates the DecodedBinary once the context is at its final location. Runs once after
-   * Create() and before decoded(). */
-  void initDecoded();
+   * Create() and before GetDecoded(). */
+  void InitDecoded();
 
-  bool hasDecoded() const { return decoded_ != nullptr; }
+  bool HasDecoded() const { return decoded_ != nullptr; }
 
-  RecompilerConfig& Config() { return config_; }
-  const RecompilerConfig& Config() const { return config_; }
+  RecompilerConfig& GetConfig() { return config_; }
+  const RecompilerConfig& GetConfig() const { return config_; }
 
-  AnalysisState& analysisState() { return analysisState_; }
-  const AnalysisState& analysisState() const { return analysisState_; }
+  AnalysisState& GetAnalysisState() { return analysis_state_; }
+  const AnalysisState& GetAnalysisState() const { return analysis_state_; }
 
   /** Analysis limits for every phase run against this context. */
-  const Limits& limits() const { return limits_; }
-  void setLimits(const Limits& limits) { limits_ = limits; }
+  const Limits& GetLimits() const { return limits_; }
+  void SetLimits(const Limits& limits) { limits_ = limits; }
 
-  const std::filesystem::path& configDir() const { return configDir_; }
-  void setConfigDir(const std::filesystem::path& dir) { configDir_ = dir; }
+  const std::filesystem::path& GetConfigDir() const { return config_dir_; }
+  void SetConfigDir(const std::filesystem::path& dir) { config_dir_ = dir; }
 
-  void setDllModule(bool is_dll) { is_dll_module_ = is_dll; }
-  bool isDllModule() const { return is_dll_module_; }
+  void SetDLLModule(bool is_dll) { is_dll_module_ = is_dll; }
+  bool IsDLLModule() const { return is_dll_module_; }
 
-  void setHasDllModules(bool has) { has_dll_modules_ = has; }
-  bool hasDllModules() const { return has_dll_modules_; }
+  void SetHasDLLModules(bool has) { has_dll_modules_ = has; }
+  bool HasDLLModules() const { return has_dll_modules_; }
 
  private:
   CodegenContext() = default;
 
   BinaryView binary_;
   RecompilerConfig config_;
-  AnalysisState analysisState_;
+  AnalysisState analysis_state_;
   Limits limits_;
-  std::unique_ptr<DecodedBinary> decoded_; /**< Created by initDecoded() */
-  std::filesystem::path configDir_;
+  std::unique_ptr<DecodedBinary> decoded_; /**< Created by InitDecoded() */
+  std::filesystem::path config_dir_;
   bool is_dll_module_ = false;
   bool has_dll_modules_ = false;
 };

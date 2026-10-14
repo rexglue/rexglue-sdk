@@ -77,13 +77,13 @@ class CommandProcessor {
   CommandProcessor(GraphicsSystem* graphics_system, Runtime& runtime);
   virtual ~CommandProcessor();
 
-  u32 counter() const { return counter_; }
-  void increment_counter() {
+  u32 GetCounter() const { return counter_; }
+  void IncrementCounter() {
     CallInThread([this] { counter_++; });
   }
 
-  Shader* active_vertex_shader() const { return active_vertex_shader_; }
-  Shader* active_pixel_shader() const { return active_pixel_shader_; }
+  Shader* GetActiveVertexShader() const { return active_vertex_shader_; }
+  Shader* GetActivePixelShader() const { return active_pixel_shader_; }
 
   /**
    * Initializes the gamma ramps to the linear values titles set when starting with sRGB gamma,
@@ -190,10 +190,10 @@ class CommandProcessor {
   void WriteLoopRangeFromMem(u32 start_index, u32* base, u32 num_registers);
   void WriteREGISTERSRangeFromMem(u32 start_index, u32* base, u32 num_registers);
 
-  const xenos::reg::DC_LUT_30_COLOR* gamma_ramp_256_entry_table() const {
+  const xenos::reg::DC_LUT_30_COLOR* GetGammaRamp256EntryTable() const {
     return gamma_ramp_256_entry_table_;
   }
-  const xenos::reg::DC_LUT_PWL_DATA* gamma_ramp_pwl_rgb() const { return gamma_ramp_pwl_rgb_[0]; }
+  const xenos::reg::DC_LUT_PWL_DATA* GetGammaRampPwlRgb() const { return gamma_ramp_pwl_rgb_[0]; }
   virtual void OnGammaRamp256EntryTableValueWritten() {}
   virtual void OnGammaRampPWLValueWritten() {}
 

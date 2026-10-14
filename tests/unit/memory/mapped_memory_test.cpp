@@ -45,10 +45,10 @@ REX_TEST_CASE("Range returns a non owning view of the same bytes", "[memory][map
   MappedMemory mapping(bytes.data(), bytes.size());
   auto view = mapping.Range(4, 8);
   REQUIRE(view != nullptr);
-  CHECK(view->data() == bytes.data() + 4);
-  CHECK(view->size() == 8);
+  CHECK(view->GetData() == bytes.data() + 4);
+  CHECK(view->GetSize() == 8);
   view.reset();
-  CHECK(mapping.data() == bytes.data());
+  CHECK(mapping.GetData() == bytes.data());
 }
 
 REX_TEST_CASE("A chunked writer spills a full chunk into the next file",
@@ -56,7 +56,7 @@ REX_TEST_CASE("A chunked writer spills a full chunk into the next file",
   const auto dir = std::filesystem::temp_directory_path() / "rex_chunked_writer_test";
   std::filesystem::remove_all(dir);
   std::filesystem::create_directories(dir);
-  const size_t chunk_size = rex::memory::allocation_granularity();
+  const size_t chunk_size = rex::memory::AllocationGranularity();
   const size_t head = chunk_size - 16;
   const size_t tail = 64;
   {
@@ -85,7 +85,7 @@ REX_TEST_CASE("A low address chunked writer maps below 4 GiB", "[memory][mapped_
   std::filesystem::create_directories(dir);
   {
     auto writer =
-        ChunkedMappedMemoryWriter::Open(dir / "trace", rex::memory::allocation_granularity(), true);
+        ChunkedMappedMemoryWriter::Open(dir / "trace", rex::memory::AllocationGranularity(), true);
     REQUIRE(writer != nullptr);
 #if REX_PLATFORM_MAC
     CHECK(writer->Allocate(16) == nullptr);
@@ -104,7 +104,7 @@ REX_TEST_CASE("A low address chunked writer moves past an occupied first address
   const auto dir = std::filesystem::temp_directory_path() / "rex_chunked_writer_busy_test";
   std::filesystem::remove_all(dir);
   std::filesystem::create_directories(dir);
-  const size_t chunk_size = rex::memory::allocation_granularity();
+  const size_t chunk_size = rex::memory::AllocationGranularity();
   // NOLINTNEXTLINE(performance-no-int-to-ptr): VirtualAlloc reserves at this fixed address
   void* first_address = reinterpret_cast<void*>(uintptr_t{0x10000000});
   void* blocker = VirtualAlloc(first_address, chunk_size, MEM_RESERVE, PAGE_NOACCESS);

@@ -37,21 +37,21 @@ class REX_API Clock {
   /**
    * @return The clock.no_scaling cvar. When true, guest time follows host time unscaled.
    */
-  static bool no_scaling();
+  static bool GetNoScaling();
 
   /**
    * Host tick frequency from the platform time source. Prefer QueryHostTickFrequency.
    *
    * @return Host ticks per second.
    */
-  static u64 host_tick_frequency_platform() noexcept;
+  static u64 GetHostTickFrequencyPlatform() noexcept;
 #if REX_CLOCK_RAW_AVAILABLE
   /**
    * Host tick frequency from the hardware tick source.
    *
    * @return Host ticks per second.
    */
-  static u64 host_tick_frequency_raw();
+  static u64 GetHostTickFrequencyRaw();
 #endif
 
   /**
@@ -59,14 +59,14 @@ class REX_API Clock {
    *
    * @return The current host tick count.
    */
-  static u64 host_tick_count_platform();
+  static u64 GetHostTickCountPlatform();
 #if REX_CLOCK_RAW_AVAILABLE
   /**
    * Host tick count from the hardware tick source.
    *
    * @return The current host tick count.
    */
-  static u64 host_tick_count_raw();
+  static u64 GetHostTickCountRaw();
 #endif
 
   /**
@@ -92,7 +92,7 @@ class REX_API Clock {
   /**
    * @return The guest time scalar. 1 is normal speed.
    */
-  static f64 guest_time_scalar();
+  static f64 GetGuestTimeScalar();
 
   /**
    * Sets the guest time scalar, which scales guest tick and wall clock speed. 2 runs at double
@@ -100,38 +100,38 @@ class REX_API Clock {
    *
    * @param scalar The new scalar.
    */
-  static void set_guest_time_scalar(f64 scalar);
+  static void SetGuestTimeScalar(f64 scalar);
 
   /**
    * @return The host to guest tick ratio with time scaling applied, as a reduced numerator and
    *         denominator pair.
    */
-  static std::pair<u64, u64> guest_tick_ratio();
+  static std::pair<u64, u64> GetGuestTickRatio();
 
   /**
    * @return Guest ticks per second.
    */
-  static u64 guest_tick_frequency();
+  static u64 GetGuestTickFrequency();
 
   /**
    * Sets the guest tick frequency and recomputes the tick ratio.
    *
    * @param frequency Guest ticks per second.
    */
-  static void set_guest_tick_frequency(u64 frequency);
+  static void SetGuestTickFrequency(u64 frequency);
 
   /**
    * @return The FILETIME base the guest system time counts from. It defaults to the host system
    *         time at startup.
    */
-  static u64 guest_system_time_base();
+  static u64 GetGuestSystemTimeBase();
 
   /**
    * Sets the FILETIME base the guest system time counts from.
    *
    * @param time_base The new base as a FILETIME.
    */
-  static void set_guest_system_time_base(u64 time_base);
+  static void SetGuestSystemTimeBase(u64 time_base);
 
   /**
    * Advances and reads the guest tick count, with frequency adjustment and scaling applied.

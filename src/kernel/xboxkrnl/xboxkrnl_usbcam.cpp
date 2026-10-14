@@ -28,7 +28,7 @@ namespace rex::kernel::xboxkrnl {
  * @return X_STATUS_SUCCESS.
  */
 u32 XUsbcamCreate_entry([[maybe_unused]] u32 buffer, [[maybe_unused]] u32 buffer_size,
-                        [[maybe_unused]] mapped_void unk3_ptr) {
+                        [[maybe_unused]] MappedVoid unk3_ptr) {
   return X_STATUS_SUCCESS;
 }
 

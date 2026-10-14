@@ -53,26 +53,26 @@ std::string OutputStamp::Serialize() const {
   return doc.dump(2) + "\n";
 }
 
-std::string ComputeInputFingerprint(std::span<const std::filesystem::path> inputFiles,
-                                    std::string_view sdkVersion,
-                                    std::span<const std::string> flagValues) {
+std::string ComputeInputFingerprint(std::span<const std::filesystem::path> input_files,
+                                    std::string_view sdk_version,
+                                    std::span<const std::string> flag_values) {
   std::string accumulator;
   accumulator += "sdk=";
-  accumulator += sdkVersion;
+  accumulator += sdk_version;
   accumulator += '\n';
 
-  for (const auto& flag : flagValues) {
+  for (const auto& flag : flag_values) {
     accumulator += "flag=";
     accumulator += flag;
     accumulator += '\n';
   }
 
-  for (const auto& path : inputFiles) {
+  for (const auto& path : input_files) {
     // Hash content, not mtime, so the stamp survives a checkout, a copy or a touch.
     std::error_code ec;
     std::string digest = "<missing>";
     if (std::filesystem::exists(path, ec)) {
-      digest = rex::hash_file(path);
+      digest = rex::HashFile(path);
       if (digest.empty()) {
         // A constant would report a locked input as unchanged and skip the module forever.
         REXLOG_WARN(codegen, "Could not read {} for fingerprinting", path.string());
@@ -83,7 +83,7 @@ std::string ComputeInputFingerprint(std::span<const std::filesystem::path> input
     accumulator += std::format("file={} {}\n", path.filename().string(), digest);
   }
 
-  return rex::hash_bytes(accumulator);
+  return rex::HashBytes(accumulator);
 }
 
 namespace {
@@ -117,8 +117,8 @@ bool WriteDepfile(const std::filesystem::path& path, const std::filesystem::path
   return WriteFileBytes(path, out);
 }
 
-bool OutputsAreUpToDate(const OutputStamp& stamp, std::string_view fingerprint,
-                        const std::filesystem::path& outputDir) {
+bool AreOutputsUpToDate(const OutputStamp& stamp, std::string_view fingerprint,
+                        const std::filesystem::path& output_dir) {
   if (stamp.fingerprint != fingerprint)
     return false;
   if (stamp.outputs.empty())
@@ -126,7 +126,7 @@ bool OutputsAreUpToDate(const OutputStamp& stamp, std::string_view fingerprint,
 
   for (const auto& name : stamp.outputs) {
     std::error_code ec;
-    if (!std::filesystem::exists(outputDir / name, ec))
+    if (!std::filesystem::exists(output_dir / name, ec))
       return false;
   }
   return true;

@@ -19,7 +19,7 @@ namespace {
 constexpr u32 kSyntheticOrdinal = UINT32_MAX;
 
 rex::Error NotConnected() {
-  return BuildError(HIDError::NotConnected, "no device answers for the user");
+  return BuildError(HIDError::kNotConnected, "no device answers for the user");
 }
 
 u32 ButtonBit(MouseButton button) {
@@ -418,11 +418,11 @@ Result<X_INPUT_KEYSTROKE> Hub::GetKeystroke(u32 user, u32 flags) {
       keystroke->user_index = static_cast<u8>(user);
       return keystroke;
     }
-    if (CodeOf(keystroke.error()) != HIDError::NotConnected) {
+    if (CodeOf(keystroke.error()) != HIDError::kNotConnected) {
       any_connected = true;
     }
   }
-  return std::unexpected(any_connected ? BuildError(HIDError::Empty, "no keystroke is queued")
+  return std::unexpected(any_connected ? BuildError(HIDError::kEmpty, "no keystroke is queued")
                                        : NotConnected());
 }
 
@@ -433,13 +433,13 @@ void Hub::SetConnectionListener(rex::MoveOnlyFunction<void(u32, bool)> listener)
 
 void Hub::SetHost(IInputHost* host) {
   IInputHost* old = host_.load(std::memory_order_acquire);
-  if (old && old != host && applied_mode_ != PointerMode::Free) {
-    old->ApplyPointerMode(PointerMode::Free);
+  if (old && old != host && applied_mode_ != PointerMode::kFree) {
+    old->ApplyPointerMode(PointerMode::kFree);
   }
-  applied_mode_ = PointerMode::Free;
+  applied_mode_ = PointerMode::kFree;
   relative_ = false;
   host_.store(host, std::memory_order_release);
-  capture_.store(!host || host->capture_active(), std::memory_order_relaxed);
+  capture_.store(!host || host->GetCaptureActive(), std::memory_order_relaxed);
   {
     std::lock_guard lock(mutex_);
     for (auto& driver : drivers_) {
@@ -452,36 +452,36 @@ void Hub::SetHost(IInputHost* host) {
 void Hub::OnEvent(const InputEvent& event) {
   InputEvent forwarded = event;
   switch (event.kind) {
-    case InputEvent::Kind::KeyDown:
+    case InputEvent::Kind::kKeyDown:
       SetKey(event.key, true);
       break;
-    case InputEvent::Kind::KeyUp:
+    case InputEvent::Kind::kKeyUp:
       SetKey(event.key, false);
       break;
-    case InputEvent::Kind::ButtonDown:
+    case InputEvent::Kind::kButtonDown:
       buttons_.fetch_or(ButtonBit(event.button), std::memory_order_relaxed);
       break;
-    case InputEvent::Kind::ButtonUp:
+    case InputEvent::Kind::kButtonUp:
       buttons_.fetch_and(~ButtonBit(event.button), std::memory_order_relaxed);
       break;
-    case InputEvent::Kind::Motion:
+    case InputEvent::Kind::kMotion:
       TrackCapture();
       forwarded = TrackMotion(event);
       break;
-    case InputEvent::Kind::Wheel:
+    case InputEvent::Kind::kWheel:
       wheel_accum_.fetch_add(event.wheel, std::memory_order_relaxed);
       break;
-    case InputEvent::Kind::FocusGained:
+    case InputEvent::Kind::kFocusGained:
       focused_.store(true, std::memory_order_relaxed);
       break;
-    case InputEvent::Kind::FocusLost:
+    case InputEvent::Kind::kFocusLost:
       ResetOnFocusLoss();
       break;
-    case InputEvent::Kind::Resize:
+    case InputEvent::Kind::kResize:
       width_.store(event.width, std::memory_order_relaxed);
       height_.store(event.height, std::memory_order_relaxed);
       break;
-    case InputEvent::Kind::KeyChar:
+    case InputEvent::Kind::kKeyChar:
       break;
   }
   {
@@ -490,7 +490,7 @@ void Hub::OnEvent(const InputEvent& event) {
       driver->OnEvent(forwarded);
     }
   }
-  if (event.kind == InputEvent::Kind::FocusGained || event.kind == InputEvent::Kind::FocusLost) {
+  if (event.kind == InputEvent::Kind::kFocusGained || event.kind == InputEvent::Kind::kFocusLost) {
     ApplyPointerModeFromUIThread();
   }
 }
@@ -510,7 +510,7 @@ void Hub::SetKey(VirtualKey key, bool down) {
 
 InputEvent Hub::TrackMotion(const InputEvent& event) {
   InputEvent out = event;
-  if (applied_mode_ == PointerMode::Locked) {
+  if (applied_mode_ == PointerMode::kLocked) {
     if (!relative_) {
       out.dx = event.x - lock_x_;
       out.dy = event.y - lock_y_;
@@ -563,12 +563,12 @@ void Hub::ResetOnFocusLoss() {
   has_position_.store(false, std::memory_order_relaxed);
 }
 
-PointerMode Hub::EffectiveMode() const {
+PointerMode Hub::GetEffectiveMode() const {
   if (!focused_.load(std::memory_order_relaxed) || !capture_.load(std::memory_order_relaxed)) {
-    return PointerMode::Free;
+    return PointerMode::kFree;
   }
-  if (keyboard_mouse_->wants_pointer_lock()) {
-    return PointerMode::Locked;
+  if (keyboard_mouse_->WantsPointerLock()) {
+    return PointerMode::kLocked;
   }
   return requested_mode_.load(std::memory_order_relaxed);
 }
@@ -578,12 +578,12 @@ void Hub::ApplyPointerModeFromUIThread() {
   if (!host) {
     return;
   }
-  const PointerMode want = EffectiveMode();
+  const PointerMode want = GetEffectiveMode();
   if (want == applied_mode_) {
     return;
   }
   relative_ = host->ApplyPointerMode(want);
-  if (want == PointerMode::Locked) {
+  if (want == PointerMode::kLocked) {
     lock_x_ = x_.load(std::memory_order_relaxed);
     lock_y_ = y_.load(std::memory_order_relaxed);
   }
@@ -608,7 +608,7 @@ void Hub::RefreshPointerMode() {
 
 void Hub::TrackCapture() {
   IInputHost* host = host_.load(std::memory_order_acquire);
-  const bool capture = !host || host->capture_active();
+  const bool capture = !host || host->GetCaptureActive();
   if (capture_.exchange(capture, std::memory_order_relaxed) != capture) {
     RefreshPointerMode();
   }
@@ -619,7 +619,7 @@ void Hub::SetPointerMode(PointerMode mode) {
   RefreshPointerMode();
 }
 
-PointerMode Hub::pointer_mode() const {
+PointerMode Hub::GetPointerMode() const {
   return requested_mode_.load(std::memory_order_relaxed);
 }
 
@@ -631,30 +631,30 @@ bool Hub::IsKeyDown(VirtualKey key) const {
   return (keys_[index >> 6].load(std::memory_order_relaxed) >> (index & 63)) & 1;
 }
 
-bool Hub::AnyKeyDown() const {
+bool Hub::IsAnyKeyDown() const {
   return std::ranges::any_of(keys_,
                              [](const auto& word) { return word.load(std::memory_order_relaxed); });
 }
 
-KeyModifiers Hub::modifiers() const {
-  KeyModifiers mods = KeyModifiers::None;
+KeyModifiers Hub::GetModifiers() const {
+  KeyModifiers mods = KeyModifiers::kNone;
   if (IsKeyDown(VirtualKey::kShift)) {
-    mods |= KeyModifiers::Shift;
+    mods |= KeyModifiers::kShift;
   }
   if (IsKeyDown(VirtualKey::kControl)) {
-    mods |= KeyModifiers::Ctrl;
+    mods |= KeyModifiers::kCtrl;
   }
   if (IsKeyDown(VirtualKey::kMenu)) {
-    mods |= KeyModifiers::Alt;
+    mods |= KeyModifiers::kAlt;
   }
   return mods;
 }
 
-bool Hub::focused() const {
+bool Hub::GetFocused() const {
   return focused_.load(std::memory_order_relaxed);
 }
 
-PointerState Hub::pointer() const {
+PointerState Hub::GetPointer() const {
   return {.x = x_.load(std::memory_order_relaxed),
           .y = y_.load(std::memory_order_relaxed),
           .window_width = width_.load(std::memory_order_relaxed),
@@ -666,7 +666,7 @@ bool Hub::IsButtonDown(MouseButton button) const {
   return (buttons_.load(std::memory_order_relaxed) & ButtonBit(button)) != 0;
 }
 
-bool Hub::AnyButtonDown() const {
+bool Hub::IsAnyButtonDown() const {
   return buttons_.load(std::memory_order_relaxed) != 0;
 }
 
@@ -690,7 +690,7 @@ i32 Hub::TakeWheel() {
   return detents;
 }
 
-i32 Hub::wheel() const {
+i32 Hub::GetWheel() const {
   return wheel_taken_.load(std::memory_order_relaxed);
 }
 

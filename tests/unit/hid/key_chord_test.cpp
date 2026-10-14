@@ -30,7 +30,7 @@ using rex::hid::VirtualKey;
 REX_TEST_CASE("A plain key name parses to a chord with no modifiers", "[key_chord]") {
   auto chord = ParseKeyChord("F3");
   REQUIRE(chord);
-  CHECK(*chord == KeyChord{VirtualKey::kF3, KeyModifiers::None});
+  CHECK(*chord == KeyChord{VirtualKey::kF3, KeyModifiers::kNone});
 }
 
 REX_TEST_CASE("Modifier prefixes parse in every order", "[key_chord]") {
@@ -41,8 +41,8 @@ REX_TEST_CASE("Modifier prefixes parse in every order", "[key_chord]") {
     INFO(text);
     auto chord = ParseKeyChord(text);
     REQUIRE(chord);
-    CHECK(*chord ==
-          KeyChord{VirtualKey::kK, KeyModifiers::Shift | KeyModifiers::Ctrl | KeyModifiers::Alt});
+    CHECK(*chord == KeyChord{VirtualKey::kK,
+                             KeyModifiers::kShift | KeyModifiers::kCtrl | KeyModifiers::kAlt});
   }
 }
 
@@ -59,7 +59,7 @@ REX_TEST_CASE("Mouse button names parse with and without modifiers", "[key_chord
   CHECK(*ParseKeyChord("LMB") == KeyChord{VirtualKey::kLButton});
   CHECK(*ParseKeyChord("RMB") == KeyChord{VirtualKey::kRButton});
   CHECK(*ParseKeyChord("MMB") == KeyChord{VirtualKey::kMButton});
-  CHECK(*ParseKeyChord("Shift+LMB") == KeyChord{VirtualKey::kLButton, KeyModifiers::Shift});
+  CHECK(*ParseKeyChord("Shift+LMB") == KeyChord{VirtualKey::kLButton, KeyModifiers::kShift});
 }
 
 REX_TEST_CASE("Wheel names parse with modifiers and round trip", "[key_chord]") {
@@ -67,9 +67,9 @@ REX_TEST_CASE("Wheel names parse with modifiers and round trip", "[key_chord]") 
   CHECK(*ParseKeyChord("WheelDown") == KeyChord{VirtualKey::kWheelDown});
   auto chord = ParseKeyChord("Ctrl+WheelUp");
   REQUIRE(chord);
-  CHECK(*chord == KeyChord{VirtualKey::kWheelUp, KeyModifiers::Ctrl});
+  CHECK(*chord == KeyChord{VirtualKey::kWheelUp, KeyModifiers::kCtrl});
   CHECK(KeyChordToString(*chord) == "Ctrl+WheelUp");
-  CHECK(KeyChordToString({VirtualKey::kWheelDown, KeyModifiers::Shift}) == "Shift+WheelDown");
+  CHECK(KeyChordToString({VirtualKey::kWheelDown, KeyModifiers::kShift}) == "Shift+WheelDown");
 }
 
 REX_TEST_CASE("An empty string is the unbound chord", "[key_chord]") {
@@ -94,7 +94,7 @@ REX_TEST_CASE("Unknown names and malformed shapes are config errors naming the t
     INFO(text);
     auto chord = ParseKeyChord(text);
     REQUIRE_FALSE(chord);
-    CHECK(chord.error().category == rex::ErrorCategory::Config);
+    CHECK(chord.error().category == rex::ErrorCategory::kConfig);
     CHECK(chord.error().message.find(text) != std::string::npos);
   }
 }
@@ -106,16 +106,16 @@ REX_TEST_CASE("A bare modifier is an error", "[key_chord]") {
     INFO(text);
     auto chord = ParseKeyChord(text);
     REQUIRE_FALSE(chord);
-    CHECK(chord.error().category == rex::ErrorCategory::Config);
+    CHECK(chord.error().category == rex::ErrorCategory::kConfig);
   }
 }
 
 REX_TEST_CASE("Chords format with modifiers in the order Shift, Ctrl, Alt", "[key_chord]") {
-  const KeyModifiers all = KeyModifiers::Alt | KeyModifiers::Ctrl | KeyModifiers::Shift;
+  const KeyModifiers all = KeyModifiers::kAlt | KeyModifiers::kCtrl | KeyModifiers::kShift;
   CHECK(KeyChordToString({VirtualKey::kK, all}) == "Shift+Ctrl+Alt+K");
-  CHECK(KeyChordToString({VirtualKey::kK, KeyModifiers::Alt | KeyModifiers::Shift}) ==
+  CHECK(KeyChordToString({VirtualKey::kK, KeyModifiers::kAlt | KeyModifiers::kShift}) ==
         "Shift+Alt+K");
-  CHECK(KeyChordToString({VirtualKey::kF4, KeyModifiers::Alt}) == "Alt+F4");
+  CHECK(KeyChordToString({VirtualKey::kF4, KeyModifiers::kAlt}) == "Alt+F4");
 }
 
 REX_TEST_CASE("Chord text round trips", "[key_chord]") {
@@ -131,17 +131,17 @@ REX_TEST_CASE("Chord text round trips", "[key_chord]") {
 }
 
 REX_TEST_CASE("A chord whose key has no name formats as empty", "[key_chord]") {
-  CHECK(KeyChordToString({VirtualKey::kXInputPadA, KeyModifiers::Shift}).empty());
-  CHECK(KeyChordToString({VirtualKey::kNone, KeyModifiers::Ctrl}).empty());
+  CHECK(KeyChordToString({VirtualKey::kXInputPadA, KeyModifiers::kShift}).empty());
+  CHECK(KeyChordToString({VirtualKey::kNone, KeyModifiers::kCtrl}).empty());
 }
 
 REX_TEST_CASE("Lists split on commas and trim spaces and tabs", "[key_chord]") {
   auto list = ParseKeyChordList(" Shift+W , A\t,,Ctrl+X ,");
   REQUIRE(list);
   REQUIRE(list->size() == 3);
-  CHECK((*list)[0] == KeyChord{VirtualKey::kW, KeyModifiers::Shift});
+  CHECK((*list)[0] == KeyChord{VirtualKey::kW, KeyModifiers::kShift});
   CHECK((*list)[1] == KeyChord{VirtualKey::kA});
-  CHECK((*list)[2] == KeyChord{VirtualKey::kX, KeyModifiers::Ctrl});
+  CHECK((*list)[2] == KeyChord{VirtualKey::kX, KeyModifiers::kCtrl});
 
   auto pair = ParseKeyChordList("Q,I");
   REQUIRE(pair);
@@ -158,7 +158,7 @@ REX_TEST_CASE("Lists split on commas and trim spaces and tabs", "[key_chord]") {
 REX_TEST_CASE("A bad list item fails the whole list", "[key_chord]") {
   auto list = ParseKeyChordList("A,NoSuchKey,B");
   REQUIRE_FALSE(list);
-  CHECK(list.error().category == rex::ErrorCategory::Config);
+  CHECK(list.error().category == rex::ErrorCategory::kConfig);
   CHECK(list.error().message.find("NoSuchKey") != std::string::npos);
   CHECK_FALSE(ParseKeyChordList("A,Shift"));
 }
@@ -166,22 +166,22 @@ REX_TEST_CASE("A bad list item fails the whole list", "[key_chord]") {
 REX_TEST_CASE("Every hid.keybind default value parses", "[key_chord]") {
   rex::u32 checked = 0;
   for (const rex::cvar::IVar* var : rex::hid::cvars::kHIDCvars) {
-    if (!var->desc().name.starts_with("hid.keybind_")) {
+    if (!var->GetDesc().name.starts_with("hid.keybind_")) {
       continue;
     }
-    INFO(var->desc().name);
-    CHECK(ParseKeyChordList(var->DefaultText()));
+    INFO(var->GetDesc().name);
+    CHECK(ParseKeyChordList(var->GetDefaultText()));
     ++checked;
   }
   CHECK(checked == 25);
 
-  auto a = ParseKeyChordList(rex::hid::cvars::keybind_a.DefaultText());
+  auto a = ParseKeyChordList(rex::hid::cvars::keybind_a.GetDefaultText());
   REQUIRE(a);
   CHECK(*a == std::vector<KeyChord>{{VirtualKey::kOem1}, {VirtualKey::kSpace}});
-  auto dpad_up = ParseKeyChordList(rex::hid::cvars::keybind_dpad_up.DefaultText());
+  auto dpad_up = ParseKeyChordList(rex::hid::cvars::keybind_dpad_up.GetDefaultText());
   REQUIRE(dpad_up);
-  CHECK(*dpad_up == std::vector<KeyChord>{{VirtualKey::kUp, KeyModifiers::Shift}});
-  auto guide = ParseKeyChordList(rex::hid::cvars::keybind_guide.DefaultText());
+  CHECK(*dpad_up == std::vector<KeyChord>{{VirtualKey::kUp, KeyModifiers::kShift}});
+  auto guide = ParseKeyChordList(rex::hid::cvars::keybind_guide.GetDefaultText());
   REQUIRE(guide);
   CHECK(guide->empty());
 }

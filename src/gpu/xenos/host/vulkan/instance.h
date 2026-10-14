@@ -49,7 +49,7 @@ class VulkanInstance : public rex::NonCopyable {
    *
    * @return The API, or nullptr when RenderDoc is not connected.
    */
-  RenderDocAPI* renderdoc_api() const { return renderdoc_api_.get(); }
+  RenderDocAPI* GetRenderdocAPI() const { return renderdoc_api_.get(); }
 
   struct Functions {
     // From the loader module.
@@ -99,9 +99,9 @@ class VulkanInstance : public rex::NonCopyable {
 #undef REX_VK_FUNCTION
   };
 
-  const Functions& functions() const { return functions_; }
+  const Functions& GetFunctions() const { return functions_; }
 
-  u32 api_version() const { return api_version_; }
+  u32 GetAPIVersion() const { return api_version_; }
 
   /**
    * Enabled instance extensions.
@@ -131,9 +131,9 @@ class VulkanInstance : public rex::NonCopyable {
     bool ext_KHR_portability_enumeration = false;
   };
 
-  const Extensions& extensions() const { return extensions_; }
+  const Extensions& GetExtensions() const { return extensions_; }
 
-  VkInstance instance() const { return instance_; }
+  VkInstance GetInstance() const { return instance_; }
 
   void EnumeratePhysicalDevices(std::vector<VkPhysicalDevice>& physical_devices_out) const;
 

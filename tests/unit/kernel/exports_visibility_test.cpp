@@ -23,8 +23,8 @@ namespace {
 using rex::runtime::ExportKind;
 using rex::runtime::ExportModule;
 
-constexpr std::array<ExportModule, 3> kModules = {ExportModule::Xboxkrnl, ExportModule::XAM,
-                                                  ExportModule::XBDM};
+constexpr std::array<ExportModule, 3> kModules = {ExportModule::kXboxkrnl, ExportModule::kXAM,
+                                                  ExportModule::kXBDM};
 
 rex::platform::DynamicLibrary OpenRuntime() {
   rex::platform::DynamicLibrary library;
@@ -39,7 +39,7 @@ REX_TEST_CASE("The runtime exports every function row of the export tables", "[e
   rex::u32 resolved = 0;
   for (const auto module : kModules) {
     for (const auto& entry : rex::runtime::Exports(module)) {
-      if (entry.kind != ExportKind::Function) {
+      if (entry.kind != ExportKind::kFunction) {
         continue;
       }
       const std::string symbol = "__imp__" + std::string(entry.name);

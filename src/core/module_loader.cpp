@@ -43,7 +43,7 @@ bool SplitRequirement(std::string_view text, std::string& name, u32& version) {
 }  // namespace
 
 void* GetCvarRegistry() {
-  return static_cast<rex::cvar::ICvarRegistry*>(&ModuleLoader::Instance().cvars());
+  return static_cast<rex::cvar::ICvarRegistry*>(&ModuleLoader::GetInstance().GetCvars());
 }
 
 constexpr std::array<InterfaceEntry, 2> kCoreInterfaces = {{
@@ -76,17 +76,17 @@ std::filesystem::path ModuleFileName(std::string_view name) {
 #endif
 }
 
-u64 InterfaceRequestCount() {
-  return ModuleLoader::Instance().request_count();
+u64 GetInterfaceRequestCount() {
+  return ModuleLoader::GetInstance().GetRequestCount();
 }
 
-ModuleLoader& ModuleLoader::Instance() {
+ModuleLoader& ModuleLoader::GetInstance() {
   static ModuleLoader instance;
   return instance;
 }
 
 Error ModuleLoader::ModuleError(std::string message) {
-  REX_FAIL(core, Error(ErrorCategory::Module, std::move(message)), "{}", message);
+  REX_FAIL(core, Error(ErrorCategory::kModule, std::move(message)), "{}", message);
 }
 
 Result<API*> ModuleLoader::Connect(const Config& config) {
@@ -183,7 +183,7 @@ Result<void> ModuleLoader::LoadAll() {
     }
     if (!entry.library.Load(path, platform::SymbolResolution::kImmediate)) {
       return Err(ModuleError(std::format("module '{}' failed to load from '{}': {}", name,
-                                         path.string(), entry.library.last_error())));
+                                         path.string(), entry.library.GetLastError())));
     }
     auto create = entry.library.GetSymbol<CreateInterfaceFn>(kCreateInterfaceSymbol);
     if (!create) {
@@ -236,7 +236,7 @@ Result<void> ModuleLoader::BuildRegistry() {
 
 Result<void> ModuleLoader::CheckRequirements() const {
   for (size_t i = 0; i < loaded_.size(); ++i) {
-    for (const char* requirement : loaded_[i].module->RequiredInterfaces()) {
+    for (const char* requirement : loaded_[i].module->GetRequiredInterfaces()) {
       std::string name;
       u32 version = 0;
       if (!SplitRequirement(requirement, name, version)) {
@@ -265,8 +265,8 @@ Result<void> ModuleLoader::ConnectAll() {
   for (auto& entry : loaded_) {
     auto status = entry.module->Connect(this, config_);
     if (!status) {
-      return Err(ModuleError(
-          std::format("module '{}' Connect failed: {}", entry.name, status.error().what())));
+      return Err(ModuleError(std::format("module '{}' Connect failed: {}", entry.name,
+                                         status.error().GetDescription())));
     }
     entry.connected = true;
   }
@@ -278,7 +278,7 @@ Result<void> ModuleLoader::InitAll() {
     auto status = entry.module->Init();
     if (!status) {
       return Err(ModuleError(
-          std::format("module '{}' Init failed: {}", entry.name, status.error().what())));
+          std::format("module '{}' Init failed: {}", entry.name, status.error().GetDescription())));
     }
     entry.initialized = true;
   }
@@ -328,7 +328,7 @@ Result<void> ModuleLoader::RegisterConsumerTables() {
   for (const CvarTable& table : config_.cvars.tables) {
     if (auto status = cvars_->Register(table.scope, table.vars); !status) {
       auto message = std::format("consumer table '{}': {}", table.scope, status.error().message);
-      REX_FAIL(core, Err(Error(ErrorCategory::Config, std::move(message), status.error().code)),
+      REX_FAIL(core, Err(Error(ErrorCategory::kConfig, std::move(message), status.error().code)),
                "{}", message);
     }
     ++consumer_tables_registered_;
@@ -343,11 +343,11 @@ Result<void> ModuleLoader::ApplyCvarValues() {
   }
   std::vector<std::string> hard;
   for (const CvarOverride& o : *unknown) {
-    const char* source = o.source == cvar::CvarSource::Default       ? "Default"
-                         : o.source == cvar::CvarSource::Config      ? "Config"
-                         : o.source == cvar::CvarSource::Environment ? "Environment"
-                                                                     : "CommandLine";
-    if (o.source == cvar::CvarSource::Config || o.source == cvar::CvarSource::Environment) {
+    const char* source = o.source == cvar::CvarSource::kDefault       ? "Default"
+                         : o.source == cvar::CvarSource::kConfig      ? "Config"
+                         : o.source == cvar::CvarSource::kEnvironment ? "Environment"
+                                                                      : "CommandLine";
+    if (o.source == cvar::CvarSource::kConfig || o.source == cvar::CvarSource::kEnvironment) {
       REXLOG_WARN(core, "unknown cvar '{}' from {}", o.name, source);
     } else {
       hard.push_back(std::format("unknown cvar '{}' from {}", o.name, source));
@@ -361,7 +361,7 @@ Result<void> ModuleLoader::ApplyCvarValues() {
     std::string message;
     for (size_t i = 0; i < hard.size(); ++i)
       message += (i ? ", " : "") + hard[i];
-    REX_FAIL(core, Err(Error(ErrorCategory::Config, std::move(message))), "{}", message);
+    REX_FAIL(core, Err(Error(ErrorCategory::kConfig, std::move(message))), "{}", message);
   }
   if (auto status = cvars_->ApplyLocks(config_.cvars.locked); !status) {
     return Err(status.error());
@@ -378,7 +378,7 @@ void ModuleLoader::UnregisterTables() {
     cvars_->Unregister(config_.cvars.tables[i - 1].vars);
   }
   consumer_tables_registered_ = 0;
-  for (const std::string& name : cvars_->RegisteredNames()) {
+  for (const std::string& name : cvars_->GetRegisteredNames()) {
     REXLOG_WARN(core, "cvar '{}' was still registered at Shutdown", name);
   }
   cvars_->Reset();
@@ -392,14 +392,14 @@ Result<void*> ModuleLoader::Get(std::string_view name, u32 version) {
     }
     if (reg.version != version) {
       return Err<void*>(
-          Error(ErrorCategory::Module,
+          Error(ErrorCategory::kModule,
                 std::format("{} is served at version {}, not {}", name, reg.version, version),
-                std::to_underlying(InterfaceStatus::VersionMismatch)));
+                std::to_underlying(InterfaceStatus::kVersionMismatch)));
     }
     return reg.get();
   }
-  return Err<void*>(Error(ErrorCategory::Module, std::format("{}@{} is not served", name, version),
-                          std::to_underlying(InterfaceStatus::NotFound)));
+  return Err<void*>(Error(ErrorCategory::kModule, std::format("{}@{} is not served", name, version),
+                          std::to_underlying(InterfaceStatus::kNotFound)));
 }
 
 void* ModuleLoader::GetForAPI(const char* name, u32 version) const {

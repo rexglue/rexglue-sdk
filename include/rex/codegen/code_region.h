@@ -21,8 +21,8 @@ struct CodeRegion {
   u32 start; /**< First address of the range */
   u32 end;   /**< Address 1 past the range */
 
-  bool contains(u32 addr) const { return addr >= start && addr < end; }
-  u32 size() const { return end - start; }
+  bool Contains(u32 addr) const { return addr >= start && addr < end; }
+  u32 GetSize() const { return end - start; }
 };
 
 }  // namespace rex::codegen

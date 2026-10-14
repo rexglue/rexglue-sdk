@@ -62,16 +62,16 @@ rex::platform::WaitHandle* HandleOf(ObjectData& data) {
 
 WaitTarget Resolve(Runtime& runtime, X_HANDLE handle) {
   WaitTarget target;
-  target.slot = runtime.object_table().Get(handle);
+  target.slot = runtime.GetObjectTable().Get(handle);
   if (!target.slot) {
     return target;
   }
-  if (auto* ref = std::get_if<ThreadRef>(&target.slot.data())) {
-    target.thread = runtime.thread_registry().Find(ref->thread_id);
-    target.handle = target.thread ? target.thread->thread() : nullptr;
+  if (auto* ref = std::get_if<ThreadRef>(&target.slot.GetData())) {
+    target.thread = runtime.GetThreadRegistry().Find(ref->thread_id);
+    target.handle = target.thread ? target.thread->GetThread() : nullptr;
   } else {
-    target.handle = HandleOf(target.slot.data());
-    target.mutant = std::get_if<MutantObject>(&target.slot.data());
+    target.handle = HandleOf(target.slot.GetData());
+    target.mutant = std::get_if<MutantObject>(&target.slot.GetData());
   }
   return target;
 }
@@ -143,7 +143,7 @@ rex::platform::WaitResult WaitHostObject(rex::platform::WaitHandle* handle,
 rex::platform::WaitResult WaitHostSockets(std::span<const rex::platform::SocketWait> sockets,
                                           std::chrono::milliseconds timeout) {
   return WaitGuest(
-      0, timeout, [sockets](auto left) { return rex::platform::socket_wait(sockets, true, left); },
+      0, timeout, [sockets](auto left) { return rex::platform::WaitSockets(sockets, true, left); },
       IsCallback);
 }
 

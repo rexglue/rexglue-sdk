@@ -37,11 +37,11 @@ using namespace rex::runtime;
 
 namespace {
 
-auto XamModule() {
-  auto& runtime = runtime::Current();
-  REX_ASSERT(runtime.module_registry().IsKernel("xam.xex"));
-  return runtime.object_table().Get<ModuleObject>(
-      runtime.module_registry().FindKernel("xam.xex").value_or(0));
+auto GetXAMModule() {
+  auto& runtime = runtime::GetCurrent();
+  REX_ASSERT(runtime.GetModuleRegistry().IsKernel("xam.xex"));
+  return runtime.GetObjectTable().Get<ModuleObject>(
+      runtime.GetModuleRegistry().FindKernel("xam.xex").value_or(0));
 }
 
 }  // namespace
@@ -66,9 +66,10 @@ u32 XamGetOnlineSchema_entry() {
   static u32 schema_guest = 0;
 
   if (!schema_guest) {
-    schema_guest =
-        runtime::Current().memory()->SystemHeapAlloc(sizeof(XAM_SCHEMA_INFO) + sizeof(schema_bin));
-    auto* info = runtime::Current().memory()->TranslateVirtual<XAM_SCHEMA_INFO*>(schema_guest);
+    schema_guest = runtime::GetCurrent().GetMemory()->SystemHeapAlloc(sizeof(XAM_SCHEMA_INFO) +
+                                                                      sizeof(schema_bin));
+    auto* info =
+        runtime::GetCurrent().GetMemory()->TranslateVirtual<XAM_SCHEMA_INFO*>(schema_guest);
     std::memcpy(info + 1, schema_bin, sizeof(schema_bin));
     info->data_ptr = schema_guest + sizeof(XAM_SCHEMA_INFO);
     info->size = static_cast<u32>(sizeof(schema_bin));
@@ -113,67 +114,66 @@ static LocalDateTime ToLocalDateTime(u64 filetime) {
 #endif
 }
 
-void XamFormatDateString_entry([[maybe_unused]] u32 unk, u64 filetime, mapped_void output_buffer,
+void XamFormatDateString_entry([[maybe_unused]] u32 unk, u64 filetime, MappedVoid output_buffer,
                                u32 output_count) {
   std::memset(output_buffer, 0, output_count * sizeof(char16_t));
 
   const LocalDateTime local = ToLocalDateTime(filetime);
-  auto str = rex::to_utf16(std::format("{:02d}/{:02d}/{}", local.month, local.day, local.year));
-  rex::copy_and_swap_truncating(output_buffer.as<char16_t*>(), str, output_count);
+  auto str = rex::ToUTF16(std::format("{:02d}/{:02d}/{}", local.month, local.day, local.year));
+  rex::copy_and_swap_truncating(output_buffer.As<char16_t*>(), str, output_count);
 }
 
-void XamFormatTimeString_entry([[maybe_unused]] u32 unk, u64 filetime, mapped_void output_buffer,
+void XamFormatTimeString_entry([[maybe_unused]] u32 unk, u64 filetime, MappedVoid output_buffer,
                                u32 output_count) {
   std::memset(output_buffer, 0, output_count * sizeof(char16_t));
 
   const LocalDateTime local = ToLocalDateTime(filetime);
-  auto str = rex::to_utf16(std::format("{:02d}:{:02d}", local.hour, local.minute));
-  rex::copy_and_swap_truncating(output_buffer.as<char16_t*>(), str, output_count);
+  auto str = rex::ToUTF16(std::format("{:02d}:{:02d}", local.hour, local.minute));
+  rex::copy_and_swap_truncating(output_buffer.As<char16_t*>(), str, output_count);
 }
 
-u32 keXamBuildResourceLocator(u64 module, std::u16string_view container,
-                              std::u16string_view resource, mapped_void buffer_ptr,
-                              u32 buffer_count) {
+u32 BuildResourceLocator(u64 module, std::u16string_view container, std::u16string_view resource,
+                         MappedVoid buffer_ptr, u32 buffer_count) {
   std::u16string path;
   if (!module) {
-    path = rex::to_utf16(
-        std::format("file://media:/{}.xzp#{}", rex::to_utf8(container), rex::to_utf8(resource)));
+    path = rex::ToUTF16(
+        std::format("file://media:/{}.xzp#{}", rex::ToUTF8(container), rex::ToUTF8(resource)));
     REXLOG_DEBUG(kernel, "XamBuildResourceLocator({0}) returning locator to local file {0}.xzp",
-                 rex::to_utf8(container));
+                 rex::ToUTF8(container));
   } else {
-    path = rex::to_utf16(std::format("section://{:X},{}#{}", static_cast<u32>(module),
-                                     rex::to_utf8(container), rex::to_utf8(resource)));
+    path = rex::ToUTF16(std::format("section://{:X},{}#{}", static_cast<u32>(module),
+                                    rex::ToUTF8(container), rex::ToUTF8(resource)));
   }
-  rex::copy_and_swap_truncating(buffer_ptr.as<char16_t*>(), path, buffer_count);
+  rex::copy_and_swap_truncating(buffer_ptr.As<char16_t*>(), path, buffer_count);
   return 0;
 }
 
-u32 XamBuildResourceLocator_entry(u64 module, mapped_wstring container, mapped_wstring resource,
-                                  mapped_void buffer_ptr, u32 buffer_count) {
-  return keXamBuildResourceLocator(module, container.value(), resource.value(), buffer_ptr,
-                                   buffer_count);
+u32 XamBuildResourceLocator_entry(u64 module, MappedWString container, MappedWString resource,
+                                  MappedVoid buffer_ptr, u32 buffer_count) {
+  return BuildResourceLocator(module, container.GetValue(), resource.GetValue(), buffer_ptr,
+                              buffer_count);
 }
 
-u32 XamBuildGamercardResourceLocator_entry(mapped_wstring filename, mapped_void buffer_ptr,
+u32 XamBuildGamercardResourceLocator_entry(MappedWString filename, MappedVoid buffer_ptr,
                                            u32 buffer_count) {
   // Resources resolve to local .xzp files extracted from xam.xex.
 
-  return keXamBuildResourceLocator(0, u"gamercrd", filename.value(), buffer_ptr, buffer_count);
+  return BuildResourceLocator(0, u"gamercrd", filename.GetValue(), buffer_ptr, buffer_count);
 }
 
-u32 XamBuildSharedSystemResourceLocator_entry(mapped_wstring filename, mapped_void buffer_ptr,
+u32 XamBuildSharedSystemResourceLocator_entry(MappedWString filename, MappedVoid buffer_ptr,
                                               u32 buffer_count) {
-  return keXamBuildResourceLocator(0, u"shrdres", filename.value(), buffer_ptr, buffer_count);
+  return BuildResourceLocator(0, u"shrdres", filename.GetValue(), buffer_ptr, buffer_count);
 }
 
-u32 XamBuildLegacySystemResourceLocator_entry(mapped_wstring filename, mapped_void buffer_ptr,
+u32 XamBuildLegacySystemResourceLocator_entry(MappedWString filename, MappedVoid buffer_ptr,
                                               u32 buffer_count) {
   return XamBuildSharedSystemResourceLocator_entry(filename, buffer_ptr, buffer_count);
 }
 
-u32 XamBuildXamResourceLocator_entry(mapped_wstring filename, mapped_void buffer_ptr,
+u32 XamBuildXamResourceLocator_entry(MappedWString filename, MappedVoid buffer_ptr,
                                      u32 buffer_count) {
-  return keXamBuildResourceLocator(0, u"xam", filename.value(), buffer_ptr, buffer_count);
+  return BuildResourceLocator(0, u"xam", filename.GetValue(), buffer_ptr, buffer_count);
 }
 
 u32 XamGetSystemVersion_entry() {
@@ -200,10 +200,10 @@ u32 XGetGameRegion_entry() {
 u32 XGetLanguage_entry() {
   auto desired_language = XLanguage::kEnglish;
 
-  u32 game_region = filesystem::XEX_REGION_NTSCU;
-  if (game_region & filesystem::XEX_REGION_NTSCU) {
+  u32 game_region = filesystem::kXEXRegionNTSCU;
+  if (game_region & filesystem::kXEXRegionNTSCU) {
     desired_language = XLanguage::kEnglish;
-  } else if (game_region & filesystem::XEX_REGION_NTSCJ) {
+  } else if (game_region & filesystem::kXEXRegionNTSCJ) {
     desired_language = XLanguage::kJapanese;
   }
 
@@ -211,21 +211,21 @@ u32 XGetLanguage_entry() {
 }
 
 u32 XamGetCurrentTitleId_entry() {
-  auto module = runtime::Current().object_table().Get<ModuleObject>(
-      runtime::Current().module_registry().executable().value_or(0));
+  auto module = runtime::GetCurrent().GetObjectTable().Get<ModuleObject>(
+      runtime::GetCurrent().GetModuleRegistry().GetExecutable().value_or(0));
   if (module) {
-    return module->title_id();
+    return module->GetTitleId();
   }
   return 0;
 }
 
-u32 XamGetExecutionId_entry(mapped_u32 info_ptr) {
-  auto module = runtime::Current().object_table().Get<ModuleObject>(
-      runtime::Current().module_registry().executable().value_or(0));
+u32 XamGetExecutionId_entry(MappedU32 info_ptr) {
+  auto module = runtime::GetCurrent().GetObjectTable().Get<ModuleObject>(
+      runtime::GetCurrent().GetModuleRegistry().GetExecutable().value_or(0));
   REX_ASSERT(module);
 
   u32 guest_hdr_ptr;
-  X_STATUS result = module->OptHeader(filesystem::XEX_HEADER_EXECUTION_INFO, &guest_hdr_ptr);
+  X_STATUS result = module->OptHeader(filesystem::kXEXHeaderExecutionInfo, &guest_hdr_ptr);
 
   if (XFAILED(result)) {
     return result;
@@ -235,8 +235,8 @@ u32 XamGetExecutionId_entry(mapped_u32 info_ptr) {
   return X_STATUS_SUCCESS;
 }
 
-u32 XamLoaderSetLaunchData_entry(mapped_void data, u32 size) {
-  auto xam = XamModule();
+u32 XamLoaderSetLaunchData_entry(MappedVoid data, u32 size) {
+  auto xam = GetXAMModule();
   auto& loader_data = xam->kernel.loader_data;
   loader_data.launch_data_present = size ? true : false;
   loader_data.launch_data.resize(size);
@@ -244,12 +244,12 @@ u32 XamLoaderSetLaunchData_entry(mapped_void data, u32 size) {
   return 0;
 }
 
-u32 XamLoaderGetLaunchDataSize_entry(mapped_u32 size_ptr) {
+u32 XamLoaderGetLaunchDataSize_entry(MappedU32 size_ptr) {
   if (!size_ptr) {
     return X_ERROR_INVALID_PARAMETER;
   }
 
-  auto xam = XamModule();
+  auto xam = GetXAMModule();
   auto& loader_data = xam->kernel.loader_data;
   if (!loader_data.launch_data_present) {
     *size_ptr = 0;
@@ -260,8 +260,8 @@ u32 XamLoaderGetLaunchDataSize_entry(mapped_u32 size_ptr) {
   return X_ERROR_SUCCESS;
 }
 
-u32 XamLoaderGetLaunchData_entry(mapped_void buffer_ptr, u32 buffer_size) {
-  auto xam = XamModule();
+u32 XamLoaderGetLaunchData_entry(MappedVoid buffer_ptr, u32 buffer_size) {
+  auto xam = GetXAMModule();
   auto& loader_data = xam->kernel.loader_data;
   if (!loader_data.launch_data_present) {
     return X_ERROR_NOT_FOUND;
@@ -272,21 +272,21 @@ u32 XamLoaderGetLaunchData_entry(mapped_void buffer_ptr, u32 buffer_size) {
   return X_ERROR_SUCCESS;
 }
 
-void XamLoaderLaunchTitle_entry(mapped_string raw_name_ptr, u32 flags) {
+void XamLoaderLaunchTitle_entry(MappedString raw_name_ptr, u32 flags) {
   {
-    auto xam = XamModule();
+    auto xam = GetXAMModule();
 
     auto& loader_data = xam->kernel.loader_data;
     loader_data.launch_flags = flags;
 
     if (raw_name_ptr) {
-      std::string path(raw_name_ptr.value());
+      std::string path(raw_name_ptr.GetValue());
       if (path.empty()) {
         loader_data.launch_path = "game:\\default.xex";
       } else {
         if (rex::utf8_find_name_from_guest_path(path) == path) {
-          auto executable = runtime::Current().object_table().Get<ModuleObject>(
-              runtime::Current().module_registry().executable().value_or(0));
+          auto executable = runtime::GetCurrent().GetObjectTable().Get<ModuleObject>(
+              runtime::GetCurrent().GetModuleRegistry().GetExecutable().value_or(0));
           path = rex::utf8_join_guest_paths(rex::utf8_find_base_guest_path(executable->path), path);
         }
         loader_data.launch_path = path;
@@ -297,18 +297,18 @@ void XamLoaderLaunchTitle_entry(mapped_string raw_name_ptr, u32 flags) {
   }
 
   // This function does not return.
-  runtime::Current().TerminateTitle();
+  runtime::GetCurrent().TerminateTitle();
 }
 
 void XamLoaderTerminateTitle_entry() {
   // This function does not return.
-  runtime::Current().TerminateTitle();
+  runtime::GetCurrent().TerminateTitle();
 }
 
-u32 XamAlloc_entry(u32 unk, u32 size, mapped_u32 out_ptr) {
+u32 XamAlloc_entry(u32 unk, u32 size, MappedU32 out_ptr) {
   REX_ASSERT(unk == 0);
 
-  Result<u32> address = runtime::Current().workspace().Alloc(size);
+  Result<u32> address = runtime::GetCurrent().GetWorkspace().Alloc(size);
   if (!address) {
     REXLOG_WARN(kernel, "XamAlloc: the title workspace has no room for {:#x} bytes, flags {:#010x}",
                 size, unk);
@@ -319,18 +319,18 @@ u32 XamAlloc_entry(u32 unk, u32 size, mapped_u32 out_ptr) {
   return X_ERROR_SUCCESS;
 }
 
-u32 XamFree_entry(mapped_u32 ptr) {
-  runtime::Current().workspace().Free(ptr.guest_address());
+u32 XamFree_entry(MappedU32 ptr) {
+  runtime::GetCurrent().GetWorkspace().Free(ptr.GetGuestAddress());
   return X_ERROR_SUCCESS;
 }
 
-u32 XamQueryLiveHiveW_entry([[maybe_unused]] mapped_wstring name,
-                            [[maybe_unused]] mapped_void out_buf, [[maybe_unused]] u32 out_size,
+u32 XamQueryLiveHiveW_entry([[maybe_unused]] MappedWString name,
+                            [[maybe_unused]] MappedVoid out_buf, [[maybe_unused]] u32 out_size,
                             [[maybe_unused]] u32 type) {
   return X_STATUS_INVALID_PARAMETER_1;
 }
 
-u32 XamLoaderGetDvdTrayState_entry(mapped_u32 out_state) {
+u32 XamLoaderGetDvdTrayState_entry(MappedU32 out_state) {
   // 0 is tray open, 1 is tray closed with disc.
   if (out_state)
     *out_state = 1;

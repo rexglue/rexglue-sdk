@@ -29,7 +29,7 @@ class EventListener final : public WindowListener, public WindowInputListener {
   void OnResize(UISetupEvent& e) override { Notify(e); }
   void OnGotFocus(UISetupEvent& e) override { Notify(e); }
   void OnLostFocus(UISetupEvent& e) override { Notify(e); }
-  void OnDpiChanged(UISetupEvent& e) override { Notify(e); }
+  void OnDPIChanged(UISetupEvent& e) override { Notify(e); }
   void OnMinimized(UIEvent& e) override { Notify(e); }
   void OnRestored(UIEvent& e) override { Notify(e); }
   void OnFileDrop(FileDropEvent& e) override { Notify(e); }
@@ -47,7 +47,7 @@ class EventListener final : public WindowListener, public WindowInputListener {
   template <typename T>
   void Forward(T& e) {
     if (Notify(e)) {
-      e.set_handled(true);
+      e.SetHandled(true);
     }
   }
 
@@ -60,7 +60,7 @@ class BindListener final : public WindowInputListener {
 
   void OnKeyDown(KeyEvent& e) override {
     if (binds_.Process(e)) {
-      e.set_handled(true);
+      e.SetHandled(true);
     }
   }
 

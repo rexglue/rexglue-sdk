@@ -12,7 +12,7 @@ const rex::PPCImageInfo PPCImageConfig = {
     .code_size = REX_CODE_SIZE,
     .image_base = REX_IMAGE_BASE,
     .image_size = REX_IMAGE_SIZE,
-    .func_mappings = PPCFuncMappings,
+    .func_mappings = kPPCFuncMappings,
     .shim_heap = REX_SHIM_HEAP,
 {% if has_dll_modules and not is_dll %}
     .register_modules = RegisterRecompiledModules,
@@ -30,7 +30,7 @@ const rex::PPCImageInfo PPCImageConfig = {
     .recompiled_code = [] { return REX_RECOMPILED_CODE(); },
 };
 
-PPCFuncMapping PPCFuncMappings[] = {
+const PPCFuncMapping kPPCFuncMappings[] = {
 {% for fn in functions %}{% if not fn.below_code_base or fn.is_import %}	{ {{ fn.address }}, {{ fn.name }} },
 {% endif %}{% endfor %}	{ 0, nullptr }
 };

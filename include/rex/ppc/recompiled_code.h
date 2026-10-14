@@ -71,7 +71,7 @@ namespace rex::platform {
 REX_API bool AddRecompiledCode(std::span<const u8> code);
 
 /**
- * Removes 1 registration of a range of recompiled code.
+ * Removes a registration of a range of recompiled code.
  *
  * @param code The range passed to AddRecompiledCode.
  */

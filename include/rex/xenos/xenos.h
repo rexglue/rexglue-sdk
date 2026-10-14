@@ -24,7 +24,7 @@
 namespace rex::xenos {
 
 /** Signature that VdSwap writes as the first payload dword of its swap packet. */
-constexpr memory::fourcc_t kSwapSignature = memory::make_fourcc("SWAP");
+constexpr memory::FourCCT kSwapSignature = memory::make_fourcc("SWAP");
 
 /** Shader stage. */
 // NOLINTNEXTLINE(performance-enum-size): packed key bit field, MSVC packs per type
@@ -127,11 +127,11 @@ enum class TextureFilter : u32 {
 // NOLINTNEXTLINE(performance-enum-size): Xenos bit field, MSVC packs per type
 enum class AnisoFilter : u32 {
   kDisabled = 0,      /**< Anisotropic filtering off. */
-  kMax_1_1 = 1,       /**< Up to 1:1. */
-  kMax_2_1 = 2,       /**< Up to 2:1. */
-  kMax_4_1 = 3,       /**< Up to 4:1. */
-  kMax_8_1 = 4,       /**< Up to 8:1. */
-  kMax_16_1 = 5,      /**< Up to 16:1. */
+  kMax11 = 1,         /**< Up to 1:1. */
+  kMax21 = 2,         /**< Up to 2:1. */
+  kMax41 = 3,         /**< Up to 4:1. */
+  kMax81 = 4,         /**< Up to 8:1. */
+  kMax161 = 5,        /**< Up to 16:1. */
   kUseFetchConst = 7, /**< Use the ratio from the fetch constant. */
 };
 
@@ -725,9 +725,9 @@ enum class BlendOp : u32 {
 
 /** State invalidation mask. */
 enum class InvalidateMask : u16 {
-  VertexShader = 1 << 8, /**< Vertex shader state. */
-  PixelShader = 1 << 9,  /**< Pixel shader state. */
-  All = 0x7FFF,          /**< All state. */
+  kVertexShader = 1 << 8, /**< Vertex shader state. */
+  kPixelShader = 1 << 9,  /**< Pixel shader state. */
+  kAll = 0x7FFF,          /**< All state. */
 };
 
 /** Index source of a draw (VGT_DRAW_INITIATOR::DI_SRC_SEL). */
@@ -1329,14 +1329,14 @@ REX_STATIC_ASSERT_SIZE(MemExportStream, sizeof(u32) * 4);
  * subtracting the begin counters from the end counters.
  */
 struct alignas(u32) DepthSampleCounts {
-  le<u32> Total_A;       /**< Total samples, half A. */
-  le<u32> Total_B;       /**< Total samples, half B. */
-  le<u32> ZFail_A;       /**< Depth test failures, half A. */
-  le<u32> ZFail_B;       /**< Depth test failures, half B. */
-  le<u32> ZPass_A;       /**< Depth test passes, half A. */
-  le<u32> ZPass_B;       /**< Depth test passes, half B. */
-  le<u32> StencilFail_A; /**< Stencil test failures, half A. */
-  le<u32> StencilFail_B; /**< Stencil test failures, half B. */
+  LE<u32> Total_A;       /**< Total samples, half A. */
+  LE<u32> Total_B;       /**< Total samples, half B. */
+  LE<u32> ZFail_A;       /**< Depth test failures, half A. */
+  LE<u32> ZFail_B;       /**< Depth test failures, half B. */
+  LE<u32> ZPass_A;       /**< Depth test passes, half A. */
+  LE<u32> ZPass_B;       /**< Depth test passes, half B. */
+  LE<u32> StencilFail_A; /**< Stencil test failures, half A. */
+  LE<u32> StencilFail_B; /**< Stencil test failures, half B. */
 };
 REX_STATIC_ASSERT_SIZE(DepthSampleCounts, sizeof(u32) * 8);
 

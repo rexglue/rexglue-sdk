@@ -18,13 +18,13 @@ namespace {
 
 void LogMessage(MessageKind kind, std::string_view title, std::string_view body) {
   switch (kind) {
-    case MessageKind::Error:
+    case MessageKind::kError:
       REXLOG_ERROR(ui, "{}: {}", title, body);
       break;
-    case MessageKind::Warning:
+    case MessageKind::kWarning:
       REXLOG_WARN(ui, "{}: {}", title, body);
       break;
-    case MessageKind::Info:
+    case MessageKind::kInfo:
       REXLOG_INFO(ui, "{}: {}", title, body);
       break;
   }
@@ -32,11 +32,11 @@ void LogMessage(MessageKind kind, std::string_view title, std::string_view body)
 
 SDL_MessageBoxFlags KindFlag(MessageKind kind) {
   switch (kind) {
-    case MessageKind::Error:
+    case MessageKind::kError:
       return SDL_MESSAGEBOX_ERROR;
-    case MessageKind::Warning:
+    case MessageKind::kWarning:
       return SDL_MESSAGEBOX_WARNING;
-    case MessageKind::Info:
+    case MessageKind::kInfo:
       return SDL_MESSAGEBOX_INFORMATION;
   }
   return SDL_MESSAGEBOX_INFORMATION;
@@ -62,7 +62,7 @@ Result<u32> ShowSDLBox(MessageKind kind, const std::string& title, const std::st
       data.data(),    nullptr};
   int pressed = -1;
   if (!SDL_ShowMessageBox(&box, &pressed)) {
-    return Err<u32>(ErrorCategory::Platform, SDL_GetError());
+    return Err<u32>(ErrorCategory::kPlatform, SDL_GetError());
   }
   return pressed < 0 ? static_cast<u32>(buttons.size() - 1) : static_cast<u32>(pressed);
 }
@@ -71,22 +71,22 @@ Result<u32> SDL3UserInterface::ShowBox(MessageKind kind, std::string_view title,
                                        std::string_view body,
                                        std::span<const std::string> buttons) {
   if (config_ && config_->ui.video_driver == "dummy") {
-    return Err<u32>(ErrorCategory::Platform, "the dummy video driver shows no message box");
+    return Err<u32>(ErrorCategory::kPlatform, "the dummy video driver shows no message box");
   }
   if (REX_PLATFORM_MAC && !IsUIThread() && open_.load()) {
     std::optional<Result<u32>> shown;
     RunSynchronous([&] { shown = ShowBox(kind, title, body, buttons); });
     if (!shown) {
-      return Err<u32>(ErrorCategory::Platform, "the window closed before the message box showed");
+      return Err<u32>(ErrorCategory::kPlatform, "the window closed before the message box showed");
     }
     return std::move(*shown);
   }
   VideoScope video;
-  if (!video.Ok()) {
+  if (!video.IsOk()) {
     REXLOG_WARN(ui, "no usable message box backend, {}", video.GetError());
-    return Err<u32>(ErrorCategory::Platform, video.GetError());
+    return Err<u32>(ErrorCategory::kPlatform, video.GetError());
   }
-  SDL_Window* parent = IsUIThread() && window_ ? window_->sdl() : nullptr;
+  SDL_Window* parent = IsUIThread() && window_ ? window_->GetSDL() : nullptr;
   return ShowNativeBox(kind, std::string(title), std::string(body), buttons, parent);
 }
 

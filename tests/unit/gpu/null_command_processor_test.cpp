@@ -44,7 +44,7 @@ void Put(rex::runtime::Memory& memory, rex::u32 physical, rex::u32 value) {
 }
 
 rex::u32 Get(rex::runtime::Memory& memory, rex::u32 physical) {
-  return memory.TranslatePhysical<const be_u32*>(physical)->load(std::memory_order_acquire);
+  return memory.TranslatePhysical<const be_u32*>(physical)->Load(std::memory_order_acquire);
 }
 
 constexpr rex::u32 kWritePointerRegister = 0x01C5;
@@ -56,14 +56,14 @@ REX_TEST_CASE_METHOD(Fixture, "backend null runs a MEM_WRITE and an EVENT_WRITE_
   REQUIRE(api);
   auto* backend = (*api)->Get<rex::gpu::IGPUBackend>();
   REQUIRE(backend != nullptr);
-  rex::Runtime runtime((*api)->config());
+  rex::Runtime runtime((*api)->GetConfig());
   rex::RuntimeDesc setup;
   setup.file_system = (*api)->Get<rex::filesystem::IFileSystem>();
   setup.gpu = backend;
   REQUIRE(runtime.Setup(setup));
-  CHECK_FALSE(backend->has_presentation());
+  CHECK_FALSE(backend->HasPresentation());
 
-  auto& memory = *runtime.memory();
+  auto& memory = *runtime.GetMemory();
   const rex::u32 block = memory.SystemHeapAlloc(0x2000, 0x1000, rex::runtime::kSystemHeapPhysical);
   REQUIRE(block != 0);
   const rex::u32 ring = memory.GetPhysicalAddress(block);
@@ -85,7 +85,7 @@ REX_TEST_CASE_METHOD(Fixture, "backend null runs a MEM_WRITE and an EVENT_WRITE_
   }
   backend->InitializeRingBuffer(ring, 9);
   backend->EnableReadPointerWriteBack(writeback, 6);
-  rex::detail::MMIOStore(rex::MMIOBlockBase(rex::MMIOBlock::GPU) + kWritePointerRegister * 4,
+  rex::detail::MMIOStore(rex::MMIOBlockBase(rex::MMIOBlock::kGPU) + kWritePointerRegister * 4,
                          std::size(packets));
 
   const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(2);
@@ -113,7 +113,7 @@ REX_TEST_CASE_METHOD(Fixture, "Setting the interrupt callback while vblanks disp
   REQUIRE(api);
   auto* backend = (*api)->Get<rex::gpu::IGPUBackend>();
   REQUIRE(backend != nullptr);
-  rex::Runtime runtime((*api)->config());
+  rex::Runtime runtime((*api)->GetConfig());
   rex::RuntimeDesc setup;
   setup.file_system = (*api)->Get<rex::filesystem::IFileSystem>();
   setup.gpu = backend;
@@ -135,7 +135,7 @@ REX_TEST_CASE_METHOD(Fixture, "Shutdown stops vblanks before the command process
     REQUIRE(api);
     auto* backend = (*api)->Get<rex::gpu::IGPUBackend>();
     REQUIRE(backend != nullptr);
-    rex::Runtime runtime((*api)->config());
+    rex::Runtime runtime((*api)->GetConfig());
     rex::RuntimeDesc setup;
     setup.file_system = (*api)->Get<rex::filesystem::IFileSystem>();
     setup.gpu = backend;

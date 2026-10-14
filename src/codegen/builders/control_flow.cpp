@@ -17,294 +17,294 @@
 
 namespace rex::codegen {
 
-bool build_b(BuilderContext& ctx) {
+bool BuildB(BuilderContext& ctx) {
   u32 target = ctx.insn.operands[0];
 
-  auto kind = ctx.graph().classifyTarget(target, ctx.base, false);
+  auto kind = ctx.GetGraph().ClassifyTarget(target, ctx.base, false);
 
   switch (kind) {
-    case TargetKind::InternalLabel:
-      ctx.println("\tgoto loc_{:X};", target);
+    case TargetKind::kInternalLabel:
+      ctx.Println("\tgoto loc_{:X};", target);
       break;
 
-    case TargetKind::Function:
-    case TargetKind::Import:
-      ctx.emit_function_call(target);
-      ctx.println("\treturn;");
+    case TargetKind::kFunction:
+    case TargetKind::kImport:
+      ctx.EmitFunctionCall(target);
+      ctx.Println("\treturn;");
       break;
 
-    case TargetKind::Unknown:
-      if (target >= ctx.fn.base() && target < ctx.fn.end()) {
-        ctx.println("\tgoto loc_{:X};", target);
+    case TargetKind::kUnknown:
+      if (target >= ctx.fn.GetBase() && target < ctx.fn.GetEnd()) {
+        ctx.Println("\tgoto loc_{:X};", target);
       } else {
         REXLOG_WARN(codegen, "Unresolved b target 0x{:08X} from 0x{:08X}", target, ctx.base);
-        ctx.emit_function_call(target);
-        ctx.println("\treturn;");
+        ctx.EmitFunctionCall(target);
+        ctx.Println("\treturn;");
       }
       break;
   }
   return true;
 }
 
-bool build_bl(BuilderContext& ctx) {
+bool BuildBl(BuilderContext& ctx) {
   u32 target = ctx.insn.operands[0];
 
-  if (!ctx.config().skipLr)
-    ctx.println("\tctx.lr = 0x{:X};", ctx.base + 4);
+  if (!ctx.GetConfig().skip_lr)
+    ctx.Println("\tctx.lr = 0x{:X};", ctx.base + 4);
 
-  auto kind = ctx.graph().classifyTarget(target, ctx.base, true);
+  auto kind = ctx.GetGraph().ClassifyTarget(target, ctx.base, true);
 
   switch (kind) {
-    case TargetKind::InternalLabel:
-      ctx.println("\tgoto loc_{:X};", target);
+    case TargetKind::kInternalLabel:
+      ctx.Println("\tgoto loc_{:X};", target);
       break;
 
-    case TargetKind::Function:
-    case TargetKind::Import:
-      ctx.emit_function_call(target);
-      ctx.csrState = CSRState::Unknown;
+    case TargetKind::kFunction:
+    case TargetKind::kImport:
+      ctx.EmitFunctionCall(target);
+      ctx.csr_state = CSRState::kUnknown;
       break;
 
-    case TargetKind::Unknown:
+    case TargetKind::kUnknown:
       REXLOG_ERROR(codegen, "Unresolved bl target 0x{:08X} from 0x{:08X}", target, ctx.base);
-      ctx.println("\t// ERROR: unresolved bl target 0x{:08X}", target);
-      ctx.println("\tREX_FATAL(cpu, \"Unresolved call from 0x{:08X} to 0x{:08X}\");", ctx.base,
+      ctx.Println("\t// ERROR: unresolved bl target 0x{:08X}", target);
+      ctx.Println("\tREX_FATAL(cpu, \"Unresolved call from 0x{:08X} to 0x{:08X}\");", ctx.base,
                   target);
       break;
   }
   return true;
 }
 
-bool build_blr(BuilderContext& ctx) {
-  ctx.println("\treturn;");
+bool BuildBlr(BuilderContext& ctx) {
+  ctx.Println("\treturn;");
   return true;
 }
 
-bool build_blrl(BuilderContext& ctx) {
-  ctx.println("\t{{ auto old_lr = ctx.lr;");
-  if (!ctx.config().skipLr)
-    ctx.println("\tctx.lr = 0x{:X};", ctx.base + 4);
-  ctx.println("\tREX_CALL_INDIRECT_FUNC(u32(old_lr)); }}");
-  ctx.csrState = CSRState::Unknown;
+bool BuildBlrl(BuilderContext& ctx) {
+  ctx.Println("\t{{ auto old_lr = ctx.lr;");
+  if (!ctx.GetConfig().skip_lr)
+    ctx.Println("\tctx.lr = 0x{:X};", ctx.base + 4);
+  ctx.Println("\tREX_CALL_INDIRECT_FUNC(u32(old_lr)); }}");
+  ctx.csr_state = CSRState::kUnknown;
   return true;
 }
 
-bool build_bctr(BuilderContext& ctx) {
-  const JumpTable* jt = ctx.activeJumpTable;
+bool BuildBctr(BuilderContext& ctx) {
+  const JumpTable* jt = ctx.active_jump_table;
 
   if (!jt) {
-    for (const auto& autoJt : ctx.fn.jumpTables()) {
-      if (autoJt.bctrAddress == ctx.base) {
-        jt = &autoJt;
+    for (const auto& auto_jt : ctx.fn.GetJumpTables()) {
+      if (auto_jt.bctr_address == ctx.base) {
+        jt = &auto_jt;
         break;
       }
     }
   }
 
   if (jt) {
-    ctx.println("\tswitch ({}.u32) {{", ctx.r(jt->indexRegister));
+    ctx.Println("\tswitch ({}.u32) {{", ctx.R(jt->index_register));
 
     for (size_t i = 0; i < jt->targets.size(); i++) {
-      ctx.println("\tcase {}:", i);
+      ctx.Println("\tcase {}:", i);
       auto label = jt->targets[i];
 
       if (label == 0) {
-        ctx.println("\t\t__builtin_trap(); // ERROR - detected jump to null value");
+        ctx.Println("\t\t__builtin_trap(); // ERROR - detected jump to null value");
         continue;
       }
 
-      auto kind = ctx.graph().classifyTarget(label, ctx.base, false);
+      auto kind = ctx.GetGraph().ClassifyTarget(label, ctx.base, false);
       switch (kind) {
-        case TargetKind::InternalLabel:
-          ctx.println("\t\tgoto loc_{:X};", label);
+        case TargetKind::kInternalLabel:
+          ctx.Println("\t\tgoto loc_{:X};", label);
           break;
-        case TargetKind::Function:
-        case TargetKind::Import:
-          if (auto* targetFn = ctx.graph().getFunction(label)) {
-            ctx.emitCtx.reference(targetFn->name());
-            ctx.println("\t\t{}(ctx, base);", targetFn->name());
+        case TargetKind::kFunction:
+        case TargetKind::kImport:
+          if (auto* target_fn = ctx.GetGraph().GetFunction(label)) {
+            ctx.emit_ctx.Reference(target_fn->GetName());
+            ctx.Println("\t\t{}(ctx, base);", target_fn->GetName());
           } else {
             REXLOG_ERROR(
                 codegen,
                 "Jump target 0x{:08X} classified as function but not in graph at bctr 0x{:08X}",
                 label, ctx.base);
-            ctx.println(
+            ctx.Println(
                 "\t\tREX_FATAL(cpu, \"Jump target 0x{:08X} classified as function but not "
                 "in graph at bctr 0x{:08X}\");",
                 label, ctx.base);
           }
-          ctx.println("\t\treturn;");
+          ctx.Println("\t\treturn;");
           break;
         default:
           REXLOG_ERROR(codegen, "Jump target 0x{:08X} unresolved at bctr 0x{:08X}", label,
                        ctx.base);
-          ctx.println("\t\tREX_FATAL(cpu, \"Jump target 0x{:08X} unresolved at bctr 0x{:08X}\");",
+          ctx.Println("\t\tREX_FATAL(cpu, \"Jump target 0x{:08X} unresolved at bctr 0x{:08X}\");",
                       label, ctx.base);
           break;
       }
     }
 
-    ctx.println("\tdefault:");
-    ctx.println("\t\t__builtin_trap(); // Switch case out of range");
-    ctx.println("\t}}");
+    ctx.Println("\tdefault:");
+    ctx.Println("\t\t__builtin_trap(); // Switch case out of range");
+    ctx.Println("\t}}");
 
-    ctx.reset_switch_table();
+    ctx.GetResetSwitchTable();
   } else {
-    ctx.println("\tREX_CALL_INDIRECT_FUNC({}.u32);", ctx.ctr());
-    ctx.println("\treturn;");
+    ctx.Println("\tREX_CALL_INDIRECT_FUNC({}.u32);", ctx.CTR());
+    ctx.Println("\treturn;");
   }
   return true;
 }
 
-bool build_bctrl(BuilderContext& ctx) {
-  if (!ctx.config().skipLr)
-    ctx.println("\tctx.lr = 0x{:X};", ctx.base + 4);
-  ctx.println("\tREX_CALL_INDIRECT_FUNC({}.u32);", ctx.ctr());
-  ctx.csrState = CSRState::Unknown;
+bool BuildBctrl(BuilderContext& ctx) {
+  if (!ctx.GetConfig().skip_lr)
+    ctx.Println("\tctx.lr = 0x{:X};", ctx.base + 4);
+  ctx.Println("\tREX_CALL_INDIRECT_FUNC({}.u32);", ctx.CTR());
+  ctx.csr_state = CSRState::kUnknown;
   return true;
 }
 
-bool build_bnectr(BuilderContext& ctx) {
-  ctx.println("\tif (!{}.eq) {{", ctx.cr(ctx.insn.operands[0]));
-  ctx.println("\t\tREX_CALL_INDIRECT_FUNC({}.u32);", ctx.ctr());
-  ctx.println("\t\treturn;");
-  ctx.println("\t}}");
+bool BuildBnectr(BuilderContext& ctx) {
+  ctx.Println("\tif (!{}.eq) {{", ctx.CR(ctx.insn.operands[0]));
+  ctx.Println("\t\tREX_CALL_INDIRECT_FUNC({}.u32);", ctx.CTR());
+  ctx.Println("\t\treturn;");
+  ctx.Println("\t}}");
   return true;
 }
 
-bool build_bdz(BuilderContext& ctx) {
-  ctx.println("\t--{}.u64;", ctx.ctr());
-  emitBranchWithBoundsCheck(ctx, ctx.insn.operands[0], std::format("{}.u32 == 0", ctx.ctr()),
+bool BuildBdz(BuilderContext& ctx) {
+  ctx.Println("\t--{}.u64;", ctx.CTR());
+  EmitBranchWithBoundsCheck(ctx, ctx.insn.operands[0], std::format("{}.u32 == 0", ctx.CTR()),
                             "bdz");
   return true;
 }
 
-bool build_bdzlr(BuilderContext& ctx) {
-  ctx.println("\t--{}.u64;", ctx.ctr());
-  ctx.println("\tif ({}.u32 == 0) return;", ctx.ctr());
+bool BuildBdzlr(BuilderContext& ctx) {
+  ctx.Println("\t--{}.u64;", ctx.CTR());
+  ctx.Println("\tif ({}.u32 == 0) return;", ctx.CTR());
   return true;
 }
 
-bool build_bdnzlr(BuilderContext& ctx) {
-  ctx.println("\t--{}.u64;", ctx.ctr());
-  ctx.println("\tif ({}.u32 != 0) return;", ctx.ctr());
+bool BuildBdnzlr(BuilderContext& ctx) {
+  ctx.Println("\t--{}.u64;", ctx.CTR());
+  ctx.Println("\tif ({}.u32 != 0) return;", ctx.CTR());
   return true;
 }
 
-bool build_bdnz(BuilderContext& ctx) {
-  ctx.println("\t--{}.u64;", ctx.ctr());
-  emitBranchWithBoundsCheck(ctx, ctx.insn.operands[0], std::format("{}.u32 != 0", ctx.ctr()),
+bool BuildBdnz(BuilderContext& ctx) {
+  ctx.Println("\t--{}.u64;", ctx.CTR());
+  EmitBranchWithBoundsCheck(ctx, ctx.insn.operands[0], std::format("{}.u32 != 0", ctx.CTR()),
                             "bdnz");
   return true;
 }
 
-bool build_bdnzf(BuilderContext& ctx) {
-  auto bit = crBitName(ctx.insn.operands[0]);
-  ctx.println("\t--{}.u64;", ctx.ctr());
-  emitBranchWithBoundsCheck(
+bool BuildBdnzf(BuilderContext& ctx) {
+  auto bit = GetCRBitName(ctx.insn.operands[0]);
+  ctx.Println("\t--{}.u64;", ctx.CTR());
+  EmitBranchWithBoundsCheck(
       ctx, ctx.insn.operands[1],
-      std::format("{}.u32 != 0 && !{}.{}", ctx.ctr(), ctx.cr(ctx.insn.operands[0] / 4), bit),
+      std::format("{}.u32 != 0 && !{}.{}", ctx.CTR(), ctx.CR(ctx.insn.operands[0] / 4), bit),
       "bdnzf");
   return true;
 }
 
-bool build_bdnzt(BuilderContext& ctx) {
-  auto bit = crBitName(ctx.insn.operands[0]);
-  ctx.println("\t--{}.u64;", ctx.ctr());
-  emitBranchWithBoundsCheck(
+bool BuildBdnzt(BuilderContext& ctx) {
+  auto bit = GetCRBitName(ctx.insn.operands[0]);
+  ctx.Println("\t--{}.u64;", ctx.CTR());
+  EmitBranchWithBoundsCheck(
       ctx, ctx.insn.operands[1],
-      std::format("{}.u32 != 0 && {}.{}", ctx.ctr(), ctx.cr(ctx.insn.operands[0] / 4), bit),
+      std::format("{}.u32 != 0 && {}.{}", ctx.CTR(), ctx.CR(ctx.insn.operands[0] / 4), bit),
       "bdnzt");
   return true;
 }
 
-bool build_bdzf(BuilderContext& ctx) {
-  auto bit = crBitName(ctx.insn.operands[0]);
-  ctx.println("\t--{}.u64;", ctx.ctr());
-  emitBranchWithBoundsCheck(
+bool BuildBdzf(BuilderContext& ctx) {
+  auto bit = GetCRBitName(ctx.insn.operands[0]);
+  ctx.Println("\t--{}.u64;", ctx.CTR());
+  EmitBranchWithBoundsCheck(
       ctx, ctx.insn.operands[1],
-      std::format("{}.u32 == 0 && !{}.{}", ctx.ctr(), ctx.cr(ctx.insn.operands[0] / 4), bit),
+      std::format("{}.u32 == 0 && !{}.{}", ctx.CTR(), ctx.CR(ctx.insn.operands[0] / 4), bit),
       "bdzf");
   return true;
 }
 
-bool build_beq(BuilderContext& ctx) {
-  ctx.emit_conditional_branch(false, "eq");
+bool BuildBeq(BuilderContext& ctx) {
+  ctx.EmitConditionalBranch(false, "eq");
   return true;
 }
 
-bool build_beqlr(BuilderContext& ctx) {
-  ctx.println("\tif ({}.eq) return;", ctx.cr(ctx.insn.operands[0]));
+bool BuildBeqlr(BuilderContext& ctx) {
+  ctx.Println("\tif ({}.eq) return;", ctx.CR(ctx.insn.operands[0]));
   return true;
 }
 
-bool build_bne(BuilderContext& ctx) {
-  ctx.emit_conditional_branch(true, "eq");
+bool BuildBne(BuilderContext& ctx) {
+  ctx.EmitConditionalBranch(true, "eq");
   return true;
 }
 
-bool build_bnelr(BuilderContext& ctx) {
-  ctx.println("\tif (!{}.eq) return;", ctx.cr(ctx.insn.operands[0]));
+bool BuildBnelr(BuilderContext& ctx) {
+  ctx.Println("\tif (!{}.eq) return;", ctx.CR(ctx.insn.operands[0]));
   return true;
 }
 
-bool build_blt(BuilderContext& ctx) {
-  ctx.emit_conditional_branch(false, "lt");
+bool BuildBlt(BuilderContext& ctx) {
+  ctx.EmitConditionalBranch(false, "lt");
   return true;
 }
 
-bool build_bltlr(BuilderContext& ctx) {
-  ctx.println("\tif ({}.lt) return;", ctx.cr(ctx.insn.operands[0]));
+bool BuildBltlr(BuilderContext& ctx) {
+  ctx.Println("\tif ({}.lt) return;", ctx.CR(ctx.insn.operands[0]));
   return true;
 }
 
-bool build_bge(BuilderContext& ctx) {
-  ctx.emit_conditional_branch(true, "lt");
+bool BuildBge(BuilderContext& ctx) {
+  ctx.EmitConditionalBranch(true, "lt");
   return true;
 }
 
-bool build_bgelr(BuilderContext& ctx) {
-  ctx.println("\tif (!{}.lt) return;", ctx.cr(ctx.insn.operands[0]));
+bool BuildBgelr(BuilderContext& ctx) {
+  ctx.Println("\tif (!{}.lt) return;", ctx.CR(ctx.insn.operands[0]));
   return true;
 }
 
-bool build_bgt(BuilderContext& ctx) {
-  ctx.emit_conditional_branch(false, "gt");
+bool BuildBgt(BuilderContext& ctx) {
+  ctx.EmitConditionalBranch(false, "gt");
   return true;
 }
 
-bool build_bgtlr(BuilderContext& ctx) {
-  ctx.println("\tif ({}.gt) return;", ctx.cr(ctx.insn.operands[0]));
+bool BuildBgtlr(BuilderContext& ctx) {
+  ctx.Println("\tif ({}.gt) return;", ctx.CR(ctx.insn.operands[0]));
   return true;
 }
 
-bool build_ble(BuilderContext& ctx) {
-  ctx.emit_conditional_branch(true, "gt");
+bool BuildBle(BuilderContext& ctx) {
+  ctx.EmitConditionalBranch(true, "gt");
   return true;
 }
 
-bool build_blelr(BuilderContext& ctx) {
-  ctx.println("\tif (!{}.gt) return;", ctx.cr(ctx.insn.operands[0]));
+bool BuildBlelr(BuilderContext& ctx) {
+  ctx.Println("\tif (!{}.gt) return;", ctx.CR(ctx.insn.operands[0]));
   return true;
 }
 
-bool build_bso(BuilderContext& ctx) {
-  ctx.emit_conditional_branch(false, "so");
+bool BuildBso(BuilderContext& ctx) {
+  ctx.EmitConditionalBranch(false, "so");
   return true;
 }
 
-bool build_bsolr(BuilderContext& ctx) {
-  ctx.println("\tif ({}.so) return;", ctx.cr(ctx.insn.operands[0]));
+bool BuildBsolr(BuilderContext& ctx) {
+  ctx.Println("\tif ({}.so) return;", ctx.CR(ctx.insn.operands[0]));
   return true;
 }
 
-bool build_bns(BuilderContext& ctx) {
-  ctx.emit_conditional_branch(true, "so");
+bool BuildBns(BuilderContext& ctx) {
+  ctx.EmitConditionalBranch(true, "so");
   return true;
 }
 
-bool build_bnslr(BuilderContext& ctx) {
-  ctx.println("\tif (!{}.so) return;", ctx.cr(ctx.insn.operands[0]));
+bool BuildBnslr(BuilderContext& ctx) {
+  ctx.Println("\tif (!{}.so) return;", ctx.CR(ctx.insn.operands[0]));
   return true;
 }
 

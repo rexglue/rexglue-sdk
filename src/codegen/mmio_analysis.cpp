@@ -13,10 +13,10 @@ namespace rex::codegen {
 
 namespace {
 
-enum class ValueKind : u8 { Unknown, Known, Offset };
+enum class ValueKind : u8 { kUnknown, kKnown, kOffset };
 
 struct Value {
-  ValueKind kind = ValueKind::Unknown;
+  ValueKind kind = ValueKind::kUnknown;
   u32 constant = 0;
   u32 shift = 0;
 
@@ -29,26 +29,26 @@ constexpr Value kUnknown{};
 constexpr u32 kEieio = 0x7C0006AC;
 
 constexpr Value KnownValue(u32 value) {
-  return {ValueKind::Known, value, 0};
+  return {ValueKind::kKnown, value, 0};
 }
 
 constexpr Value OffsetValue(u32 constant, u32 shift) {
-  return {ValueKind::Offset, constant, shift};
+  return {ValueKind::kOffset, constant, shift};
 }
 
 constexpr Value Add(Value a, Value b) {
-  if (a.kind == ValueKind::Known) {
+  if (a.kind == ValueKind::kKnown) {
     std::swap(a, b);
   }
-  if (b.kind != ValueKind::Known) {
+  if (b.kind != ValueKind::kKnown) {
     return kUnknown;
   }
   switch (a.kind) {
-    case ValueKind::Known:
+    case ValueKind::kKnown:
       return KnownValue(a.constant + b.constant);
-    case ValueKind::Offset:
+    case ValueKind::kOffset:
       return OffsetValue(a.constant + b.constant, a.shift);
-    case ValueKind::Unknown:
+    case ValueKind::kUnknown:
       return OffsetValue(b.constant, 0);
   }
   return kUnknown;
@@ -56,12 +56,12 @@ constexpr Value Add(Value a, Value b) {
 
 constexpr Value ShiftLeft(Value value, u32 shift) {
   switch (value.kind) {
-    case ValueKind::Known:
+    case ValueKind::kKnown:
       return KnownValue(value.constant << shift);
-    case ValueKind::Offset:
+    case ValueKind::kOffset:
       return value.shift + shift < 32 ? OffsetValue(value.constant << shift, value.shift + shift)
                                       : kUnknown;
-    case ValueKind::Unknown:
+    case ValueKind::kUnknown:
       return kUnknown;
   }
   return kUnknown;
@@ -71,7 +71,7 @@ constexpr Value Or(Value source, Value other, bool same_register) {
   if (same_register) {
     return source;
   }
-  if (source.kind == ValueKind::Known && other.kind == ValueKind::Known) {
+  if (source.kind == ValueKind::kKnown && other.kind == ValueKind::kKnown) {
     return KnownValue(source.constant | other.constant);
   }
   return kUnknown;
@@ -298,7 +298,7 @@ void Transfer(u32 word, Registers& registers) {
     case 24:
     case 25: {
       const u32 bits = opcode == 24 ? (word & 0xFFFF) : (word & 0xFFFF) << 16;
-      registers[ra] = registers[rd].kind == ValueKind::Known
+      registers[ra] = registers[rd].kind == ValueKind::kKnown
                           ? KnownValue(registers[rd].constant | bits)
                           : kUnknown;
       return;
@@ -501,7 +501,7 @@ std::vector<BasicBlock> BuildBlocks(const Code& code, const MMIOFunctionInput& i
     }
     if (flow.through_ctr) {
       for (const JumpTable& table : input.jump_tables) {
-        if (table.bctrAddress == last.address) {
+        if (table.bctr_address == last.address) {
           std::ranges::for_each(table.targets, link);
         }
       }
@@ -590,37 +590,37 @@ std::vector<Registers> Solve(const std::vector<BasicBlock>& blocks, const Code& 
 }
 
 constexpr MMIOAccess AccessOf(MMIOBlock block) {
-  return block == MMIOBlock::GPU ? MMIOAccess::GPU : MMIOAccess::APU;
+  return block == MMIOBlock::kGPU ? MMIOAccess::kGPU : MMIOAccess::kAPU;
 }
 
 std::optional<MMIOSite> Classify(u32 address, const Access& access, Value target, bool barrier,
                                  const MMIODeclaredAccess* declared) {
-  const bool known = target.kind == ValueKind::Known;
+  const bool known = target.kind == ValueKind::kKnown;
   const bool write = access.writes;
   if (known) {
     if (const auto block = MMIOBlockOf(target.constant)) {
       if (!access.classified) {
-        return MMIOSite{address, MMIOAccess::Plain, MMIOReason::Unsupported, target.constant,
+        return MMIOSite{address, MMIOAccess::kPlain, MMIOReason::kUnsupported, target.constant,
                         write};
       }
-      return MMIOSite{address, AccessOf(*block), MMIOReason::Proven, target.constant, write};
+      return MMIOSite{address, AccessOf(*block), MMIOReason::kProven, target.constant, write};
     }
   }
   if (!access.classified) {
     return std::nullopt;
   }
   if (declared) {
-    return MMIOSite{address, AccessOf(declared->block), MMIOReason::Declared,
+    return MMIOSite{address, AccessOf(declared->block), MMIOReason::kDeclared,
                     known ? target.constant : 0, write};
   }
   if (known && (target.constant >> 24) == 0x7F) {
-    return MMIOSite{address, MMIOAccess::Plain, MMIOReason::Unserved, target.constant, write};
+    return MMIOSite{address, MMIOAccess::kPlain, MMIOReason::kUnserved, target.constant, write};
   }
-  if (target.kind == ValueKind::Offset && IsMMIOBlockAddress(target.constant)) {
-    return MMIOSite{address, MMIOAccess::Guarded, MMIOReason::Offset, 0, write};
+  if (target.kind == ValueKind::kOffset && IsMMIOBlockAddress(target.constant)) {
+    return MMIOSite{address, MMIOAccess::kGuarded, MMIOReason::kOffset, 0, write};
   }
   if (!known && barrier) {
-    return MMIOSite{address, MMIOAccess::Guarded, MMIOReason::Barrier, 0, write};
+    return MMIOSite{address, MMIOAccess::kGuarded, MMIOReason::kBarrier, 0, write};
   }
   return std::nullopt;
 }
@@ -629,7 +629,7 @@ std::optional<MMIOSite> Classify(u32 address, const Access& access, Value target
 
 MMIOAccess MMIOClassification::At(u32 address) const {
   const auto it = std::ranges::lower_bound(sites, address, {}, &MMIOSite::address);
-  return it != sites.end() && it->address == address ? it->access : MMIOAccess::Plain;
+  return it != sites.end() && it->address == address ? it->access : MMIOAccess::kPlain;
 }
 
 MMIOClassification ClassifyMMIO(const MMIOFunctionInput& input) {

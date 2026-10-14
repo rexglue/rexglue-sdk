@@ -1,6 +1,6 @@
 /**
  * @file        kernel/shim/file.cpp
- * @brief       Shim file routines that have no Xam ordinal
+ * @brief       Shim file routines that have no XAM ordinal
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -34,18 +34,18 @@ constexpr u32 kInvalidHandleValue = 0xFFFFFFFF;
 REX_SHIM_FN(FindClose, u32, u32 hFindFile) {
   if (hFindFile == kInvalidHandleValue || hFindFile == 0)
     return 0;
-  if (!runtime::Current().object_table().Close(hFindFile)) {
+  if (!runtime::GetCurrent().GetObjectTable().Close(hFindFile)) {
     REXLOG_WARN(kernel, "rexshim_FindClose: unknown handle {:#x}", hFindFile);
     return 0;
   }
   return 1;
 }
 
-REX_SHIM_FN(MoveFileA, u32, mapped_string lpExistingFileName, mapped_string lpNewFileName) {
+REX_SHIM_FN(MoveFileA, u32, MappedString lpExistingFileName, MappedString lpNewFileName) {
   const char* src = static_cast<const char*>(lpExistingFileName);
   const char* dst = static_cast<const char*>(lpNewFileName);
 
-  if (auto renamed = runtime::Current().file_system()->Rename(src, dst, false); !renamed) {
+  if (auto renamed = runtime::GetCurrent().GetFileSystem()->Rename(src, dst, false); !renamed) {
     REXLOG_DEBUG(kernel, "rexshim_MoveFileA: rename failed '{}' -> '{}': {:#x}", src, dst,
                  rex::runtime::ToXStatus(renamed.error(), X_STATUS_NOT_SUPPORTED));
     return 0;
@@ -54,22 +54,22 @@ REX_SHIM_FN(MoveFileA, u32, mapped_string lpExistingFileName, mapped_string lpNe
   return 1;
 }
 
-REX_SHIM_FN(SetFileAttributesA, u32, mapped_string lpFileName, u32 dwFileAttributes) {
+REX_SHIM_FN(SetFileAttributesA, u32, MappedString lpFileName, u32 dwFileAttributes) {
   (void)lpFileName;
   (void)dwFileAttributes;
   return 1;
 }
 
-REX_SHIM_FN(RemoveDirectoryA, u32, mapped_string lpPathName) {
+REX_SHIM_FN(RemoveDirectoryA, u32, MappedString lpPathName) {
   const char* path = static_cast<const char*>(lpPathName);
-  bool ok = runtime::Current().file_system()->Remove(path).has_value();
+  bool ok = runtime::GetCurrent().GetFileSystem()->Remove(path).has_value();
   if (!ok)
     REXLOG_DEBUG(kernel, "rexshim_RemoveDirectoryA: FAILED '{}'", path);
   return ok ? 1u : 0u;
 }
 
 REX_SHIM_FN(GetFileType, u32, u32 hFile) {
-  auto file = runtime::Current().object_table().Get<rex::runtime::FileObject>(hFile);
+  auto file = runtime::GetCurrent().GetObjectTable().Get<rex::runtime::FileObject>(hFile);
   if (!file)
     // FILE_TYPE_UNKNOWN
     return 0;

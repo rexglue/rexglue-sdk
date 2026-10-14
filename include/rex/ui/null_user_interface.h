@@ -94,7 +94,7 @@ class NullUserInterface final : public IUserInterface {
    *
    * @return nullptr.
    */
-  ImFontAtlas* Fonts() override;
+  ImFontAtlas* GetFonts() override;
 
   /**
    * Returns no ImGui style.
@@ -153,7 +153,7 @@ class NullUserInterface final : public IUserInterface {
    *
    * @return False.
    */
-  bool AnyOverlayVisible() const override;
+  bool IsAnyOverlayVisible() const override;
 
   /**
    * Does nothing.
@@ -202,7 +202,7 @@ class NullUserInterface final : public IUserInterface {
    *
    * @return The drawer, or nullptr when none was set.
    */
-  gpu::IOverlayDrawer* OverlayDrawer() override;
+  gpu::IOverlayDrawer* GetOverlayDrawer() override;
 
   /**
    * Keeps the provider so a caller can set it.
@@ -267,14 +267,14 @@ class NullUserInterface final : public IUserInterface {
    *
    * @return An empty list.
    */
-  std::vector<DisplayInfo> Displays() override;
+  std::vector<DisplayInfo> GetDisplays() override;
 
   /**
    * Lists no locales.
    *
    * @return An empty list.
    */
-  std::vector<HostLocale> PreferredLocales() override;
+  std::vector<HostLocale> GetPreferredLocales() override;
 
  private:
   class NullWindow;

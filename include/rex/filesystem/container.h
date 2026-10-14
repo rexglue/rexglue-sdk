@@ -95,42 +95,42 @@ class REX_API Container : public MoveOnly {
    *
    * @return The kind.
    */
-  [[nodiscard]] ContainerKind kind() const { return kind_; }
+  [[nodiscard]] ContainerKind GetKind() const { return kind_; }
 
   /**
    * Returns the package header.
    *
    * @return The header of an STFS or SVOD package, null for a GDFX image.
    */
-  [[nodiscard]] const STFSHeader* header() const { return header_.get(); }
+  [[nodiscard]] const STFSHeader* GetHeader() const { return header_.get(); }
 
   /**
    * Returns the host file that was opened.
    *
    * @return The package file or disc image.
    */
-  [[nodiscard]] const std::filesystem::path& path() const { return path_; }
+  [[nodiscard]] const std::filesystem::path& GetPath() const { return path_; }
 
   /**
    * Returns the bytes of every mapped data file together.
    *
    * @return The total size in bytes.
    */
-  [[nodiscard]] u64 total_size() const { return total_size_; }
+  [[nodiscard]] u64 GetTotalSize() const { return total_size_; }
 
   /**
    * Returns every node, the root first.
    *
    * @return The nodes.
    */
-  [[nodiscard]] std::span<const ContainerNode> nodes() const { return nodes_; }
+  [[nodiscard]] std::span<const ContainerNode> GetNodes() const { return nodes_; }
 
   /**
    * Returns the root directory.
    *
    * @return The root node.
    */
-  [[nodiscard]] const ContainerNode& root() const { return nodes_.front(); }
+  [[nodiscard]] const ContainerNode& GetRoot() const { return nodes_.front(); }
 
   /**
    * Returns the node at a path.

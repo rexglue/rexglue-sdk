@@ -100,12 +100,12 @@ REX_TEST_CASE("An unreadable input is not fingerprinted as empty content", "[out
   std::ofstream(readable, std::ios::binary).close();
 
   // Same basename, so only the digest can separate the two fingerprints.
-  std::vector<fs::path> asFile{readable};
-  std::vector<fs::path> asDirectory{scratch.root / "b" / "input.bin"};
+  std::vector<fs::path> as_file{readable};
+  std::vector<fs::path> as_directory{scratch.root / "b" / "input.bin"};
   std::vector<std::string> flags;
 
-  CHECK(ComputeInputFingerprint(asFile, "1.2.3", flags) !=
-        ComputeInputFingerprint(asDirectory, "1.2.3", flags));
+  CHECK(ComputeInputFingerprint(as_file, "1.2.3", flags) !=
+        ComputeInputFingerprint(as_directory, "1.2.3", flags));
 }
 
 REX_TEST_CASE("A missing input file still yields a usable fingerprint", "[output_stamp]") {
@@ -158,7 +158,7 @@ REX_TEST_CASE("Outputs are up to date when fingerprint matches and files exist",
   stamp.fingerprint = "abc123";
   stamp.outputs = {"proj_init.h"};
 
-  CHECK(OutputsAreUpToDate(stamp, "abc123", scratch.root));
+  CHECK(AreOutputsUpToDate(stamp, "abc123", scratch.root));
 }
 
 REX_TEST_CASE("Outputs are stale when the fingerprint differs", "[output_stamp]") {
@@ -169,7 +169,7 @@ REX_TEST_CASE("Outputs are stale when the fingerprint differs", "[output_stamp]"
   stamp.fingerprint = "abc123";
   stamp.outputs = {"proj_init.h"};
 
-  CHECK_FALSE(OutputsAreUpToDate(stamp, "def456", scratch.root));
+  CHECK_FALSE(AreOutputsUpToDate(stamp, "def456", scratch.root));
 }
 
 REX_TEST_CASE("Outputs are stale when a recorded file was deleted", "[output_stamp]") {
@@ -179,7 +179,7 @@ REX_TEST_CASE("Outputs are stale when a recorded file was deleted", "[output_sta
   stamp.fingerprint = "abc123";
   stamp.outputs = {"proj_init.h"};
 
-  CHECK_FALSE(OutputsAreUpToDate(stamp, "abc123", scratch.root));
+  CHECK_FALSE(AreOutputsUpToDate(stamp, "abc123", scratch.root));
 }
 
 REX_TEST_CASE("Config records every TOML it loaded", "[output_stamp]") {
@@ -191,9 +191,9 @@ REX_TEST_CASE("Config records every TOML it loaded", "[output_stamp]") {
   RecompilerConfig config;
   REQUIRE(config.Load(main.string()));
 
-  REQUIRE(config.loadedFiles.size() == 2);
-  CHECK(config.loadedFiles[0].find("main.toml") != std::string::npos);
-  CHECK(config.loadedFiles[1].find("base.toml") != std::string::npos);
+  REQUIRE(config.loaded_files.size() == 2);
+  CHECK(config.loaded_files[0].find("main.toml") != std::string::npos);
+  CHECK(config.loaded_files[1].find("base.toml") != std::string::npos);
 }
 
 REX_TEST_CASE("Depfile names the target and every input", "[output_stamp]") {

@@ -104,7 +104,7 @@ class TimerQueue {
     return wait_item_weak;
   }
 
-  std::jthread::id dispatch_thread_id() const { return dispatch_thread_.get_id(); }
+  std::jthread::id GetDispatchThreadId() const { return dispatch_thread_.get_id(); }
 
  private:
   std::mutex mutex_;
@@ -140,7 +140,7 @@ void detail::ShutdownTimerQueue() {
 void TimerQueueWaitItem::Disarm() {
   State state;
 
-  if (std::this_thread::get_id() == parent_queue_->dispatch_thread_id()) {
+  if (std::this_thread::get_id() == parent_queue_->GetDispatchThreadId()) {
     state = State::kInCallback;
     if (state_.compare_exchange_strong(state, State::kInCallbackSelfDisarmed,
                                        std::memory_order_acq_rel)) {

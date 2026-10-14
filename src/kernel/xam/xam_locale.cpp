@@ -35,15 +35,15 @@ namespace kernel {
 namespace xam {
 
 u8 XamGetOnlineCountryFromLocale(u8 id) {
-  static u8 const table[] = {
+  static u8 const kTable[] = {
       2,  6,  5,  8,  13, 16, 19, 20, 21,  23, 25, 32, 34,  24, 37,  39, 42,  46, 44, 50, 53, 56,
       71, 74, 76, 75, 82, 84, 91, 93, 109, 31, 90, 18, 101, 35, 103, 88, 236, 99, 4,  89, 45, 1,
   };
-  return id < rex::countof(table) ? table[id] : 0;
+  return id < rex::CountOf(kTable) ? kTable[id] : 0;
 }
 
 const char16_t* XamGetOnlineCountryString(u8 id) {
-  static const char16_t* const table[] = {
+  static const char16_t* const kTable[] = {
       u"ZZ",   u"AE", u"AL",   u"AM", u"AR", u"AT", u"AU",   u"AZ", u"BE",   u"BG", u"BH",
       u"BN",   u"BO", u"BR",   u"BY", u"BZ", u"CA", nullptr, u"CH", u"CL",   u"CN", u"CO",
       u"CR",   u"CZ", u"DE",   u"DK", u"DO", u"DZ", u"EC",   u"EE", u"EG",   u"ES", u"FI",
@@ -67,11 +67,11 @@ const char16_t* XamGetOnlineCountryString(u8 id) {
       u"TZ",   u"TL", u"TG",   u"TK", u"TO", u"TM", u"TC",   u"TV", u"UG",   u"VU", u"VA",
       nullptr, u"VG", u"WF",   u"EH", u"ZM", u"ZZ",
   };
-  return id < rex::countof(table) ? table[id] : nullptr;
+  return id < rex::CountOf(kTable) ? kTable[id] : nullptr;
 }
 
 const char16_t* XamGetCountryString(u8 id) {
-  static const char16_t* const table[] = {
+  static const char16_t* const kTable[] = {
       u"ZZ", u"AE", u"AL", u"AM",   u"AR",   u"AT", u"AU", u"AZ", u"BE", u"BG", u"BH", u"BN", u"BO",
       u"BR", u"BY", u"BZ", u"CA",   nullptr, u"CH", u"CL", u"CN", u"CO", u"CR", u"CZ", u"DE", u"DK",
       u"DO", u"DZ", u"EC", u"EE",   u"EG",   u"ES", u"FI", u"FO", u"FR", u"GB", u"GE", u"GR", u"GT",
@@ -82,29 +82,29 @@ const char16_t* XamGetCountryString(u8 id) {
       u"SG", u"SI", u"SK", nullptr, u"SV",   u"SY", u"TH", u"TN", u"TR", u"TT", u"TW", u"UA", u"US",
       u"UY", u"UZ", u"VE", u"VN",   u"YE",   u"ZA", u"ZW", u"ZZ",
   };
-  return id < rex::countof(table) ? table[id] : nullptr;
+  return id < rex::CountOf(kTable) ? kTable[id] : nullptr;
 }
 
 const char16_t* XamGetLanguageString(u8 id) {
-  static const char16_t* const table[] = {
+  static const char16_t* const kTable[] = {
       u"zz", u"en",   u"ja", u"de", u"fr", u"es", u"it", u"ko", u"zh",
       u"pt", nullptr, u"pl", u"ru", u"sv", u"tr", u"nb", u"nl", u"zh",
   };
-  return id < rex::countof(table) ? table[id] : nullptr;
+  return id < rex::CountOf(kTable) ? kTable[id] : nullptr;
 }
 
 const char16_t* XamGetLocaleString(u8 id) {
-  static const char16_t* const table[] = {
+  static const char16_t* const kTable[] = {
       u"ZZ", u"AU", u"AT", u"BE", u"BR", u"CA", u"CL", u"CN", u"CO", u"CZ", u"DK",
       u"FI", u"FR", u"DE", u"GR", u"HK", u"HU", u"IN", u"IE", u"IT", u"JP", u"KR",
       u"MX", u"NL", u"NZ", u"NO", u"PL", u"PT", u"SG", u"SK", u"ZA", u"ES", u"SE",
       u"CH", u"TW", u"GB", u"US", u"RU", u"ZZ", u"TR", u"AR", u"SA", u"IL", u"AE",
   };
-  return id < rex::countof(table) ? table[id] : nullptr;
+  return id < rex::CountOf(kTable) ? kTable[id] : nullptr;
 }
 
 u8 XamGetLocaleFromOnlineCountry(u8 id) {
-  static u8 const table[] = {
+  static u8 const kTable[] = {
       0,  43, 0,  0,  40, 2,  1, 0,  3,  0, 0,  0,  0,  4,  0, 0,  5,  0,  33, 6,  7,  8,  0,  9,
       13, 10, 0,  0,  0,  0,  0, 31, 11, 0, 12, 35, 0,  14, 0, 15, 0,  0,  16, 0,  18, 42, 17, 0,
       0,  0,  19, 0,  0,  20, 0, 0,  21, 0, 0,  0,  0,  0,  0, 0,  0,  0,  0,  0,  0,  0,  0,  22,
@@ -116,31 +116,31 @@ u8 XamGetLocaleFromOnlineCountry(u8 id) {
       0,  0,  0,  0,  0,  0,  0, 0,  0,  0, 0,  0,  0,  0,  0, 0,  0,  0,  0,  0,  0,  0,  0,  0,
       0,  0,  0,  0,  0,  0,  0, 0,  0,  0, 0,  0,  0,  0,  0, 0,  0,  0,  0,  0,  38,
   };
-  return id < rex::countof(table) ? table[id] : 0;
+  return id < rex::CountOf(kTable) ? kTable[id] : 0;
 }
 
 u8 XamGetLanguageFromOnlineLanguage(u8 id) {
-  static u8 const table[] = {
+  static u8 const kTable[] = {
       0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 17, 11, 12, 1, 1, 15, 16, 13, 1, 1, 1,
       1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,  1,  1,  1, 1, 14, 1,  1,  1, 1, 1,
       1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,  1,  1,  1, 1, 1,  1,  1,  1,
   };
-  return id < rex::countof(table) ? table[id] : 0;
+  return id < rex::CountOf(kTable) ? kTable[id] : 0;
 }
 
 const char16_t* XamGetOnlineLanguageString(u8 id) {
-  static const char16_t* const table[] = {
+  static const char16_t* const kTable[] = {
       u"zz", u"en", u"ja", u"de", u"fr", u"es", u"it", u"ko", u"zh", u"pt", u"zh", u"pl", u"ru",
       u"da", u"fi", u"nb", u"nl", u"sv", u"cs", u"el", u"hu", u"sk", u"id", u"ms", u"ar", u"bg",
       u"et", u"hr", u"he", u"is", u"kk", u"lt", u"lv", u"ro", u"sl", u"th", u"tr", u"uk", u"vi",
       u"ps", u"sq", u"hy", u"bn", u"be", u"km", u"am", u"fo", u"ka", u"kl", u"sw", u"ky", u"lb",
       u"mk", u"mt", u"mn", u"ne", u"ur", u"rw", u"wo", u"si", u"tk",
   };
-  return id < rex::countof(table) ? table[id] : nullptr;
+  return id < rex::CountOf(kTable) ? kTable[id] : nullptr;
 }
 
 u8 XamGetCountryFromOnlineCountry(u8 id) {
-  static u8 const table[] = {
+  static u8 const kTable[] = {
       0,   1,   2,   3,   4,   5,   6,   7,   8,   9,   10,  11, 12, 13, 14, 15, 16,  0,  18, 19,
       20,  21,  22,  23,  24,  25,  26,  27,  28,  29,  30,  31, 32, 33, 34, 35, 36,  37, 38, 39,
       40,  41,  42,  43,  44,  45,  46,  47,  48,  49,  50,  51, 52, 53, 54, 55, 56,  57, 58, 59,
@@ -154,24 +154,24 @@ u8 XamGetCountryFromOnlineCountry(u8 id) {
       0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,  0,  0,  0,  0,  0,   0,  0,  0,
       0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,  0,  0,  0,  0,  111,
   };
-  return id < rex::countof(table) ? table[id] : 0;
+  return id < rex::CountOf(kTable) ? kTable[id] : 0;
 }
 
-u8 XamGetLocaleFromCountry(u8 id) {
-  static u8 const table[] = {
+u8 XAMGetLocaleFromCountry(u8 id) {
+  static u8 const kTable[] = {
       0,  43, 0,  0, 40, 2,  1,  0,  3,  0,  0,  0,  0,  4,  0,  0,  5,  0,  33, 6,  7,  8,  0,
       9,  13, 10, 0, 0,  0,  0,  0,  31, 11, 0,  12, 35, 0,  14, 0,  15, 0,  0,  16, 0,  18, 42,
       17, 0,  0,  0, 19, 0,  0,  20, 0,  0,  21, 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
       0,  0,  22, 0, 0,  23, 25, 24, 0,  0,  0,  0,  0,  26, 0,  27, 0,  0,  0,  37, 41, 32, 28,
       0,  29, 0,  0, 0,  0,  0,  39, 0,  34, 0,  36, 0,  0,  0,  0,  0,  30, 0,  38,
   };
-  return id < rex::countof(table) ? table[id] : 0;
+  return id < rex::CountOf(kTable) ? kTable[id] : 0;
 }
 
 u8 XamGetLocaleEx(u8 max_country_id, u8 max_locale_id) {
-  u8 country_id = static_cast<u8>(runtime::Current().config().runtime.kernel.user_country);
+  u8 country_id = static_cast<u8>(runtime::GetCurrent().GetConfig().runtime.kernel.user_country);
   if (country_id <= max_country_id) {
-    u8 locale_id = XamGetLocaleFromCountry(country_id);
+    u8 locale_id = XAMGetLocaleFromCountry(country_id);
     if (locale_id <= max_locale_id) {
       return locale_id;
     }
@@ -198,7 +198,7 @@ u32 XamGetOnlineCountryFromLocale_entry(u32 id) {
   return XamGetOnlineCountryFromLocale(id);
 }
 
-u32 XamGetOnlineCountryString_entry(u32 id, u32 buffer_length, mapped_wstring buffer) {
+u32 XamGetOnlineCountryString_entry(u32 id, u32 buffer_length, MappedWString buffer) {
   if (buffer_length >= 0x80000000u) {
     return X_E_INVALIDARG;
   }
@@ -210,7 +210,7 @@ u32 XamGetOnlineCountryString_entry(u32 id, u32 buffer_length, mapped_wstring bu
 
   const auto value = std::u16string(str);
   if (value.size() + 1 > buffer_length) {
-    return X_HRESULT_FROM_WIN32(X_ERROR_INSUFFICIENT_BUFFER);
+    return XHResultFromWin32(X_ERROR_INSUFFICIENT_BUFFER);
   }
 
   memory::store_and_swap<std::u16string>(buffer, value);
@@ -218,7 +218,7 @@ u32 XamGetOnlineCountryString_entry(u32 id, u32 buffer_length, mapped_wstring bu
   return X_E_SUCCESS;
 }
 
-u32 XamGetCountryString_entry(u32 id, u32 buffer_length, mapped_wstring buffer) {
+u32 XamGetCountryString_entry(u32 id, u32 buffer_length, MappedWString buffer) {
   if (buffer_length >= 0x80000000u) {
     return X_E_INVALIDARG;
   }
@@ -230,7 +230,7 @@ u32 XamGetCountryString_entry(u32 id, u32 buffer_length, mapped_wstring buffer) 
 
   const auto value = std::u16string(str);
   if (value.size() + 1 > buffer_length) {
-    return X_HRESULT_FROM_WIN32(X_ERROR_INSUFFICIENT_BUFFER);
+    return XHResultFromWin32(X_ERROR_INSUFFICIENT_BUFFER);
   }
 
   memory::store_and_swap<std::u16string>(buffer, value);
@@ -238,7 +238,7 @@ u32 XamGetCountryString_entry(u32 id, u32 buffer_length, mapped_wstring buffer) 
   return X_E_SUCCESS;
 }
 
-u32 XamGetLanguageString_entry(u32 id, u32 buffer_length, mapped_wstring buffer) {
+u32 XamGetLanguageString_entry(u32 id, u32 buffer_length, MappedWString buffer) {
   if (buffer_length >= 0x80000000u) {
     return X_E_INVALIDARG;
   }
@@ -250,7 +250,7 @@ u32 XamGetLanguageString_entry(u32 id, u32 buffer_length, mapped_wstring buffer)
 
   const auto value = std::u16string(str);
   if (value.size() + 1 > buffer_length) {
-    return X_HRESULT_FROM_WIN32(X_ERROR_INSUFFICIENT_BUFFER);
+    return XHResultFromWin32(X_ERROR_INSUFFICIENT_BUFFER);
   }
 
   memory::store_and_swap<std::u16string>(buffer, value);
@@ -259,7 +259,7 @@ u32 XamGetLanguageString_entry(u32 id, u32 buffer_length, mapped_wstring buffer)
 }
 
 u32 XamGetLanguageLocaleString_entry(u32 language_id, u32 locale_id, u32 buffer_length,
-                                     mapped_wstring buffer) {
+                                     MappedWString buffer) {
   if (buffer_length >= 0x80000000u) {
     return X_E_INVALIDARG;
   }
@@ -276,7 +276,7 @@ u32 XamGetLanguageLocaleString_entry(u32 language_id, u32 locale_id, u32 buffer_
 
   const auto value = std::u16string(language_str) + u"-" + std::u16string(locale_str);
   if (value.size() + 1 > buffer_length) {
-    return X_HRESULT_FROM_WIN32(X_ERROR_INSUFFICIENT_BUFFER);
+    return XHResultFromWin32(X_ERROR_INSUFFICIENT_BUFFER);
   }
 
   memory::store_and_swap<std::u16string>(buffer, value);
@@ -285,7 +285,7 @@ u32 XamGetLanguageLocaleString_entry(u32 language_id, u32 locale_id, u32 buffer_
 }
 
 u32 XamGetOnlineLanguageAndCountryString_entry(u32 language_id, u32 country_id, u32 buffer_length,
-                                               mapped_wstring buffer) {
+                                               MappedWString buffer) {
   if (buffer_length >= 0x80000000u) {
     return X_E_INVALIDARG;
   }
@@ -302,7 +302,7 @@ u32 XamGetOnlineLanguageAndCountryString_entry(u32 language_id, u32 country_id, 
 
   const auto value = std::u16string(language_str) + u"-" + std::u16string(country_str);
   if (value.size() + 1 > buffer_length) {
-    return X_HRESULT_FROM_WIN32(X_ERROR_INSUFFICIENT_BUFFER);
+    return XHResultFromWin32(X_ERROR_INSUFFICIENT_BUFFER);
   }
 
   memory::store_and_swap<std::u16string>(buffer, value);
@@ -310,7 +310,7 @@ u32 XamGetOnlineLanguageAndCountryString_entry(u32 language_id, u32 country_id, 
   return X_E_SUCCESS;
 }
 
-u32 XamGetLocaleString_entry(u32 id, u32 buffer_length, mapped_wstring buffer) {
+u32 XamGetLocaleString_entry(u32 id, u32 buffer_length, MappedWString buffer) {
   if (buffer_length >= 0x80000000u) {
     return X_E_INVALIDARG;
   }
@@ -322,7 +322,7 @@ u32 XamGetLocaleString_entry(u32 id, u32 buffer_length, mapped_wstring buffer) {
 
   const auto value = std::u16string(str);
   if (value.size() + 1 > buffer_length) {
-    return X_HRESULT_FROM_WIN32(X_ERROR_INSUFFICIENT_BUFFER);
+    return XHResultFromWin32(X_ERROR_INSUFFICIENT_BUFFER);
   }
 
   memory::store_and_swap<std::u16string>(buffer, value);
@@ -338,7 +338,7 @@ u32 XamGetLanguageFromOnlineLanguage_entry(u32 id) {
   return XamGetLanguageFromOnlineLanguage(static_cast<u8>(id));
 }
 
-u32 XamGetOnlineLanguageString_entry(u32 id, u32 buffer_length, mapped_wstring buffer) {
+u32 XamGetOnlineLanguageString_entry(u32 id, u32 buffer_length, MappedWString buffer) {
   if (buffer_length >= 0x80000000u) {
     return X_E_INVALIDARG;
   }
@@ -350,7 +350,7 @@ u32 XamGetOnlineLanguageString_entry(u32 id, u32 buffer_length, mapped_wstring b
 
   const auto value = std::u16string(str);
   if (value.size() + 1 > buffer_length) {
-    return X_HRESULT_FROM_WIN32(X_ERROR_INSUFFICIENT_BUFFER);
+    return XHResultFromWin32(X_ERROR_INSUFFICIENT_BUFFER);
   }
 
   memory::store_and_swap<std::u16string>(buffer, value);

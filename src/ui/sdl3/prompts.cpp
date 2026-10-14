@@ -47,7 +47,7 @@ void PromptDialog::Choose(u32 button, std::string text) {
   Close();
 }
 
-std::string PromptDialog::Text() const {
+std::string PromptDialog::GetText() const {
   return std::string(buffer_.data());
 }
 
@@ -80,7 +80,7 @@ void PromptDialog::DrawInput() {
   }
   if (accepted) {
     ImGui::CloseCurrentPopup();
-    Choose(0, Text());
+    Choose(0, GetText());
   }
 }
 

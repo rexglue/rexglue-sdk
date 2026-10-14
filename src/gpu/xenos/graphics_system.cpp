@@ -55,7 +55,7 @@ namespace rex::gpu {
 GraphicsSystem::GraphicsSystem() : vsync_worker_running_(false) {}
 
 GraphicsSystem::~GraphicsSystem() {
-  rex::DetachMMIO(rex::MMIOBlock::GPU, this);
+  rex::DetachMMIO(rex::MMIOBlock::kGPU, this);
 }
 
 Result<void> GraphicsSystem::SetupPresentation(gpu::IUIThread& ui_thread) {
@@ -67,14 +67,14 @@ Result<void> GraphicsSystem::SetupPresentation(gpu::IUIThread& ui_thread) {
     CreateProvider(true);
     if (!provider_) {
       REXLOG_ERROR(gpu, "Unable to create graphics provider");
-      return Err(ErrorCategory::Runtime, "Unable to create graphics provider");
+      return Err(ErrorCategory::kRuntime, "Unable to create graphics provider");
     }
     provider_supports_presentation_ = true;
   } else if (!provider_supports_presentation_) {
     // Backends like Vulkan need swapchain support set at provider creation.
     REXLOG_ERROR(gpu,
                  "SetupPresentation called after headless SetupGuestGPU; call order is reversed");
-    return Err(ErrorCategory::Runtime,
+    return Err(ErrorCategory::kRuntime,
                "SetupPresentation called after headless SetupGuestGPU; call order is reversed");
   }
 
@@ -86,14 +86,14 @@ Result<void> GraphicsSystem::SetupPresentation(gpu::IUIThread& ui_thread) {
 
   if (!presenter_) {
     REXLOG_ERROR(gpu, "Unable to create presenter");
-    return Err(ErrorCategory::Runtime, "Unable to create presenter");
+    return Err(ErrorCategory::kRuntime, "Unable to create presenter");
   }
   return Ok();
 }
 
 Result<void> GraphicsSystem::SetupGuestGPU(runtime::FunctionDispatcher& dispatcher,
                                            Runtime& runtime) {
-  memory_ = dispatcher.memory();
+  memory_ = dispatcher.GetMemory();
   function_dispatcher_ = &dispatcher;
   runtime_ = &runtime;
 
@@ -105,17 +105,17 @@ Result<void> GraphicsSystem::SetupGuestGPU(runtime::FunctionDispatcher& dispatch
   command_processor_ = CreateCommandProcessor();
   if (!command_processor_->Initialize()) {
     REXLOG_ERROR(gpu, "Unable to initialize command processor");
-    return Err(ErrorCategory::Runtime, "Unable to initialize command processor");
+    return Err(ErrorCategory::kRuntime, "Unable to initialize command processor");
   }
   command_processor_->SetDesiredSwapPostEffect(
       ParseSwapPostEffect(REXCVAR_GET(::rex::gpu::cvars::swap_post_effect)));
 
-  rex::AttachMMIO(rex::MMIOBlock::GPU, {this, ReadRegisterThunk, WriteRegisterThunk});
+  rex::AttachMMIO(rex::MMIOBlock::kGPU, {this, ReadRegisterThunk, WriteRegisterThunk});
 
   vsync_worker_running_ = true;
   auto thread = std::make_unique<runtime::KernelThread>(*runtime_, 128 * 1024, 0, [this]() {
-    f64 refresh_rate_hz = std::max(1.0, static_cast<f64>(runtime_->video_mode().refresh_rate));
-    u64 guest_tick_frequency = Clock::guest_tick_frequency();
+    f64 refresh_rate_hz = std::max(1.0, static_cast<f64>(runtime_->GetVideoMode().refresh_rate));
+    u64 guest_tick_frequency = Clock::GetGuestTickFrequency();
     u64 vsync_interval_ticks =
         std::max(static_cast<u64>(1),
                  static_cast<u64>(static_cast<f64>(guest_tick_frequency) / refresh_rate_hz));
@@ -133,21 +133,21 @@ Result<void> GraphicsSystem::SetupGuestGPU(runtime::FunctionDispatcher& dispatch
     }
     return 0;
   });
-  thread->set_name("GPU VSync");
-  vsync_worker_thread_ = runtime_->thread_registry().Launch(std::move(thread)).value_or(0);
+  thread->SetName("GPU VSync");
+  vsync_worker_thread_ = runtime_->GetThreadRegistry().Launch(std::move(thread)).value_or(0);
 
   return Ok();
 }
 
 Result<std::unique_ptr<gpu::IPresenter>> GraphicsSystem::CreatePresenter() {
   if (!provider_) {
-    return Err<std::unique_ptr<gpu::IPresenter>>(ErrorCategory::Runtime,
+    return Err<std::unique_ptr<gpu::IPresenter>>(ErrorCategory::kRuntime,
                                                  "CreatePresenter needs SetupPresentation first");
   }
   std::unique_ptr<gpu::Presenter> presenter = provider_->CreatePresenter();
   if (!presenter) {
     return Err<std::unique_ptr<gpu::IPresenter>>(
-        ErrorCategory::Runtime, "the graphics provider could not create a presenter");
+        ErrorCategory::kRuntime, "the graphics provider could not create a presenter");
   }
   return std::unique_ptr<gpu::IPresenter>(std::move(presenter));
 }
@@ -156,23 +156,23 @@ Result<std::unique_ptr<gpu::IOverlayDrawer>> GraphicsSystem::CreateOverlayDrawer
     gpu::IPresenter& presenter) {
   if (!provider_) {
     return Err<std::unique_ptr<gpu::IOverlayDrawer>>(
-        ErrorCategory::Runtime, "CreateOverlayDrawer needs SetupPresentation first");
+        ErrorCategory::kRuntime, "CreateOverlayDrawer needs SetupPresentation first");
   }
   std::unique_ptr<gpu::ImmediateDrawer> drawer = provider_->CreateImmediateDrawer();
   if (!drawer) {
     return Err<std::unique_ptr<gpu::IOverlayDrawer>>(
-        ErrorCategory::Runtime, "the graphics provider could not create a drawer");
+        ErrorCategory::kRuntime, "the graphics provider could not create a drawer");
   }
   drawer->SetPresenter(static_cast<gpu::Presenter*>(&presenter));
   return std::unique_ptr<gpu::IOverlayDrawer>(std::move(drawer));
 }
 
 void GraphicsSystem::Shutdown() {
-  rex::DetachMMIO(rex::MMIOBlock::GPU, this);
+  rex::DetachMMIO(rex::MMIOBlock::kGPU, this);
   if (vsync_worker_thread_) {
     vsync_worker_running_ = false;
     runtime::Wait(*runtime_, vsync_worker_thread_, 0, 0, 0, nullptr);
-    runtime::CloseOwned(runtime_->object_table(), vsync_worker_thread_);
+    runtime::CloseOwned(runtime_->GetObjectTable(), vsync_worker_thread_);
     vsync_worker_thread_ = 0;
   }
 
@@ -215,13 +215,13 @@ u32 GraphicsSystem::ReadRegister(u32 addr) {
     case 0x0F01:  // RB_BC_CONTROL
       return 0x0000200E;
     case 0x194C: {  // R500_D1MODE_V_COUNTER
-      return std::min(runtime_->video_mode().height, static_cast<u32>(0x0FFF));
+      return std::min(runtime_->GetVideoMode().height, static_cast<u32>(0x0FFF));
     }
     case 0x1951:    // interrupt status
       return 1;     // vblank
     case 0x1961: {  // AVIVO_D1MODE_VIEWPORT_SIZE
       // Maximum [width(0x0FFF), height(0x0FFF)].
-      const runtime::VideoMode& video_mode = runtime_->video_mode();
+      const runtime::VideoMode& video_mode = runtime_->GetVideoMode();
       u32 viewport_width = std::min(video_mode.width, static_cast<u32>(0x0FFF));
       u32 viewport_height = std::min(video_mode.height, static_cast<u32>(0x0FFF));
       return (viewport_width << 16) | viewport_height;
@@ -283,13 +283,13 @@ void GraphicsSystem::DispatchInterruptCallback(u32 source, u32 cpu) {
   thread->SetActiveCPU(cpu);
 
   u64 args[] = {source, interrupt >> 32};
-  function_dispatcher_->ExecuteInterrupt(thread->thread_state(), callback, args,
-                                         rex::countof(args));
+  function_dispatcher_->ExecuteInterrupt(thread->GetThreadState(), callback, args,
+                                         rex::CountOf(args));
 }
 
 void GraphicsSystem::MarkVblank() {
   if (command_processor_) {
-    command_processor_->increment_counter();
+    command_processor_->IncrementCounter();
   }
 
   DispatchInterruptCallback(0, 2);

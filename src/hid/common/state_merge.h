@@ -18,8 +18,8 @@
 
 namespace rex::hid {
 
-constexpr i32 kThumbDeadzone = X_INPUT_GAMEPAD_LEFT_THUMB_DEADZONE;
-constexpr u8 kTriggerThreshold = X_INPUT_GAMEPAD_TRIGGER_THRESHOLD;
+constexpr i32 kThumbDeadzone = kXInputGamepadLeftThumbDeadzone;
+constexpr u8 kTriggerThreshold = kXInputGamepadTriggerThreshold;
 
 /**
  * Folds src into dst. Buttons OR, triggers max, stick axes larger magnitude,

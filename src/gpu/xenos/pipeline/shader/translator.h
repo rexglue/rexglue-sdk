@@ -56,17 +56,17 @@ class ShaderTranslator {
   virtual void Reset();
 
   /** Shader and modification being translated. */
-  Shader::Translation& current_translation() const { return *translation_; }
-  Shader& current_shader() const { return current_translation().shader(); }
+  Shader::Translation& GetCurrentTranslation() const { return *translation_; }
+  Shader& GetCurrentShader() const { return GetCurrentTranslation().GetShader(); }
 
   /** Register count from SQ_PROGRAM_CNTL, stored by the implementation in its modification bits. */
   virtual u32 GetModificationRegisterCount() const { return xenos::kMaxShaderTempRegisters; }
 
-  bool is_vertex_shader() const { return current_shader().type() == xenos::ShaderType::kVertex; }
-  bool is_pixel_shader() const { return current_shader().type() == xenos::ShaderType::kPixel; }
+  bool IsVertexShader() const { return GetCurrentShader().GetType() == xenos::ShaderType::kVertex; }
+  bool IsPixelShader() const { return GetCurrentShader().GetType() == xenos::ShaderType::kPixel; }
 
   /** Temporary register count, accessible via static and dynamic addressing. */
-  u32 register_count() const { return register_count_; }
+  u32 GetRegisterCount() const { return register_count_; }
 
   /**
    * Emits a translation error that is passed back in the result.
@@ -87,7 +87,7 @@ class ShaderTranslator {
   virtual std::vector<u8> CompleteTranslation() { return std::vector<u8>(); }
 
   virtual void PostTranslation() {}
-  void set_host_disassembly(Shader::Translation& translation, std::string value) {
+  void SetHostDisassembly(Shader::Translation& translation, std::string value) {
     translation.host_disassembly_ = std::move(value);
   }
 
@@ -105,14 +105,14 @@ class ShaderTranslator {
   virtual void ProcessReturnInstruction(const ParsedReturnInstruction& /*instr*/) {}
   virtual void ProcessJumpInstruction(const ParsedJumpInstruction& /*instr*/) {}
   /** Memory exports for the eM# in export_eM must be performed regardless of the alloc type. */
-  virtual void ProcessAllocInstruction(const ParsedAllocInstruction& /*instr*/, u8 /*export_eM*/) {}
+  virtual void ProcessAllocInstruction(const ParsedAllocInstruction& /*instr*/, u8 /*export_em*/) {}
 
   virtual void ProcessVertexFetchInstruction(const ParsedVertexFetchInstruction& /*instr*/) {}
   virtual void ProcessTextureFetchInstruction(const ParsedTextureFetchInstruction& /*instr*/) {}
   /** memexport_eM_potentially_written_before must be handled by `kill` so exports of eM# written in
    * earlier execs and the current exec are done before the invocation becomes inactive. */
   virtual void ProcessAluInstruction(const ParsedAluInstruction& /*instr*/,
-                                     u8 /*memexport_eM_potentially_written_before*/) {}
+                                     u8 /*memexport_em_potentially_written_before*/) {}
 
  private:
   void TranslateControlFlowInstruction(const xenos::ucode::ControlFlowInstruction& cf);

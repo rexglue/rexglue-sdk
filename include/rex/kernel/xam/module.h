@@ -26,6 +26,6 @@ namespace rex::kernel::xam {
  * @param runtime The runtime the module belongs to.
  * @return A handle of the module with a count of 1.
  */
-REX_RUNTIME_API X_HANDLE CreateXamModule(Runtime& runtime);
+REX_RUNTIME_API X_HANDLE CreateXAMModule(Runtime& runtime);
 
 }  // namespace rex::kernel::xam

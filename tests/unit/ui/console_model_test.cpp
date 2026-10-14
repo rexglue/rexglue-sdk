@@ -36,10 +36,10 @@ void RecordConsoleArgs(std::string_view args) {
 }  // namespace
 
 namespace console_test_cvars {
-REXCVAR_STRING(alpha, mode, "low", "Quality mode").allowed(REXCVAR_ALLOWED("low", "high"));
+REXCVAR_STRING(alpha, mode, "low", "Quality mode").SetAllowed(REXCVAR_ALLOWED("low", "high"));
 REXCVAR_COMMAND_ARGS(alpha, run, RecordConsoleArgs, "Records its arguments");
 REXCVAR_TABLE(kAlphaCvars, mode, run);
-REXCVAR_INT32(zeta, count, 4, "A counted value").range(1, 8);
+REXCVAR_INT32(zeta, count, 4, "A counted value").SetRange(1, 8);
 REXCVAR_TABLE(kZetaCvars, count);
 }  // namespace console_test_cvars
 
@@ -80,12 +80,12 @@ struct TempFolder : rex::test::TempFolder {
 };
 
 const std::string& Last(const ConsoleModel& model) {
-  return model.lines().back().text;
+  return model.GetLines().back().text;
 }
 
 std::vector<std::string> VisibleText(const ConsoleModel& model) {
   std::vector<std::string> out;
-  for (const rex::ui::ConsoleLine* line : model.Visible()) {
+  for (const rex::ui::ConsoleLine* line : model.GetVisibleLines()) {
     out.push_back(line->text);
   }
   return out;
@@ -103,12 +103,12 @@ REX_TEST_CASE_METHOD(Harness, "Execute sets, prints, reports, runs and clears", 
   model.Execute("zeta.nope");
   REQUIRE(Last(model) == "unknown cvar zeta.nope");
   model.Execute("zeta.count 99");
-  REQUIRE(model.lines().back().level == Level::kWarn);
+  REQUIRE(model.GetLines().back().level == Level::kWarn);
   REQUIRE(registry->Get("zeta.count").value() == "6");
   model.Execute("alpha.run first second");
   REQUIRE(g_console_args == "first second");
   model.Execute("clear");
-  REQUIRE(model.lines().empty());
+  REQUIRE(model.GetLines().empty());
 }
 
 REX_TEST_CASE_METHOD(Harness, "Complete sorts by scope then name with built ins first",
@@ -167,22 +167,22 @@ REX_TEST_CASE_METHOD(Harness, "History walks, skips repeats, caps and round trip
     model.Execute("zeta.count 2");
     model.Execute("zeta.count 2");
     model.Execute("zeta.count 3");
-    REQUIRE(model.history().size() == 2);
-    REQUIRE(model.HistoryPrevious() == "zeta.count 3");
-    REQUIRE(model.HistoryPrevious() == "zeta.count 2");
-    REQUIRE(model.HistoryPrevious() == "zeta.count 2");
-    REQUIRE(model.HistoryNext() == "zeta.count 3");
-    REQUIRE(model.HistoryNext().empty());
+    REQUIRE(model.GetHistory().size() == 2);
+    REQUIRE(model.StepHistoryBack() == "zeta.count 3");
+    REQUIRE(model.StepHistoryBack() == "zeta.count 2");
+    REQUIRE(model.StepHistoryBack() == "zeta.count 2");
+    REQUIRE(model.StepHistoryForward() == "zeta.count 3");
+    REQUIRE(model.StepHistoryForward().empty());
     for (int index = 0; index < 300; ++index) {
       model.Execute(std::format("zeta.count {}", 1 + index % 8));
     }
-    REQUIRE(model.history().size() == ConsoleModel::kMaxHistory);
-    newest = model.history().back();
+    REQUIRE(model.GetHistory().size() == ConsoleModel::kMaxHistory);
+    newest = model.GetHistory().back();
   }
   ConsoleModel reloaded(*registry, capture, path);
-  REQUIRE(reloaded.history().size() == ConsoleModel::kMaxHistory);
-  REQUIRE(reloaded.history().back() == newest);
-  REQUIRE(reloaded.HistoryPrevious() == newest);
+  REQUIRE(reloaded.GetHistory().size() == ConsoleModel::kMaxHistory);
+  REQUIRE(reloaded.GetHistory().back() == newest);
+  REQUIRE(reloaded.StepHistoryBack() == newest);
 }
 
 REX_TEST_CASE_METHOD(Harness, "Output interleaves by sequence, caps and filters", "[console]") {
@@ -193,15 +193,15 @@ REX_TEST_CASE_METHOD(Harness, "Output interleaves by sequence, caps and filters"
   model.Poll();
   REQUIRE(VisibleText(model) ==
           std::vector<std::string>{"first", "> zeta.count", "zeta.count = 4", "second", "third"});
-  REQUIRE(model.categories().contains("kernel"));
-  REQUIRE(model.categories().contains("gpu"));
+  REQUIRE(model.GetCategories().contains("kernel"));
+  REQUIRE(model.GetCategories().contains("gpu"));
 
-  model.set_min_level(Level::kInfo);
+  model.SetMinLevel(Level::kInfo);
   REQUIRE(VisibleText(model) ==
           std::vector<std::string>{"first", "> zeta.count", "zeta.count = 4"});
-  model.set_min_level(Level::kTrace);
-  model.set_shown("kernel", false);
-  REQUIRE_FALSE(model.shown("kernel"));
+  model.SetMinLevel(Level::kTrace);
+  model.SetShown("kernel", false);
+  REQUIRE_FALSE(model.GetShown("kernel"));
   REQUIRE(VisibleText(model) ==
           std::vector<std::string>{"> zeta.count", "zeta.count = 4", "second", "third"});
 
@@ -209,5 +209,5 @@ REX_TEST_CASE_METHOD(Harness, "Output interleaves by sequence, caps and filters"
     Write(Level::kInfo, "kernel", "filler");
   }
   model.Poll();
-  REQUIRE(model.lines().size() == ConsoleModel::kMaxLines);
+  REQUIRE(model.GetLines().size() == ConsoleModel::kMaxLines);
 }

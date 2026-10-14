@@ -41,28 +41,28 @@ class REX_API BitStream {
    *
    * @return Pointer to the first byte.
    */
-  const u8* buffer() const { return buffer_; }
+  const u8* GetBuffer() const { return buffer_; }
 
   /**
    * Returns the backing memory.
    *
    * @return Pointer to the first byte.
    */
-  u8* buffer() { return buffer_; }
+  u8* GetBuffer() { return buffer_; }
 
   /**
    * Returns the cursor position.
    *
    * @return Offset in bits.
    */
-  size_t offset_bits() const { return offset_bits_; }
+  size_t GetOffsetBits() const { return offset_bits_; }
 
   /**
    * Returns the buffer size.
    *
    * @return Size in bits.
    */
-  size_t size_bits() const { return size_bits_; }
+  size_t GetSizeBits() const { return size_bits_; }
 
   /**
    * Moves the cursor forward.
@@ -83,7 +83,7 @@ class REX_API BitStream {
    *
    * @return Bit count.
    */
-  size_t BitsRemaining() const;
+  size_t GetBitsRemaining() const;
 
   /**
    * Reads bits at the cursor without moving it.
@@ -183,38 +183,38 @@ class REX_API ByteStream {
    *
    * @return Pointer to the first byte.
    */
-  const u8* data() const { return data_; }
+  const u8* GetData() const { return data_; }
 
   /**
    * Returns the backing memory.
    *
    * @return Pointer to the first byte.
    */
-  u8* data() { return data_; }
+  u8* GetData() { return data_; }
 
   /**
    * Returns the buffer size.
    *
    * @return Byte count.
    */
-  size_t data_length() const { return data_length_; }
+  size_t GetDataLength() const { return data_length_; }
 
   /**
    * Returns the cursor position.
    *
    * @return Offset in bytes.
    */
-  size_t offset() const { return offset_; }
+  size_t GetOffset() const { return offset_; }
 
   /**
    * Moves the cursor.
    *
    * @param offset New offset in bytes.
    */
-  void set_offset(size_t offset) { offset_ = offset; }
+  void SetOffset(size_t offset) { offset_ = offset; }
 
   /**
-   * Reads 1 value at the cursor and moves past it.
+   * Reads a value at the cursor and moves past it.
    *
    * @tparam T Trivially copyable value type, or std::string or std::u16string.
    * @return The value.
@@ -227,7 +227,7 @@ class REX_API ByteStream {
   }
 
   /**
-   * Writes 1 value at the cursor and moves past it.
+   * Writes a value at the cursor and moves past it.
    *
    * @tparam T Trivially copyable value type.
    * @param data Value to write.

@@ -31,13 +31,13 @@ namespace detail {
  * @tparam R The return type.
  * @tparam Args The parameter types.
  */
-template <bool kConst, typename R, typename... Args>
+template <bool Const, typename R, typename... Args>
 class MoveOnlyFunctionImpl {
   static constexpr std::size_t kStorageSize = 3 * sizeof(void*);
   static constexpr std::size_t kStorageAlign = alignof(std::max_align_t);
 
   template <typename D>
-  using TargetRef = std::conditional_t<kConst, const D&, D&>;
+  using TargetRef = std::conditional_t<Const, const D&, D&>;
 
   template <typename D>
   static constexpr bool kInline = sizeof(D) <= kStorageSize && alignof(D) <= kStorageAlign &&
@@ -225,7 +225,7 @@ class MoveOnlyFunctionImpl {
    * @return The target's result converted to R.
    */
   R operator()(Args... args)
-    requires(!kConst)
+    requires(!Const)
   {
     REX_ASSERT(ops_ != nullptr);
     return ops_->invoke(storage_, std::forward<Args>(args)...);
@@ -239,7 +239,7 @@ class MoveOnlyFunctionImpl {
    * @return The target's result converted to R.
    */
   R operator()(Args... args) const
-    requires kConst
+    requires Const
   {
     REX_ASSERT(ops_ != nullptr);
     return ops_->invoke(const_cast<std::byte*>(storage_), std::forward<Args>(args)...);

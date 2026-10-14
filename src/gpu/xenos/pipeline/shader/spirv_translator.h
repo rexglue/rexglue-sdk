@@ -92,94 +92,94 @@ class SPIRVShaderTranslator : public ShaderTranslator {
   };
 
   enum : u32 {
-    kSysFlag_VertexIndexLoad_Shift,
-    kSysFlag_ComputeOrPrimitiveVertexIndexLoad_Shift,
-    kSysFlag_ComputeOrPrimitiveVertexIndexLoad32Bit_Shift,
-    kSysFlag_ComputeOrPrimitiveVertexIndexReset_Shift,
+    kSysFlagVertexIndexLoadShift,
+    kSysFlagComputeOrPrimitiveVertexIndexLoadShift,
+    kSysFlagComputeOrPrimitiveVertexIndexLoad32BitShift,
+    kSysFlagComputeOrPrimitiveVertexIndexResetShift,
     /** Memexport compute fallback only. */
-    kSysFlag_ComputeMemExportPatchIndexFromInvocation_Shift,
+    kSysFlagComputeMemExportPatchIndexFromInvocationShift,
     /** Memexport compute fallback only. */
-    kSysFlag_ComputeMemExportPatchIndexInRegister1_Shift,
+    kSysFlagComputeMemExportPatchIndexInRegister1Shift,
     /** Memexport compute fallback only. */
-    kSysFlag_ComputeMemExportTriangleCPIndexed_Shift,
+    kSysFlagComputeMemExportTriangleCPIndexedShift,
     /** Memexport compute fallback only. */
-    kSysFlag_ComputeMemExportQuadCPIndexed_Shift,
-    kSysFlag_XYDividedByW_Shift,
-    kSysFlag_ZDividedByW_Shift,
-    kSysFlag_WNotReciprocal_Shift,
-    kSysFlag_PrimitivePolygonal_Shift,
-    kSysFlag_PrimitiveLine_Shift,
-    kSysFlag_MSAASamples_Shift,
-    kSysFlag_DepthFloat24_Shift = kSysFlag_MSAASamples_Shift + xenos::kMSAASamplesBits,
-    kSysFlag_AlphaPassIfLess_Shift,
-    kSysFlag_AlphaPassIfEqual_Shift,
-    kSysFlag_AlphaPassIfGreater_Shift,
-    kSysFlag_ConvertColor0ToGamma_Shift,
-    kSysFlag_ConvertColor1ToGamma_Shift,
-    kSysFlag_ConvertColor2ToGamma_Shift,
-    kSysFlag_ConvertColor3ToGamma_Shift,
+    kSysFlagComputeMemExportQuadCPIndexedShift,
+    kSysFlagXYDividedByWShift,
+    kSysFlagZDividedByWShift,
+    kSysFlagWNotReciprocalShift,
+    kSysFlagPrimitivePolygonalShift,
+    kSysFlagPrimitiveLineShift,
+    kSysFlagMSAASamplesShift,
+    kSysFlagDepthFloat24Shift = kSysFlagMSAASamplesShift + xenos::kMSAASamplesBits,
+    kSysFlagAlphaPassIfLessShift,
+    kSysFlagAlphaPassIfEqualShift,
+    kSysFlagAlphaPassIfGreaterShift,
+    kSysFlagConvertColor0ToGammaShift,
+    kSysFlagConvertColor1ToGammaShift,
+    kSysFlagConvertColor2ToGammaShift,
+    kSysFlagConvertColor3ToGammaShift,
 
-    kSysFlag_FSIDepthStencil_Shift,
-    kSysFlag_FSIDepthPassIfLess_Shift,
-    kSysFlag_FSIDepthPassIfEqual_Shift,
-    kSysFlag_FSIDepthPassIfGreater_Shift,
+    kSysFlagFSIDepthStencilShift,
+    kSysFlagFSIDepthPassIfLessShift,
+    kSysFlagFSIDepthPassIfEqualShift,
+    kSysFlagFSIDepthPassIfGreaterShift,
     /** 1 writes the new depth when the depth test passes, 0 keeps the old depth. */
-    kSysFlag_FSIDepthWrite_Shift,
-    kSysFlag_FSIStencilTest_Shift,
+    kSysFlagFSIDepthWriteShift,
+    kSysFlagFSIStencilTestShift,
     /**
      * Writes a stencil value that differs from the depth buffer after a failed depth and stencil
      * test, skipping the rest of the shader. Ignored by shaders with kill instructions or depth
      * output.
      */
-    kSysFlag_FSIDepthStencilEarlyWrite_Shift,
+    kSysFlagFSIDepthStencilEarlyWriteShift,
 
-    kSysFlag_Count,
+    kSysFlagCount,
 
     /**
      * kVertex only, when fullDrawIndexUint32 is unsupported. Fetches 32-bit indices manually,
      * 16-bit indices always come from the Vulkan index buffer.
      */
-    kSysFlag_VertexIndexLoad = 1u << kSysFlag_VertexIndexLoad_Shift,
+    kSysFlagVertexIndexLoad = 1u << kSysFlagVertexIndexLoadShift,
     /**
      * kMemExportCompute, kPointListAsTriangleStrip and kRectangleListAsTriangleStrip. Loads the
      * vertex index from the index buffer and flags whether it is 32-bit. Separate from
      * kSysFlag_VertexIndexLoad.
      */
-    kSysFlag_ComputeOrPrimitiveVertexIndexLoad =
-        1u << kSysFlag_ComputeOrPrimitiveVertexIndexLoad_Shift,
-    kSysFlag_ComputeOrPrimitiveVertexIndexLoad32Bit =
-        1u << kSysFlag_ComputeOrPrimitiveVertexIndexLoad32Bit_Shift,
-    kSysFlag_ComputeOrPrimitiveVertexIndexReset =
-        1u << kSysFlag_ComputeOrPrimitiveVertexIndexReset_Shift,
-    kSysFlag_ComputeMemExportPatchIndexFromInvocation =
-        1u << kSysFlag_ComputeMemExportPatchIndexFromInvocation_Shift,
-    kSysFlag_ComputeMemExportPatchIndexInRegister1 =
-        1u << kSysFlag_ComputeMemExportPatchIndexInRegister1_Shift,
-    kSysFlag_ComputeMemExportTriangleCPIndexed =
-        1u << kSysFlag_ComputeMemExportTriangleCPIndexed_Shift,
-    kSysFlag_ComputeMemExportQuadCPIndexed = 1u << kSysFlag_ComputeMemExportQuadCPIndexed_Shift,
-    kSysFlag_XYDividedByW = 1u << kSysFlag_XYDividedByW_Shift,
-    kSysFlag_ZDividedByW = 1u << kSysFlag_ZDividedByW_Shift,
-    kSysFlag_WNotReciprocal = 1u << kSysFlag_WNotReciprocal_Shift,
-    kSysFlag_PrimitivePolygonal = 1u << kSysFlag_PrimitivePolygonal_Shift,
-    kSysFlag_PrimitiveLine = 1u << kSysFlag_PrimitiveLine_Shift,
-    kSysFlag_DepthFloat24 = 1u << kSysFlag_DepthFloat24_Shift,
-    kSysFlag_AlphaPassIfLess = 1u << kSysFlag_AlphaPassIfLess_Shift,
-    kSysFlag_AlphaPassIfEqual = 1u << kSysFlag_AlphaPassIfEqual_Shift,
-    kSysFlag_AlphaPassIfGreater = 1u << kSysFlag_AlphaPassIfGreater_Shift,
-    kSysFlag_ConvertColor0ToGamma = 1u << kSysFlag_ConvertColor0ToGamma_Shift,
-    kSysFlag_ConvertColor1ToGamma = 1u << kSysFlag_ConvertColor1ToGamma_Shift,
-    kSysFlag_ConvertColor2ToGamma = 1u << kSysFlag_ConvertColor2ToGamma_Shift,
-    kSysFlag_ConvertColor3ToGamma = 1u << kSysFlag_ConvertColor3ToGamma_Shift,
-    kSysFlag_FSIDepthStencil = 1u << kSysFlag_FSIDepthStencil_Shift,
-    kSysFlag_FSIDepthPassIfLess = 1u << kSysFlag_FSIDepthPassIfLess_Shift,
-    kSysFlag_FSIDepthPassIfEqual = 1u << kSysFlag_FSIDepthPassIfEqual_Shift,
-    kSysFlag_FSIDepthPassIfGreater = 1u << kSysFlag_FSIDepthPassIfGreater_Shift,
-    kSysFlag_FSIDepthWrite = 1u << kSysFlag_FSIDepthWrite_Shift,
-    kSysFlag_FSIStencilTest = 1u << kSysFlag_FSIStencilTest_Shift,
-    kSysFlag_FSIDepthStencilEarlyWrite = 1u << kSysFlag_FSIDepthStencilEarlyWrite_Shift,
+    kSysFlagComputeOrPrimitiveVertexIndexLoad = 1u
+                                                << kSysFlagComputeOrPrimitiveVertexIndexLoadShift,
+    kSysFlagComputeOrPrimitiveVertexIndexLoad32Bit =
+        1u << kSysFlagComputeOrPrimitiveVertexIndexLoad32BitShift,
+    kSysFlagComputeOrPrimitiveVertexIndexReset = 1u
+                                                 << kSysFlagComputeOrPrimitiveVertexIndexResetShift,
+    kSysFlagComputeMemExportPatchIndexFromInvocation =
+        1u << kSysFlagComputeMemExportPatchIndexFromInvocationShift,
+    kSysFlagComputeMemExportPatchIndexInRegister1 =
+        1u << kSysFlagComputeMemExportPatchIndexInRegister1Shift,
+    kSysFlagComputeMemExportTriangleCPIndexed = 1u
+                                                << kSysFlagComputeMemExportTriangleCPIndexedShift,
+    kSysFlagComputeMemExportQuadCPIndexed = 1u << kSysFlagComputeMemExportQuadCPIndexedShift,
+    kSysFlagXYDividedByW = 1u << kSysFlagXYDividedByWShift,
+    kSysFlagZDividedByW = 1u << kSysFlagZDividedByWShift,
+    kSysFlagWNotReciprocal = 1u << kSysFlagWNotReciprocalShift,
+    kSysFlagPrimitivePolygonal = 1u << kSysFlagPrimitivePolygonalShift,
+    kSysFlagPrimitiveLine = 1u << kSysFlagPrimitiveLineShift,
+    kSysFlagDepthFloat24 = 1u << kSysFlagDepthFloat24Shift,
+    kSysFlagAlphaPassIfLess = 1u << kSysFlagAlphaPassIfLessShift,
+    kSysFlagAlphaPassIfEqual = 1u << kSysFlagAlphaPassIfEqualShift,
+    kSysFlagAlphaPassIfGreater = 1u << kSysFlagAlphaPassIfGreaterShift,
+    kSysFlagConvertColor0ToGamma = 1u << kSysFlagConvertColor0ToGammaShift,
+    kSysFlagConvertColor1ToGamma = 1u << kSysFlagConvertColor1ToGammaShift,
+    kSysFlagConvertColor2ToGamma = 1u << kSysFlagConvertColor2ToGammaShift,
+    kSysFlagConvertColor3ToGamma = 1u << kSysFlagConvertColor3ToGammaShift,
+    kSysFlagFSIDepthStencil = 1u << kSysFlagFSIDepthStencilShift,
+    kSysFlagFSIDepthPassIfLess = 1u << kSysFlagFSIDepthPassIfLessShift,
+    kSysFlagFSIDepthPassIfEqual = 1u << kSysFlagFSIDepthPassIfEqualShift,
+    kSysFlagFSIDepthPassIfGreater = 1u << kSysFlagFSIDepthPassIfGreaterShift,
+    kSysFlagFSIDepthWrite = 1u << kSysFlagFSIDepthWriteShift,
+    kSysFlagFSIStencilTest = 1u << kSysFlagFSIStencilTestShift,
+    kSysFlagFSIDepthStencilEarlyWrite = 1u << kSysFlagFSIDepthStencilEarlyWriteShift,
   };
-  static_assert(kSysFlag_Count <= 32, "Too many flags in the system constants");
+  static_assert(kSysFlagCount <= 32, "Too many flags in the system constants");
 
   /** Dispatch size for the Vulkan vertex memexport compute fallback. */
   static constexpr u32 kMemExportComputeDispatchX = 65535;
@@ -492,7 +492,7 @@ class SPIRVShaderTranslator : public ShaderTranslator {
    */
   void ProcessLoopEndInstruction(const ParsedLoopEndInstruction& instr) override;
   void ProcessJumpInstruction(const ParsedJumpInstruction& instr) override;
-  void ProcessAllocInstruction(const ParsedAllocInstruction& instr, u8 export_eM) override;
+  void ProcessAllocInstruction(const ParsedAllocInstruction& instr, u8 export_em) override;
 
   /**
    * Vfetch_full computes `base + index * stride` in dwords, kept for the following vfetch_mini.
@@ -530,10 +530,10 @@ class SPIRVShaderTranslator : public ShaderTranslator {
    * Invariant decoration on outputs.
    *
    * @param instr Parsed ALU instruction.
-   * @param memexport_eM_potentially_written_before Bit mask of eM# elements possibly written.
+   * @param memexport_em_potentially_written_before Bit mask of eM# elements possibly written.
    */
   void ProcessAluInstruction(const ParsedAluInstruction& instr,
-                             u8 memexport_eM_potentially_written_before) override;
+                             u8 memexport_em_potentially_written_before) override;
 
  private:
   struct TextureBinding {
@@ -557,20 +557,20 @@ class SPIRVShaderTranslator : public ShaderTranslator {
   spv::Id SPIRVSmearScalarResultOrConstant(spv::Id scalar, spv::Id vector_type);
 
   Modification GetSPIRVShaderModification() const {
-    return Modification(current_translation().modification());
+    return Modification(GetCurrentTranslation().GetModification());
   }
 
   bool IsSPIRVVertexShader() const {
-    return is_vertex_shader() && !Shader::IsHostVertexShaderTypeDomain(
-                                     GetSPIRVShaderModification().vertex.host_vertex_shader_type);
+    return IsVertexShader() && !Shader::IsHostVertexShaderTypeDomain(
+                                   GetSPIRVShaderModification().vertex.host_vertex_shader_type);
   }
   bool IsSPIRVTessEvalShader() const {
-    return is_vertex_shader() && Shader::IsHostVertexShaderTypeDomain(
-                                     GetSPIRVShaderModification().vertex.host_vertex_shader_type);
+    return IsVertexShader() && Shader::IsHostVertexShaderTypeDomain(
+                                   GetSPIRVShaderModification().vertex.host_vertex_shader_type);
   }
   bool IsSPIRVComputeShader() const {
-    return is_vertex_shader() && GetSPIRVShaderModification().vertex.host_vertex_shader_type ==
-                                     Shader::HostVertexShaderType::kMemExportCompute;
+    return IsVertexShader() && GetSPIRVShaderModification().vertex.host_vertex_shader_type ==
+                                   Shader::HostVertexShaderType::kMemExportCompute;
   }
   bool IsSPIRVRectangleListVertexLoopEnabled() const {
     return IsSPIRVVertexShader() && GetSPIRVShaderModification().vertex.host_vertex_shader_type ==
@@ -578,13 +578,13 @@ class SPIRVShaderTranslator : public ShaderTranslator {
   }
 
   bool IsExecutionModeEarlyFragmentTests() const {
-    return is_pixel_shader() &&
+    return IsPixelShader() &&
            GetSPIRVShaderModification().pixel.depth_stencil_mode ==
                Modification::DepthStencilMode::kEarlyHint &&
-           !edram_fragment_shader_interlock_ && current_shader().implicit_early_z_write_allowed();
+           !edram_fragment_shader_interlock_ && GetCurrentShader().GetImplicitEarlyZWriteAllowed();
   }
   bool IsWritingFloat24Depth() const {
-    REX_ASSERT(is_pixel_shader());
+    REX_ASSERT(IsPixelShader());
     if (edram_fragment_shader_interlock_) {
       return false;
     }
@@ -594,14 +594,14 @@ class SPIRVShaderTranslator : public ShaderTranslator {
            depth_stencil_mode == Modification::DepthStencilMode::kFloat24Rounding;
   }
   bool IsSampleRate() const {
-    REX_ASSERT(is_pixel_shader());
-    return IsWritingFloat24Depth() && !current_shader().writes_depth();
+    REX_ASSERT(IsPixelShader());
+    return IsWritingFloat24Depth() && !GetCurrentShader().GetWritesDepth();
   }
 
   u32 GetModificationInterpolatorMask() const {
     Modification modification = GetSPIRVShaderModification();
-    return is_vertex_shader() ? modification.vertex.interpolator_mask
-                              : modification.pixel.interpolator_mask;
+    return IsVertexShader() ? modification.vertex.interpolator_mask
+                            : modification.pixel.interpolator_mask;
   }
 
   /** @return UINT32_MAX when PsParamGen need not be written. */
@@ -771,11 +771,11 @@ class SPIRVShaderTranslator : public ShaderTranslator {
    * exports are performed before the invocation becomes inactive and storage writes are disabled.
    *
    * @param condition Bool Id that is true when the fragment is discarded.
-   * @param memexport_eM_potentially_written_before Bit mask of eM# elements possibly written.
+   * @param memexport_em_potentially_written_before Bit mask of eM# elements possibly written.
    */
-  void KillPixel(spv::Id condition, u8 memexport_eM_potentially_written_before);
+  void KillPixel(spv::Id condition, u8 memexport_em_potentially_written_before);
   /**
-   * Returns a float vector of rex::bit_count(result.GetUsedResultComponents()) components or a
+   * Returns a float vector of rex::BitCount(result.GetUsedResultComponents()) components or a
    * single float for a reduction instruction, or spv::NoResult when there is nothing to store.
    *
    * Max and min follow Shader Model 3 NaN behavior (`a op b ? a : b`), unlike SPIR-V FMax and FMin
@@ -789,12 +789,12 @@ class SPIRVShaderTranslator : public ShaderTranslator {
    * z = src0.z and w = src1.w. Maxa sets a0 = (int)clamp(floor(src0.w + 0.5), -256, 255).
    *
    * @param instr Parsed ALU instruction.
-   * @param memexport_eM_potentially_written_before Bit mask of eM# elements possibly written.
+   * @param memexport_em_potentially_written_before Bit mask of eM# elements possibly written.
    * @param predicate_written Set when the operation writes the predicate.
    * @return Id of the vector result.
    */
   spv::Id ProcessVectorAluOperation(const ParsedAluInstruction& instr,
-                                    u8 memexport_eM_potentially_written_before,
+                                    u8 memexport_em_potentially_written_before,
                                     bool& predicate_written);
   /**
    * Returns the float to write to the previous scalar register and the destination, or
@@ -806,12 +806,12 @@ class SPIRVShaderTranslator : public ShaderTranslator {
    * src0.b > 0, otherwise it returns -FLT_MAX.
    *
    * @param instr Parsed ALU instruction.
-   * @param memexport_eM_potentially_written_before Bit mask of eM# elements possibly written.
+   * @param memexport_em_potentially_written_before Bit mask of eM# elements possibly written.
    * @param predicate_written Set when the operation writes the predicate.
    * @return Id of the scalar result.
    */
   spv::Id ProcessScalarAluOperation(const ParsedAluInstruction& instr,
-                                    u8 memexport_eM_potentially_written_before,
+                                    u8 memexport_em_potentially_written_before,
                                     bool& predicate_written);
 
   spv::Id EndianSwap32Uint(spv::Id value, spv::Id endian);
@@ -838,14 +838,14 @@ class SPIRVShaderTranslator : public ShaderTranslator {
                                  spv::Id replace_mask = spv::NoResult);
 
   bool IsMemoryExportSupported() const {
-    if (is_pixel_shader()) {
+    if (IsPixelShader()) {
       return features_.fragment_stores_and_atomics;
     }
     return features_.vertex_pipeline_stores_and_atomics || IsSPIRVComputeShader();
   }
 
   bool IsMemoryExportUsed() const {
-    return current_shader().memexport_eM_written() && IsMemoryExportSupported();
+    return GetCurrentShader().GetMemExportEMWritten() && IsMemoryExportSupported();
   }
 
   /**
@@ -857,9 +857,9 @@ class SPIRVShaderTranslator : public ShaderTranslator {
    * widths without holes that add up to the texel size of 8, 16 or 32 bits and are at most 23
    * bits so max + 0.5 is exact.
    *
-   * @param export_eM Bit mask of the eM# elements to export.
+   * @param export_em Bit mask of the eM# elements to export.
    */
-  void ExportToMemory(u8 export_eM);
+  void ExportToMemory(u8 export_em);
 
   /**
    * Converts piecewise linear gamma to linear. The source may be a float scalar or vector.
@@ -930,7 +930,7 @@ class SPIRVShaderTranslator : public ShaderTranslator {
    * @param is_all_signed Bool Id that is true when all components are signed.
    * @return Id of the queried LOD.
    */
-  spv::Id QueryTextureLod(spv::Builder::TextureParameters& texture_parameters,
+  spv::Id QueryTextureLOD(spv::Builder::TextureParameters& texture_parameters,
                           spv::Id image_unsigned, spv::Id image_signed, spv::Id sampler,
                           spv::Id is_all_signed);
 
@@ -940,10 +940,10 @@ class SPIRVShaderTranslator : public ShaderTranslator {
    *
    * @return True when the depth and stencil test can run early.
    */
-  bool FSI_IsDepthStencilEarly() const {
+  bool FSIIsDepthStencilEarly() const {
     REX_ASSERT(edram_fragment_shader_interlock_);
-    return !is_depth_only_fragment_shader_ && !current_shader().writes_depth() &&
-           !current_shader().memexport_eM_written();
+    return !is_depth_only_fragment_shader_ && !GetCurrentShader().GetWritesDepth() &&
+           !GetCurrentShader().GetMemExportEMWritten();
   }
   /**
    * On the Xenos 2x MSAA doubles the storage height and 4x MSAA doubles the storage width. Vulkan
@@ -953,7 +953,7 @@ class SPIRVShaderTranslator : public ShaderTranslator {
    *
    * @param msaa_samples Uint Id of the MSAA sample count.
    */
-  void FSI_LoadSampleMask(spv::Id msaa_samples);
+  void FSILoadSampleMask(spv::Id msaa_samples);
   /**
    * A 32bpp tile is 80x16 samples in 2 half tiles of 40x16 and a 64bpp tile is 40x16. Depth and
    * stencil place samples 40...79 in the first half tile and 0...39 in the second, flipped
@@ -961,7 +961,7 @@ class SPIRVShaderTranslator : public ShaderTranslator {
    *
    * @param msaa_samples Uint Id of the MSAA sample count.
    */
-  void FSI_LoadEDRAMOffsets(spv::Id msaa_samples);
+  void FSILoadEDRAMOffsets(spv::Id msaa_samples);
   /**
    * The address must be a signed int.
    *
@@ -970,8 +970,8 @@ class SPIRVShaderTranslator : public ShaderTranslator {
    * @param is_64bpp Bool for a 64bpp render target, or spv::NoResult for 32bpp.
    * @return Id of the sample address.
    */
-  spv::Id FSI_AddSampleOffset(spv::Id sample_0_address, u32 sample_index,
-                              spv::Id is_64bpp = spv::NoResult);
+  spv::Id FSIAddSampleOffset(spv::Id sample_0_address, u32 sample_index,
+                             spv::Id is_64bpp = spv::NoResult);
   /**
    * Updates main_fsi_sample_mask_. Call outside non uniform control flow as it takes derivatives
    * of the fragment depth.
@@ -986,7 +986,7 @@ class SPIRVShaderTranslator : public ShaderTranslator {
    * @param msaa_samples Uint Id of the MSAA sample count.
    * @param sample_mask_potentially_narrowed_previouly True when the sample mask may be narrowed.
    */
-  void FSI_DepthStencilTest(spv::Id msaa_samples, bool sample_mask_potentially_narrowed_previouly);
+  void FSIDepthStencilTest(spv::Id msaa_samples, bool sample_mask_potentially_narrowed_previouly);
   /**
    * Returns the first and second 32 bits as 2 uints. NaN is flushed to 0 rather than the minimum
    * value, and the extended range Xenos float16 is unsupported.
@@ -995,9 +995,9 @@ class SPIRVShaderTranslator : public ShaderTranslator {
    * @param format_with_flags Uint Id of the color format with flags.
    * @return The packed color as 2 uints.
    */
-  std::array<spv::Id, 2> FSI_ClampAndPackColor(spv::Id color_float4, spv::Id format_with_flags);
-  std::array<spv::Id, 4> FSI_UnpackColor(std::array<spv::Id, 2> color_packed,
-                                         spv::Id format_with_flags);
+  std::array<spv::Id, 2> FSIClampAndPackColor(spv::Id color_float4, spv::Id format_with_flags);
+  std::array<spv::Id, 4> FSIUnpackColor(std::array<spv::Id, 2> color_packed,
+                                        spv::Id format_with_flags);
   /**
    * The bounds must have the same component count as the color or alpha.
    *
@@ -1007,8 +1007,8 @@ class SPIRVShaderTranslator : public ShaderTranslator {
    * @param max_value Upper bound.
    * @return Id of the flushed and clamped value.
    */
-  spv::Id FSI_FlushNaNClampAndInBlending(spv::Id color_or_alpha, spv::Id is_fixed_point,
-                                         spv::Id min_value, spv::Id max_value);
+  spv::Id FSIFlushNaNClampAndInBlending(spv::Id color_or_alpha, spv::Id is_fixed_point,
+                                        spv::Id min_value, spv::Id max_value);
   /**
    * A zero factor is excluded from the multiplication so infinity and NaN do not take part.
    *
@@ -1025,10 +1025,10 @@ class SPIRVShaderTranslator : public ShaderTranslator {
    * @param constant_alpha Blend constant alpha.
    * @return Id of the scaled color.
    */
-  spv::Id FSI_ApplyColorBlendFactor(spv::Id value, spv::Id is_fixed_point, spv::Id clamp_min_value,
-                                    spv::Id clamp_max_value, spv::Id factor, spv::Id source_color,
-                                    spv::Id source_alpha, spv::Id dest_color, spv::Id dest_alpha,
-                                    spv::Id constant_color, spv::Id constant_alpha);
+  spv::Id FSIApplyColorBlendFactor(spv::Id value, spv::Id is_fixed_point, spv::Id clamp_min_value,
+                                   spv::Id clamp_max_value, spv::Id factor, spv::Id source_color,
+                                   spv::Id source_alpha, spv::Id dest_color, spv::Id dest_alpha,
+                                   spv::Id constant_color, spv::Id constant_alpha);
   /**
    * A zero factor is excluded from the multiplication so infinity and NaN do not take part.
    *
@@ -1042,9 +1042,9 @@ class SPIRVShaderTranslator : public ShaderTranslator {
    * @param constant_alpha Blend constant alpha.
    * @return Id of the scaled alpha.
    */
-  spv::Id FSI_ApplyAlphaBlendFactor(spv::Id value, spv::Id is_fixed_point, spv::Id clamp_min_value,
-                                    spv::Id clamp_max_value, spv::Id factor, spv::Id source_alpha,
-                                    spv::Id dest_alpha, spv::Id constant_alpha);
+  spv::Id FSIApplyAlphaBlendFactor(spv::Id value, spv::Id is_fixed_point, spv::Id clamp_min_value,
+                                   spv::Id clamp_max_value, spv::Id factor, spv::Id source_alpha,
+                                   spv::Id dest_alpha, spv::Id constant_alpha);
   /**
    * Blends the alpha when source_color_clamped, dest_color and constant_color_clamped are
    * spv::NoResult, otherwise the color. The result is unclamped, color packing clamps it.
@@ -1063,7 +1063,7 @@ class SPIRVShaderTranslator : public ShaderTranslator {
    * @param dest_factor Destination blend factor.
    * @return Id of the unclamped blend result.
    */
-  spv::Id FSI_BlendColorOrAlphaWithUnclampedResult(
+  spv::Id FSIBlendColorOrAlphaWithUnclampedResult(
       spv::Id is_fixed_point, spv::Id clamp_min_value, spv::Id clamp_max_value,
       spv::Id source_color_clamped, spv::Id source_alpha_clamped, spv::Id dest_color,
       spv::Id dest_alpha, spv::Id constant_color_clamped, spv::Id constant_alpha_clamped,
@@ -1097,39 +1097,39 @@ class SPIRVShaderTranslator : public ShaderTranslator {
 
   union {
     struct {
-      spv::Id type_bool_;
-      spv::Id type_bool2_;
-      spv::Id type_bool3_;
-      spv::Id type_bool4_;
+      spv::Id type_bool;
+      spv::Id type_bool2;
+      spv::Id type_bool3;
+      spv::Id type_bool4;
     };
-    spv::Id type_bool_vectors_[4];
+    spv::Id type_bool_vectors[4];
   };
   union {
     struct {
-      spv::Id type_int_;
-      spv::Id type_int2_;
-      spv::Id type_int3_;
-      spv::Id type_int4_;
+      spv::Id type_int;
+      spv::Id type_int2;
+      spv::Id type_int3;
+      spv::Id type_int4;
     };
-    spv::Id type_int_vectors_[4];
+    spv::Id type_int_vectors[4];
   };
   union {
     struct {
-      spv::Id type_uint_;
-      spv::Id type_uint2_;
-      spv::Id type_uint3_;
-      spv::Id type_uint4_;
+      spv::Id type_uint;
+      spv::Id type_uint2;
+      spv::Id type_uint3;
+      spv::Id type_uint4;
     };
-    spv::Id type_uint_vectors_[4];
+    spv::Id type_uint_vectors[4];
   };
   union {
     struct {
-      spv::Id type_float_;
-      spv::Id type_float2_;
-      spv::Id type_float3_;
-      spv::Id type_float4_;
+      spv::Id type_float;
+      spv::Id type_float2;
+      spv::Id type_float3;
+      spv::Id type_float4;
     };
-    spv::Id type_float_vectors_[4];
+    spv::Id type_float_vectors[4];
   };
 
   spv::Id const_int_0_;
@@ -1138,21 +1138,21 @@ class SPIRVShaderTranslator : public ShaderTranslator {
   spv::Id const_uint4_0_;
   union {
     struct {
-      spv::Id const_float_0_;
-      spv::Id const_float2_0_;
-      spv::Id const_float3_0_;
-      spv::Id const_float4_0_;
+      spv::Id const_float_0;
+      spv::Id const_float2_0;
+      spv::Id const_float3_0;
+      spv::Id const_float4_0;
     };
-    spv::Id const_float_vectors_0_[4];
+    spv::Id const_float_vectors_0[4];
   };
   union {
     struct {
-      spv::Id const_float_1_;
-      spv::Id const_float2_1_;
-      spv::Id const_float3_1_;
-      spv::Id const_float4_1_;
+      spv::Id const_float_1;
+      spv::Id const_float2_1;
+      spv::Id const_float3_1;
+      spv::Id const_float4_1;
     };
-    spv::Id const_float_vectors_1_[4];
+    spv::Id const_float_vectors_1[4];
   };
   spv::Id const_float2_0_1_;
 
@@ -1321,7 +1321,7 @@ class SPIRVShaderTranslator : public ShaderTranslator {
    */
   spv::Id var_main_fsi_color_written_;
   /**
-   * Loaded by FSI_LoadSampleMask, modifiable only on the outermost control flow level of main.
+   * Loaded by FSILoadSampleMask, modifiable only on the outermost control flow level of main.
    * Bits 0:3 are the per sample coverage at the current stage, affected by gl_SampleMaskIn, early
    * or late depth and stencil, and alpha to coverage. Bits 4:7 are the depth write deferred mask
    * for samples whose early depth and stencil result must be written after the shader. Early
@@ -1334,7 +1334,7 @@ class SPIRVShaderTranslator : public ShaderTranslator {
   spv::Id main_fsi_offset_32bpp_;
   spv::Id main_fsi_offset_64bpp_;
   /**
-   * Loaded by FSI_DepthStencilTest for early depth and stencil, the values to write at the end of
+   * Loaded by FSIDepthStencilTest for early depth and stencil, the values to write at the end of
    * the shader for samples in main_fsi_sample_mask_ not discarded after the early test.
    */
   std::array<spv::Id, 4> main_fsi_late_write_depth_stencil_;

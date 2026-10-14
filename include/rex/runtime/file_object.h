@@ -223,14 +223,14 @@ struct FileObject {
    *
    * @param value The new position.
    */
-  REX_RUNTIME_API void set_position(u64 value);
+  REX_RUNTIME_API void SetPosition(u64 value);
 
   /**
    * Reads the current position of the file.
    *
    * @return The position.
    */
-  REX_RUNTIME_API u64 position();
+  REX_RUNTIME_API u64 GetPosition();
 
   /**
    * Starts a directory listing.

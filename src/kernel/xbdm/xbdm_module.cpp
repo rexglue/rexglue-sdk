@@ -20,7 +20,7 @@ namespace kernel {
 namespace xbdm {
 using namespace rex::runtime;
 
-X_HANDLE CreateXbdmModule(Runtime& runtime) {
+X_HANDLE CreateXBDMModule(Runtime& runtime) {
   return CreateKernelModule(runtime, "xe:\\xbdm.xex");
 }
 

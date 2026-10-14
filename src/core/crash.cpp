@@ -254,7 +254,7 @@ void EndReport() {
   std::fflush(stderr);
   if (g_options.show_dialog) {
     ShowSimpleMessageBox(
-        SimpleMessageBoxType::Error,
+        SimpleMessageBoxType::kError,
         std::format("{} crashed. The log file has the details.", g_options.app_name));
   }
 }

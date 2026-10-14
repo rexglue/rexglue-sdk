@@ -56,12 +56,12 @@ class VulkanUploadBufferPool : public GraphicsUploadBufferPool {
      */
     VulkanPage(const VulkanDevice* vulkan_device, VkBuffer buffer, VkDeviceMemory memory,
                void* mapping)
-        : vulkan_device_(vulkan_device), buffer_(buffer), memory_(memory), mapping_(mapping) {}
+        : vulkan_device(vulkan_device), buffer(buffer), memory(memory), mapping(mapping) {}
     ~VulkanPage() override;
-    const VulkanDevice* vulkan_device_;
-    VkBuffer buffer_;
-    VkDeviceMemory memory_;
-    void* mapping_;
+    const VulkanDevice* vulkan_device;
+    VkBuffer buffer;
+    VkDeviceMemory memory;
+    void* mapping;
   };
 
   const VulkanDevice* vulkan_device_;

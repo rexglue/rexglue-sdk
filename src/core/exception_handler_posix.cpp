@@ -275,7 +275,7 @@ static void ExceptionHandlerCallback(int signal_number, siginfo_t* signal_info,
       mcontext->__ss.__rip = thread_context.rip;
       mcontext->__ss.__rflags = thread_context.eflags;
       u32 modified_register_index;
-      u16 modified_int_registers_remaining = ex.modified_int_registers();
+      u16 modified_int_registers_remaining = ex.GetModifiedIntRegisters();
       while (rex::bit_scan_forward(modified_int_registers_remaining, &modified_register_index)) {
         modified_int_registers_remaining &= ~(UINT16_C(1) << modified_register_index);
         switch (modified_register_index) {
@@ -331,12 +331,12 @@ static void ExceptionHandlerCallback(int signal_number, siginfo_t* signal_info,
             REX_UNHANDLED_CASE(modified_register_index);
         }
       }
-      u16 modified_xmm_registers_remaining = ex.modified_xmm_registers();
+      u16 modified_xmm_registers_remaining = ex.GetModifiedXMMRegisters();
       while (rex::bit_scan_forward(modified_xmm_registers_remaining, &modified_register_index)) {
         modified_xmm_registers_remaining &= ~(UINT16_C(1) << modified_register_index);
         std::memcpy(reinterpret_cast<char*>(&mcontext->__fs.__fpu_xmm0) +
-                        modified_register_index * sizeof(vec128_t),
-                    &thread_context.xmm_registers[modified_register_index], sizeof(vec128_t));
+                        modified_register_index * sizeof(Vec128T),
+                    &thread_context.xmm_registers[modified_register_index], sizeof(Vec128T));
       }
 #else
       mcontext.gregs[REG_RIP] = greg_t(thread_context.rip);
@@ -347,22 +347,22 @@ static void ExceptionHandlerCallback(int signal_number, siginfo_t* signal_info,
           REG_RAX, REG_RCX, REG_RDX, REG_RBX, REG_RSP, REG_RBP, REG_RSI, REG_RDI,
           REG_R8,  REG_R9,  REG_R10, REG_R11, REG_R12, REG_R13, REG_R14, REG_R15,
       };
-      u16 modified_int_registers_remaining = ex.modified_int_registers();
+      u16 modified_int_registers_remaining = ex.GetModifiedIntRegisters();
       while (rex::bit_scan_forward(modified_int_registers_remaining, &modified_register_index)) {
         modified_int_registers_remaining &= ~(UINT16_C(1) << modified_register_index);
         mcontext.gregs[kIntRegisterMap[modified_register_index]] =
             static_cast<greg_t>(thread_context.int_registers[modified_register_index]);
       }
-      u16 modified_xmm_registers_remaining = ex.modified_xmm_registers();
+      u16 modified_xmm_registers_remaining = ex.GetModifiedXMMRegisters();
       while (rex::bit_scan_forward(modified_xmm_registers_remaining, &modified_register_index)) {
         modified_xmm_registers_remaining &= ~(UINT16_C(1) << modified_register_index);
         std::memcpy(&mcontext.fpregs->_xmm[modified_register_index],
-                    &thread_context.xmm_registers[modified_register_index], sizeof(vec128_t));
+                    &thread_context.xmm_registers[modified_register_index], sizeof(Vec128T));
       }
 #endif
 #elif REX_ARCH_ARM64
       u32 modified_register_index;
-      u32 modified_x_registers_remaining = ex.modified_x_registers();
+      u32 modified_x_registers_remaining = ex.GetModifiedXRegisters();
 #if REX_PLATFORM_MAC
       while (rex::bit_scan_forward(modified_x_registers_remaining, &modified_register_index)) {
         modified_x_registers_remaining &= ~(UINT32_C(1) << modified_register_index);
@@ -393,11 +393,11 @@ static void ExceptionHandlerCallback(int signal_number, siginfo_t* signal_info,
       mcontext->__ns.__fpsr = thread_context.fpsr;
       mcontext->__ns.__fpcr = thread_context.fpcr;
       {
-        u32 modified_v_registers_remaining = ex.modified_v_registers();
+        u32 modified_v_registers_remaining = ex.GetModifiedVRegisters();
         while (rex::bit_scan_forward(modified_v_registers_remaining, &modified_register_index)) {
           modified_v_registers_remaining &= ~(UINT32_C(1) << modified_register_index);
           std::memcpy(&mcontext->__ns.__v[modified_register_index],
-                      &thread_context.v[modified_register_index], sizeof(vec128_t));
+                      &thread_context.v[modified_register_index], sizeof(Vec128T));
         }
       }
 #else
@@ -411,11 +411,11 @@ static void ExceptionHandlerCallback(int signal_number, siginfo_t* signal_info,
       if (mcontext_fpsimd) {
         mcontext_fpsimd->fpsr = thread_context.fpsr;
         mcontext_fpsimd->fpcr = thread_context.fpcr;
-        u32 modified_v_registers_remaining = ex.modified_v_registers();
+        u32 modified_v_registers_remaining = ex.GetModifiedVRegisters();
         while (rex::bit_scan_forward(modified_v_registers_remaining, &modified_register_index)) {
           modified_v_registers_remaining &= ~(UINT32_C(1) << modified_register_index);
           std::memcpy(&mcontext_fpsimd->vregs[modified_register_index],
-                      &thread_context.v[modified_register_index], sizeof(vec128_t));
+                      &thread_context.v[modified_register_index], sizeof(Vec128T));
           mcontext.regs[modified_register_index] = thread_context.x[modified_register_index];
         }
       }

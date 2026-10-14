@@ -168,7 +168,7 @@ KernelObject* ObjectTable::Detach(Slot& slot, X_HANDLE handle) {
   }
   if (!object->name.empty()) {
     std::lock_guard name_lock(name_mutex_);
-    auto it = names_.find(string_key_case(object->name));
+    auto it = names_.find(StringKeyCase(object->name));
     if (it != names_.end() && it->second == handle) {
       if (object->handles.empty()) {
         names_.erase(it);
@@ -243,7 +243,7 @@ Result<void> ObjectTable::Remove(X_HANDLE handle) {
 
 Result<void> ObjectTable::RetainPrimary(const PinnedSlot& slot) {
   std::unique_lock lock(mutex_);
-  const KernelObject& object = slot.object();
+  const KernelObject& object = slot.GetKernelObject();
   if (object.handles.empty()) {
     return Err(StatusError(X_STATUS_INVALID_HANDLE));
   }
@@ -262,7 +262,7 @@ Result<void> ObjectTable::ReleasePrimary(const PinnedSlot& slot) {
 
 std::optional<X_HANDLE> ObjectTable::PrimaryHandle(const PinnedSlot& slot) {
   std::shared_lock lock(mutex_);
-  const std::vector<X_HANDLE>& handles = slot.object().handles;
+  const std::vector<X_HANDLE>& handles = slot.GetKernelObject().handles;
   if (handles.empty()) {
     return std::nullopt;
   }
@@ -296,24 +296,24 @@ std::vector<PinnedSlot> ObjectTable::All() {
 
 Result<void> ObjectTable::AddName(std::string_view name, X_HANDLE handle) {
   std::lock_guard lock(name_mutex_);
-  if (names_.count(string_key_case(name))) {
+  if (names_.count(StringKeyCase(name))) {
     return Err(StatusError(X_STATUS_OBJECT_NAME_COLLISION));
   }
-  names_.insert({string_key_case::create(name), handle});
+  names_.insert({StringKeyCase::Create(name), handle});
   return Ok();
 }
 
 Result<X_HANDLE> ObjectTable::OpenByName(std::string_view name) {
   std::unique_lock lock(mutex_);
-  X_HANDLE handle = X_INVALID_HANDLE_VALUE;
+  X_HANDLE handle = kXInvalidHandleValue;
   {
     std::lock_guard name_lock(name_mutex_);
-    auto it = names_.find(string_key_case(name));
+    auto it = names_.find(StringKeyCase(name));
     if (it != names_.end()) {
       handle = it->second;
     }
   }
-  Slot* slot = handle == X_INVALID_HANDLE_VALUE ? nullptr : FindSlot(handle);
+  Slot* slot = handle == kXInvalidHandleValue ? nullptr : FindSlot(handle);
   if (!slot) {
     return Err<X_HANDLE>(StatusError(X_STATUS_OBJECT_NAME_NOT_FOUND));
   }
@@ -342,11 +342,11 @@ std::optional<X_HANDLE> ObjectTable::ResolveHandle(u32 address, i32 as_type) {
     case 1:
       added = Emplace<EventObject>(AddOptions{}, *header);
       break;
-    case DISPATCHER_MUTANT: {
+    case kDispatcherMutant: {
       const auto* mutant = reinterpret_cast<const X_KMUTANT*>(native_ptr);
       const bool owned_here = static_cast<i32>(static_cast<u32>(header->signal_state)) <= 0 &&
                               KernelThread::IsInThread() &&
-                              KernelThread::GetCurrentThread()->guest_object() ==
+                              KernelThread::GetCurrentThread()->GetGuestObject() ==
                                   static_cast<u32>(mutant->owner_thread);
       added = Emplace<MutantObject>(AddOptions{}, owned_here, address);
       break;
@@ -357,8 +357,8 @@ std::optional<X_HANDLE> ObjectTable::ResolveHandle(u32 address, i32 as_type) {
       REX_ASSERT(semaphore && semaphore->semaphore);
       break;
     }
-    case DISPATCHER_MANUAL_RESET_TIMER:
-    case DISPATCHER_AUTO_RESET_TIMER:
+    case kDispatcherManualResetTimer:
+    case kDispatcherAutoResetTimer:
       added = Emplace<TimerObject>(AddOptions{}, static_cast<u32>(as_type - 8));
       break;
     default:

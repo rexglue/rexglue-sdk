@@ -57,36 +57,36 @@ struct PEExport {
 /** Memory protection class of a run of pages in the image. */
 // NOLINTNEXTLINE(performance-enum-size): XEX file format field width
 enum XEXSectionType {
-  XEX_SECTION_CODE = 1, /**< Pages are mapped read only unless the writable code cvar is set. */
-  XEX_SECTION_DATA = 2, /**< Pages are mapped read and write. */
-  XEX_SECTION_READONLY_DATA = 3, /**< Pages are mapped read only, as for code. */
+  kXEXSectionCode = 1, /**< Pages are mapped read only unless the writable code cvar is set. */
+  kXEXSectionData = 2, /**< Pages are mapped read and write. */
+  kXEXSectionReadOnlyData = 3, /**< Pages are mapped read only, as for code. */
 };
 
 /** Image flag bits of the XEX security info. */
 enum XEXImageFlags : u32 {
   /** @name Image flag bits of XEXSecurityInfoHeader::image_flags. No code reads them. */
   /** @{ */
-  XEX_IMAGE_MANUFACTURING_UTILITY = 0x00000002,
-  XEX_IMAGE_MANUFACTURING_SUPPORT_TOOLS = 0x00000004,
-  XEX_IMAGE_XGD2_MEDIA_ONLY = 0x00000008,
-  XEX_IMAGE_CARDEA_KEY = 0x00000100,
-  XEX_IMAGE_XEIKA_KEY = 0x00000200,
-  XEX_IMAGE_USERMODE_TITLE = 0x00000400,
-  XEX_IMAGE_USERMODE_SYSTEM = 0x00000800,
-  XEX_IMAGE_ORANGE0 = 0x00001000,
-  XEX_IMAGE_ORANGE1 = 0x00002000,
-  XEX_IMAGE_ORANGE2 = 0x00004000,
-  XEX_IMAGE_IPTV_SIGNUP_APPLICATION = 0x00010000,
-  XEX_IMAGE_IPTV_TITLE_APPLICATION = 0x00020000,
-  XEX_IMAGE_KEYVAULT_PRIVILEGES_REQUIRED = 0x04000000,
-  XEX_IMAGE_ONLINE_ACTIVATION_REQUIRED = 0x08000000,
+  kXEXImageManufacturingUtility = 0x00000002,
+  kXEXImageManufacturingSupportTools = 0x00000004,
+  kXEXImageXGD2MediaOnly = 0x00000008,
+  kXEXImageCardeaKey = 0x00000100,
+  kXEXImageXeikaKey = 0x00000200,
+  kXEXImageUserModeTitle = 0x00000400,
+  kXEXImageUserModeSystem = 0x00000800,
+  kXEXImageOrange0 = 0x00001000,
+  kXEXImageOrange1 = 0x00002000,
+  kXEXImageOrange2 = 0x00004000,
+  kXEXImageIPTVSignupApplication = 0x00010000,
+  kXEXImageIPTVTitleApplication = 0x00020000,
+  kXEXImageKeyVaultPrivilegesRequired = 0x04000000,
+  kXEXImageOnlineActivationRequired = 0x08000000,
   /** @} */
-  XEX_IMAGE_PAGE_SIZE_4KB = 0x10000000, /**< Set for 4KB pages, otherwise 64KB. */
+  kXEXImagePageSize4KB = 0x10000000, /**< Set for 4KB pages, otherwise 64KB. */
   /** @name Image flag bits of XEXSecurityInfoHeader::image_flags. No code reads them. */
   /** @{ */
-  XEX_IMAGE_REGION_FREE = 0x20000000,
-  XEX_IMAGE_REVOCATION_CHECK_OPTIONAL = 0x40000000,
-  XEX_IMAGE_REVOCATION_CHECK_REQUIRED = 0x80000000,
+  kXEXImageRegionFree = 0x20000000,
+  kXEXImageRevocationCheckOptional = 0x40000000,
+  kXEXImageRevocationCheckRequired = 0x80000000,
   /** @} */
 };
 
@@ -94,317 +94,317 @@ enum XEXImageFlags : u32 {
 enum XEXMediaFlags : u32 {
   /** @name Media bits of XEXSecurityInfoHeader::allowed_media_types. No code reads them. */
   /** @{ */
-  XEX_MEDIA_HARDDISK = 0x00000001,
-  XEX_MEDIA_DVD_X2 = 0x00000002,
-  XEX_MEDIA_DVD_CD = 0x00000004,
-  XEX_MEDIA_DVD_5 = 0x00000008,
-  XEX_MEDIA_DVD_9 = 0x00000010,
-  XEX_MEDIA_SYSTEM_FLASH = 0x00000020,
-  XEX_MEDIA_MEMORY_UNIT = 0x00000080,
-  XEX_MEDIA_USB_MASS_STORAGE_DEVICE = 0x00000100,
-  XEX_MEDIA_NETWORK = 0x00000200,
-  XEX_MEDIA_DIRECT_FROM_MEMORY = 0x00000400,
-  XEX_MEDIA_RAM_DRIVE = 0x00000800,
-  XEX_MEDIA_SVOD = 0x00001000,
-  XEX_MEDIA_INSECURE_PACKAGE = 0x01000000,
-  XEX_MEDIA_SAVEGAME_PACKAGE = 0x02000000,
-  XEX_MEDIA_LOCALLY_SIGNED_PACKAGE = 0x04000000,
-  XEX_MEDIA_LIVE_SIGNED_PACKAGE = 0x08000000,
-  XEX_MEDIA_XBOX_PACKAGE = 0x10000000,
+  kXEXMediaHardDisk = 0x00000001,
+  kXEXMediaDVDX2 = 0x00000002,
+  kXEXMediaDVDCD = 0x00000004,
+  kXEXMediaDVD5 = 0x00000008,
+  kXEXMediaDVD9 = 0x00000010,
+  kXEXMediaSystemFlash = 0x00000020,
+  kXEXMediaMemoryUnit = 0x00000080,
+  kXEXMediaUSBMassStorageDevice = 0x00000100,
+  kXEXMediaNetwork = 0x00000200,
+  kXEXMediaDirectFromMemory = 0x00000400,
+  kXEXMediaRAMDrive = 0x00000800,
+  kXEXMediaSVOD = 0x00001000,
+  kXEXMediaInsecurePackage = 0x01000000,
+  kXEXMediaSaveGamePackage = 0x02000000,
+  kXEXMediaLocallySignedPackage = 0x04000000,
+  kXEXMediaLiveSignedPackage = 0x08000000,
+  kXEXMediaXboxPackage = 0x10000000,
   /** @} */
 };
 
 /** Regions an image may run in. */
 enum XEXRegionFlags : u32 {
   /** North America region bits. The title language query tests them to pick English. */
-  XEX_REGION_NTSCU = 0x000000FF,
+  kXEXRegionNTSCU = 0x000000FF,
   /** Japan and Asia region bits. The title language query tests them to pick Japanese. */
-  XEX_REGION_NTSCJ = 0x0000FF00,
-  XEX_REGION_NTSCJ_JAPAN = 0x00000100, /**< Japan subset of the NTSCJ bits. No code reads it. */
-  XEX_REGION_NTSCJ_CHINA = 0x00000200, /**< China subset of the NTSCJ bits. No code reads it. */
-  XEX_REGION_PAL = 0x00FF0000,         /**< Europe region bits. No code reads it. */
+  kXEXRegionNTSCJ = 0x0000FF00,
+  kXEXRegionNTSCJJapan = 0x00000100, /**< Japan subset of the NTSCJ bits. No code reads it. */
+  kXEXRegionNTSCJChina = 0x00000200, /**< China subset of the NTSCJ bits. No code reads it. */
+  kXEXRegionPAL = 0x00FF0000,        /**< Europe region bits. No code reads it. */
   /** Australia and New Zealand subset of the PAL bits. No code reads it. */
-  XEX_REGION_PAL_AU_NZ = 0x00010000,
-  XEX_REGION_OTHER = 0xFF000000, /**< Rest of world region bits. No code reads it. */
-  XEX_REGION_ALL = 0xFFFFFFFF,   /**< Every region bit set. No code reads it. */
+  kXEXRegionPALAUNZ = 0x00010000,
+  kXEXRegionOther = 0xFF000000, /**< Rest of world region bits. No code reads it. */
+  kXEXRegionAll = 0xFFFFFFFF,   /**< Every region bit set. No code reads it. */
 };
 
 /** Module flag bits of the XEX header. */
 // NOLINTNEXTLINE(performance-enum-size): XEX file format field width
 enum XEXModuleFlags : u32 {
-  XEX_MODULE_TITLE = 0x00000001, /**< The module is a title executable. No code reads it. */
+  kXEXModuleTitle = 0x00000001, /**< The module is a title executable. No code reads it. */
   /** The module exports functions to the title. No code reads it. */
-  XEX_MODULE_EXPORTS_TO_TITLE = 0x00000002,
+  kXEXModuleExportsToTitle = 0x00000002,
   /** The module is a system debugger. No code reads it. */
-  XEX_MODULE_SYSTEM_DEBUGGER = 0x00000004,
+  kXEXModuleSystemDebugger = 0x00000004,
   /** The module is a DLL. UserModule reads it into is_dll_module. */
-  XEX_MODULE_DLL_MODULE = 0x00000008,
+  kXEXModuleDLLModule = 0x00000008,
   /** The image is a module patch. XEXImage::is_patch tests it. */
-  XEX_MODULE_MODULE_PATCH = 0x00000010,
+  kXEXModuleModulePatch = 0x00000010,
   /** The image is a full patch. XEXImage::is_patch tests it. */
-  XEX_MODULE_PATCH_FULL = 0x00000020,
+  kXEXModulePatchFull = 0x00000020,
   /** The image is a delta patch. XEXImage::is_patch tests it. */
-  XEX_MODULE_PATCH_DELTA = 0x00000040,
-  XEX_MODULE_USER_MODE = 0x00000080, /**< The module runs in user mode. No code reads it. */
+  kXEXModulePatchDelta = 0x00000040,
+  kXEXModuleUserMode = 0x00000080, /**< The module runs in user mode. No code reads it. */
 };
 
 /** System flag bits of the XEX system flags optional header. */
 enum XEXSystemFlags : u32 {
   /** @name System flag bits. Bit N is privilege N of XexCheckExecutablePrivilege. */
   /** @{ */
-  XEX_SYSTEM_NO_FORCED_REBOOT = 0x00000001,
-  XEX_SYSTEM_FOREGROUND_TASKS = 0x00000002,
-  XEX_SYSTEM_NO_ODD_MAPPING = 0x00000004,
-  XEX_SYSTEM_HANDLE_MCE_INPUT = 0x00000008,
-  XEX_SYSTEM_RESTRICTED_HUD_FEATURES = 0x00000010,
-  XEX_SYSTEM_HANDLE_GAMEPAD_DISCONNECT = 0x00000020,
-  XEX_SYSTEM_INSECURE_SOCKETS = 0x00000040,
-  XEX_SYSTEM_XBOX1_INTEROPERABILITY = 0x00000080,
-  XEX_SYSTEM_DASH_CONTEXT = 0x00000100,
-  XEX_SYSTEM_USES_GAME_VOICE_CHANNEL = 0x00000200,
-  XEX_SYSTEM_PAL50_INCOMPATIBLE = 0x00000400,
-  XEX_SYSTEM_INSECURE_UTILITY_DRIVE = 0x00000800,
-  XEX_SYSTEM_XAM_HOOKS = 0x00001000,
-  XEX_SYSTEM_ACCESS_PII = 0x00002000,
-  XEX_SYSTEM_CROSS_PLATFORM_SYSTEM_LINK = 0x00004000,
-  XEX_SYSTEM_MULTIDISC_SWAP = 0x00008000,
-  XEX_SYSTEM_MULTIDISC_INSECURE_MEDIA = 0x00010000,
-  XEX_SYSTEM_AP25_MEDIA = 0x00020000,
-  XEX_SYSTEM_NO_CONFIRM_EXIT = 0x00040000,
-  XEX_SYSTEM_ALLOW_BACKGROUND_DOWNLOAD = 0x00080000,
-  XEX_SYSTEM_CREATE_PERSISTABLE_RAMDRIVE = 0x00100000,
-  XEX_SYSTEM_INHERIT_PERSISTENT_RAMDRIVE = 0x00200000,
-  XEX_SYSTEM_ALLOW_HUD_VIBRATION = 0x00400000,
-  XEX_SYSTEM_ACCESS_UTILITY_PARTITIONS = 0x00800000,
-  XEX_SYSTEM_IPTV_INPUT_SUPPORTED = 0x01000000,
-  XEX_SYSTEM_PREFER_BIG_BUTTON_INPUT = 0x02000000,
-  XEX_SYSTEM_ALLOW_EXTENDED_SYSTEM_RESERVATION = 0x04000000,
-  XEX_SYSTEM_MULTIDISC_CROSS_TITLE = 0x08000000,
-  XEX_SYSTEM_INSTALL_INCOMPATIBLE = 0x10000000,
-  XEX_SYSTEM_ALLOW_AVATAR_GET_METADATA_BY_XUID = 0x20000000,
-  XEX_SYSTEM_ALLOW_CONTROLLER_SWAPPING = 0x40000000,
-  XEX_SYSTEM_DASH_EXTENSIBILITY_MODULE = 0x80000000,
+  kXEXSystemNoForcedReboot = 0x00000001,
+  kXEXSystemForegroundTasks = 0x00000002,
+  kXEXSystemNoODDMapping = 0x00000004,
+  kXEXSystemHandleMCEInput = 0x00000008,
+  kXEXSystemRestrictedHUDFeatures = 0x00000010,
+  kXEXSystemHandleGamepadDisconnect = 0x00000020,
+  kXEXSystemInsecureSockets = 0x00000040,
+  kXEXSystemXbox1Interoperability = 0x00000080,
+  kXEXSystemDashContext = 0x00000100,
+  kXEXSystemUsesGameVoiceChannel = 0x00000200,
+  kXEXSystemPAL50Incompatible = 0x00000400,
+  kXEXSystemInsecureUtilityDrive = 0x00000800,
+  kXEXSystemXAMHooks = 0x00001000,
+  kXEXSystemAccessPII = 0x00002000,
+  kXEXSystemCrossPlatformSystemLink = 0x00004000,
+  kXEXSystemMultiDiscSwap = 0x00008000,
+  kXEXSystemMultiDiscInsecureMedia = 0x00010000,
+  kXEXSystemAP25Media = 0x00020000,
+  kXEXSystemNoConfirmExit = 0x00040000,
+  kXEXSystemAllowBackgroundDownload = 0x00080000,
+  kXEXSystemCreatePersistableRAMDrive = 0x00100000,
+  kXEXSystemInheritPersistentRAMDrive = 0x00200000,
+  kXEXSystemAllowHUDVibration = 0x00400000,
+  kXEXSystemAccessUtilityPartitions = 0x00800000,
+  kXEXSystemIPTVInputSupported = 0x01000000,
+  kXEXSystemPreferBigButtonInput = 0x02000000,
+  kXEXSystemAllowExtendedSystemReservation = 0x04000000,
+  kXEXSystemMultiDiscCrossTitle = 0x08000000,
+  kXEXSystemInstallIncompatible = 0x10000000,
+  kXEXSystemAllowAvatarGetMetadataByXUID = 0x20000000,
+  kXEXSystemAllowControllerSwapping = 0x40000000,
+  kXEXSystemDashExtensibilityModule = 0x80000000,
   /** @} */
 };
 
 /** ESRB (Entertainment Software Rating Board) */
 // NOLINTNEXTLINE(performance-enum-size): XEX file format field width
 enum XEXRatingESRBValue : u32 {
-  XEX_RATING_ESRB_eC = 0x00,      /**< Early Childhood. */
-  XEX_RATING_ESRB_E = 0x02,       /**< Everyone. */
-  XEX_RATING_ESRB_E10 = 0x04,     /**< Everyone 10 and older. */
-  XEX_RATING_ESRB_T = 0x06,       /**< Teen. */
-  XEX_RATING_ESRB_M = 0x08,       /**< Mature. */
-  XEX_RATING_ESRB_AO = 0x0E,      /**< Adults Only. */
-  XEX_RATING_ESRB_UNRATED = 0xFF, /**< No rating assigned. */
+  kXEXRatingESRBEC = 0x00,      /**< Early Childhood. */
+  kXEXRatingESRBE = 0x02,       /**< Everyone. */
+  kXEXRatingESRBE10 = 0x04,     /**< Everyone 10 and older. */
+  kXEXRatingESRBT = 0x06,       /**< Teen. */
+  kXEXRatingESRBM = 0x08,       /**< Mature. */
+  kXEXRatingESRBAO = 0x0E,      /**< Adults Only. */
+  kXEXRatingESRBUnrated = 0xFF, /**< No rating assigned. */
 };
 /** PEGI (Pan European Game Information) */
 // NOLINTNEXTLINE(performance-enum-size): XEX file format field width
 enum XEXRatingPEGIValue : u32 {
-  XEX_RATING_PEGI_3_PLUS = 0,     /**< Age 3 and up. */
-  XEX_RATING_PEGI_7_PLUS = 4,     /**< Age 7 and up. */
-  XEX_RATING_PEGI_12_PLUS = 9,    /**< Age 12 and up. */
-  XEX_RATING_PEGI_16_PLUS = 13,   /**< Age 16 and up. */
-  XEX_RATING_PEGI_18_PLUS = 14,   /**< Age 18 and up. */
-  XEX_RATING_PEGI_UNRATED = 0xFF, /**< No rating assigned. */
+  kXEXRatingPEGI3Plus = 0,      /**< Age 3 and up. */
+  kXEXRatingPEGI7Plus = 4,      /**< Age 7 and up. */
+  kXEXRatingPEGI12Plus = 9,     /**< Age 12 and up. */
+  kXEXRatingPEGI16Plus = 13,    /**< Age 16 and up. */
+  kXEXRatingPEGI18Plus = 14,    /**< Age 18 and up. */
+  kXEXRatingPEGIUnrated = 0xFF, /**< No rating assigned. */
 };
 /** PEGI (Pan European Game Information) for Finland */
 // NOLINTNEXTLINE(performance-enum-size): XEX file format field width
 enum XEXRatingPEGIFIValue : u32 {
-  XEX_RATING_PEGI_FI_3_PLUS = 0,     /**< Age 3 and up. */
-  XEX_RATING_PEGI_FI_7_PLUS = 4,     /**< Age 7 and up. */
-  XEX_RATING_PEGI_FI_11_PLUS = 8,    /**< Age 11 and up. */
-  XEX_RATING_PEGI_FI_15_PLUS = 12,   /**< Age 15 and up. */
-  XEX_RATING_PEGI_FI_18_PLUS = 14,   /**< Age 18 and up. */
-  XEX_RATING_PEGI_FI_UNRATED = 0xFF, /**< No rating assigned. */
+  kXEXRatingPEGIFI3Plus = 0,      /**< Age 3 and up. */
+  kXEXRatingPEGIFI7Plus = 4,      /**< Age 7 and up. */
+  kXEXRatingPEGIFI11Plus = 8,     /**< Age 11 and up. */
+  kXEXRatingPEGIFI15Plus = 12,    /**< Age 15 and up. */
+  kXEXRatingPEGIFI18Plus = 14,    /**< Age 18 and up. */
+  kXEXRatingPEGIFIUnrated = 0xFF, /**< No rating assigned. */
 };
 /** PEGI (Pan European Game Information) for Portugal */
 // NOLINTNEXTLINE(performance-enum-size): XEX file format field width
 enum XEXRatingPEGIPTValue : u32 {
-  XEX_RATING_PEGI_PT_4_PLUS = 1,     /**< Age 4 and up. */
-  XEX_RATING_PEGI_PT_6_PLUS = 3,     /**< Age 6 and up. */
-  XEX_RATING_PEGI_PT_12_PLUS = 9,    /**< Age 12 and up. */
-  XEX_RATING_PEGI_PT_16_PLUS = 13,   /**< Age 16 and up. */
-  XEX_RATING_PEGI_PT_18_PLUS = 14,   /**< Age 18 and up. */
-  XEX_RATING_PEGI_PT_UNRATED = 0xFF, /**< No rating assigned. */
+  kXEXRatingPEGIPT4Plus = 1,      /**< Age 4 and up. */
+  kXEXRatingPEGIPT6Plus = 3,      /**< Age 6 and up. */
+  kXEXRatingPEGIPT12Plus = 9,     /**< Age 12 and up. */
+  kXEXRatingPEGIPT16Plus = 13,    /**< Age 16 and up. */
+  kXEXRatingPEGIPT18Plus = 14,    /**< Age 18 and up. */
+  kXEXRatingPEGIPTUnrated = 0xFF, /**< No rating assigned. */
 };
 /** BBFC (British Board of Film Classification) for UK and Ireland */
 // NOLINTNEXTLINE(performance-enum-size): XEX file format field width
 enum XEXRatingBBFCValue : u32 {
-  XEX_RATING_BBFC_UNIVERSAL = 1,  /**< Suitable for all ages. */
-  XEX_RATING_BBFC_PG = 5,         /**< Parental guidance. */
-  XEX_RATING_BBFC_3_PLUS = 0,     /**< Age 3 and up. */
-  XEX_RATING_BBFC_7_PLUS = 4,     /**< Age 7 and up. */
-  XEX_RATING_BBFC_12_PLUS = 9,    /**< Age 12 and up. */
-  XEX_RATING_BBFC_15_PLUS = 12,   /**< Age 15 and up. */
-  XEX_RATING_BBFC_16_PLUS = 13,   /**< Age 16 and up. */
-  XEX_RATING_BBFC_18_PLUS = 14,   /**< Age 18 and up. */
-  XEX_RATING_BBFC_UNRATED = 0xFF, /**< No rating assigned. */
+  kXEXRatingBBFCUniversal = 1,  /**< Suitable for all ages. */
+  kXEXRatingBBFCPG = 5,         /**< Parental guidance. */
+  kXEXRatingBBFC3Plus = 0,      /**< Age 3 and up. */
+  kXEXRatingBBFC7Plus = 4,      /**< Age 7 and up. */
+  kXEXRatingBBFC12Plus = 9,     /**< Age 12 and up. */
+  kXEXRatingBBFC15Plus = 12,    /**< Age 15 and up. */
+  kXEXRatingBBFC16Plus = 13,    /**< Age 16 and up. */
+  kXEXRatingBBFC18Plus = 14,    /**< Age 18 and up. */
+  kXEXRatingBBFCUnrated = 0xFF, /**< No rating assigned. */
 };
 /** CERO (Computer Entertainment Rating Organization) */
 // NOLINTNEXTLINE(performance-enum-size): XEX file format field width
 enum XEXRatingCEROValue : u32 {
-  XEX_RATING_CERO_A = 0,          /**< All ages. */
-  XEX_RATING_CERO_B = 2,          /**< Age 12 and up. */
-  XEX_RATING_CERO_C = 4,          /**< Age 15 and up. */
-  XEX_RATING_CERO_D = 6,          /**< Age 17 and up. */
-  XEX_RATING_CERO_Z = 8,          /**< Restricted to age 18 and up. */
-  XEX_RATING_CERO_UNRATED = 0xFF, /**< No rating assigned. */
+  kXEXRatingCEROA = 0,          /**< All ages. */
+  kXEXRatingCEROB = 2,          /**< Age 12 and up. */
+  kXEXRatingCEROC = 4,          /**< Age 15 and up. */
+  kXEXRatingCEROD = 6,          /**< Age 17 and up. */
+  kXEXRatingCEROZ = 8,          /**< Restricted to age 18 and up. */
+  kXEXRatingCEROUnrated = 0xFF, /**< No rating assigned. */
 };
 /** USK (Unterhaltungssoftware SelbstKontrolle) */
 // NOLINTNEXTLINE(performance-enum-size): XEX file format field width
 enum XEXRatingUSKValue : u32 {
-  XEX_RATING_USK_ALL = 0,        /**< All ages. */
-  XEX_RATING_USK_6_PLUS = 2,     /**< Age 6 and up. */
-  XEX_RATING_USK_12_PLUS = 4,    /**< Age 12 and up. */
-  XEX_RATING_USK_16_PLUS = 6,    /**< Age 16 and up. */
-  XEX_RATING_USK_18_PLUS = 8,    /**< Age 18 and up. */
-  XEX_RATING_USK_UNRATED = 0xFF, /**< No rating assigned. */
+  kXEXRatingUSKAll = 0,        /**< All ages. */
+  kXEXRatingUSK6Plus = 2,      /**< Age 6 and up. */
+  kXEXRatingUSK12Plus = 4,     /**< Age 12 and up. */
+  kXEXRatingUSK16Plus = 6,     /**< Age 16 and up. */
+  kXEXRatingUSK18Plus = 8,     /**< Age 18 and up. */
+  kXEXRatingUSKUnrated = 0xFF, /**< No rating assigned. */
 };
 /** OFLC (Office of Film and Literature Classification) for Australia */
 // NOLINTNEXTLINE(performance-enum-size): XEX file format field width
 enum XEXRatingOFLCAUValue : u32 {
-  XEX_RATING_OFLC_AU_G = 0,          /**< General. */
-  XEX_RATING_OFLC_AU_PG = 2,         /**< Parental guidance. */
-  XEX_RATING_OFLC_AU_M = 4,          /**< Mature. */
-  XEX_RATING_OFLC_AU_MA15_PLUS = 6,  /**< Mature accompanied, age 15 and up. */
-  XEX_RATING_OFLC_AU_UNRATED = 0xFF, /**< No rating assigned. */
+  kXEXRatingOFLCAUG = 0,          /**< General. */
+  kXEXRatingOFLCAUPG = 2,         /**< Parental guidance. */
+  kXEXRatingOFLCAUM = 4,          /**< Mature. */
+  kXEXRatingOFLCAUMA15Plus = 6,   /**< Mature accompanied, age 15 and up. */
+  kXEXRatingOFLCAUUnrated = 0xFF, /**< No rating assigned. */
 };
 /** OFLC (Office of Film and Literature Classification) for New Zealand */
 // NOLINTNEXTLINE(performance-enum-size): XEX file format field width
 enum XEXRatingOFLCNZValue : u32 {
-  XEX_RATING_OFLC_NZ_G = 0,          /**< General. */
-  XEX_RATING_OFLC_NZ_PG = 2,         /**< Parental guidance. */
-  XEX_RATING_OFLC_NZ_M = 4,          /**< Mature. */
-  XEX_RATING_OFLC_NZ_MA15_PLUS = 6,  /**< Mature accompanied, age 15 and up. */
-  XEX_RATING_OFLC_NZ_UNRATED = 0xFF, /**< No rating assigned. */
+  kXEXRatingOFLCNZG = 0,          /**< General. */
+  kXEXRatingOFLCNZPG = 2,         /**< Parental guidance. */
+  kXEXRatingOFLCNZM = 4,          /**< Mature. */
+  kXEXRatingOFLCNZMA15Plus = 6,   /**< Mature accompanied, age 15 and up. */
+  kXEXRatingOFLCNZUnrated = 0xFF, /**< No rating assigned. */
 };
 /** KMRB (Korea Media Rating Board) */
 // NOLINTNEXTLINE(performance-enum-size): XEX file format field width
 enum XEXRatingKMRBValue : u32 {
-  XEX_RATING_KMRB_ALL = 0,        /**< All ages. */
-  XEX_RATING_KMRB_12_PLUS = 2,    /**< Age 12 and up. */
-  XEX_RATING_KMRB_15_PLUS = 4,    /**< Age 15 and up. */
-  XEX_RATING_KMRB_18_PLUS = 6,    /**< Age 18 and up. */
-  XEX_RATING_KMRB_UNRATED = 0xFF, /**< No rating assigned. */
+  kXEXRatingKMRBAll = 0,        /**< All ages. */
+  kXEXRatingKMRB12Plus = 2,     /**< Age 12 and up. */
+  kXEXRatingKMRB15Plus = 4,     /**< Age 15 and up. */
+  kXEXRatingKMRB18Plus = 6,     /**< Age 18 and up. */
+  kXEXRatingKMRBUnrated = 0xFF, /**< No rating assigned. */
 };
 /** Brazil ratings */
 // NOLINTNEXTLINE(performance-enum-size): XEX file format field width
 enum XEXRatingBrazilValue : u32 {
-  XEX_RATING_BRAZIL_ALL = 0,        /**< All ages. */
-  XEX_RATING_BRAZIL_12_PLUS = 2,    /**< Age 12 and up. */
-  XEX_RATING_BRAZIL_14_PLUS = 4,    /**< Age 14 and up. */
-  XEX_RATING_BRAZIL_16_PLUS = 5,    /**< Age 16 and up. */
-  XEX_RATING_BRAZIL_18_PLUS = 8,    /**< Age 18 and up. */
-  XEX_RATING_BRAZIL_UNRATED = 0xFF, /**< No rating assigned. */
+  kXEXRatingBrazilAll = 0,        /**< All ages. */
+  kXEXRatingBrazil12Plus = 2,     /**< Age 12 and up. */
+  kXEXRatingBrazil14Plus = 4,     /**< Age 14 and up. */
+  kXEXRatingBrazil16Plus = 5,     /**< Age 16 and up. */
+  kXEXRatingBrazil18Plus = 8,     /**< Age 18 and up. */
+  kXEXRatingBrazilUnrated = 0xFF, /**< No rating assigned. */
 };
 /** FPB (Film and Publication Board) */
 // NOLINTNEXTLINE(performance-enum-size): XEX file format field width
 enum XEXRatingFPBValue : u32 {
-  XEX_RATING_FPB_ALL = 0,        /**< All ages. */
-  XEX_RATING_FPB_PG = 6,         /**< Parental guidance. */
-  XEX_RATING_FPB_10_PLUS = 7,    /**< Age 10 and up. */
-  XEX_RATING_FPB_13_PLUS = 10,   /**< Age 13 and up. */
-  XEX_RATING_FPB_16_PLUS = 13,   /**< Age 16 and up. */
-  XEX_RATING_FPB_18_PLUS = 14,   /**< Age 18 and up. */
-  XEX_RATING_FPB_UNRATED = 0xFF, /**< No rating assigned. */
+  kXEXRatingFPBAll = 0,        /**< All ages. */
+  kXEXRatingFPBPG = 6,         /**< Parental guidance. */
+  kXEXRatingFPB10Plus = 7,     /**< Age 10 and up. */
+  kXEXRatingFPB13Plus = 10,    /**< Age 13 and up. */
+  kXEXRatingFPB16Plus = 13,    /**< Age 16 and up. */
+  kXEXRatingFPB18Plus = 14,    /**< Age 18 and up. */
+  kXEXRatingFPBUnrated = 0xFF, /**< No rating assigned. */
 };
 
 /** Keys of the XEX optional headers. */
 enum XEXHeaderKey : u32 {
-  XEX_HEADER_RESOURCE_INFO = 0x000002FF,          /**< Selects XEXOptResourceInfo. */
-  XEX_HEADER_FILE_FORMAT_INFO = 0x000003FF,       /**< Selects XEXOptFileFormatInfo. */
-  XEX_HEADER_DELTA_PATCH_DESCRIPTOR = 0x000005FF, /**< Selects XEXOptDeltaPatchDescriptor. */
+  kXEXHeaderResourceInfo = 0x000002FF,         /**< Selects XEXOptResourceInfo. */
+  kXEXHeaderFileFormatInfo = 0x000003FF,       /**< Selects XEXOptFileFormatInfo. */
+  kXEXHeaderDeltaPatchDescriptor = 0x000005FF, /**< Selects XEXOptDeltaPatchDescriptor. */
   /** Header of a base image reference. No code reads it. */
-  XEX_HEADER_BASE_REFERENCE = 0x00000405,
-  XEX_HEADER_BOUNDING_PATH = 0x000080FF, /**< Selects XEXOptBoundPath. No code reads it. */
-  XEX_HEADER_DEVICE_ID = 0x00008105, /**< Header holding a device identifier. No code reads it. */
+  kXEXHeaderBaseReference = 0x00000405,
+  kXEXHeaderBoundingPath = 0x000080FF, /**< Selects XEXOptBoundPath. No code reads it. */
+  kXEXHeaderDeviceId = 0x00008105,     /**< Header holding a device identifier. No code reads it. */
   /** Header holding the base address the image was linked at. No code reads it. */
-  XEX_HEADER_ORIGINAL_BASE_ADDRESS = 0x00010001,
+  kXEXHeaderOriginalBaseAddress = 0x00010001,
   /** Inline value holding the guest address of the entry point. */
-  XEX_HEADER_ENTRY_POINT = 0x00010100,
+  kXEXHeaderEntryPoint = 0x00010100,
   /** Inline value holding the guest address the image loads at. */
-  XEX_HEADER_IMAGE_BASE_ADDRESS = 0x00010201,
-  XEX_HEADER_IMPORT_LIBRARIES = 0x000103FF, /**< Selects XEXOptImportLibraries. */
+  kXEXHeaderImageBaseAddress = 0x00010201,
+  kXEXHeaderImportLibraries = 0x000103FF, /**< Selects XEXOptImportLibraries. */
   /** Header holding the image checksum and timestamp. No code reads it. */
-  XEX_HEADER_CHECKSUM_TIMESTAMP = 0x00018002,
+  kXEXHeaderChecksumTimestamp = 0x00018002,
   /** Header marking the image for call profiling. No code reads it. */
-  XEX_HEADER_ENABLED_FOR_CALLCAP = 0x00018102,
+  kXEXHeaderEnabledForCallCap = 0x00018102,
   /** Header marking the image for fast profiling. No code reads it. */
-  XEX_HEADER_ENABLED_FOR_FASTCAP = 0x00018200,
+  kXEXHeaderEnabledForFastCap = 0x00018200,
   /** Selects XEXOptOriginalPEName. No code reads it. */
-  XEX_HEADER_ORIGINAL_PE_NAME = 0x000183FF,
+  kXEXHeaderOriginalPEName = 0x000183FF,
   /** Selects XEXOptStaticLibraries. No code reads it. */
-  XEX_HEADER_STATIC_LIBRARIES = 0x000200FF,
-  XEX_HEADER_TLS_INFO = 0x00020104, /**< Selects XEXOptTLSInfo. */
+  kXEXHeaderStaticLibraries = 0x000200FF,
+  kXEXHeaderTLSInfo = 0x00020104, /**< Selects XEXOptTLSInfo. */
   /** Inline value holding the default thread stack size in bytes. */
-  XEX_HEADER_DEFAULT_STACK_SIZE = 0x00020200,
+  kXEXHeaderDefaultStackSize = 0x00020200,
   /** Inline value holding the default filesystem cache size. No code reads it. */
-  XEX_HEADER_DEFAULT_FILESYSTEM_CACHE_SIZE = 0x00020301,
+  kXEXHeaderDefaultFilesystemCacheSize = 0x00020301,
   /** Inline value holding the default heap size. No code reads it. */
-  XEX_HEADER_DEFAULT_HEAP_SIZE = 0x00020401,
+  kXEXHeaderDefaultHeapSize = 0x00020401,
   /** Header holding the page heap size and flags. No code reads it. */
-  XEX_HEADER_PAGE_HEAP_SIZE_AND_FLAGS = 0x00028002,
-  XEX_HEADER_SYSTEM_FLAGS = 0x00030000,   /**< Inline value holding the XEXSystemFlags bits. */
-  XEX_HEADER_EXECUTION_INFO = 0x00040006, /**< Selects XEXOptExecutionInfo. */
+  kXEXHeaderPageHeapSizeAndFlags = 0x00028002,
+  kXEXHeaderSystemFlags = 0x00030000,   /**< Inline value holding the XEXSystemFlags bits. */
+  kXEXHeaderExecutionInfo = 0x00040006, /**< Selects XEXOptExecutionInfo. */
   /** Inline value holding the title workspace size. */
-  XEX_HEADER_TITLE_WORKSPACE_SIZE = 0x00040201,
-  XEX_HEADER_GAME_RATINGS = 0x00040310, /**< Selects XEXGameRatings. No code reads it. */
-  XEX_HEADER_LAN_KEY = 0x00040404,      /**< Selects XEXOptLANKey. No code reads it. */
-  XEX_HEADER_XBOX360_LOGO = 0x000405FF, /**< Header holding the logo bitmap. No code reads it. */
+  kXEXHeaderTitleWorkspaceSize = 0x00040201,
+  kXEXHeaderGameRatings = 0x00040310, /**< Selects XEXGameRatings. No code reads it. */
+  kXEXHeaderLANKey = 0x00040404,      /**< Selects XEXOptLANKey. No code reads it. */
+  kXEXHeaderXbox360Logo = 0x000405FF, /**< Header holding the logo bitmap. No code reads it. */
   /** Header listing the media ids of a multi disc title. No code reads it. */
-  XEX_HEADER_MULTIDISC_MEDIA_IDS = 0x000406FF,
+  kXEXHeaderMultiDiscMediaIds = 0x000406FF,
   /** Selects XEXOptGenericU32 holding alternate title ids. */
-  XEX_HEADER_ALTERNATE_TITLE_IDS = 0x000407FF,
+  kXEXHeaderAlternateTitleIds = 0x000407FF,
   /** Header holding the additional title memory request. No code reads it. */
-  XEX_HEADER_ADDITIONAL_TITLE_MEMORY = 0x00040801,
+  kXEXHeaderAdditionalTitleMemory = 0x00040801,
   /** Selects XEXOptDataDirectory locating the named export table. */
-  XEX_HEADER_EXPORTS_BY_NAME = 0x00E10402,
+  kXEXHeaderExportsByName = 0x00E10402,
 };
 
 /** Encryption applied to the image data. */
 // NOLINTNEXTLINE(performance-enum-size): XEX file format field width
 enum XEXEncryptionType : u16 {
-  XEX_ENCRYPTION_NONE = 0,   /**< Image data is stored unencrypted. */
-  XEX_ENCRYPTION_NORMAL = 1, /**< Image data is AES encrypted with the image key. */
+  kXEXEncryptionNone = 0,   /**< Image data is stored unencrypted. */
+  kXEXEncryptionNormal = 1, /**< Image data is AES encrypted with the image key. */
 };
 
 /** Compression applied to the image data. */
 // NOLINTNEXTLINE(performance-enum-size): XEX file format field width
 enum XEXCompressionType : u16 {
-  XEX_COMPRESSION_NONE = 0, /**< Image data is stored uncompressed. */
+  kXEXCompressionNone = 0, /**< Image data is stored uncompressed. */
   /** Image data is stored as the runs of XEXFileBasicCompressionInfo. */
-  XEX_COMPRESSION_BASIC = 1,
+  kXEXCompressionBasic = 1,
   /** Image data is LZX compressed per XEXFileNormalCompressionInfo. */
-  XEX_COMPRESSION_NORMAL = 2,
-  XEX_COMPRESSION_DELTA = 3, /**< The image is a delta patch applied to a base image. */
+  kXEXCompressionNormal = 2,
+  kXEXCompressionDelta = 3, /**< The image is a delta patch applied to a base image. */
 };
 
 /** Approval state of a static library. */
 enum XEXApprovalType : u8 {
   /** @name Values of XEXOptStaticLibrary::approval_type. No code reads them. */
   /** @{ */
-  XEX_APPROVAL_UNAPPROVED = 0,
-  XEX_APPROVAL_POSSIBLE = 1,
-  XEX_APPROVAL_APPROVED = 2,
-  XEX_APPROVAL_EXPIRED = 3,
+  kXEXApprovalUnapproved = 0,
+  kXEXApprovalPossible = 1,
+  kXEXApprovalApproved = 2,
+  kXEXApprovalExpired = 3,
   /** @} */
 };
 
 /** Age rating of the title for each rating board. */
 struct XEXGameRatings {
-  be<XEXRatingESRBValue> esrb;     /**< ESRB rating. */
-  be<XEXRatingPEGIValue> pegi;     /**< PEGI rating. */
-  be<XEXRatingPEGIFIValue> pegifi; /**< PEGI rating for Finland. */
-  be<XEXRatingPEGIPTValue> pegipt; /**< PEGI rating for Portugal. */
-  be<XEXRatingBBFCValue> bbfc;     /**< BBFC rating. */
-  be<XEXRatingCEROValue> cero;     /**< CERO rating. */
-  be<XEXRatingUSKValue> usk;       /**< USK rating. */
-  be<XEXRatingOFLCAUValue> oflcau; /**< OFLC rating for Australia. */
-  be<XEXRatingOFLCNZValue> oflcnz; /**< OFLC rating for New Zealand. */
-  be<XEXRatingKMRBValue> kmrb;     /**< KMRB rating. */
-  be<XEXRatingBrazilValue> brazil; /**< Brazilian rating. */
-  be<XEXRatingFPBValue> fpb;       /**< FPB rating. */
+  BE<XEXRatingESRBValue> esrb;     /**< ESRB rating. */
+  BE<XEXRatingPEGIValue> pegi;     /**< PEGI rating. */
+  BE<XEXRatingPEGIFIValue> pegifi; /**< PEGI rating for Finland. */
+  BE<XEXRatingPEGIPTValue> pegipt; /**< PEGI rating for Portugal. */
+  BE<XEXRatingBBFCValue> bbfc;     /**< BBFC rating. */
+  BE<XEXRatingCEROValue> cero;     /**< CERO rating. */
+  BE<XEXRatingUSKValue> usk;       /**< USK rating. */
+  BE<XEXRatingOFLCAUValue> oflcau; /**< OFLC rating for Australia. */
+  BE<XEXRatingOFLCNZValue> oflcnz; /**< OFLC rating for New Zealand. */
+  BE<XEXRatingKMRBValue> kmrb;     /**< KMRB rating. */
+  BE<XEXRatingBrazilValue> brazil; /**< Brazilian rating. */
+  BE<XEXRatingFPBValue> fpb;       /**< FPB rating. */
 };
 
 /** 1 run of basic compressed data followed by a run of zeros. */
@@ -437,8 +437,8 @@ REX_STATIC_ASSERT_SIZE(XEXFileNormalCompressionInfo, 0x1C);
 /** Optional header describing the encryption and compression of the image. */
 struct XEXOptFileFormatInfo {
   be_u32 info_size;
-  be<XEXEncryptionType> encryption_type;
-  be<XEXCompressionType> compression_type;
+  BE<XEXEncryptionType> encryption_type;
+  BE<XEXCompressionType> compression_type;
   union {
     XEXFileBasicCompressionInfo basic;   /**< Valid when compression_type is basic. */
     XEXFileNormalCompressionInfo normal; /**< Valid when compression_type is normal. */
@@ -558,13 +558,13 @@ struct XEXOptDeltaPatchDescriptor {
   be_u32 delta_image_target_offset;
   XEXDeltaPatch info;
 
-  XEXVersion target_version() const { return XEXVersion{target_version_value}; }
+  XEXVersion GetTargetVersion() const { return XEXVersion{target_version_value}; }
 
-  void set_target_version(XEXVersion version) { target_version_value = version.value; }
+  void SetTargetVersion(XEXVersion version) { target_version_value = version.value; }
 
-  XEXVersion source_version() const { return XEXVersion{source_version_value}; }
+  XEXVersion GetSourceVersion() const { return XEXVersion{source_version_value}; }
 
-  void set_source_version(XEXVersion version) { source_version_value = version.value; }
+  void SetSourceVersion(XEXVersion version) { source_version_value = version.value; }
 };
 static_assert(offsetof(XEXOptDeltaPatchDescriptor, info) == 0x4C);
 REX_STATIC_ASSERT_SIZE(XEXOptDeltaPatchDescriptor, 0x5C);
@@ -581,13 +581,13 @@ struct XEXOptExecutionInfo {
   u8 disc_count;
   be_u32 savegame_id;
 
-  XEXVersion version() const { return XEXVersion{version_value}; }
+  XEXVersion GetVersion() const { return XEXVersion{version_value}; }
 
-  void set_version(XEXVersion version) { version_value = version.value; }
+  void SetVersion(XEXVersion version) { version_value = version.value; }
 
-  XEXVersion base_version() const { return XEXVersion{base_version_value}; }
+  XEXVersion GetBaseVersion() const { return XEXVersion{base_version_value}; }
 
-  void set_base_version(XEXVersion version) { base_version_value = version.value; }
+  void SetBaseVersion(XEXVersion version) { base_version_value = version.value; }
 };
 REX_STATIC_ASSERT_SIZE(XEXOptExecutionInfo, 0x18);
 
@@ -614,13 +614,13 @@ struct XEXImportLibraryHeader {
   be_u16 count;
   be_u32 import_table[1];
 
-  XEXVersion version() const { return XEXVersion{version_value}; }
+  XEXVersion GetVersion() const { return XEXVersion{version_value}; }
 
-  void set_version(XEXVersion version) { version_value = version.value; }
+  void SetVersion(XEXVersion version) { version_value = version.value; }
 
-  XEXVersion version_min() const { return XEXVersion{version_min_value}; }
+  XEXVersion GetVersionMin() const { return XEXVersion{version_min_value}; }
 
-  void set_version_min(XEXVersion version) { version_min_value = version.value; }
+  void SetVersionMin(XEXVersion version) { version_min_value = version.value; }
 };
 static_assert(offsetof(XEXImportLibraryHeader, import_table) == 0x28);
 REX_STATIC_ASSERT_SIZE(XEXImportLibraryHeader, 0x2C);
@@ -630,7 +630,7 @@ struct XEXOptGenericU32 {
   be_u32 size;      /**< Size of this header in bytes, the size field included. */
   be_u32 values[1]; /**< First of the `count()` values. */
 
-  u32 count() const { return (size - 4) / 4; }
+  u32 GetCount() const { return (size - 4) / 4; }
 };
 
 /**
@@ -652,7 +652,7 @@ struct XEXOptHeader {
 /** Fixed header at the start of an XEX2 file. */
 struct XEXHeader {
   be_u32 magic; /**< Value 'XEX2'. */
-  be<XEXModuleFlags> module_flags;
+  BE<XEXModuleFlags> module_flags;
   be_u32 header_size;
   be_u32 reserved;
   be_u32 security_offset;

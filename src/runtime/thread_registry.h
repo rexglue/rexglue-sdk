@@ -76,18 +76,18 @@ class ThreadRegistry final : public IThreadRegistry {
    *
    * @return The addresses of the title's XTHREAD_NOTIFICATION blocks, in registration order.
    */
-  std::vector<u32> ThreadNotifications();
+  std::vector<u32> GetThreadNotifications();
 
  private:
   static void Dispose(std::unique_ptr<KernelThread> thread);
 
   Runtime& runtime_;
   ObjectTable& table_;
-  rex::platform::RankedSharedMutex mutex_{rex::platform::LockRank::ThreadRegistry};
+  rex::platform::RankedSharedMutex mutex_{rex::platform::LockRank::kThreadRegistry};
   std::unordered_map<u32, std::unique_ptr<KernelThread>> threads_;
   std::atomic<u32> next_id_{0};
-  rex::platform::RankedMutex fiber_mutex_{rex::platform::LockRank::Leaf};
-  rex::platform::RankedMutex notify_mutex_{rex::platform::LockRank::Leaf};
+  rex::platform::RankedMutex fiber_mutex_{rex::platform::LockRank::kLeaf};
+  rex::platform::RankedMutex notify_mutex_{rex::platform::LockRank::kLeaf};
   std::vector<u32> thread_notifications_;
   std::unordered_map<u32, FiberInfo> fiber_map_;
   std::mutex fiber_name_pool_mutex_;

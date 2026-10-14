@@ -25,15 +25,15 @@ namespace rex::runtime {
 
 /** A kernel module that serves an export table. */
 enum class ExportModule : u8 {
-  Xboxkrnl, /**< Table of the xboxkrnl exports. */
-  XAM,      /**< Table of the Xam exports. */
-  XBDM,     /**< Table of the Xbdm exports. */
+  kXboxkrnl, /**< Table of the xboxkrnl exports. */
+  kXAM,      /**< Table of the XAM exports. */
+  kXBDM,     /**< Table of the XBDM exports. */
 };
 
 /** The export kind, code or data. */
 enum class ExportKind : u8 {
-  Function, /**< A translated function, `ExportEntry::fn` is set. */
-  Variable, /**< A data export whose address a kernel module binds, `ExportEntry::fn` is null. */
+  kFunction, /**< A translated function, `ExportEntry::fn` is set. */
+  kVariable, /**< A data export whose address a kernel module binds, `ExportEntry::fn` is null. */
 };
 
 /** One row of an export table. */

@@ -28,19 +28,19 @@ namespace rex::filesystem {
 /** AES key that decrypts the image key of an XEX. */
 enum class XEXKey : u8 {
   /** Retail console key. */
-  Retail,
+  kRetail,
   /** Devkit key. */
-  DevKit,
+  kDevKit,
   /** Retail key of the XEX1 era. */
-  RetailXEX1,
+  kRetailXEX1,
   /** Devkit key of the XEX1 era. */
-  DevKitXEX1,
+  kDevKitXEX1,
 };
 
 /** Section kind and page count of 1 XEX page descriptor. */
 struct XEXPageRange {
   /** Code, data or read only data. */
-  XEXSectionType type = XEX_SECTION_CODE;
+  XEXSectionType type = kXEXSectionCode;
   /** Number of pages the range covers. */
   u32 page_count = 0;
 };
@@ -126,14 +126,14 @@ class REX_API XEXImage : public MoveOnly {
    *
    * @return The byte swapped XEX header at the start of the file.
    */
-  const XEXHeader& header() const;
+  const XEXHeader& GetHeader() const;
 
   /**
    * Returns the header bytes.
    *
    * @return `header_size` bytes.
    */
-  std::span<const u8> header_bytes() const;
+  std::span<const u8> GetHeaderBytes() const;
 
   /**
    * Returns the data of an optional header whose key low byte is not 0.
@@ -160,42 +160,42 @@ class REX_API XEXImage : public MoveOnly {
    *
    * @return The security info.
    */
-  const XEXSecurityInfo& security() const;
+  const XEXSecurityInfo& GetSecurity() const;
 
   /**
    * Returns the import libraries.
    *
    * @return The libraries in header order.
    */
-  std::span<const XEXImportLibrary> imports() const;
+  std::span<const XEXImportLibrary> GetImports() const;
 
   /**
    * Returns the alternate title IDs of the header.
    *
    * @return The IDs, empty when the header has none.
    */
-  std::vector<u32> alternate_title_ids() const;
+  std::vector<u32> GetAlternateTitleIds() const;
 
   /**
    * Reports whether the image is a delta or full patch.
    *
    * @return True when the module flags mark a patch.
    */
-  bool is_patch() const;
+  bool IsPatch() const;
 
   /**
    * Returns the key Decode selected.
    *
    * @return The key, Retail before a successful Decode.
    */
-  XEXKey key() const;
+  XEXKey GetKey() const;
 
   /**
    * Returns the image size the page descriptors describe with the page size the image flags name.
    *
    * @return The size in bytes.
    */
-  u32 image_size() const;
+  u32 GetImageSize() const;
 
   /**
    * Decrypts and decompresses the image, trying the keys in XEXKey order.
@@ -240,7 +240,7 @@ class REX_API XEXImage : public MoveOnly {
   std::array<u8, 16> session_key_{};
   std::array<u8, 16> previous_session_key_{};
   bool xex1_ = false;
-  XEXKey key_ = XEXKey::Retail;
+  XEXKey key_ = XEXKey::kRetail;
 };
 
 /**

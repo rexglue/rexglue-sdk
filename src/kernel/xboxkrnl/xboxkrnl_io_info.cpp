@@ -100,8 +100,8 @@ u32 GetQueryFileInfoMinimumLength(u32 info_class) {
   }
 }
 
-u32 NtQueryInformationFile_entry(u32 file_handle, ppc_ptr_t<X_IO_STATUS_BLOCK> io_status_block_ptr,
-                                 mapped_void info_ptr, u32 info_length, u32 info_class) {
+u32 NtQueryInformationFile_entry(u32 file_handle, GuestPtrT<X_IO_STATUS_BLOCK> io_status_block_ptr,
+                                 MappedVoid info_ptr, u32 info_length, u32 info_class) {
   u32 minimum_length = GetQueryFileInfoMinimumLength(info_class);
   if (!minimum_length) {
     return X_STATUS_INVALID_INFO_CLASS;
@@ -120,21 +120,21 @@ u32 NtQueryInformationFile_entry(u32 file_handle, ppc_ptr_t<X_IO_STATUS_BLOCK> i
 
   switch (info_class) {
     case XFileInternalInformation: {
-      auto info = info_ptr.as<X_FILE_INTERNAL_INFORMATION*>();
-      info->index_number = rex::hash_combine(0, file->file->Info().path);
+      auto info = info_ptr.As<X_FILE_INTERNAL_INFORMATION*>();
+      info->index_number = rex::hash_combine(0, file->file->GetInfo().path);
       out_length = sizeof(*info);
       break;
     }
     case XFilePositionInformation: {
-      auto info = info_ptr.as<X_FILE_POSITION_INFORMATION*>();
-      info->current_byte_offset = file->position();
+      auto info = info_ptr.As<X_FILE_POSITION_INFORMATION*>();
+      info->current_byte_offset = file->GetPosition();
       out_length = sizeof(*info);
       break;
     }
     case XFileSectorInformation: {
       REX_KERNEL_STUB("XFileSectorInformation");
-      auto info = info_ptr.as<u32*>();
-      size_t fname_hash = rex::hash_combine(82589933LL, file->file->Info().path);
+      auto info = info_ptr.As<u32*>();
+      size_t fname_hash = rex::hash_combine(82589933LL, file->file->GetInfo().path);
       *info = static_cast<u32>(fname_hash ^ (fname_hash >> 32));
       out_length = sizeof(u32);
       break;
@@ -150,8 +150,8 @@ u32 NtQueryInformationFile_entry(u32 file_handle, ppc_ptr_t<X_IO_STATUS_BLOCK> i
       // The size can change outside NtSetInformationFile, as NtWriteFile can extend the file.
       file->file->Refresh();
 
-      const filesystem::FileInfo entry = file->file->Info();
-      auto info = info_ptr.as<X_FILE_NETWORK_OPEN_INFORMATION*>();
+      const filesystem::FileInfo entry = file->file->GetInfo();
+      auto info = info_ptr.As<X_FILE_NETWORK_OPEN_INFORMATION*>();
       info->creation_time = entry.create_time;
       info->last_access_time = entry.access_time;
       info->last_write_time = entry.write_time;
@@ -163,7 +163,7 @@ u32 NtQueryInformationFile_entry(u32 file_handle, ppc_ptr_t<X_IO_STATUS_BLOCK> i
       break;
     }
     case XFileAlignmentInformation: {
-      auto info = info_ptr.as<u32*>();
+      auto info = info_ptr.As<u32*>();
       *info = 0;
       out_length = sizeof(*info);
       break;
@@ -214,8 +214,8 @@ u32 GetSetFileInfoMinimumLength(u32 info_class) {
   }
 }
 
-u32 NtSetInformationFile_entry(u32 file_handle, ppc_ptr_t<X_IO_STATUS_BLOCK> io_status_block,
-                               mapped_void info_ptr, u32 info_length, u32 info_class) {
+u32 NtSetInformationFile_entry(u32 file_handle, GuestPtrT<X_IO_STATUS_BLOCK> io_status_block,
+                               MappedVoid info_ptr, u32 info_length, u32 info_class) {
   u32 minimum_length = GetSetFileInfoMinimumLength(info_class);
   if (!minimum_length) {
     return X_STATUS_INVALID_INFO_CLASS;
@@ -232,7 +232,7 @@ u32 NtSetInformationFile_entry(u32 file_handle, ppc_ptr_t<X_IO_STATUS_BLOCK> io_
 
   switch (info_class) {
     case XFileBasicInformation: {
-      auto info = info_ptr.as<X_FILE_BASIC_INFORMATION*>();
+      auto info = info_ptr.As<X_FILE_BASIC_INFORMATION*>();
 
       filesystem::FileTimes times;
       if (info->creation_time) {
@@ -261,24 +261,24 @@ u32 NtSetInformationFile_entry(u32 file_handle, ppc_ptr_t<X_IO_STATUS_BLOCK> io_
       break;
     }
     case XFileDispositionInformation: {
-      auto info = info_ptr.as<X_FILE_DISPOSITION_INFORMATION*>();
+      auto info = info_ptr.As<X_FILE_DISPOSITION_INFORMATION*>();
       bool delete_on_close = info->delete_file ? true : false;
       file->file->SetDeleteOnClose(delete_on_close);
       out_length = 0;
       REXLOG_WARN(kernel, "NtSetInformationFile set deleting flag for {} on close to: {}",
-                  file->file->Info().name, delete_on_close);
+                  file->file->GetInfo().name, delete_on_close);
       break;
     }
     case XFilePositionInformation: {
-      auto info = info_ptr.as<X_FILE_POSITION_INFORMATION*>();
-      file->set_position(info->current_byte_offset);
+      auto info = info_ptr.As<X_FILE_POSITION_INFORMATION*>();
+      file->SetPosition(info->current_byte_offset);
       out_length = sizeof(*info);
       break;
     }
     case XFileRenameInformation: {
-      auto info = info_ptr.as<X_FILE_RENAME_INFORMATION*>();
+      auto info = info_ptr.As<X_FILE_RENAME_INFORMATION*>();
       auto target_path =
-          runtime::TranslateAnsiPath(runtime::Current().memory(), &info->ansi_string);
+          runtime::TranslateAnsiPath(runtime::GetCurrent().GetMemory(), &info->ansi_string);
       if (!IsValidPath(target_path, false)) {
         return X_STATUS_OBJECT_NAME_INVALID;
       }
@@ -290,18 +290,18 @@ u32 NtSetInformationFile_entry(u32 file_handle, ppc_ptr_t<X_IO_STATUS_BLOCK> io_
 
       Pinned<FileObject> root;
       if (info->root_dir_handle) {
-        root = runtime::Current().object_table().Get<FileObject>(info->root_dir_handle);
+        root = runtime::GetCurrent().GetObjectTable().Get<FileObject>(info->root_dir_handle);
         if (!root) {
           return X_STATUS_INVALID_HANDLE;
         }
       }
-      result = file->Rename(*runtime::Current().file_system(), target_path,
+      result = file->Rename(*runtime::GetCurrent().GetFileSystem(), target_path,
                             info->replace_existing != 0, root ? &*root : nullptr);
       out_length = sizeof(*info);
       break;
     }
     case XFileAllocationInformation: {
-      auto info = info_ptr.as<X_FILE_ALLOCATION_INFORMATION*>();
+      auto info = info_ptr.As<X_FILE_ALLOCATION_INFORMATION*>();
       result = file->SetAllocation(info->allocation_size);
       out_length = sizeof(*info);
 
@@ -309,7 +309,7 @@ u32 NtSetInformationFile_entry(u32 file_handle, ppc_ptr_t<X_IO_STATUS_BLOCK> io_
       break;
     }
     case XFileEndOfFileInformation: {
-      auto info = info_ptr.as<X_FILE_END_OF_FILE_INFORMATION*>();
+      auto info = info_ptr.As<X_FILE_END_OF_FILE_INFORMATION*>();
       result = file->SetLength(info->end_of_file);
       out_length = sizeof(*info);
 
@@ -317,15 +317,15 @@ u32 NtSetInformationFile_entry(u32 file_handle, ppc_ptr_t<X_IO_STATUS_BLOCK> io_
       break;
     }
     case XFileCompletionInformation: {
-      auto info = info_ptr.as<X_FILE_COMPLETION_INFORMATION*>();
+      auto info = info_ptr.As<X_FILE_COMPLETION_INFORMATION*>();
       auto handle = static_cast<u32>(info->handle);
       auto key = static_cast<u32>(info->key);
       out_length = sizeof(*info);
-      auto port = runtime::Current().object_table().Get<IOCompletionObject>(handle);
+      auto port = runtime::GetCurrent().GetObjectTable().Get<IOCompletionObject>(handle);
       if (!port) {
         result = X_STATUS_INVALID_HANDLE;
       } else {
-        file->RegisterIOCompletionPort(runtime::Current(), key, port.handle());
+        file->RegisterIOCompletionPort(runtime::GetCurrent(), key, port.GetHandle());
       }
       break;
     }
@@ -360,8 +360,8 @@ u32 GetQueryVolumeInfoMinimumLength(u32 info_class) {
 }
 
 u32 NtQueryVolumeInformationFile_entry(u32 file_handle,
-                                       ppc_ptr_t<X_IO_STATUS_BLOCK> io_status_block_ptr,
-                                       mapped_void info_ptr, u32 info_length, u32 info_class) {
+                                       GuestPtrT<X_IO_STATUS_BLOCK> io_status_block_ptr,
+                                       MappedVoid info_ptr, u32 info_length, u32 info_class) {
   u32 minimum_length = GetQueryVolumeInfoMinimumLength(info_class);
   if (!minimum_length) {
     return X_STATUS_INVALID_INFO_CLASS;
@@ -380,7 +380,7 @@ u32 NtQueryVolumeInformationFile_entry(u32 file_handle,
 
   switch (info_class) {
     case XFileFsVolumeInformation: {
-      auto info = info_ptr.as<X_FILE_FS_VOLUME_INFORMATION*>();
+      auto info = info_ptr.As<X_FILE_FS_VOLUME_INFORMATION*>();
       info->creation_time = 0;
       info->serial_number = 0;
       info->supports_objects = 0;
@@ -389,8 +389,8 @@ u32 NtQueryVolumeInformationFile_entry(u32 file_handle,
       break;
     }
     case XFileFsSizeInformation: {
-      const filesystem::VolumeInfo volume = file->file->Volume();
-      auto info = info_ptr.as<X_FILE_FS_SIZE_INFORMATION*>();
+      const filesystem::VolumeInfo volume = file->file->GetVolume();
+      auto info = info_ptr.As<X_FILE_FS_SIZE_INFORMATION*>();
       info->total_allocation_units = volume.total_allocation_units;
       info->available_allocation_units = volume.available_allocation_units;
       info->sectors_per_allocation_unit = volume.sectors_per_allocation_unit;
@@ -400,9 +400,9 @@ u32 NtQueryVolumeInformationFile_entry(u32 file_handle,
       break;
     }
     case XFileFsAttributeInformation: {
-      const filesystem::VolumeInfo volume = file->file->Volume();
+      const filesystem::VolumeInfo volume = file->file->GetVolume();
       const auto& name = volume.name;
-      auto info = info_ptr.as<X_FILE_FS_ATTRIBUTE_INFORMATION*>();
+      auto info = info_ptr.As<X_FILE_FS_ATTRIBUTE_INFORMATION*>();
       info->attributes = volume.attributes;
       info->component_name_max_length = static_cast<i32>(volume.component_name_max_length);
       info->name_length = static_cast<u32>(name.size());
@@ -416,9 +416,9 @@ u32 NtQueryVolumeInformationFile_entry(u32 file_handle,
       break;
     }
     case XFileFsDeviceInformation: {
-      auto info = info_ptr.as<X_FILE_FS_DEVICE_INFORMATION*>();
+      auto info = info_ptr.As<X_FILE_FS_DEVICE_INFORMATION*>();
       REX_KERNEL_STUB("XFileFsDeviceInformation");
-      info->device_type = FILE_DEVICE_UNKNOWN;
+      info->device_type = kFileDeviceUnknown;
       info->characteristics = 0;
       out_length = sizeof(X_FILE_FS_DEVICE_INFORMATION);
       break;

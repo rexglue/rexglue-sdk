@@ -36,13 +36,13 @@ std::string_view TrimBlanks(std::string_view text) {
 }
 
 KeyModifiers HeldModifiers(const bool (&key_down)[256]) {
-  KeyModifiers mods = KeyModifiers::None;
+  KeyModifiers mods = KeyModifiers::kNone;
   if (key_down[std::to_underlying(VirtualKey::kShift)])
-    mods |= KeyModifiers::Shift;
+    mods |= KeyModifiers::kShift;
   if (key_down[std::to_underlying(VirtualKey::kControl)])
-    mods |= KeyModifiers::Ctrl;
+    mods |= KeyModifiers::kCtrl;
   if (key_down[std::to_underlying(VirtualKey::kMenu)])
-    mods |= KeyModifiers::Alt;
+    mods |= KeyModifiers::kAlt;
   return mods;
 }
 
@@ -243,12 +243,12 @@ void KeyboardMouseDriver::Attach(cvar::ICvarRegistry& cvars) {
   Detach();
   for (size_t i = 0; i < kBindSpecs.size(); i++) {
     const cvar::Var<std::string>& var = *kBindSpecs[i].var;
-    SetBind(i, var.get());
+    SetBind(i, var.Get());
     auto handle =
-        cvars.OnChange(var.desc().name,
+        cvars.OnChange(var.GetDesc().name,
                        [this, i](std::string_view, std::string_view value) { SetBind(i, value); });
     if (!handle) {
-      REXLOG_WARN(hid, "{} is not followed, {}", var.desc().name, handle.error().message);
+      REXLOG_WARN(hid, "{} is not followed, {}", var.GetDesc().name, handle.error().message);
       continue;
     }
     handles_[i] = std::move(*handle);
@@ -266,7 +266,7 @@ void KeyboardMouseDriver::Detach() {
 }
 
 void KeyboardMouseDriver::SetBind(size_t index, std::string_view text) {
-  const std::string_view name = kBindSpecs[index].var->desc().name;
+  const std::string_view name = kBindSpecs[index].var->GetDesc().name;
   std::vector<KeyChord> chords;
   bool any_item = false;
   for (const auto part : std::views::split(text, ',')) {
@@ -301,8 +301,7 @@ void KeyboardMouseDriver::EnumerateDevices(std::vector<DeviceInfo>& out) {
   DeviceInfo info;
   info.id = kKeyboardMouseDevice;
   info.name = IsPassthroughEnabled() ? "Keyboard" : "Keyboard and Mouse";
-  info.subtype =
-      IsPassthroughEnabled() ? XINPUT_DEVSUBTYPE_USB_KEYBOARD : XINPUT_DEVSUBTYPE_GAMEPAD;
+  info.subtype = IsPassthroughEnabled() ? kXInputDevSubtypeUSBKeyboard : kXInputDevSubtypeGamepad;
   info.synthetic = true;
   out.push_back(info);
 }
@@ -310,16 +309,16 @@ void KeyboardMouseDriver::EnumerateDevices(std::vector<DeviceInfo>& out) {
 Result<X_INPUT_CAPABILITIES> KeyboardMouseDriver::GetDeviceCapabilities(DeviceId id, u32) {
   if (!IsEnabled() || id != kKeyboardMouseDevice) {
     return std::unexpected(
-        BuildError(HIDError::NotConnected, "keyboard and mouse emulation is off"));
+        BuildError(HIDError::kNotConnected, "keyboard and mouse emulation is off"));
   }
   X_INPUT_CAPABILITIES caps{};
   if (IsPassthroughEnabled()) {
-    caps.type = XINPUT_DEVTYPE_KEYBOARD;
-    caps.sub_type = XINPUT_DEVSUBTYPE_USB_KEYBOARD;
+    caps.type = kXInputDevTypeKeyboard;
+    caps.sub_type = kXInputDevSubtypeUSBKeyboard;
     return caps;
   }
-  caps.type = XINPUT_DEVTYPE_GAMEPAD;
-  caps.sub_type = XINPUT_DEVSUBTYPE_GAMEPAD;
+  caps.type = kXInputDevTypeGamepad;
+  caps.sub_type = kXInputDevSubtypeGamepad;
   caps.flags = 0;
   caps.gamepad.buttons = 0xFFFF;
   caps.gamepad.left_trigger = 0xFF;
@@ -336,23 +335,23 @@ Result<X_INPUT_CAPABILITIES> KeyboardMouseDriver::GetDeviceCapabilities(DeviceId
 Result<X_INPUT_STATE> KeyboardMouseDriver::GetDeviceState(DeviceId id) {
   if (!IsEnabled() || id != kKeyboardMouseDevice) {
     return std::unexpected(
-        BuildError(HIDError::NotConnected, "keyboard and mouse emulation is off"));
+        BuildError(HIDError::kNotConnected, "keyboard and mouse emulation is off"));
   }
 
   // Passthrough delivers keys through GetDeviceKeystroke only, leaving the title user free.
   if (IsPassthroughEnabled()) {
     return std::unexpected(
-        BuildError(HIDError::NotConnected, "passthrough keeps the user free for a pad"));
+        BuildError(HIDError::kNotConnected, "passthrough keeps the user free for a pad"));
   }
 
   // Mouse look is opt in, else keyboard input alone would hide and lock the cursor over ImGui.
-  const bool lock = REXCVAR_GET(cvars::mnk_mouse) && hub_.focused() && is_active();
+  const bool lock = REXCVAR_GET(cvars::mnk_mouse) && hub_.GetFocused() && IsActive();
   if (pointer_lock_.exchange(lock, std::memory_order_relaxed) != lock) {
     hub_.RefreshPointerMode();
   }
 
   X_INPUT_STATE state{};
-  if (!is_active() || !hub_.focused()) {
+  if (!IsActive() || !hub_.GetFocused()) {
     state.packet_number = packet_number_;
     return state;
   }
@@ -361,35 +360,35 @@ Result<X_INPUT_STATE> KeyboardMouseDriver::GetDeviceState(DeviceId id) {
 
   u16 buttons = 0;
   if (IsBindPressed(key_down_, binds_[kBindA]))
-    buttons |= X_INPUT_GAMEPAD_A;
+    buttons |= kXInputGamepadA;
   if (IsBindPressed(key_down_, binds_[kBindB]))
-    buttons |= X_INPUT_GAMEPAD_B;
+    buttons |= kXInputGamepadB;
   if (IsBindPressed(key_down_, binds_[kBindX]))
-    buttons |= X_INPUT_GAMEPAD_X;
+    buttons |= kXInputGamepadX;
   if (IsBindPressed(key_down_, binds_[kBindY]))
-    buttons |= X_INPUT_GAMEPAD_Y;
+    buttons |= kXInputGamepadY;
   if (IsBindPressed(key_down_, binds_[kBindLeftShoulder]))
-    buttons |= X_INPUT_GAMEPAD_LEFT_SHOULDER;
+    buttons |= kXInputGamepadLeftShoulder;
   if (IsBindPressed(key_down_, binds_[kBindRightShoulder]))
-    buttons |= X_INPUT_GAMEPAD_RIGHT_SHOULDER;
+    buttons |= kXInputGamepadRightShoulder;
   if (IsBindPressed(key_down_, binds_[kBindLStickPress]))
-    buttons |= X_INPUT_GAMEPAD_LEFT_THUMB;
+    buttons |= kXInputGamepadLeftThumb;
   if (IsBindPressed(key_down_, binds_[kBindRStickPress]))
-    buttons |= X_INPUT_GAMEPAD_RIGHT_THUMB;
+    buttons |= kXInputGamepadRightThumb;
   if (IsBindPressed(key_down_, binds_[kBindBack]))
-    buttons |= X_INPUT_GAMEPAD_BACK;
+    buttons |= kXInputGamepadBack;
   if (IsBindPressed(key_down_, binds_[kBindStart]))
-    buttons |= X_INPUT_GAMEPAD_START;
+    buttons |= kXInputGamepadStart;
   if (IsBindPressed(key_down_, binds_[kBindGuide]))
-    buttons |= X_INPUT_GAMEPAD_GUIDE;
+    buttons |= kXInputGamepadGuide;
   if (IsBindPressed(key_down_, binds_[kBindDPadUp]))
-    buttons |= X_INPUT_GAMEPAD_DPAD_UP;
+    buttons |= kXInputGamepadDPadUp;
   if (IsBindPressed(key_down_, binds_[kBindDPadDown]))
-    buttons |= X_INPUT_GAMEPAD_DPAD_DOWN;
+    buttons |= kXInputGamepadDPadDown;
   if (IsBindPressed(key_down_, binds_[kBindDPadLeft]))
-    buttons |= X_INPUT_GAMEPAD_DPAD_LEFT;
+    buttons |= kXInputGamepadDPadLeft;
   if (IsBindPressed(key_down_, binds_[kBindDPadRight]))
-    buttons |= X_INPUT_GAMEPAD_DPAD_RIGHT;
+    buttons |= kXInputGamepadDPadRight;
 
   u8 lt = IsBindPressed(key_down_, binds_[kBindLeftTrigger]) ? 0xFF : 0;
   u8 rt = IsBindPressed(key_down_, binds_[kBindRightTrigger]) ? 0xFF : 0;
@@ -447,7 +446,7 @@ Result<X_INPUT_STATE> KeyboardMouseDriver::GetDeviceState(DeviceId id) {
 Result<void> KeyboardMouseDriver::SetDeviceVibration(DeviceId id, const X_INPUT_VIBRATION&) {
   if (!IsEnabled() || id != kKeyboardMouseDevice) {
     return std::unexpected(
-        BuildError(HIDError::NotConnected, "keyboard and mouse emulation is off"));
+        BuildError(HIDError::kNotConnected, "keyboard and mouse emulation is off"));
   }
   return Ok();
 }
@@ -455,11 +454,11 @@ Result<void> KeyboardMouseDriver::SetDeviceVibration(DeviceId id, const X_INPUT_
 Result<X_INPUT_KEYSTROKE> KeyboardMouseDriver::GetDeviceKeystroke(DeviceId id, u32) {
   if (!IsEnabled() || id != kKeyboardMouseDevice) {
     return std::unexpected(
-        BuildError(HIDError::NotConnected, "keyboard and mouse emulation is off"));
+        BuildError(HIDError::kNotConnected, "keyboard and mouse emulation is off"));
   }
   std::lock_guard lock(state_mutex_);
   if (keystroke_queue_.empty()) {
-    return std::unexpected(BuildError(HIDError::Empty, "no keystroke is queued"));
+    return std::unexpected(BuildError(HIDError::kEmpty, "no keystroke is queued"));
   }
   X_INPUT_KEYSTROKE keystroke = keystroke_queue_.front();
   keystroke_queue_.pop();
@@ -468,25 +467,25 @@ Result<X_INPUT_KEYSTROKE> KeyboardMouseDriver::GetDeviceKeystroke(DeviceId id, u
 
 void KeyboardMouseDriver::OnEvent(const InputEvent& event) {
   switch (event.kind) {
-    case InputEvent::Kind::KeyDown:
+    case InputEvent::Kind::kKeyDown:
       OnKey(event, true);
       break;
-    case InputEvent::Kind::KeyUp:
+    case InputEvent::Kind::kKeyUp:
       OnKey(event, false);
       break;
-    case InputEvent::Kind::KeyChar:
+    case InputEvent::Kind::kKeyChar:
       OnChar(event);
       break;
-    case InputEvent::Kind::ButtonDown:
+    case InputEvent::Kind::kButtonDown:
       OnButton(event, true);
       break;
-    case InputEvent::Kind::ButtonUp:
+    case InputEvent::Kind::kButtonUp:
       OnButton(event, false);
       break;
-    case InputEvent::Kind::Motion:
+    case InputEvent::Kind::kMotion:
       OnMotion(event);
       break;
-    case InputEvent::Kind::FocusLost:
+    case InputEvent::Kind::kFocusLost:
       OnFocusLost();
       break;
     default:
@@ -498,7 +497,7 @@ void KeyboardMouseDriver::EnqueueKeystroke(u16 pad_key, bool down) {
   X_INPUT_KEYSTROKE ks = {};
   ks.virtual_key = pad_key;
   ks.unicode = 0;
-  ks.flags = down ? X_INPUT_KEYSTROKE_KEYDOWN : X_INPUT_KEYSTROKE_KEYUP;
+  ks.flags = down ? kXInputKeystrokeKeyDown : kXInputKeystrokeKeyUp;
   // The hub stamps the title user this device is assigned to.
   ks.user_index = 0;
   ks.hid_code = 0;
@@ -519,18 +518,18 @@ void KeyboardMouseDriver::EnqueueRawKeystroke(const InputEvent& event, bool down
   ks.user_index = 0;
   ks.hid_code = VirtualKeyToHIDUsage(event.key);
 
-  u16 flags = down ? X_INPUT_KEYSTROKE_KEYDOWN : X_INPUT_KEYSTROKE_KEYUP;
+  u16 flags = down ? kXInputKeystrokeKeyDown : kXInputKeystrokeKeyUp;
   if (down && event.repeat) {
-    flags |= X_INPUT_KEYSTROKE_REPEAT;
+    flags |= kXInputKeystrokeRepeat;
   }
-  if (HasFlags(event.modifiers, KeyModifiers::Shift)) {
-    flags |= X_INPUT_KEYSTROKE_SHIFT;
+  if (HasFlags(event.modifiers, KeyModifiers::kShift)) {
+    flags |= kXInputKeystrokeShift;
   }
-  if (HasFlags(event.modifiers, KeyModifiers::Ctrl)) {
-    flags |= X_INPUT_KEYSTROKE_CTRL;
+  if (HasFlags(event.modifiers, KeyModifiers::kCtrl)) {
+    flags |= kXInputKeystrokeCtrl;
   }
-  if (HasFlags(event.modifiers, KeyModifiers::Alt)) {
-    flags |= X_INPUT_KEYSTROKE_ALT;
+  if (HasFlags(event.modifiers, KeyModifiers::kAlt)) {
+    flags |= kXInputKeystrokeAlt;
   }
   ks.flags = flags;
   PushKeystroke(ks);
@@ -564,7 +563,7 @@ void KeyboardMouseDriver::SetKeyState(u16 key, bool down) {
 }
 
 void KeyboardMouseDriver::OnKey(const InputEvent& event, bool down) {
-  if (!IsEnabled() || (down && !hub_.focused())) {
+  if (!IsEnabled() || (down && !hub_.GetFocused())) {
     return;
   }
   std::lock_guard lock(state_mutex_);
@@ -587,26 +586,26 @@ void KeyboardMouseDriver::OnChar(const InputEvent& event) {
   }
   X_INPUT_KEYSTROKE& last = keystroke_queue_.back();
   const u16 flags = last.flags;
-  if (!(flags & X_INPUT_KEYSTROKE_KEYDOWN) || last.unicode != 0) {
+  if (!(flags & kXInputKeystrokeKeyDown) || last.unicode != 0) {
     return;
   }
   last.unicode = static_cast<u16>(event.character);
-  last.flags = static_cast<u16>(flags | X_INPUT_KEYSTROKE_VALIDUNICODE);
+  last.flags = static_cast<u16>(flags | kXInputKeystrokeValidUnicode);
 }
 
 void KeyboardMouseDriver::OnButton(const InputEvent& event, bool down) {
-  if (!IsEnabled() || (down && !hub_.focused())) {
+  if (!IsEnabled() || (down && !hub_.GetFocused())) {
     return;
   }
   std::lock_guard lock(state_mutex_);
   switch (event.button) {
-    case MouseButton::Left:
+    case MouseButton::kLeft:
       SetKeyState(std::to_underlying(VirtualKey::kLButton), down);
       break;
-    case MouseButton::Right:
+    case MouseButton::kRight:
       SetKeyState(std::to_underlying(VirtualKey::kRButton), down);
       break;
-    case MouseButton::Middle:
+    case MouseButton::kMiddle:
       SetKeyState(std::to_underlying(VirtualKey::kMButton), down);
       break;
     default:
@@ -616,7 +615,7 @@ void KeyboardMouseDriver::OnButton(const InputEvent& event, bool down) {
 }
 
 void KeyboardMouseDriver::OnMotion(const InputEvent& event) {
-  if (!IsEnabled() || !hub_.focused()) {
+  if (!IsEnabled() || !hub_.GetFocused()) {
     return;
   }
   std::lock_guard lock(state_mutex_);

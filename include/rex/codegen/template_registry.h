@@ -27,18 +27,18 @@ class TemplateError : public std::runtime_error {
   /**
    * Creates an error for 1 template.
    *
-   * @param templateId Canonical ID of the failing template
+   * @param template_id Canonical ID of the failing template
    * @param message Description of the failure
    * @param source Where the template came from, "embedded" or an override file path
    */
-  TemplateError(const std::string& templateId, const std::string& message,
+  TemplateError(const std::string& template_id, const std::string& message,
                 const std::string& source = "embedded");
 
-  const std::string& templateId() const { return templateId_; }
-  const std::string& source() const { return source_; }
+  const std::string& GetTemplateId() const { return template_id_; }
+  const std::string& GetSource() const { return source_; }
 
  private:
-  std::string templateId_;
+  std::string template_id_;
   std::string source_;
 };
 
@@ -46,7 +46,7 @@ class TemplateError : public std::runtime_error {
  * Resolves and renders inja templates by canonical ID.
  * Supports embedded defaults with optional filesystem overrides.
  *
- * Uses pimpl to keep inja.hpp and nlohmann/json.hpp out of this header, so render() accepts
+ * Uses pimpl to keep inja.hpp and nlohmann/json.hpp out of this header, so Render() accepts
  * serialized JSON in a std::string and nlohmann::json stays out of the public API.
  */
 class TemplateRegistry : public rex::MoveOnly {
@@ -76,33 +76,33 @@ class TemplateRegistry : public rex::MoveOnly {
    *
    * @param dir Directory holding the override files
    */
-  void loadOverrides(const std::filesystem::path& dir);
+  void LoadOverrides(const std::filesystem::path& dir);
 
   /**
    * Renders a template by canonical ID.
    *
    * @param id Canonical template ID
-   * @param jsonData Template data as serialized JSON
+   * @param json_data Template data as serialized JSON
    * @return Rendered text
    * @throws TemplateError on parse or render failure
    */
-  std::string render(const std::string& id, const std::string& jsonData);
+  std::string Render(const std::string& id, const std::string& json_data);
 
   /**
    * Renders a raw template string for testing. Not tied to a canonical ID.
    *
-   * @param templateContent Template source
-   * @param jsonData Template data as serialized JSON
+   * @param template_content Template source
+   * @param json_data Template data as serialized JSON
    * @return Rendered text
    */
-  std::string renderString(const std::string& templateContent, const std::string& jsonData);
+  std::string RenderString(const std::string& template_content, const std::string& json_data);
 
   /**
    * Lists all registered canonical IDs.
    *
    * @return Registered IDs
    */
-  std::vector<std::string> registeredIds() const;
+  std::vector<std::string> GetRegisteredIds() const;
 
  private:
   struct Impl;
@@ -116,6 +116,6 @@ class TemplateRegistry : public rex::MoveOnly {
  *
  * @return Hash of the embedded templates
  */
-std::string EmbeddedTemplatesHash();
+std::string GetEmbeddedTemplatesHash();
 
 }  // namespace rex::codegen

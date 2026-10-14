@@ -40,15 +40,15 @@ bool ValidName(std::string_view name, std::string_view scope) {
 
 const char* SourceName(CvarSource s) {
   switch (s) {
-    case CvarSource::Default:
+    case CvarSource::kDefault:
       return "Default";
-    case CvarSource::Config:
+    case CvarSource::kConfig:
       return "Config";
-    case CvarSource::Environment:
+    case CvarSource::kEnvironment:
       return "Environment";
-    case CvarSource::CommandLine:
+    case CvarSource::kCommandLine:
       return "CommandLine";
-    case CvarSource::Runtime:
+    case CvarSource::kRuntime:
       return "Runtime";
   }
   return "Unknown";
@@ -99,32 +99,33 @@ const CvarRegistryImpl::Entry* CvarRegistryImpl::FindEntry(std::string_view name
 
 std::string_view CvarRegistryImpl::DefaultOf(const Entry& entry) const {
   return entry.has_default_override ? std::string_view(entry.default_override)
-                                    : entry.var->DefaultText();
+                                    : entry.var->GetDefaultText();
 }
 
 Result<void> CvarRegistryImpl::Register(std::string_view scope, std::span<const IVar* const> vars) {
   std::lock_guard lock(mutex_);
   if (!LowerToken(scope)) {
-    return Err(BuildError(E::BadName, std::format("scope '{}' is not lowercase [a-z0-9_]", scope)));
+    return Err(
+        BuildError(E::kBadName, std::format("scope '{}' is not lowercase [a-z0-9_]", scope)));
   }
   if (std::ranges::find(scopes_, scope) != scopes_.end()) {
     return Err(
-        BuildError(E::DuplicateScope, std::format("scope '{}' is already registered", scope)));
+        BuildError(E::kDuplicateScope, std::format("scope '{}' is already registered", scope)));
   }
   for (size_t i = 0; i < vars.size(); ++i) {
-    const auto& d = vars[i]->desc();
+    const auto& d = vars[i]->GetDesc();
     if (!ValidName(d.name, scope)) {
       return Err(BuildError(
-          E::BadName,
+          E::kBadName,
           std::format("cvar '{}' is not '{}.leaf' in lowercase [a-z0-9_]", d.name, scope)));
     }
     if (index_.contains(d.name)) {
       return Err(
-          BuildError(E::DuplicateName, std::format("cvar '{}' is already registered", d.name)));
+          BuildError(E::kDuplicateName, std::format("cvar '{}' is already registered", d.name)));
     }
     for (size_t j = 0; j < i; ++j) {
-      if (vars[j]->desc().name == d.name) {
-        return Err(BuildError(E::DuplicateName,
+      if (vars[j]->GetDesc().name == d.name) {
+        return Err(BuildError(E::kDuplicateName,
                               std::format("cvar '{}' appears twice in the table", d.name)));
       }
     }
@@ -133,11 +134,11 @@ Result<void> CvarRegistryImpl::Register(std::string_view scope, std::span<const 
   if (vars.empty())
     pinned_scopes_.emplace_back(scope);
   for (const IVar* var : vars) {
-    index_[var->desc().name] = entries_.size();
+    index_[var->GetDesc().name] = entries_.size();
     Entry entry;
     entry.var = var;
     entries_.push_back(std::move(entry));
-    cvar::detail_access::set_registry(*var, this);
+    cvar::DetailAccess::SetRegistry(*var, this);
   }
   return Ok();
 }
@@ -147,32 +148,33 @@ Result<void> CvarRegistryImpl::Add(std::span<const IVar* const> vars) {
   {
     std::lock_guard lock(mutex_);
     for (size_t i = 0; i < vars.size(); ++i) {
-      const auto& d = vars[i]->desc();
+      const auto& d = vars[i]->GetDesc();
       if (std::ranges::find(scopes_, d.scope) == scopes_.end()) {
-        return Err(BuildError(E::BadName,
+        return Err(BuildError(E::kBadName,
                               std::format("cvar '{}' names a scope that is not reserved", d.name)));
       }
       if (!ValidName(d.name, d.scope)) {
-        return Err(BuildError(
-            E::BadName, std::format("cvar '{}' is not scope.leaf in lowercase [a-z0-9_]", d.name)));
+        return Err(
+            BuildError(E::kBadName,
+                       std::format("cvar '{}' is not scope.leaf in lowercase [a-z0-9_]", d.name)));
       }
       if (index_.contains(d.name)) {
         return Err(
-            BuildError(E::DuplicateName, std::format("cvar '{}' is already registered", d.name)));
+            BuildError(E::kDuplicateName, std::format("cvar '{}' is already registered", d.name)));
       }
       for (size_t j = 0; j < i; ++j) {
-        if (vars[j]->desc().name == d.name) {
-          return Err(BuildError(E::DuplicateName,
+        if (vars[j]->GetDesc().name == d.name) {
+          return Err(BuildError(E::kDuplicateName,
                                 std::format("cvar '{}' appears twice in the table", d.name)));
         }
       }
     }
     for (const IVar* var : vars) {
-      index_[var->desc().name] = entries_.size();
+      index_[var->GetDesc().name] = entries_.size();
       Entry entry;
       entry.var = var;
       entries_.push_back(std::move(entry));
-      cvar::detail_access::set_registry(*var, this);
+      cvar::DetailAccess::SetRegistry(*var, this);
       ApplyPending(entries_.back(), fired);
     }
   }
@@ -181,19 +183,19 @@ Result<void> CvarRegistryImpl::Add(std::span<const IVar* const> vars) {
 }
 
 void CvarRegistryImpl::ApplyPending(Entry& entry, Fired& fired) {
-  const std::string_view name = entry.var->desc().name;
-  for (CvarSource source : {CvarSource::Default, CvarSource::Config, CvarSource::Environment,
-                            CvarSource::CommandLine}) {
+  const std::string_view name = entry.var->GetDesc().name;
+  for (CvarSource source : {CvarSource::kDefault, CvarSource::kConfig, CvarSource::kEnvironment,
+                            CvarSource::kCommandLine}) {
     for (const CvarOverride& o : pending_) {
       if (o.source != source || o.name != name)
         continue;
       Result<void> status = Ok();
-      if (source == CvarSource::Default) {
+      if (source == CvarSource::kDefault) {
         status = Validate(entry, o.value, source);
         if (status) {
           entry.default_override = o.value;
           entry.has_default_override = true;
-          if (entry.source != CvarSource::Default)
+          if (entry.source != CvarSource::kDefault)
             continue;
         }
       }
@@ -209,10 +211,10 @@ void CvarRegistryImpl::ApplyPending(Entry& entry, Fired& fired) {
 void CvarRegistryImpl::Unregister(std::span<const IVar* const> vars) {
   std::lock_guard lock(mutex_);
   for (const IVar* var : vars) {
-    auto it = index_.find(var->desc().name);
+    auto it = index_.find(var->GetDesc().name);
     if (it == index_.end())
       continue;
-    cvar::detail_access::set_registry(*var, nullptr);
+    cvar::DetailAccess::SetRegistry(*var, nullptr);
     size_t removed = it->second;
     entries_.erase(entries_.begin() + static_cast<std::ptrdiff_t>(removed));
     index_.erase(it);
@@ -221,24 +223,24 @@ void CvarRegistryImpl::Unregister(std::span<const IVar* const> vars) {
         --idx;
     }
     std::erase_if(callbacks_, [&](const std::shared_ptr<Callback>& cb) {
-      return cb->name == var->desc().name;
+      return cb->name == var->GetDesc().name;
     });
-    std::erase(pending_restart_, std::string(var->desc().name));
+    std::erase(pending_restart_, std::string(var->GetDesc().name));
   }
   std::erase_if(scopes_, [&](const std::string& scope) {
     return std::ranges::find(pinned_scopes_, scope) == pinned_scopes_.end() &&
            std::ranges::none_of(entries_,
-                                [&](const Entry& e) { return e.var->desc().scope == scope; });
+                                [&](const Entry& e) { return e.var->GetDesc().scope == scope; });
   });
 }
 
 Result<void> CvarRegistryImpl::Validate(const Entry& entry, std::string_view value,
                                         CvarSource source) const {
-  const Desc& d = entry.var->desc();
+  const Desc& d = entry.var->GetDesc();
   const auto& c = d.constraints;
   auto rejected = [&](std::string_view reason) {
-    return Err(BuildError(E::Invalid, std::format("cvar '{}' rejected value '{}' from {}: {}",
-                                                  d.name, value, SourceName(source), reason)));
+    return Err(BuildError(E::kInvalid, std::format("cvar '{}' rejected value '{}' from {}: {}",
+                                                   d.name, value, SourceName(source), reason)));
   };
   if (c.min || c.max) {
     f64 v = 0;
@@ -262,15 +264,15 @@ Result<void> CvarRegistryImpl::Validate(const Entry& entry, std::string_view val
 
 Result<void> CvarRegistryImpl::Apply(Entry& entry, std::string_view value, CvarSource source,
                                      Fired& fired) {
-  const Desc& d = entry.var->desc();
-  if (d.type == cvar::Type::Command) {
-    return Err(BuildError(E::NotAVar, std::format("'{}' is a command", d.name)));
+  const Desc& d = entry.var->GetDesc();
+  if (d.type == cvar::Type::kCommand) {
+    return Err(BuildError(E::kNotAVar, std::format("'{}' is a command", d.name)));
   }
-  if (entry.locked && source == CvarSource::Runtime) {
-    return Err(BuildError(E::Locked, std::format("cvar '{}' is locked", d.name)));
+  if (entry.locked && source == CvarSource::kRuntime) {
+    return Err(BuildError(E::kLocked, std::format("cvar '{}' is locked", d.name)));
   }
-  if (finalized_ && d.lifecycle == cvar::Lifecycle::InitOnly && source == CvarSource::Runtime) {
-    return Err(BuildError(E::InitOnly,
+  if (finalized_ && d.lifecycle == cvar::Lifecycle::kInitOnly && source == CvarSource::kRuntime) {
+    return Err(BuildError(E::kInitOnly,
                           std::format("cvar '{}' can only be set before Init completes", d.name)));
   }
   REX_TRY_VOID(Validate(entry, value, source));
@@ -278,12 +280,12 @@ Result<void> CvarRegistryImpl::Apply(Entry& entry, std::string_view value, CvarS
   auto* var = const_cast<IVar*>(entry.var);
   if (auto status = var->Parse(value); !status) {
     return Err(
-        BuildError(E::Invalid, std::format("cvar '{}' rejected value '{}' from {}: {}", d.name,
-                                           value, SourceName(source), status.error().message)));
+        BuildError(E::kInvalid, std::format("cvar '{}' rejected value '{}' from {}: {}", d.name,
+                                            value, SourceName(source), status.error().message)));
   }
   entry.source = source;
-  if (finalized_ && source == CvarSource::Runtime &&
-      d.lifecycle == cvar::Lifecycle::RequiresRestart &&
+  if (finalized_ && source == CvarSource::kRuntime &&
+      d.lifecycle == cvar::Lifecycle::kRequiresRestart &&
       std::ranges::find(pending_restart_, d.name) == pending_restart_.end()) {
     pending_restart_.emplace_back(d.name);
   }
@@ -323,8 +325,8 @@ Result<void> CvarRegistryImpl::Set(std::string_view name, std::string_view value
     std::lock_guard lock(mutex_);
     Entry* entry = FindEntry(name);
     if (!entry)
-      return Err(BuildError(E::NotFound, std::format("no cvar named '{}'", name)));
-    REX_TRY_VOID(Apply(*entry, value, CvarSource::Runtime, fired));
+      return Err(BuildError(E::kNotFound, std::format("no cvar named '{}'", name)));
+    REX_TRY_VOID(Apply(*entry, value, CvarSource::kRuntime, fired));
   }
   Fire(fired);
   return Ok();
@@ -334,7 +336,7 @@ Result<std::string> CvarRegistryImpl::Get(std::string_view name) const {
   std::lock_guard lock(mutex_);
   const Entry* entry = FindEntry(name);
   if (!entry) {
-    return Err<std::string>(BuildError(E::NotFound, std::format("no cvar named '{}'", name)));
+    return Err<std::string>(BuildError(E::kNotFound, std::format("no cvar named '{}'", name)));
   }
   return entry->var->Render();
 }
@@ -345,12 +347,12 @@ Result<void> CvarRegistryImpl::SetDefault(std::string_view name, std::string_vie
     std::lock_guard lock(mutex_);
     Entry* entry = FindEntry(name);
     if (!entry)
-      return Err(BuildError(E::NotFound, std::format("no cvar named '{}'", name)));
-    REX_TRY_VOID(Validate(*entry, value, CvarSource::Default));
+      return Err(BuildError(E::kNotFound, std::format("no cvar named '{}'", name)));
+    REX_TRY_VOID(Validate(*entry, value, CvarSource::kDefault));
     entry->default_override = std::string(value);
     entry->has_default_override = true;
-    if (entry->source == CvarSource::Default) {
-      REX_TRY_VOID(Apply(*entry, value, CvarSource::Default, fired));
+    if (entry->source == CvarSource::kDefault) {
+      REX_TRY_VOID(Apply(*entry, value, CvarSource::kDefault, fired));
     }
   }
   Fire(fired);
@@ -361,7 +363,7 @@ Result<void> CvarRegistryImpl::Lock(std::string_view name) {
   std::lock_guard lock(mutex_);
   Entry* entry = FindEntry(name);
   if (!entry)
-    return Err(BuildError(E::NotFound, std::format("no cvar named '{}'", name)));
+    return Err(BuildError(E::kNotFound, std::format("no cvar named '{}'", name)));
   entry->locked = true;
   return Ok();
 }
@@ -372,9 +374,9 @@ Result<void> CvarRegistryImpl::ResetToDefault(std::string_view name) {
     std::lock_guard lock(mutex_);
     Entry* entry = FindEntry(name);
     if (!entry)
-      return Err(BuildError(E::NotFound, std::format("no cvar named '{}'", name)));
+      return Err(BuildError(E::kNotFound, std::format("no cvar named '{}'", name)));
     std::string value(DefaultOf(*entry));
-    REX_TRY_VOID(Apply(*entry, value, CvarSource::Default, fired));
+    REX_TRY_VOID(Apply(*entry, value, CvarSource::kDefault, fired));
   }
   Fire(fired);
   return Ok();
@@ -393,20 +395,20 @@ std::optional<std::reference_wrapper<const IVar>> CvarRegistryImpl::Find(
 CvarSource CvarRegistryImpl::Source(std::string_view name) const {
   std::lock_guard lock(mutex_);
   const Entry* entry = FindEntry(name);
-  return entry ? entry->source : CvarSource::Default;
+  return entry ? entry->source : CvarSource::kDefault;
 }
 
 std::vector<const IVar*> CvarRegistryImpl::Enumerate(std::string_view scope) const {
   std::lock_guard lock(mutex_);
   std::vector<const IVar*> out;
   for (const Entry& e : entries_) {
-    if (scope.empty() || e.var->desc().scope == scope)
+    if (scope.empty() || e.var->GetDesc().scope == scope)
       out.push_back(e.var);
   }
   return out;
 }
 
-std::vector<std::string_view> CvarRegistryImpl::Scopes() const {
+std::vector<std::string_view> CvarRegistryImpl::GetScopes() const {
   std::lock_guard lock(mutex_);
   return {scopes_.begin(), scopes_.end()};
 }
@@ -416,7 +418,7 @@ Result<cvar::CallbackHandle> CvarRegistryImpl::OnChange(std::string_view name,
   std::lock_guard lock(mutex_);
   if (!FindEntry(name)) {
     return Err<cvar::CallbackHandle>(
-        BuildError(E::NotFound, std::format("no cvar named '{}'", name)));
+        BuildError(E::kNotFound, std::format("no cvar named '{}'", name)));
   }
   u64 id = next_callback_id_++;
   callbacks_.push_back(
@@ -435,16 +437,16 @@ Result<void> CvarRegistryImpl::Invoke(std::string_view name, std::string_view ar
     std::lock_guard lock(mutex_);
     const Entry* entry = FindEntry(name);
     if (!entry)
-      return Err(BuildError(E::NotFound, std::format("no command named '{}'", name)));
-    if (entry->var->desc().type != cvar::Type::Command) {
-      return Err(BuildError(E::NotACommand, std::format("'{}' is not a command", name)));
+      return Err(BuildError(E::kNotFound, std::format("no command named '{}'", name)));
+    if (entry->var->GetDesc().type != cvar::Type::kCommand) {
+      return Err(BuildError(E::kNotACommand, std::format("'{}' is not a command", name)));
     }
     var = entry->var;
   }
   return const_cast<IVar*>(var)->Invoke(args);
 }
 
-std::vector<std::string> CvarRegistryImpl::PendingRestart() const {
+std::vector<std::string> CvarRegistryImpl::GetPendingRestart() const {
   std::lock_guard lock(mutex_);
   return pending_restart_;
 }
@@ -453,8 +455,8 @@ std::string CvarRegistryImpl::Serialize() const {
   std::lock_guard lock(mutex_);
   std::map<std::string_view, std::vector<std::string>> tables;
   for (const Entry& e : entries_) {
-    const Desc& d = e.var->desc();
-    if (d.type == cvar::Type::Command)
+    const Desc& d = e.var->GetDesc();
+    if (d.type == cvar::Type::kCommand)
       continue;
     if (d.no_save)
       continue;
@@ -462,7 +464,7 @@ std::string CvarRegistryImpl::Serialize() const {
     if (value == DefaultOf(e))
       continue;
     std::string_view leaf = d.name.substr(d.name.find('.') + 1);
-    std::string rendered = d.type == cvar::Type::String ? EscapeTOML(value) : value;
+    std::string rendered = d.type == cvar::Type::kString ? EscapeTOML(value) : value;
     tables[d.scope].push_back(std::format("{} = {}\n", leaf, rendered));
   }
   std::string out;
@@ -486,8 +488,8 @@ Result<std::vector<CvarOverride>> CvarRegistryImpl::ApplyOverrides(
   Fired fired;
   {
     std::lock_guard lock(mutex_);
-    for (CvarSource source : {CvarSource::Default, CvarSource::Config, CvarSource::Environment,
-                              CvarSource::CommandLine}) {
+    for (CvarSource source : {CvarSource::kDefault, CvarSource::kConfig, CvarSource::kEnvironment,
+                              CvarSource::kCommandLine}) {
       for (const CvarOverride& o : overrides) {
         if (o.source != source)
           continue;
@@ -501,11 +503,11 @@ Result<std::vector<CvarOverride>> CvarRegistryImpl::ApplyOverrides(
           }
           continue;
         }
-        if (source == CvarSource::Default) {
+        if (source == CvarSource::kDefault) {
           REX_TRY_VOID(Validate(*entry, o.value, source));
           entry->default_override = o.value;
           entry->has_default_override = true;
-          if (entry->source != CvarSource::Default)
+          if (entry->source != CvarSource::kDefault)
             continue;
         }
         REX_TRY_VOID(Apply(*entry, o.value, source, fired));
@@ -521,7 +523,7 @@ Result<void> CvarRegistryImpl::ApplyLocks(std::span<const std::string> names) {
   for (const std::string& name : names) {
     Entry* entry = FindEntry(name);
     if (!entry) {
-      return Err(BuildError(E::NotFound, std::format("cannot lock unknown cvar '{}'", name)));
+      return Err(BuildError(E::kNotFound, std::format("cannot lock unknown cvar '{}'", name)));
     }
     entry->locked = true;
   }
@@ -536,7 +538,7 @@ void CvarRegistryImpl::Finalize() {
 void CvarRegistryImpl::Reset() {
   std::lock_guard lock(mutex_);
   for (Entry& e : entries_)
-    cvar::detail_access::set_registry(*e.var, nullptr);
+    cvar::DetailAccess::SetRegistry(*e.var, nullptr);
   entries_.clear();
   index_.clear();
   scopes_.clear();
@@ -547,12 +549,12 @@ void CvarRegistryImpl::Reset() {
   finalized_ = false;
 }
 
-std::vector<std::string> CvarRegistryImpl::RegisteredNames() const {
+std::vector<std::string> CvarRegistryImpl::GetRegisteredNames() const {
   std::lock_guard lock(mutex_);
   std::vector<std::string> out;
   out.reserve(entries_.size());
   for (const Entry& e : entries_)
-    out.emplace_back(e.var->desc().name);
+    out.emplace_back(e.var->GetDesc().name);
   return out;
 }
 
@@ -573,7 +575,7 @@ void ApplyEnvironment(rex::Config& config) {
         std::format("{}.{}", rest.substr(0, underscore), rest.substr(underscore + 1));
     std::ranges::transform(cvar_name, cvar_name.begin(),
                            [](unsigned char c) { return char(std::tolower(c)); });
-    config.cvars.values.push_back({cvar_name, value, CvarSource::Environment});
+    config.cvars.values.push_back({cvar_name, value, CvarSource::kEnvironment});
   }
 }
 

@@ -18,7 +18,7 @@
 namespace rex {
 namespace gpu {
 
-bool XcbWindowSurface::GetSizeImpl(u32& width_out, u32& height_out) const {
+bool XCBWindowSurface::GetSizeImpl(u32& width_out, u32& height_out) const {
   xcb_get_geometry_reply_t* reply =
       xcb_get_geometry_reply(connection_, xcb_get_geometry(connection_, window_), nullptr);
   if (!reply) {

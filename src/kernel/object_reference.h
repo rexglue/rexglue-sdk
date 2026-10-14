@@ -1,6 +1,6 @@
 /**
  * @file        kernel/object_reference.h
- * @brief       References the Ob and Xam lookups hand to the title
+ * @brief       References the Ob and XAM lookups hand to the title
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

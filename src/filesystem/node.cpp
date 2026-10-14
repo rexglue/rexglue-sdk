@@ -49,34 +49,34 @@ Result<std::span<const u8>> NodeStream::View() {
 
 Node::Node(Provider& provider, Node* parent, std::string path)
     : path_(std::move(path)), provider_(&provider), parent_(parent) {
-  absolute_path_ = utf8_join_guest_paths(provider.mount_path(), path_);
+  absolute_path_ = utf8_join_guest_paths(provider.GetMountPath(), path_);
   name_ = std::string(utf8_find_name_from_guest_path(path_));
 }
 
 Node::~Node() = default;
 
-bool Node::read_only() const {
-  return provider_->read_only();
+bool Node::IsReadOnly() const {
+  return provider_->IsReadOnly();
 }
 
-bool Node::delete_on_close() const {
-  std::lock_guard lock(provider_->mutex());
+bool Node::DeleteOnClose() const {
+  std::lock_guard lock(provider_->GetMutex());
   return delete_on_close_;
 }
 
-void Node::set_delete_on_close(bool delete_on_close) {
-  std::lock_guard lock(provider_->mutex());
+void Node::SetDeleteOnClose(bool delete_on_close) {
+  std::lock_guard lock(provider_->GetMutex());
   delete_on_close_ = delete_on_close;
 }
 
-FileInfo Node::Info() const {
-  std::lock_guard lock(provider_->mutex());
+FileInfo Node::GetInfo() const {
+  std::lock_guard lock(provider_->GetMutex());
   return {name_,        path_,        absolute_path_, attributes_, size_, allocation_size_,
           create_time_, access_time_, write_time_};
 }
 
 Node* Node::GetChild(std::string_view name) {
-  std::lock_guard lock(provider_->mutex());
+  std::lock_guard lock(provider_->GetMutex());
   const auto it = std::ranges::find_if(children_, [&](const std::unique_ptr<Node>& child) {
     return child->name_.size() == name.size() && utf8_equal_case(child->name_, name);
   });
@@ -95,7 +95,7 @@ Node* Node::ResolvePath(std::string_view path) {
 }
 
 Node* Node::IterateChildren(const WildcardMatcher& matcher, size_t* index) {
-  std::lock_guard lock(provider_->mutex());
+  std::lock_guard lock(provider_->GetMutex());
   while (*index < children_.size()) {
     Node* child = children_[*index].get();
     ++*index;
@@ -107,12 +107,12 @@ Node* Node::IterateChildren(const WildcardMatcher& matcher, size_t* index) {
 }
 
 Node* Node::AddChild(std::unique_ptr<Node> child) {
-  std::lock_guard lock(provider_->mutex());
+  std::lock_guard lock(provider_->GetMutex());
   return children_.emplace_back(std::move(child)).get();
 }
 
 void Node::DropChild(Node& child) {
-  std::lock_guard lock(provider_->mutex());
+  std::lock_guard lock(provider_->GetMutex());
   const auto it = std::ranges::find_if(
       children_, [&](const std::unique_ptr<Node>& entry) { return entry.get() == &child; });
   if (it == children_.end()) {
@@ -131,7 +131,7 @@ void Node::DropChild(Node& child) {
 }
 
 void Node::AddOpen() {
-  std::lock_guard lock(provider_->mutex());
+  std::lock_guard lock(provider_->GetMutex());
   for (Node* node = this; node; node = node->parent_) {
     ++node->open_count_;
   }
@@ -139,7 +139,7 @@ void Node::AddOpen() {
 
 void Node::ReleaseOpen() {
   Provider& provider = *provider_;
-  std::lock_guard lock(provider.mutex());
+  std::lock_guard lock(provider.GetMutex());
   for (Node* node = this; node; node = node->parent_) {
     --node->open_count_;
   }
@@ -153,8 +153,8 @@ void Node::ReleaseOpen() {
 }
 
 Result<Node*> Node::CreateChild(std::string_view name, FileAttributes attributes) {
-  std::lock_guard lock(provider_->mutex());
-  if (read_only()) {
+  std::lock_guard lock(provider_->GetMutex());
+  if (IsReadOnly()) {
     return Err<Node*>(BuildError(FileSystemError::kAccessDenied,
                                  std::format("'{}' is on a read only mount", absolute_path_)));
   }
@@ -167,8 +167,8 @@ Result<Node*> Node::CreateChild(std::string_view name, FileAttributes attributes
 }
 
 Result<void> Node::DeleteChild(Node& child) {
-  std::lock_guard lock(provider_->mutex());
-  if (read_only()) {
+  std::lock_guard lock(provider_->GetMutex());
+  if (IsReadOnly()) {
     return Err(BuildError(FileSystemError::kAccessDenied,
                           std::format("'{}' is on a read only mount", absolute_path_)));
   }
@@ -194,8 +194,8 @@ Result<void> Node::Delete() {
 }
 
 Result<void> Node::MoveTo(Node& new_parent, std::string_view name, bool replace_existing) {
-  std::lock_guard lock(provider_->mutex());
-  if (read_only()) {
+  std::lock_guard lock(provider_->GetMutex());
+  if (IsReadOnly()) {
     return Err(BuildError(FileSystemError::kAccessDenied,
                           std::format("'{}' is on a read only mount", absolute_path_)));
   }
@@ -223,7 +223,7 @@ Result<void> Node::MoveTo(Node& new_parent, std::string_view name, bool replace_
       return Err(BuildError(FileSystemError::kExists,
                             std::format("'{}' exists", existing->absolute_path_)));
     }
-    if (existing->is_directory() || existing->open_count_ != 0) {
+    if (existing->IsDirectory() || existing->open_count_ != 0) {
       return Err(BuildError(FileSystemError::kAccessDenied,
                             std::format("'{}' cannot be replaced", existing->absolute_path_)));
     }
@@ -253,7 +253,7 @@ Result<void> Node::MoveTo(Node& new_parent, std::string_view name, bool replace_
     Node* node = pending.back();
     pending.pop_back();
     node->path_ = utf8_join_guest_paths(node->parent_->path_, node->name_);
-    node->absolute_path_ = utf8_join_guest_paths(provider_->mount_path(), node->path_);
+    node->absolute_path_ = utf8_join_guest_paths(provider_->GetMountPath(), node->path_);
     node->OnMoved();
     for (const std::unique_ptr<Node>& child : node->children_) {
       pending.push_back(child.get());
@@ -268,7 +268,7 @@ Result<void> Node::Truncate() {
 
 void Node::Refresh() {}
 
-bool Node::ChildVanished(const Node& child) const {
+bool Node::HasChildVanished(const Node& child) const {
   (void)child;
   return false;
 }

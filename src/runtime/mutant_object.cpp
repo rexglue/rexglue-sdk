@@ -19,7 +19,7 @@ namespace rex::runtime {
 namespace {
 
 u32 CurrentThreadId() {
-  return KernelThread::IsInThread() ? KernelThread::GetCurrentThread()->thread_id() : 0;
+  return KernelThread::IsInThread() ? KernelThread::GetCurrentThread()->GetThreadId() : 0;
 }
 
 }  // namespace
@@ -68,14 +68,14 @@ X_STATUS MutantObject::Release(bool abandon, i32* previous_state) {
 
 bool MutantObject::OnAcquired() {
   KernelThread* thread = KernelThread::GetCurrentThread();
-  const u32 self = thread->thread_id();
+  const u32 self = thread->GetThreadId();
   if (owner_thread_id.exchange(self) == self) {
     hold_count.fetch_add(1);
   } else {
     hold_count = 1;
   }
   if (guest_mutant) {
-    thread->memory()->TranslateVirtual<X_KMUTANT*>(guest_mutant)->abandoned = 0;
+    thread->GetMemory()->TranslateVirtual<X_KMUTANT*>(guest_mutant)->abandoned = 0;
   }
   return abandoned.exchange(false);
 }

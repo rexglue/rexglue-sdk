@@ -45,7 +45,7 @@ ConsoleView::ConsoleView(ConsoleModel& model, ConsoleHost& host) : model_(model)
 
 void ConsoleView::Draw(const ConsoleStyle& style) {
   model_.Poll();
-  visible_ = model_.Visible();
+  visible_ = model_.GetVisibleLines();
   DrawFilters();
 
   const f32 footer = ImGui::GetFrameHeightWithSpacing() + ImGui::GetTextLineHeightWithSpacing();
@@ -69,7 +69,7 @@ void ConsoleView::Draw(const ConsoleStyle& style) {
       ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_CallbackCompletion |
       ImGuiInputTextFlags_CallbackHistory | ImGuiInputTextFlags_CallbackEdit |
       ImGuiInputTextFlags_CallbackResize;
-  std::string& input = model_.input();
+  std::string& input = model_.GetInput();
   ImGui::SetNextItemWidth(-1.0f);
   if (focus_input_) {
     ImGui::SetKeyboardFocusHere();
@@ -109,20 +109,20 @@ void ConsoleView::Draw(const ConsoleStyle& style) {
 }
 
 void ConsoleView::DrawFilters() {
-  i32 level = std::to_underlying(model_.min_level());
+  i32 level = std::to_underlying(model_.GetMinLevel());
   ImGui::SetNextItemWidth(ImGui::CalcTextSize("critical").x + ImGui::GetFrameHeight() * 2.0f);
   if (ImGui::Combo("##level", &level, kLevelNames.data(), static_cast<i32>(kLevelNames.size()))) {
-    model_.set_min_level(static_cast<log::Level>(level));
+    model_.SetMinLevel(static_cast<log::Level>(level));
   }
   ImGui::SameLine();
   if (ImGui::Button("Categories")) {
     ImGui::OpenPopup("##categories");
   }
   if (ImGui::BeginPopup("##categories")) {
-    for (const std::string& category : model_.categories()) {
-      bool shown = model_.shown(category);
+    for (const std::string& category : model_.GetCategories()) {
+      bool shown = model_.GetShown(category);
       if (ImGui::Checkbox(category.c_str(), &shown)) {
-        model_.set_shown(category, shown);
+        model_.SetShown(category, shown);
       }
     }
     ImGui::EndPopup();
@@ -137,7 +137,7 @@ void ConsoleView::DrawFilters() {
   if (ImGui::Button("Copy all")) {
     ImGui::SetClipboardText(SelectedText(true).c_str());
   }
-  if (model_.dock() == ConsoleDock::kUndocked) {
+  if (model_.GetDock() == ConsoleDock::kUndocked) {
     ImGui::SameLine();
     if (ImGui::Button("Dock")) {
       host_.Dock();
@@ -146,7 +146,7 @@ void ConsoleView::DrawFilters() {
   }
   ImGui::SameLine();
   if (ImGui::Button("Minimize")) {
-    model_.set_dock(ConsoleDock::kMinimized);
+    model_.SetDock(ConsoleDock::kMinimized);
   }
   if (host_.CanUndock()) {
     ImGui::SameLine();
@@ -265,7 +265,7 @@ int ConsoleView::InputCallback(ImGuiInputTextCallbackData* data) {
   auto& view = *static_cast<ConsoleView*>(data->UserData);
   switch (data->EventFlag) {
     case ImGuiInputTextFlags_CallbackResize: {
-      std::string& input = view.model_.input();
+      std::string& input = view.model_.GetInput();
       input.resize(static_cast<size_t>(data->BufTextLen));
       data->Buf = input.data();
       break;
@@ -316,14 +316,14 @@ void ConsoleView::Navigate(ImGuiInputTextCallbackData* data) {
     highlight_ = up ? (highlight_ <= 0 ? count - 1 : highlight_ - 1) : (highlight_ + 1) % count;
     return;
   }
-  const std::string_view entry = up ? model_.HistoryPrevious() : model_.HistoryNext();
+  const std::string_view entry = up ? model_.StepHistoryBack() : model_.StepHistoryForward();
   data->DeleteChars(0, data->BufTextLen);
   data->InsertChars(0, entry.data(), entry.data() + entry.size());
   CloseCompletions();
 }
 
 void ConsoleView::AcceptSelected(const std::string& name) {
-  model_.input() = name + " ";
+  model_.GetInput() = name + " ";
   CloseCompletions();
   focus_input_ = true;
 }

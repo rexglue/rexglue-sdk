@@ -39,7 +39,7 @@ class Caller {
   u32 Kernel(std::string_view name, std::initializer_list<u64> args = {});
 
   /**
-   * Calls an export of Xam by name through its translation entry point.
+   * Calls an export of XAM by name through its translation entry point.
    *
    * @param name The export name.
    * @param args Integer arguments placed in r3 to r10.
@@ -130,8 +130,8 @@ class Caller {
 
   inline static u32 start_thunk = 0;
 
-  PPCContext& ctx() const { return ctx_; }
-  Runtime& runtime() const { return runtime_; }
+  PPCContext& GetCtx() const { return ctx_; }
+  Runtime& GetRuntime() const { return runtime_; }
 
  private:
   u32 Call(runtime::ExportModule module, std::string_view name, std::initializer_list<u64> args);
@@ -154,16 +154,16 @@ class KernelFixture {
                          ui::IUserInterface* ui = nullptr);
   ~KernelFixture();
 
-  Runtime& runtime() { return tool_.runtime(); }
+  Runtime& GetRuntime() { return tool_.GetRuntime(); }
 
   /**
    * Returns the API of the tool runtime, which serves the runtime interfaces.
    *
    * @return The API.
    */
-  API& api() { return tool_.api(); }
+  API& GetAPI() { return tool_.GetAPI(); }
 
-  const std::filesystem::path& root() const { return root_.path; }
+  const std::filesystem::path& GetRoot() const { return root_.path; }
 
   /**
    * Runs a body on a guest thread created through the ExCreateThread export and waits for it.

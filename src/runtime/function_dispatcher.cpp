@@ -26,8 +26,8 @@ namespace {
 
 FunctionDispatcher* GetBoundFunctionDispatcher() {
   ThreadState* state = ThreadState::Get();
-  Runtime* runtime = state != nullptr ? state->runtime() : nullptr;
-  return runtime != nullptr ? runtime->function_dispatcher() : nullptr;
+  Runtime* runtime = state != nullptr ? state->GetRuntime() : nullptr;
+  return runtime != nullptr ? runtime->GetFunctionDispatcher() : nullptr;
 }
 
 }  // namespace
@@ -123,13 +123,13 @@ bool FunctionDispatcher::Run(ThreadState* thread_state, u32 address, std::span<c
     REX_FAIL(cpu, false, "Execute({:08X}): function not in function table", address);
   }
 
-  auto* ctx = thread_state->context();
+  auto* ctx = thread_state->GetContext();
   auto* previous_thread_state = ThreadState::Get();
   ThreadState::Bind(thread_state);
 
   const u32 stack_bytes = args.size() > 8 ? static_cast<u32>(args.size() - 8) * 8 : 0;
   const u64 previous_lr = ctx->lr;
-  const u32 caller_r1 = ppc::OpenCallFrame(*ctx, memory_->virtual_membase(), stack_bytes);
+  const u32 caller_r1 = ppc::OpenCallFrame(*ctx, memory_->GetVirtualMembase(), stack_bytes);
 
   PPCRegister* registers[] = {&ctx->r3, &ctx->r4, &ctx->r5, &ctx->r6,
                               &ctx->r7, &ctx->r8, &ctx->r9, &ctx->r10};
@@ -143,7 +143,7 @@ bool FunctionDispatcher::Run(ThreadState* thread_state, u32 address, std::span<c
     }
   }
 
-  fn(*ctx, memory_->virtual_membase());
+  fn(*ctx, memory_->GetVirtualMembase());
 
   ctx->lr = previous_lr;
   ctx->r1.u64 = caller_r1;
@@ -154,7 +154,7 @@ bool FunctionDispatcher::Run(ThreadState* thread_state, u32 address, std::span<c
 
 u64 FunctionDispatcher::Execute(ThreadState* thread_state, u32 address, u64 args[],
                                 size_t arg_count) {
-  auto* ctx = thread_state->context();
+  auto* ctx = thread_state->GetContext();
   const PPCContext saved = *ctx;
   const u64 result =
       Run(thread_state, address, std::span(args, arg_count)) ? ctx->r3.u64 : 0xDEADBABE;
@@ -166,15 +166,15 @@ u64 FunctionDispatcher::Execute(ThreadState* thread_state, u32 address, u64 args
 
 u64 FunctionDispatcher::ExecuteTrap(ThreadState* thread_state, u32 address, u64 args[],
                                     size_t arg_count) {
-  auto* ctx = thread_state->context();
+  auto* ctx = thread_state->GetContext();
   const PPCContext saved = *ctx;
-  const u32 saved_csr = ctx->fpscr.getcsr();
+  const u32 saved_csr = ctx->fpscr.GetCSR();
 
   const u64 result = Execute(thread_state, address, args, arg_count);
 
   *ctx = saved;
   ctx->fpscr.csr = saved_csr;
-  ctx->fpscr.setcsr(saved_csr);
+  ctx->fpscr.SetCSR(saved_csr);
   return result;
 }
 
@@ -182,16 +182,16 @@ u64 FunctionDispatcher::RunInterrupt(ThreadState* thread_state, u32 address, u64
                                      size_t arg_count) {
   std::lock_guard interrupt_lock(interrupt_mutex_);
 
-  auto* ctx = thread_state->context();
+  auto* ctx = thread_state->GetContext();
   REX_ASSERT(arg_count <= 5);
   const PPCContext saved = *ctx;
-  const u32 saved_csr = ctx->fpscr.getcsr();
+  const u32 saved_csr = ctx->fpscr.GetCSR();
 
   auto* pcr = memory_->TranslateVirtual<X_KPCR*>(static_cast<u32>(ctx->r13.u64));
   const u32 old_tls_ptr = pcr->tls_ptr;
   const u8 old_irql = pcr->current_irql;
   pcr->tls_ptr = 0;
-  pcr->current_irql = IRQL_DPC;
+  pcr->current_irql = kIRQLDPC;
 
   const bool executed = Run(thread_state, address, std::span(args, arg_count));
   const u64 result = executed ? ctx->r3.u64 : 0xDEADBABE;
@@ -200,7 +200,7 @@ u64 FunctionDispatcher::RunInterrupt(ThreadState* thread_state, u32 address, u64
   pcr->tls_ptr = old_tls_ptr;
   *ctx = saved;
   ctx->fpscr.csr = saved_csr;
-  ctx->fpscr.setcsr(saved_csr);
+  ctx->fpscr.SetCSR(saved_csr);
   return result;
 }
 
@@ -212,10 +212,10 @@ u64 FunctionDispatcher::ExecuteInterrupt(ThreadState* thread_state, u32 address,
   EnterInterrupt();
   const u64 result = RunInterrupt(thread_state, address, args, arg_count);
   if (LeaveInterrupt()) {
-    if (Runtime* runtime = thread_state->runtime()) {
+    if (Runtime* runtime = thread_state->GetRuntime()) {
       ThreadState* previous = ThreadState::Get();
       ThreadState::Bind(thread_state);
-      runtime->dispatcher().DrainDPCs();
+      runtime->GetDispatcher().DrainDPCs();
       ThreadState::Bind(previous);
     }
   }

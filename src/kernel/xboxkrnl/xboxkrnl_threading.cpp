@@ -46,21 +46,21 @@ namespace {
 
 ThreadPin FindThread(u32 thread_address) {
   const X_HANDLE handle =
-      runtime::Current().object_table().ResolveHandle(thread_address, -1).value_or(0);
-  return handle ? runtime::Current().thread_registry().FindByHandle(handle) : ThreadPin{};
+      runtime::GetCurrent().GetObjectTable().ResolveHandle(thread_address, -1).value_or(0);
+  return handle ? runtime::GetCurrent().GetThreadRegistry().FindByHandle(handle) : ThreadPin{};
 }
 
 void DrainDPCsBelowDispatch(Runtime& runtime) {
-  auto* ctx = ThreadState::Get()->context();
-  auto* pcr = runtime.memory()->TranslateVirtual<X_KPCR*>(static_cast<u32>(ctx->r13.u64));
-  if (pcr->current_irql < IRQL_DISPATCH) {
-    runtime.dispatcher().DrainDPCs();
+  auto* ctx = ThreadState::Get()->GetContext();
+  auto* pcr = runtime.GetMemory()->TranslateVirtual<X_KPCR*>(static_cast<u32>(ctx->r13.u64));
+  if (pcr->current_irql < kIRQLDispatch) {
+    runtime.GetDispatcher().DrainDPCs();
   }
 }
 
 void DropStash(X_DISPATCH_HEADER& header) {
   if (header.wait_list_flink == kStashSignature) {
-    runtime::CloseOwned(runtime::Current().object_table(), header.wait_list_blink);
+    runtime::CloseOwned(runtime::GetCurrent().GetObjectTable(), header.wait_list_blink);
   }
   header.wait_list_flink = 0;
   header.wait_list_blink = 0;
@@ -70,29 +70,29 @@ void DropStash(X_DISPATCH_HEADER& header) {
 
 // r13+0x100 is the thread state, ID at 0x14C, last error at 0x160 stored only while 0x150 is 0.
 
-u32 ExCreateThread_entry(mapped_u32 handle_ptr, u32 stack_size, mapped_u32 thread_id_ptr,
-                         u32 xapi_thread_startup, mapped_void start_address,
-                         mapped_void start_context, u32 creation_flags) {
+u32 ExCreateThread_entry(MappedU32 handle_ptr, u32 stack_size, MappedU32 thread_id_ptr,
+                         u32 xapi_thread_startup, MappedVoid start_address,
+                         MappedVoid start_context, u32 creation_flags) {
   REXLOG_TRACE(kernel,
                "ExCreateThread "
                "stack={:#x} xapi_startup={:#x} start={:#x} context={:#x} flags={:#x}",
                static_cast<u32>(stack_size), static_cast<u32>(xapi_thread_startup),
-               start_address.guest_address(), start_context.guest_address(),
+               start_address.GetGuestAddress(), start_context.GetGuestAddress(),
                static_cast<u32>(creation_flags));
-  auto& runtime = runtime::Current();
-  u32 title_process = runtime.title_process();
+  auto& runtime = runtime::GetCurrent();
+  u32 title_process = runtime.GetTitleProcess();
   if (creation_flags & 2) {
     REXLOG_WARN(kernel, "ExCreateThread Title is creating a system thread!");
-    title_process = runtime.system_process();
+    title_process = runtime.GetSystemProcess();
   }
 
   auto thread = std::make_unique<KernelThread>(
-      runtime, stack_size, xapi_thread_startup, start_address.guest_address(),
-      start_context.guest_address(), creation_flags, true, false, title_process);
+      runtime, stack_size, xapi_thread_startup, start_address.GetGuestAddress(),
+      start_context.GetGuestAddress(), creation_flags, true, false, title_process);
   KernelThread* raw = thread.get();
 
   X_HANDLE handle = 0;
-  auto launched = runtime.thread_registry().Launch(std::move(thread));
+  auto launched = runtime.GetThreadRegistry().Launch(std::move(thread));
   if (launched) {
     handle = *launched;
   }
@@ -101,11 +101,11 @@ u32 ExCreateThread_entry(mapped_u32 handle_ptr, u32 stack_size, mapped_u32 threa
     REX_FAIL(kernel, result, "Thread creation failed: {:08X}", result);
   }
 
-  const u32 thread_id = raw->thread_id();
+  const u32 thread_id = raw->GetThreadId();
   if (handle_ptr) {
     if (creation_flags & 0x80) {
-      auto thread = runtime.thread_registry().FindByHandle(handle);
-      *handle_ptr = thread ? thread->guest_object() : 0;
+      auto created_thread = runtime.GetThreadRegistry().FindByHandle(handle);
+      *handle_ptr = created_thread ? created_thread->GetGuestObject() : 0;
     } else {
       *handle_ptr = handle;
     }
@@ -127,14 +127,14 @@ u32 ExTerminateThread_entry(u32 exit_code) {
   thread->Exit(static_cast<int>(exit_code));
 }
 
-u32 NtResumeThread_entry(u32 handle, mapped_u32 suspend_count_ptr) {
+u32 NtResumeThread_entry(u32 handle, MappedU32 suspend_count_ptr) {
   X_RESULT result = X_STATUS_INVALID_HANDLE;
   u32 suspend_count = 0;
 
-  auto thread = runtime::Current().thread_registry().FindByHandle(handle);
+  auto thread = runtime::GetCurrent().GetThreadRegistry().FindByHandle(handle);
   if (thread) {
     REXLOG_TRACE(kernel, "NtResumeThread handle={:08X} thread={}", static_cast<u32>(handle),
-                 thread->name());
+                 thread->GetName());
     result = thread->Resume(&suspend_count);
   } else {
     REXLOG_WARN(kernel, "NtResumeThread handle={:08X} NOT FOUND", static_cast<u32>(handle));
@@ -147,15 +147,15 @@ u32 NtResumeThread_entry(u32 handle, mapped_u32 suspend_count_ptr) {
   return result;
 }
 
-u32 KeResumeThread_entry(mapped_void thread_ptr) {
+u32 KeResumeThread_entry(MappedVoid thread_ptr) {
   X_STATUS result = X_STATUS_SUCCESS;
-  auto thread = FindThread(thread_ptr.guest_address());
+  auto thread = FindThread(thread_ptr.GetGuestAddress());
   if (thread) {
-    REXLOG_TRACE(kernel, "KeResumeThread ptr={:08X} thread={}", thread_ptr.guest_address(),
-                 thread->name());
+    REXLOG_TRACE(kernel, "KeResumeThread ptr={:08X} thread={}", thread_ptr.GetGuestAddress(),
+                 thread->GetName());
     result = thread->Resume();
   } else {
-    REXLOG_WARN(kernel, "KeResumeThread ptr={:08X} NOT FOUND", thread_ptr.guest_address());
+    REXLOG_WARN(kernel, "KeResumeThread ptr={:08X} NOT FOUND", thread_ptr.GetGuestAddress());
     result = X_STATUS_INVALID_HANDLE;
   }
 
@@ -163,19 +163,19 @@ u32 KeResumeThread_entry(mapped_void thread_ptr) {
   return result;
 }
 
-u32 NtSuspendThread_entry(u32 handle, mapped_u32 suspend_count_ptr) {
+u32 NtSuspendThread_entry(u32 handle, MappedU32 suspend_count_ptr) {
   X_RESULT result = X_STATUS_SUCCESS;
   u32 suspend_count = 0;
 
-  auto thread = runtime::Current().thread_registry().FindByHandle(handle);
+  auto thread = runtime::GetCurrent().GetThreadRegistry().FindByHandle(handle);
   if (thread) {
-    auto guest_thread = thread->guest_object<X_KTHREAD>();
+    auto guest_thread = thread->GetGuestObject<X_KTHREAD>();
     if (guest_thread->terminated) {
       return X_STATUS_THREAD_IS_TERMINATING;
     }
 
     REXLOG_TRACE(kernel, "NtSuspendThread handle={:08X} thread={}", static_cast<u32>(handle),
-                 thread->name());
+                 thread->GetName());
     result = thread->Suspend(&suspend_count);
   } else {
     REXLOG_WARN(kernel, "NtSuspendThread handle={:08X} NOT FOUND", static_cast<u32>(handle));
@@ -204,16 +204,17 @@ void UpdateGuestStackPointers(X_KTHREAD* kthread, X_KPCR* pcr, PPCContext* ctx, 
 
 }  // namespace
 
-void KeSetCurrentStackPointers_entry(mapped_void stack_ptr, ppc_ptr_t<X_KTHREAD> thread,
-                                     mapped_void stack_alloc_base, mapped_void stack_base,
-                                     mapped_void stack_limit) {
+void KeSetCurrentStackPointers_entry(MappedVoid stack_ptr, GuestPtrT<X_KTHREAD> thread,
+                                     MappedVoid stack_alloc_base, MappedVoid stack_base,
+                                     MappedVoid stack_limit) {
   auto current_thread = KernelThread::GetCurrentThread();
-  auto context = current_thread->thread_state()->context();
-  auto pcr =
-      runtime::Current().memory()->TranslateVirtual<X_KPCR*>(static_cast<u32>(context->r13.u64));
+  auto context = current_thread->GetThreadState()->GetContext();
+  auto pcr = runtime::GetCurrent().GetMemory()->TranslateVirtual<X_KPCR*>(
+      static_cast<u32>(context->r13.u64));
 
-  UpdateGuestStackPointers(thread, pcr, context, stack_ptr.guest_address(),
-                           stack_alloc_base.value(), stack_base.value(), stack_limit.value());
+  UpdateGuestStackPointers(thread, pcr, context, stack_ptr.GetGuestAddress(),
+                           stack_alloc_base.GetValue(), stack_base.GetValue(),
+                           stack_limit.GetValue());
 }
 
 /**
@@ -225,23 +226,23 @@ void KeSetCurrentStackPointers_entry(mapped_void stack_ptr, ppc_ptr_t<X_KTHREAD>
  * @param previous_affinity_ptr Receives the previous affinity, may be null.
  * @return X_STATUS_SUCCESS or X_STATUS_INVALID_HANDLE.
  */
-u32 KeSetAffinityThread_entry(mapped_void thread_ptr, u32 affinity,
-                              mapped_u32 previous_affinity_ptr) {
+u32 KeSetAffinityThread_entry(MappedVoid thread_ptr, u32 affinity,
+                              MappedU32 previous_affinity_ptr) {
   REXLOG_TRACE(kernel,
                "KeSetAffinityThread "
                "thread={:#x} affinity={:#x}",
-               thread_ptr.guest_address(), static_cast<u32>(affinity));
+               thread_ptr.GetGuestAddress(), static_cast<u32>(affinity));
   REX_KERNEL_ARG(affinity);
-  auto thread = FindThread(thread_ptr.guest_address());
+  auto thread = FindThread(thread_ptr.GetGuestAddress());
   if (!thread) {
     REXLOG_DEV(kernel,
                "KeSetAffinityThread "
                "invalid thread handle ptr={:#x}",
-               thread_ptr.guest_address());
+               thread_ptr.GetGuestAddress());
     return X_STATUS_INVALID_HANDLE;
   }
   if (previous_affinity_ptr) {
-    *previous_affinity_ptr = static_cast<u32>(1) << thread->active_cpu();
+    *previous_affinity_ptr = static_cast<u32>(1) << thread->GetActiveCPU();
   }
   thread->SetAffinity(affinity);
   REXLOG_TRACE(kernel,
@@ -250,14 +251,14 @@ u32 KeSetAffinityThread_entry(mapped_void thread_ptr, u32 affinity,
   return X_STATUS_SUCCESS;
 }
 
-u32 KeQueryBasePriorityThread_entry(mapped_void thread_ptr) {
+u32 KeQueryBasePriorityThread_entry(MappedVoid thread_ptr) {
   REXLOG_TRACE(kernel,
                "KeQueryBasePriorityThread "
                "thread={:#x}",
-               thread_ptr.guest_address());
+               thread_ptr.GetGuestAddress());
   i32 priority = 0;
 
-  auto thread = FindThread(thread_ptr.guest_address());
+  auto thread = FindThread(thread_ptr.GetGuestAddress());
   if (thread) {
     priority = thread->QueryPriority();
   }
@@ -269,13 +270,13 @@ u32 KeQueryBasePriorityThread_entry(mapped_void thread_ptr) {
   return priority;
 }
 
-u32 KeSetBasePriorityThread_entry(mapped_void thread_ptr, u32 increment) {
+u32 KeSetBasePriorityThread_entry(MappedVoid thread_ptr, u32 increment) {
   REXLOG_TRACE(kernel,
                "KeSetBasePriorityThread "
                "thread={:#x} increment={}",
-               thread_ptr.guest_address(), static_cast<i32>(increment));
+               thread_ptr.GetGuestAddress(), static_cast<i32>(increment));
   i32 prev_priority = 0;
-  auto thread = FindThread(thread_ptr.guest_address());
+  auto thread = FindThread(thread_ptr.GetGuestAddress());
 
   if (thread) {
     prev_priority = thread->QueryPriority();
@@ -289,7 +290,7 @@ u32 KeSetBasePriorityThread_entry(mapped_void thread_ptr, u32 increment) {
   return prev_priority;
 }
 
-u32 KeSetDisableBoostThread_entry(ppc_ptr_t<X_KTHREAD> thread_ptr, u32 disabled) {
+u32 KeSetDisableBoostThread_entry(GuestPtrT<X_KTHREAD> thread_ptr, u32 disabled) {
   auto old_boost_disabled = reinterpret_cast<std::atomic_uint8_t*>(&thread_ptr->boost_disabled)
                                 ->exchange(static_cast<u8>(disabled));
   return old_boost_disabled;
@@ -297,28 +298,28 @@ u32 KeSetDisableBoostThread_entry(ppc_ptr_t<X_KTHREAD> thread_ptr, u32 disabled)
 
 u32 KeGetCurrentProcessType_entry() {
   auto current_thread = KernelThread::GetCurrentThread();
-  auto context = current_thread->thread_state()->context();
-  auto pcr =
-      runtime::Current().memory()->TranslateVirtual<X_KPCR*>(static_cast<u32>(context->r13.u64));
+  auto context = current_thread->GetThreadState()->GetContext();
+  auto pcr = runtime::GetCurrent().GetMemory()->TranslateVirtual<X_KPCR*>(
+      static_cast<u32>(context->r13.u64));
 
   if (pcr->prcb_data.dpc_active) {
     return pcr->processtype_value_in_dpc;
   }
 
-  auto thread =
-      runtime::Current().memory()->TranslateVirtual<X_KTHREAD*>(pcr->prcb_data.current_thread);
+  auto thread = runtime::GetCurrent().GetMemory()->TranslateVirtual<X_KTHREAD*>(
+      pcr->prcb_data.current_thread);
   return thread->process_type;
 }
 
 void KeSetCurrentProcessType_entry(u32 type) {
   REX_ASSERT(type <= 2);
 
-  runtime::Current().set_process_type(type);
+  runtime::GetCurrent().SetProcessType(type);
 
   auto current_thread = KernelThread::GetCurrentThread();
-  auto context = current_thread->thread_state()->context();
-  auto pcr =
-      runtime::Current().memory()->TranslateVirtual<X_KPCR*>(static_cast<u32>(context->r13.u64));
+  auto context = current_thread->GetThreadState()->GetContext();
+  auto pcr = runtime::GetCurrent().GetMemory()->TranslateVirtual<X_KPCR*>(
+      static_cast<u32>(context->r13.u64));
 
   if (pcr->prcb_data.dpc_active) {
     pcr->processtype_value_in_dpc = static_cast<u8>(type);
@@ -326,11 +327,11 @@ void KeSetCurrentProcessType_entry(u32 type) {
 }
 
 u32 KeQueryPerformanceFrequency_entry() {
-  u64 result = Clock::guest_tick_frequency();
+  u64 result = Clock::GetGuestTickFrequency();
   return static_cast<u32>(result);
 }
 
-u32 KeDelayExecutionThread_entry(u32 processor_mode, u32 alertable, mapped_u64 interval_ptr) {
+u32 KeDelayExecutionThread_entry(u32 processor_mode, u32 alertable, MappedU64 interval_ptr) {
   KernelThread* thread = KernelThread::GetCurrentThread();
 
   if (alertable && thread->HasPendingAPCs()) {
@@ -354,7 +355,7 @@ u32 NtYieldExecution_entry() {
   return X_STATUS_SUCCESS;
 }
 
-void KeQuerySystemTime_entry(mapped_u64 time_ptr) {
+void KeQuerySystemTime_entry(MappedU64 time_ptr) {
   u64 time = Clock::QueryGuestSystemTime();
   if (time_ptr) {
     *time_ptr = time;
@@ -362,11 +363,11 @@ void KeQuerySystemTime_entry(mapped_u64 time_ptr) {
 }
 
 u32 KeTlsAlloc_entry() {
-  u32 slot = runtime::Current()
-                 .thread_registry()
-                 .AllocateTLS(ThreadState::Get()->context())
-                 .value_or(X_TLS_OUT_OF_INDEXES);
-  if (slot != X_TLS_OUT_OF_INDEXES) {
+  u32 slot = runtime::GetCurrent()
+                 .GetThreadRegistry()
+                 .AllocateTLS(ThreadState::Get()->GetContext())
+                 .value_or(kXTLSOutOfIndexes);
+  if (slot != kXTLSOutOfIndexes) {
     KernelThread::GetCurrentThread()->SetTLSValue(slot, 0);
   }
   REXLOG_TRACE(kernel,
@@ -381,14 +382,14 @@ u32 KeTlsFree_entry(u32 tls_index) {
                "KeTlsFree "
                "slot={}",
                static_cast<u32>(tls_index));
-  if (tls_index == X_TLS_OUT_OF_INDEXES) {
+  if (tls_index == kXTLSOutOfIndexes) {
     REXLOG_TRACE(kernel,
                  "KeTlsFree -> "
                  "0 (invalid)");
     return 0;
   }
 
-  runtime::Current().thread_registry().FreeTLS(ThreadState::Get()->context(), tls_index);
+  runtime::GetCurrent().GetThreadRegistry().FreeTLS(ThreadState::Get()->GetContext(), tls_index);
   REXLOG_TRACE(kernel,
                "KeTlsFree -> "
                "1");
@@ -437,8 +438,8 @@ u32 KeTlsSetValue_entry(u32 tls_index, u32 tls_value) {
   return 0;
 }
 
-void KeInitializeEvent_entry(ppc_ptr_t<X_KEVENT> event_ptr, u32 event_type, u32 initial_state) {
-  auto& table = runtime::Current().object_table();
+void KeInitializeEvent_entry(GuestPtrT<X_KEVENT> event_ptr, u32 event_type, u32 initial_state) {
+  auto& table = runtime::GetCurrent().GetObjectTable();
   if (event_ptr->header.wait_list_flink == kStashSignature) {
     if (auto existing = table.Get<EventObject>(event_ptr->header.wait_list_blink);
         existing && existing->manual_reset == (event_type == 0)) {
@@ -452,14 +453,14 @@ void KeInitializeEvent_entry(ppc_ptr_t<X_KEVENT> event_ptr, u32 event_type, u32 
   event_ptr.Zero();
   event_ptr->header.type = static_cast<u8>(event_type);
   event_ptr->header.signal_state = initial_state;
-  if (!table.Resolve<EventObject>(event_ptr.guest_address(), static_cast<i32>(event_type))) {
+  if (!table.Resolve<EventObject>(event_ptr.GetGuestAddress(), static_cast<i32>(event_type))) {
     REXLOG_WARN(kernel, "KeInitializeEvent({:08X}) could not create the event",
-                event_ptr.guest_address());
+                event_ptr.GetGuestAddress());
   }
 }
 
 u32 KeSetEvent(u32 event_address, [[maybe_unused]] u32 increment, [[maybe_unused]] u32 wait) {
-  auto ev = runtime::Current().object_table().Resolve<EventObject>(event_address);
+  auto ev = runtime::GetCurrent().GetObjectTable().Resolve<EventObject>(event_address);
   if (!ev) {
     REXLOG_WARN(kernel, "KeSetEvent({:08X}) found no event", event_address);
     return 0;
@@ -468,38 +469,40 @@ u32 KeSetEvent(u32 event_address, [[maybe_unused]] u32 increment, [[maybe_unused
   return ev->Set();
 }
 
-u32 KeSetEvent_entry(ppc_ptr_t<X_KEVENT> event_ptr, u32 increment, u32 wait) {
-  return KeSetEvent(event_ptr.guest_address(), increment, wait);
+u32 KeSetEvent_entry(GuestPtrT<X_KEVENT> event_ptr, u32 increment, u32 wait) {
+  return KeSetEvent(event_ptr.GetGuestAddress(), increment, wait);
 }
 
-u32 KePulseEvent_entry(ppc_ptr_t<X_KEVENT> event_ptr, [[maybe_unused]] u32 increment,
+u32 KePulseEvent_entry(GuestPtrT<X_KEVENT> event_ptr, [[maybe_unused]] u32 increment,
                        [[maybe_unused]] u32 wait) {
-  auto ev = runtime::Current().object_table().Resolve<EventObject>(event_ptr.guest_address());
+  auto ev =
+      runtime::GetCurrent().GetObjectTable().Resolve<EventObject>(event_ptr.GetGuestAddress());
   if (!ev) {
-    REXLOG_WARN(kernel, "KePulseEvent({:08X}) found no event", event_ptr.guest_address());
+    REXLOG_WARN(kernel, "KePulseEvent({:08X}) found no event", event_ptr.GetGuestAddress());
     return 0;
   }
 
   return ev->Pulse();
 }
 
-u32 KeResetEvent_entry(ppc_ptr_t<X_KEVENT> event_ptr) {
-  auto ev = runtime::Current().object_table().Resolve<EventObject>(event_ptr.guest_address());
+u32 KeResetEvent_entry(GuestPtrT<X_KEVENT> event_ptr) {
+  auto ev =
+      runtime::GetCurrent().GetObjectTable().Resolve<EventObject>(event_ptr.GetGuestAddress());
   if (!ev) {
-    REXLOG_WARN(kernel, "KeResetEvent({:08X}) found no event", event_ptr.guest_address());
+    REXLOG_WARN(kernel, "KeResetEvent({:08X}) found no event", event_ptr.GetGuestAddress());
     return 0;
   }
 
   return ev->Reset();
 }
 
-u32 NtCreateEvent_entry(mapped_u32 handle_ptr, ppc_ptr_t<X_OBJECT_ATTRIBUTES> obj_attributes_ptr,
+u32 NtCreateEvent_entry(MappedU32 handle_ptr, GuestPtrT<X_OBJECT_ATTRIBUTES> obj_attributes_ptr,
                         u32 event_type, u32 initial_state) {
-  REX_KERNEL_NAMED_CREATE(Event, handle_ptr, obj_attributes_ptr);
+  REX_KERNEL_NAMED_CREATE(kEvent, handle_ptr, obj_attributes_ptr);
 
   X_HANDLE handle = 0;
-  auto added = runtime::Current().object_table().CreateObject<EventObject>(
-      obj_attributes_ptr.guest_address(), sizeof(X_KEVENT), !event_type, !!initial_state);
+  auto added = runtime::GetCurrent().GetObjectTable().CreateObject<EventObject>(
+      obj_attributes_ptr.GetGuestAddress(), sizeof(X_KEVENT), !event_type, !!initial_state);
   if (added) {
     handle = *added;
   }
@@ -516,7 +519,7 @@ u32 NtCreateEvent_entry(mapped_u32 handle_ptr, ppc_ptr_t<X_OBJECT_ATTRIBUTES> ob
 u32 NtSetEvent(u32 handle, be_u32* previous_state_ptr) {
   X_STATUS result = X_STATUS_SUCCESS;
 
-  auto ev = runtime::Current().object_table().Get<EventObject>(handle);
+  auto ev = runtime::GetCurrent().GetObjectTable().Get<EventObject>(handle);
   if (ev) {
     i32 was_signalled = ev->Set();
     if (previous_state_ptr) {
@@ -529,14 +532,14 @@ u32 NtSetEvent(u32 handle, be_u32* previous_state_ptr) {
   return result;
 }
 
-u32 NtSetEvent_entry(u32 handle, mapped_u32 previous_state_ptr) {
+u32 NtSetEvent_entry(u32 handle, MappedU32 previous_state_ptr) {
   return NtSetEvent(handle, previous_state_ptr);
 }
 
-u32 NtPulseEvent_entry(u32 handle, mapped_u32 previous_state_ptr) {
+u32 NtPulseEvent_entry(u32 handle, MappedU32 previous_state_ptr) {
   X_STATUS result = X_STATUS_SUCCESS;
 
-  auto ev = runtime::Current().object_table().Get<EventObject>(handle);
+  auto ev = runtime::GetCurrent().GetObjectTable().Get<EventObject>(handle);
   if (ev) {
     i32 was_signalled = ev->Pulse();
     if (previous_state_ptr) {
@@ -552,7 +555,7 @@ u32 NtPulseEvent_entry(u32 handle, mapped_u32 previous_state_ptr) {
 u32 NtClearEvent(u32 handle) {
   X_STATUS result = X_STATUS_SUCCESS;
 
-  auto ev = runtime::Current().object_table().Get<EventObject>(handle);
+  auto ev = runtime::GetCurrent().GetObjectTable().Get<EventObject>(handle);
   if (ev) {
     ev->Reset();
   } else {
@@ -566,23 +569,23 @@ u32 NtClearEvent_entry(u32 handle) {
   return NtClearEvent(handle);
 }
 
-void KeInitializeSemaphore_entry(ppc_ptr_t<X_KSEMAPHORE> semaphore_ptr, u32 count, u32 limit) {
+void KeInitializeSemaphore_entry(GuestPtrT<X_KSEMAPHORE> semaphore_ptr, u32 count, u32 limit) {
   // Type 5 is SemaphoreObject.
   semaphore_ptr->header.type = 5;
   semaphore_ptr->header.signal_state = count;
   semaphore_ptr->limit = limit;
 
-  auto sem =
-      runtime::Current().object_table().Resolve<SemaphoreObject>(semaphore_ptr.guest_address(), 5);
+  auto sem = runtime::GetCurrent().GetObjectTable().Resolve<SemaphoreObject>(
+      semaphore_ptr.GetGuestAddress(), 5);
   if (!sem) {
     REXLOG_WARN(kernel, "KeInitializeSemaphore({:08X}) could not create the semaphore",
-                semaphore_ptr.guest_address());
+                semaphore_ptr.GetGuestAddress());
   }
 }
 
 u32 KeReleaseSemaphore(u32 semaphore_address, [[maybe_unused]] u32 increment, u32 adjustment,
                        [[maybe_unused]] u32 wait) {
-  auto sem = runtime::Current().object_table().Resolve<SemaphoreObject>(semaphore_address);
+  auto sem = runtime::GetCurrent().GetObjectTable().Resolve<SemaphoreObject>(semaphore_address);
   if (!sem) {
     REXLOG_WARN(kernel, "KeReleaseSemaphore({:08X}) found no semaphore", semaphore_address);
     return 0;
@@ -593,18 +596,18 @@ u32 KeReleaseSemaphore(u32 semaphore_address, [[maybe_unused]] u32 increment, u3
   return static_cast<u32>(previous_count);
 }
 
-u32 KeReleaseSemaphore_entry(ppc_ptr_t<X_KSEMAPHORE> semaphore_ptr, u32 increment, u32 adjustment,
+u32 KeReleaseSemaphore_entry(GuestPtrT<X_KSEMAPHORE> semaphore_ptr, u32 increment, u32 adjustment,
                              u32 wait) {
-  return KeReleaseSemaphore(semaphore_ptr.guest_address(), increment, adjustment, wait);
+  return KeReleaseSemaphore(semaphore_ptr.GetGuestAddress(), increment, adjustment, wait);
 }
 
-u32 NtCreateSemaphore_entry(mapped_u32 handle_ptr, mapped_void obj_attributes_ptr, u32 count,
+u32 NtCreateSemaphore_entry(MappedU32 handle_ptr, MappedVoid obj_attributes_ptr, u32 count,
                             u32 limit) {
-  REX_KERNEL_NAMED_CREATE(Semaphore, handle_ptr, obj_attributes_ptr);
+  REX_KERNEL_NAMED_CREATE(kSemaphore, handle_ptr, obj_attributes_ptr);
 
   X_HANDLE handle = 0;
-  auto added = runtime::Current().object_table().CreateObject<SemaphoreObject>(
-      obj_attributes_ptr.guest_address(), sizeof(X_KSEMAPHORE), static_cast<i32>(count),
+  auto added = runtime::GetCurrent().GetObjectTable().CreateObject<SemaphoreObject>(
+      obj_attributes_ptr.GetGuestAddress(), sizeof(X_KSEMAPHORE), static_cast<i32>(count),
       static_cast<i32>(limit));
   if (added) {
     handle = *added;
@@ -614,11 +617,11 @@ u32 NtCreateSemaphore_entry(mapped_u32 handle_ptr, mapped_void obj_attributes_pt
     return status;
   }
   bool valid = false;
-  if (auto sem = runtime::Current().object_table().Get<SemaphoreObject>(handle)) {
+  if (auto sem = runtime::GetCurrent().GetObjectTable().Get<SemaphoreObject>(handle)) {
     valid = sem->semaphore != nullptr;
   }
   if (!valid) {
-    runtime::CloseOwned(runtime::Current().object_table(), handle);
+    runtime::CloseOwned(runtime::GetCurrent().GetObjectTable(), handle);
     if (handle_ptr) {
       *handle_ptr = 0;
     }
@@ -632,11 +635,11 @@ u32 NtCreateSemaphore_entry(mapped_u32 handle_ptr, mapped_void obj_attributes_pt
   return X_STATUS_SUCCESS;
 }
 
-u32 NtReleaseSemaphore_entry(u32 sem_handle, u32 release_count, mapped_u32 previous_count_ptr) {
+u32 NtReleaseSemaphore_entry(u32 sem_handle, u32 release_count, MappedU32 previous_count_ptr) {
   X_STATUS result = X_STATUS_SUCCESS;
   i32 previous_count = 0;
 
-  auto sem = runtime::Current().object_table().Get<SemaphoreObject>(sem_handle);
+  auto sem = runtime::GetCurrent().GetObjectTable().Get<SemaphoreObject>(sem_handle);
   if (sem) {
     bool success = sem->Release(static_cast<i32>(release_count), &previous_count);
     if (!success) {
@@ -652,13 +655,13 @@ u32 NtReleaseSemaphore_entry(u32 sem_handle, u32 release_count, mapped_u32 previ
   return result;
 }
 
-u32 NtCreateMutant_entry(mapped_u32 handle_out, ppc_ptr_t<X_OBJECT_ATTRIBUTES> obj_attributes,
+u32 NtCreateMutant_entry(MappedU32 handle_out, GuestPtrT<X_OBJECT_ATTRIBUTES> obj_attributes,
                          u32 initial_owner) {
-  REX_KERNEL_NAMED_CREATE(Mutant, handle_out, obj_attributes);
+  REX_KERNEL_NAMED_CREATE(kMutant, handle_out, obj_attributes);
 
   X_HANDLE handle = 0;
-  auto added = runtime::Current().object_table().CreateObject<MutantObject>(
-      obj_attributes.guest_address(), 0, initial_owner ? true : false);
+  auto added = runtime::GetCurrent().GetObjectTable().CreateObject<MutantObject>(
+      obj_attributes.GetGuestAddress(), 0, initial_owner ? true : false);
   if (added) {
     handle = *added;
   }
@@ -686,7 +689,7 @@ u32 NtReleaseMutant_entry(u32 mutant_handle, u32 unknown) {
 
   X_STATUS result = X_STATUS_SUCCESS;
 
-  auto mutant = runtime::Current().object_table().Get<MutantObject>(mutant_handle);
+  auto mutant = runtime::GetCurrent().GetObjectTable().Get<MutantObject>(mutant_handle);
   if (mutant) {
     result = mutant->Release(abandon);
   } else {
@@ -696,24 +699,25 @@ u32 NtReleaseMutant_entry(u32 mutant_handle, u32 unknown) {
   return result;
 }
 
-void KeInitializeMutant_entry(ppc_ptr_t<X_KMUTANT> mutant, u32 initial_owner) {
+void KeInitializeMutant_entry(GuestPtrT<X_KMUTANT> mutant, u32 initial_owner) {
   DropStash(mutant->header);
   KernelThread* thread = KernelThread::GetCurrentThread();
-  mutant->header.type = DISPATCHER_MUTANT;
+  mutant->header.type = kDispatcherMutant;
   const bool owned = initial_owner && thread;
   if (initial_owner && !thread) {
     REXLOG_WARN(kernel, "KeInitializeMutant with an initial owner and no thread");
   }
   mutant->header.signal_state = owned ? 0 : 1;
-  mutant->owner_thread = owned ? thread->guest_object() : 0;
+  mutant->owner_thread = owned ? thread->GetGuestObject() : 0;
   mutant->abandoned = 0;
-  (void)runtime::Current().object_table().Resolve<MutantObject>(mutant.guest_address(),
-                                                                DISPATCHER_MUTANT);
+  (void)runtime::GetCurrent().GetObjectTable().Resolve<MutantObject>(mutant.GetGuestAddress(),
+                                                                     kDispatcherMutant);
 }
 
-u32 KeReleaseMutant_entry(ppc_ptr_t<X_KMUTANT> mutant, [[maybe_unused]] u32 increment,
+u32 KeReleaseMutant_entry(GuestPtrT<X_KMUTANT> mutant, [[maybe_unused]] u32 increment,
                           u32 abandoned, [[maybe_unused]] u32 wait) {
-  auto object = runtime::Current().object_table().Resolve<MutantObject>(mutant.guest_address());
+  auto object =
+      runtime::GetCurrent().GetObjectTable().Resolve<MutantObject>(mutant.GetGuestAddress());
   if (!object) {
     return X_STATUS_INVALID_HANDLE;
   }
@@ -743,12 +747,12 @@ u32 KeReleaseMutant_entry(ppc_ptr_t<X_KMUTANT> mutant, [[maybe_unused]] u32 incr
  * @param timer_type 0 for NotificationTimer or 1 for SynchronizationTimer.
  * @return X_STATUS_SUCCESS or an error status.
  */
-u32 NtCreateTimer_entry(mapped_u32 handle_ptr, mapped_void obj_attributes_ptr, u32 timer_type) {
-  REX_KERNEL_NAMED_CREATE(Timer, handle_ptr, obj_attributes_ptr);
+u32 NtCreateTimer_entry(MappedU32 handle_ptr, MappedVoid obj_attributes_ptr, u32 timer_type) {
+  REX_KERNEL_NAMED_CREATE(kTimer, handle_ptr, obj_attributes_ptr);
 
   X_HANDLE handle = 0;
-  auto added = runtime::Current().object_table().CreateObject<TimerObject>(
-      obj_attributes_ptr.guest_address(), 0, timer_type);
+  auto added = runtime::GetCurrent().GetObjectTable().CreateObject<TimerObject>(
+      obj_attributes_ptr.GetGuestAddress(), 0, timer_type);
   if (added) {
     handle = *added;
   }
@@ -763,23 +767,23 @@ u32 NtCreateTimer_entry(mapped_u32 handle_ptr, mapped_void obj_attributes_ptr, u
   return X_STATUS_SUCCESS;
 }
 
-void KeInitializeTimerEx_entry(ppc_ptr_t<X_KTIMER> timer_ptr, u32 timer_type, u32 proc_type) {
+void KeInitializeTimerEx_entry(GuestPtrT<X_KTIMER> timer_ptr, u32 timer_type, u32 proc_type) {
   DropStash(timer_ptr->header);
-  timer_ptr->header.type = static_cast<u8>(timer_type + DISPATCHER_MANUAL_RESET_TIMER);
+  timer_ptr->header.type = static_cast<u8>(timer_type + kDispatcherManualResetTimer);
   timer_ptr->header.process_type = static_cast<u8>(proc_type);
   timer_ptr->header.inserted = 0;
   timer_ptr->header.signal_state = 0;
   timer_ptr->due_time = 0;
   timer_ptr->period = 0;
   timer_ptr->dpc = 0u;
-  if (!runtime::Current().object_table().Resolve<TimerObject>(timer_ptr.guest_address())) {
+  if (!runtime::GetCurrent().GetObjectTable().Resolve<TimerObject>(timer_ptr.GetGuestAddress())) {
     REXLOG_WARN(kernel, "KeInitializeTimerEx({:08X}) could not create the timer",
-                timer_ptr.guest_address());
+                timer_ptr.GetGuestAddress());
   }
 }
 
-u32 NtSetTimerEx_entry(u32 timer_handle, mapped_u64 due_time_ptr, mapped_void routine_ptr,
-                       u32 unk_one, mapped_void routine_arg, u32 resume, u32 period_ms,
+u32 NtSetTimerEx_entry(u32 timer_handle, MappedU64 due_time_ptr, MappedVoid routine_ptr,
+                       u32 unk_one, MappedVoid routine_arg, u32 resume, u32 period_ms,
                        u32 unk_zero) {
   REX_ASSERT(unk_one == 1);
   REX_ASSERT(unk_zero == 0);
@@ -788,11 +792,11 @@ u32 NtSetTimerEx_entry(u32 timer_handle, mapped_u64 due_time_ptr, mapped_void ro
 
   X_STATUS result = X_STATUS_SUCCESS;
 
-  auto timer = runtime::Current().object_table().Get<TimerObject>(timer_handle);
+  auto timer = runtime::GetCurrent().GetObjectTable().Get<TimerObject>(timer_handle);
   if (timer) {
-    result =
-        timer->Set(runtime::Current(), static_cast<i64>(due_time), period_ms,
-                   routine_ptr.guest_address(), routine_arg.guest_address(), resume ? true : false);
+    result = timer->Set(runtime::GetCurrent(), static_cast<i64>(due_time), period_ms,
+                        routine_ptr.GetGuestAddress(), routine_arg.GetGuestAddress(),
+                        resume ? true : false);
   } else {
     result = X_STATUS_INVALID_HANDLE;
   }
@@ -800,10 +804,10 @@ u32 NtSetTimerEx_entry(u32 timer_handle, mapped_u64 due_time_ptr, mapped_void ro
   return result;
 }
 
-u32 NtCancelTimer_entry(u32 timer_handle, mapped_u32 current_state_ptr) {
+u32 NtCancelTimer_entry(u32 timer_handle, MappedU32 current_state_ptr) {
   X_STATUS result = X_STATUS_SUCCESS;
 
-  auto timer = runtime::Current().object_table().Get<TimerObject>(timer_handle);
+  auto timer = runtime::GetCurrent().GetObjectTable().Get<TimerObject>(timer_handle);
   if (timer) {
     result = timer->Cancel();
   } else {
@@ -818,9 +822,9 @@ u32 NtCancelTimer_entry(u32 timer_handle, mapped_u32 current_state_ptr) {
 
 namespace {
 
-u32 ArmKeTimer(ppc_ptr_t<X_KTIMER> timer, i64 due_time, u32 period_ms, ppc_ptr_t<X_KDPC> dpc) {
-  auto& runtime = runtime::Current();
-  auto object = runtime.object_table().Resolve<TimerObject>(timer.guest_address());
+u32 ArmKeTimer(GuestPtrT<X_KTIMER> timer, i64 due_time, u32 period_ms, GuestPtrT<X_KDPC> dpc) {
+  auto& runtime = runtime::GetCurrent();
+  auto object = runtime.GetObjectTable().Resolve<TimerObject>(timer.GetGuestAddress());
   if (!object) {
     return 0;
   }
@@ -830,9 +834,9 @@ u32 ArmKeTimer(ppc_ptr_t<X_KTIMER> timer, i64 due_time, u32 period_ms, ppc_ptr_t
   timer->header.signal_state = 0;
   timer->due_time = static_cast<u64>(due_time);
   timer->period = period_ms;
-  timer->dpc = dpc.guest_address();
-  if (XFAILED(object->SetDPC(runtime, timer.guest_address(), due_time, period_ms,
-                             dpc.guest_address()))) {
+  timer->dpc = dpc.GetGuestAddress();
+  if (XFAILED(object->SetDPC(runtime, timer.GetGuestAddress(), due_time, period_ms,
+                             dpc.GetGuestAddress()))) {
     timer->header.inserted = 0;
   }
   return was_set ? 1 : 0;
@@ -840,17 +844,18 @@ u32 ArmKeTimer(ppc_ptr_t<X_KTIMER> timer, i64 due_time, u32 period_ms, ppc_ptr_t
 
 }  // namespace
 
-u32 KeSetTimerEx_entry(ppc_ptr_t<X_KTIMER> timer, i64 due_time, u32 period_ms,
-                       ppc_ptr_t<X_KDPC> dpc) {
+u32 KeSetTimerEx_entry(GuestPtrT<X_KTIMER> timer, i64 due_time, u32 period_ms,
+                       GuestPtrT<X_KDPC> dpc) {
   return ArmKeTimer(timer, due_time, period_ms, dpc);
 }
 
-u32 KeSetTimer_entry(ppc_ptr_t<X_KTIMER> timer, i64 due_time, ppc_ptr_t<X_KDPC> dpc) {
+u32 KeSetTimer_entry(GuestPtrT<X_KTIMER> timer, i64 due_time, GuestPtrT<X_KDPC> dpc) {
   return ArmKeTimer(timer, due_time, 0, dpc);
 }
 
-u32 KeCancelTimer_entry(ppc_ptr_t<X_KTIMER> timer) {
-  auto object = runtime::Current().object_table().Resolve<TimerObject>(timer.guest_address());
+u32 KeCancelTimer_entry(GuestPtrT<X_KTIMER> timer) {
+  auto object =
+      runtime::GetCurrent().GetObjectTable().Resolve<TimerObject>(timer.GetGuestAddress());
   if (object) {
     (void)object->Cancel();
   }
@@ -862,7 +867,7 @@ u32 KeCancelTimer_entry(ppc_ptr_t<X_KTIMER> timer) {
 u32 KeWaitForSingleObject(u32 object_address, u32 wait_reason, u32 processor_mode, u32 alertable,
                           u64* timeout_ptr) {
   const X_HANDLE handle =
-      runtime::Current().object_table().ResolveHandle(object_address, -1).value_or(0);
+      runtime::GetCurrent().GetObjectTable().ResolveHandle(object_address, -1).value_or(0);
 
   if (!handle) {
     REXLOG_WARN(kernel, "KeWaitForSingleObject({:08X}) found no object", object_address);
@@ -870,7 +875,7 @@ u32 KeWaitForSingleObject(u32 object_address, u32 wait_reason, u32 processor_mod
   }
 
   X_STATUS result =
-      Wait(runtime::Current(), handle, wait_reason, processor_mode, alertable, timeout_ptr);
+      Wait(runtime::GetCurrent(), handle, wait_reason, processor_mode, alertable, timeout_ptr);
 
   if (alertable && result == X_STATUS_USER_APC) {
     KernelThread::GetCurrentThread()->DeliverAPCs();
@@ -879,18 +884,18 @@ u32 KeWaitForSingleObject(u32 object_address, u32 wait_reason, u32 processor_mod
   return result;
 }
 
-u32 KeWaitForSingleObject_entry(mapped_void object_ptr, u32 wait_reason, u32 processor_mode,
-                                u32 alertable, mapped_u64 timeout_ptr) {
+u32 KeWaitForSingleObject_entry(MappedVoid object_ptr, u32 wait_reason, u32 processor_mode,
+                                u32 alertable, MappedU64 timeout_ptr) {
   u64 timeout = timeout_ptr ? static_cast<u64>(*timeout_ptr) : 0u;
-  auto result = KeWaitForSingleObject(object_ptr.guest_address(), wait_reason, processor_mode,
+  auto result = KeWaitForSingleObject(object_ptr.GetGuestAddress(), wait_reason, processor_mode,
                                       alertable, timeout_ptr ? &timeout : nullptr);
   return result;
 }
 
 u32 NtWaitForSingleObjectEx_entry(u32 object_handle, u32 wait_mode, u32 alertable,
-                                  mapped_u64 timeout_ptr) {
+                                  MappedU64 timeout_ptr) {
   u64 timeout = timeout_ptr ? static_cast<u64>(*timeout_ptr) : 0u;
-  X_STATUS result = Wait(runtime::Current(), object_handle, 3, wait_mode, alertable,
+  X_STATUS result = Wait(runtime::GetCurrent(), object_handle, 3, wait_mode, alertable,
                          timeout_ptr ? &timeout : nullptr);
   if (alertable && result == X_STATUS_USER_APC) {
     KernelThread::GetCurrentThread()->DeliverAPCs();
@@ -899,16 +904,15 @@ u32 NtWaitForSingleObjectEx_entry(u32 object_handle, u32 wait_mode, u32 alertabl
   return result;
 }
 
-u32 KeWaitForMultipleObjects_entry(u32 count, mapped_u32 objects_ptr, u32 wait_type,
-                                   u32 wait_reason, u32 processor_mode, u32 alertable,
-                                   mapped_u64 timeout_ptr,
-                                   [[maybe_unused]] mapped_void wait_block_array_ptr) {
+u32 KeWaitForMultipleObjects_entry(u32 count, MappedU32 objects_ptr, u32 wait_type, u32 wait_reason,
+                                   u32 processor_mode, u32 alertable, MappedU64 timeout_ptr,
+                                   [[maybe_unused]] MappedVoid wait_block_array_ptr) {
   REX_ASSERT(wait_type <= 1);
 
   std::vector<X_HANDLE> handles;
   for (u32 n = 0; n < count; n++) {
-    const X_HANDLE handle = runtime::Current()
-                                .object_table()
+    const X_HANDLE handle = runtime::GetCurrent()
+                                .GetObjectTable()
                                 .ResolveHandle(static_cast<u32>(objects_ptr[n]), -1)
                                 .value_or(0);
     if (!handle) {
@@ -919,7 +923,7 @@ u32 KeWaitForMultipleObjects_entry(u32 count, mapped_u32 objects_ptr, u32 wait_t
   }
 
   u64 timeout = timeout_ptr ? static_cast<u64>(*timeout_ptr) : 0u;
-  X_STATUS result = WaitMultiple(runtime::Current(), handles, wait_type, wait_reason,
+  X_STATUS result = WaitMultiple(runtime::GetCurrent(), handles, wait_type, wait_reason,
                                  processor_mode, alertable, timeout_ptr ? &timeout : nullptr);
   if (alertable && result == X_STATUS_USER_APC) {
     KernelThread::GetCurrentThread()->DeliverAPCs();
@@ -933,26 +937,26 @@ u32 NtWaitForMultipleObjectsEx(u32 count, be_u32* handles, u32 wait_type, u32 wa
 
   std::vector<X_HANDLE> object_handles(handles, handles + count);
 
-  auto result = WaitMultiple(runtime::Current(), object_handles, wait_type, 6, wait_mode, alertable,
-                             timeout_ptr);
+  auto result = WaitMultiple(runtime::GetCurrent(), object_handles, wait_type, 6, wait_mode,
+                             alertable, timeout_ptr);
   if (alertable && result == X_STATUS_USER_APC) {
     KernelThread::GetCurrentThread()->DeliverAPCs();
   }
   return result;
 }
 
-u32 NtWaitForMultipleObjectsEx_entry(u32 count, mapped_u32 handles, u32 wait_type, u32 wait_mode,
-                                     u32 alertable, mapped_u64 timeout_ptr) {
+u32 NtWaitForMultipleObjectsEx_entry(u32 count, MappedU32 handles, u32 wait_type, u32 wait_mode,
+                                     u32 alertable, MappedU64 timeout_ptr) {
   u64 timeout = timeout_ptr ? static_cast<u64>(*timeout_ptr) : 0u;
   return NtWaitForMultipleObjectsEx(count, handles, wait_type, wait_mode, alertable,
                                     timeout_ptr ? &timeout : nullptr);
 }
 
 u32 NtSignalAndWaitForSingleObjectEx_entry(u32 signal_handle, u32 wait_handle, u32 alertable,
-                                           [[maybe_unused]] u32 r6, mapped_u64 timeout_ptr) {
+                                           [[maybe_unused]] u32 r6, MappedU64 timeout_ptr) {
   u64 timeout = timeout_ptr ? static_cast<u64>(*timeout_ptr) : 0u;
-  X_STATUS result = SignalAndWait(runtime::Current(), signal_handle, wait_handle, 3, 1, alertable,
-                                  timeout_ptr ? &timeout : nullptr);
+  X_STATUS result = SignalAndWait(runtime::GetCurrent(), signal_handle, wait_handle, 3, 1,
+                                  alertable, timeout_ptr ? &timeout : nullptr);
 
   if (alertable && result == X_STATUS_USER_APC) {
     KernelThread::GetCurrentThread()->DeliverAPCs();
@@ -991,11 +995,11 @@ static void KfLowerIrql(runtime::Memory& memory, PPCContext* ctx, unsigned char 
 
 u32 KeKfAcquireSpinLock(runtime::Memory& memory, PPCContext* ctx, X_KSPINLOCK* lock,
                         bool change_irql) {
-  u32 old_irql = change_irql ? KfRaiseIrql(memory, ctx, IRQL_DISPATCH) : 0;
+  u32 old_irql = change_irql ? KfRaiseIrql(memory, ctx, kIRQLDispatch) : 0;
   const u32 pcr_addr = static_cast<u32>(ctx->r13.u64);
-  REX_ASSERT(lock->prcb_of_owner.load(std::memory_order_relaxed) != pcr_addr);
+  REX_ASSERT(lock->prcb_of_owner.Load(std::memory_order_relaxed) != pcr_addr);
   for (u32 expected = 0;
-       !lock->prcb_of_owner.compare_exchange(expected, pcr_addr, std::memory_order_acquire);
+       !lock->prcb_of_owner.CompareExchange(expected, pcr_addr, std::memory_order_acquire);
        expected = 0) {
     rex::platform::MaybeYield();
   }
@@ -1004,9 +1008,9 @@ u32 KeKfAcquireSpinLock(runtime::Memory& memory, PPCContext* ctx, X_KSPINLOCK* l
 
 void KeKfReleaseSpinLock(runtime::Memory& memory, PPCContext* ctx, X_KSPINLOCK* lock, u32 old_irql,
                          bool change_irql) {
-  REX_ASSERT(lock->prcb_of_owner.load(std::memory_order_relaxed) == static_cast<u32>(ctx->r13.u64));
-  lock->prcb_of_owner.store(0, std::memory_order_release);
-  if (change_irql && old_irql < IRQL_DISPATCH) {
+  REX_ASSERT(lock->prcb_of_owner.Load(std::memory_order_relaxed) == static_cast<u32>(ctx->r13.u64));
+  lock->prcb_of_owner.Store(0, std::memory_order_release);
+  if (change_irql && old_irql < kIRQLDispatch) {
     KfLowerIrql(memory, ctx, static_cast<unsigned char>(old_irql));
   }
 }
@@ -1072,35 +1076,39 @@ u32 KeInsertQueueApc(runtime::Memory& memory, XAPC* apc, u32 arg1, u32 arg2,
   return result;
 }
 
-u32 KfAcquireSpinLock_entry(mapped_u32 lock_ptr) {
-  auto lock = reinterpret_cast<X_KSPINLOCK*>(lock_ptr.host_address());
-  return KeKfAcquireSpinLock(*runtime::Current().memory(), ThreadState::Get()->context(), lock);
+u32 KfAcquireSpinLock_entry(MappedU32 lock_ptr) {
+  auto lock = reinterpret_cast<X_KSPINLOCK*>(lock_ptr.GetHostAddress());
+  return KeKfAcquireSpinLock(*runtime::GetCurrent().GetMemory(), ThreadState::Get()->GetContext(),
+                             lock);
 }
 
-void KfReleaseSpinLock_entry(mapped_u32 lock_ptr, u32 old_irql) {
-  auto lock = reinterpret_cast<X_KSPINLOCK*>(lock_ptr.host_address());
-  KeKfReleaseSpinLock(*runtime::Current().memory(), ThreadState::Get()->context(), lock, old_irql);
-  DrainDPCsBelowDispatch(runtime::Current());
+void KfReleaseSpinLock_entry(MappedU32 lock_ptr, u32 old_irql) {
+  auto lock = reinterpret_cast<X_KSPINLOCK*>(lock_ptr.GetHostAddress());
+  KeKfReleaseSpinLock(*runtime::GetCurrent().GetMemory(), ThreadState::Get()->GetContext(), lock,
+                      old_irql);
+  DrainDPCsBelowDispatch(runtime::GetCurrent());
 }
 
-void KeAcquireSpinLockAtRaisedIrql_entry(mapped_u32 lock_ptr) {
-  auto lock = reinterpret_cast<X_KSPINLOCK*>(lock_ptr.host_address());
-  KeKfAcquireSpinLock(*runtime::Current().memory(), ThreadState::Get()->context(), lock, false);
+void KeAcquireSpinLockAtRaisedIrql_entry(MappedU32 lock_ptr) {
+  auto lock = reinterpret_cast<X_KSPINLOCK*>(lock_ptr.GetHostAddress());
+  KeKfAcquireSpinLock(*runtime::GetCurrent().GetMemory(), ThreadState::Get()->GetContext(), lock,
+                      false);
 }
 
-u32 KeTryToAcquireSpinLockAtRaisedIrql_entry(mapped_u32 lock_ptr) {
-  auto lock = reinterpret_cast<X_KSPINLOCK*>(lock_ptr.host_address());
-  auto* ctx = ThreadState::Get()->context();
+u32 KeTryToAcquireSpinLockAtRaisedIrql_entry(MappedU32 lock_ptr) {
+  auto lock = reinterpret_cast<X_KSPINLOCK*>(lock_ptr.GetHostAddress());
+  auto* ctx = ThreadState::Get()->GetContext();
   u32 expected = 0;
-  return lock->prcb_of_owner.compare_exchange(expected, static_cast<u32>(ctx->r13.u64),
-                                              std::memory_order_acquire)
+  return lock->prcb_of_owner.CompareExchange(expected, static_cast<u32>(ctx->r13.u64),
+                                             std::memory_order_acquire)
              ? 1
              : 0;
 }
 
-void KeReleaseSpinLockFromRaisedIrql_entry(mapped_u32 lock_ptr) {
-  auto lock = reinterpret_cast<X_KSPINLOCK*>(lock_ptr.host_address());
-  KeKfReleaseSpinLock(*runtime::Current().memory(), ThreadState::Get()->context(), lock, 0, false);
+void KeReleaseSpinLockFromRaisedIrql_entry(MappedU32 lock_ptr) {
+  auto lock = reinterpret_cast<X_KSPINLOCK*>(lock_ptr.GetHostAddress());
+  KeKfReleaseSpinLock(*runtime::GetCurrent().GetMemory(), ThreadState::Get()->GetContext(), lock, 0,
+                      false);
 }
 
 void KeEnterCriticalRegion_entry() {
@@ -1112,33 +1120,33 @@ static_assert(offsetof(PPCContext, v127) - offsetof(PPCContext, v0) == 127 * siz
 
 void KeSaveFloatingPointState_entry() {
   ThreadState* state = ThreadState::Get();
-  PPCContext* ctx = state->context();
-  DPCSaveArea& area = state->dpc_save_area();
+  PPCContext* ctx = state->GetContext();
+  DPCSaveArea& area = state->GetDPCSaveArea();
   std::memcpy(area.fpr.data(), &ctx->f0, sizeof(area.fpr));
-  area.csr = ctx->fpscr.getcsr();
+  area.csr = ctx->fpscr.GetCSR();
 }
 
 void KeRestoreFloatingPointState_entry() {
   ThreadState* state = ThreadState::Get();
-  PPCContext* ctx = state->context();
-  const DPCSaveArea& area = state->dpc_save_area();
+  PPCContext* ctx = state->GetContext();
+  const DPCSaveArea& area = state->GetDPCSaveArea();
   std::memcpy(&ctx->f0, area.fpr.data(), sizeof(area.fpr));
   ctx->fpscr.csr = area.csr;
-  ctx->fpscr.setcsr(area.csr);
+  ctx->fpscr.SetCSR(area.csr);
 }
 
 void KeSaveVectorUnitState_entry() {
   ThreadState* state = ThreadState::Get();
-  PPCContext* ctx = state->context();
-  DPCSaveArea& area = state->dpc_save_area();
+  PPCContext* ctx = state->GetContext();
+  DPCSaveArea& area = state->GetDPCSaveArea();
   std::memcpy(area.vr.data(), &ctx->v0, sizeof(area.vr));
   area.vscr_sat = ctx->vscr_sat;
 }
 
 void KeRestoreVectorUnitState_entry() {
   ThreadState* state = ThreadState::Get();
-  PPCContext* ctx = state->context();
-  const DPCSaveArea& area = state->dpc_save_area();
+  PPCContext* ctx = state->GetContext();
+  const DPCSaveArea& area = state->GetDPCSaveArea();
   std::memcpy(&ctx->v0, area.vr.data(), sizeof(area.vr));
   ctx->vscr_sat = area.vscr_sat;
 }
@@ -1148,24 +1156,25 @@ void KeLeaveCriticalRegion_entry() {
 }
 
 u32 KeRaiseIrqlToDpcLevel_entry() {
-  return KfRaiseIrql(*runtime::Current().memory(), ThreadState::Get()->context(), IRQL_DISPATCH);
+  return KfRaiseIrql(*runtime::GetCurrent().GetMemory(), ThreadState::Get()->GetContext(),
+                     kIRQLDispatch);
 }
 
 void KfLowerIrql_entry(u32 old_value) {
-  auto& runtime = runtime::Current();
-  KfLowerIrql(*runtime.memory(), ThreadState::Get()->context(), static_cast<u8>(old_value));
+  auto& runtime = runtime::GetCurrent();
+  KfLowerIrql(*runtime.GetMemory(), ThreadState::Get()->GetContext(), static_cast<u8>(old_value));
   DrainDPCsBelowDispatch(runtime);
 }
 
 u32 KfRaiseIrql_entry(u32 new_irql) {
-  return KfRaiseIrql(*runtime::Current().memory(), ThreadState::Get()->context(),
+  return KfRaiseIrql(*runtime::GetCurrent().GetMemory(), ThreadState::Get()->GetContext(),
                      static_cast<u8>(new_irql));
 }
 
-void NtQueueApcThread_entry(u32 thread_handle, mapped_void apc_routine,
-                            mapped_void apc_routine_context, mapped_void arg1, mapped_void arg2) {
-  auto mem = runtime::Current().memory();
-  auto thread = runtime::Current().thread_registry().FindByHandle(thread_handle);
+void NtQueueApcThread_entry(u32 thread_handle, MappedVoid apc_routine,
+                            MappedVoid apc_routine_context, MappedVoid arg1, MappedVoid arg2) {
+  auto mem = runtime::GetCurrent().GetMemory();
+  auto thread = runtime::GetCurrent().GetThreadRegistry().FindByHandle(thread_handle);
 
   if (!thread) {
     REXLOG_ERROR(kernel, "NtQueueApcThread: Incorrect thread handle! Might cause crash");
@@ -1183,39 +1192,41 @@ void NtQueueApcThread_entry(u32 thread_handle, mapped_void apc_routine,
   }
   XAPC* apc = mem->TranslateVirtual<XAPC*>(apc_ptr);
   // apc_mode 1 is user mode.
-  KeInitializeApc(apc, thread->guest_object(), XAPC::kDummyKernelRoutine, 0,
-                  apc_routine.guest_address(), 1, apc_routine_context.guest_address());
+  KeInitializeApc(apc, thread->GetGuestObject(), XAPC::kDummyKernelRoutine, 0,
+                  apc_routine.GetGuestAddress(), 1, apc_routine_context.GetGuestAddress());
 
-  if (!KeInsertQueueApc(*mem, apc, arg1.guest_address(), arg2.guest_address(), 0,
-                        ThreadState::Get()->context())) {
+  if (!KeInsertQueueApc(*mem, apc, arg1.GetGuestAddress(), arg2.GetGuestAddress(), 0,
+                        ThreadState::Get()->GetContext())) {
     mem->SystemHeapFree(apc_ptr);
     return;
   }
   // The callback is only a wakeup hint, APCs are delivered by alertable wait handling.
-  thread->thread()->QueueUserCallback([]() {});
+  thread->GetThread()->QueueUserCallback([]() {});
 }
 
-void KeInitializeApc_entry(ppc_ptr_t<XAPC> apc, mapped_void thread_ptr, mapped_void kernel_routine,
-                           mapped_void rundown_routine, mapped_void normal_routine,
-                           u32 processor_mode, mapped_void normal_context) {
-  KeInitializeApc(apc.host_address(), thread_ptr.guest_address(), kernel_routine.guest_address(),
-                  rundown_routine.guest_address(), normal_routine.guest_address(), processor_mode,
-                  normal_context.guest_address());
+void KeInitializeApc_entry(GuestPtrT<XAPC> apc, MappedVoid thread_ptr, MappedVoid kernel_routine,
+                           MappedVoid rundown_routine, MappedVoid normal_routine,
+                           u32 processor_mode, MappedVoid normal_context) {
+  KeInitializeApc(apc.GetHostAddress(), thread_ptr.GetGuestAddress(),
+                  kernel_routine.GetGuestAddress(), rundown_routine.GetGuestAddress(),
+                  normal_routine.GetGuestAddress(), processor_mode,
+                  normal_context.GetGuestAddress());
 }
 
-u32 KeInsertQueueApc_entry(ppc_ptr_t<XAPC> apc, mapped_void arg1, mapped_void arg2,
+u32 KeInsertQueueApc_entry(GuestPtrT<XAPC> apc, MappedVoid arg1, MappedVoid arg2,
                            u32 priority_increment) {
-  return KeInsertQueueApc(*runtime::Current().memory(), apc.host_address(), arg1.guest_address(),
-                          arg2.guest_address(), priority_increment, ThreadState::Get()->context());
+  return KeInsertQueueApc(*runtime::GetCurrent().GetMemory(), apc.GetHostAddress(),
+                          arg1.GetGuestAddress(), arg2.GetGuestAddress(), priority_increment,
+                          ThreadState::Get()->GetContext());
 }
 
-u32 KeRemoveQueueApc_entry(ppc_ptr_t<XAPC> apc) {
+u32 KeRemoveQueueApc_entry(GuestPtrT<XAPC> apc) {
   u32 thread_guest_pointer = apc->thread_ptr;
   if (!thread_guest_pointer) {
     return 0;
   }
-  auto* ctx = ThreadState::Get()->context();
-  auto mem = runtime::Current().memory();
+  auto* ctx = ThreadState::Get()->GetContext();
+  auto mem = runtime::GetCurrent().GetMemory();
   auto target_thread = mem->TranslateVirtual<X_KTHREAD*>(thread_guest_pointer);
   auto old_irql = KeKfAcquireSpinLock(*mem, ctx, &target_thread->apc_lock);
 
@@ -1234,25 +1245,25 @@ u32 KiApcNormalRoutineNop_entry([[maybe_unused]] u32 unk0, [[maybe_unused]] u32 
   return 0;
 }
 
-void KeInitializeDpc_entry(ppc_ptr_t<X_KDPC> dpc, mapped_void routine, mapped_void context) {
-  dpc->Initialize(routine.guest_address(), context.guest_address());
+void KeInitializeDpc_entry(GuestPtrT<X_KDPC> dpc, MappedVoid routine, MappedVoid context) {
+  dpc->Initialize(routine.GetGuestAddress(), context.GetGuestAddress());
 }
 
-u32 KeInsertQueueDpc_entry(ppc_ptr_t<X_KDPC> dpc, u32 arg1, u32 arg2) {
-  auto& runtime = runtime::Current();
-  if (!runtime.dispatcher().QueueDPC(dpc.guest_address(), arg1, arg2)) {
+u32 KeInsertQueueDpc_entry(GuestPtrT<X_KDPC> dpc, u32 arg1, u32 arg2) {
+  auto& runtime = runtime::GetCurrent();
+  if (!runtime.GetDispatcher().QueueDPC(dpc.GetGuestAddress(), arg1, arg2)) {
     return 0;
   }
   DrainDPCsBelowDispatch(runtime);
   return 1;
 }
 
-u32 KeRemoveQueueDpc_entry(ppc_ptr_t<X_KDPC> dpc) {
-  return runtime::Current().dispatcher().RemoveDPC(dpc.guest_address()) ? 1 : 0;
+u32 KeRemoveQueueDpc_entry(GuestPtrT<X_KDPC> dpc) {
+  return runtime::GetCurrent().GetDispatcher().RemoveDPC(dpc.GetGuestAddress()) ? 1 : 0;
 }
 
 void KeRetireDpcList_entry() {
-  runtime::Current().dispatcher().DrainDPCs();
+  runtime::GetCurrent().GetDispatcher().DrainDPCs();
 }
 
 struct X_KINTERRUPT {
@@ -1269,7 +1280,7 @@ REX_STATIC_ASSERT_SIZE(X_KINTERRUPT, 0x14);
 
 constexpr u8 kInterruptConnected = 0x01;
 
-void KeInitializeInterrupt_entry(ppc_ptr_t<X_KINTERRUPT> interrupt, u32 service_routine,
+void KeInitializeInterrupt_entry(GuestPtrT<X_KINTERRUPT> interrupt, u32 service_routine,
                                  u32 service_context, u32 bus_irql, u32 irql, u32 mode,
                                  u32 target_number) {
   interrupt->service_routine = service_routine;
@@ -1282,19 +1293,19 @@ void KeInitializeInterrupt_entry(ppc_ptr_t<X_KINTERRUPT> interrupt, u32 service_
   interrupt->target_number = static_cast<u8>(target_number);
 }
 
-u32 KeConnectInterrupt_entry(ppc_ptr_t<X_KINTERRUPT> interrupt) {
+u32 KeConnectInterrupt_entry(GuestPtrT<X_KINTERRUPT> interrupt) {
   std::atomic_ref<u8> state(interrupt->mode_connected);
   return (state.fetch_or(kInterruptConnected) & kInterruptConnected) ? 0 : 1;
 }
 
-u32 KeDisconnectInterrupt_entry(ppc_ptr_t<X_KINTERRUPT> interrupt) {
+u32 KeDisconnectInterrupt_entry(GuestPtrT<X_KINTERRUPT> interrupt) {
   std::atomic_ref<u8> state(interrupt->mode_connected);
   return (state.fetch_and(static_cast<u8>(~kInterruptConnected)) & kInterruptConnected) ? 1 : 0;
 }
 
 u64 KeQueryInterruptTime_entry() {
   const u64 ticks = Clock::QueryGuestTickCount();
-  const u64 frequency = Clock::guest_tick_frequency();
+  const u64 frequency = Clock::GetGuestTickFrequency();
   return ticks / frequency * 10000000 + ticks % frequency * 10000000 / frequency;
 }
 
@@ -1309,40 +1320,43 @@ struct X_ERWLOCK {
 };
 REX_STATIC_ASSERT_SIZE(X_ERWLOCK, 0x38);
 
-void ExInitializeReadWriteLock_entry(ppc_ptr_t<X_ERWLOCK> lock_ptr) {
+void ExInitializeReadWriteLock_entry(GuestPtrT<X_ERWLOCK> lock_ptr) {
   lock_ptr->lock_count = -1;
   lock_ptr->writers_waiting_count = 0;
   lock_ptr->readers_waiting_count = 0;
   lock_ptr->readers_entry_count = 0;
-  ppc_ptr_t<X_KEVENT> event_ptr(&lock_ptr->writer_event,
-                                lock_ptr.guest_address() + offsetof(X_ERWLOCK, writer_event));
-  ppc_ptr_t<X_KSEMAPHORE> sem_ptr(&lock_ptr->reader_semaphore,
-                                  lock_ptr.guest_address() + offsetof(X_ERWLOCK, reader_semaphore));
+  GuestPtrT<X_KEVENT> event_ptr(&lock_ptr->writer_event,
+                                lock_ptr.GetGuestAddress() + offsetof(X_ERWLOCK, writer_event));
+  GuestPtrT<X_KSEMAPHORE> sem_ptr(
+      &lock_ptr->reader_semaphore,
+      lock_ptr.GetGuestAddress() + offsetof(X_ERWLOCK, reader_semaphore));
   KeInitializeEvent_entry(event_ptr, 1, 0);
   KeInitializeSemaphore_entry(sem_ptr, 0, 0x7FFFFFFF);
-  lock_ptr->spin_lock.prcb_of_owner.store(0, std::memory_order_release);
+  lock_ptr->spin_lock.prcb_of_owner.Store(0, std::memory_order_release);
 }
 
-void ExAcquireReadWriteLockExclusive_entry(ppc_ptr_t<X_ERWLOCK> lock_ptr) {
-  auto* ctx = ThreadState::Get()->context();
-  auto old_irql = KeKfAcquireSpinLock(*runtime::Current().memory(), ctx, &lock_ptr->spin_lock);
+void ExAcquireReadWriteLockExclusive_entry(GuestPtrT<X_ERWLOCK> lock_ptr) {
+  auto* ctx = ThreadState::Get()->GetContext();
+  auto old_irql =
+      KeKfAcquireSpinLock(*runtime::GetCurrent().GetMemory(), ctx, &lock_ptr->spin_lock);
 
   i32 lock_count = ++lock_ptr->lock_count;
   if (!lock_count) {
-    KeKfReleaseSpinLock(*runtime::Current().memory(), ctx, &lock_ptr->spin_lock, old_irql);
+    KeKfReleaseSpinLock(*runtime::GetCurrent().GetMemory(), ctx, &lock_ptr->spin_lock, old_irql);
     return;
   }
 
   lock_ptr->writers_waiting_count++;
 
-  KeKfReleaseSpinLock(*runtime::Current().memory(), ctx, &lock_ptr->spin_lock, old_irql);
-  KeWaitForSingleObject(lock_ptr.guest_address() + offsetof(X_ERWLOCK, writer_event), 7, 0, 0,
+  KeKfReleaseSpinLock(*runtime::GetCurrent().GetMemory(), ctx, &lock_ptr->spin_lock, old_irql);
+  KeWaitForSingleObject(lock_ptr.GetGuestAddress() + offsetof(X_ERWLOCK, writer_event), 7, 0, 0,
                         nullptr);
 }
 
-u32 ExTryToAcquireReadWriteLockExclusive_entry(ppc_ptr_t<X_ERWLOCK> lock_ptr) {
-  auto* ctx = ThreadState::Get()->context();
-  auto old_irql = KeKfAcquireSpinLock(*runtime::Current().memory(), ctx, &lock_ptr->spin_lock);
+u32 ExTryToAcquireReadWriteLockExclusive_entry(GuestPtrT<X_ERWLOCK> lock_ptr) {
+  auto* ctx = ThreadState::Get()->GetContext();
+  auto old_irql =
+      KeKfAcquireSpinLock(*runtime::GetCurrent().GetMemory(), ctx, &lock_ptr->spin_lock);
 
   u32 result;
   if (lock_ptr->lock_count < 0) {
@@ -1352,31 +1366,33 @@ u32 ExTryToAcquireReadWriteLockExclusive_entry(ppc_ptr_t<X_ERWLOCK> lock_ptr) {
     result = 0;
   }
 
-  KeKfReleaseSpinLock(*runtime::Current().memory(), ctx, &lock_ptr->spin_lock, old_irql);
+  KeKfReleaseSpinLock(*runtime::GetCurrent().GetMemory(), ctx, &lock_ptr->spin_lock, old_irql);
   return result;
 }
 
-void ExAcquireReadWriteLockShared_entry(ppc_ptr_t<X_ERWLOCK> lock_ptr) {
-  auto* ctx = ThreadState::Get()->context();
-  auto old_irql = KeKfAcquireSpinLock(*runtime::Current().memory(), ctx, &lock_ptr->spin_lock);
+void ExAcquireReadWriteLockShared_entry(GuestPtrT<X_ERWLOCK> lock_ptr) {
+  auto* ctx = ThreadState::Get()->GetContext();
+  auto old_irql =
+      KeKfAcquireSpinLock(*runtime::GetCurrent().GetMemory(), ctx, &lock_ptr->spin_lock);
 
   i32 lock_count = ++lock_ptr->lock_count;
   if (!lock_count || (lock_ptr->readers_entry_count && !lock_ptr->writers_waiting_count)) {
     lock_ptr->readers_entry_count++;
-    KeKfReleaseSpinLock(*runtime::Current().memory(), ctx, &lock_ptr->spin_lock, old_irql);
+    KeKfReleaseSpinLock(*runtime::GetCurrent().GetMemory(), ctx, &lock_ptr->spin_lock, old_irql);
     return;
   }
 
   lock_ptr->readers_waiting_count++;
 
-  KeKfReleaseSpinLock(*runtime::Current().memory(), ctx, &lock_ptr->spin_lock, old_irql);
-  KeWaitForSingleObject(lock_ptr.guest_address() + offsetof(X_ERWLOCK, reader_semaphore), 7, 0, 0,
+  KeKfReleaseSpinLock(*runtime::GetCurrent().GetMemory(), ctx, &lock_ptr->spin_lock, old_irql);
+  KeWaitForSingleObject(lock_ptr.GetGuestAddress() + offsetof(X_ERWLOCK, reader_semaphore), 7, 0, 0,
                         nullptr);
 }
 
-u32 ExTryToAcquireReadWriteLockShared_entry(ppc_ptr_t<X_ERWLOCK> lock_ptr) {
-  auto* ctx = ThreadState::Get()->context();
-  auto old_irql = KeKfAcquireSpinLock(*runtime::Current().memory(), ctx, &lock_ptr->spin_lock);
+u32 ExTryToAcquireReadWriteLockShared_entry(GuestPtrT<X_ERWLOCK> lock_ptr) {
+  auto* ctx = ThreadState::Get()->GetContext();
+  auto old_irql =
+      KeKfAcquireSpinLock(*runtime::GetCurrent().GetMemory(), ctx, &lock_ptr->spin_lock);
 
   u32 result;
   if (lock_ptr->lock_count < 0 ||
@@ -1388,19 +1404,20 @@ u32 ExTryToAcquireReadWriteLockShared_entry(ppc_ptr_t<X_ERWLOCK> lock_ptr) {
     result = 0;
   }
 
-  KeKfReleaseSpinLock(*runtime::Current().memory(), ctx, &lock_ptr->spin_lock, old_irql);
+  KeKfReleaseSpinLock(*runtime::GetCurrent().GetMemory(), ctx, &lock_ptr->spin_lock, old_irql);
   return result;
 }
 
-void ExReleaseReadWriteLock_entry(ppc_ptr_t<X_ERWLOCK> lock_ptr) {
-  auto* ctx = ThreadState::Get()->context();
-  auto old_irql = KeKfAcquireSpinLock(*runtime::Current().memory(), ctx, &lock_ptr->spin_lock);
+void ExReleaseReadWriteLock_entry(GuestPtrT<X_ERWLOCK> lock_ptr) {
+  auto* ctx = ThreadState::Get()->GetContext();
+  auto old_irql =
+      KeKfAcquireSpinLock(*runtime::GetCurrent().GetMemory(), ctx, &lock_ptr->spin_lock);
 
   i32 lock_count = --lock_ptr->lock_count;
 
   if (lock_count < 0) {
     lock_ptr->readers_entry_count = 0;
-    KeKfReleaseSpinLock(*runtime::Current().memory(), ctx, &lock_ptr->spin_lock, old_irql);
+    KeKfReleaseSpinLock(*runtime::GetCurrent().GetMemory(), ctx, &lock_ptr->spin_lock, old_irql);
     return;
   }
 
@@ -1409,8 +1426,8 @@ void ExReleaseReadWriteLock_entry(ppc_ptr_t<X_ERWLOCK> lock_ptr) {
     if (readers_waiting_count) {
       lock_ptr->readers_waiting_count = 0;
       lock_ptr->readers_entry_count = readers_waiting_count;
-      KeKfReleaseSpinLock(*runtime::Current().memory(), ctx, &lock_ptr->spin_lock, old_irql);
-      KeReleaseSemaphore(lock_ptr.guest_address() + offsetof(X_ERWLOCK, reader_semaphore), 1,
+      KeKfReleaseSpinLock(*runtime::GetCurrent().GetMemory(), ctx, &lock_ptr->spin_lock, old_irql);
+      KeReleaseSemaphore(lock_ptr.GetGuestAddress() + offsetof(X_ERWLOCK, reader_semaphore), 1,
                          readers_waiting_count, 0);
       return;
     }
@@ -1418,13 +1435,13 @@ void ExReleaseReadWriteLock_entry(ppc_ptr_t<X_ERWLOCK> lock_ptr) {
 
   auto readers_entry_count = --lock_ptr->readers_entry_count;
   if (readers_entry_count) {
-    KeKfReleaseSpinLock(*runtime::Current().memory(), ctx, &lock_ptr->spin_lock, old_irql);
+    KeKfReleaseSpinLock(*runtime::GetCurrent().GetMemory(), ctx, &lock_ptr->spin_lock, old_irql);
     return;
   }
 
   lock_ptr->writers_waiting_count--;
-  KeKfReleaseSpinLock(*runtime::Current().memory(), ctx, &lock_ptr->spin_lock, old_irql);
-  KeSetEvent(lock_ptr.guest_address() + offsetof(X_ERWLOCK, writer_event), 1, 0);
+  KeKfReleaseSpinLock(*runtime::GetCurrent().GetMemory(), ctx, &lock_ptr->spin_lock, old_irql);
+  KeSetEvent(lock_ptr.GetGuestAddress() + offsetof(X_ERWLOCK, writer_event), 1, 0);
 }
 
 /**
@@ -1434,8 +1451,8 @@ void ExReleaseReadWriteLock_entry(ppc_ptr_t<X_ERWLOCK> lock_ptr) {
  * @param entry The entry to push.
  * @return The previous first entry.
  */
-u32 InterlockedPushEntrySList_entry(ppc_ptr_t<X_SLIST_HEADER> plist_ptr,
-                                    ppc_ptr_t<X_SINGLE_LIST_ENTRY> entry) {
+u32 InterlockedPushEntrySList_entry(GuestPtrT<X_SLIST_HEADER> plist_ptr,
+                                    GuestPtrT<X_SINGLE_LIST_ENTRY> entry) {
   REX_ASSERT(plist_ptr != nullptr);
   REX_ASSERT(entry != nullptr);
 
@@ -1449,14 +1466,14 @@ u32 InterlockedPushEntrySList_entry(ppc_ptr_t<X_SLIST_HEADER> plist_ptr,
 
     old_head = old_hdr.next.next;
     entry->next = old_hdr.next.next;
-    new_hdr.next.next = entry.guest_address();
+    new_hdr.next.next = entry.GetGuestAddress();
   } while (!rex::platform::atomic_cas(std::bit_cast<u64>(old_hdr), std::bit_cast<u64>(new_hdr),
-                                      reinterpret_cast<u64*>(plist_ptr.host_address())));
+                                      reinterpret_cast<u64*>(plist_ptr.GetHostAddress())));
 
   return old_head;
 }
 
-u32 InterlockedPopEntrySList_entry(ppc_ptr_t<X_SLIST_HEADER> plist_ptr) {
+u32 InterlockedPopEntrySList_entry(GuestPtrT<X_SLIST_HEADER> plist_ptr) {
   REX_ASSERT(plist_ptr != nullptr);
 
   u32 popped = 0;
@@ -1464,8 +1481,8 @@ u32 InterlockedPopEntrySList_entry(ppc_ptr_t<X_SLIST_HEADER> plist_ptr) {
   alignas(8) X_SLIST_HEADER new_hdr = {};
   do {
     old_hdr = *plist_ptr;
-    auto next =
-        runtime::Current().memory()->TranslateVirtual<X_SINGLE_LIST_ENTRY*>(old_hdr.next.next);
+    auto next = runtime::GetCurrent().GetMemory()->TranslateVirtual<X_SINGLE_LIST_ENTRY*>(
+        old_hdr.next.next);
     if (!old_hdr.next.next) {
       return 0;
     }
@@ -1475,12 +1492,12 @@ u32 InterlockedPopEntrySList_entry(ppc_ptr_t<X_SLIST_HEADER> plist_ptr) {
     new_hdr.next.next = next->next;
     new_hdr.sequence = old_hdr.sequence;
   } while (!rex::platform::atomic_cas(std::bit_cast<u64>(old_hdr), std::bit_cast<u64>(new_hdr),
-                                      reinterpret_cast<u64*>(plist_ptr.host_address())));
+                                      reinterpret_cast<u64*>(plist_ptr.GetHostAddress())));
 
   return popped;
 }
 
-u32 InterlockedFlushSList_entry(ppc_ptr_t<X_SLIST_HEADER> plist_ptr) {
+u32 InterlockedFlushSList_entry(GuestPtrT<X_SLIST_HEADER> plist_ptr) {
   REX_ASSERT(plist_ptr != nullptr);
 
   alignas(8) X_SLIST_HEADER old_hdr = *plist_ptr;
@@ -1493,7 +1510,7 @@ u32 InterlockedFlushSList_entry(ppc_ptr_t<X_SLIST_HEADER> plist_ptr) {
     new_hdr.depth = 0;
     new_hdr.sequence = 0;
   } while (!rex::platform::atomic_cas(std::bit_cast<u64>(old_hdr), std::bit_cast<u64>(new_hdr),
-                                      reinterpret_cast<u64*>(plist_ptr.host_address())));
+                                      reinterpret_cast<u64*>(plist_ptr.GetHostAddress())));
 
   return first;
 }
@@ -1509,12 +1526,12 @@ REX_EXPORT_STUB(__imp__KeRemoveQueue);
 REX_EXPORT_STUB(__imp__KeSetEventBoostPriority);
 REX_EXPORT_STUB(__imp__KiApcNormalRoutineNop_);
 
-u32 KeSuspendThread_entry(mapped_void kthread_ptr) {
-  auto thread = FindThread(kthread_ptr.guest_address());
+u32 KeSuspendThread_entry(MappedVoid kthread_ptr) {
+  auto thread = FindThread(kthread_ptr.GetGuestAddress());
   u32 old_suspend_count = 0;
 
   if (thread) {
-    old_suspend_count = thread->suspend_count();
+    old_suspend_count = thread->SuspendCount();
     u32 discarded = 0;
     thread->Suspend(&discarded);
   }

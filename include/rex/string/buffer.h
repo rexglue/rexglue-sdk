@@ -39,20 +39,20 @@ class REX_API StringBuffer {
    *
    * @return Pointer to the NUL terminated contents.
    */
-  char* buffer() const { return buffer_; }
+  char* GetBuffer() const { return buffer_; }
 
   /**
    * Returns the content length.
    *
    * @return Byte count, not counting the terminator.
    */
-  size_t length() const { return buffer_offset_; }
+  size_t GetLength() const { return buffer_offset_; }
 
   /** Empties the buffer and keeps its capacity. */
   void Reset();
 
   /**
-   * Appends 1 character.
+   * Appends a character.
    *
    * @param c Character to append.
    */
@@ -113,21 +113,21 @@ class REX_API StringBuffer {
    *
    * @return The contents.
    */
-  std::string to_string();
+  std::string ToString();
 
   /**
    * Returns a view of the contents.
    *
    * @return View valid until the next append or destruction.
    */
-  std::string_view to_string_view() const;
+  std::string_view ToStringView() const;
 
   /**
    * Copies the contents into a byte vector.
    *
    * @return The contents without the terminator.
    */
-  std::vector<u8> to_bytes() const;
+  std::vector<u8> ToBytes() const;
 
  private:
   void Grow(size_t additional_length);

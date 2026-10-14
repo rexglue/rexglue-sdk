@@ -41,7 +41,7 @@ constexpr std::string_view kMagic = "MICROSOFT*XBOX*MEDIA";
 constexpr u64 kUnixEpochTicks = 10000 * 11644473600000LL;
 
 bool MagicAt(std::span<const u8> image, u64 offset) {
-  return InBounds(image, offset, kMagic.size()) &&
+  return IsInBounds(image, offset, kMagic.size()) &&
          std::memcmp(image.data() + offset, kMagic.data(), kMagic.size()) == 0;
 }
 
@@ -93,7 +93,7 @@ class GDFXReader {
           std::format("GDFX entry {} of the table at {:#x} repeats", visit.ordinal, visit.table)));
     }
     const u64 entry_offset = static_cast<u64>(visit.ordinal) * 4;
-    if (!InBounds(image_, visit.table + entry_offset, kEntryHeaderSize)) {
+    if (!IsInBounds(image_, visit.table + entry_offset, kEntryHeaderSize)) {
       return Err(Corrupt(std::format("GDFX entry {} of the table at {:#x} is outside the image",
                                      visit.ordinal, visit.table)));
     }
@@ -108,7 +108,7 @@ class GDFXReader {
     std::memcpy(&entry.length, p + 8, sizeof(entry.length));
     entry.attributes = p[12];
     const u8 name_length = p[13];
-    if (!InBounds(image_, visit.table + entry_offset + kEntryHeaderSize, name_length)) {
+    if (!IsInBounds(image_, visit.table + entry_offset + kEntryHeaderSize, name_length)) {
       return Err(Corrupt(std::format("GDFX name of entry {} is outside the image", visit.ordinal)));
     }
     entry.name.assign(reinterpret_cast<const char*>(p + kEntryHeaderSize), name_length);
@@ -171,7 +171,7 @@ bool IsGDFX(std::span<const u8> image) {
     return Err(Corrupt(std::format("GDFX root table size {} is out of range", *root_size)));
   }
   const u64 root_offset = *game_offset + (static_cast<u64>(*root_sector) * kSectorSize);
-  if (!InBounds(image, root_offset, *root_size)) {
+  if (!IsInBounds(image, root_offset, *root_size)) {
     return Err(Corrupt("GDFX root table is outside the image"));
   }
   nodes.front().attributes = FileAttributes::kDirectory;

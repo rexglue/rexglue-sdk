@@ -20,9 +20,9 @@
 
 namespace rex::ui {
 
-std::vector<DisplayInfo> SDL3UserInterface::Displays() {
+std::vector<DisplayInfo> SDL3UserInterface::GetDisplays() {
   VideoScope video;
-  if (!video.Ok()) {
+  if (!video.IsOk()) {
     return {};
   }
   int count = 0;
@@ -57,7 +57,7 @@ std::vector<DisplayInfo> SDL3UserInterface::Displays() {
   return displays;
 }
 
-std::vector<HostLocale> SDL3UserInterface::PreferredLocales() {
+std::vector<HostLocale> SDL3UserInterface::GetPreferredLocales() {
   i32 count = 0;
   std::unique_ptr<SDL_Locale*, decltype(&SDL_free)> locales(SDL_GetPreferredLocales(&count),
                                                             &SDL_free);

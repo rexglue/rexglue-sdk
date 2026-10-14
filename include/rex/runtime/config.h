@@ -19,7 +19,7 @@ namespace rex::runtime {
 
 /** Values the kernel reports to the title. */
 struct KernelConfig {
-  /** Xam UI exports answer without a dialog. */
+  /** XAM UI exports answer without a dialog. */
   bool headless = false;
   /** XCONFIG_USER_LANGUAGE. */
   u32 user_language = 1;
@@ -48,9 +48,9 @@ struct RuntimeConfig {
 
 /** Why the title exited while the app keeps running. */
 enum class TitleExitReason : u8 {
-  NormalExit,     /**< The title's main thread returned. */
-  HardExit,       /**< The title called HalReturnToFirmware. */
-  TitleDataError, /**< Xam reported that title data could not be read from the disc. */
+  kNormalExit,     /**< The title's main thread returned. */
+  kHardExit,       /**< The title called HalReturnToFirmware. */
+  kTitleDataError, /**< XAM reported that title data could not be read from the disc. */
 };
 
 }  // namespace rex::runtime

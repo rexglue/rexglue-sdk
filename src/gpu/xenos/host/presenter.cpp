@@ -142,7 +142,7 @@ void Presenter::OnSurfaceResizeFromUIThread() {
 
 void Presenter::PaintFromUIThread(bool force_paint) {
   // The monitor check is explicit because UI frame rate limiting may be tied to OS monitor signals.
-  if (!InSurfaceOnMonitorFromUIThread()) {
+  if (!IsSurfaceOnMonitorFromUIThread()) {
     return;
   }
 
@@ -705,8 +705,8 @@ void Presenter::UpdateSurfaceMonitorFromUIThread(
   // A non null monitor requires surface_ (implying host_), so closing a window drops it.
 #if REX_PLATFORM_WIN32
   HMONITOR surface_new_win32_monitor = nullptr;
-  if (surface_ && surface_->GetType() == gpu::Surface::kTypeIndex_Win32Hwnd) {
-    HWND hwnd = static_cast<const gpu::Win32HwndSurface*>(surface_)->hwnd();
+  if (surface_ && surface_->GetType() == gpu::Surface::kTypeIndexWin32HWND) {
+    HWND hwnd = static_cast<const gpu::Win32HWNDSurface*>(surface_)->GetHWND();
     if (hwnd) {
       surface_new_win32_monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONULL);
     }
@@ -750,7 +750,7 @@ void Presenter::UpdateSurfaceMonitorFromUIThread(
 #endif  // REX_PLATFORM_WIN32
 }
 
-bool Presenter::InSurfaceOnMonitorFromUIThread() const {
+bool Presenter::IsSurfaceOnMonitorFromUIThread() const {
   if (!surface_) {
     return false;
   }

@@ -58,7 +58,7 @@ bool IsValidProjectName(std::string_view name) {
 bool LoadBinaryConfig(const toml::table& tbl, const std::filesystem::path& base_dir,
                       std::string_view project_name, BinaryConfig& out) {
   out.recompiler = RecompilerConfig{};
-  out.recompiler.projectName = std::string(project_name);
+  out.recompiler.project_name = std::string(project_name);
   if (!out.recompiler.LoadFromTable(tbl, base_dir)) {
     return false;
   }
@@ -76,35 +76,35 @@ std::optional<ManifestConfig> ManifestConfig::Load(const std::filesystem::path& 
   }
 
   ManifestConfig manifest;
-  manifest.manifestDir = path.parent_path();
-  manifest.manifestPath = path;
+  manifest.manifest_dir = path.parent_path();
+  manifest.manifest_path = path;
 
   auto* project = tbl["project"].as_table();
   if (!project) {
     REX_FAIL(codegen, std::nullopt, "Manifest missing [project] section: {}", path.string());
   }
-  manifest.projectName = (*project)["name"].value_or<std::string>("");
-  if (manifest.projectName.empty()) {
+  manifest.project_name = (*project)["name"].value_or<std::string>("");
+  if (manifest.project_name.empty()) {
     REX_FAIL(codegen, std::nullopt, "Manifest missing [project].name: {}", path.string());
   }
-  if (!IsValidProjectName(manifest.projectName)) {
+  if (!IsValidProjectName(manifest.project_name)) {
     REX_FAIL(codegen, std::nullopt,
              "Manifest [project].name '{}' is not a valid identifier "
              "(letters, digits, underscore; must not start with a digit): {}",
-             manifest.projectName, path.string());
+             manifest.project_name, path.string());
   }
   if (auto stamp = (*project)["sdk_version"].value<std::string>(); stamp && !stamp->empty()) {
-    manifest.sdkVersion = *stamp;
+    manifest.sdk_version = *stamp;
   }
   if (auto root = (*project)["game_root"].value<std::string>(); root && !root->empty()) {
-    manifest.gameRoot = *root;
+    manifest.game_root = *root;
   }
 
   auto* entrypoint = tbl["entrypoint"].as_table();
   if (!entrypoint) {
     REX_FAIL(codegen, std::nullopt, "Manifest missing [entrypoint] section: {}", path.string());
   }
-  if (!LoadBinaryConfig(*entrypoint, manifest.manifestDir, manifest.projectName,
+  if (!LoadBinaryConfig(*entrypoint, manifest.manifest_dir, manifest.project_name,
                         manifest.entrypoint)) {
     return std::nullopt;
   }
@@ -112,24 +112,24 @@ std::optional<ManifestConfig> ManifestConfig::Load(const std::filesystem::path& 
   if (auto modules = tbl["modules"].as_array()) {
     size_t index = 0;
     for (const auto& mod : *modules) {
-      auto* modTbl = mod.as_table();
-      if (!modTbl) {
+      auto* mod_tbl = mod.as_table();
+      if (!mod_tbl) {
         REX_FAIL(codegen, std::nullopt, "Manifest [[modules]] entry #{} is not a table", index);
       }
       BinaryConfig binary;
-      if (!LoadBinaryConfig(*modTbl, manifest.manifestDir, manifest.projectName, binary)) {
+      if (!LoadBinaryConfig(*mod_tbl, manifest.manifest_dir, manifest.project_name, binary)) {
         return std::nullopt;
       }
-      auto guest_path = (*modTbl)[kModuleGuestPathKey].value_or<std::string>("");
+      auto guest_path = (*mod_tbl)[kModuleGuestPathKey].value_or<std::string>("");
       if (guest_path.empty()) {
         REX_FAIL(codegen, std::nullopt, "Manifest [[modules]] entry #{} missing {}", index,
                  kModuleGuestPathKey);
       }
-      binary.guestPath = CanonicalizeModuleGuestPath(guest_path, manifest.projectName);
+      binary.guest_path = CanonicalizeModuleGuestPath(guest_path, manifest.project_name);
       for (const auto& existing : manifest.modules) {
-        if (existing.guestPath == binary.guestPath) {
+        if (existing.guest_path == binary.guest_path) {
           REX_FAIL(codegen, std::nullopt, "Manifest [[modules]] duplicate {} '{}' (entry #{})",
-                   kModuleGuestPathKey, binary.guestPath, index);
+                   kModuleGuestPathKey, binary.guest_path, index);
         }
       }
       manifest.modules.push_back(std::move(binary));

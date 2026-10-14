@@ -39,7 +39,7 @@ struct MapParseOptions {
 /**
  * Error types for map parsing operations.
  */
-enum class MapParseError : u8 { FileNotFound, FileReadError, InvalidFormat, Empty };
+enum class MapParseError : u8 { kFileNotFound, kFileReadError, kInvalidFormat, kEmpty };
 
 /**
  * Returns a readable description of a MapParseError.
@@ -49,13 +49,13 @@ enum class MapParseError : u8 { FileNotFound, FileReadError, InvalidFormat, Empt
  */
 constexpr std::string_view to_string(MapParseError error) {
   switch (error) {
-    case MapParseError::FileNotFound:
+    case MapParseError::kFileNotFound:
       return "File not found";
-    case MapParseError::FileReadError:
+    case MapParseError::kFileReadError:
       return "Failed to read file";
-    case MapParseError::InvalidFormat:
+    case MapParseError::kInvalidFormat:
       return "Invalid map format";
-    case MapParseError::Empty:
+    case MapParseError::kEmpty:
       return "No symbols found";
   }
   return "Unknown error";

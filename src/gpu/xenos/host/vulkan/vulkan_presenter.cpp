@@ -51,8 +51,8 @@ namespace shaders {
 }  // namespace shaders
 
 VulkanPresenter::PaintContext::Submission::~Submission() {
-  const VulkanDevice::Functions& dfn = vulkan_device_->functions();
-  const VkDevice device = vulkan_device_->device();
+  const VulkanDevice::Functions& dfn = vulkan_device_->GetFunctions();
+  const VkDevice device = vulkan_device_->GetDevice();
 
   if (draw_command_pool_ != VK_NULL_HANDLE) {
     dfn.vkDestroyCommandPool(device, draw_command_pool_, nullptr);
@@ -67,8 +67,8 @@ VulkanPresenter::PaintContext::Submission::~Submission() {
 }
 
 bool VulkanPresenter::PaintContext::Submission::Initialize() {
-  const VulkanDevice::Functions& dfn = vulkan_device_->functions();
-  const VkDevice device = vulkan_device_->device();
+  const VulkanDevice::Functions& dfn = vulkan_device_->GetFunctions();
+  const VkDevice device = vulkan_device_->GetDevice();
 
   VkSemaphoreCreateInfo semaphore_create_info;
   semaphore_create_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
@@ -91,7 +91,7 @@ bool VulkanPresenter::PaintContext::Submission::Initialize() {
   command_pool_create_info.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
   command_pool_create_info.pNext = nullptr;
   command_pool_create_info.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT;
-  command_pool_create_info.queueFamilyIndex = vulkan_device_->queue_family_graphics_compute();
+  command_pool_create_info.queueFamilyIndex = vulkan_device_->GetQueueFamilyGraphicsCompute();
   if (dfn.vkCreateCommandPool(device, &command_pool_create_info, nullptr, &draw_command_pool_) !=
       VK_SUCCESS) {
     REX_FAIL(ui, false,
@@ -120,8 +120,8 @@ VulkanPresenter::~VulkanPresenter() {
   ui_submission_tracker_.Shutdown();
   guest_output_image_refresher_submission_tracker_.Shutdown();
 
-  const VulkanDevice::Functions& dfn = vulkan_device_->functions();
-  const VkDevice device = vulkan_device_->device();
+  const VulkanDevice::Functions& dfn = vulkan_device_->GetFunctions();
+  const VkDevice device = vulkan_device_->GetDevice();
 
   if (paint_context_.swapchain_render_pass != VK_NULL_HANDLE) {
     dfn.vkDestroyRenderPass(device, paint_context_.swapchain_render_pass, nullptr);
@@ -159,30 +159,30 @@ gpu::Surface::TypeFlags VulkanPresenter::GetSurfaceTypesSupportedByInstance(
   gpu::Surface::TypeFlags type_flags = 0;
 #if REX_PLATFORM_GNU_LINUX
   if (instance_extensions.ext_KHR_wayland_surface) {
-    type_flags |= gpu::Surface::kTypeFlag_WaylandSurface;
+    type_flags |= gpu::Surface::kTypeFlagWaylandSurface;
   }
   if (instance_extensions.ext_KHR_xcb_surface) {
-    type_flags |= gpu::Surface::kTypeFlag_XcbWindow;
+    type_flags |= gpu::Surface::kTypeFlagXCBWindow;
   }
 #endif
 #if REX_PLATFORM_WIN32
   if (instance_extensions.ext_KHR_win32_surface) {
-    type_flags |= gpu::Surface::kTypeFlag_Win32Hwnd;
+    type_flags |= gpu::Surface::kTypeFlagWin32HWND;
   }
 #endif
 #if REX_PLATFORM_MAC
   if (instance_extensions.ext_EXT_metal_surface) {
-    type_flags |= gpu::Surface::kTypeFlag_CAMetalLayer;
+    type_flags |= gpu::Surface::kTypeFlagCAMetalLayer;
   }
 #endif
   return type_flags;
 }
 
 gpu::Surface::TypeFlags VulkanPresenter::GetSupportedSurfaceTypes() const {
-  if (!vulkan_device_->extensions().ext_KHR_swapchain) {
+  if (!vulkan_device_->GetExtensions().ext_KHR_swapchain) {
     return 0;
   }
-  return GetSurfaceTypesSupportedByInstance(vulkan_device_->vulkan_instance()->extensions());
+  return GetSurfaceTypesSupportedByInstance(vulkan_device_->GetVulkanInstance()->GetExtensions());
 }
 
 VkCommandBuffer VulkanPresenter::AcquireUISetupCommandBufferFromUIThread() {
@@ -192,8 +192,8 @@ VkCommandBuffer VulkanPresenter::AcquireUISetupCommandBufferFromUIThread() {
         .command_buffer;
   }
 
-  const VulkanDevice::Functions& dfn = vulkan_device_->functions();
-  const VkDevice device = vulkan_device_->device();
+  const VulkanDevice::Functions& dfn = vulkan_device_->GetFunctions();
+  const VkDevice device = vulkan_device_->GetDevice();
 
   VkCommandBufferBeginInfo command_buffer_begin_info;
   command_buffer_begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -229,7 +229,7 @@ VkCommandBuffer VulkanPresenter::AcquireUISetupCommandBufferFromUIThread() {
   command_pool_create_info.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
   command_pool_create_info.pNext = nullptr;
   command_pool_create_info.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT;
-  command_pool_create_info.queueFamilyIndex = vulkan_device_->queue_family_graphics_compute();
+  command_pool_create_info.queueFamilyIndex = vulkan_device_->GetQueueFamilyGraphicsCompute();
   VkCommandPool new_command_pool;
   if (dfn.vkCreateCommandPool(device, &command_pool_create_info, nullptr, &new_command_pool) !=
       VK_SUCCESS) {
@@ -264,11 +264,11 @@ Presenter::SurfacePaintConnectResult
 VulkanPresenter::ConnectOrReconnectPaintingToSurfaceFromUIThread(
     gpu::Surface& new_surface, u32 new_surface_width, u32 new_surface_height,
     [[maybe_unused]] bool was_paintable, bool& is_vsync_implicit_out) {
-  const VulkanInstance* const vulkan_instance = vulkan_device_->vulkan_instance();
-  const VulkanInstance::Functions& ifn = vulkan_instance->functions();
-  const VkInstance instance = vulkan_instance->instance();
-  const VulkanDevice::Functions& dfn = vulkan_device_->functions();
-  const VkDevice device = vulkan_device_->device();
+  const VulkanInstance* const vulkan_instance = vulkan_device_->GetVulkanInstance();
+  const VulkanInstance::Functions& ifn = vulkan_instance->GetFunctions();
+  const VkInstance instance = vulkan_instance->GetInstance();
+  const VulkanDevice::Functions& dfn = vulkan_device_->GetFunctions();
+  const VkDevice device = vulkan_device_->GetDevice();
 
   VkFormat new_swapchain_format;
 
@@ -298,50 +298,50 @@ VulkanPresenter::ConnectOrReconnectPaintingToSurfaceFromUIThread(
     VkResult vulkan_surface_create_result = VK_ERROR_UNKNOWN;
     switch (surface_type) {
 #if REX_PLATFORM_GNU_LINUX
-      case gpu::Surface::kTypeIndex_XcbWindow: {
-        auto& xcb_window_surface = static_cast<const gpu::XcbWindowSurface&>(new_surface);
+      case gpu::Surface::kTypeIndexXCBWindow: {
+        auto& xcb_window_surface = static_cast<const gpu::XCBWindowSurface&>(new_surface);
         VkXcbSurfaceCreateInfoKHR surface_create_info;
         surface_create_info.sType = VK_STRUCTURE_TYPE_XCB_SURFACE_CREATE_INFO_KHR;
         surface_create_info.pNext = nullptr;
         surface_create_info.flags = 0;
-        surface_create_info.connection = xcb_window_surface.connection();
-        surface_create_info.window = xcb_window_surface.window();
+        surface_create_info.connection = xcb_window_surface.GetConnection();
+        surface_create_info.window = xcb_window_surface.GetWindow();
         vulkan_surface_create_result = ifn.vkCreateXcbSurfaceKHR(
             instance, &surface_create_info, nullptr, &paint_context_.vulkan_surface);
       } break;
-      case gpu::Surface::kTypeIndex_WaylandSurface: {
+      case gpu::Surface::kTypeIndexWaylandSurface: {
         auto& wayland_surface = static_cast<const gpu::WaylandSurface&>(new_surface);
         VkWaylandSurfaceCreateInfoKHR surface_create_info;
         surface_create_info.sType = VK_STRUCTURE_TYPE_WAYLAND_SURFACE_CREATE_INFO_KHR;
         surface_create_info.pNext = nullptr;
         surface_create_info.flags = 0;
-        surface_create_info.display = wayland_surface.display();
-        surface_create_info.surface = wayland_surface.surface();
+        surface_create_info.display = wayland_surface.GetDisplay();
+        surface_create_info.surface = wayland_surface.GetSurface();
         vulkan_surface_create_result = ifn.vkCreateWaylandSurfaceKHR(
             instance, &surface_create_info, nullptr, &paint_context_.vulkan_surface);
       } break;
 #endif
 #if REX_PLATFORM_WIN32
-      case gpu::Surface::kTypeIndex_Win32Hwnd: {
-        auto& win32_hwnd_surface = static_cast<const gpu::Win32HwndSurface&>(new_surface);
+      case gpu::Surface::kTypeIndexWin32HWND: {
+        auto& win32_hwnd_surface = static_cast<const gpu::Win32HWNDSurface&>(new_surface);
         VkWin32SurfaceCreateInfoKHR surface_create_info;
         surface_create_info.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
         surface_create_info.pNext = nullptr;
         surface_create_info.flags = 0;
-        surface_create_info.hinstance = win32_hwnd_surface.hinstance();
-        surface_create_info.hwnd = win32_hwnd_surface.hwnd();
+        surface_create_info.hinstance = win32_hwnd_surface.GetHinstance();
+        surface_create_info.hwnd = win32_hwnd_surface.GetHWND();
         vulkan_surface_create_result = ifn.vkCreateWin32SurfaceKHR(
             instance, &surface_create_info, nullptr, &paint_context_.vulkan_surface);
       } break;
 #endif
 #if REX_PLATFORM_MAC
-      case gpu::Surface::kTypeIndex_CAMetalLayer: {
+      case gpu::Surface::kTypeIndexCAMetalLayer: {
         auto& metal_surface = static_cast<const gpu::CAMetalLayerSurface&>(new_surface);
         VkMetalSurfaceCreateInfoEXT surface_create_info;
         surface_create_info.sType = VK_STRUCTURE_TYPE_METAL_SURFACE_CREATE_INFO_EXT;
         surface_create_info.pNext = nullptr;
         surface_create_info.flags = 0;
-        surface_create_info.pLayer = metal_surface.layer();
+        surface_create_info.pLayer = metal_surface.GetLayer();
         vulkan_surface_create_result = ifn.vkCreateMetalSurfaceEXT(
             instance, &surface_create_info, nullptr, &paint_context_.vulkan_surface);
       } break;
@@ -424,7 +424,7 @@ VulkanPresenter::ConnectOrReconnectPaintingToSurfaceFromUIThread(
     render_pass_create_info.subpassCount = 1;
     render_pass_create_info.pSubpasses = &render_pass_subpass;
     render_pass_create_info.dependencyCount =
-        static_cast<u32>(rex::countof(render_pass_dependencies));
+        static_cast<u32>(rex::CountOf(render_pass_dependencies));
     render_pass_create_info.pDependencies = render_pass_dependencies;
     VkRenderPass new_render_pass;
     if (dfn.vkCreateRenderPass(device, &render_pass_create_info, nullptr, &new_render_pass) !=
@@ -528,7 +528,7 @@ bool VulkanPresenter::RefreshGuestOutputImpl(
   REX_ASSERT(frontbuffer_width != 0);
   REX_ASSERT(frontbuffer_height != 0);
   VkExtent2D max_framebuffer_extent =
-      objects::GetMax2DFramebufferExtent(vulkan_device_->properties());
+      objects::GetMax2DFramebufferExtent(vulkan_device_->GetProperties());
   if (frontbuffer_width > max_framebuffer_extent.width ||
       frontbuffer_height > max_framebuffer_extent.height) {
     // Guest output writes do not rescale, and a guest texture above the maximum cannot load.
@@ -536,8 +536,8 @@ bool VulkanPresenter::RefreshGuestOutputImpl(
   }
 
   GuestOutputImageInstance& image_instance = guest_output_images_[mailbox_index];
-  if (image_instance.image && (image_instance.image->extent().width != frontbuffer_width ||
-                               image_instance.image->extent().height != frontbuffer_height)) {
+  if (image_instance.image && (image_instance.image->GetExtent().width != frontbuffer_width ||
+                               image_instance.image->GetExtent().height != frontbuffer_height)) {
     guest_output_image_refresher_submission_tracker_.AwaitSubmissionCompletion(
         image_instance.last_refresher_submission);
     image_instance.image.reset();
@@ -551,8 +551,8 @@ bool VulkanPresenter::RefreshGuestOutputImpl(
     image_instance.SetToNewImage(std::move(new_image), guest_output_image_next_version_++);
   }
 
-  VulkanGuestOutputRefreshContext context(is_8bpc_out_ref, image_instance.image->image(),
-                                          image_instance.image->view(), image_instance.version,
+  VulkanGuestOutputRefreshContext context(is_8bpc_out_ref, image_instance.image->GetImage(),
+                                          image_instance.image->GetView(), image_instance.version,
                                           image_instance.ever_successfully_refreshed);
   bool refresher_succeeded = refresher(context);
   if (refresher_succeeded) {
@@ -562,13 +562,13 @@ bool VulkanPresenter::RefreshGuestOutputImpl(
   image_instance.last_refresher_submission =
       guest_output_image_refresher_submission_tracker_.GetCurrentSubmission();
   // The fence is signaled here, as a vkQueueSubmit fence signal covers all earlier commands.
-  const VulkanDevice::Functions& dfn = vulkan_device_->functions();
+  const VulkanDevice::Functions& dfn = vulkan_device_->GetFunctions();
   {
     VulkanSubmissionTracker::FenceAcquisition fence_acqusition(
         guest_output_image_refresher_submission_tracker_.AcquireFenceToAdvanceSubmission());
     const VulkanDevice::Queue::Acquisition queue_acquisition =
-        vulkan_device_->AcquireQueue(vulkan_device_->queue_family_graphics_compute(), 0);
-    if (dfn.vkQueueSubmit(queue_acquisition.queue(), 0, nullptr, fence_acqusition.fence()) !=
+        vulkan_device_->AcquireQueue(vulkan_device_->GetQueueFamilyGraphicsCompute(), 0);
+    if (dfn.vkQueueSubmit(queue_acquisition.GetQueue(), 0, nullptr, fence_acqusition.GetFence()) !=
         VK_SUCCESS) {
       fence_acqusition.SubmissionSucceededSignalFailed();
     }
@@ -583,10 +583,10 @@ VkSwapchainKHR VulkanPresenter::PaintContext::CreateSwapchainForVulkanSurface(
     VkExtent2D& image_extent_out, bool& is_fifo_out, bool& ui_surface_unusable_out) {
   ui_surface_unusable_out = false;
 
-  const VulkanInstance::Functions& ifn = vulkan_device->vulkan_instance()->functions();
-  const VkPhysicalDevice physical_device = vulkan_device->physical_device();
-  const VulkanDevice::Functions& dfn = vulkan_device->functions();
-  const VkDevice device = vulkan_device->device();
+  const VulkanInstance::Functions& ifn = vulkan_device->GetVulkanInstance()->GetFunctions();
+  const VkPhysicalDevice physical_device = vulkan_device->GetPhysicalDevice();
+  const VulkanDevice::Functions& dfn = vulkan_device->GetFunctions();
+  const VkDevice device = vulkan_device->GetDevice();
 
   VkSurfaceCapabilitiesKHR surface_capabilities;
   if (ifn.vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physical_device, surface,
@@ -596,7 +596,7 @@ VkSwapchainKHR VulkanPresenter::PaintContext::CreateSwapchainForVulkanSurface(
   }
 
   VkExtent2D max_framebuffer_extent =
-      objects::GetMax2DFramebufferExtent(vulkan_device->properties());
+      objects::GetMax2DFramebufferExtent(vulkan_device->GetProperties());
   VkExtent2D image_extent;
   image_extent.width = std::min(std::max(std::min(width, max_framebuffer_extent.width),
                                          surface_capabilities.minImageExtent.width),
@@ -611,10 +611,10 @@ VkSwapchainKHR VulkanPresenter::PaintContext::CreateSwapchainForVulkanSurface(
   }
 
   u32 queue_family_index_present = UINT32_MAX;
-  const std::vector<VulkanDevice::QueueFamily>& queue_families = vulkan_device->queue_families();
+  const std::vector<VulkanDevice::QueueFamily>& queue_families = vulkan_device->GetQueueFamilies();
   VkBool32 queue_family_present_supported;
   // Prefer the graphics and compute queue family to avoid the concurrent sharing mode.
-  u32 queue_family_index_graphics_compute = vulkan_device->queue_family_graphics_compute();
+  u32 queue_family_index_graphics_compute = vulkan_device->GetQueueFamilyGraphicsCompute();
   const VulkanDevice::QueueFamily& queue_family_graphics_compute =
       queue_families[queue_family_index_graphics_compute];
   if (queue_family_graphics_compute.may_support_presentation &&
@@ -836,8 +836,8 @@ VkSwapchainKHR VulkanPresenter::PaintContext::PrepareForSwapchainRetirement() {
   if (swapchain != VK_NULL_HANDLE) {
     submission_tracker.AwaitAllSubmissionsCompletion();
   }
-  const VulkanDevice::Functions& dfn = vulkan_device->functions();
-  const VkDevice device = vulkan_device->device();
+  const VulkanDevice::Functions& dfn = vulkan_device->GetFunctions();
+  const VkDevice device = vulkan_device->GetDevice();
   for (const SwapchainFramebuffer& framebuffer : swapchain_framebuffers) {
     dfn.vkDestroyFramebuffer(device, framebuffer.framebuffer, nullptr);
     dfn.vkDestroyImageView(device, framebuffer.image_view, nullptr);
@@ -854,21 +854,21 @@ VkSwapchainKHR VulkanPresenter::PaintContext::PrepareForSwapchainRetirement() {
 void VulkanPresenter::PaintContext::DestroySwapchainAndVulkanSurface() {
   VkSwapchainKHR old_swapchain = PrepareForSwapchainRetirement();
   if (old_swapchain != VK_NULL_HANDLE) {
-    vulkan_device->functions().vkDestroySwapchainKHR(vulkan_device->device(), old_swapchain,
-                                                     nullptr);
+    vulkan_device->GetFunctions().vkDestroySwapchainKHR(vulkan_device->GetDevice(), old_swapchain,
+                                                        nullptr);
   }
   present_queue_family = UINT32_MAX;
   if (vulkan_surface != VK_NULL_HANDLE) {
-    const VulkanInstance* vulkan_instance = vulkan_device->vulkan_instance();
-    vulkan_instance->functions().vkDestroySurfaceKHR(vulkan_instance->instance(), vulkan_surface,
-                                                     nullptr);
+    const VulkanInstance* vulkan_instance = vulkan_device->GetVulkanInstance();
+    vulkan_instance->GetFunctions().vkDestroySurfaceKHR(vulkan_instance->GetInstance(),
+                                                        vulkan_surface, nullptr);
     vulkan_surface = VK_NULL_HANDLE;
   }
 }
 
 VulkanPresenter::GuestOutputImage::~GuestOutputImage() {
-  const VulkanDevice::Functions& dfn = vulkan_device_->functions();
-  const VkDevice device = vulkan_device_->device();
+  const VulkanDevice::Functions& dfn = vulkan_device_->GetFunctions();
+  const VkDevice device = vulkan_device_->GetDevice();
   if (view_ != VK_NULL_HANDLE) {
     dfn.vkDestroyImageView(device, view_, nullptr);
   }
@@ -906,8 +906,8 @@ bool VulkanPresenter::GuestOutputImage::Initialize() {
     REX_FAIL(ui, false, "VulkanPresenter: Failed to create a guest output image");
   }
 
-  const VulkanDevice::Functions& dfn = vulkan_device_->functions();
-  const VkDevice device = vulkan_device_->device();
+  const VulkanDevice::Functions& dfn = vulkan_device_->GetFunctions();
+  const VkDevice device = vulkan_device_->GetDevice();
 
   VkImageViewCreateInfo image_view_create_info;
   image_view_create_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
@@ -942,17 +942,17 @@ Presenter::PaintResult VulkanPresenter::PaintAndPresentImpl(bool execute_ui_draw
   const PaintContext::Submission& paint_submission =
       *paint_context_.submissions[current_paint_submission_index % paint_submission_count];
 
-  const VulkanDevice::Functions& dfn = vulkan_device_->functions();
-  const VkDevice device = vulkan_device_->device();
+  const VulkanDevice::Functions& dfn = vulkan_device_->GetFunctions();
+  const VkDevice device = vulkan_device_->GetDevice();
 
-  VkCommandPool draw_command_pool = paint_submission.draw_command_pool();
+  VkCommandPool draw_command_pool = paint_submission.GetDrawCommandPool();
   if (dfn.vkResetCommandPool(device, draw_command_pool, 0) != VK_SUCCESS) {
     REX_FAIL(ui, PaintResult::kNotPresented,
              "VulkanPresenter: Failed to reset a command buffer for drawing to the "
              "swapchain");
   }
 
-  VkCommandBuffer draw_command_buffer = paint_submission.draw_command_buffer();
+  VkCommandBuffer draw_command_buffer = paint_submission.GetDrawCommandBuffer();
   VkCommandBufferBeginInfo command_buffer_begin_info;
   command_buffer_begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
   command_buffer_begin_info.pNext = nullptr;
@@ -965,7 +965,7 @@ Presenter::PaintResult VulkanPresenter::PaintAndPresentImpl(bool execute_ui_draw
   }
   // vkResetCommandPool resets a command buffer left open, so early returns are safe.
 
-  VkSemaphore acquire_semaphore = paint_submission.acquire_semaphore();
+  VkSemaphore acquire_semaphore = paint_submission.GetAcquireSemaphore();
   u32 swapchain_image_index;
   VkResult acquire_result =
       dfn.vkAcquireNextImageKHR(device, paint_context_.swapchain, UINT64_MAX, acquire_semaphore,
@@ -1039,7 +1039,7 @@ Presenter::PaintResult VulkanPresenter::PaintAndPresentImpl(bool execute_ui_draw
 
   if (guest_output_image) {
     VkExtent2D max_framebuffer_extent =
-        objects::GetMax2DFramebufferExtent(vulkan_device_->properties());
+        objects::GetMax2DFramebufferExtent(vulkan_device_->GetProperties());
     GuestOutputPaintFlow guest_output_flow = GetGuestOutputPaintFlow(
         guest_output_properties, paint_context_.swapchain_extent.width,
         paint_context_.swapchain_extent.height, max_framebuffer_extent.width,
@@ -1079,7 +1079,7 @@ Presenter::PaintResult VulkanPresenter::PaintAndPresentImpl(bool execute_ui_draw
             std::make_pair(static_cast<u64>(0), guest_output_image);
         VkDescriptorImageInfo guest_output_image_descriptor_image_info;
         guest_output_image_descriptor_image_info.sampler = VK_NULL_HANDLE;
-        guest_output_image_descriptor_image_info.imageView = guest_output_image->view();
+        guest_output_image_descriptor_image_info.imageView = guest_output_image->GetView();
         guest_output_image_descriptor_image_info.imageLayout =
             VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
         VkWriteDescriptorSet guest_output_image_descriptor_write;
@@ -1303,7 +1303,7 @@ Presenter::PaintResult VulkanPresenter::PaintAndPresentImpl(bool execute_ui_draw
     paint_context_.ui_setup_command_buffer_current_index = SIZE_MAX;
   }
   command_buffers[command_buffer_count++] = draw_command_buffer;
-  VkSemaphore present_semaphore = paint_submission.present_semaphore();
+  VkSemaphore present_semaphore = paint_submission.GetPresentSemaphore();
   VkSubmitInfo submit_info;
   submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
   submit_info.pNext = nullptr;
@@ -1324,12 +1324,12 @@ Presenter::PaintResult VulkanPresenter::PaintAndPresentImpl(bool execute_ui_draw
     VkResult submit_result;
     {
       const VulkanDevice::Queue::Acquisition queue_acquisition =
-          vulkan_device_->AcquireQueue(vulkan_device_->queue_family_graphics_compute(), 0);
-      submit_result =
-          dfn.vkQueueSubmit(queue_acquisition.queue(), 1, &submit_info, fence_acqusition.fence());
-      if (ui_fence_acquisition.fence() != VK_NULL_HANDLE && submit_result == VK_SUCCESS) {
-        if (dfn.vkQueueSubmit(queue_acquisition.queue(), 0, nullptr,
-                              ui_fence_acquisition.fence()) != VK_SUCCESS) {
+          vulkan_device_->AcquireQueue(vulkan_device_->GetQueueFamilyGraphicsCompute(), 0);
+      submit_result = dfn.vkQueueSubmit(queue_acquisition.GetQueue(), 1, &submit_info,
+                                        fence_acqusition.GetFence());
+      if (ui_fence_acquisition.GetFence() != VK_NULL_HANDLE && submit_result == VK_SUCCESS) {
+        if (dfn.vkQueueSubmit(queue_acquisition.GetQueue(), 0, nullptr,
+                              ui_fence_acquisition.GetFence()) != VK_SUCCESS) {
           ui_fence_acquisition.SubmissionSucceededSignalFailed();
         }
       }
@@ -1361,7 +1361,7 @@ Presenter::PaintResult VulkanPresenter::PaintAndPresentImpl(bool execute_ui_draw
   {
     const VulkanDevice::Queue::Acquisition queue_acquisition =
         vulkan_device_->AcquireQueue(paint_context_.present_queue_family, 0);
-    present_result = dfn.vkQueuePresentKHR(queue_acquisition.queue(), &present_info);
+    present_result = dfn.vkQueuePresentKHR(queue_acquisition.GetQueue(), &present_info);
   }
   switch (present_result) {
     case VK_SUCCESS:
@@ -1388,8 +1388,8 @@ Presenter::PaintResult VulkanPresenter::PaintAndPresentImpl(bool execute_ui_draw
 }
 
 bool VulkanPresenter::InitializeSurfaceIndependent() {
-  const VulkanDevice::Functions& dfn = vulkan_device_->functions();
-  const VkDevice device = vulkan_device_->device();
+  const VulkanDevice::Functions& dfn = vulkan_device_->GetFunctions();
+  const VkDevice device = vulkan_device_->GetDevice();
 
   VkDescriptorSetLayoutBinding guest_output_image_sampler_bindings[2];
   guest_output_image_sampler_bindings[0].binding = 0;
@@ -1398,7 +1398,7 @@ bool VulkanPresenter::InitializeSurfaceIndependent() {
   guest_output_image_sampler_bindings[0].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
   guest_output_image_sampler_bindings[0].pImmutableSamplers = nullptr;
   const VkSampler sampler_linear_clamp =
-      ui_samplers_->samplers()[UISamplers::kSamplerIndexLinearClampToEdge];
+      ui_samplers_->GetSamplers()[UISamplers::kSamplerIndexLinearClampToEdge];
   guest_output_image_sampler_bindings[1].binding = 1;
   guest_output_image_sampler_bindings[1].descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER;
   guest_output_image_sampler_bindings[1].descriptorCount = 1;
@@ -1410,7 +1410,7 @@ bool VulkanPresenter::InitializeSurfaceIndependent() {
   guest_output_paint_image_descriptor_set_layout_create_info.pNext = nullptr;
   guest_output_paint_image_descriptor_set_layout_create_info.flags = 0;
   guest_output_paint_image_descriptor_set_layout_create_info.bindingCount =
-      static_cast<u32>(rex::countof(guest_output_image_sampler_bindings));
+      static_cast<u32>(rex::CountOf(guest_output_image_sampler_bindings));
   guest_output_paint_image_descriptor_set_layout_create_info.pBindings =
       guest_output_image_sampler_bindings;
   if (dfn.vkCreateDescriptorSetLayout(
@@ -1522,7 +1522,7 @@ bool VulkanPresenter::InitializeSurfaceIndependent() {
   guest_output_paint_descriptor_pool_create_info.maxSets =
       PaintContext::kGuestOutputDescriptorSetCount;
   guest_output_paint_descriptor_pool_create_info.poolSizeCount =
-      static_cast<u32>(rex::countof(guest_output_paint_descriptor_pool_sizes));
+      static_cast<u32>(rex::CountOf(guest_output_paint_descriptor_pool_sizes));
   guest_output_paint_descriptor_pool_create_info.pPoolSizes =
       guest_output_paint_descriptor_pool_sizes;
   if (dfn.vkCreateDescriptorPool(device, &guest_output_paint_descriptor_pool_create_info, nullptr,
@@ -1535,7 +1535,7 @@ bool VulkanPresenter::InitializeSurfaceIndependent() {
       guest_output_paint_descriptor_set_layouts[PaintContext::kGuestOutputDescriptorSetCount];
   std::fill(guest_output_paint_descriptor_set_layouts,
             guest_output_paint_descriptor_set_layouts +
-                rex::countof(guest_output_paint_descriptor_set_layouts),
+                rex::CountOf(guest_output_paint_descriptor_set_layouts),
             guest_output_paint_image_descriptor_set_layout_);
   VkDescriptorSetAllocateInfo guest_output_paint_descriptor_set_allocate_info;
   guest_output_paint_descriptor_set_allocate_info.sType =
@@ -1603,14 +1603,14 @@ VkPipeline VulkanPresenter::CreateGuestOutputPaintPipeline(GuestOutputPaintEffec
   };
   VkPipelineDynamicStateCreateInfo dynamic_state = {};
   dynamic_state.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
-  dynamic_state.dynamicStateCount = static_cast<u32>(rex::countof(kPipelineDynamicStates));
+  dynamic_state.dynamicStateCount = static_cast<u32>(rex::CountOf(kPipelineDynamicStates));
   dynamic_state.pDynamicStates = kPipelineDynamicStates;
 
   VkGraphicsPipelineCreateInfo pipeline_create_info;
   pipeline_create_info.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
   pipeline_create_info.pNext = nullptr;
   pipeline_create_info.flags = 0;
-  pipeline_create_info.stageCount = static_cast<u32>(rex::countof(stages));
+  pipeline_create_info.stageCount = static_cast<u32>(rex::CountOf(stages));
   pipeline_create_info.pStages = stages;
   pipeline_create_info.pVertexInputState = &vertex_input_state;
   pipeline_create_info.pInputAssemblyState = &input_assembly_state;
@@ -1628,8 +1628,8 @@ VkPipeline VulkanPresenter::CreateGuestOutputPaintPipeline(GuestOutputPaintEffec
   pipeline_create_info.basePipelineHandle = VK_NULL_HANDLE;
   pipeline_create_info.basePipelineIndex = -1;
 
-  const VulkanDevice::Functions& dfn = vulkan_device_->functions();
-  const VkDevice device = vulkan_device_->device();
+  const VulkanDevice::Functions& dfn = vulkan_device_->GetFunctions();
+  const VkDevice device = vulkan_device_->GetDevice();
 
   VkPipeline pipeline;
   if (dfn.vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipeline_create_info, nullptr,

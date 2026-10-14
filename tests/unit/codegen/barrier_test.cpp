@@ -51,21 +51,21 @@ std::string EmitFunction(std::string_view name, u32 barrier) {
   module.Load(kBase, data.data(), data.size());
 
   RecompilerConfig config;
-  config.projectName = "testproj";
-  config.outDirectoryPath = "generated";
-  CodegenContext ctx = CodegenContext::Create(BinaryView::fromModule(module), std::move(config));
-  ctx.setConfigDir(root);
-  ctx.analysisState().format = "xex";
-  ctx.analysisState().loadAddress = kBase;
-  ctx.analysisState().entryPoint = kBase;
-  ctx.analysisState().imageSize = static_cast<u32>(data.size());
-  auto* node = ctx.graph.addFunction(kBase, 8, FunctionAuthority::DISCOVERED, true);
+  config.project_name = "testproj";
+  config.out_directory_path = "generated";
+  CodegenContext ctx = CodegenContext::Create(BinaryView::FromModule(module), std::move(config));
+  ctx.SetConfigDir(root);
+  ctx.GetAnalysisState().format = "xex";
+  ctx.GetAnalysisState().load_address = kBase;
+  ctx.GetAnalysisState().entry_point = kBase;
+  ctx.GetAnalysisState().image_size = static_cast<u32>(data.size());
+  auto* node = ctx.graph.AddFunction(kBase, 8, FunctionAuthority::kDiscovered, true);
   REQUIRE(node != nullptr);
-  node->discover({{kBase, 8}}, {}, {});
-  node->seal();
+  node->Discover({{kBase, 8}}, {}, {});
+  node->Seal();
 
   CodegenWriter writer(ctx);
-  REQUIRE(writer.write(false));
+  REQUIRE(writer.Write(false));
   std::ifstream in(root / "generated" / "testproj_recomp.0.cpp", std::ios::binary);
   std::string code{std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>()};
   rex::test::RemoveTree(root);

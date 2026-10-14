@@ -8,7 +8,7 @@
 
 namespace rex::hid {
 
-std::span<const char* const> HIDModuleBase::RequiredInterfaces() const {
+std::span<const char* const> HIDModuleBase::GetRequiredInterfaces() const {
   static constexpr std::array<const char*, 1> kRequired = {"rex.cvar@1"};
   return kRequired;
 }
@@ -40,7 +40,7 @@ void HIDModuleBase::Disconnect() {
 Result<void> HIDModuleBase::Init() {
   auto driver = CreatePadDriver(config_);
   if (!driver) {
-    REXLOG_WARN(hid, "{} runs without its pad driver, {}", Name(), driver.error().message);
+    REXLOG_WARN(hid, "{} runs without its pad driver, {}", GetName(), driver.error().message);
     return Ok();
   }
   hub_.AddPadDriver(std::move(*driver));

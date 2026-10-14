@@ -49,25 +49,25 @@ struct OutputStamp {
  * Hashes everything that can change emitted output for one module. A missing input contributes a
  * "missing" marker, so a file appearing later still changes the fingerprint.
  *
- * @param inputFiles Input files to hash
- * @param sdkVersion SDK version, stable across commits as floor plus channel such as "0.10.0-dev"
- * @param flagValues Flag values to hash
+ * @param input_files Input files to hash
+ * @param sdk_version SDK version, stable across commits as floor plus channel such as "0.10.0-dev"
+ * @param flag_values Flag values to hash
  * @return Fingerprint of the inputs
  */
-std::string ComputeInputFingerprint(std::span<const std::filesystem::path> inputFiles,
-                                    std::string_view sdkVersion,
-                                    std::span<const std::string> flagValues);
+std::string ComputeInputFingerprint(std::span<const std::filesystem::path> input_files,
+                                    std::string_view sdk_version,
+                                    std::span<const std::string> flag_values);
 
 /**
  * Reports whether a stamp matches a fingerprint and all of its outputs exist.
  *
  * @param stamp Stamp loaded from the previous run
  * @param fingerprint Fingerprint of the current inputs
- * @param outputDir Directory holding the outputs
+ * @param output_dir Directory holding the outputs
  * @return True when the fingerprints match, the stamp lists outputs and every one exists
  */
-bool OutputsAreUpToDate(const OutputStamp& stamp, std::string_view fingerprint,
-                        const std::filesystem::path& outputDir);
+bool AreOutputsUpToDate(const OutputStamp& stamp, std::string_view fingerprint,
+                        const std::filesystem::path& output_dir);
 
 /**
  * Writes a Make syntax dependency file. `target` must match the declared output of the

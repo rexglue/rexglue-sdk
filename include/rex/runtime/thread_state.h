@@ -51,7 +51,7 @@ class REX_RUNTIME_API ThreadState {
   /** Unbinds the state from the calling host thread when it is the bound one. */
   ~ThreadState();
 
-  Memory* memory() const { return memory_; }
+  Memory* GetMemory() const { return memory_; }
 
   /** Asks the thread to stop at its next kernel boundary. */
   void RequestStop() { stop_requested_.store(true, std::memory_order_release); }
@@ -61,7 +61,7 @@ class REX_RUNTIME_API ThreadState {
    *
    * @return True when RequestStop ran.
    */
-  bool stop_requested() const { return stop_requested_.load(std::memory_order_acquire); }
+  bool IsStopRequested() const { return stop_requested_.load(std::memory_order_acquire); }
 
   /** Drops the stop request once the thread runs its exit sequence. */
   void ClearStop() { stop_requested_.store(false, std::memory_order_release); }
@@ -70,29 +70,29 @@ class REX_RUNTIME_API ThreadState {
    *
    * @return The context.
    */
-  ::PPCContext* context() const { return context_; }
-  u32 thread_id() const { return thread_id_; }
+  ::PPCContext* GetContext() const { return context_; }
+  u32 GetThreadId() const { return thread_id_; }
 
   /**
    * Returns the runtime the thread belongs to.
    *
    * @return The runtime, null for a state built without one.
    */
-  Runtime* runtime() const { return runtime_; }
+  Runtime* GetRuntime() const { return runtime_; }
 
   /**
    * Returns the FP and vector save area of the Ke save exports.
    *
    * @return The area.
    */
-  DPCSaveArea& dpc_save_area() { return dpc_save_area_; }
+  DPCSaveArea& GetDPCSaveArea() { return dpc_save_area_; }
 
   /**
    * Binds a thread state to the calling host thread.
    *
-   * @param thread_state The state, null to unbind.
+   * @param state The state, null to unbind.
    */
-  static void Bind(ThreadState* thread_state);
+  static void Bind(ThreadState* state);
   /**
    * Returns the thread state bound to the calling host thread.
    *
@@ -130,12 +130,12 @@ namespace detail {
  *
  * @return The runtime of the title or worker thread bound to the caller. Aborts on a host thread.
  */
-inline Runtime& Current() {
+inline Runtime& GetCurrent() {
   ThreadState* state = ThreadState::Get();
-  if (state == nullptr || state->runtime() == nullptr) [[unlikely]] {
+  if (state == nullptr || state->GetRuntime() == nullptr) [[unlikely]] {
     detail::AbortNoRuntime();
   }
-  return *state->runtime();
+  return *state->GetRuntime();
 }
 
 }  // namespace rex::runtime

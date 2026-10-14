@@ -129,14 +129,12 @@ struct XMA_CONTEXT_DATA {
 };
 REX_STATIC_ASSERT_SIZE(XMA_CONTEXT_DATA, 64);
 
-struct kPacketInfo {
-  u8 frame_count_ = 0;
-  u8 current_frame_ = 0;
-  u32 current_frame_size_ = 0;
+struct PacketInfo {
+  u8 frame_count = 0;
+  u8 current_frame = 0;
+  u32 current_frame_size = 0;
 
-  bool isLastFrameInPacket() const {
-    return frame_count_ == 0 || current_frame_ == frame_count_ - 1;
-  }
+  bool IsLastFrameInPacket() const { return frame_count == 0 || current_frame == frame_count - 1; }
 };
 
 static constexpr int kIdToSampleRate[4] = {24000, 32000, 44100, 48000};
@@ -185,17 +183,17 @@ class XMAContext {
   void Disable();
   void Release();
 
-  runtime::Memory* memory() const { return memory_; }
+  runtime::Memory* GetMemory() const { return memory_; }
 
-  u32 id() const { return id_; }
-  u32 guest_ptr() const { return guest_ptr_; }
-  bool is_allocated() { return is_allocated_.load(std::memory_order_acquire); }
-  bool is_enabled() { return is_enabled_.load(std::memory_order_acquire); }
+  u32 GetId() const { return id_; }
+  u32 GetGuestPtr() const { return guest_ptr_; }
+  bool IsAllocated() { return is_allocated_.load(std::memory_order_acquire); }
+  bool IsEnabled() { return is_enabled_.load(std::memory_order_acquire); }
 
-  void set_is_allocated(bool is_allocated) {
+  void SetIsAllocated(bool is_allocated) {
     is_allocated_.store(is_allocated, std::memory_order_release);
   }
-  void set_is_enabled(bool is_enabled) { is_enabled_.store(is_enabled, std::memory_order_release); }
+  void SetIsEnabled(bool is_enabled) { is_enabled_.store(is_enabled, std::memory_order_release); }
 
   void SignalWorkDone() {
     if (work_completion_event_) {
@@ -209,7 +207,7 @@ class XMAContext {
   static i16 GetPacketNumber(size_t size, size_t bit_offset);
   static u32 GetCurrentInputBufferSize(XMA_CONTEXT_DATA* data);
 
-  kPacketInfo GetPacketInfo(u8* packet, u32 frame_offset);
+  PacketInfo GetPacketInfo(u8* packet, u32 frame_offset);
   u32 GetAmountOfBitsToRead(u32 remaining_stream_bits, u32 frame_size);
   const u8* GetNextPacket(XMA_CONTEXT_DATA* data, u32 next_packet_index,
                           u32 current_input_packet_count) const;
@@ -217,7 +215,7 @@ class XMAContext {
   u8* GetCurrentInputBuffer(XMA_CONTEXT_DATA* data) const;
 
   /**
-   * Decodes 1 frame from the current input buffer.
+   * Decodes a frame from the current input buffer.
    *
    * The decoder emits the start padding as output, so each block is realigned by carrying the
    * tail of the previous decoded block into the head of the next one.

@@ -103,8 +103,8 @@ void Untile(u8* output_buffer, const u8* input_buffer, const UntileInfo* untile_
   REX_ASSERT(untile_info->input_format_info != nullptr);
   REX_ASSERT(untile_info->output_format_info != nullptr);
 
-  u32 input_bytes_per_block = untile_info->input_format_info->bytes_per_block();
-  u32 output_bytes_per_block = untile_info->output_format_info->bytes_per_block();
+  u32 input_bytes_per_block = untile_info->input_format_info->GetBytesPerBlock();
+  u32 output_bytes_per_block = untile_info->output_format_info->GetBytesPerBlock();
   u32 output_pitch = untile_info->output_pitch * output_bytes_per_block;
 
   auto log2_bpp =

@@ -100,12 +100,12 @@ std::unique_ptr<gpu::OverlayTexture> AchievementIconCache::LoadMetadataTexture(
 }
 
 std::unique_ptr<gpu::OverlayTexture> AchievementIconCache::LoadXDBFTexture(u32 image_id) {
-  if (!runtime_ || !runtime_->is_setup()) {
+  if (!runtime_ || !runtime_->IsSetup()) {
     return nullptr;
   }
 
-  const auto db = runtime_->content_manager().title_xdbf();
-  if (!db.is_valid()) {
+  const auto db = runtime_->GetContentManager().GetTitleXDBF();
+  if (!db.IsValid()) {
     return nullptr;
   }
 

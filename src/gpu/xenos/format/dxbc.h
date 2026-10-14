@@ -90,11 +90,11 @@ struct alignas(u32) BlobHeader {
   enum class FourCC : u32 {
     kResourceDefinition = BuildFourCC('R', 'D', 'E', 'F'),
     kInputSignature = BuildFourCC('I', 'S', 'G', 'N'),
-    kInputSignature_11_1 = BuildFourCC('I', 'S', 'G', '1'),
+    kInputSignature111 = BuildFourCC('I', 'S', 'G', '1'),
     kPatchConstantSignature = BuildFourCC('P', 'C', 'S', 'G'),
     kOutputSignature = BuildFourCC('O', 'S', 'G', 'N'),
     kOutputSignatureForGS = BuildFourCC('O', 'S', 'G', '5'),
-    kOutputSignature_11_1 = BuildFourCC('O', 'S', 'G', '1'),
+    kOutputSignature111 = BuildFourCC('O', 'S', 'G', '1'),
     kShaderEx = BuildFourCC('S', 'H', 'E', 'X'),
     kShaderFeatureInfo = BuildFourCC('S', 'F', 'I', '0'),
     kStatistics = BuildFourCC('S', 'T', 'A', 'T'),
@@ -116,7 +116,7 @@ REX_STATIC_ASSERT_SIZE(BlobHeader, sizeof(u32) * 2);
  */
 inline u32 AppendAlignedString(std::vector<u32>& dest, const char* source) {
   size_t size = std::strlen(source) + 1;
-  size_t size_aligned = rex::align(size, sizeof(u32));
+  size_t size_aligned = rex::Align(size, sizeof(u32));
   size_t dest_position = dest.size();
   dest.resize(dest_position + size_aligned / sizeof(u32));
   std::memcpy(&dest[dest_position], source, size);
@@ -132,7 +132,7 @@ inline u32 AppendAlignedString(std::vector<u32>& dest, const char* source) {
  * @return Length in bytes aligned to a DWORD.
  */
 inline u32 GetAlignedStringLength(const char* source) {
-  return static_cast<u32>(rex::align(std::strlen(source) + 1, sizeof(u32)));
+  return static_cast<u32>(rex::Align(std::strlen(source) + 1, sizeof(u32)));
 }
 
 // D3DCOMPILE subset
@@ -260,11 +260,11 @@ enum RdefInputFlags : u8 {
 };
 
 enum class RdefShaderModel : u32 {
-  kPixelShader5_1 = 0xFFFF0501u,
-  kVertexShader5_1 = 0xFFFE0501u,
-  kGeometryShader5_1 = 0x47530501u,
-  kDomainShader5_1 = 0x44530501u,
-  kComputeShader5_1 = 0x43530501u,
+  kPixelShader51 = 0xFFFF0501u,
+  kVertexShader51 = 0xFFFE0501u,
+  kGeometryShader51 = 0x47530501u,
+  kDomainShader51 = 0x44530501u,
+  kComputeShader51 = 0x43530501u,
 };
 
 // D3D12_SHADER_TYPE_DESC with some differences.
@@ -353,9 +353,9 @@ REX_STATIC_ASSERT_SIZE(RdefInputBind, sizeof(u32) * 10);
 struct alignas(u32) RdefHeader {
   enum class FourCC : u32 {
     /** RD11 in Shader Model 5_0 shaders. */
-    k5_0 = BuildFourCC('R', 'D', '1', '1'),
+    k50 = BuildFourCC('R', 'D', '1', '1'),
     /** RD11 with reversed nibbles in Shader Model 5_0 shaders. */
-    k5_1 = 0x25441313u,
+    k51 = 0x25441313u,
   };
   u32 cbuffer_count;
   u32 cbuffers_ptr;
@@ -415,7 +415,7 @@ enum class SignatureRegisterComponentType : u32 {
 enum class MinPrecision : u32 {
   kDefault,
   kFloat16,
-  kFloat2_8,
+  kFloat28,
   kSInt16 = 4,
   kUInt16,
   kAny16 = 0xF0,
@@ -459,7 +459,7 @@ struct alignas(u32) SignatureParameterForGS {
 REX_STATIC_ASSERT_SIZE(SignatureParameterForGS, sizeof(u32) * 7);
 
 /** D3D11_INTERNALSHADER_PARAMETER_11_1, extends SignatureParameterForGS. */
-struct alignas(u32) SignatureParameter_11_1 {
+struct alignas(u32) SignatureParameter111 {
   u32 stream;
   u32 semantic_name_ptr;
   u32 semantic_index;
@@ -473,7 +473,7 @@ struct alignas(u32) SignatureParameter_11_1 {
   };
   MinPrecision min_precision;
 };
-REX_STATIC_ASSERT_SIZE(SignatureParameter_11_1, sizeof(u32) * 8);
+REX_STATIC_ASSERT_SIZE(SignatureParameter111, sizeof(u32) * 8);
 
 // D3D10_INTERNALSHADER_SIGNATURE
 struct alignas(u32) Signature {
@@ -485,20 +485,20 @@ REX_STATIC_ASSERT_SIZE(Signature, sizeof(u32) * 2);
 
 /** SHADER_FEATURE, low 32 bits. */
 enum ShaderFeature0 : u16 {
-  kShaderFeature0_Doubles = 1 << 0,
-  kShaderFeature0_ComputeShadersPlusRawAndStructuredBuffersViaShader_4_X = 1 << 1,
-  kShaderFeature0_UAVsAtEveryStage = 1 << 2,
-  kShaderFeature0_64UAVs = 1 << 3,
-  kShaderFeature0_MinimumPrecision = 1 << 4,
-  kShaderFeature0_11_1_DoubleExtensions = 1 << 5,
-  kShaderFeature0_11_1_ShaderExtensions = 1 << 6,
-  kShaderFeature0_Level9ComparisonFiltering = 1 << 7,
-  kShaderFeature0_TiledResources = 1 << 8,
-  kShaderFeature0_StencilRef = 1 << 9,
-  kShaderFeature0_InnerCoverage = 1 << 10,
-  kShaderFeature0_TypedUAVLoadAdditionalFormats = 1 << 11,
-  kShaderFeature0_ROVs = 1 << 12,
-  kShaderFeature0_ViewportAndRTArrayIndexFromAnyShaderFeedingRasterizer = 1 << 13,
+  kShaderFeature0Doubles = 1 << 0,
+  kShaderFeature0ComputeShadersPlusRawAndStructuredBuffersViaShader4X = 1 << 1,
+  kShaderFeature0UAVsAtEveryStage = 1 << 2,
+  kShaderFeature0Requires64UAVs = 1 << 3,
+  kShaderFeature0MinimumPrecision = 1 << 4,
+  kShaderFeature0Requires11Point1DoubleExtensions = 1 << 5,
+  kShaderFeature0Requires11Point1ShaderExtensions = 1 << 6,
+  kShaderFeature0Level9ComparisonFiltering = 1 << 7,
+  kShaderFeature0TiledResources = 1 << 8,
+  kShaderFeature0StencilRef = 1 << 9,
+  kShaderFeature0InnerCoverage = 1 << 10,
+  kShaderFeature0TypedUAVLoadAdditionalFormats = 1 << 11,
+  kShaderFeature0ROVs = 1 << 12,
+  kShaderFeature0ViewportAndRTArrayIndexFromAnyShaderFeedingRasterizer = 1 << 13,
 };
 
 struct alignas(u32) ShaderFeatureInfo {
@@ -724,68 +724,68 @@ struct Index {
     kImmediate64PlusRelative,
   };
 
-  u32 index_;
+  u32 index;
   /**
    * UINT32_MAX if absolute. Lower 2 bits are the component index, upper bits are the temp
    * register index. Applies to indexable temps, inputs, outputs except for pixel shaders,
    * constant buffers and bindings.
    */
-  u32 relative_to_temp_;
+  u32 relative_to_temp;
 
-  Index(u32 index = 0) : index_(index), relative_to_temp_(UINT32_MAX) {}
+  Index(u32 index = 0) : index(index), relative_to_temp(UINT32_MAX) {}
   Index(u32 temp, u32 temp_component, u32 offset = 0)
-      : index_(offset), relative_to_temp_((temp << 2) | temp_component) {}
+      : index(offset), relative_to_temp((temp << 2) | temp_component) {}
 
   Representation GetRepresentation() const {
-    if (relative_to_temp_ != UINT32_MAX) {
-      return index_ != 0 ? Representation::kImmediate32PlusRelative : Representation::kRelative;
+    if (relative_to_temp != UINT32_MAX) {
+      return index != 0 ? Representation::kImmediate32PlusRelative : Representation::kRelative;
     }
     return Representation::kImmediate32;
   }
-  u32 GetLength() const { return relative_to_temp_ != UINT32_MAX ? (index_ != 0 ? 3 : 2) : 1; }
+  u32 GetLength() const { return relative_to_temp != UINT32_MAX ? (index != 0 ? 3 : 2) : 1; }
   void Write(std::vector<u32>& code) const {
-    if (relative_to_temp_ == UINT32_MAX || index_ != 0) {
-      code.push_back(index_);
+    if (relative_to_temp == UINT32_MAX || index != 0) {
+      code.push_back(index);
     }
-    if (relative_to_temp_ != UINT32_MAX) {
+    if (relative_to_temp != UINT32_MAX) {
       code.push_back(std::to_underlying(OperandDimension::kVector) |
                      (std::to_underlying(ComponentSelection::kSelect1) << 2) |
-                     ((relative_to_temp_ & 3) << 4) |
+                     ((relative_to_temp & 3) << 4) |
                      (std::to_underlying(OperandType::kTemp) << 12) | (1 << 20) |
                      (std::to_underlying(Representation::kImmediate32) << 22));
-      code.push_back(relative_to_temp_ >> 2);
+      code.push_back(relative_to_temp >> 2);
     }
   }
 };
 
 struct OperandAddress {
-  OperandType type_;
-  u32 index_dimension_;
-  Index index_1d_, index_2d_, index_3d_;
+  OperandType type;
+  u32 index_dimension;
+  Index index_1d, index_2d, index_3d;
 
-  explicit OperandAddress(OperandType type) : type_(type), index_dimension_(0) {}
+  explicit OperandAddress(OperandType type) : type(type), index_dimension(0) {}
   explicit OperandAddress(OperandType type, Index index_1d)
-      : type_(type), index_dimension_(1), index_1d_(index_1d) {}
+      : type(type), index_dimension(1), index_1d(index_1d) {}
   explicit OperandAddress(OperandType type, Index index_1d, Index index_2d)
-      : type_(type), index_dimension_(2), index_1d_(index_1d), index_2d_(index_2d) {}
+      : type(type), index_dimension(2), index_1d(index_1d), index_2d(index_2d) {}
   explicit OperandAddress(OperandType type, Index index_1d, Index index_2d, Index index_3d)
-      : type_(type),
-        index_dimension_(3),
-        index_1d_(index_1d),
-        index_2d_(index_2d),
-        index_3d_(index_3d) {}
+      : type(type),
+        index_dimension(3),
+        index_1d(index_1d),
+        index_2d(index_2d),
+        index_3d(index_3d) {}
 
   OperandDimension GetDimension(bool in_dcl = false) const {
-    return GetOperandDimension(type_, in_dcl);
+    return GetOperandDimension(type, in_dcl);
   }
   u32 GetOperandTokenTypeAndIndex() const {
-    u32 operand_token = (static_cast<u32>(type_) << 12) | (index_dimension_ << 20);
-    if (index_dimension_ > 0) {
-      operand_token |= static_cast<u32>(index_1d_.GetRepresentation()) << 22;
-      if (index_dimension_ > 1) {
-        operand_token |= static_cast<u32>(index_2d_.GetRepresentation()) << 25;
-        if (index_dimension_ > 2) {
-          operand_token |= static_cast<u32>(index_3d_.GetRepresentation()) << 28;
+    u32 operand_token = (static_cast<u32>(type) << 12) | (index_dimension << 20);
+    if (index_dimension > 0) {
+      operand_token |= static_cast<u32>(index_1d.GetRepresentation()) << 22;
+      if (index_dimension > 1) {
+        operand_token |= static_cast<u32>(index_2d.GetRepresentation()) << 25;
+        if (index_dimension > 2) {
+          operand_token |= static_cast<u32>(index_3d.GetRepresentation()) << 28;
         }
       }
     }
@@ -793,24 +793,24 @@ struct OperandAddress {
   }
   u32 GetAddressLength() const {
     u32 length = 0;
-    if (index_dimension_ > 0) {
-      length += index_1d_.GetLength();
-      if (index_dimension_ > 1) {
-        length += index_2d_.GetLength();
-        if (index_dimension_ > 2) {
-          length += index_3d_.GetLength();
+    if (index_dimension > 0) {
+      length += index_1d.GetLength();
+      if (index_dimension > 1) {
+        length += index_2d.GetLength();
+        if (index_dimension > 2) {
+          length += index_3d.GetLength();
         }
       }
     }
     return length;
   }
   void Write(std::vector<u32>& code) const {
-    if (index_dimension_ > 0) {
-      index_1d_.Write(code);
-      if (index_dimension_ > 1) {
-        index_2d_.Write(code);
-        if (index_dimension_ > 2) {
-          index_3d_.Write(code);
+    if (index_dimension > 0) {
+      index_1d.Write(code);
+      if (index_dimension > 1) {
+        index_2d.Write(code);
+        if (index_dimension > 2) {
+          index_3d.Write(code);
         }
       }
     }
@@ -842,15 +842,18 @@ struct Dest : OperandAddress {
    * Ignored for 0 component and 1 component operand types. For 4 component operand types, a
    * write mask of 0 is treated as 0 component.
    */
-  u32 write_mask_;
+  u32 write_mask;
 
-  explicit Dest(OperandType type, u32 write_mask) : OperandAddress(type), write_mask_(write_mask) {}
-  explicit Dest(OperandType type, u32 write_mask, Index index_1d)
-      : OperandAddress(type, index_1d), write_mask_(write_mask) {}
-  explicit Dest(OperandType type, u32 write_mask, Index index_1d, Index index_2d)
-      : OperandAddress(type, index_1d, index_2d), write_mask_(write_mask) {}
-  explicit Dest(OperandType type, u32 write_mask, Index index_1d, Index index_2d, Index index_3d)
-      : OperandAddress(type, index_1d, index_2d, index_3d), write_mask_(write_mask) {}
+  explicit Dest(OperandType operand_type, u32 write_mask)
+      : OperandAddress(operand_type), write_mask(write_mask) {}
+  explicit Dest(OperandType operand_type, u32 write_mask, Index first_index)
+      : OperandAddress(operand_type, first_index), write_mask(write_mask) {}
+  explicit Dest(OperandType operand_type, u32 write_mask, Index first_index, Index second_index)
+      : OperandAddress(operand_type, first_index, second_index), write_mask(write_mask) {}
+  explicit Dest(OperandType operand_type, u32 write_mask, Index first_index, Index second_index,
+                Index third_index)
+      : OperandAddress(operand_type, first_index, second_index, third_index),
+        write_mask(write_mask) {}
 
   static Dest R(u32 index, u32 write_mask = 0b1111) {
     return Dest(OperandType::kTemp, write_mask, index);
@@ -858,14 +861,14 @@ struct Dest : OperandAddress {
   static Dest V1D(u32 index, u32 read_mask = 0b1111) {
     return Dest(OperandType::kInput, read_mask, index);
   }
-  static Dest V2D(u32 index_1d, u32 index_2d, u32 read_mask = 0b1111) {
-    return Dest(OperandType::kInput, read_mask, index_1d, index_2d);
+  static Dest V2D(u32 first_index, u32 second_index, u32 read_mask = 0b1111) {
+    return Dest(OperandType::kInput, read_mask, first_index, second_index);
   }
   static Dest O(Index index, u32 write_mask = 0b1111) {
     return Dest(OperandType::kOutput, write_mask, index);
   }
-  static Dest X(u32 index_1d, Index index_2d, u32 write_mask = 0b1111) {
-    return Dest(OperandType::kIndexableTemp, write_mask, index_1d, index_2d);
+  static Dest X(u32 first_index, Index second_index, u32 write_mask = 0b1111) {
+    return Dest(OperandType::kIndexableTemp, write_mask, first_index, second_index);
   }
   static Dest VPrim() { return Dest(OperandType::kInputPrimitiveID, 0b0001); }
   static Dest ODepth() { return Dest(OperandType::kOutputDepth, 0b0001); }
@@ -876,8 +879,8 @@ struct Dest : OperandAddress {
     return Dest(OperandType::kInputControlPoint, read_mask, control_point_count, element);
   }
   static Dest VDomain(u32 read_mask) { return Dest(OperandType::kInputDomainPoint, read_mask); }
-  static Dest U(u32 index_1d, Index index_2d, u32 write_mask = 0b1111) {
-    return Dest(OperandType::kUnorderedAccessView, write_mask, index_1d, index_2d);
+  static Dest U(u32 first_index, Index second_index, u32 write_mask = 0b1111) {
+    return Dest(OperandType::kUnorderedAccessView, write_mask, first_index, second_index);
   }
   static Dest VThreadID(u32 read_mask) { return Dest(OperandType::kInputThreadID, read_mask); }
   static Dest VThreadGroupID(u32 read_mask) {
@@ -898,20 +901,20 @@ struct Dest : OperandAddress {
       case OperandDimension::kScalar:
         return 0b0001;
       case OperandDimension::kVector:
-        return write_mask_;
+        return write_mask;
       default:
         REX_UNHANDLED_CASE(dimension);
         return 0b0000;
     }
   }
-  [[nodiscard]] Dest Mask(u32 write_mask) const {
+  [[nodiscard]] Dest Mask(u32 mask) const {
     Dest new_dest(*this);
-    new_dest.write_mask_ = write_mask;
+    new_dest.write_mask = mask;
     return new_dest;
   }
-  [[nodiscard]] Dest MaskMasked(u32 write_mask) const {
+  [[nodiscard]] Dest MaskMasked(u32 mask) const {
     Dest new_dest(*this);
-    new_dest.write_mask_ &= write_mask;
+    new_dest.write_mask &= mask;
     return new_dest;
   }
   static u32 GetMaskSingleComponent(u32 write_mask) {
@@ -932,9 +935,9 @@ struct Dest : OperandAddress {
     u32 operand_token = GetOperandTokenTypeAndIndex();
     OperandDimension dimension = GetDimension(in_dcl);
     if (dimension == OperandDimension::kVector) {
-      if (write_mask_) {
-        REX_ASSERT(write_mask_ <= 0b1111);
-        operand_token |= (std::to_underlying(ComponentSelection::kMask) << 2) | (write_mask_ << 4);
+      if (write_mask) {
+        REX_ASSERT(write_mask <= 0b1111);
+        operand_token |= (std::to_underlying(ComponentSelection::kMask) << 2) | (write_mask << 4);
       } else {
         dimension = OperandDimension::kNoData;
       }
@@ -955,40 +958,42 @@ struct Src : OperandAddress {
   };
 
   /** Ignored for 0 component and 1 component operand types. */
-  u32 swizzle_;
-  bool absolute_ = false;
-  bool negate_ = false;
+  u32 swizzle;
+  bool absolute = false;
+  bool negate = false;
   /** Only valid for OperandType::kImmediate32. */
-  u32 immediate_[4];
+  u32 immediate[4];
 
-  explicit Src(OperandType type, u32 swizzle) : OperandAddress(type), swizzle_(swizzle) {}
-  explicit Src(OperandType type, u32 swizzle, Index index_1d)
-      : OperandAddress(type, index_1d), swizzle_(swizzle) {}
-  explicit Src(OperandType type, u32 swizzle, Index index_1d, Index index_2d)
-      : OperandAddress(type, index_1d, index_2d), swizzle_(swizzle) {}
-  explicit Src(OperandType type, u32 swizzle, Index index_1d, Index index_2d, Index index_3d)
-      : OperandAddress(type, index_1d, index_2d, index_3d), swizzle_(swizzle) {}
+  explicit Src(OperandType operand_type, u32 swizzle)
+      : OperandAddress(operand_type), swizzle(swizzle) {}
+  explicit Src(OperandType operand_type, u32 swizzle, Index first_index)
+      : OperandAddress(operand_type, first_index), swizzle(swizzle) {}
+  explicit Src(OperandType operand_type, u32 swizzle, Index first_index, Index second_index)
+      : OperandAddress(operand_type, first_index, second_index), swizzle(swizzle) {}
+  explicit Src(OperandType operand_type, u32 swizzle, Index first_index, Index second_index,
+               Index third_index)
+      : OperandAddress(operand_type, first_index, second_index, third_index), swizzle(swizzle) {}
 
   /** Tag for creating instances for use in declarations. */
   struct DclT {};
-  static constexpr DclT Dcl = {};
+  static constexpr DclT kDcl = {};
 
   static Src R(u32 index, u32 swizzle = kXYZW) { return Src(OperandType::kTemp, swizzle, index); }
   static Src V1D(Index index, u32 swizzle = kXYZW) {
     return Src(OperandType::kInput, swizzle, index);
   }
-  static Src V2D(Index index_1d, Index index_2d, u32 swizzle = kXYZW) {
-    return Src(OperandType::kInput, swizzle, index_1d, index_2d);
+  static Src V2D(Index first_index, Index second_index, u32 swizzle = kXYZW) {
+    return Src(OperandType::kInput, swizzle, first_index, second_index);
   }
-  static Src X(u32 index_1d, Index index_2d, u32 swizzle = kXYZW) {
-    return Src(OperandType::kIndexableTemp, swizzle, index_1d, index_2d);
+  static Src X(u32 first_index, Index second_index, u32 swizzle = kXYZW) {
+    return Src(OperandType::kIndexableTemp, swizzle, first_index, second_index);
   }
   static Src LU(u32 x, u32 y, u32 z, u32 w) {
     Src src(OperandType::kImmediate32, kXYZW);
-    src.immediate_[0] = x;
-    src.immediate_[1] = y;
-    src.immediate_[2] = z;
-    src.immediate_[3] = w;
+    src.immediate[0] = x;
+    src.immediate[1] = y;
+    src.immediate[2] = z;
+    src.immediate[3] = w;
     return src;
   }
   static Src LU(u32 x) { return LU(x, x, x, x); }
@@ -1004,14 +1009,14 @@ struct Src : OperandAddress {
   static Src LP(const u32* xyzw) { return LU(xyzw[0], xyzw[1], xyzw[2], xyzw[3]); }
   static Src LP(const i32* xyzw) { return LI(xyzw[0], xyzw[1], xyzw[2], xyzw[3]); }
   static Src LP(const f32* xyzw) { return LF(xyzw[0], xyzw[1], xyzw[2], xyzw[3]); }
-  static Src S(u32 index_1d, Index index_2d) {
-    return Src(OperandType::kSampler, kXXXX, index_1d, index_2d);
+  static Src S(u32 first_index, Index second_index) {
+    return Src(OperandType::kSampler, kXXXX, first_index, second_index);
   }
   static Src S(DclT, u32 id, u32 lower_bound, u32 upper_bound) {
     return Src(OperandType::kSampler, kXYZW, id, lower_bound, upper_bound);
   }
-  static Src T(u32 index_1d, Index index_2d, u32 swizzle = kXYZW) {
-    return Src(OperandType::kResource, swizzle, index_1d, index_2d);
+  static Src T(u32 first_index, Index second_index, u32 swizzle = kXYZW) {
+    return Src(OperandType::kResource, swizzle, first_index, second_index);
   }
   static Src T(DclT, u32 id, u32 lower_bound, u32 upper_bound) {
     return Src(OperandType::kResource, kXYZW, id, lower_bound, upper_bound);
@@ -1028,8 +1033,8 @@ struct Src : OperandAddress {
     return Src(OperandType::kInputControlPoint, swizzle, control_point, element);
   }
   static Src VDomain(u32 swizzle = kXYZW) { return Src(OperandType::kInputDomainPoint, swizzle); }
-  static Src U(u32 index_1d, Index index_2d, u32 swizzle = kXYZW) {
-    return Src(OperandType::kUnorderedAccessView, swizzle, index_1d, index_2d);
+  static Src U(u32 first_index, Index second_index, u32 swizzle = kXYZW) {
+    return Src(OperandType::kUnorderedAccessView, swizzle, first_index, second_index);
   }
   static Src U(DclT, u32 id, u32 lower_bound, u32 upper_bound) {
     return Src(OperandType::kUnorderedAccessView, kXYZW, id, lower_bound, upper_bound);
@@ -1043,47 +1048,47 @@ struct Src : OperandAddress {
   }
   static Src VCoverage() { return Src(OperandType::kInputCoverageMask, kXXXX); }
 
-  [[nodiscard]] Src WithModifiers(bool absolute, bool negate) const {
+  [[nodiscard]] Src WithModifiers(bool is_absolute, bool is_negated) const {
     Src new_src(*this);
-    new_src.absolute_ = absolute;
-    new_src.negate_ = negate;
+    new_src.absolute = is_absolute;
+    new_src.negate = is_negated;
     return new_src;
   }
-  [[nodiscard]] Src WithAbs(bool absolute) const { return WithModifiers(absolute, negate_); }
-  [[nodiscard]] Src WithNeg(bool negate) const { return WithModifiers(absolute_, negate); }
+  [[nodiscard]] Src WithAbs(bool is_absolute) const { return WithModifiers(is_absolute, negate); }
+  [[nodiscard]] Src WithNeg(bool is_negated) const { return WithModifiers(absolute, is_negated); }
   [[nodiscard]] Src Abs() const { return WithModifiers(true, false); }
-  [[nodiscard]] Src operator-() const { return WithModifiers(absolute_, !negate_); }
-  [[nodiscard]] Src Swizzle(u32 swizzle) const {
+  [[nodiscard]] Src operator-() const { return WithModifiers(absolute, !negate); }
+  [[nodiscard]] Src Swizzle(u32 new_swizzle) const {
     Src new_src(*this);
-    new_src.swizzle_ = swizzle;
+    new_src.swizzle = new_swizzle;
     return new_src;
   }
-  [[nodiscard]] Src SwizzleSwizzled(u32 swizzle) const {
+  [[nodiscard]] Src SwizzleSwizzled(u32 outer_swizzle) const {
     Src new_src(*this);
-    new_src.swizzle_ = 0;
+    new_src.swizzle = 0;
     for (u32 i = 0; i < 4; ++i) {
-      new_src.swizzle_ |= ((swizzle_ >> (((swizzle >> (i * 2)) & 3) * 2)) & 3) << (i * 2);
+      new_src.swizzle |= ((swizzle >> (((outer_swizzle >> (i * 2)) & 3) * 2)) & 3) << (i * 2);
     }
     return new_src;
   }
   [[nodiscard]] Src Select(u32 component) const {
     Src new_src(*this);
-    new_src.swizzle_ = component * 0b01010101;
+    new_src.swizzle = component * 0b01010101;
     return new_src;
   }
   [[nodiscard]] Src SelectFromSwizzled(u32 component) const {
     Src new_src(*this);
-    new_src.swizzle_ = ((swizzle_ >> (component * 2)) & 3) * 0b01010101;
+    new_src.swizzle = ((swizzle >> (component * 2)) & 3) * 0b01010101;
     return new_src;
   }
 
   u32 GetLength(u32 mask, bool force_vector = false) const {
     bool is_vector =
         force_vector || (mask != 0b0000 && Dest::GetMaskSingleComponent(mask) == UINT32_MAX);
-    if (type_ == OperandType::kImmediate32) {
+    if (type == OperandType::kImmediate32) {
       return is_vector ? 5 : 2;
     }
-    return ((absolute_ || negate_) ? 2 : 1) + OperandAddress::GetAddressLength();
+    return ((absolute || negate) ? 2 : 1) + OperandAddress::GetAddressLength();
   }
   static constexpr u32 GetModifiedImmediate(u32 value, bool is_integer, bool absolute,
                                             bool negate) {
@@ -1105,8 +1110,8 @@ struct Src : OperandAddress {
     return value;
   }
   u32 GetModifiedImmediate(u32 swizzle_index, bool is_integer) const {
-    return GetModifiedImmediate(immediate_[(swizzle_ >> (swizzle_index * 2)) & 3], is_integer,
-                                absolute_, negate_);
+    return GetModifiedImmediate(immediate[(swizzle >> (swizzle_index * 2)) & 3], is_integer,
+                                absolute, negate);
   }
   /**
    * Appends the operand tokens.
@@ -1126,7 +1131,7 @@ struct Src : OperandAddress {
     u32 mask_single_component = Dest::GetMaskSingleComponent(mask);
     u32 select_component = mask_single_component != UINT32_MAX ? mask_single_component : 0;
     bool is_vector = force_vector || (mask != 0b0000 && mask_single_component == UINT32_MAX);
-    if (type_ == OperandType::kImmediate32) {
+    if (type == OperandType::kImmediate32) {
       if (is_vector) {
         operand_token |= std::to_underlying(OperandDimension::kVector) |
                          (std::to_underlying(ComponentSelection::kSwizzle) << 2) |
@@ -1163,22 +1168,22 @@ struct Src : OperandAddress {
             }
             for (u32 i = 0; i < 4; ++i) {
               u32 swizzle_index = (mask & (1 << i)) ? i : used_component;
-              operand_token |= (((swizzle_ >> (swizzle_index * 2)) & 3) << (4 + i * 2));
+              operand_token |= (((swizzle >> (swizzle_index * 2)) & 3) << (4 + i * 2));
             }
           } else {
             operand_token |= (std::to_underlying(ComponentSelection::kSelect1) << 2) |
-                             (((swizzle_ >> (select_component * 2)) & 3) << 4);
+                             (((swizzle >> (select_component * 2)) & 3) << 4);
           }
           break;
         default:
           break;
       }
       OperandModifier modifier = OperandModifier::kNone;
-      if (absolute_ && negate_) {
+      if (absolute && negate) {
         modifier = OperandModifier::kAbsoluteNegate;
-      } else if (absolute_) {
+      } else if (absolute) {
         modifier = OperandModifier::kAbsolute;
-      } else if (negate_) {
+      } else if (negate) {
         modifier = OperandModifier::kNegate;
       }
       if (modifier != OperandModifier::kNone) {
@@ -1688,7 +1693,7 @@ class Assembler {
    * @return Pointer to the data to write.
    */
   void* OpCustomData(CustomDataClass custom_data_class, u32 length_bytes) {
-    u32 length_bytes_aligned = rex::align(length_bytes, static_cast<u32>(sizeof(u32)));
+    u32 length_bytes_aligned = rex::Align(length_bytes, static_cast<u32>(sizeof(u32)));
     u32 total_length_dwords = length_bytes_aligned / sizeof(u32) + 2;
     size_t offset_dwords = code_.size();
     code_.resize(offset_dwords + total_length_dwords);
@@ -1701,7 +1706,7 @@ class Assembler {
   }
   void OpMov(const Dest& dest, const Src& src, bool saturate = false) {
     EmitAluOp(Opcode::kMov, 0b0, dest, src, saturate);
-    if (dest.type_ == OperandType::kIndexableTemp || src.type_ == OperandType::kIndexableTemp) {
+    if (dest.type == OperandType::kIndexableTemp || src.type == OperandType::kIndexableTemp) {
       ++stat_.array_instruction_count;
     } else {
       ++stat_.mov_instruction_count;
@@ -2267,8 +2272,8 @@ class Assembler {
     REX_ASSERT(dest_write_mask == 0b0001 || dest_write_mask == 0b0010 ||
                dest_write_mask == 0b0100 || dest_write_mask == 0b1000 ||
                dest_write_mask == 0b0011 || dest_write_mask == 0b0111 || dest_write_mask == 0b1111);
-    u32 component_count = rex::bit_count(dest_write_mask);
-    REX_ASSERT((src.swizzle_ & ((1 << (component_count * 2)) - 1)) ==
+    u32 component_count = rex::BitCount(dest_write_mask);
+    REX_ASSERT((src.swizzle & ((1 << (component_count * 2)) - 1)) ==
                (Src::kXYZW & ((1 << (component_count * 2)) - 1)));
     u32 src_mask = (1 << component_count) - 1;
     u32 operands_length =

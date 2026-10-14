@@ -80,7 +80,7 @@ class IHIDBackend {
   /** Holds the title pads neutral while a system dialog is up. Counted. */
   virtual void AcquireUIBlock() = 0;
 
-  /** Releases 1 UI block. Buttons held when the last block drops stay masked until released. */
+  /** Releases a UI block. Buttons held when the last block drops stay masked until released. */
   virtual void ReleaseUIBlock() = 0;
 
   /**
@@ -118,28 +118,28 @@ class IHIDBackend {
    *
    * @return True while a key is held.
    */
-  virtual bool AnyKeyDown() const = 0;
+  virtual bool IsAnyKeyDown() const = 0;
 
   /**
    * Returns the held modifiers.
    *
    * @return The modifiers.
    */
-  virtual KeyModifiers modifiers() const = 0;
+  virtual KeyModifiers GetModifiers() const = 0;
 
   /**
    * Reports whether the window has focus.
    *
    * @return True while focused.
    */
-  virtual bool focused() const = 0;
+  virtual bool GetFocused() const = 0;
 
   /**
    * Returns the pointer position and the window size.
    *
    * @return The state.
    */
-  virtual PointerState pointer() const = 0;
+  virtual PointerState GetPointer() const = 0;
 
   /**
    * Reports whether a mouse button is down.
@@ -154,7 +154,7 @@ class IHIDBackend {
    *
    * @return True while a button is held.
    */
-  virtual bool AnyButtonDown() const = 0;
+  virtual bool IsAnyButtonDown() const = 0;
 
   /**
    * Reports whether the pointer moved since the last call, and clears it.
@@ -189,7 +189,7 @@ class IHIDBackend {
    *
    * @return Signed detents.
    */
-  virtual i32 wheel() const = 0;
+  virtual i32 GetWheel() const = 0;
 
   /**
    * Sets the pointer mode the consumer wants. Applied on the UI thread, last call wins. Mouse look
@@ -204,7 +204,7 @@ class IHIDBackend {
    *
    * @return The mode.
    */
-  virtual PointerMode pointer_mode() const = 0;
+  virtual PointerMode GetPointerMode() const = 0;
 };
 
 /** The null HID backend. 1 idle pad on user 0, no keyboard and no pointer. */
@@ -288,28 +288,28 @@ class REX_API NullHIDBackend final : public IHIDBackend, public NonCopyable {
    *
    * @return False.
    */
-  bool AnyKeyDown() const override { return false; }
+  bool IsAnyKeyDown() const override { return false; }
 
   /**
    * Reports no modifier held.
    *
-   * @return KeyModifiers::None.
+   * @return KeyModifiers::kNone.
    */
-  KeyModifiers modifiers() const override { return KeyModifiers::None; }
+  KeyModifiers GetModifiers() const override { return KeyModifiers::kNone; }
 
   /**
    * Reports focus, so pads stay live.
    *
    * @return True.
    */
-  bool focused() const override { return true; }
+  bool GetFocused() const override { return true; }
 
   /**
    * Reports no pointer.
    *
    * @return An empty state.
    */
-  PointerState pointer() const override { return {}; }
+  PointerState GetPointer() const override { return {}; }
 
   /**
    * Reports no button down.
@@ -327,7 +327,7 @@ class REX_API NullHIDBackend final : public IHIDBackend, public NonCopyable {
    *
    * @return False.
    */
-  bool AnyButtonDown() const override { return false; }
+  bool IsAnyButtonDown() const override { return false; }
 
   /**
    * Reports no motion.
@@ -362,7 +362,7 @@ class REX_API NullHIDBackend final : public IHIDBackend, public NonCopyable {
    *
    * @return 0.
    */
-  i32 wheel() const override { return 0; }
+  i32 GetWheel() const override { return 0; }
 
   /**
    * Does nothing, there is no pointer.
@@ -374,9 +374,9 @@ class REX_API NullHIDBackend final : public IHIDBackend, public NonCopyable {
   /**
    * Reports the free pointer.
    *
-   * @return PointerMode::Free.
+   * @return PointerMode::kFree.
    */
-  PointerMode pointer_mode() const override { return PointerMode::Free; }
+  PointerMode GetPointerMode() const override { return PointerMode::kFree; }
 
  private:
   std::mutex mutex_;

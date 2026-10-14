@@ -21,16 +21,16 @@
 namespace rex::kernel {
 
 Result<void> InitializeKernel(Runtime& runtime) {
-  auto& apps = runtime.content_manager().app_manager();
+  auto& apps = runtime.GetContentManager().GetAppManager();
   apps.RegisterApp(std::make_unique<xam::apps::XmpApp>(runtime));
   apps.RegisterApp(std::make_unique<xam::apps::XgiApp>(runtime));
   apps.RegisterApp(std::make_unique<xam::apps::XLiveBaseApp>(runtime));
-  apps.RegisterApp(std::make_unique<xam::apps::XamApp>(runtime));
+  apps.RegisterApp(std::make_unique<xam::apps::XAMApp>(runtime));
 
-  auto& modules = runtime.module_registry();
+  auto& modules = runtime.GetModuleRegistry();
   REX_TRY_VOID(modules.LoadKernelModule(xboxkrnl::CreateXboxkrnlModule(runtime)));
-  REX_TRY_VOID(modules.LoadKernelModule(xam::CreateXamModule(runtime)));
-  REX_TRY_VOID(modules.LoadKernelModule(xbdm::CreateXbdmModule(runtime)));
+  REX_TRY_VOID(modules.LoadKernelModule(xam::CreateXAMModule(runtime)));
+  REX_TRY_VOID(modules.LoadKernelModule(xbdm::CreateXBDMModule(runtime)));
   return Ok();
 }
 

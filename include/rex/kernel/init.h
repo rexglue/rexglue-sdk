@@ -20,7 +20,7 @@ class Runtime;
 namespace rex::kernel {
 
 /**
- * Registers the Xam apps and loads the xboxkrnl, Xam and Xbdm kernel modules.
+ * Registers the XAM apps and loads the xboxkrnl, XAM and XBDM kernel modules.
  *
  * @param runtime The runtime being set up.
  * @return Ok, or the error of the first kernel module that did not load.

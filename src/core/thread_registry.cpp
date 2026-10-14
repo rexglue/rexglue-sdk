@@ -39,7 +39,7 @@ void RegisterCurrentThread() {
   g_live_count.fetch_add(1, std::memory_order_acq_rel);
 }
 
-u64 ThreadCount() {
+u64 GetThreadCount() {
   return g_live_count.load(std::memory_order_acquire);
 }
 

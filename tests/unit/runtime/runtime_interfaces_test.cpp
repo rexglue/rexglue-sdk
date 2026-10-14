@@ -36,7 +36,7 @@ namespace {
 std::atomic<rex::Runtime*> g_seen_runtime{nullptr};
 
 void RecordCurrent(PPCContext& ctx, u8*) {
-  g_seen_runtime = &rex::runtime::Current();
+  g_seen_runtime = &rex::runtime::GetCurrent();
   ctx.r3.u64 = 0;
 }
 
@@ -45,15 +45,15 @@ void RecordCurrent(PPCContext& ctx, u8*) {
 REX_TEST_CASE("Current returns the runtime on a guest thread", "[runtime][current]") {
   rex::testing::KernelFixture fixture;
   rex::Runtime* seen = nullptr;
-  fixture.RunOnGuestThread([&](rex::testing::Caller&) { seen = &rex::runtime::Current(); });
-  CHECK(seen == &fixture.runtime());
+  fixture.RunOnGuestThread([&](rex::testing::Caller&) { seen = &rex::runtime::GetCurrent(); });
+  CHECK(seen == &fixture.GetRuntime());
 }
 
 REX_TEST_CASE("Current returns the runtime inside an interrupt callback", "[runtime][current]") {
   rex::testing::KernelFixture fixture;
   g_seen_runtime = nullptr;
   fixture.RunOnGuestThread([](rex::testing::Caller& c) {
-    auto* dispatcher = c.runtime().function_dispatcher();
+    auto* dispatcher = c.GetRuntime().GetFunctionDispatcher();
     const u32 callback = dispatcher->AllocateThunk(&RecordCurrent, 0);
     CHECKED_ELSE(callback != 0) {
       FAIL_CHECK("the check above failed");
@@ -62,12 +62,12 @@ REX_TEST_CASE("Current returns the runtime inside an interrupt callback", "[runt
     const u32 pcr = c.Alloc(0x1000);
     const u32 stack = c.Alloc(0x10000) + 0x8000;
     std::jthread worker([&] {
-      rex::runtime::ThreadState state(4, stack, pcr, c.runtime().memory(), &c.runtime());
+      rex::runtime::ThreadState state(4, stack, pcr, c.GetRuntime().GetMemory(), &c.GetRuntime());
       dispatcher->ExecuteInterrupt(&state, callback, nullptr, 0);
     });
     worker.join();
   });
-  CHECK(g_seen_runtime.load() == &fixture.runtime());
+  CHECK(g_seen_runtime.load() == &fixture.GetRuntime());
 }
 
 REX_TEST_CASE("A host thread with no thread state launches a worker thread", "[runtime][current]") {
@@ -76,11 +76,11 @@ REX_TEST_CASE("A host thread with no thread state launches a worker thread", "[r
   bool launched = false;
   std::jthread host([&] {
     auto thread =
-        std::make_unique<rex::runtime::KernelThread>(fixture.runtime(), 64 * 1024, 0, [&] {
+        std::make_unique<rex::runtime::KernelThread>(fixture.GetRuntime(), 64 * 1024, 0, [&] {
           ran = true;
           return 0;
         });
-    launched = fixture.runtime().thread_registry().Launch(std::move(thread)).has_value();
+    launched = fixture.GetRuntime().GetThreadRegistry().Launch(std::move(thread)).has_value();
   });
   host.join();
   REQUIRE(launched);
@@ -94,13 +94,13 @@ REX_TEST_CASE("A host thread with no thread state launches a worker thread", "[r
 namespace {
 
 void CheckServed(rex::API& api, rex::Runtime& runtime) {
-  CHECK(api.Get<rex::runtime::IObjectTable>() == &runtime.object_table());
-  CHECK(api.Get<rex::runtime::IThreadRegistry>() == &runtime.thread_registry());
-  CHECK(api.Get<rex::runtime::IModuleRegistry>() == &runtime.module_registry());
-  CHECK(api.Get<rex::runtime::INotifier>() == &runtime.notifier());
-  CHECK(api.Get<rex::runtime::IContentManager>() == &runtime.content_manager());
-  CHECK(api.Get<rex::runtime::IAchievementManager>() == &runtime.achievement_manager());
-  CHECK(api.Get<rex::runtime::IDispatcher>() == &runtime.dispatcher());
+  CHECK(api.Get<rex::runtime::IObjectTable>() == &runtime.GetObjectTable());
+  CHECK(api.Get<rex::runtime::IThreadRegistry>() == &runtime.GetThreadRegistry());
+  CHECK(api.Get<rex::runtime::IModuleRegistry>() == &runtime.GetModuleRegistry());
+  CHECK(api.Get<rex::runtime::INotifier>() == &runtime.GetNotifier());
+  CHECK(api.Get<rex::runtime::IContentManager>() == &runtime.GetContentManager());
+  CHECK(api.Get<rex::runtime::IAchievementManager>() == &runtime.GetAchievementManager());
+  CHECK(api.Get<rex::runtime::IDispatcher>() == &runtime.GetDispatcher());
 }
 
 void CheckNoneServed(rex::API& api) {
@@ -117,36 +117,36 @@ void CheckNoneServed(rex::API& api) {
 
 REX_TEST_CASE("The module serves the 7 interfaces of the active runtime", "[runtime][interfaces]") {
   rex::testing::KernelFixture fixture;
-  CheckServed(fixture.api(), fixture.runtime());
+  CheckServed(fixture.GetAPI(), fixture.GetRuntime());
 }
 
 REX_TEST_CASE("The module serves no interface after Shutdown", "[runtime][interfaces]") {
   rex::testing::KernelFixture fixture;
-  fixture.runtime().Shutdown();
-  CheckNoneServed(fixture.api());
+  fixture.GetRuntime().Shutdown();
+  CheckNoneServed(fixture.GetAPI());
 }
 
 REX_TEST_CASE("A second runtime in the same process is served", "[runtime][interfaces]") {
   { rex::testing::KernelFixture first; }
   rex::testing::KernelFixture second;
-  CheckServed(second.api(), second.runtime());
+  CheckServed(second.GetAPI(), second.GetRuntime());
 }
 
 REX_TEST_CASE("Setup fails while another runtime is active", "[runtime][interfaces]") {
   rex::testing::KernelFixture fixture;
-  rex::Runtime other(fixture.api().config());
+  rex::Runtime other(fixture.GetAPI().GetConfig());
   rex::RuntimeDesc config;
   config.tool_mode = true;
   CHECK_FALSE(other.Setup(config));
-  CheckServed(fixture.api(), fixture.runtime());
+  CheckServed(fixture.GetAPI(), fixture.GetRuntime());
 }
 
 REX_TEST_CASE("process_type reads what set_process_type wrote", "[runtime][interfaces]") {
   rex::testing::KernelFixture fixture;
-  fixture.runtime().set_process_type(rex::runtime::X_PROCTYPE_SYSTEM);
-  CHECK(fixture.runtime().process_type() == rex::runtime::X_PROCTYPE_SYSTEM);
-  fixture.runtime().set_process_type(rex::runtime::X_PROCTYPE_USER);
-  CHECK(fixture.runtime().process_type() == rex::runtime::X_PROCTYPE_USER);
+  fixture.GetRuntime().SetProcessType(rex::runtime::kXProcTypeSystem);
+  CHECK(fixture.GetRuntime().GetProcessType() == rex::runtime::kXProcTypeSystem);
+  fixture.GetRuntime().SetProcessType(rex::runtime::kXProcTypeUser);
+  CHECK(fixture.GetRuntime().GetProcessType() == rex::runtime::kXProcTypeUser);
 }
 
 REX_TEST_CASE("ResolveHandle takes the guest address of a dispatch header",
@@ -154,9 +154,9 @@ REX_TEST_CASE("ResolveHandle takes the guest address of a dispatch header",
   rex::testing::KernelFixture fixture;
   fixture.RunOnGuestThread([](rex::testing::Caller& c) {
     const u32 address = c.Alloc(sizeof(rex::runtime::X_KEVENT));
-    auto* event = c.runtime().memory()->TranslateVirtual<rex::runtime::X_KEVENT*>(address);
+    auto* event = c.GetRuntime().GetMemory()->TranslateVirtual<rex::runtime::X_KEVENT*>(address);
     std::memset(event, 0, sizeof(rex::runtime::X_KEVENT));
-    auto& table = c.runtime().object_table();
+    auto& table = c.GetRuntime().GetObjectTable();
     const std::optional<rex::X_HANDLE> handle = table.ResolveHandle(address, -1);
     CHECKED_ELSE(handle.has_value()) {
       FAIL_CHECK("the check above failed");
@@ -170,12 +170,12 @@ REX_TEST_CASE("ResolveHandle takes the guest address of a dispatch header",
 REX_TEST_CASE("is_setup holds only between a successful Setup and Shutdown",
               "[runtime][interfaces]") {
   rex::testing::KernelFixture fixture;
-  CHECK(fixture.runtime().is_setup());
-  rex::Runtime other(fixture.api().config());
+  CHECK(fixture.GetRuntime().IsSetup());
+  rex::Runtime other(fixture.GetAPI().GetConfig());
   rex::RuntimeDesc config;
   config.tool_mode = true;
   CHECK_FALSE(other.Setup(config));
-  CHECK_FALSE(other.is_setup());
-  fixture.runtime().Shutdown();
-  CHECK_FALSE(fixture.runtime().is_setup());
+  CHECK_FALSE(other.IsSetup());
+  fixture.GetRuntime().Shutdown();
+  CHECK_FALSE(fixture.GetRuntime().IsSetup());
 }

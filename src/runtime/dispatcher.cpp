@@ -66,28 +66,28 @@ bool LeaveInterrupt() {
 }
 
 Dispatcher::Dispatcher(Runtime& runtime) : runtime_(runtime) {
-  auto* memory = runtime.memory();
+  auto* memory = runtime.GetMemory();
   dpc_list_head_ = memory->SystemHeapAlloc(sizeof(X_LIST_ENTRY));
   runtime::InitializeListHead(memory->TranslateVirtual<X_LIST_ENTRY*>(dpc_list_head_),
                               dpc_list_head_);
 }
 
 Dispatcher::~Dispatcher() {
-  FreeGuestStack(*runtime_.memory(), dpc_stack_base_);
+  FreeGuestStack(*runtime_.GetMemory(), dpc_stack_base_);
   if (dpc_list_head_) {
-    runtime_.memory()->SystemHeapFree(dpc_list_head_);
+    runtime_.GetMemory()->SystemHeapFree(dpc_list_head_);
   }
 }
 
 void Dispatcher::CompleteOverlappedEx(u32 overlapped, X_RESULT result, u32 extended_error,
                                       u32 length) {
-  auto ptr = runtime_.memory()->TranslateVirtual(overlapped);
+  auto ptr = runtime_.GetMemory()->TranslateVirtual(overlapped);
   XOverlappedSetExtendedError(ptr, extended_error);
   XOverlappedSetLength(ptr, length);
   XOverlappedSetResult(ptr, result);
   X_HANDLE event_handle = XOverlappedGetEvent(ptr);
   if (event_handle) {
-    auto ev = runtime_.object_table().Get<EventObject>(event_handle);
+    auto ev = runtime_.GetObjectTable().Get<EventObject>(event_handle);
     REX_ASSERT(static_cast<bool>(ev));
     if (ev) {
       ev->Set();
@@ -95,7 +95,7 @@ void Dispatcher::CompleteOverlappedEx(u32 overlapped, X_RESULT result, u32 exten
   }
   if (XOverlappedGetCompletionRoutine(ptr)) {
     X_HANDLE thread_handle = XOverlappedGetContext(ptr);
-    auto thread = runtime_.thread_registry().FindByHandle(thread_handle);
+    auto thread = runtime_.GetThreadRegistry().FindByHandle(thread_handle);
     if (thread) {
       u32 routine = XOverlappedGetCompletionRoutine(ptr);
       thread->EnqueueAPC(routine, result, length, overlapped);
@@ -104,8 +104,8 @@ void Dispatcher::CompleteOverlappedEx(u32 overlapped, X_RESULT result, u32 exten
 }
 
 void Dispatcher::Complete(u32 overlapped, const CompletionOptions& options) {
-  auto ptr = runtime_.memory()->TranslateVirtual(overlapped);
-  XOverlappedSetContext(ptr, ThreadRecord::GetCurrentThreadHandle());
+  auto ptr = runtime_.GetMemory()->TranslateVirtual(overlapped);
+  XOverlappedSetContext(ptr, KernelThread::GetCurrentThreadHandle());
   CompleteOverlappedEx(overlapped, options.result, ExtendedError(options), Length(options));
 }
 
@@ -126,7 +126,7 @@ void Dispatcher::CompleteDeferred(u32 overlapped, rex::MoveOnlyFunction<Completi
                                   rex::MoveOnlyFunction<void()> pre,
                                   rex::MoveOnlyFunction<void()> post) {
   REXLOG_DEBUG(system, "CompleteDeferred: queuing for overlapped {:08X}", overlapped);
-  auto ptr = runtime_.memory()->TranslateVirtual(overlapped);
+  auto ptr = runtime_.GetMemory()->TranslateVirtual(overlapped);
   XOverlappedSetResult(ptr, X_ERROR_IO_PENDING);
   XOverlappedSetContext(ptr, KernelThread::GetCurrentThreadHandle());
   std::lock_guard lock(dispatch_mutex_);
@@ -154,19 +154,19 @@ void Dispatcher::CompleteDeferred(u32 overlapped, rex::MoveOnlyFunction<Completi
 
 Dispatcher::DPCImpersonationScope Dispatcher::BeginDPCImpersonation(X_KPCR& pcr) {
   DPCImpersonationScope scope;
-  scope.previous_irql_ = pcr.current_irql;
-  pcr.current_irql = IRQL_DISPATCH;
+  scope.previous_irql = pcr.current_irql;
+  pcr.current_irql = kIRQLDispatch;
   pcr.prcb_data.dpc_active = 1;
   return scope;
 }
 
 void Dispatcher::EndDPCImpersonation(X_KPCR& pcr, const DPCImpersonationScope& scope) {
   pcr.prcb_data.dpc_active = 0;
-  pcr.current_irql = scope.previous_irql_;
+  pcr.current_irql = scope.previous_irql;
 }
 
 bool Dispatcher::QueueDPC(u32 dpc, u32 arg1, u32 arg2) {
-  auto* memory = runtime_.memory();
+  auto* memory = runtime_.GetMemory();
   std::lock_guard lock(dpc_mutex_);
   auto* object = memory->TranslateVirtual<X_KDPC*>(dpc);
   if (object->inserted_number) {
@@ -180,7 +180,7 @@ bool Dispatcher::QueueDPC(u32 dpc, u32 arg1, u32 arg2) {
 }
 
 bool Dispatcher::RemoveDPC(u32 dpc) {
-  auto* memory = runtime_.memory();
+  auto* memory = runtime_.GetMemory();
   std::lock_guard lock(dpc_mutex_);
   auto* object = memory->TranslateVirtual<X_KDPC*>(dpc);
   if (!object->inserted_number) {
@@ -192,13 +192,13 @@ bool Dispatcher::RemoveDPC(u32 dpc) {
 }
 
 bool Dispatcher::HasQueuedDPCs() {
-  auto* memory = runtime_.memory();
+  auto* memory = runtime_.GetMemory();
   std::lock_guard lock(dpc_mutex_);
   return !runtime::IsListEmpty(memory->TranslateVirtual<X_LIST_ENTRY*>(dpc_list_head_), memory);
 }
 
 std::optional<Dispatcher::QueuedDPC> Dispatcher::PopDPC() {
-  auto* memory = runtime_.memory();
+  auto* memory = runtime_.GetMemory();
   std::lock_guard lock(dpc_mutex_);
   auto* head = memory->TranslateVirtual<X_LIST_ENTRY*>(dpc_list_head_);
   if (runtime::IsListEmpty(head, memory)) {
@@ -211,15 +211,15 @@ std::optional<Dispatcher::QueuedDPC> Dispatcher::PopDPC() {
 }
 
 void Dispatcher::RunQueuedDPCs(ThreadState& state) {
-  auto* ctx = state.context();
-  auto& pcr = *runtime_.memory()->TranslateVirtual<X_KPCR*>(static_cast<u32>(ctx->r13.u64));
-  auto* functions = runtime_.function_dispatcher();
+  auto* ctx = state.GetContext();
+  auto& pcr = *runtime_.GetMemory()->TranslateVirtual<X_KPCR*>(static_cast<u32>(ctx->r13.u64));
+  auto* functions = runtime_.GetFunctionDispatcher();
   const DPCImpersonationScope scope = BeginDPCImpersonation(pcr);
   while (const std::optional<QueuedDPC> dpc = PopDPC()) {
     const u64 saved_r1 = ctx->r1.u64;
     ctx->r1.u64 = dpc_stack_top_;
     u64 args[] = {dpc->address, dpc->context, dpc->arg1, dpc->arg2};
-    functions->ExecuteTrap(&state, dpc->routine, args, rex::countof(args));
+    functions->ExecuteTrap(&state, dpc->routine, args, rex::CountOf(args));
     ctx->r1.u64 = saved_r1;
   }
   EndDPCImpersonation(pcr, scope);
@@ -227,7 +227,8 @@ void Dispatcher::RunQueuedDPCs(ThreadState& state) {
 
 void Dispatcher::DrainDPCs() {
   ThreadState* state = ThreadState::Get();
-  if (!state || !state->context()->r13.u64 || !dpc_stack_top_ || t_interrupt_depth || t_draining) {
+  if (!state || !state->GetContext()->r13.u64 || !dpc_stack_top_ || t_interrupt_depth ||
+      t_draining) {
     return;
   }
   while (HasQueuedDPCs()) {
@@ -256,7 +257,7 @@ void Dispatcher::PostDrain() {
 
 bool Dispatcher::IsDispatchThread() const {
   return dispatch_thread_ && KernelThread::IsInThread() &&
-         KernelThread::GetCurrentThread()->handle() == dispatch_thread_;
+         KernelThread::GetCurrentThread()->GetHandle() == dispatch_thread_;
 }
 
 bool Dispatcher::IsRunning() const {
@@ -283,7 +284,7 @@ void Dispatcher::Start() {
   }
   if (!dpc_stack_base_) {
     if (Result<GuestStack> stack =
-            AllocateGuestStack(*runtime_.memory(), kDPCStackSize, 0, false)) {
+            AllocateGuestStack(*runtime_.GetMemory(), kDPCStackSize, 0, false)) {
       dpc_stack_base_ = stack->alloc_base;
       dpc_stack_top_ = stack->base - kDPCStackTopReserve;
     } else {
@@ -318,8 +319,8 @@ void Dispatcher::Start() {
     }
     return 0;
   });
-  thread->set_name("Kernel Dispatch");
-  Result<X_HANDLE> launched = runtime_.thread_registry().Launch(std::move(thread));
+  thread->SetName("Kernel Dispatch");
+  Result<X_HANDLE> launched = runtime_.GetThreadRegistry().Launch(std::move(thread));
   if (!launched) {
     dispatch_thread_running_ = false;
     dispatch_thread_ = 0;
@@ -338,7 +339,7 @@ void Dispatcher::RequestStop() {
     dispatch_thread_running_ = false;
   }
   dispatch_cond_.notify_all();
-  if (ThreadPin thread = runtime_.thread_registry().FindByHandle(dispatch_thread_)) {
+  if (ThreadPin thread = runtime_.GetThreadRegistry().FindByHandle(dispatch_thread_)) {
     thread->RequestStop();
   }
 }
@@ -356,14 +357,14 @@ void Dispatcher::Stop(std::chrono::milliseconds interval) {
   }
   if (dispatch_thread_) {
     RequestStop();
-    if (ThreadPin thread = runtime_.thread_registry().FindByHandle(dispatch_thread_)) {
+    if (ThreadPin thread = runtime_.GetThreadRegistry().FindByHandle(dispatch_thread_)) {
       std::vector<ThreadPin> threads;
       threads.push_back(std::move(thread));
       WaitForThreadsToStop(threads, interval, [interval](const ThreadPin&) {
         REXLOG_WARN(system, "Kernel Dispatch thread still running after {} ms", interval.count());
       });
     }
-    CloseOwned(runtime_.object_table(), dispatch_thread_);
+    CloseOwned(runtime_.GetObjectTable(), dispatch_thread_);
     dispatch_thread_ = 0;
     std::lock_guard lock(dispatch_mutex_);
     dispatch_queue_.clear();

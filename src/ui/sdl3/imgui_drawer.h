@@ -9,8 +9,8 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-#ifndef REX_UI_SDL3_IMGUI_DRAWER_H_
-#define REX_UI_SDL3_IMGUI_DRAWER_H_
+#ifndef REX_UI_SDL3_IMGUI_DRAWER_H
+#define REX_UI_SDL3_IMGUI_DRAWER_H
 
 #include <atomic>
 #include <cstddef>
@@ -47,7 +47,7 @@ class ImGuiDrawer : public WindowInputListener, public gpu::IOverlayLayer, publi
    *
    * @return The style every dialog of this drawer draws with.
    */
-  ImGuiStyle& imgui_style();
+  ImGuiStyle& GetImGuiStyle();
 
   /**
    * Draws a dialog the caller owns. Adding an attached dialog does nothing.
@@ -187,4 +187,4 @@ class ImGuiDrawer : public WindowInputListener, public gpu::IOverlayLayer, publi
 }  // namespace ui
 }  // namespace rex
 
-#endif  // REX_UI_SDL3_IMGUI_DRAWER_H_
+#endif  // REX_UI_SDL3_IMGUI_DRAWER_H

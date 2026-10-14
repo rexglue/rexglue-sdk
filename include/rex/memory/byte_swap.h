@@ -31,7 +31,7 @@ namespace rex::memory {
  * @param src Source buffer.
  * @param count Number of 16 byte blocks.
  */
-REX_API void copy_128_aligned(void* dest, const void* src, size_t count);
+REX_API void Copy128Aligned(void* dest, const void* src, size_t count);
 
 /**
  * Copies 16 bit values and swaps the byte order of each. Both buffers are 16 byte aligned.

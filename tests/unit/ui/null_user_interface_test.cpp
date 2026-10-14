@@ -40,9 +40,9 @@ REX_TEST_CASE("OpenWindow returns a window with no native handle", "[ui]") {
   REQUIRE(window);
   REQUIRE(*window != nullptr);
   CHECK(ui.GetWindow() == *window);
-  CHECK((*window)->Native().kind == NativeWindow::Kind::None);
-  CHECK((*window)->Native().window == nullptr);
-  CHECK((*window)->Native().sdl == nullptr);
+  CHECK((*window)->GetNative().kind == NativeWindow::Kind::kNone);
+  CHECK((*window)->GetNative().window == nullptr);
+  CHECK((*window)->GetNative().sdl == nullptr);
 }
 
 REX_TEST_CASE("Prompt completes cancelled at once", "[ui]") {
@@ -138,21 +138,21 @@ REX_TEST_CASE("Post returns false once the loop quit and RunSynchronous does not
   CHECK_FALSE(ran);
 }
 
-REX_TEST_CASE("Displays and ShowFileDialog are empty and fonts are null", "[ui]") {
+REX_TEST_CASE("GetDisplays and ShowFileDialog are empty and fonts are null", "[ui]") {
   NullUserInterface ui;
-  CHECK(ui.Displays().empty());
+  CHECK(ui.GetDisplays().empty());
   auto files = ui.ShowFileDialog(FileDialogDesc{});
   REQUIRE(files);
   CHECK(files->empty());
-  CHECK(ui.Fonts() == nullptr);
+  CHECK(ui.GetFonts() == nullptr);
   CHECK(ui.GetImGuiStyle() == nullptr);
   CHECK_FALSE(ui.HasDialogs());
-  CHECK_FALSE(ui.AnyOverlayVisible());
+  CHECK_FALSE(ui.IsAnyOverlayVisible());
 }
 
-REX_TEST_CASE("PreferredLocales on the null provider is empty", "[ui]") {
+REX_TEST_CASE("GetPreferredLocales on the null provider is empty", "[ui]") {
   NullUserInterface ui;
-  CHECK(ui.PreferredLocales().empty());
+  CHECK(ui.GetPreferredLocales().empty());
 }
 
 REX_TEST_CASE("RunSynchronous work abandoned at Quit never runs", "[ui]") {

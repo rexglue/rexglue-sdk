@@ -76,10 +76,10 @@ class DrawExtentEstimator {
       vertex_kill_.reset();
     }
 
-    const std::optional<f32>& position_y() const { return position_y_; }
-    const std::optional<f32>& position_w() const { return position_w_; }
-    const std::optional<f32>& point_size() const { return point_size_; }
-    const std::optional<u32>& vertex_kill() const { return vertex_kill_; }
+    const std::optional<f32>& GetPositionY() const { return position_y_; }
+    const std::optional<f32>& GetPositionW() const { return position_w_; }
+    const std::optional<f32>& GetPointSize() const { return point_size_; }
+    const std::optional<u32>& GetVertexKill() const { return vertex_kill_; }
 
    private:
     std::optional<f32> position_y_;

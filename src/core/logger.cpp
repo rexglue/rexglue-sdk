@@ -14,7 +14,7 @@
 
 namespace rex::log {
 
-class detail_access {
+class DetailAccess {
  public:
   static std::atomic<u16>& Slot(const Category& category) { return category.slot_; }
 };
@@ -66,7 +66,7 @@ Message View(const CapturedMessage& message) {
       return static_cast<Level>(index);
     }
   }
-  return Err<Level>(ErrorCategory::Config, std::format("unknown log level '{}'", text));
+  return Err<Level>(ErrorCategory::kConfig, std::format("unknown log level '{}'", text));
 }
 
 std::string_view LevelName(Level level) {
@@ -74,7 +74,7 @@ std::string_view LevelName(Level level) {
   return index < kLevelNames.size() ? kLevelNames[index] : kLevelNames.back();
 }
 
-bool Category::Enabled(Level level) const {
+bool Category::IsEnabled(Level level) const {
   Logger& logger = GetLoggerInstance();
   u16 slot = slot_.load(std::memory_order_acquire);
   if (slot == kUnresolved) {
@@ -99,7 +99,7 @@ void WriteFailure(const Category& category, const char* what) noexcept {
 
 void WriteStub(std::atomic_flag& seen, std::string_view name, std::string_view detail) {
   const Level level = seen.test_and_set(std::memory_order_relaxed) ? Level::kDev : Level::kWarn;
-  if (!kernel.Enabled(level)) {
+  if (!kernel.IsEnabled(level)) {
     return;
   }
   Write(kernel, level,
@@ -127,7 +127,7 @@ Logger::Logger()
   for (auto& level : levels_) {
     level.store(Level::kInfo, std::memory_order_relaxed);
   }
-  CreateLocked(core.name(), core.description());
+  CreateLocked(core.GetName(), core.GetDescription());
   sinks_.push_back(bootstrap_debugger_.get());
 }
 
@@ -169,16 +169,16 @@ u16 Logger::Resolve(const Category& category) {
   u16 slot = 0;
   {
     std::lock_guard lock(mutex_);
-    if (auto found = FindLocked(category.name())) {
+    if (auto found = FindLocked(category.GetName())) {
       slot = *found;
     } else {
-      slot = CreateLocked(category.name(), category.description());
+      slot = CreateLocked(category.GetName(), category.GetDescription());
       created = true;
     }
   }
-  detail_access::Slot(category).store(slot, std::memory_order_release);
+  DetailAccess::Slot(category).store(slot, std::memory_order_release);
   if (created) {
-    REXLOG_WARN(core, "log category {} is not registered", category.name());
+    REXLOG_WARN(core, "log category {} is not registered", category.GetName());
   }
   return slot;
 }
@@ -188,30 +188,31 @@ Result<void> Logger::Register(std::span<const Category* const> categories) {
   {
     std::lock_guard lock(mutex_);
     for (const Category* category : categories) {
-      const std::string_view name = category->name();
+      const std::string_view name = category->GetName();
       if (std::ranges::contains(kReservedNames, name)) {
-        return Err(ErrorCategory::Config,
+        return Err(ErrorCategory::kConfig,
                    std::format("log category {} collides with the log.{} cvar", name, name));
       }
       std::optional<u16> slot = FindLocked(name);
       if (slot && slots_[*slot].registered) {
-        return Err(ErrorCategory::Config, std::format("log category {} is registered twice", name));
+        return Err(ErrorCategory::kConfig,
+                   std::format("log category {} is registered twice", name));
       }
       if (!slot) {
         if (slots_.size() >= kMaxCategories) {
-          return Err(ErrorCategory::Config,
+          return Err(ErrorCategory::kConfig,
                      std::format("log category {} does not fit, the table is full", name));
         }
-        slot = CreateLocked(name, category->description());
+        slot = CreateLocked(name, category->GetDescription());
       }
       Slot& entry = slots_[*slot];
       entry.registered = true;
-      entry.description = std::string(category->description());
+      entry.description = std::string(category->GetDescription());
       if (auto level = config_levels_.find(name); level != config_levels_.end()) {
         entry.explicit_level = level->second;
       }
       RecomputeLocked(*slot);
-      detail_access::Slot(*category).store(*slot, std::memory_order_release);
+      DetailAccess::Slot(*category).store(*slot, std::memory_order_release);
       added.push_back(*slot);
     }
   }
@@ -226,7 +227,7 @@ void Logger::Unregister(std::span<const Category* const> categories) {
   {
     std::lock_guard lock(mutex_);
     for (const Category* category : categories) {
-      auto slot = FindLocked(category->name());
+      auto slot = FindLocked(category->GetName());
       if (!slot || !slots_[*slot].registered) {
         continue;
       }
@@ -259,7 +260,7 @@ void Logger::AttachCvar(u16 slot) {
         entry.explicit_level ? LevelName(*entry.explicit_level) : std::string_view{};
     entry.cvar = std::make_unique<cvar::Var<std::string>>(
         cvar::Var<std::string>(entry.cvar_name, initial, entry.description)
-            .allowed(kCategoryValues));
+            .SetAllowed(kCategoryValues));
     var = entry.cvar.get();
     cvar_name = entry.cvar_name;
   }
@@ -294,7 +295,7 @@ Result<void> Logger::ApplyLevel(std::string_view category, std::optional<Level> 
   std::lock_guard lock(mutex_);
   if (category.empty()) {
     if (!level) {
-      return Err(ErrorCategory::Config, "the default log level cannot be empty");
+      return Err(ErrorCategory::kConfig, "the default log level cannot be empty");
     }
     default_level_ = *level;
     RecomputeAllLocked();
@@ -302,7 +303,7 @@ Result<void> Logger::ApplyLevel(std::string_view category, std::optional<Level> 
   }
   auto slot = FindLocked(category);
   if (!slot) {
-    return Err(ErrorCategory::NotFound, std::format("unknown log category {}", category));
+    return Err(ErrorCategory::kNotFound, std::format("unknown log category {}", category));
   }
   slots_[*slot].explicit_level = level;
   RecomputeLocked(*slot);
@@ -342,12 +343,12 @@ Result<Level> Logger::GetLevel(std::string_view category) const {
   }
   auto slot = FindLocked(category);
   if (!slot) {
-    return Err<Level>(ErrorCategory::NotFound, std::format("unknown log category {}", category));
+    return Err<Level>(ErrorCategory::kNotFound, std::format("unknown log category {}", category));
   }
   return levels_[*slot].load(std::memory_order_relaxed);
 }
 
-std::vector<CategoryInfo> Logger::Categories() const {
+std::vector<CategoryInfo> Logger::GetCategories() const {
   std::lock_guard lock(mutex_);
   std::vector<CategoryInfo> out;
   out.reserve(slots_.size());
@@ -401,10 +402,10 @@ void Logger::RebuildSinksLocked() {
 void Logger::SetFormat(const LineFormat& format) {
   std::lock_guard lock(sinks_mutex_);
   if (debugger_) {
-    debugger_->set_format(format);
+    debugger_->SetFormat(format);
   }
   if (console_) {
-    console_->set_format(format);
+    console_->SetFormat(format);
   }
 }
 
@@ -420,17 +421,17 @@ void Logger::Flush() {
   FlushLocked();
 }
 
-std::filesystem::path Logger::FilePath() const {
+std::filesystem::path Logger::GetFilePath() const {
   std::lock_guard lock(sinks_mutex_);
-  return file_ ? file_->path() : std::filesystem::path{};
+  return file_ ? file_->GetPath() : std::filesystem::path{};
 }
 
 void Logger::Write(const Category& category, Level level, std::string_view text) {
   const Message message{level,
-                        category.name(),
+                        category.GetName(),
                         text,
                         std::chrono::system_clock::now(),
-                        platform::current_thread_system_id(),
+                        platform::CurrentThreadSystemId(),
                         sequence_.fetch_add(1, std::memory_order_relaxed) + 1};
   std::lock_guard lock(sinks_mutex_);
   const InSinks in_sinks;
@@ -465,10 +466,10 @@ bool Logger::LockSinks(std::unique_lock<std::mutex>& lock, std::chrono::millisec
 bool Logger::TryWrite(const Category& category, Level level, std::string_view text,
                       std::chrono::milliseconds timeout) {
   const Message message{level,
-                        category.name(),
+                        category.GetName(),
                         text,
                         std::chrono::system_clock::now(),
-                        platform::current_thread_system_id(),
+                        platform::CurrentThreadSystemId(),
                         sequence_.fetch_add(1, std::memory_order_relaxed) + 1};
   std::unique_lock lock(sinks_mutex_, std::defer_lock);
   if (!LockSinks(lock, timeout)) {
@@ -644,7 +645,7 @@ void Logger::Finish(cvar::ICvarRegistry& cvars) {
     file.enabled = true;
   }
   std::chrono::seconds interval = flush_interval_;
-  if (cvars.Source("log.flush_interval") != cvar::CvarSource::Default) {
+  if (cvars.Source("log.flush_interval") != cvar::CvarSource::kDefault) {
     if (auto seconds = cvars.Get("log.flush_interval")) {
       interval = std::chrono::seconds(std::max<i32>(from_string<i32>(*seconds), 0));
     }
@@ -654,7 +655,7 @@ void Logger::Finish(cvar::ICvarRegistry& cvars) {
 
 Result<void> Logger::StartStandalone(const LogConfig& config) {
   if (started_) {
-    return Err(ErrorCategory::Runtime, "the logger is already started");
+    return Err(ErrorCategory::kRuntime, "the logger is already started");
   }
   OpenSinks(config);
   ApplyConfigLevels(config);

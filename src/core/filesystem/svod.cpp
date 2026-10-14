@@ -69,7 +69,7 @@ struct Location {
 };
 
 bool HasMagic(std::span<const u8> bytes, u64 offset, std::string_view magic) {
-  return InBounds(bytes, offset, magic.size()) &&
+  return IsInBounds(bytes, offset, magic.size()) &&
          std::memcmp(bytes.data() + offset, magic.data(), magic.size()) == 0;
 }
 
@@ -107,7 +107,7 @@ class SVODReader {
   }
 
   [[nodiscard]] std::optional<Location> BlockToOffset(u64 block) const {
-    const u64 block_offset = header_.metadata.volume_descriptor.svod.start_data_block();
+    const u64 block_offset = header_.metadata.volume_descriptor.svod.GetStartDataBlock();
     if (block < block_offset * 2) {
       return std::nullopt;
     }
@@ -174,7 +174,7 @@ class SVODReader {
     const std::span<const u8> file = files_[location->file];
     const u64 address = location->offset + (ordinal_offset % kSVODBlockSize);
     auto entry = ReadAt<DirectoryEntry>(file, address);
-    if (!entry || !InBounds(file, address + sizeof(DirectoryEntry), entry->name_length)) {
+    if (!entry || !IsInBounds(file, address + sizeof(DirectoryEntry), entry->name_length)) {
       return Err(
           Corrupt(std::format("SVOD directory entry at {:#x} is outside the data file", address)));
     }
@@ -263,7 +263,7 @@ class SVODReader {
   if (!root) {
     return Err(Corrupt("SVOD root record is outside the data file"));
   }
-  const u64 root_time = decode_fat_timestamp(root->creation_date, root->creation_time);
+  const u64 root_time = DecodeFATTimestamp(root->creation_date, root->creation_time);
   nodes.front().attributes = FileAttributes::kDirectory;
   nodes.front().create_time = root_time;
   nodes.front().access_time = root_time;

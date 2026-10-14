@@ -82,7 +82,7 @@ REX_TEST_CASE("NullAPUBackend keeps the mix values it was given", "[apu]") {
   backend.SetOutputGain(0.5f);
   backend.SetStereoFold({.center = 1.0f, .surround = 0.5f, .lfe = 0.25f, .scale = 0.4f});
   backend.SetSurroundMix({.center = 0.9f, .surround = 0.8f, .lfe = 0.0f});
-  CHECK(backend.output_gain() == 0.5f);
-  CHECK(backend.stereo_fold().lfe == 0.25f);
-  CHECK(backend.surround_mix().surround == 0.8f);
+  CHECK(backend.GetOutputGain() == 0.5f);
+  CHECK(backend.GetStereoFold().lfe == 0.25f);
+  CHECK(backend.GetSurroundMix().surround == 0.8f);
 }

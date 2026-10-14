@@ -22,13 +22,13 @@
 
 namespace rex::apu {
 
-/** Channels in 1 guest audio frame. */
+/** Channels in a guest audio frame. */
 inline constexpr u32 kFrameChannels = 6;
-/** Samples per channel in 1 guest audio frame. */
+/** Samples per channel in a guest audio frame. */
 inline constexpr u32 kChannelSamples = 256;
 /** Sample rate of the title audio frames in hertz. */
 inline constexpr u32 kFrameRate = 48000;
-/** Samples in 1 guest audio frame. */
+/** Samples in a guest audio frame. */
 inline constexpr u32 kFrameSamples = kFrameChannels * kChannelSamples;
 
 /** 1 guest audio frame, 6 sequential channels of 256 big endian samples in the order fl fr fc lf bl
@@ -111,7 +111,7 @@ class IAPUBackend {
    *
    * @return The weights.
    */
-  virtual StereoFold stereo_fold() const = 0;
+  virtual StereoFold GetStereoFold() const = 0;
 
   /**
    * Sets the surround mix, picked up on the next device period.
@@ -125,7 +125,7 @@ class IAPUBackend {
    *
    * @return The weights.
    */
-  virtual SurroundMix surround_mix() const = 0;
+  virtual SurroundMix GetSurroundMix() const = 0;
 
   /**
    * Sets the linear output gain, picked up on the next device period. Output is clamped.
@@ -139,7 +139,7 @@ class IAPUBackend {
    *
    * @return The gain.
    */
-  virtual f32 output_gain() const = 0;
+  virtual f32 GetOutputGain() const = 0;
 };
 
 /** The null audio output. A clock thread plays 1 queued frame per stream every frame period. */
@@ -186,7 +186,7 @@ class REX_API NullAPUBackend final : public IAPUBackend, public NonCopyable {
    *
    * @return The fold.
    */
-  StereoFold stereo_fold() const override;
+  StereoFold GetStereoFold() const override;
 
   /**
    * Stores the surround mix.
@@ -200,7 +200,7 @@ class REX_API NullAPUBackend final : public IAPUBackend, public NonCopyable {
    *
    * @return The mix.
    */
-  SurroundMix surround_mix() const override;
+  SurroundMix GetSurroundMix() const override;
 
   /**
    * Stores the output gain.
@@ -214,7 +214,7 @@ class REX_API NullAPUBackend final : public IAPUBackend, public NonCopyable {
    *
    * @return The gain.
    */
-  f32 output_gain() const override;
+  f32 GetOutputGain() const override;
 
  private:
   struct Stream {

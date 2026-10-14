@@ -16,11 +16,11 @@ namespace rex {
 namespace runtime {
 
 App::App(Runtime& runtime, u32 app_id)
-    : runtime_(runtime), memory_(runtime.memory()), app_id_(app_id) {}
+    : runtime_(runtime), memory_(runtime.GetMemory()), app_id_(app_id) {}
 
 void AppManager::RegisterApp(std::unique_ptr<App> app) {
-  REX_ASSERT(app_lookup_.count(app->app_id()) == 0);
-  app_lookup_.insert({app->app_id(), app.get()});
+  REX_ASSERT(app_lookup_.count(app->GetAppId()) == 0);
+  app_lookup_.insert({app->GetAppId(), app.get()});
   apps_.push_back(std::move(app));
 }
 

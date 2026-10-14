@@ -17,7 +17,7 @@
 
 namespace rex::gpu::d3d12 {
 
-D3D12CpuDescriptorPool::Descriptor D3D12CpuDescriptorPool::AllocateDescriptor() {
+D3D12CPUDescriptorPool::Descriptor D3D12CPUDescriptorPool::AllocateDescriptor() {
   if (free_head_ != SIZE_MAX) {
     const size_t index = free_head_;
     free_head_ = next_free_[index];

@@ -52,7 +52,7 @@ class FakeHost final : public rex::hid::IInputHost {
     ++warps;
     return PointerState{.x = 50.0f, .y = 50.0f, .window_width = 100, .window_height = 100};
   }
-  bool capture_active() const override { return capture; }
+  bool GetCaptureActive() const override { return capture; }
 
   void RunPosted() {
     auto work = std::move(posted);
@@ -92,7 +92,7 @@ class FakePad final : public rex::hid::Driver {
   }
   [[nodiscard]] rex::Result<rex::hid::X_INPUT_KEYSTROKE> GetDeviceKeystroke(rex::hid::DeviceId,
                                                                             rex::u32) override {
-    return std::unexpected(rex::hid::BuildError(rex::hid::HIDError::Empty, "none"));
+    return std::unexpected(rex::hid::BuildError(rex::hid::HIDError::kEmpty, "none"));
   }
   rex::u16 buttons = 0;
 };
@@ -102,30 +102,30 @@ InputEvent Key(Kind kind, VirtualKey key) {
 }
 
 InputEvent Motion(rex::f32 x, rex::f32 y, rex::f32 dx = 0.0f, rex::f32 dy = 0.0f) {
-  return {.kind = Kind::Motion, .x = x, .y = y, .dx = dx, .dy = dy};
+  return {.kind = Kind::kMotion, .x = x, .y = y, .dx = dx, .dy = dy};
 }
 
 }  // namespace
 
 REX_TEST_CASE("Hub keeps keyboard state and modifiers", "[hid]") {
   Hub hub;
-  hub.OnEvent(Key(Kind::KeyDown, VirtualKey::kA));
-  hub.OnEvent(Key(Kind::KeyDown, VirtualKey::kShift));
+  hub.OnEvent(Key(Kind::kKeyDown, VirtualKey::kA));
+  hub.OnEvent(Key(Kind::kKeyDown, VirtualKey::kShift));
   CHECK(hub.IsKeyDown(VirtualKey::kA));
-  CHECK(hub.AnyKeyDown());
-  CHECK(hub.modifiers() == KeyModifiers::Shift);
-  hub.OnEvent(Key(Kind::KeyUp, VirtualKey::kA));
-  hub.OnEvent(Key(Kind::KeyUp, VirtualKey::kShift));
-  CHECK_FALSE(hub.AnyKeyDown());
+  CHECK(hub.IsAnyKeyDown());
+  CHECK(hub.GetModifiers() == KeyModifiers::kShift);
+  hub.OnEvent(Key(Kind::kKeyUp, VirtualKey::kA));
+  hub.OnEvent(Key(Kind::kKeyUp, VirtualKey::kShift));
+  CHECK_FALSE(hub.IsAnyKeyDown());
 }
 
 REX_TEST_CASE("Hub tracks the free pointer and consumes the moved flag", "[hid]") {
   Hub hub;
-  hub.OnEvent({.kind = Kind::Resize, .width = 100, .height = 100});
+  hub.OnEvent({.kind = Kind::kResize, .width = 100, .height = 100});
   hub.OnEvent(Motion(10.0f, 20.0f));
-  CHECK(hub.pointer().has_position);
-  CHECK(hub.pointer().x == 10.0f);
-  CHECK(hub.pointer().window_width == 100);
+  CHECK(hub.GetPointer().has_position);
+  CHECK(hub.GetPointer().x == 10.0f);
+  CHECK(hub.GetPointer().window_width == 100);
   CHECK(hub.TakePointerMoved());
   CHECK_FALSE(hub.TakePointerMoved());
   CHECK(hub.TakeMotion().dx == 0.0f);
@@ -135,11 +135,11 @@ REX_TEST_CASE("Hub posts a pointer mode once and applies the last one", "[hid]")
   Hub hub;
   FakeHost host;
   hub.SetHost(&host);
-  hub.SetPointerMode(PointerMode::Hidden);
-  hub.SetPointerMode(PointerMode::Locked);
+  hub.SetPointerMode(PointerMode::kHidden);
+  hub.SetPointerMode(PointerMode::kLocked);
   CHECK(host.posted.size() == 1);
   host.RunPosted();
-  CHECK(host.applied == std::vector<PointerMode>{PointerMode::Locked});
+  CHECK(host.applied == std::vector<PointerMode>{PointerMode::kLocked});
   hub.SetHost(nullptr);
 }
 
@@ -148,46 +148,46 @@ REX_TEST_CASE("Hub posts again after the host dropped a pointer update", "[hid]"
   FakeHost host;
   hub.SetHost(&host);
   host.accept = false;
-  hub.SetPointerMode(PointerMode::Hidden);
+  hub.SetPointerMode(PointerMode::kHidden);
   host.accept = true;
-  hub.SetPointerMode(PointerMode::Locked);
+  hub.SetPointerMode(PointerMode::kLocked);
   CHECK(host.posted.size() == 1);
   host.RunPosted();
-  CHECK(host.applied.back() == PointerMode::Locked);
+  CHECK(host.applied.back() == PointerMode::kLocked);
   hub.SetHost(nullptr);
 }
 
 REX_TEST_CASE("Hub frees the pointer while the host holds no capture", "[hid]") {
   Hub hub;
   FakeHost host;
-  hub.SetPointerMode(PointerMode::Hidden);
+  hub.SetPointerMode(PointerMode::kHidden);
   hub.SetHost(&host);
-  CHECK(host.applied.back() == PointerMode::Hidden);
+  CHECK(host.applied.back() == PointerMode::kHidden);
   host.capture = false;
   CHECK(hub.GetState(0));
   host.RunPosted();
-  CHECK(host.applied.back() == PointerMode::Free);
+  CHECK(host.applied.back() == PointerMode::kFree);
   host.capture = true;
   CHECK(hub.GetState(0));
   host.RunPosted();
-  CHECK(host.applied.back() == PointerMode::Hidden);
+  CHECK(host.applied.back() == PointerMode::kHidden);
   hub.SetHost(nullptr);
 }
 
 REX_TEST_CASE("Hub applies a mode set before any host on SetHost", "[hid]") {
   Hub hub;
-  hub.SetPointerMode(PointerMode::Hidden);
+  hub.SetPointerMode(PointerMode::kHidden);
   FakeHost host;
   hub.SetHost(&host);
-  CHECK(host.applied == std::vector<PointerMode>{PointerMode::Hidden});
+  CHECK(host.applied == std::vector<PointerMode>{PointerMode::kHidden});
   hub.SetHost(nullptr);
-  CHECK(host.applied.back() == PointerMode::Free);
+  CHECK(host.applied.back() == PointerMode::kFree);
 }
 
 REX_TEST_CASE("Hub accumulates locked motion, Take consumes and Peek does not", "[hid]") {
   Hub hub;
   FakeHost host;
-  hub.SetPointerMode(PointerMode::Locked);
+  hub.SetPointerMode(PointerMode::kLocked);
   hub.SetHost(&host);
   hub.OnEvent(Motion(0.0f, 0.0f, 3.0f, -2.0f));
   hub.OnEvent(Motion(0.0f, 0.0f, 1.0f, 1.0f));
@@ -203,9 +203,9 @@ REX_TEST_CASE("Hub recenters a locked pointer without relative motion", "[hid]")
   Hub hub;
   FakeHost host;
   host.relative = false;
-  hub.OnEvent({.kind = Kind::Resize, .width = 100, .height = 100});
+  hub.OnEvent({.kind = Kind::kResize, .width = 100, .height = 100});
   hub.OnEvent(Motion(50.0f, 50.0f));
-  hub.SetPointerMode(PointerMode::Locked);
+  hub.SetPointerMode(PointerMode::kLocked);
   hub.SetHost(&host);
   hub.OnEvent(Motion(60.0f, 50.0f));
   CHECK(hub.TakeMotion().dx == 10.0f);
@@ -220,18 +220,18 @@ REX_TEST_CASE("Hub recenters a locked pointer without relative motion", "[hid]")
 REX_TEST_CASE("Hub frees the pointer and drops held input on focus loss", "[hid]") {
   Hub hub;
   FakeHost host;
-  hub.SetPointerMode(PointerMode::Locked);
+  hub.SetPointerMode(PointerMode::kLocked);
   hub.SetHost(&host);
-  hub.OnEvent(Key(Kind::KeyDown, VirtualKey::kW));
-  hub.OnEvent({.kind = Kind::ButtonDown, .button = MouseButton::Left});
+  hub.OnEvent(Key(Kind::kKeyDown, VirtualKey::kW));
+  hub.OnEvent({.kind = Kind::kButtonDown, .button = MouseButton::kLeft});
   hub.OnEvent(Motion(0.0f, 0.0f, 5.0f, 5.0f));
-  hub.OnEvent({.kind = Kind::FocusLost});
-  CHECK_FALSE(hub.focused());
+  hub.OnEvent({.kind = Kind::kFocusLost});
+  CHECK_FALSE(hub.GetFocused());
   CHECK_FALSE(hub.IsKeyDown(VirtualKey::kW));
-  CHECK_FALSE(hub.AnyButtonDown());
-  CHECK(host.applied.back() == PointerMode::Free);
-  hub.OnEvent({.kind = Kind::FocusGained});
-  CHECK(host.applied.back() == PointerMode::Locked);
+  CHECK_FALSE(hub.IsAnyButtonDown());
+  CHECK(host.applied.back() == PointerMode::kFree);
+  hub.OnEvent({.kind = Kind::kFocusGained});
+  CHECK(host.applied.back() == PointerMode::kLocked);
   CHECK(hub.TakeMotion().dx == 0.0f);
   hub.SetHost(nullptr);
 }
@@ -241,17 +241,17 @@ REX_TEST_CASE("Hub drops events from a detached host", "[hid]") {
   FakeHost host;
   hub.SetHost(&host);
   hub.SetHost(nullptr);
-  hub.SetPointerMode(PointerMode::Locked);
+  hub.SetPointerMode(PointerMode::kLocked);
   CHECK(host.posted.empty());
   CHECK(host.applied.empty());
 }
 
 REX_TEST_CASE("Hub returns the wheel detents once", "[hid]") {
   Hub hub;
-  hub.OnEvent({.kind = Kind::Wheel, .wheel = 2});
-  hub.OnEvent({.kind = Kind::Wheel, .wheel = -1});
+  hub.OnEvent({.kind = Kind::kWheel, .wheel = 2});
+  hub.OnEvent({.kind = Kind::kWheel, .wheel = -1});
   CHECK(hub.TakeWheel() == 1);
-  CHECK(hub.wheel() == 1);
+  CHECK(hub.GetWheel() == 1);
   CHECK(hub.TakeWheel() == 0);
 }
 
@@ -260,7 +260,7 @@ REX_TEST_CASE("Hub masks buttons held when the last UI block drops", "[hid]") {
   auto pad = std::make_unique<FakePad>();
   FakePad* raw = pad.get();
   hub.AddPadDriver(std::move(pad));
-  raw->buttons = rex::hid::X_INPUT_GAMEPAD_A;
+  raw->buttons = rex::hid::kXInputGamepadA;
   hub.AcquireUIBlock();
   auto blocked = hub.GetState(0);
   REQUIRE(blocked);
@@ -269,8 +269,8 @@ REX_TEST_CASE("Hub masks buttons held when the last UI block drops", "[hid]") {
   CHECK(static_cast<rex::u16>(hub.GetState(0)->gamepad.buttons) == 0);
   raw->buttons = 0;
   CHECK(hub.GetState(0));
-  raw->buttons = rex::hid::X_INPUT_GAMEPAD_A;
-  CHECK(static_cast<rex::u16>(hub.GetState(0)->gamepad.buttons) == rex::hid::X_INPUT_GAMEPAD_A);
+  raw->buttons = rex::hid::kXInputGamepadA;
+  CHECK(static_cast<rex::u16>(hub.GetState(0)->gamepad.buttons) == rex::hid::kXInputGamepadA);
 }
 
 REX_TEST_CASE("Hub tells the listener when user 0 connects", "[hid]") {
@@ -295,20 +295,20 @@ REX_TEST_CASE("Keyboard pad releases bound keys and drops motion on focus loss",
   REQUIRE(devices.size() == 1);
   const auto id = devices[0].id;
 
-  pad.OnEvent(Key(Kind::KeyDown, VirtualKey::kSpace));
+  pad.OnEvent(Key(Kind::kKeyDown, VirtualKey::kSpace));
   pad.OnEvent(Motion(0.0f, 0.0f, 40.0f, 0.0f));
   auto down = pad.GetDeviceKeystroke(id, 0);
   REQUIRE(down);
-  CHECK((down->flags & rex::hid::X_INPUT_KEYSTROKE_KEYUP) == 0);
+  CHECK((down->flags & rex::hid::kXInputKeystrokeKeyUp) == 0);
 
-  hub.OnEvent({.kind = Kind::FocusLost});
-  pad.OnEvent({.kind = Kind::FocusLost});
+  hub.OnEvent({.kind = Kind::kFocusLost});
+  pad.OnEvent({.kind = Kind::kFocusLost});
   auto up = pad.GetDeviceKeystroke(id, 0);
   REQUIRE(up);
   CHECK(up->virtual_key == down->virtual_key);
-  CHECK((up->flags & rex::hid::X_INPUT_KEYSTROKE_KEYUP) != 0);
+  CHECK((up->flags & rex::hid::kXInputKeystrokeKeyUp) != 0);
 
-  hub.OnEvent({.kind = Kind::FocusGained});
+  hub.OnEvent({.kind = Kind::kFocusGained});
   auto state = pad.GetDeviceState(id);
   REQUIRE(state);
   CHECK(static_cast<rex::u16>(state->gamepad.buttons) == 0);
@@ -347,38 +347,38 @@ REX_TEST_CASE("Keyboard pad binds fire only with their exact modifiers and follo
   const auto rstick_up = std::to_underlying(VirtualKey::kXInputPadRThumbUp);
   const auto pad_x = std::to_underlying(VirtualKey::kXInputPadX);
 
-  pad.OnEvent(Key(Kind::KeyDown, VirtualKey::kShift));
-  pad.OnEvent(Key(Kind::KeyDown, VirtualKey::kUp));
+  pad.OnEvent(Key(Kind::kKeyDown, VirtualKey::kShift));
+  pad.OnEvent(Key(Kind::kKeyDown, VirtualKey::kUp));
   CHECK(Drain(pad, id) == std::vector<rex::u16>{dpad_up});
-  pad.OnEvent(Key(Kind::KeyUp, VirtualKey::kUp));
+  pad.OnEvent(Key(Kind::kKeyUp, VirtualKey::kUp));
   CHECK(Drain(pad, id) == std::vector<rex::u16>{dpad_up});
-  pad.OnEvent(Key(Kind::KeyUp, VirtualKey::kShift));
-  pad.OnEvent(Key(Kind::KeyDown, VirtualKey::kUp));
+  pad.OnEvent(Key(Kind::kKeyUp, VirtualKey::kShift));
+  pad.OnEvent(Key(Kind::kKeyDown, VirtualKey::kUp));
   CHECK(Drain(pad, id) == std::vector<rex::u16>{rstick_up});
-  pad.OnEvent(Key(Kind::KeyUp, VirtualKey::kUp));
+  pad.OnEvent(Key(Kind::kKeyUp, VirtualKey::kUp));
   CHECK(Drain(pad, id) == std::vector<rex::u16>{rstick_up});
 
   REQUIRE(registry->Set("hid.keybind_x", "Ctrl+J"));
-  pad.OnEvent(Key(Kind::KeyDown, VirtualKey::kJ));
+  pad.OnEvent(Key(Kind::kKeyDown, VirtualKey::kJ));
   CHECK(Drain(pad, id).empty());
-  pad.OnEvent(Key(Kind::KeyUp, VirtualKey::kJ));
-  pad.OnEvent(Key(Kind::KeyDown, VirtualKey::kControl));
-  pad.OnEvent(Key(Kind::KeyDown, VirtualKey::kJ));
+  pad.OnEvent(Key(Kind::kKeyUp, VirtualKey::kJ));
+  pad.OnEvent(Key(Kind::kKeyDown, VirtualKey::kControl));
+  pad.OnEvent(Key(Kind::kKeyDown, VirtualKey::kJ));
   CHECK(Drain(pad, id) == std::vector<rex::u16>{pad_x});
-  pad.OnEvent(Key(Kind::KeyUp, VirtualKey::kJ));
+  pad.OnEvent(Key(Kind::kKeyUp, VirtualKey::kJ));
   CHECK(Drain(pad, id) == std::vector<rex::u16>{pad_x});
 
   REQUIRE(registry->Set("hid.keybind_x", "Ctrl+NoSuchKey"));
-  pad.OnEvent(Key(Kind::KeyDown, VirtualKey::kJ));
+  pad.OnEvent(Key(Kind::kKeyDown, VirtualKey::kJ));
   CHECK(Drain(pad, id) == std::vector<rex::u16>{pad_x});
-  pad.OnEvent(Key(Kind::KeyUp, VirtualKey::kJ));
-  pad.OnEvent(Key(Kind::KeyUp, VirtualKey::kControl));
+  pad.OnEvent(Key(Kind::kKeyUp, VirtualKey::kJ));
+  pad.OnEvent(Key(Kind::kKeyUp, VirtualKey::kControl));
   Drain(pad, id);
 
   REQUIRE(registry->Set("hid.keybind_x", "NoSuchKey, J"));
-  pad.OnEvent(Key(Kind::KeyDown, VirtualKey::kJ));
+  pad.OnEvent(Key(Kind::kKeyDown, VirtualKey::kJ));
   CHECK(Drain(pad, id) == std::vector<rex::u16>{pad_x});
-  pad.OnEvent(Key(Kind::KeyUp, VirtualKey::kJ));
+  pad.OnEvent(Key(Kind::kKeyUp, VirtualKey::kJ));
   Drain(pad, id);
 
   REQUIRE(registry->ResetToDefault("hid.keybind_x"));

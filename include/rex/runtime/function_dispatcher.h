@@ -69,7 +69,7 @@ class REX_RUNTIME_API FunctionDispatcher : public IModuleRegistrar {
   /** Removes the recompiled code of every registered module. */
   virtual ~FunctionDispatcher();
 
-  runtime::Memory* memory() const { return memory_; }
+  runtime::Memory* GetMemory() const { return memory_; }
 
   /**
    * Runs recompiled code on a thread and restores its register file afterwards.
@@ -219,7 +219,7 @@ class REX_RUNTIME_API FunctionDispatcher : public IModuleRegistrar {
   /** Guards module registration and callback dispatch. */
   mutable std::recursive_mutex dispatch_mutex_;
 
-  rex::platform::RankedMutex interrupt_mutex_{rex::platform::LockRank::Interrupt};
+  rex::platform::RankedMutex interrupt_mutex_{rex::platform::LockRank::kInterrupt};
 
   mutable std::mutex recompiled_code_mutex_;
   std::vector<std::pair<std::string, std::span<const u8>>> recompiled_code_;

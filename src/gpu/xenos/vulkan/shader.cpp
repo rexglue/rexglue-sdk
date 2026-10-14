@@ -21,34 +21,34 @@ namespace rex::gpu::vulkan {
 VulkanShader::VulkanTranslation::~VulkanTranslation() {
   if (shader_module_) {
     const gpu::vulkan::VulkanDevice* const vulkan_device =
-        static_cast<const VulkanShader&>(shader()).vulkan_device_;
-    vulkan_device->functions().vkDestroyShaderModule(vulkan_device->device(), shader_module_,
-                                                     nullptr);
+        static_cast<const VulkanShader&>(GetShader()).vulkan_device_;
+    vulkan_device->GetFunctions().vkDestroyShaderModule(vulkan_device->GetDevice(), shader_module_,
+                                                        nullptr);
   }
 }
 
 VkShaderModule VulkanShader::VulkanTranslation::GetOrCreateShaderModule() {
-  if (!is_valid()) {
+  if (!IsValid()) {
     return VK_NULL_HANDLE;
   }
   if (shader_module_ != VK_NULL_HANDLE) {
     return shader_module_;
   }
   const gpu::vulkan::VulkanDevice* const vulkan_device =
-      static_cast<const VulkanShader&>(shader()).vulkan_device_;
+      static_cast<const VulkanShader&>(GetShader()).vulkan_device_;
   VkShaderModuleCreateInfo shader_module_create_info;
   shader_module_create_info.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
   shader_module_create_info.pNext = nullptr;
   shader_module_create_info.flags = 0;
-  shader_module_create_info.codeSize = translated_binary().size();
-  shader_module_create_info.pCode = reinterpret_cast<const u32*>(translated_binary().data());
-  if (vulkan_device->functions().vkCreateShaderModule(vulkan_device->device(),
-                                                      &shader_module_create_info, nullptr,
-                                                      &shader_module_) != VK_SUCCESS) {
+  shader_module_create_info.codeSize = GetTranslatedBinary().size();
+  shader_module_create_info.pCode = reinterpret_cast<const u32*>(GetTranslatedBinary().data());
+  if (vulkan_device->GetFunctions().vkCreateShaderModule(vulkan_device->GetDevice(),
+                                                         &shader_module_create_info, nullptr,
+                                                         &shader_module_) != VK_SUCCESS) {
     REXLOG_ERROR(gpu,
                  "VulkanShader::VulkanTranslation: Failed to create a Vulkan shader "
                  "module for shader {:016X} modification {:016X}",
-                 shader().ucode_data_hash(), modification());
+                 GetShader().GetUcodeDataHash(), GetModification());
     Invalidate();
     return VK_NULL_HANDLE;
   }

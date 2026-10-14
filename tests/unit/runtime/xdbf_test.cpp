@@ -93,21 +93,21 @@ std::vector<u8> TitleStrings(u16 count, std::string_view title) {
 REX_TEST_CASE("An XDBF reader rejects an entry table past its data", "[runtime][xdbf]") {
   const std::vector<u8> content(4);
   const std::vector<u8> data = Database({}, 1000, content);
-  CHECK_FALSE(XDBFReader(data.data(), data.size()).is_valid());
+  CHECK_FALSE(XDBFReader(data.data(), data.size()).IsValid());
 }
 
 REX_TEST_CASE("An XDBF reader rejects more used entries than its table holds", "[runtime][xdbf]") {
   const Entry entries[] = {{XDBFSection::kImage, 1, 0, 0}, {XDBFSection::kImage, 2, 0, 0}};
   const std::vector<u8> content(4);
   const std::vector<u8> data = Database(entries, 1, content);
-  CHECK_FALSE(XDBFReader(data.data(), data.size()).is_valid());
+  CHECK_FALSE(XDBFReader(data.data(), data.size()).IsValid());
 }
 
 REX_TEST_CASE("An XDBF entry past the data is an empty block", "[runtime][xdbf]") {
   const std::vector<u8> content(4);
   const std::vector<u8> data = Database({XDBFSection::kImage, 1, 0, 100}, content);
   const XDBFReader reader(data.data(), data.size());
-  REQUIRE(reader.is_valid());
+  REQUIRE(reader.IsValid());
   CHECK_FALSE(reader.GetEntry(XDBFSection::kImage, 1));
 }
 
@@ -116,7 +116,7 @@ REX_TEST_CASE("An invalid XDBF reader returns an empty block", "[runtime][xdbf]"
   const std::vector<u8> content(4);
   const std::vector<u8> data = Database(std::span(&entry, 1), 1, content, "XDBX");
   const XDBFReader reader(data.data(), data.size());
-  REQUIRE_FALSE(reader.is_valid());
+  REQUIRE_FALSE(reader.IsValid());
   CHECK_FALSE(reader.GetEntry(XDBFSection::kImage, 1));
 }
 
@@ -125,8 +125,8 @@ REX_TEST_CASE("An XDBF string table header past its block reads no string", "[ru
   const std::vector<u8> data =
       Database({XDBFSection::kStringTable, static_cast<u64>(XLanguage::kEnglish), 0, 10}, content);
   const XDBFGameData db(data.data(), data.size());
-  REQUIRE(db.is_valid());
-  CHECK(db.title(XLanguage::kEnglish).empty());
+  REQUIRE(db.IsValid());
+  CHECK(db.GetTitle(XLanguage::kEnglish).empty());
 }
 
 REX_TEST_CASE("An XDBF string table entry past its block reads no string", "[runtime][xdbf]") {
@@ -136,8 +136,8 @@ REX_TEST_CASE("An XDBF string table entry past its block reads no string", "[run
                 static_cast<u32>(kSectionHeaderSize)},
                content);
   const XDBFGameData db(data.data(), data.size());
-  REQUIRE(db.is_valid());
-  CHECK(db.title(XLanguage::kEnglish).empty());
+  REQUIRE(db.IsValid());
+  CHECK(db.GetTitle(XLanguage::kEnglish).empty());
 }
 
 REX_TEST_CASE("An XDBF string past its block reads no string", "[runtime][xdbf]") {
@@ -147,8 +147,8 @@ REX_TEST_CASE("An XDBF string past its block reads no string", "[runtime][xdbf]"
                 static_cast<u32>(kSectionHeaderSize + kStringEntrySize + 2)},
                content);
   const XDBFGameData db(data.data(), data.size());
-  REQUIRE(db.is_valid());
-  CHECK(db.title(XLanguage::kEnglish).empty());
+  REQUIRE(db.IsValid());
+  CHECK(db.GetTitle(XLanguage::kEnglish).empty());
 }
 
 REX_TEST_CASE("An XDBF achievement table stops at its block end", "[runtime][xdbf]") {
@@ -158,7 +158,7 @@ REX_TEST_CASE("An XDBF achievement table stops at its block end", "[runtime][xdb
       {XDBFSection::kMetadata, kXachId, 0, static_cast<u32>(kSectionHeaderSize + kAchievementSize)},
       content.data);
   const XDBFReader reader(data.data(), data.size());
-  REQUIRE(reader.is_valid());
+  REQUIRE(reader.IsValid());
   CHECK(reader.GetAchievements().size() == 1);
 }
 
@@ -168,6 +168,6 @@ REX_TEST_CASE("An XDBF language block smaller than its record keeps the default 
   content.Text("XSTC").Put(1, 4).Put(4, 4).Put(static_cast<u32>(XLanguage::kJapanese), 4);
   const std::vector<u8> data = Database({XDBFSection::kMetadata, kXstcId, 0, 8}, content.data);
   const XDBFGameData db(data.data(), data.size());
-  REQUIRE(db.is_valid());
-  CHECK(db.default_language() == XLanguage::kEnglish);
+  REQUIRE(db.IsValid());
+  CHECK(db.GetDefaultLanguage() == XLanguage::kEnglish);
 }

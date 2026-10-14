@@ -26,7 +26,7 @@ struct KeyChord {
   /** The key, VirtualKey::kNone for an unbound chord. */
   VirtualKey key = VirtualKey::kNone;
   /** The modifiers held with the key, no more and no fewer. */
-  KeyModifiers mods = KeyModifiers::None;
+  KeyModifiers mods = KeyModifiers::kNone;
 
   /**
    * Compares 2 chords.
@@ -38,12 +38,12 @@ struct KeyChord {
 };
 
 /**
- * Parses 1 chord such as "F3", "Shift+Up" or "Ctrl+Alt+K". The prefixes Shift, Ctrl, Control and
+ * Parses a chord such as "F3", "Shift+Up" or "Ctrl+Alt+K". The prefixes Shift, Ctrl, Control and
  * Alt come in any order, then exactly 1 key name that ParseVirtualKey accepts. Names are case
  * sensitive. An empty string is the unbound chord.
  *
  * @param text The chord text.
- * @return The chord, or ErrorCategory::Config naming text when the key is unknown, missing or a
+ * @return The chord, or ErrorCategory::kConfig naming text when the key is unknown, missing or a
  *         bare modifier.
  */
 [[nodiscard]] REX_API Result<KeyChord> ParseKeyChord(std::string_view text);

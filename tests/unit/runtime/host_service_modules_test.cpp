@@ -54,10 +54,10 @@ REX_TEST_CASE_METHOD(Fixture, "Without an apu module the runtime plays to its nu
   auto api = rex::Init(config);
   REQUIRE(api);
   CHECK((*api)->Get<rex::apu::IAPUBackend>() == nullptr);
-  CHECK(rex::runtime::RuntimeModule::apu_backend() == nullptr);
-  rex::Runtime runtime((*api)->config());
+  CHECK(rex::runtime::RuntimeModule::GetAPUBackend() == nullptr);
+  rex::Runtime runtime((*api)->GetConfig());
   REQUIRE(runtime.Setup(SetupConfig(**api)));
-  CHECK(runtime.apu() != nullptr);
+  CHECK(runtime.GetAPU() != nullptr);
   runtime.Shutdown();
 }
 
@@ -69,9 +69,9 @@ REX_TEST_CASE_METHOD(Fixture, "A loaded apu module serves the runtime's backend"
   REQUIRE(api);
   auto* served = (*api)->Get<rex::apu::IAPUBackend>();
   REQUIRE(served != nullptr);
-  rex::Runtime runtime((*api)->config());
+  rex::Runtime runtime((*api)->GetConfig());
   REQUIRE(runtime.Setup(SetupConfig(**api)));
-  CHECK(&runtime.apu()->backend() == served);
+  CHECK(&runtime.GetAPU()->GetBackend() == served);
   runtime.Shutdown();
 }
 
@@ -80,13 +80,13 @@ REX_TEST_CASE_METHOD(Fixture, "Tool mode builds no APU", "[modules][apu]") {
   config.modules = {"rex-filesystem", "rex-runtime"};
   auto api = rex::Init(config);
   REQUIRE(api);
-  rex::Runtime runtime((*api)->config());
+  rex::Runtime runtime((*api)->GetConfig());
   rex::RuntimeDesc setup = SetupConfig(**api);
   setup.tool_mode = true;
   REQUIRE(runtime.Setup(setup));
-  CHECK(runtime.apu() == nullptr);
+  CHECK(runtime.GetAPU() == nullptr);
   runtime.SetAudioPaused(true);
-  CHECK_FALSE(runtime.audio_paused());
+  CHECK_FALSE(runtime.GetAudioPaused());
   runtime.Shutdown();
 }
 
@@ -109,10 +109,10 @@ REX_TEST_CASE_METHOD(Fixture, "Without a hid module the title sees the idle pad"
   auto api = rex::Init(config);
   REQUIRE(api);
   CHECK((*api)->Get<rex::hid::IHIDBackend>() == nullptr);
-  rex::Runtime runtime((*api)->config());
+  rex::Runtime runtime((*api)->GetConfig());
   REQUIRE(runtime.Setup(SetupConfig(**api)));
-  CHECK(runtime.hid().GetState(0));
-  CHECK_FALSE(runtime.hid().GetState(1));
+  CHECK(runtime.GetHID().GetState(0));
+  CHECK_FALSE(runtime.GetHID().GetState(1));
   runtime.Shutdown();
 }
 
@@ -124,9 +124,9 @@ REX_TEST_CASE_METHOD(Fixture, "A loaded hid module serves the runtime's backend"
   REQUIRE(api);
   auto* served = (*api)->Get<rex::hid::IHIDBackend>();
   REQUIRE(served != nullptr);
-  rex::Runtime runtime((*api)->config());
+  rex::Runtime runtime((*api)->GetConfig());
   REQUIRE(runtime.Setup(SetupConfig(**api)));
-  CHECK(&runtime.hid() == served);
+  CHECK(&runtime.GetHID() == served);
   runtime.Shutdown();
 }
 
@@ -135,11 +135,11 @@ REX_TEST_CASE_METHOD(Fixture, "Tool mode keeps the hid fallback", "[modules][hid
   config.modules = {"rex-filesystem", "rex-runtime"};
   auto api = rex::Init(config);
   REQUIRE(api);
-  rex::Runtime runtime((*api)->config());
+  rex::Runtime runtime((*api)->GetConfig());
   rex::RuntimeDesc setup = SetupConfig(**api);
   setup.tool_mode = true;
   REQUIRE(runtime.Setup(setup));
-  CHECK(runtime.hid().GetState(0));
+  CHECK(runtime.GetHID().GetState(0));
   runtime.Shutdown();
 }
 
@@ -150,10 +150,10 @@ REX_TEST_CASE_METHOD(Fixture, "Without a GPU module the runtime runs on the null
   auto api = rex::Init(config);
   REQUIRE(api);
   CHECK((*api)->Get<rex::gpu::IGPUBackend>() == nullptr);
-  rex::Runtime runtime((*api)->config());
+  rex::Runtime runtime((*api)->GetConfig());
   REQUIRE(runtime.Setup(SetupConfig(**api)));
-  REQUIRE(runtime.gpu() != nullptr);
-  CHECK_FALSE(runtime.gpu()->has_presentation());
+  REQUIRE(runtime.GetGPU() != nullptr);
+  CHECK_FALSE(runtime.GetGPU()->HasPresentation());
   runtime.Shutdown();
 }
 
@@ -162,10 +162,10 @@ REX_TEST_CASE_METHOD(Fixture, "Tool mode builds no GPU", "[modules][gpu]") {
   config.modules = {"rex-filesystem", "rex-runtime"};
   auto api = rex::Init(config);
   REQUIRE(api);
-  rex::Runtime runtime((*api)->config());
+  rex::Runtime runtime((*api)->GetConfig());
   rex::RuntimeDesc setup = SetupConfig(**api);
   setup.tool_mode = true;
   REQUIRE(runtime.Setup(setup));
-  CHECK(runtime.gpu() == nullptr);
+  CHECK(runtime.GetGPU() == nullptr);
   runtime.Shutdown();
 }

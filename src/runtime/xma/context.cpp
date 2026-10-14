@@ -80,14 +80,14 @@ int XMAContext::Setup(u32 id, runtime::Memory* memory, u32 guest_ptr) {
 }
 
 bool XMAContext::Work() {
-  if (!is_allocated() || !is_enabled()) {
+  if (!IsAllocated() || !IsEnabled()) {
     return false;
   }
 
   std::lock_guard<std::mutex> lock(lock_);
-  set_is_enabled(false);
+  SetIsEnabled(false);
 
-  auto context_ptr = memory()->TranslateVirtual(guest_ptr());
+  auto context_ptr = GetMemory()->TranslateVirtual(GetGuestPtr());
   XMA_CONTEXT_DATA data(context_ptr);
   const XMA_CONTEXT_DATA initial_data = data;
 
@@ -102,7 +102,7 @@ bool XMAContext::Work() {
       return true;
     }
     Consume(&output_rb, &data);
-    data.output_buffer_write_offset = output_rb.write_offset() / kOutputBytesPerBlock;
+    data.output_buffer_write_offset = output_rb.GetWriteOffset() / kOutputBytesPerBlock;
     StoreContextMerged(data, initial_data, context_ptr);
     return true;
   }
@@ -125,9 +125,9 @@ bool XMAContext::Work() {
     }
   }
 
-  data.output_buffer_write_offset = output_rb.write_offset() / kOutputBytesPerBlock;
+  data.output_buffer_write_offset = output_rb.GetWriteOffset() / kOutputBytesPerBlock;
 
-  if (output_rb.empty()) {
+  if (output_rb.IsEmpty()) {
     data.output_buffer_valid = 0;
   }
 
@@ -137,7 +137,7 @@ bool XMAContext::Work() {
 
 void XMAContext::Enable() {
   std::lock_guard<std::mutex> lock(lock_);
-  set_is_enabled(true);
+  SetIsEnabled(true);
 }
 
 bool XMAContext::Block(bool poll) {
@@ -150,9 +150,9 @@ bool XMAContext::Block(bool poll) {
 
 void XMAContext::Clear() {
   std::lock_guard<std::mutex> lock(lock_);
-  REXLOG_DEV(apu, "XMAContext: reset context {}", id());
+  REXLOG_DEV(apu, "XMAContext: reset context {}", GetId());
 
-  auto context_ptr = memory()->TranslateVirtual(guest_ptr());
+  auto context_ptr = GetMemory()->TranslateVirtual(GetGuestPtr());
   XMA_CONTEXT_DATA data(context_ptr);
   ClearLocked(&data);
   data.Store(context_ptr);
@@ -188,16 +188,16 @@ void XMAContext::ResetDecoderState() {
 
 void XMAContext::Disable() {
   std::lock_guard<std::mutex> lock(lock_);
-  set_is_enabled(false);
+  SetIsEnabled(false);
 }
 
 void XMAContext::Release() {
   std::lock_guard<std::mutex> lock(lock_);
-  REX_ASSERT(is_allocated());
+  REX_ASSERT(IsAllocated());
 
-  set_is_allocated(false);
+  SetIsAllocated(false);
   ResetDecoderState();
-  auto context_ptr = memory()->TranslateVirtual(guest_ptr());
+  auto context_ptr = GetMemory()->TranslateVirtual(GetGuestPtr());
   std::memset(context_ptr, 0, sizeof(XMA_CONTEXT_DATA));
 }
 
@@ -254,7 +254,7 @@ u32 XMAContext::GetCurrentInputBufferSize(XMA_CONTEXT_DATA* data) {
 }
 
 u8* XMAContext::GetCurrentInputBuffer(XMA_CONTEXT_DATA* data) const {
-  return memory()->TranslatePhysical(data->GetCurrentInputBufferAddress());
+  return GetMemory()->TranslatePhysical(data->GetCurrentInputBufferAddress());
 }
 
 u32 XMAContext::GetAmountOfBitsToRead(u32 remaining_stream_bits, u32 frame_size) {
@@ -264,7 +264,7 @@ u32 XMAContext::GetAmountOfBitsToRead(u32 remaining_stream_bits, u32 frame_size)
 const u8* XMAContext::GetNextPacket(XMA_CONTEXT_DATA* data, u32 next_packet_index,
                                     u32 current_input_packet_count) const {
   if (next_packet_index < current_input_packet_count) {
-    return memory()->TranslatePhysical(data->GetCurrentInputBufferAddress()) +
+    return GetMemory()->TranslatePhysical(data->GetCurrentInputBufferAddress()) +
            size_t{next_packet_index} * kBytesPerPacket;
   }
 
@@ -275,10 +275,10 @@ const u8* XMAContext::GetNextPacket(XMA_CONTEXT_DATA* data, u32 next_packet_inde
 
   const u32 next_buffer_address = data->GetInputBufferAddress(next_buffer_index);
   if (!next_buffer_address) {
-    REX_FAIL(apu, nullptr, "XMAContext {}: Buffer marked valid but has null pointer!", id());
+    REX_FAIL(apu, nullptr, "XMAContext {}: Buffer marked valid but has null pointer!", GetId());
   }
 
-  return memory()->TranslatePhysical(next_buffer_address);
+  return GetMemory()->TranslatePhysical(next_buffer_address);
 }
 
 u32 XMAContext::GetNextPacketReadOffset(u8* buffer, u32 next_packet_index,
@@ -305,34 +305,34 @@ memory::RingBuffer XMAContext::PrepareOutputRingBuffer(XMA_CONTEXT_DATA* data) {
     REXLOG_WARN(apu,
                 "XMAContext {}: Output buffer exceeds expected size! "
                 "(Actual: {} Max: {})",
-                id(), output_capacity, kOutputMaxSizeBytes);
+                GetId(), output_capacity, kOutputMaxSizeBytes);
   }
 
-  u8* output_buffer = memory()->TranslatePhysical(data->output_buffer_ptr);
+  u8* output_buffer = GetMemory()->TranslatePhysical(data->output_buffer_ptr);
 
   memory::RingBuffer output_rb(output_buffer, output_capacity);
-  output_rb.set_read_offset(output_read_offset);
-  output_rb.set_write_offset(output_write_offset);
+  output_rb.SetReadOffset(output_read_offset);
+  output_rb.SetWriteOffset(output_write_offset);
   remaining_subframe_blocks_in_output_buffer_ =
-      static_cast<i32>(output_rb.write_count() / kOutputBytesPerBlock);
+      static_cast<i32>(output_rb.GetWriteCount() / kOutputBytesPerBlock);
 
   return output_rb;
 }
 
-kPacketInfo XMAContext::GetPacketInfo(u8* packet, u32 frame_offset) {
-  kPacketInfo packet_info = {};
+PacketInfo XMAContext::GetPacketInfo(u8* packet, u32 frame_offset) {
+  PacketInfo packet_info = {};
 
   const u32 first_frame_offset = xma::GetPacketFrameOffset(packet);
   BitStream stream(packet, kBitsPerPacket);
   stream.SetOffset(first_frame_offset);
 
   if (frame_offset < first_frame_offset) {
-    packet_info.current_frame_ = 0;
-    packet_info.current_frame_size_ = first_frame_offset - frame_offset;
+    packet_info.current_frame = 0;
+    packet_info.current_frame_size = first_frame_offset - frame_offset;
   }
 
   while (true) {
-    if (stream.BitsRemaining() < kBitsPerFrameHeader) {
+    if (stream.GetBitsRemaining() < kBitsPerFrameHeader) {
       break;
     }
 
@@ -341,14 +341,14 @@ kPacketInfo XMAContext::GetPacketInfo(u8* packet, u32 frame_offset) {
       break;
     }
 
-    if (stream.offset_bits() == frame_offset) {
-      packet_info.current_frame_ = packet_info.frame_count_;
-      packet_info.current_frame_size_ = static_cast<u32>(frame_size);
+    if (stream.GetOffsetBits() == frame_offset) {
+      packet_info.current_frame = packet_info.frame_count;
+      packet_info.current_frame_size = static_cast<u32>(frame_size);
     }
 
-    packet_info.frame_count_++;
+    packet_info.frame_count++;
 
-    if (frame_size > stream.BitsRemaining()) {
+    if (frame_size > stream.GetBitsRemaining()) {
       break;
     }
 
@@ -361,11 +361,11 @@ kPacketInfo XMAContext::GetPacketInfo(u8* packet, u32 frame_offset) {
 
   if (xma::IsPacketXMA2Type(packet)) {
     const u8 xma2_frame_count = xma::GetPacketFrameCount(packet);
-    if (xma2_frame_count > packet_info.frame_count_) {
-      if (packet_info.current_frame_size_ == 0) {
-        packet_info.current_frame_ = packet_info.frame_count_;
+    if (xma2_frame_count > packet_info.frame_count) {
+      if (packet_info.current_frame_size == 0) {
+        packet_info.current_frame = packet_info.frame_count;
       }
-      packet_info.frame_count_ = xma2_frame_count;
+      packet_info.frame_count = xma2_frame_count;
     }
   }
   return packet_info;
@@ -448,7 +448,7 @@ int XMAContext::PrepareDecoder(int sample_rate, bool is_two_channel) {
   u32 channels = is_two_channel ? 2 : 1;
   if (av_context_->sample_rate != sample_rate ||
       av_context_->channels != static_cast<int>(channels)) {
-    REXLOG_DEV(apu, "XMAContext {}: Codec reinit: rate {} -> {}, channels {} -> {}", id(),
+    REXLOG_DEV(apu, "XMAContext {}: Codec reinit: rate {} -> {}, channels {} -> {}", GetId(),
                av_context_->sample_rate, sample_rate, av_context_->channels, channels);
     avcodec_free_context(&av_context_);
     av_context_ = avcodec_alloc_context3(av_codec_);
@@ -481,8 +481,8 @@ bool XMAContext::DecodePacket(AVCodecContext* av_context, const AVPacket* av_pac
   if (ret < 0) {
     char errbuf[AV_ERROR_MAX_STRING_SIZE];
     av_strerror(ret, errbuf, sizeof(errbuf));
-    REX_FAIL(apu, false, "XMAContext {}: Error sending packet for decoding: {} ({})", id(), errbuf,
-             ret);
+    REX_FAIL(apu, false, "XMAContext {}: Error sending packet for decoding: {} ({})", GetId(),
+             errbuf, ret);
   }
   ret = avcodec_receive_frame(av_context, av_frame);
 
@@ -492,7 +492,7 @@ bool XMAContext::DecodePacket(AVCodecContext* av_context, const AVPacket* av_pac
   if (ret < 0) {
     char errbuf[AV_ERROR_MAX_STRING_SIZE];
     av_strerror(ret, errbuf, sizeof(errbuf));
-    REX_FAIL(apu, false, "XMAContext {}: Error during decoding: {} ({})", id(), errbuf, ret);
+    REX_FAIL(apu, false, "XMAContext {}: Error during decoding: {} ({})", GetId(), errbuf, ret);
   }
   return true;
 }
@@ -526,7 +526,7 @@ void XMAContext::Decode(XMA_CONTEXT_DATA* data) {
   }
 
   if (!data->output_buffer_block_count) {
-    REXLOG_ERROR(apu, "XMAContext {}: Error - Received 0 for output_buffer_block_count!", id());
+    REXLOG_ERROR(apu, "XMAContext {}: Error - Received 0 for output_buffer_block_count!", GetId());
     return;
   }
 
@@ -540,7 +540,7 @@ void XMAContext::Decode(XMA_CONTEXT_DATA* data) {
   const i16 packet_index = GetPacketNumber(current_input_size, data->input_buffer_read_offset);
 
   if (packet_index == -1) {
-    REXLOG_ERROR(apu, "XMAContext {}: Invalid packet index. Input read offset: {}", id(),
+    REXLOG_ERROR(apu, "XMAContext {}: Invalid packet index. Input read offset: {}", GetId(),
                  static_cast<u32>(data->input_buffer_read_offset));
     return;
   }
@@ -566,11 +566,11 @@ void XMAContext::Decode(XMA_CONTEXT_DATA* data) {
     return;
   }
 
-  kPacketInfo packet_info = GetPacketInfo(packet, relative_offset);
+  PacketInfo packet_info = GetPacketInfo(packet, relative_offset);
   const u32 packet_to_skip = skip_count + 1;
   const u32 next_packet_index = packet_index + packet_to_skip;
 
-  if (packet_info.current_frame_size_ == 0) {
+  if (packet_info.current_frame_size == 0) {
     const u8* next_packet = GetNextPacket(data, next_packet_index, current_input_packet_count);
     if (!next_packet) {
       SwapInputBuffer(data);
@@ -588,23 +588,23 @@ void XMAContext::Decode(XMA_CONTEXT_DATA* data) {
       data->error_status = 4;
       return;
     }
-    packet_info.current_frame_size_ = static_cast<u32>(frame_size);
+    packet_info.current_frame_size = static_cast<u32>(frame_size);
   }
 
   BitStream stream(current_input_buffer, (static_cast<size_t>(packet_index) + 1) * kBitsPerPacket);
   stream.SetOffset(data->input_buffer_read_offset);
 
-  const u64 bits_to_copy = GetAmountOfBitsToRead(static_cast<u32>(stream.BitsRemaining()),
-                                                 packet_info.current_frame_size_);
+  const u64 bits_to_copy = GetAmountOfBitsToRead(static_cast<u32>(stream.GetBitsRemaining()),
+                                                 packet_info.current_frame_size);
 
   if (bits_to_copy == 0) {
-    REXLOG_ERROR(apu, "XMAContext {}: There are no bits to copy!", id());
+    REXLOG_ERROR(apu, "XMAContext {}: There are no bits to copy!", GetId());
     SwapInputBuffer(data);
     return;
   }
 
-  if (packet_info.isLastFrameInPacket()) {
-    if (stream.BitsRemaining() < packet_info.current_frame_size_) {
+  if (packet_info.IsLastFrameInPacket()) {
+    if (stream.GetBitsRemaining() < packet_info.current_frame_size) {
       const u8* next_packet = GetNextPacket(data, next_packet_index, current_input_packet_count);
       if (!next_packet) {
         data->error_status = 4;
@@ -623,7 +623,7 @@ void XMAContext::Decode(XMA_CONTEXT_DATA* data) {
   xma_frame_.fill(0);
 
   const u32 padding_start =
-      static_cast<u8>(stream.Copy(xma_frame_.data() + 1, packet_info.current_frame_size_));
+      static_cast<u8>(stream.Copy(xma_frame_.data() + 1, packet_info.current_frame_size));
 
   decoded_frame_.fill(0);
 
@@ -631,7 +631,7 @@ void XMAContext::Decode(XMA_CONTEXT_DATA* data) {
     // A reopened codec restarts its output, so the carried tail is stale.
     carry_valid_ = false;
   }
-  PreparePacket(packet_info.current_frame_size_, padding_start);
+  PreparePacket(packet_info.current_frame_size, padding_start);
   const bool decoded = DecodePacket(av_context_, av_packet_, av_frame_);
   if (decoded) {
     ConvertFrame(reinterpret_cast<const u8**>(&av_frame_->data), bool(data->is_stereo),
@@ -670,7 +670,7 @@ void XMAContext::Decode(XMA_CONTEXT_DATA* data) {
     return;
   }
 
-  if (!packet_info.isLastFrameInPacket()) {
+  if (!packet_info.IsLastFrameInPacket()) {
     const u32 next_frame_offset = (data->input_buffer_read_offset + bits_to_copy) % kBitsPerPacket;
     data->input_buffer_read_offset = (packet_index * kBitsPerPacket) + next_frame_offset;
     return;
@@ -683,7 +683,7 @@ void XMAContext::Decode(XMA_CONTEXT_DATA* data) {
     SwapInputBuffer(data);
     if (data->IsAnyInputBufferValid()) {
       next_input_offset = xma::GetPacketFrameOffset(
-          memory()->TranslatePhysical(data->GetCurrentInputBufferAddress()));
+          GetMemory()->TranslatePhysical(data->GetCurrentInputBufferAddress()));
 
       if (next_input_offset > kMaxFrameSizeinBits) {
         SwapInputBuffer(data);
@@ -695,12 +695,12 @@ void XMAContext::Decode(XMA_CONTEXT_DATA* data) {
 }
 
 void XMAContext::ConvertFrame(const u8** samples, bool is_two_channel, u8* output_buffer) {
-  constexpr f32 scale = (1 << 15) - 1;
+  constexpr f32 kScale = (1 << 15) - 1;
   auto out = reinterpret_cast<i16*>(output_buffer);
 
   static_assert(kSamplesPerFrame % 8 == 0);
   const auto in_channel_0 = reinterpret_cast<const f32*>(samples[0]);
-  const simde__m128 scale_mm = simde_mm_set1_ps(scale);
+  const simde__m128 scale_mm = simde_mm_set1_ps(kScale);
   if (is_two_channel) {
     const auto in_channel_1 = reinterpret_cast<const f32*>(samples[1]);
     const simde__m128i shufmask =

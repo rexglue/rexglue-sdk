@@ -58,18 +58,18 @@ class ModuleRegistry final : public IModuleRegistry {
   ModuleRegistry(Runtime& runtime, ObjectTable& table);
 
   std::optional<X_HANDLE> GetModule(std::string_view name, bool user_only = false) override;
-  std::optional<X_HANDLE> executable() const override;
+  std::optional<X_HANDLE> GetExecutable() const override;
   std::optional<X_HANDLE> FindKernel(std::string_view name) override;
   std::optional<X_HANDLE> FindUser(std::string_view name) override;
   bool IsKernel(std::string_view name) override;
-  std::vector<X_HANDLE> kernel_modules() override;
-  std::vector<X_HANDLE> user_modules() override;
+  std::vector<X_HANDLE> GetKernelModules() override;
+  std::vector<X_HANDLE> GetUserModules() override;
   Result<X_HANDLE> LoadUserModule(std::string_view name, bool call_entry = true) override;
   void UnloadUserModule(X_HANDLE module, bool call_entry = true) override;
   [[nodiscard]] Result<X_HANDLE> LoadKernelModule(X_HANDLE created) override;
   void RegisterRecompiledModule(const char* pe_name, const char* guest_path,
                                 const char* shared_lib_name) override;
-  rex::platform::RankedMutex& load_count_mutex() override { return load_count_mutex_; }
+  rex::platform::RankedMutex& GetLoadCountMutex() override { return load_count_mutex_; }
 
   /**
    * Adds a kernel module.
@@ -100,7 +100,7 @@ class ModuleRegistry final : public IModuleRegistry {
    *
    * @param handle Any handle of the module, or 0 to clear it.
    */
-  void set_executable(X_HANDLE handle);
+  void SetExecutable(X_HANDLE handle);
 
   /**
    * Marks a path as being loaded.
@@ -137,9 +137,9 @@ class ModuleRegistry final : public IModuleRegistry {
 
   Runtime& runtime_;
   ObjectTable& table_;
-  mutable rex::platform::RankedMutex mutex_{rex::platform::LockRank::ModuleRegistry};
-  rex::platform::RankedMutex load_count_mutex_{rex::platform::LockRank::Identity};
-  rex::platform::RankedMutex recompiled_mutex_{rex::platform::LockRank::Leaf};
+  mutable rex::platform::RankedMutex mutex_{rex::platform::LockRank::kModuleRegistry};
+  rex::platform::RankedMutex load_count_mutex_{rex::platform::LockRank::kIdentity};
+  rex::platform::RankedMutex recompiled_mutex_{rex::platform::LockRank::kLeaf};
   X_HANDLE executable_ = 0;
   std::vector<X_HANDLE> kernel_modules_;
   std::vector<X_HANDLE> user_modules_;

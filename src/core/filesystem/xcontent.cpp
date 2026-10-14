@@ -35,7 +35,7 @@ u32 LanguageSlot(XLanguage language) {
 
 }  // namespace
 
-u64 decode_fat_timestamp(u32 date, u32 time) {
+u64 DecodeFATTimestamp(u32 date, u32 time) {
   using namespace std::chrono;
   const year_month first = year{1980 + static_cast<i32>((date >> 9) & 0x7F)} / January;
   const year_month month = first + months{static_cast<i32>((date >> 5) & 0x0F) - 1};
@@ -47,7 +47,7 @@ u64 decode_fat_timestamp(u32 date, u32 time) {
                           kTicksPerSecond);
 }
 
-std::u16string XContentMetadata::display_name(XLanguage language) const {
+std::u16string XContentMetadata::GetDisplayName(XLanguage language) const {
   const u32 slot = LanguageSlot(language);
   if (slot < kNumLanguagesV1) {
     return ReadBigEndian(display_name_raw.uint[slot], 128);
@@ -58,7 +58,7 @@ std::u16string XContentMetadata::display_name(XLanguage language) const {
   return {};
 }
 
-std::u16string XContentMetadata::description(XLanguage language) const {
+std::u16string XContentMetadata::GetDescription(XLanguage language) const {
   const u32 slot = LanguageSlot(language);
   if (slot < kNumLanguagesV1) {
     return ReadBigEndian(description_raw.uint[slot], 128);
@@ -69,15 +69,15 @@ std::u16string XContentMetadata::description(XLanguage language) const {
   return {};
 }
 
-std::u16string XContentMetadata::publisher() const {
+std::u16string XContentMetadata::GetPublisher() const {
   return ReadBigEndian(publisher_raw.uint, 64);
 }
 
-std::u16string XContentMetadata::title_name() const {
+std::u16string XContentMetadata::GetTitleName() const {
   return ReadBigEndian(title_name_raw.uint, 64);
 }
 
-bool XContentMetadata::set_display_name(XLanguage language, std::u16string_view value) {
+bool XContentMetadata::SetDisplayName(XLanguage language, std::u16string_view value) {
   const u32 slot = LanguageSlot(language);
   char16_t* destination = nullptr;
   if (slot < kNumLanguagesV1) {
@@ -88,11 +88,11 @@ bool XContentMetadata::set_display_name(XLanguage language, std::u16string_view 
   if (!destination) {
     return false;
   }
-  copy_and_swap_truncating(destination, value, countof(display_name_raw.chars[0]));
+  copy_and_swap_truncating(destination, value, CountOf(display_name_raw.chars[0]));
   return true;
 }
 
-bool XContentMetadata::set_description(XLanguage language, std::u16string_view value) {
+bool XContentMetadata::SetDescription(XLanguage language, std::u16string_view value) {
   const u32 slot = LanguageSlot(language);
   char16_t* destination = nullptr;
   if (slot < kNumLanguagesV1) {
@@ -103,16 +103,16 @@ bool XContentMetadata::set_description(XLanguage language, std::u16string_view v
   if (!destination) {
     return false;
   }
-  copy_and_swap_truncating(destination, value, countof(description_raw.chars[0]));
+  copy_and_swap_truncating(destination, value, CountOf(description_raw.chars[0]));
   return true;
 }
 
-void XContentMetadata::set_publisher(std::u16string_view value) {
-  copy_and_swap_truncating(publisher_raw.chars, value, countof(publisher_raw.chars));
+void XContentMetadata::SetPublisher(std::u16string_view value) {
+  copy_and_swap_truncating(publisher_raw.chars, value, CountOf(publisher_raw.chars));
 }
 
-void XContentMetadata::set_title_name(std::u16string_view value) {
-  copy_and_swap_truncating(title_name_raw.chars, value, countof(title_name_raw.chars));
+void XContentMetadata::SetTitleName(std::u16string_view value) {
+  copy_and_swap_truncating(title_name_raw.chars, value, CountOf(title_name_raw.chars));
 }
 
 [[nodiscard]] Result<STFSHeader> ReadSTFSHeader(std::span<const u8> bytes) {
@@ -123,7 +123,7 @@ void XContentMetadata::set_title_name(std::u16string_view value) {
   }
   STFSHeader header;
   std::memcpy(&header, bytes.data(), sizeof(STFSHeader));
-  if (!header.header.is_magic_valid()) {
+  if (!header.header.IsMagicValid()) {
     return Err<STFSHeader>(
         BuildError(FileSystemError::kCorrupt, "package magic is not CON, LIVE or PIRS"));
   }
@@ -133,10 +133,10 @@ void XContentMetadata::set_title_name(std::u16string_view value) {
 [[nodiscard]] Result<STFSHeader> ReadSTFSHeader(const std::filesystem::path& path) {
   auto map = memory::MappedMemory::Open(path, memory::MappedMemory::Mode::kRead);
   if (!map) {
-    return Err<STFSHeader>(BuildError(FileSystemError::kNotFound,
-                                      std::format("cannot open '{}'", path_to_utf8(path))));
+    return Err<STFSHeader>(
+        BuildError(FileSystemError::kNotFound, std::format("cannot open '{}'", PathToUTF8(path))));
   }
-  return ReadSTFSHeader(std::span<const u8>(map->data(), map->size()));
+  return ReadSTFSHeader(std::span<const u8>(map->GetData(), map->GetSize()));
 }
 
 }  // namespace rex::filesystem

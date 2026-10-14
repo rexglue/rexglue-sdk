@@ -56,7 +56,7 @@ class D3D12CommandProcessor : public CommandProcessor {
                                bool blocking) override;
 
   gpu::d3d12::D3D12Provider& GetD3D12Provider() const {
-    return *static_cast<gpu::d3d12::D3D12Provider*>(graphics_system_->provider());
+    return *static_cast<gpu::d3d12::D3D12Provider*>(graphics_system_->GetProvider());
   }
 
   /**
@@ -278,49 +278,49 @@ class D3D12CommandProcessor : public CommandProcessor {
    */
   enum RootParameter : u8 {
     /** Changes often, especially for UI draws and models drawn in parts. Holds fetch constants. */
-    kRootParameter_Bindful_FetchConstants = 0, /**< +2 dwords = 2 in all. */
+    kRootParameterBindfulFetchConstants = 0, /**< +2 dwords = 2 in all. */
     /** Changes often, such as for an object drawn repeatedly. May hold projection matrices. */
-    kRootParameter_Bindful_FloatConstantsVertex, /**< +2 = 4 in VS. */
+    kRootParameterBindfulFloatConstantsVertex, /**< +2 = 4 in VS. */
     /** Changes less often, per material. */
-    kRootParameter_Bindful_FloatConstantsPixel, /**< +2 = 4 in PS. */
+    kRootParameterBindfulFloatConstantsPixel, /**< +2 = 4 in PS. */
     /** May stay the same across many draws. */
-    kRootParameter_Bindful_SystemConstants, /**< +2 = 6 in all. */
+    kRootParameterBindfulSystemConstants, /**< +2 = 6 in all. */
     /** Rarely used and changed, holds flow control constants. */
-    kRootParameter_Bindful_BoolLoopConstants, /**< +2 = 8 in all. */
+    kRootParameterBindfulBoolLoopConstants, /**< +2 = 8 in all. */
     /**
      * Changes only when starting a new descriptor heap or switching shared memory between SRV
      * and UAV. Holds the shared memory byte address buffer (SRV and UAV, either may be null) and,
      * if ROV is used for EDRAM, the EDRAM R32_UINT UAV.
      */
-    kRootParameter_Bindful_SharedMemoryAndEDRAM, /**< +1 = 9 in all. */
+    kRootParameterBindfulSharedMemoryAndEDRAM, /**< +1 = 9 in all. */
 
-    kRootParameter_Bindful_Count_Base,
+    kRootParameterBindfulCountBase,
 
     /**
      * Extra parameters that may exist are pixel textures (+1 = 10 in PS), pixel samplers (+1 = 11
      * in PS), vertex textures (+1 = 10 in VS) and vertex samplers (+1 = 11 in VS).
      */
-    kRootParameter_Bindful_Count_Max = kRootParameter_Bindful_Count_Base + 4,
+    kRootParameterBindfulCountMax = kRootParameterBindfulCountBase + 4,
 
-    kRootParameter_Bindless_FetchConstants = 0,   /**< +2 = 2 in all. */
-    kRootParameter_Bindless_FloatConstantsVertex, /**< +2 = 4 in VS. */
-    kRootParameter_Bindless_FloatConstantsPixel,  /**< +2 = 4 in PS. */
+    kRootParameterBindlessFetchConstants = 0,   /**< +2 = 2 in all. */
+    kRootParameterBindlessFloatConstantsVertex, /**< +2 = 4 in VS. */
+    kRootParameterBindlessFloatConstantsPixel,  /**< +2 = 4 in PS. */
     /** Texture and sampler descriptor indices, changed per material. */
-    kRootParameter_Bindless_DescriptorIndicesPixel,  /**< +2 = 6 in PS. */
-    kRootParameter_Bindless_DescriptorIndicesVertex, /**< +2 = 6 in VS. */
-    kRootParameter_Bindless_SystemConstants,         /**< +2 = 8 in all. */
-    kRootParameter_Bindless_BoolLoopConstants,       /**< +2 = 10 in all. */
+    kRootParameterBindlessDescriptorIndicesPixel,  /**< +2 = 6 in PS. */
+    kRootParameterBindlessDescriptorIndicesVertex, /**< +2 = 6 in VS. */
+    kRootParameterBindlessSystemConstants,         /**< +2 = 8 in all. */
+    kRootParameterBindlessBoolLoopConstants,       /**< +2 = 10 in all. */
     /**
      * Changes only when switching shared memory between SRV and UAV. Holds the shared memory
      * byte address buffer (SRV and UAV, either may be null).
      */
-    kRootParameter_Bindless_SharedMemory, /**< +1 = 11 in all. */
+    kRootParameterBindlessSharedMemory, /**< +1 = 11 in all. */
     /** Unbounded sampler descriptor table, changed in case of overflow. */
-    kRootParameter_Bindless_SamplerHeap, /**< +1 = 12 in all. */
+    kRootParameterBindlessSamplerHeap, /**< +1 = 12 in all. */
     /** Unbounded SRV and UAV descriptor table, never changed. */
-    kRootParameter_Bindless_ViewHeap, /**< +1 = 13 in all. */
+    kRootParameterBindlessViewHeap, /**< +1 = 13 in all. */
 
-    kRootParameter_Bindless_Count,
+    kRootParameterBindlessCount,
   };
 
   struct RootBindfulExtraParameterIndices {
@@ -387,7 +387,7 @@ class D3D12CommandProcessor : public CommandProcessor {
   void PushDebugMarker(const char* format, ...);
   void PopDebugMarker();
   void InsertDebugMarker(const char* format, ...);
-  bool debug_markers_enabled() const { return debug_markers_enabled_; }
+  bool GetDebugMarkersEnabled() const { return debug_markers_enabled_; }
 
   // Submission completion must be awaited before this.
   void ClearCommandAllocatorCache();
@@ -424,9 +424,9 @@ class D3D12CommandProcessor : public CommandProcessor {
                                   u32 normalized_color_mask);
   bool UpdateBindings(const D3D12Shader* vertex_shader, const D3D12Shader* pixel_shader,
                       ID3D12RootSignature* root_signature, bool shared_memory_is_uav);
-  bool IssueCopy_ReadbackResolvePath();
-  bool IssueDraw_MemexportReadbackFullPath(u32 total_size);
-  bool IssueDraw_MemexportReadbackFastPath(u32 total_size);
+  bool IssueCopyReadbackResolvePath();
+  bool IssueDrawMemexportReadbackFullPath(u32 total_size);
+  bool IssueDrawMemexportReadbackFastPath(u32 total_size);
 
   /**
    * Returns a buffer for reading GPU data back to the CPU, assuming synchronization right after
@@ -451,12 +451,12 @@ class D3D12CommandProcessor : public CommandProcessor {
   static constexpr u64 kReadbackBufferEvictionAgeFrames = 60;
   static u32 AlignReadbackBufferSize(u32 size) {
     if (size < 1 * 1024 * 1024) {
-      return rex::align(size, 256u * 1024u);
+      return rex::Align(size, 256u * 1024u);
     }
     if (size < 4 * 1024 * 1024) {
-      return rex::align(size, 1u * 1024u * 1024u);
+      return rex::Align(size, 1u * 1024u * 1024u);
     }
-    return rex::align(size, kReadbackBufferSizeIncrement);
+    return rex::Align(size, kReadbackBufferSizeIncrement);
   }
   static u64 BuildReadbackResolveKey(u32 address, u32 length) {
     return (static_cast<u64>(address) << 32) | static_cast<u64>(length);

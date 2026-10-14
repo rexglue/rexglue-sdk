@@ -140,7 +140,7 @@
                                                           ::rex::i32* out_status) {             \
     if (!name) {                                                                                \
       if (out_status)                                                                           \
-        *out_status = static_cast<::rex::i32>(::rex::InterfaceStatus::NotFound);                \
+        *out_status = static_cast<::rex::i32>(::rex::InterfaceStatus::kNotFound);               \
       return nullptr;                                                                           \
     }                                                                                           \
     for (const ::rex::InterfaceEntry& entry : ModuleClass::kInterfaces) {                       \
@@ -148,15 +148,15 @@
         continue;                                                                               \
       if (entry.version != version) {                                                           \
         if (out_status)                                                                         \
-          *out_status = static_cast<::rex::i32>(::rex::InterfaceStatus::VersionMismatch);       \
+          *out_status = static_cast<::rex::i32>(::rex::InterfaceStatus::kVersionMismatch);      \
         return nullptr;                                                                         \
       }                                                                                         \
       if (out_status)                                                                           \
-        *out_status = static_cast<::rex::i32>(::rex::InterfaceStatus::Ok);                      \
+        *out_status = static_cast<::rex::i32>(::rex::InterfaceStatus::kOk);                     \
       return entry.get();                                                                       \
     }                                                                                           \
     if (out_status)                                                                             \
-      *out_status = static_cast<::rex::i32>(::rex::InterfaceStatus::NotFound);                  \
+      *out_status = static_cast<::rex::i32>(::rex::InterfaceStatus::kNotFound);                 \
     return nullptr;                                                                             \
   }                                                                                             \
   extern "C" REX_DETAIL_EXPORT void rex_enumerate_interfaces(                                   \
@@ -240,7 +240,7 @@
  * @param error The rex::Error to return when it holds.
  *
  * @code
- * REX_ERROR_IF(ptr == nullptr, rex::Error(rex::ErrorCategory::Validation, "null"));
+ * REX_ERROR_IF(ptr == nullptr, rex::Error(rex::ErrorCategory::kValidation, "null"));
  * @endcode
  */
 #define REX_ERROR_IF(cond, error)    \

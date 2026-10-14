@@ -47,7 +47,7 @@ class VideoScope : public rex::NonCopyable {
     }
   }
 
-  bool Ok() const { return ok_; }
+  bool IsOk() const { return ok_; }
   const std::string& GetError() const { return error_; }
 
  private:

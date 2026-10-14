@@ -14,7 +14,7 @@ ConsoleDialog::ConsoleDialog(const ModuleOverlayContext& context)
       view_(model_, host_) {}
 
 bool ConsoleDialog::OnToggle() {
-  if (model_.dock() != ConsoleDock::kUndocked) {
+  if (model_.GetDock() != ConsoleDock::kUndocked) {
     return false;
   }
   host_.ToggleWindow();
@@ -29,7 +29,7 @@ void ConsoleDialog::OnDraw(ImGuiIO& io) {
   if (io.DisplaySize.x <= 0.0f || io.DisplaySize.y <= 0.0f) {
     return;
   }
-  const bool minimized = model_.dock() == ConsoleDock::kMinimized;
+  const bool minimized = model_.GetDock() == ConsoleDock::kMinimized;
   if (first_draw_ || minimized != minimized_) {
     ImGui::SetNextWindowCollapsed(minimized, ImGuiCond_Always);
     minimized_ = minimized;
@@ -37,8 +37,8 @@ void ConsoleDialog::OnDraw(ImGuiIO& io) {
   }
   ImGui::SetNextWindowPos(ImVec2(0.0f, 0.0f), ImGuiCond_Always);
   if (!minimized) {
-    ImGui::SetNextWindowSize(ImVec2(io.DisplaySize.x * model_.width_fraction(),
-                                    io.DisplaySize.y * model_.height_fraction()),
+    ImGui::SetNextWindowSize(ImVec2(io.DisplaySize.x * model_.GetWidthFraction(),
+                                    io.DisplaySize.y * model_.GetHeightFraction()),
                              ImGuiCond_Always);
     ImGui::SetNextWindowSizeConstraints(
         ImVec2(io.DisplaySize.x * 0.2f, ImGui::GetFrameHeightWithSpacing() * 6.0f), io.DisplaySize);
@@ -48,12 +48,12 @@ void ConsoleDialog::OnDraw(ImGuiIO& io) {
                                  ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings);
   const bool collapsed = ImGui::IsWindowCollapsed();
   if (collapsed != minimized_) {
-    model_.set_dock(collapsed ? ConsoleDock::kMinimized : ConsoleDock::kDocked);
+    model_.SetDock(collapsed ? ConsoleDock::kMinimized : ConsoleDock::kDocked);
     minimized_ = collapsed;
   }
   if (open && !collapsed) {
     const ImVec2 size = ImGui::GetWindowSize();
-    model_.set_size(size.x / io.DisplaySize.x, size.y / io.DisplaySize.y);
+    model_.SetSize(size.x / io.DisplaySize.x, size.y / io.DisplaySize.y);
     view_.Draw(ui_.GetStyle().console);
   }
   ImGui::End();

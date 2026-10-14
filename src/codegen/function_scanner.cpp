@@ -20,7 +20,7 @@
 
 namespace rex::codegen {
 
-using rex::codegen::detail::decode_instruction;
+using rex::codegen::detail::DecodeInstruction;
 using rex::codegen::detail::Instruction;
 using rex::codegen::detail::Opcode;
 
@@ -28,27 +28,27 @@ FunctionScanner::FunctionScanner(const BinaryView& binary, const Limits& limits)
     : binary_(&binary), limits_(&limits) {}
 
 template <typename T>
-const T* FunctionScanner::translate_address(rex::guest_addr_t guest_addr) const {
-  return reinterpret_cast<const T*>(binary_->translate(static_cast<u32>(guest_addr)));
+const T* FunctionScanner::TranslateAddress(rex::GuestAddrT guest_addr) const {
+  return reinterpret_cast<const T*>(binary_->Translate(static_cast<u32>(guest_addr)));
 }
 
-bool FunctionScanner::isExecutableSection(rex::guest_addr_t address) const {
-  return binary_->isExecutable(static_cast<u32>(address));
+bool FunctionScanner::IsExecutableSection(rex::GuestAddrT address) const {
+  return binary_->IsExecutable(static_cast<u32>(address));
 }
 
-bool FunctionScanner::is_prologue_pattern(guest_addr_t address) const {
-  auto host_ptr = translate_address<u32>(address);
+bool FunctionScanner::IsProloguePattern(GuestAddrT address) const {
+  auto host_ptr = TranslateAddress<u32>(address);
   if (!host_ptr)
     return false;
 
   u32 code = memory::load<be_u32>(host_ptr);
-  Instruction instr = decode_instruction(address, code);
+  Instruction instr = DecodeInstruction(address, code);
 
   if (instr.opcode == Opcode::mflr) {
     return true;
   }
 
-  if (instr.opcode == Opcode::mfspr && instr.XFX.spr_num() == 8) {
+  if (instr.opcode == Opcode::mfspr && instr.XFX.GetSPRNum() == 8) {
     return true;
   }
 
@@ -59,16 +59,16 @@ bool FunctionScanner::is_prologue_pattern(guest_addr_t address) const {
   return false;
 }
 
-bool FunctionScanner::is_epilogue_pattern(guest_addr_t address) const {
-  auto host_ptr = translate_address<u32>(address);
+bool FunctionScanner::IsEpiloguePattern(GuestAddrT address) const {
+  auto host_ptr = TranslateAddress<u32>(address);
   if (!host_ptr)
     return false;
 
   u32 code = memory::load<be_u32>(host_ptr);
 
-  Instruction instr = decode_instruction(address, code);
+  Instruction instr = DecodeInstruction(address, code);
 
-  if (instr.is_return()) {
+  if (instr.IsReturn()) {
     return true;
   }
 
@@ -92,42 +92,42 @@ bool FunctionScanner::is_epilogue_pattern(guest_addr_t address) const {
  * @param address Address to test.
  * @return True when the address starts a helper.
  */
-bool FunctionScanner::is_restgprlr_function(guest_addr_t address) const {
-  auto host_ptr = translate_address<u32>(address);
+bool FunctionScanner::IsRestgprlrFunction(GuestAddrT address) const {
+  auto host_ptr = TranslateAddress<u32>(address);
   if (!host_ptr)
     return false;
 
   u32 first = memory::load<be_u32>(host_ptr);
 
-  constexpr u32 RESTGPRLR_14 = 0xe9c1ff68;
-  constexpr u32 SAVEGPRLR_14 = 0xf9c1ff68;
-  constexpr u32 RESTFPR_14 = 0xc9ccff70;
-  constexpr u32 SAVEFPR_14 = 0xd9ccff70;
+  constexpr u32 kRestGPRLR14 = 0xe9c1ff68;
+  constexpr u32 kSaveGPRLR14 = 0xf9c1ff68;
+  constexpr u32 kRestFPR14 = 0xc9ccff70;
+  constexpr u32 kSaveFPR14 = 0xd9ccff70;
 
-  if (first == RESTGPRLR_14 || first == SAVEGPRLR_14 || first == RESTFPR_14 ||
-      first == SAVEFPR_14) {
+  if (first == kRestGPRLR14 || first == kSaveGPRLR14 || first == kRestFPR14 ||
+      first == kSaveFPR14) {
     return true;
   }
 
   if (first == 0x3960fee0) {
-    auto second_ptr = translate_address<u32>(address + 4);
+    auto second_ptr = TranslateAddress<u32>(address + 4);
     if (second_ptr) {
       u32 second = memory::load<be_u32>(second_ptr);
-      constexpr u32 RESTVMX_14 = 0x7dcb60ce;
-      constexpr u32 SAVEVMX_14 = 0x7dcb61ce;
-      if (second == RESTVMX_14 || second == SAVEVMX_14) {
+      constexpr u32 kRestVMX14 = 0x7dcb60ce;
+      constexpr u32 kSaveVMX14 = 0x7dcb61ce;
+      if (second == kRestVMX14 || second == kSaveVMX14) {
         return true;
       }
     }
   }
 
   if (first == 0x3960fc00) {
-    auto second_ptr = translate_address<u32>(address + 4);
+    auto second_ptr = TranslateAddress<u32>(address + 4);
     if (second_ptr) {
       u32 second = memory::load<be_u32>(second_ptr);
-      constexpr u32 RESTVMX_64 = 0x100b60cb;
-      constexpr u32 SAVEVMX_64 = 0x100b61cb;
-      if (second == RESTVMX_64 || second == SAVEVMX_64) {
+      constexpr u32 kRestVMX64 = 0x100b60cb;
+      constexpr u32 kSaveVMX64 = 0x100b61cb;
+      if (second == kRestVMX64 || second == kSaveVMX64) {
         return true;
       }
     }
@@ -153,10 +153,10 @@ struct JumpTableMatch {
   u8 index_reg = 0;
   u8 offset_reg = 0;
   u8 shift_amount = 0;
-  guest_addr_t table_high = 0;
-  guest_addr_t table_low = 0;
-  guest_addr_t base_high = 0;
-  guest_addr_t base_low = 0;
+  GuestAddrT table_high = 0;
+  GuestAddrT table_low = 0;
+  GuestAddrT base_high = 0;
+  GuestAddrT base_low = 0;
 
   bool found_mtctr = false;
   bool found_add = false;
@@ -167,14 +167,14 @@ struct JumpTableMatch {
   bool found_base_lis = false;
   bool found_base_addi = false;
 
-  guest_addr_t table_address() const { return table_high + static_cast<i16>(table_low); }
-  guest_addr_t base_address() const { return base_high + static_cast<i16>(base_low); }
+  GuestAddrT GetTableAddress() const { return table_high + static_cast<i16>(table_low); }
+  GuestAddrT GetBaseAddress() const { return base_high + static_cast<i16>(base_low); }
 };
 
 struct BoundsInfo {
-  u32 maxEntries = 0;
-  u8 indexReg = 0;
-  u32 defaultTarget = 0;
+  u32 max_entries = 0;
+  u8 index_reg = 0;
+  u32 default_target = 0;
   bool found = false;
 };
 
@@ -191,19 +191,19 @@ struct BoundsInfo {
  * @param expected_index_reg Register holding the switch index.
  * @return The bounds, with found set when one was seen.
  */
-BoundsInfo scanForBounds(const FunctionScanner& scanner, guest_addr_t bctr_address,
+BoundsInfo ScanForBounds(const FunctionScanner& scanner, GuestAddrT bctr_address,
                          u8 expected_index_reg) {
   BoundsInfo bounds;
-  constexpr int MAX_SCAN = 64;
+  constexpr int kMaxScan = 64;
 
   u8 cr_field = 0xFF;
 
-  for (int i = 1; i <= MAX_SCAN; ++i) {
-    guest_addr_t addr = bctr_address - (i * 4);
+  for (int i = 1; i <= kMaxScan; ++i) {
+    GuestAddrT addr = bctr_address - (i * 4);
     if (addr < 4)
       break;
 
-    auto host_ptr = scanner.translate_address<u32>(addr);
+    auto host_ptr = scanner.TranslateAddress<u32>(addr);
     if (!host_ptr)
       break;
 
@@ -211,7 +211,7 @@ BoundsInfo scanForBounds(const FunctionScanner& scanner, guest_addr_t bctr_addre
     if (code == 0)
       break;
 
-    Instruction instr = decode_instruction(addr, code);
+    Instruction instr = DecodeInstruction(addr, code);
 
     if (cr_field == 0xFF) {
       bool is_cond_branch = (instr.opcode == Opcode::bc || instr.opcode == Opcode::bca ||
@@ -225,7 +225,7 @@ BoundsInfo scanForBounds(const FunctionScanner& scanner, guest_addr_t bctr_addre
           cr_field = (bi >> 2) & 0x7;
 
           if (instr.branch_target.has_value()) {
-            bounds.defaultTarget = instr.branch_target.value();
+            bounds.default_target = instr.branch_target.value();
           }
         }
       }
@@ -243,8 +243,8 @@ BoundsInfo scanForBounds(const FunctionScanner& scanner, guest_addr_t bctr_addre
                      addr, static_cast<u32>(expected_index_reg), mb, implicit_count);
 
         if (implicit_count >= 2 && implicit_count <= 256) {
-          bounds.maxEntries = implicit_count;
-          bounds.indexReg = expected_index_reg;
+          bounds.max_entries = implicit_count;
+          bounds.index_reg = expected_index_reg;
           bounds.found = true;
           break;
         }
@@ -267,8 +267,8 @@ BoundsInfo scanForBounds(const FunctionScanner& scanner, guest_addr_t bctr_addre
       }
 
       if (reg_matches || (cr_matches && cmp_imm > 1)) {
-        bounds.maxEntries = cmp_imm + 1;
-        bounds.indexReg = cmp_ra;
+        bounds.max_entries = cmp_imm + 1;
+        bounds.index_reg = cmp_ra;
         bounds.found = true;
 
         if (reg_matches)
@@ -292,17 +292,17 @@ BoundsInfo scanForBounds(const FunctionScanner& scanner, guest_addr_t bctr_addre
  * @param entry_count Entry count from the bounds check, or 0 when unknown.
  * @return The targets.
  */
-std::vector<guest_addr_t> read_table_entries(const FunctionScanner& scanner,
-                                             const JumpTableMatch& match, u32 entry_count) {
-  std::vector<guest_addr_t> targets;
-  guest_addr_t table_addr = match.table_address();
+std::vector<GuestAddrT> ReadTableEntries(const FunctionScanner& scanner,
+                                         const JumpTableMatch& match, u32 entry_count) {
+  std::vector<GuestAddrT> targets;
+  GuestAddrT table_addr = match.GetTableAddress();
 
   for (u32 i = 0; entry_count == 0 || i < entry_count; ++i) {
-    guest_addr_t target = 0;
+    GuestAddrT target = 0;
 
     switch (match.type) {
       case JumpTableType::kAbsolute: {
-        auto entry_ptr = scanner.translate_address<u32>(table_addr + (i * 4));
+        auto entry_ptr = scanner.TranslateAddress<u32>(table_addr + (i * 4));
         if (!entry_ptr)
           goto done;
         target = memory::load<be_u32>(entry_ptr);
@@ -310,29 +310,29 @@ std::vector<guest_addr_t> read_table_entries(const FunctionScanner& scanner,
       }
 
       case JumpTableType::kComputed: {
-        auto entry_ptr = scanner.translate_address<u8>(table_addr + i);
+        auto entry_ptr = scanner.TranslateAddress<u8>(table_addr + i);
         if (!entry_ptr)
           goto done;
         u8 offset = *entry_ptr;
-        target = match.base_address() + (static_cast<u32>(offset) << match.shift_amount);
+        target = match.GetBaseAddress() + (static_cast<u32>(offset) << match.shift_amount);
         break;
       }
 
       case JumpTableType::kByteOffset: {
-        auto entry_ptr = scanner.translate_address<u8>(table_addr + i);
+        auto entry_ptr = scanner.TranslateAddress<u8>(table_addr + i);
         if (!entry_ptr)
           goto done;
         u8 offset = *entry_ptr;
-        target = match.base_address() + offset;
+        target = match.GetBaseAddress() + offset;
         break;
       }
 
       case JumpTableType::kShortOffset: {
-        auto entry_ptr = scanner.translate_address<u16>(table_addr + (i * 2));
+        auto entry_ptr = scanner.TranslateAddress<u16>(table_addr + (i * 2));
         if (!entry_ptr)
           goto done;
         u16 offset = memory::load<be_u16>(entry_ptr);
-        target = match.base_address() + offset;
+        target = match.GetBaseAddress() + offset;
         break;
       }
     }
@@ -343,7 +343,7 @@ std::vector<guest_addr_t> read_table_entries(const FunctionScanner& scanner,
     if (target == 0 && match.type == JumpTableType::kAbsolute)
       goto done;
 
-    if (!scanner.isExecutableSection(target)) {
+    if (!scanner.IsExecutableSection(target)) {
       if (match.type == JumpTableType::kAbsolute)
         goto done;
       continue;
@@ -367,13 +367,13 @@ done:
  * @param addr Instruction address.
  * @return True when the instruction is a boundary.
  */
-static bool is_function_boundary(u32 code, const Instruction& instr, guest_addr_t addr) {
+static bool IsFunctionBoundary(u32 code, const Instruction& instr, GuestAddrT addr) {
   if (code == 0x00000000) {
     REXLOG_TRACE(codegen, "  [0x{:08X}] Hit zero padding - function boundary", addr);
     return true;
   }
 
-  if (instr.is_return()) {
+  if (instr.IsReturn()) {
     REXLOG_TRACE(codegen, "  [0x{:08X}] Hit blr - function boundary", addr);
     return true;
   }
@@ -418,33 +418,33 @@ static bool is_function_boundary(u32 code, const Instruction& instr, guest_addr_
  * @param bctr_address Address of the bctr.
  * @return The table, or nullopt when none matches.
  */
-std::optional<JumpTable> FunctionScanner::detect_jump_table(guest_addr_t bctr_address) {
+std::optional<JumpTable> FunctionScanner::DetectJumpTable(GuestAddrT bctr_address) {
   if (known_switch_tables_.count(static_cast<u32>(bctr_address))) {
     REXLOG_TRACE(codegen, "detect_jump_table: skipping 0x{:08X} (manual table exists)",
                  bctr_address);
     return std::nullopt;
   }
 
-  const int MAX_SCAN_BACK = static_cast<int>(limits_->backward_scan_limit);
+  const int max_scan_back = static_cast<int>(limits_->backward_scan_limit);
 
   JumpTableMatch match;
 
   REXLOG_TRACE(codegen, "detect_jump_table: scanning backward from bctr at 0x{:08X}", bctr_address);
 
-  for (int i = 1; i <= MAX_SCAN_BACK; ++i) {
-    guest_addr_t addr = bctr_address - (i * 4);
+  for (int i = 1; i <= max_scan_back; ++i) {
+    GuestAddrT addr = bctr_address - (i * 4);
     if (addr < 4)
       break;
 
-    auto host_ptr = translate_address<u32>(addr);
+    auto host_ptr = TranslateAddress<u32>(addr);
     if (!host_ptr)
       break;
 
     u32 code = memory::load<be_u32>(host_ptr);
 
-    Instruction instr = decode_instruction(addr, code);
+    Instruction instr = DecodeInstruction(addr, code);
 
-    if (is_function_boundary(code, instr, addr)) {
+    if (IsFunctionBoundary(code, instr, addr)) {
       if (instr.opcode == Opcode::bcctr && match.found_load && !match.found_table_lis) {
         REXLOG_TRACE(codegen, "  [0x{:08X}] Continuing past bctr to find shared lis", addr);
         continue;
@@ -544,20 +544,20 @@ std::optional<JumpTable> FunctionScanner::detect_jump_table(guest_addr_t bctr_ad
       if (instr.opcode == Opcode::lis && instr.D.RT == match.table_reg) {
         if (register_reuse) {
           if (!match.found_base_lis) {
-            match.base_high = static_cast<guest_addr_t>(instr.D.UIMM()) << 16;
+            match.base_high = static_cast<GuestAddrT>(instr.D.UIMM()) << 16;
             match.found_base_lis = true;
             REXLOG_TRACE(codegen, "  [0x{:08X}] Found base lis r{}, 0x{:04X} (register reuse)",
                          addr, static_cast<u32>(instr.D.RT), instr.D.UIMM());
             continue;
           } else if (!match.found_table_lis) {
-            match.table_high = static_cast<guest_addr_t>(instr.D.UIMM()) << 16;
+            match.table_high = static_cast<GuestAddrT>(instr.D.UIMM()) << 16;
             match.found_table_lis = true;
             REXLOG_TRACE(codegen, "  [0x{:08X}] Found table lis r{}, 0x{:04X} (register reuse)",
                          addr, static_cast<u32>(instr.D.RT), instr.D.UIMM());
             continue;
           }
         } else if (!match.found_table_lis) {
-          match.table_high = static_cast<guest_addr_t>(instr.D.UIMM()) << 16;
+          match.table_high = static_cast<GuestAddrT>(instr.D.UIMM()) << 16;
           match.found_table_lis = true;
           REXLOG_TRACE(codegen, "  [0x{:08X}] Found lis r{}, 0x{:04X}", addr,
                        static_cast<u32>(instr.D.RT), instr.D.UIMM());
@@ -568,7 +568,7 @@ std::optional<JumpTable> FunctionScanner::detect_jump_table(guest_addr_t bctr_ad
         REXLOG_TRACE(codegen, "  [0x{:08X}] Found lis for index_reg r{}, swapping table/index",
                      addr, static_cast<u32>(instr.D.RT));
         std::swap(match.table_reg, match.index_reg);
-        match.table_high = static_cast<guest_addr_t>(instr.D.UIMM()) << 16;
+        match.table_high = static_cast<GuestAddrT>(instr.D.UIMM()) << 16;
         match.found_table_lis = true;
         continue;
       }
@@ -611,7 +611,7 @@ std::optional<JumpTable> FunctionScanner::detect_jump_table(guest_addr_t bctr_ad
     if (match.found_add) {
       if (!match.found_base_lis && instr.opcode == Opcode::lis) {
         if (instr.D.RT == match.base_reg) {
-          match.base_high = static_cast<guest_addr_t>(instr.D.UIMM()) << 16;
+          match.base_high = static_cast<GuestAddrT>(instr.D.UIMM()) << 16;
           match.found_base_lis = true;
           REXLOG_TRACE(codegen, "  [0x{:08X}] Found base lis r{}, 0x{:04X}", addr,
                        static_cast<u32>(instr.D.RT), instr.D.UIMM());
@@ -620,7 +620,7 @@ std::optional<JumpTable> FunctionScanner::detect_jump_table(guest_addr_t bctr_ad
           REXLOG_TRACE(codegen, "  [0x{:08X}] Found lis for offset_reg r{}, swapping base/offset",
                        addr, static_cast<u32>(instr.D.RT));
           std::swap(match.base_reg, match.offset_reg);
-          match.base_high = static_cast<guest_addr_t>(instr.D.UIMM()) << 16;
+          match.base_high = static_cast<GuestAddrT>(instr.D.UIMM()) << 16;
           match.found_base_lis = true;
           continue;
         }
@@ -678,21 +678,21 @@ std::optional<JumpTable> FunctionScanner::detect_jump_table(guest_addr_t bctr_ad
     return std::nullopt;
   }
 
-  guest_addr_t table_address = match.table_address();
+  GuestAddrT table_address = match.GetTableAddress();
   REXLOG_TRACE(codegen, "  Table address: 0x{:08X} (high=0x{:08X}, low=0x{:04X})", table_address,
                match.table_high, match.table_low);
 
-  auto table_ptr = translate_address<u8>(table_address);
+  auto table_ptr = TranslateAddress<u8>(table_address);
   if (!table_ptr) {
     REXLOG_TRACE(codegen, "  Invalid table address 0x{:08X} - not in mapped memory", table_address);
     return std::nullopt;
   }
 
-  BoundsInfo bounds = scanForBounds(*this, bctr_address, match.index_reg);
+  BoundsInfo bounds = ScanForBounds(*this, bctr_address, match.index_reg);
   REXLOG_TRACE(codegen, "  Bounds check: found={}, count={}, default=0x{:08X}, index_reg=r{}",
-               bounds.found, bounds.maxEntries, bounds.defaultTarget, bounds.indexReg);
+               bounds.found, bounds.max_entries, bounds.default_target, bounds.index_reg);
 
-  std::vector<guest_addr_t> targets = read_table_entries(*this, match, bounds.maxEntries);
+  std::vector<GuestAddrT> targets = ReadTableEntries(*this, match, bounds.max_entries);
 
   if (targets.size() < 2) {
     REXLOG_TRACE(codegen, "  Insufficient entries: {} (need at least 2)", targets.size());
@@ -700,9 +700,9 @@ std::optional<JumpTable> FunctionScanner::detect_jump_table(guest_addr_t bctr_ad
   }
 
   JumpTable jt;
-  jt.bctrAddress = static_cast<u32>(bctr_address);
-  jt.tableAddress = static_cast<u32>(table_address);
-  jt.indexRegister = match.index_reg;
+  jt.bctr_address = static_cast<u32>(bctr_address);
+  jt.table_address = static_cast<u32>(table_address);
+  jt.index_register = match.index_reg;
   jt.targets = std::move(targets);
 
   return jt;
@@ -719,29 +719,28 @@ std::optional<JumpTable> FunctionScanner::detect_jump_table(guest_addr_t bctr_ad
  * @param pdata_size Function size from PDATA, or 0 when unknown.
  * @return The discovered blocks and calls.
  */
-FunctionBlocks FunctionScanner::discover_blocks(rex::guest_addr_t entry_point,
-                                                rex::u32 pdata_size) {
+FunctionBlocks FunctionScanner::DiscoverBlocks(rex::GuestAddrT entry_point, rex::u32 pdata_size) {
   FunctionBlocks result;
   result.entry = entry_point;
   result.pdata_size = pdata_size;
 
-  std::unordered_set<guest_addr_t> scannedAddrs;
+  std::unordered_set<GuestAddrT> scanned_addrs;
 
   std::vector<DiscoveredBlock> block_stack;
 
   DiscoveredBlock entry_block;
   entry_block.base = entry_point;
   entry_block.end = entry_point;
-  entry_block.projectedSize = -1;
+  entry_block.projected_size = -1;
   block_stack.push_back(entry_block);
 
-  const size_t MAX_BLOCKS = limits_->max_blocks_per_function;
+  const size_t max_blocks = limits_->max_blocks_per_function;
 
-  while (!block_stack.empty() && result.blocks.size() < MAX_BLOCKS) {
+  while (!block_stack.empty() && result.blocks.size() < max_blocks) {
     DiscoveredBlock& block = block_stack.back();
 
     if (block.end == block.base) {
-      if (scannedAddrs.count(block.base)) {
+      if (scanned_addrs.count(block.base)) {
         block_stack.pop_back();
         continue;
       }
@@ -753,11 +752,11 @@ FunctionBlocks FunctionScanner::discover_blocks(rex::guest_addr_t entry_point,
       continue;
     }
 
-    guest_addr_t addr = block.end;
+    GuestAddrT addr = block.end;
     if (addr == block.base) {}
 
-    guest_addr_t block_size = addr - block.base;
-    if (block.projectedSize != -1 && block_size >= static_cast<guest_addr_t>(block.projectedSize)) {
+    GuestAddrT block_size = addr - block.base;
+    if (block.projected_size != -1 && block_size >= static_cast<GuestAddrT>(block.projected_size)) {
       REXLOG_TRACE(codegen, "Block 0x{:08X} hit projection limit at size 0x{:X}", block.base,
                    block_size);
       result.blocks.push_back(block);
@@ -765,7 +764,7 @@ FunctionBlocks FunctionScanner::discover_blocks(rex::guest_addr_t entry_point,
       continue;
     }
 
-    if (scannedAddrs.count(addr)) {
+    if (scanned_addrs.count(addr)) {
       if (addr > block.base) {
         block.successors.push_back(addr);
         block.has_terminator = true;
@@ -786,7 +785,7 @@ FunctionBlocks FunctionScanner::discover_blocks(rex::guest_addr_t entry_point,
       continue;
     }
 
-    auto host_ptr = translate_address<u32>(addr);
+    auto host_ptr = TranslateAddress<u32>(addr);
     if (!host_ptr) {
       REXLOG_DEBUG(codegen, "discover_blocks: invalid address 0x{:08X}", addr);
       block.has_terminator = true;
@@ -806,11 +805,11 @@ FunctionBlocks FunctionScanner::discover_blocks(rex::guest_addr_t entry_point,
     }
 
     block.end = addr + 4;
-    scannedAddrs.insert(addr);
+    scanned_addrs.insert(addr);
 
-    Instruction instr = decode_instruction(addr, code);
+    Instruction instr = DecodeInstruction(addr, code);
 
-    if (instr.is_return()) {
+    if (instr.IsReturn()) {
       block.has_terminator = true;
       result.blocks.push_back(block);
       block_stack.pop_back();
@@ -818,10 +817,10 @@ FunctionBlocks FunctionScanner::discover_blocks(rex::guest_addr_t entry_point,
     }
 
     if (instr.opcode == Opcode::bcctr) {
-      auto jt_info = detect_jump_table(addr);
+      auto jt_info = DetectJumpTable(addr);
       if (jt_info.has_value()) {
         result.jump_tables.push_back(jt_info.value());
-        for (guest_addr_t target : jt_info->targets) {
+        for (GuestAddrT target : jt_info->targets) {
           block.successors.push_back(target);
         }
       }
@@ -830,12 +829,12 @@ FunctionBlocks FunctionScanner::discover_blocks(rex::guest_addr_t entry_point,
       block_stack.pop_back();
 
       if (jt_info.has_value()) {
-        for (guest_addr_t target : jt_info->targets) {
-          if (!scannedAddrs.count(target)) {
+        for (GuestAddrT target : jt_info->targets) {
+          if (!scanned_addrs.count(target)) {
             DiscoveredBlock jt_block;
             jt_block.base = target;
             jt_block.end = target;
-            jt_block.projectedSize = -1;
+            jt_block.projected_size = -1;
             block_stack.push_back(jt_block);
           }
         }
@@ -845,7 +844,7 @@ FunctionBlocks FunctionScanner::discover_blocks(rex::guest_addr_t entry_point,
 
     if (instr.opcode == Opcode::b || instr.opcode == Opcode::ba) {
       if (instr.branch_target.has_value()) {
-        guest_addr_t target = instr.branch_target.value();
+        GuestAddrT target = instr.branch_target.value();
         block.successors.push_back(target);
 
         bool is_tail_call = known_callables_.contains(static_cast<u32>(target));
@@ -859,16 +858,16 @@ FunctionBlocks FunctionScanner::discover_blocks(rex::guest_addr_t entry_point,
           is_tail_call = true;
         }
 
-        if (!is_tail_call && isKnownCallable(static_cast<u32>(target))) {
+        if (!is_tail_call && IsKnownCallable(static_cast<u32>(target))) {
           is_tail_call = true;
         }
 
-        if (!is_tail_call && !isInternalBranch(static_cast<u32>(addr), static_cast<u32>(target),
+        if (!is_tail_call && !IsInternalBranch(static_cast<u32>(addr), static_cast<u32>(target),
                                                static_cast<u32>(entry_point))) {
           is_tail_call = true;
         }
 
-        if (!is_tail_call && is_prologue_pattern(target)) {
+        if (!is_tail_call && IsProloguePattern(target)) {
           REXLOG_TRACE(codegen, "discover_blocks: target 0x{:08X} has prologue pattern (TAIL CALL)",
                        target);
           is_tail_call = true;
@@ -878,15 +877,15 @@ FunctionBlocks FunctionScanner::discover_blocks(rex::guest_addr_t entry_point,
           REXLOG_TRACE(codegen, "discover_blocks: b 0x{:08X} -> 0x{:08X} is TAIL CALL", addr,
                        target);
           result.tail_calls.push_back(target);
-        } else if (!scannedAddrs.count(target)) {
+        } else if (!scanned_addrs.count(target)) {
           REXLOG_TRACE(
               codegen,
               "discover_blocks: b 0x{:08X} -> 0x{:08X} treated as INTERNAL (entry=0x{:08X})", addr,
               target, entry_point);
           bool is_continuous = (target == block.end);
           i64 carry_projection = -1;
-          if (is_continuous && block.projectedSize != -1) {
-            carry_projection = block.projectedSize - static_cast<i64>(block.end - block.base);
+          if (is_continuous && block.projected_size != -1) {
+            carry_projection = block.projected_size - static_cast<i64>(block.end - block.base);
             if (carry_projection <= 0)
               carry_projection = -1;
           }
@@ -899,7 +898,7 @@ FunctionBlocks FunctionScanner::discover_blocks(rex::guest_addr_t entry_point,
           DiscoveredBlock target_block;
           target_block.base = target;
           target_block.end = target;
-          target_block.projectedSize = carry_projection;
+          target_block.projected_size = carry_projection;
           block_stack.push_back(target_block);
           continue;
         }
@@ -910,31 +909,31 @@ FunctionBlocks FunctionScanner::discover_blocks(rex::guest_addr_t entry_point,
       continue;
     }
 
-    if (instr.is_call() && instr.branch_target.has_value()) {
+    if (instr.IsCall() && instr.branch_target.has_value()) {
       result.external_calls.push_back(instr.branch_target.value());
       continue;
     }
 
-    if ((instr.opcode == Opcode::bclr || instr.opcode == Opcode::bclrl) && !instr.is_return()) {
-      guest_addr_t fall_through = addr + 4;
+    if ((instr.opcode == Opcode::bclr || instr.opcode == Opcode::bclrl) && !instr.IsReturn()) {
+      GuestAddrT fall_through = addr + 4;
       block.successors.push_back(fall_through);
       block.has_terminator = true;
       result.blocks.push_back(block);
       block_stack.pop_back();
 
-      if (!scannedAddrs.count(fall_through)) {
+      if (!scanned_addrs.count(fall_through)) {
         DiscoveredBlock ft_block;
         ft_block.base = fall_through;
         ft_block.end = fall_through;
-        ft_block.projectedSize = -1;
+        ft_block.projected_size = -1;
         block_stack.push_back(ft_block);
       }
       continue;
     }
 
-    if (instr.is_branch() && instr.branch_target.has_value()) {
-      guest_addr_t target = instr.branch_target.value();
-      guest_addr_t fall_through = addr + 4;
+    if (instr.IsBranch() && instr.branch_target.has_value()) {
+      GuestAddrT target = instr.branch_target.value();
+      GuestAddrT fall_through = addr + 4;
 
       block.successors.push_back(fall_through);
       block.successors.push_back(target);
@@ -943,27 +942,27 @@ FunctionBlocks FunctionScanner::discover_blocks(rex::guest_addr_t entry_point,
 
       bool target_is_internal = (target >= entry_point);
 
-      if (target_is_internal && !scannedAddrs.count(target)) {
+      if (target_is_internal && !scanned_addrs.count(target)) {
         DiscoveredBlock true_block;
         true_block.base = target;
         true_block.end = target;
-        true_block.projectedSize = -1;
+        true_block.projected_size = -1;
         block_stack.push_back(true_block);
       }
 
-      if (!scannedAddrs.count(fall_through)) {
+      if (!scanned_addrs.count(fall_through)) {
         DiscoveredBlock false_block;
         false_block.base = fall_through;
         false_block.end = fall_through;
 
         if (target_is_internal && target > fall_through) {
-          false_block.projectedSize = static_cast<i64>(target - fall_through);
+          false_block.projected_size = static_cast<i64>(target - fall_through);
           REXLOG_TRACE(
               codegen,
               "Conditional branch at 0x{:08X}: fall-through 0x{:08X} projected to 0x{:X} bytes",
-              addr, fall_through, false_block.projectedSize);
+              addr, fall_through, false_block.projected_size);
         } else {
-          false_block.projectedSize = -1;
+          false_block.projected_size = -1;
         }
         block_stack.push_back(false_block);
       }
@@ -981,12 +980,12 @@ FunctionBlocks FunctionScanner::discover_blocks(rex::guest_addr_t entry_point,
   return result;
 }
 
-const CodeRegion* FunctionScanner::findRegionContaining(u32 address) const {
+const CodeRegion* FunctionScanner::FindRegionContaining(u32 address) const {
   if (!code_regions_)
     return nullptr;
 
   for (const auto& region : *code_regions_) {
-    if (region.contains(address)) {
+    if (region.Contains(address)) {
       return &region;
     }
   }
@@ -997,23 +996,24 @@ const CodeRegion* FunctionScanner::findRegionContaining(u32 address) const {
  * Reports whether a branch stays inside its function. A configured chunk of the function is
  * internal even across regions. A target in another code region, or in none, is a tail call.
  *
- * @param currentAddr Address of the branch.
- * @param targetAddr Branch target.
- * @param functionEntry Entry of the function holding the branch.
+ * @param current_addr Address of the branch.
+ * @param target_addr Branch target.
+ * @param function_entry Entry of the function holding the branch.
  * @return True when the branch is internal.
  */
-bool FunctionScanner::isInternalBranch(u32 currentAddr, u32 targetAddr, u32 functionEntry) const {
-  if (isWithinChunk(targetAddr, functionEntry)) {
+bool FunctionScanner::IsInternalBranch(u32 current_addr, u32 target_addr,
+                                       u32 function_entry) const {
+  if (IsWithinChunk(target_addr, function_entry)) {
     return true;
   }
 
-  const auto* currentRegion = findRegionContaining(currentAddr);
-  const auto* targetRegion = findRegionContaining(targetAddr);
+  const auto* current_region = FindRegionContaining(current_addr);
+  const auto* target_region = FindRegionContaining(target_addr);
 
-  if (currentRegion != targetRegion) {
+  if (current_region != target_region) {
     REXLOG_TRACE(codegen,
                  "isInternalBranch: 0x{:08X} -> 0x{:08X} crosses region boundary (TAIL CALL)",
-                 currentAddr, targetAddr);
+                 current_addr, target_addr);
     return false;
   }
 
@@ -1030,7 +1030,7 @@ namespace {
  * @param insn Instruction to test.
  * @return True when it opens a prologue.
  */
-bool isProloguePattern(const DecodedInsn& insn) {
+bool IsProloguePattern(const DecodedInsn& insn) {
   using namespace rex::codegen::detail;
   switch (insn.opcode) {
     case Opcode::mflr:
@@ -1051,11 +1051,11 @@ bool isProloguePattern(const DecodedInsn& insn) {
  *
  * @param insn Instruction to test.
  * @param region Code region holding the instruction.
- * @param knownFunctions Function entry points.
+ * @param known_functions Function entry points.
  * @return True when the block ends.
  */
-bool isBlockTerminator(const DecodedInsn& insn, const CodeRegion& region,
-                       const std::unordered_set<u32>& knownFunctions) {
+bool IsBlockTerminator(const DecodedInsn& insn, const CodeRegion& region,
+                       const std::unordered_set<u32>& known_functions) {
   using namespace rex::codegen::detail;
 
   u32 raw = static_cast<u32>(insn.code);
@@ -1063,19 +1063,19 @@ bool isBlockTerminator(const DecodedInsn& insn, const CodeRegion& region,
     return true;
   }
 
-  if (isReturn(insn))
+  if (IsReturn(insn))
     return true;
 
   if (insn.opcode == Opcode::bcctr || insn.opcode == Opcode::bcctrl) {
-    return insn.opcode == Opcode::bcctr && !isConditional(insn);
+    return insn.opcode == Opcode::bcctr && !IsConditional(insn);
   }
 
-  if (isBranch(insn) && !isConditional(insn) && !isCall(insn)) {
-    auto target = getBranchTarget(insn);
+  if (IsBranch(insn) && !IsConditional(insn) && !IsCall(insn)) {
+    auto target = GetBranchTarget(insn);
     if (target) {
-      if (!region.contains(*target))
+      if (!region.Contains(*target))
         return true;
-      if (knownFunctions.contains(*target))
+      if (known_functions.contains(*target))
         return true;
     }
     return true;
@@ -1092,76 +1092,76 @@ bool isBlockTerminator(const DecodedInsn& insn, const CodeRegion& region,
  *
  * @param decoded Decoded binary.
  * @param limits Scan limits.
- * @param bctrAddr Address of the bctr.
+ * @param bctr_addr Address of the bctr.
  * @param region Code region holding the bctr.
- * @param expectedReg Register holding the switch index.
- * @param funcStart Function start address.
+ * @param expected_reg Register holding the switch index.
+ * @param func_start Function start address.
  * @return The bounds, with found set when one was seen.
  */
-BoundsInfo scanForBounds(DecodedBinary& decoded, const Limits& limits, u32 bctrAddr,
-                         const CodeRegion& region, u8 expectedReg, u32 funcStart) {
+BoundsInfo ScanForBounds(DecodedBinary& decoded, const Limits& limits, u32 bctr_addr,
+                         const CodeRegion& region, u8 expected_reg, u32 func_start) {
   BoundsInfo result;
-  const int backwardScanLimit = static_cast<int>(limits.backward_scan_limit);
+  const int backward_scan_limit = static_cast<int>(limits.backward_scan_limit);
 
-  u32 scanLowerBound = std::max(region.start, funcStart);
+  u32 scan_lower_bound = std::max(region.start, func_start);
 
   REXLOG_TRACE(
       codegen,
       "scanForBounds: bctr=0x{:08X} region=[0x{:08X}-0x{:08X}] funcStart=0x{:08X} expectedReg=r{}",
-      bctrAddr, region.start, region.end, funcStart, expectedReg);
+      bctr_addr, region.start, region.end, func_start, expected_reg);
 
-  u32 scanAddr = bctrAddr;
-  for (int i = 0; i < backwardScanLimit && scanAddr >= scanLowerBound + 4; i++) {
-    scanAddr -= 4;
-    auto* insn = decoded.get(scanAddr);
+  u32 scan_addr = bctr_addr;
+  for (int i = 0; i < backward_scan_limit && scan_addr >= scan_lower_bound + 4; i++) {
+    scan_addr -= 4;
+    auto* insn = decoded.FindInsn(scan_addr);
     if (!insn)
       break;
 
-    if (isTerminator(*insn) && !isConditional(*insn))
+    if (IsTerminator(*insn) && !IsConditional(*insn))
       break;
 
     using namespace rex::codegen::detail;
 
     if (insn->opcode == Opcode::cmpli) {
       REXLOG_TRACE(codegen, "scanForBounds: found cmpli at 0x{:08X} RA=r{} UIMM={} (expecting r{})",
-                   scanAddr, static_cast<unsigned>(insn->D.RA), static_cast<int>(insn->D.d),
-                   expectedReg);
-      if (insn->D.RA == expectedReg) {
-        result.maxEntries = static_cast<u32>(insn->D.d) + 1;
-        result.indexReg = expectedReg;
+                   scan_addr, static_cast<unsigned>(insn->D.RA), static_cast<int>(insn->D.d),
+                   expected_reg);
+      if (insn->D.RA == expected_reg) {
+        result.max_entries = static_cast<u32>(insn->D.d) + 1;
+        result.index_reg = expected_reg;
         result.found = true;
-        REXLOG_TRACE(codegen, "scanForBounds: MATCHED! maxEntries={}", result.maxEntries);
+        REXLOG_TRACE(codegen, "scanForBounds: MATCHED! maxEntries={}", result.max_entries);
         return result;
       }
     }
 
     if (insn->opcode == Opcode::cmpi) {
       REXLOG_TRACE(codegen, "scanForBounds: found cmpi at 0x{:08X} RA=r{} SIMM={} (expecting r{})",
-                   scanAddr, static_cast<unsigned>(insn->D.RA), static_cast<int>(insn->D.d),
-                   expectedReg);
-      if (insn->D.RA == expectedReg) {
-        result.maxEntries = static_cast<u32>(insn->D.d) + 1;
-        result.indexReg = expectedReg;
+                   scan_addr, static_cast<unsigned>(insn->D.RA), static_cast<int>(insn->D.d),
+                   expected_reg);
+      if (insn->D.RA == expected_reg) {
+        result.max_entries = static_cast<u32>(insn->D.d) + 1;
+        result.index_reg = expected_reg;
         result.found = true;
-        REXLOG_TRACE(codegen, "scanForBounds: MATCHED! maxEntries={}", result.maxEntries);
+        REXLOG_TRACE(codegen, "scanForBounds: MATCHED! maxEntries={}", result.max_entries);
         return result;
       }
     }
 
     if (insn->opcode == Opcode::rlwinm) {
-      if (insn->M.RA == expectedReg && insn->M.SH == 0 && insn->M.ME == 31 && insn->M.MB > 0) {
+      if (insn->M.RA == expected_reg && insn->M.SH == 0 && insn->M.ME == 31 && insn->M.MB > 0) {
         u32 bits = 32 - insn->M.MB;
-        result.maxEntries = 1u << bits;
-        result.indexReg = expectedReg;
+        result.max_entries = 1u << bits;
+        result.index_reg = expected_reg;
         result.found = true;
         REXLOG_TRACE(codegen, "scanForBounds: found clrlwi at 0x{:08X} MB={} maxEntries={}",
-                     scanAddr, static_cast<unsigned>(insn->M.MB), result.maxEntries);
+                     scan_addr, static_cast<unsigned>(insn->M.MB), result.max_entries);
         return result;
       }
     }
   }
 
-  REXLOG_TRACE(codegen, "scanForBounds: no bounds found for bctr=0x{:08X}", bctrAddr);
+  REXLOG_TRACE(codegen, "scanForBounds: no bounds found for bctr=0x{:08X}", bctr_addr);
   return result;
 }
 
@@ -1178,117 +1178,117 @@ BoundsInfo scanForBounds(DecodedBinary& decoded, const Limits& limits, u32 bctrA
  *
  * @param decoded Decoded binary.
  * @param limits Scan limits.
- * @param bctrAddr Address of the bctr.
- * @param containingRegion Code region holding the bctr.
- * @param funcStart Function start address.
- * @param funcEnd Function end address.
+ * @param bctr_addr Address of the bctr.
+ * @param containing_region Code region holding the bctr.
+ * @param func_start Function start address.
+ * @param func_end Function end address.
  * @return The table, or nullopt when none matches.
  */
-std::optional<JumpTable> detectJumpTable(DecodedBinary& decoded, const Limits& limits, u32 bctrAddr,
-                                         const CodeRegion& containingRegion, u32 funcStart,
-                                         u32 funcEnd) {
+std::optional<JumpTable> DetectJumpTable(DecodedBinary& decoded, const Limits& limits,
+                                         u32 bctr_addr, const CodeRegion& containing_region,
+                                         u32 func_start, u32 func_end) {
   using namespace rex::codegen::detail;
 
-  const int kMaxBackwardScan = static_cast<int>(limits.backward_scan_limit);
-  const u32 kMaxTableEntries = limits.max_jump_table_entries;
+  const int k_max_backward_scan = static_cast<int>(limits.backward_scan_limit);
+  const u32 k_max_table_entries = limits.max_jump_table_entries;
 
-  u8 ctrSourceReg = 0xFF;
-  u32 tableAddr = 0;
-  u32 baseAddr = 0;
-  u32 pendingTableLo = 0, pendingTableHi = 0;
-  u32 pendingBaseLo = 0, pendingBaseHi = 0;
-  bool hasPendingTableLo = false, hasPendingTableHi = false;
-  bool hasPendingBaseLo = false, hasPendingBaseHi = false;
-  bool pendingTableLoIsAddi = false, pendingBaseLoIsAddi = false;
+  u8 ctr_source_reg = 0xFF;
+  u32 table_addr = 0;
+  u32 base_addr = 0;
+  u32 pending_table_lo = 0, pending_table_hi = 0;
+  u32 pending_base_lo = 0, pending_base_hi = 0;
+  bool has_pending_table_lo = false, has_pending_table_hi = false;
+  bool has_pending_base_lo = false, has_pending_base_hi = false;
+  bool pending_table_lo_is_addi = false, pending_base_lo_is_addi = false;
 
-  auto combineHiLo = [](u32 hi, u32 lo, bool isAddi) -> u32 {
-    if (isAddi) {
+  auto combine_hi_lo = [](u32 hi, u32 lo, bool is_addi) -> u32 {
+    if (is_addi) {
       return hi + static_cast<u32>(static_cast<i32>(static_cast<i16>(lo)));
     } else {
       return hi | lo;
     }
   };
-  JumpTableType tableType = JumpTableType::kAbsolute;
-  u8 indexReg = 0xFF;
-  u8 finalIndexReg = 0xFF;
-  int shiftAmount = 0;
+  JumpTableType table_type = JumpTableType::kAbsolute;
+  u8 index_reg = 0xFF;
+  u8 final_index_reg = 0xFF;
+  int shift_amount = 0;
 
-  u32 scanAddr = bctrAddr;
-  bool foundMtctr = false;
-  bool foundLoad = false;
+  u32 scan_addr = bctr_addr;
+  bool found_mtctr = false;
+  bool found_load = false;
 
-  for (int i = 0; i < kMaxBackwardScan && scanAddr >= containingRegion.start + 4; i++) {
-    scanAddr -= 4;
-    auto* insn = decoded.get(scanAddr);
+  for (int i = 0; i < k_max_backward_scan && scan_addr >= containing_region.start + 4; i++) {
+    scan_addr -= 4;
+    auto* insn = decoded.FindInsn(scan_addr);
     if (!insn)
       break;
 
-    if (isTerminator(*insn) && !isConditional(*insn))
+    if (IsTerminator(*insn) && !IsConditional(*insn))
       break;
 
-    if (!foundMtctr) {
+    if (!found_mtctr) {
       if (insn->opcode == Opcode::mtctr || insn->opcode == Opcode::mtspr) {
-        ctrSourceReg = insn->XFX.RT;
-        foundMtctr = true;
+        ctr_source_reg = insn->XFX.RT;
+        found_mtctr = true;
         continue;
       }
     }
 
-    if (foundMtctr && !foundLoad) {
-      if (insn->opcode == Opcode::lwzx && insn->X.RT == ctrSourceReg) {
-        tableType = JumpTableType::kAbsolute;
-        indexReg = insn->X.RB;
-        finalIndexReg = indexReg;
-        foundLoad = true;
-        REXLOG_TRACE(codegen, "detectJumpTable: bctr=0x{:08X} found lwzx at 0x{:08X}", bctrAddr,
-                     scanAddr);
+    if (found_mtctr && !found_load) {
+      if (insn->opcode == Opcode::lwzx && insn->X.RT == ctr_source_reg) {
+        table_type = JumpTableType::kAbsolute;
+        index_reg = insn->X.RB;
+        final_index_reg = index_reg;
+        found_load = true;
+        REXLOG_TRACE(codegen, "detectJumpTable: bctr=0x{:08X} found lwzx at 0x{:08X}", bctr_addr,
+                     scan_addr);
         continue;
       }
 
-      if (insn->opcode == Opcode::lbzx && insn->X.RT == ctrSourceReg) {
-        if (tableType != JumpTableType::kComputed) {
-          tableType = JumpTableType::kByteOffset;
+      if (insn->opcode == Opcode::lbzx && insn->X.RT == ctr_source_reg) {
+        if (table_type != JumpTableType::kComputed) {
+          table_type = JumpTableType::kByteOffset;
         }
-        indexReg = insn->X.RB;
-        finalIndexReg = indexReg;
-        foundLoad = true;
-        REXLOG_TRACE(codegen, "detectJumpTable: bctr=0x{:08X} found lbzx at 0x{:08X}", bctrAddr,
-                     scanAddr);
+        index_reg = insn->X.RB;
+        final_index_reg = index_reg;
+        found_load = true;
+        REXLOG_TRACE(codegen, "detectJumpTable: bctr=0x{:08X} found lbzx at 0x{:08X}", bctr_addr,
+                     scan_addr);
         continue;
       }
 
-      if (insn->opcode == Opcode::lhzx && insn->X.RT == ctrSourceReg) {
-        if (tableType != JumpTableType::kComputed) {
-          tableType = JumpTableType::kShortOffset;
+      if (insn->opcode == Opcode::lhzx && insn->X.RT == ctr_source_reg) {
+        if (table_type != JumpTableType::kComputed) {
+          table_type = JumpTableType::kShortOffset;
         }
-        indexReg = insn->X.RB;
-        finalIndexReg = indexReg;
-        foundLoad = true;
-        REXLOG_TRACE(codegen, "detectJumpTable: bctr=0x{:08X} found lhzx at 0x{:08X}", bctrAddr,
-                     scanAddr);
+        index_reg = insn->X.RB;
+        final_index_reg = index_reg;
+        found_load = true;
+        REXLOG_TRACE(codegen, "detectJumpTable: bctr=0x{:08X} found lhzx at 0x{:08X}", bctr_addr,
+                     scan_addr);
         continue;
       }
 
-      if (insn->opcode == Opcode::add && insn->XO.RT == ctrSourceReg) {
-        if (insn->XO.RA == ctrSourceReg) {
-          ctrSourceReg = insn->XO.RB;
+      if (insn->opcode == Opcode::add && insn->XO.RT == ctr_source_reg) {
+        if (insn->XO.RA == ctr_source_reg) {
+          ctr_source_reg = insn->XO.RB;
         } else {
-          ctrSourceReg = insn->XO.RA;
+          ctr_source_reg = insn->XO.RA;
         }
         REXLOG_TRACE(codegen,
                      "detectJumpTable: bctr=0x{:08X} found add at 0x{:08X}, now tracking r{}",
-                     bctrAddr, scanAddr, ctrSourceReg);
+                     bctr_addr, scan_addr, ctr_source_reg);
         continue;
       }
 
-      if (insn->opcode == Opcode::rlwinm && insn->M.RA == ctrSourceReg) {
-        shiftAmount = insn->M.SH;
-        if (shiftAmount > 0) {
-          tableType = JumpTableType::kComputed;
+      if (insn->opcode == Opcode::rlwinm && insn->M.RA == ctr_source_reg) {
+        shift_amount = insn->M.SH;
+        if (shift_amount > 0) {
+          table_type = JumpTableType::kComputed;
         }
-        ctrSourceReg = insn->M.RS;
-        REXLOG_TRACE(codegen, "detectJumpTable: bctr=0x{:08X} found rlwinm at 0x{:08X}", bctrAddr,
-                     scanAddr);
+        ctr_source_reg = insn->M.RS;
+        REXLOG_TRACE(codegen, "detectJumpTable: bctr=0x{:08X} found rlwinm at 0x{:08X}", bctr_addr,
+                     scan_addr);
         continue;
       }
 
@@ -1296,129 +1296,132 @@ std::optional<JumpTable> detectJumpTable(DecodedBinary& decoded, const Limits& l
           codegen,
           "detectJumpTable: bctr=0x{:08X} unhandled insn at 0x{:08X} opcode={} while looking for "
           "load into r{}",
-          bctrAddr, scanAddr, static_cast<int>(insn->opcode), ctrSourceReg);
+          bctr_addr, scan_addr, static_cast<int>(insn->opcode), ctr_source_reg);
     }
 
-    if (foundLoad && indexReg != 0xFF) {
-      u8 destReg = 0xFF;
+    if (found_load && index_reg != 0xFF) {
+      u8 dest_reg = 0xFF;
 
       if (insn->opcode == Opcode::rlwinm) {
-        destReg = insn->M.RA;
+        dest_reg = insn->M.RA;
       } else if (insn->opcode == Opcode::srawi || insn->opcode == Opcode::sraw ||
                  insn->opcode == Opcode::srw || insn->opcode == Opcode::slw ||
                  insn->opcode == Opcode::or_ || insn->opcode == Opcode::and_ ||
                  insn->opcode == Opcode::xor_ || insn->opcode == Opcode::mr) {
-        destReg = insn->X.RA;
+        dest_reg = insn->X.RA;
       } else if (insn->opcode == Opcode::lbz || insn->opcode == Opcode::lhz ||
                  insn->opcode == Opcode::lwz || insn->opcode == Opcode::li ||
                  insn->opcode == Opcode::lis || insn->opcode == Opcode::addi) {
-        destReg = insn->D.RT;
+        dest_reg = insn->D.RT;
       } else if (insn->opcode == Opcode::lbzx || insn->opcode == Opcode::lhzx ||
                  insn->opcode == Opcode::lwzx) {
-        destReg = insn->X.RT;
+        dest_reg = insn->X.RT;
       } else if (insn->opcode == Opcode::add || insn->opcode == Opcode::subf) {
-        destReg = insn->XO.RT;
+        dest_reg = insn->XO.RT;
       }
 
-      if (destReg == indexReg) {
+      if (dest_reg == index_reg) {
         if (insn->opcode == Opcode::rlwinm) {
           u8 sh = insn->M.SH;
           u8 mb = insn->M.MB;
           u8 me = insn->M.ME;
           if (sh > 0 && mb == 0 && me == (31 - sh)) {
-            indexReg = insn->M.RS;
-            finalIndexReg = indexReg;
+            index_reg = insn->M.RS;
+            final_index_reg = index_reg;
             REXLOG_TRACE(codegen,
                          "detectJumpTable: bctr=0x{:08X} found slwi at 0x{:08X} indexReg now r{}",
-                         bctrAddr, scanAddr, indexReg);
+                         bctr_addr, scan_addr, index_reg);
           } else {
             REXLOG_TRACE(
                 codegen,
                 "detectJumpTable: bctr=0x{:08X} indexReg r{} overwritten by non-slwi rlwinm at "
                 "0x{:08X}, stop tracing",
-                bctrAddr, indexReg, scanAddr);
-            indexReg = 0xFF;
+                bctr_addr, index_reg, scan_addr);
+            index_reg = 0xFF;
           }
         } else {
           REXLOG_TRACE(
               codegen,
               "detectJumpTable: bctr=0x{:08X} indexReg r{} overwritten at 0x{:08X}, stop tracing",
-              bctrAddr, indexReg, scanAddr);
-          indexReg = 0xFF;
+              bctr_addr, index_reg, scan_addr);
+          index_reg = 0xFF;
         }
       }
     }
 
-    if (foundMtctr) {
+    if (found_mtctr) {
       if (insn->opcode == Opcode::lis) {
         u32 hi = static_cast<u32>(static_cast<u16>(insn->D.d)) << 16;
         REXLOG_TRACE(
             codegen,
             "detectJumpTable: bctr=0x{:08X} found lis at 0x{:08X} hi=0x{:08X} foundLoad={}",
-            bctrAddr, scanAddr, hi, foundLoad);
-        if (foundLoad) {
-          if (tableAddr == 0) {
-            tableAddr =
-                hasPendingTableLo ? combineHiLo(hi, pendingTableLo, pendingTableLoIsAddi) : hi;
-            hasPendingTableLo = false;
-            REXLOG_TRACE(codegen, "detectJumpTable: bctr=0x{:08X} set tableAddr=0x{:08X}", bctrAddr,
-                         tableAddr);
+            bctr_addr, scan_addr, hi, found_load);
+        if (found_load) {
+          if (table_addr == 0) {
+            table_addr = has_pending_table_lo
+                             ? combine_hi_lo(hi, pending_table_lo, pending_table_lo_is_addi)
+                             : hi;
+            has_pending_table_lo = false;
+            REXLOG_TRACE(codegen, "detectJumpTable: bctr=0x{:08X} set tableAddr=0x{:08X}",
+                         bctr_addr, table_addr);
           }
         } else {
-          if (baseAddr == 0) {
-            baseAddr = hasPendingBaseLo ? combineHiLo(hi, pendingBaseLo, pendingBaseLoIsAddi) : hi;
-            hasPendingBaseLo = false;
-            REXLOG_TRACE(codegen, "detectJumpTable: bctr=0x{:08X} set baseAddr=0x{:08X}", bctrAddr,
-                         baseAddr);
+          if (base_addr == 0) {
+            base_addr = has_pending_base_lo
+                            ? combine_hi_lo(hi, pending_base_lo, pending_base_lo_is_addi)
+                            : hi;
+            has_pending_base_lo = false;
+            REXLOG_TRACE(codegen, "detectJumpTable: bctr=0x{:08X} set baseAddr=0x{:08X}", bctr_addr,
+                         base_addr);
           }
         }
       }
 
       if (insn->opcode == Opcode::addi || insn->opcode == Opcode::ori) {
         u32 lo = static_cast<u16>(insn->D.d);
-        bool isAddi = (insn->opcode == Opcode::addi);
+        bool is_addi = (insn->opcode == Opcode::addi);
         REXLOG_TRACE(codegen,
                      "detectJumpTable: bctr=0x{:08X} found {} at 0x{:08X} lo=0x{:04X} foundLoad={}",
-                     bctrAddr, isAddi ? "addi" : "ori", scanAddr, lo, foundLoad);
-        if (foundLoad) {
-          if (tableAddr == 0) {
-            if (hasPendingTableHi) {
-              tableAddr = combineHiLo(pendingTableHi, lo, isAddi);
-              hasPendingTableHi = false;
+                     bctr_addr, is_addi ? "addi" : "ori", scan_addr, lo, found_load);
+        if (found_load) {
+          if (table_addr == 0) {
+            if (has_pending_table_hi) {
+              table_addr = combine_hi_lo(pending_table_hi, lo, is_addi);
+              has_pending_table_hi = false;
               REXLOG_TRACE(codegen,
                            "detectJumpTable: bctr=0x{:08X} set tableAddr=0x{:08X} from pending",
-                           bctrAddr, tableAddr);
-            } else if (!hasPendingTableLo) {
-              pendingTableLo = lo;
-              pendingTableLoIsAddi = isAddi;
-              hasPendingTableLo = true;
+                           bctr_addr, table_addr);
+            } else if (!has_pending_table_lo) {
+              pending_table_lo = lo;
+              pending_table_lo_is_addi = is_addi;
+              has_pending_table_lo = true;
               REXLOG_TRACE(codegen, "detectJumpTable: bctr=0x{:08X} pending tableLo=0x{:04X}",
-                           bctrAddr, lo);
+                           bctr_addr, lo);
             }
-          } else if ((tableAddr & 0xFFFF) == 0) {
-            tableAddr = combineHiLo(tableAddr, lo, isAddi);
+          } else if ((table_addr & 0xFFFF) == 0) {
+            table_addr = combine_hi_lo(table_addr, lo, is_addi);
             REXLOG_TRACE(codegen, "detectJumpTable: bctr=0x{:08X} combined tableAddr=0x{:08X}",
-                         bctrAddr, tableAddr);
+                         bctr_addr, table_addr);
           }
         } else {
-          if (baseAddr == 0) {
-            if (hasPendingBaseHi) {
-              baseAddr = combineHiLo(pendingBaseHi, lo, isAddi);
-              hasPendingBaseHi = false;
+          if (base_addr == 0) {
+            if (has_pending_base_hi) {
+              base_addr = combine_hi_lo(pending_base_hi, lo, is_addi);
+              has_pending_base_hi = false;
               REXLOG_TRACE(codegen,
                            "detectJumpTable: bctr=0x{:08X} set baseAddr=0x{:08X} from pending",
-                           bctrAddr, baseAddr);
-            } else if (!hasPendingBaseLo) {
-              pendingBaseLo = lo;
-              pendingBaseLoIsAddi = isAddi;
-              hasPendingBaseLo = true;
+                           bctr_addr, base_addr);
+            } else if (!has_pending_base_lo) {
+              pending_base_lo = lo;
+              pending_base_lo_is_addi = is_addi;
+              has_pending_base_lo = true;
               REXLOG_TRACE(codegen, "detectJumpTable: bctr=0x{:08X} pending baseLo=0x{:04X}",
-                           bctrAddr, lo);
+                           bctr_addr, lo);
             }
-          } else if ((baseAddr & 0xFFFF) == 0) {
-            baseAddr = combineHiLo(baseAddr, lo, isAddi);
+          } else if ((base_addr & 0xFFFF) == 0) {
+            base_addr = combine_hi_lo(base_addr, lo, is_addi);
             REXLOG_TRACE(codegen, "detectJumpTable: bctr=0x{:08X} combined baseAddr=0x{:08X}",
-                         bctrAddr, baseAddr);
+                         bctr_addr, base_addr);
           }
         }
       }
@@ -1429,73 +1432,73 @@ std::optional<JumpTable> detectJumpTable(DecodedBinary& decoded, const Limits& l
       codegen,
       "detectJumpTable: bctr=0x{:08X} scan complete: foundMtctr={} foundLoad={} tableAddr=0x{:08X} "
       "baseAddr=0x{:08X}",
-      bctrAddr, foundMtctr, foundLoad, tableAddr, baseAddr);
+      bctr_addr, found_mtctr, found_load, table_addr, base_addr);
 
-  if (!foundMtctr || !foundLoad || tableAddr == 0) {
+  if (!found_mtctr || !found_load || table_addr == 0) {
     REXLOG_TRACE(
         codegen,
         "detectJumpTable: bctr=0x{:08X} FAILED foundMtctr={} foundLoad={} tableAddr=0x{:08X}",
-        bctrAddr, foundMtctr, foundLoad, tableAddr);
+        bctr_addr, found_mtctr, found_load, table_addr);
     return std::nullopt;
   }
 
-  if (tableType != JumpTableType::kAbsolute && baseAddr == 0) {
-    baseAddr = containingRegion.start;
+  if (table_type != JumpTableType::kAbsolute && base_addr == 0) {
+    base_addr = containing_region.start;
   }
 
   auto bounds =
-      scanForBounds(decoded, limits, bctrAddr, containingRegion, finalIndexReg, funcStart);
-  u32 entryCount = bounds.found ? bounds.maxEntries : kMaxTableEntries;
+      ScanForBounds(decoded, limits, bctr_addr, containing_region, final_index_reg, func_start);
+  u32 entry_count = bounds.found ? bounds.max_entries : k_max_table_entries;
 
   JumpTable jt;
-  jt.bctrAddress = bctrAddr;
-  jt.tableAddress = tableAddr;
-  jt.indexRegister = finalIndexReg;
+  jt.bctr_address = bctr_addr;
+  jt.table_address = table_addr;
+  jt.index_register = final_index_reg;
 
   REXLOG_TRACE(
       codegen,
       "detectJumpTable: bctr=0x{:08X} reading {} entries from table=0x{:08X} base=0x{:08X} type={}",
-      bctrAddr, entryCount, tableAddr, baseAddr, static_cast<int>(tableType));
+      bctr_addr, entry_count, table_addr, base_addr, static_cast<int>(table_type));
 
-  for (u32 i = 0; i < entryCount; i++) {
+  for (u32 i = 0; i < entry_count; i++) {
     u32 target = 0;
 
-    switch (tableType) {
+    switch (table_type) {
       case JumpTableType::kAbsolute: {
-        auto val = decoded.read<u32>(tableAddr + i * 4);
+        auto val = decoded.Read<u32>(table_addr + i * 4);
         if (!val) {
           REXLOG_TRACE(codegen, "detectJumpTable: bctr=0x{:08X} entry[{}] read failed at 0x{:08X}",
-                       bctrAddr, i, tableAddr + i * 4);
+                       bctr_addr, i, table_addr + i * 4);
           break;
         }
         target = *val;
         break;
       }
       case JumpTableType::kByteOffset: {
-        auto val = decoded.read<u8>(tableAddr + i);
+        auto val = decoded.Read<u8>(table_addr + i);
         if (!val) {
           REXLOG_TRACE(codegen, "detectJumpTable: bctr=0x{:08X} entry[{}] read failed at 0x{:08X}",
-                       bctrAddr, i, tableAddr + i);
+                       bctr_addr, i, table_addr + i);
           break;
         }
-        target = baseAddr + *val;
+        target = base_addr + *val;
         REXLOG_TRACE(codegen,
                      "detectJumpTable: bctr=0x{:08X} entry[{}] offset=0x{:02X} target=0x{:08X}",
-                     bctrAddr, i, *val, target);
+                     bctr_addr, i, *val, target);
         break;
       }
       case JumpTableType::kComputed: {
-        auto val = decoded.read<u8>(tableAddr + i);
+        auto val = decoded.Read<u8>(table_addr + i);
         if (!val)
           break;
-        target = baseAddr + (static_cast<u32>(*val) << shiftAmount);
+        target = base_addr + (static_cast<u32>(*val) << shift_amount);
         break;
       }
       case JumpTableType::kShortOffset: {
-        auto val = decoded.read<u16>(tableAddr + i * 2);
+        auto val = decoded.Read<u16>(table_addr + i * 2);
         if (!val)
           break;
-        target = baseAddr + *val;
+        target = base_addr + *val;
         break;
       }
     }
@@ -1503,20 +1506,20 @@ std::optional<JumpTable> detectJumpTable(DecodedBinary& decoded, const Limits& l
     if (target & 3) {
       REXLOG_TRACE(codegen,
                    "detectJumpTable: bctr=0x{:08X} entry[{}] target=0x{:08X} not 4-byte aligned",
-                   bctrAddr, i, target);
+                   bctr_addr, i, target);
       if (jt.targets.empty())
         return std::nullopt;
       break;
     }
 
-    if (target == 0 || !containingRegion.contains(target)) {
+    if (target == 0 || !containing_region.Contains(target)) {
       if (target != 0) {
-        auto outsideInsn = decoded.read<u32>(target);
-        if (outsideInsn && (*outsideInsn == 0x00000000 || *outsideInsn == 0xFFFFFFFF)) {
+        auto outside_insn = decoded.Read<u32>(target);
+        if (outside_insn && (*outside_insn == 0x00000000 || *outside_insn == 0xFFFFFFFF)) {
           REXLOG_TRACE(
               codegen,
               "detectJumpTable: bctr=0x{:08X} entry[{}] target=0x{:08X} null jump sentinel",
-              bctrAddr, i, target);
+              bctr_addr, i, target);
           jt.targets.push_back(0);
           continue;
         }
@@ -1524,28 +1527,28 @@ std::optional<JumpTable> detectJumpTable(DecodedBinary& decoded, const Limits& l
       REXLOG_TRACE(codegen,
                    "detectJumpTable: bctr=0x{:08X} entry[{}] target=0x{:08X} invalid (region "
                    "0x{:08X}-0x{:08X})",
-                   bctrAddr, i, target, containingRegion.start, containingRegion.end);
+                   bctr_addr, i, target, containing_region.start, containing_region.end);
       if (jt.targets.empty())
         return std::nullopt;
       break;
     }
 
-    if (target < funcStart) {
+    if (target < func_start) {
       REXLOG_TRACE(codegen,
                    "detectJumpTable: bctr=0x{:08X} entry[{}] target=0x{:08X} < funcStart=0x{:08X}",
-                   bctrAddr, i, target, funcStart);
+                   bctr_addr, i, target, func_start);
       if (jt.targets.empty())
         return std::nullopt;
       break;
     }
 
-    auto targetInsn = decoded.read<u32>(target);
-    if (targetInsn && (*targetInsn == 0x00000000 || *targetInsn == 0xFFFFFFFF)) {
+    auto target_insn = decoded.Read<u32>(target);
+    if (target_insn && (*target_insn == 0x00000000 || *target_insn == 0xFFFFFFFF)) {
       REXLOG_TRACE(
           codegen,
           "detectJumpTable: bctr=0x{:08X} entry[{}] target=0x{:08X} points to null/padding "
           "(0x{:08X})",
-          bctrAddr, i, target, *targetInsn);
+          bctr_addr, i, target, *target_insn);
       jt.targets.push_back(0);
       continue;
     }
@@ -1558,12 +1561,12 @@ std::optional<JumpTable> detectJumpTable(DecodedBinary& decoded, const Limits& l
         codegen,
         "detectJumpTable: bctr=0x{:08X} table=0x{:08X} NO VALID TARGETS (funcStart=0x{:08X} "
         "funcEnd=0x{:08X})",
-        bctrAddr, tableAddr, funcStart, funcEnd);
+        bctr_addr, table_addr, func_start, func_end);
     return std::nullopt;
   }
 
   REXLOG_TRACE(codegen, "detectJumpTable: bctr=0x{:08X} table=0x{:08X} entries={} funcEnd=0x{:08X}",
-               bctrAddr, tableAddr, jt.targets.size(), funcEnd);
+               bctr_addr, table_addr, jt.targets.size(), func_end);
   return jt;
 }
 
@@ -1579,53 +1582,55 @@ std::optional<JumpTable> detectJumpTable(DecodedBinary& decoded, const Limits& l
  *
  * @param decoded Decoded binary.
  * @param limits Scan limits.
- * @param entryPoint Function entry address.
- * @param containingRegion Code region holding the function.
- * @param knownFunctions Function entry points that bound the function.
- * @param pdataSize Function size from PDATA, or 0 when unknown.
- * @param manualSwitchTables Configured switch tables keyed by bctr address, or nullptr.
+ * @param entry_point Function entry address.
+ * @param containing_region Code region holding the function.
+ * @param known_functions Function entry points that bound the function.
+ * @param pdata_size Function size from PDATA, or 0 when unknown.
+ * @param manual_switch_tables Configured switch tables keyed by bctr address, or nullptr.
  * @return The discovered blocks, labels and calls.
  */
-BlockDiscoveryResult discoverBlocks(DecodedBinary& decoded, const Limits& limits, u32 entryPoint,
-                                    const CodeRegion& containingRegion,
-                                    const std::unordered_set<u32>& knownFunctions, u32 pdataSize,
-                                    const std::unordered_map<u32, JumpTable>* manualSwitchTables) {
+BlockDiscoveryResult DiscoverBlocks(
+    DecodedBinary& decoded, const Limits& limits, u32 entry_point,
+    const CodeRegion& containing_region, const std::unordered_set<u32>& known_functions,
+    u32 pdata_size, const std::unordered_map<u32, JumpTable>* manual_switch_tables) {
   BlockDiscoveryResult result;
   std::unordered_set<u32> visited;
-  std::unordered_set<u32> blockStarts;
+  std::unordered_set<u32> block_starts;
   std::queue<u32> worklist;
 
-  u32 funcEnd = (pdataSize > 0) ? (entryPoint + pdataSize) : containingRegion.end;
+  u32 func_end = (pdata_size > 0) ? (entry_point + pdata_size) : containing_region.end;
 
   REXLOG_TRACE(
       codegen,
       "discoverBlocks: entry=0x{:08X} pdataSize={} funcEnd=0x{:08X} region=[0x{:08X}-0x{:08X}]",
-      entryPoint, pdataSize, funcEnd, containingRegion.start, containingRegion.end);
+      entry_point, pdata_size, func_end, containing_region.start, containing_region.end);
 
-  auto isWithinFunction = [&](u32 addr) -> bool { return addr >= entryPoint && addr < funcEnd; };
+  auto is_within_function = [&](u32 addr) -> bool {
+    return addr >= entry_point && addr < func_end;
+  };
 
-  worklist.push(entryPoint);
-  blockStarts.insert(entryPoint);
+  worklist.push(entry_point);
+  block_starts.insert(entry_point);
 
   while (!worklist.empty()) {
-    u32 blockStart = worklist.front();
+    u32 block_start = worklist.front();
     worklist.pop();
 
-    if (visited.contains(blockStart))
+    if (visited.contains(block_start))
       continue;
-    if (!isWithinFunction(blockStart))
+    if (!is_within_function(block_start))
       continue;
 
-    u32 addr = blockStart;
+    u32 addr = block_start;
     Block block;
-    block.base = blockStart;
+    block.base = block_start;
     block.size = 0;
 
-    while (isWithinFunction(addr)) {
-      auto* insn = decoded.get(addr);
+    while (is_within_function(addr)) {
+      auto* insn = decoded.FindInsn(addr);
       if (!insn) {
         REXLOG_TRACE(codegen, "discoverBlocks: 0x{:08X} no instruction at addr, breaking",
-                     entryPoint);
+                     entry_point);
         break;
       }
 
@@ -1633,50 +1638,50 @@ BlockDiscoveryResult discoverBlocks(DecodedBinary& decoded, const Limits& limits
 
       result.instructions.push_back(insn);
 
-      if (isBranch(*insn)) {
-        auto target = getBranchTarget(*insn);
+      if (IsBranch(*insn)) {
+        auto target = GetBranchTarget(*insn);
 
-        auto isInternalTarget = [&](u32 t) -> bool {
-          if (t < entryPoint || t >= funcEnd) {
+        auto is_internal_target = [&](u32 t) -> bool {
+          if (t < entry_point || t >= func_end) {
             return false;
           }
-          if (t != entryPoint && knownFunctions.contains(t)) {
+          if (t != entry_point && known_functions.contains(t)) {
             return false;
           }
           return true;
         };
 
-        if (isCall(*insn)) {
+        if (IsCall(*insn)) {
           if (target) {
-            result.unresolvedBranches.push_back({addr, *target, true, false});
+            result.unresolved_branches.push_back({addr, *target, true, false});
 
-            if (!isInternalTarget(*target)) {
-              result.externalCalls.push_back(*target);
+            if (!is_internal_target(*target)) {
+              result.external_calls.push_back(*target);
             }
           }
-        } else if (isReturn(*insn)) {
-          block.size = addr - blockStart + 4;
+        } else if (IsReturn(*insn)) {
+          block.size = addr - block_start + 4;
           break;
-        } else if (insn->opcode == rex::codegen::detail::Opcode::bcctr && isConditional(*insn)) {
+        } else if (insn->opcode == rex::codegen::detail::Opcode::bcctr && IsConditional(*insn)) {
           u32 fallthrough = addr + 4;
-          if (isInternalTarget(fallthrough)) {
+          if (is_internal_target(fallthrough)) {
             result.labels.insert(fallthrough);
-            if (!visited.contains(fallthrough) && !blockStarts.contains(fallthrough)) {
-              blockStarts.insert(fallthrough);
+            if (!visited.contains(fallthrough) && !block_starts.contains(fallthrough)) {
+              block_starts.insert(fallthrough);
               worklist.push(fallthrough);
             }
           }
         } else if (insn->opcode == rex::codegen::detail::Opcode::bcctr) {
           REXLOG_TRACE(codegen,
                        "discoverBlocks: bctr at 0x{:08X} in func 0x{:08X}, funcEnd=0x{:08X}", addr,
-                       entryPoint, funcEnd);
+                       entry_point, func_end);
           std::optional<JumpTable> jt;
-          bool jtIsManual = false;
-          if (manualSwitchTables) {
-            auto manualIt = manualSwitchTables->find(addr);
-            if (manualIt != manualSwitchTables->end()) {
-              jt = manualIt->second;
-              jtIsManual = true;
+          bool jt_is_manual = false;
+          if (manual_switch_tables) {
+            auto manual_it = manual_switch_tables->find(addr);
+            if (manual_it != manual_switch_tables->end()) {
+              jt = manual_it->second;
+              jt_is_manual = true;
               REXLOG_TRACE(
                   codegen,
                   "discoverBlocks: using manual jump table at bctr 0x{:08X} with {} targets", addr,
@@ -1684,19 +1689,19 @@ BlockDiscoveryResult discoverBlocks(DecodedBinary& decoded, const Limits& limits
             }
           }
           if (!jt) {
-            jt = detectJumpTable(decoded, limits, addr, containingRegion, entryPoint, funcEnd);
+            jt = DetectJumpTable(decoded, limits, addr, containing_region, entry_point, func_end);
           }
           if (jt) {
             REXLOG_TRACE(codegen,
                          "discoverBlocks: detected jump table at bctr 0x{:08X} with {} targets",
                          addr, jt->targets.size());
-            result.jumpTables.push_back(*jt);
+            result.jump_tables.push_back(*jt);
             for (u32 t : jt->targets) {
               if (t == 0)
                 continue;
 
-              if (t != entryPoint && knownFunctions.contains(t)) {
-                if (jtIsManual) {
+              if (t != entry_point && known_functions.contains(t)) {
+                if (jt_is_manual) {
                   REXLOG_WARN(
                       codegen,
                       "discoverBlocks: manual jump table at bctr 0x{:08X} has target 0x{:08X} "
@@ -1712,73 +1717,73 @@ BlockDiscoveryResult discoverBlocks(DecodedBinary& decoded, const Limits& limits
                 continue;
               }
 
-              if (t >= funcEnd && t < containingRegion.end) {
-                funcEnd = t + 4;
+              if (t >= func_end && t < containing_region.end) {
+                func_end = t + 4;
               }
               result.labels.insert(t);
-              if (!visited.contains(t) && !blockStarts.contains(t)) {
-                blockStarts.insert(t);
+              if (!visited.contains(t) && !block_starts.contains(t)) {
+                block_starts.insert(t);
                 worklist.push(t);
               }
             }
           }
-          block.size = addr - blockStart + 4;
+          block.size = addr - block_start + 4;
           break;
-        } else if (isConditional(*insn)) {
-          if (target && isInternalTarget(*target)) {
+        } else if (IsConditional(*insn)) {
+          if (target && is_internal_target(*target)) {
             result.labels.insert(*target);
-            if (!visited.contains(*target) && !blockStarts.contains(*target)) {
-              blockStarts.insert(*target);
+            if (!visited.contains(*target) && !block_starts.contains(*target)) {
+              block_starts.insert(*target);
               worklist.push(*target);
             }
           } else if (target) {
-            result.unresolvedBranches.push_back({addr, *target, false, true});
+            result.unresolved_branches.push_back({addr, *target, false, true});
           }
           // The fall-through needs a label too.
           u32 fallthrough = addr + 4;
-          if (isInternalTarget(fallthrough)) {
+          if (is_internal_target(fallthrough)) {
             result.labels.insert(fallthrough);
-            if (!visited.contains(fallthrough) && !blockStarts.contains(fallthrough)) {
-              blockStarts.insert(fallthrough);
+            if (!visited.contains(fallthrough) && !block_starts.contains(fallthrough)) {
+              block_starts.insert(fallthrough);
               worklist.push(fallthrough);
             }
           }
         } else {
           if (target) {
-            if (isInternalTarget(*target)) {
+            if (is_internal_target(*target)) {
               result.labels.insert(*target);
-              if (!visited.contains(*target) && !blockStarts.contains(*target)) {
-                blockStarts.insert(*target);
+              if (!visited.contains(*target) && !block_starts.contains(*target)) {
+                block_starts.insert(*target);
                 worklist.push(*target);
               }
             } else {
-              result.tailCalls.push_back(*target);
-              result.unresolvedBranches.push_back({addr, *target, false, false});
+              result.tail_calls.push_back(*target);
+              result.unresolved_branches.push_back({addr, *target, false, false});
             }
           }
-          block.size = addr - blockStart + 4;
+          block.size = addr - block_start + 4;
           break;
         }
       }
 
-      if (isBlockTerminator(*insn, containingRegion, knownFunctions)) {
-        REXLOG_TRACE(codegen, "discoverBlocks: 0x{:08X} block terminator at 0x{:08X}", entryPoint,
+      if (IsBlockTerminator(*insn, containing_region, known_functions)) {
+        REXLOG_TRACE(codegen, "discoverBlocks: 0x{:08X} block terminator at 0x{:08X}", entry_point,
                      addr);
-        block.size = addr - blockStart + 4;
+        block.size = addr - block_start + 4;
         break;
       }
 
       addr += 4;
     }
 
-    if (block.size == 0 && !isWithinFunction(addr)) {
+    if (block.size == 0 && !is_within_function(addr)) {
       REXLOG_TRACE(codegen,
                    "discoverBlocks: 0x{:08X} addr 0x{:08X} outside function (funcEnd=0x{:08X})",
-                   entryPoint, addr, funcEnd);
+                   entry_point, addr, func_end);
     }
 
     if (block.size == 0) {
-      block.size = addr - blockStart;
+      block.size = addr - block_start;
     }
 
     if (block.size > 0) {
@@ -1795,7 +1800,7 @@ BlockDiscoveryResult discoverBlocks(DecodedBinary& decoded, const Limits& limits
                             result.instructions.end());
 
   REXLOG_TRACE(codegen, "discoverBlocks: entry=0x{:08X} blocks={} instructions={} labels={}",
-               entryPoint, result.blocks.size(), result.instructions.size(), result.labels.size());
+               entry_point, result.blocks.size(), result.instructions.size(), result.labels.size());
 
   return result;
 }

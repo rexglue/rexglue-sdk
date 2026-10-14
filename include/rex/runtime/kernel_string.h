@@ -47,7 +47,7 @@ inline std::string_view TranslateAnsiString(const runtime::Memory* memory,
  */
 inline std::string TranslateAnsiPath(const runtime::Memory* memory,
                                      const X_ANSI_STRING* ansi_string) {
-  return rex::trim_string(std::string(TranslateAnsiString(memory, ansi_string)));
+  return rex::TrimString(std::string(TranslateAnsiString(memory, ansi_string)));
 }
 
 /**

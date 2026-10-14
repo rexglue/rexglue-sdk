@@ -69,7 +69,7 @@ X_HRESULT XLiveBaseApp::DispatchMessageSync(u32 message, u32 buffer_ptr, u32 buf
   REX_FAIL(kernel, X_E_FAIL,
            "Unimplemented XLIVEBASE message app={:08X}, msg={:08X}, arg1={:08X}, "
            "arg2={:08X}",
-           app_id(), message, buffer_ptr, buffer_length);
+           GetAppId(), message, buffer_ptr, buffer_length);
 }
 
 }  // namespace apps

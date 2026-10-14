@@ -145,7 +145,7 @@ class VulkanTextureCache final : public TextureCache {
     return EnsureScaledResolveMemoryCommitted(start_unscaled, length_unscaled,
                                               length_scaled_alignment_log2);
   }
-  VkBuffer scaled_resolve_buffer() const { return scaled_resolve_buffer_; }
+  VkBuffer GetScaledResolveBuffer() const { return scaled_resolve_buffer_; }
   void UseScaledResolveBufferForRead();
   void UseScaledResolveBufferForWrite(u64 written_start_scaled, u64 written_length_scaled);
 
@@ -228,7 +228,7 @@ class VulkanTextureCache final : public TextureCache {
                            VmaAllocation allocation, bool track_usage = true);
     ~VulkanTexture();
 
-    VkImage image() const { return image_; }
+    VkImage GetImage() const { return image_; }
 
     /**
      * Sets the usage without a transition, the caller inserts the barrier.
@@ -257,8 +257,8 @@ class VulkanTextureCache final : public TextureCache {
       ViewKey() : key(0) { REX_STATIC_ASSERT_SIZE(*this, sizeof(key)); }
 
       struct Hasher {
-        size_t operator()(const ViewKey& key) const {
-          return std::hash<decltype(key.key)>{}(key.key);
+        size_t operator()(const ViewKey& hashed_key) const {
+          return std::hash<decltype(hashed_key.key)>{}(hashed_key.key);
         }
       };
       bool operator==(const ViewKey& other_key) const { return key == other_key.key; }
@@ -370,8 +370,8 @@ class VulkanTextureCache final : public TextureCache {
   static const HostFormatPair kHostFormatGBGRUnaligned;
   static const HostFormatPair kHostFormatBGRGUnaligned;
   static const HostFormatPair kHostFormatDXT1Unaligned;
-  static const HostFormatPair kHostFormatDXT2_3Unaligned;
-  static const HostFormatPair kHostFormatDXT4_5Unaligned;
+  static const HostFormatPair kHostFormatDXT23Unaligned;
+  static const HostFormatPair kHostFormatDXT45Unaligned;
   static const HostFormatPair kHostFormatDXNUnaligned;
   static const HostFormatPair kHostFormatDXT5AUnaligned;
   HostFormatPair host_formats_[64];

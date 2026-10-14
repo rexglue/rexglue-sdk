@@ -208,8 +208,8 @@ TextureGuestLayout GetGuestTextureLayout(xenos::DataDimension dimension,
   u32 max_stored_level = std::min(max_level, layout.packed_level);
   {
     u32 mips_end = max_stored_level + 1;
-    REX_ASSERT(mips_end <= rex::countof(layout.mips));
-    u32 mips_unused_count = static_cast<u32>(rex::countof(layout.mips)) - mips_end;
+    REX_ASSERT(mips_end <= rex::CountOf(layout.mips));
+    u32 mips_unused_count = static_cast<u32>(rex::CountOf(layout.mips)) - mips_end;
     if (mips_unused_count) {
       std::memset(&layout.mips[mips_end], 0, sizeof(layout.mips[0]) * mips_unused_count);
       std::memset(&layout.mip_offsets_bytes[mips_end], 0,
@@ -219,7 +219,7 @@ TextureGuestLayout GetGuestTextureLayout(xenos::DataDimension dimension,
   layout.mips_total_extent_bytes = 0;
 
   const FormatInfo* format_info = FormatInfo::Get(format);
-  u32 bytes_per_block = format_info->bytes_per_block();
+  u32 bytes_per_block = format_info->GetBytesPerBlock();
 
   // With the packed tail at level 0, iteration 0 is the base tail and iteration 1 the mip tail.
   u32 loop_level_last;
@@ -246,18 +246,18 @@ TextureGuestLayout GetGuestTextureLayout(xenos::DataDimension dimension,
       z_layer_stride_texel_rows_unaligned =
           std::max(rex::next_pow2(height_texels) >> level, static_cast<u32>(1));
     }
-    u32 row_pitch_blocks_tile_aligned = rex::align(
-        rex::align(row_pitch_texels_unaligned, format_info->block_width) / format_info->block_width,
+    u32 row_pitch_blocks_tile_aligned = rex::Align(
+        rex::Align(row_pitch_texels_unaligned, format_info->block_width) / format_info->block_width,
         xenos::kTextureTileWidthHeight);
     level_layout.row_pitch_bytes = row_pitch_blocks_tile_aligned * bytes_per_block;
     if (!is_tiled && !is_base) {
       level_layout.row_pitch_bytes =
-          rex::align(level_layout.row_pitch_bytes, xenos::kTextureLinearRowAlignmentBytes);
+          rex::Align(level_layout.row_pitch_bytes, xenos::kTextureLinearRowAlignmentBytes);
     }
     level_layout.z_layer_stride_block_rows =
         dimension != xenos::DataDimension::k1D
-            ? rex::align(
-                  rex::align(z_layer_stride_texel_rows_unaligned, format_info->block_height) /
+            ? rex::Align(
+                  rex::Align(z_layer_stride_texel_rows_unaligned, format_info->block_height) /
                       format_info->block_height,
                   xenos::kTextureTileWidthHeight)
             : 1;
@@ -266,10 +266,10 @@ TextureGuestLayout GetGuestTextureLayout(xenos::DataDimension dimension,
     u32 z_stride_bytes = level_layout.array_layer_stride_bytes;
     if (dimension == xenos::DataDimension::k3D) {
       level_layout.array_layer_stride_bytes *=
-          rex::align(depth_or_array_size, xenos::kTextureTileDepth);
+          rex::Align(depth_or_array_size, xenos::kTextureTileDepth);
     }
     level_layout.array_layer_stride_bytes =
-        rex::align(level_layout.array_layer_stride_bytes, xenos::kTextureSubresourceAlignmentBytes);
+        rex::Align(level_layout.array_layer_stride_bytes, xenos::kTextureSubresourceAlignmentBytes);
 
     // The referenced memory may be smaller or larger than the stride.
     if (level == layout.packed_level) {
@@ -288,13 +288,13 @@ TextureGuestLayout GetGuestTextureLayout(xenos::DataDimension dimension,
         level_layout.x_extent_blocks =
             std::max(level_layout.x_extent_blocks,
                      packed_sublevel_x_blocks +
-                         rex::align(std::max(width_texels >> packed_sublevel, static_cast<u32>(1)),
+                         rex::Align(std::max(width_texels >> packed_sublevel, static_cast<u32>(1)),
                                     format_info->block_width) /
                              format_info->block_width);
         level_layout.y_extent_blocks =
             std::max(level_layout.y_extent_blocks,
                      packed_sublevel_y_blocks +
-                         rex::align(std::max(height_texels >> packed_sublevel, static_cast<u32>(1)),
+                         rex::Align(std::max(height_texels >> packed_sublevel, static_cast<u32>(1)),
                                     format_info->block_height) /
                              format_info->block_height);
         level_layout.z_extent =
@@ -303,11 +303,11 @@ TextureGuestLayout GetGuestTextureLayout(xenos::DataDimension dimension,
       }
     } else {
       level_layout.x_extent_blocks =
-          rex::align(std::max(width_texels >> level, static_cast<u32>(1)),
+          rex::Align(std::max(width_texels >> level, static_cast<u32>(1)),
                      format_info->block_width) /
           format_info->block_width;
       level_layout.y_extent_blocks =
-          rex::align(std::max(height_texels >> level, static_cast<u32>(1)),
+          rex::Align(std::max(height_texels >> level, static_cast<u32>(1)),
                      format_info->block_height) /
           format_info->block_height;
       level_layout.z_extent = std::max(depth >> level, static_cast<u32>(1));
@@ -345,7 +345,7 @@ TextureGuestLayout GetGuestTextureLayout(xenos::DataDimension dimension,
 }
 
 i32 GetTiledOffset2D(i32 x, i32 y, u32 pitch, u32 bytes_per_block_log2) {
-  pitch = rex::align(pitch, xenos::kTextureTileWidthHeight);
+  pitch = rex::Align(pitch, xenos::kTextureTileWidthHeight);
   i32 macro = ((x >> 5) + (y >> 5) * static_cast<i32>(pitch >> 5)) << (bytes_per_block_log2 + 7);
   i32 micro = ((x & 7) + ((y & 0xE) << 2)) << bytes_per_block_log2;
   i32 offset = macro + ((micro & ~0xF) << 1) + (micro & 0xF) + ((y & 1) << 4);
@@ -354,8 +354,8 @@ i32 GetTiledOffset2D(i32 x, i32 y, u32 pitch, u32 bytes_per_block_log2) {
 }
 
 i32 GetTiledOffset3D(i32 x, i32 y, i32 z, u32 pitch, u32 height, u32 bytes_per_block_log2) {
-  pitch = rex::align(pitch, xenos::kTextureTileWidthHeight);
-  height = rex::align(height, xenos::kTextureTileWidthHeight);
+  pitch = rex::Align(pitch, xenos::kTextureTileWidthHeight);
+  height = rex::Align(height, xenos::kTextureTileWidthHeight);
   i32 macro_outer =
       ((y >> 4) + (z >> 2) * static_cast<i32>(height >> 4)) * static_cast<i32>(pitch >> 5);
   i32 macro = ((((x >> 5) + macro_outer) << (bytes_per_block_log2 + 6)) & 0xFFFFFFF) << 1;
@@ -409,7 +409,7 @@ u32 GetTiledAddressUpperBound3D(u32 right, u32 bottom, u32 back, u32 pitch, u32 
                        static_cast<i32>((bottom - 1) & ~(xenos::kTextureTileWidthHeight - 1)),
                        static_cast<i32>((back - 1) & ~(xenos::kTextureTileDepth - 1)), pitch,
                        height, bytes_per_block_log2));
-  u32 pitch_aligned = rex::align(pitch, xenos::kTextureTileWidthHeight);
+  u32 pitch_aligned = rex::Align(pitch, xenos::kTextureTileWidthHeight);
   switch (bytes_per_block_log2) {
     case 0:
       // 64x32x8 portions address independently.

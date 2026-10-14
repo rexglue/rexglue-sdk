@@ -20,7 +20,7 @@ VulkanGraphicsSystem::VulkanGraphicsSystem() {}
 
 VulkanGraphicsSystem::~VulkanGraphicsSystem() {}
 
-std::string VulkanGraphicsSystem::name() const {
+std::string VulkanGraphicsSystem::GetName() const {
   return "Vulkan";
 }
 

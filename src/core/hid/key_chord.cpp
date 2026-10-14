@@ -16,10 +16,10 @@ struct ModifierPrefix {
 };
 
 constexpr auto kModifierPrefixes = std::to_array<ModifierPrefix>({
-    {"Shift", KeyModifiers::Shift},
-    {"Ctrl", KeyModifiers::Ctrl},
-    {"Control", KeyModifiers::Ctrl},
-    {"Alt", KeyModifiers::Alt},
+    {"Shift", KeyModifiers::kShift},
+    {"Ctrl", KeyModifiers::kCtrl},
+    {"Control", KeyModifiers::kCtrl},
+    {"Alt", KeyModifiers::kAlt},
 });
 
 constexpr std::string_view kBlanks = " \t";
@@ -59,11 +59,11 @@ std::string_view Trim(std::string_view text) {
   }
   chord.key = ParseVirtualKey(rest);
   if (chord.key == VirtualKey::kNone) {
-    return Err<KeyChord>(ErrorCategory::Config,
+    return Err<KeyChord>(ErrorCategory::kConfig,
                          std::format("no key named '{}' in '{}'", rest, text));
   }
   if (IsModifierKey(chord.key)) {
-    return Err<KeyChord>(ErrorCategory::Config,
+    return Err<KeyChord>(ErrorCategory::kConfig,
                          std::format("'{}' is only a modifier and needs a key", text));
   }
   return chord;
@@ -93,13 +93,13 @@ std::string KeyChordToString(KeyChord chord) {
     return {};
   }
   std::string text;
-  if (HasFlags(chord.mods, KeyModifiers::Shift)) {
+  if (HasFlags(chord.mods, KeyModifiers::kShift)) {
     text += "Shift+";
   }
-  if (HasFlags(chord.mods, KeyModifiers::Ctrl)) {
+  if (HasFlags(chord.mods, KeyModifiers::kCtrl)) {
     text += "Ctrl+";
   }
-  if (HasFlags(chord.mods, KeyModifiers::Alt)) {
+  if (HasFlags(chord.mods, KeyModifiers::kAlt)) {
     text += "Alt+";
   }
   text += name;

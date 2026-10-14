@@ -40,13 +40,13 @@ namespace kernel {
 namespace xam {
 using namespace rex::runtime;
 
-extern std::atomic<int> xam_dialogs_shown_;
+extern std::atomic<int> xam_dialogs_shown;
 
 namespace {
 
 class ScopedTitleInputBlock : public rex::NonCopyable {
  public:
-  ScopedTitleInputBlock() : hid_(runtime::Current().hid()) { hid_.AcquireUIBlock(); }
+  ScopedTitleInputBlock() : hid_(runtime::GetCurrent().GetHID()) { hid_.AcquireUIBlock(); }
   ~ScopedTitleInputBlock() { hid_.ReleaseUIBlock(); }
 
  private:
@@ -54,7 +54,7 @@ class ScopedTitleInputBlock : public rex::NonCopyable {
 };
 
 bool HasWindow() {
-  ui::IUserInterface* user_interface = runtime::Current().ui();
+  ui::IUserInterface* user_interface = runtime::GetCurrent().GetUI();
   return user_interface != nullptr && user_interface->GetWindow() != nullptr;
 }
 
@@ -67,11 +67,11 @@ struct PromptWait {
 
 class PromptShown : public rex::NonCopyable {
  public:
-  explicit PromptShown(PromptWait& wait) : wait_(wait) { ++xam_dialogs_shown_; }
+  explicit PromptShown(PromptWait& wait) : wait_(wait) { ++xam_dialogs_shown; }
   ~PromptShown() {
     std::lock_guard lock(wait_.mutex);
     wait_.abandoned = true;
-    --xam_dialogs_shown_;
+    --xam_dialogs_shown;
   }
 
  private:
@@ -79,11 +79,11 @@ class PromptShown : public rex::NonCopyable {
 };
 
 template <std::invocable<const ui::PromptResult&> F>
-X_RESULT XamPromptAndWait(const ui::PromptDesc& desc, const F& complete) {
+X_RESULT XAMPromptAndWait(const ui::PromptDesc& desc, const F& complete) {
   ScopedTitleInputBlock input_block;
   auto wait = std::make_shared<PromptWait>();
   PromptShown shown(*wait);
-  runtime::Current().ui()->Prompt(desc, [wait, &complete](const ui::PromptResult& prompt) {
+  runtime::GetCurrent().GetUI()->Prompt(desc, [wait, &complete](const ui::PromptResult& prompt) {
     std::lock_guard lock(wait->mutex);
     if (wait->abandoned) {
       return;
@@ -99,16 +99,16 @@ X_RESULT XamPromptAndWait(const ui::PromptDesc& desc, const F& complete) {
 }  // namespace
 
 template <typename Close>
-X_RESULT XamDispatchPrompt(ui::PromptDesc desc, Close close, u32 overlapped) {
-  auto pre = []() { runtime::Current().notifier().BroadcastNotification(0x9, true); };
+X_RESULT XAMDispatchPrompt(ui::PromptDesc desc, Close close, u32 overlapped) {
+  auto pre = []() { runtime::GetCurrent().GetNotifier().BroadcastNotification(0x9, true); };
   auto post = []() {
     rex::runtime::KernelThread::Sleep(std::chrono::milliseconds(100));
-    runtime::Current().notifier().BroadcastNotification(0x9, false);
+    runtime::GetCurrent().GetNotifier().BroadcastNotification(0x9, false);
   };
   if constexpr (std::is_invocable_r_v<X_RESULT, Close&, const ui::PromptResult&, u32&, u32&>) {
     auto run = [desc = std::move(desc), close = std::move(close)](u32& extended_error,
                                                                   u32& length) -> X_RESULT {
-      return XamPromptAndWait(desc, [&](const ui::PromptResult& prompt) {
+      return XAMPromptAndWait(desc, [&](const ui::PromptResult& prompt) {
         return close(prompt, extended_error, length);
       });
     };
@@ -120,7 +120,7 @@ X_RESULT XamDispatchPrompt(ui::PromptDesc desc, Close close, u32 overlapped) {
       post();
       return result;
     }
-    runtime::Current().dispatcher().CompleteDeferred(
+    runtime::GetCurrent().GetDispatcher().CompleteDeferred(
         overlapped,
         [run = std::move(run)]() mutable {
           u32 extended_error = 0;
@@ -133,7 +133,7 @@ X_RESULT XamDispatchPrompt(ui::PromptDesc desc, Close close, u32 overlapped) {
     return X_ERROR_IO_PENDING;
   } else {
     auto run = [desc = std::move(desc), close = std::move(close)]() -> X_RESULT {
-      return XamPromptAndWait(desc, [&](const ui::PromptResult& prompt) { return close(prompt); });
+      return XAMPromptAndWait(desc, [&](const ui::PromptResult& prompt) { return close(prompt); });
     };
     if (!overlapped) {
       pre();
@@ -141,7 +141,7 @@ X_RESULT XamDispatchPrompt(ui::PromptDesc desc, Close close, u32 overlapped) {
       post();
       return result;
     }
-    runtime::Current().dispatcher().CompleteDeferred(
+    runtime::GetCurrent().GetDispatcher().CompleteDeferred(
         overlapped,
         [run = std::move(run)]() mutable {
           return runtime::CompletionOptions{.result = run(), .length = 0};
@@ -151,15 +151,15 @@ X_RESULT XamDispatchPrompt(ui::PromptDesc desc, Close close, u32 overlapped) {
   }
 }
 
-X_RESULT XamDispatchHeadless(const std::function<X_RESULT()>& run_callback, u32 overlapped) {
+X_RESULT XAMDispatchHeadless(const std::function<X_RESULT()>& run_callback, u32 overlapped) {
   auto pre = []() {
-    REXLOG_DEBUG(kernel, "XamDispatchHeadless: Broadcasting XN_SYS_UI = true");
-    runtime::Current().notifier().BroadcastNotification(0x9, true);
+    REXLOG_DEBUG(kernel, "XAMDispatchHeadless: Broadcasting XN_SYS_UI = true");
+    runtime::GetCurrent().GetNotifier().BroadcastNotification(0x9, true);
   };
   auto post = []() {
     rex::runtime::KernelThread::Sleep(std::chrono::milliseconds(100));
-    REXLOG_DEBUG(kernel, "XamDispatchHeadless: Broadcasting XN_SYS_UI = false");
-    runtime::Current().notifier().BroadcastNotification(0x9, false);
+    REXLOG_DEBUG(kernel, "XAMDispatchHeadless: Broadcasting XN_SYS_UI = false");
+    runtime::GetCurrent().GetNotifier().BroadcastNotification(0x9, false);
   };
   if (!overlapped) {
     pre();
@@ -167,7 +167,7 @@ X_RESULT XamDispatchHeadless(const std::function<X_RESULT()>& run_callback, u32 
     post();
     return result;
   } else {
-    runtime::Current().dispatcher().CompleteDeferred(
+    runtime::GetCurrent().GetDispatcher().CompleteDeferred(
         overlapped,
         [run_callback]() {
           return runtime::CompletionOptions{.result = run_callback(), .length = 0};
@@ -181,40 +181,42 @@ u32 XamIsUIActive_entry() {
   return XamIsUIActive();
 }
 
-u32 XamShowMessageBoxUI_entry(u32 user_index, mapped_wstring title_ptr, mapped_wstring text_ptr,
-                              u32 button_count, mapped_u32 button_ptrs, u32 active_button,
-                              u32 flags, mapped_u32 result_ptr, mapped_void overlapped) {
+u32 XamShowMessageBoxUI_entry(u32 user_index, MappedWString title_ptr, MappedWString text_ptr,
+                              u32 button_count, MappedU32 button_ptrs, u32 active_button, u32 flags,
+                              MappedU32 result_ptr, MappedVoid overlapped) {
   REXLOG_DEBUG(
       kernel,
       "XamShowMessageBoxUI({:08X}, {:08X}, {:08X}, {:08X}, {:08X}, {:08X}, {:08X}, {:08X}, {:08X})",
-      static_cast<u32>(user_index), title_ptr.guest_address(), text_ptr.guest_address(),
-      static_cast<u32>(button_count), button_ptrs.guest_address(), static_cast<u32>(active_button),
-      static_cast<u32>(flags), result_ptr.guest_address(), overlapped.guest_address());
+      static_cast<u32>(user_index), title_ptr.GetGuestAddress(), text_ptr.GetGuestAddress(),
+      static_cast<u32>(button_count), button_ptrs.GetGuestAddress(),
+      static_cast<u32>(active_button), static_cast<u32>(flags), result_ptr.GetGuestAddress(),
+      overlapped.GetGuestAddress());
   std::string title;
   if (title_ptr) {
-    title = rex::to_utf8(rex::memory::load_and_swap<std::u16string>(
-        runtime::Current().memory()->TranslateVirtual(title_ptr.guest_address())));
+    title = rex::ToUTF8(rex::memory::load_and_swap<std::u16string>(
+        runtime::GetCurrent().GetMemory()->TranslateVirtual(title_ptr.GetGuestAddress())));
   }
   std::string text_str =
-      text_ptr ? rex::to_utf8(rex::memory::load_and_swap<std::u16string>(
-                     runtime::Current().memory()->TranslateVirtual(text_ptr.guest_address())))
-               : "";
+      text_ptr
+          ? rex::ToUTF8(rex::memory::load_and_swap<std::u16string>(
+                runtime::GetCurrent().GetMemory()->TranslateVirtual(text_ptr.GetGuestAddress())))
+          : "";
 
   std::vector<std::string> buttons;
   for (u32 i = 0; i < button_count; ++i) {
     u32 button_ptr = button_ptrs[i];
     auto button = rex::memory::load_and_swap<std::u16string>(
-        runtime::Current().memory()->TranslateVirtual(button_ptr));
-    buttons.push_back(rex::to_utf8(button));
+        runtime::GetCurrent().GetMemory()->TranslateVirtual(button_ptr));
+    buttons.push_back(rex::ToUTF8(button));
   }
 
   X_RESULT result;
-  if (runtime::Current().config().runtime.kernel.headless || !HasWindow()) {
+  if (runtime::GetCurrent().GetConfig().runtime.kernel.headless || !HasWindow()) {
     auto run = [result_ptr, active_button]() -> X_RESULT {
       *result_ptr = static_cast<u32>(active_button);
       return X_ERROR_SUCCESS;
     };
-    result = XamDispatchHeadless(run, overlapped.guest_address());
+    result = XAMDispatchHeadless(run, overlapped.GetGuestAddress());
   } else {
     ui::PromptDesc desc{
         .title = title.empty() ? "Message Box" : title, .body = text_str, .buttons = buttons};
@@ -222,38 +224,38 @@ u32 XamShowMessageBoxUI_entry(u32 user_index, mapped_wstring title_ptr, mapped_w
       *result_ptr = prompt.cancelled ? static_cast<u32>(active_button) : prompt.button;
       return X_ERROR_SUCCESS;
     };
-    result = XamDispatchPrompt(std::move(desc), close, overlapped.guest_address());
+    result = XAMDispatchPrompt(std::move(desc), close, overlapped.GetGuestAddress());
   }
   return result;
 }
 
-u32 XamShowKeyboardUI_entry(u32 user_index, u32 flags, mapped_wstring default_text,
-                            mapped_wstring title, mapped_wstring description, mapped_wstring buffer,
-                            u32 buffer_length, mapped_void overlapped) {
-  REXLOG_DEBUG(kernel,
-               "XamShowKeyboardUI({:08X}, {:08X}, {:08X}, {:08X}, {:08X}, {:08X}, {:08X}, {:08X})",
-               static_cast<u32>(user_index), static_cast<u32>(flags), default_text.guest_address(),
-               title.guest_address(), description.guest_address(), buffer.guest_address(),
-               static_cast<u32>(buffer_length), overlapped.guest_address());
+u32 XamShowKeyboardUI_entry(u32 user_index, u32 flags, MappedWString default_text,
+                            MappedWString title, MappedWString description, MappedWString buffer,
+                            u32 buffer_length, MappedVoid overlapped) {
+  REXLOG_DEBUG(
+      kernel, "XamShowKeyboardUI({:08X}, {:08X}, {:08X}, {:08X}, {:08X}, {:08X}, {:08X}, {:08X})",
+      static_cast<u32>(user_index), static_cast<u32>(flags), default_text.GetGuestAddress(),
+      title.GetGuestAddress(), description.GetGuestAddress(), buffer.GetGuestAddress(),
+      static_cast<u32>(buffer_length), overlapped.GetGuestAddress());
   if (!buffer) {
     return X_ERROR_INVALID_PARAMETER;
   }
 
-  REX_ASSERT(overlapped.guest_address() != 0);
+  REX_ASSERT(overlapped.GetGuestAddress() != 0);
 
   auto buffer_size = static_cast<size_t>(buffer_length) * 2;
 
   X_RESULT result;
-  if (runtime::Current().config().runtime.kernel.headless || !HasWindow()) {
+  if (runtime::GetCurrent().GetConfig().runtime.kernel.headless || !HasWindow()) {
     auto run = [default_text, buffer, buffer_length, buffer_size]() -> X_RESULT {
       if (!default_text) {
         std::memset(buffer, 0, buffer_size);
       } else {
-        rex::copy_truncating(buffer, default_text.value(), buffer_length);
+        rex::copy_truncating(buffer, default_text.GetValue(), buffer_length);
       }
       return X_ERROR_SUCCESS;
     };
-    result = XamDispatchHeadless(run, overlapped.guest_address());
+    result = XAMDispatchHeadless(run, overlapped.GetGuestAddress());
   } else {
     auto close = [buffer, buffer_length](const ui::PromptResult& prompt, u32& extended_error,
                                          u32& length) -> X_RESULT {
@@ -264,26 +266,25 @@ u32 XamShowKeyboardUI_entry(u32 user_index, u32 flags, mapped_wstring default_te
       }
       std::string padded = prompt.text;
       padded.resize(static_cast<size_t>(buffer_length) + 1, '\0');
-      auto text = rex::to_utf16(padded);
+      auto text = rex::ToUTF16(padded);
       rex::copy_and_swap_truncating(buffer, text, buffer_length);
       extended_error = X_ERROR_SUCCESS;
       return X_ERROR_SUCCESS;
     };
 
     std::string title_str =
-        title ? rex::to_utf8(rex::memory::load_and_swap<std::u16string>(
-                    runtime::Current().memory()->TranslateVirtual(title.guest_address())))
+        title ? rex::ToUTF8(rex::memory::load_and_swap<std::u16string>(
+                    runtime::GetCurrent().GetMemory()->TranslateVirtual(title.GetGuestAddress())))
               : "";
-    std::string desc_str =
-        description
-            ? rex::to_utf8(rex::memory::load_and_swap<std::u16string>(
-                  runtime::Current().memory()->TranslateVirtual(description.guest_address())))
-            : "";
-    std::string def_text_str =
-        default_text
-            ? rex::to_utf8(rex::memory::load_and_swap<std::u16string>(
-                  runtime::Current().memory()->TranslateVirtual(default_text.guest_address())))
-            : "";
+    std::string desc_str = description ? rex::ToUTF8(rex::memory::load_and_swap<std::u16string>(
+                                             runtime::GetCurrent().GetMemory()->TranslateVirtual(
+                                                 description.GetGuestAddress())))
+                                       : "";
+    std::string def_text_str = default_text
+                                   ? rex::ToUTF8(rex::memory::load_and_swap<std::u16string>(
+                                         runtime::GetCurrent().GetMemory()->TranslateVirtual(
+                                             default_text.GetGuestAddress())))
+                                   : "";
     if (title_str.empty()) {
       if (desc_str.empty()) {
         title_str = "Keyboard Input";
@@ -299,25 +300,25 @@ u32 XamShowKeyboardUI_entry(u32 user_index, u32 flags, mapped_wstring default_te
                         .text_input = true,
                         .default_text = def_text_str,
                         .max_length = buffer_length};
-    result = XamDispatchPrompt(std::move(desc), close, overlapped.guest_address());
+    result = XAMDispatchPrompt(std::move(desc), close, overlapped.GetGuestAddress());
   }
   return result;
 }
 
 u32 XamShowDeviceSelectorUI_entry(u32 user_index, u32 content_type, u32 content_flags,
-                                  u64 total_requested, mapped_u32 device_id_ptr,
-                                  mapped_void overlapped) {
+                                  u64 total_requested, MappedU32 device_id_ptr,
+                                  MappedVoid overlapped) {
   REXLOG_DEBUG(kernel, "XamShowDeviceSelectorUI({:08X}, {:08X}, {:08X}, {:016X}, {:08X}, {:08X})",
                static_cast<u32>(user_index), static_cast<u32>(content_type),
                static_cast<u32>(content_flags), static_cast<u64>(total_requested),
-               device_id_ptr.guest_address(), overlapped.guest_address());
-  return XamDispatchHeadless(
+               device_id_ptr.GetGuestAddress(), overlapped.GetGuestAddress());
+  return XAMDispatchHeadless(
       [device_id_ptr]() -> X_RESULT {
-        // 0x00000001 is DummyDeviceId::HDD.
+        // 0x00000001 is DummyDeviceId::kHDD.
         *device_id_ptr = 0x00000001;
         return X_ERROR_SUCCESS;
       },
-      overlapped.guest_address());
+      overlapped.GetGuestAddress());
 }
 
 void XamShowDirtyDiscErrorUI_entry(u32 user_index) {
@@ -326,7 +327,7 @@ void XamShowDirtyDiscErrorUI_entry(u32 user_index) {
   REXLOG_ERROR(kernel, "This indicates a disc/file read error - check that all game files exist");
 
   if (HasWindow()) {
-    XamDispatchPrompt(
+    XAMDispatchPrompt(
         ui::PromptDesc{.title = "Disc Read Error",
                        .body = "There's been an issue reading content from the game disc.\nThis is "
                                "likely caused by bad or unimplemented file IO calls.",
@@ -339,7 +340,7 @@ void XamShowDirtyDiscErrorUI_entry(u32 user_index) {
     REXLOG_ERROR(kernel, "Missing files or bad mounts cause this error");
     REXLOG_ERROR(kernel, "===========================================");
   }
-  runtime::Current().ExitTitle(rex::runtime::TitleExitReason::TitleDataError);
+  runtime::GetCurrent().ExitTitle(rex::runtime::TitleExitReason::kTitleDataError);
 }
 
 u32 XamShowPartyUI_entry([[maybe_unused]] u32 r3, [[maybe_unused]] u32 r4) {

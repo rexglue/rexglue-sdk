@@ -41,10 +41,10 @@ constexpr u32 kReadWriteAccess = 0xC0100000;
 
 void MountScratch(KernelFixture& fixture) {
   namespace fs = rex::filesystem;
-  auto* file_system = fixture.api().Get<fs::IFileSystem>();
+  auto* file_system = fixture.GetAPI().Get<fs::IFileSystem>();
   REQUIRE(file_system);
   REQUIRE(file_system->Mount({"\\Device\\Scratch", fs::ProviderKind::kHostDirectory,
-                              fixture.root() / "scratch", fs::MountFlags::kWritable}));
+                              fixture.GetRoot() / "scratch", fs::MountFlags::kWritable}));
   REQUIRE(file_system->Link("scratch:", "\\Device\\Scratch"));
 }
 
@@ -63,7 +63,7 @@ u32 RecordingAPC(Caller& c) {
   g_apc_calls = 0;
   g_apc_context = 0xFFFFFFFF;
   g_apc_status_block = 0;
-  return c.runtime().function_dispatcher()->AllocateThunk(
+  return c.GetRuntime().GetFunctionDispatcher()->AllocateThunk(
       +[](PPCContext& ctx, u8*) {
         ++g_apc_calls;
         g_apc_context = ctx.r3.u32;
@@ -109,7 +109,7 @@ REX_TEST_CASE("files: an allocation size only truncates below the end of file", 
                    {handle, status_block, info, 8, rex::runtime::XFileAllocationInformation}) == 0);
     CHECK(c.Kernel("NtClose", {handle}) == 0);
   });
-  CHECK(std::filesystem::file_size(fixture.root() / "scratch" / "a.bin") == 8);
+  CHECK(std::filesystem::file_size(fixture.GetRoot() / "scratch" / "a.bin") == 8);
 }
 
 REX_TEST_CASE("files: a flush reaches the file and fails on a bad handle", "[char][files]") {
@@ -161,8 +161,8 @@ REX_TEST_CASE("files: a rename onto a file needs replace existing", "[char][file
                    {handle, status_block, info, 16, rex::runtime::XFileRenameInformation}) == 0);
     CHECK(c.Kernel("NtClose", {handle}) == 0);
   });
-  CHECK_FALSE(std::filesystem::exists(fixture.root() / "scratch" / "r1.bin"));
-  CHECK(std::filesystem::file_size(fixture.root() / "scratch" / "r2.bin") == 16);
+  CHECK_FALSE(std::filesystem::exists(fixture.GetRoot() / "scratch" / "r1.bin"));
+  CHECK(std::filesystem::file_size(fixture.GetRoot() / "scratch" / "r2.bin") == 16);
 }
 
 REX_TEST_CASE("files: an allocation size above the end of file keeps the size", "[char][files]") {
@@ -184,7 +184,7 @@ REX_TEST_CASE("files: an allocation size above the end of file keeps the size", 
                    {handle, status_block, info, 8, rex::runtime::XFileAllocationInformation}) == 0);
     CHECK(c.Kernel("NtClose", {handle}) == 0);
   });
-  CHECK(std::filesystem::file_size(fixture.root() / "scratch" / "b.bin") == 16);
+  CHECK(std::filesystem::file_size(fixture.GetRoot() / "scratch" / "b.bin") == 16);
 }
 
 REX_TEST_CASE("files: create read write seek and query", "[char][files]") {
@@ -306,15 +306,15 @@ REX_TEST_CASE("files: XamContentCreate fails when the content header cannot be w
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     constexpr u32 kTitleId = 0x52455831;
-    const u64 xuid = c.runtime().content_manager().user_profile().xuid();
-    const auto header_path = c.runtime().user_data_root() / std::format("{:016X}", xuid) /
+    const u64 xuid = c.GetRuntime().GetContentManager().GetUserProfile().GetXUID();
+    const auto header_path = c.GetRuntime().GetUserDataRoot() / std::format("{:016X}", xuid) /
                              std::format("{:08X}", kTitleId) / "Headers" /
                              std::format("{:08X}", 1u) / "rexsave.header";
     std::filesystem::create_directories(header_path);
 
     using rex::runtime::XCONTENT_AGGREGATE_DATA;
     const u32 data = c.Alloc(sizeof(XCONTENT_AGGREGATE_DATA));
-    auto* host = c.runtime().memory()->TranslateVirtual<XCONTENT_AGGREGATE_DATA*>(data);
+    auto* host = c.GetRuntime().GetMemory()->TranslateVirtual<XCONTENT_AGGREGATE_DATA*>(data);
     std::memset(static_cast<void*>(host), 0, sizeof(XCONTENT_AGGREGATE_DATA));
     host->device_id = 1;
     host->content_type = rex::runtime::XContentType::kSavedGame;
@@ -323,13 +323,13 @@ REX_TEST_CASE("files: XamContentCreate fails when the content header cannot be w
     host->title_id = kTitleId;
     const u32 root = c.String("save");
 
-    const auto package_path = c.runtime().user_data_root() / std::format("{:016X}", xuid) /
+    const auto package_path = c.GetRuntime().GetUserDataRoot() / std::format("{:016X}", xuid) /
                               std::format("{:08X}", kTitleId) / std::format("{:08X}", 1u) /
                               "rexsave";
     REQUIRE_FALSE(std::filesystem::exists(package_path));
 
     CHECK(c.XAM("XamContentCreateInternal", {root, data, 1, 0, 0, 0, 0, 0}) != 0);
-    CHECK_FALSE(c.runtime().content_manager().IsContentOpen(*host));
+    CHECK_FALSE(c.GetRuntime().GetContentManager().IsContentOpen(*host));
     CHECK_FALSE(std::filesystem::exists(package_path));
   });
 }
@@ -348,8 +348,8 @@ REX_TEST_CASE("files: closing content with no link leaves other files open",
       return;
     }
     const u32 handle = c.Load32(handle_ptr);
-    c.runtime().content_manager().CloseOpenedFilesFromContent("nolink");
-    CHECK(c.runtime().object_table().Get(handle));
+    c.GetRuntime().GetContentManager().CloseOpenedFilesFromContent("nolink");
+    CHECK(c.GetRuntime().GetObjectTable().Get(handle));
     CHECK(c.Kernel("NtClose", {handle}) == 0);
   });
 }
@@ -362,12 +362,12 @@ REX_TEST_CASE("files: closing content leaves a sibling root that shares its pref
     std::ofstream(root / "contab" / "k.bin", std::ios::binary) << "xxxx";
   });
   namespace fs = rex::filesystem;
-  auto* file_system = fixture.api().Get<fs::IFileSystem>();
+  auto* file_system = fixture.GetAPI().Get<fs::IFileSystem>();
   REQUIRE(file_system);
   REQUIRE(file_system->Mount({"\\Device\\ContA", fs::ProviderKind::kHostDirectory,
-                              fixture.root() / "conta", fs::MountFlags::kWritable}));
+                              fixture.GetRoot() / "conta", fs::MountFlags::kWritable}));
   REQUIRE(file_system->Mount({"\\Device\\ContAB", fs::ProviderKind::kHostDirectory,
-                              fixture.root() / "contab", fs::MountFlags::kWritable}));
+                              fixture.GetRoot() / "contab", fs::MountFlags::kWritable}));
   REQUIRE(file_system->Link("conta:", "\\Device\\ContA"));
   REQUIRE(file_system->Link("contab:", "\\Device\\ContAB"));
   fixture.RunOnGuestThread([](Caller& c) {
@@ -380,8 +380,8 @@ REX_TEST_CASE("files: closing content leaves a sibling root that shares its pref
       return;
     }
     const u32 handle = c.Load32(handle_ptr);
-    c.runtime().content_manager().CloseOpenedFilesFromContent("conta");
-    CHECK(c.runtime().object_table().Get(handle));
+    c.GetRuntime().GetContentManager().CloseOpenedFilesFromContent("conta");
+    CHECK(c.GetRuntime().GetObjectTable().Get(handle));
     CHECK(c.Kernel("NtClose", {handle}) == 0);
   });
 }
@@ -475,18 +475,18 @@ REX_TEST_CASE("files: a seek moves from each origin and sets the length there", 
     }
     const u32 handle = c.Load32(handle_ptr);
     {
-      auto file = c.runtime().object_table().Get<rex::runtime::FileObject>(handle);
+      auto file = c.GetRuntime().GetObjectTable().Get<rex::runtime::FileObject>(handle);
       REQUIRE(file);
       CHECK(file->Seek(4, SeekOrigin::kBegin) == 4);
       CHECK(file->Seek(3, SeekOrigin::kCurrent) == 7);
       CHECK(file->Seek(-2, SeekOrigin::kCurrent) == 5);
       CHECK(file->Seek(-1, SeekOrigin::kEnd) == 9);
-      CHECK(file->position() == 9);
+      CHECK(file->GetPosition() == 9);
       CHECK(file->SetLengthToPosition() == rex::X_STATUS_SUCCESS);
     }
     CHECK(c.Kernel("NtClose", {handle}) == 0);
   });
-  CHECK(std::filesystem::file_size(fixture.root() / "scratch" / "p.bin") == 9);
+  CHECK(std::filesystem::file_size(fixture.GetRoot() / "scratch" / "p.bin") == 9);
 }
 
 REX_TEST_CASE("files: a read queues its APC without a context", "[char][files][apc]") {

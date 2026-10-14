@@ -59,7 +59,7 @@ REX_TEST_CASE("ObjectTable Get is type checked", "[kernel][object_table]") {
   const X_HANDLE handle = AddEvent(table);
   CHECK(table.Get<EventObject>(handle));
   CHECK_FALSE(table.Get<SemaphoreObject>(handle));
-  CHECK(table.Get(handle).kind() == ObjectKind::Event);
+  CHECK(table.Get(handle).GetKind() == ObjectKind::kEvent);
 }
 
 REX_TEST_CASE("ObjectTable Get rejects 0 pseudo and unknown handles", "[kernel][object_table]") {
@@ -195,7 +195,7 @@ REX_TEST_CASE("ObjectTable names are case insensitive and collide",
   CHECK(ToXStatus(table.AddName("alpha", 0xF8000008)) == rex::X_STATUS_OBJECT_NAME_COLLISION);
   auto missing = table.OpenByName("Missing");
   CHECK(ToXStatus(missing) == rex::X_STATUS_OBJECT_NAME_NOT_FOUND);
-  CHECK(missing.value_or(rex::X_INVALID_HANDLE_VALUE) == rex::X_INVALID_HANDLE_VALUE);
+  CHECK(missing.value_or(rex::kXInvalidHandleValue) == rex::kXInvalidHandleValue);
 }
 
 REX_TEST_CASE("ObjectTable OpenByName takes a handle reference", "[kernel][object_table][names]") {

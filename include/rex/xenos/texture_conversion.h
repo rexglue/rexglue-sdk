@@ -59,7 +59,7 @@ REX_API void ConvertTexelCTX1ToR8G8(xenos::Endian endian, void* output, const vo
 REX_API void ConvertTexelDXT3AToDXT3(xenos::Endian endian, void* output, const void* input,
                                      size_t length);
 
-/** Copies 1 untiled block, taking output, input and byte length. */
+/** Copies an untiled block, taking output, input and byte length. */
 using UntileCopyBlockCallback = std::function<void(void*, const void*, size_t)>;
 
 /** Region and formats for Untile. */

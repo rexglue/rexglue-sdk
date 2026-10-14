@@ -24,7 +24,7 @@ namespace rex::codegen {
  * @param data Template data.
  * @return The rendered text.
  */
-std::string renderWithJson(TemplateRegistry& registry, const std::string& id,
+std::string RenderWithJSON(TemplateRegistry& registry, const std::string& id,
                            const nlohmann::json& data);
 
 }  // namespace rex::codegen

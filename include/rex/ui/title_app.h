@@ -58,7 +58,7 @@ class REX_RUNTIME_API TitleUI {
    *
    * @return The atlas the ui module builds after OnCreateWindow returns.
    */
-  ImFontAtlas& Fonts();
+  ImFontAtlas& GetFonts();
 
   /**
    * Returns the ImGui style.
@@ -86,7 +86,7 @@ class REX_RUNTIME_API TitleUI {
    *
    * @return The interface the app adds its overlays to.
    */
-  IUserInterface& Overlays();
+  IUserInterface& GetOverlays();
 
   /**
    * Sets the frame time source the debug overlay reads, for apps that present the title
@@ -151,7 +151,7 @@ class REX_RUNTIME_API TitleApp : public App, public gpu::IUIThread {
   [[nodiscard]] Result<void> CreateTitleWindow();
 
   /**
-   * Runs 1 loop iteration. Processes window events, runs posted functions and draws the
+   * Runs a loop iteration. Processes window events, runs posted functions and draws the
    * overlays. Lets the app show its own UI before LaunchTitle.
    *
    * @return False once shutdown has been requested or the UI loop quit.
@@ -181,11 +181,11 @@ class REX_RUNTIME_API TitleApp : public App, public gpu::IUIThread {
 
   /**
    * Receives every window and input event before the SDK's own listeners, from the end of
-   * CreateTitleWindow until Release. UIEvent::Type::Closing arrives when Stop closes the window
+   * CreateTitleWindow until Release. UIEvent::Type::kClosing arrives when Stop closes the window
    * after the title stops, where the app destroys the dialogs it owns.
    *
    * @param event The event.
-   * @return True consumes the event. For UIEvent::Type::Close, true keeps the window open.
+   * @return True consumes the event. For UIEvent::Type::kClose, true keeps the window open.
    */
   virtual bool OnEvent(const UIEvent& event);
 
@@ -219,7 +219,7 @@ class REX_RUNTIME_API TitleApp : public App, public gpu::IUIThread {
    *
    * @return The app name and dialog choice of the report.
    */
-  platform::CrashReporterOptions CrashOptions() override;
+  platform::CrashReporterOptions GetCrashOptions() override;
 
   /**
    * Cancels every pending prompt, stops the title and every guest thread, then closes the
@@ -259,7 +259,7 @@ class REX_RUNTIME_API TitleApp : public App, public gpu::IUIThread {
    * @return The interface a module serves, or the headless fallback. Valid from Init until
    *         Release.
    */
-  IUserInterface& UI();
+  IUserInterface& GetUI();
 
  private:
   friend class TitleUI;
@@ -298,7 +298,7 @@ namespace rex::detail {
  *
  * @return The parsed arguments without the program name.
  */
-REX_RUNTIME_API CLIArgList WindowsCommandLine();
+REX_RUNTIME_API CLIArgList GetWindowsCommandLine();
 
 }  // namespace rex::detail
 
@@ -313,12 +313,12 @@ REX_RUNTIME_API CLIArgList WindowsCommandLine();
  * REX_DETAIL_ENTRY_POINTS(FooEntry)
  * @endcode
  */
-#define REX_DETAIL_ENTRY_POINTS(fn)                                                             \
-  int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {                                       \
-    return ::rex::detail::RunGuarded([] { return fn(::rex::detail::WindowsCommandLine()); });   \
-  }                                                                                             \
-  int main(int argc, char** argv) {                                                             \
-    return ::rex::detail::RunGuarded([&] { return fn(::rex::CLIArgList::Parse(argc, argv)); }); \
+#define REX_DETAIL_ENTRY_POINTS(fn)                                                              \
+  int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {                                        \
+    return ::rex::detail::RunGuarded([] { return fn(::rex::detail::GetWindowsCommandLine()); }); \
+  }                                                                                              \
+  int main(int argc, char** argv) {                                                              \
+    return ::rex::detail::RunGuarded([&] { return fn(::rex::CLIArgList::Parse(argc, argv)); });  \
   }
 #else
 #define REX_DETAIL_ENTRY_POINTS(fn)                                                             \

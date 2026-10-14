@@ -36,12 +36,12 @@ class ScopedRoot : public Fixture {
  public:
   ScopedRoot() {
     WriteHost(HostPath(), kOriginal);
-    REQUIRE(fs().Mount(
-        {std::string(kMountPath), ProviderKind::kHostDirectory, temp(), MountFlags::kWritable}));
-    REQUIRE(fs().Link("test:", kMountPath));
+    REQUIRE(GetFs().Mount(
+        {std::string(kMountPath), ProviderKind::kHostDirectory, GetTemp(), MountFlags::kWritable}));
+    REQUIRE(GetFs().Link("test:", kMountPath));
   }
 
-  std::filesystem::path HostPath() const { return temp() / "savegame.dat"; }
+  std::filesystem::path HostPath() const { return GetTemp() / "savegame.dat"; }
 };
 
 }  // namespace

@@ -118,7 +118,7 @@ REX_TEST_CASE("KeTlsFree after a thread with the slot exited writes no released 
 REX_TEST_CASE("The TLS data block is copied with a slot count of 0", "[char][tls]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    const u32 process = c.runtime().title_process();
+    const u32 process = c.GetRuntime().GetTitleProcess();
     const u32 raw = c.Alloc(8);
     c.Store32(raw, 0x11223344);
     c.Store32(raw + 4, 0x55667788);
@@ -127,8 +127,8 @@ REX_TEST_CASE("The TLS data block is copied with a slot count of 0", "[char][tls
     c.Store32(process + 0x28, 8);
     auto words = std::make_shared<std::vector<u32>>();
     Join(c, c.Spawn([words](Caller& t) {
-      const u32 data = t.Load32(t.ctx().r13.u32);
-      const u32 kthread = t.Load32(t.ctx().r13.u32 + 0x100);
+      const u32 data = t.Load32(t.GetCtx().r13.u32);
+      const u32 kthread = t.Load32(t.GetCtx().r13.u32 + 0x100);
       for (u32 offset = 0; offset < 16; offset += 4) {
         words->push_back(t.Load32(data + offset));
       }

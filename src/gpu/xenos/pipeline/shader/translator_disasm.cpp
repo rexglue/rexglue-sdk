@@ -359,13 +359,13 @@ void ParsedVertexFetchInstruction::Disassemble(StringBuffer* out) const {
 }
 
 void ParsedTextureFetchInstruction::Disassemble(StringBuffer* out) const {
-  static const char* kTextureFilterNames[] = {
+  static constexpr const char* kTextureFilterNames[] = {
       "point",
       "linear",
       "basemap",
       "keep",
   };
-  static const char* kAnisoFilterNames[] = {
+  static constexpr const char* kAnisoFilterNames[] = {
       "disabled", "max1to1", "max2to1", "max4to1", "max8to1", "max16to1", "keep",
   };
 
@@ -378,7 +378,7 @@ void ParsedTextureFetchInstruction::Disassemble(StringBuffer* out) const {
   out->Append(opcode_name);
   out->Append(' ');
   bool needs_comma = false;
-  if (has_result()) {
+  if (HasResult()) {
     DisassembleResultOperand(result, out);
     needs_comma = true;
   }

@@ -23,7 +23,7 @@
 namespace {
 
 bool HasScope(const rex::cvar::ICvarRegistry& cvars, std::string_view scope) {
-  return std::ranges::contains(cvars.Scopes(), scope);
+  return std::ranges::contains(cvars.GetScopes(), scope);
 }
 
 rex::Config BaseConfig() {

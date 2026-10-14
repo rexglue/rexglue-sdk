@@ -71,10 +71,10 @@ u32 LoadAcquire(const void* host) {
 }  // namespace
 
 CommandProcessor::CommandProcessor(GraphicsSystem* graphics_system, Runtime& runtime)
-    : memory_(graphics_system->memory()),
+    : memory_(graphics_system->GetMemory()),
       runtime_(&runtime),
       graphics_system_(graphics_system),
-      register_file_(graphics_system_->register_file()),
+      register_file_(graphics_system_->GetRegisterFile()),
       worker_running_(true),
       write_ptr_index_event_(rex::platform::Event::CreateAutoResetEvent(false)),
       write_ptr_index_(0) {
@@ -105,8 +105,8 @@ bool CommandProcessor::Initialize() {
     WorkerThreadMain();
     return 0;
   });
-  thread->set_name("GPU Commands");
-  worker_thread_ = runtime_->thread_registry().Launch(std::move(thread)).value_or(0);
+  thread->SetName("GPU Commands");
+  worker_thread_ = runtime_->GetThreadRegistry().Launch(std::move(thread)).value_or(0);
 
   return true;
 }
@@ -115,7 +115,7 @@ void CommandProcessor::Shutdown() {
   worker_running_ = false;
   write_ptr_index_event_->Set();
   runtime::Wait(*runtime_, worker_thread_, 0, 0, 0, nullptr);
-  runtime::CloseOwned(runtime_->object_table(), worker_thread_);
+  runtime::CloseOwned(runtime_->GetObjectTable(), worker_thread_);
   worker_thread_ = 0;
 }
 
@@ -125,7 +125,7 @@ void CommandProcessor::InitializeShaderStorage(
 
 bool CommandProcessor::IsWorkerThread() {
   return runtime::KernelThread::IsInThread(
-      runtime_->thread_registry().FindByHandle(worker_thread_).get());
+      runtime_->GetThreadRegistry().FindByHandle(worker_thread_).GetThread());
 }
 
 bool CommandProcessor::HasPendingFns() {
@@ -242,7 +242,7 @@ void CommandProcessor::WorkerThreadMain() {
 
     if (read_ptr_writeback_ptr_) {
       memory_->TranslatePhysical<be_u32*>(read_ptr_writeback_ptr_)
-          ->store(read_ptr_index_, std::memory_order_release);
+          ->Store(read_ptr_index_, std::memory_order_release);
     }
   }
 
@@ -310,7 +310,7 @@ void CommandProcessor::WriteRegister(u32 index, u32 value) {
     if ((1 << scratch_reg) & regs.values[std::to_underlying(xenos::Register::SCRATCH_UMSK)]) {
       u32 scratch_addr = regs.values[std::to_underlying(xenos::Register::SCRATCH_ADDR)];
       u32 mem_addr = scratch_addr + (scratch_reg * 4);
-      memory_->TranslatePhysical<be_u32*>(mem_addr)->store(value, std::memory_order_release);
+      memory_->TranslatePhysical<be_u32*>(mem_addr)->Store(value, std::memory_order_release);
     }
   } else {
     switch (index) {
@@ -535,15 +535,15 @@ u32 CommandProcessor::ExecutePrimaryBuffer(u32 read_index, u32 write_index) {
   REX_PROFILE_SCOPE("gpu");
 
   memory::RingBuffer reader(memory_->TranslatePhysical(primary_buffer_ptr_), primary_buffer_size_);
-  reader.set_read_offset(read_index * sizeof(u32));
-  reader.set_write_offset(write_index * sizeof(u32));
+  reader.SetReadOffset(read_index * sizeof(u32));
+  reader.SetWriteOffset(write_index * sizeof(u32));
   do {
     if (!ExecutePacket(&reader)) {
       REXLOG_ERROR(gpu, "**** PRIMARY RINGBUFFER: Failed to execute packet.");
       REX_ASSERT_ALWAYS();
       break;
     }
-  } while (reader.read_count());
+  } while (reader.GetReadCount());
 
   OnPrimaryBufferEnd();
 
@@ -554,26 +554,26 @@ void CommandProcessor::ExecuteIndirectBuffer(u32 ptr, u32 count) {
   REX_PROFILE_SCOPE("gpu");
 
   memory::RingBuffer reader(memory_->TranslatePhysical(ptr), count * sizeof(u32));
-  reader.set_write_offset(count * sizeof(u32));
+  reader.SetWriteOffset(count * sizeof(u32));
   do {
     if (!ExecutePacket(&reader)) {
       REXLOG_ERROR(gpu, "**** INDIRECT RINGBUFFER: Failed to execute packet.");
       REX_ASSERT_ALWAYS();
       break;
     }
-  } while (reader.read_count());
+  } while (reader.GetReadCount());
 }
 
 void CommandProcessor::ExecutePacket(u32 ptr, u32 count) {
   memory::RingBuffer reader(memory_->TranslatePhysical(ptr), count * sizeof(u32));
-  reader.set_write_offset(count * sizeof(u32));
+  reader.SetWriteOffset(count * sizeof(u32));
   do {
     if (!ExecutePacket(&reader)) {
       REXLOG_ERROR(gpu, "**** ExecutePacket: Failed to execute packet.");
       REX_ASSERT_ALWAYS();
       break;
     }
-  } while (reader.read_count());
+  } while (reader.GetReadCount());
 }
 
 bool CommandProcessor::ExecutePacket(memory::RingBuffer* reader) {
@@ -604,9 +604,9 @@ bool CommandProcessor::ExecutePacket(memory::RingBuffer* reader) {
 
 bool CommandProcessor::ExecutePacketType0(memory::RingBuffer* reader, u32 packet) {
   u32 count = ((packet >> 16) & 0x3FFF) + 1;
-  if (reader->read_count() < count * sizeof(u32)) {
+  if (reader->GetReadCount() < count * sizeof(u32)) {
     REX_FAIL(gpu, false, "ExecutePacketType0 overflow (read count {:08X}, packet count {:08X})",
-             reader->read_count(), count * sizeof(u32));
+             reader->GetReadCount(), count * sizeof(u32));
   }
 
   u32 base_index = (packet & 0x7FFF);
@@ -638,11 +638,11 @@ bool CommandProcessor::ExecutePacketType2([[maybe_unused]] memory::RingBuffer* r
 bool CommandProcessor::ExecutePacketType3(memory::RingBuffer* reader, u32 packet) {
   u32 opcode = (packet >> 8) & 0x7F;
   u32 count = ((packet >> 16) & 0x3FFF) + 1;
-  auto data_start_offset = reader->read_offset();
+  auto data_start_offset = reader->GetReadOffset();
 
-  if (reader->read_count() < count * sizeof(u32)) {
+  if (reader->GetReadCount() < count * sizeof(u32)) {
     REX_FAIL(gpu, false, "ExecutePacketType3 overflow (read count {:08X}, packet count {:08X})",
-             reader->read_count(), count * sizeof(u32));
+             reader->GetReadCount(), count * sizeof(u32));
   }
 
   if (packet & 1) {
@@ -786,8 +786,8 @@ bool CommandProcessor::ExecutePacketType3(memory::RingBuffer* reader, u32 packet
       break;
   }
 
-  REX_ASSERT(reader->read_offset() ==
-             (data_start_offset + (count * sizeof(u32))) % reader->capacity());
+  REX_ASSERT(reader->GetReadOffset() ==
+             (data_start_offset + (count * sizeof(u32))) % reader->GetCapacity());
   return result;
 }
 
@@ -842,7 +842,7 @@ bool CommandProcessor::ExecutePacketType3_XE_SWAP(memory::RingBuffer* reader,
 #endif
   rex::platform::Profiler::Flip();
 
-  u32 magic = reader->ReadAndSwap<memory::fourcc_t>();
+  u32 magic = reader->ReadAndSwap<memory::FourCCT>();
   REX_ASSERT(magic == kSwapSignature);
 
   u32 frontbuffer_ptr = reader->ReadAndSwap<u32>();
@@ -1113,7 +1113,7 @@ bool CommandProcessor::ExecutePacketType3_EVENT_WRITE_EXT(memory::RingBuffer* re
   };
   REX_ASSERT(endianness == xenos::Endian::k8in16);
   memory::copy_and_swap_16_unaligned(memory_->TranslatePhysical(address), extents,
-                                     rex::countof(extents));
+                                     rex::CountOf(extents));
   return true;
 }
 
@@ -1122,10 +1122,10 @@ void CommandProcessor::WriteSampleCounts(xenos::DepthSampleCounts& counts, u32 s
   counts.Total_B = 0;
   counts.StencilFail_A = 0;
   counts.StencilFail_B = 0;
-  counts.ZFail_B.store(0, std::memory_order_release);
-  counts.ZFail_A.store(0, std::memory_order_release);
-  counts.ZPass_B.store(0, std::memory_order_release);
-  counts.ZPass_A.store(samples, std::memory_order_release);
+  counts.ZFail_B.Store(0, std::memory_order_release);
+  counts.ZFail_A.Store(0, std::memory_order_release);
+  counts.ZPass_B.Store(0, std::memory_order_release);
+  counts.ZPass_A.Store(samples, std::memory_order_release);
 }
 
 bool CommandProcessor::ExecutePacketType3_EVENT_WRITE_ZPD(memory::RingBuffer* reader,
@@ -1138,18 +1138,18 @@ bool CommandProcessor::ExecutePacketType3_EVENT_WRITE_ZPD(memory::RingBuffer* re
 
   auto fake_sample_count = REXCVAR_GET(::rex::gpu::cvars::query_occlusion_fake_sample_count);
   if (fake_sample_count >= 0) {
-    auto* pSampleCounts = memory_->TranslatePhysical<DepthSampleCounts*>(
+    auto* sample_counts = memory_->TranslatePhysical<DepthSampleCounts*>(
         register_file_->values[std::to_underlying(xenos::Register::RB_SAMPLE_COUNT_ADDR)]);
-    if (!pSampleCounts) {
+    if (!sample_counts) {
       return true;
     }
     // D3D writes 0xFFFFFEED to these locations only on D3DISSUE_END to mark a finished query.
     bool is_end_via_z_pass =
-        pSampleCounts->ZPass_A == kQueryFinished || pSampleCounts->ZPass_B == kQueryFinished;
+        sample_counts->ZPass_A == kQueryFinished || sample_counts->ZPass_B == kQueryFinished;
     // Older D3D versions also check ZFail.
     bool is_end_via_z_fail =
-        pSampleCounts->ZFail_A == kQueryFinished || pSampleCounts->ZFail_B == kQueryFinished;
-    WriteSampleCounts(*pSampleCounts, is_end_via_z_pass || is_end_via_z_fail
+        sample_counts->ZFail_A == kQueryFinished || sample_counts->ZFail_B == kQueryFinished;
+    WriteSampleCounts(*sample_counts, is_end_via_z_pass || is_end_via_z_fail
                                           ? static_cast<u32>(fake_sample_count)
                                           : 0);
   }
@@ -1391,11 +1391,11 @@ bool CommandProcessor::ExecutePacketType3_IM_LOAD_IMMEDIATE(memory::RingBuffer* 
   u32 start = start_size >> 16;
   u32 size_dwords = start_size & 0xFFFF;
   REX_ASSERT(start == 0);
-  REX_ASSERT(reader->read_count() >= size_dwords * 4);
+  REX_ASSERT(reader->GetReadCount() >= size_dwords * 4);
   REX_ASSERT(count - 2 >= size_dwords);
-  auto shader =
-      LoadShader(shader_type, static_cast<u32>(reader->read_ptr()),
-                 reinterpret_cast<u32*>(reader->buffer() + reader->read_offset()), size_dwords);
+  auto shader = LoadShader(shader_type, static_cast<u32>(reader->GetReadPtr()),
+                           reinterpret_cast<u32*>(reader->GetBuffer() + reader->GetReadOffset()),
+                           size_dwords);
   switch (shader_type) {
     case xenos::ShaderType::kVertex:
       active_vertex_shader_ = shader;

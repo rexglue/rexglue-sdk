@@ -38,11 +38,11 @@ Result<InstanceLock> InstanceLock::Acquire(std::string_view name) {
   const std::string path = std::format("{}/rex-{}.lock", directory, name);
   const i32 fd = open(path.c_str(), O_RDWR | O_CREAT | O_CLOEXEC, 0600);
   if (fd < 0) {
-    return Err<InstanceLock>(ErrorCategory::Platform, std::format("cannot open {}", path));
+    return Err<InstanceLock>(ErrorCategory::kPlatform, std::format("cannot open {}", path));
   }
   if (flock(fd, LOCK_EX | LOCK_NB) != 0) {
     close(fd);
-    return Err<InstanceLock>(ErrorCategory::Platform,
+    return Err<InstanceLock>(ErrorCategory::kPlatform,
                              std::format("another instance holds '{}'", name));
   }
   auto handle = std::make_unique<detail::LockHandle>();

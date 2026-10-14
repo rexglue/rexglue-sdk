@@ -64,7 +64,7 @@ class REX_RUNTIME_API WorkspaceHeap : public NonCopyable {
    *
    * @return The size in bytes.
    */
-  [[nodiscard]] u32 size() const;
+  [[nodiscard]] u32 GetSize() const;
 
   /**
    * Allocates zeroed bytes from the workspace.

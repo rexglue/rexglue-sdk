@@ -27,9 +27,9 @@ namespace std::chrono {
 template <>
 struct clock_time_conversion<::rex::WinSystemClock, std::chrono::steady_clock> {
   /** Destination clock. */
-  using WinSystemClock_ = ::rex::WinSystemClock;
+  using WinSystemClock = ::rex::WinSystemClock;
   /** Source clock. */
-  using steady_clock_ = std::chrono::steady_clock;
+  using SteadyClock = std::chrono::steady_clock;
 
   /**
    * @tparam Duration The duration of the source time point.
@@ -37,14 +37,14 @@ struct clock_time_conversion<::rex::WinSystemClock, std::chrono::steady_clock> {
    * @return The same instant on WinSystemClock.
    */
   template <typename Duration>
-  WinSystemClock_::time_point operator()(
-      const std::chrono::time_point<steady_clock_, Duration>& t) const {
+  WinSystemClock::time_point operator()(
+      const std::chrono::time_point<SteadyClock, Duration>& t) const {
     std::atomic_thread_fence(std::memory_order_acq_rel);
-    auto steady_now = steady_clock_::now();
-    auto nt_now = WinSystemClock_::now();
+    auto steady_now = SteadyClock::now();
+    auto nt_now = WinSystemClock::now();
     std::atomic_thread_fence(std::memory_order_acq_rel);
 
-    auto delta = std::chrono::floor<WinSystemClock_::duration>(t - steady_now);
+    auto delta = std::chrono::floor<WinSystemClock::duration>(t - steady_now);
     return nt_now + delta;
   }
 };
@@ -56,9 +56,9 @@ struct clock_time_conversion<::rex::WinSystemClock, std::chrono::steady_clock> {
 template <>
 struct clock_time_conversion<std::chrono::steady_clock, ::rex::WinSystemClock> {
   /** Source clock. */
-  using WinSystemClock_ = ::rex::WinSystemClock;
+  using WinSystemClock = ::rex::WinSystemClock;
   /** Destination clock. */
-  using steady_clock_ = std::chrono::steady_clock;
+  using SteadyClock = std::chrono::steady_clock;
 
   /**
    * @tparam Duration The duration of the source time point.
@@ -66,11 +66,11 @@ struct clock_time_conversion<std::chrono::steady_clock, ::rex::WinSystemClock> {
    * @return The same instant on steady_clock.
    */
   template <typename Duration>
-  steady_clock_::time_point operator()(
-      const std::chrono::time_point<WinSystemClock_, Duration>& t) const {
+  SteadyClock::time_point operator()(
+      const std::chrono::time_point<WinSystemClock, Duration>& t) const {
     std::atomic_thread_fence(std::memory_order_acq_rel);
-    auto steady_now = steady_clock_::now();
-    auto nt_now = WinSystemClock_::now();
+    auto steady_now = SteadyClock::now();
+    auto nt_now = WinSystemClock::now();
     std::atomic_thread_fence(std::memory_order_acq_rel);
 
     auto delta = t - nt_now;

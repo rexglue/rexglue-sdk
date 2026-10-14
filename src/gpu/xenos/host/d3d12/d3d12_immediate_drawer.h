@@ -72,14 +72,14 @@ class D3D12ImmediateDrawer final : public ImmediateDrawer {
                           size_t immediate_drawer_index);
     ~D3D12ImmediateTexture() override;
 
-    ID3D12Resource* resource() const { return resource_.Get(); }
-    SamplerIndex sampler_index() const { return sampler_index_; }
+    ID3D12Resource* GetResource() const { return resource_.Get(); }
+    SamplerIndex GetSamplerIndex() const { return sampler_index_; }
 
-    size_t immediate_drawer_index() const { return immediate_drawer_index_; }
+    size_t GetImmediateDrawerIndex() const { return immediate_drawer_index_; }
     void SetImmediateDrawerIndex(size_t index) { immediate_drawer_index_ = index; }
     void OnImmediateDrawerDestroyed();
 
-    UINT64 last_usage_submission_index() const { return last_usage_submission_index_; }
+    UINT64 GetLastUsageSubmissionIndex() const { return last_usage_submission_index_; }
     void SetLastUsageSubmissionIndex(UINT64 submission_index) {
       last_usage_submission_index_ = submission_index;
     }

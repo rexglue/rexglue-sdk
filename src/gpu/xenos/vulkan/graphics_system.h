@@ -25,7 +25,7 @@ class VulkanGraphicsSystem : public GraphicsSystem {
 
   static bool IsAvailable() { return true; }
 
-  std::string name() const override;
+  std::string GetName() const override;
 
  protected:
   void CreateProvider(bool with_presentation) override;

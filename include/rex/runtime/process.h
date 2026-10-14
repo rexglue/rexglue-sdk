@@ -16,9 +16,9 @@
 namespace rex::runtime {
 
 /** Process types KeGetCurrentProcessType reports. */
-constexpr u32 X_PROCTYPE_IDLE = 0;
-constexpr u32 X_PROCTYPE_USER = 1;
-constexpr u32 X_PROCTYPE_SYSTEM = 2;
+constexpr u32 kXProcTypeIdle = 0;
+constexpr u32 kXProcTypeUser = 1;
+constexpr u32 kXProcTypeSystem = 2;
 
 /** The guest KPROCESS block. */
 struct X_KPROCESS {
@@ -29,8 +29,8 @@ struct X_KPROCESS {
   be_u32 thread_count;              /**< 0x14 */
   u8 unk_18;                        /**< 0x18 */
   u8 unk_19;                        /**< 0x19 */
-  u8 unk_1A;                        /**< 0x1A */
-  u8 unk_1B;                        /**< 0x1B */
+  u8 unk_1a;                        /**< 0x1A */
+  u8 unk_1b;                        /**< 0x1B */
   be_u32 kernel_stack_size;         /**< 0x1C */
   be_u32 tls_static_data_address;   /**< 0x20 */
   be_u32 tls_data_size;             /**< 0x24 */
@@ -41,7 +41,7 @@ struct X_KPROCESS {
   be_u32 tls_slot_bitmap[8];        /**< 0x30 */
   be_u32 unk_50;                    /**< 0x50 */
   X_LIST_ENTRY unk_54;              /**< 0x54 */
-  be_u32 unk_5C;                    /**< 0x5C */
+  be_u32 unk_5c;                    /**< 0x5C */
 };
 REX_STATIC_ASSERT_SIZE(X_KPROCESS, 0x60);
 
@@ -78,11 +78,11 @@ struct KernelGuestGlobals {
   X_OBJECT_TYPE ObSymbolicLinkObjectType;
   /** Object whose list head points at itself, set up once and read by no host code. */
   X_UNKNOWN_TYPE_REFED OddObj;
-  /** Process block of type X_PROCTYPE_IDLE with the quantum set to 0x7F. */
+  /** Process block of type kXProcTypeIdle with the quantum set to 0x7F. */
   X_KPROCESS idle_process;
-  /** Process block of type X_PROCTYPE_USER, holds the TLS layout of the title. */
+  /** Process block of type kXProcTypeUser, holds the TLS layout of the title. */
   X_KPROCESS title_process;
-  X_KPROCESS system_process;   /**< Process block of type X_PROCTYPE_SYSTEM with 32 TLS slots. */
+  X_KPROCESS system_process;   /**< Process block of type kXProcTypeSystem with 32 TLS slots. */
   X_KSPINLOCK dispatcher_lock; /**< Zeroed at setup. No code reads it. */
   X_KSPINLOCK ob_lock;         /**< Zeroed at setup. No code reads it. */
   X_KSPINLOCK tls_lock;        /**< Guards the TLS slot bitmap of each process. */

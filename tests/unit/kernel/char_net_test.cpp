@@ -297,9 +297,9 @@ REX_TEST_CASE("net: closesocket keeps the native socket open while a call holds 
     REQUIRE(c.XAM("NetDll_WSAStartup", {0, 0x0202, c.Alloc(0x200)}) == 0);
     const u32 datagram = c.XAM("NetDll_socket", {0, 2, 2, 17});
     REQUIRE(datagram != kSocketError);
-    auto pinned = c.runtime().object_table().Get<rex::runtime::SocketObject>(datagram);
+    auto pinned = c.GetRuntime().GetObjectTable().Get<rex::runtime::SocketObject>(datagram);
     REQUIRE(pinned);
-    const rex::platform::SocketHandle native = pinned->socket.handle();
+    const rex::platform::SocketHandle native = pinned->socket.GetHandle();
     REQUIRE(NativeOpen(native));
     CHECK(c.XAM("NetDll_closesocket", {0, datagram}) == 0);
     CHECK(NativeOpen(native));
@@ -659,9 +659,9 @@ REX_TEST_CASE("net: select takes a socket whose host descriptor is above 1023",
     REQUIRE(c.XAM("NetDll_WSAStartup", {0, 0x0202, c.Alloc(0x200)}) == 0);
     const u32 datagram = c.XAM("NetDll_socket", {0, 2, 2, 17});
     REQUIRE(datagram != kSocketError);
-    auto pinned = c.runtime().object_table().Get<rex::runtime::SocketObject>(datagram);
+    auto pinned = c.GetRuntime().GetObjectTable().Get<rex::runtime::SocketObject>(datagram);
     REQUIRE(pinned);
-    CHECK(pinned->socket.handle() >= 1024);
+    CHECK(pinned->socket.GetHandle() >= 1024);
     pinned = {};
     const u32 set = SocketSet(c, {datagram});
     CHECK(c.XAM("NetDll_select", {0, 0, 0, set, 0, Timeval(c, 0, 0)}) == 1);
@@ -1071,8 +1071,8 @@ REX_TEST_CASE("net: title termination ends a pending WSARecvFrom before it retur
     overlapped = r.overlapped;
   });
   REQUIRE(overlapped != 0);
-  fixture.runtime().TerminateTitle();
-  auto* internal = fixture.runtime().memory()->TranslateVirtual<rex::be_u32*>(overlapped);
+  fixture.GetRuntime().TerminateTitle();
+  auto* internal = fixture.GetRuntime().GetMemory()->TranslateVirtual<rex::be_u32*>(overlapped);
   CHECK(*internal == kWSAECANCELLED);
 }
 

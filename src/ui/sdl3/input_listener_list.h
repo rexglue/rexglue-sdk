@@ -107,7 +107,7 @@ class InputListenerList {
    *
    * @return True while a propagation is running.
    */
-  bool propagating() const { return innermost_ != nullptr; }
+  bool GetPropagating() const { return innermost_ != nullptr; }
 
  private:
   using Map = std::multimap<size_t, WindowInputListener*, std::greater<>>;

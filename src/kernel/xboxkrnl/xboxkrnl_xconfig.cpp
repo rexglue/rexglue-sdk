@@ -73,7 +73,8 @@ X_STATUS ExGetXConfigSetting(u16 category, u16 setting, void* buffer, u16 buffer
           break;
         case 0x0009:
           setting_size = 4;
-          memory::store<be_u32>(value, runtime::Current().config().runtime.kernel.user_language);
+          memory::store<be_u32>(value,
+                                runtime::GetCurrent().GetConfig().runtime.kernel.user_language);
           break;
         case 0x000A:
           setting_size = 4;
@@ -89,7 +90,7 @@ X_STATUS ExGetXConfigSetting(u16 category, u16 setting, void* buffer, u16 buffer
           break;
         case 0x000E:
           setting_size = 1;
-          value[0] = static_cast<u8>(runtime::Current().config().runtime.kernel.user_country);
+          value[0] = static_cast<u8>(runtime::GetCurrent().GetConfig().runtime.kernel.user_country);
           break;
         case 0x0019:
           setting_size = 1;
@@ -123,8 +124,8 @@ X_STATUS ExGetXConfigSetting(u16 category, u16 setting, void* buffer, u16 buffer
   return X_STATUS_SUCCESS;
 }
 
-u32 ExGetXConfigSetting_entry(u16 category, u16 setting, mapped_void buffer_ptr, u16 buffer_size,
-                              mapped_u16 required_size_ptr) {
+u32 ExGetXConfigSetting_entry(u16 category, u16 setting, MappedVoid buffer_ptr, u16 buffer_size,
+                              MappedU16 required_size_ptr) {
   u16 required_size = 0;
   X_STATUS result = ExGetXConfigSetting(category, setting, buffer_ptr, buffer_size, &required_size);
 

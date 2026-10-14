@@ -68,7 +68,7 @@ REX_TEST_CASE("A manifest module reads its guest path", "[codegen]") {
   REQUIRE(manifest);
   const auto modules = ModulesOf(manifest);
   REQUIRE(modules.size() == 1);
-  REQUIRE(modules[0].guestPath == "game/a.xex");
+  REQUIRE(modules[0].guest_path == "game/a.xex");
 }
 
 REX_TEST_CASE("The init manifest writes each module's guest path", "[codegen]") {
@@ -84,7 +84,7 @@ REX_TEST_CASE("The init manifest writes each module's guest path", "[codegen]") 
       {"modules", nlohmann::json::array({ModuleData()})},
   };
   rex::codegen::TemplateRegistry registry;
-  const auto text = registry.render("init/manifest_toml", data.dump());
+  const auto text = registry.Render("init/manifest_toml", data.dump());
   REQUIRE(text.find("guest_path = \"game/a.xex\"") != std::string::npos);
 }
 
@@ -94,9 +94,9 @@ REX_TEST_CASE("An init module entry renders from an override directory", "[codeg
   rex::test::WriteText(folder.path / "init" / "manifest_module.inja",
                        "override {{ m.guest_path }}\n");
   rex::codegen::TemplateRegistry registry;
-  registry.loadOverrides(folder.path);
+  registry.LoadOverrides(folder.path);
   const nlohmann::json data = {{"m", ModuleData()}};
-  REQUIRE(registry.render("init/manifest_module", data.dump()) == "override game/a.xex\n");
+  REQUIRE(registry.Render("init/manifest_module", data.dump()) == "override game/a.xex\n");
 }
 
 REX_TEST_CASE("An init module entry loads back with its guest path", "[codegen]") {
@@ -104,9 +104,9 @@ REX_TEST_CASE("An init module entry loads back with its guest path", "[codegen]"
   rex::codegen::TemplateRegistry registry;
   const nlohmann::json data = {{"m", ModuleData()}};
   const auto manifest = rex::codegen::ManifestConfig::Load(
-      WriteProject(folder, registry.render("init/manifest_module", data.dump())));
+      WriteProject(folder, registry.Render("init/manifest_module", data.dump())));
   REQUIRE(manifest);
   const auto modules = ModulesOf(manifest);
   REQUIRE(modules.size() == 1);
-  REQUIRE(modules[0].guestPath == "game/a.xex");
+  REQUIRE(modules[0].guest_path == "game/a.xex");
 }

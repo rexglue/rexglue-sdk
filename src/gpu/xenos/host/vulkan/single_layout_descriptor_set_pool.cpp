@@ -36,8 +36,8 @@ SingleLayoutDescriptorSetPool::SingleLayoutDescriptorSetPool(
 }
 
 SingleLayoutDescriptorSetPool::~SingleLayoutDescriptorSetPool() {
-  const VulkanDevice::Functions& dfn = vulkan_device_->functions();
-  const VkDevice device = vulkan_device_->device();
+  const VulkanDevice::Functions& dfn = vulkan_device_->GetFunctions();
+  const VkDevice device = vulkan_device_->GetDevice();
   if (current_pool_ != VK_NULL_HANDLE) {
     dfn.vkDestroyDescriptorPool(device, current_pool_, nullptr);
   }
@@ -57,8 +57,8 @@ size_t SingleLayoutDescriptorSetPool::Allocate() {
   next_free_.reserve(descriptor_sets_.size() + 1);
   full_pools_.reserve(full_pools_.size() + 1);
 
-  const VulkanDevice::Functions& dfn = vulkan_device_->functions();
-  const VkDevice device = vulkan_device_->device();
+  const VulkanDevice::Functions& dfn = vulkan_device_->GetFunctions();
+  const VkDevice device = vulkan_device_->GetDevice();
 
   // 2 attempts so a failure with sets remaining retries in a new pool.
   for (u32 i = 0; i < 2; ++i) {

@@ -90,13 +90,13 @@ static_assert(rex::X_E_INVALIDARG == 0x80070057u);
 static_assert(rex::X_E_DEVICE_NOT_CONNECTED == 0x8007048Fu);
 static_assert(rex::X_E_NOTFOUND == 0x80070490u);
 static_assert(rex::X_E_NO_SUCH_USER == 0x80070525u);
-static_assert(rex::X_INVALID_HANDLE_VALUE == 0xFFFFFFFFu);
-static_assert(rex::X_INVALID_SOCKET == 0xFFFFFFFFu);
-static_assert(rex::X_SOCKET_ERROR == 0xFFFFFFFFu);
-static_assert(rex::X_HRESULT_FROM_WIN32(0) == 0u);
-static_assert(rex::X_HRESULT_FROM_WIN32(0x80070057u) == 0x80070057u);
-static_assert(rex::X_HRESULT_FROM_WIN32(0x00000057u) == 0x80070057u);
-static_assert(rex::X_RESULT_FROM_WIN32(0x00000490u) == 0x00000490u);
+static_assert(rex::kXInvalidHandleValue == 0xFFFFFFFFu);
+static_assert(rex::kXInvalidSocket == 0xFFFFFFFFu);
+static_assert(rex::kXSocketError == 0xFFFFFFFFu);
+static_assert(rex::XHResultFromWin32(0) == 0u);
+static_assert(rex::XHResultFromWin32(0x80070057u) == 0x80070057u);
+static_assert(rex::XHResultFromWin32(0x00000057u) == 0x80070057u);
+static_assert(rex::XResultFromWin32(0x00000490u) == 0x00000490u);
 
 REX_TEST_CASE("XSUCCEEDED accepts codes whose top 2 bits are clear", "[runtime][xtypes]") {
   CHECK(rex::XSUCCEEDED(rex::X_STATUS_SUCCESS));

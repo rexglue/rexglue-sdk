@@ -58,7 +58,7 @@ void TestStart(PPCContext& ctx, u8* base) {
     body = std::move(it->second);
     Bodies().erase(it);
   }
-  Caller caller(ctx, base, runtime::Current());
+  Caller caller(ctx, base, runtime::GetCurrent());
   body(caller);
   ctx.r3.u64 = 0;
 }
@@ -129,40 +129,40 @@ u32 Caller::Call(runtime::ExportModule module, std::string_view name,
 }
 
 u32 Caller::Kernel(std::string_view name, std::initializer_list<u64> args) {
-  return Call(runtime::ExportModule::Xboxkrnl, name, args);
+  return Call(runtime::ExportModule::kXboxkrnl, name, args);
 }
 
 u32 Caller::XAM(std::string_view name, std::initializer_list<u64> args) {
-  return Call(runtime::ExportModule::XAM, name, args);
+  return Call(runtime::ExportModule::kXAM, name, args);
 }
 
 u32 Caller::Alloc(u32 size) {
-  auto* memory = runtime_.memory();
+  auto* memory = runtime_.GetMemory();
   const u32 address = memory->SystemHeapAlloc(size);
   std::memset(memory->TranslateVirtual(address), 0, size);
   return address;
 }
 
 u32 Caller::Load32(u32 address) const {
-  return *runtime_.memory()->TranslateVirtual<const be_u32*>(address);
+  return *runtime_.GetMemory()->TranslateVirtual<const be_u32*>(address);
 }
 
 u8 Caller::Load8(u32 address) const {
-  return *runtime_.memory()->TranslateVirtual<u8*>(address);
+  return *runtime_.GetMemory()->TranslateVirtual<u8*>(address);
 }
 
 void Caller::Store32(u32 address, u32 value) {
-  *runtime_.memory()->TranslateVirtual<be_u32*>(address) = value;
+  *runtime_.GetMemory()->TranslateVirtual<be_u32*>(address) = value;
 }
 
 u32 Caller::String(std::string_view text) {
   const u32 address = Alloc(static_cast<u32>(text.size()) + 1);
-  std::memcpy(runtime_.memory()->TranslateVirtual(address), text.data(), text.size());
+  std::memcpy(runtime_.GetMemory()->TranslateVirtual(address), text.data(), text.size());
   return address;
 }
 
 void Caller::Store64(u32 address, u64 value) {
-  *runtime_.memory()->TranslateVirtual<be_u64*>(address) = value;
+  *runtime_.GetMemory()->TranslateVirtual<be_u64*>(address) = value;
 }
 
 u32 Caller::Quad(i64 value) {
@@ -197,12 +197,12 @@ u32 Caller::Spawn(std::function<void(Caller&)> body, u32 creation_flags) {
   return Load32(handle_ptr);
 }
 
-KernelFixture::ThreadDrain::ThreadDrain() : baseline(platform::detail::ThreadCount()) {}
+KernelFixture::ThreadDrain::ThreadDrain() : baseline(platform::detail::GetThreadCount()) {}
 
 KernelFixture::ThreadDrain::~ThreadDrain() {
   platform::detail::ShutdownTimerQueue();
   const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(10);
-  while (platform::detail::ThreadCount() > baseline &&
+  while (platform::detail::GetThreadCount() > baseline &&
          std::chrono::steady_clock::now() < deadline) {
     std::this_thread::sleep_for(std::chrono::milliseconds(1));
   }
@@ -222,12 +222,12 @@ KernelFixture::TempRoot::~TempRoot() {
 KernelFixture::KernelFixture(const std::function<void(const std::filesystem::path&)>& populate,
                              std::span<const std::string> modules, ui::IUserInterface* ui)
     : tool_((ReleaseTestMemory(), BuildTool(root_.path, populate, modules, ui))) {
-  auto* dispatcher = runtime().function_dispatcher();
+  auto* dispatcher = GetRuntime().GetFunctionDispatcher();
   REQUIRE(dispatcher->InitializeFunctionTable(kCodeBase, kCodeSize, kCodeBase, kImageSize,
                                               /*is_entrypoint=*/true));
   Caller::start_thunk = dispatcher->AllocateThunk(&TestStart, 0);
   REQUIRE(Caller::start_thunk != 0);
-  static_cast<runtime::Dispatcher&>(runtime().dispatcher()).Start();
+  static_cast<runtime::Dispatcher&>(GetRuntime().GetDispatcher()).Start();
 }
 
 KernelFixture::~KernelFixture() {
@@ -242,12 +242,12 @@ void KernelFixture::RunOnGuestThread(const std::function<void(Caller&)>& body) {
   auto done = std::make_shared<std::promise<void>>();
   auto finished = done->get_future();
 
-  runtime::ThreadState host_state(0, 0, 0, runtime().memory(), &runtime());
+  runtime::ThreadState host_state(0, 0, 0, GetRuntime().GetMemory(), &GetRuntime());
   runtime::ThreadState* previous = runtime::ThreadState::Get();
   runtime::ThreadState::Bind(&host_state);
 
-  u8* base = runtime().memory()->virtual_membase();
-  Caller main_caller(*host_state.context(), base, runtime());
+  u8* base = GetRuntime().GetMemory()->GetVirtualMembase();
+  Caller main_caller(*host_state.GetContext(), base, GetRuntime());
   const u32 handle = main_caller.Spawn([body, done](Caller& caller) {
     body(caller);
     done->set_value();

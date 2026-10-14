@@ -43,7 +43,7 @@ class ContentPackage {
 
   const XCONTENT_AGGREGATE_DATA& GetPackageContentData() const { return content_data_; }
 
-  const std::filesystem::path& package_path() const { return package_path_; }
+  const std::filesystem::path& GetPackagePath() const { return package_path_; }
 
   u32 GetPackageLicense() const { return license_; }
 
@@ -62,7 +62,7 @@ class ContentManager final : public IContentManager {
   /**
    * @param runtime The runtime whose file system and table packages use.
    * @param root_path The user data root, empty for none.
-   * @param app_manager The Xam app manager.
+   * @param app_manager The XAM app manager.
    * @param user_profile The signed in profile.
    */
   ContentManager(Runtime& runtime, const std::filesystem::path& root_path,
@@ -94,15 +94,15 @@ class ContentManager final : public IContentManager {
   void CloseOpenedFilesFromContent(std::string_view root_name) override;
   [[nodiscard]] Result<runtime::XCONTENT_AGGREGATE_DATA> InstallContent(
       const std::filesystem::path& package_path) override;
-  u32 title_id() const override;
-  runtime::XDBFGameData title_xdbf() const override;
-  runtime::UserProfile& user_profile() override { return user_profile_; }
-  runtime::AppManager& app_manager() override { return app_manager_; }
+  u32 GetTitleId() const override;
+  runtime::XDBFGameData GetTitleXDBF() const override;
+  runtime::UserProfile& GetUserProfile() override { return user_profile_; }
+  runtime::AppManager& GetAppManager() override { return app_manager_; }
 
  private:
   std::unique_ptr<runtime::ContentPackage> ResolvePackage(
       const std::string_view root_name, u64 xuid, const runtime::XCONTENT_AGGREGATE_DATA& data);
-  runtime::XDBFGameData module_xdbf(const ModuleObject& exec_module) const;
+  runtime::XDBFGameData GetModuleXDBF(const ModuleObject& exec_module) const;
   std::filesystem::path ResolvePackageRoot(u64 xuid, XContentType content_type,
                                            u32 title_id = 0xFFFFFFFF);
   std::filesystem::path ResolvePackagePath(u64 xuid, const runtime::XCONTENT_AGGREGATE_DATA& data);
@@ -122,9 +122,8 @@ class ContentManager final : public IContentManager {
   runtime::AppManager& app_manager_;
   runtime::UserProfile& user_profile_;
 
-  rex::platform::RankedMutex mutex_{rex::platform::LockRank::Leaf};
-  std::unordered_map<string_key_case, std::unique_ptr<runtime::ContentPackage>,
-                     string_key_case::Hash>
+  rex::platform::RankedMutex mutex_{rex::platform::LockRank::kLeaf};
+  std::unordered_map<StringKeyCase, std::unique_ptr<runtime::ContentPackage>, StringKeyCase::Hash>
       open_packages_;
 };
 

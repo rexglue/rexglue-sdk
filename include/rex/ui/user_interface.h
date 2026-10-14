@@ -42,22 +42,22 @@ class ImGuiDialog;
 
 /** Cursor visibility over a window. */
 enum class CursorVisibility : u8 {
-  Visible,    /**< Always shown. */
-  AutoHidden, /**< Shown while the mouse moves, hidden after the auto hide delay. */
-  Hidden,     /**< Always hidden. */
+  kVisible,    /**< Always shown. */
+  kAutoHidden, /**< Shown while the mouse moves, hidden after the auto hide delay. */
+  kHidden,     /**< Always hidden. */
 };
 
 /** Severity of a message box. */
 enum class MessageKind : u8 {
-  Info,    /**< Information. */
-  Warning, /**< A recoverable problem. */
-  Error,   /**< A failure. */
+  kInfo,    /**< Information. */
+  kWarning, /**< A recoverable problem. */
+  kError,   /**< A failure. */
 };
 
 /** A modal choice shown in a native box. */
 struct ChoiceDesc {
   /** Severity, which picks the box icon. */
-  MessageKind kind = MessageKind::Error;
+  MessageKind kind = MessageKind::kError;
   /** Box title. */
   std::string title;
   /** Box text. */
@@ -108,13 +108,13 @@ struct FileFilter {
 struct FileDialogDesc {
   /** What the dialog selects. */
   enum class Mode : u8 {
-    OpenFile,   /**< 1 existing file. */
-    OpenFiles,  /**< Any number of existing files. */
-    OpenFolder, /**< 1 folder. */
-    SaveFile,   /**< 1 file that may not exist. */
+    kOpenFile,   /**< 1 existing file. */
+    kOpenFiles,  /**< Any number of existing files. */
+    kOpenFolder, /**< 1 folder. */
+    kSaveFile,   /**< 1 file that may not exist. */
   };
   /** What the dialog selects. */
-  Mode mode = Mode::OpenFile;
+  Mode mode = Mode::kOpenFile;
   /** Dialog title. */
   std::string title;
   /** File type filters. Empty accepts every file. */
@@ -155,14 +155,14 @@ struct HostLocale {
 struct NativeWindow {
   /** Which platform the handles belong to. */
   enum class Kind : u8 {
-    None,    /**< No native window. */
-    Win32,   /**< window is an HWND. */
-    Cocoa,   /**< window is an NSWindow pointer and layer a CAMetalLayer pointer. */
-    Wayland, /**< window is a wl_surface pointer and display a wl_display pointer. */
-    X11,     /**< window is an X11 Window id stored as an integer and display a Display pointer. */
+    kNone,    /**< No native window. */
+    kWin32,   /**< window is an HWND. */
+    kCocoa,   /**< window is an NSWindow pointer and layer a CAMetalLayer pointer. */
+    kWayland, /**< window is a wl_surface pointer and display a wl_display pointer. */
+    kX11,     /**< window is an X11 Window id stored as an integer and display a Display pointer. */
   };
   /** Which platform the handles belong to. */
-  Kind kind = Kind::None;
+  Kind kind = Kind::kNone;
   /** The window handle. */
   void* window = nullptr;
   /** The display connection. Null on Win32 and Cocoa. */
@@ -237,7 +237,7 @@ class IWindow {
    *
    * @return True when the window is fullscreen.
    */
-  virtual bool Fullscreen() const = 0;
+  virtual bool IsFullscreen() const = 0;
 
   /**
    * Moves the window to a display. Runs on the UI thread.
@@ -268,36 +268,36 @@ class IWindow {
    *
    * @return The width, or 0 while the window has no actual state.
    */
-  virtual u32 Width() const = 0;
+  virtual u32 GetWidth() const = 0;
 
   /**
    * Returns the height of the drawable area in physical pixels. Runs on the UI thread.
    *
    * @return The height, or 0 while the window has no actual state.
    */
-  virtual u32 Height() const = 0;
+  virtual u32 GetHeight() const = 0;
 
   /**
    * Reports whether the window has input focus. Runs on the UI thread.
    *
    * @return True when the window has focus.
    */
-  virtual bool Focused() const = 0;
+  virtual bool IsFocused() const = 0;
 
   /**
    * Returns the platform handles. Runs on the UI thread. On Cocoa the first call creates the
    * metal layer, which the window destroys when it closes.
    *
-   * @return The handles, with Kind::None when there is no native window.
+   * @return The handles, with Kind::kNone when there is no native window.
    */
-  virtual NativeWindow Native() = 0;
+  virtual NativeWindow GetNative() = 0;
 
   /**
    * Returns the side a presenter attaches to. Runs on the UI thread.
    *
    * @return The presentation host of this window.
    */
-  virtual gpu::IPresentationHost& Presentation() = 0;
+  virtual gpu::IPresentationHost& GetPresentation() = 0;
 };
 
 /** The ui service, served as rex.ui by a ui module. */
@@ -368,7 +368,7 @@ class IUserInterface {
    *
    * @return The atlas, or nullptr on a provider that runs no ImGui code.
    */
-  virtual ImFontAtlas* Fonts() = 0;
+  virtual ImFontAtlas* GetFonts() = 0;
 
   /**
    * Returns the ImGui style. Runs on the UI thread.
@@ -396,7 +396,7 @@ class IUserInterface {
    * thread.
    *
    * @param table Entries built with REX_OVERLAY.
-   * @return Ok, or ErrorCategory::Config naming the first entry whose name is already used.
+   * @return Ok, or ErrorCategory::kConfig naming the first entry whose name is already used.
    */
   [[nodiscard]] virtual Result<void> AddOverlays(std::span<const OverlayDesc> table) = 0;
 
@@ -429,7 +429,7 @@ class IUserInterface {
    *
    * @return True when at least 1 overlay is shown.
    */
-  virtual bool AnyOverlayVisible() const = 0;
+  virtual bool IsAnyOverlayVisible() const = 0;
 
   /**
    * Draws a dialog the caller owns. The caller keeps it alive until RemoveDialog. Runs on the UI
@@ -479,7 +479,7 @@ class IUserInterface {
    *
    * @return The drawer, or nullptr when none was set.
    */
-  virtual gpu::IOverlayDrawer* OverlayDrawer() = 0;
+  virtual gpu::IOverlayDrawer* GetOverlayDrawer() = 0;
 
   /**
    * Sets the frame time source of the debug overlay. Runs on the UI thread.
@@ -546,14 +546,14 @@ class IUserInterface {
    *
    * @return The displays, empty when the provider has none.
    */
-  virtual std::vector<DisplayInfo> Displays() = 0;
+  virtual std::vector<DisplayInfo> GetDisplays() = 0;
 
   /**
    * Lists the preferred locales of the user, most preferred first. Callable from any thread.
    *
    * @return The locales, empty when the provider has none.
    */
-  virtual std::vector<HostLocale> PreferredLocales() = 0;
+  virtual std::vector<HostLocale> GetPreferredLocales() = 0;
 };
 
 }  // namespace rex::ui

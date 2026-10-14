@@ -59,8 +59,8 @@ class TextureCache : public rex::NonCopyable {
    * @return True when neither axis was clamped.
    */
   static bool GetConfigDrawResolutionScale(u32& x_out, u32& y_out);
-  u32 draw_resolution_scale_x() const { return draw_resolution_scale_x_; }
-  u32 draw_resolution_scale_y() const { return draw_resolution_scale_y_; }
+  u32 GetDrawResolutionScaleX() const { return draw_resolution_scale_x_; }
+  u32 GetDrawResolutionScaleY() const { return draw_resolution_scale_y_; }
   bool IsDrawResolutionScaled() const {
     return draw_resolution_scale_x_ > 1 || draw_resolution_scale_y_ > 1;
   }
@@ -119,8 +119,8 @@ class TextureCache : public rex::NonCopyable {
     if (!binding) {
       return false;
     }
-    return (binding->texture && binding->texture->key().scaled_resolve) ||
-           (binding->texture_signed && binding->texture_signed->key().scaled_resolve);
+    return (binding->texture && binding->texture->GetKey().scaled_resolve) ||
+           (binding->texture_signed && binding->texture_signed->GetKey().scaled_resolve);
   }
 
  protected:
@@ -179,30 +179,30 @@ class TextureCache : public rex::NonCopyable {
    public:
     virtual ~Texture();
 
-    TextureCache& texture_cache() const { return texture_cache_; }
+    TextureCache& GetTextureCache() const { return texture_cache_; }
 
-    const TextureKey& key() const { return key_; }
+    const TextureKey& GetKey() const { return key_; }
 
-    const xenos::TextureGuestLayout& guest_layout() const { return guest_layout_; }
-    u32 GetGuestBaseSize() const { return guest_layout().base.level_data_extent_bytes; }
-    u32 GetGuestMipsSize() const { return guest_layout().mips_total_extent_bytes; }
+    const xenos::TextureGuestLayout& GetGuestLayout() const { return guest_layout_; }
+    u32 GetGuestBaseSize() const { return GetGuestLayout().base.level_data_extent_bytes; }
+    u32 GetGuestMipsSize() const { return GetGuestLayout().mips_total_extent_bytes; }
 
     /** Reports whether guest memory is tiled as 3D although the host texture is 2D (3D as 2D
      * wrappers). */
-    bool force_load_3d_tiling() const { return force_load_3d_tiling_; }
+    bool GetForceLoad3dTiling() const { return force_load_3d_tiling_; }
     void SetForceLoad3DTiling(bool force) { force_load_3d_tiling_ = force; }
 
-    u64 last_usage_submission_index() const { return last_usage_submission_index_; }
-    u64 last_usage_time() const { return last_usage_time_; }
+    u64 GetLastUsageSubmissionIndex() const { return last_usage_submission_index_; }
+    u64 GetLastUsageTime() const { return last_usage_time_; }
     static constexpr u32 kOutdatedBitBase = UINT32_C(1) << 0;
     static constexpr u32 kOutdatedBitMips = UINT32_C(1) << 1;
-    u32 outdated_mask() const { return outdated_mask_.load(std::memory_order_acquire); }
+    u32 GetOutdatedMask() const { return outdated_mask_.load(std::memory_order_acquire); }
 
-    bool base_outdated(
+    bool GetBaseOutdated(
         [[maybe_unused]] const std::unique_lock<rex::platform::RankedMutex>& watch_lock) const {
       return base_outdated_;
     }
-    bool mips_outdated(
+    bool GetMipsOutdated(
         [[maybe_unused]] const std::unique_lock<rex::platform::RankedMutex>& watch_lock) const {
       return mips_outdated_;
     }
@@ -398,8 +398,8 @@ class TextureCache : public rex::NonCopyable {
   explicit TextureCache(const xenos::RegisterFile& register_file, SharedMemory& shared_memory,
                         u32 draw_resolution_scale_x, u32 draw_resolution_scale_y);
 
-  const xenos::RegisterFile& register_file() const { return register_file_; }
-  SharedMemory& shared_memory() const { return shared_memory_; }
+  const xenos::RegisterFile& GetRegisterFile() const { return register_file_; }
+  SharedMemory& GetSharedMemory() const { return shared_memory_; }
 
   /**
    * Destroys all textures. Implementations call this from their destructor when textures reference
@@ -456,7 +456,7 @@ class TextureCache : public rex::NonCopyable {
 
   static const LoadShaderInfo& GetLoadShaderInfo(LoadShaderIndex load_shader_index) {
     REX_ASSERT(load_shader_index < kLoadShaderCount);
-    return load_shader_info_[load_shader_index];
+    return kLoadShaderInfo[load_shader_index];
   }
   bool LoadTextureData(Texture& texture);
   /**
@@ -544,7 +544,7 @@ class TextureCache : public rex::NonCopyable {
   u32 draw_resolution_scale_x_;
   u32 draw_resolution_scale_y_;
 
-  static const LoadShaderInfo load_shader_info_[kLoadShaderCount];
+  static const LoadShaderInfo kLoadShaderInfo[kLoadShaderCount];
 
   std::unique_ptr<u32[]>
       /**

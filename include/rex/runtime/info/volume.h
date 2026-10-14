@@ -27,8 +27,8 @@ enum X_FILE_FS_INFORMATION_CLASS : u8 {
 /** Device type reported for a volume. */
 // NOLINTNEXTLINE(performance-enum-size): guest memory field width
 enum X_FILE_DEVICE_TYPE : u32 {
-  FILE_DEVICE_UNKNOWN = 0x00000022, /**< Device type the volume device query reports. */
-  FILE_DEVICE_EHSTOR = 0x00000046,  /**< Device type 0x46. No code uses it. */
+  kFileDeviceUnknown = 0x00000022, /**< Device type the volume device query reports. */
+  kFileDeviceEHSTOR = 0x00000046,  /**< Device type 0x46. No code uses it. */
 };
 
 #pragma pack(push, 1)
@@ -65,7 +65,7 @@ REX_STATIC_ASSERT_SIZE(X_FILE_FS_ATTRIBUTE_INFORMATION, 16);
 
 /** Device type and characteristics of a volume. */
 struct X_FILE_FS_DEVICE_INFORMATION {
-  be<X_FILE_DEVICE_TYPE> device_type;
+  BE<X_FILE_DEVICE_TYPE> device_type;
   be_u32 characteristics;
 };
 REX_STATIC_ASSERT_SIZE(X_FILE_FS_DEVICE_INFORMATION, 8);

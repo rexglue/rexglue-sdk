@@ -1,6 +1,6 @@
 /**
  * @file        tests/unit/kernel/char_workspace_test.cpp
- * @brief       Title workspace and the Xam allocations it serves
+ * @brief       Title workspace and the XAM allocations it serves
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -61,19 +61,19 @@ REX_TEST_CASE(
     "[char][workspace]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    auto& memory = *c.runtime().memory();
-    CHECK(c.runtime().workspace().size() == 0x60000);
-    const u32 used = memory.title_pages();
+    auto& memory = *c.GetRuntime().GetMemory();
+    CHECK(c.GetRuntime().GetWorkspace().GetSize() == 0x60000);
+    const u32 used = memory.GetTitlePages();
     {
       auto second = WorkspaceHeap::Create(memory, 0x40000);
       CHECKED_ELSE(second) {
         FAIL_CHECK("the check above failed");
         return;
       }
-      CHECK((*second)->size() == 0x40000);
-      CHECK(memory.title_pages() == used + 64);
+      CHECK((*second)->GetSize() == 0x40000);
+      CHECK(memory.GetTitlePages() == used + 64);
     }
-    CHECK(memory.title_pages() == used);
+    CHECK(memory.GetTitlePages() == used);
   });
 }
 
@@ -148,7 +148,7 @@ REX_TEST_CASE("An enumerator on a full workspace returns 8", "[char][workspace]"
     }
     const u32 object = c.Load32(address);
     c.Kernel("ObDereferenceObject", {object});
-    CHECK(object >= c.runtime().memory()->LookupHeapByType(false, 4096)->heap_base());
+    CHECK(object >= c.GetRuntime().GetMemory()->LookupHeapByType(false, 4096)->GetHeapBase());
     CHECK(c.Kernel("NtClose", {handle}) == 0);
     const std::vector<u32> again = Fill(c, 0x1000);
     CHECK(again.size() >= 16);

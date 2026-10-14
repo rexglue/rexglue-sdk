@@ -18,15 +18,15 @@ REXCVAR_BOOL(hid, guide_button, false, "Enable guide button pass-through");
 REXCVAR_BOOL(hid, vibration, true, "Enable controller vibration");
 REXCVAR_DOUBLE(hid, left_stick_deadzone, 0.0,
                "Deadzone applied to the left stick, as a fraction of its range")
-    .range(0.0, 1.0);
+    .SetRange(0.0, 1.0);
 REXCVAR_DOUBLE(hid, right_stick_deadzone, 0.0,
                "Deadzone applied to the right stick, as a fraction of its range")
-    .range(0.0, 1.0);
+    .SetRange(0.0, 1.0);
 REXCVAR_BOOL(hid, mnk_mode, false, "Enable keyboard/mouse controller emulation");
 REXCVAR_BOOL(hid, mnk_mouse, false,
              "Use the mouse for the right stick. Off means the right stick comes from the "
              "keybind_rstick_* keys only");
-REXCVAR_DOUBLE(hid, mnk_sensitivity, 1.0, "Mouse sensitivity for right stick").range(0.01, 10.0);
+REXCVAR_DOUBLE(hid, mnk_sensitivity, 1.0, "Mouse sensitivity for right stick").SetRange(0.01, 10.0);
 REXCVAR_BOOL(hid, mnk_passthrough, false,
              "Surface raw keystrokes to the title instead of emulating a pad, for titles that read "
              "a USB keyboard. Enables the device on its own");

@@ -69,16 +69,16 @@ bool SDL3UserInterface::IsUIThread() const {
 Result<IWindow*> SDL3UserInterface::OpenWindow(const UIConfig& config, EventCallback callback) {
   REX_ASSERT(IsUIThread());
   if (window_) {
-    return Err<IWindow*>(ErrorCategory::Runtime, "a window is already open");
+    return Err<IWindow*>(ErrorCategory::kRuntime, "a window is already open");
   }
   auto fail = [this](std::string message) {
     CloseWindow();
-    return Err<IWindow*>(ErrorCategory::Runtime, std::move(message));
+    return Err<IWindow*>(ErrorCategory::kRuntime, std::move(message));
   };
   callback_ = std::move(callback);
   auto context = std::make_unique<SDLWindowedAppContext>();
   if (!context->Initialize(config)) {
-    return Err<IWindow*>(ErrorCategory::Runtime, "SDL video initialization failed");
+    return Err<IWindow*>(ErrorCategory::kRuntime, "SDL video initialization failed");
   }
   context_ = std::move(context);
   {
@@ -105,7 +105,7 @@ Result<IWindow*> SDL3UserInterface::OpenWindow(const UIConfig& config, EventCall
 
   drawer_ = std::make_unique<ImGuiDrawer>(window_.get(), 64);
   drawer_->SetDialogCounter(&dialog_count_);
-  ApplyDefaultStyle(drawer_->imgui_style(), style_.palette, style_.metrics);
+  ApplyDefaultStyle(drawer_->GetImGuiStyle(), style_.palette, style_.metrics);
   applied_style_ = style_;
   console_ = std::make_unique<ConsoleModel>(*cvars_, *log_capture_,
                                             config_->paths.user_data_root / "console_history.txt");
@@ -165,9 +165,9 @@ void SDL3UserInterface::ApplyWindowCvars() {
     const f64 seconds = from_string<f64>(value);
     if (seconds > 0.0) {
       window_->SetCursorAutoHideDelayMs(static_cast<u32>(seconds * 1000.0));
-      window_->SetCursorVisibility(CursorVisibility::AutoHidden);
+      window_->SetCursorVisibility(CursorVisibility::kAutoHidden);
     } else {
-      window_->SetCursorVisibility(CursorVisibility::Visible);
+      window_->SetCursorVisibility(CursorVisibility::kVisible);
     }
   };
   on_window_cvar("ui.cursor_timeout", apply_cursor);
@@ -292,7 +292,7 @@ void SDL3UserInterface::RunSynchronous(rex::MoveOnlyFunction<void()> work) {
   post_idle_.notify_all();
 }
 
-ImFontAtlas* SDL3UserInterface::Fonts() {
+ImFontAtlas* SDL3UserInterface::GetFonts() {
   return drawer_ ? drawer_->GetIO().Fonts : nullptr;
 }
 
@@ -301,7 +301,7 @@ ImGuiIO* SDL3UserInterface::GetImGuiIO() {
 }
 
 ImGuiStyle* SDL3UserInterface::GetImGuiStyle() {
-  return drawer_ ? &drawer_->imgui_style() : nullptr;
+  return drawer_ ? &drawer_->GetImGuiStyle() : nullptr;
 }
 
 Style& SDL3UserInterface::GetStyle() {
@@ -311,7 +311,7 @@ Style& SDL3UserInterface::GetStyle() {
 Result<void> SDL3UserInterface::AddOverlays(std::span<const OverlayDesc> table) {
   REX_ASSERT(IsUIThread());
   if (!overlays_) {
-    return Err<void>(ErrorCategory::Runtime, "no window is open");
+    return Err<void>(ErrorCategory::kRuntime, "no window is open");
   }
   return overlays_->Add(table);
 }
@@ -335,9 +335,9 @@ ImGuiDialog* SDL3UserInterface::Overlay(std::string_view name) {
   return overlays_ ? overlays_->Get(name) : nullptr;
 }
 
-bool SDL3UserInterface::AnyOverlayVisible() const {
+bool SDL3UserInterface::IsAnyOverlayVisible() const {
   REX_ASSERT(IsUIThread());
-  return overlays_ && overlays_->AnyVisible();
+  return overlays_ && overlays_->IsAnyVisible();
 }
 
 void SDL3UserInterface::AddDialog(ImGuiDialog& dialog) {
@@ -372,7 +372,7 @@ void SDL3UserInterface::SetPresenter(gpu::IPresenter* presenter) {
     return;
   }
   if (!(style_.palette == applied_style_.palette) || !(style_.metrics == applied_style_.metrics)) {
-    ApplyDefaultStyle(drawer_->imgui_style(), style_.palette, style_.metrics);
+    ApplyDefaultStyle(drawer_->GetImGuiStyle(), style_.palette, style_.metrics);
     applied_style_ = style_;
   }
   drawer_->SetPresenterAndOverlayDrawer(presenter, overlay_drawer_.get());
@@ -396,7 +396,7 @@ void SDL3UserInterface::SetOverlayDrawer(std::unique_ptr<gpu::IOverlayDrawer> dr
   EnsureToast();
 }
 
-gpu::IOverlayDrawer* SDL3UserInterface::OverlayDrawer() {
+gpu::IOverlayDrawer* SDL3UserInterface::GetOverlayDrawer() {
   return overlay_drawer_.get();
 }
 
@@ -413,7 +413,7 @@ void SDL3UserInterface::SetRuntime(Runtime* runtime) {
   }
   runtime_ = runtime;
   if (runtime) {
-    achievements_ = &runtime->achievement_manager();
+    achievements_ = &runtime->GetAchievementManager();
     EnsureToast();
   }
 }
@@ -449,7 +449,7 @@ void SDL3UserInterface::ReleaseToast() {
 VideoMode SDL3UserInterface::GetVideoMode() const {
   VideoMode mode;
   detail::ConfiguredVideoMode(mode.width, mode.height);
-  mode.refresh_rate = detail::ConfiguredRefreshRate();
+  mode.refresh_rate = detail::GetConfiguredRefreshRate();
   return mode;
 }
 

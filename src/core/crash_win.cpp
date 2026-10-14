@@ -156,7 +156,7 @@ void LogBacktrace() {
   if (g_previous_abort == SIG_ERR) {
     SetUnhandledExceptionFilter(g_previous_filter);
     g_previous_abort = SIG_DFL;
-    return Err(ErrorCategory::Platform, "SIGABRT handler could not be installed");
+    return Err(ErrorCategory::kPlatform, "SIGABRT handler could not be installed");
   }
   return Ok();
 }

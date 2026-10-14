@@ -41,28 +41,28 @@ class Provider : public NonCopyable, public std::enable_shared_from_this<Provide
    *
    * @return The entry the provider was built from.
    */
-  [[nodiscard]] const MountEntry& entry() const { return entry_; }
+  [[nodiscard]] const MountEntry& GetEntry() const { return entry_; }
 
   /**
    * Returns the mount path.
    *
    * @return The guest mount path.
    */
-  [[nodiscard]] const std::string& mount_path() const { return entry_.path; }
+  [[nodiscard]] const std::string& GetMountPath() const { return entry_.path; }
 
   /**
    * Reports whether the mount refuses writes.
    *
    * @return True when kWritable is clear.
    */
-  [[nodiscard]] bool read_only() const { return !HasFlags(entry_.flags, MountFlags::kWritable); }
+  [[nodiscard]] bool IsReadOnly() const { return !HasFlags(entry_.flags, MountFlags::kWritable); }
 
   /**
    * Returns the volume information titles see.
    *
    * @return The name and geometry.
    */
-  [[nodiscard]] virtual VolumeInfo Volume() const = 0;
+  [[nodiscard]] virtual VolumeInfo GetVolume() const = 0;
 
   /**
    * Returns the node at a path relative to the mount.
@@ -77,14 +77,14 @@ class Provider : public NonCopyable, public std::enable_shared_from_this<Provide
    *
    * @return The root node.
    */
-  [[nodiscard]] Node& root() const { return *root_; }
+  [[nodiscard]] Node& GetRoot() const { return *root_; }
 
   /**
    * Returns the mutex tree changes take.
    *
    * @return The provider mutex.
    */
-  [[nodiscard]] std::recursive_mutex& mutex() const { return mutex_; }
+  [[nodiscard]] std::recursive_mutex& GetMutex() const { return mutex_; }
 
   /**
    * Keeps a node that left the tree while files are open on it.

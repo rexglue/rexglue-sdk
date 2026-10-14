@@ -153,23 +153,23 @@ class REX_RUNTIME_API BaseHeap {
    *
    * @return The offset in bytes.
    */
-  u32 heap_base() const { return heap_base_; }
+  u32 GetHeapBase() const { return heap_base_; }
 
   /**
    * Returns the length of the heap range.
    *
    * @return The length in bytes.
    */
-  u32 heap_size() const { return heap_size_; }
+  u32 GetHeapSize() const { return heap_size_; }
 
   /**
    * Returns the size of each page in the heap.
    *
    * @return The size in bytes.
    */
-  u32 page_size() const { return page_size_; }
+  u32 GetPageSize() const { return page_size_; }
 
-  HeapType heap_type() const { return heap_type_; }
+  HeapType GetHeapType() const { return heap_type_; }
 
   /**
    * Returns the offset added to guest virtual addresses to convert them to host addresses, not
@@ -177,7 +177,7 @@ class REX_RUNTIME_API BaseHeap {
    *
    * @return The offset.
    */
-  u32 host_address_offset() const { return host_address_offset_; }
+  u32 GetHostAddressOffset() const { return host_address_offset_; }
 
   /**
    * Translates an offset from the heap base to a host pointer.
@@ -194,9 +194,9 @@ class REX_RUNTIME_API BaseHeap {
   /** Disposes and decommits all memory and clears the page table. */
   virtual void Dispose();
 
-  u32 total_page_count() const { return static_cast<u32>(page_table_.size()); }
-  u32 unreserved_page_count() const { return unreserved_page_count_; }
-  u32 reserved_page_count() const { return total_page_count() - unreserved_page_count(); }
+  u32 GetTotalPageCount() const { return static_cast<u32>(page_table_.size()); }
+  u32 GetUnreservedPageCount() const { return unreserved_page_count_; }
+  u32 GetReservedPageCount() const { return GetTotalPageCount() - GetUnreservedPageCount(); }
 
   /**
    * Allocates pages with the given properties and allocation strategy. Can reserve and commit the
@@ -661,11 +661,11 @@ class REX_RUNTIME_API PhysicalHeap : public BaseHeap {
 /** Outcome of a host access violation inside guest memory. */
 enum class AccessViolationResult : u8 {
   /** The write watch resolved the fault, so the access runs again. */
-  Resumed,
+  kResumed,
   /** The access reached a register block that generated code did not route. */
-  MMIOMiss,
+  kMMIOMiss,
   /** Memory makes no claim on the fault. */
-  Unhandled,
+  kUnhandled,
 };
 
 /**
@@ -698,14 +698,14 @@ class REX_RUNTIME_API Memory {
    *
    * @return The path.
    */
-  const std::filesystem::path& file_name() const { return file_name_; }
+  const std::filesystem::path& GetFileName() const { return file_name_; }
 
   /**
    * Returns the base address of virtual memory in the host address space.
    *
    * @return The host base.
    */
-  u8* virtual_membase() const { return virtual_membase_; }
+  u8* GetVirtualMembase() const { return virtual_membase_; }
 
   /**
    * Translates a guest virtual address to a host address, with the arithmetic recompiled code
@@ -717,7 +717,7 @@ class REX_RUNTIME_API Memory {
    */
   template <typename T = u8*>
   T TranslateVirtual(u32 guest_address) const {
-    assert(!LookupHeap(guest_address) || LookupHeap(guest_address)->host_address_offset() ==
+    assert(!LookupHeap(guest_address) || LookupHeap(guest_address)->GetHostAddressOffset() ==
                                              detail::PhysicalHostOffset(guest_address));
     return GuestPtr<T>(virtual_membase_, guest_address);
   }
@@ -727,7 +727,7 @@ class REX_RUNTIME_API Memory {
    *
    * @return The host base.
    */
-  u8* physical_membase() const { return physical_membase_; }
+  u8* GetPhysicalMembase() const { return physical_membase_; }
 
   /**
    * Translates a guest physical address to a host address that can be accessed as a normal pointer.
@@ -859,7 +859,7 @@ class REX_RUNTIME_API Memory {
    *
    * @return The watch lock.
    */
-  rex::platform::RankedMutex& watch_mutex() { return watch_mutex_; }
+  rex::platform::RankedMutex& GetWatchMutex() { return watch_mutex_; }
 
   /**
    * Allocates virtual memory from the system heap. System memory is kept separate from title memory
@@ -941,14 +941,14 @@ class REX_RUNTIME_API Memory {
    *
    * @return The count in 4 KB units.
    */
-  [[nodiscard]] u32 title_pages() const;
+  [[nodiscard]] u32 GetTitlePages() const;
 
   /**
    * Returns the title memory budget.
    *
    * @return The budget in 4 KB units, 0 when uncapped.
    */
-  [[nodiscard]] u32 budget_pages() const;
+  [[nodiscard]] u32 GetBudgetPages() const;
 
   /**
    * Initializes the per module function dispatch table at IMAGE_BASE + IMAGE_SIZE, indexed by
@@ -1024,12 +1024,12 @@ class REX_RUNTIME_API Memory {
     struct {
       u8* v00000000;
       u8* v40000000;
-      u8* v7F000000;
+      u8* v7f000000;
       u8* v80000000;
       u8* v90000000;
-      u8* vA0000000;
-      u8* vC0000000;
-      u8* vE0000000;
+      u8* va0000000;
+      u8* vc0000000;
+      u8* ve0000000;
       u8* physical;
     };
     u8* all_views[9];
@@ -1042,15 +1042,15 @@ class REX_RUNTIME_API Memory {
     VirtualHeap v90000000;
 
     VirtualHeap physical;
-    PhysicalHeap vA0000000;
-    PhysicalHeap vC0000000;
-    PhysicalHeap vE0000000;
+    PhysicalHeap va0000000;
+    PhysicalHeap vc0000000;
+    PhysicalHeap ve0000000;
   } heaps_;
 
   friend class BaseHeap;
 
   friend class PhysicalHeap;
-  rex::platform::RankedMutex watch_mutex_{rex::platform::LockRank::Leaf};
+  rex::platform::RankedMutex watch_mutex_{rex::platform::LockRank::kLeaf};
   std::vector<std::unique_ptr<std::pair<PhysicalMemoryInvalidationCallback, void*>>>
       physical_memory_invalidation_callbacks_;
   std::atomic<u32> title_pages_{0};

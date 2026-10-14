@@ -45,12 +45,12 @@ class NodeFile final : public IFile {
    *
    * @return The node.
    */
-  [[nodiscard]] Node& node() const { return *node_; }
+  [[nodiscard]] Node& GetNode() const { return *node_; }
 
-  [[nodiscard]] FileInfo Info() const override;
+  [[nodiscard]] FileInfo GetInfo() const override;
   void Refresh() override;
-  [[nodiscard]] Access access() const override { return access_; }
-  [[nodiscard]] VolumeInfo Volume() const override;
+  [[nodiscard]] Access GetAccess() const override { return access_; }
+  [[nodiscard]] VolumeInfo GetVolume() const override;
   [[nodiscard]] Result<size_t> Read(std::span<u8> buffer, u64 offset) override;
   [[nodiscard]] Result<size_t> Write(std::span<const u8> buffer, u64 offset) override;
   [[nodiscard]] Result<void> SetLength(u64 length) override;
@@ -84,7 +84,7 @@ class NodeDirectory final : public IDirectory {
 
   [[nodiscard]] std::optional<FileInfo> Next() override;
   void Restart() override { index_ = 0; }
-  [[nodiscard]] u64 position() const override { return index_; }
+  [[nodiscard]] u64 GetPosition() const override { return index_; }
 
  private:
   std::shared_ptr<Provider> provider_;

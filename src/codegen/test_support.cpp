@@ -13,7 +13,7 @@
 #include <rex/runtime/binary_types.h>
 #include <rex/types.h>
 
-using rex::codegen::detail::decode_instruction;
+using rex::codegen::detail::DecodeInstruction;
 
 namespace rex::codegen {
 
@@ -28,54 +28,54 @@ void TestModule::Load(u32 base_address, const u8* data, size_t size) {
       runtime::BinarySection{".text", base_address, static_cast<u32>(size), data, true, false});
 }
 
-void AnalyzeTestBinary(CodegenContext& ctx, std::string_view testName,
-                       const std::map<size_t, std::string>& symbols, u32 baseAddress,
-                       const u8* data, size_t dataSize) {
-  std::vector<std::pair<size_t, std::string>> testFunctions;
+void AnalyzeTestBinary(CodegenContext& ctx, std::string_view test_name,
+                       const std::map<size_t, std::string>& symbols, u32 base_address,
+                       const u8* data, size_t data_size) {
+  std::vector<std::pair<size_t, std::string>> test_functions;
   for (const auto& [addr, name] : symbols) {
     if (name.starts_with("test_")) {
-      testFunctions.push_back({addr, name});
+      test_functions.push_back({addr, name});
     }
   }
 
-  std::sort(testFunctions.begin(), testFunctions.end());
+  std::sort(test_functions.begin(), test_functions.end());
 
-  for (size_t i = 0; i < testFunctions.size(); i++) {
-    u32 fnAddr = static_cast<u32>(testFunctions[i].first);
+  for (size_t i = 0; i < test_functions.size(); i++) {
+    u32 fn_addr = static_cast<u32>(test_functions[i].first);
 
-    u32 nextAddr = static_cast<u32>(baseAddress + dataSize);
-    if (i + 1 < testFunctions.size()) {
-      nextAddr = static_cast<u32>(testFunctions[i + 1].first);
+    u32 next_addr = static_cast<u32>(base_address + data_size);
+    if (i + 1 < test_functions.size()) {
+      next_addr = static_cast<u32>(test_functions[i + 1].first);
     }
-    u32 fnSize = nextAddr - fnAddr;
+    u32 fn_size = next_addr - fn_addr;
 
-    auto* node = ctx.graph.addFunction(fnAddr, fnSize, FunctionAuthority::DISCOVERED, true);
+    auto* node = ctx.graph.AddFunction(fn_addr, fn_size, FunctionAuthority::kDiscovered, true);
 
     if (node) {
-      node->discover({{fnAddr, fnSize}}, {}, {});
-      ctx.graph.setFunctionName(fnAddr, std::format("{}_{:X}", testName, fnAddr));
-      node->seal();
+      node->Discover({{fn_addr, fn_size}}, {}, {});
+      ctx.graph.SetFunctionName(fn_addr, std::format("{}_{:X}", test_name, fn_addr));
+      node->Seal();
     }
   }
 
-  for (size_t i = 0; i < testFunctions.size(); i++) {
-    u32 fnAddr = static_cast<u32>(testFunctions[i].first);
-    u32 nextAddr = static_cast<u32>(baseAddress + dataSize);
-    if (i + 1 < testFunctions.size()) {
-      nextAddr = static_cast<u32>(testFunctions[i + 1].first);
+  for (size_t i = 0; i < test_functions.size(); i++) {
+    u32 fn_addr = static_cast<u32>(test_functions[i].first);
+    u32 next_addr = static_cast<u32>(base_address + data_size);
+    if (i + 1 < test_functions.size()) {
+      next_addr = static_cast<u32>(test_functions[i + 1].first);
     }
-    u32 fnSize = nextAddr - fnAddr;
+    u32 fn_size = next_addr - fn_addr;
 
-    for (u32 offset = 0; offset < fnSize; offset += 4) {
-      u32 pc = fnAddr + offset;
-      u32 raw = memory::load<be_u32>(data + (fnAddr - baseAddress) + offset);
-      auto decoded = decode_instruction(pc, raw);
+    for (u32 offset = 0; offset < fn_size; offset += 4) {
+      u32 pc = fn_addr + offset;
+      u32 raw = memory::load<be_u32>(data + (fn_addr - base_address) + offset);
+      auto decoded = DecodeInstruction(pc, raw);
 
-      if (decoded.is_call() && decoded.branch_target.has_value()) {
+      if (decoded.IsCall() && decoded.branch_target.has_value()) {
         u32 target = decoded.branch_target.value();
-        auto* targetNode = ctx.graph.getFunction(target);
-        if (targetNode) {
-          ctx.graph.addCallToFunction(fnAddr, pc, CallTarget::function(targetNode));
+        auto* target_node = ctx.graph.GetFunction(target);
+        if (target_node) {
+          ctx.graph.AddCallToFunction(fn_addr, pc, CallTarget::MakeFunction(target_node));
         }
       }
     }

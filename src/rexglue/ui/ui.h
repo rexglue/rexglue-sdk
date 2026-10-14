@@ -38,16 +38,16 @@ class PresentationSink final : public rex::log::ISink {
   void Write(const rex::log::Message& message) override;
   void Flush() override;
 
-  bool tty() const { return tty_; }
-  bool color() const { return color_; }
+  bool GetTty() const { return tty_; }
+  bool GetColor() const { return color_; }
 
-  void setActiveProgress(bool active);
+  void SetActiveProgress(bool active);
 
  private:
   friend class detail::GlobalSinkAccessor;
 
-  std::mutex& sink_mutex() { return mutex_; }
-  std::ostream& sink_out() { return out_; }
+  std::mutex& GetSinkMutex() { return mutex_; }
+  std::ostream& GetSinkOut() { return out_; }
 
   std::ostream& out_;
   bool tty_;
@@ -93,7 +93,7 @@ namespace detail {
 
 void SetGlobalSinkForTesting(std::unique_ptr<PresentationSink> sink);
 
-bool SinkIsTty();
+bool IsSinkTTY();
 
 void SetSinkActiveProgress(bool active);
 
@@ -102,13 +102,13 @@ class GlobalSinkAccessor : public rex::NonCopyable {
  public:
   GlobalSinkAccessor();
 
-  void writeLine(std::string_view s);
-  void writeRaw(std::string_view s);
-  void flush();
+  void WriteLine(std::string_view s);
+  void WriteRaw(std::string_view s);
+  void Flush();
 
-  bool color() const;
+  bool GetColor() const;
 
-  void writeColored(std::string_view code, std::string_view text);
+  void WriteColored(std::string_view code, std::string_view text);
 
  private:
   std::unique_lock<std::mutex> lock_;

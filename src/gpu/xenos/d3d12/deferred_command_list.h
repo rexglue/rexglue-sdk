@@ -221,7 +221,7 @@ class DeferredCommandList {
     }
     static_assert(alignof(D3D12_VERTEX_BUFFER_VIEW) <= alignof(uintmax_t));
     const size_t header_size =
-        ::rex::align(sizeof(D3DIASetVertexBuffersHeader), alignof(D3D12_VERTEX_BUFFER_VIEW));
+        ::rex::Align(sizeof(D3DIASetVertexBuffersHeader), alignof(D3D12_VERTEX_BUFFER_VIEW));
     auto args = reinterpret_cast<D3DIASetVertexBuffersHeader*>(
         WriteCommand(Command::kD3DIASetVertexBuffers,
                      header_size + num_views * sizeof(D3D12_VERTEX_BUFFER_VIEW)));
@@ -271,7 +271,7 @@ class DeferredCommandList {
       return;
     }
     static_assert(alignof(D3D12_RESOURCE_BARRIER) <= alignof(uintmax_t));
-    const size_t header_size = ::rex::align(sizeof(UINT), alignof(D3D12_RESOURCE_BARRIER));
+    const size_t header_size = ::rex::Align(sizeof(UINT), alignof(D3D12_RESOURCE_BARRIER));
     u8* args = reinterpret_cast<u8*>(WriteCommand(
         Command::kD3DResourceBarrier, header_size + num_barriers * sizeof(D3D12_RESOURCE_BARRIER)));
     *reinterpret_cast<UINT*>(args) = num_barriers;

@@ -61,12 +61,12 @@ struct TestSpec {
   std::vector<MemValue> mem_outputs;
 };
 
-std::map<size_t, std::string> ParseMapFile(const std::string& mapPath) {
+std::map<size_t, std::string> ParseMapFile(const std::string& map_path) {
   std::map<size_t, std::string> symbols;
   rex::runtime::MapParseOptions options;
   options.base_address = kTestBaseAddress;
 
-  auto result = rex::runtime::ParseNmMap(mapPath, options);
+  auto result = rex::runtime::ParseNmMap(map_path, options);
   if (!result)
     return symbols;
   for (const auto& sym : *result) {
@@ -170,12 +170,12 @@ std::string BuildHierarchicalName(const std::string& stem, const std::string& la
   return stem + "." + label;
 }
 
-std::vector<TestSpec> ParseTestSpecs(const std::string& asmPath,
+std::vector<TestSpec> ParseTestSpecs(const std::string& asm_path,
                                      const std::unordered_map<std::string, std::string>& symbols) {
   std::vector<TestSpec> specs;
-  std::ifstream in(asmPath);
+  std::ifstream in(asm_path);
   if (!in.is_open()) {
-    REXLOG_WARN(rexglue, "Unable to open assembly file: {}", asmPath);
+    REXLOG_WARN(rexglue, "Unable to open assembly file: {}", asm_path);
     return specs;
   }
 
@@ -183,13 +183,13 @@ std::vector<TestSpec> ParseTestSpecs(const std::string& asmPath,
   bool in_block_comment = false;
   auto getline = [&]() -> bool {
     while (std::getline(in, line)) {
-      line = rex::trim_string(line);
+      line = rex::TrimString(line);
       if (in_block_comment) {
         auto end = line.find("*/");
         if (end == std::string::npos)
           continue;
         in_block_comment = false;
-        line = rex::trim_string(line.substr(end + 2));
+        line = rex::TrimString(line.substr(end + 2));
         if (line.empty())
           continue;
       }
@@ -200,7 +200,7 @@ std::vector<TestSpec> ParseTestSpecs(const std::string& asmPath,
           in_block_comment = true;
           line = line.substr(0, start);
         }
-        line = rex::trim_string(line);
+        line = rex::TrimString(line);
         if (line.empty())
           continue;
       }
@@ -212,17 +212,17 @@ std::vector<TestSpec> ParseTestSpecs(const std::string& asmPath,
   while (getline()) {
     if (line.empty() || line[0] == '#')
       continue;
-    auto colonIndex = line.find(':');
-    if (colonIndex == std::string::npos)
+    auto colon_index = line.find(':');
+    if (colon_index == std::string::npos)
       continue;
-    auto name = line.substr(0, colonIndex);
-    auto symbolIt = symbols.find(name);
-    if (symbolIt == symbols.end())
+    auto name = line.substr(0, colon_index);
+    auto symbol_it = symbols.find(name);
+    if (symbol_it == symbols.end())
       continue;
 
     TestSpec spec;
     spec.name = name;
-    spec.symbol = symbolIt->second;
+    spec.symbol = symbol_it->second;
 
     while (getline() && !line.empty() && line[0] == '#') {
       ApplyDirective(line, "REGISTER_IN", "MEMORY_IN", spec.inputs, spec.mem_inputs);
@@ -299,27 +299,27 @@ std::string CategoryFromStem(std::string_view stem) {
   return "misc";
 }
 
-bool RecompileTests(std::string_view binDir, std::string_view asmDir, std::string_view outDir) {
+bool RecompileTests(std::string_view bin_dir, std::string_view asm_dir, std::string_view out_dir) {
   std::array<ui::KeyValueRow, 3> header_rows = {{
-      {"Bin dir", std::string(binDir)},
-      {"ASM dir", std::string(asmDir)},
-      {"Output dir", std::string(outDir)},
+      {"Bin dir", std::string(bin_dir)},
+      {"ASM dir", std::string(asm_dir)},
+      {"Output dir", std::string(out_dir)},
   }};
   ui::KeyValueBlock("Recompiling PPC tests:", header_rows);
 
-  fs::create_directories(outDir);
+  fs::create_directories(out_dir);
 
-  std::map<std::string, std::unordered_set<size_t>> functionsByFile;
-  std::vector<std::string> allFunctionNames;
-  std::stringstream functionsOut;
+  std::map<std::string, std::unordered_set<size_t>> functions_by_file;
+  std::vector<std::string> all_function_names;
+  std::stringstream functions_out;
 
-  for (const auto& entry : fs::directory_iterator(binDir)) {
+  for (const auto& entry : fs::directory_iterator(bin_dir)) {
     if (entry.path().extension() != ".bin")
       continue;
     auto stem = entry.path().stem().string();
     REXLOG_DEBUG(rexglue, "Processing binary file: {}", stem);
 
-    std::vector<u8> fileData;
+    std::vector<u8> file_data;
     {
       std::ifstream file(entry.path(), std::ios::binary | std::ios::ate);
       if (!file) {
@@ -328,127 +328,128 @@ bool RecompileTests(std::string_view binDir, std::string_view asmDir, std::strin
       }
       auto size = file.tellg();
       file.seekg(0, std::ios::beg);
-      fileData.resize(static_cast<size_t>(size));
-      file.read(reinterpret_cast<char*>(fileData.data()), size);
+      file_data.resize(static_cast<size_t>(size));
+      file.read(reinterpret_cast<char*>(file_data.data()), size);
     }
-    if (fileData.empty())
+    if (file_data.empty())
       continue;
 
-    auto mapPath = std::format("{}/{}.map", binDir, stem);
-    auto symbols = ParseMapFile(mapPath);
+    auto map_path = std::format("{}/{}.map", bin_dir, stem);
+    auto symbols = ParseMapFile(map_path);
     if (symbols.empty()) {
-      REXLOG_ERROR(rexglue, "No symbols found in map file: {}", mapPath);
+      REXLOG_ERROR(rexglue, "No symbols found in map file: {}", map_path);
       continue;
     }
 
     codegen::TestModule module;
-    module.Load(kTestBaseAddress, fileData.data(), fileData.size());
-    module.set_name(stem);
+    module.Load(kTestBaseAddress, file_data.data(), file_data.size());
+    module.SetName(stem);
 
     codegen::RecompilerConfig config;
-    config.outDirectoryPath = std::string(outDir);
+    config.out_directory_path = std::string(out_dir);
     auto ctx =
-        codegen::CodegenContext::Create(codegen::BinaryView::fromModule(module), std::move(config));
+        codegen::CodegenContext::Create(codegen::BinaryView::FromModule(module), std::move(config));
 
-    codegen::AnalyzeTestBinary(ctx, stem, symbols, kTestBaseAddress, fileData.data(),
-                               fileData.size());
+    codegen::AnalyzeTestBinary(ctx, stem, symbols, kTestBaseAddress, file_data.data(),
+                               file_data.size());
 
-    REXLOG_DEBUG(rexglue, "  Found {} functions", ctx.graph.functionCount());
+    REXLOG_DEBUG(rexglue, "  Found {} functions", ctx.graph.GetFunctionCount());
 
     std::vector<const codegen::FunctionNode*> functions;
-    for (const auto& [addr, node] : ctx.graph.functions())
+    for (const auto& [addr, node] : ctx.graph.GetFunctions())
       functions.push_back(node.get());
     std::sort(functions.begin(), functions.end(),
-              [](const auto* a, const auto* b) { return a->base() < b->base(); });
+              [](const auto* a, const auto* b) { return a->GetBase() < b->GetBase(); });
 
-    codegen::EmitContext emitCtx{ctx.binary(), ctx.Config(), ctx.graph, ctx.limits(), 0, nullptr};
+    codegen::EmitContext emit_ctx{ctx.GetBinary(), ctx.GetConfig(), ctx.graph, ctx.GetLimits(), 0,
+                                  nullptr};
 
-    std::string recompiledCode;
+    std::string recompiled_code;
     for (const auto* fn : functions) {
-      std::string code = fn->emitCpp(emitCtx);
+      std::string code = fn->EmitCpp(emit_ctx);
       if (code.empty())
         continue;
-      functionsByFile[stem].emplace(fn->base());
-      allFunctionNames.push_back(std::format("{}_{:X}", stem, fn->base()));
-      recompiledCode += code;
+      functions_by_file[stem].emplace(fn->GetBase());
+      all_function_names.push_back(std::format("{}_{:X}", stem, fn->GetBase()));
+      recompiled_code += code;
     }
-    functionsOut << recompiledCode << '\n';
+    functions_out << recompiled_code << '\n';
   }
 
-  std::unordered_map<std::string, std::string> allSymbols;
-  for (const auto& [stem, addresses] : functionsByFile) {
-    auto mapPath = std::format("{}/{}.map", binDir, stem);
-    auto mapSymbols = ParseMapFile(mapPath);
-    for (const auto& [addr, name] : mapSymbols) {
+  std::unordered_map<std::string, std::string> all_symbols;
+  for (const auto& [stem, addresses] : functions_by_file) {
+    auto map_path = std::format("{}/{}.map", bin_dir, stem);
+    auto map_symbols = ParseMapFile(map_path);
+    for (const auto& [addr, name] : map_symbols) {
       if (addresses.count(addr))
-        allSymbols.emplace(name, std::format("{}_{:X}", stem, addr));
+        all_symbols.emplace(name, std::format("{}_{:X}", stem, addr));
     }
-    if (!mapSymbols.empty())
+    if (!map_symbols.empty())
       continue;
 
-    std::vector<size_t> sortedAddresses(addresses.begin(), addresses.end());
-    std::sort(sortedAddresses.begin(), sortedAddresses.end());
-    std::ifstream in(std::format("{}/{}.s", asmDir, stem));
+    std::vector<size_t> sorted_addresses(addresses.begin(), addresses.end());
+    std::sort(sorted_addresses.begin(), sorted_addresses.end());
+    std::ifstream in(std::format("{}/{}.s", asm_dir, stem));
     if (!in.is_open())
       continue;
     std::string line;
-    size_t functionIndex = 0;
+    size_t function_index = 0;
     while (std::getline(in, line)) {
       if (line.empty() || line[0] == '#' || line[0] == '/' || line[0] == '*')
         continue;
-      auto colonIdx = line.find(':');
-      if (colonIdx == std::string::npos || line[0] == ' ' || line[0] == '\t' || line[0] == '.')
+      auto colon_idx = line.find(':');
+      if (colon_idx == std::string::npos || line[0] == ' ' || line[0] == '\t' || line[0] == '.')
         continue;
-      auto name = line.substr(0, colonIdx);
-      if (functionIndex < sortedAddresses.size()) {
-        allSymbols.emplace(name, std::format("{}_{:X}", stem, sortedAddresses[functionIndex]));
-        ++functionIndex;
+      auto name = line.substr(0, colon_idx);
+      if (function_index < sorted_addresses.size()) {
+        all_symbols.emplace(name, std::format("{}_{:X}", stem, sorted_addresses[function_index]));
+        ++function_index;
       }
     }
   }
 
-  nlohmann::json templateData;
-  templateData["functions"] = nlohmann::json::array();
-  for (const auto& funcName : allFunctionNames)
-    templateData["functions"].push_back({{"name", funcName}});
-  templateData["functions_code"] = functionsOut.str();
-  templateData["image_base"] = "82010000";
-  templateData["image_size"] = "100000";
-  templateData["code_base"] = "82010000";
-  templateData["code_size"] = "100000";
+  nlohmann::json template_data;
+  template_data["functions"] = nlohmann::json::array();
+  for (const auto& func_name : all_function_names)
+    template_data["functions"].push_back({{"name", func_name}});
+  template_data["functions_code"] = functions_out.str();
+  template_data["image_base"] = "82010000";
+  template_data["image_size"] = "100000";
+  template_data["code_base"] = "82010000";
+  template_data["code_size"] = "100000";
 
-  templateData["tests"] = nlohmann::json::array();
-  size_t totalTests = 0;
-  for (const auto& [stem, addresses] : functionsByFile) {
-    auto specs = ParseTestSpecs(std::format("{}/{}.s", asmDir, stem), allSymbols);
+  template_data["tests"] = nlohmann::json::array();
+  size_t total_tests = 0;
+  for (const auto& [stem, addresses] : functions_by_file) {
+    auto specs = ParseTestSpecs(std::format("{}/{}.s", asm_dir, stem), all_symbols);
     std::string category = CategoryFromStem(stem);
     for (const auto& spec : specs) {
-      nlohmann::json testJson;
-      testJson["name"] = BuildHierarchicalName(stem, spec.name);
-      testJson["category"] = category;
-      testJson["stem"] = stem;
-      testJson["symbol"] = spec.symbol;
-      testJson["inputs"]["registers"] = SerializeRegisters(spec.inputs);
-      testJson["inputs"]["memory"] = SerializeMemory(spec.mem_inputs);
-      testJson["outputs"]["registers"] = SerializeRegisters(spec.outputs);
-      testJson["outputs"]["memory"] = SerializeMemory(spec.mem_outputs);
-      templateData["tests"].push_back(testJson);
-      ++totalTests;
+      nlohmann::json test_json;
+      test_json["name"] = BuildHierarchicalName(stem, spec.name);
+      test_json["category"] = category;
+      test_json["stem"] = stem;
+      test_json["symbol"] = spec.symbol;
+      test_json["inputs"]["registers"] = SerializeRegisters(spec.inputs);
+      test_json["inputs"]["memory"] = SerializeMemory(spec.mem_inputs);
+      test_json["outputs"]["registers"] = SerializeRegisters(spec.outputs);
+      test_json["outputs"]["memory"] = SerializeMemory(spec.mem_outputs);
+      template_data["tests"].push_back(test_json);
+      ++total_tests;
     }
   }
 
   codegen::TemplateRegistry registry;
-  auto writeRendered = [&](std::string_view templateId, std::string_view filename) {
-    auto rendered = codegen::renderWithJson(registry, std::string(templateId), templateData);
-    std::ofstream out(std::format("{}/{}", outDir, filename));
+  auto write_rendered = [&](std::string_view template_id, std::string_view filename) {
+    auto rendered = codegen::RenderWithJSON(registry, std::string(template_id), template_data);
+    std::ofstream out(std::format("{}/{}", out_dir, filename));
     out << rendered;
   };
-  writeRendered("test/ppc_config_h", "ppc_config.h");
-  writeRendered("test/ppc_test_decls_h", "ppc_test_decls.h");
-  writeRendered("test/ppc_test_functions_cpp", "ppc_test_functions.cpp");
-  writeRendered("test/ppc_test_cases_cpp", "ppc_test_cases.cpp");
+  write_rendered("test/ppc_config_h", "ppc_config.h");
+  write_rendered("test/ppc_test_decls_h", "ppc_test_decls.h");
+  write_rendered("test/ppc_test_functions_cpp", "ppc_test_functions.cpp");
+  write_rendered("test/ppc_test_cases_cpp", "ppc_test_cases.cpp");
 
-  REXLOG_TRACE(rexglue, "Generated {} test cases", totalTests);
+  REXLOG_TRACE(rexglue, "Generated {} test cases", total_tests);
   return true;
 }
 
@@ -477,7 +478,7 @@ void RegisterRecompileTests(CLI::App& parent, const CLIContext& ctx, DeferredAct
   sub->callback([args, &pending]() {
     pending = [args]() -> rex::Result<void> {
       if (!RecompileTests(args->bin_dir, args->asm_dir, args->output)) {
-        return Err<void>(rex::ErrorCategory::Validation, "Test recompilation failed");
+        return Err<void>(rex::ErrorCategory::kValidation, "Test recompilation failed");
       }
       return rex::Ok();
     };

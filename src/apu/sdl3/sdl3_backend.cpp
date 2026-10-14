@@ -27,7 +27,7 @@ Result<void> SDL3Backend::Init() {
   SDL_SetHint(SDL_HINT_AUDIO_CATEGORY, "playback");
   SDL_SetAppMetadataProperty(SDL_PROP_APP_METADATA_NAME_STRING, "rexglue");
   if (!SDL_InitSubSystem(SDL_INIT_AUDIO)) {
-    return Err(ErrorCategory::Platform,
+    return Err(ErrorCategory::kPlatform,
                std::format("SDL_InitSubSystem(SDL_INIT_AUDIO) failed: {}", SDL_GetError()));
   }
   initialized_ = true;
@@ -114,7 +114,7 @@ Result<SDL_AudioStream*> SDL3Backend::OpenDeviceStream(Stream& stream) {
                                                    Callback, &stream);
   if (!sdl) {
     return Err<SDL_AudioStream*>(
-        ErrorCategory::Platform,
+        ErrorCategory::kPlatform,
         std::format("SDL_OpenAudioDeviceStream() failed: {}", SDL_GetError()));
   }
 
@@ -122,7 +122,7 @@ Result<SDL_AudioStream*> SDL3Backend::OpenDeviceStream(Stream& stream) {
   if (!sdl_device) {
     SDL_DestroyAudioStream(sdl);
     return Err<SDL_AudioStream*>(
-        ErrorCategory::Platform,
+        ErrorCategory::kPlatform,
         std::format("SDL_GetAudioStreamDevice() failed: {}", SDL_GetError()));
   }
 
@@ -139,14 +139,14 @@ Result<SDL_AudioStream*> SDL3Backend::OpenDeviceStream(Stream& stream) {
                                     &stream);
     if (!sdl) {
       return Err<SDL_AudioStream*>(
-          ErrorCategory::Platform,
+          ErrorCategory::kPlatform,
           std::format("SDL_OpenAudioDeviceStream() stereo fallback failed: {}", SDL_GetError()));
     }
     sdl_device = SDL_GetAudioStreamDevice(sdl);
     if (!sdl_device) {
       SDL_DestroyAudioStream(sdl);
       return Err<SDL_AudioStream*>(
-          ErrorCategory::Platform,
+          ErrorCategory::kPlatform,
           std::format("SDL_GetAudioStreamDevice() failed after stereo fallback: {}",
                       SDL_GetError()));
     }
@@ -159,7 +159,7 @@ Result<SDL_AudioStream*> SDL3Backend::OpenDeviceStream(Stream& stream) {
 
   if (!SDL_ResumeAudioDevice(sdl_device)) {
     SDL_DestroyAudioStream(sdl);
-    return Err<SDL_AudioStream*>(ErrorCategory::Platform,
+    return Err<SDL_AudioStream*>(ErrorCategory::kPlatform,
                                  std::format("SDL_ResumeAudioDevice() failed: {}", SDL_GetError()));
   }
   return sdl;
@@ -181,9 +181,9 @@ void SDL3Backend::Callback(void* userdata, SDL_AudioStream* stream, int addition
     REXLOG_ERROR(apu, "SDL3Backend::Callback failed to allocate {} samples", sample_count);
     return;
   }
-  const StereoFold fold = stream_state->owner->stereo_fold();
-  const SurroundMix mix = stream_state->owner->surround_mix();
-  const f32 gain = stream_state->owner->output_gain();
+  const StereoFold fold = stream_state->owner->GetStereoFold();
+  const SurroundMix mix = stream_state->owner->GetSurroundMix();
+  const f32 gain = stream_state->owner->GetOutputGain();
   while (additional_amount > 0) {
     std::unique_lock<std::mutex> guard(stream_state->frames_mutex);
     if (stream_state->queued.empty()) {
@@ -202,10 +202,10 @@ void SDL3Backend::Callback(void* userdata, SDL_AudioStream* stream, int addition
       } else {
         switch (stream_state->device_channels) {
           case 2:
-            sequential_6_BE_to_interleaved_2_LE(data, buffer.get(), kChannelSamples, fold, gain);
+            Sequential6BEToInterleaved2LE(data, buffer.get(), kChannelSamples, fold, gain);
             break;
           case 6:
-            sequential_6_BE_to_interleaved_6_LE(data, buffer.get(), kChannelSamples, mix, gain);
+            Sequential6BEToInterleaved6LE(data, buffer.get(), kChannelSamples, mix, gain);
             break;
           default:
             REX_UNHANDLED_CASE(stream_state->device_channels);
@@ -230,7 +230,7 @@ void SDL3Backend::SetStereoFold(const StereoFold& fold) {
   fold_ = fold;
 }
 
-StereoFold SDL3Backend::stereo_fold() const {
+StereoFold SDL3Backend::GetStereoFold() const {
   std::lock_guard lock(mix_mutex_);
   return fold_;
 }
@@ -240,7 +240,7 @@ void SDL3Backend::SetSurroundMix(const SurroundMix& mix) {
   mix_ = mix;
 }
 
-SurroundMix SDL3Backend::surround_mix() const {
+SurroundMix SDL3Backend::GetSurroundMix() const {
   std::lock_guard lock(mix_mutex_);
   return mix_;
 }
@@ -250,7 +250,7 @@ void SDL3Backend::SetOutputGain(f32 linear) {
   gain_ = linear;
 }
 
-f32 SDL3Backend::output_gain() const {
+f32 SDL3Backend::GetOutputGain() const {
   std::lock_guard lock(mix_mutex_);
   return gain_;
 }

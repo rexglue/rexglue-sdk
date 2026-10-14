@@ -12,377 +12,377 @@
 
 namespace rex::codegen {
 
-bool build_and(BuilderContext& ctx) {
-  ctx.println("\t{}.u64 = {}.u64 & {}.u64;", ctx.r(ctx.insn.operands[0]),
-              ctx.r(ctx.insn.operands[1]), ctx.r(ctx.insn.operands[2]));
-  emitRecordFormCompare(ctx);
+bool BuildAnd(BuilderContext& ctx) {
+  ctx.Println("\t{}.u64 = {}.u64 & {}.u64;", ctx.R(ctx.insn.operands[0]),
+              ctx.R(ctx.insn.operands[1]), ctx.R(ctx.insn.operands[2]));
+  EmitRecordFormCompare(ctx);
   return true;
 }
 
-bool build_andc(BuilderContext& ctx) {
-  ctx.println("\t{}.u64 = {}.u64 & ~{}.u64;", ctx.r(ctx.insn.operands[0]),
-              ctx.r(ctx.insn.operands[1]), ctx.r(ctx.insn.operands[2]));
-  emitRecordFormCompare(ctx);
+bool BuildAndc(BuilderContext& ctx) {
+  ctx.Println("\t{}.u64 = {}.u64 & ~{}.u64;", ctx.R(ctx.insn.operands[0]),
+              ctx.R(ctx.insn.operands[1]), ctx.R(ctx.insn.operands[2]));
+  EmitRecordFormCompare(ctx);
   return true;
 }
 
-bool build_andi(BuilderContext& ctx) {
-  ctx.println("\t{}.u64 = {}.u64 & {};", ctx.r(ctx.insn.operands[0]), ctx.r(ctx.insn.operands[1]),
+bool BuildAndi(BuilderContext& ctx) {
+  ctx.Println("\t{}.u64 = {}.u64 & {};", ctx.R(ctx.insn.operands[0]), ctx.R(ctx.insn.operands[1]),
               ctx.insn.operands[2]);
-  ctx.println("\t{}.compare<i32>({}.s32, 0, {});", ctx.cr(0), ctx.r(ctx.insn.operands[0]),
-              ctx.xer());
+  ctx.Println("\t{}.Compare<i32>({}.s32, 0, {});", ctx.CR(0), ctx.R(ctx.insn.operands[0]),
+              ctx.XER());
   return true;
 }
 
-bool build_andis(BuilderContext& ctx) {
-  ctx.println("\t{}.u64 = {}.u64 & {};", ctx.r(ctx.insn.operands[0]), ctx.r(ctx.insn.operands[1]),
+bool BuildAndis(BuilderContext& ctx) {
+  ctx.Println("\t{}.u64 = {}.u64 & {};", ctx.R(ctx.insn.operands[0]), ctx.R(ctx.insn.operands[1]),
               ctx.insn.operands[2] << 16);
-  ctx.println("\t{}.compare<i32>({}.s32, 0, {});", ctx.cr(0), ctx.r(ctx.insn.operands[0]),
-              ctx.xer());
+  ctx.Println("\t{}.Compare<i32>({}.s32, 0, {});", ctx.CR(0), ctx.R(ctx.insn.operands[0]),
+              ctx.XER());
   return true;
 }
 
-bool build_nand(BuilderContext& ctx) {
-  ctx.println("\t{}.u64 = ~({}.u64 & {}.u64);", ctx.r(ctx.insn.operands[0]),
-              ctx.r(ctx.insn.operands[1]), ctx.r(ctx.insn.operands[2]));
-  emitRecordFormCompare(ctx);
+bool BuildNand(BuilderContext& ctx) {
+  ctx.Println("\t{}.u64 = ~({}.u64 & {}.u64);", ctx.R(ctx.insn.operands[0]),
+              ctx.R(ctx.insn.operands[1]), ctx.R(ctx.insn.operands[2]));
+  EmitRecordFormCompare(ctx);
   return true;
 }
 
-bool build_nor(BuilderContext& ctx) {
-  ctx.println("\t{}.u64 = ~({}.u64 | {}.u64);", ctx.r(ctx.insn.operands[0]),
-              ctx.r(ctx.insn.operands[1]), ctx.r(ctx.insn.operands[2]));
-  emitRecordFormCompare(ctx);
+bool BuildNor(BuilderContext& ctx) {
+  ctx.Println("\t{}.u64 = ~({}.u64 | {}.u64);", ctx.R(ctx.insn.operands[0]),
+              ctx.R(ctx.insn.operands[1]), ctx.R(ctx.insn.operands[2]));
+  EmitRecordFormCompare(ctx);
   return true;
 }
 
-bool build_not(BuilderContext& ctx) {
-  ctx.println("\t{}.u64 = ~{}.u64;", ctx.r(ctx.insn.operands[0]), ctx.r(ctx.insn.operands[1]));
-  emitRecordFormCompare(ctx);
+bool BuildNot(BuilderContext& ctx) {
+  ctx.Println("\t{}.u64 = ~{}.u64;", ctx.R(ctx.insn.operands[0]), ctx.R(ctx.insn.operands[1]));
+  EmitRecordFormCompare(ctx);
   return true;
 }
 
-bool build_or(BuilderContext& ctx) {
-  ctx.println("\t{}.u64 = {}.u64 | {}.u64;", ctx.r(ctx.insn.operands[0]),
-              ctx.r(ctx.insn.operands[1]), ctx.r(ctx.insn.operands[2]));
-  emitRecordFormCompare(ctx);
+bool BuildOr(BuilderContext& ctx) {
+  ctx.Println("\t{}.u64 = {}.u64 | {}.u64;", ctx.R(ctx.insn.operands[0]),
+              ctx.R(ctx.insn.operands[1]), ctx.R(ctx.insn.operands[2]));
+  EmitRecordFormCompare(ctx);
   return true;
 }
 
-bool build_orc(BuilderContext& ctx) {
-  ctx.println("\t{}.u64 = {}.u64 | ~{}.u64;", ctx.r(ctx.insn.operands[0]),
-              ctx.r(ctx.insn.operands[1]), ctx.r(ctx.insn.operands[2]));
-  emitRecordFormCompare(ctx);
+bool BuildOrc(BuilderContext& ctx) {
+  ctx.Println("\t{}.u64 = {}.u64 | ~{}.u64;", ctx.R(ctx.insn.operands[0]),
+              ctx.R(ctx.insn.operands[1]), ctx.R(ctx.insn.operands[2]));
+  EmitRecordFormCompare(ctx);
   return true;
 }
 
-bool build_ori(BuilderContext& ctx) {
-  ctx.println("\t{}.u64 = {}.u64 | {};", ctx.r(ctx.insn.operands[0]), ctx.r(ctx.insn.operands[1]),
+bool BuildOri(BuilderContext& ctx) {
+  ctx.Println("\t{}.u64 = {}.u64 | {};", ctx.R(ctx.insn.operands[0]), ctx.R(ctx.insn.operands[1]),
               ctx.insn.operands[2]);
   return true;
 }
 
-bool build_oris(BuilderContext& ctx) {
-  ctx.println("\t{}.u64 = {}.u64 | {};", ctx.r(ctx.insn.operands[0]), ctx.r(ctx.insn.operands[1]),
+bool BuildOris(BuilderContext& ctx) {
+  ctx.Println("\t{}.u64 = {}.u64 | {};", ctx.R(ctx.insn.operands[0]), ctx.R(ctx.insn.operands[1]),
               static_cast<u32>(ctx.insn.operands[2]) << 16);
   return true;
 }
 
-bool build_xor(BuilderContext& ctx) {
-  ctx.println("\t{}.u64 = {}.u64 ^ {}.u64;", ctx.r(ctx.insn.operands[0]),
-              ctx.r(ctx.insn.operands[1]), ctx.r(ctx.insn.operands[2]));
-  emitRecordFormCompare(ctx);
+bool BuildXor(BuilderContext& ctx) {
+  ctx.Println("\t{}.u64 = {}.u64 ^ {}.u64;", ctx.R(ctx.insn.operands[0]),
+              ctx.R(ctx.insn.operands[1]), ctx.R(ctx.insn.operands[2]));
+  EmitRecordFormCompare(ctx);
   return true;
 }
 
-bool build_xori(BuilderContext& ctx) {
-  ctx.println("\t{}.u64 = {}.u64 ^ {};", ctx.r(ctx.insn.operands[0]), ctx.r(ctx.insn.operands[1]),
+bool BuildXori(BuilderContext& ctx) {
+  ctx.Println("\t{}.u64 = {}.u64 ^ {};", ctx.R(ctx.insn.operands[0]), ctx.R(ctx.insn.operands[1]),
               ctx.insn.operands[2]);
   return true;
 }
 
-bool build_xoris(BuilderContext& ctx) {
-  ctx.println("\t{}.u64 = {}.u64 ^ {};", ctx.r(ctx.insn.operands[0]), ctx.r(ctx.insn.operands[1]),
+bool BuildXoris(BuilderContext& ctx) {
+  ctx.Println("\t{}.u64 = {}.u64 ^ {};", ctx.R(ctx.insn.operands[0]), ctx.R(ctx.insn.operands[1]),
               ctx.insn.operands[2] << 16);
   return true;
 }
 
-bool build_eqv(BuilderContext& ctx) {
-  ctx.println("\t{}.u64 = ~({}.u64 ^ {}.u64);", ctx.r(ctx.insn.operands[0]),
-              ctx.r(ctx.insn.operands[1]), ctx.r(ctx.insn.operands[2]));
-  emitRecordFormCompare(ctx);
+bool BuildEqv(BuilderContext& ctx) {
+  ctx.Println("\t{}.u64 = ~({}.u64 ^ {}.u64);", ctx.R(ctx.insn.operands[0]),
+              ctx.R(ctx.insn.operands[1]), ctx.R(ctx.insn.operands[2]));
+  EmitRecordFormCompare(ctx);
   return true;
 }
 
-bool build_cntlzd(BuilderContext& ctx) {
-  ctx.println("\t{0}.u64 = {1}.u64 == 0 ? 64 : __builtin_clzll({1}.u64);",
-              ctx.r(ctx.insn.operands[0]), ctx.r(ctx.insn.operands[1]));
-  emitRecordFormCompare(ctx);
+bool BuildCntlzd(BuilderContext& ctx) {
+  ctx.Println("\t{0}.u64 = {1}.u64 == 0 ? 64 : __builtin_clzll({1}.u64);",
+              ctx.R(ctx.insn.operands[0]), ctx.R(ctx.insn.operands[1]));
+  EmitRecordFormCompare(ctx);
   return true;
 }
 
-bool build_cntlzw(BuilderContext& ctx) {
-  ctx.println("\t{0}.u64 = {1}.u32 == 0 ? 32 : __builtin_clz({1}.u32);",
-              ctx.r(ctx.insn.operands[0]), ctx.r(ctx.insn.operands[1]));
-  emitRecordFormCompare(ctx);
+bool BuildCntlzw(BuilderContext& ctx) {
+  ctx.Println("\t{0}.u64 = {1}.u32 == 0 ? 32 : __builtin_clz({1}.u32);",
+              ctx.R(ctx.insn.operands[0]), ctx.R(ctx.insn.operands[1]));
+  EmitRecordFormCompare(ctx);
   return true;
 }
 
-bool build_extsb(BuilderContext& ctx) {
-  ctx.println("\t{}.s64 = {}.s8;", ctx.r(ctx.insn.operands[0]), ctx.r(ctx.insn.operands[1]));
-  emitRecordFormCompare(ctx);
+bool BuildExtsb(BuilderContext& ctx) {
+  ctx.Println("\t{}.s64 = {}.s8;", ctx.R(ctx.insn.operands[0]), ctx.R(ctx.insn.operands[1]));
+  EmitRecordFormCompare(ctx);
   return true;
 }
 
-bool build_extsh(BuilderContext& ctx) {
-  ctx.println("\t{}.s64 = {}.s16;", ctx.r(ctx.insn.operands[0]), ctx.r(ctx.insn.operands[1]));
-  emitRecordFormCompare(ctx);
+bool BuildExtsh(BuilderContext& ctx) {
+  ctx.Println("\t{}.s64 = {}.s16;", ctx.R(ctx.insn.operands[0]), ctx.R(ctx.insn.operands[1]));
+  EmitRecordFormCompare(ctx);
   return true;
 }
 
-bool build_extsw(BuilderContext& ctx) {
-  ctx.println("\t{}.s64 = {}.s32;", ctx.r(ctx.insn.operands[0]), ctx.r(ctx.insn.operands[1]));
-  emitRecordFormCompare(ctx);
+bool BuildExtsw(BuilderContext& ctx) {
+  ctx.Println("\t{}.s64 = {}.s32;", ctx.R(ctx.insn.operands[0]), ctx.R(ctx.insn.operands[1]));
+  EmitRecordFormCompare(ctx);
   return true;
 }
 
-bool build_clrlwi(BuilderContext& ctx) {
-  ctx.println("\t{}.u64 = {}.u32 & 0x{:X};", ctx.r(ctx.insn.operands[0]),
-              ctx.r(ctx.insn.operands[1]), (1ull << (32 - ctx.insn.operands[2])) - 1);
-  emitRecordFormCompare(ctx);
+bool BuildClrlwi(BuilderContext& ctx) {
+  ctx.Println("\t{}.u64 = {}.u32 & 0x{:X};", ctx.R(ctx.insn.operands[0]),
+              ctx.R(ctx.insn.operands[1]), (1ull << (32 - ctx.insn.operands[2])) - 1);
+  EmitRecordFormCompare(ctx);
   return true;
 }
 
-bool build_rldicl(BuilderContext& ctx) {
-  ctx.println("\t{}.u64 = __builtin_rotateleft64({}.u64, {}) & 0x{:X};",
-              ctx.r(ctx.insn.operands[0]), ctx.r(ctx.insn.operands[1]), ctx.insn.operands[2],
-              compute_mask(ctx.insn.operands[3], 63));
-  emitRecordFormCompare(ctx);
+bool BuildRldicl(BuilderContext& ctx) {
+  ctx.Println("\t{}.u64 = __builtin_rotateleft64({}.u64, {}) & 0x{:X};",
+              ctx.R(ctx.insn.operands[0]), ctx.R(ctx.insn.operands[1]), ctx.insn.operands[2],
+              ComputeMask(ctx.insn.operands[3], 63));
+  EmitRecordFormCompare(ctx);
   return true;
 }
 
-bool build_rldicr(BuilderContext& ctx) {
-  ctx.println("\t{}.u64 = __builtin_rotateleft64({}.u64, {}) & 0x{:X};",
-              ctx.r(ctx.insn.operands[0]), ctx.r(ctx.insn.operands[1]), ctx.insn.operands[2],
-              compute_mask(0, ctx.insn.operands[3]));
-  emitRecordFormCompare(ctx);
+bool BuildRldicr(BuilderContext& ctx) {
+  ctx.Println("\t{}.u64 = __builtin_rotateleft64({}.u64, {}) & 0x{:X};",
+              ctx.R(ctx.insn.operands[0]), ctx.R(ctx.insn.operands[1]), ctx.insn.operands[2],
+              ComputeMask(0, ctx.insn.operands[3]));
+  EmitRecordFormCompare(ctx);
   return true;
 }
 
-bool build_rldic(BuilderContext& ctx) {
+bool BuildRldic(BuilderContext& ctx) {
   u32 sh = ctx.insn.operands[2];
-  u64 mask = compute_mask(ctx.insn.operands[3], 63 - sh);
+  u64 mask = ComputeMask(ctx.insn.operands[3], 63 - sh);
   if (sh)
-    ctx.println("\t{}.u64 = __builtin_rotateleft64({}.u64, {}) & 0x{:X};",
-                ctx.r(ctx.insn.operands[0]), ctx.r(ctx.insn.operands[1]), sh, mask);
+    ctx.Println("\t{}.u64 = __builtin_rotateleft64({}.u64, {}) & 0x{:X};",
+                ctx.R(ctx.insn.operands[0]), ctx.R(ctx.insn.operands[1]), sh, mask);
   else
-    ctx.println("\t{}.u64 = {}.u64 & 0x{:X};", ctx.r(ctx.insn.operands[0]),
-                ctx.r(ctx.insn.operands[1]), mask);
-  emitRecordFormCompare(ctx);
+    ctx.Println("\t{}.u64 = {}.u64 & 0x{:X};", ctx.R(ctx.insn.operands[0]),
+                ctx.R(ctx.insn.operands[1]), mask);
+  EmitRecordFormCompare(ctx);
   return true;
 }
 
-bool build_rldcl(BuilderContext& ctx) {
-  u64 mask = compute_mask(ctx.insn.operands[3], 63);
-  ctx.println("\t{}.u64 = __builtin_rotateleft64({}.u64, {}.u8 & 0x3F) & 0x{:X};",
-              ctx.r(ctx.insn.operands[0]), ctx.r(ctx.insn.operands[1]), ctx.r(ctx.insn.operands[2]),
+bool BuildRldcl(BuilderContext& ctx) {
+  u64 mask = ComputeMask(ctx.insn.operands[3], 63);
+  ctx.Println("\t{}.u64 = __builtin_rotateleft64({}.u64, {}.u8 & 0x3F) & 0x{:X};",
+              ctx.R(ctx.insn.operands[0]), ctx.R(ctx.insn.operands[1]), ctx.R(ctx.insn.operands[2]),
               mask);
-  emitRecordFormCompare(ctx);
+  EmitRecordFormCompare(ctx);
   return true;
 }
 
-bool build_rldcr(BuilderContext& ctx) {
-  u64 mask = compute_mask(0, ctx.insn.operands[3]);
-  ctx.println("\t{}.u64 = __builtin_rotateleft64({}.u64, {}.u8 & 0x3F) & 0x{:X};",
-              ctx.r(ctx.insn.operands[0]), ctx.r(ctx.insn.operands[1]), ctx.r(ctx.insn.operands[2]),
+bool BuildRldcr(BuilderContext& ctx) {
+  u64 mask = ComputeMask(0, ctx.insn.operands[3]);
+  ctx.Println("\t{}.u64 = __builtin_rotateleft64({}.u64, {}.u8 & 0x3F) & 0x{:X};",
+              ctx.R(ctx.insn.operands[0]), ctx.R(ctx.insn.operands[1]), ctx.R(ctx.insn.operands[2]),
               mask);
-  emitRecordFormCompare(ctx);
+  EmitRecordFormCompare(ctx);
   return true;
 }
 
-bool build_rldimi(BuilderContext& ctx) {
-  const u64 mask = compute_mask(ctx.insn.operands[3], ~ctx.insn.operands[2]);
-  ctx.println("\t{}.u64 = (__builtin_rotateleft64({}.u64, {}) & 0x{:X}) | ({}.u64 & 0x{:X});",
-              ctx.r(ctx.insn.operands[0]), ctx.r(ctx.insn.operands[1]), ctx.insn.operands[2], mask,
-              ctx.r(ctx.insn.operands[0]), ~mask);
-  emitRecordFormCompare(ctx);
+bool BuildRldimi(BuilderContext& ctx) {
+  const u64 mask = ComputeMask(ctx.insn.operands[3], ~ctx.insn.operands[2]);
+  ctx.Println("\t{}.u64 = (__builtin_rotateleft64({}.u64, {}) & 0x{:X}) | ({}.u64 & 0x{:X});",
+              ctx.R(ctx.insn.operands[0]), ctx.R(ctx.insn.operands[1]), ctx.insn.operands[2], mask,
+              ctx.R(ctx.insn.operands[0]), ~mask);
+  EmitRecordFormCompare(ctx);
   return true;
 }
 
-bool build_rotldi(BuilderContext& ctx) {
-  ctx.println("\t{}.u64 = __builtin_rotateleft64({}.u64, {});", ctx.r(ctx.insn.operands[0]),
-              ctx.r(ctx.insn.operands[1]), ctx.insn.operands[2]);
-  emitRecordFormCompare(ctx);
+bool BuildRotldi(BuilderContext& ctx) {
+  ctx.Println("\t{}.u64 = __builtin_rotateleft64({}.u64, {});", ctx.R(ctx.insn.operands[0]),
+              ctx.R(ctx.insn.operands[1]), ctx.insn.operands[2]);
+  EmitRecordFormCompare(ctx);
   return true;
 }
 
-bool build_rlwimi(BuilderContext& ctx) {
-  const u64 mask = compute_mask(ctx.insn.operands[3] + 32, ctx.insn.operands[4] + 32);
-  ctx.println(
+bool BuildRlwimi(BuilderContext& ctx) {
+  const u64 mask = ComputeMask(ctx.insn.operands[3] + 32, ctx.insn.operands[4] + 32);
+  ctx.Println(
       "\t{}.u64 = (__builtin_rotateleft64({}.u32 | ({}.u64 << 32), {}) & 0x{:X}) | ({}.u64 & "
       "0x{:X});",
-      ctx.r(ctx.insn.operands[0]), ctx.r(ctx.insn.operands[1]), ctx.r(ctx.insn.operands[1]),
-      ctx.insn.operands[2], mask, ctx.r(ctx.insn.operands[0]), ~mask);
-  emitRecordFormCompare(ctx);
+      ctx.R(ctx.insn.operands[0]), ctx.R(ctx.insn.operands[1]), ctx.R(ctx.insn.operands[1]),
+      ctx.insn.operands[2], mask, ctx.R(ctx.insn.operands[0]), ~mask);
+  EmitRecordFormCompare(ctx);
   return true;
 }
 
-bool build_rlwinm(BuilderContext& ctx) {
-  ctx.println("\t{}.u64 = __builtin_rotateleft64({}.u32 | ({}.u64 << 32), {}) & 0x{:X};",
-              ctx.r(ctx.insn.operands[0]), ctx.r(ctx.insn.operands[1]), ctx.r(ctx.insn.operands[1]),
+bool BuildRlwinm(BuilderContext& ctx) {
+  ctx.Println("\t{}.u64 = __builtin_rotateleft64({}.u32 | ({}.u64 << 32), {}) & 0x{:X};",
+              ctx.R(ctx.insn.operands[0]), ctx.R(ctx.insn.operands[1]), ctx.R(ctx.insn.operands[1]),
               ctx.insn.operands[2],
-              compute_mask(ctx.insn.operands[3] + 32, ctx.insn.operands[4] + 32));
-  emitRecordFormCompare(ctx);
+              ComputeMask(ctx.insn.operands[3] + 32, ctx.insn.operands[4] + 32));
+  EmitRecordFormCompare(ctx);
   return true;
 }
 
-bool build_rlwnm(BuilderContext& ctx) {
-  ctx.println("\t{}.u64 = __builtin_rotateleft64({}.u32 | ({}.u64 << 32), {}.u8 & 0x1F) & 0x{:X};",
-              ctx.r(ctx.insn.operands[0]), ctx.r(ctx.insn.operands[1]), ctx.r(ctx.insn.operands[1]),
-              ctx.r(ctx.insn.operands[2]),
-              compute_mask(ctx.insn.operands[3] + 32, ctx.insn.operands[4] + 32));
-  emitRecordFormCompare(ctx);
+bool BuildRlwnm(BuilderContext& ctx) {
+  ctx.Println("\t{}.u64 = __builtin_rotateleft64({}.u32 | ({}.u64 << 32), {}.u8 & 0x1F) & 0x{:X};",
+              ctx.R(ctx.insn.operands[0]), ctx.R(ctx.insn.operands[1]), ctx.R(ctx.insn.operands[1]),
+              ctx.R(ctx.insn.operands[2]),
+              ComputeMask(ctx.insn.operands[3] + 32, ctx.insn.operands[4] + 32));
+  EmitRecordFormCompare(ctx);
   return true;
 }
 
-bool build_rotlw(BuilderContext& ctx) {
-  ctx.println("\t{}.u64 = __builtin_rotateleft32({}.u32, {}.u8 & 0x1F);",
-              ctx.r(ctx.insn.operands[0]), ctx.r(ctx.insn.operands[1]),
-              ctx.r(ctx.insn.operands[2]));
-  emitRecordFormCompare(ctx);
+bool BuildRotlw(BuilderContext& ctx) {
+  ctx.Println("\t{}.u64 = __builtin_rotateleft32({}.u32, {}.u8 & 0x1F);",
+              ctx.R(ctx.insn.operands[0]), ctx.R(ctx.insn.operands[1]),
+              ctx.R(ctx.insn.operands[2]));
+  EmitRecordFormCompare(ctx);
   return true;
 }
 
-bool build_rotlwi(BuilderContext& ctx) {
-  ctx.println("\t{}.u64 = __builtin_rotateleft32({}.u32, {});", ctx.r(ctx.insn.operands[0]),
-              ctx.r(ctx.insn.operands[1]), ctx.insn.operands[2]);
-  emitRecordFormCompare(ctx);
+bool BuildRotlwi(BuilderContext& ctx) {
+  ctx.Println("\t{}.u64 = __builtin_rotateleft32({}.u32, {});", ctx.R(ctx.insn.operands[0]),
+              ctx.R(ctx.insn.operands[1]), ctx.insn.operands[2]);
+  EmitRecordFormCompare(ctx);
   return true;
 }
 
-bool build_sld(BuilderContext& ctx) {
-  ctx.println("\t{}.u64 = {}.u8 & 0x40 ? 0 : ({}.u64 << ({}.u8 & 0x7F));",
-              ctx.r(ctx.insn.operands[0]), ctx.r(ctx.insn.operands[2]), ctx.r(ctx.insn.operands[1]),
-              ctx.r(ctx.insn.operands[2]));
-  emitRecordFormCompare(ctx);
+bool BuildSld(BuilderContext& ctx) {
+  ctx.Println("\t{}.u64 = {}.u8 & 0x40 ? 0 : ({}.u64 << ({}.u8 & 0x7F));",
+              ctx.R(ctx.insn.operands[0]), ctx.R(ctx.insn.operands[2]), ctx.R(ctx.insn.operands[1]),
+              ctx.R(ctx.insn.operands[2]));
+  EmitRecordFormCompare(ctx);
   return true;
 }
 
-bool build_slw(BuilderContext& ctx) {
-  ctx.println("\t{}.u64 = {}.u8 & 0x20 ? 0 : ({}.u32 << ({}.u8 & 0x3F));",
-              ctx.r(ctx.insn.operands[0]), ctx.r(ctx.insn.operands[2]), ctx.r(ctx.insn.operands[1]),
-              ctx.r(ctx.insn.operands[2]));
-  emitRecordFormCompare(ctx);
+bool BuildSlw(BuilderContext& ctx) {
+  ctx.Println("\t{}.u64 = {}.u8 & 0x20 ? 0 : ({}.u32 << ({}.u8 & 0x3F));",
+              ctx.R(ctx.insn.operands[0]), ctx.R(ctx.insn.operands[2]), ctx.R(ctx.insn.operands[1]),
+              ctx.R(ctx.insn.operands[2]));
+  EmitRecordFormCompare(ctx);
   return true;
 }
 
-bool build_srad(BuilderContext& ctx) {
-  ctx.println("\t{}.u64 = {}.u64 & 0x7F;", ctx.temp(), ctx.r(ctx.insn.operands[2]));
-  ctx.println("\tif ({}.u64 > 0x3F) {}.u64 = 0x3F;", ctx.temp(), ctx.temp());
-  ctx.println("\t{}.ca = ({}.s64 < 0) & ((({}.s64 >> {}.u64) << {}.u64) != {}.s64);", ctx.xer(),
-              ctx.r(ctx.insn.operands[1]), ctx.r(ctx.insn.operands[1]), ctx.temp(), ctx.temp(),
-              ctx.r(ctx.insn.operands[1]));
-  ctx.println("\t{}.s64 = {}.s64 >> {}.u64;", ctx.r(ctx.insn.operands[0]),
-              ctx.r(ctx.insn.operands[1]), ctx.temp());
-  emitRecordFormCompare(ctx);
+bool BuildSrad(BuilderContext& ctx) {
+  ctx.Println("\t{}.u64 = {}.u64 & 0x7F;", ctx.Temp(), ctx.R(ctx.insn.operands[2]));
+  ctx.Println("\tif ({}.u64 > 0x3F) {}.u64 = 0x3F;", ctx.Temp(), ctx.Temp());
+  ctx.Println("\t{}.ca = ({}.s64 < 0) & ((({}.s64 >> {}.u64) << {}.u64) != {}.s64);", ctx.XER(),
+              ctx.R(ctx.insn.operands[1]), ctx.R(ctx.insn.operands[1]), ctx.Temp(), ctx.Temp(),
+              ctx.R(ctx.insn.operands[1]));
+  ctx.Println("\t{}.s64 = {}.s64 >> {}.u64;", ctx.R(ctx.insn.operands[0]),
+              ctx.R(ctx.insn.operands[1]), ctx.Temp());
+  EmitRecordFormCompare(ctx);
   return true;
 }
 
-bool build_sradi(BuilderContext& ctx) {
+bool BuildSradi(BuilderContext& ctx) {
   if (ctx.insn.operands[2] != 0) {
-    ctx.println("\t{}.ca = ({}.s64 < 0) & (({}.u64 & 0x{:X}) != 0);", ctx.xer(),
-                ctx.r(ctx.insn.operands[1]), ctx.r(ctx.insn.operands[1]),
-                compute_mask(64 - ctx.insn.operands[2], 63));
-    ctx.println("\t{}.s64 = {}.s64 >> {};", ctx.r(ctx.insn.operands[0]),
-                ctx.r(ctx.insn.operands[1]), ctx.insn.operands[2]);
+    ctx.Println("\t{}.ca = ({}.s64 < 0) & (({}.u64 & 0x{:X}) != 0);", ctx.XER(),
+                ctx.R(ctx.insn.operands[1]), ctx.R(ctx.insn.operands[1]),
+                ComputeMask(64 - ctx.insn.operands[2], 63));
+    ctx.Println("\t{}.s64 = {}.s64 >> {};", ctx.R(ctx.insn.operands[0]),
+                ctx.R(ctx.insn.operands[1]), ctx.insn.operands[2]);
   } else {
-    ctx.println("\t{}.ca = 0;", ctx.xer());
-    ctx.println("\t{}.s64 = {}.s64;", ctx.r(ctx.insn.operands[0]), ctx.r(ctx.insn.operands[1]));
+    ctx.Println("\t{}.ca = 0;", ctx.XER());
+    ctx.Println("\t{}.s64 = {}.s64;", ctx.R(ctx.insn.operands[0]), ctx.R(ctx.insn.operands[1]));
   }
-  emitRecordFormCompare(ctx);
+  EmitRecordFormCompare(ctx);
   return true;
 }
 
-bool build_sraw(BuilderContext& ctx) {
-  ctx.println("\t{}.u32 = {}.u32 & 0x3F;", ctx.temp(), ctx.r(ctx.insn.operands[2]));
-  ctx.println("\tif ({}.u32 > 0x1F) {}.u32 = 0x1F;", ctx.temp(), ctx.temp());
-  ctx.println("\t{}.ca = ({}.s32 < 0) & ((({}.s32 >> {}.u32) << {}.u32) != {}.s32);", ctx.xer(),
-              ctx.r(ctx.insn.operands[1]), ctx.r(ctx.insn.operands[1]), ctx.temp(), ctx.temp(),
-              ctx.r(ctx.insn.operands[1]));
-  ctx.println("\t{}.s64 = {}.s32 >> {}.u32;", ctx.r(ctx.insn.operands[0]),
-              ctx.r(ctx.insn.operands[1]), ctx.temp());
-  emitRecordFormCompare(ctx);
+bool BuildSraw(BuilderContext& ctx) {
+  ctx.Println("\t{}.u32 = {}.u32 & 0x3F;", ctx.Temp(), ctx.R(ctx.insn.operands[2]));
+  ctx.Println("\tif ({}.u32 > 0x1F) {}.u32 = 0x1F;", ctx.Temp(), ctx.Temp());
+  ctx.Println("\t{}.ca = ({}.s32 < 0) & ((({}.s32 >> {}.u32) << {}.u32) != {}.s32);", ctx.XER(),
+              ctx.R(ctx.insn.operands[1]), ctx.R(ctx.insn.operands[1]), ctx.Temp(), ctx.Temp(),
+              ctx.R(ctx.insn.operands[1]));
+  ctx.Println("\t{}.s64 = {}.s32 >> {}.u32;", ctx.R(ctx.insn.operands[0]),
+              ctx.R(ctx.insn.operands[1]), ctx.Temp());
+  EmitRecordFormCompare(ctx);
   return true;
 }
 
-bool build_srawi(BuilderContext& ctx) {
+bool BuildSrawi(BuilderContext& ctx) {
   if (ctx.insn.operands[2] != 0) {
-    ctx.println("\t{}.ca = ({}.s32 < 0) & (({}.u32 & 0x{:X}) != 0);", ctx.xer(),
-                ctx.r(ctx.insn.operands[1]), ctx.r(ctx.insn.operands[1]),
-                compute_mask(64 - ctx.insn.operands[2], 63));
-    ctx.println("\t{}.s64 = {}.s32 >> {};", ctx.r(ctx.insn.operands[0]),
-                ctx.r(ctx.insn.operands[1]), ctx.insn.operands[2]);
+    ctx.Println("\t{}.ca = ({}.s32 < 0) & (({}.u32 & 0x{:X}) != 0);", ctx.XER(),
+                ctx.R(ctx.insn.operands[1]), ctx.R(ctx.insn.operands[1]),
+                ComputeMask(64 - ctx.insn.operands[2], 63));
+    ctx.Println("\t{}.s64 = {}.s32 >> {};", ctx.R(ctx.insn.operands[0]),
+                ctx.R(ctx.insn.operands[1]), ctx.insn.operands[2]);
   } else {
-    ctx.println("\t{}.ca = 0;", ctx.xer());
-    ctx.println("\t{}.s64 = {}.s32;", ctx.r(ctx.insn.operands[0]), ctx.r(ctx.insn.operands[1]));
+    ctx.Println("\t{}.ca = 0;", ctx.XER());
+    ctx.Println("\t{}.s64 = {}.s32;", ctx.R(ctx.insn.operands[0]), ctx.R(ctx.insn.operands[1]));
   }
-  emitRecordFormCompare(ctx);
+  EmitRecordFormCompare(ctx);
   return true;
 }
 
-bool build_srd(BuilderContext& ctx) {
-  ctx.println("\t{}.u64 = {}.u8 & 0x40 ? 0 : ({}.u64 >> ({}.u8 & 0x7F));",
-              ctx.r(ctx.insn.operands[0]), ctx.r(ctx.insn.operands[2]), ctx.r(ctx.insn.operands[1]),
-              ctx.r(ctx.insn.operands[2]));
-  emitRecordFormCompare(ctx);
+bool BuildSrd(BuilderContext& ctx) {
+  ctx.Println("\t{}.u64 = {}.u8 & 0x40 ? 0 : ({}.u64 >> ({}.u8 & 0x7F));",
+              ctx.R(ctx.insn.operands[0]), ctx.R(ctx.insn.operands[2]), ctx.R(ctx.insn.operands[1]),
+              ctx.R(ctx.insn.operands[2]));
+  EmitRecordFormCompare(ctx);
   return true;
 }
 
-bool build_srw(BuilderContext& ctx) {
-  ctx.println("\t{}.u64 = {}.u8 & 0x20 ? 0 : ({}.u32 >> ({}.u8 & 0x3F));",
-              ctx.r(ctx.insn.operands[0]), ctx.r(ctx.insn.operands[2]), ctx.r(ctx.insn.operands[1]),
-              ctx.r(ctx.insn.operands[2]));
-  emitRecordFormCompare(ctx);
+bool BuildSrw(BuilderContext& ctx) {
+  ctx.Println("\t{}.u64 = {}.u8 & 0x20 ? 0 : ({}.u32 >> ({}.u8 & 0x3F));",
+              ctx.R(ctx.insn.operands[0]), ctx.R(ctx.insn.operands[2]), ctx.R(ctx.insn.operands[1]),
+              ctx.R(ctx.insn.operands[2]));
+  EmitRecordFormCompare(ctx);
   return true;
 }
 
-bool build_crand(BuilderContext& ctx) {
-  emitCRBitOperation(ctx, "&");
+bool BuildCrand(BuilderContext& ctx) {
+  EmitCRBitOperation(ctx, "&");
   return true;
 }
 
-bool build_crandc(BuilderContext& ctx) {
-  emitCRBitOperation(ctx, "&", false, true, false);
+bool BuildCrandc(BuilderContext& ctx) {
+  EmitCRBitOperation(ctx, "&", false, true, false);
   return true;
 }
 
-bool build_creqv(BuilderContext& ctx) {
-  emitCRBitOperation(ctx, "^", false, false, true);
+bool BuildCreqv(BuilderContext& ctx) {
+  EmitCRBitOperation(ctx, "^", false, false, true);
   return true;
 }
 
-bool build_crnand(BuilderContext& ctx) {
-  emitCRBitOperation(ctx, "&", false, false, true);
+bool BuildCrnand(BuilderContext& ctx) {
+  EmitCRBitOperation(ctx, "&", false, false, true);
   return true;
 }
 
-bool build_crnor(BuilderContext& ctx) {
-  emitCRBitOperation(ctx, "|", false, false, true);
+bool BuildCrnor(BuilderContext& ctx) {
+  EmitCRBitOperation(ctx, "|", false, false, true);
   return true;
 }
 
-bool build_cror(BuilderContext& ctx) {
-  emitCRBitOperation(ctx, "|");
+bool BuildCror(BuilderContext& ctx) {
+  EmitCRBitOperation(ctx, "|");
   return true;
 }
 
-bool build_crorc(BuilderContext& ctx) {
-  emitCRBitOperation(ctx, "|", false, true, false);
+bool BuildCrorc(BuilderContext& ctx) {
+  EmitCRBitOperation(ctx, "|", false, true, false);
   return true;
 }
 
-bool build_crxor(BuilderContext& ctx) {
-  emitCRBitOperation(ctx, "^");
+bool BuildCrxor(BuilderContext& ctx) {
+  EmitCRBitOperation(ctx, "^");
   return true;
 }
 

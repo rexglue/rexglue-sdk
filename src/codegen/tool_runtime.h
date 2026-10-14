@@ -44,14 +44,14 @@ class ToolRuntime : public MoveOnly {
    *
    * @return The Runtime, set up with game colon at the game root.
    */
-  [[nodiscard]] Runtime& runtime() const { return *runtime_; }
+  [[nodiscard]] Runtime& GetRuntime() const { return *runtime_; }
 
   /**
    * Returns the API that serves the runtime's interfaces.
    *
    * @return The API, valid until the ToolRuntime is destroyed.
    */
-  API& api() const { return *api_; }
+  API& GetAPI() const { return *api_; }
 
  private:
   friend Result<ToolRuntime> OpenToolRuntime(const std::filesystem::path& game_root,

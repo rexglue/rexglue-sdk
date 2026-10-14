@@ -101,16 +101,16 @@ class Driver {
    *
    * @return The host, null while detached.
    */
-  IInputHost* host() const { return host_.load(std::memory_order_acquire); }
+  IInputHost* GetHost() const { return host_.load(std::memory_order_acquire); }
 
   /**
    * Reports whether input reaches the title.
    *
    * @return True without a host, otherwise IInputHost::capture_active.
    */
-  bool is_active() const {
-    IInputHost* current = host();
-    return !current || current->capture_active();
+  bool IsActive() const {
+    IInputHost* current = GetHost();
+    return !current || current->GetCaptureActive();
   }
 
  private:

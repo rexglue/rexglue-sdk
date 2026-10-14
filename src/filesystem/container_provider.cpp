@@ -58,43 +58,43 @@ ContainerProvider::ContainerProvider(Key, MountEntry entry, Container container)
 
 Result<std::unique_ptr<Provider>> ContainerProvider::Create(const MountEntry& entry) {
   REX_TRY(Container container, Container::Open(entry.source));
-  if (!KindMatches(entry.kind, container.kind())) {
+  if (!KindMatches(entry.kind, container.GetKind())) {
     return Err<std::unique_ptr<Provider>>(
         BuildError(FileSystemError::kCorrupt,
                    std::format("'{}' does not hold the container kind mount '{}' names",
-                               path_to_utf8(entry.source), entry.path)));
+                               PathToUTF8(entry.source), entry.path)));
   }
   auto provider = std::make_unique<ContainerProvider>(Key{}, entry, std::move(container));
   auto root = std::make_unique<ContainerNodeImpl>(*provider, nullptr, std::string(),
-                                                  provider->container_.root());
-  provider->Build(*root, provider->container_.root());
+                                                  provider->container_.GetRoot());
+  provider->Build(*root, provider->container_.GetRoot());
   provider->root_ = std::move(root);
   return std::unique_ptr<Provider>(std::move(provider));
 }
 
 void ContainerProvider::Build(Node& parent, const ContainerNode& source) {
-  const std::span<const ContainerNode> nodes = container_.nodes();
+  const std::span<const ContainerNode> nodes = container_.GetNodes();
   for (u32 index : source.children) {
     const ContainerNode& child_source = nodes[index];
     Node* child = parent.AddChild(std::make_unique<ContainerNodeImpl>(
-        *this, &parent, utf8_join_guest_paths(parent.path(), child_source.name), child_source));
+        *this, &parent, utf8_join_guest_paths(parent.GetPath(), child_source.name), child_source));
     if (!child_source.children.empty()) {
       Build(*child, child_source);
     }
   }
 }
 
-VolumeInfo ContainerProvider::Volume() const {
-  if (container_.kind() == ContainerKind::kGDFX) {
+VolumeInfo ContainerProvider::GetVolume() const {
+  if (container_.GetKind() == ContainerKind::kGDFX) {
     return {
-        "GDFX",         0, 255, static_cast<u32>(container_.total_size() / kBytesPerSector), 0, 1,
+        "GDFX",         0, 255, static_cast<u32>(container_.GetTotalSize() / kBytesPerSector), 0, 1,
         kBytesPerSector};
   }
-  const STFSHeader& header = *container_.header();
+  const STFSHeader& header = *container_.GetHeader();
   const auto& metadata = header.metadata;
   u32 total_units = 0;
   u32 available_units = 0;
-  if (container_.kind() == ContainerKind::kSTFS) {
+  if (container_.GetKind() == ContainerKind::kSTFS) {
     const auto& descriptor = metadata.volume_descriptor.stfs;
     total_units = descriptor.total_block_count;
     if (!descriptor.flags.bits.read_only_format) {
@@ -105,7 +105,7 @@ VolumeInfo ContainerProvider::Volume() const {
     const u64 header_bytes = header.header.header_size
                                  ? round_up(u64{header.header.header_size}, u64{kSTFSBlockSize})
                                  : u64{sizeof(STFSHeader)};
-    const u64 data_size = container_.total_size() - header_bytes;
+    const u64 data_size = container_.GetTotalSize() - header_bytes;
     total_units = static_cast<u32>(data_size / kPackageSectorsPerUnit / kBytesPerSector);
   }
   return {"STFS", 0, 40, total_units, available_units, kPackageSectorsPerUnit, kBytesPerSector};
@@ -124,7 +124,7 @@ ContainerNodeImpl::ContainerNodeImpl(ContainerProvider& provider, Node* parent, 
 
 Result<std::unique_ptr<NodeStream>> ContainerNodeImpl::Open(Access access) {
   (void)access;
-  const auto& container = static_cast<ContainerProvider&>(provider()).container();
+  const auto& container = static_cast<ContainerProvider&>(GetProvider()).GetContainer();
   return std::unique_ptr<NodeStream>(std::make_unique<ContainerStream>(container, source_));
 }
 

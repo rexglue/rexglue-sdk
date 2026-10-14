@@ -54,11 +54,11 @@ std::optional<std::string_view> CLIArgList::Get(std::string_view name) const {
   return std::nullopt;
 }
 
-std::span<const CLIOption> CLIArgList::Options() const {
+std::span<const CLIOption> CLIArgList::GetOptions() const {
   return options_;
 }
 
-std::span<const std::string> CLIArgList::Positionals() const {
+std::span<const std::string> CLIArgList::GetPositionals() const {
   return positionals_;
 }
 

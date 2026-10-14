@@ -43,14 +43,14 @@ class OverlayTexture : public NonCopyable {
    *
    * @return Width in pixels.
    */
-  u32 width() const { return width_; }
+  u32 GetWidth() const { return width_; }
 
   /**
    * Returns the height.
    *
    * @return Height in pixels.
    */
-  u32 height() const { return height_; }
+  u32 GetHeight() const { return height_; }
 
  protected:
   /**
@@ -92,7 +92,7 @@ struct OverlayVertex {
   u32 color = 0;
 };
 
-/** The vertices and optional indices 1 batch of draws reads. */
+/** The vertices and optional indices a batch of draws reads. */
 struct OverlayBatch {
   /** The vertices. */
   std::span<const OverlayVertex> vertices;
@@ -126,21 +126,21 @@ class OverlayDrawContext : public NonCopyable {
    *
    * @return Width in pixels.
    */
-  u32 render_target_width() const { return render_target_width_; }
+  u32 GetRenderTargetWidth() const { return render_target_width_; }
 
   /**
    * Returns the render target height.
    *
    * @return Height in pixels.
    */
-  u32 render_target_height() const { return render_target_height_; }
+  u32 GetRenderTargetHeight() const { return render_target_height_; }
 
   /**
    * Returns the presenter that paints this context.
    *
    * @return The presenter, or null for a context a consumer built.
    */
-  IPresenter* presenter() const { return presenter_; }
+  IPresenter* GetPresenter() const { return presenter_; }
 
  protected:
   /**

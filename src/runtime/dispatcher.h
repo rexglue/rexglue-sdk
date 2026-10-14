@@ -127,7 +127,7 @@ class REX_RUNTIME_API Dispatcher final : public IDispatcher {
   };
 
   struct DPCImpersonationScope {
-    u8 previous_irql_;
+    u8 previous_irql;
   };
 
   DPCImpersonationScope BeginDPCImpersonation(X_KPCR& pcr);
@@ -141,13 +141,13 @@ class REX_RUNTIME_API Dispatcher final : public IDispatcher {
   u32 dpc_stack_base_ = 0;
   u32 dpc_stack_top_ = 0;
   std::atomic<bool> draining_{false};
-  rex::platform::RankedMutex dpc_mutex_{rex::platform::LockRank::DPC};
-  rex::platform::RankedMutex dispatch_mutex_{rex::platform::LockRank::Leaf};
+  rex::platform::RankedMutex dpc_mutex_{rex::platform::LockRank::kDPC};
+  rex::platform::RankedMutex dispatch_mutex_{rex::platform::LockRank::kLeaf};
   std::condition_variable_any dispatch_cond_;
   std::list<rex::MoveOnlyFunction<void()>> dispatch_queue_;
   std::atomic<bool> dispatch_thread_running_{false};
   X_HANDLE dispatch_thread_ = 0;
-  rex::platform::RankedMutex expiry_mutex_{rex::platform::LockRank::Leaf};
+  rex::platform::RankedMutex expiry_mutex_{rex::platform::LockRank::kLeaf};
   std::vector<std::weak_ptr<rex::platform::TimerQueueWaitItem>> timer_expiries_;
   bool expiries_stopped_ = true;
 };

@@ -189,7 +189,7 @@ class Profiler {
   /**
    * @return True when profiling is compiled in and the Tracy profiler is running.
    */
-  static bool is_enabled() {
+  static bool IsEnabled() {
 #ifdef REXGLUE_ENABLE_PROFILING
     return tracy::IsProfilerStarted();
 #else

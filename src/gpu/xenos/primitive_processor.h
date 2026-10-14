@@ -633,7 +633,7 @@ class PrimitiveProcessor {
   static constexpr u32 kCacheBucketSizeBytesLog2 = 18;
   static constexpr u32 kCacheBucketSizeBytes = static_cast<u32>(1) << kCacheBucketSizeBytesLog2;
   static constexpr u32 kCacheBucketCount =
-      rex::align(SharedMemory::kBufferSize, kCacheBucketSizeBytes) / kCacheBucketSizeBytes;
+      rex::Align(SharedMemory::kBufferSize, kCacheBucketSizeBytes) / kCacheBucketSizeBytes;
 
   union CacheKey {
     u64 key;
@@ -670,7 +670,9 @@ class PrimitiveProcessor {
     }
 
     struct Hasher {
-      size_t operator()(const CacheKey& key) const { return std::hash<u64>{}(key.key); }
+      size_t operator()(const CacheKey& hashed_key) const {
+        return std::hash<u64>{}(hashed_key.key);
+      }
     };
     bool operator==(const CacheKey& other_key) const { return key == other_key.key; }
 

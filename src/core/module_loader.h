@@ -50,16 +50,16 @@ REX_API std::filesystem::path ModuleFileName(std::string_view name);
  *
  * @return The request count.
  */
-REX_API u64 InterfaceRequestCount();
+REX_API u64 GetInterfaceRequestCount();
 
 class REX_API ModuleLoader final : public IInterfaceFactory, public NonCopyable {
  public:
-  static ModuleLoader& Instance();
+  static ModuleLoader& GetInstance();
 
   [[nodiscard]] Result<API*> Connect(const Config& config);
   [[nodiscard]] Result<void> InitModules();
   [[nodiscard]] Result<API*> Init(const Config& config);
-  Config& mutable_config() { return config_; }
+  Config& GetMutableConfig() { return config_; }
   void Shutdown();
 
   /** Shuts down and disconnects every module in reverse load order and resets the cvar tables. */
@@ -71,11 +71,11 @@ class REX_API ModuleLoader final : public IInterfaceFactory, public NonCopyable 
   [[nodiscard]] Result<void*> Get(std::string_view name, u32 version) override;
   void* GetForAPI(const char* name, u32 version) const;
   bool IsLoaded(std::string_view module_name) const;
-  const Config& config() const { return config_; }
-  CvarRegistryImpl& cvars() { return *cvars_; }
+  const Config& GetConfig() const { return config_; }
+  CvarRegistryImpl& GetCvars() { return *cvars_; }
   void UpdatePaths(const PathsConfig& paths) { config_.paths = paths; }
-  bool initialized() const { return initialized_; }
-  u64 request_count() const { return request_count_; }
+  bool GetInitialized() const { return initialized_; }
+  u64 GetRequestCount() const { return request_count_; }
 
  private:
   struct Loaded {

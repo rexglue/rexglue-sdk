@@ -31,11 +31,11 @@ REX_TEST_CASE("CLIArgList splits options, values and positionals", "[cli]") {
   REQUIRE(args.Has("c"));
   REQUIRE_FALSE(args.Get("c").has_value());
   REQUIRE(args.Get("d") == "last");
-  REQUIRE(args.Positionals().size() == 1);
-  REQUIRE(args.Positionals()[0] == "first");
+  REQUIRE(args.GetPositionals().size() == 1);
+  REQUIRE(args.GetPositionals()[0] == "first");
   REQUIRE(args.All().size() == 7);
-  REQUIRE(args.Options().size() == 4);
-  REQUIRE(args.Options()[1].name == "b");
+  REQUIRE(args.GetOptions().size() == 4);
+  REQUIRE(args.GetOptions()[1].name == "b");
 }
 
 REX_TEST_CASE("CLIArgList skips argv[0]", "[cli]") {

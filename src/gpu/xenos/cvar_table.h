@@ -24,22 +24,23 @@ REXCVAR_INT32(gpu, anisotropic_override, 3,
               " 0 = Disable anisotropic filtering\n  1 = Force 1x anisotropic filtering\n  2 = "
               "Force 2x anisotropic filtering\n  3 = Force 4x anisotropic filtering\n  4 = Force "
               "8x anisotropic filtering\n  5 = Force 16x anisotropic filtering")
-    .range(-1, 5);
+    .SetRange(-1, 5);
 REXCVAR_INT32(gpu, resolution_scale_x, 1, "Draw resolution scale X (1 = no scaling)")
-    .range(1, 8)
-    .lifecycle(rex::cvar::Lifecycle::RequiresRestart);
+    .SetRange(1, 8)
+    .SetLifecycle(rex::cvar::Lifecycle::kRequiresRestart);
 REXCVAR_INT32(gpu, resolution_scale_y, 1, "Draw resolution scale Y (1 = no scaling)")
-    .range(1, 8)
-    .lifecycle(rex::cvar::Lifecycle::RequiresRestart);
+    .SetRange(1, 8)
+    .SetLifecycle(rex::cvar::Lifecycle::kRequiresRestart);
 REXCVAR_BOOL(gpu, present_letterbox, true, "Enable letterboxing for non-native aspect ratios");
 REXCVAR_INT32(gpu, present_safe_area_x, 90, "Horizontal safe area percentage (0-100)")
-    .range(0, 100);
-REXCVAR_INT32(gpu, present_safe_area_y, 90, "Vertical safe area percentage (0-100)").range(0, 100);
+    .SetRange(0, 100);
+REXCVAR_INT32(gpu, present_safe_area_y, 90, "Vertical safe area percentage (0-100)")
+    .SetRange(0, 100);
 REXCVAR_BOOL(gpu, present_dither, false, "Enable output dithering in the final present pass")
-    .lifecycle(rex::cvar::Lifecycle::RequiresRestart);
+    .SetLifecycle(rex::cvar::Lifecycle::kRequiresRestart);
 REXCVAR_BOOL(gpu, present_allow_overscan_cutoff, false,
              "Allow overscan cutoff based on safe area settings")
-    .lifecycle(rex::cvar::Lifecycle::RequiresRestart);
+    .SetLifecycle(rex::cvar::Lifecycle::kRequiresRestart);
 REXCVAR_TABLE(kGPUCvars, vsync, debug_markers, anisotropic_override, resolution_scale_x,
               resolution_scale_y, present_letterbox, present_safe_area_x, present_safe_area_y,
               present_dither, present_allow_overscan_cutoff);
@@ -53,7 +54,7 @@ REXCVAR_STRING(
     "Controls CPU readback of render-to-texture resolve results.\n none: Disable readback "
     "(default)\n fast: Read previous frame (delayed, copy every frame)\n some: Read previous frame "
     "(delayed, copy on cache miss)\n full: Immediate sync readback (accurate but stalls)")
-    .allowed(REXCVAR_ALLOWED("none", "fast", "some", "full"));
+    .SetAllowed(REXCVAR_ALLOWED("none", "fast", "some", "full"));
 REXCVAR_BOOL(xenos, readback_resolve_half_pixel_offset, false,
              "When draw resolution scaling is active, sample from the center of each scaled block "
              "during resolve readback downscale");
@@ -66,13 +67,13 @@ REXCVAR_BOOL(xenos, readback_memexport_fast, true,
              "to full synchronous readback");
 REXCVAR_INT32(xenos, query_occlusion_fake_sample_count, 1000,
               "Fake sample count for occlusion queries")
-    .range(1, 100000);
+    .SetRange(1, 100000);
 REXCVAR_BOOL(
     xenos, async_shader_compilation, true,
     "Compile shaders and create pipelines asynchronously in background threads. This reduces "
     "stutter but may cause brief visual artifacts while pipelines are being prepared.");
 REXCVAR_BOOL(xenos, d3d12_bindless, true, "Use bindless resources where available")
-    .lifecycle(rex::cvar::Lifecycle::RequiresRestart);
+    .SetLifecycle(rex::cvar::Lifecycle::kRequiresRestart);
 REXCVAR_BOOL(xenos, d3d12_readback_memexport, false,
              "Read data written by memory export in shaders on the CPU");
 REXCVAR_BOOL(xenos, d3d12_readback_resolve, false, "Read render-to-texture results on the CPU");
@@ -82,16 +83,16 @@ REXCVAR_BOOL(xenos, d3d12_dxbc_disasm, false, "Dump DXBC disassembly");
 REXCVAR_BOOL(xenos, d3d12_dxbc_disasm_dxilconv, false, "Dump DXIL conversion disassembly");
 REXCVAR_INT32(xenos, d3d12_pipeline_creation_threads, -1,
               "Number of pipeline creation threads (-1 for auto)")
-    .range(-1, 32)
-    .lifecycle(rex::cvar::Lifecycle::RequiresRestart);
+    .SetRange(-1, 32)
+    .SetLifecycle(rex::cvar::Lifecycle::kRequiresRestart);
 REXCVAR_BOOL(xenos, d3d12_tessellation_wireframe, false, "Render tessellation as wireframe");
 REXCVAR_BOOL(xenos, native_stencil_value_output_d3d12_intel, false,
              "Native stencil value output for Intel D3D12");
 REXCVAR_STRING(xenos, render_target_path_d3d12, "", "D3D12 render target implementation path")
-    .lifecycle(rex::cvar::Lifecycle::InitOnly);
+    .SetLifecycle(rex::cvar::Lifecycle::kInitOnly);
 REXCVAR_BOOL(xenos, native_stencil_value_output, true, "Enable native stencil value output");
 REXCVAR_BOOL(xenos, d3d12_tiled_shared_memory, true, "Use tiled shared memory on D3D12")
-    .lifecycle(rex::cvar::Lifecycle::RequiresRestart);
+    .SetLifecycle(rex::cvar::Lifecycle::kRequiresRestart);
 REXCVAR_BOOL(xenos, allow_invalid_fetch_constants, false, "Allow invalid fetch constants");
 REXCVAR_BOOL(xenos, native_2x_msaa, true, "Enable native 2x MSAA");
 REXCVAR_BOOL(xenos, depth_float24_round, false, "Round float24 depth values");
@@ -105,8 +106,8 @@ REXCVAR_BOOL(
     xenos, use_fuzzy_alpha_epsilon, false,
     "Use approximate compare for alpha test values to prevent flickering on NVIDIA graphics cards");
 REXCVAR_STRING(xenos, swap_post_effect, "none", "Swap post effect: none, fxaa, fxaa_extreme")
-    .allowed(REXCVAR_ALLOWED("none", "fxaa", "fxaa_extreme"))
-    .lifecycle(rex::cvar::Lifecycle::RequiresRestart);
+    .SetAllowed(REXCVAR_ALLOWED("none", "fxaa", "fxaa_extreme"))
+    .SetLifecycle(rex::cvar::Lifecycle::kRequiresRestart);
 REXCVAR_BOOL(xenos, store_shaders, true,
              "Store shaders persistently and load them when loading games to avoid runtime spikes "
              "and freezes when playing the game not for the first time.");
@@ -124,17 +125,17 @@ REXCVAR_BOOL(xenos, draw_resolution_scaled_texture_offsets, true,
              "Scale texture offsets with draw resolution");
 REXCVAR_INT32(xenos, texture_cache_memory_limit_render_to_texture, 24,
               "Texture cache memory limit for render-to-texture (MB)")
-    .range(1, 256)
-    .lifecycle(rex::cvar::Lifecycle::RequiresRestart);
+    .SetRange(1, 256)
+    .SetLifecycle(rex::cvar::Lifecycle::kRequiresRestart);
 REXCVAR_INT32(xenos, texture_cache_memory_limit_soft, 384, "Soft texture cache memory limit (MB)")
-    .range(64, 4096)
-    .lifecycle(rex::cvar::Lifecycle::RequiresRestart);
+    .SetRange(64, 4096)
+    .SetLifecycle(rex::cvar::Lifecycle::kRequiresRestart);
 REXCVAR_INT32(xenos, texture_cache_memory_limit_hard, 768, "Hard texture cache memory limit (MB)")
-    .range(128, 8192)
-    .lifecycle(rex::cvar::Lifecycle::RequiresRestart);
+    .SetRange(128, 8192)
+    .SetLifecycle(rex::cvar::Lifecycle::kRequiresRestart);
 REXCVAR_INT32(xenos, texture_cache_memory_limit_soft_lifetime, 30,
               "Soft texture cache memory limit lifetime (seconds)")
-    .range(1, 3600);
+    .SetRange(1, 3600);
 REXCVAR_BOOL(xenos, texture_3d_to_2d, true,
              "Sample problematic 3D textures through 2D-compatible wrappers");
 REXCVAR_BOOL(xenos, pre_mask_resolve_l2_block, true,
@@ -147,7 +148,7 @@ REXCVAR_BOOL(xenos, force_convert_triangle_fans_to_lists, false,
              "Force convert triangle fans to lists");
 REXCVAR_INT32(xenos, primitive_processor_cache_min_indices, 0,
               "Minimum indices for primitive processor cache")
-    .range(0, 1000000);
+    .SetRange(0, 1000000);
 REXCVAR_BOOL(xenos, half_pixel_offset, true, "Enable half pixel offset");
 REXCVAR_BOOL(xenos, resolve_resolution_scale_fill_half_pixel_offset, true,
              "Fill half pixel offset during resolution scale resolve");
@@ -169,25 +170,25 @@ REXCVAR_BOOL(xenos, vulkan_dynamic_rendering, true,
 REXCVAR_INT32(
     xenos, vulkan_pipeline_creation_threads, -1,
     "Number of pipeline creation threads for Vulkan async pipeline creation (-1 for auto)")
-    .range(-1, 32)
-    .lifecycle(rex::cvar::Lifecycle::RequiresRestart);
+    .SetRange(-1, 32)
+    .SetLifecycle(rex::cvar::Lifecycle::kRequiresRestart);
 REXCVAR_BOOL(xenos, vulkan_tessellation_wireframe, false, "Render tessellation as wireframe");
 REXCVAR_BOOL(xenos, vulkan_force_expand_point_sprites_in_vs, false,
              "Force Vulkan point sprite expansion in the vertex shader, even when geometry shaders "
              "are available")
-    .lifecycle(rex::cvar::Lifecycle::InitOnly);
+    .SetLifecycle(rex::cvar::Lifecycle::kInitOnly);
 REXCVAR_BOOL(xenos, vulkan_force_expand_rectangle_lists_in_vs, false,
              "Force Vulkan rectangle list expansion in the vertex shader, even when geometry "
              "shaders are available")
-    .lifecycle(rex::cvar::Lifecycle::InitOnly);
+    .SetLifecycle(rex::cvar::Lifecycle::kInitOnly);
 REXCVAR_BOOL(xenos, vulkan_force_convert_quad_lists_to_triangle_lists, false,
              "Force Vulkan quad list conversion to triangle lists in primitive processing, even "
              "when geometry shaders are available")
-    .lifecycle(rex::cvar::Lifecycle::InitOnly);
+    .SetLifecycle(rex::cvar::Lifecycle::kInitOnly);
 REXCVAR_STRING(xenos, render_target_path_vulkan, "", "Vulkan render target implementation path")
-    .lifecycle(rex::cvar::Lifecycle::InitOnly);
+    .SetLifecycle(rex::cvar::Lifecycle::kInitOnly);
 REXCVAR_BOOL(xenos, vulkan_sparse_shared_memory, true, "Use sparse shared memory on Vulkan")
-    .lifecycle(rex::cvar::Lifecycle::RequiresRestart);
+    .SetLifecycle(rex::cvar::Lifecycle::kRequiresRestart);
 REXCVAR_BOOL(xenos, non_seamless_cube_map, false, "Use non-seamless cube map sampling");
 REXCVAR_BOOL(xenos, present_from_non_ui_thread, true, "Allow presentation from non-UI thread");
 REXCVAR_TABLE(kXenosCvars, clear_memory_page_state, occlusion_query_enable, readback_resolve,
@@ -220,22 +221,22 @@ REXCVAR_TABLE(kXenosCvars, clear_memory_page_state, occlusion_query_enable, read
 
 REXCVAR_BOOL(d3d12, allow_tearing, true, "Allow variable refresh rate and tearing");
 REXCVAR_BOOL(d3d12, debug, false, "Enable Direct3D 12 and DXGI debug layer")
-    .lifecycle(rex::cvar::Lifecycle::InitOnly);
+    .SetLifecycle(rex::cvar::Lifecycle::kInitOnly);
 REXCVAR_BOOL(d3d12, break_on_error, false, "Break on Direct3D 12 validation errors");
 REXCVAR_BOOL(d3d12, break_on_warning, false, "Break on Direct3D 12 validation warnings");
 REXCVAR_INT32(d3d12, queue_priority, 1,
               "Graphics command queue priority (0=normal, 1=high, 2=realtime)")
-    .range(0, 2);
+    .SetRange(0, 2);
 REXCVAR_TABLE(kD3D12Cvars, allow_tearing, debug, break_on_error, break_on_warning, queue_priority);
 
 REXCVAR_BOOL(vulkan, require_geometry_shader, !REX_PLATFORM_MAC,
              "Require geometryShader support for Vulkan GPU emulation (disable to allow fallback "
              "primitive emulation paths)")
-    .lifecycle(rex::cvar::Lifecycle::InitOnly);
+    .SetLifecycle(rex::cvar::Lifecycle::kInitOnly);
 REXCVAR_BOOL(vulkan, require_fill_mode_non_solid, !REX_PLATFORM_MAC,
              "Require fillModeNonSolid support for Vulkan GPU emulation (disable to allow "
              "fallback to solid fill for line/point polygon modes)")
-    .lifecycle(rex::cvar::Lifecycle::InitOnly);
+    .SetLifecycle(rex::cvar::Lifecycle::kInitOnly);
 REXCVAR_BOOL(vulkan, log_debug_messages, true, "Log Vulkan debug messages");
 REXCVAR_BOOL(vulkan, render_pass_clear, true, "Clear render pass during presentation");
 REXCVAR_BOOL(vulkan, allow_present_mode_immediate, true, "Allow immediate present mode (no vsync)");
@@ -243,20 +244,20 @@ REXCVAR_BOOL(vulkan, allow_present_mode_mailbox, true,
              "Allow mailbox present mode (triple buffering)");
 REXCVAR_BOOL(vulkan, allow_present_mode_fifo_relaxed, true, "Allow FIFO relaxed present mode");
 REXCVAR_BOOL(vulkan, validation, false, "Enable Vulkan validation layers")
-    .lifecycle(rex::cvar::Lifecycle::InitOnly);
+    .SetLifecycle(rex::cvar::Lifecycle::kInitOnly);
 REXCVAR_BOOL(vulkan, prefer_geometry_shader, true,
              "Prefer physical devices supporting geometryShader when auto-selecting")
-    .lifecycle(rex::cvar::Lifecycle::InitOnly);
+    .SetLifecycle(rex::cvar::Lifecycle::kInitOnly);
 REXCVAR_BOOL(vulkan, prefer_fragment_stores_and_atomics, true,
              "Prefer physical devices supporting fragmentStoresAndAtomics when auto-selecting")
-    .lifecycle(rex::cvar::Lifecycle::InitOnly);
+    .SetLifecycle(rex::cvar::Lifecycle::kInitOnly);
 REXCVAR_BOOL(vulkan, prefer_vertex_pipeline_stores_and_atomics, true,
              "Prefer physical devices supporting vertexPipelineStoresAndAtomics when "
              "auto-selecting")
-    .lifecycle(rex::cvar::Lifecycle::InitOnly);
+    .SetLifecycle(rex::cvar::Lifecycle::kInitOnly);
 REXCVAR_BOOL(vulkan, prefer_fill_mode_non_solid, true,
              "Prefer physical devices supporting fillModeNonSolid when auto-selecting")
-    .lifecycle(rex::cvar::Lifecycle::InitOnly);
+    .SetLifecycle(rex::cvar::Lifecycle::kInitOnly);
 REXCVAR_TABLE(kVulkanCvars, require_geometry_shader, require_fill_mode_non_solid,
               log_debug_messages, render_pass_clear, allow_present_mode_immediate,
               allow_present_mode_mailbox, allow_present_mode_fifo_relaxed, validation,

@@ -48,7 +48,7 @@ class KeyboardMouseDriver final : public Driver {
    *
    * @return True while hid.mnk_mouse emulation is active, focused and captured.
    */
-  bool wants_pointer_lock() const { return pointer_lock_.load(std::memory_order_relaxed); }
+  bool WantsPointerLock() const { return pointer_lock_.load(std::memory_order_relaxed); }
 
   /** Number of hid.keybind_* cvars the driver follows. */
   static constexpr size_t kBindCount = 25;

@@ -26,27 +26,27 @@ using namespace rex::runtime;
 
 constexpr u64 kOneGB = 1024ull * 1024ull * 1024ull;
 
-static const DummyDeviceInfo dummy_hdd_device_info_ = {
-    DummyDeviceId::HDD, DeviceType::HDD, 20ull * kOneGB, 3ull * kOneGB, u"Dummy HDD",
+static const DummyDeviceInfo kDummyHDDDeviceInfo = {
+    DummyDeviceId::kHDD, DeviceType::kHDD, 20ull * kOneGB, 3ull * kOneGB, u"Dummy HDD",
 };
-static const DummyDeviceInfo dummy_odd_device_info_ = {
-    DummyDeviceId::ODD, DeviceType::ODD, 7ull * kOneGB, 0ull * kOneGB, u"Dummy ODD",
+static const DummyDeviceInfo kDummyODDDeviceInfo = {
+    DummyDeviceId::kODD, DeviceType::kODD, 7ull * kOneGB, 0ull * kOneGB, u"Dummy ODD",
 };
-static const DummyDeviceInfo* dummy_device_infos_[] = {
-    &dummy_hdd_device_info_,
-    &dummy_odd_device_info_,
+static const DummyDeviceInfo* dummy_device_infos[] = {
+    &kDummyHDDDeviceInfo,
+    &kDummyODDDeviceInfo,
 };
 
 const DummyDeviceInfo* GetDummyDeviceInfo(u32 device_id) {
-  const auto& begin = std::begin(dummy_device_infos_);
-  const auto& end = std::end(dummy_device_infos_);
+  const auto& begin = std::begin(dummy_device_infos);
+  const auto& end = std::end(dummy_device_infos);
   auto it = std::find_if(begin, end, [device_id](const auto& item) {
     return static_cast<u32>(item->device_id) == device_id;
   });
   return it == end ? nullptr : *it;
 }
 
-u32 XamContentGetDeviceName_entry(u32 device_id, mapped_wstring name_buffer, u32 name_capacity) {
+u32 XamContentGetDeviceName_entry(u32 device_id, MappedWString name_buffer, u32 name_capacity) {
   auto device_info = GetDummyDeviceInfo(device_id);
   if (device_info == nullptr) {
     return X_ERROR_DEVICE_NOT_CONNECTED;
@@ -59,22 +59,22 @@ u32 XamContentGetDeviceName_entry(u32 device_id, mapped_wstring name_buffer, u32
   return X_ERROR_SUCCESS;
 }
 
-u32 XamContentGetDeviceState_entry(u32 device_id, mapped_void overlapped_ptr) {
+u32 XamContentGetDeviceState_entry(u32 device_id, MappedVoid overlapped_ptr) {
   auto device_info = GetDummyDeviceInfo(device_id);
   if (device_info == nullptr) {
     if (overlapped_ptr) {
-      runtime::Current().dispatcher().Complete(overlapped_ptr.guest_address(),
-                                               {.result = X_ERROR_FUNCTION_FAILED,
-                                                .extended_error = X_ERROR_DEVICE_NOT_CONNECTED,
-                                                .length = 0});
+      runtime::GetCurrent().GetDispatcher().Complete(
+          overlapped_ptr.GetGuestAddress(), {.result = X_ERROR_FUNCTION_FAILED,
+                                             .extended_error = X_ERROR_DEVICE_NOT_CONNECTED,
+                                             .length = 0});
       return X_ERROR_IO_PENDING;
     } else {
       return X_ERROR_DEVICE_NOT_CONNECTED;
     }
   }
   if (overlapped_ptr) {
-    runtime::Current().dispatcher().Complete(overlapped_ptr.guest_address(),
-                                             {.result = X_ERROR_SUCCESS});
+    runtime::GetCurrent().GetDispatcher().Complete(overlapped_ptr.GetGuestAddress(),
+                                                   {.result = X_ERROR_SUCCESS});
     return X_ERROR_IO_PENDING;
   } else {
     return X_ERROR_SUCCESS;
@@ -93,7 +93,7 @@ struct X_CONTENT_DEVICE_DATA {
 };
 REX_STATIC_ASSERT_SIZE(X_CONTENT_DEVICE_DATA, 0x50);
 
-u32 XamContentGetDeviceData_entry(u32 device_id, ppc_ptr_t<X_CONTENT_DEVICE_DATA> device_data) {
+u32 XamContentGetDeviceData_entry(u32 device_id, GuestPtrT<X_CONTENT_DEVICE_DATA> device_data) {
   auto device_info = GetDummyDeviceInfo(device_id);
   if (device_info == nullptr) {
     return X_ERROR_DEVICE_NOT_CONNECTED;
@@ -104,13 +104,13 @@ u32 XamContentGetDeviceData_entry(u32 device_id, ppc_ptr_t<X_CONTENT_DEVICE_DATA
   device_data->total_bytes = device_info->total_bytes;
   device_data->free_bytes = device_info->free_bytes;
   rex::copy_and_swap_truncating(device_data->name_chars, device_info->name,
-                                rex::countof(device_data->name_chars));
+                                rex::CountOf(device_data->name_chars));
   return X_ERROR_SUCCESS;
 }
 
 u32 XamContentCreateDeviceEnumerator_entry([[maybe_unused]] u32 content_type,
                                            [[maybe_unused]] u32 content_flags, u32 max_count,
-                                           mapped_u32 buffer_size_ptr, mapped_u32 handle_out) {
+                                           MappedU32 buffer_size_ptr, MappedU32 handle_out) {
   REX_ASSERT(handle_out != nullptr);
 
   if (buffer_size_ptr) {
@@ -119,7 +119,7 @@ u32 XamContentCreateDeviceEnumerator_entry([[maybe_unused]] u32 content_type,
 
   StaticItems items(max_count, sizeof(X_CONTENT_DEVICE_DATA));
 
-  for (const auto& device_info : dummy_device_infos_) {
+  for (const auto& device_info : dummy_device_infos) {
     auto device_data = items.Append<X_CONTENT_DEVICE_DATA>();
     REX_ASSERT(device_data != nullptr);
     if (device_data) {
@@ -128,13 +128,13 @@ u32 XamContentCreateDeviceEnumerator_entry([[maybe_unused]] u32 content_type,
       device_data->total_bytes = device_info->total_bytes;
       device_data->free_bytes = device_info->free_bytes;
       rex::copy_and_swap_truncating(device_data->name_chars, device_info->name,
-                                    rex::countof(device_data->name_chars));
+                                    rex::CountOf(device_data->name_chars));
     }
   }
 
-  X_HANDLE handle = X_INVALID_HANDLE_VALUE;
+  X_HANDLE handle = kXInvalidHandleValue;
   auto result = CreateEnumerator(
-      runtime::Current(), &handle, EnumeratorInit{0xFE, 0xFE, 0x2000A, 0x20009, 0},
+      runtime::GetCurrent(), &handle, EnumeratorInit{0xFE, 0xFE, 0x2000A, 0x20009, 0},
       EnumeratorObject(
           max_count, sizeof(X_CONTENT_DEVICE_DATA),
           [items = std::move(items)](u32, u8* buffer_data, u32* written_count) mutable {

@@ -21,18 +21,18 @@
 namespace rex::runtime {
 
 void detail::AbortNoRuntime() {
-  REX_FATAL(system, "Current() called on thread 0x{:X}, which has no runtime",
-            rex::platform::current_thread_id());
+  REX_FATAL(system, "GetCurrent() called on thread 0x{:X}, which has no runtime",
+            rex::platform::CurrentThreadId());
 }
 
-thread_local ThreadState* thread_state_ = nullptr;
+thread_local ThreadState* thread_state = nullptr;
 
 ThreadState::ThreadState(u32 thread_id, u32 stack_base, u32 pcr_address, Memory* memory,
                          Runtime* runtime)
     : memory_(memory), runtime_(runtime), thread_id_(thread_id) {
   if (thread_id_ == UINT_MAX) {
     // System thread IDs set bit 31.
-    u32 system_thread_handle = rex::platform::current_thread_system_id();
+    u32 system_thread_handle = rex::platform::CurrentThreadSystemId();
     thread_id_ = 0x80000000 | system_thread_handle;
   }
 
@@ -43,22 +43,22 @@ ThreadState::ThreadState(u32 thread_id, u32 stack_base, u32 pcr_address, Memory*
 }
 
 ThreadState::~ThreadState() {
-  if (thread_state_ == this) {
-    thread_state_ = nullptr;
+  if (thread_state == this) {
+    thread_state = nullptr;
   }
 }
 
-void ThreadState::Bind(ThreadState* thread_state) {
-  thread_state_ = thread_state;
+void ThreadState::Bind(ThreadState* state) {
+  thread_state = state;
 }
 
 ThreadState* ThreadState::Get() {
-  return thread_state_;
+  return thread_state;
 }
 
 u32 ThreadState::GetThreadID() {
-  auto* thread_state = Get();
-  return thread_state ? thread_state->thread_id_ : 0xFFFFFFFF;
+  auto* current = Get();
+  return current ? current->thread_id_ : 0xFFFFFFFF;
 }
 
 }  // namespace rex::runtime

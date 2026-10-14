@@ -28,7 +28,7 @@ struct X_NUI_DEVICE_STATUS {
 };
 static_assert(sizeof(X_NUI_DEVICE_STATUS) == 24, "Size matters");
 
-void XamNuiGetDeviceStatus_entry(ppc_ptr_t<X_NUI_DEVICE_STATUS> status_ptr) {
+void XamNuiGetDeviceStatus_entry(GuestPtrT<X_NUI_DEVICE_STATUS> status_ptr) {
   status_ptr.Zero();
   // 0 is not connected.
   status_ptr->status = 0;

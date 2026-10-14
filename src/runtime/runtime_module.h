@@ -51,21 +51,21 @@ class REX_RUNTIME_API RuntimeModule final : public IModule {
    *
    * @return The runtime, null when none is active.
    */
-  [[nodiscard]] static Runtime* active();
+  [[nodiscard]] static Runtime* GetActive();
 
   /**
    * Returns the audio output a loaded apu module serves.
    *
    * @return The backend, null when no apu module is loaded.
    */
-  [[nodiscard]] static apu::IAPUBackend* apu_backend();
+  [[nodiscard]] static apu::IAPUBackend* GetAPUBackend();
 
   /**
    * Returns the HID backend a loaded hid module serves.
    *
    * @return The backend, null when no hid module is loaded.
    */
-  [[nodiscard]] static hid::IHIDBackend* hid_backend();
+  [[nodiscard]] static hid::IHIDBackend* GetHIDBackend();
 
   static void* GetObjectTable();
   static void* GetThreadRegistry();
@@ -93,14 +93,14 @@ class REX_RUNTIME_API RuntimeModule final : public IModule {
    *
    * @return "rex-runtime".
    */
-  const char* Name() const override;
+  const char* GetName() const override;
 
   /**
    * Lists the interfaces Connect fetches.
    *
    * @return The cvar registry and the mount table.
    */
-  std::span<const char* const> RequiredInterfaces() const override;
+  std::span<const char* const> GetRequiredInterfaces() const override;
 
   /**
    * Validates the config sections rex-runtime reads and registers its cvar tables.

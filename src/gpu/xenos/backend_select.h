@@ -66,14 +66,14 @@ inline constexpr std::string_view kPlatformName = "linux";
   } else if (name == "vulkan") {
     wanted = HostAPI::kVulkan;
   } else {
-    return Err<HostAPI>(ErrorCategory::Config, std::format("unknown GPU backend '{}'", name));
+    return Err<HostAPI>(ErrorCategory::kConfig, std::format("unknown GPU backend '{}'", name));
   }
   for (HostAPI api : available) {
     if (api == wanted) {
       return api;
     }
   }
-  return Err<HostAPI>(ErrorCategory::Config,
+  return Err<HostAPI>(ErrorCategory::kConfig,
                       std::format("GPU backend '{}' is not available on {}", name, kPlatformName));
 }
 

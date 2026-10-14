@@ -33,15 +33,16 @@ struct MidAsmHook {
   std::string name;                   /**< Name of the function to call */
   std::vector<std::string> registers; /**< Registers passed as arguments in order */
 
-  bool ret = false;           /**< Return from the recompiled function after the call */
-  bool returnOnTrue = false;  /**< Return when the function returns true */
-  bool returnOnFalse = false; /**< Return when the function returns false */
+  bool ret = false;             /**< Return from the recompiled function after the call */
+  bool return_on_true = false;  /**< Return when the function returns true */
+  bool return_on_false = false; /**< Return when the function returns false */
 
-  u32 jumpAddress = 0;        /**< Address to jump to after the call, 0 for none */
-  u32 jumpAddressOnTrue = 0;  /**< Address to jump to when the function returns true */
-  u32 jumpAddressOnFalse = 0; /**< Address to jump to when the function returns false */
+  u32 jump_address = 0;          /**< Address to jump to after the call, 0 for none */
+  u32 jump_address_on_true = 0;  /**< Address to jump to when the function returns true */
+  u32 jump_address_on_false = 0; /**< Address to jump to when the function returns false */
 
-  bool afterInstruction = false; /**< Runs after the instruction at the address instead of before */
+  bool after_instruction =
+      false; /**< Runs after the instruction at the address instead of before */
 };
 
 /** A load or store the [mmio.gpu] or [mmio.apu] table routes to a register block. */
@@ -66,7 +67,7 @@ struct FunctionConfig {
    * reads the registers its owner left live and would see a zero from a local. Callers sync
    * their localized copies across the call site.
    */
-  bool shareRegisters = false;
+  bool share_registers = false;
 
   /**
    * Returns the size, preferring size over end.
@@ -74,14 +75,14 @@ struct FunctionConfig {
    * @param address Function start address
    * @return Size in bytes, 0 when neither field gives one
    */
-  u32 getSize(u32 address) const { return size ? size : (end > address ? end - address : 0); }
+  u32 GetSize(u32 address) const { return size ? size : (end > address ? end - address : 0); }
 
   /**
    * Reports whether this is a discontinuous chunk of a parent function.
    *
    * @return True when parent is non zero
    */
-  bool isChunk() const { return parent != 0; }
+  bool IsChunk() const { return parent != 0; }
 };
 
 /** Section info for analysis output. */
@@ -100,7 +101,7 @@ struct FunctionEntry {
 };
 
 /**
- * Settings that control how 1 binary is analyzed and emitted, loaded from TOML.
+ * Settings that control how a binary is analyzed and emitted, loaded from TOML.
  */
 struct RecompilerConfig {
   RecompilerConfig() = default;
@@ -112,83 +113,83 @@ struct RecompilerConfig {
 
   /** TOML key `project_name`, default `rex`. Prefix of the generated `<name>_*.h` and `.cpp` files
    * and the `project` template variable. */
-  std::string projectName = "rex";
-  std::string filePath; /**< Path to XEX or ELF file */
+  std::string project_name = "rex";
+  std::string file_path; /**< Path to XEX or ELF file */
   /** TOML key `out_directory_path`, default empty. Directory the generated files are written to,
    * relative to the config file directory. */
-  std::string outDirectoryPath;
-  std::string templateDir; /**< Optional template directory overriding the built in templates */
+  std::string out_directory_path;
+  std::string template_dir; /**< Optional template directory overriding the built in templates */
 
   /**
    * Every TOML that fed this config, in load order. LoadFromTable() gets a parsed table, so a
    * manifest embedded entry omits the manifest itself.
    */
-  std::vector<std::string> loadedFiles;
+  std::vector<std::string> loaded_files;
 
   /** TOML key `skip_lr`, default false. When true, omits the generated writes and reads of `ctx.lr`
    * at bl, mflr and similar instructions. */
-  bool skipLr = false;
+  bool skip_lr = false;
   /** TOML key `ctr_as_local`, default false. When true, keeps CTR in a local variable instead of
    * `ctx.ctr`. */
-  bool ctrAsLocalVariable = false;
+  bool ctr_as_local_variable = false;
   /** TOML key `xer_as_local`, default false. When true, keeps XER in a local variable instead of
    * `ctx.xer`. */
-  bool xerAsLocalVariable = false;
+  bool xer_as_local_variable = false;
   /** TOML key `reserved_as_local`, default false. When true, keeps the reservation register in a
    * local variable instead of `ctx.reserved`. */
-  bool reservedRegisterAsLocalVariable = false;
+  bool reserved_register_as_local_variable = false;
   /** TOML key `skip_msr`, default false. When true, omits the generated global lock check that
    * mfmsr emits. */
-  bool skipMsr = false;
+  bool skip_msr = false;
   /** TOML key `cr_as_local`, default false. When true, keeps the CR fields in local variables
    * instead of `ctx.cr0` to `ctx.cr7`. */
-  bool crRegistersAsLocalVariables = false;
+  bool cr_registers_as_local_variables = false;
   /** TOML key `non_argument_as_local`, default false. When true, keeps r0, r2, r11, r12, f0 and v32
    * to v63 in local variables. */
-  bool nonArgumentRegistersAsLocalVariables = false;
+  bool non_argument_registers_as_local_variables = false;
   /** TOML key `non_volatile_as_local`, default false. When true, keeps r14 and above, f14 and above
    * and the high vector registers in local variables, except in register sharing functions and SEH
    * scopes. */
-  bool nonVolatileRegistersAsLocalVariables = false;
-  bool generateExceptionHandlers = false; /**< Generates SEH exception handler wrappers */
+  bool non_volatile_registers_as_local_variables = false;
+  bool generate_exception_handlers = false; /**< Generates SEH exception handler wrappers */
 
-  u32 maxJumpExtension = 65536; /**< Max bytes to extend a function for jump table targets */
-  u32 dataRegionThreshold = 16; /**< Invalid instructions in a row that mark a data region */
-  u32 largeFunctionThreshold = 1048576; /**< Size in bytes that triggers a warning */
+  u32 max_jump_extension = 65536; /**< Max bytes to extend a function for jump table targets */
+  u32 data_region_threshold = 16; /**< Invalid instructions in a row that mark a data region */
+  u32 large_function_threshold = 1048576; /**< Size in bytes that triggers a warning */
 
   /**
    * Overrides the DLL module flag. When unset the orchestrator infers it from the module
    * position in the manifest, with the entrypoint false and modules true.
    */
-  std::optional<bool> isDll;
+  std::optional<bool> is_dll;
 
   /** TOML tables `[functions]` keyed by hex entry address. Overrides the size, end, name and parent
    * of discovered functions. */
   std::unordered_map<u32, FunctionConfig> functions;
   /** TOML array `[[switch_tables]]` keyed by the bctr address. Manual jump tables that replace
    * automatic detection. */
-  std::unordered_map<u32, JumpTable> switchTables;
+  std::unordered_map<u32, JumpTable> switch_tables;
   /** TOML array `[[midasm_hook]]` keyed by instruction address. Calls to user functions inserted
    * into the generated code. */
-  std::unordered_map<u32, MidAsmHook> midAsmHooks;
+  std::unordered_map<u32, MidAsmHook> mid_asm_hooks;
   /** TOML key `longjmp_address`, default 0. Function address whose calls are emitted as
    * `ppc_longjmp`. */
-  u32 longJmpAddress = 0;
+  u32 long_jmp_address = 0;
   /** TOML key `setjmp_address`, default 0. Function address whose calls are emitted as
    * `ppc_setjmp`. */
-  u32 setJmpAddress = 0;
+  u32 set_jmp_address = 0;
 
   /** Shim function addresses keyed by registry name, read from the [shim] toml table. */
-  std::unordered_map<std::string, u32> shimFunctions;
+  std::unordered_map<std::string, u32> shim_functions;
 
-  std::unordered_map<u32, u32> invalidInstructionHints; /**< Maps address to size */
+  std::unordered_map<u32, u32> invalid_instruction_hints; /**< Maps address to size */
   /** Addresses of bctr instructions that are vtable or computed calls. */
-  std::unordered_set<u32> knownIndirectCallHints;
+  std::unordered_set<u32> known_indirect_call_hints;
   /** Loads and stores the [mmio.gpu] and [mmio.apu] tables route to a register block. */
-  std::unordered_map<u32, MMIODeclaredAccess> declaredMMIOAccesses;
+  std::unordered_map<u32, MMIODeclaredAccess> declared_mmio_accesses;
   /** TOML array `analysis.exception_handler_funcs`. Entry addresses analysis treats as exception
    * handler functions, sorted and deduplicated after load. */
-  std::vector<u32> exceptionHandlerFuncHints;
+  std::vector<u32> exception_handler_func_hints;
 
   /**
    * Loads configuration from a TOML file.
@@ -198,10 +199,10 @@ struct RecompilerConfig {
    * additive with the last value winning on a repeated key, arrays of tables are deduplicated
    * by primary key and sets are additive.
    *
-   * @param configFilePath Path to the TOML config file
+   * @param config_file_path Path to the TOML config file
    * @return True on success, false on parse failure, circular include or depth exceeded
    */
-  bool Load(const std::string_view& configFilePath);
+  bool Load(const std::string_view& config_file_path);
 
   /**
    * Loads configuration from an in memory TOML table such as an inline binary entry inside a

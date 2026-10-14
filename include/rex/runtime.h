@@ -89,7 +89,7 @@ struct RuntimeDesc {
   gpu::IGPUBackend* gpu = nullptr;
   /** The mount table. Required, Setup fails without it. */
   filesystem::IFileSystem* file_system = nullptr;
-  /** Registers the Xam apps and the kernel modules. Setup fails with its error. */
+  /** Registers the XAM apps and the kernel modules. Setup fails with its error. */
   std::function<Result<void>(Runtime&)> kernel_init;
   /** True to skip the GPU, for analysis tools. */
   bool tool_mode = false;
@@ -118,35 +118,35 @@ class REX_RUNTIME_API Runtime : public rex::NonCopyable {
    *
    * @return The configuration.
    */
-  const Config& config() const { return config_; }
+  const Config& GetConfig() const { return config_; }
 
   /**
    * Returns the guest memory.
    *
    * @return The memory, null before Setup.
    */
-  runtime::Memory* memory() const { return memory_.get(); }
+  runtime::Memory* GetMemory() const { return memory_.get(); }
 
   /**
    * Returns the mount table.
    *
    * @return The file system, null before Setup.
    */
-  filesystem::IFileSystem* file_system() const { return file_system_; }
+  filesystem::IFileSystem* GetFileSystem() const { return file_system_; }
 
   /**
    * Returns the GPU backend, the module's or the runtime's null GPU.
    *
    * @return The backend, null in tool mode.
    */
-  gpu::IGPUBackend* gpu() const { return gpu_; }
+  gpu::IGPUBackend* GetGPU() const { return gpu_; }
 
   /**
    * Returns the APU the XAudio and XMA exports reach.
    *
    * @return The APU, null in tool mode and before Setup.
    */
-  runtime::APU* apu() const { return apu_.get(); }
+  runtime::APU* GetAPU() const { return apu_.get(); }
 
   /**
    * Parks or resumes the audio worker and the XMA decoder.
@@ -160,14 +160,14 @@ class REX_RUNTIME_API Runtime : public rex::NonCopyable {
    *
    * @return True while SetAudioPaused(true) holds.
    */
-  bool audio_paused() const;
+  bool GetAudioPaused() const;
 
   /**
    * Returns the display mode Setup took from RuntimeDesc.
    *
    * @return The video mode.
    */
-  const runtime::VideoMode& video_mode() const { return video_mode_; }
+  const runtime::VideoMode& GetVideoMode() const { return video_mode_; }
 
   /**
    * Returns the HID backend the XamInput exports reach, a loaded hid module or the runtime's
@@ -175,49 +175,49 @@ class REX_RUNTIME_API Runtime : public rex::NonCopyable {
    *
    * @return The backend. Valid between Setup and Shutdown.
    */
-  hid::IHIDBackend& hid() const { return *hid_; }
+  hid::IHIDBackend& GetHID() const { return *hid_; }
 
   /**
    * Returns the function dispatcher that runs guest functions and interrupts.
    *
    * @return The dispatcher, null before Setup.
    */
-  runtime::FunctionDispatcher* function_dispatcher() const { return function_dispatcher_.get(); }
+  runtime::FunctionDispatcher* GetFunctionDispatcher() const { return function_dispatcher_.get(); }
 
   /**
    * Returns the game data root.
    *
    * @return The path.
    */
-  const std::filesystem::path& game_data_root() const { return game_data_root_; }
+  const std::filesystem::path& GetGameDataRoot() const { return game_data_root_; }
 
   /**
    * Returns the user data root.
    *
    * @return The path.
    */
-  const std::filesystem::path& user_data_root() const { return user_data_root_; }
+  const std::filesystem::path& GetUserDataRoot() const { return user_data_root_; }
 
   /**
    * Returns the update data root.
    *
    * @return The path.
    */
-  const std::filesystem::path& update_data_root() const { return update_data_root_; }
+  const std::filesystem::path& GetUpdateDataRoot() const { return update_data_root_; }
 
   /**
    * Returns the cache root.
    *
    * @return The path.
    */
-  const std::filesystem::path& cache_root() const { return cache_root_; }
+  const std::filesystem::path& GetCacheRoot() const { return cache_root_; }
 
   /**
    * Returns the metadata root.
    *
    * @return The path.
    */
-  const std::filesystem::path& metadata_root() const { return metadata_root_; }
+  const std::filesystem::path& GetMetadataRoot() const { return metadata_root_; }
 
   /**
    * Finds a metadata file or directory.
@@ -242,7 +242,7 @@ class REX_RUNTIME_API Runtime : public rex::NonCopyable {
    *
    * @return The interface, or null for a runtime built without one.
    */
-  ui::IUserInterface* ui() const { return ui_; }
+  ui::IUserInterface* GetUI() const { return ui_; }
 
   /**
    * Builds the memory, the function dispatcher, the object table, the registries, the managers and
@@ -267,7 +267,7 @@ class REX_RUNTIME_API Runtime : public rex::NonCopyable {
    *
    * @return The flags.
    */
-  const PPCCodegenFlags& codegen_flags() const { return codegen_flags_; }
+  const PPCCodegenFlags& GetCodegenFlags() const { return codegen_flags_; }
 
   /**
    * Stops the subsystems and destroys the object table, the registries, the managers, the
@@ -296,7 +296,7 @@ class REX_RUNTIME_API Runtime : public rex::NonCopyable {
    *
    * @return The host address of guest address 0.
    */
-  u8* virtual_membase() const;
+  u8* GetVirtualMembase() const;
 
   /**
    * Sets the function called on the thread that exited the title.
@@ -317,70 +317,70 @@ class REX_RUNTIME_API Runtime : public rex::NonCopyable {
    *
    * @return The table. Valid between Setup and Shutdown.
    */
-  runtime::IObjectTable& object_table();
+  runtime::IObjectTable& GetObjectTable();
 
   /**
    * Returns the thread registry.
    *
    * @return The registry. Valid between Setup and Shutdown.
    */
-  runtime::IThreadRegistry& thread_registry();
+  runtime::IThreadRegistry& GetThreadRegistry();
 
   /**
    * Returns the title workspace.
    *
    * @return The workspace. Valid between Setup and Shutdown.
    */
-  runtime::WorkspaceHeap& workspace();
+  runtime::WorkspaceHeap& GetWorkspace();
 
   /**
    * Returns the module registry.
    *
    * @return The registry. Valid between Setup and Shutdown.
    */
-  runtime::IModuleRegistry& module_registry();
+  runtime::IModuleRegistry& GetModuleRegistry();
 
   /**
    * Returns the notifier.
    *
    * @return The notifier. Valid between Setup and Shutdown.
    */
-  runtime::INotifier& notifier();
+  runtime::INotifier& GetNotifier();
 
   /**
    * Returns the content manager.
    *
    * @return The content manager. Valid between Setup and Shutdown.
    */
-  runtime::IContentManager& content_manager();
+  runtime::IContentManager& GetContentManager();
 
   /**
    * Returns the achievement manager.
    *
    * @return The achievement manager. Valid between Setup and Shutdown.
    */
-  runtime::IAchievementManager& achievement_manager();
+  runtime::IAchievementManager& GetAchievementManager();
 
   /**
    * Returns the dispatcher.
    *
    * @return The dispatcher. Valid between Setup and Shutdown.
    */
-  runtime::IDispatcher& dispatcher();
+  runtime::IDispatcher& GetDispatcher();
 
   /**
    * Returns the guest address of the kernel globals.
    *
    * @return The address.
    */
-  u32 kernel_globals() const { return kernel_guest_globals_; }
+  u32 GetKernelGlobals() const { return kernel_guest_globals_; }
 
   /**
    * Returns the guest address of the title process block.
    *
    * @return The address.
    */
-  u32 title_process() const {
+  u32 GetTitleProcess() const {
     return kernel_guest_globals_ + offsetof(runtime::KernelGuestGlobals, title_process);
   }
 
@@ -389,7 +389,7 @@ class REX_RUNTIME_API Runtime : public rex::NonCopyable {
    *
    * @return The address.
    */
-  u32 system_process() const {
+  u32 GetSystemProcess() const {
     return kernel_guest_globals_ + offsetof(runtime::KernelGuestGlobals, system_process);
   }
 
@@ -398,21 +398,21 @@ class REX_RUNTIME_API Runtime : public rex::NonCopyable {
    *
    * @return The address.
    */
-  u32 process_info_block_address() const { return kernel_guest_globals_ ? title_process() : 0; }
+  u32 GetProcessInfoBlockAddress() const { return kernel_guest_globals_ ? GetTitleProcess() : 0; }
 
   /**
    * Sets the process type of the title process block.
    *
    * @param value An X_PROCTYPE value.
    */
-  void set_process_type(u32 value);
+  void SetProcessType(u32 value);
 
   /**
    * Returns the process type of the title process block.
    *
    * @return An X_PROCTYPE value.
    */
-  u32 process_type() const;
+  u32 GetProcessType() const;
 
   /**
    * Terminates the title. Runs the title terminate notifications, then wakes and stops every guest
@@ -432,14 +432,14 @@ class REX_RUNTIME_API Runtime : public rex::NonCopyable {
    *
    * @return True when the runtime owns its memory, interfaces and subsystems.
    */
-  bool is_setup() const { return setup_complete_; }
+  bool IsSetup() const { return setup_complete_; }
 
   /**
    * Reports whether TerminateTitle runs.
    *
    * @return True from the start of TerminateTitle.
    */
-  bool is_terminating_title() const { return terminating_title_.load(std::memory_order_acquire); }
+  bool IsTerminatingTitle() const { return terminating_title_.load(std::memory_order_acquire); }
 
   /**
    * Registers a title terminate notification. TerminateTitle calls it with its registration.
@@ -469,7 +469,7 @@ class REX_RUNTIME_API Runtime : public rex::NonCopyable {
   /** Stops the guest threads, then the dispatcher and the audio worker. */
   void StopThreads();
   void InitializeProcess(runtime::X_KPROCESS* process, u32 process_type, u8 unk_18, u8 unk_19,
-                         u8 unk_1A);
+                         u8 unk_1a);
   void SetProcessTLSVars(runtime::X_KPROCESS* process, u32 num_slots, u32 tls_data_size,
                          u32 tls_raw_data_address);
   void SetExecutableModule(X_HANDLE module);
@@ -510,7 +510,7 @@ class REX_RUNTIME_API Runtime : public rex::NonCopyable {
   u32 kernel_guest_globals_ = 0;
   std::atomic<bool> terminating_title_{false};
   std::atomic<bool> terminate_claimed_{false};
-  rex::platform::RankedMutex terminate_mutex_{rex::platform::LockRank::Leaf};
+  rex::platform::RankedMutex terminate_mutex_{rex::platform::LockRank::kLeaf};
   std::vector<u32> terminate_registrations_;
   gpu::IGPUBackend* gpu_ = nullptr;
   std::unique_ptr<runtime::NullGPU> null_gpu_;

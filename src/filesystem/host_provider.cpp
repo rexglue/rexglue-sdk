@@ -63,14 +63,14 @@ class HostStream final : public NodeStream {
 
   [[nodiscard]] Result<std::span<const u8>> View() override {
     if (!map_) {
-      const std::filesystem::path host_path = node_.host_path();
+      const std::filesystem::path host_path = node_.GetHostPath();
       map_ = memory::MappedMemory::Open(host_path, memory::MappedMemory::Mode::kRead);
       if (!map_) {
         return Err<std::span<const u8>>(BuildError(
-            FileSystemError::kIO, std::format("cannot map '{}'", path_to_utf8(host_path))));
+            FileSystemError::kIO, std::format("cannot map '{}'", PathToUTF8(host_path))));
       }
     }
-    return std::span<const u8>(map_->data(), map_->size());
+    return std::span<const u8>(map_->GetData(), map_->GetSize());
   }
 
  private:
@@ -88,10 +88,10 @@ Result<std::unique_ptr<Provider>> HostProvider::Create(const MountEntry& entry) 
   auto provider = std::make_unique<HostProvider>(Key{}, entry);
   std::error_code ec;
   if (!std::filesystem::exists(entry.source, ec)) {
-    if (provider->read_only()) {
+    if (provider->IsReadOnly()) {
       return Err<std::unique_ptr<Provider>>(
           BuildError(FileSystemError::kNotFound,
-                     std::format("host folder '{}' does not exist", path_to_utf8(entry.source))));
+                     std::format("host folder '{}' does not exist", PathToUTF8(entry.source))));
     }
     std::filesystem::create_directories(entry.source, ec);
   }
@@ -101,7 +101,7 @@ Result<std::unique_ptr<Provider>> HostProvider::Create(const MountEntry& entry) 
   return std::unique_ptr<Provider>(std::move(provider));
 }
 
-VolumeInfo HostProvider::Volume() const {
+VolumeInfo HostProvider::GetVolume() const {
   return {"STFS", 0, 255, kAllocationUnits, kAllocationUnits, 1, kBytesPerSector};
 }
 
@@ -109,7 +109,7 @@ Node* HostProvider::Resolve(std::string_view path) {
   if (Node* resolved = root_->ResolvePath(path)) {
     return resolved;
   }
-  std::lock_guard lock(mutex());
+  std::lock_guard lock(GetMutex());
   auto* current = static_cast<HostNode*>(root_.get());
   for (std::string_view part : utf8_split_path(path)) {
     if (part.empty()) {
@@ -122,11 +122,11 @@ Node* HostProvider::Resolve(std::string_view path) {
     if (!IsHostName(part)) {
       return nullptr;
     }
-    std::optional<HostInfo> info = HostStat(current->host_path() / to_path(part));
+    std::optional<HostInfo> info = HostStat(current->GetHostPath() / to_path(part));
     if (!info) {
-      std::vector<HostInfo> children = HostList(current->host_path());
+      std::vector<HostInfo> children = HostList(current->GetHostPath());
       const auto match = std::ranges::find_if(children, [&](const HostInfo& candidate) {
-        return utf8_equal_case(path_to_utf8(candidate.name), part);
+        return utf8_equal_case(PathToUTF8(candidate.name), part);
       });
       if (match == children.end()) {
         return nullptr;
@@ -146,16 +146,16 @@ HostNode::HostNode(HostProvider& provider, Node* parent, std::string path,
   }
 }
 
-std::filesystem::path HostNode::host_path() const {
-  std::lock_guard lock(provider().mutex());
+std::filesystem::path HostNode::GetHostPath() const {
+  std::lock_guard lock(GetProvider().GetMutex());
   return host_path_;
 }
 
 std::unique_ptr<HostNode> HostNode::Create(HostProvider& provider, HostNode& parent,
                                            const HostInfo& info) {
   auto node = std::make_unique<HostNode>(
-      provider, &parent, utf8_join_guest_paths(parent.path(), path_to_utf8(info.name)),
-      parent.host_path() / info.name);
+      provider, &parent, utf8_join_guest_paths(parent.GetPath(), PathToUTF8(info.name)),
+      parent.GetHostPath() / info.name);
   node->create_time_ = info.create_time;
   node->access_time_ = info.access_time;
   node->write_time_ = info.write_time;
@@ -163,7 +163,7 @@ std::unique_ptr<HostNode> HostNode::Create(HostProvider& provider, HostNode& par
     node->attributes_ = FileAttributes::kDirectory;
   } else {
     node->attributes_ = FileAttributes::kNormal;
-    if (provider.read_only()) {
+    if (provider.IsReadOnly()) {
       node->attributes_ |= FileAttributes::kReadOnly;
     }
     node->size_ = info.size;
@@ -182,7 +182,7 @@ void HostNode::Populate() {
 
 void HostNode::Populate(std::vector<std::pair<u64, u64>>& ancestors) {
   for (const HostInfo& info : HostList(host_path_)) {
-    auto* child = static_cast<HostNode*>(AddChild(Create(host(), *this, info)));
+    auto* child = static_cast<HostNode*>(AddChild(Create(GetHost(), *this, info)));
     if (!info.directory) {
       continue;
     }
@@ -197,7 +197,7 @@ void HostNode::Populate(std::vector<std::pair<u64, u64>>& ancestors) {
 }
 
 Result<std::unique_ptr<NodeStream>> HostNode::Open(Access access) {
-  if (read_only() && (access & (Access::kWriteData | Access::kAppendData)) != Access::kNone) {
+  if (IsReadOnly() && (access & (Access::kWriteData | Access::kAppendData)) != Access::kNone) {
     return Err<std::unique_ptr<NodeStream>>(
         BuildError(FileSystemError::kAccessDenied,
                    std::format("'{}' is on a read only mount", absolute_path_)));
@@ -207,7 +207,7 @@ Result<std::unique_ptr<NodeStream>> HostNode::Open(Access access) {
 }
 
 Result<void> HostNode::Truncate() {
-  if (read_only() || is_directory()) {
+  if (IsReadOnly() || IsDirectory()) {
     return Err(BuildError(FileSystemError::kAccessDenied,
                           std::format("cannot truncate '{}'", absolute_path_)));
   }
@@ -217,46 +217,46 @@ Result<void> HostNode::Truncate() {
     std::ofstream stream(host_path_, std::ios::binary | std::ios::trunc);
     if (!stream) {
       return Err(BuildError(FileSystemError::kIO,
-                            std::format("cannot truncate '{}'", path_to_utf8(host_path_))));
+                            std::format("cannot truncate '{}'", PathToUTF8(host_path_))));
     }
   }
-  std::lock_guard lock(provider().mutex());
+  std::lock_guard lock(GetProvider().GetMutex());
   size_ = 0;
   allocation_size_ = 0;
   return Ok();
 }
 
 void HostNode::Refresh() {
-  const std::optional<HostInfo> info = HostStat(host_path());
+  const std::optional<HostInfo> info = HostStat(GetHostPath());
   if (!info || info->directory) {
     return;
   }
-  std::lock_guard lock(provider().mutex());
+  std::lock_guard lock(GetProvider().GetMutex());
   size_ = info->size;
   allocation_size_ = round_up(info->size, u64{kBytesPerSector});
 }
 
-bool HostNode::ChildVanished(const Node& child) const {
+bool HostNode::HasChildVanished(const Node& child) const {
   std::error_code ec;
-  return !std::filesystem::exists(host_path_ / to_path(child.name()), ec);
+  return !std::filesystem::exists(host_path_ / to_path(child.GetName()), ec);
 }
 
 Result<void> HostNode::SetAttributes(FileAttributes attributes) {
-  if (read_only()) {
+  if (IsReadOnly()) {
     return Err(BuildError(FileSystemError::kAccessDenied,
                           std::format("'{}' is on a read only mount", absolute_path_)));
   }
-  std::lock_guard lock(provider().mutex());
+  std::lock_guard lock(GetProvider().GetMutex());
   attributes_ = attributes;
   return Ok();
 }
 
 Result<void> HostNode::SetTimes(const FileTimes& times) {
-  if (read_only()) {
+  if (IsReadOnly()) {
     return Err(BuildError(FileSystemError::kAccessDenied,
                           std::format("'{}' is on a read only mount", absolute_path_)));
   }
-  std::lock_guard lock(provider().mutex());
+  std::lock_guard lock(GetProvider().GetMutex());
   create_time_ = times.create.value_or(create_time_);
   access_time_ = times.access.value_or(access_time_);
   write_time_ = times.write.value_or(write_time_);
@@ -271,9 +271,8 @@ Result<std::unique_ptr<Node>> HostNode::CreateChildImpl(std::string_view name,
   }
   const std::filesystem::path full_path = host_path_ / to_path(name);
   auto refuse = [&] {
-    return Err<std::unique_ptr<Node>>(
-        BuildError(FileSystemError::kAccessDenied,
-                   std::format("cannot create '{}'", path_to_utf8(full_path))));
+    return Err<std::unique_ptr<Node>>(BuildError(
+        FileSystemError::kAccessDenied, std::format("cannot create '{}'", PathToUTF8(full_path))));
   };
   if (HasFlags(attributes, FileAttributes::kDirectory)) {
     std::error_code ec;
@@ -281,7 +280,7 @@ Result<std::unique_ptr<Node>> HostNode::CreateChildImpl(std::string_view name,
       if (!ec) {
         return Err<std::unique_ptr<Node>>(
             BuildError(FileSystemError::kExists,
-                       std::format("'{}' exists on the host", path_to_utf8(full_path))));
+                       std::format("'{}' exists on the host", PathToUTF8(full_path))));
       }
       return refuse();
     }
@@ -292,17 +291,17 @@ Result<std::unique_ptr<Node>> HostNode::CreateChildImpl(std::string_view name,
   if (!info) {
     return refuse();
   }
-  return std::unique_ptr<Node>(Create(host(), *this, *info));
+  return std::unique_ptr<Node>(Create(GetHost(), *this, *info));
 }
 
 Result<void> HostNode::DeleteChildImpl(Node& child) {
-  const std::filesystem::path full_path = host_path_ / to_path(child.name());
+  const std::filesystem::path full_path = host_path_ / to_path(child.GetName());
   auto refuse = [&] {
     return Err(BuildError(FileSystemError::kAccessDenied,
-                          std::format("cannot delete '{}'", path_to_utf8(full_path))));
+                          std::format("cannot delete '{}'", PathToUTF8(full_path))));
   };
   std::error_code ec;
-  if (child.is_directory()) {
+  if (child.IsDirectory()) {
     const std::uintmax_t removed = std::filesystem::remove_all(full_path, ec);
     if (removed < 1 || removed == static_cast<std::uintmax_t>(-1)) {
       return refuse();
@@ -327,7 +326,7 @@ Result<void> HostNode::MoveImpl(Node& new_parent, std::string_view name, bool re
 }
 
 void HostNode::OnMoved() {
-  host_path_ = static_cast<const HostNode*>(parent())->host_path_ / to_path(name());
+  host_path_ = static_cast<const HostNode*>(GetParent())->host_path_ / to_path(GetName());
 }
 
 }  // namespace rex::filesystem

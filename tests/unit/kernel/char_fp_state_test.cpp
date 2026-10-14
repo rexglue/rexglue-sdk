@@ -33,9 +33,9 @@ using rex::testing::KernelFixture;
 namespace {
 
 void ScrambleFPDPC(PPCContext& ctx, u8*) {
-  ctx.fpscr.storeFromGuest(rex::ppc::kRoundTowardZero);
-  ctx.fpscr.enableFlushModeUnconditional();
-  ctx.fpscr.setcsr(ctx.fpscr.csr ^ FPSCRPlatform::ExceptionMask);
+  ctx.fpscr.StoreFromGuest(rex::ppc::kRoundTowardZero);
+  ctx.fpscr.EnableFlushModeUnconditional();
+  ctx.fpscr.SetCSR(ctx.fpscr.csr ^ FPSCRPlatform::kExceptionMask);
   ctx.f1.f64 = 99.0;
   ctx.r3.u64 = 0;
 }
@@ -46,19 +46,19 @@ REX_TEST_CASE("A DPC that changes the FP control word leaves the draining thread
               "[kernel][fp]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    const u32 thunk = c.runtime().function_dispatcher()->AllocateThunk(&ScrambleFPDPC, 0);
+    const u32 thunk = c.GetRuntime().GetFunctionDispatcher()->AllocateThunk(&ScrambleFPDPC, 0);
     CHECKED_ELSE(thunk != 0) {
       FAIL_CHECK("the check above failed");
       return;
     }
     const u32 dpc = c.Alloc(0x20);
     c.Kernel("KeInitializeDpc", {dpc, thunk, 0});
-    c.ctx().f1.f64 = 1.0;
-    const u32 before = FPSCRPlatform::getcsr();
+    c.GetCtx().f1.f64 = 1.0;
+    const u32 before = FPSCRPlatform::GetCSR();
     CHECK(c.Kernel("KeInsertQueueDpc", {dpc, 0, 0}) == 1);
-    CHECK(FPSCRPlatform::getcsr() == before);
-    CHECK(c.ctx().fpscr.csr == before);
-    CHECK(c.ctx().f1.f64 == 1.0);
+    CHECK(FPSCRPlatform::GetCSR() == before);
+    CHECK(c.GetCtx().fpscr.csr == before);
+    CHECK(c.GetCtx().f1.f64 == 1.0);
   });
 }
 
@@ -67,39 +67,39 @@ REX_TEST_CASE(
     "[kernel][fp]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    PPCContext& ctx = c.ctx();
+    PPCContext& ctx = c.GetCtx();
     PPCRegister* fpr = &ctx.f0;
     for (u32 i = 0; i < 32; ++i) {
       fpr[i].f64 = 0.5 + i;
     }
-    ctx.fpscr.storeFromGuest(rex::ppc::kRoundUp);
-    const u32 csr = FPSCRPlatform::getcsr();
+    ctx.fpscr.StoreFromGuest(rex::ppc::kRoundUp);
+    const u32 csr = FPSCRPlatform::GetCSR();
     c.Kernel("KeSaveFloatingPointState");
     for (u32 i = 0; i < 32; ++i) {
       fpr[i].f64 = -1.0;
     }
-    ctx.fpscr.storeFromGuest(rex::ppc::kRoundDown);
+    ctx.fpscr.StoreFromGuest(rex::ppc::kRoundDown);
     c.Kernel("KeRestoreFloatingPointState");
     for (u32 i = 0; i < 32; ++i) {
       CHECK(fpr[i].f64 == 0.5 + i);
     }
-    CHECK(FPSCRPlatform::getcsr() == csr);
+    CHECK(FPSCRPlatform::GetCSR() == csr);
     CHECK(ctx.fpscr.csr == csr);
-    ctx.fpscr.storeFromGuest(rex::ppc::kRoundNearest);
+    ctx.fpscr.StoreFromGuest(rex::ppc::kRoundNearest);
   });
 }
 
 REX_TEST_CASE("Every guest rounding mode reads back from the host control word", "[kernel][fp]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    PPCContext& ctx = c.ctx();
+    PPCContext& ctx = c.GetCtx();
     for (const u32 mode : {rex::ppc::kRoundNearest, rex::ppc::kRoundTowardZero, rex::ppc::kRoundUp,
                            rex::ppc::kRoundDown}) {
       INFO("rounding mode " << mode);
-      ctx.fpscr.storeFromGuest(mode);
-      CHECK(ctx.fpscr.loadFromHost() == mode);
+      ctx.fpscr.StoreFromGuest(mode);
+      CHECK(ctx.fpscr.LoadFromHost() == mode);
     }
-    ctx.fpscr.storeFromGuest(rex::ppc::kRoundNearest);
+    ctx.fpscr.StoreFromGuest(rex::ppc::kRoundNearest);
   });
 }
 
@@ -107,7 +107,7 @@ REX_TEST_CASE("KeSaveVectorUnitState and KeRestoreVectorUnitState round trip v0 
               "[kernel][fp]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    PPCContext& ctx = c.ctx();
+    PPCContext& ctx = c.GetCtx();
     PPCVRegister* vr = &ctx.v0;
     for (u32 i = 0; i < 128; ++i) {
       std::memset(&vr[i], static_cast<int>(i), sizeof(PPCVRegister));
@@ -134,12 +134,12 @@ REX_TEST_CASE("A host worker starts from the host policy FP control word", "[ker
     auto csr = std::make_shared<std::atomic<u32>>(0);
     auto host = std::make_shared<std::atomic<u32>>(0);
     auto thread =
-        std::make_unique<rex::runtime::KernelThread>(c.runtime(), 0x20000, 0, [csr, host]() {
-          csr->store(rex::runtime::ThreadState::Get()->context()->fpscr.csr);
-          host->store(FPSCRPlatform::getcsr());
+        std::make_unique<rex::runtime::KernelThread>(c.GetRuntime(), 0x20000, 0, [csr, host]() {
+          csr->store(rex::runtime::ThreadState::Get()->GetContext()->fpscr.csr);
+          host->store(FPSCRPlatform::GetCSR());
           return 0;
         });
-    auto launched = c.runtime().thread_registry().Launch(std::move(thread));
+    auto launched = c.GetRuntime().GetThreadRegistry().Launch(std::move(thread));
     CHECKED_ELSE(launched) {
       FAIL_CHECK("the check above failed");
       return;
@@ -158,6 +158,6 @@ REX_TEST_CASE("A thread's FP save area starts with every FP exception masked", "
   fixture.RunOnGuestThread([](Caller&) {
     u32 expected = 0;
     FPSCRPlatform::InitHostExceptions(expected);
-    CHECK(rex::runtime::ThreadState::Get()->dpc_save_area().csr == expected);
+    CHECK(rex::runtime::ThreadState::Get()->GetDPCSaveArea().csr == expected);
   });
 }

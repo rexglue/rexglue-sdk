@@ -47,7 +47,7 @@ class IModuleRegistry {
    *
    * @return The handle, empty before an executable is loaded.
    */
-  [[nodiscard]] virtual std::optional<X_HANDLE> executable() const = 0;
+  [[nodiscard]] virtual std::optional<X_HANDLE> GetExecutable() const = 0;
 
   /**
    * Finds a kernel module.
@@ -78,14 +78,14 @@ class IModuleRegistry {
    *
    * @return The handles.
    */
-  [[nodiscard]] virtual std::vector<X_HANDLE> kernel_modules() = 0;
+  [[nodiscard]] virtual std::vector<X_HANDLE> GetKernelModules() = 0;
 
   /**
    * Lists the loaded user modules in load order.
    *
    * @return The handles.
    */
-  [[nodiscard]] virtual std::vector<X_HANDLE> user_modules() = 0;
+  [[nodiscard]] virtual std::vector<X_HANDLE> GetUserModules() = 0;
 
   /**
    * Loads a user module, or finds it when it is already loaded, and wires its recompiled library.
@@ -129,7 +129,7 @@ class IModuleRegistry {
    *
    * @return The lock.
    */
-  [[nodiscard]] virtual rex::platform::RankedMutex& load_count_mutex() = 0;
+  [[nodiscard]] virtual rex::platform::RankedMutex& GetLoadCountMutex() = 0;
 };
 
 }  // namespace rex::runtime

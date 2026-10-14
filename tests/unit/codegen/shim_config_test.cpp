@@ -55,9 +55,9 @@ REX_TEST_CASE("Shim table loads registered names and addresses", "[codegen][shim
   Scratch scratch("loads");
   RecompilerConfig config;
   REQUIRE(config.Load(scratch.Write("[shim]\nmemcpy = 0x82000000\nwcslen = 0x82000010\n")));
-  CHECK(config.shimFunctions.size() == 2);
-  CHECK(config.shimFunctions.at("memcpy") == 0x82000000u);
-  CHECK(config.shimFunctions.at("wcslen") == 0x82000010u);
+  CHECK(config.shim_functions.size() == 2);
+  CHECK(config.shim_functions.at("memcpy") == 0x82000000u);
+  CHECK(config.shim_functions.at("wcslen") == 0x82000010u);
   CHECK_FALSE(config.UsesShimHeap());
 }
 
@@ -73,10 +73,10 @@ REX_TEST_CASE("A complete heap group turns the shim heap on", "[codegen][shim]")
 
 REX_TEST_CASE("A partial heap group is rejected", "[codegen][shim]") {
   RecompilerConfig config;
-  config.filePath = "game.xex";
-  config.outDirectoryPath = "out";
-  config.shimFunctions["RtlAllocateHeap"] = 0x82000000;
-  config.shimFunctions["RtlFreeHeap"] = 0x82000010;
+  config.file_path = "game.xex";
+  config.out_directory_path = "out";
+  config.shim_functions["RtlAllocateHeap"] = 0x82000000;
+  config.shim_functions["RtlFreeHeap"] = 0x82000010;
   auto result = config.Validate();
   CHECK_FALSE(result.valid);
   CHECK(AnyError(result, "heap group is incomplete (2/4 specified)"));
@@ -85,9 +85,9 @@ REX_TEST_CASE("A partial heap group is rejected", "[codegen][shim]") {
 
 REX_TEST_CASE("An unknown shim name is rejected with the nearest name", "[codegen][shim]") {
   RecompilerConfig config;
-  config.filePath = "game.xex";
-  config.outDirectoryPath = "out";
-  config.shimFunctions["memcopy"] = 0x82000000;
+  config.file_path = "game.xex";
+  config.out_directory_path = "out";
+  config.shim_functions["memcopy"] = 0x82000000;
   auto result = config.Validate();
   CHECK_FALSE(result.valid);
   CHECK(AnyError(result, "did you mean 'memcpy'"));
@@ -95,9 +95,9 @@ REX_TEST_CASE("An unknown shim name is rejected with the nearest name", "[codege
 
 REX_TEST_CASE("An unknown shim name with no near match gets no suggestion", "[codegen][shim]") {
   RecompilerConfig config;
-  config.filePath = "game.xex";
-  config.outDirectoryPath = "out";
-  config.shimFunctions["CompletelyUnrelatedName"] = 0x82000000;
+  config.file_path = "game.xex";
+  config.out_directory_path = "out";
+  config.shim_functions["CompletelyUnrelatedName"] = 0x82000000;
   auto result = config.Validate();
   CHECK_FALSE(result.valid);
   CHECK(AnyError(result, "is not in the shim registry"));
@@ -106,9 +106,9 @@ REX_TEST_CASE("An unknown shim name with no near match gets no suggestion", "[co
 
 REX_TEST_CASE("A misaligned shim address is rejected", "[codegen][shim]") {
   RecompilerConfig config;
-  config.filePath = "game.xex";
-  config.outDirectoryPath = "out";
-  config.shimFunctions["memcpy"] = 0x82000002;
+  config.file_path = "game.xex";
+  config.out_directory_path = "out";
+  config.shim_functions["memcpy"] = 0x82000002;
   auto result = config.Validate();
   CHECK_FALSE(result.valid);
   CHECK(AnyError(result, "not 4-byte aligned"));
@@ -118,5 +118,5 @@ REX_TEST_CASE("The retired table is rejected and leaves the shim map empty", "[c
   Scratch scratch("retired");
   RecompilerConfig config;
   CHECK_FALSE(config.Load(scratch.Write("[rexcrt]\nmemcpy = 0x82000000\n")));
-  CHECK(config.shimFunctions.empty());
+  CHECK(config.shim_functions.empty());
 }

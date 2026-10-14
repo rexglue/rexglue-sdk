@@ -127,7 +127,7 @@ void DeferredCommandList::Execute(ID3D12GraphicsCommandList* command_list,
         command_list->IASetVertexBuffers(args.start_slot, args.num_views,
                                          reinterpret_cast<const D3D12_VERTEX_BUFFER_VIEW*>(
                                              reinterpret_cast<const u8*>(stream) +
-                                             rex::align(sizeof(D3DIASetVertexBuffersHeader),
+                                             rex::Align(sizeof(D3DIASetVertexBuffersHeader),
                                                         alignof(D3D12_VERTEX_BUFFER_VIEW))));
       } break;
       case Command::kD3DOMSetBlendFactor: {
@@ -149,7 +149,7 @@ void DeferredCommandList::Execute(ID3D12GraphicsCommandList* command_list,
             *reinterpret_cast<const UINT*>(stream),
             reinterpret_cast<const D3D12_RESOURCE_BARRIER*>(
                 reinterpret_cast<const u8*>(stream) +
-                rex::align(sizeof(UINT), alignof(D3D12_RESOURCE_BARRIER))));
+                rex::Align(sizeof(UINT), alignof(D3D12_RESOURCE_BARRIER))));
       } break;
       case Command::kRSSetScissorRect: {
         command_list->RSSetScissorRects(1, reinterpret_cast<const D3D12_RECT*>(stream));

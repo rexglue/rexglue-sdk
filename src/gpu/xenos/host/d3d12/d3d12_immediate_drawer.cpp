@@ -51,7 +51,7 @@ void D3D12ImmediateDrawer::D3D12ImmediateTexture::OnImmediateDrawerDestroyed() {
 }
 
 D3D12ImmediateDrawer::~D3D12ImmediateDrawer() {
-  auto d3d12_presenter = static_cast<D3D12Presenter*>(presenter());
+  auto d3d12_presenter = static_cast<D3D12Presenter*>(GetPresenter());
   if (d3d12_presenter) {
     d3d12_presenter->AwaitUISubmissionCompletionFromUIThread(last_paint_submission_index_);
   }
@@ -144,7 +144,7 @@ bool D3D12ImmediateDrawer::Initialize() {
   pipeline_input_elements[2].Format = DXGI_FORMAT_R8G8B8A8_UNORM;
   pipeline_input_elements[2].AlignedByteOffset = offsetof(gpu::OverlayVertex, color);
   pipeline_desc.InputLayout.pInputElementDescs = pipeline_input_elements;
-  pipeline_desc.InputLayout.NumElements = UINT(rex::countof(pipeline_input_elements));
+  pipeline_desc.InputLayout.NumElements = UINT(rex::CountOf(pipeline_input_elements));
   pipeline_desc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
   pipeline_desc.NumRenderTargets = 1;
   pipeline_desc.RTVFormats[0] = D3D12Presenter::kSwapChainFormat;
@@ -232,7 +232,7 @@ Result<std::unique_ptr<gpu::OverlayTexture>> D3D12ImmediateDrawer::CreateTexture
           D3D12_RESOURCE_STATE_COPY_DEST, nullptr, IID_PPV_ARGS(&resource)))) {
     REXLOG_ERROR(ui, "D3D12ImmediateDrawer: Failed to create a {}x{} texture", width, height);
     return Err<std::unique_ptr<gpu::OverlayTexture>>(
-        ErrorCategory::Runtime, std::format("Failed to create a {}x{} texture", width, height));
+        ErrorCategory::kRuntime, std::format("Failed to create a {}x{} texture", width, height));
   }
   D3D12_PLACED_SUBRESOURCE_FOOTPRINT upload_footprint;
   UINT64 upload_size;
@@ -249,7 +249,7 @@ Result<std::unique_ptr<gpu::OverlayTexture>> D3D12ImmediateDrawer::CreateTexture
                  "texture",
                  width, height);
     return Err<std::unique_ptr<gpu::OverlayTexture>>(
-        ErrorCategory::Runtime,
+        ErrorCategory::kRuntime,
         std::format("Failed to create an upload buffer for a {}x{} texture", width, height));
   }
   D3D12_RANGE upload_buffer_read_range;
@@ -262,7 +262,7 @@ Result<std::unique_ptr<gpu::OverlayTexture>> D3D12ImmediateDrawer::CreateTexture
                  "texture",
                  width, height);
     return Err<std::unique_ptr<gpu::OverlayTexture>>(
-        ErrorCategory::Runtime,
+        ErrorCategory::kRuntime,
         std::format("Failed to map an upload buffer for a {}x{} texture", width, height));
   }
   size_t data_row_length = sizeof(u32) * width;
@@ -302,8 +302,8 @@ void D3D12ImmediateDrawer::Begin(gpu::OverlayDrawContext& context, f32 width, f3
   const D3D12OverlayDrawContext& d3d12_ui_draw_context =
       static_cast<const D3D12OverlayDrawContext&>(context);
 
-  last_paint_submission_index_ = d3d12_ui_draw_context.submission_index_current();
-  last_completed_submission_index_ = d3d12_ui_draw_context.submission_index_completed();
+  last_paint_submission_index_ = d3d12_ui_draw_context.GetSubmissionIndexCurrent();
+  last_completed_submission_index_ = d3d12_ui_draw_context.GetSubmissionIndexCompleted();
 
   for (auto it = textures_deleted_.begin(); it != textures_deleted_.end();) {
     if (it->second > last_completed_submission_index_) {
@@ -331,21 +331,21 @@ void D3D12ImmediateDrawer::Begin(gpu::OverlayDrawContext& context, f32 width, f3
   texture_descriptor_pool_->Reclaim(last_completed_submission_index_);
   vertex_buffer_pool_->Reclaim(last_completed_submission_index_);
 
-  ID3D12GraphicsCommandList* command_list = d3d12_ui_draw_context.command_list();
+  ID3D12GraphicsCommandList* command_list = d3d12_ui_draw_context.GetCommandList();
 
   D3D12_VIEWPORT viewport;
   viewport.TopLeftX = 0.0f;
   viewport.TopLeftY = 0.0f;
-  viewport.Width = static_cast<f32>(d3d12_ui_draw_context.render_target_width());
-  viewport.Height = static_cast<f32>(d3d12_ui_draw_context.render_target_height());
+  viewport.Width = static_cast<f32>(d3d12_ui_draw_context.GetRenderTargetWidth());
+  viewport.Height = static_cast<f32>(d3d12_ui_draw_context.GetRenderTargetHeight());
   viewport.MinDepth = 0.0f;
   viewport.MaxDepth = 1.0f;
   command_list->RSSetViewports(1, &viewport);
 
   command_list->SetGraphicsRootSignature(root_signature_.Get());
   f32 coordinate_space_size_inv[2];
-  coordinate_space_size_inv[0] = 1.0f / coordinate_space_width();
-  coordinate_space_size_inv[1] = 1.0f / coordinate_space_height();
+  coordinate_space_size_inv[0] = 1.0f / GetCoordinateSpaceWidth();
+  coordinate_space_size_inv[1] = 1.0f / GetCoordinateSpaceHeight();
   command_list->SetGraphicsRoot32BitConstants(UINT(RootParameter::kCoordinateSpaceSizeInv), 2,
                                               coordinate_space_size_inv, 0);
 
@@ -364,9 +364,9 @@ void D3D12ImmediateDrawer::BeginBatch(const gpu::OverlayBatch& batch) {
   REX_ASSERT(!batch_open_);
 
   const D3D12OverlayDrawContext& d3d12_ui_draw_context =
-      *static_cast<const D3D12OverlayDrawContext*>(ui_draw_context());
+      *static_cast<const D3D12OverlayDrawContext*>(GetUIDrawContext());
 
-  ID3D12GraphicsCommandList* command_list = d3d12_ui_draw_context.command_list();
+  ID3D12GraphicsCommandList* command_list = d3d12_ui_draw_context.GetCommandList();
 
   D3D12_VERTEX_BUFFER_VIEW vertex_buffer_view;
   vertex_buffer_view.StrideInBytes = UINT(sizeof(gpu::OverlayVertex));
@@ -408,8 +408,8 @@ void D3D12ImmediateDrawer::Draw(const gpu::OverlayDraw& draw) {
   }
 
   const D3D12OverlayDrawContext& d3d12_ui_draw_context =
-      *static_cast<const D3D12OverlayDrawContext*>(ui_draw_context());
-  ID3D12GraphicsCommandList* command_list = d3d12_ui_draw_context.command_list();
+      *static_cast<const D3D12OverlayDrawContext*>(GetUIDrawContext());
+  ID3D12GraphicsCommandList* command_list = d3d12_ui_draw_context.GetCommandList();
 
   u32 scissor_left, scissor_top, scissor_width, scissor_height;
   if (!ScissorToRenderTarget(draw, scissor_left, scissor_top, scissor_width, scissor_height)) {
@@ -429,7 +429,7 @@ void D3D12ImmediateDrawer::Draw(const gpu::OverlayDraw& draw) {
   UploadTextures();
 
   auto texture = static_cast<D3D12ImmediateTexture*>(draw.texture);
-  ID3D12Resource* texture_resource = texture ? texture->resource() : nullptr;
+  ID3D12Resource* texture_resource = texture ? texture->GetResource() : nullptr;
   bool bind_texture = current_texture_ != texture_resource;
   u32 texture_descriptor_index;
   u64 texture_heap_index = texture_descriptor_pool_->Request(
@@ -478,7 +478,7 @@ void D3D12ImmediateDrawer::Draw(const gpu::OverlayDraw& draw) {
   }
 
   SamplerIndex sampler_index =
-      texture_resource ? texture->sampler_index() : SamplerIndex::kNearestClamp;
+      texture_resource ? texture->GetSamplerIndex() : SamplerIndex::kNearestClamp;
   if (current_sampler_index_ != sampler_index) {
     current_sampler_index_ = sampler_index;
     command_list->SetGraphicsRootDescriptorTable(
@@ -526,7 +526,7 @@ void D3D12ImmediateDrawer::End() {
 }
 
 void D3D12ImmediateDrawer::OnLeavePresenter() {
-  D3D12Presenter& d3d12_presenter = *static_cast<D3D12Presenter*>(presenter());
+  D3D12Presenter& d3d12_presenter = *static_cast<D3D12Presenter*>(GetPresenter());
   d3d12_presenter.AwaitUISubmissionCompletionFromUIThread(last_paint_submission_index_);
 
   for (D3D12ImmediateTexture* texture : textures_) {
@@ -543,15 +543,15 @@ void D3D12ImmediateDrawer::OnLeavePresenter() {
 }
 
 void D3D12ImmediateDrawer::OnImmediateTextureDestroyed(D3D12ImmediateTexture& texture) {
-  size_t texture_index = texture.immediate_drawer_index();
+  size_t texture_index = texture.GetImmediateDrawerIndex();
   REX_ASSERT(texture_index != SIZE_MAX);
   D3D12ImmediateTexture*& texture_at_index = textures_[texture_index];
   texture_at_index = textures_.back();
   texture_at_index->SetImmediateDrawerIndex(texture_index);
   textures_.pop_back();
 
-  ID3D12Resource* resource = texture.resource();
-  UINT64 last_usage_submission_index = texture.last_usage_submission_index();
+  ID3D12Resource* resource = texture.GetResource();
+  UINT64 last_usage_submission_index = texture.GetLastUsageSubmissionIndex();
   if (resource && last_usage_submission_index > last_completed_submission_index_) {
     textures_deleted_.emplace_back(resource, last_usage_submission_index);
   }
@@ -564,8 +564,8 @@ void D3D12ImmediateDrawer::UploadTextures() {
 
   ID3D12Device* device = provider_.GetDevice();
   const D3D12OverlayDrawContext& d3d12_ui_draw_context =
-      *static_cast<const D3D12OverlayDrawContext*>(ui_draw_context());
-  ID3D12GraphicsCommandList* command_list = d3d12_ui_draw_context.command_list();
+      *static_cast<const D3D12OverlayDrawContext*>(GetUIDrawContext());
+  ID3D12GraphicsCommandList* command_list = d3d12_ui_draw_context.GetCommandList();
 
   // Copy all, then transition all, without interleaving copies and barriers.
   std::vector<D3D12_RESOURCE_BARRIER> barriers;

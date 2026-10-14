@@ -16,7 +16,7 @@ namespace rex::hid {
 namespace {
 
 rex::Error NotConnected() {
-  return BuildError(HIDError::NotConnected, "only user 0 has the idle pad");
+  return BuildError(HIDError::kNotConnected, "only user 0 has the idle pad");
 }
 
 }  // namespace
@@ -26,8 +26,8 @@ Result<X_INPUT_CAPABILITIES> NullHIDBackend::GetCapabilities(u32 user, u32) {
     return std::unexpected(NotConnected());
   }
   X_INPUT_CAPABILITIES caps{};
-  caps.type = XINPUT_DEVTYPE_GAMEPAD;
-  caps.sub_type = XINPUT_DEVSUBTYPE_GAMEPAD;
+  caps.type = kXInputDevTypeGamepad;
+  caps.sub_type = kXInputDevSubtypeGamepad;
   caps.gamepad.buttons = 0xFFFF;
   caps.gamepad.left_trigger = 0xFF;
   caps.gamepad.right_trigger = 0xFF;
@@ -65,7 +65,7 @@ Result<X_INPUT_KEYSTROKE> NullHIDBackend::GetKeystroke(u32 user, u32) {
   if (user != 0) {
     return std::unexpected(NotConnected());
   }
-  return std::unexpected(BuildError(HIDError::Empty, "the idle pad has no keystrokes"));
+  return std::unexpected(BuildError(HIDError::kEmpty, "the idle pad has no keystrokes"));
 }
 
 void NullHIDBackend::SetConnectionListener(rex::MoveOnlyFunction<void(u32, bool)> listener) {

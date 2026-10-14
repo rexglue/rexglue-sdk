@@ -45,7 +45,7 @@ void
 
 #define REX_EXPORT_ROW_kFunction(ordinal, text, symbol) \
   ExportEntry {                                         \
-    (ordinal), ExportKind::Function, (text), &(symbol)  \
+    (ordinal), ExportKind::kFunction, (text), &(symbol) \
   }
 /**
  * Builds the table entry of a variable export, which has no function pointer.
@@ -60,26 +60,26 @@ void
  */
 #define REX_EXPORT_ROW_kVariable(ordinal, text, symbol) \
   ExportEntry {                                         \
-    ordinal, ExportKind::Variable, text, nullptr        \
+    ordinal, ExportKind::kVariable, text, nullptr       \
   }
 
 namespace rex::runtime {
 
 namespace {
 
-constexpr ExportEntry kXboxkrnl[] = {
+constexpr ExportEntry kXboxkrnlExports[] = {
 #include "export_table_pre.inc"
 #include "xboxkrnl/export_table.inc"
 #include "export_table_post.inc"
 };
 
-constexpr ExportEntry kXAM[] = {
+constexpr ExportEntry kXAMExports[] = {
 #include "export_table_pre.inc"
 #include "xam/export_table.inc"
 #include "export_table_post.inc"
 };
 
-constexpr ExportEntry kXBDM[] = {
+constexpr ExportEntry kXBDMExports[] = {
 #include "export_table_pre.inc"
 #include "xbdm/export_table.inc"
 #include "export_table_post.inc"
@@ -94,9 +94,10 @@ constexpr bool SortedUnique(std::span<const ExportEntry> table) {
   return true;
 }
 
-static_assert(SortedUnique(kXboxkrnl), "xboxkrnl export table is not sorted by unique ordinal");
-static_assert(SortedUnique(kXAM), "Xam export table is not sorted by unique ordinal");
-static_assert(SortedUnique(kXBDM), "Xbdm export table is not sorted by unique ordinal");
+static_assert(SortedUnique(kXboxkrnlExports),
+              "xboxkrnl export table is not sorted by unique ordinal");
+static_assert(SortedUnique(kXAMExports), "XAM export table is not sorted by unique ordinal");
+static_assert(SortedUnique(kXBDMExports), "XBDM export table is not sorted by unique ordinal");
 
 struct ModuleName {
   ExportModule module;
@@ -105,21 +106,21 @@ struct ModuleName {
 };
 
 constexpr ModuleName kModuleNames[] = {
-    {ExportModule::Xboxkrnl, "xboxkrnl", "xboxkrnl.exe"},
-    {ExportModule::XAM, "xam", "xam.xex"},
-    {ExportModule::XBDM, "xbdm", "xbdm.xex"},
+    {ExportModule::kXboxkrnl, "xboxkrnl", "xboxkrnl.exe"},
+    {ExportModule::kXAM, "xam", "xam.xex"},
+    {ExportModule::kXBDM, "xbdm", "xbdm.xex"},
 };
 
 }  // namespace
 
 std::span<const ExportEntry> Exports(ExportModule module) {
   switch (module) {
-    case ExportModule::Xboxkrnl:
-      return kXboxkrnl;
-    case ExportModule::XAM:
-      return kXAM;
-    case ExportModule::XBDM:
-      return kXBDM;
+    case ExportModule::kXboxkrnl:
+      return kXboxkrnlExports;
+    case ExportModule::kXAM:
+      return kXAMExports;
+    case ExportModule::kXBDM:
+      return kXBDMExports;
   }
   return {};
 }

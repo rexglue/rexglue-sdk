@@ -31,7 +31,7 @@ class XgiApp : public runtime::App {
   REX_RUNTIME_API explicit XgiApp(Runtime& runtime);
 
   /**
-   * Handles 1 message sent to the Xgi app.
+   * Handles a message sent to the Xgi app.
    *
    * @param message The message identifier.
    * @param buffer_ptr Guest address of the message buffer.

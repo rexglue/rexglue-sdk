@@ -23,16 +23,16 @@ REX_TEST_CASE("ByteStream construction and initial state", "[stream][bytestream]
   std::array<u8, 16> buffer{};
   ByteStream stream(buffer.data(), buffer.size());
 
-  CHECK(stream.data() == buffer.data());
-  CHECK(stream.data_length() == 16);
-  CHECK(stream.offset() == 0);
+  CHECK(stream.GetData() == buffer.data());
+  CHECK(stream.GetDataLength() == 16);
+  CHECK(stream.GetOffset() == 0);
 }
 
 REX_TEST_CASE("ByteStream construction with offset", "[stream][bytestream]") {
   std::array<u8, 16> buffer{};
   ByteStream stream(buffer.data(), buffer.size(), 8);
 
-  CHECK(stream.offset() == 8);
+  CHECK(stream.GetOffset() == 8);
 }
 
 REX_TEST_CASE("ByteStream Advance moves offset", "[stream][bytestream]") {
@@ -40,21 +40,21 @@ REX_TEST_CASE("ByteStream Advance moves offset", "[stream][bytestream]") {
   ByteStream stream(buffer.data(), buffer.size());
 
   stream.Advance(4);
-  CHECK(stream.offset() == 4);
+  CHECK(stream.GetOffset() == 4);
 
   stream.Advance(8);
-  CHECK(stream.offset() == 12);
+  CHECK(stream.GetOffset() == 12);
 }
 
 REX_TEST_CASE("ByteStream set_offset works", "[stream][bytestream]") {
   std::array<u8, 16> buffer{};
   ByteStream stream(buffer.data(), buffer.size());
 
-  stream.set_offset(10);
-  CHECK(stream.offset() == 10);
+  stream.SetOffset(10);
+  CHECK(stream.GetOffset() == 10);
 
-  stream.set_offset(0);
-  CHECK(stream.offset() == 0);
+  stream.SetOffset(0);
+  CHECK(stream.GetOffset() == 0);
 }
 
 REX_TEST_CASE("ByteStream Write and Read span", "[stream][bytestream]") {
@@ -64,18 +64,18 @@ REX_TEST_CASE("ByteStream Write and Read span", "[stream][bytestream]") {
   std::array<u8, 4> write_data = {0x11, 0x22, 0x33, 0x44};
   stream.Write(write_data.data(), write_data.size());
 
-  CHECK(stream.offset() == 4);
+  CHECK(stream.GetOffset() == 4);
   CHECK(buffer[0] == 0x11);
   CHECK(buffer[1] == 0x22);
   CHECK(buffer[2] == 0x33);
   CHECK(buffer[3] == 0x44);
 
-  stream.set_offset(0);
+  stream.SetOffset(0);
   std::array<u8, 4> read_data{};
   stream.Read(read_data.data(), read_data.size());
 
   CHECK(read_data == write_data);
-  CHECK(stream.offset() == 4);
+  CHECK(stream.GetOffset() == 4);
 }
 
 REX_TEST_CASE("ByteStream Write and Read template primitives", "[stream][bytestream]") {
@@ -87,9 +87,9 @@ REX_TEST_CASE("ByteStream Write and Read template primitives", "[stream][bytestr
   stream.Write<u32>(0x789ABCDE);
   stream.Write<u64>(0xFEDCBA9876543210);
 
-  CHECK(stream.offset() == 1 + 2 + 4 + 8);
+  CHECK(stream.GetOffset() == 1 + 2 + 4 + 8);
 
-  stream.set_offset(0);
+  stream.SetOffset(0);
   CHECK(stream.Read<u8>() == 0x12);
   CHECK(stream.Read<u16>() == 0x3456);
   CHECK(stream.Read<u32>() == 0x789ABCDE);
@@ -103,7 +103,7 @@ REX_TEST_CASE("ByteStream Write and Read void* overloads", "[stream][bytestream]
   const char* msg = "test";
   stream.Write(msg, 4);
 
-  stream.set_offset(0);
+  stream.SetOffset(0);
   char read_buf[5] = {};
   stream.Read(read_buf, 4);
 
@@ -117,7 +117,7 @@ REX_TEST_CASE("ByteStream Write and Read std::string", "[stream][bytestream]") {
   std::string original = "Hello, World!";
   stream.Write(std::string_view(original));
 
-  stream.set_offset(0);
+  stream.SetOffset(0);
   std::string result = stream.Read<std::string>();
 
   CHECK(result == original);
@@ -130,7 +130,7 @@ REX_TEST_CASE("ByteStream Write and Read std::u16string", "[stream][bytestream]"
   std::u16string original = u"Unicode\u00AE";
   stream.Write(std::u16string_view(original));
 
-  stream.set_offset(0);
+  stream.SetOffset(0);
   std::u16string result = stream.Read<std::u16string>();
 
   CHECK(result == original);
@@ -142,7 +142,7 @@ REX_TEST_CASE("ByteStream empty string round-trip", "[stream][bytestream]") {
 
   stream.Write(std::string_view(""));
 
-  stream.set_offset(0);
+  stream.SetOffset(0);
   std::string result = stream.Read<std::string>();
 
   CHECK(result.empty());
@@ -152,10 +152,10 @@ REX_TEST_CASE("BitStream construction and initial state", "[stream][bitstream]")
   std::array<u8, 16> buffer{};
   BitStream stream(buffer.data(), buffer.size() * 8);
 
-  CHECK(stream.buffer() == buffer.data());
-  CHECK(stream.size_bits() == 128);
-  CHECK(stream.offset_bits() == 0);
-  CHECK(stream.BitsRemaining() == 128);
+  CHECK(stream.GetBuffer() == buffer.data());
+  CHECK(stream.GetSizeBits() == 128);
+  CHECK(stream.GetOffsetBits() == 0);
+  CHECK(stream.GetBitsRemaining() == 128);
 }
 
 REX_TEST_CASE("BitStream SetOffset works", "[stream][bitstream]") {
@@ -163,8 +163,8 @@ REX_TEST_CASE("BitStream SetOffset works", "[stream][bitstream]") {
   BitStream stream(buffer.data(), buffer.size() * 8);
 
   stream.SetOffset(32);
-  CHECK(stream.offset_bits() == 32);
-  CHECK(stream.BitsRemaining() == 96);
+  CHECK(stream.GetOffsetBits() == 32);
+  CHECK(stream.GetBitsRemaining() == 96);
 }
 
 REX_TEST_CASE("BitStream Advance works", "[stream][bitstream]") {
@@ -172,10 +172,10 @@ REX_TEST_CASE("BitStream Advance works", "[stream][bitstream]") {
   BitStream stream(buffer.data(), buffer.size() * 8);
 
   stream.Advance(10);
-  CHECK(stream.offset_bits() == 10);
+  CHECK(stream.GetOffsetBits() == 10);
 
   stream.Advance(5);
-  CHECK(stream.offset_bits() == 15);
+  CHECK(stream.GetOffsetBits() == 15);
 }
 
 REX_TEST_CASE("BitStream Peek reads without advancing", "[stream][bitstream]") {
@@ -184,7 +184,7 @@ REX_TEST_CASE("BitStream Peek reads without advancing", "[stream][bitstream]") {
   BitStream stream(buffer.data(), buffer.size() * 8);
 
   u64 val1 = stream.Peek(8);
-  CHECK(stream.offset_bits() == 0);
+  CHECK(stream.GetOffsetBits() == 0);
 
   u64 val2 = stream.Peek(8);
   CHECK(val1 == val2);
@@ -195,10 +195,10 @@ REX_TEST_CASE("BitStream Read advances offset", "[stream][bitstream]") {
   BitStream stream(buffer.data(), buffer.size() * 8);
 
   stream.Read(8);
-  CHECK(stream.offset_bits() == 8);
+  CHECK(stream.GetOffsetBits() == 8);
 
   stream.Read(16);
-  CHECK(stream.offset_bits() == 24);
+  CHECK(stream.GetOffsetBits() == 24);
 }
 
 REX_TEST_CASE("BitStream Read byte-aligned values", "[stream][bitstream]") {
@@ -267,7 +267,7 @@ REX_TEST_CASE("BitStream Write byte-aligned", "[stream][bitstream]") {
   BitStream stream(buffer.data(), buffer.size() * 8);
 
   stream.Write(0xAB, 8);
-  CHECK(stream.offset_bits() == 8);
+  CHECK(stream.GetOffsetBits() == 8);
 
   stream.SetOffset(0);
   CHECK(stream.Read(8) == 0xAB);
@@ -311,7 +311,7 @@ REX_TEST_CASE("BitStream Read zero bits returns zero", "[stream][bitstream]") {
   BitStream stream(buffer.data(), buffer.size() * 8);
 
   CHECK(stream.Read(0) == 0);
-  CHECK(stream.offset_bits() == 0);
+  CHECK(stream.GetOffsetBits() == 0);
 }
 
 REX_TEST_CASE("BitStream maximum bits (57)", "[stream][bitstream]") {
@@ -327,11 +327,11 @@ REX_TEST_CASE("BitStream BitsRemaining decreases", "[stream][bitstream]") {
   std::array<u8, 16> buffer{};
   BitStream stream(buffer.data(), 64);
 
-  CHECK(stream.BitsRemaining() == 64);
+  CHECK(stream.GetBitsRemaining() == 64);
 
   stream.Read(16);
-  CHECK(stream.BitsRemaining() == 48);
+  CHECK(stream.GetBitsRemaining() == 48);
 
   stream.Read(32);
-  CHECK(stream.BitsRemaining() == 16);
+  CHECK(stream.GetBitsRemaining() == 16);
 }

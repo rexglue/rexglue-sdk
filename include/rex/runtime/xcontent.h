@@ -66,7 +66,7 @@ enum class XContentType : u32 {
   kMarketplaceContent = 0x00000002, /**< Content purchased from the Marketplace. */
   kPublisher = 0x00000003,          /**< Publisher specific content. */
   kXbox360Title = 0x00001000,       /**< Used only as the hex folder name of the package path. */
-  kIptvPauseBuffer = 0x00002000,    /**< Used only as the hex folder name of the package path. */
+  kIPTVPauseBuffer = 0x00002000,    /**< Used only as the hex folder name of the package path. */
   kXNACommunity = 0x00003000,       /**< Used only as the hex folder name of the package path. */
   kInstalledGame = 0x00004000,      /**< Used only as the hex folder name of the package path. */
   kXboxTitle = 0x00005000,          /**< Used only as the hex folder name of the package path. */
@@ -104,7 +104,7 @@ constexpr u32 kCurrentlyRunningTitleId = 0xFFFFFFFF;
 /** Metadata of a content package on a storage device, as the title lays it out. */
 struct XCONTENT_DATA {
   be_u32 device_id;              /**< Id of the storage device that holds the package. */
-  be<XContentType> content_type; /**< Type of the package. */
+  BE<XContentType> content_type; /**< Type of the package. */
   union {
     /** Plain u16 because be_u16 would stop the copy constructor being generated. */
     u16 uint[128];
@@ -128,7 +128,7 @@ struct XCONTENT_DATA {
    */
   bool operator==(const XCONTENT_DATA& other) const {
     return device_id == other.device_id && content_type == other.content_type &&
-           file_name() == other.file_name();
+           GetFileName() == other.GetFileName();
   }
 
   /**
@@ -136,7 +136,7 @@ struct XCONTENT_DATA {
    *
    * @return The name.
    */
-  std::u16string display_name() const {
+  std::u16string GetDisplayName() const {
     return memory::load_and_swap<std::u16string>(display_name_raw.uint);
   }
 
@@ -145,8 +145,8 @@ struct XCONTENT_DATA {
    *
    * @return The name.
    */
-  std::string file_name() const {
-    return std::string(file_name_raw, strnlen(file_name_raw, countof(file_name_raw)));
+  std::string GetFileName() const {
+    return std::string(file_name_raw, strnlen(file_name_raw, CountOf(file_name_raw)));
   }
 
   /**
@@ -155,9 +155,9 @@ struct XCONTENT_DATA {
    *
    * @param value The name.
    */
-  void set_display_name(const std::u16string_view value) {
-    std::fill_n(display_name_raw.chars, countof(display_name_raw.chars), 0);
-    rex::copy_and_swap_truncating(display_name_raw.chars, value, countof(display_name_raw.chars));
+  void SetDisplayName(const std::u16string_view value) {
+    std::fill_n(display_name_raw.chars, CountOf(display_name_raw.chars), 0);
+    rex::copy_and_swap_truncating(display_name_raw.chars, value, CountOf(display_name_raw.chars));
   }
 
   /**
@@ -165,9 +165,9 @@ struct XCONTENT_DATA {
    *
    * @param value The name.
    */
-  void set_file_name(const std::string_view value) {
-    std::fill_n(file_name_raw, countof(file_name_raw), 0);
-    rex::copy_unterminated(file_name_raw, value, rex::countof(file_name_raw));
+  void SetFileName(const std::string_view value) {
+    std::fill_n(file_name_raw, CountOf(file_name_raw), 0);
+    rex::CopyUnterminated(file_name_raw, value, rex::CountOf(file_name_raw));
 
     padding[0] = padding[1] = 0;
   }
@@ -188,8 +188,8 @@ struct XCONTENT_AGGREGATE_DATA : XCONTENT_DATA {
   XCONTENT_AGGREGATE_DATA(const XCONTENT_DATA& other) {
     device_id = other.device_id;
     content_type = other.content_type;
-    set_display_name(other.display_name());
-    set_file_name(other.file_name());
+    SetDisplayName(other.GetDisplayName());
+    SetFileName(other.GetFileName());
     padding[0] = padding[1] = 0;
     xuid = 0;
     title_id = kCurrentlyRunningTitleId;
@@ -203,7 +203,7 @@ struct XCONTENT_AGGREGATE_DATA : XCONTENT_DATA {
    */
   bool operator==(const XCONTENT_AGGREGATE_DATA& other) const {
     return device_id == other.device_id && title_id == other.title_id &&
-           content_type == other.content_type && file_name() == other.file_name();
+           content_type == other.content_type && GetFileName() == other.GetFileName();
   }
 };
 REX_STATIC_ASSERT_SIZE(XCONTENT_AGGREGATE_DATA, 0x148);

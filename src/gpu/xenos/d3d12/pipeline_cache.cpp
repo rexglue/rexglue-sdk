@@ -85,9 +85,9 @@ PipelineCache::PipelineCache(D3D12CommandProcessor& command_processor,
 
   shader_translator_ = std::make_unique<DXBCShaderTranslator>(
       provider.GetAdapterVendorID(), bindless_resources_used_, edram_rov_used,
-      !render_target_cache_.gamma_render_target_as_unorm16(),
-      render_target_cache_.msaa_2x_supported(), render_target_cache_.draw_resolution_scale_x(),
-      render_target_cache_.draw_resolution_scale_y(), provider.GetGraphicsAnalysis() != nullptr);
+      !render_target_cache_.GetGammaRenderTargetAsUnorm16(),
+      render_target_cache_.GetMSAA2xSupported(), render_target_cache_.GetDrawResolutionScaleX(),
+      render_target_cache_.GetDrawResolutionScaleY(), provider.GetGraphicsAnalysis() != nullptr);
 
   if (edram_rov_used) {
     depth_only_pixel_shader_ = shader_translator_->CreateDepthOnlyPixelShader();
@@ -123,7 +123,7 @@ bool PipelineCache::Initialize() {
     }
   }
 
-  u32 logical_processor_count = rex::platform::logical_processor_count();
+  u32 logical_processor_count = rex::platform::LogicalProcessorCount();
   if (!logical_processor_count) {
     logical_processor_count = 6;
   }
@@ -146,7 +146,7 @@ bool PipelineCache::Initialize() {
       std::unique_ptr<rex::platform::Thread> creation_thread =
           rex::platform::Thread::Create({}, [this, i]() { CreationThread(i); });
       REX_ASSERT(creation_thread != nullptr);
-      creation_thread->set_name("D3D12 Pipelines");
+      creation_thread->SetName("D3D12 Pipelines");
       creation_threads_.push_back(std::move(creation_thread));
     }
   }
@@ -206,7 +206,7 @@ void PipelineCache::InitializeShaderStorage(const std::filesystem::path& cache_r
       REXLOG_ERROR(gpu,
                    "Failed to create the shareable shader storage directory, persistent "
                    "shader storage will be disabled: {}",
-                   rex::path_to_utf8(shader_storage_shareable_root));
+                   rex::PathToUTF8(shader_storage_shareable_root));
       return;
     }
   }
@@ -224,7 +224,7 @@ void PipelineCache::InitializeShaderStorage(const std::filesystem::path& cache_r
     REXLOG_ERROR(gpu,
                  "Failed to open the Direct3D 12 pipeline description storage file for "
                  "writing, persistent shader storage will be disabled: {}",
-                 rex::path_to_utf8(pipeline_storage_file_path));
+                 rex::PathToUTF8(pipeline_storage_file_path));
     return;
   }
   pipeline_storage_file_flush_needed_ = false;
@@ -278,7 +278,7 @@ void PipelineCache::InitializeShaderStorage(const std::filesystem::path& cache_r
     }
   }
 
-  size_t logical_processor_count = rex::platform::logical_processor_count();
+  size_t logical_processor_count = rex::platform::LogicalProcessorCount();
   if (!logical_processor_count) {
     logical_processor_count = 6;
   }
@@ -291,7 +291,7 @@ void PipelineCache::InitializeShaderStorage(const std::filesystem::path& cache_r
     REXLOG_ERROR(gpu,
                  "Failed to open the title shader storage file for writing, persistent "
                  "shader storage will be disabled: {}",
-                 rex::path_to_utf8(shader_storage_file_path));
+                 rex::PathToUTF8(shader_storage_file_path));
     pipeline_storage_file_.close();
     return;
   }
@@ -325,9 +325,9 @@ void PipelineCache::InitializeShaderStorage(const std::filesystem::path& cache_r
       StringBuffer ucode_disasm_buffer;
       DXBCShaderTranslator translator(
           provider.GetAdapterVendorID(), bindless_resources_used_, edram_rov_used,
-          !render_target_cache_.gamma_render_target_as_unorm16(),
-          render_target_cache_.msaa_2x_supported(), render_target_cache_.draw_resolution_scale_x(),
-          render_target_cache_.draw_resolution_scale_y(),
+          !render_target_cache_.GetGammaRenderTargetAsUnorm16(),
+          render_target_cache_.GetMSAA2xSupported(), render_target_cache_.GetDrawResolutionScaleX(),
+          render_target_cache_.GetDrawResolutionScaleY(),
           provider.GetGraphicsAnalysis() != nullptr);
       IDxbcConverter* dxbc_converter = nullptr;
       IDxcUtils* dxc_utils = nullptr;
@@ -355,7 +355,7 @@ void PipelineCache::InitializeShaderStorage(const std::filesystem::path& cache_r
           break;
         }
         shader_to_translate->AnalyzeUcode(ucode_disasm_buffer);
-        u64 ucode_data_hash = shader_to_translate->ucode_data_hash();
+        u64 ucode_data_hash = shader_to_translate->GetUcodeDataHash();
         for (auto modification_it = shader_translations_needed.lower_bound(
                  std::make_pair(ucode_data_hash, static_cast<u64>(0)));
              modification_it != shader_translations_needed.end() &&
@@ -364,7 +364,7 @@ void PipelineCache::InitializeShaderStorage(const std::filesystem::path& cache_r
           D3D12Shader::D3D12Translation* translation = static_cast<D3D12Shader::D3D12Translation*>(
               shader_to_translate->GetOrCreateTranslation(modification_it->second));
           // Only new translations are dropped on failure, so earlier failures are not retried.
-          if (!translation->is_translated() &&
+          if (!translation->IsTranslated() &&
               !TranslateAnalyzedShader(translator, *translation, dxbc_converter, dxc_utils,
                                        dxc_compiler)) {
             std::lock_guard<std::mutex> lock(shaders_failed_to_translate_mutex);
@@ -406,11 +406,11 @@ void PipelineCache::InitializeShaderStorage(const std::filesystem::path& cache_r
       shader_storage_valid_bytes += sizeof(shader_header) + ucode_byte_count;
       D3D12Shader* shader = LoadShader(shader_header.type, ucode_dwords.data(),
                                        shader_header.ucode_dword_count, ucode_data_hash);
-      if (shader->ucode_storage_index() == shader_storage_index_) {
+      if (shader->GetUcodeStorageIndex() == shader_storage_index_) {
         // A duplicate in the file, translating it twice in parallel would race.
         continue;
       }
-      shader->set_ucode_storage_index(shader_storage_index_);
+      shader->SetUcodeStorageIndex(shader_storage_index_);
       size_t shader_translation_threads_needed;
       {
         std::lock_guard<std::mutex> lock(shaders_translation_thread_mutex);
@@ -421,7 +421,7 @@ void PipelineCache::InitializeShaderStorage(const std::filesystem::path& cache_r
       while (shader_translation_threads.size() < shader_translation_threads_needed) {
         auto thread = rex::platform::Thread::Create({}, shader_translation_thread_function);
         REX_ASSERT(thread != nullptr);
-        thread->set_name("Shader Translation");
+        thread->SetName("Shader Translation");
         shader_translation_threads.push_back(std::move(thread));
       }
       {
@@ -442,10 +442,10 @@ void PipelineCache::InitializeShaderStorage(const std::filesystem::path& cache_r
       }
       shader_translation_threads.clear();
       for (D3D12Shader::D3D12Translation* translation : shaders_failed_to_translate) {
-        D3D12Shader* shader = static_cast<D3D12Shader*>(&translation->shader());
-        shader->DestroyTranslation(translation->modification());
-        if (shader->translations().empty()) {
-          shaders_.erase(shader->ucode_data_hash());
+        D3D12Shader* shader = static_cast<D3D12Shader*>(&translation->GetShader());
+        shader->DestroyTranslation(translation->GetModification());
+        if (shader->GetTranslations().empty()) {
+          shaders_.erase(shader->GetUcodeDataHash());
         }
       }
     }
@@ -463,7 +463,7 @@ void PipelineCache::InitializeShaderStorage(const std::filesystem::path& cache_r
   }
 
   if (!pipeline_stored_descriptions.empty()) {
-    u64 pipeline_creation_start_ = rex::Clock::QueryHostTickCount();
+    u64 pipeline_creation_start = rex::Clock::QueryHostTickCount();
 
     size_t creation_thread_original_count = creation_threads_.size();
     size_t creation_thread_needed_count =
@@ -475,7 +475,7 @@ void PipelineCache::InitializeShaderStorage(const std::filesystem::path& cache_r
       std::unique_ptr<rex::platform::Thread> creation_thread = rex::platform::Thread::Create(
           {}, [this, creation_thread_index]() { CreationThread(creation_thread_index); });
       REX_ASSERT(creation_thread != nullptr);
-      creation_thread->set_name("D3D12 Pipelines");
+      creation_thread->SetName("D3D12 Pipelines");
       creation_threads_.push_back(std::move(creation_thread));
     }
 
@@ -505,8 +505,8 @@ void PipelineCache::InitializeShaderStorage(const std::filesystem::path& cache_r
       pipeline_runtime_description.vertex_shader = static_cast<D3D12Shader::D3D12Translation*>(
           vertex_shader->GetTranslation(pipeline_description.vertex_shader_modification));
       if (!pipeline_runtime_description.vertex_shader ||
-          !pipeline_runtime_description.vertex_shader->is_translated() ||
-          !pipeline_runtime_description.vertex_shader->is_valid()) {
+          !pipeline_runtime_description.vertex_shader->IsTranslated() ||
+          !pipeline_runtime_description.vertex_shader->IsValid()) {
         continue;
       }
       D3D12Shader* pixel_shader;
@@ -519,8 +519,8 @@ void PipelineCache::InitializeShaderStorage(const std::filesystem::path& cache_r
         pipeline_runtime_description.pixel_shader = static_cast<D3D12Shader::D3D12Translation*>(
             pixel_shader->GetTranslation(pipeline_description.pixel_shader_modification));
         if (!pipeline_runtime_description.pixel_shader ||
-            !pipeline_runtime_description.pixel_shader->is_translated() ||
-            !pipeline_runtime_description.pixel_shader->is_valid()) {
+            !pipeline_runtime_description.pixel_shader->IsTranslated() ||
+            !pipeline_runtime_description.pixel_shader->IsValid()) {
           continue;
         }
       } else {
@@ -561,11 +561,11 @@ void PipelineCache::InitializeShaderStorage(const std::filesystem::path& cache_r
       }
       u32 shader_writes_color_targets =
           pipeline_runtime_description.pixel_shader
-              ? pipeline_runtime_description.pixel_shader->shader().writes_color_targets()
+              ? pipeline_runtime_description.pixel_shader->GetShader().GetWritesColorTargets()
               : 0;
       bool shader_writes_depth =
           pipeline_runtime_description.pixel_shader
-              ? pipeline_runtime_description.pixel_shader->shader().writes_depth()
+              ? pipeline_runtime_description.pixel_shader->GetShader().GetWritesDepth()
               : pipeline_runtime_description.description.depth_write != 0;
       new_pipeline->priority = pipeline_priority::CalculatePipelinePriority(
           bound_rts, shader_writes_color_targets, shader_writes_depth);
@@ -619,7 +619,7 @@ void PipelineCache::InitializeShaderStorage(const std::filesystem::path& cache_r
                 "Created {} graphics pipelines (not including reading the "
                 "descriptions) from the storage in {} milliseconds",
                 pipelines_created,
-                (rex::Clock::QueryHostTickCount() - pipeline_creation_start_) * 1000 /
+                (rex::Clock::QueryHostTickCount() - pipeline_creation_start) * 1000 /
                     rex::Clock::QueryHostTickFrequency());
     ResetStorageFile(
         pipeline_storage_file_, pipeline_storage_file_path_,
@@ -642,7 +642,7 @@ void PipelineCache::InitializeShaderStorage(const std::filesystem::path& cache_r
   storage_write_thread_shutdown_ = false;
   storage_write_thread_ = rex::platform::Thread::Create({}, [this]() { StorageWriteThread(); });
   REX_ASSERT(storage_write_thread_ != nullptr);
-  storage_write_thread_->set_name("D3D12 Storage writer");
+  storage_write_thread_->SetName("D3D12 Storage writer");
 }
 
 void PipelineCache::ShutdownShaderStorage() {
@@ -736,8 +736,8 @@ D3D12Shader* PipelineCache::LoadShader(xenos::ShaderType shader_type, const u32*
 DXBCShaderTranslator::Modification PipelineCache::GetCurrentVertexShaderModification(
     const Shader& shader, Shader::HostVertexShaderType host_vertex_shader_type,
     u32 interpolator_mask) const {
-  REX_ASSERT(shader.type() == xenos::ShaderType::kVertex);
-  REX_ASSERT(shader.is_ucode_analyzed());
+  REX_ASSERT(shader.GetType() == xenos::ShaderType::kVertex);
+  REX_ASSERT(shader.IsUcodeAnalyzed());
   const auto& regs = register_file_;
 
   DXBCShaderTranslator::Modification modification(
@@ -750,15 +750,15 @@ DXBCShaderTranslator::Modification PipelineCache::GetCurrentVertexShaderModifica
 
   auto pa_cl_clip_cntl = regs.Get<xenos::reg::PA_CL_CLIP_CNTL>();
   u32 user_clip_planes = pa_cl_clip_cntl.clip_disable ? 0 : pa_cl_clip_cntl.ucp_ena;
-  modification.vertex.user_clip_plane_count = rex::bit_count(user_clip_planes);
+  modification.vertex.user_clip_plane_count = rex::BitCount(user_clip_planes);
   modification.vertex.user_clip_plane_cull =
       static_cast<u32>(user_clip_planes && pa_cl_clip_cntl.ucp_cull_only_ena);
   modification.vertex.point_ps_ucp_mode = pa_cl_clip_cntl.ps_ucp_mode;
   modification.vertex.vertex_kill_and = static_cast<u32>(
-      (shader.writes_point_size_edge_flag_kill_vertex() & 0b100) && !pa_cl_clip_cntl.vtx_kill_or);
+      (shader.GetWritesPointSizeEdgeFlagKillVertex() & 0b100) && !pa_cl_clip_cntl.vtx_kill_or);
 
   modification.vertex.output_point_size = static_cast<u32>(
-      (shader.writes_point_size_edge_flag_kill_vertex() & 0b001) &&
+      (shader.GetWritesPointSizeEdgeFlagKillVertex() & 0b001) &&
       regs.Get<xenos::reg::VGT_DRAW_INITIATOR>().prim_type == xenos::PrimitiveType::kPointList);
 
   return modification;
@@ -767,8 +767,8 @@ DXBCShaderTranslator::Modification PipelineCache::GetCurrentVertexShaderModifica
 DXBCShaderTranslator::Modification PipelineCache::GetCurrentPixelShaderModification(
     const Shader& shader, u32 interpolator_mask, u32 param_gen_pos,
     xenos::reg::RB_DEPTHCONTROL normalized_depth_control) const {
-  REX_ASSERT(shader.type() == xenos::ShaderType::kPixel);
-  REX_ASSERT(shader.is_ucode_analyzed());
+  REX_ASSERT(shader.GetType() == xenos::ShaderType::kPixel);
+  REX_ASSERT(shader.IsUcodeAnalyzed());
   const auto& regs = register_file_;
 
   DXBCShaderTranslator::Modification modification(
@@ -796,16 +796,16 @@ DXBCShaderTranslator::Modification PipelineCache::GetCurrentPixelShaderModificat
 
   if (render_target_cache_.GetPath() == RenderTargetCache::Path::kHostRenderTargets) {
     using DepthStencilMode = DXBCShaderTranslator::Modification::DepthStencilMode;
-    if (render_target_cache_.depth_float24_convert_in_pixel_shader() &&
+    if (render_target_cache_.GetDepthFloat24ConvertInPixelShader() &&
         normalized_depth_control.z_enable &&
         regs.Get<xenos::reg::RB_DEPTH_INFO>().depth_format ==
             xenos::DepthRenderTargetFormat::kD24FS8) {
-      modification.pixel.depth_stencil_mode = render_target_cache_.depth_float24_round()
+      modification.pixel.depth_stencil_mode = render_target_cache_.GetDepthFloat24Round()
                                                   ? DepthStencilMode::kFloat24Rounding
                                                   : DepthStencilMode::kFloat24Truncating;
     } else {
-      if (shader.implicit_early_z_write_allowed() &&
-          (!shader.writes_color_target(0) ||
+      if (shader.GetImplicitEarlyZWriteAllowed() &&
+          (!shader.GetWritesColorTarget(0) ||
            !draw_state::DoesCoverageDependOnAlpha(regs.Get<xenos::reg::RB_COLORCONTROL>()))) {
         modification.pixel.depth_stencil_mode = DepthStencilMode::kEarlyHint;
       } else {
@@ -841,55 +841,55 @@ bool PipelineCache::ConfigurePipeline(
                  xenos::VertexShaderExportMode::kPosition2VectorsEdgeKill);
   REX_ASSERT(!(register_file_.Get<xenos::reg::SQ_PROGRAM_CNTL>().gen_index_vtx));
   // Ucode analysis runs on the main thread, translation may be deferred to background threads.
-  if (!vertex_shader->shader().is_ucode_analyzed()) {
-    vertex_shader->shader().AnalyzeUcode(ucode_disasm_buffer_);
+  if (!vertex_shader->GetShader().IsUcodeAnalyzed()) {
+    vertex_shader->GetShader().AnalyzeUcode(ucode_disasm_buffer_);
   }
-  if (!vertex_shader->is_translated() && !use_async) {
+  if (!vertex_shader->IsTranslated() && !use_async) {
     std::lock_guard<std::mutex> lock(translation_request_lock_);
-    if (!vertex_shader->is_translated()) {
+    if (!vertex_shader->IsTranslated()) {
       if (!TranslateAnalyzedShader(*shader_translator_, *vertex_shader, dxbc_converter_, dxc_utils_,
                                    dxc_compiler_)) {
         REX_FAIL(gpu, false, "Failed to translate the vertex shader!");
       }
       if (shader_storage_file_.is_open() &&
-          vertex_shader->shader().ucode_storage_index() != shader_storage_index_) {
-        vertex_shader->shader().set_ucode_storage_index(shader_storage_index_);
+          vertex_shader->GetShader().GetUcodeStorageIndex() != shader_storage_index_) {
+        vertex_shader->GetShader().SetUcodeStorageIndex(shader_storage_index_);
         REX_ASSERT(storage_write_thread_ != nullptr);
         shader_storage_file_flush_needed_ = true;
         {
           std::lock_guard<std::mutex> storage_lock(storage_write_request_lock_);
-          storage_write_shader_queue_.push_back(&vertex_shader->shader());
+          storage_write_shader_queue_.push_back(&vertex_shader->GetShader());
         }
         storage_write_request_cond_.notify_all();
       }
     }
   }
-  if (!use_async && !vertex_shader->is_valid()) {
+  if (!use_async && !vertex_shader->IsValid()) {
     return false;
   }
   if (pixel_shader != nullptr) {
-    if (!pixel_shader->is_translated() && !use_async) {
+    if (!pixel_shader->IsTranslated() && !use_async) {
       std::lock_guard<std::mutex> lock(translation_request_lock_);
-      if (!pixel_shader->is_translated()) {
-        pixel_shader->shader().AnalyzeUcode(ucode_disasm_buffer_);
+      if (!pixel_shader->IsTranslated()) {
+        pixel_shader->GetShader().AnalyzeUcode(ucode_disasm_buffer_);
         if (!TranslateAnalyzedShader(*shader_translator_, *pixel_shader, dxbc_converter_,
                                      dxc_utils_, dxc_compiler_)) {
           REX_FAIL(gpu, false, "Failed to translate the pixel shader!");
         }
         if (shader_storage_file_.is_open() &&
-            pixel_shader->shader().ucode_storage_index() != shader_storage_index_) {
-          pixel_shader->shader().set_ucode_storage_index(shader_storage_index_);
+            pixel_shader->GetShader().GetUcodeStorageIndex() != shader_storage_index_) {
+          pixel_shader->GetShader().SetUcodeStorageIndex(shader_storage_index_);
           REX_ASSERT(storage_write_thread_ != nullptr);
           shader_storage_file_flush_needed_ = true;
           {
             std::lock_guard<std::mutex> storage_lock(storage_write_request_lock_);
-            storage_write_shader_queue_.push_back(&pixel_shader->shader());
+            storage_write_shader_queue_.push_back(&pixel_shader->GetShader());
           }
           storage_write_request_cond_.notify_all();
         }
       }
     }
-    if (pixel_shader->is_translated() && !pixel_shader->is_valid()) {
+    if (pixel_shader->IsTranslated() && !pixel_shader->IsValid()) {
       return false;
     }
   }
@@ -933,8 +933,8 @@ bool PipelineCache::ConfigurePipeline(
   if (use_async) {
     u32 bound_rts = pipeline_priority::GetBoundRTMaskFromNormalizedColorMask(normalized_color_mask);
     u32 shader_writes_color_targets =
-        pixel_shader ? pixel_shader->shader().writes_color_targets() : 0;
-    bool shader_writes_depth = pixel_shader ? pixel_shader->shader().writes_depth()
+        pixel_shader ? pixel_shader->GetShader().GetWritesColorTargets() : 0;
+    bool shader_writes_depth = pixel_shader ? pixel_shader->GetShader().GetWritesDepth()
                                             : normalized_depth_control.z_write_enable != 0;
     new_pipeline->priority = pipeline_priority::CalculatePipelinePriority(
         bound_rts, shader_writes_color_targets, shader_writes_depth);
@@ -972,16 +972,16 @@ bool PipelineCache::TranslateAnalyzedShader(DXBCShaderTranslator& translator,
                                             D3D12Shader::D3D12Translation& translation,
                                             IDxbcConverter* dxbc_converter, IDxcUtils* dxc_utils,
                                             IDxcCompiler* dxc_compiler) {
-  D3D12Shader& shader = static_cast<D3D12Shader&>(translation.shader());
+  D3D12Shader& shader = static_cast<D3D12Shader&>(translation.GetShader());
 
   if (!translator.TranslateAnalyzedShader(translation)) {
     REX_FAIL(gpu, false, "Shader {:016X} translation failed; marking as ignored",
-             shader.ucode_data_hash());
+             shader.GetUcodeDataHash());
   }
 
   const char* host_shader_type;
-  if (shader.type() == xenos::ShaderType::kVertex) {
-    DXBCShaderTranslator::Modification modification(translation.modification());
+  if (shader.GetType() == xenos::ShaderType::kVertex) {
+    DXBCShaderTranslator::Modification modification(translation.GetModification());
     switch (modification.vertex.host_vertex_shader_type) {
       case Shader::HostVertexShaderType::kLineDomainCPIndexed:
         host_shader_type = "control-point-indexed line domain";
@@ -1010,8 +1010,8 @@ bool PipelineCache::TranslateAnalyzedShader(DXBCShaderTranslator& translator,
     host_shader_type = "pixel";
   }
   REXLOG_DEV(gpu, "Generated {} shader ({}b) - hash {:016X}:\n{}\n", host_shader_type,
-             shader.ucode_dword_count() * sizeof(u32), shader.ucode_data_hash(),
-             shader.ucode_disassembly().c_str());
+             shader.GetUcodeDwordCount() * sizeof(u32), shader.GetUcodeDataHash(),
+             shader.GetUcodeDisassembly().c_str());
 
   if (shader.EnterBindingLayoutUserUIDSetup()) {
     const std::vector<D3D12Shader::TextureBinding>& texture_bindings =
@@ -1128,12 +1128,12 @@ bool PipelineCache::TranslateAnalyzedShader(DXBCShaderTranslator& translator,
     bool edram_rov_used =
         render_target_cache_.GetPath() == RenderTargetCache::Path::kPixelShaderInterlock;
     translation.Dump(REXCVAR_GET(::rex::gpu::cvars::dump_shaders),
-                     (shader.type() == xenos::ShaderType::kPixel)
+                     (shader.GetType() == xenos::ShaderType::kPixel)
                          ? (edram_rov_used ? "d3d12_rov" : "d3d12_rtv")
                          : "d3d12");
   }
 
-  return translation.is_valid();
+  return translation.IsValid();
 }
 
 bool PipelineCache::GetCurrentStateDescription(
@@ -1144,9 +1144,9 @@ bool PipelineCache::GetCurrentStateDescription(
     const u32* bound_depth_and_color_render_target_formats,
     PipelineRuntimeDescription& runtime_description_out, bool for_placeholder) {
   // Translated shaders are required for the root signature unless for_placeholder defers them.
-  REX_ASSERT(for_placeholder || (vertex_shader->is_translated() && vertex_shader->is_valid()));
+  REX_ASSERT(for_placeholder || (vertex_shader->IsTranslated() && vertex_shader->IsValid()));
   REX_ASSERT(for_placeholder || !pixel_shader ||
-             (pixel_shader->is_translated() && pixel_shader->is_valid()));
+             (pixel_shader->IsTranslated() && pixel_shader->IsValid()));
 
   PipelineDescription& description_out = runtime_description_out.description;
 
@@ -1156,7 +1156,7 @@ bool PipelineCache::GetCurrentStateDescription(
   // Unused fields must be zero for comparison and hashing.
   std::memset(&runtime_description_out, 0, sizeof(runtime_description_out));
 
-  REX_ASSERT(DXBCShaderTranslator::Modification(vertex_shader->modification())
+  REX_ASSERT(DXBCShaderTranslator::Modification(vertex_shader->GetModification())
                  .vertex.host_vertex_shader_type ==
              primitive_processing_result.host_vertex_shader_type);
   bool tessellated = primitive_processing_result.IsTessellated();
@@ -1175,17 +1175,18 @@ bool PipelineCache::GetCurrentStateDescription(
       render_target_cache_.GetPath() == RenderTargetCache::Path::kPixelShaderInterlock;
 
   runtime_description_out.root_signature = command_processor_.GetRootSignature(
-      static_cast<const DXBCShader*>(&vertex_shader->shader()),
-      (pixel_shader && !for_placeholder) ? static_cast<const DXBCShader*>(&pixel_shader->shader())
-                                         : nullptr,
+      static_cast<const DXBCShader*>(&vertex_shader->GetShader()),
+      (pixel_shader && !for_placeholder)
+          ? static_cast<const DXBCShader*>(&pixel_shader->GetShader())
+          : nullptr,
       tessellated);
   if (runtime_description_out.root_signature == nullptr) {
     return false;
   }
 
   runtime_description_out.vertex_shader = vertex_shader;
-  description_out.vertex_shader_hash = vertex_shader->shader().ucode_data_hash();
-  description_out.vertex_shader_modification = vertex_shader->modification();
+  description_out.vertex_shader_hash = vertex_shader->GetShader().GetUcodeDataHash();
+  description_out.vertex_shader_modification = vertex_shader->GetModification();
 
   if (primitive_processing_result.host_primitive_reset_enabled) {
     description_out.strip_cut_index =
@@ -1237,8 +1238,8 @@ bool PipelineCache::GetCurrentStateDescription(
   runtime_description_out.geometry_shader =
       GetGeometryShaderKey(
           description_out.geometry_shader,
-          DXBCShaderTranslator::Modification(vertex_shader->modification()),
-          DXBCShaderTranslator::Modification(pixel_shader ? pixel_shader->modification() : 0),
+          DXBCShaderTranslator::Modification(vertex_shader->GetModification()),
+          DXBCShaderTranslator::Modification(pixel_shader ? pixel_shader->GetModification() : 0),
           geometry_shader_key)
           ? &GetGeometryShader(geometry_shader_key)
           : nullptr;
@@ -1251,8 +1252,8 @@ bool PipelineCache::GetCurrentStateDescription(
 
   if (pixel_shader) {
     runtime_description_out.pixel_shader = pixel_shader;
-    description_out.pixel_shader_hash = pixel_shader->shader().ucode_data_hash();
-    description_out.pixel_shader_modification = pixel_shader->modification();
+    description_out.pixel_shader_hash = pixel_shader->GetShader().GetUcodeDataHash();
+    description_out.pixel_shader_modification = pixel_shader->GetModification();
   }
 
   bool cull_front, cull_back;
@@ -1402,7 +1403,7 @@ bool PipelineCache::GetCurrentStateDescription(
       rt.write_mask = (normalized_color_mask >> (i * 4)) & 0xF;
       if (rt.write_mask) {
         auto blendcontrol = regs.Get<xenos::reg::RB_BLENDCONTROL>(
-            xenos::reg::RB_BLENDCONTROL::rt_register_indices[i]);
+            xenos::reg::RB_BLENDCONTROL::kRtRegisterIndices[i]);
         rt.src_blend = kBlendFactorMap[static_cast<u32>(blendcontrol.color_srcblend)];
         rt.dest_blend = kBlendFactorMap[static_cast<u32>(blendcontrol.color_destblend)];
         rt.blend_op = blendcontrol.color_comb_fcn;
@@ -1448,7 +1449,7 @@ bool PipelineCache::GetGeometryShaderKey(
              pixel_shader_modification.pixel.interpolator_mask);
   GeometryShaderKey key;
   key.type = geometry_shader_type;
-  key.interpolator_count = rex::bit_count(vertex_shader_modification.vertex.interpolator_mask);
+  key.interpolator_count = rex::BitCount(vertex_shader_modification.vertex.interpolator_mask);
   key.user_clip_plane_count = vertex_shader_modification.vertex.user_clip_plane_count;
   key.user_clip_plane_cull = vertex_shader_modification.vertex.user_clip_plane_cull;
   key.has_vertex_kill_and = vertex_shader_modification.vertex.vertex_kill_and;
@@ -1490,12 +1491,12 @@ void PipelineCache::CreateDXBCGeometryShader(GeometryShaderKey key, std::vector<
   {
     auto& rdef_header =
         *reinterpret_cast<dxbc::RdefHeader*>(shader_out.data() + rdef_position_dwords);
-    rdef_header.shader_model = dxbc::RdefShaderModel::kGeometryShader5_1;
+    rdef_header.shader_model = dxbc::RdefShaderModel::kGeometryShader51;
     rdef_header.compile_flags =
         dxbc::kCompileFlagNoPreshader | dxbc::kCompileFlagPreferFlowControl |
         dxbc::kCompileFlagIeeeStrictness | dxbc::kCompileFlagAllResourcesBound;
     rdef_header.generator_name_ptr = sizeof(dxbc::RdefHeader);
-    rdef_header.fourcc = dxbc::RdefHeader::FourCC::k5_1;
+    rdef_header.fourcc = dxbc::RdefHeader::FourCC::k51;
     rdef_header.InitializeSizes();
   }
 
@@ -1606,7 +1607,7 @@ void PipelineCache::CreateDXBCGeometryShader(GeometryShaderKey key, std::vector<
                              sizeof(f32) * 4 * 6));
       }
       system_cbuffer_size_vector_aligned_bytes =
-          rex::align(system_cbuffer_size_vector_aligned_bytes, static_cast<u32>(sizeof(u32) * 4));
+          rex::Align(system_cbuffer_size_vector_aligned_bytes, static_cast<u32>(sizeof(u32) * 4));
       rdef_cbuffer_system.size_vector_aligned_bytes = system_cbuffer_size_vector_aligned_bytes;
     }
 
@@ -1893,7 +1894,7 @@ void PipelineCache::CreateDXBCGeometryShader(GeometryShaderKey key, std::vector<
 
   if (system_cbuffer_size_vector_aligned_bytes) {
     a.OpDclConstantBuffer(
-        dxbc::Src::CB(dxbc::Src::Dcl, 0,
+        dxbc::Src::CB(dxbc::Src::kDcl, 0,
                       std::to_underlying(DXBCShaderTranslator::CbufferRegister::kSystemConstants),
                       std::to_underlying(DXBCShaderTranslator::CbufferRegister::kSystemConstants)),
         system_cbuffer_size_vector_aligned_bytes / (sizeof(u32) * 4));
@@ -2359,11 +2360,11 @@ ID3D12PipelineState* PipelineCache::CreateD3D12Pipeline(
 
   if (runtime_description.pixel_shader != nullptr) {
     REXLOG_DEBUG(gpu, "Creating graphics pipeline with VS {:016X}, PS {:016X}",
-                 runtime_description.vertex_shader->shader().ucode_data_hash(),
-                 runtime_description.pixel_shader->shader().ucode_data_hash());
+                 runtime_description.vertex_shader->GetShader().GetUcodeDataHash(),
+                 runtime_description.pixel_shader->GetShader().GetUcodeDataHash());
   } else {
     REXLOG_DEBUG(gpu, "Creating graphics pipeline with VS {:016X}",
-                 runtime_description.vertex_shader->shader().ucode_data_hash());
+                 runtime_description.vertex_shader->GetShader().GetUcodeDataHash());
   }
 
   auto state_desc = objects::BuildGraphicsPipelineStateDesc();
@@ -2385,14 +2386,14 @@ ID3D12PipelineState* PipelineCache::CreateD3D12Pipeline(
       break;
   }
 
-  if (!runtime_description.vertex_shader->is_translated()) {
+  if (!runtime_description.vertex_shader->IsTranslated()) {
     REXLOG_ERROR(gpu, "Vertex shader {:016X} not translated",
-                 runtime_description.vertex_shader->shader().ucode_data_hash());
+                 runtime_description.vertex_shader->GetShader().GetUcodeDataHash());
     REX_ASSERT_ALWAYS();
     return nullptr;
   }
   Shader::HostVertexShaderType host_vertex_shader_type =
-      DXBCShaderTranslator::Modification(runtime_description.vertex_shader->modification())
+      DXBCShaderTranslator::Modification(runtime_description.vertex_shader->GetModification())
           .vertex.host_vertex_shader_type;
   if (Shader::IsHostVertexShaderTypeDomain(host_vertex_shader_type)) {
     state_desc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_PATCH;
@@ -2471,15 +2472,15 @@ ID3D12PipelineState* PipelineCache::CreateD3D12Pipeline(
         REX_UNHANDLED_CASE(tessellation_mode);
         return nullptr;
     }
-    state_desc.DS.pShaderBytecode = runtime_description.vertex_shader->translated_binary().data();
-    state_desc.DS.BytecodeLength = runtime_description.vertex_shader->translated_binary().size();
+    state_desc.DS.pShaderBytecode = runtime_description.vertex_shader->GetTranslatedBinary().data();
+    state_desc.DS.BytecodeLength = runtime_description.vertex_shader->GetTranslatedBinary().size();
   } else {
     REX_ASSERT(host_vertex_shader_type == Shader::HostVertexShaderType::kVertex);
     if (host_vertex_shader_type != Shader::HostVertexShaderType::kVertex) {
       return nullptr;
     }
-    state_desc.VS.pShaderBytecode = runtime_description.vertex_shader->translated_binary().data();
-    state_desc.VS.BytecodeLength = runtime_description.vertex_shader->translated_binary().size();
+    state_desc.VS.pShaderBytecode = runtime_description.vertex_shader->GetTranslatedBinary().data();
+    state_desc.VS.BytecodeLength = runtime_description.vertex_shader->GetTranslatedBinary().size();
     PipelinePrimitiveTopologyType primitive_topology_type =
         PipelinePrimitiveTopologyType(description.primitive_topology_type_or_tessellation_mode);
     switch (primitive_topology_type) {
@@ -2499,22 +2500,22 @@ ID3D12PipelineState* PipelineCache::CreateD3D12Pipeline(
   }
 
   if (runtime_description.pixel_shader != nullptr) {
-    if (!runtime_description.pixel_shader->is_translated()) {
+    if (!runtime_description.pixel_shader->IsTranslated()) {
       REXLOG_ERROR(gpu, "Pixel shader {:016X} not translated",
-                   runtime_description.pixel_shader->shader().ucode_data_hash());
+                   runtime_description.pixel_shader->GetShader().GetUcodeDataHash());
       REX_ASSERT_ALWAYS();
       return nullptr;
     }
-    state_desc.PS.pShaderBytecode = runtime_description.pixel_shader->translated_binary().data();
-    state_desc.PS.BytecodeLength = runtime_description.pixel_shader->translated_binary().size();
+    state_desc.PS.pShaderBytecode = runtime_description.pixel_shader->GetTranslatedBinary().data();
+    state_desc.PS.BytecodeLength = runtime_description.pixel_shader->GetTranslatedBinary().size();
   } else if (edram_rov_used) {
     state_desc.PS.pShaderBytecode = depth_only_pixel_shader_.data();
     state_desc.PS.BytecodeLength = depth_only_pixel_shader_.size();
   } else {
-    if (render_target_cache_.depth_float24_convert_in_pixel_shader() &&
+    if (render_target_cache_.GetDepthFloat24ConvertInPixelShader() &&
         (description.depth_func != xenos::CompareFunction::kAlways || description.depth_write) &&
         description.depth_format == xenos::DepthRenderTargetFormat::kD24FS8) {
-      if (render_target_cache_.depth_float24_round()) {
+      if (render_target_cache_.GetDepthFloat24Round()) {
         state_desc.PS.pShaderBytecode = shaders::kFloat24RoundPS;
         state_desc.PS.BytecodeLength = sizeof(shaders::kFloat24RoundPS);
       } else {
@@ -2552,8 +2553,8 @@ ID3D12PipelineState* PipelineCache::CreateD3D12Pipeline(
   // Non square resolution scaling takes the larger scale, as too much bias beats Z fighting.
   state_desc.RasterizerState.SlopeScaledDepthBias =
       description.depth_bias_slope_scaled *
-      static_cast<f32>(std::max(render_target_cache_.draw_resolution_scale_x(),
-                                render_target_cache_.draw_resolution_scale_y()));
+      static_cast<f32>(std::max(render_target_cache_.GetDrawResolutionScaleX(),
+                                render_target_cache_.GetDrawResolutionScaleY()));
   state_desc.RasterizerState.DepthClipEnable = description.depth_clip ? TRUE : FALSE;
   u32 msaa_sample_count = static_cast<u32>(1) << u32(description.host_msaa_samples);
   if (edram_rov_used) {
@@ -2573,7 +2574,7 @@ ID3D12PipelineState* PipelineCache::CreateD3D12Pipeline(
     if (msaa_sample_count > 4) {
       return nullptr;
     }
-    if (msaa_sample_count == 2 && !render_target_cache_.msaa_2x_supported()) {
+    if (msaa_sample_count == 2 && !render_target_cache_.GetMSAA2xSupported()) {
       state_desc.SampleMask = 0b1001;
       state_desc.SampleDesc.Count = 4;
     } else {
@@ -2684,22 +2685,22 @@ ID3D12PipelineState* PipelineCache::CreateD3D12Pipeline(
   if (FAILED(device->CreateGraphicsPipelineState(&state_desc, IID_PPV_ARGS(&state)))) {
     if (runtime_description.pixel_shader != nullptr) {
       REXLOG_ERROR(gpu, "Failed to create graphics pipeline with VS {:016X}, PS {:016X}",
-                   runtime_description.vertex_shader->shader().ucode_data_hash(),
-                   runtime_description.pixel_shader->shader().ucode_data_hash());
+                   runtime_description.vertex_shader->GetShader().GetUcodeDataHash(),
+                   runtime_description.pixel_shader->GetShader().GetUcodeDataHash());
     } else {
       REXLOG_ERROR(gpu, "Failed to create graphics pipeline with VS {:016X}",
-                   runtime_description.vertex_shader->shader().ucode_data_hash());
+                   runtime_description.vertex_shader->GetShader().GetUcodeDataHash());
     }
     return nullptr;
   }
   std::u16string name;
   if (runtime_description.pixel_shader != nullptr) {
-    name = rex::to_utf16(std::format("VS {:016X}, PS {:016X}",
-                                     runtime_description.vertex_shader->shader().ucode_data_hash(),
-                                     runtime_description.pixel_shader->shader().ucode_data_hash()));
+    name = rex::ToUTF16(std::format(
+        "VS {:016X}, PS {:016X}", runtime_description.vertex_shader->GetShader().GetUcodeDataHash(),
+        runtime_description.pixel_shader->GetShader().GetUcodeDataHash()));
   } else {
-    name = rex::to_utf16(
-        std::format("VS {:016X}", runtime_description.vertex_shader->shader().ucode_data_hash()));
+    name = rex::ToUTF16(std::format(
+        "VS {:016X}", runtime_description.vertex_shader->GetShader().GetUcodeDataHash()));
   }
   state->SetName(reinterpret_cast<LPCWSTR>(name.c_str()));
   return state;
@@ -2759,15 +2760,15 @@ void PipelineCache::StorageWriteThread() {
     }
 
     if (shader) {
-      shader_header.ucode_data_hash = shader->ucode_data_hash();
-      shader_header.ucode_dword_count = shader->ucode_dword_count();
-      shader_header.type = shader->type();
+      shader_header.ucode_data_hash = shader->GetUcodeDataHash();
+      shader_header.ucode_dword_count = shader->GetUcodeDwordCount();
+      shader_header.type = shader->GetType();
       REX_ASSERT(shader_storage_file_.is_open());
       AppendStorage(shader_storage_file_, &shader_header, sizeof(shader_header));
       if (shader_header.ucode_dword_count) {
         ucode_guest_endian.resize(shader_header.ucode_dword_count);
         // Swap back, as the hash is calculated over the guest endian ucode.
-        memory::copy_and_swap(ucode_guest_endian.data(), shader->ucode_dwords(),
+        memory::copy_and_swap(ucode_guest_endian.data(), shader->GetUcodeDwords(),
                               shader_header.ucode_dword_count);
         AppendStorage(shader_storage_file_, ucode_guest_endian.data(),
                       shader_header.ucode_dword_count * sizeof(u32));
@@ -2792,28 +2793,28 @@ bool PipelineCache::PrepareRuntimeDescriptionForQueuedCreation(
     if (!translation) {
       return true;
     }
-    if (!translation->is_translated()) {
+    if (!translation->IsTranslated()) {
       std::lock_guard<std::mutex> lock(translation_request_lock_);
-      if (!translation->is_translated()) {
-        translation->shader().AnalyzeUcode(ucode_disasm_buffer_);
+      if (!translation->IsTranslated()) {
+        translation->GetShader().AnalyzeUcode(ucode_disasm_buffer_);
         if (!TranslateAnalyzedShader(*shader_translator_, *translation, dxbc_converter_, dxc_utils_,
                                      dxc_compiler_)) {
           REX_FAIL(gpu, false, "Failed to translate queued {} shader", shader_type);
         }
         if (shader_storage_file_.is_open() &&
-            translation->shader().ucode_storage_index() != shader_storage_index_) {
-          translation->shader().set_ucode_storage_index(shader_storage_index_);
+            translation->GetShader().GetUcodeStorageIndex() != shader_storage_index_) {
+          translation->GetShader().SetUcodeStorageIndex(shader_storage_index_);
           REX_ASSERT(storage_write_thread_ != nullptr);
           shader_storage_file_flush_needed_ = true;
           {
             std::lock_guard<std::mutex> storage_lock(storage_write_request_lock_);
-            storage_write_shader_queue_.push_back(&translation->shader());
+            storage_write_shader_queue_.push_back(&translation->GetShader());
           }
           storage_write_request_cond_.notify_all();
         }
       }
     }
-    return translation->is_valid();
+    return translation->IsValid();
   };
 
   if (pipeline->pending_vertex_shader) {
@@ -2831,11 +2832,11 @@ bool PipelineCache::PrepareRuntimeDescriptionForQueuedCreation(
       return false;
     }
     bool tessellated = Shader::IsHostVertexShaderTypeDomain(
-        DXBCShaderTranslator::Modification(runtime_description.vertex_shader->modification())
+        DXBCShaderTranslator::Modification(runtime_description.vertex_shader->GetModification())
             .vertex.host_vertex_shader_type);
     ID3D12RootSignature* root_signature = command_processor_.GetRootSignature(
-        static_cast<const DXBCShader*>(&runtime_description.vertex_shader->shader()),
-        static_cast<const DXBCShader*>(&pending_pixel->shader()), tessellated);
+        static_cast<const DXBCShader*>(&runtime_description.vertex_shader->GetShader()),
+        static_cast<const DXBCShader*>(&pending_pixel->GetShader()), tessellated);
     if (!root_signature) {
       return false;
     }

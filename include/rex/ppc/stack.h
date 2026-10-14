@@ -122,7 +122,7 @@ inline void stack_pop(PPCContext& ctx, u32 size) {
 }
 
 /** Restores r1 when the scope ends, releasing what the scope pushed. */
-class stack_guard : public rex::NonCopyable {
+class StackGuard : public rex::NonCopyable {
   PPCContext& ctx_;
   u32 saved_r1_;
 
@@ -132,15 +132,15 @@ class stack_guard : public rex::NonCopyable {
    *
    * @param ctx The context whose r1 is restored.
    */
-  explicit stack_guard(PPCContext& ctx) : ctx_(ctx), saved_r1_(ctx.r1.u32) {}
+  explicit StackGuard(PPCContext& ctx) : ctx_(ctx), saved_r1_(ctx.r1.u32) {}
   /** Saves r1 of the context of the calling thread. */
-  stack_guard() : stack_guard(*rex::runtime::ThreadState::Get()->context()) {}
-  ~stack_guard() { ctx_.r1.u32 = saved_r1_; }
+  StackGuard() : StackGuard(*rex::runtime::ThreadState::Get()->GetContext()) {}
+  ~StackGuard() { ctx_.r1.u32 = saved_r1_; }
 };
 
 namespace detail {
-inline u8* current_base() {
-  return rex::runtime::ThreadState::Get()->memory()->virtual_membase();
+inline u8* CurrentBase() {
+  return rex::runtime::ThreadState::Get()->GetMemory()->GetVirtualMembase();
 }
 }  // namespace detail
 
@@ -154,7 +154,7 @@ inline u8* current_base() {
 template <typename T>
   requires std::is_arithmetic_v<T>
 inline u32 stack_push(T value) {
-  return stack_push(*rex::runtime::ThreadState::Get()->context(), detail::current_base(), value);
+  return stack_push(*rex::runtime::ThreadState::Get()->GetContext(), detail::CurrentBase(), value);
 }
 
 /**
@@ -164,7 +164,7 @@ inline u32 stack_push(T value) {
  * @return The guest address of the pushed string.
  */
 inline u32 stack_push_string(const char* str) {
-  return stack_push_string(*rex::runtime::ThreadState::Get()->context(), detail::current_base(),
+  return stack_push_string(*rex::runtime::ThreadState::Get()->GetContext(), detail::CurrentBase(),
                            str);
 }
 
@@ -176,7 +176,7 @@ inline u32 stack_push_string(const char* str) {
  * @return The guest address of the pushed bytes.
  */
 inline u32 stack_push(const void* data, u32 len) {
-  return stack_push(*rex::runtime::ThreadState::Get()->context(), detail::current_base(), data,
+  return stack_push(*rex::runtime::ThreadState::Get()->GetContext(), detail::CurrentBase(), data,
                     len);
 }
 
@@ -186,7 +186,7 @@ inline u32 stack_push(const void* data, u32 len) {
  * @param size The byte count passed to the matching push.
  */
 inline void stack_pop(u32 size) {
-  stack_pop(*rex::runtime::ThreadState::Get()->context(), size);
+  stack_pop(*rex::runtime::ThreadState::Get()->GetContext(), size);
 }
 
 }  // namespace rex::ppc

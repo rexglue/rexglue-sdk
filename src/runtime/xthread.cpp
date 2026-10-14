@@ -79,19 +79,19 @@ KernelThread::~KernelThread() {
   }
   thread_.reset();
 
-  runtime_->memory()->SystemHeapFree(scratch_address_);
+  runtime_->GetMemory()->SystemHeapFree(scratch_address_);
   FreeStack();
-  runtime_->memory()->SystemHeapFree(pcr_address_);
-  FreeObjectBlock(memory(), guest_object_ptr_);
+  runtime_->GetMemory()->SystemHeapFree(pcr_address_);
+  FreeObjectBlock(GetMemory(), guest_object_ptr_);
 }
 
-runtime::Memory* KernelThread::memory() const {
-  return runtime_->memory();
+runtime::Memory* KernelThread::GetMemory() const {
+  return runtime_->GetMemory();
 }
 
-u32 KernelThread::ProcessAddress() const {
+u32 KernelThread::GetProcessAddress() const {
   return creation_params_.title_process ? creation_params_.title_process
-                                        : runtime_->process_info_block_address();
+                                        : runtime_->GetProcessInfoBlockAddress();
 }
 
 u8 KernelThread::ProcessorFromMask(u8 mask) {
@@ -101,12 +101,12 @@ u8 KernelThread::ProcessorFromMask(u8 mask) {
   return processor;
 }
 
-thread_local KernelThread* current_thread_tls_ = nullptr;
+thread_local KernelThread* current_thread_tls = nullptr;
 
 namespace {
 
 KernelThread* GetBoundCurrentThread() {
-  return current_thread_tls_;
+  return current_thread_tls;
 }
 
 }  // namespace
@@ -129,14 +129,14 @@ KernelThread* KernelThread::GetCurrentThread() {
 
 void KernelThread::CheckStop() {
   KernelThread* self = GetBoundCurrentThread();
-  if (!self || self->exiting_ || !self->is_running()) {
+  if (!self || self->exiting_ || !self->IsRunning()) {
     return;
   }
   if (self->suspend_deferred_.load(std::memory_order_acquire)) {
     self->TakeDeferredSuspend();
   }
-  if (self->thread_state_->stop_requested() ||
-      (self->is_guest_thread() && self->runtime().is_terminating_title())) {
+  if (self->thread_state_->IsStopRequested() ||
+      (self->IsGuestThread() && self->GetRuntime().IsTerminatingTitle())) {
     throw rex::ThreadStop{self->stop_exit_code_.load(std::memory_order_acquire)};
   }
 }
@@ -154,10 +154,10 @@ bool KernelThread::ForceStop() {
   if (!thread) {
     return false;
   }
-  while (suspend_count() > 0 && Resume() == X_STATUS_SUCCESS) {}
+  while (SuspendCount() > 0 && Resume() == X_STATUS_SUCCESS) {}
   const auto in_code = [](u64 pc, void* context) {
     const auto* thread = static_cast<KernelThread*>(context);
-    return !thread->exiting_ && thread->thread_state_->stop_requested() &&
+    return !thread->exiting_ && thread->thread_state_->IsStopRequested() &&
            rex::platform::IsRecompiledCode(pc);
   };
   return thread->Redirect(in_code, this, &ThrowStop);
@@ -192,35 +192,25 @@ void KernelThread::RequestStop(i32 exit_code) {
 
 u32 KernelThread::GetCurrentThreadHandle() {
   KernelThread* thread = KernelThread::GetCurrentThread();
-  return thread->handle();
+  return thread->GetHandle();
 }
 
 u32 KernelThread::GetCurrentThreadId() {
   KernelThread* thread = KernelThread::GetCurrentThread();
-  return thread->guest_object<X_KTHREAD>()->thread_id;
+  return thread->GetGuestObject<X_KTHREAD>()->thread_id;
 }
 
 u32 KernelThread::GetLastError() {
-  KernelThread* thread = KernelThread::GetCurrentThread();
-  return thread->last_error();
+  return GetGuestObject<X_KTHREAD>()->last_error;
 }
 
 void KernelThread::SetLastError(u32 error_code) {
-  KernelThread* thread = KernelThread::GetCurrentThread();
-  thread->set_last_error(error_code);
+  GetGuestObject<X_KTHREAD>()->last_error = error_code;
 }
 
-u32 KernelThread::last_error() {
-  return guest_object<X_KTHREAD>()->last_error;
-}
-
-void KernelThread::set_last_error(u32 error_code) {
-  guest_object<X_KTHREAD>()->last_error = error_code;
-}
-
-void KernelThread::set_name(const std::string_view name) {
+void KernelThread::SetName(const std::string_view name) {
   std::lock_guard<std::mutex> lock(thread_lock_);
-  thread_name_ = std::format("{} ({:08X})", name, handle());
+  thread_name_ = std::format("{} ({:08X})", name, GetHandle());
   crash_name_length_.store(0, std::memory_order_release);
   const auto end =
       std::ranges::copy(std::string_view(thread_name_).substr(0, crash_name_.size() - 1),
@@ -229,17 +219,17 @@ void KernelThread::set_name(const std::string_view name) {
   crash_name_length_.store(static_cast<u8>(end - crash_name_.begin()), std::memory_order_release);
 
   if (thread_) {
-    thread_->set_name(thread_name_);
+    thread_->SetName(thread_name_);
   }
 }
 
 void KernelThread::InitializeGuestObject() {
-  auto guest_thread = guest_object<X_KTHREAD>();
-  u32 guest_ptr = guest_object();
+  auto guest_thread = GetGuestObject<X_KTHREAD>();
+  u32 guest_ptr = GetGuestObject();
 
   // Dispatch header type 6 is a thread object.
   guest_thread->header.type = 6;
-  guest_thread->suspend_count = (creation_params_.creation_flags & X_CREATE_SUSPENDED) ? 1 : 0;
+  guest_thread->suspend_count = (creation_params_.creation_flags & kXCreateSuspended) ? 1 : 0;
 
   guest_thread->unk_10 = guest_ptr + 0x010;
   guest_thread->unk_14 = guest_ptr + 0x010;
@@ -257,10 +247,10 @@ void KernelThread::InitializeGuestObject() {
   guest_thread->tls_address = tls_dynamic_address_;
   guest_thread->thread_state = 0;
 
-  guest_thread->apc_lists[0].Initialize(memory());
-  guest_thread->apc_lists[1].Initialize(memory());
+  guest_thread->apc_lists[0].Initialize(GetMemory());
+  guest_thread->apc_lists[1].Initialize(GetMemory());
 
-  u32 process_ptr = ProcessAddress();
+  u32 process_ptr = GetProcessAddress();
   guest_thread->process = process_ptr;
   guest_thread->may_queue_apcs = 1;
 
@@ -269,22 +259,23 @@ void KernelThread::InitializeGuestObject() {
   guest_thread->another_prcb_ptr = kpcrb;
 
   // The context is valid before the thread runs, r13 is set at construction.
-  auto* ctx = thread_state_->context();
+  auto* ctx = thread_state_->GetContext();
 
   if (process_ptr) {
-    auto target_process = memory()->TranslateVirtual<X_KPROCESS*>(process_ptr);
+    auto target_process = GetMemory()->TranslateVirtual<X_KPROCESS*>(process_ptr);
     guest_thread->process_type = target_process->process_type;
     guest_thread->process_type_dup = target_process->process_type;
 
-    auto old_irql = kernel::xboxkrnl::KeKfAcquireSpinLock(*memory(), ctx,
+    auto old_irql = kernel::xboxkrnl::KeKfAcquireSpinLock(*GetMemory(), ctx,
                                                           &target_process->thread_list_spinlock);
-    runtime::InsertTailList(&target_process->thread_list, &guest_thread->process_threads, memory());
+    runtime::InsertTailList(&target_process->thread_list, &guest_thread->process_threads,
+                            GetMemory());
     target_process->thread_count = target_process->thread_count + 1;
-    kernel::xboxkrnl::KeKfReleaseSpinLock(*memory(), ctx, &target_process->thread_list_spinlock,
+    kernel::xboxkrnl::KeKfReleaseSpinLock(*GetMemory(), ctx, &target_process->thread_list_spinlock,
                                           old_irql);
   } else {
-    guest_thread->process_type = X_PROCTYPE_USER;
-    guest_thread->process_type_dup = X_PROCTYPE_USER;
+    guest_thread->process_type = kXProcTypeUser;
+    guest_thread->process_type_dup = kXProcTypeUser;
   }
 
   guest_thread->msr_mask = 0xFDFFD7FF;
@@ -303,29 +294,30 @@ void KernelThread::InitializeGuestObject() {
 
   guest_thread->last_error = 0;
   guest_thread->creation_flags = creation_params_.creation_flags;
-  guest_thread->unk_17C = 1;
+  guest_thread->unk_17c = 1;
 }
 
 void KernelThread::FreeStack() {
   if (!stack_alloc_base_) {
     return;
   }
-  const u32 globals_address = runtime_->kernel_globals();
+  const u32 globals_address = runtime_->GetKernelGlobals();
   KernelThread* caller = GetBoundCurrentThread();
   KernelThread* owner = caller ? caller : this;
   auto* lock = globals_address
-                   ? &memory()->TranslateVirtual<KernelGuestGlobals*>(globals_address)->tls_lock
+                   ? &GetMemory()->TranslateVirtual<KernelGuestGlobals*>(globals_address)->tls_lock
                    : nullptr;
   if (lock && owner->thread_state_) {
     const bool change_irql = caller != nullptr;
-    auto* ctx = owner->thread_state_->context();
-    const auto old_irql = kernel::xboxkrnl::KeKfAcquireSpinLock(*memory(), ctx, lock, change_irql);
+    auto* ctx = owner->thread_state_->GetContext();
+    const auto old_irql =
+        kernel::xboxkrnl::KeKfAcquireSpinLock(*GetMemory(), ctx, lock, change_irql);
     tls_slot_count_.store(0, std::memory_order_release);
-    kernel::xboxkrnl::KeKfReleaseSpinLock(*memory(), ctx, lock, old_irql, change_irql);
+    kernel::xboxkrnl::KeKfReleaseSpinLock(*GetMemory(), ctx, lock, old_irql, change_irql);
   } else {
     tls_slot_count_.store(0, std::memory_order_release);
   }
-  FreeGuestStack(*memory(), stack_alloc_base_);
+  FreeGuestStack(*GetMemory(), stack_alloc_base_);
   stack_alloc_base_ = 0;
   stack_base_ = 0;
   stack_limit_ = 0;
@@ -340,9 +332,9 @@ void KernelThread::FreeStack() {
  * @return X_STATUS_SUCCESS, or an error status when allocation or thread creation fails.
  */
 X_STATUS KernelThread::Create() {
-  const u32 process_address = ProcessAddress();
+  const u32 process_address = GetProcessAddress();
   const auto* process =
-      process_address ? memory()->TranslateVirtual<const X_KPROCESS*>(process_address) : nullptr;
+      process_address ? GetMemory()->TranslateVirtual<const X_KPROCESS*>(process_address) : nullptr;
   const u32 guest_default = process ? static_cast<u32>(process->kernel_stack_size) : 0;
   const u32 data_size =
       process ? rex::round_up(static_cast<u32>(process->tls_data_size), 4u, false) : 0;
@@ -351,7 +343,7 @@ X_STATUS KernelThread::Create() {
   const u32 tls_size = data_size + slot_count * 4;
   const u32 stack_size =
       ResolveGuestStackSize(creation_params_.stack_size, guest_default, kMinimumThreadStackSize);
-  Result<GuestStack> stack = AllocateGuestStack(*memory(), stack_size, tls_size, guest_thread_);
+  Result<GuestStack> stack = AllocateGuestStack(*GetMemory(), stack_size, tls_size, guest_thread_);
   if (!stack) {
     return X_STATUS_NO_MEMORY;
   }
@@ -360,18 +352,18 @@ X_STATUS KernelThread::Create() {
   stack_base_ = stack->base;
 
   scratch_size_ = 4 * 16;
-  scratch_address_ = memory()->SystemHeapAlloc(scratch_size_);
+  scratch_address_ = GetMemory()->SystemHeapAlloc(scratch_size_);
 
   tls_static_address_ = stack_base_;
   tls_dynamic_address_ = stack_base_ + data_size;
-  memory()->Fill(tls_static_address_, tls_size, 0);
+  GetMemory()->Fill(tls_static_address_, tls_size, 0);
   if (process && process->tls_raw_data_size) {
-    memory()->Copy(tls_static_address_, process->tls_static_data_address,
-                   std::min(static_cast<u32>(process->tls_raw_data_size), data_size));
+    GetMemory()->Copy(tls_static_address_, process->tls_static_data_address,
+                      std::min(static_cast<u32>(process->tls_raw_data_size), data_size));
   }
   tls_slot_count_.store(slot_count, std::memory_order_release);
 
-  pcr_address_ = memory()->SystemHeapAlloc(0x2D8);
+  pcr_address_ = GetMemory()->SystemHeapAlloc(0x2D8);
   if (!pcr_address_) {
     REXLOG_WARN(system, "Unable to allocate thread state block");
     return X_STATUS_NO_MEMORY;
@@ -380,33 +372,32 @@ X_STATUS KernelThread::Create() {
   {
     std::lock_guard lock(stop_mutex_);
     thread_state_ = std::make_unique<runtime::ThreadState>(thread_id_, stack_base_, pcr_address_,
-                                                           memory(), runtime_);
-    if (stop_requested_ || (is_guest_thread() && runtime_->is_terminating_title())) {
+                                                           GetMemory(), runtime_);
+    if (stop_requested_ || (IsGuestThread() && runtime_->IsTerminatingTitle())) {
       thread_state_->RequestStop();
     }
   }
 
-  REXLOG_DEV(system, "XThread{:08X} ({:X}) Stack: {:08X}-{:08X}", handle(), thread_id_,
+  REXLOG_DEV(system, "XThread{:08X} ({:X}) Stack: {:08X}-{:08X}", GetHandle(), thread_id_,
              stack_limit_, stack_base_);
 
   const u8 processor_mask = static_cast<u8>(creation_params_.creation_flags >> 24);
   u8 cpu_index = 0;
   if (processor_mask) {
     cpu_index = ProcessorFromMask(processor_mask);
-  } else if (KernelThread* creator = GetBoundCurrentThread();
-             creator && creator->is_guest_thread()) {
-    cpu_index = creator->active_cpu();
+  } else if (KernelThread* creator = GetBoundCurrentThread(); creator && creator->IsGuestThread()) {
+    cpu_index = creator->GetActiveCPU();
   }
 
   InitializeGuestObject();
 
-  X_KPCR* pcr = memory()->TranslateVirtual<X_KPCR*>(pcr_address_);
+  X_KPCR* pcr = GetMemory()->TranslateVirtual<X_KPCR*>(pcr_address_);
 
   pcr->tls_ptr = tls_static_address_;
   pcr->pcr_ptr = pcr_address_;
-  pcr->prcb_data.current_thread = guest_object();
+  pcr->prcb_data.current_thread = GetGuestObject();
   pcr->prcb = pcr_address_ + offsetof(X_KPCR, prcb_data);
-  pcr->host_stash = reinterpret_cast<u64>(thread_state_->context());
+  pcr->host_stash = reinterpret_cast<u64>(thread_state_->GetContext());
   pcr->current_irql = 0;
 
   pcr->stack_base_ptr = stack_base_;
@@ -415,7 +406,7 @@ X_STATUS KernelThread::Create() {
   pcr->prcb_data.dpc_active = 0;
 
   // The thread owns itself until it exits.
-  if (auto retained = runtime_->object_table().Retain(handle_); !retained) {
+  if (auto retained = runtime_->GetObjectTable().Retain(handle_); !retained) {
     REXLOG_ERROR(system, "XThread{:08X}: cannot take the self reference, {}", handle_,
                  retained.error().message);
     return ToXStatus(retained);
@@ -428,17 +419,17 @@ X_STATUS KernelThread::Create() {
     if (abandoned_.load(std::memory_order_acquire)) {
       return;
     }
-    rex::initialize_seh_thread();
+    rex::InitializeSEHThread();
     runtime::ThreadState::Bind(thread_state_.get());
 
-    rex::platform::set_current_thread_id(handle());
+    rex::platform::SetCurrentThreadId(GetHandle());
 
-    thread_->set_name(thread_name_);
+    thread_->SetName(thread_name_);
 
     REX_PROFILE_THREAD(thread_name_.c_str());
     REX_PERF_INC(kActiveThreads);
 
-    current_thread_tls_ = this;
+    current_thread_tls = this;
     running_ = true;
     int exit_code = 0;
     try {
@@ -447,7 +438,7 @@ X_STATUS KernelThread::Create() {
       exit_code = stop.exit_code;
     }
 #if !REX_PLATFORM_WIN32
-    rex::platform::seh_thread_state().top = nullptr;
+    rex::platform::GetSEHThreadState().top = nullptr;
 #endif
     REX_PERF_ADD(kActiveThreads, -1);
     Finish(exit_code);
@@ -458,16 +449,16 @@ X_STATUS KernelThread::Create() {
   }
 
   if (!thread_) {
-    CloseOwned(runtime_->object_table(), handle_);
+    CloseOwned(runtime_->GetObjectTable(), handle_);
     REX_FAIL(system, X_STATUS_NO_MEMORY, "CreateThread failed");
   }
 
   if (thread_name_.empty()) {
-    set_name(std::format("XThread{:04X}", thread_->system_id()));
+    SetName(std::format("XThread{:04X}", thread_->GetSystemId()));
   }
 
   if (creation_params_.creation_flags & 0x60) {
-    thread_->set_priority(creation_params_.creation_flags & 0x20 ? 1 : 0);
+    thread_->SetPriority(creation_params_.creation_flags & 0x20 ? 1 : 0);
   }
 
   SetActiveCPU(cpu_index);
@@ -476,7 +467,7 @@ X_STATUS KernelThread::Create() {
 }
 
 void KernelThread::Start() {
-  if ((creation_params_.creation_flags & X_CREATE_SUSPENDED) == 0) {
+  if ((creation_params_.creation_flags & kXCreateSuspended) == 0) {
     thread_->Resume();
   }
 }
@@ -493,14 +484,14 @@ void KernelThread::WriteKernelTime() {
   if (!self || !self->guest_object_ptr_) {
     return;
   }
-  self->guest_object<X_KTHREAD>()->kernel_time =
+  self->GetGuestObject<X_KTHREAD>()->kernel_time =
       static_cast<u32>(rex::platform::QueryCurrentThreadCPUTime().count());
 }
 
 void KernelThread::WriteExitState(u32 exit_code) {
-  auto* thread = guest_object<X_KTHREAD>();
+  auto* thread = GetGuestObject<X_KTHREAD>();
   thread->terminated = 1;
-  thread->thread_state = KTHREAD_STATE_TERMINATED;
+  thread->thread_state = kKThreadStateTerminated;
   if (IsInThread(this)) {
     WriteKernelTime();
   }
@@ -513,13 +504,13 @@ void KernelThread::WriteExitState(u32 exit_code) {
   }
   KernelThread* caller = GetBoundCurrentThread();
   const bool change_irql = caller != nullptr;
-  auto* ctx = (caller ? caller : this)->thread_state()->context();
-  auto* process = memory()->TranslateVirtual<X_KPROCESS*>(process_address);
+  auto* ctx = (caller ? caller : this)->GetThreadState()->GetContext();
+  auto* process = GetMemory()->TranslateVirtual<X_KPROCESS*>(process_address);
   const auto old_irql = kernel::xboxkrnl::KeKfAcquireSpinLock(
-      *memory(), ctx, &process->thread_list_spinlock, change_irql);
-  runtime::RemoveEntryList(&thread->process_threads, memory());
+      *GetMemory(), ctx, &process->thread_list_spinlock, change_irql);
+  runtime::RemoveEntryList(&thread->process_threads, GetMemory());
   process->thread_count = process->thread_count - 1;
-  kernel::xboxkrnl::KeKfReleaseSpinLock(*memory(), ctx, &process->thread_list_spinlock, old_irql,
+  kernel::xboxkrnl::KeKfReleaseSpinLock(*GetMemory(), ctx, &process->thread_list_spinlock, old_irql,
                                         change_irql);
 }
 
@@ -530,17 +521,17 @@ void KernelThread::Exit(int exit_code) {
 
 void KernelThread::Finish(int exit_code) {
   thread_state_->ClearStop();
-  if (!host_fn_ && !runtime_->is_terminating_title()) {
+  if (!host_fn_ && !runtime_->IsTerminatingTitle()) {
     try {
       CallThreadNotifyRoutines(false);
     } catch (const rex::ThreadStop& stop) {
       REXLOG_DEBUG(system, "XThread{:08X} exited with code {} inside a thread notify routine",
-                   handle(), stop.exit_code);
+                   GetHandle(), stop.exit_code);
     }
   }
   exiting_ = true;
 
-  guest_object<X_KTHREAD>()->terminated = 1;
+  GetGuestObject<X_KTHREAD>()->terminated = 1;
   RundownAPCs();
   WriteExitState(static_cast<u32>(exit_code));
   FreeStack();
@@ -559,17 +550,17 @@ void KernelThread::ReleaseSelf() {
   ThreadRegistry* registry = registry_;
   running_ = false;
   if (IsInThread(this)) {
-    current_thread_tls_ = nullptr;
+    current_thread_tls = nullptr;
   }
   registry->MarkExited(*this);
-  CloseOwned(runtime_->object_table(), handle);
+  CloseOwned(runtime_->GetObjectTable(), handle);
 }
 
 int KernelThread::Execute() {
-  REXLOG_DEV(system, "Execute thid {} (handle={:08X}, '{}', native={:08X})", thread_id_, handle(),
-             thread_name_, thread_->system_id());
+  REXLOG_DEV(system, "Execute thid {} (handle={:08X}, '{}', native={:08X})", thread_id_,
+             GetHandle(), thread_name_, thread_->GetSystemId());
 
-  thread_state_->context()->fpscr.InitHost();
+  thread_state_->GetContext()->fpscr.InitHost();
   CheckStop();
 
   if (host_fn_) {
@@ -596,21 +587,21 @@ int KernelThread::Execute() {
   }
 
   Runtime* runtime = runtime_;
-  if (!runtime->function_dispatcher()) {
+  if (!runtime->GetFunctionDispatcher()) {
     REXLOG_ERROR(system, "KernelThread::Execute - Runtime not initialized");
     return 0;
   }
 
-  auto* dispatcher = runtime->function_dispatcher();
-  auto* memory = runtime->memory();
+  auto* dispatcher = runtime->GetFunctionDispatcher();
+  auto* memory = runtime->GetMemory();
   PPCFunc* func = dispatcher->GetFunction(address);
   if (!func) {
     REXLOG_ERROR(system, "KernelThread::Execute - No function registered at {:08X}", address);
     return 0;
   }
 
-  auto* ctx = thread_state_->context();
-  u8* base = memory->virtual_membase();
+  auto* ctx = thread_state_->GetContext();
+  u8* base = memory->GetVirtualMembase();
 
   if (!args.empty())
     ctx->r3.u64 = args[0];
@@ -641,11 +632,11 @@ int KernelThread::Execute() {
 }
 
 void KernelThread::EnterCriticalRegion() {
-  guest_object<X_KTHREAD>()->apc_disable_count--;
+  GetGuestObject<X_KTHREAD>()->apc_disable_count--;
 }
 
 void KernelThread::LeaveCriticalRegion() {
-  auto kthread = guest_object<X_KTHREAD>();
+  auto kthread = GetGuestObject<X_KTHREAD>();
   auto apc_disable_count = ++kthread->apc_disable_count;
   if (apc_disable_count == 0) {
     // APCs are not delivered here because they could fire in the wrong context.
@@ -653,23 +644,23 @@ void KernelThread::LeaveCriticalRegion() {
 }
 
 void KernelThread::EnqueueAPC(u32 normal_routine, u32 normal_context, u32 arg1, u32 arg2) {
-  u32 apc_ptr = memory()->SystemHeapAlloc(XAPC::kSize);
+  u32 apc_ptr = GetMemory()->SystemHeapAlloc(XAPC::kSize);
   if (!apc_ptr) {
     REXLOG_WARN(system, "EnqueueAPC: allocation failed (thid={}, normal={:08X})", thread_id_,
                 normal_routine);
     return;
   }
-  auto apc = memory()->TranslateVirtual<XAPC*>(apc_ptr);
-  kernel::xboxkrnl::KeInitializeApc(apc, guest_object(), XAPC::kDummyKernelRoutine,
+  auto apc = GetMemory()->TranslateVirtual<XAPC*>(apc_ptr);
+  kernel::xboxkrnl::KeInitializeApc(apc, GetGuestObject(), XAPC::kDummyKernelRoutine,
                                     XAPC::kDummyRundownRoutine, normal_routine,
                                     1 /* user apc mode */, normal_context);
 
   // Queue with the caller context, the target thread context would corrupt APC lock and IRQL state.
-  PPCContext* queue_ctx = runtime::ThreadState::Get() ? runtime::ThreadState::Get()->context()
-                                                      : thread_state_->context();
+  PPCContext* queue_ctx = runtime::ThreadState::Get() ? runtime::ThreadState::Get()->GetContext()
+                                                      : thread_state_->GetContext();
 
-  if (!kernel::xboxkrnl::KeInsertQueueApc(*memory(), apc, arg1, arg2, 0, queue_ctx)) {
-    memory()->SystemHeapFree(apc_ptr);
+  if (!kernel::xboxkrnl::KeInsertQueueApc(*GetMemory(), apc, arg1, arg2, 0, queue_ctx)) {
+    GetMemory()->SystemHeapFree(apc_ptr);
     REXLOG_ERROR(system,
                  "EnqueueAPC: queue rejected (thid={}, normal={:08X}, ctx={:08X}, arg1={:08X}, "
                  "arg2={:08X})",
@@ -681,11 +672,11 @@ void KernelThread::EnqueueAPC(u32 normal_routine, u32 normal_context, u32 arg1, 
 }
 
 bool KernelThread::HasPendingAPCs() {
-  auto* ctx = thread_state_->context();
-  auto kthread = guest_object<X_KTHREAD>();
-  auto old_irql = kernel::xboxkrnl::KeKfAcquireSpinLock(*memory(), ctx, &kthread->apc_lock);
-  const bool pending = !kthread->apc_lists[1].empty(memory()) && kthread->apc_disable_count == 0;
-  kernel::xboxkrnl::KeKfReleaseSpinLock(*memory(), ctx, &kthread->apc_lock, old_irql);
+  auto* ctx = thread_state_->GetContext();
+  auto kthread = GetGuestObject<X_KTHREAD>();
+  auto old_irql = kernel::xboxkrnl::KeKfAcquireSpinLock(*GetMemory(), ctx, &kthread->apc_lock);
+  const bool pending = !kthread->apc_lists[1].empty(GetMemory()) && kthread->apc_disable_count == 0;
+  kernel::xboxkrnl::KeKfReleaseSpinLock(*GetMemory(), ctx, &kthread->apc_lock, old_irql);
   return pending;
 }
 
@@ -705,12 +696,12 @@ static_assert(offsetof(XAPC_DISPATCH_ARGS, arg2) == 12);
 }  // namespace
 
 void KernelThread::DeliverAPCs() {
-  auto mem = memory();
-  auto* ctx = thread_state_->context();
-  auto kthread = guest_object<X_KTHREAD>();
-  auto* dispatcher = runtime_->function_dispatcher();
+  auto mem = GetMemory();
+  auto* ctx = thread_state_->GetContext();
+  auto kthread = GetGuestObject<X_KTHREAD>();
+  auto* dispatcher = runtime_->GetFunctionDispatcher();
 
-  auto old_irql = kernel::xboxkrnl::KeKfAcquireSpinLock(*memory(), ctx, &kthread->apc_lock);
+  auto old_irql = kernel::xboxkrnl::KeKfAcquireSpinLock(*GetMemory(), ctx, &kthread->apc_lock);
   auto& user_apc_queue = kthread->apc_lists[1];
 
   while (!user_apc_queue.empty(mem) && kthread->apc_disable_count == 0) {
@@ -721,7 +712,7 @@ void KernelThread::DeliverAPCs() {
     runtime::RemoveEntryList(&apc->list_entry, mem);
     apc->enqueued = 0;
 
-    kernel::xboxkrnl::KeKfReleaseSpinLock(*memory(), ctx, &kthread->apc_lock, old_irql);
+    kernel::xboxkrnl::KeKfReleaseSpinLock(*GetMemory(), ctx, &kthread->apc_lock, old_irql);
 
     auto* args = mem->TranslateVirtual<XAPC_DISPATCH_ARGS*>(scratch_address_);
     args->normal_routine = apc->normal_routine;
@@ -734,7 +725,7 @@ void KernelThread::DeliverAPCs() {
         u64 kernel_args[] = {apc_ptr, scratch_address_ + 0, scratch_address_ + 4,
                              scratch_address_ + 8, scratch_address_ + 12};
         dispatcher->ExecuteTrap(thread_state_.get(), apc->kernel_routine, kernel_args,
-                                rex::countof(kernel_args));
+                                rex::CountOf(kernel_args));
       } else {
         REXLOG_ERROR(system, "DeliverAPCs: kernel_routine {:08X} not found",
                      static_cast<u32>(apc->kernel_routine));
@@ -752,7 +743,7 @@ void KernelThread::DeliverAPCs() {
       if (dispatcher->GetFunction(normal_routine)) {
         u64 normal_args[] = {normal_context, arg1, arg2};
         dispatcher->ExecuteTrap(thread_state_.get(), normal_routine, normal_args,
-                                rex::countof(normal_args));
+                                rex::CountOf(normal_args));
       } else {
         REXLOG_ERROR(system, "DeliverAPCs: normal_routine {:08X} not found", normal_routine);
       }
@@ -761,20 +752,20 @@ void KernelThread::DeliverAPCs() {
     REXLOG_DEBUG(system, "Completed delivery of APC to {:08X} ({:08X}, {:08X}, {:08X})",
                  normal_routine, normal_context, arg1, arg2);
 
-    old_irql = kernel::xboxkrnl::KeKfAcquireSpinLock(*memory(), ctx, &kthread->apc_lock);
+    old_irql = kernel::xboxkrnl::KeKfAcquireSpinLock(*GetMemory(), ctx, &kthread->apc_lock);
   }
 
-  kernel::xboxkrnl::KeKfReleaseSpinLock(*memory(), ctx, &kthread->apc_lock, old_irql);
+  kernel::xboxkrnl::KeKfReleaseSpinLock(*GetMemory(), ctx, &kthread->apc_lock, old_irql);
 }
 
 void KernelThread::RundownAPCs() {
   REX_ASSERT(KernelThread::GetCurrentThread() == this);
-  auto mem = memory();
-  auto kthread = guest_object<X_KTHREAD>();
-  auto* ctx = thread_state_->context();
+  auto mem = GetMemory();
+  auto kthread = GetGuestObject<X_KTHREAD>();
+  auto* ctx = thread_state_->GetContext();
 
   for (int mode = 1; mode >= 0; --mode) {
-    auto old_irql = kernel::xboxkrnl::KeKfAcquireSpinLock(*memory(), ctx, &kthread->apc_lock);
+    auto old_irql = kernel::xboxkrnl::KeKfAcquireSpinLock(*GetMemory(), ctx, &kthread->apc_lock);
     auto& apc_queue = kthread->apc_lists[mode];
 
     while (!apc_queue.empty(mem)) {
@@ -785,15 +776,15 @@ void KernelThread::RundownAPCs() {
       runtime::RemoveEntryList(&apc->list_entry, mem);
       apc->enqueued = 0;
 
-      kernel::xboxkrnl::KeKfReleaseSpinLock(*memory(), ctx, &kthread->apc_lock, old_irql);
+      kernel::xboxkrnl::KeKfReleaseSpinLock(*GetMemory(), ctx, &kthread->apc_lock, old_irql);
 
       if (apc->rundown_routine == XAPC::kDummyRundownRoutine) {
       } else if (apc->rundown_routine) {
-        auto* dispatcher = runtime_->function_dispatcher();
+        auto* dispatcher = runtime_->GetFunctionDispatcher();
         if (dispatcher->GetFunction(apc->rundown_routine)) {
           u64 rundown_args[] = {apc_ptr};
           dispatcher->Execute(thread_state_.get(), apc->rundown_routine, rundown_args,
-                              rex::countof(rundown_args));
+                              rex::CountOf(rundown_args));
         } else {
           REXLOG_WARN(system, "RundownAPCs: rundown_routine {:08X} not found",
                       static_cast<u32>(apc->rundown_routine));
@@ -804,30 +795,30 @@ void KernelThread::RundownAPCs() {
         mem->SystemHeapFree(apc_ptr);
       }
 
-      old_irql = kernel::xboxkrnl::KeKfAcquireSpinLock(*memory(), ctx, &kthread->apc_lock);
+      old_irql = kernel::xboxkrnl::KeKfAcquireSpinLock(*GetMemory(), ctx, &kthread->apc_lock);
     }
-    kernel::xboxkrnl::KeKfReleaseSpinLock(*memory(), ctx, &kthread->apc_lock, old_irql);
+    kernel::xboxkrnl::KeKfReleaseSpinLock(*GetMemory(), ctx, &kthread->apc_lock, old_irql);
   }
 }
 
 void KernelThread::CallThreadNotifyRoutines(bool create) {
-  auto* dispatcher = runtime_->function_dispatcher();
-  for (const u32 notification : registry_->ThreadNotifications()) {
+  auto* dispatcher = runtime_->GetFunctionDispatcher();
+  for (const u32 notification : registry_->GetThreadNotifications()) {
     const u32 routine =
-        memory()->TranslateVirtual<X_THREAD_NOTIFICATION*>(notification)->notify_routine;
+        GetMemory()->TranslateVirtual<X_THREAD_NOTIFICATION*>(notification)->notify_routine;
     u64 args[] = {create ? 1u : 0u};
-    dispatcher->ExecuteTrap(thread_state_.get(), routine, args, rex::countof(args));
+    dispatcher->ExecuteTrap(thread_state_.get(), routine, args, rex::CountOf(args));
   }
 }
 
 i32 KernelThread::QueryPriority() {
-  return thread_->priority();
+  return thread_->GetPriority();
 }
 
 void KernelThread::SetPriority(i32 increment) {
   priority_ = increment;
 
-  auto kthread = guest_object<X_KTHREAD>();
+  auto kthread = GetGuestObject<X_KTHREAD>();
   kthread->priority = static_cast<u8>(std::clamp(increment, 0, 31));
 
   i32 target_priority = 0;
@@ -843,7 +834,7 @@ void KernelThread::SetPriority(i32 increment) {
     target_priority = rex::platform::ThreadPriority::kNormal;
   }
   if (!REXCVAR_GET(::rex::runtime::cvars::ignore_thread_priorities)) {
-    thread_->set_priority(target_priority);
+    thread_->SetPriority(target_priority);
   }
 }
 
@@ -854,16 +845,16 @@ void KernelThread::SetAffinity(u32 affinity) {
   }
 }
 
-u8 KernelThread::active_cpu() const {
+u8 KernelThread::GetActiveCPU() const {
   // Read the guest KTHREAD, SetActiveCPU keeps it in sync and pcr_address_ may be unset.
-  if (is_guest_thread()) {
-    auto* kthread = memory()->TranslateVirtual<const X_KTHREAD*>(guest_object());
+  if (IsGuestThread()) {
+    auto* kthread = GetMemory()->TranslateVirtual<const X_KTHREAD*>(GetGuestObject());
     return kthread->current_cpu;
   }
   if (!pcr_address_) {
     return 0;
   }
-  const X_KPCR& pcr = *memory()->TranslateVirtual<const X_KPCR*>(pcr_address_);
+  const X_KPCR& pcr = *GetMemory()->TranslateVirtual<const X_KPCR*>(pcr_address_);
   return pcr.prcb_data.current_cpu;
 }
 
@@ -872,19 +863,19 @@ void KernelThread::SetActiveCPU(u8 cpu_index) {
 
   REX_ASSERT(cpu_index < 6);
 
-  if (is_guest_thread()) {
-    X_KTHREAD& thread_object = *memory()->TranslateVirtual<X_KTHREAD*>(guest_object());
+  if (IsGuestThread()) {
+    X_KTHREAD& thread_object = *GetMemory()->TranslateVirtual<X_KTHREAD*>(GetGuestObject());
     thread_object.current_cpu = cpu_index;
   }
 
   if (pcr_address_) {
-    X_KPCR& pcr = *memory()->TranslateVirtual<X_KPCR*>(pcr_address_);
+    X_KPCR& pcr = *GetMemory()->TranslateVirtual<X_KPCR*>(pcr_address_);
     pcr.prcb_data.current_cpu = cpu_index;
   }
 
-  if (rex::platform::logical_processor_count() >= 6) {
+  if (rex::platform::LogicalProcessorCount() >= 6) {
     if (!REXCVAR_GET(::rex::runtime::cvars::ignore_thread_affinities)) {
-      thread_->set_affinity_mask(static_cast<u64>(1) << cpu_index);
+      thread_->SetAffinityMask(static_cast<u64>(1) << cpu_index);
     }
   } else {
     REXLOG_WARN(system, "Too few processor cores - scheduling will be wonky");
@@ -896,7 +887,7 @@ bool KernelThread::GetTLSValue(u32 slot, u32* value_out) const {
     return false;
   }
 
-  auto mem = memory()->TranslateVirtual(tls_dynamic_address_ + slot * 4);
+  auto mem = GetMemory()->TranslateVirtual(tls_dynamic_address_ + slot * 4);
   *value_out = memory::load<be_u32>(mem);
   return true;
 }
@@ -906,18 +897,18 @@ bool KernelThread::SetTLSValue(u32 slot, u32 value) {
     return false;
   }
 
-  auto mem = memory()->TranslateVirtual(tls_dynamic_address_ + slot * 4);
+  auto mem = GetMemory()->TranslateVirtual(tls_dynamic_address_ + slot * 4);
   memory::store<be_u32>(mem, value);
   return true;
 }
 
-u32 KernelThread::suspend_count() {
+u32 KernelThread::SuspendCount() {
   std::lock_guard lock(suspend_mutex_);
-  return guest_object<X_KTHREAD>()->suspend_count;
+  return GetGuestObject<X_KTHREAD>()->suspend_count;
 }
 
 X_STATUS KernelThread::Resume(u32* out_suspend_count) {
-  auto guest_thread = guest_object<X_KTHREAD>();
+  auto guest_thread = GetGuestObject<X_KTHREAD>();
   std::lock_guard lock(suspend_mutex_);
   const u8 previous = guest_thread->suspend_count;
   if (out_suspend_count) {
@@ -945,7 +936,7 @@ X_STATUS KernelThread::Suspend(u32* out_suspend_count) {
     }
     return X_STATUS_SUCCESS;
   }
-  auto guest_thread = guest_object<X_KTHREAD>();
+  auto guest_thread = GetGuestObject<X_KTHREAD>();
   std::lock_guard lock(suspend_mutex_);
   const u8 previous = guest_thread->suspend_count;
   if (out_suspend_count) {
@@ -966,7 +957,7 @@ X_STATUS KernelThread::Suspend(u32* out_suspend_count) {
 
 u32 KernelThread::SelfSuspend() {
   CheckStop();
-  auto guest_thread = guest_object<X_KTHREAD>();
+  auto guest_thread = GetGuestObject<X_KTHREAD>();
   u32 previous = 0;
   {
     std::unique_lock lock(suspend_mutex_);

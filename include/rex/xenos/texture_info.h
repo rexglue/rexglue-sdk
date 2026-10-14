@@ -135,7 +135,7 @@ struct REX_API FormatInfo {
   u32 bits_per_pixel;          /**< Bits per texel. */
 
   /** @return The size of 1 block in bytes. */
-  u32 bytes_per_block() const { return block_width * block_height * bits_per_pixel / 8; }
+  u32 GetBytesPerBlock() const { return block_width * block_height * bits_per_pixel / 8; }
 
   /**
    * @param gpu_format A TextureFormat value, below 64.
@@ -165,10 +165,10 @@ struct REX_API TextureExtent {
   u32 depth;         /**< Depth in layers. */
 
   /** @return The block count including padding in every dimension. */
-  u32 all_blocks() const { return block_pitch_h * block_pitch_v * depth; }
+  u32 GetAllBlocks() const { return block_pitch_h * block_pitch_v * depth; }
 
   /** @return The block count including row padding but only the visible block rows. */
-  u32 visible_blocks() const { return block_pitch_h * block_height * depth; }
+  u32 GetVisibleBlocks() const { return block_pitch_h * block_height * depth; }
 
   /**
    * @param format_info Block layout of the texture.
@@ -232,13 +232,13 @@ struct REX_API TextureInfo {
   TextureExtent extent;     /**< Base level extent in the guest layout. */
 
   /** @return The block layout of format. */
-  const FormatInfo* format_info() const { return FormatInfo::Get(static_cast<u32>(format)); }
+  const FormatInfo* GetFormatInfo() const { return FormatInfo::Get(static_cast<u32>(format)); }
 
   /** @return True when format is block compressed. */
-  bool is_compressed() const { return format_info()->type == FormatType::kCompressed; }
+  bool IsCompressed() const { return GetFormatInfo()->type == FormatType::kCompressed; }
 
   /** @return The number of stored mip levels. */
-  u32 mip_levels() const { return 1 + (mip_max_level - mip_min_level); }
+  u32 GetMipLevels() const { return 1 + (mip_max_level - mip_min_level); }
 
   /**
    * @param fetch The texture fetch constant.
@@ -313,7 +313,7 @@ struct REX_API TextureInfo {
   bool GetPackedTileOffset(u32 packed_tile, u32* offset_x, u32* offset_y) const;
 
   /** @return The 64 bit XXH3 hash of every field. */
-  u64 hash() const;
+  u64 Hash() const;
 
   /**
    * @param other The description to compare with.

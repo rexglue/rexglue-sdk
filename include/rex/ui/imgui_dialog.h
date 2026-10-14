@@ -55,14 +55,14 @@ class REX_IMGUI_API ImGuiDialog : public NonCopyable {
    *
    * @return True once a Close request was drawn.
    */
-  bool Closed() const;
+  bool IsClosed() const;
 
   /**
    * Reports whether a host draws the dialog.
    *
    * @return True while a host holds the dialog.
    */
-  bool Attached() const;
+  bool IsAttached() const;
 
   /**
    * Sets the host that draws the dialog. Only a host calls this.

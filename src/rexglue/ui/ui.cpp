@@ -100,7 +100,7 @@ void PresentationSink::Flush() {
   out_.flush();
 }
 
-void PresentationSink::setActiveProgress(bool active) {
+void PresentationSink::SetActiveProgress(bool active) {
   std::lock_guard lock(mutex_);
   active_progress_ = active;
 }
@@ -109,33 +109,33 @@ namespace detail {
 
 GlobalSinkAccessor::GlobalSinkAccessor() {
   RequireGlobalSink();
-  lock_ = std::unique_lock(g_sink->sink_mutex());
+  lock_ = std::unique_lock(g_sink->GetSinkMutex());
 }
 
-void GlobalSinkAccessor::writeRaw(std::string_view s) {
-  g_sink->sink_out().write(s.data(), static_cast<std::streamsize>(s.size()));
+void GlobalSinkAccessor::WriteRaw(std::string_view s) {
+  g_sink->GetSinkOut().write(s.data(), static_cast<std::streamsize>(s.size()));
 }
 
-void GlobalSinkAccessor::writeLine(std::string_view s) {
-  writeRaw(s);
-  writeRaw("\n");
+void GlobalSinkAccessor::WriteLine(std::string_view s) {
+  WriteRaw(s);
+  WriteRaw("\n");
 }
 
-void GlobalSinkAccessor::flush() {
-  g_sink->sink_out().flush();
+void GlobalSinkAccessor::Flush() {
+  g_sink->GetSinkOut().flush();
 }
 
-bool GlobalSinkAccessor::color() const {
-  return g_sink->color();
+bool GlobalSinkAccessor::GetColor() const {
+  return g_sink->GetColor();
 }
 
-void GlobalSinkAccessor::writeColored(std::string_view code, std::string_view text) {
-  if (g_sink->color()) {
-    writeRaw(code);
-    writeRaw(text);
-    writeRaw(color::kReset);
+void GlobalSinkAccessor::WriteColored(std::string_view code, std::string_view text) {
+  if (g_sink->GetColor()) {
+    WriteRaw(code);
+    WriteRaw(text);
+    WriteRaw(color::kReset);
   } else {
-    writeRaw(text);
+    WriteRaw(text);
   }
 }
 
@@ -145,14 +145,14 @@ void SetGlobalSinkForTesting(std::unique_ptr<PresentationSink> sink) {
   g_sink = g_sink_ptr.get();
 }
 
-bool SinkIsTty() {
+bool IsSinkTTY() {
   RequireGlobalSink();
-  return g_sink->tty();
+  return g_sink->GetTty();
 }
 
 void SetSinkActiveProgress(bool active) {
   RequireGlobalSink();
-  g_sink->setActiveProgress(active);
+  g_sink->SetActiveProgress(active);
 }
 
 }  // namespace detail
@@ -185,67 +185,67 @@ rex::log::ISink& LogSink() {
 
 void Banner(std::string_view title) {
   detail::GlobalSinkAccessor acc;
-  acc.writeColored(color::kBold, title);
-  acc.writeRaw("\n\n");
+  acc.WriteColored(color::kBold, title);
+  acc.WriteRaw("\n\n");
 }
 
 void KeyValueBlock(std::string_view header, std::span<const KeyValueRow> rows) {
   detail::GlobalSinkAccessor acc;
   if (!header.empty()) {
-    acc.writeColored(color::kBold, header);
-    acc.writeRaw("\n");
+    acc.WriteColored(color::kBold, header);
+    acc.WriteRaw("\n");
   }
   std::size_t key_width = 0;
   for (const auto& r : rows)
     key_width = std::max(key_width, r.key.size());
   for (const auto& r : rows) {
-    acc.writeRaw("  ");
-    acc.writeColored(color::kCyan, r.key);
-    acc.writeRaw(":");
+    acc.WriteRaw("  ");
+    acc.WriteColored(color::kCyan, r.key);
+    acc.WriteRaw(":");
     if (key_width > r.key.size()) {
-      acc.writeRaw(std::string(key_width - r.key.size() + 1, ' '));
+      acc.WriteRaw(std::string(key_width - r.key.size() + 1, ' '));
     } else {
-      acc.writeRaw(" ");
+      acc.WriteRaw(" ");
     }
-    acc.writeLine(r.value);
+    acc.WriteLine(r.value);
   }
-  acc.writeRaw("\n");
+  acc.WriteRaw("\n");
 }
 
 void ManualReviewList(std::string_view header, std::span<const ManualReviewRow> rows) {
   detail::GlobalSinkAccessor acc;
   if (!header.empty()) {
-    acc.writeColored(color::kBoldYellow, header);
-    acc.writeRaw("\n");
+    acc.WriteColored(color::kBoldYellow, header);
+    acc.WriteRaw("\n");
   }
   for (const auto& r : rows) {
-    acc.writeRaw("  ");
-    acc.writeColored(color::kCyan, r.location);
-    acc.writeRaw("  ");
-    acc.writeLine(r.detail);
+    acc.WriteRaw("  ");
+    acc.WriteColored(color::kCyan, r.location);
+    acc.WriteRaw("  ");
+    acc.WriteLine(r.detail);
     if (!r.hint.empty()) {
-      acc.writeRaw("    ");
-      acc.writeColored(color::kDim, r.hint);
-      acc.writeRaw("\n");
+      acc.WriteRaw("    ");
+      acc.WriteColored(color::kDim, r.hint);
+      acc.WriteRaw("\n");
     }
   }
-  acc.writeRaw("\n");
+  acc.WriteRaw("\n");
 }
 
 void DoneSummary(std::chrono::milliseconds elapsed) {
   detail::GlobalSinkAccessor acc;
-  acc.writeColored(color::kBoldGreen,
+  acc.WriteColored(color::kBoldGreen,
                    std::format("Done in {:.1f}s.", std::chrono::duration<f64>(elapsed).count()));
-  acc.writeRaw("\n");
-  acc.flush();
+  acc.WriteRaw("\n");
+  acc.Flush();
 }
 
 void FailureSummary(std::string_view reason, std::chrono::milliseconds elapsed) {
   detail::GlobalSinkAccessor acc;
-  acc.writeColored(color::kBoldRed, std::format("Failed: {} (after {:.1f}s)", reason,
+  acc.WriteColored(color::kBoldRed, std::format("Failed: {} (after {:.1f}s)", reason,
                                                 std::chrono::duration<f64>(elapsed).count()));
-  acc.writeRaw("\n");
-  acc.flush();
+  acc.WriteRaw("\n");
+  acc.Flush();
 }
 
 }  // namespace rexglue::ui

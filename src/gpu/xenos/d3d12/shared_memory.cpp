@@ -134,8 +134,8 @@ bool D3D12SharedMemory::Initialize() {
       buffer_, DXGI_FORMAT_R32G32B32A32_UINT, kBufferSize >> 4);
 
   upload_buffer_pool_ = std::make_unique<gpu::d3d12::D3D12UploadBufferPool>(
-      provider, rex::align(gpu::d3d12::D3D12UploadBufferPool::kDefaultPageSize,
-                           static_cast<size_t>(1) << page_size_log2()));
+      provider, rex::Align(gpu::d3d12::D3D12UploadBufferPool::kDefaultPageSize,
+                           static_cast<size_t>(1) << GetPageSizeLog2()));
 
   return true;
 }
@@ -264,8 +264,8 @@ bool D3D12SharedMemory::AllocateSparseHostGPUMemoryRange(u32 offset_allocations,
     return true;
   }
 
-  u32 offset_bytes = offset_allocations << host_gpu_memory_sparse_granularity_log2();
-  u32 length_bytes = length_allocations << host_gpu_memory_sparse_granularity_log2();
+  u32 offset_bytes = offset_allocations << GetHostGPUMemorySparseGranularityLog2();
+  u32 length_bytes = length_allocations << GetHostGPUMemorySparseGranularityLog2();
 
   const gpu::d3d12::D3D12Provider& provider = command_processor_.GetD3D12Provider();
   ID3D12Device* device = provider.GetDevice();
@@ -310,21 +310,21 @@ bool D3D12SharedMemory::UploadRanges(const std::vector<std::pair<u32, u32>>& upl
       ID3D12Resource* upload_buffer;
       size_t upload_buffer_offset, upload_buffer_size;
       u8* upload_buffer_mapping = upload_buffer_pool_->RequestPartial(
-          command_processor_.GetCurrentSubmission(), upload_range_length << page_size_log2(),
-          static_cast<size_t>(1) << page_size_log2(), &upload_buffer, &upload_buffer_offset,
+          command_processor_.GetCurrentSubmission(), upload_range_length << GetPageSizeLog2(),
+          static_cast<size_t>(1) << GetPageSizeLog2(), &upload_buffer, &upload_buffer_offset,
           &upload_buffer_size, nullptr);
       if (upload_buffer_mapping == nullptr) {
         REX_FAIL(gpu, false, "Shared memory: Failed to get an upload buffer");
       }
-      MarkRangeValid(upload_range_start << page_size_log2(), static_cast<u32>(upload_buffer_size),
+      MarkRangeValid(upload_range_start << GetPageSizeLog2(), static_cast<u32>(upload_buffer_size),
                      false);
       std::memcpy(upload_buffer_mapping,
-                  memory().TranslatePhysical(upload_range_start << page_size_log2()),
+                  GetMemory().TranslatePhysical(upload_range_start << GetPageSizeLog2()),
                   upload_buffer_size);
-      command_list.D3DCopyBufferRegion(buffer_, upload_range_start << page_size_log2(),
+      command_list.D3DCopyBufferRegion(buffer_, upload_range_start << GetPageSizeLog2(),
                                        upload_buffer, UINT64(upload_buffer_offset),
                                        UINT64(upload_buffer_size));
-      u32 upload_buffer_pages = static_cast<u32>(upload_buffer_size >> page_size_log2());
+      u32 upload_buffer_pages = static_cast<u32>(upload_buffer_size >> GetPageSizeLog2());
       upload_range_start += upload_buffer_pages;
       upload_range_length -= upload_buffer_pages;
     }

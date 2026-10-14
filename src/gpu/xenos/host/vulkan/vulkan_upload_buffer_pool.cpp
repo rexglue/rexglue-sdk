@@ -23,8 +23,8 @@ namespace vulkan {
 VulkanUploadBufferPool::VulkanUploadBufferPool(const VulkanDevice* const vulkan_device,
                                                const VkBufferUsageFlags usage,
                                                const size_t page_size)
-    : GraphicsUploadBufferPool(static_cast<size_t>(
-          rex::round_up(VkDeviceSize(page_size), vulkan_device->properties().nonCoherentAtomSize))),
+    : GraphicsUploadBufferPool(static_cast<size_t>(rex::round_up(
+          VkDeviceSize(page_size), vulkan_device->GetProperties().nonCoherentAtomSize))),
       vulkan_device_(vulkan_device),
       usage_(usage) {}
 
@@ -36,9 +36,9 @@ u8* VulkanUploadBufferPool::Request(u64 submission_index, size_t size, size_t al
   if (!page) {
     return nullptr;
   }
-  buffer_out = page->buffer_;
+  buffer_out = page->buffer;
   offset_out = VkDeviceSize(offset);
-  return reinterpret_cast<u8*>(page->mapping_) + offset;
+  return reinterpret_cast<u8*>(page->mapping) + offset;
 }
 
 u8* VulkanUploadBufferPool::RequestPartial(u64 submission_index, size_t size, size_t alignment,
@@ -50,10 +50,10 @@ u8* VulkanUploadBufferPool::RequestPartial(u64 submission_index, size_t size, si
   if (!page) {
     return nullptr;
   }
-  buffer_out = page->buffer_;
+  buffer_out = page->buffer;
   offset_out = VkDeviceSize(offset);
   size_out = VkDeviceSize(size_obtained);
-  return reinterpret_cast<u8*>(page->mapping_) + offset;
+  return reinterpret_cast<u8*>(page->mapping) + offset;
 }
 
 std::unique_ptr<GraphicsUploadBufferPool::Page> VulkanUploadBufferPool::CreatePageImplementation() {
@@ -62,8 +62,8 @@ std::unique_ptr<GraphicsUploadBufferPool::Page> VulkanUploadBufferPool::CreatePa
     return nullptr;
   }
 
-  const VulkanDevice::Functions& dfn = vulkan_device_->functions();
-  const VkDevice device = vulkan_device_->device();
+  const VulkanDevice::Functions& dfn = vulkan_device_->GetFunctions();
+  const VkDevice device = vulkan_device_->GetDevice();
 
   VkBufferCreateInfo buffer_create_info;
   buffer_create_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
@@ -82,7 +82,7 @@ std::unique_ptr<GraphicsUploadBufferPool::Page> VulkanUploadBufferPool::CreatePa
   if (memory_type_ == kMemoryTypeUnknown) {
     VkMemoryRequirements memory_requirements;
     dfn.vkGetBufferMemoryRequirements(device, buffer, &memory_requirements);
-    memory_type_ = objects::ChooseHostMemoryType(vulkan_device_->memory_types(),
+    memory_type_ = objects::ChooseHostMemoryType(vulkan_device_->GetMemoryTypes(),
                                                  memory_requirements.memoryTypeBits, false);
     if (memory_type_ == UINT32_MAX) {
       REXLOG_ERROR(ui,
@@ -103,7 +103,7 @@ std::unique_ptr<GraphicsUploadBufferPool::Page> VulkanUploadBufferPool::CreatePa
         VkMemoryRequirements memory_requirements_expanded;
         dfn.vkGetBufferMemoryRequirements(device, buffer_expanded, &memory_requirements_expanded);
         u32 memory_type_expanded = objects::ChooseHostMemoryType(
-            vulkan_device_->memory_types(), memory_requirements.memoryTypeBits, false);
+            vulkan_device_->GetMemoryTypes(), memory_requirements.memoryTypeBits, false);
         if (memory_requirements_expanded.size <= allocation_size_ &&
             memory_type_expanded != UINT32_MAX) {
           page_size_ = static_cast<size_t>(allocation_size_);
@@ -125,7 +125,7 @@ std::unique_ptr<GraphicsUploadBufferPool::Page> VulkanUploadBufferPool::CreatePa
   memory_allocate_info.allocationSize = allocation_size_;
   memory_allocate_info.memoryTypeIndex = memory_type_;
   VkMemoryDedicatedAllocateInfo memory_dedicated_allocate_info;
-  if (vulkan_device_->extensions().ext_1_1_KHR_dedicated_allocation) {
+  if (vulkan_device_->GetExtensions().ext_1_1_KHR_dedicated_allocation) {
     memory_allocate_info_last->pNext = &memory_dedicated_allocate_info;
     memory_allocate_info_last =
         reinterpret_cast<VkMemoryAllocateInfo*>(&memory_dedicated_allocate_info);
@@ -161,17 +161,17 @@ std::unique_ptr<GraphicsUploadBufferPool::Page> VulkanUploadBufferPool::CreatePa
 }
 
 void VulkanUploadBufferPool::FlushPageWrites(Page* page, size_t offset, size_t size) {
-  objects::FlushMappedMemoryRange(vulkan_device_, static_cast<const VulkanPage*>(page)->memory_,
+  objects::FlushMappedMemoryRange(vulkan_device_, static_cast<const VulkanPage*>(page)->memory,
                                   memory_type_, VkDeviceSize(offset), allocation_size_,
                                   VkDeviceSize(size));
 }
 
 VulkanUploadBufferPool::VulkanPage::~VulkanPage() {
-  const VulkanDevice::Functions& dfn = vulkan_device_->functions();
-  const VkDevice device = vulkan_device_->device();
-  dfn.vkDestroyBuffer(device, buffer_, nullptr);
+  const VulkanDevice::Functions& dfn = vulkan_device->GetFunctions();
+  const VkDevice device = vulkan_device->GetDevice();
+  dfn.vkDestroyBuffer(device, buffer, nullptr);
   // Freeing the memory unmaps it implicitly.
-  dfn.vkFreeMemory(device, memory_, nullptr);
+  dfn.vkFreeMemory(device, memory, nullptr);
 }
 
 }  // namespace vulkan

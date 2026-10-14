@@ -13,250 +13,250 @@
 
 namespace rex::codegen {
 
-bool build_fabs(BuilderContext& ctx) {
-  ctx.emit_set_flush_mode(false);
-  ctx.println("\t{}.u64 = {}.u64 & ~0x8000000000000000;", ctx.f(ctx.insn.operands[0]),
-              ctx.f(ctx.insn.operands[1]));
+bool BuildFabs(BuilderContext& ctx) {
+  ctx.EmitSetFlushMode(false);
+  ctx.Println("\t{}.u64 = {}.u64 & ~0x8000000000000000;", ctx.F(ctx.insn.operands[0]),
+              ctx.F(ctx.insn.operands[1]));
   return true;
 }
 
-bool build_fnabs(BuilderContext& ctx) {
-  ctx.emit_set_flush_mode(false);
-  ctx.println("\t{}.u64 = {}.u64 | 0x8000000000000000;", ctx.f(ctx.insn.operands[0]),
-              ctx.f(ctx.insn.operands[1]));
+bool BuildFnabs(BuilderContext& ctx) {
+  ctx.EmitSetFlushMode(false);
+  ctx.Println("\t{}.u64 = {}.u64 | 0x8000000000000000;", ctx.F(ctx.insn.operands[0]),
+              ctx.F(ctx.insn.operands[1]));
   return true;
 }
 
-bool build_fneg(BuilderContext& ctx) {
-  ctx.emit_set_flush_mode(false);
-  ctx.println("\t{}.u64 = {}.u64 ^ 0x8000000000000000;", ctx.f(ctx.insn.operands[0]),
-              ctx.f(ctx.insn.operands[1]));
+bool BuildFneg(BuilderContext& ctx) {
+  ctx.EmitSetFlushMode(false);
+  ctx.Println("\t{}.u64 = {}.u64 ^ 0x8000000000000000;", ctx.F(ctx.insn.operands[0]),
+              ctx.F(ctx.insn.operands[1]));
   return true;
 }
 
-bool build_fmr(BuilderContext& ctx) {
-  ctx.emit_set_flush_mode(false);
-  ctx.println("\t{}.f64 = {}.f64;", ctx.f(ctx.insn.operands[0]), ctx.f(ctx.insn.operands[1]));
+bool BuildFmr(BuilderContext& ctx) {
+  ctx.EmitSetFlushMode(false);
+  ctx.Println("\t{}.f64 = {}.f64;", ctx.F(ctx.insn.operands[0]), ctx.F(ctx.insn.operands[1]));
   return true;
 }
 
-bool build_fcfid(BuilderContext& ctx) {
-  ctx.emit_set_flush_mode(false);
-  ctx.println("\t{}.f64 = f64({}.s64);", ctx.f(ctx.insn.operands[0]), ctx.f(ctx.insn.operands[1]));
+bool BuildFcfid(BuilderContext& ctx) {
+  ctx.EmitSetFlushMode(false);
+  ctx.Println("\t{}.f64 = f64({}.s64);", ctx.F(ctx.insn.operands[0]), ctx.F(ctx.insn.operands[1]));
   return true;
 }
 
-bool build_fctid(BuilderContext& ctx) {
-  ctx.emit_set_flush_mode(false);
-  ctx.println(
+bool BuildFctid(BuilderContext& ctx) {
+  ctx.EmitSetFlushMode(false);
+  ctx.Println(
       "\t{0}.s64 = std::isnan({1}.f64) ? i64(0x8000000000000000ULL) : "
       "({1}.f64 > f64(LLONG_MAX)) ? LLONG_MAX : "
       "simde_mm_cvtsd_si64(simde_mm_load_sd(&{1}.f64));",
-      ctx.f(ctx.insn.operands[0]), ctx.f(ctx.insn.operands[1]));
+      ctx.F(ctx.insn.operands[0]), ctx.F(ctx.insn.operands[1]));
   return true;
 }
 
-bool build_fctidz(BuilderContext& ctx) {
-  ctx.emit_set_flush_mode(false);
-  ctx.println(
+bool BuildFctidz(BuilderContext& ctx) {
+  ctx.EmitSetFlushMode(false);
+  ctx.Println(
       "\t{0}.s64 = std::isnan({1}.f64) ? i64(0x8000000000000000ULL) : "
       "({1}.f64 > f64(LLONG_MAX)) ? LLONG_MAX : "
       "simde_mm_cvttsd_si64(simde_mm_load_sd(&{1}.f64));",
-      ctx.f(ctx.insn.operands[0]), ctx.f(ctx.insn.operands[1]));
+      ctx.F(ctx.insn.operands[0]), ctx.F(ctx.insn.operands[1]));
   return true;
 }
 
-bool build_fctiw(BuilderContext& ctx) {
-  ctx.emit_set_flush_mode(false);
-  ctx.println(
+bool BuildFctiw(BuilderContext& ctx) {
+  ctx.EmitSetFlushMode(false);
+  ctx.Println(
       "\t{0}.s64 = std::isnan({1}.f64) ? i64(0x80000000U) : "
       "({1}.f64 >= f64(INT_MAX)) ? INT_MAX : "
       "simde_mm_cvtsd_si32(simde_mm_load_sd(&{1}.f64));",
-      ctx.f(ctx.insn.operands[0]), ctx.f(ctx.insn.operands[1]));
+      ctx.F(ctx.insn.operands[0]), ctx.F(ctx.insn.operands[1]));
   return true;
 }
 
-bool build_fctiwz(BuilderContext& ctx) {
-  ctx.emit_set_flush_mode(false);
-  ctx.println(
+bool BuildFctiwz(BuilderContext& ctx) {
+  ctx.EmitSetFlushMode(false);
+  ctx.Println(
       "\t{0}.s64 = std::isnan({1}.f64) ? i64(0x80000000U) : "
       "({1}.f64 >= f64(INT_MAX)) ? INT_MAX : "
       "simde_mm_cvttsd_si32(simde_mm_load_sd(&{1}.f64));",
-      ctx.f(ctx.insn.operands[0]), ctx.f(ctx.insn.operands[1]));
+      ctx.F(ctx.insn.operands[0]), ctx.F(ctx.insn.operands[1]));
   return true;
 }
 
-bool build_frsp(BuilderContext& ctx) {
-  ctx.emit_set_flush_mode(false);
-  ctx.println("\t{}.f64 = f64(f32({}.f64));", ctx.f(ctx.insn.operands[0]),
-              ctx.f(ctx.insn.operands[1]));
+bool BuildFrsp(BuilderContext& ctx) {
+  ctx.EmitSetFlushMode(false);
+  ctx.Println("\t{}.f64 = f64(f32({}.f64));", ctx.F(ctx.insn.operands[0]),
+              ctx.F(ctx.insn.operands[1]));
   return true;
 }
 
-bool build_fcmpu(BuilderContext& ctx) {
-  ctx.emit_set_flush_mode(false);
-  ctx.println("\t{}.compare({}.f64, {}.f64);", ctx.cr(ctx.insn.operands[0]),
-              ctx.f(ctx.insn.operands[1]), ctx.f(ctx.insn.operands[2]));
+bool BuildFcmpu(BuilderContext& ctx) {
+  ctx.EmitSetFlushMode(false);
+  ctx.Println("\t{}.Compare({}.f64, {}.f64);", ctx.CR(ctx.insn.operands[0]),
+              ctx.F(ctx.insn.operands[1]), ctx.F(ctx.insn.operands[2]));
   return true;
 }
 
-bool build_fcmpo(BuilderContext& ctx) {
+bool BuildFcmpo(BuilderContext& ctx) {
   // fcmpo matches fcmpu here, its FPSCR exception flags for SNaN operands are not emulated.
-  return build_fcmpu(ctx);
+  return BuildFcmpu(ctx);
 }
 
-bool build_fadd(BuilderContext& ctx) {
-  ctx.emit_set_flush_mode(false);
-  ctx.println("\t{}.f64 = {}.f64 + {}.f64;", ctx.f(ctx.insn.operands[0]),
-              ctx.f(ctx.insn.operands[1]), ctx.f(ctx.insn.operands[2]));
+bool BuildFadd(BuilderContext& ctx) {
+  ctx.EmitSetFlushMode(false);
+  ctx.Println("\t{}.f64 = {}.f64 + {}.f64;", ctx.F(ctx.insn.operands[0]),
+              ctx.F(ctx.insn.operands[1]), ctx.F(ctx.insn.operands[2]));
   return true;
 }
 
-bool build_fadds(BuilderContext& ctx) {
-  ctx.emit_set_flush_mode(false);
-  ctx.println("\t{}.f64 = f64(f32({}.f64 + {}.f64));", ctx.f(ctx.insn.operands[0]),
-              ctx.f(ctx.insn.operands[1]), ctx.f(ctx.insn.operands[2]));
+bool BuildFadds(BuilderContext& ctx) {
+  ctx.EmitSetFlushMode(false);
+  ctx.Println("\t{}.f64 = f64(f32({}.f64 + {}.f64));", ctx.F(ctx.insn.operands[0]),
+              ctx.F(ctx.insn.operands[1]), ctx.F(ctx.insn.operands[2]));
   return true;
 }
 
-bool build_fsub(BuilderContext& ctx) {
-  ctx.emit_set_flush_mode(false);
-  ctx.println("\t{}.f64 = {}.f64 - {}.f64;", ctx.f(ctx.insn.operands[0]),
-              ctx.f(ctx.insn.operands[1]), ctx.f(ctx.insn.operands[2]));
+bool BuildFsub(BuilderContext& ctx) {
+  ctx.EmitSetFlushMode(false);
+  ctx.Println("\t{}.f64 = {}.f64 - {}.f64;", ctx.F(ctx.insn.operands[0]),
+              ctx.F(ctx.insn.operands[1]), ctx.F(ctx.insn.operands[2]));
   return true;
 }
 
-bool build_fsubs(BuilderContext& ctx) {
-  ctx.emit_set_flush_mode(false);
-  ctx.println("\t{}.f64 = f64(f32({}.f64 - {}.f64));", ctx.f(ctx.insn.operands[0]),
-              ctx.f(ctx.insn.operands[1]), ctx.f(ctx.insn.operands[2]));
+bool BuildFsubs(BuilderContext& ctx) {
+  ctx.EmitSetFlushMode(false);
+  ctx.Println("\t{}.f64 = f64(f32({}.f64 - {}.f64));", ctx.F(ctx.insn.operands[0]),
+              ctx.F(ctx.insn.operands[1]), ctx.F(ctx.insn.operands[2]));
   return true;
 }
 
-bool build_fmul(BuilderContext& ctx) {
-  ctx.emit_set_flush_mode(false);
-  ctx.println("\t{}.f64 = {}.f64 * {}.f64;", ctx.f(ctx.insn.operands[0]),
-              ctx.f(ctx.insn.operands[1]), ctx.f(ctx.insn.operands[2]));
+bool BuildFmul(BuilderContext& ctx) {
+  ctx.EmitSetFlushMode(false);
+  ctx.Println("\t{}.f64 = {}.f64 * {}.f64;", ctx.F(ctx.insn.operands[0]),
+              ctx.F(ctx.insn.operands[1]), ctx.F(ctx.insn.operands[2]));
   return true;
 }
 
-bool build_fmuls(BuilderContext& ctx) {
-  ctx.emit_set_flush_mode(false);
-  ctx.println("\t{}.f64 = f64(f32({}.f64 * {}.f64));", ctx.f(ctx.insn.operands[0]),
-              ctx.f(ctx.insn.operands[1]), ctx.f(ctx.insn.operands[2]));
+bool BuildFmuls(BuilderContext& ctx) {
+  ctx.EmitSetFlushMode(false);
+  ctx.Println("\t{}.f64 = f64(f32({}.f64 * {}.f64));", ctx.F(ctx.insn.operands[0]),
+              ctx.F(ctx.insn.operands[1]), ctx.F(ctx.insn.operands[2]));
   return true;
 }
 
-bool build_fdiv(BuilderContext& ctx) {
-  ctx.emit_set_flush_mode(false);
-  ctx.println("\t{}.f64 = {}.f64 / {}.f64;", ctx.f(ctx.insn.operands[0]),
-              ctx.f(ctx.insn.operands[1]), ctx.f(ctx.insn.operands[2]));
+bool BuildFdiv(BuilderContext& ctx) {
+  ctx.EmitSetFlushMode(false);
+  ctx.Println("\t{}.f64 = {}.f64 / {}.f64;", ctx.F(ctx.insn.operands[0]),
+              ctx.F(ctx.insn.operands[1]), ctx.F(ctx.insn.operands[2]));
   return true;
 }
 
-bool build_fdivs(BuilderContext& ctx) {
-  ctx.emit_set_flush_mode(false);
-  ctx.println("\t{}.f64 = f64(f32({}.f64 / {}.f64));", ctx.f(ctx.insn.operands[0]),
-              ctx.f(ctx.insn.operands[1]), ctx.f(ctx.insn.operands[2]));
+bool BuildFdivs(BuilderContext& ctx) {
+  ctx.EmitSetFlushMode(false);
+  ctx.Println("\t{}.f64 = f64(f32({}.f64 / {}.f64));", ctx.F(ctx.insn.operands[0]),
+              ctx.F(ctx.insn.operands[1]), ctx.F(ctx.insn.operands[2]));
   return true;
 }
 
-bool build_fmadd(BuilderContext& ctx) {
-  ctx.emit_set_flush_mode(false);
-  ctx.println("\t{}.f64 = std::fma({}.f64, {}.f64, {}.f64);", ctx.f(ctx.insn.operands[0]),
-              ctx.f(ctx.insn.operands[1]), ctx.f(ctx.insn.operands[2]),
-              ctx.f(ctx.insn.operands[3]));
+bool BuildFmadd(BuilderContext& ctx) {
+  ctx.EmitSetFlushMode(false);
+  ctx.Println("\t{}.f64 = std::fma({}.f64, {}.f64, {}.f64);", ctx.F(ctx.insn.operands[0]),
+              ctx.F(ctx.insn.operands[1]), ctx.F(ctx.insn.operands[2]),
+              ctx.F(ctx.insn.operands[3]));
   return true;
 }
 
-bool build_fmadds(BuilderContext& ctx) {
-  ctx.emit_set_flush_mode(false);
-  ctx.println("\t{}.f64 = f64(f32(std::fma({}.f64, {}.f64, {}.f64)));", ctx.f(ctx.insn.operands[0]),
-              ctx.f(ctx.insn.operands[1]), ctx.f(ctx.insn.operands[2]),
-              ctx.f(ctx.insn.operands[3]));
+bool BuildFmadds(BuilderContext& ctx) {
+  ctx.EmitSetFlushMode(false);
+  ctx.Println("\t{}.f64 = f64(f32(std::fma({}.f64, {}.f64, {}.f64)));", ctx.F(ctx.insn.operands[0]),
+              ctx.F(ctx.insn.operands[1]), ctx.F(ctx.insn.operands[2]),
+              ctx.F(ctx.insn.operands[3]));
   return true;
 }
 
-bool build_fmsub(BuilderContext& ctx) {
-  ctx.emit_set_flush_mode(false);
-  ctx.println("\t{}.f64 = std::fma({}.f64, {}.f64, -{}.f64);", ctx.f(ctx.insn.operands[0]),
-              ctx.f(ctx.insn.operands[1]), ctx.f(ctx.insn.operands[2]),
-              ctx.f(ctx.insn.operands[3]));
+bool BuildFmsub(BuilderContext& ctx) {
+  ctx.EmitSetFlushMode(false);
+  ctx.Println("\t{}.f64 = std::fma({}.f64, {}.f64, -{}.f64);", ctx.F(ctx.insn.operands[0]),
+              ctx.F(ctx.insn.operands[1]), ctx.F(ctx.insn.operands[2]),
+              ctx.F(ctx.insn.operands[3]));
   return true;
 }
 
-bool build_fmsubs(BuilderContext& ctx) {
-  ctx.emit_set_flush_mode(false);
-  ctx.println("\t{}.f64 = f64(f32(std::fma({}.f64, {}.f64, -{}.f64)));",
-              ctx.f(ctx.insn.operands[0]), ctx.f(ctx.insn.operands[1]), ctx.f(ctx.insn.operands[2]),
-              ctx.f(ctx.insn.operands[3]));
+bool BuildFmsubs(BuilderContext& ctx) {
+  ctx.EmitSetFlushMode(false);
+  ctx.Println("\t{}.f64 = f64(f32(std::fma({}.f64, {}.f64, -{}.f64)));",
+              ctx.F(ctx.insn.operands[0]), ctx.F(ctx.insn.operands[1]), ctx.F(ctx.insn.operands[2]),
+              ctx.F(ctx.insn.operands[3]));
   return true;
 }
 
-bool build_fnmadd(BuilderContext& ctx) {
-  ctx.emit_set_flush_mode(false);
-  ctx.println("\t{}.f64 = -std::fma({}.f64, {}.f64, {}.f64);", ctx.f(ctx.insn.operands[0]),
-              ctx.f(ctx.insn.operands[1]), ctx.f(ctx.insn.operands[2]),
-              ctx.f(ctx.insn.operands[3]));
+bool BuildFnmadd(BuilderContext& ctx) {
+  ctx.EmitSetFlushMode(false);
+  ctx.Println("\t{}.f64 = -std::fma({}.f64, {}.f64, {}.f64);", ctx.F(ctx.insn.operands[0]),
+              ctx.F(ctx.insn.operands[1]), ctx.F(ctx.insn.operands[2]),
+              ctx.F(ctx.insn.operands[3]));
   return true;
 }
 
-bool build_fnmadds(BuilderContext& ctx) {
-  ctx.emit_set_flush_mode(false);
-  ctx.println("\t{}.f64 = f64(f32(-std::fma({}.f64, {}.f64, {}.f64)));",
-              ctx.f(ctx.insn.operands[0]), ctx.f(ctx.insn.operands[1]), ctx.f(ctx.insn.operands[2]),
-              ctx.f(ctx.insn.operands[3]));
+bool BuildFnmadds(BuilderContext& ctx) {
+  ctx.EmitSetFlushMode(false);
+  ctx.Println("\t{}.f64 = f64(f32(-std::fma({}.f64, {}.f64, {}.f64)));",
+              ctx.F(ctx.insn.operands[0]), ctx.F(ctx.insn.operands[1]), ctx.F(ctx.insn.operands[2]),
+              ctx.F(ctx.insn.operands[3]));
   return true;
 }
 
-bool build_fnmsub(BuilderContext& ctx) {
-  ctx.emit_set_flush_mode(false);
-  ctx.println("\t{}.f64 = -std::fma({}.f64, {}.f64, -{}.f64);", ctx.f(ctx.insn.operands[0]),
-              ctx.f(ctx.insn.operands[1]), ctx.f(ctx.insn.operands[2]),
-              ctx.f(ctx.insn.operands[3]));
+bool BuildFnmsub(BuilderContext& ctx) {
+  ctx.EmitSetFlushMode(false);
+  ctx.Println("\t{}.f64 = -std::fma({}.f64, {}.f64, -{}.f64);", ctx.F(ctx.insn.operands[0]),
+              ctx.F(ctx.insn.operands[1]), ctx.F(ctx.insn.operands[2]),
+              ctx.F(ctx.insn.operands[3]));
   return true;
 }
 
-bool build_fnmsubs(BuilderContext& ctx) {
-  ctx.emit_set_flush_mode(false);
-  ctx.println("\t{}.f64 = f64(f32(-std::fma({}.f64, {}.f64, -{}.f64)));",
-              ctx.f(ctx.insn.operands[0]), ctx.f(ctx.insn.operands[1]), ctx.f(ctx.insn.operands[2]),
-              ctx.f(ctx.insn.operands[3]));
+bool BuildFnmsubs(BuilderContext& ctx) {
+  ctx.EmitSetFlushMode(false);
+  ctx.Println("\t{}.f64 = f64(f32(-std::fma({}.f64, {}.f64, -{}.f64)));",
+              ctx.F(ctx.insn.operands[0]), ctx.F(ctx.insn.operands[1]), ctx.F(ctx.insn.operands[2]),
+              ctx.F(ctx.insn.operands[3]));
   return true;
 }
 
-bool build_fres(BuilderContext& ctx) {
-  ctx.emit_set_flush_mode(false);
-  ctx.println("\t{}.f64 = f64(f32(1.0 / {}.f64));", ctx.f(ctx.insn.operands[0]),
-              ctx.f(ctx.insn.operands[1]));
+bool BuildFres(BuilderContext& ctx) {
+  ctx.EmitSetFlushMode(false);
+  ctx.Println("\t{}.f64 = f64(f32(1.0 / {}.f64));", ctx.F(ctx.insn.operands[0]),
+              ctx.F(ctx.insn.operands[1]));
   return true;
 }
 
-bool build_frsqrte(BuilderContext& ctx) {
-  ctx.emit_set_flush_mode(false);
-  ctx.println("\t{}.f64 = f64(f32(1.0 / sqrt({}.f64)));", ctx.f(ctx.insn.operands[0]),
-              ctx.f(ctx.insn.operands[1]));
+bool BuildFrsqrte(BuilderContext& ctx) {
+  ctx.EmitSetFlushMode(false);
+  ctx.Println("\t{}.f64 = f64(f32(1.0 / sqrt({}.f64)));", ctx.F(ctx.insn.operands[0]),
+              ctx.F(ctx.insn.operands[1]));
   return true;
 }
 
-bool build_fsqrt(BuilderContext& ctx) {
-  ctx.emit_set_flush_mode(false);
-  ctx.println("\t{}.f64 = sqrt({}.f64);", ctx.f(ctx.insn.operands[0]), ctx.f(ctx.insn.operands[1]));
+bool BuildFsqrt(BuilderContext& ctx) {
+  ctx.EmitSetFlushMode(false);
+  ctx.Println("\t{}.f64 = sqrt({}.f64);", ctx.F(ctx.insn.operands[0]), ctx.F(ctx.insn.operands[1]));
   return true;
 }
 
-bool build_fsqrts(BuilderContext& ctx) {
-  ctx.emit_set_flush_mode(false);
-  ctx.println("\t{}.f64 = f64(f32(sqrt({}.f64)));", ctx.f(ctx.insn.operands[0]),
-              ctx.f(ctx.insn.operands[1]));
+bool BuildFsqrts(BuilderContext& ctx) {
+  ctx.EmitSetFlushMode(false);
+  ctx.Println("\t{}.f64 = f64(f32(sqrt({}.f64)));", ctx.F(ctx.insn.operands[0]),
+              ctx.F(ctx.insn.operands[1]));
   return true;
 }
 
-bool build_fsel(BuilderContext& ctx) {
-  ctx.emit_set_flush_mode(false);
-  ctx.println("\t{}.f64 = {}.f64 >= 0.0 ? {}.f64 : {}.f64;", ctx.f(ctx.insn.operands[0]),
-              ctx.f(ctx.insn.operands[1]), ctx.f(ctx.insn.operands[2]),
-              ctx.f(ctx.insn.operands[3]));
+bool BuildFsel(BuilderContext& ctx) {
+  ctx.EmitSetFlushMode(false);
+  ctx.Println("\t{}.f64 = {}.f64 >= 0.0 ? {}.f64 : {}.f64;", ctx.F(ctx.insn.operands[0]),
+              ctx.F(ctx.insn.operands[1]), ctx.F(ctx.insn.operands[2]),
+              ctx.F(ctx.insn.operands[3]));
   return true;
 }
 

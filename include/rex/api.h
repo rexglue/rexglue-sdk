@@ -107,11 +107,11 @@ class REX_API API {
    *
    * @return The copied configuration. Valid until Shutdown.
    */
-  const Config& config() const;
+  const Config& GetConfig() const;
 
   /**
    * Replaces the paths of the copied configuration. For hosts that resolve the game data
-   * root after Init, before the Runtime is constructed from config().
+   * root after Init, before the Runtime is constructed from GetConfig().
    *
    * @param paths The new paths.
    */

@@ -11,7 +11,7 @@ namespace rex::platform {
 namespace {
 
 Error IOError(std::string_view what, const std::filesystem::path& path) {
-  return Error(ErrorCategory::IO, std::format("{} '{}'", what, path_to_utf8(path)));
+  return Error(ErrorCategory::kIO, std::format("{} '{}'", what, PathToUTF8(path)));
 }
 
 }  // namespace

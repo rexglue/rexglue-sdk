@@ -33,7 +33,7 @@ class OverlayRegistry : public NonCopyable {
   OverlayRegistry(ImGuiDrawer& drawer, BindTable& binds, const ModuleOverlayContext& context);
   ~OverlayRegistry();
 
-  bool AnyVisible() const;
+  bool IsAnyVisible() const;
   [[nodiscard]] Result<void> Add(std::span<const OverlayDesc> table);
   void Show(std::string_view name, bool visible);
   void Toggle(std::string_view name);

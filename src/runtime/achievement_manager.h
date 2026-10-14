@@ -42,7 +42,7 @@ class REX_RUNTIME_API AchievementManager final : public IAchievementManager {
   void SaveUnlockState() const override;
 
  private:
-  static u64 CurrentFileTime();
+  static u64 GetCurrentFileTime();
 
   void DispatchCallbacks(
       const std::unordered_map<AchievementListenerHandle, AchievementCallback>& callbacks,

@@ -50,7 +50,7 @@ class NullProvider final : public Provider {
    *
    * @return The name and geometry.
    */
-  [[nodiscard]] VolumeInfo Volume() const override;
+  [[nodiscard]] VolumeInfo GetVolume() const override;
 
   /**
    * Returns the root for an empty path or the null file whose path matches, case insensitive.

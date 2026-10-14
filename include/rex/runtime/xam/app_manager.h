@@ -31,10 +31,10 @@ class Memory;
 namespace rex {
 namespace runtime {
 
-/** Base class of a Xam app, which receives messages dispatched by app id. */
+/** Base class of an XAM app, which receives messages dispatched by app id. */
 class REX_RUNTIME_API App {
  public:
-  u32 app_id() const { return app_id_; }
+  u32 GetAppId() const { return app_id_; }
 
   /**
    * Processes a message addressed to the app.
@@ -63,7 +63,7 @@ class REX_RUNTIME_API App {
   u32 app_id_; /**< Id the app is registered under in the `AppManager`. */
 };
 
-/** Registry of Xam apps that routes messages by app id. */
+/** Registry of XAM apps that routes messages by app id. */
 class AppManager {
  public:
   /**

@@ -36,9 +36,8 @@ namespace rex::apu::sdl3 {
  * @param mix Weights for the center, surround and LFE channels.
  * @param gain Output gain, results are clamped to the range -1 to 1.
  */
-inline void sequential_6_BE_to_interleaved_6_LE(f32* output, const f32* input,
-                                                size_t ch_sample_count, const SurroundMix& mix,
-                                                f32 gain) {
+inline void Sequential6BEToInterleaved6LE(f32* output, const f32* input, size_t ch_sample_count,
+                                          const SurroundMix& mix, f32 gain) {
   REX_ASSERT(ch_sample_count % 2 == 0);
 
   const u32* in = reinterpret_cast<const u32*>(input);
@@ -74,9 +73,8 @@ inline void sequential_6_BE_to_interleaved_6_LE(f32* output, const f32* input,
   }
 }
 
-inline void sequential_6_BE_to_interleaved_2_LE(f32* output, const f32* input,
-                                                size_t ch_sample_count, const StereoFold& fold,
-                                                f32 gain) {
+inline void Sequential6BEToInterleaved2LE(f32* output, const f32* input, size_t ch_sample_count,
+                                          const StereoFold& fold, f32 gain) {
   REX_ASSERT(ch_sample_count % 4 == 0);
 
   const simde__m128i byte_swap_shuffle =

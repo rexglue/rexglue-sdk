@@ -38,13 +38,13 @@ bool IsSourceExtension(const fs::path& p) {
 std::string RenderRexglueCmake(std::string_view project_name, std::string_view sdk_version,
                                std::string_view entrypoint_out_dir) {
   rex::codegen::TemplateRegistry registry;
-  auto names = parse_app_name(std::string(project_name));
+  auto names = ParseAppName(std::string(project_name));
   nlohmann::json data = {
-      {"names", names_to_json(names)},
+      {"names", NamesToJSON(names)},
       {"sdk_version", std::string(sdk_version)},
       {"entrypoint_out_dir", std::string(entrypoint_out_dir)},
   };
-  return registry.render("init/rexglue_cmake", data.dump());
+  return registry.Render("init/rexglue_cmake", data.dump());
 }
 
 bool RefreshGeneratedGlue(const fs::path& project_root, std::string_view project_name,
@@ -53,12 +53,12 @@ bool RefreshGeneratedGlue(const fs::path& project_root, std::string_view project
   std::string rendered = RenderRexglueCmake(project_name, sdk_version, entrypoint_out_dir);
 
   std::error_code ec;
-  if (fs::exists(target, ec) && read_file(target) == rendered) {
+  if (fs::exists(target, ec) && ReadFile(target) == rendered) {
     return false;
   }
 
   fs::create_directories(target.parent_path(), ec);
-  if (!write_file_atomic(target, rendered)) {
+  if (!WriteFileAtomic(target, rendered)) {
     REX_FAIL(rexglue, false, "Failed to regenerate {}", target.string());
   }
   return true;
@@ -75,7 +75,7 @@ std::vector<SourceWarning> ScanStaleIncludes(
   for (const auto& name : removed_basenames)
     removed_lower.insert(ToLower(name));
 
-  static const std::regex include_re(R"(^\s*#\s*include\s*[<"]([^>"]+)[>"])");
+  static const std::regex kIncludeRe(R"(^\s*#\s*include\s*[<"]([^>"]+)[>"])");
 
   for (const auto& entry : fs::recursive_directory_iterator(src_dir)) {
     if (!entry.is_regular_file() || !IsSourceExtension(entry.path()))
@@ -88,7 +88,7 @@ std::vector<SourceWarning> ScanStaleIncludes(
     while (std::getline(in, line)) {
       ++line_number;
       std::smatch m;
-      if (!std::regex_search(line, m, include_re))
+      if (!std::regex_search(line, m, kIncludeRe))
         continue;
       std::string target = m[1].str();
       auto pos = target.find_last_of("/\\");

@@ -22,15 +22,15 @@ namespace rex {
 
 namespace detail {
 
-struct string_key_base {
+struct StringKeyBase {
  private:
   std::variant<std::string, std::string_view> value_;
 
  public:
-  explicit string_key_base(const std::string_view value) : value_(value) {}
-  explicit string_key_base(std::string value) : value_(std::move(value)) {}
+  explicit StringKeyBase(const std::string_view value) : value_(value) {}
+  explicit StringKeyBase(std::string value) : value_(std::move(value)) {}
 
-  std::string_view view() const {
+  std::string_view GetView() const {
     return std::holds_alternative<std::string>(value_) ? std::get<std::string>(value_)
                                                        : std::get<std::string_view>(value_);
   }
@@ -42,21 +42,21 @@ struct string_key_base {
  * Case sensitive string key. It either borrows a view or owns a copy. Borrow for lookups and own
  * for stored keys.
  */
-struct string_key : detail::string_key_base {
+struct StringKey : detail::StringKeyBase {
  public:
   /**
    * Borrows a string. The string outlives the key.
    *
    * @param value String to borrow.
    */
-  explicit string_key(const std::string_view value) : string_key_base(value) {}
+  explicit StringKey(const std::string_view value) : StringKeyBase(value) {}
 
   /**
    * Owns a string.
    *
    * @param value String to own.
    */
-  explicit string_key(std::string value) : string_key_base(std::move(value)) {}
+  explicit StringKey(std::string value) : StringKeyBase(std::move(value)) {}
 
   /**
    * Creates a key that owns a copy of a string.
@@ -64,7 +64,7 @@ struct string_key : detail::string_key_base {
    * @param value String to copy.
    * @return The owning key.
    */
-  static string_key create(const std::string_view value) { return string_key(std::string(value)); }
+  static StringKey Create(const std::string_view value) { return StringKey(std::string(value)); }
 
   /**
    * Creates a key that owns a string.
@@ -72,7 +72,7 @@ struct string_key : detail::string_key_base {
    * @param value String to own.
    * @return The owning key.
    */
-  static string_key create(std::string value) { return string_key(std::move(value)); }
+  static StringKey Create(std::string value) { return StringKey(std::move(value)); }
 
   /**
    * Compares 2 keys byte for byte.
@@ -80,14 +80,14 @@ struct string_key : detail::string_key_base {
    * @param other Key to compare with.
    * @return True when the strings are equal.
    */
-  bool operator==(const string_key& other) const { return other.view() == view(); }
+  bool operator==(const StringKey& other) const { return other.GetView() == GetView(); }
 
   /**
    * Hashes the key.
    *
    * @return FNV-1a hash of the code points.
    */
-  size_t hash() const { return rex::utf8_hash_fnv1a(view()); }
+  size_t hash() const { return rex::utf8_hash_fnv1a(GetView()); }
 
   /** Hash functor for unordered containers. */
   struct Hash {
@@ -97,7 +97,7 @@ struct string_key : detail::string_key_base {
      * @param t Key to hash.
      * @return t.hash().
      */
-    size_t operator()(const string_key& t) const { return t.hash(); }
+    size_t operator()(const StringKey& t) const { return t.hash(); }
   };
 };
 
@@ -105,21 +105,21 @@ struct string_key : detail::string_key_base {
  * String key that compares and hashes ignoring ASCII case. It either borrows a view or owns a
  * copy.
  */
-struct string_key_case : detail::string_key_base {
+struct StringKeyCase : detail::StringKeyBase {
  public:
   /**
    * Borrows a string. The string outlives the key.
    *
    * @param value String to borrow.
    */
-  explicit string_key_case(const std::string_view value) : string_key_base(value) {}
+  explicit StringKeyCase(const std::string_view value) : StringKeyBase(value) {}
 
   /**
    * Owns a string.
    *
    * @param value String to own.
    */
-  explicit string_key_case(std::string value) : string_key_base(std::move(value)) {}
+  explicit StringKeyCase(std::string value) : StringKeyBase(std::move(value)) {}
 
   /**
    * Creates a key that owns a copy of a string.
@@ -127,8 +127,8 @@ struct string_key_case : detail::string_key_base {
    * @param value String to copy.
    * @return The owning key.
    */
-  static string_key_case create(const std::string_view value) {
-    return string_key_case(std::string(value));
+  static StringKeyCase Create(const std::string_view value) {
+    return StringKeyCase(std::string(value));
   }
 
   /**
@@ -137,7 +137,7 @@ struct string_key_case : detail::string_key_base {
    * @param value String to own.
    * @return The owning key.
    */
-  static string_key_case create(std::string value) { return string_key_case(std::move(value)); }
+  static StringKeyCase Create(std::string value) { return StringKeyCase(std::move(value)); }
 
   /**
    * Compares 2 keys, ignoring ASCII case.
@@ -145,8 +145,8 @@ struct string_key_case : detail::string_key_base {
    * @param other Key to compare with.
    * @return True when the strings match.
    */
-  bool operator==(const string_key_case& other) const {
-    return rex::utf8_equal_case(other.view(), view());
+  bool operator==(const StringKeyCase& other) const {
+    return rex::utf8_equal_case(other.GetView(), GetView());
   }
 
   /**
@@ -154,7 +154,7 @@ struct string_key_case : detail::string_key_base {
    *
    * @return FNV-1a hash of the code points with ASCII letters lowercased.
    */
-  size_t hash() const { return rex::utf8_hash_fnv1a_case(view()); }
+  size_t hash() const { return rex::utf8_hash_fnv1a_case(GetView()); }
 
   /** Hash functor for unordered containers. */
   struct Hash {
@@ -164,34 +164,34 @@ struct string_key_case : detail::string_key_base {
      * @param t Key to hash.
      * @return t.hash().
      */
-    size_t operator()(const string_key_case& t) const { return t.hash(); }
+    size_t operator()(const StringKeyCase& t) const { return t.hash(); }
   };
 };
 
 }  // namespace rex
 
 namespace std {
-/** std::hash for rex::string_key. */
+/** std::hash for rex::StringKey. */
 template <>
-struct hash<rex::string_key> {
+struct hash<rex::StringKey> {
   /**
    * Hashes a key.
    *
    * @param t Key to hash.
    * @return t.hash().
    */
-  std::size_t operator()(const rex::string_key& t) const { return t.hash(); }
+  std::size_t operator()(const rex::StringKey& t) const { return t.hash(); }
 };
 
-/** std::hash for rex::string_key_case. */
+/** std::hash for rex::StringKeyCase. */
 template <>
-struct hash<rex::string_key_case> {
+struct hash<rex::StringKeyCase> {
   /**
    * Hashes a key.
    *
    * @param t Key to hash.
    * @return t.hash().
    */
-  std::size_t operator()(const rex::string_key_case& t) const { return t.hash(); }
+  std::size_t operator()(const rex::StringKeyCase& t) const { return t.hash(); }
 };
 }  // namespace std

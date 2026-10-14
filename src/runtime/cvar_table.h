@@ -16,9 +16,9 @@ namespace rex::runtime::cvars {
 
 REXCVAR_BOOL(runtime, writable_code_segments, false,
              "Enables a program to write to its own code segments in memory")
-    .lifecycle(rex::cvar::Lifecycle::RequiresRestart);
+    .SetLifecycle(rex::cvar::Lifecycle::kRequiresRestart);
 REXCVAR_BOOL(runtime, protect_zero, true, "Protect the zero page from reads and writes")
-    .lifecycle(rex::cvar::Lifecycle::RequiresRestart);
+    .SetLifecycle(rex::cvar::Lifecycle::kRequiresRestart);
 REXCVAR_BOOL(runtime, protect_on_release, false, "Protect released memory to prevent accesses");
 REXCVAR_BOOL(runtime, scribble_heap, false, "Scribble 0xCD into all allocated heap memory");
 REXCVAR_BOOL(runtime, ignore_thread_priorities, true, "Ignores game-specified thread priorities");
@@ -29,8 +29,8 @@ REXCVAR_TABLE(kRuntimeCvars, writable_code_segments, protect_zero, protect_on_re
 REXCVAR_INT32(apu, max_queued_frames, 8,
               "Audio frames queued per render client. Lower reduces latency, higher absorbs "
               "stalls")
-    .range(4, 64)
-    .lifecycle(rex::cvar::Lifecycle::RequiresRestart);
+    .SetRange(4, 64)
+    .SetLifecycle(rex::cvar::Lifecycle::kRequiresRestart);
 REXCVAR_TABLE(kAPUCvars, max_queued_frames);
 
 }  // namespace rex::runtime::cvars

@@ -28,11 +28,11 @@ size_t CountInGroup(Group group) {
 
 REX_TEST_CASE("Shim registry holds every hook name", "[kernel][shim]") {
   CHECK(kRegistry.size() == 66);
-  CHECK(CountInGroup(Group::File) == 24);
-  CHECK(CountInGroup(Group::Heap) == 4);
-  CHECK(CountInGroup(Group::Memory) == 10);
-  CHECK(CountInGroup(Group::String) == 23);
-  CHECK(CountInGroup(Group::Threading) == 5);
+  CHECK(CountInGroup(Group::kFile) == 24);
+  CHECK(CountInGroup(Group::kHeap) == 4);
+  CHECK(CountInGroup(Group::kMemory) == 10);
+  CHECK(CountInGroup(Group::kString) == 23);
+  CHECK(CountInGroup(Group::kThreading) == 5);
 }
 
 REX_TEST_CASE("Shim registry finds each entry by name", "[kernel][shim]") {
@@ -51,12 +51,12 @@ REX_TEST_CASE("Shim registry rejects names that are not registered", "[kernel][s
 
 REX_TEST_CASE("Shim heap group is atomic and every heap entry requires the heap",
               "[kernel][shim]") {
-  CHECK(TraitsOf(Group::Heap).atomic);
+  CHECK(TraitsOf(Group::kHeap).atomic);
   for (const Entry& entry : kRegistry) {
-    if (entry.group == Group::Heap) {
-      CHECK(rex::HasFlags(entry.flags, Flag::RequiresHeap));
+    if (entry.group == Group::kHeap) {
+      CHECK(rex::HasFlags(entry.flags, Flag::kRequiresHeap));
     } else {
-      CHECK_FALSE(rex::HasFlags(entry.flags, Flag::RequiresHeap));
+      CHECK_FALSE(rex::HasFlags(entry.flags, Flag::kRequiresHeap));
     }
   }
 }

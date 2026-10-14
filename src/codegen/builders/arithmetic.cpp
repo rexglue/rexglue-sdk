@@ -12,239 +12,239 @@
 #include "helpers.h"
 namespace rex::codegen {
 
-bool build_add(BuilderContext& ctx) {
-  ctx.println("\t{}.u64 = {}.u64 + {}.u64;", ctx.r(ctx.insn.operands[0]),
-              ctx.r(ctx.insn.operands[1]), ctx.r(ctx.insn.operands[2]));
-  emitRecordFormCompare(ctx);
+bool BuildAdd(BuilderContext& ctx) {
+  ctx.Println("\t{}.u64 = {}.u64 + {}.u64;", ctx.R(ctx.insn.operands[0]),
+              ctx.R(ctx.insn.operands[1]), ctx.R(ctx.insn.operands[2]));
+  EmitRecordFormCompare(ctx);
   return true;
 }
 
-bool build_adde(BuilderContext& ctx) {
-  ctx.println("\t{}.u8 = ({}.u32 + {}.u32 < {}.u32) | ({}.u32 + {}.u32 + {}.ca < {}.ca);",
-              ctx.temp(), ctx.r(ctx.insn.operands[1]), ctx.r(ctx.insn.operands[2]),
-              ctx.r(ctx.insn.operands[1]), ctx.r(ctx.insn.operands[1]), ctx.r(ctx.insn.operands[2]),
-              ctx.xer(), ctx.xer());
-  ctx.println("\t{}.u64 = {}.u64 + {}.u64 + {}.ca;", ctx.r(ctx.insn.operands[0]),
-              ctx.r(ctx.insn.operands[1]), ctx.r(ctx.insn.operands[2]), ctx.xer());
-  ctx.println("\t{}.ca = {}.u8;", ctx.xer(), ctx.temp());
-  emitRecordFormCompare(ctx);
+bool BuildAdde(BuilderContext& ctx) {
+  ctx.Println("\t{}.u8 = ({}.u32 + {}.u32 < {}.u32) | ({}.u32 + {}.u32 + {}.ca < {}.ca);",
+              ctx.Temp(), ctx.R(ctx.insn.operands[1]), ctx.R(ctx.insn.operands[2]),
+              ctx.R(ctx.insn.operands[1]), ctx.R(ctx.insn.operands[1]), ctx.R(ctx.insn.operands[2]),
+              ctx.XER(), ctx.XER());
+  ctx.Println("\t{}.u64 = {}.u64 + {}.u64 + {}.ca;", ctx.R(ctx.insn.operands[0]),
+              ctx.R(ctx.insn.operands[1]), ctx.R(ctx.insn.operands[2]), ctx.XER());
+  ctx.Println("\t{}.ca = {}.u8;", ctx.XER(), ctx.Temp());
+  EmitRecordFormCompare(ctx);
   return true;
 }
 
-bool build_addi(BuilderContext& ctx) {
-  ctx.print("\t{}.s64 = ", ctx.r(ctx.insn.operands[0]));
+bool BuildAddi(BuilderContext& ctx) {
+  ctx.Print("\t{}.s64 = ", ctx.R(ctx.insn.operands[0]));
   if (ctx.insn.operands[1] != 0)
-    ctx.print("{}.s64 + ", ctx.r(ctx.insn.operands[1]));
-  ctx.println("{};", static_cast<i32>(ctx.insn.operands[2]));
+    ctx.Print("{}.s64 + ", ctx.R(ctx.insn.operands[1]));
+  ctx.Println("{};", static_cast<i32>(ctx.insn.operands[2]));
   return true;
 }
 
-bool build_addic(BuilderContext& ctx) {
-  ctx.println("\t{}.ca = {}.u32 > {};", ctx.xer(), ctx.r(ctx.insn.operands[1]),
+bool BuildAddic(BuilderContext& ctx) {
+  ctx.Println("\t{}.ca = {}.u32 > {};", ctx.XER(), ctx.R(ctx.insn.operands[1]),
               ~ctx.insn.operands[2]);
-  ctx.println("\t{}.s64 = {}.s64 + {};", ctx.r(ctx.insn.operands[0]), ctx.r(ctx.insn.operands[1]),
+  ctx.Println("\t{}.s64 = {}.s64 + {};", ctx.R(ctx.insn.operands[0]), ctx.R(ctx.insn.operands[1]),
               static_cast<i32>(ctx.insn.operands[2]));
-  emitRecordFormCompare(ctx);
+  EmitRecordFormCompare(ctx);
   return true;
 }
 
-bool build_addis(BuilderContext& ctx) {
-  ctx.print("\t{}.s64 = ", ctx.r(ctx.insn.operands[0]));
+bool BuildAddis(BuilderContext& ctx) {
+  ctx.Print("\t{}.s64 = ", ctx.R(ctx.insn.operands[0]));
   if (ctx.insn.operands[1] != 0)
-    ctx.print("{}.s64 + ", ctx.r(ctx.insn.operands[1]));
-  ctx.println("{};", static_cast<i32>(ctx.insn.operands[2] << 16));
+    ctx.Print("{}.s64 + ", ctx.R(ctx.insn.operands[1]));
+  ctx.Println("{};", static_cast<i32>(ctx.insn.operands[2] << 16));
   return true;
 }
 
-bool build_addze(BuilderContext& ctx) {
-  ctx.println("\t{}.s64 = {}.s64 + {}.ca;", ctx.temp(), ctx.r(ctx.insn.operands[1]), ctx.xer());
-  ctx.println("\t{}.ca = {}.u32 < {}.u32;", ctx.xer(), ctx.temp(), ctx.r(ctx.insn.operands[1]));
-  ctx.println("\t{}.s64 = {}.s64;", ctx.r(ctx.insn.operands[0]), ctx.temp());
-  emitRecordFormCompare(ctx);
+bool BuildAddze(BuilderContext& ctx) {
+  ctx.Println("\t{}.s64 = {}.s64 + {}.ca;", ctx.Temp(), ctx.R(ctx.insn.operands[1]), ctx.XER());
+  ctx.Println("\t{}.ca = {}.u32 < {}.u32;", ctx.XER(), ctx.Temp(), ctx.R(ctx.insn.operands[1]));
+  ctx.Println("\t{}.s64 = {}.s64;", ctx.R(ctx.insn.operands[0]), ctx.Temp());
+  EmitRecordFormCompare(ctx);
   return true;
 }
 
-bool build_addme(BuilderContext& ctx) {
-  ctx.println("\t{}.u8 = ({}.u32 + 0xFFFFFFFFu < {}.u32) | ({}.u32 + 0xFFFFFFFFu + {}.ca < {}.ca);",
-              ctx.temp(), ctx.r(ctx.insn.operands[1]), ctx.r(ctx.insn.operands[1]),
-              ctx.r(ctx.insn.operands[1]), ctx.xer(), ctx.xer());
-  ctx.println("\t{}.u64 = {}.u64 + {}.ca + 0xFFFFFFFFFFFFFFFFull;", ctx.r(ctx.insn.operands[0]),
-              ctx.r(ctx.insn.operands[1]), ctx.xer());
-  ctx.println("\t{}.ca = {}.u8;", ctx.xer(), ctx.temp());
-  emitRecordFormCompare(ctx);
+bool BuildAddme(BuilderContext& ctx) {
+  ctx.Println("\t{}.u8 = ({}.u32 + 0xFFFFFFFFu < {}.u32) | ({}.u32 + 0xFFFFFFFFu + {}.ca < {}.ca);",
+              ctx.Temp(), ctx.R(ctx.insn.operands[1]), ctx.R(ctx.insn.operands[1]),
+              ctx.R(ctx.insn.operands[1]), ctx.XER(), ctx.XER());
+  ctx.Println("\t{}.u64 = {}.u64 + {}.ca + 0xFFFFFFFFFFFFFFFFull;", ctx.R(ctx.insn.operands[0]),
+              ctx.R(ctx.insn.operands[1]), ctx.XER());
+  ctx.Println("\t{}.ca = {}.u8;", ctx.XER(), ctx.Temp());
+  EmitRecordFormCompare(ctx);
   return true;
 }
 
-bool build_addc(BuilderContext& ctx) {
-  ctx.println("\t{}.ca = {}.u32 + {}.u32 < {}.u32;", ctx.xer(), ctx.r(ctx.insn.operands[1]),
-              ctx.r(ctx.insn.operands[2]), ctx.r(ctx.insn.operands[1]));
-  ctx.println("\t{}.u64 = {}.u64 + {}.u64;", ctx.r(ctx.insn.operands[0]),
-              ctx.r(ctx.insn.operands[1]), ctx.r(ctx.insn.operands[2]));
-  emitRecordFormCompare(ctx);
+bool BuildAddc(BuilderContext& ctx) {
+  ctx.Println("\t{}.ca = {}.u32 + {}.u32 < {}.u32;", ctx.XER(), ctx.R(ctx.insn.operands[1]),
+              ctx.R(ctx.insn.operands[2]), ctx.R(ctx.insn.operands[1]));
+  ctx.Println("\t{}.u64 = {}.u64 + {}.u64;", ctx.R(ctx.insn.operands[0]),
+              ctx.R(ctx.insn.operands[1]), ctx.R(ctx.insn.operands[2]));
+  EmitRecordFormCompare(ctx);
   return true;
 }
 
 // PPC division does not trap, so a zero divisor or MIN / -1 (UB in C) yields 0.
 
-bool build_divd(BuilderContext& ctx) {
-  auto rD = ctx.r(ctx.insn.operands[0]);
-  auto rA = ctx.r(ctx.insn.operands[1]);
-  auto rB = ctx.r(ctx.insn.operands[2]);
-  ctx.println(
-      "\t{}.s64 = ({}.s64 && !({}.s64 == INT64_MIN && {}.s64 == -1)) ? {}.s64 / {}.s64 : 0;", rD,
-      rB, rA, rB, rA, rB);
-  emitRecordFormCompare(ctx);
+bool BuildDivd(BuilderContext& ctx) {
+  auto r_d = ctx.R(ctx.insn.operands[0]);
+  auto r_a = ctx.R(ctx.insn.operands[1]);
+  auto r_b = ctx.R(ctx.insn.operands[2]);
+  ctx.Println(
+      "\t{}.s64 = ({}.s64 && !({}.s64 == INT64_MIN && {}.s64 == -1)) ? {}.s64 / {}.s64 : 0;", r_d,
+      r_b, r_a, r_b, r_a, r_b);
+  EmitRecordFormCompare(ctx);
   return true;
 }
 
-bool build_divdu(BuilderContext& ctx) {
-  auto rD = ctx.r(ctx.insn.operands[0]);
-  auto rA = ctx.r(ctx.insn.operands[1]);
-  auto rB = ctx.r(ctx.insn.operands[2]);
-  ctx.println("\t{}.u64 = {}.u64 ? {}.u64 / {}.u64 : 0;", rD, rB, rA, rB);
-  emitRecordFormCompare(ctx);
+bool BuildDivdu(BuilderContext& ctx) {
+  auto r_d = ctx.R(ctx.insn.operands[0]);
+  auto r_a = ctx.R(ctx.insn.operands[1]);
+  auto r_b = ctx.R(ctx.insn.operands[2]);
+  ctx.Println("\t{}.u64 = {}.u64 ? {}.u64 / {}.u64 : 0;", r_d, r_b, r_a, r_b);
+  EmitRecordFormCompare(ctx);
   return true;
 }
 
-bool build_divw(BuilderContext& ctx) {
-  auto rD = ctx.r(ctx.insn.operands[0]);
-  auto rA = ctx.r(ctx.insn.operands[1]);
-  auto rB = ctx.r(ctx.insn.operands[2]);
-  ctx.println(
+bool BuildDivw(BuilderContext& ctx) {
+  auto r_d = ctx.R(ctx.insn.operands[0]);
+  auto r_a = ctx.R(ctx.insn.operands[1]);
+  auto r_b = ctx.R(ctx.insn.operands[2]);
+  ctx.Println(
       "\t{}.u64 = u32(({}.s32 && !({}.s32 == INT32_MIN && {}.s32 == -1)) ? {}.s32 / {}.s32 : "
       "0);",
-      rD, rB, rA, rB, rA, rB);
-  emitRecordFormCompare(ctx);
+      r_d, r_b, r_a, r_b, r_a, r_b);
+  EmitRecordFormCompare(ctx);
   return true;
 }
 
-bool build_divwu(BuilderContext& ctx) {
-  auto rD = ctx.r(ctx.insn.operands[0]);
-  auto rA = ctx.r(ctx.insn.operands[1]);
-  auto rB = ctx.r(ctx.insn.operands[2]);
-  ctx.println("\t{}.u64 = u32({}.u32 ? {}.u32 / {}.u32 : 0);", rD, rB, rA, rB);
-  emitRecordFormCompare(ctx);
+bool BuildDivwu(BuilderContext& ctx) {
+  auto r_d = ctx.R(ctx.insn.operands[0]);
+  auto r_a = ctx.R(ctx.insn.operands[1]);
+  auto r_b = ctx.R(ctx.insn.operands[2]);
+  ctx.Println("\t{}.u64 = u32({}.u32 ? {}.u32 / {}.u32 : 0);", r_d, r_b, r_a, r_b);
+  EmitRecordFormCompare(ctx);
   return true;
 }
 
-bool build_mulhw(BuilderContext& ctx) {
-  ctx.println("\t{}.s64 = (i64({}.s32) * i64({}.s32)) >> 32;", ctx.r(ctx.insn.operands[0]),
-              ctx.r(ctx.insn.operands[1]), ctx.r(ctx.insn.operands[2]));
-  emitRecordFormCompare(ctx);
+bool BuildMulhw(BuilderContext& ctx) {
+  ctx.Println("\t{}.s64 = (i64({}.s32) * i64({}.s32)) >> 32;", ctx.R(ctx.insn.operands[0]),
+              ctx.R(ctx.insn.operands[1]), ctx.R(ctx.insn.operands[2]));
+  EmitRecordFormCompare(ctx);
   return true;
 }
 
-bool build_mulhwu(BuilderContext& ctx) {
-  ctx.println("\t{}.u64 = (u64({}.u32) * u64({}.u32)) >> 32;", ctx.r(ctx.insn.operands[0]),
-              ctx.r(ctx.insn.operands[1]), ctx.r(ctx.insn.operands[2]));
-  emitRecordFormCompare(ctx);
+bool BuildMulhwu(BuilderContext& ctx) {
+  ctx.Println("\t{}.u64 = (u64({}.u32) * u64({}.u32)) >> 32;", ctx.R(ctx.insn.operands[0]),
+              ctx.R(ctx.insn.operands[1]), ctx.R(ctx.insn.operands[2]));
+  EmitRecordFormCompare(ctx);
   return true;
 }
 
-bool build_mulld(BuilderContext& ctx) {
+bool BuildMulld(BuilderContext& ctx) {
   // Use unsigned multiplication to avoid signed overflow UB (PPC wraps on overflow)
-  ctx.println("\t{}.s64 = static_cast<i64>({}.u64 * {}.u64);", ctx.r(ctx.insn.operands[0]),
-              ctx.r(ctx.insn.operands[1]), ctx.r(ctx.insn.operands[2]));
-  emitRecordFormCompare(ctx);
+  ctx.Println("\t{}.s64 = static_cast<i64>({}.u64 * {}.u64);", ctx.R(ctx.insn.operands[0]),
+              ctx.R(ctx.insn.operands[1]), ctx.R(ctx.insn.operands[2]));
+  EmitRecordFormCompare(ctx);
   return true;
 }
 
-bool build_mulli(BuilderContext& ctx) {
+bool BuildMulli(BuilderContext& ctx) {
   // Use unsigned multiplication to avoid signed overflow UB (PPC wraps on overflow)
-  ctx.println("\t{}.s64 = static_cast<i64>({}.u64 * static_cast<u64>({}));",
-              ctx.r(ctx.insn.operands[0]), ctx.r(ctx.insn.operands[1]),
+  ctx.Println("\t{}.s64 = static_cast<i64>({}.u64 * static_cast<u64>({}));",
+              ctx.R(ctx.insn.operands[0]), ctx.R(ctx.insn.operands[1]),
               static_cast<i32>(ctx.insn.operands[2]));
   return true;
 }
 
-bool build_mullw(BuilderContext& ctx) {
-  ctx.println("\t{}.s64 = i64({}.s32) * i64({}.s32);", ctx.r(ctx.insn.operands[0]),
-              ctx.r(ctx.insn.operands[1]), ctx.r(ctx.insn.operands[2]));
-  emitRecordFormCompare(ctx);
+bool BuildMullw(BuilderContext& ctx) {
+  ctx.Println("\t{}.s64 = i64({}.s32) * i64({}.s32);", ctx.R(ctx.insn.operands[0]),
+              ctx.R(ctx.insn.operands[1]), ctx.R(ctx.insn.operands[2]));
+  EmitRecordFormCompare(ctx);
   return true;
 }
 
-bool build_mulhd(BuilderContext& ctx) {
-  ctx.println(
+bool BuildMulhd(BuilderContext& ctx) {
+  ctx.Println(
       "\t{}.s64 = static_cast<i64>((static_cast<__int128>(static_cast<i64>({}.s64)) * "
       "static_cast<__int128>(static_cast<i64>({}.s64))) >> 64);",
-      ctx.r(ctx.insn.operands[0]), ctx.r(ctx.insn.operands[1]), ctx.r(ctx.insn.operands[2]));
-  emitRecordFormCompare(ctx);
+      ctx.R(ctx.insn.operands[0]), ctx.R(ctx.insn.operands[1]), ctx.R(ctx.insn.operands[2]));
+  EmitRecordFormCompare(ctx);
   return true;
 }
 
-bool build_mulhdu(BuilderContext& ctx) {
-  ctx.println(
+bool BuildMulhdu(BuilderContext& ctx) {
+  ctx.Println(
       "\t{}.u64 = static_cast<u64>((static_cast<__uint128_t>({}.u64) * "
       "static_cast<__uint128_t>({}.u64)) >> 64);",
-      ctx.r(ctx.insn.operands[0]), ctx.r(ctx.insn.operands[1]), ctx.r(ctx.insn.operands[2]));
-  emitRecordFormCompare(ctx);
+      ctx.R(ctx.insn.operands[0]), ctx.R(ctx.insn.operands[1]), ctx.R(ctx.insn.operands[2]));
+  EmitRecordFormCompare(ctx);
   return true;
 }
 
-bool build_neg(BuilderContext& ctx) {
+bool BuildNeg(BuilderContext& ctx) {
   // Use unsigned negation to avoid signed overflow UB when negating INT64_MIN
-  ctx.println("\t{}.s64 = static_cast<i64>(-{}.u64);", ctx.r(ctx.insn.operands[0]),
-              ctx.r(ctx.insn.operands[1]));
-  emitRecordFormCompare(ctx);
+  ctx.Println("\t{}.s64 = static_cast<i64>(-{}.u64);", ctx.R(ctx.insn.operands[0]),
+              ctx.R(ctx.insn.operands[1]));
+  EmitRecordFormCompare(ctx);
   return true;
 }
 
-bool build_subf(BuilderContext& ctx) {
-  ctx.println("\t{}.u64 = {}.u64 - {}.u64;", ctx.r(ctx.insn.operands[0]),
-              ctx.r(ctx.insn.operands[2]), ctx.r(ctx.insn.operands[1]));
-  emitRecordFormCompare(ctx);
+bool BuildSubf(BuilderContext& ctx) {
+  ctx.Println("\t{}.u64 = {}.u64 - {}.u64;", ctx.R(ctx.insn.operands[0]),
+              ctx.R(ctx.insn.operands[2]), ctx.R(ctx.insn.operands[1]));
+  EmitRecordFormCompare(ctx);
   return true;
 }
 
-bool build_subfc(BuilderContext& ctx) {
-  ctx.println("\t{}.ca = {}.u32 >= {}.u32;", ctx.xer(), ctx.r(ctx.insn.operands[2]),
-              ctx.r(ctx.insn.operands[1]));
-  ctx.println("\t{}.u64 = {}.u64 - {}.u64;", ctx.r(ctx.insn.operands[0]),
-              ctx.r(ctx.insn.operands[2]), ctx.r(ctx.insn.operands[1]));
-  emitRecordFormCompare(ctx);
+bool BuildSubfc(BuilderContext& ctx) {
+  ctx.Println("\t{}.ca = {}.u32 >= {}.u32;", ctx.XER(), ctx.R(ctx.insn.operands[2]),
+              ctx.R(ctx.insn.operands[1]));
+  ctx.Println("\t{}.u64 = {}.u64 - {}.u64;", ctx.R(ctx.insn.operands[0]),
+              ctx.R(ctx.insn.operands[2]), ctx.R(ctx.insn.operands[1]));
+  EmitRecordFormCompare(ctx);
   return true;
 }
 
-bool build_subfe(BuilderContext& ctx) {
-  ctx.println("\t{}.u8 = (~{}.u32 + {}.u32 < ~{}.u32) | (~{}.u32 + {}.u32 + {}.ca < {}.ca);",
-              ctx.temp(), ctx.r(ctx.insn.operands[1]), ctx.r(ctx.insn.operands[2]),
-              ctx.r(ctx.insn.operands[1]), ctx.r(ctx.insn.operands[1]), ctx.r(ctx.insn.operands[2]),
-              ctx.xer(), ctx.xer());
-  ctx.println("\t{}.u64 = ~{}.u64 + {}.u64 + {}.ca;", ctx.r(ctx.insn.operands[0]),
-              ctx.r(ctx.insn.operands[1]), ctx.r(ctx.insn.operands[2]), ctx.xer());
-  ctx.println("\t{}.ca = {}.u8;", ctx.xer(), ctx.temp());
-  emitRecordFormCompare(ctx);
+bool BuildSubfe(BuilderContext& ctx) {
+  ctx.Println("\t{}.u8 = (~{}.u32 + {}.u32 < ~{}.u32) | (~{}.u32 + {}.u32 + {}.ca < {}.ca);",
+              ctx.Temp(), ctx.R(ctx.insn.operands[1]), ctx.R(ctx.insn.operands[2]),
+              ctx.R(ctx.insn.operands[1]), ctx.R(ctx.insn.operands[1]), ctx.R(ctx.insn.operands[2]),
+              ctx.XER(), ctx.XER());
+  ctx.Println("\t{}.u64 = ~{}.u64 + {}.u64 + {}.ca;", ctx.R(ctx.insn.operands[0]),
+              ctx.R(ctx.insn.operands[1]), ctx.R(ctx.insn.operands[2]), ctx.XER());
+  ctx.Println("\t{}.ca = {}.u8;", ctx.XER(), ctx.Temp());
+  EmitRecordFormCompare(ctx);
   return true;
 }
 
-bool build_subfic(BuilderContext& ctx) {
-  ctx.println("\t{}.ca = {}.u32 <= {};", ctx.xer(), ctx.r(ctx.insn.operands[1]),
+bool BuildSubfic(BuilderContext& ctx) {
+  ctx.Println("\t{}.ca = {}.u32 <= {};", ctx.XER(), ctx.R(ctx.insn.operands[1]),
               ctx.insn.operands[2]);
-  ctx.println("\t{}.u64 = static_cast<u64>({}) - {}.u64;", ctx.r(ctx.insn.operands[0]),
-              static_cast<i32>(ctx.insn.operands[2]), ctx.r(ctx.insn.operands[1]));
+  ctx.Println("\t{}.u64 = static_cast<u64>({}) - {}.u64;", ctx.R(ctx.insn.operands[0]),
+              static_cast<i32>(ctx.insn.operands[2]), ctx.R(ctx.insn.operands[1]));
   return true;
 }
 
-bool build_subfze(BuilderContext& ctx) {
-  ctx.println("\t{}.u8 = ~{}.u32 + {}.ca < ~{}.u32;", ctx.temp(), ctx.r(ctx.insn.operands[1]),
-              ctx.xer(), ctx.r(ctx.insn.operands[1]));
-  ctx.println("\t{}.u64 = ~{}.u64 + {}.ca;", ctx.r(ctx.insn.operands[0]),
-              ctx.r(ctx.insn.operands[1]), ctx.xer());
-  ctx.println("\t{}.ca = {}.u8;", ctx.xer(), ctx.temp());
-  emitRecordFormCompare(ctx);
+bool BuildSubfze(BuilderContext& ctx) {
+  ctx.Println("\t{}.u8 = ~{}.u32 + {}.ca < ~{}.u32;", ctx.Temp(), ctx.R(ctx.insn.operands[1]),
+              ctx.XER(), ctx.R(ctx.insn.operands[1]));
+  ctx.Println("\t{}.u64 = ~{}.u64 + {}.ca;", ctx.R(ctx.insn.operands[0]),
+              ctx.R(ctx.insn.operands[1]), ctx.XER());
+  ctx.Println("\t{}.ca = {}.u8;", ctx.XER(), ctx.Temp());
+  EmitRecordFormCompare(ctx);
   return true;
 }
 
-bool build_subfme(BuilderContext& ctx) {
-  ctx.println(
+bool BuildSubfme(BuilderContext& ctx) {
+  ctx.Println(
       "\t{}.u8 = (~{}.u32 + 0xFFFFFFFFu < ~{}.u32) | (~{}.u32 + 0xFFFFFFFFu + {}.ca < {}.ca);",
-      ctx.temp(), ctx.r(ctx.insn.operands[1]), ctx.r(ctx.insn.operands[1]),
-      ctx.r(ctx.insn.operands[1]), ctx.xer(), ctx.xer());
-  ctx.println("\t{}.u64 = ~{}.u64 + {}.ca + 0xFFFFFFFFFFFFFFFFull;", ctx.r(ctx.insn.operands[0]),
-              ctx.r(ctx.insn.operands[1]), ctx.xer());
-  ctx.println("\t{}.ca = {}.u8;", ctx.xer(), ctx.temp());
-  emitRecordFormCompare(ctx);
+      ctx.Temp(), ctx.R(ctx.insn.operands[1]), ctx.R(ctx.insn.operands[1]),
+      ctx.R(ctx.insn.operands[1]), ctx.XER(), ctx.XER());
+  ctx.Println("\t{}.u64 = ~{}.u64 + {}.ca + 0xFFFFFFFFFFFFFFFFull;", ctx.R(ctx.insn.operands[0]),
+              ctx.R(ctx.insn.operands[1]), ctx.XER());
+  ctx.Println("\t{}.ca = {}.u8;", ctx.XER(), ctx.Temp());
+  EmitRecordFormCompare(ctx);
   return true;
 }
 

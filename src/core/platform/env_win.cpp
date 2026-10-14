@@ -12,7 +12,7 @@ static_assert(REX_PLATFORM_WIN32, "This file is Windows-only");
 namespace rex::platform {
 
 std::optional<std::string> GetEnvironmentValue(std::string_view name) {
-  std::u16string wname = rex::to_utf16(name);
+  std::u16string wname = rex::ToUTF16(name);
   // The sizing call returns the character count including the NUL, or 0 on error or unset.
   DWORD required = GetEnvironmentVariableW(reinterpret_cast<LPCWSTR>(wname.c_str()), nullptr, 0);
   if (required == 0) {
@@ -25,18 +25,18 @@ std::optional<std::string> GetEnvironmentValue(std::string_view name) {
     return std::nullopt;
   }
   buffer.resize(written);
-  return rex::to_utf8(buffer);
+  return rex::ToUTF8(buffer);
 }
 
 bool SetEnvironmentValue(std::string_view name, std::string_view value) {
-  std::u16string wname = rex::to_utf16(name);
-  std::u16string wvalue = rex::to_utf16(value);
+  std::u16string wname = rex::ToUTF16(name);
+  std::u16string wvalue = rex::ToUTF16(value);
   return SetEnvironmentVariableW(reinterpret_cast<LPCWSTR>(wname.c_str()),
                                  reinterpret_cast<LPCWSTR>(wvalue.c_str())) != 0;
 }
 
 bool UnsetEnvironmentValue(std::string_view name) {
-  std::u16string wname = rex::to_utf16(name);
+  std::u16string wname = rex::ToUTF16(name);
   return SetEnvironmentVariableW(reinterpret_cast<LPCWSTR>(wname.c_str()), nullptr) != 0;
 }
 
@@ -52,7 +52,7 @@ std::vector<std::pair<std::string, std::string>> EnumerateEnvironment() {
     if (eq == std::u16string_view::npos) {
       continue;
     }
-    out.emplace_back(rex::to_utf8(entry.substr(0, eq)), rex::to_utf8(entry.substr(eq + 1)));
+    out.emplace_back(rex::ToUTF8(entry.substr(0, eq)), rex::ToUTF8(entry.substr(eq + 1)));
   }
   FreeEnvironmentStringsW(block);
   return out;

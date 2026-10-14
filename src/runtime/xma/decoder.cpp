@@ -31,20 +31,20 @@ extern "C" {
 namespace rex::runtime {
 
 XMADecoder::XMADecoder(runtime::FunctionDispatcher* function_dispatcher)
-    : memory_(function_dispatcher->memory()), function_dispatcher_(function_dispatcher) {}
+    : memory_(function_dispatcher->GetMemory()), function_dispatcher_(function_dispatcher) {}
 
 XMADecoder::~XMADecoder() {
   Shutdown();
 }
 
-void av_log_callback([[maybe_unused]] void* avcl, int level, const char* fmt, va_list va) {
+void AvLogCallback([[maybe_unused]] void* avcl, int level, const char* fmt, va_list va) {
   if (!REXCVAR_GET(::rex::runtime::cvars::ffmpeg_verbose) && level > AV_LOG_WARNING) {
     return;
   }
 
   StringBuffer buff;
   buff.AppendVarargs(fmt, va);
-  auto msg = buff.to_string_view();
+  auto msg = buff.ToStringView();
 
   switch (level) {
     case AV_LOG_ERROR:
@@ -65,24 +65,24 @@ void av_log_callback([[maybe_unused]] void* avcl, int level, const char* fmt, va
 }
 
 X_STATUS XMADecoder::Setup() {
-  av_log_set_callback(av_log_callback);
+  av_log_set_callback(AvLogCallback);
 
-  rex::AttachMMIO(rex::MMIOBlock::APU, {this, MMIOReadRegisterThunk, MMIOWriteRegisterThunk});
+  rex::AttachMMIO(rex::MMIOBlock::kAPU, {this, MMIOReadRegisterThunk, MMIOWriteRegisterThunk});
 
-  context_data_first_ptr_ = memory()->SystemHeapAlloc(sizeof(XMA_CONTEXT_DATA) * kContextCount, 256,
-                                                      runtime::kSystemHeapPhysical);
+  context_data_first_ptr_ = GetMemory()->SystemHeapAlloc(sizeof(XMA_CONTEXT_DATA) * kContextCount,
+                                                         256, runtime::kSystemHeapPhysical);
   context_data_last_ptr_ = context_data_first_ptr_ + (sizeof(XMA_CONTEXT_DATA) * kContextCount - 1);
-  register_file_[XMARegister::ContextArrayAddress] =
-      memory()->GetPhysicalAddress(context_data_first_ptr_);
+  register_file_[XMARegister::kContextArrayAddress] =
+      GetMemory()->GetPhysicalAddress(context_data_first_ptr_);
 
   for (size_t i = 0; i < kContextCount; ++i) {
     u32 context_ptr = context_data_first_ptr_ + i * sizeof(XMA_CONTEXT_DATA);
     XMAContext& context = contexts_[i];
-    if (context.Setup(i, memory(), context_ptr)) {
+    if (context.Setup(i, GetMemory(), context_ptr)) {
       REX_ASSERT_ALWAYS();
     }
   }
-  register_file_[XMARegister::NextContextIndex] = 1;
+  register_file_[XMARegister::kNextContextIndex] = 1;
   context_bitmap_.Resize(kContextCount);
 
   work_event_ = rex::platform::Event::CreateAutoResetEvent(false);
@@ -122,7 +122,7 @@ void XMADecoder::WorkerThreadMain(const std::stop_token& stop) {
 }
 
 void XMADecoder::Shutdown() {
-  rex::DetachMMIO(rex::MMIOBlock::APU, this);
+  rex::DetachMMIO(rex::MMIOBlock::kAPU, this);
   if (!worker_.joinable()) {
     return;
   }
@@ -140,7 +140,7 @@ void XMADecoder::Shutdown() {
   worker_.join();
 
   if (context_data_first_ptr_) {
-    memory()->SystemHeapFree(context_data_first_ptr_);
+    GetMemory()->SystemHeapFree(context_data_first_ptr_);
   }
 
   context_data_first_ptr_ = 0;
@@ -163,9 +163,9 @@ u32 XMADecoder::AllocateContext() {
   }
 
   XMAContext& context = contexts_[index];
-  REX_ASSERT(!context.is_allocated());
-  context.set_is_allocated(true);
-  return context.guest_ptr();
+  REX_ASSERT(!context.IsAllocated());
+  context.SetIsAllocated(true);
+  return context.GetGuestPtr();
 }
 
 void XMADecoder::ReleaseContext(u32 context_ptr) {
@@ -173,7 +173,7 @@ void XMADecoder::ReleaseContext(u32 context_ptr) {
   REX_ASSERT(context_id >= 0);
 
   XMAContext& context = contexts_[context_id];
-  REX_ASSERT(context.is_allocated());
+  REX_ASSERT(context.IsAllocated());
   context.Release();
   context_bitmap_.Release(context_id);
 }
@@ -192,11 +192,11 @@ u32 XMADecoder::ReadRegister(u32 addr) {
   REX_ASSERT(r < XMARegisterFile::kRegisterCount);
 
   switch (r) {
-    case XMARegister::ContextArrayAddress:
+    case XMARegister::kContextArrayAddress:
       break;
-    case XMARegister::CurrentContextIndex: {
-      u32& current_context_index = register_file_[XMARegister::CurrentContextIndex];
-      u32& next_context_index = register_file_[XMARegister::NextContextIndex];
+    case XMARegister::kCurrentContextIndex: {
+      u32& current_context_index = register_file_[XMARegister::kCurrentContextIndex];
+      u32& next_context_index = register_file_[XMARegister::kNextContextIndex];
       current_context_index = next_context_index;
       next_context_index = (next_context_index + 1) % kContextCount;
       break;

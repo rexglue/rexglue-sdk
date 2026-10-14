@@ -45,7 +45,7 @@ class ProgressReporter {
   virtual ~ProgressReporter() = default;
 
   /** Identifying info for an input binary, emitted right after each XEX is loaded. */
-  virtual void binaryInfo(const BinaryInfo&) {}
+  virtual void BinaryLoaded(const BinaryInfo&) {}
 
   /**
    * Called when a module's analysis and write cycle starts.
@@ -54,31 +54,31 @@ class ProgressReporter {
    * @param index The 0 based position of the module.
    * @param total The number of modules in the run.
    */
-  virtual void moduleStarted(std::string_view name, std::size_t index, std::size_t total) = 0;
+  virtual void ModuleStarted(std::string_view name, std::size_t index, std::size_t total) = 0;
 
   /**
    * Called when a named phase within the current module starts.
    *
    * @param name The phase name.
    */
-  virtual void phaseChanged(std::string_view name) = 0;
+  virtual void PhaseChanged(std::string_view name) = 0;
 
   /**
    * Called when the current module finishes successfully.
    *
    * @param elapsed Time the module took from start to finish.
    */
-  virtual void moduleFinished(std::chrono::milliseconds elapsed) = 0;
+  virtual void ModuleFinished(std::chrono::milliseconds elapsed) = 0;
 
   /**
    * Called when a project level emit phase starts, outside any module.
    *
    * @param name The phase name, such as "module_registry".
    */
-  virtual void projectPhaseStarted(std::string_view name) = 0;
+  virtual void ProjectPhaseStarted(std::string_view name) = 0;
 
   /** Project-level emit phase finished. */
-  virtual void projectPhaseFinished() = 0;
+  virtual void ProjectPhaseFinished() = 0;
 };
 
 }  // namespace rex::codegen

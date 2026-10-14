@@ -72,16 +72,16 @@ class RenderTargetCache {
 
   /** Flags appended to the format in the format constant via bitwise OR. */
   enum : u8 {
-    kPSIColorFormatFlag_64bpp_Shift = xenos::kColorRenderTargetFormatBits,
+    kPSIColorFormatFlag64bppShift = xenos::kColorRenderTargetFormatBits,
     /** Requires clamping of blending sources and factors. */
-    kPSIColorFormatFlag_FixedPointColor_Shift,
-    kPSIColorFormatFlag_FixedPointAlpha_Shift,
+    kPSIColorFormatFlagFixedPointColorShift,
+    kPSIColorFormatFlagFixedPointAlphaShift,
 
-    kPSIColorFormatFlag_64bpp = static_cast<u32>(1) << kPSIColorFormatFlag_64bpp_Shift,
-    kPSIColorFormatFlag_FixedPointColor = static_cast<u32>(1)
-                                          << kPSIColorFormatFlag_FixedPointColor_Shift,
-    kPSIColorFormatFlag_FixedPointAlpha = static_cast<u32>(1)
-                                          << kPSIColorFormatFlag_FixedPointAlpha_Shift,
+    kPSIColorFormatFlag64bpp = static_cast<u32>(1) << kPSIColorFormatFlag64bppShift,
+    kPSIColorFormatFlagFixedPointColor = static_cast<u32>(1)
+                                         << kPSIColorFormatFlagFixedPointColorShift,
+    kPSIColorFormatFlagFixedPointAlpha = static_cast<u32>(1)
+                                         << kPSIColorFormatFlagFixedPointAlphaShift,
   };
 
   static constexpr u32 AddPSIColorFormatFlags(xenos::ColorRenderTargetFormat format) {
@@ -89,7 +89,7 @@ class RenderTargetCache {
     if (format == xenos::ColorRenderTargetFormat::k_16_16_16_16 ||
         format == xenos::ColorRenderTargetFormat::k_16_16_16_16_FLOAT ||
         format == xenos::ColorRenderTargetFormat::k_32_32_FLOAT) {
-      format_flags |= kPSIColorFormatFlag_64bpp;
+      format_flags |= kPSIColorFormatFlag64bpp;
     }
     if (format == xenos::ColorRenderTargetFormat::k_8_8_8_8 ||
         format == xenos::ColorRenderTargetFormat::k_8_8_8_8_GAMMA ||
@@ -97,10 +97,10 @@ class RenderTargetCache {
         format == xenos::ColorRenderTargetFormat::k_16_16 ||
         format == xenos::ColorRenderTargetFormat::k_16_16_16_16 ||
         format == xenos::ColorRenderTargetFormat::k_2_10_10_10_AS_10_10_10_10) {
-      format_flags |= kPSIColorFormatFlag_FixedPointColor | kPSIColorFormatFlag_FixedPointAlpha;
+      format_flags |= kPSIColorFormatFlagFixedPointColor | kPSIColorFormatFlagFixedPointAlpha;
     } else if (format == xenos::ColorRenderTargetFormat::k_2_10_10_10_FLOAT ||
                format == xenos::ColorRenderTargetFormat::k_2_10_10_10_FLOAT_AS_16_16_16_16) {
-      format_flags |= kPSIColorFormatFlag_FixedPointAlpha;
+      format_flags |= kPSIColorFormatFlagFixedPointAlpha;
     }
     return format_flags;
   }
@@ -139,10 +139,10 @@ class RenderTargetCache {
    * fill used for 2x and 3x scaling when the half pixel offset becomes whole pixel, and complicate
    * rounding of integer coordinates.
    */
-  u32 draw_resolution_scale_x() const { return draw_resolution_scale_x_; }
-  u32 draw_resolution_scale_y() const { return draw_resolution_scale_y_; }
+  u32 GetDrawResolutionScaleX() const { return draw_resolution_scale_x_; }
+  u32 GetDrawResolutionScaleY() const { return draw_resolution_scale_y_; }
   bool IsDrawResolutionScaled() const {
-    return draw_resolution_scale_x() > 1 || draw_resolution_scale_y() > 1;
+    return GetDrawResolutionScaleX() > 1 || GetDrawResolutionScaleY() > 1;
   }
 
   /**
@@ -203,7 +203,7 @@ class RenderTargetCache {
     REX_ASSERT(draw_resolution_scale_y != 0);
   }
 
-  const xenos::RegisterFile& register_file() const { return register_file_; }
+  const xenos::RegisterFile& GetRegisterFile() const { return register_file_; }
 
   virtual bool IsGammaFormatHostStorageSeparate() const = 0;
 
@@ -282,7 +282,7 @@ class RenderTargetCache {
   class RenderTarget : public rex::NonCopyable {
    public:
     virtual ~RenderTarget() = default;
-    RenderTargetKey key() const { return key_; }
+    RenderTargetKey GetKey() const { return key_; }
 
    protected:
     RenderTarget(RenderTargetKey key) : key_(key) {}
@@ -494,11 +494,11 @@ class RenderTargetCache {
   virtual bool IsHostDepthEncodingDifferent(xenos::DepthRenderTargetFormat format) const = 0;
 
   void ResetAccumulatedRenderTargets() { are_accumulated_render_targets_valid_ = false; }
-  RenderTarget* const* last_update_accumulated_render_targets() const {
+  RenderTarget* const* GetLastUpdateAccumulatedRenderTargets() const {
     REX_ASSERT(GetPath() == Path::kHostRenderTargets);
     return last_update_accumulated_render_targets_;
   }
-  const std::vector<Transfer>* last_update_transfers() const {
+  const std::vector<Transfer>* GetLastUpdateTransfers() const {
     REX_ASSERT(GetPath() == Path::kHostRenderTargets);
     return last_update_transfers_;
   }
@@ -508,10 +508,10 @@ class RenderTargetCache {
     HostDepthStoreRenderTargetConstant constant;
     constant.pitch_tiles = pitch_tiles;
     // 3 bits for each.
-    REX_ASSERT(draw_resolution_scale_x() <= 7);
-    REX_ASSERT(draw_resolution_scale_y() <= 7);
-    constant.resolution_scale_x = draw_resolution_scale_x();
-    constant.resolution_scale_y = draw_resolution_scale_y();
+    REX_ASSERT(GetDrawResolutionScaleX() <= 7);
+    REX_ASSERT(GetDrawResolutionScaleY() <= 7);
+    constant.resolution_scale_x = GetDrawResolutionScaleX();
+    constant.resolution_scale_y = GetDrawResolutionScaleY();
     constant.msaa_2x_supported = static_cast<u32>(msaa_2x_supported);
     return constant;
   }

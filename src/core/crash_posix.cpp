@@ -305,7 +305,7 @@ bool IsReadable(u64 address, u64 size) {
 }
 
 void WriteRaw(std::string_view text) {
-  const int log_fd = log::GetLoggerInstance().crash_fd();
+  const int log_fd = log::GetLoggerInstance().GetCrashFd();
   for (const int fd : {STDERR_FILENO, log_fd}) {
     if (fd >= 0) {
       WriteAll(fd, text);
@@ -346,7 +346,7 @@ void LogBacktrace() {
   for (size_t i = 0; i < kReporterSignals.size(); ++i) {
     struct sigaction current{};
     if (sigaction(kReporterSignals[i], nullptr, &current) != 0) {
-      return Err(ErrorCategory::Platform, "signal action could not be read");
+      return Err(ErrorCategory::kPlatform, "signal action could not be read");
     }
     if (current.sa_handler != SIG_DFL) {
       continue;
@@ -356,7 +356,7 @@ void LogBacktrace() {
     action.sa_flags = SA_SIGINFO | SA_ONSTACK;
     sigemptyset(&action.sa_mask);
     if (sigaction(kReporterSignals[i], &action, nullptr) != 0) {
-      return Err(ErrorCategory::Platform, "signal action could not be installed");
+      return Err(ErrorCategory::kPlatform, "signal action could not be installed");
     }
     g_owned[i] = true;
   }

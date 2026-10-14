@@ -62,7 +62,7 @@ REX_TEST_CASE("enumerate: the aggregate message takes an item with a buffer size
     rex::X_HANDLE handle = 0;
     void* extra_buffer = nullptr;
     const auto status = rex::runtime::CreateEnumerator(
-        c.runtime(), &handle, {0xFF, kXAMApp, kEnumerateAggregate, 0x00020010, 0},
+        c.GetRuntime(), &handle, {0xFF, kXAMApp, kEnumerateAggregate, 0x00020010, 0},
         rex::runtime::EnumeratorObject(
             1, kItemSize,
             [items = std::move(items)](u32, u8* buffer_data, u32* written_count) mutable {
@@ -77,7 +77,7 @@ REX_TEST_CASE("enumerate: the aggregate message takes an item with a buffer size
     const u32 buffer = c.Alloc(kItemSize);
     const u32 length_ptr = c.Alloc(4);
     const u32 message = c.Alloc(0x20);
-    c.Store32(message + 0x08, c.runtime().memory()->HostToGuestVirtual(extra_buffer));
+    c.Store32(message + 0x08, c.GetRuntime().GetMemory()->HostToGuestVirtual(extra_buffer));
     c.Store32(message + 0x0C, buffer);
     c.Store32(message + 0x10, kShortBufferSize);
     c.Store32(message + 0x18, length_ptr);

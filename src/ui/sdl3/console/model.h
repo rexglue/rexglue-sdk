@@ -78,7 +78,7 @@ class ConsoleModel : public NonCopyable {
   void Poll();
 
   /**
-   * Runs 1 input line. clear empties the output and help lists every cvar. A cvar name alone
+   * Runs an input line. clear empties the output and help lists every cvar. A cvar name alone
    * prints its value, a name and a value sets it, and a command name runs it with the rest of the
    * line. Adds the line to the history and saves it.
    *
@@ -109,21 +109,21 @@ class ConsoleModel : public NonCopyable {
    *
    * @return The entry, or the oldest entry once the walk reaches it. Empty with no history.
    */
-  std::string_view HistoryPrevious();
+  std::string_view StepHistoryBack();
 
   /**
    * Returns a newer history entry.
    *
    * @return The entry, or empty past the newest.
    */
-  std::string_view HistoryNext();
+  std::string_view StepHistoryForward();
 
   /**
    * Returns the output lines that pass the filters, oldest first.
    *
    * @return Pointers into lines(), valid until the next Poll, Execute or Clear.
    */
-  std::vector<const ConsoleLine*> Visible() const;
+  std::vector<const ConsoleLine*> GetVisibleLines() const;
 
   /** Empties the output. */
   void Clear();
@@ -133,35 +133,35 @@ class ConsoleModel : public NonCopyable {
    *
    * @return The lines.
    */
-  const std::deque<ConsoleLine>& lines() const { return lines_; }
+  const std::deque<ConsoleLine>& GetLines() const { return lines_; }
 
   /**
    * Returns the history, oldest first.
    *
    * @return The entries.
    */
-  const std::deque<std::string>& history() const { return history_; }
+  const std::deque<std::string>& GetHistory() const { return history_; }
 
   /**
    * Returns the input text a view edits.
    *
    * @return The input.
    */
-  std::string& input() { return input_; }
+  std::string& GetInput() { return input_; }
 
   /**
    * Returns the lowest level shown.
    *
    * @return The level.
    */
-  log::Level min_level() const { return min_level_; }
+  log::Level GetMinLevel() const { return min_level_; }
 
   /**
    * Sets the lowest level shown.
    *
    * @param level The level.
    */
-  void set_min_level(log::Level level) { min_level_ = level; }
+  void SetMinLevel(log::Level level) { min_level_ = level; }
 
   /**
    * Reports whether a category is shown.
@@ -169,7 +169,7 @@ class ConsoleModel : public NonCopyable {
    * @param category Category name.
    * @return True when shown.
    */
-  bool shown(std::string_view category) const;
+  bool GetShown(std::string_view category) const;
 
   /**
    * Shows or hides a category.
@@ -177,28 +177,28 @@ class ConsoleModel : public NonCopyable {
    * @param category Category name.
    * @param shown True to show.
    */
-  void set_shown(std::string_view category, bool shown);
+  void SetShown(std::string_view category, bool shown);
 
   /**
    * Returns the category names seen so far.
    *
    * @return The names, sorted.
    */
-  const std::set<std::string, std::less<>>& categories() const { return categories_; }
+  const std::set<std::string, std::less<>>& GetCategories() const { return categories_; }
 
   /**
    * Returns the docked width.
    *
    * @return Fraction of the title window width.
    */
-  f32 width_fraction() const { return width_fraction_; }
+  f32 GetWidthFraction() const { return width_fraction_; }
 
   /**
    * Returns the docked height.
    *
    * @return Fraction of the title window height.
    */
-  f32 height_fraction() const { return height_fraction_; }
+  f32 GetHeightFraction() const { return height_fraction_; }
 
   /**
    * Sets the docked size.
@@ -206,21 +206,21 @@ class ConsoleModel : public NonCopyable {
    * @param width Fraction of the window width.
    * @param height Fraction of the window height.
    */
-  void set_size(f32 width, f32 height);
+  void SetSize(f32 width, f32 height);
 
   /**
    * Returns where the console is drawn.
    *
    * @return The dock state.
    */
-  ConsoleDock dock() const { return dock_; }
+  ConsoleDock GetDock() const { return dock_; }
 
   /**
    * Sets where the console is drawn.
    *
    * @param dock The dock state.
    */
-  void set_dock(ConsoleDock dock) { dock_ = dock; }
+  void SetDock(ConsoleDock dock) { dock_ = dock; }
 
  private:
   void Add(log::Level level, std::string_view text);

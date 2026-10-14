@@ -43,13 +43,13 @@ std::string LoadedCommandLine(std::string_view image_path, std::string_view argu
 
 u32 LoadedCommandLineCapacity(std::string_view arguments) {
   const size_t longest = kExLoadedImageNameSize + 3 + arguments.size() + 1;
-  return rex::align(static_cast<u32>(longest), 1024u);
+  return rex::Align(static_cast<u32>(longest), 1024u);
 }
 
 namespace {
 
 bool SameObject(const PinnedSlot& a, const PinnedSlot& b) {
-  return &a.object() == &b.object();
+  return &a.GetKernelObject() == &b.GetKernelObject();
 }
 
 }  // namespace
@@ -72,7 +72,7 @@ bool ModuleRegistry::AddUser(X_HANDLE handle) {
   if (!module) {
     return false;
   }
-  for (X_HANDLE listed : user_modules()) {
+  for (X_HANDLE listed : GetUserModules()) {
     if (auto other = table_.Get<ModuleObject>(listed); other && other->path == module->path) {
       return false;
     }
@@ -92,7 +92,7 @@ bool ModuleRegistry::RemoveUser(X_HANDLE handle) {
     return false;
   }
   X_HANDLE listed = 0;
-  for (X_HANDLE candidate : user_modules()) {
+  for (X_HANDLE candidate : GetUserModules()) {
     if (auto pin = table_.Get(candidate); pin && SameObject(pin, target)) {
       listed = candidate;
       break;
@@ -112,7 +112,7 @@ bool ModuleRegistry::RemoveUser(X_HANDLE handle) {
 }
 
 std::optional<X_HANDLE> ModuleRegistry::FindKernel(std::string_view name) {
-  for (X_HANDLE handle : kernel_modules()) {
+  for (X_HANDLE handle : GetKernelModules()) {
     if (auto module = table_.Get<ModuleObject>(handle); module && module->Matches(name)) {
       return handle;
     }
@@ -121,7 +121,7 @@ std::optional<X_HANDLE> ModuleRegistry::FindKernel(std::string_view name) {
 }
 
 std::optional<X_HANDLE> ModuleRegistry::FindUser(std::string_view name) {
-  for (X_HANDLE handle : user_modules()) {
+  for (X_HANDLE handle : GetUserModules()) {
     if (auto module = table_.Get<ModuleObject>(handle); module && module->Matches(name)) {
       return handle;
     }
@@ -133,7 +133,7 @@ bool ModuleRegistry::IsKernel(std::string_view name) {
   return !name.empty() && FindKernel(name).has_value();
 }
 
-std::optional<X_HANDLE> ModuleRegistry::executable() const {
+std::optional<X_HANDLE> ModuleRegistry::GetExecutable() const {
   std::lock_guard lock(mutex_);
   if (!executable_) {
     return std::nullopt;
@@ -141,7 +141,7 @@ std::optional<X_HANDLE> ModuleRegistry::executable() const {
   return executable_;
 }
 
-void ModuleRegistry::set_executable(X_HANDLE handle) {
+void ModuleRegistry::SetExecutable(X_HANDLE handle) {
   X_HANDLE owned = 0;
   if (handle) {
     Result<X_HANDLE> duplicate = table_.Duplicate(handle);
@@ -161,12 +161,12 @@ void ModuleRegistry::set_executable(X_HANDLE handle) {
   }
 }
 
-std::vector<X_HANDLE> ModuleRegistry::kernel_modules() {
+std::vector<X_HANDLE> ModuleRegistry::GetKernelModules() {
   std::lock_guard lock(mutex_);
   return kernel_modules_;
 }
 
-std::vector<X_HANDLE> ModuleRegistry::user_modules() {
+std::vector<X_HANDLE> ModuleRegistry::GetUserModules() {
   std::lock_guard lock(mutex_);
   return user_modules_;
 }
@@ -203,7 +203,7 @@ void ModuleRegistry::Shutdown() {
 }
 
 void ModuleRegistry::UnloadAll() {
-  const std::vector<X_HANDLE> loaded = user_modules();
+  const std::vector<X_HANDLE> loaded = GetUserModules();
   for (X_HANDLE module : std::views::reverse(loaded)) {
     UnloadUserModule(module, false);
   }
@@ -223,7 +223,7 @@ void ModuleRegistry::DrainLibraries() {
 
 std::optional<X_HANDLE> ModuleRegistry::GetModule(std::string_view name, bool user_only) {
   if (name.empty()) {
-    return executable();
+    return GetExecutable();
   } else if (rex::utf8_equal_case(name, "kernel32.dll")) {
     return std::nullopt;
   }
@@ -235,7 +235,7 @@ std::optional<X_HANDLE> ModuleRegistry::GetModule(std::string_view name, bool us
   }
 
   std::string path(name);
-  if (auto entry = runtime_.file_system()->Stat(name)) {
+  if (auto entry = runtime_.GetFileSystem()->Stat(name)) {
     path = entry->absolute_path;
   }
 
@@ -254,7 +254,7 @@ Result<X_HANDLE> ModuleRegistry::LoadUserModule(std::string_view raw_name, bool 
   auto name = rex::utf8_find_name_from_guest_path(raw_name);
   std::string path(raw_name);
   if (name == raw_name) {
-    auto executable_module = table_.Get<ModuleObject>(executable().value_or(0));
+    auto executable_module = table_.Get<ModuleObject>(GetExecutable().value_or(0));
     REX_ASSERT(executable_module);
     path =
         rex::utf8_join_guest_paths(rex::utf8_find_base_guest_path(executable_module->path), name);
@@ -321,25 +321,25 @@ Result<X_HANDLE> ModuleRegistry::LoadUserModule(std::string_view raw_name, bool 
       } else if (!get_image_info) {
         REXLOG_ERROR(system, "ReXModule_GetImageInfo not found in '{}'", recomp->shared_lib_name);
       } else {
-        auto* xex = module->xex();
+        auto* xex = module->GetXEX();
         const auto* image_info = get_image_info();
         if (!image_info) {
           REXLOG_ERROR(system, "ReXModule_GetImageInfo returned null for '{}'",
                        recomp->shared_lib_name);
-        } else if (image_info->image_base != xex->base_address() ||
-                   image_info->image_size != xex->image_size()) {
+        } else if (image_info->image_base != xex->GetBaseAddress() ||
+                   image_info->image_size != xex->GetImageSize()) {
           REXLOG_ERROR(system,
                        "Recompiled module '{}' layout does not match loaded XEX "
                        "(DLL image={:08X}-{:08X}, XEX image={:08X}-{:08X})",
                        recomp->pe_name, image_info->image_base,
-                       image_info->image_base + image_info->image_size, xex->base_address(),
-                       xex->base_address() + xex->image_size());
-        } else if (!runtime_.function_dispatcher()->InitializeFunctionTable(
+                       image_info->image_base + image_info->image_size, xex->GetBaseAddress(),
+                       xex->GetBaseAddress() + xex->GetImageSize());
+        } else if (!runtime_.GetFunctionDispatcher()->InitializeFunctionTable(
                        image_info->code_base, image_info->code_size, image_info->image_base,
                        image_info->image_size)) {
           REXLOG_ERROR(system, "InitializeFunctionTable failed for module '{}'", recomp->pe_name);
         } else {
-          runtime_.function_dispatcher()->RegisterModule(
+          runtime_.GetFunctionDispatcher()->RegisterModule(
               lib_key, image_info->code_base, register_func,
               image_info->recompiled_code ? image_info->recompiled_code() : std::span<const u8>());
           std::lock_guard lock(recompiled_mutex_);
@@ -377,8 +377,8 @@ Result<X_HANDLE> ModuleRegistry::LoadUserModule(std::string_view raw_name, bool 
     } else {
       auto* thread = KernelThread::GetCurrentThread();
       u64 args[] = {module->hmodule_ptr, 1 /* DLL_PROCESS_ATTACH */, 0};
-      u64 dllmain_ret = runtime_.function_dispatcher()->Execute(thread->thread_state(),
-                                                                module->user.entry_point, args, 3);
+      u64 dllmain_ret = runtime_.GetFunctionDispatcher()->Execute(
+          thread->GetThreadState(), module->user.entry_point, args, 3);
       if (static_cast<u32>(dllmain_ret) == 0) {
         REXLOG_ERROR(system,
                      "DllMain(DLL_PROCESS_ATTACH) returned FALSE for '{}'; rolling back load",
@@ -406,17 +406,17 @@ void ModuleRegistry::UnloadUserModule(X_HANDLE module_handle, bool call_entry) {
     } else {
       auto* thread = KernelThread::GetCurrentThread();
       u64 args[] = {module->hmodule_ptr, 0 /* DLL_PROCESS_DETACH */, 0};
-      runtime_.function_dispatcher()->Execute(thread->thread_state(), module->user.entry_point,
-                                              args, 3);
+      runtime_.GetFunctionDispatcher()->Execute(thread->GetThreadState(), module->user.entry_point,
+                                                args, 3);
     }
   }
 
   auto recomp = FindRecompiledModule(module->path);
   if (recomp) {
     const std::string& key = recomp->guest_path;
-    auto cleared_range = runtime_.function_dispatcher()->UnregisterModule(key);
+    auto cleared_range = runtime_.GetFunctionDispatcher()->UnregisterModule(key);
     if (cleared_range) {
-      for (X_HANDLE kernel_handle : kernel_modules()) {
+      for (X_HANDLE kernel_handle : GetKernelModules()) {
         if (auto kernel_module = table_.Get<ModuleObject>(kernel_handle)) {
           kernel_module->InvalidateThunkCache(cleared_range->first, cleared_range->second);
         }
@@ -436,7 +436,7 @@ void ModuleRegistry::UnloadUserModule(X_HANDLE module_handle, bool call_entry) {
   const bool found_module = RemoveUser(module_handle);
   if (found_module) {
     CloseOwned(table_, ModuleObject::HandleFromHModule(
-                           runtime_.memory()->TranslateVirtual(module->hmodule_ptr)));
+                           runtime_.GetMemory()->TranslateVirtual(module->hmodule_ptr)));
   }
 
   if (!found_module) {

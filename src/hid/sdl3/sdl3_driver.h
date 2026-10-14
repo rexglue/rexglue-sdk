@@ -48,9 +48,9 @@ class SDL3Driver final : public Driver {
 
  private:
   enum class RepeatState : u8 {
-    Idle,
-    Waiting,
-    Repeating,
+    kIdle,
+    kWaiting,
+    kRepeating,
   };
   struct KeystrokeState {
     u64 buttons;
@@ -143,7 +143,7 @@ class SDL3Driver final : public Driver {
 
   bool attached_ = false;
   bool sdl_events_initialized_;
-  bool SDL_Gamepad_initialized_;
+  bool sdl_gamepad_initialized_;
   std::filesystem::path mappings_file_;
   std::atomic<int> sdl_events_unflushed_;
   std::atomic<bool> sdl_pumpevents_queued_;

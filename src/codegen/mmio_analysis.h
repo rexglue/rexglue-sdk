@@ -25,29 +25,29 @@ namespace rex::codegen {
 /** How generated code reaches the memory an instruction accesses. */
 enum class MMIOAccess : u8 {
   /** A plain load or store with no check. */
-  Plain,
+  kPlain,
   /** A direct call into the GPU recipient. */
-  GPU,
+  kGPU,
   /** A direct call into the APU recipient. */
-  APU,
+  kAPU,
   /** A load or store that tests for a register block first. */
-  Guarded,
+  kGuarded,
 };
 
 /** Why an access has a report entry. */
 enum class MMIOReason : u8 {
   /** The effective address is a known register block address. */
-  Proven,
+  kProven,
   /** The effective address is an unknown value shifted plus a register block constant. */
-  Offset,
+  kOffset,
   /** The base is unknown and eieio follows the access. */
-  Barrier,
+  kBarrier,
   /** The [mmio.gpu] or [mmio.apu] table lists the instruction. */
-  Declared,
+  kDeclared,
   /** The effective address is a known 0x7F address outside both blocks. */
-  Unserved,
+  kUnserved,
   /** A register block address reached by an instruction the builders do not route. */
-  Unsupported,
+  kUnsupported,
 };
 
 /** A load or store with a report entry. */
@@ -84,7 +84,7 @@ struct MMIOCodeBlock {
 struct MMIOFunctionInput {
   /** Code of the function. The first block starts at the function entry. */
   std::span<const MMIOCodeBlock> blocks;
-  /** Jump tables of the function, keyed by their bctrAddress. */
+  /** Jump tables of the function, keyed by their bctr_address. */
   std::span<const JumpTable> jump_tables;
   /** Instruction addresses that carry a mid asm hook. */
   std::span<const u32> hook_sites;
@@ -94,7 +94,7 @@ struct MMIOFunctionInput {
   const std::unordered_map<u32, MMIODeclaredAccess>* declared = nullptr;
 };
 
-/** Classification of every load and store in 1 function. */
+/** Classification of every load and store in a function. */
 struct MMIOClassification {
   /** Every site with a report entry, in address order. */
   std::vector<MMIOSite> sites;

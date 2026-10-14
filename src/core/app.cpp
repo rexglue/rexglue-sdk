@@ -209,7 +209,7 @@ void SetShutdownWake(rex::MoveOnlyFunction<void()> wake) {
   g_wake = std::move(wake);
 }
 
-std::optional<i32> RequestedExitCode() {
+std::optional<i32> GetRequestedExitCode() {
   if (!g_requested.load()) {
     return std::nullopt;
   }
@@ -264,31 +264,31 @@ void App::ReportError(std::string_view message) {
   REXLOG_ERROR(core, "{}", message);
 }
 
-platform::CrashReporterOptions App::CrashOptions() {
+platform::CrashReporterOptions App::GetCrashOptions() {
   return {};
 }
 
-const CLIArgList& App::args() const {
+const CLIArgList& App::GetArgs() const {
   return args_;
 }
 
-API& App::api() {
+API& App::GetAPI() {
   return *api_;
 }
 
-Config& App::config() {
+Config& App::GetConfig() {
   return config_;
 }
 
 Result<void> App::Fail(std::string_view step, Error error) {
   failed_ = true;
-  ReportError(std::format("{} failed: {}", step, error.what()));
+  ReportError(std::format("{} failed: {}", step, error.GetDescription()));
   return std::unexpected(std::move(error));
 }
 
 Result<void> App::Init(const CLIArgList& args) {
   if (stage_ != Stage::kNone) {
-    return Err<void>(ErrorCategory::Runtime, "App::Init called twice");
+    return Err<void>(ErrorCategory::kRuntime, "App::Init called twice");
   }
   args_ = args;
   stage_ = Stage::kConfigured;
@@ -310,7 +310,7 @@ Result<void> App::Init(const CLIArgList& args) {
   }
   if (auto unknown = ParseCommandLine(config_, args_); !unknown.empty()) {
     return Fail("command line",
-                Error(ErrorCategory::Config, "unknown option " + JoinOptions(unknown)));
+                Error(ErrorCategory::kConfig, "unknown option " + JoinOptions(unknown)));
   }
   if (!config_.single_instance.empty()) {
     auto lock = platform::InstanceLock::Acquire(config_.single_instance);
@@ -326,11 +326,11 @@ Result<void> App::Init(const CLIArgList& args) {
   }
   cvar::ApplyEnvironment(config_);
   RequireModules(config_);
-  if (auto crash = platform::InstallCrashReporter(CrashOptions()); !crash) {
+  if (auto crash = platform::InstallCrashReporter(GetCrashOptions()); !crash) {
     return Fail("crash reporter", crash.error());
   }
 
-  auto& loader = detail::ModuleLoader::Instance();
+  auto& loader = detail::ModuleLoader::GetInstance();
   auto api = loader.Connect(config_);
   if (!api) {
     return Fail("module connect", api.error());
@@ -344,7 +344,7 @@ Result<void> App::Init(const CLIArgList& args) {
   BeginTimerResolution();
   timer_resolution_ = true;
 
-  if (auto initialized = OnInit(loader.mutable_config(), *api_); !initialized) {
+  if (auto initialized = OnInit(loader.GetMutableConfig(), *api_); !initialized) {
     return Fail("OnInit", initialized.error());
   }
   if (auto modules = loader.InitModules(); !modules) {
@@ -374,7 +374,7 @@ i32 App::Shutdown() {
   }
   Release();
   const bool loaded = stage_ == Stage::kConnected || stage_ == Stage::kInitialized;
-  auto& loader = detail::ModuleLoader::Instance();
+  auto& loader = detail::ModuleLoader::GetInstance();
   if (loaded) {
     loader.ShutdownModules();
   }
@@ -389,7 +389,7 @@ i32 App::Shutdown() {
   }
   lock_.reset();
 
-  if (auto requested = detail::RequestedExitCode()) {
+  if (auto requested = detail::GetRequestedExitCode()) {
     final_code_ = *requested;
   } else if (failed_) {
     final_code_ = 1;
@@ -402,7 +402,7 @@ i32 App::Shutdown() {
       relaunch_args.assign(args_.All().begin(), args_.All().end());
     }
     if (auto relaunched = detail::RelaunchProcess(relaunch_args); !relaunched) {
-      REXLOG_ERROR(core, "relaunch failed: {}", relaunched.error().what());
+      REXLOG_ERROR(core, "relaunch failed: {}", relaunched.error().GetDescription());
     }
   }
   RemoveSignalHandlers();

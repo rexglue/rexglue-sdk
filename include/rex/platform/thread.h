@@ -56,22 +56,22 @@ class Fence {
   /** Signals the fence and wakes every waiter. */
   void Signal() {
     std::unique_lock<std::mutex> lock(mutex_);
-    signal_state_.store(signal_state_.load() | SIGMASK_, std::memory_order_release);
+    signal_state_.store(signal_state_.load() | kSigMask, std::memory_order_release);
     cond_.notify_all();
   }
 
   /** Blocks until the fence is signaled. The last waiter to return clears the signal. */
   void Wait() {
     std::unique_lock<std::mutex> lock(mutex_);
-    REX_ASSERT((signal_state_.load() & ~SIGMASK_) < (SIGMASK_ - 1) && "Too many threads?");
+    REX_ASSERT((signal_state_.load() & ~kSigMask) < (kSigMask - 1) && "Too many threads?");
 
     auto signal_state = signal_state_.fetch_add(1) + 1;
-    for (; !(signal_state & SIGMASK_); signal_state = signal_state_.load()) {
+    for (; !(signal_state & kSigMask); signal_state = signal_state_.load()) {
       cond_.wait(lock);
     }
 
-    REX_ASSERT((signal_state & ~SIGMASK_) > 0);
-    if (signal_state == (1 | SIGMASK_)) {
+    REX_ASSERT((signal_state & ~kSigMask) > 0);
+    if (signal_state == (1 | kSigMask)) {
       signal_state_.store(0, std::memory_order_release);
     } else {
       signal_state_.store(--signal_state, std::memory_order_release);
@@ -79,12 +79,12 @@ class Fence {
   }
 
  private:
-  using state_t_ = uint_fast32_t;
-  static constexpr state_t_ SIGMASK_ = state_t_(1) << (sizeof(state_t_) * 8 - 1);
+  using StateT = uint_fast32_t;
+  static constexpr StateT kSigMask = StateT(1) << (sizeof(StateT) * 8 - 1);
 
   std::mutex mutex_;
   std::condition_variable cond_;
-  std::atomic<state_t_> signal_state_;
+  std::atomic<StateT> signal_state_;
 };
 
 /**
@@ -92,7 +92,7 @@ class Fence {
  *
  * @return Logical processor count.
  */
-REX_API u32 logical_processor_count();
+REX_API u32 LogicalProcessorCount();
 
 /**
  * Widens the process affinity to every processor so threads can pin to any of them. Call at
@@ -105,29 +105,29 @@ REX_API void EnableAffinityConfiguration();
  *
  * @return OS thread ID.
  */
-REX_API u32 current_thread_system_id();
+REX_API u32 CurrentThreadSystemId();
 
 /**
  * Returns the ID of the calling thread. Equals current_thread_system_id() until
- * set_current_thread_id overrides it. Guest threads set it to their guest thread handle.
+ * SetCurrentThreadId overrides it. Guest threads set it to their guest thread handle.
  *
  * @return Thread ID.
  */
-REX_API u32 current_thread_id();
+REX_API u32 CurrentThreadId();
 
 /**
- * Overrides the ID current_thread_id returns on the calling thread.
+ * Overrides the ID CurrentThreadId returns on the calling thread.
  *
  * @param id New thread ID.
  */
-REX_API void set_current_thread_id(u32 id);
+REX_API void SetCurrentThreadId(u32 id);
 
 /**
  * Names the calling thread for debuggers and OS tools.
  *
  * @param name Thread name, UTF-8.
  */
-REX_API void set_current_thread_name(const std::string_view name);
+REX_API void SetCurrentThreadName(const std::string_view name);
 
 /** Yields the calling thread to the scheduler and issues a full memory barrier. */
 REX_API void MaybeYield();
@@ -291,7 +291,7 @@ class WaitHandle {
    *
    * @return Platform specific handle.
    */
-  virtual void* native_handle() const = 0;
+  virtual void* GetNativeHandle() const = 0;
 
  protected:
   WaitHandle() = default;
@@ -310,7 +310,7 @@ REX_API WaitResult Wait(WaitHandle* wait_handle, bool is_alertable,
                         std::chrono::milliseconds timeout = std::chrono::milliseconds::max());
 
 /**
- * Signals 1 object and waits on another as a single operation. A timeout of 0 polls and max()
+ * Signals an object and waits on another as a single operation. A timeout of 0 polls and max()
  * waits forever.
  *
  * @param wait_handle_to_signal Object to signal.
@@ -477,9 +477,9 @@ class REX_API Mutant : public WaitHandle {
 class REX_API Timer : public WaitHandle {
  public:
   /** Clock of Windows kernel sync primitives. */
-  using WClock_ = rex::WinSystemClock;
+  using WClock = rex::WinSystemClock;
   /** Clock of the SDK timer queue. */
-  using GClock_ = std::chrono::steady_clock;
+  using GClock = std::chrono::steady_clock;
 
   /**
    * Creates a timer that stays signaled until a Set call gives it a new due time.
@@ -502,7 +502,7 @@ class REX_API Timer : public WaitHandle {
    * @param opt_callback Function called when the timer fires, may be null.
    * @return True on success.
    */
-  virtual bool SetOnceAfter(rex::hundrednanoseconds rel_time,
+  virtual bool SetOnceAfter(rex::HundredNanoseconds rel_time,
                             std::function<void()> opt_callback = nullptr) = 0;
   /**
    * Arms the timer to fire once at a Windows clock time.
@@ -511,7 +511,7 @@ class REX_API Timer : public WaitHandle {
    * @param opt_callback Function called when the timer fires, may be null.
    * @return True on success.
    */
-  virtual bool SetOnceAt(WClock_::time_point due_time,
+  virtual bool SetOnceAt(WClock::time_point due_time,
                          std::function<void()> opt_callback = nullptr) = 0;
   /**
    * Arms the timer to fire once at a steady clock time.
@@ -520,7 +520,7 @@ class REX_API Timer : public WaitHandle {
    * @param opt_callback Function called when the timer fires, may be null.
    * @return True on success.
    */
-  virtual bool SetOnceAt(GClock_::time_point due_time,
+  virtual bool SetOnceAt(GClock::time_point due_time,
                          std::function<void()> opt_callback = nullptr) = 0;
 
   /**
@@ -531,7 +531,7 @@ class REX_API Timer : public WaitHandle {
    * @param opt_callback Function called each time the timer fires, may be null.
    * @return True on success.
    */
-  virtual bool SetRepeatingAfter(rex::hundrednanoseconds rel_time, std::chrono::milliseconds period,
+  virtual bool SetRepeatingAfter(rex::HundredNanoseconds rel_time, std::chrono::milliseconds period,
                                  std::function<void()> opt_callback = nullptr) = 0;
   /**
    * Arms the timer to fire at a Windows clock time and then each period.
@@ -541,7 +541,7 @@ class REX_API Timer : public WaitHandle {
    * @param opt_callback Function called each time the timer fires, may be null.
    * @return True on success.
    */
-  virtual bool SetRepeatingAt(WClock_::time_point due_time, std::chrono::milliseconds period,
+  virtual bool SetRepeatingAt(WClock::time_point due_time, std::chrono::milliseconds period,
                               std::function<void()> opt_callback = nullptr) = 0;
   /**
    * Arms the timer to fire at a steady clock time and then each period.
@@ -551,7 +551,7 @@ class REX_API Timer : public WaitHandle {
    * @param opt_callback Function called each time the timer fires, may be null.
    * @return True on success.
    */
-  virtual bool SetRepeatingAt(GClock_::time_point due_time, std::chrono::milliseconds period,
+  virtual bool SetRepeatingAt(GClock::time_point due_time, std::chrono::milliseconds period,
                               std::function<void()> opt_callback = nullptr) = 0;
 
   /**
@@ -571,7 +571,7 @@ class REX_API Timer : public WaitHandle {
 };
 
 #if REX_PLATFORM_WIN32
-/** Thread priority values for Thread::set_priority. */
+/** Thread priority values for Thread::SetPriority. */
 struct ThreadPriority {
   static const i32 kLowest = -2;      /**< Lowest priority. */
   static const i32 kBelowNormal = -1; /**< Below normal priority. */
@@ -580,7 +580,7 @@ struct ThreadPriority {
   static const i32 kHighest = 2;      /**< Highest priority. */
 };
 #else
-/** Thread priority values for Thread::set_priority. */
+/** Thread priority values for Thread::SetPriority. */
 struct ThreadPriority {
   static const i32 kLowest = 1;       /**< Lowest priority. */
   static const i32 kBelowNormal = 8;  /**< Below normal priority. */
@@ -629,49 +629,49 @@ class REX_API Thread : public WaitHandle {
    *
    * @return OS thread ID.
    */
-  virtual u32 system_id() const = 0;
+  virtual u32 GetSystemId() const = 0;
 
   /**
    * Returns the thread name.
    *
    * @return Name set by set_name, empty when never set.
    */
-  const std::string& name() const { return name_; }
+  const std::string& GetName() const { return name_; }
 
   /**
    * Names the thread for debuggers and logs.
    *
    * @param name Thread name.
    */
-  virtual void set_name(std::string name) { name_ = std::move(name); }
+  virtual void SetName(std::string name) { name_ = std::move(name); }
 
   /**
    * Returns the thread priority.
    *
    * @return Current priority.
    */
-  virtual i32 priority() = 0;
+  virtual i32 GetPriority() = 0;
 
   /**
    * Sets the thread priority, combined with the process priority class into the base priority.
    *
    * @param new_priority New priority, usually a ThreadPriority value.
    */
-  virtual void set_priority(i32 new_priority) = 0;
+  virtual void SetPriority(i32 new_priority) = 0;
 
   /**
    * Returns the processor affinity mask.
    *
    * @return 1 bit per logical processor the thread may run on.
    */
-  virtual u64 affinity_mask() = 0;
+  virtual u64 GetAffinityMask() = 0;
 
   /**
    * Sets the processor affinity mask. It must be a subset of the process affinity mask.
    *
    * @param new_affinity_mask 1 bit per logical processor the thread may run on.
    */
-  virtual void set_affinity_mask(u64 new_affinity_mask) = 0;
+  virtual void SetAffinityMask(u64 new_affinity_mask) = 0;
 
   /**
    * Queues a user callback to the thread. Callbacks run in FIFO order once the thread enters an
@@ -741,7 +741,7 @@ REX_API void RegisterCurrentThread();
  *
  * @return The number of registered threads.
  */
-REX_API u64 ThreadCount();
+REX_API u64 GetThreadCount();
 
 /** Destroys the timer queue and joins its thread. The next timer creates it again. */
 REX_API void ShutdownTimerQueue();
@@ -762,7 +762,7 @@ std::jthread Spawn(std::string_view name, F&& fn) {
                        body = std::forward<F>(fn)](const std::stop_token& token) mutable {
     detail::RegisterCurrentThread();
     PrepareThreadForCrash();
-    set_current_thread_name(thread_name);
+    SetCurrentThreadName(thread_name);
     body(std::move(token));
   });
 }

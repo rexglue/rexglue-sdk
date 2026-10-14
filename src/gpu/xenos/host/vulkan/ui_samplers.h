@@ -47,7 +47,7 @@ class UISamplers : public rex::NonCopyable {
     kSamplerCount,
   };
 
-  const std::array<VkSampler, kSamplerCount>& samplers() const { return samplers_; }
+  const std::array<VkSampler, kSamplerCount>& GetSamplers() const { return samplers_; }
 
  private:
   const VulkanDevice* vulkan_device_;

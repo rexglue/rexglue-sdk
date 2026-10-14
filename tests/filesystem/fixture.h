@@ -52,7 +52,7 @@ inline void WriteHost(const std::filesystem::path& path, std::string_view text) 
  * @return The contents as text.
  */
 inline std::string ReadText(IFile& file) {
-  std::vector<u8> bytes(file.Info().size);
+  std::vector<u8> bytes(file.GetInfo().size);
   if (bytes.empty()) {
     return {};
   }
@@ -89,14 +89,14 @@ class Fixture : public NonCopyable {
    *
    * @return The interface.
    */
-  IFileSystem& fs() { return *file_system_; }
+  IFileSystem& GetFs() { return *file_system_; }
 
   /**
    * Returns the temp folder of the case.
    *
    * @return The host folder.
    */
-  const std::filesystem::path& temp() const { return temp_.path; }
+  const std::filesystem::path& GetTemp() const { return temp_.path; }
 
   /**
    * Mounts the temp folder at a path as a host directory.
@@ -105,7 +105,7 @@ class Fixture : public NonCopyable {
    * @param flags The mount flags.
    */
   void MountTemp(std::string_view path, MountFlags flags = MountFlags::kWritable) {
-    REQUIRE(fs().Mount({std::string(path), ProviderKind::kHostDirectory, temp(), flags}));
+    REQUIRE(GetFs().Mount({std::string(path), ProviderKind::kHostDirectory, GetTemp(), flags}));
   }
 
   /**
@@ -116,7 +116,7 @@ class Fixture : public NonCopyable {
    * @return The opened file and action.
    */
   Opened Open(std::string_view path, const OpenOptions& options = {}) {
-    auto opened = fs().Open(path, options);
+    auto opened = GetFs().Open(path, options);
     REQUIRE(opened);
     return std::move(*opened);
   }

@@ -37,7 +37,7 @@ using rex::runtime::XLanguage;
  * @return 100 nanosecond intervals since 1601-01-01 UTC. An out of range field carries into the
  * next field.
  */
-REX_API u64 decode_fat_timestamp(u32 date, u32 time);
+REX_API u64 DecodeFATTimestamp(u32 date, u32 time);
 
 /**
  * Reads a 24 bit big endian value.
@@ -45,7 +45,7 @@ REX_API u64 decode_fat_timestamp(u32 date, u32 time);
  * @param p The 3 source bytes.
  * @return The value.
  */
-constexpr u32 load_uint24_be(const u8* p) {
+constexpr u32 LoadUint24BE(const u8* p) {
   return (static_cast<u32>(p[0]) << 16) | (static_cast<u32>(p[1]) << 8) | static_cast<u32>(p[2]);
 }
 
@@ -55,7 +55,7 @@ constexpr u32 load_uint24_be(const u8* p) {
  * @param p The 3 source bytes.
  * @return The value.
  */
-constexpr u32 load_uint24_le(const u8* p) {
+constexpr u32 LoadUint24LE(const u8* p) {
   return (static_cast<u32>(p[2]) << 16) | (static_cast<u32>(p[1]) << 8) | static_cast<u32>(p[0]);
 }
 
@@ -65,7 +65,7 @@ constexpr u32 load_uint24_le(const u8* p) {
  * @param p The 3 destination bytes.
  * @param value The value, the top 8 bits are dropped.
  */
-constexpr void store_uint24_le(u8* p, u32 value) {
+constexpr void StoreUint24LE(u8* p, u32 value) {
   p[2] = static_cast<u8>((value >> 16) & 0xFF);
   p[1] = static_cast<u8>((value >> 8) & 0xFF);
   p[0] = static_cast<u8>(value & 0xFF);
@@ -113,8 +113,8 @@ struct STFSVolumeDescriptor {
    *
    * @return The block number.
    */
-  [[nodiscard]] constexpr u32 file_table_block_number() const {
-    return load_uint24_le(file_table_block_number_raw);
+  [[nodiscard]] constexpr u32 GetFileTableBlockNumber() const {
+    return LoadUint24LE(file_table_block_number_raw);
   }
 
   /**
@@ -122,8 +122,8 @@ struct STFSVolumeDescriptor {
    *
    * @param value The block number.
    */
-  constexpr void set_file_table_block_number(u32 value) {
-    store_uint24_le(file_table_block_number_raw, value);
+  constexpr void SetFileTableBlockNumber(u32 value) {
+    StoreUint24LE(file_table_block_number_raw, value);
   }
 
   /**
@@ -131,7 +131,7 @@ struct STFSVolumeDescriptor {
    *
    * @return True when descriptor_length is 0x24.
    */
-  [[nodiscard]] constexpr bool is_valid() const {
+  [[nodiscard]] constexpr bool IsValid() const {
     return descriptor_length == sizeof(STFSVolumeDescriptor);
   }
 };
@@ -156,21 +156,21 @@ struct STFSHashEntry {
    *
    * @return The block number, 0xFFFFFF at the end of the chain.
    */
-  [[nodiscard]] u32 level0_next_block() const { return info_raw & 0xFFFFFF; }
+  [[nodiscard]] u32 GetLevel0NextBlock() const { return info_raw & 0xFFFFFF; }
 
   /**
    * Replaces the next block of a level 0 chain.
    *
    * @param value The block number, 24 bits.
    */
-  void set_level0_next_block(u32 value) { info_raw = (info_raw & ~0xFFFFFFu) | (value & 0xFFFFFF); }
+  void SetLevel0NextBlock(u32 value) { info_raw = (info_raw & ~0xFFFFFFu) | (value & 0xFFFFFF); }
 
   /**
    * Returns the allocation state of a level 0 entry.
    *
    * @return The state.
    */
-  [[nodiscard]] STFSHashState level0_allocation_state() const {
+  [[nodiscard]] STFSHashState GetLevel0AllocationState() const {
     return static_cast<STFSHashState>(static_cast<u8>((info_raw >> 30) & 0x3));
   }
 
@@ -179,7 +179,7 @@ struct STFSHashEntry {
    *
    * @param value The state.
    */
-  void set_level0_allocation_state(STFSHashState value) {
+  void SetLevel0AllocationState(STFSHashState value) {
     info_raw = (info_raw & ~0xC0000000u) | (static_cast<u32>(value) << 30);
   }
 
@@ -188,30 +188,28 @@ struct STFSHashEntry {
    *
    * @return The count.
    */
-  [[nodiscard]] u32 levelN_num_blocks_free() const { return info_raw & 0x7FFF; }
+  [[nodiscard]] u32 LevelNNumBlocksFree() const { return info_raw & 0x7FFF; }
 
   /**
    * Replaces the free block count of a higher level entry.
    *
    * @param value The count, 15 bits.
    */
-  void set_levelN_num_blocks_free(u32 value) {
-    info_raw = (info_raw & ~0x7FFFu) | (value & 0x7FFF);
-  }
+  void SetLevelNNumBlocksFree(u32 value) { info_raw = (info_raw & ~0x7FFFu) | (value & 0x7FFF); }
 
   /**
    * Returns the second block count of a higher level entry, meaning unknown.
    *
    * @return The count.
    */
-  [[nodiscard]] u32 levelN_num_blocks_unk() const { return (info_raw >> 15) & 0x7FFF; }
+  [[nodiscard]] u32 LevelNNumBlocksUnk() const { return (info_raw >> 15) & 0x7FFF; }
 
   /**
    * Replaces the second block count of a higher level entry.
    *
    * @param value The count, 15 bits.
    */
-  void set_levelN_num_blocks_unk(u32 value) {
+  void SetLevelNNumBlocksUnk(u32 value) {
     info_raw = (info_raw & ~0x3FFF8000u) | ((value & 0x7FFF) << 15);
   }
 
@@ -220,14 +218,14 @@ struct STFSHashEntry {
    *
    * @return True when the active index bit is set.
    */
-  [[nodiscard]] bool levelN_active_index() const { return (info_raw & 0x40000000) != 0; }
+  [[nodiscard]] bool LevelNActiveIndex() const { return (info_raw & 0x40000000) != 0; }
 
   /**
    * Replaces the active index bit of a higher level entry.
    *
    * @param value True to use the secondary table.
    */
-  void set_levelN_active_index(bool value) {
+  void SetLevelNActiveIndex(bool value) {
     info_raw = (info_raw & ~0x40000000u) | (value ? 0x40000000u : 0u);
   }
 
@@ -236,14 +234,14 @@ struct STFSHashEntry {
    *
    * @return True when the writable bit is set.
    */
-  [[nodiscard]] bool levelN_writeable() const { return (info_raw & 0x80000000) != 0; }
+  [[nodiscard]] bool LevelNWriteable() const { return (info_raw & 0x80000000) != 0; }
 
   /**
    * Replaces the writable bit of a higher level entry.
    *
    * @param value True to mark the entry writable.
    */
-  void set_levelN_writeable(bool value) {
+  void SetLevelNWriteable(bool value) {
     info_raw = (info_raw & ~0x80000000u) | (value ? 0x80000000u : 0u);
   }
 };
@@ -281,8 +279,8 @@ struct STFSDirectoryEntry {
    *
    * @return The count.
    */
-  [[nodiscard]] constexpr u32 valid_data_blocks() const {
-    return load_uint24_le(valid_data_blocks_raw);
+  [[nodiscard]] constexpr u32 GetValidDataBlocks() const {
+    return LoadUint24LE(valid_data_blocks_raw);
   }
 
   /**
@@ -290,15 +288,15 @@ struct STFSDirectoryEntry {
    *
    * @param value The count, 24 bits.
    */
-  constexpr void set_valid_data_blocks(u32 value) { store_uint24_le(valid_data_blocks_raw, value); }
+  constexpr void SetValidDataBlocks(u32 value) { StoreUint24LE(valid_data_blocks_raw, value); }
 
   /**
    * Returns the blocks allocated.
    *
    * @return The count.
    */
-  [[nodiscard]] constexpr u32 allocated_data_blocks() const {
-    return load_uint24_le(allocated_data_blocks_raw);
+  [[nodiscard]] constexpr u32 GetAllocatedDataBlocks() const {
+    return LoadUint24LE(allocated_data_blocks_raw);
   }
 
   /**
@@ -306,8 +304,8 @@ struct STFSDirectoryEntry {
    *
    * @param value The count, 24 bits.
    */
-  constexpr void set_allocated_data_blocks(u32 value) {
-    store_uint24_le(allocated_data_blocks_raw, value);
+  constexpr void SetAllocatedDataBlocks(u32 value) {
+    StoreUint24LE(allocated_data_blocks_raw, value);
   }
 
   /**
@@ -315,8 +313,8 @@ struct STFSDirectoryEntry {
    *
    * @return The block number.
    */
-  [[nodiscard]] constexpr u32 start_block_number() const {
-    return load_uint24_le(start_block_number_raw);
+  [[nodiscard]] constexpr u32 GetStartBlockNumber() const {
+    return LoadUint24LE(start_block_number_raw);
   }
 
   /**
@@ -324,9 +322,7 @@ struct STFSDirectoryEntry {
    *
    * @param value The block number, 24 bits.
    */
-  constexpr void set_start_block_number(u32 value) {
-    store_uint24_le(start_block_number_raw, value);
-  }
+  constexpr void SetStartBlockNumber(u32 value) { StoreUint24LE(start_block_number_raw, value); }
 };
 REX_STATIC_ASSERT_SIZE(STFSDirectoryEntry, 0x40);
 
@@ -362,17 +358,15 @@ struct SVODDeviceDescriptor {
    *
    * @return The count.
    */
-  [[nodiscard]] constexpr u32 num_data_blocks() const {
-    return load_uint24_le(num_data_blocks_raw);
-  }
+  [[nodiscard]] constexpr u32 GetNumDataBlocks() const { return LoadUint24LE(num_data_blocks_raw); }
 
   /**
    * Returns the first data block.
    *
    * @return The block number.
    */
-  [[nodiscard]] constexpr u32 start_data_block() const {
-    return load_uint24_le(start_data_block_raw);
+  [[nodiscard]] constexpr u32 GetStartDataBlock() const {
+    return LoadUint24LE(start_data_block_raw);
   }
 };
 REX_STATIC_ASSERT_SIZE(SVODDeviceDescriptor, 0x24);
@@ -429,7 +423,7 @@ struct XContentMetadata {
   /** Languages of version 2 metadata, 3 of them inside the version 1 thumbnail space. */
   static constexpr u32 kNumLanguagesV2 = 12;
 
-  be<XContentType> content_type;      /**< Content type of the package. */
+  BE<XContentType> content_type;      /**< Content type of the package. */
   be_u32 metadata_version;            /**< 1 or 2. */
   be_u64 content_size;                /**< Content bytes. */
   XEXOptExecutionInfo execution_info; /**< Title and media the package is for. */
@@ -442,7 +436,7 @@ struct XContentMetadata {
   } volume_descriptor;
   be_u32 data_file_count;             /**< SVOD data fragments. */
   be_u64 data_file_size;              /**< SVOD data bytes. */
-  be<XContentVolumeType> volume_type; /**< Layout of the volume. */
+  BE<XContentVolumeType> volume_type; /**< Layout of the volume. */
   be_u64 online_creator;              /**< Live creator XUID. */
   be_u32 category;                    /**< Content category. */
   u8 reserved2[0x20];                 /**< Unused. */
@@ -498,7 +492,7 @@ struct XContentMetadata {
    * @param language The language. A language without a slot reads the English slot.
    * @return The name, empty when the metadata version has no slot for the language.
    */
-  [[nodiscard]] REX_API std::u16string display_name(XLanguage language) const;
+  [[nodiscard]] REX_API std::u16string GetDisplayName(XLanguage language) const;
 
   /**
    * Returns the description in a language.
@@ -506,21 +500,21 @@ struct XContentMetadata {
    * @param language The language. A language without a slot reads the English slot.
    * @return The description, empty when the metadata version has no slot for the language.
    */
-  [[nodiscard]] REX_API std::u16string description(XLanguage language) const;
+  [[nodiscard]] REX_API std::u16string GetDescription(XLanguage language) const;
 
   /**
    * Returns the publisher name.
    *
    * @return The name.
    */
-  [[nodiscard]] REX_API std::u16string publisher() const;
+  [[nodiscard]] REX_API std::u16string GetPublisher() const;
 
   /**
    * Returns the title name.
    *
    * @return The name.
    */
-  [[nodiscard]] REX_API std::u16string title_name() const;
+  [[nodiscard]] REX_API std::u16string GetTitleName() const;
 
   /**
    * Replaces the display name in a language, truncated to 128 code units.
@@ -529,7 +523,7 @@ struct XContentMetadata {
    * @param value The new name.
    * @return True when the metadata version has a slot for the language.
    */
-  REX_API bool set_display_name(XLanguage language, std::u16string_view value);
+  REX_API bool SetDisplayName(XLanguage language, std::u16string_view value);
 
   /**
    * Replaces the description in a language, truncated to 128 code units.
@@ -538,27 +532,27 @@ struct XContentMetadata {
    * @param value The new description.
    * @return True when the metadata version has a slot for the language.
    */
-  REX_API bool set_description(XLanguage language, std::u16string_view value);
+  REX_API bool SetDescription(XLanguage language, std::u16string_view value);
 
   /**
    * Replaces the publisher name, truncated to 64 code units.
    *
    * @param value The new name.
    */
-  REX_API void set_publisher(std::u16string_view value);
+  REX_API void SetPublisher(std::u16string_view value);
 
   /**
    * Replaces the title name, truncated to 64 code units.
    *
    * @param value The new name.
    */
-  REX_API void set_title_name(std::u16string_view value);
+  REX_API void SetTitleName(std::u16string_view value);
 };
 REX_STATIC_ASSERT_SIZE(XContentMetadata, 0x93D6);
 
 /** Signed package header. */
 struct XContentHeader {
-  be<XContentPackageType> magic;  /**< Package magic. */
+  BE<XContentPackageType> magic;  /**< Package magic. */
   u8 signature[0x228];            /**< Signature over the header. */
   XContentLicense licenses[0x10]; /**< License entries. */
   u8 content_id[0x14];            /**< SHA1 of the metadata, the content ID. */
@@ -569,7 +563,7 @@ struct XContentHeader {
    *
    * @return True when the magic names a package.
    */
-  [[nodiscard]] bool is_magic_valid() const {
+  [[nodiscard]] bool IsMagicValid() const {
     return magic == XContentPackageType::kCon || magic == XContentPackageType::kLive ||
            magic == XContentPackageType::kPirs;
   }

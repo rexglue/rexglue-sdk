@@ -22,11 +22,11 @@ size_t KernelModuleData::ThunkKeyHash::operator()(const ThunkKey& key) const noe
 }
 
 X_HANDLE CreateKernelModule(Runtime& runtime, std::string_view path) {
-  const X_HANDLE handle = CreateModule(runtime, ModuleType::Kernel);
+  const X_HANDLE handle = CreateModule(runtime, ModuleType::kKernel);
   if (!handle) {
     return 0;
   }
-  auto module = runtime.object_table().Get<ModuleObject>(handle);
+  auto module = runtime.GetObjectTable().Get<ModuleObject>(handle);
   module->path = path;
   module->name = rex::utf8_find_base_name_from_guest_path(path);
   return handle;

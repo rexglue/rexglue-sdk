@@ -26,9 +26,9 @@ class Runtime;
 
 namespace rex::runtime {
 
-constexpr memory::fourcc_t kXEX1Signature = memory::make_fourcc("XEX1");
-constexpr memory::fourcc_t kXEX2Signature = memory::make_fourcc("XEX2");
-constexpr memory::fourcc_t kElfSignature = memory::make_fourcc(0x7F, 'E', 'L', 'F');
+constexpr memory::FourCCT kXEX1Signature = memory::make_fourcc("XEX1");
+constexpr memory::FourCCT kXEX2Signature = memory::make_fourcc("XEX2");
+constexpr memory::FourCCT kELFSignature = memory::make_fourcc(0x7F, 'E', 'L', 'F');
 
 /** A module loaded from an XEX image, or an XEX patch for 1. */
 class REX_RUNTIME_API XEXModule : public Module {
@@ -60,38 +60,38 @@ class REX_RUNTIME_API XEXModule : public Module {
   /** Destroys the module. */
   ~XEXModule() override;
 
-  bool loaded() const { return loaded_; }
-  const filesystem::XEXImage& image() const { return image_; }
-  const filesystem::PEInfo& pe() const { return pe_; }
+  bool GetLoaded() const { return loaded_; }
+  const filesystem::XEXImage& GetImage() const { return image_; }
+  const filesystem::PEInfo& GetPe() const { return pe_; }
 
   /**
    * Returns the size of the loaded image.
    *
    * @return The size in bytes, the sum of the page ranges of the image.
    */
-  u32 image_size() const override;
+  u32 GetImageSize() const override;
 
-  u32 base_address() const override { return base_address_; }
+  u32 GetBaseAddress() const override { return base_address_; }
 
   /**
    * Returns the entry point of the image.
    *
    * @return The guest address, 0 when the image has none.
    */
-  u32 entry_point() const override {
-    return image_.OptHeaderValue(filesystem::XEX_HEADER_ENTRY_POINT).value_or(0);
+  u32 GetEntryPoint() const override {
+    return image_.OptHeaderValue(filesystem::kXEXHeaderEntryPoint).value_or(0);
   }
 
-  u32 export_table_address() const override { return image_.security().export_table; }
+  u32 GetExportTableAddress() const override { return image_.GetSecurity().export_table; }
 
-  u32 exception_directory_rva() const override { return pe_.exception_directory_rva; }
-  u32 exception_directory_size() const override { return pe_.exception_directory_size; }
+  u32 GetExceptionDirectoryRva() const override { return pe_.exception_directory_rva; }
+  u32 GetExceptionDirectorySize() const override { return pe_.exception_directory_size; }
   /**
    * Returns the guest address of the exception directory.
    *
    * @return The guest address.
    */
-  u32 exception_directory_address() const override {
+  u32 GetExceptionDirectoryAddress() const override {
     return base_address_ + pe_.exception_directory_rva;
   }
 
@@ -100,13 +100,13 @@ class REX_RUNTIME_API XEXModule : public Module {
    *
    * @return The sections.
    */
-  std::span<const BinarySection> binary_sections() const override;
+  std::span<const BinarySection> GetBinarySections() const override;
   /**
    * Returns the import symbols of the image.
    *
    * @return The symbols.
    */
-  std::span<const BinarySymbol> binary_symbols() const override;
+  std::span<const BinarySymbol> GetBinarySymbols() const override;
 
   /**
    * Looks up an export by ordinal.
@@ -154,14 +154,14 @@ class REX_RUNTIME_API XEXModule : public Module {
    */
   bool Unload();
 
-  const std::string& name() const override { return name_; }
+  const std::string& GetName() const override { return name_; }
   /**
    * Reports whether the image is a title module.
    *
    * @return True when the module flags mark a title.
    */
-  bool is_executable() const override {
-    return (static_cast<u32>(image_.header().module_flags) & filesystem::XEX_MODULE_TITLE) != 0;
+  bool IsExecutable() const override {
+    return (static_cast<u32>(image_.GetHeader().module_flags) & filesystem::kXEXModuleTitle) != 0;
   }
 
  private:

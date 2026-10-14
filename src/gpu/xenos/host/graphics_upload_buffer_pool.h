@@ -49,8 +49,8 @@ class GraphicsUploadBufferPool {
   /** Extended by the implementation. */
   struct Page {
     virtual ~Page();
-    u64 last_submission_index_;
-    Page* next_;
+    u64 last_submission_index;
+    Page* next;
   };
 
   GraphicsUploadBufferPool(size_t page_size) : page_size_(page_size) {}

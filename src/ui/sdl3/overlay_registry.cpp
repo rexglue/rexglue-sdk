@@ -50,7 +50,7 @@ void OverlayRegistry::Clear() {
     if (entry.bound) {
       binds_.Unregister(entry.name);
     }
-    if (entry.overlay->Attached()) {
+    if (entry.overlay->IsAttached()) {
       drawer_.RemoveDialog(*entry.overlay);
     }
   }
@@ -65,7 +65,7 @@ OverlayRegistry::Entry* OverlayRegistry::Find(std::string_view name) {
 Result<void> OverlayRegistry::Add(std::span<const OverlayDesc> table) {
   for (const OverlayDesc& desc : table) {
     if (Find(desc.name)) {
-      return Err<void>(ErrorCategory::Config, std::format("overlay '{}' exists", desc.name));
+      return Err<void>(ErrorCategory::kConfig, std::format("overlay '{}' exists", desc.name));
     }
     std::unique_ptr<ImGuiDialog> overlay;
     if (desc.create) {
@@ -76,7 +76,7 @@ Result<void> OverlayRegistry::Add(std::span<const OverlayDesc> table) {
     }
     if (!overlay) {
       return Err<void>(
-          ErrorCategory::Config,
+          ErrorCategory::kConfig,
           std::format("overlay '{}' has no create function and is not a standard overlay",
                       desc.name));
     }
@@ -96,7 +96,7 @@ Result<void> OverlayRegistry::Add(std::span<const OverlayDesc> table) {
 
 void OverlayRegistry::Show(std::string_view name, bool visible) {
   Entry* entry = Find(name);
-  if (!entry || entry->overlay->Attached() == visible) {
+  if (!entry || entry->overlay->IsAttached() == visible) {
     return;
   }
   if (visible) {
@@ -109,7 +109,7 @@ void OverlayRegistry::Show(std::string_view name, bool visible) {
 
 void OverlayRegistry::Toggle(std::string_view name) {
   if (Entry* entry = Find(name)) {
-    const bool shown = entry->overlay->Attached();
+    const bool shown = entry->overlay->IsAttached();
     if (!shown && entry->overlay->OnToggle()) {
       return;
     }
@@ -122,9 +122,9 @@ ImGuiDialog* OverlayRegistry::Get(std::string_view name) {
   return entry ? entry->overlay.get() : nullptr;
 }
 
-bool OverlayRegistry::AnyVisible() const {
+bool OverlayRegistry::IsAnyVisible() const {
   return std::ranges::any_of(entries_,
-                             [](const Entry& entry) { return entry.overlay->Attached(); });
+                             [](const Entry& entry) { return entry.overlay->IsAttached(); });
 }
 
 }  // namespace rex::ui

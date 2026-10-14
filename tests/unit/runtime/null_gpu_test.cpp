@@ -45,12 +45,12 @@ constexpr rex::u32 kWritePointerRegister = 0x01C5;
 REX_TEST_CASE("NullGPU raises the vblank interrupt at the refresh rate", "[gpu]") {
   g_vblanks = 0;
   KernelFixture fixture;
-  auto& runtime = fixture.runtime();
-  const rex::u32 callback = runtime.function_dispatcher()->AllocateThunk(&CountVblank, 0);
+  auto& runtime = fixture.GetRuntime();
+  const rex::u32 callback = runtime.GetFunctionDispatcher()->AllocateThunk(&CountVblank, 0);
   REQUIRE(callback != 0);
   rex::runtime::NullGPU gpu;
   gpu.SetInterruptCallback(callback, 0x1234);
-  REQUIRE(gpu.SetupGuestGPU(*runtime.function_dispatcher(), runtime));
+  REQUIRE(gpu.SetupGuestGPU(*runtime.GetFunctionDispatcher(), runtime));
   const auto start = std::chrono::steady_clock::now();
   std::this_thread::sleep_for(std::chrono::seconds(1));
   const std::chrono::duration<rex::f64> elapsed = std::chrono::steady_clock::now() - start;
@@ -66,9 +66,9 @@ REX_TEST_CASE("NullGPU raises the vblank interrupt at the refresh rate", "[gpu]"
 REX_TEST_CASE("NullGPU without a callback raises nothing", "[gpu]") {
   g_vblanks = 0;
   KernelFixture fixture;
-  auto& runtime = fixture.runtime();
+  auto& runtime = fixture.GetRuntime();
   rex::runtime::NullGPU gpu;
-  REQUIRE(gpu.SetupGuestGPU(*runtime.function_dispatcher(), runtime));
+  REQUIRE(gpu.SetupGuestGPU(*runtime.GetFunctionDispatcher(), runtime));
   std::this_thread::sleep_for(std::chrono::milliseconds(100));
   gpu.Shutdown();
   CHECK(g_vblanks == 0);
@@ -76,18 +76,18 @@ REX_TEST_CASE("NullGPU without a callback raises nothing", "[gpu]") {
 
 REX_TEST_CASE("NullGPU writes the write pointer back as the read pointer", "[gpu]") {
   KernelFixture fixture;
-  auto& runtime = fixture.runtime();
-  auto* memory = runtime.memory();
+  auto& runtime = fixture.GetRuntime();
+  auto* memory = runtime.GetMemory();
   const rex::u32 ring = memory->SystemHeapAlloc(0x1000, 0x1000, rex::runtime::kSystemHeapPhysical);
   REQUIRE(ring != 0);
   const rex::u32 physical = memory->GetPhysicalAddress(ring);
   const rex::u32 writeback = physical + 0x800;
   rex::runtime::NullGPU gpu;
-  REQUIRE(gpu.SetupGuestGPU(*runtime.function_dispatcher(), runtime));
+  REQUIRE(gpu.SetupGuestGPU(*runtime.GetFunctionDispatcher(), runtime));
   gpu.InitializeRingBuffer(physical, 9);
   gpu.EnableReadPointerWriteBack(writeback, 6);
   const rex::u32 register_address =
-      rex::MMIOBlockBase(rex::MMIOBlock::GPU) + kWritePointerRegister * 4;
+      rex::MMIOBlockBase(rex::MMIOBlock::kGPU) + kWritePointerRegister * 4;
   rex::detail::MMIOStore(register_address, 0x20);
   CHECK(*memory->TranslatePhysical<const be_u32*>(writeback) == 0x20);
   CHECK(rex::detail::MMIOLoad(register_address) == 0x20);
@@ -98,8 +98,8 @@ REX_TEST_CASE("NullGPU writes the write pointer back as the read pointer", "[gpu
 
 REX_TEST_CASE("NullGPU has no presentation", "[gpu]") {
   rex::runtime::NullGPU gpu;
-  CHECK_FALSE(gpu.has_presentation());
-  CHECK(gpu.presenter() == nullptr);
+  CHECK_FALSE(gpu.HasPresentation());
+  CHECK(gpu.GetPresenter() == nullptr);
   CHECK_FALSE(gpu.CreatePresenter());
   CHECK(gpu.InitializeShaderStorage({}, 0, true));
 }

@@ -29,9 +29,9 @@ struct Config;
  */
 // NOLINTNEXTLINE(performance-enum-size): the C export reports the status as i32
 enum class InterfaceStatus : i32 {
-  Ok = 0,              /**< The interface is served. */
-  NotFound = 1,        /**< No interface of that name. */
-  VersionMismatch = 2, /**< The name is served at a different version. */
+  kOk = 0,              /**< The interface is served. */
+  kNotFound = 1,        /**< No interface of that name. */
+  kVersionMismatch = 2, /**< The name is served at a different version. */
 };
 
 /**
@@ -80,14 +80,14 @@ class IModule {
    *
    * @return The DLL base name, for example "rex-gpu-xenos".
    */
-  virtual const char* Name() const = 0;
+  virtual const char* GetName() const = 0;
 
   /**
    * Returns the interfaces this module needs from modules listed before it.
    *
    * @return The required interfaces, each as "name@version".
    */
-  virtual std::span<const char* const> RequiredInterfaces() const = 0;
+  virtual std::span<const char* const> GetRequiredInterfaces() const = 0;
 
   /**
    * Acquires pointers and registers descriptors. Allocates nothing that needs another

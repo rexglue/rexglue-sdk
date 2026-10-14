@@ -43,7 +43,7 @@ std::unique_ptr<VulkanProvider> VulkanProvider::Create(const bool with_gpu_emula
     return nullptr;
   }
 
-  const VulkanInstance::Functions& ifn = provider->vulkan_instance_->functions();
+  const VulkanInstance::Functions& ifn = provider->vulkan_instance_->GetFunctions();
 
   REXLOG_WARN(ui,
               "Available Vulkan physical devices (set Config::gpu.vulkan_device to force a "
@@ -140,11 +140,12 @@ std::unique_ptr<VulkanProvider> VulkanProvider::Create(const bool with_gpu_emula
 
 std::unique_ptr<Presenter> VulkanProvider::CreatePresenter(
     Presenter::HostGPULossCallback host_gpu_loss_callback) {
-  return VulkanPresenter::Create(std::move(host_gpu_loss_callback), vulkan_device(), ui_samplers());
+  return VulkanPresenter::Create(std::move(host_gpu_loss_callback), GetVulkanDevice(),
+                                 GetUISamplers());
 }
 
 std::unique_ptr<ImmediateDrawer> VulkanProvider::CreateImmediateDrawer() {
-  return VulkanImmediateDrawer::Create(vulkan_device(), ui_samplers());
+  return VulkanImmediateDrawer::Create(GetVulkanDevice(), GetUISamplers());
 }
 
 }  // namespace vulkan

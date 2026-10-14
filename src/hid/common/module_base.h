@@ -28,7 +28,7 @@ namespace rex::hid {
  */
 class HIDModuleBase : public IModule {
  public:
-  std::span<const char* const> RequiredInterfaces() const override;
+  std::span<const char* const> GetRequiredInterfaces() const override;
   [[nodiscard]] Result<void> Connect(IInterfaceFactory* factory, const Config& config) override;
   void Disconnect() override;
   [[nodiscard]] Result<void> Init() override;
@@ -39,7 +39,7 @@ class HIDModuleBase : public IModule {
    *
    * @return The hub.
    */
-  Hub& hub() { return hub_; }
+  Hub& GetHub() { return hub_; }
 
  protected:
   /**

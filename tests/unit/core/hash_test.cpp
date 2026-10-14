@@ -19,14 +19,14 @@
 namespace fs = std::filesystem;
 
 REX_TEST_CASE("hash_bytes is stable and 128 bits wide", "[hash]") {
-  auto digest = rex::hash_bytes("hello world");
+  auto digest = rex::HashBytes("hello world");
   CHECK(digest.size() == 32);
-  CHECK(digest == rex::hash_bytes("hello world"));
-  CHECK(digest != rex::hash_bytes("hello worlds"));
+  CHECK(digest == rex::HashBytes("hello world"));
+  CHECK(digest != rex::HashBytes("hello worlds"));
 }
 
 REX_TEST_CASE("hash_bytes handles empty input", "[hash]") {
-  CHECK(rex::hash_bytes("").size() == 32);
+  CHECK(rex::HashBytes("").size() == 32);
 }
 
 REX_TEST_CASE("hash_file matches hash_bytes over the same content", "[hash]") {
@@ -43,17 +43,17 @@ REX_TEST_CASE("hash_file matches hash_bytes over the same content", "[hash]") {
     return path;
   };
 
-  CHECK(rex::hash_file(write("small.bin", small)) == rex::hash_bytes(small));
-  CHECK(rex::hash_file(write("large.bin", large)) == rex::hash_bytes(large));
+  CHECK(rex::HashFile(write("small.bin", small)) == rex::HashBytes(small));
+  CHECK(rex::HashFile(write("large.bin", large)) == rex::HashBytes(large));
 
   std::error_code ec;
   fs::remove_all(root, ec);
 }
 
 REX_TEST_CASE("hash_file returns empty for a missing file", "[hash]") {
-  CHECK(rex::hash_file(fs::temp_directory_path() / "rexglue_hash_test_absent.bin").empty());
+  CHECK(rex::HashFile(fs::temp_directory_path() / "rexglue_hash_test_absent.bin").empty());
 }
 
 REX_TEST_CASE("hash_file returns empty for a directory", "[hash]") {
-  CHECK(rex::hash_file(fs::temp_directory_path()).empty());
+  CHECK(rex::HashFile(fs::temp_directory_path()).empty());
 }

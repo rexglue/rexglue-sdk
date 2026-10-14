@@ -34,13 +34,15 @@ REX_TEST_CASE("xam: a content resolve reports the content as not found", "[char]
 
 REX_TEST_CASE("xam: a launch with no name ends the title", "[char][xam]") {
   KernelFixture fixture;
-  rex::runtime::ThreadState host_state(0, 0, 0, fixture.runtime().memory(), &fixture.runtime());
+  rex::runtime::ThreadState host_state(0, 0, 0, fixture.GetRuntime().GetMemory(),
+                                       &fixture.GetRuntime());
   rex::runtime::ThreadState* previous = rex::runtime::ThreadState::Get();
   rex::runtime::ThreadState::Bind(&host_state);
-  Caller c(*host_state.context(), fixture.runtime().memory()->virtual_membase(), fixture.runtime());
+  Caller c(*host_state.GetContext(), fixture.GetRuntime().GetMemory()->GetVirtualMembase(),
+           fixture.GetRuntime());
   c.XAM("XamLoaderLaunchTitle", {0, 0});
   rex::runtime::ThreadState::Bind(previous);
-  CHECK(fixture.runtime().is_terminating_title());
+  CHECK(fixture.GetRuntime().IsTerminatingTitle());
 }
 
 namespace {
@@ -63,7 +65,7 @@ u32 ReadProfile(Caller& c, u32 user_index, u32 xuid_count, u32 xuids, u32 settin
 REX_TEST_CASE("xam: a profile read writes 1 entry per XUID and setting", "[char][xam]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    const u64 own = c.runtime().content_manager().user_profile().xuid();
+    const u64 own = c.GetRuntime().GetContentManager().GetUserProfile().GetXUID();
     const u64 other = own + 1;
     const u32 xuids = c.Alloc(16);
     c.Store64(xuids, own);
@@ -109,7 +111,7 @@ u32 CreateSession(Caller& c) {
 }
 
 bool HandleResolves(Caller& c, u32 handle) {
-  return static_cast<bool>(c.runtime().object_table().Get(handle));
+  return static_cast<bool>(c.GetRuntime().GetObjectTable().Get(handle));
 }
 }  // namespace
 

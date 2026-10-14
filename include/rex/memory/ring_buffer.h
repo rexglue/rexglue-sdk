@@ -25,7 +25,7 @@
 namespace rex::memory {
 
 /** Offset and size type of RingBuffer. 32 bits keeps the x86-64 REX.W prefix off the hot path. */
-using ring_size_t = u32;
+using RingSizeT = u32;
 
 /**
  * Ring buffer of bytes over memory the caller owns. The buffer is empty when the read and write
@@ -46,35 +46,35 @@ class REX_API RingBuffer {
    *
    * @return Pointer to the first byte.
    */
-  u8* buffer() const { return buffer_; }
+  u8* GetBuffer() const { return buffer_; }
 
   /**
    * Returns the size of the backing memory.
    *
    * @return Byte count.
    */
-  ring_size_t capacity() const { return capacity_; }
+  RingSizeT GetCapacity() const { return capacity_; }
 
   /**
    * Reports whether the read and write offsets are equal.
    *
    * @return True when no bytes are waiting to be read.
    */
-  bool empty() const { return read_offset_ == write_offset_; }
+  bool IsEmpty() const { return read_offset_ == write_offset_; }
 
   /**
    * Returns the read offset.
    *
    * @return Byte offset of the next read.
    */
-  ring_size_t read_offset() const { return read_offset_; }
+  RingSizeT GetReadOffset() const { return read_offset_; }
 
   /**
    * Returns the address of the next read.
    *
-   * @return buffer() plus read_offset().
+   * @return GetBuffer() plus GetReadOffset().
    */
-  uintptr_t read_ptr() const {
+  uintptr_t GetReadPtr() const {
     return reinterpret_cast<uintptr_t>(buffer_) + static_cast<uintptr_t>(read_offset_);
   }
 
@@ -83,19 +83,17 @@ class REX_API RingBuffer {
    *
    * @param offset New offset, wrapped to the capacity.
    */
-  void set_read_offset(size_t offset) {
-    read_offset_ = static_cast<ring_size_t>(offset) % capacity_;
-  }
+  void SetReadOffset(size_t offset) { read_offset_ = static_cast<RingSizeT>(offset) % capacity_; }
 
   /**
    * Returns the number of bytes between the read and write offsets.
    *
    * @return Bytes waiting to be read.
    */
-  ring_size_t read_count() const {
-    ring_size_t read_offs = read_offset_;
-    ring_size_t write_offs = write_offset_;
-    ring_size_t cap = capacity_;
+  RingSizeT GetReadCount() const {
+    RingSizeT read_offs = read_offset_;
+    RingSizeT write_offs = write_offset_;
+    RingSizeT cap = capacity_;
     if (read_offs <= write_offs) {
       return write_offs - read_offs;
     } else {
@@ -108,14 +106,14 @@ class REX_API RingBuffer {
    *
    * @return Byte offset of the next write.
    */
-  ring_size_t write_offset() const { return write_offset_; }
+  RingSizeT GetWriteOffset() const { return write_offset_; }
 
   /**
    * Returns the address of the next write.
    *
-   * @return buffer() plus write_offset().
+   * @return GetBuffer() plus GetWriteOffset().
    */
-  uintptr_t write_ptr() const {
+  uintptr_t GetWritePtr() const {
     return reinterpret_cast<uintptr_t>(buffer_) + static_cast<uintptr_t>(write_offset_);
   }
 
@@ -124,19 +122,17 @@ class REX_API RingBuffer {
    *
    * @param offset New offset, wrapped to the capacity.
    */
-  void set_write_offset(size_t offset) {
-    write_offset_ = static_cast<ring_size_t>(offset) % capacity_;
-  }
+  void SetWriteOffset(size_t offset) { write_offset_ = static_cast<RingSizeT>(offset) % capacity_; }
 
   /**
    * Returns the number of bytes that can be written.
    *
    * @return Free bytes, the full capacity when the buffer is empty.
    */
-  ring_size_t write_count() const {
-    ring_size_t read_offs = read_offset_;
-    ring_size_t write_offs = write_offset_;
-    ring_size_t cap = capacity_;
+  RingSizeT GetWriteCount() const {
+    RingSizeT read_offs = read_offset_;
+    RingSizeT write_offs = write_offset_;
+    RingSizeT cap = capacity_;
     if (read_offs == write_offs) {
       return cap;
     } else if (write_offs < read_offs) {
@@ -164,8 +160,8 @@ class REX_API RingBuffer {
   struct ReadRange {
     const u8* __restrict first;  /**< Bytes from the read offset, or nullptr when empty. */
     const u8* __restrict second; /**< Bytes from the buffer start, or nullptr without a wrap. */
-    ring_size_t first_length;    /**< Byte count of first. */
-    ring_size_t second_length;   /**< Byte count of second. */
+    RingSizeT first_length;      /**< Byte count of first. */
+    RingSizeT second_length;     /**< Byte count of second. */
   };
 
   /**
@@ -206,7 +202,7 @@ class REX_API RingBuffer {
   }
 
   /**
-   * Reads 1 value in its stored byte order.
+   * Reads a value in its stored byte order.
    *
    * @tparam T Fundamental type.
    * @return The value.
@@ -222,7 +218,7 @@ class REX_API RingBuffer {
   }
 
   /**
-   * Reads 1 value and swaps its byte order.
+   * Reads a value and swaps its byte order.
    *
    * @tparam T Fundamental type.
    * @return The byte swapped value.
@@ -274,9 +270,9 @@ class REX_API RingBuffer {
 
  private:
   u8* __restrict buffer_ = nullptr;
-  ring_size_t capacity_ = 0;
-  ring_size_t read_offset_ = 0;
-  ring_size_t write_offset_ = 0;
+  RingSizeT capacity_ = 0;
+  RingSizeT read_offset_ = 0;
+  RingSizeT write_offset_ = 0;
 };
 
 /**
@@ -288,8 +284,8 @@ class REX_API RingBuffer {
 template <>
 inline u32 RingBuffer::ReadAndSwap<u32>() {
   REX_ASSERT(capacity_ >= 4);
-  ring_size_t read_offs = read_offset_;
-  ring_size_t next_read_offs = read_offs + 4;
+  RingSizeT read_offs = read_offset_;
+  RingSizeT next_read_offs = read_offs + 4;
   if (next_read_offs == capacity_) [[unlikely]] {
     next_read_offs = 0;
   }

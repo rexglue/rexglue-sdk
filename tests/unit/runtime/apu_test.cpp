@@ -52,21 +52,21 @@ class RecordingBackend final : public rex::apu::IAPUBackend {
     submitted_.push_back(stream);
   }
   void SetStereoFold(const rex::apu::StereoFold&) override {}
-  rex::apu::StereoFold stereo_fold() const override { return {}; }
+  rex::apu::StereoFold GetStereoFold() const override { return {}; }
   void SetSurroundMix(const rex::apu::SurroundMix&) override {}
-  rex::apu::SurroundMix surround_mix() const override { return {}; }
+  rex::apu::SurroundMix GetSurroundMix() const override { return {}; }
   void SetOutputGain(rex::f32) override {}
-  rex::f32 output_gain() const override { return 1.0f; }
+  rex::f32 GetOutputGain() const override { return 1.0f; }
 
   void Play(rex::u32 stream) {
     std::lock_guard lock(mutex_);
     callbacks_.at(stream)();
   }
-  size_t open() const {
+  size_t Open() const {
     std::lock_guard lock(mutex_);
     return callbacks_.size();
   }
-  int closed() const { return closed_; }
+  int GetClosed() const { return closed_; }
 
  private:
   mutable std::mutex mutex_;
@@ -81,70 +81,70 @@ class RecordingBackend final : public rex::apu::IAPUBackend {
 REX_TEST_CASE("APU gives a client its queue depth in credits", "[apu]") {
   rex::testing::KernelFixture fixture;
   RecordingBackend backend;
-  rex::runtime::APU apu(fixture.runtime(), backend, 4);
+  rex::runtime::APU apu(fixture.GetRuntime(), backend, 4);
   auto client = apu.RegisterClient(0, 0);
   REQUIRE(client);
-  CHECK(apu.credits(*client) == 4);
-  CHECK(backend.open() == 1);
+  CHECK(apu.TakeCredits(*client) == 4);
+  CHECK(backend.Open() == 1);
   apu.UnregisterClient(*client);
-  CHECK(backend.closed() == 1);
-  CHECK(apu.credits(*client) == 0);
+  CHECK(backend.GetClosed() == 1);
+  CHECK(apu.TakeCredits(*client) == 0);
   apu.Shutdown();
 }
 
 REX_TEST_CASE("APU gets 1 credit back per played frame", "[apu]") {
   rex::testing::KernelFixture fixture;
   RecordingBackend backend;
-  rex::runtime::APU apu(fixture.runtime(), backend, 4);
+  rex::runtime::APU apu(fixture.GetRuntime(), backend, 4);
   auto client = apu.RegisterClient(0, 0);
   REQUIRE(client);
   REQUIRE(apu.TakeCredit(*client));
   REQUIRE(apu.TakeCredit(*client));
-  CHECK(apu.credits(*client) == 2);
+  CHECK(apu.TakeCredits(*client) == 2);
   backend.Play(1);
-  CHECK(apu.credits(*client) == 3);
+  CHECK(apu.TakeCredits(*client) == 3);
   apu.Shutdown();
 }
 
 REX_TEST_CASE("APU refuses a 9th client with X_STATUS_NO_MEMORY", "[apu]") {
   rex::testing::KernelFixture fixture;
   RecordingBackend backend;
-  rex::runtime::APU apu(fixture.runtime(), backend, 4);
+  rex::runtime::APU apu(fixture.GetRuntime(), backend, 4);
   for (rex::u32 i = 0; i < rex::runtime::APU::kMaxClients; ++i) {
     REQUIRE(apu.RegisterClient(0, 0));
   }
   auto ninth = apu.RegisterClient(0, 0);
   REQUIRE_FALSE(ninth);
   CHECK(rex::runtime::ToXStatus(ninth.error()) == rex::X_STATUS_NO_MEMORY);
-  CHECK(backend.open() == rex::runtime::APU::kMaxClients);
+  CHECK(backend.Open() == rex::runtime::APU::kMaxClients);
   apu.Shutdown();
 }
 
 REX_TEST_CASE("APU pause is idempotent and resume restores it", "[apu]") {
   rex::testing::KernelFixture fixture;
   RecordingBackend backend;
-  rex::runtime::APU apu(fixture.runtime(), backend, 4);
+  rex::runtime::APU apu(fixture.GetRuntime(), backend, 4);
   REQUIRE(apu.Setup());
   apu.SetPaused(true);
   apu.SetPaused(true);
-  CHECK(apu.paused());
-  CHECK(apu.xma_decoder().is_paused());
+  CHECK(apu.GetPaused());
+  CHECK(apu.GetXMADecoder().IsPaused());
   apu.SetPaused(false);
-  CHECK_FALSE(apu.paused());
-  CHECK_FALSE(apu.xma_decoder().is_paused());
+  CHECK_FALSE(apu.GetPaused());
+  CHECK_FALSE(apu.GetXMADecoder().IsPaused());
   apu.Shutdown();
 }
 
 REX_TEST_CASE("APU shutdown releases a paused worker", "[apu]") {
   rex::testing::KernelFixture fixture;
   RecordingBackend backend;
-  rex::runtime::APU apu(fixture.runtime(), backend, 4);
+  rex::runtime::APU apu(fixture.GetRuntime(), backend, 4);
   REQUIRE(apu.Setup());
   apu.SetPaused(true);
   const auto start = std::chrono::steady_clock::now();
   apu.Shutdown();
   CHECK(std::chrono::steady_clock::now() - start < std::chrono::milliseconds(250));
-  CHECK_FALSE(apu.paused());
+  CHECK_FALSE(apu.GetPaused());
 }
 
 namespace {
@@ -154,7 +154,7 @@ std::atomic<bool> g_in_callback{false};
 
 void WaitingClientCallback(PPCContext& ctx, rex::u8* base) {
   g_in_callback.store(true);
-  rex::testing::Caller caller(ctx, base, *rex::runtime::ThreadState::Get()->runtime());
+  rex::testing::Caller caller(ctx, base, *rex::runtime::ThreadState::Get()->GetRuntime());
   caller.Kernel("NtWaitForSingleObjectEx", {g_callback_event.load(), 1, 0, 0});
 }
 
@@ -172,9 +172,9 @@ REX_TEST_CASE("APU shutdown stops a worker blocked in its title callback", "[run
     g_callback_event.store(c.Load32(handle_ptr));
   });
   const rex::u32 callback =
-      fixture.runtime().function_dispatcher()->AllocateThunk(&WaitingClientCallback, 0);
+      fixture.GetRuntime().GetFunctionDispatcher()->AllocateThunk(&WaitingClientCallback, 0);
   RecordingBackend backend;
-  rex::runtime::APU apu(fixture.runtime(), backend, 4);
+  rex::runtime::APU apu(fixture.GetRuntime(), backend, 4);
   REQUIRE(apu.Setup());
   REQUIRE(apu.RegisterClient(callback, 0));
   const auto until = std::chrono::steady_clock::now() + std::chrono::seconds(2);

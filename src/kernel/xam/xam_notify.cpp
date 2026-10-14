@@ -29,13 +29,13 @@ u32 XamNotifyCreateListener(u64 mask, u32 is_system, u32 max_version) {
     max_version = 10;
   }
 
-  auto added = runtime::Current().object_table().Emplace<NotifyListenerObject>(AddOptions{}, mask,
-                                                                               max_version);
+  auto added = runtime::GetCurrent().GetObjectTable().Emplace<NotifyListenerObject>(
+      AddOptions{}, mask, max_version);
   if (!added) {
     return 0;
   }
   const X_HANDLE handle = *added;
-  runtime::Current().notifier().RegisterNotifyListener(handle);
+  runtime::GetCurrent().GetNotifier().RegisterNotifyListener(handle);
 
   REXLOG_DEBUG(
       kernel,
@@ -53,7 +53,7 @@ u32 XamNotifyCreateListenerInternal_entry(u64 mask, u32 is_system, u32 max_versi
   return XamNotifyCreateListener(mask, is_system, max_version);
 }
 
-u32 XNotifyGetNext_entry(u32 handle, u32 match_id, mapped_u32 id_ptr, mapped_u32 param_ptr) {
+u32 XNotifyGetNext_entry(u32 handle, u32 match_id, MappedU32 id_ptr, MappedU32 param_ptr) {
   if (param_ptr) {
     *param_ptr = 0;
   }
@@ -63,7 +63,7 @@ u32 XNotifyGetNext_entry(u32 handle, u32 match_id, mapped_u32 id_ptr, mapped_u32
   }
   *id_ptr = 0;
 
-  auto listener = runtime::Current().object_table().Get<NotifyListenerObject>(handle);
+  auto listener = runtime::GetCurrent().GetObjectTable().Get<NotifyListenerObject>(handle);
   if (!listener) {
     return 0;
   }

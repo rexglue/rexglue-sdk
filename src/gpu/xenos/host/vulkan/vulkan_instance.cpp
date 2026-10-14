@@ -433,19 +433,19 @@ std::unique_ptr<VulkanInstance> VulkanInstance::Create(const bool with_surface,
     auto debug_utils_messenger_create_info =
         objects::InitializeStructure<VkDebugUtilsMessengerCreateInfoEXT>(
             VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT);
-    if (rex::log::gpu.Enabled(rex::log::Level::kDebug)) {
+    if (rex::log::gpu.IsEnabled(rex::log::Level::kDebug)) {
       debug_utils_messenger_create_info.messageSeverity |=
           VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT;
     }
-    if (rex::log::gpu.Enabled(rex::log::Level::kInfo)) {
+    if (rex::log::gpu.IsEnabled(rex::log::Level::kInfo)) {
       debug_utils_messenger_create_info.messageSeverity |=
           VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT;
     }
-    if (rex::log::gpu.Enabled(rex::log::Level::kWarn)) {
+    if (rex::log::gpu.IsEnabled(rex::log::Level::kWarn)) {
       debug_utils_messenger_create_info.messageSeverity |=
           VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT;
     }
-    if (rex::log::gpu.Enabled(rex::log::Level::kError)) {
+    if (rex::log::gpu.IsEnabled(rex::log::Level::kError)) {
       debug_utils_messenger_create_info.messageSeverity |=
           VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
     }

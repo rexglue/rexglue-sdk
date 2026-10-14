@@ -28,7 +28,7 @@ const std::array<ScopeTable, 3> kTables = {{
 
 [[nodiscard]] Result<void> ValidateLayers(const Config& config) {
   auto fail = [](const std::string& message) {
-    REX_FAIL(system, Err(Error(ErrorCategory::Config, message)), "{}", message);
+    REX_FAIL(system, Err(Error(ErrorCategory::kConfig, message)), "{}", message);
   };
   if (config.runtime.heap_size_mb < 1 || config.runtime.heap_size_mb > 2048) {
     return fail(std::format("config field runtime.heap_size_mb = {} is outside 1 to 2048",
@@ -41,7 +41,7 @@ const std::array<ScopeTable, 3> kTables = {{
   return Ok();
 }
 
-RuntimeModule& Instance() {
+RuntimeModule& GetInstance() {
   static RuntimeModule instance;
   return instance;
 }
@@ -49,66 +49,69 @@ RuntimeModule& Instance() {
 }  // namespace
 
 void* RuntimeModule::GetModule() {
-  return static_cast<IModule*>(&Instance());
+  return static_cast<IModule*>(&GetInstance());
 }
 
 void RuntimeModule::SetActive(Runtime* runtime) {
-  Instance().runtime_.store(runtime, std::memory_order_release);
+  GetInstance().runtime_.store(runtime, std::memory_order_release);
 }
 
-Runtime* RuntimeModule::active() {
-  return Instance().runtime_.load(std::memory_order_acquire);
+Runtime* RuntimeModule::GetActive() {
+  return GetInstance().runtime_.load(std::memory_order_acquire);
 }
 
 void* RuntimeModule::GetObjectTable() {
-  Runtime* runtime = active();
-  return runtime != nullptr ? static_cast<IObjectTable*>(&runtime->object_table()) : nullptr;
+  Runtime* runtime = GetActive();
+  return runtime != nullptr ? static_cast<IObjectTable*>(&runtime->GetObjectTable()) : nullptr;
 }
 
 void* RuntimeModule::GetThreadRegistry() {
-  Runtime* runtime = active();
-  return runtime != nullptr ? static_cast<IThreadRegistry*>(&runtime->thread_registry()) : nullptr;
+  Runtime* runtime = GetActive();
+  return runtime != nullptr ? static_cast<IThreadRegistry*>(&runtime->GetThreadRegistry())
+                            : nullptr;
 }
 
 void* RuntimeModule::GetModuleRegistry() {
-  Runtime* runtime = active();
-  return runtime != nullptr ? static_cast<IModuleRegistry*>(&runtime->module_registry()) : nullptr;
+  Runtime* runtime = GetActive();
+  return runtime != nullptr ? static_cast<IModuleRegistry*>(&runtime->GetModuleRegistry())
+                            : nullptr;
 }
 
 void* RuntimeModule::GetNotifier() {
-  Runtime* runtime = active();
-  return runtime != nullptr ? static_cast<INotifier*>(&runtime->notifier()) : nullptr;
+  Runtime* runtime = GetActive();
+  return runtime != nullptr ? static_cast<INotifier*>(&runtime->GetNotifier()) : nullptr;
 }
 
 void* RuntimeModule::GetContentManager() {
-  Runtime* runtime = active();
-  return runtime != nullptr ? static_cast<IContentManager*>(&runtime->content_manager()) : nullptr;
+  Runtime* runtime = GetActive();
+  return runtime != nullptr ? static_cast<IContentManager*>(&runtime->GetContentManager())
+                            : nullptr;
 }
 
 void* RuntimeModule::GetAchievementManager() {
-  Runtime* runtime = active();
-  return runtime != nullptr ? static_cast<IAchievementManager*>(&runtime->achievement_manager())
+  Runtime* runtime = GetActive();
+  return runtime != nullptr ? static_cast<IAchievementManager*>(&runtime->GetAchievementManager())
                             : nullptr;
 }
 
 void* RuntimeModule::GetDispatcher() {
-  Runtime* runtime = active();
-  return runtime != nullptr ? static_cast<IDispatcher*>(&runtime->dispatcher()) : nullptr;
+  Runtime* runtime = GetActive();
+  return runtime != nullptr ? static_cast<IDispatcher*>(&runtime->GetDispatcher()) : nullptr;
 }
 
-apu::IAPUBackend* RuntimeModule::apu_backend() {
-  return Instance().apu_;
+apu::IAPUBackend* RuntimeModule::GetAPUBackend() {
+  return GetInstance().apu_;
 }
 
-hid::IHIDBackend* RuntimeModule::hid_backend() {
-  return Instance().hid_;
+hid::IHIDBackend* RuntimeModule::GetHIDBackend() {
+  return GetInstance().hid_;
 }
 
-const char* RuntimeModule::Name() const {
+const char* RuntimeModule::GetName() const {
   return "rex-runtime";
 }
 
-std::span<const char* const> RuntimeModule::RequiredInterfaces() const {
+std::span<const char* const> RuntimeModule::GetRequiredInterfaces() const {
   static constexpr std::array<const char*, 2> kRequired = {"rex.cvar@1", "rex.filesystem@1"};
   return kRequired;
 }

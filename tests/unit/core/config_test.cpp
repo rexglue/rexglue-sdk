@@ -65,7 +65,7 @@ REX_TEST_CASE("ParseCommandLine reads every cvar form", "[config]") {
   REQUIRE(Find(cfg, "gpu.scale")->value == "2");
   REQUIRE(Find(cfg, "gpu.debug")->value == "true");
   REQUIRE(Find(cfg, "gpu.markers")->value == "false");
-  REQUIRE(Find(cfg, "gpu.vsync")->source == rex::cvar::CvarSource::CommandLine);
+  REQUIRE(Find(cfg, "gpu.vsync")->source == rex::cvar::CvarSource::kCommandLine);
 }
 
 REX_TEST_CASE("ParseCommandLine fills structural fields and modules", "[config]") {
@@ -113,7 +113,7 @@ REX_TEST_CASE("LoadConfigFile reads scoped tables and flat keys alike", "[config
   REQUIRE(rex::LoadConfigFile(cfg, path));
   REQUIRE(cfg.cvars.values.size() == 3);
   REQUIRE(Find(cfg, "gpu.vsync")->value == "false");
-  REQUIRE(Find(cfg, "gpu.vsync")->source == rex::cvar::CvarSource::Config);
+  REQUIRE(Find(cfg, "gpu.vsync")->source == rex::cvar::CvarSource::kConfig);
   REQUIRE(Find(cfg, "gpu.scale")->value == "2");
   REQUIRE(Find(cfg, "fs.path")->value == "C:\\x");
   std::filesystem::remove(path);
@@ -172,7 +172,7 @@ REX_TEST_CASE("ApplyEnvironment reads REX_ variables into Environment overrides"
   rex::cvar::ApplyEnvironment(cfg);
   REQUIRE(Find(cfg, "gpu.vsync") != nullptr);
   REQUIRE(Find(cfg, "gpu.vsync")->value == "false");
-  REQUIRE(Find(cfg, "gpu.vsync")->source == rex::cvar::CvarSource::Environment);
+  REQUIRE(Find(cfg, "gpu.vsync")->source == rex::cvar::CvarSource::kEnvironment);
   REQUIRE(Find(cfg, "app.debug_markers")->value == "1");
   REQUIRE(Find(cfg, "noscope") == nullptr);
   for (const auto& o : cfg.cvars.values)
@@ -185,9 +185,9 @@ REX_TEST_CASE("ApplyEnvironment reads REX_ variables into Environment overrides"
 
 REX_TEST_CASE("CvarConfig::Get returns the highest precedence queued value", "[config]") {
   rex::Config config;
-  config.cvars.values.push_back({"gpu.vsync", "false", rex::cvar::CvarSource::Environment});
+  config.cvars.values.push_back({"gpu.vsync", "false", rex::cvar::CvarSource::kEnvironment});
   config.cvars.SetDefault("gpu.vsync", "true");
-  config.cvars.values.push_back({"gpu.vsync", "true", rex::cvar::CvarSource::Config});
+  config.cvars.values.push_back({"gpu.vsync", "true", rex::cvar::CvarSource::kConfig});
   REQUIRE(config.cvars.Get("gpu.vsync") == "false");
   config.cvars.Set("gpu.vsync", "true");
   REQUIRE(config.cvars.Get("gpu.vsync") == "true");

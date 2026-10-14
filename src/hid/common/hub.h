@@ -85,19 +85,19 @@ class Hub final : public IHIDBackend, public NonCopyable {
   void SetHost(IInputHost* host) override;
   void OnEvent(const InputEvent& event) override;
   bool IsKeyDown(VirtualKey key) const override;
-  bool AnyKeyDown() const override;
-  KeyModifiers modifiers() const override;
-  bool focused() const override;
-  PointerState pointer() const override;
+  bool IsAnyKeyDown() const override;
+  KeyModifiers GetModifiers() const override;
+  bool GetFocused() const override;
+  PointerState GetPointer() const override;
   bool IsButtonDown(MouseButton button) const override;
-  bool AnyButtonDown() const override;
+  bool IsAnyButtonDown() const override;
   bool TakePointerMoved() override;
   PointerDelta TakeMotion() override;
   PointerDelta PeekMotion() const override;
   i32 TakeWheel() override;
-  i32 wheel() const override;
+  i32 GetWheel() const override;
   void SetPointerMode(PointerMode mode) override;
-  PointerMode pointer_mode() const override;
+  PointerMode GetPointerMode() const override;
 
  private:
   using JoystickValue = std::pair<u16, u16>;
@@ -109,7 +109,7 @@ class Hub final : public IHIDBackend, public NonCopyable {
   [[nodiscard]] Result<X_INPUT_STATE> ReadStateLocked(u32 user);
   void UpdateConnectedUserLocked(u32 user, bool connected);
   void AdjustDeadzoneLevels(u32 user, X_INPUT_GAMEPAD& gamepad) const;
-  PointerMode EffectiveMode() const;
+  PointerMode GetEffectiveMode() const;
   void TrackCapture();
   void ApplyPointerModeFromUIThread();
   InputEvent TrackMotion(const InputEvent& event);
@@ -132,9 +132,9 @@ class Hub final : public IHIDBackend, public NonCopyable {
   rex::MoveOnlyFunction<void(u32, bool)> connection_listener_;
 
   std::atomic<IInputHost*> host_{nullptr};
-  std::atomic<PointerMode> requested_mode_{PointerMode::Free};
+  std::atomic<PointerMode> requested_mode_{PointerMode::kFree};
   std::atomic<bool> pointer_update_queued_{false};
-  PointerMode applied_mode_ = PointerMode::Free;
+  PointerMode applied_mode_ = PointerMode::kFree;
   bool relative_ = false;
   f32 lock_x_ = 0.0f;
   f32 lock_y_ = 0.0f;

@@ -51,127 +51,129 @@ size_t RegisterIndex(std::string_view name, size_t prefix) {
 }  // namespace
 
 std::string_view BuilderContext::MMIOMacro(std::string_view plain) const {
-  const MMIOAccess access = mmio ? mmio->At(base) : MMIOAccess::Plain;
+  const MMIOAccess access = mmio ? mmio->At(base) : MMIOAccess::kPlain;
   const auto* row = std::ranges::find(kMMIOMacros, plain, &MMIOMacroRow::plain);
-  if (access == MMIOAccess::Plain || row == std::end(kMMIOMacros)) {
+  if (access == MMIOAccess::kPlain || row == std::end(kMMIOMacros)) {
     return plain;
   }
   switch (access) {
-    case MMIOAccess::GPU:
+    case MMIOAccess::kGPU:
       return row->gpu;
-    case MMIOAccess::APU:
+    case MMIOAccess::kAPU:
       return row->apu;
     default:
       return row->guarded;
   }
 }
 
-const RecompilerConfig& BuilderContext::config() const {
-  return emitCtx.config;
+const RecompilerConfig& BuilderContext::GetConfig() const {
+  return emit_ctx.config;
 }
 
-const FunctionGraph& BuilderContext::graph() const {
-  return emitCtx.graph;
+const FunctionGraph& BuilderContext::GetGraph() const {
+  return emit_ctx.graph;
 }
 
-bool BuilderContext::localizeNonVolatiles() const {
-  const auto& info = fn.exceptionInfo();
-  const auto* seh = info ? info->asSeh() : nullptr;
-  const bool sehScope = config().generateExceptionHandlers && seh && !seh->scopes.empty();
-  return config().nonVolatileRegistersAsLocalVariables && !fn.sharesRegisters() && !sehScope;
+bool BuilderContext::ShouldLocalizeNonVolatiles() const {
+  const auto& info = fn.GetExceptionData();
+  const auto* seh = info ? info->AsSEH() : nullptr;
+  const bool seh_scope = GetConfig().generate_exception_handlers && seh && !seh->scopes.empty();
+  return GetConfig().non_volatile_registers_as_local_variables && !fn.SharesRegisters() &&
+         !seh_scope;
 }
 
-std::string BuilderContext::r(size_t index) {
-  const auto& cfg = config();
-  if ((cfg.nonArgumentRegistersAsLocalVariables &&
+std::string BuilderContext::R(size_t index) {
+  const auto& cfg = GetConfig();
+  if ((cfg.non_argument_registers_as_local_variables &&
        (index == 0 || index == 2 || index == 11 || index == 12)) ||
-      (localizeNonVolatiles() && index >= 14)) {
+      (ShouldLocalizeNonVolatiles() && index >= 14)) {
     locals.r[index] = true;
     return std::format("r{}", index);
   }
   return std::format("ctx.r{}", index);
 }
 
-std::string BuilderContext::f(size_t index) {
-  const auto& cfg = config();
-  if ((cfg.nonArgumentRegistersAsLocalVariables && index == 0) ||
-      (localizeNonVolatiles() && index >= 14)) {
+std::string BuilderContext::F(size_t index) {
+  const auto& cfg = GetConfig();
+  if ((cfg.non_argument_registers_as_local_variables && index == 0) ||
+      (ShouldLocalizeNonVolatiles() && index >= 14)) {
     locals.f[index] = true;
     return std::format("f{}", index);
   }
   return std::format("ctx.f{}", index);
 }
 
-std::string BuilderContext::v(size_t index) {
-  const auto& cfg = config();
-  if ((cfg.nonArgumentRegistersAsLocalVariables && (index >= 32 && index <= 63)) ||
-      (localizeNonVolatiles() && ((index >= 14 && index <= 31) || (index >= 64 && index <= 127)))) {
+std::string BuilderContext::V(size_t index) {
+  const auto& cfg = GetConfig();
+  if ((cfg.non_argument_registers_as_local_variables && (index >= 32 && index <= 63)) ||
+      (ShouldLocalizeNonVolatiles() &&
+       ((index >= 14 && index <= 31) || (index >= 64 && index <= 127)))) {
     locals.v[index] = true;
     return std::format("v{}", index);
   }
   return std::format("ctx.v{}", index);
 }
 
-std::string BuilderContext::cr(size_t index) {
-  if (config().crRegistersAsLocalVariables) {
+std::string BuilderContext::CR(size_t index) {
+  if (GetConfig().cr_registers_as_local_variables) {
     locals.cr[index] = true;
     return std::format("cr{}", index);
   }
   return std::format("ctx.cr{}", index);
 }
 
-const char* BuilderContext::ctr() {
-  if (config().ctrAsLocalVariable) {
+const char* BuilderContext::CTR() {
+  if (GetConfig().ctr_as_local_variable) {
     locals.ctr = true;
     return "ctr";
   }
   return "ctx.ctr";
 }
 
-const char* BuilderContext::xer() {
-  if (config().xerAsLocalVariable) {
+const char* BuilderContext::XER() {
+  if (GetConfig().xer_as_local_variable) {
     locals.xer = true;
     return "xer";
   }
   return "ctx.xer";
 }
 
-const char* BuilderContext::reserved() {
-  if (config().reservedRegisterAsLocalVariable) {
+const char* BuilderContext::Reserved() {
+  if (GetConfig().reserved_register_as_local_variable) {
     locals.reserved = true;
     return "reserved";
   }
   return "ctx.reserved";
 }
 
-const char* BuilderContext::temp() {
+const char* BuilderContext::Temp() {
   locals.temp = true;
   return "temp";
 }
 
-const char* BuilderContext::v_temp() {
+const char* BuilderContext::VTemp() {
   locals.v_temp = true;
   return "vTemp";
 }
 
-const char* BuilderContext::env() {
+const char* BuilderContext::Env() {
   locals.env = true;
   return "env";
 }
 
-const char* BuilderContext::ea() {
+const char* BuilderContext::EA() {
   locals.ea = true;
   return "ea";
 }
 
-const CallTarget* BuilderContext::findCallTarget(u32 site) const {
-  for (const auto& edge : fn.calls()) {
+const CallTarget* BuilderContext::FindCallTarget(u32 site) const {
+  for (const auto& edge : fn.GetCalls()) {
     if (edge.site == site) {
       return &edge.target;
     }
   }
 
-  for (const auto& edge : fn.tailCalls()) {
+  for (const auto& edge : fn.GetTailCalls()) {
     if (edge.site == site) {
       return &edge.target;
     }
@@ -180,322 +182,322 @@ const CallTarget* BuilderContext::findCallTarget(u32 site) const {
   return nullptr;
 }
 
-void BuilderContext::emit_function_call(u32 address) {
-  const auto& cfg = config();
+void BuilderContext::EmitFunctionCall(u32 address) {
+  const auto& cfg = GetConfig();
 
-  if (address == cfg.longJmpAddress) {
-    println("\tppc_longjmp({}.u32, {}.s32);", r(3), r(4));
+  if (address == cfg.long_jmp_address) {
+    Println("\tppc_longjmp({}.u32, {}.s32);", R(3), R(4));
     return;
   }
 
-  if (address == cfg.setJmpAddress) {
-    println("\t{} = ctx;", env());
-    println("\t{}.s64 = ppc_setjmp({}.u32);", temp(), r(3));
-    println("\tif ({}.s64 != 0) ctx = {};", temp(), env());
-    println("\t{} = {};", r(3), temp());
+  if (address == cfg.set_jmp_address) {
+    Println("\t{} = ctx;", Env());
+    Println("\t{}.s64 = ppc_setjmp({}.u32);", Temp(), R(3));
+    Println("\tif ({}.s64 != 0) ctx = {};", Temp(), Env());
+    Println("\t{} = {};", R(3), Temp());
     return;
   }
 
-  if (const auto* target = findCallTarget(base)) {
-    if (target->isFunction()) {
-      auto* targetFn = target->asFunction();
-      const auto& name = targetFn->name();
+  if (const auto* target = FindCallTarget(base)) {
+    if (target->IsFunction()) {
+      auto* target_fn = target->AsFunction();
+      const auto& name = target_fn->GetName();
 
-      if (cfg.nonVolatileRegistersAsLocalVariables &&
+      if (cfg.non_volatile_registers_as_local_variables &&
           (name.find("__rest") == 0 || name.find("__save") == 0)) {
         return;
       }
 
-      if (targetFn->sharesRegisters() && localizeNonVolatiles()) {
+      if (target_fn->SharesRegisters() && ShouldLocalizeNonVolatiles()) {
         for (size_t i = 14; i < 32; ++i) {
           if (locals.r[i])
-            println("\tctx.r{} = r{};", i, i);
+            Println("\tctx.r{} = r{};", i, i);
         }
-        emitCtx.reference(name);
-        println("\t{}(ctx, base);", name);
+        emit_ctx.Reference(name);
+        Println("\t{}(ctx, base);", name);
         for (size_t i = 14; i < 32; ++i) {
           if (locals.r[i])
-            println("\tr{} = ctx.r{};", i, i);
+            Println("\tr{} = ctx.r{};", i, i);
         }
         return;
       }
 
-      emitCtx.reference(name);
-      println("\t{}(ctx, base);", name);
+      emit_ctx.Reference(name);
+      Println("\t{}(ctx, base);", name);
       return;
     }
 
-    if (target->isImport()) {
-      const auto& importTarget = std::get<CallTarget::ToImport>(target->value);
+    if (target->IsImport()) {
+      const auto& import_target = std::get<CallTarget::ToImport>(target->value);
       std::string func_name;
 
-      auto at_pos = importTarget.name.find('@');
+      auto at_pos = import_target.name.find('@');
       if (at_pos != std::string::npos) {
-        auto lib_name = importTarget.name.substr(0, at_pos);
-        auto ordinal_str = importTarget.name.substr(at_pos + 1);
+        auto lib_name = import_target.name.substr(0, at_pos);
+        auto ordinal_str = import_target.name.substr(at_pos + 1);
         u16 ordinal = static_cast<u16>(std::stoul(ordinal_str));
 
-        const auto exportModule = runtime::ModuleFromName(lib_name);
-        const auto* exp = exportModule ? runtime::FindByOrdinal(*exportModule, ordinal) : nullptr;
+        const auto export_module = runtime::ModuleFromName(lib_name);
+        const auto* exp = export_module ? runtime::FindByOrdinal(*export_module, ordinal) : nullptr;
         if (exp) {
           func_name = "__imp__" + std::string(exp->name);
         }
       }
 
       if (func_name.empty()) {
-        func_name = "__imp__" + importTarget.name;
+        func_name = "__imp__" + import_target.name;
         std::replace(func_name.begin(), func_name.end(), '@', '_');
         std::replace(func_name.begin(), func_name.end(), '.', '_');
       }
 
-      emitCtx.reference(func_name);
-      println("\t{}(ctx, base);", func_name);
+      emit_ctx.Reference(func_name);
+      Println("\t{}(ctx, base);", func_name);
       return;
     }
 
     REXLOG_ERROR(codegen, "Unresolved function 0x{:08X} from 0x{:08X}", address, base);
-    println("\t// FATAL: unresolved function 0x{:08X}", address);
-    println("\tREX_FATAL(cpu, \"Unresolved call from 0x{:08X} to 0x{:08X}\");", base, address);
+    Println("\t// FATAL: unresolved function 0x{:08X}", address);
+    Println("\tREX_FATAL(cpu, \"Unresolved call from 0x{:08X} to 0x{:08X}\");", base, address);
     return;
   }
 
   REXLOG_ERROR(codegen,
                "Unresolved function 0x{:08X} from 0x{:08X} (no CallTarget in FunctionNode)",
                address, base);
-  println("\t// FATAL: unresolved function 0x{:08X} (no CallTarget in FunctionNode)", address);
-  println("\tREX_FATAL(cpu, \"Unresolved call from 0x{:08X} to 0x{:08X}\");", base, address);
+  Println("\t// FATAL: unresolved function 0x{:08X} (no CallTarget in FunctionNode)", address);
+  Println("\tREX_FATAL(cpu, \"Unresolved call from 0x{:08X} to 0x{:08X}\");", base, address);
 }
 
-void BuilderContext::emit_conditional_branch(bool not_, std::string_view cond) {
+void BuilderContext::EmitConditionalBranch(bool negate, std::string_view cond) {
   u32 target = insn.operands[1];
 
-  auto kind = graph().classifyTarget(target, base, false);
+  auto kind = GetGraph().ClassifyTarget(target, base, false);
 
   switch (kind) {
-    case TargetKind::InternalLabel:
-      println("\tif ({}{}.{}) goto loc_{:08X};", not_ ? "!" : "", cr(insn.operands[0]), cond,
+    case TargetKind::kInternalLabel:
+      Println("\tif ({}{}.{}) goto loc_{:08X};", negate ? "!" : "", CR(insn.operands[0]), cond,
               target);
       break;
 
-    case TargetKind::Function:
-    case TargetKind::Import:
-      if (const auto* callTarget = findCallTarget(base)) {
-        if (callTarget->isFunction()) {
-          auto* targetFn = callTarget->asFunction();
-          emitCtx.reference(targetFn->name());
-          println("\tif ({}{}.{}) {{", not_ ? "!" : "", cr(insn.operands[0]), cond);
-          println("\t\t{}(ctx, base);", targetFn->name());
-          println("\t\treturn;");
-          println("\t}}");
-        } else if (callTarget->isImport()) {
-          const auto& importTarget = std::get<CallTarget::ToImport>(callTarget->value);
-          std::string func_name = "__imp__" + importTarget.name;
+    case TargetKind::kFunction:
+    case TargetKind::kImport:
+      if (const auto* call_target = FindCallTarget(base)) {
+        if (call_target->IsFunction()) {
+          auto* target_fn = call_target->AsFunction();
+          emit_ctx.Reference(target_fn->GetName());
+          Println("\tif ({}{}.{}) {{", negate ? "!" : "", CR(insn.operands[0]), cond);
+          Println("\t\t{}(ctx, base);", target_fn->GetName());
+          Println("\t\treturn;");
+          Println("\t}}");
+        } else if (call_target->IsImport()) {
+          const auto& import_target = std::get<CallTarget::ToImport>(call_target->value);
+          std::string func_name = "__imp__" + import_target.name;
           std::replace(func_name.begin(), func_name.end(), '@', '_');
           std::replace(func_name.begin(), func_name.end(), '.', '_');
-          emitCtx.reference(func_name);
-          println("\tif ({}{}.{}) {{", not_ ? "!" : "", cr(insn.operands[0]), cond);
-          println("\t\t{}(ctx, base);", func_name);
-          println("\t\treturn;");
-          println("\t}}");
+          emit_ctx.Reference(func_name);
+          Println("\tif ({}{}.{}) {{", negate ? "!" : "", CR(insn.operands[0]), cond);
+          Println("\t\t{}(ctx, base);", func_name);
+          Println("\t\treturn;");
+          Println("\t}}");
         }
       } else {
         REXLOG_ERROR(codegen,
                      "Unresolved conditional branch to 0x{:08X} from 0x{:08X} (no CallTarget)",
                      target, base);
-        println("\tif ({}{}.{}) REX_FATAL(cpu, \"Unresolved branch from 0x{:08X} to 0x{:08X}\");",
-                not_ ? "!" : "", cr(insn.operands[0]), cond, base, target);
+        Println("\tif ({}{}.{}) REX_FATAL(cpu, \"Unresolved branch from 0x{:08X} to 0x{:08X}\");",
+                negate ? "!" : "", CR(insn.operands[0]), cond, base, target);
       }
       break;
 
-    case TargetKind::Unknown:
+    case TargetKind::kUnknown:
       REXLOG_ERROR(codegen, "Unresolved conditional branch to 0x{:08X} from 0x{:08X}", target,
                    base);
-      println("\t// ERROR: conditional branch to unknown address 0x{:08X}", target);
-      println("\tif ({}{}.{}) REX_FATAL(cpu, \"Unresolved branch from 0x{:08X} to 0x{:08X}\");",
-              not_ ? "!" : "", cr(insn.operands[0]), cond, base, target);
+      Println("\t// ERROR: conditional branch to unknown address 0x{:08X}", target);
+      Println("\tif ({}{}.{}) REX_FATAL(cpu, \"Unresolved branch from 0x{:08X} to 0x{:08X}\");",
+              negate ? "!" : "", CR(insn.operands[0]), cond, base, target);
       break;
   }
 }
 
-void BuilderContext::emit_set_flush_mode(bool enable) {
-  auto newState = enable ? CSRState::VMX : CSRState::FPU;
-  if (csrState != newState) {
-    auto prefix = enable ? "enable" : "disable";
-    auto suffix = csrState != CSRState::Unknown ? "Unconditional" : "";
-    println("\tctx.fpscr.{}FlushMode{}();", prefix, suffix);
+void BuilderContext::EmitSetFlushMode(bool enable) {
+  auto new_state = enable ? CSRState::kVMX : CSRState::kFPU;
+  if (csr_state != new_state) {
+    auto prefix = enable ? "Enable" : "Disable";
+    auto suffix = csr_state != CSRState::kUnknown ? "Unconditional" : "";
+    Println("\tctx.fpscr.{}FlushMode{}();", prefix, suffix);
 
-    csrState = newState;
+    csr_state = new_state;
   }
 }
 
-bool BuilderContext::has_mid_asm_hook() const {
-  return config().midAsmHooks.find(base) != config().midAsmHooks.end();
+bool BuilderContext::HasMidAsmHook() const {
+  return GetConfig().mid_asm_hooks.find(base) != GetConfig().mid_asm_hooks.end();
 }
 
-void BuilderContext::emit_mid_asm_hook() {
-  auto midAsmHook = config().midAsmHooks.find(base);
-  if (midAsmHook == config().midAsmHooks.end()) {
+void BuilderContext::EmitMidAsmHook() {
+  auto mid_asm_hook = GetConfig().mid_asm_hooks.find(base);
+  if (mid_asm_hook == GetConfig().mid_asm_hooks.end()) {
     return;
   }
 
-  bool returnsBool = midAsmHook->second.returnOnFalse || midAsmHook->second.returnOnTrue ||
-                     midAsmHook->second.jumpAddressOnFalse != 0 ||
-                     midAsmHook->second.jumpAddressOnTrue != 0;
+  bool returns_bool = mid_asm_hook->second.return_on_false || mid_asm_hook->second.return_on_true ||
+                      mid_asm_hook->second.jump_address_on_false != 0 ||
+                      mid_asm_hook->second.jump_address_on_true != 0;
 
-  const std::string r1 = r(1);
-  println("\t{}.u64 -= rex::ppc::kRedZone;", r1);
-  print("\t");
-  if (returnsBool)
-    print("if (");
+  const std::string r1 = R(1);
+  Println("\t{}.u64 -= rex::ppc::kRedZone;", r1);
+  Print("\t");
+  if (returns_bool)
+    Print("if (");
 
-  print("{}(", midAsmHook->second.name);
-  for (auto& reg : midAsmHook->second.registers) {
+  Print("{}(", mid_asm_hook->second.name);
+  for (auto& reg : mid_asm_hook->second.registers) {
     if (out.back() != '(')
       out += ", ";
 
     switch (reg[0]) {
       case 'c':
         if (reg == "ctr")
-          out += ctr();
+          out += CTR();
         else
-          out += cr(RegisterIndex(reg, 2));
+          out += CR(RegisterIndex(reg, 2));
         break;
       case 'x':
-        out += xer();
+        out += XER();
         break;
       case 'r':
         if (reg == "reserved")
-          out += reserved();
+          out += Reserved();
         else
-          out += r(RegisterIndex(reg, 1));
+          out += R(RegisterIndex(reg, 1));
         break;
       case 'f':
         if (reg == "fpscr")
           out += "ctx.fpscr";
         else
-          out += f(RegisterIndex(reg, 1));
+          out += F(RegisterIndex(reg, 1));
         break;
       case 'v':
-        out += v(RegisterIndex(reg, 1));
+        out += V(RegisterIndex(reg, 1));
         break;
       default:
         break;
     }
   }
 
-  if (returnsBool) {
-    println(")) {{");
-    println("\t\t{}.u64 += rex::ppc::kRedZone;", r1);
+  if (returns_bool) {
+    Println(")) {{");
+    Println("\t\t{}.u64 += rex::ppc::kRedZone;", r1);
 
-    if (midAsmHook->second.returnOnTrue)
-      println("\t\treturn;");
-    else if (midAsmHook->second.jumpAddressOnTrue != 0)
-      println("\t\tgoto loc_{:X};", midAsmHook->second.jumpAddressOnTrue);
+    if (mid_asm_hook->second.return_on_true)
+      Println("\t\treturn;");
+    else if (mid_asm_hook->second.jump_address_on_true != 0)
+      Println("\t\tgoto loc_{:X};", mid_asm_hook->second.jump_address_on_true);
 
-    println("\t}}");
+    Println("\t}}");
 
-    println("\telse {{");
-    println("\t\t{}.u64 += rex::ppc::kRedZone;", r1);
+    Println("\telse {{");
+    Println("\t\t{}.u64 += rex::ppc::kRedZone;", r1);
 
-    if (midAsmHook->second.returnOnFalse)
-      println("\t\treturn;");
-    else if (midAsmHook->second.jumpAddressOnFalse != 0)
-      println("\t\tgoto loc_{:X};", midAsmHook->second.jumpAddressOnFalse);
+    if (mid_asm_hook->second.return_on_false)
+      Println("\t\treturn;");
+    else if (mid_asm_hook->second.jump_address_on_false != 0)
+      Println("\t\tgoto loc_{:X};", mid_asm_hook->second.jump_address_on_false);
 
-    println("\t}}");
+    Println("\t}}");
   } else {
-    println(");");
-    println("\t{}.u64 += rex::ppc::kRedZone;", r1);
+    Println(");");
+    Println("\t{}.u64 += rex::ppc::kRedZone;", r1);
 
-    if (midAsmHook->second.ret)
-      println("\treturn;");
-    else if (midAsmHook->second.jumpAddress != 0)
-      println("\tgoto loc_{:X};", midAsmHook->second.jumpAddress);
+    if (mid_asm_hook->second.ret)
+      Println("\treturn;");
+    else if (mid_asm_hook->second.jump_address != 0)
+      Println("\tgoto loc_{:X};", mid_asm_hook->second.jump_address);
   }
 }
 
-void BuilderContext::emit_vec_fp_binary(const char* simd_op) {
-  println(
+void BuilderContext::EmitVecFPBinary(const char* simd_op) {
+  Println(
       "\tsimde_mm_store_ps({}.f32, simde_mm_{}_ps(simde_mm_load_ps({}.f32), "
       "simde_mm_load_ps({}.f32)));",
-      v(insn.operands[0]), simd_op, v(insn.operands[1]), v(insn.operands[2]));
+      V(insn.operands[0]), simd_op, V(insn.operands[1]), V(insn.operands[2]));
 }
 
-void BuilderContext::emit_vec_fp_unary_expr(std::string_view simd_expr) {
-  auto vD = v(insn.operands[0]);
-  auto vA = v(insn.operands[1]);
+void BuilderContext::EmitVecFPUnaryExpr(std::string_view simd_expr) {
+  auto v_d = V(insn.operands[0]);
+  auto v_a = V(insn.operands[1]);
 
   std::string expr(simd_expr);
   size_t pos;
   while ((pos = expr.find("{vA}")) != std::string::npos) {
-    expr.replace(pos, 4, vA);
+    expr.replace(pos, 4, v_a);
   }
 
-  println("\tsimde_mm_store_ps({}.f32, {});", vD, expr);
+  Println("\tsimde_mm_store_ps({}.f32, {});", v_d, expr);
 }
 
-void BuilderContext::emit_vec_int_binary(const char* simd_op, const char* element_type) {
-  println(
+void BuilderContext::EmitVecIntBinary(const char* simd_op, const char* element_type) {
+  Println(
       "\tsimde_mm_store_si128((simde__m128i*){}.{}, "
       "simde_mm_{}(simde_mm_load_si128((simde__m128i*){}.{}), "
       "simde_mm_load_si128((simde__m128i*){}.{})));",
-      v(insn.operands[0]), element_type, simd_op, v(insn.operands[1]), element_type,
-      v(insn.operands[2]), element_type);
+      V(insn.operands[0]), element_type, simd_op, V(insn.operands[1]), element_type,
+      V(insn.operands[2]), element_type);
 }
 
-void BuilderContext::emit_vec_int_binary_swapped(const char* simd_op, const char* element_type) {
-  println(
+void BuilderContext::EmitVecIntBinarySwapped(const char* simd_op, const char* element_type) {
+  Println(
       "\tsimde_mm_store_si128((simde__m128i*){}.{}, "
       "simde_mm_{}(simde_mm_load_si128((simde__m128i*){}.{}), "
       "simde_mm_load_si128((simde__m128i*){}.{})));",
-      v(insn.operands[0]), element_type, simd_op, v(insn.operands[2]), element_type,
-      v(insn.operands[1]), element_type);
+      V(insn.operands[0]), element_type, simd_op, V(insn.operands[2]), element_type,
+      V(insn.operands[1]), element_type);
 }
 
-void BuilderContext::emit_vec_var_shift(const char* shift_dir, const char* element_type,
-                                        u32 mask_value) {
-  auto vD = v(insn.operands[0]);
-  auto vA = v(insn.operands[1]);
-  auto vB = v(insn.operands[2]);
-  println("\t{{");
-  println("\t\tsimde__m128i a = simde_mm_load_si128((simde__m128i*){}.u8);", vA);
-  println("\t\tsimde__m128i b = simde_mm_load_si128((simde__m128i*){}.u8);", vB);
-  println("\t\tsimde__m128i shift = simde_mm_and_si128(b, simde_mm_set1_{}(0x{:X}));", element_type,
+void BuilderContext::EmitVecVarShift(const char* shift_dir, const char* element_type,
+                                     u32 mask_value) {
+  auto v_d = V(insn.operands[0]);
+  auto v_a = V(insn.operands[1]);
+  auto v_b = V(insn.operands[2]);
+  Println("\t{{");
+  Println("\t\tsimde__m128i a = simde_mm_load_si128((simde__m128i*){}.u8);", v_a);
+  Println("\t\tsimde__m128i b = simde_mm_load_si128((simde__m128i*){}.u8);", v_b);
+  Println("\t\tsimde__m128i shift = simde_mm_and_si128(b, simde_mm_set1_{}(0x{:X}));", element_type,
           mask_value);
-  println(
+  Println(
       "\t\tsimde_mm_store_si128((simde__m128i*){}.u8, "
       "rex::ppc::simde_mm_{}_{}"
       "(a, shift));",
-      vD, shift_dir, element_type);
-  println("\t}}");
+      v_d, shift_dir, element_type);
+  Println("\t}}");
 }
 
-void BuilderContext::emit_load_d_form(const char* load_macro, const char* dest_type) {
-  print("\t{}.{} = {}(", r(insn.operands[0]), dest_type, MMIOMacro(load_macro));
+void BuilderContext::EmitLoadDForm(const char* load_macro, const char* dest_type) {
+  Print("\t{}.{} = {}(", R(insn.operands[0]), dest_type, MMIOMacro(load_macro));
   if (insn.operands[2] != 0)
-    print("{}.u32 + ", r(insn.operands[2]));
-  println("{});", static_cast<i32>(insn.operands[1]));
+    Print("{}.u32 + ", R(insn.operands[2]));
+  Println("{});", static_cast<i32>(insn.operands[1]));
 }
 
-void BuilderContext::emit_load_x_form(const char* load_macro, const char* dest_type) {
-  print("\t{}.{} = {}(", r(insn.operands[0]), dest_type, MMIOMacro(load_macro));
+void BuilderContext::EmitLoadXForm(const char* load_macro, const char* dest_type) {
+  Print("\t{}.{} = {}(", R(insn.operands[0]), dest_type, MMIOMacro(load_macro));
   if (insn.operands[1] != 0)
-    print("{}.u32 + ", r(insn.operands[1]));
-  println("{}.u32);", r(insn.operands[2]));
+    Print("{}.u32 + ", R(insn.operands[1]));
+  Println("{}.u32);", R(insn.operands[2]));
 }
 
-void BuilderContext::emit_store_d_form(const char* store_macro, const char* src_type) {
-  print("\t{}(", MMIOMacro(store_macro));
+void BuilderContext::EmitStoreDForm(const char* store_macro, const char* src_type) {
+  Print("\t{}(", MMIOMacro(store_macro));
   if (insn.operands[2] != 0)
-    print("{}.u32 + ", r(insn.operands[2]));
-  println("{}, {}.{});", static_cast<i32>(insn.operands[1]), r(insn.operands[0]), src_type);
+    Print("{}.u32 + ", R(insn.operands[2]));
+  Println("{}, {}.{});", static_cast<i32>(insn.operands[1]), R(insn.operands[0]), src_type);
 }
 
-void BuilderContext::emit_store_x_form(const char* store_macro, const char* src_type) {
-  print("\t{}(", MMIOMacro(store_macro));
+void BuilderContext::EmitStoreXForm(const char* store_macro, const char* src_type) {
+  Print("\t{}(", MMIOMacro(store_macro));
   if (insn.operands[1] != 0)
-    print("{}.u32 + ", r(insn.operands[1]));
-  println("{}.u32, {}.{});", r(insn.operands[2]), r(insn.operands[0]), src_type);
+    Print("{}.u32 + ", R(insn.operands[1]));
+  Println("{}.u32, {}.{});", R(insn.operands[2]), R(insn.operands[0]), src_type);
 }
 
 }  // namespace rex::codegen

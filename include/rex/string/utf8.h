@@ -32,7 +32,7 @@ constexpr char32_t kUTF8GuestPathSeparator = U'\\';
  * @param source UTF-16 text.
  * @return The UTF-8 text.
  */
-REX_API std::string to_utf8(const std::u16string_view source);
+REX_API std::string ToUTF8(const std::u16string_view source);
 
 /**
  * Converts UTF-8 to UTF-16.
@@ -40,7 +40,7 @@ REX_API std::string to_utf8(const std::u16string_view source);
  * @param source UTF-8 text.
  * @return The UTF-16 text.
  */
-REX_API std::u16string to_utf16(const std::string_view source);
+REX_API std::u16string ToUTF16(const std::string_view source);
 
 /**
  * Converts a host path to UTF-8.
@@ -48,7 +48,7 @@ REX_API std::u16string to_utf16(const std::string_view source);
  * @param path Host path.
  * @return The path as UTF-8 text.
  */
-REX_API std::string path_to_utf8(const std::filesystem::path& path);
+REX_API std::string PathToUTF8(const std::filesystem::path& path);
 
 /**
  * Converts a host path to UTF-16.
@@ -56,7 +56,7 @@ REX_API std::string path_to_utf8(const std::filesystem::path& path);
  * @param path Host path.
  * @return The path as UTF-16 text.
  */
-REX_API std::u16string path_to_utf16(const std::filesystem::path& path);
+REX_API std::u16string PathToUTF16(const std::filesystem::path& path);
 
 /**
  * Builds a host path from UTF-8 text.

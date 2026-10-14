@@ -31,16 +31,16 @@ class VulkanProvider : public GraphicsProvider {
   static std::unique_ptr<VulkanProvider> Create(bool with_gpu_emulation, bool with_presentation,
                                                 i32 device_index);
 
-  VulkanInstance* vulkan_instance() const { return vulkan_instance_.get(); }
+  VulkanInstance* GetVulkanInstance() const { return vulkan_instance_.get(); }
 
-  VulkanDevice* vulkan_device() const { return vulkan_device_.get(); }
+  VulkanDevice* GetVulkanDevice() const { return vulkan_device_.get(); }
 
   /**
    * Returns the UI samplers.
    *
    * @return The samplers, or nullptr when created without presentation support.
    */
-  const UISamplers* ui_samplers() const { return ui_samplers_.get(); }
+  const UISamplers* GetUISamplers() const { return ui_samplers_.get(); }
 
   std::unique_ptr<Presenter> CreatePresenter(Presenter::HostGPULossCallback host_gpu_loss_callback =
                                                  Presenter::FatalErrorHostGPULossCallback) override;

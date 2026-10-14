@@ -62,7 +62,7 @@ std::wstring detail::BuildCommandLine(std::wstring_view exe, std::span<const std
   PROCESS_INFORMATION process{};
   if (!CreateProcessW(exe.c_str(), command.data(), nullptr, nullptr, FALSE, 0, nullptr, nullptr,
                       &startup, &process)) {
-    return Err<void>(ErrorCategory::Platform,
+    return Err<void>(ErrorCategory::kPlatform,
                      std::format("CreateProcessW failed ({})", GetLastError()));
   }
   AllowSetForegroundWindow(process.dwProcessId);

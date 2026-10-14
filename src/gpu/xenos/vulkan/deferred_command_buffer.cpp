@@ -37,7 +37,7 @@ void DeferredCommandBuffer::Execute(VkCommandBuffer command_buffer) {
 #endif  // REXGPU_FINE_GRAINED_DRAW_SCOPES
 
   const gpu::vulkan::VulkanDevice::Functions& dfn =
-      command_processor_.GetVulkanDevice()->functions();
+      command_processor_.GetVulkanDevice()->GetFunctions();
   const uintmax_t* stream = command_stream_.data();
   size_t stream_remaining = command_stream_.size();
   while (stream_remaining) {
@@ -57,7 +57,7 @@ void DeferredCommandBuffer::Execute(VkCommandBuffer command_buffer) {
         render_pass_begin_info.renderArea = args.render_area;
         render_pass_begin_info.clearValueCount = args.clear_value_count;
         if (render_pass_begin_info.clearValueCount) {
-          offset_bytes = rex::align(offset_bytes, alignof(VkClearValue));
+          offset_bytes = rex::Align(offset_bytes, alignof(VkClearValue));
           render_pass_begin_info.pClearValues = reinterpret_cast<const VkClearValue*>(
               reinterpret_cast<const u8*>(stream) + offset_bytes);
           offset_bytes += sizeof(VkClearValue) * render_pass_begin_info.clearValueCount;
@@ -75,13 +75,13 @@ void DeferredCommandBuffer::Execute(VkCommandBuffer command_buffer) {
       case Command::kVkBindDescriptorSets: {
         auto& args = *reinterpret_cast<const ArgsVkBindDescriptorSets*>(stream);
         size_t offset_bytes =
-            rex::align(sizeof(ArgsVkBindDescriptorSets), alignof(VkDescriptorSet));
+            rex::Align(sizeof(ArgsVkBindDescriptorSets), alignof(VkDescriptorSet));
         const VkDescriptorSet* descriptor_sets = reinterpret_cast<const VkDescriptorSet*>(
             reinterpret_cast<const u8*>(stream) + offset_bytes);
         offset_bytes += sizeof(VkDescriptorSet) * args.descriptor_set_count;
         const u32* dynamic_offsets = nullptr;
         if (args.dynamic_offset_count) {
-          offset_bytes = rex::align(offset_bytes, alignof(u32));
+          offset_bytes = rex::Align(offset_bytes, alignof(u32));
           dynamic_offsets =
               reinterpret_cast<const u32*>(reinterpret_cast<const u8*>(stream) + offset_bytes);
           offset_bytes += sizeof(u32) * args.dynamic_offset_count;
@@ -103,11 +103,11 @@ void DeferredCommandBuffer::Execute(VkCommandBuffer command_buffer) {
 
       case Command::kVkBindVertexBuffers: {
         auto& args = *reinterpret_cast<const ArgsVkBindVertexBuffers*>(stream);
-        size_t offset_bytes = rex::align(sizeof(ArgsVkBindVertexBuffers), alignof(VkBuffer));
+        size_t offset_bytes = rex::Align(sizeof(ArgsVkBindVertexBuffers), alignof(VkBuffer));
         const VkBuffer* buffers =
             reinterpret_cast<const VkBuffer*>(reinterpret_cast<const u8*>(stream) + offset_bytes);
         offset_bytes =
-            rex::align(offset_bytes + sizeof(VkBuffer) * args.binding_count, alignof(VkDeviceSize));
+            rex::Align(offset_bytes + sizeof(VkBuffer) * args.binding_count, alignof(VkDeviceSize));
         const VkDeviceSize* offsets = reinterpret_cast<const VkDeviceSize*>(
             reinterpret_cast<const u8*>(stream) + offset_bytes);
         dfn.vkCmdBindVertexBuffers(command_buffer, args.first_binding, args.binding_count, buffers,
@@ -117,10 +117,10 @@ void DeferredCommandBuffer::Execute(VkCommandBuffer command_buffer) {
       case Command::kVkClearAttachments: {
         auto& args = *reinterpret_cast<const ArgsVkClearAttachments*>(stream);
         size_t offset_bytes =
-            rex::align(sizeof(ArgsVkClearAttachments), alignof(VkClearAttachment));
+            rex::Align(sizeof(ArgsVkClearAttachments), alignof(VkClearAttachment));
         const VkClearAttachment* attachments = reinterpret_cast<const VkClearAttachment*>(
             reinterpret_cast<const u8*>(stream) + offset_bytes);
-        offset_bytes = rex::align(offset_bytes + sizeof(VkClearAttachment) * args.attachment_count,
+        offset_bytes = rex::Align(offset_bytes + sizeof(VkClearAttachment) * args.attachment_count,
                                   alignof(VkClearRect));
         const VkClearRect* rects = reinterpret_cast<const VkClearRect*>(
             reinterpret_cast<const u8*>(stream) + offset_bytes);
@@ -134,7 +134,7 @@ void DeferredCommandBuffer::Execute(VkCommandBuffer command_buffer) {
             command_buffer, args.image, args.image_layout, &args.color, args.range_count,
             reinterpret_cast<const VkImageSubresourceRange*>(
                 reinterpret_cast<const u8*>(stream) +
-                rex::align(sizeof(ArgsVkClearColorImage), alignof(VkImageSubresourceRange))));
+                rex::Align(sizeof(ArgsVkClearColorImage), alignof(VkImageSubresourceRange))));
       } break;
 
       case Command::kVkCopyBuffer: {
@@ -142,7 +142,7 @@ void DeferredCommandBuffer::Execute(VkCommandBuffer command_buffer) {
         dfn.vkCmdCopyBuffer(command_buffer, args.src_buffer, args.dst_buffer, args.region_count,
                             reinterpret_cast<const VkBufferCopy*>(
                                 reinterpret_cast<const u8*>(stream) +
-                                rex::align(sizeof(ArgsVkCopyBuffer), alignof(VkBufferCopy))));
+                                rex::Align(sizeof(ArgsVkCopyBuffer), alignof(VkBufferCopy))));
       } break;
 
       case Command::kVkCopyBufferToImage: {
@@ -152,7 +152,7 @@ void DeferredCommandBuffer::Execute(VkCommandBuffer command_buffer) {
             args.region_count,
             reinterpret_cast<const VkBufferImageCopy*>(
                 reinterpret_cast<const u8*>(stream) +
-                rex::align(sizeof(ArgsVkCopyBufferToImage), alignof(VkBufferImageCopy))));
+                rex::Align(sizeof(ArgsVkCopyBufferToImage), alignof(VkBufferImageCopy))));
       } break;
 
       case Command::kVkCopyQueryPoolResults: {
@@ -192,7 +192,7 @@ void DeferredCommandBuffer::Execute(VkCommandBuffer command_buffer) {
       case Command::kVkBeginRendering: {
         auto& args = *reinterpret_cast<const ArgsVkBeginRendering*>(stream);
         size_t offset_bytes =
-            rex::align(sizeof(ArgsVkBeginRendering), alignof(VkRenderingAttachmentInfo));
+            rex::Align(sizeof(ArgsVkBeginRendering), alignof(VkRenderingAttachmentInfo));
         const VkRenderingAttachmentInfo* color_attachments =
             args.color_attachment_count ? reinterpret_cast<const VkRenderingAttachmentInfo*>(
                                               reinterpret_cast<const u8*>(stream) + offset_bytes)
@@ -231,21 +231,21 @@ void DeferredCommandBuffer::Execute(VkCommandBuffer command_buffer) {
         size_t barrier_offset_bytes = sizeof(ArgsVkPipelineBarrier);
         const VkMemoryBarrier* memory_barriers = nullptr;
         if (args.memory_barrier_count) {
-          barrier_offset_bytes = rex::align(barrier_offset_bytes, alignof(VkMemoryBarrier));
+          barrier_offset_bytes = rex::Align(barrier_offset_bytes, alignof(VkMemoryBarrier));
           memory_barriers = reinterpret_cast<const VkMemoryBarrier*>(
               reinterpret_cast<const u8*>(stream) + barrier_offset_bytes);
           barrier_offset_bytes += sizeof(VkMemoryBarrier) * args.memory_barrier_count;
         }
         const VkBufferMemoryBarrier* buffer_memory_barriers = nullptr;
         if (args.buffer_memory_barrier_count) {
-          barrier_offset_bytes = rex::align(barrier_offset_bytes, alignof(VkBufferMemoryBarrier));
+          barrier_offset_bytes = rex::Align(barrier_offset_bytes, alignof(VkBufferMemoryBarrier));
           buffer_memory_barriers = reinterpret_cast<const VkBufferMemoryBarrier*>(
               reinterpret_cast<const u8*>(stream) + barrier_offset_bytes);
           barrier_offset_bytes += sizeof(VkBufferMemoryBarrier) * args.buffer_memory_barrier_count;
         }
         const VkImageMemoryBarrier* image_memory_barriers = nullptr;
         if (args.image_memory_barrier_count) {
-          barrier_offset_bytes = rex::align(barrier_offset_bytes, alignof(VkImageMemoryBarrier));
+          barrier_offset_bytes = rex::Align(barrier_offset_bytes, alignof(VkImageMemoryBarrier));
           image_memory_barriers = reinterpret_cast<const VkImageMemoryBarrier*>(
               reinterpret_cast<const u8*>(stream) + barrier_offset_bytes);
           barrier_offset_bytes += sizeof(VkImageMemoryBarrier) * args.image_memory_barrier_count;
@@ -285,7 +285,7 @@ void DeferredCommandBuffer::Execute(VkCommandBuffer command_buffer) {
         dfn.vkCmdSetScissor(command_buffer, args.first_scissor, args.scissor_count,
                             reinterpret_cast<const VkRect2D*>(
                                 reinterpret_cast<const u8*>(stream) +
-                                rex::align(sizeof(ArgsVkSetScissor), alignof(VkRect2D))));
+                                rex::Align(sizeof(ArgsVkSetScissor), alignof(VkRect2D))));
       } break;
 
       case Command::kVkSetStencilCompareMask: {
@@ -308,7 +308,7 @@ void DeferredCommandBuffer::Execute(VkCommandBuffer command_buffer) {
         dfn.vkCmdSetViewport(command_buffer, args.first_viewport, args.viewport_count,
                              reinterpret_cast<const VkViewport*>(
                                  reinterpret_cast<const u8*>(stream) +
-                                 rex::align(sizeof(ArgsVkSetViewport), alignof(VkViewport))));
+                                 rex::Align(sizeof(ArgsVkSetViewport), alignof(VkViewport))));
       } break;
 
       default:
@@ -330,19 +330,19 @@ void DeferredCommandBuffer::CmdVkPipelineBarrier(
   size_t arguments_size = sizeof(ArgsVkPipelineBarrier);
   size_t memory_barriers_offset = 0;
   if (memory_barrier_count) {
-    arguments_size = rex::align(arguments_size, alignof(VkMemoryBarrier));
+    arguments_size = rex::Align(arguments_size, alignof(VkMemoryBarrier));
     memory_barriers_offset = arguments_size;
     arguments_size += sizeof(VkMemoryBarrier) * memory_barrier_count;
   }
   size_t buffer_memory_barriers_offset = 0;
   if (buffer_memory_barrier_count) {
-    arguments_size = rex::align(arguments_size, alignof(VkBufferMemoryBarrier));
+    arguments_size = rex::Align(arguments_size, alignof(VkBufferMemoryBarrier));
     buffer_memory_barriers_offset = arguments_size;
     arguments_size += sizeof(VkBufferMemoryBarrier) * buffer_memory_barrier_count;
   }
   size_t image_memory_barriers_offset = 0;
   if (image_memory_barrier_count) {
-    arguments_size = rex::align(arguments_size, alignof(VkImageMemoryBarrier));
+    arguments_size = rex::Align(arguments_size, alignof(VkImageMemoryBarrier));
     image_memory_barriers_offset = arguments_size;
     arguments_size += sizeof(VkImageMemoryBarrier) * image_memory_barrier_count;
   }
@@ -372,7 +372,7 @@ void DeferredCommandBuffer::CmdVkBeginRendering(const VkRenderingInfo* rendering
   REX_ASSERT(rendering_info->pNext == nullptr);
 
   size_t arguments_size =
-      rex::align(sizeof(ArgsVkBeginRendering), alignof(VkRenderingAttachmentInfo));
+      rex::Align(sizeof(ArgsVkBeginRendering), alignof(VkRenderingAttachmentInfo));
   size_t color_attachments_offset = arguments_size;
   arguments_size += sizeof(VkRenderingAttachmentInfo) * rendering_info->colorAttachmentCount;
   size_t depth_attachment_offset = arguments_size;

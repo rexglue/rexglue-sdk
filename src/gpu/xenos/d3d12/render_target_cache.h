@@ -72,7 +72,7 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
     are_current_command_list_render_targets_valid_ = false;
   }
 
-  bool msaa_2x_supported() const { return msaa_2x_supported_; }
+  bool GetMSAA2xSupported() const { return msaa_2x_supported_; }
 
   void WriteEDRAMRawSRVDescriptor(D3D12_CPU_DESCRIPTOR_HANDLE handle);
   void WriteEDRAMRawUAVDescriptor(D3D12_CPU_DESCRIPTOR_HANDLE handle);
@@ -98,7 +98,7 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
   bool Resolve(const runtime::Memory& memory, D3D12SharedMemory& shared_memory,
                D3D12TextureCache& texture_cache, u32& written_address_out, u32& written_length_out);
 
-  bool gamma_render_target_as_unorm16() const { return gamma_render_target_as_unorm16_; }
+  bool GetGammaRenderTargetAsUnorm16() const { return gamma_render_target_as_unorm16_; }
 
   /**
    * Reports whether fixed16 values are truncated to the -1 to 1 range of R16G16[B16A16]_SNORM
@@ -109,8 +109,8 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
    */
   bool IsFixed16TruncatedToMinus1To1() const;
 
-  bool depth_float24_round() const { return depth_float24_round_; }
-  bool depth_float24_convert_in_pixel_shader() const {
+  bool GetDepthFloat24Round() const { return depth_float24_round_; }
+  bool GetDepthFloat24ConvertInPixelShader() const {
     return depth_float24_convert_in_pixel_shader_;
   }
 
@@ -216,10 +216,10 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
      * @param resource_state Initial resource state.
      */
     D3D12RenderTarget(RenderTargetKey key, ID3D12Resource* resource,
-                      gpu::d3d12::D3D12CpuDescriptorPool::Descriptor&& descriptor_draw,
-                      gpu::d3d12::D3D12CpuDescriptorPool::Descriptor&& descriptor_load_separate,
-                      gpu::d3d12::D3D12CpuDescriptorPool::Descriptor&& descriptor_srv,
-                      gpu::d3d12::D3D12CpuDescriptorPool::Descriptor&& descriptor_srv_stencil,
+                      gpu::d3d12::D3D12CPUDescriptorPool::Descriptor&& descriptor_draw,
+                      gpu::d3d12::D3D12CPUDescriptorPool::Descriptor&& descriptor_load_separate,
+                      gpu::d3d12::D3D12CPUDescriptorPool::Descriptor&& descriptor_srv,
+                      gpu::d3d12::D3D12CPUDescriptorPool::Descriptor&& descriptor_srv_stencil,
                       D3D12_RESOURCE_STATES resource_state)
         : RenderTarget(key),
           resource_(resource),
@@ -229,17 +229,17 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
           descriptor_srv_stencil_(std::move(descriptor_srv_stencil)),
           resource_state_(resource_state) {}
 
-    ID3D12Resource* resource() const { return resource_.Get(); }
-    const gpu::d3d12::D3D12CpuDescriptorPool::Descriptor& descriptor_draw() const {
+    ID3D12Resource* GetResource() const { return resource_.Get(); }
+    const gpu::d3d12::D3D12CPUDescriptorPool::Descriptor& GetDescriptorDraw() const {
       return descriptor_draw_;
     }
-    const gpu::d3d12::D3D12CpuDescriptorPool::Descriptor& descriptor_srv() const {
+    const gpu::d3d12::D3D12CPUDescriptorPool::Descriptor& GetDescriptorSRV() const {
       return descriptor_srv_;
     }
-    const gpu::d3d12::D3D12CpuDescriptorPool::Descriptor& descriptor_srv_stencil() const {
+    const gpu::d3d12::D3D12CPUDescriptorPool::Descriptor& GetDescriptorSRVStencil() const {
       return descriptor_srv_stencil_;
     }
-    const gpu::d3d12::D3D12CpuDescriptorPool::Descriptor& descriptor_load_separate() const {
+    const gpu::d3d12::D3D12CPUDescriptorPool::Descriptor& GetDescriptorLoadSeparate() const {
       return descriptor_load_separate_;
     }
 
@@ -249,24 +249,24 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
       return old_state;
     }
 
-    u32 temporary_srv_descriptor_index() const { return temporary_srv_descriptor_index_; }
+    u32 GetTemporarySRVDescriptorIndex() const { return temporary_srv_descriptor_index_; }
     void SetTemporarySRVDescriptorIndex(u32 index) { temporary_srv_descriptor_index_ = index; }
-    u32 temporary_srv_descriptor_index_stencil() const {
+    u32 GetTemporarySRVDescriptorIndexStencil() const {
       return temporary_srv_descriptor_index_stencil_;
     }
     void SetTemporarySRVDescriptorIndexStencil(u32 index) {
       temporary_srv_descriptor_index_stencil_ = index;
     }
-    u32 temporary_sort_index() const { return temporary_sort_index_; }
+    u32 GetTemporarySortIndex() const { return temporary_sort_index_; }
     void SetTemporarySortIndex(u32 index) { temporary_sort_index_ = index; }
 
    private:
     Microsoft::WRL::ComPtr<ID3D12Resource> resource_;
-    gpu::d3d12::D3D12CpuDescriptorPool::Descriptor descriptor_draw_;
-    gpu::d3d12::D3D12CpuDescriptorPool::Descriptor descriptor_load_separate_;
+    gpu::d3d12::D3D12CPUDescriptorPool::Descriptor descriptor_draw_;
+    gpu::d3d12::D3D12CPUDescriptorPool::Descriptor descriptor_load_separate_;
     /** Non shader visible texture SRV descriptors, copied to prepare shader visible ones. */
-    gpu::d3d12::D3D12CpuDescriptorPool::Descriptor descriptor_srv_;
-    gpu::d3d12::D3D12CpuDescriptorPool::Descriptor descriptor_srv_stencil_;
+    gpu::d3d12::D3D12CPUDescriptorPool::Descriptor descriptor_srv_;
+    gpu::d3d12::D3D12CPUDescriptorPool::Descriptor descriptor_srv_stencil_;
     D3D12_RESOURCE_STATES resource_state_;
     /** Temporary storage for indices in transfers and dumps. */
     u32 temporary_srv_descriptor_index_ = UINT32_MAX;
@@ -410,7 +410,9 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
     TransferShaderKey() : key(0) { REX_STATIC_ASSERT_SIZE(*this, sizeof(key)); }
 
     struct Hasher {
-      size_t operator()(const TransferShaderKey& key) const { return std::hash<u32>{}(key.key); }
+      size_t operator()(const TransferShaderKey& hashed_key) const {
+        return std::hash<u32>{}(hashed_key.key);
+      }
     };
     bool operator==(const TransferShaderKey& other_key) const { return key == other_key.key; }
     bool operator!=(const TransferShaderKey& other_key) const { return !(*this == other_key); }
@@ -459,10 +461,10 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
       REX_ASSERT(transfer.source != nullptr);
       REX_ASSERT(other_invocation.transfer.source != nullptr);
       u32 source_index =
-          static_cast<const D3D12RenderTarget*>(transfer.source)->temporary_sort_index();
+          static_cast<const D3D12RenderTarget*>(transfer.source)->GetTemporarySortIndex();
       u32 other_source_index =
           static_cast<const D3D12RenderTarget*>(other_invocation.transfer.source)
-              ->temporary_sort_index();
+              ->GetTemporarySortIndex();
       if (source_index != other_source_index) {
         return source_index < other_source_index;
       }
@@ -493,7 +495,9 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
     DumpPipelineKey() : key(0) { REX_STATIC_ASSERT_SIZE(*this, sizeof(key)); }
 
     struct Hasher {
-      size_t operator()(const DumpPipelineKey& key) const { return std::hash<u32>{}(key.key); }
+      size_t operator()(const DumpPipelineKey& hashed_key) const {
+        return std::hash<u32>{}(hashed_key.key);
+      }
     };
     bool operator==(const DumpPipelineKey& other_key) const { return key == other_key.key; }
     bool operator!=(const DumpPipelineKey& other_key) const { return !(*this == other_key); }
@@ -585,11 +589,11 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
       }
       REX_ASSERT(rectangle.render_target != nullptr);
       u32 render_target_index =
-          static_cast<const D3D12RenderTarget*>(rectangle.render_target)->temporary_sort_index();
+          static_cast<const D3D12RenderTarget*>(rectangle.render_target)->GetTemporarySortIndex();
       const ResolveCopyDumpRectangle& other_rectangle = other_invocation.rectangle;
       u32 other_render_target_index =
           static_cast<const D3D12RenderTarget*>(other_rectangle.render_target)
-              ->temporary_sort_index();
+              ->GetTemporarySortIndex();
       if (render_target_index != other_render_target_index) {
         return render_target_index < other_render_target_index;
       }
@@ -612,18 +616,18 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
     draw_state::ResolveCopyShaderIndex copy_shader;
     bool draw_resolution_scaled;
 
-    u64 packed() const {
+    u64 GetPacked() const {
       return static_cast<u64>(dump_pipeline_key.key) |
              (static_cast<u64>(static_cast<size_t>(copy_shader)) << 32) |
              (static_cast<u64>(draw_resolution_scaled ? 1 : 0) << 40);
     }
     struct Hasher {
       size_t operator()(const DirectResolvePipelineKey& key) const {
-        return std::hash<u64>{}(key.packed());
+        return std::hash<u64>{}(key.GetPacked());
       }
     };
     bool operator==(const DirectResolvePipelineKey& other_key) const {
-      return packed() == other_key.packed();
+      return GetPacked() == other_key.GetPacked();
     }
   };
 
@@ -723,11 +727,11 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
 
   bool msaa_2x_supported_ = false;
 
-  std::shared_ptr<gpu::d3d12::D3D12CpuDescriptorPool> descriptor_pool_color_;
-  std::shared_ptr<gpu::d3d12::D3D12CpuDescriptorPool> descriptor_pool_depth_;
-  std::shared_ptr<gpu::d3d12::D3D12CpuDescriptorPool> descriptor_pool_srv_;
-  gpu::d3d12::D3D12CpuDescriptorPool::Descriptor null_rtv_descriptor_ss_;
-  gpu::d3d12::D3D12CpuDescriptorPool::Descriptor null_rtv_descriptor_ms_;
+  std::shared_ptr<gpu::d3d12::D3D12CPUDescriptorPool> descriptor_pool_color_;
+  std::shared_ptr<gpu::d3d12::D3D12CPUDescriptorPool> descriptor_pool_depth_;
+  std::shared_ptr<gpu::d3d12::D3D12CPUDescriptorPool> descriptor_pool_srv_;
+  gpu::d3d12::D3D12CPUDescriptorPool::Descriptor null_rtv_descriptor_ss_;
+  gpu::d3d12::D3D12CPUDescriptorPool::Descriptor null_rtv_descriptor_ms_;
 
   const RenderTarget* current_command_list_render_targets_[1 + xenos::kMaxColorRenderTargets];
   bool are_current_command_list_render_targets_valid_ = false;

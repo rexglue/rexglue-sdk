@@ -43,8 +43,8 @@ void VulkanSubmissionTracker::FenceAcquisition::Release() noexcept {
 
 void VulkanSubmissionTracker::Shutdown() {
   AwaitAllSubmissionsCompletion();
-  const VulkanDevice::Functions& dfn = vulkan_device_->functions();
-  const VkDevice device = vulkan_device_->device();
+  const VulkanDevice::Functions& dfn = vulkan_device_->GetFunctions();
+  const VkDevice device = vulkan_device_->GetDevice();
   for (VkFence fence : fences_reclaimed_) {
     dfn.vkDestroyFence(device, fence, nullptr);
   }
@@ -72,8 +72,8 @@ void VulkanSubmissionTracker::FenceAcquisition::SubmissionFailedOrDropped() {
 
 u64 VulkanSubmissionTracker::UpdateAndGetCompletedSubmission() {
   if (!fences_pending_.empty()) {
-    const VulkanDevice::Functions& dfn = vulkan_device_->functions();
-    const VkDevice device = vulkan_device_->device();
+    const VulkanDevice::Functions& dfn = vulkan_device_->GetFunctions();
+    const VkDevice device = vulkan_device_->GetDevice();
     while (!fences_pending_.empty()) {
       const std::pair<u64, VkFence>& pending_pair = fences_pending_.front();
       REX_ASSERT(pending_pair.first > submission_completed_on_gpu_);
@@ -92,8 +92,8 @@ bool VulkanSubmissionTracker::AwaitSubmissionCompletion(u64 submission_index) {
   REX_ASSERT(submission_index <= submission_current_);
   size_t reclaim_end = fences_pending_.size();
   if (reclaim_end) {
-    const VulkanDevice::Functions& dfn = vulkan_device_->functions();
-    const VkDevice device = vulkan_device_->device();
+    const VulkanDevice::Functions& dfn = vulkan_device_->GetFunctions();
+    const VkDevice device = vulkan_device_->GetDevice();
     while (reclaim_end) {
       const std::pair<u64, VkFence>& pending_pair = fences_pending_[reclaim_end - 1];
       REX_ASSERT(pending_pair.first > submission_completed_on_gpu_);
@@ -123,8 +123,8 @@ VulkanSubmissionTracker::FenceAcquisition
 VulkanSubmissionTracker::AcquireFenceToAdvanceSubmission() {
   REX_ASSERT(fence_acquired_ == VK_NULL_HANDLE);
   UpdateAndGetCompletedSubmission();
-  const VulkanDevice::Functions& dfn = vulkan_device_->functions();
-  const VkDevice device = vulkan_device_->device();
+  const VulkanDevice::Functions& dfn = vulkan_device_->GetFunctions();
+  const VkDevice device = vulkan_device_->GetDevice();
   if (!fences_reclaimed_.empty()) {
     VkFence reclaimed_fence = fences_reclaimed_.back();
     if (dfn.vkResetFences(device, 1, &reclaimed_fence) == VK_SUCCESS) {

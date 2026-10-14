@@ -29,8 +29,8 @@ bool D3D12GraphicsSystem::IsAvailable() {
   return rex::gpu::d3d12::D3D12Provider::IsD3D12APIAvailable();
 }
 
-std::string D3D12GraphicsSystem::name() const {
-  auto d3d12_command_processor = static_cast<D3D12CommandProcessor*>(command_processor());
+std::string D3D12GraphicsSystem::GetName() const {
+  auto d3d12_command_processor = static_cast<D3D12CommandProcessor*>(GetCommandProcessor());
   if (d3d12_command_processor != nullptr) {
     return d3d12_command_processor->GetWindowTitleText();
   }

@@ -20,10 +20,10 @@ namespace rex::hid {
 
 /** HID error codes, stored in rex::Error::code. */
 enum class HIDError : u8 {
-  NotConnected = 1, /**< No device answers for the user. */
-  Empty = 2,        /**< The device has no keystroke queued. */
-  BadArguments = 3, /**< The request is malformed. */
-  Failed = 4,       /**< The device reported another failure. */
+  kNotConnected = 1, /**< No device answers for the user. */
+  kEmpty = 2,        /**< The device has no keystroke queued. */
+  kBadArguments = 3, /**< The request is malformed. */
+  kFailed = 4,       /**< The device reported another failure. */
 };
 
 /**
@@ -34,7 +34,7 @@ enum class HIDError : u8 {
  * @return The error, in category Platform.
  */
 [[nodiscard]] inline rex::Error BuildError(HIDError code, std::string message) {
-  return {ErrorCategory::Platform, std::move(message), static_cast<int>(code)};
+  return {ErrorCategory::kPlatform, std::move(message), static_cast<int>(code)};
 }
 
 /**
@@ -56,13 +56,13 @@ enum class HIDError : u8 {
 [[nodiscard]] inline HIDError ErrorOf(X_RESULT result) {
   switch (result) {
     case X_ERROR_DEVICE_NOT_CONNECTED:
-      return HIDError::NotConnected;
+      return HIDError::kNotConnected;
     case X_ERROR_EMPTY:
-      return HIDError::Empty;
+      return HIDError::kEmpty;
     case X_ERROR_BAD_ARGUMENTS:
-      return HIDError::BadArguments;
+      return HIDError::kBadArguments;
     default:
-      return HIDError::Failed;
+      return HIDError::kFailed;
   }
 }
 
@@ -74,13 +74,13 @@ enum class HIDError : u8 {
  */
 [[nodiscard]] inline X_RESULT ToXResult(HIDError code) {
   switch (code) {
-    case HIDError::NotConnected:
+    case HIDError::kNotConnected:
       return X_ERROR_DEVICE_NOT_CONNECTED;
-    case HIDError::Empty:
+    case HIDError::kEmpty:
       return X_ERROR_EMPTY;
-    case HIDError::BadArguments:
+    case HIDError::kBadArguments:
       return X_ERROR_BAD_ARGUMENTS;
-    case HIDError::Failed:
+    case HIDError::kFailed:
       break;
   }
   return X_ERROR_FUNCTION_FAILED;

@@ -234,9 +234,9 @@ inline VkShaderModule CreateShaderModule(const VulkanDevice* const vulkan_device
   shader_module_create_info.codeSize = code_size_bytes;
   shader_module_create_info.pCode = code;
   VkShaderModule shader_module;
-  return vulkan_device->functions().vkCreateShaderModule(vulkan_device->device(),
-                                                         &shader_module_create_info, nullptr,
-                                                         &shader_module) == VK_SUCCESS
+  return vulkan_device->GetFunctions().vkCreateShaderModule(vulkan_device->GetDevice(),
+                                                            &shader_module_create_info, nullptr,
+                                                            &shader_module) == VK_SUCCESS
              ? shader_module
              : VK_NULL_HANDLE;
 }

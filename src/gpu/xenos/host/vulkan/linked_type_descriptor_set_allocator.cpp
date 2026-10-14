@@ -23,8 +23,8 @@ namespace gpu {
 namespace vulkan {
 
 void LinkedTypeDescriptorSetAllocator::Reset() {
-  const VulkanDevice::Functions& dfn = vulkan_device_->functions();
-  const VkDevice device = vulkan_device_->device();
+  const VulkanDevice::Functions& dfn = vulkan_device_->GetFunctions();
+  const VkDevice device = vulkan_device_->GetDevice();
   gpu::vulkan::objects::DestroyAndNullHandle(dfn.vkDestroyDescriptorPool, device,
                                              page_usable_latest_.pool);
   page_usable_latest_.descriptors_remaining.reset();
@@ -52,8 +52,8 @@ VkDescriptorSet LinkedTypeDescriptorSetAllocator::Allocate(
   }
 #endif
 
-  const VulkanDevice::Functions& dfn = vulkan_device_->functions();
-  const VkDevice device = vulkan_device_->device();
+  const VulkanDevice::Functions& dfn = vulkan_device_->GetFunctions();
+  const VkDevice device = vulkan_device_->GetDevice();
 
   VkDescriptorSetAllocateInfo descriptor_set_allocate_info;
   descriptor_set_allocate_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;

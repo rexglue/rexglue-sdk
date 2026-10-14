@@ -19,7 +19,7 @@ using rex::testing::KernelFixture;
 
 REX_TEST_CASE("An object block keeps its type 8 bytes before the body", "[runtime][object]") {
   KernelFixture fixture;
-  auto* memory = fixture.runtime().memory();
+  auto* memory = fixture.GetRuntime().GetMemory();
   const auto block = rex::runtime::AllocObjectBlock(memory, 0x10);
   REQUIRE(block.address != 0);
   const auto* header = memory->TranslateVirtual<const rex::runtime::X_OBJECT_HEADER*>(

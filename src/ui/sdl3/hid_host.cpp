@@ -11,11 +11,11 @@ HIDHost::HIDHost(IUserInterface& ui, Window& window, ImGuiDrawer& drawer, Overla
 
 void HIDHost::Attach() {
   backend_.SetHost(this);
-  backend_.OnEvent({.kind = hid::InputEvent::Kind::Resize,
+  backend_.OnEvent({.kind = hid::InputEvent::Kind::kResize,
                     .width = window_.GetActualPhysicalWidth(),
                     .height = window_.GetActualPhysicalHeight()});
-  backend_.OnEvent({.kind = window_.HasFocus() ? hid::InputEvent::Kind::FocusGained
-                                               : hid::InputEvent::Kind::FocusLost});
+  backend_.OnEvent({.kind = window_.HasFocus() ? hid::InputEvent::Kind::kFocusGained
+                                               : hid::InputEvent::Kind::kFocusLost});
 }
 
 void HIDHost::Detach() {
@@ -27,16 +27,16 @@ bool HIDHost::Post(rex::MoveOnlyFunction<void()> work) {
 }
 
 bool HIDHost::ApplyPointerMode(hid::PointerMode mode) {
-  if (applied_ == hid::PointerMode::Locked) {
+  if (applied_ == hid::PointerMode::kLocked) {
     window_.SetRelativeMouseMode(false);
     window_.ReleaseMouse();
   }
-  if (applied_ == hid::PointerMode::Free) {
+  if (applied_ == hid::PointerMode::kFree) {
     arrow_ = window_.GetCursorVisibility();
   }
-  window_.SetCursorVisibility(mode == hid::PointerMode::Free ? arrow_ : CursorVisibility::Hidden);
+  window_.SetCursorVisibility(mode == hid::PointerMode::kFree ? arrow_ : CursorVisibility::kHidden);
   bool relative = false;
-  if (mode == hid::PointerMode::Locked) {
+  if (mode == hid::PointerMode::kLocked) {
     window_.CaptureMouse();
     relative = window_.SetRelativeMouseMode(true);
     if (!relative) {
@@ -59,18 +59,18 @@ std::optional<hid::PointerState> HIDHost::WarpPointerToCenter() {
                            .window_height = window_.GetActualPhysicalHeight()};
 }
 
-bool HIDHost::capture_active() const {
+bool HIDHost::GetCaptureActive() const {
   if (!window_.HasFocus()) {
     return false;
   }
-  if (!overlays_.AnyVisible()) {
+  if (!overlays_.IsAnyVisible()) {
     return true;
   }
   return !drawer_.GetIO().WantCaptureMouse;
 }
 
-bool HIDHost::OverlayWants(bool keyboard) const {
-  if (!overlays_.AnyVisible()) {
+bool HIDHost::IsOverlayCapturingInput(bool keyboard) const {
+  if (!overlays_.IsAnyVisible()) {
     return false;
   }
   const ImGuiIO& io = drawer_.GetIO();
@@ -78,108 +78,110 @@ bool HIDHost::OverlayWants(bool keyboard) const {
 }
 
 void HIDHost::OnKeyDown(KeyEvent& e) {
-  if (!OverlayWants(true)) {
-    Key(hid::InputEvent::Kind::KeyDown, e);
+  if (!IsOverlayCapturingInput(true)) {
+    Key(hid::InputEvent::Kind::kKeyDown, e);
   }
 }
 
 void HIDHost::OnKeyUp(KeyEvent& e) {
-  Key(hid::InputEvent::Kind::KeyUp, e);
+  Key(hid::InputEvent::Kind::kKeyUp, e);
 }
 
 void HIDHost::OnKeyChar(KeyEvent& e) {
-  if (OverlayWants(true)) {
+  if (IsOverlayCapturingInput(true)) {
     return;
   }
   backend_.OnEvent(
-      {.kind = hid::InputEvent::Kind::KeyChar, .character = static_cast<u32>(e.virtual_key())});
+      {.kind = hid::InputEvent::Kind::kKeyChar, .character = static_cast<u32>(e.GetVirtualKey())});
 }
 
 void HIDHost::OnMouseDown(MouseEvent& e) {
-  if (!OverlayWants(false)) {
-    Button(hid::InputEvent::Kind::ButtonDown, e);
+  if (!IsOverlayCapturingInput(false)) {
+    Button(hid::InputEvent::Kind::kButtonDown, e);
   }
 }
 
 void HIDHost::OnMouseUp(MouseEvent& e) {
-  Button(hid::InputEvent::Kind::ButtonUp, e);
+  Button(hid::InputEvent::Kind::kButtonUp, e);
 }
 
 void HIDHost::OnMouseMove(MouseEvent& e) {
-  if (OverlayWants(false)) {
+  if (IsOverlayCapturingInput(false)) {
     return;
   }
-  backend_.OnEvent({.kind = hid::InputEvent::Kind::Motion,
-                    .x = static_cast<f32>(e.x()),
-                    .y = static_cast<f32>(e.y()),
-                    .dx = e.dx(),
-                    .dy = e.dy()});
+  backend_.OnEvent({.kind = hid::InputEvent::Kind::kMotion,
+                    .x = static_cast<f32>(e.GetX()),
+                    .y = static_cast<f32>(e.GetY()),
+                    .dx = e.GetDx(),
+                    .dy = e.GetDy()});
 }
 
 void HIDHost::OnMouseWheel(MouseEvent& e) {
-  const i32 detents = e.scroll_y() / static_cast<i32>(MouseEvent::kScrollPerDetent);
-  if (detents != 0 && !OverlayWants(false)) {
-    backend_.OnEvent({.kind = hid::InputEvent::Kind::Wheel, .wheel = detents});
+  const i32 detents = e.GetScrollY() / static_cast<i32>(MouseEvent::kScrollPerDetent);
+  if (detents != 0 && !IsOverlayCapturingInput(false)) {
+    backend_.OnEvent({.kind = hid::InputEvent::Kind::kWheel, .wheel = detents});
   }
 }
 
 void HIDHost::OnGotFocus(UISetupEvent& e) {
   (void)e;
-  backend_.OnEvent({.kind = hid::InputEvent::Kind::FocusGained});
+  backend_.OnEvent({.kind = hid::InputEvent::Kind::kFocusGained});
 }
 
 void HIDHost::OnLostFocus(UISetupEvent& e) {
   (void)e;
-  backend_.OnEvent({.kind = hid::InputEvent::Kind::FocusLost});
+  backend_.OnEvent({.kind = hid::InputEvent::Kind::kFocusLost});
 }
 
 void HIDHost::OnResize(UISetupEvent& e) {
   (void)e;
-  backend_.OnEvent({.kind = hid::InputEvent::Kind::Resize,
+  backend_.OnEvent({.kind = hid::InputEvent::Kind::kResize,
                     .width = window_.GetActualPhysicalWidth(),
                     .height = window_.GetActualPhysicalHeight()});
 }
 
 void HIDHost::Key(hid::InputEvent::Kind kind, const KeyEvent& e) {
-  hid::KeyModifiers modifiers = hid::KeyModifiers::None;
-  if (e.is_shift_pressed()) {
-    modifiers |= hid::KeyModifiers::Shift;
+  hid::KeyModifiers modifiers = hid::KeyModifiers::kNone;
+  if (e.IsShiftPressed()) {
+    modifiers |= hid::KeyModifiers::kShift;
   }
-  if (e.is_ctrl_pressed()) {
-    modifiers |= hid::KeyModifiers::Ctrl;
+  if (e.IsCtrlPressed()) {
+    modifiers |= hid::KeyModifiers::kCtrl;
   }
-  if (e.is_alt_pressed()) {
-    modifiers |= hid::KeyModifiers::Alt;
+  if (e.IsAltPressed()) {
+    modifiers |= hid::KeyModifiers::kAlt;
   }
   backend_.OnEvent({.kind = kind,
-                    .key = e.virtual_key(),
+                    .key = e.GetVirtualKey(),
                     .modifiers = modifiers,
-                    .repeat = kind == hid::InputEvent::Kind::KeyDown && e.prev_state()});
+                    .repeat = kind == hid::InputEvent::Kind::kKeyDown && e.GetPrevState()});
 }
 
 void HIDHost::Button(hid::InputEvent::Kind kind, const MouseEvent& e) {
-  hid::MouseButton button = hid::MouseButton::Left;
-  switch (e.button()) {
+  hid::MouseButton button = hid::MouseButton::kLeft;
+  switch (e.GetButton()) {
     case MouseEvent::Button::kLeft:
-      button = hid::MouseButton::Left;
+      button = hid::MouseButton::kLeft;
       break;
     case MouseEvent::Button::kRight:
-      button = hid::MouseButton::Right;
+      button = hid::MouseButton::kRight;
       break;
     case MouseEvent::Button::kMiddle:
-      button = hid::MouseButton::Middle;
+      button = hid::MouseButton::kMiddle;
       break;
     case MouseEvent::Button::kX1:
-      button = hid::MouseButton::X1;
+      button = hid::MouseButton::kX1;
       break;
     case MouseEvent::Button::kX2:
-      button = hid::MouseButton::X2;
+      button = hid::MouseButton::kX2;
       break;
     case MouseEvent::Button::kNone:
       return;
   }
-  backend_.OnEvent(
-      {.kind = kind, .button = button, .x = static_cast<f32>(e.x()), .y = static_cast<f32>(e.y())});
+  backend_.OnEvent({.kind = kind,
+                    .button = button,
+                    .x = static_cast<f32>(e.GetX()),
+                    .y = static_cast<f32>(e.GetY())});
 }
 
 }  // namespace rex::ui

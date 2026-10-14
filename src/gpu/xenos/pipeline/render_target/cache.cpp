@@ -328,7 +328,7 @@ void RenderTargetCache::ClearCache() {
           render_targets_.erase(it);
           continue;
         }
-        if (used_render_targets.find(it->second->key()) == used_render_targets.end()) {
+        if (used_render_targets.find(it->second->GetKey()) == used_render_targets.end()) {
           render_targets_.erase(it);
         }
       }
@@ -343,7 +343,7 @@ void RenderTargetCache::BeginFrame() {
 bool RenderTargetCache::Update(bool is_rasterization_done,
                                xenos::reg::RB_DEPTHCONTROL normalized_depth_control,
                                u32 normalized_color_mask, const Shader& vertex_shader) {
-  const xenos::RegisterFile& regs = register_file();
+  const xenos::RegisterFile& regs = GetRegisterFile();
   bool interlock_barrier_only = GetPath() == Path::kPixelShaderInterlock;
 
   auto rb_surface_info = regs.Get<xenos::reg::RB_SURFACE_INFO>();
@@ -371,7 +371,7 @@ bool RenderTargetCache::Update(bool is_rasterization_done,
   if (!interlock_barrier_only) {
     u32 pitch_pixels_tile_aligned_scaled = pitch_tiles_at_32bpp *
                                            (xenos::kEDRAMTileWidthSamples >> msaa_samples_x_log2) *
-                                           draw_resolution_scale_x();
+                                           GetDrawResolutionScaleX();
     u32 max_render_target_width = GetMaxRenderTargetWidth();
     if (pitch_pixels_tile_aligned_scaled > max_render_target_width) {
       REX_FAIL(gpu, false,
@@ -400,12 +400,12 @@ bool RenderTargetCache::Update(bool is_rasterization_done,
         continue;
       }
       auto color_info =
-          regs.Get<xenos::reg::RB_COLOR_INFO>(xenos::reg::RB_COLOR_INFO::rt_register_indices[i]);
+          regs.Get<xenos::reg::RB_COLOR_INFO>(xenos::reg::RB_COLOR_INFO::kRtRegisterIndices[i]);
       u32 rt_bit_index = 1 + i;
       depth_and_color_rts_used_bits |= static_cast<u32>(1) << rt_bit_index;
       edram_bases[rt_bit_index] = color_info.color_base;
       xenos::ColorRenderTargetFormat color_format =
-          regs.Get<xenos::reg::RB_COLOR_INFO>(xenos::reg::RB_COLOR_INFO::rt_register_indices[i])
+          regs.Get<xenos::reg::RB_COLOR_INFO>(xenos::reg::RB_COLOR_INFO::kRtRegisterIndices[i])
               .color_format;
       bool is_64bpp = xenos::IsColorRenderTargetFormat64bpp(color_format);
       if (is_64bpp) {
@@ -455,7 +455,7 @@ bool RenderTargetCache::Update(bool is_rasterization_done,
         if (!render_target) {
           continue;
         }
-        RenderTargetKey rt_key = render_target->key();
+        RenderTargetKey rt_key = render_target->GetKey();
         if (rt_key.pitch_tiles_at_32bpp != pitch_tiles_at_32bpp ||
             rt_key.msaa_samples != msaa_samples) {
           are_accumulated_render_targets_valid_ = false;
@@ -589,7 +589,7 @@ bool RenderTargetCache::Update(bool is_rasterization_done,
           break;
         }
       } else {
-        RenderTargetKey accumulated_rt_key = accumulated_rt->key();
+        RenderTargetKey accumulated_rt_key = accumulated_rt->GetKey();
         if (accumulated_rt_key.pitch_tiles_at_32bpp != pitch_tiles_at_32bpp ||
             accumulated_rt_key.msaa_samples != msaa_samples) {
           are_accumulated_render_targets_valid_ = false;
@@ -639,7 +639,7 @@ u32 RenderTargetCache::GetLastUpdateBoundRenderTargets(u32* depth_and_color_form
     }
     rts_used |= static_cast<u32>(1) << i;
     if (depth_and_color_formats_out) {
-      depth_and_color_formats_out[i] = render_target->key().resource_format;
+      depth_and_color_formats_out[i] = render_target->GetKey().resource_format;
     }
   }
   return rts_used;
@@ -656,10 +656,10 @@ u32 RenderTargetCache::GetRenderTargetHeight(u32 pitch_tiles_at_32bpp,
   static_assert(!(xenos::kTexture2DCubeMaxWidthHeight % xenos::kEDRAMTileHeightSamples),
                 "Maximum guest render target height is assumed to always be a multiple "
                 "of an EDRAM tile height");
-  u32 max_height_scaled = std::min(xenos::kTexture2DCubeMaxWidthHeight * draw_resolution_scale_y(),
+  u32 max_height_scaled = std::min(xenos::kTexture2DCubeMaxWidthHeight * GetDrawResolutionScaleY(),
                                    GetMaxRenderTargetHeight());
   u32 msaa_samples_y_log2 = static_cast<u32>(msaa_samples >= xenos::MSAASamples::k2X);
-  u32 tile_height_samples_scaled = xenos::kEDRAMTileHeightSamples * draw_resolution_scale_y();
+  u32 tile_height_samples_scaled = xenos::kEDRAMTileHeightSamples * GetDrawResolutionScaleY();
   tile_rows =
       std::min(tile_rows, (max_height_scaled << msaa_samples_y_log2) / tile_height_samples_scaled);
   REX_ASSERT(tile_rows != 0);
@@ -682,8 +682,8 @@ void RenderTargetCache::GetHostDepthStoreRectangleInfo(
   rectangle_constant.width_pixels_div_8_minus_1 = (transfer_rectangle.width_pixels >> 3) - 1;
   rectangle_constant_out = rectangle_constant;
   // 1 thread group = 64x8 host samples.
-  u32 pixel_size_x = draw_resolution_scale_x() << u32(msaa_samples >= xenos::MSAASamples::k4X);
-  u32 pixel_size_y = draw_resolution_scale_y() << u32(msaa_samples >= xenos::MSAASamples::k2X);
+  u32 pixel_size_x = GetDrawResolutionScaleX() << u32(msaa_samples >= xenos::MSAASamples::k4X);
+  u32 pixel_size_y = GetDrawResolutionScaleY() << u32(msaa_samples >= xenos::MSAASamples::k2X);
   group_count_x_out = (transfer_rectangle.width_pixels * pixel_size_x + 63) >> 6;
   group_count_y_out = (transfer_rectangle.height_pixels * pixel_size_y) >> 3;
 }
@@ -817,7 +817,7 @@ bool RenderTargetCache::PrepareHostRenderTargetsResolveClear(
              xenos::kTexture2DCubeMaxWidthHeight);
   }
   u32 pitch_pixels = pitch_tiles_at_32bpp * (xenos::kEDRAMTileWidthSamples >> msaa_samples_x_log2);
-  u32 pitch_pixels_scaled = pitch_pixels * draw_resolution_scale_x();
+  u32 pitch_pixels_scaled = pitch_pixels * GetDrawResolutionScaleX();
   u32 max_render_target_width = GetMaxRenderTargetWidth();
   if (pitch_pixels_scaled > max_render_target_width) {
     REX_FAIL(gpu, false,
@@ -1099,11 +1099,11 @@ void RenderTargetCache::ChangeOwnership(RenderTargetKey dest, u32 start_tiles_ba
             }
             if (!transfers_append_out->empty() &&
                 transfers_append_out->back().end_tiles == it->first &&
-                transfers_append_out->back().source->key() == transfer_source &&
+                transfers_append_out->back().source->GetKey() == transfer_source &&
                 ((transfers_append_out->back().host_depth_source == nullptr) ==
                  transfer_host_depth_source.IsEmpty()) &&
                 (transfer_host_depth_source.IsEmpty() ||
-                 transfers_append_out->back().host_depth_source->key() ==
+                 transfers_append_out->back().host_depth_source->GetKey() ==
                      transfer_host_depth_source)) {
               transfers_append_out->back().end_tiles = transfer_end_tiles;
             } else {

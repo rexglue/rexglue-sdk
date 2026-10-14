@@ -43,13 +43,13 @@ Result<void> NullGPU::SetupPresentation(gpu::IUIThread&) {
 Result<void> NullGPU::SetupGuestGPU(FunctionDispatcher& dispatcher, Runtime& runtime) {
   dispatcher_ = &dispatcher;
   runtime_ = &runtime;
-  AttachMMIO(MMIOBlock::GPU, {this, ReadRegisterThunk, WriteRegisterThunk});
+  AttachMMIO(MMIOBlock::kGPU, {this, ReadRegisterThunk, WriteRegisterThunk});
   mmio_attached_ = true;
   vsync_running_.store(true, std::memory_order_release);
   auto thread = std::make_unique<KernelThread>(runtime, 128 * 1024, 0, [this]() {
-    const f64 refresh_hz = std::max(1.0, static_cast<f64>(runtime_->video_mode().refresh_rate));
+    const f64 refresh_hz = std::max(1.0, static_cast<f64>(runtime_->GetVideoMode().refresh_rate));
     const u64 interval = std::max<u64>(
-        1, static_cast<u64>(static_cast<f64>(Clock::guest_tick_frequency()) / refresh_hz));
+        1, static_cast<u64>(static_cast<f64>(Clock::GetGuestTickFrequency()) / refresh_hz));
     u64 last = Clock::QueryGuestTickCount();
     while (vsync_running_.load(std::memory_order_acquire)) {
       const u64 now = Clock::QueryGuestTickCount();
@@ -61,11 +61,11 @@ Result<void> NullGPU::SetupGuestGPU(FunctionDispatcher& dispatcher, Runtime& run
     }
     return 0;
   });
-  thread->set_name("GPU VSync");
-  auto launched = runtime.thread_registry().Launch(std::move(thread));
+  thread->SetName("GPU VSync");
+  auto launched = runtime.GetThreadRegistry().Launch(std::move(thread));
   if (!launched) {
     vsync_running_.store(false, std::memory_order_release);
-    return Err(ErrorCategory::Runtime, "the null GPU vsync thread cannot start");
+    return Err(ErrorCategory::kRuntime, "the null GPU vsync thread cannot start");
   }
   vsync_thread_ = *launched;
   REXLOG_INFO(system, "no GPU module is loaded, the title runs on the null GPU without PM4");
@@ -73,12 +73,12 @@ Result<void> NullGPU::SetupGuestGPU(FunctionDispatcher& dispatcher, Runtime& run
 }
 
 Result<std::unique_ptr<gpu::IPresenter>> NullGPU::CreatePresenter() {
-  return Err<std::unique_ptr<gpu::IPresenter>>(ErrorCategory::NotImplemented,
+  return Err<std::unique_ptr<gpu::IPresenter>>(ErrorCategory::kNotImplemented,
                                                "the null GPU has no presentation");
 }
 
 Result<std::unique_ptr<gpu::IOverlayDrawer>> NullGPU::CreateOverlayDrawer(gpu::IPresenter&) {
-  return Err<std::unique_ptr<gpu::IOverlayDrawer>>(ErrorCategory::NotImplemented,
+  return Err<std::unique_ptr<gpu::IOverlayDrawer>>(ErrorCategory::kNotImplemented,
                                                    "the null GPU has no presentation");
 }
 
@@ -99,13 +99,13 @@ Result<void> NullGPU::InitializeShaderStorage(const std::filesystem::path&, u32,
 
 void NullGPU::Shutdown() {
   if (mmio_attached_) {
-    DetachMMIO(MMIOBlock::GPU, this);
+    DetachMMIO(MMIOBlock::kGPU, this);
     mmio_attached_ = false;
   }
   if (vsync_thread_) {
     vsync_running_.store(false, std::memory_order_release);
     Wait(*runtime_, vsync_thread_, 0, 0, 0, nullptr);
-    CloseOwned(runtime_->object_table(), vsync_thread_);
+    CloseOwned(runtime_->GetObjectTable(), vsync_thread_);
     vsync_thread_ = 0;
   }
 }
@@ -120,7 +120,7 @@ void NullGPU::WriteRegisterThunk(void* context, u32 address, u32 value) {
 
 u32 NullGPU::ReadRegister(u32 address) const {
   const u32 index = RegisterIndex(address);
-  const VideoMode& mode = runtime_->video_mode();
+  const VideoMode& mode = runtime_->GetVideoMode();
   switch (index) {
     case kEDRAMTimingRegister:
       return 0x08100748;
@@ -145,7 +145,7 @@ void NullGPU::WriteRegister(u32 address, u32 value) {
   }
   const u32 writeback = read_pointer_writeback_.load(std::memory_order_acquire);
   if (writeback != 0) {
-    *runtime_->memory()->TranslatePhysical<be_u32*>(writeback) = value;
+    *runtime_->GetMemory()->TranslatePhysical<be_u32*>(writeback) = value;
   }
 }
 
@@ -157,7 +157,7 @@ void NullGPU::RaiseVblank() {
   KernelThread* thread = KernelThread::GetCurrentThread();
   thread->SetActiveCPU(kInterruptCPU);
   u64 args[] = {0, callback_data_.load(std::memory_order_relaxed)};
-  dispatcher_->ExecuteInterrupt(thread->thread_state(), callback, args, std::size(args));
+  dispatcher_->ExecuteInterrupt(thread->GetThreadState(), callback, args, std::size(args));
 }
 
 }  // namespace rex::runtime

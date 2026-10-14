@@ -90,15 +90,15 @@ void StringBuffer::AppendBytes(const u8* buffer, size_t length) {
   buffer_[buffer_offset_] = 0;
 }
 
-std::string StringBuffer::to_string() {
+std::string StringBuffer::ToString() {
   return std::string(buffer_, buffer_offset_);
 }
 
-std::string_view StringBuffer::to_string_view() const {
+std::string_view StringBuffer::ToStringView() const {
   return std::string_view(buffer_, buffer_offset_);
 }
 
-std::vector<u8> StringBuffer::to_bytes() const {
+std::vector<u8> StringBuffer::ToBytes() const {
   std::vector<u8> bytes(buffer_offset_);
   std::memcpy(bytes.data(), buffer_, buffer_offset_);
   return bytes;

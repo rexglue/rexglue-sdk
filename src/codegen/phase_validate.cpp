@@ -33,12 +33,12 @@ namespace {
  * @param site Address of the branch.
  * @return The edge, or nullptr when none is registered.
  */
-const CallEdge* findCallEdgeAt(const FunctionNode* node, u32 site) {
-  for (const auto& edge : node->calls()) {
+const CallEdge* FindCallEdgeAt(const FunctionNode* node, u32 site) {
+  for (const auto& edge : node->GetCalls()) {
     if (edge.site == site)
       return &edge;
   }
-  for (const auto& edge : node->tailCalls()) {
+  for (const auto& edge : node->GetTailCalls()) {
     if (edge.site == site)
       return &edge;
   }
@@ -53,34 +53,34 @@ const CallEdge* findCallEdgeAt(const FunctionNode* node, u32 site) {
  *
  * @param ctx Codegen context.
  */
-void validateConfigBoundaries(CodegenContext& ctx) {
+void ValidateConfigBoundaries(CodegenContext& ctx) {
   auto& graph = ctx.graph;
 
-  for (const auto& [addr, fc] : ctx.Config().functions) {
-    if (fc.isChunk())
+  for (const auto& [addr, fc] : ctx.GetConfig().functions) {
+    if (fc.IsChunk())
       continue;
 
-    const FunctionNode* node = graph.getFunction(addr);
+    const FunctionNode* node = graph.GetFunction(addr);
     if (!node) {
       REXLOG_WARN(codegen, "functions 0x{:08X} is not a function entry point", addr);
       continue;
     }
-    if (node->authority() != FunctionAuthority::CONFIG) {
+    if (node->GetAuthority() != FunctionAuthority::kConfig) {
       REXLOG_WARN(codegen, "functions 0x{:08X} outranked by {}", addr,
-                  AuthorityName(node->authority()));
+                  AuthorityName(node->GetAuthority()));
       continue;
     }
 
-    // Use the declared size, since discover() grows node->size() to cover its blocks.
-    u32 declared = fc.getSize(addr);
+    // Use the declared size, since Discover() grows node->size() to cover its blocks.
+    u32 declared = fc.GetSize(addr);
     if (declared == 0)
       continue;
 
-    for (const auto& [otherAddr, other] : graph.functions()) {
+    for (const auto& [otherAddr, other] : graph.GetFunctions()) {
       if (otherAddr <= addr || otherAddr >= addr + declared)
         continue;
-      auto authority = other->authority();
-      if (authority == FunctionAuthority::PDATA || authority == FunctionAuthority::HELPER) {
+      auto authority = other->GetAuthority();
+      if (authority == FunctionAuthority::kPData || authority == FunctionAuthority::kHelper) {
         REXLOG_DEBUG(codegen, "functions 0x{:08X} size 0x{:X} contains {} 0x{:08X}", addr, declared,
                      AuthorityName(authority), otherAddr);
         continue;
@@ -99,24 +99,24 @@ void validateConfigBoundaries(CodegenContext& ctx) {
  * @param ctx Codegen context.
  * @return Ok, or a validation error.
  */
-[[nodiscard]] Result<void> validateGraph(CodegenContext& ctx) {
+[[nodiscard]] Result<void> ValidateGraph(CodegenContext& ctx) {
   REXLOG_TRACE(codegen, "Analyze: validating call graph...");
 
   auto& graph = ctx.graph;
-  auto& binary = ctx.binary();
+  auto& binary = ctx.GetBinary();
   auto& errors = ctx.errors;
 
-  validateConfigBoundaries(ctx);
+  ValidateConfigBoundaries(ctx);
 
-  size_t functionsChecked = 0;
-  size_t callsChecked = 0;
-  size_t edgesVerified = 0;
+  size_t functions_checked = 0;
+  size_t calls_checked = 0;
+  size_t edges_verified = 0;
 
-  for (const auto& [addr, node] : graph.functions()) {
-    functionsChecked++;
+  for (const auto& [addr, node] : graph.GetFunctions()) {
+    functions_checked++;
 
-    for (const auto& block : node->blocks()) {
-      const u8* data = binary.translate(block.base);
+    for (const auto& block : node->GetBlocks()) {
+      const u8* data = binary.Translate(block.base);
       if (!data)
         continue;
 
@@ -125,58 +125,58 @@ void validateConfigBoundaries(CodegenContext& ctx) {
 
         if (PPC_OP(insn) == PPC_OP_B && !PPC_BA(insn)) {
           u32 site = block.base + static_cast<u32>(offset);
-          i32 branchOffset = PPC_BI(insn);
-          u32 target = site + branchOffset;
-          bool isCall = PPC_BL(insn);
+          i32 branch_offset = PPC_BI(insn);
+          u32 target = site + branch_offset;
+          bool is_call = PPC_BL(insn);
 
-          callsChecked++;
+          calls_checked++;
 
-          bool targetExists = false;
-          bool isInternalJump = false;
+          bool target_exists = false;
+          bool is_internal_jump = false;
 
-          if (node->containsAddress(target)) {
-            isInternalJump = true;
-            targetExists = true;
+          if (node->ContainsAddress(target)) {
+            is_internal_jump = true;
+            target_exists = true;
           }
 
-          if (!targetExists && node->isWithinBounds(target)) {
-            isInternalJump = true;
-            targetExists = true;
+          if (!target_exists && node->IsWithinBounds(target)) {
+            is_internal_jump = true;
+            target_exists = true;
           }
 
-          if (!targetExists && graph.isEntryPoint(target)) {
-            targetExists = true;
+          if (!target_exists && graph.IsEntryPoint(target)) {
+            target_exists = true;
           }
 
-          if (!targetExists && graph.isImport(target)) {
-            targetExists = true;
+          if (!target_exists && graph.IsImport(target)) {
+            target_exists = true;
           }
 
-          if (!targetExists) {
-            const FunctionNode* containingFunc = graph.getFunctionContaining(target);
-            if (containingFunc) {
-              targetExists = true;
+          if (!target_exists) {
+            const FunctionNode* containing_func = graph.GetFunctionContaining(target);
+            if (containing_func) {
+              target_exists = true;
             }
           }
 
-          if (!targetExists) {
-            errors.Add(AnalysisErrors::Category::UnresolvedCall, target, site,
+          if (!target_exists) {
+            errors.Add(AnalysisErrors::Category::kUnresolvedCall, target, site,
                        std::format("{} 0x{:08X} from 0x{:08X} - target not in any function",
-                                   isCall ? "bl" : "b", target, site));
+                                   is_call ? "bl" : "b", target, site));
             continue;
           }
 
-          if (!isInternalJump) {
-            const CallEdge* edge = findCallEdgeAt(node.get(), site);
+          if (!is_internal_jump) {
+            const CallEdge* edge = FindCallEdgeAt(node.get(), site);
             if (!edge) {
-              const FunctionNode* containingFunc = graph.getFunctionContaining(target);
-              if (!containingFunc) {
-                errors.Add(AnalysisErrors::Category::UnresolvedCall, target, site,
+              const FunctionNode* containing_func = graph.GetFunctionContaining(target);
+              if (!containing_func) {
+                errors.Add(AnalysisErrors::Category::kUnresolvedCall, target, site,
                            std::format("{} 0x{:08X} from 0x{:08X} in {} - no CallEdge recorded",
-                                       isCall ? "bl" : "b", target, site, node->name()));
+                                       is_call ? "bl" : "b", target, site, node->GetName()));
               }
             } else {
-              edgesVerified++;
+              edges_verified++;
             }
           }
         }
@@ -185,14 +185,14 @@ void validateConfigBoundaries(CodegenContext& ctx) {
   }
 
   REXLOG_TRACE(codegen, "Analyze: checked {} branches in {} functions, verified {} edges",
-               callsChecked, functionsChecked, edgesVerified);
+               calls_checked, functions_checked, edges_verified);
 
   if (errors.HasErrors()) {
     REXLOG_ERROR(codegen, "Analyze: found {} errors", errors.Count());
     errors.PrintReport();
-    return Err(ErrorCategory::Validation,
+    return Err(ErrorCategory::kValidation,
                std::format("Validation failed: {} unresolved calls",
-                           errors.Count(AnalysisErrors::Category::UnresolvedCall)));
+                           errors.Count(AnalysisErrors::Category::kUnresolvedCall)));
   }
 
   REXLOG_TRACE(codegen, "Analyze: all calls resolve");
@@ -205,7 +205,7 @@ namespace detail {
 
 [[nodiscard]] Result<void> Validate(CodegenContext& ctx, ProgressReporter* reporter) {
   (void)reporter;
-  return validateGraph(ctx);
+  return ValidateGraph(ctx);
 }
 
 }  // namespace detail

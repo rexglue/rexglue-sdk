@@ -35,9 +35,9 @@ class D3D12OverlayDrawContext final : public gpu::OverlayDrawContext {
         submission_index_current_(submission_index_current),
         submission_index_completed_(submission_index_completed) {}
 
-  ID3D12GraphicsCommandList* command_list() const { return command_list_.Get(); }
-  UINT64 submission_index_current() const { return submission_index_current_; }
-  UINT64 submission_index_completed() const { return submission_index_completed_; }
+  ID3D12GraphicsCommandList* GetCommandList() const { return command_list_.Get(); }
+  UINT64 GetSubmissionIndexCurrent() const { return submission_index_current_; }
+  UINT64 GetSubmissionIndexCompleted() const { return submission_index_completed_; }
 
  private:
   Microsoft::WRL::ComPtr<ID3D12GraphicsCommandList> command_list_;
@@ -74,7 +74,7 @@ class D3D12Presenter final : public Presenter {
      *
      * @return The output resource.
      */
-    ID3D12Resource* resource_uav_capable() const { return resource_.Get(); }
+    ID3D12Resource* GetResourceUAVCapable() const { return resource_.Get(); }
 
    private:
     Microsoft::WRL::ComPtr<ID3D12Resource> resource_;
@@ -92,7 +92,7 @@ class D3D12Presenter final : public Presenter {
 
   ~D3D12Presenter();
 
-  const D3D12Provider& provider() const { return provider_; }
+  const D3D12Provider& GetProvider() const { return provider_; }
 
   gpu::Surface::TypeFlags GetSupportedSurfaceTypes() const override;
 
@@ -169,9 +169,9 @@ class D3D12Presenter final : public Presenter {
     };
 
     enum ViewIndex : u8 {
-      kViewIndexGuestOutput0Srv,
+      kViewIndexGuestOutput0SRV,
 
-      kViewCount = kViewIndexGuestOutput0Srv + kGuestOutputMailboxSize,
+      kViewCount = kViewIndexGuestOutput0SRV + kGuestOutputMailboxSize,
     };
 
     void AwaitSwapChainUsageCompletion() {

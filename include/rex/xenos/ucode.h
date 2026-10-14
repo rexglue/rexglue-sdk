@@ -191,18 +191,18 @@ enum class AllocType : u32 {
 
 /** Instruction data for ControlFlowOpcode::kExec and kExecEnd. */
 struct ControlFlowExecInstruction {
-  ControlFlowOpcode opcode() const { return opcode_; }
-  AddressingMode addressing_mode() const { return address_mode_; }
-  u32 address() const { return address_; }
-  u32 count() const { return count_; }
+  ControlFlowOpcode GetOpcode() const { return opcode_; }
+  AddressingMode GetAddressingMode() const { return address_mode_; }
+  u32 GetAddress() const { return address_; }
+  u32 GetCount() const { return count_; }
   /**
    * Returns the sequence bits, 2 per instruction.
    *
    * @return Per instruction, bit 0 is ALU (0) or fetch (1) and bit 1 is serialize.
    */
-  u32 sequence() const { return sequence_; }
-  bool is_predicate_clean() const { return is_predicate_clean_ == 1; }
-  bool is_yield() const { return is_yield_ == 1; }
+  u32 GetSequence() const { return sequence_; }
+  bool IsPredicateClean() const { return is_predicate_clean_ == 1; }
+  bool IsYield() const { return is_yield_ == 1; }
 
  private:
   /** Word 0 (32 bits). */
@@ -232,19 +232,19 @@ REX_STATIC_ASSERT_SIZE(ControlFlowExecInstruction, sizeof(u32) * 2);
  * kCondExecPredCleanEnd.
  */
 struct ControlFlowCondExecInstruction {
-  ControlFlowOpcode opcode() const { return opcode_; }
-  AddressingMode addressing_mode() const { return address_mode_; }
-  u32 address() const { return address_; }
-  u32 count() const { return count_; }
+  ControlFlowOpcode GetOpcode() const { return opcode_; }
+  AddressingMode GetAddressingMode() const { return address_mode_; }
+  u32 GetAddress() const { return address_; }
+  u32 GetCount() const { return count_; }
   /**
    * Returns the sequence bits, 2 per instruction.
    *
    * @return Per instruction, bit 0 is ALU (0) or fetch (1) and bit 1 is serialize.
    */
-  u32 sequence() const { return sequence_; }
-  u32 bool_address() const { return bool_address_; }
-  bool condition() const { return condition_ == 1; }
-  bool is_yield() const { return is_yield_ == 1; }
+  u32 GetSequence() const { return sequence_; }
+  u32 GetBoolAddress() const { return bool_address_; }
+  bool GetCondition() const { return condition_ == 1; }
+  bool IsYield() const { return is_yield_ == 1; }
 
  private:
   /** Word 0 (32 bits). */
@@ -265,19 +265,19 @@ REX_STATIC_ASSERT_SIZE(ControlFlowCondExecInstruction, sizeof(u32) * 2);
 
 /** Instruction data for ControlFlowOpcode::kCondExecPred and kCondExecPredEnd. */
 struct ControlFlowCondExecPredInstruction {
-  ControlFlowOpcode opcode() const { return opcode_; }
-  AddressingMode addressing_mode() const { return address_mode_; }
-  u32 address() const { return address_; }
-  u32 count() const { return count_; }
+  ControlFlowOpcode GetOpcode() const { return opcode_; }
+  AddressingMode GetAddressingMode() const { return address_mode_; }
+  u32 GetAddress() const { return address_; }
+  u32 GetCount() const { return count_; }
   /**
    * Returns the sequence bits, 2 per instruction.
    *
    * @return Per instruction, bit 0 is ALU (0) or fetch (1) and bit 1 is serialize.
    */
-  u32 sequence() const { return sequence_; }
-  bool is_predicate_clean() const { return is_predicate_clean_ == 1; }
-  bool condition() const { return condition_ == 1; }
-  bool is_yield() const { return is_yield_ == 1; }
+  u32 GetSequence() const { return sequence_; }
+  bool IsPredicateClean() const { return is_predicate_clean_ == 1; }
+  bool GetCondition() const { return condition_ == 1; }
+  bool IsYield() const { return is_yield_ == 1; }
 
  private:
   /** Word 0 (32 bits). */
@@ -299,27 +299,27 @@ REX_STATIC_ASSERT_SIZE(ControlFlowCondExecPredInstruction, sizeof(u32) * 2);
 
 /** Instruction data for ControlFlowOpcode::kLoopStart. */
 struct ControlFlowLoopStartInstruction {
-  ControlFlowOpcode opcode() const { return opcode_; }
-  AddressingMode addressing_mode() const { return address_mode_; }
+  ControlFlowOpcode GetOpcode() const { return opcode_; }
+  AddressingMode GetAddressingMode() const { return address_mode_; }
   /**
    * Returns the address to jump to when skipping the loop, normally the instruction right after the
    * `endloop` instruction.
    *
    * @return Skip target address.
    */
-  u32 address() const { return address_; }
+  u32 GetAddress() const { return address_; }
   /**
    * Reports whether the loop reuses the current aL instead of resetting it to the loop start.
    *
    * @return True when aL is reused.
    */
-  bool is_repeat() const { return is_repeat_; }
+  bool IsRepeat() const { return is_repeat_; }
   /**
    * Returns the integer constant register that holds the loop parameters (xenos::LoopConstant).
    *
    * @return Loop constant register index.
    */
-  u32 loop_id() const { return loop_id_; }
+  u32 GetLoopId() const { return loop_id_; }
 
  private:
   /** Word 0 (32 bits). */
@@ -338,29 +338,29 @@ REX_STATIC_ASSERT_SIZE(ControlFlowLoopStartInstruction, sizeof(u32) * 2);
 
 /** Instruction data for ControlFlowOpcode::kLoopEnd. */
 struct ControlFlowLoopEndInstruction {
-  ControlFlowOpcode opcode() const { return opcode_; }
-  AddressingMode addressing_mode() const { return address_mode_; }
+  ControlFlowOpcode GetOpcode() const { return opcode_; }
+  AddressingMode GetAddressingMode() const { return address_mode_; }
   /**
    * Returns the address of the start of the loop body, normally the instruction right after the
    * `loop` instruction.
    *
    * @return Loop body address.
    */
-  u32 address() const { return address_; }
+  u32 GetAddress() const { return address_; }
   /**
    * Returns the integer constant register that holds the loop parameters (xenos::LoopConstant).
    *
    * @return Loop constant register index.
    */
-  u32 loop_id() const { return loop_id_; }
+  u32 GetLoopId() const { return loop_id_; }
   /**
    * Reports whether the loop breaks if the predicate in all 64 invocations matches the expected
    * value.
    *
    * @return True when the break is predicated.
    */
-  bool is_predicated_break() const { return is_predicated_break_; }
-  bool condition() const { return condition_ == 1; }
+  bool IsPredicatedBreak() const { return is_predicated_break_; }
+  bool GetCondition() const { return condition_ == 1; }
 
  private:
   /** Word 0 (32 bits). */
@@ -380,13 +380,13 @@ REX_STATIC_ASSERT_SIZE(ControlFlowLoopEndInstruction, sizeof(u32) * 2);
 
 /** Instruction data for ControlFlowOpcode::kCondCall. */
 struct ControlFlowCondCallInstruction {
-  ControlFlowOpcode opcode() const { return opcode_; }
-  AddressingMode addressing_mode() const { return address_mode_; }
-  u32 address() const { return address_; }
-  bool is_unconditional() const { return is_unconditional_; }
-  bool is_predicated() const { return is_predicated_; }
-  u32 bool_address() const { return bool_address_; }
-  bool condition() const { return condition_ == 1; }
+  ControlFlowOpcode GetOpcode() const { return opcode_; }
+  AddressingMode GetAddressingMode() const { return address_mode_; }
+  u32 GetAddress() const { return address_; }
+  bool IsUnconditional() const { return is_unconditional_; }
+  bool IsPredicated() const { return is_predicated_; }
+  u32 GetBoolAddress() const { return bool_address_; }
+  bool GetCondition() const { return condition_ == 1; }
 
  private:
   /** Word 0 (32 bits). */
@@ -406,8 +406,8 @@ REX_STATIC_ASSERT_SIZE(ControlFlowCondCallInstruction, sizeof(u32) * 2);
 
 /** Instruction data for ControlFlowOpcode::kReturn. */
 struct ControlFlowReturnInstruction {
-  ControlFlowOpcode opcode() const { return opcode_; }
-  AddressingMode addressing_mode() const { return address_mode_; }
+  ControlFlowOpcode GetOpcode() const { return opcode_; }
+  AddressingMode GetAddressingMode() const { return address_mode_; }
 
  private:
   /** Word 0 (32 bits). */
@@ -422,13 +422,13 @@ REX_STATIC_ASSERT_SIZE(ControlFlowReturnInstruction, sizeof(u32) * 2);
 
 /** Instruction data for ControlFlowOpcode::kCondJmp. */
 struct ControlFlowCondJmpInstruction {
-  ControlFlowOpcode opcode() const { return opcode_; }
-  AddressingMode addressing_mode() const { return address_mode_; }
-  u32 address() const { return address_; }
-  bool is_unconditional() const { return is_unconditional_; }
-  bool is_predicated() const { return is_predicated_; }
-  u32 bool_address() const { return bool_address_; }
-  bool condition() const { return condition_ == 1; }
+  ControlFlowOpcode GetOpcode() const { return opcode_; }
+  AddressingMode GetAddressingMode() const { return address_mode_; }
+  u32 GetAddress() const { return address_; }
+  bool IsUnconditional() const { return is_unconditional_; }
+  bool IsPredicated() const { return is_predicated_; }
+  u32 GetBoolAddress() const { return bool_address_; }
+  bool GetCondition() const { return condition_ == 1; }
 
  private:
   /** Word 0 (32 bits). */
@@ -449,9 +449,9 @@ REX_STATIC_ASSERT_SIZE(ControlFlowCondJmpInstruction, sizeof(u32) * 2);
 
 /** Instruction data for ControlFlowOpcode::kAlloc. */
 struct ControlFlowAllocInstruction {
-  ControlFlowOpcode opcode() const { return opcode_; }
-  u32 size() const { return size_; }
-  AllocType alloc_type() const { return alloc_type_; }
+  ControlFlowOpcode GetOpcode() const { return opcode_; }
+  u32 GetSize() const { return size_; }
+  AllocType GetAllocType() const { return alloc_type_; }
 
  private:
   /** Word 0 (32 bits). */
@@ -471,7 +471,7 @@ REX_STATIC_ASSERT_SIZE(ControlFlowAllocInstruction, sizeof(u32) * 2);
  * Control flow instruction of 48 bits in 2 dwords, viewed through the layout matching its opcode.
  */
 union ControlFlowInstruction {
-  ControlFlowOpcode opcode() const { return opcode_value; }
+  ControlFlowOpcode GetOpcode() const { return opcode_value; }
 
   ControlFlowExecInstruction exec;                   /**< kExec* */
   ControlFlowCondExecInstruction cond_exec;          /**< kCondExec* */
@@ -587,7 +587,7 @@ enum class FetchOpcode : u32 {
    *
    * The translators return the unclamped LOD.
    */
-  kGetTextureComputedLod = 17,
+  kGetTextureComputedLOD = 17,
 
   /**
    * Source is 2 component. XZ = ddx(source.xy), YW = ddy(source.xy).
@@ -613,7 +613,7 @@ enum class FetchOpcode : u32 {
   kGetTextureWeights = 19,
 
   /** Source is 1 component. */
-  kSetTextureLod = 24,
+  kSetTextureLOD = 24,
   /** Source is 3 components. */
   kSetTextureGradientsHorz = 25,
   /** Source is 3 components. */
@@ -648,43 +648,43 @@ constexpr FetchDestinationSwizzle GetFetchDestinationComponentSwizzle(u32 swizzl
 
 /** Vertex fetch instruction of 3 dwords. */
 struct alignas(u32) VertexFetchInstruction {
-  FetchOpcode opcode() const { return data_.opcode_value; }
+  FetchOpcode GetOpcode() const { return data_.opcode_value; }
 
-  bool is_predicated() const { return data_.is_predicated; }
-  bool predicate_condition() const { return data_.pred_condition == 1; }
+  bool IsPredicated() const { return data_.is_predicated; }
+  bool GetPredicateCondition() const { return data_.pred_condition == 1; }
   /**
    * Returns the vertex fetch constant index [0-95]. Applicable only to vfetch_full, as vfetch_mini
    * reuses its address.
    *
    * @return Vertex fetch constant index.
    */
-  u32 fetch_constant_index() const { return data_.const_index * 3 + data_.const_index_sel; }
+  u32 GetFetchConstantIndex() const { return data_.const_index * 3 + data_.const_index_sel; }
 
-  u32 dest() const { return data_.dst_reg; }
-  u32 dest_swizzle() const { return data_.dst_swiz; }
-  bool is_dest_relative() const { return data_.dst_reg_am; }
+  u32 GetDest() const { return data_.dst_reg; }
+  u32 GetDestSwizzle() const { return data_.dst_swiz; }
+  bool IsDestRelative() const { return data_.dst_reg_am; }
   /**
    * Returns the source register. Applicable only to vfetch_full, as vfetch_mini reuses its address.
    *
    * @return Source register index.
    */
-  u32 src() const { return data_.src_reg; }
-  u32 src_swizzle() const { return data_.src_swiz; }
-  bool is_src_relative() const { return data_.src_reg_am; }
+  u32 GetSrc() const { return data_.src_reg; }
+  u32 GetSrcSwizzle() const { return data_.src_swiz; }
+  bool IsSrcRelative() const { return data_.src_reg_am; }
 
-  u32 prefetch_count() const { return data_.prefetch_count; }
-  bool is_mini_fetch() const { return data_.is_mini_fetch == 1; }
+  u32 GetPrefetchCount() const { return data_.prefetch_count; }
+  bool IsMiniFetch() const { return data_.is_mini_fetch == 1; }
 
-  xenos::VertexFormat data_format() const { return data_.format; }
+  xenos::VertexFormat GetDataFormat() const { return data_.format; }
   /**
    * Returns the exponent adjustment, [-32, 31].
    *
    * @return Exponent adjustment.
    */
-  int exp_adjust() const { return data_.exp_adjust; }
-  bool is_signed() const { return data_.fomat_comp_all == 1; }
-  bool is_normalized() const { return data_.num_format_all == 0; }
-  xenos::SignedRepeatingFractionMode signed_rf_mode() const { return data_.signed_rf_mode_all; }
+  int GetExpAdjust() const { return data_.exp_adjust; }
+  bool IsSigned() const { return data_.fomat_comp_all == 1; }
+  bool IsNormalized() const { return data_.num_format_all == 0; }
+  xenos::SignedRepeatingFractionMode GetSignedRfMode() const { return data_.signed_rf_mode_all; }
   /**
    * Reports whether the floating point index is rounded to the nearest integer, as
    * floor(index + 0.5), because rounding to the nearest even makes no sense for addressing (both
@@ -693,20 +693,20 @@ struct alignas(u32) VertexFetchInstruction {
    *
    * @return True when the index is rounded.
    */
-  bool is_index_rounded() const { return data_.is_index_rounded == 1; }
+  bool IsIndexRounded() const { return data_.is_index_rounded == 1; }
   /**
    * Returns the dword stride, [0, 255]. Applicable only to vfetch_full, as vfetch_mini reuses its
    * address.
    *
    * @return Dword stride.
    */
-  u32 stride() const { return data_.stride; }
+  u32 GetStride() const { return data_.stride; }
   /**
    * Returns the dword offset, [-4194304, 4194303].
    *
    * @return Dword offset.
    */
-  i32 offset() const { return data_.offset; }
+  i32 GetOffset() const { return data_.offset; }
 
  private:
   struct Data {
@@ -748,62 +748,62 @@ REX_STATIC_ASSERT_SIZE(VertexFetchInstruction, sizeof(u32) * 3);
 
 /** Texture fetch instruction of 3 dwords. */
 struct alignas(u32) TextureFetchInstruction {
-  FetchOpcode opcode() const { return data_.opcode_value; }
+  FetchOpcode GetOpcode() const { return data_.opcode_value; }
 
-  bool is_predicated() const { return data_.is_predicated; }
-  bool predicate_condition() const { return data_.pred_condition == 1; }
+  bool IsPredicated() const { return data_.is_predicated; }
+  bool GetPredicateCondition() const { return data_.pred_condition == 1; }
   /**
    * Returns the texture fetch constant index [0-31].
    *
    * @return Texture fetch constant index.
    */
-  u32 fetch_constant_index() const { return data_.const_index; }
+  u32 GetFetchConstantIndex() const { return data_.const_index; }
 
-  u32 dest() const { return data_.dst_reg; }
-  u32 dest_swizzle() const { return data_.dst_swiz; }
-  bool is_dest_relative() const { return data_.dst_reg_am; }
-  u32 src() const { return data_.src_reg; }
-  u32 src_swizzle() const { return data_.src_swiz; }
-  bool is_src_relative() const { return data_.src_reg_am; }
+  u32 GetDest() const { return data_.dst_reg; }
+  u32 GetDestSwizzle() const { return data_.dst_swiz; }
+  bool IsDestRelative() const { return data_.dst_reg_am; }
+  u32 GetSrc() const { return data_.src_reg; }
+  u32 GetSrcSwizzle() const { return data_.src_swiz; }
+  bool IsSrcRelative() const { return data_.src_reg_am; }
 
-  xenos::FetchOpDimension dimension() const { return data_.dimension; }
-  bool fetch_valid_only() const { return data_.fetch_valid_only == 1; }
-  bool unnormalized_coordinates() const { return data_.tx_coord_denorm == 1; }
-  bool has_mag_filter() const { return data_.mag_filter != xenos::TextureFilter::kUseFetchConst; }
-  xenos::TextureFilter mag_filter() const { return data_.mag_filter; }
-  bool has_min_filter() const { return data_.min_filter != xenos::TextureFilter::kUseFetchConst; }
-  xenos::TextureFilter min_filter() const { return data_.min_filter; }
-  bool has_mip_filter() const { return data_.mip_filter != xenos::TextureFilter::kUseFetchConst; }
-  xenos::TextureFilter mip_filter() const { return data_.mip_filter; }
-  bool has_aniso_filter() const { return data_.aniso_filter != xenos::AnisoFilter::kUseFetchConst; }
-  xenos::AnisoFilter aniso_filter() const { return data_.aniso_filter; }
+  xenos::FetchOpDimension GetDimension() const { return data_.dimension; }
+  bool GetFetchValidOnly() const { return data_.fetch_valid_only == 1; }
+  bool GetUnnormalizedCoordinates() const { return data_.tx_coord_denorm == 1; }
+  bool HasMagFilter() const { return data_.mag_filter != xenos::TextureFilter::kUseFetchConst; }
+  xenos::TextureFilter GetMagFilter() const { return data_.mag_filter; }
+  bool HasMinFilter() const { return data_.min_filter != xenos::TextureFilter::kUseFetchConst; }
+  xenos::TextureFilter GetMinFilter() const { return data_.min_filter; }
+  bool HasMipFilter() const { return data_.mip_filter != xenos::TextureFilter::kUseFetchConst; }
+  xenos::TextureFilter GetMipFilter() const { return data_.mip_filter; }
+  bool HasAnisoFilter() const { return data_.aniso_filter != xenos::AnisoFilter::kUseFetchConst; }
+  xenos::AnisoFilter GetAnisoFilter() const { return data_.aniso_filter; }
   /**
    * Reports whether the instruction overrides the volume magnification filter of the fetch
    * constant.
    *
    * @return True when the filter is not `kUseFetchConst`.
    */
-  bool has_vol_mag_filter() const {
+  bool HasVolMagFilter() const {
     return data_.vol_mag_filter != xenos::TextureFilter::kUseFetchConst;
   }
-  xenos::TextureFilter vol_mag_filter() const { return data_.vol_mag_filter; }
+  xenos::TextureFilter GetVolMagFilter() const { return data_.vol_mag_filter; }
   /**
    * Reports whether the instruction overrides the volume minification filter of the fetch constant.
    *
    * @return True when the filter is not `kUseFetchConst`.
    */
-  bool has_vol_min_filter() const {
+  bool HasVolMinFilter() const {
     return data_.vol_min_filter != xenos::TextureFilter::kUseFetchConst;
   }
-  xenos::TextureFilter vol_min_filter() const { return data_.vol_min_filter; }
-  bool use_computed_lod() const { return data_.use_comp_lod == 1; }
-  bool use_register_lod() const { return data_.use_reg_lod == 1; }
-  bool use_register_gradients() const { return data_.use_reg_gradients == 1; }
-  xenos::SampleLocation sample_location() const { return data_.sample_location; }
-  f32 lod_bias() const { return static_cast<f32>(data_.lod_bias) * (1.0f / 16.0f); }
-  f32 offset_x() const { return static_cast<f32>(data_.offset_x) * 0.5f; }
-  f32 offset_y() const { return static_cast<f32>(data_.offset_y) * 0.5f; }
-  f32 offset_z() const { return static_cast<f32>(data_.offset_z) * 0.5f; }
+  xenos::TextureFilter GetVolMinFilter() const { return data_.vol_min_filter; }
+  bool UsesComputedLOD() const { return data_.use_comp_lod == 1; }
+  bool UsesRegisterLOD() const { return data_.use_reg_lod == 1; }
+  bool UsesRegisterGradients() const { return data_.use_reg_gradients == 1; }
+  xenos::SampleLocation GetSampleLocation() const { return data_.sample_location; }
+  f32 GetLODBias() const { return static_cast<f32>(data_.lod_bias) * (1.0f / 16.0f); }
+  f32 GetOffsetX() const { return static_cast<f32>(data_.offset_x) * 0.5f; }
+  f32 GetOffsetY() const { return static_cast<f32>(data_.offset_y) * 0.5f; }
+  f32 GetOffsetZ() const { return static_cast<f32>(data_.offset_z) * 0.5f; }
 
  private:
   struct Data {
@@ -852,29 +852,29 @@ REX_STATIC_ASSERT_SIZE(TextureFetchInstruction, sizeof(u32) * 3);
 /** Fetch instruction of 3 dwords, viewed as a vertex or texture fetch according to its opcode. */
 union alignas(u32) FetchInstruction {
  public:
-  FetchOpcode opcode() const { return data_.opcode_value; }
+  FetchOpcode GetOpcode() const { return data_.opcode_value; }
 
-  bool is_predicated() const { return data_.is_predicated; }
-  bool predicate_condition() const { return data_.pred_condition == 1; }
+  bool IsPredicated() const { return data_.is_predicated; }
+  bool GetPredicateCondition() const { return data_.pred_condition == 1; }
 
-  u32 dest() const { return data_.dst_reg; }
-  u32 dest_swizzle() const { return data_.dst_swiz; }
-  bool is_dest_relative() const { return data_.dst_reg_am; }
-  u32 src() const { return data_.src_reg; }
-  bool is_src_relative() const { return data_.src_reg_am; }
+  u32 GetDest() const { return data_.dst_reg; }
+  u32 GetDestSwizzle() const { return data_.dst_swiz; }
+  bool IsDestRelative() const { return data_.dst_reg_am; }
+  u32 GetSrc() const { return data_.src_reg; }
+  bool IsSrcRelative() const { return data_.src_reg_am; }
 
   /**
    * Returns the vertex fetch data, valid for FetchOpcode::kVertexFetch.
    *
    * @return Vertex fetch instruction.
    */
-  const VertexFetchInstruction& vertex_fetch() const { return vertex_fetch_; }
+  const VertexFetchInstruction& GetVertexFetch() const { return vertex_fetch_; }
   /**
    * Returns the texture fetch data, valid for operations other than FetchOpcode::kVertexFetch.
    *
    * @return Texture fetch instruction.
    */
-  const TextureFetchInstruction& texture_fetch() const { return texture_fetch_; }
+  const TextureFetchInstruction& GetTextureFetch() const { return texture_fetch_; }
 
  private:
   struct Data {
@@ -1531,7 +1531,7 @@ extern REX_API const AluScalarOpcodeInfo kAluScalarOpcodeInfos[64];
  * @return Description of the opcode.
  */
 inline const AluScalarOpcodeInfo& GetAluScalarOpcodeInfo(AluScalarOpcode opcode) {
-  REX_ASSERT(static_cast<u32>(opcode) < rex::countof(kAluScalarOpcodeInfos));
+  REX_ASSERT(static_cast<u32>(opcode) < rex::CountOf(kAluScalarOpcodeInfos));
   return kAluScalarOpcodeInfos[static_cast<u32>(opcode)];
 }
 
@@ -2062,7 +2062,7 @@ extern REX_API const AluVectorOpcodeInfo kAluVectorOpcodeInfos[32];
  * @return Description of the opcode.
  */
 inline const AluVectorOpcodeInfo& GetAluVectorOpcodeInfo(AluVectorOpcode opcode) {
-  REX_ASSERT(static_cast<u32>(opcode) < rex::countof(kAluVectorOpcodeInfos));
+  REX_ASSERT(static_cast<u32>(opcode) < rex::CountOf(kAluVectorOpcodeInfos));
   return kAluVectorOpcodeInfos[static_cast<u32>(opcode)];
 }
 
@@ -2201,45 +2201,43 @@ struct alignas(u32) AluInstruction {
    *
    * @return True when the instruction exports.
    */
-  bool is_export() const { return data_.export_data == 1; }
+  bool IsExport() const { return data_.export_data == 1; }
 
-  bool is_predicated() const { return data_.is_predicated; }
-  bool predicate_condition() const { return data_.pred_condition == 1; }
+  bool IsPredicated() const { return data_.is_predicated; }
+  bool GetPredicateCondition() const { return data_.pred_condition == 1; }
 
-  bool abs_constants() const { return data_.abs_constants == 1; }
-  bool is_const_0_addressed() const { return data_.const_0_rel_abs == 1; }
-  bool is_const_1_addressed() const { return data_.const_1_rel_abs == 1; }
+  bool GetAbsConstants() const { return data_.abs_constants == 1; }
+  bool IsConst0Addressed() const { return data_.const_0_rel_abs == 1; }
+  bool IsConst1Addressed() const { return data_.const_1_rel_abs == 1; }
   /**
    * Reports whether relatively addressed constants are indexed by the address register a0 rather
    * than the loop counter aL.
    *
    * @return True when the address register is used.
    */
-  bool is_const_address_register_relative() const {
-    return data_.const_address_register_relative == 1;
-  }
+  bool IsConstAddressRegisterRelative() const { return data_.const_address_register_relative == 1; }
 
-  AluVectorOpcode vector_opcode() const { return data_.vector_opc; }
-  u32 vector_write_mask() const { return data_.vector_write_mask; }
-  u32 vector_dest() const { return data_.vector_dest; }
-  bool is_vector_dest_relative() const { return data_.vector_dest_rel == 1; }
-  bool vector_clamp() const { return data_.vector_clamp == 1; }
+  AluVectorOpcode GetVectorOpcode() const { return data_.vector_opc; }
+  u32 GetVectorWriteMask() const { return data_.vector_write_mask; }
+  u32 GetVectorDest() const { return data_.vector_dest; }
+  bool IsVectorDestRelative() const { return data_.vector_dest_rel == 1; }
+  bool GetVectorClamp() const { return data_.vector_clamp == 1; }
 
-  AluScalarOpcode scalar_opcode() const { return data_.scalar_opc; }
-  u32 scalar_write_mask() const { return data_.scalar_write_mask; }
-  u32 scalar_dest() const { return data_.scalar_dest; }
-  bool is_scalar_dest_relative() const { return data_.scalar_dest_rel == 1; }
-  bool scalar_clamp() const { return data_.scalar_clamp == 1; }
+  AluScalarOpcode GetScalarOpcode() const { return data_.scalar_opc; }
+  u32 GetScalarWriteMask() const { return data_.scalar_write_mask; }
+  u32 GetScalarDest() const { return data_.scalar_dest; }
+  bool IsScalarDestRelative() const { return data_.scalar_dest_rel == 1; }
+  bool GetScalarClamp() const { return data_.scalar_clamp == 1; }
 
-  static constexpr u32 src_temp_reg(u32 src_reg) { return src_reg & 0x3F; }
-  static constexpr bool is_src_temp_relative(u32 src_reg) { return (src_reg & 0x40) != 0; }
+  static constexpr u32 GetSrcTempReg(u32 src_reg) { return src_reg & 0x3F; }
+  static constexpr bool IsSrcTempRelative(u32 src_reg) { return (src_reg & 0x40) != 0; }
   /**
    * Reports whether a temporary register source takes the absolute value.
    *
    * @param src_reg Packed temporary register from `src_reg`.
    * @return True when the absolute value is taken.
    */
-  static constexpr bool is_src_temp_value_absolute(u32 src_reg) { return (src_reg & 0x80) != 0; }
+  static constexpr bool IsSrcTempValueAbsolute(u32 src_reg) { return (src_reg & 0x80) != 0; }
   /**
    * Returns the full register index for constants, or the packed structure for temporary registers
    * (unpack using src_temp_reg, is_src_temp_relative and is_src_temp_value_absolute).
@@ -2247,7 +2245,7 @@ struct alignas(u32) AluInstruction {
    * @param i 1 based source operand index.
    * @return Register index or packed temporary register.
    */
-  u32 src_reg(size_t i) const {
+  u32 GetSrcReg(size_t i) const {
     switch (i) {
       case 1:
         return data_.src1_reg;
@@ -2266,7 +2264,7 @@ struct alignas(u32) AluInstruction {
    * @param i 1 based source operand index.
    * @return True when the operand is a temporary register.
    */
-  bool src_is_temp(size_t i) const {
+  bool IsSrcTemp(size_t i) const {
     switch (i) {
       case 1:
         return bool(data_.src1_sel);
@@ -2298,15 +2296,14 @@ struct alignas(u32) AluInstruction {
    * @param i 1 based source operand index.
    * @return True when the constant operand is relatively addressed.
    */
-  bool src_const_is_addressed(size_t i) const {
+  bool IsSrcConstAddressed(size_t i) const {
     switch (i) {
       case 1:
         return bool(data_.const_0_rel_abs);
       case 2:
-        return bool(src_is_temp(1) ? data_.const_0_rel_abs : data_.const_1_rel_abs);
+        return bool(IsSrcTemp(1) ? data_.const_0_rel_abs : data_.const_1_rel_abs);
       case 3:
-        return bool((src_is_temp(1) && src_is_temp(2)) ? data_.const_0_rel_abs
-                                                       : data_.const_1_rel_abs);
+        return bool((IsSrcTemp(1) && IsSrcTemp(2)) ? data_.const_0_rel_abs : data_.const_1_rel_abs);
       default:
         REX_UNHANDLED_CASE(i);
         return false;
@@ -2318,7 +2315,7 @@ struct alignas(u32) AluInstruction {
    * @param i 1 based source operand index.
    * @return Packed swizzle.
    */
-  u32 src_swizzle(size_t i) const {
+  u32 GetSrcSwizzle(size_t i) const {
     switch (i) {
       case 1:
         return data_.src1_swiz;
@@ -2337,7 +2334,7 @@ struct alignas(u32) AluInstruction {
    * @param i 1 based source operand index.
    * @return True when the operand is negated.
    */
-  bool src_negate(size_t i) const {
+  bool IsSrcNegated(size_t i) const {
     switch (i) {
       case 1:
         return data_.src1_reg_negate == 1;
@@ -2358,7 +2355,7 @@ struct alignas(u32) AluInstruction {
    *
    * @return Temporary register index.
    */
-  u32 scalar_const_reg_op_src_temp_reg() const {
+  u32 GetScalarConstRegOpSrcTempReg() const {
     return (static_cast<u32>(data_.scalar_opc) & 1) | (data_.src3_sel << 1) |
            (data_.src3_swiz & 0x3C);
   }
@@ -2384,9 +2381,9 @@ struct alignas(u32) AluInstruction {
    * @return Write mask of the vector result.
    */
   u32 GetVectorOpResultWriteMask() const {
-    u32 mask = vector_write_mask();
-    if (is_export()) {
-      mask &= ~scalar_write_mask();
+    u32 mask = GetVectorWriteMask();
+    if (IsExport()) {
+      mask &= ~GetScalarWriteMask();
     }
     return mask;
   }
@@ -2397,9 +2394,9 @@ struct alignas(u32) AluInstruction {
    * @return Write mask of the scalar result.
    */
   u32 GetScalarOpResultWriteMask() const {
-    u32 mask = scalar_write_mask();
-    if (is_export()) {
-      mask &= ~vector_write_mask();
+    u32 mask = GetScalarWriteMask();
+    if (IsExport()) {
+      mask &= ~GetVectorWriteMask();
     }
     return mask;
   }
@@ -2410,10 +2407,10 @@ struct alignas(u32) AluInstruction {
    * @return Mask of components exporting 0, empty when the instruction is not an export.
    */
   u32 GetConstant0WriteMask() const {
-    if (!is_export() || !is_scalar_dest_relative()) {
+    if (!IsExport() || !IsScalarDestRelative()) {
       return 0b0000;
     }
-    return 0b1111 & ~(vector_write_mask() | scalar_write_mask());
+    return 0b1111 & ~(GetVectorWriteMask() | GetScalarWriteMask());
   }
   /**
    * Returns the export components that receive constant 1, which are those both operations write.
@@ -2421,10 +2418,10 @@ struct alignas(u32) AluInstruction {
    * @return Mask of components exporting 1, empty when the instruction is not an export.
    */
   u32 GetConstant1WriteMask() const {
-    if (!is_export()) {
+    if (!IsExport()) {
       return 0b0000;
     }
-    return vector_write_mask() & scalar_write_mask();
+    return GetVectorWriteMask() & GetScalarWriteMask();
   }
 
  private:

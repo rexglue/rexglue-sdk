@@ -71,7 +71,7 @@ class SDL3UserInterface final : public IUserInterface, public IDialogHost {
   bool IsUIThread() const override;
   bool Post(rex::MoveOnlyFunction<void()> work) override;
   void RunSynchronous(rex::MoveOnlyFunction<void()> work) override;
-  ImFontAtlas* Fonts() override;
+  ImFontAtlas* GetFonts() override;
   ImGuiStyle* GetImGuiStyle() override;
   ImGuiIO* GetImGuiIO() override;
   Style& GetStyle() override;
@@ -79,14 +79,14 @@ class SDL3UserInterface final : public IUserInterface, public IDialogHost {
   void ShowOverlay(std::string_view name, bool visible) override;
   void ToggleOverlay(std::string_view name) override;
   ImGuiDialog* Overlay(std::string_view name) override;
-  bool AnyOverlayVisible() const override;
+  bool IsAnyOverlayVisible() const override;
   void AddDialog(ImGuiDialog& dialog) override;
   void RemoveDialog(ImGuiDialog& dialog) override;
   bool HasDialogs() const override;
   void DrawOverlays(gpu::OverlayDrawContext& context) override;
   void SetPresenter(gpu::IPresenter* presenter) override;
   void SetOverlayDrawer(std::unique_ptr<gpu::IOverlayDrawer> drawer) override;
-  gpu::IOverlayDrawer* OverlayDrawer() override;
+  gpu::IOverlayDrawer* GetOverlayDrawer() override;
   void SetFrameStats(FrameStatsProvider provider) override;
   void SetRuntime(Runtime* runtime) override;
   VideoMode GetVideoMode() const override;
@@ -96,8 +96,8 @@ class SDL3UserInterface final : public IUserInterface, public IDialogHost {
   void CancelPrompts() override;
   [[nodiscard]] Result<std::vector<std::filesystem::path>> ShowFileDialog(
       const FileDialogDesc& desc) override;
-  std::vector<DisplayInfo> Displays() override;
-  std::vector<HostLocale> PreferredLocales() override;
+  std::vector<DisplayInfo> GetDisplays() override;
+  std::vector<HostLocale> GetPreferredLocales() override;
 
  private:
   friend class ConsoleDockHost;

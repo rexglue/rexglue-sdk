@@ -31,7 +31,7 @@ rex::platform::WaitResult WaitHostObject(rex::platform::WaitHandle* handle,
                                          std::chrono::milliseconds timeout);
 
 /**
- * Waits until 1 socket may be ready, with the stop behavior of WaitHostObject.
+ * Waits until a socket may be ready, with the stop behavior of WaitHostObject.
  *
  * @param sockets The sockets to watch.
  * @param timeout The longest wait, milliseconds::max() for no limit.
@@ -44,8 +44,8 @@ rex::platform::WaitResult WaitHostSockets(std::span<const rex::platform::SocketW
  * Waits until the host thread of every element ends. Once the timeout passes, it reports the
  * thread every timeout and forces its stop every few milliseconds.
  *
- * @tparam Range A range whose elements dereference to an object with thread() and ForceStop().
- * @tparam Report A callable taking 1 element of the range.
+ * @tparam Range A range whose elements dereference to an object with GetThread() and ForceStop().
+ * @tparam Report A callable taking an element of the range.
  * @param threads The threads to wait for.
  * @param timeout The time each thread has to stop by itself, and the time between reports.
  * @param report Called with each thread that runs when a timeout ends.
@@ -56,8 +56,8 @@ void WaitForThreadsToStop(const Range& threads, std::chrono::milliseconds timeou
   for (const auto& thread : threads) {
     auto wait = timeout;
     std::chrono::milliseconds waited{0};
-    while (thread->thread() && rex::platform::Wait(thread->thread(), false, wait) ==
-                                   rex::platform::WaitResult::kTimeout) {
+    while (thread->GetThread() && rex::platform::Wait(thread->GetThread(), false, wait) ==
+                                      rex::platform::WaitResult::kTimeout) {
       waited += wait;
       if (waited >= timeout) {
         report(thread);

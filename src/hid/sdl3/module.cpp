@@ -20,15 +20,15 @@ namespace rex::hid::sdl3 {
 
 class SDL3Module final : public HIDModuleBase {
  public:
-  static void* GetModule() { return static_cast<IModule*>(&Instance()); }
-  static void* GetBackend() { return static_cast<hid::IHIDBackend*>(&Instance().hub()); }
+  static void* GetModule() { return static_cast<IModule*>(&GetInstance()); }
+  static void* GetBackend() { return static_cast<hid::IHIDBackend*>(&GetInstance().GetHub()); }
 
   static constexpr std::array<InterfaceEntry, 2> kInterfaces = {{
       {IModule::kInterfaceName, IModule::kInterfaceVersion, &GetModule},
       {hid::IHIDBackend::kInterfaceName, hid::IHIDBackend::kInterfaceVersion, &GetBackend},
   }};
 
-  const char* Name() const override { return "rex-hid-sdl3"; }
+  const char* GetName() const override { return "rex-hid-sdl3"; }
 
   [[nodiscard]] Result<void> Connect(IInterfaceFactory* factory, const Config& config) override {
     SDL_SetHint(SDL_HINT_NO_SIGNAL_HANDLERS, "1");
@@ -43,7 +43,7 @@ class SDL3Module final : public HIDModuleBase {
   }
 
  private:
-  static SDL3Module& Instance() {
+  static SDL3Module& GetInstance() {
     static SDL3Module instance;
     return instance;
   }

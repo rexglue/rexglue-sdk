@@ -84,7 +84,7 @@ class SharedMemory {
    * @return The held lock.
    */
   std::unique_lock<rex::platform::RankedMutex> AcquireLock() const {
-    return std::unique_lock(memory_.watch_mutex());
+    return std::unique_lock(memory_.GetWatchMutex());
   }
   /**
    * Unregisters a watched memory range.
@@ -146,11 +146,11 @@ class SharedMemory {
   static constexpr u32 kHostGPUMemoryOptimalSparseAllocationLog2 = 22;
   static_assert(kHostGPUMemoryOptimalSparseAllocationLog2 <= kBufferSizeLog2);
 
-  runtime::Memory& memory() const { return memory_; }
+  runtime::Memory& GetMemory() const { return memory_; }
 
-  u32 page_size_log2() const { return page_size_log2_; }
+  u32 GetPageSizeLog2() const { return page_size_log2_; }
 
-  u32 host_gpu_memory_sparse_granularity_log2() const {
+  u32 GetHostGPUMemorySparseGranularityLog2() const {
     return host_gpu_memory_sparse_granularity_log2_;
   }
 

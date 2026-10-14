@@ -35,10 +35,10 @@ REX_TEST_CASE("lock order accepts ascending ranks", "[lock_order]") {
   g_violations = 0;
   auto previous = rex::platform::SetLockOrderHandler(&CountViolation);
   {
-    RankedMutex identity(LockRank::Identity);
-    RankedSharedMutex table(LockRank::Table);
-    RankedMutex name(LockRank::Name);
-    RankedMutex object(LockRank::Object);
+    RankedMutex identity(LockRank::kIdentity);
+    RankedSharedMutex table(LockRank::kTable);
+    RankedMutex name(LockRank::kName);
+    RankedMutex object(LockRank::kObject);
     std::lock_guard identity_lock(identity);
     std::shared_lock table_lock(table);
     std::lock_guard name_lock(name);
@@ -55,8 +55,8 @@ REX_TEST_CASE("lock order reports a descending acquire", "[lock_order]") {
   g_violations = 0;
   auto previous = rex::platform::SetLockOrderHandler(&CountViolation);
   {
-    RankedMutex name(LockRank::Name);
-    RankedSharedMutex table(LockRank::Table);
+    RankedMutex name(LockRank::kName);
+    RankedSharedMutex table(LockRank::kTable);
     std::lock_guard name_lock(name);
     std::unique_lock table_lock(table);
   }
@@ -71,9 +71,9 @@ REX_TEST_CASE("a leaf lock may follow any lock and nothing may follow a leaf", "
   g_violations = 0;
   auto previous = rex::platform::SetLockOrderHandler(&CountViolation);
   {
-    RankedMutex registry(LockRank::ThreadRegistry);
-    RankedMutex leaf(LockRank::Leaf);
-    RankedMutex object(LockRank::Object);
+    RankedMutex registry(LockRank::kThreadRegistry);
+    RankedMutex leaf(LockRank::kLeaf);
+    RankedMutex object(LockRank::kObject);
     std::lock_guard registry_lock(registry);
     std::lock_guard leaf_lock(leaf);
     CHECK(g_violations == 0);
@@ -90,9 +90,9 @@ REX_TEST_CASE("an interrupt lock comes before every other rank", "[lock_order]")
   g_violations = 0;
   auto previous = rex::platform::SetLockOrderHandler(&CountViolation);
   {
-    RankedMutex interrupt(LockRank::Interrupt);
-    RankedMutex identity(LockRank::Identity);
-    RankedMutex leaf(LockRank::Leaf);
+    RankedMutex interrupt(LockRank::kInterrupt);
+    RankedMutex identity(LockRank::kIdentity);
+    RankedMutex leaf(LockRank::kLeaf);
     {
       std::lock_guard interrupt_lock(interrupt);
       std::lock_guard identity_lock(identity);
@@ -100,8 +100,8 @@ REX_TEST_CASE("an interrupt lock comes before every other rank", "[lock_order]")
     }
     CHECK(g_violations == 0);
     std::lock_guard identity_lock(identity);
-    rex::platform::PushLockRank(LockRank::Interrupt);
-    rex::platform::PopLockRank(LockRank::Interrupt);
+    rex::platform::PushLockRank(LockRank::kInterrupt);
+    rex::platform::PopLockRank(LockRank::kInterrupt);
     CHECK(g_violations == 1);
   }
   rex::platform::SetLockOrderHandler(previous);
@@ -113,8 +113,8 @@ REX_TEST_CASE("lock order is tracked per thread", "[lock_order]") {
 #endif
   g_violations = 0;
   auto previous = rex::platform::SetLockOrderHandler(&CountViolation);
-  RankedMutex object(LockRank::Object);
-  RankedMutex name(LockRank::Name);
+  RankedMutex object(LockRank::kObject);
+  RankedMutex name(LockRank::kName);
   std::lock_guard object_lock(object);
   std::thread other([&] { std::lock_guard name_lock(name); });
   other.join();

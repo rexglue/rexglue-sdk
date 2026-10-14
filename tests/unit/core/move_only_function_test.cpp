@@ -27,19 +27,19 @@ i32 Twice(i32 value) {
 }
 
 struct Counted {
-  explicit Counted(i32* destroyed) : destroyed_(destroyed) {}
-  Counted(Counted&& other) noexcept : destroyed_(std::exchange(other.destroyed_, nullptr)) {}
+  explicit Counted(i32* destroyed) : destroyed(destroyed) {}
+  Counted(Counted&& other) noexcept : destroyed(std::exchange(other.destroyed, nullptr)) {}
   Counted(const Counted&) = delete;
   Counted& operator=(const Counted&) = delete;
   Counted& operator=(Counted&&) = delete;
   ~Counted() {
-    if (destroyed_) {
-      ++*destroyed_;
+    if (destroyed) {
+      ++*destroyed;
     }
   }
   i32 operator()() const { return 7; }
 
-  i32* destroyed_;
+  i32* destroyed;
 };
 
 struct LargeCounted : Counted {

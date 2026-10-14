@@ -62,25 +62,25 @@ const char* JoystickTypeName(SDL_JoystickType t) {
 
 const char* XInputSubTypeName(u8 s) {
   switch (s) {
-    case XINPUT_DEVSUBTYPE_GAMEPAD:
+    case kXInputDevSubtypeGamepad:
       return "GAMEPAD";
-    case XINPUT_DEVSUBTYPE_WHEEL:
+    case kXInputDevSubtypeWheel:
       return "WHEEL";
-    case XINPUT_DEVSUBTYPE_ARCADE_STICK:
+    case kXInputDevSubtypeArcadeStick:
       return "ARCADE_STICK";
-    case XINPUT_DEVSUBTYPE_FLIGHT_STICK:
+    case kXInputDevSubtypeFlightStick:
       return "FLIGHT_STICK";
-    case XINPUT_DEVSUBTYPE_DANCE_PAD:
+    case kXInputDevSubtypeDancePad:
       return "DANCE_PAD";
-    case XINPUT_DEVSUBTYPE_GUITAR:
+    case kXInputDevSubtypeGuitar:
       return "GUITAR";
-    case XINPUT_DEVSUBTYPE_GUITAR_ALTERNATE:
+    case kXInputDevSubtypeGuitarAlternate:
       return "GUITAR_ALTERNATE";
-    case XINPUT_DEVSUBTYPE_DRUM_KIT:
+    case kXInputDevSubtypeDrumKit:
       return "DRUM_KIT";
-    case XINPUT_DEVSUBTYPE_GUITAR_BASS:
+    case kXInputDevSubtypeGuitarBass:
       return "GUITAR_BASS";
-    case XINPUT_DEVSUBTYPE_ARCADE_PAD:
+    case kXInputDevSubtypeArcadePad:
       return "ARCADE_PAD";
     default:
       return "?";
@@ -118,44 +118,44 @@ u8 SDLTypeToXInputSubType(SDL_JoystickType t, const char* name) {
     case SDL_JOYSTICK_TYPE_GAMEPAD:
       // SDL's XInput backend puts the SubType in the device name, such as "XInput Guitar #1".
       if (NameContainsCI(name, "guitar")) {
-        return XINPUT_DEVSUBTYPE_GUITAR;
+        return kXInputDevSubtypeGuitar;
       }
       if (NameContainsCI(name, "drum")) {
-        return XINPUT_DEVSUBTYPE_DRUM_KIT;
+        return kXInputDevSubtypeDrumKit;
       }
       if (NameContainsCI(name, "wheel")) {
-        return XINPUT_DEVSUBTYPE_WHEEL;
+        return kXInputDevSubtypeWheel;
       }
       if (NameContainsCI(name, "dancepad") || NameContainsCI(name, "dance pad")) {
-        return XINPUT_DEVSUBTYPE_DANCE_PAD;
+        return kXInputDevSubtypeDancePad;
       }
       if (NameContainsCI(name, "flightstick") || NameContainsCI(name, "flight stick") ||
           NameContainsCI(name, "hotas")) {
-        return XINPUT_DEVSUBTYPE_FLIGHT_STICK;
+        return kXInputDevSubtypeFlightStick;
       }
       if (NameContainsCI(name, "arcadepad") || NameContainsCI(name, "arcade pad")) {
-        return XINPUT_DEVSUBTYPE_ARCADE_PAD;
+        return kXInputDevSubtypeArcadePad;
       }
       if (NameContainsCI(name, "arcade")) {
-        return XINPUT_DEVSUBTYPE_ARCADE_STICK;
+        return kXInputDevSubtypeArcadeStick;
       }
-      return XINPUT_DEVSUBTYPE_GAMEPAD;
+      return kXInputDevSubtypeGamepad;
     case SDL_JOYSTICK_TYPE_WHEEL:
-      return XINPUT_DEVSUBTYPE_WHEEL;
+      return kXInputDevSubtypeWheel;
     case SDL_JOYSTICK_TYPE_ARCADE_STICK:
-      return XINPUT_DEVSUBTYPE_ARCADE_STICK;
+      return kXInputDevSubtypeArcadeStick;
     case SDL_JOYSTICK_TYPE_FLIGHT_STICK:
-      return XINPUT_DEVSUBTYPE_FLIGHT_STICK;
+      return kXInputDevSubtypeFlightStick;
     case SDL_JOYSTICK_TYPE_DANCE_PAD:
-      return XINPUT_DEVSUBTYPE_DANCE_PAD;
+      return kXInputDevSubtypeDancePad;
     case SDL_JOYSTICK_TYPE_GUITAR:
-      return XINPUT_DEVSUBTYPE_GUITAR;
+      return kXInputDevSubtypeGuitar;
     case SDL_JOYSTICK_TYPE_DRUM_KIT:
-      return XINPUT_DEVSUBTYPE_DRUM_KIT;
+      return kXInputDevSubtypeDrumKit;
     case SDL_JOYSTICK_TYPE_ARCADE_PAD:
-      return XINPUT_DEVSUBTYPE_ARCADE_PAD;
+      return kXInputDevSubtypeArcadePad;
     default:
-      return XINPUT_DEVSUBTYPE_GAMEPAD;
+      return kXInputDevSubtypeGamepad;
   }
 }
 
@@ -168,7 +168,7 @@ u8 GamepadSubType(SDL_Gamepad* gamepad) {
 
 SDL3Driver::SDL3Driver(std::filesystem::path mappings_file)
     : sdl_events_initialized_(false),
-      SDL_Gamepad_initialized_(false),
+      sdl_gamepad_initialized_(false),
       mappings_file_(std::move(mappings_file)),
       sdl_events_unflushed_(0),
       sdl_pumpevents_queued_(false) {}
@@ -177,7 +177,7 @@ SDL3Driver::~SDL3Driver() {}
 
 Result<void> SDL3Driver::Setup() {
   if (!TestSDLVersion()) {
-    return Err(ErrorCategory::Platform, "SDL3 is older than the gamepad API needs");
+    return Err(ErrorCategory::kPlatform, "SDL3 is older than the gamepad API needs");
   }
 
   return Ok();
@@ -204,7 +204,7 @@ void SDL3Driver::OnHostAttached(IInputHost* host) {
         REXLOG_ERROR(hid, "SDL: Failed to init gamecontroller subsystem: {}", SDL_GetError());
         return;
       }
-      SDL_Gamepad_initialized_ = true;
+      sdl_gamepad_initialized_ = true;
 
       if (!mappings_file_.empty()) {
         auto mappings_path = mappings_file_.is_relative()
@@ -232,9 +232,9 @@ void SDL3Driver::OnHostAttached(IInputHost* host) {
       SDL_CloseGamepad(controller.sdl);
     }
     controllers_.clear();
-    if (SDL_Gamepad_initialized_) {
+    if (sdl_gamepad_initialized_) {
       SDL_QuitSubSystem(SDL_INIT_GAMEPAD);
-      SDL_Gamepad_initialized_ = false;
+      sdl_gamepad_initialized_ = false;
     }
     if (sdl_events_initialized_) {
       SDL_RemoveEventWatch(EventWatch, this);
@@ -262,7 +262,7 @@ bool SDL3Driver::EventWatch(void* userdata, SDL_Event* event) {
 
 void SDL3Driver::EnumerateDevices(std::vector<DeviceInfo>& out) {
   // Polling can start before the window exists and the subsystems are up.
-  if (!sdl_events_initialized_ || !SDL_Gamepad_initialized_) {
+  if (!sdl_events_initialized_ || !sdl_gamepad_initialized_) {
     return;
   }
 
@@ -305,7 +305,7 @@ Result<X_INPUT_KEYSTROKE> SDL3Driver::GetDeviceKeystroke(DeviceId id, [[maybe_un
 }
 
 X_RESULT SDL3Driver::ReadDeviceCapabilities(DeviceId id, X_INPUT_CAPABILITIES* out_caps) {
-  assert(sdl_events_initialized_ && SDL_Gamepad_initialized_);
+  assert(sdl_events_initialized_ && sdl_gamepad_initialized_);
   if (!out_caps) {
     return X_ERROR_BAD_ARGUMENTS;
   }
@@ -328,9 +328,9 @@ X_RESULT SDL3Driver::ReadDeviceCapabilities(DeviceId id, X_INPUT_CAPABILITIES* o
 }
 
 X_RESULT SDL3Driver::ReadDeviceState(DeviceId id, X_INPUT_STATE* out_state) {
-  assert(sdl_events_initialized_ && SDL_Gamepad_initialized_);
+  assert(sdl_events_initialized_ && sdl_gamepad_initialized_);
 
-  auto is_active = this->is_active();
+  auto is_active = this->IsActive();
 
   if (is_active) {
     QueueControllerUpdate();
@@ -358,7 +358,7 @@ X_RESULT SDL3Driver::ReadDeviceState(DeviceId id, X_INPUT_STATE* out_state) {
 }
 
 X_RESULT SDL3Driver::WriteDeviceVibration(DeviceId id, X_INPUT_VIBRATION* vibration) {
-  assert(sdl_events_initialized_ && SDL_Gamepad_initialized_);
+  assert(sdl_events_initialized_ && sdl_gamepad_initialized_);
 
   QueueControllerUpdate();
 
@@ -376,7 +376,7 @@ X_RESULT SDL3Driver::WriteDeviceVibration(DeviceId id, X_INPUT_VIBRATION* vibrat
 }
 
 X_RESULT SDL3Driver::ReadDeviceKeystroke(DeviceId id, X_INPUT_KEYSTROKE* out_keystroke) {
-  assert(sdl_events_initialized_ && SDL_Gamepad_initialized_);
+  assert(sdl_events_initialized_ && sdl_gamepad_initialized_);
   if (!out_keystroke) {
     return X_ERROR_BAD_ARGUMENTS;
   }
@@ -419,7 +419,7 @@ X_RESULT SDL3Driver::ReadDeviceKeystroke(DeviceId id, X_INPUT_KEYSTROKE* out_key
       VirtualKey::kXInputPadRThumbDownLeft,
   };
 
-  auto is_active = this->is_active();
+  auto is_active = this->IsActive();
 
   if (is_active) {
     QueueControllerUpdate();
@@ -441,10 +441,11 @@ X_RESULT SDL3Driver::ReadDeviceKeystroke(DeviceId id, X_INPUT_KEYSTROKE* out_key
 
   auto guest_now = rex::Clock::QueryGuestUptimeMillis();
   static_assert(kRepeatDelay >= kRepeatRate);
-  if (last.repeat_state == RepeatState::Waiting && (last.repeat_time + kRepeatDelay < guest_now)) {
-    last.repeat_state = RepeatState::Repeating;
+  if (last.repeat_state == RepeatState::kWaiting && (last.repeat_time + kRepeatDelay < guest_now)) {
+    last.repeat_state = RepeatState::kRepeating;
   }
-  if (last.repeat_state == RepeatState::Repeating && (last.repeat_time + kRepeatRate < guest_now)) {
+  if (last.repeat_state == RepeatState::kRepeating &&
+      (last.repeat_time + kRepeatRate < guest_now)) {
     last.repeat_time = guest_now;
     VirtualKey vk = kVkLookup.at(last.repeat_butt_idx);
     REX_ASSERT(vk != VirtualKey::kNone);
@@ -453,7 +454,7 @@ X_RESULT SDL3Driver::ReadDeviceKeystroke(DeviceId id, X_INPUT_KEYSTROKE* out_key
     // The hub stamps the title user this device is assigned to.
     out_keystroke->user_index = 0;
     out_keystroke->hid_code = 0;
-    out_keystroke->flags = X_INPUT_KEYSTROKE_KEYDOWN | X_INPUT_KEYSTROKE_REPEAT;
+    out_keystroke->flags = kXInputKeystrokeKeyDown | kXInputKeystrokeRepeat;
     return X_ERROR_SUCCESS;
   }
 
@@ -481,15 +482,15 @@ X_RESULT SDL3Driver::ReadDeviceKeystroke(DeviceId id, X_INPUT_KEYSTROKE* out_key
 
       bool is_pressed = curr_butts & fbutton;
       if (clear_pass && !is_pressed) {
-        out_keystroke->flags = X_INPUT_KEYSTROKE_KEYUP;
+        out_keystroke->flags = kXInputKeystrokeKeyUp;
         last.buttons &= ~fbutton;
-        last.repeat_state = RepeatState::Idle;
+        last.repeat_state = RepeatState::kIdle;
         return X_ERROR_SUCCESS;
       }
       if (!clear_pass && is_pressed) {
-        out_keystroke->flags = X_INPUT_KEYSTROKE_KEYDOWN;
+        out_keystroke->flags = kXInputKeystrokeKeyDown;
         last.buttons |= fbutton;
-        last.repeat_state = RepeatState::Waiting;
+        last.repeat_state = RepeatState::kWaiting;
         last.repeat_butt_idx = i;
         last.repeat_time = guest_now;
         return X_ERROR_SUCCESS;
@@ -669,28 +670,28 @@ void SDL3Driver::OnControllerDeviceAxisMotionLocked(const SDL_Event& event) {
 
 void SDL3Driver::OnControllerDeviceButtonChangedLocked(const SDL_Event& event) {
   static constexpr std::array<std::underlying_type<X_INPUT_GAMEPAD_BUTTON>::type, 21>
-      xbutton_lookup = {
-          X_INPUT_GAMEPAD_A,
-          X_INPUT_GAMEPAD_B,
-          X_INPUT_GAMEPAD_X,
-          X_INPUT_GAMEPAD_Y,
-          X_INPUT_GAMEPAD_BACK,
-          X_INPUT_GAMEPAD_GUIDE,
-          X_INPUT_GAMEPAD_START,
-          X_INPUT_GAMEPAD_LEFT_THUMB,
-          X_INPUT_GAMEPAD_RIGHT_THUMB,
-          X_INPUT_GAMEPAD_LEFT_SHOULDER,
-          X_INPUT_GAMEPAD_RIGHT_SHOULDER,
-          X_INPUT_GAMEPAD_DPAD_UP,
-          X_INPUT_GAMEPAD_DPAD_DOWN,
-          X_INPUT_GAMEPAD_DPAD_LEFT,
-          X_INPUT_GAMEPAD_DPAD_RIGHT,
-          X_INPUT_GAMEPAD_GUIDE,
-          X_INPUT_GAMEPAD_Y,
-          X_INPUT_GAMEPAD_B,
-          X_INPUT_GAMEPAD_X,
-          X_INPUT_GAMEPAD_A,
-          X_INPUT_GAMEPAD_GUIDE,
+      kXbuttonLookup = {
+          kXInputGamepadA,
+          kXInputGamepadB,
+          kXInputGamepadX,
+          kXInputGamepadY,
+          kXInputGamepadBack,
+          kXInputGamepadGuide,
+          kXInputGamepadStart,
+          kXInputGamepadLeftThumb,
+          kXInputGamepadRightThumb,
+          kXInputGamepadLeftShoulder,
+          kXInputGamepadRightShoulder,
+          kXInputGamepadDPadUp,
+          kXInputGamepadDPadDown,
+          kXInputGamepadDPadLeft,
+          kXInputGamepadDPadRight,
+          kXInputGamepadGuide,
+          kXInputGamepadY,
+          kXInputGamepadB,
+          kXInputGamepadX,
+          kXInputGamepadA,
+          kXInputGamepadGuide,
       };
   static_assert(SDL_GAMEPAD_BUTTON_SOUTH == 0);
   static_assert(SDL_GAMEPAD_BUTTON_DPAD_RIGHT == 14);
@@ -702,13 +703,13 @@ void SDL3Driver::OnControllerDeviceButtonChangedLocked(const SDL_Event& event) {
   auto& controller = controllers_.at(*idx);
 
   u16 xbuttons = controller.state.gamepad.buttons;
-  if (event.gbutton.button >= xbutton_lookup.size()) {
+  if (event.gbutton.button >= kXbuttonLookup.size()) {
     REXLOG_DEBUG(hid, "SDL HID: Unknown button was pressed: {}.", event.gbutton.button);
     return;
   }
-  auto xbutton = xbutton_lookup.at(event.gbutton.button);
+  auto xbutton = kXbuttonLookup.at(event.gbutton.button);
   if (event.gbutton.down) {
-    if (xbutton == X_INPUT_GAMEPAD_GUIDE && !REXCVAR_GET(cvars::guide_button)) {
+    if (xbutton == kXInputGamepadGuide && !REXCVAR_GET(cvars::guide_button)) {
       return;
     }
     xbuttons |= xbutton;
@@ -761,32 +762,32 @@ void SDL3Driver::UpdateXCapabilities(ControllerState& state) {
 
   SDL_Joystick* joystick = SDL_GetGamepadJoystick(state.sdl);
   if (SDL_GetJoystickConnectionState(joystick) == SDL_JOYSTICK_CONNECTION_WIRELESS) {
-    cap_flags |= X_INPUT_CAPS_WIRELESS;
+    cap_flags |= kXInputCapsWireless;
   } else {
     // Backends leaving the connection state UNKNOWN report power.
     const SDL_PowerState power_state = SDL_GetJoystickPowerInfo(joystick, nullptr);
     if (power_state == SDL_POWERSTATE_ON_BATTERY || power_state == SDL_POWERSTATE_CHARGING ||
         power_state == SDL_POWERSTATE_CHARGED) {
-      cap_flags |= X_INPUT_CAPS_WIRELESS;
+      cap_flags |= kXInputCapsWireless;
     }
   }
 
-  static constexpr std::array<SDL_GamepadButton, 6> nav_buttons = {
+  static constexpr std::array<SDL_GamepadButton, 6> kNavButtons = {
       SDL_GAMEPAD_BUTTON_START,     SDL_GAMEPAD_BUTTON_BACK,      SDL_GAMEPAD_BUTTON_DPAD_UP,
       SDL_GAMEPAD_BUTTON_DPAD_DOWN, SDL_GAMEPAD_BUTTON_DPAD_LEFT, SDL_GAMEPAD_BUTTON_DPAD_RIGHT,
   };
-  for (auto it = nav_buttons.begin(); it < nav_buttons.end(); it++) {
+  for (auto it = kNavButtons.begin(); it < kNavButtons.end(); it++) {
     if (!SDL_GamepadHasButton(state.sdl, *it)) {
-      cap_flags |= X_INPUT_CAPS_NO_NAVIGATION;
+      cap_flags |= kXInputCapsNoNavigation;
       break;
     }
   }
 
   auto& c = state.caps;
-  c.type = XINPUT_DEVTYPE_GAMEPAD;
+  c.type = kXInputDevTypeGamepad;
   c.sub_type = GamepadSubType(state.sdl);
   c.flags = cap_flags;
-  c.gamepad.buttons = 0xF3FF | (REXCVAR_GET(cvars::guide_button) ? X_INPUT_GAMEPAD_GUIDE : 0x0);
+  c.gamepad.buttons = 0xF3FF | (REXCVAR_GET(cvars::guide_button) ? kXInputGamepadGuide : 0x0);
   c.gamepad.left_trigger = 0xFF;
   c.gamepad.right_trigger = 0xFF;
   c.gamepad.thumb_lx = static_cast<i16>(0xFFFFu);
@@ -803,7 +804,7 @@ void SDL3Driver::QueueControllerUpdate() {
   if (is_queued) {
     return;
   }
-  IInputHost* current = host();
+  IInputHost* current = GetHost();
   if (!current) {
     sdl_pumpevents_queued_ = false;
     return;

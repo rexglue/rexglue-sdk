@@ -89,7 +89,7 @@ class VulkanCommandProcessor : public CommandProcessor {
      *
      * @return The buffer, or VK_NULL_HANDLE when acquisition failed or this was moved from.
      */
-    VkBuffer buffer() const { return buffer_; }
+    VkBuffer GetBuffer() const { return buffer_; }
 
     VkPipelineStageFlags GetStageMask() const { return stage_mask_; }
     VkPipelineStageFlags SetStageMask(VkPipelineStageFlags new_stage_mask) {
@@ -134,8 +134,8 @@ class VulkanCommandProcessor : public CommandProcessor {
                                bool blocking) override;
 
   gpu::vulkan::VulkanDevice* GetVulkanDevice() const {
-    return static_cast<const gpu::vulkan::VulkanProvider*>(graphics_system_->provider())
-        ->vulkan_device();
+    return static_cast<const gpu::vulkan::VulkanProvider*>(graphics_system_->GetProvider())
+        ->GetVulkanDevice();
   }
 
   bool CompileGLSLToSPIRV(VkShaderStageFlagBits stage, std::string_view source,
@@ -146,12 +146,12 @@ class VulkanCommandProcessor : public CommandProcessor {
    *
    * @return The command buffer.
    */
-  DeferredCommandBuffer& deferred_command_buffer() {
+  DeferredCommandBuffer& GetDeferredCommandBuffer() {
     REX_ASSERT(submission_open_);
     return deferred_command_buffer_;
   }
 
-  bool submission_open() const { return submission_open_; }
+  bool GetSubmissionOpen() const { return submission_open_; }
   u64 GetCurrentSubmission() const {
     return submission_completed_ + static_cast<u64>(submissions_in_flight_fences_.size()) + 1;
   }
@@ -354,8 +354,8 @@ class VulkanCommandProcessor : public CommandProcessor {
     TextureDescriptorSetLayoutKey() : key(0) { REX_STATIC_ASSERT_SIZE(*this, sizeof(key)); }
 
     struct Hasher {
-      size_t operator()(const TextureDescriptorSetLayoutKey& key) const {
-        return std::hash<decltype(key.key)>{}(key.key);
+      size_t operator()(const TextureDescriptorSetLayoutKey& hashed_key) const {
+        return std::hash<decltype(hashed_key.key)>{}(hashed_key.key);
       }
     };
     bool operator==(const TextureDescriptorSetLayoutKey& other_key) const {
@@ -379,8 +379,8 @@ class VulkanCommandProcessor : public CommandProcessor {
     PipelineLayoutKey() : key(0) { REX_STATIC_ASSERT_SIZE(*this, sizeof(key)); }
 
     struct Hasher {
-      size_t operator()(const PipelineLayoutKey& key) const {
-        return std::hash<decltype(key.key)>{}(key.key);
+      size_t operator()(const PipelineLayoutKey& hashed_key) const {
+        return std::hash<decltype(hashed_key.key)>{}(hashed_key.key);
       }
     };
     bool operator==(const PipelineLayoutKey& other_key) const { return key == other_key.key; }
@@ -396,10 +396,10 @@ class VulkanCommandProcessor : public CommandProcessor {
           descriptor_set_layout_textures_vertex_ref_(descriptor_set_layout_textures_vertex_ref),
           descriptor_set_layout_textures_pixel_ref_(descriptor_set_layout_textures_pixel_ref) {}
     VkPipelineLayout GetPipelineLayout() const override { return pipeline_layout_; }
-    VkDescriptorSetLayout descriptor_set_layout_textures_vertex_ref() const {
+    VkDescriptorSetLayout GetDescriptorSetLayoutTexturesVertexRef() const {
       return descriptor_set_layout_textures_vertex_ref_;
     }
-    VkDescriptorSetLayout descriptor_set_layout_textures_pixel_ref() const {
+    VkDescriptorSetLayout GetDescriptorSetLayoutTexturesPixelRef() const {
       return descriptor_set_layout_textures_pixel_ref_;
     }
 
@@ -496,9 +496,9 @@ class VulkanCommandProcessor : public CommandProcessor {
   bool CanEndSubmissionImmediately() const;
 
   void ClearTransientDescriptorPools();
-  bool IssueCopy_ReadbackResolvePath();
-  bool IssueDraw_MemexportReadbackFullPath(u32 total_size);
-  bool IssueDraw_MemexportReadbackFastPath(u32 total_size);
+  bool IssueCopyReadbackResolvePath();
+  bool IssueDrawMemexportReadbackFullPath(u32 total_size);
+  bool IssueDrawMemexportReadbackFastPath(u32 total_size);
 
   void SplitPendingBarrier();
 
@@ -530,12 +530,12 @@ class VulkanCommandProcessor : public CommandProcessor {
   static constexpr u64 kReadbackBufferEvictionAgeFrames = 60;
   static u32 AlignReadbackBufferSize(u32 size) {
     if (size < 1 * 1024 * 1024) {
-      return rex::align(size, 256u * 1024u);
+      return rex::Align(size, 256u * 1024u);
     }
     if (size < 4 * 1024 * 1024) {
-      return rex::align(size, 1u * 1024u * 1024u);
+      return rex::Align(size, 1u * 1024u * 1024u);
     }
-    return rex::align(size, kReadbackBufferSizeIncrement);
+    return rex::Align(size, kReadbackBufferSizeIncrement);
   }
   static u64 BuildReadbackResolveKey(u32 address, u32 length) {
     return (static_cast<u64>(address) << 32) | static_cast<u64>(length);

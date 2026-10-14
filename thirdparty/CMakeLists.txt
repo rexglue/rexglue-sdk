@@ -281,6 +281,7 @@ add_subdirectory(glslang)
 foreach(glslang_target glslang MachineIndependent GenericCodeGen OSDependent SPIRV)
     if(TARGET ${glslang_target})
         target_compile_options(${glslang_target} PRIVATE -w)
+        set_target_properties(${glslang_target} PROPERTIES SYSTEM ON)
     endif()
 endforeach()
 # Create alias for older glslang versions that don't provide it

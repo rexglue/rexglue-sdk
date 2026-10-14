@@ -50,14 +50,14 @@ class FilesystemModule final : public IModule {
    *
    * @return "rex-filesystem".
    */
-  const char* Name() const override;
+  const char* GetName() const override;
 
   /**
    * Lists the interfaces Connect fetches.
    *
    * @return An empty list.
    */
-  std::span<const char* const> RequiredInterfaces() const override;
+  std::span<const char* const> GetRequiredInterfaces() const override;
 
   /**
    * Copies FilesystemConfig and registers the filesystem log category.
@@ -80,13 +80,6 @@ class FilesystemModule final : public IModule {
 
   /** Empties the mount table. */
   void Shutdown() override;
-
-  /**
-   * Returns the mount table.
-   *
-   * @return The table.
-   */
-  FileSystem& file_system() { return file_system_; }
 
  private:
   ILogger* logger_ = nullptr;

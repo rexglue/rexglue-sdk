@@ -35,7 +35,7 @@ inline bool WriteFileBytes(const std::filesystem::path& path, std::string_view c
       .has_value();
 }
 
-enum class WriteOutcome : u8 { Failed, Unchanged, Written };
+enum class WriteOutcome : u8 { kFailed, kUnchanged, kWritten };
 
 /**
  * Writes a file only when its bytes differ, so an unchanged output keeps its mtime and does not
@@ -47,8 +47,8 @@ enum class WriteOutcome : u8 { Failed, Unchanged, Written };
  */
 inline WriteOutcome WriteIfChanged(const std::filesystem::path& path, std::string_view content) {
   if (auto existing = ReadFileBytes(path); existing && *existing == content)
-    return WriteOutcome::Unchanged;
-  return WriteFileBytes(path, content) ? WriteOutcome::Written : WriteOutcome::Failed;
+    return WriteOutcome::kUnchanged;
+  return WriteFileBytes(path, content) ? WriteOutcome::kWritten : WriteOutcome::kFailed;
 }
 
 }  // namespace rex::codegen

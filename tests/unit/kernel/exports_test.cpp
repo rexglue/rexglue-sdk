@@ -20,15 +20,15 @@ namespace {
 
 using namespace rex::runtime;
 
-constexpr std::array<ExportModule, 3> kModules = {ExportModule::Xboxkrnl, ExportModule::XAM,
-                                                  ExportModule::XBDM};
+constexpr std::array<ExportModule, 3> kModules = {ExportModule::kXboxkrnl, ExportModule::kXAM,
+                                                  ExportModule::kXBDM};
 
 }  // namespace
 
 REX_TEST_CASE("Export tables hold every row of the inc files", "[kernel][exports]") {
-  CHECK(Exports(ExportModule::Xboxkrnl).size() == 922);
-  CHECK(Exports(ExportModule::XAM).size() == 1735);
-  CHECK(Exports(ExportModule::XBDM).size() == 255);
+  CHECK(Exports(ExportModule::kXboxkrnl).size() == 922);
+  CHECK(Exports(ExportModule::kXAM).size() == 1735);
+  CHECK(Exports(ExportModule::kXBDM).size() == 255);
 }
 
 REX_TEST_CASE("Export tables are sorted by unique ordinal and unique name", "[kernel][exports]") {
@@ -48,7 +48,7 @@ REX_TEST_CASE("Every function row links to a translation entry and no variable d
               "[kernel][exports]") {
   for (const auto module : kModules) {
     for (const auto& entry : Exports(module)) {
-      if (entry.kind == ExportKind::Function) {
+      if (entry.kind == ExportKind::kFunction) {
         CHECK(entry.fn != nullptr);
       } else {
         CHECK(entry.fn == nullptr);
@@ -85,26 +85,26 @@ REX_TEST_CASE("An ordinal in a gap of a table returns null", "[kernel][exports]"
 }
 
 REX_TEST_CASE("Known kernel variables are table variables", "[kernel][exports]") {
-  const auto* handle = FindByOrdinal(ExportModule::Xboxkrnl, 0x0193);
+  const auto* handle = FindByOrdinal(ExportModule::kXboxkrnl, 0x0193);
   REQUIRE(handle != nullptr);
   CHECK(handle->name == "XexExecutableModuleHandle");
-  CHECK(handle->kind == ExportKind::Variable);
+  CHECK(handle->kind == ExportKind::kVariable);
 
-  const auto* image = FindByOrdinal(ExportModule::Xboxkrnl, 0x01AF);
+  const auto* image = FindByOrdinal(ExportModule::kXboxkrnl, 0x01AF);
   REQUIRE(image != nullptr);
   CHECK(image->name == "ExLoadedImageName");
-  CHECK(image->kind == ExportKind::Variable);
+  CHECK(image->kind == ExportKind::kVariable);
 }
 
 REX_TEST_CASE("Module names map to tables in short and long form", "[kernel][exports]") {
-  CHECK(ModuleFromName("xboxkrnl.exe") == ExportModule::Xboxkrnl);
-  CHECK(ModuleFromName("XBOXKRNL.EXE") == ExportModule::Xboxkrnl);
-  CHECK(ModuleFromName("xboxkrnl") == ExportModule::Xboxkrnl);
-  CHECK(ModuleFromName("xam.xex") == ExportModule::XAM);
-  CHECK(ModuleFromName("xam") == ExportModule::XAM);
-  CHECK(ModuleFromName("xam.xex.xex") == ExportModule::XAM);
-  CHECK(ModuleFromName("xbdm.xex") == ExportModule::XBDM);
-  CHECK(ModuleFromName("Xbdm") == ExportModule::XBDM);
+  CHECK(ModuleFromName("xboxkrnl.exe") == ExportModule::kXboxkrnl);
+  CHECK(ModuleFromName("XBOXKRNL.EXE") == ExportModule::kXboxkrnl);
+  CHECK(ModuleFromName("xboxkrnl") == ExportModule::kXboxkrnl);
+  CHECK(ModuleFromName("xam.xex") == ExportModule::kXAM);
+  CHECK(ModuleFromName("xam") == ExportModule::kXAM);
+  CHECK(ModuleFromName("xam.xex.xex") == ExportModule::kXAM);
+  CHECK(ModuleFromName("xbdm.xex") == ExportModule::kXBDM);
+  CHECK(ModuleFromName("Xbdm") == ExportModule::kXBDM);
 }
 
 REX_TEST_CASE("Names that are not kernel modules map to nothing", "[kernel][exports]") {

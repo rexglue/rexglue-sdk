@@ -20,16 +20,16 @@ namespace {
 
 class HIDModule final : public rex::IModule {
  public:
-  static void* GetModule() { return static_cast<rex::IModule*>(&Instance()); }
-  static void* GetBackend() { return static_cast<rex::hid::IHIDBackend*>(&Instance().backend_); }
+  static void* GetModule() { return static_cast<rex::IModule*>(&GetInstance()); }
+  static void* GetBackend() { return static_cast<rex::hid::IHIDBackend*>(&GetInstance().backend_); }
   static constexpr std::array<rex::InterfaceEntry, 2> kInterfaces = {{
       {rex::IModule::kInterfaceName, rex::IModule::kInterfaceVersion, &GetModule},
       {rex::hid::IHIDBackend::kInterfaceName, rex::hid::IHIDBackend::kInterfaceVersion,
        &GetBackend},
   }};
 
-  const char* Name() const override { return "rexmod-test-hid"; }
-  std::span<const char* const> RequiredInterfaces() const override { return {}; }
+  const char* GetName() const override { return "rexmod-test-hid"; }
+  std::span<const char* const> GetRequiredInterfaces() const override { return {}; }
   [[nodiscard]] rex::Result<void> Connect(rex::IInterfaceFactory*, const rex::Config&) override {
     return rex::Ok();
   }
@@ -38,7 +38,7 @@ class HIDModule final : public rex::IModule {
   void Shutdown() override {}
 
  private:
-  static HIDModule& Instance() {
+  static HIDModule& GetInstance() {
     static HIDModule instance;
     return instance;
   }

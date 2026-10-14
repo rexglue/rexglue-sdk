@@ -44,27 +44,27 @@ struct LoopFunction {
     }
     module.Load(kBase, data.data(), data.size());
     RecompilerConfig config;
-    config.projectName = "testproj";
-    config.generateExceptionHandlers = exception_handlers;
-    config.nonVolatileRegistersAsLocalVariables = non_volatile_as_local;
+    config.project_name = "testproj";
+    config.generate_exception_handlers = exception_handlers;
+    config.non_volatile_registers_as_local_variables = non_volatile_as_local;
     ctx = std::make_unique<CodegenContext>(
-        CodegenContext::Create(BinaryView::fromModule(module), std::move(config)));
-    node = ctx->graph.addFunction(kBase, static_cast<u32>(data.size()),
-                                  FunctionAuthority::DISCOVERED, true);
+        CodegenContext::Create(BinaryView::FromModule(module), std::move(config)));
+    node = ctx->graph.AddFunction(kBase, static_cast<u32>(data.size()),
+                                  FunctionAuthority::kDiscovered, true);
     REQUIRE(node != nullptr);
-    node->discover({{kBase, static_cast<u32>(data.size())}}, {}, {});
+    node->Discover({{kBase, static_cast<u32>(data.size())}}, {}, {});
     if (seh_scope) {
-      SehExceptionInfo seh;
+      SEHExceptionInfo seh;
       seh.scopes.push_back({kBase, kBase + 12, 0, 0});
-      seh.frameSize = 0x60;
-      ctx->graph.setFunctionExceptionInfo(kBase, ExceptionInfo{seh});
+      seh.frame_size = 0x60;
+      ctx->graph.SetFunctionExceptionInfo(kBase, ExceptionInfo{seh});
     }
-    node->seal();
+    node->Seal();
   }
 
   std::string Emit() const {
-    EmitContext emit{ctx->binary(), ctx->Config(), ctx->graph, ctx->limits(), 0};
-    return node->emitCpp(emit);
+    EmitContext emit{ctx->GetBinary(), ctx->GetConfig(), ctx->graph, ctx->GetLimits(), 0};
+    return node->EmitCpp(emit);
   }
 };
 

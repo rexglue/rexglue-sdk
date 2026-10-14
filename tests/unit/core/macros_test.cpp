@@ -21,16 +21,16 @@ namespace {
   if (ok) {
     return 7;
   }
-  return rex::Err<int>(rex::ErrorCategory::Validation, "no");
+  return rex::Err<int>(rex::ErrorCategory::kValidation, "no");
 }
 
 [[nodiscard]] rex::Result<void> Check(bool ok) {
-  REX_ERROR_IF(!ok, rex::Error(rex::ErrorCategory::Validation, "check failed"));
+  REX_ERROR_IF(!ok, rex::Error(rex::ErrorCategory::kValidation, "check failed"));
   return rex::Ok();
 }
 
 [[nodiscard]] rex::Result<void> ErrorWhen(bool fail) {
-  REX_ERROR_IF(fail, rex::Error(rex::ErrorCategory::Validation, "condition held"));
+  REX_ERROR_IF(fail, rex::Error(rex::ErrorCategory::kValidation, "condition held"));
   return rex::Ok();
 }
 
@@ -50,7 +50,7 @@ REX_TEST_CASE("REX_TRY unwraps a value and propagates an error", "[macros]") {
   REQUIRE(UseTry(true).value() == 8);
   auto failed = UseTry(false);
   REQUIRE_FALSE(failed);
-  REQUIRE(failed.error().category == rex::ErrorCategory::Validation);
+  REQUIRE(failed.error().category == rex::ErrorCategory::kValidation);
 }
 
 REX_TEST_CASE("REX_TRY_VOID and REX_ERROR_IF propagate", "[macros]") {

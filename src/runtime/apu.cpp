@@ -37,7 +37,7 @@ APU::APU(Runtime& runtime, apu::IAPUBackend& backend, u32 max_queued_frames)
   }
   shutdown_event_ = platform::Event::CreateAutoResetEvent(false);
   wait_handles_[kMaxClients] = shutdown_event_.get();
-  xma_decoder_ = std::make_unique<XMADecoder>(runtime.function_dispatcher());
+  xma_decoder_ = std::make_unique<XMADecoder>(runtime.GetFunctionDispatcher());
   resume_event_ = platform::Event::CreateAutoResetEvent(false);
 }
 
@@ -54,8 +54,8 @@ Result<void> APU::Setup() {
     WorkerMain();
     return 0;
   });
-  thread->set_name("Audio Worker");
-  auto launched = runtime_.thread_registry().Launch(std::move(thread));
+  thread->SetName("Audio Worker");
+  auto launched = runtime_.GetThreadRegistry().Launch(std::move(thread));
   if (!launched) {
     worker_running_ = false;
     return std::unexpected(launched.error());
@@ -94,8 +94,9 @@ void APU::WorkerMain() {
       if (client_callback) {
         REX_PROFILE_SCOPE_TEXT("apu", "rex::runtime::APU->client_callback");
         u64 args[] = {client_callback_arg};
-        runtime_.function_dispatcher()->Execute(KernelThread::GetCurrentThread()->thread_state(),
-                                                client_callback, args, std::size(args));
+        runtime_.GetFunctionDispatcher()->Execute(
+            KernelThread::GetCurrentThread()->GetThreadState(), client_callback, args,
+            std::size(args));
       }
       pumped = true;
     }
@@ -128,7 +129,7 @@ void APU::StopWorker() {
   }
   if (worker_thread_) {
     {
-      if (ThreadPin pin = runtime_.thread_registry().FindByHandle(worker_thread_)) {
+      if (ThreadPin pin = runtime_.GetThreadRegistry().FindByHandle(worker_thread_)) {
         pin->RequestStop();
         std::array<ThreadPin, 1> threads{std::move(pin)};
         WaitForThreadsToStop(threads, kWorkerShutdownTimeout, [](const ThreadPin&) {
@@ -137,7 +138,7 @@ void APU::StopWorker() {
         });
       }
     }
-    CloseOwned(runtime_.object_table(), worker_thread_);
+    CloseOwned(runtime_.GetObjectTable(), worker_thread_);
     worker_thread_ = 0;
   }
 }
@@ -151,7 +152,7 @@ void APU::Shutdown() {
     }
     backend_.CloseStream(client.stream);
     if (client.wrapped_callback_arg) {
-      runtime_.memory()->SystemHeapFree(client.wrapped_callback_arg);
+      runtime_.GetMemory()->SystemHeapFree(client.wrapped_callback_arg);
     }
     client = {};
   }
@@ -171,8 +172,8 @@ Result<u32> APU::RegisterClient(u32 callback, u32 callback_arg) {
     return Err<u32>(StatusError(X_STATUS_UNSUCCESSFUL));
   }
   semaphore->Release(static_cast<i32>(queued_frames_), nullptr);
-  const u32 ptr = runtime_.memory()->SystemHeapAlloc(0x4);
-  *runtime_.memory()->TranslateVirtual<be_u32*>(ptr) = callback_arg;
+  const u32 ptr = runtime_.GetMemory()->SystemHeapAlloc(0x4);
+  *runtime_.GetMemory()->TranslateVirtual<be_u32*>(ptr) = callback_arg;
   *free = {*stream, callback, callback_arg, ptr, true};
   return index;
 }
@@ -184,7 +185,7 @@ void APU::UnregisterClient(u32 index) {
     return;
   }
   backend_.CloseStream(clients_[index].stream);
-  runtime_.memory()->SystemHeapFree(clients_[index].wrapped_callback_arg);
+  runtime_.GetMemory()->SystemHeapFree(clients_[index].wrapped_callback_arg);
   clients_[index] = {};
   platform::Semaphore* semaphore = semaphores_[index].get();
   while (platform::Wait(semaphore, false, std::chrono::milliseconds(0)) ==
@@ -197,7 +198,7 @@ void APU::SubmitFrame(u32 index, u32 samples_ptr) {
   if (index >= kMaxClients || !clients_[index].in_use) {
     return;
   }
-  const auto* samples = runtime_.memory()->TranslateVirtual<const be_f32*>(samples_ptr);
+  const auto* samples = runtime_.GetMemory()->TranslateVirtual<const be_f32*>(samples_ptr);
   backend_.Submit(clients_[index].stream, apu::Frame(samples, apu::kFrameSamples));
 }
 
@@ -223,7 +224,7 @@ void APU::SetPaused(bool paused) {
   }
 }
 
-u32 APU::credits(u32 index) {
+u32 APU::TakeCredits(u32 index) {
   platform::Semaphore* semaphore = semaphores_[index].get();
   u32 count = 0;
   while (platform::Wait(semaphore, false, std::chrono::milliseconds(0)) ==

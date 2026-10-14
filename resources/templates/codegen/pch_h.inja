@@ -50,7 +50,7 @@
 //=============================================================================
 
 extern const rex::PPCImageInfo PPCImageConfig;
-extern PPCFuncMapping PPCFuncMappings[];
+extern const PPCFuncMapping kPPCFuncMappings[];
 
 //=============================================================================
 // Function Definition Macros
@@ -231,7 +231,7 @@ extern PPCFuncMapping PPCFuncMappings[];
 //=============================================================================
 
 #define REX_SET_FLUSH_MODE(enable) \
-  do { if (enable) ctx.fpscr.enableFlushMode(); else ctx.fpscr.disableFlushMode(); } while (0)
+  do { if (enable) ctx.fpscr.EnableFlushMode(); else ctx.fpscr.DisableFlushMode(); } while (0)
 
 //=============================================================================
 // Misc

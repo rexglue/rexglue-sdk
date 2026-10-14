@@ -23,7 +23,7 @@ REX_TEST_CASE("StatusError round trips through ToXStatus", "[runtime][error]") {
        {rex::X_STATUS_INVALID_HANDLE, rex::X_STATUS_OBJECT_NAME_NOT_FOUND,
         rex::X_STATUS_OBJECT_NAME_COLLISION, rex::X_STATUS_NO_MEMORY, rex::X_STATUS_UNSUCCESSFUL}) {
     const rex::Error error = rt::StatusError(status);
-    CHECK(error.category == rex::ErrorCategory::Runtime);
+    CHECK(error.category == rex::ErrorCategory::kRuntime);
     CHECK(rt::ToXStatus(error) == status);
   }
 }
@@ -32,7 +32,7 @@ REX_TEST_CASE("ResultError round trips through ToXResult", "[runtime][error]") {
   for (const X_RESULT result : {rex::X_ERROR_FILE_NOT_FOUND, rex::X_ERROR_ALREADY_EXISTS,
                                 rex::X_ERROR_INVALID_PARAMETER, rex::X_ERROR_FUNCTION_FAILED}) {
     const rex::Error error = rt::ResultError(result);
-    CHECK(error.category == rex::ErrorCategory::Runtime);
+    CHECK(error.category == rex::ErrorCategory::kRuntime);
     CHECK(rt::ToXResult(error) == result);
   }
 }
@@ -62,7 +62,7 @@ REX_TEST_CASE("ToXStatus keeps the filesystem mapping", "[runtime][error]") {
 }
 
 REX_TEST_CASE("ToXResult maps another category to the fallback", "[runtime][error]") {
-  CHECK(rt::ToXResult(rex::Error(rex::ErrorCategory::IO, "a")) == rex::X_ERROR_FUNCTION_FAILED);
-  CHECK(rt::ToXResult(rex::Error(rex::ErrorCategory::IO, "a"), rex::X_ERROR_ACCESS_DENIED) ==
+  CHECK(rt::ToXResult(rex::Error(rex::ErrorCategory::kIO, "a")) == rex::X_ERROR_FUNCTION_FAILED);
+  CHECK(rt::ToXResult(rex::Error(rex::ErrorCategory::kIO, "a"), rex::X_ERROR_ACCESS_DENIED) ==
         rex::X_ERROR_ACCESS_DENIED);
 }

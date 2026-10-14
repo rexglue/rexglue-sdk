@@ -20,7 +20,7 @@
 namespace rex::memory {
 
 /** 4 character code packed into 32 bits. */
-using fourcc_t = u32;
+using FourCCT = u32;
 
 /**
  * Packs 4 characters into a FourCC in host byte order.
@@ -31,9 +31,9 @@ using fourcc_t = u32;
  * @param d Fourth character, the least significant byte.
  * @return The packed code. make_fourcc('a', 'b', 'c', 'd') is 0x61626364.
  */
-constexpr fourcc_t make_fourcc(char a, char b, char c, char d) {
-  return ((static_cast<fourcc_t>(a) << 24) | (static_cast<fourcc_t>(b) << 16) |
-          (static_cast<fourcc_t>(c) << 8) | static_cast<fourcc_t>(d));
+constexpr FourCCT make_fourcc(char a, char b, char c, char d) {
+  return ((static_cast<FourCCT>(a) << 24) | (static_cast<FourCCT>(b) << 16) |
+          (static_cast<FourCCT>(c) << 8) | static_cast<FourCCT>(d));
 }
 
 /**
@@ -42,7 +42,7 @@ constexpr fourcc_t make_fourcc(char a, char b, char c, char d) {
  * @param fourcc String of exactly 4 characters. Any other length throws std::runtime_error.
  * @return The packed code. make_fourcc("abcd") is 0x61626364.
  */
-constexpr fourcc_t make_fourcc(const std::string_view fourcc) {
+constexpr FourCCT make_fourcc(const std::string_view fourcc) {
   if (fourcc.length() != 4) {
     throw std::runtime_error("Invalid fourcc length");
   }

@@ -72,13 +72,13 @@ class REX_RUNTIME_API ObjectTable final : public IObjectTable {
   static constexpr u32 GetHandleSlot(X_HANDLE handle) { return (handle - kHandleBase) >> 2; }
 
   Memory* memory_;
-  rex::platform::RankedMutex identity_mutex_{rex::platform::LockRank::Identity};
-  rex::platform::RankedSharedMutex mutex_{rex::platform::LockRank::Table};
-  rex::platform::RankedMutex name_mutex_{rex::platform::LockRank::Name};
+  rex::platform::RankedMutex identity_mutex_{rex::platform::LockRank::kIdentity};
+  rex::platform::RankedSharedMutex mutex_{rex::platform::LockRank::kTable};
+  rex::platform::RankedMutex name_mutex_{rex::platform::LockRank::kName};
   std::vector<Slot> slots_;
   u32 last_free_slot_ = 0;
   std::unordered_map<KernelObject*, std::unique_ptr<KernelObject>> objects_;
-  std::unordered_map<string_key_case, X_HANDLE> names_;
+  std::unordered_map<StringKeyCase, X_HANDLE> names_;
 };
 
 }  // namespace rex::runtime

@@ -21,17 +21,17 @@ namespace xam {
 namespace apps {
 
 /**
- * Xam app 0xFE, which serves content enumeration messages.
+ * XAM app 0xFE, which serves content enumeration messages.
  */
-class XamApp : public runtime::App {
+class XAMApp : public runtime::App {
  public:
   /**
    * @param runtime The runtime the app serves.
    */
-  REX_RUNTIME_API explicit XamApp(Runtime& runtime);
+  REX_RUNTIME_API explicit XAMApp(Runtime& runtime);
 
   /**
-   * Handles 1 message sent to the Xam app.
+   * Handles a message sent to the XAM app.
    *
    * @param message The message identifier.
    * @param buffer_ptr Guest address of the message buffer.

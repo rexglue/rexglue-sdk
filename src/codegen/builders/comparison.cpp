@@ -13,43 +13,43 @@
 
 namespace rex::codegen {
 
-bool build_cmpd(BuilderContext& ctx) {
-  emitCompareRegister(ctx, "i64", "s64");
+bool BuildCmpd(BuilderContext& ctx) {
+  EmitCompareRegister(ctx, "i64", "s64");
   return true;
 }
 
-bool build_cmpdi(BuilderContext& ctx) {
-  emitCompareImmediate(ctx, "i64", "s64", true);
+bool BuildCmpdi(BuilderContext& ctx) {
+  EmitCompareImmediate(ctx, "i64", "s64", true);
   return true;
 }
 
-bool build_cmpld(BuilderContext& ctx) {
-  emitCompareRegister(ctx, "u64", "u64");
+bool BuildCmpld(BuilderContext& ctx) {
+  EmitCompareRegister(ctx, "u64", "u64");
   return true;
 }
 
-bool build_cmpldi(BuilderContext& ctx) {
-  emitCompareImmediate(ctx, "u64", "u64", false);
+bool BuildCmpldi(BuilderContext& ctx) {
+  EmitCompareImmediate(ctx, "u64", "u64", false);
   return true;
 }
 
-bool build_cmplw(BuilderContext& ctx) {
-  emitCompareRegister(ctx, "u32", "u32");
+bool BuildCmplw(BuilderContext& ctx) {
+  EmitCompareRegister(ctx, "u32", "u32");
   return true;
 }
 
-bool build_cmplwi(BuilderContext& ctx) {
-  emitCompareImmediate(ctx, "u32", "u32", false);
+bool BuildCmplwi(BuilderContext& ctx) {
+  EmitCompareImmediate(ctx, "u32", "u32", false);
   return true;
 }
 
-bool build_cmpw(BuilderContext& ctx) {
-  emitCompareRegister(ctx, "i32", "s32");
+bool BuildCmpw(BuilderContext& ctx) {
+  EmitCompareRegister(ctx, "i32", "s32");
   return true;
 }
 
-bool build_cmpwi(BuilderContext& ctx) {
-  emitCompareImmediate(ctx, "i32", "s32", true);
+bool BuildCmpwi(BuilderContext& ctx) {
+  EmitCompareImmediate(ctx, "i32", "s32", true);
   return true;
 }
 

@@ -1,6 +1,6 @@
 /**
  * @file        tests/unit/kernel/char_strings_test.cpp
- * @brief       Rtl compares and Xam formats strings the way the title asks
+ * @brief       Rtl compares and XAM formats strings the way the title asks
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -35,7 +35,8 @@ constexpr u32 kTextChars = 32;
 
 u32 PutString(Caller& c, std::string_view text) {
   const u32 address = c.Alloc(static_cast<u32>(text.size()) + 1);
-  std::memcpy(c.runtime().memory()->TranslateVirtual<char*>(address), text.data(), text.size());
+  std::memcpy(c.GetRuntime().GetMemory()->TranslateVirtual<char*>(address), text.data(),
+              text.size());
   return address;
 }
 
@@ -86,7 +87,7 @@ REX_TEST_CASE("strings: RtlUpperChar and RtlLowerChar keep a character above 0x7
   });
 }
 
-REX_TEST_CASE("strings: Xam formats a filetime as local date and time", "[char][strings]") {
+REX_TEST_CASE("strings: XAM formats a filetime as local date and time", "[char][strings]") {
 #if !REX_PLATFORM_WIN32
   setenv("TZ", "UTC", 1);
   tzset();

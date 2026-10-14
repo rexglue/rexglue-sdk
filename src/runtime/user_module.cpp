@@ -27,8 +27,8 @@ namespace rex::runtime {
 
 namespace {
 
-X_STATUS LoadXexContinue(Runtime& runtime, ModuleObject& module) {
-  if (!module.xex()) {
+X_STATUS LoadXEXContinue(Runtime& runtime, ModuleObject& module) {
+  if (!module.GetXEX()) {
     return X_STATUS_UNSUCCESSFUL;
   }
 
@@ -36,29 +36,29 @@ X_STATUS LoadXexContinue(Runtime& runtime, ModuleObject& module) {
     return X_STATUS_SUCCESS;
   }
 
-  if (!module.xex()->LoadContinue()) {
+  if (!module.GetXEX()->LoadContinue()) {
     return X_STATUS_UNSUCCESSFUL;
   }
 
-  auto* memory = runtime.memory();
-  const auto& image = module.xex()->image();
-  const auto header = image.header_bytes();
+  auto* memory = runtime.GetMemory();
+  const auto& image = module.GetXEX()->GetImage();
+  const auto header = image.GetHeaderBytes();
   module.user.guest_xex_header = memory->SystemHeapAlloc(static_cast<u32>(header.size()));
 
   u8* xex_header_ptr = memory->TranslateVirtual(module.user.guest_xex_header);
   std::memcpy(xex_header_ptr, header.data(), header.size());
 
   module.user.entry_point =
-      image.OptHeaderValue(filesystem::XEX_HEADER_ENTRY_POINT).value_or(module.user.entry_point);
-  module.user.stack_size = image.OptHeaderValue(filesystem::XEX_HEADER_DEFAULT_STACK_SIZE)
-                               .value_or(module.user.stack_size);
-  module.user.is_dll_module = !!(image.header().module_flags & filesystem::XEX_MODULE_DLL_MODULE);
+      image.OptHeaderValue(filesystem::kXEXHeaderEntryPoint).value_or(module.user.entry_point);
+  module.user.stack_size =
+      image.OptHeaderValue(filesystem::kXEXHeaderDefaultStackSize).value_or(module.user.stack_size);
+  module.user.is_dll_module = !!(image.GetHeader().module_flags & filesystem::kXEXModuleDLLModule);
 
   auto ldr_data = memory->TranslateVirtual<X_LDR_DATA_TABLE_ENTRY*>(module.hmodule_ptr);
   ldr_data->dll_base = 0;
   ldr_data->xex_header_base = module.user.guest_xex_header;
-  ldr_data->full_image_size = image.security().image_size;
-  ldr_data->image_base = module.xex()->base_address();
+  ldr_data->full_image_size = image.GetSecurity().image_size;
+  ldr_data->image_base = module.GetXEX()->GetBaseAddress();
   ldr_data->entry_point = module.user.entry_point;
 
   return X_STATUS_SUCCESS;
@@ -67,65 +67,70 @@ X_STATUS LoadXexContinue(Runtime& runtime, ModuleObject& module) {
 }  // namespace
 
 X_HANDLE CreateUserModule(Runtime& runtime) {
-  return CreateModule(runtime, ModuleType::User);
+  return CreateModule(runtime, ModuleType::kUser);
 }
 
-rex::runtime::XEXModule* ModuleObject::xex() const {
-  REX_ASSERT(user.module_format == ModuleFormat::XEX);
+rex::runtime::XEXModule* ModuleObject::GetXEX() {
+  REX_ASSERT(user.module_format == ModuleFormat::kXEX);
   return static_cast<rex::runtime::XEXModule*>(processor_module.get());
 }
 
-u32 ModuleObject::title_id() const {
-  if (user.module_format != ModuleFormat::XEX) {
+const rex::runtime::XEXModule* ModuleObject::GetXEX() const {
+  REX_ASSERT(user.module_format == ModuleFormat::kXEX);
+  return static_cast<const rex::runtime::XEXModule*>(processor_module.get());
+}
+
+u32 ModuleObject::GetTitleId() const {
+  if (user.module_format != ModuleFormat::kXEX) {
     return 0;
   }
-  const auto* info = xex()->image().OptHeader<filesystem::XEXOptExecutionInfo>(
-      filesystem::XEX_HEADER_EXECUTION_INFO);
+  const auto* info = GetXEX()->GetImage().OptHeader<filesystem::XEXOptExecutionInfo>(
+      filesystem::kXEXHeaderExecutionInfo);
   return info ? static_cast<u32>(info->title_id) : 0;
 }
 
-X_STATUS ModuleObject::LoadFromFile(Runtime& runtime, std::string_view path) {
+X_STATUS ModuleObject::LoadFromFile(Runtime& owning_runtime, std::string_view guest_path) {
   X_STATUS result = X_STATUS_UNSUCCESSFUL;
 
-  auto* fs = runtime.file_system();
-  auto fs_entry = fs->Stat(path);
+  auto* fs = owning_runtime.GetFileSystem();
+  auto fs_entry = fs->Stat(guest_path);
   if (!fs_entry) {
-    REX_FAIL(system, X_STATUS_NO_SUCH_FILE, "File not found: {}", path);
+    REX_FAIL(system, X_STATUS_NO_SUCH_FILE, "File not found: {}", guest_path);
   }
 
-  this->path = fs_entry->absolute_path;
-  name = rex::utf8_find_base_name_from_guest_path(this->path);
+  path = fs_entry->absolute_path;
+  name = rex::utf8_find_base_name_from_guest_path(path);
 
   filesystem::OpenOptions options;
   options.access = filesystem::Access::kGenericRead;
-  auto opened = fs->Open(this->path, options);
+  auto opened = fs->Open(path, options);
   if (!opened) {
     return ToXStatus(opened.error());
   }
   if (auto view = opened->file->View()) {
-    result = LoadFromMemory(runtime, view->data(), view->size());
+    result = LoadFromMemory(owning_runtime, view->data(), view->size());
   } else {
     std::vector<u8> buffer(fs_entry->size);
     auto bytes_read = opened->file->Read(buffer, 0);
     if (!bytes_read) {
       return ToXStatus(bytes_read.error());
     }
-    result = LoadFromMemory(runtime, buffer.data(), *bytes_read);
+    result = LoadFromMemory(owning_runtime, buffer.data(), *bytes_read);
   }
 
   if (result != X_STATUS_PENDING) {
     return result;
   }
 
-  if (auto patch_entry = fs->Stat(this->path + "p")) {
+  if (auto patch_entry = fs->Stat(path + "p")) {
     auto patch_path = patch_entry->absolute_path;
 
     REXLOG_DEBUG(system, "Loading XEX patch from {}", patch_path);
 
-    ModuleObject patch_module(&runtime, ModuleType::User);
-    result = patch_module.LoadFromFile(runtime, patch_path);
+    ModuleObject patch_module(&owning_runtime, ModuleType::kUser);
+    result = patch_module.LoadFromFile(owning_runtime, patch_path);
     if (!result) {
-      result = patch_module.xex()->ApplyPatch(xex());
+      result = patch_module.GetXEX()->ApplyPatch(GetXEX());
       if (result) {
         REXLOG_ERROR(system, "Failed to apply XEX patch, code: {}", result);
       }
@@ -138,26 +143,26 @@ X_STATUS ModuleObject::LoadFromFile(Runtime& runtime, std::string_view path) {
     }
   }
 
-  return LoadXexContinue(runtime, *this);
+  return LoadXEXContinue(owning_runtime, *this);
 }
 
-X_STATUS ModuleObject::LoadFromMemory(Runtime& runtime, const void* addr, size_t length) {
-  auto* dispatcher = runtime.function_dispatcher();
+X_STATUS ModuleObject::LoadFromMemory(Runtime& owning_runtime, const void* addr, size_t length) {
+  auto* dispatcher = owning_runtime.GetFunctionDispatcher();
 
-  be<memory::fourcc_t> magic;
-  magic.value = memory::load<memory::fourcc_t>(addr);
+  BE<memory::FourCCT> magic;
+  magic.value = memory::load<memory::FourCCT>(addr);
 
   if (magic == runtime::kXEX2Signature || magic == runtime::kXEX1Signature) {
-    user.module_format = ModuleFormat::XEX;
-  } else if (magic == runtime::kElfSignature) {
-    user.module_format = ModuleFormat::Elf;
+    user.module_format = ModuleFormat::kXEX;
+  } else if (magic == runtime::kELFSignature) {
+    user.module_format = ModuleFormat::kELF;
   } else {
     REX_FAIL(system, X_STATUS_NOT_IMPLEMENTED, "Unknown *this magic: {:08X}",
              static_cast<u32>(magic));
   }
 
-  if (user.module_format == ModuleFormat::XEX) {
-    auto xex_module = std::make_unique<runtime::XEXModule>(dispatcher, runtime);
+  if (user.module_format == ModuleFormat::kXEX) {
+    auto xex_module = std::make_unique<runtime::XEXModule>(dispatcher, owning_runtime);
     if (!xex_module->Load(name, path, addr, length)) {
       return X_STATUS_UNSUCCESSFUL;
     }
@@ -166,13 +171,13 @@ X_STATUS ModuleObject::LoadFromMemory(Runtime& runtime, const void* addr, size_t
     return X_STATUS_PENDING;
   }
 
-  if (user.module_format == ModuleFormat::Elf) {
-    auto elf_module = std::make_unique<runtime::ElfModule>(dispatcher);
+  if (user.module_format == ModuleFormat::kELF) {
+    auto elf_module = std::make_unique<runtime::ELFModule>(dispatcher);
     if (!elf_module->Load(name, path, addr, length)) {
       return X_STATUS_UNSUCCESSFUL;
     }
 
-    user.entry_point = elf_module->entry_point();
+    user.entry_point = elf_module->GetEntryPoint();
     user.stack_size = 1024 * 1024;
     user.is_dll_module = false;
 
@@ -184,11 +189,11 @@ X_STATUS ModuleObject::LoadFromMemory(Runtime& runtime, const void* addr, size_t
 }
 
 X_STATUS ModuleObject::Unload() {
-  if (user.module_format == ModuleFormat::XEX && (!processor_module || !xex()->loaded())) {
+  if (user.module_format == ModuleFormat::kXEX && (!processor_module || !GetXEX()->GetLoaded())) {
     return X_STATUS_SUCCESS;
   }
 
-  if (user.module_format == ModuleFormat::XEX && processor_module && xex()->Unload()) {
+  if (user.module_format == ModuleFormat::kXEX && processor_module && GetXEX()->Unload()) {
     return X_STATUS_SUCCESS;
   }
 
@@ -198,11 +203,11 @@ X_STATUS ModuleObject::Unload() {
 X_STATUS ModuleObject::OptHeader(filesystem::XEXHeaderKey key, void** out_ptr) {
   REX_ASSERT(out_ptr != nullptr);
 
-  if (user.module_format == ModuleFormat::Elf) {
+  if (user.module_format == ModuleFormat::kELF) {
     return X_STATUS_UNSUCCESSFUL;
   }
 
-  const auto& image = xex()->image();
+  const auto& image = GetXEX()->GetImage();
   if ((key & 0xFF) == 0x00) {
     const auto value = image.OptHeaderValue(key);
     if (!value) {
@@ -219,12 +224,12 @@ X_STATUS ModuleObject::OptHeader(filesystem::XEXHeaderKey key, void** out_ptr) {
   return X_STATUS_SUCCESS;
 }
 
-X_STATUS ModuleObject::OptHeader(filesystem::XEXHeaderKey key, u32* out_header_guest_ptr) {
-  if (user.module_format == ModuleFormat::Elf) {
+X_STATUS ModuleObject::OptHeader(filesystem::XEXHeaderKey key, u32* out_header_guest_ptr) const {
+  if (user.module_format == ModuleFormat::kELF) {
     return X_STATUS_UNSUCCESSFUL;
   }
 
-  auto* memory = runtime->memory();
+  auto* memory = runtime->GetMemory();
   auto header = memory->TranslateVirtual<const filesystem::XEXHeader*>(user.guest_xex_header);
   if (!header) {
     return X_STATUS_UNSUCCESSFUL;

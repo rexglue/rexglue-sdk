@@ -69,7 +69,7 @@ XmpApp::XmpApp(Runtime& runtime)
       next_song_handle_(1) {}
 
 X_HRESULT XmpApp::XMPGetStatus(u32 state_ptr) {
-  if (!KernelThread::GetCurrentThread()->main_thread()) {
+  if (!KernelThread::GetCurrentThread()->GetMainThread()) {
     // Titles poll this in a loop, the delay keeps them from starving other threads.
     rex::runtime::KernelThread::Sleep(std::chrono::milliseconds(1));
   }
@@ -85,7 +85,7 @@ X_HRESULT XmpApp::XMPCreateTitlePlaylist(u32 songs_ptr, u32 song_count, u32 play
   REXLOG_DEBUG(kernel,
                "XMPCreateTitlePlaylist({:08X}, {:08X}, {:08X}({}), {:08X}, {:08X}, "
                "{:08X})",
-               songs_ptr, song_count, playlist_name_ptr, rex::to_utf8(playlist_name), flags,
+               songs_ptr, song_count, playlist_name_ptr, rex::ToUTF8(playlist_name), flags,
                out_song_handles, out_playlist_handle);
   auto playlist = std::make_unique<Playlist>();
   playlist->handle = ++next_playlist_handle_;
@@ -164,7 +164,7 @@ X_HRESULT XmpApp::XMPPlayTitlePlaylist(u32 playlist_handle, u32 song_handle) {
   active_song_index_ = 0;
   state_ = State::kPlaying;
   OnStateChanged();
-  runtime_.notifier().BroadcastNotification(kMsgPlaybackBehaviorChanged, 1);
+  runtime_.GetNotifier().BroadcastNotification(kMsgPlaybackBehaviorChanged, 1);
   return X_E_SUCCESS;
 }
 
@@ -220,7 +220,7 @@ X_HRESULT XmpApp::XMPPrevious() {
 }
 
 void XmpApp::OnStateChanged() {
-  runtime_.notifier().BroadcastNotification(kMsgStateChanged, static_cast<u32>(state_));
+  runtime_.GetNotifier().BroadcastNotification(kMsgStateChanged, static_cast<u32>(state_));
 }
 
 X_HRESULT XmpApp::DispatchMessageSync(u32 message, u32 buffer_ptr, u32 buffer_length) {
@@ -286,7 +286,7 @@ X_HRESULT XmpApp::DispatchMessageSync(u32 message, u32 buffer_ptr, u32 buffer_le
       playback_mode_ = static_cast<PlaybackMode>(static_cast<u32>(args->playback_mode));
       repeat_mode_ = static_cast<RepeatMode>(static_cast<u32>(args->repeat_mode));
       unknown_flags_ = args->flags;
-      runtime_.notifier().BroadcastNotification(kMsgPlaybackBehaviorChanged, 0);
+      runtime_.GetNotifier().BroadcastNotification(kMsgPlaybackBehaviorChanged, 0);
       return X_E_SUCCESS;
     }
     case 0x00070009: {
@@ -413,8 +413,8 @@ X_HRESULT XmpApp::DispatchMessageSync(u32 message, u32 buffer_ptr, u32 buffer_le
                    static_cast<u32>(args->controller), static_cast<u32>(args->playback_client));
 
       playback_client_ = PlaybackClient(static_cast<u32>(args->playback_client));
-      runtime_.notifier().BroadcastNotification(kMsgPlaybackControllerChanged,
-                                                !args->playback_client);
+      runtime_.GetNotifier().BroadcastNotification(kMsgPlaybackControllerChanged,
+                                                   !args->playback_client);
       return X_E_SUCCESS;
     }
     case 0x0007001B: {
@@ -433,7 +433,7 @@ X_HRESULT XmpApp::DispatchMessageSync(u32 message, u32 buffer_ptr, u32 buffer_le
       *memory_->TranslateVirtual<be_u32*>(args->controller_ptr) = 0;
       *memory_->TranslateVirtual<be_u32*>(args->locked_ptr) = 0;
 
-      if (!KernelThread::GetCurrentThread()->main_thread()) {
+      if (!KernelThread::GetCurrentThread()->GetMainThread()) {
         // Titles poll this in a loop, the delay keeps them from starving other threads.
         rex::runtime::KernelThread::Sleep(std::chrono::milliseconds(10));
       }
@@ -492,7 +492,7 @@ X_HRESULT XmpApp::DispatchMessageSync(u32 message, u32 buffer_ptr, u32 buffer_le
   REX_FAIL(kernel, X_E_FAIL,
            "Unimplemented XMP message app={:08X}, msg={:08X}, arg1={:08X}, "
            "arg2={:08X}",
-           app_id(), message, buffer_ptr, buffer_length);
+           GetAppId(), message, buffer_ptr, buffer_length);
 }
 
 }  // namespace apps

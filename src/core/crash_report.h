@@ -102,7 +102,7 @@ bool IsReadable(u64 address, u64 size);
 void LogBacktrace();
 
 /**
- * Writes 1 backtrace line.
+ * Writes a backtrace line.
  *
  * @param index The frame index.
  * @param address The return address.
@@ -124,7 +124,7 @@ void UninstallPlatform();
 void UseRawOutput();
 
 /**
- * Writes 1 report line to stderr and the log file without allocating or locking.
+ * Writes a report line to stderr and the log file without allocating or locking.
  *
  * @param text The line, without its newline.
  */

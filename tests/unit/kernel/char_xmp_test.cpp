@@ -31,7 +31,7 @@ u32 PlayEmptyPlaylist(Caller& c, rex::kernel::xam::apps::XmpApp& app) {
 REX_TEST_CASE("xmp: next and previous on an empty playlist find no song", "[char][xmp]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    rex::kernel::xam::apps::XmpApp app(c.runtime());
+    rex::kernel::xam::apps::XmpApp app(c.GetRuntime());
     PlayEmptyPlaylist(c, app);
     CHECK(app.XMPNext() == rex::X_E_NOTFOUND);
     CHECK(app.XMPPrevious() == rex::X_E_NOTFOUND);
@@ -41,7 +41,7 @@ REX_TEST_CASE("xmp: next and previous on an empty playlist find no song", "[char
 REX_TEST_CASE("xmp: song info on an empty playlist fails", "[char][xmp]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    rex::kernel::xam::apps::XmpApp app(c.runtime());
+    rex::kernel::xam::apps::XmpApp app(c.GetRuntime());
     PlayEmptyPlaylist(c, app);
     const u32 args = c.Alloc(12);
     c.Store32(args, 2);

@@ -22,12 +22,12 @@ namespace {
 
 RecompilerConfig HookConfig(std::vector<std::string> registers) {
   RecompilerConfig config;
-  config.filePath = "game.xex";
-  config.outDirectoryPath = "out";
+  config.file_path = "game.xex";
+  config.out_directory_path = "out";
   MidAsmHook hook;
   hook.name = "TestHook";
   hook.registers = std::move(registers);
-  config.midAsmHooks.emplace(0x82000000u, std::move(hook));
+  config.mid_asm_hooks.emplace(0x82000000u, std::move(hook));
   return config;
 }
 

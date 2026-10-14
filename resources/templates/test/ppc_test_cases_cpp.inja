@@ -34,9 +34,9 @@ static rex::runtime::Memory& get_memory() {
 ## for test in tests
 TEST_CASE("{{ test.name }}", "[ppc][{{ test.category }}][{{ test.stem }}]") {
     auto& mem = get_memory();
-    u8* memory = mem.virtual_membase();
+    u8* memory = mem.GetVirtualMembase();
     PPCContext ctx{};
-    ctx.fpscr.loadFromHost();
+    ctx.fpscr.LoadFromHost();
 
 ## for reg in test.inputs.registers
 ## if reg.type == "cr"
@@ -70,7 +70,7 @@ TEST_CASE("{{ test.name }}", "[ppc][{{ test.category }}][{{ test.stem }}]") {
 ## for reg in test.outputs.registers
 ## if reg.type == "cr"
     {
-        u32 cr_actual = (ctx.cr0.raw() << 28) | (ctx.cr1.raw() << 24) | (ctx.cr2.raw() << 20) | (ctx.cr3.raw() << 16) | (ctx.cr4.raw() << 12) | (ctx.cr5.raw() << 8) | (ctx.cr6.raw() << 4) | ctx.cr7.raw();
+        u32 cr_actual = (ctx.cr0.GetRaw() << 28) | (ctx.cr1.GetRaw() << 24) | (ctx.cr2.GetRaw() << 20) | (ctx.cr3.GetRaw() << 16) | (ctx.cr4.GetRaw() << 12) | (ctx.cr5.GetRaw() << 8) | (ctx.cr6.GetRaw() << 4) | ctx.cr7.GetRaw();
         REQUIRE(cr_actual == {{ reg.value }});
     }
 ## else if reg.type == "vector"

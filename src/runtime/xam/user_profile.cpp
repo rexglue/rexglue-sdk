@@ -92,7 +92,7 @@ void UserProfile::AddSetting(std::unique_ptr<Setting> setting) {
   Setting* previous_setting = setting.get();
   std::swap(settings_[setting->setting_id], previous_setting);
 
-  if (setting->is_set && setting->is_title_specific()) {
+  if (setting->is_set && setting->IsTitleSpecific()) {
     SaveSetting(setting.get());
   }
 
@@ -114,8 +114,8 @@ UserProfile::Setting* UserProfile::GetSetting(u32 setting_id) {
     return nullptr;
   }
   UserProfile::Setting* setting = it->second;
-  if (setting->is_title_specific()) {
-    if (runtime_.content_manager().title_id() != setting->loaded_title_id) {
+  if (setting->IsTitleSpecific()) {
+    if (runtime_.GetContentManager().GetTitleId() != setting->loaded_title_id) {
       LoadSetting(setting);
     }
   }
@@ -123,13 +123,13 @@ UserProfile::Setting* UserProfile::GetSetting(u32 setting_id) {
 }
 
 void UserProfile::LoadSetting(UserProfile::Setting* setting) {
-  if (setting->is_title_specific()) {
-    auto content_dir = runtime_.content_manager().ResolveGameUserContentPath();
+  if (setting->IsTitleSpecific()) {
+    auto content_dir = runtime_.GetContentManager().ResolveGameUserContentPath();
     auto setting_id = std::format("{:08X}", setting->setting_id);
     auto file_path = content_dir / setting_id;
     if (auto serialized_data = rex::platform::ReadWholeFile(file_path)) {
       setting->Deserialize(*serialized_data);
-      setting->loaded_title_id = runtime_.content_manager().title_id();
+      setting->loaded_title_id = runtime_.GetContentManager().GetTitleId();
     }
   } else {
     REXLOG_WARN(system, "Attempting to load unsupported profile setting from disk");
@@ -137,9 +137,9 @@ void UserProfile::LoadSetting(UserProfile::Setting* setting) {
 }
 
 void UserProfile::SaveSetting(UserProfile::Setting* setting) {
-  if (setting->is_title_specific()) {
+  if (setting->IsTitleSpecific()) {
     auto serialized_setting = setting->Serialize();
-    auto content_dir = runtime_.content_manager().ResolveGameUserContentPath();
+    auto content_dir = runtime_.GetContentManager().ResolveGameUserContentPath();
     std::filesystem::create_directories(content_dir);
     auto setting_id = std::format("{:08X}", setting->setting_id);
     auto file_path = content_dir / setting_id;

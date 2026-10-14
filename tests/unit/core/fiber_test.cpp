@@ -17,7 +17,7 @@ using rex::platform::Fiber;
 static Fiber* s_main = nullptr;
 static int s_count = 0;
 
-static void counting_fiber(void*) {
+static void CountingFiber(void*) {
   ++s_count;
   Fiber::SwitchTo(s_main);
   ++s_count;
@@ -27,7 +27,7 @@ static void counting_fiber(void*) {
 REX_TEST_CASE("rex::platform::Fiber - basic context switch", "[fiber]") {
   s_count = 0;
   s_main = Fiber::ConvertCurrentThread();
-  auto* f = Fiber::Create(size_t{256} * 1024, counting_fiber, nullptr);
+  auto* f = Fiber::Create(size_t{256} * 1024, CountingFiber, nullptr);
 
   REQUIRE(s_count == 0);
   Fiber::SwitchTo(f);

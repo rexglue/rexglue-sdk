@@ -33,7 +33,7 @@ class ISink {
   virtual ~ISink() = default;
 
   /**
-   * Writes 1 message.
+   * Writes a message.
    *
    * @param message The message.
    */
@@ -55,7 +55,7 @@ class REX_API ConsoleSink final : public ISink {
   explicit ConsoleSink(LineFormat format);
 
   /**
-   * Writes 1 message.
+   * Writes a message.
    *
    * @param message The message.
    */
@@ -69,7 +69,7 @@ class REX_API ConsoleSink final : public ISink {
    *
    * @param format What to write around each message.
    */
-  void set_format(LineFormat format);
+  void SetFormat(LineFormat format);
 
  private:
   LineFormat format_;
@@ -87,7 +87,7 @@ class REX_API DebuggerSink final : public ISink {
   explicit DebuggerSink(LineFormat format);
 
   /**
-   * Writes 1 message.
+   * Writes a message.
    *
    * @param message The message.
    */
@@ -101,7 +101,7 @@ class REX_API DebuggerSink final : public ISink {
    *
    * @param format What to write around each message. color is ignored.
    */
-  void set_format(LineFormat format);
+  void SetFormat(LineFormat format);
 
  private:
   LineFormat format_;
@@ -124,7 +124,7 @@ class REX_API FileSink final : public ISink, public NonCopyable {
                                                               LineFormat format);
 
   /**
-   * Writes 1 message.
+   * Writes a message.
    *
    * @param message The message.
    */
@@ -138,7 +138,7 @@ class REX_API FileSink final : public ISink, public NonCopyable {
    *
    * @return The path passed to Open.
    */
-  const std::filesystem::path& path() const;
+  const std::filesystem::path& GetPath() const;
 
   /**
    * Wraps an open stream. Open is the usual way to build the sink.
@@ -172,7 +172,7 @@ class REX_API CaptureSink final : public ISink {
   static constexpr size_t kCapacity = 4096;
 
   /**
-   * Keeps 1 message, dropping the oldest at capacity.
+   * Keeps a message, dropping the oldest at capacity.
    *
    * @param message The message.
    */
@@ -195,7 +195,7 @@ class REX_API CaptureSink final : public ISink {
    *
    * @return The sequence, 0 before the first message.
    */
-  u64 latest() const;
+  u64 GetLatest() const;
 
  private:
   mutable std::mutex mutex_;

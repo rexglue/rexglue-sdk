@@ -31,7 +31,7 @@ class XLiveBaseApp : public runtime::App {
   REX_RUNTIME_API explicit XLiveBaseApp(Runtime& runtime);
 
   /**
-   * Handles 1 message sent to the XLiveBase app.
+   * Handles a message sent to the XLiveBase app.
    *
    * @param message The message identifier.
    * @param buffer_ptr Guest address of the message buffer.

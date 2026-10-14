@@ -500,7 +500,7 @@ enum class OpcodeGroup : u8 {
  * @param op The opcode
  * @return True when the opcode ends a block
  */
-inline bool is_terminator_instruction(Opcode op) {
+inline bool IsTerminatorInstruction(Opcode op) {
   switch (op) {
     case Opcode::b:
     case Opcode::ba:
@@ -548,7 +548,7 @@ struct OpcodeInfo {
  * @param code Raw 32-bit instruction (big-endian)
  * @return Opcode enum value
  */
-Opcode lookup_opcode(u32 code);
+Opcode LookupOpcode(u32 code);
 
 /**
  * Get opcode information
@@ -556,6 +556,6 @@ Opcode lookup_opcode(u32 code);
  * @param opcode Opcode enum value
  * @return Opcode information structure
  */
-const OpcodeInfo& get_opcode_info(Opcode opcode);
+const OpcodeInfo& GetOpcodeInfo(Opcode opcode);
 
 }  // namespace rex::codegen::detail

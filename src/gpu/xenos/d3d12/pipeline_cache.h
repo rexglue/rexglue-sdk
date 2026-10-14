@@ -284,7 +284,9 @@ class PipelineCache {
     GeometryShaderKey() : key(0) { REX_STATIC_ASSERT_SIZE(*this, sizeof(key)); }
 
     struct Hasher {
-      size_t operator()(const GeometryShaderKey& key) const { return std::hash<u32>{}(key.key); }
+      size_t operator()(const GeometryShaderKey& hashed_key) const {
+        return std::hash<u32>{}(hashed_key.key);
+      }
     };
     bool operator==(const GeometryShaderKey& other_key) const { return key == other_key.key; }
     bool operator!=(const GeometryShaderKey& other_key) const { return !(*this == other_key); }

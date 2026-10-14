@@ -49,13 +49,13 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
   REX_ASSERT(vulkan_instance != nullptr);
   REX_ASSERT(physical_device != nullptr);
 
-  const VulkanInstance::Functions& ifn = vulkan_instance->functions();
+  const VulkanInstance::Functions& ifn = vulkan_instance->GetFunctions();
 
   VkPhysicalDeviceProperties properties = {};
   ifn.vkGetPhysicalDeviceProperties(physical_device, &properties);
 
   const u32 unclamped_api_version = properties.apiVersion;
-  if (vulkan_instance->api_version() < VK_MAKE_API_VERSION(0, 1, 1, 0)) {
+  if (vulkan_instance->GetAPIVersion() < VK_MAKE_API_VERSION(0, 1, 1, 0)) {
     properties.apiVersion =
         VK_MAKE_API_VERSION(0, 1, 0, VK_API_VERSION_PATCH(properties.apiVersion));
   }
@@ -109,7 +109,7 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
       REXCVAR_GET(::rex::gpu::cvars::require_fill_mode_non_solid);
 
   const bool get_physical_device_properties2_supported =
-      vulkan_instance->extensions().ext_1_1_KHR_get_physical_device_properties2;
+      vulkan_instance->GetExtensions().ext_1_1_KHR_get_physical_device_properties2;
 
   // Name pointers from requested_extensions are used in the enabled extensions vector.
   std::unordered_map<std::string, bool*> requested_extensions;
@@ -285,38 +285,38 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
       features_1_3;
   VulkanFeatures<VkPhysicalDevicePortabilitySubsetFeaturesKHR,
                  VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PORTABILITY_SUBSET_FEATURES_KHR>
-      features_KHR_portability_subset;
-  VkPhysicalDeviceDriverPropertiesKHR properties_1_2_KHR_driver_properties = {
+      features_khr_portability_subset;
+  VkPhysicalDeviceDriverPropertiesKHR properties_1_2_khr_driver_properties = {
       .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DRIVER_PROPERTIES,
       .pNext = nullptr,
       .driverID = VkDriverId(0),
       .driverName = {},
       .driverInfo = {},
       .conformanceVersion = {}};
-  auto properties_1_2_KHR_shader_float_controls =
+  auto properties_1_2_khr_shader_float_controls =
       objects::InitializeStructure<VkPhysicalDeviceFloatControlsProperties>(
           VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FLOAT_CONTROLS_PROPERTIES);
   VulkanFeatures<VkPhysicalDeviceFragmentShaderInterlockFeaturesEXT,
                  VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FRAGMENT_SHADER_INTERLOCK_FEATURES_EXT>
-      features_EXT_fragment_shader_interlock;
+      features_ext_fragment_shader_interlock;
   VulkanFeatures<VkPhysicalDeviceDynamicRenderingFeaturesKHR,
                  VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DYNAMIC_RENDERING_FEATURES_KHR>
-      features_1_3_KHR_dynamic_rendering;
+      features_1_3_khr_dynamic_rendering;
   VulkanFeatures<VkPhysicalDeviceShaderDemoteToHelperInvocationFeaturesEXT,
                  VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_DEMOTE_TO_HELPER_INVOCATION_FEATURES_EXT>
-      features_1_3_EXT_shader_demote_to_helper_invocation;
+      features_1_3_ext_shader_demote_to_helper_invocation;
   VulkanFeatures<VkPhysicalDeviceNonSeamlessCubeMapFeaturesEXT,
                  VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_NON_SEAMLESS_CUBE_MAP_FEATURES_EXT>
-      features_EXT_non_seamless_cube_map;
+      features_ext_non_seamless_cube_map;
   VulkanFeatures<VkPhysicalDeviceCustomBorderColorFeaturesEXT,
                  VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_CUSTOM_BORDER_COLOR_FEATURES_EXT>
-      features_EXT_custom_border_color;
-  auto properties_EXT_custom_border_color =
+      features_ext_custom_border_color;
+  auto properties_ext_custom_border_color =
       objects::InitializeStructure<VkPhysicalDeviceCustomBorderColorPropertiesEXT>(
           VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_CUSTOM_BORDER_COLOR_PROPERTIES_EXT);
   VulkanFeatures<VkPhysicalDeviceRobustness2FeaturesEXT,
                  VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ROBUSTNESS_2_FEATURES_EXT>
-      features_EXT_robustness2;
+      features_ext_robustness2;
 
   if (get_physical_device_properties2_supported) {
     if (properties.apiVersion >= VK_MAKE_API_VERSION(0, 1, 2, 0)) {
@@ -326,37 +326,37 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
       features_1_3.Link(supported_features_2, device_create_info);
     } else {
       if (ext_1_3_KHR_dynamic_rendering) {
-        features_1_3_KHR_dynamic_rendering.Link(supported_features_2, device_create_info);
+        features_1_3_khr_dynamic_rendering.Link(supported_features_2, device_create_info);
       }
       if (ext_1_3_EXT_shader_demote_to_helper_invocation) {
-        features_1_3_EXT_shader_demote_to_helper_invocation.Link(supported_features_2,
+        features_1_3_ext_shader_demote_to_helper_invocation.Link(supported_features_2,
                                                                  device_create_info);
       }
     }
     if (ext_KHR_portability_subset) {
-      features_KHR_portability_subset.Link(supported_features_2, device_create_info);
+      features_khr_portability_subset.Link(supported_features_2, device_create_info);
     }
     if (ext_1_2_KHR_driver_properties) {
-      properties_1_2_KHR_driver_properties.pNext = properties_2.pNext;
-      properties_2.pNext = &properties_1_2_KHR_driver_properties;
+      properties_1_2_khr_driver_properties.pNext = properties_2.pNext;
+      properties_2.pNext = &properties_1_2_khr_driver_properties;
     }
     if (ext_1_2_KHR_shader_float_controls) {
-      properties_1_2_KHR_shader_float_controls.pNext = properties_2.pNext;
-      properties_2.pNext = &properties_1_2_KHR_shader_float_controls;
+      properties_1_2_khr_shader_float_controls.pNext = properties_2.pNext;
+      properties_2.pNext = &properties_1_2_khr_shader_float_controls;
     }
     if (ext_EXT_fragment_shader_interlock) {
-      features_EXT_fragment_shader_interlock.Link(supported_features_2, device_create_info);
+      features_ext_fragment_shader_interlock.Link(supported_features_2, device_create_info);
     }
     if (ext_EXT_non_seamless_cube_map) {
-      features_EXT_non_seamless_cube_map.Link(supported_features_2, device_create_info);
+      features_ext_non_seamless_cube_map.Link(supported_features_2, device_create_info);
     }
     if (device->extensions_.ext_EXT_custom_border_color) {
-      features_EXT_custom_border_color.Link(supported_features_2, device_create_info);
-      properties_EXT_custom_border_color.pNext = properties_2.pNext;
-      properties_2.pNext = &properties_EXT_custom_border_color;
+      features_ext_custom_border_color.Link(supported_features_2, device_create_info);
+      properties_ext_custom_border_color.pNext = properties_2.pNext;
+      properties_2.pNext = &properties_ext_custom_border_color;
     }
     if (device->extensions_.ext_EXT_robustness2) {
-      features_EXT_robustness2.Link(supported_features_2, device_create_info);
+      features_ext_robustness2.Link(supported_features_2, device_create_info);
     }
     ifn.vkGetPhysicalDeviceProperties2(physical_device, &properties_2);
     ifn.vkGetPhysicalDeviceFeatures2(physical_device, &supported_features_2);
@@ -399,7 +399,7 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
     if (with_swapchain) {
 #if REX_PLATFORM_WIN32
       queue_family.may_support_presentation =
-          vulkan_instance->extensions().ext_KHR_win32_surface &&
+          vulkan_instance->GetExtensions().ext_KHR_win32_surface &&
           ifn.vkGetPhysicalDeviceWin32PresentationSupportKHR(physical_device, queue_family_index);
 #else
       queue_family.may_support_presentation = true;
@@ -604,16 +604,16 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
   REXLOG_DEBUG(ui, "* " #name);
 
   if (ext_1_2_KHR_driver_properties) {
-    REX_VK_ENUM_PROPERTY_2(properties_1_2_KHR_driver_properties, driverID, DriverId);
-    REXLOG_DEBUG(ui, "* driverName: {}", properties_1_2_KHR_driver_properties.driverName);
-    if (properties_1_2_KHR_driver_properties.driverInfo[0]) {
-      REXLOG_DEBUG(ui, "* driverInfo: {}", properties_1_2_KHR_driver_properties.driverInfo);
+    REX_VK_ENUM_PROPERTY_2(properties_1_2_khr_driver_properties, driverID, DriverId);
+    REXLOG_DEBUG(ui, "* driverName: {}", properties_1_2_khr_driver_properties.driverName);
+    if (properties_1_2_khr_driver_properties.driverInfo[0]) {
+      REXLOG_DEBUG(ui, "* driverInfo: {}", properties_1_2_khr_driver_properties.driverInfo);
     }
     REXLOG_DEBUG(ui, "* conformanceVersion: {}.{}.{}.{}",
-                 properties_1_2_KHR_driver_properties.conformanceVersion.major,
-                 properties_1_2_KHR_driver_properties.conformanceVersion.minor,
-                 properties_1_2_KHR_driver_properties.conformanceVersion.subminor,
-                 properties_1_2_KHR_driver_properties.conformanceVersion.patch);
+                 properties_1_2_khr_driver_properties.conformanceVersion.major,
+                 properties_1_2_khr_driver_properties.conformanceVersion.minor,
+                 properties_1_2_khr_driver_properties.conformanceVersion.subminor,
+                 properties_1_2_khr_driver_properties.conformanceVersion.patch);
   }
 
   REX_VK_LIMIT(maxImageDimension2D)
@@ -691,12 +691,12 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
   } else {
     if (ext_1_3_KHR_dynamic_rendering) {
       if (with_gpu_emulation) {
-        REX_VK_FEATURE_2(features_1_3_KHR_dynamic_rendering, dynamicRendering);
+        REX_VK_FEATURE_2(features_1_3_khr_dynamic_rendering, dynamicRendering);
       }
     }
     if (ext_1_3_EXT_shader_demote_to_helper_invocation) {
       if (with_gpu_emulation) {
-        REX_VK_FEATURE_2(features_1_3_EXT_shader_demote_to_helper_invocation,
+        REX_VK_FEATURE_2(features_1_3_ext_shader_demote_to_helper_invocation,
                          shaderDemoteToHelperInvocation);
       }
     }
@@ -704,12 +704,12 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
 
   if (ext_KHR_portability_subset) {
     if (with_gpu_emulation) {
-      REX_VK_FEATURE_2(features_KHR_portability_subset, constantAlphaColorBlendFactors)
-      REX_VK_FEATURE_2(features_KHR_portability_subset, imageViewFormatReinterpretation)
-      REX_VK_FEATURE_2(features_KHR_portability_subset, imageViewFormatSwizzle)
-      REX_VK_FEATURE_2(features_KHR_portability_subset, pointPolygons)
-      REX_VK_FEATURE_2(features_KHR_portability_subset, separateStencilMaskRef)
-      REX_VK_FEATURE_2(features_KHR_portability_subset, shaderSampleRateInterpolationFunctions)
+      REX_VK_FEATURE_2(features_khr_portability_subset, constantAlphaColorBlendFactors)
+      REX_VK_FEATURE_2(features_khr_portability_subset, imageViewFormatReinterpretation)
+      REX_VK_FEATURE_2(features_khr_portability_subset, imageViewFormatSwizzle)
+      REX_VK_FEATURE_2(features_khr_portability_subset, pointPolygons)
+      REX_VK_FEATURE_2(features_khr_portability_subset, separateStencilMaskRef)
+      REX_VK_FEATURE_2(features_khr_portability_subset, shaderSampleRateInterpolationFunctions)
     }
   } else {
     REX_VK_FEATURE_IMPLIED(constantAlphaColorBlendFactors)
@@ -721,36 +721,36 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
   }
 
   if (ext_1_2_KHR_shader_float_controls) {
-    REX_VK_PROPERTY_2(properties_1_2_KHR_shader_float_controls,
+    REX_VK_PROPERTY_2(properties_1_2_khr_shader_float_controls,
                       shaderSignedZeroInfNanPreserveFloat32);
-    REX_VK_PROPERTY_2(properties_1_2_KHR_shader_float_controls, shaderDenormFlushToZeroFloat32);
-    REX_VK_PROPERTY_2(properties_1_2_KHR_shader_float_controls, shaderRoundingModeRTEFloat32);
+    REX_VK_PROPERTY_2(properties_1_2_khr_shader_float_controls, shaderDenormFlushToZeroFloat32);
+    REX_VK_PROPERTY_2(properties_1_2_khr_shader_float_controls, shaderRoundingModeRTEFloat32);
   }
 
   if (ext_EXT_fragment_shader_interlock) {
     if (with_gpu_emulation) {
-      REX_VK_FEATURE_2(features_EXT_fragment_shader_interlock, fragmentShaderSampleInterlock)
-      REX_VK_FEATURE_2(features_EXT_fragment_shader_interlock, fragmentShaderPixelInterlock)
+      REX_VK_FEATURE_2(features_ext_fragment_shader_interlock, fragmentShaderSampleInterlock)
+      REX_VK_FEATURE_2(features_ext_fragment_shader_interlock, fragmentShaderPixelInterlock)
     }
   }
 
   if (ext_EXT_non_seamless_cube_map) {
     if (with_gpu_emulation) {
-      REX_VK_FEATURE_2(features_EXT_non_seamless_cube_map, nonSeamlessCubeMap)
+      REX_VK_FEATURE_2(features_ext_non_seamless_cube_map, nonSeamlessCubeMap)
     }
   }
 
   if (device->extensions_.ext_EXT_custom_border_color) {
     if (with_gpu_emulation) {
-      REX_VK_FEATURE_2(features_EXT_custom_border_color, customBorderColors)
-      REX_VK_FEATURE_2(features_EXT_custom_border_color, customBorderColorWithoutFormat)
+      REX_VK_FEATURE_2(features_ext_custom_border_color, customBorderColors)
+      REX_VK_FEATURE_2(features_ext_custom_border_color, customBorderColorWithoutFormat)
     }
-    REX_VK_PROPERTY_2(properties_EXT_custom_border_color, maxCustomBorderColorSamplers)
+    REX_VK_PROPERTY_2(properties_ext_custom_border_color, maxCustomBorderColorSamplers)
   }
 
   if (device->extensions_.ext_EXT_robustness2) {
     if (with_gpu_emulation) {
-      REX_VK_FEATURE_2(features_EXT_robustness2, nullDescriptor)
+      REX_VK_FEATURE_2(features_ext_robustness2, nullDescriptor)
     }
   }
 
@@ -864,7 +864,7 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
 
 VulkanDevice::~VulkanDevice() {
   if (device_) {
-    vulkan_instance_->functions().vkDestroyDevice(device_, nullptr);
+    vulkan_instance_->GetFunctions().vkDestroyDevice(device_, nullptr);
   }
 }
 

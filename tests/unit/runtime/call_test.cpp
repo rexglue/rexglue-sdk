@@ -63,7 +63,7 @@ rex::ppc::ImportFunction<void(u32)> g_guest{GuestOpen};
 
 void GuestOpen(PPCContext& ctx, u8* base) {
   const u32 depth = ctx.r3.u32;
-  if (ctx.r13.u32 != g_pcr || &ctx != ThreadState::Get()->context()) {
+  if (ctx.r13.u32 != g_pcr || &ctx != ThreadState::Get()->GetContext()) {
     ++g_failures;
   }
   ctx.r1.u32 -= kFrameSize;
@@ -133,7 +133,7 @@ void CheckNested(GuestThread& thread) {
   for (u32 depth = 1; depth < kDepth; ++depth) {
     CHECK(g_frames[depth + 1] + kFrameSize <= g_frames[depth]);
   }
-  CHECK(thread.state.context()->r1.u32 == thread.stack + kStackSize);
+  CHECK(thread.state.GetContext()->r1.u32 == thread.stack + kStackSize);
 }
 
 }  // namespace
@@ -178,10 +178,10 @@ void Clobber(PPCContext& ctx, u8* base) {
   ctx.f0.f64 = ctx.f13.f64 = ctx.f14.f64 = -1.0;
   ctx.ctr.u64 = 0xDEAD;
   ctx.lr = 0xDEAD;
-  ctx.cr0.set_raw(0xF);
-  ctx.cr1.set_raw(0xF);
-  ctx.cr5.set_raw(0xF);
-  ctx.cr7.set_raw(0xF);
+  ctx.cr0.SetRaw(0xF);
+  ctx.cr1.SetRaw(0xF);
+  ctx.cr5.SetRaw(0xF);
+  ctx.cr7.SetRaw(0xF);
   ctx.xer.so = 0;
   ctx.xer.ca = 0;
   ctx.v0.u64[0] = ctx.v63.u64[0] = 0xDEAD;
@@ -198,9 +198,9 @@ rex::ppc::ImportFunction<u32()> g_clobber{Clobber};
 REX_TEST_CASE("A call from a mid function hook keeps the caller's registers and red zone",
               "[runtime][call]") {
   GuestThread thread;
-  PPCContext& ctx = *thread.state.context();
+  PPCContext& ctx = *thread.state.GetContext();
   const u32 caller_r1 = ctx.r1.u32;
-  u8* base = thread.memory.virtual_membase();
+  u8* base = thread.memory.GetVirtualMembase();
   ctx.r0.u64 = 1;
   ctx.r4.u64 = 4;
   ctx.r11.u64 = 11;
@@ -212,10 +212,10 @@ REX_TEST_CASE("A call from a mid function hook keeps the caller's registers and 
   ctx.f14.f64 = 14.5;
   ctx.ctr.u64 = 0xC7;
   ctx.lr = 0x82001000;
-  ctx.cr0.set_raw(0x2);
-  ctx.cr1.set_raw(0x4);
-  ctx.cr5.set_raw(0x8);
-  ctx.cr7.set_raw(0x1);
+  ctx.cr0.SetRaw(0x2);
+  ctx.cr1.SetRaw(0x4);
+  ctx.cr5.SetRaw(0x8);
+  ctx.cr7.SetRaw(0x1);
   ctx.xer.so = 1;
   ctx.xer.ca = 1;
   ctx.v0.u64[0] = 0x1111;
@@ -240,10 +240,10 @@ REX_TEST_CASE("A call from a mid function hook keeps the caller's registers and 
   CHECK(ctx.f14.f64 == 14.5);
   CHECK(ctx.ctr.u64 == 0xC7);
   CHECK(ctx.lr == 0x82001000);
-  CHECK(ctx.cr0.raw() == 0x2);
-  CHECK(ctx.cr1.raw() == 0x4);
-  CHECK(ctx.cr5.raw() == 0x8);
-  CHECK(ctx.cr7.raw() == 0x1);
+  CHECK(ctx.cr0.GetRaw() == 0x2);
+  CHECK(ctx.cr1.GetRaw() == 0x4);
+  CHECK(ctx.cr5.GetRaw() == 0x8);
+  CHECK(ctx.cr7.GetRaw() == 0x1);
   CHECK(ctx.xer.so == 1);
   CHECK(ctx.xer.ca == 1);
   CHECK(ctx.v0.u64[0] == 0x1111);
@@ -315,7 +315,7 @@ void ReturnPointer(PPCContext& ctx, u8*) {
 REX_TEST_CASE("A call places integer, float and stack arguments", "[runtime][call]") {
   GuestThread thread;
   g_slots.fill(0xDEAD);
-  PPCContext& ctx = *thread.state.context();
+  PPCContext& ctx = *thread.state.GetContext();
   ctx.r4.u64 = 0x44;
   ctx.r7.u64 = 0x77;
   CHECK(g_arguments(1, 0.25, 2, 3, 0.5, 4, 5, 6, 7, 8, 0.75, 9, 10) == 2.5);
@@ -344,13 +344,13 @@ REX_TEST_CASE("A call passes the 14th float in its stack slot", "[runtime][call]
 
 REX_TEST_CASE("An export reads an integer after a float from the next slot", "[runtime][call]") {
   GuestThread thread;
-  PPCContext& ctx = *thread.state.context();
+  PPCContext& ctx = *thread.state.GetContext();
   ctx.r3.u64 = 1;
   ctx.r4.u64 = 0x44;
   ctx.f1.f64 = 0.5;
   ctx.r5.u64 = 2;
   ctx.r6.u64 = 3;
-  rex::ppc::HostToGuestFunction<&MixedExport>(ctx, thread.state.memory()->virtual_membase());
+  rex::ppc::HostToGuestFunction<&MixedExport>(ctx, thread.state.GetMemory()->GetVirtualMembase());
   CHECK(g_export_ints[0] == 1);
   CHECK(g_export_float == 0.5);
   CHECK(g_export_ints[1] == 2);
@@ -360,7 +360,7 @@ REX_TEST_CASE("An export reads an integer after a float from the next slot", "[r
 
 REX_TEST_CASE("A call frame is aligned, chained and returns to the host", "[runtime][call]") {
   GuestThread thread;
-  const u32 caller_r1 = thread.state.context()->r1.u32;
+  const u32 caller_r1 = thread.state.GetContext()->r1.u32;
   g_arguments(1, 0.25, 2, 3, 0.5, 4, 5, 6, 7, 8, 0.75, 9, 10);
   CHECK(g_back_chain == caller_r1);
   CHECK(g_callee_r1 == ((caller_r1 - rex::ppc::kLinkageSize - 5 * 8) & ~0xFu));
@@ -370,7 +370,7 @@ REX_TEST_CASE("A call frame is aligned, chained and returns to the host", "[runt
 REX_TEST_CASE("Call and GuestToHostFunction return guest pointers and integers",
               "[runtime][call]") {
   GuestThread thread;
-  u8* base = thread.memory.virtual_membase();
+  u8* base = thread.memory.GetVirtualMembase();
   rex::ppc::ImportFunction<u8*(u32)> pointer{ReturnPointer};
   CHECK(pointer(thread.stack) == base + thread.stack + 0x10);
   CHECK(pointer(0) == base + 0x10);
@@ -390,7 +390,7 @@ REX_TEST_CASE("FunctionDispatcher::Execute places register and stack arguments",
                            std::array<u64, 10>{1, 2, 3, 4, 5, 6, 7, 8, 9, 10}));
   CHECK(g_back_chain == thread.stack + kStackSize);
   CHECK(g_callee_lr == rex::ppc::kHostReturnAddress);
-  CHECK(thread.state.context()->r1.u32 == thread.stack + kStackSize);
+  CHECK(thread.state.GetContext()->r1.u32 == thread.stack + kStackSize);
 }
 
 namespace {
@@ -411,7 +411,7 @@ void GuestDPC(PPCContext& ctx, u8* base) {
   const u32 frame = ctx.r1.u32;
   rex::memory::store<be_u32>(base + frame, kSentinel);
   ctx.r31.u64 = 0x3131;
-  rex::testing::Caller caller(ctx, base, rex::runtime::Current());
+  rex::testing::Caller caller(ctx, base, rex::runtime::GetCurrent());
   caller.Kernel("KeInsertQueueDpc", {dpc, 0, 0});
   if (rex::memory::load<be_u32>(base + frame) != kSentinel || ctx.r1.u32 != frame ||
       ctx.r31.u64 != 0x3131) {
@@ -431,8 +431,8 @@ REX_TEST_CASE("A DPC drained inside a call runs on the thread's register file", 
   rex::testing::KernelFixture fixture;
   fixture.RunOnGuestThread([](rex::testing::Caller& c) {
     auto* state = ThreadState::Get();
-    const u32 r1 = state->context()->r1.u32;
-    const u32 thunk = c.runtime().function_dispatcher()->AllocateThunk(&RecordingDPC, 0);
+    const u32 r1 = state->GetContext()->r1.u32;
+    const u32 thunk = c.GetRuntime().GetFunctionDispatcher()->AllocateThunk(&RecordingDPC, 0);
     CHECKED_ELSE(thunk != 0) {
       FAIL_CHECK("the check above failed");
       return;
@@ -440,10 +440,10 @@ REX_TEST_CASE("A DPC drained inside a call runs on the thread's register file", 
     const u32 dpc = c.Alloc(0x20);
     c.Kernel("KeInitializeDpc", {dpc, thunk, 0});
     g_guest_dpc(dpc);
-    CHECK(g_dpc_ctx == state->context());
-    CHECK(g_call_ctx == state->context());
+    CHECK(g_dpc_ctx == state->GetContext());
+    CHECK(g_call_ctx == state->GetContext());
     CHECK(g_drain_failures == 0);
-    CHECK(state->context()->r1.u32 == r1);
+    CHECK(state->GetContext()->r1.u32 == r1);
   });
 }
 
@@ -476,7 +476,7 @@ void GuestFiberBody(PPCContext& ctx, u8* base) {
   ctx.r3.u64 = fiber;
   rexshim_SwitchToFiber(ctx, base);
   if (rex::memory::load<be_u32>(base + frame) != kSentinel || ctx.r1.u32 != frame ||
-      ctx.r31.u64 != 0x3131 || &ctx != ThreadState::Get()->context()) {
+      ctx.r31.u64 != 0x3131 || &ctx != ThreadState::Get()->GetContext()) {
     ++g_fiber_failures;
   }
   ctx.r3.u64 = fiber;
@@ -496,8 +496,8 @@ REX_TEST_CASE("A fiber switch inside a call returns to the calling frame", "[run
   rex::testing::KernelFixture fixture;
   fixture.RunOnGuestThread([](rex::testing::Caller& c) {
     auto* state = ThreadState::Get();
-    const u32 r1 = state->context()->r1.u32;
-    const u32 body = c.runtime().function_dispatcher()->AllocateThunk(&SwitchBackBody, 0);
+    const u32 r1 = state->GetContext()->r1.u32;
+    const u32 body = c.GetRuntime().GetFunctionDispatcher()->AllocateThunk(&SwitchBackBody, 0);
     CHECKED_ELSE(body != 0) {
       FAIL_CHECK("the check above failed");
       return;
@@ -505,6 +505,6 @@ REX_TEST_CASE("A fiber switch inside a call returns to the calling frame", "[run
     g_guest_fiber(body);
     CHECK(g_fiber_runs == 1);
     CHECK(g_fiber_failures == 0);
-    CHECK(state->context()->r1.u32 == r1);
+    CHECK(state->GetContext()->r1.u32 == r1);
   });
 }

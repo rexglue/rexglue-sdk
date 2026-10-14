@@ -18,18 +18,18 @@ BinarySymbolType SymbolTypeFromNmChar(char c) {
   switch (c) {
     case 'T':
     case 't':
-      return BinarySymbolType::Function;
+      return BinarySymbolType::kFunction;
     case 'D':
     case 'd':
     case 'B':
     case 'b':
     case 'R':
     case 'r':
-      return BinarySymbolType::Data;
+      return BinarySymbolType::kData;
     case 'U':
-      return BinarySymbolType::Import;
+      return BinarySymbolType::kImport;
     default:
-      return BinarySymbolType::Unknown;
+      return BinarySymbolType::kUnknown;
   }
 }
 
@@ -116,7 +116,7 @@ std::expected<std::vector<BinarySymbol>, MapParseError> ParseNmMapString(
   }
 
   if (symbols.empty()) {
-    return std::unexpected(MapParseError::Empty);
+    return std::unexpected(MapParseError::kEmpty);
   }
 
   return symbols;
@@ -125,12 +125,12 @@ std::expected<std::vector<BinarySymbol>, MapParseError> ParseNmMapString(
 std::expected<std::vector<BinarySymbol>, MapParseError> ParseNmMap(
     const std::filesystem::path& map_path, const MapParseOptions& options) {
   if (!std::filesystem::exists(map_path)) {
-    return std::unexpected(MapParseError::FileNotFound);
+    return std::unexpected(MapParseError::kFileNotFound);
   }
 
   std::ifstream file(map_path, std::ios::binary);
   if (!file) {
-    return std::unexpected(MapParseError::FileReadError);
+    return std::unexpected(MapParseError::kFileReadError);
   }
 
   std::ostringstream ss;

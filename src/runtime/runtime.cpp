@@ -43,7 +43,7 @@ namespace {
 constexpr u32 kXNotificationSystemInputDevicesChanged = 0x00000012;
 
 rex::Error SetupError(X_STATUS status, std::string message) {
-  return {ErrorCategory::Runtime, std::move(message), static_cast<int>(status)};
+  return {ErrorCategory::kRuntime, std::move(message), static_cast<int>(status)};
 }
 
 }  // namespace
@@ -92,7 +92,7 @@ std::optional<EmbeddedMetadataAsset> Runtime::FindEmbeddedMetadata(
 }
 
 Result<void> Runtime::Setup(const RuntimeDesc& config) {
-  if (runtime::RuntimeModule::active() != nullptr) {
+  if (runtime::RuntimeModule::GetActive() != nullptr) {
     return Err(SetupError(X_STATUS_UNSUCCESSFUL, "another runtime is active"));
   }
   constexpr u32 kMaxTitleMemoryMB = 512;
@@ -107,11 +107,11 @@ Result<void> Runtime::Setup(const RuntimeDesc& config) {
     return Err(SetupError(status, std::string(reason)));
   };
 
-  rex::initialize_seh();
+  rex::InitializeSEH();
 
-  Clock::set_guest_tick_frequency(50000000);
-  Clock::set_guest_system_time_base(Clock::QueryHostSystemTime());
-  Clock::set_guest_time_scalar(1.0);
+  Clock::SetGuestTickFrequency(50000000);
+  Clock::SetGuestSystemTimeBase(Clock::QueryHostSystemTime());
+  Clock::SetGuestTimeScalar(1.0);
 
   platform::EnableAffinityConfiguration();
 
@@ -134,14 +134,14 @@ Result<void> Runtime::Setup(const RuntimeDesc& config) {
 
   CreateSubsystems();
 
-  hid_ = runtime::RuntimeModule::hid_backend();
+  hid_ = runtime::RuntimeModule::GetHIDBackend();
   if (!hid_) {
     null_hid_ = std::make_unique<hid::NullHIDBackend>();
     hid_ = null_hid_.get();
     REXLOG_INFO(hid, "no hid module is loaded, the title sees 1 idle pad on user 0");
   }
   hid_->SetConnectionListener([this](u32, bool) {
-    notifier().BroadcastNotification(kXNotificationSystemInputDevicesChanged, 0);
+    GetNotifier().BroadcastNotification(kXNotificationSystemInputDevicesChanged, 0);
   });
 
   if (config.kernel_init) {
@@ -151,7 +151,7 @@ Result<void> Runtime::Setup(const RuntimeDesc& config) {
   }
 
   if (!tool_mode_) {
-    apu::IAPUBackend* apu_backend = runtime::RuntimeModule::apu_backend();
+    apu::IAPUBackend* apu_backend = runtime::RuntimeModule::GetAPUBackend();
     if (!apu_backend) {
       null_apu_ = std::make_unique<apu::NullAPUBackend>();
       apu_backend = null_apu_.get();
@@ -277,7 +277,7 @@ void Runtime::Shutdown() {
     hid_ = nullptr;
   }
   null_hid_.reset();
-  if (runtime::RuntimeModule::active() == this) {
+  if (runtime::RuntimeModule::GetActive() == this) {
     runtime::RuntimeModule::SetActive(nullptr);
   }
   DestroySubsystems();
@@ -296,12 +296,12 @@ void Runtime::SetAudioPaused(bool paused) {
   }
 }
 
-bool Runtime::audio_paused() const {
-  return apu_ && apu_->paused();
+bool Runtime::GetAudioPaused() const {
+  return apu_ && apu_->GetPaused();
 }
 
-u8* Runtime::virtual_membase() const {
-  return memory_ ? memory_->virtual_membase() : nullptr;
+u8* Runtime::GetVirtualMembase() const {
+  return memory_ ? memory_->GetVirtualMembase() : nullptr;
 }
 
 Result<void> Runtime::LoadXEXImage(const std::string_view module_path) {
@@ -325,59 +325,59 @@ Result<void> Runtime::LoadXEXImage(const std::string_view module_path) {
 }
 
 X_HANDLE Runtime::PrepareModuleLaunch() {
-  const std::optional<X_HANDLE> executable = module_registry_->executable();
+  const std::optional<X_HANDLE> executable = module_registry_->GetExecutable();
   if (!executable) {
     REX_FAIL(system, 0, "Runtime::PrepareModuleLaunch: No executable module loaded");
   }
   auto module = object_table_->Get<runtime::ModuleObject>(*executable);
-  if (!module || !module->processor_module->is_executable()) {
+  if (!module || !module->processor_module->IsExecutable()) {
     REX_FAIL(system, 0, "Runtime::PrepareModuleLaunch: Failed to prepare module");
   }
   SetExecutableModule(*executable);
   REXLOG_DEBUG(system, "Runtime: Preparing module launch...");
   auto thread = std::make_unique<runtime::KernelThread>(*this, module->user.stack_size, 0,
                                                         module->user.entry_point, 0,
-                                                        runtime::X_CREATE_SUSPENDED, true, true);
-  thread->set_name("Main XThread");
+                                                        runtime::kXCreateSuspended, true, true);
+  thread->SetName("Main XThread");
   Result<X_HANDLE> launched = thread_registry_->Launch(std::move(thread));
   if (!launched) {
     REX_FAIL(system, 0, "Could not create launch thread: {:08X}", runtime::ToXStatus(launched));
   }
-  if (auto thread = thread_registry_->FindByHandle(*launched)) {
-    REXLOG_DEBUG(system, "  Module prepared on thread '{}'", thread->name());
+  if (auto launch_thread = thread_registry_->FindByHandle(*launched)) {
+    REXLOG_DEBUG(system, "  Module prepared on thread '{}'", launch_thread->GetName());
   }
   return *launched;
 }
 
-runtime::IObjectTable& Runtime::object_table() {
+runtime::IObjectTable& Runtime::GetObjectTable() {
   return *object_table_;
 }
 
-runtime::IThreadRegistry& Runtime::thread_registry() {
+runtime::IThreadRegistry& Runtime::GetThreadRegistry() {
   return *thread_registry_;
 }
 
-runtime::WorkspaceHeap& Runtime::workspace() {
+runtime::WorkspaceHeap& Runtime::GetWorkspace() {
   return *workspace_;
 }
 
-runtime::IModuleRegistry& Runtime::module_registry() {
+runtime::IModuleRegistry& Runtime::GetModuleRegistry() {
   return *module_registry_;
 }
 
-runtime::INotifier& Runtime::notifier() {
+runtime::INotifier& Runtime::GetNotifier() {
   return *notifier_;
 }
 
-runtime::IContentManager& Runtime::content_manager() {
+runtime::IContentManager& Runtime::GetContentManager() {
   return *content_manager_;
 }
 
-runtime::IAchievementManager& Runtime::achievement_manager() {
+runtime::IAchievementManager& Runtime::GetAchievementManager() {
   return *achievement_manager_;
 }
 
-runtime::IDispatcher& Runtime::dispatcher() {
+runtime::IDispatcher& Runtime::GetDispatcher() {
   return *dispatcher_;
 }
 

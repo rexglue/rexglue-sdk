@@ -79,7 +79,7 @@ class HostFile : public NonCopyable {
    *
    * @return The path the handle was opened with.
    */
-  [[nodiscard]] const std::filesystem::path& path() const { return path_; }
+  [[nodiscard]] const std::filesystem::path& GetPath() const { return path_; }
 
   /**
    * Copies bytes from the file.

@@ -70,9 +70,9 @@ X_HANDLE CreateXboxkrnlModule(Runtime& runtime) {
   if (!handle) {
     return 0;
   }
-  auto module_pin = runtime.object_table().Get<ModuleObject>(handle);
+  auto module_pin = runtime.GetObjectTable().Get<ModuleObject>(handle);
   ModuleObject& module = *module_pin;
-  auto* mem = runtime.memory();
+  auto* mem = runtime.GetMemory();
 
   RegisterVideoExports(module, runtime);
 
@@ -83,48 +83,48 @@ X_HANDLE CreateXboxkrnlModule(Runtime& runtime) {
   }
 
   // Titles test bit 5 (0x20) of flags. Bit 27 (debug mode) breaks allocations when set.
-  u32 pXboxHardwareInfo = mem->SystemHeapAlloc(sizeof(X_HARDWARE_INFO));
-  auto* hardware_info = mem->TranslateVirtual<X_HARDWARE_INFO*>(pXboxHardwareInfo);
-  module.SetVariable(0x0156, pXboxHardwareInfo);
+  u32 p_xbox_hardware_info = mem->SystemHeapAlloc(sizeof(X_HARDWARE_INFO));
+  auto* hardware_info = mem->TranslateVirtual<X_HARDWARE_INFO*>(p_xbox_hardware_info);
+  module.SetVariable(0x0156, p_xbox_hardware_info);
   hardware_info->flags = 0x20;
   hardware_info->cpu_count = 0x06;
 
   // All 0xFF satisfies any region check.
-  u32 pExConsoleGameRegion = mem->SystemHeapAlloc(4);
-  auto lpExConsoleGameRegion = mem->TranslateVirtual(pExConsoleGameRegion);
-  module.SetVariable(0x000C, pExConsoleGameRegion);
-  memory::store<u32>(lpExConsoleGameRegion, 0xFFFFFFFF);
+  u32 p_ex_console_game_region = mem->SystemHeapAlloc(4);
+  auto lp_ex_console_game_region = mem->TranslateVirtual(p_ex_console_game_region);
+  module.SetVariable(0x000C, p_ex_console_game_region);
+  memory::store<u32>(lp_ex_console_game_region, 0xFFFFFFFF);
 
   // Titles dereference this to find the XexHeaderBase used by RtlImageXexHeaderField.
-  u32 ppXexExecutableModuleHandle = mem->SystemHeapAlloc(4);
-  module.SetVariable(0x0193, ppXexExecutableModuleHandle);
+  u32 pp_xex_executable_module_handle = mem->SystemHeapAlloc(4);
+  module.SetVariable(0x0193, pp_xex_executable_module_handle);
 
   // The full path of the loaded image including its name.
-  u32 ppExLoadedImageName = mem->SystemHeapAlloc(kExLoadedImageNameSize);
-  module.SetVariable(0x01AF, ppExLoadedImageName);
+  u32 pp_ex_loaded_image_name = mem->SystemHeapAlloc(kExLoadedImageNameSize);
+  module.SetVariable(0x01AF, pp_ex_loaded_image_name);
 
-  const std::string& arguments = runtime.config().runtime.kernel.command_line;
+  const std::string& arguments = runtime.GetConfig().runtime.kernel.command_line;
   const std::string command_line = runtime::LoadedCommandLine("default.xex", arguments);
   const u32 command_line_length = runtime::LoadedCommandLineCapacity(arguments);
-  u32 pExLoadedCommandLine = mem->SystemHeapAlloc(command_line_length);
-  auto lpExLoadedCommandLine = mem->TranslateVirtual(pExLoadedCommandLine);
-  module.SetVariable(0x01AE, pExLoadedCommandLine);
-  std::memset(lpExLoadedCommandLine, 0, command_line_length);
-  std::memcpy(lpExLoadedCommandLine, command_line.c_str(), command_line.length());
+  u32 p_ex_loaded_command_line = mem->SystemHeapAlloc(command_line_length);
+  auto lp_ex_loaded_command_line = mem->TranslateVirtual(p_ex_loaded_command_line);
+  module.SetVariable(0x01AE, p_ex_loaded_command_line);
+  std::memset(lp_ex_loaded_command_line, 0, command_line_length);
+  std::memcpy(lp_ex_loaded_command_line, command_line.c_str(), command_line.length());
 
   // Titles only compare the version with >=.
-  u32 pXboxKrnlVersion = mem->SystemHeapAlloc(sizeof(X_KERNEL_VERSION));
-  auto* kernel_version = mem->TranslateVirtual<X_KERNEL_VERSION*>(pXboxKrnlVersion);
-  module.SetVariable(0x0158, pXboxKrnlVersion);
+  u32 p_xbox_krnl_version = mem->SystemHeapAlloc(sizeof(X_KERNEL_VERSION));
+  auto* kernel_version = mem->TranslateVirtual<X_KERNEL_VERSION*>(p_xbox_krnl_version);
+  module.SetVariable(0x0158, p_xbox_krnl_version);
   kernel_version->major = 2;
   kernel_version->minor = 0xFFFF;
   kernel_version->build = 0xFFFF;
   kernel_version->qfe = 0x8000;
 
   // Updated at 1 ms intervals by a system timer.
-  u32 pKeTimeStampBundle = mem->SystemHeapAlloc(sizeof(X_KE_TIMESTAMP_BUNDLE));
-  auto* timestamp_bundle = mem->TranslateVirtual<X_KE_TIMESTAMP_BUNDLE*>(pKeTimeStampBundle);
-  module.SetVariable(0x00AD, pKeTimeStampBundle);
+  u32 p_ke_time_stamp_bundle = mem->SystemHeapAlloc(sizeof(X_KE_TIMESTAMP_BUNDLE));
+  auto* timestamp_bundle = mem->TranslateVirtual<X_KE_TIMESTAMP_BUNDLE*>(p_ke_time_stamp_bundle);
+  module.SetVariable(0x00AD, p_ke_time_stamp_bundle);
   timestamp_bundle->interrupt_time = 0;
   timestamp_bundle->system_time = 0;
   timestamp_bundle->tick_count = Clock::QueryGuestUptimeMillis();
@@ -133,7 +133,7 @@ X_HANDLE CreateXboxkrnlModule(Runtime& runtime) {
       std::chrono::milliseconds(1),
       [timestamp_bundle]() { timestamp_bundle->tick_count = Clock::QueryGuestUptimeMillis(); });
 
-  auto kgg = runtime.kernel_globals();
+  auto kgg = runtime.GetKernelGlobals();
   REX_ASSERT(kgg != 0);
   module.SetVariable(0x001B, kgg + offsetof(KernelGuestGlobals, ExThreadObjectType));
   module.SetVariable(0x000E, kgg + offsetof(KernelGuestGlobals, ExEventObjectType));

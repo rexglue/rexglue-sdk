@@ -26,7 +26,7 @@
 
 /**
  * Hooks a recompiled function with a native C++ function. The native function uses plain types
- * (u32, mapped_u32 and others) and HostToGuestFunction translates the registers.
+ * (u32, MappedU32 and others) and HostToGuestFunction translates the registers.
  *
  * @param subroutine The recompiled function symbol.
  * @param function The native function the hook calls.
@@ -190,7 +190,7 @@ struct ImportFunction<R(Args...)> {
    */
   R operator()(Args... args) const {
     auto* ts = rex::runtime::ThreadState::Get();
-    return Call<R>(*ts->context(), ts->memory()->virtual_membase(), fn, args...);
+    return Call<R>(*ts->GetContext(), ts->GetMemory()->GetVirtualMembase(), fn, args...);
   }
 };
 

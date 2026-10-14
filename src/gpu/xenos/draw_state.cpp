@@ -92,28 +92,27 @@ void GetPreferredFacePolygonOffset(const xenos::RegisterFile& regs, bool primiti
 
 bool IsPixelShaderNeededWithRasterization(const Shader& shader, const xenos::RegisterFile& regs,
                                           bool include_memory_export) {
-  REX_ASSERT(shader.type() == xenos::ShaderType::kPixel);
-  REX_ASSERT(shader.is_ucode_analyzed());
+  REX_ASSERT(shader.GetType() == xenos::ShaderType::kPixel);
+  REX_ASSERT(shader.IsUcodeAnalyzed());
 
   if (regs.Get<xenos::reg::RB_MODECONTROL>().edram_mode != xenos::EDRAMMode::kColorDepth) {
     return false;
   }
 
-  if (shader.kills_pixels() || shader.writes_depth() ||
-      (include_memory_export && shader.memexport_eM_written()) ||
-      (shader.writes_color_target(0) &&
+  if (shader.GetKillsPixels() || shader.GetWritesDepth() ||
+      (include_memory_export && shader.GetMemExportEMWritten()) ||
+      (shader.GetWritesColorTarget(0) &&
        DoesCoverageDependOnAlpha(regs.Get<xenos::reg::RB_COLORCONTROL>()))) {
     return true;
   }
 
   u32 rb_color_mask = regs[std::to_underlying(xenos::Register::RB_COLOR_MASK)];
-  u32 rts_remaining = shader.writes_color_targets();
+  u32 rts_remaining = shader.GetWritesColorTargets();
   u32 rt_index;
   while (rex::bit_scan_forward(rts_remaining, &rt_index)) {
     rts_remaining &= ~(static_cast<u32>(1) << rt_index);
     u32 format_component_count = GetColorRenderTargetFormatComponentCount(
-        regs.Get<xenos::reg::RB_COLOR_INFO>(
-                xenos::reg::RB_COLOR_INFO::rt_register_indices[rt_index])
+        regs.Get<xenos::reg::RB_COLOR_INFO>(xenos::reg::RB_COLOR_INFO::kRtRegisterIndices[rt_index])
             .color_format);
     if ((rb_color_mask >> (rt_index * 4)) & ((static_cast<u32>(1) << format_component_count) - 1)) {
       return true;
@@ -318,7 +317,7 @@ u32 GetNormalizedColorMask(const xenos::RegisterFile& regs, u32 pixel_shader_wri
     }
     u32 format_component_mask =
         (static_cast<u32>(1) << xenos::GetColorRenderTargetFormatComponentCount(
-             regs.Get<xenos::reg::RB_COLOR_INFO>(xenos::reg::RB_COLOR_INFO::rt_register_indices[i])
+             regs.Get<xenos::reg::RB_COLOR_INFO>(xenos::reg::RB_COLOR_INFO::kRtRegisterIndices[i])
                  .color_format)) -
         1;
     u32 rt_write_mask = (rb_color_mask >> (4 * i)) & format_component_mask;
@@ -333,13 +332,13 @@ u32 GetNormalizedColorMask(const xenos::RegisterFile& regs, u32 pixel_shader_wri
 
 void AddMemExportRanges(const xenos::RegisterFile& regs, const Shader& shader,
                         std::vector<MemExportRange>& ranges_out) {
-  if (!shader.memexport_eM_written()) {
+  if (!shader.GetMemExportEMWritten()) {
     return;
   }
-  u32 float_constants_base = shader.type() == xenos::ShaderType::kVertex
+  u32 float_constants_base = shader.GetType() == xenos::ShaderType::kVertex
                                  ? regs.Get<xenos::reg::SQ_VS_CONST>().base
                                  : regs.Get<xenos::reg::SQ_PS_CONST>().base;
-  for (u32 constant_index : shader.memexport_stream_constants()) {
+  for (u32 constant_index : shader.GetMemexportStreamConstants()) {
     xenos::MemExportStream stream = regs.GetMemExportStream(float_constants_base + constant_index);
     if (stream.const_0x1 != 0x1 || stream.const_0x4b0 != 0x4B0 || stream.const_0x96 != 0x96 ||
         !stream.index_count) {
@@ -439,7 +438,7 @@ void GetResolveEDRAMTileSpan(ResolveEDRAMInfo edram_info, ResolveCoordinateInfo 
 }
 
 const ResolveCopyShaderInfo
-    resolve_copy_shader_info[static_cast<size_t>(ResolveCopyShaderIndex::kCount)] = {
+    kResolveCopyShaderInfo[static_cast<size_t>(ResolveCopyShaderIndex::kCount)] = {
         {"Resolve Copy Fast 32bpp 1x/2xMSAA", false, 4, 4, 6, 3},
         {"Resolve Copy Fast 32bpp 4xMSAA", false, 4, 4, 6, 3},
         {"Resolve Copy Fast 64bpp 1x/2xMSAA", false, 4, 4, 5, 3},
@@ -483,7 +482,7 @@ bool GetResolveInfo(const xenos::RegisterFile& regs, const runtime::Memory& memo
       regs.Get<xenos::reg::PA_SU_VTX_CNTL>().pix_center == xenos::PixelCenter::kD3DZero ? 0.5f
                                                                                         : 0.0f;
   i32 vertices_fixed[6];
-  for (size_t i = 0; i < rex::countof(vertices_fixed); ++i) {
+  for (size_t i = 0; i < rex::CountOf(vertices_fixed); ++i) {
     vertices_fixed[i] = gpu::FloatToD3D11Fixed16p8(xenos::GPUSwap(vertices_guest[i], fetch.endian) +
                                                    half_pixel_offset);
   }
@@ -523,8 +522,8 @@ bool GetResolveInfo(const xenos::RegisterFile& regs, const runtime::Memory& memo
 
   x0 &= ~static_cast<i32>(xenos::kResolveAlignmentPixels - 1);
   y0 &= ~static_cast<i32>(xenos::kResolveAlignmentPixels - 1);
-  x1 = rex::align(x1, static_cast<i32>(xenos::kResolveAlignmentPixels));
-  y1 = rex::align(y1, static_cast<i32>(xenos::kResolveAlignmentPixels));
+  x1 = rex::Align(x1, static_cast<i32>(xenos::kResolveAlignmentPixels));
+  y1 = rex::Align(y1, static_cast<i32>(xenos::kResolveAlignmentPixels));
 
   auto rb_surface_info = regs.Get<xenos::reg::RB_SURFACE_INFO>();
   if (rb_surface_info.msaa_samples > xenos::MSAASamples::k4X) {
@@ -713,7 +712,7 @@ bool GetResolveInfo(const xenos::RegisterFile& regs, const runtime::Memory& memo
   color_edram_info.packed = 0;
   if (!is_depth) {
     auto color_info = regs.Get<xenos::reg::RB_COLOR_INFO>(
-        xenos::reg::RB_COLOR_INFO::rt_register_indices[rb_copy_control.copy_src_select]);
+        xenos::reg::RB_COLOR_INFO::kRtRegisterIndices[rb_copy_control.copy_src_select]);
     u32 is_64bpp = static_cast<u32>(xenos::IsColorRenderTargetFormat64bpp(color_info.color_format));
     color_edram_info.pitch_tiles = surface_pitch_tiles << is_64bpp;
     color_edram_info.msaa_samples = rb_surface_info.msaa_samples;
@@ -815,8 +814,7 @@ ResolveCopyShaderIndex ResolveInfo::GetCopyShader(u32 draw_resolution_scale_x,
     u32 width = (coordinate_info.width_div_8 << xenos::kResolveAlignmentPixelsLog2) *
                 draw_resolution_scale_x;
     u32 height = (height_div_8 << xenos::kResolveAlignmentPixelsLog2) * draw_resolution_scale_y;
-    const ResolveCopyShaderInfo& shader_info =
-        resolve_copy_shader_info[static_cast<size_t>(shader)];
+    const ResolveCopyShaderInfo& shader_info = kResolveCopyShaderInfo[static_cast<size_t>(shader)];
     group_count_x_out =
         (width + ((1 << shader_info.group_size_x_log2) - 1)) >> shader_info.group_size_x_log2;
     group_count_y_out =

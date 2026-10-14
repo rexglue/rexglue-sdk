@@ -23,7 +23,7 @@ REX_TEST_CASE("ReportTitleExit calls the callback once with the first reason", "
   rex::Runtime runtime(config);
   std::vector<TitleExitReason> seen;
   runtime.OnTitleExit([&](TitleExitReason reason) { seen.push_back(reason); });
-  runtime.ReportTitleExit(TitleExitReason::HardExit);
-  runtime.ReportTitleExit(TitleExitReason::NormalExit);
-  REQUIRE(seen == std::vector<TitleExitReason>{TitleExitReason::HardExit});
+  runtime.ReportTitleExit(TitleExitReason::kHardExit);
+  runtime.ReportTitleExit(TitleExitReason::kNormalExit);
+  REQUIRE(seen == std::vector<TitleExitReason>{TitleExitReason::kHardExit});
 }

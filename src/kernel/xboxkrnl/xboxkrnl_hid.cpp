@@ -51,7 +51,7 @@ u32 HidGetCapabilities_entry([[maybe_unused]] u32 unk1, [[maybe_unused]] u32 cap
  * @param time_ptr Receives the time.
  * @return X_STATUS_SUCCESS.
  */
-u32 HidGetLastInputTime_entry(mapped_u32 time_ptr) {
+u32 HidGetLastInputTime_entry(MappedU32 time_ptr) {
   if (time_ptr) {
     *time_ptr = 0;
   }

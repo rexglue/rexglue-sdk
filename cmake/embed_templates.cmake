@@ -4,6 +4,27 @@ endif()
 
 file(GLOB_RECURSE INJA_TEMPLATE_FILES "${TEMPLATE_SOURCE_DIR}/*.inja")
 
+function(template_constant_name CANONICAL_ID OUT_VAR)
+    string(REGEX REPLACE "[/_-]+" ";" WORDS "${CANONICAL_ID}")
+    set(NAME "k")
+    foreach(WORD ${WORDS})
+        if(WORD STREQUAL "dll" OR WORD STREQUAL "pch" OR WORD STREQUAL "ppc" OR WORD STREQUAL "toml")
+            string(TOUPPER "${WORD}" WORD)
+        elseif(WORD STREQUAL "cmake")
+            set(WORD "CMake")
+        elseif(WORD STREQUAL "cmakelists")
+            set(WORD "CMakeLists")
+        else()
+            string(SUBSTRING "${WORD}" 0 1 FIRST)
+            string(SUBSTRING "${WORD}" 1 -1 REST)
+            string(TOUPPER "${FIRST}" FIRST)
+            set(WORD "${FIRST}${REST}")
+        endif()
+        string(APPEND NAME "${WORD}")
+    endforeach()
+    set(${OUT_VAR} "${NAME}" PARENT_SCOPE)
+endfunction()
+
 set(FORBIDDEN_DELIMITER ")__TMPL__\"")
 
 set(EMBEDDED_INCLUDES "")
@@ -27,18 +48,20 @@ foreach(TEMPLATE_FILE ${INJA_TEMPLATE_FILES})
     string(REPLACE "-" "_" VAR_NAME "${VAR_NAME}")
     string(REGEX REPLACE "_+" "_" VAR_NAME "${VAR_NAME}")
 
+    template_constant_name("${CANONICAL_ID}" CONSTANT_NAME)
+
     set(HEADER_FILE "${TEMPLATE_OUTPUT_DIR}/${VAR_NAME}.inja.h")
     file(WRITE "${HEADER_FILE}"
         "// Auto-generated from resources/templates/${REL_PATH} -- DO NOT EDIT\n"
         "#pragma once\n"
         "#include <string_view>\n\n"
         "namespace rex::codegen::embedded {\n"
-        "inline constexpr std::string_view ${VAR_NAME} = R\"__TMPL__(${TEMPLATE_CONTENT})__TMPL__\";\n"
+        "inline constexpr std::string_view ${CONSTANT_NAME} = R\"__TMPL__(${TEMPLATE_CONTENT})__TMPL__\";\n"
         "}  // namespace rex::codegen::embedded\n"
     )
 
     string(APPEND EMBEDDED_INCLUDES "#include \"${VAR_NAME}.inja.h\"\n")
-    string(APPEND EMBEDDED_MAP_ENTRIES "    {\"${CANONICAL_ID}\", embedded::${VAR_NAME}},\n")
+    string(APPEND EMBEDDED_MAP_ENTRIES "    {\"${CANONICAL_ID}\", embedded::${CONSTANT_NAME}},\n")
 endforeach()
 
 file(WRITE "${TEMPLATE_OUTPUT_DIR}/embedded_templates.h"
@@ -49,11 +72,11 @@ file(WRITE "${TEMPLATE_OUTPUT_DIR}/embedded_templates.h"
     "#include <string>\n\n"
     "${EMBEDDED_INCLUDES}\n"
     "namespace rex::codegen {\n\n"
-    "inline const std::unordered_map<std::string, std::string_view>& embeddedTemplates() {\n"
-    "  static const std::unordered_map<std::string, std::string_view> map = {\n"
+    "inline const std::unordered_map<std::string, std::string_view>& EmbeddedTemplates() {\n"
+    "  static const std::unordered_map<std::string, std::string_view> kTemplates = {\n"
     "${EMBEDDED_MAP_ENTRIES}"
     "  };\n"
-    "  return map;\n"
+    "  return kTemplates;\n"
     "}\n\n"
     "}  // namespace rex::codegen\n"
 )

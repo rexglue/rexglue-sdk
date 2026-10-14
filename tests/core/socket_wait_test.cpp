@@ -37,7 +37,7 @@ struct DatagramSocket {
   }
 
   ~DatagramSocket() {
-    rex::platform::socket_close(handle);
+    rex::platform::SocketClose(handle);
 #if REX_PLATFORM_WIN32
     WSACleanup();
 #endif
@@ -48,11 +48,11 @@ struct DatagramSocket {
 
 }  // namespace
 
-REX_TEST_CASE("socket_wait returns when the prepared event is set", "[core][socket]") {
+REX_TEST_CASE("WaitSockets returns when the prepared event is set", "[core][socket]") {
   DatagramSocket datagram;
   REQUIRE(datagram.handle != rex::platform::kInvalidSocket);
   auto event = rex::platform::Event::CreateManualResetEvent(false);
-  REQUIRE(rex::platform::socket_prepare(datagram.handle, event.get()) == 0);
+  REQUIRE(rex::platform::SocketPrepare(datagram.handle, event.get()) == 0);
 
   std::jthread setter([&event] {
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
@@ -61,20 +61,20 @@ REX_TEST_CASE("socket_wait returns when the prepared event is set", "[core][sock
   const rex::platform::SocketWait wait{datagram.handle, event.get(),
                                        rex::platform::SocketReady::kRead};
   const auto start = std::chrono::steady_clock::now();
-  CHECK(rex::platform::socket_wait({&wait, 1}, false, std::chrono::seconds(5)) ==
+  CHECK(rex::platform::WaitSockets({&wait, 1}, false, std::chrono::seconds(5)) ==
         rex::platform::WaitResult::kSuccess);
   CHECK(std::chrono::steady_clock::now() - start < std::chrono::seconds(4));
 }
 
-REX_TEST_CASE("socket_wait times out after the prepared event is reset", "[core][socket]") {
+REX_TEST_CASE("WaitSockets times out after the prepared event is reset", "[core][socket]") {
   DatagramSocket datagram;
   REQUIRE(datagram.handle != rex::platform::kInvalidSocket);
   auto event = rex::platform::Event::CreateManualResetEvent(false);
-  REQUIRE(rex::platform::socket_prepare(datagram.handle, event.get()) == 0);
+  REQUIRE(rex::platform::SocketPrepare(datagram.handle, event.get()) == 0);
   event->Set();
   event->Reset();
   const rex::platform::SocketWait wait{datagram.handle, event.get(),
                                        rex::platform::SocketReady::kRead};
-  CHECK(rex::platform::socket_wait({&wait, 1}, false, std::chrono::milliseconds(50)) ==
+  CHECK(rex::platform::WaitSockets({&wait, 1}, false, std::chrono::milliseconds(50)) ==
         rex::platform::WaitResult::kTimeout);
 }

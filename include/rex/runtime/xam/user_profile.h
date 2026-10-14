@@ -98,7 +98,7 @@ class UserProfile {
      *
      * @return The guest address.
      */
-    u32 ptr() const { return static_cast<u32>(ptr_ + offset()); }
+    u32 GetPtr() const { return static_cast<u32>(ptr_ + GetOffset()); }
 
    private:
     u32 ptr_;
@@ -107,15 +107,15 @@ class UserProfile {
   struct Setting {
     /** Value type of a setting, matching the XUSER_DATA type byte. */
     enum class Type : u8 {
-      CONTENT = 0,  /**< Context value. */
-      INT32 = 1,    /**< 32 bit integer. */
-      INT64 = 2,    /**< 64 bit integer. */
-      DOUBLE = 3,   /**< 64 bit floating point. */
-      WSTRING = 4,  /**< UTF-16 string. */
-      FLOAT = 5,    /**< 32 bit floating point. */
-      BINARY = 6,   /**< Binary data. */
-      DATETIME = 7, /**< Date and time. */
-      UNSET = 0xFF, /**< No value. */
+      kContent = 0,  /**< Context value. */
+      kInt32 = 1,    /**< 32 bit integer. */
+      kInt64 = 2,    /**< 64 bit integer. */
+      kDouble = 3,   /**< 64 bit floating point. */
+      kWString = 4,  /**< UTF-16 string. */
+      kFloat = 5,    /**< 32 bit floating point. */
+      kBinary = 6,   /**< Binary data. */
+      kDateTime = 7, /**< Date and time. */
+      kUnset = 0xFF, /**< No value. */
     };
     /** Fields packed into a setting id. */
     union Key {
@@ -171,18 +171,17 @@ class UserProfile {
      *
      * @return True when the id is in the title specific range.
      */
-    bool is_title_specific() const { return (setting_id & 0x3F00) == 0x3F00; }
+    bool IsTitleSpecific() const { return (setting_id & 0x3F00) == 0x3F00; }
   };
   /** Profile setting holding a 32 bit integer. */
   struct Int32Setting : public Setting {
     /**
      * Constructs the setting.
      *
-     * @param setting_id The id of the setting.
+     * @param id The id of the setting.
      * @param value The integer.
      */
-    Int32Setting(u32 setting_id, i32 value)
-        : Setting(setting_id, Type::INT32, 4, true), value(value) {}
+    Int32Setting(u32 id, i32 value) : Setting(id, Type::kInt32, 4, true), value(value) {}
     i32 value; /**< The integer. */
     /**
      * Writes the integer into the guest value.
@@ -200,11 +199,10 @@ class UserProfile {
     /**
      * Constructs the setting.
      *
-     * @param setting_id The id of the setting.
+     * @param id The id of the setting.
      * @param value The integer.
      */
-    Int64Setting(u32 setting_id, i64 value)
-        : Setting(setting_id, Type::INT64, 8, true), value(value) {}
+    Int64Setting(u32 id, i64 value) : Setting(id, Type::kInt64, 8, true), value(value) {}
     i64 value; /**< The integer. */
     /**
      * Writes the integer into the guest value.
@@ -222,11 +220,10 @@ class UserProfile {
     /**
      * Constructs the setting.
      *
-     * @param setting_id The id of the setting.
+     * @param id The id of the setting.
      * @param value The floating point value.
      */
-    DoubleSetting(u32 setting_id, f64 value)
-        : Setting(setting_id, Type::DOUBLE, 8, true), value(value) {}
+    DoubleSetting(u32 id, f64 value) : Setting(id, Type::kDouble, 8, true), value(value) {}
     f64 value; /**< The floating point value. */
     /**
      * Writes the floating point value into the guest value.
@@ -244,11 +241,11 @@ class UserProfile {
     /**
      * Constructs the setting.
      *
-     * @param setting_id The id of the setting.
+     * @param id The id of the setting.
      * @param value The text.
      */
-    UnicodeSetting(u32 setting_id, const std::u16string& value)
-        : Setting(setting_id, Type::WSTRING, 8, true), value(value) {}
+    UnicodeSetting(u32 id, const std::u16string& value)
+        : Setting(id, Type::kWString, 8, true), value(value) {}
     std::u16string value; /**< The text. */
     /**
      * Writes the text after the stream offset and points the guest value at it.
@@ -266,8 +263,8 @@ class UserProfile {
         size_t size = 2 * count;
         REX_ASSERT(size <= std::numeric_limits<u32>::max());
         data->unicode.size = static_cast<u32>(size);
-        data->unicode.ptr = stream->ptr();
-        auto buffer = reinterpret_cast<u16*>(&stream->data()[stream->offset()]);
+        data->unicode.ptr = stream->GetPtr();
+        auto buffer = reinterpret_cast<u16*>(&stream->GetData()[stream->GetOffset()]);
         stream->Advance(size);
         memory::copy_and_swap(buffer, reinterpret_cast<const u16*>(value.data()), count);
       }
@@ -278,11 +275,10 @@ class UserProfile {
     /**
      * Constructs the setting.
      *
-     * @param setting_id The id of the setting.
+     * @param id The id of the setting.
      * @param value The floating point value.
      */
-    FloatSetting(u32 setting_id, f32 value)
-        : Setting(setting_id, Type::FLOAT, 4, true), value(value) {}
+    FloatSetting(u32 id, f32 value) : Setting(id, Type::kFloat, 4, true), value(value) {}
     f32 value; /**< The floating point value. */
     /**
      * Writes the floating point value into the guest value.
@@ -300,17 +296,17 @@ class UserProfile {
     /**
      * Constructs a setting with no value.
      *
-     * @param setting_id The id of the setting.
+     * @param id The id of the setting.
      */
-    BinarySetting(u32 setting_id) : Setting(setting_id, Type::BINARY, 8, false) {}
+    BinarySetting(u32 id) : Setting(id, Type::kBinary, 8, false) {}
     /**
      * Constructs a setting holding data.
      *
-     * @param setting_id The id of the setting.
+     * @param id The id of the setting.
      * @param value The data.
      */
-    BinarySetting(u32 setting_id, const std::vector<u8>& value)
-        : Setting(setting_id, Type::BINARY, 8, true), value(value) {}
+    BinarySetting(u32 id, const std::vector<u8>& value)
+        : Setting(id, Type::kBinary, 8, true), value(value) {}
     std::vector<u8> value; /**< The data. */
     /**
      * Writes the data after the stream offset and points the guest value at it.
@@ -327,7 +323,7 @@ class UserProfile {
         size_t size = value.size();
         REX_ASSERT(size <= std::numeric_limits<u32>::max());
         data->binary.size = static_cast<u32>(size);
-        data->binary.ptr = stream->ptr();
+        data->binary.ptr = stream->GetPtr();
         stream->Write(value.data(), size);
       }
     }
@@ -354,11 +350,10 @@ class UserProfile {
     /**
      * Constructs the setting.
      *
-     * @param setting_id The id of the setting.
+     * @param id The id of the setting.
      * @param value The timestamp.
      */
-    DateTimeSetting(u32 setting_id, i64 value)
-        : Setting(setting_id, Type::DATETIME, 8, true), value(value) {}
+    DateTimeSetting(u32 id, i64 value) : Setting(id, Type::kDateTime, 8, true), value(value) {}
     i64 value; /**< The timestamp. */
     /**
      * Writes the timestamp into the guest value.
@@ -377,10 +372,10 @@ class UserProfile {
    */
   REX_RUNTIME_API explicit UserProfile(Runtime& runtime);
 
-  u64 xuid() const { return xuid_; }
-  std::string name() const { return name_; }
-  u32 signin_state() const { return 1; }
-  u32 type() const { return 1 | 2; /* local | online profile? */ }
+  u64 GetXUID() const { return xuid_; }
+  std::string GetName() const { return name_; }
+  u32 GetSigninState() const { return 1; }
+  u32 GetType() const { return 1 | 2; /* local | online profile? */ }
 
   /**
    * Adds a setting, replacing any setting with the same id.

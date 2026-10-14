@@ -109,11 +109,11 @@ void AndroidShutdown() {
 }
 #endif
 
-size_t page_size() {
+size_t PageSize() {
   return getpagesize();
 }
-size_t allocation_granularity() {
-  return page_size();
+size_t AllocationGranularity() {
+  return PageSize();
 }
 
 int ToPosixProtectFlags(PageAccess access) {
@@ -386,7 +386,7 @@ FileMappingHandle CreateFileMappingHandle(const std::filesystem::path& path, siz
     return kFileMappingHandleInvalid;
   }
   char ashmem_name[ASHMEM_NAME_LEN];
-  strlcpy(ashmem_name, path.c_str(), rex::countof(ashmem_name));
+  strlcpy(ashmem_name, path.c_str(), rex::CountOf(ashmem_name));
   if (ioctl(ashmem_fd, ASHMEM_SET_NAME, ashmem_name) < 0 ||
       ioctl(ashmem_fd, ASHMEM_SET_SIZE, length) < 0) {
     close(ashmem_fd);
@@ -434,7 +434,7 @@ void CloseFileMappingHandle(FileMappingHandle handle, const std::filesystem::pat
 
 void* MapFileView(FileMappingHandle handle, void* base_address, size_t length, PageAccess access,
                   size_t file_offset) {
-  const size_t page = page_size();
+  const size_t page = PageSize();
   if (file_offset % page != 0) {
     return nullptr;
   }

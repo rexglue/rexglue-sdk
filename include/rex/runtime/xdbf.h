@@ -90,11 +90,11 @@ struct XDBFAchievementTableEntry {
   be_u16 unachieved_id;  /**< String id of the description shown while locked. */
   be_u32 image_id;       /**< Image entry id of the icon. */
   be_u16 gamerscore;     /**< Gamerscore awarded. */
-  be_u16 unkE;
+  be_u16 unke;
   be_u32 flags; /**< Achievement flag bits. */
   be_u32 unk14;
   be_u32 unk18;
-  be_u32 unk1C;
+  be_u32 unk1c;
   be_u32 unk20;
 };
 REX_STATIC_ASSERT_SIZE(XDBFAchievementTableEntry, 0x24);
@@ -129,7 +129,7 @@ class REX_RUNTIME_API XDBFReader {
    *
    * @return True when valid.
    */
-  bool is_valid() const { return data_ != nullptr; }
+  bool IsValid() const { return data_ != nullptr; }
 
   /**
    * Returns an entry in the given section.
@@ -189,21 +189,21 @@ class REX_RUNTIME_API XDBFGameData : public XDBFReader {
    *
    * @return The block, with a null buffer when absent.
    */
-  XDBFBlock icon() const;
+  XDBFBlock GetIcon() const;
 
   /**
    * Returns the default language of the title.
    *
    * @return The language.
    */
-  XLanguage default_language() const;
+  XLanguage GetDefaultLanguage() const;
 
   /**
    * Returns the title name in its default language.
    *
    * @return The name.
    */
-  std::string title() const;
+  std::string GetTitle() const;
 
   /**
    * Returns the title name in the given language.
@@ -211,7 +211,7 @@ class REX_RUNTIME_API XDBFGameData : public XDBFReader {
    * @param language The language.
    * @return The name, empty when the database has no string for it.
    */
-  std::string title(XLanguage language) const;
+  std::string GetTitle(XLanguage language) const;
 };
 
 }  // namespace runtime

@@ -56,17 +56,17 @@ REX_TEST_CASE("A moved-from Socket does not close the native socket", "[core][so
   SocketHandle handle = rex::platform::kInvalidSocket;
   {
     Socket source = Socket::Create(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
-    REQUIRE(source.valid());
-    handle = source.handle();
+    REQUIRE(source.GetValid());
+    handle = source.GetHandle();
     target = std::move(source);
   }
-  CHECK(target.valid());
-  CHECK(target.handle() == handle);
+  CHECK(target.GetValid());
+  CHECK(target.GetHandle() == handle);
   CHECK(Open(handle));
 }
 
 REX_TEST_CASE("A default Socket holds no native socket", "[core][socket]") {
-  CHECK_FALSE(Socket{}.valid());
+  CHECK_FALSE(Socket{}.GetValid());
 }
 
 REX_TEST_CASE("Destroying a Socket closes the native socket", "[core][socket]") {
@@ -74,8 +74,8 @@ REX_TEST_CASE("Destroying a Socket closes the native socket", "[core][socket]") 
   SocketHandle handle = rex::platform::kInvalidSocket;
   {
     Socket socket = Socket::Create(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
-    REQUIRE(socket.valid());
-    handle = socket.handle();
+    REQUIRE(socket.GetValid());
+    handle = socket.GetHandle();
     REQUIRE(Open(handle));
   }
   CHECK_FALSE(Open(handle));

@@ -51,14 +51,14 @@ class ContainerProvider final : public Provider {
    *
    * @return The name and geometry.
    */
-  [[nodiscard]] VolumeInfo Volume() const override;
+  [[nodiscard]] VolumeInfo GetVolume() const override;
 
   /**
    * Returns the parsed image.
    *
    * @return The container.
    */
-  [[nodiscard]] const Container& container() const { return container_; }
+  [[nodiscard]] const Container& GetContainer() const { return container_; }
 
  private:
   void Build(Node& parent, const ContainerNode& source);

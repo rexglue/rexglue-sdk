@@ -32,14 +32,14 @@ class ImmediateDrawer : public gpu::IOverlayDrawer, public rex::NonCopyable {
  protected:
   ImmediateDrawer() = default;
 
-  Presenter* presenter() const { return presenter_; }
+  Presenter* GetPresenter() const { return presenter_; }
   virtual void OnLeavePresenter() {}
   virtual void OnEnterPresenter() {}
 
   /** Valid between Begin and End. */
-  gpu::OverlayDrawContext* ui_draw_context() const { return ui_draw_context_; }
-  f32 coordinate_space_width() const { return coordinate_space_width_; }
-  f32 coordinate_space_height() const { return coordinate_space_height_; }
+  gpu::OverlayDrawContext* GetUIDrawContext() const { return ui_draw_context_; }
+  f32 GetCoordinateSpaceWidth() const { return coordinate_space_width_; }
+  f32 GetCoordinateSpaceHeight() const { return coordinate_space_height_; }
 
   /**
    * Converts and clamps the draw scissor to render target coordinates.

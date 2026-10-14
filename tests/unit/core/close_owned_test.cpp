@@ -31,7 +31,7 @@ using rex::testing::KernelFixture;
 REX_TEST_CASE("CloseOwned closes the handle it is given", "[runtime][close_owned]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    auto& table = c.runtime().object_table();
+    auto& table = c.GetRuntime().GetObjectTable();
     auto added = table.Emplace<SymbolicLinkObject>(AddOptions{}, "a", "b");
     if (!added) {
       FAIL("the symbolic link was not added");
@@ -44,11 +44,12 @@ REX_TEST_CASE("CloseOwned closes the handle it is given", "[runtime][close_owned
 
 REX_TEST_CASE("CloseOwned logs a handle that does not close", "[runtime][close_owned]") {
   KernelFixture fixture;
-  auto* logger = fixture.api().Get<rex::ILogger>();
+  auto* logger = fixture.GetAPI().Get<rex::ILogger>();
   REQUIRE(logger);
   rex::log::CaptureSink sink;
   logger->AddSink(sink);
-  fixture.RunOnGuestThread([](Caller& c) { CloseOwned(c.runtime().object_table(), 0xF8FFFFF0); });
+  fixture.RunOnGuestThread(
+      [](Caller& c) { CloseOwned(c.GetRuntime().GetObjectTable(), 0xF8FFFFF0); });
   std::vector<rex::log::CapturedMessage> messages;
   sink.CopySince(0, messages);
   logger->RemoveSink(sink);

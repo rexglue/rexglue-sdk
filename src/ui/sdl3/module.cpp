@@ -35,17 +35,17 @@ const std::array<ScopeTable, 3> kScopes = {{
 
 class UIModule final : public IModule {
  public:
-  static void* GetModule() { return static_cast<IModule*>(&Instance()); }
-  static void* GetUI() { return static_cast<IUserInterface*>(&Instance().ui_); }
+  static void* GetModule() { return static_cast<IModule*>(&GetInstance()); }
+  static void* GetUI() { return static_cast<IUserInterface*>(&GetInstance().ui_); }
 
   static constexpr std::array<InterfaceEntry, 2> kInterfaces = {{
       {IModule::kInterfaceName, IModule::kInterfaceVersion, &GetModule},
       {IUserInterface::kInterfaceName, IUserInterface::kInterfaceVersion, &GetUI},
   }};
 
-  const char* Name() const override { return "rex-ui-sdl3"; }
+  const char* GetName() const override { return "rex-ui-sdl3"; }
 
-  std::span<const char* const> RequiredInterfaces() const override {
+  std::span<const char* const> GetRequiredInterfaces() const override {
     static constexpr std::array<const char*, 1> kRequired = {"rex.cvar@1"};
     return kRequired;
   }
@@ -111,7 +111,7 @@ class UIModule final : public IModule {
   void Shutdown() override { ui_.CloseWindow(); }
 
  private:
-  static UIModule& Instance() {
+  static UIModule& GetInstance() {
     static UIModule instance;
     return instance;
   }

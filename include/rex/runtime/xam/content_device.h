@@ -19,14 +19,14 @@ namespace runtime {
 
 /** Storage device type. */
 enum class DeviceType : u8 {
-  HDD = 1, /**< Hard disk. */
-  ODD = 4, /**< Optical disc. */
+  kHDD = 1, /**< Hard disk. */
+  kODD = 4, /**< Optical disc. */
 };
 
 /** Ids of the placeholder devices reported to the title. */
 enum class DummyDeviceId : u8 {
-  HDD = 1, /**< Placeholder hard disk. */
-  ODD = 2, /**< Placeholder optical disc. */
+  kHDD = 1, /**< Placeholder hard disk. */
+  kODD = 2, /**< Placeholder optical disc. */
 };
 
 /** Description of a placeholder storage device. */

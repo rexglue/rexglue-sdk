@@ -19,9 +19,9 @@ namespace kernel {
 namespace xam {
 
 /**
- * Reports whether a Xam dialog is on screen.
+ * Reports whether an XAM dialog is on screen.
  *
- * @return True when at least 1 Xam dialog is shown.
+ * @return True when at least 1 XAM dialog is shown.
  */
 REX_RUNTIME_API bool XamIsUIActive();
 

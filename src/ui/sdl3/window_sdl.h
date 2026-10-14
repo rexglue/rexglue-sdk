@@ -32,8 +32,8 @@ class WindowSDL final : public Window {
   ~WindowSDL() override;
 
   void Raise() override;
-  NativeWindow Native() override;
-  SDL_Window* sdl() const override;
+  NativeWindow GetNative() override;
+  SDL_Window* GetSDL() const override;
   bool SetRelativeMouseMode(bool enable) override;
   bool WarpMouseToCenter(i32& x_out, i32& y_out) override;
   bool GetDisplayPixelSize(u32& width, u32& height) const override;
@@ -51,7 +51,7 @@ class WindowSDL final : public Window {
   void HandlePaintEvent();
 
  protected:
-  u32 GetLatestDpiImpl() const override;
+  u32 GetLatestDPIImpl() const override;
 
   bool OpenImpl() override;
   void RequestCloseImpl() override;
@@ -71,8 +71,8 @@ class WindowSDL final : public Window {
   void RequestPaintImpl() override;
 
  private:
-  SDLWindowedAppContext& sdl_app_context() const {
-    return static_cast<SDLWindowedAppContext&>(app_context());
+  SDLWindowedAppContext& GetSDLAppContext() const {
+    return static_cast<SDLWindowedAppContext&>(GetAppContext());
   }
 
   /** Performs the common close sequence for RequestCloseImpl and the close request handler. */

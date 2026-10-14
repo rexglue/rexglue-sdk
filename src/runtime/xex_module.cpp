@@ -34,20 +34,20 @@ XEXModule::XEXModule(FunctionDispatcher* function_dispatcher, Runtime& runtime)
 
 XEXModule::~XEXModule() = default;
 
-u32 XEXModule::image_size() const {
+u32 XEXModule::GetImageSize() const {
   REX_ASSERT(base_address_ != 0);
-  const u32 page_size = memory()->LookupHeap(base_address_)->page_size();
+  const u32 page_size = GetMemory()->LookupHeap(base_address_)->GetPageSize();
   u32 total = 0;
-  for (const auto& range : image_.security().pages) {
+  for (const auto& range : image_.GetSecurity().pages) {
     total += range.page_count * page_size;
   }
   return total;
 }
 
 u32 XEXModule::GetProcAddress(u16 ordinal) const {
-  if (const u32 table_address = image_.security().export_table) {
+  if (const u32 table_address = image_.GetSecurity().export_table) {
     auto export_table =
-        memory()->TranslateVirtual<const filesystem::XEXExportTable*>(table_address);
+        GetMemory()->TranslateVirtual<const filesystem::XEXExportTable*>(table_address);
     ordinal -= export_table->base;
     if (ordinal >= export_table->count) {
       REX_FAIL(system, 0, "GetProcAddress({:03X}): ordinal out of bounds", ordinal);
@@ -58,9 +58,9 @@ u32 XEXModule::GetProcAddress(u16 ordinal) const {
   }
 
   REX_ASSERT(base_address_ != 0);
-  if (const auto* directory = image_.OptHeader<filesystem::XEXOptDataDirectory>(
-          filesystem::XEX_HEADER_EXPORTS_BY_NAME)) {
-    auto e = memory()->TranslateVirtual<const filesystem::X_IMAGE_EXPORT_DIRECTORY*>(
+  if (const auto* directory =
+          image_.OptHeader<filesystem::XEXOptDataDirectory>(filesystem::kXEXHeaderExportsByName)) {
+    auto e = GetMemory()->TranslateVirtual<const filesystem::X_IMAGE_EXPORT_DIRECTORY*>(
         base_address_ + directory->offset);
     REX_ASSERT(e != nullptr);
     const auto* bytes = reinterpret_cast<const u8*>(e);
@@ -75,11 +75,11 @@ u32 XEXModule::GetProcAddress(u16 ordinal) const {
 u32 XEXModule::GetProcAddress(const std::string_view name) const {
   REX_ASSERT(base_address_ != 0);
   const auto* directory =
-      image_.OptHeader<filesystem::XEXOptDataDirectory>(filesystem::XEX_HEADER_EXPORTS_BY_NAME);
+      image_.OptHeader<filesystem::XEXOptDataDirectory>(filesystem::kXEXHeaderExportsByName);
   if (!directory) {
     return 0;
   }
-  auto e = memory()->TranslateVirtual<const filesystem::X_IMAGE_EXPORT_DIRECTORY*>(
+  auto e = GetMemory()->TranslateVirtual<const filesystem::X_IMAGE_EXPORT_DIRECTORY*>(
       base_address_ + directory->offset);
   REX_ASSERT(e != nullptr);
   const auto* bytes = reinterpret_cast<const u8*>(e);
@@ -96,21 +96,21 @@ u32 XEXModule::GetProcAddress(const std::string_view name) const {
 }
 
 int XEXModule::ApplyPatch(XEXModule* module) {
-  if (!image_.is_patch()) {
+  if (!image_.IsPatch()) {
     return 1;
   }
-  const u32 original_image_size = module->image_size();
+  const u32 original_image_size = module->GetImageSize();
   auto patched = module->image_.ApplyHeaderDelta(image_);
   if (!patched) {
-    REX_FAIL(system, 2, "XEX header patch failed: {}", patched.error().what());
+    REX_FAIL(system, 2, "XEX header patch failed: {}", patched.error().GetDescription());
   }
   module->image_ = std::move(*patched);
-  const u32 new_image_size = module->image_size();
+  const u32 new_image_size = module->GetImageSize();
 
   if (new_image_size > original_image_size) {
     const u32 size_delta = new_image_size - original_image_size;
     const u32 addr_new_mem = module->base_address_ + original_image_size;
-    const bool alloc_result = memory()
+    const bool alloc_result = GetMemory()
                                   ->LookupHeap(addr_new_mem)
                                   ->AllocFixed(addr_new_mem, size_delta, 4096,
                                                kMemoryAllocationReserve | kMemoryAllocationCommit |
@@ -122,25 +122,25 @@ int XEXModule::ApplyPatch(XEXModule* module) {
     }
   }
 
-  std::span<u8> base_image(memory()->TranslateVirtual(module->base_address_),
+  std::span<u8> base_image(GetMemory()->TranslateVirtual(module->base_address_),
                            std::max(original_image_size, new_image_size));
   if (auto applied = module->image_.ApplyImageDelta(image_, base_image); !applied) {
-    REX_FAIL(system, 9, "XEX patch application failed: {}", applied.error().what());
+    REX_FAIL(system, 9, "XEX patch application failed: {}", applied.error().GetDescription());
   }
 
   if (original_image_size > new_image_size) {
     const u32 size_delta = original_image_size - new_image_size;
     const u32 addr_free_mem = module->base_address_ + new_image_size;
-    if (!memory()->LookupHeap(addr_free_mem)->Decommit(addr_free_mem, size_delta)) {
+    if (!GetMemory()->LookupHeap(addr_free_mem)->Decommit(addr_free_mem, size_delta)) {
       REXLOG_ERROR(system, "Unable to decommit XEX memory at {:08X}-{:08X}.", addr_free_mem,
                    size_delta);
     }
   }
 
   const auto* descriptor = image_.OptHeader<filesystem::XEXOptDeltaPatchDescriptor>(
-      filesystem::XEX_HEADER_DELTA_PATCH_DESCRIPTOR);
-  const auto source = descriptor->source_version();
-  const auto target = descriptor->target_version();
+      filesystem::kXEXHeaderDeltaPatchDescriptor);
+  const auto source = descriptor->GetSourceVersion();
+  const auto target = descriptor->GetTargetVersion();
   REXLOG_INFO(system,
               "XEX patch applied successfully: base version: {}.{}.{}.{}, new version: "
               "{}.{}.{}.{}",
@@ -160,39 +160,40 @@ bool XEXModule::Load(const std::string_view name, const std::string_view path, c
   loaded_ = true;
   image_ = std::move(*parsed);
 
-  base_address_ = image_.OptHeaderValue(filesystem::XEX_HEADER_IMAGE_BASE_ADDRESS)
-                      .value_or(image_.security().load_address);
+  base_address_ = image_.OptHeaderValue(filesystem::kXEXHeaderImageBaseAddress)
+                      .value_or(image_.GetSecurity().load_address);
   name_ = name;
   path_ = path;
 
-  if (image_.is_patch()) {
+  if (image_.IsPatch()) {
     return true;
   }
 
   const auto* format =
-      image_.OptHeader<filesystem::XEXOptFileFormatInfo>(filesystem::XEX_HEADER_FILE_FORMAT_INFO);
+      image_.OptHeader<filesystem::XEXOptFileFormatInfo>(filesystem::kXEXHeaderFileFormatInfo);
   if (!format) {
     REX_FAIL(system, false, "XEX has no file format header");
   }
   const u32 alloc_size =
-      static_cast<u16>(format->compression_type) == filesystem::XEX_COMPRESSION_NONE
-          ? static_cast<u32>(xex_length - image_.header_bytes().size())
-          : image_size();
+      static_cast<u16>(format->compression_type) == filesystem::kXEXCompressionNone
+          ? static_cast<u32>(xex_length - image_.GetHeaderBytes().size())
+          : GetImageSize();
 
-  auto* heap = memory()->LookupHeap(base_address_);
+  auto* heap = GetMemory()->LookupHeap(base_address_);
   if (!heap->AllocFixed(base_address_, alloc_size, 4096,
                         kMemoryAllocationReserve | kMemoryAllocationCommit | kMemoryAllocationTitle,
                         kMemoryProtectRead | kMemoryProtectWrite)) {
     REX_FAIL(system, false, "Unable to allocate XEX memory at {:08X}-{:08X}.", base_address_,
              alloc_size);
   }
-  std::span<u8> buffer(memory()->TranslateVirtual(base_address_), alloc_size);
+  std::span<u8> buffer(GetMemory()->TranslateVirtual(base_address_), alloc_size);
   if (auto decoded = image_.Decode(file, buffer); !decoded) {
     REX_FAIL(system, false, "XEX load failed, tried both encryption keys: {}",
-             decoded.error().what());
+             decoded.error().GetDescription());
   }
-  if (image_.key() != filesystem::XEXKey::Retail) {
-    REXLOG_WARN(system, "XEX decoded with a non retail key ({})", static_cast<u32>(image_.key()));
+  if (image_.GetKey() != filesystem::XEXKey::kRetail) {
+    REXLOG_WARN(system, "XEX decoded with a non retail key ({})",
+                static_cast<u32>(image_.GetKey()));
   }
   return true;
 }
@@ -204,35 +205,36 @@ bool XEXModule::LoadContinue() {
   }
   finished_load_ = true;
 
-  auto* heap = memory()->LookupHeap(base_address_);
-  const u32 page_size = heap->page_size();
+  auto* heap = GetMemory()->LookupHeap(base_address_);
+  const u32 page_size = heap->GetPageSize();
   auto parsed_pe = filesystem::ParsePE(
-      std::span<const u8>(memory()->TranslateVirtual(base_address_), image_size()));
+      std::span<const u8>(GetMemory()->TranslateVirtual(base_address_), GetImageSize()));
   if (!parsed_pe) {
-    REX_FAIL(system, false, "Failed to load XEX PE headers: {}", parsed_pe.error().what());
+    REX_FAIL(system, false, "Failed to load XEX PE headers: {}",
+             parsed_pe.error().GetDescription());
   }
   pe_ = std::move(*parsed_pe);
   for (auto& section : pe_.sections) {
     section.address += base_address_;
   }
 
-  for (const auto& library : image_.imports()) {
+  for (const auto& library : image_.GetImports()) {
     SetupLibraryImports(library.name, library);
   }
 
   u32 page = 0;
-  for (const auto& range : image_.security().pages) {
+  for (const auto& range : image_.GetSecurity().pages) {
     const u32 address = base_address_ + page * page_size;
     const u32 size = range.page_count * page_size;
     switch (range.type) {
-      case filesystem::XEX_SECTION_CODE:
-      case filesystem::XEX_SECTION_READONLY_DATA:
+      case filesystem::kXEXSectionCode:
+      case filesystem::kXEXSectionReadOnlyData:
         heap->Protect(address, size,
                       REXCVAR_GET(::rex::runtime::cvars::writable_code_segments)
                           ? kMemoryProtectRead | kMemoryProtectWrite
                           : kMemoryProtectRead);
         break;
-      case filesystem::XEX_SECTION_DATA:
+      case filesystem::kXEXSectionData:
         heap->Protect(address, size, kMemoryProtectRead | kMemoryProtectWrite);
         break;
     }
@@ -248,9 +250,9 @@ bool XEXModule::Unload() {
     return true;
   }
   loaded_ = false;
-  if (!image_.is_patch()) {
+  if (!image_.IsPatch()) {
     REX_ASSERT(base_address_ != 0);
-    memory()->LookupHeap(base_address_)->Release(base_address_);
+    GetMemory()->LookupHeap(base_address_)->Release(base_address_);
   }
   image_ = filesystem::XEXImage();
   return true;
@@ -266,9 +268,9 @@ bool XEXModule::SetupLibraryImports(std::string_view name,
   };
   std::optional<KernelModule> kernel;
   if (const auto exports = rex::runtime::ModuleFromName(base_name);
-      exports && runtime_->module_registry().IsKernel(base_name)) {
-    if (auto object = runtime_->object_table().Get<ModuleObject>(
-            runtime_->module_registry().FindKernel(base_name).value_or(0))) {
+      exports && runtime_->GetModuleRegistry().IsKernel(base_name)) {
+    if (auto object = runtime_->GetObjectTable().Get<ModuleObject>(
+            runtime_->GetModuleRegistry().FindKernel(base_name).value_or(0))) {
       kernel.emplace(*exports, std::move(object));
     }
   }
@@ -284,7 +286,7 @@ bool XEXModule::SetupLibraryImports(std::string_view name,
     if (!record_addr) {
       continue;
     }
-    auto record_slot = memory()->TranslateVirtual<be_u32*>(record_addr);
+    auto record_slot = GetMemory()->TranslateVirtual<be_u32*>(record_addr);
     const u32 record_value = *record_slot;
     const u16 record_type = (record_value & 0xFF000000) >> 24;
     const u16 ordinal = record_value & 0xFFFF;
@@ -295,7 +297,7 @@ bool XEXModule::SetupLibraryImports(std::string_view name,
       import_info.value_address = record_addr;
       if (kernel) {
         const auto* kernel_export = rex::runtime::FindByOrdinal(kernel->exports, ordinal);
-        if (kernel_export && kernel_export->kind == rex::runtime::ExportKind::Variable) {
+        if (kernel_export && kernel_export->kind == rex::runtime::ExportKind::kVariable) {
           const u32 variable_ptr = kernel->object->Variable(ordinal);
           if (variable_ptr) {
             *record_slot = variable_ptr;
@@ -337,7 +339,7 @@ void XEXModule::PopulateBinaryData() {
     sec.name = pe_sec.name;
     sec.virtual_address = pe_sec.address;
     sec.virtual_size = pe_sec.size;
-    sec.host_data = memory()->TranslateVirtual<u8*>(pe_sec.address);
+    sec.host_data = GetMemory()->TranslateVirtual<u8*>(pe_sec.address);
     sec.executable = (pe_sec.flags & filesystem::kPESectionMemoryExecute) != 0;
     sec.writable = (pe_sec.flags & filesystem::kPESectionMemoryWrite) != 0;
     binary_sections_.push_back(std::move(sec));
@@ -348,17 +350,17 @@ void XEXModule::PopulateBinaryData() {
       sym.name = std::format("{}@{}", lib.name, import.ordinal);
       sym.address = import.thunk_address;
       sym.size = 16;
-      sym.type = BinarySymbolType::Import;
+      sym.type = BinarySymbolType::kImport;
       binary_symbols_.push_back(std::move(sym));
     }
   }
 }
 
-std::span<const BinarySection> XEXModule::binary_sections() const {
+std::span<const BinarySection> XEXModule::GetBinarySections() const {
   return binary_sections_;
 }
 
-std::span<const BinarySymbol> XEXModule::binary_symbols() const {
+std::span<const BinarySymbol> XEXModule::GetBinarySymbols() const {
   return binary_symbols_;
 }
 

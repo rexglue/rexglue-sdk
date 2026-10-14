@@ -18,7 +18,7 @@
 
 namespace rex::gpu {
 
-spv::Id SPIRVBuilder::createQuadOp(spv::Op op_code, spv::Id type_id, spv::Id operand1,
+spv::Id SPIRVBuilder::CreateQuadOp(spv::Op op_code, spv::Id type_id, spv::Id operand1,
                                    spv::Id operand2, spv::Id operand3, spv::Id operand4) {
   if (generatingOpCodeForSpecConst) {
     std::vector<spv::Id> operands(4);
@@ -39,21 +39,21 @@ spv::Id SPIRVBuilder::createQuadOp(spv::Op op_code, spv::Id type_id, spv::Id ope
   return result;
 }
 
-spv::Id SPIRVBuilder::createNoContractionUnaryOp(spv::Op op_code, spv::Id type_id,
+spv::Id SPIRVBuilder::CreateNoContractionUnaryOp(spv::Op op_code, spv::Id type_id,
                                                  spv::Id operand) {
   spv::Id result = createUnaryOp(op_code, type_id, operand);
   addDecoration(result, spv::DecorationNoContraction);
   return result;
 }
 
-spv::Id SPIRVBuilder::createNoContractionBinOp(spv::Op op_code, spv::Id type_id, spv::Id operand1,
+spv::Id SPIRVBuilder::CreateNoContractionBinOp(spv::Op op_code, spv::Id type_id, spv::Id operand1,
                                                spv::Id operand2) {
   spv::Id result = createBinOp(op_code, type_id, operand1, operand2);
   addDecoration(result, spv::DecorationNoContraction);
   return result;
 }
 
-spv::Id SPIRVBuilder::createUnaryBuiltinCall(spv::Id result_type, spv::Id builtins, int entry_point,
+spv::Id SPIRVBuilder::CreateUnaryBuiltinCall(spv::Id result_type, spv::Id builtins, int entry_point,
                                              spv::Id operand) {
   std::unique_ptr<spv::Instruction> instruction =
       std::make_unique<spv::Instruction>(getUniqueId(), result_type, spv::OpExtInst);
@@ -65,7 +65,7 @@ spv::Id SPIRVBuilder::createUnaryBuiltinCall(spv::Id result_type, spv::Id builti
   return result;
 }
 
-spv::Id SPIRVBuilder::createBinBuiltinCall(spv::Id result_type, spv::Id builtins, int entry_point,
+spv::Id SPIRVBuilder::CreateBinBuiltinCall(spv::Id result_type, spv::Id builtins, int entry_point,
                                            spv::Id operand1, spv::Id operand2) {
   std::unique_ptr<spv::Instruction> instruction =
       std::make_unique<spv::Instruction>(getUniqueId(), result_type, spv::OpExtInst);
@@ -78,7 +78,7 @@ spv::Id SPIRVBuilder::createBinBuiltinCall(spv::Id result_type, spv::Id builtins
   return result;
 }
 
-spv::Id SPIRVBuilder::createTriBuiltinCall(spv::Id result_type, spv::Id builtins, int entry_point,
+spv::Id SPIRVBuilder::CreateTriBuiltinCall(spv::Id result_type, spv::Id builtins, int entry_point,
                                            spv::Id operand1, spv::Id operand2, spv::Id operand3) {
   std::unique_ptr<spv::Instruction> instruction =
       std::make_unique<spv::Instruction>(getUniqueId(), result_type, spv::OpExtInst);
@@ -93,88 +93,88 @@ spv::Id SPIRVBuilder::createTriBuiltinCall(spv::Id result_type, spv::Id builtins
 }
 
 SPIRVBuilder::IfBuilder::IfBuilder(spv::Id condition, unsigned int control, SPIRVBuilder& builder,
-                                   unsigned int thenWeight, unsigned int elseWeight)
-    : builder(builder),
-      condition(condition),
-      control(control),
-      thenWeight(thenWeight),
-      elseWeight(elseWeight),
-      function(builder.getBuildPoint()->getParent()) {
-  thenBlock = new spv::Block(builder.getUniqueId(), function);
-  elseBlock = nullptr;
-  mergeBlock = new spv::Block(builder.getUniqueId(), function);
+                                   unsigned int then_weight, unsigned int else_weight)
+    : builder_(builder),
+      condition_(condition),
+      control_(control),
+      then_weight_(then_weight),
+      else_weight_(else_weight),
+      function_(builder.getBuildPoint()->getParent()) {
+  then_block_ = new spv::Block(builder.getUniqueId(), function_);
+  else_block_ = nullptr;
+  merge_block_ = new spv::Block(builder.getUniqueId(), function_);
 
-  headerBlock = builder.getBuildPoint();
+  header_block_ = builder.getBuildPoint();
 
-  spv::Id headerBlockId = headerBlock->getId();
-  thenPhiParent = headerBlockId;
-  elsePhiParent = headerBlockId;
+  spv::Id header_block_id = header_block_->getId();
+  then_phi_parent_ = header_block_id;
+  else_phi_parent_ = header_block_id;
 
-  function.addBlock(thenBlock);
-  builder.setBuildPoint(thenBlock);
+  function_.addBlock(then_block_);
+  builder.setBuildPoint(then_block_);
 }
 
-void SPIRVBuilder::IfBuilder::makeBeginElse(bool branchToMerge) {
+void SPIRVBuilder::IfBuilder::MakeBeginElse(bool branch_to_merge) {
 #ifndef NDEBUG
-  REX_ASSERT(currentBranch == Branch::kThen);
+  REX_ASSERT(current_branch_ == Branch::kThen);
 #endif
 
-  if (branchToMerge && !builder.getBuildPoint()->isTerminated()) {
-    thenPhiParent = builder.getBuildPoint()->getId();
-    builder.createBranch(mergeBlock);
+  if (branch_to_merge && !builder_.getBuildPoint()->isTerminated()) {
+    then_phi_parent_ = builder_.getBuildPoint()->getId();
+    builder_.createBranch(merge_block_);
   }
 
-  elseBlock = new spv::Block(builder.getUniqueId(), function);
-  function.addBlock(elseBlock);
+  else_block_ = new spv::Block(builder_.getUniqueId(), function_);
+  function_.addBlock(else_block_);
 
-  builder.setBuildPoint(elseBlock);
+  builder_.setBuildPoint(else_block_);
 
 #ifndef NDEBUG
-  currentBranch = Branch::kElse;
+  current_branch_ = Branch::kElse;
 #endif
 }
 
-void SPIRVBuilder::IfBuilder::makeEndIf(bool branchToMerge) {
+void SPIRVBuilder::IfBuilder::MakeEndIf(bool branch_to_merge) {
 #ifndef NDEBUG
-  REX_ASSERT(currentBranch == Branch::kThen || currentBranch == Branch::kElse);
+  REX_ASSERT(current_branch_ == Branch::kThen || current_branch_ == Branch::kElse);
 #endif
 
-  if (branchToMerge && !builder.getBuildPoint()->isTerminated()) {
-    (elseBlock ? elsePhiParent : thenPhiParent) = builder.getBuildPoint()->getId();
-    builder.createBranch(mergeBlock);
+  if (branch_to_merge && !builder_.getBuildPoint()->isTerminated()) {
+    (else_block_ ? else_phi_parent_ : then_phi_parent_) = builder_.getBuildPoint()->getId();
+    builder_.createBranch(merge_block_);
   }
 
-  builder.setBuildPoint(headerBlock);
-  builder.createSelectionMerge(mergeBlock, control);
+  builder_.setBuildPoint(header_block_);
+  builder_.createSelectionMerge(merge_block_, control_);
   {
-    spv::Block* falseBlock = elseBlock ? elseBlock : mergeBlock;
+    spv::Block* false_block = else_block_ ? else_block_ : merge_block_;
     std::unique_ptr<spv::Instruction> branch =
         std::make_unique<spv::Instruction>(spv::OpBranchConditional);
-    branch->addIdOperand(condition);
-    branch->addIdOperand(thenBlock->getId());
-    branch->addIdOperand(falseBlock->getId());
-    if (thenWeight || elseWeight) {
-      branch->addImmediateOperand(thenWeight);
-      branch->addImmediateOperand(elseWeight);
+    branch->addIdOperand(condition_);
+    branch->addIdOperand(then_block_->getId());
+    branch->addIdOperand(false_block->getId());
+    if (then_weight_ || else_weight_) {
+      branch->addImmediateOperand(then_weight_);
+      branch->addImmediateOperand(else_weight_);
     }
-    builder.getBuildPoint()->addInstruction(std::move(branch));
-    thenBlock->addPredecessor(builder.getBuildPoint());
-    falseBlock->addPredecessor(builder.getBuildPoint());
+    builder_.getBuildPoint()->addInstruction(std::move(branch));
+    then_block_->addPredecessor(builder_.getBuildPoint());
+    false_block->addPredecessor(builder_.getBuildPoint());
   }
 
-  function.addBlock(mergeBlock);
-  builder.setBuildPoint(mergeBlock);
+  function_.addBlock(merge_block_);
+  builder_.setBuildPoint(merge_block_);
 
 #ifndef NDEBUG
-  currentBranch = Branch::kMerge;
+  current_branch_ = Branch::kMerge;
 #endif
 }
 
-spv::Id SPIRVBuilder::IfBuilder::createMergePhi(spv::Id then_variable,
+spv::Id SPIRVBuilder::IfBuilder::CreateMergePhi(spv::Id then_variable,
                                                 spv::Id else_variable) const {
-  REX_ASSERT(builder.getBuildPoint() == mergeBlock);
-  return builder.createQuadOp(spv::OpPhi, builder.getTypeId(then_variable), then_variable,
-                              getThenPhiParent(), else_variable, getElsePhiParent());
+  REX_ASSERT(builder_.getBuildPoint() == merge_block_);
+  return builder_.CreateQuadOp(spv::OpPhi, builder_.getTypeId(then_variable), then_variable,
+                               GetThenPhiParent(), else_variable, GetElsePhiParent());
 }
 
 SPIRVBuilder::SwitchBuilder::SwitchBuilder(spv::Id selector, unsigned int selection_control,
@@ -188,10 +188,10 @@ SPIRVBuilder::SwitchBuilder::SwitchBuilder(spv::Id selector, unsigned int select
   merge_block_ = new spv::Block(builder_.getUniqueId(), function_);
 }
 
-void SPIRVBuilder::SwitchBuilder::makeBeginDefault() {
+void SPIRVBuilder::SwitchBuilder::MakeBeginDefault() {
   REX_ASSERT(default_block_ == nullptr);
 
-  endSegment();
+  EndSegment();
 
   default_block_ = new spv::Block(builder_.getUniqueId(), function_);
   function_.addBlock(default_block_);
@@ -201,8 +201,8 @@ void SPIRVBuilder::SwitchBuilder::makeBeginDefault() {
   current_branch_ = Branch::kDefault;
 }
 
-void SPIRVBuilder::SwitchBuilder::makeBeginCase(unsigned int literal) {
-  endSegment();
+void SPIRVBuilder::SwitchBuilder::MakeBeginCase(unsigned int literal) {
+  EndSegment();
 
   auto case_block = new spv::Block(builder_.getUniqueId(), function_);
   function_.addBlock(case_block);
@@ -213,14 +213,14 @@ void SPIRVBuilder::SwitchBuilder::makeBeginCase(unsigned int literal) {
   current_branch_ = Branch::kCase;
 }
 
-void SPIRVBuilder::SwitchBuilder::addCurrentCaseLiteral(unsigned int literal) {
+void SPIRVBuilder::SwitchBuilder::AddCurrentCaseLiteral(unsigned int literal) {
   REX_ASSERT(current_branch_ == Branch::kCase);
 
   cases_.emplace_back(literal, cases_.back().second);
 }
 
-void SPIRVBuilder::SwitchBuilder::makeEndSwitch() {
-  endSegment();
+void SPIRVBuilder::SwitchBuilder::MakeEndSwitch() {
+  EndSegment();
 
   builder_.setBuildPoint(header_block_);
 
@@ -247,7 +247,7 @@ void SPIRVBuilder::SwitchBuilder::makeEndSwitch() {
   current_branch_ = Branch::kMerge;
 }
 
-void SPIRVBuilder::SwitchBuilder::endSegment() {
+void SPIRVBuilder::SwitchBuilder::EndSegment() {
   REX_ASSERT(current_branch_ == Branch::kSelection || current_branch_ == Branch::kDefault ||
              current_branch_ == Branch::kCase);
 

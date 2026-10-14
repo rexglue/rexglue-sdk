@@ -55,9 +55,9 @@ class VulkanDevice : public rex::NonCopyable {
 
   ~VulkanDevice();
 
-  const VulkanInstance* vulkan_instance() const { return vulkan_instance_; }
+  const VulkanInstance* GetVulkanInstance() const { return vulkan_instance_; }
 
-  VkPhysicalDevice physical_device() const { return physical_device_; }
+  VkPhysicalDevice GetPhysicalDevice() const { return physical_device_; }
 
   /**
    * Highest Vulkan version used, for VkApplicationInfo apiVersion.
@@ -197,7 +197,7 @@ class VulkanDevice : public rex::NonCopyable {
    *
    * @return The device properties.
    */
-  const Properties& properties() const { return properties_; }
+  const Properties& GetProperties() const { return properties_; }
 
   /**
    * Enabled extensions not covered by the device properties and optional feature flags in
@@ -227,9 +227,9 @@ class VulkanDevice : public rex::NonCopyable {
     bool ext_1_3_KHR_dynamic_rendering = false;
   };
 
-  const Extensions& extensions() const { return extensions_; }
+  const Extensions& GetExtensions() const { return extensions_; }
 
-  VkDevice device() const { return device_; }
+  VkDevice GetDevice() const { return device_; }
 
   struct Functions {
 #define REX_VK_FUNCTION(name) PFN_##name name = nullptr;
@@ -254,12 +254,12 @@ class VulkanDevice : public rex::NonCopyable {
 #undef REX_VK_FUNCTION
   };
 
-  const Functions& functions() const { return functions_; }
+  const Functions& GetFunctions() const { return functions_; }
 
   template <typename Object>
   void SetObjectName(const VkObjectType object_type, const Object object_handle,
                      const char* const object_name) const {
-    if (!vulkan_instance()->extensions().ext_EXT_debug_utils) {
+    if (!GetVulkanInstance()->GetExtensions().ext_EXT_debug_utils) {
       return;
     }
     VkDebugUtilsObjectNameInfoEXT object_name_info;
@@ -268,7 +268,8 @@ class VulkanDevice : public rex::NonCopyable {
     object_name_info.objectType = object_type;
     object_name_info.objectHandle = std::bit_cast<u64>(object_handle);
     object_name_info.pObjectName = object_name;
-    vulkan_instance()->functions().vkSetDebugUtilsObjectNameEXT(device(), &object_name_info);
+    GetVulkanInstance()->GetFunctions().vkSetDebugUtilsObjectNameEXT(GetDevice(),
+                                                                     &object_name_info);
   }
 
   struct Queue {
@@ -282,7 +283,7 @@ class VulkanDevice : public rex::NonCopyable {
      public:
       explicit Acquisition(Queue& queue) : lock_(queue.mutex), queue_(queue.queue) {}
 
-      VkQueue queue() const { return queue_; }
+      VkQueue GetQueue() const { return queue_; }
 
      private:
       std::unique_lock<std::recursive_mutex> lock_;
@@ -298,19 +299,19 @@ class VulkanDevice : public rex::NonCopyable {
     std::vector<std::unique_ptr<Queue>> queues;
   };
 
-  const std::vector<QueueFamily>& queue_families() const { return queue_families_; }
-  u32 queue_family_graphics_compute() const { return queue_family_graphics_compute_; }
+  const std::vector<QueueFamily>& GetQueueFamilies() const { return queue_families_; }
+  u32 GetQueueFamilyGraphicsCompute() const { return queue_family_graphics_compute_; }
   /**
    * Returns the sparse binding queue family, UINT32_MAX if not supported or not enabled.
    *
-   * May equal queue_family_graphics_compute().
+   * May equal GetQueueFamilyGraphicsCompute().
    *
    * @return The queue family index.
    */
-  u32 queue_family_sparse_binding() const { return queue_family_sparse_binding_; }
+  u32 GetQueueFamilySparseBinding() const { return queue_family_sparse_binding_; }
 
   Queue::Acquisition AcquireQueue(const u32 queue_family_index, const u32 queue_index) const {
-    return queue_families()[queue_family_index].queues[queue_index]->Acquire();
+    return GetQueueFamilies()[queue_family_index].queues[queue_index]->Acquire();
   }
 
   struct MemoryTypes {
@@ -320,20 +321,20 @@ class VulkanDevice : public rex::NonCopyable {
     u32 host_cached = 0b0;
   };
 
-  const MemoryTypes& memory_types() const { return memory_types_; }
+  const MemoryTypes& GetMemoryTypes() const { return memory_types_; }
 
   /**
    * Reports whether vulkan.require_geometry_shader was set at creation.
    *
    * @return True when a geometry shader is required.
    */
-  bool requires_geometry_shader() const { return requires_geometry_shader_; }
+  bool RequiresGeometryShader() const { return requires_geometry_shader_; }
   /**
    * Reports whether vulkan.require_fill_mode_non_solid was set at creation.
    *
    * @return True when non solid fill mode is required.
    */
-  bool requires_fill_mode_non_solid() const { return requires_fill_mode_non_solid_; }
+  bool RequiresFillModeNonSolid() const { return requires_fill_mode_non_solid_; }
 
  private:
   bool requires_geometry_shader_ = false;

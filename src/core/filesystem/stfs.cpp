@@ -71,14 +71,14 @@ class STFSReader {
             }
             const u32 entry_index = (block_index / kBlocksPerHashLevel[1]) % kBlocksPerHashLevel[0];
             secondary =
-                cache_[offset_lv2].entries[entry_index].levelN_active_index() ? kBlockSize : 0;
+                cache_[offset_lv2].entries[entry_index].LevelNActiveIndex() ? kBlockSize : 0;
           }
           if (!Load(offset_lv1, offset_lv1 + secondary)) {
             return nullptr;
           }
         }
         const u32 entry_index = (block_index / kBlocksPerHashLevel[0]) % kBlocksPerHashLevel[0];
-        secondary = cache_[offset_lv1].entries[entry_index].levelN_active_index() ? kBlockSize : 0;
+        secondary = cache_[offset_lv1].entries[entry_index].LevelNActiveIndex() ? kBlockSize : 0;
       }
       if (!Load(offset_lv0, offset_lv0 + secondary)) {
         return nullptr;
@@ -151,7 +151,7 @@ void AppendExtent(ContainerNode& node, u64 offset, u64 length) {
   STFSReader reader(header, file);
   const auto& descriptor = header.metadata.volume_descriptor.stfs;
   const u32 table_blocks = descriptor.file_table_block_count;
-  u32 table_block = descriptor.file_table_block_number();
+  u32 table_block = descriptor.GetFileTableBlockNumber();
   u32 tables_read = 0;
   for (u32 n = 0; n < table_blocks; ++n) {
     const u64 table_offset = reader.BlockToOffset(table_block);
@@ -181,14 +181,14 @@ void AppendExtent(ContainerNode& node, u64 offset, u64 length) {
       node.parent = parent;
       node.size = entry.length;
       node.allocation_size = round_up(static_cast<u64>(entry.length), static_cast<u64>(kBlockSize));
-      node.create_time = decode_fat_timestamp(entry.create_date, entry.create_time);
-      node.write_time = decode_fat_timestamp(entry.modified_date, entry.modified_time);
+      node.create_time = DecodeFATTimestamp(entry.create_date, entry.create_time);
+      node.write_time = DecodeFATTimestamp(entry.modified_date, entry.modified_time);
       node.access_time = node.write_time;
       if (entry.flags.directory) {
         node.attributes = FileAttributes::kDirectory;
       } else {
         node.attributes = FileAttributes::kNormal | FileAttributes::kReadOnly;
-        u32 block = entry.start_block_number();
+        u32 block = entry.GetStartBlockNumber();
         u64 remaining = entry.length;
         u32 blocks = 0;
         while (remaining && block != kEndOfChain) {
@@ -201,15 +201,15 @@ void AppendExtent(ContainerNode& node, u64 offset, u64 length) {
             return Err(
                 Corrupt(std::format("STFS hash of block {} of '{}' is missing", block, node.name)));
           }
-          block = hash->level0_next_block();
+          block = hash->GetLevel0NextBlock();
         }
         if (remaining) {
           REXLOG_WARN(filesystem, "STFS file {} holds {} of {} bytes", node.name,
                       static_cast<u64>(entry.length) - remaining, static_cast<u32>(entry.length));
         }
-        if (blocks != entry.allocated_data_blocks()) {
+        if (blocks != entry.GetAllocatedDataBlocks()) {
           REXLOG_WARN(filesystem, "STFS file {} chains {} blocks, the entry lists {}", node.name,
-                      blocks, entry.allocated_data_blocks());
+                      blocks, entry.GetAllocatedDataBlocks());
         }
       }
       const auto index = static_cast<u32>(nodes.size());
@@ -220,7 +220,7 @@ void AppendExtent(ContainerNode& node, u64 offset, u64 length) {
     if (!hash) {
       return Err(Corrupt(std::format("STFS hash of directory block {} is missing", table_block)));
     }
-    table_block = hash->level0_next_block();
+    table_block = hash->GetLevel0NextBlock();
     if (table_block == kEndOfChain) {
       break;
     }

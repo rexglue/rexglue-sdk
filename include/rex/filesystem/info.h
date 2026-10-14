@@ -42,7 +42,7 @@ enum class FileAttributes : u16 {
   kEncrypted = 0x4000,  /**< Encrypted. */
 };
 
-/** Information about 1 file or directory. */
+/** Information about a file or directory. */
 struct FileInfo {
   std::string name;                                  /**< Last path component. */
   std::string path;                                  /**< Path relative to the mount. */

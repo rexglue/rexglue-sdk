@@ -73,11 +73,11 @@ void Fill(PPCContext& ctx, u64 gpr, rex::f64 fpr, u8 vr) {
 }
 
 void FiberBody(PPCContext& ctx, u8* base) {
-  g_fiber_kthread = Caller(ctx, base, rex::runtime::Current()).Load32(ctx.r13.u32 + 0x100);
+  g_fiber_kthread = Caller(ctx, base, rex::runtime::GetCurrent()).Load32(ctx.r13.u32 + 0x100);
   Fill(ctx, 0xBAD, -1.0, 0xEE);
-  ctx.set_cr(0x12345678);
+  ctx.SetCR(0x12345678);
   ctx.lr = 0x8200BEEF;
-  ctx.fpscr.storeFromGuest(rex::ppc::kRoundUp);
+  ctx.fpscr.StoreFromGuest(rex::ppc::kRoundUp);
   ctx.r3.u64 = g_main_fiber;
   rexshim_SwitchToFiber(ctx, base);
 }
@@ -87,9 +87,9 @@ void FiberBody(PPCContext& ctx, u8* base) {
 REX_TEST_CASE("fibers: a switch away and back keeps the nonvolatile state", "[char][fibers]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    PPCContext& ctx = c.ctx();
-    auto* memory = c.runtime().memory();
-    u8* base = memory->virtual_membase();
+    PPCContext& ctx = c.GetCtx();
+    auto* memory = c.GetRuntime().GetMemory();
+    u8* base = memory->GetVirtualMembase();
     ctx.r3.u64 = 0;
     rexshim_ConvertThreadToFiber(ctx, base);
     g_main_fiber = ctx.r3.u32;
@@ -98,12 +98,12 @@ REX_TEST_CASE("fibers: a switch away and back keeps the nonvolatile state", "[ch
       return;
     }
 
-    const u32 body = c.runtime().function_dispatcher()->AllocateThunk(&FiberBody, 0);
+    const u32 body = c.GetRuntime().GetFunctionDispatcher()->AllocateThunk(&FiberBody, 0);
     CHECKED_ELSE(body != 0) {
       FAIL_CHECK("the check above failed");
       return;
     }
-    const u32 used = memory->title_pages();
+    const u32 used = memory->GetTitlePages();
     ctx.r3.u64 = 0;
     ctx.r4.u64 = body;
     ctx.r5.u64 = 0;
@@ -113,12 +113,12 @@ REX_TEST_CASE("fibers: a switch away and back keeps the nonvolatile state", "[ch
       FAIL_CHECK("the check above failed");
       return;
     }
-    CHECK(memory->title_pages() == used + 16);
+    CHECK(memory->GetTitlePages() == used + 16);
 
     Fill(ctx, 0x1234, 3.25, 0x5A);
-    ctx.set_cr(0x89ABCDEF);
+    ctx.SetCR(0x89ABCDEF);
     ctx.lr = 0x82001234;
-    ctx.fpscr.storeFromGuest(rex::ppc::kRoundDown);
+    ctx.fpscr.StoreFromGuest(rex::ppc::kRoundDown);
     ctx.r3.u64 = fiber;
     rexshim_SwitchToFiber(ctx, base);
 
@@ -132,16 +132,16 @@ REX_TEST_CASE("fibers: a switch away and back keeps the nonvolatile state", "[ch
       CHECK((ctx.*reg).u64[0] == 0x5A5A5A5A5A5A5A5Aull);
       CHECK((ctx.*reg).u64[1] == 0x5A5A5A5A5A5A5A5Aull);
     }
-    CHECK(ctx.cr() == 0x89ABCDEF);
+    CHECK(ctx.GetCR() == 0x89ABCDEF);
     CHECK(ctx.lr == 0x82001234);
-    CHECK(ctx.fpscr.loadFromHost() == rex::ppc::kRoundDown);
+    CHECK(ctx.fpscr.LoadFromHost() == rex::ppc::kRoundDown);
     CHECK(g_fiber_kthread == c.Load32(ctx.r13.u32 + 0x100));
 
     ctx.r3.u64 = fiber;
     rexshim_DeleteFiber(ctx, base);
-    CHECK(memory->title_pages() == used);
+    CHECK(memory->GetTitlePages() == used);
     rexshim_ConvertFiberToThread(ctx, base);
-    ctx.fpscr.storeFromGuest(rex::ppc::kRoundNearest);
+    ctx.fpscr.StoreFromGuest(rex::ppc::kRoundNearest);
   });
 }
 
@@ -161,10 +161,10 @@ REX_TEST_CASE("Teardown frees a fiber context in a physical heap without breakin
   {
     KernelFixture fixture;
     fixture.RunOnGuestThread([](Caller& c) {
-      const u32 context =
-          c.runtime().memory()->SystemHeapAlloc(0x1000, 0x1000, rex::runtime::kSystemHeapPhysical);
+      const u32 context = c.GetRuntime().GetMemory()->SystemHeapAlloc(
+          0x1000, 0x1000, rex::runtime::kSystemHeapPhysical);
       REQUIRE(context != 0);
-      c.runtime().thread_registry().RegisterFiber(
+      c.GetRuntime().GetThreadRegistry().RegisterFiber(
           context, rex::runtime::FiberInfo{nullptr, 0, context, 0, true});
     });
     previous = rex::platform::SetLockOrderHandler(&CountViolation);

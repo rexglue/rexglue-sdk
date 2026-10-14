@@ -129,7 +129,7 @@ const TextureExtent TextureInfo::GetMipExtent(u32 mip, bool is_guest) const {
     mip_width = std::max(1u, (width + 1) >> mip);
     mip_height = std::max(1u, (height + 1) >> mip);
   }
-  return TextureExtent::Calculate(format_info(), mip_width, mip_height, depth + 1, is_tiled,
+  return TextureExtent::Calculate(GetFormatInfo(), mip_width, mip_height, depth + 1, is_tiled,
                                   is_guest);
 }
 
@@ -168,11 +168,11 @@ u32 TextureInfo::GetMipLocation(u32 mip, u32* offset_x, u32* offset_y, bool is_g
   address_base = memory.mip_address;
   address_offset = 0;
 
-  auto bytes_per_block = format_info()->bytes_per_block();
+  auto bytes_per_block = GetFormatInfo()->GetBytesPerBlock();
 
   if (!has_packed_mips) {
     for (u32 i = 1; i < mip; i++) {
-      address_offset += GetMipExtent(i, is_guest).all_blocks() * bytes_per_block;
+      address_offset += GetMipExtent(i, is_guest).GetAllBlocks() * bytes_per_block;
     }
     *offset_x = 0;
     *offset_y = 0;
@@ -189,10 +189,10 @@ u32 TextureInfo::GetMipLocation(u32 mip, u32* offset_x, u32* offset_y, bool is_g
     if (std::min(mip_width, mip_height) <= 16) {
       break;
     }
-    address_offset += GetMipExtent(i, is_guest).all_blocks() * bytes_per_block;
+    address_offset += GetMipExtent(i, is_guest).GetAllBlocks() * bytes_per_block;
   }
 
-  GetPackedTileOffset(width_pow2 >> mip, height_pow2 >> mip, format_info(), mip - packed_mip_base,
+  GetPackedTileOffset(width_pow2 >> mip, height_pow2 >> mip, GetFormatInfo(), mip - packed_mip_base,
                       offset_x, offset_y);
   return address_base + address_offset;
 }
@@ -238,11 +238,11 @@ bool TextureInfo::GetPackedTileOffset(u32 packed_tile, u32* offset_x, u32* offse
     *offset_y = 0;
     return false;
   }
-  return GetPackedTileOffset(rex::next_pow2(width + 1), rex::next_pow2(height + 1), format_info(),
+  return GetPackedTileOffset(rex::next_pow2(width + 1), rex::next_pow2(height + 1), GetFormatInfo(),
                              packed_tile, offset_x, offset_y);
 }
 
-u64 TextureInfo::hash() const {
+u64 TextureInfo::Hash() const {
   XXH3_state_t state;
   XXH3_64bits_reset(&state);
   const auto add = [&state](const auto&... fields) {
@@ -256,7 +256,7 @@ u64 TextureInfo::hash() const {
 }
 
 void TextureInfo::SetupMemoryInfo(u32 base_address, u32 mip_address) {
-  u32 bytes_per_block = format_info()->bytes_per_block();
+  u32 bytes_per_block = GetFormatInfo()->GetBytesPerBlock();
 
   memory.base_address = 0;
   memory.base_size = 0;
@@ -265,7 +265,7 @@ void TextureInfo::SetupMemoryInfo(u32 base_address, u32 mip_address) {
 
   if (mip_min_level == 0 && base_address) {
     memory.base_address = base_address;
-    memory.base_size = GetMipExtent(0, true).visible_blocks() * bytes_per_block;
+    memory.base_size = GetMipExtent(0, true).GetVisibleBlocks() * bytes_per_block;
   }
 
   if (mip_min_level == 0 && mip_max_level == 0) {
@@ -289,9 +289,9 @@ void TextureInfo::SetupMemoryInfo(u32 base_address, u32 mip_address) {
 
   if (!has_packed_mips) {
     for (u32 mip = std::max(1u, mip_min_level); mip < mip_max_level; mip++) {
-      memory.mip_size += GetMipExtent(mip, true).all_blocks() * bytes_per_block;
+      memory.mip_size += GetMipExtent(mip, true).GetAllBlocks() * bytes_per_block;
     }
-    memory.mip_size += GetMipExtent(mip_max_level, true).visible_blocks() * bytes_per_block;
+    memory.mip_size += GetMipExtent(mip_max_level, true).GetVisibleBlocks() * bytes_per_block;
     return;
   }
 
@@ -305,7 +305,7 @@ void TextureInfo::SetupMemoryInfo(u32 base_address, u32 mip_address) {
     if (std::min(mip_width, mip_height) <= 16) {
       break;
     }
-    memory.mip_size += GetMipExtent(mip, true).all_blocks() * bytes_per_block;
+    memory.mip_size += GetMipExtent(mip, true).GetAllBlocks() * bytes_per_block;
   }
 }
 

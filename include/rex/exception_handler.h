@@ -60,7 +60,7 @@ enum class Arm64Register : u8 {
   kX29,    /**< Frame pointer X29. */
   kX30,    /**< Link register X30. */
   kSp,     /**< Stack pointer. */
-  kPc,     /**< Program counter. */
+  kPC,     /**< Program counter. */
   kPstate, /**< Processor state. */
   kFpsr,   /**< Floating point status register. */
   kFpcr,   /**< Floating point control register. */
@@ -125,22 +125,22 @@ enum class X64Register : u8 {
   kR14,                     /**< R14. */
   kR15,                     /**< R15. */
   kIntRegisterLast = kR15,  /**< Last general purpose register. */
-  kXmm0,                    /**< XMM0. */
-  kXmm1,                    /**< XMM1. */
-  kXmm2,                    /**< XMM2. */
-  kXmm3,                    /**< XMM3. */
-  kXmm4,                    /**< XMM4. */
-  kXmm5,                    /**< XMM5. */
-  kXmm6,                    /**< XMM6. */
-  kXmm7,                    /**< XMM7. */
-  kXmm8,                    /**< XMM8. */
-  kXmm9,                    /**< XMM9. */
-  kXmm10,                   /**< XMM10. */
-  kXmm11,                   /**< XMM11. */
-  kXmm12,                   /**< XMM12. */
-  kXmm13,                   /**< XMM13. */
-  kXmm14,                   /**< XMM14. */
-  kXmm15,                   /**< XMM15. */
+  kXMM0,                    /**< XMM0. */
+  kXMM1,                    /**< XMM1. */
+  kXMM2,                    /**< XMM2. */
+  kXMM3,                    /**< XMM3. */
+  kXMM4,                    /**< XMM4. */
+  kXMM5,                    /**< XMM5. */
+  kXMM6,                    /**< XMM6. */
+  kXMM7,                    /**< XMM7. */
+  kXMM8,                    /**< XMM8. */
+  kXMM9,                    /**< XMM9. */
+  kXMM10,                   /**< XMM10. */
+  kXMM11,                   /**< XMM11. */
+  kXMM12,                   /**< XMM12. */
+  kXMM13,                   /**< XMM13. */
+  kXMM14,                   /**< XMM14. */
+  kXMM15,                   /**< XMM15. */
 };
 
 #endif  // REX_ARCH_AMD64
@@ -187,33 +187,33 @@ class HostThreadContext {
   };
   union {
     struct {
-      vec128_t xmm0;  /**< XMM0. */
-      vec128_t xmm1;  /**< XMM1. */
-      vec128_t xmm2;  /**< XMM2. */
-      vec128_t xmm3;  /**< XMM3. */
-      vec128_t xmm4;  /**< XMM4. */
-      vec128_t xmm5;  /**< XMM5. */
-      vec128_t xmm6;  /**< XMM6. */
-      vec128_t xmm7;  /**< XMM7. */
-      vec128_t xmm8;  /**< XMM8. */
-      vec128_t xmm9;  /**< XMM9. */
-      vec128_t xmm10; /**< XMM10. */
-      vec128_t xmm11; /**< XMM11. */
-      vec128_t xmm12; /**< XMM12. */
-      vec128_t xmm13; /**< XMM13. */
-      vec128_t xmm14; /**< XMM14. */
-      vec128_t xmm15; /**< XMM15. */
+      Vec128T xmm0;  /**< XMM0. */
+      Vec128T xmm1;  /**< XMM1. */
+      Vec128T xmm2;  /**< XMM2. */
+      Vec128T xmm3;  /**< XMM3. */
+      Vec128T xmm4;  /**< XMM4. */
+      Vec128T xmm5;  /**< XMM5. */
+      Vec128T xmm6;  /**< XMM6. */
+      Vec128T xmm7;  /**< XMM7. */
+      Vec128T xmm8;  /**< XMM8. */
+      Vec128T xmm9;  /**< XMM9. */
+      Vec128T xmm10; /**< XMM10. */
+      Vec128T xmm11; /**< XMM11. */
+      Vec128T xmm12; /**< XMM12. */
+      Vec128T xmm13; /**< XMM13. */
+      Vec128T xmm14; /**< XMM14. */
+      Vec128T xmm15; /**< XMM15. */
     };
-    vec128_t xmm_registers[16]; /**< XMM0 to XMM15. */
+    Vec128T xmm_registers[16]; /**< XMM0 to XMM15. */
   };
 #elif REX_ARCH_ARM64
-  u64 x[31];      /**< X0 to X30, with X29 as FP and X30 as LR. */
-  u64 sp;         /**< Stack pointer. */
-  u64 pc;         /**< Program counter. */
-  u64 pstate;     /**< Processor state. */
-  u32 fpsr;       /**< Floating point status register. */
-  u32 fpcr;       /**< Floating point control register. */
-  vec128_t v[32]; /**< V0 to V31. */
+  u64 x[31];     /**< X0 to X30, with X29 as FP and X30 as LR. */
+  u64 sp;        /**< Stack pointer. */
+  u64 pc;        /**< Program counter. */
+  u64 pstate;    /**< Processor state. */
+  u32 fpsr;      /**< Floating point status register. */
+  u32 fpcr;      /**< Floating point control register. */
+  Vec128T v[32]; /**< V0 to V31. */
 #endif  // REX_ARCH
 };
 
@@ -272,30 +272,30 @@ constexpr u32 kArm64LoadStoreMask = UINT32_C(0xC4C00000);
  * Single register load and store operations under kArm64LoadStoreMask.
  */
 enum class Arm64LoadStoreOp : u32 {
-  kSTRB_w = UINT32_C(0x00000000),  /**< Store byte from W. */
-  kSTRH_w = UINT32_C(0x40000000),  /**< Store halfword from W. */
-  kSTR_w = UINT32_C(0x80000000),   /**< Store word from W. */
-  kSTR_x = UINT32_C(0xC0000000),   /**< Store doubleword from X. */
-  kLDRB_w = UINT32_C(0x00400000),  /**< Load byte into W. */
-  kLDRH_w = UINT32_C(0x40400000),  /**< Load halfword into W. */
-  kLDR_w = UINT32_C(0x80400000),   /**< Load word into W. */
-  kLDR_x = UINT32_C(0xC0400000),   /**< Load doubleword into X. */
-  kLDRSB_x = UINT32_C(0x00800000), /**< Load signed byte into X. */
-  kLDRSH_x = UINT32_C(0x40800000), /**< Load signed halfword into X. */
-  kLDRSW_x = UINT32_C(0x80800000), /**< Load signed word into X. */
-  kLDRSB_w = UINT32_C(0x00C00000), /**< Load signed byte into W. */
-  kLDRSH_w = UINT32_C(0x40C00000), /**< Load signed halfword into W. */
-  kSTR_b = UINT32_C(0x04000000),   /**< Store 8 bit SIMD register. */
-  kSTR_h = UINT32_C(0x44000000),   /**< Store 16 bit SIMD register. */
-  kSTR_s = UINT32_C(0x84000000),   /**< Store 32 bit SIMD register. */
-  kSTR_d = UINT32_C(0xC4000000),   /**< Store 64 bit SIMD register. */
-  kSTR_q = UINT32_C(0x04800000),   /**< Store 128 bit SIMD register. */
-  kLDR_b = UINT32_C(0x04400000),   /**< Load 8 bit SIMD register. */
-  kLDR_h = UINT32_C(0x44400000),   /**< Load 16 bit SIMD register. */
-  kLDR_s = UINT32_C(0x84400000),   /**< Load 32 bit SIMD register. */
-  kLDR_d = UINT32_C(0xC4400000),   /**< Load 64 bit SIMD register. */
-  kLDR_q = UINT32_C(0x04C00000),   /**< Load 128 bit SIMD register. */
-  kPRFM = UINT32_C(0xC0800000),    /**< Prefetch. */
+  kSTRBW = UINT32_C(0x00000000),  /**< Store byte from W. */
+  kSTRHW = UINT32_C(0x40000000),  /**< Store halfword from W. */
+  kSTRW = UINT32_C(0x80000000),   /**< Store word from W. */
+  kSTRX = UINT32_C(0xC0000000),   /**< Store doubleword from X. */
+  kLDRBW = UINT32_C(0x00400000),  /**< Load byte into W. */
+  kLDRHW = UINT32_C(0x40400000),  /**< Load halfword into W. */
+  kLDRW = UINT32_C(0x80400000),   /**< Load word into W. */
+  kLDRX = UINT32_C(0xC0400000),   /**< Load doubleword into X. */
+  kLDRSBX = UINT32_C(0x00800000), /**< Load signed byte into X. */
+  kLDRSHX = UINT32_C(0x40800000), /**< Load signed halfword into X. */
+  kLDRSWX = UINT32_C(0x80800000), /**< Load signed word into X. */
+  kLDRSBW = UINT32_C(0x00C00000), /**< Load signed byte into W. */
+  kLDRSHW = UINT32_C(0x40C00000), /**< Load signed halfword into W. */
+  kSTRB = UINT32_C(0x04000000),   /**< Store 8 bit SIMD register. */
+  kSTRH = UINT32_C(0x44000000),   /**< Store 16 bit SIMD register. */
+  kSTRS = UINT32_C(0x84000000),   /**< Store 32 bit SIMD register. */
+  kSTRD = UINT32_C(0xC4000000),   /**< Store 64 bit SIMD register. */
+  kSTRQ = UINT32_C(0x04800000),   /**< Store 128 bit SIMD register. */
+  kLDRB = UINT32_C(0x04400000),   /**< Load 8 bit SIMD register. */
+  kLDRH = UINT32_C(0x44400000),   /**< Load 16 bit SIMD register. */
+  kLDRS = UINT32_C(0x84400000),   /**< Load 32 bit SIMD register. */
+  kLDRD = UINT32_C(0xC4400000),   /**< Load 64 bit SIMD register. */
+  kLDRQ = UINT32_C(0x04C00000),   /**< Load 128 bit SIMD register. */
+  kPRFM = UINT32_C(0xC0800000),   /**< Prefetch. */
 };
 
 /** Mask for the load and store offset addressing modes. */
@@ -374,7 +374,7 @@ class Exception {
   /**
    * @return The exception kind.
    */
-  Code code() const { return code_; }
+  Code GetCode() const { return code_; }
 
   /**
    * Returns the captured thread context. Write general purpose and vector registers through the
@@ -384,12 +384,12 @@ class Exception {
    *
    * @return The captured thread context.
    */
-  HostThreadContext* thread_context() const { return thread_context_; }
+  HostThreadContext* GetThreadContext() const { return thread_context_; }
 
   /**
    * @return The program counter where the exception was raised.
    */
-  u64 pc() const {
+  u64 GetPC() const {
 #if REX_ARCH_AMD64
     return thread_context_->rip;
 #elif REX_ARCH_ARM64
@@ -405,7 +405,7 @@ class Exception {
    *
    * @param pc The resume address.
    */
-  void set_resume_pc(u64 pc) {
+  void SetResumePC(u64 pc) {
 #if REX_ARCH_AMD64
     thread_context_->rip = pc;
 #elif REX_ARCH_ARM64
@@ -431,7 +431,7 @@ class Exception {
   /**
    * @return The bit mask of the general purpose registers marked as modified.
    */
-  u16 modified_int_registers() const { return modified_int_registers_; }
+  u16 GetModifiedIntRegisters() const { return modified_int_registers_; }
 
   /**
    * Marks an XMM register as modified and returns it for writing.
@@ -439,7 +439,7 @@ class Exception {
    * @param index The XMM register index, 0 to 15.
    * @return The register in the thread context.
    */
-  vec128_t& ModifyXmmRegister(u32 index) {
+  Vec128T& ModifyXMMRegister(u32 index) {
     REX_ASSERT(index <= 15);
     modified_xmm_registers_ |= UINT16_C(1) << index;
     return thread_context_->xmm_registers[index];
@@ -448,7 +448,7 @@ class Exception {
   /**
    * @return The bit mask of the XMM registers marked as modified.
    */
-  u16 modified_xmm_registers() const { return modified_xmm_registers_; }
+  u16 GetModifiedXMMRegisters() const { return modified_xmm_registers_; }
 #elif REX_ARCH_ARM64
   /**
    * Marks an X register as modified and returns it for writing.
@@ -465,7 +465,7 @@ class Exception {
   /**
    * @return The bit mask of the X registers marked as modified.
    */
-  u32 modified_x_registers() const { return modified_x_registers_; }
+  u32 GetModifiedXRegisters() const { return modified_x_registers_; }
 
   /**
    * Marks a V register as modified and returns it for writing.
@@ -473,7 +473,7 @@ class Exception {
    * @param index The V register index, 0 to 31.
    * @return The register in the thread context.
    */
-  vec128_t& ModifyVRegister(u32 index) {
+  Vec128T& ModifyVRegister(u32 index) {
     REX_ASSERT(index <= 31);
     modified_v_registers_ |= UINT32_C(1) << index;
     return thread_context_->v[index];
@@ -482,18 +482,18 @@ class Exception {
   /**
    * @return The bit mask of the V registers marked as modified.
    */
-  u32 modified_v_registers() const { return modified_v_registers_; }
+  u32 GetModifiedVRegisters() const { return modified_v_registers_; }
 #endif  // REX_ARCH
 
   /**
    * @return The address that was read or written, for an access violation.
    */
-  u64 fault_address() const { return fault_address_; }
+  u64 GetFaultAddress() const { return fault_address_; }
 
   /**
    * @return The operation that faulted, for an access violation.
    */
-  AccessViolationOperation access_violation_operation() const {
+  AccessViolationOperation GetAccessViolationOperation() const {
     return access_violation_operation_;
   }
 

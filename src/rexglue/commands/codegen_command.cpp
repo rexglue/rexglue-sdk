@@ -38,10 +38,10 @@ void EmitManualReview(std::span<const SourceWarning> warnings, std::string_view 
 
 void ReportStaleIncludes(const fs::path& manifest_path,
                          const rex::codegen::ProjectRecompiler& recompiler) {
-  std::unordered_set<std::string> written(recompiler.writtenFiles().begin(),
-                                          recompiler.writtenFiles().end());
+  std::unordered_set<std::string> written(recompiler.GetWrittenFiles().begin(),
+                                          recompiler.GetWrittenFiles().end());
   std::unordered_set<std::string> removed;
-  for (const auto& f : recompiler.deletedFiles()) {
+  for (const auto& f : recompiler.GetDeletedFiles()) {
     if (!written.contains(f)) {
       removed.insert(f);
     }
@@ -60,18 +60,18 @@ void ReportStaleIncludes(const fs::path& manifest_path,
                                             bool ignore_stamp, const rex::codegen::Limits& limits) {
   auto manifest = rex::codegen::ManifestConfig::Load(manifest_path);
   if (!manifest) {
-    return Err<void>(rex::ErrorCategory::Config, "Failed to load manifest");
+    return Err<void>(rex::ErrorCategory::kConfig, "Failed to load manifest");
   }
-  std::string title = std::format("Recompiling {}", manifest->projectName);
+  std::string title = std::format("Recompiling {}", manifest->project_name);
   rex::codegen::ProjectRecompiler recompiler(std::move(*manifest));
   ui::ProgressView progress(title);
   rex::codegen::ProjectRecompilerOptions opts{
       .targets = targets,
       .force = ctx.generate_despite_errors,
       .reporter = &progress,
-      .ignoreStamp = ignore_stamp,
+      .ignore_stamp = ignore_stamp,
       .limits = limits,
-      .sdkVersion = REXGLUE_VERSION_FLOOR "-" REXGLUE_VERSION_CHANNEL,
+      .sdk_version = REXGLUE_VERSION_FLOOR "-" REXGLUE_VERSION_CHANNEL,
   };
   auto result = recompiler.Run(opts);
   if (!result)
@@ -80,8 +80,8 @@ void ReportStaleIncludes(const fs::path& manifest_path,
   ReportStaleIncludes(manifest_path, recompiler);
   REXLOG_INFO(rexglue,
               "Codegen summary: {} written, {} unchanged, {} deleted, {} module(s) up to date",
-              recompiler.writtenFiles().size(), recompiler.unchangedFiles().size(),
-              recompiler.deletedFiles().size(), recompiler.skippedModules().size());
+              recompiler.GetWrittenFiles().size(), recompiler.GetUnchangedFiles().size(),
+              recompiler.GetDeletedFiles().size(), recompiler.GetSkippedModules().size());
   return rex::Ok();
 }
 
@@ -95,12 +95,12 @@ struct ManifestSummary {
 [[nodiscard]] rex::Result<ManifestSummary> LoadManifestSummary(const fs::path& manifest_path) {
   auto manifest = rex::codegen::ManifestConfig::Load(manifest_path);
   if (!manifest) {
-    return Err<ManifestSummary>(rex::ErrorCategory::Config, "Failed to load manifest");
+    return Err<ManifestSummary>(rex::ErrorCategory::kConfig, "Failed to load manifest");
   }
   return rex::Ok(ManifestSummary{
-      .project_name = manifest->projectName,
-      .sdk_version = manifest->sdkVersion.value_or(""),
-      .entrypoint_out_dir = manifest->entrypoint.recompiler.outDirectoryPath,
+      .project_name = manifest->project_name,
+      .sdk_version = manifest->sdk_version.value_or(""),
+      .entrypoint_out_dir = manifest->entrypoint.recompiler.out_directory_path,
       .module_count = manifest->modules.size(),
   });
 }
@@ -137,7 +137,7 @@ Result<std::string> DiscoverManifestInCwd() {
   std::error_code ec;
   fs::path cwd = fs::current_path(ec);
   if (ec) {
-    return Err<std::string>(rex::ErrorCategory::IO,
+    return Err<std::string>(rex::ErrorCategory::kIO,
                             std::format("Cannot read current directory: {}", ec.message()));
   }
 
@@ -162,17 +162,17 @@ Result<std::string> DiscoverManifestInCwd() {
     return rex::Ok(manifests.front().string());
   if (manifests.size() > 1) {
     return Err<std::string>(
-        rex::ErrorCategory::Config,
+        rex::ErrorCategory::kConfig,
         std::format("Multiple *_manifest.toml files in {}; pass one explicitly", cwd.string()));
   }
   if (other_tomls.size() == 1)
     return rex::Ok(other_tomls.front().string());
   if (other_tomls.size() > 1) {
     return Err<std::string>(
-        rex::ErrorCategory::Config,
+        rex::ErrorCategory::kConfig,
         std::format("Multiple .toml files in {}; pass the manifest explicitly", cwd.string()));
   }
-  return Err<std::string>(rex::ErrorCategory::Config,
+  return Err<std::string>(rex::ErrorCategory::kConfig,
                           std::format("No manifest .toml found in {}", cwd.string()));
 }
 
@@ -184,7 +184,7 @@ Result<void> CodegenFromConfig(const std::string& config_path, const CLIContext&
   fs::path manifest_path = config_path;
   if (!rex::codegen::ManifestConfig::IsManifest(manifest_path)) {
     return Err<void>(
-        rex::ErrorCategory::Config,
+        rex::ErrorCategory::kConfig,
         std::format("{} is not a manifest: no [project] section. Pre-manifest single-file "
                     "configs are no longer converted automatically; see docs for the layout.",
                     config_path));

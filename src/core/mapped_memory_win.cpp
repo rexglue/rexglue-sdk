@@ -68,14 +68,14 @@ class Win32MappedMemory : public MappedMemory {
     }
   }
 
-  void Flush() override { FlushViewOfFile(data(), size()); }
+  void Flush() override { FlushViewOfFile(GetData(), GetSize()); }
   bool Remap(size_t offset, size_t length) override {
-    size_t aligned_offset = offset & ~(memory::allocation_granularity() - 1);
+    size_t aligned_offset = offset & ~(memory::AllocationGranularity() - 1);
     size_t aligned_length = length + (offset - aligned_offset);
 
     UnmapViewOfFile(data_);
 #ifdef REX_BASE_MAPPED_MEMORY_WIN_USE_DESKTOP_FUNCTIONS
-    data_ = MapViewOfFile(mapping_handle, view_access_, aligned_offset >> 32,
+    data_ = MapViewOfFile(mapping_handle, view_access, aligned_offset >> 32,
                           aligned_offset & 0xFFFFFFFF, aligned_length);
 #else
     data_ = MapViewOfFileFromApp(mapping_handle, ULONG(view_access_), ULONG64(aligned_offset),
@@ -99,7 +99,7 @@ class Win32MappedMemory : public MappedMemory {
 
   HANDLE file_handle = kFileHandleInvalid;
   HANDLE mapping_handle = kMappingHandleInvalid;
-  DWORD view_access_ = 0;
+  DWORD view_access = 0;
 };
 
 std::unique_ptr<MappedMemory> MappedMemory::Open(const std::filesystem::path& path, Mode mode,
@@ -134,7 +134,7 @@ std::unique_ptr<MappedMemory> MappedMemory::Open(const std::filesystem::path& pa
   const size_t aligned_length = length + (offset - aligned_offset);
 
   auto mm = std::make_unique<Win32MappedMemory>();
-  mm->view_access_ = view_access;
+  mm->view_access = view_access;
 
   mm->file_handle = CreateFileW(path.c_str(), file_access, file_share, nullptr, create_mode,
                                 FILE_ATTRIBUTE_NORMAL, nullptr);

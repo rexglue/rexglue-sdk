@@ -27,11 +27,11 @@ BOOL CALLBACK MinimizeProcessWindow(HWND hwnd, LPARAM param) {
 
 UINT IconFlag(MessageKind kind) {
   switch (kind) {
-    case MessageKind::Error:
+    case MessageKind::kError:
       return MB_ICONERROR;
-    case MessageKind::Warning:
+    case MessageKind::kWarning:
       return MB_ICONWARNING;
-    case MessageKind::Info:
+    case MessageKind::kInfo:
       return MB_ICONINFORMATION;
   }
   return MB_ICONINFORMATION;
@@ -39,13 +39,13 @@ UINT IconFlag(MessageKind kind) {
 
 [[nodiscard]] Result<u32> ShowTopmostBox(MessageKind kind, const std::string& title,
                                          const std::string& body) {
-  const std::u16string wide_title = to_utf16(title);
-  const std::u16string wide_body = to_utf16(body);
+  const std::u16string wide_title = ToUTF16(title);
+  const std::u16string wide_body = ToUTF16(body);
   const int pressed = MessageBoxW(nullptr, reinterpret_cast<const wchar_t*>(wide_body.c_str()),
                                   reinterpret_cast<const wchar_t*>(wide_title.c_str()),
                                   MB_OK | IconFlag(kind) | MB_TOPMOST | MB_SETFOREGROUND);
   if (pressed == 0) {
-    return Err<u32>(ErrorCategory::Platform, "MessageBoxW failed");
+    return Err<u32>(ErrorCategory::kPlatform, "MessageBoxW failed");
   }
   return 0u;
 }

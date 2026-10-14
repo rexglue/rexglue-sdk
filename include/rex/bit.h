@@ -74,10 +74,10 @@ class REX_API BitMap {
   void Reset();
 
   /** @return A copy of the backing words. */
-  const std::vector<u64> data() const { return data_; }
+  const std::vector<u64> GetData() const { return data_; }
 
   /** @return The backing words. */
-  std::vector<u64>& data() { return data_; }
+  std::vector<u64>& GetData() { return data_; }
 
  private:
   const static size_t kDataSize = 8;

@@ -67,14 +67,14 @@ class REX_API App : public NonCopyable {
    *
    * @return The arguments passed to Init.
    */
-  const CLIArgList& args() const;
+  const CLIArgList& GetArgs() const;
 
   /**
    * Returns the modules and core interfaces.
    *
    * @return The handle Init created. Valid from OnInit until Shutdown unloads the modules.
    */
-  API& api();
+  API& GetAPI();
 
  protected:
   /**
@@ -82,7 +82,7 @@ class REX_API App : public NonCopyable {
    *
    * @return The configuration Init reads. Changes after Init have no effect.
    */
-  Config& config();
+  Config& GetConfig();
 
   /**
    * Reports an error from a lifecycle step. The base class logs it. TitleApp also shows it in a
@@ -98,7 +98,7 @@ class REX_API App : public NonCopyable {
    *
    * @return The app name and dialog choice of the report.
    */
-  virtual platform::CrashReporterOptions CrashOptions();
+  virtual platform::CrashReporterOptions GetCrashOptions();
 
   /**
    * Marks a failed lifecycle step so Shutdown returns 1, and reports it.

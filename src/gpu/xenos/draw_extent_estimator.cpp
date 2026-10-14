@@ -67,8 +67,8 @@ u32 DrawExtentEstimator::EstimateVertexMaxY(const Shader& vertex_shader) {
     return xenos::kTexture2DCubeMaxWidthHeight;
   }
 
-  REX_ASSERT(vertex_shader.type() == xenos::ShaderType::kVertex);
-  REX_ASSERT(vertex_shader.is_ucode_analyzed());
+  REX_ASSERT(vertex_shader.GetType() == xenos::ShaderType::kVertex);
+  REX_ASSERT(vertex_shader.IsUcodeAnalyzed());
   if (!ShaderInterpreter::CanInterpretShader(vertex_shader)) {
     return xenos::kTexture2DCubeMaxWidthHeight;
   }
@@ -155,35 +155,35 @@ u32 DrawExtentEstimator::EstimateVertexMaxY(const Shader& vertex_shader) {
 
     position_y_export_sink.Reset();
 
-    shader_interpreter_.temp_registers()[0] = static_cast<f32>(vertex_index);
+    shader_interpreter_.GetTempRegisters()[0] = static_cast<f32>(vertex_index);
     shader_interpreter_.Execute();
 
-    if (position_y_export_sink.vertex_kill().has_value() &&
-        (position_y_export_sink.vertex_kill().value() & ~(UINT32_C(1) << 31))) {
+    if (position_y_export_sink.GetVertexKill().has_value() &&
+        (position_y_export_sink.GetVertexKill().value() & ~(UINT32_C(1) << 31))) {
       continue;
     }
-    if (!position_y_export_sink.position_y().has_value()) {
+    if (!position_y_export_sink.GetPositionY().has_value()) {
       continue;
     }
-    f32 vertex_y = position_y_export_sink.position_y().value();
+    f32 vertex_y = position_y_export_sink.GetPositionY().value();
     if (!pa_cl_vte_cntl.vtx_xy_fmt) {
-      if (!position_y_export_sink.position_w().has_value()) {
+      if (!position_y_export_sink.GetPositionW().has_value()) {
         continue;
       }
-      vertex_y /= position_y_export_sink.position_w().value();
+      vertex_y /= position_y_export_sink.GetPositionW().value();
     }
 
     vertex_y = vertex_y * viewport_y_scale + viewport_y_offset;
 
     if (vgt_draw_initiator.prim_type == xenos::PrimitiveType::kPointList) {
       f32 point_radius_y;
-      if (position_y_export_sink.point_size().has_value()) {
+      if (position_y_export_sink.GetPointSize().has_value()) {
         point_radius_y =
             0.5f *
             rex::Reinterpret<f32>(std::min(
                 point_vertex_max_diameter_float,
                 std::max(point_vertex_min_diameter_float,
-                         rex::Reinterpret<i32>(position_y_export_sink.point_size().value()))));
+                         rex::Reinterpret<i32>(position_y_export_sink.GetPointSize().value()))));
       } else {
         point_radius_y = point_constant_radius_y;
       }

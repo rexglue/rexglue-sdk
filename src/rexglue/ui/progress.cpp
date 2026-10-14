@@ -19,13 +19,13 @@ constexpr auto kSpinnerInterval = std::chrono::milliseconds(100);
 ProgressView::ProgressView(std::string_view title) : title_(title) {
   {
     detail::GlobalSinkAccessor acc;
-    acc.writeColored(color::kBold, title_);
-    acc.writeRaw("\n");
-    tty_ = detail::SinkIsTty();
+    acc.WriteColored(color::kBold, title_);
+    acc.WriteRaw("\n");
+    tty_ = detail::IsSinkTTY();
   }
   if (tty_) {
     detail::SetSinkActiveProgress(true);
-    spinner_thread_ = std::jthread([this](const std::stop_token& stop) { spinnerLoop(stop); });
+    spinner_thread_ = std::jthread([this](const std::stop_token& stop) { RunSpinner(stop); });
   }
 }
 
@@ -36,45 +36,45 @@ ProgressView::~ProgressView() {
     detail::SetSinkActiveProgress(false);
   }
   std::lock_guard lock(state_mutex_);
-  if (active_line_kind_ != ActiveLineKind::None) {
+  if (active_line_kind_ != ActiveLineKind::kNone) {
     detail::GlobalSinkAccessor acc;
-    acc.writeRaw(kEraseLine);
-    active_line_kind_ = ActiveLineKind::None;
+    acc.WriteRaw(kEraseLine);
+    active_line_kind_ = ActiveLineKind::kNone;
   }
 }
 
-void ProgressView::renderActiveLine() {
+void ProgressView::RenderActiveLine() {
   if (!tty_)
     return;
   detail::GlobalSinkAccessor acc;
-  acc.writeRaw(kEraseLine);
+  acc.WriteRaw(kEraseLine);
   spinner_frame_ = (spinner_frame_ + 1) % glyphs::kSpinnerFrames.size();
-  acc.writeColored(color::kCyan, glyphs::kSpinnerFrames[spinner_frame_]);
-  acc.writeRaw(" ");
-  if (active_line_kind_ == ActiveLineKind::Module) {
+  acc.WriteColored(color::kCyan, glyphs::kSpinnerFrames[spinner_frame_]);
+  acc.WriteRaw(" ");
+  if (active_line_kind_ == ActiveLineKind::kModule) {
     if (current_module_ >= modules_.size())
       return;
-    acc.writeColored(color::kBold, modules_[current_module_].name);
-    acc.writeRaw(" [");
-    acc.writeColored(color::kDim, current_phase_.empty() ? std::string_view{"start"}
+    acc.WriteColored(color::kBold, modules_[current_module_].name);
+    acc.WriteRaw(" [");
+    acc.WriteColored(color::kDim, current_phase_.empty() ? std::string_view{"start"}
                                                          : std::string_view{current_phase_});
-    acc.writeRaw("]");
-  } else if (active_line_kind_ == ActiveLineKind::ProjectPhase) {
-    acc.writeColored(color::kBold, std::format("project::{}", current_project_phase_));
+    acc.WriteRaw("]");
+  } else if (active_line_kind_ == ActiveLineKind::kProjectPhase) {
+    acc.WriteColored(color::kBold, std::format("project::{}", current_project_phase_));
   }
-  acc.flush();
+  acc.Flush();
 }
 
-void ProgressView::spinnerLoop(const std::stop_token& stop) {
+void ProgressView::RunSpinner(const std::stop_token& stop) {
   std::unique_lock cv_lock(state_mutex_);
   while (!stop.stop_requested()) {
-    if (active_line_kind_ != ActiveLineKind::None)
-      renderActiveLine();
+    if (active_line_kind_ != ActiveLineKind::kNone)
+      RenderActiveLine();
     spinner_cv_.wait_for(cv_lock, stop, kSpinnerInterval, [] { return false; });
   }
 }
 
-void ProgressView::binaryInfo(const rex::codegen::BinaryInfo& info) {
+void ProgressView::BinaryLoaded(const rex::codegen::BinaryInfo& info) {
   std::string filetime;
   if (info.pe_time_date_stamp == 0) {
     filetime = "(none)";
@@ -93,7 +93,7 @@ void ProgressView::binaryInfo(const rex::codegen::BinaryInfo& info) {
   KeyValueBlock(info.name, rows);
 }
 
-void ProgressView::moduleStarted(std::string_view name, std::size_t index, std::size_t total) {
+void ProgressView::ModuleStarted(std::string_view name, std::size_t index, std::size_t total) {
   (void)total;
   std::lock_guard lock(state_mutex_);
   current_module_ = index;
@@ -104,15 +104,15 @@ void ProgressView::moduleStarted(std::string_view name, std::size_t index, std::
 
   if (!tty_) {
     detail::GlobalSinkAccessor acc;
-    acc.writeLine(std::format("  start  {}", name));
+    acc.WriteLine(std::format("  start  {}", name));
     return;
   }
 
-  active_line_kind_ = ActiveLineKind::Module;
-  renderActiveLine();
+  active_line_kind_ = ActiveLineKind::kModule;
+  RenderActiveLine();
 }
 
-void ProgressView::phaseChanged(std::string_view name) {
+void ProgressView::PhaseChanged(std::string_view name) {
   std::lock_guard lock(state_mutex_);
   if (current_module_ >= modules_.size())
     return;
@@ -121,15 +121,15 @@ void ProgressView::phaseChanged(std::string_view name) {
 
   if (!tty_) {
     detail::GlobalSinkAccessor acc;
-    acc.writeLine(std::format("  phase  {}: {}", modules_[current_module_].name, name));
+    acc.WriteLine(std::format("  phase  {}: {}", modules_[current_module_].name, name));
     return;
   }
 
-  active_line_kind_ = ActiveLineKind::Module;
-  renderActiveLine();
+  active_line_kind_ = ActiveLineKind::kModule;
+  RenderActiveLine();
 }
 
-void ProgressView::moduleFinished(std::chrono::milliseconds elapsed) {
+void ProgressView::ModuleFinished(std::chrono::milliseconds elapsed) {
   std::lock_guard lock(state_mutex_);
   if (current_module_ >= modules_.size())
     return;
@@ -138,53 +138,53 @@ void ProgressView::moduleFinished(std::chrono::milliseconds elapsed) {
 
   if (!tty_) {
     detail::GlobalSinkAccessor acc;
-    acc.writeLine(std::format("  done   {} ({:.1f}s)", modules_[current_module_].name,
+    acc.WriteLine(std::format("  done   {} ({:.1f}s)", modules_[current_module_].name,
                               std::chrono::duration<f64>(elapsed).count()));
     return;
   }
 
   detail::GlobalSinkAccessor acc;
-  acc.writeRaw(kEraseLine);
-  acc.writeRaw("  ");
-  acc.writeColored(color::kGreen, glyphs::kCheckMark);
-  acc.writeRaw(" ");
-  acc.writeRaw(modules_[current_module_].name);
-  acc.writeRaw(" ");
-  acc.writeColored(color::kDim,
+  acc.WriteRaw(kEraseLine);
+  acc.WriteRaw("  ");
+  acc.WriteColored(color::kGreen, glyphs::kCheckMark);
+  acc.WriteRaw(" ");
+  acc.WriteRaw(modules_[current_module_].name);
+  acc.WriteRaw(" ");
+  acc.WriteColored(color::kDim,
                    std::format("({:.1f}s)", std::chrono::duration<f64>(elapsed).count()));
-  acc.writeRaw("\n");
-  active_line_kind_ = ActiveLineKind::None;
+  acc.WriteRaw("\n");
+  active_line_kind_ = ActiveLineKind::kNone;
 }
 
-void ProgressView::projectPhaseStarted(std::string_view name) {
+void ProgressView::ProjectPhaseStarted(std::string_view name) {
   std::lock_guard lock(state_mutex_);
   current_project_phase_ = std::string(name);
 
   if (!tty_) {
     detail::GlobalSinkAccessor acc;
-    acc.writeLine(std::format("  start  project::{}", name));
+    acc.WriteLine(std::format("  start  project::{}", name));
     return;
   }
 
-  active_line_kind_ = ActiveLineKind::ProjectPhase;
-  renderActiveLine();
+  active_line_kind_ = ActiveLineKind::kProjectPhase;
+  RenderActiveLine();
 }
 
-void ProgressView::projectPhaseFinished() {
+void ProgressView::ProjectPhaseFinished() {
   std::lock_guard lock(state_mutex_);
   if (!tty_) {
     detail::GlobalSinkAccessor acc;
-    acc.writeLine("  done   project phase");
+    acc.WriteLine("  done   project phase");
     return;
   }
 
   detail::GlobalSinkAccessor acc;
-  acc.writeRaw(kEraseLine);
-  acc.writeRaw("  ");
-  acc.writeColored(color::kGreen, glyphs::kCheckMark);
-  acc.writeRaw(" ");
-  acc.writeRaw(std::format("project::{}\n", current_project_phase_));
-  active_line_kind_ = ActiveLineKind::None;
+  acc.WriteRaw(kEraseLine);
+  acc.WriteRaw("  ");
+  acc.WriteColored(color::kGreen, glyphs::kCheckMark);
+  acc.WriteRaw(" ");
+  acc.WriteRaw(std::format("project::{}\n", current_project_phase_));
+  active_line_kind_ = ActiveLineKind::kNone;
 }
 
 }  // namespace rexglue::ui

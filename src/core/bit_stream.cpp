@@ -26,7 +26,7 @@ void BitStream::SetOffset(size_t offset_bits) {
   offset_bits_ = std::min(offset_bits, size_bits_);
 }
 
-size_t BitStream::BitsRemaining() const {
+size_t BitStream::GetBitsRemaining() const {
   return size_bits_ - offset_bits_;
 }
 

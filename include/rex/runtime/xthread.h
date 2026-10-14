@@ -44,41 +44,41 @@ namespace rex::runtime {
 
 /** Interrupt request levels stored in `X_KPCR::current_irql`. */
 enum IRQL_FLAGS : u8 {
-  IRQL_PASSIVE = 0,  /**< Lowest level. */
-  IRQL_APC = 1,      /**< Level 1, above passive. */
-  IRQL_DISPATCH = 2, /**< Level held while a spinlock is acquired and while queued DPCs run. */
-  IRQL_DPC = 3,      /**< Level held while an interrupt routine runs. */
-  IRQL_AUDIO = 68,   /**< Level 68. No code uses it. */
-  IRQL_CLOCK = 116,  /**< Level 116. No code uses it. */
-  IRQL_HIGHEST = 124 /**< Highest level defined. */
+  kIRQLPassive = 0,  /**< Lowest level. */
+  kIRQLAPC = 1,      /**< Level 1, above passive. */
+  kIRQLDispatch = 2, /**< Level held while a spinlock is acquired and while queued DPCs run. */
+  kIRQLDPC = 3,      /**< Level held while an interrupt routine runs. */
+  kIRQLAudio = 68,   /**< Level 68. No code uses it. */
+  kIRQLClock = 116,  /**< Level 116. No code uses it. */
+  kIRQLHighest = 124 /**< Highest level defined. */
 };
 
 /** Object types stored in the type byte of `X_DISPATCH_HEADER`. */
 enum X_DISPATCHER_FLAGS : u8 {
-  DISPATCHER_MANUAL_RESET_EVENT = 0, /**< Notification event. */
-  DISPATCHER_AUTO_RESET_EVENT = 1,   /**< Synchronization event. */
-  DISPATCHER_MUTANT = 2,             /**< Mutant. */
-  DISPATCHER_QUEUE = 4,              /**< Queue. */
-  DISPATCHER_SEMAPHORE = 5,          /**< Semaphore. */
-  DISPATCHER_THREAD = 6,             /**< Thread. */
-  DISPATCHER_MANUAL_RESET_TIMER = 8, /**< Notification timer. */
-  DISPATCHER_AUTO_RESET_TIMER = 9,   /**< Synchronization timer. */
+  kDispatcherManualResetEvent = 0, /**< Notification event. */
+  kDispatcherAutoResetEvent = 1,   /**< Synchronization event. */
+  kDispatcherMutant = 2,           /**< Mutant. */
+  kDispatcherQueue = 4,            /**< Queue. */
+  kDispatcherSemaphore = 5,        /**< Semaphore. */
+  kDispatcherThread = 6,           /**< Thread. */
+  kDispatcherManualResetTimer = 8, /**< Notification timer. */
+  kDispatcherAutoResetTimer = 9,   /**< Synchronization timer. */
 };
 
 /** Values of `X_KTHREAD::thread_state`. */
 enum X_KTHREAD_STATE_FLAGS : u8 {
-  KTHREAD_STATE_INITIALIZED = 0, /**< Written as literal 0 at thread creation. */
-  KTHREAD_STATE_READY = 1,       /**< Never written or compared. */
-  KTHREAD_STATE_RUNNING = 2,     /**< Value 2. */
-  KTHREAD_STATE_STANDBY = 3,     /**< Never written or compared. */
-  KTHREAD_STATE_TERMINATED = 4,  /**< Written when the thread exits. */
-  KTHREAD_STATE_WAITING = 5,     /**< Never written or compared. */
-  KTHREAD_STATE_UNKNOWN = 6,     /**< Never written or compared. */
+  kKThreadStateInitialized = 0, /**< Written as literal 0 at thread creation. */
+  kKThreadStateReady = 1,       /**< Never written or compared. */
+  kKThreadStateRunning = 2,     /**< Value 2. */
+  kKThreadStateStandby = 3,     /**< Never written or compared. */
+  kKThreadStateTerminated = 4,  /**< Written when the thread exits. */
+  kKThreadStateWaiting = 5,     /**< Never written or compared. */
+  kKThreadStateUnknown = 6,     /**< Never written or compared. */
 };
 
-constexpr u32 X_CREATE_SUSPENDED = 0x00000001;
+constexpr u32 kXCreateSuspended = 0x00000001;
 
-constexpr u32 X_TLS_OUT_OF_INDEXES = UINT32_MAX;
+constexpr u32 kXTLSOutOfIndexes = UINT32_MAX;
 
 /** Guest layout of a deferred procedure call. */
 struct X_KDPC {
@@ -188,7 +188,7 @@ struct X_KPRCB {
   be_ptr<X_KTHREAD> next_thread;    /**< Thread chosen to run next on this processor. */
   be_ptr<X_KTHREAD> idle_thread;    /**< Idle thread of this processor. */
   u8 current_cpu;                   /**< Index of this processor. */
-  u8 pad_0D[3];
+  u8 pad_13[3];
   be_u32 processor_mask;         /**< Mask with only the bit of this processor set. */
   be_u32 dpc_clock;              /**< Ticks this processor spent running DPCs. */
   be_u32 interrupt_clock;        /**< Ticks this processor spent servicing interrupts. */
@@ -226,17 +226,17 @@ struct X_KPCR {
       u8 apc_software_interrupt_state;
     };
   };
-  be_u16 unk_0A;
+  be_u16 unk_0a;
   u8 processtype_value_in_dpc;
   u8 timeslice_ended;
   u8 timer_pending;
-  u8 unk_0F;
+  u8 unk_0f;
   be_u32 thread_fpu_related;
   be_u32 thread_vmx_related;
   u8 current_irql;
   u8 background_scheduling_active;
-  u8 background_scheduling_1A;
-  u8 background_scheduling_1B;
+  u8 background_scheduling_1a;
+  u8 background_scheduling_1b;
   be_u32 timer_related;
   u8 unk_20[0x10];
   be_u64 pcr_ptr;
@@ -255,7 +255,7 @@ struct X_KPCR {
   be_u32 interrupt_handlers[32];
   X_KPRCB prcb_data;
   be_ptr<X_KPRCB> prcb;
-  u8 unk_2AC[0x2C];
+  u8 unk_2ac[0x2C];
 };
 static_assert(offsetof(X_KPCR, prcb_data) == 0x100);
 REX_STATIC_ASSERT_SIZE(X_KPCR, 0x2D8);
@@ -289,14 +289,14 @@ struct X_KTHREAD {
   be_u32 num_context_switches_to;
   X_LIST_ENTRY ready_prcb_entry;
   be_u32 msr_mask;
-  rex::be<X_STATUS> wait_result;
+  rex::BE<X_STATUS> wait_result;
   u8 wait_irql;
-  u8 unk_A5[0xB];
+  u8 unk_a5[0xB];
   i32 apc_disable_count;
   be_i32 quantum;
-  u8 unk_B8;
-  u8 unk_B9;
-  u8 unk_BA;
+  u8 unk_b8;
+  u8 unk_b9;
+  u8 unk_ba;
   u8 boost_disabled;
   u8 suspend_count;
   u8 was_preempted;
@@ -304,10 +304,10 @@ struct X_KTHREAD {
   u8 current_cpu; /**< Index of this processor. */
   be_ptr<X_KPRCB> a_prcb_ptr;
   be_ptr<X_KPRCB> another_prcb_ptr;
-  u8 unk_C8;
-  u8 unk_C9;
-  u8 unk_CA;
-  u8 unk_CB;
+  u8 unk_c8;
+  u8 unk_c9;
+  u8 unk_ca;
+  u8 unk_cb;
   X_KSPINLOCK timer_list_lock;
   be_u32 stack_alloc_base;
   XAPC on_suspend;
@@ -317,7 +317,7 @@ struct X_KTHREAD {
   X_LIST_ENTRY queue_related;
   be_u32 unk_124;
   be_u32 unk_128;
-  be_u32 unk_12C;
+  be_u32 unk_12c;
   be_u64 create_time;
   be_u64 exit_time;
   be_u32 exit_status;
@@ -325,13 +325,13 @@ struct X_KTHREAD {
   be_u32 thread_id;
   be_u32 start_address;
   X_LIST_ENTRY unk_154;
-  u8 unk_15C[0x4];
+  u8 unk_15c[0x4];
   be_u32 last_error;
   be_u32 fiber_ptr;
   u8 unk_168[0x4];
   be_u32 creation_flags;
   u8 unk_170[0xC];
-  be_u32 unk_17C;
+  be_u32 unk_17c;
   u8 unk_180[0x930];
 };
 REX_STATIC_ASSERT_SIZE(X_KTHREAD, 0xAB0);
@@ -367,7 +367,7 @@ class REX_RUNTIME_API KernelThread : public rex::NonCopyable {
     u32 xapi_thread_startup; /**< Guest address of the startup trampoline, 0 for a raw thread. */
     u32 start_address;       /**< Guest address of the entry point. */
     u32 start_context;       /**< Argument passed to the entry point. */
-    u32 creation_flags;      /**< Creation flag bits, bit 0 is `X_CREATE_SUSPENDED`. */
+    u32 creation_flags;      /**< Creation flag bits, bit 0 is `kXCreateSuspended`. */
     u32 title_process;       /**< Guest address of the process block, 0 for the title process. */
   };
 
@@ -454,46 +454,32 @@ class REX_RUNTIME_API KernelThread : public rex::NonCopyable {
   static void WriteKernelTime();
 
   /**
-   * Returns the last error of the calling thread.
-   *
-   * @return The error code.
-   */
-  static u32 GetLastError();
-
-  /**
-   * Sets the last error of the calling thread.
-   *
-   * @param error_code The error code.
-   */
-  static void SetLastError(u32 error_code);
-
-  /**
    * Returns the runtime the thread belongs to.
    *
    * @return The runtime.
    */
-  Runtime& runtime() const { return *runtime_; }
+  Runtime& GetRuntime() const { return *runtime_; }
 
   /**
    * Returns the guest memory.
    *
    * @return The memory.
    */
-  runtime::Memory* memory() const;
+  runtime::Memory* GetMemory() const;
 
   /**
    * Returns the creation handle.
    *
    * @return The handle, 0 before launch.
    */
-  X_HANDLE handle() const { return handle_; }
+  X_HANDLE GetHandle() const { return handle_; }
 
   /**
    * Returns the guest address of the thread block.
    *
    * @return The address.
    */
-  u32 guest_object() const { return guest_object_ptr_; }
+  u32 GetGuestObject() const { return guest_object_ptr_; }
 
   /**
    * Returns the thread block as a host pointer.
@@ -502,8 +488,8 @@ class REX_RUNTIME_API KernelThread : public rex::NonCopyable {
    * @return The pointer.
    */
   template <typename T>
-  T* guest_object() {
-    return memory()->TranslateVirtual<T*>(guest_object_ptr_);
+  T* GetGuestObject() {
+    return GetMemory()->TranslateVirtual<T*>(guest_object_ptr_);
   }
 
   /**
@@ -511,14 +497,14 @@ class REX_RUNTIME_API KernelThread : public rex::NonCopyable {
    *
    * @return The name.
    */
-  const std::string& name() const { return thread_name_; }
+  const std::string& GetName() const { return thread_name_; }
 
   /**
    * Returns the thread name without allocating or locking, for a crash report.
    *
    * @return The name, cut to 63 characters.
    */
-  std::string_view crash_name() const {
+  std::string_view GetCrashName() const {
     return {crash_name_.data(), crash_name_length_.load(std::memory_order_acquire)};
   }
 
@@ -527,70 +513,70 @@ class REX_RUNTIME_API KernelThread : public rex::NonCopyable {
    *
    * @return The parameters.
    */
-  const CreationParams* creation_params() const { return &creation_params_; }
+  const CreationParams* GetCreationParams() const { return &creation_params_; }
 
   /**
    * Returns the guest address of the static TLS block.
    *
    * @return The address.
    */
-  u32 tls_ptr() const { return tls_static_address_; }
+  u32 GetTLSPtr() const { return tls_static_address_; }
 
   /**
    * Returns the guest address of the PCR.
    *
    * @return The address.
    */
-  u32 pcr_ptr() const { return pcr_address_; }
+  u32 GetPCRPtr() const { return pcr_address_; }
 
   /**
    * Reports whether the title created the thread.
    *
    * @return True when it did.
    */
-  bool is_guest_thread() const { return guest_thread_; }
+  bool IsGuestThread() const { return guest_thread_; }
 
   /**
    * Reports whether this is the entry point thread.
    *
    * @return True when it is.
    */
-  bool main_thread() const { return main_thread_; }
+  bool GetMainThread() const { return main_thread_; }
 
   /**
    * Reports whether the thread is running.
    *
    * @return True while it runs.
    */
-  bool is_running() const { return running_; }
+  bool IsRunning() const { return running_; }
 
   /**
    * Returns the thread id.
    *
    * @return The id.
    */
-  u32 thread_id() const { return thread_id_; }
+  u32 GetThreadId() const { return thread_id_; }
 
   /**
    * Returns the last error.
    *
    * @return The error code.
    */
-  u32 last_error();
+  u32 GetLastError();
 
   /**
    * Sets the last error.
    *
    * @param error_code The error code.
    */
-  void set_last_error(u32 error_code);
+  void SetLastError(u32 error_code);
 
   /**
    * Sets the thread name.
    *
    * @param name The name, the handle is appended.
    */
-  void set_name(const std::string_view name);
+  void SetName(const std::string_view name);
 
   /**
    * Exits the calling thread by unwinding to its entry.
@@ -618,14 +604,14 @@ class REX_RUNTIME_API KernelThread : public rex::NonCopyable {
    *
    * @return The fiber, null before the thread runs.
    */
-  rex::platform::Fiber* main_fiber() const { return main_fiber_; }
+  rex::platform::Fiber* GetMainFiber() const { return main_fiber_; }
 
   /**
    * Sets the main fiber.
    *
    * @param fiber The fiber.
    */
-  void set_main_fiber(rex::platform::Fiber* fiber) { main_fiber_ = fiber; }
+  void SetMainFiber(rex::platform::Fiber* fiber) { main_fiber_ = fiber; }
 
   /** Disables APC delivery by 1 level. */
   void EnterCriticalRegion();
@@ -658,7 +644,7 @@ class REX_RUNTIME_API KernelThread : public rex::NonCopyable {
    *
    * @return The priority.
    */
-  i32 priority() const { return priority_; }
+  i32 GetPriority() const { return priority_; }
 
   /**
    * Returns the host priority.
@@ -687,7 +673,7 @@ class REX_RUNTIME_API KernelThread : public rex::NonCopyable {
    *
    * @return The processor index.
    */
-  u8 active_cpu() const;
+  u8 GetActiveCPU() const;
 
   /**
    * Moves the thread to a logical processor.
@@ -719,7 +705,7 @@ class REX_RUNTIME_API KernelThread : public rex::NonCopyable {
    *
    * @return The count.
    */
-  u32 suspend_count();
+  u32 SuspendCount();
 
   /**
    * Resumes the thread.
@@ -752,14 +738,14 @@ class REX_RUNTIME_API KernelThread : public rex::NonCopyable {
    *
    * @return The thread.
    */
-  rex::platform::Thread* thread() { return thread_.get(); }
+  rex::platform::Thread* GetThread() { return thread_.get(); }
 
   /**
    * Returns the thread state.
    *
    * @return The state.
    */
-  runtime::ThreadState* thread_state() { return thread_state_.get(); }
+  runtime::ThreadState* GetThreadState() { return thread_state_.get(); }
 
   PinCount pins; /**< Transient pins that keep the object alive while a caller uses it. */
 
@@ -871,7 +857,7 @@ class REX_RUNTIME_API KernelThread : public rex::NonCopyable {
    *
    * @return The address, 0 before the runtime has kernel globals.
    */
-  u32 ProcessAddress() const;
+  u32 GetProcessAddress() const;
 
   /**
    * Writes the exit state to the KTHREAD and unlinks it from its process.

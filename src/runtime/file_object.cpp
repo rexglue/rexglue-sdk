@@ -33,7 +33,7 @@ void NotifyIOCompletionPorts(Runtime& runtime, FileObject& file, IONotification&
   }
 
   for (const auto& port : ports) {
-    auto pin = runtime.object_table().Get<IOCompletionObject>(port.second);
+    auto pin = runtime.GetObjectTable().Get<IOCompletionObject>(port.second);
     if (pin) {
       notification.key_context = port.first;
       pin->Queue(notification);
@@ -46,7 +46,7 @@ void NotifyIOCompletionPorts(Runtime& runtime, FileObject& file, IONotification&
 X_STATUS FileObject::ReadInternal(Runtime& runtime, u32 buffer_address, u32 buffer_length,
                                   u64 byte_offset, u32* out_bytes_read, u32 apc_context,
                                   bool notify_completion) {
-  auto* memory = runtime.memory();
+  auto* memory = runtime.GetMemory();
   if (byte_offset == static_cast<u64>(-1)) {
     byte_offset = position_;
   }
@@ -61,14 +61,14 @@ X_STATUS FileObject::ReadInternal(Runtime& runtime, u32 buffer_address, u32 buff
       rex::runtime::BaseHeap* buffer_start_heap = memory->LookupHeap(buffer_address);
       const rex::runtime::BaseHeap* buffer_end_heap = memory->LookupHeap(buffer_guest_high_address);
       if (!buffer_start_heap || !buffer_end_heap ||
-          (buffer_start_heap->heap_type() == runtime::HeapType::kGuestPhysical) !=
-              (buffer_end_heap->heap_type() == runtime::HeapType::kGuestPhysical) ||
-          (buffer_start_heap->heap_type() == runtime::HeapType::kGuestPhysical &&
+          (buffer_start_heap->GetHeapType() == runtime::HeapType::kGuestPhysical) !=
+              (buffer_end_heap->GetHeapType() == runtime::HeapType::kGuestPhysical) ||
+          (buffer_start_heap->GetHeapType() == runtime::HeapType::kGuestPhysical &&
            buffer_start_heap != buffer_end_heap)) {
         result = X_STATUS_ACCESS_VIOLATION;
       } else {
         rex::runtime::PhysicalHeap* buffer_physical_heap =
-            buffer_start_heap->heap_type() == runtime::HeapType::kGuestPhysical
+            buffer_start_heap->GetHeapType() == runtime::HeapType::kGuestPhysical
                 ? static_cast<rex::runtime::PhysicalHeap*>(buffer_start_heap)
                 : nullptr;
         if (buffer_physical_heap &&
@@ -170,7 +170,7 @@ X_STATUS FileObject::QueryDirectory(Runtime&, X_FILE_DIRECTORY_INFORMATION* out_
   }
 
   out_info->next_entry_offset = 0;
-  out_info->file_index = static_cast<u32>(find->position());
+  out_info->file_index = static_cast<u32>(find->GetPosition());
   out_info->creation_time = entry->create_time;
   out_info->last_access_time = entry->access_time;
   out_info->last_write_time = entry->write_time;
@@ -197,7 +197,7 @@ X_STATUS FileObject::ReadScatter(Runtime& runtime, u32 segments_address, u32 len
   X_STATUS result = X_STATUS_SUCCESS;
 
   be_u32* segments =
-      reinterpret_cast<be_u32*>(runtime.memory()->TranslateVirtual(segments_address));
+      reinterpret_cast<be_u32*>(runtime.GetMemory()->TranslateVirtual(segments_address));
 
   u32 page_size = 4096;
 
@@ -253,7 +253,7 @@ X_STATUS FileObject::Write(Runtime& runtime, u32 buffer_address, u32 buffer_leng
   size_t bytes_written = 0;
   X_STATUS result = X_STATUS_SUCCESS;
   auto written = file->Write(
-      std::span<const u8>(runtime.memory()->TranslateVirtual(buffer_address), buffer_length),
+      std::span<const u8>(runtime.GetMemory()->TranslateVirtual(buffer_address), buffer_length),
       byte_offset);
   if (written) {
     bytes_written = *written;
@@ -288,7 +288,7 @@ X_STATUS FileObject::SetLength(u64 length) {
 X_STATUS FileObject::SetAllocation(u64 size) {
   std::lock_guard<std::mutex> lock(file_lock);
   file->Refresh();
-  if (size >= file->Info().size) {
+  if (size >= file->GetInfo().size) {
     return X_STATUS_SUCCESS;
   }
   auto status = file->SetLength(size);
@@ -313,7 +313,7 @@ u64 FileObject::Seek(i64 distance, SeekOrigin origin) {
       base = position_;
       break;
     case SeekOrigin::kEnd:
-      base = file->Info().size;
+      base = file->GetInfo().size;
       break;
   }
   position_ = base + static_cast<u64>(distance);
@@ -326,12 +326,12 @@ X_STATUS FileObject::SetLengthToPosition() {
   return status ? X_STATUS_SUCCESS : ToXStatus(status.error(), X_STATUS_NOT_IMPLEMENTED);
 }
 
-u64 FileObject::position() {
+u64 FileObject::GetPosition() {
   std::lock_guard<std::mutex> lock(file_lock);
   return position_;
 }
 
-void FileObject::set_position(u64 value) {
+void FileObject::SetPosition(u64 value) {
   std::lock_guard<std::mutex> lock(file_lock);
   position_ = value;
 }
@@ -349,7 +349,7 @@ std::optional<filesystem::FileInfo> FileObject::FindNext() {
 }
 
 void FileObject::RegisterIOCompletionPort(Runtime& runtime, u32 key, X_HANDLE port) {
-  IObjectTable* table = &runtime.object_table();
+  IObjectTable* table = &runtime.GetObjectTable();
   Result<X_HANDLE> owned = table->Duplicate(port);
   if (!owned) {
     return;

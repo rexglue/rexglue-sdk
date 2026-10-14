@@ -33,14 +33,14 @@ REX_API void AndroidShutdown();
  *
  * @return Page size in bytes, usually 4 KiB.
  */
-REX_API size_t page_size();
+REX_API size_t PageSize();
 
 /**
  * Returns the host allocation granularity.
  *
  * @return Granularity in bytes. 64 KiB on Windows, the page size on POSIX.
  */
-REX_API size_t allocation_granularity();
+REX_API size_t AllocationGranularity();
 
 /** Access rights of a range of host pages. */
 enum class PageAccess : u8 {
@@ -214,7 +214,7 @@ REX_API bool UnmapFileView(FileMappingHandle handle, void* base_address, size_t 
  * @param address Pointer to truncate.
  * @return The pointer with the upper 32 bits cleared.
  */
-inline void* low_address(void* address) {
+inline void* LowAddress(void* address) {
   // NOLINTNEXTLINE(performance-no-int-to-ptr): the contract truncates a host pointer
   return reinterpret_cast<void*>(reinterpret_cast<u64>(address) & 0xFFFFFFFF);
 }

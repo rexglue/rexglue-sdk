@@ -147,9 +147,6 @@ class Presenter : public gpu::IPresenter, public rex::NonCopyable {
 
   virtual ~Presenter();
 
-  gpu::Surface::TypeFlags supported_surface_types() const override {
-    return GetSupportedSurfaceTypes();
-  }
   bool Attach(gpu::IPresentationHost* host, gpu::Surface* surface) override {
     SetWindowSurfaceFromUIThread(host, surface);
     return surface_ != nullptr;
@@ -188,8 +185,6 @@ class Presenter : public gpu::IPresenter, public rex::NonCopyable {
   void RequestOverlayPaint() override;
 
  protected:
-  virtual gpu::Surface::TypeFlags GetSupportedSurfaceTypes() const = 0;
-
   /**
    * Sets the host and surface from the Window the presenter is attached to.
    *
@@ -543,7 +538,7 @@ class Presenter : public gpu::IPresenter, public rex::NonCopyable {
    *
    * @return True when the surface is on a monitor.
    */
-  bool InSurfaceOnMonitorFromUIThread() const;
+  bool IsSurfaceOnMonitorFromUIThread() const;
 
   /**
    * Calls PaintAndPresentImpl and runs post paint checks safe on both the UI and guest output

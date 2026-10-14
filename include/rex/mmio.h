@@ -21,9 +21,9 @@ namespace rex {
 /** Guest register blocks that MMIO accesses reach. */
 enum class MMIOBlock : u8 {
   /** 0x7FC80000 to 0x7FC8FFFF. */
-  GPU,
+  kGPU,
   /** 0x7FEA0000 to 0x7FEAFFFF. */
-  APU,
+  kAPU,
 };
 
 /** Size of each register block in bytes. */
@@ -36,7 +36,7 @@ inline constexpr u32 kMMIOBlockSize = 0x10000;
  * @return The block base address.
  */
 constexpr u32 MMIOBlockBase(MMIOBlock block) {
-  return block == MMIOBlock::GPU ? 0x7FC80000u : 0x7FEA0000u;
+  return block == MMIOBlock::kGPU ? 0x7FC80000u : 0x7FEA0000u;
 }
 
 /**
@@ -46,11 +46,11 @@ constexpr u32 MMIOBlockBase(MMIOBlock block) {
  * @return The block, or std::nullopt when the address is outside both blocks.
  */
 constexpr std::optional<MMIOBlock> MMIOBlockOf(u32 address) {
-  if (address - MMIOBlockBase(MMIOBlock::GPU) < kMMIOBlockSize) {
-    return MMIOBlock::GPU;
+  if (address - MMIOBlockBase(MMIOBlock::kGPU) < kMMIOBlockSize) {
+    return MMIOBlock::kGPU;
   }
-  if (address - MMIOBlockBase(MMIOBlock::APU) < kMMIOBlockSize) {
-    return MMIOBlock::APU;
+  if (address - MMIOBlockBase(MMIOBlock::kAPU) < kMMIOBlockSize) {
+    return MMIOBlock::kAPU;
   }
   return std::nullopt;
 }

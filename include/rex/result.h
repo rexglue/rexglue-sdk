@@ -22,29 +22,29 @@ namespace rex {
  * Broad classification of an error. Specific codes go in Error::code.
  */
 enum class ErrorCategory : u8 {
-  NoError,        /**< Success. */
-  IO,             /**< File I/O. */
-  Memory,         /**< Memory allocation or mapping. */
-  Format,         /**< File format parsing (XEX, PE, ELF). */
-  Crypto,         /**< Cryptography (decryption, signature). */
-  Compression,    /**< Decompression. */
-  Runtime,        /**< Runtime execution. */
-  Platform,       /**< Platform specific. */
-  Config,         /**< Configuration. */
-  Validation,     /**< Validation, for example unresolved functions. */
-  NotFound,       /**< Resource not found. */
-  NotImplemented, /**< Feature not implemented. */
-  UserAbort,      /**< User declined an interactive prompt. */
-  Module,         /**< Module loading, connection or initialization. */
+  kNoError,        /**< Success. */
+  kIO,             /**< File I/O. */
+  kMemory,         /**< Memory allocation or mapping. */
+  kFormat,         /**< File format parsing (XEX, PE, ELF). */
+  kCrypto,         /**< Cryptography (decryption, signature). */
+  kCompression,    /**< Decompression. */
+  kRuntime,        /**< Runtime execution. */
+  kPlatform,       /**< Platform specific. */
+  kConfig,         /**< Configuration. */
+  kValidation,     /**< Validation, for example unresolved functions. */
+  kNotFound,       /**< Resource not found. */
+  kNotImplemented, /**< Feature not implemented. */
+  kUserAbort,      /**< User declined an interactive prompt. */
+  kModule,         /**< Module loading, connection or initialization. */
 };
 
 /**
  * An error value carried by rex::Result.
  */
 struct Error {
-  ErrorCategory category = ErrorCategory::NoError; /**< Classification. */
-  std::string message;                             /**< Human readable detail. */
-  int code = 0;                                    /**< Platform or library specific code. */
+  ErrorCategory category = ErrorCategory::kNoError; /**< Classification. */
+  std::string message;                              /**< Human readable detail. */
+  int code = 0;                                     /**< Platform or library specific code. */
 
   Error() = default;
 
@@ -64,20 +64,20 @@ struct Error {
    * @param errno_value The errno or platform error code.
    * @return The error.
    */
-  static Error from_errno(ErrorCategory cat, std::string msg, int errno_value) {
+  static Error GetFromErrno(ErrorCategory cat, std::string msg, int errno_value) {
     return Error(cat, std::move(msg), errno_value);
   }
 
   /**
    * @return True when the category is NoError.
    */
-  [[nodiscard]] bool is_success() const noexcept { return category == ErrorCategory::NoError; }
+  [[nodiscard]] bool IsSuccess() const noexcept { return category == ErrorCategory::kNoError; }
 
   /**
    * @return The message, with the code appended when it is not 0.
    */
-  [[nodiscard]] std::string what() const {
-    if (is_success()) {
+  [[nodiscard]] std::string GetDescription() const {
+    if (IsSuccess()) {
       return "Success";
     }
     std::string result = message;
@@ -96,7 +96,7 @@ struct Error {
  * @code
  * Result<u32> result = ReadCount();
  * if (!result) {
- *   REXLOG_ERROR(core, "{}", result.error().what());
+ *   REXLOG_ERROR(core, "{}", result.error().GetDescription());
  * }
  * @endcode
  */

@@ -170,7 +170,7 @@ void ScribbleFn(PPCContext& ctx, u8*) {
   ctx.r3.u64 = 0x1111;
   ctx.r14.u64 = 0xDEAD14;
   ctx.r31.u64 = 0;
-  ctx.cr2.set_raw(0xF);
+  ctx.cr2.SetRaw(0xF);
   ctx.ctr.u64 = 0xC7;
   ctx.xer.so = 1;
   ctx.msr = 0;
@@ -199,10 +199,10 @@ REX_TEST_CASE("FunctionDispatcher: ExecuteTrap restores the interrupted register
   const u32 pcr = memory.SystemHeapAlloc(0x100);
   *memory.TranslateVirtual<rex::be_u32*>(pcr + 0x74) = stack;
   rex::runtime::ThreadState thread_state(1, stack + kStackSize, pcr, &memory, nullptr);
-  auto* ctx = thread_state.context();
+  auto* ctx = thread_state.GetContext();
   ctx->r14.u64 = 0x14141414;
   ctx->r31.u64 = 0x2E0B57D0;
-  ctx->cr2.set_raw(0x2);
+  ctx->cr2.SetRaw(0x2);
   ctx->ctr.u64 = 0xC0FFEE;
   ctx->xer.so = 0;
   ctx->f14.f64 = 2.5;
@@ -211,11 +211,11 @@ REX_TEST_CASE("FunctionDispatcher: ExecuteTrap restores the interrupted register
   const u64 saved_r1 = ctx->r1.u64;
 
   u64 args[] = {0};
-  dispatcher.ExecuteTrap(&thread_state, kAddr, args, rex::countof(args));
+  dispatcher.ExecuteTrap(&thread_state, kAddr, args, rex::CountOf(args));
 
   CHECK(ctx->r14.u64 == 0x14141414);
   CHECK(ctx->r31.u64 == 0x2E0B57D0);
-  CHECK(ctx->cr2.raw() == 0x2);
+  CHECK(ctx->cr2.GetRaw() == 0x2);
   CHECK(ctx->ctr.u64 == 0xC0FFEE);
   CHECK(ctx->xer.so == 0);
   CHECK(ctx->msr == saved_msr);
@@ -230,21 +230,21 @@ REX_TEST_CASE("PPCContext: non-volatile save area round-trips cr2-cr4 and fpscr"
               "[runtime][context]") {
   PPCContext ctx{};
   ctx.r31.u64 = 0x31313131;
-  ctx.cr2.set_raw(0x5);
-  ctx.cr3.set_raw(0xA);
-  ctx.cr4.set_raw(0x3);
+  ctx.cr2.SetRaw(0x5);
+  ctx.cr3.SetRaw(0xA);
+  ctx.cr4.SetRaw(0x3);
   ctx.f14.f64 = 4.25;
   ctx.v64.u32[0] = 0x64646464;
-  ctx.fpscr.csr = ctx.fpscr.getcsr();
+  ctx.fpscr.csr = ctx.fpscr.GetCSR();
   const u32 saved_csr = ctx.fpscr.csr;
 
   u8 area[PPCContext::kNonVolatileSaveSize];
   ctx.SaveNonVolatiles(area);
 
   ctx.r31.u64 = 0;
-  ctx.cr2.set_raw(0);
-  ctx.cr3.set_raw(0);
-  ctx.cr4.set_raw(0);
+  ctx.cr2.SetRaw(0);
+  ctx.cr3.SetRaw(0);
+  ctx.cr4.SetRaw(0);
   ctx.f14.f64 = 0.0;
   ctx.v64.u32[0] = 0;
   ctx.fpscr.csr = 0;
@@ -252,26 +252,26 @@ REX_TEST_CASE("PPCContext: non-volatile save area round-trips cr2-cr4 and fpscr"
   ctx.RestoreNonVolatiles(area);
 
   CHECK(ctx.r31.u64 == 0x31313131);
-  CHECK(ctx.cr2.raw() == 0x5);
-  CHECK(ctx.cr3.raw() == 0xA);
-  CHECK(ctx.cr4.raw() == 0x3);
+  CHECK(ctx.cr2.GetRaw() == 0x5);
+  CHECK(ctx.cr3.GetRaw() == 0xA);
+  CHECK(ctx.cr4.GetRaw() == 0x3);
   CHECK(ctx.f14.f64 == 4.25);
   CHECK(ctx.v64.u32[0] == 0x64646464);
   CHECK(ctx.fpscr.csr == saved_csr);
-  CHECK(ctx.fpscr.getcsr() == saved_csr);
+  CHECK(ctx.fpscr.GetCSR() == saved_csr);
 }
 
 REX_TEST_CASE("PPCContext: restoring a zeroed fpscr leaves host FP exception masks intact",
               "[runtime][context]") {
   PPCContext ctx{};
-  const u32 host_before = ctx.fpscr.getcsr();
+  const u32 host_before = ctx.fpscr.GetCSR();
 
   u8 area[PPCContext::kNonVolatileSaveSize] = {};
   ctx.RestoreNonVolatiles(area);
 
-  constexpr u32 kGuestMask = PPCFPSCRRegister::GuestMask;
-  CHECK((ctx.fpscr.getcsr() & ~kGuestMask) == (host_before & ~kGuestMask));
-  CHECK(ctx.fpscr.csr == ctx.fpscr.getcsr());
+  constexpr u32 kGuestMask = PPCFPSCRRegister::kGuestMask;
+  CHECK((ctx.fpscr.GetCSR() & ~kGuestMask) == (host_before & ~kGuestMask));
+  CHECK(ctx.fpscr.csr == ctx.fpscr.GetCSR());
 }
 
 REX_TEST_CASE("FunctionDispatcher deletes through a base pointer", "[runtime]") {

@@ -25,7 +25,7 @@ namespace rex::xenos {
 /** Every GPU register, valued by its dword register index. */
 enum class Register : u16 {
 /**
- * Defines 1 enumerator of Register. The register table includes this once per register.
+ * Defines an enumerator of Register. The register table includes this once per register.
  *
  * @param index Dword register index.
  * @param type Value type of the register, unused here.
@@ -91,7 +91,7 @@ union alignas(u32) COHER_STATUS_HOST {
     u32 status : 1;
   };
   /** Register that RegisterFile::Get reads this layout from. */
-  static constexpr Register register_index = xenos::Register::COHER_STATUS_HOST;
+  static constexpr Register kRegisterIndex = xenos::Register::COHER_STATUS_HOST;
 };
 REX_STATIC_ASSERT_SIZE(COHER_STATUS_HOST, sizeof(u32));
 
@@ -118,7 +118,7 @@ union alignas(u32) WAIT_UNTIL {
     u32 pad_24 : 8;
   };
   /** Register that RegisterFile::Get reads this layout from. */
-  static constexpr Register register_index = xenos::Register::WAIT_UNTIL;
+  static constexpr Register kRegisterIndex = xenos::Register::WAIT_UNTIL;
 };
 REX_STATIC_ASSERT_SIZE(WAIT_UNTIL, sizeof(u32));
 
@@ -153,7 +153,7 @@ union alignas(u32) SQ_PROGRAM_CNTL {
     u32 gen_index_vtx : 1;
   };
   /** Register that RegisterFile::Get reads this layout from. */
-  static constexpr Register register_index = xenos::Register::SQ_PROGRAM_CNTL;
+  static constexpr Register kRegisterIndex = xenos::Register::SQ_PROGRAM_CNTL;
 };
 REX_STATIC_ASSERT_SIZE(SQ_PROGRAM_CNTL, sizeof(u32));
 
@@ -189,7 +189,7 @@ union alignas(u32) SQ_CONTEXT_MISC {
     u32 pad_19 : 13;
   };
   /** Register that RegisterFile::Get reads this layout from. */
-  static constexpr Register register_index = xenos::Register::SQ_CONTEXT_MISC;
+  static constexpr Register kRegisterIndex = xenos::Register::SQ_CONTEXT_MISC;
 };
 REX_STATIC_ASSERT_SIZE(SQ_CONTEXT_MISC, sizeof(u32));
 
@@ -205,7 +205,7 @@ union alignas(u32) SQ_INTERPOLATOR_CNTL {
     u32 sampling_pattern : 16;
   };
   /** Register that RegisterFile::Get reads this layout from. */
-  static constexpr Register register_index = xenos::Register::SQ_INTERPOLATOR_CNTL;
+  static constexpr Register kRegisterIndex = xenos::Register::SQ_INTERPOLATOR_CNTL;
 };
 REX_STATIC_ASSERT_SIZE(SQ_INTERPOLATOR_CNTL, sizeof(u32));
 
@@ -223,7 +223,7 @@ union alignas(u32) SQ_VS_CONST {
     u32 pad_21 : 11;
   };
   /** Register that RegisterFile::Get reads this layout from. */
-  static constexpr Register register_index = xenos::Register::SQ_VS_CONST;
+  static constexpr Register kRegisterIndex = xenos::Register::SQ_VS_CONST;
 };
 REX_STATIC_ASSERT_SIZE(SQ_VS_CONST, sizeof(u32));
 
@@ -241,7 +241,7 @@ union alignas(u32) SQ_PS_CONST {
     u32 pad_21 : 11;
   };
   /** Register that RegisterFile::Get reads this layout from. */
-  static constexpr Register register_index = xenos::Register::SQ_PS_CONST;
+  static constexpr Register kRegisterIndex = xenos::Register::SQ_PS_CONST;
 };
 REX_STATIC_ASSERT_SIZE(SQ_PS_CONST, sizeof(u32));
 
@@ -261,7 +261,7 @@ union alignas(u32) VGT_DMA_SIZE {
     xenos::Endian swap_mode : 2;
   };
   /** Register that RegisterFile::Get reads this layout from. */
-  static constexpr Register register_index = xenos::Register::VGT_DMA_SIZE;
+  static constexpr Register kRegisterIndex = xenos::Register::VGT_DMA_SIZE;
 };
 
 /** Draw parameters with the primitive type, index source, index size and index count. */
@@ -291,7 +291,7 @@ union alignas(u32) VGT_DRAW_INITIATOR {
     u32 num_indices : 16;
   };
   /** Register that RegisterFile::Get reads this layout from. */
-  static constexpr Register register_index = xenos::Register::VGT_DRAW_INITIATOR;
+  static constexpr Register kRegisterIndex = xenos::Register::VGT_DRAW_INITIATOR;
 };
 REX_STATIC_ASSERT_SIZE(VGT_DRAW_INITIATOR, sizeof(u32));
 
@@ -311,7 +311,7 @@ union alignas(u32) VGT_MULTI_PRIM_IB_RESET_INDX {
     u32 pad_24 : 8;
   };
   /** Register that RegisterFile::Get reads this layout from. */
-  static constexpr Register register_index = xenos::Register::VGT_MULTI_PRIM_IB_RESET_INDX;
+  static constexpr Register kRegisterIndex = xenos::Register::VGT_MULTI_PRIM_IB_RESET_INDX;
 };
 REX_STATIC_ASSERT_SIZE(VGT_MULTI_PRIM_IB_RESET_INDX, sizeof(u32));
 
@@ -328,7 +328,7 @@ union alignas(u32) VGT_INDX_OFFSET {
     u32 pad_24 : 8;
   };
   /** Register that RegisterFile::Get reads this layout from. */
-  static constexpr Register register_index = xenos::Register::VGT_INDX_OFFSET;
+  static constexpr Register kRegisterIndex = xenos::Register::VGT_INDX_OFFSET;
 };
 REX_STATIC_ASSERT_SIZE(VGT_INDX_OFFSET, sizeof(u32));
 
@@ -344,7 +344,7 @@ union alignas(u32) VGT_MIN_VTX_INDX {
     u32 pad_24 : 8;
   };
   /** Register that RegisterFile::Get reads this layout from. */
-  static constexpr Register register_index = xenos::Register::VGT_MIN_VTX_INDX;
+  static constexpr Register kRegisterIndex = xenos::Register::VGT_MIN_VTX_INDX;
 };
 REX_STATIC_ASSERT_SIZE(VGT_MIN_VTX_INDX, sizeof(u32));
 
@@ -358,7 +358,7 @@ union alignas(u32) VGT_MAX_VTX_INDX {
     u32 pad_24 : 8;
   };
   /** Register that RegisterFile::Get reads this layout from. */
-  static constexpr Register register_index = xenos::Register::VGT_MAX_VTX_INDX;
+  static constexpr Register kRegisterIndex = xenos::Register::VGT_MAX_VTX_INDX;
 };
 REX_STATIC_ASSERT_SIZE(VGT_MAX_VTX_INDX, sizeof(u32));
 
@@ -374,7 +374,7 @@ union alignas(u32) VGT_OUTPUT_PATH_CNTL {
     u32 pad_2 : 30;
   };
   /** Register that RegisterFile::Get reads this layout from. */
-  static constexpr Register register_index = xenos::Register::VGT_OUTPUT_PATH_CNTL;
+  static constexpr Register kRegisterIndex = xenos::Register::VGT_OUTPUT_PATH_CNTL;
 };
 REX_STATIC_ASSERT_SIZE(VGT_OUTPUT_PATH_CNTL, sizeof(u32));
 
@@ -390,7 +390,7 @@ union alignas(u32) VGT_HOS_CNTL {
     u32 pad_2 : 30;
   };
   /** Register that RegisterFile::Get reads this layout from. */
-  static constexpr Register register_index = xenos::Register::VGT_HOS_CNTL;
+  static constexpr Register kRegisterIndex = xenos::Register::VGT_HOS_CNTL;
 };
 REX_STATIC_ASSERT_SIZE(VGT_HOS_CNTL, sizeof(u32));
 
@@ -404,7 +404,7 @@ union alignas(u32) PA_SU_POINT_MINMAX {
     u32 max_size : 16;
   };
   /** Register that RegisterFile::Get reads this layout from. */
-  static constexpr Register register_index = xenos::Register::PA_SU_POINT_MINMAX;
+  static constexpr Register kRegisterIndex = xenos::Register::PA_SU_POINT_MINMAX;
 };
 REX_STATIC_ASSERT_SIZE(PA_SU_POINT_MINMAX, sizeof(u32));
 
@@ -416,7 +416,7 @@ union alignas(u32) PA_SU_POINT_SIZE {
     u32 width : 16;  /**< Bits 16 to 31. Default point half width in 12.4 fixed point. */
   };
   /** Register that RegisterFile::Get reads this layout from. */
-  static constexpr Register register_index = xenos::Register::PA_SU_POINT_SIZE;
+  static constexpr Register kRegisterIndex = xenos::Register::PA_SU_POINT_SIZE;
 };
 REX_STATIC_ASSERT_SIZE(PA_SU_POINT_SIZE, sizeof(u32));
 
@@ -481,7 +481,7 @@ union alignas(u32) PA_SU_SC_MODE_CNTL {
     u32 pad_25 : 7;
   };
   /** Register that RegisterFile::Get reads this layout from. */
-  static constexpr Register register_index = xenos::Register::PA_SU_SC_MODE_CNTL;
+  static constexpr Register kRegisterIndex = xenos::Register::PA_SU_SC_MODE_CNTL;
 };
 REX_STATIC_ASSERT_SIZE(PA_SU_SC_MODE_CNTL, sizeof(u32));
 
@@ -498,7 +498,7 @@ union alignas(u32) PA_SU_VTX_CNTL {
     u32 pad_6 : 26;
   };
   /** Register that RegisterFile::Get reads this layout from. */
-  static constexpr Register register_index = xenos::Register::PA_SU_VTX_CNTL;
+  static constexpr Register kRegisterIndex = xenos::Register::PA_SU_VTX_CNTL;
 };
 REX_STATIC_ASSERT_SIZE(PA_SU_VTX_CNTL, sizeof(u32));
 
@@ -511,7 +511,7 @@ union alignas(u32) PA_SC_MPASS_PS_CNTL {
     u32 mpass_ps_ena : 1; /**< No code reads it. */
   };
   /** Register that RegisterFile::Get reads this layout from. */
-  static constexpr Register register_index = xenos::Register::PA_SC_MPASS_PS_CNTL;
+  static constexpr Register kRegisterIndex = xenos::Register::PA_SC_MPASS_PS_CNTL;
 };
 REX_STATIC_ASSERT_SIZE(PA_SC_MPASS_PS_CNTL, sizeof(u32));
 
@@ -531,7 +531,7 @@ union alignas(u32) PA_SC_VIZ_QUERY {
     u32 pad_9 : 23;
   };
   /** Register that RegisterFile::Get reads this layout from. */
-  static constexpr Register register_index = xenos::Register::PA_SC_VIZ_QUERY;
+  static constexpr Register kRegisterIndex = xenos::Register::PA_SC_VIZ_QUERY;
 };
 REX_STATIC_ASSERT_SIZE(PA_SC_VIZ_QUERY, sizeof(u32));
 
@@ -589,7 +589,7 @@ union alignas(u32) PA_CL_CLIP_CNTL {
     u32 ucp_ena : 6;
   };
   /** Register that RegisterFile::Get reads this layout from. */
-  static constexpr Register register_index = xenos::Register::PA_CL_CLIP_CNTL;
+  static constexpr Register kRegisterIndex = xenos::Register::PA_CL_CLIP_CNTL;
 };
 REX_STATIC_ASSERT_SIZE(PA_CL_CLIP_CNTL, sizeof(u32));
 
@@ -629,7 +629,7 @@ union alignas(u32) PA_CL_VTE_CNTL {
     u32 pad_12 : 20;
   };
   /** Register that RegisterFile::Get reads this layout from. */
-  static constexpr Register register_index = xenos::Register::PA_CL_VTE_CNTL;
+  static constexpr Register kRegisterIndex = xenos::Register::PA_CL_VTE_CNTL;
 };
 REX_STATIC_ASSERT_SIZE(PA_CL_VTE_CNTL, sizeof(u32));
 
@@ -649,7 +649,7 @@ union alignas(u32) PA_SC_SCREEN_SCISSOR_TL {
     u32 pad_31 : 1;
   };
   /** Register that RegisterFile::Get reads this layout from. */
-  static constexpr Register register_index = xenos::Register::PA_SC_SCREEN_SCISSOR_TL;
+  static constexpr Register kRegisterIndex = xenos::Register::PA_SC_SCREEN_SCISSOR_TL;
 };
 REX_STATIC_ASSERT_SIZE(PA_SC_SCREEN_SCISSOR_TL, sizeof(u32));
 
@@ -670,7 +670,7 @@ union alignas(u32) PA_SC_SCREEN_SCISSOR_BR {
     u32 pad_31 : 1;
   };
   /** Register that RegisterFile::Get reads this layout from. */
-  static constexpr Register register_index = xenos::Register::PA_SC_SCREEN_SCISSOR_BR;
+  static constexpr Register kRegisterIndex = xenos::Register::PA_SC_SCREEN_SCISSOR_BR;
 };
 REX_STATIC_ASSERT_SIZE(PA_SC_SCREEN_SCISSOR_BR, sizeof(u32));
 
@@ -692,7 +692,7 @@ union alignas(u32) PA_SC_WINDOW_OFFSET {
     u32 pad_31 : 1;
   };
   /** Register that RegisterFile::Get reads this layout from. */
-  static constexpr Register register_index = xenos::Register::PA_SC_WINDOW_OFFSET;
+  static constexpr Register kRegisterIndex = xenos::Register::PA_SC_WINDOW_OFFSET;
 };
 REX_STATIC_ASSERT_SIZE(PA_SC_WINDOW_OFFSET, sizeof(u32));
 
@@ -711,7 +711,7 @@ union alignas(u32) PA_SC_WINDOW_SCISSOR_TL {
     u32 window_offset_disable : 1;
   };
   /** Register that RegisterFile::Get reads this layout from. */
-  static constexpr Register register_index = xenos::Register::PA_SC_WINDOW_SCISSOR_TL;
+  static constexpr Register kRegisterIndex = xenos::Register::PA_SC_WINDOW_SCISSOR_TL;
 };
 REX_STATIC_ASSERT_SIZE(PA_SC_WINDOW_SCISSOR_TL, sizeof(u32));
 
@@ -725,7 +725,7 @@ union alignas(u32) PA_SC_WINDOW_SCISSOR_BR {
     u32 pad_30 : 2;
   };
   /** Register that RegisterFile::Get reads this layout from. */
-  static constexpr Register register_index = xenos::Register::PA_SC_WINDOW_SCISSOR_BR;
+  static constexpr Register kRegisterIndex = xenos::Register::PA_SC_WINDOW_SCISSOR_BR;
 };
 REX_STATIC_ASSERT_SIZE(PA_SC_WINDOW_SCISSOR_BR, sizeof(u32));
 
@@ -741,7 +741,7 @@ union alignas(u32) RB_MODECONTROL {
     u32 pad_3 : 29;
   };
   /** Register that RegisterFile::Get reads this layout from. */
-  static constexpr Register register_index = xenos::Register::RB_MODECONTROL;
+  static constexpr Register kRegisterIndex = xenos::Register::RB_MODECONTROL;
 };
 REX_STATIC_ASSERT_SIZE(RB_MODECONTROL, sizeof(u32));
 
@@ -760,7 +760,7 @@ union alignas(u32) RB_SURFACE_INFO {
     u32 hiz_pitch : 14; /**< Bits 18 to 31. No code reads it. */
   };
   /** Register that RegisterFile::Get reads this layout from. */
-  static constexpr Register register_index = xenos::Register::RB_SURFACE_INFO;
+  static constexpr Register kRegisterIndex = xenos::Register::RB_SURFACE_INFO;
 };
 REX_STATIC_ASSERT_SIZE(RB_SURFACE_INFO, sizeof(u32));
 
@@ -805,7 +805,7 @@ union alignas(u32) RB_COLORCONTROL {
     u32 alpha_to_mask_offset3 : 2;
   };
   /** Register that RegisterFile::Get reads this layout from. */
-  static constexpr Register register_index = xenos::Register::RB_COLORCONTROL;
+  static constexpr Register kRegisterIndex = xenos::Register::RB_COLORCONTROL;
 };
 REX_STATIC_ASSERT_SIZE(RB_COLORCONTROL, sizeof(u32));
 
@@ -831,9 +831,9 @@ union alignas(u32) RB_COLOR_INFO {
     u32 pad_26 : 6;
   };
   /** Register that RegisterFile::Get reads this layout from. */
-  static constexpr Register register_index = xenos::Register::RB_COLOR_INFO;
+  static constexpr Register kRegisterIndex = xenos::Register::RB_COLOR_INFO;
   /** Registers of render targets 0 to 3 in order, for use with RegisterFile::Get. */
-  REX_API static const Register rt_register_indices[4];
+  REX_API static const Register kRtRegisterIndices[4];
 };
 REX_STATIC_ASSERT_SIZE(RB_COLOR_INFO, sizeof(u32));
 
@@ -866,7 +866,7 @@ union alignas(u32) RB_COLOR_MASK {
     u32 pad_16 : 16;
   };
   /** Register that RegisterFile::Get reads this layout from. */
-  static constexpr Register register_index = xenos::Register::RB_COLOR_MASK;
+  static constexpr Register kRegisterIndex = xenos::Register::RB_COLOR_MASK;
 };
 REX_STATIC_ASSERT_SIZE(RB_COLOR_MASK, sizeof(u32));
 
@@ -888,9 +888,9 @@ union alignas(u32) RB_BLENDCONTROL {
     u32 pad_29 : 3;
   };
   /** Register that RegisterFile::Get reads this layout from. */
-  static constexpr Register register_index = xenos::Register::RB_BLENDCONTROL0;
+  static constexpr Register kRegisterIndex = xenos::Register::RB_BLENDCONTROL0;
   /** Registers of render targets 0 to 3 in order, for use with RegisterFile::Get. */
-  REX_API static const Register rt_register_indices[4];
+  REX_API static const Register kRtRegisterIndices[4];
 };
 REX_STATIC_ASSERT_SIZE(RB_BLENDCONTROL, sizeof(u32));
 
@@ -923,7 +923,7 @@ union alignas(u32) RB_DEPTHCONTROL {
     xenos::StencilOp stencilzfail_bf : 3;
   };
   /** Register that RegisterFile::Get reads this layout from. */
-  static constexpr Register register_index = xenos::Register::RB_DEPTHCONTROL;
+  static constexpr Register kRegisterIndex = xenos::Register::RB_DEPTHCONTROL;
 };
 REX_STATIC_ASSERT_SIZE(RB_DEPTHCONTROL, sizeof(u32));
 
@@ -939,7 +939,7 @@ union alignas(u32) RB_STENCILREFMASK {
     u32 pad_24 : 8;
   };
   /** Register that RegisterFile::Get reads this layout from. */
-  static constexpr Register register_index = xenos::Register::RB_STENCILREFMASK;
+  static constexpr Register kRegisterIndex = xenos::Register::RB_STENCILREFMASK;
 };
 REX_STATIC_ASSERT_SIZE(RB_STENCILREFMASK, sizeof(u32));
 
@@ -960,7 +960,7 @@ union alignas(u32) RB_DEPTH_INFO {
     u32 pad_17 : 15;
   };
   /** Register that RegisterFile::Get reads this layout from. */
-  static constexpr Register register_index = xenos::Register::RB_DEPTH_INFO;
+  static constexpr Register kRegisterIndex = xenos::Register::RB_DEPTH_INFO;
 };
 REX_STATIC_ASSERT_SIZE(RB_DEPTH_INFO, sizeof(u32));
 
@@ -987,7 +987,7 @@ union alignas(u32) RB_COPY_CONTROL {
     u32 pad_22 : 10;
   };
   /** Register that RegisterFile::Get reads this layout from. */
-  static constexpr Register register_index = xenos::Register::RB_COPY_CONTROL;
+  static constexpr Register kRegisterIndex = xenos::Register::RB_COPY_CONTROL;
 };
 REX_STATIC_ASSERT_SIZE(RB_COPY_CONTROL, sizeof(u32));
 
@@ -1025,7 +1025,7 @@ union alignas(u32) RB_COPY_DEST_INFO {
     u32 pad_25 : 7;
   };
   /** Register that RegisterFile::Get reads this layout from. */
-  static constexpr Register register_index = xenos::Register::RB_COPY_DEST_INFO;
+  static constexpr Register kRegisterIndex = xenos::Register::RB_COPY_DEST_INFO;
 };
 REX_STATIC_ASSERT_SIZE(RB_COPY_DEST_INFO, sizeof(u32));
 
@@ -1041,7 +1041,7 @@ union alignas(u32) RB_COPY_DEST_PITCH {
     u32 pad_30 : 2;
   };
   /** Register that RegisterFile::Get reads this layout from. */
-  static constexpr Register register_index = xenos::Register::RB_COPY_DEST_PITCH;
+  static constexpr Register kRegisterIndex = xenos::Register::RB_COPY_DEST_PITCH;
 };
 REX_STATIC_ASSERT_SIZE(RB_COPY_DEST_PITCH, sizeof(u32));
 
@@ -1057,7 +1057,7 @@ union alignas(u32) DC_LUT_RW_INDEX {
     u32 pad_8 : 24;
   };
   /** Register that RegisterFile::Get reads this layout from. */
-  static constexpr Register register_index = xenos::Register::DC_LUT_RW_INDEX;
+  static constexpr Register kRegisterIndex = xenos::Register::DC_LUT_RW_INDEX;
 };
 REX_STATIC_ASSERT_SIZE(DC_LUT_RW_INDEX, sizeof(u32));
 
@@ -1073,7 +1073,7 @@ union alignas(u32) DC_LUT_SEQ_COLOR {
     u32 pad_16 : 16;
   };
   /** Register that RegisterFile::Get reads this layout from. */
-  static constexpr Register register_index = xenos::Register::DC_LUT_SEQ_COLOR;
+  static constexpr Register kRegisterIndex = xenos::Register::DC_LUT_SEQ_COLOR;
 };
 REX_STATIC_ASSERT_SIZE(DC_LUT_SEQ_COLOR, sizeof(u32));
 
@@ -1095,7 +1095,7 @@ union alignas(u32) DC_LUT_PWL_DATA {
     u32 delta : 16; /**< Bits 16 to 31. Delta of the entry. Bits 0 to 5 are hardwired to 0. */
   };
   /** Register that RegisterFile::Get reads this layout from. */
-  static constexpr Register register_index = xenos::Register::DC_LUT_PWL_DATA;
+  static constexpr Register kRegisterIndex = xenos::Register::DC_LUT_PWL_DATA;
 };
 REX_STATIC_ASSERT_SIZE(DC_LUT_PWL_DATA, sizeof(u32));
 
@@ -1109,7 +1109,7 @@ union alignas(u32) DC_LUT_30_COLOR {
     u32 pad_30 : 2;
   };
   /** Register that RegisterFile::Get reads this layout from. */
-  static constexpr Register register_index = xenos::Register::DC_LUT_30_COLOR;
+  static constexpr Register kRegisterIndex = xenos::Register::DC_LUT_30_COLOR;
 };
 REX_STATIC_ASSERT_SIZE(DC_LUT_30_COLOR, sizeof(u32));
 

@@ -71,22 +71,22 @@ LONG CALLBACK ExceptionHandlerCallback(PEXCEPTION_POINTERS ex_info) {
       return EXCEPTION_CONTINUE_SEARCH;
   }
 
-  for (size_t i = 0; i < rex::countof(g_handlers) && g_handlers[i].first; ++i) {
+  for (size_t i = 0; i < rex::CountOf(g_handlers) && g_handlers[i].first; ++i) {
     if (g_handlers[i].first(&ex, g_handlers[i].second)) {
       ex_info->ContextRecord->Rip = thread_context.rip;
       ex_info->ContextRecord->EFlags = thread_context.eflags;
       u32 modified_register_index;
-      u16 modified_int_registers_remaining = ex.modified_int_registers();
+      u16 modified_int_registers_remaining = ex.GetModifiedIntRegisters();
       while (rex::bit_scan_forward(modified_int_registers_remaining, &modified_register_index)) {
         modified_int_registers_remaining &= ~(UINT16_C(1) << modified_register_index);
         (&ex_info->ContextRecord->Rax)[modified_register_index] =
             thread_context.int_registers[modified_register_index];
       }
-      u16 modified_xmm_registers_remaining = ex.modified_xmm_registers();
+      u16 modified_xmm_registers_remaining = ex.GetModifiedXMMRegisters();
       while (rex::bit_scan_forward(modified_xmm_registers_remaining, &modified_register_index)) {
         modified_xmm_registers_remaining &= ~(UINT16_C(1) << modified_register_index);
         std::memcpy(&ex_info->ContextRecord->Xmm0 + modified_register_index,
-                    &thread_context.xmm_registers[modified_register_index], sizeof(vec128_t));
+                    &thread_context.xmm_registers[modified_register_index], sizeof(Vec128T));
       }
       return EXCEPTION_CONTINUE_EXECUTION;
     }
@@ -109,9 +109,9 @@ void ExceptionHandler::Install(Handler fn, void* data) {
 }
 
 void ExceptionHandler::Uninstall(Handler fn, void* data) {
-  for (size_t i = 0; i < rex::countof(g_handlers); ++i) {
+  for (size_t i = 0; i < rex::CountOf(g_handlers); ++i) {
     if (g_handlers[i].first == fn && g_handlers[i].second == data) {
-      for (; i < rex::countof(g_handlers) - 1; ++i) {
+      for (; i < rex::CountOf(g_handlers) - 1; ++i) {
         g_handlers[i] = g_handlers[i + 1];
       }
       g_handlers[i].first = nullptr;

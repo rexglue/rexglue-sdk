@@ -23,8 +23,8 @@ std::unique_ptr<UISamplers> UISamplers::Create(const VulkanDevice* const vulkan_
 
   auto ui_samplers = std::make_unique<UISamplers>(Key{}, vulkan_device);
 
-  const VulkanDevice::Functions& dfn = vulkan_device->functions();
-  const VkDevice device = vulkan_device->device();
+  const VulkanDevice::Functions& dfn = vulkan_device->GetFunctions();
+  const VkDevice device = vulkan_device->GetDevice();
 
   auto sampler_create_info =
       objects::InitializeStructure<VkSamplerCreateInfo>(VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO);
@@ -69,7 +69,7 @@ UISamplers::~UISamplers() {
     if (sampler == VK_NULL_HANDLE) {
       continue;
     }
-    vulkan_device_->functions().vkDestroySampler(vulkan_device_->device(), sampler, nullptr);
+    vulkan_device_->GetFunctions().vkDestroySampler(vulkan_device_->GetDevice(), sampler, nullptr);
   }
 }
 

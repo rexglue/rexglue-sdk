@@ -47,12 +47,12 @@ class TestModule : public runtime::Module {
    */
   void Load(u32 base_address, const u8* data, size_t size);
 
-  const std::string& name() const override { return name_; }
-  void set_name(const std::string& name) { name_ = name; }
-  bool is_executable() const override { return true; }
-  u32 base_address() const override { return base_address_; }
-  u32 image_size() const override { return size_; }
-  u32 entry_point() const override { return base_address_; }
+  const std::string& GetName() const override { return name_; }
+  void SetName(const std::string& name) { name_ = name; }
+  bool IsExecutable() const override { return true; }
+  u32 GetBaseAddress() const override { return base_address_; }
+  u32 GetImageSize() const override { return size_; }
+  u32 GetEntryPoint() const override { return base_address_; }
 
  private:
   std::string name_{"test"};
@@ -70,14 +70,14 @@ class CodegenContext;
  * registers call edges.
  *
  * @param ctx         Codegen context whose graph will be populated
- * @param testName    Stem name used for function naming (e.g. "addi")
+ * @param test_name    Stem name used for function naming (e.g. "addi")
  * @param symbols     Address-to-name map from parse_map_file()
- * @param baseAddress Base address the binary was linked at
+ * @param base_address Base address the binary was linked at
  * @param data        Pointer to raw binary data
- * @param dataSize    Size of binary data in bytes
+ * @param data_size    Size of binary data in bytes
  */
-void AnalyzeTestBinary(CodegenContext& ctx, std::string_view testName,
-                       const std::map<size_t, std::string>& symbols, u32 baseAddress,
-                       const u8* data, size_t dataSize);
+void AnalyzeTestBinary(CodegenContext& ctx, std::string_view test_name,
+                       const std::map<size_t, std::string>& symbols, u32 base_address,
+                       const u8* data, size_t data_size);
 
 }  // namespace rex::codegen

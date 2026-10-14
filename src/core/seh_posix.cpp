@@ -31,25 +31,25 @@ struct sigaction* PreviousAction(int signal_number) {
 }
 }  // namespace
 
-static thread_local SehThreadState tls_seh_state;
+static thread_local SEHThreadState tls_seh_state;
 
-SehThreadState& seh_thread_state() {
+SEHThreadState& GetSEHThreadState() {
   return tls_seh_state;
 }
 
-int seh_filter(u32 /*code*/, void* /*ep*/) {
+int SEHFilter(u32 /*code*/, void* /*ep*/) {
   return 0;
 }
 
-[[noreturn]] static void ResumeScope(SehScope& scope) {
+[[noreturn]] static void ResumeScope(SEHScope& scope) {
   tls_seh_state.top = scope.outer;
   siglongjmp(scope.env, 1);
 }
 
-static void signal_handler(int sig, siginfo_t* info, void* ucontext) {
-  SehScope* scope = tls_seh_state.top;
+static void SignalHandler(int sig, siginfo_t* info, void* ucontext) {
+  SEHScope* scope = tls_seh_state.top;
   if (!scope || scope->host_depth != tls_seh_state.host_depth ||
-      !IsRecompiledCode(detail::SignalPc(ucontext))) {
+      !IsRecompiledCode(detail::SignalPC(ucontext))) {
     if (struct sigaction* previous = PreviousAction(sig)) {
       detail::ForwardSignal(*previous, sig, info, ucontext);
       return;
@@ -58,22 +58,22 @@ static void signal_handler(int sig, siginfo_t* info, void* ucontext) {
     detail::DieWithDefaultDisposition(sig);
   }
 
-  SehException::Code code;
+  SEHException::Code code;
   switch (sig) {
     case SIGSEGV:
-      code = SehException::ACCESS_VIOLATION;
+      code = SEHException::kAccessViolation;
       break;
     case SIGBUS:
-      code = SehException::IN_PAGE_ERROR;
+      code = SEHException::kInPageError;
       break;
     case SIGFPE:
-      code = SehException::FLOAT_DIVIDE_BY_ZERO;
+      code = SEHException::kFloatDivideByZero;
       break;
     case SIGILL:
-      code = SehException::ILLEGAL_INSTRUCTION;
+      code = SEHException::kIllegalInstruction;
       break;
     default:
-      code = SehException::UNKNOWN;
+      code = SEHException::kUnknown;
       break;
   }
 
@@ -86,24 +86,24 @@ static void signal_handler(int sig, siginfo_t* info, void* ucontext) {
   ResumeScope(*scope);
 }
 
-[[noreturn]] void seh_rethrow() {
-  if (SehScope* scope = tls_seh_state.top; scope && scope->host_depth == tls_seh_state.host_depth) {
+[[noreturn]] void SEHRethrow() {
+  if (SEHScope* scope = tls_seh_state.top; scope && scope->host_depth == tls_seh_state.host_depth) {
     ResumeScope(*scope);
   }
   u32 code = tls_seh_state.code;
   int sig;
   switch (code) {
-    case SehException::ACCESS_VIOLATION:
+    case SEHException::kAccessViolation:
       sig = SIGSEGV;
       break;
-    case SehException::IN_PAGE_ERROR:
+    case SEHException::kInPageError:
       sig = SIGBUS;
       break;
-    case SehException::FLOAT_DIVIDE_BY_ZERO:
-    case SehException::INTEGER_DIVIDE_BY_ZERO:
+    case SEHException::kFloatDivideByZero:
+    case SEHException::kIntegerDivideByZero:
       sig = SIGFPE;
       break;
-    case SehException::ILLEGAL_INSTRUCTION:
+    case SEHException::kIllegalInstruction:
       sig = SIGILL;
       break;
     default:
@@ -113,13 +113,13 @@ static void signal_handler(int sig, siginfo_t* info, void* ucontext) {
   detail::DieWithDefaultDisposition(sig);
 }
 
-void seh_initialize() {
+void SEHInitialize() {
   if (g_seh_initialized.exchange(true)) {
     return;
   }
 
   struct sigaction sa{};
-  sa.sa_sigaction = signal_handler;
+  sa.sa_sigaction = SignalHandler;
   sigemptyset(&sa.sa_mask);
   sa.sa_flags = SA_SIGINFO | SA_NODEFER | SA_ONSTACK;
   for (size_t i = 0; i < kSEHSignals.size(); ++i) {

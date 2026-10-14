@@ -50,8 +50,8 @@ struct GuestThreadPtrs {
  * @return The resolved pointers.
  */
 GuestThreadPtrs GetGuestThreadPtrs(KernelThread* thread) {
-  auto* ctx = thread->thread_state()->context();
-  auto* mem = thread->runtime().memory();
+  auto* ctx = thread->GetThreadState()->GetContext();
+  auto* mem = thread->GetRuntime().GetMemory();
   auto* pcr = mem->TranslateVirtual<X_KPCR*>(static_cast<u32>(ctx->r13.u64));
   auto* kthread =
       mem->TranslateVirtual<X_KTHREAD*>(static_cast<u32>(pcr->prcb_data.current_thread));
@@ -88,25 +88,25 @@ struct FiberEntryArgs {
 static void FiberEntryPoint(void* raw_arg) {
   auto args = std::unique_ptr<FiberEntryArgs>(static_cast<FiberEntryArgs*>(raw_arg));
   auto* thread = KernelThread::GetCurrentThread();
-  auto* mem = args->runtime->memory();
-  PPCContext& ctx = *thread->thread_state()->context();
-  ctx.fpscr.setcsr(ctx.fpscr.csr);
+  auto* mem = args->runtime->GetMemory();
+  PPCContext& ctx = *thread->GetThreadState()->GetContext();
+  ctx.fpscr.SetCSR(ctx.fpscr.csr);
 
   auto* fiber = mem->TranslateVirtual<X_FIBER_CONTEXT*>(args->guest_fiber_addr);
   ctx.r3.u64 = static_cast<u32>(fiber->fiber_data);
 #if !REX_PLATFORM_WIN32
-  rex::platform::seh_thread_state().top = nullptr;
+  rex::platform::GetSEHThreadState().top = nullptr;
 #endif
 
   try {
-    args->start_fn(ctx, mem->virtual_membase());
+    args->start_fn(ctx, mem->GetVirtualMembase());
   } catch (const rex::ThreadStop& stop) {
     thread->RequestStop(stop.exit_code);
   }
 
-  if (thread->main_fiber()) {
+  if (thread->GetMainFiber()) {
     REX_PROFILE_FIBER_LEAVE();
-    rex::platform::Fiber::SwitchTo(thread->main_fiber());
+    rex::platform::Fiber::SwitchTo(thread->GetMainFiber());
   }
   REXLOG_WARN(kernel, "FiberEntryPoint: fiber function returned with no main fiber - terminating");
   std::terminate();
@@ -119,8 +119,8 @@ static void FiberEntryPoint(void* raw_arg) {
  * @param thread The thread.
  * @return 1 on success, 0 when the thread is not a fiber.
  */
-u32 ConvertFiberToThread_impl(KernelThread* thread) {
-  Runtime& runtime = thread->runtime();
+u32 ConvertFiberToThreadImpl(KernelThread* thread) {
+  Runtime& runtime = thread->GetRuntime();
   auto [kthread, pcr, ctx, mem] = GetGuestThreadPtrs(thread);
 
   u32 fiber_addr = kthread->fiber_ptr;
@@ -130,15 +130,15 @@ u32 ConvertFiberToThread_impl(KernelThread* thread) {
     return 0;
   }
 
-  auto info = runtime.thread_registry().LookupFiber(fiber_addr);
+  auto info = runtime.GetThreadRegistry().LookupFiber(fiber_addr);
   if (info) {
     info->host_fiber->Destroy();
-    runtime.thread_registry().UnregisterFiber(fiber_addr);
+    runtime.GetThreadRegistry().UnregisterFiber(fiber_addr);
   }
 
   kthread->fiber_ptr = 0u;
   // Null main_fiber_ after Destroy, ~KernelThread destroys it again when non null.
-  thread->set_main_fiber(nullptr);
+  thread->SetMainFiber(nullptr);
   mem->SystemHeapFree(fiber_addr);
 
   return 1;
@@ -146,9 +146,9 @@ u32 ConvertFiberToThread_impl(KernelThread* thread) {
 
 }  // namespace
 
-REX_SHIM_FN(ConvertThreadToFiber, u32, mapped_void lpParameter) {
+REX_SHIM_FN(ConvertThreadToFiber, u32, MappedVoid lpParameter) {
   auto* thread = KernelThread::GetCurrentThread();
-  Runtime& runtime = thread->runtime();
+  Runtime& runtime = thread->GetRuntime();
   auto [kthread, pcr, ctx, mem] = GetGuestThreadPtrs(thread);
 
   if (kthread->fiber_ptr) {
@@ -166,7 +166,7 @@ REX_SHIM_FN(ConvertThreadToFiber, u32, mapped_void lpParameter) {
   auto* fiber = mem->TranslateVirtual<X_FIBER_CONTEXT*>(buf_addr);
   std::memset(fiber, 0, sizeof(X_FIBER_CONTEXT));
 
-  fiber->fiber_data = lpParameter.guest_address();
+  fiber->fiber_data = lpParameter.GetGuestAddress();
   fiber->stack_alloc_base = kthread->stack_alloc_base;
   fiber->stack_base = kthread->stack_base;
   fiber->stack_limit = kthread->stack_limit;
@@ -174,33 +174,33 @@ REX_SHIM_FN(ConvertThreadToFiber, u32, mapped_void lpParameter) {
 
   kthread->fiber_ptr = buf_addr;
 
-  auto* host_fiber = thread->main_fiber();
+  auto* host_fiber = thread->GetMainFiber();
   if (!host_fiber) {
     host_fiber = rex::platform::Fiber::ConvertCurrentThread();
-    thread->set_main_fiber(host_fiber);
+    thread->SetMainFiber(host_fiber);
   }
 
-  runtime.thread_registry().RegisterFiber(
+  runtime.GetThreadRegistry().RegisterFiber(
       buf_addr, FiberInfo{host_fiber, unique_fiber_count++, buf_addr, 0, true});
 
   REXLOG_DEBUG(kernel, "ConvertThreadToFiber: fiber={:#010x} param={:#010x}", buf_addr,
-               lpParameter.guest_address());
+               lpParameter.GetGuestAddress());
   return buf_addr;
 }
 
 REX_SHIM_FN(ConvertFiberToThread, u32) {
   auto* thread = KernelThread::GetCurrentThread();
-  auto result = ConvertFiberToThread_impl(thread);
+  auto result = ConvertFiberToThreadImpl(thread);
   if (result) {
     REXLOG_DEBUG(kernel, "ConvertFiberToThread: success");
   }
   return result;
 }
 
-REX_SHIM_FN(CreateFiber, u32, u32 dwStackSize, u32 lpStartAddress, mapped_void lpParameter) {
+REX_SHIM_FN(CreateFiber, u32, u32 dwStackSize, u32 lpStartAddress, MappedVoid lpParameter) {
   auto* thread = KernelThread::GetCurrentThread();
-  Runtime& runtime = thread->runtime();
-  auto* mem = runtime.memory();
+  Runtime& runtime = thread->GetRuntime();
+  auto* mem = runtime.GetMemory();
   auto [kthread, pcr, ctx, _mem] = GetGuestThreadPtrs(thread);
 
   const auto* process =
@@ -218,7 +218,7 @@ REX_SHIM_FN(CreateFiber, u32, u32 dwStackSize, u32 lpStartAddress, mapped_void l
   const u32 initial_sp = stack_top - 0x50;
   std::memset(mem->TranslateVirtual(initial_sp), 0, 0x50);
 
-  PPCFunc* start_fn = runtime.function_dispatcher()->GetFunction(lpStartAddress);
+  PPCFunc* start_fn = runtime.GetFunctionDispatcher()->GetFunction(lpStartAddress);
 
   u32 buf_addr = mem->SystemHeapAlloc(sizeof(X_FIBER_CONTEXT));
   if (!buf_addr) {
@@ -229,7 +229,7 @@ REX_SHIM_FN(CreateFiber, u32, u32 dwStackSize, u32 lpStartAddress, mapped_void l
   auto* fiber = mem->TranslateVirtual<X_FIBER_CONTEXT*>(buf_addr);
   std::memset(fiber, 0, sizeof(X_FIBER_CONTEXT));
 
-  fiber->fiber_data = lpParameter.guest_address();
+  fiber->fiber_data = lpParameter.GetGuestAddress();
   fiber->stack_alloc_base = stack_top;
   fiber->stack_base = stack_top;
   fiber->stack_limit = stack_bottom;
@@ -247,25 +247,25 @@ REX_SHIM_FN(CreateFiber, u32, u32 dwStackSize, u32 lpStartAddress, mapped_void l
     std::ignore = args_owner.release();
   }
 
-  runtime.thread_registry().RegisterFiber(
+  runtime.GetThreadRegistry().RegisterFiber(
       buf_addr, FiberInfo{host_fiber, unique_fiber_count++, buf_addr, stack->alloc_base, false});
 
   REXLOG_DEBUG(kernel, "CreateFiber: fiber={:#010x} start={:#010x} stack={:#x} param={:#010x}",
-               buf_addr, lpStartAddress, guest_stack_size, lpParameter.guest_address());
+               buf_addr, lpStartAddress, guest_stack_size, lpParameter.GetGuestAddress());
   return buf_addr;
 }
 
-REX_SHIM_FN(DeleteFiber, void, mapped_void lpFiber) {
+REX_SHIM_FN(DeleteFiber, void, MappedVoid lpFiber) {
   auto* thread = KernelThread::GetCurrentThread();
-  Runtime& runtime = thread->runtime();
-  auto* mem = runtime.memory();
+  Runtime& runtime = thread->GetRuntime();
+  auto* mem = runtime.GetMemory();
   auto [kthread, pcr, ctx, _mem] = GetGuestThreadPtrs(thread);
-  u32 fiber_addr = lpFiber.guest_address();
+  u32 fiber_addr = lpFiber.GetGuestAddress();
 
   if (static_cast<u32>(kthread->fiber_ptr) == fiber_addr) {
     REXLOG_DEBUG(kernel, "DeleteFiber: self-delete fiber={:#010x}", fiber_addr);
     REX_PROFILE_FIBER_LEAVE();
-    ConvertFiberToThread_impl(thread);
+    ConvertFiberToThreadImpl(thread);
     // Exit does not return
     thread->Exit(1);
     return;
@@ -273,7 +273,7 @@ REX_SHIM_FN(DeleteFiber, void, mapped_void lpFiber) {
 
   REXLOG_DEBUG(kernel, "DeleteFiber: fiber={:#010x}", fiber_addr);
 
-  auto info = runtime.thread_registry().LookupFiber(fiber_addr);
+  auto info = runtime.GetThreadRegistry().LookupFiber(fiber_addr);
   if (info) {
     if (!info->is_thread_fiber) {
       FreeGuestStack(*mem, info->guest_stack_bottom);
@@ -281,19 +281,19 @@ REX_SHIM_FN(DeleteFiber, void, mapped_void lpFiber) {
     if (info->host_fiber) {
       info->host_fiber->Destroy();
     }
-    runtime.thread_registry().UnregisterFiber(fiber_addr);
+    runtime.GetThreadRegistry().UnregisterFiber(fiber_addr);
   }
   mem->SystemHeapFree(fiber_addr);
 }
 
-REX_SHIM_FN(SwitchToFiber, void, mapped_void lpFiber) {
+REX_SHIM_FN(SwitchToFiber, void, MappedVoid lpFiber) {
   auto* thread = KernelThread::GetCurrentThread();
-  Runtime& runtime = thread->runtime();
-  auto* mem = runtime.memory();
+  Runtime& runtime = thread->GetRuntime();
+  auto* mem = runtime.GetMemory();
   auto [kthread, pcr, ctx, _mem] = GetGuestThreadPtrs(thread);
-  u32 target_addr = lpFiber.guest_address();
+  u32 target_addr = lpFiber.GetGuestAddress();
 
-  auto target_info = runtime.thread_registry().LookupFiber(target_addr);
+  auto target_info = runtime.GetThreadRegistry().LookupFiber(target_addr);
   if (!target_info || !target_info->host_fiber) {
     REXLOG_WARN(kernel, "SwitchToFiber: no valid fiber for {:#010x}, skipping", target_addr);
     return;
@@ -304,7 +304,7 @@ REX_SHIM_FN(SwitchToFiber, void, mapped_void lpFiber) {
     auto* current_fiber = mem->TranslateVirtual<X_FIBER_CONTEXT*>(current_addr);
     ctx->SaveNonVolatiles(current_fiber->register_save_area);
     current_fiber->sp_save = ctx->r1.u64;
-    current_fiber->cr_save = ctx->cr();
+    current_fiber->cr_save = ctx->GetCR();
     current_fiber->lr_save = static_cast<u32>(ctx->lr);
   }
 
@@ -312,28 +312,28 @@ REX_SHIM_FN(SwitchToFiber, void, mapped_void lpFiber) {
 
   auto* target_fiber = mem->TranslateVirtual<X_FIBER_CONTEXT*>(target_addr);
   ctx->RestoreNonVolatiles(target_fiber->register_save_area);
-  ctx->set_cr(target_fiber->cr_save);
+  ctx->SetCR(target_fiber->cr_save);
   ctx->lr = target_fiber->lr_save;
   UpdateGuestStackPointers(kthread, pcr, ctx, static_cast<u32>(target_fiber->sp_save),
                            static_cast<u32>(target_fiber->stack_alloc_base),
                            static_cast<u32>(target_fiber->stack_base),
                            static_cast<u32>(target_fiber->stack_limit));
 
-  if (target_info->host_fiber == thread->main_fiber()) {
+  if (target_info->host_fiber == thread->GetMainFiber()) {
     REX_PROFILE_FIBER_LEAVE();
   } else {
-    REX_PROFILE_FIBER_ENTER(
-        runtime.thread_registry().GetOrCreateFiberName(target_info->uid, thread->name().c_str()));
+    REX_PROFILE_FIBER_ENTER(runtime.GetThreadRegistry().GetOrCreateFiberName(
+        target_info->uid, thread->GetName().c_str()));
   }
 
 #if !REX_PLATFORM_WIN32
-  rex::platform::SehScope* const scope = rex::platform::seh_thread_state().top;
+  rex::platform::SEHScope* const scope = rex::platform::GetSEHThreadState().top;
 #endif
   rex::platform::Fiber::SwitchTo(target_info->host_fiber);
 #if !REX_PLATFORM_WIN32
-  rex::platform::seh_thread_state().top = scope;
+  rex::platform::GetSEHThreadState().top = scope;
 #endif
-  ctx->fpscr.setcsr(ctx->fpscr.csr);
+  ctx->fpscr.SetCSR(ctx->fpscr.csr);
   KernelThread::CheckStop();
 }
 

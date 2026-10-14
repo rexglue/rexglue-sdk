@@ -37,7 +37,7 @@
 namespace rex::ppc {
 
 template <typename R, typename... T>
-constexpr std::tuple<T...> function_args(R (*)(T...)) noexcept {
+constexpr std::tuple<T...> FunctionArgs(R (*)(T...)) noexcept {
   return std::tuple<T...>();
 }
 
@@ -71,9 +71,9 @@ concept PlainType = !std::is_pointer_v<T> && !BigEndianType<T> && !MappedPtrType
  * @tparam Func The function.
  */
 template <auto Func>
-struct arg_count_t {
+struct ArgCountT {
   /** Number of parameters. */
-  static constexpr size_t value = std::tuple_size_v<decltype(function_args(Func))>;
+  static constexpr size_t value = std::tuple_size_v<decltype(FunctionArgs(Func))>;
 };
 
 /** Places of 1 argument in the guest calling convention. */
@@ -287,13 +287,13 @@ struct ArgTranslator {
    */
   template <MappedPtrType T>
   static T GetValue(PPCContext& ctx, u8* base, const Argument& arg) noexcept {
-    using inner_t = mapped_ptr_inner_type<T>::type;
+    using InnerT = mapped_ptr_inner_type<T>::type;
     const auto v = GetIntegerArgumentValue(ctx, base, arg.slot);
     if (!v) {
       return T(nullptr);
     }
     u32 guest_addr = static_cast<u32>(v);
-    inner_t* host_ptr = rex::runtime::GuestPtr<inner_t*>(base, guest_addr);
+    InnerT* host_ptr = rex::runtime::GuestPtr<InnerT*>(base, guest_addr);
     return T(host_ptr, guest_addr);
   }
 
@@ -367,7 +367,7 @@ struct ArgTranslator {
  * @return True when T is float or double.
  */
 template <typename T>
-constexpr bool is_precise_type() {
+constexpr bool IsPreciseType() {
   return is_precise_v<T>;
 }
 
@@ -384,12 +384,12 @@ template <typename... Args>
 constexpr std::array<Argument, sizeof...(Args)> GatherFunctionArgumentsFromTypes() {
   std::array<Argument, sizeof...(Args)> args{};
   if constexpr (sizeof...(Args) > 0) {
-    int floatOrdinal{};
+    int float_ordinal{};
     int slot{};
     (
         [&]<typename T>() {
-          if constexpr (is_precise_type<T>()) {
-            args[slot] = {1, floatOrdinal++, slot};
+          if constexpr (IsPreciseType<T>()) {
+            args[slot] = {1, float_ordinal++, slot};
           } else {
             args[slot] = {0, slot, slot};
           }
@@ -430,7 +430,7 @@ constexpr auto GatherFunctionArguments() {
  * @tparam I The argument index.
  */
 template <auto Func, size_t I>
-struct arg_ordinal_t {
+struct ArgOrdinalT {
   /** Places of argument I. */
   static constexpr Argument value = GatherFunctionArguments<Func>()[I];
 };
@@ -447,8 +447,8 @@ struct arg_ordinal_t {
  */
 template <auto Func, int I = 0, typename... TArgs>
   requires(I >= sizeof...(TArgs))
-void _translate_args_to_host([[maybe_unused]] PPCContext& ctx, [[maybe_unused]] u8* base,
-                             [[maybe_unused]] std::tuple<TArgs...>&) noexcept {}
+void TranslateArgsToHost([[maybe_unused]] PPCContext& ctx, [[maybe_unused]] u8* base,
+                         [[maybe_unused]] std::tuple<TArgs...>&) noexcept {}
 
 /**
  * Reads argument I and every later one from the register file into a tuple.
@@ -462,10 +462,10 @@ void _translate_args_to_host([[maybe_unused]] PPCContext& ctx, [[maybe_unused]] 
  */
 template <auto Func, int I = 0, typename... TArgs>
   requires(I < sizeof...(TArgs))
-void _translate_args_to_host(PPCContext& ctx, u8* base, std::tuple<TArgs...>& tpl) noexcept {
+void TranslateArgsToHost(PPCContext& ctx, u8* base, std::tuple<TArgs...>& tpl) noexcept {
   using T = std::tuple_element_t<I, std::remove_reference_t<decltype(tpl)>>;
-  std::get<I>(tpl) = ArgTranslator::GetValue<T>(ctx, base, arg_ordinal_t<Func, I>::value);
-  _translate_args_to_host<Func, I + 1>(ctx, base, tpl);
+  std::get<I>(tpl) = ArgTranslator::GetValue<T>(ctx, base, ArgOrdinalT<Func, I>::value);
+  TranslateArgsToHost<Func, I + 1>(ctx, base, tpl);
 }
 
 /**
@@ -479,8 +479,8 @@ void _translate_args_to_host(PPCContext& ctx, u8* base, std::tuple<TArgs...>& tp
  */
 template <int I = 0, typename... TArgs>
   requires(I >= sizeof...(TArgs))
-void _translate_args_to_guest([[maybe_unused]] PPCContext& ctx, [[maybe_unused]] u8* base,
-                              [[maybe_unused]] std::tuple<TArgs...>&) noexcept {}
+void TranslateArgsToGuest([[maybe_unused]] PPCContext& ctx, [[maybe_unused]] u8* base,
+                          [[maybe_unused]] std::tuple<TArgs...>&) noexcept {}
 
 /**
  * Writes argument I and every later one from a tuple into the register file and stack image.
@@ -493,11 +493,11 @@ void _translate_args_to_guest([[maybe_unused]] PPCContext& ctx, [[maybe_unused]]
  */
 template <int I = 0, typename... TArgs>
   requires(I < sizeof...(TArgs))
-void _translate_args_to_guest(PPCContext& ctx, u8* base, std::tuple<TArgs...>& tpl) noexcept {
+void TranslateArgsToGuest(PPCContext& ctx, u8* base, std::tuple<TArgs...>& tpl) noexcept {
   using T = std::tuple_element_t<I, std::remove_reference_t<decltype(tpl)>>;
   ArgTranslator::SetValue<T>(ctx, base, GatherFunctionArgumentsFromTypes<TArgs...>()[I],
                              std::get<I>(tpl));
-  _translate_args_to_guest<I + 1>(ctx, base, tpl);
+  TranslateArgsToGuest<I + 1>(ctx, base, tpl);
 }
 
 /**
@@ -510,38 +510,38 @@ void _translate_args_to_guest(PPCContext& ctx, u8* base, std::tuple<TArgs...>& t
  */
 template <auto Func>
 __attribute__((noinline)) void HostToGuestFunction(PPCContext& ctx, u8* base) {
-  using ret_t = decltype(std::apply(Func, function_args(Func)));
+  using RetT = decltype(std::apply(Func, FunctionArgs(Func)));
 
   auto* thread_state = rex::runtime::ThreadState::Get();
-  if (thread_state && thread_state->stop_requested()) {
+  if (thread_state && thread_state->IsStopRequested()) {
     throw rex::ThreadStop{};
   }
 #if !REX_PLATFORM_WIN32
   const rex::platform::HostCallDepth host_call_depth;
 #endif
-  auto args = function_args(Func);
-  _translate_args_to_host<Func>(ctx, base, args);
+  auto args = FunctionArgs(Func);
+  TranslateArgsToHost<Func>(ctx, base, args);
 
-  if constexpr (std::is_same_v<ret_t, void>) {
+  if constexpr (std::is_same_v<RetT, void>) {
     std::apply(Func, args);
   } else {
     auto v = std::apply(Func, args);
 
     asm volatile("" ::: "memory");
 
-    if constexpr (std::is_pointer<ret_t>()) {
+    if constexpr (std::is_pointer<RetT>()) {
       if (v != nullptr) {
         ctx.r3.u64 = static_cast<u32>(reinterpret_cast<size_t>(v) - reinterpret_cast<size_t>(base));
       } else {
         ctx.r3.u64 = 0;
       }
-    } else if constexpr (is_precise_v<ret_t>) {
+    } else if constexpr (is_precise_v<RetT>) {
       ctx.f1.f64 = v;
     } else {
       ctx.r3.u64 = static_cast<u64>(v);
     }
   }
-  if (thread_state && thread_state->stop_requested()) {
+  if (thread_state && thread_state->IsStopRequested()) {
     throw rex::ThreadStop{};
   }
 }
@@ -632,9 +632,9 @@ inline u32 OpenCallFrame(PPCContext& ctx, u8* base, u32 stack_bytes) {
  * @return 8 bytes per argument past the eighth.
  */
 template <typename... Args>
-constexpr u32 StackArgumentBytes() {
-  constexpr u32 slots = sizeof...(Args);
-  return slots > 8 ? (slots - 8) * 8 : 0;
+constexpr u32 GetStackArgumentBytes() {
+  constexpr u32 kSlots = sizeof...(Args);
+  return kSlots > 8 ? (kSlots - 8) * 8 : 0;
 }
 
 /**
@@ -651,9 +651,9 @@ constexpr u32 StackArgumentBytes() {
 template <typename R, typename... Args>
 R Call(PPCContext& ctx, u8* base, PPCFunc& fn, Args... args) {
   const PPCContext saved = ctx;
-  OpenCallFrame(ctx, base, StackArgumentBytes<Args...>());
+  OpenCallFrame(ctx, base, GetStackArgumentBytes<Args...>());
   auto tpl = std::make_tuple(args...);
-  _translate_args_to_guest(ctx, base, tpl);
+  TranslateArgsToGuest(ctx, base, tpl);
   fn(ctx, base);
   const PPCRegister r3 = ctx.r3;
   const PPCRegister f1 = ctx.f1;
@@ -684,7 +684,7 @@ template <typename T, typename... TArgs>
 T GuestToHostFunction(PPCFunc* func, TArgs&&... argv) {
   auto* ts = rex::runtime::ThreadState::Get();
   REX_ASSERT(ts && func, "GuestToHostFunction needs a bound thread state and a function");
-  return Call<T>(*ts->context(), ts->memory()->virtual_membase(), *func,
+  return Call<T>(*ts->GetContext(), ts->GetMemory()->GetVirtualMembase(), *func,
                  std::forward<TArgs>(argv)...);
 }
 

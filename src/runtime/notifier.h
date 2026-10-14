@@ -35,7 +35,7 @@ class Notifier final : public INotifier {
 
  private:
   ObjectTable& table_;
-  rex::platform::RankedMutex mutex_{rex::platform::LockRank::Leaf};
+  rex::platform::RankedMutex mutex_{rex::platform::LockRank::kLeaf};
   std::vector<X_HANDLE> listeners_;
   bool has_notified_startup_ = false;
 };

@@ -34,7 +34,7 @@ void ConfiguredVideoMode(u32& width, u32& height) {
   height = static_cast<u32>(std::clamp(configured_height, 480, 0x0FFF));
 }
 
-f32 ConfiguredRefreshRate() {
+f32 GetConfiguredRefreshRate() {
   return static_cast<f32>(std::clamp(REXCVAR_GET(cvars::video_mode_refresh_rate), 24.0, 240.0));
 }
 

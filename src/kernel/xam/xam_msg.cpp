@@ -26,8 +26,8 @@ namespace xam {
 using namespace rex::runtime;
 
 u32 XMsgInProcessCall_entry(u32 app, u32 message, u32 arg1, u32 arg2) {
-  auto result = runtime::Current().content_manager().app_manager().DispatchMessageSync(app, message,
-                                                                                       arg1, arg2);
+  auto result = runtime::GetCurrent().GetContentManager().GetAppManager().DispatchMessageSync(
+      app, message, arg1, arg2);
   if (result == X_ERROR_NOT_FOUND) {
     REXLOG_ERROR(kernel, "XMsgInProcessCall: app {:08X} undefined", app);
   }
@@ -35,7 +35,7 @@ u32 XMsgInProcessCall_entry(u32 app, u32 message, u32 arg1, u32 arg2) {
 }
 
 u32 XMsgSystemProcessCall_entry(u32 app, u32 message, u32 buffer, u32 buffer_length) {
-  auto result = runtime::Current().content_manager().app_manager().DispatchMessageAsync(
+  auto result = runtime::GetCurrent().GetContentManager().GetAppManager().DispatchMessageAsync(
       app, message, buffer, buffer_length);
   if (result == X_ERROR_NOT_FOUND) {
     REXLOG_ERROR(kernel, "XMsgSystemProcessCall: app {:08X} undefined", app);
@@ -51,61 +51,61 @@ struct XMSGSTARTIOREQUEST_UNKNOWNARG {
 X_HRESULT XMsgStartIORequestEx(u32 app, u32 message, u32 overlapped_ptr, u32 buffer_ptr,
                                u32 buffer_length,
                                [[maybe_unused]] XMSGSTARTIOREQUEST_UNKNOWNARG* unknown) {
-  auto result = runtime::Current().content_manager().app_manager().DispatchMessageAsync(
+  auto result = runtime::GetCurrent().GetContentManager().GetAppManager().DispatchMessageAsync(
       app, message, buffer_ptr, buffer_length);
   if (result == X_E_NOTFOUND) {
     REXLOG_ERROR(kernel, "XMsgStartIORequestEx: app {:08X} undefined", app);
     result = X_E_INVALIDARG;
-    KernelThread::SetLastError(X_ERROR_NOT_FOUND);
+    KernelThread::GetCurrentThread()->SetLastError(X_ERROR_NOT_FOUND);
   }
   if (overlapped_ptr) {
-    runtime::Current().dispatcher().Complete(overlapped_ptr, {.result = result});
+    runtime::GetCurrent().GetDispatcher().Complete(overlapped_ptr, {.result = result});
     result = X_ERROR_IO_PENDING;
   }
   if (result == X_ERROR_SUCCESS || result == X_ERROR_IO_PENDING) {
-    KernelThread::SetLastError(0);
+    KernelThread::GetCurrentThread()->SetLastError(0);
   }
   return result;
 }
 
-u32 XMsgStartIORequestEx_entry(u32 app, u32 message, ppc_ptr_t<XAM_OVERLAPPED> overlapped_ptr,
+u32 XMsgStartIORequestEx_entry(u32 app, u32 message, GuestPtrT<XAM_OVERLAPPED> overlapped_ptr,
                                u32 buffer_ptr, u32 buffer_length,
-                               ppc_ptr_t<XMSGSTARTIOREQUEST_UNKNOWNARG> unknown_ptr) {
-  return XMsgStartIORequestEx(app, message, overlapped_ptr.guest_address(), buffer_ptr,
+                               GuestPtrT<XMSGSTARTIOREQUEST_UNKNOWNARG> unknown_ptr) {
+  return XMsgStartIORequestEx(app, message, overlapped_ptr.GetGuestAddress(), buffer_ptr,
                               buffer_length, unknown_ptr);
 }
 
-u32 XMsgStartIORequest_entry(u32 app, u32 message, ppc_ptr_t<XAM_OVERLAPPED> overlapped_ptr,
+u32 XMsgStartIORequest_entry(u32 app, u32 message, GuestPtrT<XAM_OVERLAPPED> overlapped_ptr,
                              u32 buffer_ptr, u32 buffer_length) {
-  return XMsgStartIORequestEx(app, message, overlapped_ptr.guest_address(), buffer_ptr,
+  return XMsgStartIORequestEx(app, message, overlapped_ptr.GetGuestAddress(), buffer_ptr,
                               buffer_length, nullptr);
 }
 
-u32 XMsgCancelIORequest_entry(ppc_ptr_t<XAM_OVERLAPPED> overlapped_ptr, u32 wait) {
+u32 XMsgCancelIORequest_entry(GuestPtrT<XAM_OVERLAPPED> overlapped_ptr, u32 wait) {
   X_HANDLE event_handle = XOverlappedGetEvent(overlapped_ptr);
   if (event_handle && wait) {
-    Wait(runtime::Current(), event_handle, 0, 0, true, nullptr);
+    Wait(runtime::GetCurrent(), event_handle, 0, 0, true, nullptr);
   }
 
   return 0;
 }
 
-u32 XMsgCompleteIORequest_entry(ppc_ptr_t<XAM_OVERLAPPED> overlapped_ptr, u32 result,
+u32 XMsgCompleteIORequest_entry(GuestPtrT<XAM_OVERLAPPED> overlapped_ptr, u32 result,
                                 u32 extended_error, u32 length) {
-  runtime::Current().dispatcher().Complete(
-      overlapped_ptr.guest_address(),
+  runtime::GetCurrent().GetDispatcher().Complete(
+      overlapped_ptr.GetGuestAddress(),
       {.result = result, .extended_error = extended_error, .length = length});
   return X_ERROR_SUCCESS;
 }
 
-u32 XamGetOverlappedResult_entry(ppc_ptr_t<XAM_OVERLAPPED> overlapped_ptr, mapped_u32 length_ptr,
+u32 XamGetOverlappedResult_entry(GuestPtrT<XAM_OVERLAPPED> overlapped_ptr, MappedU32 length_ptr,
                                  [[maybe_unused]] u32 unknown) {
-  XAM_OVERLAPPED* overlapped = overlapped_ptr.host_address();
+  XAM_OVERLAPPED* overlapped = overlapped_ptr.GetHostAddress();
   u32 result = XOverlappedGetResult(overlapped);
   if (result == X_ERROR_IO_PENDING && !overlapped->event) {
     result = X_ERROR_IO_INCOMPLETE;
   } else if (result == X_ERROR_IO_PENDING) {
-    result = Wait(runtime::Current(), overlapped->event, 3, 1, 0, nullptr);
+    result = Wait(runtime::GetCurrent(), overlapped->event, 3, 1, 0, nullptr);
     result = XSUCCEEDED(result) ? XOverlappedGetResult(overlapped)
                                 : xboxkrnl::RtlNtStatusToDosError(result);
   }

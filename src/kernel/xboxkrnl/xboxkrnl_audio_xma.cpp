@@ -32,8 +32,8 @@ using rex::runtime::XMA_CONTEXT_DATA;
 namespace {
 
 runtime::XMADecoder* Decoder(Runtime& runtime) {
-  runtime::APU* apu = runtime.apu();
-  return apu ? &apu->xma_decoder() : nullptr;
+  runtime::APU* apu = runtime.GetAPU();
+  return apu ? &apu->GetXMADecoder() : nullptr;
 }
 
 }  // namespace
@@ -45,9 +45,9 @@ runtime::XMADecoder* Decoder(Runtime& runtime) {
  * @param context_out_ptr Receives the context address.
  * @return X_ERROR_SUCCESS or an error code.
  */
-u32 XMACreateContext_entry(mapped_u32 context_out_ptr) {
+u32 XMACreateContext_entry(MappedU32 context_out_ptr) {
   REXLOG_DEV(kernel, "XMACreateContext called!");
-  auto* xma_decoder = Decoder(runtime::Current());
+  auto* xma_decoder = Decoder(runtime::GetCurrent());
   if (!xma_decoder) {
     return X_STATUS_NO_MEMORY;
   }
@@ -59,24 +59,24 @@ u32 XMACreateContext_entry(mapped_u32 context_out_ptr) {
   return X_STATUS_SUCCESS;
 }
 
-u32 XMAReleaseContext_entry(mapped_void context_ptr) {
-  auto* xma_decoder = Decoder(runtime::Current());
+u32 XMAReleaseContext_entry(MappedVoid context_ptr) {
+  auto* xma_decoder = Decoder(runtime::GetCurrent());
   if (!xma_decoder) {
     return 0;
   }
-  xma_decoder->ReleaseContext(context_ptr.guest_address());
+  xma_decoder->ReleaseContext(context_ptr.GetGuestAddress());
   return 0;
 }
 
 void StoreXMAContextIndexedRegister(Runtime& runtime, u32 base_reg, u32 context_ptr) {
-  u32 context_physical_address = runtime.memory()->GetPhysicalAddress(context_ptr);
+  u32 context_physical_address = runtime.GetMemory()->GetPhysicalAddress(context_ptr);
   REX_ASSERT(context_physical_address != UINT32_MAX);
   auto* xma_decoder = Decoder(runtime);
   if (!xma_decoder) {
     return;
   }
   u32 hw_index =
-      (context_physical_address - xma_decoder->context_array_ptr()) / sizeof(XMA_CONTEXT_DATA);
+      (context_physical_address - xma_decoder->GetContextArrayPtr()) / sizeof(XMA_CONTEXT_DATA);
   u32 reg_num = base_reg + (hw_index >> 5) * 4;
   u32 reg_value = 1 << (hw_index & 0x1F);
   xma_decoder->WriteRegister(reg_num, std::byteswap(reg_value));
@@ -107,13 +107,13 @@ struct XMA_CONTEXT_INIT {
 };
 REX_STATIC_ASSERT_SIZE(XMA_CONTEXT_INIT, 56);
 
-u32 XMAInitializeContext_entry(mapped_void context_ptr, ppc_ptr_t<XMA_CONTEXT_INIT> context_init) {
+u32 XMAInitializeContext_entry(MappedVoid context_ptr, GuestPtrT<XMA_CONTEXT_INIT> context_init) {
   // Input buffers may be null.
   u32 input_buffer_0_guest_ptr = context_init->input_buffer_0_ptr;
   u32 input_buffer_0_physical_address = 0;
   if (input_buffer_0_guest_ptr) {
     input_buffer_0_physical_address =
-        runtime::Current().memory()->GetPhysicalAddress(input_buffer_0_guest_ptr);
+        runtime::GetCurrent().GetMemory()->GetPhysicalAddress(input_buffer_0_guest_ptr);
     REX_ASSERT(input_buffer_0_physical_address != UINT32_MAX);
     if (input_buffer_0_physical_address == UINT32_MAX) {
       REX_FAIL(kernel, X_E_FALSE,
@@ -125,7 +125,7 @@ u32 XMAInitializeContext_entry(mapped_void context_ptr, ppc_ptr_t<XMA_CONTEXT_IN
   u32 input_buffer_1_physical_address = 0;
   if (input_buffer_1_guest_ptr) {
     input_buffer_1_physical_address =
-        runtime::Current().memory()->GetPhysicalAddress(input_buffer_1_guest_ptr);
+        runtime::GetCurrent().GetMemory()->GetPhysicalAddress(input_buffer_1_guest_ptr);
     REX_ASSERT(input_buffer_1_physical_address != UINT32_MAX);
     if (input_buffer_1_physical_address == UINT32_MAX) {
       REX_FAIL(kernel, X_E_FALSE,
@@ -136,7 +136,7 @@ u32 XMAInitializeContext_entry(mapped_void context_ptr, ppc_ptr_t<XMA_CONTEXT_IN
   u32 output_buffer_guest_ptr = context_init->output_buffer_ptr;
   REX_ASSERT(output_buffer_guest_ptr != 0);
   u32 output_buffer_physical_address =
-      runtime::Current().memory()->GetPhysicalAddress(output_buffer_guest_ptr);
+      runtime::GetCurrent().GetMemory()->GetPhysicalAddress(output_buffer_guest_ptr);
   REX_ASSERT(output_buffer_physical_address != UINT32_MAX);
   if (output_buffer_physical_address == UINT32_MAX) {
     REX_FAIL(kernel, X_E_FALSE,
@@ -168,12 +168,12 @@ u32 XMAInitializeContext_entry(mapped_void context_ptr, ppc_ptr_t<XMA_CONTEXT_IN
 
   context.Store(context_ptr);
 
-  StoreXMAContextIndexedRegister(runtime::Current(), 0x1A80, context_ptr.guest_address());
+  StoreXMAContextIndexedRegister(runtime::GetCurrent(), 0x1A80, context_ptr.GetGuestAddress());
 
   return 0;
 }
 
-u32 XMASetLoopData_entry(mapped_void context_ptr, ppc_ptr_t<XMA_CONTEXT_DATA> loop_data) {
+u32 XMASetLoopData_entry(MappedVoid context_ptr, GuestPtrT<XMA_CONTEXT_DATA> loop_data) {
   XMA_CONTEXT_DATA context(context_ptr);
 
   context.loop_start = loop_data->loop_start;
@@ -187,12 +187,12 @@ u32 XMASetLoopData_entry(mapped_void context_ptr, ppc_ptr_t<XMA_CONTEXT_DATA> lo
   return 0;
 }
 
-u32 XMAGetInputBufferReadOffset_entry(mapped_void context_ptr) {
+u32 XMAGetInputBufferReadOffset_entry(MappedVoid context_ptr) {
   XMA_CONTEXT_DATA context(context_ptr);
   return context.input_buffer_read_offset;
 }
 
-u32 XMASetInputBufferReadOffset_entry(mapped_void context_ptr, u32 value) {
+u32 XMASetInputBufferReadOffset_entry(MappedVoid context_ptr, u32 value) {
   XMA_CONTEXT_DATA context(context_ptr);
   context.input_buffer_read_offset = value;
   context.Store(context_ptr);
@@ -200,13 +200,13 @@ u32 XMASetInputBufferReadOffset_entry(mapped_void context_ptr, u32 value) {
   return 0;
 }
 
-u32 XMASetInputBuffer0_entry(mapped_void context_ptr, mapped_void buffer, u32 packet_count) {
+u32 XMASetInputBuffer0_entry(MappedVoid context_ptr, MappedVoid buffer, u32 packet_count) {
   u32 buffer_physical_address =
-      runtime::Current().memory()->GetPhysicalAddress(buffer.guest_address());
+      runtime::GetCurrent().GetMemory()->GetPhysicalAddress(buffer.GetGuestAddress());
   REX_ASSERT(buffer_physical_address != UINT32_MAX);
   if (buffer_physical_address == UINT32_MAX) {
     REX_FAIL(kernel, X_E_FALSE, "XMASetInputBuffer0: Invalid buffer virtual address {:08X}",
-             buffer.guest_address());
+             buffer.GetGuestAddress());
   }
 
   XMA_CONTEXT_DATA context(context_ptr);
@@ -219,12 +219,12 @@ u32 XMASetInputBuffer0_entry(mapped_void context_ptr, mapped_void buffer, u32 pa
   return 0;
 }
 
-u32 XMAIsInputBuffer0Valid_entry(mapped_void context_ptr) {
+u32 XMAIsInputBuffer0Valid_entry(MappedVoid context_ptr) {
   XMA_CONTEXT_DATA context(context_ptr);
   return context.input_buffer_0_valid;
 }
 
-u32 XMASetInputBuffer0Valid_entry(mapped_void context_ptr) {
+u32 XMASetInputBuffer0Valid_entry(MappedVoid context_ptr) {
   XMA_CONTEXT_DATA context(context_ptr);
   context.input_buffer_0_valid = 1;
   context.Store(context_ptr);
@@ -232,13 +232,13 @@ u32 XMASetInputBuffer0Valid_entry(mapped_void context_ptr) {
   return 0;
 }
 
-u32 XMASetInputBuffer1_entry(mapped_void context_ptr, mapped_void buffer, u32 packet_count) {
+u32 XMASetInputBuffer1_entry(MappedVoid context_ptr, MappedVoid buffer, u32 packet_count) {
   u32 buffer_physical_address =
-      runtime::Current().memory()->GetPhysicalAddress(buffer.guest_address());
+      runtime::GetCurrent().GetMemory()->GetPhysicalAddress(buffer.GetGuestAddress());
   REX_ASSERT(buffer_physical_address != UINT32_MAX);
   if (buffer_physical_address == UINT32_MAX) {
     REX_FAIL(kernel, X_E_FALSE, "XMASetInputBuffer1: Invalid buffer virtual address {:08X}",
-             buffer.guest_address());
+             buffer.GetGuestAddress());
   }
 
   XMA_CONTEXT_DATA context(context_ptr);
@@ -251,12 +251,12 @@ u32 XMASetInputBuffer1_entry(mapped_void context_ptr, mapped_void buffer, u32 pa
   return 0;
 }
 
-u32 XMAIsInputBuffer1Valid_entry(mapped_void context_ptr) {
+u32 XMAIsInputBuffer1Valid_entry(MappedVoid context_ptr) {
   XMA_CONTEXT_DATA context(context_ptr);
   return context.input_buffer_1_valid;
 }
 
-u32 XMASetInputBuffer1Valid_entry(mapped_void context_ptr) {
+u32 XMASetInputBuffer1Valid_entry(MappedVoid context_ptr) {
   XMA_CONTEXT_DATA context(context_ptr);
   context.input_buffer_1_valid = 1;
   context.Store(context_ptr);
@@ -264,12 +264,12 @@ u32 XMASetInputBuffer1Valid_entry(mapped_void context_ptr) {
   return 0;
 }
 
-u32 XMAIsOutputBufferValid_entry(mapped_void context_ptr) {
+u32 XMAIsOutputBufferValid_entry(MappedVoid context_ptr) {
   XMA_CONTEXT_DATA context(context_ptr);
   return context.output_buffer_valid;
 }
 
-u32 XMASetOutputBufferValid_entry(mapped_void context_ptr) {
+u32 XMASetOutputBufferValid_entry(MappedVoid context_ptr) {
   XMA_CONTEXT_DATA context(context_ptr);
   context.output_buffer_valid = 1;
   context.Store(context_ptr);
@@ -277,12 +277,12 @@ u32 XMASetOutputBufferValid_entry(mapped_void context_ptr) {
   return 0;
 }
 
-u32 XMAGetOutputBufferReadOffset_entry(mapped_void context_ptr) {
+u32 XMAGetOutputBufferReadOffset_entry(MappedVoid context_ptr) {
   XMA_CONTEXT_DATA context(context_ptr);
   return context.output_buffer_read_offset;
 }
 
-u32 XMASetOutputBufferReadOffset_entry(mapped_void context_ptr, u32 value) {
+u32 XMASetOutputBufferReadOffset_entry(MappedVoid context_ptr, u32 value) {
   XMA_CONTEXT_DATA context(context_ptr);
   context.output_buffer_read_offset = value;
   context.Store(context_ptr);
@@ -290,32 +290,32 @@ u32 XMASetOutputBufferReadOffset_entry(mapped_void context_ptr, u32 value) {
   return 0;
 }
 
-u32 XMAGetOutputBufferWriteOffset_entry(mapped_void context_ptr) {
+u32 XMAGetOutputBufferWriteOffset_entry(MappedVoid context_ptr) {
   XMA_CONTEXT_DATA context(context_ptr);
   return context.output_buffer_write_offset;
 }
 
-u32 XMAGetPacketMetadata_entry(mapped_void context_ptr) {
+u32 XMAGetPacketMetadata_entry(MappedVoid context_ptr) {
   XMA_CONTEXT_DATA context(context_ptr);
   return context.packet_metadata;
 }
 
-u32 XMAEnableContext_entry(mapped_void context_ptr) {
-  StoreXMAContextIndexedRegister(runtime::Current(), 0x1940, context_ptr.guest_address());
+u32 XMAEnableContext_entry(MappedVoid context_ptr) {
+  StoreXMAContextIndexedRegister(runtime::GetCurrent(), 0x1940, context_ptr.GetGuestAddress());
   return 0;
 }
 
-u32 XMADisableContext_entry(mapped_void context_ptr, u32 wait) {
+u32 XMADisableContext_entry(MappedVoid context_ptr, u32 wait) {
   X_HRESULT result = X_E_SUCCESS;
-  StoreXMAContextIndexedRegister(runtime::Current(), 0x1A40, context_ptr.guest_address());
-  auto* xma_decoder = Decoder(runtime::Current());
-  if (xma_decoder && !xma_decoder->BlockOnContext(context_ptr.guest_address(), !wait)) {
+  StoreXMAContextIndexedRegister(runtime::GetCurrent(), 0x1A40, context_ptr.GetGuestAddress());
+  auto* xma_decoder = Decoder(runtime::GetCurrent());
+  if (xma_decoder && !xma_decoder->BlockOnContext(context_ptr.GetGuestAddress(), !wait)) {
     result = X_E_FALSE;
   }
   return result;
 }
 
-u32 XMABlockWhileInUse_entry(mapped_void context_ptr) {
+u32 XMABlockWhileInUse_entry(MappedVoid context_ptr) {
   do {
     XMA_CONTEXT_DATA context(context_ptr);
     if (!context.input_buffer_0_valid && !context.input_buffer_1_valid) {

@@ -23,15 +23,15 @@ constexpr u32 kMaxIncludeDepth = 32;
 /**
  * Parses a hex address string with or without a "0x" or "0X" prefix.
  *
- * @param keyStr Address text.
+ * @param key_str Address text.
  * @return The address, or nullopt when the text is not hex.
  */
-std::optional<u32> ParseHexAddress(const std::string& keyStr) {
+std::optional<u32> ParseHexAddress(const std::string& key_str) {
   try {
-    if (keyStr.starts_with("0x") || keyStr.starts_with("0X")) {
-      return static_cast<u32>(std::stoul(keyStr.substr(2), nullptr, 16));
+    if (key_str.starts_with("0x") || key_str.starts_with("0X")) {
+      return static_cast<u32>(std::stoul(key_str.substr(2), nullptr, 16));
     } else {
-      return static_cast<u32>(std::stoul(keyStr, nullptr, 16));
+      return static_cast<u32>(std::stoul(key_str, nullptr, 16));
     }
   } catch (...) {
     return std::nullopt;
@@ -88,18 +88,18 @@ size_t EditDistance(std::string_view a, std::string_view b) {
 std::string_view NearestShimName(std::string_view name) {
   constexpr size_t kMaxDistance = 2;
   std::string_view best;
-  size_t bestDistance = kMaxDistance + 1;
+  size_t best_distance = kMaxDistance + 1;
   for (const auto& entry : rex::kernel::shim::kRegistry) {
     const size_t distance = EditDistance(name, entry.name);
-    if (distance < bestDistance) {
+    if (distance < best_distance) {
       best = entry.name;
-      bestDistance = distance;
+      best_distance = distance;
     }
   }
   return best;
 }
 
-bool ApplyTOML(const toml::table& toml, RecompilerConfig& cfg, const std::string& filePath) {
+bool ApplyTOML(const toml::table& toml, RecompilerConfig& cfg, const std::string& file_path) {
   if (auto* retired = toml["rexcrt"].as_table()) {
     std::string converted = "[shim]";
     for (const auto& [name, val] : *retired) {
@@ -109,102 +109,104 @@ bool ApplyTOML(const toml::table& toml, RecompilerConfig& cfg, const std::string
       }
     }
     REXLOG_ERROR(codegen, "config {}: the [rexcrt] table was renamed, replace it with\n{}",
-                 filePath, converted);
+                 file_path, converted);
     return false;
   }
 
   if (auto v = toml["project_name"].value<std::string>()) {
-    MergeScalar(cfg.projectName, *v, "project_name");
+    MergeScalar(cfg.project_name, *v, "project_name");
   }
   if (auto v = toml["file_path"].value<std::string>()) {
-    MergeScalar(cfg.filePath, *v, "file_path");
+    MergeScalar(cfg.file_path, *v, "file_path");
   }
   if (auto v = toml["out_directory_path"].value<std::string>()) {
-    MergeScalar(cfg.outDirectoryPath, *v, "out_directory_path");
+    MergeScalar(cfg.out_directory_path, *v, "out_directory_path");
   }
   if (auto v = toml["template_dir"].value<std::string>()) {
-    MergeScalar(cfg.templateDir, *v, "template_dir");
+    MergeScalar(cfg.template_dir, *v, "template_dir");
   }
 
-  auto hasBool = [&](const char* key) -> bool { return toml[key].is_boolean(); };
-  MergeBool(cfg.skipLr, toml["skip_lr"].value_or(false), hasBool("skip_lr"), "skip_lr");
-  MergeBool(cfg.skipMsr, toml["skip_msr"].value_or(false), hasBool("skip_msr"), "skip_msr");
-  MergeBool(cfg.ctrAsLocalVariable, toml["ctr_as_local"].value_or(false), hasBool("ctr_as_local"),
-            "ctr_as_local");
-  MergeBool(cfg.xerAsLocalVariable, toml["xer_as_local"].value_or(false), hasBool("xer_as_local"),
-            "xer_as_local");
-  MergeBool(cfg.reservedRegisterAsLocalVariable, toml["reserved_as_local"].value_or(false),
-            hasBool("reserved_as_local"), "reserved_as_local");
-  MergeBool(cfg.crRegistersAsLocalVariables, toml["cr_as_local"].value_or(false),
-            hasBool("cr_as_local"), "cr_as_local");
-  MergeBool(cfg.nonArgumentRegistersAsLocalVariables, toml["non_argument_as_local"].value_or(false),
-            hasBool("non_argument_as_local"), "non_argument_as_local");
-  MergeBool(cfg.nonVolatileRegistersAsLocalVariables, toml["non_volatile_as_local"].value_or(false),
-            hasBool("non_volatile_as_local"), "non_volatile_as_local");
-  MergeBool(cfg.generateExceptionHandlers, toml["generate_exception_handlers"].value_or(false),
-            hasBool("generate_exception_handlers"), "generate_exception_handlers");
-  if (hasBool("is_dll")) {
-    cfg.isDll = toml["is_dll"].value_or(false);
+  auto has_bool = [&](const char* key) -> bool { return toml[key].is_boolean(); };
+  MergeBool(cfg.skip_lr, toml["skip_lr"].value_or(false), has_bool("skip_lr"), "skip_lr");
+  MergeBool(cfg.skip_msr, toml["skip_msr"].value_or(false), has_bool("skip_msr"), "skip_msr");
+  MergeBool(cfg.ctr_as_local_variable, toml["ctr_as_local"].value_or(false),
+            has_bool("ctr_as_local"), "ctr_as_local");
+  MergeBool(cfg.xer_as_local_variable, toml["xer_as_local"].value_or(false),
+            has_bool("xer_as_local"), "xer_as_local");
+  MergeBool(cfg.reserved_register_as_local_variable, toml["reserved_as_local"].value_or(false),
+            has_bool("reserved_as_local"), "reserved_as_local");
+  MergeBool(cfg.cr_registers_as_local_variables, toml["cr_as_local"].value_or(false),
+            has_bool("cr_as_local"), "cr_as_local");
+  MergeBool(cfg.non_argument_registers_as_local_variables,
+            toml["non_argument_as_local"].value_or(false), has_bool("non_argument_as_local"),
+            "non_argument_as_local");
+  MergeBool(cfg.non_volatile_registers_as_local_variables,
+            toml["non_volatile_as_local"].value_or(false), has_bool("non_volatile_as_local"),
+            "non_volatile_as_local");
+  MergeBool(cfg.generate_exception_handlers, toml["generate_exception_handlers"].value_or(false),
+            has_bool("generate_exception_handlers"), "generate_exception_handlers");
+  if (has_bool("is_dll")) {
+    cfg.is_dll = toml["is_dll"].value_or(false);
   }
 
   if (auto v = toml["longjmp_address"].value<i64>()) {
     u32 addr = static_cast<u32>(*v);
-    MergeScalar(cfg.longJmpAddress, addr, "longjmp_address");
+    MergeScalar(cfg.long_jmp_address, addr, "longjmp_address");
   }
   if (auto v = toml["setjmp_address"].value<i64>()) {
     u32 addr = static_cast<u32>(*v);
-    MergeScalar(cfg.setJmpAddress, addr, "setjmp_address");
+    MergeScalar(cfg.set_jmp_address, addr, "setjmp_address");
   }
 
-  if (auto* analysisTable = toml["analysis"].as_table()) {
-    if (auto v = (*analysisTable)["max_jump_extension"].value<u32>()) {
-      MergeScalar(cfg.maxJumpExtension, *v, "analysis.max_jump_extension");
+  if (auto* analysis_table = toml["analysis"].as_table()) {
+    if (auto v = (*analysis_table)["max_jump_extension"].value<u32>()) {
+      MergeScalar(cfg.max_jump_extension, *v, "analysis.max_jump_extension");
     }
-    if (auto v = (*analysisTable)["data_region_threshold"].value<u32>()) {
-      MergeScalar(cfg.dataRegionThreshold, *v, "analysis.data_region_threshold");
+    if (auto v = (*analysis_table)["data_region_threshold"].value<u32>()) {
+      MergeScalar(cfg.data_region_threshold, *v, "analysis.data_region_threshold");
     }
-    if (auto v = (*analysisTable)["large_function_threshold"].value<u32>()) {
-      MergeScalar(cfg.largeFunctionThreshold, *v, "analysis.large_function_threshold");
+    if (auto v = (*analysis_table)["large_function_threshold"].value<u32>()) {
+      MergeScalar(cfg.large_function_threshold, *v, "analysis.large_function_threshold");
     }
 
-    if (auto handlers = (*analysisTable)["exception_handler_funcs"].as_array()) {
+    if (auto handlers = (*analysis_table)["exception_handler_funcs"].as_array()) {
       for (const auto& elem : *handlers) {
         if (auto val = elem.value<i64>()) {
-          cfg.exceptionHandlerFuncHints.push_back(static_cast<u32>(*val));
+          cfg.exception_handler_func_hints.push_back(static_cast<u32>(*val));
         }
       }
     }
   }
 
-  if (auto* shimTable = toml["shim"].as_table()) {
+  if (auto* shim_table = toml["shim"].as_table()) {
     size_t added = 0;
-    for (const auto& [name, val] : *shimTable) {
+    for (const auto& [name, val] : *shim_table) {
       if (auto addr = val.value<i64>()) {
         auto key = std::string(name);
-        auto it = cfg.shimFunctions.find(key);
-        if (it != cfg.shimFunctions.end()) {
+        auto it = cfg.shim_functions.find(key);
+        if (it != cfg.shim_functions.end()) {
           REXLOG_DEBUG(codegen, "config   [shim] {} overridden: 0x{:08X} -> 0x{:08X}", key,
                        it->second, static_cast<u32>(*addr));
         }
-        cfg.shimFunctions[key] = static_cast<u32>(*addr);
+        cfg.shim_functions[key] = static_cast<u32>(*addr);
         ++added;
       }
     }
     if (added > 0) {
-      REXLOG_DEBUG(codegen, "config   [shim] added/updated {} entries from {}", added, filePath);
+      REXLOG_DEBUG(codegen, "config   [shim] added/updated {} entries from {}", added, file_path);
     }
   }
 
-  if (auto functionsTable = toml["functions"].as_table()) {
+  if (auto functions_table = toml["functions"].as_table()) {
     size_t added = 0;
-    for (auto& [key, value] : *functionsTable) {
-      std::string keyStr(key.str());
-      auto addrOpt = ParseHexAddress(keyStr);
-      if (!addrOpt) {
-        REXLOG_ERROR(codegen, "Invalid function address key: {}", keyStr);
+    for (auto& [key, value] : *functions_table) {
+      std::string key_str(key.str());
+      auto addr_opt = ParseHexAddress(key_str);
+      if (!addr_opt) {
+        REXLOG_ERROR(codegen, "Invalid function address key: {}", key_str);
         continue;
       }
-      u32 address = *addrOpt;
+      u32 address = *addr_opt;
 
       auto* table = value.as_table();
       if (!table) {
@@ -217,7 +219,7 @@ bool ApplyTOML(const toml::table& toml, RecompilerConfig& cfg, const std::string
       fcfg.end = (*table)["end"].value_or(0u);
       fcfg.name = (*table)["name"].value_or(std::string{});
       fcfg.parent = (*table)["parent"].value_or(0u);
-      fcfg.shareRegisters = (*table)["share_registers"].value_or(false);
+      fcfg.share_registers = (*table)["share_registers"].value_or(false);
 
       if (fcfg.size && fcfg.end) {
         REXLOG_ERROR(codegen, "Function 0x{:08X}: cannot specify both 'size' and 'end'", address);
@@ -232,19 +234,19 @@ bool ApplyTOML(const toml::table& toml, RecompilerConfig& cfg, const std::string
       auto it = cfg.functions.find(address);
       if (it != cfg.functions.end()) {
         REXLOG_DEBUG(codegen, "config   [functions] 0x{:08X} overridden from {}", address,
-                     filePath);
+                     file_path);
       }
       cfg.functions.insert_or_assign(address, std::move(fcfg));
       ++added;
     }
     if (added > 0) {
       REXLOG_DEBUG(codegen, "config   [functions] added/updated {} entries from {}", added,
-                   filePath);
+                   file_path);
     }
   }
 
-  if (auto invalidArray = toml["invalid_instructions"].as_array()) {
-    for (auto& entry : *invalidArray) {
+  if (auto invalid_array = toml["invalid_instructions"].as_array()) {
+    for (auto& entry : *invalid_array) {
       auto* table = entry.as_table();
       if (!table) {
         REXLOG_ERROR(codegen, "Invalid [[invalid_instructions]] entry: expected table");
@@ -263,17 +265,17 @@ bool ApplyTOML(const toml::table& toml, RecompilerConfig& cfg, const std::string
         continue;
       }
 
-      auto it = cfg.invalidInstructionHints.find(*data_opt);
-      if (it != cfg.invalidInstructionHints.end()) {
+      auto it = cfg.invalid_instruction_hints.find(*data_opt);
+      if (it != cfg.invalid_instruction_hints.end()) {
         REXLOG_DEBUG(codegen, "config   [[invalid_instructions]] 0x{:08X} overridden from {}",
-                     *data_opt, filePath);
+                     *data_opt, file_path);
       }
-      cfg.invalidInstructionHints.insert_or_assign(*data_opt, *size_opt);
+      cfg.invalid_instruction_hints.insert_or_assign(*data_opt, *size_opt);
     }
   }
 
-  if (auto switchTableArray = toml["switch_tables"].as_array()) {
-    for (auto& entry : *switchTableArray) {
+  if (auto switch_table_array = toml["switch_tables"].as_array()) {
+    for (auto& entry : *switch_table_array) {
       auto* table = entry.as_table();
       if (!table) {
         REXLOG_ERROR(codegen, "Invalid [[switch_tables]] entry: expected table");
@@ -298,9 +300,9 @@ bool ApplyTOML(const toml::table& toml, RecompilerConfig& cfg, const std::string
       }
 
       JumpTable jt;
-      jt.bctrAddress = *address_opt;
-      jt.tableAddress = 0;
-      jt.indexRegister = static_cast<u8>(*register_opt);
+      jt.bctr_address = *address_opt;
+      jt.table_address = 0;
+      jt.index_register = static_cast<u8>(*register_opt);
 
       for (auto& label : *labels_array) {
         if (auto label_val = label.value<i64>()) {
@@ -314,20 +316,20 @@ bool ApplyTOML(const toml::table& toml, RecompilerConfig& cfg, const std::string
         continue;
       }
 
-      auto it = cfg.switchTables.find(*address_opt);
-      if (it != cfg.switchTables.end()) {
+      auto it = cfg.switch_tables.find(*address_opt);
+      if (it != cfg.switch_tables.end()) {
         REXLOG_DEBUG(codegen, "config   [[switch_tables]] 0x{:08X} overridden from {}",
-                     *address_opt, filePath);
+                     *address_opt, file_path);
       }
       size_t label_count = jt.targets.size();
-      cfg.switchTables.insert_or_assign(*address_opt, std::move(jt));
+      cfg.switch_tables.insert_or_assign(*address_opt, std::move(jt));
       REXLOG_DEBUG(codegen, "Loaded manual switch table at 0x{:08X} with {} labels", *address_opt,
                    label_count);
     }
   }
 
-  if (auto midAsmHookArray = toml["midasm_hook"].as_array()) {
-    for (auto& entry : *midAsmHookArray) {
+  if (auto mid_asm_hook_array = toml["midasm_hook"].as_array()) {
+    for (auto& entry : *mid_asm_hook_array) {
       auto* table = entry.as_table();
       if (!table) {
         REXLOG_ERROR(codegen, "Invalid [[midasm_hook]] entry: expected table");
@@ -346,58 +348,59 @@ bool ApplyTOML(const toml::table& toml, RecompilerConfig& cfg, const std::string
         continue;
       }
 
-      MidAsmHook midAsmHook;
-      midAsmHook.name = *name_opt;
+      MidAsmHook mid_asm_hook;
+      mid_asm_hook.name = *name_opt;
 
-      if (auto registerArray = (*table)["registers"].as_array()) {
-        for (auto& reg : *registerArray) {
+      if (auto register_array = (*table)["registers"].as_array()) {
+        for (auto& reg : *register_array) {
           if (auto reg_str = reg.value<std::string>()) {
-            midAsmHook.registers.push_back(*reg_str);
+            mid_asm_hook.registers.push_back(*reg_str);
           }
         }
       }
 
-      midAsmHook.ret = (*table)["return"].value_or(false);
-      midAsmHook.returnOnTrue = (*table)["return_on_true"].value_or(false);
-      midAsmHook.returnOnFalse = (*table)["return_on_false"].value_or(false);
+      mid_asm_hook.ret = (*table)["return"].value_or(false);
+      mid_asm_hook.return_on_true = (*table)["return_on_true"].value_or(false);
+      mid_asm_hook.return_on_false = (*table)["return_on_false"].value_or(false);
 
-      midAsmHook.jumpAddress = (*table)["jump_address"].value_or(0u);
-      midAsmHook.jumpAddressOnTrue = (*table)["jump_address_on_true"].value_or(0u);
-      midAsmHook.jumpAddressOnFalse = (*table)["jump_address_on_false"].value_or(0u);
+      mid_asm_hook.jump_address = (*table)["jump_address"].value_or(0u);
+      mid_asm_hook.jump_address_on_true = (*table)["jump_address_on_true"].value_or(0u);
+      mid_asm_hook.jump_address_on_false = (*table)["jump_address_on_false"].value_or(0u);
 
-      if ((midAsmHook.ret && midAsmHook.jumpAddress != 0) ||
-          (midAsmHook.returnOnTrue && midAsmHook.jumpAddressOnTrue != 0) ||
-          (midAsmHook.returnOnFalse && midAsmHook.jumpAddressOnFalse != 0)) {
-        REXLOG_ERROR(codegen, "{}: can't return and jump at the same time", midAsmHook.name);
+      if ((mid_asm_hook.ret && mid_asm_hook.jump_address != 0) ||
+          (mid_asm_hook.return_on_true && mid_asm_hook.jump_address_on_true != 0) ||
+          (mid_asm_hook.return_on_false && mid_asm_hook.jump_address_on_false != 0)) {
+        REXLOG_ERROR(codegen, "{}: can't return and jump at the same time", mid_asm_hook.name);
       }
 
-      if ((midAsmHook.ret || midAsmHook.jumpAddress != 0) &&
-          (midAsmHook.returnOnFalse || midAsmHook.returnOnTrue ||
-           midAsmHook.jumpAddressOnFalse != 0 || midAsmHook.jumpAddressOnTrue != 0)) {
-        REXLOG_ERROR(codegen, "{}: can't mix direct and conditional return/jump", midAsmHook.name);
+      if ((mid_asm_hook.ret || mid_asm_hook.jump_address != 0) &&
+          (mid_asm_hook.return_on_false || mid_asm_hook.return_on_true ||
+           mid_asm_hook.jump_address_on_false != 0 || mid_asm_hook.jump_address_on_true != 0)) {
+        REXLOG_ERROR(codegen, "{}: can't mix direct and conditional return/jump",
+                     mid_asm_hook.name);
       }
 
-      midAsmHook.afterInstruction = (*table)["after_instruction"].value_or(false);
+      mid_asm_hook.after_instruction = (*table)["after_instruction"].value_or(false);
 
-      auto it = cfg.midAsmHooks.find(*address_opt);
-      if (it != cfg.midAsmHooks.end()) {
+      auto it = cfg.mid_asm_hooks.find(*address_opt);
+      if (it != cfg.mid_asm_hooks.end()) {
         REXLOG_DEBUG(codegen, "config   [[midasm_hook]] 0x{:08X} overridden from {}", *address_opt,
-                     filePath);
+                     file_path);
       }
-      cfg.midAsmHooks.insert_or_assign(*address_opt, std::move(midAsmHook));
+      cfg.mid_asm_hooks.insert_or_assign(*address_opt, std::move(mid_asm_hook));
     }
   }
 
-  if (auto indirectCallArray = toml["indirect_calls"].as_array()) {
-    for (auto& entry : *indirectCallArray) {
+  if (auto indirect_call_array = toml["indirect_calls"].as_array()) {
+    for (auto& entry : *indirect_call_array) {
       if (auto addr = entry.value<i64>()) {
-        cfg.knownIndirectCallHints.insert(static_cast<u32>(*addr));
+        cfg.known_indirect_call_hints.insert(static_cast<u32>(*addr));
         REXLOG_DEBUG(codegen, "Loaded known indirect call hint at 0x{:08X}", *addr);
       }
     }
   }
-  for (const MMIOBlock block : {MMIOBlock::GPU, MMIOBlock::APU}) {
-    const std::string_view block_name = block == MMIOBlock::GPU ? "gpu" : "apu";
+  for (const MMIOBlock block : {MMIOBlock::kGPU, MMIOBlock::kAPU}) {
+    const std::string_view block_name = block == MMIOBlock::kGPU ? "gpu" : "apu";
     for (const bool write : {false, true}) {
       const std::string_view list_name = write ? "write" : "read";
       const auto* list = toml["mmio"][block_name][list_name].as_array();
@@ -411,7 +414,7 @@ bool ApplyTOML(const toml::table& toml, RecompilerConfig& cfg, const std::string
                        block_name, list_name);
           return false;
         }
-        if (!cfg.declaredMMIOAccesses.try_emplace(static_cast<u32>(*addr), block, write).second) {
+        if (!cfg.declared_mmio_accesses.try_emplace(static_cast<u32>(*addr), block, write).second) {
           REXLOG_ERROR(codegen, "[mmio.{}] {} 0x{:08X} is declared twice", block_name, list_name,
                        *addr);
           return false;
@@ -426,48 +429,48 @@ bool ApplyTableWithIncludes(const toml::table& tbl, const std::filesystem::path&
                             RecompilerConfig& cfg, std::set<std::string>& visited, u32 depth,
                             const std::string& description);
 
-bool LoadRecursive(const std::filesystem::path& filePath, RecompilerConfig& cfg,
+bool LoadRecursive(const std::filesystem::path& file_path, RecompilerConfig& cfg,
                    std::set<std::string>& visited, u32 depth) {
   if (depth > kMaxIncludeDepth) {
     REX_FAIL(codegen, false, "config include depth exceeds maximum ({}) at: {}", kMaxIncludeDepth,
-             filePath.string());
+             file_path.string());
   }
 
   std::error_code ec;
-  auto canonical = std::filesystem::canonical(filePath, ec);
+  auto canonical = std::filesystem::canonical(file_path, ec);
   if (ec) {
-    REX_FAIL(codegen, false, "config cannot resolve path '{}': {}", filePath.string(),
+    REX_FAIL(codegen, false, "config cannot resolve path '{}': {}", file_path.string(),
              ec.message());
   }
-  std::string canonicalStr = canonical.string();
-  if (visited.contains(canonicalStr)) {
-    REX_FAIL(codegen, false, "config circular include detected: {}", canonicalStr);
+  std::string canonical_str = canonical.string();
+  if (visited.contains(canonical_str)) {
+    REX_FAIL(codegen, false, "config circular include detected: {}", canonical_str);
   }
-  visited.insert(canonicalStr);
-  cfg.loadedFiles.push_back(canonicalStr);
+  visited.insert(canonical_str);
+  cfg.loaded_files.push_back(canonical_str);
 
   toml::table toml;
   try {
-    toml = toml::parse_file(canonicalStr);
+    toml = toml::parse_file(canonical_str);
   } catch (const toml::parse_error& e) {
-    REX_FAIL(codegen, false, "Failed to parse config file '{}': {}", canonicalStr, e.what());
+    REX_FAIL(codegen, false, "Failed to parse config file '{}': {}", canonical_str, e.what());
   }
-  REXLOG_DEBUG(codegen, "config loaded: {}", filePath.filename().string());
+  REXLOG_DEBUG(codegen, "config loaded: {}", file_path.filename().string());
   return ApplyTableWithIncludes(toml, canonical.parent_path(), cfg, visited, depth,
-                                filePath.filename().string());
+                                file_path.filename().string());
 }
 
 bool ApplyTableWithIncludes(const toml::table& tbl, const std::filesystem::path& base_dir,
                             RecompilerConfig& cfg, std::set<std::string>& visited, u32 depth,
                             const std::string& description) {
   // Process includes first (depth-first), so this table's own values win.
-  if (auto* includesArray = tbl["includes"].as_array()) {
-    for (const auto& elem : *includesArray) {
-      if (auto includePath = elem.value<std::string>()) {
-        auto resolved = base_dir / *includePath;
+  if (auto* includes_array = tbl["includes"].as_array()) {
+    for (const auto& elem : *includes_array) {
+      if (auto include_path = elem.value<std::string>()) {
+        auto resolved = base_dir / *include_path;
         if (!std::filesystem::exists(resolved)) {
           REX_FAIL(codegen, false, "config included file not found: {} (resolved from {})",
-                   *includePath, description);
+                   *include_path, description);
         }
         if (!LoadRecursive(resolved, cfg, visited, depth + 1)) {
           return false;
@@ -486,21 +489,21 @@ bool FinalizeConfig(RecompilerConfig& cfg) {
   if (!cfg.functions.empty()) {
     size_t chunks_count = 0;
     for (const auto& [addr, fc] : cfg.functions) {
-      if (fc.isChunk())
+      if (fc.IsChunk())
         chunks_count++;
     }
     REXLOG_TRACE(codegen, "Loaded {} function configs ({} standalone, {} chunks)",
                  cfg.functions.size(), cfg.functions.size() - chunks_count, chunks_count);
   }
-  if (!cfg.exceptionHandlerFuncHints.empty()) {
-    std::sort(cfg.exceptionHandlerFuncHints.begin(), cfg.exceptionHandlerFuncHints.end());
-    cfg.exceptionHandlerFuncHints.erase(
-        std::unique(cfg.exceptionHandlerFuncHints.begin(), cfg.exceptionHandlerFuncHints.end()),
-        cfg.exceptionHandlerFuncHints.end());
+  if (!cfg.exception_handler_func_hints.empty()) {
+    std::sort(cfg.exception_handler_func_hints.begin(), cfg.exception_handler_func_hints.end());
+    cfg.exception_handler_func_hints.erase(std::unique(cfg.exception_handler_func_hints.begin(),
+                                                       cfg.exception_handler_func_hints.end()),
+                                           cfg.exception_handler_func_hints.end());
   }
 
   bool ok = true;
-  if (cfg.filePath.empty()) {
+  if (cfg.file_path.empty()) {
     REXLOG_ERROR(codegen, "Missing required field: file_path");
     ok = false;
   }
@@ -520,9 +523,9 @@ bool FinalizeConfig(RecompilerConfig& cfg) {
 
 }  // namespace
 
-bool RecompilerConfig::Load(const std::string_view& configFilePath) {
+bool RecompilerConfig::Load(const std::string_view& config_file_path) {
   std::set<std::string> visited;
-  std::filesystem::path path(configFilePath);
+  std::filesystem::path path(config_file_path);
   if (!LoadRecursive(path, *this, visited, 0)) {
     return false;
   }
@@ -541,20 +544,20 @@ bool RecompilerConfig::LoadFromTable(const toml::table& tbl,
 RecompilerConfig::ValidationResult RecompilerConfig::Validate() const {
   ValidationResult result;
 
-  auto checkAlignment = [&](u32 addr, const char* name) {
+  auto check_alignment = [&](u32 addr, const char* name) {
     if (addr != 0 && (addr & 0x3) != 0) {
       result.errors.push_back(std::format("{} address 0x{:08X} is not 4-byte aligned", name, addr));
       result.valid = false;
     }
   };
 
-  checkAlignment(longJmpAddress, "longjmp");
-  checkAlignment(setJmpAddress, "setjmp");
-  for (const auto& entry : declaredMMIOAccesses) {
-    checkAlignment(entry.first, "mmio");
+  check_alignment(long_jmp_address, "longjmp");
+  check_alignment(set_jmp_address, "setjmp");
+  for (const auto& entry : declared_mmio_accesses) {
+    check_alignment(entry.first, "mmio");
   }
 
-  for (const auto& [name, addr] : shimFunctions) {
+  for (const auto& [name, addr] : shim_functions) {
     if (addr & 0x3) {
       result.errors.push_back(
           std::format("shim function '{}' address 0x{:08X} is not 4-byte aligned", name, addr));
@@ -571,7 +574,7 @@ RecompilerConfig::ValidationResult RecompilerConfig::Validate() const {
     }
   }
 
-  for (const auto& [addr, hook] : midAsmHooks) {
+  for (const auto& [addr, hook] : mid_asm_hooks) {
     if (std::ranges::contains(hook.registers, "r1")) {
       result.errors.push_back(std::format(
           "midasm hook '{}' at 0x{:08X} takes r1, which the hook call moves under the red zone",
@@ -590,27 +593,27 @@ RecompilerConfig::ValidationResult RecompilerConfig::Validate() const {
   {
     std::map<u32, u32> seen;
     for (const auto& [addr, cfg] : functions) {
-      u32 funcSize = cfg.getSize(addr);
+      u32 func_size = cfg.GetSize(addr);
       auto it = seen.find(addr);
       if (it != seen.end()) {
-        if (it->second == funcSize) {
+        if (it->second == func_size) {
           result.errors.push_back(
-              std::format("Duplicate function boundary: 0x{:08X} size 0x{:X}", addr, funcSize));
+              std::format("Duplicate function boundary: 0x{:08X} size 0x{:X}", addr, func_size));
         } else {
           result.errors.push_back(std::format("Conflicting sizes at 0x{:08X}: 0x{:X} vs 0x{:X}",
-                                              addr, it->second, funcSize));
+                                              addr, it->second, func_size));
         }
         result.valid = false;
       }
-      seen[addr] = funcSize;
+      seen[addr] = func_size;
     }
   }
 
   {
     std::vector<std::pair<u32, u32>> sorted;
     for (const auto& [addr, cfg] : functions) {
-      if (!cfg.isChunk()) {
-        sorted.emplace_back(addr, cfg.getSize(addr));
+      if (!cfg.IsChunk()) {
+        sorted.emplace_back(addr, cfg.GetSize(addr));
       }
     }
     std::sort(sorted.begin(), sorted.end());
@@ -637,7 +640,7 @@ RecompilerConfig::ValidationResult RecompilerConfig::Validate() const {
         continue;
       }
       ++total;
-      if (shimFunctions.contains(std::string(entry.name))) {
+      if (shim_functions.contains(std::string(entry.name))) {
         ++found;
       } else {
         if (!missing.empty()) {
@@ -654,10 +657,10 @@ RecompilerConfig::ValidationResult RecompilerConfig::Validate() const {
     }
   }
 
-  if (filePath.empty()) {
+  if (file_path.empty()) {
     result.warnings.push_back("file_path is empty");
   }
-  if (outDirectoryPath.empty()) {
+  if (out_directory_path.empty()) {
     result.warnings.push_back("out_directory_path is empty");
   }
 
@@ -666,8 +669,8 @@ RecompilerConfig::ValidationResult RecompilerConfig::Validate() const {
 
 bool RecompilerConfig::UsesShimHeap() const {
   return std::ranges::any_of(rex::kernel::shim::kRegistry, [this](const auto& entry) {
-    return rex::HasFlags(entry.flags, rex::kernel::shim::Flag::RequiresHeap) &&
-           shimFunctions.contains(std::string(entry.name));
+    return rex::HasFlags(entry.flags, rex::kernel::shim::Flag::kRequiresHeap) &&
+           shim_functions.contains(std::string(entry.name));
   });
 }
 

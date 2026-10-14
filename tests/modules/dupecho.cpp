@@ -35,8 +35,8 @@ class DupEchoModule final : public rex::IModule, public rex::test::IEcho {
 
   DupEchoModule() { Record(kName, "constructor"); }
 
-  const char* Name() const override { return kName; }
-  std::span<const char* const> RequiredInterfaces() const override { return {}; }
+  const char* GetName() const override { return kName; }
+  std::span<const char* const> GetRequiredInterfaces() const override { return {}; }
   [[nodiscard]] rex::Result<void> Connect(rex::IInterfaceFactory*, const rex::Config&) override {
     Record(kName, "connect");
     return rex::Ok();
@@ -51,18 +51,18 @@ class DupEchoModule final : public rex::IModule, public rex::test::IEcho {
   int Value() override { return 0; }
 
  private:
-  static DupEchoModule& Instance() {
+  static DupEchoModule& GetInstance() {
     static DupEchoModule instance;
     return instance;
   }
 };
 
 void* DupEchoModule::GetModule() {
-  return static_cast<rex::IModule*>(&Instance());
+  return static_cast<rex::IModule*>(&GetInstance());
 }
 
 void* DupEchoModule::GetEcho() {
-  return static_cast<rex::test::IEcho*>(&Instance());
+  return static_cast<rex::test::IEcho*>(&GetInstance());
 }
 
 }  // namespace

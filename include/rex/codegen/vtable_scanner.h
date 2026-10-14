@@ -35,7 +35,7 @@ struct RTTITypeDescriptor {
 struct RTTICompleteObjectLocator {
   be_u32 signature;       /**< Always 0 for 32 bit */
   be_u32 offset;          /**< Offset of this vtable in the complete class */
-  be_u32 cdOffset;        /**< Constructor displacement offset */
+  be_u32 cd_offset;       /**< Constructor displacement offset */
   be_u32 pTypeDescriptor; /**< Guest address of the RTTITypeDescriptor of the class. */
   be_u32 pClassHierarchy; /**< Pointer to the class hierarchy descriptor */
 };
@@ -43,9 +43,9 @@ REX_STATIC_ASSERT_SIZE(RTTICompleteObjectLocator, 20);
 
 /** Result of vtable scanning. */
 struct VTableInfo {
-  u32 vtableAddress;      /**< Address of vtable[0] */
-  u32 colAddress;         /**< RTTI Complete Object Locator address */
-  std::string className;  /**< Demangled class name, optional */
+  u32 vtable_address;     /**< Address of vtable[0] */
+  u32 col_address;        /**< RTTI Complete Object Locator address */
+  std::string class_name; /**< Demangled class name, optional */
   std::vector<u32> slots; /**< Function addresses in the vtable */
 };
 
@@ -64,36 +64,36 @@ class VTableScanner {
    *
    * @return Vtables found
    */
-  std::vector<VTableInfo> scan();
+  std::vector<VTableInfo> Scan();
 
  private:
   const BinaryView& binary_;
 
-  std::vector<u32> findCompleteObjectLocators();
+  std::vector<u32> FindCompleteObjectLocators();
 
   /**
    * Finds the vtable that references a COL, which sits at vtable[-1].
    *
-   * @param colAddr COL address
+   * @param col_addr COL address
    * @return Vtable address, or nullopt when none references it
    */
-  std::optional<u32> findVTableForCOL(u32 colAddr);
+  std::optional<u32> FindVTableForCOL(u32 col_addr);
 
   /**
    * Reads function slots from a vtable until a non executable address.
    *
-   * @param vtableStart Address of vtable[0]
+   * @param vtable_start Address of vtable[0]
    * @return Slot function addresses
    */
-  std::vector<u32> readVTableSlots(u32 vtableStart);
+  std::vector<u32> ReadVTableSlots(u32 vtable_start);
 
-  std::string extractClassName(u32 colAddr);
+  std::string ExtractClassName(u32 col_addr);
 
-  bool isExecutableAddress(u32 addr) const;
+  bool IsExecutableAddress(u32 addr) const;
 
-  std::optional<u32> readDword(u32 addr) const;
+  std::optional<u32> ReadDword(u32 addr) const;
 
-  std::string readString(u32 addr, size_t maxLen = 256) const;
+  std::string ReadString(u32 addr, size_t max_len = 256) const;
 };
 
 }  // namespace rex::codegen

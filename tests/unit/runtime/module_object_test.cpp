@@ -36,8 +36,8 @@ class CountingModule : public rex::runtime::Module {
   CountingModule(rex::runtime::FunctionDispatcher* dispatcher, u32* destroyed)
       : Module(dispatcher), destroyed_(destroyed) {}
   ~CountingModule() override { ++*destroyed_; }
-  const std::string& name() const override { return name_; }
-  bool is_executable() const override { return false; }
+  const std::string& GetName() const override { return name_; }
+  bool IsExecutable() const override { return false; }
 
  private:
   std::string name_ = "counting";
@@ -47,12 +47,12 @@ class CountingModule : public rex::runtime::Module {
 class WatchedXEXModule : public rex::runtime::XEXModule {
  public:
   WatchedXEXModule(rex::Runtime& runtime, u32* destroyed, bool* loaded_at_destroy)
-      : XEXModule(runtime.function_dispatcher(), runtime),
+      : XEXModule(runtime.GetFunctionDispatcher(), runtime),
         destroyed_(destroyed),
         loaded_at_destroy_(loaded_at_destroy) {}
   ~WatchedXEXModule() override {
     ++*destroyed_;
-    *loaded_at_destroy_ = loaded();
+    *loaded_at_destroy_ = GetLoaded();
   }
 
  private:
@@ -65,26 +65,26 @@ class WatchedXEXModule : public rex::runtime::XEXModule {
 REX_TEST_CASE("A user module object frees its loaded module when it is destroyed",
               "[runtime][module]") {
   rex::testing::KernelFixture fixture;
-  rex::Runtime& runtime = fixture.runtime();
+  rex::Runtime& runtime = fixture.GetRuntime();
   u32 destroyed = 0;
-  const rex::X_HANDLE handle = rex::runtime::CreateModule(runtime, ModuleType::User);
+  const rex::X_HANDLE handle = rex::runtime::CreateModule(runtime, ModuleType::kUser);
   REQUIRE(handle != 0);
   {
-    auto module = runtime.object_table().Get<ModuleObject>(handle);
+    auto module = runtime.GetObjectTable().Get<ModuleObject>(handle);
     REQUIRE(module);
-    module->user.module_format = ModuleFormat::Elf;
+    module->user.module_format = ModuleFormat::kELF;
     module->processor_module =
-        std::make_unique<CountingModule>(runtime.function_dispatcher(), &destroyed);
+        std::make_unique<CountingModule>(runtime.GetFunctionDispatcher(), &destroyed);
   }
   CHECK(destroyed == 0);
-  rex::runtime::CloseOwned(runtime.object_table(), handle);
+  rex::runtime::CloseOwned(runtime.GetObjectTable(), handle);
   CHECK(destroyed == 1);
 }
 
 REX_TEST_CASE("A user module object unloads its XEX image before freeing the module",
               "[runtime][module]") {
   rex::testing::KernelFixture fixture;
-  rex::Runtime& runtime = fixture.runtime();
+  rex::Runtime& runtime = fixture.GetRuntime();
   rex::test::XEXSpec spec;
   spec.image = rex::test::TestImage(0x1000);
   const auto file = rex::test::BuildXEX(spec);
@@ -92,20 +92,20 @@ REX_TEST_CASE("A user module object unloads its XEX image before freeing the mod
   bool loaded_at_destroy = true;
   auto xex = std::make_unique<WatchedXEXModule>(runtime, &destroyed, &loaded_at_destroy);
   REQUIRE(xex->Load("watched", "game:\\watched.xex", file.data(), file.size()));
-  rex::runtime::BaseHeap* heap = runtime.memory()->LookupHeap(spec.load_address);
+  rex::runtime::BaseHeap* heap = runtime.GetMemory()->LookupHeap(spec.load_address);
   rex::runtime::HeapAllocationInfo info{};
   REQUIRE(heap->QueryRegionInfo(spec.load_address, &info));
   REQUIRE(info.state != 0);
 
-  const rex::X_HANDLE handle = rex::runtime::CreateModule(runtime, ModuleType::User);
+  const rex::X_HANDLE handle = rex::runtime::CreateModule(runtime, ModuleType::kUser);
   REQUIRE(handle != 0);
   {
-    auto module = runtime.object_table().Get<ModuleObject>(handle);
+    auto module = runtime.GetObjectTable().Get<ModuleObject>(handle);
     REQUIRE(module);
-    module->user.module_format = ModuleFormat::XEX;
+    module->user.module_format = ModuleFormat::kXEX;
     module->processor_module = std::move(xex);
   }
-  rex::runtime::CloseOwned(runtime.object_table(), handle);
+  rex::runtime::CloseOwned(runtime.GetObjectTable(), handle);
   CHECK(destroyed == 1);
   CHECK_FALSE(loaded_at_destroy);
   REQUIRE(heap->QueryRegionInfo(spec.load_address, &info));

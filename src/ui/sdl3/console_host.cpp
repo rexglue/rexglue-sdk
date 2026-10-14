@@ -10,12 +10,12 @@
 namespace rex::ui {
 
 bool ConsoleDockHost::CanUndock() const {
-  return ui_.gpu_ != nullptr && ui_.gpu_->has_presentation();
+  return ui_.gpu_ != nullptr && ui_.gpu_->HasPresentation();
 }
 
 void ConsoleDockHost::Undock() {
   Defer([this] {
-    ui_.console_->set_dock(ConsoleDock::kUndocked);
+    ui_.console_->SetDock(ConsoleDock::kUndocked);
     ui_.overlays_->Show("console", false);
     OpenWindow();
   });
@@ -24,14 +24,14 @@ void ConsoleDockHost::Undock() {
 void ConsoleDockHost::Dock() {
   Defer([this] {
     ui_.console_window_.reset();
-    ui_.console_->set_dock(ConsoleDock::kDocked);
+    ui_.console_->SetDock(ConsoleDock::kDocked);
     ui_.overlays_->Show("console", true);
   });
 }
 
 void ConsoleDockHost::Hide() {
   Defer([this] {
-    if (ui_.console_->dock() == ConsoleDock::kUndocked) {
+    if (ui_.console_->GetDock() == ConsoleDock::kUndocked) {
       ui_.console_window_.reset();
     } else {
       ui_.overlays_->Show("console", false);
@@ -66,7 +66,7 @@ void ConsoleDockHost::OpenWindow() {
                                       *ui_.console_, *this);
   if (!window) {
     REXLOG_ERROR(ui, "{}", window.error().message);
-    ui_.console_->set_dock(ConsoleDock::kDocked);
+    ui_.console_->SetDock(ConsoleDock::kDocked);
     ui_.overlays_->Show("console", true);
     return;
   }

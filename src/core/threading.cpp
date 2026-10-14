@@ -15,7 +15,7 @@
 
 namespace rex::platform {
 
-u32 logical_processor_count() {
+u32 LogicalProcessorCount() {
   static u32 value = 0;
   if (!value) {
     value = std::thread::hardware_concurrency();
@@ -23,14 +23,14 @@ u32 logical_processor_count() {
   return value;
 }
 
-thread_local u32 current_thread_id_ = UINT_MAX;
+thread_local u32 current_thread_id = UINT_MAX;
 
-u32 current_thread_id() {
-  return current_thread_id_ == UINT_MAX ? current_thread_system_id() : current_thread_id_;
+u32 CurrentThreadId() {
+  return current_thread_id == UINT_MAX ? CurrentThreadSystemId() : current_thread_id;
 }
 
-void set_current_thread_id(u32 id) {
-  current_thread_id_ = id;
+void SetCurrentThreadId(u32 id) {
+  current_thread_id = id;
 }
 
 }  // namespace rex::platform

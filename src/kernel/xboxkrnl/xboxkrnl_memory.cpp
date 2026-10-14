@@ -30,32 +30,32 @@ using namespace rex::runtime;
 u32 ToXdkProtectFlags(u32 protect) {
   u32 result = 0;
   if (!(protect & runtime::kMemoryProtectRead) && !(protect & runtime::kMemoryProtectWrite)) {
-    result = X_PAGE_NOACCESS;
+    result = kXPageNoAccess;
   } else if ((protect & runtime::kMemoryProtectRead) && !(protect & runtime::kMemoryProtectWrite)) {
-    result = X_PAGE_READONLY;
+    result = kXPageReadOnly;
   } else {
-    result = X_PAGE_READWRITE;
+    result = kXPageReadWrite;
   }
   if (protect & runtime::kMemoryProtectNoCache) {
-    result |= X_PAGE_NOCACHE;
+    result |= kXPageNoCache;
   }
   if (protect & runtime::kMemoryProtectWriteCombine) {
-    result |= X_PAGE_WRITECOMBINE;
+    result |= kXPageWriteCombine;
   }
   return result;
 }
 
 u32 FromXdkProtectFlags(u32 protect) {
   u32 result = 0;
-  if ((protect & X_PAGE_READONLY) | (protect & X_PAGE_EXECUTE_READ)) {
+  if ((protect & kXPageReadOnly) | (protect & kXPageExecuteRead)) {
     result = runtime::kMemoryProtectRead;
-  } else if ((protect & X_PAGE_READWRITE) | (protect & X_PAGE_EXECUTE_READWRITE)) {
+  } else if ((protect & kXPageReadWrite) | (protect & kXPageExecuteReadWrite)) {
     result = runtime::kMemoryProtectRead | runtime::kMemoryProtectWrite;
   }
-  if (protect & X_PAGE_NOCACHE) {
+  if (protect & kXPageNoCache) {
     result |= runtime::kMemoryProtectNoCache;
   }
-  if (protect & X_PAGE_WRITECOMBINE) {
+  if (protect & kXPageWriteCombine) {
     result |= runtime::kMemoryProtectWriteCombine;
   }
   return result;
@@ -71,7 +71,7 @@ u32 FromXdkProtectFlags(u32 protect) {
  * @param debug_memory Nonzero when allocating from the devkit memory area.
  * @return X_STATUS_SUCCESS or an error status.
  */
-u32 NtAllocateVirtualMemory_entry(mapped_u32 base_addr_ptr, mapped_u32 region_size_ptr,
+u32 NtAllocateVirtualMemory_entry(MappedU32 base_addr_ptr, MappedU32 region_size_ptr,
                                   u32 alloc_type, u32 protect_bits, u32 debug_memory) {
   u32 input_base = base_addr_ptr ? static_cast<u32>(*base_addr_ptr) : 0;
   u32 input_size = region_size_ptr ? static_cast<u32>(*region_size_ptr) : 0;
@@ -91,50 +91,50 @@ u32 NtAllocateVirtualMemory_entry(mapped_u32 base_addr_ptr, mapped_u32 region_si
   if (!base_addr_ptr || !region_size_ptr || !*region_size_ptr) {
     return X_STATUS_INVALID_PARAMETER;
   }
-  if (!(alloc_type & (X_MEM_COMMIT | X_MEM_RESET | X_MEM_RESERVE))) {
+  if (!(alloc_type & (kXMemCommit | kXMemReset | kXMemReserve))) {
     return X_STATUS_INVALID_PARAMETER;
   }
-  if (alloc_type & X_MEM_RESET && (alloc_type & ~X_MEM_RESET)) {
+  if (alloc_type & kXMemReset && (alloc_type & ~kXMemReset)) {
     return X_STATUS_INVALID_PARAMETER;
   }
-  if (protect_bits & (X_PAGE_EXECUTE | X_PAGE_EXECUTE_READ | X_PAGE_EXECUTE_READWRITE |
-                      X_PAGE_EXECUTE_WRITECOPY)) {
+  if (protect_bits &
+      (kXPageExecute | kXPageExecuteRead | kXPageExecuteReadWrite | kXPageExecuteWriteCopy)) {
     REXLOG_WARN(kernel, "Game setting EXECUTE bit on allocation");
   }
 
   u32 page_size;
   if (*base_addr_ptr != 0) {
     // The specified page size is ignored when a base address is given.
-    auto heap = runtime::Current().memory()->LookupHeap(*base_addr_ptr);
-    if (!heap || heap->heap_type() != runtime::HeapType::kGuestVirtual) {
+    auto heap = runtime::GetCurrent().GetMemory()->LookupHeap(*base_addr_ptr);
+    if (!heap || heap->GetHeapType() != runtime::HeapType::kGuestVirtual) {
       return X_STATUS_INVALID_PARAMETER;
     }
-    page_size = heap->page_size();
+    page_size = heap->GetPageSize();
   } else {
     page_size = 4 * 1024;
-    if (alloc_type & X_MEM_LARGE_PAGES) {
+    if (alloc_type & kXMemLargePages) {
       page_size = 64 * 1024;
     }
   }
 
   u32 adjusted_base = *base_addr_ptr - (*base_addr_ptr % page_size);
   // Titles can pass negative sizes.
-  u32 adjusted_size = i32(*region_size_ptr) < 0 ? -static_cast<i32>(region_size_ptr.value())
-                                                : region_size_ptr.value();
+  u32 adjusted_size = i32(*region_size_ptr) < 0 ? -static_cast<i32>(region_size_ptr.GetValue())
+                                                : region_size_ptr.GetValue();
   // Without a base address the allocation granularity is 64 KB, otherwise the heap page size.
   adjusted_size = rex::round_up(adjusted_size, adjusted_base ? page_size : 64 * 1024);
 
-  if (alloc_type & X_MEM_RESET) {
+  if (alloc_type & kXMemReset) {
     *base_addr_ptr = adjusted_base;
     *region_size_ptr = adjusted_size;
     return X_STATUS_SUCCESS;
   }
 
   u32 allocation_type = 0;
-  if (alloc_type & X_MEM_RESERVE) {
+  if (alloc_type & kXMemReserve) {
     allocation_type |= runtime::kMemoryAllocationReserve;
   }
-  if (alloc_type & X_MEM_COMMIT) {
+  if (alloc_type & kXMemCommit) {
     allocation_type |= runtime::kMemoryAllocationCommit | runtime::kMemoryAllocationTitle;
   }
   u32 protect = FromXdkProtectFlags(protect_bits);
@@ -144,9 +144,9 @@ u32 NtAllocateVirtualMemory_entry(mapped_u32 base_addr_ptr, mapped_u32 region_si
   bool was_commited = false;
 
   if (adjusted_base != 0) {
-    heap = runtime::Current().memory()->LookupHeap(adjusted_base);
+    heap = runtime::GetCurrent().GetMemory()->LookupHeap(adjusted_base);
     REX_KERNEL_ARG(heap);
-    if (heap->page_size() != page_size) {
+    if (heap->GetPageSize() != page_size) {
       return X_STATUS_ACCESS_DENIED;
     }
     was_commited = heap->QueryRegionInfo(adjusted_base, &prev_alloc_info) &&
@@ -156,22 +156,22 @@ u32 NtAllocateVirtualMemory_entry(mapped_u32 base_addr_ptr, mapped_u32 region_si
       address = adjusted_base;
     }
   } else {
-    bool top_down = !!(alloc_type & X_MEM_TOP_DOWN);
-    heap = runtime::Current().memory()->LookupHeapByType(false, page_size);
+    bool top_down = !!(alloc_type & kXMemTopDown);
+    heap = runtime::GetCurrent().GetMemory()->LookupHeapByType(false, page_size);
     heap->Alloc(adjusted_size, page_size, allocation_type, protect, top_down, &address);
   }
   if (!address) {
     return X_STATUS_NO_MEMORY;
   }
 
-  if (address && !(alloc_type & X_MEM_NOZERO)) {
-    if (alloc_type & X_MEM_COMMIT) {
+  if (address && !(alloc_type & kXMemNoZero)) {
+    if (alloc_type & kXMemCommit) {
       if (!(protect & runtime::kMemoryProtectWrite)) {
         heap->Protect(address, adjusted_size,
                       runtime::kMemoryProtectRead | runtime::kMemoryProtectWrite);
       }
       if (!was_commited) {
-        runtime::Current().memory()->Zero(address, adjusted_size);
+        runtime::GetCurrent().GetMemory()->Zero(address, adjusted_size);
       }
       if (!(protect & runtime::kMemoryProtectWrite)) {
         heap->Protect(address, adjusted_size, protect);
@@ -197,26 +197,26 @@ u32 NtAllocateVirtualMemory_entry(mapped_u32 base_addr_ptr, mapped_u32 region_si
  * @param debug_memory Nonzero when the memory is in the devkit memory area, which is unsupported.
  * @return X_STATUS_SUCCESS or an error status.
  */
-u32 NtProtectVirtualMemory_entry(mapped_u32 base_addr_ptr, mapped_u32 region_size_ptr,
-                                 u32 protect_bits, mapped_u32 old_protect, u32 debug_memory) {
+u32 NtProtectVirtualMemory_entry(MappedU32 base_addr_ptr, MappedU32 region_size_ptr,
+                                 u32 protect_bits, MappedU32 old_protect, u32 debug_memory) {
   REX_ASSERT(debug_memory == 0);
 
   if (!base_addr_ptr || !region_size_ptr || !*region_size_ptr) {
     return X_STATUS_INVALID_PARAMETER;
   }
 
-  if (protect_bits & (X_PAGE_EXECUTE | X_PAGE_EXECUTE_READ | X_PAGE_EXECUTE_READWRITE |
-                      X_PAGE_EXECUTE_WRITECOPY)) {
+  if (protect_bits &
+      (kXPageExecute | kXPageExecuteRead | kXPageExecuteReadWrite | kXPageExecuteWriteCopy)) {
     REXLOG_WARN(kernel, "Game setting EXECUTE bit on protect");
     return X_STATUS_INVALID_PAGE_PROTECTION;
   }
 
-  auto heap = runtime::Current().memory()->LookupHeap(*base_addr_ptr);
-  if (heap->heap_type() != runtime::HeapType::kGuestVirtual) {
+  auto heap = runtime::GetCurrent().GetMemory()->LookupHeap(*base_addr_ptr);
+  if (heap->GetHeapType() != runtime::HeapType::kGuestVirtual) {
     return X_STATUS_INVALID_PARAMETER;
   }
-  u32 adjusted_base = *base_addr_ptr - (*base_addr_ptr % heap->page_size());
-  u32 adjusted_size = rex::round_up(*region_size_ptr, heap->page_size());
+  u32 adjusted_base = *base_addr_ptr - (*base_addr_ptr % heap->GetPageSize());
+  u32 adjusted_size = rex::round_up(*region_size_ptr, heap->GetPageSize());
   u32 protect = FromXdkProtectFlags(protect_bits);
 
   u32 tmp_old_protect = 0;
@@ -240,11 +240,11 @@ u32 NtProtectVirtualMemory_entry(mapped_u32 base_addr_ptr, mapped_u32 region_siz
  *
  * @param base_addr_ptr The base address, updated with the freed address.
  * @param region_size_ptr The region size, updated with the freed size.
- * @param free_type X_MEM_DECOMMIT or X_MEM_RELEASE.
+ * @param free_type kXMemDecommit or kXMemRelease.
  * @param debug_memory Nonzero when freeing external devkit memory, which is unsupported.
  * @return X_STATUS_SUCCESS or an error status.
  */
-u32 NtFreeVirtualMemory_entry(mapped_u32 base_addr_ptr, mapped_u32 region_size_ptr, u32 free_type,
+u32 NtFreeVirtualMemory_entry(MappedU32 base_addr_ptr, MappedU32 region_size_ptr, u32 free_type,
                               u32 debug_memory) {
   u32 base_addr_value = *base_addr_ptr;
   u32 region_size_value = *region_size_ptr;
@@ -260,13 +260,13 @@ u32 NtFreeVirtualMemory_entry(mapped_u32 base_addr_ptr, mapped_u32 region_size_p
     return X_STATUS_MEMORY_NOT_ALLOCATED;
   }
 
-  auto heap = runtime::Current().memory()->LookupHeap(base_addr_value);
-  if (heap->heap_type() != runtime::HeapType::kGuestVirtual) {
+  auto heap = runtime::GetCurrent().GetMemory()->LookupHeap(base_addr_value);
+  if (heap->GetHeapType() != runtime::HeapType::kGuestVirtual) {
     return X_STATUS_INVALID_PARAMETER;
   }
   bool result = false;
-  if (free_type == X_MEM_DECOMMIT) {
-    const u32 page_size = heap->page_size();
+  if (free_type == kXMemDecommit) {
+    const u32 page_size = heap->GetPageSize();
     if (region_size_value == 0) {
       runtime::HeapAllocationInfo info{};
       if (!heap->QueryRegionInfo(base_addr_value, &info) || !info.state ||
@@ -309,7 +309,7 @@ struct X_MEMORY_BASIC_INFORMATION {
 };
 
 u32 NtQueryVirtualMemory_entry(u32 base_address,
-                               ppc_ptr_t<X_MEMORY_BASIC_INFORMATION> memory_basic_information_ptr,
+                               GuestPtrT<X_MEMORY_BASIC_INFORMATION> memory_basic_information_ptr,
                                u32 region_type) {
   switch (region_type) {
     case 0:
@@ -320,7 +320,7 @@ u32 NtQueryVirtualMemory_entry(u32 base_address,
       return X_STATUS_INVALID_PARAMETER;
   }
 
-  auto heap = runtime::Current().memory()->LookupHeap(base_address);
+  auto heap = runtime::GetCurrent().GetMemory()->LookupHeap(base_address);
   runtime::HeapAllocationInfo alloc_info;
   if (heap == nullptr || !heap->QueryRegionInfo(base_address, &alloc_info)) {
     return X_STATUS_INVALID_PARAMETER;
@@ -334,15 +334,15 @@ u32 NtQueryVirtualMemory_entry(u32 base_address,
   u32 x_state;
   if (alloc_info.state & runtime::kMemoryAllocationCommit) {
     REX_ASSERT((alloc_info.state & runtime::kMemoryAllocationReserve) != 0);
-    x_state = X_MEM_COMMIT;
+    x_state = kXMemCommit;
   } else if (alloc_info.state & runtime::kMemoryAllocationReserve) {
-    x_state = X_MEM_RESERVE;
+    x_state = kXMemReserve;
   } else {
-    x_state = X_MEM_FREE;
+    x_state = kXMemFree;
   }
   memory_basic_information_ptr->state = x_state;
   memory_basic_information_ptr->protect = ToXdkProtectFlags(alloc_info.protect);
-  memory_basic_information_ptr->type = X_MEM_PRIVATE;
+  memory_basic_information_ptr->type = kXMemPrivate;
 
   return X_STATUS_SUCCESS;
 }
@@ -350,8 +350,8 @@ u32 NtQueryVirtualMemory_entry(u32 base_address,
 /**
  * Allocates contiguous physical memory.
  *
- * The protection is X_PAGE_READONLY or X_PAGE_READWRITE, optionally with X_PAGE_NOCACHE or
- * X_PAGE_WRITECOMBINE. X_MEM_LARGE_PAGES selects 64 KB pages and X_MEM_16MB_PAGES selects 16 MB
+ * The protection is kXPageReadOnly or kXPageReadWrite, optionally with kXPageNoCache or
+ * kXPageWriteCombine. kXMemLargePages selects 64 KB pages and kXMem16MBPages selects 16 MB
  * pages, otherwise pages are 4 KB.
  *
  * @param flags Unused.
@@ -371,14 +371,14 @@ u32 MmAllocatePhysicalMemoryEx_entry(u32 flags, u32 region_size, u32 protect_bit
                static_cast<u32>(protect_bits), static_cast<u32>(min_addr_range),
                static_cast<u32>(max_addr_range), static_cast<u32>(alignment));
 
-  if (!(protect_bits & (X_PAGE_READONLY | X_PAGE_READWRITE))) {
+  if (!(protect_bits & (kXPageReadOnly | kXPageReadWrite))) {
     REX_FAIL(kernel, 0, "MmAllocatePhysicalMemoryEx: bad protection bits");
   }
 
   u32 page_size = 4 * 1024;
-  if (protect_bits & X_MEM_LARGE_PAGES) {
+  if (protect_bits & kXMemLargePages) {
     page_size = 64 * 1024;
-  } else if (protect_bits & X_MEM_16MB_PAGES) {
+  } else if (protect_bits & kXMem16MBPages) {
     page_size = 16 * 1024 * 1024;
   }
 
@@ -390,13 +390,13 @@ u32 MmAllocatePhysicalMemoryEx_entry(u32 flags, u32 region_size, u32 protect_bit
   u32 protect = FromXdkProtectFlags(protect_bits);
   bool top_down = true;
   auto heap = static_cast<runtime::PhysicalHeap*>(
-      runtime::Current().memory()->LookupHeapByType(true, page_size));
+      runtime::GetCurrent().GetMemory()->LookupHeapByType(true, page_size));
   // min_addr_range and max_addr_range bound physical memory, not virtual.
-  u32 heap_base = heap->heap_base();
+  u32 heap_base = heap->GetHeapBase();
   u32 heap_physical_address_offset = heap->GetPhysicalAddress(heap_base);
-  u32 heap_min_addr = rex::sat_sub(min_addr_range, heap_physical_address_offset);
-  u32 heap_max_addr = rex::sat_sub(max_addr_range, heap_physical_address_offset);
-  u32 heap_size = heap->heap_size();
+  u32 heap_min_addr = rex::SatSub(min_addr_range, heap_physical_address_offset);
+  u32 heap_max_addr = rex::SatSub(max_addr_range, heap_physical_address_offset);
+  u32 heap_size = heap->GetHeapSize();
   heap_min_addr = heap_base + std::min(heap_min_addr, heap_size - 1);
   heap_max_addr = heap_base + std::min(heap_max_addr, heap_size - 1);
   u32 base_address;
@@ -424,12 +424,12 @@ void MmFreePhysicalMemory_entry(u32 type, u32 base_address) {
 
   REX_ASSERT((base_address & 0x1F) == 0);
 
-  auto heap = runtime::Current().memory()->LookupHeap(base_address);
+  auto heap = runtime::GetCurrent().GetMemory()->LookupHeap(base_address);
   heap->Release(base_address);
 }
 
 u32 MmQueryAddressProtect_entry(u32 base_address) {
-  auto heap = runtime::Current().memory()->LookupHeap(base_address);
+  auto heap = runtime::GetCurrent().GetMemory()->LookupHeap(base_address);
   u32 access;
   if (!heap->QueryProtect(base_address, &access)) {
     access = 0;
@@ -439,31 +439,31 @@ u32 MmQueryAddressProtect_entry(u32 base_address) {
   return access;
 }
 
-void MmSetAddressProtect_entry(mapped_void base_address, u32 region_size, u32 protect_bits) {
-  constexpr u32 required_protect_bits = X_PAGE_NOACCESS | X_PAGE_READONLY | X_PAGE_READWRITE |
-                                        X_PAGE_EXECUTE_READ | X_PAGE_EXECUTE_READWRITE;
+void MmSetAddressProtect_entry(MappedVoid base_address, u32 region_size, u32 protect_bits) {
+  constexpr u32 kRequiredProtectBits = kXPageNoAccess | kXPageReadOnly | kXPageReadWrite |
+                                       kXPageExecuteRead | kXPageExecuteReadWrite;
 
-  if (rex::bit_count(protect_bits & required_protect_bits) != 1) {
-    REX_ASSERT(!(rex::bit_count(static_cast<u32>(protect_bits) & required_protect_bits) > 1));
+  if (rex::BitCount(protect_bits & kRequiredProtectBits) != 1) {
+    REX_ASSERT(!(rex::BitCount(static_cast<u32>(protect_bits) & kRequiredProtectBits) > 1));
     return;
   }
 
   u32 protect = FromXdkProtectFlags(protect_bits);
-  auto heap = runtime::Current().memory()->LookupHeap(base_address.guest_address());
+  auto heap = runtime::GetCurrent().GetMemory()->LookupHeap(base_address.GetGuestAddress());
   if (!heap) {
     return;
   }
-  if (heap->heap_type() == runtime::HeapType::kGuestXEX) {
+  if (heap->GetHeapType() == runtime::HeapType::kGuestXEX) {
     return;
   }
 
-  heap->Protect(base_address.guest_address(), region_size, protect);
+  heap->Protect(base_address.GetGuestAddress(), region_size, protect);
 }
 
-u32 MmQueryAllocationSize_entry(mapped_void base_address) {
-  auto heap = runtime::Current().memory()->LookupHeap(base_address.guest_address());
+u32 MmQueryAllocationSize_entry(MappedVoid base_address) {
+  auto heap = runtime::GetCurrent().GetMemory()->LookupHeap(base_address.GetGuestAddress());
   u32 size;
-  if (!heap->QuerySize(base_address.guest_address(), &size)) {
+  if (!heap->QuerySize(base_address.GetGuestAddress(), &size)) {
     size = 0;
   }
 
@@ -494,7 +494,7 @@ struct X_MM_QUERY_STATISTICS_RESULT {
 };
 REX_STATIC_ASSERT_SIZE(X_MM_QUERY_STATISTICS_RESULT, 104);
 
-u32 MmQueryStatistics_entry(ppc_ptr_t<X_MM_QUERY_STATISTICS_RESULT> stats_ptr) {
+u32 MmQueryStatistics_entry(GuestPtrT<X_MM_QUERY_STATISTICS_RESULT> stats_ptr) {
   REX_KERNEL_ARG(stats_ptr);
 
   const u32 size = sizeof(X_MM_QUERY_STATISTICS_RESULT);
@@ -516,20 +516,20 @@ u32 MmQueryStatistics_entry(ppc_ptr_t<X_MM_QUERY_STATISTICS_RESULT> stats_ptr) {
   u32 used_pages = 0;
   u32 reserved_pages_bytes = 0;
   const runtime::BaseHeap* physical_heaps[3] = {
-      runtime::Current().memory()->LookupHeapByType(true, 0x1000),
-      runtime::Current().memory()->LookupHeapByType(true, 0x10000),
-      runtime::Current().memory()->LookupHeapByType(true, 0x1000000)};
+      runtime::GetCurrent().GetMemory()->LookupHeapByType(true, 0x1000),
+      runtime::GetCurrent().GetMemory()->LookupHeapByType(true, 0x10000),
+      runtime::GetCurrent().GetMemory()->LookupHeapByType(true, 0x1000000)};
 
-  runtime::Current().memory()->GetHeapsPageStatsSummary(physical_heaps, std::size(physical_heaps),
-                                                        unreserved_pages, reserved_pages,
-                                                        used_pages, reserved_pages_bytes);
+  runtime::GetCurrent().GetMemory()->GetHeapsPageStatsSummary(
+      physical_heaps, std::size(physical_heaps), unreserved_pages, reserved_pages, used_pages,
+      reserved_pages_bytes);
 
   REX_ASSERT(used_pages < stats_ptr->total_physical_pages);
 
-  auto* memory = runtime::Current().memory();
+  auto* memory = runtime::GetCurrent().GetMemory();
   const u32 title_pages = stats_ptr->total_physical_pages - stats_ptr->kernel_pages;
-  const u32 budget = memory->budget_pages() ? memory->budget_pages() : title_pages;
-  const u32 used = memory->budget_pages() ? memory->title_pages() : used_pages;
+  const u32 budget = memory->GetBudgetPages() ? memory->GetBudgetPages() : title_pages;
+  const u32 used = memory->GetBudgetPages() ? memory->GetTitlePages() : used_pages;
   stats_ptr->title.available_pages = budget > used ? budget - used : 0;
   stats_ptr->title.total_virtual_memory_bytes = 0x2FFE0000;
   stats_ptr->title.reserved_virtual_memory_bytes = reserved_pages_bytes;
@@ -566,7 +566,7 @@ u32 MmQueryStatistics_entry(ppc_ptr_t<X_MM_QUERY_STATISTICS_RESULT> stats_ptr) {
  * @return The physical address, or 0 when base_address is not physical.
  */
 u32 MmGetPhysicalAddress_entry(u32 base_address) {
-  u32 physical_address = runtime::Current().memory()->GetPhysicalAddress(base_address);
+  u32 physical_address = runtime::GetCurrent().GetMemory()->GetPhysicalAddress(base_address);
   REX_ASSERT(physical_address != UINT32_MAX);
   if (physical_address == UINT32_MAX) {
     physical_address = 0;
@@ -588,12 +588,12 @@ u32 MmGetPhysicalAddress_entry(u32 base_address) {
  * @param flags Must be 0x404.
  * @return The source address.
  */
-u32 MmMapIoSpace_entry(u32 unk0, mapped_void src_address, u32 size, u32 flags) {
+u32 MmMapIoSpace_entry(u32 unk0, MappedVoid src_address, u32 size, u32 flags) {
   REX_ASSERT(unk0 == 2);
   REX_ASSERT(size == 0x40);
   REX_ASSERT(flags == 0x404);
 
-  return src_address.guest_address();
+  return src_address.GetGuestAddress();
 }
 
 struct X_POOL_ALLOC_HEADER {
@@ -608,15 +608,15 @@ REX_STATIC_ASSERT_SIZE(X_POOL_ALLOC_HEADER, 8);
 u32 ExAllocatePoolTypeWithTag_entry(u32 size, u32 tag, [[maybe_unused]] u32 zero) {
   if (size <= 0xFD8) {
     u32 adjusted_size = size + sizeof(X_POOL_ALLOC_HEADER);
-    u32 addr = runtime::Current().memory()->SystemHeapAlloc(adjusted_size, 64);
+    u32 addr = runtime::GetCurrent().GetMemory()->SystemHeapAlloc(adjusted_size, 64);
     if (!addr)
       return 0;
-    auto header = runtime::Current().memory()->TranslateVirtual<X_POOL_ALLOC_HEADER*>(addr);
+    auto header = runtime::GetCurrent().GetMemory()->TranslateVirtual<X_POOL_ALLOC_HEADER*>(addr);
     header->unk_2 = 170;
     header->tag = tag;
     return addr + sizeof(X_POOL_ALLOC_HEADER);
   } else {
-    return runtime::Current().memory()->SystemHeapAlloc(size, 4096);
+    return runtime::GetCurrent().GetMemory()->SystemHeapAlloc(size, 4096);
   }
 }
 
@@ -625,24 +625,24 @@ u32 ExAllocatePool_entry(u32 size) {
   return ExAllocatePoolTypeWithTag_entry(size, none, 0);
 }
 
-void ExFreePool_entry(mapped_void base_address) {
-  u32 addr = base_address.guest_address();
+void ExFreePool_entry(MappedVoid base_address) {
+  u32 addr = base_address.GetGuestAddress();
   if ((addr & (4096 - 1)) == 0) {
     // A page aligned address is a large allocation without a pool header.
-    runtime::Current().memory()->SystemHeapFree(addr);
+    runtime::GetCurrent().GetMemory()->SystemHeapFree(addr);
   } else {
-    runtime::Current().memory()->SystemHeapFree(addr - sizeof(X_POOL_ALLOC_HEADER));
+    runtime::GetCurrent().GetMemory()->SystemHeapFree(addr - sizeof(X_POOL_ALLOC_HEADER));
   }
 }
 
-u32 KeGetImagePageTableEntry_entry(mapped_void address) {
-  auto heap = runtime::Current().memory()->LookupHeap(address.guest_address());
-  if (!heap || heap->heap_type() != runtime::HeapType::kGuestXEX) {
+u32 KeGetImagePageTableEntry_entry(MappedVoid address) {
+  auto heap = runtime::GetCurrent().GetMemory()->LookupHeap(address.GetGuestAddress());
+  if (!heap || heap->GetHeapType() != runtime::HeapType::kGuestXEX) {
     return 0;
   }
-  u32 result = address.guest_address() - heap->heap_base();
-  result /= heap->page_size();
-  if (heap->page_size() < 65536) {
+  u32 result = address.GetGuestAddress() - heap->GetHeapBase();
+  result /= heap->GetPageSize();
+  if (heap->GetPageSize() < 65536) {
     result |= 0x40000000;
   }
   return result & 0x400FFFFF;
@@ -656,26 +656,26 @@ void KeUnlockL2_entry() {}
 
 u32 MmCreateKernelStack_entry(u32 stack_size, u32 r4) {
   REX_ASSERT(r4 == 0);
-  auto& runtime = runtime::Current();
+  auto& runtime = runtime::GetCurrent();
   const auto* process =
-      runtime.memory()->TranslateVirtual<const X_KPROCESS*>(runtime.title_process());
+      runtime.GetMemory()->TranslateVirtual<const X_KPROCESS*>(runtime.GetTitleProcess());
   const u32 size =
       ResolveGuestStackSize(stack_size, process->kernel_stack_size, kMinimumThreadStackSize);
-  Result<GuestStack> stack = AllocateGuestStack(*runtime.memory(), size, 0, true);
+  Result<GuestStack> stack = AllocateGuestStack(*runtime.GetMemory(), size, 0, true);
   return stack ? stack->base : 0;
 }
 
-u32 MmDeleteKernelStack_entry(mapped_void stack_base, mapped_void stack_end) {
-  auto* memory = runtime::Current().memory();
-  const u32 base = stack_base.guest_address();
+u32 MmDeleteKernelStack_entry(MappedVoid stack_base, MappedVoid stack_end) {
+  auto* memory = runtime::GetCurrent().GetMemory();
+  const u32 base = stack_base.GetGuestAddress();
   if (base <= KernelThread::kStackAddressRangeBegin || base > KernelThread::kStackAddressRangeEnd ||
-      stack_end.guest_address() >= base) {
+      stack_end.GetGuestAddress() >= base) {
     return X_STATUS_INVALID_PARAMETER;
   }
   runtime::HeapAllocationInfo info{};
   if (!memory->LookupHeap(base - 1)->QueryRegionInfo(base - 1, &info) || !info.state ||
       info.allocation_base + info.allocation_size != base ||
-      stack_end.guest_address() < info.allocation_base + kGuestStackPageSize) {
+      stack_end.GetGuestAddress() < info.allocation_base + kGuestStackPageSize) {
     return X_STATUS_INVALID_PARAMETER;
   }
   FreeGuestStack(*memory, info.allocation_base);
@@ -687,7 +687,7 @@ u32 ExAllocatePoolWithTag_entry(u32 numbytes, u32 tag, u32 zero) {
 }
 
 u32 MmIsAddressValid_entry(u32 address) {
-  auto heap = runtime::Current().memory()->LookupHeap(address);
+  auto heap = runtime::GetCurrent().GetMemory()->LookupHeap(address);
   if (!heap) {
     return 0;
   }
@@ -695,7 +695,7 @@ u32 MmIsAddressValid_entry(u32 address) {
 }
 
 u32 NtAllocateEncryptedMemory_entry([[maybe_unused]] u32 unk, u32 region_size,
-                                    mapped_u32 base_addr_ptr) {
+                                    MappedU32 base_addr_ptr) {
   if (!region_size) {
     return X_STATUS_INVALID_PARAMETER;
   }
@@ -706,7 +706,7 @@ u32 NtAllocateEncryptedMemory_entry([[maybe_unused]] u32 unk, u32 region_size,
   }
 
   u32 out_address = 0;
-  auto heap = runtime::Current().memory()->LookupHeap(0x8C000000);
+  auto heap = runtime::GetCurrent().GetMemory()->LookupHeap(0x8C000000);
   if (!heap) {
     return X_STATUS_UNSUCCESSFUL;
   }
@@ -725,19 +725,19 @@ u32 NtAllocateEncryptedMemory_entry([[maybe_unused]] u32 unk, u32 region_size,
   return X_STATUS_SUCCESS;
 }
 
-u32 NtFreeEncryptedMemory_entry([[maybe_unused]] u32 region_type, mapped_u32 base_address_ptr) {
+u32 NtFreeEncryptedMemory_entry([[maybe_unused]] u32 region_type, MappedU32 base_address_ptr) {
   REX_KERNEL_ARG(base_address_ptr);
 
-  auto heap = runtime::Current().memory()->LookupHeap(0x80000000);
+  auto heap = runtime::GetCurrent().GetMemory()->LookupHeap(0x80000000);
   REX_KERNEL_ARG(heap);
-  const u32 encrypt_address = heap->heap_base() + heap->page_size() * (*base_address_ptr);
+  const u32 encrypt_address = heap->GetHeapBase() + heap->GetPageSize() * (*base_address_ptr);
 
-  auto encrypt_heap = runtime::Current().memory()->LookupHeap(encrypt_address);
-  if (!encrypt_heap || encrypt_heap->heap_type() != runtime::HeapType::kGuestXEX) {
+  auto encrypt_heap = runtime::GetCurrent().GetMemory()->LookupHeap(encrypt_address);
+  if (!encrypt_heap || encrypt_heap->GetHeapType() != runtime::HeapType::kGuestXEX) {
     return X_STATUS_INVALID_PARAMETER;
   }
 
-  runtime::Current().memory()->SystemHeapFree(encrypt_address);
+  runtime::GetCurrent().GetMemory()->SystemHeapFree(encrypt_address);
   return X_STATUS_SUCCESS;
 }
 

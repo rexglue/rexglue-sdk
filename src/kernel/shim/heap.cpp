@@ -24,9 +24,7 @@ constexpr u32 kHeaderSize = static_cast<u32>(O1HEAP_ALIGNMENT);
 constexpr u32 kMinSegmentSize = 4u * 1024u * 1024u;
 constexpr u32 kDefaultGrowthSegmentSize = 64u * 1024u * 1024u;
 
-#ifndef HEAP_ZERO_MEMORY
-constexpr u32 HEAP_ZERO_MEMORY = 0x00000008;
-#endif
+constexpr u32 kHeapZeroMemory = 0x00000008;
 
 }  // namespace
 
@@ -48,13 +46,13 @@ bool ReXHeap::Init(u32 heap_size_bytes, rex::runtime::Memory* memory) {
     REX_FAIL(kernel, false, "shim_heap: memory is null");
   }
 
-  membase_ = mem->virtual_membase();
+  membase_ = mem->GetVirtualMembase();
   if (!membase_) {
     REX_FAIL(kernel, false, "shim_heap: virtual_membase is null");
   }
 
   initial_segment_size_ =
-      rex::align<u32>(std::max(heap_size_bytes, kMinSegmentSize), O1HEAP_ALIGNMENT);
+      rex::Align<u32>(std::max(heap_size_bytes, kMinSegmentSize), O1HEAP_ALIGNMENT);
 
   std::lock_guard lock(mutex_);
   segments_.clear();
@@ -158,7 +156,7 @@ bool ReXHeap::AllocateSegmentLocked(u32 segment_size_bytes) {
   }
 
   segment_size_bytes =
-      rex::align<u32>(std::max(segment_size_bytes, kMinSegmentSize), O1HEAP_ALIGNMENT);
+      rex::Align<u32>(std::max(segment_size_bytes, kMinSegmentSize), O1HEAP_ALIGNMENT);
 
   u32 guest_base = 0;
 
@@ -220,7 +218,7 @@ u32 ReXHeap::AllocLocked(u32 size, bool zero) {
     }
   }
 
-  const u32 min_required_segment = rex::align<u32>(alloc_size + kHeaderSize, O1HEAP_ALIGNMENT);
+  const u32 min_required_segment = rex::Align<u32>(alloc_size + kHeaderSize, O1HEAP_ALIGNMENT);
   const u32 growth_segment_size =
       std::max({initial_segment_size_, kDefaultGrowthSegmentSize, min_required_segment});
   if (!AllocateSegmentLocked(growth_segment_size)) {
@@ -276,7 +274,7 @@ HeapDiagnostics ReXHeap::GetDiagnosticsLocked() const {
 ReXHeap g_heap;
 
 REX_SHIM_FN(RtlAllocateHeap, u32, [[maybe_unused]] u32 hHeap, u32 dwFlags, u32 dwBytes) {
-  return g_heap.Alloc(dwBytes, dwFlags & HEAP_ZERO_MEMORY);
+  return g_heap.Alloc(dwBytes, dwFlags & kHeapZeroMemory);
 }
 
 REX_SHIM_FN(RtlFreeHeap, u32, [[maybe_unused]] u32 hHeap, [[maybe_unused]] u32 dwFlags, u32 ptr) {
@@ -289,7 +287,7 @@ REX_SHIM_FN(RtlSizeHeap, u32, [[maybe_unused]] u32 hHeap, [[maybe_unused]] u32 d
 }
 
 REX_SHIM_FN(RtlReAllocateHeap, u32, [[maybe_unused]] u32 hHeap, u32 dwFlags, u32 ptr, u32 dwBytes) {
-  return g_heap.Realloc(ptr, dwBytes, dwFlags & HEAP_ZERO_MEMORY);
+  return g_heap.Realloc(ptr, dwBytes, dwFlags & kHeapZeroMemory);
 }
 
 bool InitHeap(u32 heap_size_mb, rex::runtime::Memory* memory) {

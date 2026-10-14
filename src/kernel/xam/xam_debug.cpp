@@ -18,15 +18,15 @@ namespace rex {
 namespace kernel {
 namespace xam {
 
-void OutputDebugStringA_entry(mapped_string string) {
+void OutputDebugStringA_entry(MappedString string) {
   if (string) {
-    REXLOG_DEV(title, "OutputDebugStringA: {}", string.value());
+    REXLOG_DEV(title, "OutputDebugStringA: {}", string.GetValue());
   }
 }
 
-void OutputDebugStringW_entry(mapped_wstring string) {
+void OutputDebugStringW_entry(MappedWString string) {
   if (string) {
-    std::u16string_view sv = string.value();
+    std::u16string_view sv = string.GetValue();
     std::string utf8;
     utf8.reserve(sv.size());
     for (char16_t c : sv) {
@@ -40,15 +40,15 @@ void OutputDebugStringW_entry(mapped_wstring string) {
   }
 }
 
-void RtlOutputDebugString_entry(mapped_string string) {
+void RtlOutputDebugString_entry(MappedString string) {
   if (string) {
-    REXLOG_DEV(title, "RtlOutputDebugString: {}", string.value());
+    REXLOG_DEV(title, "RtlOutputDebugString: {}", string.GetValue());
   }
 }
 
-void RtlDebugTrace_entry(mapped_string string) {
+void RtlDebugTrace_entry(MappedString string) {
   if (string) {
-    REXLOG_DEV(title, "RtlDebugTrace: {}", string.value());
+    REXLOG_DEV(title, "RtlDebugTrace: {}", string.GetValue());
   }
 }
 

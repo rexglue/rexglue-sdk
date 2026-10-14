@@ -57,7 +57,7 @@ class REX_API DynamicLibrary : public rex::MoveOnly {
    *
    * @param path Full path to the library file.
    * @param mode Symbol resolution mode. Informational on Windows.
-   * @return True on success. On failure last_error() holds the OS text.
+   * @return True on success. On failure GetLastError() holds the OS text.
    */
   bool Load(const std::filesystem::path& path, SymbolResolution mode = SymbolResolution::kLazy);
 
@@ -92,7 +92,7 @@ class REX_API DynamicLibrary : public rex::MoveOnly {
   /**
    * @return The OS error text of the last failed Load, empty after a successful Load.
    */
-  const std::string& last_error() const { return last_error_; }
+  const std::string& GetLastError() const { return last_error_; }
 
  private:
   void* handle_ = nullptr;

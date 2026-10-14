@@ -51,7 +51,7 @@ class TestOverlay final : public rex::ui::ImGuiDialog {
   ~TestOverlay() override { ++g_destroyed; }
 };
 
-constexpr rex::hid::KeyChord kTestKey{rex::hid::VirtualKey::kF9, rex::hid::KeyModifiers::Ctrl};
+constexpr rex::hid::KeyChord kTestKey{rex::hid::VirtualKey::kF9, rex::hid::KeyModifiers::kCtrl};
 
 REX_OVERLAY_TABLE(kTestOverlays, REX_OVERLAY(TestOverlay, "test", kTestKey));
 
@@ -65,9 +65,9 @@ class FooApp : public rex::ui::TitleApp {
   bool dialogs_at_closing = false;
   bool created = false;
   rex::i32 events_before_create = 0;
-  using TitleApp::config;
+  using TitleApp::GetConfig;
+  using TitleApp::GetUI;
   using TitleApp::GetWindow;
-  using TitleApp::UI;
 
   void ExitTitle(rex::runtime::TitleExitReason reason) { OnTitleExit(reason); }
 
@@ -79,20 +79,20 @@ class FooApp : public rex::ui::TitleApp {
     return rex::Ok();
   }
   void OnCreateWindow(rex::ui::TitleUI& title_ui) override {
-    REQUIRE(title_ui.Overlays().AddOverlays(kTestOverlays));
+    REQUIRE(title_ui.GetOverlays().AddOverlays(kTestOverlays));
     created = true;
   }
   bool OnEvent(const rex::ui::UIEvent& event) override {
     if (!created) {
       ++events_before_create;
     }
-    if (event.type() == rex::ui::UIEvent::Type::Close) {
+    if (event.GetType() == rex::ui::UIEvent::Type::kClose) {
       ++close_events;
       return veto_close;
     }
-    if (event.type() == rex::ui::UIEvent::Type::Closing) {
+    if (event.GetType() == rex::ui::UIEvent::Type::kClosing) {
       ++closing_events;
-      dialogs_at_closing = UI().HasDialogs();
+      dialogs_at_closing = GetUI().HasDialogs();
     }
     return false;
   }
@@ -142,7 +142,7 @@ class CountedDialog final : public rex::ui::ImGuiDialog {
 
 REX_TEST_CASE("A title window opens and Shutdown joins every thread", "[title_app]") {
   rex::platform::detail::ShutdownTimerQueue();
-  const rex::u64 before = rex::platform::detail::ThreadCount();
+  const rex::u64 before = rex::platform::detail::GetThreadCount();
   FooApp app;
   if (!Open(app)) {
     app.Shutdown();
@@ -152,7 +152,7 @@ REX_TEST_CASE("A title window opens and Shutdown joins every thread", "[title_ap
   rex::RequestShutdown(0);
   REQUIRE_FALSE(app.RunFrame());
   REQUIRE(app.Shutdown() == 0);
-  REQUIRE(rex::platform::detail::ThreadCount() == before);
+  REQUIRE(rex::platform::detail::GetThreadCount() == before);
 }
 
 REX_TEST_CASE("A consumed Close keeps the app running", "[title_app]") {
@@ -161,7 +161,7 @@ REX_TEST_CASE("A consumed Close keeps the app running", "[title_app]") {
     app.Shutdown();
     SKIP("SDL dummy video driver unavailable");
   }
-  const rex::ui::UIEvent close(rex::ui::UIEvent::Type::Close, nullptr);
+  const rex::ui::UIEvent close(rex::ui::UIEvent::Type::kClose, nullptr);
   app.veto_close = true;
   REQUIRE(rex::ui::TitleAppProbe::Event(app, close));
   REQUIRE(app.close_events == 1);
@@ -192,7 +192,7 @@ REX_TEST_CASE("InvokeFunction runs on the UI thread and fails after Shutdown", "
 }
 
 REX_TEST_CASE("LaunchTitle without a game directory fails", "[title_app]") {
-  const rex::u64 before = rex::platform::detail::ThreadCount();
+  const rex::u64 before = rex::platform::detail::GetThreadCount();
   FooApp app;
   if (!Open(app)) {
     app.Shutdown();
@@ -200,7 +200,7 @@ REX_TEST_CASE("LaunchTitle without a game directory fails", "[title_app]") {
   }
   REQUIRE_FALSE(app.LaunchTitle());
   REQUIRE(app.Shutdown() == 1);
-  REQUIRE(rex::platform::detail::ThreadCount() == before);
+  REQUIRE(rex::platform::detail::GetThreadCount() == before);
 }
 
 REX_TEST_CASE("Shutdown closes the window and reports Closing before OnShutdown", "[title_app]") {
@@ -221,14 +221,14 @@ REX_TEST_CASE("A prompt pending on a guest thread completes cancelled when Stop 
     app.Shutdown();
     SKIP("SDL dummy video driver unavailable");
   }
-  const auto timeout = app.config().runtime.terminate_timeout;
+  const auto timeout = app.GetConfig().runtime.terminate_timeout;
   const auto ui_thread = std::this_thread::get_id();
   std::atomic<bool> completed{false};
   std::atomic<bool> cancelled{false};
   std::atomic<bool> on_ui{false};
   rex::platform::Fence fence;
   std::jthread app_thread([&] {
-    app.UI().Prompt(TestPrompt(), [&](const rex::ui::PromptResult& result) {
+    app.GetUI().Prompt(TestPrompt(), [&](const rex::ui::PromptResult& result) {
       cancelled = result.cancelled;
       on_ui = std::this_thread::get_id() == ui_thread;
       completed = true;
@@ -236,7 +236,7 @@ REX_TEST_CASE("A prompt pending on a guest thread completes cancelled when Stop 
     });
     fence.Wait();
   });
-  REQUIRE(PumpUntil(app, [&] { return app.UI().HasDialogs(); }));
+  REQUIRE(PumpUntil(app, [&] { return app.GetUI().HasDialogs(); }));
   const auto start = std::chrono::steady_clock::now();
   REQUIRE(app.Shutdown() == 0);
   REQUIRE(std::chrono::steady_clock::now() - start < timeout);
@@ -252,12 +252,12 @@ REX_TEST_CASE("Prompt after the UI loop quits completes cancelled at once", "[ti
     app.Shutdown();
     SKIP("SDL dummy video driver unavailable");
   }
-  app.UI().Quit();
+  app.GetUI().Quit();
   app.RunFrame();
   std::atomic<bool> completed{false};
   std::atomic<bool> cancelled{false};
   std::jthread worker([&] {
-    app.UI().Prompt(TestPrompt(), [&](const rex::ui::PromptResult& result) {
+    app.GetUI().Prompt(TestPrompt(), [&](const rex::ui::PromptResult& result) {
       cancelled = result.cancelled;
       completed = true;
     });
@@ -265,7 +265,7 @@ REX_TEST_CASE("Prompt after the UI loop quits completes cancelled at once", "[ti
   worker.join();
   REQUIRE(completed);
   REQUIRE(cancelled);
-  REQUIRE_FALSE(app.UI().HasDialogs());
+  REQUIRE_FALSE(app.GetUI().HasDialogs());
   REQUIRE(app.Shutdown() == 0);
 }
 
@@ -276,8 +276,8 @@ REX_TEST_CASE("Stop destroys the prompts before the window closes", "[title_app]
     SKIP("SDL dummy video driver unavailable");
   }
   std::atomic<bool> completed{false};
-  app.UI().Prompt(TestPrompt(), [&](const rex::ui::PromptResult&) { completed = true; });
-  REQUIRE(PumpUntil(app, [&] { return app.UI().HasDialogs(); }));
+  app.GetUI().Prompt(TestPrompt(), [&](const rex::ui::PromptResult&) { completed = true; });
+  REQUIRE(PumpUntil(app, [&] { return app.GetUI().HasDialogs(); }));
   REQUIRE(app.Shutdown() == 0);
   REQUIRE(completed);
   REQUIRE(app.closing_events == 1);
@@ -292,8 +292,8 @@ REX_TEST_CASE("CloseWindow leaves a dialog its owner holds to the owner", "[titl
     SKIP("SDL dummy video driver unavailable");
   }
   auto owned = std::make_unique<CountedDialog>();
-  app.UI().AddDialog(*owned);
-  REQUIRE(app.UI().HasDialogs());
+  app.GetUI().AddDialog(*owned);
+  REQUIRE(app.GetUI().HasDialogs());
   REQUIRE(app.Shutdown() == 0);
   REQUIRE(g_dialogs_destroyed == 0);
   owned.reset();
@@ -308,12 +308,12 @@ REX_TEST_CASE("Closing the window destroys the overlays", "[title_app]") {
     app.Shutdown();
     SKIP("SDL dummy video driver unavailable");
   }
-  app.UI().ShowOverlay("test", true);
-  app.UI().CloseWindow();
+  app.GetUI().ShowOverlay("test", true);
+  app.GetUI().CloseWindow();
   REQUIRE(g_destroyed == 1);
-  REQUIRE(app.UI().Overlay("test") == nullptr);
-  REQUIRE_FALSE(app.UI().AnyOverlayVisible());
-  REQUIRE_FALSE(app.api().Get<rex::cvar::ICvarRegistry>()->Find("bind.test"));
+  REQUIRE(app.GetUI().Overlay("test") == nullptr);
+  REQUIRE_FALSE(app.GetUI().IsAnyOverlayVisible());
+  REQUIRE_FALSE(app.GetAPI().Get<rex::cvar::ICvarRegistry>()->Find("bind.test"));
   REQUIRE(app.Shutdown() == 0);
   REQUIRE(g_constructed == 1);
   REQUIRE(g_destroyed == 1);
@@ -328,10 +328,10 @@ REX_TEST_CASE("Overlay tables bind, toggle without destroying, and die with the 
     app.Shutdown();
     SKIP("SDL dummy video driver unavailable");
   }
-  REQUIRE(app.api().Get<rex::cvar::ICvarRegistry>()->Find("bind.test"));
-  REQUIRE(app.api().Get<rex::cvar::ICvarRegistry>()->Get("bind.test").value() == "Ctrl+F9");
-  app.UI().ToggleOverlay("test");
-  app.UI().ToggleOverlay("test");
+  REQUIRE(app.GetAPI().Get<rex::cvar::ICvarRegistry>()->Find("bind.test"));
+  REQUIRE(app.GetAPI().Get<rex::cvar::ICvarRegistry>()->Get("bind.test").value() == "Ctrl+F9");
+  app.GetUI().ToggleOverlay("test");
+  app.GetUI().ToggleOverlay("test");
   REQUIRE(g_constructed == 1);
   REQUIRE(g_destroyed == 0);
   app.Shutdown();
@@ -375,7 +375,7 @@ REX_TEST_CASE("TitleApp puts rex-filesystem and rex-runtime first", "[title_app]
   FooApp app;
   app.modules = {"rexmod-test-good"};
   REQUIRE(app.Init(rex::CLIArgList::Parse(std::span<const std::string>{}), rex::PPCImageInfo{}));
-  REQUIRE(app.config().modules ==
+  REQUIRE(app.GetConfig().modules ==
           std::vector<std::string>{"rex-filesystem", "rex-runtime", "rexmod-test-good"});
   REQUIRE(app.Shutdown() == 0);
 }
@@ -385,12 +385,12 @@ REX_TEST_CASE("A title app with no ui module runs headless and Shutdown returns 
   FooApp app;
   app.modules = {};
   REQUIRE(Open(app));
-  REQUIRE(app.api().Get<rex::ui::IUserInterface>() == nullptr);
-  REQUIRE(app.UI().GetWindow() == nullptr);
+  REQUIRE(app.GetAPI().Get<rex::ui::IUserInterface>() == nullptr);
+  REQUIRE(app.GetUI().GetWindow() == nullptr);
   REQUIRE_FALSE(app.created);
   bool cancelled = false;
-  app.UI().Prompt(TestPrompt(),
-                  [&](const rex::ui::PromptResult& result) { cancelled = result.cancelled; });
+  app.GetUI().Prompt(TestPrompt(),
+                     [&](const rex::ui::PromptResult& result) { cancelled = result.cancelled; });
   REQUIRE(cancelled);
   REQUIRE(app.RunFrame());
   rex::RequestShutdown(0);
@@ -409,7 +409,7 @@ REX_TEST_CASE("InvokeFunction from a guest thread runs on the null provider loop
   std::jthread app_thread([&] {
     posted = rex::ui::InvokeFunction([&] {
       ran_on_loop = std::this_thread::get_id() == loop_thread;
-      app.ExitTitle(rex::runtime::TitleExitReason::NormalExit);
+      app.ExitTitle(rex::runtime::TitleExitReason::kNormalExit);
     });
   });
   app.Run();

@@ -27,7 +27,7 @@ std::string Format(const char* format, ...) {
   va_start(args, format);
   buffer.AppendVarargs(format, args);
   va_end(args);
-  return buffer.to_string();
+  return buffer.ToString();
 }
 
 }  // namespace
@@ -35,7 +35,7 @@ std::string Format(const char* format, ...) {
 REX_TEST_CASE("BitMap copies every source word", "[bit]") {
   rex::u64 words[3] = {0x1111111111111111, 0x2222222222222222, 0x3333333333333333};
   rex::BitMap map(words, sizeof(words) * 8);
-  REQUIRE(map.data() == std::vector<rex::u64>{words[0], words[1], words[2]});
+  REQUIRE(map.GetData() == std::vector<rex::u64>{words[0], words[1], words[2]});
 }
 
 REX_TEST_CASE("AppendVarargs formats every argument", "[string]") {

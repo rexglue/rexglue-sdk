@@ -22,7 +22,7 @@
 
 #include <ppc.h>
 
-using rex::codegen::detail::decode_instruction;
+using rex::codegen::detail::DecodeInstruction;
 using rex::codegen::detail::Opcode;
 
 namespace rex::codegen {
@@ -34,48 +34,48 @@ namespace {
  *
  * @param region Code region to split.
  * @param binary Binary view.
- * @param knownCallables Entry points that mark a branch as a tail call.
+ * @param known_callables Entry points that mark a branch as a tail call.
  * @return The segments.
  */
-std::vector<CodeRegion> splitRegionOnTerminators(const CodeRegion& region, const BinaryView& binary,
-                                                 const std::unordered_set<u32>& knownCallables) {
+std::vector<CodeRegion> SplitRegionOnTerminators(const CodeRegion& region, const BinaryView& binary,
+                                                 const std::unordered_set<u32>& known_callables) {
   std::vector<CodeRegion> segments;
-  u32 segmentStart = region.start;
+  u32 segment_start = region.start;
 
   for (u32 addr = region.start; addr < region.end; addr += 4) {
-    const u8* data = binary.translate(addr);
+    const u8* data = binary.Translate(addr);
     if (!data)
       break;
 
     u32 raw = memory::load<be_u32>(data);
-    auto decoded = decode_instruction(addr, raw);
-    bool shouldSplit = false;
+    auto decoded = DecodeInstruction(addr, raw);
+    bool should_split = false;
     const char* reason = nullptr;
 
-    if (decoded.is_return()) {
-      shouldSplit = true;
+    if (decoded.IsReturn()) {
+      should_split = true;
       reason = "blr";
     } else if (decoded.opcode == Opcode::b && decoded.branch_target.has_value()) {
       u32 target = decoded.branch_target.value();
-      if (target != segmentStart && knownCallables.contains(target)) {
-        shouldSplit = true;
+      if (target != segment_start && known_callables.contains(target)) {
+        should_split = true;
         reason = "tail call";
       }
     }
 
-    if (shouldSplit) {
-      u32 segmentEnd = addr + 4;
-      if (segmentEnd > segmentStart) {
-        segments.push_back({segmentStart, segmentEnd});
+    if (should_split) {
+      u32 segment_end = addr + 4;
+      if (segment_end > segment_start) {
+        segments.push_back({segment_start, segment_end});
         REXLOG_TRACE(codegen, "GapFill: split segment 0x{:08X}-0x{:08X} ({} at 0x{:08X})",
-                     segmentStart, segmentEnd, reason, addr);
+                     segment_start, segment_end, reason, addr);
       }
-      segmentStart = segmentEnd;
+      segment_start = segment_end;
     }
   }
 
-  if (segmentStart < region.end) {
-    segments.push_back({segmentStart, region.end});
+  if (segment_start < region.end) {
+    segments.push_back({segment_start, region.end});
   }
 
   return segments;
@@ -90,79 +90,79 @@ std::vector<CodeRegion> splitRegionOnTerminators(const CodeRegion& region, const
  * @param addr Address to test.
  * @return True when the data matches.
  */
-bool looksLikeExceptionData(const BinaryView& binary, const FunctionGraph& graph, u32 addr) {
-  const u8* data = binary.translate(addr);
+bool LooksLikeExceptionData(const BinaryView& binary, const FunctionGraph& graph, u32 addr) {
+  const u8* data = binary.Translate(addr);
   if (!data)
     return false;
 
-  u32 firstDword = memory::load<be_u32>(data);
-  u32 secondDword = memory::load<be_u32>(data + 4);
+  u32 first_dword = memory::load<be_u32>(data);
+  u32 second_dword = memory::load<be_u32>(data + 4);
 
-  if (!graph.isEntryPoint(firstDword)) {
+  if (!graph.IsEntryPoint(first_dword)) {
     return false;
   }
 
-  auto* rdataSection = binary.findSectionByName(".rdata");
-  if (!rdataSection)
+  auto* rdata_section = binary.FindSectionByName(".rdata");
+  if (!rdata_section)
     return false;
 
-  u32 rdataStart = rdataSection->baseAddress;
-  u32 rdataEnd = rdataStart + rdataSection->size;
+  u32 rdata_start = rdata_section->base_address;
+  u32 rdata_end = rdata_start + rdata_section->size;
 
-  if (secondDword >= rdataStart && secondDword < rdataEnd) {
+  if (second_dword >= rdata_start && second_dword < rdata_end) {
     REXLOG_TRACE(
         codegen,
         "GapFill: 0x{:08X} looks like exception data (handler=0x{:08X}, scope=0x{:08X}), skipping",
-        addr, firstDword, secondDword);
+        addr, first_dword, second_dword);
     return true;
   }
 
   return false;
 }
 
-void gapFillCodeRegions(CodegenContext& ctx) {
+void GapFillCodeRegions(CodegenContext& ctx) {
   REXLOG_TRACE(codegen, "Analyze: checking for uncovered code regions...");
 
   auto& graph = ctx.graph;
-  auto& binary = ctx.binary();
+  auto& binary = ctx.GetBinary();
   auto& scan = ctx.scan;
 
-  std::unordered_set<u32> knownCallables;
-  for (const auto& [addr, node] : graph.functions()) {
-    knownCallables.insert(addr);
+  std::unordered_set<u32> known_callables;
+  for (const auto& [addr, node] : graph.GetFunctions()) {
+    known_callables.insert(addr);
   }
 
-  size_t gapsFound = 0;
-  size_t segmentsCreated = 0;
+  size_t gaps_found = 0;
+  size_t segments_created = 0;
 
-  for (const auto& region : scan.codeRegions) {
-    auto segments = splitRegionOnTerminators(region, binary, knownCallables);
+  for (const auto& region : scan.code_regions) {
+    auto segments = SplitRegionOnTerminators(region, binary, known_callables);
 
     for (const auto& segment : segments) {
-      if (graph.isEntryPoint(segment.start))
+      if (graph.IsEntryPoint(segment.start))
         continue;
 
-      if (graph.getFunctionContaining(segment.start)) {
+      if (graph.GetFunctionContaining(segment.start)) {
         continue;
       }
 
-      if (looksLikeExceptionData(binary, graph, segment.start))
+      if (LooksLikeExceptionData(binary, graph, segment.start))
         continue;
 
-      u32 segmentSize = segment.size();
-      graph.addFunction(segment.start, segmentSize, FunctionAuthority::GAP_FILL, false);
+      u32 segment_size = segment.GetSize();
+      graph.AddFunction(segment.start, segment_size, FunctionAuthority::kGapFill, false);
 
       REXLOG_TRACE(codegen, "GapFill: registered sub_{:08X} (0x{:08X}-0x{:08X}, {} bytes)",
-                   segment.start, segment.start, segment.end, segmentSize);
-      segmentsCreated++;
+                   segment.start, segment.start, segment.end, segment_size);
+      segments_created++;
     }
 
-    gapsFound++;
+    gaps_found++;
   }
 
-  if (segmentsCreated > 0) {
-    REXLOG_TRACE(codegen, "Analyze: registered {} gap functions from {} regions", segmentsCreated,
-                 gapsFound);
+  if (segments_created > 0) {
+    REXLOG_TRACE(codegen, "Analyze: registered {} gap functions from {} regions", segments_created,
+                 gaps_found);
   } else {
     REXLOG_TRACE(codegen, "Analyze: no uncovered regions found");
   }
@@ -173,33 +173,33 @@ void gapFillCodeRegions(CodegenContext& ctx) {
  *
  * @param ctx Codegen context.
  */
-void cleanupAbsorbedGapFills(CodegenContext& ctx) {
+void CleanupAbsorbedGapFills(CodegenContext& ctx) {
   auto& graph = ctx.graph;
-  std::vector<u32> toRemove;
+  std::vector<u32> to_remove;
 
-  for (const auto& [addr, node] : graph.functions()) {
-    if (node->authority() != FunctionAuthority::GAP_FILL)
+  for (const auto& [addr, node] : graph.GetFunctions()) {
+    if (node->GetAuthority() != FunctionAuthority::kGapFill)
       continue;
 
-    for (const auto& [otherAddr, otherNode] : graph.functions()) {
+    for (const auto& [otherAddr, otherNode] : graph.GetFunctions()) {
       if (otherAddr == addr)
         continue;
-      if (!otherNode->containsAddress(addr))
+      if (!otherNode->ContainsAddress(addr))
         continue;
 
-      if (otherNode->authority() != FunctionAuthority::GAP_FILL || otherAddr < addr) {
-        toRemove.push_back(addr);
+      if (otherNode->GetAuthority() != FunctionAuthority::kGapFill || otherAddr < addr) {
+        to_remove.push_back(addr);
         break;
       }
     }
   }
 
-  for (u32 addr : toRemove) {
-    graph.removeFunction(addr);
+  for (u32 addr : to_remove) {
+    graph.RemoveFunction(addr);
   }
 
-  if (!toRemove.empty()) {
-    REXLOG_TRACE(codegen, "Analyze: removed {} absorbed GAP_FILL functions", toRemove.size());
+  if (!to_remove.empty()) {
+    REXLOG_TRACE(codegen, "Analyze: removed {} absorbed GAP_FILL functions", to_remove.size());
   }
 }
 
@@ -209,13 +209,13 @@ namespace detail {
 
 [[nodiscard]] Result<void> GapFill(CodegenContext& ctx, ProgressReporter* reporter) {
   (void)reporter;
-  gapFillCodeRegions(ctx);
+  GapFillCodeRegions(ctx);
 
-  auto known = buildKnownFunctions(ctx.graph, /*excludeGapFill=*/true);
-  size_t discovered = discoverPendingFunctions(ctx, known);
+  auto known = BuildKnownFunctions(ctx.graph, /*exclude_gap_fill=*/true);
+  size_t discovered = DiscoverPendingFunctions(ctx, known);
   REXLOG_TRACE(codegen, "Analyze: discovered blocks for {} gap-filled functions", discovered);
 
-  cleanupAbsorbedGapFills(ctx);
+  CleanupAbsorbedGapFills(ctx);
 
   return Ok();
 }

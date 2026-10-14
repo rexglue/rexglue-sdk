@@ -43,7 +43,7 @@ class WindowListener {
   virtual void OnMinimized(UIEvent&) {}
   virtual void OnRestored(UIEvent&) {}
 
-  virtual void OnDpiChanged(UISetupEvent&) {}
+  virtual void OnDPIChanged(UISetupEvent&) {}
   virtual void OnResize(UISetupEvent&) {}
 
   virtual void OnGotFocus(UISetupEvent&) {}

@@ -28,13 +28,13 @@ namespace kernel {
 namespace xam {
 using namespace rex::runtime;
 
-u32 XamContentGetLicenseMask_entry(mapped_u32 mask_ptr, mapped_void overlapped_ptr) {
+u32 XamContentGetLicenseMask_entry(MappedU32 mask_ptr, MappedVoid overlapped_ptr) {
   // Bits of the licenses applicable to the title, combined with OR.
-  *mask_ptr = runtime::Current().config().runtime.kernel.license_mask;
+  *mask_ptr = runtime::GetCurrent().GetConfig().runtime.kernel.license_mask;
 
   if (overlapped_ptr) {
-    runtime::Current().dispatcher().Complete(overlapped_ptr.guest_address(),
-                                             {.result = X_ERROR_SUCCESS});
+    runtime::GetCurrent().GetDispatcher().Complete(overlapped_ptr.GetGuestAddress(),
+                                                   {.result = X_ERROR_SUCCESS});
     return X_ERROR_IO_PENDING;
   } else {
     return X_ERROR_SUCCESS;
@@ -42,8 +42,8 @@ u32 XamContentGetLicenseMask_entry(mapped_u32 mask_ptr, mapped_void overlapped_p
 }
 
 u32 XamContentResolve_entry([[maybe_unused]] u32 user_index,
-                            [[maybe_unused]] mapped_void content_data_ptr,
-                            [[maybe_unused]] mapped_void buffer_ptr,
+                            [[maybe_unused]] MappedVoid content_data_ptr,
+                            [[maybe_unused]] MappedVoid buffer_ptr,
                             [[maybe_unused]] u32 buffer_size, [[maybe_unused]] u32 unk1,
                             [[maybe_unused]] u32 unk2, [[maybe_unused]] u32 unk3) {
   REX_KERNEL_STUB("XamContentResolve");
@@ -52,8 +52,8 @@ u32 XamContentResolve_entry([[maybe_unused]] u32 user_index,
 
 u32 XamContentCreateEnumerator_entry([[maybe_unused]] u32 user_index, u32 device_id,
                                      u32 content_type, [[maybe_unused]] u32 content_flags,
-                                     u32 items_per_enumerate, mapped_u32 buffer_size_ptr,
-                                     mapped_u32 handle_out) {
+                                     u32 items_per_enumerate, MappedU32 buffer_size_ptr,
+                                     MappedU32 handle_out) {
   REX_ASSERT(handle_out != nullptr);
 
   auto device_info = device_id == 0 ? nullptr : GetDummyDeviceInfo(device_id);
@@ -68,21 +68,21 @@ u32 XamContentCreateEnumerator_entry([[maybe_unused]] u32 user_index, u32 device
     *buffer_size_ptr = sizeof(XCONTENT_DATA) * items_per_enumerate;
   }
 
-  u64 xuid = runtime::Current().content_manager().user_profile().xuid();
+  u64 xuid = runtime::GetCurrent().GetContentManager().GetUserProfile().GetXUID();
 
   StaticItems items(items_per_enumerate, sizeof(XCONTENT_DATA));
 
-  if (!device_info || device_info->device_id == DummyDeviceId::HDD) {
-    auto content_datas = runtime::Current().content_manager().ListContent(
-        std::to_underlying(DummyDeviceId::HDD), xuid, XContentType(content_type));
+  if (!device_info || device_info->device_id == DummyDeviceId::kHDD) {
+    auto content_datas = runtime::GetCurrent().GetContentManager().ListContent(
+        std::to_underlying(DummyDeviceId::kHDD), xuid, XContentType(content_type));
     for (const auto& content_data : content_datas) {
       auto item = items.Append<XCONTENT_DATA>();
       *item = content_data;
     }
 
     if (xuid != 0) {
-      auto common_datas = runtime::Current().content_manager().ListContent(
-          std::to_underlying(DummyDeviceId::HDD), 0, XContentType(content_type));
+      auto common_datas = runtime::GetCurrent().GetContentManager().ListContent(
+          std::to_underlying(DummyDeviceId::kHDD), 0, XContentType(content_type));
       for (const auto& content_data : common_datas) {
         auto item = items.Append<XCONTENT_DATA>();
         *item = content_data;
@@ -90,14 +90,14 @@ u32 XamContentCreateEnumerator_entry([[maybe_unused]] u32 user_index, u32 device
     }
   }
 
-  if (!device_info || device_info->device_id == DummyDeviceId::ODD) {}
+  if (!device_info || device_info->device_id == DummyDeviceId::kODD) {}
 
   REXLOG_DEBUG(kernel, "XamContentCreateEnumerator: added {} items to enumerator",
-               items.item_count());
+               items.GetItemCount());
 
-  X_HANDLE handle = X_INVALID_HANDLE_VALUE;
+  X_HANDLE handle = kXInvalidHandleValue;
   auto result = CreateEnumerator(
-      runtime::Current(), &handle, EnumeratorInit{0xFF, 0xFE, 0x20005, 0x20007, 0},
+      runtime::GetCurrent(), &handle, EnumeratorInit{0xFF, 0xFE, 0x20005, 0x20007, 0},
       EnumeratorObject(
           items_per_enumerate, sizeof(XCONTENT_DATA),
           [items = std::move(items)](u32, u8* buffer_data, u32* written_count) mutable {
@@ -114,18 +114,18 @@ u32 XamContentCreateEnumerator_entry([[maybe_unused]] u32 user_index, u32 device
   return X_ERROR_SUCCESS;
 }
 
-enum class kDispositionState : u8 { Unknown = 0, Create = 1, Open = 2 };
+enum class DispositionState : u8 { kUnknown = 0, kCreate = 1, kOpen = 2 };
 
-u32 XamContentCreate(mapped_string root_name, mapped_void content_data_ptr, u32 content_data_size,
-                     u32 flags, mapped_u32 disposition_ptr, mapped_u32 license_mask_ptr,
-                     mapped_void overlapped_ptr) {
-  u64 xuid = runtime::Current().content_manager().user_profile().xuid();
+u32 XamContentCreate(MappedString root_name, MappedVoid content_data_ptr, u32 content_data_size,
+                     u32 flags, MappedU32 disposition_ptr, MappedU32 license_mask_ptr,
+                     MappedVoid overlapped_ptr) {
+  u64 xuid = runtime::GetCurrent().GetContentManager().GetUserProfile().GetXUID();
 
   XCONTENT_AGGREGATE_DATA content_data;
   if (content_data_size == sizeof(XCONTENT_DATA)) {
-    content_data = *content_data_ptr.as<XCONTENT_DATA*>();
+    content_data = *content_data_ptr.As<XCONTENT_DATA*>();
   } else if (content_data_size == sizeof(XCONTENT_AGGREGATE_DATA)) {
-    content_data = *content_data_ptr.as<XCONTENT_AGGREGATE_DATA*>();
+    content_data = *content_data_ptr.As<XCONTENT_AGGREGATE_DATA*>();
   } else {
     REX_ASSERT_ALWAYS();
     return X_ERROR_INVALID_PARAMETER;
@@ -135,23 +135,23 @@ u32 XamContentCreate(mapped_string root_name, mapped_void content_data_ptr, u32 
     xuid = 0;
   }
 
-  auto* content_manager = &runtime::Current().content_manager();
+  auto* content_manager = &runtime::GetCurrent().GetContentManager();
 
   if (overlapped_ptr && disposition_ptr) {
     *disposition_ptr = 0;
   }
 
-  auto run = [content_manager, xuid, root_name = root_name.value(), flags, content_data,
+  auto run = [content_manager, xuid, root_name = root_name.GetValue(), flags, content_data,
               disposition_ptr, license_mask_ptr](u32& extended_error, u32& length) -> X_RESULT {
     X_RESULT result = X_ERROR_INVALID_PARAMETER;
-    kDispositionState disposition = kDispositionState::Unknown;
+    DispositionState disposition = DispositionState::kUnknown;
     switch (flags & 0xF) {
       // CREATE_NEW
       case 1:
         if (content_manager->ContentExists(xuid, content_data)) {
           result = X_ERROR_ALREADY_EXISTS;
         } else {
-          disposition = kDispositionState::Create;
+          disposition = DispositionState::kCreate;
         }
         break;
       // CREATE_ALWAYS
@@ -166,22 +166,22 @@ u32 XamContentCreate(mapped_string root_name, mapped_void content_data_ptr, u32 
           result = X_ERROR_ACCESS_DENIED;
           break;
         }
-        disposition = kDispositionState::Create;
+        disposition = DispositionState::kCreate;
         break;
       // OPEN_EXISTING
       case 3:
         if (!content_manager->ContentExists(xuid, content_data)) {
           result = X_ERROR_PATH_NOT_FOUND;
         } else {
-          disposition = kDispositionState::Open;
+          disposition = DispositionState::kOpen;
         }
         break;
       // OPEN_ALWAYS
       case 4:
         if (!content_manager->ContentExists(xuid, content_data)) {
-          disposition = kDispositionState::Create;
+          disposition = DispositionState::kCreate;
         } else {
-          disposition = kDispositionState::Open;
+          disposition = DispositionState::kOpen;
         }
         break;
       // TRUNCATE_EXISTING
@@ -196,7 +196,7 @@ u32 XamContentCreate(mapped_string root_name, mapped_void content_data_ptr, u32 
           if (!content_manager->DeleteContent(xuid, content_data)) {
             result = X_ERROR_ACCESS_DENIED;
           } else {
-            disposition = kDispositionState::Create;
+            disposition = DispositionState::kCreate;
           }
         }
         break;
@@ -206,7 +206,7 @@ u32 XamContentCreate(mapped_string root_name, mapped_void content_data_ptr, u32 
     }
 
     u32 content_license = 0;
-    if (disposition == kDispositionState::Create) {
+    if (disposition == DispositionState::kCreate) {
       result = ToXResult(content_manager->CreateContent(root_name, xuid, content_data));
       if (result == X_ERROR_SUCCESS) {
         if (auto written = content_manager->WriteContentHeaderFile(xuid, content_data); !written) {
@@ -223,7 +223,7 @@ u32 XamContentCreate(mapped_string root_name, mapped_void content_data_ptr, u32 
           }
         }
       }
-    } else if (disposition == kDispositionState::Open) {
+    } else if (disposition == DispositionState::kOpen) {
       auto opened = content_manager->OpenContent(root_name, xuid, content_data);
       if (opened) {
         content_license = *opened;
@@ -239,7 +239,7 @@ u32 XamContentCreate(mapped_string root_name, mapped_void content_data_ptr, u32 
       *disposition_ptr = static_cast<u32>(disposition);
     }
 
-    extended_error = X_HRESULT_FROM_WIN32(result);
+    extended_error = XHResultFromWin32(result);
     length = static_cast<u32>(disposition);
     return result;
   };
@@ -248,8 +248,8 @@ u32 XamContentCreate(mapped_string root_name, mapped_void content_data_ptr, u32 
     u32 extended_error, length;
     return run(extended_error, length);
   } else {
-    runtime::Current().dispatcher().CompleteDeferred(
-        overlapped_ptr.guest_address(), [run = std::move(run)]() mutable {
+    runtime::GetCurrent().GetDispatcher().CompleteDeferred(
+        overlapped_ptr.GetGuestAddress(), [run = std::move(run)]() mutable {
           u32 extended_error = 0;
           u32 length = 0;
           const X_RESULT result = run(extended_error, length);
@@ -260,68 +260,71 @@ u32 XamContentCreate(mapped_string root_name, mapped_void content_data_ptr, u32 
   }
 }
 
-u32 XamContentCreateEx_entry([[maybe_unused]] u32 user_index, mapped_string root_name,
-                             mapped_void content_data_ptr, u32 flags, mapped_u32 disposition_ptr,
-                             mapped_u32 license_mask_ptr, [[maybe_unused]] u32 cache_size,
-                             [[maybe_unused]] u64 content_size, mapped_void overlapped_ptr) {
+u32 XamContentCreateEx_entry([[maybe_unused]] u32 user_index, MappedString root_name,
+                             MappedVoid content_data_ptr, u32 flags, MappedU32 disposition_ptr,
+                             MappedU32 license_mask_ptr, [[maybe_unused]] u32 cache_size,
+                             [[maybe_unused]] u64 content_size, MappedVoid overlapped_ptr) {
   return XamContentCreate(root_name, content_data_ptr, sizeof(XCONTENT_DATA), flags,
                           disposition_ptr, license_mask_ptr, overlapped_ptr);
 }
 
-u32 XamContentCreate_entry([[maybe_unused]] u32 user_index, mapped_string root_name,
-                           mapped_void content_data_ptr, u32 flags, mapped_u32 disposition_ptr,
-                           mapped_u32 license_mask_ptr, mapped_void overlapped_ptr) {
+u32 XamContentCreate_entry([[maybe_unused]] u32 user_index, MappedString root_name,
+                           MappedVoid content_data_ptr, u32 flags, MappedU32 disposition_ptr,
+                           MappedU32 license_mask_ptr, MappedVoid overlapped_ptr) {
   return XamContentCreate(root_name, content_data_ptr, sizeof(XCONTENT_DATA), flags,
                           disposition_ptr, license_mask_ptr, overlapped_ptr);
 }
 
-u32 XamContentCreateInternal_entry(mapped_string root_name, mapped_void content_data_ptr, u32 flags,
-                                   mapped_u32 disposition_ptr, mapped_u32 license_mask_ptr,
+u32 XamContentCreateInternal_entry(MappedString root_name, MappedVoid content_data_ptr, u32 flags,
+                                   MappedU32 disposition_ptr, MappedU32 license_mask_ptr,
                                    [[maybe_unused]] u32 cache_size,
-                                   [[maybe_unused]] u64 content_size, mapped_void overlapped_ptr) {
+                                   [[maybe_unused]] u64 content_size, MappedVoid overlapped_ptr) {
   return XamContentCreate(root_name, content_data_ptr, sizeof(XCONTENT_AGGREGATE_DATA), flags,
                           disposition_ptr, license_mask_ptr, overlapped_ptr);
 }
 
 u32 XamContentOpenFile_entry([[maybe_unused]] u32 user_index,
-                             [[maybe_unused]] mapped_string root_name,
-                             [[maybe_unused]] mapped_string path, [[maybe_unused]] u32 flags,
-                             [[maybe_unused]] mapped_u32 disposition_ptr,
-                             [[maybe_unused]] mapped_u32 license_mask_ptr,
-                             [[maybe_unused]] mapped_void overlapped_ptr) {
+                             [[maybe_unused]] MappedString root_name,
+                             [[maybe_unused]] MappedString path, [[maybe_unused]] u32 flags,
+                             [[maybe_unused]] MappedU32 disposition_ptr,
+                             [[maybe_unused]] MappedU32 license_mask_ptr,
+                             [[maybe_unused]] MappedVoid overlapped_ptr) {
   return X_ERROR_FILE_NOT_FOUND;
 }
 
-u32 XamContentFlush_entry([[maybe_unused]] mapped_string root_name, mapped_void overlapped_ptr) {
+u32 XamContentFlush_entry([[maybe_unused]] MappedString root_name, MappedVoid overlapped_ptr) {
   X_RESULT result = X_ERROR_SUCCESS;
   if (overlapped_ptr) {
-    runtime::Current().dispatcher().Complete(overlapped_ptr.guest_address(), {.result = result});
+    runtime::GetCurrent().GetDispatcher().Complete(overlapped_ptr.GetGuestAddress(),
+                                                   {.result = result});
     return X_ERROR_IO_PENDING;
   } else {
     return result;
   }
 }
 
-u32 XamContentClose_entry(mapped_string root_name, mapped_void overlapped_ptr) {
-  auto result = ToXResult(runtime::Current().content_manager().CloseContent(root_name.value()));
+u32 XamContentClose_entry(MappedString root_name, MappedVoid overlapped_ptr) {
+  auto result =
+      ToXResult(runtime::GetCurrent().GetContentManager().CloseContent(root_name.GetValue()));
 
   if (overlapped_ptr) {
-    runtime::Current().dispatcher().Complete(overlapped_ptr.guest_address(), {.result = result});
+    runtime::GetCurrent().GetDispatcher().Complete(overlapped_ptr.GetGuestAddress(),
+                                                   {.result = result});
     return X_ERROR_IO_PENDING;
   } else {
     return result;
   }
 }
 
-u32 XamContentGetCreator_entry([[maybe_unused]] u32 user_index, mapped_void content_data_ptr,
-                               mapped_u32 is_creator_ptr, mapped_u64 creator_xuid_ptr,
-                               mapped_void overlapped_ptr) {
+u32 XamContentGetCreator_entry([[maybe_unused]] u32 user_index, MappedVoid content_data_ptr,
+                               MappedU32 is_creator_ptr, MappedU64 creator_xuid_ptr,
+                               MappedVoid overlapped_ptr) {
   auto result = X_ERROR_SUCCESS;
 
-  u64 xuid = runtime::Current().content_manager().user_profile().xuid();
-  XCONTENT_AGGREGATE_DATA content_data = *content_data_ptr.as<XCONTENT_DATA*>();
+  u64 xuid = runtime::GetCurrent().GetContentManager().GetUserProfile().GetXUID();
+  XCONTENT_AGGREGATE_DATA content_data = *content_data_ptr.As<XCONTENT_DATA*>();
 
-  bool content_exists = runtime::Current().content_manager().ContentExists(xuid, content_data);
+  bool content_exists = runtime::GetCurrent().GetContentManager().ContentExists(xuid, content_data);
 
   if (content_exists) {
     if (content_data.content_type == XContentType::kSavedGame) {
@@ -340,23 +343,25 @@ u32 XamContentGetCreator_entry([[maybe_unused]] u32 user_index, mapped_void cont
   }
 
   if (overlapped_ptr) {
-    runtime::Current().dispatcher().Complete(overlapped_ptr.guest_address(), {.result = result});
+    runtime::GetCurrent().GetDispatcher().Complete(overlapped_ptr.GetGuestAddress(),
+                                                   {.result = result});
     return X_ERROR_IO_PENDING;
   } else {
     return result;
   }
 }
 
-u32 XamContentGetThumbnail_entry([[maybe_unused]] u32 user_index, mapped_void content_data_ptr,
-                                 mapped_void buffer_ptr, mapped_u32 buffer_size_ptr,
-                                 mapped_void overlapped_ptr) {
+u32 XamContentGetThumbnail_entry([[maybe_unused]] u32 user_index, MappedVoid content_data_ptr,
+                                 MappedVoid buffer_ptr, MappedU32 buffer_size_ptr,
+                                 MappedVoid overlapped_ptr) {
   REX_ASSERT(buffer_size_ptr != nullptr);
   u32 buffer_size = *buffer_size_ptr;
-  u64 xuid = runtime::Current().content_manager().user_profile().xuid();
-  XCONTENT_AGGREGATE_DATA content_data = *content_data_ptr.as<XCONTENT_DATA*>();
+  u64 xuid = runtime::GetCurrent().GetContentManager().GetUserProfile().GetXUID();
+  XCONTENT_AGGREGATE_DATA content_data = *content_data_ptr.As<XCONTENT_DATA*>();
 
   std::vector<u8> buffer;
-  auto thumbnail = runtime::Current().content_manager().GetContentThumbnail(xuid, content_data);
+  auto thumbnail =
+      runtime::GetCurrent().GetContentManager().GetContentThumbnail(xuid, content_data);
   if (thumbnail) {
     buffer = std::move(*thumbnail);
   }
@@ -375,57 +380,63 @@ u32 XamContentGetThumbnail_entry([[maybe_unused]] u32 user_index, mapped_void co
   }
 
   if (overlapped_ptr) {
-    runtime::Current().dispatcher().Complete(overlapped_ptr.guest_address(), {.result = result});
+    runtime::GetCurrent().GetDispatcher().Complete(overlapped_ptr.GetGuestAddress(),
+                                                   {.result = result});
     return X_ERROR_IO_PENDING;
   } else {
     return result;
   }
 }
 
-u32 XamContentSetThumbnail_entry([[maybe_unused]] u32 user_index, mapped_void content_data_ptr,
-                                 mapped_void buffer_ptr, u32 buffer_size,
-                                 mapped_void overlapped_ptr) {
-  u64 xuid = runtime::Current().content_manager().user_profile().xuid();
-  XCONTENT_AGGREGATE_DATA content_data = *content_data_ptr.as<XCONTENT_DATA*>();
+u32 XamContentSetThumbnail_entry([[maybe_unused]] u32 user_index, MappedVoid content_data_ptr,
+                                 MappedVoid buffer_ptr, u32 buffer_size,
+                                 MappedVoid overlapped_ptr) {
+  u64 xuid = runtime::GetCurrent().GetContentManager().GetUserProfile().GetXUID();
+  XCONTENT_AGGREGATE_DATA content_data = *content_data_ptr.As<XCONTENT_DATA*>();
 
   // Buffer is PNG data.
   auto buffer =
       std::vector<u8>(static_cast<u8*>(buffer_ptr), static_cast<u8*>(buffer_ptr) + buffer_size);
-  auto result = ToXResult(runtime::Current().content_manager().SetContentThumbnail(
+  auto result = ToXResult(runtime::GetCurrent().GetContentManager().SetContentThumbnail(
       xuid, content_data, std::move(buffer)));
 
   if (overlapped_ptr) {
-    runtime::Current().dispatcher().Complete(overlapped_ptr.guest_address(), {.result = result});
+    runtime::GetCurrent().GetDispatcher().Complete(overlapped_ptr.GetGuestAddress(),
+                                                   {.result = result});
     return X_ERROR_IO_PENDING;
   } else {
     return result;
   }
 }
 
-u32 XamContentDelete_entry([[maybe_unused]] u32 user_index, mapped_void content_data_ptr,
-                           mapped_void overlapped_ptr) {
-  u64 xuid = runtime::Current().content_manager().user_profile().xuid();
-  XCONTENT_AGGREGATE_DATA content_data = *content_data_ptr.as<XCONTENT_DATA*>();
+u32 XamContentDelete_entry([[maybe_unused]] u32 user_index, MappedVoid content_data_ptr,
+                           MappedVoid overlapped_ptr) {
+  u64 xuid = runtime::GetCurrent().GetContentManager().GetUserProfile().GetXUID();
+  XCONTENT_AGGREGATE_DATA content_data = *content_data_ptr.As<XCONTENT_DATA*>();
 
-  auto result = ToXResult(runtime::Current().content_manager().DeleteContent(xuid, content_data));
+  auto result =
+      ToXResult(runtime::GetCurrent().GetContentManager().DeleteContent(xuid, content_data));
 
   if (overlapped_ptr) {
-    runtime::Current().dispatcher().Complete(overlapped_ptr.guest_address(), {.result = result});
+    runtime::GetCurrent().GetDispatcher().Complete(overlapped_ptr.GetGuestAddress(),
+                                                   {.result = result});
     return X_ERROR_IO_PENDING;
   } else {
     return result;
   }
 }
 
-u32 XamContentDeleteInternal_entry(mapped_void content_data_ptr, mapped_void overlapped_ptr) {
+u32 XamContentDeleteInternal_entry(MappedVoid content_data_ptr, MappedVoid overlapped_ptr) {
   // Internal variants wrap the public call with 0xFE as the user index.
-  u64 xuid = runtime::Current().content_manager().user_profile().xuid();
-  XCONTENT_AGGREGATE_DATA content_data = *content_data_ptr.as<XCONTENT_AGGREGATE_DATA*>();
+  u64 xuid = runtime::GetCurrent().GetContentManager().GetUserProfile().GetXUID();
+  XCONTENT_AGGREGATE_DATA content_data = *content_data_ptr.As<XCONTENT_AGGREGATE_DATA*>();
 
-  auto result = ToXResult(runtime::Current().content_manager().DeleteContent(xuid, content_data));
+  auto result =
+      ToXResult(runtime::GetCurrent().GetContentManager().DeleteContent(xuid, content_data));
 
   if (overlapped_ptr) {
-    runtime::Current().dispatcher().Complete(overlapped_ptr.guest_address(), {.result = result});
+    runtime::GetCurrent().GetDispatcher().Complete(overlapped_ptr.GetGuestAddress(),
+                                                   {.result = result});
     return X_ERROR_IO_PENDING;
   } else {
     return result;

@@ -26,16 +26,16 @@ u32 XamVoiceIsActiveProcess_entry() {
 }
 
 u32 XamVoiceCreate_entry([[maybe_unused]] u32 unk1, [[maybe_unused]] u32 unk2,
-                         mapped_u32 out_voice_ptr) {
+                         MappedU32 out_voice_ptr) {
   out_voice_ptr.Zero();
   return X_ERROR_ACCESS_DENIED;
 }
 
-u32 XamVoiceClose_entry([[maybe_unused]] mapped_void voice_ptr) {
+u32 XamVoiceClose_entry([[maybe_unused]] MappedVoid voice_ptr) {
   return 0;
 }
 
-u32 XamVoiceHeadsetPresent_entry([[maybe_unused]] mapped_void voice_ptr) {
+u32 XamVoiceHeadsetPresent_entry([[maybe_unused]] MappedVoid voice_ptr) {
   return 0;
 }
 

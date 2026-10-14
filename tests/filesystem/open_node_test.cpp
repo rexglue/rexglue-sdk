@@ -38,11 +38,11 @@ class OpenRoot : public Fixture {
  public:
   OpenRoot() {
     WriteHost(HostPath(), "held");
-    REQUIRE(fs().Mount(
-        {std::string(kMountPath), ProviderKind::kHostDirectory, temp(), MountFlags::kWritable}));
+    REQUIRE(GetFs().Mount(
+        {std::string(kMountPath), ProviderKind::kHostDirectory, GetTemp(), MountFlags::kWritable}));
   }
 
-  std::filesystem::path HostPath() const { return temp() / "held.dat"; }
+  std::filesystem::path HostPath() const { return GetTemp() / "held.dat"; }
 };
 
 }  // namespace
@@ -51,14 +51,14 @@ REX_TEST_CASE_METHOD(OpenRoot, "A file with an open handle cannot be deleted",
                      "[filesystem][open_node]") {
   auto reader = Open(kPath, {.disposition = Disposition::kOpen, .access = Access::kGenericRead});
 
-  auto removed = fs().Remove(kPath);
+  auto removed = GetFs().Remove(kPath);
   REQUIRE_FALSE(removed);
   CHECK(CodeOf(removed.error()) == FileSystemError::kAccessDenied);
   CHECK(std::filesystem::exists(HostPath()));
   CHECK(ReadText(*reader.file) == "held");
 
   reader.file.reset();
-  CHECK(fs().Remove(kPath));
+  CHECK(GetFs().Remove(kPath));
   CHECK_FALSE(std::filesystem::exists(HostPath()));
 }
 
@@ -72,7 +72,7 @@ REX_TEST_CASE_METHOD(OpenRoot, "Delete on close removes the file at its last clo
   CHECK(std::filesystem::exists(HostPath()));
   second.file.reset();
   CHECK_FALSE(std::filesystem::exists(HostPath()));
-  CHECK_FALSE(fs().Stat(kPath));
+  CHECK_FALSE(GetFs().Stat(kPath));
 }
 
 REX_TEST_CASE_METHOD(OpenRoot, "A file removed on the host stays readable through its open handle",
@@ -85,7 +85,7 @@ REX_TEST_CASE_METHOD(OpenRoot, "A file removed on the host stays readable throug
   const std::array<u8, 3> payload{'n', 'e', 'w'};
   REQUIRE(created.file->Write(payload, 0));
 
-  CHECK(reader.file->Info().name == "held.dat");
+  CHECK(reader.file->GetInfo().name == "held.dat");
   reader.file.reset();
   created.file.reset();
   auto reopened = Open(kPath);
@@ -96,17 +96,17 @@ REX_TEST_CASE_METHOD(OpenRoot, "A file removed on the host stays readable throug
 REX_TEST_CASE_METHOD(OpenRoot, "An open file outlives the unmount of its mount",
                      "[filesystem][open_node]") {
   auto reader = Open(kPath, {.disposition = Disposition::kOpen, .access = Access::kGenericRead});
-  auto list = fs().List(kMountPath, "*");
+  auto list = GetFs().List(kMountPath, "*");
   REQUIRE(list);
 
-  REQUIRE(fs().Unmount(kMountPath));
-  CHECK_FALSE(fs().Stat(kPath));
+  REQUIRE(GetFs().Unmount(kMountPath));
+  CHECK_FALSE(GetFs().Stat(kPath));
 
-  CHECK(reader.file->Info().name == "held.dat");
+  CHECK(reader.file->GetInfo().name == "held.dat");
   CHECK(ReadText(*reader.file) == "held");
   auto entry = (*list)->Next();
   CHECK((entry && entry->name == "held.dat"));
 
-  fs().Clear();
-  CHECK(reader.file->Info().absolute_path == "\\OpenRoot\\held.dat");
+  GetFs().Clear();
+  CHECK(reader.file->GetInfo().absolute_path == "\\OpenRoot\\held.dat");
 }

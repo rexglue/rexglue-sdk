@@ -59,7 +59,7 @@ class IFileSystem {
    *
    * @return The mount descriptions.
    */
-  [[nodiscard]] virtual std::vector<MountEntry> Mounts() const = 0;
+  [[nodiscard]] virtual std::vector<MountEntry> GetMounts() const = 0;
 
   /**
    * Adds a link.

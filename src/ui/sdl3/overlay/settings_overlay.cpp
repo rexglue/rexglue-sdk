@@ -40,11 +40,11 @@ static std::string ClampIntegerText(const rex::cvar::Desc& desc, std::string_vie
 
 std::string ClampIntegerCvarText(const rex::cvar::Desc& desc, std::string_view text) {
   switch (desc.type) {
-    case rex::cvar::Type::Int32:
+    case rex::cvar::Type::kInt32:
       return ClampIntegerText<i32, i64>(desc, text);
-    case rex::cvar::Type::UInt32:
+    case rex::cvar::Type::kUInt32:
       return ClampIntegerText<u32, u64>(desc, text);
-    case rex::cvar::Type::UInt64:
+    case rex::cvar::Type::kUInt64:
       return ClampIntegerText<u64, u64>(desc, text);
     default:
       return ClampIntegerText<i64, i64>(desc, text);
@@ -59,11 +59,11 @@ static void WarnIfFailed(std::string_view name, const Result<void>& status) {
 
 static Color LifecycleColor(rex::cvar::Lifecycle lc, const SettingsStyle& style) {
   switch (lc) {
-    case rex::cvar::Lifecycle::HotReload:
+    case rex::cvar::Lifecycle::kHotReload:
       return style.lifecycle_hot_reload;
-    case rex::cvar::Lifecycle::RequiresRestart:
+    case rex::cvar::Lifecycle::kRequiresRestart:
       return style.lifecycle_restart;
-    case rex::cvar::Lifecycle::InitOnly:
+    case rex::cvar::Lifecycle::kInitOnly:
       return style.lifecycle_init_only;
   }
   return style.lifecycle_unknown;
@@ -173,15 +173,15 @@ static rex::hid::VirtualKey ImGuiKeyToVirtualKey(ImGuiKey key) {
 }
 
 static rex::hid::KeyModifiers HeldModifiers(const ImGuiIO& io) {
-  rex::hid::KeyModifiers mods = rex::hid::KeyModifiers::None;
+  rex::hid::KeyModifiers mods = rex::hid::KeyModifiers::kNone;
   if (io.KeyShift) {
-    mods |= rex::hid::KeyModifiers::Shift;
+    mods |= rex::hid::KeyModifiers::kShift;
   }
   if (io.KeyCtrl) {
-    mods |= rex::hid::KeyModifiers::Ctrl;
+    mods |= rex::hid::KeyModifiers::kCtrl;
   }
   if (io.KeyAlt) {
-    mods |= rex::hid::KeyModifiers::Alt;
+    mods |= rex::hid::KeyModifiers::kAlt;
   }
   return mods;
 }
@@ -191,7 +191,7 @@ void SettingsDialog::OnDraw(ImGuiIO& io) {
 
   std::set<std::string> category_set;
   for (const rex::cvar::IVar* var : vars) {
-    category_set.insert(std::string(var->desc().scope));
+    category_set.insert(std::string(var->GetDesc().scope));
   }
 
   struct CatNode {
@@ -304,12 +304,12 @@ void SettingsDialog::OnDraw(ImGuiIO& io) {
   };
 
   auto is_keybind = [](const rex::cvar::IVar* v) -> bool {
-    return v->desc().name.starts_with("hid.keybind_");
+    return v->GetDesc().name.starts_with("hid.keybind_");
   };
 
   ImGui::BeginChild("##cvars", ImVec2(0, -metrics.footer_height), false);
   for (const rex::cvar::IVar* var : vars) {
-    const auto& desc = var->desc();
+    const auto& desc = var->GetDesc();
     const std::string name(desc.name);
     const std::string description(desc.description);
     if (!searching) {
@@ -331,7 +331,7 @@ void SettingsDialog::OnDraw(ImGuiIO& io) {
       }
     }
 
-    bool read_only = (desc.lifecycle == rex::cvar::Lifecycle::InitOnly);
+    bool read_only = (desc.lifecycle == rex::cvar::Lifecycle::kInitOnly);
 
     ImGui::PushID(name.c_str());
 
@@ -397,14 +397,14 @@ void SettingsDialog::OnDraw(ImGuiIO& io) {
         }
         ImGui::SameLine();
         if (ImGui::SmallButton("Reset##v")) {
-          WarnIfFailed(desc.name, registry_.Set(desc.name, var->DefaultText()));
+          WarnIfFailed(desc.name, registry_.Set(desc.name, var->GetDefaultText()));
         }
       }
 
       if (!current_val.empty()) {
         int conflict_count = 0;
         for (const rex::cvar::IVar* other : vars) {
-          if (is_keybind(other) && other->desc().name != desc.name &&
+          if (is_keybind(other) && other->GetDesc().name != desc.name &&
               other->Render() == current_val) {
             conflict_count++;
           }
@@ -431,13 +431,13 @@ void SettingsDialog::OnDraw(ImGuiIO& io) {
       if (ImGui::IsItemHovered()) {
         const char* lifecycle_label = "";
         switch (desc.lifecycle) {
-          case rex::cvar::Lifecycle::HotReload:
+          case rex::cvar::Lifecycle::kHotReload:
             lifecycle_label = "Changes apply immediately";
             break;
-          case rex::cvar::Lifecycle::RequiresRestart:
+          case rex::cvar::Lifecycle::kRequiresRestart:
             lifecycle_label = "Requires restart to take effect";
             break;
-          case rex::cvar::Lifecycle::InitOnly:
+          case rex::cvar::Lifecycle::kInitOnly:
             lifecycle_label = "Read-only - set at initialization only";
             break;
         }
@@ -450,12 +450,12 @@ void SettingsDialog::OnDraw(ImGuiIO& io) {
       ImGui::SameLine(240.0f);
 
       ImGui::SetNextItemWidth(metrics.button_width_wide);
-      if (desc.type == rex::cvar::Type::Bool) {
+      if (desc.type == rex::cvar::Type::kBool) {
         bool v = rex::from_string<bool>(current_val, false);
         if (ImGui::Checkbox("##v", &v)) {
           WarnIfFailed(desc.name, registry_.Set(desc.name, v ? "true" : "false"));
         }
-      } else if (desc.type == rex::cvar::Type::String && !desc.constraints.allowed.empty()) {
+      } else if (desc.type == rex::cvar::Type::kString && !desc.constraints.allowed.empty()) {
         const auto& opts = desc.constraints.allowed;
         int cur_idx = 0;
         for (int i = 0; i < static_cast<int>(opts.size()); ++i) {
@@ -477,9 +477,9 @@ void SettingsDialog::OnDraw(ImGuiIO& io) {
           }
           ImGui::EndCombo();
         }
-      } else if (desc.type == rex::cvar::Type::Int32 || desc.type == rex::cvar::Type::Int64 ||
-                 desc.type == rex::cvar::Type::UInt32 || desc.type == rex::cvar::Type::UInt64) {
-        if (desc.type == rex::cvar::Type::UInt32 || desc.type == rex::cvar::Type::UInt64) {
+      } else if (desc.type == rex::cvar::Type::kInt32 || desc.type == rex::cvar::Type::kInt64 ||
+                 desc.type == rex::cvar::Type::kUInt32 || desc.type == rex::cvar::Type::kUInt64) {
+        if (desc.type == rex::cvar::Type::kUInt32 || desc.type == rex::cvar::Type::kUInt64) {
           u64 v = rex::from_string<u64>(current_val);
           if (ImGui::InputScalar("##v", ImGuiDataType_U64, &v)) {
             WarnIfFailed(desc.name,
@@ -492,7 +492,7 @@ void SettingsDialog::OnDraw(ImGuiIO& io) {
                          registry_.Set(desc.name, ClampIntegerCvarText(desc, std::to_string(v))));
           }
         }
-      } else if (desc.type == rex::cvar::Type::Double) {
+      } else if (desc.type == rex::cvar::Type::kDouble) {
         f64 v = rex::from_string<f64>(current_val);
         if (ImGui::InputDouble("##v", &v, 0.0, 0.0, "%.4f")) {
           if (desc.constraints.min)
@@ -501,7 +501,7 @@ void SettingsDialog::OnDraw(ImGuiIO& io) {
             v = std::min(v, *desc.constraints.max);
           WarnIfFailed(desc.name, registry_.Set(desc.name, std::to_string(v)));
         }
-      } else if (desc.type == rex::cvar::Type::Command) {
+      } else if (desc.type == rex::cvar::Type::kCommand) {
         if (ImGui::Button((name + "##v").c_str())) {
           WarnIfFailed(desc.name, registry_.Invoke(desc.name, ""));
         }
@@ -524,7 +524,7 @@ void SettingsDialog::OnDraw(ImGuiIO& io) {
   ImGui::Separator();
   if (ImGui::Button("Save to config")) {
     if (auto status = rex::SaveConfigFile(registry_, config_path_); !status) {
-      REXLOG_ERROR(ui, "{}", status.error().what());
+      REXLOG_ERROR(ui, "{}", status.error().GetDescription());
     }
   }
   ImGui::SameLine();

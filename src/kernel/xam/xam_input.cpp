@@ -27,11 +27,8 @@ using rex::hid::X_INPUT_KEYSTROKE;
 using rex::hid::X_INPUT_STATE;
 using rex::hid::X_INPUT_VIBRATION;
 
-constexpr u32 XINPUT_FLAG_GAMEPAD = 0x01;
-constexpr u32 XINPUT_FLAG_ANY_USER = 1 << 30;
-
 rex::hid::IHIDBackend& HID() {
-  return runtime::Current().hid();
+  return runtime::GetCurrent().GetHID();
 }
 
 X_RESULT Fail(const rex::Error& error) {
@@ -44,19 +41,19 @@ u32 XamEnableInactivityProcessing_entry([[maybe_unused]] u32 unk, [[maybe_unused
   return X_ERROR_SUCCESS;
 }
 
-u32 XamInputGetCapabilities_entry(u32 user_index, u32 flags, ppc_ptr_t<X_INPUT_CAPABILITIES> caps) {
+u32 XamInputGetCapabilities_entry(u32 user_index, u32 flags, GuestPtrT<X_INPUT_CAPABILITIES> caps) {
   REXLOG_TRACE(kernel, "XAM XamInputGetCapabilities called: user={}, flags=0x{:X}",
                static_cast<u32>(user_index), static_cast<u32>(flags));
   if (!caps) {
     return X_ERROR_BAD_ARGUMENTS;
   }
 
-  if ((flags & 0xFF) && (flags & XINPUT_FLAG_GAMEPAD) == 0) {
+  if ((flags & 0xFF) && (flags & hid::kXInputFlagGamepad) == 0) {
     return X_ERROR_DEVICE_NOT_CONNECTED;
   }
 
   u32 actual_user_index = user_index;
-  if ((actual_user_index & 0xFF) == 0xFF || (flags & XINPUT_FLAG_ANY_USER)) {
+  if ((actual_user_index & 0xFF) == 0xFF || (flags & hid::kXInputFlagAnyUser)) {
     actual_user_index = 0;
   }
 
@@ -70,17 +67,17 @@ u32 XamInputGetCapabilities_entry(u32 user_index, u32 flags, ppc_ptr_t<X_INPUT_C
 }
 
 u32 XamInputGetCapabilitiesEx_entry(u32 unk, u32 user_index, u32 flags,
-                                    ppc_ptr_t<X_INPUT_CAPABILITIES> caps) {
+                                    GuestPtrT<X_INPUT_CAPABILITIES> caps) {
   if (!caps) {
     return X_ERROR_BAD_ARGUMENTS;
   }
 
-  if ((flags & 0xFF) && (flags & XINPUT_FLAG_GAMEPAD) == 0) {
+  if ((flags & 0xFF) && (flags & hid::kXInputFlagGamepad) == 0) {
     return X_ERROR_DEVICE_NOT_CONNECTED;
   }
 
   u32 actual_user_index = user_index;
-  if ((actual_user_index & 0xFF) == 0xFF || (flags & XINPUT_FLAG_ANY_USER)) {
+  if ((actual_user_index & 0xFF) == 0xFF || (flags & hid::kXInputFlagAnyUser)) {
     actual_user_index = 0;
   }
 
@@ -94,19 +91,19 @@ u32 XamInputGetCapabilitiesEx_entry(u32 unk, u32 user_index, u32 flags,
   return X_ERROR_SUCCESS;
 }
 
-u32 XamInputGetState_entry(u32 user_index, u32 flags, ppc_ptr_t<X_INPUT_STATE> input_state) {
+u32 XamInputGetState_entry(u32 user_index, u32 flags, GuestPtrT<X_INPUT_STATE> input_state) {
   static int call_count = 0;
   if (++call_count <= 5) {
     REXLOG_TRACE(kernel, "XAM XamInputGetState called: user={}, flags=0x{:X}",
                  static_cast<u32>(user_index), static_cast<u32>(flags));
   }
 
-  if ((flags & 0xFF) && (flags & XINPUT_FLAG_GAMEPAD) == 0) {
+  if ((flags & 0xFF) && (flags & hid::kXInputFlagGamepad) == 0) {
     return X_ERROR_DEVICE_NOT_CONNECTED;
   }
 
   u32 actual_user_index = user_index;
-  if ((actual_user_index & 0xFF) == 0xFF || (flags & XINPUT_FLAG_ANY_USER)) {
+  if ((actual_user_index & 0xFF) == 0xFF || (flags & hid::kXInputFlagAnyUser)) {
     actual_user_index = 0;
   }
 
@@ -121,7 +118,7 @@ u32 XamInputGetState_entry(u32 user_index, u32 flags, ppc_ptr_t<X_INPUT_STATE> i
   return X_ERROR_SUCCESS;
 }
 
-u32 XamInputSetState_entry(u32 user_index, u32 unk, ppc_ptr_t<X_INPUT_VIBRATION> vibration) {
+u32 XamInputSetState_entry(u32 user_index, u32 unk, GuestPtrT<X_INPUT_VIBRATION> vibration) {
   if (!vibration) {
     return X_ERROR_BAD_ARGUMENTS;
   }
@@ -136,17 +133,17 @@ u32 XamInputSetState_entry(u32 user_index, u32 unk, ppc_ptr_t<X_INPUT_VIBRATION>
   return result ? X_ERROR_SUCCESS : Fail(result.error());
 }
 
-u32 XamInputGetKeystroke_entry(u32 user_index, u32 flags, ppc_ptr_t<X_INPUT_KEYSTROKE> keystroke) {
+u32 XamInputGetKeystroke_entry(u32 user_index, u32 flags, GuestPtrT<X_INPUT_KEYSTROKE> keystroke) {
   if (!keystroke) {
     return X_ERROR_BAD_ARGUMENTS;
   }
 
-  if ((flags & 0xFF) && (flags & XINPUT_FLAG_GAMEPAD) == 0) {
+  if ((flags & 0xFF) && (flags & hid::kXInputFlagGamepad) == 0) {
     return X_ERROR_DEVICE_NOT_CONNECTED;
   }
 
   u32 actual_user_index = user_index;
-  if ((actual_user_index & 0xFF) == 0xFF || (flags & XINPUT_FLAG_ANY_USER)) {
+  if ((actual_user_index & 0xFF) == 0xFF || (flags & hid::kXInputFlagAnyUser)) {
     actual_user_index = 0;
   }
 
@@ -159,18 +156,18 @@ u32 XamInputGetKeystroke_entry(u32 user_index, u32 flags, ppc_ptr_t<X_INPUT_KEYS
   return X_ERROR_SUCCESS;
 }
 
-u32 XamInputGetKeystrokeEx_entry(mapped_u32 user_index_ptr, u32 flags,
-                                 ppc_ptr_t<X_INPUT_KEYSTROKE> keystroke) {
+u32 XamInputGetKeystrokeEx_entry(MappedU32 user_index_ptr, u32 flags,
+                                 GuestPtrT<X_INPUT_KEYSTROKE> keystroke) {
   if (!keystroke) {
     return X_ERROR_BAD_ARGUMENTS;
   }
 
-  if ((flags & 0xFF) && (flags & XINPUT_FLAG_GAMEPAD) == 0) {
+  if ((flags & 0xFF) && (flags & hid::kXInputFlagGamepad) == 0) {
     return X_ERROR_DEVICE_NOT_CONNECTED;
   }
 
   u32 user_index = *user_index_ptr;
-  if ((user_index & 0xFF) == 0xFF || (flags & XINPUT_FLAG_ANY_USER)) {
+  if ((user_index & 0xFF) == 0xFF || (flags & hid::kXInputFlagAnyUser)) {
     user_index = 0;
   }
 
@@ -184,7 +181,7 @@ u32 XamInputGetKeystrokeEx_entry(mapped_u32 user_index_ptr, u32 flags,
   return X_ERROR_SUCCESS;
 }
 
-i32 XamUserGetDeviceContext_entry(u32 user_index, [[maybe_unused]] u32 unk, mapped_u32 out_ptr) {
+i32 XamUserGetDeviceContext_entry(u32 user_index, [[maybe_unused]] u32 unk, MappedU32 out_ptr) {
   // Titles read the output as zero when the call fails.
   *out_ptr = 0;
   if (!user_index || (user_index & 0xFF) == 0xFF) {

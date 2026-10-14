@@ -46,17 +46,17 @@ enum class FileSystemError : u8 {
  *         NotImplemented for kUnsupported and IO for every other code.
  */
 [[nodiscard]] inline rex::Error BuildError(FileSystemError code, std::string message) {
-  ErrorCategory category = ErrorCategory::IO;
+  ErrorCategory category = ErrorCategory::kIO;
   switch (code) {
     case FileSystemError::kNotFound:
     case FileSystemError::kNoMount:
-      category = ErrorCategory::NotFound;
+      category = ErrorCategory::kNotFound;
       break;
     case FileSystemError::kCorrupt:
-      category = ErrorCategory::Format;
+      category = ErrorCategory::kFormat;
       break;
     case FileSystemError::kUnsupported:
-      category = ErrorCategory::NotImplemented;
+      category = ErrorCategory::kNotImplemented;
       break;
     default:
       break;

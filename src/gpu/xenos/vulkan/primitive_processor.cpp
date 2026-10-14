@@ -30,8 +30,8 @@ VulkanPrimitiveProcessor::~VulkanPrimitiveProcessor() {
 
 bool VulkanPrimitiveProcessor::Initialize() {
   const gpu::vulkan::VulkanDevice* const vulkan_device = command_processor_.GetVulkanDevice();
-  const gpu::vulkan::VulkanDevice::Properties& device_properties = vulkan_device->properties();
-  constexpr bool triangle_fans_supported_without_conversion = false;
+  const gpu::vulkan::VulkanDevice::Properties& device_properties = vulkan_device->GetProperties();
+  constexpr bool kTriangleFansSupportedWithoutConversion = false;
 
   bool geometry_shader_primitive_emulation_allowed = device_properties.geometryShader;
   bool quad_lists_supported_without_conversion =
@@ -45,7 +45,7 @@ bool VulkanPrimitiveProcessor::Initialize() {
       !REXCVAR_GET(::rex::gpu::cvars::vulkan_force_expand_rectangle_lists_in_vs);
 
   if (!InitializeCommon(
-          device_properties.fullDrawIndexUint32, triangle_fans_supported_without_conversion, false,
+          device_properties.fullDrawIndexUint32, kTriangleFansSupportedWithoutConversion, false,
           quad_lists_supported_without_conversion, point_sprites_supported_without_vs_expansion,
           rectangle_lists_supported_without_vs_expansion)) {
     Shutdown();
@@ -60,8 +60,8 @@ bool VulkanPrimitiveProcessor::Initialize() {
 
 void VulkanPrimitiveProcessor::Shutdown(bool from_destructor) {
   const gpu::vulkan::VulkanDevice* const vulkan_device = command_processor_.GetVulkanDevice();
-  const gpu::vulkan::VulkanDevice::Functions& dfn = vulkan_device->functions();
-  const VkDevice device = vulkan_device->device();
+  const gpu::vulkan::VulkanDevice::Functions& dfn = vulkan_device->GetFunctions();
+  const VkDevice device = vulkan_device->GetDevice();
 
   frame_index_buffers_.clear();
   frame_index_buffer_pool_.reset();
@@ -82,8 +82,8 @@ void VulkanPrimitiveProcessor::CompletedSubmissionUpdated() {
   if (builtin_index_buffer_upload_ != VK_NULL_HANDLE &&
       command_processor_.GetCompletedSubmission() >= builtin_index_buffer_upload_submission_) {
     const gpu::vulkan::VulkanDevice* const vulkan_device = command_processor_.GetVulkanDevice();
-    const gpu::vulkan::VulkanDevice::Functions& dfn = vulkan_device->functions();
-    const VkDevice device = vulkan_device->device();
+    const gpu::vulkan::VulkanDevice::Functions& dfn = vulkan_device->GetFunctions();
+    const VkDevice device = vulkan_device->GetDevice();
     gpu::vulkan::objects::DestroyAndNullHandle(dfn.vkDestroyBuffer, device,
                                                builtin_index_buffer_upload_);
     gpu::vulkan::objects::DestroyAndNullHandle(dfn.vkFreeMemory, device,
@@ -98,7 +98,7 @@ void VulkanPrimitiveProcessor::BeginSubmission() {
 
     command_processor_.EndRenderPass();
 
-    DeferredCommandBuffer& command_buffer = command_processor_.deferred_command_buffer();
+    DeferredCommandBuffer& command_buffer = command_processor_.GetDeferredCommandBuffer();
 
     VkBufferCopy* copy_region =
         command_buffer.CmdCopyBufferEmplace(builtin_index_buffer_upload_, builtin_index_buffer_, 1);
@@ -136,8 +136,8 @@ bool VulkanPrimitiveProcessor::InitializeBuiltinIndexBuffer(
   REX_ASSERT(builtin_index_buffer_upload_memory_ == VK_NULL_HANDLE);
 
   const gpu::vulkan::VulkanDevice* const vulkan_device = command_processor_.GetVulkanDevice();
-  const gpu::vulkan::VulkanDevice::Functions& dfn = vulkan_device->functions();
-  const VkDevice device = vulkan_device->device();
+  const gpu::vulkan::VulkanDevice::Functions& dfn = vulkan_device->GetFunctions();
+  const VkDevice device = vulkan_device->GetDevice();
 
   builtin_index_buffer_size_ = VkDeviceSize(size_bytes);
   if (!gpu::vulkan::objects::CreateDedicatedAllocationBuffer(

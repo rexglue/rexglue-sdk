@@ -46,12 +46,12 @@ class Logger final : public ILogger {
   [[nodiscard]] Result<void> SetLevel(std::string_view category,
                                       std::optional<Level> level) override;
   [[nodiscard]] Result<Level> GetLevel(std::string_view category) const override;
-  std::vector<CategoryInfo> Categories() const override;
+  std::vector<CategoryInfo> GetCategories() const override;
   void AddSink(ISink& sink) override;
   void RemoveSink(ISink& sink) override;
   void SetFormat(const LineFormat& format) override;
   void Flush() override;
-  std::filesystem::path FilePath() const override;
+  std::filesystem::path GetFilePath() const override;
 
   /**
    * Resolves the slot of a category copy, creating an unregistered slot for an unknown name.
@@ -104,7 +104,7 @@ class Logger final : public ILogger {
    *
    * @return The descriptor, or -1 when no log file is open.
    */
-  int crash_fd() const { return crash_fd_.load(std::memory_order_acquire); }
+  int GetCrashFd() const { return crash_fd_.load(std::memory_order_acquire); }
 
   /**
    * Opens the sinks of a configuration, registers core and consumer categories and attaches the
@@ -148,7 +148,7 @@ class Logger final : public ILogger {
    *
    * @return The time.
    */
-  std::chrono::system_clock::time_point start_time() const { return start_time_; }
+  std::chrono::system_clock::time_point GetStartTime() const { return start_time_; }
 
  private:
   struct Slot {

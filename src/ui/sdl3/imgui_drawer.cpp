@@ -61,7 +61,7 @@ ImGuiDrawer::~ImGuiDrawer() {
 }
 
 void ImGuiDrawer::AddDialog(ImGuiDialog& dialog) {
-  if (dialog.Attached()) {
+  if (dialog.IsAttached()) {
     return;
   }
   if (dialogs_.empty() && !IsDrawingDialogs()) {
@@ -78,7 +78,7 @@ void ImGuiDrawer::AddDialog(ImGuiDialog& dialog) {
 void ImGuiDrawer::AddDialog(std::unique_ptr<ImGuiDialog> dialog) {
   REX_ASSERT(dialog.get() != nullptr);
   ImGuiDialog& added = *dialog;
-  if (added.Attached()) {
+  if (added.IsAttached()) {
     return;
   }
   owned_.push_back(std::move(dialog));
@@ -86,7 +86,7 @@ void ImGuiDrawer::AddDialog(std::unique_ptr<ImGuiDialog> dialog) {
   PublishDialogCount();
 }
 
-ImGuiStyle& ImGuiDrawer::imgui_style() {
+ImGuiStyle& ImGuiDrawer::GetImGuiStyle() {
   ImGui::SetCurrentContext(internal_state_);
   return ImGui::GetStyle();
 }
@@ -396,7 +396,7 @@ void ImGuiDrawer::Draw(gpu::OverlayDrawContext& context) {
   last_frame_time_ticks_ = current_frame_time_ticks;
 
   f32 physical_to_logical =
-      static_cast<f32>(window_->GetMediumDpi()) / static_cast<f32>(window_->GetDpi());
+      static_cast<f32>(window_->GetMediumDPI()) / static_cast<f32>(window_->GetDPI());
   io.DisplaySize.x = static_cast<f32>(window_->GetActualPhysicalWidth()) * physical_to_logical;
   io.DisplaySize.y = static_cast<f32>(window_->GetActualPhysicalHeight()) * physical_to_logical;
 
@@ -478,13 +478,13 @@ void ImGuiDrawer::OnKeyUp(KeyEvent& e) {
 
 void ImGuiDrawer::OnKeyChar(KeyEvent& e) {
   auto& io = GetIO();
-  unsigned int character = static_cast<unsigned int>(e.virtual_key());
+  unsigned int character = static_cast<unsigned int>(e.GetVirtualKey());
   if (character > 0 && character < 0x10000) {
     io.AddInputCharacter(character);
-    e.set_handled(true);
+    e.SetHandled(true);
   }
   if (io.WantCaptureKeyboard) {
-    e.set_handled(true);
+    e.SetHandled(true);
   }
 }
 
@@ -492,7 +492,7 @@ void ImGuiDrawer::OnMouseDown(MouseEvent& e) {
   SwitchToPhysicalMouseAndUpdateMousePosition(e);
   auto& io = GetIO();
   int button = -1;
-  switch (e.button()) {
+  switch (e.GetButton()) {
     case rex::ui::MouseEvent::Button::kLeft: {
       button = 0;
       break;
@@ -523,7 +523,7 @@ void ImGuiDrawer::OnMouseUp(MouseEvent& e) {
   SwitchToPhysicalMouseAndUpdateMousePosition(e);
   auto& io = GetIO();
   int button = -1;
-  switch (e.button()) {
+  switch (e.GetButton()) {
     case rex::ui::MouseEvent::Button::kLeft: {
       button = 0;
       break;
@@ -549,13 +549,14 @@ void ImGuiDrawer::OnMouseUp(MouseEvent& e) {
 void ImGuiDrawer::OnMouseWheel(MouseEvent& e) {
   SwitchToPhysicalMouseAndUpdateMousePosition(e);
   auto& io = GetIO();
-  io.MouseWheel += static_cast<f32>(e.scroll_y()) / static_cast<f32>(MouseEvent::kScrollPerDetent);
+  io.MouseWheel +=
+      static_cast<f32>(e.GetScrollY()) / static_cast<f32>(MouseEvent::kScrollPerDetent);
 }
 
 void ImGuiDrawer::OnTouchEvent(TouchEvent& e) {
   auto& io = GetIO();
-  TouchEvent::Action action = e.action();
-  u32 pointer_id = e.pointer_id();
+  TouchEvent::Action action = e.GetAction();
+  u32 pointer_id = e.GetPointerId();
   if (action == TouchEvent::Action::kDown) {
     if (touch_pointer_id_ == TouchEvent::kPointerIDNone) {
       if (ImGui::IsAnyMouseDown()) {
@@ -569,7 +570,7 @@ void ImGuiDrawer::OnTouchEvent(TouchEvent& e) {
       return;
     }
   }
-  UpdateMousePosition(e.x(), e.y());
+  UpdateMousePosition(e.GetX(), e.GetY());
   if (action == TouchEvent::Action::kUp || action == TouchEvent::Action::kCancel) {
     io.MouseDown[0] = false;
     touch_pointer_id_ = TouchEvent::kPointerIDNone;
@@ -594,7 +595,7 @@ void ImGuiDrawer::ClearInput() {
 
 void ImGuiDrawer::OnKey(KeyEvent& e, bool is_down) {
   auto& io = GetIO();
-  const hid::VirtualKey virtual_key = e.virtual_key();
+  const hid::VirtualKey virtual_key = e.GetVirtualKey();
   if (auto imgui_key = VirtualKeyToImGuiKey(virtual_key); imgui_key) {
     io.AddKeyEvent(*imgui_key, is_down);
   }
@@ -622,14 +623,14 @@ void ImGuiDrawer::OnKey(KeyEvent& e, bool is_down) {
       break;
   }
   if (io.WantCaptureKeyboard) {
-    e.set_handled(true);
+    e.SetHandled(true);
   }
 }
 
 void ImGuiDrawer::UpdateMousePosition(f32 x, f32 y) {
   auto& io = GetIO();
   f32 physical_to_logical =
-      static_cast<f32>(window_->GetMediumDpi()) / static_cast<f32>(window_->GetDpi());
+      static_cast<f32>(window_->GetMediumDPI()) / static_cast<f32>(window_->GetDPI());
   io.MousePos.x = x * physical_to_logical;
   io.MousePos.y = y * physical_to_logical;
 }
@@ -641,7 +642,7 @@ void ImGuiDrawer::SwitchToPhysicalMouseAndUpdateMousePosition(const MouseEvent& 
     std::memset(io.MouseDown, 0, sizeof(io.MouseDown));
   }
   reset_mouse_position_after_next_frame_ = false;
-  UpdateMousePosition(static_cast<f32>(e.x()), static_cast<f32>(e.y()));
+  UpdateMousePosition(static_cast<f32>(e.GetX()), static_cast<f32>(e.GetY()));
 }
 
 void ImGuiDrawer::PlatformSetImeData(ImGuiContext* context, ImGuiViewport* viewport,
@@ -661,7 +662,7 @@ void ImGuiDrawer::SetWindowTextInputActive(bool active) {
   text_input_active_ = active;
   // SDL text input is main thread only, and in detached mode Draw is not.
   Window* window = window_;
-  window->app_context().CallInUIThread([window, active] { window->SetTextInputActive(active); });
+  window->GetAppContext().CallInUIThread([window, active] { window->SetTextInputActive(active); });
 }
 
 void ImGuiDrawer::DetachIfLastDialogRemoved() {

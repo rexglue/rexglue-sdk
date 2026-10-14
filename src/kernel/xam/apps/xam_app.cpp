@@ -22,13 +22,13 @@ using namespace rex::runtime;
 namespace apps {
 using namespace rex::runtime;
 
-XamApp::XamApp(Runtime& runtime) : App(runtime, 0xFE) {}
+XAMApp::XAMApp(Runtime& runtime) : App(runtime, 0xFE) {}
 
-X_HRESULT XamApp::DispatchMessageSync(u32 message, u32 buffer_ptr, u32 buffer_length) {
+X_HRESULT XAMApp::DispatchMessageSync(u32 message, u32 buffer_ptr, u32 buffer_length) {
   auto buffer = memory_->TranslateVirtual(buffer_ptr);
   switch (message) {
     case 0x0002000E: {
-      struct message_data {
+      struct MessageData {
         be_u32 user_index;
         be_u32 unk_04;
         be_u32 extra_ptr;
@@ -36,27 +36,27 @@ X_HRESULT XamApp::DispatchMessageSync(u32 message, u32 buffer_ptr, u32 buffer_le
         be_u32 buffer_size;
         be_u32 unk_14;
         be_u32 length_ptr;
-        be_u32 unk_1C;
-      }* data = reinterpret_cast<message_data*>(buffer);
+        be_u32 unk_1c;
+      }* data = reinterpret_cast<MessageData*>(buffer);
       REXLOG_DEBUG(kernel,
                    "XamAppEnumerateContentAggregate({}, {:08X}, {:08X}, {:08X}, {}, "
                    "{:08X}, {:08X}, {:08X})",
                    static_cast<u32>(data->user_index), static_cast<u32>(data->unk_04),
                    static_cast<u32>(data->extra_ptr), static_cast<u32>(data->buffer_ptr),
                    static_cast<u32>(data->buffer_size), static_cast<u32>(data->unk_14),
-                   static_cast<u32>(data->length_ptr), static_cast<u32>(data->unk_1C));
+                   static_cast<u32>(data->length_ptr), static_cast<u32>(data->unk_1c));
       auto extra = memory_->TranslateVirtual<X_KENUMERATOR_CONTENT_AGGREGATE*>(data->extra_ptr);
-      auto buffer = memory_->TranslateVirtual(data->buffer_ptr);
-      auto e = runtime_.object_table().Get<EnumeratorObject>(extra->handle);
-      if (!e || !buffer || !extra) {
+      auto content_buffer = memory_->TranslateVirtual(data->buffer_ptr);
+      auto e = runtime_.GetObjectTable().Get<EnumeratorObject>(extra->handle);
+      if (!e || !content_buffer || !extra) {
         return X_E_INVALIDARG;
       }
       REX_ASSERT(extra->magic == kStashSignature);
       if (data->buffer_size) {
-        std::memset(buffer, 0, data->buffer_size);
+        std::memset(content_buffer, 0, data->buffer_size);
       }
       u32 item_count = 0;
-      auto result = e->write_items(data->buffer_ptr, buffer, &item_count);
+      auto result = e->write_items(data->buffer_ptr, content_buffer, &item_count);
 
       if (result == X_ERROR_SUCCESS && item_count >= 1) {
         if (data->length_ptr) {
@@ -68,31 +68,31 @@ X_HRESULT XamApp::DispatchMessageSync(u32 message, u32 buffer_ptr, u32 buffer_le
       return X_E_NO_MORE_FILES;
     }
     case 0x00020021: {
-      struct message_data {
+      struct MessageData {
         char unk_00[64];
         be_u32 unk_40; /**< `KeGetCurrentProcessType() < 1 ? 1 : 0` */
         be_u32 unk_44;
         be_u32 unk_48;
-      }* data = reinterpret_cast<message_data*>(buffer);
-      REX_ASSERT(buffer_length == sizeof(message_data));
+      }* data = reinterpret_cast<MessageData*>(buffer);
+      REX_ASSERT(buffer_length == sizeof(MessageData));
       auto unk = memory_->TranslateVirtual<be_u32*>(data->unk_44);
       *unk = 0;
-      REXLOG_DEBUG(kernel, "XamApp(0x00020021)('{}', {:08X}, {:08X}, {:08X})", data->unk_00,
+      REXLOG_DEBUG(kernel, "XAMApp(0x00020021)('{}', {:08X}, {:08X}, {:08X})", data->unk_00,
                    static_cast<u32>(data->unk_40), static_cast<u32>(data->unk_44),
                    static_cast<u32>(data->unk_48));
       return X_E_SUCCESS;
     }
     case 0x00021012: {
-      REXLOG_DEBUG(kernel, "XamApp(0x00021012)");
+      REXLOG_DEBUG(kernel, "XAMApp(0x00021012)");
       return X_E_SUCCESS;
     }
     case 0x00022005: {
-      struct message_data {
+      struct MessageData {
         be_u32 unk_00;
         be_u32 unk_04;
-      }* data = reinterpret_cast<message_data*>(buffer);
-      REX_ASSERT(buffer_length == sizeof(message_data));
-      REXLOG_DEBUG(kernel, "XamApp(0x00022005)(%.8X, %.8X)", static_cast<u32>(data->unk_00),
+      }* data = reinterpret_cast<MessageData*>(buffer);
+      REX_ASSERT(buffer_length == sizeof(MessageData));
+      REXLOG_DEBUG(kernel, "XAMApp(0x00022005)(%.8X, %.8X)", static_cast<u32>(data->unk_00),
                    static_cast<u32>(data->unk_04));
       return X_E_SUCCESS;
     }
@@ -102,7 +102,7 @@ X_HRESULT XamApp::DispatchMessageSync(u32 message, u32 buffer_ptr, u32 buffer_le
   REX_FAIL(kernel, X_E_FAIL,
            "Unimplemented XAM message app={:08X}, msg={:08X}, arg1={:08X}, "
            "arg2={:08X}",
-           app_id(), message, buffer_ptr, buffer_length);
+           GetAppId(), message, buffer_ptr, buffer_length);
 }
 
 }  // namespace apps

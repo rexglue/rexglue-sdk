@@ -38,21 +38,21 @@ std::string_view Trim(std::string_view text) {
 
 std::string_view TypeName(cvar::Type type) {
   switch (type) {
-    case cvar::Type::Bool:
+    case cvar::Type::kBool:
       return "bool";
-    case cvar::Type::Int32:
+    case cvar::Type::kInt32:
       return "i32";
-    case cvar::Type::Int64:
+    case cvar::Type::kInt64:
       return "i64";
-    case cvar::Type::UInt32:
+    case cvar::Type::kUInt32:
       return "u32";
-    case cvar::Type::UInt64:
+    case cvar::Type::kUInt64:
       return "u64";
-    case cvar::Type::Double:
+    case cvar::Type::kDouble:
       return "f64";
-    case cvar::Type::String:
+    case cvar::Type::kString:
       return "string";
-    case cvar::Type::Command:
+    case cvar::Type::kCommand:
       return "command";
   }
   return "value";
@@ -99,7 +99,7 @@ void ConsoleModel::Append(log::Level level, std::string_view category, std::stri
 }
 
 void ConsoleModel::Add(log::Level level, std::string_view text) {
-  Append(level, "console", text, capture_.latest());
+  Append(level, "console", text, capture_.GetLatest());
 }
 
 void ConsoleModel::Clear() {
@@ -127,7 +127,7 @@ void ConsoleModel::Execute(std::string_view line) {
   const std::string_view args =
       space == std::string_view::npos ? std::string_view{} : Trim(command.substr(space + 1));
   const auto var = cvars_.Find(name);
-  if (var && var->get().desc().type == cvar::Type::Command) {
+  if (var && var->get().GetDesc().type == cvar::Type::kCommand) {
     if (auto invoked = cvars_.Invoke(name, args); !invoked) {
       Add(log::Level::kWarn, invoked.error().message);
     }
@@ -153,10 +153,10 @@ void ConsoleModel::Execute(std::string_view line) {
 
 void ConsoleModel::ListCvars() {
   std::vector<const cvar::IVar*> vars = cvars_.Enumerate();
-  std::ranges::sort(vars, {}, [](const cvar::IVar* var) { return var->desc().name; });
+  std::ranges::sort(vars, {}, [](const cvar::IVar* var) { return var->GetDesc().name; });
   for (const cvar::IVar* var : vars) {
-    const cvar::Desc& desc = var->desc();
-    if (desc.type == cvar::Type::Command) {
+    const cvar::Desc& desc = var->GetDesc();
+    if (desc.type == cvar::Type::kCommand) {
       Add(log::Level::kInfo, std::format("  {}  {}", desc.name, desc.description));
     } else {
       Add(log::Level::kInfo,
@@ -177,10 +177,10 @@ std::vector<Completion> ConsoleModel::Complete(std::string_view input) const {
   }
   std::vector<Completion> vars;
   for (const cvar::IVar* var : cvars_.Enumerate()) {
-    const cvar::Desc& desc = var->desc();
+    const cvar::Desc& desc = var->GetDesc();
     if (desc.name.starts_with(input)) {
       vars.push_back({std::string(desc.name), std::string(desc.scope),
-                      std::string(desc.description), desc.type == cvar::Type::Command});
+                      std::string(desc.description), desc.type == cvar::Type::kCommand});
     }
   }
   std::ranges::sort(vars, [](const Completion& a, const Completion& b) {
@@ -209,12 +209,12 @@ std::string ConsoleModel::HelpLine(std::string_view input) const {
     return {};
   }
   const cvar::IVar* var = &found->get();
-  const cvar::Desc& desc = var->desc();
-  if (desc.type == cvar::Type::Command) {
+  const cvar::Desc& desc = var->GetDesc();
+  if (desc.type == cvar::Type::kCommand) {
     return std::format("{} command. {}", name, desc.description);
   }
   std::string line = std::format("{} {} = {}, default {}", name, TypeName(desc.type), var->Render(),
-                                 var->DefaultText());
+                                 var->GetDefaultText());
   if (!desc.constraints.allowed.empty()) {
     line += std::format(", allowed {}", JoinAllowed(desc.constraints.allowed));
   }
@@ -225,7 +225,7 @@ std::string ConsoleModel::HelpLine(std::string_view input) const {
   return line;
 }
 
-std::string_view ConsoleModel::HistoryPrevious() {
+std::string_view ConsoleModel::StepHistoryBack() {
   if (history_.empty()) {
     return {};
   }
@@ -235,7 +235,7 @@ std::string_view ConsoleModel::HistoryPrevious() {
   return history_[history_pos_];
 }
 
-std::string_view ConsoleModel::HistoryNext() {
+std::string_view ConsoleModel::StepHistoryForward() {
   if (history_pos_ < history_.size()) {
     ++history_pos_;
   }
@@ -243,14 +243,14 @@ std::string_view ConsoleModel::HistoryNext() {
                                         : std::string_view{};
 }
 
-std::vector<const ConsoleLine*> ConsoleModel::Visible() const {
+std::vector<const ConsoleLine*> ConsoleModel::GetVisibleLines() const {
   std::vector<const ConsoleLine*> out;
   out.reserve(lines_.size());
   for (const ConsoleLine& line : lines_) {
     if (line.level < min_level_ && line.category != "console") {
       continue;
     }
-    if (line.category != "console" && !shown(line.category)) {
+    if (line.category != "console" && !GetShown(line.category)) {
       continue;
     }
     out.push_back(&line);
@@ -258,11 +258,11 @@ std::vector<const ConsoleLine*> ConsoleModel::Visible() const {
   return out;
 }
 
-bool ConsoleModel::shown(std::string_view category) const {
+bool ConsoleModel::GetShown(std::string_view category) const {
   return !hidden_.contains(category);
 }
 
-void ConsoleModel::set_shown(std::string_view category, bool shown) {
+void ConsoleModel::SetShown(std::string_view category, bool shown) {
   if (shown) {
     if (auto it = hidden_.find(category); it != hidden_.end()) {
       hidden_.erase(it);
@@ -272,7 +272,7 @@ void ConsoleModel::set_shown(std::string_view category, bool shown) {
   }
 }
 
-void ConsoleModel::set_size(f32 width, f32 height) {
+void ConsoleModel::SetSize(f32 width, f32 height) {
   width_fraction_ = std::clamp(width, 0.2f, 1.0f);
   height_fraction_ = std::clamp(height, 0.1f, 1.0f);
 }

@@ -23,7 +23,7 @@
 
 namespace rexglue::cli {
 
-inline bool write_file_atomic(const std::filesystem::path& path, const std::string& content) {
+inline bool WriteFileAtomic(const std::filesystem::path& path, const std::string& content) {
   auto written = rex::platform::WriteWholeFile(
       path, std::span(reinterpret_cast<const u8*>(content.data()), content.size()));
   if (!written) {
@@ -32,7 +32,7 @@ inline bool write_file_atomic(const std::filesystem::path& path, const std::stri
   return true;
 }
 
-inline std::string read_file(const std::filesystem::path& path) {
+inline std::string ReadFile(const std::filesystem::path& path) {
   std::ifstream in(path, std::ios::binary);
   if (!in)
     return {};

@@ -27,26 +27,26 @@ using rex::operator^=;
 
 /** How the window treats the pointer. */
 enum class PointerMode : u8 {
-  Free,   /**< The arrow shows and moves freely. */
-  Hidden, /**< The arrow hides, the title draws its own. */
-  Locked, /**< The arrow hides and stays in the window, motion arrives as deltas. */
+  kFree,   /**< The arrow shows and moves freely. */
+  kHidden, /**< The arrow hides, the title draws its own. */
+  kLocked, /**< The arrow hides and stays in the window, motion arrives as deltas. */
 };
 
 /** A mouse button. */
 enum class MouseButton : u8 {
-  Left,   /**< The left button. */
-  Right,  /**< The right button. */
-  Middle, /**< The middle button. */
-  X1,     /**< The first extra button. */
-  X2,     /**< The second extra button. */
+  kLeft,   /**< The left button. */
+  kRight,  /**< The right button. */
+  kMiddle, /**< The middle button. */
+  kX1,     /**< The first extra button. */
+  kX2,     /**< The second extra button. */
 };
 
 /** Keyboard modifiers held during an event. */
 enum class KeyModifiers : u8 {
-  None = 0,  /**< No modifier. */
-  Shift = 1, /**< Shift. */
-  Ctrl = 2,  /**< Ctrl. */
-  Alt = 4,   /**< Alt. */
+  kNone = 0,  /**< No modifier. */
+  kShift = 1, /**< Shift. */
+  kCtrl = 2,  /**< Ctrl. */
+  kAlt = 4,   /**< Alt. */
 };
 
 /** The pointer position and the window size. */
@@ -75,30 +75,30 @@ struct PointerDelta {
 struct InputEvent {
   /** Event kinds. */
   enum class Kind : u8 {
-    KeyDown,     /**< A key went down or repeated. */
-    KeyUp,       /**< A key went up. */
-    KeyChar,     /**< A character was typed. */
-    ButtonDown,  /**< A mouse button went down. */
-    ButtonUp,    /**< A mouse button went up. */
-    Motion,      /**< The pointer moved. */
-    Wheel,       /**< The wheel turned. */
-    FocusGained, /**< The window gained focus. */
-    FocusLost,   /**< The window lost focus. */
-    Resize,      /**< The window changed size. */
+    kKeyDown,     /**< A key went down or repeated. */
+    kKeyUp,       /**< A key went up. */
+    kKeyChar,     /**< A character was typed. */
+    kButtonDown,  /**< A mouse button went down. */
+    kButtonUp,    /**< A mouse button went up. */
+    kMotion,      /**< The pointer moved. */
+    kWheel,       /**< The wheel turned. */
+    kFocusGained, /**< The window gained focus. */
+    kFocusLost,   /**< The window lost focus. */
+    kResize,      /**< The window changed size. */
   };
 
   /** The kind. */
-  Kind kind = Kind::KeyDown;
+  Kind kind = Kind::kKeyDown;
   /** The key of KeyDown and KeyUp. */
   VirtualKey key = VirtualKey::kNone;
   /** The modifiers held for KeyDown and KeyUp. */
-  KeyModifiers modifiers = KeyModifiers::None;
+  KeyModifiers modifiers = KeyModifiers::kNone;
   /** True for an auto repeated KeyDown. */
   bool repeat = false;
   /** The code point of KeyChar. */
   u32 character = 0;
   /** The button of ButtonDown and ButtonUp. */
-  MouseButton button = MouseButton::Left;
+  MouseButton button = MouseButton::kLeft;
   /** Pointer x in physical pixels. */
   f32 x = 0.0f;
   /** Pointer y in physical pixels. */

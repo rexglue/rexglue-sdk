@@ -128,63 +128,63 @@ class DXBCShaderTranslator : public ShaderTranslator {
 
   /** Some flags are referenced in xenos_draw.hlsli and must stay in sync with it. */
   enum : u32 {
-    kSysFlag_SharedMemoryIsUAV_Shift,
-    kSysFlag_XYDividedByW_Shift,
-    kSysFlag_ZDividedByW_Shift,
-    kSysFlag_WNotReciprocal_Shift,
-    kSysFlag_PrimitivePolygonal_Shift,
-    kSysFlag_PrimitiveLine_Shift,
-    kSysFlag_DepthFloat24_Shift,
-    kSysFlag_AlphaPassIfLess_Shift,
-    kSysFlag_AlphaPassIfEqual_Shift,
-    kSysFlag_AlphaPassIfGreater_Shift,
-    kSysFlag_ConvertColor0ToGamma_Shift,
-    kSysFlag_ConvertColor1ToGamma_Shift,
-    kSysFlag_ConvertColor2ToGamma_Shift,
-    kSysFlag_ConvertColor3ToGamma_Shift,
+    kSysFlagSharedMemoryIsUAVShift,
+    kSysFlagXYDividedByWShift,
+    kSysFlagZDividedByWShift,
+    kSysFlagWNotReciprocalShift,
+    kSysFlagPrimitivePolygonalShift,
+    kSysFlagPrimitiveLineShift,
+    kSysFlagDepthFloat24Shift,
+    kSysFlagAlphaPassIfLessShift,
+    kSysFlagAlphaPassIfEqualShift,
+    kSysFlagAlphaPassIfGreaterShift,
+    kSysFlagConvertColor0ToGammaShift,
+    kSysFlagConvertColor1ToGammaShift,
+    kSysFlagConvertColor2ToGammaShift,
+    kSysFlagConvertColor3ToGammaShift,
 
-    kSysFlag_ROVDepthStencil_Shift,
-    kSysFlag_ROVDepthPassIfLess_Shift,
-    kSysFlag_ROVDepthPassIfEqual_Shift,
-    kSysFlag_ROVDepthPassIfGreater_Shift,
+    kSysFlagROVDepthStencilShift,
+    kSysFlagROVDepthPassIfLessShift,
+    kSysFlagROVDepthPassIfEqualShift,
+    kSysFlagROVDepthPassIfGreaterShift,
     /** Set to write the new depth, clear to keep the old one when the depth test passes. */
-    kSysFlag_ROVDepthWrite_Shift,
-    kSysFlag_ROVStencilTest_Shift,
+    kSysFlagROVDepthWriteShift,
+    kSysFlagROVStencilTestShift,
     /**
      * Writes a stencil value that differs from the depth buffer even when the depth and stencil
      * test failed, without running the rest of the shader. Used when alpha test and alpha to
      * coverage are disabled. Ignored when the shader has kill instructions or writes depth.
      */
-    kSysFlag_ROVDepthStencilEarlyWrite_Shift,
+    kSysFlagROVDepthStencilEarlyWriteShift,
 
-    kSysFlag_Count,
+    kSysFlagCount,
 
-    kSysFlag_SharedMemoryIsUAV = 1u << kSysFlag_SharedMemoryIsUAV_Shift,
-    kSysFlag_XYDividedByW = 1u << kSysFlag_XYDividedByW_Shift,
-    kSysFlag_ZDividedByW = 1u << kSysFlag_ZDividedByW_Shift,
-    kSysFlag_WNotReciprocal = 1u << kSysFlag_WNotReciprocal_Shift,
-    kSysFlag_PrimitivePolygonal = 1u << kSysFlag_PrimitivePolygonal_Shift,
-    kSysFlag_PrimitiveLine = 1u << kSysFlag_PrimitiveLine_Shift,
-    kSysFlag_DepthFloat24 = 1u << kSysFlag_DepthFloat24_Shift,
-    kSysFlag_AlphaPassIfLess = 1u << kSysFlag_AlphaPassIfLess_Shift,
-    kSysFlag_AlphaPassIfEqual = 1u << kSysFlag_AlphaPassIfEqual_Shift,
-    kSysFlag_AlphaPassIfGreater = 1u << kSysFlag_AlphaPassIfGreater_Shift,
-    kSysFlag_ConvertColor0ToGamma = 1u << kSysFlag_ConvertColor0ToGamma_Shift,
-    kSysFlag_ConvertColor1ToGamma = 1u << kSysFlag_ConvertColor1ToGamma_Shift,
-    kSysFlag_ConvertColor2ToGamma = 1u << kSysFlag_ConvertColor2ToGamma_Shift,
-    kSysFlag_ConvertColor3ToGamma = 1u << kSysFlag_ConvertColor3ToGamma_Shift,
-    kSysFlag_ROVDepthStencil = 1u << kSysFlag_ROVDepthStencil_Shift,
-    kSysFlag_ROVDepthPassIfLess = 1u << kSysFlag_ROVDepthPassIfLess_Shift,
-    kSysFlag_ROVDepthPassIfEqual = 1u << kSysFlag_ROVDepthPassIfEqual_Shift,
-    kSysFlag_ROVDepthPassIfGreater = 1u << kSysFlag_ROVDepthPassIfGreater_Shift,
-    kSysFlag_ROVDepthWrite = 1u << kSysFlag_ROVDepthWrite_Shift,
-    kSysFlag_ROVStencilTest = 1u << kSysFlag_ROVStencilTest_Shift,
-    kSysFlag_ROVDepthStencilEarlyWrite = 1u << kSysFlag_ROVDepthStencilEarlyWrite_Shift,
+    kSysFlagSharedMemoryIsUAV = 1u << kSysFlagSharedMemoryIsUAVShift,
+    kSysFlagXYDividedByW = 1u << kSysFlagXYDividedByWShift,
+    kSysFlagZDividedByW = 1u << kSysFlagZDividedByWShift,
+    kSysFlagWNotReciprocal = 1u << kSysFlagWNotReciprocalShift,
+    kSysFlagPrimitivePolygonal = 1u << kSysFlagPrimitivePolygonalShift,
+    kSysFlagPrimitiveLine = 1u << kSysFlagPrimitiveLineShift,
+    kSysFlagDepthFloat24 = 1u << kSysFlagDepthFloat24Shift,
+    kSysFlagAlphaPassIfLess = 1u << kSysFlagAlphaPassIfLessShift,
+    kSysFlagAlphaPassIfEqual = 1u << kSysFlagAlphaPassIfEqualShift,
+    kSysFlagAlphaPassIfGreater = 1u << kSysFlagAlphaPassIfGreaterShift,
+    kSysFlagConvertColor0ToGamma = 1u << kSysFlagConvertColor0ToGammaShift,
+    kSysFlagConvertColor1ToGamma = 1u << kSysFlagConvertColor1ToGammaShift,
+    kSysFlagConvertColor2ToGamma = 1u << kSysFlagConvertColor2ToGammaShift,
+    kSysFlagConvertColor3ToGamma = 1u << kSysFlagConvertColor3ToGammaShift,
+    kSysFlagROVDepthStencil = 1u << kSysFlagROVDepthStencilShift,
+    kSysFlagROVDepthPassIfLess = 1u << kSysFlagROVDepthPassIfLessShift,
+    kSysFlagROVDepthPassIfEqual = 1u << kSysFlagROVDepthPassIfEqualShift,
+    kSysFlagROVDepthPassIfGreater = 1u << kSysFlagROVDepthPassIfGreaterShift,
+    kSysFlagROVDepthWrite = 1u << kSysFlagROVDepthWriteShift,
+    kSysFlagROVStencilTest = 1u << kSysFlagROVStencilTestShift,
+    kSysFlagROVDepthStencilEarlyWrite = 1u << kSysFlagROVDepthStencilEarlyWriteShift,
   };
-  static_assert(kSysFlag_Count <= 32, "Too many flags in the system constants");
+  static_assert(kSysFlagCount <= 32, "Too many flags in the system constants");
 
   /**
-   * Layout changes require updating SystemConstants::Index, system_constant_rdef_ and
+   * Layout changes require updating SystemConstants::Index, kSystemConstantRDEF and
    * d3d12/shaders/xenos_draw.hlsli.
    */
   struct SystemConstants {
@@ -516,7 +516,7 @@ class DXBCShaderTranslator : public ShaderTranslator {
                             bool remap_to_0_to_0_5);
 
   /**
-   * Converts 1 scalar from piecewise linear gamma to linear, saturating the source internally
+   * Converts a scalar from piecewise linear gamma to linear, saturating the source internally
    * unless it is pre saturated.
    *
    * The target may be the same as the source, the temporaries must differ from both.
@@ -537,7 +537,7 @@ class DXBCShaderTranslator : public ShaderTranslator {
                                bool source_pre_saturated, u32 temp1, u32 temp1_component, u32 temp2,
                                u32 temp2_component);
   /**
-   * Converts 1 pre saturated scalar from linear to piecewise linear gamma.
+   * Converts a pre saturated scalar from linear to piecewise linear gamma.
    *
    * The target may be the same as the source or as temp_or_target but not both, and temp_or_target
    * must differ from the source. temp_non_target must differ from all others.
@@ -574,7 +574,7 @@ class DXBCShaderTranslator : public ShaderTranslator {
   void ProcessLoopStartInstruction(const ParsedLoopStartInstruction& instr) override;
   void ProcessLoopEndInstruction(const ParsedLoopEndInstruction& instr) override;
   void ProcessJumpInstruction(const ParsedJumpInstruction& instr) override;
-  void ProcessAllocInstruction(const ParsedAllocInstruction& instr, u8 export_eM) override;
+  void ProcessAllocInstruction(const ParsedAllocInstruction& instr, u8 export_em) override;
 
   void ProcessVertexFetchInstruction(const ParsedVertexFetchInstruction& instr) override;
   /**
@@ -593,7 +593,7 @@ class DXBCShaderTranslator : public ShaderTranslator {
    */
   void ProcessTextureFetchInstruction(const ParsedTextureFetchInstruction& instr) override;
   void ProcessAluInstruction(const ParsedAluInstruction& instr,
-                             u8 memexport_eM_potentially_written_before) override;
+                             u8 memexport_em_potentially_written_before) override;
 
  private:
   /** Changing these requires updating WriteInputSignature and WriteOutputSignature. */
@@ -640,29 +640,29 @@ class DXBCShaderTranslator : public ShaderTranslator {
   }
 
   Modification GetDXBCShaderModification() const {
-    return Modification(current_translation().modification());
+    return Modification(GetCurrentTranslation().GetModification());
   }
 
   bool IsDXBCVertexShader() const {
-    return is_vertex_shader() && !Shader::IsHostVertexShaderTypeDomain(
-                                     GetDXBCShaderModification().vertex.host_vertex_shader_type);
+    return IsVertexShader() && !Shader::IsHostVertexShaderTypeDomain(
+                                   GetDXBCShaderModification().vertex.host_vertex_shader_type);
   }
   bool IsDXBCDomainShader() const {
-    return is_vertex_shader() && Shader::IsHostVertexShaderTypeDomain(
-                                     GetDXBCShaderModification().vertex.host_vertex_shader_type);
+    return IsVertexShader() && Shader::IsHostVertexShaderTypeDomain(
+                                   GetDXBCShaderModification().vertex.host_vertex_shader_type);
   }
 
   bool IsForceEarlyDepthStencilGlobalFlagEnabled() const {
-    return is_pixel_shader() &&
+    return IsPixelShader() &&
            GetDXBCShaderModification().pixel.depth_stencil_mode ==
                Modification::DepthStencilMode::kEarlyHint &&
-           !edram_rov_used_ && current_shader().implicit_early_z_write_allowed();
+           !edram_rov_used_ && GetCurrentShader().GetImplicitEarlyZWriteAllowed();
   }
 
   u32 GetModificationInterpolatorMask() const {
     Modification modification = GetDXBCShaderModification();
-    return is_vertex_shader() ? modification.vertex.interpolator_mask
-                              : modification.pixel.interpolator_mask;
+    return IsVertexShader() ? modification.vertex.interpolator_mask
+                            : modification.pixel.interpolator_mask;
   }
 
   /**
@@ -691,19 +691,19 @@ class DXBCShaderTranslator : public ShaderTranslator {
    * Exports eM# to memory. Modifies eA and eM# values, so call only before starting a new export or
    * ending or deactivating the invocation.
    *
-   * @param export_eM Mask of eM# registers to export.
+   * @param export_em Mask of eM# registers to export.
    */
-  void ExportToMemory(u8 export_eM);
+  void ExportToMemory(u8 export_em);
 
   bool IsSampleRate() const {
-    REX_ASSERT(is_pixel_shader());
-    return DSV_IsWritingFloat24Depth() && !current_shader().writes_depth();
+    REX_ASSERT(IsPixelShader());
+    return DSVIsWritingFloat24Depth() && !GetCurrentShader().GetWritesDepth();
   }
   bool IsDepthStencilSystemTempUsed() const {
     if (edram_rov_used_) {
       return true;
     }
-    if (current_shader().writes_depth()) {
+    if (GetCurrentShader().GetWritesDepth()) {
       return true;
     }
     return false;
@@ -713,7 +713,7 @@ class DXBCShaderTranslator : public ShaderTranslator {
    *
    * @return True when the non ROV pixel shader converts depth to 20e4.
    */
-  bool DSV_IsWritingFloat24Depth() const {
+  bool DSVIsWritingFloat24Depth() const {
     if (edram_rov_used_) {
       return false;
     }
@@ -727,10 +727,10 @@ class DXBCShaderTranslator : public ShaderTranslator {
    *
    * @return True when skipping the shader for 2x2 quads is possible and worthwhile.
    */
-  bool ROV_IsDepthStencilEarly() const {
+  bool ROVIsDepthStencilEarly() const {
     REX_ASSERT(edram_rov_used_);
-    return !is_depth_only_pixel_shader_ && !current_shader().writes_depth() &&
-           !current_shader().memexport_eM_written();
+    return !is_depth_only_pixel_shader_ && !GetCurrentShader().GetWritesDepth() &&
+           !GetCurrentShader().GetMemExportEMWritten();
   }
   /**
    * Converts the pre clamped depth to 24 bit in bits 0 to 23 with 24 to 31 zero, leaving no room
@@ -745,8 +745,8 @@ class DXBCShaderTranslator : public ShaderTranslator {
    * @param temp_temp Scratch temporary register.
    * @param temp_temp_component Component of temp_temp to use.
    */
-  void ROV_DepthTo24Bit(u32 d24_temp, u32 d24_temp_component, u32 d32_temp, u32 d32_temp_component,
-                        u32 temp_temp, u32 temp_temp_component);
+  void ROVDepthTo24Bit(u32 d24_temp, u32 d24_temp_component, u32 d32_temp, u32 d32_temp_component,
+                       u32 temp_temp, u32 temp_temp_component);
   /**
    * Performs the depth and stencil test, writing depending on whether it is late or safe to do
    * early.
@@ -755,7 +755,7 @@ class DXBCShaderTranslator : public ShaderTranslator {
    * system_temp_depth_stencil_. Returns from the shader when early, the coverage is empty for all
    * pixels of the 2x2 quad and it is safe not to await kills, alpha test or alpha to coverage.
    */
-  void ROV_DepthStencilTest();
+  void ROVDepthStencilTest();
   /**
    * Unpacks a 32bpp or 64bpp color from packed_temp.packed_temp_components to color_temp using 2
    * temporary VGPRs.
@@ -769,8 +769,8 @@ class DXBCShaderTranslator : public ShaderTranslator {
    * @param temp2 Second scratch VGPR.
    * @param temp2_component Component of temp2 to use.
    */
-  void ROV_UnpackColor(u32 rt_index, u32 packed_temp, u32 packed_temp_components, u32 color_temp,
-                       u32 temp1, u32 temp1_component, u32 temp2, u32 temp2_component);
+  void ROVUnpackColor(u32 rt_index, u32 packed_temp, u32 packed_temp_components, u32 color_temp,
+                      u32 temp1, u32 temp1_component, u32 temp2, u32 temp2_component);
   /**
    * Packs a float32x4 color from color_temp to a 32bpp or 64bpp value in
    * packed_temp.packed_temp_components using 2 temporary VGPRs.
@@ -787,9 +787,9 @@ class DXBCShaderTranslator : public ShaderTranslator {
    * @param temp2 Second scratch VGPR.
    * @param temp2_component Component of temp2 to use.
    */
-  void ROV_PackPreClampedColor(u32 rt_index, u32 color_temp, u32 packed_temp,
-                               u32 packed_temp_components, u32 temp1, u32 temp1_component,
-                               u32 temp2, u32 temp2_component);
+  void ROVPackPreClampedColor(u32 rt_index, u32 color_temp, u32 packed_temp,
+                              u32 packed_temp_components, u32 temp1, u32 temp1_component, u32 temp2,
+                              u32 temp2_component);
   /**
    * Emits `case` labels for color blend factors, generating the factor from src_temp.rgb and
    * dst_temp.rgb into factor_temp.rgb.
@@ -800,7 +800,7 @@ class DXBCShaderTranslator : public ShaderTranslator {
    * @param dst_temp Temporary register holding the destination color.
    * @param factor_temp Temporary register receiving the factor.
    */
-  void ROV_HandleColorBlendFactorCases(u32 src_temp, u32 dst_temp, u32 factor_temp);
+  void ROVHandleColorBlendFactorCases(u32 src_temp, u32 dst_temp, u32 factor_temp);
   /**
    * Emits `case` labels for alpha blend factors, generating the factor from src_temp.a and
    * dst_temp.a into factor_temp.factor_component.
@@ -812,8 +812,8 @@ class DXBCShaderTranslator : public ShaderTranslator {
    * @param factor_temp Temporary register receiving the factor.
    * @param factor_component Component of factor_temp to write.
    */
-  void ROV_HandleAlphaBlendFactorCases(u32 src_temp, u32 dst_temp, u32 factor_temp,
-                                       u32 factor_component);
+  void ROVHandleAlphaBlendFactorCases(u32 src_temp, u32 dst_temp, u32 factor_temp,
+                                      u32 factor_component);
 
   /**
    * Applies the index offset to vertex or tessellation patch indices, clamps them to the minimum
@@ -826,7 +826,7 @@ class DXBCShaderTranslator : public ShaderTranslator {
    * @param src Source holding the raw indices.
    */
   void RemapAndConvertVertexIndices(u32 dest_temp, u32 dest_temp_components, const dxbc::Src& src);
-  void StartVertexShader_LoadVertexIndex();
+  void StartVertexShaderLoadVertexIndex();
   void StartVertexOrDomainShader();
   /**
    * Loads the ROV sample coverage and EDRAM addressing parameters.
@@ -834,7 +834,7 @@ class DXBCShaderTranslator : public ShaderTranslator {
    * 4x MSAA coverage maps the top right sample to 2 and the bottom left to 1, the opposite of
    * Direct3D 12, because Xenos 2x MSAA doubles the storage height and 4x MSAA doubles the width.
    */
-  void StartPixelShader_LoadROVParameters();
+  void StartPixelShaderLoadROVParameters();
   /**
    * Sets up the pixel shader inputs, PsParamGen and the memexport conditions.
    *
@@ -848,7 +848,7 @@ class DXBCShaderTranslator : public ShaderTranslator {
 
   void CompleteVertexOrDomainShader();
   /**
-   * Tests 1 sample against alpha to mask.
+   * Tests a sample against alpha to mask.
    *
    * For RTV, adds the sample to coverage_temp.coverage_temp_component when it passes, or overwrites
    * the output when initialize is true for the first tested sample. For ROV, masks the sample out
@@ -866,19 +866,19 @@ class DXBCShaderTranslator : public ShaderTranslator {
    * @param temp Scratch temporary register.
    * @param temp_component Component of temp to use.
    */
-  void CompletePixelShader_AlphaToMaskSample(bool initialize, u32 sample_index, f32 threshold_base,
-                                             dxbc::Src threshold_offset, f32 threshold_offset_scale,
-                                             u32 coverage_temp, u32 coverage_temp_component,
-                                             u32 temp, u32 temp_component);
+  void CompletePixelShaderAlphaToMaskSample(bool initialize, u32 sample_index, f32 threshold_base,
+                                            dxbc::Src threshold_offset, f32 threshold_offset_scale,
+                                            u32 coverage_temp, u32 coverage_temp_component,
+                                            u32 temp, u32 temp_component);
   /**
    * Performs alpha to coverage. For RTV writes oMask, for ROV updates the coverage bits of
    * system_temp_rov_params_.x. Done manually for RTV to keep the guest dithering pattern and
    * because alpha can be exponent biased.
    */
-  void CompletePixelShader_AlphaToMask();
-  void CompletePixelShader_WriteToRTVs();
-  void CompletePixelShader_DSV_DepthTo24Bit();
-  void CompletePixelShader_WriteToROV();
+  void CompletePixelShaderAlphaToMask();
+  void CompletePixelShaderWriteToRTVs();
+  void CompletePixelShaderDSVDepthTo24Bit();
+  void CompletePixelShaderWriteToROV();
   void CompletePixelShader();
 
   void CompleteShaderCode();
@@ -989,13 +989,13 @@ class DXBCShaderTranslator : public ShaderTranslator {
   }
 
   void KillPixel(bool condition, const dxbc::Src& condition_src,
-                 u8 memexport_eM_potentially_written_before);
+                 u8 memexport_em_potentially_written_before);
 
   void ProcessVectorAluOperation(const ParsedAluInstruction& instr,
-                                 u8 memexport_eM_potentially_written_before, u32& result_swizzle,
+                                 u8 memexport_em_potentially_written_before, u32& result_swizzle,
                                  bool& predicate_written);
   void ProcessScalarAluOperation(const ParsedAluInstruction& instr,
-                                 u8 memexport_eM_potentially_written_before,
+                                 u8 memexport_em_potentially_written_before,
                                  bool& predicate_written);
 
   void WriteResourceDefinition();
@@ -1064,7 +1064,7 @@ class DXBCShaderTranslator : public ShaderTranslator {
     u16 element_count;
     ShaderRdefTypeIndex array_element_type;
   };
-  static const ShaderRdefType rdef_types_[std::to_underlying(ShaderRdefTypeIndex::kCount)];
+  static const ShaderRdefType kRDEFTypes[std::to_underlying(ShaderRdefTypeIndex::kCount)];
 
   static constexpr u32 kBindingIndexUnallocated = UINT32_MAX;
 
@@ -1082,7 +1082,7 @@ class DXBCShaderTranslator : public ShaderTranslator {
     u32 padding_after = 0;
   };
   static const SystemConstantRdef
-      system_constant_rdef_[std::to_underlying(SystemConstants::Index::kCount)];
+      kSystemConstantRDEF[std::to_underlying(SystemConstants::Index::kCount)];
   /** Mask of system constants (1 << SystemConstants::Index) used, so the rest are marked unused in
    * RDEF. */
   u64 system_constants_used_;
@@ -1131,8 +1131,8 @@ class DXBCShaderTranslator : public ShaderTranslator {
    * remapped from 0...1 to 0...0.5 and converted to float24 precision, and for ROV is written at
    * the end of the shader.
    *
-   * Without oDepth and with ROV and ROV_IsDepthStencilEarly it holds the new per sample depth and
-   * stencil from the early test. Without ROV_IsDepthStencilEarly, .xy hold the Z gradients taken
+   * Without oDepth and with ROV and ROVIsDepthStencilEarly it holds the new per sample depth and
+   * stencil from the early test. Without ROVIsDepthStencilEarly, .xy hold the Z gradients taken
    * before any return.
    */
   u32 system_temp_depth_stencil_;
@@ -1142,14 +1142,14 @@ class DXBCShaderTranslator : public ShaderTranslator {
 
   /** Allocated only when the shader writes any eM#. X is whether memexport is enabled for the
    * invocation, Y is the mask of eM# elements written since the last memory write. */
-  u32 system_temp_memexport_enabled_and_eM_written_;
+  u32 system_temp_memexport_enabled_and_em_written_;
   u32 system_temp_memexport_address_;
   u32 system_temps_memexport_data_[xenos::ucode::kMaxMemExportElementCount];
 
   u32 system_temp_result_;
   u32 system_temp_ps_pc_p0_a0_;
   /** Loop index stack with the active loop in .x, shifted right to .yzw on push. */
-  u32 system_temp_aL_;
+  u32 system_temp_al_;
   /** Loop counter stack with the active loop in .x, holding the remaining iteration count. */
   u32 system_temp_loop_count_;
   u32 system_temp_grad_h_lod_;

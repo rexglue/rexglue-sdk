@@ -20,18 +20,18 @@ namespace rex::runtime {
 
 /** Category of a `BinarySymbol`. */
 enum class BinarySymbolType : u8 {
-  Function, /**< Code. */
-  Data,     /**< Data. */
-  Import,   /**< Import thunk. */
-  Unknown   /**< Not classified. */
+  kFunction, /**< Code. */
+  kData,     /**< Data. */
+  kImport,   /**< Import thunk. */
+  kUnknown   /**< Not classified. */
 };
 
 /** A named address in a module image. */
 struct BinarySymbol {
-  std::string name;                                  /**< Symbol name. */
-  u32 address = 0;                                   /**< Guest address. */
-  u32 size = 0;                                      /**< Size in bytes. */
-  BinarySymbolType type = BinarySymbolType::Unknown; /**< Category of the symbol. */
+  std::string name;                                   /**< Symbol name. */
+  u32 address = 0;                                    /**< Guest address. */
+  u32 size = 0;                                       /**< Size in bytes. */
+  BinarySymbolType type = BinarySymbolType::kUnknown; /**< Category of the symbol. */
 };
 
 /** A section of a module image. */

@@ -14,16 +14,16 @@ class NullUserInterface::NullWindow final : public IWindow, public gpu::IPresent
   void SetAspectRatio(AspectRatio) override {}
   void SetMinimumSize(WindowSize) override {}
   void SetFullscreen(bool fullscreen) override { fullscreen_ = fullscreen; }
-  bool Fullscreen() const override { return fullscreen_; }
+  bool IsFullscreen() const override { return fullscreen_; }
   void SetMonitor(i32) override {}
   void Raise() override {}
   void SetCursorVisibility(CursorVisibility) override {}
   void SetTextInputActive(bool) override {}
-  u32 Width() const override { return 0; }
-  u32 Height() const override { return 0; }
-  bool Focused() const override { return false; }
-  NativeWindow Native() override { return NativeWindow{}; }
-  gpu::IPresentationHost& Presentation() override { return *this; }
+  u32 GetWidth() const override { return 0; }
+  u32 GetHeight() const override { return 0; }
+  bool IsFocused() const override { return false; }
+  NativeWindow GetNative() override { return NativeWindow{}; }
+  gpu::IPresentationHost& GetPresentation() override { return *this; }
 
   void RequestPaint() override {}
   void OnPresenterDetached() override {}
@@ -146,7 +146,7 @@ void NullUserInterface::RunSynchronous(rex::MoveOnlyFunction<void()> work) {
   }
 }
 
-ImFontAtlas* NullUserInterface::Fonts() {
+ImFontAtlas* NullUserInterface::GetFonts() {
   return nullptr;
 }
 
@@ -174,7 +174,7 @@ ImGuiDialog* NullUserInterface::Overlay(std::string_view) {
   return nullptr;
 }
 
-bool NullUserInterface::AnyOverlayVisible() const {
+bool NullUserInterface::IsAnyOverlayVisible() const {
   return false;
 }
 
@@ -194,7 +194,7 @@ void NullUserInterface::SetOverlayDrawer(std::unique_ptr<gpu::IOverlayDrawer> dr
   overlay_drawer_ = std::move(drawer);
 }
 
-gpu::IOverlayDrawer* NullUserInterface::OverlayDrawer() {
+gpu::IOverlayDrawer* NullUserInterface::GetOverlayDrawer() {
   return overlay_drawer_.get();
 }
 
@@ -211,13 +211,13 @@ VideoMode NullUserInterface::GetVideoMode() const {
 void NullUserInterface::ShowMessage(MessageKind kind, std::string_view title,
                                     std::string_view body) {
   switch (kind) {
-    case MessageKind::Info:
+    case MessageKind::kInfo:
       REXLOG_INFO(ui, "{}: {}", title, body);
       break;
-    case MessageKind::Warning:
+    case MessageKind::kWarning:
       REXLOG_WARN(ui, "{}: {}", title, body);
       break;
-    case MessageKind::Error:
+    case MessageKind::kError:
       REXLOG_ERROR(ui, "{}: {}", title, body);
       break;
   }
@@ -239,11 +239,11 @@ Result<std::vector<std::filesystem::path>> NullUserInterface::ShowFileDialog(
   return std::vector<std::filesystem::path>{};
 }
 
-std::vector<DisplayInfo> NullUserInterface::Displays() {
+std::vector<DisplayInfo> NullUserInterface::GetDisplays() {
   return {};
 }
 
-std::vector<HostLocale> NullUserInterface::PreferredLocales() {
+std::vector<HostLocale> NullUserInterface::GetPreferredLocales() {
   return {};
 }
 

@@ -39,7 +39,7 @@ REX_API void SetShutdownWake(rex::MoveOnlyFunction<void()> wake);
  *
  * @return The code, or std::nullopt when no shutdown was requested.
  */
-REX_API std::optional<i32> RequestedExitCode();
+REX_API std::optional<i32> GetRequestedExitCode();
 
 /**
  * Takes the arguments of a restart request.

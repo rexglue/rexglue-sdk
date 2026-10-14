@@ -27,7 +27,7 @@ using rex::runtime::AccessViolationResult;
 REX_TEST_CASE("Memory reserves both register blocks as no access", "[memory][mmio]") {
   auto& memory = rex::testing::GetTestMemory();
   for (rex::u32 address : {0x7FC80000u, 0x7FC8FFFCu, 0x7FEA0000u, 0x7FEAFFFCu}) {
-    size_t length = rex::memory::page_size();
+    size_t length = rex::memory::PageSize();
     rex::memory::PageAccess access = rex::memory::PageAccess::kReadWrite;
     REQUIRE(rex::memory::QueryProtect(memory.TranslateVirtual(address), length, access));
     CHECK(access == rex::memory::PageAccess::kNoAccess);
@@ -37,15 +37,15 @@ REX_TEST_CASE("Memory reserves both register blocks as no access", "[memory][mmi
 REX_TEST_CASE("A fault in a register block is an MMIO miss", "[memory][mmio]") {
   auto& memory = rex::testing::GetTestMemory();
   CHECK(memory.HandleAccessViolation(memory.TranslateVirtual(0x7FC80010), false) ==
-        AccessViolationResult::MMIOMiss);
+        AccessViolationResult::kMMIOMiss);
   CHECK(memory.HandleAccessViolation(memory.TranslateVirtual(0x7FEAFFFC), true) ==
-        AccessViolationResult::MMIOMiss);
+        AccessViolationResult::kMMIOMiss);
 }
 
 REX_TEST_CASE("A fault outside guest memory is unhandled", "[memory][mmio]") {
   auto& memory = rex::testing::GetTestMemory();
   int local = 0;
-  CHECK(memory.HandleAccessViolation(&local, true) == AccessViolationResult::Unhandled);
+  CHECK(memory.HandleAccessViolation(&local, true) == AccessViolationResult::kUnhandled);
 }
 
 #if REX_PLATFORM_WIN32
@@ -67,7 +67,7 @@ struct BlockProbe {
 
 bool OpenBlockPage(rex::platform::Exception* ex, void* data) {
   auto* probe = static_cast<BlockProbe*>(data);
-  const auto fault = static_cast<uintptr_t>(ex->fault_address());
+  const auto fault = static_cast<uintptr_t>(ex->GetFaultAddress());
   const auto page = reinterpret_cast<uintptr_t>(probe->page);
   if (fault < page || fault >= page + probe->page_size) {
     return false;
@@ -100,7 +100,7 @@ REX_TEST_CASE("A write to a watched physical page runs the invalidation callback
 REX_TEST_CASE("A plain read of a register block is refused by Memory and reaches the next handler",
               "[memory][mmio]") {
   auto& memory = rex::testing::GetTestMemory();
-  BlockProbe probe{memory.TranslateVirtual(0x7FC80000), rex::memory::page_size()};
+  BlockProbe probe{memory.TranslateVirtual(0x7FC80000), rex::memory::PageSize()};
   rex::platform::ExceptionHandler::Install(OpenBlockPage, &probe);
   const rex::u32 value = *memory.TranslateVirtual<volatile rex::u32*>(0x7FC80010);
   rex::platform::ExceptionHandler::Uninstall(OpenBlockPage, &probe);

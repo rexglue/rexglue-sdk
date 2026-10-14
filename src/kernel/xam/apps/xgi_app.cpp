@@ -97,8 +97,8 @@ X_HRESULT XgiApp::DispatchMessageSync(u32 message, u32 buffer_ptr, u32 buffer_le
         for (u32 i = 0; i < achievement_count; ++i) {
           u32 id = entries[i].id;
           REXLOG_DEBUG(kernel, "XGIUserWriteAchievements: id={} ({})", id, i);
-          (void)runtime_.achievement_manager().UnlockAchievement(id,
-                                                                 AchievementNotification::kShow);
+          (void)runtime_.GetAchievementManager().UnlockAchievement(id,
+                                                                   AchievementNotification::kShow);
         }
       } else {
         REXLOG_DEBUG(kernel, "XGIUserWriteAchievements: skipped (count={} ptr={:08X})",
@@ -251,16 +251,16 @@ X_HRESULT XgiApp::DispatchMessageSync(u32 message, u32 buffer_ptr, u32 buffer_le
         be_u32 flags;
         be_u32 maxPublicSlots;
         be_u16 maxPrivateSlots;
-        u8 pad_0E[2];
+        u8 pad_0e[2];
       }* args = memory_->TranslateVirtual<decltype(args)>(buffer_ptr);
       REX_STATIC_ASSERT_SIZE(decltype(*args), 16);
       u32 obj_ptr = args->obj_ptr;
       u32 flags = args->flags;
-      u32 maxPublicSlots = args->maxPublicSlots;
-      u16 maxPrivateSlots = args->maxPrivateSlots;
+      u32 max_public_slots = args->maxPublicSlots;
+      u16 max_private_slots = args->maxPrivateSlots;
 
       REXLOG_DEBUG(kernel, "XSessionModify({:08X}, {:08X}, {:08X}, {:08X})", obj_ptr, flags,
-                   maxPublicSlots, maxPrivateSlots);
+                   max_public_slots, max_private_slots);
 
       return X_E_SUCCESS;
     }
@@ -541,12 +541,12 @@ X_HRESULT XgiApp::DispatchMessageSync(u32 message, u32 buffer_ptr, u32 buffer_le
       }* args = memory_->TranslateVirtual<decltype(args)>(buffer_ptr);
       REX_STATIC_ASSERT_SIZE(decltype(*args), 16);
       u32 user_index = args->user_index;
-      u32 AnId_buffer_size = args->AnId_buffer_size;
-      u32 AnId_buffer_ptr = args->AnId_buffer_ptr;
+      u32 anid_buffer_size = args->AnId_buffer_size;
+      u32 anid_buffer_ptr = args->AnId_buffer_ptr;
       u32 block = args->block;
 
       REXLOG_DEBUG(kernel, "XUserGetANID({:08X}, {:08X}, {:08X}, {:08X})", user_index,
-                   AnId_buffer_size, AnId_buffer_ptr, block);
+                   anid_buffer_size, anid_buffer_ptr, block);
 
       return X_E_SUCCESS;
     }
@@ -664,7 +664,7 @@ X_HRESULT XgiApp::DispatchMessageSync(u32 message, u32 buffer_ptr, u32 buffer_le
   REX_FAIL(kernel, X_E_FAIL,
            "Unimplemented XGI message app={:08X}, msg={:08X}, arg1={:08X}, "
            "arg2={:08X}",
-           app_id(), message, buffer_ptr, buffer_length);
+           GetAppId(), message, buffer_ptr, buffer_length);
 }
 
 }  // namespace apps

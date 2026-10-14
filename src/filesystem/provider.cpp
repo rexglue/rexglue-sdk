@@ -28,7 +28,7 @@ void Provider::Detach(std::unique_ptr<Node> node) {
 void Provider::ReleaseDetached() {
   std::lock_guard lock(mutex_);
   std::erase_if(detached_,
-                [](const std::unique_ptr<Node>& node) { return node->open_count() == 0; });
+                [](const std::unique_ptr<Node>& node) { return node->GetOpenCount() == 0; });
 }
 
 Result<std::unique_ptr<Provider>> CreateProvider(const MountEntry& entry) {

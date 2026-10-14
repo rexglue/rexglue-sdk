@@ -42,7 +42,7 @@ struct Instruction {
     u32 LK : 1;     /**< Link flag (bit 31). */
     u32 pad_26 : 6; /**< Primary opcode (bits 0-5). */
 
-    i32 offset() const {
+    i32 GetOffset() const {
       i32 val = static_cast<i32>(LI << 8) >> 6;
       return val;
     }
@@ -60,7 +60,7 @@ struct Instruction {
     u32 BO : 5;     /**< Branch options (bits 6-10). */
     u32 pad_26 : 6; /**< Primary opcode (bits 0-5). */
 
-    i32 offset() const {
+    i32 GetOffset() const {
       i32 val = static_cast<i32>(BD << 18) >> 16;
       return val;
     }
@@ -94,7 +94,7 @@ struct Instruction {
     u32 RT : 5;     /**< Register T/S (bits 6-10). */
     u32 pad_26 : 6; /**< Primary opcode (bits 0-5). */
 
-    i32 displacement() const { return static_cast<i32>(static_cast<i16>(DS << 2)); }
+    i32 GetDisplacement() const { return static_cast<i32>(static_cast<i16>(DS << 2)); }
 
     u32 RS() const { return RT; }
   };
@@ -119,12 +119,12 @@ struct Instruction {
    * Fields BO (5-bit), BI (5-bit), XO (10-bit), LK (1-bit)
    */
   struct FormatXL {
-    u32 LK : 1;      /**< Link bit (bit 31). */
-    u32 XO : 10;     /**< Extended opcode (bits 21-30). */
-    u32 _unused : 5; /**< Unused (bits 16-20). */
-    u32 BI : 5;      /**< Condition register bit (bits 11-15). */
-    u32 BO : 5;      /**< Branch options (bits 6-10). */
-    u32 pad_26 : 6;  /**< Primary opcode (bits 0-5). */
+    u32 LK : 1;     /**< Link bit (bit 31). */
+    u32 XO : 10;    /**< Extended opcode (bits 21-30). */
+    u32 unused : 5; /**< Unused (bits 16-20). */
+    u32 BI : 5;     /**< Condition register bit (bits 11-15). */
+    u32 BO : 5;     /**< Branch options (bits 6-10). */
+    u32 pad_26 : 6; /**< Primary opcode (bits 0-5). */
   };
 
   /**
@@ -132,18 +132,18 @@ struct Instruction {
    * Fields RT/RS (5-bit), SPR (10-bit), XO (10-bit)
    */
   struct FormatXFX {
-    u32 _unused : 1; /**< Unused (bit 31). */
-    u32 XO : 10;     /**< Extended opcode (bits 21-30). */
-    u32 SPR : 10;    /**< SPR number (bits 11-20, encoded split). */
-    u32 RT : 5;      /**< Register T/S (bits 6-10). */
-    u32 pad_26 : 6;  /**< Primary opcode (bits 0-5). */
+    u32 unused : 1; /**< Unused (bit 31). */
+    u32 XO : 10;    /**< Extended opcode (bits 21-30). */
+    u32 SPR : 10;   /**< SPR number (bits 11-20, encoded split). */
+    u32 RT : 5;     /**< Register T/S (bits 6-10). */
+    u32 pad_26 : 6; /**< Primary opcode (bits 0-5). */
 
     /**
      * Returns the SPR number, whose 2 5-bit halves are swapped in the encoding.
      *
      * @return The SPR number
      */
-    u32 spr_num() const {
+    u32 GetSPRNum() const {
       u32 lower = (SPR >> 5) & 0x1F;
       u32 upper = SPR & 0x1F;
       return (upper << 5) | lower;
@@ -300,7 +300,7 @@ struct Instruction {
    * @param instr Raw instruction word
    * @return Sign extended byte offset
    */
-  static i32 get_i_offset(u32 instr) {
+  static i32 GetIOffset(u32 instr) {
     return static_cast<i32>(((instr & 0x3FFFFFC) ^ 0x2000000) - 0x2000000);
   }
 
@@ -313,7 +313,7 @@ struct Instruction {
    * @param instr Raw instruction word
    * @return Sign extended byte offset
    */
-  static i32 get_b_offset(u32 instr) {
+  static i32 GetBOffset(u32 instr) {
     return static_cast<i32>(((instr & 0xFFFC) ^ 0x8000) - 0x8000);
   }
 
@@ -325,35 +325,35 @@ struct Instruction {
    *
    * @return True for a branch
    */
-  bool is_branch() const;
+  bool IsBranch() const;
 
   /**
    * Reports whether this is a function call (branch with link).
    *
    * @return True for a call
    */
-  bool is_call() const;
+  bool IsCall() const;
 
   /**
    * Reports whether this is a return instruction (blr).
    *
    * @return True for a return
    */
-  bool is_return() const;
+  bool IsReturn() const;
 
   /**
    * Reports whether this is a conditional branch, false for unconditional branches (BO=20).
    *
    * @return True for a conditional branch
    */
-  bool is_conditional() const;
+  bool IsConditional() const;
 
   /**
    * Disassembles the instruction to a string.
    *
    * @return The disassembly text
    */
-  std::string to_string() const;
+  std::string ToString() const;
 };
 
 /**
@@ -363,6 +363,6 @@ struct Instruction {
  * @param code Raw 32-bit instruction code (host byte order)
  * @return Decoded instruction structure
  */
-Instruction decode_instruction(u32 address, u32 code);
+Instruction DecodeInstruction(u32 address, u32 code);
 
 }  // namespace rex::codegen::detail

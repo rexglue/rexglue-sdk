@@ -111,49 +111,49 @@ class Node : public NonCopyable {
    *
    * @return The provider.
    */
-  [[nodiscard]] Provider& provider() const { return *provider_; }
+  [[nodiscard]] Provider& GetProvider() const { return *provider_; }
 
   /**
    * Returns the parent directory.
    *
    * @return The parent, or null for the root.
    */
-  [[nodiscard]] Node* parent() const { return parent_; }
+  [[nodiscard]] Node* GetParent() const { return parent_; }
 
   /**
    * Returns the last path component.
    *
    * @return The name, empty for the root.
    */
-  [[nodiscard]] const std::string& name() const { return name_; }
+  [[nodiscard]] const std::string& GetName() const { return name_; }
 
   /**
    * Returns the path relative to the mount.
    *
    * @return The path.
    */
-  [[nodiscard]] const std::string& path() const { return path_; }
+  [[nodiscard]] const std::string& GetPath() const { return path_; }
 
   /**
    * Returns the mount path joined with the path.
    *
    * @return The absolute guest path.
    */
-  [[nodiscard]] const std::string& absolute_path() const { return absolute_path_; }
+  [[nodiscard]] const std::string& GetAbsolutePath() const { return absolute_path_; }
 
   /**
    * Returns the attribute bits.
    *
    * @return The attributes.
    */
-  [[nodiscard]] FileAttributes attributes() const { return attributes_; }
+  [[nodiscard]] FileAttributes GetAttributes() const { return attributes_; }
 
   /**
    * Reports whether the node is a directory.
    *
    * @return True when kDirectory is set.
    */
-  [[nodiscard]] bool is_directory() const {
+  [[nodiscard]] bool IsDirectory() const {
     return HasFlags(attributes_, FileAttributes::kDirectory);
   }
 
@@ -162,28 +162,28 @@ class Node : public NonCopyable {
    *
    * @return True on a read only mount.
    */
-  [[nodiscard]] bool read_only() const;
+  [[nodiscard]] bool IsReadOnly() const;
 
   /**
    * Reports whether a delete on close request is set.
    *
    * @return True when requested.
    */
-  [[nodiscard]] bool delete_on_close() const;
+  [[nodiscard]] bool DeleteOnClose() const;
 
   /**
    * Sets or withdraws a delete on close request.
    *
    * @param delete_on_close True to request.
    */
-  void set_delete_on_close(bool delete_on_close);
+  void SetDeleteOnClose(bool delete_on_close);
 
   /**
    * Returns the count of open files and walks on the node and its descendants.
    *
    * @return The count.
    */
-  [[nodiscard]] u32 open_count() const { return open_count_; }
+  [[nodiscard]] u32 GetOpenCount() const { return open_count_; }
 
   /** Counts 1 open file or walk on the node and its ancestors. */
   void AddOpen();
@@ -199,14 +199,14 @@ class Node : public NonCopyable {
    *
    * @return The name, paths, attributes, sizes and times.
    */
-  [[nodiscard]] FileInfo Info() const;
+  [[nodiscard]] FileInfo GetInfo() const;
 
   /**
    * Returns the children in insertion order.
    *
    * @return The children.
    */
-  [[nodiscard]] const std::vector<std::unique_ptr<Node>>& children() const { return children_; }
+  [[nodiscard]] const std::vector<std::unique_ptr<Node>>& GetChildren() const { return children_; }
 
   /**
    * Returns the child with a name, case insensitive.
@@ -302,7 +302,7 @@ class Node : public NonCopyable {
    * @param child A child of this node.
    * @return True when the backing file of child is gone.
    */
-  [[nodiscard]] virtual bool ChildVanished(const Node& child) const;
+  [[nodiscard]] virtual bool HasChildVanished(const Node& child) const;
 
   /**
    * Opens the node.

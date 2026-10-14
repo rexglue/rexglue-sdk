@@ -44,11 +44,11 @@ f32 RunMulConstTemp(bool abs_constants) {
   auto registers = std::make_unique<rex::xenos::RegisterFile>();
   (*registers)[rex::xenos::Register::SHADER_CONSTANT_000_W] = std::bit_cast<u32>(-2.0f);
   rex::gpu::ShaderInterpreter interpreter(*registers, rex::testing::GetTestMemory());
-  interpreter.temp_registers()[0] = 3.0f;
+  interpreter.GetTempRegisters()[0] = 3.0f;
   const auto ucode = MulConstTempProgram(abs_constants);
   interpreter.SetShader(rex::xenos::ShaderType::kVertex, ucode.data());
   interpreter.Execute();
-  return interpreter.temp_registers()[4];
+  return interpreter.GetTempRegisters()[4];
 }
 
 }  // namespace

@@ -32,8 +32,8 @@ class BadVersionModule final : public rex::IModule {
 
   BadVersionModule() { Record(kName, "constructor"); }
 
-  const char* Name() const override { return kName; }
-  std::span<const char* const> RequiredInterfaces() const override { return {}; }
+  const char* GetName() const override { return kName; }
+  std::span<const char* const> GetRequiredInterfaces() const override { return {}; }
   [[nodiscard]] rex::Result<void> Connect(rex::IInterfaceFactory*, const rex::Config&) override {
     Record(kName, "connect");
     return rex::Ok();
@@ -46,14 +46,14 @@ class BadVersionModule final : public rex::IModule {
   void Shutdown() override { Record(kName, "shutdown"); }
 
  private:
-  static BadVersionModule& Instance() {
+  static BadVersionModule& GetInstance() {
     static BadVersionModule instance;
     return instance;
   }
 };
 
 void* BadVersionModule::GetModule() {
-  return static_cast<rex::IModule*>(&Instance());
+  return static_cast<rex::IModule*>(&GetInstance());
 }
 
 }  // namespace

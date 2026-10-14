@@ -72,14 +72,14 @@ class Window : public IWindow, public gpu::IPresentationHost {
    *
    * @return The app context that owns the UI thread.
    */
-  WindowedAppContext& app_context() const { return app_context_; }
+  WindowedAppContext& GetAppContext() const { return app_context_; }
 
   /**
    * Returns the life cycle phase.
    *
    * @return The current phase.
    */
-  Phase phase() const { return phase_; }
+  Phase GetPhase() const { return phase_; }
 
   /**
    * Reports whether the actual state may be read.
@@ -140,16 +140,16 @@ class Window : public IWindow, public gpu::IPresentationHost {
    *
    * @return 96 unless the platform differs.
    */
-  virtual u32 GetMediumDpi() const { return 96; }
+  virtual u32 GetMediumDPI() const { return 96; }
 
   /**
    * Returns the window DPI.
    *
    * @return The latest DPI, or the medium DPI when the platform reports none.
    */
-  u32 GetDpi() const {
-    u32 dpi = GetLatestDpiImpl();
-    return dpi ? dpi : GetMediumDpi();
+  u32 GetDPI() const {
+    u32 dpi = GetLatestDPIImpl();
+    return dpi ? dpi : GetMediumDPI();
   }
 
   /**
@@ -160,7 +160,7 @@ class Window : public IWindow, public gpu::IPresentationHost {
    * @param old_dpi The DPI of size.
    * @return The converted size.
    */
-  static constexpr u32 ConvertSizeDpi(u32 size, u32 new_dpi, u32 old_dpi) {
+  static constexpr u32 ConvertSizeDPI(u32 size, u32 new_dpi, u32 old_dpi) {
     return static_cast<u32>((static_cast<u64>(size) * new_dpi + (old_dpi - 1)) / old_dpi);
   }
 
@@ -170,7 +170,7 @@ class Window : public IWindow, public gpu::IPresentationHost {
    * @param size The physical size.
    * @return The logical size.
    */
-  u32 SizeToLogical(u32 size) const { return ConvertSizeDpi(size, GetMediumDpi(), GetDpi()); }
+  u32 SizeToLogical(u32 size) const { return ConvertSizeDPI(size, GetMediumDPI(), GetDPI()); }
 
   /**
    * Converts a logical size to a physical one.
@@ -178,7 +178,7 @@ class Window : public IWindow, public gpu::IPresentationHost {
    * @param size The logical size.
    * @return The physical size.
    */
-  u32 SizeToPhysical(u32 size) const { return ConvertSizeDpi(size, GetDpi(), GetMediumDpi()); }
+  u32 SizeToPhysical(u32 size) const { return ConvertSizeDPI(size, GetDPI(), GetMediumDPI()); }
 
   /**
    * Returns the desired logical width of the window when it is neither maximized nor
@@ -244,17 +244,15 @@ class Window : public IWindow, public gpu::IPresentationHost {
    *
    * @return The desired fullscreen state.
    */
-  bool IsFullscreen() const { return fullscreen_; }
+  bool IsFullscreen() const override { return fullscreen_; }
 
-  bool Fullscreen() const override { return fullscreen_; }
+  u32 GetWidth() const override { return GetActualPhysicalWidth(); }
 
-  u32 Width() const override { return GetActualPhysicalWidth(); }
+  u32 GetHeight() const override { return GetActualPhysicalHeight(); }
 
-  u32 Height() const override { return GetActualPhysicalHeight(); }
+  bool IsFocused() const override { return HasFocus(); }
 
-  bool Focused() const override { return HasFocus(); }
-
-  gpu::IPresentationHost& Presentation() override { return *this; }
+  gpu::IPresentationHost& GetPresentation() override { return *this; }
 
   /**
    * Enters or leaves fullscreen.
@@ -302,7 +300,7 @@ class Window : public IWindow, public gpu::IPresentationHost {
    *
    * @return The SDL window, or nullptr before the window opens.
    */
-  virtual SDL_Window* sdl() const { return nullptr; }
+  virtual SDL_Window* GetSDL() const { return nullptr; }
 
   /**
    * Sets the smallest client area the window accepts. Applies now and whenever the window
@@ -502,7 +500,7 @@ class Window : public IWindow, public gpu::IPresentationHost {
    *
    * @return The DPI, 0 for the medium DPI.
    */
-  virtual u32 GetLatestDpiImpl() const { return GetMediumDpi(); }
+  virtual u32 GetLatestDPIImpl() const { return GetMediumDPI(); }
 
   /**
    * Creates the native window from the desired state and reports the initial actual state
@@ -554,7 +552,7 @@ class Window : public IWindow, public gpu::IPresentationHost {
    *
    * @return The presenter, or null.
    */
-  gpu::IPresenter* presenter() const { return presenter_; }
+  gpu::IPresenter* GetPresenter() const { return presenter_; }
 
   /**
    * Recreates or destroys the presenter surface. Calls no virtual function when
@@ -614,7 +612,7 @@ class Window : public IWindow, public gpu::IPresentationHost {
    * @param e The event.
    * @param destruction_receiver Receiver that detects destruction during the call.
    */
-  void OnDpiChanged(UISetupEvent& e, WindowDestructionReceiver& destruction_receiver);
+  void OnDPIChanged(UISetupEvent& e, WindowDestructionReceiver& destruction_receiver);
 
   /**
    * Reports a monitor change.
@@ -792,7 +790,7 @@ class Window : public IWindow, public gpu::IPresentationHost {
 
   bool text_input_active_ = false;
 
-  CursorVisibility cursor_visibility_ = CursorVisibility::Visible;
+  CursorVisibility cursor_visibility_ = CursorVisibility::kVisible;
 
   u32 cursor_auto_hide_delay_ms_ = kDefaultCursorAutoHideMilliseconds;
 

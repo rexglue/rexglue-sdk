@@ -73,7 +73,7 @@ class ILogger {
    *
    * @return 1 row per category.
    */
-  virtual std::vector<log::CategoryInfo> Categories() const = 0;
+  virtual std::vector<log::CategoryInfo> GetCategories() const = 0;
 
   /**
    * Adds a sink. The caller keeps ownership and removes the sink before destroying it.
@@ -104,7 +104,7 @@ class ILogger {
    *
    * @return The path of the open log file, empty when no file is open.
    */
-  virtual std::filesystem::path FilePath() const = 0;
+  virtual std::filesystem::path GetFilePath() const = 0;
 };
 
 namespace log {

@@ -41,8 +41,8 @@ class ShaderInterpreter {
 
   void SetExportSink(ExportSink* new_export_sink) { export_sink_ = new_export_sink; }
 
-  const f32* temp_registers() const { return &temp_registers_[0][0]; }
-  f32* temp_registers() { return &temp_registers_[0][0]; }
+  const f32* GetTempRegisters() const { return &temp_registers_[0][0]; }
+  f32* GetTempRegisters() { return &temp_registers_[0][0]; }
 
   /**
    * Reports whether the shader can be interpreted.
@@ -53,8 +53,8 @@ class ShaderInterpreter {
    * @return True when the shader can be interpreted.
    */
   static bool CanInterpretShader(const Shader& shader) {
-    REX_ASSERT(shader.is_ucode_analyzed());
-    if (shader.uses_texture_fetch_instruction_results()) {
+    REX_ASSERT(shader.IsUcodeAnalyzed());
+    if (shader.UsesTextureFetchInstructionResults()) {
       return false;
     }
     return true;
@@ -65,7 +65,7 @@ class ShaderInterpreter {
   }
   void SetShader(const Shader& shader) {
     REX_ASSERT(CanInterpretShader(shader));
-    SetShader(shader.type(), shader.ucode_dwords());
+    SetShader(shader.GetType(), shader.GetUcodeDwords());
   }
 
   void Execute();

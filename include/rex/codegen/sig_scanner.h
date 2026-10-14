@@ -29,7 +29,7 @@ struct Signature {
   std::string name;           /**< Symbol name such as "__savegprlr_14" */
   std::vector<u32> pattern;   /**< Instruction words to match */
   std::vector<u32> mask;      /**< Bits that must match, 0xFFFFFFFF for exact */
-  size_t entryOffset = 0;     /**< Offset from the pattern start to the entry point */
+  size_t entry_offset = 0;    /**< Offset from the pattern start to the entry point */
   std::optional<size_t> size; /**< Known size, or nullopt to compute from the pattern */
 };
 
@@ -49,7 +49,7 @@ class SigScanner {
    * @param sig Signature to match
    * @return Entry points of all matches
    */
-  std::vector<u32> scan(const Signature& sig);
+  std::vector<u32> Scan(const Signature& sig);
 
   /**
    * Scans for multiple signatures in a single pass.
@@ -57,27 +57,27 @@ class SigScanner {
    * @param sigs Signatures to match
    * @return Entry points of all matches keyed by signature name
    */
-  std::unordered_map<std::string, std::vector<u32>> scanAll(const std::vector<Signature>& sigs);
+  std::unordered_map<std::string, std::vector<u32>> ScanAll(const std::vector<Signature>& sigs);
 
   /**
    * Returns the built in signatures of the __save and __restore helpers.
    *
    * @return Helper signatures
    */
-  static std::vector<Signature> helperSignatures();
+  static std::vector<Signature> GetHelperSignatures();
 
   /**
    * Returns the built in signatures of memset, memmove and other library routines.
    *
    * @return Library signatures
    */
-  static std::vector<Signature> hleSignatures();
+  static std::vector<Signature> GetHLESignatures();
 
  private:
   const runtime::Module& module_;
 
-  std::vector<u32> scanRange(u32 start, u32 end, const std::vector<u32>& pattern,
-                             const std::vector<u32>& mask, size_t entryOffset);
+  std::vector<u32> ScanRange(u32 start, u32 end, const std::vector<u32>& pattern,
+                             const std::vector<u32>& mask, size_t entry_offset);
 };
 
 }  // namespace rex::codegen

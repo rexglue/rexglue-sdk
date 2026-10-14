@@ -18,15 +18,15 @@ namespace rex::hid::xinput {
 
 class XInputModule final : public HIDModuleBase {
  public:
-  static void* GetModule() { return static_cast<IModule*>(&Instance()); }
-  static void* GetBackend() { return static_cast<hid::IHIDBackend*>(&Instance().hub()); }
+  static void* GetModule() { return static_cast<IModule*>(&GetInstance()); }
+  static void* GetBackend() { return static_cast<hid::IHIDBackend*>(&GetInstance().GetHub()); }
 
   static constexpr std::array<InterfaceEntry, 2> kInterfaces = {{
       {IModule::kInterfaceName, IModule::kInterfaceVersion, &GetModule},
       {hid::IHIDBackend::kInterfaceName, hid::IHIDBackend::kInterfaceVersion, &GetBackend},
   }};
 
-  const char* Name() const override { return "rex-hid-xinput"; }
+  const char* GetName() const override { return "rex-hid-xinput"; }
 
  protected:
   [[nodiscard]] Result<std::unique_ptr<Driver>> CreatePadDriver(const HIDConfig&) override {
@@ -36,7 +36,7 @@ class XInputModule final : public HIDModuleBase {
   }
 
  private:
-  static XInputModule& Instance() {
+  static XInputModule& GetInstance() {
     static XInputModule instance;
     return instance;
   }

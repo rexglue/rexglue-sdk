@@ -75,14 +75,14 @@ class REX_API CLIArgList {
    *
    * @return Each option with its name and its value, if it has one.
    */
-  std::span<const CLIOption> Options() const;
+  std::span<const CLIOption> GetOptions() const;
 
   /**
    * Returns the arguments that are not options or option values.
    *
    * @return The positional arguments, in order.
    */
-  std::span<const std::string> Positionals() const;
+  std::span<const std::string> GetPositionals() const;
 
   /**
    * Returns every argument.

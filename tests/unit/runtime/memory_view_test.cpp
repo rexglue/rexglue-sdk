@@ -45,14 +45,14 @@ void CheckAliases(rex::runtime::Memory& memory, u32 address) {
 
 u8* HeapLookup(const rex::runtime::Memory& memory, u32 address) {
   const rex::runtime::BaseHeap* heap = memory.LookupHeap(address);
-  return memory.virtual_membase() + address + (heap ? heap->host_address_offset() : 0);
+  return memory.GetVirtualMembase() + address + (heap ? heap->GetHostAddressOffset() : 0);
 }
 
 }  // namespace
 
 REX_TEST_CASE("TranslateVirtual equals the heap lookup at every heap edge", "[runtime][memory]") {
   rex::testing::KernelFixture fixture;
-  const rex::runtime::Memory& memory = *fixture.runtime().memory();
+  const rex::runtime::Memory& memory = *fixture.GetRuntime().GetMemory();
   for (const u32 address : kHeapEdges) {
     CHECK(memory.TranslateVirtual(address) == HeapLookup(memory, address));
   }
@@ -61,7 +61,7 @@ REX_TEST_CASE("TranslateVirtual equals the heap lookup at every heap edge", "[ru
 REX_TEST_CASE("HostToGuestVirtual inverts TranslateVirtual at every heap edge",
               "[runtime][memory]") {
   rex::testing::KernelFixture fixture;
-  const rex::runtime::Memory& memory = *fixture.runtime().memory();
+  const rex::runtime::Memory& memory = *fixture.GetRuntime().GetMemory();
   for (const u32 address : kHeapEdges) {
     CHECK(memory.HostToGuestVirtual(memory.TranslateVirtual(address)) == address);
   }
@@ -69,9 +69,9 @@ REX_TEST_CASE("HostToGuestVirtual inverts TranslateVirtual at every heap edge",
 
 REX_TEST_CASE("MemoryView returns what Memory returns", "[runtime][memory]") {
   rex::testing::KernelFixture fixture;
-  const rex::runtime::Memory& memory = *fixture.runtime().memory();
+  const rex::runtime::Memory& memory = *fixture.GetRuntime().GetMemory();
   const rex::runtime::MemoryView view(memory);
-  CHECK(view.virtual_membase() == memory.virtual_membase());
+  CHECK(view.GetVirtualMembase() == memory.GetVirtualMembase());
   for (const u32 address : kHeapEdges) {
     u8* host = memory.TranslateVirtual(address);
     CHECK(view.TranslateVirtual(address) == host);
@@ -81,17 +81,17 @@ REX_TEST_CASE("MemoryView returns what Memory returns", "[runtime][memory]") {
 
 REX_TEST_CASE("TranslateVirtual above the 0xE0 heap matches recompiled code", "[runtime][memory]") {
   rex::testing::KernelFixture fixture;
-  const rex::runtime::Memory& memory = *fixture.runtime().memory();
+  const rex::runtime::Memory& memory = *fixture.GetRuntime().GetMemory();
   for (const u32 address : {0xFFD00000u, 0xFFFFFFFFu}) {
     CHECK(memory.TranslateVirtual(address) ==
-          rex::runtime::GuestPtr(memory.virtual_membase(), address));
+          rex::runtime::GuestPtr(memory.GetVirtualMembase(), address));
   }
 }
 
 REX_TEST_CASE("HostToGuestVirtual inverts TranslateVirtual above the 0xE0 heap",
               "[runtime][memory]") {
   rex::testing::KernelFixture fixture;
-  const rex::runtime::Memory& memory = *fixture.runtime().memory();
+  const rex::runtime::Memory& memory = *fixture.GetRuntime().GetMemory();
   const rex::runtime::MemoryView view(memory);
   for (const u32 address : {0xE0000FFFu, 0xFFCFF000u, 0xFFD00000u, 0xFFD00FFFu, 0xFFD01000u,
                             0xFFFFEFFFu, 0xFFFFF000u, 0xFFFFFFFFu}) {
@@ -103,7 +103,7 @@ REX_TEST_CASE("HostToGuestVirtual inverts TranslateVirtual above the 0xE0 heap",
 REX_TEST_CASE("Every physical heap reaches the physical byte the hardware maps",
               "[runtime][memory]") {
   rex::testing::KernelFixture fixture;
-  rex::runtime::Memory& memory = *fixture.runtime().memory();
+  rex::runtime::Memory& memory = *fixture.GetRuntime().GetMemory();
   for (const u32 page_size : {4096u, 64u * 1024u, 16u * 1024u * 1024u}) {
     for (const bool top_down : {false, true}) {
       CAPTURE(page_size, top_down);
@@ -125,8 +125,8 @@ REX_TEST_CASE("Every physical heap reaches the physical byte the hardware maps",
 
 REX_TEST_CASE("The top guest page wraps to physical 0 as the hardware does", "[runtime][memory]") {
   rex::testing::KernelFixture fixture;
-  const rex::runtime::Memory& memory = *fixture.runtime().memory();
+  const rex::runtime::Memory& memory = *fixture.GetRuntime().GetMemory();
   CHECK(memory.TranslateVirtual(0xFFFFF000) == memory.TranslatePhysical(0));
   CHECK(memory.TranslateVirtual(0xFFFFFFFF) == memory.TranslatePhysical(0xFFF));
-  CHECK(memory.TranslateVirtual(0xE0000000) == memory.virtual_membase() + 0xE0001000u);
+  CHECK(memory.TranslateVirtual(0xE0000000) == memory.GetVirtualMembase() + 0xE0001000u);
 }

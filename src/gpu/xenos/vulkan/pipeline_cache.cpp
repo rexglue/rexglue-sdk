@@ -281,10 +281,10 @@ bool VulkanPipelineCache::Initialize() {
 
   shader_translator_ = std::make_unique<SPIRVShaderTranslator>(
       SPIRVShaderTranslator::Features(vulkan_device),
-      render_target_cache_.msaa_2x_attachments_supported(),
-      render_target_cache_.msaa_2x_no_attachments_supported(), edram_fragment_shader_interlock,
-      render_target_cache_.draw_resolution_scale_x(),
-      render_target_cache_.draw_resolution_scale_y());
+      render_target_cache_.GetMSAA2xAttachmentsSupported(),
+      render_target_cache_.GetMSAA2xNoAttachmentsSupported(), edram_fragment_shader_interlock,
+      render_target_cache_.GetDrawResolutionScaleX(),
+      render_target_cache_.GetDrawResolutionScaleY());
 
   if (edram_fragment_shader_interlock) {
     std::vector<u8> depth_only_fragment_shader_code =
@@ -343,7 +343,7 @@ bool VulkanPipelineCache::Initialize() {
                 "async placeholder hot-swap will be unavailable");
   }
 
-  u32 logical_processor_count = rex::platform::logical_processor_count();
+  u32 logical_processor_count = rex::platform::LogicalProcessorCount();
   if (!logical_processor_count) {
     logical_processor_count = 6;
   }
@@ -366,7 +366,7 @@ bool VulkanPipelineCache::Initialize() {
       std::unique_ptr<rex::platform::Thread> creation_thread =
           rex::platform::Thread::Create({}, [this, i]() { CreationThread(i); });
       REX_ASSERT(creation_thread != nullptr);
-      creation_thread->set_name("Vulkan Pipelines");
+      creation_thread->SetName("Vulkan Pipelines");
       creation_threads_.push_back(std::move(creation_thread));
     }
   }
@@ -389,7 +389,7 @@ void VulkanPipelineCache::InitializeShaderStorage(const std::filesystem::path& c
       REXLOG_ERROR(gpu,
                    "Failed to create the shareable shader storage directory, persistent "
                    "shader storage will be disabled: {}",
-                   rex::path_to_utf8(shader_storage_shareable_root));
+                   rex::PathToUTF8(shader_storage_shareable_root));
       return;
     }
   }
@@ -407,7 +407,7 @@ void VulkanPipelineCache::InitializeShaderStorage(const std::filesystem::path& c
     REXLOG_ERROR(gpu,
                  "Failed to open the Vulkan pipeline description storage file for "
                  "writing, persistent shader storage will be disabled: {}",
-                 rex::path_to_utf8(pipeline_storage_file_path));
+                 rex::PathToUTF8(pipeline_storage_file_path));
     return;
   }
   pipeline_storage_file_flush_needed_ = false;
@@ -485,7 +485,7 @@ void VulkanPipelineCache::InitializeShaderStorage(const std::filesystem::path& c
     REXLOG_ERROR(gpu,
                  "Failed to open the title shader storage file for writing, persistent "
                  "shader storage will be disabled: {}",
-                 rex::path_to_utf8(shader_storage_file_path));
+                 rex::PathToUTF8(shader_storage_file_path));
     pipeline_storage_file_.close();
     return;
   }
@@ -523,10 +523,10 @@ void VulkanPipelineCache::InitializeShaderStorage(const std::filesystem::path& c
       shader_storage_valid_bytes += sizeof(shader_header) + ucode_byte_count;
       VulkanShader* shader = LoadShader(shader_header.type, ucode_dwords.data(),
                                         shader_header.ucode_dword_count, ucode_data_hash);
-      if (shader->ucode_storage_index() == shader_storage_index_) {
+      if (shader->GetUcodeStorageIndex() == shader_storage_index_) {
         continue;
       }
-      shader->set_ucode_storage_index(shader_storage_index_);
+      shader->SetUcodeStorageIndex(shader_storage_index_);
     }
     ResetStorageFile(shader_storage_file_, shader_storage_file_path_, shader_storage_valid_bytes);
   } else {
@@ -543,13 +543,13 @@ void VulkanPipelineCache::InitializeShaderStorage(const std::filesystem::path& c
       continue;
     }
     auto* shader = shader_it->second.get();
-    if (!shader->is_ucode_analyzed()) {
+    if (!shader->IsUcodeAnalyzed()) {
       shader->AnalyzeUcode(ucode_disasm_buffer_);
     }
     bool translation_is_new = false;
     auto* translation = static_cast<VulkanShader::VulkanTranslation*>(
         shader->GetOrCreateTranslation(translation_needed.second, &translation_is_new));
-    if (!translation->is_translated() &&
+    if (!translation->IsTranslated() &&
         !TranslateAnalyzedShader(*shader_translator_, *translation)) {
       if (translation_is_new) {
         shader->DestroyTranslation(translation_needed.second);
@@ -582,10 +582,10 @@ void VulkanPipelineCache::InitializeShaderStorage(const std::filesystem::path& c
     }
     u32 shader_writes_color_targets =
         creation_arguments.pixel_shader
-            ? creation_arguments.pixel_shader->shader().writes_color_targets()
+            ? creation_arguments.pixel_shader->GetShader().GetWritesColorTargets()
             : 0;
     bool shader_writes_depth = creation_arguments.pixel_shader
-                                   ? creation_arguments.pixel_shader->shader().writes_depth()
+                                   ? creation_arguments.pixel_shader->GetShader().GetWritesDepth()
                                    : pipeline_description.depth_write_enable != 0;
     creation_arguments.priority = pipeline_priority::CalculatePipelinePriority(
         bound_rts, shader_writes_color_targets, shader_writes_depth);
@@ -597,7 +597,7 @@ void VulkanPipelineCache::InitializeShaderStorage(const std::filesystem::path& c
       std::lock_guard<std::mutex> lock(creation_request_lock_);
       startup_loading_ = true;
     }
-    u32 logical_processor_count = rex::platform::logical_processor_count();
+    u32 logical_processor_count = rex::platform::LogicalProcessorCount();
     if (!logical_processor_count) {
       logical_processor_count = 6;
     }
@@ -641,7 +641,7 @@ void VulkanPipelineCache::InitializeShaderStorage(const std::filesystem::path& c
         std::unique_ptr<rex::platform::Thread> creation_thread =
             rex::platform::Thread::Create({}, creation_worker);
         REX_ASSERT(creation_thread != nullptr);
-        creation_thread->set_name("Vulkan Pipelines");
+        creation_thread->SetName("Vulkan Pipelines");
         creation_threads.push_back(std::move(creation_thread));
       }
       for (const auto& creation_thread : creation_threads) {
@@ -678,7 +678,7 @@ void VulkanPipelineCache::InitializeShaderStorage(const std::filesystem::path& c
   storage_write_thread_shutdown_ = false;
   storage_write_thread_ = rex::platform::Thread::Create({}, [this]() { StorageWriteThread(); });
   REX_ASSERT(storage_write_thread_ != nullptr);
-  storage_write_thread_->set_name("Vulkan Storage writer");
+  storage_write_thread_->SetName("Vulkan Storage writer");
 }
 
 void VulkanPipelineCache::ShutdownShaderStorage() {
@@ -782,8 +782,8 @@ void VulkanPipelineCache::Shutdown() {
   ShutdownShaderStorage();
 
   const gpu::vulkan::VulkanDevice* const vulkan_device = command_processor_.GetVulkanDevice();
-  const gpu::vulkan::VulkanDevice::Functions& dfn = vulkan_device->functions();
-  const VkDevice device = vulkan_device->device();
+  const gpu::vulkan::VulkanDevice::Functions& dfn = vulkan_device->GetFunctions();
+  const VkDevice device = vulkan_device->GetDevice();
 
   ProcessDeferredPipelineDestructions(true);
 
@@ -858,10 +858,10 @@ VulkanShader* VulkanPipelineCache::LoadShader(xenos::ShaderType shader_type,
 SPIRVShaderTranslator::Modification VulkanPipelineCache::GetCurrentVertexShaderModification(
     const Shader& shader, Shader::HostVertexShaderType host_vertex_shader_type,
     u32 interpolator_mask, bool ps_param_gen_used) const {
-  REX_ASSERT(shader.type() == xenos::ShaderType::kVertex);
-  REX_ASSERT(shader.is_ucode_analyzed());
+  REX_ASSERT(shader.GetType() == xenos::ShaderType::kVertex);
+  REX_ASSERT(shader.IsUcodeAnalyzed());
   const auto& regs = register_file_;
-  const auto& device_properties = command_processor_.GetVulkanDevice()->properties();
+  const auto& device_properties = command_processor_.GetVulkanDevice()->GetProperties();
 
   SPIRVShaderTranslator::Modification modification(
       shader_translator_->GetDefaultVertexShaderModification(
@@ -892,19 +892,19 @@ SPIRVShaderTranslator::Modification VulkanPipelineCache::GetCurrentVertexShaderM
   } else {
     modification.vertex.user_clip_plane_cull = 0;
   }
-  modification.vertex.user_clip_plane_count = rex::bit_count(user_clip_planes);
+  modification.vertex.user_clip_plane_count = rex::BitCount(user_clip_planes);
   modification.vertex.point_ps_ucp_mode = pa_cl_clip_cntl.ps_ucp_mode;
 
   if (host_vertex_shader_type == Shader::HostVertexShaderType::kPointListAsTriangleStrip) {
     modification.vertex.output_point_parameters = static_cast<u32>(ps_param_gen_used);
   } else {
     modification.vertex.output_point_parameters = static_cast<u32>(
-        (shader.writes_point_size_edge_flag_kill_vertex() & 0b001) &&
+        (shader.GetWritesPointSizeEdgeFlagKillVertex() & 0b001) &&
         regs.Get<xenos::reg::VGT_DRAW_INITIATOR>().prim_type == xenos::PrimitiveType::kPointList);
   }
   modification.vertex.vertex_kill_and = static_cast<u32>(
       device_properties.shaderCullDistance &&
-      (shader.writes_point_size_edge_flag_kill_vertex() & 0b100) && !pa_cl_clip_cntl.vtx_kill_or);
+      (shader.GetWritesPointSizeEdgeFlagKillVertex() & 0b100) && !pa_cl_clip_cntl.vtx_kill_or);
 
   return modification;
 }
@@ -912,8 +912,8 @@ SPIRVShaderTranslator::Modification VulkanPipelineCache::GetCurrentVertexShaderM
 SPIRVShaderTranslator::Modification VulkanPipelineCache::GetCurrentPixelShaderModification(
     const Shader& shader, u32 interpolator_mask, u32 param_gen_pos,
     xenos::reg::RB_DEPTHCONTROL normalized_depth_control) const {
-  REX_ASSERT(shader.type() == xenos::ShaderType::kPixel);
-  REX_ASSERT(shader.is_ucode_analyzed());
+  REX_ASSERT(shader.GetType() == xenos::ShaderType::kPixel);
+  REX_ASSERT(shader.IsUcodeAnalyzed());
   const auto& regs = register_file_;
 
   SPIRVShaderTranslator::Modification modification(
@@ -941,16 +941,16 @@ SPIRVShaderTranslator::Modification VulkanPipelineCache::GetCurrentPixelShaderMo
 
   if (render_target_cache_.GetPath() == RenderTargetCache::Path::kHostRenderTargets) {
     using DepthStencilMode = SPIRVShaderTranslator::Modification::DepthStencilMode;
-    if (render_target_cache_.depth_float24_convert_in_pixel_shader() &&
+    if (render_target_cache_.GetDepthFloat24ConvertInPixelShader() &&
         normalized_depth_control.z_enable &&
         regs.Get<xenos::reg::RB_DEPTH_INFO>().depth_format ==
             xenos::DepthRenderTargetFormat::kD24FS8) {
-      modification.pixel.depth_stencil_mode = render_target_cache_.depth_float24_round()
+      modification.pixel.depth_stencil_mode = render_target_cache_.GetDepthFloat24Round()
                                                   ? DepthStencilMode::kFloat24Rounding
                                                   : DepthStencilMode::kFloat24Truncating;
     } else {
-      if (shader.implicit_early_z_write_allowed() &&
-          (!shader.writes_color_target(0) ||
+      if (shader.GetImplicitEarlyZWriteAllowed() &&
+          (!shader.GetWritesColorTarget(0) ||
            !draw_state::DoesCoverageDependOnAlpha(regs.Get<xenos::reg::RB_COLORCONTROL>()))) {
         modification.pixel.depth_stencil_mode = DepthStencilMode::kEarlyHint;
       } else {
@@ -970,23 +970,23 @@ bool VulkanPipelineCache::EnsureShadersTranslated(VulkanShader::VulkanTranslatio
              register_file_.Get<xenos::reg::SQ_PROGRAM_CNTL>().vs_export_mode !=
                  xenos::VertexShaderExportMode::kPosition2VectorsEdgeKill);
   REX_ASSERT(!(register_file_.Get<xenos::reg::SQ_PROGRAM_CNTL>().gen_index_vtx));
-  if (!vertex_shader->is_translated()) {
-    vertex_shader->shader().AnalyzeUcode(ucode_disasm_buffer_);
+  if (!vertex_shader->IsTranslated()) {
+    vertex_shader->GetShader().AnalyzeUcode(ucode_disasm_buffer_);
     if (!TranslateAnalyzedShader(*shader_translator_, *vertex_shader)) {
       REX_FAIL(gpu, false, "Failed to translate the vertex shader!");
     }
   }
-  if (!vertex_shader->is_valid()) {
+  if (!vertex_shader->IsValid()) {
     return false;
   }
   if (pixel_shader != nullptr) {
-    if (!pixel_shader->is_translated()) {
-      pixel_shader->shader().AnalyzeUcode(ucode_disasm_buffer_);
+    if (!pixel_shader->IsTranslated()) {
+      pixel_shader->GetShader().AnalyzeUcode(ucode_disasm_buffer_);
       if (!TranslateAnalyzedShader(*shader_translator_, *pixel_shader)) {
         REX_FAIL(gpu, false, "Failed to translate the pixel shader!");
       }
     }
-    if (!pixel_shader->is_valid()) {
+    if (!pixel_shader->IsValid()) {
       return false;
     }
   }
@@ -1007,24 +1007,24 @@ bool VulkanPipelineCache::ConfigurePipeline(
     return false;
   }
   if (shader_storage_file_.is_open() &&
-      vertex_shader->shader().ucode_storage_index() != shader_storage_index_) {
-    vertex_shader->shader().set_ucode_storage_index(shader_storage_index_);
+      vertex_shader->GetShader().GetUcodeStorageIndex() != shader_storage_index_) {
+    vertex_shader->GetShader().SetUcodeStorageIndex(shader_storage_index_);
     REX_ASSERT(storage_write_thread_ != nullptr);
     shader_storage_file_flush_needed_ = true;
     {
       std::lock_guard<std::mutex> lock(storage_write_request_lock_);
-      storage_write_shader_queue_.push_back(&vertex_shader->shader());
+      storage_write_shader_queue_.push_back(&vertex_shader->GetShader());
     }
     storage_write_request_cond_.notify_all();
   }
   if (pixel_shader && shader_storage_file_.is_open() &&
-      pixel_shader->shader().ucode_storage_index() != shader_storage_index_) {
-    pixel_shader->shader().set_ucode_storage_index(shader_storage_index_);
+      pixel_shader->GetShader().GetUcodeStorageIndex() != shader_storage_index_) {
+    pixel_shader->GetShader().SetUcodeStorageIndex(shader_storage_index_);
     REX_ASSERT(storage_write_thread_ != nullptr);
     shader_storage_file_flush_needed_ = true;
     {
       std::lock_guard<std::mutex> lock(storage_write_request_lock_);
-      storage_write_shader_queue_.push_back(&pixel_shader->shader());
+      storage_write_shader_queue_.push_back(&pixel_shader->GetShader());
     }
     storage_write_request_cond_.notify_all();
   }
@@ -1065,8 +1065,8 @@ bool VulkanPipelineCache::ConfigurePipeline(
   if (use_async) {
     u32 bound_rts = pipeline_priority::GetBoundRTMaskFromNormalizedColorMask(normalized_color_mask);
     u32 shader_writes_color_targets =
-        pixel_shader ? pixel_shader->shader().writes_color_targets() : 0;
-    bool shader_writes_depth = pixel_shader ? pixel_shader->shader().writes_depth()
+        pixel_shader ? pixel_shader->GetShader().GetWritesColorTargets() : 0;
+    bool shader_writes_depth = pixel_shader ? pixel_shader->GetShader().GetWritesDepth()
                                             : normalized_depth_control.z_write_enable != 0;
     async_priority = pipeline_priority::CalculatePipelinePriority(
         bound_rts, shader_writes_color_targets, shader_writes_depth);
@@ -1180,11 +1180,11 @@ void VulkanPipelineCache::GetPipelineAndLayoutByHandle(
 
 bool VulkanPipelineCache::TranslateAnalyzedShader(SPIRVShaderTranslator& translator,
                                                   VulkanShader::VulkanTranslation& translation) {
-  VulkanShader& shader = static_cast<VulkanShader&>(translation.shader());
+  VulkanShader& shader = static_cast<VulkanShader&>(translation.GetShader());
 
   if (!translator.TranslateAnalyzedShader(translation)) {
     REX_FAIL(gpu, false, "Shader {:016X} translation failed; marking as ignored",
-             shader.ucode_data_hash());
+             shader.GetUcodeDataHash());
   }
   if (!REXCVAR_GET(::rex::gpu::cvars::dump_shaders).empty()) {
     translation.Dump(REXCVAR_GET(::rex::gpu::cvars::dump_shaders), "vulkan");
@@ -1274,7 +1274,7 @@ void VulkanPipelineCache::WritePipelineRenderTargetDescription(
     render_target_out.dst_alpha_blend_factor =
         kBlendFactorMap[static_cast<u32>(blend_control.alpha_destblend)];
     render_target_out.alpha_blend_op = blend_control.alpha_comb_fcn;
-    if (!command_processor_.GetVulkanDevice()->properties().constantAlphaColorBlendFactors) {
+    if (!command_processor_.GetVulkanDevice()->GetProperties().constantAlphaColorBlendFactors) {
       if (blend_control.color_srcblend == xenos::BlendFactor::kConstantAlpha) {
         render_target_out.src_color_blend_factor = PipelineBlendFactor::kConstantColor;
       } else if (blend_control.color_srcblend == xenos::BlendFactor::kOneMinusConstantAlpha) {
@@ -1307,25 +1307,25 @@ bool VulkanPipelineCache::GetCurrentStateDescription(
   description_out.Reset();
 
   const gpu::vulkan::VulkanDevice::Properties& device_properties =
-      command_processor_.GetVulkanDevice()->properties();
+      command_processor_.GetVulkanDevice()->GetProperties();
 
   const xenos::RegisterFile& regs = register_file_;
   auto pa_su_sc_mode_cntl = regs.Get<xenos::reg::PA_SU_SC_MODE_CNTL>();
 
-  description_out.vertex_shader_hash = vertex_shader->shader().ucode_data_hash();
-  description_out.vertex_shader_modification = vertex_shader->modification();
+  description_out.vertex_shader_hash = vertex_shader->GetShader().GetUcodeDataHash();
+  description_out.vertex_shader_modification = vertex_shader->GetModification();
   SPIRVShaderTranslator::Modification vertex_shader_modification(
       description_out.vertex_shader_modification);
   Shader::HostVertexShaderType host_vertex_shader_type =
       vertex_shader_modification.vertex.host_vertex_shader_type;
   if (pixel_shader) {
-    description_out.pixel_shader_hash = pixel_shader->shader().ucode_data_hash();
-    description_out.pixel_shader_modification = pixel_shader->modification();
+    description_out.pixel_shader_hash = pixel_shader->GetShader().GetUcodeDataHash();
+    description_out.pixel_shader_modification = pixel_shader->GetModification();
     SPIRVShaderTranslator::Modification pixel_shader_modification(
         description_out.pixel_shader_modification);
     using DepthStencilMode = SPIRVShaderTranslator::Modification::DepthStencilMode;
     description_out.sample_rate_shading =
-        !pixel_shader->shader().writes_depth() &&
+        !pixel_shader->GetShader().GetWritesDepth() &&
         (pixel_shader_modification.pixel.depth_stencil_mode ==
              DepthStencilMode::kFloat24Truncating ||
          pixel_shader_modification.pixel.depth_stencil_mode == DepthStencilMode::kFloat24Rounding);
@@ -1483,7 +1483,7 @@ bool VulkanPipelineCache::GetCurrentStateDescription(
       render_pass_color_rts_remaining &= ~(static_cast<u32>(1) << color_rt_index);
       WritePipelineRenderTargetDescription(
           regs.Get<xenos::reg::RB_BLENDCONTROL>(
-              xenos::reg::RB_BLENDCONTROL::rt_register_indices[color_rt_index]),
+              xenos::reg::RB_BLENDCONTROL::kRtRegisterIndices[color_rt_index]),
           (normalized_color_mask >> (color_rt_index * 4)) & 0b1111,
           description_out.render_targets[color_rt_index]);
     }
@@ -1504,7 +1504,7 @@ bool VulkanPipelineCache::ArePipelineRequirementsMet(const PipelineDescription& 
   }
 
   const gpu::vulkan::VulkanDevice::Properties& device_properties =
-      command_processor_.GetVulkanDevice()->properties();
+      command_processor_.GetVulkanDevice()->GetProperties();
 
   if (!device_properties.geometryShader &&
       description.geometry_shader != PipelineGeometryShader::kNone) {
@@ -1685,7 +1685,7 @@ bool VulkanPipelineCache::GetGeometryShaderKey(
   }
   GeometryShaderKey key;
   key.type = geometry_shader_type;
-  key.interpolator_count = rex::bit_count(vertex_shader_modification.vertex.interpolator_mask);
+  key.interpolator_count = rex::BitCount(vertex_shader_modification.vertex.interpolator_mask);
   key.user_clip_plane_count = vertex_shader_modification.vertex.user_clip_plane_count;
   key.user_clip_plane_cull = vertex_shader_modification.vertex.user_clip_plane_cull;
   key.has_vertex_kill_and = vertex_shader_modification.vertex.vertex_kill_and;
@@ -1745,8 +1745,8 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
                                           key.point_ps_ucp_mode >= 3;
 
   const gpu::vulkan::VulkanDevice* const vulkan_device = command_processor_.GetVulkanDevice();
-  const gpu::vulkan::VulkanDevice::Properties& device_properties = vulkan_device->properties();
-  const gpu::vulkan::VulkanDevice::Extensions& device_extensions = vulkan_device->extensions();
+  const gpu::vulkan::VulkanDevice::Properties& device_properties = vulkan_device->GetProperties();
+  const gpu::vulkan::VulkanDevice::Extensions& device_extensions = vulkan_device->GetExtensions();
   spv::SpvBuildLogger builder_logger;
   spv::SpvBuildLogger* builder_logger_ptr = nullptr;
   spv::SpvVersion spirv_version;
@@ -2168,13 +2168,13 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
       id_vector_temp.push_back(
           builder.makeIntConstant(static_cast<i32>(kPointConstantScreenDiameterToNdcRadius)));
       id_vector_temp.push_back(const_int_0);
-      spv::Id point_radius_x = builder.createNoContractionBinOp(
+      spv::Id point_radius_x = builder.CreateNoContractionBinOp(
           spv::OpFMul, type_float, point_guest_diameter_x,
           builder.createLoad(builder.createAccessChain(spv::StorageClassUniform,
                                                        uniform_system_constants, id_vector_temp),
                              spv::NoPrecision));
       id_vector_temp.back() = const_int_1;
-      spv::Id point_radius_y = builder.createNoContractionBinOp(
+      spv::Id point_radius_y = builder.CreateNoContractionBinOp(
           spv::OpFMul, type_float, point_guest_diameter_y,
           builder.createLoad(builder.createAccessChain(spv::StorageClassUniform,
                                                        uniform_system_constants, id_vector_temp),
@@ -2187,9 +2187,9 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
           spv::NoPrecision);
       spv::Id point_w = builder.createCompositeExtract(point_position, type_float, 3);
       point_radius_x =
-          builder.createNoContractionBinOp(spv::OpFMul, type_float, point_radius_x, point_w);
+          builder.CreateNoContractionBinOp(spv::OpFMul, type_float, point_radius_x, point_w);
       point_radius_y =
-          builder.createNoContractionBinOp(spv::OpFMul, type_float, point_radius_y, point_w);
+          builder.CreateNoContractionBinOp(spv::OpFMul, type_float, point_radius_y, point_w);
 
       std::array<spv::Id, xenos::kMaxInterpolators> point_interpolators;
       id_vector_temp.clear();
@@ -2204,9 +2204,9 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
       std::array<spv::Id, 2> point_edge_x, point_edge_y;
       for (u32 i = 0; i < 2; ++i) {
         spv::Op point_radius_add_op = i ? spv::OpFAdd : spv::OpFSub;
-        point_edge_x[i] = builder.createNoContractionBinOp(point_radius_add_op, type_float, point_x,
+        point_edge_x[i] = builder.CreateNoContractionBinOp(point_radius_add_op, type_float, point_x,
                                                            point_radius_x);
-        point_edge_y[i] = builder.createNoContractionBinOp(point_radius_add_op, type_float, point_y,
+        point_edge_y[i] = builder.CreateNoContractionBinOp(point_radius_add_op, type_float, point_y,
                                                            point_radius_y);
       };
       spv::Id point_z = builder.createCompositeExtract(point_position, type_float, 2);
@@ -2271,11 +2271,11 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
               builder.createCompositeExtract(point_vertex_position, type_float, 2));
           spv::Id point_vertex_position_xyz =
               builder.createCompositeConstruct(type_float3, id_vector_temp);
-          spv::Id point_guest_position_xyz = builder.createNoContractionBinOp(
+          spv::Id point_guest_position_xyz = builder.CreateNoContractionBinOp(
               spv::OpFSub, type_float3, point_vertex_position_xyz,
-              builder.createNoContractionBinOp(spv::OpVectorTimesScalar, type_float3,
+              builder.CreateNoContractionBinOp(spv::OpVectorTimesScalar, type_float3,
                                                point_ndc_offset, point_w));
-          point_guest_position_xyz = builder.createNoContractionBinOp(
+          point_guest_position_xyz = builder.CreateNoContractionBinOp(
               spv::OpFDiv, type_float3, point_guest_position_xyz, point_ndc_scale);
           id_vector_temp.clear();
           id_vector_temp.push_back(
@@ -2370,11 +2370,11 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
               builder.createCompositeExtract(point_vertex_position, type_float, 2));
           spv::Id point_vertex_position_xyz =
               builder.createCompositeConstruct(type_float3, id_vector_temp);
-          spv::Id point_guest_position_xyz = builder.createNoContractionBinOp(
+          spv::Id point_guest_position_xyz = builder.CreateNoContractionBinOp(
               spv::OpFSub, type_float3, point_vertex_position_xyz,
-              builder.createNoContractionBinOp(spv::OpVectorTimesScalar, type_float3,
+              builder.CreateNoContractionBinOp(spv::OpVectorTimesScalar, type_float3,
                                                point_ndc_offset, point_w));
-          point_guest_position_xyz = builder.createNoContractionBinOp(
+          point_guest_position_xyz = builder.CreateNoContractionBinOp(
               spv::OpFDiv, type_float3, point_guest_position_xyz, point_ndc_scale);
           id_vector_temp.clear();
           id_vector_temp.push_back(
@@ -2527,14 +2527,14 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
             builder.createAccessChain(spv::StorageClassInput, in_interpolator, id_vector_temp),
             spv::NoPrecision);
         id_vector_temp[0] = vertex_indices[1];
-        spv::Id vertex_interpolator_v01 = builder.createNoContractionBinOp(
+        spv::Id vertex_interpolator_v01 = builder.CreateNoContractionBinOp(
             spv::OpFSub, type_float4,
             builder.createLoad(
                 builder.createAccessChain(spv::StorageClassInput, in_interpolator, id_vector_temp),
                 spv::NoPrecision),
             vertex_interpolator_v0);
         id_vector_temp[0] = vertex_indices[2];
-        spv::Id vertex_interpolator_v3 = builder.createNoContractionBinOp(
+        spv::Id vertex_interpolator_v3 = builder.CreateNoContractionBinOp(
             spv::OpFAdd, type_float4, vertex_interpolator_v01,
             builder.createLoad(
                 builder.createAccessChain(spv::StorageClassInput, in_interpolator, id_vector_temp),
@@ -2551,14 +2551,14 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
           builder.createAccessChain(spv::StorageClassInput, in_gl_per_vertex, id_vector_temp),
           spv::NoPrecision);
       id_vector_temp[0] = vertex_indices[1];
-      spv::Id vertex_position_v01 = builder.createNoContractionBinOp(
+      spv::Id vertex_position_v01 = builder.CreateNoContractionBinOp(
           spv::OpFSub, type_float4,
           builder.createLoad(
               builder.createAccessChain(spv::StorageClassInput, in_gl_per_vertex, id_vector_temp),
               spv::NoPrecision),
           vertex_position_v0);
       id_vector_temp[0] = vertex_indices[2];
-      spv::Id vertex_position_v3 = builder.createNoContractionBinOp(
+      spv::Id vertex_position_v3 = builder.CreateNoContractionBinOp(
           spv::OpFAdd, type_float4, vertex_position_v01,
           builder.createLoad(
               builder.createAccessChain(spv::StorageClassInput, in_gl_per_vertex, id_vector_temp),
@@ -2578,14 +2578,14 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
             builder.createAccessChain(spv::StorageClassInput, in_gl_per_vertex, id_vector_temp),
             spv::NoPrecision);
         id_vector_temp[0] = vertex_indices[1];
-        spv::Id vertex_clip_distance_v01 = builder.createNoContractionBinOp(
+        spv::Id vertex_clip_distance_v01 = builder.CreateNoContractionBinOp(
             spv::OpFSub, type_float,
             builder.createLoad(
                 builder.createAccessChain(spv::StorageClassInput, in_gl_per_vertex, id_vector_temp),
                 spv::NoPrecision),
             vertex_clip_distance_v0);
         id_vector_temp[0] = vertex_indices[2];
-        spv::Id vertex_clip_distance_v3 = builder.createNoContractionBinOp(
+        spv::Id vertex_clip_distance_v3 = builder.CreateNoContractionBinOp(
             spv::OpFAdd, type_float, vertex_clip_distance_v01,
             builder.createLoad(
                 builder.createAccessChain(spv::StorageClassInput, in_gl_per_vertex, id_vector_temp),
@@ -2711,7 +2711,7 @@ bool VulkanPipelineCache::TryGetPipelineCreationArgumentsForDescription(
   }
   auto* vertex_shader = static_cast<VulkanShader::VulkanTranslation*>(
       vertex_shader_it->second->GetTranslation(description.vertex_shader_modification));
-  if (!vertex_shader || !vertex_shader->is_translated() || !vertex_shader->is_valid()) {
+  if (!vertex_shader || !vertex_shader->IsTranslated() || !vertex_shader->IsValid()) {
     return fail("vertex_shader_translation_missing_or_invalid");
   }
   SPIRVShaderTranslator::Modification vertex_shader_modification(
@@ -2728,7 +2728,7 @@ bool VulkanPipelineCache::TryGetPipelineCreationArgumentsForDescription(
     }
     pixel_shader = static_cast<VulkanShader::VulkanTranslation*>(
         pixel_shader_it->second->GetTranslation(description.pixel_shader_modification));
-    if (!pixel_shader || !pixel_shader->is_translated() || !pixel_shader->is_valid()) {
+    if (!pixel_shader || !pixel_shader->IsTranslated() || !pixel_shader->IsValid()) {
       return fail("pixel_shader_translation_missing_or_invalid");
     }
   }
@@ -2769,7 +2769,7 @@ bool VulkanPipelineCache::TryGetPipelineCreationArgumentsForDescription(
 
   const gpu::vulkan::VulkanDevice* const vulkan_device = command_processor_.GetVulkanDevice();
   bool use_dynamic_rendering = REXCVAR_GET(::rex::gpu::cvars::vulkan_dynamic_rendering) &&
-                               vulkan_device->properties().dynamicRendering;
+                               vulkan_device->GetProperties().dynamicRendering;
   VkRenderPass render_pass = VK_NULL_HANDLE;
   if (!use_dynamic_rendering) {
     render_pass =
@@ -2782,18 +2782,20 @@ bool VulkanPipelineCache::TryGetPipelineCreationArgumentsForDescription(
   }
 
   const PipelineLayoutProvider* pipeline_layout = command_processor_.GetPipelineLayout(
-      (!for_placeholder && pixel_shader) ? static_cast<const VulkanShader&>(pixel_shader->shader())
-                                               .GetTextureBindingsAfterTranslation()
-                                               .size()
-                                         : 0,
-      (!for_placeholder && pixel_shader) ? static_cast<const VulkanShader&>(pixel_shader->shader())
-                                               .GetSamplerBindingsAfterTranslation()
-                                               .size()
-                                         : 0,
-      static_cast<const VulkanShader&>(vertex_shader->shader())
+      (!for_placeholder && pixel_shader)
+          ? static_cast<const VulkanShader&>(pixel_shader->GetShader())
+                .GetTextureBindingsAfterTranslation()
+                .size()
+          : 0,
+      (!for_placeholder && pixel_shader)
+          ? static_cast<const VulkanShader&>(pixel_shader->GetShader())
+                .GetSamplerBindingsAfterTranslation()
+                .size()
+          : 0,
+      static_cast<const VulkanShader&>(vertex_shader->GetShader())
           .GetTextureBindingsAfterTranslation()
           .size(),
-      static_cast<const VulkanShader&>(vertex_shader->shader())
+      static_cast<const VulkanShader&>(vertex_shader->GetShader())
           .GetSamplerBindingsAfterTranslation()
           .size());
   if (!pipeline_layout) {
@@ -2827,11 +2829,11 @@ bool VulkanPipelineCache::EnsurePipelineCreated(const PipelineCreationArguments&
 
   if (creation_arguments.pixel_shader) {
     REXLOG_DEBUG(gpu, "Creating graphics pipeline state with VS {:016X}, PS {:016X}",
-                 creation_arguments.vertex_shader->shader().ucode_data_hash(),
-                 creation_arguments.pixel_shader->shader().ucode_data_hash());
+                 creation_arguments.vertex_shader->GetShader().GetUcodeDataHash(),
+                 creation_arguments.pixel_shader->GetShader().GetUcodeDataHash());
   } else {
     REXLOG_DEBUG(gpu, "Creating graphics pipeline state with VS {:016X}",
-                 creation_arguments.vertex_shader->shader().ucode_data_hash());
+                 creation_arguments.vertex_shader->GetShader().GetUcodeDataHash());
   }
 
   const PipelineDescription& description = creation_arguments.pipeline->first;
@@ -2853,8 +2855,8 @@ bool VulkanPipelineCache::EnsurePipelineCreated(const PipelineCreationArguments&
   std::array<VkPipelineShaderStageCreateInfo, 5> shader_stages;
   u32 shader_stage_count = 0;
 
-  REX_ASSERT(creation_arguments.vertex_shader->is_translated());
-  if (!creation_arguments.vertex_shader->is_valid()) {
+  REX_ASSERT(creation_arguments.vertex_shader->IsTranslated());
+  if (!creation_arguments.vertex_shader->IsValid()) {
     return false;
   }
   if (tessellated) {
@@ -2888,7 +2890,7 @@ bool VulkanPipelineCache::EnsurePipelineCreated(const PipelineCreationArguments&
     shader_stage_tess_eval.pNext = nullptr;
     shader_stage_tess_eval.flags = 0;
     shader_stage_tess_eval.stage = VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT;
-    shader_stage_tess_eval.module = creation_arguments.vertex_shader->shader_module();
+    shader_stage_tess_eval.module = creation_arguments.vertex_shader->GetShaderModule();
     REX_ASSERT(shader_stage_tess_eval.module != VK_NULL_HANDLE);
     shader_stage_tess_eval.pName = "main";
     shader_stage_tess_eval.pSpecializationInfo = nullptr;
@@ -2898,7 +2900,7 @@ bool VulkanPipelineCache::EnsurePipelineCreated(const PipelineCreationArguments&
     shader_stage_vertex.pNext = nullptr;
     shader_stage_vertex.flags = 0;
     shader_stage_vertex.stage = VK_SHADER_STAGE_VERTEX_BIT;
-    shader_stage_vertex.module = creation_arguments.vertex_shader->shader_module();
+    shader_stage_vertex.module = creation_arguments.vertex_shader->GetShaderModule();
     REX_ASSERT(shader_stage_vertex.module != VK_NULL_HANDLE);
     shader_stage_vertex.pName = "main";
     shader_stage_vertex.pSpecializationInfo = nullptr;
@@ -2927,22 +2929,22 @@ bool VulkanPipelineCache::EnsurePipelineCreated(const PipelineCreationArguments&
   if (fragment_shader_override != VK_NULL_HANDLE) {
     shader_stage_fragment.module = fragment_shader_override;
   } else if (creation_arguments.pixel_shader) {
-    REX_ASSERT(creation_arguments.pixel_shader->is_translated());
-    if (!creation_arguments.pixel_shader->is_valid()) {
+    REX_ASSERT(creation_arguments.pixel_shader->IsTranslated());
+    if (!creation_arguments.pixel_shader->IsValid()) {
       return false;
     }
-    shader_stage_fragment.module = creation_arguments.pixel_shader->shader_module();
+    shader_stage_fragment.module = creation_arguments.pixel_shader->GetShaderModule();
     REX_ASSERT(shader_stage_fragment.module != VK_NULL_HANDLE);
   } else {
     if (edram_fragment_shader_interlock) {
       shader_stage_fragment.module = depth_only_fragment_shader_;
-    } else if (render_target_cache_.depth_float24_convert_in_pixel_shader() &&
+    } else if (render_target_cache_.GetDepthFloat24ConvertInPixelShader() &&
                (description.render_pass_key.depth_and_color_used & 1) &&
                (description.depth_compare_op != xenos::CompareFunction::kAlways ||
                 description.depth_write_enable) &&
                description.render_pass_key.depth_format ==
                    xenos::DepthRenderTargetFormat::kD24FS8) {
-      shader_stage_fragment.module = render_target_cache_.depth_float24_round()
+      shader_stage_fragment.module = render_target_cache_.GetDepthFloat24Round()
                                          ? depth_float24_round_fragment_shader_
                                          : depth_float24_truncate_fragment_shader_;
       if (shader_stage_fragment.module == VK_NULL_HANDLE) {
@@ -3155,7 +3157,7 @@ bool VulkanPipelineCache::EnsurePipelineCreated(const PipelineCreationArguments&
                                               VK_BLEND_OP_ADD,
                                               VK_BLEND_OP_ADD,
                                               VK_BLEND_OP_ADD};
-      REX_ASSERT(vulkan_device->properties().independentBlend);
+      REX_ASSERT(vulkan_device->GetProperties().independentBlend);
       u32 color_rts_remaining = color_rts_used;
       u32 color_rt_index;
       while (rex::bit_scan_forward(color_rts_remaining, &color_rt_index)) {
@@ -3217,7 +3219,7 @@ bool VulkanPipelineCache::EnsurePipelineCreated(const PipelineCreationArguments&
   VkPipelineRenderingCreateInfo pipeline_rendering_create_info = {};
   VkFormat color_attachment_formats[xenos::kMaxColorRenderTargets] = {};
   bool use_dynamic_rendering = REXCVAR_GET(::rex::gpu::cvars::vulkan_dynamic_rendering) &&
-                               vulkan_device->properties().dynamicRendering;
+                               vulkan_device->GetProperties().dynamicRendering;
   if (use_dynamic_rendering) {
     pipeline_rendering_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
     pipeline_rendering_create_info.pNext = nullptr;
@@ -3270,21 +3272,21 @@ bool VulkanPipelineCache::EnsurePipelineCreated(const PipelineCreationArguments&
   pipeline_create_info.basePipelineHandle = VK_NULL_HANDLE;
   pipeline_create_info.basePipelineIndex = -1;
 
-  const gpu::vulkan::VulkanDevice::Functions& dfn = vulkan_device->functions();
-  const VkDevice device = vulkan_device->device();
+  const gpu::vulkan::VulkanDevice::Functions& dfn = vulkan_device->GetFunctions();
+  const VkDevice device = vulkan_device->GetDevice();
   VkPipeline pipeline;
   VkResult create_result = dfn.vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1,
                                                          &pipeline_create_info, nullptr, &pipeline);
   if (create_result != VK_SUCCESS) {
     u64 ps_hash = creation_arguments.pixel_shader
-                      ? creation_arguments.pixel_shader->shader().ucode_data_hash()
+                      ? creation_arguments.pixel_shader->GetShader().GetUcodeDataHash()
                       : 0;
     REX_FAIL(gpu, false,
              "VulkanPipelineCache: vkCreateGraphicsPipelines failed (result={}, vs={:016X}, "
              "ps={:016X}, topo={}, geom={}, tess_mode={}, patch_cp={}, render_pass_key=0x{:08X}, "
              "dynamic_rendering={})",
              static_cast<i32>(create_result),
-             creation_arguments.vertex_shader->shader().ucode_data_hash(), ps_hash,
+             creation_arguments.vertex_shader->GetShader().GetUcodeDataHash(), ps_hash,
              static_cast<u32>(description.primitive_topology),
              static_cast<u32>(description.geometry_shader),
              static_cast<u32>(description.tessellation_mode),
@@ -3406,8 +3408,8 @@ void VulkanPipelineCache::ProcessDeferredPipelineDestructions(bool force_all) {
     return;
   }
   const gpu::vulkan::VulkanDevice* const vulkan_device = command_processor_.GetVulkanDevice();
-  const gpu::vulkan::VulkanDevice::Functions& dfn = vulkan_device->functions();
-  const VkDevice device = vulkan_device->device();
+  const gpu::vulkan::VulkanDevice::Functions& dfn = vulkan_device->GetFunctions();
+  const VkDevice device = vulkan_device->GetDevice();
   for (VkPipeline pipeline : pipelines_to_destroy) {
     if (pipeline != VK_NULL_HANDLE) {
       dfn.vkDestroyPipeline(device, pipeline, nullptr);
@@ -3468,15 +3470,15 @@ void VulkanPipelineCache::StorageWriteThread() {
     }
 
     if (shader) {
-      shader_header.ucode_data_hash = shader->ucode_data_hash();
-      shader_header.ucode_dword_count = shader->ucode_dword_count();
-      shader_header.type = shader->type();
+      shader_header.ucode_data_hash = shader->GetUcodeDataHash();
+      shader_header.ucode_dword_count = shader->GetUcodeDwordCount();
+      shader_header.type = shader->GetType();
       REX_ASSERT(shader_storage_file_.is_open());
       AppendStorage(shader_storage_file_, &shader_header, sizeof(shader_header));
       if (shader_header.ucode_dword_count) {
         ucode_guest_endian.resize(shader_header.ucode_dword_count);
         // The hash is calculated over guest endianness, so swap back.
-        memory::copy_and_swap(ucode_guest_endian.data(), shader->ucode_dwords(),
+        memory::copy_and_swap(ucode_guest_endian.data(), shader->GetUcodeDwords(),
                               shader_header.ucode_dword_count);
         AppendStorage(shader_storage_file_, ucode_guest_endian.data(),
                       shader_header.ucode_dword_count * sizeof(u32));

@@ -55,11 +55,11 @@ Result<ToolRuntime> OpenToolRuntime(const std::filesystem::path& game_root,
   if (!file_system) {
     rex::Shutdown();
     return Err<ToolRuntime>(
-        ErrorCategory::Module,
+        ErrorCategory::kModule,
         std::format("rex-filesystem does not serve {}@{}", filesystem::IFileSystem::kInterfaceName,
                     filesystem::IFileSystem::kInterfaceVersion));
   }
-  auto runtime = std::make_unique<Runtime>(api->config());
+  auto runtime = std::make_unique<Runtime>(api->GetConfig());
   auto setup = runtime->Setup(RuntimeDesc{
       .file_system = file_system,
       .kernel_init = kernel::InitializeKernel,
@@ -69,7 +69,7 @@ Result<ToolRuntime> OpenToolRuntime(const std::filesystem::path& game_root,
   if (!setup) {
     runtime.reset();
     rex::Shutdown();
-    return Err<ToolRuntime>(ErrorCategory::IO,
+    return Err<ToolRuntime>(ErrorCategory::kIO,
                             std::format("Failed to initialize Runtime: {}", setup.error().message));
   }
   return ToolRuntime(std::move(runtime), api);

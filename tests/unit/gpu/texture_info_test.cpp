@@ -64,12 +64,12 @@ REX_TEST_CASE("texture descriptions differing in 1 field compare unequal", "[gpu
 REX_TEST_CASE("texture descriptions equal in every field hash equal", "[gpu]") {
   const FilledStorage zeros(std::byte{0x00});
   const FilledStorage ones(std::byte{0xFF});
-  CHECK(zeros.info->hash() == ones.info->hash());
+  CHECK(zeros.info->Hash() == ones.info->Hash());
 }
 
 REX_TEST_CASE("texture descriptions differing in 1 field hash differently", "[gpu]") {
   const FilledStorage first(std::byte{0x00});
   FilledStorage second(std::byte{0x00});
   second.info->extent.depth = 2;
-  CHECK(first.info->hash() != second.info->hash());
+  CHECK(first.info->Hash() != second.info->Hash());
 }

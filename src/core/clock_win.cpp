@@ -7,13 +7,13 @@ static_assert(REX_PLATFORM_WIN32, "This file is Windows-only");
 
 namespace rex {
 
-u64 Clock::host_tick_frequency_platform() noexcept {
+u64 Clock::GetHostTickFrequencyPlatform() noexcept {
   LARGE_INTEGER frequency;
   QueryPerformanceFrequency(&frequency);
   return frequency.QuadPart;
 }
 
-u64 Clock::host_tick_count_platform() {
+u64 Clock::GetHostTickCountPlatform() {
   LARGE_INTEGER counter;
   u64 time = 0;
   if (QueryPerformanceCounter(&counter)) {
@@ -29,7 +29,7 @@ u64 Clock::QueryHostSystemTime() noexcept {
 }
 
 u64 Clock::QueryHostUptimeMillis() {
-  return host_tick_count_platform() * 1000 / host_tick_frequency_platform();
+  return GetHostTickCountPlatform() * 1000 / GetHostTickFrequencyPlatform();
 }
 
 }  // namespace rex

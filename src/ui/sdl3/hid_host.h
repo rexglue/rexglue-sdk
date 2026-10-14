@@ -34,7 +34,7 @@ class HIDHost final : public hid::IInputHost, public WindowInputListener, public
   bool Post(rex::MoveOnlyFunction<void()> work) override;
   bool ApplyPointerMode(hid::PointerMode mode) override;
   std::optional<hid::PointerState> WarpPointerToCenter() override;
-  bool capture_active() const override;
+  bool GetCaptureActive() const override;
 
   void OnKeyDown(KeyEvent& e) override;
   void OnKeyUp(KeyEvent& e) override;
@@ -48,7 +48,7 @@ class HIDHost final : public hid::IInputHost, public WindowInputListener, public
   void OnResize(UISetupEvent& e) override;
 
  private:
-  bool OverlayWants(bool keyboard) const;
+  bool IsOverlayCapturingInput(bool keyboard) const;
   void Key(hid::InputEvent::Kind kind, const KeyEvent& e);
   void Button(hid::InputEvent::Kind kind, const MouseEvent& e);
 
@@ -57,8 +57,8 @@ class HIDHost final : public hid::IInputHost, public WindowInputListener, public
   ImGuiDrawer& drawer_;
   OverlayRegistry& overlays_;
   hid::IHIDBackend& backend_;
-  hid::PointerMode applied_ = hid::PointerMode::Free;
-  CursorVisibility arrow_ = CursorVisibility::Visible;
+  hid::PointerMode applied_ = hid::PointerMode::kFree;
+  CursorVisibility arrow_ = CursorVisibility::kVisible;
 };
 
 }  // namespace rex::ui

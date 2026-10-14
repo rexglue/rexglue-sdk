@@ -43,7 +43,7 @@ class RenderDocAPI : public rex::NonCopyable {
   ~RenderDocAPI();
 
   /** Always present when this object exists. */
-  const RENDERDOC_API_1_0_0* api_1_0_0() const { return api_1_0_0_; }
+  const RENDERDOC_API_1_0_0* GetAPI100() const { return api_1_0_0_; }
 
  private:
   rex::platform::DynamicLibrary library_;

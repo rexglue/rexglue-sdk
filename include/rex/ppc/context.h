@@ -29,10 +29,10 @@
 #include <simde/x86/sse4.1.h>
 
 /** Pack and unpack bounds of the NORMPACKED32 2:10:10:10 format. */
-constexpr f32 kPack2101010_Min10 = std::bit_cast<f32>(0x403FFE01u);
-constexpr f32 kPack2101010_Max10 = std::bit_cast<f32>(0x404001FFu);
-constexpr f32 kPack2101010_Min2 = std::bit_cast<f32>(0x40400000u);
-constexpr f32 kPack2101010_Max2 = std::bit_cast<f32>(0x40400003u);
+constexpr f32 kPack2101010Min10 = std::bit_cast<f32>(0x403FFE01u);
+constexpr f32 kPack2101010Max10 = std::bit_cast<f32>(0x404001FFu);
+constexpr f32 kPack2101010Min2 = std::bit_cast<f32>(0x40400000u);
+constexpr f32 kPack2101010Max2 = std::bit_cast<f32>(0x40400003u);
 
 namespace rex::ppc {
 
@@ -67,14 +67,14 @@ struct CRRegister {
     u8 un; /**< CR field bit 3, 1 when a float compare had a NaN operand. */
   };
 
-  u32 raw() const noexcept { return (lt << 3) | (gt << 2) | (eq << 1) | so; }
+  u32 GetRaw() const noexcept { return (lt << 3) | (gt << 2) | (eq << 1) | so; }
 
   /**
    * Sets lt, gt, eq and so from the low 4 bits of a CR field value.
    *
    * @param value The CR field value, lt in bit 3 and so in bit 0.
    */
-  void set_raw(u32 value) noexcept {
+  void SetRaw(u32 value) noexcept {
     lt = (value >> 3) & 1;
     gt = (value >> 2) & 1;
     eq = (value >> 1) & 1;
@@ -90,7 +90,7 @@ struct CRRegister {
    * @param xer The XER whose so is copied.
    */
   template <typename T>
-  void compare(T left, T right, const XERRegister& xer) noexcept {
+  void Compare(T left, T right, const XERRegister& xer) noexcept {
     lt = left < right;
     gt = left > right;
     eq = left == right;
@@ -103,7 +103,7 @@ struct CRRegister {
    * @param left The left operand.
    * @param right The right operand.
    */
-  void compare(f64 left, f64 right) noexcept {
+  void Compare(f64 left, f64 right) noexcept {
     un = std::isnan(left) || std::isnan(right);
     lt = !un && (left < right);
     gt = !un && (left > right);
@@ -117,7 +117,7 @@ struct CRRegister {
    * @param mask The vector whose 4 lane sign bits are tested.
    * @param imm The sign mask that sets lt.
    */
-  void setFromMask(simde__m128 mask, int imm) noexcept {
+  void SetFromMask(simde__m128 mask, int imm) noexcept {
     int m = simde_mm_movemask_ps(mask);
     lt = m == imm;
     gt = 0;
@@ -132,7 +132,7 @@ struct CRRegister {
    * @param mask The vector whose 16 byte sign bits are tested.
    * @param imm The sign mask that sets lt.
    */
-  void setFromMask(simde__m128i mask, int imm) noexcept {
+  void SetFromMask(simde__m128i mask, int imm) noexcept {
     int m = simde_mm_movemask_epi8(mask);
     lt = m == imm;
     gt = 0;
@@ -168,28 +168,29 @@ struct FPSCRRegister {
   /** Host specific access to the floating point control word. */
   using Platform = platform::FPSCRPlatform;
   /** Bit position of the host rounding field in csr. */
-  static constexpr size_t RoundShift = Platform::RoundShift;
+  static constexpr size_t kRoundShift = Platform::kRoundShift;
   /** Mask of the host rounding field in csr. */
-  static constexpr size_t RoundMaskVal = Platform::RoundMaskVal;
+  static constexpr size_t kRoundMaskVal = Platform::kRoundMaskVal;
   /** Mask of the host flush to zero and denormals are zero bits in csr. */
-  static constexpr size_t FlushMask = Platform::FlushMask;
+  static constexpr size_t kFlushMask = Platform::kFlushMask;
 
   static_assert(
       [] {
         for (u32 rn = 0; rn <= kRoundMask; ++rn) {
-          if (Platform::HostToReX[(Platform::GuestToHost[rn] & RoundMaskVal) >> RoundShift] != rn) {
+          if (Platform::kHostToReX[(Platform::kGuestToHost[rn] & kRoundMaskVal) >> kRoundShift] !=
+              rn) {
             return false;
           }
         }
         return true;
       }(),
-      "HostToReX must invert GuestToHost");
+      "kHostToReX must invert kGuestToHost");
 
   /** Bits the guest owns, the rest is host policy set by InitHost. */
-  static constexpr u32 GuestMask = static_cast<u32>(RoundMaskVal) | static_cast<u32>(FlushMask);
+  static constexpr u32 kGuestMask = static_cast<u32>(kRoundMaskVal) | static_cast<u32>(kFlushMask);
 
-  u32 getcsr() noexcept { return Platform::getcsr(); }
-  void setcsr(u32 csr) noexcept { Platform::setcsr(csr); }
+  u32 GetCSR() noexcept { return Platform::GetCSR(); }
+  void SetCSR(u32 value) noexcept { Platform::SetCSR(value); }
 
   /**
    * Restores the guest owned bits from a saved word. Restoring the whole word would unmask every
@@ -197,9 +198,9 @@ struct FPSCRRegister {
    *
    * @param saved The saved csr word.
    */
-  void restoreGuestBits(u32 saved) noexcept {
-    csr = (getcsr() & ~GuestMask) | (saved & GuestMask);
-    setcsr(csr);
+  void RestoreGuestBits(u32 saved) noexcept {
+    csr = (GetCSR() & ~kGuestMask) | (saved & kGuestMask);
+    SetCSR(csr);
   }
 
   /**
@@ -207,9 +208,9 @@ struct FPSCRRegister {
    *
    * @return The guest rounding mode matching the host rounding mode.
    */
-  u32 loadFromHost() noexcept {
-    csr = getcsr();
-    return Platform::HostToReX[(csr & RoundMaskVal) >> RoundShift];
+  u32 LoadFromHost() noexcept {
+    csr = GetCSR();
+    return Platform::kHostToReX[(csr & kRoundMaskVal) >> kRoundShift];
   }
 
   /**
@@ -217,45 +218,45 @@ struct FPSCRRegister {
    *
    * @param value The guest rounding mode, one of the kRound constants.
    */
-  void storeFromGuest(u32 value) noexcept {
-    csr &= ~RoundMaskVal;
-    csr |= Platform::GuestToHost[value & kRoundMask];
-    setcsr(csr);
+  void StoreFromGuest(u32 value) noexcept {
+    csr &= ~kRoundMaskVal;
+    csr |= Platform::kGuestToHost[value & kRoundMask];
+    SetCSR(csr);
   }
 
   /** Turns on flush to zero mode and writes csr to the host without checking its current state. */
-  void enableFlushModeUnconditional() noexcept {
-    csr |= FlushMask;
-    setcsr(csr);
+  void EnableFlushModeUnconditional() noexcept {
+    csr |= kFlushMask;
+    SetCSR(csr);
   }
 
   /** Turns off flush to zero mode and writes csr to the host without checking its current state. */
-  void disableFlushModeUnconditional() noexcept {
-    csr &= ~FlushMask;
-    setcsr(csr);
+  void DisableFlushModeUnconditional() noexcept {
+    csr &= ~kFlushMask;
+    SetCSR(csr);
   }
 
   /** Turns on flush to zero mode, writing csr to the host only when the mode was off. */
-  void enableFlushMode() noexcept {
-    if ((csr & FlushMask) != FlushMask) [[unlikely]] {
-      csr |= FlushMask;
-      setcsr(csr);
+  void EnableFlushMode() noexcept {
+    if ((csr & kFlushMask) != kFlushMask) [[unlikely]] {
+      csr |= kFlushMask;
+      SetCSR(csr);
     }
   }
 
   /** Turns off flush to zero mode, writing csr to the host only when the mode was on. */
-  void disableFlushMode() noexcept {
-    if ((csr & FlushMask) != 0) [[unlikely]] {
-      csr &= ~FlushMask;
-      setcsr(csr);
+  void DisableFlushMode() noexcept {
+    if ((csr & kFlushMask) != 0) [[unlikely]] {
+      csr &= ~kFlushMask;
+      SetCSR(csr);
     }
   }
 
   /** Reads the host control word, applies the host exception policy and writes it back. */
   void InitHost() noexcept {
-    csr = getcsr();
+    csr = GetCSR();
     Platform::InitHostExceptions(csr);
-    setcsr(csr);
+    SetCSR(csr);
   }
 };
 
@@ -516,9 +517,10 @@ struct alignas(0x40) PPCContext {
    *
    * @return The CR word, cr0 in the top nibble.
    */
-  rex::u32 cr() const noexcept {
-    return (cr0.raw() << 28) | (cr1.raw() << 24) | (cr2.raw() << 20) | (cr3.raw() << 16) |
-           (cr4.raw() << 12) | (cr5.raw() << 8) | (cr6.raw() << 4) | cr7.raw();
+  rex::u32 GetCR() const noexcept {
+    return (cr0.GetRaw() << 28) | (cr1.GetRaw() << 24) | (cr2.GetRaw() << 20) |
+           (cr3.GetRaw() << 16) | (cr4.GetRaw() << 12) | (cr5.GetRaw() << 8) | (cr6.GetRaw() << 4) |
+           cr7.GetRaw();
   }
 
   /**
@@ -526,15 +528,15 @@ struct alignas(0x40) PPCContext {
    *
    * @param value The CR word, cr0 in the top nibble.
    */
-  void set_cr(rex::u32 value) noexcept {
-    cr0.set_raw(value >> 28);
-    cr1.set_raw(value >> 24);
-    cr2.set_raw(value >> 20);
-    cr3.set_raw(value >> 16);
-    cr4.set_raw(value >> 12);
-    cr5.set_raw(value >> 8);
-    cr6.set_raw(value >> 4);
-    cr7.set_raw(value);
+  void SetCR(rex::u32 value) noexcept {
+    cr0.SetRaw(value >> 28);
+    cr1.SetRaw(value >> 24);
+    cr2.SetRaw(value >> 20);
+    cr3.SetRaw(value >> 16);
+    cr4.SetRaw(value >> 12);
+    cr5.SetRaw(value >> 8);
+    cr6.SetRaw(value >> 4);
+    cr7.SetRaw(value);
   }
 
   /**
@@ -583,6 +585,6 @@ struct alignas(0x40) PPCContext {
     src += 3 * sizeof(PPCCRRegister);
     PPCFPSCRRegister saved_fpscr;
     std::memcpy(&saved_fpscr, src, sizeof(PPCFPSCRRegister));
-    fpscr.restoreGuestBits(saved_fpscr.csr);
+    fpscr.RestoreGuestBits(saved_fpscr.csr);
   }
 };

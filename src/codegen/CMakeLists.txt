@@ -94,14 +94,17 @@ rex_target_pch(rex-codegen <rex/codegen/function_types.h>)
 target_include_directories(rex-codegen
     PUBLIC
         $<BUILD_INTERFACE:${REXGLUE_ROOT}/include>
-        $<BUILD_INTERFACE:${REXGLUE_ROOT}/thirdparty/inja/single_include>
-        $<BUILD_INTERFACE:${REXGLUE_ROOT}/thirdparty/inja/third_party/include>
         $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
     PRIVATE
         ${REXGLUE_ROOT}/thirdparty/disasm
         ${CMAKE_CURRENT_SOURCE_DIR}
         ${CMAKE_CURRENT_SOURCE_DIR}/builders
         ${CMAKE_CURRENT_BINARY_DIR}/generated/templates
+)
+target_include_directories(rex-codegen SYSTEM
+    PUBLIC
+        $<BUILD_INTERFACE:${REXGLUE_ROOT}/thirdparty/inja/single_include>
+        $<BUILD_INTERFACE:${REXGLUE_ROOT}/thirdparty/inja/third_party/include>
 )
 
 target_link_libraries(rex-codegen

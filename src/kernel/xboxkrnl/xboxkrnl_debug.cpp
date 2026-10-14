@@ -34,7 +34,7 @@ struct X_THREADNAME_INFO {
 };
 REX_STATIC_ASSERT_SIZE(X_THREADNAME_INFO, 0x10);
 
-void HandleSetThreadName(ppc_ptr_t<X_EXCEPTION_RECORD> record) {
+void HandleSetThreadName(GuestPtrT<X_EXCEPTION_RECORD> record) {
   auto thread_info = reinterpret_cast<X_THREADNAME_INFO*>(&record->exception_information[0]);
 
   REX_ASSERT(thread_info->type == 0x1000);
@@ -46,31 +46,31 @@ void HandleSetThreadName(ppc_ptr_t<X_EXCEPTION_RECORD> record) {
 
   // A title may pass freed memory for the name, which holds junk.
   auto name = std::string(
-      runtime::Current().memory()->TranslateVirtual<const char*>(thread_info->name_ptr));
+      runtime::GetCurrent().GetMemory()->TranslateVirtual<const char*>(thread_info->name_ptr));
   std::replace_if(name.begin(), name.end(), [](auto c) { return c < 32 || c > 127; }, '?');
 
   ThreadPin thread;
   if (thread_info->thread_id == ~u32{0}) {
-    thread =
-        runtime::Current().thread_registry().Find(KernelThread::GetCurrentThread()->thread_id());
+    thread = runtime::GetCurrent().GetThreadRegistry().Find(
+        KernelThread::GetCurrentThread()->GetThreadId());
   } else {
-    thread = runtime::Current().thread_registry().Find(thread_info->thread_id);
+    thread = runtime::GetCurrent().GetThreadRegistry().Find(thread_info->thread_id);
   }
 
   if (thread) {
-    REXLOG_DEBUG(kernel, "SetThreadName({}, {})", thread->thread_id(), name);
-    thread->set_name(name);
+    REXLOG_DEBUG(kernel, "SetThreadName({}, {})", thread->GetThreadId(), name);
+    thread->SetName(name);
   }
 }
 
-void HandleCppException(ppc_ptr_t<X_EXCEPTION_RECORD> record) {
+void HandleCppException(GuestPtrT<X_EXCEPTION_RECORD> record) {
   REX_ASSERT(record->number_parameters == 3);
   REX_ASSERT(record->exception_information[0] == 0x19930520);
 
   rex::platform::Break();
 }
 
-void RtlRaiseException_entry(ppc_ptr_t<X_EXCEPTION_RECORD> record) {
+void RtlRaiseException_entry(GuestPtrT<X_EXCEPTION_RECORD> record) {
   switch (record->code) {
     case 0x406D1388: {
       HandleSetThreadName(record);

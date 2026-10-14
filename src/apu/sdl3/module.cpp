@@ -14,16 +14,16 @@ namespace rex::apu::sdl3 {
 
 class SDL3Module final : public IModule {
  public:
-  static void* GetModule() { return static_cast<IModule*>(&Instance()); }
-  static void* GetBackend() { return static_cast<apu::IAPUBackend*>(&Instance().backend_); }
+  static void* GetModule() { return static_cast<IModule*>(&GetInstance()); }
+  static void* GetBackend() { return static_cast<apu::IAPUBackend*>(&GetInstance().backend_); }
 
   static constexpr std::array<InterfaceEntry, 2> kInterfaces = {{
       {IModule::kInterfaceName, IModule::kInterfaceVersion, &GetModule},
       {apu::IAPUBackend::kInterfaceName, apu::IAPUBackend::kInterfaceVersion, &GetBackend},
   }};
 
-  const char* Name() const override { return "rex-apu-sdl3"; }
-  std::span<const char* const> RequiredInterfaces() const override {
+  const char* GetName() const override { return "rex-apu-sdl3"; }
+  std::span<const char* const> GetRequiredInterfaces() const override {
     static constexpr std::array<const char*, 1> kRequired = {"rex.cvar@1"};
     return kRequired;
   }
@@ -50,7 +50,7 @@ class SDL3Module final : public IModule {
   void Shutdown() override { backend_.Shutdown(); }
 
  private:
-  static SDL3Module& Instance() {
+  static SDL3Module& GetInstance() {
     static SDL3Module instance;
     return instance;
   }

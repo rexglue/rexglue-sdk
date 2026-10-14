@@ -16,11 +16,11 @@ namespace {
 std::atomic_flag g_null_warned[2];
 
 std::string_view BlockName(MMIOBlock block) {
-  return block == MMIOBlock::GPU ? "GPU" : "APU";
+  return block == MMIOBlock::kGPU ? "GPU" : "APU";
 }
 
 void WarnNullRecipient(u32 address, bool is_write) {
-  const MMIOBlock block = MMIOBlockOf(address).value_or(MMIOBlock::GPU);
+  const MMIOBlock block = MMIOBlockOf(address).value_or(MMIOBlock::kGPU);
   if (!g_null_warned[static_cast<size_t>(block)].test_and_set(std::memory_order_relaxed)) {
     REXLOG_WARN(core, "No {} recipient is attached, the {} of 0x{:08X} {}", BlockName(block),
                 is_write ? "write" : "read", address, is_write ? "is dropped" : "returns 0");

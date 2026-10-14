@@ -60,7 +60,7 @@ Result<std::unique_ptr<Provider>> NullProvider::Create(const MountEntry& entry) 
   return std::unique_ptr<Provider>(std::move(provider));
 }
 
-VolumeInfo NullProvider::Volume() const {
+VolumeInfo NullProvider::GetVolume() const {
   return {"NullDevice", 0, 40, 0x10, 0x10, 0x80, 0x200};
 }
 
@@ -69,8 +69,8 @@ Node* NullProvider::Resolve(std::string_view path) {
   if (path.empty()) {
     return root_.get();
   }
-  for (const auto& child : root_->children()) {
-    if (utf8_equal_case(child->path(), path)) {
+  for (const auto& child : root_->GetChildren()) {
+    if (utf8_equal_case(child->GetPath(), path)) {
       return child.get();
     }
   }
@@ -83,7 +83,7 @@ NullNode::NullNode(NullProvider& provider, Node* parent, std::string path)
 }
 
 Result<std::unique_ptr<NodeStream>> NullNode::Open(Access access) {
-  if (read_only() && (access & (Access::kWriteData | Access::kAppendData)) != Access::kNone) {
+  if (IsReadOnly() && (access & (Access::kWriteData | Access::kAppendData)) != Access::kNone) {
     return Err<std::unique_ptr<NodeStream>>(
         BuildError(FileSystemError::kAccessDenied,
                    std::format("'{}' is on a read only mount", absolute_path_)));

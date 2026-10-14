@@ -55,9 +55,9 @@ u32 StaticItems::Write(u8* buffer_data, u32* written_count) {
 
 X_STATUS CreateEnumerator(Runtime& runtime, X_HANDLE* out_handle, const EnumeratorInit& init,
                           EnumeratorObject&& enumerator, u32 extra_size, void** extra_buffer) {
-  runtime::Memory* memory = runtime.memory();
+  runtime::Memory* memory = runtime.GetMemory();
   ObjectBlock block =
-      AllocObjectBlock(memory, sizeof(X_KENUMERATOR) + extra_size, &runtime.workspace());
+      AllocObjectBlock(memory, sizeof(X_KENUMERATOR) + extra_size, &runtime.GetWorkspace());
   if (!block.address) {
     return X_STATUS_NO_MEMORY;
   }
@@ -72,8 +72,8 @@ X_STATUS CreateEnumerator(Runtime& runtime, X_HANDLE* out_handle, const Enumerat
   if (extra_buffer) {
     *extra_buffer = &native_object[sizeof(X_KENUMERATOR)];
   }
-  Result<X_HANDLE> added = runtime.object_table().Emplace<EnumeratorObject>(AddOptions{{}, block},
-                                                                            std::move(enumerator));
+  Result<X_HANDLE> added = runtime.GetObjectTable().Emplace<EnumeratorObject>(
+      AddOptions{{}, block}, std::move(enumerator));
   if (added) {
     *out_handle = *added;
   }

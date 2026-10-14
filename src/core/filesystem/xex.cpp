@@ -86,7 +86,7 @@ bool IsExecutable(std::span<const u8> image) {
 
 template <typename T>
 [[nodiscard]] Result<T> FormatError(std::string message) {
-  return Err<T>(ErrorCategory::Format, std::move(message));
+  return Err<T>(ErrorCategory::kFormat, std::move(message));
 }
 
 }  // namespace
@@ -125,17 +125,17 @@ Result<XEXImage> XEXImage::Parse(std::span<const u8> file) {
   image.xex1_ = magic == kXEX1Magic;
   image.header_.assign(file.begin(), file.begin() + header_size);
   REX_TRY_VOID(image.ReadHeader());
-  if (image.is_patch()) {
+  if (image.IsPatch()) {
     image.patch_data_.assign(file.begin() + header_size, file.end());
   }
   return image;
 }
 
-const XEXHeader& XEXImage::header() const {
+const XEXHeader& XEXImage::GetHeader() const {
   return *reinterpret_cast<const XEXHeader*>(header_.data());
 }
 
-std::span<const u8> XEXImage::header_bytes() const {
+std::span<const u8> XEXImage::GetHeaderBytes() const {
   return header_;
 }
 
@@ -148,7 +148,7 @@ const void* XEXImage::FindOptHeader(XEXHeaderKey key) const {
     case 0x00:
       return nullptr;
     case 0x01:
-      return &header().headers[entry->index].value;
+      return &GetHeader().headers[entry->index].value;
     case 0xFF: {
       if (u64{entry->value} + 4 > header_.size()) {
         return nullptr;
@@ -175,21 +175,21 @@ std::optional<u32> XEXImage::OptHeaderValue(XEXHeaderKey key) const {
   return entry->value;
 }
 
-const XEXSecurityInfo& XEXImage::security() const {
+const XEXSecurityInfo& XEXImage::GetSecurity() const {
   return security_;
 }
 
-std::span<const XEXImportLibrary> XEXImage::imports() const {
+std::span<const XEXImportLibrary> XEXImage::GetImports() const {
   return imports_;
 }
 
-std::vector<u32> XEXImage::alternate_title_ids() const {
+std::vector<u32> XEXImage::GetAlternateTitleIds() const {
   std::vector<u32> ids;
-  const auto* list = OptHeader<XEXOptGenericU32>(XEX_HEADER_ALTERNATE_TITLE_IDS);
+  const auto* list = OptHeader<XEXOptGenericU32>(kXEXHeaderAlternateTitleIds);
   if (!list) {
     return ids;
   }
-  const u32 count = list->count();
+  const u32 count = list->GetCount();
   const auto* end = header_.data() + header_.size();
   for (u32 i = 0; i < count; ++i) {
     if (reinterpret_cast<const u8*>(&list->values[i + 1]) > end) {
@@ -200,17 +200,17 @@ std::vector<u32> XEXImage::alternate_title_ids() const {
   return ids;
 }
 
-bool XEXImage::is_patch() const {
-  return (static_cast<u32>(header().module_flags) &
-          (XEX_MODULE_MODULE_PATCH | XEX_MODULE_PATCH_DELTA | XEX_MODULE_PATCH_FULL)) != 0;
+bool XEXImage::IsPatch() const {
+  return (static_cast<u32>(GetHeader().module_flags) &
+          (kXEXModuleModulePatch | kXEXModulePatchDelta | kXEXModulePatchFull)) != 0;
 }
 
-XEXKey XEXImage::key() const {
+XEXKey XEXImage::GetKey() const {
   return key_;
 }
 
-u32 XEXImage::image_size() const {
-  const u32 page_size = (security_.image_flags & XEX_IMAGE_PAGE_SIZE_4KB) ? 0x1000 : 0x10000;
+u32 XEXImage::GetImageSize() const {
+  const u32 page_size = (security_.image_flags & kXEXImagePageSize4KB) ? 0x1000 : 0x10000;
   u32 total = 0;
   for (const auto& range : security_.pages) {
     total += range.page_count * page_size;
@@ -219,7 +219,7 @@ u32 XEXImage::image_size() const {
 }
 
 Result<void> XEXImage::ReadHeader() {
-  const u32 count = header().header_count;
+  const u32 count = GetHeader().header_count;
   if (kHeaderTableOffset + u64{count} * sizeof(XEXOptHeader) > header_.size()) {
     return FormatError<void>("XEX optional header table is out of range");
   }
@@ -228,7 +228,7 @@ Result<void> XEXImage::ReadHeader() {
 }
 
 Result<void> XEXImage::ReadSecurityInfo() {
-  const u64 offset = header().security_offset;
+  const u64 offset = GetHeader().security_offset;
   const size_t table = xex1_ ? kXEX1PageTableOffset : kXEX2PageTableOffset;
   if (offset + table > header_.size()) {
     return FormatError<void>("XEX security info is out of range");
@@ -260,7 +260,7 @@ Result<void> XEXImage::ReadSecurityInfo() {
 
 Result<void> XEXImage::ReadImports() {
   imports_.clear();
-  const auto* libraries = OptHeader<XEXOptImportLibraries>(XEX_HEADER_IMPORT_LIBRARIES);
+  const auto* libraries = OptHeader<XEXOptImportLibraries>(kXEXHeaderImportLibraries);
   if (!libraries) {
     return Ok();
   }
@@ -306,8 +306,8 @@ Result<void> XEXImage::ReadImports() {
     XEXImportLibrary out;
     out.name = std::string(names[name_index]);
     out.id = library->id;
-    out.version.value = library->version().value;
-    out.min_version.value = library->version_min().value;
+    out.version.value = library->GetVersion().value;
+    out.min_version.value = library->GetVersionMin().value;
     out.records.reserve(count);
     for (u32 i = 0; i < count; ++i) {
       out.records.push_back(library->import_table[i]);
@@ -319,10 +319,10 @@ Result<void> XEXImage::ReadImports() {
 }
 
 Result<void> XEXImage::Decode(std::span<const u8> file, std::span<u8> image) {
-  if (is_patch()) {
+  if (IsPatch()) {
     return FormatError<void>("An XEX patch has no image to decode");
   }
-  const auto* format = OptHeader<XEXOptFileFormatInfo>(XEX_HEADER_FILE_FORMAT_INFO);
+  const auto* format = OptHeader<XEXOptFileFormatInfo>(kXEXHeaderFileFormatInfo);
   if (!format) {
     return FormatError<void>("XEX has no file format header");
   }
@@ -330,8 +330,9 @@ Result<void> XEXImage::Decode(std::span<const u8> file, std::span<u8> image) {
     return FormatError<void>("XEX file is smaller than its header");
   }
   const auto data = file.subspan(header_.size());
-  Error last(ErrorCategory::Format, "XEX image is not a PE image");
-  for (const auto key : {XEXKey::Retail, XEXKey::DevKit, XEXKey::RetailXEX1, XEXKey::DevKitXEX1}) {
+  Error last(ErrorCategory::kFormat, "XEX image is not a PE image");
+  for (const auto key :
+       {XEXKey::kRetail, XEXKey::kDevKit, XEXKey::kRetailXEX1, XEXKey::kDevKitXEX1}) {
     std::ranges::fill(image, u8{0});
     session_key_ = DecryptKey(MasterKey(key), security_.aes_key);
     auto decoded = DecodeWith(*format, data, image);
@@ -339,7 +340,7 @@ Result<void> XEXImage::Decode(std::span<const u8> file, std::span<u8> image) {
       key_ = key;
       return Ok();
     }
-    last = decoded ? Error(ErrorCategory::Format, "XEX image is not a PE image") : decoded.error();
+    last = decoded ? Error(ErrorCategory::kFormat, "XEX image is not a PE image") : decoded.error();
   }
   return Err(std::move(last));
 }
@@ -347,12 +348,12 @@ Result<void> XEXImage::Decode(std::span<const u8> file, std::span<u8> image) {
 Result<void> XEXImage::DecodeWith(const XEXOptFileFormatInfo& format, std::span<const u8> data,
                                   std::span<u8> image) const {
   const u16 encryption = format.encryption_type;
-  if (encryption != XEX_ENCRYPTION_NONE && encryption != XEX_ENCRYPTION_NORMAL) {
-    return Err(ErrorCategory::Crypto, "Unknown XEX encryption type");
+  if (encryption != kXEXEncryptionNone && encryption != kXEXEncryptionNormal) {
+    return Err(ErrorCategory::kCrypto, "Unknown XEX encryption type");
   }
-  const bool encrypted = encryption == XEX_ENCRYPTION_NORMAL;
+  const bool encrypted = encryption == kXEXEncryptionNormal;
   switch (static_cast<u16>(format.compression_type)) {
-    case XEX_COMPRESSION_NONE: {
+    case kXEXCompressionNone: {
       if (data.size() > image.size()) {
         return FormatError<void>("XEX image data is larger than the image");
       }
@@ -363,7 +364,7 @@ Result<void> XEXImage::DecodeWith(const XEXOptFileFormatInfo& format, std::span<
       }
       return Ok();
     }
-    case XEX_COMPRESSION_BASIC: {
+    case kXEXCompressionBasic: {
       if (format.info_size < 8) {
         return FormatError<void>("XEX basic compression table is out of range");
       }
@@ -391,7 +392,7 @@ Result<void> XEXImage::DecodeWith(const XEXOptFileFormatInfo& format, std::span<
       }
       return Ok();
     }
-    case XEX_COMPRESSION_NORMAL: {
+    case kXEXCompressionNormal: {
       std::vector<u8> plain;
       std::span<const u8> input = data;
       if (encrypted) {
@@ -412,7 +413,7 @@ Result<void> XEXImage::DecodeWith(const XEXOptFileFormatInfo& format, std::span<
         }
         const auto block = input.subspan(offset, block_size);
         if (SHA1Digest(block) != expected) {
-          return Err(ErrorCategory::Crypto, "XEX compressed block hash does not match");
+          return Err(ErrorCategory::kCrypto, "XEX compressed block hash does not match");
         }
         const auto* next = reinterpret_cast<const XEXCompressedBlockInfo*>(block.data());
         const u32 next_size = next->block_size;
@@ -438,7 +439,7 @@ Result<void> XEXImage::DecodeWith(const XEXOptFileFormatInfo& format, std::span<
         block_size = next_size;
       }
       if (const int code = detail::LZXDecompress(compressed, image, normal.window_size, {})) {
-        return Err(ErrorCategory::Compression, "LZX decompression of the XEX image failed", code);
+        return Err(ErrorCategory::kCompression, "LZX decompression of the XEX image failed", code);
       }
       return Ok();
     }
@@ -461,12 +462,12 @@ XEXImage XEXImage::Clone() const {
 }
 
 Result<XEXImage> XEXImage::ApplyHeaderDelta(const XEXImage& patch) const {
-  if (!patch.is_patch()) {
+  if (!patch.IsPatch()) {
     return FormatError<XEXImage>("XEX is not a patch");
   }
   const auto* descriptor =
-      patch.OptHeader<XEXOptDeltaPatchDescriptor>(XEX_HEADER_DELTA_PATCH_DESCRIPTOR);
-  const auto* format = patch.OptHeader<XEXOptFileFormatInfo>(XEX_HEADER_FILE_FORMAT_INFO);
+      patch.OptHeader<XEXOptDeltaPatchDescriptor>(kXEXHeaderDeltaPatchDescriptor);
+  const auto* format = patch.OptHeader<XEXOptFileFormatInfo>(kXEXHeaderFileFormatInfo);
   if (!descriptor || !format) {
     return FormatError<XEXImage>("XEX patch has no delta descriptor");
   }
@@ -510,7 +511,7 @@ Result<XEXImage> XEXImage::ApplyHeaderDelta(const XEXImage& patch) const {
   }
   if (const int code = detail::LZXApplyDelta(
           {info, info_size}, format->compression_info.normal.window_size, out.header_)) {
-    return Err<XEXImage>(ErrorCategory::Compression, "XEX header patch failed", code);
+    return Err<XEXImage>(ErrorCategory::kCompression, "XEX header patch failed", code);
   }
   if (out.header_.size() > target_size) {
     out.header_.resize(target_size);
@@ -523,26 +524,26 @@ Result<XEXImage> XEXImage::ApplyHeaderDelta(const XEXImage& patch) const {
 
 Result<void> XEXImage::ApplyImageDelta(const XEXImage& patch, std::span<u8> image) const {
   const auto* descriptor =
-      patch.OptHeader<XEXOptDeltaPatchDescriptor>(XEX_HEADER_DELTA_PATCH_DESCRIPTOR);
-  const auto* format = patch.OptHeader<XEXOptFileFormatInfo>(XEX_HEADER_FILE_FORMAT_INFO);
+      patch.OptHeader<XEXOptDeltaPatchDescriptor>(kXEXHeaderDeltaPatchDescriptor);
+  const auto* format = patch.OptHeader<XEXOptFileFormatInfo>(kXEXHeaderFileFormatInfo);
   if (!descriptor || !format) {
     return FormatError<void>("XEX patch has no delta descriptor");
   }
   const Key patch_key = DecryptKey(session_key_, patch.security_.aes_key);
   if (DecryptKey(session_key_, std::span<const u8, 16>(descriptor->image_key_source, 16)) !=
       previous_session_key_) {
-    return Err(ErrorCategory::Crypto, "XEX patch image key does not match the base XEX");
+    return Err(ErrorCategory::kCrypto, "XEX patch image key does not match the base XEX");
   }
 
   std::vector<u8> plain;
   std::span<const u8> input = patch.patch_data_;
   const u16 encryption = format->encryption_type;
-  if (encryption == XEX_ENCRYPTION_NORMAL) {
+  if (encryption == kXEXEncryptionNormal) {
     plain.resize(input.size());
     CBCDecryptor(patch_key).Run(input, plain);
     input = plain;
-  } else if (encryption != XEX_ENCRYPTION_NONE) {
-    return Err(ErrorCategory::Crypto, "Unknown XEX patch encryption type");
+  } else if (encryption != kXEXEncryptionNone) {
+    return Err(ErrorCategory::kCrypto, "Unknown XEX patch encryption type");
   }
 
   const u32 source_offset = descriptor->delta_image_source_offset;
@@ -570,14 +571,14 @@ Result<void> XEXImage::ApplyImageDelta(const XEXImage& patch, std::span<u8> imag
     }
     const auto block = input.subspan(offset, block_size);
     if (SHA1Digest(block) != expected) {
-      return Err(ErrorCategory::Crypto, "XEX patch block hash does not match");
+      return Err(ErrorCategory::kCrypto, "XEX patch block hash does not match");
     }
     const auto* next = reinterpret_cast<const XEXCompressedBlockInfo*>(block.data());
     const u32 next_size = next->block_size;
     std::memcpy(expected.data(), next->block_hash, 20);
     if (const int code = detail::LZXApplyDelta(
             block.subspan(kBlockInfoSize), format->compression_info.normal.window_size, image)) {
-      return Err(ErrorCategory::Compression, "XEX image patch failed", code);
+      return Err(ErrorCategory::kCompression, "XEX image patch failed", code);
     }
     offset += block_size;
     block_size = next_size;

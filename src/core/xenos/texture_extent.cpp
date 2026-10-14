@@ -38,7 +38,7 @@ static TextureExtent CalculateExtent(const FormatInfo* format_info, u32 pitch, u
     extent.pitch = extent.block_pitch_h * format_info->block_width;
     extent.height = extent.block_pitch_v * format_info->block_height;
 
-    u32 bytes_per_block = format_info->bytes_per_block();
+    u32 bytes_per_block = format_info->GetBytesPerBlock();
     u32 byte_pitch = extent.block_pitch_h * bytes_per_block;
 
     if (!is_tiled) {
@@ -64,7 +64,7 @@ TextureExtent TextureExtent::Calculate(const FormatInfo* format_info, u32 pitch,
 
 TextureExtent TextureExtent::Calculate(const TextureInfo* info, bool is_guest) {
   REX_ASSERT(info != nullptr);
-  return CalculateExtent(info->format_info(), info->pitch, info->height + 1, info->depth + 1,
+  return CalculateExtent(info->GetFormatInfo(), info->pitch, info->height + 1, info->depth + 1,
                          info->is_tiled, is_guest);
 }
 

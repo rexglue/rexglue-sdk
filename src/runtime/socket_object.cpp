@@ -96,7 +96,7 @@ void SetSendError(const SocketObject& sock) {
 #endif
 
 rex::platform::SocketWait WaitOf(const SocketObject& sock, SocketReady ready) {
-  return {sock.socket.handle(), sock.event.get(), ready};
+  return {sock.socket.GetHandle(), sock.event.get(), ready};
 }
 
 bool Closed(const SocketObject& sock) {
@@ -110,7 +110,7 @@ bool Closed(const SocketObject& sock) {
 }
 
 bool WaitToRetry(const SocketObject& sock, SocketReady ready) {
-  if (sock.nonblocking || !rex::platform::socket_would_block() || Closed(sock)) {
+  if (sock.nonblocking || !rex::platform::SocketWouldBlock() || Closed(sock)) {
     return false;
   }
   const rex::platform::SocketWait wait = WaitOf(sock, ready);
@@ -174,18 +174,18 @@ void Finish(PendingReceive& receive, const ReceiveResult& result) {
 void ReceiveWhenReady(const std::stop_token& stop, const SocketObject& sock,
                       PendingReceive& receive, u8* buf, u32 buf_len, u32 flags) {
   const std::array waits{
-      rex::platform::SocketWait{sock.socket.handle(), sock.event.get(), SocketReady::kRead},
-      rex::platform::SocketWait{sock.socket.handle(), receive.wake.get(), SocketReady::kNone}};
+      rex::platform::SocketWait{sock.socket.GetHandle(), sock.event.get(), SocketReady::kRead},
+      rex::platform::SocketWait{sock.socket.GetHandle(), receive.wake.get(), SocketReady::kNone}};
   while (!stop.stop_requested() && !sock.closed) {
     ReceiveResult result = sock.TryRecvFrom(buf, buf_len, flags);
     if (!result.would_block) {
       Finish(receive, result);
       return;
     }
-    if (rex::platform::socket_wait(waits, false, std::chrono::milliseconds::max()) ==
+    if (rex::platform::WaitSockets(waits, false, std::chrono::milliseconds::max()) ==
         rex::platform::WaitResult::kFailed) {
       result.would_block = false;
-      result.error = rex::platform::socket_error();
+      result.error = rex::platform::SocketError();
       Finish(receive, result);
       return;
     }
@@ -224,12 +224,12 @@ SocketObject::~SocketObject() = default;
 
 X_STATUS SocketObject::Initialize() {
   SocketProtocol native_proto = proto;
-  if (native_proto == X_IPPROTO_VDP) {
-    native_proto = X_IPPROTO_UDP;
+  if (native_proto == kXIPProtoVDP) {
+    native_proto = kXIPProtoUDP;
   }
 
   socket = rex::platform::Socket::Create(af, type, native_proto);
-  if (!socket.valid()) {
+  if (!socket.GetValid()) {
     return X_STATUS_UNSUCCESSFUL;
   }
 #if defined(SO_NOSIGPIPE)
@@ -296,7 +296,7 @@ X_STATUS SocketObject::Connect(N_XSOCKADDR* name, u32 name_len) const {
   }
   const sockaddr_in host = ToHost(*name);
   int ret = socket.Connect(reinterpret_cast<const sockaddr*>(&host), sizeof(host));
-  if (ret < 0 && (nonblocking || !rex::platform::socket_would_block() || !WaitConnected(*this))) {
+  if (ret < 0 && (nonblocking || !rex::platform::SocketWouldBlock() || !WaitConnected(*this))) {
     return X_STATUS_UNSUCCESSFUL;
   }
 
@@ -334,22 +334,22 @@ X_HANDLE SocketObject::Accept(Runtime& runtime, N_XSOCKADDR* name, int* name_len
   do {
     i32 n_name_len = sizeof(n_sockaddr);
     connection = socket.Accept(reinterpret_cast<sockaddr*>(&n_sockaddr), &n_name_len);
-  } while (!connection.valid() && WaitToRetry(*this, SocketReady::kRead));
-  if (!connection.valid()) {
+  } while (!connection.GetValid() && WaitToRetry(*this, SocketReady::kRead));
+  if (!connection.GetValid()) {
     std::memset(name, 0, *name_len);
     *name_len = 0;
-    return X_INVALID_HANDLE_VALUE;
+    return kXInvalidHandleValue;
   }
 
   FromHost(n_sockaddr, *name);
   *name_len = sizeof(XSOCKADDR_IN);
 
-  IObjectTable& table = runtime.object_table();
+  IObjectTable& table = runtime.GetObjectTable();
   Result<X_HANDLE> added = table.Emplace<SocketObject>(AddOptions{}, af, type, proto);
   if (!added) {
     connection = {};
     SetHostError(kNoSocketsLeft);
-    return X_INVALID_HANDLE_VALUE;
+    return kXInvalidHandleValue;
   }
   const X_HANDLE handle = *added;
   auto accepted = table.Get<SocketObject>(handle);
@@ -360,7 +360,7 @@ X_HANDLE SocketObject::Accept(Runtime& runtime, N_XSOCKADDR* name, int* name_len
     accepted = {};
     CloseOwned(table, handle);
     SetHostError(error);
-    return X_INVALID_HANDLE_VALUE;
+    return kXInvalidHandleValue;
   }
 
   return handle;
@@ -416,8 +416,8 @@ ReceiveResult SocketObject::TryRecvFrom(u8* buf, u32 buf_len, u32 flags) const {
       socket.RecvFrom(buf, static_cast<i32>(std::min(buf_len, kMaxSocketLength)),
                       static_cast<i32>(flags), reinterpret_cast<sockaddr*>(&nfrom), &nfromlen);
   if (result.received == -1) {
-    result.would_block = rex::platform::socket_would_block();
-    result.error = rex::platform::socket_error();
+    result.would_block = rex::platform::SocketWouldBlock();
+    result.error = rex::platform::SocketError();
     return result;
   }
   result.from.sin_family = nfrom.sin_family;
@@ -478,7 +478,7 @@ int SocketObject::Send(const u8* buf, u32 buf_len, u32 flags) const {
       return sent > 0 ? static_cast<int>(sent) : -1;
     }
     sent += static_cast<u32>(ret);
-    if (sent >= buf_len || nonblocking || type != X_SOCK_STREAM) {
+    if (sent >= buf_len || nonblocking || type != kXSockStream) {
       return static_cast<int>(sent);
     }
   }

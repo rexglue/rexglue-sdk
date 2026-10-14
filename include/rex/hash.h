@@ -64,7 +64,7 @@ struct XXHasher {
  * @param data The bytes to hash.
  * @return The digest as a 32 character lowercase hex string.
  */
-REX_API std::string hash_bytes(std::string_view data);
+REX_API std::string HashBytes(std::string_view data);
 
 /**
  * 128 bit XXH3 digest over the contents of a file, read in chunks.
@@ -73,7 +73,7 @@ REX_API std::string hash_bytes(std::string_view data);
  * @return The digest as a 32 character lowercase hex string, or an empty string when the path is
  *         not a regular file or cannot be opened or read.
  */
-REX_API std::string hash_file(const std::filesystem::path& path);
+REX_API std::string HashFile(const std::filesystem::path& path);
 
 /**
  * Ends the hash_combine recursion.

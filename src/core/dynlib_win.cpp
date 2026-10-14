@@ -36,7 +36,7 @@ bool DynamicLibrary::Load(const std::filesystem::path& path, SymbolResolution /*
   Close();
   handle_ = static_cast<void*>(LoadLibraryW(path.c_str()));
   if (!handle_) {
-    DWORD code = GetLastError();
+    DWORD code = ::GetLastError();
     char* text = nullptr;
     DWORD length = FormatMessageA(
         FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,

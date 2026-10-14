@@ -120,7 +120,7 @@ void DXBCShaderTranslator::ProcessVertexFetchInstruction(
 
   // Shared memory is an SRV or, with memexport, a UAV, so the likelier SRV case goes first.
   a_.OpAnd(dxbc::Dest::R(system_temp_result_, 0b0001), LoadFlagsSystemConstant(),
-           dxbc::Src::LU(kSysFlag_SharedMemoryIsUAV));
+           dxbc::Src::LU(kSysFlagSharedMemoryIsUAV));
   a_.OpIf(false, dxbc::Src::R(system_temp_result_, dxbc::Src::kXXXX));
   if (srv_index_shared_memory_ == kBindingIndexUnallocated) {
     srv_index_shared_memory_ = srv_count_++;
@@ -444,7 +444,7 @@ u32 DXBCShaderTranslator::FindOrAddSamplerBinding(u32 fetch_constant,
     mag_filter = xenos::TextureFilter::kLinear;
     min_filter = xenos::TextureFilter::kLinear;
     mip_filter = xenos::TextureFilter::kLinear;
-    aniso_filter = std::min(aniso_filter, xenos::AnisoFilter::kMax_16_1);
+    aniso_filter = std::min(aniso_filter, xenos::AnisoFilter::kMax161);
   }
   for (u32 i = 0; i < u32(sampler_bindings_.size()); ++i) {
     const SamplerBinding& sampler_binding = sampler_bindings_[i];
@@ -515,7 +515,7 @@ void DXBCShaderTranslator::ProcessTextureFetchInstruction(
   UpdateInstructionPredicationAndEmitDisassembly(instr.is_predicated, instr.predicate_condition);
 
   switch (instr.opcode) {
-    case FetchOpcode::kSetTextureLod: {
+    case FetchOpcode::kSetTextureLOD: {
       bool lod_operand_temp_pushed = false;
       a_.OpMov(
           dxbc::Dest::R(system_temp_grad_h_lod_, 0b1000),
@@ -591,7 +591,7 @@ void DXBCShaderTranslator::ProcessTextureFetchInstruction(
 
   if (instr.opcode != FetchOpcode::kTextureFetch &&
       instr.opcode != FetchOpcode::kGetTextureBorderColorFrac &&
-      instr.opcode != FetchOpcode::kGetTextureComputedLod &&
+      instr.opcode != FetchOpcode::kGetTextureComputedLOD &&
       instr.opcode != FetchOpcode::kGetTextureWeights) {
     REX_UNHANDLED_CASE(instr.opcode);
     EmitTranslationError("Unknown texture fetch operation");
@@ -602,8 +602,8 @@ void DXBCShaderTranslator::ProcessTextureFetchInstruction(
   u32 tfetch_index = instr.operands[1].storage_index;
 
   bool use_computed_lod = instr.attributes.use_computed_lod &&
-                          (is_pixel_shader() || instr.attributes.use_register_gradients);
-  if (instr.opcode == FetchOpcode::kGetTextureComputedLod &&
+                          (IsPixelShader() || instr.attributes.use_register_gradients);
+  if (instr.opcode == FetchOpcode::kGetTextureComputedLOD &&
       (!use_computed_lod || instr.attributes.use_register_gradients)) {
     REX_ASSERT_ALWAYS();
     EmitTranslationError("getCompTexLOD used with explicit LOD or gradients - contradicts MSDN",
@@ -615,7 +615,7 @@ void DXBCShaderTranslator::ProcessTextureFetchInstruction(
   // Offsets apply at LOD 0 as their 0.5 granularity prevents passing them as AOffImmI to `sample`.
   f32 offsets[3] = {};
   // getCompTexLOD takes no offsets.
-  if (instr.opcode != FetchOpcode::kGetTextureComputedLod) {
+  if (instr.opcode != FetchOpcode::kGetTextureComputedLOD) {
     const f32 rounding_offset = 1.5f / 1024.0f;
     switch (instr.dimension) {
       case xenos::FetchOpDimension::k1D:
@@ -773,9 +773,8 @@ void DXBCShaderTranslator::ProcessTextureFetchInstruction(
     u32 resolution_scaled_size_components =
         size_needed_components & resolution_scaled_result_components;
     if (resolution_scaled_coord_components || resolution_scaled_size_components) {
-      if (resolution_scaled_coord_components &&
-          (coord_src.type_ != dxbc::OperandType::kTemp ||
-           coord_src.index_1d_.index_ != system_temp_result_)) {
+      if (resolution_scaled_coord_components && (coord_src.type != dxbc::OperandType::kTemp ||
+                                                 coord_src.index_1d.index != system_temp_result_)) {
         a_.OpMov(dxbc::Dest::R(system_temp_result_, used_result_nonzero_components), coord_src);
         coord_src = dxbc::Src::R(system_temp_result_);
       }
@@ -1040,7 +1039,7 @@ void DXBCShaderTranslator::ProcessTextureFetchInstruction(
       PopSystemTemp();
     }
 
-    if (instr.opcode == FetchOpcode::kGetTextureComputedLod) {
+    if (instr.opcode == FetchOpcode::kGetTextureComputedLOD) {
       u32 sampler_binding_index = FindOrAddSamplerBinding(
           tfetch_index, instr.attributes.mag_filter, instr.attributes.min_filter,
           xenos::TextureFilter::kLinear, instr.attributes.aniso_filter);
@@ -1408,7 +1407,7 @@ void DXBCShaderTranslator::ProcessTextureFetchInstruction(
         if (is_stacked) {
           srv_dimension = xenos::FetchOpDimension::k2D;
           srv_grad_component_count = 2;
-          layer_lerp_needed = layer_lerp_factor_src.type_ != dxbc::OperandType::kImmediate32;
+          layer_lerp_needed = layer_lerp_factor_src.type != dxbc::OperandType::kImmediate32;
           a_.OpElse();
           // Floor the layer index, Xenos addresses layers like 3D unlike D3D12 nearest even.
           a_.OpRoundNI(dxbc::Dest::R(coord_and_sampler_temp, 0b0100),

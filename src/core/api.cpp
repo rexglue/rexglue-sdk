@@ -101,21 +101,21 @@ void API::UpdatePaths(const PathsConfig& paths) {
   loader_->UpdatePaths(paths);
 }
 
-const Config& API::config() const {
-  return loader_->config();
+const Config& API::GetConfig() const {
+  return loader_->GetConfig();
 }
 
 [[nodiscard]] Result<API*> Init(const Config& config) {
-  return detail::ModuleLoader::Instance().Init(config);
+  return detail::ModuleLoader::GetInstance().Init(config);
 }
 
 void Shutdown() {
-  detail::ModuleLoader::Instance().Shutdown();
+  detail::ModuleLoader::GetInstance().Shutdown();
 }
 
 std::vector<std::string> ParseCommandLine(Config& config, const CLIArgList& args) {
   std::vector<std::string> unknown;
-  for (const CLIOption& option : args.Options()) {
+  for (const CLIOption& option : args.GetOptions()) {
     const std::string text =
         option.value ? std::format("--{}={}", option.name, *option.value) : "--" + option.name;
     if (auto field = std::ranges::find_if(
@@ -152,7 +152,7 @@ std::vector<std::string> ParseCommandLine(Config& config, const CLIArgList& args
   try {
     parsed = toml::parse_file(path.string());
   } catch (const toml::parse_error& error) {
-    return Err(ErrorCategory::Config,
+    return Err(ErrorCategory::kConfig,
                std::format("{}: {}", path.string(), std::string(error.description())));
   }
   for (auto&& [key, node] : parsed) {
@@ -160,20 +160,20 @@ std::vector<std::string> ParseCommandLine(Config& config, const CLIArgList& args
     if (auto* table = node.as_table()) {
       for (auto&& [leaf, value] : *table) {
         if (value.is_table() || value.is_array()) {
-          return Err(ErrorCategory::Config,
+          return Err(ErrorCategory::kConfig,
                      std::format("{}: key '{}.{}.{}' nests deeper than scope.leaf", path.string(),
                                  top, std::string(leaf.str()), FirstKey(value)));
         }
         config.cvars.values.push_back({std::format("{}.{}", top, std::string(leaf.str())),
-                                       TOMLScalar(value), cvar::CvarSource::Config});
+                                       TOMLScalar(value), cvar::CvarSource::kConfig});
       }
       continue;
     }
     if (node.is_array()) {
-      return Err(ErrorCategory::Config,
+      return Err(ErrorCategory::kConfig,
                  std::format("{}: key '{}' is an array", path.string(), top));
     }
-    config.cvars.values.push_back({top, TOMLScalar(node), cvar::CvarSource::Config});
+    config.cvars.values.push_back({top, TOMLScalar(node), cvar::CvarSource::kConfig});
   }
   return Ok();
 }
@@ -182,11 +182,11 @@ std::vector<std::string> ParseCommandLine(Config& config, const CLIArgList& args
                                           const std::filesystem::path& path) {
   std::ofstream out(path, std::ios::binary | std::ios::trunc);
   if (!out) {
-    return Err(ErrorCategory::Config, std::format("{}: cannot open for writing", path.string()));
+    return Err(ErrorCategory::kConfig, std::format("{}: cannot open for writing", path.string()));
   }
   out << "# ReXGlue configuration\n\n" << registry.Serialize();
   if (!out) {
-    return Err(ErrorCategory::Config, std::format("{}: write failed", path.string()));
+    return Err(ErrorCategory::kConfig, std::format("{}: write failed", path.string()));
   }
   return Ok();
 }

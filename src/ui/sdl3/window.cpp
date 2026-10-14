@@ -114,8 +114,8 @@ bool Window::Open() {
     OnMonitorUpdate(e);
   }
   {
-    UISetupEvent opened(UIEvent::Type::Opened, this, true);
-    UISetupEvent dpi(UIEvent::Type::DpiChanged, this, true);
+    UISetupEvent opened(UIEvent::Type::kOpened, this, true);
+    UISetupEvent dpi(UIEvent::Type::kDPIChanged, this, true);
     ResizeEvent resize(this, {GetActualPhysicalWidth(), GetActualPhysicalHeight()}, true);
     FocusEvent focus(this, true, true);
     WindowDestructionReceiver destruction_receiver(this);
@@ -124,7 +124,7 @@ bool Window::Open() {
     if (destruction_receiver.IsWindowDestroyedOrListenersUncallable()) {
       return true;
     }
-    SendEventToListeners([&dpi](auto listener) { listener->OnDpiChanged(dpi); },
+    SendEventToListeners([&dpi](auto listener) { listener->OnDPIChanged(dpi); },
                          destruction_receiver);
     if (destruction_receiver.IsWindowDestroyedOrListenersUncallable()) {
       return true;
@@ -143,7 +143,7 @@ bool Window::Open() {
     }
   }
 
-  // After OnDpiChanged and OnResize so painting code sees the right size.
+  // After OnDPIChanged and OnResize so painting code sees the right size.
   OnSurfaceChanged(true);
 
   return true;
@@ -320,7 +320,7 @@ void Window::SetPresenter(gpu::IPresenter* presenter) {
   }
   presenter_ = presenter;
   if (presenter_) {
-    presenter_surface_ = CreateSurface(presenter_->supported_surface_types());
+    presenter_surface_ = CreateSurface(presenter_->GetSupportedSurfaceTypes());
     presenter_->Attach(this, presenter_surface_.get());
   }
 }
@@ -339,7 +339,7 @@ void Window::OnSurfaceChanged(bool new_surface_potentially_exists) {
     return;
   }
 
-  gpu::Surface::TypeFlags supported_types = presenter_->supported_surface_types();
+  gpu::Surface::TypeFlags supported_types = presenter_->GetSupportedSurfaceTypes();
   presenter_surface_ = CreateSurface(supported_types);
   if (presenter_surface_) {
     presenter_->Attach(this, presenter_surface_.get());
@@ -372,7 +372,7 @@ void Window::OnBeforeClose(WindowDestructionReceiver& destruction_receiver) {
     }
 
     {
-      UIEvent e(UIEvent::Type::Closing, this);
+      UIEvent e(UIEvent::Type::kClosing, this);
       SendEventToListeners([&e](auto listener) { listener->OnClosing(e); }, destruction_receiver);
       if (destruction_receiver.IsWindowDestroyed()) {
         return;
@@ -391,13 +391,13 @@ void Window::OnAfterClose() {
   if (phase_ != Phase::kClosing) {
     return;
   }
-  phase_ = (innermost_listener_iteration_context_ || input_listeners_.propagating())
+  phase_ = (innermost_listener_iteration_context_ || input_listeners_.GetPropagating())
                ? Phase::kClosedLeavingListeners
                : Phase::kClosedOpenable;
 }
 
-void Window::OnDpiChanged(UISetupEvent& e, WindowDestructionReceiver& destruction_receiver) {
-  SendEventToListeners([&e](auto listener) { listener->OnDpiChanged(e); }, destruction_receiver);
+void Window::OnDPIChanged(UISetupEvent& e, WindowDestructionReceiver& destruction_receiver) {
+  SendEventToListeners([&e](auto listener) { listener->OnDPIChanged(e); }, destruction_receiver);
   if (destruction_receiver.IsWindowDestroyed()) {
     return;
   }
@@ -405,7 +405,7 @@ void Window::OnDpiChanged(UISetupEvent& e, WindowDestructionReceiver& destructio
 
 void Window::OnMonitorUpdate(MonitorUpdateEvent& e) {
   if (presenter_surface_) {
-    presenter_->OnSurfaceMonitorUpdate(e.old_monitor_potentially_disconnected());
+    presenter_->OnSurfaceMonitorUpdate(e.GetOldMonitorPotentiallyDisconnected());
   }
 }
 
@@ -449,7 +449,7 @@ bool Window::SendCloseRequestToListeners(WindowDestructionReceiver& destruction_
   if (!CanSendEventsToListeners()) {
     return true;
   }
-  UIEvent e(UIEvent::Type::Close, this);
+  UIEvent e(UIEvent::Type::kClose, this);
   // Listeners may add or remove listeners or destroy the window, and a veto stops iteration.
   std::vector<WindowListener*> listeners(listeners_);
   for (WindowListener* listener : listeners) {
@@ -468,7 +468,7 @@ void Window::OnMinimized(WindowDestructionReceiver& destruction_receiver) {
   if (!CanSendEventsToListeners()) {
     return;
   }
-  UIEvent e(UIEvent::Type::Minimized, this);
+  UIEvent e(UIEvent::Type::kMinimized, this);
   SendEventToListeners([&e](auto listener) { listener->OnMinimized(e); }, destruction_receiver);
 }
 
@@ -476,7 +476,7 @@ void Window::OnRestored(WindowDestructionReceiver& destruction_receiver) {
   if (!CanSendEventsToListeners()) {
     return;
   }
-  UIEvent e(UIEvent::Type::Restored, this);
+  UIEvent e(UIEvent::Type::kRestored, this);
   SendEventToListeners([&e](auto listener) { listener->OnRestored(e); }, destruction_receiver);
 }
 
@@ -502,7 +502,7 @@ void Window::OnKeyDown(KeyEvent& e, WindowDestructionReceiver& destruction_recei
   PropagateEventThroughInputListeners(
       [&e](auto listener) {
         listener->OnKeyDown(e);
-        return e.is_handled();
+        return e.IsHandled();
       },
       destruction_receiver);
   if (destruction_receiver.IsWindowDestroyed()) {
@@ -514,7 +514,7 @@ void Window::OnKeyUp(KeyEvent& e, WindowDestructionReceiver& destruction_receive
   PropagateEventThroughInputListeners(
       [&e](auto listener) {
         listener->OnKeyUp(e);
-        return e.is_handled();
+        return e.IsHandled();
       },
       destruction_receiver);
   if (destruction_receiver.IsWindowDestroyed()) {
@@ -526,7 +526,7 @@ void Window::OnKeyChar(KeyEvent& e, WindowDestructionReceiver& destruction_recei
   PropagateEventThroughInputListeners(
       [&e](auto listener) {
         listener->OnKeyChar(e);
-        return e.is_handled();
+        return e.IsHandled();
       },
       destruction_receiver);
   if (destruction_receiver.IsWindowDestroyed()) {
@@ -538,7 +538,7 @@ void Window::OnMouseDown(MouseEvent& e, WindowDestructionReceiver& destruction_r
   PropagateEventThroughInputListeners(
       [&e](auto listener) {
         listener->OnMouseDown(e);
-        return e.is_handled();
+        return e.IsHandled();
       },
       destruction_receiver);
   if (destruction_receiver.IsWindowDestroyed()) {
@@ -550,7 +550,7 @@ void Window::OnMouseMove(MouseEvent& e, WindowDestructionReceiver& destruction_r
   PropagateEventThroughInputListeners(
       [&e](auto listener) {
         listener->OnMouseMove(e);
-        return e.is_handled();
+        return e.IsHandled();
       },
       destruction_receiver);
   if (destruction_receiver.IsWindowDestroyed()) {
@@ -562,7 +562,7 @@ void Window::OnMouseUp(MouseEvent& e, WindowDestructionReceiver& destruction_rec
   PropagateEventThroughInputListeners(
       [&e](auto listener) {
         listener->OnMouseUp(e);
-        return e.is_handled();
+        return e.IsHandled();
       },
       destruction_receiver);
   if (destruction_receiver.IsWindowDestroyed()) {
@@ -574,7 +574,7 @@ void Window::OnMouseWheel(MouseEvent& e, WindowDestructionReceiver& destruction_
   PropagateEventThroughInputListeners(
       [&e](auto listener) {
         listener->OnMouseWheel(e);
-        return e.is_handled();
+        return e.IsHandled();
       },
       destruction_receiver);
   if (destruction_receiver.IsWindowDestroyed()) {
@@ -586,7 +586,7 @@ void Window::OnTouchEvent(TouchEvent& e, WindowDestructionReceiver& destruction_
   PropagateEventThroughInputListeners(
       [&e](auto listener) {
         listener->OnTouchEvent(e);
-        return e.is_handled();
+        return e.IsHandled();
       },
       destruction_receiver);
   if (destruction_receiver.IsWindowDestroyed()) {
@@ -615,7 +615,7 @@ void Window::SendEventToListeners(F&& fn, WindowDestructionReceiver& destruction
   REX_ASSERT(innermost_listener_iteration_context_ == &iteration_context);
   innermost_listener_iteration_context_ = innermost_listener_iteration_context_->outer_context;
   if (phase_ == Phase::kClosedLeavingListeners && !innermost_listener_iteration_context_ &&
-      !input_listeners_.propagating()) {
+      !input_listeners_.GetPropagating()) {
     phase_ = Phase::kClosedOpenable;
   }
 }
@@ -640,7 +640,7 @@ void Window::PropagateEventThroughInputListeners(F&& fn,
     return;
   }
   if (phase_ == Phase::kClosedLeavingListeners && !innermost_listener_iteration_context_ &&
-      !input_listeners_.propagating()) {
+      !input_listeners_.GetPropagating()) {
     phase_ = Phase::kClosedOpenable;
   }
 }
