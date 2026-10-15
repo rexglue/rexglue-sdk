@@ -128,6 +128,9 @@ struct UserModuleData {
   u32 entry_point = 0;
   u32 stack_size = 0; /**< Default stack size in bytes, used for the main thread. */
 
+  /** Guest path of the recompiled library registration the module loaded with, empty when none. */
+  std::string recompiled_key;
+
   /** Thunk address made for each caller and ordinal, reused by later lookups. */
   std::unordered_map<KernelModuleData::ThunkKey, u32, KernelModuleData::ThunkKeyHash> thunk_cache;
 };

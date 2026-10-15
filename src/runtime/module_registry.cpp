@@ -290,6 +290,9 @@ Result<X_HANDLE> ModuleRegistry::LoadUserModule(std::string_view raw_name, bool 
   }
 
   auto recomp = FindRecompiledModule(path);
+  if (recomp) {
+    module->user.recompiled_key = recomp->guest_path;
+  }
   bool wired_recomp = false;
   if (recomp && !recomp->shared_lib_name.empty()) {
     const std::string& lib_key = recomp->guest_path;
@@ -411,9 +414,7 @@ void ModuleRegistry::UnloadUserModule(X_HANDLE module_handle, bool call_entry) {
     }
   }
 
-  auto recomp = FindRecompiledModule(module->path);
-  if (recomp) {
-    const std::string& key = recomp->guest_path;
+  if (const std::string& key = module->user.recompiled_key; !key.empty()) {
     auto cleared_range = runtime_.GetFunctionDispatcher()->UnregisterModule(key);
     if (cleared_range) {
       for (const std::vector<X_HANDLE>& handles : {GetKernelModules(), GetUserModules()}) {
@@ -425,13 +426,11 @@ void ModuleRegistry::UnloadUserModule(X_HANDLE module_handle, bool call_entry) {
       }
     }
 
-    if (!recomp->shared_lib_name.empty()) {
-      std::lock_guard lock(recompiled_mutex_);
-      auto lib_it = module_libraries_.find(key);
-      if (lib_it != module_libraries_.end()) {
-        deferred_unload_libraries_.push_back(std::move(lib_it->second));
-        module_libraries_.erase(lib_it);
-      }
+    std::lock_guard lock(recompiled_mutex_);
+    auto lib_it = module_libraries_.find(key);
+    if (lib_it != module_libraries_.end()) {
+      deferred_unload_libraries_.push_back(std::move(lib_it->second));
+      module_libraries_.erase(lib_it);
     }
   }
 

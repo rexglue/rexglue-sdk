@@ -53,3 +53,25 @@ foreach(name apu hid)
         set_target_properties(${target} PROPERTIES PREFIX "lib")
     endif()
 endforeach()
+
+foreach(variant a b)
+    set(target rexmod-test-recompiled-${variant})
+    add_library(${target} SHARED recompiled.cpp)
+    target_include_directories(${target} PRIVATE ${PROJECT_SOURCE_DIR}/include)
+    target_compile_definitions(${target} PRIVATE
+        REXGLUE_BUILD_CONFIG="$<CONFIG>"
+        REX_TEST_IMAGE_BASE=0x8E000000
+        $<IF:$<STREQUAL:${variant},a>,REX_TEST_RESULT=0xA1,REX_TEST_RESULT=0xB2>)
+    target_link_libraries(${target} PRIVATE simde)
+    set_target_properties(${target} PROPERTIES
+        CXX_VISIBILITY_PRESET hidden
+        VISIBILITY_INLINES_HIDDEN ON
+        PREFIX ""
+        RUNTIME_OUTPUT_DIRECTORY $<TARGET_FILE_DIR:rex-runtime>
+        LIBRARY_OUTPUT_DIRECTORY $<TARGET_FILE_DIR:rex-runtime>
+    )
+    rex_config_postfix(${target})
+    if(NOT WIN32)
+        set_target_properties(${target} PROPERTIES PREFIX "lib")
+    endif()
+endforeach()

@@ -107,6 +107,7 @@ add_executable(unit_tests
     runtime/xma_decoder_test.cpp
     runtime/host_service_modules_test.cpp
     runtime/null_gpu_test.cpp
+    runtime/recompiled_module_test.cpp
     ui/bind_test.cpp
     ui/console_model_test.cpp
     ui/imgui_dialog_test.cpp
@@ -207,7 +208,8 @@ add_dependencies(unit_tests rex-filesystem rex-gpu-xenos rex-sample-console rex-
 add_dependencies(unit_tests
     rexmod-test-good rexmod-test-missing rexmod-test-badversion
     rexmod-test-failinit rexmod-test-dupecho rexmod-test-null-gpu
-    rexmod-test-apu rex-apu-sdl3 rexmod-test-hid rex-hid-sdl3 rex-ui-sdl3)
+    rexmod-test-apu rex-apu-sdl3 rexmod-test-hid rex-hid-sdl3 rex-ui-sdl3
+    rexmod-test-recompiled-a rexmod-test-recompiled-b)
 if(WIN32)
     add_dependencies(unit_tests rex-hid-xinput)
 endif()
