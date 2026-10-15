@@ -190,15 +190,29 @@ struct SocketObject {
   REX_RUNTIME_API bool Cancel();
 
   /**
-   * Sets a socket option.
+   * Sets a socket option from a value in guest layout, big endian, translating the level, the
+   * name and the value to the host.
    *
-   * @param level The option level.
-   * @param optname The option name.
+   * @param level The title option level.
+   * @param optname The title option name.
    * @param optval_ptr The option value.
    * @param optlen The size of the option value.
-   * @return X_STATUS_SUCCESS, or X_STATUS_UNSUCCESSFUL.
+   * @return X_STATUS_SUCCESS, X_STATUS_NOT_SUPPORTED for an option the platform does not define,
+   *         X_STATUS_BUFFER_TOO_SMALL, X_STATUS_INVALID_PARAMETER, or X_STATUS_UNSUCCESSFUL.
    */
   REX_RUNTIME_API X_STATUS SetOption(u32 level, u32 optname, void* optval_ptr, u32 optlen);
+
+  /**
+   * Reads a socket option and writes it in guest layout, big endian.
+   *
+   * @param level The title option level.
+   * @param optname The title option name.
+   * @param optval_ptr Receives the option value.
+   * @param optlen The size of the buffer, then the size of the value.
+   * @return X_STATUS_SUCCESS, X_STATUS_NOT_SUPPORTED for an option the platform does not define,
+   *         X_STATUS_BUFFER_TOO_SMALL, or X_STATUS_UNSUCCESSFUL.
+   */
+  REX_RUNTIME_API X_STATUS GetOption(u32 level, u32 optname, void* optval_ptr, u32* optlen) const;
 
   /**
    * Runs an IO control command.

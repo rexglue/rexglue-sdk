@@ -23,6 +23,8 @@
 #if REX_PLATFORM_WIN32
 #include <WinSock2.h>
 #else
+#include <netinet/in.h>
+#include <netinet/tcp.h>
 #include <sys/resource.h>
 #include <sys/socket.h>
 #include <unistd.h>
@@ -916,7 +918,7 @@ REX_TEST_CASE("net: an overlapped WSARecvFrom with a datagram waiting completes 
     CHECK(StartReceive(c, r) == 0);
     CHECK(c.Load32(r.bytes) == 8);
     CHECK(c.Load32(r.flags) == 0);
-    CHECK(c.Load32(r.overlapped) == 0);
+    CHECK(c.LoadAcquire32(r.overlapped) == 0);
     CHECK(c.Load32(r.overlapped + 4) == 8);
     CHECK(Signaled(c, r.event, 0));
     CheckPayload(c, r);
@@ -934,7 +936,7 @@ REX_TEST_CASE("net: a pending WSARecvFrom completes when a datagram arrives",
     REQUIRE(c.XAM("NetDll_WSAStartup", {0, 0x0202, c.Alloc(0x200)}) == 0);
     const Receive r = PrepareReceive(c, kPort, 16, true);
     CHECK(StartPendingReceive(c, r) == kWSAIOPending);
-    CHECK(c.Load32(r.overlapped) == kWSAIOIncomplete);
+    CHECK(c.LoadAcquire32(r.overlapped) == kWSAIOIncomplete);
     const u32 transferred = c.Alloc(4);
     const u32 flags = c.Alloc(4);
     c.XAM("NetDll_WSASetLastError", {0});
@@ -989,7 +991,7 @@ REX_TEST_CASE("net: WSACancelOverlappedIO ends a pending WSARecvFrom with WSAECA
     SendDatagram(c, kPort);
     WaitReadable(c, r.socket);
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    CHECK(c.Load32(r.overlapped) == kWSAECANCELLED);
+    CHECK(c.LoadAcquire32(r.overlapped) == kWSAECANCELLED);
     CheckBufferUntouched(c, r);
     CHECK(c.Load32(r.from) == kUntouched);
     Finish(c, r);
@@ -1048,10 +1050,10 @@ REX_TEST_CASE("net: closesocket ends a pending WSARecvFrom with WSAECANCELLED",
     CHECK(StartPendingReceive(c, r) == kWSAIOPending);
     CHECK(c.XAM("NetDll_closesocket", {0, r.socket}) == 0);
     CHECK(Signaled(c, r.event, 0));
-    CHECK(c.Load32(r.overlapped) == kWSAECANCELLED);
+    CHECK(c.LoadAcquire32(r.overlapped) == kWSAECANCELLED);
     SendDatagram(c, kPort);
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    CHECK(c.Load32(r.overlapped) == kWSAECANCELLED);
+    CHECK(c.LoadAcquire32(r.overlapped) == kWSAECANCELLED);
     CheckBufferUntouched(c, r);
     CHECK(c.Load32(r.from) == kUntouched);
     CHECK(c.XAM("NetDll_WSACloseEvent", {r.event}) == 1);
@@ -1108,6 +1110,222 @@ REX_TEST_CASE("net: WSARecvFrom writes no more of the address than the length al
     CHECK(c.Load32(r.from + 12) == kUntouched);
     CHECK(c.Load32(r.from_len) == 16);
     Finish(c, r);
+    CHECK(c.XAM("NetDll_WSACleanup", {0}) == 0);
+  });
+}
+
+namespace {
+
+constexpr u32 kSolSocket = 0xFFFF;
+constexpr u32 kSoReuseAddr = 0x0004;
+constexpr u32 kSoBroadcast = 0x0020;
+constexpr u32 kSoLinger = 0x0080;
+constexpr u32 kSoSndBuf = 0x1001;
+constexpr u32 kSoRcvBuf = 0x1002;
+constexpr u32 kSoSndTimeo = 0x1005;
+constexpr u32 kSoRcvTimeo = 0x1006;
+constexpr u32 kSoType = 0x1008;
+constexpr u32 kProtocolTCP = 6;
+constexpr u32 kTCPNoDelay = 1;
+constexpr u32 kWSAENOPROTOOPT = 0x277A;
+
+void SetHostNoDelay(rex::platform::SocketHandle native, int value) {
+#if REX_PLATFORM_WIN32
+  setsockopt(static_cast<SOCKET>(native), IPPROTO_TCP, TCP_NODELAY,
+             reinterpret_cast<const char*>(&value), sizeof(value));
+#else
+  setsockopt(static_cast<int>(native), IPPROTO_TCP, TCP_NODELAY, &value, sizeof(value));
+#endif
+}
+
+int GetHostNoDelay(rex::platform::SocketHandle native) {
+  int value = -1;
+#if REX_PLATFORM_WIN32
+  int length = sizeof(value);
+  getsockopt(static_cast<SOCKET>(native), IPPROTO_TCP, TCP_NODELAY, reinterpret_cast<char*>(&value),
+             &length);
+#else
+  socklen_t length = sizeof(value);
+  getsockopt(static_cast<int>(native), IPPROTO_TCP, TCP_NODELAY, &value, &length);
+#endif
+  return value != 0 ? 1 : 0;
+}
+
+u32 SetOption(Caller& c, u32 socket, u32 level, u32 name, u32 value, u32 length = 4) {
+  const u32 option = c.Alloc(8);
+  c.Store32(option, value);
+  return c.XAM("NetDll_setsockopt", {0, socket, level, name, option, length});
+}
+
+u32 GetOption(Caller& c, u32 socket, u32 level, u32 name, u32* value, u32 length = 4) {
+  const u32 option = c.Alloc(8);
+  const u32 option_length = c.Alloc(4);
+  c.Store32(option_length, length);
+  const u32 result = c.XAM("NetDll_getsockopt", {0, socket, level, name, option, option_length});
+  *value = c.Load32(option);
+  return result;
+}
+
+}  // namespace
+
+REX_TEST_CASE("net: setsockopt reads 4 byte values as big endian integers",
+              "[kernel][net][sockopt]") {
+  KernelFixture fixture;
+  fixture.RunOnGuestThread([](Caller& c) {
+    REQUIRE(c.XAM("NetDll_WSAStartup", {0, 0x0202, c.Alloc(0x200)}) == 0);
+    const u32 datagram = c.XAM("NetDll_socket", {0, 2, 2, 17});
+    REQUIRE(datagram != kSocketError);
+
+    REQUIRE(SetOption(c, datagram, kSolSocket, kSoRcvBuf, 0x20000) == 0);
+    REQUIRE(SetOption(c, datagram, kSolSocket, kSoSndBuf, 0x20000) == 0);
+    u32 value = 0;
+    REQUIRE(GetOption(c, datagram, kSolSocket, kSoRcvBuf, &value) == 0);
+    CHECK(value >= 0x20000);
+    CHECK(value < 0x1000000);
+    REQUIRE(GetOption(c, datagram, kSolSocket, kSoSndBuf, &value) == 0);
+    CHECK(value >= 0x20000);
+    CHECK(value < 0x1000000);
+
+    CHECK(c.XAM("NetDll_closesocket", {0, datagram}) == 0);
+    CHECK(c.XAM("NetDll_WSACleanup", {0}) == 0);
+  });
+}
+
+REX_TEST_CASE("net: boolean options round trip through setsockopt and getsockopt",
+              "[kernel][net][sockopt]") {
+  KernelFixture fixture;
+  fixture.RunOnGuestThread([](Caller& c) {
+    REQUIRE(c.XAM("NetDll_WSAStartup", {0, 0x0202, c.Alloc(0x200)}) == 0);
+    const u32 datagram = c.XAM("NetDll_socket", {0, 2, 2, 17});
+    const u32 stream = c.XAM("NetDll_socket", {0, 2, 1, 6});
+    REQUIRE(datagram != kSocketError);
+    REQUIRE(stream != kSocketError);
+
+    u32 value = 0xFFFFFFFF;
+    REQUIRE(GetOption(c, datagram, kSolSocket, kSoBroadcast, &value) == 0);
+    CHECK(value == 0);
+    REQUIRE(SetOption(c, datagram, kSolSocket, kSoBroadcast, 1) == 0);
+    REQUIRE(GetOption(c, datagram, kSolSocket, kSoBroadcast, &value) == 0);
+    CHECK(value != 0);
+    REQUIRE(SetOption(c, datagram, kSolSocket, kSoBroadcast, 0) == 0);
+    REQUIRE(GetOption(c, datagram, kSolSocket, kSoBroadcast, &value) == 0);
+    CHECK(value == 0);
+
+    REQUIRE(SetOption(c, stream, kSolSocket, kSoReuseAddr, 1) == 0);
+    REQUIRE(GetOption(c, stream, kSolSocket, kSoReuseAddr, &value) == 0);
+    CHECK(value != 0);
+
+    value = 0;
+    REQUIRE(GetOption(c, stream, kProtocolTCP, kTCPNoDelay, &value) == 0);
+    CHECK(value == 1);
+    REQUIRE(SetOption(c, stream, kProtocolTCP, kTCPNoDelay, 0) == 0);
+    value = 0;
+    REQUIRE(GetOption(c, stream, kProtocolTCP, kTCPNoDelay, &value) == 0);
+    CHECK(value == 1);
+    REQUIRE(SetOption(c, stream, kProtocolTCP, kTCPNoDelay, 1) == 0);
+    REQUIRE(GetOption(c, stream, kProtocolTCP, kTCPNoDelay, &value) == 0);
+    CHECK(value != 0);
+
+    CHECK(c.XAM("NetDll_closesocket", {0, stream}) == 0);
+    CHECK(c.XAM("NetDll_closesocket", {0, datagram}) == 0);
+    CHECK(c.XAM("NetDll_WSACleanup", {0}) == 0);
+  });
+}
+
+REX_TEST_CASE("net: linger and timeouts convert between title and host layouts",
+              "[kernel][net][sockopt]") {
+  KernelFixture fixture;
+  fixture.RunOnGuestThread([](Caller& c) {
+    REQUIRE(c.XAM("NetDll_WSAStartup", {0, 0x0202, c.Alloc(0x200)}) == 0);
+    const u32 stream = c.XAM("NetDll_socket", {0, 2, 1, 6});
+    REQUIRE(stream != kSocketError);
+
+    REQUIRE(SetOption(c, stream, kSolSocket, kSoLinger, (1u << 16) | 5u) == 0);
+    u32 value = 0;
+    REQUIRE(GetOption(c, stream, kSolSocket, kSoLinger, &value, 4) == 0);
+    CHECK(value == ((1u << 16) | 5u));
+
+    REQUIRE(SetOption(c, stream, kSolSocket, kSoRcvTimeo, 1500) == 0);
+    REQUIRE(SetOption(c, stream, kSolSocket, kSoSndTimeo, 2500) == 0);
+    REQUIRE(GetOption(c, stream, kSolSocket, kSoRcvTimeo, &value) == 0);
+    CHECK(value == 1500);
+    REQUIRE(GetOption(c, stream, kSolSocket, kSoSndTimeo, &value) == 0);
+    CHECK(value == 2500);
+
+    REQUIRE(GetOption(c, stream, kSolSocket, kSoType, &value) == 0);
+    CHECK(value == 1);
+
+    CHECK(c.XAM("NetDll_closesocket", {0, stream}) == 0);
+    CHECK(c.XAM("NetDll_WSACleanup", {0}) == 0);
+  });
+}
+
+REX_TEST_CASE("net: unsupported options and short buffers fail with the Winsock errors",
+              "[kernel][net][sockopt]") {
+  KernelFixture fixture;
+  fixture.RunOnGuestThread([](Caller& c) {
+    REQUIRE(c.XAM("NetDll_WSAStartup", {0, 0x0202, c.Alloc(0x200)}) == 0);
+    const u32 stream = c.XAM("NetDll_socket", {0, 2, 1, 6});
+    REQUIRE(stream != kSocketError);
+
+    u32 value = 0;
+    CHECK(SetOption(c, stream, kSolSocket, 0x7777, 1) == kSocketError);
+    CHECK(c.XAM("NetDll_WSAGetLastError") == kWSAENOPROTOOPT);
+    c.XAM("NetDll_WSASetLastError", {0});
+    CHECK(GetOption(c, stream, kSolSocket, 0x7777, &value) == kSocketError);
+    CHECK(c.XAM("NetDll_WSAGetLastError") == kWSAENOPROTOOPT);
+    c.XAM("NetDll_WSASetLastError", {0});
+    CHECK(GetOption(c, stream, 0x1234, kSoType, &value) == kSocketError);
+    CHECK(c.XAM("NetDll_WSAGetLastError") == kWSAEINVAL);
+    c.XAM("NetDll_WSASetLastError", {0});
+    CHECK(SetOption(c, stream, 0x1234, kSoType, 1) == kSocketError);
+    CHECK(c.XAM("NetDll_WSAGetLastError") == kWSAEINVAL);
+    c.XAM("NetDll_WSASetLastError", {0});
+    CHECK(GetOption(c, stream, kProtocolTCP, 0x7777, &value) == kSocketError);
+    CHECK(c.XAM("NetDll_WSAGetLastError") == kWSAENOPROTOOPT);
+    c.XAM("NetDll_WSASetLastError", {0});
+
+    constexpr u32 kWSAEFAULT = 0x271E;
+    CHECK(GetOption(c, stream, kSolSocket, kSoRcvBuf, &value, 2) == kSocketError);
+    CHECK(c.XAM("NetDll_WSAGetLastError") == kWSAEFAULT);
+
+    CHECK(c.XAM("NetDll_closesocket", {0, stream}) == 0);
+    CHECK(c.XAM("NetDll_WSACleanup", {0}) == 0);
+  });
+}
+
+REX_TEST_CASE("net: an accepted stream socket disables Nagle on the host",
+              "[kernel][net][sockopt]") {
+  KernelFixture fixture;
+  fixture.RunOnGuestThread([](Caller& c) {
+    constexpr u32 kPort = 47361;
+    REQUIRE(c.XAM("NetDll_WSAStartup", {0, 0x0202, c.Alloc(0x200)}) == 0);
+    const u32 listener = c.XAM("NetDll_socket", {0, 2, 1, 6});
+    const u32 client = c.XAM("NetDll_socket", {0, 2, 1, 6});
+    REQUIRE(listener != kSocketError);
+    REQUIRE(client != kSocketError);
+    auto pinned = c.GetRuntime().GetObjectTable().Get<rex::runtime::SocketObject>(listener);
+    REQUIRE(pinned);
+    SetHostNoDelay(pinned->socket.GetHandle(), 0);
+    REQUIRE(GetHostNoDelay(pinned->socket.GetHandle()) == 0);
+    pinned = {};
+    REQUIRE(c.XAM("NetDll_bind", {0, listener, LoopbackAddress(c, kPort), 16}) == 0);
+    REQUIRE(c.XAM("NetDll_listen", {0, listener, 1}) == 0);
+    REQUIRE(c.XAM("NetDll_connect", {0, client, LoopbackAddress(c, kPort), 16}) == 0);
+    const u32 length = c.Alloc(4);
+    c.Store32(length, 16);
+    const u32 peer = c.XAM("NetDll_accept", {0, listener, c.Alloc(16), length});
+    REQUIRE(peer != kSocketError);
+    auto accepted = c.GetRuntime().GetObjectTable().Get<rex::runtime::SocketObject>(peer);
+    REQUIRE(accepted);
+    CHECK(GetHostNoDelay(accepted->socket.GetHandle()) == 1);
+    u32 value = 0;
+    REQUIRE(GetOption(c, peer, kProtocolTCP, kTCPNoDelay, &value) == 0);
+    CHECK(value == 1);
+    accepted = {};
+    CHECK(c.XAM("NetDll_closesocket", {0, peer}) == 0);
+    CHECK(c.XAM("NetDll_closesocket", {0, client}) == 0);
+    CHECK(c.XAM("NetDll_closesocket", {0, listener}) == 0);
     CHECK(c.XAM("NetDll_WSACleanup", {0}) == 0);
   });
 }

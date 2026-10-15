@@ -56,6 +56,7 @@ constexpr u32 kWSAEINTR = 0x2714;
 constexpr u32 kWSAEFAULT = 0x271E;
 constexpr u32 kWSAEINVAL = 0x2726;
 constexpr u32 kWSAENOTSOCK = 0x2736;
+constexpr u32 kWSAENOPROTOOPT = 0x277A;
 constexpr u32 kWSAEWOULDBLOCK = 0x2733;
 constexpr u32 kWSAECANCELLED = 0x2777;
 constexpr u32 kWSAIOIncomplete = 996;
@@ -76,6 +77,20 @@ Pinned<SocketObject> GetSocket(u32 socket_handle) {
 
 u32 CallError(const SocketObject& socket) {
   return socket.closed ? kWSAEINTR : rex::platform::SocketError();
+}
+
+u32 OptionError(const SocketObject& socket, X_STATUS status) {
+  switch (status) {
+    case X_STATUS_NOT_SUPPORTED:
+      return kWSAENOPROTOOPT;
+    case X_STATUS_INVALID_PARAMETER_1:
+      return kWSAEINVAL;
+    case X_STATUS_BUFFER_TOO_SMALL:
+    case X_STATUS_INVALID_PARAMETER:
+      return kWSAEFAULT;
+    default:
+      return CallError(socket);
+  }
 }
 
 void SetCallError(const SocketObject& socket) {
@@ -281,17 +296,18 @@ namespace {
 void CompleteReceive(Runtime& runtime, GuestPtrT<XWSAOVERLAPPED> overlapped,
                      GuestPtrT<XSOCKADDR_IN> from_ptr, MappedU32 from_len, u32 event_handle,
                      const ReceiveResult& result) {
+  u32 status = 0;
   if (result.cancelled) {
-    overlapped->internal = kWSAECANCELLED;
+    status = kWSAECANCELLED;
     overlapped->internal_high = 0;
   } else if (result.received == -1) {
-    overlapped->internal = result.error;
+    status = result.error;
     overlapped->internal_high = 0;
   } else {
-    overlapped->internal = 0;
     overlapped->internal_high = static_cast<u32>(result.received);
     StoreFrom(from_ptr, from_len, result);
   }
+  overlapped->internal.Store(status, std::memory_order_release);
   if (event_handle) {
     if (auto event = runtime.GetObjectTable().Get<EventObject>(event_handle)) {
       event->Set();
@@ -346,8 +362,8 @@ u32 NetDll_WSARecvFrom_entry([[maybe_unused]] u32 caller, u32 socket_handle,
     result = socket->TryRecvFrom(buf, buf_len, 0);
     if (result.would_block) {
       const u32 event_handle = overlapped->event_handle;
-      overlapped->internal = kWSAIOIncomplete;
       overlapped->internal_high = 0;
+      overlapped->internal.Store(kWSAIOIncomplete, std::memory_order_release);
       if (event_handle) {
         if (auto event = runtime.GetObjectTable().Get<EventObject>(event_handle)) {
           event->Reset();
@@ -449,8 +465,8 @@ u32 NetDll_WSASendTo_entry([[maybe_unused]] u32 caller, u32 socket_handle,
     *num_bytes_sent = bytes;
   }
   if (overlapped) {
-    overlapped->internal = error;
     overlapped->internal_high = bytes;
+    overlapped->internal.Store(error, std::memory_order_release);
     if (overlapped->event_handle) {
       xboxkrnl::NtSetEvent(overlapped->event_handle, nullptr);
     }
@@ -478,12 +494,14 @@ u32 NetDll_WSAGetOverlappedResult_entry([[maybe_unused]] u32 caller,
                                         GuestPtrT<XWSAOVERLAPPED> overlapped,
                                         MappedU32 bytes_transferred, u32 wait,
                                         MappedU32 flags_ptr) {
-  while (overlapped->internal == kWSAIOIncomplete) {
+  u32 status = overlapped->internal.Load(std::memory_order_acquire);
+  while (status == kWSAIOIncomplete) {
     if (!wait || !overlapped->event_handle ||
         XFAILED(runtime::Wait(runtime::GetCurrent(), overlapped->event_handle, 0, 1, 0, nullptr))) {
       KernelThread::GetCurrentThread()->SetLastError(kWSAIOIncomplete);
       return 0;
     }
+    status = overlapped->internal.Load(std::memory_order_acquire);
   }
   if (bytes_transferred) {
     *bytes_transferred = overlapped->internal_high;
@@ -491,8 +509,8 @@ u32 NetDll_WSAGetOverlappedResult_entry([[maybe_unused]] u32 caller,
   if (flags_ptr) {
     *flags_ptr = 0;
   }
-  if (overlapped->internal) {
-    KernelThread::GetCurrentThread()->SetLastError(overlapped->internal);
+  if (status) {
+    KernelThread::GetCurrentThread()->SetLastError(status);
     return 0;
   }
   return 1;
@@ -803,10 +821,30 @@ u32 NetDll_setsockopt_entry([[maybe_unused]] u32 caller, u32 socket_handle, u32 
 
   X_STATUS status = socket->SetOption(level, optname, optval_ptr, optlen);
   if (XFAILED(status)) {
-    KernelThread::GetCurrentThread()->SetLastError(optlen > kMaxSocketLength ? kWSAEFAULT
-                                                                             : CallError(*socket));
+    KernelThread::GetCurrentThread()->SetLastError(OptionError(*socket, status));
     return -1;
   }
+  return 0;
+}
+
+u32 NetDll_getsockopt_entry([[maybe_unused]] u32 caller, u32 socket_handle, u32 level, u32 optname,
+                            MappedVoid optval_ptr, MappedU32 optlen_ptr) {
+  auto socket = GetSocket(socket_handle);
+  if (!socket) {
+    return -1;
+  }
+  if (!optval_ptr || !optlen_ptr) {
+    KernelThread::GetCurrentThread()->SetLastError(kWSAEFAULT);
+    return -1;
+  }
+
+  u32 optlen = *optlen_ptr;
+  X_STATUS status = socket->GetOption(level, optname, optval_ptr, &optlen);
+  if (XFAILED(status)) {
+    KernelThread::GetCurrentThread()->SetLastError(OptionError(*socket, status));
+    return -1;
+  }
+  *optlen_ptr = optlen;
   return 0;
 }
 
@@ -1192,6 +1230,7 @@ REX_EXPORT(__imp__NetDll_setsockopt, rex::kernel::xam::NetDll_setsockopt_entry)
 REX_EXPORT(__imp__NetDll_ioctlsocket, rex::kernel::xam::NetDll_ioctlsocket_entry)
 REX_EXPORT(__imp__NetDll_bind, rex::kernel::xam::NetDll_bind_entry)
 REX_EXPORT(__imp__NetDll_connect, rex::kernel::xam::NetDll_connect_entry)
+REX_EXPORT(__imp__NetDll_getsockopt, rex::kernel::xam::NetDll_getsockopt_entry)
 REX_EXPORT(__imp__NetDll_listen, rex::kernel::xam::NetDll_listen_entry)
 REX_EXPORT(__imp__NetDll_accept, rex::kernel::xam::NetDll_accept_entry)
 REX_EXPORT(__imp__NetDll_select, rex::kernel::xam::NetDll_select_entry)
@@ -1315,4 +1354,3 @@ REX_EXPORT_STUB(__imp__NetDll_XnpUnregisterKeyForCallerType);
 REX_EXPORT_STUB(__imp__NetDll_XnpUpdateConfigParams);
 REX_EXPORT_STUB(__imp__NetDll_getpeername);
 REX_EXPORT_STUB(__imp__NetDll_getsockname);
-REX_EXPORT_STUB(__imp__NetDll_getsockopt);

@@ -21,6 +21,7 @@
 #include <utility>
 
 #include <rex/logging.h>
+#include <rex/memory/byte_swap.h>
 #include <rex/net/socket.h>
 #include <rex/platform.h>
 #include <rex/runtime.h>
@@ -35,6 +36,7 @@
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <netinet/ip.h>
+#include <netinet/tcp.h>
 #include <sys/socket.h>
 #endif
 
@@ -215,6 +217,13 @@ X_STATUS Prepare(SocketObject& sock) {
   return X_STATUS_SUCCESS;
 }
 
+void DisableNagle(SocketObject& object) {
+  if (object.type == kXSockStream) {
+    const i32 no_delay = 1;
+    object.socket.SetOption(IPPROTO_TCP, TCP_NODELAY, &no_delay, sizeof(no_delay));
+  }
+}
+
 }  // namespace
 
 SocketObject::SocketObject(SocketAddressFamily af_in, SocketType type_in, SocketProtocol proto_in)
@@ -239,6 +248,8 @@ X_STATUS SocketObject::Initialize() {
   }
 #endif
 
+  DisableNagle(*this);
+
   return Prepare(*this);
 }
 
@@ -252,8 +263,88 @@ bool SocketObject::Cancel() {
   return true;
 }
 
+namespace {
+
+enum class OptionKind : u8 { kInt, kBool, kLinger, kDontLinger, kTimeout, kExclusive, kNoDelay };
+
+struct OptionRule {
+  u32 level;
+  u32 name;
+  OptionKind kind;
+  bool read_only;
+  i32 host_level;
+  i32 host_name;
+};
+
+constexpr u32 kGuestSolSocket = 0xFFFF;
+constexpr u32 kGuestProtocolTCP = 6;
+constexpr u32 kGuestOptionSize = 4;
+
+#if REX_PLATFORM_WIN32
+using HostLinger = LINGER;
+constexpr i32 kHostExclusive = SO_EXCLUSIVEADDRUSE;
+#else
+using HostLinger = struct linger;
+constexpr i32 kHostExclusive = 0;
+#endif
+
+constexpr OptionRule kOptionRules[] = {
+    {kGuestSolSocket, 0x0002, OptionKind::kBool, true, SOL_SOCKET, SO_ACCEPTCONN},
+    {kGuestSolSocket, 0x0004, OptionKind::kBool, false, SOL_SOCKET, SO_REUSEADDR},
+    {kGuestSolSocket, 0x0020, OptionKind::kBool, false, SOL_SOCKET, SO_BROADCAST},
+    {kGuestSolSocket, 0x0080, OptionKind::kLinger, false, SOL_SOCKET, SO_LINGER},
+    {kGuestSolSocket, ~u32(0x0080), OptionKind::kDontLinger, false, SOL_SOCKET, SO_LINGER},
+    {kGuestSolSocket, ~u32(0x0004), OptionKind::kExclusive, false, SOL_SOCKET, kHostExclusive},
+    {kGuestSolSocket, 0x1001, OptionKind::kInt, false, SOL_SOCKET, SO_SNDBUF},
+    {kGuestSolSocket, 0x1002, OptionKind::kInt, false, SOL_SOCKET, SO_RCVBUF},
+    {kGuestSolSocket, 0x1005, OptionKind::kTimeout, false, SOL_SOCKET, SO_SNDTIMEO},
+    {kGuestSolSocket, 0x1006, OptionKind::kTimeout, false, SOL_SOCKET, SO_RCVTIMEO},
+    {kGuestSolSocket, 0x1008, OptionKind::kInt, true, SOL_SOCKET, SO_TYPE},
+    {kGuestProtocolTCP, 0x0001, OptionKind::kNoDelay, false, IPPROTO_TCP, TCP_NODELAY},
+};
+
+bool IsGuestLevel(u32 level) {
+  return level == kGuestSolSocket || level == kGuestProtocolTCP;
+}
+
+const OptionRule* FindOption(u32 level, u32 optname) {
+  for (const OptionRule& rule : kOptionRules) {
+    if (rule.level == level && rule.name == optname) {
+      return &rule;
+    }
+  }
+  return nullptr;
+}
+
+#if REX_PLATFORM_WIN32
+using HostTimeout = DWORD;
+
+HostTimeout ToHostTimeout(u32 milliseconds) {
+  return milliseconds;
+}
+
+u32 FromHostTimeout(HostTimeout timeout) {
+  return timeout;
+}
+#else
+using HostTimeout = timeval;
+
+HostTimeout ToHostTimeout(u32 milliseconds) {
+  timeval timeout{};
+  timeout.tv_sec = static_cast<decltype(timeout.tv_sec)>(milliseconds / 1000);
+  timeout.tv_usec = static_cast<decltype(timeout.tv_usec)>((milliseconds % 1000) * 1000);
+  return timeout;
+}
+
+u32 FromHostTimeout(const HostTimeout& timeout) {
+  return static_cast<u32>(timeout.tv_sec) * 1000 + static_cast<u32>(timeout.tv_usec) / 1000;
+}
+#endif
+
+}  // namespace
+
 X_STATUS SocketObject::SetOption(u32 level, u32 optname, void* optval_ptr, u32 optlen) {
-  if (level == 0xFFFF && (optname == 0x5801 || optname == 0x5802)) {
+  if (level == kGuestSolSocket && (optname == 0x5801 || optname == 0x5802)) {
     secure = false;
     return X_STATUS_SUCCESS;
   }
@@ -261,16 +352,131 @@ X_STATUS SocketObject::SetOption(u32 level, u32 optname, void* optval_ptr, u32 o
   if (optlen > kMaxSocketLength) {
     return X_STATUS_INVALID_PARAMETER;
   }
-  int ret = socket.SetOption(static_cast<i32>(level), static_cast<i32>(optname), optval_ptr,
-                             static_cast<i32>(optlen));
+  if (!IsGuestLevel(level)) {
+    return X_STATUS_INVALID_PARAMETER_1;
+  }
+  const OptionRule* rule = FindOption(level, optname);
+  if (!rule || rule->read_only) {
+    return X_STATUS_NOT_SUPPORTED;
+  }
+  if (optlen < kGuestOptionSize) {
+    return X_STATUS_BUFFER_TOO_SMALL;
+  }
+
+  const u32 word = memory::load<be_u32>(static_cast<const u8*>(optval_ptr));
+  int ret = 0;
+  switch (rule->kind) {
+    case OptionKind::kInt: {
+      const i32 value = static_cast<i32>(word);
+      ret = socket.SetOption(rule->host_level, rule->host_name, &value, sizeof(value));
+      break;
+    }
+    case OptionKind::kBool: {
+      const i32 value = word != 0 ? 1 : 0;
+      ret = socket.SetOption(rule->host_level, rule->host_name, &value, sizeof(value));
+      break;
+    }
+    case OptionKind::kNoDelay:
+      break;
+    case OptionKind::kLinger:
+    case OptionKind::kDontLinger: {
+      HostLinger value{};
+      if (rule->kind == OptionKind::kLinger) {
+        value.l_onoff = static_cast<decltype(value.l_onoff)>(word >> 16);
+        value.l_linger = static_cast<decltype(value.l_linger)>(word & 0xFFFF);
+      } else {
+        value.l_onoff = word != 0 ? 0 : 1;
+        value.l_linger = 0;
+      }
+      ret = socket.SetOption(rule->host_level, rule->host_name, &value, sizeof(value));
+      break;
+    }
+    case OptionKind::kTimeout: {
+      const HostTimeout value = ToHostTimeout(word);
+      ret = socket.SetOption(rule->host_level, rule->host_name, &value, sizeof(value));
+      break;
+    }
+    case OptionKind::kExclusive: {
+#if REX_PLATFORM_WIN32
+      const i32 value = word != 0 ? 1 : 0;
+      ret = socket.SetOption(rule->host_level, rule->host_name, &value, sizeof(value));
+#endif
+      break;
+    }
+  }
   if (ret < 0) {
     return X_STATUS_UNSUCCESSFUL;
   }
 
-  if (level == 0xFFFF && optname == 0x0020) {
+  if (level == kGuestSolSocket && optname == 0x0020) {
     broadcast_socket = true;
   }
 
+  return X_STATUS_SUCCESS;
+}
+
+X_STATUS SocketObject::GetOption(u32 level, u32 optname, void* optval_ptr, u32* optlen) const {
+  if (!IsGuestLevel(level)) {
+    return X_STATUS_INVALID_PARAMETER_1;
+  }
+  const OptionRule* rule = FindOption(level, optname);
+  if (!rule) {
+    return X_STATUS_NOT_SUPPORTED;
+  }
+  if (*optlen < kGuestOptionSize) {
+    return X_STATUS_BUFFER_TOO_SMALL;
+  }
+
+  u32 word = 0;
+  int ret = 0;
+  switch (rule->kind) {
+    case OptionKind::kNoDelay:
+      word = 1;
+      break;
+    case OptionKind::kInt:
+    case OptionKind::kBool: {
+      i32 value = 0;
+      i32 length = sizeof(value);
+      ret = socket.GetOption(rule->host_level, rule->host_name, &value, &length);
+      word = rule->kind == OptionKind::kInt ? static_cast<u32>(value) : (value != 0 ? 1u : 0u);
+      break;
+    }
+    case OptionKind::kLinger:
+    case OptionKind::kDontLinger: {
+      HostLinger value{};
+      i32 length = sizeof(value);
+      ret = socket.GetOption(rule->host_level, rule->host_name, &value, &length);
+      if (rule->kind == OptionKind::kLinger) {
+        word = (static_cast<u32>(value.l_onoff != 0 ? 1 : 0) << 16) |
+               (static_cast<u32>(value.l_linger) & 0xFFFF);
+      } else {
+        word = value.l_onoff != 0 ? 0 : 1;
+      }
+      break;
+    }
+    case OptionKind::kTimeout: {
+      HostTimeout value{};
+      i32 length = sizeof(value);
+      ret = socket.GetOption(rule->host_level, rule->host_name, &value, &length);
+      word = FromHostTimeout(value);
+      break;
+    }
+    case OptionKind::kExclusive: {
+#if REX_PLATFORM_WIN32
+      i32 value = 0;
+      i32 length = sizeof(value);
+      ret = socket.GetOption(rule->host_level, rule->host_name, &value, &length);
+      word = value != 0 ? 1 : 0;
+#endif
+      break;
+    }
+  }
+  if (ret < 0) {
+    return X_STATUS_UNSUCCESSFUL;
+  }
+
+  memory::store<be_u32>(static_cast<u8*>(optval_ptr), word);
+  *optlen = kGuestOptionSize;
   return X_STATUS_SUCCESS;
 }
 
@@ -355,6 +561,7 @@ X_HANDLE SocketObject::Accept(Runtime& runtime, N_XSOCKADDR* name, int* name_len
   auto accepted = table.Get<SocketObject>(handle);
   accepted->socket = std::move(connection);
   accepted->nonblocking = nonblocking;
+  DisableNagle(*accepted);
   if (XFAILED(Prepare(*accepted))) {
     const int error = HostError();
     accepted = {};

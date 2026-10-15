@@ -147,6 +147,11 @@ u32 Caller::Load32(u32 address) const {
   return *runtime_.GetMemory()->TranslateVirtual<const be_u32*>(address);
 }
 
+u32 Caller::LoadAcquire32(u32 address) const {
+  return runtime_.GetMemory()->TranslateVirtual<const be_u32*>(address)->Load(
+      std::memory_order_acquire);
+}
+
 u8 Caller::Load8(u32 address) const {
   return *runtime_.GetMemory()->TranslateVirtual<u8*>(address);
 }

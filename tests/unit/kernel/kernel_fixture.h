@@ -64,6 +64,15 @@ class Caller {
   u32 Load32(u32 address) const;
 
   /**
+   * Reads a big endian u32 from guest memory with an acquire load, as a title polling a
+   * completion word must.
+   *
+   * @param address The guest address.
+   * @return The value.
+   */
+  u32 LoadAcquire32(u32 address) const;
+
+  /**
    * Reads a byte from guest memory.
    *
    * @param address The guest address.

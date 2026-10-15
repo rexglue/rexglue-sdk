@@ -57,11 +57,12 @@ REX_TEST_CASE("CompleteDeferred writes an explicit length on a failure", "[kerne
       return rex::runtime::CompletionOptions{.result = rex::X_ERROR_FUNCTION_FAILED, .length = 0};
     });
     const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
-    while (c.Load32(overlapped + offsetof(XAM_OVERLAPPED, result)) == rex::X_ERROR_IO_PENDING &&
+    while (c.LoadAcquire32(overlapped + offsetof(XAM_OVERLAPPED, result)) ==
+               rex::X_ERROR_IO_PENDING &&
            std::chrono::steady_clock::now() < deadline) {
       std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
-    REQUIRE(c.Load32(overlapped + offsetof(XAM_OVERLAPPED, result)) ==
+    REQUIRE(c.LoadAcquire32(overlapped + offsetof(XAM_OVERLAPPED, result)) ==
             rex::X_ERROR_FUNCTION_FAILED);
     REQUIRE(c.Load32(overlapped + offsetof(XAM_OVERLAPPED, length)) == 0);
     REQUIRE(c.Load32(overlapped + offsetof(XAM_OVERLAPPED, extended_error)) ==
