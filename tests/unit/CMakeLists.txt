@@ -126,6 +126,7 @@ add_executable(unit_tests
     codegen/codegen_writer_test.cpp
     codegen/disasm_test.cpp
     codegen/flush_mode_test.cpp
+    codegen/function_scanner_test.cpp
     codegen/manifest_test.cpp
     codegen/midasm_hook_config_test.cpp
     codegen/opcode_test.cpp

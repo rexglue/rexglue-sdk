@@ -597,6 +597,13 @@ std::string FunctionNode::EmitCpp(const EmitContext& ctx) const {
       block_base += 4;
       ++data;
     }
+
+    if (GetFallThroughs().contains(block_end)) {
+      BuilderContext builder_ctx{body,      ctx,     *this, insn, block_end, data, local_variables,
+                                 csr_state, nullptr, &mmio};
+      builder_ctx.EmitFunctionCall(block_end);
+      EmitPrintln(body, "	return;");
+    }
   }
 
   if (generate_seh) {

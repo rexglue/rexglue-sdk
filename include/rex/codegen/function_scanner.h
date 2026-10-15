@@ -286,6 +286,8 @@ struct BlockDiscoveryResult {
 
   std::vector<u32> external_calls; /**< bl to unknown targets */
   std::vector<u32> tail_calls;     /**< b to external targets */
+  /** Entries of the known functions that a block runs into. */
+  std::set<u32> fall_throughs;
 };
 
 /**

@@ -89,6 +89,7 @@ void DiscoverFunction(CodegenContext& ctx, u32 func_addr,
 
   node->Discover(std::move(result.blocks), std::move(result.instructions),
                  std::move(result.labels));
+  node->SetFallThroughs(std::move(result.fall_throughs));
 
   for (const auto& jt : result.jump_tables) {
     graph.AddJumpTableToFunction(func_addr, jt);

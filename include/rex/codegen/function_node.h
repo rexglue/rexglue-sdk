@@ -10,6 +10,9 @@
 
 #pragma once
 
+#include <set>
+#include <utility>
+
 #include <rex/codegen/function_types.h>
 
 namespace rex::codegen {
@@ -143,6 +146,21 @@ class FunctionNode {
   /** Returns the resolved tail calls, the b instructions to other functions. */
   const std::vector<CallEdge>& GetTailCalls() const { return tail_calls_; }
 
+  /**
+   * Returns the entries of the functions that blocks of this function run into without a
+   * terminator.
+   *
+   * @return The entry addresses, empty when every block ends with a terminator.
+   */
+  const std::set<u32>& GetFallThroughs() const { return fall_throughs_; }
+
+  /**
+   * Sets the entries of the functions that blocks of this function run into.
+   *
+   * @param targets The entry addresses of the functions that follow the blocks.
+   */
+  void SetFallThroughs(std::set<u32> targets) { fall_throughs_ = std::move(targets); }
+
   const std::vector<JumpTable>& GetJumpTables() const { return jump_tables_; }
 
   const std::vector<UnresolvedJump>& GetUnresolvedJumps() const { return unresolved_jumps_; }
@@ -209,6 +227,7 @@ class FunctionNode {
 
   std::vector<CallEdge> calls_;
   std::vector<CallEdge> tail_calls_;
+  std::set<u32> fall_throughs_;
   std::vector<JumpTable> jump_tables_;
 
   std::vector<UnresolvedJump> unresolved_jumps_;

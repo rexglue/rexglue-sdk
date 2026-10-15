@@ -1578,7 +1578,8 @@ std::optional<JumpTable> DetectJumpTable(DecodedBinary& decoded, const Limits& l
  * emits a table without an adjacent bounds check, then automatic detection. A table target that
  * is another known function is dropped, with a warning for a configured table, which points at an
  * entry the configuration also registers. An internal table target past the function end extends it
- * to cover out-of-line case blocks inside the code region.
+ * to cover out-of-line case blocks inside the code region. A linear scan stops at the entry of
+ * another known function and adds a tail call to it, keyed by that entry address.
  *
  * @param decoded Decoded binary.
  * @param limits Scan limits.
@@ -1774,6 +1775,13 @@ BlockDiscoveryResult DiscoverBlocks(
       }
 
       addr += 4;
+      if (addr != entry_point && known_functions.contains(addr)) {
+        block.size = addr - block_start;
+        result.fall_throughs.insert(addr);
+        result.tail_calls.push_back(addr);
+        result.unresolved_branches.push_back({addr, addr, false, false});
+        break;
+      }
     }
 
     if (block.size == 0 && !is_within_function(addr)) {
