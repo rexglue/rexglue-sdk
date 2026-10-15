@@ -15,8 +15,8 @@
 #include <bit>
 #include <cstring>
 #include <optional>
-#include <random>
 #include <span>
+#include <string_view>
 #include <utility>
 
 #if REX_PLATFORM_MAC
@@ -26,7 +26,6 @@
 #include <format>
 
 #include <rex/assert.h>
-#include <rex/chrono/clock.h>
 #include <rex/cvar.h>
 #include <rex/exception_handler.h>
 #include <rex/logging.h>
@@ -50,6 +49,9 @@ u32 GetPageCount(u32 value, u32 page_size, u32 page_size_shift) {
 static std::atomic<runtime::Memory*> active_memory{nullptr};
 
 namespace {
+
+/** Leading part of the name of the shared memory object backing the address space. */
+constexpr std::string_view kFileMappingPrefix = "xenia_memory_";
 
 enum class GuestFaultKind : u8 { kMMIO, kUnhandled, kPhysicalWrite };
 
@@ -209,8 +211,8 @@ Memory::~Memory() {
 }
 
 bool Memory::Initialize() {
-  file_name_ = std::format("xenia_memory_{}_{:08x}", Clock::QueryHostTickCount(),
-                           static_cast<u32>(std::random_device{}()));
+  rex::memory::RemoveStaleFileMappings(kFileMappingPrefix);
+  file_name_ = rex::memory::CreateFileMappingName(kFileMappingPrefix);
 
   const size_t mapping_size =
       rex::round_up(static_cast<size_t>(0x120000000ull) + system_allocation_granularity_,

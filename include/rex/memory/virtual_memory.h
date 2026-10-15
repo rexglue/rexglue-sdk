@@ -14,6 +14,7 @@
 
 #include <cstdlib>
 #include <filesystem>
+#include <string_view>
 
 #include <rex/macros.h>
 #include <rex/platform.h>
@@ -176,6 +177,25 @@ constexpr FileMappingHandle kFileMappingHandleInvalid = -1;
  */
 REX_API FileMappingHandle CreateFileMappingHandle(const std::filesystem::path& path, size_t length,
                                                   PageAccess access, bool commit);
+
+/**
+ * Builds a unique name for a shared memory object, the prefix followed by the decimal process ID,
+ * an underscore and random hex digits.
+ *
+ * @param prefix Leading part of the name.
+ * @return The name.
+ */
+REX_API std::filesystem::path CreateFileMappingName(std::string_view prefix);
+
+/**
+ * Removes shared memory objects that processes left behind. A name belongs to a dead process when
+ * it is the prefix, the decimal ID of a process that no longer exists and an underscore, followed
+ * by anything. Names of running processes are kept. Only Linux lists the objects, other platforms
+ * do nothing.
+ *
+ * @param prefix Leading part of the names to inspect.
+ */
+REX_API void RemoveStaleFileMappings(std::string_view prefix);
 
 /**
  * Closes a handle CreateFileMappingHandle returned. POSIX also unlinks the object.

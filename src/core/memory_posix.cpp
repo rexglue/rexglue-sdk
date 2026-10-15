@@ -17,9 +17,14 @@
 #include <cstdio>
 #include <cstring>
 #include <functional>
+#include <charconv>
+#include <format>
+#include <random>
 #include <string>
+#include <string_view>
 
 #include <fcntl.h>
+#include <signal.h>
 
 #if REX_PLATFORM_MAC
 #include <mach/mach.h>
@@ -421,6 +426,35 @@ FileMappingHandle CreateFileMappingHandle(const std::filesystem::path& path, siz
     return kFileMappingHandleInvalid;
   }
   return ret;
+#endif
+}
+
+std::filesystem::path CreateFileMappingName(std::string_view prefix) {
+  std::random_device random;
+  return std::format("{}{}_{:08x}{:08x}", prefix, static_cast<int>(getpid()), random(), random());
+}
+
+void RemoveStaleFileMappings([[maybe_unused]] std::string_view prefix) {
+#if REX_PLATFORM_LINUX && !REX_PLATFORM_ANDROID
+  std::error_code error;
+  std::filesystem::directory_iterator it("/dev/shm", error);
+  for (; !error && it != std::filesystem::directory_iterator(); it.increment(error)) {
+    const std::string name = it->path().filename().string();
+    if (!name.starts_with(prefix)) {
+      continue;
+    }
+    const char* digits = name.data() + prefix.size();
+    const char* end = name.data() + name.size();
+    int process_id = 0;
+    const auto parsed = std::from_chars(digits, end, process_id);
+    if (parsed.ec != std::errc() || parsed.ptr == digits || parsed.ptr == end ||
+        *parsed.ptr != '_') {
+      continue;
+    }
+    if (kill(process_id, 0) == -1 && errno == ESRCH) {
+      shm_unlink(("/" + name).c_str());
+    }
+  }
 #endif
 }
 

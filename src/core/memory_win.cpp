@@ -11,6 +11,10 @@
 
 #include "platform_win.h"
 
+#include <format>
+#include <random>
+#include <string_view>
+
 #include <rex/memory/virtual_memory.h>
 
 #if WINAPI_FAMILY_PARTITION(WINAPI_PARTITION_DESKTOP | WINAPI_PARTITION_SYSTEM | \
@@ -188,6 +192,13 @@ FileMappingHandle CreateFileMappingHandle(const std::filesystem::path& path, siz
   }
   return h;
 }
+
+std::filesystem::path CreateFileMappingName(std::string_view prefix) {
+  std::random_device random;
+  return std::format("{}{}_{:08x}{:08x}", prefix, GetCurrentProcessId(), random(), random());
+}
+
+void RemoveStaleFileMappings([[maybe_unused]] std::string_view prefix) {}
 
 void CloseFileMappingHandle(FileMappingHandle handle,
                             [[maybe_unused]] const std::filesystem::path& path) {
