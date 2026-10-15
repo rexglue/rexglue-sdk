@@ -164,3 +164,24 @@ REX_TEST_CASE("A thread's FP save area starts with every FP exception masked", "
     CHECK(rex::runtime::ThreadState::Get()->GetDPCSaveArea().csr == expected);
   });
 }
+
+REX_TEST_CASE("A new thread starts with VSCR NJ set", "[kernel][fp]") {
+  KernelFixture fixture;
+  fixture.RunOnGuestThread([](Caller& c) {
+    CHECK(c.GetCtx().vscr_nj == 1);
+    CHECK(c.GetCtx().vscr_sat == 0);
+    auto nj = std::make_shared<std::atomic<u32>>(0);
+    auto thread = std::make_unique<rex::runtime::KernelThread>(c.GetRuntime(), 0x20000, 0, [nj]() {
+      nj->store(rex::runtime::ThreadState::Get()->GetContext()->vscr_nj);
+      return 0;
+    });
+    auto launched = c.GetRuntime().GetThreadRegistry().Launch(std::move(thread));
+    CHECKED_ELSE(launched) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
+    CHECK(c.Kernel("NtWaitForSingleObjectEx", {*launched, 1, 0, c.Quad(-50000000)}) == 0);
+    c.Kernel("NtClose", {*launched});
+    CHECK(nj->load() == 1);
+  });
+}
