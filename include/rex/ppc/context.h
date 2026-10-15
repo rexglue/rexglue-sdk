@@ -330,6 +330,7 @@ struct alignas(0x40) PPCContext {
   PPCCRRegister cr7;      /**< Condition register field 7, CR bits 28 to 31. */
   PPCFPSCRRegister fpscr; /**< Floating point status and control register. */
   u8 vscr_sat = 0;        /**< VSCR saturation flag for vector ops */
+  u8 vscr_nj = 0;         /**< VSCR non Java mode bit as mtvscr stored it. */
 
   /**
    * Last indirect call target address. Set by REX_CALL_INDIRECT_FUNC before

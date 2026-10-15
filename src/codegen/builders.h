@@ -422,6 +422,8 @@ bool BuildVcmpgtsb(BuilderContext& ctx);
 bool BuildVcmpgtsh(BuilderContext& ctx);
 bool BuildVcmpgtsw(BuilderContext& ctx);
 
+bool BuildMtvscr(BuilderContext& ctx);
+bool BuildMfvscr(BuilderContext& ctx);
 bool BuildVctsxs(BuilderContext& ctx);
 bool BuildVctuxs(BuilderContext& ctx);
 bool BuildVcfsx(BuilderContext& ctx);

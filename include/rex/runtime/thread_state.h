@@ -35,6 +35,8 @@ struct DPCSaveArea {
   std::array<PPCVRegister, 128> vr{};
   /** The VSCR saturation bit. */
   u8 vscr_sat = 0;
+  /** The VSCR non Java mode bit. */
+  u8 vscr_nj = 0;
 };
 
 /** The register file and stop flag of 1 guest thread. */

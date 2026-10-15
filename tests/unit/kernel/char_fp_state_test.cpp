@@ -113,11 +113,13 @@ REX_TEST_CASE("KeSaveVectorUnitState and KeRestoreVectorUnitState round trip v0 
       std::memset(&vr[i], static_cast<int>(i), sizeof(PPCVRegister));
     }
     ctx.vscr_sat = 1;
+    ctx.vscr_nj = 1;
     c.Kernel("KeSaveVectorUnitState");
     for (u32 i = 0; i < 128; ++i) {
       std::memset(&vr[i], 0xEE, sizeof(PPCVRegister));
     }
     ctx.vscr_sat = 0;
+    ctx.vscr_nj = 0;
     c.Kernel("KeRestoreVectorUnitState");
     for (u32 i = 0; i < 128; ++i) {
       const u64 expected = 0x0101010101010101ull * i;
@@ -125,6 +127,7 @@ REX_TEST_CASE("KeSaveVectorUnitState and KeRestoreVectorUnitState round trip v0 
       CHECK(vr[i].u64[1] == expected);
     }
     CHECK(ctx.vscr_sat == 1);
+    CHECK(ctx.vscr_nj == 1);
   });
 }
 

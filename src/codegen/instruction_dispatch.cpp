@@ -466,6 +466,8 @@ static const std::unordered_map<int, Builder>& GetDispatchTable() {
       {PPC_INST_VCMPGTSH, BuildVcmpgtsh},
       {PPC_INST_VCMPGTSW, BuildVcmpgtsw},
 
+      {PPC_INST_MTVSCR, BuildMtvscr},
+      {PPC_INST_MFVSCR, BuildMfvscr},
       {PPC_INST_VCTSXS, BuildVctsxs},
       {PPC_INST_VCFPSXWS128, BuildVctsxs},
       {PPC_INST_VCTUXS, BuildVctuxs},

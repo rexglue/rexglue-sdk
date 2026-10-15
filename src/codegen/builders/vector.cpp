@@ -13,6 +13,7 @@
 
 #include <bit>
 #include <cmath>
+#include <string_view>
 #include <utility>
 
 #include <simde/x86/sse.h>
@@ -22,6 +23,24 @@
 #include <ppc.h>
 
 namespace rex::codegen {
+
+namespace {
+
+/**
+ * Emits the update of the VSCR saturation bit for a saturating vector add, subtract or pack. It
+ * runs before the instruction so that vD may alias an operand.
+ *
+ * @param ctx The builder context
+ * @param function The rex::ppc saturation function with its template arguments.
+ */
+void EmitSaturation(BuilderContext& ctx, std::string_view function) {
+  ctx.Println(
+      "\tctx.vscr_sat |= u8(rex::ppc::{}(simde_mm_load_si128((simde__m128i*){}.u8), "
+      "simde_mm_load_si128((simde__m128i*){}.u8)));",
+      function, ctx.V(ctx.insn.operands[1]), ctx.V(ctx.insn.operands[2]));
+}
+
+}  // namespace
 
 bool BuildVaddfp(BuilderContext& ctx) {
   ctx.EmitSetFlushMode(true);
@@ -106,9 +125,7 @@ bool BuildVlogefp(BuilderContext& ctx) {
 /**
  * Builds the 3 element dot product.
  *
- * The simde_mm_dp_ps mask 0xEF multiplies host elements y, z and w (high nibble, bit 7 is x down
- * to bit 4 is w) and broadcasts the sum to all 4 elements (low nibble). The host reverses the
- * guest element order, so these are the 3 guest elements of the dot product.
+ * The result is the bit exact dot product of guest elements 0 to 2, broadcast to all 4 elements.
  *
  * @param ctx The builder context
  * @return True when the instruction is handled.
@@ -116,8 +133,8 @@ bool BuildVlogefp(BuilderContext& ctx) {
 bool BuildVmsum3fp128(BuilderContext& ctx) {
   ctx.EmitSetFlushMode(true);
   ctx.Println(
-      "\tsimde_mm_store_ps({}.f32, simde_mm_dp_ps(simde_mm_load_ps({}.f32), "
-      "simde_mm_load_ps({}.f32), 0xEF));",
+      "\tsimde_mm_store_ps({}.f32, rex::ppc::Vmsum3fp128(simde_mm_load_ps({}.f32), "
+      "simde_mm_load_ps({}.f32)));",
       ctx.V(ctx.insn.operands[0]), ctx.V(ctx.insn.operands[1]), ctx.V(ctx.insn.operands[2]));
   return true;
 }
@@ -125,7 +142,7 @@ bool BuildVmsum3fp128(BuilderContext& ctx) {
 /**
  * Builds the 4 element dot product.
  *
- * The simde_mm_dp_ps mask 0xFF multiplies all 4 elements and broadcasts the sum to all 4.
+ * The result is the bit exact dot product of all 4 guest elements, broadcast to all 4 elements.
  *
  * @param ctx The builder context
  * @return True when the instruction is handled.
@@ -133,8 +150,8 @@ bool BuildVmsum3fp128(BuilderContext& ctx) {
 bool BuildVmsum4fp128(BuilderContext& ctx) {
   ctx.EmitSetFlushMode(true);
   ctx.Println(
-      "\tsimde_mm_store_ps({}.f32, simde_mm_dp_ps(simde_mm_load_ps({}.f32), "
-      "simde_mm_load_ps({}.f32), 0xFF));",
+      "\tsimde_mm_store_ps({}.f32, rex::ppc::Vmsum4fp128(simde_mm_load_ps({}.f32), "
+      "simde_mm_load_ps({}.f32)));",
       ctx.V(ctx.insn.operands[0]), ctx.V(ctx.insn.operands[1]), ctx.V(ctx.insn.operands[2]));
   return true;
 }
@@ -172,11 +189,13 @@ bool BuildVrfiz(BuilderContext& ctx) {
 }
 
 bool BuildVaddsbs(BuilderContext& ctx) {
+  EmitSaturation(ctx, "AddSaturates<8, true>");
   ctx.EmitVecIntBinary("adds_epi8", "s8");
   return true;
 }
 
 bool BuildVaddshs(BuilderContext& ctx) {
+  EmitSaturation(ctx, "AddSaturates<16, true>");
   ctx.EmitVecIntBinary("adds_epi16", "s16");
   return true;
 }
@@ -193,6 +212,7 @@ bool BuildVaddshs(BuilderContext& ctx) {
  * @return True when the instruction is handled.
  */
 bool BuildVaddsws(BuilderContext& ctx) {
+  EmitSaturation(ctx, "AddSaturates<32, true>");
   auto v_d = ctx.V(ctx.insn.operands[0]);
   auto v_a = ctx.V(ctx.insn.operands[1]);
   auto v_b = ctx.V(ctx.insn.operands[2]);
@@ -224,6 +244,7 @@ bool BuildVaddubm(BuilderContext& ctx) {
 }
 
 bool BuildVaddubs(BuilderContext& ctx) {
+  EmitSaturation(ctx, "AddSaturates<8, false>");
   ctx.EmitVecIntBinary("adds_epu8", "u8");
   return true;
 }
@@ -239,6 +260,7 @@ bool BuildVadduwm(BuilderContext& ctx) {
 }
 
 bool BuildVadduws(BuilderContext& ctx) {
+  EmitSaturation(ctx, "AddSaturates<32, false>");
   ctx.Println(
       "\tsimde_mm_store_si128((simde__m128i*){}.u32, "
       "rex::ppc::simde_mm_adds_epu32(simde_mm_load_si128((simde__m128i*){}.u32), "
@@ -248,11 +270,13 @@ bool BuildVadduws(BuilderContext& ctx) {
 }
 
 bool BuildVadduhs(BuilderContext& ctx) {
+  EmitSaturation(ctx, "AddSaturates<16, false>");
   ctx.EmitVecIntBinary("adds_epu16", "u16");
   return true;
 }
 
 bool BuildVsubsws(BuilderContext& ctx) {
+  EmitSaturation(ctx, "SubSaturates<32, true>");
   for (size_t i = 0; i < 4; i++) {
     ctx.Println("\t{}.s64 = i64({}.s32[{}]) - i64({}.s32[{}]);", ctx.Temp(),
                 ctx.V(ctx.insn.operands[1]), i, ctx.V(ctx.insn.operands[2]), i);
@@ -268,11 +292,13 @@ bool BuildVsububm(BuilderContext& ctx) {
 }
 
 bool BuildVsububs(BuilderContext& ctx) {
+  EmitSaturation(ctx, "SubSaturates<8, false>");
   ctx.EmitVecIntBinary("subs_epu8", "u8");
   return true;
 }
 
 bool BuildVsubuws(BuilderContext& ctx) {
+  EmitSaturation(ctx, "SubSaturates<32, false>");
   ctx.Println(
       "\tsimde_mm_store_si128((simde__m128i*){}.u32, "
       "simde_mm_sub_epi32(simde_mm_load_si128((simde__m128i*) {}.u32), "
@@ -284,6 +310,7 @@ bool BuildVsubuws(BuilderContext& ctx) {
 }
 
 bool BuildVsubuhs(BuilderContext& ctx) {
+  EmitSaturation(ctx, "SubSaturates<16, false>");
   ctx.EmitVecIntBinary("subs_epu16", "u16");
   return true;
 }
@@ -344,6 +371,7 @@ bool BuildVminuw(BuilderContext& ctx) {
 }
 
 bool BuildVsubsbs(BuilderContext& ctx) {
+  EmitSaturation(ctx, "SubSaturates<8, true>");
   ctx.EmitVecIntBinary("subs_epi8", "s8");
   return true;
 }
@@ -359,6 +387,7 @@ bool BuildVminub(BuilderContext& ctx) {
 }
 
 bool BuildVsubshs(BuilderContext& ctx) {
+  EmitSaturation(ctx, "SubSaturates<16, true>");
   ctx.EmitVecIntBinary("subs_epi16", "s16");
   return true;
 }
@@ -638,15 +667,43 @@ bool BuildVcmpgtsw(BuilderContext& ctx) {
   return true;
 }
 
+/**
+ * Builds mtvscr, keeping the saturation bit (bit 0) and the non Java bit (bit 16) of word 3 of vB.
+ *
+ * @param ctx The builder context
+ * @return True when the instruction is handled.
+ */
+bool BuildMtvscr(BuilderContext& ctx) {
+  ctx.Println("\tctx.vscr_sat = {}.u32[0] & 1;", ctx.V(ctx.insn.operands[0]));
+  ctx.Println("\tctx.vscr_nj = ({}.u32[0] >> 16) & 1;", ctx.V(ctx.insn.operands[0]));
+  return true;
+}
+
+/**
+ * Builds mfvscr, reading the stored saturation and non Java bits into word 3 of vD and zeroing the
+ * other words.
+ *
+ * @param ctx The builder context
+ * @return True when the instruction is handled.
+ */
+bool BuildMfvscr(BuilderContext& ctx) {
+  ctx.Println("\t{}.u32[0] = u32(ctx.vscr_sat) | (u32(ctx.vscr_nj) << 16);",
+              ctx.V(ctx.insn.operands[0]));
+  ctx.Println("\t{}.u32[1] = 0;", ctx.V(ctx.insn.operands[0]));
+  ctx.Println("\t{}.u64[1] = 0;", ctx.V(ctx.insn.operands[0]));
+  return true;
+}
+
 bool BuildVctsxs(BuilderContext& ctx) {
   ctx.EmitSetFlushMode(true);
-  ctx.Print("\tsimde_mm_store_si128((simde__m128i*){}.s32, rex::ppc::simde_mm_vctsxs(",
-            ctx.V(ctx.insn.operands[0]));
-  if (ctx.insn.operands[2] != 0)
-    ctx.Println("simde_mm_mul_ps(simde_mm_load_ps({}.f32), simde_mm_set1_ps({}))));",
-                ctx.V(ctx.insn.operands[1]), 1u << ctx.insn.operands[2]);
-  else
-    ctx.Println("simde_mm_load_ps({}.f32)));", ctx.V(ctx.insn.operands[1]));
+  const std::string scaled =
+      ctx.insn.operands[2] != 0
+          ? std::format("simde_mm_mul_ps(simde_mm_load_ps({}.f32), simde_mm_set1_ps({}))",
+                        ctx.V(ctx.insn.operands[1]), 1u << ctx.insn.operands[2])
+          : std::format("simde_mm_load_ps({}.f32)", ctx.V(ctx.insn.operands[1]));
+  ctx.Println("\tctx.vscr_sat |= u8(rex::ppc::ConvertSaturates<true>({}));", scaled);
+  ctx.Println("\tsimde_mm_store_si128((simde__m128i*){}.s32, rex::ppc::simde_mm_vctsxs({}));",
+              ctx.V(ctx.insn.operands[0]), scaled);
   return true;
 }
 
@@ -685,13 +742,14 @@ bool BuildVcfux(BuilderContext& ctx) {
 
 bool BuildVctuxs(BuilderContext& ctx) {
   ctx.EmitSetFlushMode(true);
-  ctx.Print("\tsimde_mm_store_si128((simde__m128i*){}.u32, rex::ppc::simde_mm_vctuxs(",
-            ctx.V(ctx.insn.operands[0]));
-  if (ctx.insn.operands[2] != 0)
-    ctx.Println("simde_mm_mul_ps(simde_mm_load_ps({}.f32), simde_mm_set1_ps({}))));",
-                ctx.V(ctx.insn.operands[1]), 1u << ctx.insn.operands[2]);
-  else
-    ctx.Println("simde_mm_load_ps({}.f32)));", ctx.V(ctx.insn.operands[1]));
+  const std::string scaled =
+      ctx.insn.operands[2] != 0
+          ? std::format("simde_mm_mul_ps(simde_mm_load_ps({}.f32), simde_mm_set1_ps({}))",
+                        ctx.V(ctx.insn.operands[1]), 1u << ctx.insn.operands[2])
+          : std::format("simde_mm_load_ps({}.f32)", ctx.V(ctx.insn.operands[1]));
+  ctx.Println("\tctx.vscr_sat |= u8(rex::ppc::ConvertSaturates<false>({}));", scaled);
+  ctx.Println("\tsimde_mm_store_si128((simde__m128i*){}.u32, rex::ppc::simde_mm_vctuxs({}));",
+              ctx.V(ctx.insn.operands[0]), scaled);
   return true;
 }
 
@@ -967,6 +1025,7 @@ bool BuildVspltw(BuilderContext& ctx) {
 }
 
 bool BuildVpkshus(BuilderContext& ctx) {
+  EmitSaturation(ctx, "PackSaturates<16, false>");
   ctx.Println(
       "\tsimde_mm_store_si128((simde__m128i*){}.u8, "
       "simde_mm_packus_epi16(simde_mm_load_si128((simde__m128i*){}.s16), "
@@ -1009,6 +1068,7 @@ bool BuildVpkuhum(BuilderContext& ctx) {
 }
 
 bool BuildVpkuhus(BuilderContext& ctx) {
+  EmitSaturation(ctx, "PackSaturates<16, false>");
   // packus reads inputs as signed so unsigned saturation is custom, and vD may alias vA or vB
   for (size_t i = 0; i < 8; i++) {
     ctx.Println("\t{}.u8[{}] = {}.u16[{}] > 0xFF ? 0xFF : (u8){}.u16[{}];", ctx.VTemp(), 15 - i,
@@ -1032,6 +1092,7 @@ bool BuildVpkuwum(BuilderContext& ctx) {
 }
 
 bool BuildVpkuwus(BuilderContext& ctx) {
+  EmitSaturation(ctx, "PackSaturates<32, false>");
   // packus reads inputs as signed so unsigned saturation is custom, and vD may alias vA or vB
   for (size_t i = 0; i < 4; i++) {
     ctx.Println("\t{}.u16[{}] = {}.u32[{}] > 0xFFFF ? 0xFFFF : (u16){}.u32[{}];", ctx.VTemp(),
@@ -1044,6 +1105,7 @@ bool BuildVpkuwus(BuilderContext& ctx) {
 }
 
 bool BuildVpkshss(BuilderContext& ctx) {
+  EmitSaturation(ctx, "PackSaturates<16, true>");
   ctx.Println(
       "\tsimde_mm_store_si128((simde__m128i*){}.s8, "
       "simde_mm_packs_epi16(simde_mm_load_si128((simde__m128i*){}.s16), "
@@ -1053,6 +1115,7 @@ bool BuildVpkshss(BuilderContext& ctx) {
 }
 
 bool BuildVpkswss(BuilderContext& ctx) {
+  EmitSaturation(ctx, "PackSaturates<32, true>");
   ctx.Println(
       "\tsimde_mm_store_si128((simde__m128i*){}.s16, "
       "simde_mm_packs_epi32(simde_mm_load_si128((simde__m128i*){}.s32), "
@@ -1062,6 +1125,7 @@ bool BuildVpkswss(BuilderContext& ctx) {
 }
 
 bool BuildVpkswus(BuilderContext& ctx) {
+  EmitSaturation(ctx, "PackSaturates<32, false>");
   ctx.Println(
       "\tsimde_mm_store_si128((simde__m128i*){}.u16, "
       "simde_mm_packus_epi32(simde_mm_load_si128((simde__m128i*){}.s32), "
