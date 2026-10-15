@@ -25,6 +25,7 @@ add_executable(unit_tests
     gpu/shader_interpreter_test.cpp
     gpu/shader_translation_test.cpp
     gpu/tessellation_glsl_test.cpp
+    kernel/xekeys_test.cpp
     kernel/exit_title_test.cpp
     kernel/video_mode_test.cpp
     kernel/object_table_test.cpp

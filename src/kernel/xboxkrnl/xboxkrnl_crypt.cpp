@@ -646,12 +646,22 @@ u32 XeKeysHmacShaUsingKey_entry(MappedVoid obscured_key, MappedVoid inp_1, u32 i
   return X_STATUS_SUCCESS;
 }
 
+/**
+ * Console sign export.
+ *
+ * @return 0.
+ */
 u32 XeKeysConsolePrivateKeySign_entry([[maybe_unused]] MappedVoid hash,
                                       [[maybe_unused]] MappedVoid signature) {
   REX_KERNEL_STUB("XeKeysConsolePrivateKeySign");
   return 0;
 }
 
+/**
+ * Console signature verification export.
+ *
+ * @return 0.
+ */
 u32 XeKeysConsoleSignatureVerification_entry([[maybe_unused]] MappedVoid hash,
                                              [[maybe_unused]] MappedVoid signature,
                                              [[maybe_unused]] MappedVoid pubkey) {
