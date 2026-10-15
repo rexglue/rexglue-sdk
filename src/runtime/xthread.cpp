@@ -655,9 +655,11 @@ void KernelThread::EnqueueAPC(u32 normal_routine, u32 normal_context, u32 arg1, 
                                     XAPC::kDummyRundownRoutine, normal_routine,
                                     1 /* user apc mode */, normal_context);
 
-  // Queue with the caller context, the target thread context would corrupt APC lock and IRQL state.
-  PPCContext* queue_ctx = runtime::ThreadState::Get() ? runtime::ThreadState::Get()->GetContext()
-                                                      : thread_state_->GetContext();
+  runtime::ThreadState* caller = runtime::ThreadState::Get();
+  if (!caller) {
+    REX_FATAL(system, "EnqueueAPC called on a host thread with no bound thread state");
+  }
+  PPCContext* queue_ctx = caller->GetContext();
 
   if (!kernel::xboxkrnl::KeInsertQueueApc(*GetMemory(), apc, arg1, arg2, 0, queue_ctx)) {
     GetMemory()->SystemHeapFree(apc_ptr);

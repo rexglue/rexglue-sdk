@@ -34,11 +34,10 @@ rex::WinSystemClock::time_point DueTimePoint(i64 due_time) {
   return std::chrono::clock_cast<rex::WinSystemClock>(rex::XSystemClock::FromFileTime(due_time));
 }
 
-bool Arm(TimerObject& timer, i64 due_time, u32 period_ms, std::function<void()> callback) {
+bool Arm(TimerObject& timer, i64 due_time, u32 period_ms) {
   const auto due = DueTimePoint(due_time);
-  return period_ms ? timer.timer->SetRepeatingAt(due, std::chrono::milliseconds(period_ms),
-                                                 std::move(callback))
-                   : timer.timer->SetOnceAt(due, std::move(callback));
+  return period_ms ? timer.timer->SetRepeatingAt(due, std::chrono::milliseconds(period_ms), nullptr)
+                   : timer.timer->SetOnceAt(due, nullptr);
 }
 
 void Disarm(TimerObject& timer) {
@@ -46,6 +45,25 @@ void Disarm(TimerObject& timer) {
     item->Disarm();
   }
   timer.expiry.reset();
+}
+
+bool QueueExpiry(TimerObject& timer, Runtime& runtime, i64 due_time, u32 scaled_period,
+                 std::function<void(void*)> callback) {
+  using QueueClock = rex::platform::TimerQueueWaitItem::clock;
+  const rex::HundredNanoseconds wait =
+      std::max(rex::HundredNanoseconds::zero(),
+               due_time < 0 ? rex::HundredNanoseconds(-due_time)
+                            : rex::XSystemClock::FromFileTime(due_time) - rex::XSystemClock::now());
+  const auto due = QueueClock::now() + std::chrono::duration_cast<QueueClock::duration>(wait);
+  timer.expiry = scaled_period
+                     ? rex::platform::QueueTimerRecurring(std::move(callback), nullptr, due,
+                                                          std::chrono::milliseconds(scaled_period))
+                     : rex::platform::QueueTimerOnce(std::move(callback), nullptr, due);
+  if (!static_cast<Dispatcher&>(runtime.GetDispatcher()).TrackTimerExpiry(timer.expiry)) {
+    Disarm(timer);
+    return false;
+  }
+  return true;
 }
 
 }  // namespace
@@ -77,22 +95,38 @@ X_STATUS TimerObject::Set(Runtime& runtime, i64 due_time, u32 period_ms, u32 rou
   callback_thread_id = KernelThread::GetCurrentThread()->GetThreadId();
   callback_routine = routine;
   callback_routine_arg = routine_arg;
-  std::function<void()> callback = nullptr;
-  if (routine) {
-    callback = [runtime = &runtime, thread_id = callback_thread_id, routine, routine_arg]() {
-      const u64 time = rex::Clock::QueryGuestSystemTime();
-      const u32 time_low = static_cast<u32>(time);
-      const u32 time_high = static_cast<u32>(time >> 32);
+  Disarm(*this);
+  const u32 scaled_period = Clock::ScaleGuestDurationMillis(period_ms);
+  if (!Arm(*this, due_time, scaled_period)) {
+    return X_STATUS_UNSUCCESSFUL;
+  }
+  if (!routine) {
+    return X_STATUS_SUCCESS;
+  }
+  auto callback = [runtime = &runtime, thread_id = callback_thread_id, routine,
+                   routine_arg](void*) {
+    const u64 time = rex::Clock::QueryGuestSystemTime();
+    const u32 time_low = static_cast<u32>(time);
+    const u32 time_high = static_cast<u32>(time >> 32);
+    auto& dispatcher = static_cast<Dispatcher&>(runtime->GetDispatcher());
+    if (!dispatcher.IsRunning()) {
+      REXLOG_WARN(system, "timer completion routine {:08X} dropped, the dispatcher is stopped",
+                  routine);
+      return;
+    }
+    dispatcher.Post([runtime, thread_id, routine, routine_arg, time_low, time_high] {
       REXLOG_DEBUG(system, "*this enqueuing callback to {:08X}({:08X}, {:08X}, {:08X})", routine,
                    routine_arg, time_low, time_high);
       if (auto thread = runtime->GetThreadRegistry().Find(thread_id)) {
         thread->EnqueueAPC(routine, routine_arg, time_low, time_high);
       }
-    };
+    });
+  };
+  if (!QueueExpiry(*this, runtime, due_time, scaled_period, std::move(callback))) {
+    timer->Cancel();
+    return X_STATUS_UNSUCCESSFUL;
   }
-  return Arm(*this, due_time, Clock::ScaleGuestDurationMillis(period_ms), std::move(callback))
-             ? X_STATUS_SUCCESS
-             : X_STATUS_UNSUCCESSFUL;
+  return X_STATUS_SUCCESS;
 }
 
 X_STATUS TimerObject::SetDPC(Runtime& runtime, u32 ktimer, i64 due_time, u32 period_ms, u32 dpc) {
@@ -116,18 +150,7 @@ X_STATUS TimerObject::SetDPC(Runtime& runtime, u32 ktimer, i64 due_time, u32 per
     }
     host->SetOnceAfter(rex::HundredNanoseconds(0));
   };
-  using QueueClock = rex::platform::TimerQueueWaitItem::clock;
-  const rex::HundredNanoseconds wait =
-      std::max(rex::HundredNanoseconds::zero(),
-               due_time < 0 ? rex::HundredNanoseconds(-due_time)
-                            : rex::XSystemClock::FromFileTime(due_time) - rex::XSystemClock::now());
-  const auto due = QueueClock::now() + std::chrono::duration_cast<QueueClock::duration>(wait);
-  expiry = scaled_period
-               ? rex::platform::QueueTimerRecurring(std::move(callback), nullptr, due,
-                                                    std::chrono::milliseconds(scaled_period))
-               : rex::platform::QueueTimerOnce(std::move(callback), nullptr, due);
-  if (!static_cast<Dispatcher&>(runtime.GetDispatcher()).TrackTimerExpiry(expiry)) {
-    Disarm(*this);
+  if (!QueueExpiry(*this, runtime, due_time, scaled_period, std::move(callback))) {
     return X_STATUS_UNSUCCESSFUL;
   }
   return X_STATUS_SUCCESS;

@@ -16,8 +16,11 @@
 #include <memory>
 #include <thread>
 
+#include <rex/kernel/xboxkrnl/threading.h>
 #include <rex/runtime/function_dispatcher.h>
+#include <rex/runtime/thread_state.h>
 #include <rex/runtime/timer_object.h>
+#include <rex/runtime/xthread.h>
 #include <rex/runtime/xtypes.h>
 
 #include "kernel_fixture.h"
@@ -154,6 +157,50 @@ REX_TEST_CASE("timers: completion routine runs as an APC on the setting thread",
       FAIL_CHECK("the check above failed");
       return;
     }
+    const u32 event_ptr = c.Alloc(4);
+    CHECKED_ELSE(c.Kernel("NtCreateEvent", {event_ptr, 0, 0, 0}) == 0) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
+    CHECK(c.Kernel("NtWaitForSingleObjectEx", {c.Load32(event_ptr), 1, 1, c.Quad(-5000000)}) ==
+          rex::X_STATUS_USER_APC);
+    CHECK(g_routine_calls == 1);
+    c.Kernel("NtClose", {handle});
+    c.Kernel("NtClose", {c.Load32(event_ptr)});
+  });
+}
+
+REX_TEST_CASE("timers: a completion routine APC waits for the target to release its APC lock",
+              "[kernel][timers][apc]") {
+  KernelFixture fixture;
+  fixture.RunOnGuestThread([](Caller& c) {
+    static std::atomic<u32> g_routine_calls;
+    g_routine_calls = 0;
+    const u32 routine = c.GetRuntime().GetFunctionDispatcher()->AllocateThunk(
+        +[](PPCContext& ctx, u8*) {
+          ++g_routine_calls;
+          ctx.r3.u64 = 0;
+        },
+        0);
+    const u32 handle_ptr = c.Alloc(4);
+    CHECKED_ELSE(c.Kernel("NtCreateTimer", {handle_ptr, 0, 0}) == 0) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
+    const u32 handle = c.Load32(handle_ptr);
+    auto* memory = c.GetRuntime().GetMemory();
+    auto* ctx = rex::runtime::ThreadState::Get()->GetContext();
+    auto* kthread =
+        rex::runtime::KernelThread::GetCurrentThread()->GetGuestObject<rex::runtime::X_KTHREAD>();
+    const u32 old_irql =
+        rex::kernel::xboxkrnl::KeKfAcquireSpinLock(*memory, ctx, &kthread->apc_lock);
+    CHECKED_ELSE(c.Kernel("NtSetTimerEx", {handle, c.Quad(-100000), routine, 1, 0, 0, 0, 0}) == 0) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
+    std::this_thread::sleep_for(std::chrono::milliseconds(300));
+    CHECK(g_routine_calls == 0);
+    rex::kernel::xboxkrnl::KeKfReleaseSpinLock(*memory, ctx, &kthread->apc_lock, old_irql);
     const u32 event_ptr = c.Alloc(4);
     CHECKED_ELSE(c.Kernel("NtCreateEvent", {event_ptr, 0, 0, 0}) == 0) {
       FAIL_CHECK("the check above failed");
