@@ -78,6 +78,7 @@ add_executable(unit_tests
     core/relaunch_test.cpp
     core/thread_redirect_test.cpp
     core/thread_registry_test.cpp
+    ppc/estimate_test.cpp
     ppc/import_function_test.cpp
     ppc/stack_test.cpp
     runtime/guest_path_test.cpp
@@ -124,6 +125,7 @@ add_executable(unit_tests
     codegen/tool_runtime_test.cpp
     codegen/mmio_analysis_test.cpp
     rexglue/init_command_test.cpp
+    rexglue/test_spec_test.cpp
 )
 
 target_sources(unit_tests PRIVATE
@@ -133,6 +135,7 @@ target_sources(unit_tests PRIVATE
     ${PROJECT_SOURCE_DIR}/src/rexglue/ui/ui.cpp
     ${PROJECT_SOURCE_DIR}/src/rexglue/ui/progress.cpp
     ${PROJECT_SOURCE_DIR}/src/rexglue/commands/init_command.cpp
+    ${PROJECT_SOURCE_DIR}/src/rexglue/commands/test_spec.cpp
     ${PROJECT_SOURCE_DIR}/thirdparty/crypto/rijndael-alg-fst.c
 )
 

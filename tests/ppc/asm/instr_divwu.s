@@ -16,25 +16,23 @@ test_divwu_1_constant:
   #_ REGISTER_OUT r4 1
   #_ REGISTER_OUT r5 2
 
-# TODO(benvanik): x64 ignore divide by zero (=0)
-#test_divwu_2:
-#  #_ REGISTER_IN r4 1
-#  #_ REGISTER_IN r5 0
-#  divwu r3, r4, r5
-#  blr
-#  #_ REGISTER_OUT r3 0
-#  #_ REGISTER_OUT r4 1
-#  #_ REGISTER_OUT r5 0
+test_divwu_2:
+  #_ REGISTER_IN r4 1
+  #_ REGISTER_IN r5 0
+  divwu r3, r4, r5
+  blr
+  #_ REGISTER_OUT r3 0
+  #_ REGISTER_OUT r4 1
+  #_ REGISTER_OUT r5 0
 
-# TODO(benvanik): x64 ignore divide by zero (=0)
-#test_divwu_2_constant:
-#  li r4, 1
-#  li r5, 0
-#  divwu r3, r4, r5
-#  blr
-#  #_ REGISTER_OUT r3 0
-#  #_ REGISTER_OUT r4 1
-#  #_ REGISTER_OUT r5 0
+test_divwu_2_constant:
+  li r4, 1
+  li r5, 0
+  divwu r3, r4, r5
+  blr
+  #_ REGISTER_OUT r3 0
+  #_ REGISTER_OUT r4 1
+  #_ REGISTER_OUT r5 0
 
 test_divwu_3:
   #_ REGISTER_IN r4 2

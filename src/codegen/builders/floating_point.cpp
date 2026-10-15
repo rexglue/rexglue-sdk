@@ -227,14 +227,14 @@ bool BuildFnmsubs(BuilderContext& ctx) {
 
 bool BuildFres(BuilderContext& ctx) {
   ctx.EmitSetFlushMode(false);
-  ctx.Println("\t{}.f64 = f64(f32(1.0 / {}.f64));", ctx.F(ctx.insn.operands[0]),
+  ctx.Println("\t{}.f64 = rex::ppc::Fres({}.f64);", ctx.F(ctx.insn.operands[0]),
               ctx.F(ctx.insn.operands[1]));
   return true;
 }
 
 bool BuildFrsqrte(BuilderContext& ctx) {
   ctx.EmitSetFlushMode(false);
-  ctx.Println("\t{}.f64 = f64(f32(1.0 / sqrt({}.f64)));", ctx.F(ctx.insn.operands[0]),
+  ctx.Println("\t{}.f64 = rex::ppc::Frsqrte({}.f64);", ctx.F(ctx.insn.operands[0]),
               ctx.F(ctx.insn.operands[1]));
   return true;
 }

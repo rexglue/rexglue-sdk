@@ -9,6 +9,7 @@ add_executable(rexglue
     commands/vfs_command.cpp
     commands/list_command.cpp
     commands/test_recompiler.cpp
+    commands/test_spec.cpp
     commands/project_scan.cpp
 )
 

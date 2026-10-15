@@ -82,57 +82,25 @@ bool BuildVminfp(BuilderContext& ctx) {
 
 bool BuildVrefp(BuilderContext& ctx) {
   ctx.EmitSetFlushMode(true);
-  ctx.EmitVecFPUnaryExpr("simde_mm_div_ps(simde_mm_set1_ps(1), simde_mm_load_ps({vA}.f32))");
+  ctx.EmitVecFPUnaryExpr("rex::ppc::Vrefp(simde_mm_load_ps({vA}.f32))");
   return true;
 }
 
 bool BuildVrsqrtefp(BuilderContext& ctx) {
   ctx.EmitSetFlushMode(true);
-  ctx.EmitVecFPUnaryExpr(
-      "simde_mm_div_ps(simde_mm_set1_ps(1), simde_mm_sqrt_ps(simde_mm_load_ps({vA}.f32)))");
+  ctx.EmitVecFPUnaryExpr("rex::ppc::Vrsqrtefp(simde_mm_load_ps({vA}.f32))");
   return true;
 }
 
-/**
- * Builds vexptefp as an exp2 estimate with about 12 bit precision.
- *
- * exp2(x) is 2^n * poly(f) with n = floor(x) and f = x - n. The polynomial is a 4th order minimax
- * fit of 2^f on [0,1). 2^n is built by adding n to the exponent bias 127 and shifting into bit 23.
- *
- * @param ctx The builder context
- * @return True when the instruction is handled.
- */
 bool BuildVexptefp(BuilderContext& ctx) {
-  auto v_d = ctx.V(ctx.insn.operands[0]);
-  auto v_a = ctx.V(ctx.insn.operands[1]);
   ctx.EmitSetFlushMode(true);
-  ctx.Println("\t{{");
-  ctx.Println("\t\tsimde__m128 x = simde_mm_load_ps({}.f32);", v_a);
-  ctx.Println(
-      "\t\tsimde__m128 n = simde_mm_round_ps(x, "
-      "SIMDE_MM_FROUND_TO_NEG_INF | SIMDE_MM_FROUND_NO_EXC);");
-  ctx.Println("\t\tsimde__m128 f = simde_mm_sub_ps(x, n);");
-  ctx.Println("\t\tsimde__m128 p = simde_mm_set1_ps(1.8775767e-3f);");
-  ctx.Println("\t\tp = simde_mm_add_ps(simde_mm_mul_ps(p, f), simde_mm_set1_ps(8.9893397e-3f));");
-  ctx.Println("\t\tp = simde_mm_add_ps(simde_mm_mul_ps(p, f), simde_mm_set1_ps(5.5826318e-2f));");
-  ctx.Println("\t\tp = simde_mm_add_ps(simde_mm_mul_ps(p, f), simde_mm_set1_ps(2.4015361e-1f));");
-  ctx.Println("\t\tp = simde_mm_add_ps(simde_mm_mul_ps(p, f), simde_mm_set1_ps(6.9315308e-1f));");
-  ctx.Println("\t\tp = simde_mm_add_ps(simde_mm_mul_ps(p, f), simde_mm_set1_ps(1.0f));");
-  ctx.Println("\t\tsimde__m128i exp_bits = simde_mm_slli_epi32(");
-  ctx.Println("\t\t\tsimde_mm_add_epi32(simde_mm_cvttps_epi32(n), simde_mm_set1_epi32(127)), 23);");
-  ctx.Println(
-      "\t\tsimde_mm_store_ps({}.f32, "
-      "simde_mm_mul_ps(p, simde_mm_castsi128_ps(exp_bits)));",
-      v_d);
-  ctx.Println("\t}}");
+  ctx.EmitVecFPUnaryExpr("rex::ppc::Vexptefp(simde_mm_load_ps({vA}.f32))");
   return true;
 }
 
 bool BuildVlogefp(BuilderContext& ctx) {
   ctx.EmitSetFlushMode(true);
-  for (size_t i = 0; i < 4; i++)
-    ctx.Println("\t{}.f32[{}] = log2f({}.f32[{}]);", ctx.V(ctx.insn.operands[0]), i,
-                ctx.V(ctx.insn.operands[1]), i);
+  ctx.EmitVecFPUnaryExpr("rex::ppc::Vlogefp(simde_mm_load_ps({vA}.f32))");
   return true;
 }
 
