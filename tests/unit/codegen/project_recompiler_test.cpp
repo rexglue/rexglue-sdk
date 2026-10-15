@@ -57,6 +57,7 @@ std::vector<u8> BuildImage(u32 base, u32 immediate_instruction) {
   nt->FileHeader.Characteristics = IMAGE_FILE_32BIT_MACHINE;
   nt->OptionalHeader.Magic = IMAGE_NT_OPTIONAL_HDR32_MAGIC;
   nt->OptionalHeader.Subsystem = IMAGE_SUBSYSTEM_XBOX;
+  nt->OptionalHeader.SizeOfHeaders = kCodeOffset;
   nt->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXCEPTION].VirtualAddress = kPDataOffset;
   nt->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXCEPTION].Size = 8;
   auto* section = reinterpret_cast<IMAGE_SECTION_HEADER*>(image.data() + 0x80 + 24 +

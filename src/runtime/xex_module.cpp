@@ -10,6 +10,7 @@
  */
 
 #include <algorithm>
+#include <cstring>
 #include <optional>
 #include <unordered_map>
 #include <utility>
@@ -222,6 +223,7 @@ bool XEXModule::LoadContinue() {
              parsed_pe.error().GetDescription());
   }
   pe_ = std::move(*parsed_pe);
+  std::memset(GetMemory()->TranslateVirtual(base_address_), 0, pe_.header_size);
   for (auto& section : pe_.sections) {
     section.address += base_address_;
   }

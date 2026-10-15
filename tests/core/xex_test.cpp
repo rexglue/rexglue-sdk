@@ -240,6 +240,7 @@ REX_TEST_CASE("PE headers parse from a decoded image", "[xex]") {
   nt->FileHeader.Characteristics = IMAGE_FILE_32BIT_MACHINE;
   nt->OptionalHeader.Magic = IMAGE_NT_OPTIONAL_HDR32_MAGIC;
   nt->OptionalHeader.Subsystem = IMAGE_SUBSYSTEM_XBOX;
+  nt->OptionalHeader.SizeOfHeaders = 0x1000;
   nt->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXCEPTION].VirtualAddress = 0x1000;
   nt->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXCEPTION].Size = 0x40;
   auto* section = reinterpret_cast<IMAGE_SECTION_HEADER*>(image.data() + 0x80 + 24 +
@@ -257,6 +258,18 @@ REX_TEST_CASE("PE headers parse from a decoded image", "[xex]") {
   REQUIRE(info->sections.size() == 1);
   CHECK(std::string(info->sections[0].name) == ".text");
   CHECK(info->sections[0].address == 0x1000u);
+  CHECK(info->header_size == 0x1000u);
+
+  nt->OptionalHeader.SizeOfHeaders = 0x4000;
+  info = filesystem::ParsePE(image);
+  REQUIRE(info);
+  CHECK(info->header_size == 0x1000u);
+
+  nt->OptionalHeader.SizeOfHeaders = 0;
+  CHECK_FALSE(filesystem::ParsePE(image));
+  nt->OptionalHeader.SizeOfHeaders = 0x80;
+  CHECK_FALSE(filesystem::ParsePE(image));
+  nt->OptionalHeader.SizeOfHeaders = 0x1000;
 
   nt->FileHeader.Machine = 0x14C;
   CHECK_FALSE(filesystem::ParsePE(image));

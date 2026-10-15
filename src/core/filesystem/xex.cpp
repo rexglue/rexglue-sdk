@@ -614,7 +614,20 @@ Result<void> XEXImage::ApplyImageDelta(const XEXImage& patch, std::span<u8> imag
       image.size()) {
     return FormatError<PEInfo>("PE section table is out of range");
   }
+  const size_t sections_end =
+      sections_offset + size_t{file.NumberOfSections} * sizeof(IMAGE_SECTION_HEADER);
+  size_t header_size = optional.SizeOfHeaders;
+  const auto* section_table =
+      reinterpret_cast<const IMAGE_SECTION_HEADER*>(image.data() + sections_offset);
+  for (u16 n = 0; n < file.NumberOfSections; ++n) {
+    header_size = std::min<size_t>(header_size, section_table[n].VirtualAddress);
+  }
+  header_size = std::min(header_size, image.size());
+  if (header_size == 0 || sections_end > header_size) {
+    return FormatError<PEInfo>("PE header size is zero or ends before the section table");
+  }
   PEInfo info;
+  info.header_size = static_cast<u32>(header_size);
   info.time_date_stamp = file.TimeDateStamp;
   info.exception_directory_rva =
       optional.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXCEPTION].VirtualAddress;

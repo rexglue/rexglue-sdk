@@ -95,6 +95,8 @@ struct PEInfo {
   u32 exception_directory_size = 0;
   /** Linker timestamp in Unix seconds. */
   u32 time_date_stamp = 0;
+  /** Bytes of header at the image base, capped at the lowest section address. */
+  u32 header_size = 0;
 };
 
 /**
