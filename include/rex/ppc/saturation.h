@@ -10,6 +10,8 @@
 
 #pragma once
 
+#include <array>
+
 #include <simde/x86/sse4.1.h>
 
 #include <rex/types.h>
@@ -132,6 +134,79 @@ template <u32 SourceBits, bool SignedDest>
                            simde_mm_cmpeq_epi32(simde_mm_max_epu32(second, range), range));
     return simde_mm_movemask_epi8(inside) != 0xFFFF;
   }
+}
+
+namespace detail {
+
+/** The integer range a packed field accepts, with a flag for fields that never saturate. */
+struct PackRange {
+  bool checked;
+  f64 low;
+  f64 high;
+};
+
+inline constexpr PackRange kUnchecked{false, 0.0, 0.0};
+inline constexpr PackRange kByteRange{true, 0.0, 255.0};
+inline constexpr PackRange kShortRange{true, -32768.0, 32767.0};
+inline constexpr PackRange kSigned10Range{true, -512.0, 511.0};
+inline constexpr PackRange kSigned20Range{true, -524287.0, 524287.0};
+inline constexpr PackRange kTwoBitRange{true, 0.0, 3.0};
+
+/** The range of each title element for the pack format with the index of the table entry. */
+inline constexpr std::array<std::array<PackRange, 4>, 7> kPackD3DRanges = {{
+    {kByteRange, kByteRange, kByteRange, kByteRange},
+    {kShortRange, kShortRange, kUnchecked, kUnchecked},
+    {kSigned10Range, kSigned10Range, kSigned10Range, kTwoBitRange},
+    {kUnchecked, kUnchecked, kUnchecked, kUnchecked},
+    {kShortRange, kShortRange, kShortRange, kShortRange},
+    {kUnchecked, kUnchecked, kUnchecked, kUnchecked},
+    {kSigned20Range, kSigned20Range, kSigned20Range, kTwoBitRange},
+}};
+
+/** The lowest or highest float of the range of each host lane, or 0 for a lane that never
+ * saturates. */
+template <u32 Type, bool High>
+inline constexpr std::array<f32, 4> kPackD3DBounds = [] {
+  std::array<f32, 4> bounds{};
+  for (u32 lane = 0; lane < 4; ++lane) {
+    const PackRange& range = kPackD3DRanges[Type][3 - lane];
+    bounds[lane] =
+        range.checked ? static_cast<f32>(3.0 + (High ? range.high : range.low) / 4194304.0) : 0.0f;
+  }
+  return bounds;
+}();
+
+/** The all ones mask of each host lane that can saturate. */
+template <u32 Type>
+inline constexpr std::array<u32, 4> kPackD3DChecked = [] {
+  std::array<u32, 4> mask{};
+  for (u32 lane = 0; lane < 4; ++lane) {
+    mask[lane] = kPackD3DRanges[Type][3 - lane].checked ? 0xFFFFFFFFu : 0u;
+  }
+  return mask;
+}();
+
+}  // namespace detail
+
+/**
+ * Reports whether a vpkd3d128 pack saturates. Every title element counts, whatever the mask and
+ * shift write. A NaN element never saturates. Floats in [2, 4) are spaced by 2^-22, so each one
+ * is 3.0 plus an integer multiple of 2^-22, and every other finite float lies beyond every range.
+ *
+ * @tparam Type The pack format, 0 to 6.
+ * @param source The vector being packed.
+ * @return True when an element lies outside the range of its packed field.
+ */
+template <u32 Type>
+[[nodiscard]] inline bool PackD3DSaturates(simde__m128 source) noexcept {
+  const auto low = simde_mm_loadu_ps(detail::kPackD3DBounds<Type, false>.data());
+  const auto high = simde_mm_loadu_ps(detail::kPackD3DBounds<Type, true>.data());
+  const auto checked =
+      simde_mm_loadu_ps(reinterpret_cast<const f32*>(detail::kPackD3DChecked<Type>.data()));
+  const auto inside =
+      simde_mm_and_ps(simde_mm_cmpge_ps(source, low), simde_mm_cmple_ps(source, high));
+  const auto outside = simde_mm_andnot_ps(inside, simde_mm_cmpord_ps(source, source));
+  return simde_mm_movemask_ps(simde_mm_and_ps(outside, checked)) != 0;
 }
 
 }  // namespace rex::ppc

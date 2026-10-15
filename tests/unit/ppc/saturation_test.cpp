@@ -18,6 +18,8 @@
 
 #include <rex/ppc/saturation.h>
 
+#include "pack_d3d_cases.h"
+
 namespace {
 
 using BinaryFunction = bool (*)(simde__m128i, simde__m128i);
@@ -242,4 +244,42 @@ REX_TEST_CASE("PackSaturates reports the clamped lanes of the word packs", "[ppc
   CheckPack(rex::ppc::PackSaturates<32, false>, 32, false, false);
   CheckPack(rex::ppc::PackSaturates<32, false>, 32, true, false);
   CheckPack(rex::ppc::PackSaturates<32, true>, 32, true, true);
+}
+
+REX_TEST_CASE("PackD3DSaturates matches the captured saturation of every pack format",
+              "[ppc][saturation]") {
+  for (const PackD3DCase& expected : kPackD3DCases) {
+    alignas(16) std::array<u32, 4> words;
+    for (size_t i = 0; i < 4; ++i) {
+      words[3 - i] = expected.a[i];
+    }
+    const simde__m128 source = simde_mm_castsi128_ps(
+        simde_mm_load_si128(reinterpret_cast<const simde__m128i*>(words.data())));
+    bool got = false;
+    switch (expected.type) {
+      case 0:
+        got = rex::ppc::PackD3DSaturates<0>(source);
+        break;
+      case 1:
+        got = rex::ppc::PackD3DSaturates<1>(source);
+        break;
+      case 2:
+        got = rex::ppc::PackD3DSaturates<2>(source);
+        break;
+      case 3:
+        got = rex::ppc::PackD3DSaturates<3>(source);
+        break;
+      case 4:
+        got = rex::ppc::PackD3DSaturates<4>(source);
+        break;
+      case 5:
+        got = rex::ppc::PackD3DSaturates<5>(source);
+        break;
+      default:
+        got = rex::ppc::PackD3DSaturates<6>(source);
+        break;
+    }
+    CAPTURE(expected.type, expected.a[0], expected.a[1], expected.a[2], expected.a[3]);
+    CHECK(got == expected.saturated);
+  }
 }

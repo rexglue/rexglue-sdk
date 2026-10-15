@@ -26,6 +26,9 @@ namespace rex::codegen {
 
 namespace {
 
+/** Name of the copy of vB that the in place safe pack formats read. */
+constexpr const char* kPackSource = "vSource";
+
 /**
  * Emits the update of the VSCR saturation bit for a saturating vector add, subtract or pack. It
  * runs before the instruction so that vD may alias an operand.
@@ -1143,7 +1146,8 @@ bool BuildVpkswus(BuilderContext& ctx) {
  * field width. NORMSHORT saturates to [-32767, 32767]. NORMPACKED32 places x at bits 0-9, y at
  * 10-19, z at 20-29 and w at 30-31. NORMPACKED64 places x at bits 0-19, y at 20-39, z at 40-59
  * and w at 60-63. D3DCOLOR clamps each channel with a 0x404000FF upper bound and tests
- * !(x >= 3.0f) so a NaN becomes the minimum.
+ * !(x >= 3.0f) so a NaN becomes the minimum. Every format except FLOAT16_2 and FLOAT16_4 sets
+ * the VSCR saturation bit for a field outside its range, whatever the mask and shift write.
  *
  * Guest element i is host array index 3 - i, so element 0 goes to the highest field of the
  * output. Operand 3 is the mask and operand 4 the shift. Mask 1 writes the result to
@@ -1155,6 +1159,10 @@ bool BuildVpkswus(BuilderContext& ctx) {
  */
 bool BuildVpkd3d128(BuilderContext& ctx) {
   ctx.EmitSetFlushMode(true);
+  if (const u32 type = ctx.insn.operands[2]; type <= 6 && type != 3 && type != 5) {
+    ctx.Println("\tctx.vscr_sat |= u8(rex::ppc::PackD3DSaturates<{}>(simde_mm_load_ps({}.f32)));",
+                type, ctx.V(ctx.insn.operands[1]));
+  }
   switch (ctx.insn.operands[2]) {
     case 0: {
       u32 mask = ctx.insn.operands[3];
@@ -1234,65 +1242,71 @@ bool BuildVpkd3d128(BuilderContext& ctx) {
     }
 
     case 3: {
+      ctx.Println("\t{{");
+      ctx.Println("\tconst PPCVRegister vSource = {};", ctx.V(ctx.insn.operands[1]));
       for (size_t i = 0; i < 2; i++) {
         size_t src_idx = 3 - i;
         size_t dst_idx = (1 - i) + (2 * static_cast<size_t>(ctx.insn.operands[4]));
-        ctx.Println("\t{}.u32 = ({}.u32[{}]&0x7FFFFFFF);", ctx.Temp(), ctx.V(ctx.insn.operands[1]),
-                    src_idx);
+        ctx.Println("\t{}.u32 = ({}.u32[{}]&0x7FFFFFFF);", ctx.Temp(), kPackSource, src_idx);
         ctx.Println(
             "\t{0}.u8[0] = ({1}.f32 != {1}.f32) || ({1}.f32 > 65504.0f) ? 0xFF : "
             "(({2}.u32[{3}]&0x7f800000)>>23);",
-            ctx.VTemp(), ctx.Temp(), ctx.V(ctx.insn.operands[1]), src_idx);
+            ctx.VTemp(), ctx.Temp(), kPackSource, src_idx);
         ctx.Println("\t{}.u16 = {}.u8[0] != 0xFF ? (({}.u32[{}]&0x7FE000)>>13) : 0x0;", ctx.Temp(),
-                    ctx.VTemp(), ctx.V(ctx.insn.operands[1]), src_idx);
+                    ctx.VTemp(), kPackSource, src_idx);
         ctx.Println(
             "\t{0}.u16[{1}] = {2}.u8[0] != 0xFF ? ({2}.u8[0] > 0x70 ? "
             "((({2}.u8[0]-0x70)<<10)+{3}.u16) : (0x71-{2}.u8[0] > 31 ? 0x0 : "
             "((0x400+{3}.u16)>>(0x71-{2}.u8[0])))) : 0x7FFF;",
             ctx.V(ctx.insn.operands[0]), dst_idx, ctx.VTemp(), ctx.Temp());
         ctx.Println("\t{}.u16[{}] |= (({}.u32[{}]&0x80000000)>>16);", ctx.V(ctx.insn.operands[0]),
-                    dst_idx, ctx.V(ctx.insn.operands[1]), src_idx);
+                    dst_idx, kPackSource, src_idx);
       }
+      ctx.Println("\t}}");
       break;
     }
 
     case 4: {
+      ctx.Println("\t{{");
+      ctx.Println("\tconst PPCVRegister vSource = {};", ctx.V(ctx.insn.operands[1]));
       for (size_t i = 0; i < 4; i++) {
         size_t src_idx = 3 - i;
         size_t dst_idx = (3 - i) + (2 * static_cast<size_t>(ctx.insn.operands[4]));
-        ctx.Println("\t{}.s32 = {}.s32[{}] - 0x40400000;", ctx.Temp(), ctx.V(ctx.insn.operands[1]),
-                    src_idx);
+        ctx.Println("\t{}.s32 = {}.s32[{}] - 0x40400000;", ctx.Temp(), kPackSource, src_idx);
         ctx.Println("\t{}.s32 = {}.s32 > 32767 ? 32767 : ({}.s32 < -32767 ? -32767 : {}.s32);",
                     ctx.Temp(), ctx.Temp(), ctx.Temp(), ctx.Temp());
         ctx.Println("\t{}.u16[{}] = u16({}.s32);", ctx.V(ctx.insn.operands[0]), dst_idx,
                     ctx.Temp());
       }
+      ctx.Println("\t}}");
       break;
     }
 
     case 5: {
+      ctx.Println("\t{{");
+      ctx.Println("\tconst PPCVRegister vSource = {};", ctx.V(ctx.insn.operands[1]));
       if (ctx.insn.operands[3] != 2 || ctx.insn.operands[4] > 2)
         REXLOG_WARN(codegen, "Unexpected float16_4 pack instruction at {:X}", ctx.base);
 
       for (size_t i = 0; i < 4; i++) {
         size_t src_idx = 3 - i;
         size_t dst_idx = (3 - i) + (2 * static_cast<size_t>(ctx.insn.operands[4]));
-        ctx.Println("\t{}.u32 = ({}.u32[{}]&0x7FFFFFFF);", ctx.Temp(), ctx.V(ctx.insn.operands[1]),
-                    src_idx);
+        ctx.Println("\t{}.u32 = ({}.u32[{}]&0x7FFFFFFF);", ctx.Temp(), kPackSource, src_idx);
         ctx.Println(
             "\t{0}.u8[0] = ({1}.f32 != {1}.f32) || ({1}.f32 > 65504.0f) ? 0xFF : "
             "(({2}.u32[{3}]&0x7f800000)>>23);",
-            ctx.VTemp(), ctx.Temp(), ctx.V(ctx.insn.operands[1]), src_idx);
+            ctx.VTemp(), ctx.Temp(), kPackSource, src_idx);
         ctx.Println("\t{}.u16 = {}.u8[0] != 0xFF ? (({}.u32[{}]&0x7FE000)>>13) : 0x0;", ctx.Temp(),
-                    ctx.VTemp(), ctx.V(ctx.insn.operands[1]), src_idx);
+                    ctx.VTemp(), kPackSource, src_idx);
         ctx.Println(
             "\t{0}.u16[{1}] = {2}.u8[0] != 0xFF ? ({2}.u8[0] > 0x70 ? "
             "((({2}.u8[0]-0x70)<<10)+{3}.u16) : (0x71-{2}.u8[0] > 31 ? 0x0 : "
             "((0x400+{3}.u16)>>(0x71-{2}.u8[0])))) : 0x7FFF;",
             ctx.V(ctx.insn.operands[0]), dst_idx, ctx.VTemp(), ctx.Temp());
         ctx.Println("\t{}.u16[{}] |= (({}.u32[{}]&0x80000000)>>16);", ctx.V(ctx.insn.operands[0]),
-                    dst_idx, ctx.V(ctx.insn.operands[1]), src_idx);
+                    dst_idx, kPackSource, src_idx);
       }
+      ctx.Println("\t}}");
       break;
     }
 
