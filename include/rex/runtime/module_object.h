@@ -127,6 +127,9 @@ struct UserModuleData {
   /** Guest address of the entry point from the XEX header or the ELF header. */
   u32 entry_point = 0;
   u32 stack_size = 0; /**< Default stack size in bytes, used for the main thread. */
+
+  /** Thunk address made for each caller and ordinal, reused by later lookups. */
+  std::unordered_map<KernelModuleData::ThunkKey, u32, KernelModuleData::ThunkKeyHash> thunk_cache;
 };
 
 /** The `KernelObject` data of a module. The kind is always known from type. */

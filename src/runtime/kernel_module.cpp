@@ -33,8 +33,11 @@ X_HANDLE CreateKernelModule(Runtime& runtime, std::string_view path) {
 }
 
 void ModuleObject::InvalidateThunkCache(u32 lo, u32 hi) {
-  std::erase_if(kernel.thunk_cache,
-                [lo, hi](const auto& entry) { return entry.second >= lo && entry.second < hi; });
+  const auto in_range = [lo, hi](const auto& entry) {
+    return entry.second >= lo && entry.second < hi;
+  };
+  std::erase_if(kernel.thunk_cache, in_range);
+  std::erase_if(user.thunk_cache, in_range);
 }
 
 }  // namespace rex::runtime

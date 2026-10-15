@@ -15,6 +15,7 @@
 
 #include <rex/ppc/function.h>
 #include <rex/runtime.h>
+#include <rex/runtime/function_dispatcher.h>
 #include <rex/runtime/module.h>
 #include <rex/runtime/module_object.h>
 #include <rex/runtime/object_table.h>
@@ -110,6 +111,58 @@ REX_TEST_CASE("A user module object unloads its XEX image before freeing the mod
   CHECK_FALSE(loaded_at_destroy);
   REQUIRE(heap->QueryRegionInfo(spec.load_address, &info));
   CHECK(info.state == 0);
+}
+
+namespace {
+void ExportedFunction(PPCContext& ctx, u8*) {
+  ctx.r3.u64 = 0;
+}
+
+constexpr u32 kExportImageBase = 0x8F000000;
+constexpr u32 kExportTableOffset = 0x200;
+constexpr u32 kExportFunctionOffset = 0x100;
+constexpr u32 kExportOrdinal = 1;
+}  // namespace
+
+REX_TEST_CASE("A user module hands the same thunk to a caller that asks for an ordinal again",
+              "[runtime][module]") {
+  rex::testing::KernelFixture fixture;
+  rex::Runtime& runtime = fixture.GetRuntime();
+  rex::test::XEXSpec spec;
+  spec.load_address = kExportImageBase;
+  spec.image = rex::test::TestImage(0x1000);
+  rex::test::PutBE32(spec.image, kExportTableOffset + 0x20, kExportImageBase >> 16);
+  rex::test::PutBE32(spec.image, kExportTableOffset + 0x24, 1);
+  rex::test::PutBE32(spec.image, kExportTableOffset + 0x28, kExportOrdinal);
+  rex::test::PutBE32(spec.image, kExportTableOffset + 0x2C, kExportFunctionOffset);
+  spec.export_table = kExportImageBase + kExportTableOffset;
+  const auto file = rex::test::BuildXEX(spec);
+  auto xex = std::make_unique<rex::runtime::XEXModule>(runtime.GetFunctionDispatcher(), runtime);
+  REQUIRE(xex->Load("exporter", "game:\exporter.xex", file.data(), file.size()));
+  auto* dispatcher = runtime.GetFunctionDispatcher();
+  REQUIRE(dispatcher->SetFunction(kExportImageBase + kExportFunctionOffset, &ExportedFunction));
+
+  const rex::X_HANDLE handle = rex::runtime::CreateModule(runtime, ModuleType::kUser);
+  REQUIRE(handle != 0);
+  {
+    auto module = runtime.GetObjectTable().Get<ModuleObject>(handle);
+    REQUIRE(module);
+    module->user.module_format = ModuleFormat::kXEX;
+    module->processor_module = std::move(xex);
+
+    const u32 caller = kExportImageBase + 0x104;
+    const u32 first = module->GetProcAddress(runtime, kExportOrdinal, caller);
+    CHECK(first != 0);
+    CHECK(first != kExportImageBase + kExportFunctionOffset);
+    CHECK(module->GetProcAddress(runtime, kExportOrdinal, caller) == first);
+
+    module->InvalidateThunkCache(first, first + 4);
+    const u32 renewed = module->GetProcAddress(runtime, kExportOrdinal, caller);
+    CHECK(renewed != 0);
+    CHECK(renewed != first);
+    CHECK(module->GetProcAddress(runtime, kExportOrdinal, caller) == renewed);
+  }
+  rex::runtime::CloseOwned(runtime.GetObjectTable(), handle);
 }
 
 REX_TEST_CASE("The loaded command line quotes the image name and appends the arguments",

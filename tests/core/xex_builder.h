@@ -46,6 +46,7 @@ struct XEXSpec {
   u32 module_flags = filesystem::kXEXModuleTitle;
   u32 load_address = 0x82000000;
   u32 entry_point = 0x82000100;
+  u32 export_table = 0;
   u32 title_id = 0x4D5307E6;
   std::vector<u32> alternate_title_ids;
   std::vector<u8> image;
@@ -236,6 +237,7 @@ inline std::vector<u8> BuildXEX(const XEXSpec& spec) {
   PutBE32(header, security_offset + 0x110, spec.load_address);
   const Key encrypted_key = EncryptKey(master, kSessionKey);
   std::memcpy(header.data() + security_offset + 0x150, encrypted_key.data(), 16);
+  PutBE32(header, security_offset + 0x160, spec.export_table);
   PutBE32(header, security_offset + 0x180, 1);
   PutBE32(header, security_offset + 0x184, (pages << 4) | filesystem::kXEXSectionCode);
   PutBE32(header, 0x8, static_cast<u32>(header.size()));

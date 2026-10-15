@@ -75,7 +75,15 @@ u32 UserProcAddressByOrdinal(Runtime& runtime, ModuleObject& module, u16 ordinal
     return guest_addr;
   }
 
-  return dispatcher->AllocateThunk(func, caller_address);
+  const KernelModuleData::ThunkKey key{dispatcher->FindCallerModuleBase(caller_address), ordinal};
+  if (auto cached = module.user.thunk_cache.find(key); cached != module.user.thunk_cache.end()) {
+    return cached->second;
+  }
+  const u32 thunk_addr = dispatcher->AllocateThunk(func, caller_address);
+  if (thunk_addr) {
+    module.user.thunk_cache[key] = thunk_addr;
+  }
+  return thunk_addr;
 }
 
 }  // namespace

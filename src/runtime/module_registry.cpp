@@ -416,9 +416,11 @@ void ModuleRegistry::UnloadUserModule(X_HANDLE module_handle, bool call_entry) {
     const std::string& key = recomp->guest_path;
     auto cleared_range = runtime_.GetFunctionDispatcher()->UnregisterModule(key);
     if (cleared_range) {
-      for (X_HANDLE kernel_handle : GetKernelModules()) {
-        if (auto kernel_module = table_.Get<ModuleObject>(kernel_handle)) {
-          kernel_module->InvalidateThunkCache(cleared_range->first, cleared_range->second);
+      for (const std::vector<X_HANDLE>& handles : {GetKernelModules(), GetUserModules()}) {
+        for (X_HANDLE listed : handles) {
+          if (auto cached = table_.Get<ModuleObject>(listed)) {
+            cached->InvalidateThunkCache(cleared_range->first, cleared_range->second);
+          }
         }
       }
     }
