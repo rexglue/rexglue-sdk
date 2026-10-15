@@ -260,9 +260,8 @@ Result<void> TitleApp::LaunchTitle() {
   }
 
   constexpr std::string_view kImage = "game:\\default.xex";
-  if (!std::filesystem::is_regular_file(paths.game_data_root / "default.xex")) {
-    return LaunchFailure(std::format("Entrypoint XEX not found: {}",
-                                     (paths.game_data_root / "default.xex").string()));
+  if (!runtime_->GetFileSystem()->Stat(kImage)) {
+    return LaunchFailure(std::format("Entrypoint XEX not found: {}", kImage));
   }
   if (auto loaded = runtime_->LoadXEXImage(kImage); !loaded) {
     return LaunchFailure(

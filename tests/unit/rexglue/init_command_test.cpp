@@ -71,6 +71,32 @@ REX_TEST_CASE("init module appends a module to an existing manifest", "[rexglue]
   CHECK(text.find("a.xex") != std::string::npos);
 }
 
+REX_TEST_CASE("init keeps the case of the host file paths in the manifest", "[rexglue][init]") {
+  rex::test::TempFolder root("rexglue_init_case_");
+  WriteText(root.path / "Game" / "Default.XEX", "");
+  WriteText(root.path / "Game" / "Mods" / "Plugin.DLL", "");
+
+  CLI::App app;
+  app.require_subcommand(1);
+  const rexglue::cli::CLIContext ctx;
+  rexglue::cli::DeferredAction pending;
+  rexglue::cli::RegisterInit(app, ctx, pending);
+  REQUIRE_NOTHROW(
+      Parse(app, {"init", "--project-name", "demo", "--project-root", root.path.string(),
+                  "--xex-path", (root.path / "Game" / "Default.XEX").string(), "--scan-dll"}));
+  REQUIRE(pending);
+  rexglue::ui::Init({.tty = false, .color = false});
+  const rex::Result<void> result = pending();
+  rexglue::ui::Shutdown();
+  INFO((result ? std::string() : result.error().message));
+  REQUIRE(result);
+  const std::string text = ReadText(root.path / "demo_manifest.toml");
+  CHECK(text.find("Game/Default.XEX") != std::string::npos);
+  CHECK(text.find("Game/Mods/Plugin.DLL") != std::string::npos);
+  CHECK(text.find("generated/default") != std::string::npos);
+  CHECK(text.find("generated/plugin") != std::string::npos);
+}
+
 REX_TEST_CASE("init without a project name still reports it as required", "[rexglue][init]") {
   CLI::App app;
   app.require_subcommand(1);

@@ -13,6 +13,8 @@
 #include <algorithm>
 #include <atomic>
 #include <chrono>
+#include <filesystem>
+#include <fstream>
 #include <functional>
 #include <memory>
 #include <span>
@@ -58,6 +60,7 @@ REX_OVERLAY_TABLE(kTestOverlays, REX_OVERLAY(TestOverlay, "test", kTestKey));
 class FooApp : public rex::ui::TitleApp {
  public:
   std::vector<std::string> modules{"rex-ui-sdl3"};
+  std::filesystem::path game_root;
   bool veto_close = false;
   rex::i32 close_events = 0;
   rex::i32 closing_events = 0;
@@ -76,6 +79,7 @@ class FooApp : public rex::ui::TitleApp {
     config.modules = modules;
     config.ui.video_driver = "dummy";
     config.paths.config_file.clear();
+    config.paths.game_data_root = game_root;
     return rex::Ok();
   }
   void OnCreateWindow(rex::ui::TitleUI& title_ui) override {
@@ -104,9 +108,8 @@ class FooApp : public rex::ui::TitleApp {
   }
 };
 
-bool Open(FooApp& app) {
-  auto initialized =
-      app.Init(rex::CLIArgList::Parse(std::span<const std::string>{}), rex::PPCImageInfo{});
+bool Open(FooApp& app, const rex::PPCImageInfo& image = {}) {
+  auto initialized = app.Init(rex::CLIArgList::Parse(std::span<const std::string>{}), image);
   if (!initialized) {
     WARN("Init failed: " << initialized.error().message);
     return false;
@@ -203,7 +206,35 @@ REX_TEST_CASE("LaunchTitle without a game directory fails", "[title_app]") {
   REQUIRE(rex::platform::detail::GetThreadCount() == before);
 }
 
-REX_TEST_CASE("Shutdown closes the window and reports Closing before OnShutdown", "[title_app]") {
+REX_TEST_CASE("LaunchTitle finds an entrypoint whose file name differs in case",
+              "[ui][title_app]") {
+  const std::filesystem::path root =
+      std::filesystem::temp_directory_path() / "rexglue_title_app_case_test";
+  std::filesystem::create_directories(root);
+  { std::ofstream(root / "DEFAULT.XEX", std::ios::binary) << "not an xex"; }
+  FooApp app;
+  app.game_root = root;
+  const rex::PPCImageInfo image = {
+      .code_base = 0x82000000,
+      .code_size = 0x1000,
+      .image_base = 0x82000000,
+      .image_size = 0x10000,
+      .func_mappings = nullptr,
+  };
+  if (!Open(app, image)) {
+    app.Shutdown();
+    std::filesystem::remove_all(root);
+    SKIP("SDL dummy video driver unavailable");
+  }
+  auto launched = app.LaunchTitle();
+  REQUIRE_FALSE(launched);
+  CHECK(launched.error().message.find("Entrypoint XEX not found") == std::string::npos);
+  app.Shutdown();
+  std::filesystem::remove_all(root);
+}
+
+REX_TEST_CASE("Shutdown closes the window and reports Closing before OnShutdown",
+              "[ui][title_app]") {
   FooApp app;
   if (!Open(app)) {
     app.Shutdown();
