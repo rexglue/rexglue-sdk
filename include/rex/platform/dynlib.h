@@ -62,6 +62,16 @@ class REX_API DynamicLibrary : public rex::MoveOnly {
   bool Load(const std::filesystem::path& path, SymbolResolution mode = SymbolResolution::kLazy);
 
   /**
+   * Opens the library only when the process already has it mapped, closing any library held
+   * before.
+   *
+   * @param path Full path or file name of the library.
+   * @return True when the process had the library mapped. A library that is not mapped is never
+   *         loaded.
+   */
+  bool Attach(const std::filesystem::path& path);
+
+  /**
    * Closes the library. Safe when nothing is loaded.
    */
   void Close();

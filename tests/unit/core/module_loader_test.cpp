@@ -466,3 +466,17 @@ REX_TEST_CASE("LibraryFileName adds the platform prefix and extension", "[core][
   CHECK(rex::detail::LibraryFileName("demo_dll") == "libdemo_dll.so");
 #endif
 }
+
+REX_TEST_CASE("Attach opens a library only while the process has it mapped", "[core][modules]") {
+  const auto path = rex::platform::GetExecutableFolder() /
+                    rex::detail::ModuleFileName("rexmod-test-recompiled-b");
+  rex::platform::DynamicLibrary probe;
+  CHECK_FALSE(probe.Attach(path));
+  CHECK_FALSE(probe);
+  rex::platform::DynamicLibrary loaded;
+  REQUIRE(loaded.Load(path));
+  CHECK(probe.Attach(path));
+  loaded.Close();
+  probe.Close();
+  CHECK_FALSE(probe.Attach(path));
+}

@@ -41,6 +41,18 @@ bool DynamicLibrary::Load(const std::filesystem::path& path, SymbolResolution mo
   return true;
 }
 
+bool DynamicLibrary::Attach(const std::filesystem::path& path) {
+  Close();
+  handle_ = dlopen(path.c_str(), RTLD_LAZY | RTLD_NOLOAD);
+  if (!handle_) {
+    const char* text = dlerror();
+    last_error_ = text ? text : "unknown dlopen failure";
+    return false;
+  }
+  last_error_.clear();
+  return true;
+}
+
 void DynamicLibrary::Close() {
   if (handle_) {
     dlclose(handle_);
