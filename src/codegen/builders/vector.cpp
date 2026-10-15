@@ -44,15 +44,15 @@ bool BuildVmulfp128(BuilderContext& ctx) {
 bool BuildVmaddfp(BuilderContext& ctx) {
   ctx.EmitSetFlushMode(true);
   ctx.Println(
-      "\tsimde_mm_store_ps({}.f32, simde_mm_add_ps(simde_mm_mul_ps(simde_mm_load_ps({}.f32), "
-      "simde_mm_load_ps({}.f32)), simde_mm_load_ps({}.f32)));",
+      "\tsimde_mm_store_ps({}.f32, rex::ppc::Vmaddfp(simde_mm_load_ps({}.f32), "
+      "simde_mm_load_ps({}.f32), simde_mm_load_ps({}.f32)));",
       ctx.V(ctx.insn.operands[0]), ctx.V(ctx.insn.operands[1]), ctx.V(ctx.insn.operands[2]),
       ctx.V(ctx.insn.operands[3]));
   return true;
 }
 
 /**
- * Builds vnmsubfp, vD = -(vA * vB - vC). The negation is an XOR with the sign bit 0x80000000.
+ * Builds vnmsubfp, vD = -(vA * vB - vC), with a single rounding.
  *
  * @param ctx The builder context
  * @return True when the instruction is handled.
@@ -60,10 +60,8 @@ bool BuildVmaddfp(BuilderContext& ctx) {
 bool BuildVnmsubfp(BuilderContext& ctx) {
   ctx.EmitSetFlushMode(true);
   ctx.Println(
-      "\tsimde_mm_store_ps({}.f32, "
-      "simde_mm_xor_ps(simde_mm_sub_ps(simde_mm_mul_ps(simde_mm_load_ps({}.f32), "
-      "simde_mm_load_ps({}.f32)), simde_mm_load_ps({}.f32)), "
-      "simde_mm_castsi128_ps(simde_mm_set1_epi32(int(0x80000000)))));",
+      "\tsimde_mm_store_ps({}.f32, rex::ppc::Vnmsubfp(simde_mm_load_ps({}.f32), "
+      "simde_mm_load_ps({}.f32), simde_mm_load_ps({}.f32)));",
       ctx.V(ctx.insn.operands[0]), ctx.V(ctx.insn.operands[1]), ctx.V(ctx.insn.operands[2]),
       ctx.V(ctx.insn.operands[3]));
   return true;
@@ -974,6 +972,29 @@ bool BuildVpkshus(BuilderContext& ctx) {
       "simde_mm_packus_epi16(simde_mm_load_si128((simde__m128i*){}.s16), "
       "simde_mm_load_si128((simde__m128i*){}.s16)));",
       ctx.V(ctx.insn.operands[0]), ctx.V(ctx.insn.operands[2]), ctx.V(ctx.insn.operands[1]));
+  return true;
+}
+
+/**
+ * Builds vpkpx, packing the 8 words of vA and vB into 1:5:5:5 pixels.
+ *
+ * Each halfword takes the low bit of byte 0 and the top 5 bits of bytes 1 to 3 of its source word.
+ * vA fills title halfwords 0 to 3 and vB fills 4 to 7.
+ *
+ * @param ctx The builder context
+ * @return True when the instruction is handled.
+ */
+bool BuildVpkpx(BuilderContext& ctx) {
+  for (size_t i = 0; i < 4; i++) {
+    for (const auto& [src, dst] :
+         {std::pair{ctx.insn.operands[1], i + 4}, std::pair{ctx.insn.operands[2], i}}) {
+      ctx.Println(
+          "\t{0}.u16[{1}] = u16((({2}.u32[{3}] >> 9) & 0xFC00) | (({2}.u32[{3}] >> 6) & 0x03E0) | "
+          "(({2}.u32[{3}] >> 3) & 0x001F));",
+          ctx.VTemp(), dst, ctx.V(src), i);
+    }
+  }
+  ctx.Println("\t{} = {};", ctx.V(ctx.insn.operands[0]), ctx.VTemp());
   return true;
 }
 

@@ -462,6 +462,7 @@ bool BuildVspltish(BuilderContext& ctx);
 bool BuildVspltisw(BuilderContext& ctx);
 bool BuildVspltw(BuilderContext& ctx);
 
+bool BuildVpkpx(BuilderContext& ctx);
 bool BuildVpkuhum(BuilderContext& ctx);
 bool BuildVpkuhus(BuilderContext& ctx);
 bool BuildVpkuwum(BuilderContext& ctx);

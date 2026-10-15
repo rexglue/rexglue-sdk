@@ -15,6 +15,7 @@
 
 #include <rex/ppc/context.h>
 #include <rex/ppc/estimate.h>
+#include <rex/ppc/multiply_add.h>
 #include <rex/ppc/function.h>
 #include <rex/ppc/intrinsics.h>
 #include <rex/ppc/stack.h>

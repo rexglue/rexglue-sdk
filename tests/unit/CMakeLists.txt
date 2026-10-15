@@ -79,6 +79,7 @@ add_executable(unit_tests
     core/thread_redirect_test.cpp
     core/thread_registry_test.cpp
     ppc/estimate_test.cpp
+    ppc/multiply_add_test.cpp
     ppc/import_function_test.cpp
     ppc/stack_test.cpp
     runtime/guest_path_test.cpp
