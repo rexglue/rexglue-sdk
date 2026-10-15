@@ -1,6 +1,7 @@
 #include "test_spec.h"
 
 #include <charconv>
+#include <optional>
 
 #include <rex/string.h>
 
@@ -137,9 +138,25 @@ std::vector<TestSpec> ParseTestSpecs(std::istream& in,
     return false;
   };
 
+  std::optional<TestSpec> spec;
+  auto finish = [&] {
+    if (spec && (!spec->inputs.empty() || !spec->outputs.empty() || !spec->mem_inputs.empty() ||
+                 !spec->mem_outputs.empty())) {
+      specs.push_back(std::move(*spec));
+    }
+    spec.reset();
+  };
+
   while (getline()) {
-    if (line.empty() || line[0] == '#')
+    if (line.empty())
       continue;
+    if (line[0] == '#') {
+      if (spec) {
+        ApplyDirective(line, "REGISTER_IN", "MEMORY_IN", spec->inputs, spec->mem_inputs);
+        ApplyDirective(line, "REGISTER_OUT", "MEMORY_OUT", spec->outputs, spec->mem_outputs);
+      }
+      continue;
+    }
     auto colon_index = line.find(':');
     if (colon_index == std::string::npos)
       continue;
@@ -148,26 +165,12 @@ std::vector<TestSpec> ParseTestSpecs(std::istream& in,
     if (symbol_it == symbols.end())
       continue;
 
-    TestSpec spec;
-    spec.name = name;
-    spec.symbol = symbol_it->second;
-
-    while (getline() && !line.empty() && line[0] == '#') {
-      ApplyDirective(line, "REGISTER_IN", "MEMORY_IN", spec.inputs, spec.mem_inputs);
-    }
-    while (line.empty() || line[0] != '#') {
-      if (!getline())
-        break;
-    }
-    do {
-      ApplyDirective(line, "REGISTER_OUT", "MEMORY_OUT", spec.outputs, spec.mem_outputs);
-    } while (getline() && !line.empty() && line[0] == '#');
-
-    if (!spec.inputs.empty() || !spec.outputs.empty() || !spec.mem_inputs.empty() ||
-        !spec.mem_outputs.empty()) {
-      specs.push_back(std::move(spec));
-    }
+    finish();
+    spec.emplace();
+    spec->name = name;
+    spec->symbol = symbol_it->second;
   }
+  finish();
   return specs;
 }
 

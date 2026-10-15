@@ -13,6 +13,7 @@
 
 #include <bit>
 #include <cmath>
+#include <utility>
 
 #include <simde/x86/sse.h>
 
@@ -1236,9 +1237,11 @@ bool BuildVpkd3d128(BuilderContext& ctx) {
  * Builds vupkd3d128, unpacking vB into floats from the format chosen by operand 2 >> 2.
  *
  * The formats are numbered as for vpkd3d128. D3DCOLOR bytes are OR'd into the mantissa of 1.0f
- * (0x3F800000). The NORM formats yield the 3.0 + X form with x, y and z sign extended from 10
- * bits (NORMPACKED32) or 20 bits (NORMPACKED64), and w as 1.0 + w. NORMPACKED32 reads
- * w2:z10:y10:x10 from guest element 3 (host s32[0]) and NORMPACKED64 reads w4:z20:y20:x20.
+ * (0x3F800000). The SHORT and NORM formats yield 0x40400000 plus the field sign extended from 16
+ * bits (SHORT2, SHORT4), 10 bits (NORMPACKED32) or 20 bits (NORMPACKED64), and a field at its
+ * minimum gives the quiet NaN 0x7FC00000. The NORM formats give w as 0x3F800000 OR the w bits.
+ * NORMPACKED32 reads w2:z10:y10:x10 from guest element 3 (host s32[0]) and NORMPACKED64 reads
+ * w4:z20:y20:x20 from title elements 2 and 3 (host u64[0]).
  * FLOAT16 conversion adds the exponent bias adjustment 0x1C000 to the 0x7C00 exponent field and
  * maps a zero exponent to a signed zero. Guest element i is host array index 3 - i. The 2 and 4
  * element short and half float formats read the host u16 array from guest elements 2-3, with
@@ -1260,9 +1263,9 @@ bool BuildVupkd3d128(BuilderContext& ctx) {
 
     case 1:
       for (size_t i = 0; i < 2; i++) {
-        ctx.Println("\t{}.f32 = 3.0f;", ctx.Temp());
-        ctx.Println("\t{}.s32 += {}.s16[{}];", ctx.Temp(), ctx.V(ctx.insn.operands[1]), 1 - i);
-        ctx.Println("\t{}.f32[{}] = {}.f32;", ctx.VTemp(), 3 - i, ctx.Temp());
+        auto v_src = ctx.V(ctx.insn.operands[1]);
+        ctx.Println("\t{}.s32[{}] = {}.s16[{}] == -32768 ? 0x7FC00000 : 0x40400000 + {}.s16[{}];",
+                    ctx.VTemp(), 3 - i, v_src, 1 - i, v_src, 1 - i);
       }
       ctx.Println("\t{}.f32[1] = 0.0f;", ctx.VTemp());
       ctx.Println("\t{}.f32[0] = 1.0f;", ctx.VTemp());
@@ -1272,18 +1275,14 @@ bool BuildVupkd3d128(BuilderContext& ctx) {
     case 2: {
       auto v_src = ctx.V(ctx.insn.operands[1]);
       auto v_dst = ctx.V(ctx.insn.operands[0]);
-      ctx.Println("\t{}.s32 = ({}.s32[0] << 22) >> 22;", ctx.Temp(), v_src);
-      ctx.Println("\t{}.s32[0] = {}.s32 == -512 ? 0x7FC00000 : ({}.s32 + 0x40400000);", ctx.VTemp(),
-                  ctx.Temp(), ctx.Temp());
-      ctx.Println("\t{}.u32[3] = {}.u32[0];", v_dst, ctx.VTemp());
-      ctx.Println("\t{}.s32 = ({}.s32[0] << 12) >> 22;", ctx.Temp(), v_src);
-      ctx.Println("\t{}.s32[0] = {}.s32 + 0x40400000;", ctx.VTemp(), ctx.Temp());
-      ctx.Println("\t{}.u32[2] = {}.u32[0];", v_dst, ctx.VTemp());
-      ctx.Println("\t{}.s32 = ({}.s32[0] << 2) >> 22;", ctx.Temp(), v_src);
-      ctx.Println("\t{}.s32[0] = {}.s32 + 0x40400000;", ctx.VTemp(), ctx.Temp());
-      ctx.Println("\t{}.u32[1] = {}.u32[0];", v_dst, ctx.VTemp());
+      constexpr std::pair<i32, size_t> kFields[] = {{22, 3}, {12, 2}, {2, 1}};
+      for (const auto& [shift, dst_idx] : kFields) {
+        ctx.Println("\t{}.s32 = ({}.s32[0] << {}) >> 22;", ctx.Temp(), v_src, shift);
+        ctx.Println("\t{}.s32[{}] = {}.s32 == -512 ? 0x7FC00000 : {}.s32 + 0x40400000;",
+                    ctx.VTemp(), dst_idx, ctx.Temp(), ctx.Temp());
+      }
       ctx.Println("\t{}.u32[0] = ({}.u32[0] >> 30) | 0x3F800000;", ctx.VTemp(), v_src);
-      ctx.Println("\t{}.u32[0] = {}.u32[0];", v_dst, ctx.VTemp());
+      ctx.Println("\t{} = {};", v_dst, ctx.VTemp());
       break;
     }
 
@@ -1308,13 +1307,12 @@ bool BuildVupkd3d128(BuilderContext& ctx) {
     }
 
     case 4: {
+      auto v_src = ctx.V(ctx.insn.operands[1]);
       for (size_t i = 0; i < 4; i++) {
-        size_t src_idx = 3 - i;
-        size_t dst_idx = 3 - i;
-        ctx.Println("\t{}.f32 = 3.0f;", ctx.Temp());
-        ctx.Println("\t{}.s32 += {}.s16[{}];", ctx.Temp(), ctx.V(ctx.insn.operands[1]), src_idx);
-        ctx.Println("\t{}.f32[{}] = {}.f32;", ctx.V(ctx.insn.operands[0]), dst_idx, ctx.Temp());
+        ctx.Println("\t{}.s32[{}] = {}.s16[{}] == -32768 ? 0x7FC00000 : 0x40400000 + {}.s16[{}];",
+                    ctx.VTemp(), 3 - i, v_src, 3 - i, v_src, 3 - i);
       }
+      ctx.Println("\t{} = {};", ctx.V(ctx.insn.operands[0]), ctx.VTemp());
       break;
     }
 
@@ -1339,14 +1337,14 @@ bool BuildVupkd3d128(BuilderContext& ctx) {
     case 6: {
       auto v_src = ctx.V(ctx.insn.operands[1]);
       auto v_dst = ctx.V(ctx.insn.operands[0]);
-      ctx.Println("\t{}.u64[0] = {}.u64[1];", ctx.VTemp(), v_src);
-      ctx.Println("\t{}.s32 = (i32({}.u64[0] << 44) >> 44);", ctx.Temp(), ctx.VTemp());
-      ctx.Println("\t{}.f32[0] = f32({}.s32);", v_dst, ctx.Temp());
-      ctx.Println("\t{}.s32 = (i32({}.u64[0] << 24) >> 44);", ctx.Temp(), ctx.VTemp());
-      ctx.Println("\t{}.f32[1] = f32({}.s32);", v_dst, ctx.Temp());
-      ctx.Println("\t{}.s32 = (i32({}.u64[0] << 4) >> 44);", ctx.Temp(), ctx.VTemp());
-      ctx.Println("\t{}.f32[2] = f32({}.s32);", v_dst, ctx.Temp());
-      ctx.Println("\t{}.f32[3] = f32({}.u64[0] >> 60);", v_dst, ctx.VTemp());
+      constexpr std::pair<i32, size_t> kFields[] = {{44, 3}, {24, 2}, {4, 1}};
+      for (const auto& [shift, dst_idx] : kFields) {
+        ctx.Println("\t{}.s32 = i32(i64({}.u64[0] << {}) >> 44);", ctx.Temp(), v_src, shift);
+        ctx.Println("\t{}.s32[{}] = {}.s32 == -524288 ? 0x7FC00000 : {}.s32 + 0x40400000;",
+                    ctx.VTemp(), dst_idx, ctx.Temp(), ctx.Temp());
+      }
+      ctx.Println("\t{}.u32[0] = u32({}.u64[0] >> 60) | 0x3F800000;", ctx.VTemp(), v_src);
+      ctx.Println("\t{} = {};", v_dst, ctx.VTemp());
       break;
     }
 

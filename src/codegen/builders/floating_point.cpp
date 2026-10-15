@@ -79,7 +79,7 @@ bool BuildFctiw(BuilderContext& ctx) {
 bool BuildFctiwz(BuilderContext& ctx) {
   ctx.EmitSetFlushMode(false);
   ctx.Println(
-      "\t{0}.s64 = std::isnan({1}.f64) ? i64(0x80000000U) : "
+      "\t{0}.s64 = std::isnan({1}.f64) ? i64(INT_MIN) : "
       "({1}.f64 >= f64(INT_MAX)) ? INT_MAX : "
       "simde_mm_cvttsd_si32(simde_mm_load_sd(&{1}.f64));",
       ctx.F(ctx.insn.operands[0]), ctx.F(ctx.insn.operands[1]));
