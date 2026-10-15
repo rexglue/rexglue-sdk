@@ -201,6 +201,14 @@ class IContentManager {
    * @return The app manager.
    */
   [[nodiscard]] virtual runtime::AppManager& GetAppManager() = 0;
+
+  /**
+   * Returns the device a package is stored on.
+   *
+   * @param root_name The root name of an open package.
+   * @return The device id, or X_ERROR_FILE_NOT_FOUND when no package is open under the name.
+   */
+  [[nodiscard]] virtual Result<u32> GetContentDeviceID(std::string_view root_name) const = 0;
 };
 
 }  // namespace rex::runtime

@@ -10,9 +10,13 @@
  */
 
 #include <rex/kernel/xam/apps/app.h>
+#include <cstring>
+#include <string_view>
+
 #include <rex/logging.h>
 #include <rex/runtime.h>
 #include <rex/runtime/enumerator_object.h>
+#include <rex/runtime/xam/content_device.h>
 #include <rex/platform/thread.h>
 
 namespace rex {
@@ -78,11 +82,16 @@ X_HRESULT XAMApp::DispatchMessageSync(u32 message, u32 buffer_ptr, u32 buffer_le
         be_u32 unk_48;
       }* data = reinterpret_cast<MessageData*>(buffer);
       REX_ASSERT(buffer_length == sizeof(MessageData));
-      auto unk = memory_->TranslateVirtual<be_u32*>(data->unk_44);
-      *unk = 0;
       REXLOG_DEBUG(kernel, "XAMApp(0x00020021)('{}', {:08X}, {:08X}, {:08X})", data->unk_00,
                    static_cast<u32>(data->unk_40), static_cast<u32>(data->unk_44),
                    static_cast<u32>(data->unk_48));
+      const auto device_id = runtime_.GetContentManager().GetContentDeviceID(
+          std::string_view(data->unk_00, strnlen(data->unk_00, sizeof(data->unk_00))));
+      const auto* device = device_id ? GetDummyDeviceInfo(*device_id) : nullptr;
+      if (!device) {
+        return X_E_INVALIDARG;
+      }
+      *memory_->TranslateVirtual<be_u32*>(data->unk_44) = static_cast<u32>(device->device_type);
       return X_E_SUCCESS;
     }
     case 0x00021012: {

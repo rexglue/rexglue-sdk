@@ -95,6 +95,7 @@ class ContentManager final : public IContentManager {
   [[nodiscard]] Result<runtime::XCONTENT_AGGREGATE_DATA> InstallContent(
       const std::filesystem::path& package_path) override;
   u32 GetTitleId() const override;
+  Result<u32> GetContentDeviceID(std::string_view root_name) const override;
   runtime::XDBFGameData GetTitleXDBF() const override;
   runtime::UserProfile& GetUserProfile() override { return user_profile_; }
   runtime::AppManager& GetAppManager() override { return app_manager_; }
@@ -122,7 +123,7 @@ class ContentManager final : public IContentManager {
   runtime::AppManager& app_manager_;
   runtime::UserProfile& user_profile_;
 
-  rex::platform::RankedMutex mutex_{rex::platform::LockRank::kLeaf};
+  mutable rex::platform::RankedMutex mutex_{rex::platform::LockRank::kLeaf};
   std::unordered_map<StringKeyCase, std::unique_ptr<runtime::ContentPackage>, StringKeyCase::Hash>
       open_packages_;
 };

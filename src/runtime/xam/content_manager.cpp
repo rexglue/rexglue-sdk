@@ -513,6 +513,15 @@ Result<XCONTENT_AGGREGATE_DATA> ContentManager::InstallContent(
   return content_data;
 }
 
+Result<u32> ContentManager::GetContentDeviceID(const std::string_view root_name) const {
+  std::lock_guard lock(mutex_);
+  auto it = open_packages_.find(StringKeyCase(root_name));
+  if (it == open_packages_.end()) {
+    return Err<u32>(ResultError(X_ERROR_FILE_NOT_FOUND));
+  }
+  return it->second->GetPackageContentData().device_id;
+}
+
 u32 ContentManager::GetTitleId() const {
   auto module = runtime_.GetObjectTable().Get<ModuleObject>(
       runtime_.GetModuleRegistry().GetExecutable().value_or(0));
