@@ -317,11 +317,7 @@ enum class Opcode : u16 {
   vsububm, /**< Vector subtract unsigned byte modulo. */
   vsubuhm, /**< Vector subtract unsigned halfword modulo. */
   vsubuwm, /**< Vector subtract unsigned word modulo. */
-  vmuloub, /**< Vector multiply odd unsigned byte. */
-  vmulouh, /**< Vector multiply odd unsigned halfword. */
   vmulouw, /**< Vector multiply odd unsigned word. */
-  vmuleub, /**< Vector multiply even unsigned byte. */
-  vmuleuh, /**< Vector multiply even unsigned halfword. */
   vmuleuw, /**< Vector multiply even unsigned word. */
   vavgub,  /**< Vector average unsigned byte. */
   vavguh,  /**< Vector average unsigned halfword. */
@@ -375,6 +371,7 @@ enum class Opcode : u16 {
 
   // Vector permute and merge
   vperm,    /**< Vector permute. */
+  vsldoi,   /**< Vector shift left double by octet immediate. */
   vperm128, /**< Vector permute (128-reg). */
   vmrghb,   /**< Vector merge high byte. */
   vmrghh,   /**< Vector merge high halfword. */

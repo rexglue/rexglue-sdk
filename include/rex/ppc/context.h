@@ -28,12 +28,6 @@
 #include <simde/x86/sse.h>
 #include <simde/x86/sse4.1.h>
 
-/** Pack and unpack bounds of the NORMPACKED32 2:10:10:10 format. */
-constexpr f32 kPack2101010Min10 = std::bit_cast<f32>(0x403FFE01u);
-constexpr f32 kPack2101010Max10 = std::bit_cast<f32>(0x404001FFu);
-constexpr f32 kPack2101010Min2 = std::bit_cast<f32>(0x40400000u);
-constexpr f32 kPack2101010Max2 = std::bit_cast<f32>(0x40400003u);
-
 namespace rex::ppc {
 
 /** General purpose register. */
@@ -249,6 +243,19 @@ struct FPSCRRegister {
     if ((csr & kFlushMask) != 0) [[unlikely]] {
       csr &= ~kFlushMask;
       SetCSR(csr);
+    }
+  }
+
+  /**
+   * Sets flush to zero mode, writing csr to the host only when the mode changes.
+   *
+   * @param enable True to turn flush to zero on, false to turn it off.
+   */
+  void SetFlushMode(bool enable) noexcept {
+    if (enable) {
+      EnableFlushMode();
+    } else {
+      DisableFlushMode();
     }
   }
 

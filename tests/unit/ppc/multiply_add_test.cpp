@@ -16,6 +16,7 @@
 #include <rex/ppc/multiply_add.h>
 
 #include "multiply_add_cases.h"
+#include "multiply_add_nj0_cases.h"
 
 namespace {
 
@@ -72,4 +73,28 @@ REX_TEST_CASE("Vmaddfp keeps each lane apart in a mixed vector", "[ppc][multiply
 
 REX_TEST_CASE("Vnmsubfp keeps each lane apart in a mixed vector", "[ppc][multiply_add]") {
   CheckLanes<rex::ppc::Vnmsubfp>(kVnmsubfpCases, 97);
+}
+
+REX_TEST_CASE("Vmaddfp and Vnmsubfp keep denormals when VSCR NJ is clear", "[ppc][multiply_add]") {
+  const auto load = [](const std::array<u32, 4>& words) {
+    alignas(16) std::array<u32, 4> host;
+    for (size_t i = 0; i < 4; ++i) {
+      host[3 - i] = words[i];
+    }
+    return simde_mm_castsi128_ps(
+        simde_mm_load_si128(reinterpret_cast<const simde__m128i*>(host.data())));
+  };
+  for (const MultiplyAddNJ0Case& expected : kMultiplyAddNJ0Cases) {
+    const simde__m128 result =
+        expected.negate
+            ? rex::ppc::Vnmsubfp(load(expected.a), load(expected.b), load(expected.c), false)
+            : rex::ppc::Vmaddfp(load(expected.a), load(expected.b), load(expected.c), false);
+    alignas(16) std::array<u32, 4> host;
+    simde_mm_store_si128(reinterpret_cast<simde__m128i*>(host.data()),
+                         simde_mm_castps_si128(result));
+    for (size_t i = 0; i < 4; ++i) {
+      CAPTURE(expected.negate, i, expected.a[i], expected.b[i], expected.c[i]);
+      CHECK(host[3 - i] == expected.out[i]);
+    }
+  }
 }

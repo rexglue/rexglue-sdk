@@ -322,9 +322,12 @@ void BuilderContext::EmitConditionalBranch(bool negate, std::string_view cond) {
 void BuilderContext::EmitSetFlushMode(bool enable) {
   auto new_state = enable ? CSRState::kVMX : CSRState::kFPU;
   if (csr_state != new_state) {
-    auto prefix = enable ? "Enable" : "Disable";
-    auto suffix = csr_state != CSRState::kUnknown ? "Unconditional" : "";
-    Println("\tctx.fpscr.{}FlushMode{}();", prefix, suffix);
+    if (enable) {
+      Println("\tctx.fpscr.SetFlushMode(ctx.vscr_nj);");
+    } else {
+      auto suffix = csr_state != CSRState::kUnknown ? "Unconditional" : "";
+      Println("\tctx.fpscr.DisableFlushMode{}();", suffix);
+    }
 
     csr_state = new_state;
   }

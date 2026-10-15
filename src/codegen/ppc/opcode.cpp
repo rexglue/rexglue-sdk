@@ -237,8 +237,8 @@ static const std::array<OpcodeInfo, 320> kGOpcodeTable = {{
     // VMX floating point arithmetic
     {Opcode::vaddfp, InstrFormat::kX, OpcodeGroup::kVector, "vaddfp", 4, 10, true},
     {Opcode::vsubfp, InstrFormat::kX, OpcodeGroup::kVector, "vsubfp", 4, 74, true},
-    {Opcode::vmaddfp, InstrFormat::kX, OpcodeGroup::kVector, "vmaddfp", 4, 32, true},
-    {Opcode::vnmsubfp, InstrFormat::kX, OpcodeGroup::kVector, "vnmsubfp", 4, 33, true},
+    {Opcode::vmaddfp, InstrFormat::kX, OpcodeGroup::kVector, "vmaddfp", 4, 46, true},
+    {Opcode::vnmsubfp, InstrFormat::kX, OpcodeGroup::kVector, "vnmsubfp", 4, 47, true},
     {Opcode::vmaxfp, InstrFormat::kX, OpcodeGroup::kVector, "vmaxfp", 4, 1034, true},
     {Opcode::vminfp, InstrFormat::kX, OpcodeGroup::kVector, "vminfp", 4, 1098, true},
     {Opcode::vrsqrtefp, InstrFormat::kX, OpcodeGroup::kVector, "vrsqrtefp", 4, 330, true},
@@ -253,10 +253,6 @@ static const std::array<OpcodeInfo, 320> kGOpcodeTable = {{
     {Opcode::vsububm, InstrFormat::kX, OpcodeGroup::kVector, "vsububm", 4, 1024, true},
     {Opcode::vsubuhm, InstrFormat::kX, OpcodeGroup::kVector, "vsubuhm", 4, 1088, true},
     {Opcode::vsubuwm, InstrFormat::kX, OpcodeGroup::kVector, "vsubuwm", 4, 1152, true},
-    {Opcode::vmuloub, InstrFormat::kX, OpcodeGroup::kVector, "vmuloub", 4, 8, true},
-    {Opcode::vmulouh, InstrFormat::kX, OpcodeGroup::kVector, "vmulouh", 4, 72, true},
-    {Opcode::vmuleub, InstrFormat::kX, OpcodeGroup::kVector, "vmuleub", 4, 264, true},
-    {Opcode::vmuleuh, InstrFormat::kX, OpcodeGroup::kVector, "vmuleuh", 4, 328, true},
     {Opcode::vavgub, InstrFormat::kX, OpcodeGroup::kVector, "vavgub", 4, 1026, true},
     {Opcode::vavguh, InstrFormat::kX, OpcodeGroup::kVector, "vavguh", 4, 1090, true},
     {Opcode::vavguw, InstrFormat::kX, OpcodeGroup::kVector, "vavguw", 4, 1154, true},
@@ -268,6 +264,7 @@ static const std::array<OpcodeInfo, 320> kGOpcodeTable = {{
     {Opcode::vxor, InstrFormat::kX, OpcodeGroup::kVector, "vxor", 4, 1220, true},
     {Opcode::vnor, InstrFormat::kX, OpcodeGroup::kVector, "vnor", 4, 1284, true},
     {Opcode::vsel, InstrFormat::kX, OpcodeGroup::kVector, "vsel", 4, 42, true},
+    {Opcode::vsldoi, InstrFormat::kX, OpcodeGroup::kVector, "vsldoi", 4, 44, true},
 
     // VMX compare, floating point
     {Opcode::vcmpeqfp, InstrFormat::kX, OpcodeGroup::kVector, "vcmpeqfp", 4, 198, true},
@@ -748,16 +745,18 @@ Opcode LookupOpcode(u32 code) {
   } else if (primary == 4) {
     extended = ExtractBits(code, 26, 6);
     switch (extended) {
-      case 32:
+      case 46:
         // vmaddfp vD, vA, vC, vB
         return Opcode::vmaddfp;
-      case 33:
+      case 47:
         // vnmsubfp vD, vA, vC, vB
         return Opcode::vnmsubfp;
+      case 42:
+        return Opcode::vsel;
       case 43:
         return Opcode::vperm;
       case 44:
-        return Opcode::vsel;
+        return Opcode::vsldoi;
       default:
         break;
     }
@@ -793,14 +792,6 @@ Opcode LookupOpcode(u32 code) {
         return Opcode::vsubuhm;
       case 1152:
         return Opcode::vsubuwm;
-      case 8:
-        return Opcode::vmuloub;
-      case 72:
-        return Opcode::vmulouh;
-      case 264:
-        return Opcode::vmuleub;
-      case 328:
-        return Opcode::vmuleuh;
       case 1026:
         return Opcode::vavgub;
       case 1090:

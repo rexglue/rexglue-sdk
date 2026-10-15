@@ -19,6 +19,7 @@
 #include <rex/ppc/function.h>
 #include <rex/ppc/intrinsics.h>
 #include <rex/ppc/multiply_add.h>
+#include <rex/ppc/pack_d3d.h>
 #include <rex/ppc/saturation.h>
 #include <rex/ppc/stack.h>
 

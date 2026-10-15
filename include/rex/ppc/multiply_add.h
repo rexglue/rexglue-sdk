@@ -72,11 +72,13 @@ inline simde__m128d FlushTiny(simde__m128d s) {
  * @param a The first multiplier lanes.
  * @param b The second multiplier lanes.
  * @param c The addend lanes.
+ * @param flush True to flush a result below the smallest f32 normal to a zero.
  * @return The 2 rounded f32 results in the low half.
  */
-inline simde__m128 MultiplyAddHalf(simde__m128 a, simde__m128 b, simde__m128 c) {
+inline simde__m128 MultiplyAddHalf(simde__m128 a, simde__m128 b, simde__m128 c, bool flush) {
   const auto product = simde_mm_mul_pd(simde_mm_cvtps_pd(a), simde_mm_cvtps_pd(b));
-  return simde_mm_cvtpd_ps(FlushTiny(SumToOdd(product, simde_mm_cvtps_pd(c))));
+  const auto sum = SumToOdd(product, simde_mm_cvtps_pd(c));
+  return simde_mm_cvtpd_ps(flush ? FlushTiny(sum) : sum);
 }
 
 /**
@@ -86,24 +88,25 @@ inline simde__m128 MultiplyAddHalf(simde__m128 a, simde__m128 b, simde__m128 c) 
  * @param a The first multiplier.
  * @param b The second multiplier.
  * @param c The addend.
+ * @param flush True for VSCR NJ set, which flushes denormal operands and results to a zero.
  * @return The results.
  */
 template <bool Negate>
-inline simde__m128 MultiplyAdd(simde__m128 a, simde__m128 b, simde__m128 c) {
+inline simde__m128 MultiplyAdd(simde__m128 a, simde__m128 b, simde__m128 c, bool flush) {
   const auto bits_a = simde_mm_castps_si128(a);
   const auto bits_b = simde_mm_castps_si128(b);
   const auto bits_c = simde_mm_castps_si128(c);
-  const auto flushed_a = simde_mm_castsi128_ps(FlushDenormals(bits_a));
-  const auto flushed_b = simde_mm_castsi128_ps(FlushDenormals(bits_b));
-  auto addend = FlushDenormals(bits_c);
+  const auto flushed_a = flush ? simde_mm_castsi128_ps(FlushDenormals(bits_a)) : a;
+  const auto flushed_b = flush ? simde_mm_castsi128_ps(FlushDenormals(bits_b)) : b;
+  auto addend = flush ? FlushDenormals(bits_c) : bits_c;
   if constexpr (Negate) {
     addend = simde_mm_xor_si128(addend, Set(kSign32));
   }
   const auto addend_f = simde_mm_castsi128_ps(addend);
-  const auto low = MultiplyAddHalf(flushed_a, flushed_b, addend_f);
+  const auto low = MultiplyAddHalf(flushed_a, flushed_b, addend_f, flush);
   const auto high = MultiplyAddHalf(simde_mm_movehl_ps(flushed_a, flushed_a),
                                     simde_mm_movehl_ps(flushed_b, flushed_b),
-                                    simde_mm_movehl_ps(addend_f, addend_f));
+                                    simde_mm_movehl_ps(addend_f, addend_f), flush);
   auto result = simde_mm_castps_si128(simde_mm_movelh_ps(low, high));
   if constexpr (Negate) {
     result = simde_mm_xor_si128(result, Set(kSign32));
@@ -130,7 +133,21 @@ inline simde__m128 MultiplyAdd(simde__m128 a, simde__m128 b, simde__m128 c) {
  * @return a * b + c in each lane.
  */
 [[nodiscard]] inline simde__m128 Vmaddfp(simde__m128 a, simde__m128 b, simde__m128 c) noexcept {
-  return detail::MultiplyAdd<false>(a, b, c);
+  return detail::MultiplyAdd<false>(a, b, c, true);
+}
+
+/**
+ * Computes vmaddfp, vmaddfp128 and vmaddcfp128 with a single rounding, honoring VSCR NJ.
+ *
+ * @param a The first multiplier.
+ * @param b The second multiplier.
+ * @param c The addend.
+ * @param non_java The VSCR NJ bit. When clear a denormal operand and a denormal result are kept.
+ * @return a * b + c in each lane.
+ */
+[[nodiscard]] inline simde__m128 Vmaddfp(simde__m128 a, simde__m128 b, simde__m128 c,
+                                         bool non_java) noexcept {
+  return detail::MultiplyAdd<false>(a, b, c, non_java);
 }
 
 /**
@@ -142,7 +159,21 @@ inline simde__m128 MultiplyAdd(simde__m128 a, simde__m128 b, simde__m128 c) {
  * @return -(a * b - c) in each lane.
  */
 [[nodiscard]] inline simde__m128 Vnmsubfp(simde__m128 a, simde__m128 b, simde__m128 c) noexcept {
-  return detail::MultiplyAdd<true>(a, b, c);
+  return detail::MultiplyAdd<true>(a, b, c, true);
+}
+
+/**
+ * Computes vnmsubfp and vnmsubfp128 with a single rounding, honoring VSCR NJ.
+ *
+ * @param a The first multiplier.
+ * @param b The second multiplier.
+ * @param c The value subtracted from the product.
+ * @param non_java The VSCR NJ bit. When clear a denormal operand and a denormal result are kept.
+ * @return -(a * b - c) in each lane.
+ */
+[[nodiscard]] inline simde__m128 Vnmsubfp(simde__m128 a, simde__m128 b, simde__m128 c,
+                                          bool non_java) noexcept {
+  return detail::MultiplyAdd<true>(a, b, c, non_java);
 }
 
 }  // namespace rex::ppc

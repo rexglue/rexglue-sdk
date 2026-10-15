@@ -10,6 +10,7 @@
 
 #pragma once
 
+#include <array>
 #include <bit>
 #include <cmath>
 
@@ -394,6 +395,215 @@ inline bool AnyOutside(simde__m128i value, u32 lowest, u32 highest) {
   const auto nan = simde_mm_andnot_si128(Equal(m, 0), Equal(e, 0xFF));
   result = Select(nan, simde_mm_or_si128(a, Set(kQuiet32)), result);
   return simde_mm_castsi128_ps(Select(Equal(e, 0), Set(0x3F800000u), result));
+}
+
+namespace detail {
+
+/**
+ * Reads lane 0 of a vector estimate applied to one operand.
+ *
+ * @tparam Estimate The vector estimate.
+ * @param bits The operand bits.
+ * @return The estimate bits.
+ */
+template <simde__m128 (*Estimate)(simde__m128)>
+inline u32 EstimateOne(u32 bits) {
+  return static_cast<u32>(simde_mm_cvtsi128_si32(simde_mm_castps_si128(
+      Estimate(simde_mm_castsi128_ps(simde_mm_set1_epi32(static_cast<i32>(bits)))))));
+}
+
+/**
+ * Reports whether an operand is a denormal other than zero.
+ *
+ * @param bits The operand bits.
+ * @return True for a nonzero magnitude below the smallest normal.
+ */
+inline bool IsDenormal(u32 bits) {
+  return (bits & kInfinity32) == 0 && (bits & 0x7FFFFFu) != 0;
+}
+
+/**
+ * Rewrites a denormal operand as the normal operand of the same value scaled by 2^64.
+ *
+ * @param bits The denormal operand bits.
+ * @return The scaled normal operand bits.
+ */
+inline u32 ScaleDenormal(u32 bits) {
+  const u32 mantissa = bits & 0x7FFFFFu;
+  const i32 shift = std::countl_zero(mantissa) - 8;
+  const u32 biased = static_cast<u32>(1 - shift + 64);
+  return (bits & kSign32) | (biased << 23) | ((mantissa << shift) & 0x7FFFFFu);
+}
+
+/**
+ * Applies a scalar rule to the lanes of a vector that the fast estimate cannot handle.
+ *
+ * @tparam Rule The scalar rule, taking an operand and giving the result bits.
+ * @tparam Needs Reports whether a lane takes the rule.
+ * @param v The operand.
+ * @param fast The result of the fast estimate.
+ * @return The results with the special lanes replaced.
+ */
+template <u32 (*Rule)(u32), bool (*Needs)(u32)>
+inline simde__m128 ReplaceLanes(simde__m128 v, simde__m128 fast) {
+  alignas(16) std::array<u32, 4> in;
+  alignas(16) std::array<u32, 4> out;
+  simde_mm_store_si128(reinterpret_cast<simde__m128i*>(in.data()), simde_mm_castps_si128(v));
+  simde_mm_store_si128(reinterpret_cast<simde__m128i*>(out.data()), simde_mm_castps_si128(fast));
+  for (u32 lane = 0; lane < 4; ++lane) {
+    if (Needs(in[lane])) {
+      out[lane] = Rule(in[lane]);
+    }
+  }
+  return simde_mm_castsi128_ps(
+      simde_mm_load_si128(reinterpret_cast<const simde__m128i*>(out.data())));
+}
+
+inline bool RefpNeeds(u32 bits) {
+  const u32 biased = (bits >> 23) & 0xFFu;
+  return IsDenormal(bits) || biased == 253 || biased == 254;
+}
+
+inline u32 RefpRule(u32 bits) {
+  const u32 sign = bits & kSign32;
+  const u32 biased = (bits >> 23) & 0xFFu;
+  if (IsDenormal(bits)) {
+    const u32 estimate = EstimateOne<Vrefp>(ScaleDenormal(bits));
+    const u32 field = ((estimate >> 23) & 0xFFu) + 64;
+    return field > 254 ? (sign | kInfinity32) : (sign | (field << 23) | (estimate & 0x7FFFFFu));
+  }
+  if (biased == 253 && (bits & 0x7FFFFFu) == 0) {
+    return sign | 0x00800000u;
+  }
+  const u32 estimate = EstimateOne<Vrefp>((bits & 0x807FFFFFu) | (252u << 23));
+  const u32 shift = biased - 252;
+  const u32 full = 0x800000u | (estimate & 0x7FFFFFu);
+  const u32 dropped = full & ((1u << shift) - 1);
+  const u32 half = 1u << (shift - 1);
+  const u32 kept = full >> shift;
+  return sign | (kept + ((dropped > half || (dropped == half && (kept & 1))) ? 1u : 0u));
+}
+
+inline u32 RsqrtefpRule(u32 bits) {
+  const u32 estimate = EstimateOne<Vrsqrtefp>(ScaleDenormal(bits));
+  if ((estimate & kInfinity32) == kInfinity32) {
+    return estimate;
+  }
+  return estimate + (32u << 23);
+}
+
+inline u32 LogefpRule(u32 bits) {
+  const u32 estimate = EstimateOne<Vlogefp>(ScaleDenormal(bits));
+  if ((estimate & kInfinity32) == kInfinity32) {
+    return estimate;
+  }
+  return std::bit_cast<u32>(std::bit_cast<f32>(estimate) - 64.0f);
+}
+
+}  // namespace detail
+
+/**
+ * Computes vrefp and vrefp128 for a fixed VSCR NJ bit.
+ *
+ * @tparam NonJava The VSCR NJ bit.
+ * @param v The operand.
+ * @return The estimate of each lane.
+ */
+template <bool NonJava>
+[[nodiscard]] inline simde__m128 Vrefp(simde__m128 v) noexcept {
+  const auto fast = Vrefp(v);
+  if constexpr (NonJava) {
+    return fast;
+  } else {
+    return detail::ReplaceLanes<detail::RefpRule, detail::RefpNeeds>(v, fast);
+  }
+}
+
+/**
+ * Computes vrefp and vrefp128, honoring VSCR NJ.
+ *
+ * With NJ clear a denormal operand is estimated at its value and a denormal result is kept, rounded
+ * to nearest even.
+ *
+ * @param v The operand.
+ * @param non_java The VSCR NJ bit.
+ * @return The reciprocal estimate of each lane.
+ */
+[[nodiscard]] inline simde__m128 Vrefp(simde__m128 v, bool non_java) noexcept {
+  return non_java ? Vrefp<true>(v) : Vrefp<false>(v);
+}
+
+/**
+ * Computes vrsqrtefp and vrsqrtefp128 for a fixed VSCR NJ bit.
+ *
+ * @tparam NonJava The VSCR NJ bit.
+ * @param v The operand.
+ * @return The estimate of each lane.
+ */
+template <bool NonJava>
+[[nodiscard]] inline simde__m128 Vrsqrtefp(simde__m128 v) noexcept {
+  const auto fast = Vrsqrtefp(v);
+  if constexpr (NonJava) {
+    return fast;
+  } else {
+    return detail::ReplaceLanes<detail::RsqrtefpRule, detail::IsDenormal>(v, fast);
+  }
+}
+
+/**
+ * Computes vrsqrtefp and vrsqrtefp128, honoring VSCR NJ.
+ *
+ * With NJ clear a denormal operand is estimated at its value.
+ *
+ * @param v The operand.
+ * @param non_java The VSCR NJ bit.
+ * @return The reciprocal square root estimate of each lane.
+ */
+[[nodiscard]] inline simde__m128 Vrsqrtefp(simde__m128 v, bool non_java) noexcept {
+  return non_java ? Vrsqrtefp<true>(v) : Vrsqrtefp<false>(v);
+}
+
+/**
+ * Computes vlogefp and vlogefp128 for a fixed VSCR NJ bit.
+ *
+ * @tparam NonJava The VSCR NJ bit.
+ * @param v The operand.
+ * @return The estimate of each lane.
+ */
+template <bool NonJava>
+[[nodiscard]] inline simde__m128 Vlogefp(simde__m128 v) noexcept {
+  const auto fast = Vlogefp(v);
+  if constexpr (NonJava) {
+    return fast;
+  } else {
+    return detail::ReplaceLanes<detail::LogefpRule, detail::IsDenormal>(v, fast);
+  }
+}
+
+/**
+ * Computes vlogefp and vlogefp128, honoring VSCR NJ.
+ *
+ * With NJ clear a denormal operand is estimated at its value.
+ *
+ * @param v The operand.
+ * @param non_java The VSCR NJ bit.
+ * @return The log2 estimate of each lane.
+ */
+[[nodiscard]] inline simde__m128 Vlogefp(simde__m128 v, bool non_java) noexcept {
+  return non_java ? Vlogefp<true>(v) : Vlogefp<false>(v);
+}
+
+/**
+ * Computes vexptefp and vexptefp128, honoring VSCR NJ. A denormal operand gives 1.0 whatever the
+ * NJ bit holds.
+ *
+ * @param v The operand.
+ * @param non_java The VSCR NJ bit.
+ * @return The exp2 estimate of each lane.
+ */
+[[nodiscard]] inline simde__m128 Vexptefp(simde__m128 v, bool non_java) noexcept {
+  static_cast<void>(non_java);
+  return Vexptefp(v);
 }
 
 }  // namespace rex::ppc

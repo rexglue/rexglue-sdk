@@ -19,6 +19,7 @@
 #include <rex/ppc/estimate.h>
 
 #include "estimate_cases.h"
+#include "estimate_nj0_cases.h"
 
 namespace {
 
@@ -237,4 +238,37 @@ REX_TEST_CASE("Vexptefp matches the sampled results when every lane is regular",
 
 REX_TEST_CASE("Vexptefp matches each sampled result in each lane position", "[ppc][estimate]") {
   CheckEachLane<rex::ppc::Vexptefp>(kVexptefpCases);
+}
+
+REX_TEST_CASE("The vector estimates take a denormal operand at its value when VSCR NJ is clear",
+              "[ppc][estimate]") {
+  for (const EstimateNJ0Case& expected : kEstimateNJ0Cases) {
+    alignas(16) std::array<u32, 4> host;
+    for (size_t i = 0; i < 4; ++i) {
+      host[3 - i] = expected.in[i];
+    }
+    const auto in = simde_mm_castsi128_ps(
+        simde_mm_load_si128(reinterpret_cast<const simde__m128i*>(host.data())));
+    simde__m128 result;
+    switch (expected.family) {
+      case 0:
+        result = rex::ppc::Vrefp(in, false);
+        break;
+      case 1:
+        result = rex::ppc::Vrsqrtefp(in, false);
+        break;
+      case 2:
+        result = rex::ppc::Vlogefp(in, false);
+        break;
+      default:
+        result = rex::ppc::Vexptefp(in, false);
+        break;
+    }
+    simde_mm_store_si128(reinterpret_cast<simde__m128i*>(host.data()),
+                         simde_mm_castps_si128(result));
+    for (size_t i = 0; i < 4; ++i) {
+      CAPTURE(expected.family, i, expected.in[i]);
+      CHECK(host[3 - i] == expected.out[i]);
+    }
+  }
 }

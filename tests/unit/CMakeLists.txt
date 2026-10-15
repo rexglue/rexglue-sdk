@@ -84,7 +84,9 @@ add_executable(unit_tests
     core/thread_registry_test.cpp
     ppc/dot_product_test.cpp
     ppc/estimate_test.cpp
+    ppc/fpscr_flush_test.cpp
     ppc/multiply_add_test.cpp
+    ppc/pack_d3d_test.cpp
     ppc/saturation_test.cpp
     ppc/import_function_test.cpp
     ppc/stack_test.cpp
@@ -123,6 +125,7 @@ add_executable(unit_tests
     codegen/barrier_test.cpp
     codegen/codegen_writer_test.cpp
     codegen/disasm_test.cpp
+    codegen/flush_mode_test.cpp
     codegen/manifest_test.cpp
     codegen/midasm_hook_config_test.cpp
     codegen/opcode_test.cpp

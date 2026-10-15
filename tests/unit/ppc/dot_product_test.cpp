@@ -16,6 +16,7 @@
 #include <rex/ppc/dot_product.h>
 
 #include "dot_product_cases.h"
+#include "dot_product_nj0_cases.h"
 
 namespace {
 
@@ -62,7 +63,7 @@ REX_TEST_CASE("Vmsum4fp128 matches the sampled results", "[ppc][dot_product]") {
 
 namespace {
 
-/** A deterministic generator whose sequence is fixed by its seed. */
+/** A deterministic generator whose sequence is fixed by its initial state. */
 class SplitMix {
  public:
   explicit SplitMix(u64 seed) : state_(seed) {}
@@ -153,4 +154,29 @@ REX_TEST_CASE("Vmsum3fp128 matches the scalar reference on random operands", "[p
 
 REX_TEST_CASE("Vmsum4fp128 matches the scalar reference on random operands", "[ppc][dot_product]") {
   CheckAgainstReference<4>(rex::ppc::Vmsum4fp128);
+}
+
+REX_TEST_CASE(
+    "Vmsum3fp128 and Vmsum4fp128 take a denormal operand at its value when VSCR NJ is clear",
+    "[ppc][dot_product]") {
+  const auto load = [](const std::array<u32, 4>& words) {
+    alignas(16) std::array<u32, 4> host;
+    for (size_t i = 0; i < 4; ++i) {
+      host[3 - i] = words[i];
+    }
+    return simde_mm_castsi128_ps(
+        simde_mm_load_si128(reinterpret_cast<const simde__m128i*>(host.data())));
+  };
+  for (const DotProductNJ0Case& expected : kDotProductNJ0Cases) {
+    const simde__m128 result =
+        expected.terms == 3 ? rex::ppc::Vmsum3fp128(load(expected.a), load(expected.b), false)
+                            : rex::ppc::Vmsum4fp128(load(expected.a), load(expected.b), false);
+    alignas(16) std::array<u32, 4> host;
+    simde_mm_store_si128(reinterpret_cast<simde__m128i*>(host.data()),
+                         simde_mm_castps_si128(result));
+    CAPTURE(expected.terms, expected.a[0], expected.a[1], expected.a[2], expected.a[3],
+            expected.b[0], expected.b[1], expected.b[2], expected.b[3]);
+    CHECK(host[0] == expected.out);
+    CHECK(host[3] == expected.out);
+  }
 }

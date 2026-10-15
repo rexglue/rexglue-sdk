@@ -10,6 +10,8 @@
 
 #include "rex_test.h"
 
+#include <array>
+
 #include "codegen/ppc/opcode.h"
 
 namespace {
@@ -56,4 +58,40 @@ REX_TEST_CASE("VMX loads and stores decode under primary 31", "[codegen][opcode]
   CHECK(LookupOpcode(XForm(31, 551)) == Opcode::lvrx);
   CHECK(LookupOpcode(XForm(31, 647)) == Opcode::stvlx);
   CHECK(LookupOpcode(XForm(31, 679)) == Opcode::stvrx);
+}
+
+REX_TEST_CASE("VA form instructions decode at their AltiVec extended opcodes",
+              "[codegen][opcode]") {
+  constexpr u32 kBase = 0x10611180;
+  CHECK(LookupOpcode(kBase | 42) == Opcode::vsel);
+  CHECK(LookupOpcode(kBase | 43) == Opcode::vperm);
+  CHECK(LookupOpcode(kBase | 44) == Opcode::vsldoi);
+  CHECK(LookupOpcode(kBase | 46) == Opcode::vmaddfp);
+  CHECK(LookupOpcode(kBase | 47) == Opcode::vnmsubfp);
+  CHECK(LookupOpcode(kBase | 32) != Opcode::vmaddfp);
+  CHECK(LookupOpcode(kBase | 33) != Opcode::vnmsubfp);
+}
+
+REX_TEST_CASE("AltiVec instructions the Xenon CPU dropped decode as unknown", "[codegen][opcode]") {
+  constexpr std::array<u32, 22> kDropped = {
+      0x10611008, 0x10611048, 0x10611108, 0x10611148, 0x10611208, 0x10611248,
+      0x10611308, 0x10611348, 0x106111A2, 0x106111A4, 0x106111A5, 0x106111A6,
+      0x106111A7, 0x106111A8, 0x106111A9, 0x106111A0, 0x106111A1, 0x10611608,
+      0x10611708, 0x10611648, 0x10611688, 0x10611788};
+  for (const u32 word : kDropped) {
+    CAPTURE(word);
+    CHECK(LookupOpcode(word) == Opcode::kUnknown);
+  }
+}
+
+REX_TEST_CASE("VMX forms beside the dropped AltiVec instructions still decode",
+              "[codegen][opcode]") {
+  CHECK(LookupOpcode(0x10611000) == Opcode::vaddubm);
+  CHECK(LookupOpcode(0x106111AA) == Opcode::vsel);
+  CHECK(LookupOpcode(0x106111AB) == Opcode::vperm);
+  CHECK(LookupOpcode(0x106111AC) == Opcode::vsldoi);
+  CHECK(LookupOpcode(0x106111AE) == Opcode::vmaddfp);
+  CHECK(LookupOpcode(0x106110D3) == Opcode::vsldoi128);
+  CHECK(LookupOpcode(VMX128Load(195, 3)) == Opcode::lvx128);
+  CHECK(LookupOpcode(VMX128Load(451, 3)) == Opcode::stvx128);
 }

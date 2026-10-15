@@ -30,17 +30,24 @@ struct DotTerm {
 };
 
 /**
- * Splits 2 operands into the signed product term, flushing a denormal operand to a signed zero.
+ * Splits 2 operands into the signed product term. A denormal operand is a zero, or with flush
+ * clear it keeps its value as a normalized mantissa with a lower exponent.
  *
  * @param a The first operand bits.
  * @param b The second operand bits.
+ * @param flush True to take a denormal operand as a zero.
  * @return The term, with a zero mantissa when either operand is zero.
  */
-inline DotTerm MakeDotTerm(u32 a, u32 b) {
-  const auto split = [](u32 bits, u32& mantissa, i32& exponent) {
+inline DotTerm MakeDotTerm(u32 a, u32 b, bool flush) {
+  const auto split = [flush](u32 bits, u32& mantissa, i32& exponent) {
     const u32 biased = (bits >> 23) & 0xFFu;
     mantissa = biased == 0 ? 0 : ((bits & 0x7FFFFFu) | 0x800000u);
     exponent = static_cast<i32>(biased) - 127;
+    if (biased == 0 && !flush && (bits & 0x7FFFFFu) != 0) {
+      const i32 shift = std::countl_zero(bits & 0x7FFFFFu) - 8;
+      mantissa = (bits & 0x7FFFFFu) << shift;
+      exponent = -126 - shift;
+    }
   };
   u32 mantissa_a;
   u32 mantissa_b;
@@ -59,18 +66,20 @@ inline DotTerm MakeDotTerm(u32 a, u32 b) {
  * @tparam Terms The number of terms, 3 or 4.
  * @param a The first operand words.
  * @param b The second operand words.
+ * @param flush True to flush a denormal operand to a zero, as VSCR NJ set does.
  * @return The result bits.
  */
 template <u32 Terms>
-inline u32 DotProduct(const std::array<u32, Terms>& a, const std::array<u32, Terms>& b) {
+inline u32 DotProductReference(const std::array<u32, Terms>& a, const std::array<u32, Terms>& b,
+                               bool flush = true) {
   bool any_na_n = false;
   bool any_invalid = false;
   u32 infinities = 0;
   u32 negative_infinities = 0;
   std::array<DotTerm, Terms> terms{};
   for (u32 i = 0; i < Terms; ++i) {
-    const u32 x = (a[i] & 0x7F800000u) == 0 ? (a[i] & kSign32) : a[i];
-    const u32 y = (b[i] & 0x7F800000u) == 0 ? (b[i] & kSign32) : b[i];
+    const u32 x = flush && (a[i] & 0x7F800000u) == 0 ? (a[i] & kSign32) : a[i];
+    const u32 y = flush && (b[i] & 0x7F800000u) == 0 ? (b[i] & kSign32) : b[i];
     const bool nan_x = (x & 0x7FFFFFFFu) > kInfinity32;
     const bool nan_y = (y & 0x7FFFFFFFu) > kInfinity32;
     const bool inf_x = (x & 0x7FFFFFFFu) == kInfinity32;
@@ -83,7 +92,7 @@ inline u32 DotProduct(const std::array<u32, Terms>& a, const std::array<u32, Ter
       ++infinities;
       negative_infinities += ((x ^ y) & kSign32) != 0 ? 1 : 0;
     }
-    terms[i] = MakeDotTerm(x, y);
+    terms[i] = MakeDotTerm(x, y, flush);
   }
   if (any_na_n || any_invalid) {
     return kQNaN32;
@@ -146,24 +155,48 @@ inline u32 DotProduct(const std::array<u32, Terms>& a, const std::array<u32, Ter
 }
 
 /**
- * Computes the dot product of the title elements of 2 vectors and broadcasts it to all lanes.
+ * Computes the dot product of the first elements of 2 vectors and broadcasts it to all lanes.
  *
- * @tparam Terms The number of title elements, 3 or 4.
+ * @tparam Terms The number of elements, 3 or 4.
  * @param a The first operand.
  * @param b The second operand.
+ * @param flush True to flush a denormal operand to a zero, as VSCR NJ set does.
  * @return The result in all 4 lanes.
  */
 template <u32 Terms>
-inline simde__m128 DotProductVector(simde__m128 a, simde__m128 b) {
-  alignas(16) std::array<u32, 4> words_a;
-  alignas(16) std::array<u32, 4> words_b;
-  simde_mm_store_si128(reinterpret_cast<simde__m128i*>(words_a.data()), simde_mm_castps_si128(a));
-  simde_mm_store_si128(reinterpret_cast<simde__m128i*>(words_b.data()), simde_mm_castps_si128(b));
-  std::array<u32, Terms> terms_a;
-  std::array<u32, Terms> terms_b;
-  for (u32 i = 0; i < Terms; ++i) {
-    terms_a[i] = words_a[3 - i];
-    terms_b[i] = words_b[3 - i];
+inline simde__m128 DotProductVector(simde__m128 a, simde__m128 b, bool flush) {
+  const auto words_a = simde_mm_castps_si128(a);
+  const auto words_b = simde_mm_castps_si128(b);
+  const auto used = simde_mm_set_epi32(-1, -1, -1, Terms == 4 ? -1 : 0);
+  auto special =
+      simde_mm_or_si128(Equal(simde_mm_and_si128(words_a, Set(kInfinity32)), kInfinity32),
+                        Equal(simde_mm_and_si128(words_b, Set(kInfinity32)), kInfinity32));
+  if (!flush) [[unlikely]] {
+    const auto zero = simde_mm_setzero_si128();
+    const auto denormal_a = simde_mm_andnot_si128(
+        simde_mm_cmpeq_epi32(simde_mm_and_si128(words_a, Set(0x7FFFFFu)), zero),
+        Equal(simde_mm_and_si128(words_a, Set(kInfinity32)), 0));
+    const auto denormal_b = simde_mm_andnot_si128(
+        simde_mm_cmpeq_epi32(simde_mm_and_si128(words_b, Set(0x7FFFFFu)), zero),
+        Equal(simde_mm_and_si128(words_b, Set(kInfinity32)), 0));
+    special = simde_mm_or_si128(special, simde_mm_or_si128(denormal_a, denormal_b));
+  }
+  special = simde_mm_and_si128(special, used);
+  u32 result;
+  if (simde_mm_movemask_epi8(special) == 0) {
+    result = DotProductFinite<Terms>(words_a, words_b);
+  } else {
+    alignas(16) std::array<u32, 4> host_a;
+    alignas(16) std::array<u32, 4> host_b;
+    simde_mm_store_si128(reinterpret_cast<simde__m128i*>(host_a.data()), words_a);
+    simde_mm_store_si128(reinterpret_cast<simde__m128i*>(host_b.data()), words_b);
+    std::array<u32, Terms> terms_a;
+    std::array<u32, Terms> terms_b;
+    for (u32 i = 0; i < Terms; ++i) {
+      terms_a[i] = host_a[3 - i];
+      terms_b[i] = host_b[3 - i];
+    }
+    result = DotProductReference<Terms>(terms_a, terms_b, flush);
   }
   return simde_mm_castsi128_ps(
       simde_mm_set1_epi32(static_cast<i32>(DotProduct<Terms>(terms_a, terms_b))));
@@ -172,25 +205,49 @@ inline simde__m128 DotProductVector(simde__m128 a, simde__m128 b) {
 }  // namespace detail
 
 /**
- * Computes vmsum3fp128, the dot product of the first 3 title elements.
+ * Computes vmsum3fp128, the dot product of the first 3 vector elements.
  *
  * @param a The first operand.
  * @param b The second operand.
  * @return The dot product in all 4 lanes.
  */
 [[nodiscard]] inline simde__m128 Vmsum3fp128(simde__m128 a, simde__m128 b) noexcept {
-  return detail::DotProductVector<3>(a, b);
+  return detail::DotProductVector<3>(a, b, true);
 }
 
 /**
- * Computes vmsum4fp128, the dot product of all 4 title elements.
+ * Computes vmsum3fp128, the dot product of the first 3 elements, honoring VSCR NJ.
+ *
+ * @param a The first operand.
+ * @param b The second operand.
+ * @param non_java The VSCR NJ bit. When clear a denormal operand keeps its value.
+ * @return The dot product in all 4 lanes.
+ */
+[[nodiscard]] inline simde__m128 Vmsum3fp128(simde__m128 a, simde__m128 b, bool non_java) noexcept {
+  return detail::DotProductVector<3>(a, b, non_java);
+}
+
+/**
+ * Computes vmsum4fp128, the dot product of all 4 vector elements.
  *
  * @param a The first operand.
  * @param b The second operand.
  * @return The dot product in all 4 lanes.
  */
 [[nodiscard]] inline simde__m128 Vmsum4fp128(simde__m128 a, simde__m128 b) noexcept {
-  return detail::DotProductVector<4>(a, b);
+  return detail::DotProductVector<4>(a, b, true);
+}
+
+/**
+ * Computes vmsum4fp128, the dot product of all 4 elements, honoring VSCR NJ.
+ *
+ * @param a The first operand.
+ * @param b The second operand.
+ * @param non_java The VSCR NJ bit. When clear a denormal operand keeps its value.
+ * @return The dot product in all 4 lanes.
+ */
+[[nodiscard]] inline simde__m128 Vmsum4fp128(simde__m128 a, simde__m128 b, bool non_java) noexcept {
+  return detail::DotProductVector<4>(a, b, non_java);
 }
 
 }  // namespace rex::ppc

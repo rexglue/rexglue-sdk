@@ -147,12 +147,13 @@ struct PackRange {
 
 inline constexpr PackRange kUnchecked{false, 0.0, 0.0};
 inline constexpr PackRange kByteRange{true, 0.0, 255.0};
-inline constexpr PackRange kShortRange{true, -32768.0, 32767.0};
-inline constexpr PackRange kSigned10Range{true, -512.0, 511.0};
+inline constexpr PackRange kShortRange{true, -32767.0, 32767.0};
+inline constexpr PackRange kSigned10Range{true, -511.0, 511.0};
 inline constexpr PackRange kSigned20Range{true, -524287.0, 524287.0};
 inline constexpr PackRange kTwoBitRange{true, 0.0, 3.0};
+inline constexpr PackRange kFourBitRange{true, 0.0, 15.0};
 
-/** The range of each title element for the pack format with the index of the table entry. */
+/** The range of each vector element for the pack format with the index of the table entry. */
 inline constexpr std::array<std::array<PackRange, 4>, 7> kPackD3DRanges = {{
     {kByteRange, kByteRange, kByteRange, kByteRange},
     {kShortRange, kShortRange, kUnchecked, kUnchecked},
@@ -160,7 +161,7 @@ inline constexpr std::array<std::array<PackRange, 4>, 7> kPackD3DRanges = {{
     {kUnchecked, kUnchecked, kUnchecked, kUnchecked},
     {kShortRange, kShortRange, kShortRange, kShortRange},
     {kUnchecked, kUnchecked, kUnchecked, kUnchecked},
-    {kSigned20Range, kSigned20Range, kSigned20Range, kTwoBitRange},
+    {kSigned20Range, kSigned20Range, kSigned20Range, kFourBitRange},
 }};
 
 /** The lowest or highest float of the range of each host lane, or 0 for a lane that never
@@ -189,7 +190,7 @@ inline constexpr std::array<u32, 4> kPackD3DChecked = [] {
 }  // namespace detail
 
 /**
- * Reports whether a vpkd3d128 pack saturates. Every title element counts, whatever the mask and
+ * Reports whether a vpkd3d128 pack saturates. Every vector element counts, whatever the mask and
  * shift write. A NaN element never saturates. Floats in [2, 4) are spaced by 2^-22, so each one
  * is 3.0 plus an integer multiple of 2^-22, and every other finite float lies beyond every range.
  *

@@ -48,7 +48,7 @@ struct RecompilerLocalVariables {
  *   instruction will emit a conditional mode check.
  * - **FPU** preserves denormals (flush-to-zero disabled). Used by scalar
  *   floating-point instructions (fadd, fmul and others)
- * - **VMX** flushes denormals to zero. Used by vector floating-point
+ * - **VMX** sets the host flush mode to the VSCR non Java bit. Used by vector floating-point
  *   instructions (vaddfp, vmaddfp and others)
  */
 enum class CSRState : u8 { kUnknown, kFPU, kVMX };
