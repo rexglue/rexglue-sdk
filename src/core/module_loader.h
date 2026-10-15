@@ -38,6 +38,14 @@ namespace rex::detail {
 REX_API bool IsValidModuleName(std::string_view name);
 
 /**
+ * Returns the file name of a shared library for the current platform.
+ *
+ * @param name The library target name.
+ * @return The name with the platform library prefix and extension.
+ */
+REX_API std::filesystem::path LibraryFileName(std::string_view name);
+
+/**
  * Returns the file name of a module for the current build configuration and platform.
  *
  * @param name The module name.

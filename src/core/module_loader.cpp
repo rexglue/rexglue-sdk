@@ -66,14 +66,18 @@ bool IsValidModuleName(std::string_view name) {
   return true;
 }
 
-std::filesystem::path ModuleFileName(std::string_view name) {
+std::filesystem::path LibraryFileName(std::string_view name) {
 #if REX_PLATFORM_WIN32
-  return std::format("{}{}.dll", name, BuildPostfix());
+  return std::format("{}.dll", name);
 #elif REX_PLATFORM_MAC
-  return std::format("lib{}{}.dylib", name, BuildPostfix());
+  return std::format("lib{}.dylib", name);
 #else
-  return std::format("lib{}{}.so", name, BuildPostfix());
+  return std::format("lib{}.so", name);
 #endif
+}
+
+std::filesystem::path ModuleFileName(std::string_view name) {
+  return LibraryFileName(std::format("{}{}", name, BuildPostfix()));
 }
 
 u64 GetInterfaceRequestCount() {

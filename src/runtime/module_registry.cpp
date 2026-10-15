@@ -11,6 +11,8 @@
 
 #include "runtime/module_registry.h"
 
+#include "core/module_loader.h"
+
 #include <filesystem>
 #include <mutex>
 #include <ranges>
@@ -19,6 +21,7 @@
 #include <rex/image_info.h>
 #include <rex/logging.h>
 #include <rex/math.h>
+#include <rex/platform/file.h>
 #include <rex/ppc/function.h>
 #include <rex/runtime.h>
 #include <rex/runtime/error.h>
@@ -310,7 +313,8 @@ Result<X_HANDLE> ModuleRegistry::LoadUserModule(std::string_view raw_name, bool 
     }
 
     rex::platform::DynamicLibrary library_local;
-    if (!library_local.Load(std::filesystem::path(recomp->shared_lib_name),
+    if (!library_local.Load(rex::platform::GetExecutableFolder() /
+                                rex::detail::LibraryFileName(recomp->shared_lib_name),
                             rex::platform::SymbolResolution::kImmediate)) {
       REXLOG_ERROR(system, "Failed to load shared library for module '{}'", recomp->pe_name);
     } else {

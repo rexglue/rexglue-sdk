@@ -153,6 +153,11 @@ u32 XexUnloadImage_entry(MappedVoid hmodule) {
   return X_STATUS_SUCCESS;
 }
 
+u32 XexUnloadImageAndExitThread_entry(MappedVoid hmodule, u32 exit_code) {
+  XexUnloadImage_entry(hmodule);
+  KernelThread::GetCurrentThread()->Exit(static_cast<int>(exit_code));
+}
+
 u32 XexGetProcedureAddress_entry(MappedVoid hmodule, u32 ordinal, MappedU32 out_function_ptr) {
   REX_ASSERT(ordinal != 0);
 
@@ -225,6 +230,8 @@ REX_EXPORT(__imp__XexGetModuleHandle, rex::kernel::xboxkrnl::XexGetModuleHandle_
 REX_EXPORT(__imp__XexGetModuleSection, rex::kernel::xboxkrnl::XexGetModuleSection_entry)
 REX_EXPORT(__imp__XexLoadImage, rex::kernel::xboxkrnl::XexLoadImage_entry)
 REX_EXPORT(__imp__XexUnloadImage, rex::kernel::xboxkrnl::XexUnloadImage_entry)
+REX_EXPORT(__imp__XexUnloadImageAndExitThread,
+           rex::kernel::xboxkrnl::XexUnloadImageAndExitThread_entry)
 REX_EXPORT(__imp__XexGetProcedureAddress, rex::kernel::xboxkrnl::XexGetProcedureAddress_entry)
 REX_EXPORT(__imp__ExRegisterTitleTerminateNotification,
            rex::kernel::xboxkrnl::ExRegisterTitleTerminateNotification_entry)
@@ -236,7 +243,6 @@ REX_EXPORT_STUB(__imp__XexPcToFileHeader);
 REX_EXPORT_STUB(__imp__XexRegisterPatchDescriptor);
 REX_EXPORT_STUB(__imp__XexSendDeferredNotifications);
 REX_EXPORT_STUB(__imp__XexStartExecutable);
-REX_EXPORT_STUB(__imp__XexUnloadImageAndExitThread);
 REX_EXPORT_STUB(__imp__XexUnloadTitleModules);
 REX_EXPORT_STUB(__imp__XexVerifyImageHeaders);
 REX_EXPORT_STUB(__imp__XexGetModuleImportVersions);

@@ -456,3 +456,13 @@ REX_TEST_CASE_METHOD(Fixture, "Without rex-runtime no module scope exists",
   REQUIRE(std::find(scopes.begin(), scopes.end(), "bind") == scopes.end());
   REQUIRE(registry->Find("log.level"));
 }
+
+REX_TEST_CASE("LibraryFileName adds the platform prefix and extension", "[core][modules]") {
+#if REX_PLATFORM_WIN32
+  CHECK(rex::detail::LibraryFileName("demo_dll") == "demo_dll.dll");
+#elif REX_PLATFORM_MAC
+  CHECK(rex::detail::LibraryFileName("demo_dll") == "libdemo_dll.dylib");
+#else
+  CHECK(rex::detail::LibraryFileName("demo_dll") == "libdemo_dll.so");
+#endif
+}

@@ -128,6 +128,7 @@ add_executable(unit_tests
     codegen/opcode_test.cpp
     codegen/output_partition_test.cpp
     codegen/output_stamp_test.cpp
+    codegen/project_recompiler_test.cpp
     codegen/seh_scope_test.cpp
     codegen/shim_config_test.cpp
     codegen/tool_runtime_test.cpp
@@ -184,7 +185,10 @@ target_include_directories(unit_tests SYSTEM PRIVATE
     $<TARGET_PROPERTY:spirv-tools-headers,INTERFACE_INCLUDE_DIRECTORIES>)
 
 target_compile_definitions(unit_tests PRIVATE
-    REX_TEST_RUNTIME_PATH="$<TARGET_FILE:rex-runtime>")
+    REX_TEST_RUNTIME_PATH="$<TARGET_FILE:rex-runtime>"
+    REX_TEST_RECOMPILED_A_NAME="$<TARGET_FILE_BASE_NAME:rexmod-test-recompiled-a>"
+    REX_TEST_RECOMPILED_B_NAME="$<TARGET_FILE_BASE_NAME:rexmod-test-recompiled-b>"
+    REXGLUE_FIXTURE_DIR="${PROJECT_SOURCE_DIR}/tests/fixtures/filesystem")
 
 add_executable(rex-crash-probe crash_probe.cpp crash_probe_recompiled_code.cpp)
 if(WIN32)

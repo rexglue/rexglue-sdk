@@ -247,13 +247,14 @@ Result<void> ProjectRecompiler::Run(const ProjectRecompilerOptions& opts) {
   }
 
   auto entry_display_name = std::filesystem::path(targeted[0].config.file_path).filename().string();
-  {
+  auto entry_view = [&] {
     auto executable = runtime->GetObjectTable().Get<rex::runtime::ModuleObject>(
         runtime->GetModuleRegistry().GetExecutable().value_or(0));
     ReportBinaryInfo(opts.reporter, entry_display_name, *executable->GetXEX());
-  }
+    return BinaryView::FromModule(*executable->GetXEX());
+  }();
 
-  std::vector<rex::runtime::Pinned<rex::runtime::ModuleObject>> dll_modules;
+  std::vector<BinaryView> dll_views;
   for (size_t i = 1; i < targeted.size(); ++i) {
     const auto& dll_config = targeted[i].config;
     fs::path dll_xex_path = config_dir / dll_config.file_path;
@@ -274,17 +275,21 @@ Result<void> ProjectRecompiler::Run(const ProjectRecompilerOptions& opts) {
     std::replace(rel_str.begin(), rel_str.end(), '/', '\\');
     auto dll_vfs_path = "game:\\" + rel_str;
     auto loaded = runtime->GetModuleRegistry().LoadUserModule(dll_vfs_path, false);
-    auto user_mod = runtime->GetObjectTable().Get<rex::runtime::ModuleObject>(
-        loaded ? *loaded : rex::X_HANDLE(0));
-    if (!user_mod) {
-      return Err<void>(ErrorCategory::kIO,
-                       std::format("Failed to load DLL module: {}", targeted[i].target_name));
+    {
+      auto user_mod = runtime->GetObjectTable().Get<rex::runtime::ModuleObject>(
+          loaded ? *loaded : rex::X_HANDLE(0));
+      if (!user_mod) {
+        return Err<void>(ErrorCategory::kIO,
+                         std::format("Failed to load DLL module: {}", targeted[i].target_name));
+      }
+      REXLOG_TRACE(codegen, "Loaded DLL module '{}' at base 0x{:08X}", targeted[i].target_name,
+                   user_mod->GetXEX()->GetBaseAddress());
+      auto dll_display_name =
+          std::filesystem::path(targeted[i].config.file_path).filename().string();
+      ReportBinaryInfo(opts.reporter, dll_display_name, *user_mod->GetXEX());
+      dll_views.push_back(BinaryView::FromModule(*user_mod->GetXEX()));
     }
-    REXLOG_TRACE(codegen, "Loaded DLL module '{}' at base 0x{:08X}", targeted[i].target_name,
-                 user_mod->GetXEX()->GetBaseAddress());
-    auto dll_display_name = std::filesystem::path(targeted[i].config.file_path).filename().string();
-    ReportBinaryInfo(opts.reporter, dll_display_name, *user_mod->GetXEX());
-    dll_modules.push_back(std::move(user_mod));
+    runtime->GetModuleRegistry().UnloadUserModule(*loaded, false);
   }
 
   struct ContextEntry {
@@ -299,9 +304,7 @@ Result<void> ProjectRecompiler::Run(const ProjectRecompilerOptions& opts) {
   };
 
   {
-    auto exec_mod = runtime->GetObjectTable().Get<rex::runtime::ModuleObject>(
-        runtime->GetModuleRegistry().GetExecutable().value_or(0));
-    auto bv = BinaryView::FromModule(*exec_mod->GetXEX());
+    auto bv = std::move(entry_view);
 
     auto entry_display = make_display_name(targeted[0].config.file_path);
     RecompilerConfig cfg = std::move(targeted[0].config);
@@ -322,9 +325,8 @@ Result<void> ProjectRecompiler::Run(const ProjectRecompilerOptions& opts) {
     contexts.push_back({std::move(ctx), &targeted[0], std::move(entry_display)});
   }
 
-  for (size_t i = 0; i < dll_modules.size(); ++i) {
-    auto& user_mod = dll_modules[i];
-    auto bv = BinaryView::FromModule(*user_mod->GetXEX());
+  for (size_t i = 0; i < dll_views.size(); ++i) {
+    auto bv = std::move(dll_views[i]);
 
     auto dll_display = make_display_name(targeted[i + 1].config.file_path);
     RecompilerConfig cfg = std::move(targeted[i + 1].config);
@@ -386,21 +388,6 @@ Result<void> ProjectRecompiler::Run(const ProjectRecompilerOptions& opts) {
                     entry.module->target_name, result.error().message);
       } else {
         REX_FAIL(codegen, result, "Analysis failed for '{}'", entry.module->target_name);
-      }
-    }
-  }
-
-  for (size_t i = 0; i < contexts.size(); ++i) {
-    u32 a_base = contexts[i].ctx.GetBinary().GetBaseAddress();
-    u32 a_end = a_base + contexts[i].ctx.GetBinary().GetImageSize();
-    for (size_t j = i + 1; j < contexts.size(); ++j) {
-      u32 b_base = contexts[j].ctx.GetBinary().GetBaseAddress();
-      u32 b_end = b_base + contexts[j].ctx.GetBinary().GetImageSize();
-      if (a_base < b_end && b_base < a_end) {
-        return Err<void>(ErrorCategory::kValidation,
-                         std::format("Module '{}' [{:08X}, {:08X}) overlaps '{}' [{:08X}, {:08X})",
-                                     contexts[i].module->target_name, a_base, a_end,
-                                     contexts[j].module->target_name, b_base, b_end));
       }
     }
   }
@@ -529,7 +516,7 @@ Result<void> ProjectRecompiler::Run(const ProjectRecompilerOptions& opts) {
     dll_targets_data["project"] = manifest_.project_name;
     auto& dll_targets_array = dll_targets_data["dll_modules"];
     dll_targets_array = nlohmann::json::array();
-    for (size_t i = 0; i < dll_modules.size(); ++i) {
+    for (size_t i = 0; i < dll_views.size(); ++i) {
       auto& mod = targeted[i + 1];
       auto& dll_ctx = contexts[i + 1].ctx;
       nlohmann::json entry;

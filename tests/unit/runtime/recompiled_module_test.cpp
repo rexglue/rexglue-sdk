@@ -21,6 +21,7 @@
 #include <rex/runtime/function_dispatcher.h>
 #include <rex/runtime/module_registry.h>
 #include <rex/runtime/thread_state.h>
+#include <rex/runtime/xmemory.h>
 
 #include "core/xex_builder.h"
 #include "pe/pe_image.h"
@@ -34,6 +35,7 @@ namespace {
 constexpr u32 kImageBase = 0x8E000000;
 constexpr u32 kFunctionAddress = kImageBase + 0x100;
 constexpr u32 kResultA = 0xA1;
+constexpr u32 kResultB = 0xB2;
 constexpr const char* kPathA = "game:\\a.xex";
 constexpr const char* kPathB = "game:\\b.xex";
 
@@ -79,8 +81,8 @@ void PopulateImages(const std::filesystem::path& root) {
 
 void RegisterImages(rex::Runtime& runtime) {
   auto& modules = runtime.GetModuleRegistry();
-  modules.RegisterRecompiledModule("a", kPathA, REX_TEST_RECOMPILED_A_PATH);
-  modules.RegisterRecompiledModule("b", kPathB, REX_TEST_RECOMPILED_B_PATH);
+  modules.RegisterRecompiledModule("a", kPathA, REX_TEST_RECOMPILED_A_NAME);
+  modules.RegisterRecompiledModule("b", kPathB, REX_TEST_RECOMPILED_B_NAME);
 }
 
 u32 CallFunction(rex::Runtime& runtime) {
@@ -104,6 +106,78 @@ REX_TEST_CASE("modules: a recompiled module loads again after it was unloaded",
     auto second = modules.LoadUserModule(kPathA);
     REQUIRE(second);
     CHECK(CallFunction(runtime) == kResultA);
+    modules.UnloadUserModule(*second);
+  });
+}
+
+REX_TEST_CASE("modules: a recompiled module loads at a base another one released",
+              "[runtime][module]") {
+  KernelFixture fixture(PopulateImages);
+  fixture.RunOnGuestThread([](Caller& c) {
+    auto& runtime = c.GetRuntime();
+    RegisterImages(runtime);
+    auto& modules = runtime.GetModuleRegistry();
+    auto first = modules.LoadUserModule(kPathA);
+    REQUIRE(first);
+    CHECK(CallFunction(runtime) == kResultA);
+    modules.UnloadUserModule(*first);
+    auto second = modules.LoadUserModule(kPathB);
+    REQUIRE(second);
+    CHECK(CallFunction(runtime) == kResultB);
+    modules.UnloadUserModule(*second);
+    auto third = modules.LoadUserModule(kPathA);
+    REQUIRE(third);
+    CHECK(CallFunction(runtime) == kResultA);
+    modules.UnloadUserModule(*third);
+  });
+}
+
+REX_TEST_CASE("modules: a second recompiled module at a held base is refused and the first stays",
+              "[runtime][module]") {
+  KernelFixture fixture(PopulateImages);
+  fixture.RunOnGuestThread([](Caller& c) {
+    auto& runtime = c.GetRuntime();
+    RegisterImages(runtime);
+    auto& modules = runtime.GetModuleRegistry();
+    auto first = modules.LoadUserModule(kPathA);
+    REQUIRE(first);
+    CHECK_FALSE(modules.LoadUserModule(kPathB));
+
+    rex::runtime::HeapAllocationInfo info{};
+    REQUIRE(runtime.GetMemory()->LookupHeap(kImageBase)->QueryRegionInfo(kImageBase, &info));
+    CHECK(info.state != 0);
+    CHECK(info.allocation_base == kImageBase);
+    CHECK(CallFunction(runtime) == kResultA);
+    modules.UnloadUserModule(*first);
+
+    auto again = modules.LoadUserModule(kPathB);
+    REQUIRE(again);
+    CHECK(CallFunction(runtime) == kResultB);
+    modules.UnloadUserModule(*again);
+  });
+}
+
+REX_TEST_CASE("modules: XexUnloadImageAndExitThread unloads the module and ends the thread",
+              "[runtime][module]") {
+  KernelFixture fixture(PopulateImages);
+  fixture.RunOnGuestThread([](Caller& c) {
+    auto& runtime = c.GetRuntime();
+    RegisterImages(runtime);
+    auto& modules = runtime.GetModuleRegistry();
+    const u32 hmodule_ptr = c.Alloc(4);
+    REQUIRE(c.Kernel("XexLoadImage", {c.String(kPathA), 8, 0, hmodule_ptr}) == 0);
+    const u32 hmodule = c.Load32(hmodule_ptr);
+    REQUIRE(hmodule != 0);
+
+    const u32 handle =
+        c.Spawn([hmodule](Caller& o) { o.Kernel("XexUnloadImageAndExitThread", {hmodule, 7}); });
+    CHECK(c.Kernel("NtWaitForSingleObjectEx", {handle, 1, 0, c.Quad(-50000000)}) == 0);
+    CHECK(c.Kernel("NtClose", {handle}) == 0);
+
+    CHECK_FALSE(modules.GetModule(kPathA));
+    auto second = modules.LoadUserModule(kPathB);
+    REQUIRE(second);
+    CHECK(CallFunction(runtime) == kResultB);
     modules.UnloadUserModule(*second);
   });
 }
