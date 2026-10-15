@@ -87,8 +87,6 @@
 
 #if REX_PLATFORM_WIN32
 #include <intrin.h>
-#elif REX_ARCH_AMD64
-#include <x86intrin.h>
 #endif  // REX_PLATFORM_WIN32
 
 #if REX_PLATFORM_MAC

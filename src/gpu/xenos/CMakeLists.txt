@@ -14,6 +14,7 @@ set(REXGPU_XENOS_SOURCES
     null/null_graphics_system.cpp
     draw_extent_estimator.cpp
     draw_state.cpp
+    index_conversion.cpp
     primitive_processor.cpp
     pipeline/render_target/cache.cpp
     shared_memory.cpp

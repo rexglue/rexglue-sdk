@@ -25,11 +25,7 @@
 #include <rex/memory/byte_swap.h>
 #include <rex/platform.h>
 
-#if REX_ARCH_AMD64
 #include <simde/x86/ssse3.h>
-#elif REX_ARCH_ARM64
-#include <arm_neon.h>
-#endif
 
 #include <algorithm>
 
@@ -39,8 +35,6 @@ namespace memory {
 void Copy128Aligned(void* dest, const void* src, size_t count) {
   std::memcpy(dest, src, count * 16);
 }
-
-#if REX_ARCH_AMD64
 
 /**
  * Returns early when x is a compile time true constant, working around GCC bug 100801.
@@ -206,174 +200,6 @@ void copy_and_swap_16_in_32_unaligned(void* dest_ptr, const void* src_ptr, size_
     dest[i] = (src[i] >> 16) | (src[i] << 16);
   }
 }
-
-#elif REX_ARCH_ARM64
-
-// NEON vrev is slower in benchmarks and uint8x16xN_t is no faster, so 1 SIMD register is used.
-
-void copy_and_swap_16_aligned(void* dst_ptr, const void* src_ptr, size_t count) {
-  copy_and_swap_16_unaligned(dst_ptr, src_ptr, count);
-}
-
-void copy_and_swap_16_unaligned(void* dst_ptr, const void* src_ptr, size_t count) {
-  auto dst = reinterpret_cast<u8*>(dst_ptr);
-  auto src = reinterpret_cast<const u8*>(src_ptr);
-
-  const uint8x16_t tbl_idx = vcombine_u8(vcreate_u8(UINT64_C(0x0607040502030001)),
-                                         vcreate_u8(UINT64_C(0x0E0F0C0D0A0B0809)));
-
-  while (count >= 8) {
-    uint8x16_t data = vld1q_u8(src);
-    data = vqtbl1q_u8(data, tbl_idx);
-    vst1q_u8(dst, data);
-
-    count -= 8;
-    dst += 16;
-    src += 16;
-  }
-
-  while (count > 0) {
-    store_and_swap<u16>(dst, load<u16>(src));
-
-    count--;
-    dst += 2;
-    src += 2;
-  }
-}
-
-void copy_and_swap_32_aligned(void* dst, const void* src, size_t count) {
-  copy_and_swap_32_unaligned(dst, src, count);
-}
-
-void copy_and_swap_32_unaligned(void* dst_ptr, const void* src_ptr, size_t count) {
-  auto dst = reinterpret_cast<u8*>(dst_ptr);
-  auto src = reinterpret_cast<const u8*>(src_ptr);
-
-  const uint8x16_t tbl_idx = vcombine_u8(vcreate_u8(UINT64_C(0x405060700010203)),
-                                         vcreate_u8(UINT64_C(0x0C0D0E0F08090A0B)));
-
-  while (count >= 4) {
-    uint8x16_t data = vld1q_u8(src);
-    data = vqtbl1q_u8(data, tbl_idx);
-    vst1q_u8(dst, data);
-
-    count -= 4;
-    dst += 16;
-    src += 16;
-  }
-
-  while (count > 0) {
-    store_and_swap<u32>(dst, load<u32>(src));
-
-    count--;
-    dst += 4;
-    src += 4;
-  }
-}
-
-void copy_and_swap_64_aligned(void* dst, const void* src, size_t count) {
-  copy_and_swap_64_unaligned(dst, src, count);
-}
-
-void copy_and_swap_64_unaligned(void* dst_ptr, const void* src_ptr, size_t count) {
-  auto dst = reinterpret_cast<u8*>(dst_ptr);
-  auto src = reinterpret_cast<const u8*>(src_ptr);
-
-  const uint8x16_t tbl_idx = vcombine_u8(vcreate_u8(UINT64_C(0x0001020304050607)),
-                                         vcreate_u8(UINT64_C(0x08090A0B0C0D0E0F)));
-
-  while (count >= 2) {
-    uint8x16_t data = vld1q_u8(src);
-    data = vqtbl1q_u8(data, tbl_idx);
-    vst1q_u8(dst, data);
-
-    count -= 2;
-    dst += 16;
-    src += 16;
-  }
-
-  while (count > 0) {
-    store_and_swap<u64>(dst, load<u64>(src));
-
-    count--;
-    dst += 8;
-    src += 8;
-  }
-}
-
-void copy_and_swap_16_in_32_aligned(void* dst, const void* src, size_t count) {
-  return copy_and_swap_16_in_32_unaligned(dst, src, count);
-}
-
-void copy_and_swap_16_in_32_unaligned(void* dst_ptr, const void* src_ptr, size_t count) {
-  auto dst = reinterpret_cast<u16*>(dst_ptr);
-  auto src = reinterpret_cast<const u16*>(src_ptr);
-  while (count > 0) {
-    u16 word0 = *src++;
-    u16 word1 = *src++;
-    *dst++ = word1;
-    *dst++ = word0;
-
-    count--;
-  }
-}
-
-#else
-
-void copy_and_swap_16_aligned(void* dest, const void* src, size_t count) {
-  return copy_and_swap_16_unaligned(dest, src, count);
-}
-
-void copy_and_swap_16_unaligned(void* dest_ptr, const void* src_ptr, size_t count) {
-  auto dest = reinterpret_cast<u16*>(dest_ptr);
-  auto src = reinterpret_cast<const u16*>(src_ptr);
-  for (size_t i = 0; i < count; ++i) {
-    dest[i] = byte_swap(src[i]);
-  }
-}
-
-void copy_and_swap_32_aligned(void* dest, const void* src, size_t count) {
-  return copy_and_swap_32_unaligned(dest, src, count);
-}
-
-void copy_and_swap_32_unaligned(void* dest_ptr, const void* src_ptr, size_t count) {
-  auto dest = reinterpret_cast<u32*>(dest_ptr);
-  auto src = reinterpret_cast<const u32*>(src_ptr);
-  for (size_t i = 0; i < count; ++i) {
-    dest[i] = byte_swap(src[i]);
-  }
-}
-
-void copy_and_swap_64_aligned(void* dest, const void* src, size_t count) {
-  return copy_and_swap_64_unaligned(dest, src, count);
-}
-
-void copy_and_swap_64_unaligned(void* dest_ptr, const void* src_ptr, size_t count) {
-  auto dest = reinterpret_cast<u64*>(dest_ptr);
-  auto src = reinterpret_cast<const u64*>(src_ptr);
-  for (size_t i = 0; i < count; ++i) {
-    dest[i] = byte_swap(src[i]);
-  }
-}
-
-void copy_and_swap_16_in_32_aligned(void* dest, const void* src, size_t count) {
-  return copy_and_swap_16_in_32_unaligned(dest, src, count);
-}
-
-void copy_and_swap_16_in_32_unaligned(void* dst_ptr, const void* src_ptr, size_t count) {
-  auto dst = reinterpret_cast<u16*>(dst_ptr);
-  auto src = reinterpret_cast<const u16*>(src_ptr);
-  while (count > 0) {
-    u16 word0 = *src++;
-    u16 word1 = *src++;
-    *dst++ = word1;
-    *dst++ = word0;
-
-    count--;
-  }
-}
-
-#endif
 
 }  // namespace memory
 }  // namespace rex

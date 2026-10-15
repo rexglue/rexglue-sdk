@@ -12,6 +12,7 @@ add_executable(unit_tests
     memory/heap_allocation_test.cpp
     memory/access_violation_test.cpp
     memory/memory_budget_test.cpp
+    memory/byte_swap_test.cpp
     memory/mapped_memory_test.cpp
     memory/file_mapping_test.cpp
     memory/bit_cast_copy_test.cpp
@@ -19,6 +20,7 @@ add_executable(unit_tests
     gpu/null_command_processor_test.cpp
     gpu/packet_header_test.cpp
     gpu/texture_info_test.cpp
+    gpu/primitive_processor_simd_test.cpp
     gpu/cvar_scope_test.cpp
     gpu/dxbc_operand_test.cpp
     gpu/overlay_contract_test.cpp
@@ -136,6 +138,7 @@ add_executable(unit_tests
 target_sources(unit_tests PRIVATE
     ${PROJECT_SOURCE_DIR}/src/gpu/xenos/pipeline/shader/interpreter.cpp
     ${PROJECT_SOURCE_DIR}/src/gpu/xenos/pipeline/shader/shader.cpp
+    ${PROJECT_SOURCE_DIR}/src/gpu/xenos/index_conversion.cpp
     ${PROJECT_SOURCE_DIR}/src/gpu/xenos/vulkan/tessellation_glsl.cpp
     ${PROJECT_SOURCE_DIR}/src/rexglue/ui/ui.cpp
     ${PROJECT_SOURCE_DIR}/src/rexglue/ui/progress.cpp
