@@ -12,6 +12,7 @@
 #include "rex_test.h"
 
 #include <cstring>
+#include <vector>
 
 #include <rex/runtime.h>
 #include <rex/runtime/enumerator_object.h>
@@ -88,6 +89,35 @@ REX_TEST_CASE("enumerate: the aggregate message takes an item with a buffer size
     CHECK(c.XAM("XMsgInProcessCall", {kXAMApp, kEnumerateAggregate, message, 0x20}) ==
           rex::X_E_SUCCESS);
     CHECK(c.Load8(buffer) == 0xCD);
+    CHECK(c.Kernel("NtClose", {handle}) == 0);
+  });
+}
+
+REX_TEST_CASE("enumerate: ObDereferenceObject on an enumerator leaves its body and handle intact",
+              "[kernel][enumerate]") {
+  KernelFixture fixture;
+  fixture.RunOnGuestThread([](Caller& c) {
+    const u32 size_ptr = c.Alloc(4);
+    const u32 handle_ptr = c.Alloc(4);
+    REQUIRE(c.XAM("XamContentCreateDeviceEnumerator", {0, 0, kDeviceCount, size_ptr, handle_ptr}) ==
+            0);
+    const rex::X_HANDLE handle = c.Load32(handle_ptr);
+    auto& table = c.GetRuntime().GetObjectTable();
+    auto enumerator = table.Get<rex::runtime::EnumeratorObject>(handle);
+    REQUIRE(enumerator);
+    const u32 body = enumerator.GetGuestObject();
+    REQUIRE(body != 0);
+    std::vector<u8> before(sizeof(rex::runtime::X_KENUMERATOR));
+    std::memcpy(before.data(), c.GetRuntime().GetMemory()->TranslateVirtual(body), before.size());
+    REQUIRE(table.Retain(handle));
+
+    CHECK(table.ResolveHandle(body, -1) == handle);
+    CHECK(c.Kernel("ObDereferenceObject", {body}) == 0);
+
+    std::vector<u8> after(before.size());
+    std::memcpy(after.data(), c.GetRuntime().GetMemory()->TranslateVirtual(body), after.size());
+    CHECK(after == before);
+    CHECK(table.Get<rex::runtime::EnumeratorObject>(handle));
     CHECK(c.Kernel("NtClose", {handle}) == 0);
   });
 }

@@ -167,6 +167,24 @@ REX_TEST_CASE("ResolveHandle takes the guest address of a dispatch header",
   });
 }
 
+REX_TEST_CASE("ResolveHandle finds the newest object at a block after the older one is released",
+              "[runtime][interfaces]") {
+  rex::testing::KernelFixture fixture;
+  fixture.RunOnGuestThread([](rex::testing::Caller& c) {
+    const u32 address = c.Alloc(sizeof(rex::runtime::X_KEVENT));
+    auto& table = c.GetRuntime().GetObjectTable();
+    auto older = table.Emplace<rex::runtime::EventObject>(
+        rex::runtime::AddOptions{{}, {.address = address}}, true, false);
+    auto newer = table.Emplace<rex::runtime::EventObject>(
+        rex::runtime::AddOptions{{}, {.address = address}}, true, false);
+    REQUIRE(older);
+    REQUIRE(newer);
+    CHECK(table.ResolveHandle(address, -1) == *newer);
+    REQUIRE(table.Close(*older));
+    CHECK(table.ResolveHandle(address, -1) == *newer);
+  });
+}
+
 REX_TEST_CASE("is_setup holds only between a successful Setup and Shutdown",
               "[runtime][interfaces]") {
   rex::testing::KernelFixture fixture;

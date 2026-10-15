@@ -51,6 +51,7 @@ void ObjectTable::Reset() {
     }
     objects_.clear();
     names_.clear();
+    block_objects_.clear();
     slots_.clear();
     last_free_slot_ = 0;
   }
@@ -117,6 +118,9 @@ Result<X_HANDLE> ObjectTable::Add(std::unique_ptr<KernelObject> object, const Ad
   if (!options.name.empty() && AddName(options.name, handle)) {
     raw->name = std::string(options.name);
   }
+  if (options.block.address) {
+    block_objects_.insert_or_assign(options.block.address, raw);
+  }
   objects_.emplace(raw, std::move(object));
   return handle;
 }
@@ -179,6 +183,10 @@ KernelObject* ObjectTable::Detach(Slot& slot, X_HANDLE handle) {
   }
   if (!object->handles.empty()) {
     return nullptr;
+  }
+  if (auto block = block_objects_.find(object->guest_ptr);
+      block != block_objects_.end() && block->second == object) {
+    block_objects_.erase(block);
   }
   auto owned = objects_.find(object);
   KernelObject* released = owned->second.release();
@@ -327,9 +335,15 @@ std::optional<X_HANDLE> ObjectTable::ResolveHandle(u32 address, i32 as_type) {
   if (address == 0) {
     return std::nullopt;
   }
+  std::lock_guard lock(identity_mutex_);
+  {
+    std::shared_lock table_lock(mutex_);
+    if (auto block = block_objects_.find(address); block != block_objects_.end()) {
+      return block->second->handles.front();
+    }
+  }
   void* native_ptr = memory_->TranslateVirtual(address);
   auto* header = reinterpret_cast<X_DISPATCH_HEADER*>(native_ptr);
-  std::lock_guard lock(identity_mutex_);
   if (as_type == -1) {
     as_type = header->type;
   }

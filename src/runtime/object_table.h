@@ -79,6 +79,7 @@ class REX_RUNTIME_API ObjectTable final : public IObjectTable {
   u32 last_free_slot_ = 0;
   std::unordered_map<KernelObject*, std::unique_ptr<KernelObject>> objects_;
   std::unordered_map<StringKeyCase, X_HANDLE> names_;
+  std::unordered_map<u32, KernelObject*> block_objects_;
 };
 
 }  // namespace rex::runtime
