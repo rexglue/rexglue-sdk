@@ -44,6 +44,7 @@ set(REXGPU_XENOS_VULKAN_SOURCES
     vulkan/render_target_cache.cpp
     vulkan/shader.cpp
     vulkan/shared_memory.cpp
+    vulkan/tessellation_glsl.cpp
     vulkan/texture_cache.cpp
 )
 

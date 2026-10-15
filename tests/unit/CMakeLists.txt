@@ -24,6 +24,7 @@ add_executable(unit_tests
     gpu/overlay_contract_test.cpp
     gpu/shader_interpreter_test.cpp
     gpu/shader_translation_test.cpp
+    gpu/tessellation_glsl_test.cpp
     kernel/exit_title_test.cpp
     kernel/video_mode_test.cpp
     kernel/object_table_test.cpp
@@ -128,6 +129,7 @@ add_executable(unit_tests
 target_sources(unit_tests PRIVATE
     ${PROJECT_SOURCE_DIR}/src/gpu/xenos/pipeline/shader/interpreter.cpp
     ${PROJECT_SOURCE_DIR}/src/gpu/xenos/pipeline/shader/shader.cpp
+    ${PROJECT_SOURCE_DIR}/src/gpu/xenos/vulkan/tessellation_glsl.cpp
     ${PROJECT_SOURCE_DIR}/src/rexglue/ui/ui.cpp
     ${PROJECT_SOURCE_DIR}/src/rexglue/ui/progress.cpp
     ${PROJECT_SOURCE_DIR}/src/rexglue/commands/init_command.cpp
@@ -161,6 +163,13 @@ target_link_libraries(unit_tests PRIVATE
 if(WIN32)
     target_link_libraries(unit_tests PRIVATE ws2_32)
 endif()
+
+target_include_directories(unit_tests SYSTEM PRIVATE
+    $<TARGET_PROPERTY:SPIRV,INTERFACE_INCLUDE_DIRECTORIES>
+    $<TARGET_PROPERTY:Vulkan::Headers,INTERFACE_INCLUDE_DIRECTORIES>
+    $<TARGET_PROPERTY:renderdoc,INTERFACE_INCLUDE_DIRECTORIES>
+    $<TARGET_PROPERTY:GPUOpen::VulkanMemoryAllocator,INTERFACE_INCLUDE_DIRECTORIES>
+    $<TARGET_PROPERTY:spirv-tools-headers,INTERFACE_INCLUDE_DIRECTORIES>)
 
 target_compile_definitions(unit_tests PRIVATE
     REX_TEST_RUNTIME_PATH="$<TARGET_FILE:rex-runtime>")
