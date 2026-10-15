@@ -715,11 +715,7 @@ class D3D12CommandProcessor : public CommandProcessor {
     u32 host_index = UINT32_MAX;
     bool valid = false;
   } active_occlusion_query_;
-  struct VertexBufferState {
-    u32 address = UINT32_MAX;
-    u32 size = UINT32_MAX;
-  };
-  std::array<VertexBufferState, 96> vertex_buffer_states_{};
+  static constexpr u32 kVertexFetchCount = 96;
   u64 vertex_buffers_in_sync_[2] = {};
 
   D3D12_VIEWPORT ff_viewport_;

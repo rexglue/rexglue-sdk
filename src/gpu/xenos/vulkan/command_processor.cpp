@@ -590,14 +590,10 @@ void VulkanCommandProcessor::InvalidateGPUMemory() {
 void VulkanCommandProcessor::InvalidateAllVertexBufferResidency() {
   vertex_buffers_in_sync_[0] = 0;
   vertex_buffers_in_sync_[1] = 0;
-  for (VertexBufferState& state : vertex_buffer_states_) {
-    state.address = UINT32_MAX;
-    state.size = UINT32_MAX;
-  }
 }
 
 void VulkanCommandProcessor::InvalidateVertexBufferResidency(u32 vfetch_index) {
-  if (vfetch_index >= vertex_buffer_states_.size()) {
+  if (vfetch_index >= kVertexFetchCount) {
     return;
   }
   vertex_buffers_in_sync_[vfetch_index >> 6] &= ~(static_cast<u64>(1) << (vfetch_index & 63));
@@ -608,10 +604,10 @@ void VulkanCommandProcessor::InvalidateVertexBufferResidencyRange(u32 first_vfet
   if (first_vfetch > last_vfetch) {
     std::swap(first_vfetch, last_vfetch);
   }
-  if (first_vfetch >= vertex_buffer_states_.size()) {
+  if (first_vfetch >= kVertexFetchCount) {
     return;
   }
-  last_vfetch = std::min(last_vfetch, static_cast<u32>(vertex_buffer_states_.size() - 1));
+  last_vfetch = std::min(last_vfetch, static_cast<u32>(kVertexFetchCount - 1));
   for (u32 vfetch_index = first_vfetch; vfetch_index <= last_vfetch; ++vfetch_index) {
     InvalidateVertexBufferResidency(vfetch_index);
   }
@@ -3771,19 +3767,12 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, u32 index
                       vfetch_index, vfetch_constant.dword_0, vfetch_constant.dword_1);
           return false;
       }
-      VertexBufferState& state = vertex_buffer_states_[vfetch_index];
-      if (state.address == vfetch_constant.address && state.size == vfetch_constant.size) {
-        vertex_buffers_in_sync_[vfetch_index >> 6] |= vfetch_bit;
-        continue;
-      }
       if (!shared_memory_->RequestRange(vfetch_constant.address << 2, vfetch_constant.size << 2)) {
         REX_FAIL(gpu, false,
                  "Failed to request vertex buffer at 0x{:08X} (size {}) in the shared "
                  "memory",
                  vfetch_constant.address << 2, vfetch_constant.size << 2);
       }
-      state.address = vfetch_constant.address;
-      state.size = vfetch_constant.size;
       vertex_buffers_in_sync_[vfetch_index >> 6] |= vfetch_bit;
     }
   }
