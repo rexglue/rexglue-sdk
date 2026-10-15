@@ -76,6 +76,7 @@ add_executable(unit_tests
     core/module_loader_test.cpp
     core/move_only_function_test.cpp
     core/relaunch_test.cpp
+    core/posix_wait_test.cpp
     core/thread_redirect_test.cpp
     core/thread_registry_test.cpp
     ppc/dot_product_test.cpp
