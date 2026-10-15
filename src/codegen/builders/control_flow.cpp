@@ -9,7 +9,7 @@
  */
 
 #include "builder_context.h"
-#include "helpers.h"
+#include "builders.h"
 
 #include <format>
 
@@ -17,7 +17,35 @@
 
 namespace rex::codegen {
 
-bool BuildB(BuilderContext& ctx) {
+namespace {
+
+/**
+ * Emit a conditional branch with bounds checking.
+ *
+ * If the target is within the current function, emits a goto.
+ * If outside, emits a warning and a return statement.
+ *
+ * @param ctx The builder context
+ * @param target Target address of the branch
+ * @param condition Pre-formatted condition expression (e.g., "ctr.u32 != 0")
+ * @param instr_name Instruction mnemonic for the warning message
+ */
+void EmitBranchWithBoundsCheck(BuilderContext& ctx, u32 target, std::string_view condition,
+                               std::string_view instr_name) {
+  if (target < ctx.fn.GetBase() || target >= ctx.fn.GetEnd()) {
+    REXLOG_WARN(codegen, "{} at {:X} branches outside function to {:X}", instr_name, ctx.base,
+                target);
+    ctx.Println("\tif ({}) {{ /* branch to 0x{:X} outside function */ return; }}", condition,
+                target);
+  } else {
+    ctx.Println("\tif ({}) goto loc_{:X};", condition, target);
+  }
+}
+
+}  // namespace
+
+template <>
+bool Build<PPC_INST_B>(BuilderContext& ctx) {
   u32 target = ctx.insn.operands[0];
 
   auto kind = ctx.GetGraph().ClassifyTarget(target, ctx.base, false);
@@ -46,7 +74,8 @@ bool BuildB(BuilderContext& ctx) {
   return true;
 }
 
-bool BuildBl(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_BL>(BuilderContext& ctx) {
   u32 target = ctx.insn.operands[0];
 
   if (!ctx.GetConfig().skip_lr)
@@ -75,12 +104,14 @@ bool BuildBl(BuilderContext& ctx) {
   return true;
 }
 
-bool BuildBlr(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_BLR>(BuilderContext& ctx) {
   ctx.Println("\treturn;");
   return true;
 }
 
-bool BuildBlrl(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_BLRL>(BuilderContext& ctx) {
   ctx.Println("\t{{ auto old_lr = ctx.lr;");
   if (!ctx.GetConfig().skip_lr)
     ctx.Println("\tctx.lr = 0x{:X};", ctx.base + 4);
@@ -89,7 +120,8 @@ bool BuildBlrl(BuilderContext& ctx) {
   return true;
 }
 
-bool BuildBctr(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_BCTR>(BuilderContext& ctx) {
   const JumpTable* jt = ctx.active_jump_table;
 
   if (!jt) {
@@ -156,7 +188,8 @@ bool BuildBctr(BuilderContext& ctx) {
   return true;
 }
 
-bool BuildBctrl(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_BCTRL>(BuilderContext& ctx) {
   if (!ctx.GetConfig().skip_lr)
     ctx.Println("\tctx.lr = 0x{:X};", ctx.base + 4);
   ctx.Println("\tREX_CALL_INDIRECT_FUNC({}.u32);", ctx.CTR());
@@ -164,7 +197,8 @@ bool BuildBctrl(BuilderContext& ctx) {
   return true;
 }
 
-bool BuildBnectr(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_BNECTR>(BuilderContext& ctx) {
   ctx.Println("\tif (!{}.eq) {{", ctx.CR(ctx.insn.operands[0]));
   ctx.Println("\t\tREX_CALL_INDIRECT_FUNC({}.u32);", ctx.CTR());
   ctx.Println("\t\treturn;");
@@ -172,33 +206,38 @@ bool BuildBnectr(BuilderContext& ctx) {
   return true;
 }
 
-bool BuildBdz(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_BDZ>(BuilderContext& ctx) {
   ctx.Println("\t--{}.u64;", ctx.CTR());
   EmitBranchWithBoundsCheck(ctx, ctx.insn.operands[0], std::format("{}.u32 == 0", ctx.CTR()),
                             "bdz");
   return true;
 }
 
-bool BuildBdzlr(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_BDZLR>(BuilderContext& ctx) {
   ctx.Println("\t--{}.u64;", ctx.CTR());
   ctx.Println("\tif ({}.u32 == 0) return;", ctx.CTR());
   return true;
 }
 
-bool BuildBdnzlr(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_BDNZLR>(BuilderContext& ctx) {
   ctx.Println("\t--{}.u64;", ctx.CTR());
   ctx.Println("\tif ({}.u32 != 0) return;", ctx.CTR());
   return true;
 }
 
-bool BuildBdnz(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_BDNZ>(BuilderContext& ctx) {
   ctx.Println("\t--{}.u64;", ctx.CTR());
   EmitBranchWithBoundsCheck(ctx, ctx.insn.operands[0], std::format("{}.u32 != 0", ctx.CTR()),
                             "bdnz");
   return true;
 }
 
-bool BuildBdnzf(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_BDNZF>(BuilderContext& ctx) {
   auto bit = GetCRBitName(ctx.insn.operands[0]);
   ctx.Println("\t--{}.u64;", ctx.CTR());
   EmitBranchWithBoundsCheck(
@@ -208,7 +247,8 @@ bool BuildBdnzf(BuilderContext& ctx) {
   return true;
 }
 
-bool BuildBdnzt(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_BDNZT>(BuilderContext& ctx) {
   auto bit = GetCRBitName(ctx.insn.operands[0]);
   ctx.Println("\t--{}.u64;", ctx.CTR());
   EmitBranchWithBoundsCheck(
@@ -218,7 +258,8 @@ bool BuildBdnzt(BuilderContext& ctx) {
   return true;
 }
 
-bool BuildBdzf(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_BDZF>(BuilderContext& ctx) {
   auto bit = GetCRBitName(ctx.insn.operands[0]);
   ctx.Println("\t--{}.u64;", ctx.CTR());
   EmitBranchWithBoundsCheck(
@@ -228,82 +269,98 @@ bool BuildBdzf(BuilderContext& ctx) {
   return true;
 }
 
-bool BuildBeq(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_BEQ>(BuilderContext& ctx) {
   ctx.EmitConditionalBranch(false, "eq");
   return true;
 }
 
-bool BuildBeqlr(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_BEQLR>(BuilderContext& ctx) {
   ctx.Println("\tif ({}.eq) return;", ctx.CR(ctx.insn.operands[0]));
   return true;
 }
 
-bool BuildBne(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_BNE>(BuilderContext& ctx) {
   ctx.EmitConditionalBranch(true, "eq");
   return true;
 }
 
-bool BuildBnelr(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_BNELR>(BuilderContext& ctx) {
   ctx.Println("\tif (!{}.eq) return;", ctx.CR(ctx.insn.operands[0]));
   return true;
 }
 
-bool BuildBlt(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_BLT>(BuilderContext& ctx) {
   ctx.EmitConditionalBranch(false, "lt");
   return true;
 }
 
-bool BuildBltlr(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_BLTLR>(BuilderContext& ctx) {
   ctx.Println("\tif ({}.lt) return;", ctx.CR(ctx.insn.operands[0]));
   return true;
 }
 
-bool BuildBge(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_BGE>(BuilderContext& ctx) {
   ctx.EmitConditionalBranch(true, "lt");
   return true;
 }
 
-bool BuildBgelr(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_BGELR>(BuilderContext& ctx) {
   ctx.Println("\tif (!{}.lt) return;", ctx.CR(ctx.insn.operands[0]));
   return true;
 }
 
-bool BuildBgt(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_BGT>(BuilderContext& ctx) {
   ctx.EmitConditionalBranch(false, "gt");
   return true;
 }
 
-bool BuildBgtlr(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_BGTLR>(BuilderContext& ctx) {
   ctx.Println("\tif ({}.gt) return;", ctx.CR(ctx.insn.operands[0]));
   return true;
 }
 
-bool BuildBle(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_BLE>(BuilderContext& ctx) {
   ctx.EmitConditionalBranch(true, "gt");
   return true;
 }
 
-bool BuildBlelr(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_BLELR>(BuilderContext& ctx) {
   ctx.Println("\tif (!{}.gt) return;", ctx.CR(ctx.insn.operands[0]));
   return true;
 }
 
-bool BuildBso(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_BSO>(BuilderContext& ctx) {
   ctx.EmitConditionalBranch(false, "so");
   return true;
 }
 
-bool BuildBsolr(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_BSOLR>(BuilderContext& ctx) {
   ctx.Println("\tif ({}.so) return;", ctx.CR(ctx.insn.operands[0]));
   return true;
 }
 
-bool BuildBns(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_BNS>(BuilderContext& ctx) {
   ctx.EmitConditionalBranch(true, "so");
   return true;
 }
 
-bool BuildBnslr(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_BNSLR>(BuilderContext& ctx) {
   ctx.Println("\tif (!{}.so) return;", ctx.CR(ctx.insn.operands[0]));
   return true;
 }

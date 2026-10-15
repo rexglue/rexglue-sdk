@@ -6,12 +6,6 @@
 
 namespace rex::codegen::detail {
 
-/**
- * Binutils PPC_OPCODE_* dialect bits, the OR of PPC, 64, POWER4, CELL, ALTIVEC, VMX_128 and
- * CLASSIC (see thirdparty/disasm/ppc-dis.c).
- */
-constexpr uintptr_t kXenonDialect = 0x1 | 0x4 | 0x4000 | 0x8000000 | 0x200 | 0x1000000 | 0x10000;
-
 thread_local DisassemblerEngine g_big_endian_disassembler{BFD_ENDIAN_BIG, nullptr};
 
 DisassemblerEngine::DisassemblerEngine(bfd_endian endian, const char* options) noexcept {

@@ -347,13 +347,6 @@ struct Instruction {
    * @return True for a conditional branch
    */
   bool IsConditional() const;
-
-  /**
-   * Disassembles the instruction to a string.
-   *
-   * @return The disassembly text
-   */
-  std::string ToString() const;
 };
 
 /**

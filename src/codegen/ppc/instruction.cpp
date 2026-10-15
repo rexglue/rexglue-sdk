@@ -5,12 +5,50 @@
 
 namespace rex::codegen::detail {
 
-constexpr u32 kSPRLR = 8;
-constexpr u32 kSPRCTR = 9;
+namespace {
+
+InstrFormat FormatOf(Opcode opcode) {
+  switch (opcode) {
+    case Opcode::b:
+    case Opcode::ba:
+    case Opcode::bl:
+    case Opcode::bla:
+      return InstrFormat::kI;
+    case Opcode::bc:
+    case Opcode::bca:
+    case Opcode::bcl:
+    case Opcode::bcla:
+      return InstrFormat::kB;
+    case Opcode::bclr:
+    case Opcode::bclrl:
+    case Opcode::bcctr:
+    case Opcode::bcctrl:
+      return InstrFormat::kXL;
+    default:
+      return InstrFormat::kUnknown;
+  }
+}
+
+}  // namespace
 
 bool Instruction::IsBranch() const {
-  const auto& info = GetOpcodeInfo(opcode);
-  return info.group == OpcodeGroup::kBranch;
+  switch (opcode) {
+    case Opcode::b:
+    case Opcode::ba:
+    case Opcode::bl:
+    case Opcode::bla:
+    case Opcode::bc:
+    case Opcode::bca:
+    case Opcode::bcl:
+    case Opcode::bcla:
+    case Opcode::bclr:
+    case Opcode::bclrl:
+    case Opcode::bcctr:
+    case Opcode::bcctrl:
+      return true;
+    default:
+      return false;
+  }
 }
 
 bool Instruction::IsCall() const {
@@ -60,9 +98,7 @@ Instruction DecodeInstruction(GuestAddrT address, u32 code) {
   instr.raw = code;
 
   instr.opcode = LookupOpcode(code);
-
-  const auto& info = GetOpcodeInfo(instr.opcode);
-  instr.format = info.format;
+  instr.format = FormatOf(instr.opcode);
 
   if (instr.IsBranch()) {
     switch (instr.format) {
@@ -100,51 +136,7 @@ Instruction DecodeInstruction(GuestAddrT address, u32 code) {
     }
   }
 
-  if (code == 0x4E800020) {
-    instr.opcode = Opcode::bclr;
-  }
-
-  if (code == 0x4E800420) {
-    instr.opcode = Opcode::bcctr;
-  }
-
-  if (code == 0x60000000) {
-    instr.opcode = Opcode::nop;
-  }
-
-  if (instr.opcode == Opcode::addi && instr.D.RA == 0) {
-    instr.opcode = Opcode::li;
-  }
-
-  if (instr.opcode == Opcode::addis && instr.D.RA == 0) {
-    instr.opcode = Opcode::lis;
-  }
-
-  if (instr.opcode == Opcode::or_ && instr.X.RT == instr.X.RB) {
-    instr.opcode = Opcode::mr;
-  }
-
-  if (instr.opcode == Opcode::mfspr && instr.XFX.GetSPRNum() == kSPRLR) {
-    instr.opcode = Opcode::mflr;
-  }
-
-  if (instr.opcode == Opcode::mtspr && instr.XFX.GetSPRNum() == kSPRLR) {
-    instr.opcode = Opcode::mtlr;
-  }
-
-  if (instr.opcode == Opcode::mfspr && instr.XFX.GetSPRNum() == kSPRCTR) {
-    instr.opcode = Opcode::mfctr;
-  }
-
-  if (instr.opcode == Opcode::mtspr && instr.XFX.GetSPRNum() == kSPRCTR) {
-    instr.opcode = Opcode::mtctr;
-  }
-
   return instr;
 }
 
-std::string Instruction::ToString() const {
-  const auto& info = GetOpcodeInfo(opcode);
-  return std::string(info.name);
-}
 }  // namespace rex::codegen::detail

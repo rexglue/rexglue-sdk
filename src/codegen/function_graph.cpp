@@ -1,5 +1,6 @@
 #include "ppc/instruction.h"
 #include "ppc/disasm.h"
+#include "ppc/opcode.h"
 #include "builders/builder_context.h"
 #include "builders.h"
 #include "mmio_analysis.h"
@@ -26,6 +27,7 @@
 #include <ppc.h>
 
 using rex::codegen::detail::Disassemble;
+using rex::codegen::detail::ResolveID;
 
 namespace rex::codegen {
 
@@ -576,7 +578,7 @@ std::string FunctionNode::EmitCpp(const EmitContext& ctx) const {
         bool has_hook_before =
             (hook_it != ctx.config.mid_asm_hooks.end() && !hook_it->second.after_instruction);
 
-        int id = insn.opcode->id;
+        int id = ResolveID(insn);
         BuilderContext builder_ctx{
             body, ctx, *this, insn, block_base, data, local_variables, csr_state, active_jt, &mmio};
 

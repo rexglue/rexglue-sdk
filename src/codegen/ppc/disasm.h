@@ -17,6 +17,12 @@
 
 namespace rex::codegen::detail {
 
+/**
+ * Binutils PPC_OPCODE_* dialect bits, the OR of PPC, 64, POWER4, CELL, ALTIVEC, VMX_128 and
+ * CLASSIC (see thirdparty/disasm/ppc-dis.c).
+ */
+constexpr uintptr_t kXenonDialect = 0x1 | 0x4 | 0x4000 | 0x8000000 | 0x200 | 0x1000000 | 0x10000;
+
 /** Decodes raw bytes into a ppc_insn using GNU binutils. */
 struct DisassemblerEngine {
   disassemble_info info{};

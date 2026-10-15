@@ -35,6 +35,7 @@ set(CODEGEN_PPC_SOURCES
     ppc/opcode.cpp
     ppc/instruction.cpp
     ppc/disasm.cpp
+    ppc/ppc_dis_access.c
 )
 
 # Instruction builder sources
@@ -87,6 +88,8 @@ add_library(rex-codegen STATIC
     ${CODEGEN_BUILDER_SOURCES}
 )
 add_library(rex::codegen ALIAS rex-codegen)
+set_source_files_properties(ppc/ppc_dis_access.c
+    PROPERTIES SKIP_PRECOMPILE_HEADERS ON COMPILE_OPTIONS -w)
 add_dependencies(rex-codegen embed_templates)
 
 rex_target_pch(rex-codegen <rex/codegen/function_types.h>)

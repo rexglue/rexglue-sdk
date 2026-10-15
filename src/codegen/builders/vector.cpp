@@ -9,7 +9,7 @@
  */
 
 #include "builder_context.h"
-#include "helpers.h"
+#include "builders.h"
 
 #include <bit>
 #include <cmath>
@@ -42,25 +42,29 @@ void EmitSaturation(BuilderContext& ctx, std::string_view function) {
 
 }  // namespace
 
-bool BuildVaddfp(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_VADDFP>(BuilderContext& ctx) {
   ctx.EmitSetFlushMode(true);
   ctx.EmitVecFPBinary("add");
   return true;
 }
 
-bool BuildVsubfp(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_VSUBFP>(BuilderContext& ctx) {
   ctx.EmitSetFlushMode(true);
   ctx.EmitVecFPBinary("sub");
   return true;
 }
 
-bool BuildVmulfp128(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_VMULFP128>(BuilderContext& ctx) {
   ctx.EmitSetFlushMode(true);
   ctx.EmitVecFPBinary("mul");
   return true;
 }
 
-bool BuildVmaddfp(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_VMADDFP>(BuilderContext& ctx) {
   ctx.EmitSetFlushMode(true);
   ctx.Println(
       "\tsimde_mm_store_ps({}.f32, rex::ppc::Vmaddfp(simde_mm_load_ps({}.f32), "
@@ -76,7 +80,8 @@ bool BuildVmaddfp(BuilderContext& ctx) {
  * @param ctx The builder context
  * @return True when the instruction is handled.
  */
-bool BuildVnmsubfp(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_VNMSUBFP>(BuilderContext& ctx) {
   ctx.EmitSetFlushMode(true);
   ctx.Println(
       "\tsimde_mm_store_ps({}.f32, rex::ppc::Vnmsubfp(simde_mm_load_ps({}.f32), "
@@ -86,37 +91,43 @@ bool BuildVnmsubfp(BuilderContext& ctx) {
   return true;
 }
 
-bool BuildVmaxfp(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_VMAXFP>(BuilderContext& ctx) {
   ctx.EmitSetFlushMode(true);
   ctx.EmitVecFPBinary("max");
   return true;
 }
 
-bool BuildVminfp(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_VMINFP>(BuilderContext& ctx) {
   ctx.EmitSetFlushMode(true);
   ctx.EmitVecFPBinary("min");
   return true;
 }
 
-bool BuildVrefp(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_VREFP>(BuilderContext& ctx) {
   ctx.EmitSetFlushMode(true);
   ctx.EmitVecFPUnaryExpr("rex::ppc::Vrefp(simde_mm_load_ps({vA}.f32), ctx.vscr_nj)");
   return true;
 }
 
-bool BuildVrsqrtefp(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_VRSQRTEFP>(BuilderContext& ctx) {
   ctx.EmitSetFlushMode(true);
   ctx.EmitVecFPUnaryExpr("rex::ppc::Vrsqrtefp(simde_mm_load_ps({vA}.f32), ctx.vscr_nj)");
   return true;
 }
 
-bool BuildVexptefp(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_VEXPTEFP>(BuilderContext& ctx) {
   ctx.EmitSetFlushMode(true);
   ctx.EmitVecFPUnaryExpr("rex::ppc::Vexptefp(simde_mm_load_ps({vA}.f32), ctx.vscr_nj)");
   return true;
 }
 
-bool BuildVlogefp(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_VLOGEFP>(BuilderContext& ctx) {
   ctx.EmitSetFlushMode(true);
   ctx.EmitVecFPUnaryExpr("rex::ppc::Vlogefp(simde_mm_load_ps({vA}.f32), ctx.vscr_nj)");
   return true;
@@ -130,7 +141,8 @@ bool BuildVlogefp(BuilderContext& ctx) {
  * @param ctx The builder context
  * @return True when the instruction is handled.
  */
-bool BuildVmsum3fp128(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_VMSUM3FP128>(BuilderContext& ctx) {
   ctx.EmitSetFlushMode(true);
   ctx.Println(
       "\tsimde_mm_store_ps({}.f32, rex::ppc::Vmsum3fp128(simde_mm_load_ps({}.f32), "
@@ -147,7 +159,8 @@ bool BuildVmsum3fp128(BuilderContext& ctx) {
  * @param ctx The builder context
  * @return True when the instruction is handled.
  */
-bool BuildVmsum4fp128(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_VMSUM4FP128>(BuilderContext& ctx) {
   ctx.EmitSetFlushMode(true);
   ctx.Println(
       "\tsimde_mm_store_ps({}.f32, rex::ppc::Vmsum4fp128(simde_mm_load_ps({}.f32), "
@@ -156,7 +169,8 @@ bool BuildVmsum4fp128(BuilderContext& ctx) {
   return true;
 }
 
-bool BuildVrfim(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_VRFIM>(BuilderContext& ctx) {
   ctx.EmitSetFlushMode(true);
   ctx.EmitVecFPUnaryExpr(
       "simde_mm_round_ps(simde_mm_load_ps({vA}.f32), "
@@ -164,7 +178,8 @@ bool BuildVrfim(BuilderContext& ctx) {
   return true;
 }
 
-bool BuildVrfin(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_VRFIN>(BuilderContext& ctx) {
   ctx.EmitSetFlushMode(true);
   ctx.EmitVecFPUnaryExpr(
       "simde_mm_round_ps(simde_mm_load_ps({vA}.f32), "
@@ -172,7 +187,8 @@ bool BuildVrfin(BuilderContext& ctx) {
   return true;
 }
 
-bool BuildVrfip(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_VRFIP>(BuilderContext& ctx) {
   ctx.EmitSetFlushMode(true);
   ctx.EmitVecFPUnaryExpr(
       "simde_mm_round_ps(simde_mm_load_ps({vA}.f32), "
@@ -180,7 +196,8 @@ bool BuildVrfip(BuilderContext& ctx) {
   return true;
 }
 
-bool BuildVrfiz(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_VRFIZ>(BuilderContext& ctx) {
   ctx.EmitSetFlushMode(true);
   ctx.EmitVecFPUnaryExpr(
       "simde_mm_round_ps(simde_mm_load_ps({vA}.f32), "
@@ -188,13 +205,15 @@ bool BuildVrfiz(BuilderContext& ctx) {
   return true;
 }
 
-bool BuildVaddsbs(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_VADDSBS>(BuilderContext& ctx) {
   EmitSaturation(ctx, "AddSaturates<8, true>");
   ctx.EmitVecIntBinary("adds_epi8", "s8");
   return true;
 }
 
-bool BuildVaddshs(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_VADDSHS>(BuilderContext& ctx) {
   EmitSaturation(ctx, "AddSaturates<16, true>");
   ctx.EmitVecIntBinary("adds_epi16", "s16");
   return true;
@@ -211,7 +230,8 @@ bool BuildVaddshs(BuilderContext& ctx) {
  * @param ctx The builder context
  * @return True when the instruction is handled.
  */
-bool BuildVaddsws(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_VADDSWS>(BuilderContext& ctx) {
   EmitSaturation(ctx, "AddSaturates<32, true>");
   auto v_d = ctx.V(ctx.insn.operands[0]);
   auto v_a = ctx.V(ctx.insn.operands[1]);
@@ -238,28 +258,33 @@ bool BuildVaddsws(BuilderContext& ctx) {
   return true;
 }
 
-bool BuildVaddubm(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_VADDUBM>(BuilderContext& ctx) {
   ctx.EmitVecIntBinary("add_epi8", "u8");
   return true;
 }
 
-bool BuildVaddubs(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_VADDUBS>(BuilderContext& ctx) {
   EmitSaturation(ctx, "AddSaturates<8, false>");
   ctx.EmitVecIntBinary("adds_epu8", "u8");
   return true;
 }
 
-bool BuildVadduhm(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_VADDUHM>(BuilderContext& ctx) {
   ctx.EmitVecIntBinary("add_epi16", "u16");
   return true;
 }
 
-bool BuildVadduwm(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_VADDUWM>(BuilderContext& ctx) {
   ctx.EmitVecIntBinary("add_epi32", "u32");
   return true;
 }
 
-bool BuildVadduws(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_VADDUWS>(BuilderContext& ctx) {
   EmitSaturation(ctx, "AddSaturates<32, false>");
   ctx.Println(
       "\tsimde_mm_store_si128((simde__m128i*){}.u32, "
@@ -269,13 +294,15 @@ bool BuildVadduws(BuilderContext& ctx) {
   return true;
 }
 
-bool BuildVadduhs(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_VADDUHS>(BuilderContext& ctx) {
   EmitSaturation(ctx, "AddSaturates<16, false>");
   ctx.EmitVecIntBinary("adds_epu16", "u16");
   return true;
 }
 
-bool BuildVsubsws(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_VSUBSWS>(BuilderContext& ctx) {
   EmitSaturation(ctx, "SubSaturates<32, true>");
   for (size_t i = 0; i < 4; i++) {
     ctx.Println("\t{}.s64 = i64({}.s32[{}]) - i64({}.s32[{}]);", ctx.Temp(),
@@ -286,18 +313,21 @@ bool BuildVsubsws(BuilderContext& ctx) {
   return true;
 }
 
-bool BuildVsububm(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_VSUBUBM>(BuilderContext& ctx) {
   ctx.EmitVecIntBinary("sub_epi8", "u8");
   return true;
 }
 
-bool BuildVsububs(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_VSUBUBS>(BuilderContext& ctx) {
   EmitSaturation(ctx, "SubSaturates<8, false>");
   ctx.EmitVecIntBinary("subs_epu8", "u8");
   return true;
 }
 
-bool BuildVsubuws(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_VSUBUWS>(BuilderContext& ctx) {
   EmitSaturation(ctx, "SubSaturates<32, false>");
   ctx.Println(
       "\tsimde_mm_store_si128((simde__m128i*){}.u32, "
@@ -309,90 +339,107 @@ bool BuildVsubuws(BuilderContext& ctx) {
   return true;
 }
 
-bool BuildVsubuhs(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_VSUBUHS>(BuilderContext& ctx) {
   EmitSaturation(ctx, "SubSaturates<16, false>");
   ctx.EmitVecIntBinary("subs_epu16", "u16");
   return true;
 }
 
-bool BuildVsubuhm(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_VSUBUHM>(BuilderContext& ctx) {
   ctx.EmitVecIntBinary("sub_epi16", "u16");
   return true;
 }
 
-bool BuildVsubuwm(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_VSUBUWM>(BuilderContext& ctx) {
   ctx.EmitVecIntBinary("sub_epi32", "u32");
   return true;
 }
 
-bool BuildVmaxsw(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_VMAXSW>(BuilderContext& ctx) {
   ctx.EmitVecIntBinary("max_epi32", "s32");
   return true;
 }
 
-bool BuildVmaxsh(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_VMAXSH>(BuilderContext& ctx) {
   ctx.EmitVecIntBinary("max_epi16", "s16");
   return true;
 }
 
-bool BuildVmaxsb(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_VMAXSB>(BuilderContext& ctx) {
   ctx.EmitVecIntBinary("max_epi8", "s8");
   return true;
 }
 
-bool BuildVminsh(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_VMINSH>(BuilderContext& ctx) {
   ctx.EmitVecIntBinary("min_epi16", "s16");
   return true;
 }
 
-bool BuildVminsb(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_VMINSB>(BuilderContext& ctx) {
   ctx.EmitVecIntBinary("min_epi8", "s8");
   return true;
 }
 
-bool BuildVminsw(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_VMINSW>(BuilderContext& ctx) {
   ctx.EmitVecIntBinary("min_epi32", "s32");
   return true;
 }
 
-bool BuildVmaxuh(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_VMAXUH>(BuilderContext& ctx) {
   ctx.EmitVecIntBinary("max_epu16", "u16");
   return true;
 }
 
-bool BuildVminuh(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_VMINUH>(BuilderContext& ctx) {
   ctx.EmitVecIntBinary("min_epu16", "u16");
   return true;
 }
 
-bool BuildVminuw(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_VMINUW>(BuilderContext& ctx) {
   ctx.EmitVecIntBinary("min_epu32", "u32");
   return true;
 }
 
-bool BuildVsubsbs(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_VSUBSBS>(BuilderContext& ctx) {
   EmitSaturation(ctx, "SubSaturates<8, true>");
   ctx.EmitVecIntBinary("subs_epi8", "s8");
   return true;
 }
 
-bool BuildVmaxub(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_VMAXUB>(BuilderContext& ctx) {
   ctx.EmitVecIntBinary("max_epu8", "u8");
   return true;
 }
 
-bool BuildVminub(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_VMINUB>(BuilderContext& ctx) {
   ctx.EmitVecIntBinary("min_epu8", "u8");
   return true;
 }
 
-bool BuildVsubshs(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_VSUBSHS>(BuilderContext& ctx) {
   EmitSaturation(ctx, "SubSaturates<16, true>");
   ctx.EmitVecIntBinary("subs_epi16", "s16");
   return true;
 }
 
-bool BuildVavgsb(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_VAVGSB>(BuilderContext& ctx) {
   ctx.Println(
       "\tsimde_mm_store_si128((simde__m128i*){}.u8, "
       "rex::ppc::simde_mm_avg_epi8(simde_mm_load_si128((simde__m128i*){}.u8), "
@@ -401,7 +448,8 @@ bool BuildVavgsb(BuilderContext& ctx) {
   return true;
 }
 
-bool BuildVavgsh(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_VAVGSH>(BuilderContext& ctx) {
   ctx.Println(
       "\tsimde_mm_store_si128((simde__m128i*){}.u16, "
       "rex::ppc::simde_mm_avg_epi16(simde_mm_load_si128((simde__m128i*){}.u16), "
@@ -410,7 +458,8 @@ bool BuildVavgsh(BuilderContext& ctx) {
   return true;
 }
 
-bool BuildVavgsw(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_VAVGSW>(BuilderContext& ctx) {
   ctx.Println(
       "\tsimde_mm_store_si128((simde__m128i*){}.s32, "
       "rex::ppc::simde_mm_avg_epi32("
@@ -420,34 +469,40 @@ bool BuildVavgsw(BuilderContext& ctx) {
   return true;
 }
 
-bool BuildVavgub(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_VAVGUB>(BuilderContext& ctx) {
   ctx.EmitVecIntBinary("avg_epu8", "u8");
   return true;
 }
 
-bool BuildVavguh(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_VAVGUH>(BuilderContext& ctx) {
   ctx.EmitVecIntBinary("avg_epu16", "u16");
   return true;
 }
 
-bool BuildVand(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_VAND>(BuilderContext& ctx) {
   ctx.EmitVecIntBinary("and_si128", "u8");
   return true;
 }
 
-bool BuildVandc128(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_VANDC128>(BuilderContext& ctx) {
   // simde_mm_andnot_si128 has reversed operand semantics, so vB is its first operand
   ctx.EmitVecIntBinarySwapped("andnot_si128", "u8");
   return true;
 }
 
-bool BuildVandc(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_VANDC>(BuilderContext& ctx) {
   // simde_mm_andnot_si128 has reversed operand semantics, so vB is its first operand
   ctx.EmitVecIntBinarySwapped("andnot_si128", "u8");
   return true;
 }
 
-bool BuildVor(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_VOR>(BuilderContext& ctx) {
   ctx.Print("\tsimde_mm_store_si128((simde__m128i*){}.u8, ", ctx.V(ctx.insn.operands[0]));
 
   if (ctx.insn.operands[1] != ctx.insn.operands[2])
@@ -461,7 +516,8 @@ bool BuildVor(BuilderContext& ctx) {
   return true;
 }
 
-bool BuildVxor(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_VXOR>(BuilderContext& ctx) {
   ctx.Print("\tsimde_mm_store_si128((simde__m128i*){}.u8, ", ctx.V(ctx.insn.operands[0]));
 
   if (ctx.insn.operands[1] != ctx.insn.operands[2])
@@ -475,7 +531,8 @@ bool BuildVxor(BuilderContext& ctx) {
   return true;
 }
 
-bool BuildVnor(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_VNOR>(BuilderContext& ctx) {
   ctx.Println(
       "\tsimde_mm_store_si128((simde__m128i*){}.u8, "
       "simde_mm_xor_si128("
@@ -487,7 +544,8 @@ bool BuildVnor(BuilderContext& ctx) {
   return true;
 }
 
-bool BuildVsel(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_VSEL>(BuilderContext& ctx) {
   ctx.Println(
       "\tsimde_mm_store_si128((simde__m128i*){}.u8, "
       "simde_mm_or_si128(simde_mm_andnot_si128(simde_mm_load_si128((simde__m128i*){}.u8), "
@@ -509,7 +567,8 @@ bool BuildVsel(BuilderContext& ctx) {
  * @param ctx The builder context
  * @return True when the instruction is handled.
  */
-bool BuildVcmpbfp(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_VCMPBFP>(BuilderContext& ctx) {
   ctx.EmitSetFlushMode(true);
   auto v_a = ctx.V(ctx.insn.operands[1]);
   auto v_b = ctx.V(ctx.insn.operands[2]);
@@ -539,7 +598,8 @@ bool BuildVcmpbfp(BuilderContext& ctx) {
   return true;
 }
 
-bool BuildVcmpeqfp(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_VCMPEQFP>(BuilderContext& ctx) {
   ctx.EmitSetFlushMode(true);
   ctx.EmitVecFPBinary("cmpeq");
   if (IsRecordForm(ctx.insn))
@@ -548,7 +608,8 @@ bool BuildVcmpeqfp(BuilderContext& ctx) {
   return true;
 }
 
-bool BuildVcmpequb(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_VCMPEQUB>(BuilderContext& ctx) {
   ctx.EmitVecIntBinary("cmpeq_epi8", "u8");
   if (IsRecordForm(ctx.insn))
     ctx.Println("\t{}.SetFromMask(simde_mm_load_si128((simde__m128i*){}.u8), 0xFFFF);", ctx.CR(6),
@@ -556,7 +617,8 @@ bool BuildVcmpequb(BuilderContext& ctx) {
   return true;
 }
 
-bool BuildVcmpequh(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_VCMPEQUH>(BuilderContext& ctx) {
   ctx.Println(
       "\tsimde_mm_store_si128((simde__m128i*){}.u8, "
       "simde_mm_cmpeq_epi16(simde_mm_load_si128((simde__m128i*){}.u16), "
@@ -568,7 +630,8 @@ bool BuildVcmpequh(BuilderContext& ctx) {
   return true;
 }
 
-bool BuildVcmpequw(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_VCMPEQUW>(BuilderContext& ctx) {
   ctx.Println(
       "\tsimde_mm_store_si128((simde__m128i*){}.u8, "
       "simde_mm_cmpeq_epi32(simde_mm_load_si128((simde__m128i*){}.u32), "
@@ -580,7 +643,8 @@ bool BuildVcmpequw(BuilderContext& ctx) {
   return true;
 }
 
-bool BuildVcmpgefp(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_VCMPGEFP>(BuilderContext& ctx) {
   ctx.EmitSetFlushMode(true);
   ctx.EmitVecFPBinary("cmpge");
   if (IsRecordForm(ctx.insn))
@@ -589,7 +653,8 @@ bool BuildVcmpgefp(BuilderContext& ctx) {
   return true;
 }
 
-bool BuildVcmpgtfp(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_VCMPGTFP>(BuilderContext& ctx) {
   ctx.EmitSetFlushMode(true);
   ctx.EmitVecFPBinary("cmpgt");
   if (IsRecordForm(ctx.insn))
@@ -598,7 +663,8 @@ bool BuildVcmpgtfp(BuilderContext& ctx) {
   return true;
 }
 
-bool BuildVcmpgtub(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_VCMPGTUB>(BuilderContext& ctx) {
   ctx.Println(
       "\tsimde_mm_store_si128((simde__m128i*){}.u8, "
       "rex::ppc::simde_mm_cmpgt_epu8(simde_mm_load_si128((simde__m128i*){}.u8), "
@@ -610,7 +676,8 @@ bool BuildVcmpgtub(BuilderContext& ctx) {
   return true;
 }
 
-bool BuildVcmpgtuh(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_VCMPGTUH>(BuilderContext& ctx) {
   ctx.Println(
       "\tsimde_mm_store_si128((simde__m128i*){}.u8, "
       "rex::ppc::simde_mm_cmpgt_epu16(simde_mm_load_si128((simde__m128i*){}.u16), "
@@ -622,7 +689,8 @@ bool BuildVcmpgtuh(BuilderContext& ctx) {
   return true;
 }
 
-bool BuildVcmpgtuw(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_VCMPGTUW>(BuilderContext& ctx) {
   ctx.Println(
       "\tsimde_mm_store_si128((simde__m128i*){}.u32, "
       "simde_mm_cmpgt_epi32(simde_mm_xor_si128(simde_mm_load_si128((simde__m128i*){}.u32), "
@@ -638,7 +706,8 @@ bool BuildVcmpgtuw(BuilderContext& ctx) {
   return true;
 }
 
-bool BuildVcmpgtsb(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_VCMPGTSB>(BuilderContext& ctx) {
   ctx.EmitVecIntBinary("cmpgt_epi8", "u8");
   if (IsRecordForm(ctx.insn))
     ctx.Println("\t{}.SetFromMask(simde_mm_load_si128((simde__m128i*){}.u8), 0xFFFF);", ctx.CR(6),
@@ -646,7 +715,8 @@ bool BuildVcmpgtsb(BuilderContext& ctx) {
   return true;
 }
 
-bool BuildVcmpgtsh(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_VCMPGTSH>(BuilderContext& ctx) {
   ctx.Println(
       "\tsimde_mm_store_si128((simde__m128i*){}.u8, "
       "simde_mm_cmpgt_epi16(simde_mm_load_si128((simde__m128i*){}.u16), "
@@ -658,7 +728,8 @@ bool BuildVcmpgtsh(BuilderContext& ctx) {
   return true;
 }
 
-bool BuildVcmpgtsw(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_VCMPGTSW>(BuilderContext& ctx) {
   ctx.EmitVecIntBinary("cmpgt_epi32", "u32");
   if (IsRecordForm(ctx.insn))
     ctx.Println(
@@ -674,7 +745,8 @@ bool BuildVcmpgtsw(BuilderContext& ctx) {
  * @param ctx The builder context
  * @return True when the instruction is handled.
  */
-bool BuildMtvscr(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_MTVSCR>(BuilderContext& ctx) {
   ctx.Println("\tctx.vscr_sat = {}.u32[0] & 1;", ctx.V(ctx.insn.operands[0]));
   ctx.Println("\tctx.vscr_nj = ({}.u32[0] >> 16) & 1;", ctx.V(ctx.insn.operands[0]));
   if (ctx.csr_state == CSRState::kVMX) {
@@ -690,7 +762,8 @@ bool BuildMtvscr(BuilderContext& ctx) {
  * @param ctx The builder context
  * @return True when the instruction is handled.
  */
-bool BuildMfvscr(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_MFVSCR>(BuilderContext& ctx) {
   ctx.Println("\t{}.u32[0] = u32(ctx.vscr_sat) | (u32(ctx.vscr_nj) << 16);",
               ctx.V(ctx.insn.operands[0]));
   ctx.Println("\t{}.u32[1] = 0;", ctx.V(ctx.insn.operands[0]));
@@ -698,7 +771,8 @@ bool BuildMfvscr(BuilderContext& ctx) {
   return true;
 }
 
-bool BuildVctsxs(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_VCTSXS>(BuilderContext& ctx) {
   ctx.EmitSetFlushMode(true);
   const std::string scaled =
       ctx.insn.operands[2] != 0
@@ -711,7 +785,8 @@ bool BuildVctsxs(BuilderContext& ctx) {
   return true;
 }
 
-bool BuildVcfsx(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_VCFSX>(BuilderContext& ctx) {
   ctx.EmitSetFlushMode(true);
   ctx.Print("\tsimde_mm_store_ps({}.f32, ", ctx.V(ctx.insn.operands[0]));
   if (ctx.insn.operands[2] != 0) {
@@ -727,7 +802,8 @@ bool BuildVcfsx(BuilderContext& ctx) {
   return true;
 }
 
-bool BuildVcfux(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_VCFUX>(BuilderContext& ctx) {
   ctx.EmitSetFlushMode(true);
   ctx.Print("\tsimde_mm_store_ps({}.f32, ", ctx.V(ctx.insn.operands[0]));
   if (ctx.insn.operands[2] != 0) {
@@ -744,7 +820,8 @@ bool BuildVcfux(BuilderContext& ctx) {
   return true;
 }
 
-bool BuildVctuxs(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_VCTUXS>(BuilderContext& ctx) {
   ctx.EmitSetFlushMode(true);
   const std::string scaled =
       ctx.insn.operands[2] != 0
@@ -757,37 +834,44 @@ bool BuildVctuxs(BuilderContext& ctx) {
   return true;
 }
 
-bool BuildVmrghb(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_VMRGHB>(BuilderContext& ctx) {
   ctx.EmitVecIntBinarySwapped("unpackhi_epi8", "u8");
   return true;
 }
 
-bool BuildVmrghh(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_VMRGHH>(BuilderContext& ctx) {
   ctx.EmitVecIntBinarySwapped("unpackhi_epi16", "u16");
   return true;
 }
 
-bool BuildVmrghw(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_VMRGHW>(BuilderContext& ctx) {
   ctx.EmitVecIntBinarySwapped("unpackhi_epi32", "u32");
   return true;
 }
 
-bool BuildVmrglb(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_VMRGLB>(BuilderContext& ctx) {
   ctx.EmitVecIntBinarySwapped("unpacklo_epi8", "u8");
   return true;
 }
 
-bool BuildVmrglh(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_VMRGLH>(BuilderContext& ctx) {
   ctx.EmitVecIntBinarySwapped("unpacklo_epi16", "u16");
   return true;
 }
 
-bool BuildVmrglw(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_VMRGLW>(BuilderContext& ctx) {
   ctx.EmitVecIntBinarySwapped("unpacklo_epi32", "u32");
   return true;
 }
 
-bool BuildVperm(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_VPERM>(BuilderContext& ctx) {
   ctx.Println(
       "\tsimde_mm_store_si128((simde__m128i*){}.u8, "
       "rex::ppc::simde_mm_perm_epi8_(simde_mm_load_si128((simde__m128i*){}.u8), "
@@ -797,7 +881,8 @@ bool BuildVperm(BuilderContext& ctx) {
   return true;
 }
 
-bool BuildVpermwi128(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_VPERMWI128>(BuilderContext& ctx) {
   u32 x = 3 - (ctx.insn.operands[2] & 0x3);
   u32 y = 3 - ((ctx.insn.operands[2] >> 2) & 0x3);
   u32 z = 3 - ((ctx.insn.operands[2] >> 4) & 0x3);
@@ -810,7 +895,8 @@ bool BuildVpermwi128(BuilderContext& ctx) {
   return true;
 }
 
-bool BuildVrlimi128(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_VRLIMI128>(BuilderContext& ctx) {
   constexpr size_t kShuffles[] = {SIMDE_MM_SHUFFLE(3, 2, 1, 0), SIMDE_MM_SHUFFLE(2, 1, 0, 3),
                                   SIMDE_MM_SHUFFLE(1, 0, 3, 2), SIMDE_MM_SHUFFLE(0, 3, 2, 1)};
   ctx.Println(
@@ -821,12 +907,14 @@ bool BuildVrlimi128(BuilderContext& ctx) {
   return true;
 }
 
-bool BuildVslb(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_VSLB>(BuilderContext& ctx) {
   ctx.EmitVecVarShift("sllv", "epi8", 0x7);
   return true;
 }
 
-bool BuildVsldoi(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_VSLDOI>(BuilderContext& ctx) {
   ctx.Println(
       "\tsimde_mm_store_si128((simde__m128i*){}.u8, "
       "simde_mm_alignr_epi8(simde_mm_load_si128((simde__m128i*){}.u8), "
@@ -836,36 +924,42 @@ bool BuildVsldoi(BuilderContext& ctx) {
   return true;
 }
 
-bool BuildVslh(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_VSLH>(BuilderContext& ctx) {
   ctx.EmitVecVarShift("sllv", "epi16", 0xF);
   return true;
 }
 
-bool BuildVsrh(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_VSRH>(BuilderContext& ctx) {
   ctx.EmitVecVarShift("srlv", "epi16", 0xF);
   return true;
 }
 
-bool BuildVsrb(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_VSRB>(BuilderContext& ctx) {
   for (size_t i = 0; i < 16; i++)
     ctx.Println("\t{}.u8[{}] = {}.u8[{}] >> ({}.u8[{}] & 0x7);", ctx.V(ctx.insn.operands[0]), i,
                 ctx.V(ctx.insn.operands[1]), i, ctx.V(ctx.insn.operands[2]), i);
   return true;
 }
 
-bool BuildVsrab(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_VSRAB>(BuilderContext& ctx) {
   for (size_t i = 0; i < 16; i++)
     ctx.Println("\t{}.s8[{}] = {}.s8[{}] >> ({}.u8[{}] & 0x7);", ctx.V(ctx.insn.operands[0]), i,
                 ctx.V(ctx.insn.operands[1]), i, ctx.V(ctx.insn.operands[2]), i);
   return true;
 }
 
-bool BuildVsrah(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_VSRAH>(BuilderContext& ctx) {
   ctx.EmitVecVarShift("srav", "epi16", 0xF);
   return true;
 }
 
-bool BuildVrlh(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_VRLH>(BuilderContext& ctx) {
   auto v_d = ctx.V(ctx.insn.operands[0]);
   auto v_a = ctx.V(ctx.insn.operands[1]);
   auto v_b = ctx.V(ctx.insn.operands[2]);
@@ -882,7 +976,8 @@ bool BuildVrlh(BuilderContext& ctx) {
   return true;
 }
 
-bool BuildVrlw(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_VRLW>(BuilderContext& ctx) {
   for (size_t i = 0; i < 4; i++) {
     ctx.Println("\t{{ u32 sh = {}.u32[{}] & 0x1F;", ctx.V(ctx.insn.operands[2]), i);
     ctx.Println("\t{}.u32[{}] = ({}.u32[{}] << sh) | (sh ? ({}.u32[{}] >> (32 - sh)) : 0); }}",
@@ -898,7 +993,8 @@ bool BuildVrlw(BuilderContext& ctx) {
  * @param ctx The builder context
  * @return True when the instruction is handled.
  */
-bool BuildVsl(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_VSL>(BuilderContext& ctx) {
   ctx.Println(
       "\tsimde_mm_store_si128((simde__m128i*){}.u8, "
       "rex::ppc::simde_mm_vsl(simde_mm_load_si128((simde__m128i*){}.u8), "
@@ -913,7 +1009,8 @@ bool BuildVsl(BuilderContext& ctx) {
  * @param ctx The builder context
  * @return True when the instruction is handled.
  */
-bool BuildVslo(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_VSLO>(BuilderContext& ctx) {
   ctx.Println(
       "\tsimde_mm_store_si128((simde__m128i*){}.u8, "
       "rex::ppc::simde_mm_vslo(simde_mm_load_si128((simde__m128i*){}.u8), "
@@ -928,7 +1025,8 @@ bool BuildVslo(BuilderContext& ctx) {
  * @param ctx The builder context
  * @return True when the instruction is handled.
  */
-bool BuildVsro(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_VSRO>(BuilderContext& ctx) {
   ctx.Println(
       "\tsimde_mm_store_si128((simde__m128i*){}.u8, "
       "rex::ppc::simde_mm_vsro(simde_mm_load_si128((simde__m128i*){}.u8), "
@@ -937,7 +1035,8 @@ bool BuildVsro(BuilderContext& ctx) {
   return true;
 }
 
-bool BuildVslw(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_VSLW>(BuilderContext& ctx) {
   auto v_d = ctx.V(ctx.insn.operands[0]);
   auto v_a = ctx.V(ctx.insn.operands[1]);
   auto v_b = ctx.V(ctx.insn.operands[2]);
@@ -953,7 +1052,8 @@ bool BuildVslw(BuilderContext& ctx) {
   return true;
 }
 
-bool BuildVsr(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_VSR>(BuilderContext& ctx) {
   ctx.Println(
       "\tsimde_mm_store_si128((simde__m128i*){}.u8, "
       "rex::ppc::simde_mm_vsr(simde_mm_load_si128((simde__m128i*){}.u8), "
@@ -962,21 +1062,24 @@ bool BuildVsr(BuilderContext& ctx) {
   return true;
 }
 
-bool BuildVsraw(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_VSRAW>(BuilderContext& ctx) {
   for (size_t i = 0; i < 4; i++)
     ctx.Println("\t{}.s32[{}] = {}.s32[{}] >> ({}.u8[{}] & 0x1F);", ctx.V(ctx.insn.operands[0]), i,
                 ctx.V(ctx.insn.operands[1]), i, ctx.V(ctx.insn.operands[2]), i * 4);
   return true;
 }
 
-bool BuildVsrw(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_VSRW>(BuilderContext& ctx) {
   for (size_t i = 0; i < 4; i++)
     ctx.Println("\t{}.u32[{}] = {}.u32[{}] >> ({}.u8[{}] & 0x1F);", ctx.V(ctx.insn.operands[0]), i,
                 ctx.V(ctx.insn.operands[1]), i, ctx.V(ctx.insn.operands[2]), i * 4);
   return true;
 }
 
-bool BuildVspltb(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_VSPLTB>(BuilderContext& ctx) {
   u32 perm = 15 - ctx.insn.operands[2];
   ctx.Println(
       "\tsimde_mm_store_si128((simde__m128i*){}.u8, "
@@ -986,7 +1089,8 @@ bool BuildVspltb(BuilderContext& ctx) {
   return true;
 }
 
-bool BuildVsplth(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_VSPLTH>(BuilderContext& ctx) {
   u32 perm = 7 - ctx.insn.operands[2];
   perm = (perm * 2) | ((perm * 2 + 1) << 8);
   ctx.Println(
@@ -997,28 +1101,32 @@ bool BuildVsplth(BuilderContext& ctx) {
   return true;
 }
 
-bool BuildVspltisb(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_VSPLTISB>(BuilderContext& ctx) {
   i8 imm5 = static_cast<i8>(static_cast<i8>(ctx.insn.operands[1] << 3) >> 3);
   ctx.Println("\tsimde_mm_store_si128((simde__m128i*){}.u8, simde_mm_set1_epi8(char(0x{:X})));",
               ctx.V(ctx.insn.operands[0]), static_cast<u8>(imm5));
   return true;
 }
 
-bool BuildVspltisw(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_VSPLTISW>(BuilderContext& ctx) {
   i8 imm5 = static_cast<i8>(static_cast<i8>(ctx.insn.operands[1] << 3) >> 3);
   ctx.Println("\tsimde_mm_store_si128((simde__m128i*){}.u32, simde_mm_set1_epi32(int(0x{:X})));",
               ctx.V(ctx.insn.operands[0]), static_cast<u32>(static_cast<i32>(imm5)));
   return true;
 }
 
-bool BuildVspltish(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_VSPLTISH>(BuilderContext& ctx) {
   i8 imm5 = static_cast<i8>(static_cast<i8>(ctx.insn.operands[1] << 3) >> 3);
   ctx.Println("\tsimde_mm_store_si128((simde__m128i*){}.s16, simde_mm_set1_epi16(short(0x{:X})));",
               ctx.V(ctx.insn.operands[0]), static_cast<u16>(static_cast<i16>(imm5)));
   return true;
 }
 
-bool BuildVspltw(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_VSPLTW>(BuilderContext& ctx) {
   u32 perm = 3 - ctx.insn.operands[2];
   perm |= (perm << 2) | (perm << 4) | (perm << 6);
   ctx.Println(
@@ -1028,7 +1136,8 @@ bool BuildVspltw(BuilderContext& ctx) {
   return true;
 }
 
-bool BuildVpkshus(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_VPKSHUS>(BuilderContext& ctx) {
   EmitSaturation(ctx, "PackSaturates<16, false>");
   ctx.Println(
       "\tsimde_mm_store_si128((simde__m128i*){}.u8, "
@@ -1047,7 +1156,8 @@ bool BuildVpkshus(BuilderContext& ctx) {
  * @param ctx The builder context
  * @return True when the instruction is handled.
  */
-bool BuildVpkpx(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_VPKPX>(BuilderContext& ctx) {
   for (size_t i = 0; i < 4; i++) {
     for (const auto& [src, dst] :
          {std::pair{ctx.insn.operands[1], i + 4}, std::pair{ctx.insn.operands[2], i}}) {
@@ -1061,7 +1171,8 @@ bool BuildVpkpx(BuilderContext& ctx) {
   return true;
 }
 
-bool BuildVpkuhum(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_VPKUHUM>(BuilderContext& ctx) {
   ctx.Println(
       "\tsimde_mm_store_si128((simde__m128i*){}.u8, "
       "simde_mm_packus_epi16(simde_mm_and_si128(simde_mm_load_si128((simde__m128i*){}.u16), "
@@ -1071,7 +1182,8 @@ bool BuildVpkuhum(BuilderContext& ctx) {
   return true;
 }
 
-bool BuildVpkuhus(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_VPKUHUS>(BuilderContext& ctx) {
   EmitSaturation(ctx, "PackSaturates<16, false>");
   // packus reads inputs as signed so unsigned saturation is custom, and vD may alias vA or vB
   for (size_t i = 0; i < 8; i++) {
@@ -1084,7 +1196,8 @@ bool BuildVpkuhus(BuilderContext& ctx) {
   return true;
 }
 
-bool BuildVpkuwum(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_VPKUWUM>(BuilderContext& ctx) {
   ctx.Println(
       "\tsimde_mm_store_si128((simde__m128i*){}.u16, "
       "simde_mm_packus_epi32(simde_mm_and_si128(simde_mm_load_si128((simde__m128i*){}.u32), "
@@ -1095,7 +1208,8 @@ bool BuildVpkuwum(BuilderContext& ctx) {
   return true;
 }
 
-bool BuildVpkuwus(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_VPKUWUS>(BuilderContext& ctx) {
   EmitSaturation(ctx, "PackSaturates<32, false>");
   // packus reads inputs as signed so unsigned saturation is custom, and vD may alias vA or vB
   for (size_t i = 0; i < 4; i++) {
@@ -1108,7 +1222,8 @@ bool BuildVpkuwus(BuilderContext& ctx) {
   return true;
 }
 
-bool BuildVpkshss(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_VPKSHSS>(BuilderContext& ctx) {
   EmitSaturation(ctx, "PackSaturates<16, true>");
   ctx.Println(
       "\tsimde_mm_store_si128((simde__m128i*){}.s8, "
@@ -1118,7 +1233,8 @@ bool BuildVpkshss(BuilderContext& ctx) {
   return true;
 }
 
-bool BuildVpkswss(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_VPKSWSS>(BuilderContext& ctx) {
   EmitSaturation(ctx, "PackSaturates<32, true>");
   ctx.Println(
       "\tsimde_mm_store_si128((simde__m128i*){}.s16, "
@@ -1128,7 +1244,8 @@ bool BuildVpkswss(BuilderContext& ctx) {
   return true;
 }
 
-bool BuildVpkswus(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_VPKSWUS>(BuilderContext& ctx) {
   EmitSaturation(ctx, "PackSaturates<32, false>");
   ctx.Println(
       "\tsimde_mm_store_si128((simde__m128i*){}.u16, "
@@ -1147,7 +1264,8 @@ bool BuildVpkswus(BuilderContext& ctx) {
  * @param ctx The builder context
  * @return True when the instruction is handled.
  */
-bool BuildVpkd3d128(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_VPKD3D128>(BuilderContext& ctx) {
   ctx.EmitSetFlushMode(true);
   const u32 type = ctx.insn.operands[2];
   if (type > 6) {
@@ -1176,7 +1294,8 @@ bool BuildVpkd3d128(BuilderContext& ctx) {
  * @param ctx The builder context
  * @return True when the instruction is handled.
  */
-bool BuildVupkd3d128(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_VUPKD3D128>(BuilderContext& ctx) {
   switch (ctx.insn.operands[2] >> 2) {
     case 0:
       for (size_t i = 0; i < 4; i++) {
@@ -1281,7 +1400,8 @@ bool BuildVupkd3d128(BuilderContext& ctx) {
   return true;
 }
 
-bool BuildVupkhsb(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_VUPKHSB>(BuilderContext& ctx) {
   ctx.Println(
       "\tsimde_mm_store_si128((simde__m128i*){}.s16, "
       "simde_mm_cvtepi8_epi16(simde_mm_unpackhi_epi64(simde_mm_load_si128((simde__m128i*){}.s8), "
@@ -1290,7 +1410,8 @@ bool BuildVupkhsb(BuilderContext& ctx) {
   return true;
 }
 
-bool BuildVupkhsh(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_VUPKHSH>(BuilderContext& ctx) {
   ctx.Println(
       "\tsimde_mm_store_si128((simde__m128i*){}.s32, "
       "simde_mm_cvtepi16_epi32(simde_mm_unpackhi_epi64(simde_mm_load_si128((simde__m128i*){}.s16), "
@@ -1299,7 +1420,8 @@ bool BuildVupkhsh(BuilderContext& ctx) {
   return true;
 }
 
-bool BuildVupklsb(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_VUPKLSB>(BuilderContext& ctx) {
   ctx.Println(
       "\tsimde_mm_store_si128((simde__m128i*){}.s32, "
       "simde_mm_cvtepi8_epi16(simde_mm_load_si128((simde__m128i*){}.s16)));",
@@ -1307,7 +1429,8 @@ bool BuildVupklsb(BuilderContext& ctx) {
   return true;
 }
 
-bool BuildVupklsh(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_VUPKLSH>(BuilderContext& ctx) {
   ctx.Println(
       "\tsimde_mm_store_si128((simde__m128i*){}.s32, "
       "simde_mm_cvtepi16_epi32(simde_mm_load_si128((simde__m128i*){}.s16)));",

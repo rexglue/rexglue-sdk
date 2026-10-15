@@ -9,44 +9,53 @@
  */
 
 #include "builder_context.h"
-#include "helpers.h"
+#include "builders.h"
+
+#include <dis-asm.h>
+#include <ppc-inst.h>
 
 namespace rex::codegen {
 
-bool BuildFabs(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_FABS>(BuilderContext& ctx) {
   ctx.EmitSetFlushMode(false);
   ctx.Println("\t{}.u64 = {}.u64 & ~0x8000000000000000;", ctx.F(ctx.insn.operands[0]),
               ctx.F(ctx.insn.operands[1]));
   return true;
 }
 
-bool BuildFnabs(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_FNABS>(BuilderContext& ctx) {
   ctx.EmitSetFlushMode(false);
   ctx.Println("\t{}.u64 = {}.u64 | 0x8000000000000000;", ctx.F(ctx.insn.operands[0]),
               ctx.F(ctx.insn.operands[1]));
   return true;
 }
 
-bool BuildFneg(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_FNEG>(BuilderContext& ctx) {
   ctx.EmitSetFlushMode(false);
   ctx.Println("\t{}.u64 = {}.u64 ^ 0x8000000000000000;", ctx.F(ctx.insn.operands[0]),
               ctx.F(ctx.insn.operands[1]));
   return true;
 }
 
-bool BuildFmr(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_FMR>(BuilderContext& ctx) {
   ctx.EmitSetFlushMode(false);
   ctx.Println("\t{}.f64 = {}.f64;", ctx.F(ctx.insn.operands[0]), ctx.F(ctx.insn.operands[1]));
   return true;
 }
 
-bool BuildFcfid(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_FCFID>(BuilderContext& ctx) {
   ctx.EmitSetFlushMode(false);
   ctx.Println("\t{}.f64 = f64({}.s64);", ctx.F(ctx.insn.operands[0]), ctx.F(ctx.insn.operands[1]));
   return true;
 }
 
-bool BuildFctid(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_FCTID>(BuilderContext& ctx) {
   ctx.EmitSetFlushMode(false);
   ctx.Println(
       "\t{0}.s64 = std::isnan({1}.f64) ? i64(0x8000000000000000ULL) : "
@@ -56,7 +65,8 @@ bool BuildFctid(BuilderContext& ctx) {
   return true;
 }
 
-bool BuildFctidz(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_FCTIDZ>(BuilderContext& ctx) {
   ctx.EmitSetFlushMode(false);
   ctx.Println(
       "\t{0}.s64 = std::isnan({1}.f64) ? i64(0x8000000000000000ULL) : "
@@ -66,7 +76,8 @@ bool BuildFctidz(BuilderContext& ctx) {
   return true;
 }
 
-bool BuildFctiw(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_FCTIW>(BuilderContext& ctx) {
   ctx.EmitSetFlushMode(false);
   ctx.Println(
       "\t{0}.s64 = std::isnan({1}.f64) ? i64(INT_MIN) : "
@@ -76,7 +87,8 @@ bool BuildFctiw(BuilderContext& ctx) {
   return true;
 }
 
-bool BuildFctiwz(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_FCTIWZ>(BuilderContext& ctx) {
   ctx.EmitSetFlushMode(false);
   ctx.Println(
       "\t{0}.s64 = std::isnan({1}.f64) ? i64(INT_MIN) : "
@@ -86,82 +98,94 @@ bool BuildFctiwz(BuilderContext& ctx) {
   return true;
 }
 
-bool BuildFrsp(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_FRSP>(BuilderContext& ctx) {
   ctx.EmitSetFlushMode(false);
   ctx.Println("\t{}.f64 = f64(f32({}.f64));", ctx.F(ctx.insn.operands[0]),
               ctx.F(ctx.insn.operands[1]));
   return true;
 }
 
-bool BuildFcmpu(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_FCMPU>(BuilderContext& ctx) {
   ctx.EmitSetFlushMode(false);
   ctx.Println("\t{}.Compare({}.f64, {}.f64);", ctx.CR(ctx.insn.operands[0]),
               ctx.F(ctx.insn.operands[1]), ctx.F(ctx.insn.operands[2]));
   return true;
 }
 
-bool BuildFcmpo(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_FCMPO>(BuilderContext& ctx) {
   // fcmpo matches fcmpu here, its FPSCR exception flags for SNaN operands are not emulated.
-  return BuildFcmpu(ctx);
+  return Build<PPC_INST_FCMPU>(ctx);
 }
 
-bool BuildFadd(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_FADD>(BuilderContext& ctx) {
   ctx.EmitSetFlushMode(false);
   ctx.Println("\t{}.f64 = {}.f64 + {}.f64;", ctx.F(ctx.insn.operands[0]),
               ctx.F(ctx.insn.operands[1]), ctx.F(ctx.insn.operands[2]));
   return true;
 }
 
-bool BuildFadds(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_FADDS>(BuilderContext& ctx) {
   ctx.EmitSetFlushMode(false);
   ctx.Println("\t{}.f64 = f64(f32({}.f64 + {}.f64));", ctx.F(ctx.insn.operands[0]),
               ctx.F(ctx.insn.operands[1]), ctx.F(ctx.insn.operands[2]));
   return true;
 }
 
-bool BuildFsub(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_FSUB>(BuilderContext& ctx) {
   ctx.EmitSetFlushMode(false);
   ctx.Println("\t{}.f64 = {}.f64 - {}.f64;", ctx.F(ctx.insn.operands[0]),
               ctx.F(ctx.insn.operands[1]), ctx.F(ctx.insn.operands[2]));
   return true;
 }
 
-bool BuildFsubs(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_FSUBS>(BuilderContext& ctx) {
   ctx.EmitSetFlushMode(false);
   ctx.Println("\t{}.f64 = f64(f32({}.f64 - {}.f64));", ctx.F(ctx.insn.operands[0]),
               ctx.F(ctx.insn.operands[1]), ctx.F(ctx.insn.operands[2]));
   return true;
 }
 
-bool BuildFmul(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_FMUL>(BuilderContext& ctx) {
   ctx.EmitSetFlushMode(false);
   ctx.Println("\t{}.f64 = {}.f64 * {}.f64;", ctx.F(ctx.insn.operands[0]),
               ctx.F(ctx.insn.operands[1]), ctx.F(ctx.insn.operands[2]));
   return true;
 }
 
-bool BuildFmuls(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_FMULS>(BuilderContext& ctx) {
   ctx.EmitSetFlushMode(false);
   ctx.Println("\t{}.f64 = f64(f32({}.f64 * {}.f64));", ctx.F(ctx.insn.operands[0]),
               ctx.F(ctx.insn.operands[1]), ctx.F(ctx.insn.operands[2]));
   return true;
 }
 
-bool BuildFdiv(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_FDIV>(BuilderContext& ctx) {
   ctx.EmitSetFlushMode(false);
   ctx.Println("\t{}.f64 = {}.f64 / {}.f64;", ctx.F(ctx.insn.operands[0]),
               ctx.F(ctx.insn.operands[1]), ctx.F(ctx.insn.operands[2]));
   return true;
 }
 
-bool BuildFdivs(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_FDIVS>(BuilderContext& ctx) {
   ctx.EmitSetFlushMode(false);
   ctx.Println("\t{}.f64 = f64(f32({}.f64 / {}.f64));", ctx.F(ctx.insn.operands[0]),
               ctx.F(ctx.insn.operands[1]), ctx.F(ctx.insn.operands[2]));
   return true;
 }
 
-bool BuildFmadd(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_FMADD>(BuilderContext& ctx) {
   ctx.EmitSetFlushMode(false);
   ctx.Println("\t{}.f64 = std::fma({}.f64, {}.f64, {}.f64);", ctx.F(ctx.insn.operands[0]),
               ctx.F(ctx.insn.operands[1]), ctx.F(ctx.insn.operands[2]),
@@ -169,7 +193,8 @@ bool BuildFmadd(BuilderContext& ctx) {
   return true;
 }
 
-bool BuildFmadds(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_FMADDS>(BuilderContext& ctx) {
   ctx.EmitSetFlushMode(false);
   ctx.Println("\t{}.f64 = f64(f32(std::fma({}.f64, {}.f64, {}.f64)));", ctx.F(ctx.insn.operands[0]),
               ctx.F(ctx.insn.operands[1]), ctx.F(ctx.insn.operands[2]),
@@ -177,7 +202,8 @@ bool BuildFmadds(BuilderContext& ctx) {
   return true;
 }
 
-bool BuildFmsub(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_FMSUB>(BuilderContext& ctx) {
   ctx.EmitSetFlushMode(false);
   ctx.Println("\t{}.f64 = std::fma({}.f64, {}.f64, -{}.f64);", ctx.F(ctx.insn.operands[0]),
               ctx.F(ctx.insn.operands[1]), ctx.F(ctx.insn.operands[2]),
@@ -185,7 +211,8 @@ bool BuildFmsub(BuilderContext& ctx) {
   return true;
 }
 
-bool BuildFmsubs(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_FMSUBS>(BuilderContext& ctx) {
   ctx.EmitSetFlushMode(false);
   ctx.Println("\t{}.f64 = f64(f32(std::fma({}.f64, {}.f64, -{}.f64)));",
               ctx.F(ctx.insn.operands[0]), ctx.F(ctx.insn.operands[1]), ctx.F(ctx.insn.operands[2]),
@@ -193,7 +220,8 @@ bool BuildFmsubs(BuilderContext& ctx) {
   return true;
 }
 
-bool BuildFnmadd(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_FNMADD>(BuilderContext& ctx) {
   ctx.EmitSetFlushMode(false);
   ctx.Println("\t{}.f64 = -std::fma({}.f64, {}.f64, {}.f64);", ctx.F(ctx.insn.operands[0]),
               ctx.F(ctx.insn.operands[1]), ctx.F(ctx.insn.operands[2]),
@@ -201,7 +229,8 @@ bool BuildFnmadd(BuilderContext& ctx) {
   return true;
 }
 
-bool BuildFnmadds(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_FNMADDS>(BuilderContext& ctx) {
   ctx.EmitSetFlushMode(false);
   ctx.Println("\t{}.f64 = f64(f32(-std::fma({}.f64, {}.f64, {}.f64)));",
               ctx.F(ctx.insn.operands[0]), ctx.F(ctx.insn.operands[1]), ctx.F(ctx.insn.operands[2]),
@@ -209,7 +238,8 @@ bool BuildFnmadds(BuilderContext& ctx) {
   return true;
 }
 
-bool BuildFnmsub(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_FNMSUB>(BuilderContext& ctx) {
   ctx.EmitSetFlushMode(false);
   ctx.Println("\t{}.f64 = -std::fma({}.f64, {}.f64, -{}.f64);", ctx.F(ctx.insn.operands[0]),
               ctx.F(ctx.insn.operands[1]), ctx.F(ctx.insn.operands[2]),
@@ -217,7 +247,8 @@ bool BuildFnmsub(BuilderContext& ctx) {
   return true;
 }
 
-bool BuildFnmsubs(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_FNMSUBS>(BuilderContext& ctx) {
   ctx.EmitSetFlushMode(false);
   ctx.Println("\t{}.f64 = f64(f32(-std::fma({}.f64, {}.f64, -{}.f64)));",
               ctx.F(ctx.insn.operands[0]), ctx.F(ctx.insn.operands[1]), ctx.F(ctx.insn.operands[2]),
@@ -225,34 +256,39 @@ bool BuildFnmsubs(BuilderContext& ctx) {
   return true;
 }
 
-bool BuildFres(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_FRES>(BuilderContext& ctx) {
   ctx.EmitSetFlushMode(false);
   ctx.Println("\t{}.f64 = rex::ppc::Fres({}.f64);", ctx.F(ctx.insn.operands[0]),
               ctx.F(ctx.insn.operands[1]));
   return true;
 }
 
-bool BuildFrsqrte(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_FRSQRTE>(BuilderContext& ctx) {
   ctx.EmitSetFlushMode(false);
   ctx.Println("\t{}.f64 = rex::ppc::Frsqrte({}.f64);", ctx.F(ctx.insn.operands[0]),
               ctx.F(ctx.insn.operands[1]));
   return true;
 }
 
-bool BuildFsqrt(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_FSQRT>(BuilderContext& ctx) {
   ctx.EmitSetFlushMode(false);
   ctx.Println("\t{}.f64 = sqrt({}.f64);", ctx.F(ctx.insn.operands[0]), ctx.F(ctx.insn.operands[1]));
   return true;
 }
 
-bool BuildFsqrts(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_FSQRTS>(BuilderContext& ctx) {
   ctx.EmitSetFlushMode(false);
   ctx.Println("\t{}.f64 = f64(f32(sqrt({}.f64)));", ctx.F(ctx.insn.operands[0]),
               ctx.F(ctx.insn.operands[1]));
   return true;
 }
 
-bool BuildFsel(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_FSEL>(BuilderContext& ctx) {
   ctx.EmitSetFlushMode(false);
   ctx.Println("\t{}.f64 = {}.f64 >= 0.0 ? {}.f64 : {}.f64;", ctx.F(ctx.insn.operands[0]),
               ctx.F(ctx.insn.operands[1]), ctx.F(ctx.insn.operands[2]),

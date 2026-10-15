@@ -9,46 +9,99 @@
  */
 
 #include "builder_context.h"
-#include "helpers.h"
+#include "builders.h"
+
+#include <dis-asm.h>
+#include <ppc-inst.h>
 
 namespace rex::codegen {
 
-bool BuildCmpd(BuilderContext& ctx) {
+namespace {
+
+/**
+ * Emit register-to-register comparison.
+ *
+ * Pattern `crD.compare<T>(rA.field, rB.field, XER)`
+ * Used by cmpd, cmpld, cmplw, cmpw
+ *
+ * @param ctx The builder context
+ * @param type_name The comparison type (e.g., "i64", "u32")
+ * @param field The register field accessor (e.g., "s64", "u32")
+ */
+void EmitCompareRegister(BuilderContext& ctx, const char* type_name, const char* field) {
+  ctx.Println("\t{}.Compare<{}>({}.{}, {}.{}, {});", ctx.CR(ctx.insn.operands[0]), type_name,
+              ctx.R(ctx.insn.operands[1]), field, ctx.R(ctx.insn.operands[2]), field, ctx.XER());
+}
+
+/**
+ * Emit register-to-immediate comparison.
+ *
+ * Pattern `crD.compare<T>(rA.field, imm, XER)`
+ * Used by cmpdi, cmpldi, cmplwi, cmpwi
+ *
+ * @param ctx The builder context
+ * @param type_name The comparison type (e.g., "i64", "u32")
+ * @param field The register field accessor (e.g., "s64", "u32")
+ * @param sign_extend If true, sign-extend the immediate via static_cast<i32>
+ */
+void EmitCompareImmediate(BuilderContext& ctx, const char* type_name, const char* field,
+                          bool sign_extend) {
+  if (sign_extend) {
+    ctx.Println("\t{}.Compare<{}>({}.{}, {}, {});", ctx.CR(ctx.insn.operands[0]), type_name,
+                ctx.R(ctx.insn.operands[1]), field, static_cast<i32>(ctx.insn.operands[2]),
+                ctx.XER());
+  } else {
+    ctx.Println("\t{}.Compare<{}>({}.{}, {}, {});", ctx.CR(ctx.insn.operands[0]), type_name,
+                ctx.R(ctx.insn.operands[1]), field, ctx.insn.operands[2], ctx.XER());
+  }
+}
+
+}  // namespace
+
+template <>
+bool Build<PPC_INST_CMPD>(BuilderContext& ctx) {
   EmitCompareRegister(ctx, "i64", "s64");
   return true;
 }
 
-bool BuildCmpdi(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_CMPDI>(BuilderContext& ctx) {
   EmitCompareImmediate(ctx, "i64", "s64", true);
   return true;
 }
 
-bool BuildCmpld(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_CMPLD>(BuilderContext& ctx) {
   EmitCompareRegister(ctx, "u64", "u64");
   return true;
 }
 
-bool BuildCmpldi(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_CMPLDI>(BuilderContext& ctx) {
   EmitCompareImmediate(ctx, "u64", "u64", false);
   return true;
 }
 
-bool BuildCmplw(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_CMPLW>(BuilderContext& ctx) {
   EmitCompareRegister(ctx, "u32", "u32");
   return true;
 }
 
-bool BuildCmplwi(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_CMPLWI>(BuilderContext& ctx) {
   EmitCompareImmediate(ctx, "u32", "u32", false);
   return true;
 }
 
-bool BuildCmpw(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_CMPW>(BuilderContext& ctx) {
   EmitCompareRegister(ctx, "i32", "s32");
   return true;
 }
 
-bool BuildCmpwi(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_CMPWI>(BuilderContext& ctx) {
   EmitCompareImmediate(ctx, "i32", "s32", true);
   return true;
 }

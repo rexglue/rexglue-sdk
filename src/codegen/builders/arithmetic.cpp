@@ -9,17 +9,23 @@
  */
 
 #include "builder_context.h"
-#include "helpers.h"
+#include "builders.h"
+
+#include <dis-asm.h>
+#include <ppc-inst.h>
+
 namespace rex::codegen {
 
-bool BuildAdd(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_ADD>(BuilderContext& ctx) {
   ctx.Println("\t{}.u64 = {}.u64 + {}.u64;", ctx.R(ctx.insn.operands[0]),
               ctx.R(ctx.insn.operands[1]), ctx.R(ctx.insn.operands[2]));
   EmitRecordFormCompare(ctx);
   return true;
 }
 
-bool BuildAdde(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_ADDE>(BuilderContext& ctx) {
   ctx.Println("\t{}.u8 = ({}.u32 + {}.u32 < {}.u32) | ({}.u32 + {}.u32 + {}.ca < {}.ca);",
               ctx.Temp(), ctx.R(ctx.insn.operands[1]), ctx.R(ctx.insn.operands[2]),
               ctx.R(ctx.insn.operands[1]), ctx.R(ctx.insn.operands[1]), ctx.R(ctx.insn.operands[2]),
@@ -31,7 +37,8 @@ bool BuildAdde(BuilderContext& ctx) {
   return true;
 }
 
-bool BuildAddi(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_ADDI>(BuilderContext& ctx) {
   ctx.Print("\t{}.s64 = ", ctx.R(ctx.insn.operands[0]));
   if (ctx.insn.operands[1] != 0)
     ctx.Print("{}.s64 + ", ctx.R(ctx.insn.operands[1]));
@@ -39,7 +46,8 @@ bool BuildAddi(BuilderContext& ctx) {
   return true;
 }
 
-bool BuildAddic(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_ADDIC>(BuilderContext& ctx) {
   ctx.Println("\t{}.ca = {}.u32 > {};", ctx.XER(), ctx.R(ctx.insn.operands[1]),
               ~ctx.insn.operands[2]);
   ctx.Println("\t{}.s64 = {}.s64 + {};", ctx.R(ctx.insn.operands[0]), ctx.R(ctx.insn.operands[1]),
@@ -48,7 +56,8 @@ bool BuildAddic(BuilderContext& ctx) {
   return true;
 }
 
-bool BuildAddis(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_ADDIS>(BuilderContext& ctx) {
   ctx.Print("\t{}.s64 = ", ctx.R(ctx.insn.operands[0]));
   if (ctx.insn.operands[1] != 0)
     ctx.Print("{}.s64 + ", ctx.R(ctx.insn.operands[1]));
@@ -56,7 +65,8 @@ bool BuildAddis(BuilderContext& ctx) {
   return true;
 }
 
-bool BuildAddze(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_ADDZE>(BuilderContext& ctx) {
   ctx.Println("\t{}.s64 = {}.s64 + {}.ca;", ctx.Temp(), ctx.R(ctx.insn.operands[1]), ctx.XER());
   ctx.Println("\t{}.ca = {}.u32 < {}.u32;", ctx.XER(), ctx.Temp(), ctx.R(ctx.insn.operands[1]));
   ctx.Println("\t{}.s64 = {}.s64;", ctx.R(ctx.insn.operands[0]), ctx.Temp());
@@ -64,7 +74,8 @@ bool BuildAddze(BuilderContext& ctx) {
   return true;
 }
 
-bool BuildAddme(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_ADDME>(BuilderContext& ctx) {
   ctx.Println("\t{}.u8 = ({}.u32 + 0xFFFFFFFFu < {}.u32) | ({}.u32 + 0xFFFFFFFFu + {}.ca < {}.ca);",
               ctx.Temp(), ctx.R(ctx.insn.operands[1]), ctx.R(ctx.insn.operands[1]),
               ctx.R(ctx.insn.operands[1]), ctx.XER(), ctx.XER());
@@ -75,7 +86,8 @@ bool BuildAddme(BuilderContext& ctx) {
   return true;
 }
 
-bool BuildAddc(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_ADDC>(BuilderContext& ctx) {
   ctx.Println("\t{}.ca = {}.u32 + {}.u32 < {}.u32;", ctx.XER(), ctx.R(ctx.insn.operands[1]),
               ctx.R(ctx.insn.operands[2]), ctx.R(ctx.insn.operands[1]));
   ctx.Println("\t{}.u64 = {}.u64 + {}.u64;", ctx.R(ctx.insn.operands[0]),
@@ -86,7 +98,8 @@ bool BuildAddc(BuilderContext& ctx) {
 
 // PPC division does not trap, so a zero divisor or MIN / -1 (UB in C) yields 0.
 
-bool BuildDivd(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_DIVD>(BuilderContext& ctx) {
   auto r_d = ctx.R(ctx.insn.operands[0]);
   auto r_a = ctx.R(ctx.insn.operands[1]);
   auto r_b = ctx.R(ctx.insn.operands[2]);
@@ -97,7 +110,8 @@ bool BuildDivd(BuilderContext& ctx) {
   return true;
 }
 
-bool BuildDivdu(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_DIVDU>(BuilderContext& ctx) {
   auto r_d = ctx.R(ctx.insn.operands[0]);
   auto r_a = ctx.R(ctx.insn.operands[1]);
   auto r_b = ctx.R(ctx.insn.operands[2]);
@@ -106,7 +120,8 @@ bool BuildDivdu(BuilderContext& ctx) {
   return true;
 }
 
-bool BuildDivw(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_DIVW>(BuilderContext& ctx) {
   auto r_d = ctx.R(ctx.insn.operands[0]);
   auto r_a = ctx.R(ctx.insn.operands[1]);
   auto r_b = ctx.R(ctx.insn.operands[2]);
@@ -118,7 +133,8 @@ bool BuildDivw(BuilderContext& ctx) {
   return true;
 }
 
-bool BuildDivwu(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_DIVWU>(BuilderContext& ctx) {
   auto r_d = ctx.R(ctx.insn.operands[0]);
   auto r_a = ctx.R(ctx.insn.operands[1]);
   auto r_b = ctx.R(ctx.insn.operands[2]);
@@ -127,21 +143,24 @@ bool BuildDivwu(BuilderContext& ctx) {
   return true;
 }
 
-bool BuildMulhw(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_MULHW>(BuilderContext& ctx) {
   ctx.Println("\t{}.s64 = (i64({}.s32) * i64({}.s32)) >> 32;", ctx.R(ctx.insn.operands[0]),
               ctx.R(ctx.insn.operands[1]), ctx.R(ctx.insn.operands[2]));
   EmitRecordFormCompare(ctx);
   return true;
 }
 
-bool BuildMulhwu(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_MULHWU>(BuilderContext& ctx) {
   ctx.Println("\t{}.u64 = (u64({}.u32) * u64({}.u32)) >> 32;", ctx.R(ctx.insn.operands[0]),
               ctx.R(ctx.insn.operands[1]), ctx.R(ctx.insn.operands[2]));
   EmitRecordFormCompare(ctx);
   return true;
 }
 
-bool BuildMulld(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_MULLD>(BuilderContext& ctx) {
   // Use unsigned multiplication to avoid signed overflow UB (PPC wraps on overflow)
   ctx.Println("\t{}.s64 = static_cast<i64>({}.u64 * {}.u64);", ctx.R(ctx.insn.operands[0]),
               ctx.R(ctx.insn.operands[1]), ctx.R(ctx.insn.operands[2]));
@@ -149,7 +168,8 @@ bool BuildMulld(BuilderContext& ctx) {
   return true;
 }
 
-bool BuildMulli(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_MULLI>(BuilderContext& ctx) {
   // Use unsigned multiplication to avoid signed overflow UB (PPC wraps on overflow)
   ctx.Println("\t{}.s64 = static_cast<i64>({}.u64 * static_cast<u64>({}));",
               ctx.R(ctx.insn.operands[0]), ctx.R(ctx.insn.operands[1]),
@@ -157,14 +177,16 @@ bool BuildMulli(BuilderContext& ctx) {
   return true;
 }
 
-bool BuildMullw(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_MULLW>(BuilderContext& ctx) {
   ctx.Println("\t{}.s64 = i64({}.s32) * i64({}.s32);", ctx.R(ctx.insn.operands[0]),
               ctx.R(ctx.insn.operands[1]), ctx.R(ctx.insn.operands[2]));
   EmitRecordFormCompare(ctx);
   return true;
 }
 
-bool BuildMulhd(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_MULHD>(BuilderContext& ctx) {
   ctx.Println(
       "\t{}.s64 = static_cast<i64>((static_cast<__int128>(static_cast<i64>({}.s64)) * "
       "static_cast<__int128>(static_cast<i64>({}.s64))) >> 64);",
@@ -173,7 +195,8 @@ bool BuildMulhd(BuilderContext& ctx) {
   return true;
 }
 
-bool BuildMulhdu(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_MULHDU>(BuilderContext& ctx) {
   ctx.Println(
       "\t{}.u64 = static_cast<u64>((static_cast<__uint128_t>({}.u64) * "
       "static_cast<__uint128_t>({}.u64)) >> 64);",
@@ -182,7 +205,8 @@ bool BuildMulhdu(BuilderContext& ctx) {
   return true;
 }
 
-bool BuildNeg(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_NEG>(BuilderContext& ctx) {
   // Use unsigned negation to avoid signed overflow UB when negating INT64_MIN
   ctx.Println("\t{}.s64 = static_cast<i64>(-{}.u64);", ctx.R(ctx.insn.operands[0]),
               ctx.R(ctx.insn.operands[1]));
@@ -190,14 +214,16 @@ bool BuildNeg(BuilderContext& ctx) {
   return true;
 }
 
-bool BuildSubf(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_SUBF>(BuilderContext& ctx) {
   ctx.Println("\t{}.u64 = {}.u64 - {}.u64;", ctx.R(ctx.insn.operands[0]),
               ctx.R(ctx.insn.operands[2]), ctx.R(ctx.insn.operands[1]));
   EmitRecordFormCompare(ctx);
   return true;
 }
 
-bool BuildSubfc(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_SUBFC>(BuilderContext& ctx) {
   ctx.Println("\t{}.ca = {}.u32 >= {}.u32;", ctx.XER(), ctx.R(ctx.insn.operands[2]),
               ctx.R(ctx.insn.operands[1]));
   ctx.Println("\t{}.u64 = {}.u64 - {}.u64;", ctx.R(ctx.insn.operands[0]),
@@ -206,7 +232,8 @@ bool BuildSubfc(BuilderContext& ctx) {
   return true;
 }
 
-bool BuildSubfe(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_SUBFE>(BuilderContext& ctx) {
   ctx.Println("\t{}.u8 = (~{}.u32 + {}.u32 < ~{}.u32) | (~{}.u32 + {}.u32 + {}.ca < {}.ca);",
               ctx.Temp(), ctx.R(ctx.insn.operands[1]), ctx.R(ctx.insn.operands[2]),
               ctx.R(ctx.insn.operands[1]), ctx.R(ctx.insn.operands[1]), ctx.R(ctx.insn.operands[2]),
@@ -218,7 +245,8 @@ bool BuildSubfe(BuilderContext& ctx) {
   return true;
 }
 
-bool BuildSubfic(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_SUBFIC>(BuilderContext& ctx) {
   ctx.Println("\t{}.ca = {}.u32 <= {};", ctx.XER(), ctx.R(ctx.insn.operands[1]),
               ctx.insn.operands[2]);
   ctx.Println("\t{}.u64 = static_cast<u64>({}) - {}.u64;", ctx.R(ctx.insn.operands[0]),
@@ -226,7 +254,8 @@ bool BuildSubfic(BuilderContext& ctx) {
   return true;
 }
 
-bool BuildSubfze(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_SUBFZE>(BuilderContext& ctx) {
   ctx.Println("\t{}.u8 = ~{}.u32 + {}.ca < ~{}.u32;", ctx.Temp(), ctx.R(ctx.insn.operands[1]),
               ctx.XER(), ctx.R(ctx.insn.operands[1]));
   ctx.Println("\t{}.u64 = ~{}.u64 + {}.ca;", ctx.R(ctx.insn.operands[0]),
@@ -236,7 +265,8 @@ bool BuildSubfze(BuilderContext& ctx) {
   return true;
 }
 
-bool BuildSubfme(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_SUBFME>(BuilderContext& ctx) {
   ctx.Println(
       "\t{}.u8 = (~{}.u32 + 0xFFFFFFFFu < ~{}.u32) | (~{}.u32 + 0xFFFFFFFFu + {}.ca < {}.ca);",
       ctx.Temp(), ctx.R(ctx.insn.operands[1]), ctx.R(ctx.insn.operands[1]),

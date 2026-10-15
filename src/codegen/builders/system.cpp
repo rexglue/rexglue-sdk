@@ -9,61 +9,122 @@
  */
 
 #include "builder_context.h"
-#include "helpers.h"
+#include "builders.h"
+
+#include <dis-asm.h>
+#include <ppc-inst.h>
 
 namespace rex::codegen {
 
-bool BuildNop(BuilderContext& ctx) {
+namespace {
+
+/**
+ * Emit a PPC trap instruction `if (<condition>) ppc_trap(ctx, base, 0);`.
+ *
+ * The TO field (instruction bits 21-25) is a 5-bit mask of the trap conditions in the order
+ * signed lt, signed gt, eq, unsigned lt, unsigned gt. It is read from the instruction word so
+ * the generic (tw TO,rA,rB) and simplified (tweq rA,rB) forms share one builder.
+ *
+ * @param ctx      The builder context
+ * @param to       5-bit TO field
+ * @param a_signed  First operand, signed (e.g., "ctx.r3.s32")
+ * @param a_unsigned First operand, unsigned (e.g., "ctx.r3.u32")
+ * @param bSigned  Second operand, signed (e.g., "ctx.r4.s32" or "-1")
+ * @param bUnsigned Second operand, unsigned (e.g., "ctx.r4.u32" or "4294967295u")
+ */
+void EmitTrap(BuilderContext& ctx, u32 to, const std::string& a_signed,
+              const std::string& a_unsigned, const std::string& bSigned,
+              const std::string& bUnsigned) {
+  if (to == 0)
+    return;
+  if (to == 0x1F) {
+    ctx.Println("\tppc_trap(ctx, base, 0);");
+    return;
+  }
+
+  std::string cond;
+  auto add = [&](std::string_view c) {
+    if (!cond.empty())
+      cond += " || ";
+    cond += c;
+  };
+  if (to & 0x10)
+    add(std::format("{} < {}", a_signed, bSigned));
+  if (to & 0x08)
+    add(std::format("{} > {}", a_signed, bSigned));
+  if (to & 0x04)
+    add(std::format("{} == {}", a_signed, bSigned));
+  if (to & 0x02)
+    add(std::format("{} < {}", a_unsigned, bUnsigned));
+  if (to & 0x01)
+    add(std::format("{} > {}", a_unsigned, bUnsigned));
+
+  ctx.Println("\tif ({}) ppc_trap(ctx, base, 0);", cond);
+}
+
+}  // namespace
+
+template <>
+bool Build<PPC_INST_NOP>(BuilderContext& ctx) {
   (void)ctx;
   return true;
 }
 
-bool BuildAttn(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_ATTN>(BuilderContext& ctx) {
   // Xenon debug breakpoint, no effect in recompiled code
   (void)ctx;
   return true;
 }
 
-bool BuildSync(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_SYNC>(BuilderContext& ctx) {
   ctx.Println("\tstd::atomic_thread_fence(std::memory_order_seq_cst);");
   return true;
 }
 
-bool BuildLwsync(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_LWSYNC>(BuilderContext& ctx) {
   ctx.Println("\tstd::atomic_thread_fence(std::memory_order_acq_rel);");
   return true;
 }
 
-bool BuildEieio(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_EIEIO>(BuilderContext& ctx) {
   ctx.Println("\tstd::atomic_thread_fence(std::memory_order_seq_cst);");
   return true;
 }
 
-bool BuildDb16cyc(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_DB16CYC>(BuilderContext& ctx) {
   // Xenon 16-cycle delay hint, no effect in recompiled code
   (void)ctx;
   return true;
 }
 
-bool BuildCctpl(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_CCTPL>(BuilderContext& ctx) {
   // Xenon cache control thread priority low, no effect in recompiled code
   (void)ctx;
   return true;
 }
 
-bool BuildCctpm(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_CCTPM>(BuilderContext& ctx) {
   // Xenon cache control thread priority medium, no effect in recompiled code
   (void)ctx;
   return true;
 }
 
-bool BuildCctph(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_CCTPH>(BuilderContext& ctx) {
   // Xenon cache control thread priority high, no effect in recompiled code
   (void)ctx;
   return true;
 }
 
-bool BuildTdi(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_TDI>(BuilderContext& ctx) {
   u32 to = (ctx.insn.instruction >> 21) & 0x1F;
   u32 ra = (ctx.insn.instruction >> 16) & 0x1F;
   i64 simm = static_cast<i16>(ctx.insn.instruction & 0xFFFF);
@@ -72,7 +133,8 @@ bool BuildTdi(BuilderContext& ctx) {
   return true;
 }
 
-bool BuildTwi(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_TWI>(BuilderContext& ctx) {
   u32 to = (ctx.insn.instruction >> 21) & 0x1F;
   u32 ra = (ctx.insn.instruction >> 16) & 0x1F;
   i32 simm = static_cast<i16>(ctx.insn.instruction & 0xFFFF);
@@ -89,7 +151,8 @@ bool BuildTwi(BuilderContext& ctx) {
   return true;
 }
 
-bool BuildTd(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_TD>(BuilderContext& ctx) {
   u32 to = (ctx.insn.instruction >> 21) & 0x1F;
   u32 ra = (ctx.insn.instruction >> 16) & 0x1F;
   u32 rb = (ctx.insn.instruction >> 11) & 0x1F;
@@ -98,7 +161,8 @@ bool BuildTd(BuilderContext& ctx) {
   return true;
 }
 
-bool BuildTw(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_TW>(BuilderContext& ctx) {
   u32 to = (ctx.insn.instruction >> 21) & 0x1F;
   u32 ra = (ctx.insn.instruction >> 16) & 0x1F;
   u32 rb = (ctx.insn.instruction >> 11) & 0x1F;
@@ -107,25 +171,29 @@ bool BuildTw(BuilderContext& ctx) {
   return true;
 }
 
-bool BuildDcbf(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_DCBF>(BuilderContext& ctx) {
   // Hint instruction, access violation callback handlers take care of this on write
   (void)ctx;
   return true;
 }
 
-bool BuildDcbt(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_DCBT>(BuilderContext& ctx) {
   // Hint instruction, prefetch has no semantic effect
   (void)ctx;
   return true;
 }
 
-bool BuildDcbtst(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_DCBTST>(BuilderContext& ctx) {
   // Hint instruction, prefetch for store has no semantic effect
   (void)ctx;
   return true;
 }
 
-bool BuildDcbz(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_DCBZ>(BuilderContext& ctx) {
   ctx.Print("\t{} = (", ctx.EA());
   if (ctx.insn.operands[0] != 0)
     ctx.Print("{}.u32 + ", ctx.R(ctx.insn.operands[0]));
@@ -134,7 +202,8 @@ bool BuildDcbz(BuilderContext& ctx) {
   return true;
 }
 
-bool BuildDcbzl(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_DCBZL>(BuilderContext& ctx) {
   ctx.Print("\t{} = (", ctx.EA());
   if (ctx.insn.operands[0] != 0)
     ctx.Print("{}.u32 + ", ctx.R(ctx.insn.operands[0]));
@@ -143,35 +212,41 @@ bool BuildDcbzl(BuilderContext& ctx) {
   return true;
 }
 
-bool BuildDcbst(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_DCBST>(BuilderContext& ctx) {
   // Hint instruction, access violation callback handlers take care of this on write
   (void)ctx;
   return true;
 }
 
-bool BuildMr(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_MR>(BuilderContext& ctx) {
   ctx.Println("\t{}.u64 = {}.u64;", ctx.R(ctx.insn.operands[0]), ctx.R(ctx.insn.operands[1]));
   EmitRecordFormCompare(ctx);
   return true;
 }
 
-bool BuildMcrf(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_MCRF>(BuilderContext& ctx) {
   ctx.Println("\t{0} = {1};", ctx.CR(ctx.insn.operands[0]), ctx.CR(ctx.insn.operands[1]));
   return true;
 }
 
-bool BuildMfxer(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_MFXER>(BuilderContext& ctx) {
   ctx.Println("\t{}.u64 = ({}.so << 31) | ({}.ov << 30) | ({}.ca << 29);",
               ctx.R(ctx.insn.operands[0]), ctx.XER(), ctx.XER(), ctx.XER());
   return true;
 }
 
-bool BuildMfctr(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_MFCTR>(BuilderContext& ctx) {
   ctx.Println("\t{}.u64 = {}.u64;", ctx.R(ctx.insn.operands[0]), ctx.CTR());
   return true;
 }
 
-bool BuildMfcr(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_MFCR>(BuilderContext& ctx) {
   for (size_t i = 0; i < 32; i++) {
     constexpr std::string_view kFields[] = {"lt", "gt", "eq", "so"};
     ctx.Println("\t{}.u64 {}= {}.{} ? 0x{:X} : 0;", ctx.R(ctx.insn.operands[0]), i == 0 ? "" : "|",
@@ -180,7 +255,8 @@ bool BuildMfcr(BuilderContext& ctx) {
   return true;
 }
 
-bool BuildMfocrf(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_MFOCRF>(BuilderContext& ctx) {
   // FXM is a one-hot mask with bit 7 for CR0, bit 6 for CR1, down to bit 0 for CR7
   u32 fxm = ctx.insn.operands[1];
   u32 cr_field = 0;
@@ -197,13 +273,15 @@ bool BuildMfocrf(BuilderContext& ctx) {
   return true;
 }
 
-bool BuildMflr(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_MFLR>(BuilderContext& ctx) {
   if (!ctx.GetConfig().skip_lr)
     ctx.Println("\t{}.u64 = ctx.lr;", ctx.R(ctx.insn.operands[0]));
   return true;
 }
 
-bool BuildMfmsr(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_MFMSR>(BuilderContext& ctx) {
   if (!ctx.GetConfig().skip_msr) {
     // REX_CHECK_GLOBAL_LOCK yields 0x8000 when interrupts are enabled and 0 when locked
     ctx.Println("\t{}.u64 = REX_CHECK_GLOBAL_LOCK();", ctx.R(ctx.insn.operands[0]));
@@ -211,23 +289,27 @@ bool BuildMfmsr(BuilderContext& ctx) {
   return true;
 }
 
-bool BuildMffs(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_MFFS>(BuilderContext& ctx) {
   ctx.Println("\t{}.u64 = ctx.fpscr.LoadFromHost();", ctx.F(ctx.insn.operands[0]));
   return true;
 }
 
-bool BuildMftb(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_MFTB>(BuilderContext& ctx) {
   // The timebase runs at 50 MHz
   ctx.Println("\t{}.u64 = REX_QUERY_TIMEBASE();", ctx.R(ctx.insn.operands[0]));
   return true;
 }
 
-bool BuildMftbu(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_MFTBU>(BuilderContext& ctx) {
   ctx.Println("\t{}.u64 = REX_QUERY_TIMEBASE() >> 32;", ctx.R(ctx.insn.operands[0]));
   return true;
 }
 
-bool BuildMtcr(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_MTCR>(BuilderContext& ctx) {
   for (size_t i = 0; i < 32; i++) {
     constexpr std::string_view kFields[] = {"lt", "gt", "eq", "so"};
     ctx.Println("\t{}.{} = ({}.u32 & 0x{:X}) != 0;", ctx.CR(i / 4), kFields[i % 4],
@@ -236,7 +318,8 @@ bool BuildMtcr(BuilderContext& ctx) {
   return true;
 }
 
-bool BuildMtcrf(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_MTCRF>(BuilderContext& ctx) {
   u32 fxm = ctx.insn.operands[0];
   constexpr std::string_view kNames[] = {"lt", "gt", "eq", "so"};
   for (u32 field = 0; field < 8; field++) {
@@ -251,18 +334,21 @@ bool BuildMtcrf(BuilderContext& ctx) {
   return true;
 }
 
-bool BuildMtctr(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_MTCTR>(BuilderContext& ctx) {
   ctx.Println("\t{}.u64 = {}.u64;", ctx.CTR(), ctx.R(ctx.insn.operands[0]));
   return true;
 }
 
-bool BuildMtlr(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_MTLR>(BuilderContext& ctx) {
   if (!ctx.GetConfig().skip_lr)
     ctx.Println("\tctx.lr = {}.u64;", ctx.R(ctx.insn.operands[0]));
   return true;
 }
 
-bool BuildMtmsrd(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_MTMSRD>(BuilderContext& ctx) {
   if (!ctx.GetConfig().skip_msr) {
     ctx.Println("\tctx.msr = ({}.u32 & 0x8020) | (ctx.msr & ~0x8020);",
                 ctx.R(ctx.insn.operands[0]));
@@ -277,7 +363,8 @@ bool BuildMtmsrd(BuilderContext& ctx) {
   return true;
 }
 
-bool BuildMtfsf(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_MTFSF>(BuilderContext& ctx) {
   u32 fm = ctx.insn.operands[0];
   u32 mask = 0;
   for (int j = 0; j < 8; j++) {
@@ -294,14 +381,16 @@ bool BuildMtfsf(BuilderContext& ctx) {
   return true;
 }
 
-bool BuildMtxer(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_MTXER>(BuilderContext& ctx) {
   ctx.Println("\t{}.so = ({}.u64 & 0x80000000) != 0;", ctx.XER(), ctx.R(ctx.insn.operands[0]));
   ctx.Println("\t{}.ov = ({}.u64 & 0x40000000) != 0;", ctx.XER(), ctx.R(ctx.insn.operands[0]));
   ctx.Println("\t{}.ca = ({}.u64 & 0x20000000) != 0;", ctx.XER(), ctx.R(ctx.insn.operands[0]));
   return true;
 }
 
-bool BuildClrldi(BuilderContext& ctx) {
+template <>
+bool Build<PPC_INST_CLRLDI>(BuilderContext& ctx) {
   ctx.Println("\t{}.u64 = {}.u64 & 0x{:X};", ctx.R(ctx.insn.operands[0]),
               ctx.R(ctx.insn.operands[1]), (1ull << (64 - ctx.insn.operands[2])) - 1);
   EmitRecordFormCompare(ctx);
