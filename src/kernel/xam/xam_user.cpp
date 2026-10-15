@@ -294,12 +294,9 @@ u32 XamUserWriteProfileSettings_entry([[maybe_unused]] u32 title_id, u32 user_in
         u8* binary_ptr =
             runtime::GetCurrent().GetMemory()->TranslateVirtual(setting.data.binary.ptr);
         size_t binary_size = setting.data.binary.size;
-        std::vector<u8> bytes;
-        if (setting.data.binary.ptr) {
-          bytes.resize(binary_size);
+        std::vector<u8> bytes(binary_size, 0);
+        if (setting.data.binary.ptr && binary_size) {
           std::memcpy(bytes.data(), binary_ptr, binary_size);
-        } else {
-          bytes.resize(binary_size, 0);
         }
         user_profile.AddSetting(
             std::make_unique<runtime::UserProfile::BinarySetting>(setting.setting_id, bytes));

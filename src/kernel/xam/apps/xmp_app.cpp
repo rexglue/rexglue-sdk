@@ -432,12 +432,6 @@ X_HRESULT XmpApp::DispatchMessageSync(u32 message, u32 buffer_ptr, u32 buffer_le
                    static_cast<u32>(args->locked_ptr));
       *memory_->TranslateVirtual<be_u32*>(args->controller_ptr) = 0;
       *memory_->TranslateVirtual<be_u32*>(args->locked_ptr) = 0;
-
-      if (!KernelThread::GetCurrentThread()->GetMainThread()) {
-        // Titles poll this in a loop, the delay keeps them from starving other threads.
-        rex::runtime::KernelThread::Sleep(std::chrono::milliseconds(10));
-      }
-
       return X_E_SUCCESS;
     }
     case 0x00070029: {

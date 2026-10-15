@@ -10,6 +10,8 @@
 
 #include "rex_test.h"
 
+#include <chrono>
+
 #include <rex/kernel/xam/apps/xmp_app.h>
 
 #include "kernel_fixture.h"
@@ -48,5 +50,19 @@ REX_TEST_CASE("xmp: song info on an empty playlist fails", "[char][xmp]") {
     c.Store32(args + 4, 0);
     c.Store32(args + 8, c.Alloc(0x400));
     CHECK(app.DispatchMessageSync(0x0007000E, args, 12) == rex::X_E_FAIL);
+  });
+}
+
+REX_TEST_CASE("xmp: the playback controller query returns without sleeping", "[kernel][xmp]") {
+  KernelFixture fixture;
+  fixture.RunOnGuestThread([](Caller& c) {
+    rex::kernel::xam::apps::XmpApp app(c.GetRuntime());
+    const u32 args = c.Alloc(12);
+    c.Store32(args, 2);
+    c.Store32(args + 4, c.Alloc(4));
+    c.Store32(args + 8, c.Alloc(4));
+    const auto begin = std::chrono::steady_clock::now();
+    CHECK(app.DispatchMessageSync(0x0007001B, args, 12) == rex::X_E_SUCCESS);
+    CHECK(std::chrono::steady_clock::now() - begin < std::chrono::milliseconds(5));
   });
 }

@@ -73,7 +73,9 @@ u32 XamEnumerate(u32 handle, u32 flags, MappedVoid buffer_ptr, u32* items_return
           u32 length = 0;
           const X_RESULT result = run(extended_error, length);
           return runtime::CompletionOptions{
-              .result = result, .extended_error = extended_error, .length = length};
+              .result = result == X_ERROR_SUCCESS ? result : X_ERROR_FUNCTION_FAILED,
+              .extended_error = extended_error,
+              .length = length};
         });
     return X_ERROR_IO_PENDING;
   } else {
@@ -84,7 +86,7 @@ u32 XamEnumerate(u32 handle, u32 flags, MappedVoid buffer_ptr, u32* items_return
 
 u32 XamEnumerate_entry(u32 handle, u32 flags, MappedVoid buffer, [[maybe_unused]] u32 buffer_length,
                        MappedU32 items_returned, GuestPtrT<XAM_OVERLAPPED> overlapped) {
-  u32 dummy;
+  u32 dummy = 0;
   auto result =
       XamEnumerate(handle, flags, buffer, !overlapped.GetGuestAddress() ? &dummy : nullptr,
                    overlapped.GetGuestAddress());

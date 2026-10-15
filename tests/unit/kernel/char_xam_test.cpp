@@ -48,6 +48,7 @@ REX_TEST_CASE("xam: a launch with no name ends the title", "[char][xam]") {
 namespace {
 constexpr u32 kKnownSetting = 0x10040003;
 constexpr u32 kUnknownSetting = 0x10040FFF;
+constexpr u32 kBinarySetting = 0x63E80100;
 constexpr u32 kHeaderSize = 8;
 constexpr u32 kEntrySize = 40;
 
@@ -154,5 +155,26 @@ REX_TEST_CASE("xam: a session reference refuses a handle that is not a session",
     const u32 event = c.Load32(event_ptr);
     CHECK(c.XAM("XamSessionRefObjByHandle", {event, object_ptr}) == rex::X_ERROR_INVALID_HANDLE);
     CHECK(c.Kernel("NtClose", {event}) == 0);
+  });
+}
+
+REX_TEST_CASE("xam: a binary profile setting of size 0 is stored with no bytes", "[kernel][xam]") {
+  KernelFixture fixture;
+  fixture.RunOnGuestThread([](Caller& c) {
+    constexpr u32 kBinaryType = 6;
+    const u32 entry = c.Alloc(kEntrySize);
+    c.Store32(entry + 16, kBinarySetting);
+    c.Store32(entry + 24, kBinaryType << 24);
+    c.Store32(entry + 32, 0);
+    c.Store32(entry + 36, c.Alloc(4));
+    REQUIRE(c.XAM("XamUserWriteProfileSettings", {0, 0, 1, entry, 0}) == 0);
+
+    const u32 setting_ids = c.Alloc(4);
+    c.Store32(setting_ids, kBinarySetting);
+    const u32 buffer = c.Alloc(0x200);
+    REQUIRE(ReadProfile(c, 0, 0, 0, 1, setting_ids, buffer) == 0);
+    const u32 first = buffer + kHeaderSize;
+    CHECK(c.Load8(first + 24) == kBinaryType);
+    CHECK(c.Load32(first + 32) == 0);
   });
 }

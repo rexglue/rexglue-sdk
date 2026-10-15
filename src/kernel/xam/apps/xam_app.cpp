@@ -65,6 +65,9 @@ X_HRESULT XAMApp::DispatchMessageSync(u32 message, u32 buffer_ptr, u32 buffer_le
         }
         return X_E_SUCCESS;
       }
+      if (data->length_ptr) {
+        *memory_->TranslateVirtual<be_u32*>(data->length_ptr) = 0;
+      }
       return X_E_NO_MORE_FILES;
     }
     case 0x00020021: {
