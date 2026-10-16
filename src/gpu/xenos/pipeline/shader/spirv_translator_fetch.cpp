@@ -1196,6 +1196,19 @@ void SPIRVShaderTranslator::ProcessTextureFetchInstruction(
         id_vector_temp_.clear();
         id_vector_temp_.push_back(const_int_0_);
         id_vector_temp_.push_back(
+            builder_->makeIntConstant(int((fetch_constant_word_0_index + 3) >> 2)));
+        id_vector_temp_.push_back(
+            builder_->makeIntConstant(int((fetch_constant_word_0_index + 3) & 3)));
+        spv::Id fetch_constant_word_3 = builder_->createLoad(
+            builder_->createAccessChain(spv::StorageClassUniform, uniform_fetch_constants_,
+                                        id_vector_temp_),
+            spv::NoPrecision);
+        spv::Id fetch_constant_word_3_signed =
+            builder_->createUnaryOp(spv::OpBitcast, type_int, fetch_constant_word_3);
+
+        id_vector_temp_.clear();
+        id_vector_temp_.push_back(const_int_0_);
+        id_vector_temp_.push_back(
             builder_->makeIntConstant(int((fetch_constant_word_0_index + 4) >> 2)));
         id_vector_temp_.push_back(
             builder_->makeIntConstant(int((fetch_constant_word_0_index + 4) & 3)));
@@ -1718,7 +1731,7 @@ void SPIRVShaderTranslator::ProcessTextureFetchInstruction(
 
         spv::Id result_exponent_bias = builder_->CreateBinBuiltinCall(
             type_float, ext_inst_glsl_std_450_, GLSLstd450Ldexp, const_float_1,
-            builder_->createTriOp(spv::OpBitFieldSExtract, type_int, fetch_constant_word_4_signed,
+            builder_->createTriOp(spv::OpBitFieldSExtract, type_int, fetch_constant_word_3_signed,
                                   builder_->makeUintConstant(13), builder_->makeUintConstant(6)));
         {
           u32 result_remaining_components = used_result_nonzero_components;
