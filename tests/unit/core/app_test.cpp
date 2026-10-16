@@ -402,3 +402,18 @@ REX_TEST_CASE("RunGuarded turns an escaping exception into exit code 1", "[app][
   CHECK(rex::detail::RunGuarded([]() -> int { throw std::runtime_error("entry failed"); }) == 1);
   CHECK(rex::detail::RunGuarded([]() -> int { throw 5; }) == 1);
 }
+
+REX_TEST_CASE_METHOD(Fixture, "The first shutdown request keeps its exit code", "[core][app]") {
+  rex::detail::ResetAppState();
+  REQUIRE_FALSE(rex::detail::GetRequestedExitCode().has_value());
+  rex::RequestShutdown(7);
+  rex::RequestShutdown(0);
+  REQUIRE(rex::ShutdownRequested());
+  REQUIRE(rex::detail::GetRequestedExitCode() == 7);
+  rex::RequestShutdown(-3);
+  REQUIRE(rex::detail::GetRequestedExitCode() == 7);
+  rex::detail::ResetAppState();
+  rex::RequestShutdown(-3);
+  REQUIRE(rex::detail::GetRequestedExitCode() == -3);
+  rex::detail::ResetAppState();
+}

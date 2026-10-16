@@ -31,8 +31,8 @@
 namespace rex {
 namespace {
 
-std::atomic<bool> g_requested{false};
-std::atomic<i32> g_exit_code{0};
+constexpr u64 kRequestedBit = u64{1} << 32;
+std::atomic<u64> g_request{0};
 std::mutex g_state_mutex;
 rex::MoveOnlyFunction<void()> g_wake;
 std::optional<std::vector<std::string>> g_restart;
@@ -166,10 +166,8 @@ std::string JoinOptions(const std::vector<std::string>& options) {
 }  // namespace
 
 void RequestShutdown(i32 exit_code) {
-  bool expected = false;
-  if (g_requested.compare_exchange_strong(expected, true)) {
-    g_exit_code.store(exit_code);
-  }
+  u64 expected = 0;
+  g_request.compare_exchange_strong(expected, kRequestedBit | static_cast<u32>(exit_code));
   std::lock_guard lock(g_state_mutex);
   if (g_wake) {
     g_wake();
@@ -185,7 +183,7 @@ void RequestRestart(std::vector<std::string> args) {
 }
 
 bool ShutdownRequested() {
-  return g_requested.load();
+  return g_request.load() != 0;
 }
 
 namespace detail {
@@ -196,8 +194,7 @@ int ReportEntryFailure(const char* what) noexcept {
 }
 
 void ResetAppState() {
-  g_requested.store(false);
-  g_exit_code.store(0);
+  g_request.store(0);
   std::lock_guard lock(g_state_mutex);
   g_wake = {};
   g_restart.reset();
@@ -210,10 +207,11 @@ void SetShutdownWake(rex::MoveOnlyFunction<void()> wake) {
 }
 
 std::optional<i32> GetRequestedExitCode() {
-  if (!g_requested.load()) {
+  const u64 request = g_request.load();
+  if (request == 0) {
     return std::nullopt;
   }
-  return g_exit_code.load();
+  return static_cast<i32>(static_cast<u32>(request));
 }
 
 std::optional<std::vector<std::string>> TakeRestartArgs() {
