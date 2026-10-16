@@ -1161,8 +1161,8 @@ bool PipelineCache::GetCurrentStateDescription(
              primitive_processing_result.host_vertex_shader_type);
   bool tessellated = primitive_processing_result.IsTessellated();
   bool primitive_polygonal = draw_state::IsPrimitivePolygonal(regs);
-  bool rasterization_enabled =
-      draw_state::IsRasterizationPotentiallyDone(regs, primitive_polygonal);
+  bool rasterization_enabled = draw_state::IsRasterizationDone(
+      regs, primitive_polygonal, pixel_shader && pixel_shader->GetShader().GetMemExportEMWritten());
   // With rasterization off the caller omits the pixel shader so texture binding layouts match.
   if (!rasterization_enabled) {
     REX_ASSERT(pixel_shader == nullptr);

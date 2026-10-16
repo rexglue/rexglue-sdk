@@ -1205,8 +1205,8 @@ bool VulkanPipelineCache::GetCurrentStateDescription(
 
   // Tessellated patch draws are always polygonal, even when the major mode is not explicit.
   bool primitive_polygonal = tessellated ? true : draw_state::IsPrimitivePolygonal(regs);
-  bool rasterization_enabled =
-      draw_state::IsRasterizationPotentiallyDone(regs, primitive_polygonal);
+  bool rasterization_enabled = draw_state::IsRasterizationDone(
+      regs, primitive_polygonal, pixel_shader && pixel_shader->GetShader().GetMemExportEMWritten());
   if (!rasterization_enabled) {
     description_out.rasterizer_discard = 1;
     return true;

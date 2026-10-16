@@ -22,6 +22,7 @@ add_executable(unit_tests
     gpu/texture_info_test.cpp
     gpu/primitive_processor_simd_test.cpp
     gpu/cvar_scope_test.cpp
+    gpu/draw_state_test.cpp
     gpu/dxbc_operand_test.cpp
     gpu/overlay_contract_test.cpp
     gpu/shader_interpreter_test.cpp
@@ -144,6 +145,8 @@ add_executable(unit_tests
 target_sources(unit_tests PRIVATE
     ${PROJECT_SOURCE_DIR}/src/gpu/xenos/pipeline/shader/interpreter.cpp
     ${PROJECT_SOURCE_DIR}/src/gpu/xenos/pipeline/shader/shader.cpp
+    ${PROJECT_SOURCE_DIR}/src/gpu/xenos/draw_state.cpp
+    ${PROJECT_SOURCE_DIR}/src/gpu/xenos/host/fixed_point.cpp
     ${PROJECT_SOURCE_DIR}/src/gpu/xenos/index_conversion.cpp
     ${PROJECT_SOURCE_DIR}/src/gpu/xenos/vulkan/tessellation_glsl.cpp
     ${PROJECT_SOURCE_DIR}/src/rexglue/ui/ui.cpp

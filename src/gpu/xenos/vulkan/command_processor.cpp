@@ -3494,6 +3494,15 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, u32 index
     }
   }
   bool memexport_used_pixel = pixel_shader && (pixel_shader->GetMemExportEMWritten() != 0);
+  if (is_rasterization_done &&
+      !draw_state::IsRasterizationDone(regs, primitive_polygonal, memexport_used_pixel)) {
+    is_rasterization_done = false;
+    pixel_shader = nullptr;
+    memexport_used_pixel = false;
+    if (!memexport_used_vertex) {
+      return true;
+    }
+  }
   if (memexport_used_pixel) {
     if (!device_properties.fragmentStoresAndAtomics) {
       REX_FAIL(gpu, false,

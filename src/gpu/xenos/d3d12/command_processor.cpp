@@ -2195,6 +2195,15 @@ bool D3D12CommandProcessor::IssueDraw([[maybe_unused]] xenos::PrimitiveType prim
     }
   }
   bool memexport_used_pixel = pixel_shader && (pixel_shader->GetMemExportEMWritten() != 0);
+  if (is_rasterization_done &&
+      !draw_state::IsRasterizationDone(regs, primitive_polygonal, memexport_used_pixel)) {
+    is_rasterization_done = false;
+    pixel_shader = nullptr;
+    memexport_used_pixel = false;
+    if (!memexport_used_vertex) {
+      return true;
+    }
+  }
   bool memexport_used = memexport_used_vertex || memexport_used_pixel;
 
   if (!BeginSubmission(true)) {

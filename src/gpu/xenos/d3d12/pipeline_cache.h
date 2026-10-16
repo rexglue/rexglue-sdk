@@ -88,7 +88,7 @@ class PipelineCache {
 
   /**
    * Configures the pipeline for the current state. If
-   * draw_state::IsRasterizationPotentiallyDone is false, the pixel shader must be nullptr.
+   * draw_state::IsRasterizationDone is false, the pixel shader must be nullptr.
    *
    * @param vertex_shader Translated vertex shader.
    * @param pixel_shader Translated pixel shader, or nullptr.
@@ -303,7 +303,7 @@ class PipelineCache {
                                IDxcCompiler* dxc_compiler = nullptr);
 
   /**
-   * Builds the description of the current state. If draw_state::IsRasterizationPotentiallyDone
+   * Builds the description of the current state. If draw_state::IsRasterizationDone
    * is false, the pixel shader must be nullptr. The shaders must be translated and valid unless
    * for_placeholder is true.
    *
