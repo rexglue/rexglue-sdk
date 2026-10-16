@@ -10,6 +10,8 @@
 
 #pragma once
 
+#include <cmath>
+
 #include <simde/x86/sse4.1.h>
 
 #include <rex/ppc/estimate.h>

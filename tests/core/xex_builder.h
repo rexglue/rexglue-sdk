@@ -19,8 +19,7 @@
 #include <rex/filesystem/xex.h>
 #include <rex/types.h>
 
-#include "crypto/TinySHA1.hpp"
-#include "crypto/rijndael-alg-fst.h"
+#include "excrypt.h"
 
 namespace rex::test {
 
@@ -72,26 +71,19 @@ inline void AppendBE32(std::vector<u8>& out, u32 value) {
 }
 
 inline std::array<u8, 20> SHA1Of(std::span<const u8> data) {
-  sha1::SHA1 sha;
-  sha.processBytes(data.data(), data.size());
   std::array<u8, 20> digest{};
-  sha.finalize(digest.data());
+  ExCryptSha(data.data(), static_cast<u32>(data.size()), nullptr, 0, nullptr, 0, digest.data(),
+             static_cast<u32>(digest.size()));
   return digest;
 }
 
 inline std::vector<u8> EncryptCBC(const Key& key, std::span<const u8> input) {
-  u32 round_keys[4 * (MAXNR + 1)];
-  const int rounds = rijndaelKeySetupEnc(round_keys, key.data(), 128);
+  alignas(16) EXCRYPT_AES_STATE state{};
+  ExCryptAesKey(&state, key.data());
   std::vector<u8> out(input.size());
   std::array<u8, 16> chain{};
-  for (size_t offset = 0; offset + 16 <= input.size(); offset += 16) {
-    std::array<u8, 16> block{};
-    for (size_t i = 0; i < 16; ++i) {
-      block[i] = input[offset + i] ^ chain[i];
-    }
-    rijndaelEncrypt(round_keys, rounds, block.data(), out.data() + offset);
-    std::memcpy(chain.data(), out.data() + offset, 16);
-  }
+  ExCryptAesCbc(&state, input.data(), static_cast<u32>(input.size() & ~size_t{15}), out.data(),
+                chain.data(), 1);
   return out;
 }
 

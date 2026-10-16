@@ -57,3 +57,6 @@
 [submodule "thirdparty/tracy"]
 	path = thirdparty/tracy
 	url = https://github.com/wolfpld/tracy.git
+[submodule "thirdparty/excrypt"]
+	path = thirdparty/excrypt
+	url = https://github.com/emoose/ExCrypt.git

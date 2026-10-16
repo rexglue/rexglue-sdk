@@ -68,19 +68,4 @@ set(REXKERNEL_SOURCES
 list(TRANSFORM REXKERNEL_SOURCES PREPEND "${CMAKE_CURRENT_SOURCE_DIR}/")
 target_sources(rex-runtime PRIVATE ${REXKERNEL_SOURCES})
 
-set(REXKERNEL_THIRDPARTY_SOURCES
-    ${PROJECT_SOURCE_DIR}/thirdparty/crypto/des/des.cpp
-    ${PROJECT_SOURCE_DIR}/thirdparty/crypto/sha256.cpp
-)
-target_sources(rex-runtime PRIVATE ${REXKERNEL_THIRDPARTY_SOURCES})
-set_source_files_properties(${REXKERNEL_THIRDPARTY_SOURCES} TARGET_DIRECTORY rex-runtime
-    PROPERTIES SKIP_PRECOMPILE_HEADERS ON COMPILE_OPTIONS -w)
-if(CMAKE_CXX_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC")
-    set(REXKERNEL_DES_INCLUDE /FIcstring)
-else()
-    set(REXKERNEL_DES_INCLUDE -include cstring)
-endif()
-set_source_files_properties(${PROJECT_SOURCE_DIR}/thirdparty/crypto/des/des.cpp
-    TARGET_DIRECTORY rex-runtime PROPERTIES COMPILE_OPTIONS "-w;${REXKERNEL_DES_INCLUDE}")
-
 target_link_libraries(rex-runtime PRIVATE o1heap libavcodec libavutil)

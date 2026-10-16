@@ -92,7 +92,7 @@ target_link_libraries(rex-runtime
         simde
         tomlplusplus
     PRIVATE
-        aes128
+        excrypt
         xxHash::xxhash
 )
 

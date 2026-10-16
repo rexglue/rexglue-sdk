@@ -87,6 +87,9 @@ struct KernelGuestGlobals {
   X_KSPINLOCK ob_lock;         /**< Zeroed at setup. No code reads it. */
   X_KSPINLOCK tls_lock;        /**< Guards the TLS slot bitmap of each process. */
   u8 UsbdBootEnumerationDoneEvent[0x10]; /**< An X_DISPATCH_HEADER. */
+  /** Elliptic curve table XeCryptEccGetCurveParameters points into, entry N holds 0x80000000 + N.
+   */
+  be_u32 EccCurves[15];
 };
 
 }  // namespace rex::runtime

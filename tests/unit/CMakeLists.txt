@@ -44,13 +44,22 @@ add_executable(unit_tests
     kernel/char_handles_test.cpp
     kernel/char_strings_test.cpp
     kernel/shutdown_test.cpp
-    kernel/char_threads_test.cpp
-    kernel/char_files_test.cpp
-    kernel/char_memory_test.cpp
-    kernel/char_net_test.cpp
-    kernel/char_xam_test.cpp
-    kernel/char_xmp_test.cpp
-    kernel/char_identity_test.cpp
+    kernel/threads_test.cpp
+    kernel/files_test.cpp
+    kernel/memory_test.cpp
+    kernel/net_test.cpp
+    kernel/crypt_bignum_test.cpp
+    kernel/crypt_capture_test.cpp
+    kernel/crypt_cipher_test.cpp
+    kernel/crypt_hash_test.cpp
+    kernel/crypt_md5_test.cpp
+    kernel/crypt_parve_test.cpp
+    kernel/crypt_pkcs_test.cpp
+    kernel/crypt_rsa_test.cpp
+    kernel/crypt_sig_test.cpp
+    kernel/xam_test.cpp
+    kernel/xmp_test.cpp
+    kernel/identity_test.cpp
     kernel/interrupt_test.cpp
     kernel/char_dpc_test.cpp
     kernel/char_wait_test.cpp
@@ -153,7 +162,7 @@ target_sources(unit_tests PRIVATE
     ${PROJECT_SOURCE_DIR}/src/rexglue/ui/progress.cpp
     ${PROJECT_SOURCE_DIR}/src/rexglue/commands/init_command.cpp
     ${PROJECT_SOURCE_DIR}/src/rexglue/commands/test_spec.cpp
-    ${PROJECT_SOURCE_DIR}/thirdparty/crypto/rijndael-alg-fst.c
+    ${PROJECT_SOURCE_DIR}/src/filesystem/wildcard.cpp
 )
 
 set_source_files_properties(${PROJECT_SOURCE_DIR}/thirdparty/crypto/rijndael-alg-fst.c
@@ -172,6 +181,7 @@ target_include_directories(unit_tests PRIVATE
 target_link_libraries(unit_tests PRIVATE
     rex-codegen
     rex-runtime
+    excrypt
     rex-imgui
     rex-ui
     rex-hid-common

@@ -103,6 +103,10 @@ void Runtime::CreateSubsystems() {
   usbd_event->type = 1;
   usbd_event->signal_state = 1;
 
+  for (u32 curve = 0; curve < std::size(globals->EccCurves); ++curve) {
+    globals->EccCurves[curve] = 0x80000000 + curve;
+  }
+
   u32 oddobject_offset = kernel_guest_globals_ + offsetof(KernelGuestGlobals, OddObj);
   globals->OddObj.field0 = 0x1000000;
   globals->OddObj.field4 = 1;

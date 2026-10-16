@@ -19,7 +19,7 @@ set(REXGLUE_INSTALL_TARGETS
     rex-gpu-xenos
     rex-filesystem
     renderdoc simde tomlplusplus
-    aes128 mspack o1heap disasm xxhash
+    excrypt mspack o1heap disasm xxhash
     libavcodec libavutil
 )
 if(WIN32)

@@ -17,7 +17,6 @@ add_library(rex-core SHARED
     filesystem/svod.cpp
     filesystem/xcontent.cpp
     filesystem/xex.cpp
-    ${PROJECT_SOURCE_DIR}/thirdparty/crypto/rijndael-alg-fst.c
     hash.cpp
     hid/key_chord.cpp
     hid/null_backend.cpp
@@ -39,9 +38,6 @@ add_library(rex-core SHARED
     utf8.cpp
     vec128.cpp
 )
-
-set_source_files_properties(${PROJECT_SOURCE_DIR}/thirdparty/crypto/rijndael-alg-fst.c
-    PROPERTIES LANGUAGE CXX COMPILE_OPTIONS -w)
 
 add_library(rex::core ALIAS rex-core)
 set_target_properties(rex-core PROPERTIES
@@ -141,6 +137,7 @@ target_link_libraries(rex-core
         simde
         tomlplusplus
     PRIVATE
+        excrypt
         mspack
         xxHash::xxhash
 )

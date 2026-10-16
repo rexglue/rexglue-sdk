@@ -33,6 +33,7 @@ endif()
 set(REQUIRED_SUBMODULES
     cli11
     libmspack
+    excrypt
     FFmpeg
     tomlplusplus
     simde
@@ -95,17 +96,6 @@ target_include_directories(simde INTERFACE
 # Compiled libraries (vendored sources)
 #=============================================================================
 
-# aes_128 - AES-128 encryption/decryption (used by kernel crypt routines)
-# From: https://github.com/openluopworld/aes_128
-add_library(aes128 STATIC
-    aes_128/aes.c
-)
-target_include_directories(aes128 PUBLIC
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
-    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
-# Suppress warnings in third-party C code
-target_compile_options(aes128 PRIVATE -w)
-
 # libmspack - LZX decompression for XEX images (lzxd.c only)
 set(MSPACK_DIR "${CMAKE_CURRENT_SOURCE_DIR}/libmspack/libmspack/mspack")
 add_library(mspack STATIC
@@ -116,6 +106,41 @@ target_include_directories(mspack PUBLIC
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
 # Suppress warnings in third-party C code
 target_compile_options(mspack PRIVATE -w)
+
+# ExCrypt - XeCrypt compatible primitives (git submodule, built from the sources it ships)
+set(EXCRYPT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/excrypt/src")
+add_library(excrypt STATIC
+    ${EXCRYPT_DIR}/excrypt_aes.c
+    ${EXCRYPT_DIR}/excrypt_bn.c
+    ${EXCRYPT_DIR}/excrypt_bn_key.cpp
+    ${EXCRYPT_DIR}/excrypt_bn_mod.cpp
+    ${EXCRYPT_DIR}/excrypt_bn_pkcs1.cpp
+    ${EXCRYPT_DIR}/excrypt_bn_sig.c
+    ${EXCRYPT_DIR}/excrypt_des.c
+    ${EXCRYPT_DIR}/excrypt_ecc.c
+    ${EXCRYPT_DIR}/excrypt_md5.c
+    ${EXCRYPT_DIR}/excrypt_mem.cpp
+    ${EXCRYPT_DIR}/excrypt_parve.c
+    ${EXCRYPT_DIR}/excrypt_rc4.c
+    ${EXCRYPT_DIR}/excrypt_rotsum.c
+    ${EXCRYPT_DIR}/excrypt_sha.c
+    ${EXCRYPT_DIR}/excrypt_sha2.c
+    ${EXCRYPT_DIR}/rijndael.c
+)
+target_include_directories(excrypt PUBLIC
+    $<BUILD_INTERFACE:${EXCRYPT_DIR}>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
+set_source_files_properties(
+    ${EXCRYPT_DIR}/excrypt_bn_key.cpp ${EXCRYPT_DIR}/excrypt_bn_mod.cpp
+    ${EXCRYPT_DIR}/excrypt_bn_pkcs1.cpp
+    ${EXCRYPT_DIR}/excrypt_mem.cpp
+    PROPERTIES COMPILE_OPTIONS "-include;cstring;-include;algorithm")
+set_source_files_properties(${EXCRYPT_DIR}/excrypt_sha2.c
+    PROPERTIES COMPILE_OPTIONS "-Dmin(a,b)=((a)<(b)?(a):(b))")
+if(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64")
+    set_source_files_properties(${EXCRYPT_DIR}/excrypt_aes.c PROPERTIES COMPILE_OPTIONS "-maes")
+endif()
+target_compile_options(excrypt PRIVATE -w)
 
 # o1heap - O(1) heap allocator for real-time systems (used by the shim heap)
 # NOTE: o1heap.c auto-detects CLZ via __builtin_clzl when __clang__/__GNUC__

@@ -11,6 +11,7 @@
 
 #pragma once
 
+#include <cmath>
 #include <cstdint>
 
 // 128 bit SSSE3 (SSE2 integer comparison, pshufb from SSSE3), as AVX2 is above the minimum.

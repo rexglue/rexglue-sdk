@@ -14,6 +14,7 @@
  */
 
 #include <algorithm>
+#include <cmath>
 #include <cstring>
 
 #include "runtime/xma/context.h"

@@ -23,7 +23,6 @@
 
 #include <ObjBase.h>
 #include <SDKDDKVer.h>
-#include <bcrypt.h>
 #include <dwmapi.h>
 #include <shellapi.h>
 #include <shlwapi.h>

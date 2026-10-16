@@ -12,6 +12,33 @@
 #pragma once
 
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/catch_tostring.hpp>
+
+#include <format>
+#include <string>
+#include <vector>
+
+namespace Catch {
+
+/** Prints a byte vector as hex so a failed comparison reports it compactly. */
+template <>
+struct StringMaker<std::vector<unsigned char>> {
+  /**
+   * Formats the bytes.
+   *
+   * @param bytes The bytes to print.
+   * @return The byte count followed by each byte in 2 hex digits.
+   */
+  static std::string convert(const std::vector<unsigned char>& bytes) {
+    std::string text = std::format("{} bytes:", bytes.size());
+    for (const unsigned char byte : bytes) {
+      text += std::format(" {:02x}", byte);
+    }
+    return text;
+  }
+};
+
+}  // namespace Catch
 
 /**
  * Defines a test function and registers it through a noexcept function. REX_TEST_CASE expands

@@ -11,6 +11,7 @@
 #pragma once
 
 #include <array>
+#include <cmath>
 
 #include <simde/x86/sse4.1.h>
 

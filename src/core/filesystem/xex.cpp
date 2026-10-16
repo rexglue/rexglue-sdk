@@ -5,8 +5,7 @@
 
 #include <rex/logging.h>
 
-#include "crypto/TinySHA1.hpp"
-#include "crypto/rijndael-alg-fst.h"
+#include "excrypt.h"
 #include "lzx.h"
 #include "pe/pe_image.h"
 
@@ -40,24 +39,15 @@ const Key& MasterKey(XEXKey key) {
 
 class CBCDecryptor {
  public:
-  explicit CBCDecryptor(const Key& key) {
-    rounds_ = rijndaelKeySetupDec(round_keys_, key.data(), 128);
-  }
+  explicit CBCDecryptor(const Key& key) { ExCryptAesKey(&state_, key.data()); }
 
   void Run(std::span<const u8> input, std::span<u8> output) {
-    for (size_t offset = 0; offset + 16 <= input.size(); offset += 16) {
-      std::array<u8, 16> block{};
-      rijndaelDecrypt(round_keys_, rounds_, input.data() + offset, block.data());
-      for (size_t i = 0; i < 16; ++i) {
-        output[offset + i] = block[i] ^ chain_[i];
-        chain_[i] = input[offset + i];
-      }
-    }
+    const u32 size = static_cast<u32>(input.size() & ~size_t{15});
+    ExCryptAesCbc(&state_, input.data(), size, output.data(), chain_.data(), 0);
   }
 
  private:
-  u32 round_keys_[4 * (MAXNR + 1)]{};
-  int rounds_ = 0;
+  alignas(16) EXCRYPT_AES_STATE state_{};
   std::array<u8, 16> chain_{};
 };
 
@@ -68,10 +58,9 @@ Key DecryptKey(const Key& key, std::span<const u8, 16> encrypted) {
 }
 
 std::array<u8, 20> SHA1Digest(std::span<const u8> data) {
-  sha1::SHA1 sha;
-  sha.processBytes(data.data(), data.size());
   std::array<u8, 20> digest{};
-  sha.finalize(digest.data());
+  ExCryptSha(data.data(), static_cast<u32>(data.size()), nullptr, 0, nullptr, 0, digest.data(),
+             static_cast<u32>(digest.size()));
   return digest;
 }
 
