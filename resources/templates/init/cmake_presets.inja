@@ -80,7 +80,7 @@
             "name": "win-amd64-debug",
             "displayName": "Windows AMD64 Debug",
             "inherits": "windows-base",
-            "cacheVariables": { "CMAKE_BUILD_TYPE": "Debug" }
+            "cacheVariables": { "CMAKE_BUILD_TYPE": "Debug", "REXGLUE_RECOMP_OPTIMIZATION": "O1" }
         },
         {
             "name": "win-amd64-release",
@@ -92,7 +92,7 @@
             "name": "linux-amd64-debug",
             "displayName": "Linux AMD64 Debug",
             "inherits": "linux-base",
-            "cacheVariables": { "CMAKE_BUILD_TYPE": "Debug" }
+            "cacheVariables": { "CMAKE_BUILD_TYPE": "Debug", "REXGLUE_RECOMP_OPTIMIZATION": "O1" }
         },
         {
             "name": "linux-amd64-release",
@@ -116,7 +116,7 @@
             "name": "win-arm64-debug",
             "displayName": "Windows ARM64 Debug",
             "inherits": "windows-arm64-base",
-            "cacheVariables": { "CMAKE_BUILD_TYPE": "Debug" }
+            "cacheVariables": { "CMAKE_BUILD_TYPE": "Debug", "REXGLUE_RECOMP_OPTIMIZATION": "O1" }
         },
         {
             "name": "win-arm64-release",
@@ -134,7 +134,7 @@
             "name": "linux-arm64-debug",
             "displayName": "Linux ARM64 Debug",
             "inherits": "linux-arm64-base",
-            "cacheVariables": { "CMAKE_BUILD_TYPE": "Debug" }
+            "cacheVariables": { "CMAKE_BUILD_TYPE": "Debug", "REXGLUE_RECOMP_OPTIMIZATION": "O1" }
         },
         {
             "name": "linux-arm64-release",
@@ -152,7 +152,7 @@
             "name": "mac-amd64-debug",
             "displayName": "macOS AMD64 Debug",
             "inherits": "mac-base",
-            "cacheVariables": { "CMAKE_BUILD_TYPE": "Debug" }
+            "cacheVariables": { "CMAKE_BUILD_TYPE": "Debug", "REXGLUE_RECOMP_OPTIMIZATION": "O1" }
         },
         {
             "name": "mac-amd64-release",
@@ -170,7 +170,7 @@
             "name": "mac-arm64-debug",
             "displayName": "macOS ARM64 Debug",
             "inherits": "mac-arm64-base",
-            "cacheVariables": { "CMAKE_BUILD_TYPE": "Debug" }
+            "cacheVariables": { "CMAKE_BUILD_TYPE": "Debug", "REXGLUE_RECOMP_OPTIMIZATION": "O1" }
         },
         {
             "name": "mac-arm64-release",

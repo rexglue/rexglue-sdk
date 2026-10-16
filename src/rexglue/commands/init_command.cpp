@@ -212,6 +212,8 @@ Result<void> InitProject(const InitOptions& opts, const CLIContext& ctx) {
       {"init/rexglue_cmake", project_root / "generated" / "rexglue.cmake",
        RegeneratePolicy::kAlwaysRegenerate},
       {"init/main_cpp", project_root / "src" / "main.cpp", RegeneratePolicy::kFirstInitOnly},
+      {"init/hooks_cpp", project_root / "src" / (names.original + "_hooks.cpp"),
+       RegeneratePolicy::kFirstInitOnly},
       {"init/manifest_toml", project_root / manifest_file, RegeneratePolicy::kRequiresForce},
       {"init/cmake_presets", project_root / "CMakePresets.json", RegeneratePolicy::kRequiresForce},
   };

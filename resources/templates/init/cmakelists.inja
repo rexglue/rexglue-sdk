@@ -3,6 +3,9 @@
 # SDK boilerplate lives in generated/rexglue.cmake.
 
 cmake_minimum_required(VERSION 3.25)
+if(POLICY CMP0184)
+    cmake_policy(SET CMP0184 NEW)
+endif()
 project({{ names.original }} LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 23)
@@ -10,15 +13,20 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 include(generated/rexglue.cmake)
 
-# Sources
-set({{ names.upper_case }}_SOURCES
-    src/main.cpp
+# Host sources. Add yours here, src/main.cpp stays on the executable.
+set({{ names.upper_case }}_HOST_SOURCES
+    src/{{ names.original }}_hooks.cpp
 )
 
+# OBJECT and never STATIC, an archive drops the REX_HOOK symbols.
+add_library({{ names.original }}_common OBJECT {{ cmake_var(names.upper_case + "_HOST_SOURCES") }})
+rexglue_setup_host_library({{ names.original }}_common)
+
 if(WIN32)
-    add_executable({{ names.original }} WIN32 {{ cmake_var(names.upper_case + "_SOURCES") }})
+    add_executable({{ names.original }} WIN32 src/main.cpp)
 else()
-    add_executable({{ names.original }} {{ cmake_var(names.upper_case + "_SOURCES") }})
+    add_executable({{ names.original }} src/main.cpp)
 endif()
 
 rexglue_setup_target({{ names.original }})
+target_link_libraries({{ names.original }} PRIVATE {{ names.original }}_common)

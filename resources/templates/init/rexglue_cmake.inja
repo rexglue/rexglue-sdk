@@ -55,6 +55,39 @@ elseif(REXGLUE_RECOMP_DEBUG_INFO STREQUAL "line-tables-only")
         $<$<CXX_COMPILER_ID:Clang,AppleClang>:-gline-tables-only>)
 endif()
 
+set(REXGLUE_RECOMP_OPTIMIZATION "" CACHE STRING
+    "Optimization level for generated code: empty keeps the build type default, or O0, O1, O2, O3")
+set_property(CACHE REXGLUE_RECOMP_OPTIMIZATION PROPERTY STRINGS "" O0 O1 O2 O3)
+if(NOT REXGLUE_RECOMP_OPTIMIZATION STREQUAL "")
+    if(NOT REXGLUE_RECOMP_OPTIMIZATION MATCHES "^O[0-3]$")
+        message(FATAL_ERROR
+            "REXGLUE_RECOMP_OPTIMIZATION must be empty or one of O0, O1, O2, O3 (got '{{ cmake_var("REXGLUE_RECOMP_OPTIMIZATION") }}')")
+    endif()
+    if(MSVC)
+        set(rexglue_rtc_policy "")
+        if(POLICY CMP0184)
+            cmake_policy(GET CMP0184 rexglue_rtc_policy)
+        endif()
+        if(NOT rexglue_rtc_policy STREQUAL "NEW")
+            message(FATAL_ERROR
+                "REXGLUE_RECOMP_OPTIMIZATION with cl or clang-cl needs CMake 4.0 or later and "
+                "cmake_policy(SET CMP0184 NEW) before project(). Otherwise configure with the "
+                "GNU style clang driver the presets pin.")
+        endif()
+        if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+            list(APPEND REXGLUE_RECOMP_OPTIONS /clang:-{{ cmake_var("REXGLUE_RECOMP_OPTIMIZATION") }})
+        elseif(REXGLUE_RECOMP_OPTIMIZATION STREQUAL "O0")
+            list(APPEND REXGLUE_RECOMP_OPTIONS /Od)
+        elseif(REXGLUE_RECOMP_OPTIMIZATION STREQUAL "O1")
+            list(APPEND REXGLUE_RECOMP_OPTIONS /O2 /Ob1)
+        else()
+            list(APPEND REXGLUE_RECOMP_OPTIONS /O2 /Ob2)
+        endif()
+    else()
+        list(APPEND REXGLUE_RECOMP_OPTIONS -{{ cmake_var("REXGLUE_RECOMP_OPTIMIZATION") }})
+    endif()
+endif()
+
 # Include entrypoint generated code if codegen has been run.
 if(EXISTS "{{ cmake_var("CMAKE_CURRENT_SOURCE_DIR") }}/{{ entrypoint_out_dir }}/sources.cmake")
     include({{ entrypoint_out_dir }}/sources.cmake)
@@ -72,27 +105,45 @@ endif()
 function(rexglue_apply_recomp_settings target_name pch_header)
     target_precompile_headers({{ cmake_var("target_name") }} PRIVATE "{{ cmake_var("pch_header") }}")
     target_compile_options({{ cmake_var("target_name") }} PRIVATE {{ cmake_var("REXGLUE_RECOMP_OPTIONS") }})
+    if(MSVC AND NOT REXGLUE_RECOMP_OPTIMIZATION STREQUAL "")
+        set_target_properties({{ cmake_var("target_name") }} PROPERTIES MSVC_RUNTIME_CHECKS "")
+    endif()
 endfunction()
+
+macro(rexglue_setup_host_library library_name)
+    rexglue_apply_target_settings({{ cmake_var("library_name") }})
+    target_include_directories({{ cmake_var("library_name") }} PRIVATE
+        {{ cmake_var("CMAKE_CURRENT_SOURCE_DIR") }}
+        {{ cmake_var("CMAKE_CURRENT_SOURCE_DIR") }}/src
+        {{ cmake_var("REXGLUE_ENTRYPOINT_INCLUDE_DIR") }}
+    )
+    target_link_libraries({{ cmake_var("library_name") }} PRIVATE rex::sdk)
+    add_dependencies({{ cmake_var("library_name") }} {{ names.original }}_codegen)
+endmacro()
 
 # Configure a rexglue target with SDK libraries and platform settings.
 # Call after add_executable() in your CMakeLists.txt.
 # Usage: rexglue_setup_target(<target> [GPU_PLUGINS xenos])
 macro(rexglue_setup_target target_name)
-    if(REXGLUE_ENTRYPOINT_GENERATED_SOURCES)
-        add_library({{ cmake_var("target_name") }}_recomp OBJECT
+    if(REXGLUE_ENTRYPOINT_GENERATED_SOURCES AND NOT TARGET {{ names.original }}_recompiled)
+        add_library({{ names.original }}_recompiled OBJECT
             {{ cmake_var("REXGLUE_ENTRYPOINT_GENERATED_SOURCES") }})
-        target_include_directories({{ cmake_var("target_name") }}_recomp PRIVATE
+        target_include_directories({{ names.original }}_recompiled PRIVATE
             {{ cmake_var("CMAKE_CURRENT_SOURCE_DIR") }}
             {{ cmake_var("CMAKE_CURRENT_SOURCE_DIR") }}/src
             {{ cmake_var("REXGLUE_ENTRYPOINT_INCLUDE_DIR") }}
         )
-        target_link_libraries({{ cmake_var("target_name") }}_recomp PRIVATE rex::sdk)
-        rexglue_apply_target_settings({{ cmake_var("target_name") }}_recomp)
-        rexglue_apply_recomp_settings({{ cmake_var("target_name") }}_recomp
+        target_link_libraries({{ names.original }}_recompiled PRIVATE rex::sdk)
+        set_source_files_properties({{ cmake_var("REXGLUE_ENTRYPOINT_GENERATED_SOURCES") }}
+            PROPERTIES COMPILE_OPTIONS "")
+        rexglue_apply_target_settings({{ names.original }}_recompiled)
+        rexglue_apply_recomp_settings({{ names.original }}_recompiled
             "{{ cmake_var("REXGLUE_ENTRYPOINT_INCLUDE_DIR") }}/{{ names.original }}_pch.h")
-        add_dependencies({{ cmake_var("target_name") }}_recomp {{ names.original }}_codegen)
+        add_dependencies({{ names.original }}_recompiled {{ names.original }}_codegen)
+    endif()
+    if(TARGET {{ names.original }}_recompiled)
         target_link_libraries({{ cmake_var("target_name") }} PRIVATE
-            {{ cmake_var("target_name") }}_recomp)
+            {{ names.original }}_recompiled)
     endif()
     # Also on the host, so a tree that has never run codegen still generates it.
     add_dependencies({{ cmake_var("target_name") }} {{ names.original }}_codegen)
