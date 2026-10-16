@@ -571,6 +571,8 @@ REX_TEST_CASE("net: select counts a socket once for each set it is ready in",
     REQUIRE(c.XAM("NetDll_bind", {0, receiver, LoopbackAddress(c, kPort), 16}) == 0);
     REQUIRE(c.XAM("NetDll_sendto", {0, sender, c.Alloc(8), 8, 0, LoopbackAddress(c, kPort), 16}) ==
             8);
+    const u32 arrived = SocketSet(c, {receiver});
+    REQUIRE(c.XAM("NetDll_select", {0, 0, arrived, 0, 0, Timeval(c, 1, 0)}) == 1);
     const u32 readable = SocketSet(c, {receiver});
     const u32 writable = SocketSet(c, {receiver});
     CHECK(c.XAM("NetDll_select", {0, 0, readable, writable, 0, Timeval(c, 1, 0)}) == 2);

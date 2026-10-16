@@ -235,9 +235,10 @@ target_include_directories(unit_tests PRIVATE
     ${PROJECT_SOURCE_DIR}/tests
     ${PROJECT_SOURCE_DIR}/thirdparty
     ${PROJECT_SOURCE_DIR}/thirdparty/disasm
-    ${PROJECT_SOURCE_DIR}/thirdparty/cli11/include
     ${CMAKE_CURRENT_SOURCE_DIR}
 )
+# CLI11 instantiates std::wstring_convert, which libc++ marks deprecated
+target_include_directories(unit_tests SYSTEM PRIVATE ${PROJECT_SOURCE_DIR}/thirdparty/cli11/include)
 
 target_link_libraries(unit_tests PRIVATE
     rexcodegen

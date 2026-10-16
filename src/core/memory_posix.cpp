@@ -222,7 +222,7 @@ void* AllocFixed(void* base_address, size_t length, AllocationType allocation_ty
 #if REX_PLATFORM_MAC
   // Guest heaps reconcile permissions sharing a host page, so sub host page requests stay as given.
   if (base_address != nullptr && allocation_type == AllocationType::kCommit) {
-    const size_t host_page = page_size();
+    const size_t host_page = PageSize();
     const uintptr_t address = reinterpret_cast<uintptr_t>(base_address);
     if ((address % host_page) != 0 || (length % host_page) != 0) {
       return nullptr;

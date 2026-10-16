@@ -459,8 +459,9 @@ REX_TEST_CASE("A no_save var is absent from Serialize", "[core][cvar]") {
 }
 
 REX_TEST_CASE("cvar and log category descriptors construct without throwing", "[core][cvar]") {
+  using namespace std::string_view_literals;
   STATIC_REQUIRE(std::is_nothrow_copy_constructible_v<rex::cvar::Var<bool>>);
-  STATIC_REQUIRE(noexcept(rex::cvar::Var<bool>("a.b", true, "d")));
-  STATIC_REQUIRE(noexcept(rex::cvar::Var<bool>("a.b", true, "d").SetRange(0, 1)));
-  STATIC_REQUIRE(noexcept(rex::log::Category("a", "d")));
+  STATIC_REQUIRE(noexcept(rex::cvar::Var<bool>("a.b"sv, true, "d"sv)));
+  STATIC_REQUIRE(noexcept(rex::cvar::Var<bool>("a.b"sv, true, "d"sv).SetRange(0, 1)));
+  STATIC_REQUIRE(noexcept(rex::log::Category("a"sv, "d"sv)));
 }

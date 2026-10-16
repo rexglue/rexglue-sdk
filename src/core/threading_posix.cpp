@@ -1127,7 +1127,7 @@ class PosixCondition<Thread> : public PosixConditionBase {
     WaitStarted();
 #if defined(__APPLE__)
     // macOS has no pthread affinity masks, so every logical processor is reported.
-    auto cpu_count = std::min<u32>(logical_processor_count(), 64);
+    auto cpu_count = std::min<u32>(LogicalProcessorCount(), 64);
     if (cpu_count == 64) {
       return std::numeric_limits<u64>::max();
     }

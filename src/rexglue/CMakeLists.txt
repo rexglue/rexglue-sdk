@@ -20,8 +20,8 @@ target_include_directories(rexglue
     PRIVATE
         ${REXGLUE_ROOT}/src
         ${REXGLUE_ROOT}/thirdparty/disasm
-        ${REXGLUE_ROOT}/thirdparty/cli11/include
 )
+target_include_directories(rexglue SYSTEM PRIVATE ${REXGLUE_ROOT}/thirdparty/cli11/include)
 
 target_link_libraries(rexglue
     PRIVATE

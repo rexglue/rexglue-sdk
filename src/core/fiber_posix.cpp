@@ -8,6 +8,10 @@
 
 #include <rex/platform/fiber.h>
 
+#if defined(__APPLE__)
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"  // Darwin deprecates the ucontext API
+#endif
+
 #include <cassert>
 #include <memory>
 
