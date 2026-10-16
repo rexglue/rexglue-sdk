@@ -52,12 +52,15 @@ bool IsValidProjectName(std::string_view name) {
  * @param tbl The TOML table of the entrypoint or module.
  * @param base_dir The directory that relative paths in the table resolve against.
  * @param project_name The project name stored on the recompiler config.
+ * @param shared The shared layer whose defaults the binary starts from.
  * @param out The binary config to fill.
  * @return True when the table loaded, false on failure.
  */
 bool LoadBinaryConfig(const toml::table& tbl, const std::filesystem::path& base_dir,
-                      std::string_view project_name, BinaryConfig& out) {
-  out.recompiler = RecompilerConfig{};
+                      std::string_view project_name, const RecompilerConfig& shared,
+                      BinaryConfig& out) {
+  out.recompiler = shared;
+  out.recompiler.ClearAddressEntries();
   out.recompiler.project_name = std::string(project_name);
   if (!out.recompiler.LoadFromTable(tbl, base_dir)) {
     return false;
@@ -104,7 +107,15 @@ std::optional<ManifestConfig> ManifestConfig::Load(const std::filesystem::path& 
   if (!entrypoint) {
     REX_FAIL(codegen, std::nullopt, "Manifest missing [entrypoint] section: {}", path.string());
   }
-  if (!LoadBinaryConfig(*entrypoint, manifest.manifest_dir, manifest.project_name,
+  toml::table shared_table = tbl;
+  for (const char* key : {"project", "entrypoint", "modules"}) {
+    shared_table.erase(key);
+  }
+  if (!manifest.shared.LoadShared(shared_table, manifest.manifest_dir)) {
+    return std::nullopt;
+  }
+
+  if (!LoadBinaryConfig(*entrypoint, manifest.manifest_dir, manifest.project_name, manifest.shared,
                         manifest.entrypoint)) {
     return std::nullopt;
   }
@@ -117,7 +128,8 @@ std::optional<ManifestConfig> ManifestConfig::Load(const std::filesystem::path& 
         REX_FAIL(codegen, std::nullopt, "Manifest [[modules]] entry #{} is not a table", index);
       }
       BinaryConfig binary;
-      if (!LoadBinaryConfig(*mod_tbl, manifest.manifest_dir, manifest.project_name, binary)) {
+      if (!LoadBinaryConfig(*mod_tbl, manifest.manifest_dir, manifest.project_name, manifest.shared,
+                            binary)) {
         return std::nullopt;
       }
       auto guest_path = (*mod_tbl)[kModuleGuestPathKey].value_or<std::string>("");

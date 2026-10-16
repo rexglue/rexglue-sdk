@@ -71,6 +71,12 @@ struct ManifestConfig {
   std::optional<std::string> game_root;
   /** Directory of the manifest, which relative paths in it resolve against. */
   std::filesystem::path manifest_dir;
+  /**
+   * The top level keys other than `project`, `entrypoint` and `modules`, shared by every binary.
+   * Scalars and flags are copied into each binary as defaults. Entries keyed by an address are
+   * kept here until the images are loaded and then go to the binary containing the address.
+   */
+  RecompilerConfig shared;
   BinaryConfig entrypoint;           /**< Settings of the `[entrypoint]` binary. */
   std::vector<BinaryConfig> modules; /**< Settings of each `[[modules]]` binary in file order. */
 

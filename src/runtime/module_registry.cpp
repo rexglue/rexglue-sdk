@@ -259,7 +259,8 @@ Result<X_HANDLE> ModuleRegistry::LoadKernelModule(X_HANDLE created) {
 
 Result<X_HANDLE> ModuleRegistry::FindImportLibrary(const ModuleObject& importer,
                                                    std::string_view importer_path,
-                                                   const XEXModule::ImportLibrary& library) {
+                                                   const XEXModule::ImportLibrary& library,
+                                                   bool call_entry) {
   for (X_HANDLE handle : GetUserModules()) {
     auto module = table_.Get<ModuleObject>(handle);
     if (module && rex::utf8_equal_case(rex::utf8_find_base_name_from_guest_path(module->path),
@@ -279,7 +280,22 @@ Result<X_HANDLE> ModuleRegistry::FindImportLibrary(const ModuleObject& importer,
     }
     REXLOG_DEBUG(system, "Import library '{}' of '{}' matched the file '{}'", library.file_name,
                  importer.name, path);
-    return LoadUserModule(path);
+    return LoadUserModule(path, call_entry);
+  }
+  std::vector<std::string> candidates;
+  {
+    std::lock_guard lock(mutex_);
+    candidates = import_candidates_;
+  }
+  for (const std::string& candidate : candidates) {
+    const std::string file_name = rex::utf8_find_name_from_guest_path(candidate);
+    if (rex::utf8_equal_case(file_name, library.file_name) ||
+        rex::utf8_equal_case(file_name, library.name + ".xex") ||
+        rex::utf8_equal_case(file_name, library.name + ".dll")) {
+      REXLOG_DEBUG(system, "Import library '{}' of '{}' matched the listed file '{}'",
+                   library.file_name, importer.name, candidate);
+      return LoadUserModule(candidate, call_entry);
+    }
   }
   REXLOG_ERROR(system, "Import library '{}' of '{}' matches no loaded module or file",
                library.file_name, importer.name);
@@ -329,12 +345,13 @@ void ModuleRegistry::ReleaseDependencies(ModuleObject& module) {
   }
 }
 
-X_STATUS ModuleRegistry::ResolveImports(ModuleObject& module, std::string_view path) {
+X_STATUS ModuleRegistry::ResolveImports(ModuleObject& module, std::string_view path,
+                                        bool call_entry) {
   for (const XEXModule::ImportLibrary& library : module.GetXEX()->GetImportLibraries()) {
     if (rex::runtime::ModuleFromName(library.name) || IsKernel(library.name)) {
       continue;
     }
-    const Result<X_HANDLE> handle = FindImportLibrary(module, path, library);
+    const Result<X_HANDLE> handle = FindImportLibrary(module, path, library, call_entry);
     if (!handle) {
       return ToXStatus(handle.error());
     }
@@ -411,7 +428,7 @@ Result<X_HANDLE> ModuleRegistry::LoadUserModule(std::string_view raw_name, bool 
     return Err<X_HANDLE>(StatusError(status));
   }
 
-  if (const X_STATUS imports = ResolveImports(*module, path); XFAILED(imports)) {
+  if (const X_STATUS imports = ResolveImports(*module, path, call_entry); XFAILED(imports)) {
     ReleaseDependencies(*module);
     CloseOwned(table_, created);
     return Err<X_HANDLE>(StatusError(imports));
@@ -601,6 +618,11 @@ void ModuleRegistry::RegisterRecompiledModule(const char* pe_name, const char* g
   REXLOG_DEBUG(system, "Registered recompiled module: pe='{}' path='{}' lib='{}'", info.pe_name,
                info.guest_path, info.shared_lib_name);
   recompiled_modules_.push_back(std::move(info));
+}
+
+void ModuleRegistry::AddImportCandidate(std::string_view path) {
+  std::lock_guard lock(mutex_);
+  import_candidates_.emplace_back(path);
 }
 
 std::optional<ModuleRegistry::RecompiledModuleInfo> ModuleRegistry::FindRecompiledModule(

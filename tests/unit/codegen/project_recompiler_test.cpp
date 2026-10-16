@@ -17,6 +17,7 @@
 #include <fstream>
 #include <iterator>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include <rex/codegen/manifest.h>
@@ -35,6 +36,7 @@ namespace {
 
 constexpr u32 kEntryBase = 0x82000000;
 constexpr u32 kDLLBase = 0x8E000000;
+constexpr u32 kSecondDLLBase = 0x8F000000;
 constexpr u32 kImageSize = 0x10000;
 constexpr u32 kCodeOffset = 0x1000;
 constexpr u32 kPDataOffset = 0x2000;
@@ -74,6 +76,8 @@ std::vector<u8> BuildImage(u32 base, u32 immediate_instruction) {
   rex::test::PutBE32(image, kPDataOffset + 4, (kFunctionWords << 8) | (1u << 30));
   rex::test::PutBE32(image, kCodeOffset, immediate_instruction);
   rex::test::PutBE32(image, kCodeOffset + 4, kReturn);
+  rex::test::PutBE32(image, kCodeOffset + 8, immediate_instruction);
+  rex::test::PutBE32(image, kCodeOffset + 12, kReturn);
   return image;
 }
 
@@ -101,12 +105,15 @@ std::string ReadTree(const fs::path& root) {
 }
 
 rex::Result<void> RunProject(const rex::test::TempFolder& folder, u32 entry_base, u32 first_base,
-                             u32 second_base) {
+                             u32 second_base, std::string_view shared_text = {},
+                             std::string_view extra_text = {},
+                             std::vector<std::string> targets = {}) {
   WriteImage(folder.path / "entry.xex", entry_base, kLoadFirst);
   WriteImage(folder.path / "a.xex", first_base, kLoadFirst);
   WriteImage(folder.path / "b.xex", second_base, kLoadSecond);
   const auto manifest_path = folder.path / "demo_manifest.toml";
-  std::ofstream(manifest_path) << R"([project]
+  std::ofstream(manifest_path) << shared_text << R"(
+[project]
 name = "demo"
 [entrypoint]
 file_path = "entry.xex"
@@ -119,7 +126,7 @@ out_directory_path = "generated/a"
 file_path = "b.xex"
 guest_path = "b.xex"
 out_directory_path = "generated/b"
-)";
+)" << extra_text;
   const auto manifest = rex::codegen::ManifestConfig::Load(manifest_path);
   REQUIRE(manifest);
 
@@ -131,6 +138,7 @@ out_directory_path = "generated/b"
   rex::codegen::ProjectRecompiler recompiler(*manifest);
   rex::codegen::ProjectRecompilerOptions options;
   options.force = true;
+  options.targets = std::move(targets);
   auto result = recompiler.Run(options);
   rex::log::Stop();
   return result;
@@ -207,4 +215,194 @@ out_directory_path = "generated/entry"
   CHECK(registration.find("SetFunction(0x82001100, sub_82001100)") != std::string::npos);
   CHECK(registration.find("DEFINE_REX_FUNC(sub_82001110)") == std::string::npos);
   CHECK(registration.find("ModuleImport target{\"xboxkrnl\"") == std::string::npos);
+}
+
+REX_TEST_CASE("A top level midasm hook reaches the entrypoint", "[codegen][project]") {
+  rex::test::TempFolder folder;
+  const auto result = RunProject(folder, kEntryBase, kDLLBase, kSecondDLLBase,
+                                 R"([[midasm_hook]]
+address = 0x82001000
+name = "shared_hook"
+)");
+  INFO((result ? std::string() : result.error().message));
+  REQUIRE(result);
+  CHECK(ReadTree(folder.path / "generated" / "entry").find("shared_hook") != std::string::npos);
+}
+
+REX_TEST_CASE("A shared address goes to the binary whose image contains it", "[codegen][project]") {
+  rex::test::TempFolder folder;
+  const auto result = RunProject(folder, kEntryBase, kDLLBase, kSecondDLLBase,
+                                 R"([[midasm_hook]]
+address = 0x8F001000
+name = "second_hook"
+)");
+  INFO((result ? std::string() : result.error().message));
+  REQUIRE(result);
+  CHECK(ReadTree(folder.path / "generated" / "b").find("second_hook") != std::string::npos);
+  CHECK(ReadTree(folder.path / "generated" / "a").find("second_hook") == std::string::npos);
+  CHECK(ReadTree(folder.path / "generated" / "entry").find("second_hook") == std::string::npos);
+}
+
+REX_TEST_CASE("A binary's own value overrides the shared one", "[codegen][project]") {
+  rex::test::TempFolder folder;
+  const auto result = RunProject(folder, kEntryBase, kDLLBase, kSecondDLLBase,
+                                 R"([[midasm_hook]]
+address = 0x82001000
+name = "shared_hook"
+)",
+                                 R"([[entrypoint.midasm_hook]]
+address = 0x82001000
+name = "own_hook"
+)");
+  INFO((result ? std::string() : result.error().message));
+  REQUIRE(result);
+  const std::string tree = ReadTree(folder.path / "generated" / "entry");
+  CHECK(tree.find("own_hook") != std::string::npos);
+  CHECK(tree.find("shared_hook") == std::string::npos);
+}
+
+REX_TEST_CASE("A shared address inside no image fails and names the address",
+              "[codegen][project]") {
+  rex::test::TempFolder folder;
+  const auto result = RunProject(folder, kEntryBase, kDLLBase, kSecondDLLBase,
+                                 R"([[midasm_hook]]
+address = 0x90001000
+name = "lost_hook"
+)");
+  REQUIRE_FALSE(result);
+  CHECK(result.error().message.find("0x90001000") != std::string::npos);
+  CHECK(result.error().message.find("[[midasm_hook]]") != std::string::npos);
+}
+
+REX_TEST_CASE("A top level includes file loads into the shared layer", "[codegen][project]") {
+  rex::test::TempFolder folder;
+  std::ofstream(folder.path / "shared.toml") << R"([[midasm_hook]]
+address = 0x82001000
+name = "included_hook"
+)";
+  const auto result = RunProject(folder, kEntryBase, kDLLBase, kSecondDLLBase,
+                                 R"(includes = ["shared.toml"]
+)");
+  INFO((result ? std::string() : result.error().message));
+  REQUIRE(result);
+  CHECK(ReadTree(folder.path / "generated" / "entry").find("included_hook") != std::string::npos);
+}
+
+REX_TEST_CASE("A per binary midasm hook works without a shared layer", "[codegen][project]") {
+  rex::test::TempFolder folder;
+  const auto result = RunProject(folder, kEntryBase, kDLLBase, kSecondDLLBase, {},
+                                 R"([[entrypoint.midasm_hook]]
+address = 0x82001000
+name = "own_hook"
+)");
+  INFO((result ? std::string() : result.error().message));
+  REQUIRE(result);
+  CHECK(ReadTree(folder.path / "generated" / "entry").find("own_hook") != std::string::npos);
+}
+
+REX_TEST_CASE("A top level functions table reaches only the binary that contains the address",
+              "[codegen][project]") {
+  rex::test::TempFolder folder;
+  const auto result = RunProject(folder, kEntryBase, kDLLBase, kSecondDLLBase,
+                                 R"([functions]
+0x8F001008 = { name = "second_fn", size = 8 }
+)");
+  INFO((result ? std::string() : result.error().message));
+  REQUIRE(result);
+  CHECK(ReadTree(folder.path / "generated" / "b").find("DEFINE_REX_FUNC(second_fn)") !=
+        std::string::npos);
+  CHECK(ReadTree(folder.path / "generated" / "a").find("second_fn") == std::string::npos);
+  CHECK(ReadTree(folder.path / "generated" / "entry").find("second_fn") == std::string::npos);
+}
+
+REX_TEST_CASE("A targeted run still rejects a shared address inside no image",
+              "[codegen][project]") {
+  rex::test::TempFolder folder;
+  const auto result = RunProject(folder, kEntryBase, kDLLBase, kSecondDLLBase,
+                                 R"([functions]
+0x90001008 = { name = "lost_fn", size = 8 }
+)",
+                                 {}, {"a"});
+  REQUIRE_FALSE(result);
+  CHECK(result.error().message.find("0x90001008") != std::string::npos);
+}
+
+REX_TEST_CASE("A targeted run accepts a shared address inside an untargeted binary",
+              "[codegen][project]") {
+  rex::test::TempFolder folder;
+  const auto result = RunProject(folder, kEntryBase, kDLLBase, kSecondDLLBase,
+                                 R"([functions]
+0x8F001008 = { name = "second_fn", size = 8 }
+)",
+                                 {}, {"a"});
+  INFO((result ? std::string() : result.error().message));
+  REQUIRE(result);
+  CHECK_FALSE(fs::exists(folder.path / "generated" / "b"));
+}
+
+REX_TEST_CASE("Code generation resolves a DLL import against a module in another directory",
+              "[codegen][project]") {
+  constexpr u32 kExportTable = 0x3000;
+  constexpr u32 kThunk = 0x1100;
+  rex::test::TempFolder folder;
+  WriteImage(folder.path / "entry.xex", kEntryBase, kLoadFirst);
+
+  rex::test::XEXSpec exporter;
+  exporter.load_address = kDLLBase;
+  exporter.entry_point = kDLLBase + kCodeOffset;
+  exporter.page_size_4kb = false;
+  exporter.image = BuildImage(kDLLBase, kLoadFirst);
+  exporter.export_table = kDLLBase + kExportTable;
+  rex::test::PutBE32(exporter.image, kExportTable + 32, kDLLBase >> 16);
+  rex::test::PutBE32(exporter.image, kExportTable + 36, 1);
+  rex::test::PutBE32(exporter.image, kExportTable + 40, 1);
+  rex::test::PutBE32(exporter.image, kExportTable + 44, kCodeOffset);
+  const auto exporter_file = rex::test::BuildXEX(exporter);
+  std::ofstream(folder.path / "Exporter.xex", std::ios::binary)
+      .write(reinterpret_cast<const char*>(exporter_file.data()),
+             static_cast<std::streamsize>(exporter_file.size()));
+
+  rex::test::XEXSpec importer;
+  importer.load_address = kSecondDLLBase;
+  importer.entry_point = kSecondDLLBase + kCodeOffset;
+  importer.page_size_4kb = false;
+  importer.image = BuildImage(kSecondDLLBase, kLoadSecond);
+  rex::test::PutBE32(importer.image, kThunk, (1u << 24) | 1);
+  importer.imports.push_back({"exporter.xex", {kSecondDLLBase + kThunk}, 0});
+  const auto importer_file = rex::test::BuildXEX(importer);
+  fs::create_directories(folder.path / "sub");
+  std::ofstream(folder.path / "sub" / "importer.xex", std::ios::binary)
+      .write(reinterpret_cast<const char*>(importer_file.data()),
+             static_cast<std::streamsize>(importer_file.size()));
+
+  const auto manifest_path = folder.path / "demo_manifest.toml";
+  std::ofstream(manifest_path) << R"([project]
+name = "demo"
+[entrypoint]
+file_path = "entry.xex"
+out_directory_path = "generated/entry"
+[[modules]]
+file_path = "sub/importer.xex"
+guest_path = "sub/importer.xex"
+out_directory_path = "generated/importer"
+[[modules]]
+file_path = "Exporter.xex"
+guest_path = "Exporter.xex"
+out_directory_path = "generated/exporter"
+)";
+  const auto manifest = rex::codegen::ManifestConfig::Load(manifest_path);
+  REQUIRE(manifest);
+
+  rex::testing::ReleaseTestMemory();
+  rex::LogConfig config;
+  config.debugger = false;
+  config.categories.assign(rexglue::kLogCategories.begin(), rexglue::kLogCategories.end());
+  REQUIRE(rex::log::Start(config).has_value());
+  rex::codegen::ProjectRecompiler recompiler(*manifest);
+  rex::codegen::ProjectRecompilerOptions options;
+  options.force = true;
+  const auto result = recompiler.Run(options);
+  rex::log::Stop();
+  INFO((result ? std::string() : result.error().message));
+  REQUIRE(result);
 }

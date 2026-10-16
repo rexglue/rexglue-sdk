@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <filesystem>
 #include <format>
+#include <optional>
 #include <span>
 #include <unordered_map>
 
@@ -17,6 +18,9 @@
 #include <rex/codegen/output_stamp.h>
 #include <rex/codegen/progress_reporter.h>
 #include <rex/codegen/template_registry.h>
+#include <rex/filesystem/xex.h>
+#include <rex/memory/byte_swap.h>
+#include <rex/platform/file.h>
 #include <rex/api.h>
 #include <rex/kernel/init.h>
 #include <rex/logging.h>
@@ -108,6 +112,32 @@ void ReportBinaryInfo(ProgressReporter* reporter, std::string_view display_name,
   reporter->BinaryLoaded(info);
 }
 
+/**
+ * Reads the base address and image size of an XEX from its header, without decoding the image.
+ *
+ * @param path The XEX file.
+ * @return The base address and image size, or an error when the header cannot be read.
+ */
+Result<std::pair<u32, u32>> ReadImageRange(const std::filesystem::path& path) {
+  auto prefix = rex::platform::ReadHostFile(path, 0, 16);
+  if (!prefix || prefix->size() < 16) {
+    return Err<std::pair<u32, u32>>(ErrorCategory::kIO,
+                                    std::format("Cannot read the XEX header of {}", path.string()));
+  }
+  const u32 header_size = rex::memory::load_and_swap<u32>(prefix->data() + 8);
+  auto header = rex::platform::ReadHostFile(path, 0, header_size);
+  if (!header) {
+    return Err<std::pair<u32, u32>>(header.error());
+  }
+  auto image = rex::filesystem::XEXImage::Parse(*header);
+  if (!image) {
+    return Err<std::pair<u32, u32>>(image.error());
+  }
+  const u32 base = image->OptHeaderValue(rex::filesystem::kXEXHeaderImageBaseAddress)
+                       .value_or(image->GetSecurity().load_address);
+  return std::pair<u32, u32>{base, image->GetImageSize()};
+}
+
 }  // namespace
 
 ProjectRecompiler::ProjectRecompiler(ManifestConfig manifest) : manifest_(std::move(manifest)) {}
@@ -179,11 +209,14 @@ Result<void> ProjectRecompiler::Run(const ProjectRecompilerOptions& opts) {
   }
 
   std::vector<ModuleEntry> targeted;
+  std::vector<std::string> untargeted_files;
   targeted.push_back(std::move(all_modules[0]));
   for (size_t i = 1; i < all_modules.size(); ++i) {
     if (opts.targets.empty() || std::find(opts.targets.begin(), opts.targets.end(),
                                           all_modules[i].target_name) != opts.targets.end()) {
       targeted.push_back(std::move(all_modules[i]));
+    } else {
+      untargeted_files.push_back(all_modules[i].config.file_path);
     }
   }
 
@@ -237,6 +270,30 @@ Result<void> ProjectRecompiler::Run(const ProjectRecompilerOptions& opts) {
     return Err<void>(tool.error());
   }
   Runtime* runtime = &tool->GetRuntime();
+
+  auto to_vfs_path = [&](const fs::path& file) -> std::optional<std::string> {
+    if (!fs::exists(file)) {
+      return std::nullopt;
+    }
+    auto relative = fs::relative(fs::canonical(file), game_root);
+    if (relative.empty() || *relative.begin() == "..") {
+      return std::nullopt;
+    }
+    std::string text = relative.string();
+    std::replace(text.begin(), text.end(), '/', '\\');
+    return "game:\\" + text;
+  };
+  auto& module_registry = runtime->GetModuleRegistry();
+  for (size_t i = 1; i < targeted.size(); ++i) {
+    if (auto vfs = to_vfs_path(config_dir / targeted[i].config.file_path)) {
+      module_registry.AddImportCandidate(*vfs);
+    }
+  }
+  for (const auto& file : untargeted_files) {
+    if (auto vfs = to_vfs_path(config_dir / file)) {
+      module_registry.AddImportCandidate(*vfs);
+    }
+  }
 
   std::string entry_rel_str = entry_rel.string();
   std::replace(entry_rel_str.begin(), entry_rel_str.end(), '/', '\\');
@@ -292,12 +349,45 @@ Result<void> ProjectRecompiler::Run(const ProjectRecompilerOptions& opts) {
     runtime->GetModuleRegistry().UnloadUserModule(*loaded, false);
   }
 
+  std::vector<std::pair<u32, u32>> image_ranges;
+  image_ranges.emplace_back(entry_view.GetBaseAddress(), entry_view.GetImageSize());
+  for (const auto& view : dll_views) {
+    image_ranges.emplace_back(view.GetBaseAddress(), view.GetImageSize());
+  }
+  for (const auto& file : untargeted_files) {
+    auto range = ReadImageRange(config_dir / file);
+    if (!range) {
+      return Err<void>(range.error());
+    }
+    image_ranges.push_back(*range);
+  }
+  const auto outside = manifest_.shared.ListEntriesOutside(image_ranges);
+  if (!outside.empty()) {
+    std::string list;
+    for (const auto& entry : outside) {
+      list += (list.empty() ? "" : ", ") + entry;
+    }
+    return Err<void>(ErrorCategory::kValidation,
+                     std::format("Manifest entries are in no binary image: {}", list));
+  }
+
   struct ContextEntry {
     CodegenContext ctx;
     const ModuleEntry* module;
     std::string display_name;
   };
   std::vector<ContextEntry> contexts;
+
+  auto merge_shared = [this](RecompilerConfig& cfg, const BinaryView& view) -> Result<void> {
+    cfg.MergeSharedEntriesIn(manifest_.shared, view.GetBaseAddress(), view.GetImageSize());
+    const auto checked = cfg.Validate();
+    if (!checked.valid) {
+      return Err<void>(ErrorCategory::kValidation,
+                       std::format("Config invalid after the shared manifest entries: {}",
+                                   checked.errors.front()));
+    }
+    return Ok();
+  };
 
   auto make_display_name = [](const std::string& file_path) {
     return std::filesystem::path(file_path).filename().string();
@@ -308,6 +398,9 @@ Result<void> ProjectRecompiler::Run(const ProjectRecompilerOptions& opts) {
 
     auto entry_display = make_display_name(targeted[0].config.file_path);
     RecompilerConfig cfg = std::move(targeted[0].config);
+    if (auto merged = merge_shared(cfg, bv); !merged) {
+      return merged;
+    }
     if (opts.enable_exception_handlers)
       cfg.generate_exception_handlers = true;
 
@@ -330,6 +423,9 @@ Result<void> ProjectRecompiler::Run(const ProjectRecompilerOptions& opts) {
 
     auto dll_display = make_display_name(targeted[i + 1].config.file_path);
     RecompilerConfig cfg = std::move(targeted[i + 1].config);
+    if (auto merged = merge_shared(cfg, bv); !merged) {
+      return merged;
+    }
     if (opts.enable_exception_handlers)
       cfg.generate_exception_handlers = true;
 

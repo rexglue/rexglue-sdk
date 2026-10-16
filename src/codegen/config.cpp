@@ -541,6 +541,120 @@ bool RecompilerConfig::LoadFromTable(const toml::table& tbl,
   return FinalizeConfig(*this);
 }
 
+bool RecompilerConfig::LoadShared(const toml::table& tbl, const std::filesystem::path& base_dir) {
+  std::set<std::string> visited;
+  return ApplyTableWithIncludes(tbl, base_dir, *this, visited, 0, "<shared>");
+}
+
+void RecompilerConfig::ClearAddressEntries() {
+  functions.clear();
+  switch_tables.clear();
+  mid_asm_hooks.clear();
+  long_jmp_address = 0;
+  set_jmp_address = 0;
+  shim_functions.clear();
+  invalid_instruction_hints.clear();
+  known_indirect_call_hints.clear();
+  declared_mmio_accesses.clear();
+  exception_handler_func_hints.clear();
+}
+
+namespace {
+
+bool InImage(u32 address, u32 base, u32 size) {
+  return address >= base && u64{address} < u64{base} + size;
+}
+
+template <typename Map>
+void MergeKeyedIn(Map& into, const Map& from, u32 base, u32 size) {
+  for (const auto& [address, value] : from) {
+    if (InImage(address, base, size)) {
+      into.try_emplace(address, value);
+    }
+  }
+}
+
+}  // namespace
+
+void RecompilerConfig::MergeSharedEntriesIn(const RecompilerConfig& shared, u32 base, u32 size) {
+  MergeKeyedIn(functions, shared.functions, base, size);
+  MergeKeyedIn(switch_tables, shared.switch_tables, base, size);
+  MergeKeyedIn(mid_asm_hooks, shared.mid_asm_hooks, base, size);
+  MergeKeyedIn(invalid_instruction_hints, shared.invalid_instruction_hints, base, size);
+  MergeKeyedIn(declared_mmio_accesses, shared.declared_mmio_accesses, base, size);
+  if (long_jmp_address == 0 && InImage(shared.long_jmp_address, base, size) &&
+      shared.long_jmp_address != 0) {
+    long_jmp_address = shared.long_jmp_address;
+  }
+  if (set_jmp_address == 0 && InImage(shared.set_jmp_address, base, size) &&
+      shared.set_jmp_address != 0) {
+    set_jmp_address = shared.set_jmp_address;
+  }
+  for (const auto& [name, address] : shared.shim_functions) {
+    if (InImage(address, base, size)) {
+      shim_functions.try_emplace(name, address);
+    }
+  }
+  for (u32 address : shared.known_indirect_call_hints) {
+    if (InImage(address, base, size)) {
+      known_indirect_call_hints.insert(address);
+    }
+  }
+  for (u32 address : shared.exception_handler_func_hints) {
+    if (InImage(address, base, size) &&
+        std::find(exception_handler_func_hints.begin(), exception_handler_func_hints.end(),
+                  address) == exception_handler_func_hints.end()) {
+      exception_handler_func_hints.push_back(address);
+    }
+  }
+  std::sort(exception_handler_func_hints.begin(), exception_handler_func_hints.end());
+}
+
+std::vector<std::string> RecompilerConfig::ListEntriesOutside(
+    const std::vector<std::pair<u32, u32>>& ranges) const {
+  std::vector<std::string> outside;
+  auto check = [&](std::string_view key, u32 address) {
+    for (const auto& [base, size] : ranges) {
+      if (InImage(address, base, size)) {
+        return;
+      }
+    }
+    outside.push_back(std::format("{} 0x{:08X}", key, address));
+  };
+  for (const auto& [address, value] : functions) {
+    check("[functions]", address);
+  }
+  for (const auto& [address, value] : switch_tables) {
+    check("[[switch_tables]]", address);
+  }
+  for (const auto& [address, value] : mid_asm_hooks) {
+    check("[[midasm_hook]]", address);
+  }
+  for (const auto& [address, value] : invalid_instruction_hints) {
+    check("[[invalid_instructions]]", address);
+  }
+  for (const auto& [address, value] : declared_mmio_accesses) {
+    check("[mmio]", address);
+  }
+  for (const auto& [name, address] : shim_functions) {
+    check("[shim]", address);
+  }
+  for (u32 address : known_indirect_call_hints) {
+    check("indirect_calls", address);
+  }
+  for (u32 address : exception_handler_func_hints) {
+    check("analysis.exception_handler_funcs", address);
+  }
+  if (long_jmp_address != 0) {
+    check("longjmp_address", long_jmp_address);
+  }
+  if (set_jmp_address != 0) {
+    check("setjmp_address", set_jmp_address);
+  }
+  std::sort(outside.begin(), outside.end());
+  return outside;
+}
+
 RecompilerConfig::ValidationResult RecompilerConfig::Validate() const {
   ValidationResult result;
 

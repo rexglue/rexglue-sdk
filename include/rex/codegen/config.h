@@ -216,6 +216,42 @@ struct RecompilerConfig {
   bool LoadFromTable(const toml::table& tbl, const std::filesystem::path& base_dir);
 
   /**
+   * Loads a table that several binaries share, such as the top level keys of a manifest. Applies
+   * the table and its includes as LoadFromTable() does, but skips the finalize checks because the
+   * shared layer is not a complete binary config.
+   *
+   * @param tbl Parsed TOML table
+   * @param base_dir Directory that includes resolve against
+   * @return True on success, false on error
+   */
+  bool LoadShared(const toml::table& tbl, const std::filesystem::path& base_dir);
+
+  /**
+   * Removes every entry that belongs to the binary containing its address, so a copy of a shared
+   * layer keeps only the defaults that apply to all binaries.
+   */
+  void ClearAddressEntries();
+
+  /**
+   * Adds the entries of a shared layer whose address is inside [base, base + size). An entry
+   * this config already has keeps its own value.
+   *
+   * @param shared The shared layer.
+   * @param base First address of the binary image.
+   * @param size Image size in bytes.
+   */
+  void MergeSharedEntriesIn(const RecompilerConfig& shared, u32 base, u32 size);
+
+  /**
+   * Lists the entries of this shared layer whose address is in none of the image ranges.
+   *
+   * @param ranges Pairs of image base address and image size.
+   * @return One text per entry naming its key and address, empty when every entry is inside an
+   * image.
+   */
+  std::vector<std::string> ListEntriesOutside(const std::vector<std::pair<u32, u32>>& ranges) const;
+
+  /**
    * Reports whether the configured shim functions include the heap group.
    *
    * @return True when any configured shim function requires the shim heap.

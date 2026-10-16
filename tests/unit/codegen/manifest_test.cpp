@@ -110,3 +110,21 @@ REX_TEST_CASE("An init module entry loads back with its guest path", "[codegen]"
   REQUIRE(modules.size() == 1);
   REQUIRE(modules[0].guest_path == "game/a.xex");
 }
+
+REX_TEST_CASE("A manifest keeps the top level keys as a shared layer", "[codegen]") {
+  rex::test::TempFolder folder;
+  Touch(folder.path / "default.xex");
+  const auto path = folder.path / "demo_manifest.toml";
+  std::ofstream(path) << R"(skip_lr = true
+longjmp_address = 0x82001000
+[functions]
+0x82001000 = { name = "shared_fn" }
+)" << kProject;
+  const auto manifest = rex::codegen::ManifestConfig::Load(path);
+  REQUIRE(manifest);
+  CHECK(manifest->shared.functions.contains(0x82001000));
+  CHECK(manifest->shared.skip_lr);
+  CHECK(manifest->entrypoint.recompiler.skip_lr);
+  CHECK(manifest->entrypoint.recompiler.functions.empty());
+  CHECK(manifest->entrypoint.recompiler.long_jmp_address == 0);
+}

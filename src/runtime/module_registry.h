@@ -70,6 +70,7 @@ class ModuleRegistry final : public IModuleRegistry {
   [[nodiscard]] Result<X_HANDLE> LoadKernelModule(X_HANDLE created) override;
   void RegisterRecompiledModule(const char* pe_name, const char* guest_path,
                                 const char* shared_lib_name) override;
+  void AddImportCandidate(std::string_view path) override;
   rex::platform::RankedMutex& GetLoadCountMutex() override { return load_count_mutex_; }
 
   /**
@@ -158,11 +159,12 @@ class ModuleRegistry final : public IModuleRegistry {
    * @param importer The module that imports the library.
    * @param importer_path The path the importer was loaded from.
    * @param library The import library.
+   * @param call_entry True to call the entry point of a DLL module the import loads.
    * @return The handle, or the status of the failed load. X_STATUS_DLL_NOT_FOUND when no loaded
    *         module or file matches.
    */
   Result<X_HANDLE> FindImportLibrary(const ModuleObject& importer, std::string_view importer_path,
-                                     const XEXModule::ImportLibrary& library);
+                                     const XEXModule::ImportLibrary& library, bool call_entry);
 
   /**
    * Loads the user modules a module imports from, checks every imported ordinal and patches the
@@ -170,10 +172,11 @@ class ModuleRegistry final : public IModuleRegistry {
    *
    * @param module The module being loaded.
    * @param path The path the module was loaded from.
+   * @param call_entry True to call the entry point of the DLL modules the imports load.
    * @return X_STATUS_SUCCESS, X_STATUS_DLL_NOT_FOUND, X_STATUS_DRIVER_ORDINAL_NOT_FOUND or the
    *         status of a failed dependency load.
    */
-  X_STATUS ResolveImports(ModuleObject& module, std::string_view path);
+  X_STATUS ResolveImports(ModuleObject& module, std::string_view path, bool call_entry);
 
   /**
    * Writes an import slot of a loaded image, lifting the page protection around the write.
@@ -215,6 +218,7 @@ class ModuleRegistry final : public IModuleRegistry {
   std::atomic<u64> generation_{1};
   std::unordered_set<std::string> loading_paths_;
   std::vector<RecompiledModuleInfo> recompiled_modules_;
+  std::vector<std::string> import_candidates_;
   std::unordered_map<std::string, rex::platform::DynamicLibrary> module_libraries_;
   std::vector<rex::platform::DynamicLibrary> deferred_unload_libraries_;
 };

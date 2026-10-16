@@ -108,6 +108,14 @@ class IModuleRegistry {
   virtual void UnloadUserModule(X_HANDLE module, bool call_entry = true) = 0;
 
   /**
+   * Adds a module path that import resolution tries when the importer directory has no match. The
+   * path keeps its case and an import name matches its file name without regard to case.
+   *
+   * @param path The path of a module file.
+   */
+  virtual void AddImportCandidate(std::string_view path) = 0;
+
+  /**
    * Registers a kernel module.
    *
    * @param created A handle of the module that a kernel module creator returned.
