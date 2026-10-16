@@ -26,7 +26,7 @@
 #include <rex/math.h>
 #include <rex/types.h>
 
-#include "gpu/xenos/cvar_table.h"
+#include "gpu/xenos/cvar_table_xenos.h"
 
 namespace rex::gpu {
 

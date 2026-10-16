@@ -19,8 +19,8 @@ endforeach()
 
 add_library(rex-header-check OBJECT ${header_units})
 target_link_libraries(rex-header-check PRIVATE
-    rex-core rex-runtime rex-imgui rex-gpu rex-gpu-xenos rex-codegen rex-ui rex-hid-common)
+    rexcore rexruntime reximgui rexgpu rexgpu-xenos rexcodegen rexui rexhid-common)
 target_include_directories(rex-header-check PRIVATE
-    $<TARGET_PROPERTY:rex-filesystem,INTERFACE_INCLUDE_DIRECTORIES>)
+    $<TARGET_PROPERTY:rexfilesystem,INTERFACE_INCLUDE_DIRECTORIES>)
 target_compile_definitions(rex-header-check PRIVATE
-    $<TARGET_PROPERTY:rex-filesystem,INTERFACE_COMPILE_DEFINITIONS>)
+    $<TARGET_PROPERTY:rexfilesystem,INTERFACE_COMPILE_DEFINITIONS>)

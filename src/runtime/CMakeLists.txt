@@ -54,16 +54,16 @@ set(REXSYSTEM_SOURCES
     title_app.cpp
 )
 
-add_library(rex-runtime SHARED ${REXSYSTEM_SOURCES})
-add_library(rex::runtime ALIAS rex-runtime)
+add_library(rexruntime SHARED ${REXSYSTEM_SOURCES})
+add_library(rex::runtime ALIAS rexruntime)
 
-set_target_properties(rex-runtime PROPERTIES
+set_target_properties(rexruntime PROPERTIES
     CXX_VISIBILITY_PRESET hidden
     VISIBILITY_INLINES_HIDDEN ON)
-target_compile_definitions(rex-runtime PRIVATE REX_BUILDING_RUNTIME)
-rexglue_add_version_resource(rex-runtime DESCRIPTION "ReXGlue runtime")
+target_compile_definitions(rexruntime PRIVATE REX_BUILDING_RUNTIME)
+rexglue_add_version_resource(rexruntime DESCRIPTION "ReXGlue runtime")
 
-rex_target_pch(rex-runtime
+rex_target_pch(rexruntime
     <mutex>
     <unordered_map>
     <rex/math.h>
@@ -75,21 +75,21 @@ rex_target_pch(rex-runtime
     <rex/runtime.h>
 )
 
-target_include_directories(rex-runtime PUBLIC
+target_include_directories(rexruntime PUBLIC
     $<BUILD_INTERFACE:${REXGLUE_ROOT}/include>
     $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}/include>
     $<BUILD_INTERFACE:${REXGLUE_ROOT}/thirdparty/xxHash>
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
 )
-target_include_directories(rex-runtime PRIVATE
+target_include_directories(rexruntime PRIVATE
     ${REXGLUE_ROOT}/src
     ${REXGLUE_ROOT}/thirdparty
 )
 
-target_link_libraries(rex-runtime
+target_link_libraries(rexruntime
     PUBLIC
-        rex-core
-        rex-ui
+        rexcore
+        rexui
         simde
         tomlplusplus
     PRIVATE
@@ -101,19 +101,19 @@ if(REXGLUE_ENABLE_TRACY)
     # TARGET_NAME is what tells install(EXPORT) this text is a target to
     # namespace. Without it the plain name survives into the installed config
     # and consumers link a bare TracyClient they have no search path for.
-    target_link_libraries(rex-runtime PUBLIC
+    target_link_libraries(rexruntime PUBLIC
         $<$<NOT:$<CONFIG:Release>>:$<TARGET_NAME:TracyClient>>)
-    target_compile_definitions(rex-runtime PUBLIC
+    target_compile_definitions(rexruntime PUBLIC
         $<$<NOT:$<CONFIG:Release>>:REXGLUE_ENABLE_PROFILING>)
 endif()
 
 if(REXGLUE_ENABLE_PERF_COUNTERS)
-    target_compile_definitions(rex-runtime PUBLIC
+    target_compile_definitions(rexruntime PUBLIC
         $<$<NOT:$<CONFIG:Release>>:REXGLUE_ENABLE_PERF_COUNTERS>)
 endif()
 
 if(WIN32)
-    target_link_libraries(rex-runtime PRIVATE ws2_32 winmm)
-    target_compile_definitions(rex-runtime PUBLIC NOMINMAX WIN32_LEAN_AND_MEAN)
+    target_link_libraries(rexruntime PRIVATE ws2_32 winmm)
+    target_compile_definitions(rexruntime PUBLIC NOMINMAX WIN32_LEAN_AND_MEAN)
 endif()
 

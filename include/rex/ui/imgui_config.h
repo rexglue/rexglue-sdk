@@ -13,7 +13,7 @@
 #include <rex/macros.h>
 
 /**
- * Marks the ImGui API, which rex-imgui exports and every other binary imports.
+ * Marks the ImGui API, which reximgui exports and every other binary imports.
  *
  * @code
  * IMGUI_API bool Begin(const char* name, bool* p_open, ImGuiWindowFlags flags);

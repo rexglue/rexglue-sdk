@@ -18,7 +18,7 @@
 #include "gpu/xenos/host/vulkan/presenter.h"
 #include "gpu/xenos/host/vulkan/provider.h"
 
-#include "gpu/xenos/cvar_table.h"
+#include "gpu/xenos/vulkan/cvar_table.h"
 
 namespace rex {
 namespace gpu {

@@ -25,7 +25,7 @@
 #include <rex/memory.h>
 #include "gpu/xenos/host/fixed_point.h"
 
-#include "gpu/xenos/cvar_table.h"
+#include "gpu/xenos/cvar_table_xenos.h"
 
 namespace rex::gpu::draw_state {
 

@@ -29,6 +29,7 @@
 #include <rex/cvar.h>
 #include <rex/dbg.h>
 #include <rex/perf/counter.h>
+#include "gpu/xenos/shared_cvars.h"
 #include "gpu/xenos/d3d12/command_processor.h"
 #include "gpu/xenos/d3d12/pipeline_cache.h"
 #include "gpu/xenos/d3d12/render_target_cache.h"
@@ -48,7 +49,8 @@
 #include <rex/types.h>
 #include "gpu/xenos/host/d3d12/d3d12_objects.h"
 
-#include "gpu/xenos/cvar_table.h"
+#include "gpu/xenos/cvar_table_pair.h"
+#include "gpu/xenos/d3d12/cvar_table.h"
 #include "gpu/xenos/storage_file.h"
 
 namespace rex::gpu::d3d12 {
@@ -1124,13 +1126,12 @@ bool PipelineCache::TranslateAnalyzedShader(DXBCShaderTranslator& translator,
     translation.DisassembleDXBCAndDxil(provider, REXCVAR_GET(::rex::gpu::cvars::d3d12_dxbc_disasm));
   }
 
-  if (!REXCVAR_GET(::rex::gpu::cvars::dump_shaders).empty()) {
+  if (const std::string dump_path = GetDumpShaders(); !dump_path.empty()) {
     bool edram_rov_used =
         render_target_cache_.GetPath() == RenderTargetCache::Path::kPixelShaderInterlock;
-    translation.Dump(REXCVAR_GET(::rex::gpu::cvars::dump_shaders),
-                     (shader.GetType() == xenos::ShaderType::kPixel)
-                         ? (edram_rov_used ? "d3d12_rov" : "d3d12_rtv")
-                         : "d3d12");
+    translation.Dump(dump_path, (shader.GetType() == xenos::ShaderType::kPixel)
+                                    ? (edram_rov_used ? "d3d12_rov" : "d3d12_rtv")
+                                    : "d3d12");
   }
 
   return translation.IsValid();

@@ -44,7 +44,7 @@ Result<ToolRuntime> OpenToolRuntime(const std::filesystem::path& game_root,
                                     std::span<const std::string> extra_modules,
                                     ui::IUserInterface* ui) {
   Config config;
-  config.modules = {"rex-filesystem", "rex-runtime"};
+  config.modules = {"rexfilesystem", "rexruntime"};
   config.modules.insert(config.modules.end(), extra_modules.begin(), extra_modules.end());
   if (!extra_modules.empty()) {
     config.ui.video_driver = "dummy";
@@ -56,7 +56,7 @@ Result<ToolRuntime> OpenToolRuntime(const std::filesystem::path& game_root,
     rex::Shutdown();
     return Err<ToolRuntime>(
         ErrorCategory::kModule,
-        std::format("rex-filesystem does not serve {}@{}", filesystem::IFileSystem::kInterfaceName,
+        std::format("rexfilesystem does not serve {}@{}", filesystem::IFileSystem::kInterfaceName,
                     filesystem::IFileSystem::kInterfaceVersion));
   }
   auto runtime = std::make_unique<Runtime>(api->GetConfig());

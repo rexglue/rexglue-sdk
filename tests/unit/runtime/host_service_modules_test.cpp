@@ -47,7 +47,7 @@ rex::RuntimeDesc SetupConfig(rex::API& api) {
 REX_TEST_CASE_METHOD(Fixture, "Without an apu module the runtime plays to its null backend",
                      "[runtime][modules]") {
   rex::Config config = BaseConfig();
-  config.modules = {"rex-filesystem", "rex-runtime"};
+  config.modules = {"rexfilesystem", "rexruntime"};
   auto api = rex::Init(config);
   REQUIRE(api);
   CHECK((*api)->Get<rex::apu::IAPUBackend>() == nullptr);
@@ -61,7 +61,7 @@ REX_TEST_CASE_METHOD(Fixture, "Without an apu module the runtime plays to its nu
 REX_TEST_CASE_METHOD(Fixture, "A loaded apu module serves the runtime's backend",
                      "[runtime][modules]") {
   rex::Config config = BaseConfig();
-  config.modules = {"rex-filesystem", "rex-runtime", "rexmod-test-apu"};
+  config.modules = {"rexfilesystem", "rexruntime", "rexmod-test-apu"};
   auto api = rex::Init(config);
   REQUIRE(api);
   auto* served = (*api)->Get<rex::apu::IAPUBackend>();
@@ -74,7 +74,7 @@ REX_TEST_CASE_METHOD(Fixture, "A loaded apu module serves the runtime's backend"
 
 REX_TEST_CASE_METHOD(Fixture, "Tool mode builds no APU", "[runtime][modules]") {
   rex::Config config = BaseConfig();
-  config.modules = {"rex-filesystem", "rex-runtime"};
+  config.modules = {"rexfilesystem", "rexruntime"};
   auto api = rex::Init(config);
   REQUIRE(api);
   rex::Runtime runtime((*api)->GetConfig());
@@ -91,7 +91,7 @@ REX_TEST_CASE_METHOD(Fixture, "Init rejects apu.max_queued_frames outside 4 to 6
                      "[runtime][modules]") {
   for (rex::u32 value : {3u, 65u}) {
     rex::Config config = BaseConfig();
-    config.modules = {"rex-filesystem", "rex-runtime"};
+    config.modules = {"rexfilesystem", "rexruntime"};
     config.apu.max_queued_frames = value;
     auto api = rex::Init(config);
     CHECK_FALSE(api);
@@ -102,7 +102,7 @@ REX_TEST_CASE_METHOD(Fixture, "Init rejects apu.max_queued_frames outside 4 to 6
 REX_TEST_CASE_METHOD(Fixture, "Without a hid module the title sees the idle pad",
                      "[runtime][modules]") {
   rex::Config config = BaseConfig();
-  config.modules = {"rex-filesystem", "rex-runtime"};
+  config.modules = {"rexfilesystem", "rexruntime"};
   auto api = rex::Init(config);
   REQUIRE(api);
   CHECK((*api)->Get<rex::hid::IHIDBackend>() == nullptr);
@@ -116,7 +116,7 @@ REX_TEST_CASE_METHOD(Fixture, "Without a hid module the title sees the idle pad"
 REX_TEST_CASE_METHOD(Fixture, "A loaded hid module serves the runtime's backend",
                      "[runtime][modules]") {
   rex::Config config = BaseConfig();
-  config.modules = {"rex-filesystem", "rex-runtime", "rexmod-test-hid"};
+  config.modules = {"rexfilesystem", "rexruntime", "rexmod-test-hid"};
   auto api = rex::Init(config);
   REQUIRE(api);
   auto* served = (*api)->Get<rex::hid::IHIDBackend>();
@@ -129,7 +129,7 @@ REX_TEST_CASE_METHOD(Fixture, "A loaded hid module serves the runtime's backend"
 
 REX_TEST_CASE_METHOD(Fixture, "Tool mode keeps the hid fallback", "[runtime][modules]") {
   rex::Config config = BaseConfig();
-  config.modules = {"rex-filesystem", "rex-runtime"};
+  config.modules = {"rexfilesystem", "rexruntime"};
   auto api = rex::Init(config);
   REQUIRE(api);
   rex::Runtime runtime((*api)->GetConfig());
@@ -143,7 +143,7 @@ REX_TEST_CASE_METHOD(Fixture, "Tool mode keeps the hid fallback", "[runtime][mod
 REX_TEST_CASE_METHOD(Fixture, "Without a GPU module the runtime runs on the null GPU",
                      "[runtime][modules]") {
   rex::Config config = BaseConfig();
-  config.modules = {"rex-filesystem", "rex-runtime"};
+  config.modules = {"rexfilesystem", "rexruntime"};
   auto api = rex::Init(config);
   REQUIRE(api);
   CHECK((*api)->Get<rex::gpu::IGPUBackend>() == nullptr);
@@ -156,7 +156,7 @@ REX_TEST_CASE_METHOD(Fixture, "Without a GPU module the runtime runs on the null
 
 REX_TEST_CASE_METHOD(Fixture, "Tool mode builds no GPU", "[runtime][modules]") {
   rex::Config config = BaseConfig();
-  config.modules = {"rex-filesystem", "rex-runtime"};
+  config.modules = {"rexfilesystem", "rexruntime"};
   auto api = rex::Init(config);
   REQUIRE(api);
   rex::Runtime runtime((*api)->GetConfig());

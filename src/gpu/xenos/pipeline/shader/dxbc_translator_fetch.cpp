@@ -23,7 +23,7 @@
 #include <rex/math.h>
 #include <rex/string.h>
 
-#include "gpu/xenos/cvar_table.h"
+#include "gpu/xenos/d3d12/cvar_table.h"
 
 namespace rex::gpu {
 using namespace xenos::ucode;

@@ -10,8 +10,8 @@ foreach(name good missing badversion failinit dupecho)
         CXX_VISIBILITY_PRESET hidden
         VISIBILITY_INLINES_HIDDEN ON
         PREFIX ""
-        RUNTIME_OUTPUT_DIRECTORY $<TARGET_FILE_DIR:rex-runtime>
-        LIBRARY_OUTPUT_DIRECTORY $<TARGET_FILE_DIR:rex-runtime>
+        RUNTIME_OUTPUT_DIRECTORY $<TARGET_FILE_DIR:rexruntime>
+        LIBRARY_OUTPUT_DIRECTORY $<TARGET_FILE_DIR:rexruntime>
     )
     rex_config_postfix(${target})
     if(NOT WIN32)
@@ -27,8 +27,8 @@ set_target_properties(rexmod-test-null-gpu PROPERTIES
     CXX_VISIBILITY_PRESET hidden
     VISIBILITY_INLINES_HIDDEN ON
     PREFIX ""
-    RUNTIME_OUTPUT_DIRECTORY $<TARGET_FILE_DIR:rex-runtime>
-    LIBRARY_OUTPUT_DIRECTORY $<TARGET_FILE_DIR:rex-runtime>
+    RUNTIME_OUTPUT_DIRECTORY $<TARGET_FILE_DIR:rexruntime>
+    LIBRARY_OUTPUT_DIRECTORY $<TARGET_FILE_DIR:rexruntime>
 )
 rex_config_postfix(rexmod-test-null-gpu)
 if(NOT WIN32)
@@ -40,13 +40,13 @@ foreach(name apu hid)
     add_library(${target} SHARED ${name}/${name}_module.cpp)
     target_include_directories(${target} PRIVATE ${PROJECT_SOURCE_DIR}/include)
     target_compile_definitions(${target} PRIVATE REXGLUE_BUILD_CONFIG="$<CONFIG>")
-    target_link_libraries(${target} PRIVATE rex-core)
+    target_link_libraries(${target} PRIVATE rexcore)
     set_target_properties(${target} PROPERTIES
         CXX_VISIBILITY_PRESET hidden
         VISIBILITY_INLINES_HIDDEN ON
         PREFIX ""
-        RUNTIME_OUTPUT_DIRECTORY $<TARGET_FILE_DIR:rex-runtime>
-        LIBRARY_OUTPUT_DIRECTORY $<TARGET_FILE_DIR:rex-runtime>
+        RUNTIME_OUTPUT_DIRECTORY $<TARGET_FILE_DIR:rexruntime>
+        LIBRARY_OUTPUT_DIRECTORY $<TARGET_FILE_DIR:rexruntime>
     )
     rex_config_postfix(${target})
     if(NOT WIN32)
@@ -67,8 +67,8 @@ foreach(variant a b)
         CXX_VISIBILITY_PRESET hidden
         VISIBILITY_INLINES_HIDDEN ON
         PREFIX ""
-        RUNTIME_OUTPUT_DIRECTORY $<TARGET_FILE_DIR:rex-runtime>
-        LIBRARY_OUTPUT_DIRECTORY $<TARGET_FILE_DIR:rex-runtime>
+        RUNTIME_OUTPUT_DIRECTORY $<TARGET_FILE_DIR:rexruntime>
+        LIBRARY_OUTPUT_DIRECTORY $<TARGET_FILE_DIR:rexruntime>
     )
     rex_config_postfix(${target})
     if(NOT WIN32)
@@ -84,13 +84,13 @@ foreach(role exporter importer)
         REXGLUE_BUILD_CONFIG="$<CONFIG>"
         $<IF:$<STREQUAL:${role},exporter>,REX_TEST_EXPORTER=1,REX_TEST_IMPORTER=1>
         $<IF:$<STREQUAL:${role},exporter>,REX_TEST_IMAGE_BASE=0x8E000000,REX_TEST_IMAGE_BASE=0x8C000000>)
-    target_link_libraries(${target} PRIVATE simde rex-runtime)
+    target_link_libraries(${target} PRIVATE simde rexruntime)
     set_target_properties(${target} PROPERTIES
         CXX_VISIBILITY_PRESET hidden
         VISIBILITY_INLINES_HIDDEN ON
         PREFIX ""
-        RUNTIME_OUTPUT_DIRECTORY $<TARGET_FILE_DIR:rex-runtime>
-        LIBRARY_OUTPUT_DIRECTORY $<TARGET_FILE_DIR:rex-runtime>
+        RUNTIME_OUTPUT_DIRECTORY $<TARGET_FILE_DIR:rexruntime>
+        LIBRARY_OUTPUT_DIRECTORY $<TARGET_FILE_DIR:rexruntime>
     )
     rex_config_postfix(${target})
     if(NOT WIN32)

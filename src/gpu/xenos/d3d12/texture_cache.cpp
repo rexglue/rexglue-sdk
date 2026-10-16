@@ -31,7 +31,7 @@
 #include "gpu/xenos/host/d3d12/d3d12_upload_buffer_pool.h"
 #include "gpu/xenos/host/d3d12/d3d12_objects.h"
 
-#include "gpu/xenos/cvar_table.h"
+#include "gpu/xenos/cvar_table_pair.h"
 
 namespace rex::gpu::d3d12 {
 

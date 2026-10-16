@@ -1,5 +1,5 @@
 /**
- * @file        gpu/xenos/backend_select.h
+ * @file        gpu/backend_select.h
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -23,8 +23,11 @@ namespace rex::gpu {
 
 /** A host graphics API the Xenos backend runs on. */
 enum class HostAPI : u8 {
+  /** Direct3D 12, Windows only. */
   kD3D12,
+  /** Vulkan. */
   kVulkan,
+  /** No host API, the backend discards its draws. */
   kNull,
 };
 

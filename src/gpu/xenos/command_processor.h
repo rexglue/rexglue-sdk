@@ -22,6 +22,7 @@
 #include <unordered_map>
 #include <vector>
 
+#include <rex/types.h>
 #include <rex/xenos/register_file.h>
 #include <rex/xenos/registers.h>
 #include <rex/xenos/xenos.h>
@@ -66,7 +67,7 @@ enum class GammaRampType : u8 {
   kPWL,
 };
 
-class CommandProcessor {
+class REX_GPU_XENOS_API CommandProcessor : public rex::NonCopyable {
  public:
   enum class SwapPostEffect : u8 {
     kNone,

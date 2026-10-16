@@ -26,6 +26,7 @@
 
 #include <rex/assert.h>
 #include <rex/cvar.h>
+#include "gpu/xenos/shared_cvars.h"
 #include "gpu/xenos/pipeline/shader/spirv_builder.h"
 #include "gpu/xenos/pipeline/shader/spirv_translator.h"
 #include "gpu/xenos/pipeline/texture/cache.h"
@@ -39,7 +40,8 @@
 #include <rex/math.h>
 #include "gpu/xenos/host/vulkan/objects.h"
 
-#include "gpu/xenos/cvar_table.h"
+#include "gpu/xenos/cvar_table_pair.h"
+#include "gpu/xenos/vulkan/cvar_table.h"
 
 namespace rex::gpu::vulkan {
 
@@ -3869,9 +3871,9 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(TransferShaderKey key)
 
   std::vector<unsigned int> shader_code;
   builder.dump(shader_code);
-  if (!REXCVAR_GET(::rex::gpu::cvars::dump_shaders).empty()) {
-    gpu::vulkan::objects::DumpShader(REXCVAR_GET(::rex::gpu::cvars::dump_shaders),
-                                     std::format("transfer_{:08X}", key.key), shader_code);
+  if (const std::string dump_path = GetDumpShaders(); !dump_path.empty()) {
+    gpu::vulkan::objects::DumpShader(dump_path, std::format("transfer_{:08X}", key.key),
+                                     shader_code);
   }
 
   // The handle is stored even on failure, so creation is not retried.
@@ -5425,9 +5427,9 @@ VkPipeline VulkanRenderTargetCache::GetDumpPipeline(DumpPipelineKey key) {
 
   std::vector<unsigned int> shader_code;
   builder.dump(shader_code);
-  if (!REXCVAR_GET(::rex::gpu::cvars::dump_shaders).empty()) {
-    gpu::vulkan::objects::DumpShader(REXCVAR_GET(::rex::gpu::cvars::dump_shaders),
-                                     std::format("edram_dump_{:08X}", key.key), shader_code);
+  if (const std::string dump_path = GetDumpShaders(); !dump_path.empty()) {
+    gpu::vulkan::objects::DumpShader(dump_path, std::format("edram_dump_{:08X}", key.key),
+                                     shader_code);
   }
 
   // The handle is stored even on failure, so creation is not retried.

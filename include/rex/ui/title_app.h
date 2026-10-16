@@ -130,8 +130,8 @@ class REX_RUNTIME_API TitleApp : public App, public gpu::IUIThread {
 
   /**
    * Configures and initializes the app for a recompiled image. Starts the module list as
-   * {"rex-apu-sdl3", "rex-hid-sdl3", "rex-gpu-xenos", "rex-ui-sdl3"}, then runs App::Init, which
-   * puts rex-filesystem and rex-runtime first through RequireModules. Fetches the user interface
+   * {"rexapu-sdl3", "rexhid-sdl3", "rexgpu-xenos", "rexui-sdl3"}, then runs App::Init, which
+   * puts rexfilesystem and rexruntime first through RequireModules. Fetches the user interface
    * afterwards and runs headless on a null provider when no module serves one.
    *
    * @param args The process command line.
@@ -231,8 +231,10 @@ class REX_RUNTIME_API TitleApp : public App, public gpu::IUIThread {
   void Release() override;
 
   /**
-   * Puts rex-filesystem and then rex-runtime first in the module list when the consumer did not
-   * list them, so the mount table is served before rex-runtime connects.
+   * Puts rexfilesystem and then rexruntime first in the module list when the consumer did not
+   * list them, so the mount table is served before rexruntime connects. Adds the host API library
+   * that gpu.backend names after rexgpu-xenos, unless the list already holds one or the backend
+   * is null.
    *
    * @param config The configuration the modules load from.
    */

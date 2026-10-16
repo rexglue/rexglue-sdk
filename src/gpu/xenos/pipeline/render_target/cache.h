@@ -33,7 +33,7 @@
 
 namespace rex::gpu {
 
-class RenderTargetCache {
+class REX_GPU_XENOS_API RenderTargetCache : public rex::NonCopyable {
  public:
   /** Emulation implementation path for the output merger. */
   enum class Path : u8 {
@@ -303,7 +303,7 @@ class RenderTargetCache {
    * current viewport, or, if no viewport is available, ownership of the rest of the EDRAM is
    * transferred.
    */
-  struct Transfer {
+  struct REX_GPU_XENOS_API Transfer {
     u32 start_tiles;
     u32 end_tiles;
     RenderTarget* source;

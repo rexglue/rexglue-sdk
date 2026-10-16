@@ -31,6 +31,7 @@
 #include <rex/platform/thread.h>
 #include <rex/ui/imgui_dialog.h>
 #include <rex/ui/overlay.h>
+#include <rex/gpu/backend_select.h>
 #include <rex/ui/title_app.h>
 
 #include "ui/sdl3/app_context.h"
@@ -39,6 +40,7 @@ namespace rex::ui {
 
 struct TitleAppProbe {
   static bool Event(TitleApp& app, const UIEvent& event) { return app.OnWindowEvent(event); }
+  static void Require(TitleApp& app, Config& config) { app.RequireModules(config); }
 };
 
 }  // namespace rex::ui
@@ -60,7 +62,7 @@ REX_OVERLAY_TABLE(kTestOverlays, REX_OVERLAY(TestOverlay, "test", kTestKey));
 
 class FooApp : public rex::ui::TitleApp {
  public:
-  std::vector<std::string> modules{"rex-ui-sdl3"};
+  std::vector<std::string> modules{"rexui-sdl3"};
   std::filesystem::path game_root;
   bool veto_close = false;
   rex::i32 close_events = 0;
@@ -401,12 +403,12 @@ REX_TEST_CASE("OnEvent receives nothing before OnCreateWindow returns", "[ui][ti
   REQUIRE(app.closing_events == 1);
 }
 
-REX_TEST_CASE("TitleApp puts rex-filesystem and rex-runtime first", "[ui][title_app]") {
+REX_TEST_CASE("TitleApp puts rexfilesystem and rexruntime first", "[ui][title_app]") {
   FooApp app;
   app.modules = {"rexmod-test-good"};
   REQUIRE(app.Init(rex::CLIArgList::Parse(std::span<const std::string>{}), rex::PPCImageInfo{}));
   REQUIRE(app.GetConfig().modules ==
-          std::vector<std::string>{"rex-filesystem", "rex-runtime", "rexmod-test-good"});
+          std::vector<std::string>{"rexfilesystem", "rexruntime", "rexmod-test-good"});
   REQUIRE(app.Shutdown() == 0);
 }
 
@@ -484,4 +486,49 @@ REX_TEST_CASE("A pending UI function that throws at shutdown is logged", "[ui][a
     return message.text == "teardown step failed, pending function failed";
   }));
   CHECK(later_ran);
+}
+
+namespace {
+
+std::vector<std::string> RequireFor(std::vector<std::string> modules, std::string backend) {
+  FooApp app;
+  rex::Config config;
+  config.modules = std::move(modules);
+  config.gpu.backend = std::move(backend);
+  rex::ui::TitleAppProbe::Require(app, config);
+  return config.modules;
+}
+
+bool IsXenosAPI(const std::string& name) {
+  return name.starts_with("rexgpu-xenos-");
+}
+
+}  // namespace
+
+REX_TEST_CASE("RequireModules adds the API library the backend names", "[ui][gpu][modules]") {
+  const auto modules = RequireFor({"rexgpu-xenos"}, "vulkan");
+  CHECK(modules == std::vector<std::string>{"rexfilesystem", "rexruntime", "rexgpu-xenos",
+                                            "rexgpu-xenos-vulkan"});
+}
+
+REX_TEST_CASE("RequireModules adds nothing for the null backend", "[ui][gpu][modules]") {
+  const auto modules = RequireFor({"rexgpu-xenos"}, "null");
+  CHECK(modules == std::vector<std::string>{"rexfilesystem", "rexruntime", "rexgpu-xenos"});
+}
+
+REX_TEST_CASE("RequireModules keeps a user supplied API library", "[ui][gpu][modules]") {
+  const auto modules = RequireFor({"rexgpu-xenos", "rexgpu-xenos-vulkan"}, "any");
+  CHECK(std::ranges::count_if(modules, IsXenosAPI) == 1);
+}
+
+REX_TEST_CASE("RequireModules leaves a list without the neutral GPU module alone",
+              "[ui][gpu][modules]") {
+  const auto modules = RequireFor({"rexui-sdl3"}, "any");
+  CHECK(std::ranges::none_of(
+      modules, [](const std::string& name) { return name.starts_with("rexgpu-xenos"); }));
+}
+
+REX_TEST_CASE("RequireModules adds nothing for an unavailable API", "[ui][gpu][modules]") {
+  const auto modules = RequireFor({"rexgpu-xenos"}, "no-such-backend");
+  CHECK(std::ranges::none_of(modules, IsXenosAPI));
 }

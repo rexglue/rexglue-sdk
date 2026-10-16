@@ -23,7 +23,7 @@
 #include <rex/math.h>
 #include "gpu/xenos/host/vulkan/objects.h"
 
-#include "gpu/xenos/cvar_table.h"
+#include "gpu/xenos/vulkan/cvar_table.h"
 
 namespace rex::gpu::vulkan {
 

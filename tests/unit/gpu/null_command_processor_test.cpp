@@ -1,6 +1,6 @@
 /**
  * @file        tests/unit/gpu/null_command_processor_test.cpp
- * @brief       rex-gpu-xenos with backend null runs PM4 without drawing
+ * @brief       rexgpu-xenos with backend null runs PM4 without drawing
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -29,7 +29,7 @@ namespace {
 rex::Config NullConfig() {
   rex::Config config;
   config.paths.config_file.clear();
-  config.modules = {"rex-filesystem", "rex-runtime", "rex-gpu-xenos"};
+  config.modules = {"rexfilesystem", "rexruntime", "rexgpu-xenos"};
   config.gpu.backend = "null";
   return config;
 }

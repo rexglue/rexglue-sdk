@@ -37,7 +37,8 @@
 #include "gpu/xenos/host/d3d12/d3d12_provider.h"
 #include "gpu/xenos/host/d3d12/d3d12_objects.h"
 
-#include "gpu/xenos/cvar_table.h"
+#include "gpu/xenos/cvar_table_pair.h"
+#include "gpu/xenos/d3d12/cvar_table.h"
 
 namespace rex::gpu::d3d12 {
 

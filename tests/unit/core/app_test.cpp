@@ -199,7 +199,7 @@ REX_TEST_CASE_METHOD(Fixture, "An unknown option fails Init and names it", "[cor
 
 REX_TEST_CASE_METHOD(Fixture, "args returns the command line", "[core][app]") {
   TestApp app;
-  app.modules = {"rex-filesystem", "rex-runtime", "rex-ui-sdl3"};
+  app.modules = {"rexfilesystem", "rexruntime", "rexui-sdl3"};
   REQUIRE(app.Init(Args({"pos", "--ui.fullscreen=false"})));
   REQUIRE(app.GetArgs().GetPositionals()[0] == "pos");
   REQUIRE(app.GetArgs().Get("ui.fullscreen") == "false");
@@ -297,7 +297,7 @@ REX_TEST_CASE_METHOD(Fixture, "Shutdown without Init returns 0", "[core][app]") 
 
 REX_TEST_CASE_METHOD(Fixture, "RequestRestart relaunches with the given arguments", "[core][app]") {
   TestApp app;
-  app.modules = {"rex-filesystem", "rex-runtime", "rex-ui-sdl3"};
+  app.modules = {"rexfilesystem", "rexruntime", "rexui-sdl3"};
   REQUIRE(app.Init(Args({"--ui.fullscreen=false"})));
   rex::RequestRestart({"--profile", "b"});
   REQUIRE(app.Shutdown() == 0);

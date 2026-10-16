@@ -20,6 +20,7 @@
 #include <vector>
 
 #include <rex/assert.h>
+#include <rex/macros.h>
 #include "gpu/xenos/pipeline/shader/shader.h"
 #include <rex/xenos/register_file.h>
 #include <rex/xenos/registers.h>
@@ -127,7 +128,8 @@ inline bool IsPrimitivePolygonal(const xenos::RegisterFile& regs) {
  * @param primitive_polygonal True when the primitive type is polygonal.
  * @return True when rasterization can produce samples.
  */
-bool IsRasterizationPotentiallyDone(const xenos::RegisterFile& regs, bool primitive_polygonal);
+REX_GPU_XENOS_API bool IsRasterizationPotentiallyDone(const xenos::RegisterFile& regs,
+                                                      bool primitive_polygonal);
 
 /**
  * Reports whether the depth test fails every sample and nothing else can write.
@@ -138,7 +140,7 @@ bool IsRasterizationPotentiallyDone(const xenos::RegisterFile& regs, bool primit
  * @param regs Register file.
  * @return True when no sample can pass the depth test and no stencil operation can run.
  */
-bool IsDepthTestNeverPassing(const xenos::RegisterFile& regs);
+REX_GPU_XENOS_API bool IsDepthTestNeverPassing(const xenos::RegisterFile& regs);
 
 /**
  * Reports whether the draw rasterizes into the EDRAM render targets.
@@ -151,15 +153,16 @@ bool IsDepthTestNeverPassing(const xenos::RegisterFile& regs);
  * @param pixel_shader_memexports True when the bound pixel shader writes memexport streams.
  * @return True when the draw needs the render targets.
  */
-bool IsRasterizationDone(const xenos::RegisterFile& regs, bool primitive_polygonal,
-                         bool pixel_shader_memexports);
+REX_GPU_XENOS_API bool IsRasterizationDone(const xenos::RegisterFile& regs,
+                                           bool primitive_polygonal, bool pixel_shader_memexports);
 
 /** Direct3D 10.1 standard 2x sample positions in 1/16th of a pixel, also used by Vulkan. */
-extern const i8 kD3D10StandardSamplePositions2x[2][2];
+REX_GPU_XENOS_API extern const i8 kD3D10StandardSamplePositions2x[2][2];
 /** Direct3D 10.1 standard 4x sample positions in 1/16th of a pixel, also used by Vulkan. */
-extern const i8 kD3D10StandardSamplePositions4x[4][2];
+REX_GPU_XENOS_API extern const i8 kD3D10StandardSamplePositions4x[4][2];
 
-xenos::reg::RB_DEPTHCONTROL GetNormalizedDepthControl(const xenos::RegisterFile& regs);
+REX_GPU_XENOS_API xenos::reg::RB_DEPTHCONTROL GetNormalizedDepthControl(
+    const xenos::RegisterFile& regs);
 
 /**
  * Factor converting the guest absolute polygon offset to the host relative constant factor for
@@ -232,8 +235,9 @@ inline i32 GetD3D10IntegerPolygonOffset(xenos::DepthRenderTargetFormat depth_for
  * @param scale_out Receives the polygon offset scale.
  * @param offset_out Receives the polygon offset.
  */
-void GetPreferredFacePolygonOffset(const xenos::RegisterFile& regs, bool primitive_polygonal,
-                                   f32& scale_out, f32& offset_out);
+REX_GPU_XENOS_API void GetPreferredFacePolygonOffset(const xenos::RegisterFile& regs,
+                                                     bool primitive_polygonal, f32& scale_out,
+                                                     f32& offset_out);
 
 inline bool DoesCoverageDependOnAlpha(xenos::reg::RB_COLORCONTROL rb_colorcontrol) {
   return (rb_colorcontrol.alpha_test_enable &&
@@ -257,10 +261,11 @@ inline bool DoesCoverageDependOnAlpha(xenos::reg::RB_COLORCONTROL rb_colorcontro
  * @param include_memory_export False to ignore memexport as a side effect.
  * @return True when the pixel shader is needed.
  */
-bool IsPixelShaderNeededWithRasterization(const Shader& shader, const xenos::RegisterFile& regs,
-                                          bool include_memory_export = true);
+REX_GPU_XENOS_API bool IsPixelShaderNeededWithRasterization(const Shader& shader,
+                                                            const xenos::RegisterFile& regs,
+                                                            bool include_memory_export = true);
 
-struct ViewportInfo {
+struct REX_GPU_XENOS_API ViewportInfo {
   /**
    * Offset from render target UV = 0 to +UV.
    *
@@ -336,13 +341,13 @@ struct ViewportInfo {
  * @param pixel_shader_writes_depth True when the pixel shader writes depth.
  * @param viewport_info_out Receives the host viewport.
  */
-void GetHostViewportInfo(const xenos::RegisterFile& regs, u32 draw_resolution_scale_x,
-                         u32 draw_resolution_scale_y, bool origin_bottom_left, u32 x_max, u32 y_max,
-                         bool allow_reverse_z, xenos::reg::RB_DEPTHCONTROL normalized_depth_control,
-                         bool convert_z_to_float24, bool full_float24_in_0_to_1,
-                         bool pixel_shader_writes_depth, ViewportInfo& viewport_info_out);
+REX_GPU_XENOS_API void GetHostViewportInfo(
+    const xenos::RegisterFile& regs, u32 draw_resolution_scale_x, u32 draw_resolution_scale_y,
+    bool origin_bottom_left, u32 x_max, u32 y_max, bool allow_reverse_z,
+    xenos::reg::RB_DEPTHCONTROL normalized_depth_control, bool convert_z_to_float24,
+    bool full_float24_in_0_to_1, bool pixel_shader_writes_depth, ViewportInfo& viewport_info_out);
 
-struct Scissor {
+struct REX_GPU_XENOS_API Scissor {
   /** Offset from render target UV = 0 to +UV. */
   u32 offset[2];
   /** Extent can be 0. */
@@ -362,8 +367,8 @@ struct Scissor {
  * @param scissor_out Receives the scissor.
  * @param clamp_to_surface_pitch True to clamp the horizontal scissor to the surface pitch.
  */
-void GetScissor(const xenos::RegisterFile& regs, Scissor& scissor_out,
-                bool clamp_to_surface_pitch = true);
+REX_GPU_XENOS_API void GetScissor(const xenos::RegisterFile& regs, Scissor& scissor_out,
+                                  bool clamp_to_surface_pitch = true);
 
 /**
  * Returns the color component write mask for the draw command.
@@ -377,7 +382,8 @@ void GetScissor(const xenos::RegisterFile& regs, Scissor& scissor_out,
  * @param pixel_shader_writes_color_targets Bit mask of color targets written by the pixel shader.
  * @return Normalized color write mask.
  */
-u32 GetNormalizedColorMask(const xenos::RegisterFile& regs, u32 pixel_shader_writes_color_targets);
+REX_GPU_XENOS_API u32 GetNormalizedColorMask(const xenos::RegisterFile& regs,
+                                             u32 pixel_shader_writes_color_targets);
 
 /**
  * Converts a title 2x MSAA sample index to a host sample index.
@@ -402,7 +408,7 @@ inline u32 GetD3D10SampleIndexForGuest2xMSAA(u32 guest_sample_index,
   return guest_sample_index ? 3 : 0;
 }
 
-struct MemExportRange {
+struct REX_GPU_XENOS_API MemExportRange {
   u32 base_address_dwords;
   u32 size_bytes;
 
@@ -423,8 +429,8 @@ struct MemExportRange {
  * @param shader Shader with analyzed ucode.
  * @param ranges_out Receives the ranges, extended in place when the base address repeats.
  */
-void AddMemExportRanges(const xenos::RegisterFile& regs, const Shader& shader,
-                        std::vector<MemExportRange>& ranges_out);
+REX_GPU_XENOS_API void AddMemExportRanges(const xenos::RegisterFile& regs, const Shader& shader,
+                                          std::vector<MemExportRange>& ranges_out);
 
 /**
  * Clamps a copy sample selection to values the shader understands, even though Direct3D 9 should
@@ -437,8 +443,8 @@ void AddMemExportRanges(const xenos::RegisterFile& regs, const Shader& shader,
  * @param is_depth True when the source is a depth surface.
  * @return Sample selection valid for the shader.
  */
-xenos::CopySampleSelect SanitizeCopySampleSelect(xenos::CopySampleSelect copy_sample_select,
-                                                 xenos::MSAASamples msaa_samples, bool is_depth);
+REX_GPU_XENOS_API xenos::CopySampleSelect SanitizeCopySampleSelect(
+    xenos::CopySampleSelect copy_sample_select, xenos::MSAASamples msaa_samples, bool is_depth);
 
 /** Packed, small enough to be passed to the shaders in root and push constants. */
 union ResolveEDRAMInfo {
@@ -494,9 +500,10 @@ union ResolveCoordinateInfo {
  * @param row_length_used_out Receives the width of the area in tiles.
  * @param rows_out Receives the height of the area in tiles.
  */
-void GetResolveEDRAMTileSpan(ResolveEDRAMInfo edram_info, ResolveCoordinateInfo coordinate_info,
-                             u32 height_div_8, u32& base_out, u32& row_length_used_out,
-                             u32& rows_out);
+REX_GPU_XENOS_API void GetResolveEDRAMTileSpan(ResolveEDRAMInfo edram_info,
+                                               ResolveCoordinateInfo coordinate_info,
+                                               u32 height_div_8, u32& base_out,
+                                               u32& row_length_used_out, u32& rows_out);
 
 union ResolveCopyDestCoordinateInfo {
   u32 packed;
@@ -533,7 +540,7 @@ enum class ResolveCopyShaderIndex : u8 {
   kUnknown = kCount,
 };
 
-struct ResolveCopyShaderInfo {
+struct REX_GPU_XENOS_API ResolveCopyShaderInfo {
   /** Debug name of the pipeline state object with this shader. */
   const char* debug_name;
   /**
@@ -554,10 +561,10 @@ struct ResolveCopyShaderInfo {
   u32 group_size_x_log2, group_size_y_log2;
 };
 
-extern const ResolveCopyShaderInfo
+REX_GPU_XENOS_API extern const ResolveCopyShaderInfo
     kResolveCopyShaderInfo[static_cast<size_t>(ResolveCopyShaderIndex::kCount)];
 
-struct ResolveCopyShaderConstants {
+struct REX_GPU_XENOS_API ResolveCopyShaderConstants {
   /**
    * When the destination base is not needed, as when not binding the entire shared memory buffer,
    * only this part may be passed to the shader to use fewer constants.
@@ -572,7 +579,7 @@ struct ResolveCopyShaderConstants {
   u32 dest_base;
 };
 
-struct ResolveClearShaderConstants {
+struct REX_GPU_XENOS_API ResolveClearShaderConstants {
   /**
    * Differs for color and depth, while the rest is the same and can be preserved in the root
    * bindings when going from depth to color.
@@ -585,7 +592,7 @@ struct ResolveClearShaderConstants {
   ResolveCoordinateInfo coordinate_info;
 };
 
-struct ResolveInfo {
+struct REX_GPU_XENOS_API ResolveInfo {
   xenos::reg::RB_COPY_CONTROL rb_copy_control;
 
   /**
@@ -740,9 +747,11 @@ struct ResolveInfo {
  * @param info_out Receives the resolve info.
  * @return False when an error made the info invalid.
  */
-bool GetResolveInfo(const xenos::RegisterFile& regs, const runtime::Memory& memory,
-                    u32 draw_resolution_scale_x, u32 draw_resolution_scale_y,
-                    bool fixed_rg16_truncated_to_minus_1_to_1,
-                    bool fixed_rgba16_truncated_to_minus_1_to_1, ResolveInfo& info_out);
+REX_GPU_XENOS_API bool GetResolveInfo(const xenos::RegisterFile& regs,
+                                      const runtime::Memory& memory, u32 draw_resolution_scale_x,
+                                      u32 draw_resolution_scale_y,
+                                      bool fixed_rg16_truncated_to_minus_1_to_1,
+                                      bool fixed_rgba16_truncated_to_minus_1_to_1,
+                                      ResolveInfo& info_out);
 
 }  // namespace rex::gpu::draw_state

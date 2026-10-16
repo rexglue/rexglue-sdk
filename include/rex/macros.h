@@ -18,7 +18,7 @@
 #include <rex/types.h>
 
 /**
- * Marks a declaration that rex-core exports. It expands to the export form while rex-core builds
+ * Marks a declaration that rexcore exports. It expands to the export form while rexcore builds
  * and to the import form in every other binary.
  *
  * @code
@@ -51,7 +51,7 @@
 #endif
 
 /**
- * Marks a declaration that rex-runtime exports. It expands to the export form while rex-runtime
+ * Marks a declaration that rexruntime exports. It expands to the export form while rexruntime
  * builds and to the import form in every other binary.
  *
  * @code
@@ -70,7 +70,7 @@
 #endif
 
 /**
- * Marks a declaration that rex-imgui exports. It expands to the export form while rex-imgui
+ * Marks a declaration that reximgui exports. It expands to the export form while reximgui
  * builds and to the import form in every other binary.
  *
  * @code
@@ -90,8 +90,30 @@
 #endif
 
 /**
+ * Marks a declaration that rexgpu-xenos exports to the host API libraries. It expands to the
+ * export form while rexgpu-xenos builds, to nothing in a binary that compiles the sources itself
+ * and defines REX_GPU_XENOS_STATIC, and to the import form in every other binary.
+ *
+ * @code
+ * class REX_GPU_XENOS_API CommandProcessor;
+ * REX_GPU_XENOS_API std::string GetDumpShaders();
+ * @endcode
+ */
+#if REX_PLATFORM_WIN32
+#if defined(REX_GPU_XENOS_STATIC)
+#define REX_GPU_XENOS_API
+#elif defined(REX_BUILDING_GPU_XENOS)
+#define REX_GPU_XENOS_API __declspec(dllexport)
+#else
+#define REX_GPU_XENOS_API __declspec(dllimport)
+#endif
+#else
+#define REX_GPU_XENOS_API __attribute__((visibility("default")))
+#endif
+
+/**
  * Marks a translation entry point definition for export. It expands to the export form while
- * rex-runtime builds and to nothing in every other binary, so a hook a consumer defines stays
+ * rexruntime builds and to nothing in every other binary, so a hook a consumer defines stays
  * local to the consumer.
  *
  * @code

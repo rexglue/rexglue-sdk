@@ -296,7 +296,7 @@ REX_TEST_CASE("XamShowKeyboardUI without a ui copies the default text", "[ui][xa
 
 REX_TEST_CASE("A XAM message box on the module waits until the prompts are cancelled",
               "[ui][xam]") {
-  const std::vector<std::string> modules{"rex-ui-sdl3"};
+  const std::vector<std::string> modules{"rexui-sdl3"};
   rex::testing::KernelFixture fixture({}, modules);
   auto* ui = fixture.GetAPI().Get<rex::ui::IUserInterface>();
   REQUIRE(ui != nullptr);

@@ -25,7 +25,7 @@ struct RENDERDOC_API_1_0_0;
 namespace rex {
 namespace gpu {
 
-class RenderDocAPI : public rex::NonCopyable {
+class REX_GPU_XENOS_API RenderDocAPI : public rex::NonCopyable {
   struct Key {};
 
  public:

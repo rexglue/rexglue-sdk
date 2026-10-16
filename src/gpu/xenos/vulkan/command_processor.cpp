@@ -30,6 +30,7 @@
 #include <rex/dbg.h>
 #include <rex/logging.h>
 #include <rex/math.h>
+#include "gpu/xenos/shared_cvars.h"
 #include "gpu/xenos/draw_state.h"
 #include "gpu/xenos/pipeline/shader/shader.h"
 #include "gpu/xenos/pipeline/shader/spirv_translator.h"
@@ -46,7 +47,8 @@
 #include "gpu/xenos/host/vulkan/presenter.h"
 #include "gpu/xenos/host/vulkan/objects.h"
 
-#include "gpu/xenos/cvar_table.h"
+#include "gpu/xenos/cvar_table_pair.h"
+#include "gpu/xenos/vulkan/cvar_table.h"
 
 namespace rex::gpu::vulkan {
 
@@ -640,7 +642,7 @@ bool VulkanCommandProcessor::ExecutePacketType3_EVENT_WRITE_ZPD(memory::RingBuff
   }
 
   auto write_fallback_result = [sample_counts]() -> bool {
-    auto fake_sample_count = REXCVAR_GET(::rex::gpu::cvars::query_occlusion_fake_sample_count);
+    auto fake_sample_count = GetQueryOcclusionFakeSampleCount();
     if (fake_sample_count < 0) {
       return true;
     }
@@ -3762,7 +3764,7 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, u32 index
         case xenos::FetchConstantType::kVertex:
           break;
         case xenos::FetchConstantType::kInvalidVertex:
-          if (REXCVAR_GET(::rex::gpu::cvars::allow_invalid_fetch_constants)) {
+          if (GetAllowInvalidFetchConstants()) {
             break;
           }
           REXLOG_WARN(gpu,

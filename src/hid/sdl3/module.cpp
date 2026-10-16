@@ -28,7 +28,7 @@ class SDL3Module final : public HIDModuleBase {
       {hid::IHIDBackend::kInterfaceName, hid::IHIDBackend::kInterfaceVersion, &GetBackend},
   }};
 
-  const char* GetName() const override { return "rex-hid-sdl3"; }
+  const char* GetName() const override { return "rexhid-sdl3"; }
 
   [[nodiscard]] Result<void> Connect(IInterfaceFactory* factory, const Config& config) override {
     SDL_SetHint(SDL_HINT_NO_SIGNAL_HANDLERS, "1");

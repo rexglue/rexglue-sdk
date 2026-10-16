@@ -14,7 +14,7 @@
 #include <array>
 #include <string>
 
-#include "gpu/xenos/backend_select.h"
+#include <rex/gpu/backend_select.h>
 
 using rex::gpu::HostAPI;
 using rex::gpu::SelectHostAPI;

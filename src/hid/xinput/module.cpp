@@ -26,7 +26,7 @@ class XInputModule final : public HIDModuleBase {
       {hid::IHIDBackend::kInterfaceName, hid::IHIDBackend::kInterfaceVersion, &GetBackend},
   }};
 
-  const char* GetName() const override { return "rex-hid-xinput"; }
+  const char* GetName() const override { return "rexhid-xinput"; }
 
  protected:
   [[nodiscard]] Result<std::unique_ptr<Driver>> CreatePadDriver(const HIDConfig&) override {

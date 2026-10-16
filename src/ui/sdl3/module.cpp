@@ -43,7 +43,7 @@ class UIModule final : public IModule {
       {IUserInterface::kInterfaceName, IUserInterface::kInterfaceVersion, &GetUI},
   }};
 
-  const char* GetName() const override { return "rex-ui-sdl3"; }
+  const char* GetName() const override { return "rexui-sdl3"; }
 
   std::span<const char* const> GetRequiredInterfaces() const override {
     static constexpr std::array<const char*, 1> kRequired = {"rex.cvar@1"};

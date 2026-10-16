@@ -97,7 +97,7 @@ class REX_API API {
   /**
    * Reports whether a module was loaded and initialized.
    *
-   * @param module_name Module DLL base name such as rex-gpu-xenos.
+   * @param module_name Module DLL base name such as rexgpu-xenos.
    * @return True when the module was loaded and initialized.
    */
   bool IsLoaded(std::string_view module_name) const;

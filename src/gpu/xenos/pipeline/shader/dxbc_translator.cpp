@@ -25,7 +25,7 @@
 #include <rex/math.h>
 #include "gpu/xenos/host/graphics_provider.h"
 
-#include "gpu/xenos/cvar_table.h"
+#include "gpu/xenos/d3d12/cvar_table.h"
 
 namespace rex::gpu {
 using namespace xenos::ucode;

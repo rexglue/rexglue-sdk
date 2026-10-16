@@ -20,7 +20,7 @@
 #include "kernel_fixture.h"
 
 REX_TEST_CASE("VdQueryVideoMode returns the runtime video mode", "[kernel][video]") {
-  const std::string modules[] = {"rex-ui-sdl3"};
+  const std::string modules[] = {"rexui-sdl3"};
   rex::testing::KernelFixture fixture({}, modules);
   auto* cvars = fixture.GetAPI().Get<rex::cvar::ICvarRegistry>();
   REQUIRE(cvars != nullptr);

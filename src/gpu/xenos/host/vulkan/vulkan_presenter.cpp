@@ -38,7 +38,7 @@
 #include <rex/move_only_function.h>
 #endif
 
-#include "gpu/xenos/cvar_table.h"
+#include "gpu/xenos/vulkan/cvar_table.h"
 
 namespace rex {
 namespace gpu {

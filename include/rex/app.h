@@ -147,7 +147,7 @@ class REX_API App : public NonCopyable {
 
   /**
    * Adds the modules a derived app type needs to the module list. Init calls it after OnConfigure
-   * and the command line, right before the modules load. TitleApp puts rex-runtime first.
+   * and the command line, right before the modules load. TitleApp puts rexruntime first.
    *
    * @param config The configuration the modules load from.
    */

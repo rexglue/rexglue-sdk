@@ -108,7 +108,7 @@ hid::IHIDBackend* RuntimeModule::GetHIDBackend() {
 }
 
 const char* RuntimeModule::GetName() const {
-  return "rex-runtime";
+  return "rexruntime";
 }
 
 std::span<const char* const> RuntimeModule::GetRequiredInterfaces() const {

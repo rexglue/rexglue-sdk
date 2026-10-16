@@ -25,7 +25,7 @@ namespace rex::runtime {
 /**
  * The null GPU. Raises the vblank interrupt at the refresh rate and writes the ring buffer write
  * pointer back as the read pointer. It executes no PM4, so a title that waits on a fence written
- * by a PM4 packet stops there. Headless title runs use rex-gpu-xenos with backend null instead.
+ * by a PM4 packet stops there. Headless title runs use rexgpu-xenos with backend null instead.
  */
 class REX_RUNTIME_API NullGPU final : public gpu::IGPUBackend, public NonCopyable {
  public:

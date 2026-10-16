@@ -22,6 +22,7 @@
 #include <thread>
 
 #include <rex/gpu.h>
+#include <rex/types.h>
 #include <rex/xenos/register_file.h>
 #include <rex/kernel.h>
 #include <rex/memory.h>
@@ -33,7 +34,7 @@ namespace rex::gpu {
 
 class CommandProcessor;
 
-class GraphicsSystem : public gpu::IGPUBackend {
+class REX_GPU_XENOS_API GraphicsSystem : public gpu::IGPUBackend, public rex::NonCopyable {
  public:
   virtual ~GraphicsSystem();
 

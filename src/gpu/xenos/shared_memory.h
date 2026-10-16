@@ -20,6 +20,7 @@
 #include <rex/memory.h>
 #include <rex/platform/lock_order.h>
 #include <rex/runtime/xmemory.h>
+#include <rex/types.h>
 
 namespace rex::gpu {
 
@@ -27,7 +28,7 @@ namespace rex::gpu {
  * Manages memory for unconverted textures, resolve targets, vertex and index buffers accessed from
  * shaders with Xenon physical addresses, with system page size granularity.
  */
-class SharedMemory {
+class REX_GPU_XENOS_API SharedMemory : public rex::NonCopyable {
  public:
   static constexpr u32 kBufferSizeLog2 = 29;
   static constexpr u32 kBufferSize = 1 << kBufferSizeLog2;

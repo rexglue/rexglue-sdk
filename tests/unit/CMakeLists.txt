@@ -240,13 +240,13 @@ target_include_directories(unit_tests PRIVATE
 )
 
 target_link_libraries(unit_tests PRIVATE
-    rex-codegen
-    rex-runtime
+    rexcodegen
+    rexruntime
     excrypt
-    rex-imgui
-    rex-ui
-    rex-hid-common
-    rex-ui-sdl3-static
+    reximgui
+    rexui
+    rexhid-common
+    rexui-sdl3-static
     xxHash::xxhash
     Catch2::Catch2WithMain
     SDL3::Headers
@@ -263,7 +263,7 @@ target_include_directories(unit_tests SYSTEM PRIVATE
     $<TARGET_PROPERTY:spirv-tools-headers,INTERFACE_INCLUDE_DIRECTORIES>)
 
 target_compile_definitions(unit_tests PRIVATE
-    REX_TEST_RUNTIME_PATH="$<TARGET_FILE:rex-runtime>"
+    REX_TEST_RUNTIME_PATH="$<TARGET_FILE:rexruntime>"
     REX_TEST_RECOMPILED_A_NAME="$<TARGET_FILE_BASE_NAME:rexmod-test-recompiled-a>"
     REX_TEST_RECOMPILED_B_NAME="$<TARGET_FILE_BASE_NAME:rexmod-test-recompiled-b>"
     REX_TEST_CROSS_EXPORTER_NAME="$<TARGET_FILE_BASE_NAME:rexmod-test-cross-exporter>"
@@ -276,9 +276,9 @@ if(WIN32)
 else()
     set_source_files_properties(crash_probe_recompiled_code.cpp PROPERTIES COMPILE_OPTIONS -fasynchronous-unwind-tables)
 endif()
-target_link_libraries(rex-crash-probe PRIVATE rex-runtime)
+target_link_libraries(rex-crash-probe PRIVATE rexruntime)
 set_target_properties(rex-crash-probe PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY $<TARGET_FILE_DIR:rex-runtime>
+    RUNTIME_OUTPUT_DIRECTORY $<TARGET_FILE_DIR:rexruntime>
 )
 if(UNIX AND NOT APPLE)
     set_target_properties(rex-crash-probe PROPERTIES
@@ -287,16 +287,20 @@ if(UNIX AND NOT APPLE)
     )
 endif()
 
-add_dependencies(unit_tests rex-filesystem rex-gpu-xenos rex-sample-console rex-sample-title rex-crash-probe)
+add_dependencies(unit_tests rexfilesystem rexgpu-xenos rexgpu-xenos-vulkan rex-sample-console rex-sample-title rex-crash-probe)
+if(TARGET rexgpu-xenos-d3d12)
+    add_dependencies(unit_tests rexgpu-xenos-d3d12)
+endif()
+target_compile_definitions(unit_tests PRIVATE REX_GPU_XENOS_STATIC)
 
 add_dependencies(unit_tests
     rexmod-test-good rexmod-test-missing rexmod-test-badversion
     rexmod-test-failinit rexmod-test-dupecho rexmod-test-null-gpu
-    rexmod-test-apu rex-apu-sdl3 rexmod-test-hid rex-hid-sdl3 rex-ui-sdl3
+    rexmod-test-apu rexapu-sdl3 rexmod-test-hid rexhid-sdl3 rexui-sdl3
     rexmod-test-recompiled-a rexmod-test-recompiled-b
     rexmod-test-cross-exporter rexmod-test-cross-importer)
 if(WIN32)
-    add_dependencies(unit_tests rex-hid-xinput)
+    add_dependencies(unit_tests rexhid-xinput)
 endif()
 
 # Strip Tracy/profiling instrumentation from test targets
@@ -306,7 +310,7 @@ target_compile_options(unit_tests PRIVATE
 )
 
 set_target_properties(unit_tests PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY $<TARGET_FILE_DIR:rex-runtime>
+    RUNTIME_OUTPUT_DIRECTORY $<TARGET_FILE_DIR:rexruntime>
 )
 if(UNIX AND NOT APPLE)
     set_target_properties(unit_tests PROPERTIES

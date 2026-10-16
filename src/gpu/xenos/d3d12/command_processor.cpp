@@ -21,6 +21,7 @@
 #include <rex/cvar.h>
 #include <rex/dbg.h>
 #include <rex/perf/counter.h>
+#include "gpu/xenos/shared_cvars.h"
 #include "gpu/xenos/d3d12/command_processor.h"
 #include "gpu/xenos/d3d12/graphics_system.h"
 #include "gpu/xenos/d3d12/shader.h"
@@ -34,7 +35,8 @@
 #include "gpu/xenos/host/d3d12/d3d12_objects.h"
 #include "gpu/xenos/host/renderdoc_api.h"
 
-#include "gpu/xenos/cvar_table.h"
+#include "gpu/xenos/cvar_table_pair.h"
+#include "gpu/xenos/d3d12/cvar_table.h"
 
 #define REXGPU_FINE_GRAINED_DRAW_SCOPES 1
 
@@ -179,7 +181,7 @@ bool D3D12CommandProcessor::ExecutePacketType3_EVENT_WRITE_ZPD(memory::RingBuffe
   }
 
   auto write_fallback_result = [sample_counts]() -> bool {
-    auto fake_sample_count = REXCVAR_GET(::rex::gpu::cvars::query_occlusion_fake_sample_count);
+    auto fake_sample_count = GetQueryOcclusionFakeSampleCount();
     if (fake_sample_count < 0) {
       return true;
     }
@@ -2359,7 +2361,7 @@ bool D3D12CommandProcessor::IssueDraw([[maybe_unused]] xenos::PrimitiveType prim
         case xenos::FetchConstantType::kVertex:
           break;
         case xenos::FetchConstantType::kInvalidVertex:
-          if (REXCVAR_GET(::rex::gpu::cvars::allow_invalid_fetch_constants)) {
+          if (GetAllowInvalidFetchConstants()) {
             break;
           }
           REXLOG_WARN(gpu,

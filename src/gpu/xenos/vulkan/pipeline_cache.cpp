@@ -31,6 +31,7 @@
 #include <rex/no_throw.h>
 #include <rex/platform/thread.h>
 #include <rex/memory.h>
+#include "gpu/xenos/shared_cvars.h"
 #include "gpu/xenos/draw_state.h"
 #include "gpu/xenos/pipeline_priority.h"
 #include "gpu/xenos/pipeline/shader/spirv_builder.h"
@@ -48,7 +49,8 @@
 #include <rex/types.h>
 #include "gpu/xenos/host/vulkan/objects.h"
 
-#include "gpu/xenos/cvar_table.h"
+#include "gpu/xenos/cvar_table_pair.h"
+#include "gpu/xenos/vulkan/cvar_table.h"
 #include "gpu/xenos/storage_file.h"
 
 namespace rex::gpu::vulkan {
@@ -991,8 +993,8 @@ bool VulkanPipelineCache::TranslateAnalyzedShader(SPIRVShaderTranslator& transla
     REX_FAIL(gpu, false, "Shader {:016X} translation failed; marking as ignored",
              shader.GetUcodeDataHash());
   }
-  if (!REXCVAR_GET(::rex::gpu::cvars::dump_shaders).empty()) {
-    translation.Dump(REXCVAR_GET(::rex::gpu::cvars::dump_shaders), "vulkan");
+  if (const std::string dump_path = GetDumpShaders(); !dump_path.empty()) {
+    translation.Dump(dump_path, "vulkan");
   }
   if (translation.GetOrCreateShaderModule() == VK_NULL_HANDLE) {
     return false;
@@ -2468,9 +2470,8 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
 
   std::vector<unsigned int> shader_code;
   builder.dump(shader_code);
-  if (!REXCVAR_GET(::rex::gpu::cvars::dump_shaders).empty()) {
-    gpu::vulkan::objects::DumpShader(REXCVAR_GET(::rex::gpu::cvars::dump_shaders),
-                                     std::format("gs_{:08X}", key.key), shader_code);
+  if (const std::string dump_path = GetDumpShaders(); !dump_path.empty()) {
+    gpu::vulkan::objects::DumpShader(dump_path, std::format("gs_{:08X}", key.key), shader_code);
   }
 
   // The handle is stored even when creation fails so it is not retried.

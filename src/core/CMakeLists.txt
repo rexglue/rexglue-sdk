@@ -1,4 +1,4 @@
-add_library(rex-core SHARED
+add_library(rexcore SHARED
     api.cpp
     apu/null_backend.cpp
     app.cpp
@@ -39,22 +39,22 @@ add_library(rex-core SHARED
     vec128.cpp
 )
 
-add_library(rex::core ALIAS rex-core)
-set_target_properties(rex-core PROPERTIES
+add_library(rex::core ALIAS rexcore)
+set_target_properties(rexcore PROPERTIES
     CXX_VISIBILITY_PRESET hidden
     VISIBILITY_INLINES_HIDDEN ON)
-target_compile_definitions(rex-core PRIVATE REX_BUILDING_CORE)
-rexglue_add_version_resource(rex-core DESCRIPTION "ReXGlue core")
+target_compile_definitions(rexcore PRIVATE REX_BUILDING_CORE)
+rexglue_add_version_resource(rexcore DESCRIPTION "ReXGlue core")
 
 if(APPLE)
     # Apple's libc++ gates std::jthread and std::stop_token behind the
     # experimental-library flag, and rex::platform::Spawn returns std::jthread.
-    target_compile_options(rex-core PUBLIC -fexperimental-library)
+    target_compile_options(rexcore PUBLIC -fexperimental-library)
 endif()
 
 # Platform-specific sources
 if(WIN32)
-    target_sources(rex-core PRIVATE
+    target_sources(rexcore PRIVATE
         atomic_win.cpp
         clock_win.cpp
         dbg_win.cpp
@@ -75,11 +75,11 @@ if(WIN32)
         system_win.cpp
         threading_win.cpp
     )
-    target_compile_definitions(rex-core PUBLIC NOMINMAX WIN32_LEAN_AND_MEAN)
+    target_compile_definitions(rexcore PUBLIC NOMINMAX WIN32_LEAN_AND_MEAN)
 elseif(UNIX)
     # Linux and macOS/Darwin share the POSIX sources; Darwin-specific behavior
     # is selected inside them with #if defined(__APPLE__).
-    target_sources(rex-core PRIVATE
+    target_sources(rexcore PRIVATE
         atomic_posix.cpp
         clock_posix.cpp
         dbg_posix.cpp
@@ -102,7 +102,7 @@ elseif(UNIX)
     )
 endif()
 
-target_sources(rex-core PRIVATE
+target_sources(rexcore PRIVATE
     xenos/xenos.cpp
     xenos/registers.cpp
     xenos/register_file.cpp
@@ -114,25 +114,25 @@ target_sources(rex-core PRIVATE
     xenos/texture_conversion.cpp
 )
 
-target_include_directories(rex-core PUBLIC
+target_include_directories(rexcore PUBLIC
     $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
     $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}/include>
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
 )
 
-target_include_directories(rex-core PRIVATE
+target_include_directories(rexcore PRIVATE
     ${PROJECT_SOURCE_DIR}
     ${PROJECT_SOURCE_DIR}/src
     ${PROJECT_SOURCE_DIR}/thirdparty
 )
 
 if(APPLE)
-    target_link_libraries(rex-core PRIVATE pthread)
+    target_link_libraries(rexcore PRIVATE pthread)
 elseif(UNIX)
-    target_link_libraries(rex-core PRIVATE pthread rt dl)
+    target_link_libraries(rexcore PRIVATE pthread rt dl)
 endif()
 
-target_link_libraries(rex-core
+target_link_libraries(rexcore
     PUBLIC
         simde
         tomlplusplus
@@ -143,18 +143,18 @@ target_link_libraries(rex-core
 )
 
 if(WIN32)
-    target_link_libraries(rex-core PRIVATE winmm ws2_32)
+    target_link_libraries(rexcore PRIVATE winmm ws2_32)
 endif()
 
 if(REXGLUE_ENABLE_TRACY)
-    target_link_libraries(rex-core PUBLIC
+    target_link_libraries(rexcore PUBLIC
         $<$<NOT:$<CONFIG:Release>>:$<TARGET_NAME:TracyClient>>)
-    target_compile_definitions(rex-core PUBLIC
+    target_compile_definitions(rexcore PUBLIC
         $<$<NOT:$<CONFIG:Release>>:REXGLUE_ENABLE_PROFILING>)
 endif()
 
 if(REXGLUE_ENABLE_PERF_COUNTERS)
-    target_sources(rex-core PRIVATE perf/counter.cpp)
-    target_compile_definitions(rex-core PUBLIC
+    target_sources(rexcore PRIVATE perf/counter.cpp)
+    target_compile_definitions(rexcore PUBLIC
         $<$<NOT:$<CONFIG:Release>>:REXGLUE_ENABLE_PERF_COUNTERS>)
 endif()

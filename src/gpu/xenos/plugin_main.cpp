@@ -1,6 +1,6 @@
 /**
  * @file        gpu/xenos/plugin_main.cpp
- * @brief       rex-gpu-xenos module entry, serves the module and graphics backend interfaces
+ * @brief       rexgpu-xenos module entry, serves the module and graphics backend interfaces
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -23,31 +23,31 @@
 #include <rex/module.h>
 #include <rex/platform.h>
 
-#include "gpu/xenos/cvar_table.h"
+#include "gpu/xenos/cvar_table_gpu.h"
+#include "gpu/xenos/cvar_table_xenos.h"
+#include "gpu/xenos/xenos_graphics.h"
 
 REXLOG_TABLE(kGPULog, gpu)
 
-#if REX_PLATFORM_WIN32
-#include "gpu/xenos/d3d12/graphics_system.h"
-#endif
-#include "gpu/xenos/vulkan/graphics_system.h"
 #include "gpu/xenos/null/null_graphics_system.h"
 
-#include "gpu/xenos/backend_select.h"
+#include <rex/gpu/backend_select.h>
 
 namespace rex::gpu {
 
-class XenosModule final : public rex::IModule {
+class XenosModule final : public rex::IModule, public IXenosGraphics {
  public:
   static void* GetModule();
+  static void* GetXenos();
   static void* GetBackend();
 
-  static constexpr std::array<rex::InterfaceEntry, 2> kInterfaces = {{
+  static constexpr std::array<rex::InterfaceEntry, 3> kInterfaces = {{
       {rex::IModule::kInterfaceName, rex::IModule::kInterfaceVersion, &GetModule},
+      {gpu::IXenosGraphics::kInterfaceName, gpu::IXenosGraphics::kInterfaceVersion, &GetXenos},
       {gpu::IGPUBackend::kInterfaceName, gpu::IGPUBackend::kInterfaceVersion, &GetBackend},
   }};
 
-  const char* GetName() const override { return "rex-gpu-xenos"; }
+  const char* GetName() const override { return "rexgpu-xenos"; }
   std::span<const char* const> GetRequiredInterfaces() const override {
     static constexpr std::array<const char*, 1> kRequired = {"rex.cvar@1"};
     return kRequired;
@@ -73,8 +73,6 @@ class XenosModule final : public rex::IModule {
     REX_TRY_VOID(logger_->Register(rex::log::kGPULog));
     REX_TRY_VOID(cvars_->Register("gpu", cvars::kGPUCvars));
     REX_TRY_VOID(cvars_->Register("xenos", cvars::kXenosCvars));
-    REX_TRY_VOID(cvars_->Register("d3d12", cvars::kD3D12Cvars));
-    REX_TRY_VOID(cvars_->Register("vulkan", cvars::kVulkanCvars));
     REX_TRY_VOID(
         cvars_->SetDefault("gpu.resolution_scale_x", std::to_string(config_->resolution_scale_x)));
     REX_TRY_VOID(
@@ -84,8 +82,6 @@ class XenosModule final : public rex::IModule {
 
   void Disconnect() override {
     if (cvars_) {
-      cvars_->Unregister(cvars::kVulkanCvars);
-      cvars_->Unregister(cvars::kD3D12Cvars);
       cvars_->Unregister(cvars::kXenosCvars);
       cvars_->Unregister(cvars::kGPUCvars);
     }
@@ -99,24 +95,46 @@ class XenosModule final : public rex::IModule {
   [[nodiscard]] rex::Result<void> Init() override {
     std::string_view name = config_ ? std::string_view(config_->backend) : "any";
     REX_TRY(HostAPI api, SelectHostAPI(name, kPlatformHostAPIs));
-    switch (api) {
-#if REX_PLATFORM_WIN32
-      case HostAPI::kD3D12:
-        backend_ = std::make_unique<d3d12::D3D12GraphicsSystem>();
-        break;
-#endif
-      case HostAPI::kNull:
-        backend_ = std::make_unique<null::NullGraphicsSystem>();
-        break;
-      default:
-        backend_ = std::make_unique<vulkan::VulkanGraphicsSystem>();
-        break;
+    if (api == HostAPI::kNull) {
+      return SetBackend(std::make_unique<null::NullGraphicsSystem>());
     }
-    backend_->SetConfig(config_);
+    if (api_module_.empty()) {
+      return rex::Err(
+          rex::ErrorCategory::kConfig,
+          std::format("gpu.backend '{}' needs {} in the module list", name,
+                      api == HostAPI::kD3D12 ? "rexgpu-xenos-d3d12" : "rexgpu-xenos-vulkan"));
+    }
     return rex::Ok();
   }
 
   void Shutdown() override { backend_.reset(); }
+
+  const gpu::GPUConfig* GetConfig() const override { return config_; }
+
+  [[nodiscard]] rex::Result<void> AttachAPI(std::string_view module) override {
+    if (!api_module_.empty()) {
+      return rex::Err(rex::ErrorCategory::kConfig,
+                      std::format("{} and {} cannot both be loaded", api_module_, module));
+    }
+    api_module_ = module;
+    return rex::Ok();
+  }
+
+  void DetachAPI() override {
+    backend_.reset();
+    api_module_.clear();
+  }
+
+  [[nodiscard]] rex::Result<void> SetBackend(std::unique_ptr<GraphicsSystem> backend) override {
+    if (backend && backend_) {
+      return rex::Err(rex::ErrorCategory::kConfig, "a graphics system is already set");
+    }
+    backend_ = std::move(backend);
+    if (backend_) {
+      backend_->SetConfig(config_);
+    }
+    return rex::Ok();
+  }
 
  private:
   static XenosModule& GetInstance() {
@@ -128,10 +146,15 @@ class XenosModule final : public rex::IModule {
   rex::cvar::ICvarRegistry* cvars_ = nullptr;
   rex::ILogger* logger_ = nullptr;
   std::unique_ptr<GraphicsSystem> backend_;
+  std::string api_module_;
 };
 
 void* XenosModule::GetModule() {
   return static_cast<rex::IModule*>(&GetInstance());
+}
+
+void* XenosModule::GetXenos() {
+  return static_cast<gpu::IXenosGraphics*>(&GetInstance());
 }
 
 void* XenosModule::GetBackend() {

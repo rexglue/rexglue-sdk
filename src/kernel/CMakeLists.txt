@@ -66,6 +66,6 @@ set(REXKERNEL_SOURCES
 )
 
 list(TRANSFORM REXKERNEL_SOURCES PREPEND "${CMAKE_CURRENT_SOURCE_DIR}/")
-target_sources(rex-runtime PRIVATE ${REXKERNEL_SOURCES})
+target_sources(rexruntime PRIVATE ${REXKERNEL_SOURCES})
 
-target_link_libraries(rex-runtime PRIVATE o1heap libavcodec libavutil)
+target_link_libraries(rexruntime PRIVATE o1heap libavcodec libavutil)

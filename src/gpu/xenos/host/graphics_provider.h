@@ -28,7 +28,7 @@ class Window;
  * Contexts created by the same provider can share resources under the rules of the backing
  * graphics API.
  */
-class GraphicsProvider : public rex::NonCopyable {
+class REX_GPU_XENOS_API GraphicsProvider : public rex::NonCopyable {
  public:
   enum class GPUVendorID : u16 {
     kAMD = 0x1002,

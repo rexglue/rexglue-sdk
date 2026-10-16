@@ -102,7 +102,7 @@ inline char GetCharForSwizzle(SwizzleSource swizzle_source) {
   return kChars[static_cast<u32>(swizzle_source)];
 }
 
-struct InstructionResult {
+struct REX_GPU_XENOS_API InstructionResult {
   InstructionStorageTarget storage_target = InstructionStorageTarget::kNone;
   u32 storage_index = 0;
   InstructionStorageAddressingMode storage_addressing_mode =
@@ -189,7 +189,7 @@ enum class InstructionStorageSource : u8 {
   kTextureFetchConstant,
 };
 
-struct InstructionOperand {
+struct REX_GPU_XENOS_API InstructionOperand {
   InstructionStorageSource storage_source = InstructionStorageSource::kRegister;
   u32 storage_index = 0;
   InstructionStorageAddressingMode storage_addressing_mode =
@@ -248,7 +248,7 @@ struct InstructionOperand {
   }
 };
 
-struct ParsedExecInstruction {
+struct REX_GPU_XENOS_API ParsedExecInstruction {
   u32 dword_index = 0;
 
   xenos::ucode::ControlFlowOpcode opcode;
@@ -277,7 +277,7 @@ struct ParsedExecInstruction {
   void Disassemble(StringBuffer* out) const;
 };
 
-struct ParsedLoopStartInstruction {
+struct REX_GPU_XENOS_API ParsedLoopStartInstruction {
   u32 dword_index = 0;
 
   /**
@@ -294,7 +294,7 @@ struct ParsedLoopStartInstruction {
   void Disassemble(StringBuffer* out) const;
 };
 
-struct ParsedLoopEndInstruction {
+struct REX_GPU_XENOS_API ParsedLoopEndInstruction {
   u32 dword_index = 0;
 
   /** Breaks from the loop if the predicate matches the expected value. */
@@ -336,7 +336,7 @@ struct ParsedReturnInstruction {
   void Disassemble(StringBuffer* out) const;
 };
 
-struct ParsedJumpInstruction {
+struct REX_GPU_XENOS_API ParsedJumpInstruction {
   u32 dword_index = 0;
 
   u32 target_address = 0;
@@ -353,7 +353,7 @@ struct ParsedJumpInstruction {
   void Disassemble(StringBuffer* out) const;
 };
 
-struct ParsedAllocInstruction {
+struct REX_GPU_XENOS_API ParsedAllocInstruction {
   u32 dword_index = 0;
 
   xenos::ucode::AllocType type = xenos::ucode::AllocType::kNone;
@@ -364,7 +364,7 @@ struct ParsedAllocInstruction {
   void Disassemble(StringBuffer* out) const;
 };
 
-struct ParsedVertexFetchInstruction {
+struct REX_GPU_XENOS_API ParsedVertexFetchInstruction {
   xenos::ucode::FetchOpcode opcode;
   const char* opcode_name = nullptr;
 
@@ -411,7 +411,7 @@ struct ParsedVertexFetchInstruction {
   void Disassemble(StringBuffer* out) const;
 };
 
-struct ParsedTextureFetchInstruction {
+struct REX_GPU_XENOS_API ParsedTextureFetchInstruction {
   xenos::ucode::FetchOpcode opcode;
   const char* opcode_name = nullptr;
   /** Texture dimension for opcodes that have multiple dimension forms. */
@@ -456,7 +456,7 @@ struct ParsedTextureFetchInstruction {
   void Disassemble(StringBuffer* out) const;
 };
 
-struct ParsedAluInstruction {
+struct REX_GPU_XENOS_API ParsedAluInstruction {
   xenos::ucode::AluVectorOpcode vector_opcode = xenos::ucode::AluVectorOpcode::kAdd;
   xenos::ucode::AluScalarOpcode scalar_opcode = xenos::ucode::AluScalarOpcode::kAdds;
   const char* vector_opcode_name = nullptr;
@@ -558,7 +558,7 @@ void ParseTextureFetchInstruction(const xenos::ucode::TextureFetchInstruction& o
 void ParseAluInstruction(const xenos::ucode::AluInstruction& op, xenos::ShaderType shader_type,
                          ParsedAluInstruction& instr);
 
-class Shader {
+class REX_GPU_XENOS_API Shader : public rex::NonCopyable {
  public:
   /**
    * Type of the vertex shader on the host.
@@ -678,7 +678,7 @@ class Shader {
     u8 em_potentially_written_by_exec = 0;
   };
 
-  class Translation {
+  class REX_GPU_XENOS_API Translation {
    public:
     Translation(Shader& shader, u64 modification) : shader_(shader), modification_(modification) {}
     virtual ~Translation() {}

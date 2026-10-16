@@ -63,12 +63,12 @@ target_include_directories(ppc_tests PRIVATE
 
 target_link_libraries(ppc_tests PRIVATE
     simde
-    rex-runtime
+    rexruntime
     Catch2::Catch2WithMain
 )
 
 set_target_properties(ppc_tests PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY $<TARGET_FILE_DIR:rex-runtime>
+    RUNTIME_OUTPUT_DIRECTORY $<TARGET_FILE_DIR:rexruntime>
 )
 if(UNIX AND NOT APPLE)
     set_target_properties(ppc_tests PROPERTIES

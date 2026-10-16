@@ -1,6 +1,6 @@
 /**
  * @file        tests/unit/kernel/exports_visibility_test.cpp
- * @brief       Tests for the symbols rex-runtime exports
+ * @brief       Tests for the symbols rexruntime exports
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

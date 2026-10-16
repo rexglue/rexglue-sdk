@@ -32,7 +32,8 @@
 #include "gpu/xenos/host/vulkan/ui_samplers.h"
 #include "gpu/xenos/host/vulkan/objects.h"
 
-#include "gpu/xenos/cvar_table.h"
+#include "gpu/xenos/cvar_table_pair.h"
+#include "gpu/xenos/vulkan/cvar_table.h"
 
 namespace rex::gpu::vulkan {
 

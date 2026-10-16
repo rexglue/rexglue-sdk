@@ -25,6 +25,7 @@
 #include <rex/assert.h>
 #include <rex/cvar.h>
 #include "gpu/xenos/pipeline/shader/shader.h"
+#include <rex/types.h>
 #include <rex/xenos/register_file.h>
 #include "gpu/xenos/shared_memory.h"
 #include <rex/xenos/xenos.h>
@@ -74,7 +75,7 @@ namespace rex::gpu {
  * are at least naturally aligned to 2 or 4 bytes, as INDEX_BASE_LO in DRAW_INDEX is word aligned,
  * which host graphics APIs also require.
  */
-class PrimitiveProcessor {
+class REX_GPU_XENOS_API PrimitiveProcessor : public rex::NonCopyable {
  public:
   enum ProcessedIndexBufferType : u8 {
     /** Auto-indexed on the host. */

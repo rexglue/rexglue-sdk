@@ -515,7 +515,7 @@ namespace {
 X_STATUS SetupWithBudget(u32 megabytes, u32* out_budget_pages) {
   ReleaseTestMemory();
   rex::Config config;
-  config.modules = {"rex-filesystem", "rex-runtime"};
+  config.modules = {"rexfilesystem", "rexruntime"};
   config.runtime.title_memory_mb = megabytes;
   auto api = rex::Init(config);
   REQUIRE(api);

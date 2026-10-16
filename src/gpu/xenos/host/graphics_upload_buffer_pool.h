@@ -26,7 +26,7 @@ namespace gpu {
  *
  * A submission index is the fence value or a value derived from it.
  */
-class GraphicsUploadBufferPool {
+class REX_GPU_XENOS_API GraphicsUploadBufferPool : public rex::NonCopyable {
  public:
   /** Matches the Direct3D 12 MiniEngine sample LinearAllocator kCpuAllocatorPageSize. */
   static constexpr size_t kDefaultPageSize = 2_MiB;
@@ -47,7 +47,7 @@ class GraphicsUploadBufferPool {
 
  protected:
   /** Extended by the implementation. */
-  struct Page {
+  struct REX_GPU_XENOS_API Page {
     virtual ~Page();
     u64 last_submission_index;
     Page* next;

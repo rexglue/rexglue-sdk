@@ -25,7 +25,7 @@
 #include <rex/gpu/surface_win.h>
 #include <rex/move_only_function.h>
 
-#include "gpu/xenos/cvar_table.h"
+#include "gpu/xenos/d3d12/cvar_table.h"
 
 namespace rex::gpu::d3d12 {
 

@@ -88,7 +88,7 @@ class NullGPUApp : public rex::ui::TitleApp {
 
  protected:
   [[nodiscard]] rex::Result<void> OnConfigure(rex::Config& config) override {
-    config.modules = {"rexmod-test-null-gpu", "rex-ui-sdl3"};
+    config.modules = {"rexmod-test-null-gpu", "rexui-sdl3"};
     config.ui.video_driver = "dummy";
     config.paths.config_file.clear();
     return rex::Ok();

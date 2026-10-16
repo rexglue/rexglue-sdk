@@ -40,7 +40,7 @@ namespace rex::gpu {
  * sampler state only. With a mip address and a base address of 0 or equal to the mip address it is
  * mipmapped with min/max LOD clamped to at least 1.
  */
-class TextureCache : public rex::NonCopyable {
+class REX_GPU_XENOS_API TextureCache : public rex::NonCopyable {
  public:
   /**
    * Limited by the half pixel offset fill in the resolve shaders covering up to 3 pixels, the bit
@@ -175,7 +175,7 @@ class TextureCache : public rex::NonCopyable {
   static_assert(std::is_trivially_copyable_v<TextureKey> &&
                 std::has_unique_object_representations_v<TextureKey>);
 
-  class Texture : public rex::NonCopyable {
+  class REX_GPU_XENOS_API Texture : public rex::NonCopyable {
    public:
     virtual ~Texture();
 

@@ -30,7 +30,8 @@
 #include "gpu/xenos/host/immediate_drawer.h"
 #include "gpu/xenos/host/presenter.h"
 
-#include "gpu/xenos/cvar_table.h"
+#include "gpu/xenos/cvar_table_gpu.h"
+#include "gpu/xenos/cvar_table_xenos.h"
 
 namespace {
 

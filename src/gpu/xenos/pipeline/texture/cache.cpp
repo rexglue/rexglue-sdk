@@ -25,7 +25,8 @@
 #include <rex/logging.h>
 #include <rex/math.h>
 
-#include "gpu/xenos/cvar_table.h"
+#include "gpu/xenos/cvar_table_gpu.h"
+#include "gpu/xenos/cvar_table_xenos.h"
 
 namespace rex::gpu {
 

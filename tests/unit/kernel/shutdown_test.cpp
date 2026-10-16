@@ -1146,7 +1146,7 @@ REX_TEST_CASE("A suspend never parks a guest thread inside a host allocation", "
 
 REX_TEST_CASE("Setup fails when kernel initialization fails", "[kernel][kernel_init]") {
   rex::Config config;
-  config.modules = {"rex-filesystem", "rex-runtime"};
+  config.modules = {"rexfilesystem", "rexruntime"};
   auto api = rex::Init(config);
   REQUIRE(api);
   {

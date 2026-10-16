@@ -210,7 +210,7 @@ REX_TEST_CASE_METHOD(Fixture, "Duplicate name and invalid name are rejected befo
     REQUIRE(api.error().message == std::string("module '") + bad + "' has an invalid name");
   }
   REQUIRE_FALSE(rex::detail::IsValidModuleName(".."));
-  REQUIRE(rex::detail::IsValidModuleName("rex-gpu-xenos"));
+  REQUIRE(rex::detail::IsValidModuleName("rexgpu-xenos"));
 }
 
 REX_TEST_CASE_METHOD(Fixture, "An interface served by 2 modules is rejected",
@@ -357,14 +357,14 @@ REX_TEST_CASE_METHOD(Fixture, "A consumer table with a bad name fails before any
 REX_TEST_CASE_METHOD(Fixture, "Config validation fails before any module connects",
                      "[core][module_loader][cvar]") {
   Pinned pin("rexmod-test-good");
-  auto cfg = With({"rex-filesystem", "rex-runtime", "rexmod-test-good"});
+  auto cfg = With({"rexfilesystem", "rexruntime", "rexmod-test-good"});
   cfg.runtime.heap_size_mb = 0;
   auto api = rex::Init(cfg);
   REQUIRE_FALSE(api);
   REQUIRE(api.error().message.find("runtime.heap_size_mb") != std::string::npos);
   REQUIRE_FALSE(Ran("rexmod-test-good:connect"));
   cfg.runtime.heap_size_mb = 256;
-  cfg.modules.push_back("rex-gpu-xenos");
+  cfg.modules.push_back("rexgpu-xenos");
   cfg.gpu.resolution_scale_x = 9;
   api = rex::Init(cfg);
   REQUIRE_FALSE(api);
@@ -396,13 +396,19 @@ REX_TEST_CASE_METHOD(Fixture, "Every SDK cvar name is scope.leaf in a charter sc
   static const std::vector<std::string_view> kScopes = {
       "log", "clock", "perf",  "runtime", "apu",     "hid", "ui",
       "gpu", "xenos", "d3d12", "vulkan",  "console", "bind"};
-  auto cfg = With({"rex-filesystem", "rex-runtime", "rex-ui-sdl3"});
-  auto xenos = rex::platform::GetExecutableFolder() / rex::detail::ModuleFileName("rex-gpu-xenos");
-  if (std::filesystem::exists(xenos))
-    cfg.modules.push_back("rex-gpu-xenos");
+  auto cfg = With({"rexfilesystem", "rexruntime", "rexui-sdl3"});
+  auto xenos = rex::platform::GetExecutableFolder() / rex::detail::ModuleFileName("rexgpu-xenos");
+  auto vulkan =
+      rex::platform::GetExecutableFolder() / rex::detail::ModuleFileName("rexgpu-xenos-vulkan");
+  if (std::filesystem::exists(xenos) && std::filesystem::exists(vulkan)) {
+    cfg.gpu.backend = "vulkan";
+    cfg.modules.push_back("rexgpu-xenos");
+    cfg.modules.push_back("rexgpu-xenos-vulkan");
+  }
   auto api = rex::Init(cfg);
   if (!api && cfg.modules.size() > 3) {
-    cfg.modules.pop_back();
+    cfg.modules.resize(3);
+    cfg.gpu.backend = "null";
     api = rex::Init(cfg);
   }
   REQUIRE(api);
@@ -422,14 +428,14 @@ REX_TEST_CASE_METHOD(Fixture, "Every SDK cvar name is scope.leaf in a charter sc
   }
   REQUIRE(count >= 70);
   if (cfg.modules.size() > 3)
-    REQUIRE(count == 129);
+    REQUIRE(count == 107);
 }
 
-REX_TEST_CASE_METHOD(Fixture, "rex-runtime registers the module scopes at Connect",
+REX_TEST_CASE_METHOD(Fixture, "rexruntime registers the module scopes at Connect",
                      "[core][module_loader][cvar]") {
-  auto api = rex::Init(With({"rex-filesystem", "rex-runtime"}));
+  auto api = rex::Init(With({"rexfilesystem", "rexruntime"}));
   REQUIRE(api);
-  REQUIRE(api.value()->IsLoaded("rex-runtime"));
+  REQUIRE(api.value()->IsLoaded("rexruntime"));
   auto* registry = api.value()->Get<rex::cvar::ICvarRegistry>();
   REQUIRE(registry->Find("runtime.protect_zero"));
   REQUIRE_FALSE(registry->Find("ui.window_width"));
@@ -439,7 +445,7 @@ REX_TEST_CASE_METHOD(Fixture, "rex-runtime registers the module scopes at Connec
 
 REX_TEST_CASE_METHOD(Fixture, "Runtime config sets the code segment and zero page defaults",
                      "[core][module_loader][cvar]") {
-  auto cfg = With({"rex-filesystem", "rex-runtime"});
+  auto cfg = With({"rexfilesystem", "rexruntime"});
   cfg.runtime.writable_code_segments = true;
   cfg.runtime.protect_zero = false;
   auto api = rex::Init(cfg);
@@ -449,7 +455,7 @@ REX_TEST_CASE_METHOD(Fixture, "Runtime config sets the code segment and zero pag
   REQUIRE(registry->Get("runtime.protect_zero").value() == "false");
 }
 
-REX_TEST_CASE_METHOD(Fixture, "Without rex-runtime no module scope exists",
+REX_TEST_CASE_METHOD(Fixture, "Without rexruntime no module scope exists",
                      "[core][module_loader][cvar]") {
   auto api = rex::Init(rex::Config{});
   REQUIRE(api);

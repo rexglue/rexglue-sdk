@@ -82,19 +82,19 @@ add_custom_command(
 
 add_custom_target(embed_templates DEPENDS ${EMBEDDED_HEADERS})
 
-add_library(rex-codegen STATIC
+add_library(rexcodegen STATIC
     ${CODEGEN_CORE_SOURCES}
     ${CODEGEN_PPC_SOURCES}
     ${CODEGEN_BUILDER_SOURCES}
 )
-add_library(rex::codegen ALIAS rex-codegen)
+add_library(rex::codegen ALIAS rexcodegen)
 set_source_files_properties(ppc/ppc_dis_access.c
     PROPERTIES SKIP_PRECOMPILE_HEADERS ON COMPILE_OPTIONS -w)
-add_dependencies(rex-codegen embed_templates)
+add_dependencies(rexcodegen embed_templates)
 
-rex_target_pch(rex-codegen <rex/codegen/function_types.h>)
+rex_target_pch(rexcodegen <rex/codegen/function_types.h>)
 
-target_include_directories(rex-codegen
+target_include_directories(rexcodegen
     PUBLIC
         $<BUILD_INTERFACE:${REXGLUE_ROOT}/include>
         $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
@@ -104,15 +104,15 @@ target_include_directories(rex-codegen
         ${CMAKE_CURRENT_SOURCE_DIR}/builders
         ${CMAKE_CURRENT_BINARY_DIR}/generated/templates
 )
-target_include_directories(rex-codegen SYSTEM
+target_include_directories(rexcodegen SYSTEM
     PUBLIC
         $<BUILD_INTERFACE:${REXGLUE_ROOT}/thirdparty/inja/single_include>
         $<BUILD_INTERFACE:${REXGLUE_ROOT}/thirdparty/inja/third_party/include>
 )
 
-target_link_libraries(rex-codegen
+target_link_libraries(rexcodegen
     PUBLIC
-        rex-runtime
+        rexruntime
     PRIVATE
         tomlplusplus
         disasm

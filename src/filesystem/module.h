@@ -22,33 +22,33 @@
 
 namespace rex::filesystem {
 
-/** The module rex-filesystem.dll serves. It owns the mount table. */
+/** The module rexfilesystem.dll serves. It owns the mount table. */
 class FilesystemModule final : public IModule {
  public:
   /**
    * Returns the module instance for its interface table entry.
    *
-   * @return The IModule of rex-filesystem.
+   * @return The IModule of rexfilesystem.
    */
   static void* GetModule();
 
   /**
    * Returns the mount table for its interface table entry.
    *
-   * @return The IFileSystem of rex-filesystem.
+   * @return The IFileSystem of rexfilesystem.
    */
   static void* GetFileSystem();
 
-  /** The interfaces rex-filesystem.dll serves. */
+  /** The interfaces rexfilesystem.dll serves. */
   static constexpr std::array<InterfaceEntry, 2> kInterfaces = {{
       {IModule::kInterfaceName, IModule::kInterfaceVersion, &GetModule},
       {IFileSystem::kInterfaceName, IFileSystem::kInterfaceVersion, &GetFileSystem},
   }};
 
   /**
-   * Returns the module name the loader resolves to rex-filesystem.dll.
+   * Returns the module name the loader resolves to rexfilesystem.dll.
    *
-   * @return "rex-filesystem".
+   * @return "rexfilesystem".
    */
   const char* GetName() const override;
 

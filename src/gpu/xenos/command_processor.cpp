@@ -38,7 +38,8 @@
 #include <rex/runtime/module_object.h>
 #include <rex/move_only_function.h>
 
-#include "gpu/xenos/cvar_table.h"
+#include "gpu/xenos/cvar_table_gpu.h"
+#include "gpu/xenos/cvar_table_xenos.h"
 
 namespace rex::gpu {
 

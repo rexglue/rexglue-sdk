@@ -78,7 +78,7 @@ class IModule {
   /**
    * Returns the module's DLL base name.
    *
-   * @return The DLL base name, for example "rex-gpu-xenos".
+   * @return The DLL base name, for example "rexgpu-xenos".
    */
   virtual const char* GetName() const = 0;
 

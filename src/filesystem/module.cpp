@@ -27,7 +27,7 @@ void* FilesystemModule::GetFileSystem() {
 }
 
 const char* FilesystemModule::GetName() const {
-  return "rex-filesystem";
+  return "rexfilesystem";
 }
 
 std::span<const char* const> FilesystemModule::GetRequiredInterfaces() const {

@@ -16,6 +16,7 @@
 #include <string>
 #include <vector>
 
+#include <rex/types.h>
 #include <rex/xenos/ucode.h>
 #include "gpu/xenos/pipeline/shader/shader.h"
 #include <rex/xenos/registers.h>
@@ -25,7 +26,7 @@
 
 namespace rex::gpu {
 
-class ShaderTranslator {
+class REX_GPU_XENOS_API ShaderTranslator : public rex::NonCopyable {
  public:
   virtual ~ShaderTranslator();
 

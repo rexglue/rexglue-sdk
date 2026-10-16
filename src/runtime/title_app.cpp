@@ -11,6 +11,7 @@
 
 #include <rex/filesystem.h>
 #include <rex/gpu.h>
+#include <rex/gpu/backend_select.h>
 #include <rex/kernel/init.h>
 #include <rex/kernel/shim/heap.h>
 #include <rex/logging.h>
@@ -137,7 +138,7 @@ Result<void> TitleApp::Init(const CLIArgList& args, const PPCImageInfo& image) {
   const std::filesystem::path exe = platform::GetExecutablePath();
   const std::string name = exe.stem().string();
   Config& cfg = GetConfig();
-  cfg.modules = {"rex-apu-sdl3", "rex-hid-sdl3", "rex-gpu-xenos", "rex-ui-sdl3"};
+  cfg.modules = {"rexapu-sdl3", "rexhid-sdl3", "rexgpu-xenos", "rexui-sdl3"};
   cfg.paths.user_data_root = platform::GetUserFolder() / name;
   cfg.paths.cache_root = cfg.paths.user_data_root / "cache";
   cfg.paths.config_file = exe.parent_path() / (name + ".toml");
@@ -353,13 +354,25 @@ platform::CrashReporterOptions TitleApp::GetCrashOptions() {
 
 void TitleApp::RequireModules(Config& config) {
   auto& modules = config.modules;
-  auto filesystem = std::ranges::find(modules, "rex-filesystem");
+  auto filesystem = std::ranges::find(modules, "rexfilesystem");
   if (filesystem == modules.end()) {
-    filesystem = modules.insert(modules.begin(), "rex-filesystem");
+    filesystem = modules.insert(modules.begin(), "rexfilesystem");
   }
-  if (std::ranges::find(modules, "rex-runtime") == modules.end()) {
-    modules.insert(std::next(filesystem), "rex-runtime");
+  if (std::ranges::find(modules, "rexruntime") == modules.end()) {
+    modules.insert(std::next(filesystem), "rexruntime");
   }
+  const auto neutral = std::ranges::find(modules, "rexgpu-xenos");
+  if (neutral == modules.end() || std::ranges::any_of(modules, [](const std::string& name) {
+        return name.starts_with("rexgpu-xenos-");
+      })) {
+    return;
+  }
+  const Result<gpu::HostAPI> api = gpu::SelectHostAPI(config.gpu.backend, gpu::kPlatformHostAPIs);
+  if (!api || *api == gpu::HostAPI::kNull) {
+    return;
+  }
+  modules.insert(std::next(neutral),
+                 *api == gpu::HostAPI::kD3D12 ? "rexgpu-xenos-d3d12" : "rexgpu-xenos-vulkan");
 }
 
 void TitleApp::Stop() {

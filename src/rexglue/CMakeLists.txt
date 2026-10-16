@@ -25,11 +25,11 @@ target_include_directories(rexglue
 
 target_link_libraries(rexglue
     PRIVATE
-        rex-codegen
+        rexcodegen
 )
 
 rex_target_pch(rexglue <CLI/CLI.hpp>)
 
-add_dependencies(rexglue rex-filesystem)
+add_dependencies(rexglue rexfilesystem)
 
 add_executable(rex::rexglue ALIAS rexglue)

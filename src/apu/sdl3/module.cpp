@@ -22,7 +22,7 @@ class SDL3Module final : public IModule {
       {apu::IAPUBackend::kInterfaceName, apu::IAPUBackend::kInterfaceVersion, &GetBackend},
   }};
 
-  const char* GetName() const override { return "rex-apu-sdl3"; }
+  const char* GetName() const override { return "rexapu-sdl3"; }
   std::span<const char* const> GetRequiredInterfaces() const override {
     static constexpr std::array<const char*, 1> kRequired = {"rex.cvar@1"};
     return kRequired;
