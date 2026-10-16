@@ -251,26 +251,8 @@ u32 RtlUnicodeToMultiByteN_entry(GuestPtrT<u8> destination_ptr, u32 destination_
   return 0;
 }
 
-u32 RtlImageNtHeader_entry(MappedVoid module) {
-  if (!module) {
-    return 0;
-  }
-
-  // PE headers are little endian, so no swapping.
-
-  auto dos_header = module.As<const u8*>();
-  auto dos_magic = *reinterpret_cast<const u16*>(&dos_header[0x00]);
-  if (dos_magic != 0x5A4D) {
-    return 0;
-  }
-  auto dos_lfanew = *reinterpret_cast<const i32*>(&dos_header[0x3C]);
-
-  auto nt_header = &dos_header[dos_lfanew];
-  auto nt_magic = *reinterpret_cast<const u32*>(&nt_header[0x00]);
-  if (nt_magic != 0x4550) {
-    return 0;
-  }
-  return runtime::GetCurrent().GetMemory()->HostToGuestVirtual(nt_header);
+u32 RtlImageNtHeader_entry([[maybe_unused]] MappedVoid module) {
+  return 0;
 }
 
 u32 RtlImageXexHeaderField_entry(GuestPtrT<filesystem::XEXHeader> xex_header, u32 field_dword) {

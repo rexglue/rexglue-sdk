@@ -160,3 +160,51 @@ REX_TEST_CASE("Code generation refuses a DLL module whose image overlaps the ent
   REQUIRE_FALSE(result);
   CHECK(result.error().message.find("Failed to load DLL module") != std::string::npos);
 }
+
+REX_TEST_CASE("Code generation defines a stub for an import from another user module",
+              "[codegen][project]") {
+  constexpr u32 kUserThunk = kEntryBase + 0x1100;
+  constexpr u32 kKernelThunk = kEntryBase + 0x1110;
+  rex::test::TempFolder folder;
+  rex::test::XEXSpec spec;
+  spec.load_address = kEntryBase;
+  spec.entry_point = kEntryBase + kCodeOffset;
+  spec.page_size_4kb = false;
+  spec.image = BuildImage(kEntryBase, kLoadFirst);
+  rex::test::PutBE32(spec.image, 0x1100, (1u << 24) | 7);
+  rex::test::PutBE32(spec.image, 0x1110, (1u << 24) | 0x7FFE);
+  spec.imports.push_back({"liba.dll", {kUserThunk}, 0});
+  spec.imports.push_back({"xboxkrnl.exe", {kKernelThunk}, 0});
+  const auto file = rex::test::BuildXEX(spec);
+  std::ofstream(folder.path / "entry.xex", std::ios::binary)
+      .write(reinterpret_cast<const char*>(file.data()), static_cast<std::streamsize>(file.size()));
+  const auto manifest_path = folder.path / "demo_manifest.toml";
+  std::ofstream(manifest_path) << R"([project]
+name = "demo"
+[entrypoint]
+file_path = "entry.xex"
+out_directory_path = "generated/entry"
+)";
+  const auto manifest = rex::codegen::ManifestConfig::Load(manifest_path);
+  REQUIRE(manifest);
+
+  rex::testing::ReleaseTestMemory();
+  rex::LogConfig config;
+  config.debugger = false;
+  config.categories.assign(rexglue::kLogCategories.begin(), rexglue::kLogCategories.end());
+  REQUIRE(rex::log::Start(config).has_value());
+  rex::codegen::ProjectRecompiler recompiler(*manifest);
+  rex::codegen::ProjectRecompilerOptions options;
+  options.force = true;
+  const auto result = recompiler.Run(options);
+  rex::log::Stop();
+  INFO((result ? std::string() : result.error().message));
+  REQUIRE(result);
+
+  const std::string registration = ReadTree(folder.path / "generated" / "entry");
+  CHECK(registration.find("DEFINE_REX_FUNC(sub_82001100)") != std::string::npos);
+  CHECK(registration.find("ModuleImport target{\"liba\", 7}") != std::string::npos);
+  CHECK(registration.find("SetFunction(0x82001100, sub_82001100)") != std::string::npos);
+  CHECK(registration.find("DEFINE_REX_FUNC(sub_82001110)") == std::string::npos);
+  CHECK(registration.find("ModuleImport target{\"xboxkrnl\"") == std::string::npos);
+}

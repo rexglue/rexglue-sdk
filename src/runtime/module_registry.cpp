@@ -86,6 +86,7 @@ bool ModuleRegistry::AddUser(X_HANDLE handle) {
   }
   std::lock_guard lock(mutex_);
   user_modules_.push_back(*owned);
+  generation_.fetch_add(1, std::memory_order_acq_rel);
   return true;
 }
 
@@ -109,6 +110,7 @@ bool ModuleRegistry::RemoveUser(X_HANDLE handle) {
     if (std::erase(user_modules_, listed) == 0) {
       return false;
     }
+    generation_.fetch_add(1, std::memory_order_acq_rel);
   }
   CloseOwned(table_, listed);
   return true;
@@ -208,7 +210,9 @@ void ModuleRegistry::Shutdown() {
 void ModuleRegistry::UnloadAll() {
   const std::vector<X_HANDLE> loaded = GetUserModules();
   for (X_HANDLE module : std::views::reverse(loaded)) {
-    UnloadUserModule(module, false);
+    if (table_.Get<ModuleObject>(module)) {
+      UnloadUserModule(module, false);
+    }
   }
   Shutdown();
   std::lock_guard lock(recompiled_mutex_);
@@ -253,6 +257,119 @@ Result<X_HANDLE> ModuleRegistry::LoadKernelModule(X_HANDLE created) {
   return owned;
 }
 
+Result<X_HANDLE> ModuleRegistry::FindImportLibrary(const ModuleObject& importer,
+                                                   std::string_view importer_path,
+                                                   const XEXModule::ImportLibrary& library) {
+  for (X_HANDLE handle : GetUserModules()) {
+    auto module = table_.Get<ModuleObject>(handle);
+    if (module && rex::utf8_equal_case(rex::utf8_find_base_name_from_guest_path(module->path),
+                                       library.name)) {
+      REXLOG_DEBUG(system, "Import library '{}' of '{}' matched the loaded module '{}'",
+                   library.file_name, importer.name, module->path);
+      AcquireReference(*module);
+      return handle;
+    }
+  }
+  const std::string directory = rex::utf8_find_base_guest_path(importer_path);
+  for (const std::string& candidate :
+       {library.file_name, library.name + ".xex", library.name + ".dll"}) {
+    const std::string path = rex::utf8_join_guest_paths(directory, candidate);
+    if (!runtime_.GetFileSystem()->Stat(path)) {
+      continue;
+    }
+    REXLOG_DEBUG(system, "Import library '{}' of '{}' matched the file '{}'", library.file_name,
+                 importer.name, path);
+    return LoadUserModule(path);
+  }
+  REXLOG_ERROR(system, "Import library '{}' of '{}' matches no loaded module or file",
+               library.file_name, importer.name);
+  return Err<X_HANDLE>(StatusError(X_STATUS_DLL_NOT_FOUND));
+}
+
+void ModuleRegistry::PatchImportSlot(u32 slot, u32 value) {
+  auto* memory = runtime_.GetMemory();
+  auto* heap = memory->LookupHeap(slot);
+  const u32 page = slot & ~(heap->GetPageSize() - 1);
+  u32 previous = 0;
+  const bool unlocked =
+      heap->Protect(page, heap->GetPageSize(), kMemoryProtectRead | kMemoryProtectWrite, &previous);
+  *memory->TranslateVirtual<be_u32*>(slot) = value;
+  if (unlocked) {
+    heap->Protect(page, heap->GetPageSize(), previous);
+  }
+}
+
+void ModuleRegistry::AcquireReference(ModuleObject& module) {
+  std::lock_guard lock(load_count_mutex_);
+  runtime_.GetMemory()->TranslateVirtual<X_LDR_DATA_TABLE_ENTRY*>(module.hmodule_ptr)->load_count++;
+}
+
+void ModuleRegistry::ReleaseReference(X_HANDLE handle) {
+  auto module = table_.Get<ModuleObject>(handle);
+  if (!module) {
+    return;
+  }
+  bool last;
+  {
+    std::lock_guard lock(load_count_mutex_);
+    auto* ldr_data =
+        runtime_.GetMemory()->TranslateVirtual<X_LDR_DATA_TABLE_ENTRY*>(module->hmodule_ptr);
+    last = (--ldr_data->load_count == 0);
+  }
+  if (last) {
+    UnloadUserModule(handle);
+  }
+}
+
+void ModuleRegistry::ReleaseDependencies(ModuleObject& module) {
+  const std::vector<X_HANDLE> dependencies = std::move(module.user.dependencies);
+  module.user.dependencies.clear();
+  for (X_HANDLE dependency : std::views::reverse(dependencies)) {
+    ReleaseReference(dependency);
+  }
+}
+
+X_STATUS ModuleRegistry::ResolveImports(ModuleObject& module, std::string_view path) {
+  for (const XEXModule::ImportLibrary& library : module.GetXEX()->GetImportLibraries()) {
+    if (rex::runtime::ModuleFromName(library.name) || IsKernel(library.name)) {
+      continue;
+    }
+    const Result<X_HANDLE> handle = FindImportLibrary(module, path, library);
+    if (!handle) {
+      return ToXStatus(handle.error());
+    }
+    module.user.dependencies.push_back(*handle);
+    auto dependency = table_.Get<ModuleObject>(*handle);
+    if (!dependency) {
+      return X_STATUS_DLL_NOT_FOUND;
+    }
+    for (const XEXModule::ImportLibraryFn& import : library.imports) {
+      const u32 address = dependency->GetXEX()->GetProcAddress(static_cast<u16>(import.ordinal));
+      if (!address) {
+        REXLOG_ERROR(system, "Import of ordinal {} from '{}' by '{}' is not exported",
+                     import.ordinal, library.file_name, module.name);
+        return X_STATUS_DRIVER_ORDINAL_NOT_FOUND;
+      }
+      if (import.value_address) {
+        PatchImportSlot(import.value_address, address);
+      }
+    }
+  }
+  return X_STATUS_SUCCESS;
+}
+
+PPCFunc* ModuleRegistry::ResolveExport(std::string_view library, u16 ordinal) {
+  for (X_HANDLE handle : GetUserModules()) {
+    auto module = table_.Get<ModuleObject>(handle);
+    if (module &&
+        rex::utf8_equal_case(rex::utf8_find_base_name_from_guest_path(module->path), library)) {
+      const u32 address = module->GetXEX()->GetProcAddress(ordinal);
+      return address ? runtime_.GetFunctionDispatcher()->GetFunction(address) : nullptr;
+    }
+  }
+  return nullptr;
+}
+
 Result<X_HANDLE> ModuleRegistry::LoadUserModule(std::string_view raw_name, bool call_entry) {
   auto name = rex::utf8_find_name_from_guest_path(raw_name);
   std::string path(raw_name);
@@ -264,6 +381,7 @@ Result<X_HANDLE> ModuleRegistry::LoadUserModule(std::string_view raw_name, bool 
   }
 
   if (auto existing = FindUser(path)) {
+    AcquireReference(*table_.Get<ModuleObject>(*existing));
     return *existing;
   }
   if (!BeginLoad(path)) {
@@ -278,6 +396,7 @@ Result<X_HANDLE> ModuleRegistry::LoadUserModule(std::string_view raw_name, bool 
   } loading_guard{this, path};
 
   if (auto existing = FindUser(path)) {
+    AcquireReference(*table_.Get<ModuleObject>(*existing));
     return *existing;
   }
 
@@ -290,6 +409,12 @@ Result<X_HANDLE> ModuleRegistry::LoadUserModule(std::string_view raw_name, bool 
   if (XFAILED(status)) {
     CloseOwned(table_, created);
     return Err<X_HANDLE>(StatusError(status));
+  }
+
+  if (const X_STATUS imports = ResolveImports(*module, path); XFAILED(imports)) {
+    ReleaseDependencies(*module);
+    CloseOwned(table_, created);
+    return Err<X_HANDLE>(StatusError(imports));
   }
 
   auto recomp = FindRecompiledModule(path);
@@ -308,6 +433,7 @@ Result<X_HANDLE> ModuleRegistry::LoadUserModule(std::string_view raw_name, bool 
     if (!inserted) {
       REXLOG_ERROR(system, "Recompiled module '{}' already loaded; refusing duplicate load",
                    lib_key);
+      ReleaseDependencies(*module);
       CloseOwned(table_, created);
       return Err<X_HANDLE>(StatusError(X_STATUS_UNSUCCESSFUL));
     }
@@ -363,14 +489,17 @@ Result<X_HANDLE> ModuleRegistry::LoadUserModule(std::string_view raw_name, bool 
         std::lock_guard lock(recompiled_mutex_);
         module_libraries_.erase(lib_key);
       }
+      ReleaseDependencies(*module);
       CloseOwned(table_, created);
       return Err<X_HANDLE>(StatusError(X_STATUS_UNSUCCESSFUL));
     }
   }
 
   if (!AddUser(created)) {
+    ReleaseDependencies(*module);
     CloseOwned(table_, created);
     if (auto existing = FindUser(path)) {
+      AcquireReference(*table_.Get<ModuleObject>(*existing));
       return *existing;
     }
     return Err<X_HANDLE>(StatusError(X_STATUS_UNSUCCESSFUL));
@@ -443,6 +572,7 @@ void ModuleRegistry::UnloadUserModule(X_HANDLE module_handle, bool call_entry) {
     CloseOwned(table_, ModuleObject::HandleFromHModule(
                            runtime_.GetMemory()->TranslateVirtual(module->hmodule_ptr)));
   }
+  ReleaseDependencies(*module);
 
   if (!found_module) {
     REXLOG_ERROR(system, "UnloadUserModule: module '{}' not found in the module registry",

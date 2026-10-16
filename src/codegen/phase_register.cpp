@@ -474,6 +474,7 @@ void DetectSaveRestoreHelpers(const BinaryView& binary, AnalysisState& state) {
     size_t resolved_count = 0;
     size_t variable_count = 0;
     size_t unresolved_count = 0;
+    size_t module_import_count = 0;
 
     for (const auto& sym : binary.GetImportSymbols()) {
       auto at_pos = sym.name.find('@');
@@ -499,7 +500,14 @@ void DetectSaveRestoreHelpers(const BinaryView& binary, AnalysisState& state) {
         }
       }
 
-      if (resolved_name.empty()) {
+      if (resolved_name.empty() && !export_module) {
+        if (sym.address == 0) {
+          continue;
+        }
+        resolved_name = std::format("sub_{:X}", sym.address);
+        state.module_imports[sym.address] = {lib_name, ordinal};
+        module_import_count++;
+      } else if (resolved_name.empty()) {
         REXLOG_ERROR(codegen, "Cannot resolve ordinal {} from {}", ordinal, lib_name);
         resolved_name = std::format("sub_{:X}", sym.address);
         unresolved_count++;
@@ -516,8 +524,10 @@ void DetectSaveRestoreHelpers(const BinaryView& binary, AnalysisState& state) {
     }
 
     REXLOG_TRACE(codegen,
-                 "Analyze: loaded {} imports ({} resolved, {} unresolved, {} variables skipped)",
-                 import_count, resolved_count, unresolved_count, variable_count);
+                 "Analyze: loaded {} imports ({} resolved, {} from other modules, {} unresolved, "
+                 "{} variables skipped)",
+                 import_count, resolved_count, module_import_count, unresolved_count,
+                 variable_count);
   }
 
   auto register_helpers = [&](u32 base14, const char* prefix, size_t stride, size_t end_reg,

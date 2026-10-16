@@ -60,6 +60,7 @@ X_STATUS LoadXEXContinue(Runtime& runtime, ModuleObject& module) {
   ldr_data->full_image_size = image.GetSecurity().image_size;
   ldr_data->image_base = module.GetXEX()->GetBaseAddress();
   ldr_data->entry_point = module.user.entry_point;
+  ldr_data->load_count = 1;
 
   return X_STATUS_SUCCESS;
 }

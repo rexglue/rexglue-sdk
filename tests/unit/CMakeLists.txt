@@ -120,6 +120,7 @@ add_executable(unit_tests
     runtime/host_service_modules_test.cpp
     runtime/null_gpu_test.cpp
     runtime/recompiled_module_test.cpp
+    runtime/cross_module_import_test.cpp
     ui/bind_test.cpp
     ui/console_model_test.cpp
     ui/imgui_dialog_test.cpp
@@ -205,6 +206,8 @@ target_compile_definitions(unit_tests PRIVATE
     REX_TEST_RUNTIME_PATH="$<TARGET_FILE:rex-runtime>"
     REX_TEST_RECOMPILED_A_NAME="$<TARGET_FILE_BASE_NAME:rexmod-test-recompiled-a>"
     REX_TEST_RECOMPILED_B_NAME="$<TARGET_FILE_BASE_NAME:rexmod-test-recompiled-b>"
+    REX_TEST_CROSS_EXPORTER_NAME="$<TARGET_FILE_BASE_NAME:rexmod-test-cross-exporter>"
+    REX_TEST_CROSS_IMPORTER_NAME="$<TARGET_FILE_BASE_NAME:rexmod-test-cross-importer>"
     REXGLUE_FIXTURE_DIR="${PROJECT_SOURCE_DIR}/tests/fixtures/filesystem")
 
 add_executable(rex-crash-probe crash_probe.cpp crash_probe_recompiled_code.cpp)
@@ -230,7 +233,8 @@ add_dependencies(unit_tests
     rexmod-test-good rexmod-test-missing rexmod-test-badversion
     rexmod-test-failinit rexmod-test-dupecho rexmod-test-null-gpu
     rexmod-test-apu rex-apu-sdl3 rexmod-test-hid rex-hid-sdl3 rex-ui-sdl3
-    rexmod-test-recompiled-a rexmod-test-recompiled-b)
+    rexmod-test-recompiled-a rexmod-test-recompiled-b
+    rexmod-test-cross-exporter rexmod-test-cross-importer)
 if(WIN32)
     add_dependencies(unit_tests rex-hid-xinput)
 endif()

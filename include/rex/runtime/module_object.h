@@ -131,6 +131,9 @@ struct UserModuleData {
   /** Guest path of the recompiled library registration the module loaded with, empty when none. */
   std::string recompiled_key;
 
+  /** User modules this module imports from, each holding one load reference for it. */
+  std::vector<X_HANDLE> dependencies;
+
   /** Thunk address made for each caller and ordinal, reused by later lookups. */
   std::unordered_map<KernelModuleData::ThunkKey, u32, KernelModuleData::ThunkKeyHash> thunk_cache;
 };

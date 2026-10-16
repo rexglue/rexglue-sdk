@@ -77,6 +77,14 @@ struct AnalysisState {
   /** Address of the first `__savevmx_64` helper, 0 when not found. */
   u32 save_vmx64_address = 0;
 
+  /** A function another user module exports by ordinal, imported through a thunk. */
+  struct ModuleImportRef {
+    std::string library; /**< Base name of the exporting module. */
+    u16 ordinal = 0;     /**< Export ordinal. */
+  };
+  /** Imports of functions that a user module exports, keyed by the import thunk address. */
+  std::unordered_map<u32, ModuleImportRef> module_imports;
+
   std::unordered_map<u32, u32> invalid_instructions; /**< Maps address to size */
   std::unordered_set<u32> known_indirect_calls;      /**< bctr addresses */
   /** Entry addresses of exception handler functions, copied from `analysis.exception_handler_funcs`

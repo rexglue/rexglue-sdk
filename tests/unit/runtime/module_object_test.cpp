@@ -10,6 +10,7 @@
 
 #include "rex_test.h"
 
+#include <cstring>
 #include <memory>
 #include <string>
 
@@ -24,6 +25,7 @@
 
 #include "core/xex_builder.h"
 #include "kernel/kernel_fixture.h"
+#include "pe/pe_image.h"
 #include "runtime/module_registry.h"
 
 namespace {
@@ -119,9 +121,34 @@ void ExportedFunction(PPCContext& ctx, u8*) {
 }
 
 constexpr u32 kExportImageBase = 0x8F000000;
-constexpr u32 kExportTableOffset = 0x200;
-constexpr u32 kExportFunctionOffset = 0x100;
+constexpr u32 kExportImageSize = 0x2000;
+constexpr u32 kExportTableOffset = 0x1200;
+constexpr u32 kExportFunctionOffset = 0x1100;
 constexpr u32 kExportOrdinal = 1;
+
+std::vector<u8> BuildExportImage() {
+  std::vector<u8> image(kExportImageSize, 0);
+  auto* dos = reinterpret_cast<IMAGE_DOS_HEADER*>(image.data());
+  dos->e_magic = IMAGE_DOS_SIGNATURE;
+  dos->e_cblp = 0x90;
+  dos->e_lfanew = 0x80;
+  auto* nt = reinterpret_cast<IMAGE_NT_HEADERS32*>(image.data() + 0x80);
+  nt->Signature = IMAGE_NT_SIGNATURE;
+  nt->FileHeader.Machine = IMAGE_FILE_MACHINE_POWERPCBE;
+  nt->FileHeader.NumberOfSections = 1;
+  nt->FileHeader.SizeOfOptionalHeader = IMAGE_SIZEOF_NT_OPTIONAL_HEADER;
+  nt->FileHeader.Characteristics = IMAGE_FILE_32BIT_MACHINE;
+  nt->OptionalHeader.Magic = IMAGE_NT_OPTIONAL_HDR32_MAGIC;
+  nt->OptionalHeader.Subsystem = IMAGE_SUBSYSTEM_XBOX;
+  nt->OptionalHeader.SizeOfHeaders = 0x1000;
+  auto* section = reinterpret_cast<IMAGE_SECTION_HEADER*>(image.data() + 0x80 + 24 +
+                                                          IMAGE_SIZEOF_NT_OPTIONAL_HEADER);
+  std::memcpy(section->Name, ".text", 5);
+  section->VirtualAddress = 0x1000;
+  section->Misc.VirtualSize = 0x1000;
+  section->Characteristics = rex::filesystem::kPESectionMemoryExecute;
+  return image;
+}
 }  // namespace
 
 REX_TEST_CASE("A user module hands the same thunk to a caller that asks for an ordinal again",
@@ -130,7 +157,7 @@ REX_TEST_CASE("A user module hands the same thunk to a caller that asks for an o
   rex::Runtime& runtime = fixture.GetRuntime();
   rex::test::XEXSpec spec;
   spec.load_address = kExportImageBase;
-  spec.image = rex::test::TestImage(0x1000);
+  spec.image = BuildExportImage();
   rex::test::PutBE32(spec.image, kExportTableOffset + 0x20, kExportImageBase >> 16);
   rex::test::PutBE32(spec.image, kExportTableOffset + 0x24, 1);
   rex::test::PutBE32(spec.image, kExportTableOffset + 0x28, kExportOrdinal);
@@ -139,6 +166,7 @@ REX_TEST_CASE("A user module hands the same thunk to a caller that asks for an o
   const auto file = rex::test::BuildXEX(spec);
   auto xex = std::make_unique<rex::runtime::XEXModule>(runtime.GetFunctionDispatcher(), runtime);
   REQUIRE(xex->Load("exporter", "game:\exporter.xex", file.data(), file.size()));
+  REQUIRE(xex->LoadContinue());
   auto* dispatcher = runtime.GetFunctionDispatcher();
   REQUIRE(dispatcher->SetFunction(kExportImageBase + kExportFunctionOffset, &ExportedFunction));
 

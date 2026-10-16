@@ -116,9 +116,6 @@ u32 XexLoadImage_entry(MappedString module_name, [[maybe_unused]] u32 module_fla
     auto user_module = runtime.GetObjectTable().Get<ModuleObject>(loaded ? *loaded : X_HANDLE(0));
     if (user_module) {
       hmodule = user_module->hmodule_ptr;
-      std::lock_guard lock(modules.GetLoadCountMutex());
-      auto ldr_data = runtime.GetMemory()->TranslateVirtual<X_LDR_DATA_TABLE_ENTRY*>(hmodule);
-      ldr_data->load_count++;
       result = X_STATUS_SUCCESS;
     }
   }

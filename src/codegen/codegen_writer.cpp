@@ -52,11 +52,17 @@ nlohmann::json BuildTemplateData(const rex::codegen::CodegenContext& ctx,
       func_name = std::format("sub_{:08X}", fn->GetBase());
     }
 
+    const auto& module_imports = ctx.GetAnalysisState().module_imports;
+    const auto module_import = module_imports.find(fn->GetBase());
+    const bool is_module_import = module_import != module_imports.end();
     functions_json.push_back({
         {"address", std::format("0x{:X}", fn->GetBase())},
         {"name", func_name},
         {"below_code_base", (fn->GetBase() < code_min)},
         {"is_import", fn->GetAuthority() == rex::codegen::FunctionAuthority::kImport},
+        {"is_module_import", is_module_import},
+        {"import_library", is_module_import ? module_import->second.library : std::string()},
+        {"import_ordinal", is_module_import ? module_import->second.ordinal : 0},
     });
   }
 

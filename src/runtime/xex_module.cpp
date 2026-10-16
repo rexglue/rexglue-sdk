@@ -123,11 +123,16 @@ int XEXModule::ApplyPatch(XEXModule* module) {
     }
   }
 
-  std::span<u8> base_image(GetMemory()->TranslateVirtual(module->base_address_),
-                           std::max(original_image_size, new_image_size));
+  REX_ASSERT(!module->finished_load_);
+  auto& host_image = module->pending_image_;
+  host_image.resize(
+      std::max<size_t>(host_image.size(), std::max(original_image_size, new_image_size)));
+  std::span<u8> base_image(host_image.data(), std::max(original_image_size, new_image_size));
   if (auto applied = module->image_.ApplyImageDelta(image_, base_image); !applied) {
     REX_FAIL(system, 9, "XEX patch application failed: {}", applied.error().GetDescription());
   }
+
+  host_image.resize(new_image_size);
 
   if (original_image_size > new_image_size) {
     const u32 size_delta = original_image_size - new_image_size;
@@ -195,7 +200,8 @@ bool XEXModule::Load(const std::string_view name, const std::string_view path, c
     REX_FAIL(system, false, "Unable to allocate XEX memory at {:08X}-{:08X}.", base_address_,
              alloc_size);
   }
-  std::span<u8> buffer(GetMemory()->TranslateVirtual(base_address_), alloc_size);
+  pending_image_.assign(alloc_size, 0);
+  std::span<u8> buffer(pending_image_);
   if (auto decoded = image_.Decode(file, buffer); !decoded) {
     REX_FAIL(system, false, "XEX load failed, tried both encryption keys: {}",
              decoded.error().GetDescription());
@@ -213,17 +219,24 @@ bool XEXModule::LoadContinue() {
     return true;
   }
   finished_load_ = true;
+  if (image_.IsPatch()) {
+    return true;
+  }
 
   auto* heap = GetMemory()->LookupHeap(base_address_);
   const u32 page_size = heap->GetPageSize();
-  auto parsed_pe = filesystem::ParsePE(
-      std::span<const u8>(GetMemory()->TranslateVirtual(base_address_), GetImageSize()));
+  const u32 image_end = static_cast<u32>(std::min<size_t>(pending_image_.size(), GetImageSize()));
+  auto parsed_pe = filesystem::ParsePE(std::span<const u8>(pending_image_.data(), image_end));
   if (!parsed_pe) {
     REX_FAIL(system, false, "Failed to load XEX PE headers: {}",
              parsed_pe.error().GetDescription());
   }
   pe_ = std::move(*parsed_pe);
-  std::memset(GetMemory()->TranslateVirtual(base_address_), 0, pe_.header_size);
+  if (pe_.header_size < image_end) {
+    std::memcpy(GetMemory()->TranslateVirtual(base_address_ + pe_.header_size),
+                pending_image_.data() + pe_.header_size, image_end - pe_.header_size);
+  }
+  std::vector<u8>().swap(pending_image_);
   for (auto& section : pe_.sections) {
     section.address += base_address_;
   }
@@ -265,6 +278,7 @@ bool XEXModule::Unload() {
     GetMemory()->LookupHeap(base_address_)->Release(base_address_);
   }
   image_ = filesystem::XEXImage();
+  std::vector<u8>().swap(pending_image_);
   return true;
 }
 
@@ -287,6 +301,7 @@ bool XEXModule::SetupLibraryImports(std::string_view name,
 
   ImportLibrary library_info;
   library_info.name = base_name;
+  library_info.file_name = std::string(name);
   library_info.id = library.id;
   library_info.version = library.version;
   library_info.min_version = library.min_version;
@@ -327,8 +342,18 @@ bool XEXModule::SetupLibraryImports(std::string_view name,
 
   std::vector<u16> ordinals;
   ordinals.reserve(import_map.size());
-  for (const auto& [ordinal, _] : import_map) {
+  for (const auto& [ordinal, import_info] : import_map) {
     ordinals.push_back(ordinal);
+    if (!kernel || !import_info.value_address || !import_info.thunk_address) {
+      continue;
+    }
+    const auto* kernel_export = rex::runtime::FindByOrdinal(kernel->exports, ordinal);
+    if (kernel_export && kernel_export->kind == rex::runtime::ExportKind::kFunction) {
+      *GetMemory()->TranslateVirtual<be_u32*>(import_info.value_address) =
+          import_info.thunk_address;
+      REXLOG_DEBUG(system, "Patched function import {}:{:#x} ({}) -> {:#x}", base_name, ordinal,
+                   kernel_export->name, import_info.thunk_address);
+    }
   }
   std::ranges::sort(ordinals);
   for (const u16 ordinal : ordinals) {

@@ -33,40 +33,6 @@ std::vector<u8> DecodeAll(std::span<const u8> file, XEXImage& image) {
   return out;
 }
 
-std::vector<u8> BuildPatchBody() {
-  std::vector<u8> records;
-  auto record = [&](u32 old_addr, u32 new_addr, u16 length, u16 compressed) {
-    const size_t at = records.size();
-    records.resize(at + 12, 0);
-    test::PutBE32(records, at, old_addr);
-    test::PutBE32(records, at + 4, new_addr);
-    test::PutBE16(records, at + 8, length);
-    test::PutBE16(records, at + 10, compressed);
-  };
-  record(0x0, 0x800, 0x10, 1);
-  record(0x0, 0x10, 0x10, 0);
-  record(0, 0, 0, 0);
-  std::vector<u8> block(24, 0);
-  block.insert(block.end(), records.begin(), records.end());
-  return block;
-}
-
-std::vector<u8> BuildPatchDescriptor(const XEXImage& base) {
-  std::vector<u8> desc(0x4C + 13, 0);
-  test::PutBE32(desc, 0x0, static_cast<u32>(desc.size()));
-  const auto digest = test::SHA1Of(base.GetSecurity().rsa_signature);
-  std::memcpy(desc.data() + 0xC, digest.data(), 20);
-  const auto key_source = test::EncryptKey(test::kSessionKey, test::kSessionKey);
-  std::memcpy(desc.data() + 0x20, key_source.data(), 16);
-  test::PutBE32(desc, 0x30, static_cast<u32>(base.GetHeaderBytes().size()));
-  test::PutBE32(desc, 0x44, base.GetImageSize());
-  test::PutBE32(desc, 0x4C, 0);
-  test::PutBE32(desc, 0x50, 0);
-  test::PutBE16(desc, 0x54, 4);
-  test::PutBE16(desc, 0x56, 1);
-  return desc;
-}
-
 u32 GetBE32(std::span<const u8> data, size_t offset) {
   return (u32{data[offset]} << 24) | (u32{data[offset + 1]} << 16) | (u32{data[offset + 2]} << 8) |
          u32{data[offset + 3]};
@@ -208,8 +174,8 @@ REX_TEST_CASE("XEX delta patch applies to header and image", "[xex]") {
   XEXSpec patch_spec;
   patch_spec.module_flags = filesystem::kXEXModulePatchDelta;
   patch_spec.compression = filesystem::kXEXCompressionDelta;
-  patch_spec.patch_descriptor = BuildPatchDescriptor(*base);
-  patch_spec.patch_body = BuildPatchBody();
+  patch_spec.patch_descriptor = test::BuildPatchDescriptor(*base);
+  patch_spec.patch_body = test::BuildPatchBody();
   const auto patch_file = BuildXEX(patch_spec);
   auto patch = XEXImage::Parse(patch_file);
   REQUIRE(patch);

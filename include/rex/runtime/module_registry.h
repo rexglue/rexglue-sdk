@@ -89,6 +89,7 @@ class IModuleRegistry {
 
   /**
    * Loads a user module, or finds it when it is already loaded, and wires its recompiled library.
+   * The caller holds one load reference on the returned module, released by XexUnloadImage.
    *
    * @param name A path, or a file name relative to the executable.
    * @param call_entry True to call the entry point of a DLL module for the process attach.

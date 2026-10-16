@@ -4,7 +4,14 @@
 
 #include "{{ project }}_init.h"
 #include <rex/runtime/function_dispatcher.h>
+#include <rex/runtime/module_import.h>
 
+{% for fn in functions %}{% if fn.is_module_import %}
+DEFINE_REX_FUNC({{ fn.name }}) {
+  static rex::runtime::ModuleImport target{"{{ fn.import_library }}", {{ fn.import_ordinal }}};
+  rex::runtime::ResolveModuleImport(target)(ctx, base);
+}
+{% endif %}{% endfor %}
 {% if is_dll %}
 #ifdef _WIN32
 #define REX_MODULE_EXPORT __declspec(dllexport)

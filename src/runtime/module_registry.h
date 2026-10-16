@@ -10,6 +10,7 @@
 
 #pragma once
 
+#include <atomic>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -117,6 +118,22 @@ class ModuleRegistry final : public IModuleRegistry {
    */
   void EndLoad(const std::string& path);
 
+  /**
+   * Returns the counter that changes whenever a user module is added or removed.
+   *
+   * @return The generation, never 0.
+   */
+  u64 GetGeneration() const { return generation_.load(std::memory_order_acquire); }
+
+  /**
+   * Resolves an export of a loaded user module to its recompiled function.
+   *
+   * @param library The base name of the module, without directory and extension.
+   * @param ordinal The export ordinal.
+   * @return The function, or null when the module is not loaded or the export has no function.
+   */
+  PPCFunc* ResolveExport(std::string_view library, u16 ordinal);
+
   /** Closes every handle the registry owns, user modules in reverse load order first. */
   void Shutdown();
 
@@ -135,6 +152,58 @@ class ModuleRegistry final : public IModuleRegistry {
 
   std::optional<RecompiledModuleInfo> FindRecompiledModule(std::string_view guest_path);
 
+  /**
+   * Finds or loads the module that serves an import library of another module.
+   *
+   * @param importer The module that imports the library.
+   * @param importer_path The path the importer was loaded from.
+   * @param library The import library.
+   * @return The handle, or the status of the failed load. X_STATUS_DLL_NOT_FOUND when no loaded
+   *         module or file matches.
+   */
+  Result<X_HANDLE> FindImportLibrary(const ModuleObject& importer, std::string_view importer_path,
+                                     const XEXModule::ImportLibrary& library);
+
+  /**
+   * Loads the user modules a module imports from, checks every imported ordinal and patches the
+   * import slots of the module with the exported addresses.
+   *
+   * @param module The module being loaded.
+   * @param path The path the module was loaded from.
+   * @return X_STATUS_SUCCESS, X_STATUS_DLL_NOT_FOUND, X_STATUS_DRIVER_ORDINAL_NOT_FOUND or the
+   *         status of a failed dependency load.
+   */
+  X_STATUS ResolveImports(ModuleObject& module, std::string_view path);
+
+  /**
+   * Writes an import slot of a loaded image, lifting the page protection around the write.
+   *
+   * @param slot The guest address of the slot.
+   * @param value The value to store.
+   */
+  void PatchImportSlot(u32 slot, u32 value);
+
+  /**
+   * Adds one load reference to a loaded module.
+   *
+   * @param module The module.
+   */
+  void AcquireReference(ModuleObject& module);
+
+  /**
+   * Drops one load reference of a module and unloads it when the last one is gone.
+   *
+   * @param module Any handle of the module.
+   */
+  void ReleaseReference(X_HANDLE module);
+
+  /**
+   * Drops the load references a module holds on the modules it imports from.
+   *
+   * @param module The module.
+   */
+  void ReleaseDependencies(ModuleObject& module);
+
   Runtime& runtime_;
   ObjectTable& table_;
   mutable rex::platform::RankedMutex mutex_{rex::platform::LockRank::kModuleRegistry};
@@ -143,6 +212,7 @@ class ModuleRegistry final : public IModuleRegistry {
   X_HANDLE executable_ = 0;
   std::vector<X_HANDLE> kernel_modules_;
   std::vector<X_HANDLE> user_modules_;
+  std::atomic<u64> generation_{1};
   std::unordered_set<std::string> loading_paths_;
   std::vector<RecompiledModuleInfo> recompiled_modules_;
   std::unordered_map<std::string, rex::platform::DynamicLibrary> module_libraries_;

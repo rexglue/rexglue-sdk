@@ -22,6 +22,7 @@ set(REXSYSTEM_SOURCES
     symbolic_link_object.cpp
     object.cpp
     module_object.cpp
+    module_import.cpp
     module_registry.cpp
     notifier.cpp
     dispatcher.cpp

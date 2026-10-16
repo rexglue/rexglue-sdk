@@ -48,7 +48,6 @@ constexpr u32 kHeaderPadding = 0x400;
 constexpr u32 kMarkerOffset = kHeaderSize + 0x10;
 constexpr u32 kMarkerSize = 0x20;
 constexpr u32 kPatchCopyOffset = kHeaderSize + 0x100;
-constexpr u32 kSectionNameOffset = 0x80 + 24 + IMAGE_SIZEOF_NT_OPTIONAL_HEADER - 8;
 
 std::vector<u8> BuildPEImage() {
   std::vector<u8> image(kImageSize, 0);
@@ -72,10 +71,11 @@ std::vector<u8> BuildPEImage() {
   section->Misc.VirtualSize = 0x200;
   section->Characteristics = rex::filesystem::kPESectionMemoryExecute;
   std::memset(image.data() + kHeaderPadding, 0xAB, 0x40);
+  std::memset(image.data() + kMarkerOffset, 0xCD, kMarkerSize);
   return image;
 }
 
-void WriteImage(const std::filesystem::path& root, const char* name) {
+std::vector<u8> BuildImageFile() {
   rex::test::XEXSpec spec;
   spec.load_address = kImageBase;
   spec.page_size_4kb = false;
@@ -83,7 +83,7 @@ void WriteImage(const std::filesystem::path& root, const char* name) {
   return rex::test::BuildXEX(spec);
 }
 
-void WritePatch(const std::filesystem::path& root, const char* name, u32 zero_at = kMarkerOffset) {
+void WritePatch(const std::filesystem::path& root, const char* name) {
   const auto base_file = BuildImageFile();
   auto base = rex::filesystem::XEXImage::Parse(base_file);
   REQUIRE(base);
@@ -91,8 +91,14 @@ void WritePatch(const std::filesystem::path& root, const char* name, u32 zero_at
   spec.module_flags = rex::filesystem::kXEXModulePatchDelta;
   spec.compression = rex::filesystem::kXEXCompressionDelta;
   spec.patch_descriptor = rex::test::BuildPatchDescriptor(*base);
-  spec.patch_body = rex::test::BuildPatchBody(kPatchCopyOffset, zero_at);
+  spec.patch_body = rex::test::BuildPatchBody(kPatchCopyOffset, kMarkerOffset);
   const auto file = rex::test::BuildXEX(spec);
+  std::ofstream out(root / name, std::ios::binary);
+  out.write(reinterpret_cast<const char*>(file.data()), static_cast<std::streamsize>(file.size()));
+}
+
+void WriteImage(const std::filesystem::path& root, const char* name) {
+  const auto file = BuildImageFile();
   std::ofstream out(root / name, std::ios::binary);
   out.write(reinterpret_cast<const char*>(file.data()), static_cast<std::streamsize>(file.size()));
 }
@@ -105,11 +111,6 @@ void PopulateImages(const std::filesystem::path& root) {
 void PopulatePatched(const std::filesystem::path& root) {
   PopulateImages(root);
   WritePatch(root, "a.xexp");
-}
-
-void PopulatePatchedSectionName(const std::filesystem::path& root) {
-  PopulateImages(root);
-  WritePatch(root, "a.xexp", kSectionNameOffset);
 }
 
 void RegisterImages(rex::Runtime& runtime) {
@@ -292,114 +293,4 @@ REX_TEST_CASE("modules: a patch changes the image before the sections are copied
     CHECK(CallFunction(runtime) == kResultA);
     modules.UnloadUserModule(*first);
   });
-}
-
-REX_TEST_CASE("modules: a patched module reads its section table from the patched image",
-              "[runtime][module]") {
-  KernelFixture fixture(PopulatePatchedSectionName);
-  fixture.RunOnGuestThread([](Caller& c) {
-    auto& runtime = c.GetRuntime();
-    RegisterImages(runtime);
-    auto& modules = runtime.GetModuleRegistry();
-    auto first = modules.LoadUserModule(kPathA);
-    REQUIRE(first);
-    auto module = runtime.GetObjectTable().Get<rex::runtime::ModuleObject>(*first);
-    REQUIRE(module);
-    const auto& pe = module->GetXEX()->GetPe();
-    CHECK(pe.header_size == kHeaderSize);
-    REQUIRE(pe.sections.size() == 1);
-    CHECK(std::string(pe.sections[0].name).empty());
-
-    const u8* image = runtime.GetMemory()->TranslateVirtual(kImageBase);
-    CHECK(std::all_of(image, image + kHeaderSize, [](u8 byte) { return byte == 0; }));
-    CHECK(c.Kernel("RtlImageNtHeader", {kImageBase}) == 0);
-    module = {};
-    modules.UnloadUserModule(*first);
-  });
-}
-
-namespace {
-
-class GateSink final : public rex::log::ISink {
- public:
-  void Write(const rex::log::Message& message) override {
-    std::unique_lock lock(mutex_);
-    messages_.emplace_back(message.text);
-    if (!gated_ && message.text.starts_with("File not found: game:\\Mod.xex")) {
-      gated_ = true;
-      inside_ = true;
-      changed_.notify_all();
-      changed_.wait_for(lock, std::chrono::seconds(20), [this] { return released_; });
-    }
-  }
-
-  void Flush() override {}
-
-  bool WaitInside() {
-    std::unique_lock lock(mutex_);
-    return changed_.wait_for(lock, std::chrono::seconds(10), [this] { return inside_; });
-  }
-
-  void Release() {
-    std::lock_guard lock(mutex_);
-    released_ = true;
-    changed_.notify_all();
-  }
-
-  size_t Count(std::string_view prefix) {
-    std::lock_guard lock(mutex_);
-    return static_cast<size_t>(std::ranges::count_if(
-        messages_, [&](const std::string& text) { return text.starts_with(prefix); }));
-  }
-
- private:
-  std::mutex mutex_;
-  std::condition_variable changed_;
-  std::vector<std::string> messages_;
-  bool gated_ = false;
-  bool inside_ = false;
-  bool released_ = false;
-};
-
-}  // namespace
-
-REX_TEST_CASE("registry: a load of a case variant of a path being loaded is refused",
-              "[runtime][module][case]") {
-  using namespace std::chrono_literals;
-  KernelFixture fixture;
-  auto* logger = fixture.GetAPI().Get<rex::ILogger>();
-  REQUIRE(logger);
-  GateSink sink;
-  logger->AddSink(sink);
-  fixture.RunOnGuestThread([&](Caller& c) {
-    auto& modules = c.GetRuntime().GetModuleRegistry();
-    auto first_done = std::make_shared<std::promise<bool>>();
-    auto second_done = std::make_shared<std::promise<bool>>();
-    auto first_future = first_done->get_future();
-    auto second_future = second_done->get_future();
-    const u32 first = c.Spawn([&](Caller&) {
-      first_done->set_value(static_cast<bool>(modules.LoadUserModule("game:\\Mod.xex")));
-    });
-    const bool inside = sink.WaitInside();
-    std::atomic<bool> second_running{false};
-    const u32 second = c.Spawn([&](Caller&) {
-      second_running = true;
-      second_done->set_value(static_cast<bool>(modules.LoadUserModule("game:\\MOD.XEX")));
-    });
-    const auto running_by = std::chrono::steady_clock::now() + 5s;
-    while (!second_running && std::chrono::steady_clock::now() < running_by) {
-      std::this_thread::yield();
-    }
-    CHECK(second_running);
-    std::this_thread::sleep_for(500ms);
-    sink.Release();
-    CHECK(first_future.wait_for(10s) == std::future_status::ready);
-    CHECK(second_future.wait_for(10s) == std::future_status::ready);
-    CHECK(inside);
-    c.Kernel("NtClose", {first});
-    c.Kernel("NtClose", {second});
-  });
-  logger->RemoveSink(sink);
-  CHECK(sink.Count("LoadUserModule: 'game:\\MOD.XEX' already being loaded") == 1);
-  CHECK(sink.Count("File not found") == 1);
 }

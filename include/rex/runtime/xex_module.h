@@ -43,7 +43,8 @@ class REX_RUNTIME_API XEXModule : public Module {
   /** A library the image imports from. */
   struct ImportLibrary {
    public:
-    std::string name;                     /**< Library name. */
+    std::string name;                     /**< Library name without directory and extension. */
+    std::string file_name;                /**< Library name as the image writes it. */
     u32 id;                               /**< Library id in the image. */
     filesystem::XEXVersion version;       /**< Version the image was linked against. */
     filesystem::XEXVersion min_version;   /**< Oldest version the image accepts. */
@@ -115,6 +116,13 @@ class REX_RUNTIME_API XEXModule : public Module {
    * @return The guest address, 0 when the module has no such export.
    */
   u32 GetProcAddress(u16 ordinal) const;
+
+  /**
+   * Returns the libraries the image imports from.
+   *
+   * @return The libraries.
+   */
+  const std::vector<ImportLibrary>& GetImportLibraries() const { return import_libs_; }
   /**
    * Looks up an export by name.
    *
@@ -131,7 +139,7 @@ class REX_RUNTIME_API XEXModule : public Module {
    */
   int ApplyPatch(XEXModule* module);
   /**
-   * Parses and decodes an XEX image into guest memory.
+   * Parses and decodes an XEX image into host memory and reserves its guest memory.
    *
    * @param name The module name.
    * @param path The path the image came from.
@@ -142,7 +150,14 @@ class REX_RUNTIME_API XEXModule : public Module {
   bool Load(const std::string_view name, const std::string_view path, const void* xex_addr,
             size_t xex_length);
   /**
-   * Parses the PE image and registers the imports and page protections once the image is decoded.
+   * Returns the decoded image that waits in host memory between Load and LoadContinue.
+   *
+   * @return The bytes, empty once LoadContinue has copied the image into guest memory.
+   */
+  std::span<const u8> GetPendingImage() const { return pending_image_; }
+  /**
+   * Parses the PE image, copies it into guest memory without the PE header and registers the
+   * imports and page protections once the image is decoded.
    *
    * @return True on success.
    */
@@ -173,6 +188,7 @@ class REX_RUNTIME_API XEXModule : public Module {
   std::string path_;
   filesystem::XEXImage image_;
   filesystem::PEInfo pe_;
+  std::vector<u8> pending_image_;
   std::vector<ImportLibrary> import_libs_;
 
   bool loaded_ = false;

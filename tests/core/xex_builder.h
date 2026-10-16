@@ -14,6 +14,7 @@
 #include <array>
 #include <cstring>
 #include <span>
+#include <string>
 #include <vector>
 
 #include <rex/filesystem/xex.h>
@@ -37,6 +38,12 @@ inline constexpr std::array<Key, 4> kMasterKeys = {{
 inline constexpr Key kSessionKey = {0x10, 0x32, 0x54, 0x76, 0x98, 0xBA, 0xDC, 0xFE,
                                     0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF};
 
+struct XEXImportSpec {
+  std::string name;
+  std::vector<u32> records;
+  u32 id = 0;
+};
+
 struct XEXSpec {
   filesystem::XEXCompressionType compression = filesystem::kXEXCompressionNone;
   bool encrypted = false;
@@ -51,6 +58,7 @@ struct XEXSpec {
   std::vector<u8> image;
   std::vector<u8> patch_descriptor;
   std::vector<u8> patch_body;
+  std::vector<XEXImportSpec> imports;
 };
 
 inline void PutBE32(std::vector<u8>& out, size_t offset, u32 value) {
@@ -180,6 +188,35 @@ inline std::vector<u8> BuildXEX(const XEXSpec& spec) {
   std::vector<u8> exec(0x18, 0);
   PutBE32(exec, 0xC, spec.title_id);
 
+  std::vector<u8> import_libraries;
+  if (!spec.imports.empty()) {
+    std::vector<u8> names;
+    for (const XEXImportSpec& library : spec.imports) {
+      names.insert(names.end(), library.name.begin(), library.name.end());
+      names.push_back(0);
+      while (names.size() % 4) {
+        names.push_back(0);
+      }
+    }
+    AppendBE32(import_libraries, 0);
+    AppendBE32(import_libraries, static_cast<u32>(names.size()));
+    AppendBE32(import_libraries, static_cast<u32>(spec.imports.size()));
+    import_libraries.insert(import_libraries.end(), names.begin(), names.end());
+    for (size_t index = 0; index < spec.imports.size(); ++index) {
+      const XEXImportSpec& library = spec.imports[index];
+      const size_t start = import_libraries.size();
+      import_libraries.resize(start + 0x28, 0);
+      PutBE32(import_libraries, start, 0x28 + 4 * static_cast<u32>(library.records.size()));
+      PutBE32(import_libraries, start + 0x18, library.id);
+      PutBE16(import_libraries, start + 0x24, static_cast<u16>(index));
+      PutBE16(import_libraries, start + 0x26, static_cast<u16>(library.records.size()));
+      for (const u32 record : library.records) {
+        AppendBE32(import_libraries, record);
+      }
+    }
+    PutBE32(import_libraries, 0, static_cast<u32>(import_libraries.size()));
+  }
+
   struct Entry {
     u32 key;
     std::vector<u8> blob;
@@ -195,6 +232,9 @@ inline std::vector<u8> BuildXEX(const XEXSpec& spec) {
   }
   if (patch) {
     entries.push_back({filesystem::kXEXHeaderDeltaPatchDescriptor, spec.patch_descriptor, 0});
+  }
+  if (!import_libraries.empty()) {
+    entries.push_back({filesystem::kXEXHeaderImportLibraries, import_libraries, 0});
   }
 
   std::vector<u8> header(0x18 + entries.size() * 8, 0);
@@ -247,6 +287,40 @@ inline std::vector<u8> TestImage(size_t size) {
     image[i] = static_cast<u8>(i * 7 + 3);
   }
   return image;
+}
+
+inline std::vector<u8> BuildPatchBody(u32 copy_to = 0x800, u32 zero_at = 0x10) {
+  std::vector<u8> records;
+  auto record = [&](u32 old_addr, u32 new_addr, u16 length, u16 compressed) {
+    const size_t at = records.size();
+    records.resize(at + 12, 0);
+    PutBE32(records, at, old_addr);
+    PutBE32(records, at + 4, new_addr);
+    PutBE16(records, at + 8, length);
+    PutBE16(records, at + 10, compressed);
+  };
+  record(0x0, copy_to, 0x10, 1);
+  record(0x0, zero_at, 0x10, 0);
+  record(0, 0, 0, 0);
+  std::vector<u8> block(24, 0);
+  block.insert(block.end(), records.begin(), records.end());
+  return block;
+}
+
+inline std::vector<u8> BuildPatchDescriptor(const filesystem::XEXImage& base) {
+  std::vector<u8> desc(0x4C + 13, 0);
+  PutBE32(desc, 0x0, static_cast<u32>(desc.size()));
+  const auto digest = SHA1Of(base.GetSecurity().rsa_signature);
+  std::memcpy(desc.data() + 0xC, digest.data(), 20);
+  const auto key_source = EncryptKey(kSessionKey, kSessionKey);
+  std::memcpy(desc.data() + 0x20, key_source.data(), 16);
+  PutBE32(desc, 0x30, static_cast<u32>(base.GetHeaderBytes().size()));
+  PutBE32(desc, 0x44, base.GetImageSize());
+  PutBE32(desc, 0x4C, 0);
+  PutBE32(desc, 0x50, 0);
+  PutBE16(desc, 0x54, 4);
+  PutBE16(desc, 0x56, 1);
+  return desc;
 }
 
 }  // namespace rex::test
