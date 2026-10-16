@@ -3,7 +3,7 @@
 
 #include <inja/inja.hpp>
 #include <rex/hash.h>
-#include <rex/logging.h>
+#include <rex/logging/log.h>
 
 #include "embedded_templates.h"
 

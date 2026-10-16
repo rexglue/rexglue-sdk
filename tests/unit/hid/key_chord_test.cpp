@@ -18,7 +18,7 @@
 #include <rex/cvar.h>
 #include <rex/hid/key_chord.h>
 
-#include "hid/common/cvar_table.h"
+#include "hid/cvar_table.h"
 
 using rex::hid::KeyChord;
 using rex::hid::KeyChordToString;

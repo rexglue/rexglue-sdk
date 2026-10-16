@@ -4,8 +4,10 @@
 #include <string>
 #include <string_view>
 
-#include <rex/logging.h>
-#include <rex/macros.h>
+#include <rex/fail.h>
+#include <rex/logging/log.h>
+#include <rex/module.h>
+#include <rex/result.h>
 
 #include "runtime/cvar_table.h"
 

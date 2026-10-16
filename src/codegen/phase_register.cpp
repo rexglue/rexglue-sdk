@@ -18,7 +18,7 @@
 
 #include <rex/assert.h>
 #include <rex/codegen/config.h>
-#include <rex/logging.h>
+#include <rex/logging/log.h>
 
 #include <rex/memory/byte_swap.h>
 #include <rex/runtime/exports.h>

@@ -11,7 +11,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 #include <rex/cvar.h>
-#include <rex/logging.h>
+#include <rex/logging/log.h>
 
 #include <string>
 #include <string_view>

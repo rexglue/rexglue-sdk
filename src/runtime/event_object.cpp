@@ -11,7 +11,7 @@
 
 #include <chrono>
 
-#include <rex/logging.h>
+#include <rex/logging/log.h>
 #include <rex/runtime/event_object.h>
 
 namespace rex::runtime {

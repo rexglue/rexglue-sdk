@@ -24,8 +24,9 @@
 
 #include <rex/api.h>
 #include <rex/app.h>
+#include <rex/logging/logger.h>
 #include <rex/platform/file.h>
-#include <rex/logging.h>
+#include <rex/logging/log.h>
 #include <rex/logging/sink.h>
 #include <rex/platform/dynlib.h>
 #include <rex/platform.h>

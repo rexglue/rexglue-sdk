@@ -11,9 +11,12 @@
 
 #include <rex/filesystem.h>
 #include <rex/kernel/xam/private.h>
-#include <rex/logging.h>
+#include <rex/logging/log.h>
 #include <rex/math.h>
 #include <rex/hook.h>
+#include <rex/runtime/content_manager.h>
+#include <rex/runtime/module_registry.h>
+#include <rex/runtime/object_table.h>
 #include <rex/types.h>
 #include <rex/string.h>
 #include <rex/string/numeric.h>

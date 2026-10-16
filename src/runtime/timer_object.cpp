@@ -14,7 +14,7 @@
 
 #include <rex/chrono/chrono.h>
 #include <rex/chrono/clock.h>
-#include <rex/logging.h>
+#include <rex/logging/log.h>
 #include <rex/runtime.h>
 #include <rex/runtime/thread_registry.h>
 #include <rex/runtime/xthread.h>

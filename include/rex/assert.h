@@ -20,6 +20,7 @@
 #include <string>
 #include <utility>
 
+#include <rex/logging/flush.h>
 #include <rex/platform.h>
 
 namespace rex::detail {
@@ -156,42 +157,3 @@ constexpr const char* AssertMessage(const char* message) {
  */
 #define REX_STATIC_ASSERT_SIZE(type, size) \
   static_assert(sizeof(type) == (size), "bad definition for " #type ": must be " #size " bytes")
-
-/**
- * Writes a Critical message, flushes every sink and aborts.
- *
- * @param category Category name.
- * @param fmt std::format string literal.
- * @param ... Format arguments.
- *
- * @code
- * REX_FATAL(system, "heap {} is corrupted", name);
- * @endcode
- */
-#define REX_FATAL(category, fmt, ...)                          \
-  do {                                                         \
-    REXLOG_CRITICAL(category, fmt __VA_OPT__(, ) __VA_ARGS__); \
-    ::rex::log::Flush();                                       \
-    ::std::abort();                                            \
-  } while (0)
-
-/**
- * Writes a Critical message, flushes every sink and aborts when a condition is false.
- *
- * @param category Category name.
- * @param cond The condition.
- * @param fmt std::format string literal.
- * @param ... Format arguments.
- *
- * @code
- * REX_CHECK(system, base != nullptr, "the guest memory base is not mapped");
- * @endcode
- */
-#define REX_CHECK(category, cond, fmt, ...)                                                  \
-  do {                                                                                       \
-    if (!(cond)) {                                                                           \
-      REXLOG_CRITICAL(category, "check failed: " #cond ". " fmt __VA_OPT__(, ) __VA_ARGS__); \
-      ::rex::log::Flush();                                                                   \
-      ::std::abort();                                                                        \
-    }                                                                                        \
-  } while (0)

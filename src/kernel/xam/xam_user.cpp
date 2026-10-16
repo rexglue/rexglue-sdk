@@ -14,9 +14,13 @@
 #include <rex/api.h>
 #include <rex/cvar.h>
 #include <rex/kernel/xam/private.h>
-#include <rex/logging.h>
+#include <rex/logging/log.h>
 #include <rex/math.h>
 #include <rex/hook.h>
+#include <rex/runtime/achievement_manager.h>
+#include <rex/runtime/content_manager.h>
+#include <rex/runtime/dispatcher.h>
+#include <rex/runtime/notifier.h>
 #include <rex/types.h>
 #include <rex/string.h>
 #include <rex/runtime.h>
@@ -27,7 +31,7 @@
 #include <rex/runtime/xio.h>
 #include <rex/runtime/xthread.h>
 #include <rex/runtime/xtypes.h>
-#include "kernel/kernel_macros.h"
+#include "kernel/stub_log.h"
 #include "kernel/object_reference.h"
 
 namespace rex {

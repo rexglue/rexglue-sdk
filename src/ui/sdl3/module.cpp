@@ -7,9 +7,10 @@
 
 #include <rex/api.h>
 #include <rex/cvar.h>
-#include <rex/gpu/backend.h>
-#include <rex/hid/backend.h>
-#include <rex/logging.h>
+#include <rex/gpu.h>
+#include <rex/hid.h>
+#include <rex/logging/logger.h>
+#include <rex/logging/log.h>
 #include <rex/module.h>
 #include <rex/runtime/achievement_manager.h>
 

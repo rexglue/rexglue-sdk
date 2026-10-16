@@ -2,7 +2,7 @@
 
 #include <algorithm>
 
-#include <rex/logging.h>
+#include <rex/logging/log.h>
 #include <rex/math.h>
 #include <rex/runtime/error.h>
 #include <rex/runtime/xmemory.h>

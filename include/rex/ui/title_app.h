@@ -21,8 +21,8 @@
 #include <rex/cvar/registry.h>
 #include <rex/gpu.h>
 #include <rex/image_info.h>
-#include <rex/logging.h>
-#include <rex/macros.h>
+#include <rex/logging/log.h>
+#include <rex/export.h>
 #include <rex/platform.h>
 #include <rex/result.h>
 #include <rex/runtime/config.h>
@@ -293,42 +293,6 @@ REX_RUNTIME_API bool InvokeFunction(rex::MoveOnlyFunction<void()> fn);
 
 }  // namespace rex::ui
 
-namespace rex::detail {
-
-/**
- * Returns the process command line on Windows, where wWinMain receives no argv.
- *
- * @return The parsed arguments without the program name.
- */
-REX_RUNTIME_API CLIArgList GetWindowsCommandLine();
-
-}  // namespace rex::detail
-
-#if REX_PLATFORM_WIN32
-/**
- * Defines main and wWinMain, both calling fn with the parsed command line. Used by the guest
- * entry point macros.
- *
- * @param fn A function taking const rex::CLIArgList& and returning int.
- *
- * @code
- * REX_DETAIL_ENTRY_POINTS(FooEntry)
- * @endcode
- */
-#define REX_DETAIL_ENTRY_POINTS(fn)                                                              \
-  int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {                                        \
-    return ::rex::detail::RunGuarded([] { return fn(::rex::detail::GetWindowsCommandLine()); }); \
-  }                                                                                              \
-  int main(int argc, char** argv) {                                                              \
-    return ::rex::detail::RunGuarded([&] { return fn(::rex::CLIArgList::Parse(argc, argv)); });  \
-  }
-#else
-#define REX_DETAIL_ENTRY_POINTS(fn)                                                             \
-  int main(int argc, char** argv) {                                                             \
-    return ::rex::detail::RunGuarded([&] { return fn(::rex::CLIArgList::Parse(argc, argv)); }); \
-  }
-#endif
-
 /**
  * Defines main, and wWinMain on Windows, for a title app. The entry point parses the command
  * line, calls Init with the PPCImageConfig the codegen init header declares, then
@@ -354,36 +318,4 @@ REX_RUNTIME_API CLIArgList GetWindowsCommandLine();
     }                                                                        \
     return rex_app.Shutdown();                                               \
   }                                                                          \
-  REX_DETAIL_ENTRY_POINTS(RexTitleEntry)
-
-/**
- * Defines main, and wWinMain on Windows, for a title app that calls its own lifecycle steps.
- * The entry point parses the command line, default constructs Class, and returns what
- * Function returns.
- * An exception that escapes is printed to stderr and the exit code is 1.
- *
- * @param Class A default constructible class derived from rex::ui::TitleApp.
- * @param Function A function taking Class& and const rex::CLIArgList&, returning i32.
- *
- * @code
- * #include "generated/default/foo_init.h"
- *
- * i32 FooMain(FooApp& app, const rex::CLIArgList& args) {
- *   if (app.Init(args, PPCImageConfig) && app.CreateTitleWindow()) {
- *     while (FooSetupActive() && app.RunFrame()) {
- *     }
- *     if (app.LaunchTitle()) {
- *       app.Run();
- *     }
- *   }
- *   return app.Shutdown();
- * }
- * REX_TITLE_APP_MAIN(FooApp, FooMain)
- * @endcode
- */
-#define REX_TITLE_APP_MAIN(Class, Function)                 \
-  static int RexTitleEntry(const ::rex::CLIArgList& args) { \
-    Class rex_app;                                          \
-    return Function(rex_app, args);                         \
-  }                                                         \
   REX_DETAIL_ENTRY_POINTS(RexTitleEntry)

@@ -43,7 +43,7 @@ std::vector<std::string> Names(Fixture& fixture, std::string_view path) {
 }
 
 std::string HostText(const std::filesystem::path& path) {
-  auto bytes = rex::platform::ReadWholeFile(path);
+  auto bytes = rex::platform::ReadHostFile(path);
   REQUIRE(bytes);
   return {bytes->begin(), bytes->end()};
 }

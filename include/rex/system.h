@@ -14,7 +14,8 @@
 
 #include <string_view>
 
-#include <rex/macros.h>
+#include <rex/types.h>
+#include <rex/export.h>
 #include <rex/platform.h>
 
 namespace rex {

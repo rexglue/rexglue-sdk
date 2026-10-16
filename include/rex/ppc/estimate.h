@@ -50,7 +50,7 @@ inline constexpr u64 kQNaN64 = 0x7FF8000000000000ull;
  * @param x The operand.
  * @return The estimate.
  */
-[[nodiscard]] inline f64 Fres(f64 x) noexcept {
+[[nodiscard]] inline f64 ReciprocalEstimate(f64 x) noexcept {
   const u64 a = std::bit_cast<u64>(x);
   const u64 sign = a & kSign64;
   const i64 e = static_cast<i64>((a >> 52) & 0x7FFu);
@@ -64,7 +64,7 @@ inline constexpr u64 kQNaN64 = 0x7FF8000000000000ull;
   if (e >= 1173) {
     return std::bit_cast<f64>(sign);
   }
-  const u64 base = kFresTable[m >> 45];
+  const u64 base = kScalarReciprocalTable[m >> 45];
   const i64 exponent = static_cast<i64>(base >> 52) - (e - 1023);
   return std::bit_cast<f64>(sign | static_cast<u64>(exponent) << 52 | (base & kMantissa64));
 }
@@ -79,7 +79,7 @@ inline constexpr u64 kQNaN64 = 0x7FF8000000000000ull;
  * @param x The operand.
  * @return The estimate.
  */
-[[nodiscard]] inline f64 Frsqrte(f64 x) noexcept {
+[[nodiscard]] inline f64 ReciprocalSqrtEstimate(f64 x) noexcept {
   const u64 a = std::bit_cast<u64>(x);
   const u64 sign = a & kSign64;
   i64 e = static_cast<i64>((a >> 52) & 0x7FFu);
@@ -99,10 +99,12 @@ inline constexpr u64 kQNaN64 = 0x7FF8000000000000ull;
     return std::bit_cast<f64>(kQNaN64);
   }
   const i64 unbiased = e - 1023;
-  const u64 base = kFrsqrteTable[static_cast<u64>(unbiased & 1) << 3 | m >> 49];
+  const u64 base = kScalarReciprocalSqrtTable[static_cast<u64>(unbiased & 1) << 3 | m >> 49];
   const i64 exponent = static_cast<i64>(base >> 52) - (unbiased >> 1);
   return std::bit_cast<f64>(static_cast<u64>(exponent) << 52 | (base & kMantissa64));
 }
+
+namespace simd {
 
 namespace detail {
 
@@ -118,27 +120,27 @@ struct Plane16 {
 };
 
 /** Packs the base and the slope magnitude of a vrefp cell. */
-constexpr u32 VrefpCell(u32 i) {
-  return (kVrefpBase[i] >> 9) << 10 | static_cast<u32>(-kVrefpSlope[i] / 4);
+constexpr u32 ReciprocalCell(u32 i) {
+  return (kReciprocalBase[i] >> 9) << 10 | static_cast<u32>(-kReciprocalSlope[i] / 4);
 }
 
 /** Packs the base and the slope magnitude of a vrsqrtefp cell. */
-constexpr u32 VrsqrtefpCell(u32 i) {
-  return (kVrsqrtefpBase[i] >> 8) << 11 | static_cast<u32>(-kVrsqrtefpSlope[i]);
+constexpr u32 ReciprocalSqrtCell(u32 i) {
+  return (kReciprocalSqrtBase[i] >> 8) << 11 | static_cast<u32>(-kReciprocalSqrtSlope[i]);
 }
 
 /** Packs the base and the slope of a vlogefp cell. */
-constexpr u32 VlogefpCell(u32 i) {
-  return static_cast<u32>(kVlogefpBase[i]) << 4 | static_cast<u32>(kVlogefpSlope[i]);
+constexpr u32 Log2Cell(u32 i) {
+  return static_cast<u32>(kLog2Base[i]) << 4 | static_cast<u32>(kLog2Slope[i]);
 }
 
 /** Finds the base and the slope of the line that reproduces 128 entries of the exp2 table. */
-constexpr u32 VexptefpCell(u32 i) {
+constexpr u32 Exp2Cell(u32 i) {
   for (u32 slope = 0; slope < 16; ++slope) {
     i32 lowest = -0x7FFFFFFF;
     i32 highest = 0x7FFFFFFF;
     for (u32 u = 0; u < 128; ++u) {
-      const i32 entry = 8 * static_cast<i32>(kVexptefpPositive[i * 128 + u]);
+      const i32 entry = 8 * static_cast<i32>(kExp2Positive[i * 128 + u]);
       const i32 offset = static_cast<i32>(slope * u);
       lowest = lowest > entry - offset ? lowest : entry - offset;
       highest = highest < entry + 7 - offset ? highest : entry + 7 - offset;
@@ -152,10 +154,10 @@ constexpr u32 VexptefpCell(u32 i) {
 
 constexpr bool IsExactLine() {
   for (u32 i = 0; i < 16; ++i) {
-    const u32 cell = VexptefpCell(i);
+    const u32 cell = Exp2Cell(i);
     for (u32 u = 0; u < 128; ++u) {
       const u32 value = ((cell >> 4) + (cell & 15) * u) >> 3;
-      if (value != kVexptefpPositive[i * 128 + u]) {
+      if (value != kExp2Positive[i * 128 + u]) {
         return false;
       }
     }
@@ -265,11 +267,12 @@ inline bool AnyOutside(simde__m128i value, u32 lowest, u32 highest) {
  * @param v The operand.
  * @return The reciprocal estimate of each lane.
  */
-[[nodiscard]] inline simde__m128 Vrefp(simde__m128 v) noexcept {
+[[nodiscard]] inline simde__m128 ReciprocalEstimate(simde__m128 v) noexcept {
   using namespace detail;
   const auto a = simde_mm_castps_si128(v);
   const auto biased = simde_mm_and_si128(a, Set(0x7F800000u));
-  const auto cell = Lookup32<VrefpCell, 3>(simde_mm_and_si128(simde_mm_srli_epi32(a, 18), Set(31)));
+  const auto cell =
+      Lookup32<ReciprocalCell, 3>(simde_mm_and_si128(simde_mm_srli_epi32(a, 18), Set(31)));
   const auto u = simde_mm_and_si128(simde_mm_srli_epi32(a, 9), Set(0x1FF));
   const auto base = simde_mm_and_si128(simde_mm_srli_epi32(cell, 1), Set(0x7FFE00));
   const auto mantissa =
@@ -297,13 +300,13 @@ inline bool AnyOutside(simde__m128i value, u32 lowest, u32 highest) {
  * @param v The operand.
  * @return The reciprocal square root estimate of each lane.
  */
-[[nodiscard]] inline simde__m128 Vrsqrtefp(simde__m128 v) noexcept {
+[[nodiscard]] inline simde__m128 ReciprocalSqrtEstimate(simde__m128 v) noexcept {
   using namespace detail;
   const auto a = simde_mm_castps_si128(v);
   const auto e = simde_mm_srli_epi32(simde_mm_and_si128(a, Set(kInfinity32)), 23);
   const auto index =
       simde_mm_and_si128(simde_mm_srli_epi32(simde_mm_xor_si128(a, Set(1u << 23)), 19), Set(31));
-  const auto cell = Lookup32<VrsqrtefpCell, 4>(index);
+  const auto cell = Lookup32<ReciprocalSqrtCell, 4>(index);
   const auto u = simde_mm_and_si128(simde_mm_srli_epi32(a, 9), Set(0x3FF));
   const auto product = simde_mm_madd_epi16(simde_mm_and_si128(cell, Set(0x7FF)), u);
   const auto tie = simde_mm_and_si128(simde_mm_srli_epi32(product, 2), Set(1));
@@ -335,11 +338,11 @@ inline bool AnyOutside(simde__m128i value, u32 lowest, u32 highest) {
  * @param v The operand.
  * @return The log2 estimate of each lane.
  */
-[[nodiscard]] inline simde__m128 Vlogefp(simde__m128 v) noexcept {
+[[nodiscard]] inline simde__m128 Log2Estimate(simde__m128 v) noexcept {
   using namespace detail;
   const auto a = simde_mm_castps_si128(v);
   const auto shifted = simde_mm_srli_epi32(a, 12);
-  const auto cell = Lookup16<VlogefpCell>(simde_mm_and_si128(simde_mm_srli_epi32(a, 19), Set(15)));
+  const auto cell = Lookup16<Log2Cell>(simde_mm_and_si128(simde_mm_srli_epi32(a, 19), Set(15)));
   const auto u = simde_mm_and_si128(shifted, Set(0x7F));
   const auto fraction = simde_mm_srli_epi32(
       simde_mm_add_epi32(simde_mm_srli_epi32(cell, 4),
@@ -370,13 +373,13 @@ inline bool AnyOutside(simde__m128i value, u32 lowest, u32 highest) {
  * @param v The operand.
  * @return The exp2 estimate of each lane.
  */
-[[nodiscard]] inline simde__m128 Vexptefp(simde__m128 v) noexcept {
+[[nodiscard]] inline simde__m128 Exp2Estimate(simde__m128 v) noexcept {
   using namespace detail;
   const auto a = simde_mm_castps_si128(v);
   const auto fixed =
       simde_mm_srai_epi32(simde_mm_cvttps_epi32(simde_mm_mul_ps(v, simde_mm_set1_ps(32768.0f))), 4);
   const auto fraction = simde_mm_and_si128(fixed, Set(0x7FF));
-  const auto cell = Lookup16<VexptefpCell>(simde_mm_srli_epi32(fraction, 7));
+  const auto cell = Lookup16<Exp2Cell>(simde_mm_srli_epi32(fraction, 7));
   const auto u = simde_mm_and_si128(fraction, Set(0x7F));
   const auto sum = simde_mm_add_epi32(simde_mm_srli_epi32(cell, 4),
                                       simde_mm_madd_epi16(simde_mm_and_si128(cell, Set(15)), u));
@@ -459,23 +462,23 @@ inline simde__m128 ReplaceLanes(simde__m128 v, simde__m128 fast) {
       simde_mm_load_si128(reinterpret_cast<const simde__m128i*>(out.data())));
 }
 
-inline bool RefpNeeds(u32 bits) {
+inline bool ReciprocalNeedsRule(u32 bits) {
   const u32 biased = (bits >> 23) & 0xFFu;
   return IsDenormal(bits) || biased == 253 || biased == 254;
 }
 
-inline u32 RefpRule(u32 bits) {
+inline u32 ReciprocalRule(u32 bits) {
   const u32 sign = bits & kSign32;
   const u32 biased = (bits >> 23) & 0xFFu;
   if (IsDenormal(bits)) {
-    const u32 estimate = EstimateOne<Vrefp>(ScaleDenormal(bits));
+    const u32 estimate = EstimateOne<ReciprocalEstimate>(ScaleDenormal(bits));
     const u32 field = ((estimate >> 23) & 0xFFu) + 64;
     return field > 254 ? (sign | kInfinity32) : (sign | (field << 23) | (estimate & 0x7FFFFFu));
   }
   if (biased == 253 && (bits & 0x7FFFFFu) == 0) {
     return sign | 0x00800000u;
   }
-  const u32 estimate = EstimateOne<Vrefp>((bits & 0x807FFFFFu) | (252u << 23));
+  const u32 estimate = EstimateOne<ReciprocalEstimate>((bits & 0x807FFFFFu) | (252u << 23));
   const u32 shift = biased - 252;
   const u32 full = 0x800000u | (estimate & 0x7FFFFFu);
   const u32 dropped = full & ((1u << shift) - 1);
@@ -484,16 +487,16 @@ inline u32 RefpRule(u32 bits) {
   return sign | (kept + ((dropped > half || (dropped == half && (kept & 1))) ? 1u : 0u));
 }
 
-inline u32 RsqrtefpRule(u32 bits) {
-  const u32 estimate = EstimateOne<Vrsqrtefp>(ScaleDenormal(bits));
+inline u32 ReciprocalSqrtRule(u32 bits) {
+  const u32 estimate = EstimateOne<ReciprocalSqrtEstimate>(ScaleDenormal(bits));
   if ((estimate & kInfinity32) == kInfinity32) {
     return estimate;
   }
   return estimate + (32u << 23);
 }
 
-inline u32 LogefpRule(u32 bits) {
-  const u32 estimate = EstimateOne<Vlogefp>(ScaleDenormal(bits));
+inline u32 Log2Rule(u32 bits) {
+  const u32 estimate = EstimateOne<Log2Estimate>(ScaleDenormal(bits));
   if ((estimate & kInfinity32) == kInfinity32) {
     return estimate;
   }
@@ -510,12 +513,12 @@ inline u32 LogefpRule(u32 bits) {
  * @return The estimate of each lane.
  */
 template <bool NonJava>
-[[nodiscard]] inline simde__m128 Vrefp(simde__m128 v) noexcept {
-  const auto fast = Vrefp(v);
+[[nodiscard]] inline simde__m128 ReciprocalEstimate(simde__m128 v) noexcept {
+  const auto fast = ReciprocalEstimate(v);
   if constexpr (NonJava) {
     return fast;
   } else {
-    return detail::ReplaceLanes<detail::RefpRule, detail::RefpNeeds>(v, fast);
+    return detail::ReplaceLanes<detail::ReciprocalRule, detail::ReciprocalNeedsRule>(v, fast);
   }
 }
 
@@ -529,8 +532,8 @@ template <bool NonJava>
  * @param non_java The VSCR NJ bit.
  * @return The reciprocal estimate of each lane.
  */
-[[nodiscard]] inline simde__m128 Vrefp(simde__m128 v, bool non_java) noexcept {
-  return non_java ? Vrefp<true>(v) : Vrefp<false>(v);
+[[nodiscard]] inline simde__m128 ReciprocalEstimate(simde__m128 v, bool non_java) noexcept {
+  return non_java ? ReciprocalEstimate<true>(v) : ReciprocalEstimate<false>(v);
 }
 
 /**
@@ -541,12 +544,12 @@ template <bool NonJava>
  * @return The estimate of each lane.
  */
 template <bool NonJava>
-[[nodiscard]] inline simde__m128 Vrsqrtefp(simde__m128 v) noexcept {
-  const auto fast = Vrsqrtefp(v);
+[[nodiscard]] inline simde__m128 ReciprocalSqrtEstimate(simde__m128 v) noexcept {
+  const auto fast = ReciprocalSqrtEstimate(v);
   if constexpr (NonJava) {
     return fast;
   } else {
-    return detail::ReplaceLanes<detail::RsqrtefpRule, detail::IsDenormal>(v, fast);
+    return detail::ReplaceLanes<detail::ReciprocalSqrtRule, detail::IsDenormal>(v, fast);
   }
 }
 
@@ -559,8 +562,8 @@ template <bool NonJava>
  * @param non_java The VSCR NJ bit.
  * @return The reciprocal square root estimate of each lane.
  */
-[[nodiscard]] inline simde__m128 Vrsqrtefp(simde__m128 v, bool non_java) noexcept {
-  return non_java ? Vrsqrtefp<true>(v) : Vrsqrtefp<false>(v);
+[[nodiscard]] inline simde__m128 ReciprocalSqrtEstimate(simde__m128 v, bool non_java) noexcept {
+  return non_java ? ReciprocalSqrtEstimate<true>(v) : ReciprocalSqrtEstimate<false>(v);
 }
 
 /**
@@ -571,12 +574,12 @@ template <bool NonJava>
  * @return The estimate of each lane.
  */
 template <bool NonJava>
-[[nodiscard]] inline simde__m128 Vlogefp(simde__m128 v) noexcept {
-  const auto fast = Vlogefp(v);
+[[nodiscard]] inline simde__m128 Log2Estimate(simde__m128 v) noexcept {
+  const auto fast = Log2Estimate(v);
   if constexpr (NonJava) {
     return fast;
   } else {
-    return detail::ReplaceLanes<detail::LogefpRule, detail::IsDenormal>(v, fast);
+    return detail::ReplaceLanes<detail::Log2Rule, detail::IsDenormal>(v, fast);
   }
 }
 
@@ -589,8 +592,8 @@ template <bool NonJava>
  * @param non_java The VSCR NJ bit.
  * @return The log2 estimate of each lane.
  */
-[[nodiscard]] inline simde__m128 Vlogefp(simde__m128 v, bool non_java) noexcept {
-  return non_java ? Vlogefp<true>(v) : Vlogefp<false>(v);
+[[nodiscard]] inline simde__m128 Log2Estimate(simde__m128 v, bool non_java) noexcept {
+  return non_java ? Log2Estimate<true>(v) : Log2Estimate<false>(v);
 }
 
 /**
@@ -601,9 +604,11 @@ template <bool NonJava>
  * @param non_java The VSCR NJ bit.
  * @return The exp2 estimate of each lane.
  */
-[[nodiscard]] inline simde__m128 Vexptefp(simde__m128 v, bool non_java) noexcept {
+[[nodiscard]] inline simde__m128 Exp2Estimate(simde__m128 v, bool non_java) noexcept {
   static_cast<void>(non_java);
-  return Vexptefp(v);
+  return Exp2Estimate(v);
 }
+
+}  // namespace simd
 
 }  // namespace rex::ppc

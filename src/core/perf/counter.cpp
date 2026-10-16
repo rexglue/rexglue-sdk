@@ -1,7 +1,7 @@
 #include <rex/perf/counter.h>
 
 #include <rex/cvar.h>
-#include <rex/logging.h>
+#include <rex/logging/log.h>
 #include <rex/string.h>
 
 #include "core/cvar_table.h"

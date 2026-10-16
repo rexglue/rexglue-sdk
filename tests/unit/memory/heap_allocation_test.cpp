@@ -11,7 +11,7 @@
 #include "rex_test.h"
 
 #include <rex/cvar.h>
-#include <rex/logging.h>
+#include <rex/logging/log.h>
 #include <rex/runtime/xmemory.h>
 
 #include "test_memory.h"

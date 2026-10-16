@@ -19,8 +19,6 @@ function(rex_target_pch target)
         <rex/platform.h>
         <rex/types.h>
         <rex/assert.h>
-        <rex/cvar.h>
-        <rex/logging.h>
 
         ${ARGN}
     )

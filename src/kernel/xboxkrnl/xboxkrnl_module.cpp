@@ -20,9 +20,8 @@
 #include <rex/cvar.h>
 #include <rex/dbg.h>
 #include <rex/kernel/xboxkrnl/module.h>
-#include <rex/kernel/xboxkrnl/private.h>
 #include <rex/kernel/xboxkrnl/video.h>
-#include <rex/logging.h>
+#include <rex/logging/log.h>
 #include <rex/math.h>
 #include <rex/ppc/context.h>
 #include <rex/hook.h>
@@ -30,6 +29,7 @@
 #include <rex/runtime.h>
 #include <rex/runtime/module_object.h>
 #include <rex/runtime/xthread.h>
+#include "kernel/xboxkrnl/loaded_command_line.h"
 #include "runtime/cvar_table.h"
 #include "runtime/module_registry.h"
 

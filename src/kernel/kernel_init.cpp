@@ -17,6 +17,8 @@
 #include <rex/kernel/xbdm/module.h>
 #include <rex/kernel/xboxkrnl/module.h>
 #include <rex/runtime.h>
+#include <rex/runtime/content_manager.h>
+#include <rex/runtime/module_registry.h>
 
 namespace rex::kernel {
 

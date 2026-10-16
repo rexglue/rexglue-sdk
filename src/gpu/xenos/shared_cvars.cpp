@@ -1,6 +1,7 @@
 #include "gpu/xenos/shared_cvars.h"
 
 #include "gpu/xenos/cvar_table_xenos.h"
+#include <rex/cvar.h>
 
 namespace rex::gpu {
 

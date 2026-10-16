@@ -14,10 +14,11 @@
 #include <span>
 
 #include <rex/filesystem.h>
-#include <rex/logging.h>
+#include <rex/logging/log.h>
 #include <rex/memory.h>
 #include <rex/hook.h>
-#include <rex/kernel/shim/define.h>
+#include <rex/kernel/shim/function.h>
+#include <rex/runtime/object_table.h>
 #include <rex/types.h>
 #include <rex/string.h>
 #include <rex/runtime.h>

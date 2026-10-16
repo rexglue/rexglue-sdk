@@ -92,3 +92,13 @@ REX_TEST_CASE("from_string hex floats carry the bits memcpy would write",
     CHECK(SameBytes(rex::from_string<rex::f64>(text), MemcpyCopy<rex::f64>(bits)));
   }
 }
+
+REX_TEST_CASE("AreBitsEqual compares floats by bit pattern", "[memory][bit]") {
+  const std::array<rex::f32, 2> nan_pair = {std::bit_cast<rex::f32>(0x7FC00000u), 1.0f};
+  CHECK(rex::AreBitsEqual(nan_pair, nan_pair));
+  const std::array<rex::f32, 1> zero = {0.0f};
+  const std::array<rex::f32, 1> negative_zero = {-0.0f};
+  CHECK_FALSE(rex::AreBitsEqual(zero, negative_zero));
+  const std::array<rex::f32, 2> longer = {0.0f, 0.0f};
+  CHECK_FALSE(rex::AreBitsEqual(zero, longer));
+}

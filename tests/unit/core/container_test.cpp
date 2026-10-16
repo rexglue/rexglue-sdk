@@ -117,7 +117,7 @@ void CheckTree(const fs::Container& container) {
 }
 
 std::vector<rex::u8> Fixture(const char* name) {
-  auto bytes = rex::platform::ReadWholeFile(Fixtures() / name);
+  auto bytes = rex::platform::ReadHostFile(Fixtures() / name);
   REQUIRE(bytes);
   return *bytes;
 }
@@ -125,7 +125,7 @@ std::vector<rex::u8> Fixture(const char* name) {
 std::filesystem::path WriteVariant(const TempFolder& temp, const char* name,
                                    const std::vector<rex::u8>& bytes) {
   const auto path = temp.path / name;
-  REQUIRE(rex::platform::WriteWholeFile(path, bytes));
+  REQUIRE(rex::platform::WriteHostFile(path, bytes));
   return path;
 }
 
@@ -145,20 +145,20 @@ REX_TEST_CASE("is_flags_enum operators combine and test flags", "[core][bit]") {
   CHECK((ContainerTestFlags::kA & ContainerTestFlags::kB) == ContainerTestFlags::kNone);
 }
 
-REX_TEST_CASE("ReadWholeFile and WriteWholeFile round trip and create parents", "[core][file]") {
+REX_TEST_CASE("ReadHostFile and WriteHostFile round trip and create parents", "[core][file]") {
   TempFolder temp;
   const auto path = temp.path / "a" / "b" / "data.bin";
   const std::vector<rex::u8> bytes = {1, 2, 3, 250};
-  REQUIRE(rex::platform::WriteWholeFile(path, bytes));
-  auto read = rex::platform::ReadWholeFile(path);
+  REQUIRE(rex::platform::WriteHostFile(path, bytes));
+  auto read = rex::platform::ReadHostFile(path);
   REQUIRE(read);
   CHECK(*read == bytes);
-  REQUIRE(rex::platform::WriteWholeFile(path, std::span<const rex::u8>()));
-  read = rex::platform::ReadWholeFile(path);
+  REQUIRE(rex::platform::WriteHostFile(path, std::span<const rex::u8>()));
+  read = rex::platform::ReadHostFile(path);
   REQUIRE(read);
   CHECK(read->empty());
   CHECK_FALSE(std::filesystem::exists(path.string() + ".tmp"));
-  CHECK_FALSE(rex::platform::ReadWholeFile(temp.path / "missing"));
+  CHECK_FALSE(rex::platform::ReadHostFile(temp.path / "missing"));
 }
 
 TEST_CASE("ReadSTFSHeader reads the fixture and refuses short bytes", "[core][container]") {
@@ -200,9 +200,9 @@ REX_TEST_CASE("Container extracts byte exact", "[core][container]") {
     REQUIRE(container);
     const auto out = temp.path / "out";
     REQUIRE(container->Extract(out));
-    CHECK(rex::platform::ReadWholeFile(out / "a.txt").value() == Bytes(kAText));
-    CHECK(rex::platform::ReadWholeFile(out / "big.bin").value() == BigBin());
-    CHECK(rex::platform::ReadWholeFile(out / "folder" / "c.txt").value() == Bytes(kCText));
+    CHECK(rex::platform::ReadHostFile(out / "a.txt").value() == Bytes(kAText));
+    CHECK(rex::platform::ReadHostFile(out / "big.bin").value() == BigBin());
+    CHECK(rex::platform::ReadHostFile(out / "folder" / "c.txt").value() == Bytes(kCText));
   }
 }
 

@@ -94,7 +94,7 @@ class Presenter;
  * mark the connection outdated and request painting so the UI thread recovers, but must never
  * reconnect itself because Surface methods are UI thread only.
  */
-class REX_GPU_XENOS_API Presenter : public gpu::IPresenter, public rex::NonCopyable {
+class REX_GPU_XENOS_API Presenter : public gpu::IPresenter {
  public:
   /**
    * Called on host GPU loss.

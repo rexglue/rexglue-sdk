@@ -16,7 +16,7 @@
 #include <filesystem>
 #include <string_view>
 
-#include <rex/macros.h>
+#include <rex/export.h>
 #include <rex/platform.h>
 #include <rex/types.h>
 

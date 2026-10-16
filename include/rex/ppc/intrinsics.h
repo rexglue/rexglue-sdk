@@ -18,6 +18,8 @@
 #include <cmath>
 #include <cstring>
 
+#include <type_traits>
+
 #include <simde/x86/avx.h>
 #include <simde/x86/avx2.h>
 #include <simde/x86/sse.h>
@@ -25,7 +27,7 @@
 
 #include <rex/types.h>
 
-namespace rex::ppc {
+namespace rex::ppc::simd {
 
 /** Mask tables for the lvlx and lvrx (load vector left and right) and stvlx and stvrx (store
  * vector left and right) instructions. */
@@ -105,6 +107,21 @@ inline u8 VectorShiftTableR[] = {
     0x10, 0x0F, 0x0E, 0x0D, 0x0C, 0x0B, 0x0A, 0x09, 0x08, 0x07, 0x06, 0x05, 0x04, 0x03, 0x02, 0x01,
 };
 
+/** The SIMD register type that holds lanes of type T. */
+template <typename T>
+using VectorOf = std::conditional_t<std::is_floating_point_v<T>, simde__m128, simde__m128i>;
+
+/**
+ * Adds the lanes of 2 vectors with saturation.
+ *
+ * @tparam T The lane type.
+ * @param a The first operand.
+ * @param b The second operand.
+ * @return The saturated sums.
+ */
+template <typename T>
+simde__m128i AddSaturate(simde__m128i a, simde__m128i b);
+
 /**
  * Adds unsigned 32 bit lanes with saturation.
  *
@@ -112,10 +129,22 @@ inline u8 VectorShiftTableR[] = {
  * @param b The second operand.
  * @return The saturated sums.
  */
-inline simde__m128i simde_mm_adds_epu32(simde__m128i a, simde__m128i b) {
+template <>
+inline simde__m128i AddSaturate<u32>(simde__m128i a, simde__m128i b) {
   return simde_mm_add_epi32(
       a, simde_mm_min_epu32(simde_mm_xor_si128(a, simde_mm_cmpeq_epi32(a, a)), b));
 }
+
+/**
+ * Averages the lanes of 2 vectors.
+ *
+ * @tparam T The lane type.
+ * @param a The first operand.
+ * @param b The second operand.
+ * @return The averages.
+ */
+template <typename T>
+simde__m128i Average(simde__m128i a, simde__m128i b);
 
 /**
  * Averages signed 8 bit lanes, rounding towards zero.
@@ -124,7 +153,8 @@ inline simde__m128i simde_mm_adds_epu32(simde__m128i a, simde__m128i b) {
  * @param b The second operand.
  * @return The averages.
  */
-inline simde__m128i simde_mm_avg_epi8(simde__m128i a, simde__m128i b) {
+template <>
+inline simde__m128i Average<i8>(simde__m128i a, simde__m128i b) {
   simde__m128i c = simde_mm_set1_epi8(char(128));
   return simde_mm_xor_si128(c,
                             simde_mm_avg_epu8(simde_mm_xor_si128(c, a), simde_mm_xor_si128(c, b)));
@@ -137,7 +167,8 @@ inline simde__m128i simde_mm_avg_epi8(simde__m128i a, simde__m128i b) {
  * @param b The second operand.
  * @return The averages.
  */
-inline simde__m128i simde_mm_avg_epi16(simde__m128i a, simde__m128i b) {
+template <>
+inline simde__m128i Average<i16>(simde__m128i a, simde__m128i b) {
   simde__m128i c = simde_mm_set1_epi16(short(32768));
   return simde_mm_xor_si128(c,
                             simde_mm_avg_epu16(simde_mm_xor_si128(c, a), simde_mm_xor_si128(c, b)));
@@ -150,11 +181,23 @@ inline simde__m128i simde_mm_avg_epi16(simde__m128i a, simde__m128i b) {
  * @param b The second operand.
  * @return The averages.
  */
-inline simde__m128i simde_mm_avg_epi32(simde__m128i a, simde__m128i b) {
+template <>
+inline simde__m128i Average<i32>(simde__m128i a, simde__m128i b) {
   simde__m128i sum = simde_mm_add_epi32(simde_mm_srai_epi32(a, 1), simde_mm_srai_epi32(b, 1));
   return simde_mm_add_epi32(sum,
                             simde_mm_and_si128(simde_mm_or_si128(a, b), simde_mm_set1_epi32(1)));
 }
+
+/**
+ * Converts the lanes of a vector to another lane type.
+ *
+ * @tparam To The destination lane type.
+ * @tparam From The source lane type.
+ * @param src The source lanes.
+ * @return The converted lanes.
+ */
+template <typename To, typename From>
+VectorOf<To> Convert(VectorOf<From> src);
 
 /**
  * Converts unsigned 32 bit integers to floats.
@@ -162,7 +205,8 @@ inline simde__m128i simde_mm_avg_epi32(simde__m128i a, simde__m128i b) {
  * @param src1 The integer lanes.
  * @return The float lanes.
  */
-inline simde__m128 simde_mm_cvtepu32_ps_(simde__m128i src1) {
+template <>
+inline simde__m128 Convert<f32, u32>(simde__m128i src1) {
   simde__m128i xmm1 = simde_mm_add_epi32(src1, simde_mm_set1_epi32(127));
   simde__m128i xmm0 = simde_mm_slli_epi32(src1, 31 - 8);
   xmm0 = simde_mm_srli_epi32(xmm0, 31);
@@ -181,12 +225,23 @@ inline simde__m128 simde_mm_cvtepu32_ps_(simde__m128i src1) {
  * @param c The control vector.
  * @return The permuted bytes.
  */
-inline simde__m128i simde_mm_perm_epi8_(simde__m128i a, simde__m128i b, simde__m128i c) {
+inline simde__m128i PermuteBytes(simde__m128i a, simde__m128i b, simde__m128i c) {
   simde__m128i d = simde_mm_set1_epi8(0xF);
   simde__m128i e = simde_mm_sub_epi8(d, simde_mm_and_si128(c, d));
   return simde_mm_blendv_epi8(simde_mm_shuffle_epi8(a, e), simde_mm_shuffle_epi8(b, e),
                               simde_mm_slli_epi32(c, 3));
 }
+
+/**
+ * Compares the lanes of 2 vectors for greater than.
+ *
+ * @tparam T The lane type.
+ * @param a The first operand.
+ * @param b The second operand.
+ * @return All ones in lanes where a is greater than b.
+ */
+template <typename T>
+simde__m128i CompareGreater(simde__m128i a, simde__m128i b);
 
 /**
  * Compares unsigned 8 bit lanes for greater than.
@@ -195,7 +250,8 @@ inline simde__m128i simde_mm_perm_epi8_(simde__m128i a, simde__m128i b, simde__m
  * @param b The second operand.
  * @return All ones in lanes where a is greater than b.
  */
-inline simde__m128i simde_mm_cmpgt_epu8(simde__m128i a, simde__m128i b) {
+template <>
+inline simde__m128i CompareGreater<u8>(simde__m128i a, simde__m128i b) {
   simde__m128i c = simde_mm_set1_epi8(char(128));
   return simde_mm_cmpgt_epi8(simde_mm_xor_si128(a, c), simde_mm_xor_si128(b, c));
 }
@@ -207,10 +263,22 @@ inline simde__m128i simde_mm_cmpgt_epu8(simde__m128i a, simde__m128i b) {
  * @param b The second operand.
  * @return All ones in lanes where a is greater than b.
  */
-inline simde__m128i simde_mm_cmpgt_epu16(simde__m128i a, simde__m128i b) {
+template <>
+inline simde__m128i CompareGreater<u16>(simde__m128i a, simde__m128i b) {
   simde__m128i c = simde_mm_set1_epi16(short(32768));
   return simde_mm_cmpgt_epi16(simde_mm_xor_si128(a, c), simde_mm_xor_si128(b, c));
 }
+
+/**
+ * Converts the lanes of a vector to another lane type with saturation.
+ *
+ * @tparam To The destination lane type.
+ * @tparam From The source lane type.
+ * @param src The source lanes.
+ * @return The saturated lanes.
+ */
+template <typename To, typename From>
+VectorOf<To> ConvertSaturate(VectorOf<From> src);
 
 /**
  * Converts floats to signed fixed point words with saturation (vctsxs).
@@ -218,7 +286,8 @@ inline simde__m128i simde_mm_cmpgt_epu16(simde__m128i a, simde__m128i b) {
  * @param src1 The float lanes.
  * @return The saturated signed words.
  */
-inline simde__m128i simde_mm_vctsxs(simde__m128 src1) {
+template <>
+inline simde__m128i ConvertSaturate<i32, f32>(simde__m128 src1) {
   simde__m128 xmm2 = simde_mm_cmpunord_ps(src1, src1);
   simde__m128i xmm0 = simde_mm_cvttps_epi32(src1);
   simde__m128i xmm1 = simde_mm_cmpeq_epi32(xmm0, simde_mm_set1_epi32(INT_MIN));
@@ -239,7 +308,8 @@ inline simde__m128i simde_mm_vctsxs(simde__m128 src1) {
  * @param src1 The float lanes.
  * @return The words, saturated to [0, UINT_MAX].
  */
-inline simde__m128i simde_mm_vctuxs(simde__m128 src1) {
+template <>
+inline simde__m128i ConvertSaturate<u32, f32>(simde__m128 src1) {
   simde__m128 nan_mask = simde_mm_cmpunord_ps(src1, src1);
   simde__m128 neg_mask = simde_mm_cmplt_ps(src1, simde_mm_setzero_ps());
   simde__m128 max_val = simde_mm_set1_ps(4294967295.0f);
@@ -273,7 +343,7 @@ inline simde__m128i simde_mm_vctuxs(simde__m128 src1) {
  * @param b The shift count source.
  * @return The shifted vector.
  */
-inline simde__m128i simde_mm_vsr(simde__m128i a, simde__m128i b) {
+inline simde__m128i ShiftRightBits(simde__m128i a, simde__m128i b) {
   b = simde_mm_srli_epi64(simde_mm_slli_epi64(b, 61), 61);
   return simde_mm_castps_si128(simde_mm_insert_ps(
       simde_mm_castsi128_ps(simde_mm_srl_epi64(a, b)),
@@ -287,7 +357,7 @@ inline simde__m128i simde_mm_vsr(simde__m128i a, simde__m128i b) {
  * @param b The shift count source, read from byte 15 which is byte 0 in big endian.
  * @return The shifted vector.
  */
-inline simde__m128i simde_mm_vsl(simde__m128i a, simde__m128i b) {
+inline simde__m128i ShiftLeftBits(simde__m128i a, simde__m128i b) {
   int shift = simde_mm_extract_epi8(b, 15) & 0x7;
   if (shift == 0)
     return a;
@@ -309,7 +379,7 @@ inline simde__m128i simde_mm_vsl(simde__m128i a, simde__m128i b) {
  * @param b The byte count source.
  * @return The shifted vector.
  */
-inline simde__m128i simde_mm_vslo(simde__m128i a, simde__m128i b) {
+inline simde__m128i ShiftLeftBytes(simde__m128i a, simde__m128i b) {
   int shift_bytes = (simde_mm_extract_epi8(b, 0) >> 3) & 0xF;
   if (shift_bytes == 0)
     return a;
@@ -334,7 +404,7 @@ inline simde__m128i simde_mm_vslo(simde__m128i a, simde__m128i b) {
  * @param b The byte count source.
  * @return The shifted vector.
  */
-inline simde__m128i simde_mm_vsro(simde__m128i a, simde__m128i b) {
+inline simde__m128i ShiftRightBytes(simde__m128i a, simde__m128i b) {
   int shift_bytes = (simde_mm_extract_epi8(b, 0) >> 3) & 0xF;
   if (shift_bytes == 0)
     return a;
@@ -349,13 +419,25 @@ inline simde__m128i simde_mm_vsro(simde__m128i a, simde__m128i b) {
 }
 
 /**
+ * Shifts each lane left by the count in the same lane.
+ *
+ * @tparam T The lane type.
+ * @param a The lanes to shift.
+ * @param count The shift count of each lane.
+ * @return The shifted lanes.
+ */
+template <typename T>
+simde__m128i ShiftLeftLanes(simde__m128i a, simde__m128i count);
+
+/**
  * Shifts 16 bit lanes left by per lane counts, widening to 32 bit, shifting and narrowing back.
  *
  * @param a The lanes to shift.
  * @param count The per lane shift counts.
  * @return The shifted lanes.
  */
-inline simde__m128i simde_mm_sllv_epi16(simde__m128i a, simde__m128i count) {
+template <>
+inline simde__m128i ShiftLeftLanes<u16>(simde__m128i a, simde__m128i count) {
   simde__m128i zero = simde_mm_setzero_si128();
   simde__m128i a_lo = simde_mm_unpacklo_epi16(a, zero);
   simde__m128i a_hi = simde_mm_unpackhi_epi16(a, zero);
@@ -370,6 +452,17 @@ inline simde__m128i simde_mm_sllv_epi16(simde__m128i a, simde__m128i count) {
 }
 
 /**
+ * Shifts each lane right by the count in the same lane. A signed lane type shifts arithmetically.
+ *
+ * @tparam T The lane type.
+ * @param a The lanes to shift.
+ * @param count The shift count of each lane.
+ * @return The shifted lanes.
+ */
+template <typename T>
+simde__m128i ShiftRightLanes(simde__m128i a, simde__m128i count);
+
+/**
  * Shifts 16 bit lanes right logically by per lane counts, widening to 32 bit, shifting and
  * narrowing back.
  *
@@ -377,7 +470,8 @@ inline simde__m128i simde_mm_sllv_epi16(simde__m128i a, simde__m128i count) {
  * @param count The per lane shift counts.
  * @return The shifted lanes.
  */
-inline simde__m128i simde_mm_srlv_epi16(simde__m128i a, simde__m128i count) {
+template <>
+inline simde__m128i ShiftRightLanes<u16>(simde__m128i a, simde__m128i count) {
   simde__m128i zero = simde_mm_setzero_si128();
   simde__m128i a_lo = simde_mm_unpacklo_epi16(a, zero);
   simde__m128i a_hi = simde_mm_unpackhi_epi16(a, zero);
@@ -398,7 +492,8 @@ inline simde__m128i simde_mm_srlv_epi16(simde__m128i a, simde__m128i count) {
  * @param count The per lane shift counts.
  * @return The shifted lanes.
  */
-inline simde__m128i simde_mm_srav_epi16(simde__m128i a, simde__m128i count) {
+template <>
+inline simde__m128i ShiftRightLanes<i16>(simde__m128i a, simde__m128i count) {
   simde__m128i zero = simde_mm_setzero_si128();
   simde__m128i a_lo = simde_mm_srai_epi32(simde_mm_unpacklo_epi16(a, a), 16);
   simde__m128i a_hi = simde_mm_srai_epi32(simde_mm_unpackhi_epi16(a, a), 16);
@@ -416,24 +511,25 @@ inline simde__m128i simde_mm_srav_epi16(simde__m128i a, simde__m128i count) {
  * @param count The per lane shift counts.
  * @return The shifted lanes.
  */
-inline simde__m128i simde_mm_sllv_epi8(simde__m128i a, simde__m128i count) {
+template <>
+inline simde__m128i ShiftLeftLanes<u8>(simde__m128i a, simde__m128i count) {
   simde__m128i zero = simde_mm_setzero_si128();
   simde__m128i a_lo = simde_mm_unpacklo_epi8(a, zero);
   simde__m128i a_hi = simde_mm_unpackhi_epi8(a, zero);
   simde__m128i s_lo = simde_mm_unpacklo_epi8(count, zero);
   simde__m128i s_hi = simde_mm_unpackhi_epi8(count, zero);
-  simde__m128i r_lo = simde_mm_sllv_epi16(a_lo, s_lo);
-  simde__m128i r_hi = simde_mm_sllv_epi16(a_hi, s_hi);
+  simde__m128i r_lo = ShiftLeftLanes<u16>(a_lo, s_lo);
+  simde__m128i r_hi = ShiftLeftLanes<u16>(a_hi, s_hi);
   simde__m128i mask8 = simde_mm_set1_epi16(0xFF);
   r_lo = simde_mm_and_si128(r_lo, mask8);
   r_hi = simde_mm_and_si128(r_hi, mask8);
   return simde_mm_packus_epi16(r_lo, r_hi);
 }
 
-}  // namespace rex::ppc
+}  // namespace rex::ppc::simd
 
 /** Vector mask tables at global scope for generated code. */
-using rex::ppc::VectorMaskL;
-using rex::ppc::VectorMaskR;
-using rex::ppc::VectorShiftTableL;
-using rex::ppc::VectorShiftTableR;
+using rex::ppc::simd::VectorMaskL;
+using rex::ppc::simd::VectorMaskR;
+using rex::ppc::simd::VectorShiftTableL;
+using rex::ppc::simd::VectorShiftTableR;

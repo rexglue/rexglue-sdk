@@ -14,14 +14,13 @@
 
 #include <rex/hid/event.h>
 #include <rex/move_only_function.h>
+#include <rex/module.h>
 
 namespace rex::hid {
 
 /** The window a HID backend serves. Implemented by the app that owns the window. */
-class IInputHost {
+REX_INTERFACE(IInputHost)
  public:
-  virtual ~IInputHost() = default;
-
   /**
    * Queues work to run on the UI thread later. Safe on any thread.
    *

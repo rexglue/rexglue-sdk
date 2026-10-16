@@ -14,14 +14,13 @@
 #include <string>
 
 #include <rex/cvar.h>
-#include <rex/gpu/backend.h>
+#include <rex/gpu.h>
 #include <rex/xenos/texture_info.h>
 #include <rex/xenos/register_file.h>
 #include <rex/xenos/xenos.h>
-#include <rex/kernel/xboxkrnl/private.h>
 #include <rex/kernel/xboxkrnl/rtl.h>
 #include <rex/kernel/xboxkrnl/video.h>
-#include <rex/logging.h>
+#include <rex/logging/log.h>
 #include <rex/hook.h>
 #include <rex/types.h>
 #include <rex/runtime.h>

@@ -16,6 +16,7 @@
 #include <string_view>
 
 #include <rex/types.h>
+#include <rex/module.h>
 
 namespace rex::codegen {
 
@@ -40,12 +41,14 @@ struct BinaryInfo {
  * All methods are called from the thread that drove the pipeline, and no
  * cross-thread synchronization is implied.
  */
-class ProgressReporter {
+REX_INTERFACE(ProgressReporter)
  public:
-  virtual ~ProgressReporter() = default;
-
-  /** Identifying info for an input binary, emitted right after each XEX is loaded. */
-  virtual void BinaryLoaded(const BinaryInfo&) {}
+  /**
+   * Reports identifying info for an input binary, emitted right after each XEX is loaded.
+   *
+   * @param info The binary info.
+   */
+  virtual void BinaryLoaded(const BinaryInfo& info) = 0;
 
   /**
    * Called when a module's analysis and write cycle starts.

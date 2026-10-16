@@ -11,8 +11,10 @@
 
 #pragma once
 
-#include <rex/macros.h>
+#include <rex/platform.h>
+#include <rex/export.h>
 #include <rex/types.h>
+#include <rex/module.h>
 
 struct ImGuiIO;
 
@@ -21,10 +23,8 @@ namespace rex::ui {
 class ImGuiDialog;
 
 /** Owner of a set of dialogs that draws them each frame and removes a dialog that closed. */
-class IDialogHost {
+REX_INTERFACE(IDialogHost)
  public:
-  virtual ~IDialogHost() = default;
-
   /**
    * Stops drawing a dialog and detaches it. Called by a dialog that closed during Draw and by a
    * dialog that is destroyed while attached.

@@ -13,16 +13,15 @@
 #include <cstddef>
 
 #include <rex/gpu/surface.h>
+#include <rex/module.h>
 
 namespace rex::gpu {
 
 class IOverlayLayer;
 
 /** The window side of a presenter. */
-class IPresentationHost {
+REX_INTERFACE(IPresentationHost)
  public:
-  virtual ~IPresentationHost() = default;
-
   /** Requests a paint on the UI thread. Callable from any thread. */
   virtual void RequestPaint() = 0;
 
@@ -31,10 +30,8 @@ class IPresentationHost {
 };
 
 /** Paints guest output and overlay layers into a surface. Every method runs on the UI thread. */
-class IPresenter {
+REX_INTERFACE(IPresenter)
  public:
-  virtual ~IPresenter() = default;
-
   /**
    * Returns the surface types this presenter paints into.
    *

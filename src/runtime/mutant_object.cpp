@@ -9,7 +9,7 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-#include <rex/logging.h>
+#include <rex/logging/log.h>
 #include <rex/runtime/xmemory.h>
 #include <rex/runtime/mutant_object.h>
 #include <rex/runtime/xthread.h>

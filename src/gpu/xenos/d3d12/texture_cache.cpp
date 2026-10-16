@@ -18,6 +18,7 @@
 #include <utility>
 
 #include <rex/assert.h>
+#include <rex/cvar.h>
 #include <rex/dbg.h>
 #include "gpu/xenos/d3d12/command_processor.h"
 #include "gpu/xenos/d3d12/shared_memory.h"
@@ -25,7 +26,8 @@
 #include <rex/xenos/texture_info.h>
 #include <rex/xenos/texture_layout.h>
 #include <rex/xenos/xenos.h>
-#include <rex/logging.h>
+#include <rex/fail.h>
+#include <rex/logging/log.h>
 #include <rex/perf/counter.h>
 #include <rex/math.h>
 #include "gpu/xenos/host/d3d12/d3d12_upload_buffer_pool.h"

@@ -14,6 +14,7 @@
 
 #include <rex/filesystem/info.h>
 #include <rex/types.h>
+#include <rex/module.h>
 
 namespace rex::filesystem {
 
@@ -21,10 +22,8 @@ namespace rex::filesystem {
  * Walks the live children of a directory that match a pattern, case insensitive, with the console
  * wildcard rules. A star matches any run, a question mark matches 1 character.
  */
-class IDirectory {
+REX_INTERFACE(IDirectory)
  public:
-  virtual ~IDirectory() = default;
-
   /**
    * Returns the next matching child.
    *

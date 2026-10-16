@@ -15,8 +15,7 @@
 namespace rex::cvars {
 
 REXCVAR_BOOL(clock, no_scaling, false, "Disable clock scaling (inverted: false = scaling enabled)");
-REXCVAR_BOOL(clock, source_raw, false, "Use raw clock source without scaling");
-REXCVAR_TABLE(kClockCvars, no_scaling, source_raw);
+REXCVAR_TABLE(kClockCvars, no_scaling);
 
 REXCVAR_STRING(log, level, "info", "Default log level")
     .SetAllowed(REXCVAR_ALLOWED("trace", "dev", "debug", "info", "warn", "error", "critical",

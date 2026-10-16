@@ -16,7 +16,8 @@
 #include <memory>
 #include <mutex>
 
-#include <rex/macros.h>
+#include <rex/platform.h>
+#include <rex/export.h>
 #include <rex/math.h>
 #include <rex/move_only_function.h>
 #include <rex/net/socket.h>

@@ -18,7 +18,9 @@
 
 #include <rex/assert.h>
 #include "gpu/xenos/pipeline/shader/translator.h"
-#include <rex/logging.h>
+#include <rex/cvar.h>
+#include <rex/fail.h>
+#include <rex/logging/log.h>
 #include <rex/math.h>
 
 #include "gpu/xenos/cvar_table_xenos.h"

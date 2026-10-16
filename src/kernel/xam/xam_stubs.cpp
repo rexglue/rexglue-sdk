@@ -9,7 +9,7 @@
  */
 
 #include <rex/kernel/xam/private.h>
-#include <rex/logging.h>
+#include <rex/logging/log.h>
 #include <rex/hook.h>
 
 REX_EXPORT_STUB(__imp__CancelWaitableTimer);

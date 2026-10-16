@@ -3,7 +3,7 @@
 #include <format>
 
 #include <rex/filesystem/error.h>
-#include <rex/logging.h>
+#include <rex/logging/log.h>
 #include <rex/string.h>
 
 namespace rex::filesystem {

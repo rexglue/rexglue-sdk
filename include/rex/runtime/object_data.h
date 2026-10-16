@@ -16,7 +16,8 @@
 #include <variant>
 #include <vector>
 
-#include <rex/macros.h>
+#include <rex/platform.h>
+#include <rex/export.h>
 #include <rex/runtime/pin_count.h>
 #include <rex/runtime/enumerator_object.h>
 #include <rex/runtime/event_object.h>

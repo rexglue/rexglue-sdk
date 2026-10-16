@@ -6,6 +6,7 @@
 
 #include <rex/assert.h>
 #include <rex/gpu.h>
+#include <rex/logging/logger.h>
 #include <rex/platform.h>
 #include <rex/runtime.h>
 #include <rex/string/numeric.h>

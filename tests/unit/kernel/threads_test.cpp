@@ -19,6 +19,7 @@
 
 #include <rex/platform/thread.h>
 #include <rex/runtime/function_dispatcher.h>
+#include <rex/runtime/thread_registry.h>
 #include <rex/runtime/xmemory.h>
 #include <rex/runtime/xthread.h>
 #include <rex/runtime/xtypes.h>

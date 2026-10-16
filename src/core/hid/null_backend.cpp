@@ -8,7 +8,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-#include <rex/hid/backend.h>
+#include <rex/hid.h>
 #include <rex/move_only_function.h>
 
 namespace rex::hid {

@@ -19,35 +19,18 @@
 #include <utility>
 
 #include <rex/image_info.h>
-#include <rex/logging.h>
+#include <rex/logging/log.h>
 #include <rex/math.h>
 #include <rex/platform/file.h>
 #include <rex/ppc/function.h>
 #include <rex/runtime.h>
 #include <rex/runtime/error.h>
 #include <rex/runtime/function_dispatcher.h>
-#include <rex/runtime/guest_path.h>
 #include <rex/runtime/module_object.h>
 #include <rex/runtime/xthread.h>
 #include <rex/string.h>
 
 namespace rex::runtime {
-
-std::string LoadedCommandLine(std::string_view image_path, std::string_view arguments) {
-  std::string line(1, '"');
-  line += rex::utf8_find_name_from_guest_path(image_path);
-  line += '"';
-  if (!arguments.empty()) {
-    line += ' ';
-    line += arguments;
-  }
-  return line;
-}
-
-u32 LoadedCommandLineCapacity(std::string_view arguments) {
-  const size_t longest = kExLoadedImageNameSize + 3 + arguments.size() + 1;
-  return rex::Align(static_cast<u32>(longest), 1024u);
-}
 
 namespace {
 
@@ -602,7 +585,7 @@ void ModuleRegistry::RegisterRecompiledModule(const char* pe_name, const char* g
   std::lock_guard lock(recompiled_mutex_);
   RecompiledModuleInfo info;
   info.pe_name = pe_name ? pe_name : "";
-  info.guest_path = guest_path ? NormalizeGuestPath(guest_path) : "";
+  info.guest_path = guest_path ? rex::NormalizeGuestPath(guest_path) : "";
   info.shared_lib_name = shared_lib_name ? shared_lib_name : "";
 
   for (const auto& existing : recompiled_modules_) {
@@ -628,7 +611,7 @@ void ModuleRegistry::AddImportCandidate(std::string_view path) {
 std::optional<ModuleRegistry::RecompiledModuleInfo> ModuleRegistry::FindRecompiledModule(
     std::string_view guest_path) {
   std::lock_guard lock(recompiled_mutex_);
-  auto normalized = NormalizeGuestPath(guest_path);
+  auto normalized = rex::NormalizeGuestPath(guest_path);
   for (const auto& info : recompiled_modules_) {
     if (info.guest_path == normalized) {
       return info;

@@ -3,7 +3,7 @@
 #include <rex/platform.h>
 
 #include <rex/hook.h>
-#include <rex/kernel/shim/define.h>
+#include <rex/kernel/shim/function.h>
 #include <rex/string.h>
 
 namespace rex::kernel::shim {

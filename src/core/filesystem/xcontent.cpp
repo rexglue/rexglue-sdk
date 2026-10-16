@@ -1,21 +1,11 @@
 #include <rex/filesystem/xcontent.h>
 
-#include <cstring>
-#include <chrono>
-#include <format>
-
-#include <rex/filesystem/error.h>
 #include <rex/math.h>
-#include <rex/memory/mapped_memory.h>
-#include <rex/platform.h>
 #include <rex/string.h>
 
 namespace rex::filesystem {
 
 namespace {
-
-constexpr i64 kUnixToFileTimeSeconds = 11644473600LL;
-constexpr i64 kTicksPerSecond = 10000000;
 
 std::u16string ReadBigEndian(const be_u16* units, size_t count) {
   std::u16string result;
@@ -34,18 +24,6 @@ u32 LanguageSlot(XLanguage language) {
 }
 
 }  // namespace
-
-u64 DecodeFATTimestamp(u32 date, u32 time) {
-  using namespace std::chrono;
-  const year_month first = year{1980 + static_cast<i32>((date >> 9) & 0x7F)} / January;
-  const year_month month = first + months{static_cast<i32>((date >> 5) & 0x0F) - 1};
-  const sys_days day = sys_days{month / 1} + days{static_cast<i32>(date & 0x1F) - 1};
-  const sys_seconds stamp = day + hours{static_cast<i32>((time >> 11) & 0x1F)} +
-                            minutes{static_cast<i32>((time >> 5) & 0x3F)} +
-                            seconds{static_cast<i32>((time & 0x1F) * 2)};
-  return static_cast<u64>((stamp.time_since_epoch().count() + kUnixToFileTimeSeconds) *
-                          kTicksPerSecond);
-}
 
 std::u16string XContentMetadata::GetDisplayName(XLanguage language) const {
   const u32 slot = LanguageSlot(language);
@@ -113,30 +91,6 @@ void XContentMetadata::SetPublisher(std::u16string_view value) {
 
 void XContentMetadata::SetTitleName(std::u16string_view value) {
   copy_and_swap_truncating(title_name_raw.chars, value, CountOf(title_name_raw.chars));
-}
-
-[[nodiscard]] Result<STFSHeader> ReadSTFSHeader(std::span<const u8> bytes) {
-  if (bytes.size() < sizeof(STFSHeader)) {
-    return Err<STFSHeader>(BuildError(FileSystemError::kCorrupt,
-                                      std::format("package header needs {:#x} bytes, {:#x} present",
-                                                  sizeof(STFSHeader), bytes.size())));
-  }
-  STFSHeader header;
-  std::memcpy(&header, bytes.data(), sizeof(STFSHeader));
-  if (!header.header.IsMagicValid()) {
-    return Err<STFSHeader>(
-        BuildError(FileSystemError::kCorrupt, "package magic is not CON, LIVE or PIRS"));
-  }
-  return header;
-}
-
-[[nodiscard]] Result<STFSHeader> ReadSTFSHeader(const std::filesystem::path& path) {
-  auto map = memory::MappedMemory::Open(path, memory::MappedMemory::Mode::kRead);
-  if (!map) {
-    return Err<STFSHeader>(
-        BuildError(FileSystemError::kNotFound, std::format("cannot open '{}'", PathToUTF8(path))));
-  }
-  return ReadSTFSHeader(std::span<const u8>(map->GetData(), map->GetSize()));
 }
 
 }  // namespace rex::filesystem

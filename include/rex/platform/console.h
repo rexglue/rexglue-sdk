@@ -11,7 +11,9 @@
 
 #include <cstdio>
 
-#include <rex/macros.h>
+#include <rex/types.h>
+#include <rex/platform.h>
+#include <rex/export.h>
 
 namespace rex::platform {
 

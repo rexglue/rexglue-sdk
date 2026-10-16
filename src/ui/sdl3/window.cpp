@@ -15,7 +15,7 @@
 #include <rex/assert.h>
 #include <rex/cvar.h>
 #include "ui/sdl3/video_mode.h"
-#include <rex/logging.h>
+#include <rex/logging/log.h>
 #include "ui/sdl3/imgui_drawer.h"
 #include "ui/sdl3/window.h"
 

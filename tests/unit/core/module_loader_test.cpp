@@ -20,7 +20,7 @@
 #include <rex/api.h>
 #include <rex/cvar.h>
 #include <rex/platform/file.h>
-#include <rex/logging.h>
+#include <rex/logging/log.h>
 #include <rex/logging/sink.h>
 #include <rex/platform/dynlib.h>
 
@@ -428,7 +428,7 @@ REX_TEST_CASE_METHOD(Fixture, "Every SDK cvar name is scope.leaf in a charter sc
   }
   REQUIRE(count >= 70);
   if (cfg.modules.size() > 3)
-    REQUIRE(count == 107);
+    REQUIRE(count == 106);
 }
 
 REX_TEST_CASE_METHOD(Fixture, "rexruntime registers the module scopes at Connect",

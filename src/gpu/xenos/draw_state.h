@@ -19,8 +19,10 @@
 #include <utility>
 #include <vector>
 
+#include <rex/platform.h>
+#include <rex/types.h>
 #include <rex/assert.h>
-#include <rex/macros.h>
+#include <rex/export.h>
 #include "gpu/xenos/pipeline/shader/shader.h"
 #include <rex/xenos/register_file.h>
 #include <rex/xenos/registers.h>
@@ -29,18 +31,6 @@
 #include <rex/runtime/xmemory.h>
 
 namespace rex::gpu::draw_state {
-
-/**
- * Compares 2 runs of floats by bit pattern, so a NaN equals itself.
- *
- * @param a The first run.
- * @param b The second run.
- * @return True when both runs have the same length and the same bits.
- */
-inline bool AreBitsEqual(std::span<const f32> a, std::span<const f32> b) {
-  return std::ranges::equal(
-      a, b, [](f32 x, f32 y) { return std::bit_cast<u32>(x) == std::bit_cast<u32>(y); });
-}
 
 /**
  * Reports whether the primitive type is a line.

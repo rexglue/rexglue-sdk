@@ -18,18 +18,25 @@
 #include <utility>
 #include <vector>
 
-#include <rex/macros.h>
+#include <rex/platform.h>
 #include <rex/result.h>
 #include <rex/types.h>
 #include <rex/move_only_function.h>
+#include <rex/module.h>
 
 namespace rex::cvar {
 
 class IVar;
 class CallbackHandle;
 
-/** Where a cvar value came from. Defined in rex/cvar.h. */
-enum class CvarSource : u8;
+/** Where a cvar value came from, ascending precedence. */
+enum class CvarSource : u8 {
+  kDefault,     /**< The declared default. */
+  kConfig,      /**< A TOML config file. */
+  kEnvironment, /**< A REX_<SCOPE>_<LEAF> environment variable. */
+  kCommandLine, /**< A command line option. */
+  kRuntime,     /**< A set after Init through the registry. */
+};
 
 /**
  * Fires after a value changes, on the thread that changed it, with the registry mutex released.
@@ -40,11 +47,8 @@ using ChangeCallback = rex::MoveOnlyFunction<void(std::string_view name, std::st
  * The cvar registry. Core serves it. Every method takes the registry
  * mutex. Callbacks run after it is released.
  */
-class ICvarRegistry {
+REX_INTERFACE(ICvarRegistry, "rex.cvar", 1)
  public:
-  REX_INTERFACE(ICvarRegistry, "rex.cvar", 1);
-  virtual ~ICvarRegistry() = default;
-
   /**
    * Reserves scope for the caller and registers every var. Every name must be scope.leaf.
    * Fails with DuplicateScope, DuplicateName or BadName and registers nothing on failure.

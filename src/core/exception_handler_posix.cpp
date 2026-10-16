@@ -25,7 +25,7 @@
 #include <cstring>
 
 #include <rex/assert.h>
-#include <rex/logging.h>
+#include <rex/logging/log.h>
 #include <rex/math.h>
 #include <rex/platform.h>
 

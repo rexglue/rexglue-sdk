@@ -20,9 +20,10 @@
 #include <string_view>
 #include <vector>
 
+#include <rex/platform.h>
 #include <rex/filesystem/info.h>
 #include <rex/filesystem/xcontent.h>
-#include <rex/macros.h>
+#include <rex/export.h>
 #include <rex/result.h>
 #include <rex/types.h>
 
@@ -186,5 +187,21 @@ class REX_API Container : public MoveOnly {
   std::vector<ContainerNode> nodes_;
   u64 total_size_ = 0;
 };
+
+/**
+ * Reads the package header from the first bytes of a package.
+ *
+ * @param bytes At least sizeof(STFSHeader) bytes from the start of the package.
+ * @return The header, or kCorrupt when the bytes are short or the magic is not a package.
+ */
+[[nodiscard]] REX_API Result<STFSHeader> ReadSTFSHeader(std::span<const u8> bytes);
+
+/**
+ * Reads the package header of a host file.
+ *
+ * @param path The package file.
+ * @return The header, kNotFound when the file cannot be opened, or kCorrupt as the span form.
+ */
+[[nodiscard]] REX_API Result<STFSHeader> ReadSTFSHeader(const std::filesystem::path& path);
 
 }  // namespace rex::filesystem

@@ -20,7 +20,8 @@
 #include <rex/api.h>
 #include <rex/cli_arg_list.h>
 #include <rex/cvar/registry.h>
-#include <rex/logging.h>
+#include <rex/logging/logger.h>
+#include <rex/logging/log.h>
 #include <rex/logging/sink.h>
 
 namespace {

@@ -28,7 +28,7 @@
 #include <utility>
 #include <vector>
 
-#include <rex/macros.h>
+#include <rex/export.h>
 #include <rex/assert.h>
 #include <rex/chrono/chrono.h>
 #include <rex/platform/crash.h>

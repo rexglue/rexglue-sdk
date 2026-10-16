@@ -19,9 +19,11 @@
 
 #include <SDL3/SDL.h>
 
-#include <rex/macros.h>
 #include "ui/sdl3/window.h"
 #include "ui/sdl3/app_context_sdl.h"
+
+#include <rex/types.h>
+#include <rex/platform.h>
 
 namespace rex::ui {
 

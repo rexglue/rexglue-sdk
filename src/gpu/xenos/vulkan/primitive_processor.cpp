@@ -17,7 +17,9 @@
 #include "gpu/xenos/vulkan/command_processor.h"
 #include "gpu/xenos/vulkan/deferred_command_buffer.h"
 #include "gpu/xenos/vulkan/primitive_processor.h"
-#include <rex/logging.h>
+#include <rex/cvar.h>
+#include <rex/fail.h>
+#include <rex/logging/log.h>
 #include "gpu/xenos/host/vulkan/objects.h"
 
 #include "gpu/xenos/vulkan/cvar_table.h"

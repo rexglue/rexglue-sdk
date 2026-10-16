@@ -23,6 +23,7 @@
 #include <rex/runtime/function_dispatcher.h>
 #include <rex/runtime/module_object.h>
 #include <rex/runtime/module_registry.h>
+#include <rex/runtime/object_table.h>
 #include <rex/runtime/thread_state.h>
 #include <rex/runtime/xmemory.h>
 

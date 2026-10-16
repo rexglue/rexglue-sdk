@@ -12,10 +12,11 @@
 
 #include <optional>
 
-#include <rex/macros.h>
+#include <rex/platform.h>
 #include <rex/move_only_function.h>
 #include <rex/runtime/xtypes.h>
 #include <rex/types.h>
+#include <rex/module.h>
 
 namespace rex::runtime {
 
@@ -34,11 +35,8 @@ struct CompletionOptions {
  * Completes overlapped operations on the calling thread or on the dispatch thread, and holds the
  * DPC list.
  */
-class IDispatcher {
+REX_INTERFACE(IDispatcher, "rex.runtime.dispatcher", 1)
  public:
-  REX_INTERFACE(IDispatcher, "rex.runtime.dispatcher", 1);
-  virtual ~IDispatcher() = default;
-
   /**
    * Completes an overlapped operation on the calling thread.
    *

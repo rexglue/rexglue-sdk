@@ -21,7 +21,8 @@
 #include <utility>
 #include <vector>
 
-#include <rex/macros.h>
+#include <rex/platform.h>
+#include <rex/export.h>
 #include <rex/memory/virtual_memory.h>
 #include <rex/ppc/func.h>
 #include <rex/platform/lock_order.h>

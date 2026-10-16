@@ -6,9 +6,10 @@
 #include <mutex>
 #include <system_error>
 
+#include <rex/types.h>
 #include <rex/filesystem/error.h>
-#include <rex/logging.h>
-#include <rex/macros.h>
+#include <rex/logging/log.h>
+#include <rex/result.h>
 #include <rex/math.h>
 #include <rex/memory/mapped_memory.h>
 #include <rex/string.h>

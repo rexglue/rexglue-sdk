@@ -13,7 +13,9 @@
 
 #include <rex/assert.h>
 #include <rex/kernel.h>
-#include <rex/logging.h>
+#include <rex/logging/flush.h>
+#include <rex/fail.h>
+#include <rex/logging/log.h>
 #include <rex/runtime/thread_state.h>
 #include <rex/platform/fpscr.h>
 #include <rex/platform/thread.h>

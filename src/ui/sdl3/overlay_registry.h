@@ -16,7 +16,7 @@
 #include <string_view>
 #include <vector>
 
-#include <rex/macros.h>
+#include <rex/platform.h>
 #include <rex/result.h>
 #include <rex/types.h>
 #include <rex/ui/imgui_dialog.h>

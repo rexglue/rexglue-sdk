@@ -9,9 +9,9 @@
  */
 
 #include "rex_test.h"
-#include <rex/runtime/guest_path.h>
+#include <rex/string/utf8.h>
 
-using rex::runtime::NormalizeGuestPath;
+using rex::NormalizeGuestPath;
 
 REX_TEST_CASE("Guest path normalization: strip device prefix", "[runtime][system][path]") {
   CHECK(NormalizeGuestPath("game:\\bin\\somelib.dll") == "bin/somelib.dll");

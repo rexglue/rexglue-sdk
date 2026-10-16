@@ -18,7 +18,7 @@ static_assert(REX_PLATFORM_WIN32, "This file is Windows-only");
 #include <array>
 #include <cstring>
 #include <rex/assert.h>
-#include <rex/logging.h>
+#include <rex/logging/log.h>
 #include <rex/chrono/chrono_steady_cast.h>
 #include <rex/move_only_function.h>
 

@@ -20,8 +20,11 @@
 #include <utility>
 #include <vector>
 
-#include <rex/macros.h>
+#include <rex/platform.h>
+#include <rex/types.h>
+#include <rex/export.h>
 #include <rex/cvar.h>
+#include <rex/cvar/config.h>
 
 namespace rex::detail {
 

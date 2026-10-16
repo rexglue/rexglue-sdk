@@ -12,16 +12,19 @@
 #include <rex/api.h>
 #include <rex/cvar.h>
 #include <rex/kernel/xam/private.h>
-#include <rex/logging.h>
+#include <rex/logging/log.h>
 #include <rex/math.h>
 #include <rex/hook.h>
+#include <rex/runtime/content_manager.h>
+#include <rex/runtime/dispatcher.h>
+#include <rex/runtime/error.h>
 #include <rex/types.h>
 #include <rex/string.h>
 #include <rex/runtime.h>
 #include <rex/runtime/xam/content_device.h>
 #include <rex/runtime/enumerator_object.h>
 #include <rex/runtime/xtypes.h>
-#include "kernel/kernel_macros.h"
+#include "kernel/stub_log.h"
 
 namespace rex {
 namespace kernel {

@@ -10,7 +10,7 @@
 
 #pragma once
 
-#include <rex/logging/macros.h>
+#include <rex/logging/log.h>
 
 REXLOG_CATEGORY(core, "Core library, module loading, cvars and the app lifecycle")
 REXLOG_CATEGORY(filesystem, "Mount table, links and file providers")

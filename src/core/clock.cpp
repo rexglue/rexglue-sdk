@@ -86,19 +86,9 @@ u64 QueryGuestSystemTimeOffset() {
 }  // namespace
 
 u64 Clock::QueryHostTickFrequency() {
-#if REX_CLOCK_RAW_AVAILABLE
-  if (REXCVAR_GET(::rex::cvars::source_raw)) {
-    return host_tick_frequency_raw();
-  }
-#endif
   return GetHostTickFrequencyPlatform();
 }
 u64 Clock::QueryHostTickCount() noexcept {
-#if REX_CLOCK_RAW_AVAILABLE
-  if (REXCVAR_GET(::rex::cvars::source_raw)) {
-    return host_tick_count_raw();
-  }
-#endif
   return GetHostTickCountPlatform();
 }
 

@@ -13,8 +13,9 @@
 #include <span>
 #include <utility>
 
+#include <rex/platform.h>
 #include <rex/bit.h>
-#include <rex/macros.h>
+#include <rex/export.h>
 #include <rex/platform/thread.h>
 #include <rex/types.h>
 

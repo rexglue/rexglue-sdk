@@ -15,7 +15,9 @@
 #include <filesystem>
 #include <string>
 
-#include <rex/logging.h>
+#include <rex/logging/config.h>
+#include <rex/logging/logger.h>
+#include <rex/logging/log.h>
 
 #include "codegen/tool_runtime.h"
 #include "rexglue/log_categories.h"

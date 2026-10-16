@@ -17,7 +17,8 @@
 #include <rex/cvar.h>
 #include "gpu/xenos/d3d12/command_processor.h"
 #include "gpu/xenos/d3d12/shared_memory.h"
-#include <rex/logging.h>
+#include <rex/fail.h>
+#include <rex/logging/log.h>
 #include <rex/math.h>
 #include "gpu/xenos/host/d3d12/d3d12_objects.h"
 

@@ -17,7 +17,8 @@
 #include <string_view>
 #include <unordered_map>
 
-#include <rex/macros.h>
+#include <rex/platform.h>
+#include <rex/export.h>
 #include <rex/ppc/func.h>
 #include <rex/types.h>
 

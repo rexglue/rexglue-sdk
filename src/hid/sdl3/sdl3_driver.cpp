@@ -18,12 +18,12 @@
 #include <rex/assert.h>
 #include <rex/chrono/clock.h>
 #include <rex/cvar.h>
-#include <rex/logging.h>
+#include <rex/logging/log.h>
 #include <rex/hid/virtual_key.h>
 #include <rex/platform/file.h>
 
-#include "hid/common/cvar_table.h"
-#include "hid/common/x_result.h"
+#include "hid/cvar_table.h"
+#include "hid/x_result.h"
 #include "hid/sdl3/sdl3_driver.h"
 
 namespace rex::hid::sdl3 {

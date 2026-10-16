@@ -10,13 +10,14 @@
  */
 
 #include <algorithm>
+#include <atomic>
+#include <cstddef>
 #include <string>
 
 #include <rex/chrono/chrono_steady_cast.h>
-#include <rex/kernel/xboxkrnl/private.h>
 #include <rex/kernel/xboxkrnl/rtl.h>
 #include <rex/kernel/xboxkrnl/threading.h>
-#include <rex/logging.h>
+#include <rex/logging/log.h>
 #include <rex/hook.h>
 #include <rex/types.h>
 #include <rex/string.h>
@@ -26,8 +27,7 @@
 #include <rex/runtime/event_object.h>
 #include <rex/runtime/xthread.h>
 #include <rex/platform/thread.h>
-#include <rex/platform/atomic.h>
-#include "kernel/kernel_macros.h"
+#include "kernel/stub_log.h"
 
 namespace rex::kernel::xboxkrnl {
 using namespace rex::runtime;
@@ -284,6 +284,23 @@ struct X_RTL_CRITICAL_SECTION {
 };
 #pragma pack(pop)
 REX_STATIC_ASSERT_SIZE(X_RTL_CRITICAL_SECTION, 28);
+static_assert(offsetof(X_RTL_CRITICAL_SECTION, lock_count) %
+                  std::atomic_ref<i32>::required_alignment ==
+              0);
+
+namespace {
+
+std::atomic_ref<i32> LockCount(X_RTL_CRITICAL_SECTION& cs) {
+  return std::atomic_ref<i32>(*reinterpret_cast<i32*>(
+      reinterpret_cast<u8*>(&cs) + offsetof(X_RTL_CRITICAL_SECTION, lock_count)));
+}
+
+bool TryAcquireLockCount(X_RTL_CRITICAL_SECTION& cs) {
+  i32 expected = -1;
+  return LockCount(cs).compare_exchange_strong(expected, 0);
+}
+
+}  // namespace
 
 void RtlInitializeCriticalSection(X_RTL_CRITICAL_SECTION* cs) {
   cs->header.type = 1;
@@ -328,20 +345,20 @@ void RtlEnterCriticalSection_entry(GuestPtrT<X_RTL_CRITICAL_SECTION> cs) {
   u32 spin_count = cs->header.absolute * 256;
 
   if (cs->owning_thread == cur_thread) {
-    rex::platform::atomic_inc(&cs->lock_count);
+    ++LockCount(*cs);
     cs->recursion_count++;
     return;
   }
 
   while (spin_count--) {
-    if (rex::platform::atomic_cas(-1, 0, &cs->lock_count)) {
+    if (TryAcquireLockCount(*cs)) {
       cs->owning_thread = cur_thread;
       cs->recursion_count = 1;
       return;
     }
   }
 
-  if (rex::platform::atomic_inc(&cs->lock_count) != 0) {
+  if (++LockCount(*cs) != 0) {
     KeWaitForSingleObject(cs.GetGuestAddress(), 8, 0, 0, nullptr);
   }
 
@@ -353,12 +370,12 @@ void RtlEnterCriticalSection_entry(GuestPtrT<X_RTL_CRITICAL_SECTION> cs) {
 u32 RtlTryEnterCriticalSection_entry(GuestPtrT<X_RTL_CRITICAL_SECTION> cs) {
   u32 thread = KernelThread::GetCurrentThread()->GetGuestObject();
 
-  if (rex::platform::atomic_cas(-1, 0, &cs->lock_count)) {
+  if (TryAcquireLockCount(*cs)) {
     cs->owning_thread = thread;
     cs->recursion_count = 1;
     return 1;
   } else if (cs->owning_thread == thread) {
-    rex::platform::atomic_inc(&cs->lock_count);
+    ++LockCount(*cs);
     ++cs->recursion_count;
     return 1;
   }
@@ -373,12 +390,12 @@ void RtlLeaveCriticalSection_entry(GuestPtrT<X_RTL_CRITICAL_SECTION> cs) {
   if (--cs->recursion_count != 0) {
     REX_ASSERT(cs->recursion_count >= 0);
 
-    rex::platform::atomic_dec(&cs->lock_count);
+    --LockCount(*cs);
     return;
   }
 
   cs->owning_thread = 0;
-  if (rex::platform::atomic_dec(&cs->lock_count) != -1) {
+  if (--LockCount(*cs) != -1) {
     KeSetEvent(cs.GetGuestAddress(), 1, 0);
   }
 }

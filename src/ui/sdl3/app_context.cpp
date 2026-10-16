@@ -12,7 +12,7 @@
 #include <utility>
 
 #include <rex/assert.h>
-#include <rex/logging.h>
+#include <rex/logging/log.h>
 #include <rex/no_throw.h>
 #include <rex/platform/thread.h>
 #include <rex/move_only_function.h>

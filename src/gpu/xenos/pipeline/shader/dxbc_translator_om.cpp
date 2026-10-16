@@ -16,6 +16,7 @@
 #include "gpu/xenos/pipeline/shader/dxbc_translator.h"
 #include "gpu/xenos/pipeline/texture/cache.h"
 #include "gpu/xenos/draw_state.h"
+#include <rex/cvar.h>
 #include <rex/math.h>
 
 #include "gpu/xenos/d3d12/cvar_table.h"

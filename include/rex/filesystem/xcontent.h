@@ -17,8 +17,10 @@
 #include <string>
 #include <string_view>
 
+#include <rex/platform.h>
 #include <rex/assert.h>
-#include <rex/macros.h>
+#include <rex/export.h>
+#include <rex/memory/byte_swap.h>
 #include <rex/result.h>
 #include <rex/filesystem/xex_types.h>
 #include <rex/runtime/xcontent.h>
@@ -28,48 +30,6 @@ namespace rex::filesystem {
 
 using rex::runtime::XContentType;
 using rex::runtime::XLanguage;
-
-/**
- * Converts a FAT date and time to Windows FILETIME ticks.
- *
- * @param date FAT date, 7 bits of years since 1980, 4 bits of month, 5 bits of day.
- * @param time FAT time, 5 bits of hours, 6 bits of minutes, 5 bits of 2 second units.
- * @return 100 nanosecond intervals since 1601-01-01 UTC. An out of range field carries into the
- * next field.
- */
-REX_API u64 DecodeFATTimestamp(u32 date, u32 time);
-
-/**
- * Reads a 24 bit big endian value.
- *
- * @param p The 3 source bytes.
- * @return The value.
- */
-constexpr u32 LoadUint24BE(const u8* p) {
-  return (static_cast<u32>(p[0]) << 16) | (static_cast<u32>(p[1]) << 8) | static_cast<u32>(p[2]);
-}
-
-/**
- * Reads a 24 bit little endian value.
- *
- * @param p The 3 source bytes.
- * @return The value.
- */
-constexpr u32 LoadUint24LE(const u8* p) {
-  return (static_cast<u32>(p[2]) << 16) | (static_cast<u32>(p[1]) << 8) | static_cast<u32>(p[0]);
-}
-
-/**
- * Writes a 24 bit little endian value.
- *
- * @param p The 3 destination bytes.
- * @param value The value, the top 8 bits are dropped.
- */
-constexpr void StoreUint24LE(u8* p, u32 value) {
-  p[2] = static_cast<u8>((value >> 16) & 0xFF);
-  p[1] = static_cast<u8>((value >> 8) & 0xFF);
-  p[0] = static_cast<u8>(value & 0xFF);
-}
 
 /** Package magic, the first 4 bytes of a package. */
 enum class XContentPackageType : u32 {
@@ -114,7 +74,7 @@ struct STFSVolumeDescriptor {
    * @return The block number.
    */
   [[nodiscard]] constexpr u32 GetFileTableBlockNumber() const {
-    return LoadUint24LE(file_table_block_number_raw);
+    return memory::LoadUint24LE(file_table_block_number_raw);
   }
 
   /**
@@ -123,7 +83,7 @@ struct STFSVolumeDescriptor {
    * @param value The block number.
    */
   constexpr void SetFileTableBlockNumber(u32 value) {
-    StoreUint24LE(file_table_block_number_raw, value);
+    memory::StoreUint24LE(file_table_block_number_raw, value);
   }
 
   /**
@@ -280,7 +240,7 @@ struct STFSDirectoryEntry {
    * @return The count.
    */
   [[nodiscard]] constexpr u32 GetValidDataBlocks() const {
-    return LoadUint24LE(valid_data_blocks_raw);
+    return memory::LoadUint24LE(valid_data_blocks_raw);
   }
 
   /**
@@ -288,7 +248,9 @@ struct STFSDirectoryEntry {
    *
    * @param value The count, 24 bits.
    */
-  constexpr void SetValidDataBlocks(u32 value) { StoreUint24LE(valid_data_blocks_raw, value); }
+  constexpr void SetValidDataBlocks(u32 value) {
+    memory::StoreUint24LE(valid_data_blocks_raw, value);
+  }
 
   /**
    * Returns the blocks allocated.
@@ -296,7 +258,7 @@ struct STFSDirectoryEntry {
    * @return The count.
    */
   [[nodiscard]] constexpr u32 GetAllocatedDataBlocks() const {
-    return LoadUint24LE(allocated_data_blocks_raw);
+    return memory::LoadUint24LE(allocated_data_blocks_raw);
   }
 
   /**
@@ -305,7 +267,7 @@ struct STFSDirectoryEntry {
    * @param value The count, 24 bits.
    */
   constexpr void SetAllocatedDataBlocks(u32 value) {
-    StoreUint24LE(allocated_data_blocks_raw, value);
+    memory::StoreUint24LE(allocated_data_blocks_raw, value);
   }
 
   /**
@@ -314,7 +276,7 @@ struct STFSDirectoryEntry {
    * @return The block number.
    */
   [[nodiscard]] constexpr u32 GetStartBlockNumber() const {
-    return LoadUint24LE(start_block_number_raw);
+    return memory::LoadUint24LE(start_block_number_raw);
   }
 
   /**
@@ -322,7 +284,9 @@ struct STFSDirectoryEntry {
    *
    * @param value The block number, 24 bits.
    */
-  constexpr void SetStartBlockNumber(u32 value) { StoreUint24LE(start_block_number_raw, value); }
+  constexpr void SetStartBlockNumber(u32 value) {
+    memory::StoreUint24LE(start_block_number_raw, value);
+  }
 };
 REX_STATIC_ASSERT_SIZE(STFSDirectoryEntry, 0x40);
 
@@ -358,7 +322,9 @@ struct SVODDeviceDescriptor {
    *
    * @return The count.
    */
-  [[nodiscard]] constexpr u32 GetNumDataBlocks() const { return LoadUint24LE(num_data_blocks_raw); }
+  [[nodiscard]] constexpr u32 GetNumDataBlocks() const {
+    return memory::LoadUint24LE(num_data_blocks_raw);
+  }
 
   /**
    * Returns the first data block.
@@ -366,7 +332,7 @@ struct SVODDeviceDescriptor {
    * @return The block number.
    */
   [[nodiscard]] constexpr u32 GetStartDataBlock() const {
-    return LoadUint24LE(start_data_block_raw);
+    return memory::LoadUint24LE(start_data_block_raw);
   }
 };
 REX_STATIC_ASSERT_SIZE(SVODDeviceDescriptor, 0x24);
@@ -578,21 +544,5 @@ struct STFSHeader {
   XContentMetadata metadata; /**< Metadata. */
 };
 REX_STATIC_ASSERT_SIZE(STFSHeader, 0x971A);
-
-/**
- * Reads the package header from the first bytes of a package.
- *
- * @param bytes At least sizeof(STFSHeader) bytes from the start of the package.
- * @return The header, or kCorrupt when the bytes are short or the magic is not a package.
- */
-[[nodiscard]] REX_API Result<STFSHeader> ReadSTFSHeader(std::span<const u8> bytes);
-
-/**
- * Reads the package header of a host file.
- *
- * @param path The package file.
- * @return The header, kNotFound when the file cannot be opened, or kCorrupt as the span form.
- */
-[[nodiscard]] REX_API Result<STFSHeader> ReadSTFSHeader(const std::filesystem::path& path);
 
 }  // namespace rex::filesystem

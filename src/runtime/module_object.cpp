@@ -9,8 +9,10 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-#include <rex/logging.h>
+#include <rex/fail.h>
+#include <rex/logging/log.h>
 #include <rex/runtime/exports.h>
+#include <rex/runtime/object_table.h>
 #include <rex/string.h>
 #include <rex/runtime/function_dispatcher.h>
 #include <rex/runtime.h>

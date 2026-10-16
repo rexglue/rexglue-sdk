@@ -14,7 +14,9 @@
 #include <string>
 #include <string_view>
 
-#include <rex/macros.h>
+#include <rex/types.h>
+#include <rex/platform.h>
+#include <rex/export.h>
 #include <rex/runtime/object.h>
 #include <rex/runtime/xtypes.h>
 

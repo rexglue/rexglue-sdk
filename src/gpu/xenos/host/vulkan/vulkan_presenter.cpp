@@ -21,7 +21,8 @@
 
 #include <rex/assert.h>
 #include <rex/cvar.h>
-#include <rex/logging.h>
+#include <rex/fail.h>
+#include <rex/logging/log.h>
 #include <rex/math.h>
 #include <rex/platform.h>
 #include "gpu/xenos/host/vulkan/presenter.h"

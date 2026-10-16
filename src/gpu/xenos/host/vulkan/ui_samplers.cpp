@@ -10,7 +10,8 @@
  */
 
 #include <rex/assert.h>
-#include <rex/logging.h>
+#include <rex/fail.h>
+#include <rex/logging/log.h>
 #include "gpu/xenos/host/vulkan/ui_samplers.h"
 #include "gpu/xenos/host/vulkan/objects.h"
 

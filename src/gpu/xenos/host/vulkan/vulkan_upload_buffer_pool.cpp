@@ -11,7 +11,8 @@
 
 #include <algorithm>
 
-#include <rex/logging.h>
+#include <rex/fail.h>
+#include <rex/logging/log.h>
 #include <rex/math.h>
 #include "gpu/xenos/host/vulkan/upload_buffer_pool.h"
 #include "gpu/xenos/host/vulkan/objects.h"

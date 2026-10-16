@@ -7,6 +7,8 @@ static_assert(REX_PLATFORM_LINUX || REX_PLATFORM_MAC, "This file is POSIX-only")
 #include <string>
 #include <string_view>
 
+#include <unistd.h>
+
 #if REX_PLATFORM_MAC
 extern char** environ;
 #endif

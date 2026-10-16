@@ -20,13 +20,17 @@
 #include <vector>
 
 #include <rex/assert.h>
-#include <rex/logging.h>
+#include <rex/logging/flush.h>
+#include <rex/fail.h>
+#include <rex/logging/log.h>
 #include <rex/math.h>
 #include <rex/platform/exceptions.h>
 #include <rex/platform/thread.h>
 #include <rex/runtime.h>
 #include <rex/runtime/error.h>
 #include <rex/runtime/function_dispatcher.h>
+#include <rex/runtime/object_table.h>
+#include <rex/runtime/thread_registry.h>
 #include <rex/runtime/thread_state.h>
 #include <rex/runtime/kernel_list.h>
 #include <rex/runtime/event_object.h>

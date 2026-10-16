@@ -20,10 +20,13 @@
 
 #include <rex/chrono/clock.h>
 #include <rex/dbg.h>
-#include <rex/kernel/xboxkrnl/private.h>
 #include <rex/kernel/xboxkrnl/threading.h>
-#include <rex/logging.h>
+#include <rex/fail.h>
+#include <rex/logging/log.h>
 #include <rex/hook.h>
+#include <rex/runtime/dispatcher.h>
+#include <rex/runtime/object_table.h>
+#include <rex/runtime/thread_registry.h>
 #include <rex/types.h>
 #include <rex/runtime.h>
 #include <rex/runtime/function_dispatcher.h>
@@ -36,8 +39,8 @@
 #include <rex/runtime/xthread.h>
 #include <rex/runtime/timer_object.h>
 #include <rex/runtime/xtypes.h>
-#include <rex/platform/atomic.h>
-#include "kernel/kernel_macros.h"
+#include "kernel/argument_check.h"
+#include "kernel/object_lookup.h"
 
 namespace rex::kernel::xboxkrnl {
 using namespace rex::runtime;
@@ -1446,6 +1449,17 @@ void ExReleaseReadWriteLock_entry(GuestPtrT<X_ERWLOCK> lock_ptr) {
   KeSetEvent(lock_ptr.GetGuestAddress() + offsetof(X_ERWLOCK, writer_event), 1, 0);
 }
 
+namespace {
+
+bool SListCompareExchange(GuestPtrT<X_SLIST_HEADER> plist_ptr, const X_SLIST_HEADER& expected,
+                          const X_SLIST_HEADER& desired) {
+  std::atomic_ref<u64> header(*reinterpret_cast<u64*>(plist_ptr.GetHostAddress()));
+  u64 compare = std::bit_cast<u64>(expected);
+  return header.compare_exchange_strong(compare, std::bit_cast<u64>(desired));
+}
+
+}  // namespace
+
 /**
  * Pushes an entry onto an interlocked singly linked list. Titles commonly inline this function.
  *
@@ -1469,8 +1483,7 @@ u32 InterlockedPushEntrySList_entry(GuestPtrT<X_SLIST_HEADER> plist_ptr,
     old_head = old_hdr.next.next;
     entry->next = old_hdr.next.next;
     new_hdr.next.next = entry.GetGuestAddress();
-  } while (!rex::platform::atomic_cas(std::bit_cast<u64>(old_hdr), std::bit_cast<u64>(new_hdr),
-                                      reinterpret_cast<u64*>(plist_ptr.GetHostAddress())));
+  } while (!SListCompareExchange(plist_ptr, old_hdr, new_hdr));
 
   return old_head;
 }
@@ -1493,8 +1506,7 @@ u32 InterlockedPopEntrySList_entry(GuestPtrT<X_SLIST_HEADER> plist_ptr) {
     new_hdr.depth = old_hdr.depth - 1;
     new_hdr.next.next = next->next;
     new_hdr.sequence = old_hdr.sequence;
-  } while (!rex::platform::atomic_cas(std::bit_cast<u64>(old_hdr), std::bit_cast<u64>(new_hdr),
-                                      reinterpret_cast<u64*>(plist_ptr.GetHostAddress())));
+  } while (!SListCompareExchange(plist_ptr, old_hdr, new_hdr));
 
   return popped;
 }
@@ -1511,8 +1523,7 @@ u32 InterlockedFlushSList_entry(GuestPtrT<X_SLIST_HEADER> plist_ptr) {
     new_hdr.next.next = 0;
     new_hdr.depth = 0;
     new_hdr.sequence = 0;
-  } while (!rex::platform::atomic_cas(std::bit_cast<u64>(old_hdr), std::bit_cast<u64>(new_hdr),
-                                      reinterpret_cast<u64*>(plist_ptr.GetHostAddress())));
+  } while (!SListCompareExchange(plist_ptr, old_hdr, new_hdr));
 
   return first;
 }

@@ -11,7 +11,7 @@
 #include <array>
 #include <memory>
 
-#include "hid/common/module_base.h"
+#include "hid/module_base.h"
 #include "hid/xinput/xinput_driver.h"
 
 namespace rex::hid::xinput {

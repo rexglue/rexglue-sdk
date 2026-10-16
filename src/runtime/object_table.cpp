@@ -17,7 +17,7 @@
 #include <string>
 
 #include <rex/assert.h>
-#include <rex/logging.h>
+#include <rex/logging/log.h>
 #include <rex/no_throw.h>
 #include <rex/runtime/error.h>
 #include <rex/runtime/event_object.h>

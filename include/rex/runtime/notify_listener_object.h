@@ -16,8 +16,10 @@
 #include <utility>
 #include <vector>
 
+#include <rex/platform.h>
+#include <rex/types.h>
 #include <rex/assert.h>
-#include <rex/macros.h>
+#include <rex/export.h>
 #include <rex/platform/thread.h>
 #include <rex/runtime/xcontent.h>
 #include <rex/runtime/object.h>

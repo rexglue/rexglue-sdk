@@ -10,11 +10,11 @@
  */
 
 #include <algorithm>
+#include <atomic>
 
 #include <rex/assert.h>
 #include <rex/bit.h>
 #include <rex/math.h>
-#include <rex/platform/atomic.h>
 
 namespace rex {
 
@@ -50,7 +50,7 @@ size_t BitMap::Acquire() {
       REX_ASSERT((entry & bit) != 0);
 
       acquired_idx = index;
-    } while (!platform::atomic_cas(entry, new_entry, &data_[i]));
+    } while (!std::atomic_ref<u64>(data_[i]).compare_exchange_strong(entry, new_entry));
 
     if (acquired_idx != -1) {
       return (i * kDataSizeBits) + acquired_idx;
@@ -73,7 +73,7 @@ void BitMap::Release(size_t index) {
     REX_ASSERT((entry & bit) == 0);
 
     new_entry = entry | bit;
-  } while (!platform::atomic_cas(entry, new_entry, &data_[slot]));
+  } while (!std::atomic_ref<u64>(data_[slot]).compare_exchange_strong(entry, new_entry));
 }
 
 void BitMap::Resize(size_t new_size_bits) {

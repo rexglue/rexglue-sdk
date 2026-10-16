@@ -28,7 +28,9 @@
 #include <rex/assert.h>
 #include <rex/cvar.h>
 #include <rex/dbg.h>
-#include <rex/logging.h>
+#include <rex/bit.h>
+#include <rex/fail.h>
+#include <rex/logging/log.h>
 #include <rex/math.h>
 #include "gpu/xenos/shared_cvars.h"
 #include "gpu/xenos/draw_state.h"
@@ -5429,7 +5431,7 @@ void VulkanCommandProcessor::UpdateDynamicState(
         regs.Get<f32>(xenos::Register::RB_BLEND_ALPHA),
     };
     dynamic_blend_constants_update_needed_ |=
-        !draw_state::AreBitsEqual(dynamic_blend_constants_, blend_constants);
+        !AreBitsEqual(dynamic_blend_constants_, blend_constants);
     if (dynamic_blend_constants_update_needed_) {
       std::memcpy(dynamic_blend_constants_, blend_constants, sizeof(f32) * 4);
       deferred_command_buffer_.CmdVkSetBlendConstants(dynamic_blend_constants_);
@@ -5756,8 +5758,7 @@ void VulkanCommandProcessor::UpdateSystemConstantValues(
           regs.Get<f32>(user_clip_plane_reg + 2),
           regs.Get<f32>(user_clip_plane_reg + 3),
       };
-      if (!draw_state::AreBitsEqual(std::span<const f32>(user_clip_plane_write_ptr, 4),
-                                    user_clip_plane_regs)) {
+      if (!AreBitsEqual(std::span<const f32>(user_clip_plane_write_ptr, 4), user_clip_plane_regs)) {
         dirty = true;
         std::ranges::copy(user_clip_plane_regs, user_clip_plane_write_ptr);
       }
@@ -5904,7 +5905,7 @@ void VulkanCommandProcessor::UpdateSystemConstantValues(
         dirty |= system_constants_.edram_rt_blend_factors_ops[i] != blend_factors_ops;
         system_constants_.edram_rt_blend_factors_ops[i] = blend_factors_ops;
         // Float comparisons are avoided because NaN would always set the dirty flag.
-        dirty |= !draw_state::AreBitsEqual(system_constants_.edram_rt_clamp[i], rt_clamp[i]);
+        dirty |= !AreBitsEqual(system_constants_.edram_rt_clamp[i], rt_clamp[i]);
         std::ranges::copy(rt_clamp[i], system_constants_.edram_rt_clamp[i]);
       }
     }

@@ -16,10 +16,11 @@
 #include <span>
 #include <vector>
 
-#include <rex/macros.h>
+#include <rex/platform.h>
 #include <rex/result.h>
 #include <rex/runtime/achievement_info.h>
 #include <rex/types.h>
+#include <rex/module.h>
 
 namespace rex::runtime {
 
@@ -48,11 +49,8 @@ using AchievementListenerHandle = u64;
 using AchievementCallback = std::function<void(const AchievementEvent&)>;
 
 /** The achievement catalog, unlock persistence and unlock events of the running title. */
-class IAchievementManager {
+REX_INTERFACE(IAchievementManager, "rex.runtime.achievement_manager", 1)
  public:
-  REX_INTERFACE(IAchievementManager, "rex.runtime.achievement_manager", 1);
-  virtual ~IAchievementManager() = default;
-
   /**
    * Adds an achievement or replaces the one with the same id.
    *

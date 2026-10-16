@@ -16,9 +16,10 @@
 
 #include <rex/platform/exceptions.h>
 #include <rex/dbg.h>
-#include <rex/logging.h>
+#include <rex/logging/log.h>
 #include <rex/hook.h>
-#include <rex/kernel/shim/define.h>
+#include <rex/kernel/shim/function.h>
+#include <rex/runtime/thread_registry.h>
 #include <rex/types.h>
 #include <rex/runtime/function_dispatcher.h>
 #include <rex/runtime.h>

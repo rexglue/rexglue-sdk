@@ -17,16 +17,18 @@
 #include <string_view>
 #include <vector>
 
+#include <rex/platform.h>
 #include <rex/gpu/overlay.h>
 #include <rex/gpu/presenter.h>
-#include <rex/macros.h>
 #include <rex/result.h>
 #include <rex/types.h>
 #include <rex/ui.h>
 #include <rex/ui/overlay.h>
 #include <rex/ui/style.h>
 #include <rex/ui/ui_event.h>
+#include <rex/ui/display_mode.h>
 #include <rex/move_only_function.h>
+#include <rex/module.h>
 
 struct ImFontAtlas;
 struct ImGuiIO;
@@ -183,16 +185,6 @@ struct FrameStats {
   u64 frame_count = 0;
 };
 
-/** The display mode the title queries through VdQueryVideoMode and XGetVideoMode. */
-struct VideoMode {
-  /** Width in pixels. */
-  u32 width = 1280;
-  /** Height in pixels. */
-  u32 height = 720;
-  /** Refresh rate in hertz. */
-  f32 refresh_rate = 60.0f;
-};
-
 /** Receives every window and input event. Returns true when it consumed the event. */
 using EventCallback = rex::MoveOnlyFunction<bool(const UIEvent&)>;
 
@@ -200,10 +192,8 @@ using EventCallback = rex::MoveOnlyFunction<bool(const UIEvent&)>;
 using FrameStatsProvider = rex::MoveOnlyFunction<FrameStats()>;
 
 /** A window the ui provider opened. Every method runs on the UI thread. */
-class IWindow {
+REX_INTERFACE(IWindow)
  public:
-  virtual ~IWindow() = default;
-
   /**
    * Sets the window title. Runs on the UI thread.
    *
@@ -301,12 +291,8 @@ class IWindow {
 };
 
 /** The ui service, served as rex.ui by a ui module. */
-class IUserInterface {
+REX_INTERFACE(IUserInterface, "rex.ui", 1)
  public:
-  REX_INTERFACE(IUserInterface, "rex.ui", 1);
-
-  virtual ~IUserInterface() = default;
-
   /**
    * Opens the title window. Runs on the UI thread.
    *

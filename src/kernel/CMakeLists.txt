@@ -55,6 +55,7 @@ set(REXKERNEL_SOURCES
     xboxkrnl/xboxkrnl_usbcam.cpp
     xboxkrnl/xboxkrnl_video.cpp
     xboxkrnl/xboxkrnl_xconfig.cpp
+    xboxkrnl/loaded_command_line.cpp
     xboxkrnl/xboxkrnl_audio.cpp
     xboxkrnl/xboxkrnl_audio_xma.cpp
 

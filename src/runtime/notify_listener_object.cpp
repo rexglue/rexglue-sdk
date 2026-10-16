@@ -12,7 +12,7 @@
 #include <rex/runtime/notify_listener_object.h>
 
 #include <rex/assert.h>
-#include <rex/logging.h>
+#include <rex/logging/log.h>
 
 namespace rex::runtime {
 

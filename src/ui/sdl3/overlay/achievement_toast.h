@@ -15,8 +15,9 @@
 #include <deque>
 #include <mutex>
 #include <optional>
+#include <rex/platform.h>
+#include <rex/types.h>
 #include <rex/gpu/overlay.h>
-#include <rex/macros.h>
 #include "ui/sdl3/overlay/achievement_notification.h"
 #include "ui/sdl3/overlay/achievement_icon_cache.h"
 

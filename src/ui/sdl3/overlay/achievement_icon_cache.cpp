@@ -7,6 +7,7 @@
 #include <vector>
 
 #include <rex/runtime.h>
+#include <rex/runtime/content_manager.h>
 #include <rex/runtime/xdbf.h>
 #include "ui/sdl3/image_decode.h"
 

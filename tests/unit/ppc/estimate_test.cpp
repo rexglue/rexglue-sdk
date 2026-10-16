@@ -166,78 +166,86 @@ void CheckScalar(std::span<const EstimateCase64> cases) {
 
 }  // namespace
 
-REX_TEST_CASE("Fres matches the sampled results", "[ppc][estimate]") {
-  CheckScalar<rex::ppc::Fres>(kFresCases);
+REX_TEST_CASE("scalar ReciprocalEstimate matches the sampled results", "[ppc][estimate]") {
+  CheckScalar<rex::ppc::ReciprocalEstimate>(kScalarReciprocalCases);
 }
 
-REX_TEST_CASE("Frsqrte matches the sampled results", "[ppc][estimate]") {
-  CheckScalar<rex::ppc::Frsqrte>(kFrsqrteCases);
+REX_TEST_CASE("scalar ReciprocalSqrtEstimate matches the sampled results", "[ppc][estimate]") {
+  CheckScalar<rex::ppc::ReciprocalSqrtEstimate>(kScalarReciprocalSqrtCases);
 }
 
-REX_TEST_CASE("Vrefp matches the sampled results", "[ppc][estimate]") {
-  CheckVector<rex::ppc::Vrefp>(kVrefpCases);
+REX_TEST_CASE("simd ReciprocalEstimate matches the sampled results", "[ppc][estimate]") {
+  CheckVector<rex::ppc::simd::ReciprocalEstimate>(kReciprocalEstimateCases);
 }
 
-REX_TEST_CASE("Vrsqrtefp matches the sampled results", "[ppc][estimate]") {
-  CheckVector<rex::ppc::Vrsqrtefp>(kVrsqrtefpCases);
+REX_TEST_CASE("simd ReciprocalSqrtEstimate matches the sampled results", "[ppc][estimate]") {
+  CheckVector<rex::ppc::simd::ReciprocalSqrtEstimate>(kReciprocalSqrtEstimateCases);
 }
 
-REX_TEST_CASE("Vlogefp matches the sampled results", "[ppc][estimate]") {
-  CheckVector<rex::ppc::Vlogefp>(kVlogefpCases);
+REX_TEST_CASE("simd Log2Estimate matches the sampled results", "[ppc][estimate]") {
+  CheckVector<rex::ppc::simd::Log2Estimate>(kLog2EstimateCases);
 }
 
-REX_TEST_CASE("Vexptefp matches the sampled results", "[ppc][estimate]") {
-  CheckVector<rex::ppc::Vexptefp>(kVexptefpCases);
+REX_TEST_CASE("simd Exp2Estimate matches the sampled results", "[ppc][estimate]") {
+  CheckVector<rex::ppc::simd::Exp2Estimate>(kExp2EstimateCases);
 }
 
-REX_TEST_CASE("Vrefp keeps each lane apart in a mixed vector", "[ppc][estimate]") {
-  CheckMixed<rex::ppc::Vrefp>(kVrefpCases);
-}
-
-REX_TEST_CASE("Vrsqrtefp keeps each lane apart in a mixed vector", "[ppc][estimate]") {
-  CheckMixed<rex::ppc::Vrsqrtefp>(kVrsqrtefpCases);
-}
-
-REX_TEST_CASE("Vlogefp keeps each lane apart in a mixed vector", "[ppc][estimate]") {
-  CheckMixed<rex::ppc::Vlogefp>(kVlogefpCases);
-}
-
-REX_TEST_CASE("Vexptefp keeps each lane apart in a mixed vector", "[ppc][estimate]") {
-  CheckMixed<rex::ppc::Vexptefp>(kVexptefpCases);
-}
-
-REX_TEST_CASE("Vrefp matches the sampled results when every lane is regular", "[ppc][estimate]") {
-  CheckRegular<rex::ppc::Vrefp>(kVrefpCases);
-}
-
-REX_TEST_CASE("Vrefp matches each sampled result in each lane position", "[ppc][estimate]") {
-  CheckEachLane<rex::ppc::Vrefp>(kVrefpCases);
-}
-
-REX_TEST_CASE("Vrsqrtefp matches the sampled results when every lane is regular",
+REX_TEST_CASE("simd ReciprocalEstimate keeps each lane apart in a mixed vector",
               "[ppc][estimate]") {
-  CheckRegular<rex::ppc::Vrsqrtefp>(kVrsqrtefpCases);
+  CheckMixed<rex::ppc::simd::ReciprocalEstimate>(kReciprocalEstimateCases);
 }
 
-REX_TEST_CASE("Vrsqrtefp matches each sampled result in each lane position", "[ppc][estimate]") {
-  CheckEachLane<rex::ppc::Vrsqrtefp>(kVrsqrtefpCases);
-}
-
-REX_TEST_CASE("Vlogefp matches the sampled results when every lane is regular", "[ppc][estimate]") {
-  CheckRegular<rex::ppc::Vlogefp>(kVlogefpCases);
-}
-
-REX_TEST_CASE("Vlogefp matches each sampled result in each lane position", "[ppc][estimate]") {
-  CheckEachLane<rex::ppc::Vlogefp>(kVlogefpCases);
-}
-
-REX_TEST_CASE("Vexptefp matches the sampled results when every lane is regular",
+REX_TEST_CASE("simd ReciprocalSqrtEstimate keeps each lane apart in a mixed vector",
               "[ppc][estimate]") {
-  CheckRegular<rex::ppc::Vexptefp>(kVexptefpCases);
+  CheckMixed<rex::ppc::simd::ReciprocalSqrtEstimate>(kReciprocalSqrtEstimateCases);
 }
 
-REX_TEST_CASE("Vexptefp matches each sampled result in each lane position", "[ppc][estimate]") {
-  CheckEachLane<rex::ppc::Vexptefp>(kVexptefpCases);
+REX_TEST_CASE("simd Log2Estimate keeps each lane apart in a mixed vector", "[ppc][estimate]") {
+  CheckMixed<rex::ppc::simd::Log2Estimate>(kLog2EstimateCases);
+}
+
+REX_TEST_CASE("simd Exp2Estimate keeps each lane apart in a mixed vector", "[ppc][estimate]") {
+  CheckMixed<rex::ppc::simd::Exp2Estimate>(kExp2EstimateCases);
+}
+
+REX_TEST_CASE("simd ReciprocalEstimate matches the sampled results when every lane is regular",
+              "[ppc][estimate]") {
+  CheckRegular<rex::ppc::simd::ReciprocalEstimate>(kReciprocalEstimateCases);
+}
+
+REX_TEST_CASE("simd ReciprocalEstimate matches each sampled result in each lane position",
+              "[ppc][estimate]") {
+  CheckEachLane<rex::ppc::simd::ReciprocalEstimate>(kReciprocalEstimateCases);
+}
+
+REX_TEST_CASE("simd ReciprocalSqrtEstimate matches the sampled results when every lane is regular",
+              "[ppc][estimate]") {
+  CheckRegular<rex::ppc::simd::ReciprocalSqrtEstimate>(kReciprocalSqrtEstimateCases);
+}
+
+REX_TEST_CASE("simd ReciprocalSqrtEstimate matches each sampled result in each lane position",
+              "[ppc][estimate]") {
+  CheckEachLane<rex::ppc::simd::ReciprocalSqrtEstimate>(kReciprocalSqrtEstimateCases);
+}
+
+REX_TEST_CASE("simd Log2Estimate matches the sampled results when every lane is regular",
+              "[ppc][estimate]") {
+  CheckRegular<rex::ppc::simd::Log2Estimate>(kLog2EstimateCases);
+}
+
+REX_TEST_CASE("simd Log2Estimate matches each sampled result in each lane position",
+              "[ppc][estimate]") {
+  CheckEachLane<rex::ppc::simd::Log2Estimate>(kLog2EstimateCases);
+}
+
+REX_TEST_CASE("simd Exp2Estimate matches the sampled results when every lane is regular",
+              "[ppc][estimate]") {
+  CheckRegular<rex::ppc::simd::Exp2Estimate>(kExp2EstimateCases);
+}
+
+REX_TEST_CASE("simd Exp2Estimate matches each sampled result in each lane position",
+              "[ppc][estimate]") {
+  CheckEachLane<rex::ppc::simd::Exp2Estimate>(kExp2EstimateCases);
 }
 
 REX_TEST_CASE("The vector estimates take a denormal operand at its value when VSCR NJ is clear",
@@ -252,16 +260,16 @@ REX_TEST_CASE("The vector estimates take a denormal operand at its value when VS
     simde__m128 result;
     switch (expected.family) {
       case 0:
-        result = rex::ppc::Vrefp(in, false);
+        result = rex::ppc::simd::ReciprocalEstimate(in, false);
         break;
       case 1:
-        result = rex::ppc::Vrsqrtefp(in, false);
+        result = rex::ppc::simd::ReciprocalSqrtEstimate(in, false);
         break;
       case 2:
-        result = rex::ppc::Vlogefp(in, false);
+        result = rex::ppc::simd::Log2Estimate(in, false);
         break;
       default:
-        result = rex::ppc::Vexptefp(in, false);
+        result = rex::ppc::simd::Exp2Estimate(in, false);
         break;
     }
     simde_mm_store_si128(reinterpret_cast<simde__m128i*>(host.data()),

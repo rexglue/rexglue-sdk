@@ -9,7 +9,8 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-#include <rex/logging.h>
+#include <rex/logging/log.h>
+#include "gpu/xenos/host/library_names.h"
 #include "gpu/xenos/host/renderdoc_api.h"
 
 namespace rex {
@@ -23,7 +24,7 @@ std::unique_ptr<RenderDocAPI> RenderDocAPI::CreateIfConnected() {
 
   pRENDERDOC_GetAPI get_api = nullptr;
 
-  if (!renderdoc_api->library_.Attach(platform::kRenderDoc)) {
+  if (!renderdoc_api->library_.Attach(kRenderDoc)) {
     return nullptr;
   }
   get_api = renderdoc_api->library_.GetSymbol<pRENDERDOC_GetAPI>("RENDERDOC_GetAPI");

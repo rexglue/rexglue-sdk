@@ -2,8 +2,9 @@
 
 #include <format>
 
+#include <rex/types.h>
 #include <rex/filesystem/error.h>
-#include <rex/macros.h>
+#include <rex/result.h>
 #include <rex/math.h>
 #include <rex/string.h>
 

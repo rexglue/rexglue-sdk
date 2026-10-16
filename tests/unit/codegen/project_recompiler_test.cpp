@@ -23,7 +23,9 @@
 #include <rex/codegen/manifest.h>
 #include <rex/codegen/project_recompiler.h>
 #include <rex/filesystem/xex.h>
-#include <rex/logging.h>
+#include <rex/logging/config.h>
+#include <rex/logging/logger.h>
+#include <rex/logging/log.h>
 
 #include "core/xex_builder.h"
 #include "pe/pe_image.h"

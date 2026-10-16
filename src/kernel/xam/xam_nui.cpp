@@ -10,7 +10,7 @@
  */
 
 #include <rex/api.h>
-#include <rex/logging.h>
+#include <rex/logging/log.h>
 #include <rex/hook.h>
 #include <rex/runtime.h>
 

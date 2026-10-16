@@ -1,9 +1,11 @@
+#include <rex/logging/flush.h>
 #include <rex/runtime/module_import.h>
 
 #include <mutex>
 
 #include <rex/assert.h>
-#include <rex/logging.h>
+#include <rex/fail.h>
+#include <rex/logging/log.h>
 #include <rex/runtime.h>
 
 #include "runtime/module_registry.h"

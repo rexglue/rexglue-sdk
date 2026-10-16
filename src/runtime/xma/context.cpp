@@ -21,7 +21,8 @@
 #include "runtime/xma/decoder.h"
 #include "runtime/xma/helpers.h"
 #include <rex/dbg.h>
-#include <rex/logging.h>
+#include <rex/fail.h>
+#include <rex/logging/log.h>
 #include <rex/memory/ring_buffer.h>
 #include <rex/platform.h>
 #include <rex/stream.h>

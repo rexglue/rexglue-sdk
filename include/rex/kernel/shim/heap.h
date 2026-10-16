@@ -14,7 +14,8 @@
 #include <mutex>
 #include <vector>
 
-#include <rex/macros.h>
+#include <rex/platform.h>
+#include <rex/export.h>
 #include <rex/types.h>
 
 struct O1HeapInstance;

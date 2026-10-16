@@ -10,7 +10,8 @@
 #include <format>
 
 #include <rex/kernel/xboxkrnl/threading.h>
-#include <rex/logging.h>
+#include <rex/fail.h>
+#include <rex/logging/log.h>
 #include <rex/math.h>
 #include <rex/runtime.h>
 #include <rex/runtime/error.h>

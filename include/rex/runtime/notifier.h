@@ -10,19 +10,17 @@
 
 #pragma once
 
-#include <rex/macros.h>
+#include <rex/platform.h>
 #include <rex/runtime/xcontent.h>
 #include <rex/runtime/xtypes.h>
 #include <rex/types.h>
+#include <rex/module.h>
 
 namespace rex::runtime {
 
 /** Delivers system notifications to the notify listeners titles create. */
-class INotifier {
+REX_INTERFACE(INotifier, "rex.runtime.notifier", 1)
  public:
-  REX_INTERFACE(INotifier, "rex.runtime.notifier", 1);
-  virtual ~INotifier() = default;
-
   /**
    * Registers a notify listener. The notifier keeps its own duplicate of the handle, and the first
    * listener with the system mask receives the startup notifications.

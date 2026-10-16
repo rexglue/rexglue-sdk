@@ -19,7 +19,8 @@
 #include <rex/api.h>
 #include <rex/cvar.h>
 #include "gpu/xenos/graphics_system.h"
-#include <rex/logging.h>
+#include <rex/logging/logger.h>
+#include <rex/logging/log.h>
 #include <rex/module.h>
 #include <rex/platform.h>
 

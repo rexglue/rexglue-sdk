@@ -465,3 +465,33 @@ REX_TEST_CASE("cvar and log category descriptors construct without throwing", "[
   STATIC_REQUIRE(noexcept(rex::cvar::Var<bool>("a.b"sv, true, "d"sv).SetRange(0, 1)));
   STATIC_REQUIRE(noexcept(rex::log::Category("a"sv, "d"sv)));
 }
+
+namespace {
+
+rex::cvar::Desc IntegerDesc(rex::cvar::Type type) {
+  rex::cvar::Desc desc;
+  desc.name = "test.value";
+  desc.type = type;
+  return desc;
+}
+
+}  // namespace
+
+REX_TEST_CASE("an Int64 cvar beyond 32 bits survives an edit round trip", "[core][cvar]") {
+  const std::string text = std::to_string(i64{1} << 40);
+  CHECK(rex::cvar::ClampIntegerCvarText(IntegerDesc(rex::cvar::Type::kInt64), text) == text);
+}
+
+REX_TEST_CASE("a UInt64 cvar beyond 32 bits survives an edit round trip", "[core][cvar]") {
+  const std::string text = std::to_string(u64{1} << 40);
+  CHECK(rex::cvar::ClampIntegerCvarText(IntegerDesc(rex::cvar::Type::kUInt64), text) == text);
+}
+
+REX_TEST_CASE("an integer cvar clamps to its constraints", "[core][cvar]") {
+  rex::cvar::Desc desc = IntegerDesc(rex::cvar::Type::kInt64);
+  desc.constraints.min = 2.0;
+  desc.constraints.max = 8.0;
+  CHECK(rex::cvar::ClampIntegerCvarText(desc, "1") == "2");
+  CHECK(rex::cvar::ClampIntegerCvarText(desc, "9") == "8");
+  CHECK(rex::cvar::ClampIntegerCvarText(desc, "5") == "5");
+}

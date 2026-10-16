@@ -14,7 +14,8 @@
 #include <utility>
 
 #include <rex/assert.h>
-#include <rex/logging.h>
+#include <rex/fail.h>
+#include <rex/logging/log.h>
 #include "gpu/xenos/host/vulkan/linked_type_descriptor_set_allocator.h"
 #include "gpu/xenos/host/vulkan/objects.h"
 

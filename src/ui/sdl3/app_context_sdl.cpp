@@ -6,7 +6,8 @@
 
 #include <SDL3/SDL.h>
 
-#include <rex/logging.h>
+#include <rex/fail.h>
+#include <rex/logging/log.h>
 #include <rex/platform.h>
 #include "ui/sdl3/window_sdl.h"
 

@@ -19,19 +19,19 @@
 #include <string>
 #include <vector>
 
+#include <rex/platform.h>
 #include <rex/logging/format.h>
 #include <rex/logging/level.h>
-#include <rex/macros.h>
+#include <rex/export.h>
 #include <rex/result.h>
 #include <rex/types.h>
+#include <rex/module.h>
 
 namespace rex::log {
 
 /** Receives every written message. The logger calls it under its sink mutex, never concurrently. */
-class ISink {
+REX_INTERFACE(ISink)
  public:
-  virtual ~ISink() = default;
-
   /**
    * Writes a message.
    *
@@ -111,7 +111,7 @@ class REX_API DebuggerSink final : public ISink {
  * A log file. Writes a 1 letter level column (T, V, D, I, W, E, C) after the timestamp, because a
  * file has no color.
  */
-class REX_API FileSink final : public ISink, public NonCopyable {
+class REX_API FileSink final : public ISink {
  public:
   /**
    * Opens a file for appending.

@@ -11,7 +11,8 @@
 
 #include <optional>
 
-#include <rex/macros.h>
+#include <rex/types.h>
+#include <rex/platform.h>
 #include <rex/runtime/achievement_manager.h>
 #include <rex/ui/imgui_dialog.h>
 #include "ui/sdl3/overlay/achievement_icon_cache.h"

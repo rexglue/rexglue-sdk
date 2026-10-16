@@ -4,10 +4,11 @@
 #include <chrono>
 
 #include <rex/chrono/clock.h>
-#include <rex/logging.h>
+#include <rex/logging/log.h>
 #include <rex/platform/thread.h>
 #include <rex/runtime.h>
 #include <rex/runtime/function_dispatcher.h>
+#include <rex/runtime/object_table.h>
 #include <rex/runtime/thread_registry.h>
 #include <rex/runtime/xmemory.h>
 #include <rex/runtime/object.h>

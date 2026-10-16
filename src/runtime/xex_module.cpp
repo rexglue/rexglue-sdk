@@ -17,12 +17,16 @@
 
 #include <format>
 
-#include <rex/logging.h>
+#include <rex/cvar.h>
+#include <rex/fail.h>
+#include <rex/logging/log.h>
 #include <rex/math.h>
 #include <rex/memory.h>
 #include <rex/runtime.h>
 #include <rex/runtime/exports.h>
 #include <rex/runtime/function_dispatcher.h>
+#include <rex/runtime/module_registry.h>
+#include <rex/runtime/object_table.h>
 #include <rex/runtime/xex_module.h>
 #include <rex/runtime/module_object.h>
 #include <rex/types.h>

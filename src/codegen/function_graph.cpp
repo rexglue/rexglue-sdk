@@ -19,8 +19,7 @@
 #include <rex/assert.h>
 #include <rex/codegen/binary_view.h>
 #include <rex/codegen/function_graph.h>
-#include <rex/codegen/function_scanner.h>
-#include <rex/logging.h>
+#include <rex/logging/log.h>
 #include <rex/memory/byte_swap.h>
 
 #include <dis-asm.h>

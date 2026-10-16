@@ -16,10 +16,10 @@
 #include <string>
 #include <string_view>
 
+#include <rex/platform.h>
 #include <rex/cvar.h>
 #include <rex/cvar/registry.h>
 #include <rex/hid/key_chord.h>
-#include <rex/macros.h>
 #include <rex/types.h>
 #include <rex/ui/ui_event.h>
 #include <rex/move_only_function.h>

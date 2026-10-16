@@ -6,7 +6,8 @@
 
 #include <rex/cvar.h>
 #include <rex/ui/video_mode.h>
-#include <rex/logging.h>
+#include <rex/fail.h>
+#include <rex/logging/log.h>
 #include <rex/platform.h>
 #include "ui/sdl3/sdl_virtual_key.h"
 

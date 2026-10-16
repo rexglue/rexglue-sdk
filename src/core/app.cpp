@@ -8,11 +8,12 @@
 #include <thread>
 
 #include <rex/platform/file.h>
-#include <rex/logging.h>
+#include <rex/logging/log.h>
 #include <rex/perf/counter.h>
 #include <rex/platform.h>
 #include <rex/platform/crash.h>
 #include <rex/platform/thread.h>
+#include <rex/string/utf8.h>
 #include <rex/move_only_function.h>
 
 #include "core/app_state.h"
@@ -21,6 +22,7 @@
 
 #if REX_PLATFORM_WIN32
 #include <windows.h>
+#include <shellapi.h>
 #include <timeapi.h>
 #else
 #include <pthread.h>
@@ -187,6 +189,22 @@ bool ShutdownRequested() {
 }
 
 namespace detail {
+
+#if REX_PLATFORM_WIN32
+CLIArgList GetWindowsCommandLine() {
+  i32 count = 0;
+  LPWSTR* wide = CommandLineToArgvW(GetCommandLineW(), &count);
+  if (!wide) {
+    return CLIArgList::Parse(std::span<const std::string>{});
+  }
+  std::vector<std::string> args;
+  for (i32 index = 1; index < count; ++index) {
+    args.push_back(rex::ToUTF8(reinterpret_cast<const char16_t*>(wide[index])));
+  }
+  LocalFree(static_cast<HLOCAL>(wide));
+  return CLIArgList::Parse(args);
+}
+#endif
 
 int ReportEntryFailure(const char* what) noexcept {
   std::fprintf(stderr, "unhandled exception, %s\n", what);

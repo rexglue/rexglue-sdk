@@ -7,7 +7,8 @@
 
 #include <rex/assert.h>
 #include <rex/dbg.h>
-#include <rex/logging.h>
+#include <rex/fail.h>
+#include <rex/logging/log.h>
 #include <rex/perf/counter.h>
 #include <rex/memory.h>
 #include <rex/ppc/context.h>

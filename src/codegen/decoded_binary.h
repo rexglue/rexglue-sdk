@@ -184,20 +184,7 @@ std::optional<T> DecodedBinary::Read(u32 addr) const {
   T value;
   std::memcpy(&value, data, sizeof(T));
 
-  if constexpr (sizeof(T) == 2) {
-    value = static_cast<T>((value >> 8) | (value << 8));
-  } else if constexpr (sizeof(T) == 4) {
-    value = static_cast<T>(((value >> 24) & 0xFF) | ((value >> 8) & 0xFF00) |
-                           ((value << 8) & 0xFF0000) | ((value << 24) & 0xFF000000));
-  } else if constexpr (sizeof(T) == 8) {
-    value = static_cast<T>(((value >> 56) & 0xFF) | ((value >> 40) & 0xFF00) |
-                           ((value >> 24) & 0xFF0000) | ((value >> 8) & 0xFF000000) |
-                           ((value << 8) & 0xFF00000000ULL) | ((value << 24) & 0xFF0000000000ULL) |
-                           ((value << 40) & 0xFF000000000000ULL) |
-                           ((value << 56) & 0xFF00000000000000ULL));
-  }
-
-  return value;
+  return rex::byte_swap(value);
 }
 
 /**

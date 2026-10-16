@@ -3,7 +3,7 @@
 #include <rex/api.h>
 #include <rex/cvar.h>
 #include <rex/hid/key_chord.h>
-#include <rex/logging.h>
+#include <rex/logging/log.h>
 #include <rex/string.h>
 #include <rex/string/numeric.h>
 #include <imgui.h>
@@ -24,32 +24,6 @@ SettingsDialog::SettingsDialog(const ModuleOverlayContext& context)
       config_path_(context.base.config.paths.config_file) {}
 
 SettingsDialog::~SettingsDialog() {}
-
-template <typename T, typename Wide>
-static std::string ClampIntegerText(const rex::cvar::Desc& desc, std::string_view text) {
-  Wide value = std::clamp<Wide>(rex::from_string<Wide>(text), std::numeric_limits<T>::min(),
-                                std::numeric_limits<T>::max());
-  if (desc.constraints.min && static_cast<f64>(value) < *desc.constraints.min) {
-    value = static_cast<Wide>(*desc.constraints.min);
-  }
-  if (desc.constraints.max && static_cast<f64>(value) > *desc.constraints.max) {
-    value = static_cast<Wide>(*desc.constraints.max);
-  }
-  return std::to_string(value);
-}
-
-std::string ClampIntegerCvarText(const rex::cvar::Desc& desc, std::string_view text) {
-  switch (desc.type) {
-    case rex::cvar::Type::kInt32:
-      return ClampIntegerText<i32, i64>(desc, text);
-    case rex::cvar::Type::kUInt32:
-      return ClampIntegerText<u32, u64>(desc, text);
-    case rex::cvar::Type::kUInt64:
-      return ClampIntegerText<u64, u64>(desc, text);
-    default:
-      return ClampIntegerText<i64, i64>(desc, text);
-  }
-}
 
 static void WarnIfFailed(std::string_view name, const Result<void>& status) {
   if (!status) {
@@ -482,14 +456,14 @@ void SettingsDialog::OnDraw(ImGuiIO& io) {
         if (desc.type == rex::cvar::Type::kUInt32 || desc.type == rex::cvar::Type::kUInt64) {
           u64 v = rex::from_string<u64>(current_val);
           if (ImGui::InputScalar("##v", ImGuiDataType_U64, &v)) {
-            WarnIfFailed(desc.name,
-                         registry_.Set(desc.name, ClampIntegerCvarText(desc, std::to_string(v))));
+            WarnIfFailed(desc.name, registry_.Set(desc.name, rex::cvar::ClampIntegerCvarText(
+                                                                 desc, std::to_string(v))));
           }
         } else {
           i64 v = rex::from_string<i64>(current_val);
           if (ImGui::InputScalar("##v", ImGuiDataType_S64, &v)) {
-            WarnIfFailed(desc.name,
-                         registry_.Set(desc.name, ClampIntegerCvarText(desc, std::to_string(v))));
+            WarnIfFailed(desc.name, registry_.Set(desc.name, rex::cvar::ClampIntegerCvarText(
+                                                                 desc, std::to_string(v))));
           }
         }
       } else if (desc.type == rex::cvar::Type::kDouble) {

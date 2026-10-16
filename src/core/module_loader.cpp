@@ -9,8 +9,10 @@
 
 #include <format>
 
+#include <rex/logging/logger.h>
 #include <rex/platform/file.h>
-#include <rex/logging.h>
+#include <rex/fail.h>
+#include <rex/logging/log.h>
 #include <rex/platform.h>
 #include <rex/platform/thread.h>
 

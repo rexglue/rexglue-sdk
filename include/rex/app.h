@@ -18,13 +18,18 @@
 #include <utility>
 #include <vector>
 
-#include <rex/macros.h>
+#include <rex/platform.h>
+#include <rex/export.h>
 #include <rex/api.h>
 #include <rex/cli_arg_list.h>
 #include <rex/platform/crash.h>
 #include <rex/platform/process.h>
 #include <rex/result.h>
 #include <rex/types.h>
+
+#if REX_PLATFORM_WIN32
+#include <windows.h>
+#endif
 
 namespace rex {
 
@@ -225,6 +230,15 @@ int RunGuarded(Fn&& fn) noexcept {
   }
 }
 
+#if REX_PLATFORM_WIN32
+/**
+ * Returns the process command line on Windows, where wWinMain receives no argv.
+ *
+ * @return The parsed arguments without the program name.
+ */
+REX_API CLIArgList GetWindowsCommandLine();
+#endif
+
 }  // namespace detail
 
 }  // namespace rex
@@ -254,9 +268,34 @@ int RunGuarded(Fn&& fn) noexcept {
     });                                                         \
   }
 
+#if REX_PLATFORM_WIN32
 /**
- * Defines main for a console app that calls its own lifecycle steps. The entry point parses
- * the command line, default constructs Class, and returns what Function returns.
+ * Defines main and wWinMain, both calling fn with the parsed command line. Used by REX_APP_MAIN and
+ * the title entry point macro.
+ *
+ * @param fn A function taking const rex::CLIArgList& and returning int.
+ *
+ * @code
+ * REX_DETAIL_ENTRY_POINTS(FooEntry)
+ * @endcode
+ */
+#define REX_DETAIL_ENTRY_POINTS(fn)                                                              \
+  int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {                                        \
+    return ::rex::detail::RunGuarded([] { return fn(::rex::detail::GetWindowsCommandLine()); }); \
+  }                                                                                              \
+  int main(int argc, char** argv) {                                                              \
+    return ::rex::detail::RunGuarded([&] { return fn(::rex::CLIArgList::Parse(argc, argv)); });  \
+  }
+#else
+#define REX_DETAIL_ENTRY_POINTS(fn)                                                             \
+  int main(int argc, char** argv) {                                                             \
+    return ::rex::detail::RunGuarded([&] { return fn(::rex::CLIArgList::Parse(argc, argv)); }); \
+  }
+#endif
+
+/**
+ * Defines main, and wWinMain on Windows, for an app that calls its own lifecycle steps. The entry
+ * point parses the command line, default constructs Class, and returns what Function returns.
  * An exception that escapes is printed to stderr and the exit code is 1.
  *
  * @param Class A default constructible class derived from rex::App.
@@ -269,13 +308,12 @@ int RunGuarded(Fn&& fn) noexcept {
  *   }
  *   return tool.Shutdown();
  * }
- * REX_CONSOLE_APP_MAIN(FooTool, FooToolMain)
+ * REX_APP_MAIN(FooTool, FooToolMain)
  * @endcode
  */
-#define REX_CONSOLE_APP_MAIN(Class, Function)                         \
-  int main(int argc, char** argv) {                                   \
-    return ::rex::detail::RunGuarded([&] {                            \
-      Class rex_app;                                                  \
-      return Function(rex_app, ::rex::CLIArgList::Parse(argc, argv)); \
-    });                                                               \
-  }
+#define REX_APP_MAIN(Class, Function)                     \
+  static int RexAppEntry(const ::rex::CLIArgList& args) { \
+    Class rex_app;                                        \
+    return Function(rex_app, args);                       \
+  }                                                       \
+  REX_DETAIL_ENTRY_POINTS(RexAppEntry)

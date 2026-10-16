@@ -10,9 +10,9 @@
 
 #include "rex_test.h"
 
-#include <rex/filesystem/xcontent.h>
+#include <rex/chrono/chrono.h>
 
-using rex::filesystem::DecodeFATTimestamp;
+using rex::DecodeFATTimestamp;
 
 REX_TEST_CASE("A FAT date and time decode to their FILETIME", "[core]") {
   CHECK(DecodeFATTimestamp(0x5D43, 0x645C) == 134355044960000000ull);

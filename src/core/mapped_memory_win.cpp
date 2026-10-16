@@ -17,7 +17,7 @@
 
 #include <format>
 
-#include <rex/logging.h>
+#include <rex/logging/log.h>
 #include <rex/math.h>
 #include <rex/memory/mapped_memory.h>
 #include <rex/memory/virtual_memory.h>

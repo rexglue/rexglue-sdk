@@ -19,13 +19,14 @@
 #include <thread>
 #include <vector>
 
+#include <rex/cvar.h>
 #include <rex/hid.h>
 #include <rex/move_only_function.h>
 
 #include "core/cvar_registry.h"
-#include "hid/common/cvar_table.h"
-#include "hid/common/hub.h"
-#include "hid/common/keyboard_mouse_driver.h"
+#include "hid/cvar_table.h"
+#include "hid/hub.h"
+#include "hid/keyboard_mouse_driver.h"
 
 using rex::hid::Hub;
 using rex::hid::InputEvent;

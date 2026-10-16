@@ -22,7 +22,7 @@
 #include <string_view>
 
 #include <rex/assert.h>
-#include <rex/macros.h>
+#include <rex/export.h>
 #include <rex/platform.h>
 #include <rex/platform/fiber.h>
 #include <rex/runtime/pin_count.h>

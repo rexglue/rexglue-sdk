@@ -1,3 +1,4 @@
+#include <rex/logging/flush.h>
 #include <rex/mmio.h>
 
 #include <atomic>
@@ -7,7 +8,8 @@
 #include <string_view>
 
 #include <rex/assert.h>
-#include <rex/logging.h>
+#include <rex/fail.h>
+#include <rex/logging/log.h>
 
 namespace rex {
 

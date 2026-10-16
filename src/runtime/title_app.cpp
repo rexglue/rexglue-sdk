@@ -2,6 +2,9 @@
  * @remarks     Derived from Xenia's ui/windowed_app (Ben Vanik, 2020).
  */
 
+#include <rex/runtime/content_manager.h>
+#include <rex/runtime/object_table.h>
+#include <rex/runtime/thread_registry.h>
 #include <rex/ui/title_app.h>
 
 #include <algorithm>
@@ -14,7 +17,7 @@
 #include <rex/gpu/backend_select.h>
 #include <rex/kernel/init.h>
 #include <rex/kernel/shim/heap.h>
-#include <rex/logging.h>
+#include <rex/logging/log.h>
 #include <rex/platform.h>
 #include <rex/platform/file.h>
 #include <rex/platform/thread.h>
@@ -37,20 +40,6 @@ namespace rex {
 namespace detail {
 
 #if REX_PLATFORM_WIN32
-CLIArgList GetWindowsCommandLine() {
-  i32 count = 0;
-  LPWSTR* wide = CommandLineToArgvW(GetCommandLineW(), &count);
-  if (!wide) {
-    return CLIArgList::Parse(std::span<const std::string>{});
-  }
-  std::vector<std::string> args;
-  for (i32 index = 1; index < count; ++index) {
-    args.push_back(rex::ToUTF8(reinterpret_cast<const char16_t*>(wide[index])));
-  }
-  LocalFree(static_cast<HLOCAL>(wide));
-  return CLIArgList::Parse(args);
-}
-
 bool InitializeCOM() {
   return SUCCEEDED(CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED));
 }

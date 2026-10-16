@@ -8,7 +8,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-#include <rex/apu/backend.h>
+#include <rex/apu.h>
 
 #include <chrono>
 

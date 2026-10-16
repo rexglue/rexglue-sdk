@@ -27,7 +27,9 @@
 #include <rex/api.h>
 #include <rex/cvar/registry.h>
 #include <rex/hid/key_chord.h>
-#include <rex/logging.h>
+#include <rex/logging/logger.h>
+#include <rex/logging/log.h>
+#include <rex/logging/sink.h>
 #include <rex/platform/thread.h>
 #include <rex/ui/imgui_dialog.h>
 #include <rex/ui/overlay.h>

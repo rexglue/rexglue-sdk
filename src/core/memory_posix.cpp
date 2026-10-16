@@ -36,7 +36,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-#include <rex/logging.h>
+#include <rex/logging/log.h>
 #include <rex/math.h>
 #include <rex/memory/virtual_memory.h>
 #include <rex/platform.h>

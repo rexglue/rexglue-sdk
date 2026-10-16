@@ -17,7 +17,7 @@
 #include <rex/dbg.h>
 #include <rex/xenos/texture_conversion.h>
 #include <rex/hash.h>
-#include <rex/logging.h>
+#include <rex/logging/log.h>
 #include <rex/math.h>
 #include <rex/memory.h>
 

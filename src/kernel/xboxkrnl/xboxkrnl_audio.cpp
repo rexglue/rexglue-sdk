@@ -10,8 +10,7 @@
  */
 
 #include <rex/runtime/xthread.h>
-#include <rex/kernel/xboxkrnl/private.h>
-#include <rex/logging.h>
+#include <rex/logging/log.h>
 #include <rex/hook.h>
 #include <rex/types.h>
 #include <rex/runtime.h>

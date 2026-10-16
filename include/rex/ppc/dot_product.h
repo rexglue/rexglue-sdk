@@ -19,7 +19,7 @@
 #include <rex/ppc/estimate.h>
 #include <rex/types.h>
 
-namespace rex::ppc {
+namespace rex::ppc::simd {
 
 namespace detail {
 
@@ -212,7 +212,7 @@ inline simde__m128 DotProductVector(simde__m128 a, simde__m128 b, bool flush) {
  * @param b The second operand.
  * @return The dot product in all 4 lanes.
  */
-[[nodiscard]] inline simde__m128 Vmsum3fp128(simde__m128 a, simde__m128 b) noexcept {
+[[nodiscard]] inline simde__m128 DotProduct3(simde__m128 a, simde__m128 b) noexcept {
   return detail::DotProductVector<3>(a, b, true);
 }
 
@@ -224,7 +224,7 @@ inline simde__m128 DotProductVector(simde__m128 a, simde__m128 b, bool flush) {
  * @param non_java The VSCR NJ bit. When clear a denormal operand keeps its value.
  * @return The dot product in all 4 lanes.
  */
-[[nodiscard]] inline simde__m128 Vmsum3fp128(simde__m128 a, simde__m128 b, bool non_java) noexcept {
+[[nodiscard]] inline simde__m128 DotProduct3(simde__m128 a, simde__m128 b, bool non_java) noexcept {
   return detail::DotProductVector<3>(a, b, non_java);
 }
 
@@ -235,7 +235,7 @@ inline simde__m128 DotProductVector(simde__m128 a, simde__m128 b, bool flush) {
  * @param b The second operand.
  * @return The dot product in all 4 lanes.
  */
-[[nodiscard]] inline simde__m128 Vmsum4fp128(simde__m128 a, simde__m128 b) noexcept {
+[[nodiscard]] inline simde__m128 DotProduct4(simde__m128 a, simde__m128 b) noexcept {
   return detail::DotProductVector<4>(a, b, true);
 }
 
@@ -247,8 +247,8 @@ inline simde__m128 DotProductVector(simde__m128 a, simde__m128 b, bool flush) {
  * @param non_java The VSCR NJ bit. When clear a denormal operand keeps its value.
  * @return The dot product in all 4 lanes.
  */
-[[nodiscard]] inline simde__m128 Vmsum4fp128(simde__m128 a, simde__m128 b, bool non_java) noexcept {
+[[nodiscard]] inline simde__m128 DotProduct4(simde__m128 a, simde__m128 b, bool non_java) noexcept {
   return detail::DotProductVector<4>(a, b, non_java);
 }
 
-}  // namespace rex::ppc
+}  // namespace rex::ppc::simd

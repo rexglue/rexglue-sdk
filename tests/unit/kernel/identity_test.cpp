@@ -11,6 +11,7 @@
 #include "rex_test.h"
 
 #include <rex/runtime.h>
+#include <rex/runtime/notifier.h>
 #include <rex/runtime/xtypes.h>
 
 #include "kernel_fixture.h"

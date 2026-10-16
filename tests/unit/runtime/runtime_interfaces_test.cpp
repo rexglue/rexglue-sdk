@@ -20,7 +20,12 @@
 
 #include <rex/api.h>
 #include <rex/runtime.h>
+#include <rex/runtime/achievement_manager.h>
+#include <rex/runtime/content_manager.h>
+#include <rex/runtime/dispatcher.h>
 #include <rex/runtime/function_dispatcher.h>
+#include <rex/runtime/module_registry.h>
+#include <rex/runtime/notifier.h>
 #include <rex/runtime/object_table.h>
 #include <rex/runtime/process.h>
 #include <rex/runtime/thread_registry.h>

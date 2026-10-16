@@ -26,7 +26,11 @@
 #include <vector>
 
 #include <rex/cvar.h>
-#include <rex/logging.h>
+#include <rex/logging/config.h>
+#include <rex/logging/format.h>
+#include <rex/logging/logger.h>
+#include <rex/logging/log.h>
+#include <rex/logging/sink.h>
 
 namespace rex::log {
 

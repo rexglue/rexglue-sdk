@@ -26,7 +26,7 @@
 namespace rexglue::ui {
 
 /** Per-module task-list view that implements rex::codegen::ProgressReporter. */
-class ProgressView final : public rex::codegen::ProgressReporter, public rex::NonCopyable {
+class ProgressView final : public rex::codegen::ProgressReporter {
  public:
   explicit ProgressView(std::string_view title);
   ~ProgressView() override;

@@ -14,7 +14,7 @@
 #include <string_view>
 #include <vector>
 
-#include <rex/runtime/xdbf.h>
+#include <rex/runtime/xdbf_reader.h>
 
 namespace {
 

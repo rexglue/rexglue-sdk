@@ -13,7 +13,7 @@
 
 #include <SDL3/SDL_hints.h>
 
-#include "hid/common/module_base.h"
+#include "hid/module_base.h"
 #include "hid/sdl3/sdl3_driver.h"
 
 namespace rex::hid::sdl3 {

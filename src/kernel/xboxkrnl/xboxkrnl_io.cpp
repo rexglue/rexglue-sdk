@@ -10,10 +10,10 @@
  */
 
 #include <rex/filesystem.h>
-#include <rex/kernel/xboxkrnl/private.h>
-#include <rex/logging.h>
+#include <rex/logging/log.h>
 #include <rex/memory.h>
 #include <rex/hook.h>
+#include <rex/runtime/object_table.h>
 #include <rex/types.h>
 #include <rex/runtime/info/file.h>
 #include <rex/runtime.h>
@@ -24,7 +24,9 @@
 #include <rex/runtime/symbolic_link_object.h>
 #include <rex/runtime/xthread.h>
 #include <rex/runtime/xtypes.h>
-#include "kernel/kernel_macros.h"
+#include "kernel/argument_check.h"
+#include "kernel/object_lookup.h"
+#include "kernel/stub_log.h"
 
 namespace rex::kernel::xboxkrnl {
 using namespace rex::runtime;

@@ -18,6 +18,7 @@
 #include <vector>
 
 #include <rex/api.h>
+#include <rex/cvar.h>
 #include <rex/platform/env.h>
 
 #include "core/cvar_registry.h"

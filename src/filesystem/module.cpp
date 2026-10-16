@@ -2,8 +2,9 @@
 
 #include <cstring>
 
-#include <rex/logging.h>
-#include <rex/macros.h>
+#include <rex/logging/log.h>
+#include <rex/module.h>
+#include <rex/result.h>
 
 REXLOG_TABLE(kFilesystemLog, filesystem)
 

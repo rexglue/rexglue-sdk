@@ -1,6 +1,5 @@
 #include "project_scan.h"
 #include "app_name.h"
-#include "template_io.h"
 
 #include <algorithm>
 #include <cctype>
@@ -13,7 +12,9 @@
 #include <format>
 #include <nlohmann/json.hpp>
 #include <rex/codegen/template_registry.h>
-#include <rex/logging.h>
+#include <rex/fail.h>
+#include <rex/logging/log.h>
+#include <rex/platform/file.h>
 
 namespace rexglue::cli {
 
@@ -52,14 +53,15 @@ bool RefreshGeneratedGlue(const fs::path& project_root, std::string_view project
   fs::path target = project_root / "generated" / "rexglue.cmake";
   std::string rendered = RenderRexglueCmake(project_name, sdk_version, entrypoint_out_dir);
 
-  std::error_code ec;
-  if (fs::exists(target, ec) && ReadFile(target) == rendered) {
+  if (auto existing = rex::platform::ReadHostFile(target);
+      existing && std::string_view(reinterpret_cast<const char*>(existing->data()),
+                                   existing->size()) == rendered) {
     return false;
   }
 
-  fs::create_directories(target.parent_path(), ec);
-  if (!WriteFileAtomic(target, rendered)) {
-    REX_FAIL(rexglue, false, "Failed to regenerate {}", target.string());
+  if (auto written = rex::platform::WriteHostFile(target, rendered); !written) {
+    REX_FAIL(rexglue, false, "Failed to regenerate {}: {}", target.string(),
+             written.error().message);
   }
   return true;
 }

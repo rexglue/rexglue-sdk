@@ -7,7 +7,7 @@
 #include <string>
 #include <utility>
 
-#include <rex/logging.h>
+#include <rex/logging/log.h>
 #include <rex/platform/file.h>
 #include <toml++/toml.hpp>
 
@@ -253,7 +253,7 @@ void AchievementManager::SaveUnlockState() const {
     content += std::format("[unlocked.{}]\nfiletime = {}\n\n", id, filetime);
   }
 
-  auto written = rex::platform::WriteWholeFile(
+  auto written = rex::platform::WriteHostFile(
       save_path, std::span(reinterpret_cast<const u8*>(content.data()), content.size()));
   if (!written) {
     REXLOG_WARN(system, "Achievement save: {}", written.error().message);

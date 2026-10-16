@@ -19,9 +19,9 @@
 #include <string_view>
 #include <vector>
 
+#include <rex/platform.h>
 #include <rex/logging/level.h>
 #include <rex/logging/sink.h>
-#include <rex/macros.h>
 #include <rex/types.h>
 
 namespace rex::cvar {

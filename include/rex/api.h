@@ -16,7 +16,8 @@
 #include <string_view>
 #include <vector>
 
-#include <rex/macros.h>
+#include <rex/platform.h>
+#include <rex/export.h>
 #include <rex/apu.h>
 #include <rex/cli_arg_list.h>
 #include <rex/cvar.h>

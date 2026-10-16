@@ -20,7 +20,7 @@
 namespace rex {
 namespace gpu {
 
-class REX_GPU_XENOS_API ImmediateDrawer : public gpu::IOverlayDrawer, public rex::NonCopyable {
+class REX_GPU_XENOS_API ImmediateDrawer : public gpu::IOverlayDrawer {
  public:
   virtual ~ImmediateDrawer() = default;
 

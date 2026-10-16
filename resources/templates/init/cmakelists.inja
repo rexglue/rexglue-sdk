@@ -18,7 +18,7 @@ set({{ names.upper_case }}_HOST_SOURCES
     src/{{ names.original }}_hooks.cpp
 )
 
-# OBJECT and never STATIC, an archive drops the REX_HOOK symbols.
+# OBJECT and never STATIC, an archive drops the REX_EXPORT symbols.
 add_library({{ names.original }}_common OBJECT {{ cmake_var(names.upper_case + "_HOST_SOURCES") }})
 rexglue_setup_host_library({{ names.original }}_common)
 

@@ -13,10 +13,10 @@
 #include <cctype>
 #include <cstring>
 
-#include <rex/logging.h>
+#include <rex/logging/log.h>
 #include <rex/memory/byte_swap.h>
 #include <rex/hook.h>
-#include <rex/runtime/format.h>
+#include <rex/kernel/xboxkrnl/format.h>
 
 using rex::runtime::ArrayArgList;
 using rex::runtime::FormatCore;

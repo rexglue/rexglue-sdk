@@ -3,10 +3,12 @@
 #include <format>
 
 #include <rex/codegen/codegen_context.h>
-#include <rex/logging.h>
+#include <rex/logging/log.h>
 
 #include <rex/runtime.h>
 #include <rex/runtime/module_object.h>
+#include <rex/runtime/module_registry.h>
+#include <rex/runtime/object_table.h>
 #include <rex/runtime/xex_module.h>
 
 namespace rex::codegen {

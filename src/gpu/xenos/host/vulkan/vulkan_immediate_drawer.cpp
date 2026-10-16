@@ -16,7 +16,8 @@
 #include <utility>
 
 #include <rex/assert.h>
-#include <rex/logging.h>
+#include <rex/fail.h>
+#include <rex/logging/log.h>
 #include <rex/no_throw.h>
 #include <rex/math.h>
 #include "gpu/xenos/host/vulkan/immediate_drawer.h"

@@ -1,7 +1,7 @@
 #include <limits>
 
 #include <rex/codegen/binary_view.h>
-#include <rex/logging.h>
+#include <rex/logging/log.h>
 
 #include <rex/runtime/binary_types.h>
 #include <rex/runtime/module.h>

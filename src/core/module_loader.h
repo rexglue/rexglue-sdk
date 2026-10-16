@@ -19,7 +19,8 @@
 #include <string_view>
 #include <vector>
 
-#include <rex/macros.h>
+#include <rex/platform.h>
+#include <rex/export.h>
 #include <rex/api.h>
 #include <rex/module.h>
 #include <rex/platform/dynlib.h>
@@ -60,7 +61,7 @@ REX_API std::filesystem::path ModuleFileName(std::string_view name);
  */
 REX_API u64 GetInterfaceRequestCount();
 
-class REX_API ModuleLoader final : public IInterfaceFactory, public NonCopyable {
+class REX_API ModuleLoader final : public IInterfaceFactory {
  public:
   static ModuleLoader& GetInstance();
 

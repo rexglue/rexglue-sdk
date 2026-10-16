@@ -15,8 +15,9 @@
 
 #include <imgui.h>
 
-#include <rex/macros.h>
+#include <rex/platform.h>
 #include <rex/types.h>
+#include <rex/module.h>
 #include "ui/sdl3/console/model.h"
 
 struct ImGuiInputTextCallbackData;
@@ -26,10 +27,8 @@ namespace rex::ui {
 struct ConsoleStyle;
 
 /** Dock changes a console view asks its owner for. The owner applies them after the frame. */
-class ConsoleHost {
+REX_INTERFACE(ConsoleHost)
  public:
-  virtual ~ConsoleHost() = default;
-
   /**
    * Reports whether the console can move to its own OS window.
    *

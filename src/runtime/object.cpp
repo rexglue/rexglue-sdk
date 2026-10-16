@@ -22,6 +22,8 @@
 #include <rex/runtime.h>
 #include <rex/runtime/object_data.h>
 #include <rex/runtime/kernel_string.h>
+#include <rex/runtime/object_table.h>
+#include <rex/runtime/thread_registry.h>
 #include <rex/runtime/workspace_heap.h>
 
 #include "runtime/thread_wait.h"

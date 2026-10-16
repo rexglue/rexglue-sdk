@@ -16,7 +16,7 @@
 #include <rex/ppc/saturation.h>
 #include <rex/types.h>
 
-namespace rex::ppc {
+namespace rex::ppc::simd {
 
 namespace detail {
 
@@ -166,4 +166,4 @@ inline u8 PackD3D(VRegister& dest, const VRegister& source) {
   return saturated;
 }
 
-}  // namespace rex::ppc
+}  // namespace rex::ppc::simd

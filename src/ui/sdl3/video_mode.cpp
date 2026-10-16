@@ -2,6 +2,7 @@
 
 #include <algorithm>
 
+#include <rex/cvar.h>
 #include <rex/ui/video_mode.h>
 
 #include "ui/sdl3/cvar_table.h"

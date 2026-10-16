@@ -12,7 +12,6 @@
  */
 
 #include <rex/kernel/xbdm/module.h>
-#include <rex/kernel/xbdm/private.h>
 #include <rex/runtime.h>
 
 namespace rex {

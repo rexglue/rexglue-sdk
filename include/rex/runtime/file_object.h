@@ -19,9 +19,11 @@
 #include <utility>
 #include <vector>
 
+#include <rex/platform.h>
+#include <rex/types.h>
 #include <rex/assert.h>
 #include <rex/filesystem.h>
-#include <rex/macros.h>
+#include <rex/export.h>
 #include <rex/platform/thread.h>
 #include <rex/result.h>
 #include <rex/runtime/error.h>

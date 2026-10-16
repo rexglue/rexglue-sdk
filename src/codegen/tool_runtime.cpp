@@ -6,8 +6,9 @@
 #include <rex/api.h>
 #include <rex/filesystem.h>
 #include <rex/kernel/init.h>
-#include <rex/macros.h>
+#include <rex/result.h>
 #include <rex/runtime.h>
+#include <rex/ui/user_interface.h>
 
 namespace rex::codegen {
 

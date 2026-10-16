@@ -18,7 +18,9 @@
 #include <string>
 #include <unordered_map>
 
-#include <rex/logging.h>
+#include <rex/chrono/chrono.h>
+#include <rex/fail.h>
+#include <rex/logging/log.h>
 #include <rex/math.h>
 
 namespace rex::filesystem::detail {

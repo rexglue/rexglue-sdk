@@ -13,8 +13,9 @@
 
 #include <cstdint>
 
+#include <rex/types.h>
 #include <rex/assert.h>
-#include <rex/macros.h>
+#include <rex/export.h>
 #include <rex/xenos/xenos.h>
 #include <rex/math.h>
 #include <rex/platform.h>

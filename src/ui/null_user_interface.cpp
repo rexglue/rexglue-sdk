@@ -3,7 +3,7 @@
 #include <chrono>
 #include <utility>
 
-#include <rex/logging.h>
+#include <rex/logging/log.h>
 #include <rex/move_only_function.h>
 
 namespace rex::ui {

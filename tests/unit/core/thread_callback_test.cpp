@@ -16,7 +16,8 @@
 #include <vector>
 
 #include <rex/api.h>
-#include <rex/logging.h>
+#include <rex/logging/logger.h>
+#include <rex/logging/log.h>
 #include <rex/logging/sink.h>
 #include <rex/platform/thread.h>
 

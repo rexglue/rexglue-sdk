@@ -13,7 +13,9 @@
 
 #include <string>
 
-#include <rex/macros.h>
+#include <rex/types.h>
+#include <rex/platform.h>
+#include <rex/export.h>
 #include <rex/ppc/function.h>
 #include <rex/runtime/module_object.h>
 #include <rex/runtime.h>

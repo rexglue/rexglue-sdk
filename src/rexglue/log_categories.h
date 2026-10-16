@@ -13,7 +13,7 @@
 
 #include <array>
 
-#include <rex/logging.h>
+#include <rex/logging/log.h>
 
 namespace rexglue {
 

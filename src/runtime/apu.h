@@ -16,8 +16,9 @@
 #include <memory>
 #include <mutex>
 
-#include <rex/apu/backend.h>
-#include <rex/macros.h>
+#include <rex/platform.h>
+#include <rex/apu.h>
+#include <rex/export.h>
 #include <rex/platform/lock_order.h>
 #include <rex/platform/thread.h>
 #include <rex/result.h>

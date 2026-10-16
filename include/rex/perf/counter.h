@@ -11,7 +11,8 @@
 
 #include <string>
 
-#include <rex/macros.h>
+#include <rex/platform.h>
+#include <rex/export.h>
 #include <rex/types.h>
 
 #ifdef REXGLUE_ENABLE_PROFILING

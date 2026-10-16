@@ -9,7 +9,7 @@
 
 #include <format>
 
-#include <rex/logging.h>
+#include <rex/logging/log.h>
 #include <rex/platform/console.h>
 
 namespace rexglue::ui {

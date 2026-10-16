@@ -8,7 +8,8 @@
  *              See LICENSE file in the project root for full license text.
  */
 #pragma once
-#include <rex/macros.h>
+#include <rex/platform.h>
+#include <rex/types.h>
 #include <rex/ui/imgui_dialog.h>
 #include <array>
 #include <cstdint>

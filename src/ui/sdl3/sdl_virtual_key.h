@@ -13,8 +13,9 @@
 
 #include <SDL3/SDL_scancode.h>
 
+#include <rex/types.h>
+#include <rex/platform.h>
 #include <rex/hid/virtual_key.h>
-#include <rex/macros.h>
 
 namespace rex::ui {
 

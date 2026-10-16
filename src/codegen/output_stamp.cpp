@@ -7,7 +7,7 @@
 
 #include <rex/hash.h>
 
-#include <rex/logging.h>
+#include <rex/logging/log.h>
 #include "file_io.h"
 
 namespace rex::codegen {
@@ -114,7 +114,7 @@ bool WriteDepfile(const std::filesystem::path& path, const std::filesystem::path
   }
   out += '\n';
 
-  return WriteFileBytes(path, out);
+  return rex::platform::WriteHostFile(path, out).has_value();
 }
 
 bool AreOutputsUpToDate(const OutputStamp& stamp, std::string_view fingerprint,

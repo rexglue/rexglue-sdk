@@ -10,7 +10,8 @@
  */
 
 #include <rex/assert.h>
-#include <rex/logging.h>
+#include <rex/fail.h>
+#include <rex/logging/log.h>
 #include "gpu/xenos/host/vulkan/single_layout_descriptor_set_pool.h"
 
 namespace rex {

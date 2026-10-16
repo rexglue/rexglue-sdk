@@ -16,14 +16,16 @@
 #include <string_view>
 #include <vector>
 
+#include <rex/types.h>
+#include <rex/platform.h>
 #include <rex/filesystem/directory.h>
 #include <rex/filesystem/file.h>
 #include <rex/filesystem/info.h>
 #include <rex/filesystem/mount.h>
 #include <rex/filesystem/open.h>
-#include <rex/macros.h>
 #include <rex/paths.h>
 #include <rex/result.h>
+#include <rex/module.h>
 
 namespace rex::filesystem {
 
@@ -32,11 +34,8 @@ namespace rex::filesystem {
  * by case insensitive prefix until none matches, and the first mount in registration order whose
  * path is a case insensitive prefix owns the rest. Every method takes the table mutex.
  */
-class IFileSystem {
+REX_INTERFACE(IFileSystem, "rex.filesystem", 1)
  public:
-  REX_INTERFACE(IFileSystem, "rex.filesystem", 1);
-  virtual ~IFileSystem() = default;
-
   /**
    * Appends a mount.
    *

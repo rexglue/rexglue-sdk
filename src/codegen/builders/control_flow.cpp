@@ -13,7 +13,7 @@
 
 #include <format>
 
-#include <rex/logging.h>
+#include <rex/logging/log.h>
 
 namespace rex::codegen {
 

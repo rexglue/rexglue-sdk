@@ -17,9 +17,10 @@
 #include <unordered_map>
 #include <vector>
 
+#include <rex/platform.h>
 #include <rex/assert.h>
 #include <rex/filesystem/xex_types.h>
-#include <rex/macros.h>
+#include <rex/export.h>
 #include <rex/platform/thread.h>
 #include <rex/runtime/exports.h>
 #include <rex/runtime/module.h>

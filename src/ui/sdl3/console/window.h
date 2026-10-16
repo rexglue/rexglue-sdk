@@ -12,8 +12,8 @@
 
 #include <memory>
 
-#include <rex/gpu/backend.h>
-#include <rex/macros.h>
+#include <rex/platform.h>
+#include <rex/gpu.h>
 #include <rex/result.h>
 #include <rex/types.h>
 

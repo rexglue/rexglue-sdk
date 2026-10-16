@@ -22,9 +22,13 @@
 #include <rex/cvar.h>
 #include "gpu/xenos/command_processor.h"
 #include <rex/assert.h>
-#include <rex/logging.h>
+#include <rex/logging/flush.h>
+#include <rex/fail.h>
+#include <rex/logging/log.h>
 #include <rex/mmio.h>
 #include <rex/runtime.h>
+#include <rex/runtime/object_table.h>
+#include <rex/runtime/thread_registry.h>
 #include <rex/runtime/xthread.h>
 #include "gpu/xenos/host/graphics_provider.h"
 #include "gpu/xenos/host/immediate_drawer.h"

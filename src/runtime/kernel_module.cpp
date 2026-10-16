@@ -11,6 +11,7 @@
 
 #include <functional>
 
+#include <rex/runtime/object_table.h>
 #include <rex/string.h>
 #include <rex/runtime/module_object.h>
 #include <rex/runtime.h>

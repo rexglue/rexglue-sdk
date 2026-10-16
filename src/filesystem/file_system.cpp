@@ -7,8 +7,8 @@
 #include <utility>
 
 #include <rex/filesystem/error.h>
-#include <rex/logging.h>
-#include <rex/macros.h>
+#include <rex/logging/log.h>
+#include <rex/result.h>
 #include <rex/string.h>
 
 #include "filesystem/node_file.h"

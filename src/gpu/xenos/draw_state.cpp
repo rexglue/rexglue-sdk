@@ -20,7 +20,8 @@
 #include <rex/xenos/registers.h>
 #include "gpu/xenos/draw_state.h"
 #include <rex/xenos/xenos.h>
-#include <rex/logging.h>
+#include <rex/fail.h>
+#include <rex/logging/log.h>
 #include <rex/math.h>
 #include <rex/memory.h>
 #include "gpu/xenos/host/fixed_point.h"

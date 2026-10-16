@@ -18,6 +18,7 @@
 #include <vector>
 
 #include <rex/memory/byte_swap.h>
+#include <rex/types.h>
 
 namespace {
 
@@ -131,4 +132,13 @@ REX_TEST_CASE("copy_and_swap_16_in_32 swaps the halves of every word", "[memory]
       }
     }
   }
+}
+
+REX_TEST_CASE("The 24 bit helpers load and store 3 byte values", "[memory][byte_swap]") {
+  constexpr std::array<u8, 3> kBytes = {0x12, 0x34, 0x56};
+  REQUIRE(rex::memory::LoadUint24BE(kBytes.data()) == 0x123456);
+  REQUIRE(rex::memory::LoadUint24LE(kBytes.data()) == 0x563412);
+  std::array<u8, 3> stored{};
+  rex::memory::StoreUint24LE(stored.data(), 0xFF563412);
+  REQUIRE(stored == kBytes);
 }

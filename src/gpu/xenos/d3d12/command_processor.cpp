@@ -29,7 +29,8 @@
 #include "gpu/xenos/draw_state.h"
 #include <rex/xenos/xenos.h>
 #include <rex/kernel/xboxkrnl/video.h>
-#include <rex/logging.h>
+#include <rex/fail.h>
+#include <rex/logging/log.h>
 #include <rex/memory/byte_swap.h>
 #include "gpu/xenos/host/d3d12/d3d12_presenter.h"
 #include "gpu/xenos/host/d3d12/d3d12_objects.h"
@@ -3366,7 +3367,7 @@ void D3D12CommandProcessor::UpdateFixedFunctionState(
         regs.Get<f32>(xenos::Register::RB_BLEND_ALPHA),
     };
     // Bit pattern comparison instead of != so NaN does not invalidate it on every draw.
-    ff_blend_factor_update_needed_ |= !draw_state::AreBitsEqual(ff_blend_factor_, blend_factor);
+    ff_blend_factor_update_needed_ |= !AreBitsEqual(ff_blend_factor_, blend_factor);
     if (ff_blend_factor_update_needed_) {
       std::memcpy(ff_blend_factor_, blend_factor, sizeof(f32) * 4);
       deferred_command_list_.D3DOMSetBlendFactor(ff_blend_factor_);
@@ -3552,8 +3553,7 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
           regs.Get<f32>(user_clip_plane_reg + 2),
           regs.Get<f32>(user_clip_plane_reg + 3),
       };
-      if (!draw_state::AreBitsEqual(std::span<const f32>(user_clip_plane_write_ptr, 4),
-                                    user_clip_plane_regs)) {
+      if (!AreBitsEqual(std::span<const f32>(user_clip_plane_write_ptr, 4), user_clip_plane_regs)) {
         dirty = true;
         std::ranges::copy(user_clip_plane_regs, user_clip_plane_write_ptr);
       }
@@ -3677,7 +3677,7 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
         dirty |= system_constants_.edram_rt_format_flags[i] != format_flags;
         system_constants_.edram_rt_format_flags[i] = format_flags;
         // Float comparisons would make NaNs always set the dirty flag.
-        dirty |= !draw_state::AreBitsEqual(system_constants_.edram_rt_clamp[i], rt_clamp[i]);
+        dirty |= !AreBitsEqual(system_constants_.edram_rt_clamp[i], rt_clamp[i]);
         std::memcpy(system_constants_.edram_rt_clamp[i], rt_clamp[i], 4 * sizeof(f32));
         u32 blend_factors_ops =
             regs[xenos::reg::RB_BLENDCONTROL::kRtRegisterIndices[i]] & 0x1FFF1FFF;

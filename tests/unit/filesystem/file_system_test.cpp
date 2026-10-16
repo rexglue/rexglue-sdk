@@ -8,6 +8,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
+#include <array>
 #include <string>
 #include <string_view>
 

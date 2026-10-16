@@ -13,7 +13,7 @@
 
 #include <rex/assert.h>
 #include "gpu/xenos/vulkan/shader.h"
-#include <rex/logging.h>
+#include <rex/logging/log.h>
 #include "gpu/xenos/host/vulkan/provider.h"
 
 namespace rex::gpu::vulkan {

@@ -20,7 +20,7 @@
 #include <thread>
 #include <utility>
 
-#include <rex/logging.h>
+#include <rex/logging/log.h>
 #include <rex/memory/byte_swap.h>
 #include <rex/net/socket.h>
 #include <rex/platform.h>

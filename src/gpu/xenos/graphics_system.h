@@ -34,7 +34,7 @@ namespace rex::gpu {
 
 class CommandProcessor;
 
-class REX_GPU_XENOS_API GraphicsSystem : public gpu::IGPUBackend, public rex::NonCopyable {
+class REX_GPU_XENOS_API GraphicsSystem : public gpu::IGPUBackend {
  public:
   virtual ~GraphicsSystem();
 

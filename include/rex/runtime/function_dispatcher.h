@@ -23,12 +23,15 @@
 #include <utility>
 #include <vector>
 
-#include <rex/macros.h>
+#include <rex/platform.h>
+#include <rex/types.h>
+#include <rex/export.h>
 #include <rex/memory.h>
 #include <rex/memory/mapped_memory.h>
 #include <rex/platform/lock_order.h>
 #include <rex/ppc/func.h>
 #include <rex/runtime/thread_state.h>
+#include <rex/module.h>
 
 namespace rex::runtime {
 
@@ -37,7 +40,7 @@ class ThreadState;
 /**
  * Narrow registration interface used by generated DLLs.
  */
-class IModuleRegistrar {
+REX_INTERFACE(IModuleRegistrar)
  public:
   /**
    * Sets the function at a guest address.
@@ -47,9 +50,6 @@ class IModuleRegistrar {
    * @return False, with a log line, when the address is outside every registered function table.
    */
   virtual bool SetFunction(u32 guest_address, ::PPCFunc* func) = 0;
-
- protected:
-  ~IModuleRegistrar() = default;
 };
 
 /** Maps guest addresses to recompiled functions and runs them on guest threads. */

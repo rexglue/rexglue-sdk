@@ -18,13 +18,13 @@
 
 #include <SDL3/SDL.h>
 
-#include <rex/apu/backend.h>
+#include <rex/apu.h>
 #include <rex/move_only_function.h>
 
 namespace rex::apu::sdl3 {
 
 /** The SDL3 audio output. 1 SDL audio stream on the default device per open stream. */
-class SDL3Backend final : public IAPUBackend, public NonCopyable {
+class SDL3Backend final : public IAPUBackend {
  public:
   SDL3Backend();
   ~SDL3Backend() override;

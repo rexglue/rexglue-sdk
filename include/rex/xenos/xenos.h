@@ -16,7 +16,8 @@
 #include <algorithm>
 #include <bit>
 
-#include <rex/macros.h>
+#include <rex/platform.h>
+#include <rex/export.h>
 #include <rex/assert.h>
 #include <rex/memory/fourcc.h>
 #include <rex/types.h>

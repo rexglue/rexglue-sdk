@@ -13,7 +13,8 @@
 
 #include <rex/cvar.h>
 #include <rex/assert.h>
-#include <rex/logging.h>
+#include <rex/fail.h>
+#include <rex/logging/log.h>
 #include <rex/math.h>
 #include "gpu/xenos/host/d3d12/d3d12_immediate_drawer.h"
 #include "gpu/xenos/host/d3d12/d3d12_presenter.h"

@@ -10,7 +10,7 @@
 
 #pragma once
 
-#include <rex/gpu/backend.h>
+#include <rex/gpu.h>
 #include <rex/move_only_function.h>
 
 #include "ui/sdl3/console/view.h"

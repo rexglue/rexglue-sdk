@@ -18,7 +18,10 @@
 
 #include <rex/runtime.h>
 #include <rex/runtime/error.h>
+#include <rex/runtime/event_object.h>
 #include <rex/runtime/object.h>
+#include <rex/runtime/object_table.h>
+#include <rex/runtime/symbolic_link_object.h>
 
 #include "kernel_fixture.h"
 

@@ -14,8 +14,9 @@
 #include <array>
 #include <atomic>
 
-#include <rex/gpu/backend.h>
-#include <rex/macros.h>
+#include <rex/platform.h>
+#include <rex/gpu.h>
+#include <rex/export.h>
 #include <rex/mmio.h>
 #include <rex/runtime/xtypes.h>
 #include <rex/types.h>
@@ -27,7 +28,7 @@ namespace rex::runtime {
  * pointer back as the read pointer. It executes no PM4, so a title that waits on a fence written
  * by a PM4 packet stops there. Headless title runs use rexgpu-xenos with backend null instead.
  */
-class REX_RUNTIME_API NullGPU final : public gpu::IGPUBackend, public NonCopyable {
+class REX_RUNTIME_API NullGPU final : public gpu::IGPUBackend {
  public:
   ~NullGPU() override;
 

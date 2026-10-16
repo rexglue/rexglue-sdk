@@ -24,7 +24,8 @@ namespace {
 using PackFunction = u8 (*)(rex::ppc::VRegister&, const rex::ppc::VRegister&);
 
 template <size_t Index>
-constexpr PackFunction kPackEntry = &rex::ppc::PackD3D<Index / 16, (Index / 4) % 4, Index % 4>;
+constexpr PackFunction kPackEntry =
+    &rex::ppc::simd::PackD3D<Index / 16, (Index / 4) % 4, Index % 4>;
 
 template <size_t... Index>
 constexpr std::array<PackFunction, sizeof...(Index)> MakePackTable(std::index_sequence<Index...>) {
@@ -95,14 +96,14 @@ REX_TEST_CASE("PackD3D never writes outside the destination for types 4 and 5 at
       CHECK(word == kGuard);
     }
   };
-  check(&rex::ppc::PackD3D<4, 0, 3>);
-  check(&rex::ppc::PackD3D<4, 1, 3>);
-  check(&rex::ppc::PackD3D<4, 2, 3>);
-  check(&rex::ppc::PackD3D<4, 3, 3>);
-  check(&rex::ppc::PackD3D<5, 0, 3>);
-  check(&rex::ppc::PackD3D<5, 1, 3>);
-  check(&rex::ppc::PackD3D<5, 2, 3>);
-  check(&rex::ppc::PackD3D<5, 3, 3>);
+  check(&rex::ppc::simd::PackD3D<4, 0, 3>);
+  check(&rex::ppc::simd::PackD3D<4, 1, 3>);
+  check(&rex::ppc::simd::PackD3D<4, 2, 3>);
+  check(&rex::ppc::simd::PackD3D<4, 3, 3>);
+  check(&rex::ppc::simd::PackD3D<5, 0, 3>);
+  check(&rex::ppc::simd::PackD3D<5, 1, 3>);
+  check(&rex::ppc::simd::PackD3D<5, 2, 3>);
+  check(&rex::ppc::simd::PackD3D<5, 3, 3>);
 }
 
 REX_TEST_CASE("PackD3D matches the captured results of types 4 and 5 at shift 3",
@@ -166,7 +167,7 @@ REX_TEST_CASE("PackD3D packs the byte format as the lane description says", "[pp
     state ^= state << 5;
     return state;
   };
-  constexpr auto& kLayout = rex::ppc::detail::kPackLayouts[0];
+  constexpr auto& kLayout = rex::ppc::simd::detail::kPackLayouts[0];
   for (u32 i = 0; i < 200000; ++i) {
     std::array<u32, 4> words{};
     for (u32& word : words) {
@@ -180,13 +181,13 @@ REX_TEST_CASE("PackD3D packs the byte format as the lane description says", "[pp
     u8 saturated = 0;
     u64 packed = 0;
     for (u32 lane = 0; lane < 4; ++lane) {
-      packed |=
-          rex::ppc::detail::PackInteger(words[lane], rex::ppc::detail::kPackD3DRanges[0][lane],
-                                        kLayout.lanes[lane], saturated)
-          << kLayout.lanes[lane].shift;
+      packed |= rex::ppc::simd::detail::PackInteger(words[lane],
+                                                    rex::ppc::simd::detail::kPackD3DRanges[0][lane],
+                                                    kLayout.lanes[lane], saturated)
+                << kLayout.lanes[lane].shift;
     }
     rex::ppc::VRegister dest{};
-    const u8 got = rex::ppc::PackD3D<0, 0, 0>(dest, source);
+    const u8 got = rex::ppc::simd::PackD3D<0, 0, 0>(dest, source);
     CAPTURE(words[0], words[1], words[2], words[3]);
     REQUIRE(dest.u32[0] == static_cast<u32>(packed));
     REQUIRE(got == saturated);
@@ -196,6 +197,6 @@ REX_TEST_CASE("PackD3D packs the byte format as the lane description says", "[pp
 REX_TEST_CASE("PackD3D places the byte of element 0 in bits 16 to 23", "[ppc][pack_d3d]") {
   rex::ppc::VRegister dest{};
   const rex::ppc::VRegister source = MakeRegister({0x40400001, 0x40400002, 0x40400003, 0x40400004});
-  CHECK(rex::ppc::PackD3D<0, 0, 0>(dest, source) == 0);
+  CHECK(rex::ppc::simd::PackD3D<0, 0, 0>(dest, source) == 0);
   CHECK(dest.u32[0] == 0x04010203u);
 }

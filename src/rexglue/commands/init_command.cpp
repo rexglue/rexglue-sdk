@@ -1,7 +1,6 @@
 #include "init_command.h"
 #include "../ui/ui.h"
 #include "app_name.h"
-#include "template_io.h"
 #include "codegen/tool_runtime.h"
 
 #include <algorithm>
@@ -19,11 +18,12 @@
 #include <rex/codegen/template_registry.h>
 #include <rex/api.h>
 #include <rex/kernel/init.h>
-#include <rex/logging.h>
+#include <rex/logging/log.h>
 #include <rex/platform/file.h>
 #include <rex/result.h>
 #include <rex/runtime.h>
-#include <rex/runtime/xdbf.h>
+#include <rex/runtime/content_manager.h>
+#include <rex/runtime/xdbf_reader.h>
 #include <rex/version.h>
 
 #include <CLI/CLI.hpp>
@@ -250,8 +250,11 @@ Result<void> InitProject(const InitOptions& opts, const CLIContext& ctx) {
                    fs::relative(r.out, project_root).generic_string());
       continue;
     }
-    if (!WriteFileAtomic(r.out, registry.Render(r.template_id, json_str))) {
-      return Err<void>(ErrorCategory::kIO, "Failed to write " + r.out.string());
+    if (auto written =
+            rex::platform::WriteHostFile(r.out, registry.Render(r.template_id, json_str));
+        !written) {
+      return Err<void>(ErrorCategory::kIO,
+                       "Failed to write " + r.out.string() + ": " + written.error().message);
     }
     REXLOG_DEBUG(rexglue, "  Created {}", fs::relative(r.out, project_root).generic_string());
   }
@@ -332,7 +335,7 @@ Result<void> InitModule(const InitModuleOptions& opts, const CLIContext& ctx) {
     registry.LoadOverrides(opts.template_dir);
   content += "\n" + registry.Render("init/manifest_module", entry.dump());
 
-  REX_TRY_VOID(rex::platform::WriteWholeFile(
+  REX_TRY_VOID(rex::platform::WriteHostFile(
       manifest_path, std::span(reinterpret_cast<const u8*>(content.data()), content.size())));
 
   std::vector<ui::KeyValueRow> rows;

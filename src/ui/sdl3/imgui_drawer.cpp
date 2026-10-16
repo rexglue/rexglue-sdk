@@ -21,7 +21,7 @@
 
 #include <rex/assert.h>
 #include <rex/chrono/clock.h>
-#include <rex/logging.h>
+#include <rex/logging/log.h>
 #include <rex/no_throw.h>
 #include <rex/ui/imgui_dialog.h>
 #include "ui/sdl3/imgui_drawer.h"

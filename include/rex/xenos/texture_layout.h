@@ -14,7 +14,8 @@
 
 #include <algorithm>
 
-#include <rex/macros.h>
+#include <rex/platform.h>
+#include <rex/export.h>
 #include <rex/math.h>
 #include <rex/types.h>
 #include <rex/xenos/texture_info.h>

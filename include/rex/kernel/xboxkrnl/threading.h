@@ -11,7 +11,8 @@
 
 #pragma once
 
-#include <rex/macros.h>
+#include <rex/platform.h>
+#include <rex/export.h>
 #include <rex/ppc/context.h>
 #include <rex/runtime/event_object.h>
 #include <rex/runtime/xthread.h>

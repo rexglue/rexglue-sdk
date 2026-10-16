@@ -17,7 +17,7 @@
 
 #include <rex/types.h>
 
-namespace rex::ppc {
+namespace rex::ppc::simd {
 
 /**
  * Reports whether a float to fixed point conversion clamps any lane. A NaN lane gives 0 without a
@@ -211,4 +211,4 @@ template <u32 Type>
   return simde_mm_movemask_ps(simde_mm_and_ps(outside, checked)) != 0;
 }
 
-}  // namespace rex::ppc
+}  // namespace rex::ppc::simd

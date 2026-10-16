@@ -16,7 +16,8 @@
 #include <string_view>
 
 #include <rex/codegen/binary_view.h>
-#include <rex/logging.h>
+#include <rex/fail.h>
+#include <rex/logging/log.h>
 
 #include <rex/runtime/exports.h>
 
@@ -457,7 +458,7 @@ void BuilderContext::EmitVecIntBinarySwapped(const char* simd_op, const char* el
       V(insn.operands[1]), element_type);
 }
 
-void BuilderContext::EmitVecVarShift(const char* shift_dir, const char* element_type,
+void BuilderContext::EmitVecVarShift(const char* function, const char* element_type,
                                      u32 mask_value) {
   auto v_d = V(insn.operands[0]);
   auto v_a = V(insn.operands[1]);
@@ -469,9 +470,9 @@ void BuilderContext::EmitVecVarShift(const char* shift_dir, const char* element_
           mask_value);
   Println(
       "\t\tsimde_mm_store_si128((simde__m128i*){}.u8, "
-      "rex::ppc::simde_mm_{}_{}"
+      "rex::ppc::simd::{}"
       "(a, shift));",
-      v_d, shift_dir, element_type);
+      v_d, function);
   Println("\t}}");
 }
 

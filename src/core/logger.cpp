@@ -9,6 +9,8 @@
 #include <thread>
 #include <utility>
 
+#include <rex/cvar.h>
+#include <rex/logging/log.h>
 #include <rex/platform/thread.h>
 #include <rex/string/numeric.h>
 

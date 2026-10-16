@@ -11,7 +11,8 @@
 
 #pragma once
 
-#include <rex/macros.h>
+#include <rex/platform.h>
+#include <rex/export.h>
 #include <rex/result.h>
 #include <rex/types.h>
 

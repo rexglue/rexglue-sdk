@@ -18,7 +18,9 @@
 #include <string>
 #include <string_view>
 
-#include <rex/macros.h>
+#include <rex/types.h>
+#include <rex/platform.h>
+#include <rex/export.h>
 
 #ifndef XXH_INLINE_ALL
 #define XXH_INLINE_ALL

@@ -15,7 +15,7 @@
 #include <cstring>
 
 #include <rex/codegen/function_scanner.h>
-#include <rex/logging.h>
+#include <rex/logging/log.h>
 
 #include <dis-asm.h>
 #include <ppc-inst.h>

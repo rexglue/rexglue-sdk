@@ -18,8 +18,9 @@
 #include <string>
 #include <vector>
 
+#include <rex/platform.h>
 #include <rex/filesystem/xex_types.h>
-#include <rex/macros.h>
+#include <rex/export.h>
 #include <rex/result.h>
 #include <rex/types.h>
 

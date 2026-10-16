@@ -17,7 +17,8 @@
 
 #include <rex/assert.h>
 #include <rex/bit.h>
-#include <rex/logging.h>
+#include <rex/fail.h>
+#include <rex/logging/log.h>
 #include <rex/math.h>
 #include <rex/cvar.h>
 #include <rex/dbg.h>
@@ -26,7 +27,7 @@
 #include "gpu/xenos/vulkan/command_processor.h"
 #include "gpu/xenos/vulkan/deferred_command_buffer.h"
 #include "gpu/xenos/vulkan/texture_cache.h"
-#include <rex/logging.h>
+#include <rex/logging/log.h>
 #include <rex/math.h>
 #include "gpu/xenos/host/vulkan/mem_alloc.h"
 #include "gpu/xenos/host/vulkan/ui_samplers.h"

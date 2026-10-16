@@ -100,7 +100,7 @@ REX_TEST_CASE_METHOD(Fixture, "Host provider reads, writes and changes files",
   REQUIRE(opened.file->SetLength(8));
   opened.file->Refresh();
   CHECK(opened.file->GetInfo().size == 8);
-  auto host = rex::platform::ReadWholeFile(GetTemp() / "a.txt");
+  auto host = rex::platform::ReadHostFile(GetTemp() / "a.txt");
   REQUIRE(host);
   CHECK(std::string(host->begin(), host->begin() + 5) == "ALPha");
 
@@ -156,10 +156,10 @@ REX_TEST_CASE_METHOD(Fixture, "Open if keeps a host file added after the mount",
   CHECK(at_root.action == OpenAction::kOpened);
   at_root.file.reset();
 
-  auto host = rex::platform::ReadWholeFile(GetTemp() / "sub" / "late.txt");
+  auto host = rex::platform::ReadHostFile(GetTemp() / "sub" / "late.txt");
   REQUIRE(host);
   CHECK(std::string(host->begin(), host->end()) == "late bytes");
-  auto root_host = rex::platform::ReadWholeFile(GetTemp() / "root_late.txt");
+  auto root_host = rex::platform::ReadHostFile(GetTemp() / "root_late.txt");
   REQUIRE(root_host);
   CHECK(std::string(root_host->begin(), root_host->end()) == "root bytes");
 }
@@ -172,7 +172,7 @@ REX_TEST_CASE_METHOD(Fixture, "Create of a name that exists only on the host is 
                                                            .access = Access::kGenericWrite});
   REQUIRE_FALSE(created);
   CHECK(CodeOf(created.error()) == FileSystemError::kExists);
-  auto host = rex::platform::ReadWholeFile(GetTemp() / "late.txt");
+  auto host = rex::platform::ReadHostFile(GetTemp() / "late.txt");
   REQUIRE(host);
   CHECK(std::string(host->begin(), host->end()) == "late");
 }

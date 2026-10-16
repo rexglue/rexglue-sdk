@@ -12,7 +12,7 @@
 #include <cstring>
 
 #include <rex/hook.h>
-#include <rex/kernel/shim/define.h>
+#include <rex/kernel/shim/function.h>
 
 namespace rex::kernel::xam {
 

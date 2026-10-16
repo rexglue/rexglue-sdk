@@ -9,15 +9,11 @@
  *              See LICENSE file in the project root for full license text.
  */
 
+#include <rex/types.h>
 #include <rex/image_info.h>
+#include <rex/export.h>
 #include <rex/ppc/func.h>
 #include <rex/runtime/function_dispatcher.h>
-
-#ifdef _WIN32
-#define REX_TEST_EXPORT __declspec(dllexport)
-#else
-#define REX_TEST_EXPORT __attribute__((visibility("default")))
-#endif
 
 namespace {
 
@@ -39,10 +35,10 @@ const rex::PPCImageInfo kImageInfo = {
 
 }  // namespace
 
-extern "C" REX_TEST_EXPORT void ReXModule_Register(rex::runtime::IModuleRegistrar* registrar) {
+extern "C" REX_DETAIL_EXPORT void ReXModule_Register(rex::runtime::IModuleRegistrar* registrar) {
   registrar->SetFunction(kFunctionAddress, Function);
 }
 
-extern "C" REX_TEST_EXPORT const rex::PPCImageInfo* ReXModule_GetImageInfo() {
+extern "C" REX_DETAIL_EXPORT const rex::PPCImageInfo* ReXModule_GetImageInfo() {
   return &kImageInfo;
 }

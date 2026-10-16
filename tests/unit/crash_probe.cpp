@@ -22,7 +22,9 @@
 #include <span>
 #include <utility>
 
-#include <rex/logging.h>
+#include <rex/logging/config.h>
+#include <rex/logging/logger.h>
+#include <rex/logging/log.h>
 #include <rex/memory/virtual_memory.h>
 #include <rex/platform.h>
 #include <rex/platform/crash.h>

@@ -9,7 +9,7 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-#include <rex/runtime/xdbf.h>
+#include <rex/runtime/xdbf_reader.h>
 
 namespace rex {
 namespace runtime {

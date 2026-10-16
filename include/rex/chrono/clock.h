@@ -15,17 +15,9 @@
 #include <chrono>
 #include <utility>
 
-#include <rex/macros.h>
+#include <rex/export.h>
 #include <rex/platform.h>
 #include <rex/types.h>
-
-/**
- * 1 when Clock can read the hardware tick source directly. It is 0 on AMD64 and undefined
- * elsewhere, so Clock reads the platform time source.
- */
-#if REX_ARCH_AMD64
-#define REX_CLOCK_RAW_AVAILABLE 0
-#endif
 
 namespace rex {
 
@@ -45,14 +37,6 @@ class REX_API Clock {
    * @return Host ticks per second.
    */
   static u64 GetHostTickFrequencyPlatform() noexcept;
-#if REX_CLOCK_RAW_AVAILABLE
-  /**
-   * Host tick frequency from the hardware tick source.
-   *
-   * @return Host ticks per second.
-   */
-  static u64 GetHostTickFrequencyRaw();
-#endif
 
   /**
    * Host tick count from the platform time source. Prefer QueryHostTickCount.
@@ -60,22 +44,14 @@ class REX_API Clock {
    * @return The current host tick count.
    */
   static u64 GetHostTickCountPlatform();
-#if REX_CLOCK_RAW_AVAILABLE
-  /**
-   * Host tick count from the hardware tick source.
-   *
-   * @return The current host tick count.
-   */
-  static u64 GetHostTickCountRaw();
-#endif
 
   /**
-   * @return Host ticks per second from the source the clock.source_raw cvar selects.
+   * @return Host ticks per second from the platform time source.
    */
   static u64 QueryHostTickFrequency();
 
   /**
-   * @return The current host tick count from the source the clock.source_raw cvar selects.
+   * @return The current host tick count from the platform time source.
    */
   static u64 QueryHostTickCount() noexcept;
 

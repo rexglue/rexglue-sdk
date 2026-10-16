@@ -11,23 +11,15 @@
 #include <filesystem>
 #include <string>
 #include <string_view>
+#include <rex/types.h>
+#include <rex/platform.h>
 #include <rex/cvar.h>
-#include <rex/macros.h>
 #include <rex/ui/imgui_dialog.h>
 
 namespace rex::ui {
 
 class IUserInterface;
 struct ModuleOverlayContext;
-
-/**
- * Clamps the text of an integer cvar to its type range and constraints.
- *
- * @param desc The cvar, of type Int32, Int64, UInt32 or UInt64.
- * @param text The value text. Text that does not parse reads as 0.
- * @return The clamped value text.
- */
-std::string ClampIntegerCvarText(const rex::cvar::Desc& desc, std::string_view text);
 
 class SettingsDialog : public ImGuiDialog {
  public:

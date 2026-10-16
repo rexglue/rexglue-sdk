@@ -10,7 +10,7 @@
 
 #include <rex/cvar.h>
 #include <rex/cvar/registry.h>
-#include <rex/logging.h>
+#include <rex/logging/log.h>
 #include <rex/platform/file.h>
 
 namespace rex::ui {
@@ -316,7 +316,7 @@ void ConsoleModel::SaveHistory() const {
     text += entry;
     text += '\n';
   }
-  if (auto written = platform::WriteWholeFile(
+  if (auto written = platform::WriteHostFile(
           history_path_, std::span(reinterpret_cast<const u8*>(text.data()), text.size()));
       !written) {
     REXLOG_WARN(ui, "console history not saved, {}", written.error().message);

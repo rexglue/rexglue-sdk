@@ -52,24 +52,9 @@
 #define REX_PLATFORM_LINUX 0
 #endif
 
-#if defined(__clang__)
-/** 1 when the compiler is Clang, clang-cl included. */
-#define REX_COMPILER_CLANG 1
-#elif defined(__GNUC__)
+#if defined(__GNUC__) && !defined(__clang__)
 /** 1 when the compiler is GCC. */
 #define REX_COMPILER_GNUC 1
-#elif defined(_MSC_VER)
-/** 1 when the compiler is MSVC. */
-#define REX_COMPILER_MSVC 1
-#elif defined(__MINGW32)
-/** 1 when the compiler is MinGW. */
-#define REX_COMPILER_MINGW32 1
-#elif defined(__INTEL_COMPILER)
-/** 1 when the compiler is the Intel C++ compiler. */
-#define REX_COMPILER_INTEL 1
-#else
-/** 1 when no known compiler is detected. */
-#define REX_COMPILER_UNKNOWN 1
 #endif
 
 #if defined(_M_AMD64) || defined(__amd64__)
@@ -80,9 +65,6 @@
 #define REX_ARCH_ARM64 1
 #elif defined(_M_IX86) || defined(__i386__) || defined(_M_ARM) || defined(__arm__)
 #error Rex is not supported on 32-bit platforms.
-#elif defined(_M_PPC) || defined(__powerpc__)
-/** 1 when the target architecture is PowerPC. */
-#define REX_ARCH_PPC 1
 #endif
 
 #if REX_PLATFORM_WIN32
@@ -152,13 +134,6 @@
  * @endcode
  */
 #define REX_PACKED_UNION(name, value) REX_DETAIL_PACKED_SCOPE(union name value)
-
-/** 1 when the compiler provides __builtin_strlen, 0 otherwise. */
-#if REX_COMPILER_CLANG || REX_COMPILER_GNUC
-#define REX_HAS_BUILTIN_STRLEN 1
-#else
-#define REX_HAS_BUILTIN_STRLEN 0
-#endif
 
 namespace rex::platform {
 

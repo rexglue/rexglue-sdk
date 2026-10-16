@@ -13,16 +13,19 @@
 
 #pragma once
 
+#include <algorithm>
 #include <bit>
 #include <climits>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <span>
 #include <type_traits>
 #include <utility>
 #include <vector>
 
-#include <rex/macros.h>
+#include <rex/platform.h>
+#include <rex/export.h>
 #include <rex/math.h>
 #include <rex/types.h>
 
@@ -335,6 +338,18 @@ Dst Reinterpret(const Src& REX_RESTRICT_VAR src) {
   Dst dst;
   Reinterpret(dst, src);
   return dst;
+}
+
+/**
+ * Compares 2 runs of floats by bit pattern, so a NaN equals itself.
+ *
+ * @param a The first run.
+ * @param b The second run.
+ * @return True when both runs have the same length and the same bits.
+ */
+inline bool AreBitsEqual(std::span<const f32> a, std::span<const f32> b) {
+  return std::ranges::equal(
+      a, b, [](f32 x, f32 y) { return std::bit_cast<u32>(x) == std::bit_cast<u32>(y); });
 }
 
 }  // namespace rex

@@ -39,6 +39,7 @@
 #include "gpu/xenos/vulkan/render_target_cache.h"
 #include "gpu/xenos/vulkan/shader.h"
 #include <rex/xenos/xenos.h>
+#include <rex/module.h>
 #include "gpu/xenos/host/vulkan/api.h"
 
 namespace rex::gpu::vulkan {
@@ -49,9 +50,8 @@ class VulkanPipelineCache {
  public:
   static constexpr size_t kLayoutUIDEmpty = 0;
 
-  class PipelineLayoutProvider {
+  REX_INTERFACE(PipelineLayoutProvider)
    public:
-    virtual ~PipelineLayoutProvider() {}
     virtual VkPipelineLayout GetPipelineLayout() const = 0;
 
    protected:

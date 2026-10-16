@@ -13,21 +13,19 @@
 #include <memory>
 #include <string_view>
 
+#include <rex/types.h>
+#include <rex/platform.h>
 #include <rex/gpu.h>
-#include <rex/macros.h>
 #include <rex/result.h>
+#include <rex/module.h>
 
 namespace rex::gpu {
 
 class GraphicsSystem;
 
 /** The Xenos graphics service rexgpu-xenos serves to the host API libraries. */
-class IXenosGraphics {
+REX_INTERFACE(IXenosGraphics, "rex.gpu.xenos", 1)
  public:
-  REX_INTERFACE(IXenosGraphics, "rex.gpu.xenos", 1);
-
-  virtual ~IXenosGraphics() = default;
-
   /**
    * Returns the GPU config the neutral module received at Connect.
    *

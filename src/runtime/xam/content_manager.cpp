@@ -22,8 +22,9 @@
 
 #include <rex/filesystem.h>
 #include <rex/filesystem/container.h>
-#include <rex/logging.h>
+#include <rex/logging/log.h>
 #include <rex/no_throw.h>
+#include <rex/runtime/module_registry.h>
 #include <rex/string.h>
 #include <rex/runtime.h>
 #include <rex/runtime/error.h>

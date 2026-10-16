@@ -5,7 +5,7 @@
 #include <SDL3/SDL_messagebox.h>
 #include <SDL3/SDL_video.h>
 
-#include <rex/logging.h>
+#include <rex/logging/log.h>
 #include <rex/platform.h>
 
 #include "ui/sdl3/message_box.h"

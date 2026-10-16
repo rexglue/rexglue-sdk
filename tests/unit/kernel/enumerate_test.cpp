@@ -18,6 +18,7 @@
 
 #include <rex/runtime.h>
 #include <rex/runtime/enumerator_object.h>
+#include <rex/runtime/object_table.h>
 #include <rex/runtime/xio.h>
 #include <rex/runtime/xmemory.h>
 #include <rex/runtime/object.h>

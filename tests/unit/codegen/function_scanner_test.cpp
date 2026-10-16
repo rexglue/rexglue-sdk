@@ -171,3 +171,14 @@ REX_TEST_CASE("A function with two fall throughs calls both next functions", "[c
     CHECK(code.find("return;", at) != std::string::npos);
   }
 }
+
+REX_TEST_CASE("Reading the decoded binary swaps big endian values of every width",
+              "[codegen][scanner]") {
+  ScannerFixture fixture({0x01020304, 0x05060708});
+  const DecodedBinary& decoded = fixture.ctx->GetDecoded();
+  CHECK(decoded.Read<u8>(kBase) == 0x01);
+  CHECK(decoded.Read<u16>(kBase) == 0x0102);
+  CHECK(decoded.Read<u32>(kBase) == 0x01020304);
+  CHECK(decoded.Read<u64>(kBase) == 0x0102030405060708ULL);
+  CHECK_FALSE(decoded.Read<u32>(kBase + 8).has_value());
+}

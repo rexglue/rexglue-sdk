@@ -20,9 +20,11 @@
 #include <rex/chrono/clock.h>
 #include <rex/cvar.h>
 #include <rex/dbg.h>
+#include <rex/logging/flush.h>
 #include <rex/perf/counter.h>
 #include <rex/literals.h>
-#include <rex/logging.h>
+#include <rex/fail.h>
+#include <rex/logging/log.h>
 #include <rex/math.h>
 #include <rex/ppc/context.h>
 #include <rex/ppc/recompiled_code.h>

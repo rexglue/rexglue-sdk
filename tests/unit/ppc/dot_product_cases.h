@@ -21,7 +21,7 @@ struct DotProductCase {
   u32 out;
 };
 
-inline constexpr DotProductCase kVmsum3fp128Cases[] = {
+inline constexpr DotProductCase kDotProduct3Cases[] = {
     {{0x41EA7191, 0x4161F2D2, 0x00000000, 0x3F61B3AC},
      {0x3E7FFFFF, 0x3EFFFFFF, 0x3EC00000, 0x3ED75123},
      0x41663230},
@@ -312,7 +312,7 @@ inline constexpr DotProductCase kVmsum3fp128Cases[] = {
      0xBEF3CCF5},
 };
 
-inline constexpr DotProductCase kVmsum4fp128Cases[] = {
+inline constexpr DotProductCase kDotProduct4Cases[] = {
     {{0x3F174626, 0x3F7FFFFF, 0x00000000, 0x3FFFFFFF},
      {0x4114501A, 0x417FFFFF, 0x4161F2D2, 0x00000000},
      0x41ABD1F0},

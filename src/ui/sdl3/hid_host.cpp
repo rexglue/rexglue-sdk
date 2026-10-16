@@ -1,6 +1,6 @@
 #include "ui/sdl3/hid_host.h"
 
-#include <rex/logging.h>
+#include <rex/logging/log.h>
 #include <rex/move_only_function.h>
 
 namespace rex::ui {

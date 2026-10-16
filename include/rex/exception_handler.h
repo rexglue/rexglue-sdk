@@ -16,7 +16,7 @@
 #include <vector>
 
 #include <rex/assert.h>
-#include <rex/macros.h>
+#include <rex/export.h>
 #include <rex/platform.h>
 #include <rex/types.h>
 #include <rex/vec128.h>

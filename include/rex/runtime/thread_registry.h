@@ -14,13 +14,14 @@
 #include <optional>
 #include <vector>
 
-#include <rex/macros.h>
+#include <rex/platform.h>
 #include <rex/platform/fiber.h>
 #include <rex/ppc/context.h>
 #include <rex/result.h>
 #include <rex/runtime/xthread.h>
 #include <rex/runtime/xtypes.h>
 #include <rex/types.h>
+#include <rex/module.h>
 
 namespace rex::runtime {
 
@@ -92,11 +93,8 @@ struct FiberInfo {
 };
 
 /** Owns every `KernelThread`, finds them by id or handle, and keeps the TLS slots and fibers. */
-class IThreadRegistry {
+REX_INTERFACE(IThreadRegistry, "rex.runtime.thread_registry", 1)
  public:
-  REX_INTERFACE(IThreadRegistry, "rex.runtime.thread_registry", 1);
-  virtual ~IThreadRegistry() = default;
-
   /**
    * Takes ownership of a `KernelThread`, assigns its thread id, gives it a thread handle with a
    * count of 1, allocates its guest thread block and starts its host thread.

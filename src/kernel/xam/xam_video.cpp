@@ -11,7 +11,7 @@
 
 #include <rex/kernel/xam/private.h>
 #include <rex/kernel/xboxkrnl/video.h>
-#include <rex/logging.h>
+#include <rex/logging/log.h>
 #include <rex/hook.h>
 #include <rex/types.h>
 #include <rex/runtime.h>

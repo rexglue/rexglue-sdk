@@ -19,20 +19,22 @@
 #include <type_traits>
 #include <vector>
 
+#include <rex/runtime/dispatcher.h>
+#include <rex/runtime/notifier.h>
 #include <rex/runtime/xthread.h>
 #include <rex/api.h>
-#include <rex/logging.h>
+#include <rex/logging/log.h>
 #include <rex/runtime.h>
 #include <rex/string.h>
 
 #include <rex/kernel/xam/private.h>
 #include <rex/hook.h>
-#include <rex/hid/backend.h>
+#include <rex/hid.h>
 #include <rex/types.h>
 #include <rex/runtime/xtypes.h>
 #include <rex/platform/thread.h>
 #include <rex/ui/user_interface.h>
-#include "kernel/kernel_macros.h"
+#include "kernel/stub_log.h"
 #include "runtime/thread_wait.h"
 
 namespace rex {

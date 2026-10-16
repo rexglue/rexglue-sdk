@@ -10,10 +10,12 @@
  */
 
 #include <rex/kernel/xam/apps/xmp_app.h>
-#include <rex/logging.h>
+#include <rex/fail.h>
+#include <rex/logging/log.h>
+#include <rex/runtime/notifier.h>
 #include <rex/runtime/xthread.h>
 #include <rex/platform/thread.h>
-#include "kernel/kernel_macros.h"
+#include "kernel/stub_log.h"
 
 namespace rex {
 namespace kernel {

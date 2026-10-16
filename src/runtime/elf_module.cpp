@@ -10,7 +10,8 @@
  */
 
 #include <algorithm>
-#include <rex/logging.h>
+#include <rex/fail.h>
+#include <rex/logging/log.h>
 #include <rex/math.h>
 #include <rex/runtime/elf_module.h>
 #include <rex/runtime/function_dispatcher.h>

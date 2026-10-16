@@ -5,8 +5,9 @@
 #include <rex/chrono/clock.h>
 #include <rex/cvar.h>
 #include <rex/filesystem.h>
-#include <rex/gpu/backend.h>
-#include <rex/logging.h>
+#include <rex/gpu.h>
+#include <rex/fail.h>
+#include <rex/logging/log.h>
 #include <rex/ppc/context.h>
 #include <rex/platform/exceptions.h>
 #include <rex/runtime.h>

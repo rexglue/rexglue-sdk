@@ -13,7 +13,8 @@
 #include <rex/codegen/function_graph.h>
 #include <rex/codegen/output_partition.h>
 #include <rex/codegen/template_registry.h>
-#include <rex/logging.h>
+#include <rex/fail.h>
+#include <rex/logging/log.h>
 
 #include "file_io.h"
 #include "mmio_analysis.h"

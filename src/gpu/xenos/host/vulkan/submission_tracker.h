@@ -17,7 +17,7 @@
 #include <vector>
 
 #include <rex/assert.h>
-#include <rex/logging.h>
+#include <rex/logging/log.h>
 #include <rex/no_throw.h>
 #include <rex/types.h>
 #include "gpu/xenos/host/vulkan/device.h"

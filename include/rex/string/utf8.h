@@ -16,7 +16,8 @@
 #include <string>
 #include <vector>
 
-#include <rex/macros.h>
+#include <rex/types.h>
+#include <rex/export.h>
 #include <rex/platform.h>
 
 namespace rex {
@@ -408,6 +409,16 @@ inline std::string utf8_find_base_guest_path(const std::string_view path) {
  */
 REX_API std::string utf8_canonicalize_path(const std::string_view path,
                                            char32_t separator = kUTF8PathSeparator);
+
+/**
+ * Normalizes a guest path to the canonical form used as a key for runtime lookups. The device
+ * prefix is stripped, separators become forward slashes, . and .. components are resolved,
+ * leading slashes are removed, and ASCII letters are lowercased.
+ *
+ * @param path The guest path, with or without a device prefix.
+ * @return The canonical lowercase path with forward slashes.
+ */
+REX_API std::string NormalizeGuestPath(std::string_view path);
 
 /**
  * Removes . and .. components from a guest path and joins it with backslashes.

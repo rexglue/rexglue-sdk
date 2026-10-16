@@ -21,7 +21,7 @@
 #include <format>
 
 #include <rex/api.h>
-#include <rex/logging.h>
+#include <rex/logging/log.h>
 #include <rex/math.h>
 #include <rex/ppc/function.h>
 #include <rex/runtime.h>
@@ -40,6 +40,7 @@
 #include <rex/runtime/timer_object.h>
 #include <rex/string.h>
 
+#include "kernel/xboxkrnl/loaded_command_line.h"
 #include "runtime/achievement_manager.h"
 #include "runtime/apu.h"
 #include "runtime/dispatcher.h"

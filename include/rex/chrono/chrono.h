@@ -126,6 +126,28 @@ using WinSystemClock = detail::NtSystemClock<detail::Domain::kHost>;
 /** Scaled guest FILETIME clock. Convert it with clock_cast to WinSystemClock. */
 using XSystemClock = detail::NtSystemClock<detail::Domain::kGuest>;
 
+/**
+ * Converts a FAT date and time to Windows FILETIME ticks.
+ *
+ * @param date FAT date, 7 bits of years since 1980, 4 bits of month, 5 bits of day.
+ * @param time FAT time, 5 bits of hours, 6 bits of minutes, 5 bits of 2 second units.
+ * @return 100 nanosecond intervals since 1601-01-01 UTC. An out of range field carries into the
+ * next field.
+ */
+inline u64 DecodeFATTimestamp(u32 date, u32 time) {
+  using namespace std::chrono;
+  const year_month first = year{1980 + static_cast<i32>((date >> 9) & 0x7F)} / January;
+  const year_month month = first + months{static_cast<i32>((date >> 5) & 0x0F) - 1};
+  const sys_days day = sys_days{month / 1} + days{static_cast<i32>(date & 0x1F) - 1};
+  const sys_seconds stamp = day + hours{static_cast<i32>((time >> 11) & 0x1F)} +
+                            minutes{static_cast<i32>((time >> 5) & 0x3F)} +
+                            seconds{static_cast<i32>((time & 0x1F) * 2)};
+  const i64 file_time_seconds =
+      stamp.time_since_epoch().count() -
+      detail::NtSystemClock<detail::Domain::kHost>::GetUnixEpochDelta().count();
+  return static_cast<u64>(file_time_seconds * HundredNano::den);
+}
+
 }  // namespace rex
 
 // NOLINTNEXTLINE(bugprone-std-namespace-modification): permitted program defined clock

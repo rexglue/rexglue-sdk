@@ -17,9 +17,9 @@
 #include <rex/assert.h>
 #include <rex/chrono/clock.h>
 #include <rex/cvar.h>
-#include <rex/logging.h>
-#include "hid/common/cvar_table.h"
-#include "hid/common/x_result.h"
+#include <rex/logging/log.h>
+#include "hid/cvar_table.h"
+#include "hid/x_result.h"
 #include "hid/xinput/xinput_driver.h"
 #include <windows.h>
 #include <xinput.h>

@@ -9,6 +9,7 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
+#include <cctype>
 #include <algorithm>
 #include <cstdint>
 #include <filesystem>
@@ -899,6 +900,26 @@ std::string utf8_canonicalize_path(const std::string_view path, char32_t separat
 
   return !is_rooted ? utf8_join_paths(parts, separator)
                     : ToString(separator) + utf8_join_paths(parts, separator);
+}
+
+std::string NormalizeGuestPath(std::string_view path) {
+  std::string result = rex::utf8_fix_path_separators(path, U'/');
+
+  auto colon = result.find(':');
+  if (colon != std::string::npos && colon + 1 < result.size() && result[colon + 1] == '/') {
+    result.erase(0, colon + 2);
+  }
+
+  result = rex::utf8_canonicalize_path(result, U'/');
+
+  while (!result.empty() && result.front() == '/') {
+    result.erase(result.begin());
+  }
+
+  std::transform(result.begin(), result.end(), result.begin(),
+                 [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+
+  return result;
 }
 
 }  // namespace rex

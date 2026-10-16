@@ -22,26 +22,14 @@
 #include <string_view>
 #include <vector>
 
-#include <rex/cvar.h>
+#include <rex/platform.h>
 #include <rex/embedded_metadata.h>
-#include <rex/filesystem.h>
 #include <rex/image_info.h>
-#include <rex/macros.h>
-#include <rex/memory.h>
+#include <rex/export.h>
 #include <rex/platform/lock_order.h>
-#include <rex/runtime/achievement_manager.h>
 #include <rex/runtime/config.h>
-#include <rex/runtime/content_manager.h>
-#include <rex/runtime/dispatcher.h>
-#include <rex/runtime/error.h>
-#include <rex/runtime/module_registry.h>
-#include <rex/runtime/notifier.h>
-#include <rex/runtime/object_table.h>
 #include <rex/runtime/process.h>
-#include <rex/runtime/thread_registry.h>
-#include <rex/runtime/thread_state.h>
-#include <rex/runtime/xmemory.h>
-#include <rex/ui/user_interface.h>
+#include <rex/ui/display_mode.h>
 #include <rex/types.h>
 #include <rex/move_only_function.h>
 
@@ -64,6 +52,14 @@ namespace gpu {
 class IGPUBackend;
 }  // namespace gpu
 
+namespace filesystem {
+class IFileSystem;
+}  // namespace filesystem
+
+namespace ui {
+class IUserInterface;
+}  // namespace ui
+
 namespace runtime {
 class APU;
 class NullGPU;
@@ -78,6 +74,14 @@ class Dispatcher;
 class WorkspaceHeap;
 class AppManager;
 class UserProfile;
+class Memory;
+class IObjectTable;
+class IThreadRegistry;
+class IModuleRegistry;
+class INotifier;
+class IContentManager;
+class IAchievementManager;
+class IDispatcher;
 
 /** The display mode the title queries through VdQueryVideoMode and XGetVideoMode. */
 using VideoMode = ui::VideoMode;

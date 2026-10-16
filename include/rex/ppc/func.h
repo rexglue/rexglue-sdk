@@ -16,7 +16,8 @@
 #include <csetjmp>
 #include <cstddef>
 
-#include <rex/macros.h>
+#include <rex/platform.h>
+#include <rex/export.h>
 #include <rex/types.h>
 
 struct PPCContext;
@@ -62,17 +63,6 @@ REX_RUNTIME_API std::jmp_buf& JumpBuffer(u32 address);
 [[noreturn]] REX_RUNTIME_API void Unimplemented(const char* opcode);
 }  // namespace rex::ppc
 
-/**
- * Joins 2 tokens into 1 without expanding them first.
- *
- * @param x The left tokens.
- * @param y The right tokens.
- *
- * @code
- * REX_JOIN(prefix_, name)
- * @endcode
- */
-#define REX_JOIN(x, y) x##y
 /**
  * Turns the argument into a string literal without expanding it first.
  *

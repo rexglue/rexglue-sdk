@@ -22,7 +22,6 @@
 #include <type_traits>
 
 #include <rex/assert.h>
-#include <rex/macros.h>
 #include <rex/platform.h>
 #include <rex/types.h>
 

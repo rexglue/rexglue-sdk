@@ -10,7 +10,7 @@
  */
 
 #include <rex/filesystem.h>
-#include <rex/logging.h>
+#include <rex/logging/log.h>
 #include <rex/math.h>
 #include <rex/memory.h>
 #include <rex/runtime.h>

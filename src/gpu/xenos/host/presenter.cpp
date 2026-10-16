@@ -16,7 +16,9 @@
 
 #include <rex/assert.h>
 #include <rex/cvar.h>
-#include <rex/logging.h>
+#include <rex/logging/flush.h>
+#include <rex/fail.h>
+#include <rex/logging/log.h>
 #include <rex/platform.h>
 #include <rex/platform/thread.h>
 #if REX_PLATFORM_WIN32

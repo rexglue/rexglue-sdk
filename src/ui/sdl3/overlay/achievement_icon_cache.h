@@ -17,8 +17,9 @@
 #include <string>
 #include <unordered_map>
 
+#include <rex/platform.h>
+#include <rex/types.h>
 #include <rex/gpu/overlay.h>
-#include <rex/macros.h>
 #include <rex/runtime/achievement_info.h>
 
 namespace rex {

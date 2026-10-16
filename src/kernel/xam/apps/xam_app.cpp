@@ -13,9 +13,12 @@
 #include <cstring>
 #include <string_view>
 
-#include <rex/logging.h>
+#include <rex/fail.h>
+#include <rex/logging/log.h>
 #include <rex/runtime.h>
+#include <rex/runtime/content_manager.h>
 #include <rex/runtime/enumerator_object.h>
+#include <rex/runtime/object_table.h>
 #include <rex/runtime/xam/content_device.h>
 #include <rex/platform/thread.h>
 

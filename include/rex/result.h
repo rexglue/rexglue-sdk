@@ -155,3 +155,86 @@ inline auto Err(ErrorCategory category, std::string message, int code = 0) {
 }
 
 }  // namespace rex
+
+/**
+ * Pastes 2 tokens without expanding them first. Helper of REX_TRY_CONCAT.
+ *
+ * @param a The first token.
+ * @param b The second token.
+ *
+ * The example yields the token _rex_try_12.
+ *
+ * @code
+ * REX_TRY_CONCAT_IMPL(_rex_try_, 12)
+ * @endcode
+ */
+#define REX_TRY_CONCAT_IMPL(a, b) a##b
+
+/**
+ * Pastes 2 tokens after expanding them, so `__LINE__` becomes the line number.
+ *
+ * @param a The first token.
+ * @param b The second token.
+ *
+ * @code
+ * auto REX_TRY_CONCAT(_rex_try_, __LINE__) = Open(path);
+ * @endcode
+ */
+#define REX_TRY_CONCAT(a, b) REX_TRY_CONCAT_IMPL(a, b)
+
+/**
+ * Unwraps a rex::Result into a declaration, or returns its error from the enclosing function.
+ *
+ * Expands to a uniquely named temporary holding the result, an early
+ * `return std::unexpected(error)` when it failed, and `decl = *std::move(temporary);`.
+ * It is a statement, not an expression.
+ *
+ * @param decl The declaration that receives the value.
+ * @param expr An expression of type rex::Result<T>.
+ *
+ * @code
+ * REX_TRY(auto file, Open(path));
+ * @endcode
+ */
+// NOLINTBEGIN(bugprone-macro-parentheses): decl is a declaration
+#define REX_TRY(decl, expr)                                                         \
+  auto REX_TRY_CONCAT(_rex_try_, __LINE__) = (expr);                                \
+  if (!REX_TRY_CONCAT(_rex_try_, __LINE__)) {                                       \
+    return std::unexpected(std::move(REX_TRY_CONCAT(_rex_try_, __LINE__)).error()); \
+  }                                                                                 \
+  decl = *std::move(REX_TRY_CONCAT(_rex_try_, __LINE__))
+// NOLINTEND(bugprone-macro-parentheses)
+
+/**
+ * Returns the error of a rex::Result expression from the enclosing function.
+ *
+ * @param expr An expression of type rex::Result<T>, usually rex::Result<void>.
+ *
+ * @code
+ * REX_TRY_VOID(module->Init());
+ * @endcode
+ */
+#define REX_TRY_VOID(expr)                                        \
+  do {                                                            \
+    auto&& _rex_try_status = (expr);                              \
+    if (!_rex_try_status) {                                       \
+      return std::unexpected(std::move(_rex_try_status).error()); \
+    }                                                             \
+  } while (0)
+
+/**
+ * Returns an error from the enclosing function when a condition holds.
+ *
+ * @param cond The condition that triggers the error.
+ * @param error The rex::Error to return when it holds.
+ *
+ * @code
+ * REX_ERROR_IF(ptr == nullptr, rex::Error(rex::ErrorCategory::kValidation, "null"));
+ * @endcode
+ */
+#define REX_ERROR_IF(cond, error)    \
+  do {                               \
+    if (cond) {                      \
+      return std::unexpected(error); \
+    }                                \
+  } while (0)

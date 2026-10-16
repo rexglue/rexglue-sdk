@@ -25,6 +25,7 @@
 
 #include "core/xex_builder.h"
 #include "kernel/kernel_fixture.h"
+#include "kernel/xboxkrnl/loaded_command_line.h"
 #include "pe/pe_image.h"
 #include "runtime/module_registry.h"
 

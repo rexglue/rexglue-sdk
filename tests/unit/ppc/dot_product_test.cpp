@@ -53,12 +53,12 @@ void CheckCases(DotFunction dot, std::span<const DotProductCase> cases) {
 
 }  // namespace
 
-REX_TEST_CASE("Vmsum3fp128 matches the sampled results", "[ppc][dot_product]") {
-  CheckCases(rex::ppc::Vmsum3fp128, kVmsum3fp128Cases);
+REX_TEST_CASE("DotProduct3 matches the sampled results", "[ppc][dot_product]") {
+  CheckCases(rex::ppc::simd::DotProduct3, kDotProduct3Cases);
 }
 
-REX_TEST_CASE("Vmsum4fp128 matches the sampled results", "[ppc][dot_product]") {
-  CheckCases(rex::ppc::Vmsum4fp128, kVmsum4fp128Cases);
+REX_TEST_CASE("DotProduct4 matches the sampled results", "[ppc][dot_product]") {
+  CheckCases(rex::ppc::simd::DotProduct4, kDotProduct4Cases);
 }
 
 namespace {
@@ -139,7 +139,7 @@ void CheckAgainstReference(DotFunction dot) {
                                       reinterpret_cast<const simde__m128i*>(a.data()))),
                                   simde_mm_castsi128_ps(simde_mm_load_si128(
                                       reinterpret_cast<const simde__m128i*>(b.data()))))));
-    const u32 expected = rex::ppc::detail::DotProductReference<Terms>(terms_a, terms_b);
+    const u32 expected = rex::ppc::simd::detail::DotProductReference<Terms>(terms_a, terms_b);
     CAPTURE(a[0], a[1], a[2], a[3], b[0], b[1], b[2], b[3]);
     REQUIRE(out[0] == expected);
     REQUIRE(out[3] == expected);
@@ -148,16 +148,16 @@ void CheckAgainstReference(DotFunction dot) {
 
 }  // namespace
 
-REX_TEST_CASE("Vmsum3fp128 matches the scalar reference on random operands", "[ppc][dot_product]") {
-  CheckAgainstReference<3>(rex::ppc::Vmsum3fp128);
+REX_TEST_CASE("DotProduct3 matches the scalar reference on random operands", "[ppc][dot_product]") {
+  CheckAgainstReference<3>(rex::ppc::simd::DotProduct3);
 }
 
-REX_TEST_CASE("Vmsum4fp128 matches the scalar reference on random operands", "[ppc][dot_product]") {
-  CheckAgainstReference<4>(rex::ppc::Vmsum4fp128);
+REX_TEST_CASE("DotProduct4 matches the scalar reference on random operands", "[ppc][dot_product]") {
+  CheckAgainstReference<4>(rex::ppc::simd::DotProduct4);
 }
 
 REX_TEST_CASE(
-    "Vmsum3fp128 and Vmsum4fp128 take a denormal operand at its value when VSCR NJ is clear",
+    "DotProduct3 and DotProduct4 take a denormal operand at its value when VSCR NJ is clear",
     "[ppc][dot_product]") {
   const auto load = [](const std::array<u32, 4>& words) {
     alignas(16) std::array<u32, 4> host;
@@ -169,8 +169,9 @@ REX_TEST_CASE(
   };
   for (const DotProductNJ0Case& expected : kDotProductNJ0Cases) {
     const simde__m128 result =
-        expected.terms == 3 ? rex::ppc::Vmsum3fp128(load(expected.a), load(expected.b), false)
-                            : rex::ppc::Vmsum4fp128(load(expected.a), load(expected.b), false);
+        expected.terms == 3
+            ? rex::ppc::simd::DotProduct3(load(expected.a), load(expected.b), false)
+            : rex::ppc::simd::DotProduct4(load(expected.a), load(expected.b), false);
     alignas(16) std::array<u32, 4> host;
     simde_mm_store_si128(reinterpret_cast<simde__m128i*>(host.data()),
                          simde_mm_castps_si128(result));

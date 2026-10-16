@@ -14,7 +14,8 @@
 
 #include <rex/cvar.h>
 #include <rex/filesystem/xex.h>
-#include <rex/logging.h>
+#include <rex/fail.h>
+#include <rex/logging/log.h>
 #include <rex/string.h>
 #include <rex/runtime/elf_module.h>
 #include <rex/runtime/function_dispatcher.h>

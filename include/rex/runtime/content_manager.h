@@ -15,13 +15,14 @@
 #include <string_view>
 #include <vector>
 
-#include <rex/macros.h>
+#include <rex/platform.h>
 #include <rex/result.h>
-#include <rex/runtime/xdbf.h>
+#include <rex/runtime/xdbf_reader.h>
 #include <rex/runtime/xam/app_manager.h>
 #include <rex/runtime/xam/user_profile.h>
 #include <rex/runtime/xcontent.h>
 #include <rex/types.h>
+#include <rex/module.h>
 
 namespace rex::runtime {
 
@@ -29,11 +30,8 @@ namespace rex::runtime {
  * Creates, opens, lists and deletes content packages under the user data root, and reports the
  * running title, its XDBF data, the signed in profile and the XAM apps.
  */
-class IContentManager {
+REX_INTERFACE(IContentManager, "rex.runtime.content_manager", 1)
  public:
-  REX_INTERFACE(IContentManager, "rex.runtime.content_manager", 1);
-  virtual ~IContentManager() = default;
-
   /**
    * Lists the content packages of a type.
    *

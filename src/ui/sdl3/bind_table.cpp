@@ -2,8 +2,9 @@
 
 #include <algorithm>
 
+#include <rex/cvar.h>
 #include <rex/hid/event.h>
-#include <rex/logging.h>
+#include <rex/logging/log.h>
 #include <rex/move_only_function.h>
 
 namespace rex::ui {

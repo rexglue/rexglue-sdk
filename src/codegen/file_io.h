@@ -12,28 +12,12 @@
 #pragma once
 
 #include <filesystem>
-#include <optional>
-#include <span>
-#include <string>
 #include <string_view>
 
 #include <rex/platform/file.h>
 #include <rex/types.h>
 
 namespace rex::codegen {
-
-inline std::optional<std::string> ReadFileBytes(const std::filesystem::path& path) {
-  auto bytes = rex::platform::ReadWholeFile(path);
-  if (!bytes)
-    return std::nullopt;
-  return std::string(bytes->begin(), bytes->end());
-}
-
-inline bool WriteFileBytes(const std::filesystem::path& path, std::string_view content) {
-  return rex::platform::WriteWholeFile(
-             path, std::span(reinterpret_cast<const u8*>(content.data()), content.size()))
-      .has_value();
-}
 
 enum class WriteOutcome : u8 { kFailed, kUnchanged, kWritten };
 
@@ -46,9 +30,13 @@ enum class WriteOutcome : u8 { kFailed, kUnchanged, kWritten };
  * @return Unchanged, Written or Failed.
  */
 inline WriteOutcome WriteIfChanged(const std::filesystem::path& path, std::string_view content) {
-  if (auto existing = ReadFileBytes(path); existing && *existing == content)
+  if (auto existing = rex::platform::ReadHostFile(path);
+      existing && std::string_view(reinterpret_cast<const char*>(existing->data()),
+                                   existing->size()) == content) {
     return WriteOutcome::kUnchanged;
-  return WriteFileBytes(path, content) ? WriteOutcome::kWritten : WriteOutcome::kFailed;
+  }
+  return rex::platform::WriteHostFile(path, content) ? WriteOutcome::kWritten
+                                                     : WriteOutcome::kFailed;
 }
 
 }  // namespace rex::codegen

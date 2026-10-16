@@ -16,8 +16,10 @@
 #include <vector>
 
 #include <rex/cvar.h>
-#include <rex/logging.h>
+#include <rex/fail.h>
+#include <rex/logging/log.h>
 #include <rex/platform.h>
+#include "gpu/xenos/host/library_names.h"
 #include "gpu/xenos/host/vulkan/instance.h"
 #include "gpu/xenos/host/vulkan/presenter.h"
 #include "gpu/xenos/host/vulkan/objects.h"
@@ -47,7 +49,7 @@ std::unique_ptr<VulkanInstance> VulkanInstance::Create(const bool with_surface,
   ConfigureMacOSVulkanEnvironment(macos_runtime_paths);
 
   std::vector<std::filesystem::path> loader_candidates = macos_runtime_paths.loader_candidates;
-  loader_candidates.emplace_back(platform::kVulkanLoader);
+  loader_candidates.emplace_back(kVulkanLoader);
   loader_candidates.emplace_back("libvulkan.dylib");
   loader_candidates.emplace_back("libMoltenVK.dylib");
 
@@ -72,9 +74,9 @@ std::unique_ptr<VulkanInstance> VulkanInstance::Create(const bool with_surface,
     return nullptr;
   }
 #else
-  loader_loaded = vulkan_instance->loader_.Load(platform::kVulkanLoader);
+  loader_loaded = vulkan_instance->loader_.Load(kVulkanLoader);
   if (!loader_loaded) {
-    REX_FAIL(ui, nullptr, "Failed to load {}", platform::kVulkanLoader);
+    REX_FAIL(ui, nullptr, "Failed to load {}", kVulkanLoader);
   }
 #endif
 

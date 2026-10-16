@@ -11,14 +11,13 @@
 #pragma once
 
 #include <rex/move_only_function.h>
+#include <rex/module.h>
 
 namespace rex::gpu {
 
 /** The thread that owns windows and presentation. */
-class IUIThread {
+REX_INTERFACE(IUIThread)
  public:
-  virtual ~IUIThread() = default;
-
   /**
    * Runs work on the UI thread and returns after it finishes.
    *

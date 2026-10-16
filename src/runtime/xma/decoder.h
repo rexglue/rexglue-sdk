@@ -18,9 +18,11 @@
 
 #include "runtime/xma/context.h"
 #include "runtime/xma/register_file.h"
+#include <rex/platform.h>
+#include <rex/types.h>
 #include <rex/bit.h>
 #include <rex/kernel.h>
-#include <rex/macros.h>
+#include <rex/export.h>
 
 namespace rex::runtime {
 

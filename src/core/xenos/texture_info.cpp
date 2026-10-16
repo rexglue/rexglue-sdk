@@ -15,7 +15,7 @@
 
 #include <rex/xenos/texture_info.h>
 #include <rex/hash.h>
-#include <rex/logging.h>
+#include <rex/logging/log.h>
 #include <rex/math.h>
 #include <rex/memory.h>
 

@@ -21,9 +21,10 @@
 
 #include <imgui.h>
 
+#include <rex/platform.h>
+#include <rex/types.h>
 #include <rex/gpu/overlay.h>
 #include <rex/gpu/presenter.h>
-#include <rex/macros.h>
 #include <rex/ui/imgui_dialog.h>
 #include <rex/move_only_function.h>
 #include "ui/sdl3/window.h"

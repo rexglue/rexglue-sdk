@@ -23,9 +23,10 @@
 
 #include <rex/api.h>
 #include <rex/cvar/registry.h>
-#include <rex/gpu/backend.h>
+#include <rex/gpu.h>
 #include <rex/hid.h>
-#include <rex/logging.h>
+#include <rex/logging/logger.h>
+#include <rex/logging/log.h>
 #include <rex/logging/sink.h>
 #include <rex/runtime/achievement_manager.h>
 #include <rex/ui/imgui_dialog.h>

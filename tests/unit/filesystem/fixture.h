@@ -41,7 +41,7 @@ struct TempFolder : rex::test::TempFolder {
  * @param text The contents.
  */
 inline void WriteHost(const std::filesystem::path& path, std::string_view text) {
-  REQUIRE(platform::WriteWholeFile(
+  REQUIRE(platform::WriteHostFile(
       path, std::span(reinterpret_cast<const u8*>(text.data()), text.size())));
 }
 

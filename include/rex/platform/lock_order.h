@@ -14,7 +14,8 @@
 #include <mutex>
 #include <shared_mutex>
 
-#include <rex/macros.h>
+#include <rex/platform.h>
+#include <rex/export.h>
 #include <rex/types.h>
 
 namespace rex::platform {

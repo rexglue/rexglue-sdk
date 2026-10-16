@@ -16,11 +16,13 @@
 #include <utility>
 #include <vector>
 
-#include <rex/macros.h>
+#include <rex/platform.h>
+#include <rex/export.h>
 #include <rex/result.h>
 #include <rex/runtime/object_data.h>
 #include <rex/runtime/xtypes.h>
 #include <rex/types.h>
+#include <rex/module.h>
 
 namespace rex::runtime {
 
@@ -34,11 +36,8 @@ struct AddOptions {
  * Owns every kernel object and maps handle values to them. Handles are 0xF8000000 plus 4 times
  * the slot. The pseudo handle 0xFFFFFFFF translates to 0 and 0xFFFFFFFE to the calling thread.
  */
-class IObjectTable {
+REX_INTERFACE(IObjectTable, "rex.runtime.object_table", 1)
  public:
-  REX_INTERFACE(IObjectTable, "rex.runtime.object_table", 1);
-  virtual ~IObjectTable() = default;
-
   /**
    * Takes ownership of an `KernelObject` and gives it its first handle with a count of 1.
    *

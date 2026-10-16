@@ -13,7 +13,7 @@
 #include <vector>
 
 #include <rex/cvar.h>
-#include <rex/logging.h>
+#include <rex/logging/log.h>
 #include "gpu/xenos/host/vulkan/immediate_drawer.h"
 #include "gpu/xenos/host/vulkan/presenter.h"
 #include "gpu/xenos/host/vulkan/provider.h"

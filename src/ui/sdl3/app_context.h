@@ -15,6 +15,7 @@
 
 #include <vector>
 
+#include <rex/platform.h>
 #include <rex/api.h>
 #include <cstdint>
 #include <deque>
@@ -22,7 +23,6 @@
 #include <thread>
 
 #include <rex/assert.h>
-#include <rex/macros.h>
 #include <rex/platform/thread.h>
 #include <rex/types.h>
 #include <rex/move_only_function.h>

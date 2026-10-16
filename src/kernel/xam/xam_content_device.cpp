@@ -10,9 +10,11 @@
  */
 
 #include <rex/kernel/xam/private.h>
-#include <rex/logging.h>
+#include <rex/logging/log.h>
 #include <rex/math.h>
+#include <rex/string.h>
 #include <rex/hook.h>
+#include <rex/runtime/dispatcher.h>
 #include <rex/types.h>
 #include <rex/runtime.h>
 #include <rex/runtime/xam/content_device.h>

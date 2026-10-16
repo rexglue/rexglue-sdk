@@ -24,7 +24,8 @@
 #include <format>
 
 #include <rex/app.h>
-#include <rex/logging.h>
+#include <rex/logging/logger.h>
+#include <rex/logging/log.h>
 #include <rex/platform/console.h>
 #include <rex/platform/env.h>
 #include <rex/result.h>

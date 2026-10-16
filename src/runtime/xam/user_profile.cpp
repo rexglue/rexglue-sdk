@@ -13,9 +13,10 @@
 
 #include <format>
 
-#include <rex/logging.h>
+#include <rex/logging/log.h>
 #include <rex/platform/file.h>
 #include <rex/runtime.h>
+#include <rex/runtime/content_manager.h>
 #include <rex/runtime/xam/user_profile.h>
 
 namespace rex {
@@ -127,7 +128,7 @@ void UserProfile::LoadSetting(UserProfile::Setting* setting) {
     auto content_dir = runtime_.GetContentManager().ResolveGameUserContentPath();
     auto setting_id = std::format("{:08X}", setting->setting_id);
     auto file_path = content_dir / setting_id;
-    if (auto serialized_data = rex::platform::ReadWholeFile(file_path)) {
+    if (auto serialized_data = rex::platform::ReadHostFile(file_path)) {
       setting->Deserialize(*serialized_data);
       setting->loaded_title_id = runtime_.GetContentManager().GetTitleId();
     }
@@ -143,7 +144,7 @@ void UserProfile::SaveSetting(UserProfile::Setting* setting) {
     std::filesystem::create_directories(content_dir);
     auto setting_id = std::format("{:08X}", setting->setting_id);
     auto file_path = content_dir / setting_id;
-    if (auto written = rex::platform::WriteWholeFile(file_path, serialized_setting); !written) {
+    if (auto written = rex::platform::WriteHostFile(file_path, serialized_setting); !written) {
       REXLOG_WARN(system, "profile setting is not saved, {}", written.error().message);
     }
   } else {

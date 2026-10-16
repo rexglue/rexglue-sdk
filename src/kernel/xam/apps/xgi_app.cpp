@@ -10,9 +10,11 @@
  */
 
 #include <rex/kernel/xam/apps/xgi_app.h>
-#include <rex/logging.h>
+#include <rex/fail.h>
+#include <rex/logging/log.h>
 #include <rex/platform/thread.h>
-#include "kernel/kernel_macros.h"
+#include <rex/runtime/achievement_manager.h>
+#include "kernel/stub_log.h"
 
 namespace rex {
 namespace kernel {

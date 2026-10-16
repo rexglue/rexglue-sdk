@@ -12,7 +12,9 @@
 
 #include <imgui.h>
 
-#include <rex/macros.h>
+#include <rex/types.h>
+#include <rex/platform.h>
+#include <rex/export.h>
 #include <rex/ui/style.h>
 
 namespace rex::ui {

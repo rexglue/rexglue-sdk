@@ -8,7 +8,7 @@
 #include <ranges>
 #include <system_error>
 
-#include <rex/logging.h>
+#include <rex/logging/log.h>
 #include <rex/memory/mapped_memory.h>
 #include <rex/string.h>
 
@@ -305,6 +305,30 @@ Result<void> Container::Extract(const std::filesystem::path& destination) const 
     }
   }
   return Ok();
+}
+
+Result<STFSHeader> ReadSTFSHeader(std::span<const u8> bytes) {
+  if (bytes.size() < sizeof(STFSHeader)) {
+    return Err<STFSHeader>(BuildError(FileSystemError::kCorrupt,
+                                      std::format("package header needs {:#x} bytes, {:#x} present",
+                                                  sizeof(STFSHeader), bytes.size())));
+  }
+  STFSHeader header;
+  std::memcpy(&header, bytes.data(), sizeof(STFSHeader));
+  if (!header.header.IsMagicValid()) {
+    return Err<STFSHeader>(
+        BuildError(FileSystemError::kCorrupt, "package magic is not CON, LIVE or PIRS"));
+  }
+  return header;
+}
+
+Result<STFSHeader> ReadSTFSHeader(const std::filesystem::path& path) {
+  auto map = memory::MappedMemory::Open(path, memory::MappedMemory::Mode::kRead);
+  if (!map) {
+    return Err<STFSHeader>(
+        BuildError(FileSystemError::kNotFound, std::format("cannot open '{}'", PathToUTF8(path))));
+  }
+  return ReadSTFSHeader(std::span<const u8>(map->GetData(), map->GetSize()));
 }
 
 }  // namespace rex::filesystem

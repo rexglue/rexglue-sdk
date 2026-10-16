@@ -14,8 +14,9 @@
 #include <string>
 #include <string_view>
 
+#include <rex/platform.h>
 #include <rex/logging/level.h>
-#include <rex/macros.h>
+#include <rex/export.h>
 #include <rex/types.h>
 
 namespace rex::log {

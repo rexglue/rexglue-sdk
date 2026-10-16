@@ -36,7 +36,8 @@
 #include "gpu/xenos/vulkan/deferred_command_buffer.h"
 #include "gpu/xenos/vulkan/render_target_cache.h"
 #include <rex/xenos/xenos.h>
-#include <rex/logging.h>
+#include <rex/fail.h>
+#include <rex/logging/log.h>
 #include <rex/math.h>
 #include "gpu/xenos/host/vulkan/objects.h"
 

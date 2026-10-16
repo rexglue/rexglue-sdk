@@ -16,7 +16,7 @@
 #include <rex/codegen/analysis_errors.h>
 #include <rex/codegen/config.h>
 #include <rex/codegen/function_types.h>
-#include <rex/logging.h>
+#include <rex/logging/log.h>
 
 #include <rex/memory/byte_swap.h>
 

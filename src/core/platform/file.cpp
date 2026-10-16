@@ -1,5 +1,6 @@
 #include <rex/platform/file.h>
 
+#include <algorithm>
 #include <format>
 #include <fstream>
 #include <system_error>
@@ -20,26 +21,33 @@ std::filesystem::path GetExecutableFolder() {
   return GetExecutablePath().parent_path();
 }
 
-[[nodiscard]] Result<std::vector<u8>> ReadWholeFile(const std::filesystem::path& path) {
+Result<std::vector<u8>> ReadHostFile(const std::filesystem::path& path, u64 offset, u64 length) {
   std::ifstream stream(path, std::ios::binary | std::ios::ate);
   if (!stream) {
     return Err<std::vector<u8>>(IOError("cannot open", path));
   }
-  const std::streamoff size = stream.tellg();
-  if (size < 0) {
+  const std::streamoff end = stream.tellg();
+  if (end < 0) {
     return Err<std::vector<u8>>(IOError("cannot size", path));
   }
-  std::vector<u8> bytes(static_cast<size_t>(size));
-  stream.seekg(0);
-  if (!bytes.empty() &&
-      !stream.read(reinterpret_cast<char*>(bytes.data()), static_cast<std::streamsize>(size))) {
+  const u64 size = static_cast<u64>(end);
+  if (offset > size) {
+    return Err<std::vector<u8>>(IOError("offset is past the end of", path));
+  }
+  const u64 available = size - offset;
+  const u64 count = length == 0 ? available : std::min(length, available);
+  std::vector<u8> bytes(static_cast<size_t>(count));
+  if (bytes.empty()) {
+    return bytes;
+  }
+  stream.seekg(static_cast<std::streamoff>(offset));
+  if (!stream.read(reinterpret_cast<char*>(bytes.data()), static_cast<std::streamsize>(count))) {
     return Err<std::vector<u8>>(IOError("cannot read", path));
   }
   return bytes;
 }
 
-[[nodiscard]] Result<void> WriteWholeFile(const std::filesystem::path& path,
-                                          std::span<const u8> data) {
+Result<void> WriteHostFile(const std::filesystem::path& path, std::span<const u8> data) {
   std::error_code ec;
   if (path.has_parent_path()) {
     std::filesystem::create_directories(path.parent_path(), ec);
@@ -69,6 +77,11 @@ std::filesystem::path GetExecutableFolder() {
     return Err(IOError("cannot replace", path));
   }
   return Ok();
+}
+
+Result<void> WriteHostFile(const std::filesystem::path& path, std::string_view text) {
+  return WriteHostFile(path,
+                       std::span<const u8>(reinterpret_cast<const u8*>(text.data()), text.size()));
 }
 
 }  // namespace rex::platform

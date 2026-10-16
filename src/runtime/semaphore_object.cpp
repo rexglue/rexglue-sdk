@@ -12,7 +12,7 @@
 #include <algorithm>
 #include <limits>
 
-#include <rex/logging.h>
+#include <rex/logging/log.h>
 #include <rex/runtime/semaphore_object.h>
 
 namespace rex::runtime {

@@ -20,7 +20,7 @@ struct MultiplyAddCase {
   u32 out;
 };
 
-inline constexpr MultiplyAddCase kVmaddfpCases[] = {
+inline constexpr MultiplyAddCase kMultiplyAddCases[] = {
     {0x7FC00000, 0xFFC00000, 0x3F7FFFFF, 0x7FC00000},
     {0x7FC00000, 0x0FC520B9, 0xFFC00000, 0x7FC00000},
     {0xFFC00000, 0x7F800000, 0x7FC00000, 0xFFC00000},
@@ -390,7 +390,7 @@ inline constexpr MultiplyAddCase kVmaddfpCases[] = {
     {0x47AC94BC, 0x910DC674, 0x4D8896C4, 0x4D8896C4},
 };
 
-inline constexpr MultiplyAddCase kVnmsubfpCases[] = {
+inline constexpr MultiplyAddCase kNegativeMultiplySubtractCases[] = {
     {0x7FC00000, 0xFFC00000, 0x3F7FFFFF, 0x7FC00000},
     {0x7FC00000, 0x0FC520B9, 0xFFC00000, 0x7FC00000},
     {0xFFC00000, 0x7F800000, 0x7FC00000, 0xFFC00000},

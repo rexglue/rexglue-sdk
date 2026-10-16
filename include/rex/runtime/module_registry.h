@@ -14,11 +14,12 @@
 #include <string_view>
 #include <vector>
 
-#include <rex/macros.h>
+#include <rex/platform.h>
 #include <rex/platform/lock_order.h>
 #include <rex/result.h>
 #include <rex/runtime/xtypes.h>
 #include <rex/types.h>
+#include <rex/module.h>
 
 namespace rex::runtime {
 
@@ -27,11 +28,8 @@ namespace rex::runtime {
  * modules with their recompiled libraries. Every handle it returns is a duplicate it owns, which
  * the caller must not close.
  */
-class IModuleRegistry {
+REX_INTERFACE(IModuleRegistry, "rex.runtime.module_registry", 1)
  public:
-  REX_INTERFACE(IModuleRegistry, "rex.runtime.module_registry", 1);
-  virtual ~IModuleRegistry() = default;
-
   /**
    * Finds a loaded module.
    *

@@ -15,7 +15,7 @@
 
 #include <rex/codegen/manifest.h>
 #include <rex/codegen/project_recompiler.h>
-#include <rex/logging.h>
+#include <rex/logging/log.h>
 #include <rex/version.h>
 
 namespace rexglue::cli {

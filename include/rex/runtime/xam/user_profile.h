@@ -18,7 +18,9 @@
 #include <unordered_map>
 #include <vector>
 
-#include <rex/macros.h>
+#include <rex/platform.h>
+#include <rex/types.h>
+#include <rex/export.h>
 #include <rex/memory.h>
 #include <rex/stream.h>
 #include <rex/runtime/xtypes.h>

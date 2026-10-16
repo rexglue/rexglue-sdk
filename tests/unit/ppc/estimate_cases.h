@@ -24,7 +24,7 @@ struct EstimateCase64 {
   u64 out;
 };
 
-inline constexpr EstimateCase32 kVrefpCases[] = {
+inline constexpr EstimateCase32 kReciprocalEstimateCases[] = {
     {0x0022663F, 0x7F800000}, {0x0010231F, 0x7F800000}, {0x00414D76, 0x7F800000},
     {0x001E2E89, 0x7F800000}, {0x007ED194, 0x7F800000}, {0x00731106, 0x7F800000},
     {0x0078E400, 0x7F800000}, {0x00612F16, 0x7F800000}, {0x0035BE52, 0x7F800000},
@@ -146,7 +146,7 @@ inline constexpr EstimateCase32 kVrefpCases[] = {
     {0x40780000, 0x3E841C00}, {0x407C0000, 0x3E820C00},
 };
 
-inline constexpr EstimateCase32 kVrsqrtefpCases[] = {
+inline constexpr EstimateCase32 kReciprocalSqrtEstimateCases[] = {
     {0x00550961, 0x7F800000}, {0x00415AE1, 0x7F800000}, {0x005E3ED6, 0x7F800000},
     {0x0056BF6D, 0x7F800000}, {0x00571C6D, 0x7F800000}, {0x001D2D55, 0x7F800000},
     {0x004A8C09, 0x7F800000}, {0x003C3644, 0x7F800000}, {0x007D23A2, 0x7F800000},
@@ -268,7 +268,7 @@ inline constexpr EstimateCase32 kVrsqrtefpCases[] = {
     {0x40780000, 0x3F020B00}, {0x407C0000, 0x3F010580},
 };
 
-inline constexpr EstimateCase32 kVlogefpCases[] = {
+inline constexpr EstimateCase32 kLog2EstimateCases[] = {
     {0x006ED474, 0xFF800000}, {0x0065B253, 0xFF800000}, {0x002A2CD4, 0xFF800000},
     {0x00535384, 0xFF800000}, {0x0070295B, 0xFF800000}, {0x00205308, 0xFF800000},
     {0x007CEE78, 0xFF800000}, {0x00364683, 0xFF800000}, {0x001E8269, 0xFF800000},
@@ -390,7 +390,7 @@ inline constexpr EstimateCase32 kVlogefpCases[] = {
     {0x40780000, 0x3FF9F000}, {0x407C0000, 0x3FFCF000},
 };
 
-inline constexpr EstimateCase32 kVexptefpCases[] = {
+inline constexpr EstimateCase32 kExp2EstimateCases[] = {
     {0x0005F5AA, 0x3F800000}, {0x00377568, 0x3F800000}, {0x0008E129, 0x3F800000},
     {0x007E975E, 0x3F800000}, {0x00713D1D, 0x3F800000}, {0x0057AF9F, 0x3F800000},
     {0x00464CB4, 0x3F800000}, {0x001E3C02, 0x3F800000}, {0x002C322C, 0x3F800000},
@@ -512,7 +512,7 @@ inline constexpr EstimateCase32 kVexptefpCases[] = {
     {0x40780000, 0x416A1000}, {0x407C0000, 0x41741000},
 };
 
-inline constexpr EstimateCase64 kFresCases[] = {
+inline constexpr EstimateCase64 kScalarReciprocalCases[] = {
     {0x00003D0000000000, 0x7FF0000000000000}, {0x0005D40000000000, 0x7FF0000000000000},
     {0x0009730000000000, 0x7FF0000000000000}, {0x000E010000000000, 0x7FF0000000000000},
     {0x0007A50000000000, 0x7FF0000000000000}, {0x000C870000000000, 0x7FF0000000000000},
@@ -805,7 +805,7 @@ inline constexpr EstimateCase64 kFresCases[] = {
     {0x400FE00000000000, 0x3FD0000000000000},
 };
 
-inline constexpr EstimateCase64 kFrsqrteCases[] = {
+inline constexpr EstimateCase64 kScalarReciprocalSqrtCases[] = {
     {0x00088C0000000000, 0x5FE6000000000000}, {0x0001DF0000000000, 0x5FF8000000000000},
     {0x000A9F0000000000, 0x5FE3C00000000000}, {0x0000EB0000000000, 0x6001000000000000},
     {0x0002CC0000000000, 0x5FF3000000000000}, {0x00088D0000000000, 0x5FE6000000000000},

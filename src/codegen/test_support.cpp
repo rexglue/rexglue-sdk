@@ -8,7 +8,7 @@
 #include "ppc/instruction.h"
 
 #include <rex/codegen/codegen_context.h>
-#include <rex/logging.h>
+#include <rex/logging/log.h>
 #include <rex/memory/byte_swap.h>
 #include <rex/runtime/binary_types.h>
 #include <rex/types.h>

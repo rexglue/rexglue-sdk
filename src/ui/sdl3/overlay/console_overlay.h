@@ -10,9 +10,10 @@
 
 #pragma once
 
-#include <rex/macros.h>
 #include "ui/sdl3/console/model.h"
 #include "ui/sdl3/console/view.h"
+#include <rex/types.h>
+#include <rex/platform.h>
 #include <rex/ui/imgui_dialog.h>
 
 namespace rex::ui {

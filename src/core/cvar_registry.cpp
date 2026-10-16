@@ -4,12 +4,15 @@
 #include <cctype>
 #include <charconv>
 #include <format>
+#include <limits>
 #include <map>
 #include <ranges>
 
 #include <rex/api.h>
-#include <rex/logging.h>
+#include <rex/cvar.h>
+#include <rex/logging/log.h>
 #include <rex/platform/env.h>
+#include <rex/string/numeric.h>
 
 namespace rex::detail {
 
@@ -561,6 +564,36 @@ std::vector<std::string> CvarRegistryImpl::GetRegisteredNames() const {
 }  // namespace rex::detail
 
 namespace rex::cvar {
+
+namespace {
+
+template <typename T, typename Wide>
+std::string ClampIntegerText(const rex::cvar::Desc& desc, std::string_view text) {
+  Wide value = std::clamp<Wide>(rex::from_string<Wide>(text), std::numeric_limits<T>::min(),
+                                std::numeric_limits<T>::max());
+  if (desc.constraints.min && static_cast<f64>(value) < *desc.constraints.min) {
+    value = static_cast<Wide>(*desc.constraints.min);
+  }
+  if (desc.constraints.max && static_cast<f64>(value) > *desc.constraints.max) {
+    value = static_cast<Wide>(*desc.constraints.max);
+  }
+  return std::to_string(value);
+}
+
+}  // namespace
+
+std::string ClampIntegerCvarText(const rex::cvar::Desc& desc, std::string_view text) {
+  switch (desc.type) {
+    case rex::cvar::Type::kInt32:
+      return ClampIntegerText<i32, i64>(desc, text);
+    case rex::cvar::Type::kUInt32:
+      return ClampIntegerText<u32, u64>(desc, text);
+    case rex::cvar::Type::kUInt64:
+      return ClampIntegerText<u64, u64>(desc, text);
+    default:
+      return ClampIntegerText<i64, i64>(desc, text);
+  }
+}
 
 void ApplyEnvironment(rex::Config& config) {
   for (auto& [name, value] : rex::platform::EnumerateEnvironment()) {

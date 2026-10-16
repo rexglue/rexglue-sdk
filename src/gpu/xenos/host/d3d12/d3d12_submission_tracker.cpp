@@ -10,7 +10,7 @@
  */
 
 #include <rex/assert.h>
-#include <rex/logging.h>
+#include <rex/logging/log.h>
 #include "gpu/xenos/host/d3d12/d3d12_submission_tracker.h"
 
 namespace rex::gpu::d3d12 {

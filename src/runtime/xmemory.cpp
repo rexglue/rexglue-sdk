@@ -28,7 +28,8 @@
 #include <rex/assert.h>
 #include <rex/cvar.h>
 #include <rex/exception_handler.h>
-#include <rex/logging.h>
+#include <rex/fail.h>
+#include <rex/logging/log.h>
 #include <rex/math.h>
 #include <rex/runtime/function_dispatcher.h>
 #include <rex/mmio.h>

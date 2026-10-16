@@ -16,7 +16,7 @@
 #include <rex/codegen/phases.h>
 #include "phase_helpers.h"
 
-#include <rex/logging.h>
+#include <rex/logging/log.h>
 
 #include <rex/memory/byte_swap.h>
 

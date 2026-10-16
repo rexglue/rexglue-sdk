@@ -15,7 +15,9 @@
 #include <mutex>
 #include <queue>
 
-#include <rex/macros.h>
+#include <rex/platform.h>
+#include <rex/types.h>
+#include <rex/export.h>
 #include <rex/platform/thread.h>
 #include <rex/runtime/object.h>
 #include <rex/runtime/xtypes.h>

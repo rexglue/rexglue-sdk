@@ -7,9 +7,10 @@
 #include <rex/cvar.h>
 #include <rex/math.h>
 #include <rex/hook.h>
-#include <rex/kernel/shim/define.h>
+#include <rex/kernel/shim/function.h>
 #include <rex/runtime/xmemory.h>
-#include <rex/logging.h>
+#include <rex/fail.h>
+#include <rex/logging/log.h>
 
 namespace {
 

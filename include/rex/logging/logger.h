@@ -16,24 +16,23 @@
 #include <string_view>
 #include <vector>
 
+#include <rex/platform.h>
 #include <rex/logging/category.h>
 #include <rex/logging/config.h>
+#include <rex/logging/flush.h>
 #include <rex/logging/format.h>
 #include <rex/logging/level.h>
 #include <rex/logging/sink.h>
-#include <rex/macros.h>
+#include <rex/export.h>
 #include <rex/result.h>
 #include <rex/types.h>
+#include <rex/module.h>
 
 namespace rex {
 
 /** Runtime control of the logger. Core serves it. */
-class ILogger {
+REX_INTERFACE(ILogger, "rex.log", 1)
  public:
-  REX_INTERFACE(ILogger, "rex.log", 1);
-
-  virtual ~ILogger() = default;
-
   /**
    * Registers categories and adds a log.<name> cvar for each.
    *
@@ -108,9 +107,6 @@ class ILogger {
 };
 
 namespace log {
-
-/** Writes buffered output of every sink. For crash handlers that hold no API handle. */
-REX_API void Flush();
 
 /**
  * Starts the logger for a process that logs outside rex::Init, such as a command line tool. A

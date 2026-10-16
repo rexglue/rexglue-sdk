@@ -16,8 +16,8 @@
 
 #include <rex/hid.h>
 
-#include "hid/common/device_assignment.h"
-#include "hid/common/hub.h"
+#include "hid/device_assignment.h"
+#include "hid/hub.h"
 
 using rex::hid::CodeOf;
 using rex::hid::DeviceAssignment;

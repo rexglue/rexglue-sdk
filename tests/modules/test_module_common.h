@@ -11,7 +11,9 @@
 
 #pragma once
 
-#include <rex/macros.h>
+#include <rex/types.h>
+#include <rex/platform.h>
+#include <rex/export.h>
 
 /**
  * Signature of the sink a test installs to observe module events.

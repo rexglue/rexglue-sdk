@@ -15,7 +15,8 @@
 #include <cstring>
 #include <format>
 
-#include <rex/macros.h>
+#include <rex/platform.h>
+#include <rex/export.h>
 #include <rex/types.h>
 
 namespace rex::platform {
@@ -56,8 +57,6 @@ void DebugPrint(std::format_string<const Args&...> format, const Args&... args) 
 #ifdef REXGLUE_ENABLE_PROFILING
 
 #include <tracy/Tracy.hpp>
-
-#include <rex/macros.h>
 
 /**
  * Opens a Tracy CPU zone that lasts until the end of the enclosing scope.

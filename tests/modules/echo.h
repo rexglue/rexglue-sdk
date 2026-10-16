@@ -11,18 +11,15 @@
 
 #pragma once
 
-#include <rex/macros.h>
+#include <rex/module.h>
 
 namespace rex::test {
 
 /**
  * Echoes an integer. Served by the test modules.
  */
-class IEcho {
+REX_INTERFACE(IEcho, "rex.test.echo", 1)
  public:
-  REX_INTERFACE(IEcho, "rex.test.echo", 1);
-  virtual ~IEcho() = default;
-
   /**
    * Returns its argument.
    *

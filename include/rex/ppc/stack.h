@@ -16,10 +16,9 @@
 #include <cstdint>
 #include <cstring>
 
-#include <rex/logging.h>
+#include <rex/logging/log.h>
 #include <rex/ppc/context.h>
 #include <rex/ppc/function.h>
-#include <rex/runtime.h>
 #include <rex/runtime/thread_state.h>
 #include <rex/runtime/xmemory.h>
 #include <rex/types.h>

@@ -24,7 +24,9 @@
 #include <type_traits>
 #include <vector>
 
-#include <rex/macros.h>
+#include <rex/platform.h>
+#include <rex/export.h>
+#include <rex/cvar/config.h>
 #include <rex/cvar/registry.h>
 #include <rex/result.h>
 #include <rex/types.h>
@@ -52,15 +54,6 @@ enum class Lifecycle : u8 {
   kHotReload,       /**< Changes take effect at once. */
   kInitOnly,        /**< Rejects Runtime sets after Init completes. */
   kRequiresRestart, /**< Changes after Init completes mark a restart pending. */
-};
-
-/** Where a cvar value came from, ascending precedence. */
-enum class CvarSource : u8 {
-  kDefault,     /**< The declared default. */
-  kConfig,      /**< A TOML config file. */
-  kEnvironment, /**< A REX_<SCOPE>_<LEAF> environment variable. */
-  kCommandLine, /**< A command line option. */
-  kRuntime,     /**< A set after Init through the registry. */
 };
 
 /** Error codes under ErrorCategory::kConfig. */
@@ -582,6 +575,15 @@ inline bool IsSet(const IVar& var) {
  */
 REX_API void ApplyEnvironment(rex::Config& config);
 
+/**
+ * Clamps the text of an integer cvar to its type range and constraints.
+ *
+ * @param desc The cvar, of type Int32, Int64, UInt32 or UInt64.
+ * @param text The value text. Text that does not parse reads as 0.
+ * @return The clamped value text.
+ */
+REX_API std::string ClampIntegerCvarText(const rex::cvar::Desc& desc, std::string_view text);
+
 namespace detail {
 
 template <typename... Vars>
@@ -672,82 +674,6 @@ std::string Var<T>::Render() const {
 }
 
 }  // namespace rex::cvar
-
-namespace rex {
-
-/** 1 value arriving before Init. */
-struct CvarOverride {
-  /** Dotted cvar name such as gpu.vsync. */
-  std::string name;
-  /** The value as text. */
-  std::string value;
-  /** Source the registry stores for the value. */
-  cvar::CvarSource source = cvar::CvarSource::kCommandLine;
-};
-
-/** A consumer table, registered before any module. */
-struct CvarTable {
-  /** Scope every cvar in the table belongs to. */
-  std::string scope;
-  /** The cvars in the table. */
-  std::span<const cvar::IVar* const> vars;
-};
-
-/** Cvar tables, values and locks that Init applies in order. */
-struct CvarConfig {
-  /** Consumer tables, registered in order. */
-  std::vector<CvarTable> tables;
-  /** Values arriving before Init, applied in order. */
-  std::vector<CvarOverride> values;
-  /** Dotted names of the cvars Init locks. */
-  std::vector<std::string> locked;
-  /**
-   * Appends a Default override, applied only while the cvar's source is Default.
-   *
-   * @param name Dotted cvar name.
-   * @param value The value as text.
-   */
-  void SetDefault(std::string_view name, std::string_view value) {
-    values.push_back({std::string(name), std::string(value), cvar::CvarSource::kDefault});
-  }
-  /**
-   * Appends a CommandLine override.
-   *
-   * @param name Dotted cvar name.
-   * @param value The value as text.
-   */
-  void Set(std::string_view name, std::string_view value) {
-    values.push_back({std::string(name), std::string(value), cvar::CvarSource::kCommandLine});
-  }
-  /**
-   * Appends to locked.
-   *
-   * @param name Dotted cvar name.
-   */
-  void Lock(std::string_view name) { locked.emplace_back(name); }
-
-  /**
-   * Looks up the value Init would apply to a cvar, before Init runs.
-   *
-   * @param name Dotted cvar name, such as "gpu.vsync".
-   * @return The queued value with the highest source precedence, or std::nullopt when no
-   *         value is queued for name.
-   */
-  std::optional<std::string> Get(std::string_view name) const {
-    const CvarOverride* best = nullptr;
-    for (const CvarOverride& value : values) {
-      if (value.name == name && (!best || value.source >= best->source)) {
-        best = &value;
-      }
-    }
-    if (!best) {
-      return std::nullopt;
-    }
-    return best->value;
-  }
-};
-
-}  // namespace rex
 
 /**
  * Declares a bool cvar as an inline ::rex::cvar::Var<bool> named name.

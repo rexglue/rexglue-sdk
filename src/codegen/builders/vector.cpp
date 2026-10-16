@@ -18,7 +18,7 @@
 
 #include <simde/x86/sse.h>
 
-#include <rex/logging.h>
+#include <rex/logging/log.h>
 
 #include <ppc.h>
 
@@ -31,11 +31,11 @@ namespace {
  * runs before the instruction so that vD may alias an operand.
  *
  * @param ctx The builder context
- * @param function The rex::ppc saturation function with its template arguments.
+ * @param function The rex::ppc::simd saturation function with its template arguments.
  */
 void EmitSaturation(BuilderContext& ctx, std::string_view function) {
   ctx.Println(
-      "\tctx.vscr_sat |= u8(rex::ppc::{}(simde_mm_load_si128((simde__m128i*){}.u8), "
+      "\tctx.vscr_sat |= u8(rex::ppc::simd::{}(simde_mm_load_si128((simde__m128i*){}.u8), "
       "simde_mm_load_si128((simde__m128i*){}.u8)));",
       function, ctx.V(ctx.insn.operands[1]), ctx.V(ctx.insn.operands[2]));
 }
@@ -67,7 +67,7 @@ template <>
 bool Build<PPC_INST_VMADDFP>(BuilderContext& ctx) {
   ctx.EmitSetFlushMode(true);
   ctx.Println(
-      "\tsimde_mm_store_ps({}.f32, rex::ppc::Vmaddfp(simde_mm_load_ps({}.f32), "
+      "\tsimde_mm_store_ps({}.f32, rex::ppc::simd::MultiplyAdd(simde_mm_load_ps({}.f32), "
       "simde_mm_load_ps({}.f32), simde_mm_load_ps({}.f32), ctx.vscr_nj));",
       ctx.V(ctx.insn.operands[0]), ctx.V(ctx.insn.operands[1]), ctx.V(ctx.insn.operands[2]),
       ctx.V(ctx.insn.operands[3]));
@@ -84,7 +84,8 @@ template <>
 bool Build<PPC_INST_VNMSUBFP>(BuilderContext& ctx) {
   ctx.EmitSetFlushMode(true);
   ctx.Println(
-      "\tsimde_mm_store_ps({}.f32, rex::ppc::Vnmsubfp(simde_mm_load_ps({}.f32), "
+      "\tsimde_mm_store_ps({}.f32, "
+      "rex::ppc::simd::NegativeMultiplySubtract(simde_mm_load_ps({}.f32), "
       "simde_mm_load_ps({}.f32), simde_mm_load_ps({}.f32), ctx.vscr_nj));",
       ctx.V(ctx.insn.operands[0]), ctx.V(ctx.insn.operands[1]), ctx.V(ctx.insn.operands[2]),
       ctx.V(ctx.insn.operands[3]));
@@ -108,28 +109,30 @@ bool Build<PPC_INST_VMINFP>(BuilderContext& ctx) {
 template <>
 bool Build<PPC_INST_VREFP>(BuilderContext& ctx) {
   ctx.EmitSetFlushMode(true);
-  ctx.EmitVecFPUnaryExpr("rex::ppc::Vrefp(simde_mm_load_ps({vA}.f32), ctx.vscr_nj)");
+  ctx.EmitVecFPUnaryExpr(
+      "rex::ppc::simd::ReciprocalEstimate(simde_mm_load_ps({vA}.f32), ctx.vscr_nj)");
   return true;
 }
 
 template <>
 bool Build<PPC_INST_VRSQRTEFP>(BuilderContext& ctx) {
   ctx.EmitSetFlushMode(true);
-  ctx.EmitVecFPUnaryExpr("rex::ppc::Vrsqrtefp(simde_mm_load_ps({vA}.f32), ctx.vscr_nj)");
+  ctx.EmitVecFPUnaryExpr(
+      "rex::ppc::simd::ReciprocalSqrtEstimate(simde_mm_load_ps({vA}.f32), ctx.vscr_nj)");
   return true;
 }
 
 template <>
 bool Build<PPC_INST_VEXPTEFP>(BuilderContext& ctx) {
   ctx.EmitSetFlushMode(true);
-  ctx.EmitVecFPUnaryExpr("rex::ppc::Vexptefp(simde_mm_load_ps({vA}.f32), ctx.vscr_nj)");
+  ctx.EmitVecFPUnaryExpr("rex::ppc::simd::Exp2Estimate(simde_mm_load_ps({vA}.f32), ctx.vscr_nj)");
   return true;
 }
 
 template <>
 bool Build<PPC_INST_VLOGEFP>(BuilderContext& ctx) {
   ctx.EmitSetFlushMode(true);
-  ctx.EmitVecFPUnaryExpr("rex::ppc::Vlogefp(simde_mm_load_ps({vA}.f32), ctx.vscr_nj)");
+  ctx.EmitVecFPUnaryExpr("rex::ppc::simd::Log2Estimate(simde_mm_load_ps({vA}.f32), ctx.vscr_nj)");
   return true;
 }
 
@@ -145,7 +148,7 @@ template <>
 bool Build<PPC_INST_VMSUM3FP128>(BuilderContext& ctx) {
   ctx.EmitSetFlushMode(true);
   ctx.Println(
-      "\tsimde_mm_store_ps({}.f32, rex::ppc::Vmsum3fp128(simde_mm_load_ps({}.f32), "
+      "\tsimde_mm_store_ps({}.f32, rex::ppc::simd::DotProduct3(simde_mm_load_ps({}.f32), "
       "simde_mm_load_ps({}.f32), ctx.vscr_nj));",
       ctx.V(ctx.insn.operands[0]), ctx.V(ctx.insn.operands[1]), ctx.V(ctx.insn.operands[2]));
   return true;
@@ -163,7 +166,7 @@ template <>
 bool Build<PPC_INST_VMSUM4FP128>(BuilderContext& ctx) {
   ctx.EmitSetFlushMode(true);
   ctx.Println(
-      "\tsimde_mm_store_ps({}.f32, rex::ppc::Vmsum4fp128(simde_mm_load_ps({}.f32), "
+      "\tsimde_mm_store_ps({}.f32, rex::ppc::simd::DotProduct4(simde_mm_load_ps({}.f32), "
       "simde_mm_load_ps({}.f32), ctx.vscr_nj));",
       ctx.V(ctx.insn.operands[0]), ctx.V(ctx.insn.operands[1]), ctx.V(ctx.insn.operands[2]));
   return true;
@@ -288,7 +291,7 @@ bool Build<PPC_INST_VADDUWS>(BuilderContext& ctx) {
   EmitSaturation(ctx, "AddSaturates<32, false>");
   ctx.Println(
       "\tsimde_mm_store_si128((simde__m128i*){}.u32, "
-      "rex::ppc::simde_mm_adds_epu32(simde_mm_load_si128((simde__m128i*){}.u32), "
+      "rex::ppc::simd::AddSaturate<u32>(simde_mm_load_si128((simde__m128i*){}.u32), "
       "simde_mm_load_si128((simde__m128i*){}.u32)));",
       ctx.V(ctx.insn.operands[0]), ctx.V(ctx.insn.operands[1]), ctx.V(ctx.insn.operands[2]));
   return true;
@@ -442,7 +445,7 @@ template <>
 bool Build<PPC_INST_VAVGSB>(BuilderContext& ctx) {
   ctx.Println(
       "\tsimde_mm_store_si128((simde__m128i*){}.u8, "
-      "rex::ppc::simde_mm_avg_epi8(simde_mm_load_si128((simde__m128i*){}.u8), "
+      "rex::ppc::simd::Average<i8>(simde_mm_load_si128((simde__m128i*){}.u8), "
       "simde_mm_load_si128((simde__m128i*){}.u8)));",
       ctx.V(ctx.insn.operands[0]), ctx.V(ctx.insn.operands[1]), ctx.V(ctx.insn.operands[2]));
   return true;
@@ -452,7 +455,7 @@ template <>
 bool Build<PPC_INST_VAVGSH>(BuilderContext& ctx) {
   ctx.Println(
       "\tsimde_mm_store_si128((simde__m128i*){}.u16, "
-      "rex::ppc::simde_mm_avg_epi16(simde_mm_load_si128((simde__m128i*){}.u16), "
+      "rex::ppc::simd::Average<i16>(simde_mm_load_si128((simde__m128i*){}.u16), "
       "simde_mm_load_si128((simde__m128i*){}.u16)));",
       ctx.V(ctx.insn.operands[0]), ctx.V(ctx.insn.operands[1]), ctx.V(ctx.insn.operands[2]));
   return true;
@@ -462,7 +465,7 @@ template <>
 bool Build<PPC_INST_VAVGSW>(BuilderContext& ctx) {
   ctx.Println(
       "\tsimde_mm_store_si128((simde__m128i*){}.s32, "
-      "rex::ppc::simde_mm_avg_epi32("
+      "rex::ppc::simd::Average<i32>("
       "simde_mm_load_si128((simde__m128i*){}.s32), "
       "simde_mm_load_si128((simde__m128i*){}.s32)));",
       ctx.V(ctx.insn.operands[0]), ctx.V(ctx.insn.operands[1]), ctx.V(ctx.insn.operands[2]));
@@ -667,7 +670,7 @@ template <>
 bool Build<PPC_INST_VCMPGTUB>(BuilderContext& ctx) {
   ctx.Println(
       "\tsimde_mm_store_si128((simde__m128i*){}.u8, "
-      "rex::ppc::simde_mm_cmpgt_epu8(simde_mm_load_si128((simde__m128i*){}.u8), "
+      "rex::ppc::simd::CompareGreater<u8>(simde_mm_load_si128((simde__m128i*){}.u8), "
       "simde_mm_load_si128((simde__m128i*){}.u8)));",
       ctx.V(ctx.insn.operands[0]), ctx.V(ctx.insn.operands[1]), ctx.V(ctx.insn.operands[2]));
   if (IsRecordForm(ctx.insn))
@@ -680,7 +683,7 @@ template <>
 bool Build<PPC_INST_VCMPGTUH>(BuilderContext& ctx) {
   ctx.Println(
       "\tsimde_mm_store_si128((simde__m128i*){}.u8, "
-      "rex::ppc::simde_mm_cmpgt_epu16(simde_mm_load_si128((simde__m128i*){}.u16), "
+      "rex::ppc::simd::CompareGreater<u16>(simde_mm_load_si128((simde__m128i*){}.u16), "
       "simde_mm_load_si128((simde__m128i*){}.u16)));",
       ctx.V(ctx.insn.operands[0]), ctx.V(ctx.insn.operands[1]), ctx.V(ctx.insn.operands[2]));
   if (IsRecordForm(ctx.insn))
@@ -779,9 +782,11 @@ bool Build<PPC_INST_VCTSXS>(BuilderContext& ctx) {
           ? std::format("simde_mm_mul_ps(simde_mm_load_ps({}.f32), simde_mm_set1_ps({}))",
                         ctx.V(ctx.insn.operands[1]), 1u << ctx.insn.operands[2])
           : std::format("simde_mm_load_ps({}.f32)", ctx.V(ctx.insn.operands[1]));
-  ctx.Println("\tctx.vscr_sat |= u8(rex::ppc::ConvertSaturates<true>({}));", scaled);
-  ctx.Println("\tsimde_mm_store_si128((simde__m128i*){}.s32, rex::ppc::simde_mm_vctsxs({}));",
-              ctx.V(ctx.insn.operands[0]), scaled);
+  ctx.Println("\tctx.vscr_sat |= u8(rex::ppc::simd::ConvertSaturates<true>({}));", scaled);
+  ctx.Println(
+      "\tsimde_mm_store_si128((simde__m128i*){}.s32, rex::ppc::simd::ConvertSaturate<i32, "
+      "f32>({}));",
+      ctx.V(ctx.insn.operands[0]), scaled);
   return true;
 }
 
@@ -809,12 +814,13 @@ bool Build<PPC_INST_VCFUX>(BuilderContext& ctx) {
   if (ctx.insn.operands[2] != 0) {
     const f32 value = std::ldexp(1.0f, -static_cast<i32>(ctx.insn.operands[2]));
     ctx.Println(
-        "simde_mm_mul_ps(rex::ppc::simde_mm_cvtepu32_ps_(simde_mm_load_si128((simde__m128i*){}.u32)"
+        "simde_mm_mul_ps(rex::ppc::simd::Convert<f32, "
+        "u32>(simde_mm_load_si128((simde__m128i*){}.u32)"
         "), "
         "simde_mm_castsi128_ps(simde_mm_set1_epi32(int(0x{:X})))));",
         ctx.V(ctx.insn.operands[1]), std::bit_cast<u32>(value));
   } else {
-    ctx.Println("rex::ppc::simde_mm_cvtepu32_ps_(simde_mm_load_si128((simde__m128i*){}.u32)));",
+    ctx.Println("rex::ppc::simd::Convert<f32, u32>(simde_mm_load_si128((simde__m128i*){}.u32)));",
                 ctx.V(ctx.insn.operands[1]));
   }
   return true;
@@ -828,9 +834,11 @@ bool Build<PPC_INST_VCTUXS>(BuilderContext& ctx) {
           ? std::format("simde_mm_mul_ps(simde_mm_load_ps({}.f32), simde_mm_set1_ps({}))",
                         ctx.V(ctx.insn.operands[1]), 1u << ctx.insn.operands[2])
           : std::format("simde_mm_load_ps({}.f32)", ctx.V(ctx.insn.operands[1]));
-  ctx.Println("\tctx.vscr_sat |= u8(rex::ppc::ConvertSaturates<false>({}));", scaled);
-  ctx.Println("\tsimde_mm_store_si128((simde__m128i*){}.u32, rex::ppc::simde_mm_vctuxs({}));",
-              ctx.V(ctx.insn.operands[0]), scaled);
+  ctx.Println("\tctx.vscr_sat |= u8(rex::ppc::simd::ConvertSaturates<false>({}));", scaled);
+  ctx.Println(
+      "\tsimde_mm_store_si128((simde__m128i*){}.u32, rex::ppc::simd::ConvertSaturate<u32, "
+      "f32>({}));",
+      ctx.V(ctx.insn.operands[0]), scaled);
   return true;
 }
 
@@ -874,7 +882,7 @@ template <>
 bool Build<PPC_INST_VPERM>(BuilderContext& ctx) {
   ctx.Println(
       "\tsimde_mm_store_si128((simde__m128i*){}.u8, "
-      "rex::ppc::simde_mm_perm_epi8_(simde_mm_load_si128((simde__m128i*){}.u8), "
+      "rex::ppc::simd::PermuteBytes(simde_mm_load_si128((simde__m128i*){}.u8), "
       "simde_mm_load_si128((simde__m128i*){}.u8), simde_mm_load_si128((simde__m128i*){}.u8)));",
       ctx.V(ctx.insn.operands[0]), ctx.V(ctx.insn.operands[1]), ctx.V(ctx.insn.operands[2]),
       ctx.V(ctx.insn.operands[3]));
@@ -909,7 +917,7 @@ bool Build<PPC_INST_VRLIMI128>(BuilderContext& ctx) {
 
 template <>
 bool Build<PPC_INST_VSLB>(BuilderContext& ctx) {
-  ctx.EmitVecVarShift("sllv", "epi8", 0x7);
+  ctx.EmitVecVarShift("ShiftLeftLanes<u8>", "epi8", 0x7);
   return true;
 }
 
@@ -926,13 +934,13 @@ bool Build<PPC_INST_VSLDOI>(BuilderContext& ctx) {
 
 template <>
 bool Build<PPC_INST_VSLH>(BuilderContext& ctx) {
-  ctx.EmitVecVarShift("sllv", "epi16", 0xF);
+  ctx.EmitVecVarShift("ShiftLeftLanes<u16>", "epi16", 0xF);
   return true;
 }
 
 template <>
 bool Build<PPC_INST_VSRH>(BuilderContext& ctx) {
-  ctx.EmitVecVarShift("srlv", "epi16", 0xF);
+  ctx.EmitVecVarShift("ShiftRightLanes<u16>", "epi16", 0xF);
   return true;
 }
 
@@ -954,7 +962,7 @@ bool Build<PPC_INST_VSRAB>(BuilderContext& ctx) {
 
 template <>
 bool Build<PPC_INST_VSRAH>(BuilderContext& ctx) {
-  ctx.EmitVecVarShift("srav", "epi16", 0xF);
+  ctx.EmitVecVarShift("ShiftRightLanes<i16>", "epi16", 0xF);
   return true;
 }
 
@@ -969,8 +977,8 @@ bool Build<PPC_INST_VRLH>(BuilderContext& ctx) {
   ctx.Println("\t\t\tsimde_mm_load_si128((simde__m128i*){}.u8), simde_mm_set1_epi16(0xF));", v_b);
   ctx.Println("\t\tsimde__m128i rsh = simde_mm_sub_epi16(simde_mm_set1_epi16(16), sh);");
   ctx.Println("\t\tsimde__m128i result = simde_mm_or_si128(");
-  ctx.Println("\t\t\trex::ppc::simde_mm_sllv_epi16(a, sh),");
-  ctx.Println("\t\t\trex::ppc::simde_mm_srlv_epi16(a, rsh));");
+  ctx.Println("\t\t\trex::ppc::simd::ShiftLeftLanes<u16>(a, sh),");
+  ctx.Println("\t\t\trex::ppc::simd::ShiftRightLanes<u16>(a, rsh));");
   ctx.Println("\t\tsimde_mm_store_si128((simde__m128i*){}.u8, result);", v_d);
   ctx.Println("\t}}");
   return true;
@@ -997,7 +1005,7 @@ template <>
 bool Build<PPC_INST_VSL>(BuilderContext& ctx) {
   ctx.Println(
       "\tsimde_mm_store_si128((simde__m128i*){}.u8, "
-      "rex::ppc::simde_mm_vsl(simde_mm_load_si128((simde__m128i*){}.u8), "
+      "rex::ppc::simd::ShiftLeftBits(simde_mm_load_si128((simde__m128i*){}.u8), "
       "simde_mm_load_si128((simde__m128i*){}.u8)));",
       ctx.V(ctx.insn.operands[0]), ctx.V(ctx.insn.operands[1]), ctx.V(ctx.insn.operands[2]));
   return true;
@@ -1013,7 +1021,7 @@ template <>
 bool Build<PPC_INST_VSLO>(BuilderContext& ctx) {
   ctx.Println(
       "\tsimde_mm_store_si128((simde__m128i*){}.u8, "
-      "rex::ppc::simde_mm_vslo(simde_mm_load_si128((simde__m128i*){}.u8), "
+      "rex::ppc::simd::ShiftLeftBytes(simde_mm_load_si128((simde__m128i*){}.u8), "
       "simde_mm_load_si128((simde__m128i*){}.u8)));",
       ctx.V(ctx.insn.operands[0]), ctx.V(ctx.insn.operands[1]), ctx.V(ctx.insn.operands[2]));
   return true;
@@ -1029,7 +1037,7 @@ template <>
 bool Build<PPC_INST_VSRO>(BuilderContext& ctx) {
   ctx.Println(
       "\tsimde_mm_store_si128((simde__m128i*){}.u8, "
-      "rex::ppc::simde_mm_vsro(simde_mm_load_si128((simde__m128i*){}.u8), "
+      "rex::ppc::simd::ShiftRightBytes(simde_mm_load_si128((simde__m128i*){}.u8), "
       "simde_mm_load_si128((simde__m128i*){}.u8)));",
       ctx.V(ctx.insn.operands[0]), ctx.V(ctx.insn.operands[1]), ctx.V(ctx.insn.operands[2]));
   return true;
@@ -1056,7 +1064,7 @@ template <>
 bool Build<PPC_INST_VSR>(BuilderContext& ctx) {
   ctx.Println(
       "\tsimde_mm_store_si128((simde__m128i*){}.u8, "
-      "rex::ppc::simde_mm_vsr(simde_mm_load_si128((simde__m128i*){}.u8), "
+      "rex::ppc::simd::ShiftRightBits(simde_mm_load_si128((simde__m128i*){}.u8), "
       "simde_mm_load_si128((simde__m128i*){}.u8)));",
       ctx.V(ctx.insn.operands[0]), ctx.V(ctx.insn.operands[1]), ctx.V(ctx.insn.operands[2]));
   return true;
@@ -1259,7 +1267,7 @@ bool Build<PPC_INST_VPKSWUS>(BuilderContext& ctx) {
  * Builds vpkd3d128, packing the floats of vB into the format chosen by operand 2.
  *
  * Operand 3 is the mask and operand 4 the shift. The conversion, the placement in vD and the VSCR
- * saturation bit are those of rex::ppc::PackD3D.
+ * saturation bit are those of rex::ppc::simd::PackD3D.
  *
  * @param ctx The builder context
  * @return True when the instruction is handled.
@@ -1272,8 +1280,9 @@ bool Build<PPC_INST_VPKD3D128>(BuilderContext& ctx) {
     ctx.Println("	__builtin_debugtrap();");
     return true;
   }
-  ctx.Println("	ctx.vscr_sat |= rex::ppc::PackD3D<{}, {}, {}>({}, {});", type, ctx.insn.operands[3],
-              ctx.insn.operands[4], ctx.V(ctx.insn.operands[0]), ctx.V(ctx.insn.operands[1]));
+  ctx.Println("	ctx.vscr_sat |= rex::ppc::simd::PackD3D<{}, {}, {}>({}, {});", type,
+              ctx.insn.operands[3], ctx.insn.operands[4], ctx.V(ctx.insn.operands[0]),
+              ctx.V(ctx.insn.operands[1]));
   return true;
 }
 

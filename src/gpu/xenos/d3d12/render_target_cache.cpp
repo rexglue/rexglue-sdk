@@ -31,7 +31,8 @@
 #include "gpu/xenos/pipeline/shader/dxbc_translator.h"
 #include "gpu/xenos/draw_state.h"
 #include <rex/xenos/xenos.h>
-#include <rex/logging.h>
+#include <rex/fail.h>
+#include <rex/logging/log.h>
 #include <rex/math.h>
 #include <rex/string.h>
 #include "gpu/xenos/host/d3d12/d3d12_provider.h"

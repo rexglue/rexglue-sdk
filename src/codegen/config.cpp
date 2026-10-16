@@ -9,7 +9,8 @@
 
 #include <rex/codegen/config.h>
 #include <rex/kernel/shim/registry.h>
-#include <rex/logging.h>
+#include <rex/fail.h>
+#include <rex/logging/log.h>
 
 #include <toml++/toml.hpp>
 

@@ -23,9 +23,12 @@
 #include <rex/platform/file.h>
 #include <rex/api.h>
 #include <rex/kernel/init.h>
-#include <rex/logging.h>
+#include <rex/fail.h>
+#include <rex/logging/log.h>
 #include <rex/runtime.h>
 #include <rex/runtime/module_object.h>
+#include <rex/runtime/module_registry.h>
+#include <rex/runtime/object_table.h>
 #include <rex/runtime/xex_module.h>
 
 #include <chrono>
@@ -547,7 +550,7 @@ Result<void> ProjectRecompiler::Run(const ProjectRecompilerOptions& opts) {
       stamp_text += '\n';
     }
     // Never WriteIfChanged, as the build rule reruns until this mtime passes its inputs.
-    if (!WriteFileBytes(build_stamp, stamp_text)) {
+    if (!rex::platform::WriteHostFile(build_stamp, stamp_text)) {
       return Err<void>(ErrorCategory::kIO, std::format("Failed to write {}", build_stamp.string()));
     }
   }

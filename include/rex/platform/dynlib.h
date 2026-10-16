@@ -15,7 +15,7 @@
 #include <string>
 #include <string_view>
 
-#include <rex/macros.h>
+#include <rex/export.h>
 #include <rex/platform.h>
 #include <rex/types.h>
 
@@ -118,70 +118,6 @@ class REX_API DynamicLibrary : public rex::MoveOnly {
  * @return The section bytes, empty when the image has no such section.
  */
 REX_API std::span<const u8> FindImageSection(const void* image, std::string_view name);
-#endif
-
-#if REX_PLATFORM_WIN32
-
-/**
- * File name of the Vulkan loader library.
- */
-inline constexpr const char* kVulkanLoader = "vulkan-1.dll";
-/**
- * File name of the RenderDoc capture library.
- */
-inline constexpr const char* kRenderDoc = "renderdoc.dll";
-/**
- * Path to the SPIRV-Tools shared library within the SDK install.
- */
-inline constexpr const char* kSPIRVToolsSDKPath = "Bin/SPIRV-Tools-shared.dll";
-
-#elif REX_PLATFORM_ANDROID
-
-/**
- * File name of the Vulkan loader library.
- */
-inline constexpr const char* kVulkanLoader = "libvulkan.so";
-/**
- * File name of the RenderDoc capture library.
- */
-inline constexpr const char* kRenderDoc = "libVkLayer_GLES_RenderDoc.so";
-/**
- * Path to the SPIRV-Tools shared library within the SDK install.
- */
-inline constexpr const char* kSPIRVToolsSDKPath = "bin/libSPIRV-Tools-shared.so";
-
-#elif REX_PLATFORM_LINUX
-
-/**
- * File name of the Vulkan loader library.
- */
-inline constexpr const char* kVulkanLoader = "libvulkan.so.1";
-/**
- * File name of the RenderDoc capture library.
- */
-inline constexpr const char* kRenderDoc = "librenderdoc.so";
-/**
- * Path to the SPIRV-Tools shared library within the SDK install.
- */
-inline constexpr const char* kSPIRVToolsSDKPath = "bin/libSPIRV-Tools-shared.so";
-
-#elif REX_PLATFORM_MAC
-
-/**
- * File name of the Vulkan loader library.
- */
-inline constexpr const char* kVulkanLoader = "libvulkan.1.dylib";
-/**
- * File name of the RenderDoc capture library.
- */
-inline constexpr const char* kRenderDoc = "librenderdoc.dylib";
-/**
- * Path to the SPIRV-Tools shared library within the SDK install.
- */
-inline constexpr const char* kSPIRVToolsSDKPath = "lib/libSPIRV-Tools-shared.dylib";
-
-#else
-#error No library names provided for the target platform.
 #endif
 
 }  // namespace rex::platform

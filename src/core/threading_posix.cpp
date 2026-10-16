@@ -55,7 +55,7 @@ static_assert(REX_PLATFORM_LINUX || REX_PLATFORM_MAC, "This file is POSIX-only")
 
 #include <rex/assert.h>
 #include <rex/chrono/chrono_steady_cast.h>
-#include <rex/logging.h>
+#include <rex/logging/log.h>
 #include <rex/platform/timer_queue.h>
 
 #include "core/signal_context.h"

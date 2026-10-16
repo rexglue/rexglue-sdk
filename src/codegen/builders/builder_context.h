@@ -311,15 +311,15 @@ struct BuilderContext {
   void EmitVecIntBinarySwapped(const char* simd_op, const char* element_type);
 
   /**
-   * @brief Emit variable shift: vD = rex::ppc::simde_mm_{shift_dir}_{element_type}(vA, vB & mask)
-   * @param shift_dir The shift direction ("sllv", "srlv", or "srav")
+   * @brief Emit variable shift: vD = rex::ppc::simd::{function}(vA, vB & mask)
+   * @param function The rex::ppc::simd shift function ("ShiftLeftLanes<u16>", ...)
    * @param element_type The SIMDE element type suffix ("epi16")
    * @param mask_value Shift amount mask (e.g., 0xF for 16-bit)
    *
-   * Uses the custom rex:: variable shift helpers (simde_mm_{sllv,srlv,srav}_epi16).
+   * Uses the rex::ppc::simd variable shift helpers.
    * Uses operands[0]=vD, operands[1]=vA, operands[2]=vB from current instruction.
    */
-  void EmitVecVarShift(const char* shift_dir, const char* element_type, u32 mask_value);
+  void EmitVecVarShift(const char* function, const char* element_type, u32 mask_value);
 
   /**
    * @brief Emit load with D-form addressing: rD = LOAD(rA + offset)

@@ -16,5 +16,5 @@
 #include <rex/logging/format.h>
 #include <rex/logging/level.h>
 #include <rex/logging/logger.h>
-#include <rex/logging/macros.h>
+#include <rex/logging/log.h>
 #include <rex/logging/sink.h>

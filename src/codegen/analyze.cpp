@@ -6,7 +6,7 @@
 #include <rex/codegen/analysis_errors.h>
 #include <rex/codegen/analyze.h>
 #include <rex/codegen/phases.h>
-#include <rex/logging.h>
+#include <rex/logging/log.h>
 
 namespace rex::codegen {
 

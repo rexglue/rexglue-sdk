@@ -14,14 +14,23 @@
 #include <atomic>
 #include <span>
 
+#include <rex/types.h>
+#include <rex/platform.h>
 #include <rex/api.h>
-#include <rex/apu/backend.h>
-#include <rex/hid/backend.h>
+#include <rex/apu.h>
+#include <rex/hid.h>
 #include <rex/cvar/registry.h>
 #include <rex/logging/logger.h>
-#include <rex/macros.h>
+#include <rex/export.h>
 #include <rex/module.h>
 #include <rex/runtime.h>
+#include <rex/runtime/achievement_manager.h>
+#include <rex/runtime/content_manager.h>
+#include <rex/runtime/dispatcher.h>
+#include <rex/runtime/module_registry.h>
+#include <rex/runtime/notifier.h>
+#include <rex/runtime/object_table.h>
+#include <rex/runtime/thread_registry.h>
 
 namespace rex::runtime {
 

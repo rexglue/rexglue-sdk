@@ -19,7 +19,8 @@
 #include <utility>
 #include <vector>
 
-#include <rex/logging.h>
+#include <rex/chrono/chrono.h>
+#include <rex/logging/log.h>
 #include <rex/math.h>
 
 namespace rex::filesystem::detail {

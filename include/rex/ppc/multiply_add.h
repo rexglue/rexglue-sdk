@@ -17,7 +17,7 @@
 #include <rex/ppc/estimate.h>
 #include <rex/types.h>
 
-namespace rex::ppc {
+namespace rex::ppc::simd {
 
 namespace detail {
 
@@ -134,7 +134,7 @@ inline simde__m128 MultiplyAdd(simde__m128 a, simde__m128 b, simde__m128 c, bool
  * @param c The addend.
  * @return a * b + c in each lane.
  */
-[[nodiscard]] inline simde__m128 Vmaddfp(simde__m128 a, simde__m128 b, simde__m128 c) noexcept {
+[[nodiscard]] inline simde__m128 MultiplyAdd(simde__m128 a, simde__m128 b, simde__m128 c) noexcept {
   return detail::MultiplyAdd<false>(a, b, c, true);
 }
 
@@ -147,8 +147,8 @@ inline simde__m128 MultiplyAdd(simde__m128 a, simde__m128 b, simde__m128 c, bool
  * @param non_java The VSCR NJ bit. When clear a denormal operand and a denormal result are kept.
  * @return a * b + c in each lane.
  */
-[[nodiscard]] inline simde__m128 Vmaddfp(simde__m128 a, simde__m128 b, simde__m128 c,
-                                         bool non_java) noexcept {
+[[nodiscard]] inline simde__m128 MultiplyAdd(simde__m128 a, simde__m128 b, simde__m128 c,
+                                             bool non_java) noexcept {
   return detail::MultiplyAdd<false>(a, b, c, non_java);
 }
 
@@ -160,7 +160,8 @@ inline simde__m128 MultiplyAdd(simde__m128 a, simde__m128 b, simde__m128 c, bool
  * @param c The value subtracted from the product.
  * @return -(a * b - c) in each lane.
  */
-[[nodiscard]] inline simde__m128 Vnmsubfp(simde__m128 a, simde__m128 b, simde__m128 c) noexcept {
+[[nodiscard]] inline simde__m128 NegativeMultiplySubtract(simde__m128 a, simde__m128 b,
+                                                          simde__m128 c) noexcept {
   return detail::MultiplyAdd<true>(a, b, c, true);
 }
 
@@ -173,9 +174,9 @@ inline simde__m128 MultiplyAdd(simde__m128 a, simde__m128 b, simde__m128 c, bool
  * @param non_java The VSCR NJ bit. When clear a denormal operand and a denormal result are kept.
  * @return -(a * b - c) in each lane.
  */
-[[nodiscard]] inline simde__m128 Vnmsubfp(simde__m128 a, simde__m128 b, simde__m128 c,
-                                          bool non_java) noexcept {
+[[nodiscard]] inline simde__m128 NegativeMultiplySubtract(simde__m128 a, simde__m128 b,
+                                                          simde__m128 c, bool non_java) noexcept {
   return detail::MultiplyAdd<true>(a, b, c, non_java);
 }
 
-}  // namespace rex::ppc
+}  // namespace rex::ppc::simd

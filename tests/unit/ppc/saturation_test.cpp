@@ -203,47 +203,47 @@ void CheckPack(BinaryFunction check, u32 bits, bool is_signed_source, bool is_si
 }  // namespace
 
 REX_TEST_CASE("AddSaturates reports the clamped lanes of the byte adds", "[ppc][saturation]") {
-  CheckPairs(rex::ppc::AddSaturates<8, true>, 8, true, false);
-  CheckPairs(rex::ppc::AddSaturates<8, false>, 8, false, false);
+  CheckPairs(rex::ppc::simd::AddSaturates<8, true>, 8, true, false);
+  CheckPairs(rex::ppc::simd::AddSaturates<8, false>, 8, false, false);
 }
 
 REX_TEST_CASE("AddSaturates reports the clamped lanes of the halfword adds", "[ppc][saturation]") {
-  CheckPairs(rex::ppc::AddSaturates<16, true>, 16, true, false);
-  CheckPairs(rex::ppc::AddSaturates<16, false>, 16, false, false);
+  CheckPairs(rex::ppc::simd::AddSaturates<16, true>, 16, true, false);
+  CheckPairs(rex::ppc::simd::AddSaturates<16, false>, 16, false, false);
 }
 
 REX_TEST_CASE("AddSaturates reports the clamped lanes of the word adds", "[ppc][saturation]") {
-  CheckPairs(rex::ppc::AddSaturates<32, true>, 32, true, false);
-  CheckPairs(rex::ppc::AddSaturates<32, false>, 32, false, false);
+  CheckPairs(rex::ppc::simd::AddSaturates<32, true>, 32, true, false);
+  CheckPairs(rex::ppc::simd::AddSaturates<32, false>, 32, false, false);
 }
 
 REX_TEST_CASE("SubSaturates reports the clamped lanes of the byte subtracts", "[ppc][saturation]") {
-  CheckPairs(rex::ppc::SubSaturates<8, true>, 8, true, true);
-  CheckPairs(rex::ppc::SubSaturates<8, false>, 8, false, true);
+  CheckPairs(rex::ppc::simd::SubSaturates<8, true>, 8, true, true);
+  CheckPairs(rex::ppc::simd::SubSaturates<8, false>, 8, false, true);
 }
 
 REX_TEST_CASE("SubSaturates reports the clamped lanes of the halfword subtracts",
               "[ppc][saturation]") {
-  CheckPairs(rex::ppc::SubSaturates<16, true>, 16, true, true);
-  CheckPairs(rex::ppc::SubSaturates<16, false>, 16, false, true);
+  CheckPairs(rex::ppc::simd::SubSaturates<16, true>, 16, true, true);
+  CheckPairs(rex::ppc::simd::SubSaturates<16, false>, 16, false, true);
 }
 
 REX_TEST_CASE("SubSaturates reports the clamped lanes of the word subtracts", "[ppc][saturation]") {
-  CheckPairs(rex::ppc::SubSaturates<32, true>, 32, true, true);
-  CheckPairs(rex::ppc::SubSaturates<32, false>, 32, false, true);
+  CheckPairs(rex::ppc::simd::SubSaturates<32, true>, 32, true, true);
+  CheckPairs(rex::ppc::simd::SubSaturates<32, false>, 32, false, true);
 }
 
 REX_TEST_CASE("PackSaturates reports the clamped lanes of the halfword packs",
               "[ppc][saturation]") {
-  CheckPack(rex::ppc::PackSaturates<16, false>, 16, false, false);
-  CheckPack(rex::ppc::PackSaturates<16, false>, 16, true, false);
-  CheckPack(rex::ppc::PackSaturates<16, true>, 16, true, true);
+  CheckPack(rex::ppc::simd::PackSaturates<16, false>, 16, false, false);
+  CheckPack(rex::ppc::simd::PackSaturates<16, false>, 16, true, false);
+  CheckPack(rex::ppc::simd::PackSaturates<16, true>, 16, true, true);
 }
 
 REX_TEST_CASE("PackSaturates reports the clamped lanes of the word packs", "[ppc][saturation]") {
-  CheckPack(rex::ppc::PackSaturates<32, false>, 32, false, false);
-  CheckPack(rex::ppc::PackSaturates<32, false>, 32, true, false);
-  CheckPack(rex::ppc::PackSaturates<32, true>, 32, true, true);
+  CheckPack(rex::ppc::simd::PackSaturates<32, false>, 32, false, false);
+  CheckPack(rex::ppc::simd::PackSaturates<32, false>, 32, true, false);
+  CheckPack(rex::ppc::simd::PackSaturates<32, true>, 32, true, true);
 }
 
 REX_TEST_CASE("PackD3DSaturates matches the captured saturation of every pack format",
@@ -258,25 +258,25 @@ REX_TEST_CASE("PackD3DSaturates matches the captured saturation of every pack fo
     bool got = false;
     switch (expected.type) {
       case 0:
-        got = rex::ppc::PackD3DSaturates<0>(source);
+        got = rex::ppc::simd::PackD3DSaturates<0>(source);
         break;
       case 1:
-        got = rex::ppc::PackD3DSaturates<1>(source);
+        got = rex::ppc::simd::PackD3DSaturates<1>(source);
         break;
       case 2:
-        got = rex::ppc::PackD3DSaturates<2>(source);
+        got = rex::ppc::simd::PackD3DSaturates<2>(source);
         break;
       case 3:
-        got = rex::ppc::PackD3DSaturates<3>(source);
+        got = rex::ppc::simd::PackD3DSaturates<3>(source);
         break;
       case 4:
-        got = rex::ppc::PackD3DSaturates<4>(source);
+        got = rex::ppc::simd::PackD3DSaturates<4>(source);
         break;
       case 5:
-        got = rex::ppc::PackD3DSaturates<5>(source);
+        got = rex::ppc::simd::PackD3DSaturates<5>(source);
         break;
       default:
-        got = rex::ppc::PackD3DSaturates<6>(source);
+        got = rex::ppc::simd::PackD3DSaturates<6>(source);
         break;
     }
     CAPTURE(expected.type, expected.a[0], expected.a[1], expected.a[2], expected.a[3]);

@@ -59,23 +59,25 @@ void CheckLanes(std::span<const MultiplyAddCase> cases, size_t stride) {
 
 }  // namespace
 
-REX_TEST_CASE("Vmaddfp matches the sampled results", "[ppc][multiply_add]") {
-  CheckLanes<rex::ppc::Vmaddfp>(kVmaddfpCases, 1);
+REX_TEST_CASE("MultiplyAdd matches the sampled results", "[ppc][multiply_add]") {
+  CheckLanes<rex::ppc::simd::MultiplyAdd>(kMultiplyAddCases, 1);
 }
 
-REX_TEST_CASE("Vnmsubfp matches the sampled results", "[ppc][multiply_add]") {
-  CheckLanes<rex::ppc::Vnmsubfp>(kVnmsubfpCases, 1);
+REX_TEST_CASE("NegativeMultiplySubtract matches the sampled results", "[ppc][multiply_add]") {
+  CheckLanes<rex::ppc::simd::NegativeMultiplySubtract>(kNegativeMultiplySubtractCases, 1);
 }
 
-REX_TEST_CASE("Vmaddfp keeps each lane apart in a mixed vector", "[ppc][multiply_add]") {
-  CheckLanes<rex::ppc::Vmaddfp>(kVmaddfpCases, 97);
+REX_TEST_CASE("MultiplyAdd keeps each lane apart in a mixed vector", "[ppc][multiply_add]") {
+  CheckLanes<rex::ppc::simd::MultiplyAdd>(kMultiplyAddCases, 97);
 }
 
-REX_TEST_CASE("Vnmsubfp keeps each lane apart in a mixed vector", "[ppc][multiply_add]") {
-  CheckLanes<rex::ppc::Vnmsubfp>(kVnmsubfpCases, 97);
+REX_TEST_CASE("NegativeMultiplySubtract keeps each lane apart in a mixed vector",
+              "[ppc][multiply_add]") {
+  CheckLanes<rex::ppc::simd::NegativeMultiplySubtract>(kNegativeMultiplySubtractCases, 97);
 }
 
-REX_TEST_CASE("Vmaddfp and Vnmsubfp keep denormals when VSCR NJ is clear", "[ppc][multiply_add]") {
+REX_TEST_CASE("MultiplyAdd and NegativeMultiplySubtract keep denormals when VSCR NJ is clear",
+              "[ppc][multiply_add]") {
   const auto load = [](const std::array<u32, 4>& words) {
     alignas(16) std::array<u32, 4> host;
     for (size_t i = 0; i < 4; ++i) {
@@ -86,9 +88,10 @@ REX_TEST_CASE("Vmaddfp and Vnmsubfp keep denormals when VSCR NJ is clear", "[ppc
   };
   for (const MultiplyAddNJ0Case& expected : kMultiplyAddNJ0Cases) {
     const simde__m128 result =
-        expected.negate
-            ? rex::ppc::Vnmsubfp(load(expected.a), load(expected.b), load(expected.c), false)
-            : rex::ppc::Vmaddfp(load(expected.a), load(expected.b), load(expected.c), false);
+        expected.negate ? rex::ppc::simd::NegativeMultiplySubtract(
+                              load(expected.a), load(expected.b), load(expected.c), false)
+                        : rex::ppc::simd::MultiplyAdd(load(expected.a), load(expected.b),
+                                                      load(expected.c), false);
     alignas(16) std::array<u32, 4> host;
     simde_mm_store_si128(reinterpret_cast<simde__m128i*>(host.data()),
                          simde_mm_castps_si128(result));

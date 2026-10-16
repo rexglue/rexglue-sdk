@@ -5,7 +5,7 @@
 
 #include <memory>
 
-#include <rex/logging.h>
+#include <rex/logging/log.h>
 
 #include "rex_test.h"
 

@@ -3,7 +3,8 @@
 #include <rex/codegen/analyze.h>
 #include <rex/codegen/codegen.h>
 #include <rex/codegen/codegen_writer.h>
-#include <rex/logging.h>
+#include <rex/fail.h>
+#include <rex/logging/log.h>
 #include <rex/runtime.h>
 
 #include "tool_runtime.h"

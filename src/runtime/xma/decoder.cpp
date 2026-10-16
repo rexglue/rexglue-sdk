@@ -15,7 +15,7 @@
 #include "runtime/xma/decoder.h"
 #include <rex/cvar.h>
 #include <rex/dbg.h>
-#include <rex/logging.h>
+#include <rex/logging/log.h>
 #include <rex/perf/counter.h>
 #include <rex/math.h>
 #include <rex/mmio.h>

@@ -16,11 +16,11 @@
 #include <tuple>
 #include <type_traits>
 
-#include <rex/logging.h>
-#include <rex/macros.h>
+#include <rex/platform.h>
+#include <rex/logging/log.h>
+#include <rex/export.h>
 #include <rex/ppc/context.h>
 #include <rex/ppc/function.h>
-#include <rex/runtime.h>
 #include <rex/runtime/thread_state.h>
 #include <rex/types.h>
 

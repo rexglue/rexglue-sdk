@@ -24,7 +24,7 @@
 #include <rex/codegen/function_scanner.h>
 #include <rex/codegen/template_registry.h>
 #include <rex/codegen/test_support.h>
-#include <rex/logging.h>
+#include <rex/logging/log.h>
 #include <rex/runtime/map_parser.h>
 
 #include "codegen/template_registry_internal.h"

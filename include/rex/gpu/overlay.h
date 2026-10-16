@@ -16,6 +16,7 @@
 
 #include <rex/result.h>
 #include <rex/types.h>
+#include <rex/module.h>
 
 namespace rex::gpu {
 
@@ -162,10 +163,8 @@ class OverlayDrawContext : public NonCopyable {
 };
 
 /** Draws overlay geometry into an OverlayDrawContext. Served by a backend or a consumer. */
-class IOverlayDrawer {
+REX_INTERFACE(IOverlayDrawer)
  public:
-  virtual ~IOverlayDrawer() = default;
-
   /**
    * Creates a texture from RGBA8 pixels.
    *
@@ -212,10 +211,8 @@ class IOverlayDrawer {
 };
 
 /** A layer the presenter draws each paint, in z order. Implemented by the UI tier. */
-class IOverlayLayer {
+REX_INTERFACE(IOverlayLayer)
  public:
-  virtual ~IOverlayLayer() = default;
-
   /**
    * Draws the layer.
    *

@@ -14,15 +14,15 @@
 #include <cstring>
 #include <vector>
 
-#include <rex/kernel/xboxkrnl/private.h>
-#include <rex/logging.h>
+#include <rex/logging/log.h>
 #include <rex/platform.h>
 #include <rex/hook.h>
 #include <rex/types.h>
 #include <rex/runtime.h>
 #include <rex/runtime/process.h>
 #include <rex/runtime/xtypes.h>
-#include "kernel/kernel_macros.h"
+#include "kernel/argument_check.h"
+#include "kernel/stub_log.h"
 
 #include "excrypt.h"
 

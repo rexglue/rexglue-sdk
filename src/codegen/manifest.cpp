@@ -11,14 +11,15 @@
 
 #include <toml++/toml.hpp>
 
-#include <rex/logging.h>
+#include <rex/fail.h>
+#include <rex/logging/log.h>
 #include <rex/platform/file.h>
-#include <rex/runtime/guest_path.h>
+#include <rex/string/utf8.h>
 
 namespace rex::codegen {
 
 std::string CanonicalizeModuleGuestPath(std::string_view path, std::string_view project_name) {
-  std::string guest_path = rex::runtime::NormalizeGuestPath(path);
+  std::string guest_path = rex::NormalizeGuestPath(path);
 
   if (!project_name.empty()) {
     std::string lower_project(project_name);
@@ -240,7 +241,7 @@ bool ManifestConfig::WriteSDKVersionStamp(const std::filesystem::path& path,
     content += line;
     content += '\n';
   }
-  auto written = rex::platform::WriteWholeFile(
+  auto written = rex::platform::WriteHostFile(
       path, std::span(reinterpret_cast<const u8*>(content.data()), content.size()));
   if (!written) {
     REX_FAIL(codegen, false, "Failed to write the manifest: {}", written.error().message);

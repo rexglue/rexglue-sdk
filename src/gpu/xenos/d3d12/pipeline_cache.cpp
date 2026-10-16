@@ -40,7 +40,9 @@
 #include "gpu/xenos/draw_state.h"
 #include <rex/xenos/xenos.h>
 #include <rex/hash.h>
-#include <rex/logging.h>
+#include <rex/fail.h>
+#include <rex/logging/log.h>
+#include <rex/platform/file.h>
 #include <rex/no_throw.h>
 #include <rex/math.h>
 #include <rex/string.h>
@@ -51,7 +53,6 @@
 
 #include "gpu/xenos/cvar_table_pair.h"
 #include "gpu/xenos/d3d12/cvar_table.h"
-#include "gpu/xenos/storage_file.h"
 
 namespace rex::gpu::d3d12 {
 
@@ -222,7 +223,7 @@ void PipelineCache::InitializeShaderStorage(const std::filesystem::path& cache_r
       shader_storage_shareable_root /
       std::format("{:08X}.{}.d3d12.xpso", title_id, edram_rov_used ? "rov" : "rtv");
   pipeline_storage_file_path_ = pipeline_storage_file_path;
-  if (!OpenStorageFile(pipeline_storage_file_, pipeline_storage_file_path)) {
+  if (!platform::OpenStorageFile(pipeline_storage_file_, pipeline_storage_file_path)) {
     REXLOG_ERROR(gpu,
                  "Failed to open the Direct3D 12 pipeline description storage file for "
                  "writing, persistent shader storage will be disabled: {}",
@@ -241,12 +242,13 @@ void PipelineCache::InitializeShaderStorage(const std::filesystem::path& cache_r
     u32 magic_api;
     be_u32 version;
   } pipeline_storage_file_header;
-  if (ReadStorage(pipeline_storage_file_, &pipeline_storage_file_header,
-                  sizeof(pipeline_storage_file_header)) == sizeof(pipeline_storage_file_header) &&
+  if (platform::ReadStorage(pipeline_storage_file_, &pipeline_storage_file_header,
+                            sizeof(pipeline_storage_file_header)) ==
+          sizeof(pipeline_storage_file_header) &&
       pipeline_storage_file_header.magic == pipeline_storage_magic &&
       pipeline_storage_file_header.magic_api == pipeline_storage_magic_api &&
       pipeline_storage_file_header.version == pipeline_storage_version) {
-    const u64 pipeline_storage_told_end = StorageFileSize(pipeline_storage_file_path);
+    const u64 pipeline_storage_told_end = platform::StorageFileSize(pipeline_storage_file_path);
     size_t pipeline_storage_told_count = static_cast<size_t>(
         pipeline_storage_told_end >= sizeof(pipeline_storage_file_header)
             ? (pipeline_storage_told_end - sizeof(pipeline_storage_file_header)) /
@@ -255,8 +257,8 @@ void PipelineCache::InitializeShaderStorage(const std::filesystem::path& cache_r
     if (pipeline_storage_told_count) {
       pipeline_stored_descriptions.resize(pipeline_storage_told_count);
       pipeline_stored_descriptions.resize(
-          ReadStorage(pipeline_storage_file_, pipeline_stored_descriptions.data(),
-                      pipeline_storage_told_count * sizeof(PipelineStoredDescription)) /
+          platform::ReadStorage(pipeline_storage_file_, pipeline_stored_descriptions.data(),
+                                pipeline_storage_told_count * sizeof(PipelineStoredDescription)) /
           sizeof(PipelineStoredDescription));
       size_t pipeline_storage_read_count = pipeline_stored_descriptions.size();
       for (size_t i = 0; i < pipeline_storage_read_count; ++i) {
@@ -289,7 +291,7 @@ void PipelineCache::InitializeShaderStorage(const std::filesystem::path& cache_r
   auto shader_storage_file_path =
       shader_storage_shareable_root / std::format("{:08X}.xsh", title_id);
   shader_storage_file_path_ = shader_storage_file_path;
-  if (!OpenStorageFile(shader_storage_file_, shader_storage_file_path)) {
+  if (!platform::OpenStorageFile(shader_storage_file_, shader_storage_file_path)) {
     REXLOG_ERROR(gpu,
                  "Failed to open the title shader storage file for writing, persistent "
                  "shader storage will be disabled: {}",
@@ -305,8 +307,9 @@ void PipelineCache::InitializeShaderStorage(const std::filesystem::path& cache_r
   } shader_storage_file_header;
   // 'XESH'.
   const u32 shader_storage_magic = 0x48534558;
-  if (ReadStorage(shader_storage_file_, &shader_storage_file_header,
-                  sizeof(shader_storage_file_header)) == sizeof(shader_storage_file_header) &&
+  if (platform::ReadStorage(shader_storage_file_, &shader_storage_file_header,
+                            sizeof(shader_storage_file_header)) ==
+          sizeof(shader_storage_file_header) &&
       shader_storage_file_header.magic == shader_storage_magic &&
       shader_storage_file_header.version == ShaderStoredHeader::kVersion) {
     u64 shader_storage_valid_bytes = sizeof(shader_storage_file_header);
@@ -391,14 +394,15 @@ void PipelineCache::InitializeShaderStorage(const std::filesystem::path& cache_r
     std::vector<std::unique_ptr<rex::platform::Thread>> shader_translation_threads;
 
     while (true) {
-      if (ReadStorage(shader_storage_file_, &shader_header, sizeof(shader_header)) !=
+      if (platform::ReadStorage(shader_storage_file_, &shader_header, sizeof(shader_header)) !=
           sizeof(shader_header)) {
         break;
       }
       size_t ucode_byte_count = shader_header.ucode_dword_count * sizeof(u32);
       ucode_dwords.resize(shader_header.ucode_dword_count);
-      if (shader_header.ucode_dword_count && ReadStorage(shader_storage_file_, ucode_dwords.data(),
-                                                         ucode_byte_count) != ucode_byte_count) {
+      if (shader_header.ucode_dword_count &&
+          platform::ReadStorage(shader_storage_file_, ucode_dwords.data(), ucode_byte_count) !=
+              ucode_byte_count) {
         break;
       }
       u64 ucode_data_hash = XXH3_64bits(ucode_dwords.data(), ucode_byte_count);
@@ -455,13 +459,14 @@ void PipelineCache::InitializeShaderStorage(const std::filesystem::path& cache_r
                 shaders_translated,
                 (rex::Clock::QueryHostTickCount() - shader_storage_initialization_start) * 1000 /
                     rex::Clock::QueryHostTickFrequency());
-    ResetStorageFile(shader_storage_file_, shader_storage_file_path_, shader_storage_valid_bytes);
+    platform::ResetStorageFile(shader_storage_file_, shader_storage_file_path_,
+                               shader_storage_valid_bytes);
   } else {
-    ResetStorageFile(shader_storage_file_, shader_storage_file_path_, 0);
+    platform::ResetStorageFile(shader_storage_file_, shader_storage_file_path_, 0);
     shader_storage_file_header.magic = shader_storage_magic;
     shader_storage_file_header.version = ShaderStoredHeader::kVersion;
-    AppendStorage(shader_storage_file_, &shader_storage_file_header,
-                  sizeof(shader_storage_file_header));
+    platform::AppendStorage(shader_storage_file_, &shader_storage_file_header,
+                            sizeof(shader_storage_file_header));
   }
 
   if (!pipeline_stored_descriptions.empty()) {
@@ -623,17 +628,17 @@ void PipelineCache::InitializeShaderStorage(const std::filesystem::path& cache_r
                 pipelines_created,
                 (rex::Clock::QueryHostTickCount() - pipeline_creation_start) * 1000 /
                     rex::Clock::QueryHostTickFrequency());
-    ResetStorageFile(
+    platform::ResetStorageFile(
         pipeline_storage_file_, pipeline_storage_file_path_,
         static_cast<u64>(sizeof(pipeline_storage_file_header) +
                          sizeof(PipelineStoredDescription) * pipeline_stored_descriptions.size()));
   } else {
-    ResetStorageFile(pipeline_storage_file_, pipeline_storage_file_path_, 0);
+    platform::ResetStorageFile(pipeline_storage_file_, pipeline_storage_file_path_, 0);
     pipeline_storage_file_header.magic = pipeline_storage_magic;
     pipeline_storage_file_header.magic_api = pipeline_storage_magic_api;
     pipeline_storage_file_header.version = pipeline_storage_version;
-    AppendStorage(pipeline_storage_file_, &pipeline_storage_file_header,
-                  sizeof(pipeline_storage_file_header));
+    platform::AppendStorage(pipeline_storage_file_, &pipeline_storage_file_header,
+                            sizeof(pipeline_storage_file_header));
   }
 
   shader_storage_cache_root_ = cache_root;
@@ -2765,20 +2770,21 @@ void PipelineCache::StorageWriteThread() {
       shader_header.ucode_dword_count = shader->GetUcodeDwordCount();
       shader_header.type = shader->GetType();
       REX_ASSERT(shader_storage_file_.is_open());
-      AppendStorage(shader_storage_file_, &shader_header, sizeof(shader_header));
+      platform::AppendStorage(shader_storage_file_, &shader_header, sizeof(shader_header));
       if (shader_header.ucode_dword_count) {
         ucode_guest_endian.resize(shader_header.ucode_dword_count);
         // Swap back, as the hash is calculated over the guest endian ucode.
         memory::copy_and_swap(ucode_guest_endian.data(), shader->GetUcodeDwords(),
                               shader_header.ucode_dword_count);
-        AppendStorage(shader_storage_file_, ucode_guest_endian.data(),
-                      shader_header.ucode_dword_count * sizeof(u32));
+        platform::AppendStorage(shader_storage_file_, ucode_guest_endian.data(),
+                                shader_header.ucode_dword_count * sizeof(u32));
       }
     }
 
     if (write_pipeline) {
       REX_ASSERT(pipeline_storage_file_.is_open());
-      AppendStorage(pipeline_storage_file_, &pipeline_description, sizeof(pipeline_description));
+      platform::AppendStorage(pipeline_storage_file_, &pipeline_description,
+                              sizeof(pipeline_description));
     }
   }
 }

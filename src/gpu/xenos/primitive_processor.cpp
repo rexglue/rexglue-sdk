@@ -22,7 +22,8 @@
 #include <rex/xenos/register_file.h>
 #include <rex/xenos/registers.h>
 #include <rex/xenos/xenos.h>
-#include <rex/logging.h>
+#include <rex/fail.h>
+#include <rex/logging/log.h>
 #include <rex/math.h>
 #include <rex/types.h>
 

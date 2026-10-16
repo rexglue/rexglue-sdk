@@ -15,7 +15,7 @@
 namespace rex::ppc {
 
 /** Result of the scalar reciprocal estimate by the top 7 mantissa bits of the operand. */
-inline constexpr u64 kFresTable[128] = {
+inline constexpr u64 kScalarReciprocalTable[128] = {
     0x3FEFE00000000000, 0x3FEFA10000000000, 0x3FEF630000000000, 0x3FEF260000000000,
     0x3FEEEA0000000000, 0x3FEEAE0000000000, 0x3FEE740000000000, 0x3FEE3C0000000000,
     0x3FEE000000000000, 0x3FEDC80000000000, 0x3FED940000000000, 0x3FED5C0000000000,
@@ -52,15 +52,17 @@ inline constexpr u64 kFresTable[128] = {
 
 /** Result of the scalar reciprocal square root estimate by exponent parity and the top 3 mantissa
  * bits. */
-inline constexpr u64 kFrsqrteTable[16] = {
+inline constexpr u64 kScalarReciprocalSqrtTable[16] = {
     0x3FEF100000000000, 0x3FED800000000000, 0x3FEC000000000000, 0x3FEA800000000000,
     0x3FE9800000000000, 0x3FE8800000000000, 0x3FE8000000000000, 0x3FE7000000000000,
     0x3FE6000000000000, 0x3FE4C00000000000, 0x3FE3C00000000000, 0x3FE3000000000000,
     0x3FE2000000000000, 0x3FE1800000000000, 0x3FE1000000000000, 0x3FE0800000000000,
 };
 
+namespace simd {
+
 /** Mantissa base of the vector reciprocal estimate by the top 5 mantissa bits. */
-inline constexpr u32 kVrefpBase[32] = {
+inline constexpr u32 kReciprocalBase[32] = {
     0x7FF800, 0x783800, 0x70EA00, 0x6A0800, 0x638800, 0x5D6200, 0x579000, 0x520800,
     0x4CC800, 0x47CA00, 0x430800, 0x3E8000, 0x3A2C00, 0x360800, 0x321400, 0x2E4A00,
     0x2AA800, 0x272C00, 0x23D600, 0x209E00, 0x1D8800, 0x1A9000, 0x17AE00, 0x14F800,
@@ -68,7 +70,7 @@ inline constexpr u32 kVrefpBase[32] = {
 };
 
 /** Mantissa slope of the vector reciprocal estimate by the top 5 mantissa bits. */
-inline constexpr i32 kVrefpSlope[32] = {
+inline constexpr i32 kReciprocalSlope[32] = {
     -3972, -3740, -3524, -3328, -3148, -2984, -2832, -2688, -2556, -2436, -2324,
     -2216, -2120, -2028, -1940, -1860, -1784, -1712, -1644, -1580, -1520, -1464,
     -1388, -1388, -1292, -1292, -1204, -1204, -1128, -1128, -1056, -1048,
@@ -76,7 +78,7 @@ inline constexpr i32 kVrefpSlope[32] = {
 
 /** Mantissa base of the vector reciprocal square root estimate by exponent parity and the top 4
  * mantissa bits. */
-inline constexpr u32 kVrsqrtefpBase[32] = {
+inline constexpr u32 kReciprocalSqrtBase[32] = {
     0x7FF400, 0x785200, 0x715400, 0x6AE400, 0x64F200, 0x5F6E00, 0x5A4C00, 0x558000,
     0x510200, 0x4CCA00, 0x48D000, 0x450E00, 0x418200, 0x3E2400, 0x3AF200, 0x37E800,
     0x34FD00, 0x2F9700, 0x2AA500, 0x261800, 0x21E400, 0x1DFE00, 0x1A5C00, 0x16F800,
@@ -85,25 +87,25 @@ inline constexpr u32 kVrsqrtefpBase[32] = {
 
 /** Mantissa slope of the vector reciprocal square root estimate by exponent parity and the top 4
  * mantissa bits. */
-inline constexpr i32 kVrsqrtefpSlope[32] = {
+inline constexpr i32 kReciprocalSqrtSlope[32] = {
     -1956, -1792, -1648, -1522, -1412, -1316, -1228, -1150, -1082, -1018, -962,
     -910,  -862,  -818,  -778,  -742,  -1384, -1267, -1165, -1077, -999,  -930,
     -869,  -814,  -764,  -720,  -680,  -643,  -609,  -579,  -550,  -523,
 };
 
 /** Fraction base of the vector log2 estimate by the top 4 mantissa bits. */
-inline constexpr i32 kVlogefpBase[16] = {
+inline constexpr i32 kLog2Base[16] = {
     0,    1536,  2816,  4096,  5248,  6400,  7552,  8576,
     9600, 10623, 11519, 12415, 13310, 14078, 14846, 15614,
 };
 
 /** Fraction slope of the vector log2 estimate by the top 4 mantissa bits. */
-inline constexpr i32 kVlogefpSlope[16] = {
+inline constexpr i32 kLog2Slope[16] = {
     12, 10, 10, 9, 9, 9, 8, 8, 8, 7, 7, 7, 6, 6, 6, 6,
 };
 
 /** Top 11 mantissa bits of 2^x by the 11 fraction bits of a positive operand. */
-inline constexpr u16 kVexptefpPositive[2048] = {
+inline constexpr u16 kExp2Positive[2048] = {
     0x000, 0x001, 0x002, 0x003, 0x003, 0x004, 0x005, 0x006, 0x006, 0x007, 0x008, 0x009, 0x009,
     0x00A, 0x00B, 0x00C, 0x00C, 0x00D, 0x00E, 0x00F, 0x00F, 0x010, 0x011, 0x012, 0x012, 0x013,
     0x014, 0x015, 0x015, 0x016, 0x017, 0x018, 0x018, 0x019, 0x01A, 0x01B, 0x01B, 0x01C, 0x01D,
@@ -263,5 +265,7 @@ inline constexpr u16 kVexptefpPositive[2048] = {
     0x7E3, 0x7E4, 0x7E6, 0x7E7, 0x7E9, 0x7EA, 0x7EC, 0x7ED, 0x7EF, 0x7F0, 0x7F2, 0x7F3, 0x7F5,
     0x7F6, 0x7F8, 0x7F9, 0x7FB, 0x7FC, 0x7FE, 0x7FF,
 };
+
+}  // namespace simd
 
 }  // namespace rex::ppc

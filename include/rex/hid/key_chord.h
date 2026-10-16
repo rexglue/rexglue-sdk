@@ -14,9 +14,11 @@
 #include <string_view>
 #include <vector>
 
+#include <rex/types.h>
+#include <rex/platform.h>
 #include <rex/hid/event.h>
 #include <rex/hid/virtual_key.h>
-#include <rex/macros.h>
+#include <rex/export.h>
 #include <rex/result.h>
 
 namespace rex::hid {

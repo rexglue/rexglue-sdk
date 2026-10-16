@@ -20,7 +20,7 @@
 #include "phase_helpers.h"
 
 #include <rex/codegen/vtable_scanner.h>
-#include <rex/logging.h>
+#include <rex/logging/log.h>
 
 #include <rex/memory/byte_swap.h>
 

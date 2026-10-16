@@ -11,14 +11,13 @@
 
 #include <rex/api.h>
 #include <rex/cvar.h>
-#include <rex/kernel/xboxkrnl/private.h>
-#include <rex/logging.h>
+#include <rex/logging/log.h>
 #include <rex/hook.h>
 #include <rex/types.h>
 #include <rex/runtime.h>
 #include <rex/runtime/module_object.h>
 #include <rex/runtime/xtypes.h>
-#include "kernel/kernel_macros.h"
+#include "kernel/stub_log.h"
 
 namespace rex::kernel::xboxkrnl {
 

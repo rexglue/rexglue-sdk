@@ -19,6 +19,7 @@
 #include <rex/filesystem/open.h>
 #include <rex/result.h>
 #include <rex/types.h>
+#include <rex/module.h>
 
 namespace rex::filesystem {
 
@@ -26,10 +27,8 @@ namespace rex::filesystem {
  * An open file or directory. Every handle on the same path shares 1 tree node, so each sees the
  * same size and times. The file closes when the object is destroyed.
  */
-class IFile {
+REX_INTERFACE(IFile)
  public:
-  virtual ~IFile() = default;
-
   /**
    * Returns the shared node information.
    *
