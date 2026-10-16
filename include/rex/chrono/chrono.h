@@ -131,15 +131,15 @@ using XSystemClock = detail::NtSystemClock<detail::Domain::kGuest>;
 // NOLINTNEXTLINE(bugprone-std-namespace-modification): permitted program defined clock
 namespace std::chrono {
 
-#ifdef __APPLE__
+#ifdef _LIBCPP_VERSION
 /**
- * Stand-in for the C++20 clock conversion trait, which Apple libc++ does not provide.
+ * Stand-in for the C++20 clock conversion trait, which libc++ does not provide.
  */
 template <class, class>
 struct clock_time_conversion {};
 
 /**
- * Stand-in for C++20 clock_cast, which Apple libc++ does not provide.
+ * Stand-in for C++20 clock_cast, which libc++ does not provide.
  *
  * @tparam DestClock The clock to convert to.
  * @tparam SourceClock The clock to convert from.
