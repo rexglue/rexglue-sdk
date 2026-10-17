@@ -1,7 +1,9 @@
 #==========================================================
 # SDK Install/Export Rules
 #==========================================================
-include(${CMAKE_CURRENT_LIST_DIR}/rexglue_helpers.cmake)
+include(${CMAKE_CURRENT_LIST_DIR}/rexglue_target.cmake)
+include(${CMAKE_CURRENT_LIST_DIR}/rexglue_module.cmake)
+include(${CMAKE_CURRENT_LIST_DIR}/rexglue_metadata.cmake)
 
 install(TARGETS ${REXGLUE_INSTALL_TARGETS}
     EXPORT rexglueTargets
@@ -125,7 +127,9 @@ install(FILES
 )
 
 install(FILES
-    ${CMAKE_CURRENT_SOURCE_DIR}/cmake/rexglue_helpers.cmake
+    ${CMAKE_CURRENT_SOURCE_DIR}/cmake/rexglue_target.cmake
+    ${CMAKE_CURRENT_SOURCE_DIR}/cmake/rexglue_module.cmake
+    ${CMAKE_CURRENT_SOURCE_DIR}/cmake/rexglue_metadata.cmake
     ${CMAKE_CURRENT_SOURCE_DIR}/cmake/rexglue_stage_pdbs.cmake
     ${CMAKE_CURRENT_SOURCE_DIR}/cmake/rexglue_optimus.cpp.in
     DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/rexglue

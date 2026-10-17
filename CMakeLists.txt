@@ -44,7 +44,9 @@ set(REXGLUE_ROOT "${CMAKE_CURRENT_SOURCE_DIR}")
 # SDK install support
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
-include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/rexglue_helpers.cmake)
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/rexglue_target.cmake)
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/rexglue_module.cmake)
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/rexglue_metadata.cmake)
 
 if(UNIX AND NOT APPLE)
     # Keep installed binaries self-contained by resolving shared libs relative
@@ -306,7 +308,9 @@ if(PROJECT_IS_TOP_LEVEL)
     include(cmake/rexglue_install.cmake)
 else()
     # When consumed via add_subdirectory(), provide the same interface as find_package().
-    include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/rexglue_helpers.cmake)
+    include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/rexglue_target.cmake)
+    include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/rexglue_module.cmake)
+    include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/rexglue_metadata.cmake)
     foreach(target IN LISTS REXGLUE_INSTALL_TARGETS)
         get_target_property(export_name ${target} EXPORT_NAME)
         if(NOT export_name)
