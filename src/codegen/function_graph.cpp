@@ -624,8 +624,8 @@ std::string FunctionNode::EmitCpp(const EmitContext& ctx) const {
       }
     }
 
-    if (seh_info->restore_helper != 0) {
-      auto* restore_fn = ctx.graph.GetFunction(seh_info->restore_helper);
+    for (u32 restore_helper : seh_info->restore_helpers) {
+      auto* restore_fn = ctx.graph.GetFunction(restore_helper);
       if (restore_fn && !restore_fn->GetName().empty()) {
         ctx.Reference(restore_fn->GetName());
         EmitPrintln(body, "\t\t\t{}(ctx, base);  // Restore caller registers",
@@ -739,8 +739,9 @@ FunctionNode* FunctionGraph::AddFunction(u32 base, u32 size, FunctionAuthority a
   return node;
 }
 
-FunctionNode* FunctionGraph::AddImportFunction(u32 address, std::string_view resolved_name) {
-  auto* node = AddFunction(address, 4, FunctionAuthority::kImport, resolved_name, true);
+FunctionNode* FunctionGraph::AddImportFunction(u32 address, std::string_view resolved_name,
+                                               u32 size) {
+  auto* node = AddFunction(address, size, FunctionAuthority::kImport, resolved_name, true);
   REXLOG_TRACE(codegen, "FunctionGraph: added import function 0x{:08X} -> {}", address,
                resolved_name);
   return node;
@@ -840,6 +841,12 @@ size_t FunctionGraph::GetSealedCount() const {
 void FunctionGraph::SetFunctionName(u32 entry, std::string name) {
   if (auto* node = GetFunction(entry)) {
     node->SetName(std::move(name));
+  }
+}
+
+void FunctionGraph::SetFunctionMillicode(u32 entry, MillicodeEntry millicode) {
+  if (auto* node = GetFunction(entry)) {
+    node->SetMillicode(millicode);
   }
 }
 

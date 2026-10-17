@@ -74,9 +74,10 @@ class FunctionGraph {
    *
    * @param address Thunk address that bl instructions target
    * @param resolved_name Resolved import name
+   * @param size Size of the thunk in bytes
    * @return The new node
    */
-  FunctionNode* AddImportFunction(u32 address, std::string_view resolved_name);
+  FunctionNode* AddImportFunction(u32 address, std::string_view resolved_name, u32 size = 4);
 
   /**
    * Returns the function at an entry point in O(1).
@@ -185,6 +186,14 @@ class FunctionGraph {
    * @param val Flag value
    */
   void SetFunctionHasExceptionHandler(u32 entry, bool val);
+
+  /**
+   * Marks a function as an entry of a millicode run.
+   *
+   * @param entry Entry point address
+   * @param millicode Kind and register of the entry
+   */
+  void SetFunctionMillicode(u32 entry, MillicodeEntry millicode);
 
   /**
    * Sets the parsed SEH or C++ EH info. Called during the Discover phase.

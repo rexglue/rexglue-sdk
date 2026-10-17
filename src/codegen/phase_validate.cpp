@@ -12,6 +12,7 @@
 #include <rex/codegen/phases.h>
 
 #include <format>
+#include <vector>
 
 #include <rex/codegen/analysis_errors.h>
 #include <rex/codegen/config.h>
@@ -92,6 +93,18 @@ void ValidateConfigBoundaries(CodegenContext& ctx) {
 }
 
 /**
+ * Reports whether an address lies inside a millicode run without being an entry of it.
+ *
+ * @param graph Function graph holding the run entries.
+ * @param addr Address to test.
+ * @return True for an address in the middle of an entry or in the closing words.
+ */
+bool IsInsideMillicodeRun(const FunctionGraph& graph, u32 addr) {
+  const FunctionNode* node = graph.GetFunctionContaining(addr);
+  return node && node->GetMillicode() && node->GetBase() != addr;
+}
+
+/**
  * Validates that every direct b and bl target resolves. A target inside another function counts
  * as resolved, as gap fill can produce, and is emitted as a tail call to that function's internal
  * label. A target in no function, or a call with no registered edge, stops the build.
@@ -130,6 +143,14 @@ void ValidateConfigBoundaries(CodegenContext& ctx) {
           bool is_call = PPC_BL(insn);
 
           calls_checked++;
+
+          if (IsInsideMillicodeRun(graph, target)) {
+            errors.Add(AnalysisErrors::Category::kMillicode, target, site,
+                       std::format("{} 0x{:08X} from 0x{:08X} lands inside a millicode run, off "
+                                   "its entries",
+                                   is_call ? "bl" : "b", target, site));
+            continue;
+          }
 
           bool target_exists = false;
           bool is_internal_jump = false;
@@ -191,8 +212,9 @@ void ValidateConfigBoundaries(CodegenContext& ctx) {
     REXLOG_ERROR(codegen, "Analyze: found {} errors", errors.Count());
     errors.PrintReport();
     return Err(ErrorCategory::kValidation,
-               std::format("Validation failed: {} unresolved calls",
-                           errors.Count(AnalysisErrors::Category::kUnresolvedCall)));
+               std::format("Validation failed: {} unresolved calls, {} millicode errors",
+                           errors.Count(AnalysisErrors::Category::kUnresolvedCall),
+                           errors.Count(AnalysisErrors::Category::kMillicode)));
   }
 
   REXLOG_TRACE(codegen, "Analyze: all calls resolve");

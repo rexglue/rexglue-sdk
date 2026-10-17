@@ -79,15 +79,15 @@ bool BuilderContext::ShouldLocalizeNonVolatiles() const {
   const auto& info = fn.GetExceptionData();
   const auto* seh = info ? info->AsSEH() : nullptr;
   const bool seh_scope = GetConfig().generate_exception_handlers && seh && !seh->scopes.empty();
-  return GetConfig().non_volatile_registers_as_local_variables && !fn.SharesRegisters() &&
-         !seh_scope;
+  return GetConfig().non_volatile_registers_as_local_variables && !fn.GetMillicode() &&
+         !fn.SharesRegisters() && !seh_scope;
 }
 
 std::string BuilderContext::R(size_t index) {
   const auto& cfg = GetConfig();
-  if ((cfg.non_argument_registers_as_local_variables &&
-       (index == 0 || index == 2 || index == 11 || index == 12)) ||
-      (ShouldLocalizeNonVolatiles() && index >= 14)) {
+  if (!fn.GetMillicode() && ((cfg.non_argument_registers_as_local_variables &&
+                              (index == 0 || index == 2 || index == 11 || index == 12)) ||
+                             (ShouldLocalizeNonVolatiles() && index >= 14))) {
     locals.r[index] = true;
     return std::format("r{}", index);
   }
@@ -96,8 +96,8 @@ std::string BuilderContext::R(size_t index) {
 
 std::string BuilderContext::F(size_t index) {
   const auto& cfg = GetConfig();
-  if ((cfg.non_argument_registers_as_local_variables && index == 0) ||
-      (ShouldLocalizeNonVolatiles() && index >= 14)) {
+  if (!fn.GetMillicode() && ((cfg.non_argument_registers_as_local_variables && index == 0) ||
+                             (ShouldLocalizeNonVolatiles() && index >= 14))) {
     locals.f[index] = true;
     return std::format("f{}", index);
   }
@@ -106,9 +106,10 @@ std::string BuilderContext::F(size_t index) {
 
 std::string BuilderContext::V(size_t index) {
   const auto& cfg = GetConfig();
-  if ((cfg.non_argument_registers_as_local_variables && (index >= 32 && index <= 63)) ||
-      (ShouldLocalizeNonVolatiles() &&
-       ((index >= 14 && index <= 31) || (index >= 64 && index <= 127)))) {
+  if (!fn.GetMillicode() &&
+      ((cfg.non_argument_registers_as_local_variables && (index >= 32 && index <= 63)) ||
+       (ShouldLocalizeNonVolatiles() &&
+        ((index >= 14 && index <= 31) || (index >= 64 && index <= 127))))) {
     locals.v[index] = true;
     return std::format("v{}", index);
   }
@@ -204,9 +205,13 @@ void BuilderContext::EmitFunctionCall(u32 address) {
       auto* target_fn = target->AsFunction();
       const auto& name = target_fn->GetName();
 
-      if (cfg.non_volatile_registers_as_local_variables &&
-          (name.find("__rest") == 0 || name.find("__save") == 0)) {
-        return;
+      if (target_fn->GetMillicode()) {
+        if (ShouldLocalizeNonVolatiles())
+          return;
+        for (size_t i : {11, 12}) {
+          if (locals.r[i])
+            Println("\tctx.r{} = r{};", i, i);
+        }
       }
 
       if (target_fn->SharesRegisters() && ShouldLocalizeNonVolatiles()) {

@@ -60,22 +60,8 @@ struct AnalysisState {
    * `parent` field of the function configs. */
   std::unordered_map<u32, std::vector<u32>> chunks_by_parent;
 
-  /** ABI helper addresses found by analysis, 0 when not found. */
-  u32 rest_gpr14_address = 0;
-  /** Address of the first `__savegprlr_14` helper, 0 when not found. */
-  u32 save_gpr14_address = 0;
-  /** Address of the first `__restfpr_14` helper, 0 when not found. */
-  u32 rest_fpr14_address = 0;
-  /** Address of the first `__savefpr_14` helper, 0 when not found. */
-  u32 save_fpr14_address = 0;
-  /** Address of the first `__restvmx_14` helper, 0 when not found. */
-  u32 rest_vmx14_address = 0;
-  /** Address of the first `__savevmx_14` helper, 0 when not found. */
-  u32 save_vmx14_address = 0;
-  /** Address of the first `__restvmx_64` helper, 0 when not found. */
-  u32 rest_vmx64_address = 0;
-  /** Address of the first `__savevmx_64` helper, 0 when not found. */
-  u32 save_vmx64_address = 0;
+  /** Save and restore millicode runs found by analysis. */
+  std::vector<MillicodeRun> millicode_runs;
 
   /** A function another user module exports by ordinal, imported through a thunk. */
   struct ModuleImportRef {

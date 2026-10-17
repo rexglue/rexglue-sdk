@@ -169,6 +169,13 @@ class FunctionNode {
 
   bool HasExceptionHandler() const { return has_exception_handler_; }
 
+  /**
+   * Returns the millicode role of the function.
+   *
+   * @return The role, or no value when the function is not a millicode entry
+   */
+  const std::optional<MillicodeEntry>& GetMillicode() const { return millicode_; }
+
   /** Returns the SEH or C++ EH info. */
   const std::optional<ExceptionInfo>& GetExceptionData() const { return exception_data_; }
   /**
@@ -194,6 +201,8 @@ class FunctionNode {
  private:
   void SetCode(const u8* ptr) { code_ = ptr; }
   void SetHasExceptionHandler(bool val) { has_exception_handler_ = val; }
+  void SetMillicode(MillicodeEntry entry) { millicode_ = entry; }
+
   void SetExceptionData(ExceptionInfo info) { exception_data_ = std::move(info); }
 
   void AddBlock(Block block);
@@ -233,6 +242,7 @@ class FunctionNode {
   std::vector<UnresolvedJump> unresolved_jumps_;
 
   std::optional<ExceptionInfo> exception_data_;
+  std::optional<MillicodeEntry> millicode_;
 
   FunctionAnalysis analysis_;
 };

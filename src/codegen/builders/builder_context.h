@@ -105,6 +105,7 @@ struct BuilderContext {
    * @brief Reports whether non-volatiles may be localized in the current function.
    * False when the function shares registers with an intra-function bl partner.
    * An SEH funclet inherits its owner's live registers through ctx, so it never localizes them.
+   * A save or restore helper moves registers between ctx and the frame, so it never does either.
    *
    * @return True when localizing is allowed.
    */
@@ -235,10 +236,10 @@ struct BuilderContext {
    * Uses pre-resolved CallTarget from FunctionNode when available.
    * Falls back to symbol lookup for backward compatibility.
    * Handles special cases like setjmp/longjmp and __restgprlr_N functions.
-   * Save and restore helpers are elided under the global non volatile setting and not the
-   * function's, because the helper bodies are emitted under it and would write zeros over the
-   * caller's frame once spilled to locals. An SEH funclet runs on its owner's frame, so the
-   * localized registers are copied through ctx before the call and back after it.
+   * Helper bodies keep nonvolatiles in ctx, so a kept helper call saves and restores real values.
+   * Save and restore helpers are elided in a function that localizes its nonvolatiles. An SEH
+   * funclet runs on its owner's frame, so the localized registers are copied through ctx before
+   * the call and back after it.
    */
   void EmitFunctionCall(u32 address);
 

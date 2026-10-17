@@ -99,6 +99,38 @@ enum class TargetKind : u8 {
  */
 const char* AuthorityName(FunctionAuthority auth);
 
+/** Kind of a save or restore millicode run. */
+enum class MillicodeKind : u8 {
+  kGPRSave,    /**< Saves GPRs and LR. */
+  kGPRRestore, /**< Restores GPRs and LR and returns. */
+  kFPRSave,    /**< Saves FPRs. */
+  kFPRRestore, /**< Restores FPRs and returns. */
+  kVMXSave,    /**< Saves vector registers. */
+  kVMXRestore, /**< Restores vector registers and returns. */
+};
+
+static_assert(static_cast<u8>(MillicodeKind::kGPRRestore) ==
+              static_cast<u8>(MillicodeKind::kGPRSave) + 1);
+static_assert(static_cast<u8>(MillicodeKind::kFPRRestore) ==
+              static_cast<u8>(MillicodeKind::kFPRSave) + 1);
+static_assert(static_cast<u8>(MillicodeKind::kVMXRestore) ==
+              static_cast<u8>(MillicodeKind::kVMXSave) + 1);
+
+/** A validated millicode run. */
+struct MillicodeRun {
+  MillicodeKind kind; /**< Kind of the run. */
+  u32 head;           /**< Address of the entry for the first register. */
+  u32 first;          /**< Number of the first register in the run. */
+  u32 count;          /**< Number of entries in the run. */
+  u32 stride;         /**< Distance in bytes between entries. */
+};
+
+/** Role of 1 entry of a millicode run. */
+struct MillicodeEntry {
+  MillicodeKind kind; /**< Kind of the run the entry belongs to. */
+  u32 reg;            /**< Register the entry starts at. */
+};
+
 /** Three state machine of a function. */
 enum class FunctionState : u8 {
   kRegistered, /**< Entry point known, blocks and instructions not assigned */
@@ -119,11 +151,11 @@ struct SEHScope {
 
 /** SEH data of 1 function. */
 struct SEHExceptionInfo {
-  u32 handler_thunk;            /**< Thunk address such as __C_specific_handler */
-  u32 scope_table_addr;         /**< Pointer to the scope table in .rdata */
-  std::vector<SEHScope> scopes; /**< Scope table entries */
-  u32 frame_size = 0;           /**< Stack frame size for the r12 setup during unwind */
-  u32 restore_helper = 0;       /**< __restgprlr_N address to call on unwind */
+  u32 handler_thunk;                /**< Thunk address such as __C_specific_handler */
+  u32 scope_table_addr;             /**< Pointer to the scope table in .rdata */
+  std::vector<SEHScope> scopes;     /**< Scope table entries */
+  u32 frame_size = 0;               /**< Stack frame size for the r12 setup during unwind */
+  std::vector<u32> restore_helpers; /**< Restore millicode addresses to call on unwind */
 };
 
 /** FuncInfo magic of C++ EH. */

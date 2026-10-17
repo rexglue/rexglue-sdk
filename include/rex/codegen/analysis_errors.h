@@ -30,6 +30,8 @@ class AnalysisErrors {
     kJumpTargetOutOfBounds, /**< No analysis stage adds this class. */
     kDiscontinuousFunction, /**< No analysis stage adds this class. */
     kUnimplementedInsn,     /**< No analysis stage adds this class. */
+    kMillicode,             /**< A branch into a millicode run off its entries, or a config
+                                 function at a millicode entry. */
   };
 
   /** 1 analysis failure with its addresses and message. */

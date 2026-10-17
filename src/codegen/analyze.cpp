@@ -77,6 +77,8 @@ const char* AnalysisErrors::CategoryName(Category cat) {
       return "DiscontinuousFunction";
     case Category::kUnimplementedInsn:
       return "UnimplementedInsn";
+    case Category::kMillicode:
+      return "Millicode";
     default:
       return "Unknown";
   }

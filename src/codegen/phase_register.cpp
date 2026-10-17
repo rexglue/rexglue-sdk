@@ -9,12 +9,19 @@
  *              See LICENSE file in the project root for full license text.
  */
 
+#include "ppc/disasm.h"
 #include "ppc/instruction.h"
+#include "ppc/opcode.h"
 
 #include <rex/codegen/phases.h>
 #include "phase_helpers.h"
 
+#include <algorithm>
 #include <format>
+#include <optional>
+#include <string>
+#include <string_view>
+#include <vector>
 
 #include <rex/assert.h>
 #include <rex/codegen/config.h>
@@ -27,6 +34,8 @@
 #include <ppc.h>
 
 using rex::codegen::detail::DecodeInstruction;
+using rex::codegen::detail::Disassemble;
+using rex::codegen::detail::LookupID;
 using rex::codegen::detail::Opcode;
 
 namespace rex::codegen {
@@ -68,17 +77,17 @@ struct ParsedExceptionInfo {
   std::vector<u32> discovered_funcs;
 };
 
-/** Frame size and save helper read from a function prologue for SEH unwinding. */
+/** Frame size and calls read from a function prologue for SEH unwinding. */
 struct PrologInfo {
   /** Frame size from addi r31, r1, -N. */
   u32 frame_size = 0;
-  /** Target of the bl to the save helper. */
-  u32 save_helper = 0;
+  /** Targets of the calls in the prologue, in order. */
+  std::vector<u32> call_targets;
   bool valid = false;
 };
 
 /**
- * Scans the prologue of a function with ExceptionFlag set for its frame size and save helper.
+ * Scans the prologue of a function with ExceptionFlag set for its frame size and calls.
  * Scanning is skipped when the PDATA prolog length is 0. valid may be false for handler
  * functions that receive the frame in r12, so the caller warns only when SEH scopes need it.
  *
@@ -122,7 +131,7 @@ PrologInfo ScanProlog(const BinaryView& binary, u32 func_addr, u32 prolog_length
     }
 
     if (decoded.IsCall() && decoded.branch_target.has_value()) {
-      info.save_helper = decoded.branch_target.value();
+      info.call_targets.push_back(decoded.branch_target.value());
     }
   }
 
@@ -369,75 +378,282 @@ std::optional<ParsedExceptionInfo> ParseExceptionInfo(const BinaryView& binary,
 }
 
 /**
- * Finds the first save and restore helper of each kind in the executable sections.
+ * Measures an import thunk, which runs from its address through the bctr that follows an mtctr.
+ * Any words before the mtctr are whatever the loader leaves there. A thunk that does not end that
+ * way within a few words counts as 1 word.
  *
  * @param binary Binary view.
- * @param state Receives the helper addresses.
+ * @param address Thunk address.
+ * @return The size of the thunk in bytes.
  */
-void DetectSaveRestoreHelpers(const BinaryView& binary, AnalysisState& state) {
-  struct HelperPattern {
-    u32 pattern;
-    u32* state_addr;
-    const char* name;
-  };
+u32 GetImportThunkSize(const BinaryView& binary, u32 address) {
+  constexpr u32 kMaxThunkWords = 8;
+  constexpr u32 kFallbackSize = 4;
+  Opcode previous = Opcode::kUnknown;
+  for (u32 i = 0; i < kMaxThunkWords; ++i) {
+    const u32 word_addr = address + i * 4;
+    const u8* code = binary.Translate(word_addr);
+    if (!code)
+      break;
+    const auto decoded = DecodeInstruction(word_addr, memory::load<be_u32>(code));
+    if (decoded.opcode == Opcode::bcctr && !decoded.IsConditional() && previous == Opcode::mtctr)
+      return (i + 1) * 4;
+    if (IsTerminatorInstruction(decoded.opcode))
+      break;
+    previous = decoded.opcode;
+  }
+  REXLOG_DEBUG(codegen, "Import thunk at 0x{:08X} does not end in mtctr and bctr, sized as 1 word",
+               address);
+  return kFallbackSize;
+}
 
-  HelperPattern patterns[] = {
-      {0xe9c1ff68, &state.rest_gpr14_address, "__restgprlr_14"},
-      {0xf9c1ff68, &state.save_gpr14_address, "__savegprlr_14"},
-      {0xc9ccff70, &state.rest_fpr14_address, "__restfpr_14"},
-      {0xd9ccff70, &state.save_fpr14_address, "__savefpr_14"},
-  };
+/** Instruction of a millicode entry or tail as the disassembler prints it. */
+struct MillicodeWord {
+  std::string_view name;
+  std::string operands;
+};
 
+constexpr u32 kGPRFirst = 14;
+constexpr u32 kGPRWithR13 = 13;
+constexpr u32 kVMXExtendedFirst = 64;
+constexpr u32 kSavedRegisterCount = 18;
+constexpr u32 kVMXExtendedCount = 64;
+constexpr u32 kGPRSlot = 8;
+constexpr u32 kFPRSlot = 8;
+constexpr u32 kVMXSlot = 16;
+constexpr u32 kGPRSlotBase = 33;
+constexpr u32 kFPRSlotBase = 32;
+constexpr u32 kVMXSlotBase = 32;
+constexpr u32 kVMXExtendedSlotBase = 128;
+constexpr u32 kWordBytes = 4;
+constexpr size_t kRunClassCount = 8;
+
+bool IsSaveKind(MillicodeKind kind) {
+  return kind == MillicodeKind::kGPRSave || kind == MillicodeKind::kFPRSave ||
+         kind == MillicodeKind::kVMXSave;
+}
+
+bool IsGPRKind(MillicodeKind kind) {
+  return kind == MillicodeKind::kGPRSave || kind == MillicodeKind::kGPRRestore;
+}
+
+bool IsFPRKind(MillicodeKind kind) {
+  return kind == MillicodeKind::kFPRSave || kind == MillicodeKind::kFPRRestore;
+}
+
+u32 GetEntryWordCount(MillicodeKind kind) {
+  return IsGPRKind(kind) || IsFPRKind(kind) ? 1 : 2;
+}
+
+std::string_view GetMillicodePrefix(MillicodeKind kind) {
+  switch (kind) {
+    case MillicodeKind::kGPRSave:
+      return "__savegprlr_";
+    case MillicodeKind::kGPRRestore:
+      return "__restgprlr_";
+    case MillicodeKind::kFPRSave:
+      return "__savefpr_";
+    case MillicodeKind::kFPRRestore:
+      return "__restfpr_";
+    case MillicodeKind::kVMXSave:
+      return "__savevmx_";
+    case MillicodeKind::kVMXRestore:
+      return "__restvmx_";
+  }
+  return {};
+}
+
+/**
+ * Lists the instructions of the entry for a register.
+ *
+ * @param kind Kind of the run.
+ * @param reg Register the entry starts at.
+ * @return The instructions the entry must hold.
+ */
+std::vector<MillicodeWord> GetEntryWords(MillicodeKind kind, u32 reg) {
+  const bool save = IsSaveKind(kind);
+  if (IsGPRKind(kind)) {
+    return {{save ? "std" : "ld",
+             std::format("r{},{}(r1)", reg, -static_cast<i32>(kGPRSlot * (kGPRSlotBase - reg)))}};
+  }
+  if (IsFPRKind(kind)) {
+    return {{save ? "stfd" : "lfd",
+             std::format("f{},{}(r12)", reg, -static_cast<i32>(kFPRSlot * (kFPRSlotBase - reg)))}};
+  }
+  const bool extended = reg >= kVMXExtendedFirst;
+  const u32 slot_base = extended ? kVMXExtendedSlotBase : kVMXSlotBase;
+  const std::string_view name = extended ? (save ? "stvx128" : "lvx128") : (save ? "stvx" : "lvx");
+  return {{"li", std::format("r11,{}", -static_cast<i32>(kVMXSlot * (slot_base - reg)))},
+          {name, std::format("v{},r11,r12", reg)}};
+}
+
+/**
+ * Lists the instructions after the last entry of a run.
+ *
+ * @param kind Kind of the run.
+ * @return The instructions that close the run.
+ */
+std::vector<MillicodeWord> GetTailWords(MillicodeKind kind) {
+  if (kind == MillicodeKind::kGPRSave)
+    return {{"stw", "r12,-8(r1)"}, {"blr", ""}};
+  if (kind == MillicodeKind::kGPRRestore)
+    return {{"lwz", "r12,-8(r1)"}, {"mtlr", "r12"}, {"blr", ""}};
+  return {{"blr", ""}};
+}
+
+bool WordMatches(const BinaryView& binary, u32 addr, const MillicodeWord& expected) {
+  const u8* code = binary.Translate(addr);
+  if (!code)
+    return false;
+  ppc_insn insn;
+  if (Disassemble(code, addr, insn) <= 0 || insn.opcode == nullptr)
+    return false;
+  return expected.name == insn.opcode->name && expected.operands == insn.op_str;
+}
+
+bool WordsMatch(const BinaryView& binary, u32 addr, const std::vector<MillicodeWord>& expected) {
+  for (const auto& word : expected) {
+    if (!WordMatches(binary, addr, word))
+      return false;
+    addr += kWordBytes;
+  }
+  return true;
+}
+
+/**
+ * Validates a run from the address of its first entry.
+ *
+ * @param binary The binary view the words are read from.
+ * @param head The address of the first store or load word.
+ * @param kind The kind to validate against.
+ * @param first Number of the first register of the run.
+ * @param count Number of entries the run must have.
+ * @return The run, or no value when any entry or the closing return is wrong.
+ */
+std::optional<MillicodeRun> ValidateRunFrom(const BinaryView& binary, u32 head, MillicodeKind kind,
+                                            u32 first, u32 count) {
+  const u32 stride = GetEntryWordCount(kind) * kWordBytes;
+  for (u32 i = 0; i < count; ++i) {
+    if (!WordsMatch(binary, head + i * stride, GetEntryWords(kind, first + i)))
+      return std::nullopt;
+  }
+  if (!WordsMatch(binary, head + count * stride, GetTailWords(kind)))
+    return std::nullopt;
+  return MillicodeRun{kind, head, first, count, stride};
+}
+
+/**
+ * Validates a candidate run from its first word.
+ *
+ * @param binary The binary view the words are read from.
+ * @param head The address of the first store or load word.
+ * @param kind The kind to validate against.
+ * @return The run, or no value when any entry or the closing return is wrong.
+ */
+std::optional<MillicodeRun> ValidateMillicodeRun(const BinaryView& binary, u32 head,
+                                                 MillicodeKind kind) {
+  if (auto run = ValidateRunFrom(binary, head, kind, kGPRFirst, kSavedRegisterCount)) {
+    if (IsGPRKind(kind) &&
+        WordsMatch(binary, head - kWordBytes, GetEntryWords(kind, kGPRWithR13))) {
+      return MillicodeRun{kind, head - kWordBytes, kGPRWithR13, run->count + 1, run->stride};
+    }
+    return run;
+  }
+  if (GetEntryWordCount(kind) == 2)
+    return ValidateRunFrom(binary, head, kind, kVMXExtendedFirst, kVMXExtendedCount);
+  return std::nullopt;
+}
+
+/**
+ * Reports whether 2 runs are the same run class, which is a kind and either the standard or the
+ * extended vector range.
+ *
+ * @param run A run.
+ * @param kind Kind of the other run.
+ * @param first First register of the other run.
+ * @return True when both belong to the same class.
+ */
+bool IsSameRunClass(const MillicodeRun& run, MillicodeKind kind, u32 first) {
+  return run.kind == kind && (run.first >= kVMXExtendedFirst) == (first >= kVMXExtendedFirst);
+}
+
+/**
+ * Finds the first valid run of each class in the executable sections.
+ *
+ * @param binary Binary view.
+ * @param state Receives the runs.
+ */
+void DetectMillicodeRuns(const BinaryView& binary, AnalysisState& state) {
+  auto& runs = state.millicode_runs;
   for (const auto& section : binary.GetSections()) {
     if (!section.executable)
       continue;
 
-    const u8* data = section.data;
-    const size_t size = section.size;
-    const size_t base = section.base_address;
-
-    for (size_t offset = 0; offset + 4 <= size; offset += 4) {
-      u32 instr = memory::load<be_u32>(data + offset);
-      u32 addr = static_cast<u32>(base + offset);
-
-      for (auto& p : patterns) {
-        if (instr == p.pattern && *p.state_addr == 0) {
-          *p.state_addr = addr;
-          REXLOG_DEBUG(codegen, "Found {} at 0x{:08X}", p.name, addr);
-        }
+    for (u32 offset = 0; offset + kWordBytes <= section.size; offset += kWordBytes) {
+      const u32 addr = section.base_address + offset;
+      std::vector<MillicodeKind> kinds;
+      switch (LookupID(memory::load<be_u32>(section.data + offset))) {
+        case PPC_INST_STD:
+          kinds = {MillicodeKind::kGPRSave};
+          break;
+        case PPC_INST_LD:
+          kinds = {MillicodeKind::kGPRRestore};
+          break;
+        case PPC_INST_STFD:
+          kinds = {MillicodeKind::kFPRSave};
+          break;
+        case PPC_INST_LFD:
+          kinds = {MillicodeKind::kFPRRestore};
+          break;
+        case PPC_INST_LI:
+        case PPC_INST_LIL:
+          kinds = {MillicodeKind::kVMXSave, MillicodeKind::kVMXRestore};
+          break;
+        default:
+          continue;
       }
 
-      if (offset + 8 <= size) {
-        u32 next = memory::load<be_u32>(data + offset + 4);
-
-        if (instr == 0x3960fee0) {
-          if (next == 0x7dcb60ce && state.rest_vmx14_address == 0) {
-            state.rest_vmx14_address = addr;
-            REXLOG_DEBUG(codegen, "Found __restvmx_14 at 0x{:08X}", addr);
-          } else if (next == 0x7dcb61ce && state.save_vmx14_address == 0) {
-            state.save_vmx14_address = addr;
-            REXLOG_DEBUG(codegen, "Found __savevmx_14 at 0x{:08X}", addr);
-          }
-        }
-
-        if (instr == 0x3960fc00) {
-          if (next == 0x100b60cb && state.rest_vmx64_address == 0) {
-            state.rest_vmx64_address = addr;
-            REXLOG_DEBUG(codegen, "Found __restvmx_64 at 0x{:08X}", addr);
-          } else if (next == 0x100b61cb && state.save_vmx64_address == 0) {
-            state.save_vmx64_address = addr;
-            REXLOG_DEBUG(codegen, "Found __savevmx_64 at 0x{:08X}", addr);
-          }
-        }
+      for (MillicodeKind kind : kinds) {
+        auto run = ValidateMillicodeRun(binary, addr, kind);
+        if (!run)
+          continue;
+        const bool known = std::any_of(runs.begin(), runs.end(), [&](const MillicodeRun& other) {
+          return IsSameRunClass(other, kind, run->first);
+        });
+        if (known)
+          continue;
+        REXLOG_DEBUG(codegen, "Found {}{} at 0x{:08X}", GetMillicodePrefix(kind), run->first,
+                     run->head);
+        runs.push_back(*run);
       }
+      if (runs.size() == kRunClassCount)
+        return;
     }
   }
 }
 
 /**
+ * Finds the restore helper that undoes a save helper call.
+ *
+ * @param state Analysis state holding the runs.
+ * @param entry Role of the save helper that was called.
+ * @return The restore entry address, or 0 when no restore run covers the register.
+ */
+u32 FindRestoreHelper(const AnalysisState& state, const MillicodeEntry& entry) {
+  const auto restore_kind = static_cast<MillicodeKind>(static_cast<u8>(entry.kind) + 1);
+  for (const auto& run : state.millicode_runs) {
+    if (IsSameRunClass(run, restore_kind, entry.reg) && entry.reg >= run.first &&
+        entry.reg < run.first + run.count) {
+      return run.head + (entry.reg - run.first) * run.stride;
+    }
+  }
+  return 0;
+}
+
+/**
  * Registers imports, save and restore helpers, config functions and PDATA functions. A restore
- * helper sits at the same offset from its base as the matching save helper, which gives the
- * restore helper of an SEH function. An __except handler is inline and becomes a label.
+ * helper of the matching kind and register gives the restore helper of an SEH function. An __except
+ * handler is inline and becomes a label.
  *
  * @param ctx Codegen context.
  * @return Ok, or the failure.
@@ -467,7 +683,7 @@ void DetectSaveRestoreHelpers(const BinaryView& binary, AnalysisState& state) {
     }
   }
 
-  DetectSaveRestoreHelpers(binary, state);
+  DetectMillicodeRuns(binary, state);
 
   {
     size_t import_count = 0;
@@ -513,7 +729,8 @@ void DetectSaveRestoreHelpers(const BinaryView& binary, AnalysisState& state) {
         unresolved_count++;
       }
 
-      auto* node = graph.AddImportFunction(sym.address, resolved_name);
+      auto* node = graph.AddImportFunction(sym.address, resolved_name,
+                                           GetImportThunkSize(binary, sym.address));
       if (node && node->CanDiscover()) {
         node->DiscoverAsImport();
         if (node->CanSeal()) {
@@ -530,44 +747,25 @@ void DetectSaveRestoreHelpers(const BinaryView& binary, AnalysisState& state) {
                  variable_count);
   }
 
-  auto register_helpers = [&](u32 base14, const char* prefix, size_t stride, size_t end_reg,
-                              size_t extra_size) {
-    if (base14 == 0)
-      return;
-    for (size_t i = 14; i <= end_reg; i++) {
-      u32 addr = base14 + static_cast<u32>((i - 14) * stride);
-      u32 size = static_cast<u32>((end_reg + 1 - i) * stride + extra_size);
-      graph.AddFunction(addr, size, FunctionAuthority::kHelper, true);
-      graph.SetFunctionName(addr, std::format("{}{}", prefix, i));
-    }
-  };
-
-  register_helpers(state.rest_gpr14_address, "__restgprlr_", 4, 31, 12);
-  register_helpers(state.save_gpr14_address, "__savegprlr_", 4, 31, 8);
-  register_helpers(state.rest_fpr14_address, "__restfpr_", 4, 31, 4);
-  register_helpers(state.save_fpr14_address, "__savefpr_", 4, 31, 4);
-  register_helpers(state.rest_vmx14_address, "__restvmx_", 8, 31, 4);
-  register_helpers(state.save_vmx14_address, "__savevmx_", 8, 31, 4);
-
-  if (state.rest_vmx64_address != 0) {
-    for (size_t i = 64; i < 128; i++) {
-      u32 addr = state.rest_vmx64_address + static_cast<u32>((i - 64) * 8);
-      u32 size = static_cast<u32>((128 - i) * 8 + 4);
-      graph.AddFunction(addr, size, FunctionAuthority::kHelper, true);
-      graph.SetFunctionName(addr, std::format("__restvmx_{}", i));
-    }
-  }
-  if (state.save_vmx64_address != 0) {
-    for (size_t i = 64; i < 128; i++) {
-      u32 addr = state.save_vmx64_address + static_cast<u32>((i - 64) * 8);
-      u32 size = static_cast<u32>((128 - i) * 8 + 4);
-      graph.AddFunction(addr, size, FunctionAuthority::kHelper, true);
-      graph.SetFunctionName(addr, std::format("__savevmx_{}", i));
+  for (const auto& run : state.millicode_runs) {
+    const u32 tail_bytes = static_cast<u32>(GetTailWords(run.kind).size()) * kWordBytes;
+    for (u32 i = 0; i < run.count; ++i) {
+      const u32 addr = run.head + i * run.stride;
+      const u32 reg = run.first + i;
+      graph.AddFunction(addr, (run.count - i) * run.stride + tail_bytes, FunctionAuthority::kHelper,
+                        true);
+      graph.SetFunctionName(addr, std::format("{}{}", GetMillicodePrefix(run.kind), reg));
+      graph.SetFunctionMillicode(addr, MillicodeEntry{run.kind, reg});
     }
   }
 
   size_t config_funcs = 0, config_chunks = 0;
   for (const auto& [address, cfg] : config.functions) {
+    if (const auto* existing = graph.GetFunction(address); existing && existing->GetMillicode()) {
+      return Err(ErrorCategory::kValidation,
+                 std::format("function 0x{:08X} is millicode, which no config entry may replace",
+                             address));
+    }
     u32 size = cfg.GetSize(address);
     std::string name = cfg.name.empty() ? std::format("sub_{:08X}", address) : cfg.name;
     auto* node = graph.AddFunction(address, size, FunctionAuthority::kConfig, true);
@@ -650,10 +848,12 @@ void DetectSaveRestoreHelpers(const BinaryView& binary, AnalysisState& state) {
                         begin_addr);
           }
 
-          if (prolog_info.save_helper != 0 && state.rest_gpr14_address != 0 &&
-              state.save_gpr14_address != 0) {
-            seh_info.restore_helper =
-                prolog_info.save_helper + (state.rest_gpr14_address - state.save_gpr14_address);
+          for (u32 target : prolog_info.call_targets) {
+            const auto* callee = graph.GetFunction(target);
+            if (!callee || !callee->GetMillicode() || !IsSaveKind(callee->GetMillicode()->kind))
+              continue;
+            if (u32 restore = FindRestoreHelper(state, *callee->GetMillicode()))
+              seh_info.restore_helpers.push_back(restore);
           }
         }
       }
