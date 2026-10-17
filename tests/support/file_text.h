@@ -12,6 +12,7 @@
 #pragma once
 
 #include <filesystem>
+#include <stdexcept>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -51,7 +52,9 @@ inline std::string ReadText(const std::filesystem::path& path) {
  */
 inline void WriteText(const std::filesystem::path& path, std::string_view text) {
   std::filesystem::create_directories(path.parent_path());
-  (void)platform::WriteHostFile(path, text);
+  if (auto written = platform::WriteHostFile(path, text); !written) {
+    throw std::runtime_error(written.error().GetDescription());
+  }
 }
 
 }  // namespace rex::test

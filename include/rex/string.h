@@ -62,8 +62,65 @@ inline i32 CompareCaseN(const char* string1, const char* string2, size_t count) 
 #endif
 }
 
+namespace detail {
+
+template <typename CharT>
+inline constexpr CharT kWhitespaceChars[] = {CharT(' '), CharT('\t'), CharT('\r'), CharT('\n')};
+
+}  // namespace detail
+
+/** The characters the trim functions remove by default, as a view of the character type. */
+template <typename CharT>
+inline constexpr std::basic_string_view<CharT> kWhitespaceOf{detail::kWhitespaceChars<CharT>, 4};
+
 /** Characters the trim functions remove by default. */
-inline constexpr std::string_view kWhitespace = " \t\r\n";
+inline constexpr std::string_view kWhitespace = kWhitespaceOf<char>;
+
+/**
+ * Removes leading characters.
+ *
+ * @tparam CharT The character type.
+ * @param sv String to trim.
+ * @param chars Characters to remove.
+ * @return View of sv without the leading characters, empty when every character matches.
+ */
+template <typename CharT>
+inline std::basic_string_view<CharT> TrimLeft(
+    std::basic_string_view<CharT> sv, std::basic_string_view<CharT> chars = kWhitespaceOf<CharT>) {
+  auto start = sv.find_first_not_of(chars);
+  return start == std::basic_string_view<CharT>::npos ? std::basic_string_view<CharT>{}
+                                                      : sv.substr(start);
+}
+
+/**
+ * Removes trailing characters.
+ *
+ * @tparam CharT The character type.
+ * @param sv String to trim.
+ * @param chars Characters to remove.
+ * @return View of sv without the trailing characters, empty when every character matches.
+ */
+template <typename CharT>
+inline std::basic_string_view<CharT> TrimRight(
+    std::basic_string_view<CharT> sv, std::basic_string_view<CharT> chars = kWhitespaceOf<CharT>) {
+  auto end = sv.find_last_not_of(chars);
+  return end == std::basic_string_view<CharT>::npos ? std::basic_string_view<CharT>{}
+                                                    : sv.substr(0, end + 1);
+}
+
+/**
+ * Removes leading and trailing characters.
+ *
+ * @tparam CharT The character type.
+ * @param sv String to trim.
+ * @param chars Characters to remove.
+ * @return View of sv without the leading and trailing characters.
+ */
+template <typename CharT>
+inline std::basic_string_view<CharT> Trim(
+    std::basic_string_view<CharT> sv, std::basic_string_view<CharT> chars = kWhitespaceOf<CharT>) {
+  return TrimRight(TrimLeft(sv, chars), chars);
+}
 
 /**
  * Removes leading characters.
@@ -73,8 +130,7 @@ inline constexpr std::string_view kWhitespace = " \t\r\n";
  * @return View of sv without the leading characters, empty when every character matches.
  */
 inline std::string_view TrimLeft(std::string_view sv, std::string_view chars = kWhitespace) {
-  auto start = sv.find_first_not_of(chars);
-  return start == std::string_view::npos ? std::string_view{} : sv.substr(start);
+  return TrimLeft<char>(sv, chars);
 }
 
 /**
@@ -85,8 +141,7 @@ inline std::string_view TrimLeft(std::string_view sv, std::string_view chars = k
  * @return View of sv without the trailing characters, empty when every character matches.
  */
 inline std::string_view TrimRight(std::string_view sv, std::string_view chars = kWhitespace) {
-  auto end = sv.find_last_not_of(chars);
-  return end == std::string_view::npos ? std::string_view{} : sv.substr(0, end + 1);
+  return TrimRight<char>(sv, chars);
 }
 
 /**
@@ -97,7 +152,7 @@ inline std::string_view TrimRight(std::string_view sv, std::string_view chars = 
  * @return View of sv without the leading and trailing characters.
  */
 inline std::string_view Trim(std::string_view sv, std::string_view chars = kWhitespace) {
-  return TrimRight(TrimLeft(sv, chars), chars);
+  return Trim<char>(sv, chars);
 }
 
 /**

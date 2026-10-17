@@ -26,6 +26,13 @@ namespace rex {
 namespace {
 
 constexpr char32_t kReplacement = 0xFFFD;
+constexpr char32_t kInvalidByteBase = 0xDC00;
+constexpr char32_t kInvalidByteFirst = kInvalidByteBase + 0x80;
+constexpr char32_t kInvalidByteLast = kInvalidByteBase + 0xFF;
+
+bool IsInvalidByte(char32_t code_point) {
+  return code_point >= kInvalidByteFirst && code_point <= kInvalidByteLast;
+}
 
 bool IsContinuation(char c) {
   return (static_cast<u8>(c) & 0xC0) == 0x80;
@@ -36,10 +43,15 @@ bool IsEncodable(char32_t code_point) {
 }
 
 char32_t DecodeUTF8(const char*& it, const char* end) {
+  const char* const start = it;
   const auto lead = static_cast<u8>(*it++);
   if (lead < 0x80) {
     return lead;
   }
+  const auto invalid = [&]() {
+    it = start + 1;
+    return kInvalidByteBase + lead;
+  };
   u32 trail_count = 0;
   char32_t code_point = 0;
   u8 low = 0x80;
@@ -58,15 +70,15 @@ char32_t DecodeUTF8(const char*& it, const char* end) {
     low = lead == 0xF0 ? 0x90 : 0x80;
     high = lead == 0xF4 ? 0x8F : 0xBF;
   } else {
-    return kReplacement;
+    return invalid();
   }
   for (u32 i = 0; i < trail_count; ++i) {
     if (it == end) {
-      return kReplacement;
+      return invalid();
     }
     const auto trail = static_cast<u8>(*it);
     if (trail < low || trail > high) {
-      return kReplacement;
+      return invalid();
     }
     code_point = (code_point << 6) | (trail & 0x3F);
     low = 0x80;
@@ -77,6 +89,10 @@ char32_t DecodeUTF8(const char*& it, const char* end) {
 }
 
 void EncodeUTF8(char32_t code_point, std::string& out) {
+  if (IsInvalidByte(code_point)) {
+    out.push_back(static_cast<char>(code_point - kInvalidByteBase));
+    return;
+  }
   if (!IsEncodable(code_point)) {
     code_point = kReplacement;
   }
@@ -99,7 +115,7 @@ void EncodeUTF8(char32_t code_point, std::string& out) {
 
 char32_t DecodeUTF16(const char16_t*& it, const char16_t* end) {
   const char16_t unit = *it++;
-  if (unit < 0xD800 || unit > 0xDFFF) {
+  if (unit < 0xD800 || unit > 0xDFFF || IsInvalidByte(unit)) {
     return unit;
   }
   if (unit > 0xDBFF || it == end || *it < 0xDC00 || *it > 0xDFFF) {
@@ -111,6 +127,10 @@ char32_t DecodeUTF16(const char16_t*& it, const char16_t* end) {
 }
 
 void EncodeUTF16(char32_t code_point, std::u16string& out) {
+  if (IsInvalidByte(code_point)) {
+    out.push_back(static_cast<char16_t>(code_point));
+    return;
+  }
   if (!IsEncodable(code_point)) {
     code_point = kReplacement;
   }

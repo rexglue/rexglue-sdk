@@ -251,7 +251,11 @@ bool RecompileTests(std::string_view bin_dir, std::string_view asm_dir, std::str
   codegen::TemplateRegistry registry;
   auto write_rendered = [&](std::string_view template_id, std::string_view filename) {
     auto rendered = codegen::RenderWithJSON(registry, std::string(template_id), template_data);
-    (void)rex::platform::WriteHostFile(std::format("{}/{}", out_dir, filename), rendered);
+    if (auto written =
+            rex::platform::WriteHostFile(std::format("{}/{}", out_dir, filename), rendered);
+        !written) {
+      REXLOG_WARN(rexglue, "write failed: {}", written.error().GetDescription());
+    }
   };
   write_rendered("test/ppc_config_h", "ppc_config.h");
   write_rendered("test/ppc_test_decls_h", "ppc_test_decls.h");

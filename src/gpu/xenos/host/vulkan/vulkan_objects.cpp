@@ -12,6 +12,7 @@
 #include <cstdint>
 #include <format>
 
+#include <rex/logging/log.h>
 #include <rex/platform/file.h>
 #include <rex/assert.h>
 #include <rex/math.h>
@@ -220,9 +221,12 @@ VkPipeline CreateComputePipeline(const VulkanDevice* const vulkan_device, VkPipe
 
 void DumpShader(const std::filesystem::path& dir, std::string_view name,
                 std::span<const u32> code) {
-  (void)platform::WriteHostFile(
-      dir / std::format("{}.vulkan.bin", name),
-      std::span<const u8>(reinterpret_cast<const u8*>(code.data()), code.size_bytes()));
+  if (auto written = platform::WriteHostFile(
+          dir / std::format("{}.vulkan.bin", name),
+          std::span<const u8>(reinterpret_cast<const u8*>(code.data()), code.size_bytes()));
+      !written) {
+    REXLOG_WARN(gpu, "write failed: {}", written.error().GetDescription());
+  }
 }
 
 }  // namespace objects

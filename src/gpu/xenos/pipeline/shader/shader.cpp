@@ -15,6 +15,7 @@
 
 #include <format>
 
+#include <rex/logging/log.h>
 #include <rex/platform/file.h>
 #include <rex/xenos/ucode.h>
 #include "gpu/xenos/pipeline/shader/shader.h"
@@ -56,17 +57,22 @@ std::pair<std::filesystem::path, std::filesystem::path> Shader::Translation::Dum
   std::filesystem::path binary_path =
       target_path / std::format("shader_{:016X}_{:016X}.{}.bin.{}", GetShader().GetUcodeDataHash(),
                                 GetModification(), path_prefix, type_extension);
-  (void)platform::WriteHostFile(
-      binary_path,
-      std::span<const u8>(reinterpret_cast<const u8*>(translated_binary_.data()),
-                          translated_binary_.size() * sizeof(*translated_binary_.data())));
+  if (auto written = platform::WriteHostFile(
+          binary_path,
+          std::span<const u8>(reinterpret_cast<const u8*>(translated_binary_.data()),
+                              translated_binary_.size() * sizeof(*translated_binary_.data())));
+      !written) {
+    REXLOG_WARN(gpu, "write failed: {}", written.error().GetDescription());
+  }
 
   std::filesystem::path disasm_path;
   if (!host_disassembly_.empty()) {
     disasm_path =
         target_path / std::format("shader_{:016X}_{:016X}.{}.{}", GetShader().GetUcodeDataHash(),
                                   GetModification(), path_prefix, type_extension);
-    (void)platform::WriteHostFile(disasm_path, host_disassembly_);
+    if (auto written = platform::WriteHostFile(disasm_path, host_disassembly_); !written) {
+      REXLOG_WARN(gpu, "write failed: {}", written.error().GetDescription());
+    }
   }
 
   return std::make_pair(std::move(binary_path), std::move(disasm_path));
@@ -107,15 +113,20 @@ std::pair<std::filesystem::path, std::filesystem::path> Shader::DumpUcode(
 
   std::filesystem::path binary_path =
       target_path / std::format("shader_{:016X}.ucode.bin.{}", GetUcodeDataHash(), type_extension);
-  (void)platform::WriteHostFile(
-      binary_path, std::span<const u8>(reinterpret_cast<const u8*>(GetUcodeData().data()),
-                                       GetUcodeData().size() * sizeof(*GetUcodeData().data())));
+  if (auto written = platform::WriteHostFile(
+          binary_path, std::span<const u8>(reinterpret_cast<const u8*>(GetUcodeData().data()),
+                                           GetUcodeData().size() * sizeof(*GetUcodeData().data())));
+      !written) {
+    REXLOG_WARN(gpu, "write failed: {}", written.error().GetDescription());
+  }
 
   std::filesystem::path disasm_path;
   if (IsUcodeAnalyzed()) {
     disasm_path =
         target_path / std::format("shader_{:016X}.ucode.{}", GetUcodeDataHash(), type_extension);
-    (void)platform::WriteHostFile(disasm_path, GetUcodeDisassembly());
+    if (auto written = platform::WriteHostFile(disasm_path, GetUcodeDisassembly()); !written) {
+      REXLOG_WARN(gpu, "write failed: {}", written.error().GetDescription());
+    }
   }
 
   return std::make_pair(std::move(binary_path), std::move(disasm_path));

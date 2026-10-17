@@ -504,8 +504,12 @@ Result<XCONTENT_AGGREGATE_DATA> ContentManager::InstallContent(
   const u32 thumbnail_size =
       std::min<u32>(metadata.thumbnail_size, static_cast<u32>(sizeof(metadata.thumbnail)));
   if (thumbnail_size != 0) {
-    (void)platform::WriteHostFile(install_path / kThumbnailFileName,
-                                  std::span<const u8>(metadata.thumbnail, thumbnail_size));
+    if (auto written =
+            platform::WriteHostFile(install_path / kThumbnailFileName,
+                                    std::span<const u8>(metadata.thumbnail, thumbnail_size));
+        !written) {
+      REXLOG_WARN(system, "write failed: {}", written.error().GetDescription());
+    }
   }
 
   u32 license_mask = 0;
