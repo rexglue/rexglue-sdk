@@ -14,6 +14,7 @@
 #include <rex/cvar.h>
 
 #include <atomic>
+#include <bit>
 #include <cstring>
 #include <memory>
 #include <mutex>
@@ -22,6 +23,7 @@
 #include <unordered_map>
 #include <vector>
 
+#include <rex/math.h>
 #include <rex/types.h>
 #include <rex/xenos/register_file.h>
 #include <rex/xenos/registers.h>
@@ -145,6 +147,60 @@ class REX_GPU_XENOS_API CommandProcessor : public rex::NonCopyable {
   void ExecutePacket(u32 ptr, u32 count);
 
  protected:
+  /** Marker a title polls for in an occlusion query result that the GPU has finished. */
+  static constexpr u32 kQueryFinished = std::byteswap(0xFFFFFEEDu);
+
+  static constexpr u32 kReadbackBufferSizeIncrement = 16 * 1024 * 1024;
+  static constexpr size_t kMaxReadbackBuffers = 256;
+  static constexpr u64 kReadbackBufferEvictionAgeFrames = 60;
+  static constexpr u32 kMaxOcclusionQueries = 8192;
+  static constexpr u32 kVertexFetchCount = 96;
+
+  static u32 AlignReadbackBufferSize(u32 size) {
+    if (size < 1 * 1024 * 1024) {
+      return rex::Align(size, 256u * 1024u);
+    }
+    if (size < 4 * 1024 * 1024) {
+      return rex::Align(size, 1u * 1024u * 1024u);
+    }
+    return rex::Align(size, kReadbackBufferSizeIncrement);
+  }
+  static u64 BuildReadbackResolveKey(u32 address, u32 length) {
+    return (static_cast<u64>(address) << 32) | static_cast<u64>(length);
+  }
+  static u64 BuildMemexportReadbackKey(u32 first_base_address_dwords, u32 total_size) {
+    return (static_cast<u64>(first_base_address_dwords) << 32) | static_cast<u64>(total_size);
+  }
+
+  /**
+   * Takes the next host occlusion query index, wrapping at kMaxOcclusionQueries.
+   *
+   * @param host_index_out Receives the index.
+   * @return True.
+   */
+  bool AcquireOcclusionQueryIndex(u32& host_index_out);
+
+  /** Marks every vertex fetch constant as needing a new upload. */
+  void InvalidateAllVertexBufferResidency();
+
+  /**
+   * Marks 1 vertex fetch constant as needing a new upload.
+   *
+   * @param vfetch_index The vertex fetch constant index.
+   */
+  void InvalidateVertexBufferResidency(u32 vfetch_index);
+
+  /**
+   * Marks a range of vertex fetch constants as needing a new upload.
+   *
+   * @param first_vfetch The first index, swapped with last_vfetch when greater.
+   * @param last_vfetch The last index.
+   */
+  void InvalidateVertexBufferResidencyRange(u32 first_vfetch, u32 last_vfetch);
+
+  u32 occlusion_query_cursor_ = 0;
+  u64 vertex_buffers_in_sync_[2] = {};
+
   struct IndexBufferInfo {
     xenos::IndexFormat format = xenos::IndexFormat::kInt16;
     xenos::Endian endianness = xenos::Endian::kNone;

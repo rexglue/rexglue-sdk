@@ -24,6 +24,7 @@ namespace {
 
 using rex::u32;
 using rex::codegen::detail::Disassemble;
+using rex::codegen::detail::IsDropped;
 using rex::codegen::detail::LookupID;
 using rex::codegen::detail::LookupOpcode;
 using rex::codegen::detail::Opcode;
@@ -34,23 +35,6 @@ constexpr u32 XForm(u32 primary, u32 xo) {
 
 constexpr u32 VMX128Load(u32 xop, u32 vd) {
   return (4u << 26) | ((vd & 31) << 21) | (3u << 16) | (4u << 11) | xop | (((vd >> 5) & 3) << 2);
-}
-
-constexpr std::array<int, 22> kDroppedIDs = {
-    PPC_INST_VMULOUB,    PPC_INST_VMULOUH,  PPC_INST_VMULOSB,  PPC_INST_VMULOSH,
-    PPC_INST_VMULEUB,    PPC_INST_VMULEUH,  PPC_INST_VMULESB,  PPC_INST_VMULESH,
-    PPC_INST_VMLADDUHM,  PPC_INST_VMSUMUBM, PPC_INST_VMSUMMBM, PPC_INST_VMSUMUHM,
-    PPC_INST_VMSUMUHS,   PPC_INST_VMSUMSHM, PPC_INST_VMSUMSHS, PPC_INST_VMHADDSHS,
-    PPC_INST_VMHRADDSHS, PPC_INST_VSUM4UBS, PPC_INST_VSUM4SBS, PPC_INST_VSUM4SHS,
-    PPC_INST_VSUM2SWS,   PPC_INST_VSUMSWS};
-
-bool IsDropped(int id) {
-  for (const int dropped : kDroppedIDs) {
-    if (dropped == id) {
-      return true;
-    }
-  }
-  return false;
 }
 
 /**

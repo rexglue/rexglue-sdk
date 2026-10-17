@@ -12,9 +12,6 @@ namespace rex::filesystem {
 
 namespace {
 
-constexpr u32 kSTFSBlockSize = 0x1000;
-constexpr u32 kSTFSMaxBlocks = 4913000;
-constexpr u32 kBytesPerSector = 0x200;
 constexpr u32 kPackageSectorsPerUnit = 8;
 
 class ContainerStream final : public NodeStream {
@@ -28,9 +25,9 @@ class ContainerStream final : public NodeStream {
 
   [[nodiscard]] Result<std::span<const u8>> View() override {
     const std::span<const u8> bytes = container_.View(node_);
-    if (bytes.empty() && node_.size != 0) {
-      return Err<std::span<const u8>>(BuildError(FileSystemError::kUnsupported,
-                                                 std::format("'{}' is not 1 extent", node_.name)));
+    if (bytes.empty() && node_.info.size != 0) {
+      return Err<std::span<const u8>>(BuildError(
+          FileSystemError::kUnsupported, std::format("'{}' is not 1 extent", node_.info.name)));
     }
     return bytes;
   }
@@ -78,7 +75,8 @@ void ContainerProvider::Build(Node& parent, const ContainerNode& source) {
   for (u32 index : source.children) {
     const ContainerNode& child_source = nodes[index];
     Node* child = parent.AddChild(std::make_unique<ContainerNodeImpl>(
-        *this, &parent, utf8_join_guest_paths(parent.GetPath(), child_source.name), child_source));
+        *this, &parent, utf8_join_guest_paths(parent.GetPath(), child_source.info.name),
+        child_source));
     if (!child_source.children.empty()) {
       Build(*child, child_source);
     }
@@ -115,12 +113,12 @@ VolumeInfo ContainerProvider::GetVolume() const {
 ContainerNodeImpl::ContainerNodeImpl(ContainerProvider& provider, Node* parent, std::string path,
                                      const ContainerNode& source)
     : Node(provider, parent, std::move(path)), source_(source) {
-  attributes_ = source.attributes;
-  size_ = source.size;
-  allocation_size_ = source.allocation_size;
-  create_time_ = source.create_time;
-  access_time_ = source.access_time;
-  write_time_ = source.write_time;
+  info_.attributes = source.info.attributes;
+  info_.size = source.info.size;
+  info_.allocation_size = source.info.allocation_size;
+  info_.create_time = source.info.create_time;
+  info_.access_time = source.info.access_time;
+  info_.write_time = source.info.write_time;
 }
 
 Result<std::unique_ptr<NodeStream>> ContainerNodeImpl::Open(Access access) {

@@ -19,6 +19,7 @@
 #include <mutex>
 #include <utility>
 
+#include <rex/string/utf8.h>
 #include <rex/cvar.h>
 #include "gpu/xenos/command_processor.h"
 #include <rex/assert.h>
@@ -30,6 +31,8 @@
 #include <rex/runtime/object_table.h>
 #include <rex/runtime/thread_registry.h>
 #include <rex/runtime/xthread.h>
+#include <rex/gpu/fixed_registers.h>
+#include <rex/xenos/registers.h>
 #include "gpu/xenos/host/graphics_provider.h"
 #include "gpu/xenos/host/immediate_drawer.h"
 #include "gpu/xenos/host/presenter.h"
@@ -40,11 +43,8 @@
 namespace {
 
 rex::gpu::CommandProcessor::SwapPostEffect ParseSwapPostEffect(const std::string& effect_name) {
-  std::string lowered = effect_name;
-  std::transform(lowered.begin(), lowered.end(), lowered.begin(), [](unsigned char c) {
-    c = static_cast<unsigned char>(std::tolower(c));
-    return c == '-' ? '_' : char(c);
-  });
+  std::string lowered = rex::utf8_lower_ascii(effect_name);
+  std::ranges::replace(lowered, '-', '_');
   if (lowered == "fxaa") {
     return rex::gpu::CommandProcessor::SwapPostEffect::kFxaa;
   }
@@ -214,27 +214,12 @@ void GraphicsSystem::WriteRegisterThunk(void* context, u32 addr, u32 value) {
 u32 GraphicsSystem::ReadRegister(u32 addr) {
   u32 r = (addr & 0xFFFF) / 4;
 
-  switch (r) {
-    case 0x0F00:  // RB_EDRAM_TIMING
-      return 0x08100748;
-    case 0x0F01:  // RB_BC_CONTROL
-      return 0x0000200E;
-    case 0x194C: {  // R500_D1MODE_V_COUNTER
-      return std::min(runtime_->GetVideoMode().height, static_cast<u32>(0x0FFF));
-    }
-    case 0x1951:    // interrupt status
-      return 1;     // vblank
-    case 0x1961: {  // AVIVO_D1MODE_VIEWPORT_SIZE
-      // Maximum [width(0x0FFF), height(0x0FFF)].
-      const runtime::VideoMode& video_mode = runtime_->GetVideoMode();
-      u32 viewport_width = std::min(video_mode.width, static_cast<u32>(0x0FFF));
-      u32 viewport_height = std::min(video_mode.height, static_cast<u32>(0x0FFF));
-      return (viewport_width << 16) | viewport_height;
-    }
-    default:
-      if (!register_file_.GetRegisterInfo(r)) {
-        REXLOG_DEBUG(gpu, "GPU: Read from unknown register ({:04X})", r);
-      }
+  if (const auto fixed = gpu::ReadFixedRegister(r, runtime_->GetVideoMode())) {
+    return *fixed;
+  }
+
+  if (!register_file_.GetRegisterInfo(r)) {
+    REXLOG_DEBUG(gpu, "GPU: Read from unknown register ({:04X})", r);
   }
 
   REX_ASSERT(r < xenos::RegisterFile::kRegisterCount);
@@ -245,10 +230,10 @@ void GraphicsSystem::WriteRegister(u32 addr, u32 value) {
   u32 r = (addr & 0xFFFF) / 4;
 
   switch (r) {
-    case 0x01C5:  // CP_RB_WPTR
+    case static_cast<u32>(xenos::Register::CP_RB_WPTR):
       command_processor_->UpdateWritePointer(value);
       break;
-    case 0x1844:  // AVIVO_D1GRPH_PRIMARY_SURFACE_ADDRESS
+    case static_cast<u32>(xenos::Register::D1GRPH_PRIMARY_SURFACE_ADDRESS):
       break;
     default:
       REXLOG_WARN(gpu, "Unknown GPU register {:04X} write: {:08X}", r, value);

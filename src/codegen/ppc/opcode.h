@@ -116,6 +116,14 @@ inline bool IsTerminatorInstruction(Opcode op) {
 }
 
 /**
+ * Reports whether the Xenon CPU dropped an instruction the binutils table still lists.
+ *
+ * @param id The PPC_INST id.
+ * @return True when the instruction is not valid on the Xenon CPU.
+ */
+bool IsDropped(int id);
+
+/**
  * Gives the id the dispatch and discovery use for a decoded instruction.
  *
  * An instruction the Xenon CPU dropped has no id. The SH forms of vupkhsb128 and vupklsb128 that

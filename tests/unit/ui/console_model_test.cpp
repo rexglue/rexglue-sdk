@@ -100,6 +100,9 @@ REX_TEST_CASE_METHOD(Harness, "Execute sets, prints, reports, runs and clears", 
   REQUIRE(Last(model) == "zeta.count = 6");
   model.Execute("  zeta.count  ");
   REQUIRE(Last(model) == "zeta.count = 6");
+  model.Execute("zeta.count 5\r\n");
+  REQUIRE(registry->Get("zeta.count").value() == "5");
+  model.Execute("zeta.count 6");
   model.Execute("zeta.nope");
   REQUIRE(Last(model) == "unknown cvar zeta.nope");
   model.Execute("zeta.count 99");

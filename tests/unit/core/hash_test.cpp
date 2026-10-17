@@ -54,3 +54,19 @@ REX_TEST_CASE("hash_file returns empty for a missing file", "[core][hash]") {
 REX_TEST_CASE("hash_file returns empty for a directory", "[core][hash]") {
   CHECK(rex::HashFile(fs::temp_directory_path()).empty());
 }
+
+REX_TEST_CASE("KeyHasher hashes the key member with std::hash", "[core][hash]") {
+  struct Wide {
+    rex::u64 key;
+  };
+  struct Narrow {
+    union {
+      rex::u32 key;
+      rex::u8 bytes[4];
+    };
+  };
+  CHECK(rex::KeyHasher<Wide>{}(Wide{0x123456789ull}) == std::hash<rex::u64>{}(0x123456789ull));
+  Narrow narrow;
+  narrow.key = 77;
+  CHECK(rex::KeyHasher<Narrow>{}(narrow) == std::hash<rex::u32>{}(77));
+}

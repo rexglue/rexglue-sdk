@@ -10,7 +10,6 @@
  */
 
 #include <csignal>
-#include <iostream>
 #include <mutex>
 
 #if defined(__APPLE__)
@@ -63,11 +62,5 @@ void Break() {
   std::call_once(flag, []() { std::signal(SIGTRAP, [](int) { std::signal(SIGTRAP, SIG_DFL); }); });
   std::raise(SIGTRAP);
 }
-
-namespace detail {
-void DebugPrint(const char* s) {
-  std::clog << s << '\n';
-}
-}  // namespace detail
 
 }  // namespace rex::platform

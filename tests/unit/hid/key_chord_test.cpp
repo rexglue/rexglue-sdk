@@ -143,6 +143,10 @@ REX_TEST_CASE("Lists split on commas and trim spaces and tabs", "[hid][key_chord
   CHECK((*list)[1] == KeyChord{VirtualKey::kA});
   CHECK((*list)[2] == KeyChord{VirtualKey::kX, KeyModifiers::kCtrl});
 
+  auto crlf = ParseKeyChordList("Shift+W,\r\nA\r\n");
+  REQUIRE(crlf);
+  CHECK(*crlf == std::vector<KeyChord>{{VirtualKey::kW, KeyModifiers::kShift}, {VirtualKey::kA}});
+
   auto pair = ParseKeyChordList("Q,I");
   REQUIRE(pair);
   CHECK(*pair == std::vector<KeyChord>{{VirtualKey::kQ}, {VirtualKey::kI}});

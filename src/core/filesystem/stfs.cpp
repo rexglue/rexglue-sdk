@@ -27,10 +27,8 @@ namespace rex::filesystem::detail {
 
 namespace {
 
-constexpr u32 kBlockSize = 0x1000;
-constexpr std::array<u32, 3> kBlocksPerHashLevel = {170, 28900, 4913000};
 constexpr u32 kEndOfChain = 0xFFFFFF;
-constexpr u32 kEntriesPerDirectoryBlock = kBlockSize / sizeof(STFSDirectoryEntry);
+constexpr u32 kEntriesPerDirectoryBlock = kSTFSBlockSize / sizeof(STFSDirectoryEntry);
 constexpr u16 kRootDirectoryIndex = 0xFFFF;
 
 class STFSReader {
@@ -38,79 +36,82 @@ class STFSReader {
   STFSReader(const STFSHeader& header, std::span<const u8> file) : header_(header), file_(file) {
     const auto& descriptor = header_.metadata.volume_descriptor.stfs;
     blocks_per_hash_table_ = descriptor.flags.bits.read_only_format ? 1 : 2;
-    block_step_[0] = kBlocksPerHashLevel[0] + blocks_per_hash_table_;
+    block_step_[0] = kSTFSBlocksPerHashLevel[0] + blocks_per_hash_table_;
     block_step_[1] =
-        kBlocksPerHashLevel[1] + ((kBlocksPerHashLevel[0] + 1) * blocks_per_hash_table_);
+        kSTFSBlocksPerHashLevel[1] + ((kSTFSBlocksPerHashLevel[0] + 1) * blocks_per_hash_table_);
   }
 
   [[nodiscard]] u64 BlockToOffset(u64 block_index) const {
-    u64 base = kBlocksPerHashLevel[0];
+    u64 base = kSTFSBlocksPerHashLevel[0];
     u64 block = block_index;
     for (u32 level = 0; level < 3; ++level) {
       block += ((block_index + base) / base) * blocks_per_hash_table_;
       if (block_index < base) {
         break;
       }
-      base *= kBlocksPerHashLevel[0];
+      base *= kSTFSBlocksPerHashLevel[0];
     }
     return DataStart() + (block << 12);
   }
 
   [[nodiscard]] const STFSHashEntry* GetBlockHash(u32 block_index) {
     const auto& descriptor = header_.metadata.volume_descriptor.stfs;
-    u32 secondary = descriptor.flags.bits.root_active_index ? kBlockSize : 0;
+    u32 secondary = descriptor.flags.bits.root_active_index ? kSTFSBlockSize : 0;
     const u64 offset_lv0 = HashBlockOffset(block_index, 0);
     if (!cache_.contains(offset_lv0)) {
       if (descriptor.flags.bits.read_only_format) {
         secondary = 0;
-      } else if (descriptor.total_block_count > kBlocksPerHashLevel[0]) {
+      } else if (descriptor.total_block_count > kSTFSBlocksPerHashLevel[0]) {
         const u64 offset_lv1 = HashBlockOffset(block_index, 1);
         if (!cache_.contains(offset_lv1)) {
-          if (descriptor.total_block_count > kBlocksPerHashLevel[1]) {
+          if (descriptor.total_block_count > kSTFSBlocksPerHashLevel[1]) {
             const u64 offset_lv2 = HashBlockOffset(block_index, 2);
             if (!cache_.contains(offset_lv2) && !Load(offset_lv2, offset_lv2 + secondary)) {
               return nullptr;
             }
-            const u32 entry_index = (block_index / kBlocksPerHashLevel[1]) % kBlocksPerHashLevel[0];
+            const u32 entry_index =
+                (block_index / kSTFSBlocksPerHashLevel[1]) % kSTFSBlocksPerHashLevel[0];
             secondary =
-                cache_[offset_lv2].entries[entry_index].LevelNActiveIndex() ? kBlockSize : 0;
+                cache_[offset_lv2].entries[entry_index].LevelNActiveIndex() ? kSTFSBlockSize : 0;
           }
           if (!Load(offset_lv1, offset_lv1 + secondary)) {
             return nullptr;
           }
         }
-        const u32 entry_index = (block_index / kBlocksPerHashLevel[0]) % kBlocksPerHashLevel[0];
-        secondary = cache_[offset_lv1].entries[entry_index].LevelNActiveIndex() ? kBlockSize : 0;
+        const u32 entry_index =
+            (block_index / kSTFSBlocksPerHashLevel[0]) % kSTFSBlocksPerHashLevel[0];
+        secondary =
+            cache_[offset_lv1].entries[entry_index].LevelNActiveIndex() ? kSTFSBlockSize : 0;
       }
       if (!Load(offset_lv0, offset_lv0 + secondary)) {
         return nullptr;
       }
     }
-    return &cache_[offset_lv0].entries[block_index % kBlocksPerHashLevel[0]];
+    return &cache_[offset_lv0].entries[block_index % kSTFSBlocksPerHashLevel[0]];
   }
 
  private:
   [[nodiscard]] u64 DataStart() const {
-    return round_up(static_cast<u64>(header_.header.header_size), static_cast<u64>(kBlockSize));
+    return round_up(static_cast<u64>(header_.header.header_size), static_cast<u64>(kSTFSBlockSize));
   }
 
   [[nodiscard]] u32 HashBlockNumber(u32 block_index, u32 level) const {
     if (level == 0) {
-      if (block_index < kBlocksPerHashLevel[0]) {
+      if (block_index < kSTFSBlocksPerHashLevel[0]) {
         return 0;
       }
-      u32 block = (block_index / kBlocksPerHashLevel[0]) * block_step_[0];
-      block += ((block_index / kBlocksPerHashLevel[1]) + 1) * blocks_per_hash_table_;
-      if (block_index < kBlocksPerHashLevel[1]) {
+      u32 block = (block_index / kSTFSBlocksPerHashLevel[0]) * block_step_[0];
+      block += ((block_index / kSTFSBlocksPerHashLevel[1]) + 1) * blocks_per_hash_table_;
+      if (block_index < kSTFSBlocksPerHashLevel[1]) {
         return block;
       }
       return block + blocks_per_hash_table_;
     }
     if (level == 1) {
-      if (block_index < kBlocksPerHashLevel[1]) {
+      if (block_index < kSTFSBlocksPerHashLevel[1]) {
         return block_step_[0];
       }
-      return ((block_index / kBlocksPerHashLevel[1]) * block_step_[1]) + blocks_per_hash_table_;
+      return ((block_index / kSTFSBlocksPerHashLevel[1]) * block_step_[1]) + blocks_per_hash_table_;
     }
     return block_step_[1];
   }
@@ -178,40 +179,41 @@ void AppendExtent(ContainerNode& node, u64 offset, u64 length) {
         }
       }
       ContainerNode node;
-      node.name.assign(entry.name,
-                       std::min<size_t>(entry.flags.name_length & 0x3F, sizeof(entry.name)));
+      node.info.name.assign(entry.name,
+                            std::min<size_t>(entry.flags.name_length & 0x3F, sizeof(entry.name)));
       node.parent = parent;
-      node.size = entry.length;
-      node.allocation_size = round_up(static_cast<u64>(entry.length), static_cast<u64>(kBlockSize));
-      node.create_time = DecodeFATTimestamp(entry.create_date, entry.create_time);
-      node.write_time = DecodeFATTimestamp(entry.modified_date, entry.modified_time);
-      node.access_time = node.write_time;
+      node.info.size = entry.length;
+      node.info.allocation_size =
+          round_up_nonzero(static_cast<u64>(entry.length), static_cast<u64>(kSTFSBlockSize));
+      node.info.create_time = DecodeFATTimestamp(entry.create_date, entry.create_time);
+      node.info.write_time = DecodeFATTimestamp(entry.modified_date, entry.modified_time);
+      node.info.access_time = node.info.write_time;
       if (entry.flags.directory) {
-        node.attributes = FileAttributes::kDirectory;
+        node.info.attributes = FileAttributes::kDirectory;
       } else {
-        node.attributes = FileAttributes::kNormal | FileAttributes::kReadOnly;
+        node.info.attributes = FileAttributes::kNormal | FileAttributes::kReadOnly;
         u32 block = entry.GetStartBlockNumber();
         u64 remaining = entry.length;
         u32 blocks = 0;
         while (remaining && block != kEndOfChain) {
-          const u64 length = std::min(static_cast<u64>(kBlockSize), remaining);
+          const u64 length = std::min(static_cast<u64>(kSTFSBlockSize), remaining);
           AppendExtent(node, reader.BlockToOffset(block), length);
           ++blocks;
           remaining -= length;
           const STFSHashEntry* hash = reader.GetBlockHash(block);
           if (!hash) {
-            return Err(
-                Corrupt(std::format("STFS hash of block {} of '{}' is missing", block, node.name)));
+            return Err(Corrupt(
+                std::format("STFS hash of block {} of '{}' is missing", block, node.info.name)));
           }
           block = hash->GetLevel0NextBlock();
         }
         if (remaining) {
-          REXLOG_WARN(filesystem, "STFS file {} holds {} of {} bytes", node.name,
+          REXLOG_WARN(filesystem, "STFS file {} holds {} of {} bytes", node.info.name,
                       static_cast<u64>(entry.length) - remaining, static_cast<u32>(entry.length));
         }
         if (blocks != entry.GetAllocatedDataBlocks()) {
-          REXLOG_WARN(filesystem, "STFS file {} chains {} blocks, the entry lists {}", node.name,
-                      blocks, entry.GetAllocatedDataBlocks());
+          REXLOG_WARN(filesystem, "STFS file {} chains {} blocks, the entry lists {}",
+                      node.info.name, blocks, entry.GetAllocatedDataBlocks());
         }
       }
       const auto index = static_cast<u32>(nodes.size());

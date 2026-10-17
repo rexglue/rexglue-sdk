@@ -1,3 +1,4 @@
+#include <rex/string.h>
 #include <rex/hid/key_chord.h>
 
 #include <algorithm>
@@ -22,18 +23,8 @@ constexpr auto kModifierPrefixes = std::to_array<ModifierPrefix>({
     {"Alt", KeyModifiers::kAlt},
 });
 
-constexpr std::string_view kBlanks = " \t";
-
 bool IsModifierKey(VirtualKey key) {
   return key == VirtualKey::kShift || key == VirtualKey::kControl || key == VirtualKey::kMenu;
-}
-
-std::string_view Trim(std::string_view text) {
-  const size_t first = text.find_first_not_of(kBlanks);
-  if (first == std::string_view::npos) {
-    return {};
-  }
-  return text.substr(first, text.find_last_not_of(kBlanks) - first + 1);
 }
 
 }  // namespace

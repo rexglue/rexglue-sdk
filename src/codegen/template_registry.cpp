@@ -1,3 +1,4 @@
+#include <rex/platform/file.h>
 #include <rex/codegen/template_registry.h>
 #include "template_registry_internal.h"
 
@@ -106,10 +107,8 @@ void TemplateRegistry::LoadOverrides(const std::filesystem::path& dir) {
     }
 
     try {
-      auto content = [&]() {
-        std::ifstream ifs(entry.path());
-        return std::string(std::istreambuf_iterator<char>(ifs), std::istreambuf_iterator<char>());
-      }();
+      const auto bytes = rex::platform::ReadHostFile(entry.path());
+      const std::string content = bytes ? std::string(bytes->begin(), bytes->end()) : std::string{};
       auto tmpl = impl_->env.parse(content);
       impl_->overrides[id] = std::move(tmpl);
       REXLOG_TRACE(codegen, "Loaded template override: {} -> {}", id, entry.path().string());

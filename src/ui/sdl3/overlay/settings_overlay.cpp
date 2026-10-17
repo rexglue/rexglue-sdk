@@ -1,5 +1,6 @@
 #include "ui/sdl3/overlay/settings_overlay.h"
 #include "ui/sdl3/overlay_context.h"
+#include <rex/string/utf8.h>
 #include <rex/api.h>
 #include <rex/cvar.h>
 #include <rex/hid/key_chord.h>
@@ -291,14 +292,8 @@ void SettingsDialog::OnDraw(ImGuiIO& io) {
         continue;
       }
     } else {
-      std::string name_lower = name;
-      std::string search_lower = search;
-      auto to_lower = [](std::string& s) {
-        for (auto& c : s)
-          c = static_cast<char>(std::tolower(c));
-      };
-      to_lower(name_lower);
-      to_lower(search_lower);
+      const std::string name_lower = rex::utf8_lower_ascii(name);
+      const std::string search_lower = rex::utf8_lower_ascii(search);
       if (name_lower.find(search_lower) == std::string::npos &&
           description.find(search_lower) == std::string::npos) {
         continue;

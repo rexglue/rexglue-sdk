@@ -18,6 +18,7 @@
 #include <format>
 #include <nlohmann/json.hpp>
 
+#include <rex/platform/file.h>
 #include <rex/codegen/binary_view.h>
 #include <rex/codegen/codegen_context.h>
 #include <rex/codegen/function_graph.h>
@@ -130,18 +131,12 @@ bool RecompileTests(std::string_view bin_dir, std::string_view asm_dir, std::str
     auto stem = entry.path().stem().string();
     REXLOG_DEBUG(rexglue, "Processing binary file: {}", stem);
 
-    std::vector<u8> file_data;
-    {
-      std::ifstream file(entry.path(), std::ios::binary | std::ios::ate);
-      if (!file) {
-        REXLOG_WARN(rexglue, "Failed to load binary file: {}", entry.path().string());
-        continue;
-      }
-      auto size = file.tellg();
-      file.seekg(0, std::ios::beg);
-      file_data.resize(static_cast<size_t>(size));
-      file.read(reinterpret_cast<char*>(file_data.data()), size);
+    auto loaded = rex::platform::ReadHostFile(entry.path());
+    if (!loaded) {
+      REXLOG_WARN(rexglue, "Failed to load binary file: {}", entry.path().string());
+      continue;
     }
+    std::vector<u8> file_data = std::move(*loaded);
     if (file_data.empty())
       continue;
 
@@ -256,8 +251,7 @@ bool RecompileTests(std::string_view bin_dir, std::string_view asm_dir, std::str
   codegen::TemplateRegistry registry;
   auto write_rendered = [&](std::string_view template_id, std::string_view filename) {
     auto rendered = codegen::RenderWithJSON(registry, std::string(template_id), template_data);
-    std::ofstream out(std::format("{}/{}", out_dir, filename));
-    out << rendered;
+    (void)rex::platform::WriteHostFile(std::format("{}/{}", out_dir, filename), rendered);
   };
   write_rendered("test/ppc_config_h", "ppc_config.h");
   write_rendered("test/ppc_test_decls_h", "ppc_test_decls.h");

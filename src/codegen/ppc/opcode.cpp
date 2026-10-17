@@ -56,23 +56,6 @@ const OpcodeIndex& GetIndex() {
   return kIndex;
 }
 
-constexpr std::array<int, 22> kDroppedIDs = {
-    PPC_INST_VMULOUB,    PPC_INST_VMULOUH,  PPC_INST_VMULOSB,  PPC_INST_VMULOSH,
-    PPC_INST_VMULEUB,    PPC_INST_VMULEUH,  PPC_INST_VMULESB,  PPC_INST_VMULESH,
-    PPC_INST_VMLADDUHM,  PPC_INST_VMSUMUBM, PPC_INST_VMSUMMBM, PPC_INST_VMSUMUHM,
-    PPC_INST_VMSUMUHS,   PPC_INST_VMSUMSHM, PPC_INST_VMSUMSHS, PPC_INST_VMHADDSHS,
-    PPC_INST_VMHRADDSHS, PPC_INST_VSUM4UBS, PPC_INST_VSUM4SBS, PPC_INST_VSUM4SHS,
-    PPC_INST_VSUM2SWS,   PPC_INST_VSUMSWS};
-
-bool IsDropped(int id) {
-  for (const int dropped : kDroppedIDs) {
-    if (dropped == id) {
-      return true;
-    }
-  }
-  return false;
-}
-
 Opcode FromBranchEntry(const powerpc_opcode& entry) {
   const u32 base = static_cast<u32>(entry.opcode);
   const bool link = (base & 1) != 0;
@@ -141,6 +124,25 @@ Opcode FromPrimary31(u32 xop) {
 }
 
 }  // namespace
+
+namespace {
+constexpr std::array<int, 22> kDroppedIDs = {
+    PPC_INST_VMULOUB,    PPC_INST_VMULOUH,  PPC_INST_VMULOSB,  PPC_INST_VMULOSH,
+    PPC_INST_VMULEUB,    PPC_INST_VMULEUH,  PPC_INST_VMULESB,  PPC_INST_VMULESH,
+    PPC_INST_VMLADDUHM,  PPC_INST_VMSUMUBM, PPC_INST_VMSUMMBM, PPC_INST_VMSUMUHM,
+    PPC_INST_VMSUMUHS,   PPC_INST_VMSUMSHM, PPC_INST_VMSUMSHS, PPC_INST_VMHADDSHS,
+    PPC_INST_VMHRADDSHS, PPC_INST_VSUM4UBS, PPC_INST_VSUM4SBS, PPC_INST_VSUM4SHS,
+    PPC_INST_VSUM2SWS,   PPC_INST_VSUMSWS};
+}  // namespace
+
+bool IsDropped(int id) {
+  for (const int dropped : kDroppedIDs) {
+    if (dropped == id) {
+      return true;
+    }
+  }
+  return false;
+}
 
 int ResolveID(const ppc_insn& insn) {
   if (insn.opcode == nullptr) {

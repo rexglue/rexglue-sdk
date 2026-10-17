@@ -27,6 +27,7 @@
 
 #include <rex/api.h>
 #include <rex/cvar/registry.h>
+#include <rex/logging/format.h>
 #include <rex/logging/logger.h>
 #include <rex/logging/log.h>
 #include <rex/logging/sink.h>
@@ -103,6 +104,18 @@ REX_TEST_CASE("Level names round trip and reject other spellings", "[core][logge
   REQUIRE(rex::log::ParseLevel("WARN").value() == Level::kWarn);
   REQUIRE_FALSE(rex::log::ParseLevel("warning"));
   REQUIRE_FALSE(rex::log::ParseLevel("err"));
+}
+
+REX_TEST_CASE("Level colors and letters are the 1 palette every text sink uses", "[core][logger]") {
+  CHECK(rex::log::LevelColor(Level::kInfo).empty());
+  CHECK(rex::log::LevelColor(Level::kOff).empty());
+  CHECK(rex::log::LevelColor(Level::kTrace) == "[90m");
+  CHECK(rex::log::LevelColor(Level::kWarn) == "[33m");
+  CHECK(rex::log::LevelColor(Level::kCritical) == "[97;41m");
+  CHECK(rex::log::kColorReset == "[0m");
+  CHECK(rex::log::LevelLetter(Level::kTrace) == 'T');
+  CHECK(rex::log::LevelLetter(Level::kCritical) == 'C');
+  CHECK(rex::log::LevelLetter(Level::kOff) == '-');
 }
 
 REX_TEST_CASE_METHOD(Fixture, "A category follows the default until it has its own level",

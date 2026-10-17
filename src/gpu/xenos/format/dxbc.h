@@ -11,6 +11,7 @@
 
 #pragma once
 
+#include <bit>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
@@ -103,6 +104,12 @@ struct alignas(u32) BlobHeader {
   u32 size_bytes;
 };
 REX_STATIC_ASSERT_SIZE(BlobHeader, sizeof(u32) * 2);
+
+/** Dwords a blob header takes. */
+inline constexpr u32 kBlobHeaderSizeDwords = sizeof(BlobHeader) / sizeof(u32);
+
+/** Blobs of a container that holds RDEF, ISGN, OSGN, SHEX and STAT. */
+inline constexpr u32 kBlobCount = 5;
 
 /**
  * Appends a string to a DWORD stream.
@@ -912,11 +919,6 @@ struct Dest : OperandAddress {
     new_dest.write_mask = mask;
     return new_dest;
   }
-  [[nodiscard]] Dest MaskMasked(u32 mask) const {
-    Dest new_dest(*this);
-    new_dest.write_mask &= mask;
-    return new_dest;
-  }
   static u32 GetMaskSingleComponent(u32 write_mask) {
     u32 component;
     if (rex::bit_scan_forward(write_mask, &component)) {
@@ -1002,8 +1004,8 @@ struct Src : OperandAddress {
   }
   static Src LI(i32 x) { return LI(x, x, x, x); }
   static Src LF(f32 x, f32 y, f32 z, f32 w) {
-    return LU(rex::Reinterpret<u32>(x), rex::Reinterpret<u32>(y), rex::Reinterpret<u32>(z),
-              rex::Reinterpret<u32>(w));
+    return LU(std::bit_cast<u32>(x), std::bit_cast<u32>(y), std::bit_cast<u32>(z),
+              std::bit_cast<u32>(w));
   }
   static Src LF(f32 x) { return LF(x, x, x, x); }
   static Src LP(const u32* xyzw) { return LU(xyzw[0], xyzw[1], xyzw[2], xyzw[3]); }
@@ -1054,8 +1056,6 @@ struct Src : OperandAddress {
     new_src.negate = is_negated;
     return new_src;
   }
-  [[nodiscard]] Src WithAbs(bool is_absolute) const { return WithModifiers(is_absolute, negate); }
-  [[nodiscard]] Src WithNeg(bool is_negated) const { return WithModifiers(absolute, is_negated); }
   [[nodiscard]] Src Abs() const { return WithModifiers(true, false); }
   [[nodiscard]] Src operator-() const { return WithModifiers(absolute, !negate); }
   [[nodiscard]] Src Swizzle(u32 new_swizzle) const {
@@ -1405,10 +1405,6 @@ constexpr u32 OpcodeToken(Opcode opcode, u32 operands_length, bool saturate = fa
   return static_cast<u32>(opcode) | (saturate ? (static_cast<u32>(1) << 13) : 0) |
          ((static_cast<u32>(1) + extended_opcode_count + operands_length) << 24) |
          (extended_opcode_count ? (static_cast<u32>(1) << 31) : 0);
-}
-
-constexpr u32 GetOpcodeTokenInstructionLength(u32 opcode_token) {
-  return (opcode_token >> 24) & ((UINT32_C(1) << 7) - 1);
 }
 
 constexpr u32 SampleControlsExtendedOpcodeToken(i32 aoffimmi_u, i32 aoffimmi_v, i32 aoffimmi_w,

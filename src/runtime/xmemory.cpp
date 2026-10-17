@@ -67,15 +67,13 @@ struct GuestFault {
 
 thread_local std::optional<GuestFault> t_guest_fault;
 
-class PendingScribble {
+class PendingScribble : public NonCopyable {
  public:
   PendingScribble(u32 allocation_type, u32 protect)
       : enabled_((allocation_type & ~static_cast<u32>(kMemoryAllocationTitle)) !=
                      kMemoryAllocationReserve &&
                  REXCVAR_GET(::rex::runtime::cvars::scribble_heap) &&
                  (protect & kMemoryProtectWrite)) {}
-  PendingScribble(const PendingScribble&) = delete;
-  PendingScribble& operator=(const PendingScribble&) = delete;
   ~PendingScribble() {
     for (const auto& [host, size] : ranges_) {
       if (host) {

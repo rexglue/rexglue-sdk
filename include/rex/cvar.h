@@ -584,6 +584,23 @@ REX_API void ApplyEnvironment(rex::Config& config);
  */
 REX_API std::string ClampIntegerCvarText(const rex::cvar::Desc& desc, std::string_view text);
 
+/**
+ * Reports whether text is 1 part of a cvar name, which starts with a lowercase letter and holds
+ * lowercase letters, digits and underscores.
+ *
+ * @param part The scope or the leaf.
+ * @return True when part is a valid name part.
+ */
+REX_API bool IsNamePart(std::string_view part);
+
+/**
+ * Reports whether text is a cvar name, a scope and a leaf joined by 1 dot.
+ *
+ * @param name The text to check.
+ * @return True when both parts are valid name parts.
+ */
+REX_API bool IsName(std::string_view name);
+
 namespace detail {
 
 template <typename... Vars>

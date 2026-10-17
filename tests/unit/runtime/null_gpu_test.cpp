@@ -15,6 +15,7 @@
 #include <chrono>
 #include <thread>
 
+#include <rex/gpu/fixed_registers.h>
 #include <rex/mmio.h>
 #include <rex/runtime.h>
 #include <rex/runtime/function_dispatcher.h>
@@ -102,4 +103,19 @@ REX_TEST_CASE("NullGPU has no presentation", "[runtime]") {
   CHECK(gpu.GetPresenter() == nullptr);
   CHECK_FALSE(gpu.CreatePresenter());
   CHECK(gpu.InitializeShaderStorage({}, 0, true));
+}
+
+REX_TEST_CASE("The fixed registers report the display mode and canned values", "[runtime][gpu]") {
+  rex::ui::VideoMode mode;
+  mode.width = 1920;
+  mode.height = 5000;
+  using rex::gpu::ReadFixedRegister;
+  using rex::xenos::Register;
+  CHECK(ReadFixedRegister(static_cast<rex::u32>(Register::RB_EDRAM_TIMING), mode) == 0x08100748u);
+  CHECK(ReadFixedRegister(static_cast<rex::u32>(Register::RB_BC_CONTROL), mode) == 0x0000200Eu);
+  CHECK(ReadFixedRegister(static_cast<rex::u32>(Register::D1MODE_V_COUNTER), mode) == 0x0FFFu);
+  CHECK(ReadFixedRegister(static_cast<rex::u32>(Register::D1MODE_VBLANK_VLINE_STATUS), mode) == 1u);
+  CHECK(ReadFixedRegister(static_cast<rex::u32>(Register::AVIVO_D1MODE_VIEWPORT_SIZE), mode) ==
+        ((1920u << 16) | 0x0FFFu));
+  CHECK_FALSE(ReadFixedRegister(static_cast<rex::u32>(Register::CP_RB_WPTR), mode));
 }

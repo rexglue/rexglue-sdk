@@ -591,32 +591,6 @@ void VulkanCommandProcessor::InvalidateGPUMemory() {
   }
 }
 
-void VulkanCommandProcessor::InvalidateAllVertexBufferResidency() {
-  vertex_buffers_in_sync_[0] = 0;
-  vertex_buffers_in_sync_[1] = 0;
-}
-
-void VulkanCommandProcessor::InvalidateVertexBufferResidency(u32 vfetch_index) {
-  if (vfetch_index >= kVertexFetchCount) {
-    return;
-  }
-  vertex_buffers_in_sync_[vfetch_index >> 6] &= ~(static_cast<u64>(1) << (vfetch_index & 63));
-}
-
-void VulkanCommandProcessor::InvalidateVertexBufferResidencyRange(u32 first_vfetch,
-                                                                  u32 last_vfetch) {
-  if (first_vfetch > last_vfetch) {
-    std::swap(first_vfetch, last_vfetch);
-  }
-  if (first_vfetch >= kVertexFetchCount) {
-    return;
-  }
-  last_vfetch = std::min(last_vfetch, static_cast<u32>(kVertexFetchCount - 1));
-  for (u32 vfetch_index = first_vfetch; vfetch_index <= last_vfetch; ++vfetch_index) {
-    InvalidateVertexBufferResidency(vfetch_index);
-  }
-}
-
 void VulkanCommandProcessor::InitializeShaderStorage(const std::filesystem::path& cache_root,
                                                      u32 title_id, bool blocking) {
   CommandProcessor::InitializeShaderStorage(cache_root, title_id, blocking);
@@ -630,7 +604,6 @@ bool VulkanCommandProcessor::ExecutePacketType3_EVENT_WRITE_ZPD(memory::RingBuff
     return CommandProcessor::ExecutePacketType3_EVENT_WRITE_ZPD(reader, packet, count);
   }
 
-  constexpr u32 kQueryFinished = std::byteswap(0xFFFFFEEDu);
   REX_ASSERT(count == 1);
   u32 initiator = reader->ReadAndSwap<u32>();
   WriteRegister(std::to_underlying(xenos::Register::VGT_EVENT_INITIATOR), initiator & 0x3F);
@@ -4556,14 +4529,6 @@ void VulkanCommandProcessor::ShutdownOcclusionQueryResources() {
   occlusion_query_readback_memory_ = VK_NULL_HANDLE;
   occlusion_query_readback_memory_type_ = UINT32_MAX;
   occlusion_query_readback_memory_size_ = 0;
-}
-
-bool VulkanCommandProcessor::AcquireOcclusionQueryIndex(u32& host_index_out) {
-  if (occlusion_query_cursor_ >= kMaxOcclusionQueries) {
-    occlusion_query_cursor_ = 0;
-  }
-  host_index_out = occlusion_query_cursor_++;
-  return true;
 }
 
 void VulkanCommandProcessor::DisableHostOcclusionQueries() {

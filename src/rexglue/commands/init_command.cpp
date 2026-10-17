@@ -8,12 +8,12 @@
 #include <ctime>
 #include <filesystem>
 #include <format>
-#include <fstream>
 #include <memory>
 #include <span>
 #include <sstream>
 #include <vector>
 
+#include <rex/string/utf8.h>
 #include <rex/codegen/manifest.h>
 #include <rex/codegen/template_registry.h>
 #include <rex/api.h>
@@ -40,12 +40,6 @@ using rex::Ok;
 
 namespace {
 
-std::string LowercaseAscii(std::string s) {
-  std::transform(s.begin(), s.end(), s.begin(),
-                 [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-  return s;
-}
-
 std::string ManifestPath(const fs::path& target, const fs::path& base) {
   std::error_code ec;
   fs::path rel = fs::relative(target, base, ec);
@@ -56,7 +50,7 @@ std::string ManifestPath(const fs::path& target, const fs::path& base) {
 }
 
 std::string ModuleStem(const fs::path& xex) {
-  std::string stem = LowercaseAscii(xex.stem().string());
+  std::string stem = rex::utf8_lower_ascii(xex.stem().string());
   std::replace(stem.begin(), stem.end(), '.', '_');
   std::replace(stem.begin(), stem.end(), ' ', '_');
   return stem;
@@ -133,7 +127,7 @@ Result<void> InitProject(const InitOptions& opts, const CLIContext& ctx) {
                                                  game_root_abs.string() + ")");
   }
 
-  std::string out_dir = LowercaseAscii("generated/" + xex_stem);
+  std::string out_dir = rex::utf8_lower_ascii("generated/" + xex_stem);
   std::string xex_rel_manifest = ManifestPath(xex_abs, project_root);
   std::string game_root_rel_manifest = ManifestPath(game_root_abs, project_root);
 
@@ -146,7 +140,7 @@ Result<void> InitProject(const InitOptions& opts, const CLIContext& ctx) {
     for (; !ec && it != end; it.increment(ec)) {
       if (!it->is_regular_file())
         continue;
-      if (LowercaseAscii(it->path().extension().string()) != ".dll")
+      if (!rex::utf8_equal_case(it->path().extension().string(), ".dll"))
         continue;
       dll_paths.push_back(it->path());
     }
@@ -315,14 +309,11 @@ Result<void> InitModule(const InitModuleOptions& opts, const CLIContext& ctx) {
     }
   }
 
-  std::ifstream in(manifest_path);
-  if (!in)
+  auto manifest_bytes = rex::platform::ReadHostFile(manifest_path);
+  if (!manifest_bytes)
     return Err<void>(ErrorCategory::kIO,
                      "Failed to open manifest for reading: " + manifest_path.string());
-  std::stringstream ss;
-  ss << in.rdbuf();
-  std::string content = ss.str();
-  in.close();
+  std::string content(manifest_bytes->begin(), manifest_bytes->end());
 
   if (!content.empty() && content.back() != '\n')
     content.push_back('\n');
@@ -438,15 +429,8 @@ Result<void> InitAchievements(const InitAchievementsOptions& opts, const CLICont
   }
 
   fs::path out_path = out_dir / "achievements.toml";
-  {
-    std::ofstream out(out_path, std::ios::binary);
-    if (!out) {
-      return Err<void>(ErrorCategory::kIO, "Failed to open for writing: " + out_path.string());
-    }
-    out << content;
-    if (!out.good()) {
-      return Err<void>(ErrorCategory::kIO, "Write error: " + out_path.string());
-    }
+  if (!rex::platform::WriteHostFile(out_path, content)) {
+    return Err<void>(ErrorCategory::kIO, "Write error: " + out_path.string());
   }
 
   REXLOG_INFO(rexglue, "Wrote {} achievements to {}", achievements.size(), out_path.string());
@@ -473,15 +457,11 @@ Result<void> InitAchievements(const InitAchievementsOptions& opts, const CLICont
       }
 
       fs::path icon_path = icons_dir / std::format("{}.png", img_id);
-      std::ofstream f(icon_path, std::ios::binary);
-      if (!f) {
+      if (!rex::platform::WriteHostFile(icon_path, std::span<const u8>(block.buffer, block.size))) {
         REXLOG_WARN(rexglue, "Cannot write icon {}", icon_path.string());
         continue;
       }
-      f.write(reinterpret_cast<const char*>(block.buffer),
-              static_cast<std::streamsize>(block.size));
-      if (f.good())
-        ++icons_written;
+      ++icons_written;
     }
 
     if (icons_written > 0) {
@@ -493,12 +473,8 @@ Result<void> InitAchievements(const InitAchievementsOptions& opts, const CLICont
 
     if (auto game_icon = db.GetIcon(); game_icon && game_icon.size > 0) {
       fs::path game_icon_path = icons_dir / "title.png";
-      std::ofstream f(game_icon_path, std::ios::binary);
-      if (f) {
-        f.write(reinterpret_cast<const char*>(game_icon.buffer),
-                static_cast<std::streamsize>(game_icon.size));
-      }
-      if (f && f.good()) {
+      if (rex::platform::WriteHostFile(game_icon_path,
+                                       std::span<const u8>(game_icon.buffer, game_icon.size))) {
         REXLOG_INFO(rexglue, "Wrote game icon to {}", game_icon_path.string());
       } else {
         REXLOG_WARN(rexglue, "Cannot write game icon {}", game_icon_path.string());

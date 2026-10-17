@@ -845,102 +845,101 @@ std::vector<u8> DXBCShaderTranslator::CompleteTranslation() {
 
   u32 blob_offset_position_dwords = sizeof(dxbc::ContainerHeader) / sizeof(u32);
   u32 blob_position_dwords = static_cast<u32>(shader_object_.size());
-  constexpr u32 kBlobHeaderSizeDwords = sizeof(dxbc::BlobHeader) / sizeof(u32);
 
   shader_object_[blob_offset_position_dwords] =
       static_cast<u32>(blob_position_dwords * sizeof(u32));
-  shader_object_.resize(blob_position_dwords + kBlobHeaderSizeDwords);
+  shader_object_.resize(blob_position_dwords + dxbc::kBlobHeaderSizeDwords);
   WriteResourceDefinition();
   {
     auto& blob_header =
         *reinterpret_cast<dxbc::BlobHeader*>(shader_object_.data() + blob_position_dwords);
     blob_header.fourcc = dxbc::BlobHeader::FourCC::kResourceDefinition;
     blob_position_dwords = static_cast<u32>(shader_object_.size());
-    blob_header.size_bytes = (blob_position_dwords - kBlobHeaderSizeDwords) * sizeof(u32) -
+    blob_header.size_bytes = (blob_position_dwords - dxbc::kBlobHeaderSizeDwords) * sizeof(u32) -
                              shader_object_[blob_offset_position_dwords++];
   }
 
   shader_object_[blob_offset_position_dwords] =
       static_cast<u32>(blob_position_dwords * sizeof(u32));
-  shader_object_.resize(blob_position_dwords + kBlobHeaderSizeDwords);
+  shader_object_.resize(blob_position_dwords + dxbc::kBlobHeaderSizeDwords);
   WriteInputSignature();
   {
     auto& blob_header =
         *reinterpret_cast<dxbc::BlobHeader*>(shader_object_.data() + blob_position_dwords);
     blob_header.fourcc = dxbc::BlobHeader::FourCC::kInputSignature;
     blob_position_dwords = static_cast<u32>(shader_object_.size());
-    blob_header.size_bytes = (blob_position_dwords - kBlobHeaderSizeDwords) * sizeof(u32) -
+    blob_header.size_bytes = (blob_position_dwords - dxbc::kBlobHeaderSizeDwords) * sizeof(u32) -
                              shader_object_[blob_offset_position_dwords++];
   }
 
   if (IsDXBCDomainShader()) {
     shader_object_[blob_offset_position_dwords] =
         static_cast<u32>(blob_position_dwords * sizeof(u32));
-    shader_object_.resize(blob_position_dwords + kBlobHeaderSizeDwords);
+    shader_object_.resize(blob_position_dwords + dxbc::kBlobHeaderSizeDwords);
     WritePatchConstantSignature();
     {
       auto& blob_header =
           *reinterpret_cast<dxbc::BlobHeader*>(shader_object_.data() + blob_position_dwords);
       blob_header.fourcc = dxbc::BlobHeader::FourCC::kPatchConstantSignature;
       blob_position_dwords = static_cast<u32>(shader_object_.size());
-      blob_header.size_bytes = (blob_position_dwords - kBlobHeaderSizeDwords) * sizeof(u32) -
+      blob_header.size_bytes = (blob_position_dwords - dxbc::kBlobHeaderSizeDwords) * sizeof(u32) -
                                shader_object_[blob_offset_position_dwords++];
     }
   }
 
   shader_object_[blob_offset_position_dwords] =
       static_cast<u32>(blob_position_dwords * sizeof(u32));
-  shader_object_.resize(blob_position_dwords + kBlobHeaderSizeDwords);
+  shader_object_.resize(blob_position_dwords + dxbc::kBlobHeaderSizeDwords);
   WriteOutputSignature();
   {
     auto& blob_header =
         *reinterpret_cast<dxbc::BlobHeader*>(shader_object_.data() + blob_position_dwords);
     blob_header.fourcc = dxbc::BlobHeader::FourCC::kOutputSignature;
     blob_position_dwords = static_cast<u32>(shader_object_.size());
-    blob_header.size_bytes = (blob_position_dwords - kBlobHeaderSizeDwords) * sizeof(u32) -
+    blob_header.size_bytes = (blob_position_dwords - dxbc::kBlobHeaderSizeDwords) * sizeof(u32) -
                              shader_object_[blob_offset_position_dwords++];
   }
 
   shader_object_[blob_offset_position_dwords] =
       static_cast<u32>(blob_position_dwords * sizeof(u32));
-  shader_object_.resize(blob_position_dwords + kBlobHeaderSizeDwords);
+  shader_object_.resize(blob_position_dwords + dxbc::kBlobHeaderSizeDwords);
   WriteShaderCode();
   {
     auto& blob_header =
         *reinterpret_cast<dxbc::BlobHeader*>(shader_object_.data() + blob_position_dwords);
     blob_header.fourcc = dxbc::BlobHeader::FourCC::kShaderEx;
     blob_position_dwords = static_cast<u32>(shader_object_.size());
-    blob_header.size_bytes = (blob_position_dwords - kBlobHeaderSizeDwords) * sizeof(u32) -
+    blob_header.size_bytes = (blob_position_dwords - dxbc::kBlobHeaderSizeDwords) * sizeof(u32) -
                              shader_object_[blob_offset_position_dwords++];
   }
 
   shader_object_[blob_offset_position_dwords] =
       static_cast<u32>(blob_position_dwords * sizeof(u32));
-  shader_object_.resize(blob_position_dwords + kBlobHeaderSizeDwords +
+  shader_object_.resize(blob_position_dwords + dxbc::kBlobHeaderSizeDwords +
                         sizeof(dxbc::ShaderFeatureInfo) / sizeof(u32));
-  std::memcpy(shader_object_.data() + blob_position_dwords + kBlobHeaderSizeDwords,
+  std::memcpy(shader_object_.data() + blob_position_dwords + dxbc::kBlobHeaderSizeDwords,
               &shader_feature_info_, sizeof(shader_feature_info_));
   {
     auto& blob_header =
         *reinterpret_cast<dxbc::BlobHeader*>(shader_object_.data() + blob_position_dwords);
     blob_header.fourcc = dxbc::BlobHeader::FourCC::kShaderFeatureInfo;
     blob_position_dwords = static_cast<u32>(shader_object_.size());
-    blob_header.size_bytes = (blob_position_dwords - kBlobHeaderSizeDwords) * sizeof(u32) -
+    blob_header.size_bytes = (blob_position_dwords - dxbc::kBlobHeaderSizeDwords) * sizeof(u32) -
                              shader_object_[blob_offset_position_dwords++];
   }
 
   shader_object_[blob_offset_position_dwords] =
       static_cast<u32>(blob_position_dwords * sizeof(u32));
-  shader_object_.resize(blob_position_dwords + kBlobHeaderSizeDwords +
+  shader_object_.resize(blob_position_dwords + dxbc::kBlobHeaderSizeDwords +
                         sizeof(dxbc::Statistics) / sizeof(u32));
-  std::memcpy(shader_object_.data() + blob_position_dwords + kBlobHeaderSizeDwords, &statistics_,
-              sizeof(statistics_));
+  std::memcpy(shader_object_.data() + blob_position_dwords + dxbc::kBlobHeaderSizeDwords,
+              &statistics_, sizeof(statistics_));
   {
     auto& blob_header =
         *reinterpret_cast<dxbc::BlobHeader*>(shader_object_.data() + blob_position_dwords);
     blob_header.fourcc = dxbc::BlobHeader::FourCC::kStatistics;
     blob_position_dwords = static_cast<u32>(shader_object_.size());
-    blob_header.size_bytes = (blob_position_dwords - kBlobHeaderSizeDwords) * sizeof(u32) -
+    blob_header.size_bytes = (blob_position_dwords - dxbc::kBlobHeaderSizeDwords) * sizeof(u32) -
                              shader_object_[blob_offset_position_dwords++];
   }
 

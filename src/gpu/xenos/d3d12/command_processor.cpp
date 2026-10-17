@@ -129,32 +129,6 @@ void D3D12CommandProcessor::InvalidateGPUMemory() {
   }
 }
 
-void D3D12CommandProcessor::InvalidateAllVertexBufferResidency() {
-  vertex_buffers_in_sync_[0] = 0;
-  vertex_buffers_in_sync_[1] = 0;
-}
-
-void D3D12CommandProcessor::InvalidateVertexBufferResidency(u32 vfetch_index) {
-  if (vfetch_index >= kVertexFetchCount) {
-    return;
-  }
-  vertex_buffers_in_sync_[vfetch_index >> 6] &= ~(static_cast<u64>(1) << (vfetch_index & 63));
-}
-
-void D3D12CommandProcessor::InvalidateVertexBufferResidencyRange(u32 first_vfetch,
-                                                                 u32 last_vfetch) {
-  if (first_vfetch > last_vfetch) {
-    std::swap(first_vfetch, last_vfetch);
-  }
-  if (first_vfetch >= kVertexFetchCount) {
-    return;
-  }
-  last_vfetch = std::min(last_vfetch, static_cast<u32>(kVertexFetchCount - 1));
-  for (u32 vfetch_index = first_vfetch; vfetch_index <= last_vfetch; ++vfetch_index) {
-    InvalidateVertexBufferResidency(vfetch_index);
-  }
-}
-
 void D3D12CommandProcessor::InitializeShaderStorage(const std::filesystem::path& cache_root,
                                                     u32 title_id, bool blocking) {
   CommandProcessor::InitializeShaderStorage(cache_root, title_id, blocking);
@@ -168,7 +142,6 @@ bool D3D12CommandProcessor::ExecutePacketType3_EVENT_WRITE_ZPD(memory::RingBuffe
     return CommandProcessor::ExecutePacketType3_EVENT_WRITE_ZPD(reader, packet, count);
   }
 
-  constexpr u32 kQueryFinished = std::byteswap(0xFFFFFEEDu);
   REX_ASSERT(count == 1);
   u32 initiator = reader->ReadAndSwap<u32>();
   WriteRegister(std::to_underlying(xenos::Register::VGT_EVENT_INITIATOR), initiator & 0x3F);
@@ -3661,7 +3634,7 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
       }
     }
     auto color_exp_bias_scale =
-        rex::Reinterpret<f32>(static_cast<i32>(0x3F800000 + (color_exp_bias << 23)));
+        std::bit_cast<f32>(static_cast<i32>(0x3F800000 + (color_exp_bias << 23)));
     dirty |= system_constants_.color_exp_bias[i] != color_exp_bias_scale;
     system_constants_.color_exp_bias[i] = color_exp_bias_scale;
     if (edram_rov_used) {
@@ -4581,14 +4554,6 @@ void D3D12CommandProcessor::ShutdownOcclusionQueryResources() {
   occlusion_query_readback_mapping_ = nullptr;
   occlusion_query_readback_.Reset();
   occlusion_query_heap_.Reset();
-}
-
-bool D3D12CommandProcessor::AcquireOcclusionQueryIndex(u32& host_index_out) {
-  if (occlusion_query_cursor_ >= kMaxOcclusionQueries) {
-    occlusion_query_cursor_ = 0;
-  }
-  host_index_out = occlusion_query_cursor_++;
-  return true;
 }
 
 void D3D12CommandProcessor::DisableHostOcclusionQueries() {

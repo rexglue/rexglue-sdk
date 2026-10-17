@@ -17,6 +17,7 @@
 #include <filesystem>
 #include <string>
 #include <string_view>
+#include <type_traits>
 
 #include <rex/types.h>
 #include <rex/platform.h>
@@ -42,6 +43,22 @@ struct IdentityHasher {
    * @return key cast to size_t.
    */
   size_t operator()(const Key& key) const { return static_cast<size_t>(key); }
+};
+
+/**
+ * Hasher for a key type that holds its identity in a member named key, hashed with std::hash.
+ *
+ * @tparam Key Key type with a hashable member key.
+ */
+template <typename Key>
+struct KeyHasher {
+  /**
+   * @param hashed_key The key to hash.
+   * @return std::hash of the key member.
+   */
+  size_t operator()(const Key& hashed_key) const {
+    return std::hash<std::remove_cvref_t<decltype(hashed_key.key)>>{}(hashed_key.key);
+  }
 };
 
 /**

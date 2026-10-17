@@ -24,10 +24,4 @@ void Break() {
   __debugbreak();
 }
 
-namespace detail {
-void DebugPrint(const char* s) {
-  OutputDebugStringA(s);
-}
-}  // namespace detail
-
 }  // namespace rex::platform

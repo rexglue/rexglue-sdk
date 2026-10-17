@@ -39,6 +39,7 @@
 #include <rex/string/buffer.h>
 #include <rex/platform/thread.h>
 #include "gpu/xenos/host/d3d12/d3d12_api.h"
+#include "gpu/xenos/host/shader_storage.h"
 
 namespace rex::gpu::d3d12 {
 
@@ -283,11 +284,7 @@ class PipelineCache {
 
     GeometryShaderKey() : key(0) { REX_STATIC_ASSERT_SIZE(*this, sizeof(key)); }
 
-    struct Hasher {
-      size_t operator()(const GeometryShaderKey& hashed_key) const {
-        return std::hash<u32>{}(hashed_key.key);
-      }
-    };
+    using Hasher = rex::KeyHasher<GeometryShaderKey>;
     bool operator==(const GeometryShaderKey& other_key) const { return key == other_key.key; }
     bool operator!=(const GeometryShaderKey& other_key) const { return !(*this == other_key); }
   };
@@ -442,30 +439,9 @@ class PipelineCache {
 
   Pipeline* current_pipeline_ = nullptr;
 
-  std::filesystem::path shader_storage_cache_root_;
-  u32 shader_storage_title_id_ = 0;
-
-  std::fstream shader_storage_file_;
-  std::filesystem::path shader_storage_file_path_;
-  /** Incremented when switching the storage so each shader is written once. */
-  u32 shader_storage_index_ = 0;
-  bool shader_storage_file_flush_needed_ = false;
-
-  std::fstream pipeline_storage_file_;
-  std::filesystem::path pipeline_storage_file_path_;
-  bool pipeline_storage_file_flush_needed_ = false;
-
   /** Writes to the storage streams asynchronously. */
   void StorageWriteThread();
-  std::mutex storage_write_request_lock_;
-  std::condition_variable storage_write_request_cond_;
-  /** Protected with storage_write_request_lock_, notified via storage_write_request_cond_. */
-  std::deque<const Shader*> storage_write_shader_queue_;
-  std::deque<PipelineStoredDescription> storage_write_pipeline_queue_;
-  bool storage_write_flush_shaders_ = false;
-  bool storage_write_flush_pipelines_ = false;
-  bool storage_write_thread_shutdown_ = false;
-  std::unique_ptr<rex::platform::Thread> storage_write_thread_;
+  gpu::ShaderStorage<Shader, PipelineStoredDescription> storage_;
 
   /**
    * Pipeline creation thread body.

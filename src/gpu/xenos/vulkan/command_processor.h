@@ -353,11 +353,7 @@ class VulkanCommandProcessor : public CommandProcessor {
 
     TextureDescriptorSetLayoutKey() : key(0) { REX_STATIC_ASSERT_SIZE(*this, sizeof(key)); }
 
-    struct Hasher {
-      size_t operator()(const TextureDescriptorSetLayoutKey& hashed_key) const {
-        return std::hash<decltype(hashed_key.key)>{}(hashed_key.key);
-      }
-    };
+    using Hasher = rex::KeyHasher<TextureDescriptorSetLayoutKey>;
     bool operator==(const TextureDescriptorSetLayoutKey& other_key) const {
       return key == other_key.key;
     }
@@ -378,11 +374,7 @@ class VulkanCommandProcessor : public CommandProcessor {
 
     PipelineLayoutKey() : key(0) { REX_STATIC_ASSERT_SIZE(*this, sizeof(key)); }
 
-    struct Hasher {
-      size_t operator()(const PipelineLayoutKey& hashed_key) const {
-        return std::hash<decltype(hashed_key.key)>{}(hashed_key.key);
-      }
-    };
+    using Hasher = rex::KeyHasher<PipelineLayoutKey>;
     bool operator==(const PipelineLayoutKey& other_key) const { return key == other_key.key; }
     bool operator!=(const PipelineLayoutKey& other_key) const { return !(*this == other_key); }
   };
@@ -507,13 +499,9 @@ class VulkanCommandProcessor : public CommandProcessor {
   void ShutdownOcclusionQueryResources();
   bool BeginGuestOcclusionQuery(u32 sample_count_address);
   bool EndGuestOcclusionQuery(u32 sample_count_address);
-  bool AcquireOcclusionQueryIndex(u32& host_index_out);
   void DisableHostOcclusionQueries();
   u64 NormalizeOcclusionSamples(u64 samples) const;
   void WriteGuestOcclusionResult(u32 sample_count_address, u64 samples);
-  void InvalidateAllVertexBufferResidency();
-  void InvalidateVertexBufferResidency(u32 vfetch_index);
-  void InvalidateVertexBufferResidencyRange(u32 first_vfetch, u32 last_vfetch);
   struct ReadbackBuffer {
     VkBuffer buffers[2] = {VK_NULL_HANDLE, VK_NULL_HANDLE};
     VkDeviceMemory memories[2] = {VK_NULL_HANDLE, VK_NULL_HANDLE};
@@ -525,24 +513,6 @@ class VulkanCommandProcessor : public CommandProcessor {
     u64 last_used_frame = 0;
   };
   void EvictOldReadbackBuffers(std::unordered_map<u64, ReadbackBuffer>& buffer_map) const;
-  static constexpr u32 kReadbackBufferSizeIncrement = 16 * 1024 * 1024;
-  static constexpr size_t kMaxReadbackBuffers = 256;
-  static constexpr u64 kReadbackBufferEvictionAgeFrames = 60;
-  static u32 AlignReadbackBufferSize(u32 size) {
-    if (size < 1 * 1024 * 1024) {
-      return rex::Align(size, 256u * 1024u);
-    }
-    if (size < 4 * 1024 * 1024) {
-      return rex::Align(size, 1u * 1024u * 1024u);
-    }
-    return rex::Align(size, kReadbackBufferSizeIncrement);
-  }
-  static u64 BuildReadbackResolveKey(u32 address, u32 length) {
-    return (static_cast<u64>(address) << 32) | static_cast<u64>(length);
-  }
-  static u64 BuildMemexportReadbackKey(u32 first_base_address_dwords, u32 total_size) {
-    return (static_cast<u64>(first_base_address_dwords) << 32) | static_cast<u64>(total_size);
-  }
   struct ResolveDownscaleConstants {
     u32 scale_x;
     u32 scale_y;
@@ -789,22 +759,18 @@ class VulkanCommandProcessor : public CommandProcessor {
   u64 scratch_buffer_last_usage_submission_ = 0;
   bool scratch_buffer_used_ = false;
 
-  static constexpr u32 kMaxOcclusionQueries = 8192;
   VkQueryPool occlusion_query_pool_ = VK_NULL_HANDLE;
   VkBuffer occlusion_query_readback_buffer_ = VK_NULL_HANDLE;
   VkDeviceMemory occlusion_query_readback_memory_ = VK_NULL_HANDLE;
   u32 occlusion_query_readback_memory_type_ = UINT32_MAX;
   VkDeviceSize occlusion_query_readback_memory_size_ = 0;
   u8* occlusion_query_readback_mapping_ = nullptr;
-  u32 occlusion_query_cursor_ = 0;
   bool occlusion_query_resources_available_ = false;
   struct ActiveOcclusionQuery {
     u32 sample_count_address = 0;
     u32 host_index = UINT32_MAX;
     bool valid = false;
   } active_occlusion_query_;
-  static constexpr u32 kVertexFetchCount = 96;
-  u64 vertex_buffers_in_sync_[2] = {};
   std::unordered_map<u64, ReadbackBuffer> readback_buffers_;
   std::unordered_map<u64, ReadbackBuffer> memexport_readback_buffers_;
 

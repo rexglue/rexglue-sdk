@@ -55,6 +55,9 @@ struct FileInfo {
   u64 write_time = 0;                                /**< Last write time in FILETIME ticks. */
 };
 
+/** Bytes in a sector of a volume as titles see it. */
+inline constexpr u32 kBytesPerSector = 0x200;
+
 /** Times to change on a file. An empty field keeps the current time. */
 struct FileTimes {
   // NOLINTNEXTLINE(readability-redundant-member-init) designated initializers omit this field

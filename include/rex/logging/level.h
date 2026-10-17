@@ -10,6 +10,7 @@
 
 #pragma once
 
+#include <array>
 #include <string_view>
 
 #include <rex/platform.h>
@@ -30,6 +31,10 @@ enum class Level : u8 {
   kCritical, /**< Unrecoverable state, written right before an abort. */
   kOff,      /**< Threshold only. Nothing is written at it. */
 };
+
+/** Lowercase level names in level order, kOff last. */
+inline constexpr std::array<std::string_view, 8> kLevelNames = {
+    "trace", "dev", "debug", "info", "warn", "error", "critical", "off"};
 
 /** Number of levels a message can carry, kTrace through kCritical. */
 inline constexpr size_t kMessageLevelCount = 7;

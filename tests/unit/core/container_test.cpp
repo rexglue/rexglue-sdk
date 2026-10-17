@@ -70,10 +70,10 @@ struct TempFolder : rex::test::TempFolder {
 };
 
 std::vector<rex::u8> ReadNode(const fs::Container& container, const fs::ContainerNode& node) {
-  std::vector<rex::u8> bytes(node.size);
+  std::vector<rex::u8> bytes(node.info.size);
   auto read = container.Read(node, 0, bytes);
   REQUIRE(read);
-  REQUIRE(*read == node.size);
+  REQUIRE(*read == node.info.size);
   return bytes;
 }
 
@@ -92,8 +92,8 @@ void CheckTree(const fs::Container& container) {
   CHECK(container.Find("") == &root);
   CHECK(container.Find("missing") == nullptr);
   CHECK(container.Find("a.txt\\below") == nullptr);
-  CHECK(rex::HasFlags(folder->attributes, fs::FileAttributes::kDirectory));
-  CHECK(rex::HasFlags(a->attributes, fs::FileAttributes::kReadOnly));
+  CHECK(rex::HasFlags(folder->info.attributes, fs::FileAttributes::kDirectory));
+  CHECK(rex::HasFlags(a->info.attributes, fs::FileAttributes::kReadOnly));
   CHECK(container.PathOf(*c) == "folder\\c.txt");
   CHECK(ReadNode(container, *a) == Bytes(kAText));
   CHECK(ReadNode(container, *big) == BigBin());

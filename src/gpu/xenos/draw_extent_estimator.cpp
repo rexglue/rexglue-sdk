@@ -10,6 +10,7 @@
  */
 
 #include <algorithm>
+#include <bit>
 #include <cfloat>
 #include <cstdint>
 
@@ -42,7 +43,7 @@ void DrawExtentEstimator::PositionYExportSink::Export(xenos::ucode::ExportRegist
       point_size_ = value[0];
     }
     if (value_mask & 0b0100) {
-      vertex_kill_ = rex::Reinterpret<u32>(value[2]);
+      vertex_kill_ = std::bit_cast<u32>(value[2]);
     }
   }
 }
@@ -116,9 +117,9 @@ u32 DrawExtentEstimator::EstimateVertexMaxY(const Shader& vertex_shader) {
   if (vgt_draw_initiator.prim_type == xenos::PrimitiveType::kPointList) {
     auto pa_su_point_minmax = regs.Get<xenos::reg::PA_SU_POINT_MINMAX>();
     point_vertex_min_diameter_float =
-        rex::Reinterpret<i32>(static_cast<f32>(pa_su_point_minmax.min_size) * (2.0f / 16.0f));
+        std::bit_cast<i32>(static_cast<f32>(pa_su_point_minmax.min_size) * (2.0f / 16.0f));
     point_vertex_max_diameter_float =
-        rex::Reinterpret<i32>(static_cast<f32>(pa_su_point_minmax.max_size) * (2.0f / 16.0f));
+        std::bit_cast<i32>(static_cast<f32>(pa_su_point_minmax.max_size) * (2.0f / 16.0f));
     point_constant_radius_y =
         static_cast<f32>(regs.Get<xenos::reg::PA_SU_POINT_SIZE>().height) * (1.0f / 16.0f);
   }
@@ -180,10 +181,10 @@ u32 DrawExtentEstimator::EstimateVertexMaxY(const Shader& vertex_shader) {
       if (position_y_export_sink.GetPointSize().has_value()) {
         point_radius_y =
             0.5f *
-            rex::Reinterpret<f32>(std::min(
+            std::bit_cast<f32>(std::min(
                 point_vertex_max_diameter_float,
                 std::max(point_vertex_min_diameter_float,
-                         rex::Reinterpret<i32>(position_y_export_sink.GetPointSize().value()))));
+                         std::bit_cast<i32>(position_y_export_sink.GetPointSize().value()))));
       } else {
         point_radius_y = point_constant_radius_y;
       }

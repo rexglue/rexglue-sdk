@@ -10,6 +10,7 @@
  * @license     BSD 3-Clause License
  *              See LICENSE file in the project root for full license text.
  */
+#include <rex/string.h>
 #include <rex/cvar.h>
 #include <rex/logging/log.h>
 
@@ -25,10 +26,7 @@ void ConsoleEcho(std::string_view args) {
 }
 
 void ConsoleFind(std::string_view args) {
-  const auto first = args.find_first_not_of(' ');
-  args = first == std::string_view::npos
-             ? std::string_view{}
-             : args.substr(first, args.find_last_not_of(' ') - first + 1);
+  args = Trim(args);
   if (args.empty()) {
     REXLOG_INFO(console, "find: usage: find <substr>");
     return;

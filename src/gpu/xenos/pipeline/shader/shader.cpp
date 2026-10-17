@@ -11,11 +11,11 @@
 
 #include <cinttypes>
 #include <cstring>
-#include <fstream>
 #include <utility>
 
 #include <format>
 
+#include <rex/platform/file.h>
 #include <rex/xenos/ucode.h>
 #include "gpu/xenos/pipeline/shader/shader.h"
 #include <rex/math.h>
@@ -56,19 +56,17 @@ std::pair<std::filesystem::path, std::filesystem::path> Shader::Translation::Dum
   std::filesystem::path binary_path =
       target_path / std::format("shader_{:016X}_{:016X}.{}.bin.{}", GetShader().GetUcodeDataHash(),
                                 GetModification(), path_prefix, type_extension);
-  std::ofstream binary_file(binary_path, std::ios::binary | std::ios::trunc);
-  binary_file.write(
-      reinterpret_cast<const char*>(translated_binary_.data()),
-      static_cast<std::streamsize>(translated_binary_.size() * sizeof(*translated_binary_.data())));
+  (void)platform::WriteHostFile(
+      binary_path,
+      std::span<const u8>(reinterpret_cast<const u8*>(translated_binary_.data()),
+                          translated_binary_.size() * sizeof(*translated_binary_.data())));
 
   std::filesystem::path disasm_path;
   if (!host_disassembly_.empty()) {
     disasm_path =
         target_path / std::format("shader_{:016X}_{:016X}.{}.{}", GetShader().GetUcodeDataHash(),
                                   GetModification(), path_prefix, type_extension);
-    std::ofstream disasm_file(disasm_path, std::ios::trunc);
-    disasm_file.write(host_disassembly_.data(),
-                      static_cast<std::streamsize>(host_disassembly_.size()));
+    (void)platform::WriteHostFile(disasm_path, host_disassembly_);
   }
 
   return std::make_pair(std::move(binary_path), std::move(disasm_path));
@@ -109,18 +107,15 @@ std::pair<std::filesystem::path, std::filesystem::path> Shader::DumpUcode(
 
   std::filesystem::path binary_path =
       target_path / std::format("shader_{:016X}.ucode.bin.{}", GetUcodeDataHash(), type_extension);
-  std::ofstream binary_file(binary_path, std::ios::binary | std::ios::trunc);
-  binary_file.write(
-      reinterpret_cast<const char*>(GetUcodeData().data()),
-      static_cast<std::streamsize>(GetUcodeData().size() * sizeof(*GetUcodeData().data())));
+  (void)platform::WriteHostFile(
+      binary_path, std::span<const u8>(reinterpret_cast<const u8*>(GetUcodeData().data()),
+                                       GetUcodeData().size() * sizeof(*GetUcodeData().data())));
 
   std::filesystem::path disasm_path;
   if (IsUcodeAnalyzed()) {
     disasm_path =
         target_path / std::format("shader_{:016X}.ucode.{}", GetUcodeDataHash(), type_extension);
-    std::ofstream disasm_file(disasm_path, std::ios::trunc);
-    disasm_file.write(GetUcodeDisassembly().data(),
-                      static_cast<std::streamsize>(GetUcodeDisassembly().size()));
+    (void)platform::WriteHostFile(disasm_path, GetUcodeDisassembly());
   }
 
   return std::make_pair(std::move(binary_path), std::move(disasm_path));

@@ -21,6 +21,7 @@
 #include <utility>
 #include <vector>
 
+#include <rex/filesystem/info.h>
 #include <rex/literals.h>
 #include <rex/math.h>
 
@@ -29,7 +30,6 @@ namespace rex::filesystem::detail {
 namespace {
 
 constexpr u64 kSectorSize = 2_KiB;
-constexpr u64 kBytesPerSector = 0x200;
 constexpr u64 kMagicSector = 32;
 constexpr u64 kMinRootSize = 13;
 constexpr u64 kMaxRootSize = 32_MiB;
@@ -124,16 +124,18 @@ class GDFXReader {
 
   void Emit(Visit visit, std::vector<ContainerNode>& nodes, std::vector<Visit>& stack) const {
     ContainerNode node;
-    node.name = std::move(visit.name);
+    node.info.name = std::move(visit.name);
     node.parent = visit.parent;
-    node.attributes = static_cast<FileAttributes>(visit.attributes) | FileAttributes::kReadOnly;
-    node.size = visit.length;
-    node.allocation_size = round_up(static_cast<u64>(visit.length), kBytesPerSector);
-    node.create_time = kUnixEpochTicks;
-    node.access_time = kUnixEpochTicks;
-    node.write_time = kUnixEpochTicks;
+    node.info.attributes =
+        static_cast<FileAttributes>(visit.attributes) | FileAttributes::kReadOnly;
+    node.info.size = visit.length;
+    node.info.allocation_size =
+        round_up_nonzero(static_cast<u64>(visit.length), u64{kBytesPerSector});
+    node.info.create_time = kUnixEpochTicks;
+    node.info.access_time = kUnixEpochTicks;
+    node.info.write_time = kUnixEpochTicks;
     const u64 data_offset = game_offset_ + (static_cast<u64>(visit.sector) * kSectorSize);
-    const bool directory = HasFlags(node.attributes, FileAttributes::kDirectory);
+    const bool directory = HasFlags(node.info.attributes, FileAttributes::kDirectory);
     if (!directory) {
       node.extents.push_back({.file = 0, .offset = data_offset, .length = visit.length});
     }
@@ -174,7 +176,7 @@ bool IsGDFX(std::span<const u8> image) {
   if (!IsInBounds(image, root_offset, *root_size)) {
     return Err(Corrupt("GDFX root table is outside the image"));
   }
-  nodes.front().attributes = FileAttributes::kDirectory;
+  nodes.front().info.attributes = FileAttributes::kDirectory;
   GDFXReader reader(image, *game_offset);
   return reader.Walk(root_offset, nodes);
 }

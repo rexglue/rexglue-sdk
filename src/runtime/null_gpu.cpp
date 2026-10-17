@@ -13,18 +13,14 @@
 #include <rex/runtime/xmemory.h>
 #include <rex/runtime/object.h>
 #include <rex/runtime/xthread.h>
+#include <rex/gpu/fixed_registers.h>
+#include <rex/xenos/registers.h>
 
 namespace rex::runtime {
 
 namespace {
 
-constexpr u32 kWritePointerRegister = 0x01C5;
-constexpr u32 kEDRAMTimingRegister = 0x0F00;
-constexpr u32 kBCControlRegister = 0x0F01;
-constexpr u32 kVerticalCounterRegister = 0x194C;
-constexpr u32 kInterruptStatusRegister = 0x1951;
-constexpr u32 kViewportSizeRegister = 0x1961;
-constexpr u32 kViewportLimit = 0x0FFF;
+constexpr u32 kWritePointerRegister = static_cast<u32>(xenos::Register::CP_RB_WPTR);
 constexpr u8 kInterruptCPU = 2;
 
 u32 RegisterIndex(u32 address) {
@@ -121,21 +117,10 @@ void NullGPU::WriteRegisterThunk(void* context, u32 address, u32 value) {
 
 u32 NullGPU::ReadRegister(u32 address) const {
   const u32 index = RegisterIndex(address);
-  const VideoMode& mode = runtime_->GetVideoMode();
-  switch (index) {
-    case kEDRAMTimingRegister:
-      return 0x08100748;
-    case kBCControlRegister:
-      return 0x0000200E;
-    case kVerticalCounterRegister:
-      return std::min(mode.height, kViewportLimit);
-    case kInterruptStatusRegister:
-      return 1;
-    case kViewportSizeRegister:
-      return (std::min(mode.width, kViewportLimit) << 16) | std::min(mode.height, kViewportLimit);
-    default:
-      return registers_[index].load(std::memory_order_relaxed);
+  if (const auto fixed = gpu::ReadFixedRegister(index, runtime_->GetVideoMode())) {
+    return *fixed;
   }
+  return registers_[index].load(std::memory_order_relaxed);
 }
 
 void NullGPU::WriteRegister(u32 address, u32 value) {

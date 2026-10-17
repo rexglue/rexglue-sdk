@@ -243,13 +243,15 @@ Result<void> ContentManager::WriteContentHeaderFile(u64 xuid, XCONTENT_AGGREGATE
     }
   }
 
-  std::ofstream file(header_path, std::ios::binary | std::ios::trunc);
-  if (!file) {
-    return Err(ResultError(X_ERROR_FILE_NOT_FOUND));
-  }
-  file.write(reinterpret_cast<const char*>(&data), sizeof(XCONTENT_AGGREGATE_DATA));
+  std::vector<u8> header(sizeof(XCONTENT_AGGREGATE_DATA) +
+                         (license_mask != 0 ? sizeof(license_mask) : 0));
+  std::memcpy(header.data(), &data, sizeof(XCONTENT_AGGREGATE_DATA));
   if (license_mask != 0) {
-    file.write(reinterpret_cast<const char*>(&license_mask), sizeof(license_mask));
+    std::memcpy(header.data() + sizeof(XCONTENT_AGGREGATE_DATA), &license_mask,
+                sizeof(license_mask));
+  }
+  if (!platform::WriteHostFile(header_path, header)) {
+    return Err(ResultError(X_ERROR_FILE_NOT_FOUND));
   }
   return Ok();
 }
@@ -357,8 +359,7 @@ Result<std::vector<u8>> ContentManager::GetContentThumbnail(u64 xuid,
   auto thumb_path = package_path / kThumbnailFileName;
   std::lock_guard lock(mutex_);
   if (std::filesystem::exists(thumb_path)) {
-    std::ifstream file(thumb_path, std::ios::binary);
-    return std::vector<u8>(std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>());
+    return platform::ReadHostFile(thumb_path);
   } else {
     return Err<std::vector<u8>>(ResultError(X_ERROR_FILE_NOT_FOUND));
   }
@@ -371,9 +372,9 @@ Result<void> ContentManager::SetContentThumbnail(u64 xuid, const XCONTENT_AGGREG
   std::filesystem::create_directories(package_path);
   if (std::filesystem::exists(package_path)) {
     auto thumb_path = package_path / kThumbnailFileName;
-    std::ofstream file(thumb_path, std::ios::binary | std::ios::trunc);
-    file.write(reinterpret_cast<const char*>(buffer.data()),
-               static_cast<std::streamsize>(buffer.size()));
+    if (!platform::WriteHostFile(thumb_path, buffer)) {
+      return Err(ResultError(X_ERROR_ACCESS_DENIED));
+    }
     return Ok();
   } else {
     return Err(ResultError(X_ERROR_FILE_NOT_FOUND));
@@ -503,8 +504,8 @@ Result<XCONTENT_AGGREGATE_DATA> ContentManager::InstallContent(
   const u32 thumbnail_size =
       std::min<u32>(metadata.thumbnail_size, static_cast<u32>(sizeof(metadata.thumbnail)));
   if (thumbnail_size != 0) {
-    std::ofstream thumbnail(install_path / kThumbnailFileName, std::ios::binary | std::ios::trunc);
-    thumbnail.write(reinterpret_cast<const char*>(metadata.thumbnail), thumbnail_size);
+    (void)platform::WriteHostFile(install_path / kThumbnailFileName,
+                                  std::span<const u8>(metadata.thumbnail, thumbnail_size));
   }
 
   u32 license_mask = 0;

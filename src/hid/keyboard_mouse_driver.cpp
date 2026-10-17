@@ -7,6 +7,7 @@
 #include <string>
 #include <string_view>
 
+#include <rex/string.h>
 #include <rex/bit.h>
 #include <rex/cvar.h>
 #include <rex/hid/key_chord.h>
@@ -24,16 +25,6 @@ constexpr DeviceId kKeyboardMouseDevice = static_cast<DeviceId>(0x4D4E4B00);
 
 /** Queue bound for titles that never call XamInputGetKeystroke. */
 constexpr size_t kMaxQueuedKeystrokes = 256;
-
-constexpr std::string_view kBlanks = " \t";
-
-std::string_view TrimBlanks(std::string_view text) {
-  const size_t first = text.find_first_not_of(kBlanks);
-  if (first == std::string_view::npos) {
-    return {};
-  }
-  return text.substr(first, text.find_last_not_of(kBlanks) - first + 1);
-}
 
 KeyModifiers HeldModifiers(const bool (&key_down)[256]) {
   KeyModifiers mods = KeyModifiers::kNone;
@@ -270,7 +261,7 @@ void KeyboardMouseDriver::SetBind(size_t index, std::string_view text) {
   std::vector<KeyChord> chords;
   bool any_item = false;
   for (const auto part : std::views::split(text, ',')) {
-    const std::string_view item = TrimBlanks(std::string_view(part.begin(), part.end()));
+    const std::string_view item = Trim(std::string_view(part.begin(), part.end()));
     if (item.empty()) {
       continue;
     }

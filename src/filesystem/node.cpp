@@ -49,20 +49,16 @@ Result<std::span<const u8>> NodeStream::View() {
 }
 
 Node::Node(Provider& provider, Node* parent, std::string path)
-    : path_(std::move(path)), provider_(&provider), parent_(parent) {
-  absolute_path_ = utf8_join_guest_paths(provider.GetMountPath(), path_);
-  name_ = std::string(utf8_find_name_from_guest_path(path_));
+    : provider_(&provider), parent_(parent) {
+  info_.path = std::move(path);
+  info_.absolute_path = utf8_join_guest_paths(provider.GetMountPath(), info_.path);
+  info_.name = std::string(utf8_find_name_from_guest_path(info_.path));
 }
 
 Node::~Node() = default;
 
 bool Node::IsReadOnly() const {
   return provider_->IsReadOnly();
-}
-
-bool Node::DeleteOnClose() const {
-  std::lock_guard lock(provider_->GetMutex());
-  return delete_on_close_;
 }
 
 void Node::SetDeleteOnClose(bool delete_on_close) {
@@ -72,14 +68,13 @@ void Node::SetDeleteOnClose(bool delete_on_close) {
 
 FileInfo Node::GetInfo() const {
   std::lock_guard lock(provider_->GetMutex());
-  return {name_,        path_,        absolute_path_, attributes_, size_, allocation_size_,
-          create_time_, access_time_, write_time_};
+  return info_;
 }
 
 Node* Node::GetChild(std::string_view name) {
   std::lock_guard lock(provider_->GetMutex());
   const auto it = std::ranges::find_if(children_, [&](const std::unique_ptr<Node>& child) {
-    return child->name_.size() == name.size() && utf8_equal_case(child->name_, name);
+    return child->info_.name.size() == name.size() && utf8_equal_case(child->info_.name, name);
   });
   return it == children_.end() ? nullptr : it->get();
 }
@@ -100,7 +95,7 @@ Node* Node::IterateChildren(const WildcardMatcher& matcher, size_t* index) {
   while (*index < children_.size()) {
     Node* child = children_[*index].get();
     ++*index;
-    if (matcher.Match(child->name_)) {
+    if (matcher.Match(child->info_.name)) {
       return child;
     }
   }
@@ -146,7 +141,7 @@ void Node::ReleaseOpen() {
   }
   if (open_count_ == 0 && delete_on_close_ && parent_) {
     if (auto deleted = parent_->DeleteChild(*this); !deleted) {
-      REXLOG_WARN(filesystem, "delete on close of '{}' failed, {}", absolute_path_,
+      REXLOG_WARN(filesystem, "delete on close of '{}' failed, {}", info_.absolute_path,
                   deleted.error().message);
     }
   }
@@ -157,11 +152,11 @@ Result<Node*> Node::CreateChild(std::string_view name, FileAttributes attributes
   std::lock_guard lock(provider_->GetMutex());
   if (IsReadOnly()) {
     return Err<Node*>(BuildError(FileSystemError::kAccessDenied,
-                                 std::format("'{}' is on a read only mount", absolute_path_)));
+                                 std::format("'{}' is on a read only mount", info_.absolute_path)));
   }
   if (GetChild(name)) {
-    return Err<Node*>(
-        BuildError(FileSystemError::kExists, std::format("'{}\\{}' exists", absolute_path_, name)));
+    return Err<Node*>(BuildError(FileSystemError::kExists,
+                                 std::format("'{}\\{}' exists", info_.absolute_path, name)));
   }
   REX_TRY(std::unique_ptr<Node> child, CreateChildImpl(name, attributes));
   return children_.emplace_back(std::move(child)).get();
@@ -171,15 +166,16 @@ Result<void> Node::DeleteChild(Node& child) {
   std::lock_guard lock(provider_->GetMutex());
   if (IsReadOnly()) {
     return Err(BuildError(FileSystemError::kAccessDenied,
-                          std::format("'{}' is on a read only mount", absolute_path_)));
+                          std::format("'{}' is on a read only mount", info_.absolute_path)));
   }
   if (child.parent_ != this) {
-    return Err(BuildError(FileSystemError::kNotFound,
-                          std::format("'{}' is not a child of '{}'", child.name_, absolute_path_)));
+    return Err(BuildError(
+        FileSystemError::kNotFound,
+        std::format("'{}' is not a child of '{}'", child.info_.name, info_.absolute_path)));
   }
   if (child.open_count_ != 0) {
     return Err(BuildError(FileSystemError::kAccessDenied,
-                          std::format("'{}' is open", child.absolute_path_)));
+                          std::format("'{}' is open", child.info_.absolute_path)));
   }
   REX_TRY_VOID(DeleteChildImpl(child));
   DropChild(child);
@@ -189,7 +185,7 @@ Result<void> Node::DeleteChild(Node& child) {
 Result<void> Node::Delete() {
   if (!parent_) {
     return Err(BuildError(FileSystemError::kAccessDenied,
-                          std::format("the root of '{}' cannot be deleted", absolute_path_)));
+                          std::format("the root of '{}' cannot be deleted", info_.absolute_path)));
   }
   return parent_->DeleteChild(*this);
 }
@@ -198,35 +194,35 @@ Result<void> Node::MoveTo(Node& new_parent, std::string_view name, bool replace_
   std::lock_guard lock(provider_->GetMutex());
   if (IsReadOnly()) {
     return Err(BuildError(FileSystemError::kAccessDenied,
-                          std::format("'{}' is on a read only mount", absolute_path_)));
+                          std::format("'{}' is on a read only mount", info_.absolute_path)));
   }
   if (!parent_) {
     return Err(BuildError(FileSystemError::kAccessDenied,
-                          std::format("the root of '{}' cannot be moved", absolute_path_)));
+                          std::format("the root of '{}' cannot be moved", info_.absolute_path)));
   }
   for (const Node* node = &new_parent; node; node = node->parent_) {
     if (node == this) {
       return Err(BuildError(FileSystemError::kInvalidPath,
-                            std::format("'{}' cannot move below itself", absolute_path_)));
+                            std::format("'{}' cannot move below itself", info_.absolute_path)));
     }
   }
   if (std::ranges::any_of(
           children_, [](const std::unique_ptr<Node>& child) { return child->open_count_ != 0; })) {
     return Err(BuildError(FileSystemError::kAccessDenied,
-                          std::format("'{}' has an open file below it", absolute_path_)));
+                          std::format("'{}' has an open file below it", info_.absolute_path)));
   }
-  Node* existing = provider_->Resolve(utf8_join_guest_paths(new_parent.path_, name));
+  Node* existing = provider_->Resolve(utf8_join_guest_paths(new_parent.info_.path, name));
   if (existing == this) {
     existing = nullptr;
   }
   if (existing) {
     if (!replace_existing) {
       return Err(BuildError(FileSystemError::kExists,
-                            std::format("'{}' exists", existing->absolute_path_)));
+                            std::format("'{}' exists", existing->info_.absolute_path)));
     }
     if (existing->IsDirectory() || existing->open_count_ != 0) {
       return Err(BuildError(FileSystemError::kAccessDenied,
-                            std::format("'{}' cannot be replaced", existing->absolute_path_)));
+                            std::format("'{}' cannot be replaced", existing->info_.absolute_path)));
     }
   }
   REX_TRY_VOID(MoveImpl(new_parent, name, existing != nullptr));
@@ -247,14 +243,14 @@ Result<void> Node::MoveTo(Node& new_parent, std::string_view name, bool replace_
     node->open_count_ += open_count_;
   }
   new_parent.children_.push_back(std::move(self));
-  name_ = std::string(name);
+  info_.name = std::string(name);
 
   std::vector<Node*> pending{this};
   while (!pending.empty()) {
     Node* node = pending.back();
     pending.pop_back();
-    node->path_ = utf8_join_guest_paths(node->parent_->path_, node->name_);
-    node->absolute_path_ = utf8_join_guest_paths(provider_->GetMountPath(), node->path_);
+    node->info_.path = utf8_join_guest_paths(node->parent_->info_.path, node->info_.name);
+    node->info_.absolute_path = utf8_join_guest_paths(provider_->GetMountPath(), node->info_.path);
     node->OnMoved();
     for (const std::unique_ptr<Node>& child : node->children_) {
       pending.push_back(child.get());

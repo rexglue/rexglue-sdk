@@ -11,8 +11,8 @@
 
 #include <cstdint>
 #include <format>
-#include <fstream>
 
+#include <rex/platform/file.h>
 #include <rex/assert.h>
 #include <rex/math.h>
 #include "gpu/xenos/host/vulkan/device.h"
@@ -219,10 +219,9 @@ VkPipeline CreateComputePipeline(const VulkanDevice* const vulkan_device, VkPipe
 
 void DumpShader(const std::filesystem::path& dir, std::string_view name,
                 std::span<const u32> code) {
-  std::filesystem::create_directories(dir);
-  std::ofstream file(dir / std::format("{}.vulkan.bin", name), std::ios::binary | std::ios::trunc);
-  file.write(reinterpret_cast<const char*>(code.data()),
-             static_cast<std::streamsize>(code.size_bytes()));
+  (void)platform::WriteHostFile(
+      dir / std::format("{}.vulkan.bin", name),
+      std::span<const u8>(reinterpret_cast<const u8*>(code.data()), code.size_bytes()));
 }
 
 }  // namespace objects

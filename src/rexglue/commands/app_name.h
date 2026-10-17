@@ -11,6 +11,7 @@
 
 #pragma once
 
+#include <rex/string/utf8.h>
 #include <cctype>
 #include <string>
 
@@ -47,9 +48,6 @@ inline bool ValidateAppName(const std::string& input, std::string& error) {
 inline AppNameParts ParseAppName(const std::string& input) {
   constexpr auto kIsSeparator = [](char c) { return c == ' ' || c == '_' || c == '-'; };
 
-  constexpr auto kToLower = [](char c) {
-    return static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
-  };
   constexpr auto kToUpper = [](char c) {
     return static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
   };
@@ -59,15 +57,17 @@ inline AppNameParts ParseAppName(const std::string& input) {
   parts.pascal_case.reserve(input.size());
   parts.upper_case.reserve(input.size());
 
+  const std::string lower = rex::utf8_lower_ascii(input);
   bool at_new_word = true;
-  for (char c : input) {
+  for (size_t index = 0; index < input.size(); ++index) {
+    const char c = input[index];
     if (kIsSeparator(c)) {
       at_new_word = true;
       continue;
     }
 
     parts.upper_case += kToUpper(c);
-    parts.pascal_case += at_new_word ? kToUpper(c) : kToLower(c);
+    parts.pascal_case += at_new_word ? kToUpper(c) : lower[index];
 
     at_new_word = false;
   }

@@ -70,11 +70,6 @@ class D3D12Provider : public GraphicsProvider {
     start.ptr += index * GetRTVDescriptorSize();
     return start;
   }
-  template <typename T>
-  T OffsetDSVDescriptor(T start, u32 index) const {
-    start.ptr += index * GetDSVDescriptorSize();
-    return start;
-  }
 
   GPUVendorID GetAdapterVendorID() const { return adapter_vendor_id_; }
 

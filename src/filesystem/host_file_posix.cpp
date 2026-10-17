@@ -1,6 +1,7 @@
 #include "filesystem/host_file.h"
 
 #include <cerrno>
+#include <chrono>
 #include <cstdio>
 #include <cstring>
 #include <format>
@@ -10,6 +11,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+#include <rex/chrono/chrono.h>
 #include <rex/filesystem/error.h>
 #include <rex/string.h>
 
@@ -17,11 +19,9 @@ namespace rex::filesystem {
 
 namespace {
 
-constexpr u64 kUnixToFileTimeTicks = 116444736000000000ULL;
-constexpr u64 kTicksPerSecond = 10000000ULL;
-
 u64 ToFileTime(time_t seconds) {
-  return (static_cast<u64>(seconds) * kTicksPerSecond) + kUnixToFileTimeTicks;
+  return WinSystemClock::ToFileTime(
+      WinSystemClock::from_sys(std::chrono::sys_seconds{std::chrono::seconds{seconds}}));
 }
 
 HostInfo FromStat(std::filesystem::path name, const struct stat& st) {

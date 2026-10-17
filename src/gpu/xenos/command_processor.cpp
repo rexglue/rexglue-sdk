@@ -127,6 +127,39 @@ void CommandProcessor::InitializeShaderStorage(
     [[maybe_unused]] const std::filesystem::path& cache_root, [[maybe_unused]] u32 title_id,
     [[maybe_unused]] bool blocking) {}
 
+bool CommandProcessor::AcquireOcclusionQueryIndex(u32& host_index_out) {
+  if (occlusion_query_cursor_ >= kMaxOcclusionQueries) {
+    occlusion_query_cursor_ = 0;
+  }
+  host_index_out = occlusion_query_cursor_++;
+  return true;
+}
+
+void CommandProcessor::InvalidateAllVertexBufferResidency() {
+  vertex_buffers_in_sync_[0] = 0;
+  vertex_buffers_in_sync_[1] = 0;
+}
+
+void CommandProcessor::InvalidateVertexBufferResidency(u32 vfetch_index) {
+  if (vfetch_index >= kVertexFetchCount) {
+    return;
+  }
+  vertex_buffers_in_sync_[vfetch_index >> 6] &= ~(static_cast<u64>(1) << (vfetch_index & 63));
+}
+
+void CommandProcessor::InvalidateVertexBufferResidencyRange(u32 first_vfetch, u32 last_vfetch) {
+  if (first_vfetch > last_vfetch) {
+    std::swap(first_vfetch, last_vfetch);
+  }
+  if (first_vfetch >= kVertexFetchCount) {
+    return;
+  }
+  last_vfetch = std::min(last_vfetch, static_cast<u32>(kVertexFetchCount - 1));
+  for (u32 vfetch_index = first_vfetch; vfetch_index <= last_vfetch; ++vfetch_index) {
+    InvalidateVertexBufferResidency(vfetch_index);
+  }
+}
+
 bool CommandProcessor::IsWorkerThread() {
   return runtime::KernelThread::IsInThread(
       runtime_->GetThreadRegistry().FindByHandle(worker_thread_).GetThread());
@@ -359,7 +392,7 @@ void CommandProcessor::WriteRegister(u32 index, u32 value) {
           xenos::reg::DC_LUT_RW_INDEX new_gamma_ramp_rw_index = gamma_ramp_rw_index;
           ++new_gamma_ramp_rw_index.rw_index;
           WriteRegister(std::to_underlying(xenos::Register::DC_LUT_RW_INDEX),
-                        rex::Reinterpret<u32>(new_gamma_ramp_rw_index));
+                        std::bit_cast<u32>(new_gamma_ramp_rw_index));
         }
         if (write_gamma_ramp_component) {
           OnGammaRamp256EntryTableValueWritten();
@@ -389,7 +422,7 @@ void CommandProcessor::WriteRegister(u32 index, u32 value) {
           new_gamma_ramp_rw_index.rw_index = (gamma_ramp_rw_index.rw_index & ~UINT32_C(0x7F)) |
                                              ((gamma_ramp_rw_index_pwl + 1) & 0x7F);
           WriteRegister(std::to_underlying(xenos::Register::DC_LUT_RW_INDEX),
-                        rex::Reinterpret<u32>(new_gamma_ramp_rw_index));
+                        std::bit_cast<u32>(new_gamma_ramp_rw_index));
         }
         if (write_gamma_ramp_component) {
           OnGammaRampPWLValueWritten();
@@ -419,7 +452,7 @@ void CommandProcessor::WriteRegister(u32 index, u32 value) {
         xenos::reg::DC_LUT_RW_INDEX new_gamma_ramp_rw_index = gamma_ramp_rw_index;
         ++new_gamma_ramp_rw_index.rw_index;
         WriteRegister(std::to_underlying(xenos::Register::DC_LUT_RW_INDEX),
-                      rex::Reinterpret<u32>(new_gamma_ramp_rw_index));
+                      std::bit_cast<u32>(new_gamma_ramp_rw_index));
         if (gamma_ramp_write_enable_mask) {
           OnGammaRamp256EntryTableValueWritten();
         }
@@ -507,7 +540,7 @@ void CommandProcessor::SyncCoherency() {
 
   // Volatile because this may be called from the WAIT_REG_MEM loop.
   volatile u32* regs_volatile = register_file_->values;
-  auto status_host = rex::Reinterpret<xenos::reg::COHER_STATUS_HOST>(
+  auto status_host = std::bit_cast<xenos::reg::COHER_STATUS_HOST>(
       static_cast<u32>(regs_volatile[std::to_underlying(xenos::Register::COHER_STATUS_HOST)]));
   u32 base_host = regs_volatile[std::to_underlying(xenos::Register::COHER_BASE_HOST)];
   u32 size_host = regs_volatile[std::to_underlying(xenos::Register::COHER_SIZE_HOST)];
@@ -1134,8 +1167,6 @@ void CommandProcessor::WriteSampleCounts(xenos::DepthSampleCounts& counts, u32 s
 
 bool CommandProcessor::ExecutePacketType3_EVENT_WRITE_ZPD(memory::RingBuffer* reader,
                                                           [[maybe_unused]] u32 packet, u32 count) {
-  // Set by D3D as BE but struct ABI is LE
-  constexpr u32 kQueryFinished = std::byteswap(0xFFFFFEEDu);
   REX_ASSERT(count == 1);
   u32 initiator = reader->ReadAndSwap<u32>();
   WriteRegister(std::to_underlying(xenos::Register::VGT_EVENT_INITIATOR), initiator & 0x3F);

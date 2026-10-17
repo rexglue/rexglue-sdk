@@ -9,6 +9,7 @@
 #include <thread>
 #include <utility>
 
+#include <rex/string/utf8.h>
 #include <rex/cvar.h>
 #include <rex/logging/log.h>
 #include <rex/platform/thread.h>
@@ -30,20 +31,13 @@ struct InSinks {
   ~InSinks() { t_in_sinks = false; }
 };
 
-constexpr std::array<std::string_view, 8> kLevelNames = {"trace", "dev",   "debug",    "info",
-                                                         "warn",  "error", "critical", "off"};
-
-constexpr std::array<std::string_view, 9> kCategoryValues = {
-    "", "trace", "dev", "debug", "info", "warn", "error", "critical", "off"};
+constexpr std::array<std::string_view, 9> kCategoryValues = [] {
+  std::array<std::string_view, 9> values{};
+  std::ranges::copy(kLevelNames, values.begin() + 1);
+  return values;
+}();
 
 constexpr std::array<std::string_view, 3> kReservedNames = {"level", "file", "flush_interval"};
-
-std::string Lowercase(std::string_view text) {
-  std::string out(text);
-  std::ranges::transform(out, out.begin(),
-                         [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-  return out;
-}
 
 CapturedMessage Capture(const Message& message) {
   return CapturedMessage{message.level,
@@ -62,7 +56,7 @@ Message View(const CapturedMessage& message) {
 }  // namespace
 
 [[nodiscard]] Result<Level> ParseLevel(std::string_view text) {
-  const std::string lower = Lowercase(text);
+  const std::string lower = utf8_lower_ascii(text);
   for (size_t index = 0; index < kLevelNames.size(); ++index) {
     if (kLevelNames[index] == lower) {
       return static_cast<Level>(index);

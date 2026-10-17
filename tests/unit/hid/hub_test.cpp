@@ -386,6 +386,12 @@ REX_TEST_CASE("Keyboard pad binds fire only with their exact modifiers and follo
   pad.OnEvent(Key(Kind::kKeyUp, VirtualKey::kJ));
   Drain(pad, id);
 
+  REQUIRE(registry->Set("hid.keybind_x", "K,\r\nJ\r\n"));
+  pad.OnEvent(Key(Kind::kKeyDown, VirtualKey::kJ));
+  CHECK(Drain(pad, id) == std::vector<rex::u16>{pad_x});
+  pad.OnEvent(Key(Kind::kKeyUp, VirtualKey::kJ));
+  Drain(pad, id);
+
   REQUIRE(registry->ResetToDefault("hid.keybind_x"));
   REQUIRE(REXCVAR_SET(rex::hid::cvars::mnk_mode, false));
   registry->Unregister(rex::hid::cvars::kHIDCvars);

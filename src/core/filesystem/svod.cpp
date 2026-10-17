@@ -199,27 +199,27 @@ class SVODReader {
   [[nodiscard]] Result<void> Emit(Visit visit, std::vector<ContainerNode>& nodes,
                                   std::vector<Visit>& stack) const {
     const DirectoryEntry& entry = visit.entry;
-    const u64 root_time = nodes.front().create_time;
+    const u64 root_time = nodes.front().info.create_time;
     ContainerNode node;
-    node.name = std::move(visit.name);
+    node.info.name = std::move(visit.name);
     node.parent = visit.parent;
-    node.create_time = root_time;
-    node.access_time = root_time;
-    node.write_time = root_time;
+    node.info.create_time = root_time;
+    node.info.access_time = root_time;
+    node.info.write_time = root_time;
     const bool directory = (entry.attributes & std::to_underlying(FileAttributes::kDirectory)) != 0;
     if (directory) {
-      node.attributes = FileAttributes::kDirectory | FileAttributes::kReadOnly;
+      node.info.attributes = FileAttributes::kDirectory | FileAttributes::kReadOnly;
     } else {
-      node.attributes = FileAttributes::kNormal | FileAttributes::kReadOnly;
-      node.size = entry.length;
-      node.allocation_size = round_up(static_cast<u64>(entry.length), kFileBlockSize);
+      node.info.attributes = FileAttributes::kNormal | FileAttributes::kReadOnly;
+      node.info.size = entry.length;
+      node.info.allocation_size = round_up_nonzero(static_cast<u64>(entry.length), kFileBlockSize);
       u64 data_block = entry.data_block;
       u64 remaining = round_up(static_cast<u64>(entry.length), kSVODBlockSize);
       while (remaining) {
         auto data = BlockToOffset(data_block);
         if (!data) {
           return Err(Corrupt(std::format("SVOD data block {} of '{}' is outside the data files",
-                                         data_block, node.name)));
+                                         data_block, node.info.name)));
         }
         ++data_block;
         remaining -= kSVODBlockSize;
@@ -265,10 +265,10 @@ class SVODReader {
     return Err(Corrupt("SVOD root record is outside the data file"));
   }
   const u64 root_time = DecodeFATTimestamp(root->creation_date, root->creation_time);
-  nodes.front().attributes = FileAttributes::kDirectory;
-  nodes.front().create_time = root_time;
-  nodes.front().access_time = root_time;
-  nodes.front().write_time = root_time;
+  nodes.front().info.attributes = FileAttributes::kDirectory;
+  nodes.front().info.create_time = root_time;
+  nodes.front().info.access_time = root_time;
+  nodes.front().info.write_time = root_time;
   return reader.Walk(root->block, nodes);
 }
 

@@ -32,6 +32,7 @@
 #include "gpu/xenos/pipeline/shader/spirv_translator.h"
 #include <rex/hash.h>
 #include <rex/platform.h>
+#include "gpu/xenos/host/shader_storage.h"
 #include <rex/platform/thread.h>
 #include "gpu/xenos/primitive_processor.h"
 #include <rex/xenos/register_file.h>
@@ -284,11 +285,7 @@ class VulkanPipelineCache {
 
     TessellationControlShaderKey() : key(0) { REX_STATIC_ASSERT_SIZE(*this, sizeof(key)); }
 
-    struct Hasher {
-      size_t operator()(const TessellationControlShaderKey& hashed_key) const {
-        return std::hash<u32>{}(hashed_key.key);
-      }
-    };
+    using Hasher = rex::KeyHasher<TessellationControlShaderKey>;
     bool operator==(const TessellationControlShaderKey& other_key) const {
       return key == other_key.key;
     }
@@ -310,11 +307,7 @@ class VulkanPipelineCache {
 
     GeometryShaderKey() : key(0) { REX_STATIC_ASSERT_SIZE(*this, sizeof(key)); }
 
-    struct Hasher {
-      size_t operator()(const GeometryShaderKey& hashed_key) const {
-        return std::hash<u32>{}(hashed_key.key);
-      }
-    };
+    using Hasher = rex::KeyHasher<GeometryShaderKey>;
     bool operator==(const GeometryShaderKey& other_key) const { return key == other_key.key; }
     bool operator!=(const GeometryShaderKey& other_key) const { return !(*this == other_key); }
   };
@@ -419,28 +412,8 @@ class VulkanPipelineCache {
   std::deque<std::pair<u64, VkPipeline>> deferred_destroy_pipelines_;
   std::mutex deferred_destroy_lock_;
 
-  std::filesystem::path shader_storage_cache_root_;
-  u32 shader_storage_title_id_ = 0;
-
-  std::fstream shader_storage_file_;
-  std::filesystem::path shader_storage_file_path_;
-  u32 shader_storage_index_ = 0;
-  bool shader_storage_file_flush_needed_ = false;
-
-  std::fstream pipeline_storage_file_;
-  std::filesystem::path pipeline_storage_file_path_;
-  bool pipeline_storage_file_flush_needed_ = false;
-
   void StorageWriteThread();
-  std::mutex storage_write_request_lock_;
-  std::condition_variable storage_write_request_cond_;
-  /** Guarded by storage_write_request_lock_, signaled through storage_write_request_cond_. */
-  std::deque<const Shader*> storage_write_shader_queue_;
-  std::deque<PipelineStoredDescription> storage_write_pipeline_queue_;
-  bool storage_write_flush_shaders_ = false;
-  bool storage_write_flush_pipelines_ = false;
-  bool storage_write_thread_shutdown_ = false;
-  std::unique_ptr<rex::platform::Thread> storage_write_thread_;
+  gpu::ShaderStorage<Shader, PipelineStoredDescription> storage_;
 
   mutable std::mutex creation_request_lock_;
   std::condition_variable creation_request_cond_;

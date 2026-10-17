@@ -6,6 +6,7 @@
 #include <span>
 #include <vector>
 
+#include <rex/platform/file.h>
 #include <rex/runtime.h>
 #include <rex/runtime/content_manager.h>
 #include <rex/runtime/xdbf.h>
@@ -80,17 +81,8 @@ std::unique_ptr<gpu::OverlayTexture> AchievementIconCache::LoadMetadataTexture(
   auto path = runtime_->FindMetadataPath(relative_path);
   std::error_code ec;
   if (path && std::filesystem::exists(*path, ec)) {
-    std::ifstream file(*path, std::ios::binary | std::ios::ate);
-    if (file) {
-      std::streamsize length = file.tellg();
-      if (length > 0) {
-        file.seekg(0);
-
-        std::vector<u8> bytes(static_cast<size_t>(length));
-        if (file.read(reinterpret_cast<char*>(bytes.data()), length)) {
-          return CreateTextureFromBytes(bytes.data(), bytes.size());
-        }
-      }
+    if (auto bytes = rex::platform::ReadHostFile(*path); bytes && !bytes->empty()) {
+      return CreateTextureFromBytes(bytes->data(), bytes->size());
     }
   }
 

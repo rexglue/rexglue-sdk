@@ -21,6 +21,7 @@
 #include <string_view>
 #include <vector>
 
+#include <rex/logging/format.h>
 #include <rex/logging/sink.h>
 #include <rex/types.h>
 
@@ -117,7 +118,7 @@ class GlobalSinkAccessor : public rex::NonCopyable {
 }  // namespace detail
 
 namespace color {
-inline constexpr std::string_view kReset = "\033[0m";
+inline constexpr std::string_view kReset = rex::log::kColorReset;
 inline constexpr std::string_view kBold = "\033[1m";
 inline constexpr std::string_view kDim = "\033[2m";
 inline constexpr std::string_view kGreen = "\033[32m";

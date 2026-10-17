@@ -20,6 +20,7 @@
 #include <limits>
 #include <numeric>
 #include <type_traits>
+#include <utility>
 
 #include <rex/assert.h>
 #include <rex/platform.h>
@@ -121,33 +122,6 @@ T next_pow2(T value) {
   return value;
 }
 
-#if __cpp_lib_gcd_lcm
-/**
- * @tparam T Integer type.
- * @param a First operand.
- * @param b Second operand.
- * @return The greatest common divisor of a and b.
- */
-template <typename T>
-constexpr T GreatestCommonDivisor(T a, T b) {
-  return std::gcd(a, b);
-}
-#else
-/**
- * @tparam T Integer type.
- * @param a First operand.
- * @param b Second operand.
- * @return The greatest common divisor of a and b.
- */
-template <typename T>
-constexpr T GreatestCommonDivisor(T a, T b) {
-  while (b) {
-    a = std::exchange(b, a % b);
-  }
-  return a;
-}
-#endif
-
 /**
  * Divides a fraction by the greatest common divisor of its terms.
  *
@@ -157,7 +131,7 @@ constexpr T GreatestCommonDivisor(T a, T b) {
  */
 template <typename T>
 constexpr void reduce_fraction(T& numerator, T& denominator) {
-  auto gcd = GreatestCommonDivisor(numerator, denominator);
+  auto gcd = std::gcd(numerator, denominator);
   numerator /= gcd;
   denominator /= gcd;
 }

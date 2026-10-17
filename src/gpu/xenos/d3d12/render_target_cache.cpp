@@ -1703,12 +1703,11 @@ ID3D12PipelineState* const* D3D12RenderTargetCache::GetOrCreateTransferPipelines
   built_shader_.resize(sizeof(dxbc::ContainerHeader) / sizeof(u32) + blob_count);
   u32 blob_offset_position_dwords = sizeof(dxbc::ContainerHeader) / sizeof(u32);
   u32 blob_position_dwords = static_cast<u32>(built_shader_.size());
-  constexpr u32 kBlobHeaderSizeDwords = sizeof(dxbc::BlobHeader) / sizeof(u32);
 
   u32 name_ptr;
 
   built_shader_[blob_offset_position_dwords] = static_cast<u32>(blob_position_dwords * sizeof(u32));
-  u32 rdef_position_dwords = blob_position_dwords + kBlobHeaderSizeDwords;
+  u32 rdef_position_dwords = blob_position_dwords + dxbc::kBlobHeaderSizeDwords;
 
   built_shader_.resize(rdef_position_dwords + sizeof(dxbc::RdefHeader) / sizeof(u32));
   dxbc::AppendAlignedString(built_shader_, "ReXGlue");
@@ -1992,7 +1991,7 @@ ID3D12PipelineState* const* D3D12RenderTargetCache::GetOrCreateTransferPipelines
         *reinterpret_cast<dxbc::BlobHeader*>(built_shader_.data() + blob_position_dwords);
     blob_header.fourcc = dxbc::BlobHeader::FourCC::kResourceDefinition;
     blob_position_dwords = static_cast<u32>(built_shader_.size());
-    blob_header.size_bytes = (blob_position_dwords - kBlobHeaderSizeDwords) * sizeof(u32) -
+    blob_header.size_bytes = (blob_position_dwords - dxbc::kBlobHeaderSizeDwords) * sizeof(u32) -
                              built_shader_[blob_offset_position_dwords++];
   }
 
@@ -2006,7 +2005,7 @@ ID3D12PipelineState* const* D3D12RenderTargetCache::GetOrCreateTransferPipelines
   u32 isgn_parameter_count = 1 + static_cast<u32>(key.dest_msaa_samples != xenos::MSAASamples::k1X);
 
   built_shader_[blob_offset_position_dwords] = static_cast<u32>(blob_position_dwords * sizeof(u32));
-  u32 isgn_position_dwords = blob_position_dwords + kBlobHeaderSizeDwords;
+  u32 isgn_position_dwords = blob_position_dwords + dxbc::kBlobHeaderSizeDwords;
   built_shader_.resize(isgn_position_dwords + sizeof(dxbc::Signature) / sizeof(u32) +
                        sizeof(dxbc::SignatureParameter) / sizeof(u32) * isgn_parameter_count);
 
@@ -2049,7 +2048,7 @@ ID3D12PipelineState* const* D3D12RenderTargetCache::GetOrCreateTransferPipelines
         *reinterpret_cast<dxbc::BlobHeader*>(built_shader_.data() + blob_position_dwords);
     blob_header.fourcc = dxbc::BlobHeader::FourCC::kInputSignature;
     blob_position_dwords = static_cast<u32>(built_shader_.size());
-    blob_header.size_bytes = (blob_position_dwords - kBlobHeaderSizeDwords) * sizeof(u32) -
+    blob_header.size_bytes = (blob_position_dwords - dxbc::kBlobHeaderSizeDwords) * sizeof(u32) -
                              built_shader_[blob_offset_position_dwords++];
   }
 
@@ -2062,7 +2061,7 @@ ID3D12PipelineState* const* D3D12RenderTargetCache::GetOrCreateTransferPipelines
       shader_uses_stencil_reference_output ? osgn_parameter_count++ : UINT32_MAX;
 
   built_shader_[blob_offset_position_dwords] = static_cast<u32>(blob_position_dwords * sizeof(u32));
-  u32 osgn_position_dwords = blob_position_dwords + kBlobHeaderSizeDwords;
+  u32 osgn_position_dwords = blob_position_dwords + dxbc::kBlobHeaderSizeDwords;
   built_shader_.resize(osgn_position_dwords + sizeof(dxbc::Signature) / sizeof(u32) +
                        sizeof(dxbc::SignatureParameter) / sizeof(u32) * osgn_parameter_count);
 
@@ -2128,12 +2127,12 @@ ID3D12PipelineState* const* D3D12RenderTargetCache::GetOrCreateTransferPipelines
         *reinterpret_cast<dxbc::BlobHeader*>(built_shader_.data() + blob_position_dwords);
     blob_header.fourcc = dxbc::BlobHeader::FourCC::kOutputSignature;
     blob_position_dwords = static_cast<u32>(built_shader_.size());
-    blob_header.size_bytes = (blob_position_dwords - kBlobHeaderSizeDwords) * sizeof(u32) -
+    blob_header.size_bytes = (blob_position_dwords - dxbc::kBlobHeaderSizeDwords) * sizeof(u32) -
                              built_shader_[blob_offset_position_dwords++];
   }
 
   built_shader_[blob_offset_position_dwords] = static_cast<u32>(blob_position_dwords * sizeof(u32));
-  u32 shex_position_dwords = blob_position_dwords + kBlobHeaderSizeDwords;
+  u32 shex_position_dwords = blob_position_dwords + dxbc::kBlobHeaderSizeDwords;
   built_shader_.resize(shex_position_dwords);
 
   built_shader_.push_back(dxbc::VersionToken(dxbc::ProgramType::kPixelShader, 5, 1));
@@ -3123,14 +3122,14 @@ ID3D12PipelineState* const* D3D12RenderTargetCache::GetOrCreateTransferPipelines
         *reinterpret_cast<dxbc::BlobHeader*>(built_shader_.data() + blob_position_dwords);
     blob_header.fourcc = dxbc::BlobHeader::FourCC::kShaderEx;
     blob_position_dwords = static_cast<u32>(built_shader_.size());
-    blob_header.size_bytes = (blob_position_dwords - kBlobHeaderSizeDwords) * sizeof(u32) -
+    blob_header.size_bytes = (blob_position_dwords - dxbc::kBlobHeaderSizeDwords) * sizeof(u32) -
                              built_shader_[blob_offset_position_dwords++];
   }
 
   if (shader_uses_stencil_reference_output) {
     built_shader_[blob_offset_position_dwords] =
         static_cast<u32>(blob_position_dwords * sizeof(u32));
-    u32 sfi0_position_dwords = blob_position_dwords + kBlobHeaderSizeDwords;
+    u32 sfi0_position_dwords = blob_position_dwords + dxbc::kBlobHeaderSizeDwords;
     built_shader_.resize(sfi0_position_dwords + sizeof(dxbc::ShaderFeatureInfo) / sizeof(u32));
     auto& shader_feature_info =
         *reinterpret_cast<dxbc::ShaderFeatureInfo*>(built_shader_.data() + sfi0_position_dwords);
@@ -3140,13 +3139,13 @@ ID3D12PipelineState* const* D3D12RenderTargetCache::GetOrCreateTransferPipelines
           *reinterpret_cast<dxbc::BlobHeader*>(built_shader_.data() + blob_position_dwords);
       blob_header.fourcc = dxbc::BlobHeader::FourCC::kShaderFeatureInfo;
       blob_position_dwords = static_cast<u32>(built_shader_.size());
-      blob_header.size_bytes = (blob_position_dwords - kBlobHeaderSizeDwords) * sizeof(u32) -
+      blob_header.size_bytes = (blob_position_dwords - dxbc::kBlobHeaderSizeDwords) * sizeof(u32) -
                                built_shader_[blob_offset_position_dwords++];
     }
   }
 
   built_shader_[blob_offset_position_dwords] = static_cast<u32>(blob_position_dwords * sizeof(u32));
-  u32 stat_position_dwords = blob_position_dwords + kBlobHeaderSizeDwords;
+  u32 stat_position_dwords = blob_position_dwords + dxbc::kBlobHeaderSizeDwords;
   built_shader_.resize(stat_position_dwords + sizeof(dxbc::Statistics) / sizeof(u32));
   std::memcpy(built_shader_.data() + stat_position_dwords, &stat, sizeof(dxbc::Statistics));
   {
@@ -3154,7 +3153,7 @@ ID3D12PipelineState* const* D3D12RenderTargetCache::GetOrCreateTransferPipelines
         *reinterpret_cast<dxbc::BlobHeader*>(built_shader_.data() + blob_position_dwords);
     blob_header.fourcc = dxbc::BlobHeader::FourCC::kStatistics;
     blob_position_dwords = static_cast<u32>(built_shader_.size());
-    blob_header.size_bytes = (blob_position_dwords - kBlobHeaderSizeDwords) * sizeof(u32) -
+    blob_header.size_bytes = (blob_position_dwords - dxbc::kBlobHeaderSizeDwords) * sizeof(u32) -
                              built_shader_[blob_offset_position_dwords++];
   }
 
@@ -4195,18 +4194,14 @@ ID3D12PipelineState* D3D12RenderTargetCache::GetOrCreateDumpPipeline(DumpPipelin
 
   built_shader_.clear();
 
-  // RDEF, ISGN, OSGN, SHEX, STAT.
-  constexpr u32 kBlobCount = 5;
-
-  built_shader_.resize(sizeof(dxbc::ContainerHeader) / sizeof(u32) + kBlobCount);
+  built_shader_.resize(sizeof(dxbc::ContainerHeader) / sizeof(u32) + dxbc::kBlobCount);
   u32 blob_offset_position_dwords = sizeof(dxbc::ContainerHeader) / sizeof(u32);
   u32 blob_position_dwords = static_cast<u32>(built_shader_.size());
-  constexpr u32 kBlobHeaderSizeDwords = sizeof(dxbc::BlobHeader) / sizeof(u32);
 
   u32 name_ptr;
 
   built_shader_[blob_offset_position_dwords] = static_cast<u32>(blob_position_dwords * sizeof(u32));
-  u32 rdef_position_dwords = blob_position_dwords + kBlobHeaderSizeDwords;
+  u32 rdef_position_dwords = blob_position_dwords + dxbc::kBlobHeaderSizeDwords;
 
   built_shader_.resize(rdef_position_dwords + sizeof(dxbc::RdefHeader) / sizeof(u32));
   dxbc::AppendAlignedString(built_shader_, "ReXGlue");
@@ -4386,14 +4381,14 @@ ID3D12PipelineState* D3D12RenderTargetCache::GetOrCreateDumpPipeline(DumpPipelin
         *reinterpret_cast<dxbc::BlobHeader*>(built_shader_.data() + blob_position_dwords);
     blob_header.fourcc = dxbc::BlobHeader::FourCC::kResourceDefinition;
     blob_position_dwords = static_cast<u32>(built_shader_.size());
-    blob_header.size_bytes = (blob_position_dwords - kBlobHeaderSizeDwords) * sizeof(u32) -
+    blob_header.size_bytes = (blob_position_dwords - dxbc::kBlobHeaderSizeDwords) * sizeof(u32) -
                              built_shader_[blob_offset_position_dwords++];
   }
 
   for (u32 i = 0; i < 2; ++i) {
     built_shader_[blob_offset_position_dwords] =
         static_cast<u32>(blob_position_dwords * sizeof(u32));
-    u32 signature_position_dwords = blob_position_dwords + kBlobHeaderSizeDwords;
+    u32 signature_position_dwords = blob_position_dwords + dxbc::kBlobHeaderSizeDwords;
     built_shader_.resize(signature_position_dwords + sizeof(dxbc::Signature) / sizeof(u32));
     {
       auto& signature =
@@ -4407,13 +4402,13 @@ ID3D12PipelineState* D3D12RenderTargetCache::GetOrCreateDumpPipeline(DumpPipelin
       blob_header.fourcc = i ? dxbc::BlobHeader::FourCC::kOutputSignature
                              : dxbc::BlobHeader::FourCC::kInputSignature;
       blob_position_dwords = static_cast<u32>(built_shader_.size());
-      blob_header.size_bytes = (blob_position_dwords - kBlobHeaderSizeDwords) * sizeof(u32) -
+      blob_header.size_bytes = (blob_position_dwords - dxbc::kBlobHeaderSizeDwords) * sizeof(u32) -
                                built_shader_[blob_offset_position_dwords++];
     }
   }
 
   built_shader_[blob_offset_position_dwords] = static_cast<u32>(blob_position_dwords * sizeof(u32));
-  u32 shex_position_dwords = blob_position_dwords + kBlobHeaderSizeDwords;
+  u32 shex_position_dwords = blob_position_dwords + dxbc::kBlobHeaderSizeDwords;
   built_shader_.resize(shex_position_dwords);
 
   built_shader_.push_back(dxbc::VersionToken(dxbc::ProgramType::kComputeShader, 5, 1));
@@ -4657,12 +4652,12 @@ ID3D12PipelineState* D3D12RenderTargetCache::GetOrCreateDumpPipeline(DumpPipelin
         *reinterpret_cast<dxbc::BlobHeader*>(built_shader_.data() + blob_position_dwords);
     blob_header.fourcc = dxbc::BlobHeader::FourCC::kShaderEx;
     blob_position_dwords = static_cast<u32>(built_shader_.size());
-    blob_header.size_bytes = (blob_position_dwords - kBlobHeaderSizeDwords) * sizeof(u32) -
+    blob_header.size_bytes = (blob_position_dwords - dxbc::kBlobHeaderSizeDwords) * sizeof(u32) -
                              built_shader_[blob_offset_position_dwords++];
   }
 
   built_shader_[blob_offset_position_dwords] = static_cast<u32>(blob_position_dwords * sizeof(u32));
-  u32 stat_position_dwords = blob_position_dwords + kBlobHeaderSizeDwords;
+  u32 stat_position_dwords = blob_position_dwords + dxbc::kBlobHeaderSizeDwords;
   built_shader_.resize(stat_position_dwords + sizeof(dxbc::Statistics) / sizeof(u32));
   std::memcpy(built_shader_.data() + stat_position_dwords, &stat, sizeof(dxbc::Statistics));
   {
@@ -4670,7 +4665,7 @@ ID3D12PipelineState* D3D12RenderTargetCache::GetOrCreateDumpPipeline(DumpPipelin
         *reinterpret_cast<dxbc::BlobHeader*>(built_shader_.data() + blob_position_dwords);
     blob_header.fourcc = dxbc::BlobHeader::FourCC::kStatistics;
     blob_position_dwords = static_cast<u32>(built_shader_.size());
-    blob_header.size_bytes = (blob_position_dwords - kBlobHeaderSizeDwords) * sizeof(u32) -
+    blob_header.size_bytes = (blob_position_dwords - dxbc::kBlobHeaderSizeDwords) * sizeof(u32) -
                              built_shader_[blob_offset_position_dwords++];
   }
 
@@ -4679,7 +4674,7 @@ ID3D12PipelineState* D3D12RenderTargetCache::GetOrCreateDumpPipeline(DumpPipelin
     auto& container_header = *reinterpret_cast<dxbc::ContainerHeader*>(built_shader_.data());
     container_header.InitializeIdentification();
     container_header.size_bytes = built_shader_size_bytes;
-    container_header.blob_count = kBlobCount;
+    container_header.blob_count = dxbc::kBlobCount;
     CalculateDXBCChecksum(reinterpret_cast<unsigned char*>(built_shader_.data()),
                           static_cast<unsigned int>(built_shader_size_bytes),
                           container_header.hash);

@@ -9,6 +9,7 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
+#include <bit>
 #include <cmath>
 
 #include <rex/bit.h>
@@ -82,14 +83,14 @@ f32 Float7e3To32(u32 f10) {
     exponent = static_cast<u32>(1 - static_cast<i32>(mantissa_lzcnt));
     mantissa = (mantissa << mantissa_lzcnt) & 0x7F;
   }
-  return rex::Reinterpret<f32>(((exponent + 124) << 23) | (mantissa << 16));
+  return std::bit_cast<f32>(((exponent + 124) << 23) | (mantissa << 16));
 }
 
 u32 Float32To20e4(f32 value, bool round_to_nearest_even) {
   if (!(value > 0.0f)) {
     return 0;
   }
-  auto f32u32 = rex::Reinterpret<u32>(value);
+  auto f32u32 = std::bit_cast<u32>(value);
   if (f32u32 >= 0x3FFFFFF8) {
     return 0xFFFFFF;
   }
@@ -117,7 +118,7 @@ f32 Float20e4To32(u32 f24) {
     exponent = static_cast<u32>(1 - static_cast<i32>(mantissa_lzcnt));
     mantissa = (mantissa << mantissa_lzcnt) & 0xFFFFF;
   }
-  return rex::Reinterpret<f32>(((exponent + 112) << 23) | (mantissa << 3));
+  return std::bit_cast<f32>(((exponent + 112) << 23) | (mantissa << 3));
 }
 
 const char* GetColorRenderTargetFormatName(ColorRenderTargetFormat format) {

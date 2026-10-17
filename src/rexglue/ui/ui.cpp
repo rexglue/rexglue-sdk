@@ -25,48 +25,6 @@ void RequireGlobalSink() {
   }
 }
 
-std::string_view LevelLetter(rex::log::Level level) {
-  switch (level) {
-    case rex::log::Level::kTrace:
-      return "T";
-    case rex::log::Level::kDev:
-      return "V";
-    case rex::log::Level::kDebug:
-      return "D";
-    case rex::log::Level::kInfo:
-      return "I";
-    case rex::log::Level::kWarn:
-      return "W";
-    case rex::log::Level::kError:
-      return "E";
-    case rex::log::Level::kCritical:
-      return "C";
-    case rex::log::Level::kOff:
-      return "?";
-  }
-  return "?";
-}
-
-std::string_view LevelColor(rex::log::Level level) {
-  switch (level) {
-    case rex::log::Level::kTrace:
-    case rex::log::Level::kDev:
-      return color::kDim;
-    case rex::log::Level::kDebug:
-      return color::kCyan;
-    case rex::log::Level::kInfo:
-      return color::kGreen;
-    case rex::log::Level::kWarn:
-      return color::kBoldYellow;
-    case rex::log::Level::kError:
-    case rex::log::Level::kCritical:
-      return color::kBoldRed;
-    case rex::log::Level::kOff:
-      return {};
-  }
-  return {};
-}
-
 }  // namespace
 
 PresentationSink::PresentationSink(std::ostream& out, bool tty, bool color)
@@ -80,14 +38,12 @@ void PresentationSink::Write(const rex::log::Message& message) {
   if (tty_) {
     out_.put('[');
     if (color_) {
-      auto col = LevelColor(message.level);
+      const auto col = rex::log::LevelColor(message.level);
       out_.write(col.data(), static_cast<std::streamsize>(col.size()));
-      auto letter = LevelLetter(message.level);
-      out_.write(letter.data(), static_cast<std::streamsize>(letter.size()));
+      out_.put(rex::log::LevelLetter(message.level));
       out_.write(color::kReset.data(), static_cast<std::streamsize>(color::kReset.size()));
     } else {
-      auto letter = LevelLetter(message.level);
-      out_.write(letter.data(), static_cast<std::streamsize>(letter.size()));
+      out_.put(rex::log::LevelLetter(message.level));
     }
     out_.write("] ", 2);
   }

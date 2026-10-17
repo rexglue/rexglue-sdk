@@ -60,11 +60,7 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
       u32 padding : 7;
     };
     u32 key = 0;
-    struct Hasher {
-      size_t operator()(const RenderPassKey& hashed_key) const {
-        return std::hash<u32>{}(hashed_key.key);
-      }
-    };
+    using Hasher = rex::KeyHasher<RenderPassKey>;
     bool operator==(const RenderPassKey& other_key) const { return key == other_key.key; }
     bool operator!=(const RenderPassKey& other_key) const { return !(*this == other_key); }
     bool operator<(const RenderPassKey& other_key) const { return key < other_key.key; }
@@ -572,11 +568,7 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
 
     TransferShaderKey() : key(0) { REX_STATIC_ASSERT_SIZE(*this, sizeof(key)); }
 
-    struct Hasher {
-      size_t operator()(const TransferShaderKey& hashed_key) const {
-        return std::hash<u32>{}(hashed_key.key);
-      }
-    };
+    using Hasher = rex::KeyHasher<TransferShaderKey>;
     bool operator==(const TransferShaderKey& other_key) const { return key == other_key.key; }
     bool operator!=(const TransferShaderKey& other_key) const { return !(*this == other_key); }
     bool operator<(const TransferShaderKey& other_key) const { return key < other_key.key; }
@@ -674,11 +666,7 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
 
     DumpPipelineKey() : key(0) { REX_STATIC_ASSERT_SIZE(*this, sizeof(key)); }
 
-    struct Hasher {
-      size_t operator()(const DumpPipelineKey& hashed_key) const {
-        return std::hash<u32>{}(hashed_key.key);
-      }
-    };
+    using Hasher = rex::KeyHasher<DumpPipelineKey>;
     bool operator==(const DumpPipelineKey& other_key) const { return key == other_key.key; }
     bool operator!=(const DumpPipelineKey& other_key) const { return !(*this == other_key); }
     bool operator<(const DumpPipelineKey& other_key) const { return key < other_key.key; }

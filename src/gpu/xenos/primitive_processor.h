@@ -22,6 +22,7 @@
 #include <unordered_map>
 #include <utility>
 
+#include <rex/hash.h>
 #include <rex/assert.h>
 #include <rex/cvar.h>
 #include "gpu/xenos/pipeline/shader/shader.h"
@@ -506,11 +507,7 @@ class REX_GPU_XENOS_API PrimitiveProcessor : public rex::NonCopyable {
       this->non_vertex_32bit_dma_to_24bit = non_vertex_32bit_dma_to_24bit;
     }
 
-    struct Hasher {
-      size_t operator()(const CacheKey& hashed_key) const {
-        return std::hash<u64>{}(hashed_key.key);
-      }
-    };
+    using Hasher = rex::KeyHasher<CacheKey>;
     bool operator==(const CacheKey& other_key) const { return key == other_key.key; }
 
     u32 GetSizeBytes() const {

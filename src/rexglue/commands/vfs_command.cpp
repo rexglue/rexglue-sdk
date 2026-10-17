@@ -43,7 +43,7 @@ std::string KindName(fs::ContainerKind kind) {
   const auto nodes = container->GetNodes();
   const rex::u64 bytes = std::accumulate(
       nodes.begin(), nodes.end(), rex::u64{0},
-      [](rex::u64 total, const fs::ContainerNode& node) { return total + node.size; });
+      [](rex::u64 total, const fs::ContainerNode& node) { return total + node.info.size; });
   const std::array<ui::KeyValueRow, 4> rows = {{
       {"Source", args.source},
       {"Kind", KindName(container->GetKind())},

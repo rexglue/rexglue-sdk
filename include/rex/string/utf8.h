@@ -239,6 +239,14 @@ REX_API bool utf8_ends_with_case(const std::string_view haystack, const std::str
 REX_API std::vector<std::string_view> utf8_split_path(const std::string_view path);
 
 /**
+ * Drops the leading / characters of a path.
+ *
+ * @param path The path.
+ * @return A view of the rest of the path.
+ */
+REX_API std::string_view utf8_strip_leading_slashes(const std::string_view path);
+
+/**
  * Joins 2 path segments, adding a separator unless the left segment already ends with 1.
  *
  * @param left_path First segment. When empty the result is right_path.

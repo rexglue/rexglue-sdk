@@ -19,7 +19,6 @@ namespace rex::filesystem {
 
 namespace {
 
-constexpr u32 kBytesPerSector = 0x200;
 constexpr u32 kAllocationUnits = 128 * 1024;
 
 bool IsHostName(std::string_view name) {
@@ -141,7 +140,7 @@ HostNode::HostNode(HostProvider& provider, Node* parent, std::string path,
                    std::filesystem::path host_path)
     : Node(provider, parent, std::move(path)), host_path_(std::move(host_path)) {
   if (!parent) {
-    attributes_ = FileAttributes::kDirectory;
+    info_.attributes = FileAttributes::kDirectory;
   }
 }
 
@@ -155,18 +154,18 @@ std::unique_ptr<HostNode> HostNode::Create(HostProvider& provider, HostNode& par
   auto node = std::make_unique<HostNode>(
       provider, &parent, utf8_join_guest_paths(parent.GetPath(), PathToUTF8(info.name)),
       parent.GetHostPath() / info.name);
-  node->create_time_ = info.create_time;
-  node->access_time_ = info.access_time;
-  node->write_time_ = info.write_time;
+  node->info_.create_time = info.create_time;
+  node->info_.access_time = info.access_time;
+  node->info_.write_time = info.write_time;
   if (info.directory) {
-    node->attributes_ = FileAttributes::kDirectory;
+    node->info_.attributes = FileAttributes::kDirectory;
   } else {
-    node->attributes_ = FileAttributes::kNormal;
+    node->info_.attributes = FileAttributes::kNormal;
     if (provider.IsReadOnly()) {
-      node->attributes_ |= FileAttributes::kReadOnly;
+      node->info_.attributes |= FileAttributes::kReadOnly;
     }
-    node->size_ = info.size;
-    node->allocation_size_ = round_up(info.size, u64{kBytesPerSector});
+    node->info_.size = info.size;
+    node->info_.allocation_size = round_up_nonzero(info.size, u64{kBytesPerSector});
   }
   return node;
 }
@@ -199,7 +198,7 @@ Result<std::unique_ptr<NodeStream>> HostNode::Open(Access access) {
   if (IsReadOnly() && (access & (Access::kWriteData | Access::kAppendData)) != Access::kNone) {
     return Err<std::unique_ptr<NodeStream>>(
         BuildError(FileSystemError::kAccessDenied,
-                   std::format("'{}' is on a read only mount", absolute_path_)));
+                   std::format("'{}' is on a read only mount", info_.absolute_path)));
   }
   REX_TRY(std::unique_ptr<HostFile> file, HostFile::OpenExisting(host_path_, access));
   return std::unique_ptr<NodeStream>(std::make_unique<HostStream>(*this, access, std::move(file)));
@@ -208,7 +207,7 @@ Result<std::unique_ptr<NodeStream>> HostNode::Open(Access access) {
 Result<void> HostNode::Truncate() {
   if (IsReadOnly() || IsDirectory()) {
     return Err(BuildError(FileSystemError::kAccessDenied,
-                          std::format("cannot truncate '{}'", absolute_path_)));
+                          std::format("cannot truncate '{}'", info_.absolute_path)));
   }
   if (auto file = HostFile::OpenExisting(host_path_, Access::kGenericWrite)) {
     REX_TRY_VOID((*file)->SetLength(0));
@@ -220,8 +219,8 @@ Result<void> HostNode::Truncate() {
     }
   }
   std::lock_guard lock(GetProvider().GetMutex());
-  size_ = 0;
-  allocation_size_ = 0;
+  info_.size = 0;
+  info_.allocation_size = 0;
   return Ok();
 }
 
@@ -231,8 +230,8 @@ void HostNode::Refresh() {
     return;
   }
   std::lock_guard lock(GetProvider().GetMutex());
-  size_ = info->size;
-  allocation_size_ = round_up(info->size, u64{kBytesPerSector});
+  info_.size = info->size;
+  info_.allocation_size = round_up_nonzero(info->size, u64{kBytesPerSector});
 }
 
 bool HostNode::HasChildVanished(const Node& child) const {
@@ -243,22 +242,22 @@ bool HostNode::HasChildVanished(const Node& child) const {
 Result<void> HostNode::SetAttributes(FileAttributes attributes) {
   if (IsReadOnly()) {
     return Err(BuildError(FileSystemError::kAccessDenied,
-                          std::format("'{}' is on a read only mount", absolute_path_)));
+                          std::format("'{}' is on a read only mount", info_.absolute_path)));
   }
   std::lock_guard lock(GetProvider().GetMutex());
-  attributes_ = attributes;
+  info_.attributes = attributes;
   return Ok();
 }
 
 Result<void> HostNode::SetTimes(const FileTimes& times) {
   if (IsReadOnly()) {
     return Err(BuildError(FileSystemError::kAccessDenied,
-                          std::format("'{}' is on a read only mount", absolute_path_)));
+                          std::format("'{}' is on a read only mount", info_.absolute_path)));
   }
   std::lock_guard lock(GetProvider().GetMutex());
-  create_time_ = times.create.value_or(create_time_);
-  access_time_ = times.access.value_or(access_time_);
-  write_time_ = times.write.value_or(write_time_);
+  info_.create_time = times.create.value_or(info_.create_time);
+  info_.access_time = times.access.value_or(info_.access_time);
+  info_.write_time = times.write.value_or(info_.write_time);
   return Ok();
 }
 

@@ -87,7 +87,7 @@ Result<Container> Container::Open(const std::filesystem::path& path) {
 
   Container container;
   container.path_ = file;
-  container.nodes_.emplace_back().attributes = FileAttributes::kDirectory;
+  container.nodes_.emplace_back().info.attributes = FileAttributes::kDirectory;
   const std::span<const u8> bytes = BytesOf(*map);
 
   if (IsPackageMagic(bytes)) {
@@ -166,8 +166,9 @@ const ContainerNode* Container::Find(std::string_view path) const {
     }
     const std::string_view part = path.substr(start, end - start);
     if (!part.empty()) {
-      auto child = std::ranges::find_if(
-          node->children, [&](u32 index) { return utf8_equal_case(nodes_[index].name, part); });
+      auto child = std::ranges::find_if(node->children, [&](u32 index) {
+        return utf8_equal_case(nodes_[index].info.name, part);
+      });
       if (child == node->children.end()) {
         return nullptr;
       }
@@ -182,7 +183,7 @@ std::string Container::PathOf(const ContainerNode& node) const {
   std::vector<std::string_view> parts;
   const ContainerNode* current = &node;
   while (current != &nodes_.front()) {
-    parts.push_back(current->name);
+    parts.push_back(current->info.name);
     current = &nodes_[current->parent];
   }
   std::string result;
@@ -196,11 +197,11 @@ std::string Container::PathOf(const ContainerNode& node) const {
 }
 
 Result<size_t> Container::Read(const ContainerNode& node, u64 offset, std::span<u8> buffer) const {
-  if (offset >= node.size) {
+  if (offset >= node.info.size) {
     return Err<size_t>(
         BuildError(FileSystemError::kEndOfFile, "read starts at or past the end of the file"));
   }
-  u64 remaining = std::min<u64>(buffer.size(), node.size - offset);
+  u64 remaining = std::min<u64>(buffer.size(), node.info.size - offset);
   u64 source = 0;
   size_t copied = 0;
   for (const ContainerExtent& extent : node.extents) {
@@ -217,7 +218,7 @@ Result<size_t> Container::Read(const ContainerNode& node, u64 offset, std::span<
     const u64 start = extent.offset + skip;
     if (!detail::IsInBounds(file, start, length)) {
       REXLOG_WARN(filesystem, "container read of '{}' stops at the end of the data file",
-                  node.name);
+                  node.info.name);
       break;
     }
     std::memcpy(buffer.data() + copied, file.data() + start, length);
@@ -229,15 +230,15 @@ Result<size_t> Container::Read(const ContainerNode& node, u64 offset, std::span<
 }
 
 std::span<const u8> Container::View(const ContainerNode& node) const {
-  if (node.extents.size() != 1 || node.extents.front().length < node.size) {
+  if (node.extents.size() != 1 || node.extents.front().length < node.info.size) {
     return {};
   }
   const ContainerExtent& extent = node.extents.front();
   const std::span<const u8> file = BytesOf(*files_[extent.file]);
-  if (!detail::IsInBounds(file, extent.offset, node.size)) {
+  if (!detail::IsInBounds(file, extent.offset, node.info.size)) {
     return {};
   }
-  return file.subspan(extent.offset, node.size);
+  return file.subspan(extent.offset, node.info.size);
 }
 
 Result<void> Container::Extract(const std::filesystem::path& destination) const {
@@ -263,13 +264,13 @@ Result<void> Container::Extract(const std::filesystem::path& destination) const 
   std::vector<u8> chunk;
   for (size_t index = 1; index < nodes_.size(); ++index) {
     const ContainerNode& node = nodes_[index];
-    if (!IsSafeName(node.name)) {
+    if (!IsSafeName(node.info.name)) {
       return fail(FileSystemError::kInvalidPath,
-                  std::format("container name '{}' is refused", node.name));
+                  std::format("container name '{}' is refused", node.info.name));
     }
-    host[index] = host[node.parent] / to_path(node.name);
+    host[index] = host[node.parent] / to_path(node.info.name);
     const bool fresh = !std::filesystem::exists(host[index], ec);
-    if (HasFlags(node.attributes, FileAttributes::kDirectory)) {
+    if (HasFlags(node.info.attributes, FileAttributes::kDirectory)) {
       std::filesystem::create_directories(host[index], ec);
       if (ec) {
         return fail(FileSystemError::kIO,
@@ -287,8 +288,8 @@ Result<void> Container::Extract(const std::filesystem::path& destination) const 
     if (fresh) {
       written.push_back(host[index]);
     }
-    chunk.resize(static_cast<size_t>(std::min<u64>(node.size, kExtractChunk)));
-    for (u64 offset = 0; offset < node.size;) {
+    chunk.resize(static_cast<size_t>(std::min<u64>(node.info.size, kExtractChunk)));
+    for (u64 offset = 0; offset < node.info.size;) {
       auto read = Read(node, offset, chunk);
       if (!read || *read == 0) {
         return fail(FileSystemError::kCorrupt, std::format("cannot read '{}'", PathOf(node)));

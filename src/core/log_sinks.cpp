@@ -20,7 +20,6 @@ namespace rex::log {
 
 namespace {
 
-constexpr std::string_view kColorReset = "\x1b[0m";
 constexpr size_t kCategoryWidth = 10;
 
 void AppendTimestamp(std::string& out, const Message& message, TimestampStyle style) {

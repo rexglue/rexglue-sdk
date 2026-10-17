@@ -11,15 +11,14 @@
 #pragma once
 
 #include <rex/cvar.h>
+#include <rex/logging/level.h>
 
 namespace rex::cvars {
 
 REXCVAR_BOOL(clock, no_scaling, false, "Disable clock scaling (inverted: false = scaling enabled)");
 REXCVAR_TABLE(kClockCvars, no_scaling);
 
-REXCVAR_STRING(log, level, "info", "Default log level")
-    .SetAllowed(REXCVAR_ALLOWED("trace", "dev", "debug", "info", "warn", "error", "critical",
-                                "off"));
+REXCVAR_STRING(log, level, "info", "Default log level").SetAllowed(rex::log::kLevelNames);
 REXCVAR_STRING(log, file, "", "Log file path, empty for a numbered file in the logs folder")
     .SetLifecycle(rex::cvar::Lifecycle::kInitOnly);
 REXCVAR_INT32(log, flush_interval, 1, "Seconds between log flushes, 0 for none")

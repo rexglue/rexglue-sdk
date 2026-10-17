@@ -8,6 +8,7 @@
 #include <span>
 #include <utility>
 
+#include <rex/string.h>
 #include <rex/cvar.h>
 #include <rex/cvar/registry.h>
 #include <rex/logging/log.h>
@@ -26,15 +27,6 @@ constexpr std::array<BuiltIn, 2> kBuiltIns = {{
     {"clear", "Empties the console output"},
     {"help", "Lists every cvar and command with its value"},
 }};
-
-std::string_view Trim(std::string_view text) {
-  const auto first = text.find_first_not_of(" \t");
-  if (first == std::string_view::npos) {
-    return {};
-  }
-  const auto last = text.find_last_not_of(" \t");
-  return text.substr(first, last - first + 1);
-}
 
 std::string_view TypeName(cvar::Type type) {
   switch (type) {

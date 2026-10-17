@@ -7,6 +7,7 @@
 #include <string>
 #include <utility>
 
+#include <rex/chrono/chrono.h>
 #include <rex/logging/log.h>
 #include <rex/platform/file.h>
 #include <toml++/toml.hpp>
@@ -19,11 +20,7 @@ std::filesystem::path ResolveUnlockSavePath(const std::filesystem::path& user_ro
 }
 
 u64 AchievementManager::GetCurrentFileTime() {
-  using namespace std::chrono;
-  auto now = system_clock::now().time_since_epoch();
-  auto intervals = duration_cast<duration<i64, std::ratio<1, 10'000'000>>>(now);
-  constexpr u64 kEpochDelta = 116'444'736'000'000'000ULL;
-  return static_cast<u64>(intervals.count()) + kEpochDelta;
+  return WinSystemClock::ToFileTime(WinSystemClock::from_sys(std::chrono::system_clock::now()));
 }
 
 Result<void> AchievementManager::RegisterAchievement(AchievementInfo info) {

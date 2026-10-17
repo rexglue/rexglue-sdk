@@ -13,7 +13,6 @@
 #pragma once
 
 #include <cstring>
-#include <format>
 
 #include <rex/platform.h>
 #include <rex/export.h>
@@ -34,23 +33,6 @@ REX_API bool IsDebuggerAttached();
  * POSIX raises SIGTRAP.
  */
 REX_API void Break();
-
-namespace detail {
-REX_API void DebugPrint(const char* s);
-}
-
-/**
- * Formats a message and sends it to the debugger output, bypassing the log. Windows writes it with
- * OutputDebugStringA and POSIX writes it to std::clog.
- *
- * @tparam Args The format argument types.
- * @param format The std::format string, checked at compile time.
- * @param args The format arguments.
- */
-template <typename... Args>
-void DebugPrint(std::format_string<const Args&...> format, const Args&... args) {
-  detail::DebugPrint(std::format(format, args...).c_str());
-}
 
 }  // namespace rex::platform
 

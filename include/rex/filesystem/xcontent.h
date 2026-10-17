@@ -12,6 +12,7 @@
 
 #pragma once
 
+#include <array>
 #include <filesystem>
 #include <span>
 #include <string>
@@ -44,6 +45,15 @@ enum class XContentVolumeType : u32 {
   kSTFS = 0, /**< Secure transacted file system, 1 file. */
   kSVOD = 1, /**< Secure virtual optical disc, a header file and data fragments. */
 };
+
+/** Bytes in a block of an STFS package. */
+inline constexpr u32 kSTFSBlockSize = 0x1000;
+
+/** Most blocks an STFS package holds. */
+inline constexpr u32 kSTFSMaxBlocks = 4913000;
+
+/** Blocks covered by one hash table at each of the 3 hash levels. */
+inline constexpr std::array<u32, 3> kSTFSBlocksPerHashLevel = {170, 28900, kSTFSMaxBlocks};
 
 #pragma pack(push, 1)
 

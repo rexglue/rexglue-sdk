@@ -56,4 +56,23 @@ struct Message {
  */
 REX_API std::string FormatLine(const Message& message, const LineFormat& format);
 
+/** The ANSI SGR code that ends a colored run. */
+inline constexpr std::string_view kColorReset = "\x1b[0m";
+
+/**
+ * Returns the ANSI SGR prefix of a level, empty for Info.
+ *
+ * @param level The level.
+ * @return The escape sequence.
+ */
+REX_API std::string_view LevelColor(Level level);
+
+/**
+ * Returns the 1 letter file column of a level.
+ *
+ * @param level The level.
+ * @return The letter.
+ */
+REX_API char LevelLetter(Level level);
+
 }  // namespace rex::log

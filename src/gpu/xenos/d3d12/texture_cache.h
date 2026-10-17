@@ -18,6 +18,7 @@
 #include <utility>
 #include <vector>
 
+#include <rex/hash.h>
 #include <rex/assert.h>
 #include <rex/types.h>
 #include "gpu/xenos/d3d12/shader.h"
@@ -263,9 +264,6 @@ class D3D12TextureCache final : public TextureCache {
   void UpdateTextureBindingsImpl(u32 fetch_constant_mask) override;
 
  private:
-  static constexpr u32 kLoadGuestXThreadsPerGroupLog2 = 2;
-  static constexpr u32 kLoadGuestYBlocksPerGroupLog2 = 5;
-
   struct HostFormat {
     /** Typeless when the signedness or number representation differs. */
     DXGI_FORMAT dxgi_format_resource;
@@ -312,11 +310,7 @@ class D3D12TextureCache final : public TextureCache {
 
       SRVDescriptorKey() : key(0) { REX_STATIC_ASSERT_SIZE(*this, sizeof(key)); }
 
-      struct Hasher {
-        size_t operator()(const SRVDescriptorKey& hashed_key) const {
-          return std::hash<decltype(hashed_key.key)>{}(hashed_key.key);
-        }
-      };
+      using Hasher = rex::KeyHasher<SRVDescriptorKey>;
       bool operator==(const SRVDescriptorKey& other_key) const { return key == other_key.key; }
       bool operator!=(const SRVDescriptorKey& other_key) const { return !(*this == other_key); }
     };

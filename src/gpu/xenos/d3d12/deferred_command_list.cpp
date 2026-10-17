@@ -20,11 +20,11 @@ namespace rex::gpu::d3d12 {
 DeferredCommandList::DeferredCommandList(const D3D12CommandProcessor& command_processor,
                                          size_t initial_size)
     : command_processor_(command_processor) {
-  command_stream_.reserve(initial_size / sizeof(uintmax_t));
+  command_stream_.Reserve(initial_size);
 }
 
 void DeferredCommandList::Reset() {
-  command_stream_.clear();
+  command_stream_.Clear();
 }
 
 void DeferredCommandList::Execute(ID3D12GraphicsCommandList* command_list,
@@ -32,8 +32,8 @@ void DeferredCommandList::Execute(ID3D12GraphicsCommandList* command_list,
 #if REXGPU_FINE_GRAINED_DRAW_SCOPES
   REX_PROFILE_SCOPE("gpu");
 #endif  // REXGPU_FINE_GRAINED_DRAW_SCOPES
-  const uintmax_t* stream = command_stream_.data();
-  size_t stream_remaining = command_stream_.size();
+  const uintmax_t* stream = command_stream_.Data();
+  size_t stream_remaining = command_stream_.Size();
   ID3D12PipelineState* current_pipeline_state = nullptr;
   while (stream_remaining != 0) {
     const CommandHeader& header = *reinterpret_cast<const CommandHeader*>(stream);
@@ -277,14 +277,7 @@ void DeferredCommandList::Execute(ID3D12GraphicsCommandList* command_list,
 }
 
 void* DeferredCommandList::WriteCommand(Command command, size_t arguments_size_bytes) {
-  size_t arguments_size_elements =
-      (arguments_size_bytes + sizeof(uintmax_t) - 1) / sizeof(uintmax_t);
-  size_t offset = command_stream_.size();
-  command_stream_.resize(offset + kCommandHeaderSizeElements + arguments_size_elements);
-  CommandHeader& header = *reinterpret_cast<CommandHeader*>(command_stream_.data() + offset);
-  header.command = command;
-  header.arguments_size_elements = static_cast<u32>(arguments_size_elements);
-  return command_stream_.data() + (offset + kCommandHeaderSizeElements);
+  return command_stream_.Write(command, arguments_size_bytes);
 }
 
 }  // namespace rex::gpu::d3d12

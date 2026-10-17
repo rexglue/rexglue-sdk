@@ -20,6 +20,7 @@
 #include <rex/literals.h>
 #include <rex/math.h>
 #include "gpu/xenos/host/d3d12/d3d12_api.h"
+#include "gpu/xenos/host/deferred_stream.h"
 
 namespace rex::gpu::d3d12 {
 
@@ -494,12 +495,9 @@ class DeferredCommandList {
     kInsertDebugMarker,
   };
 
-  struct CommandHeader {
-    Command command;
-    u32 arguments_size_elements;
-  };
-  static constexpr size_t kCommandHeaderSizeElements =
-      (sizeof(CommandHeader) + sizeof(uintmax_t) - 1) / sizeof(uintmax_t);
+  using Stream = gpu::DeferredStream<Command>;
+  using CommandHeader = Stream::Header;
+  static constexpr size_t kCommandHeaderSizeElements = Stream::kHeaderSizeElements;
 
   struct ClearDepthStencilViewHeader {
     D3D12_CPU_DESCRIPTOR_HANDLE depth_stencil_view;
@@ -641,7 +639,7 @@ class DeferredCommandList {
   const D3D12CommandProcessor& command_processor_;
 
   /** uintmax_t gives all structures uint64_t and pointer alignment. */
-  std::vector<uintmax_t> command_stream_;
+  Stream command_stream_;
 };
 
 }  // namespace rex::gpu::d3d12

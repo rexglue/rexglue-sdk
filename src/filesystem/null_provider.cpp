@@ -79,14 +79,14 @@ Node* NullProvider::Resolve(std::string_view path) {
 
 NullNode::NullNode(NullProvider& provider, Node* parent, std::string path)
     : Node(provider, parent, std::move(path)) {
-  attributes_ = parent ? FileAttributes::kNormal : FileAttributes::kDirectory;
+  info_.attributes = parent ? FileAttributes::kNormal : FileAttributes::kDirectory;
 }
 
 Result<std::unique_ptr<NodeStream>> NullNode::Open(Access access) {
   if (IsReadOnly() && (access & (Access::kWriteData | Access::kAppendData)) != Access::kNone) {
     return Err<std::unique_ptr<NodeStream>>(
         BuildError(FileSystemError::kAccessDenied,
-                   std::format("'{}' is on a read only mount", absolute_path_)));
+                   std::format("'{}' is on a read only mount", info_.absolute_path)));
   }
   return std::unique_ptr<NodeStream>(std::make_unique<NullStream>(access));
 }

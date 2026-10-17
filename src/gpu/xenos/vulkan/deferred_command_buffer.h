@@ -19,6 +19,7 @@
 #include <rex/assert.h>
 #include <rex/math.h>
 #include "gpu/xenos/host/vulkan/api.h"
+#include "gpu/xenos/host/deferred_stream.h"
 
 namespace rex::gpu::vulkan {
 
@@ -380,12 +381,9 @@ class DeferredCommandBuffer {
     kVkSetViewport,
   };
 
-  struct CommandHeader {
-    Command command;
-    u32 arguments_size_elements;
-  };
-  static constexpr size_t kCommandHeaderSizeElements =
-      (sizeof(CommandHeader) + sizeof(uintmax_t) - 1) / sizeof(uintmax_t);
+  using Stream = gpu::DeferredStream<Command>;
+  using CommandHeader = Stream::Header;
+  static constexpr size_t kCommandHeaderSizeElements = Stream::kHeaderSizeElements;
 
   struct ArgsVkBeginRenderPass {
     VkRenderPass render_pass;
@@ -575,7 +573,7 @@ class DeferredCommandBuffer {
   const VulkanCommandProcessor& command_processor_;
 
   /** uintmax_t elements give uint64_t and pointer alignment to all structures. */
-  std::vector<uintmax_t> command_stream_;
+  Stream command_stream_;
 };
 
 }  // namespace rex::gpu::vulkan

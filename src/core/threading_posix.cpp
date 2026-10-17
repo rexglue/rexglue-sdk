@@ -432,12 +432,10 @@ bool CurrentThreadHasUserCallback();
 class PosixConditionBase;
 
 /** Registers a waiter on a set of objects for the lifetime of the scope. */
-class WaitRegistration {
+class WaitRegistration : public NonCopyable {
  public:
   WaitRegistration(Waiter& waiter, std::span<PosixConditionBase* const> conditions);
   ~WaitRegistration() { Release(); }
-  WaitRegistration(const WaitRegistration&) = delete;
-  WaitRegistration& operator=(const WaitRegistration&) = delete;
 
   /** Removes the waiter from every object. Safe to call again. */
   void Release();

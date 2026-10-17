@@ -12,6 +12,7 @@
 
 #include <rex/codegen/function_node.h>
 #include <rex/move_only_function.h>
+#include <rex/types.h>
 
 namespace rex::codegen {
 
@@ -26,14 +27,9 @@ namespace rex::codegen {
  *   functions are always protected and DISCOVERED functions with xrefs can be merged as a
  *   potential internal label
  */
-class FunctionGraph {
+class FunctionGraph : public rex::MoveOnly {
  public:
   FunctionGraph() = default;
-  FunctionGraph(const FunctionGraph&) = delete;
-  FunctionGraph& operator=(const FunctionGraph&) = delete;
-  FunctionGraph(FunctionGraph&&) noexcept(false) = default;
-  FunctionGraph& operator=(FunctionGraph&&) noexcept(false) = default;
-  ~FunctionGraph() = default;
 
   /**
    * Reads the dword stored at a guest address.

@@ -446,36 +446,14 @@ class D3D12CommandProcessor : public CommandProcessor {
     u64 last_used_frame = 0;
   };
   void EvictOldReadbackBuffers(std::unordered_map<u64, ReadbackBuffer>& buffer_map) const;
-  static constexpr u32 kReadbackBufferSizeIncrement = 16 * 1024 * 1024;
-  static constexpr size_t kMaxReadbackBuffers = 256;
-  static constexpr u64 kReadbackBufferEvictionAgeFrames = 60;
-  static u32 AlignReadbackBufferSize(u32 size) {
-    if (size < 1 * 1024 * 1024) {
-      return rex::Align(size, 256u * 1024u);
-    }
-    if (size < 4 * 1024 * 1024) {
-      return rex::Align(size, 1u * 1024u * 1024u);
-    }
-    return rex::Align(size, kReadbackBufferSizeIncrement);
-  }
-  static u64 BuildReadbackResolveKey(u32 address, u32 length) {
-    return (static_cast<u64>(address) << 32) | static_cast<u64>(length);
-  }
-  static u64 BuildMemexportReadbackKey(u32 first_base_address_dwords, u32 total_size) {
-    return (static_cast<u64>(first_base_address_dwords) << 32) | static_cast<u64>(total_size);
-  }
 
   bool InitializeOcclusionQueryResources();
   void ShutdownOcclusionQueryResources();
   bool BeginGuestOcclusionQuery(u32 sample_count_address);
   bool EndGuestOcclusionQuery(xenos::DepthSampleCounts* sample_counts);
-  bool AcquireOcclusionQueryIndex(u32& host_index_out);
   void DisableHostOcclusionQueries();
   u64 NormalizeOcclusionSamples(u64 samples) const;
   void WriteGuestOcclusionResult(xenos::DepthSampleCounts* sample_counts, u64 samples);
-  void InvalidateAllVertexBufferResidency();
-  void InvalidateVertexBufferResidency(u32 vfetch_index);
-  void InvalidateVertexBufferResidencyRange(u32 first_vfetch, u32 last_vfetch);
 
   void WriteGammaRampSRV(bool is_pwl, D3D12_CPU_DESCRIPTOR_HANDLE handle) const;
 
@@ -704,19 +682,15 @@ class D3D12CommandProcessor : public CommandProcessor {
   std::unordered_map<u64, ReadbackBuffer> readback_buffers_;
   std::unordered_map<u64, ReadbackBuffer> memexport_readback_buffers_;
 
-  static constexpr u32 kMaxOcclusionQueries = 8192;
   Microsoft::WRL::ComPtr<ID3D12QueryHeap> occlusion_query_heap_;
   Microsoft::WRL::ComPtr<ID3D12Resource> occlusion_query_readback_;
   u64* occlusion_query_readback_mapping_ = nullptr;
-  u32 occlusion_query_cursor_ = 0;
   bool occlusion_query_resources_available_ = false;
   struct ActiveOcclusionQuery {
     u32 sample_count_address = 0;
     u32 host_index = UINT32_MAX;
     bool valid = false;
   } active_occlusion_query_;
-  static constexpr u32 kVertexFetchCount = 96;
-  u64 vertex_buffers_in_sync_[2] = {};
 
   D3D12_VIEWPORT ff_viewport_;
   D3D12_RECT ff_scissor_;

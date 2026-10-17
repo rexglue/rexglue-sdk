@@ -190,7 +190,7 @@ void PipelineCache::Shutdown() {
   texture_binding_layout_map_.clear();
   texture_binding_layouts_.clear();
   shaders_.clear();
-  shader_storage_index_ = 0;
+  storage_.shader_index = 0;
 
   gpu::d3d12::objects::ReleaseAndNull(dxc_compiler_);
   gpu::d3d12::objects::ReleaseAndNull(dxc_utils_);
@@ -222,15 +222,15 @@ void PipelineCache::InitializeShaderStorage(const std::filesystem::path& cache_r
   auto pipeline_storage_file_path =
       shader_storage_shareable_root /
       std::format("{:08X}.{}.d3d12.xpso", title_id, edram_rov_used ? "rov" : "rtv");
-  pipeline_storage_file_path_ = pipeline_storage_file_path;
-  if (!platform::OpenStorageFile(pipeline_storage_file_, pipeline_storage_file_path)) {
+  storage_.pipeline_file_path = pipeline_storage_file_path;
+  if (!platform::OpenStorageFile(storage_.pipeline_file, pipeline_storage_file_path)) {
     REXLOG_ERROR(gpu,
                  "Failed to open the Direct3D 12 pipeline description storage file for "
                  "writing, persistent shader storage will be disabled: {}",
                  rex::PathToUTF8(pipeline_storage_file_path));
     return;
   }
-  pipeline_storage_file_flush_needed_ = false;
+  storage_.pipeline_file_flush_needed = false;
   // 'XEPS'.
   const u32 pipeline_storage_magic = 0x53504558;
   // 'DXRO' or 'DXRT'.
@@ -242,7 +242,7 @@ void PipelineCache::InitializeShaderStorage(const std::filesystem::path& cache_r
     u32 magic_api;
     be_u32 version;
   } pipeline_storage_file_header;
-  if (platform::ReadStorage(pipeline_storage_file_, &pipeline_storage_file_header,
+  if (platform::ReadStorage(storage_.pipeline_file, &pipeline_storage_file_header,
                             sizeof(pipeline_storage_file_header)) ==
           sizeof(pipeline_storage_file_header) &&
       pipeline_storage_file_header.magic == pipeline_storage_magic &&
@@ -257,7 +257,7 @@ void PipelineCache::InitializeShaderStorage(const std::filesystem::path& cache_r
     if (pipeline_storage_told_count) {
       pipeline_stored_descriptions.resize(pipeline_storage_told_count);
       pipeline_stored_descriptions.resize(
-          platform::ReadStorage(pipeline_storage_file_, pipeline_stored_descriptions.data(),
+          platform::ReadStorage(storage_.pipeline_file, pipeline_stored_descriptions.data(),
                                 pipeline_storage_told_count * sizeof(PipelineStoredDescription)) /
           sizeof(PipelineStoredDescription));
       size_t pipeline_storage_read_count = pipeline_stored_descriptions.size();
@@ -290,24 +290,24 @@ void PipelineCache::InitializeShaderStorage(const std::filesystem::path& cache_r
   u64 shader_storage_initialization_start = rex::Clock::QueryHostTickCount();
   auto shader_storage_file_path =
       shader_storage_shareable_root / std::format("{:08X}.xsh", title_id);
-  shader_storage_file_path_ = shader_storage_file_path;
-  if (!platform::OpenStorageFile(shader_storage_file_, shader_storage_file_path)) {
+  storage_.shader_file_path = shader_storage_file_path;
+  if (!platform::OpenStorageFile(storage_.shader_file, shader_storage_file_path)) {
     REXLOG_ERROR(gpu,
                  "Failed to open the title shader storage file for writing, persistent "
                  "shader storage will be disabled: {}",
                  rex::PathToUTF8(shader_storage_file_path));
-    pipeline_storage_file_.close();
+    storage_.pipeline_file.close();
     return;
   }
-  ++shader_storage_index_;
-  shader_storage_file_flush_needed_ = false;
+  ++storage_.shader_index;
+  storage_.shader_file_flush_needed = false;
   struct {
     u32 magic;
     be_u32 version;
   } shader_storage_file_header;
   // 'XESH'.
   const u32 shader_storage_magic = 0x48534558;
-  if (platform::ReadStorage(shader_storage_file_, &shader_storage_file_header,
+  if (platform::ReadStorage(storage_.shader_file, &shader_storage_file_header,
                             sizeof(shader_storage_file_header)) ==
           sizeof(shader_storage_file_header) &&
       shader_storage_file_header.magic == shader_storage_magic &&
@@ -394,14 +394,14 @@ void PipelineCache::InitializeShaderStorage(const std::filesystem::path& cache_r
     std::vector<std::unique_ptr<rex::platform::Thread>> shader_translation_threads;
 
     while (true) {
-      if (platform::ReadStorage(shader_storage_file_, &shader_header, sizeof(shader_header)) !=
+      if (platform::ReadStorage(storage_.shader_file, &shader_header, sizeof(shader_header)) !=
           sizeof(shader_header)) {
         break;
       }
       size_t ucode_byte_count = shader_header.ucode_dword_count * sizeof(u32);
       ucode_dwords.resize(shader_header.ucode_dword_count);
       if (shader_header.ucode_dword_count &&
-          platform::ReadStorage(shader_storage_file_, ucode_dwords.data(), ucode_byte_count) !=
+          platform::ReadStorage(storage_.shader_file, ucode_dwords.data(), ucode_byte_count) !=
               ucode_byte_count) {
         break;
       }
@@ -412,11 +412,11 @@ void PipelineCache::InitializeShaderStorage(const std::filesystem::path& cache_r
       shader_storage_valid_bytes += sizeof(shader_header) + ucode_byte_count;
       D3D12Shader* shader = LoadShader(shader_header.type, ucode_dwords.data(),
                                        shader_header.ucode_dword_count, ucode_data_hash);
-      if (shader->GetUcodeStorageIndex() == shader_storage_index_) {
+      if (shader->GetUcodeStorageIndex() == storage_.shader_index) {
         // A duplicate in the file, translating it twice in parallel would race.
         continue;
       }
-      shader->SetUcodeStorageIndex(shader_storage_index_);
+      shader->SetUcodeStorageIndex(storage_.shader_index);
       size_t shader_translation_threads_needed;
       {
         std::lock_guard<std::mutex> lock(shaders_translation_thread_mutex);
@@ -459,13 +459,13 @@ void PipelineCache::InitializeShaderStorage(const std::filesystem::path& cache_r
                 shaders_translated,
                 (rex::Clock::QueryHostTickCount() - shader_storage_initialization_start) * 1000 /
                     rex::Clock::QueryHostTickFrequency());
-    platform::ResetStorageFile(shader_storage_file_, shader_storage_file_path_,
+    platform::ResetStorageFile(storage_.shader_file, storage_.shader_file_path,
                                shader_storage_valid_bytes);
   } else {
-    platform::ResetStorageFile(shader_storage_file_, shader_storage_file_path_, 0);
+    platform::ResetStorageFile(storage_.shader_file, storage_.shader_file_path, 0);
     shader_storage_file_header.magic = shader_storage_magic;
     shader_storage_file_header.version = ShaderStoredHeader::kVersion;
-    platform::AppendStorage(shader_storage_file_, &shader_storage_file_header,
+    platform::AppendStorage(storage_.shader_file, &shader_storage_file_header,
                             sizeof(shader_storage_file_header));
   }
 
@@ -629,70 +629,47 @@ void PipelineCache::InitializeShaderStorage(const std::filesystem::path& cache_r
                 (rex::Clock::QueryHostTickCount() - pipeline_creation_start) * 1000 /
                     rex::Clock::QueryHostTickFrequency());
     platform::ResetStorageFile(
-        pipeline_storage_file_, pipeline_storage_file_path_,
+        storage_.pipeline_file, storage_.pipeline_file_path,
         static_cast<u64>(sizeof(pipeline_storage_file_header) +
                          sizeof(PipelineStoredDescription) * pipeline_stored_descriptions.size()));
   } else {
-    platform::ResetStorageFile(pipeline_storage_file_, pipeline_storage_file_path_, 0);
+    platform::ResetStorageFile(storage_.pipeline_file, storage_.pipeline_file_path, 0);
     pipeline_storage_file_header.magic = pipeline_storage_magic;
     pipeline_storage_file_header.magic_api = pipeline_storage_magic_api;
     pipeline_storage_file_header.version = pipeline_storage_version;
-    platform::AppendStorage(pipeline_storage_file_, &pipeline_storage_file_header,
+    platform::AppendStorage(storage_.pipeline_file, &pipeline_storage_file_header,
                             sizeof(pipeline_storage_file_header));
   }
 
-  shader_storage_cache_root_ = cache_root;
-  shader_storage_title_id_ = title_id;
+  storage_.cache_root = cache_root;
+  storage_.title_id = title_id;
 
-  storage_write_flush_shaders_ = false;
-  storage_write_flush_pipelines_ = false;
-  storage_write_thread_shutdown_ = false;
-  storage_write_thread_ = rex::platform::Thread::Create({}, [this]() { StorageWriteThread(); });
-  REX_ASSERT(storage_write_thread_ != nullptr);
-  storage_write_thread_->SetName("D3D12 Storage writer");
+  storage_.write_flush_shaders = false;
+  storage_.write_flush_pipelines = false;
+  storage_.write_thread_shutdown = false;
+  storage_.write_thread = rex::platform::Thread::Create({}, [this]() { StorageWriteThread(); });
+  REX_ASSERT(storage_.write_thread != nullptr);
+  storage_.write_thread->SetName("D3D12 Storage writer");
 }
 
 void PipelineCache::ShutdownShaderStorage() {
-  if (storage_write_thread_) {
-    {
-      std::lock_guard<std::mutex> lock(storage_write_request_lock_);
-      storage_write_thread_shutdown_ = true;
-    }
-    storage_write_request_cond_.notify_all();
-    rex::platform::Wait(storage_write_thread_.get(), false);
-    storage_write_thread_.reset();
-  }
-  storage_write_shader_queue_.clear();
-  storage_write_pipeline_queue_.clear();
-
-  if (pipeline_storage_file_.is_open()) {
-    pipeline_storage_file_.close();
-    pipeline_storage_file_flush_needed_ = false;
-  }
-
-  if (shader_storage_file_.is_open()) {
-    shader_storage_file_.close();
-    shader_storage_file_flush_needed_ = false;
-  }
-
-  shader_storage_cache_root_.clear();
-  shader_storage_title_id_ = 0;
+  storage_.Shutdown();
 }
 
 void PipelineCache::EndSubmission() {
-  if (shader_storage_file_flush_needed_ || pipeline_storage_file_flush_needed_) {
+  if (storage_.shader_file_flush_needed || storage_.pipeline_file_flush_needed) {
     {
-      std::lock_guard<std::mutex> lock(storage_write_request_lock_);
-      if (shader_storage_file_flush_needed_) {
-        storage_write_flush_shaders_ = true;
+      std::lock_guard<std::mutex> lock(storage_.write_request_lock);
+      if (storage_.shader_file_flush_needed) {
+        storage_.write_flush_shaders = true;
       }
-      if (pipeline_storage_file_flush_needed_) {
-        storage_write_flush_pipelines_ = true;
+      if (storage_.pipeline_file_flush_needed) {
+        storage_.write_flush_pipelines = true;
       }
     }
-    storage_write_request_cond_.notify_one();
-    shader_storage_file_flush_needed_ = false;
-    pipeline_storage_file_flush_needed_ = false;
+    storage_.write_request_cond.notify_one();
+    storage_.shader_file_flush_needed = false;
+    storage_.pipeline_file_flush_needed = false;
   }
   if (!creation_threads_.empty()) {
     CreateQueuedPipelinesOnProcessorThread();
@@ -858,16 +835,16 @@ bool PipelineCache::ConfigurePipeline(
                                    dxc_compiler_)) {
         REX_FAIL(gpu, false, "Failed to translate the vertex shader!");
       }
-      if (shader_storage_file_.is_open() &&
-          vertex_shader->GetShader().GetUcodeStorageIndex() != shader_storage_index_) {
-        vertex_shader->GetShader().SetUcodeStorageIndex(shader_storage_index_);
-        REX_ASSERT(storage_write_thread_ != nullptr);
-        shader_storage_file_flush_needed_ = true;
+      if (storage_.shader_file.is_open() &&
+          vertex_shader->GetShader().GetUcodeStorageIndex() != storage_.shader_index) {
+        vertex_shader->GetShader().SetUcodeStorageIndex(storage_.shader_index);
+        REX_ASSERT(storage_.write_thread != nullptr);
+        storage_.shader_file_flush_needed = true;
         {
-          std::lock_guard<std::mutex> storage_lock(storage_write_request_lock_);
-          storage_write_shader_queue_.push_back(&vertex_shader->GetShader());
+          std::lock_guard<std::mutex> storage_lock(storage_.write_request_lock);
+          storage_.write_shader_queue.push_back(&vertex_shader->GetShader());
         }
-        storage_write_request_cond_.notify_all();
+        storage_.write_request_cond.notify_all();
       }
     }
   }
@@ -883,16 +860,16 @@ bool PipelineCache::ConfigurePipeline(
                                      dxc_utils_, dxc_compiler_)) {
           REX_FAIL(gpu, false, "Failed to translate the pixel shader!");
         }
-        if (shader_storage_file_.is_open() &&
-            pixel_shader->GetShader().GetUcodeStorageIndex() != shader_storage_index_) {
-          pixel_shader->GetShader().SetUcodeStorageIndex(shader_storage_index_);
-          REX_ASSERT(storage_write_thread_ != nullptr);
-          shader_storage_file_flush_needed_ = true;
+        if (storage_.shader_file.is_open() &&
+            pixel_shader->GetShader().GetUcodeStorageIndex() != storage_.shader_index) {
+          pixel_shader->GetShader().SetUcodeStorageIndex(storage_.shader_index);
+          REX_ASSERT(storage_.write_thread != nullptr);
+          storage_.shader_file_flush_needed = true;
           {
-            std::lock_guard<std::mutex> storage_lock(storage_write_request_lock_);
-            storage_write_shader_queue_.push_back(&pixel_shader->GetShader());
+            std::lock_guard<std::mutex> storage_lock(storage_.write_request_lock);
+            storage_.write_shader_queue.push_back(&pixel_shader->GetShader());
           }
-          storage_write_request_cond_.notify_all();
+          storage_.write_request_cond.notify_all();
         }
       }
     }
@@ -956,17 +933,17 @@ bool PipelineCache::ConfigurePipeline(
     new_pipeline->state.store(CreateD3D12Pipeline(runtime_description), std::memory_order_release);
   }
 
-  if (pipeline_storage_file_.is_open()) {
-    REX_ASSERT(storage_write_thread_ != nullptr);
-    pipeline_storage_file_flush_needed_ = true;
+  if (storage_.pipeline_file.is_open()) {
+    REX_ASSERT(storage_.write_thread != nullptr);
+    storage_.pipeline_file_flush_needed = true;
     {
-      std::lock_guard<std::mutex> lock(storage_write_request_lock_);
-      storage_write_pipeline_queue_.emplace_back();
-      PipelineStoredDescription& stored_description = storage_write_pipeline_queue_.back();
+      std::lock_guard<std::mutex> lock(storage_.write_request_lock);
+      storage_.write_pipeline_queue.emplace_back();
+      PipelineStoredDescription& stored_description = storage_.write_pipeline_queue.back();
       stored_description.description_hash = hash;
       std::memcpy(&stored_description.description, &description, sizeof(description));
     }
-    storage_write_request_cond_.notify_all();
+    storage_.write_request_cond.notify_all();
   }
 
   current_pipeline_ = new_pipeline;
@@ -1479,18 +1456,14 @@ void PipelineCache::CreateDXBCGeometryShader(GeometryShaderKey key, std::vector<
                                           point_user_cull_distance_count &&
                                           key.point_ps_ucp_mode >= 3;
 
-  // RDEF, ISGN, OSG5, SHEX, STAT.
-  constexpr u32 kBlobCount = 5;
-
-  shader_out.resize(sizeof(dxbc::ContainerHeader) / sizeof(u32) + kBlobCount);
+  shader_out.resize(sizeof(dxbc::ContainerHeader) / sizeof(u32) + dxbc::kBlobCount);
   u32 blob_offset_position_dwords = sizeof(dxbc::ContainerHeader) / sizeof(u32);
   u32 blob_position_dwords = static_cast<u32>(shader_out.size());
-  constexpr u32 kBlobHeaderSizeDwords = sizeof(dxbc::BlobHeader) / sizeof(u32);
 
   u32 name_ptr;
 
   shader_out[blob_offset_position_dwords] = static_cast<u32>(blob_position_dwords * sizeof(u32));
-  u32 rdef_position_dwords = blob_position_dwords + kBlobHeaderSizeDwords;
+  u32 rdef_position_dwords = blob_position_dwords + dxbc::kBlobHeaderSizeDwords;
 
   shader_out.resize(rdef_position_dwords + sizeof(dxbc::RdefHeader) / sizeof(u32));
   dxbc::AppendAlignedString(shader_out, "ReXGlue");
@@ -1647,7 +1620,7 @@ void PipelineCache::CreateDXBCGeometryShader(GeometryShaderKey key, std::vector<
         *reinterpret_cast<dxbc::BlobHeader*>(shader_out.data() + blob_position_dwords);
     blob_header.fourcc = dxbc::BlobHeader::FourCC::kResourceDefinition;
     blob_position_dwords = static_cast<u32>(shader_out.size());
-    blob_header.size_bytes = (blob_position_dwords - kBlobHeaderSizeDwords) * sizeof(u32) -
+    blob_header.size_bytes = (blob_position_dwords - dxbc::kBlobHeaderSizeDwords) * sizeof(u32) -
                              shader_out[blob_offset_position_dwords++];
   }
 
@@ -1662,7 +1635,7 @@ void PipelineCache::CreateDXBCGeometryShader(GeometryShaderKey key, std::vector<
       key.has_point_size;
 
   shader_out[blob_offset_position_dwords] = static_cast<u32>(blob_position_dwords * sizeof(u32));
-  u32 isgn_position_dwords = blob_position_dwords + kBlobHeaderSizeDwords;
+  u32 isgn_position_dwords = blob_position_dwords + dxbc::kBlobHeaderSizeDwords;
   shader_out.resize(isgn_position_dwords + sizeof(dxbc::Signature) / sizeof(u32) +
                     sizeof(dxbc::SignatureParameter) / sizeof(u32) * isgn_parameter_count);
 
@@ -1780,7 +1753,7 @@ void PipelineCache::CreateDXBCGeometryShader(GeometryShaderKey key, std::vector<
         *reinterpret_cast<dxbc::BlobHeader*>(shader_out.data() + blob_position_dwords);
     blob_header.fourcc = dxbc::BlobHeader::FourCC::kInputSignature;
     blob_position_dwords = static_cast<u32>(shader_out.size());
-    blob_header.size_bytes = (blob_position_dwords - kBlobHeaderSizeDwords) * sizeof(u32) -
+    blob_header.size_bytes = (blob_position_dwords - dxbc::kBlobHeaderSizeDwords) * sizeof(u32) -
                              shader_out[blob_offset_position_dwords++];
   }
 
@@ -1788,7 +1761,7 @@ void PipelineCache::CreateDXBCGeometryShader(GeometryShaderKey key, std::vector<
                              ((input_clip_distance_count + 3) / 4);
 
   shader_out[blob_offset_position_dwords] = static_cast<u32>(blob_position_dwords * sizeof(u32));
-  u32 osgn_position_dwords = blob_position_dwords + kBlobHeaderSizeDwords;
+  u32 osgn_position_dwords = blob_position_dwords + dxbc::kBlobHeaderSizeDwords;
   shader_out.resize(osgn_position_dwords + sizeof(dxbc::Signature) / sizeof(u32) +
                     sizeof(dxbc::SignatureParameterForGS) / sizeof(u32) * osgn_parameter_count);
 
@@ -1882,12 +1855,12 @@ void PipelineCache::CreateDXBCGeometryShader(GeometryShaderKey key, std::vector<
         *reinterpret_cast<dxbc::BlobHeader*>(shader_out.data() + blob_position_dwords);
     blob_header.fourcc = dxbc::BlobHeader::FourCC::kOutputSignatureForGS;
     blob_position_dwords = static_cast<u32>(shader_out.size());
-    blob_header.size_bytes = (blob_position_dwords - kBlobHeaderSizeDwords) * sizeof(u32) -
+    blob_header.size_bytes = (blob_position_dwords - dxbc::kBlobHeaderSizeDwords) * sizeof(u32) -
                              shader_out[blob_offset_position_dwords++];
   }
 
   shader_out[blob_offset_position_dwords] = static_cast<u32>(blob_position_dwords * sizeof(u32));
-  u32 shex_position_dwords = blob_position_dwords + kBlobHeaderSizeDwords;
+  u32 shex_position_dwords = blob_position_dwords + dxbc::kBlobHeaderSizeDwords;
   shader_out.resize(shex_position_dwords);
 
   shader_out.push_back(dxbc::VersionToken(dxbc::ProgramType::kGeometryShader, 5, 1));
@@ -2321,12 +2294,12 @@ void PipelineCache::CreateDXBCGeometryShader(GeometryShaderKey key, std::vector<
         *reinterpret_cast<dxbc::BlobHeader*>(shader_out.data() + blob_position_dwords);
     blob_header.fourcc = dxbc::BlobHeader::FourCC::kShaderEx;
     blob_position_dwords = static_cast<u32>(shader_out.size());
-    blob_header.size_bytes = (blob_position_dwords - kBlobHeaderSizeDwords) * sizeof(u32) -
+    blob_header.size_bytes = (blob_position_dwords - dxbc::kBlobHeaderSizeDwords) * sizeof(u32) -
                              shader_out[blob_offset_position_dwords++];
   }
 
   shader_out[blob_offset_position_dwords] = static_cast<u32>(blob_position_dwords * sizeof(u32));
-  u32 stat_position_dwords = blob_position_dwords + kBlobHeaderSizeDwords;
+  u32 stat_position_dwords = blob_position_dwords + dxbc::kBlobHeaderSizeDwords;
   shader_out.resize(stat_position_dwords + sizeof(dxbc::Statistics) / sizeof(u32));
   std::memcpy(shader_out.data() + stat_position_dwords, &stat, sizeof(dxbc::Statistics));
 
@@ -2335,7 +2308,7 @@ void PipelineCache::CreateDXBCGeometryShader(GeometryShaderKey key, std::vector<
         *reinterpret_cast<dxbc::BlobHeader*>(shader_out.data() + blob_position_dwords);
     blob_header.fourcc = dxbc::BlobHeader::FourCC::kStatistics;
     blob_position_dwords = static_cast<u32>(shader_out.size());
-    blob_header.size_bytes = (blob_position_dwords - kBlobHeaderSizeDwords) * sizeof(u32) -
+    blob_header.size_bytes = (blob_position_dwords - dxbc::kBlobHeaderSizeDwords) * sizeof(u32) -
                              shader_out[blob_offset_position_dwords++];
   }
 
@@ -2344,7 +2317,7 @@ void PipelineCache::CreateDXBCGeometryShader(GeometryShaderKey key, std::vector<
     auto& container_header = *reinterpret_cast<dxbc::ContainerHeader*>(shader_out.data());
     container_header.InitializeIdentification();
     container_header.size_bytes = shader_size_bytes;
-    container_header.blob_count = kBlobCount;
+    container_header.blob_count = dxbc::kBlobCount;
     CalculateDXBCChecksum(reinterpret_cast<unsigned char*>(shader_out.data()),
                           static_cast<unsigned int>(shader_size_bytes), container_header.hash);
   }
@@ -2726,41 +2699,41 @@ void PipelineCache::StorageWriteThread() {
   while (true) {
     if (flush_shaders) {
       flush_shaders = false;
-      REX_ASSERT(shader_storage_file_.is_open());
-      shader_storage_file_.flush();
+      REX_ASSERT(storage_.shader_file.is_open());
+      storage_.shader_file.flush();
     }
     if (flush_pipelines) {
       flush_pipelines = false;
-      REX_ASSERT(pipeline_storage_file_.is_open());
-      pipeline_storage_file_.flush();
+      REX_ASSERT(storage_.pipeline_file.is_open());
+      storage_.pipeline_file.flush();
     }
 
     const Shader* shader = nullptr;
     PipelineStoredDescription pipeline_description;
     bool write_pipeline = false;
     {
-      std::unique_lock<std::mutex> lock(storage_write_request_lock_);
-      if (storage_write_thread_shutdown_) {
+      std::unique_lock<std::mutex> lock(storage_.write_request_lock);
+      if (storage_.write_thread_shutdown) {
         return;
       }
-      if (!storage_write_shader_queue_.empty()) {
-        shader = storage_write_shader_queue_.front();
-        storage_write_shader_queue_.pop_front();
-      } else if (storage_write_flush_shaders_) {
-        storage_write_flush_shaders_ = false;
+      if (!storage_.write_shader_queue.empty()) {
+        shader = storage_.write_shader_queue.front();
+        storage_.write_shader_queue.pop_front();
+      } else if (storage_.write_flush_shaders) {
+        storage_.write_flush_shaders = false;
         flush_shaders = true;
       }
-      if (!storage_write_pipeline_queue_.empty()) {
-        std::memcpy(&pipeline_description, &storage_write_pipeline_queue_.front(),
+      if (!storage_.write_pipeline_queue.empty()) {
+        std::memcpy(&pipeline_description, &storage_.write_pipeline_queue.front(),
                     sizeof(pipeline_description));
-        storage_write_pipeline_queue_.pop_front();
+        storage_.write_pipeline_queue.pop_front();
         write_pipeline = true;
-      } else if (storage_write_flush_pipelines_) {
-        storage_write_flush_pipelines_ = false;
+      } else if (storage_.write_flush_pipelines) {
+        storage_.write_flush_pipelines = false;
         flush_pipelines = true;
       }
       if (!shader && !write_pipeline) {
-        storage_write_request_cond_.wait(lock);
+        storage_.write_request_cond.wait(lock);
         continue;
       }
     }
@@ -2769,21 +2742,21 @@ void PipelineCache::StorageWriteThread() {
       shader_header.ucode_data_hash = shader->GetUcodeDataHash();
       shader_header.ucode_dword_count = shader->GetUcodeDwordCount();
       shader_header.type = shader->GetType();
-      REX_ASSERT(shader_storage_file_.is_open());
-      platform::AppendStorage(shader_storage_file_, &shader_header, sizeof(shader_header));
+      REX_ASSERT(storage_.shader_file.is_open());
+      platform::AppendStorage(storage_.shader_file, &shader_header, sizeof(shader_header));
       if (shader_header.ucode_dword_count) {
         ucode_guest_endian.resize(shader_header.ucode_dword_count);
         // Swap back, as the hash is calculated over the guest endian ucode.
         memory::copy_and_swap(ucode_guest_endian.data(), shader->GetUcodeDwords(),
                               shader_header.ucode_dword_count);
-        platform::AppendStorage(shader_storage_file_, ucode_guest_endian.data(),
+        platform::AppendStorage(storage_.shader_file, ucode_guest_endian.data(),
                                 shader_header.ucode_dword_count * sizeof(u32));
       }
     }
 
     if (write_pipeline) {
-      REX_ASSERT(pipeline_storage_file_.is_open());
-      platform::AppendStorage(pipeline_storage_file_, &pipeline_description,
+      REX_ASSERT(storage_.pipeline_file.is_open());
+      platform::AppendStorage(storage_.pipeline_file, &pipeline_description,
                               sizeof(pipeline_description));
     }
   }
@@ -2808,16 +2781,16 @@ bool PipelineCache::PrepareRuntimeDescriptionForQueuedCreation(
                                      dxc_compiler_)) {
           REX_FAIL(gpu, false, "Failed to translate queued {} shader", shader_type);
         }
-        if (shader_storage_file_.is_open() &&
-            translation->GetShader().GetUcodeStorageIndex() != shader_storage_index_) {
-          translation->GetShader().SetUcodeStorageIndex(shader_storage_index_);
-          REX_ASSERT(storage_write_thread_ != nullptr);
-          shader_storage_file_flush_needed_ = true;
+        if (storage_.shader_file.is_open() &&
+            translation->GetShader().GetUcodeStorageIndex() != storage_.shader_index) {
+          translation->GetShader().SetUcodeStorageIndex(storage_.shader_index);
+          REX_ASSERT(storage_.write_thread != nullptr);
+          storage_.shader_file_flush_needed = true;
           {
-            std::lock_guard<std::mutex> storage_lock(storage_write_request_lock_);
-            storage_write_shader_queue_.push_back(&translation->GetShader());
+            std::lock_guard<std::mutex> storage_lock(storage_.write_request_lock);
+            storage_.write_shader_queue.push_back(&translation->GetShader());
           }
-          storage_write_request_cond_.notify_all();
+          storage_.write_request_cond.notify_all();
         }
       }
     }

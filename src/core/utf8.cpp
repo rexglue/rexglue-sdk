@@ -902,6 +902,10 @@ std::string utf8_canonicalize_path(const std::string_view path, char32_t separat
                     : ToString(separator) + utf8_join_paths(parts, separator);
 }
 
+std::string_view utf8_strip_leading_slashes(const std::string_view path) {
+  return path.substr(std::min(path.find_first_not_of('/'), path.size()));
+}
+
 std::string NormalizeGuestPath(std::string_view path) {
   std::string result = rex::utf8_fix_path_separators(path, U'/');
 
@@ -912,9 +916,7 @@ std::string NormalizeGuestPath(std::string_view path) {
 
   result = rex::utf8_canonicalize_path(result, U'/');
 
-  while (!result.empty() && result.front() == '/') {
-    result.erase(result.begin());
-  }
+  result.erase(0, result.size() - utf8_strip_leading_slashes(result).size());
 
   std::transform(result.begin(), result.end(), result.begin(),
                  [](unsigned char c) { return static_cast<char>(std::tolower(c)); });

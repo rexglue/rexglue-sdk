@@ -256,11 +256,7 @@ class VulkanTextureCache final : public TextureCache {
 
       ViewKey() : key(0) { REX_STATIC_ASSERT_SIZE(*this, sizeof(key)); }
 
-      struct Hasher {
-        size_t operator()(const ViewKey& hashed_key) const {
-          return std::hash<decltype(hashed_key.key)>{}(hashed_key.key);
-        }
-      };
+      using Hasher = rex::KeyHasher<ViewKey>;
       bool operator==(const ViewKey& other_key) const { return key == other_key.key; }
       bool operator!=(const ViewKey& other_key) const { return !(*this == other_key); }
     };

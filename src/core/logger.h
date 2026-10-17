@@ -252,22 +252,6 @@ std::filesystem::path ResolveLogFile(const LogFileConfig& config);
 std::tm ToLocalTime(std::time_t time);
 
 /**
- * Returns the ANSI SGR prefix of a level, empty for Info.
- *
- * @param level The level.
- * @return The escape sequence.
- */
-std::string_view LevelColor(Level level);
-
-/**
- * Returns the 1 letter file column of a level.
- *
- * @param level The level.
- * @return The letter.
- */
-char LevelLetter(Level level);
-
-/**
  * Opens a raw append descriptor on a log file for the crash report.
  *
  * @param path The log file.

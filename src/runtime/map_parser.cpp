@@ -2,6 +2,7 @@
 #include <fstream>
 #include <sstream>
 
+#include <rex/platform/file.h>
 #include <rex/runtime/map_parser.h>
 
 namespace rex::runtime {
@@ -128,16 +129,12 @@ std::expected<std::vector<BinarySymbol>, MapParseError> ParseNmMap(
     return std::unexpected(MapParseError::kFileNotFound);
   }
 
-  std::ifstream file(map_path, std::ios::binary);
-  if (!file) {
+  auto bytes = platform::ReadHostFile(map_path);
+  if (!bytes) {
     return std::unexpected(MapParseError::kFileReadError);
   }
 
-  std::ostringstream ss;
-  ss << file.rdbuf();
-  std::string contents = ss.str();
-
-  return ParseNmMapString(contents, options);
+  return ParseNmMapString(std::string(bytes->begin(), bytes->end()), options);
 }
 
 }  // namespace rex::runtime

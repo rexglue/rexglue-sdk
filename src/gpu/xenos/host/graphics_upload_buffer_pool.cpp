@@ -14,6 +14,7 @@
 #include <rex/assert.h>
 #include <rex/math.h>
 #include "gpu/xenos/host/graphics_upload_buffer_pool.h"
+#include "gpu/xenos/host/page_list.h"
 
 namespace rex {
 namespace gpu {
@@ -23,39 +24,12 @@ GraphicsUploadBufferPool::~GraphicsUploadBufferPool() {
 }
 
 void GraphicsUploadBufferPool::Reclaim(u64 completed_submission_index) {
-  while (submitted_first_) {
-    if (submitted_first_->last_submission_index > completed_submission_index) {
-      break;
-    }
-    if (writable_last_) {
-      writable_last_->next = submitted_first_;
-    } else {
-      writable_first_ = submitted_first_;
-    }
-    writable_last_ = submitted_first_;
-    submitted_first_ = submitted_first_->next;
-    writable_last_->next = nullptr;
-  }
-  if (!submitted_first_) {
-    submitted_last_ = nullptr;
-  }
+  ReclaimPages(submitted_first_, submitted_last_, writable_first_, writable_last_,
+               completed_submission_index);
 }
 
 void GraphicsUploadBufferPool::ChangeSubmissionTimeline() {
-  if (writable_last_) {
-    writable_last_->next = submitted_first_;
-  } else {
-    writable_first_ = submitted_first_;
-  }
-  writable_last_ = submitted_last_;
-  submitted_first_ = nullptr;
-  submitted_last_ = nullptr;
-
-  Page* page = writable_first_;
-  while (page) {
-    page->last_submission_index = 0;
-    page = page->next;
-  }
+  ResetPageTimeline(submitted_first_, submitted_last_, writable_first_, writable_last_);
 }
 
 void GraphicsUploadBufferPool::ClearCache() {

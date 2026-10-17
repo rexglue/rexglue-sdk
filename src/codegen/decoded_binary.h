@@ -238,16 +238,6 @@ inline bool IsConditional(const DecodedInsn& insn) {
 }
 
 /**
- * Reports whether the instruction is lis, addis rD, 0, imm.
- *
- * @param insn Instruction to test.
- * @return True when it is lis.
- */
-inline bool IsLis(const DecodedInsn& insn) {
-  return insn.opcode == rex::codegen::detail::Opcode::lis;
-}
-
-/**
  * Returns the target of a direct branch.
  *
  * @param insn Instruction to test.

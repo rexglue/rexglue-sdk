@@ -22,6 +22,7 @@
 
 #include <format>
 
+#include <rex/hash.h>
 #include <rex/assert.h>
 #include "gpu/xenos/pipeline/shader/shader.h"
 #include <rex/xenos/register_file.h>
@@ -234,11 +235,7 @@ class REX_GPU_XENOS_API RenderTargetCache : public rex::NonCopyable {
 
     RenderTargetKey() : key(0) { REX_STATIC_ASSERT_SIZE(*this, sizeof(key)); }
 
-    struct Hasher {
-      size_t operator()(const RenderTargetKey& render_target_key) const {
-        return std::hash<u32>{}(render_target_key.key);
-      }
-    };
+    using Hasher = rex::KeyHasher<RenderTargetKey>;
     bool operator==(const RenderTargetKey& other_key) const { return key == other_key.key; }
     bool operator!=(const RenderTargetKey& other_key) const { return !(*this == other_key); }
 

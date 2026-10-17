@@ -49,15 +49,10 @@ struct ContainerExtent {
 
 /** 1 file or directory of a container. */
 struct ContainerNode {
-  std::string name;                                  /**< Name, empty for the root. */
-  u32 parent = 0;                                    /**< Index of the parent, 0 for the root. */
-  FileAttributes attributes = FileAttributes::kNone; /**< Attribute bits. */
-  u64 size = 0;                                      /**< Size in bytes. */
-  u64 allocation_size = 0;                           /**< Size rounded up to the block size. */
-  u64 create_time = 0;                               /**< Creation time in FILETIME ticks. */
-  u64 access_time = 0;                               /**< Last access time in FILETIME ticks. */
-  u64 write_time = 0;                                /**< Last write time in FILETIME ticks. */
-  std::vector<u32> children;                         /**< Indices of the children in order. */
+  /** Name (empty for the root), attributes, sizes and times. The path fields stay empty. */
+  FileInfo info;
+  u32 parent = 0;                       /**< Index of the parent, 0 for the root. */
+  std::vector<u32> children;            /**< Indices of the children in order. */
   std::vector<ContainerExtent> extents; /**< File bytes in order, empty for a directory. */
 };
 

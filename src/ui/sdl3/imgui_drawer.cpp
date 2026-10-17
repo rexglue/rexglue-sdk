@@ -45,14 +45,12 @@ static_assert(sizeof(gpu::OverlayVertex) == sizeof(ImDrawVert), "Vertex types mu
 namespace {
 
 /** Makes a context current and puts back the one that was current. */
-class ContextScope {
+class ContextScope : public rex::NonCopyable {
  public:
   explicit ContextScope(ImGuiContext* context) : previous_(ImGui::GetCurrentContext()) {
     ImGui::SetCurrentContext(context);
   }
   ~ContextScope() { ImGui::SetCurrentContext(previous_); }
-  ContextScope(const ContextScope&) = delete;
-  ContextScope& operator=(const ContextScope&) = delete;
 
  private:
   ImGuiContext* previous_;

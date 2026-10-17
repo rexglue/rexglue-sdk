@@ -85,6 +85,20 @@ struct Fixture {
 
 }  // namespace
 
+REX_TEST_CASE("A cvar name is a lowercase scope and leaf joined by 1 dot", "[core][cvar]") {
+  CHECK(rex::cvar::IsName("gpu.backend"));
+  CHECK(rex::cvar::IsName("ui.window_2"));
+  CHECK_FALSE(rex::cvar::IsName("backend"));
+  CHECK_FALSE(rex::cvar::IsName("gpu.xenos.backend"));
+  CHECK_FALSE(rex::cvar::IsName("Gpu.backend"));
+  CHECK_FALSE(rex::cvar::IsName("gpu.2fast"));
+  CHECK_FALSE(rex::cvar::IsName(".backend"));
+  CHECK_FALSE(rex::cvar::IsName("gpu."));
+  CHECK(rex::cvar::IsNamePart("a_1"));
+  CHECK_FALSE(rex::cvar::IsNamePart("_a"));
+  CHECK_FALSE(rex::cvar::IsNamePart(""));
+}
+
 REX_TEST_CASE_METHOD(Fixture, "Var descriptors are constant initialized", "[core][cvar]") {
   REQUIRE(g_constinit_proof.GetDesc().name == "test.proof");
   REQUIRE(g_constinit_proof.GetDesc().scope == "test");

@@ -16,6 +16,7 @@
 #include <string>
 #include <string_view>
 
+#include <rex/string/utf8.h>
 #include <rex/cvar/registry.h>
 #include <rex/types.h>
 
@@ -59,8 +60,9 @@ inline bool TryParseResolutionPreset(std::string_view resolution_value, i32& wid
     if (std::isspace(c_unsigned) || c == '_' || c == '-') {
       continue;
     }
-    normalized.push_back(static_cast<char>(std::tolower(c_unsigned)));
+    normalized.push_back(c);
   }
+  normalized = utf8_lower_ascii(normalized);
   if (normalized.empty()) {
     return false;
   }

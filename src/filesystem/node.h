@@ -125,28 +125,21 @@ class Node : public NonCopyable {
    *
    * @return The name, empty for the root.
    */
-  [[nodiscard]] const std::string& GetName() const { return name_; }
+  [[nodiscard]] const std::string& GetName() const { return info_.name; }
 
   /**
    * Returns the path relative to the mount.
    *
    * @return The path.
    */
-  [[nodiscard]] const std::string& GetPath() const { return path_; }
+  [[nodiscard]] const std::string& GetPath() const { return info_.path; }
 
   /**
    * Returns the mount path joined with the path.
    *
    * @return The absolute guest path.
    */
-  [[nodiscard]] const std::string& GetAbsolutePath() const { return absolute_path_; }
-
-  /**
-   * Returns the attribute bits.
-   *
-   * @return The attributes.
-   */
-  [[nodiscard]] FileAttributes GetAttributes() const { return attributes_; }
+  [[nodiscard]] const std::string& GetAbsolutePath() const { return info_.absolute_path; }
 
   /**
    * Reports whether the node is a directory.
@@ -154,7 +147,7 @@ class Node : public NonCopyable {
    * @return True when kDirectory is set.
    */
   [[nodiscard]] bool IsDirectory() const {
-    return HasFlags(attributes_, FileAttributes::kDirectory);
+    return HasFlags(info_.attributes, FileAttributes::kDirectory);
   }
 
   /**
@@ -163,13 +156,6 @@ class Node : public NonCopyable {
    * @return True on a read only mount.
    */
   [[nodiscard]] bool IsReadOnly() const;
-
-  /**
-   * Reports whether a delete on close request is set.
-   *
-   * @return True when requested.
-   */
-  [[nodiscard]] bool DeleteOnClose() const;
 
   /**
    * Sets or withdraws a delete on close request.
@@ -370,16 +356,8 @@ class Node : public NonCopyable {
   /** Updates provider state that follows the path, after the node or an ancestor moved. */
   virtual void OnMoved();
 
-  std::string name_;                                  /**< Last path component. */
-  std::string path_;                                  /**< Path relative to the mount. */
-  std::string absolute_path_;                         /**< Mount path joined with path_. */
-  FileAttributes attributes_ = FileAttributes::kNone; /**< Attribute bits. */
-  u64 size_ = 0;                                      /**< Size in bytes. */
-  u64 allocation_size_ = 0;                           /**< Size rounded up to the sector size. */
-  u64 create_time_ = 0;                               /**< Creation time in FILETIME ticks. */
-  u64 access_time_ = 0;                               /**< Last access time in FILETIME ticks. */
-  u64 write_time_ = 0;                                /**< Last write time in FILETIME ticks. */
-  std::vector<std::unique_ptr<Node>> children_;       /**< Children in insertion order. */
+  FileInfo info_;                               /**< Name, paths, attributes, sizes and times. */
+  std::vector<std::unique_ptr<Node>> children_; /**< Children in insertion order. */
 
  private:
   Provider* provider_;

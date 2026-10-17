@@ -98,12 +98,10 @@ inline void SEHLeave(SEHScope& scope) {
 }
 
 /** Counts a host frame that recompiled code called into for its lifetime. */
-class HostCallDepth {
+class HostCallDepth : public NonCopyable {
  public:
   HostCallDepth() { ++GetSEHThreadState().host_depth; }
   ~HostCallDepth() { --GetSEHThreadState().host_depth; }
-  HostCallDepth(const HostCallDepth&) = delete;
-  HostCallDepth& operator=(const HostCallDepth&) = delete;
 };
 #endif
 

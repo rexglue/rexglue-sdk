@@ -14,9 +14,6 @@ namespace rex::ui {
 
 namespace {
 
-constexpr std::array<const char*, log::kMessageLevelCount> kLevelNames = {
-    "trace", "dev", "debug", "info", "warn", "error", "critical"};
-
 Color LevelColor(const ConsoleStyle& style, log::Level level) {
   const size_t index = std::to_underlying(level);
   return index < style.level.size() ? style.level[index]
@@ -111,7 +108,10 @@ void ConsoleView::Draw(const ConsoleStyle& style) {
 void ConsoleView::DrawFilters() {
   i32 level = std::to_underlying(model_.GetMinLevel());
   ImGui::SetNextItemWidth(ImGui::CalcTextSize("critical").x + ImGui::GetFrameHeight() * 2.0f);
-  if (ImGui::Combo("##level", &level, kLevelNames.data(), static_cast<i32>(kLevelNames.size()))) {
+  if (ImGui::Combo(
+          "##level", &level,
+          [](void*, i32 index) { return log::kLevelNames[static_cast<size_t>(index)].data(); },
+          nullptr, static_cast<i32>(log::kMessageLevelCount))) {
     model_.SetMinLevel(static_cast<log::Level>(level));
   }
   ImGui::SameLine();

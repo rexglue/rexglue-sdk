@@ -1,4 +1,5 @@
 #include <rex/embedded_metadata.h>
+#include <rex/string/utf8.h>
 
 #include <algorithm>
 #include <mutex>
@@ -14,11 +15,8 @@ struct RegisteredEmbeddedMetadataAsset {
 };
 
 std::string NormalizeMetadataPath(const std::filesystem::path& relative_path) {
-  std::string normalized = relative_path.generic_string();
-  while (!normalized.empty() && normalized.front() == '/') {
-    normalized.erase(normalized.begin());
-  }
-  return normalized;
+  const std::string generic = relative_path.generic_string();
+  return std::string(utf8_strip_leading_slashes(generic));
 }
 
 std::mutex& RegistryMutex() {

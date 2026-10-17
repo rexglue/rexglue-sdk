@@ -8,6 +8,7 @@
 #include <map>
 #include <ranges>
 
+#include <rex/string/utf8.h>
 #include <rex/api.h>
 #include <rex/cvar.h>
 #include <rex/logging/log.h>
@@ -24,21 +25,8 @@ using cvar::Desc;
 using cvar::IVar;
 using E = cvar::CvarError;
 
-bool LowerToken(std::string_view part) {
-  if (part.empty() || !std::islower(static_cast<unsigned char>(part.front())))
-    return false;
-  return std::ranges::all_of(part, [](char c) {
-    return std::islower(static_cast<unsigned char>(c)) ||
-           std::isdigit(static_cast<unsigned char>(c)) || c == '_';
-  });
-}
-
 bool ValidName(std::string_view name, std::string_view scope) {
-  auto dot = name.find('.');
-  if (dot == std::string_view::npos || name.find('.', dot + 1) != std::string_view::npos) {
-    return false;
-  }
-  return name.substr(0, dot) == scope && LowerToken(scope) && LowerToken(name.substr(dot + 1));
+  return cvar::IsName(name) && name.substr(0, name.find('.')) == scope;
 }
 
 const char* SourceName(CvarSource s) {
@@ -107,7 +95,7 @@ std::string_view CvarRegistryImpl::DefaultOf(const Entry& entry) const {
 
 Result<void> CvarRegistryImpl::Register(std::string_view scope, std::span<const IVar* const> vars) {
   std::lock_guard lock(mutex_);
-  if (!LowerToken(scope)) {
+  if (!cvar::IsNamePart(scope)) {
     return Err(
         BuildError(E::kBadName, std::format("scope '{}' is not lowercase [a-z0-9_]", scope)));
   }
@@ -565,6 +553,23 @@ std::vector<std::string> CvarRegistryImpl::GetRegisteredNames() const {
 
 namespace rex::cvar {
 
+bool IsNamePart(std::string_view part) {
+  if (part.empty() || !std::islower(static_cast<unsigned char>(part.front())))
+    return false;
+  return std::ranges::all_of(part, [](char c) {
+    return std::islower(static_cast<unsigned char>(c)) ||
+           std::isdigit(static_cast<unsigned char>(c)) || c == '_';
+  });
+}
+
+bool IsName(std::string_view name) {
+  const auto dot = name.find('.');
+  if (dot == std::string_view::npos || name.find('.', dot + 1) != std::string_view::npos) {
+    return false;
+  }
+  return IsNamePart(name.substr(0, dot)) && IsNamePart(name.substr(dot + 1));
+}
+
 namespace {
 
 template <typename T, typename Wide>
@@ -604,10 +609,8 @@ void ApplyEnvironment(rex::Config& config) {
     if (underscore == std::string_view::npos || underscore == 0 || underscore + 1 >= rest.size()) {
       continue;
     }
-    std::string cvar_name =
-        std::format("{}.{}", rest.substr(0, underscore), rest.substr(underscore + 1));
-    std::ranges::transform(cvar_name, cvar_name.begin(),
-                           [](unsigned char c) { return char(std::tolower(c)); });
+    const std::string cvar_name = utf8_lower_ascii(
+        std::format("{}.{}", rest.substr(0, underscore), rest.substr(underscore + 1)));
     config.cvars.values.push_back({cvar_name, value, CvarSource::kEnvironment});
   }
 }

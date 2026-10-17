@@ -1,10 +1,10 @@
 #include <rex/api.h>
+#include <rex/platform/file.h>
 
 #include <algorithm>
 #include <array>
 #include <cctype>
 #include <format>
-#include <fstream>
 #include <span>
 #include <string_view>
 
@@ -49,23 +49,6 @@ constexpr std::array<APIVar, 8> kRequiredVars = {{
     {"--config_file", [](Config& c, std::string_view v) { c.paths.config_file = v; }},
     {"--backend", [](Config& c, std::string_view v) { c.gpu.backend = std::string(v); }},
 }};
-
-bool LowerToken(std::string_view part) {
-  if (part.empty() || !std::islower(static_cast<unsigned char>(part.front())))
-    return false;
-  return std::ranges::all_of(part, [](char c) {
-    return std::islower(static_cast<unsigned char>(c)) ||
-           std::isdigit(static_cast<unsigned char>(c)) || c == '_';
-  });
-}
-
-bool IsCvarName(std::string_view name) {
-  auto dot = name.find('.');
-  if (dot == std::string_view::npos || name.find('.', dot + 1) != std::string_view::npos) {
-    return false;
-  }
-  return LowerToken(name.substr(0, dot)) && LowerToken(name.substr(dot + 1));
-}
 
 std::string TOMLScalar(const toml::node& node) {
   if (auto* v = node.as_string())
@@ -144,7 +127,7 @@ std::vector<std::string> ParseCommandLine(Config& config, const CLIArgList& args
     if (negated) {
       name.remove_prefix(3);
     }
-    if (!IsCvarName(name)) {
+    if (!cvar::IsName(name)) {
       unknown.push_back(text);
       continue;
     }
@@ -211,12 +194,7 @@ Result<void> ValidateCLIActions(std::span<const CLIAction> actions) {
 
 [[nodiscard]] Result<void> SaveConfigFile(const cvar::ICvarRegistry& registry,
                                           const std::filesystem::path& path) {
-  std::ofstream out(path, std::ios::binary | std::ios::trunc);
-  if (!out) {
-    return Err(ErrorCategory::kConfig, std::format("{}: cannot open for writing", path.string()));
-  }
-  out << "# ReXGlue configuration\n\n" << registry.Serialize();
-  if (!out) {
+  if (!platform::WriteHostFile(path, "# ReXGlue configuration\n\n" + registry.Serialize())) {
     return Err(ErrorCategory::kConfig, std::format("{}: write failed", path.string()));
   }
   return Ok();
