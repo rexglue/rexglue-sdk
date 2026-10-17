@@ -111,6 +111,11 @@ function(rexglue_configure_target target_name)
         )
         set_property(TARGET ${target_name} APPEND PROPERTY
             LINK_DEPENDS "$<TARGET_RUNTIME_DLLS:${target_name}>")
+        add_custom_command(TARGET ${target_name} POST_BUILD
+            COMMAND "$<$<BOOL:$<TARGET_RUNTIME_DLLS:${target_name}>>:${CMAKE_COMMAND};-DDEST=$<TARGET_FILE_DIR:${target_name}>;-P;${CMAKE_CURRENT_FUNCTION_LIST_DIR}/rexglue_stage_pdbs.cmake;$<TARGET_RUNTIME_DLLS:${target_name}>>"
+            COMMAND_EXPAND_LISTS
+            VERBATIM
+        )
     else()
         # macOS and Linux: $<TARGET_RUNTIME_DLLS> does not resolve imported
         # shared libraries, so stage them explicitly next to the executable
@@ -156,6 +161,14 @@ function(rexglue_configure_target target_name)
                     $<TARGET_FILE_DIR:${target_name}>
                 VERBATIM
             )
+            if(WIN32)
+                add_custom_command(TARGET ${target_name} POST_BUILD
+                    COMMAND ${CMAKE_COMMAND} -DDEST=$<TARGET_FILE_DIR:${target_name}>
+                        -P ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/rexglue_stage_pdbs.cmake
+                        $<TARGET_FILE:${_plugin_target}>
+                    VERBATIM
+                )
+            endif()
             set_property(TARGET ${target_name} APPEND PROPERTY
                 LINK_DEPENDS "$<TARGET_FILE:${_plugin_target}>")
         endforeach()
@@ -189,6 +202,14 @@ function(rexglue_configure_target target_name)
                 $<TARGET_FILE_DIR:${target_name}>
             VERBATIM
         )
+        if(WIN32)
+            add_custom_command(TARGET ${target_name} POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -DDEST=$<TARGET_FILE_DIR:${target_name}>
+                    -P ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/rexglue_stage_pdbs.cmake
+                    $<TARGET_FILE:${_module_target}>
+                VERBATIM
+            )
+        endif()
         set_property(TARGET ${target_name} APPEND PROPERTY
             LINK_DEPENDS "$<TARGET_FILE:${_module_target}>")
         unset(_module_target)

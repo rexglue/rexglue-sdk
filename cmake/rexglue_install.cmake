@@ -10,6 +10,19 @@ install(TARGETS ${REXGLUE_INSTALL_TARGETS}
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 )
 
+if(WIN32)
+    foreach(_install_target IN LISTS REXGLUE_INSTALL_TARGETS)
+        get_target_property(_install_type ${_install_target} TYPE)
+        if(_install_type STREQUAL "SHARED_LIBRARY" OR _install_type STREQUAL "MODULE_LIBRARY")
+            install(FILES $<TARGET_PDB_FILE:${_install_target}>
+                DESTINATION ${CMAKE_INSTALL_BINDIR}
+                CONFIGURATIONS Debug RelWithDebInfo
+                OPTIONAL
+            )
+        endif()
+    endforeach()
+endif()
+
 # A Debug codegen tool runs an order of magnitude slower, so only Release ships.
 install(TARGETS rexglue
     EXPORT rexglueTargets
@@ -113,6 +126,7 @@ install(FILES
 
 install(FILES
     ${CMAKE_CURRENT_SOURCE_DIR}/cmake/rexglue_helpers.cmake
+    ${CMAKE_CURRENT_SOURCE_DIR}/cmake/rexglue_stage_pdbs.cmake
     ${CMAKE_CURRENT_SOURCE_DIR}/cmake/rexglue_optimus.cpp.in
     DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/rexglue
 )

@@ -1,0 +1,8 @@
+math(EXPR _last "${CMAKE_ARGC} - 1")
+foreach(_index RANGE 4 ${_last})
+    get_filename_component(_directory "${CMAKE_ARGV${_index}}" DIRECTORY)
+    get_filename_component(_name "${CMAKE_ARGV${_index}}" NAME_WLE)
+    if(EXISTS "${_directory}/${_name}.pdb")
+        file(COPY "${_directory}/${_name}.pdb" DESTINATION "${DEST}")
+    endif()
+endforeach()
