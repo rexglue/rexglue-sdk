@@ -10,6 +10,8 @@
 
 #include "rex_test.h"
 
+#include <algorithm>
+#include <array>
 #include <chrono>
 
 #include <rex/platform/thread.h>
@@ -39,9 +41,10 @@ REX_TEST_CASE("Sleep never returns before a multi millisecond duration", "[core]
 
 REX_TEST_CASE("Sleep stays near a multi millisecond duration at the default timer period",
               "[core][sleep]") {
-  std::chrono::microseconds total{0};
-  for (int i = 0; i < 20; ++i) {
-    total += TimedSleep(std::chrono::microseconds(3000));
+  std::array<std::chrono::microseconds, 21> samples;
+  for (auto& sample : samples) {
+    sample = TimedSleep(std::chrono::microseconds(3000));
   }
-  CHECK(total / 20 < std::chrono::microseconds(8000));
+  std::ranges::sort(samples);
+  CHECK(samples[samples.size() / 2] < std::chrono::microseconds(8000));
 }

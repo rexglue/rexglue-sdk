@@ -168,6 +168,28 @@ REX_TEST_CASE("A timed multi wait ends at its deadline", "[core][posix_wait]") {
   }
 }
 
+REX_TEST_CASE("A timed wait never returns before its deadline", "[core][posix_wait]") {
+  auto event = Event::CreateManualResetEvent(false);
+  auto other = Event::CreateManualResetEvent(false);
+  WaitHandle* handles[2] = {event.get(), other.get()};
+  for (const auto duration : {1ms, 7ms, 16ms, 37ms}) {
+    for (int round = 0; round < 10; ++round) {
+      for (const bool alertable : {false, true}) {
+        auto start = Clock::now();
+        REQUIRE(rex::platform::Wait(event.get(), alertable, duration) == WaitResult::kTimeout);
+        REQUIRE(Clock::now() - start >= duration);
+        start = Clock::now();
+        REQUIRE(rex::platform::WaitAny(handles, 2, alertable, duration).first ==
+                WaitResult::kTimeout);
+        REQUIRE(Clock::now() - start >= duration);
+        start = Clock::now();
+        REQUIRE(rex::platform::WaitAll(handles, 2, alertable, duration) == WaitResult::kTimeout);
+        REQUIRE(Clock::now() - start >= duration);
+      }
+    }
+  }
+}
+
 REX_TEST_CASE("A queued callback ends every kind of alertable wait", "[core][posix_wait]") {
   auto never = Event::CreateManualResetEvent(false);
   auto other = Event::CreateManualResetEvent(false);

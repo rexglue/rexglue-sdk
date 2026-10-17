@@ -12,6 +12,7 @@
 #include "rex_test.h"
 
 #include <algorithm>
+#include <atomic>
 #include <chrono>
 #include <condition_variable>
 #include <future>
@@ -367,9 +368,16 @@ REX_TEST_CASE("registry: a load of a case variant of a path being loaded is refu
       first_done->set_value(static_cast<bool>(modules.LoadUserModule("game:\\Mod.xex")));
     });
     const bool inside = sink.WaitInside();
+    std::atomic<bool> second_running{false};
     const u32 second = c.Spawn([&](Caller&) {
+      second_running = true;
       second_done->set_value(static_cast<bool>(modules.LoadUserModule("game:\\MOD.XEX")));
     });
+    const auto running_by = std::chrono::steady_clock::now() + 5s;
+    while (!second_running && std::chrono::steady_clock::now() < running_by) {
+      std::this_thread::yield();
+    }
+    CHECK(second_running);
     std::this_thread::sleep_for(500ms);
     sink.Release();
     CHECK(first_future.wait_for(10s) == std::future_status::ready);

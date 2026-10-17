@@ -135,6 +135,15 @@ inline void StashHandle(X_DISPATCH_HEADER* header, u32 handle) {
 REX_RUNTIME_API std::chrono::milliseconds TimeoutFromTicks(i64 timeout_ticks);
 
 /**
+ * Converts a delay interval in 100 nanosecond ticks to microseconds, scaled by the guest clock.
+ * The result is rounded up and never passes through milliseconds.
+ *
+ * @param delay_ticks A negative relative interval, a positive absolute system time, or 0.
+ * @return The time until the interval ends, 0 when it has passed.
+ */
+REX_RUNTIME_API std::chrono::microseconds DelayFromTicks(i64 delay_ticks);
+
+/**
  * Reads the object name out of an X_OBJECT_ATTRIBUTES.
  *
  * @param memory The memory that holds the attributes and the name.

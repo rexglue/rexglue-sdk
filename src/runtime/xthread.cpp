@@ -983,12 +983,11 @@ void KernelThread::TakeDeferredSuspend() {
 
 X_STATUS KernelThread::Delay([[maybe_unused]] u32 processor_mode, u32 alertable,
                              u64 interval) const {
-  const u32 timeout_ms = Clock::ScaleGuestDurationMillis(
-      static_cast<u32>(TimeoutFromTicks(static_cast<i64>(interval)).count()));
+  const auto duration = DelayFromTicks(static_cast<i64>(interval));
   CheckStop();
   WriteKernelTime();
   if (alertable) {
-    auto result = rex::platform::AlertableSleep(std::chrono::milliseconds(timeout_ms));
+    auto result = rex::platform::AlertableSleep(duration);
     CheckStop();
     switch (result) {
       default:
@@ -998,14 +997,15 @@ X_STATUS KernelThread::Delay([[maybe_unused]] u32 processor_mode, u32 alertable,
         return X_STATUS_USER_APC;
     }
   } else {
-    if (timeout_ms == 0) {
+    if (duration == std::chrono::microseconds::zero()) {
       if (priority_ <= rex::platform::ThreadPriority::kBelowNormal) {
         rex::platform::Sleep(std::chrono::microseconds(100));
       } else {
         rex::platform::MaybeYield();
       }
     } else {
-      Sleep(std::chrono::milliseconds(timeout_ms));
+      rex::platform::MaybeYield();
+      Sleep(duration);
     }
     CheckStop();
   }

@@ -15,7 +15,9 @@ static_assert(REX_PLATFORM_WIN32, "This file is Windows-only");
 
 #include "platform_win.h"
 
+#include <algorithm>
 #include <array>
+#include <chrono>
 #include <cstring>
 #include <rex/assert.h>
 #include <rex/logging/log.h>
@@ -109,15 +111,26 @@ struct SleepTimer {
   HANDLE handle;
 };
 
-bool WaitOnSleepTimer(std::chrono::microseconds duration) {
+enum class TimerWait : u8 { kFailed, kElapsed, kAlerted };
+
+TimerWait WaitOnSleepTimer(std::chrono::microseconds duration, bool alertable) {
   thread_local SleepTimer timer;
   if (!timer.handle) {
-    return false;
+    return TimerWait::kFailed;
   }
   LARGE_INTEGER due;
   due.QuadPart = -duration.count() * 10;
-  return SetWaitableTimer(timer.handle, &due, 0, nullptr, nullptr, FALSE) &&
-         WaitForSingleObject(timer.handle, INFINITE) == WAIT_OBJECT_0;
+  if (!SetWaitableTimer(timer.handle, &due, 0, nullptr, nullptr, FALSE)) {
+    return TimerWait::kFailed;
+  }
+  switch (WaitForSingleObjectEx(timer.handle, INFINITE, alertable ? TRUE : FALSE)) {
+    case WAIT_OBJECT_0:
+      return TimerWait::kElapsed;
+    case WAIT_IO_COMPLETION:
+      return TimerWait::kAlerted;
+    default:
+      return TimerWait::kFailed;
+  }
 }
 
 }  // namespace
@@ -129,7 +142,8 @@ void Sleep(std::chrono::microseconds duration) {
   }
   constexpr std::chrono::microseconds kSpinTail{250};
   const auto target = std::chrono::steady_clock::now() + duration;
-  if (duration > kSpinTail && !WaitOnSleepTimer(duration - kSpinTail)) {
+  if (duration > kSpinTail &&
+      WaitOnSleepTimer(duration - kSpinTail, false) != TimerWait::kElapsed) {
     ::Sleep(static_cast<DWORD>(
         std::chrono::duration_cast<std::chrono::milliseconds>(duration - kSpinTail).count()));
   }
@@ -152,8 +166,28 @@ std::chrono::milliseconds QueryCurrentThreadCPUTime() {
 }
 
 SleepResult AlertableSleep(std::chrono::microseconds duration) {
-  if (SleepEx(static_cast<DWORD>(duration.count() / 1000), TRUE) == WAIT_IO_COMPLETION) {
-    return SleepResult::kAlerted;
+  if (duration <= std::chrono::microseconds::zero()) {
+    return SleepEx(0, TRUE) == WAIT_IO_COMPLETION ? SleepResult::kAlerted : SleepResult::kSuccess;
+  }
+  constexpr std::chrono::microseconds kSpinTail{250};
+  const auto target = std::chrono::steady_clock::now() + duration;
+  if (duration > kSpinTail) {
+    switch (WaitOnSleepTimer(duration - kSpinTail, true)) {
+      case TimerWait::kAlerted:
+        return SleepResult::kAlerted;
+      case TimerWait::kFailed:
+        if (SleepEx(
+                static_cast<DWORD>(std::chrono::ceil<std::chrono::milliseconds>(duration).count()),
+                TRUE) == WAIT_IO_COMPLETION) {
+          return SleepResult::kAlerted;
+        }
+        return SleepResult::kSuccess;
+      case TimerWait::kElapsed:
+        break;
+    }
+  }
+  while (std::chrono::steady_clock::now() < target) {
+    YieldProcessor();
   }
   return SleepResult::kSuccess;
 }
@@ -190,9 +224,31 @@ class Win32Handle : public T {
   HANDLE handle_ = nullptr;
 };
 
+template <typename Fn>
+DWORD WaitUntilDeadline(std::chrono::milliseconds timeout, Fn&& wait) {
+  using Clock = std::chrono::steady_clock;
+  constexpr std::chrono::milliseconds kInfinite{INFINITE};
+  if (timeout >= kInfinite) {
+    return wait(INFINITE);
+  }
+  timeout = std::max(timeout, std::chrono::milliseconds::zero());
+  const auto deadline = Clock::now() + timeout;
+  DWORD result = wait(DWORD(timeout.count()));
+  while (result == WAIT_TIMEOUT) {
+    const auto remaining = deadline - Clock::now();
+    if (remaining <= Clock::duration::zero()) {
+      break;
+    }
+    result = wait(DWORD(std::chrono::ceil<std::chrono::milliseconds>(remaining).count()));
+  }
+  return result;
+}
+
 WaitResult Wait(WaitHandle* wait_handle, bool is_alertable, std::chrono::milliseconds timeout) {
   HANDLE handle = wait_handle->GetNativeHandle();
-  DWORD result = WaitForSingleObjectEx(handle, DWORD(timeout.count()), is_alertable ? TRUE : FALSE);
+  DWORD result = WaitUntilDeadline(timeout, [&](DWORD milliseconds) {
+    return WaitForSingleObjectEx(handle, milliseconds, is_alertable ? TRUE : FALSE);
+  });
   switch (result) {
     case WAIT_OBJECT_0:
       return WaitResult::kSuccess;
@@ -212,8 +268,15 @@ WaitResult SignalAndWait(WaitHandle* wait_handle_to_signal, WaitHandle* wait_han
                          bool is_alertable, std::chrono::milliseconds timeout) {
   HANDLE handle_to_signal = wait_handle_to_signal->GetNativeHandle();
   HANDLE handle_to_wait_on = wait_handle_to_wait_on->GetNativeHandle();
-  DWORD result = SignalObjectAndWait(handle_to_signal, handle_to_wait_on, DWORD(timeout.count()),
-                                     is_alertable ? TRUE : FALSE);
+  bool signaled = false;
+  DWORD result = WaitUntilDeadline(timeout, [&](DWORD milliseconds) {
+    if (signaled) {
+      return WaitForSingleObjectEx(handle_to_wait_on, milliseconds, is_alertable ? TRUE : FALSE);
+    }
+    signaled = true;
+    return SignalObjectAndWait(handle_to_signal, handle_to_wait_on, milliseconds,
+                               is_alertable ? TRUE : FALSE);
+  });
   switch (result) {
     case WAIT_OBJECT_0:
       return WaitResult::kSuccess;
@@ -236,9 +299,10 @@ std::pair<WaitResult, size_t> WaitMultiple(WaitHandle* wait_handles[], size_t wa
   for (size_t i = 0; i < wait_handle_count; ++i) {
     handles[i] = wait_handles[i]->GetNativeHandle();
   }
-  DWORD result =
-      WaitForMultipleObjectsEx(DWORD(handles.size()), handles.data(), wait_all ? TRUE : FALSE,
-                               DWORD(timeout.count()), is_alertable ? TRUE : FALSE);
+  DWORD result = WaitUntilDeadline(timeout, [&](DWORD milliseconds) {
+    return WaitForMultipleObjectsEx(DWORD(handles.size()), handles.data(), wait_all ? TRUE : FALSE,
+                                    milliseconds, is_alertable ? TRUE : FALSE);
+  });
   if (result >= WAIT_OBJECT_0 && result < WAIT_OBJECT_0 + handles.size()) {
     return std::pair<WaitResult, size_t>(WaitResult::kSuccess, result - WAIT_OBJECT_0);
   } else if (result >= WAIT_ABANDONED_0 && result < WAIT_ABANDONED_0 + handles.size()) {

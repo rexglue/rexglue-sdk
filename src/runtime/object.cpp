@@ -102,9 +102,8 @@ auto WaitGuest(u32 alertable, std::chrono::milliseconds timeout, Wait wait,
       return result;
     }
     if (!infinite) {
-      timeout =
-          std::max(std::chrono::duration_cast<std::chrono::milliseconds>(deadline - clock::now()),
-                   std::chrono::milliseconds(0));
+      timeout = std::max(std::chrono::ceil<std::chrono::milliseconds>(deadline - clock::now()),
+                         std::chrono::milliseconds(0));
     }
   }
 }
@@ -149,18 +148,39 @@ rex::platform::WaitResult WaitHostSockets(std::span<const rex::platform::SocketW
       IsCallback);
 }
 
-std::chrono::milliseconds TimeoutFromTicks(i64 timeout_ticks) {
-  constexpr u64 kTicksPerMs = 10000;
-  constexpr u64 kLongestMs = 0xFFFFFFFE;
-  u64 ticks = 0;
+namespace {
+
+constexpr u64 kTicksPerMs = 10000;
+constexpr u64 kLongestMs = 0xFFFFFFFE;
+
+u64 RemainingTicks(i64 timeout_ticks) {
   if (timeout_ticks < 0) {
-    ticks = 0 - static_cast<u64>(timeout_ticks);
-  } else if (timeout_ticks > 0) {
+    return 0 - static_cast<u64>(timeout_ticks);
+  }
+  if (timeout_ticks > 0) {
     const u64 now = Clock::QueryGuestSystemTime();
     const u64 deadline = static_cast<u64>(timeout_ticks);
-    ticks = deadline > now ? deadline - now : 0;
+    return deadline > now ? deadline - now : 0;
   }
-  return std::chrono::milliseconds(std::min(ticks / kTicksPerMs, kLongestMs));
+  return 0;
+}
+
+}  // namespace
+
+std::chrono::milliseconds TimeoutFromTicks(i64 timeout_ticks) {
+  const u64 ticks = RemainingTicks(timeout_ticks);
+  const u64 milliseconds = ticks / kTicksPerMs + (ticks % kTicksPerMs != 0 ? 1 : 0);
+  return std::chrono::milliseconds(std::min(milliseconds, kLongestMs));
+}
+
+std::chrono::microseconds DelayFromTicks(i64 delay_ticks) {
+  constexpr u64 kTicksPerMicrosecond = 10;
+  const u64 ticks = std::min<u64>(RemainingTicks(delay_ticks), std::numeric_limits<i64>::max());
+  const u64 scaled =
+      static_cast<u64>(0 - Clock::ScaleGuestDurationFileTime(-static_cast<i64>(ticks)));
+  const u64 microseconds =
+      scaled / kTicksPerMicrosecond + (scaled % kTicksPerMicrosecond != 0 ? 1 : 0);
+  return std::chrono::microseconds(std::min(microseconds, kLongestMs * 1000));
 }
 
 std::string NameFromAttributes(runtime::Memory* memory, u32 obj_attributes_ptr) {

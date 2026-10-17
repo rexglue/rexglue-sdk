@@ -10,6 +10,8 @@
 
 #include "rex_test.h"
 
+#include <algorithm>
+#include <array>
 #include <atomic>
 #include <chrono>
 #include <functional>
@@ -250,6 +252,30 @@ REX_TEST_CASE("threads: a guest APC with a kernel routine is delivered without f
     rex::runtime::HeapAllocationInfo info{};
     REQUIRE(c.GetRuntime().GetMemory()->LookupHeap(apc)->QueryRegionInfo(apc, &info));
     CHECK((info.state & rex::runtime::kMemoryAllocationCommit) != 0);
+  });
+}
+
+REX_TEST_CASE("threads: KeDelayExecutionThread holds a sub millisecond interval to its tick count",
+              "[kernel][threads][delay]") {
+  KernelFixture fixture;
+  fixture.RunOnGuestThread([](Caller& c) {
+    using Clock = std::chrono::steady_clock;
+    for (const u32 alertable : {0u, 1u}) {
+      for (const rex::i64 ticks : {1, 5000, 15000}) {
+        const u32 interval = c.Quad(-ticks);
+        std::array<std::chrono::nanoseconds, 21> samples;
+        for (auto& sample : samples) {
+          const auto start = Clock::now();
+          c.Kernel("KeDelayExecutionThread", {1, alertable, interval});
+          sample = Clock::now() - start;
+          CHECK(sample >= std::chrono::nanoseconds(ticks * 100));
+        }
+        std::ranges::sort(samples);
+        if (ticks == 1) {
+          CHECK(samples[samples.size() / 2] < std::chrono::microseconds(500));
+        }
+      }
+    }
   });
 }
 
