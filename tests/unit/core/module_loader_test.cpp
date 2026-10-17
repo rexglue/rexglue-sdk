@@ -13,6 +13,7 @@
 #include <algorithm>
 #include <cctype>
 #include <filesystem>
+#include <format>
 #include <memory>
 #include <string>
 #include <vector>
@@ -22,6 +23,7 @@
 #include <rex/platform/file.h>
 #include <rex/logging/log.h>
 #include <rex/logging/sink.h>
+#include <rex/module.h>
 #include <rex/platform/dynlib.h>
 
 #include "core/module_loader.h"
@@ -171,6 +173,30 @@ REX_TEST_CASE_METHOD(Fixture, "Bad module version is rejected", "[core][module_l
   REQUIRE_FALSE(api);
   REQUIRE(api.error().message ==
           "module 'rexmod-test-badversion' does not serve rex.module version 1 (status 2)");
+}
+
+REX_TEST_CASE_METHOD(Fixture, "A module that exports no build identity is rejected",
+                     "[core][module_loader]") {
+  auto api = rex::Init(With({"rexmod-test-noidentity"}));
+  REQUIRE_FALSE(api);
+  const auto path =
+      rex::platform::GetExecutableFolder() / rex::detail::ModuleFileName("rexmod-test-noidentity");
+  REQUIRE(api.error().message ==
+          std::format("module 'rexmod-test-noidentity' at '{}' exports no rex_build_identity, it "
+                      "was not built against this SDK build '{}'",
+                      path.string(), rex::kBuildIdentity));
+}
+
+REX_TEST_CASE_METHOD(Fixture, "A module built against another SDK build is rejected",
+                     "[core][module_loader]") {
+  auto api = rex::Init(With({"rexmod-test-otheridentity"}));
+  REQUIRE_FALSE(api);
+  const auto path = rex::platform::GetExecutableFolder() /
+                    rex::detail::ModuleFileName("rexmod-test-otheridentity");
+  REQUIRE(api.error().message ==
+          std::format("module 'rexmod-test-otheridentity' at '{}' was built against SDK build "
+                      "'0.0.0-000000000000', this SDK build is '{}'",
+                      path.string(), rex::kBuildIdentity));
 }
 
 REX_TEST_CASE_METHOD(Fixture, "Unknown module reports the composed path", "[core][module_loader]") {

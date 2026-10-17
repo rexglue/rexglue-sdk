@@ -17,7 +17,10 @@
 #include <fstream>
 #include <vector>
 
+#include <rex/api.h>
 #include <rex/filesystem/xex.h>
+#include <rex/logging/logger.h>
+#include <rex/logging/sink.h>
 #include <rex/runtime.h>
 #include <rex/runtime/error.h>
 #include <rex/runtime/function_dispatcher.h>
@@ -94,8 +97,10 @@ void Write(const std::filesystem::path& path, const rex::test::XEXSpec& spec) {
   out.write(reinterpret_cast<const char*>(file.data()), static_cast<std::streamsize>(file.size()));
 }
 
-void WriteExporter(const std::filesystem::path& root) {
+void WriteExporter(const std::filesystem::path& root,
+                   u32 module_flags = rex::filesystem::kXEXModuleTitle) {
   rex::test::XEXSpec spec;
+  spec.module_flags = module_flags;
   spec.load_address = kExporterBase;
   spec.page_size_4kb = false;
   spec.image = BuildPEImage();
@@ -131,6 +136,11 @@ void WriteImporter(const std::filesystem::path& root, const char* file, u32 ordi
 
 void PopulateAll(const std::filesystem::path& root) {
   WriteExporter(root);
+  WriteImporter(root, "importer.xex", kFunctionOrdinal);
+}
+
+void PopulateDLLExporter(const std::filesystem::path& root) {
+  WriteExporter(root, rex::filesystem::kXEXModuleDLLModule);
   WriteImporter(root, "importer.xex", kFunctionOrdinal);
 }
 
@@ -302,6 +312,31 @@ REX_TEST_CASE("imports: unloading the importer unloads an exporter loaded for it
     CHECK_FALSE(modules.GetModule(kImporterPath));
     CHECK_FALSE(modules.GetModule(kExporterPath));
   });
+}
+
+REX_TEST_CASE("imports: a codegen unload of the importer attempts no detach on its exporter",
+              "[runtime][module][import]") {
+  KernelFixture fixture(PopulateDLLExporter);
+  auto* logger = fixture.GetAPI().Get<rex::ILogger>();
+  REQUIRE(logger);
+  rex::log::CaptureSink sink;
+  logger->AddSink(sink);
+  auto& modules = fixture.GetRuntime().GetModuleRegistry();
+  rex::X_HANDLE importer = 0;
+  fixture.RunOnGuestThread([&](Caller& c) {
+    RegisterImages(c.GetRuntime());
+    auto loaded = modules.LoadUserModule(kImporterPath, false);
+    REQUIRE(loaded);
+    importer = *loaded;
+  });
+  modules.UnloadUserModule(importer, false);
+  std::vector<rex::log::CapturedMessage> messages;
+  sink.CopySince(0, messages);
+  logger->RemoveSink(sink);
+  CHECK_FALSE(modules.GetModule(kExporterPath));
+  CHECK_FALSE(std::ranges::any_of(messages, [](const rex::log::CapturedMessage& message) {
+    return message.text.starts_with("DllMain(DLL_PROCESS_DETACH) skipped");
+  }));
 }
 
 REX_TEST_CASE("imports: an exporter the title loaded stays loaded after the importer unloads",

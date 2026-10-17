@@ -297,6 +297,7 @@ target_compile_definitions(unit_tests PRIVATE REX_GPU_XENOS_STATIC)
 add_dependencies(unit_tests
     rexmod-test-good rexmod-test-missing rexmod-test-badversion
     rexmod-test-failinit rexmod-test-dupecho rexmod-test-null-gpu
+    rexmod-test-noidentity rexmod-test-otheridentity
     rexmod-test-apu rexapu-sdl3 rexmod-test-hid rexhid-sdl3 rexui-sdl3
     rexmod-test-recompiled-a rexmod-test-recompiled-b
     rexmod-test-cross-exporter rexmod-test-cross-importer)

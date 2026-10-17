@@ -22,6 +22,7 @@
 #include <rex/export.h>
 #include <rex/result.h>
 #include <rex/types.h>
+#include <rex/version.h>
 
 namespace rex {
 
@@ -234,6 +235,22 @@ inline constexpr const char* kCreateInterfaceSymbol = "rex_create_interface";
  * Name of the C export that returns the served interface table.
  */
 inline constexpr const char* kEnumerateInterfacesSymbol = "rex_enumerate_interfaces";
+
+/**
+ * Name of the C export that returns the SDK build identity a module was compiled against.
+ */
+inline constexpr const char* kBuildIdentitySymbol = "rex_build_identity";
+
+/**
+ * Identity of the SDK build these headers belong to. A module loads only when its exported
+ * identity equals this value.
+ */
+inline constexpr const char* kBuildIdentity = REXGLUE_BUILD_IDENTITY;
+
+/**
+ * Signature of rex_build_identity.
+ */
+using BuildIdentityFn = const char* (*)();
 
 /**
  * Signature of rex_create_interface.

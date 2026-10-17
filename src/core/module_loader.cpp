@@ -191,6 +191,17 @@ Result<void> ModuleLoader::LoadAll() {
       return Err(ModuleError(std::format("module '{}' failed to load from '{}': {}", name,
                                          path.string(), entry.library.GetLastError())));
     }
+    auto identity = entry.library.GetSymbol<BuildIdentityFn>(kBuildIdentitySymbol);
+    if (!identity) {
+      return Err(ModuleError(std::format(
+          "module '{}' at '{}' exports no {}, it was not built against this SDK build '{}'", name,
+          path.string(), kBuildIdentitySymbol, kBuildIdentity)));
+    }
+    if (std::strcmp(identity(), kBuildIdentity) != 0) {
+      return Err(ModuleError(std::format(
+          "module '{}' at '{}' was built against SDK build '{}', this SDK build is '{}'", name,
+          path.string(), identity(), kBuildIdentity)));
+    }
     auto create = entry.library.GetSymbol<CreateInterfaceFn>(kCreateInterfaceSymbol);
     if (!create) {
       return Err(ModuleError(std::format("module '{}' has no {}", name, kCreateInterfaceSymbol)));

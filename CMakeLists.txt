@@ -207,6 +207,8 @@ rex_version_channel(REXGLUE_VERSION_CHANNEL VERSION "${REXGLUE_FULL_VERSION}")
 # Generate version header -- must run after REX_PLATFORM is set
 # Timestamp is set at configure time -- intentionally not updated on every rebuild
 string(TIMESTAMP REXGLUE_BUILD_TIMESTAMP "%Y%m%d_%H%M")
+string(RANDOM LENGTH 12 ALPHABET "0123456789abcdef" REXGLUE_BUILD_NONCE)
+set(REXGLUE_BUILD_IDENTITY "${REXGLUE_FULL_VERSION}-${REXGLUE_BUILD_NONCE}")
 configure_file(
     ${CMAKE_CURRENT_SOURCE_DIR}/include/rex/version.h.in
     ${CMAKE_CURRENT_BINARY_DIR}/include/rex/version.h

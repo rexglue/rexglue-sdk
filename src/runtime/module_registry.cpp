@@ -303,7 +303,7 @@ void ModuleRegistry::AcquireReference(ModuleObject& module) {
   runtime_.GetMemory()->TranslateVirtual<X_LDR_DATA_TABLE_ENTRY*>(module.hmodule_ptr)->load_count++;
 }
 
-void ModuleRegistry::ReleaseReference(X_HANDLE handle) {
+void ModuleRegistry::ReleaseReference(X_HANDLE handle, bool call_entry) {
   auto module = table_.Get<ModuleObject>(handle);
   if (!module) {
     return;
@@ -316,15 +316,15 @@ void ModuleRegistry::ReleaseReference(X_HANDLE handle) {
     last = (--ldr_data->load_count == 0);
   }
   if (last) {
-    UnloadUserModule(handle);
+    UnloadUserModule(handle, call_entry);
   }
 }
 
-void ModuleRegistry::ReleaseDependencies(ModuleObject& module) {
+void ModuleRegistry::ReleaseDependencies(ModuleObject& module, bool call_entry) {
   const std::vector<X_HANDLE> dependencies = std::move(module.user.dependencies);
   module.user.dependencies.clear();
   for (X_HANDLE dependency : std::views::reverse(dependencies)) {
-    ReleaseReference(dependency);
+    ReleaseReference(dependency, call_entry);
   }
 }
 
@@ -412,7 +412,7 @@ Result<X_HANDLE> ModuleRegistry::LoadUserModule(std::string_view raw_name, bool 
   }
 
   if (const X_STATUS imports = ResolveImports(*module, path, call_entry); XFAILED(imports)) {
-    ReleaseDependencies(*module);
+    ReleaseDependencies(*module, call_entry);
     CloseOwned(table_, created);
     return Err<X_HANDLE>(StatusError(imports));
   }
@@ -433,7 +433,7 @@ Result<X_HANDLE> ModuleRegistry::LoadUserModule(std::string_view raw_name, bool 
     if (!inserted) {
       REXLOG_ERROR(system, "Recompiled module '{}' already loaded; refusing duplicate load",
                    lib_key);
-      ReleaseDependencies(*module);
+      ReleaseDependencies(*module, call_entry);
       CloseOwned(table_, created);
       return Err<X_HANDLE>(StatusError(X_STATUS_UNSUCCESSFUL));
     }
@@ -489,14 +489,14 @@ Result<X_HANDLE> ModuleRegistry::LoadUserModule(std::string_view raw_name, bool 
         std::lock_guard lock(recompiled_mutex_);
         module_libraries_.erase(lib_key);
       }
-      ReleaseDependencies(*module);
+      ReleaseDependencies(*module, call_entry);
       CloseOwned(table_, created);
       return Err<X_HANDLE>(StatusError(X_STATUS_UNSUCCESSFUL));
     }
   }
 
   if (!AddUser(created)) {
-    ReleaseDependencies(*module);
+    ReleaseDependencies(*module, call_entry);
     CloseOwned(table_, created);
     if (auto existing = FindUser(path)) {
       AcquireReference(*table_.Get<ModuleObject>(*existing));
@@ -572,7 +572,7 @@ void ModuleRegistry::UnloadUserModule(X_HANDLE module_handle, bool call_entry) {
     CloseOwned(table_, ModuleObject::HandleFromHModule(
                            runtime_.GetMemory()->TranslateVirtual(module->hmodule_ptr)));
   }
-  ReleaseDependencies(*module);
+  ReleaseDependencies(*module, call_entry);
 
   if (!found_module) {
     REXLOG_ERROR(system, "UnloadUserModule: module '{}' not found in the module registry",

@@ -179,15 +179,17 @@ class ModuleRegistry final : public IModuleRegistry {
    * Drops one load reference of a module and unloads it when the last one is gone.
    *
    * @param module Any handle of the module.
+   * @param call_entry True to call the entry point of a DLL module for the process detach.
    */
-  void ReleaseReference(X_HANDLE module);
+  void ReleaseReference(X_HANDLE module, bool call_entry);
 
   /**
    * Drops the load references a module holds on the modules it imports from.
    *
    * @param module The module.
+   * @param call_entry True to call the entry point of a DLL module for the process detach.
    */
-  void ReleaseDependencies(ModuleObject& module);
+  void ReleaseDependencies(ModuleObject& module, bool call_entry);
 
   Runtime& runtime_;
   ObjectTable& table_;
