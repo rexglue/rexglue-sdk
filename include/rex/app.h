@@ -13,6 +13,7 @@
 #include <exception>
 #include <memory>
 #include <optional>
+#include <span>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -21,6 +22,7 @@
 #include <rex/platform.h>
 #include <rex/export.h>
 #include <rex/api.h>
+#include <rex/cli_action.h>
 #include <rex/cli_arg_list.h>
 #include <rex/platform/crash.h>
 #include <rex/platform/process.h>
@@ -123,6 +125,25 @@ class REX_API App : public NonCopyable {
    * @return Ok to continue. An error makes Init return it.
    */
   [[nodiscard]] virtual Result<void> OnConfigure(Config& config);
+
+  /**
+   * Lists the command line actions the app handles. Init matches the command line against the
+   * list before the config file loads and calls OnAction for each action found.
+   *
+   * @return The declared actions, valid until the app is destroyed. The default is empty.
+   */
+  virtual std::span<const CLIAction> GetActions() const;
+
+  /**
+   * Reports an action found on the command line. It is a report and not the run, so the app may
+   * keep it and act later, after the config file, the window and the modules are ready. A
+   * repeated action reports once for each time it appears.
+   *
+   * @param action The declared action.
+   * @param option The parsed option, with its value if it has one.
+   * @return Ok to continue. An error makes Init return it.
+   */
+  [[nodiscard]] virtual Result<void> OnAction(const CLIAction& action, const CLIOption& option);
 
   /**
    * Runs after every module is connected and before any module is initialized.

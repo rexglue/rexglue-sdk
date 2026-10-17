@@ -262,6 +262,14 @@ Result<void> App::OnConfigure(Config&) {
   return Ok();
 }
 
+std::span<const CLIAction> App::GetActions() const {
+  return {};
+}
+
+Result<void> App::OnAction(const CLIAction&, const CLIOption&) {
+  return Ok();
+}
+
 Result<void> App::OnInit(Config&, API&) {
   return Ok();
 }
@@ -324,9 +332,19 @@ Result<void> App::Init(const CLIArgList& args) {
   if (config_.log.file.folder.empty()) {
     config_.log.file.folder = platform::GetExecutableFolder() / "logs";
   }
-  if (auto unknown = ParseCommandLine(config_, args_); !unknown.empty()) {
+  const std::span<const CLIAction> actions = GetActions();
+  if (auto valid = ValidateCLIActions(actions); !valid) {
+    return Fail("command line action", valid.error());
+  }
+  std::vector<CLIActionHit> hits;
+  if (auto unknown = ParseCommandLine(config_, args_, actions, &hits); !unknown.empty()) {
     return Fail("command line",
                 Error(ErrorCategory::kConfig, "unknown option " + JoinOptions(unknown)));
+  }
+  for (const CLIActionHit& hit : hits) {
+    if (auto handled = OnAction(hit.action, hit.option); !handled) {
+      return Fail("command line action", handled.error());
+    }
   }
   if (!config_.single_instance.empty()) {
     auto lock = platform::InstanceLock::Acquire(config_.single_instance);

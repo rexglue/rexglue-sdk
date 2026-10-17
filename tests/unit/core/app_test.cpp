@@ -24,6 +24,8 @@
 
 #include <rex/api.h>
 #include <rex/app.h>
+#include <rex/cli_action.h>
+#include <rex/cvar/registry.h>
 #include <rex/logging/logger.h>
 #include <rex/platform/file.h>
 #include <rex/logging/log.h>
@@ -43,6 +45,7 @@
 #include "core/module_loader.h"
 #include "modules/echo.h"
 #include "modules/test_module_common.h"
+#include "support/temp_folder.h"
 
 namespace {
 
@@ -132,6 +135,44 @@ class TestApp : public rex::App {
   void OnShutdown() override { g_events.push_back("app:shutdown"); }
 };
 
+class ActionApp : public TestApp {
+ public:
+  std::vector<std::string> actions_seen;
+  std::string flush_interval_at_init;
+  bool fail_action = false;
+
+ protected:
+  std::span<const rex::CLIAction> GetActions() const override { return kActions; }
+
+  [[nodiscard]] rex::Result<void> OnAction(const rex::CLIAction& action,
+                                           const rex::CLIOption& option) override {
+    g_events.push_back("app:action:" + std::string(action.name));
+    actions_seen.push_back(std::string(action.name) + "=" + option.value.value_or(""));
+    if (fail_action) {
+      return rex::Err<void>(rex::ErrorCategory::kConfig, "action failed");
+    }
+    return rex::Ok();
+  }
+
+  [[nodiscard]] rex::Result<void> OnInit(rex::Config& config, rex::API& api) override {
+    flush_interval_at_init =
+        api.Get<rex::cvar::ICvarRegistry>()->Get("log.flush_interval").value_or("");
+    return TestApp::OnInit(config, api);
+  }
+
+ private:
+  static constexpr std::array<rex::CLIAction, 1> kActions = {
+      REX_CLI_ACTION(repair, "Opens the repair mode.")};
+};
+
+class ClashApp : public TestApp {
+ protected:
+  std::span<const rex::CLIAction> GetActions() const override { return kClash; }
+
+ private:
+  static constexpr std::array<rex::CLIAction, 1> kClash = {rex::CLIAction{"backend", "Clashes."}};
+};
+
 rex::CLIArgList Args(std::vector<std::string> args = {}) {
   return rex::CLIArgList::Parse(args);
 }
@@ -196,6 +237,55 @@ REX_TEST_CASE_METHOD(Fixture, "An unknown option fails Init and names it", "[cor
   REQUIRE_FALSE(result);
   REQUIRE(result.error().message.find("--nope=1") != std::string::npos);
   REQUIRE(app.Shutdown() == 1);
+}
+
+REX_TEST_CASE_METHOD(Fixture, "A declared action reaches OnAction before the modules load",
+                     "[core][app][action]") {
+  ActionApp app;
+  app.modules = {};
+  REQUIRE(app.Init(Args({"--repair=now"})));
+  REQUIRE(app.actions_seen == std::vector<std::string>{"repair=now"});
+  REQUIRE(g_events.size() >= 2);
+  REQUIRE(g_events[0] == "app:configure");
+  REQUIRE(g_events[1] == "app:action:repair");
+  app.Shutdown();
+}
+
+REX_TEST_CASE_METHOD(Fixture, "An OnAction error fails Init before any module",
+                     "[core][app][action]") {
+  Pinned pin("rexmod-test-good");
+  ActionApp app;
+  app.fail_action = true;
+  REQUIRE_FALSE(app.Init(Args({"--repair"})));
+  REQUIRE(app.Shutdown() == 1);
+  REQUIRE(g_events == std::vector<std::string>{"app:configure", "app:action:repair"});
+}
+
+REX_TEST_CASE_METHOD(Fixture, "An action named like a structural flag fails Init",
+                     "[core][app][action]") {
+  ClashApp app;
+  app.modules = {};
+  auto result = app.Init(Args());
+  REQUIRE_FALSE(result);
+  REQUIRE(result.error().message.find("backend") != std::string::npos);
+  REQUIRE(app.Shutdown() == 1);
+}
+
+REX_TEST_CASE_METHOD(Fixture, "An app can defer its action past the config file load",
+                     "[core][app][action]") {
+  rex::test::TempFolder folder("rex_app_action_");
+  const auto config_path = folder.path / "app.toml";
+  {
+    std::ofstream out(config_path, std::ios::binary);
+    out << "[log]\nflush_interval = 45\n";
+  }
+  Pinned pin("rexmod-test-good");
+  ActionApp app;
+  const std::string config_arg = "--config_file=" + config_path.string();
+  REQUIRE(app.Init(Args({"--repair", config_arg})));
+  REQUIRE(app.actions_seen == std::vector<std::string>{"repair="});
+  REQUIRE(app.flush_interval_at_init == "45");
+  app.Shutdown();
 }
 
 REX_TEST_CASE_METHOD(Fixture, "args returns the command line", "[core][app]") {

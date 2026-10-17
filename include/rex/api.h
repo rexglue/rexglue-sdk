@@ -12,6 +12,7 @@
 
 #include <cstdint>
 #include <filesystem>
+#include <span>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -19,6 +20,7 @@
 #include <rex/platform.h>
 #include <rex/export.h>
 #include <rex/apu.h>
+#include <rex/cli_action.h>
 #include <rex/cli_arg_list.h>
 #include <rex/cvar.h>
 #include <rex/filesystem.h>
@@ -145,11 +147,27 @@ REX_API void Shutdown();
  * --game_data_root, --modules, --backend) fill that field. --scope.name=value and --scope.name
  * set a cvar, --no-scope.name sets it false.
  *
+ * An option named like a declared action goes to hits and never to the cvars. An action is
+ * matched before a structural field and before a cvar, and --no-name is not an action.
+ *
  * @param config The configuration to fill.
  * @param args The parsed command line.
+ * @param actions The actions the app declares.
+ * @param hits Receives each declared action found, in command line order. May be null.
  * @return The options it did not recognize, as --name or --name=value, in order.
  */
-REX_API std::vector<std::string> ParseCommandLine(Config& config, const CLIArgList& args);
+REX_API std::vector<std::string> ParseCommandLine(Config& config, const CLIArgList& args,
+                                                  std::span<const CLIAction> actions = {},
+                                                  std::vector<CLIActionHit>* hits = nullptr);
+
+/**
+ * Checks the actions an app declares.
+ *
+ * @param actions The declared actions.
+ * @return Ok, or a Config error that names a name used twice, a name that is not a valid action
+ *         name, or a name shared with a structural command line field.
+ */
+[[nodiscard]] REX_API Result<void> ValidateCLIActions(std::span<const CLIAction> actions);
 
 /**
  * Parses a TOML file into config.cvars.values. A [scope] table with leaf keys and a flat

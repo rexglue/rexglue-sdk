@@ -5,6 +5,7 @@
 #include <cctype>
 #include <format>
 #include <fstream>
+#include <span>
 #include <string_view>
 
 #include <toml++/toml.hpp>
@@ -113,9 +114,18 @@ void Shutdown() {
   detail::ModuleLoader::GetInstance().Shutdown();
 }
 
-std::vector<std::string> ParseCommandLine(Config& config, const CLIArgList& args) {
+std::vector<std::string> ParseCommandLine(Config& config, const CLIArgList& args,
+                                          std::span<const CLIAction> actions,
+                                          std::vector<CLIActionHit>* hits) {
   std::vector<std::string> unknown;
   for (const CLIOption& option : args.GetOptions()) {
+    if (auto action = std::ranges::find(actions, option.name, &CLIAction::name);
+        action != actions.end()) {
+      if (hits) {
+        hits->push_back({*action, option});
+      }
+      continue;
+    }
     const std::string text =
         option.value ? std::format("--{}={}", option.name, *option.value) : "--" + option.name;
     if (auto field = std::ranges::find_if(
@@ -142,6 +152,27 @@ std::vector<std::string> ParseCommandLine(Config& config, const CLIArgList& args
     config.cvars.Set(name, value);
   }
   return unknown;
+}
+
+Result<void> ValidateCLIActions(std::span<const CLIAction> actions) {
+  for (size_t i = 0; i < actions.size(); ++i) {
+    const std::string_view name = actions[i].name;
+    if (!detail::IsActionName(name)) {
+      return Err(ErrorCategory::kConfig,
+                 std::format("action '{}' is not a valid action name", name));
+    }
+    if (std::ranges::find_if(kRequiredVars, [&](const APIVar& entry) {
+          return entry.flag.substr(2) == name;
+        }) != std::ranges::end(kRequiredVars)) {
+      return Err(ErrorCategory::kConfig,
+                 std::format("action '{}' shares its name with a command line field", name));
+    }
+    const auto rest = actions.subspan(i + 1);
+    if (std::ranges::find(rest, name, &CLIAction::name) != rest.end()) {
+      return Err(ErrorCategory::kConfig, std::format("action '{}' is declared twice", name));
+    }
+  }
+  return Ok();
 }
 
 [[nodiscard]] Result<void> LoadConfigFile(Config& config, const std::filesystem::path& path) {
