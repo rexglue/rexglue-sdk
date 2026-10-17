@@ -79,10 +79,10 @@ template <>
 bool Build<PPC_INST_BL>(BuilderContext& ctx) {
   u32 target = ctx.insn.operands[0];
 
-  if (!ctx.GetConfig().skip_lr)
-    ctx.Println("\tctx.lr = 0x{:X};", ctx.base + 4);
-
   auto kind = ctx.GetGraph().ClassifyTarget(target, ctx.base, true);
+
+  if (!ctx.GetConfig().skip_lr || kind == TargetKind::kImport)
+    ctx.Println("\tctx.lr = 0x{:X};", ctx.base + 4);
 
   switch (kind) {
     case TargetKind::kInternalLabel:

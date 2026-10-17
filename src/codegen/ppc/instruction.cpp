@@ -91,6 +91,13 @@ bool Instruction::IsConditional() const {
   }
 }
 
+bool Instruction::IsTrapAlways() const {
+  constexpr u32 kTrapAlways = 31;
+  if (opcode == Opcode::twi)
+    return D.RT == kTrapAlways;
+  return opcode == Opcode::tw && X.RT == kTrapAlways;
+}
+
 Instruction DecodeInstruction(GuestAddrT address, u32 code) {
   Instruction instr;
   instr.address = address;

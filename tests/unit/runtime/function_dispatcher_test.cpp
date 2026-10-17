@@ -226,13 +226,14 @@ REX_TEST_CASE("FunctionDispatcher: ExecuteTrap restores the interrupted register
   memory.SystemHeapFree(stack);
 }
 
-REX_TEST_CASE("PPCContext: non-volatile save area round-trips cr2-cr4 and fpscr",
+REX_TEST_CASE("PPCContext: non-volatile save area round-trips cr2-cr5 and fpscr",
               "[runtime][context]") {
   PPCContext ctx{};
   ctx.r31.u64 = 0x31313131;
   ctx.cr2.SetRaw(0x5);
   ctx.cr3.SetRaw(0xA);
   ctx.cr4.SetRaw(0x3);
+  ctx.cr5.SetRaw(0x6);
   ctx.f14.f64 = 4.25;
   ctx.v64.u32[0] = 0x64646464;
   ctx.fpscr.csr = ctx.fpscr.GetCSR();
@@ -245,6 +246,7 @@ REX_TEST_CASE("PPCContext: non-volatile save area round-trips cr2-cr4 and fpscr"
   ctx.cr2.SetRaw(0);
   ctx.cr3.SetRaw(0);
   ctx.cr4.SetRaw(0);
+  ctx.cr5.SetRaw(0);
   ctx.f14.f64 = 0.0;
   ctx.v64.u32[0] = 0;
   ctx.fpscr.csr = 0;
@@ -255,6 +257,7 @@ REX_TEST_CASE("PPCContext: non-volatile save area round-trips cr2-cr4 and fpscr"
   CHECK(ctx.cr2.GetRaw() == 0x5);
   CHECK(ctx.cr3.GetRaw() == 0xA);
   CHECK(ctx.cr4.GetRaw() == 0x3);
+  CHECK(ctx.cr5.GetRaw() == 0x6);
   CHECK(ctx.f14.f64 == 4.25);
   CHECK(ctx.v64.u32[0] == 0x64646464);
   CHECK(ctx.fpscr.csr == saved_csr);

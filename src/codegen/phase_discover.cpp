@@ -82,6 +82,15 @@ void DiscoverFunction(CodegenContext& ctx, u32 func_addr,
   auto result = DiscoverBlocks(decoded, ctx.GetLimits(), func_addr, *region, known_functions,
                                pdata_size, &ctx.GetConfig().switch_tables);
 
+  if (node->GetAuthority() == FunctionAuthority::kGapFill && pdata_size == 0) {
+    if (const auto cut = FindReturnCut(result, func_addr)) {
+      REXLOG_TRACE(codegen, "GapFill: cut sub_{:08X} after the return at 0x{:08X}", func_addr,
+                   *cut - 4);
+      result = DiscoverBlocks(decoded, ctx.GetLimits(), func_addr, *region, known_functions,
+                              *cut - func_addr, &ctx.GetConfig().switch_tables);
+    }
+  }
+
   if (result.blocks.empty()) {
     REXLOG_WARN(codegen, "Analyze: no blocks found for function 0x{:08X}", func_addr);
     return;

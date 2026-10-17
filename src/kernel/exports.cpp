@@ -111,6 +111,17 @@ constexpr ModuleName kModuleNames[] = {
     {ExportModule::kXBDM, "xbdm", "xbdm.xex"},
 };
 
+struct NoReturnRow {
+  ExportModule module;
+  u16 ordinal;
+};
+
+constexpr NoReturnRow kNoReturnExports[] = {
+    {ExportModule::kXboxkrnl, 0x0019},
+    {ExportModule::kXAM, 0x01A4},
+    {ExportModule::kXAM, 0x01A5},
+};
+
 }  // namespace
 
 std::span<const ExportEntry> Exports(ExportModule module) {
@@ -129,6 +140,12 @@ const ExportEntry* FindByOrdinal(ExportModule module, u16 ordinal) {
   const auto table = Exports(module);
   const auto it = std::ranges::lower_bound(table, ordinal, {}, &ExportEntry::ordinal);
   return it != table.end() && it->ordinal == ordinal ? &*it : nullptr;
+}
+
+bool IsNoReturnExport(ExportModule module, u16 ordinal) {
+  return std::ranges::any_of(kNoReturnExports, [&](const NoReturnRow& row) {
+    return row.module == module && row.ordinal == ordinal;
+  });
 }
 
 std::optional<ExportModule> ModuleFromName(std::string_view name) {

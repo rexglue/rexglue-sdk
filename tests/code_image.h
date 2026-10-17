@@ -40,8 +40,10 @@ inline constexpr u32 kCodeImageSize = 0x10000;
 inline constexpr u32 kCodeImageCodeOffset = 0x1000;
 inline constexpr u32 kCodeImagePDataOffset = 0x2000;
 inline constexpr u32 kCodeImageRDataOffset = 0x3000;
+inline constexpr u32 kPDataSaveMillicode = 0u << 30;
 inline constexpr u32 kPDataNoHandler = 1u << 30;
-inline constexpr u32 kPDataException = 1u << 31;
+inline constexpr u32 kPDataRestoreMillicode = 2u << 30;
+inline constexpr u32 kPDataHandler = 3u << 30;
 
 /**
  * One exception directory entry.
@@ -141,7 +143,7 @@ inline std::string ReadGeneratedTree(const std::filesystem::path& root) {
  * @param image The image bytes.
  * @param extra_manifest Text appended to the manifest.
  * @param force True to continue past validation errors, as the force option does.
- * @param imports Import libraries of the image, whose records point into the code.
+ * @param imports The import libraries of the image and the thunk addresses of each.
  * @return The result of the run, with the output under folder/generated/entry.
  */
 inline Result<void> GenerateFromImage(const TempFolder& folder, std::vector<u8> image,

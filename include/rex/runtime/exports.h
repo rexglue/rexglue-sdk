@@ -89,6 +89,15 @@ REX_RUNTIME_API std::span<const ExportEntry> Exports(ExportModule module);
 REX_RUNTIME_API const ExportEntry* FindByOrdinal(ExportModule module, u16 ordinal);
 
 /**
+ * Reports whether an export never returns to its caller.
+ *
+ * @param module The module.
+ * @param ordinal The ordinal.
+ * @return True when a call to the export ends the calling thread, or restarts the console
+ */
+REX_RUNTIME_API bool IsNoReturnExport(ExportModule module, u16 ordinal);
+
+/**
  * Maps a module name to a table.
  *
  * Accepts the short form (`xam`) and any name that begins with the long form (`xam.xex`),

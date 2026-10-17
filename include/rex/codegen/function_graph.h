@@ -76,6 +76,34 @@ class FunctionGraph : public rex::MoveOnly {
   FunctionNode* AddImportFunction(u32 address, std::string_view resolved_name, u32 size = 4);
 
   /**
+   * Declares that a call to an address never returns, as for an import that ends the thread or a
+   * longjmp routine.
+   *
+   * @param address Entry point address
+   */
+  void DeclareNoReturn(u32 address);
+
+  /**
+   * Reports whether an address was declared as never returning.
+   *
+   * @param address Entry point address
+   * @return True after DeclareNoReturn for the address
+   */
+  bool IsDeclaredNoReturn(u32 address) const { return declared_no_return_.contains(address); }
+
+  /**
+   * Reports whether a function never returns to its caller. A declared address never returns.
+   * Any other function never returns when no path from its entry reaches a return, an
+   * unresolved target, or a function that returns, where a path ends at a trap, an infinite loop
+   * or a call that never returns. The set is a fixed point over the graph, so a cycle with no
+   * exit to a return counts as never returning, and an unknown address as returning.
+   *
+   * @param entry Entry point address
+   * @return True when no path leads back to the caller
+   */
+  bool IsNoReturn(u32 entry) const;
+
+  /**
    * Returns the function at an entry point in O(1).
    *
    * @param entry_point Entry point address
@@ -344,6 +372,8 @@ class FunctionGraph : public rex::MoveOnly {
   std::unordered_map<u32, bool> function_has_xrefs_;
   std::vector<std::pair<u32, u32>> chunks_;
   MemoryReader memory_reader_;
+  std::unordered_set<u32> declared_no_return_;
+  mutable std::optional<std::unordered_set<u32>> no_return_;
 
   void NotifyFunctionAdded(FunctionNode* new_function);
 };

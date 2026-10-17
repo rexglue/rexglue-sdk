@@ -28,6 +28,7 @@
 #include <rex/logging/log.h>
 
 #include <rex/memory/byte_swap.h>
+#include <rex/ppc/pdata.h>
 #include <rex/runtime/exports.h>
 #include <rex/types.h>
 
@@ -42,20 +43,11 @@ namespace rex::codegen {
 
 namespace {
 
-#pragma pack(push, 1)
-struct IMAGE_CE_RUNTIME_FUNCTION {
-  u32 BeginAddress;
-  union {
-    u32 Data;
-    struct {
-      u32 PrologLength : 8;
-      u32 FunctionLength : 22;
-      u32 ThirtyTwoBit : 1;
-      u32 ExceptionFlag : 1;
-    };
-  };
+struct RuntimeFunctionWords {
+  be_u32 begin;
+  be_u32 word;
 };
-#pragma pack(pop)
+REX_STATIC_ASSERT_SIZE(RuntimeFunctionWords, 8);
 
 struct SEHHeader {
   be_u32 handler_thunk;
@@ -87,7 +79,7 @@ struct PrologInfo {
 };
 
 /**
- * Scans the prologue of a function with ExceptionFlag set for its frame size and calls.
+ * Scans the prologue of a function with handler data for its frame size and calls.
  * Scanning is skipped when the PDATA prolog length is 0. valid may be false for handler
  * functions that receive the frame in r12, so the caller warns only when SEH scopes need it.
  *
@@ -466,7 +458,7 @@ std::string_view GetMillicodePrefix(MillicodeKind kind) {
 /**
  * Lists the instructions of the entry for a register.
  *
- * @param kind Kind of the run.
+ * @param kind The run kind.
  * @param reg Register the entry starts at.
  * @return The instructions the entry must hold.
  */
@@ -490,7 +482,7 @@ std::vector<MillicodeWord> GetEntryWords(MillicodeKind kind, u32 reg) {
 /**
  * Lists the instructions after the last entry of a run.
  *
- * @param kind Kind of the run.
+ * @param kind The run kind.
  * @return The instructions that close the run.
  */
 std::vector<MillicodeWord> GetTailWords(MillicodeKind kind) {
@@ -569,7 +561,7 @@ std::optional<MillicodeRun> ValidateMillicodeRun(const BinaryView& binary, u32 h
  * extended vector range.
  *
  * @param run A run.
- * @param kind Kind of the other run.
+ * @param kind The other run kind.
  * @param first First register of the other run.
  * @return True when both belong to the same class.
  */
@@ -731,6 +723,9 @@ u32 FindRestoreHelper(const AnalysisState& state, const MillicodeEntry& entry) {
 
       auto* node = graph.AddImportFunction(sym.address, resolved_name,
                                            GetImportThunkSize(binary, sym.address));
+      if (exp && runtime::IsNoReturnExport(*export_module, ordinal)) {
+        graph.DeclareNoReturn(sym.address);
+      }
       if (node && node->CanDiscover()) {
         node->DiscoverAsImport();
         if (node->CanSeal()) {
@@ -757,6 +752,10 @@ u32 FindRestoreHelper(const AnalysisState& state, const MillicodeEntry& entry) {
       graph.SetFunctionName(addr, std::format("{}{}", GetMillicodePrefix(run.kind), reg));
       graph.SetFunctionMillicode(addr, MillicodeEntry{run.kind, reg});
     }
+  }
+
+  if (config.long_jmp_address != 0) {
+    graph.DeclareNoReturn(config.long_jmp_address);
   }
 
   size_t config_funcs = 0, config_chunks = 0;
@@ -802,19 +801,29 @@ u32 FindRestoreHelper(const AnalysisState& state, const MillicodeEntry& entry) {
 
   REXLOG_TRACE(codegen, "Analyze: PDATA base=0x{:08X}, size={}", pdata_addr, pdata_size);
 
-  size_t count = pdata_size / sizeof(IMAGE_CE_RUNTIME_FUNCTION);
-  auto* entries = reinterpret_cast<const IMAGE_CE_RUNTIME_FUNCTION*>(pdata_data);
+  size_t count = pdata_size / sizeof(RuntimeFunctionWords);
+  auto* entries = reinterpret_cast<const RuntimeFunctionWords*>(pdata_data);
 
   size_t pdata_added = 0;
   for (size_t i = 0; i < count; i++) {
-    u32 begin_addr = memory::load<be_u32>(&entries[i].BeginAddress);
-    u32 data = memory::load<be_u32>(&entries[i].Data);
+    const u32 begin_addr = entries[i].begin;
+    const auto fn = rex::ppc::DecodeRuntimeFunction(begin_addr, entries[i].word);
 
-    IMAGE_CE_RUNTIME_FUNCTION fn;
-    fn.BeginAddress = begin_addr;
-    fn.Data = data;
+    if (fn.type == rex::ppc::RuntimeFunctionType::SaveMillicode ||
+        fn.type == rex::ppc::RuntimeFunctionType::RestoreMillicode) {
+      const auto* helper = graph.GetFunction(begin_addr);
+      const bool restore = fn.type == rex::ppc::RuntimeFunctionType::RestoreMillicode;
+      if (!helper || !helper->GetMillicode() ||
+          IsSaveKind(helper->GetMillicode()->kind) == restore) {
+        return Err(ErrorCategory::kValidation,
+                   std::format("pdata entry 0x{:08X} is a {} millicode helper but no such helper "
+                               "run has an entry there",
+                               begin_addr, restore ? "restore" : "save"));
+      }
+      continue;
+    }
 
-    u32 size = fn.FunctionLength * 4;
+    u32 size = fn.length * 4;
     if (size == 0)
       size = 4;
 
@@ -822,10 +831,11 @@ u32 FindRestoreHelper(const AnalysisState& state, const MillicodeEntry& entry) {
       continue;
     }
 
+    const bool has_handler = fn.type == rex::ppc::RuntimeFunctionType::Handler;
     std::optional<ParsedExceptionInfo> ex_info;
     PrologInfo prolog_info;
-    if (fn.ExceptionFlag) {
-      prolog_info = ScanProlog(binary, begin_addr, fn.PrologLength);
+    if (has_handler) {
+      prolog_info = ScanProlog(binary, begin_addr, fn.prolog);
 
       ex_info = ParseExceptionInfo(binary, ctx.GetLimits(), begin_addr);
       if (ex_info) {
@@ -860,7 +870,7 @@ u32 FindRestoreHelper(const AnalysisState& state, const MillicodeEntry& entry) {
     }
 
     graph.AddFunction(begin_addr, size, FunctionAuthority::kPData, true);
-    graph.SetFunctionHasExceptionHandler(begin_addr, fn.ExceptionFlag);
+    graph.SetFunctionHasExceptionHandler(begin_addr, has_handler);
 
     if (ex_info && ex_info->info.HasInfo()) {
       if (auto* seh = ex_info->info.AsSEH()) {

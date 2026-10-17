@@ -295,53 +295,59 @@ void EmitPrint(std::string& out, std::format_string<Args...> fmt, Args&&... args
   std::vformat_to(std::back_inserter(out), fmt.get(), std::make_format_args(args...));
 }
 
-bool IsSwitchPattern(const u32* data) {
-  constexpr u32 kMoveToCtrMask = 0xFC1FFFFF;
-  constexpr u32 kMoveToCtr = 0x7C0003A6;
-  constexpr u32 kNop = 0x60000000;
-  for (i32 back = 1; back <= 3; ++back) {
-    const u32 previous = memory::load<be_u32>(data - back);
-    if ((previous & kMoveToCtrMask) == kMoveToCtr) {
-      return true;
-    }
-    if (previous != kNop) {
-      return false;
-    }
+/**
+ * Builds the copies of the localized nonvolatiles between the locals and ctx.
+ *
+ * @param locals The registers the body localized.
+ * @param to_ctx True to copy the locals into ctx, false to copy ctx back into the locals.
+ * @return One assignment line per localized nonvolatile.
+ */
+std::string RegisterSyncLines(const RecompilerLocalVariables& locals, bool to_ctx) {
+  std::string lines;
+  auto copy = [&](const std::string& name) {
+    if (to_ctx)
+      EmitPrintln(lines, "\tctx.{0} = {0};", name);
+    else
+      EmitPrintln(lines, "\t{0} = ctx.{0};", name);
+  };
+  for (size_t i = 14; i < 32; ++i) {
+    if (locals.r[i])
+      copy(std::format("r{}", i));
   }
-  return false;
+  for (size_t i = 14; i < 32; ++i) {
+    if (locals.f[i])
+      copy(std::format("f{}", i));
+  }
+  for (size_t i = 64; i < 128; ++i) {
+    if (locals.v[i])
+      copy(std::format("v{}", i));
+  }
+  for (size_t i = 2; i < 6; ++i) {
+    if (locals.cr[i])
+      copy(std::format("cr{}", i));
+  }
+  return lines;
 }
 
-std::unordered_map<u32, JumpTable> DetectLateJumpTables(const FunctionNode& node,
-                                                        const EmitContext& ctx) {
-  std::unordered_map<u32, JumpTable> tables;
-  ppc_insn insn;
-  for (const auto& block : node.blocks()) {
-    const auto* data = reinterpret_cast<const u32*>(ctx.binary.translate(block.base));
-    if (!data) {
-      continue;
-    }
-    for (u32 address = block.base; address < block.end(); address += 4, ++data) {
-      if (ctx.config.switchTables.contains(address)) {
-        continue;
-      }
-      Disassemble(data, 4, address, insn);
-      if (!insn.opcode || insn.opcode->id != PPC_INST_BCTR || !IsSwitchPattern(data)) {
-        continue;
-      }
-      FunctionScanner scanner(ctx.binary, ctx.limits);
-      if (auto table = scanner.detect_jump_table(address)) {
-        REXLOG_TRACE(codegen, "Late-detected jump table at 0x{:08X} with {} entries", address,
-                     table->targets.size());
-        tables.emplace(address, std::move(*table));
-      }
+/**
+ * Replaces each register sync placeholder line with the copies of the nonvolatiles the function
+ * localized, which are only known once the whole body is emitted.
+ *
+ * @param body The emitted function body.
+ * @param locals The registers the body localized.
+ */
+void ExpandRegisterSync(std::string& body, const RecompilerLocalVariables& locals) {
+  for (const bool to_ctx : {true, false}) {
+    const std::string marker = std::format("\t{}\n", to_ctx ? kSyncToCtx : kSyncFromCtx);
+    const std::string lines = RegisterSyncLines(locals, to_ctx);
+    for (size_t at = body.find(marker); at != std::string::npos;
+         at = body.find(marker, at + lines.size())) {
+      body.replace(at, marker.size(), lines);
     }
   }
-  return tables;
 }
 
-MMIOClassification ClassifyFunctionMMIO(
-    const FunctionNode& node, const EmitContext& ctx,
-    const std::unordered_map<u32, JumpTable>& late_jump_tables) {
+MMIOClassification ClassifyFunctionMMIO(const FunctionNode& node, const EmitContext& ctx) {
   std::vector<MMIOCodeBlock> blocks;
   std::vector<JumpTable> jump_tables(node.GetJumpTables().begin(), node.GetJumpTables().end());
   std::vector<u32> hook_sites;
@@ -375,6 +381,34 @@ MMIOClassification ClassifyFunctionMMIO(
   }
   return ClassifyMMIO(
       {blocks, jump_tables, hook_sites, hook_targets, &ctx.config.declared_mmio_accesses});
+}
+
+}  // namespace
+
+namespace {
+
+/**
+ * Reports whether control can continue past an instruction to the next address.
+ *
+ * @param graph The function graph.
+ * @param insn The instruction.
+ * @return False after a branch, return, trap or call that never returns.
+ */
+bool FallsThrough(const FunctionGraph& graph, const rex::codegen::detail::Instruction& insn) {
+  using rex::codegen::detail::Opcode;
+  switch (insn.opcode) {
+    case Opcode::b:
+    case Opcode::ba:
+      return false;
+    case Opcode::bclr:
+    case Opcode::bcctr:
+      return insn.XL.BO != 20;
+    case Opcode::bl:
+    case Opcode::bla:
+      return !(insn.branch_target && graph.IsNoReturn(*insn.branch_target));
+    default:
+      return !insn.IsTrapAlways();
+  }
 }
 
 }  // namespace
@@ -599,11 +633,23 @@ std::string FunctionNode::EmitCpp(const EmitContext& ctx) const {
       ++data;
     }
 
-    if (GetFallThroughs().contains(block_end)) {
+    const bool recorded = GetFallThroughs().contains(block_end);
+    if ((recorded || !IsWithinBounds(block_end)) && block.size > 0 &&
+        FallsThrough(ctx.graph, rex::codegen::detail::DecodeInstruction(
+                                    block_end - 4, memory::load<be_u32>(data - 1)))) {
       BuilderContext builder_ctx{body,      ctx,     *this, insn, block_end, data, local_variables,
                                  csr_state, nullptr, &mmio};
-      builder_ctx.EmitFunctionCall(block_end);
-      EmitPrintln(body, "	return;");
+      const FunctionNode* next = ctx.graph.GetFunction(block_end);
+      if (recorded) {
+        builder_ctx.EmitFunctionCall(block_end);
+        EmitPrintln(body, "\treturn;");
+      } else if (next && !next->IsImport()) {
+        builder_ctx.EmitCallToFunction(*next);
+        EmitPrintln(body, "\treturn;");
+      } else {
+        REXLOG_WARN(codegen, "0x{:08X} runs off its end into 0x{:08X}, which is not a function",
+                    GetBase(), block_end);
+      }
     }
   }
 
@@ -639,6 +685,8 @@ std::string FunctionNode::EmitCpp(const EmitContext& ctx) const {
   } else {
     EmitPrintln(body, "}}\n");
   }
+
+  ExpandRegisterSync(body, local_variables);
 
   if (local_variables.ctr)
     EmitPrintln(out, "\tPPCRegister ctr{{}};");
@@ -722,6 +770,7 @@ FunctionNode* FunctionGraph::AddFunction(u32 base, u32 size, FunctionAuthority a
   FunctionNode* node_ptr = node.get();
   functions_[base] = std::move(node);
   functions_by_base_[base] = node_ptr;
+  no_return_.reset();
 
   function_has_xrefs_[base] = has_xrefs;
 
@@ -737,6 +786,170 @@ FunctionNode* FunctionGraph::AddFunction(u32 base, u32 size, FunctionAuthority a
     node->SetName(std::string(name));
   }
   return node;
+}
+
+namespace {
+
+using rex::codegen::detail::Instruction;
+using rex::codegen::detail::Opcode;
+
+constexpr u32 kBranchAlways = 20;
+
+/**
+ * Finds the fixed point of the functions that never return.
+ */
+class NoReturnSolver {
+ public:
+  /**
+   * Creates a solver over a graph.
+   *
+   * @param graph The graph whose functions are sealed.
+   */
+  explicit NoReturnSolver(const FunctionGraph& graph) : graph_(graph) {}
+
+  /**
+   * Computes the entry points of the functions that never return.
+   *
+   * @return The entry points.
+   */
+  std::unordered_set<u32> Solve() {
+    std::vector<Flow> flows;
+    for (const auto& [base, node] : graph_.GetFunctions()) {
+      if (node->IsImport() || !node->IsSealed() || node->GetInstructions().empty())
+        continue;
+      Flow flow{node.get(), {node->GetInstructions().begin(), node->GetInstructions().end()}};
+      std::ranges::sort(flow.insns, {}, &Instruction::address);
+      flows.push_back(std::move(flow));
+    }
+    for (bool changed = true; changed;) {
+      changed = false;
+      for (const Flow& flow : flows) {
+        if (!no_return_.contains(flow.node->GetBase()) && !MayReturn(flow)) {
+          no_return_.insert(flow.node->GetBase());
+          changed = true;
+        }
+      }
+    }
+    return std::move(no_return_);
+  }
+
+ private:
+  struct Flow {
+    const FunctionNode* node;
+    std::vector<const Instruction*> insns;
+  };
+
+  /**
+   * Reports whether control that reaches a function entry can come back.
+   *
+   * @param target Entry point address.
+   * @return False for an import that never returns or a function already known not to return.
+   */
+  bool Returns(u32 target) const {
+    return !graph_.IsDeclaredNoReturn(target) && !no_return_.contains(target);
+  }
+
+  /**
+   * Reports whether any path from the entry of a function leaves it by a return, by a jump to a
+   * function that returns or by a jump to an address no instruction of the function covers.
+   *
+   * @param flow The function and its instructions in address order.
+   * @return True when the function may return.
+   */
+  bool MayReturn(const Flow& flow) const {
+    const auto& insns = flow.insns;
+    const u32 base = flow.node->GetBase();
+    std::vector<bool> seen(insns.size());
+    std::vector<size_t> stack;
+
+    const auto find = [&](u32 addr) {
+      const auto it = std::ranges::lower_bound(insns, addr, {}, &Instruction::address);
+      return it != insns.end() && (*it)->address == addr ? it - insns.begin() : -1;
+    };
+    const auto go = [&](u32 target) {
+      if (!Returns(target))
+        return false;
+      if (target != base && graph_.GetFunction(target))
+        return true;
+      const auto at = find(target);
+      if (at < 0)
+        return true;
+      stack.push_back(static_cast<size_t>(at));
+      return false;
+    };
+
+    if (go(base))
+      return true;
+    while (!stack.empty()) {
+      const size_t at = stack.back();
+      stack.pop_back();
+      if (seen[at])
+        continue;
+      seen[at] = true;
+
+      const Instruction& insn = *insns[at];
+      const u32 next = insn.address + 4;
+      switch (insn.opcode) {
+        case Opcode::b:
+        case Opcode::ba:
+          if (!insn.branch_target || go(*insn.branch_target))
+            return true;
+          break;
+        case Opcode::bl:
+        case Opcode::bla:
+          if (insn.branch_target && !Returns(*insn.branch_target))
+            break;
+          if (go(next))
+            return true;
+          break;
+        case Opcode::bc:
+        case Opcode::bca:
+          if (!insn.branch_target || go(*insn.branch_target) || go(next))
+            return true;
+          break;
+        case Opcode::bclr:
+          return true;
+        case Opcode::bcctr: {
+          if (insn.XL.BO != kBranchAlways)
+            return true;
+          const auto& tables = flow.node->GetJumpTables();
+          const auto table = std::ranges::find(tables, insn.address, &JumpTable::bctr_address);
+          if (table == tables.end())
+            return true;
+          for (u32 target : table->targets) {
+            if (go(target))
+              return true;
+          }
+          break;
+        }
+        default:
+          if (!insn.IsTrapAlways() && go(next))
+            return true;
+          break;
+      }
+    }
+    return false;
+  }
+
+  const FunctionGraph& graph_;
+  std::unordered_set<u32> no_return_;
+};
+
+}  // namespace
+
+bool FunctionGraph::IsNoReturn(u32 entry) const {
+  if (IsDeclaredNoReturn(entry))
+    return true;
+  if (!GetFunction(entry))
+    return false;
+  if (!no_return_)
+    no_return_ = NoReturnSolver(*this).Solve();
+  return no_return_->contains(entry);
+}
+
+void FunctionGraph::DeclareNoReturn(u32 address) {
+  declared_no_return_.insert(address);
+  no_return_.reset();
 }
 
 FunctionNode* FunctionGraph::AddImportFunction(u32 address, std::string_view resolved_name,
@@ -765,6 +978,7 @@ bool FunctionGraph::RemoveFunction(u32 entry_point) {
   REXLOG_TRACE(codegen, "FunctionGraph: removing absorbed function 0x{:08X}", entry_point);
   functions_by_base_.erase(entry_point);
   functions_.erase(it);
+  no_return_.reset();
   function_has_xrefs_.erase(entry_point);
   return true;
 }

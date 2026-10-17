@@ -41,6 +41,14 @@ struct RecompilerLocalVariables {
 };
 
 /**
+ * Text of the lines that stand for the copy of every localized nonvolatile into ctx or back out of
+ * it. FunctionNode::EmitCpp expands them once the whole function has been emitted and the localized
+ * set is known.
+ */
+inline constexpr std::string_view kSyncToCtx = "@sync_to_ctx";
+inline constexpr std::string_view kSyncFromCtx = "@sync_from_ctx";
+
+/**
  * @brief CSR (Control/Status Register) flush mode state.
  *
  * Tracks the current MXCSR configuration for floating-point operations.
@@ -239,9 +247,17 @@ struct BuilderContext {
    * Helper bodies keep nonvolatiles in ctx, so a kept helper call saves and restores real values.
    * Save and restore helpers are elided in a function that localizes its nonvolatiles. An SEH
    * funclet runs on its owner's frame, so the localized registers are copied through ctx before
-   * the call and back after it.
+   * the call and back after it. A setjmp call copies them into ctx before the snapshot and back
+   * out of ctx after the call, so a return through longjmp shows the values from the setjmp call.
    */
   void EmitFunctionCall(u32 address);
+
+  /**
+   * @brief Emit the call to a function.
+   *
+   * @param target_fn The function to call.
+   */
+  void EmitCallToFunction(const FunctionNode& target_fn);
 
   /**
    * @brief Emit C++ code for a conditional branch.

@@ -183,19 +183,6 @@ bool UsesNonvolatileFirst(const u8* code) {
 }
 
 /**
- * Reports whether an instruction traps every time it runs.
- *
- * @param insn The decoded instruction.
- * @return True for tw and twi with every trap condition set.
- */
-bool IsUnconditionalTrap(const Instruction& insn) {
-  constexpr u32 kTrapAlways = 31;
-  if (insn.opcode == Opcode::twi)
-    return insn.D.RT == kTrapAlways;
-  return insn.opcode == Opcode::tw && insn.X.RT == kTrapAlways;
-}
-
-/**
  * Reports whether an uncovered word is data rather than the start of a function.
  *
  * @param ctx Codegen context holding the function graph after discovery.
@@ -223,7 +210,7 @@ bool IsDataWord(const CodegenContext& ctx, const BinaryView& binary, const CodeR
     if (decoded.opcode == Opcode::kUnknown)
       return true;
     if (decoded.IsReturn() || decoded.opcode == Opcode::bcctr || decoded.opcode == Opcode::b ||
-        decoded.opcode == Opcode::ba || IsUnconditionalTrap(decoded)) {
+        decoded.opcode == Opcode::ba || decoded.IsTrapAlways()) {
       return false;
     }
   }

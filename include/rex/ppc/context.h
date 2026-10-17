@@ -17,6 +17,7 @@
 
 #include <bit>
 #include <cmath>
+#include <cstddef>
 #include <cstdint>
 #include <cstring>
 
@@ -548,12 +549,18 @@ struct alignas(0x40) PPCContext {
   }
 
   /**
+   * Number of condition register fields that survive a call, cr2 to cr5.
+   */
+  static constexpr size_t kNonVolatileCRCount = 4;
+
+  /**
    * Size in bytes of the non volatile save area. The layout is r14-r31 (144), f14-f31 (144),
-   * v14-v31 (288), v64-v127 (1024), cr2-cr4 (12) and fpscr (4), 1616 bytes in total.
+   * v14-v31 (288), v64-v127 (1024), cr2-cr5 (16) and fpscr (4), 1620 bytes in total.
    */
   static constexpr size_t kNonVolatileSaveSize =
       18 * sizeof(PPCRegister) + 18 * sizeof(PPCRegister) + 18 * sizeof(PPCVRegister) +
-      64 * sizeof(PPCVRegister) + 3 * sizeof(PPCCRRegister) + sizeof(PPCFPSCRRegister);
+      64 * sizeof(PPCVRegister) + kNonVolatileCRCount * sizeof(PPCCRRegister) +
+      sizeof(PPCFPSCRRegister);
 
   /**
    * Copies the non volatile registers into a buffer of kNonVolatileSaveSize bytes.
@@ -569,8 +576,8 @@ struct alignas(0x40) PPCContext {
     dst += 18 * sizeof(PPCVRegister);
     std::memcpy(dst, &v64, 64 * sizeof(PPCVRegister));
     dst += 64 * sizeof(PPCVRegister);
-    std::memcpy(dst, &cr2, 3 * sizeof(PPCCRRegister));
-    dst += 3 * sizeof(PPCCRRegister);
+    std::memcpy(dst, &cr2, kNonVolatileCRCount * sizeof(PPCCRRegister));
+    dst += kNonVolatileCRCount * sizeof(PPCCRRegister);
     std::memcpy(dst, &fpscr, sizeof(PPCFPSCRRegister));
   }
 
@@ -589,10 +596,13 @@ struct alignas(0x40) PPCContext {
     src += 18 * sizeof(PPCVRegister);
     std::memcpy(&v64, src, 64 * sizeof(PPCVRegister));
     src += 64 * sizeof(PPCVRegister);
-    std::memcpy(&cr2, src, 3 * sizeof(PPCCRRegister));
-    src += 3 * sizeof(PPCCRRegister);
+    std::memcpy(&cr2, src, kNonVolatileCRCount * sizeof(PPCCRRegister));
+    src += kNonVolatileCRCount * sizeof(PPCCRRegister);
     PPCFPSCRRegister saved_fpscr;
     std::memcpy(&saved_fpscr, src, sizeof(PPCFPSCRRegister));
     fpscr.RestoreGuestBits(saved_fpscr.csr);
   }
 };
+static_assert(offsetof(PPCContext, cr5) - offsetof(PPCContext, cr2) ==
+                  (PPCContext::kNonVolatileCRCount - 1) * sizeof(PPCCRRegister),
+              "cr2 to cr5 must be contiguous for the non volatile save area");

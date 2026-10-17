@@ -315,6 +315,17 @@ BlockDiscoveryResult DiscoverBlocks(
     u32 pdata_size = 0, const std::unordered_map<u32, JumpTable>* manual_switch_tables = nullptr);
 
 /**
+ * Finds where a function without a declared extent ends at a return. A return is a cut when no
+ * conditional branch or jump table entry located before it targets an address after it, and the
+ * code after it does not branch back into the part before it.
+ *
+ * @param result Blocks, instructions and jump tables found from the entry.
+ * @param entry_point Function entry address.
+ * @return The address after the lowest cut return, or no value when there is none.
+ */
+std::optional<u32> FindReturnCut(const BlockDiscoveryResult& result, u32 entry_point);
+
+/**
  * Detect jump table at a bctr instruction.
  *
  * Detected patterns.

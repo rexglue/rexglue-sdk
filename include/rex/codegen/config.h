@@ -126,8 +126,8 @@ struct RecompilerConfig {
    */
   std::vector<std::string> loaded_files;
 
-  /** TOML key `skip_lr`, default false. When true, omits the generated writes and reads of `ctx.lr`
-   * at bl, mflr and similar instructions. */
+  /** TOML key `skip_lr`, default false. When true, omits the `ctx.lr` store at calls between title
+   * functions and the `mflr` read. Calls to imports always store `ctx.lr`. */
   bool skip_lr = false;
   /** TOML key `ctr_as_local`, default false. When true, keeps CTR in a local variable instead of
    * `ctx.ctr`. */
@@ -144,8 +144,8 @@ struct RecompilerConfig {
   /** TOML key `cr_as_local`, default false. When true, keeps the CR fields in local variables
    * instead of `ctx.cr0` to `ctx.cr7`. */
   bool cr_registers_as_local_variables = false;
-  /** TOML key `non_argument_as_local`, default false. When true, keeps r0, r2, r11, r12, f0 and v32
-   * to v63 in local variables. */
+  /** TOML key `non_argument_as_local`, default false. When true, keeps r0, r11, r12, f0 and v32 to
+   * v63 in local variables. r2 and r13 always stay in ctx. */
   bool non_argument_registers_as_local_variables = false;
   /** TOML key `non_volatile_as_local`, default false. When true, keeps r14 and above, f14 and above
    * and the high vector registers in local variables, except in register sharing functions and SEH

@@ -39,7 +39,8 @@ using RecompiledCodeFunc = std::span<const u8> (*)();
 
 /** Codegen options that change how the generated code treats registers and state. */
 struct PPCCodegenFlags {
-  /** Omits the generated `ctx.lr` writes and reads at bl, mflr and similar. */
+  /** Omits the `ctx.lr` store at calls between guest functions and the `mflr` read. Calls to
+   * imports always store `ctx.lr`. */
   bool skip_lr = false;
   /** Keeps CTR in a local variable instead of `ctx.ctr`. Config key `ctr_as_local`. */
   bool ctr_as_local = false;
@@ -51,7 +52,7 @@ struct PPCCodegenFlags {
   bool skip_msr = false;
   /** Keeps the CR fields in local variables instead of `ctx.cr0` to `ctx.cr7`. */
   bool cr_as_local = false;
-  /** Keeps r0, r2, r11, r12, f0 and v32 to v63 in local variables. */
+  /** Keeps r0, r11, r12, f0 and v32 to v63 in local variables. */
   bool non_argument_as_local = false;
   /** Keeps r14 and above, f14 and above and the high vector registers in locals. */
   bool non_volatile_as_local = false;

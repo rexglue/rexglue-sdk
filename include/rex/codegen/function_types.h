@@ -99,7 +99,7 @@ enum class TargetKind : u8 {
  */
 const char* AuthorityName(FunctionAuthority auth);
 
-/** Kind of a save or restore millicode run. */
+/** What a save or restore millicode run covers. */
 enum class MillicodeKind : u8 {
   kGPRSave,    /**< Saves GPRs and LR. */
   kGPRRestore, /**< Restores GPRs and LR and returns. */
@@ -118,7 +118,7 @@ static_assert(static_cast<u8>(MillicodeKind::kVMXRestore) ==
 
 /** A validated millicode run. */
 struct MillicodeRun {
-  MillicodeKind kind; /**< Kind of the run. */
+  MillicodeKind kind; /**< What the run saves or restores. */
   u32 head;           /**< Address of the entry for the first register. */
   u32 first;          /**< Number of the first register in the run. */
   u32 count;          /**< Number of entries in the run. */
@@ -127,7 +127,7 @@ struct MillicodeRun {
 
 /** Role of 1 entry of a millicode run. */
 struct MillicodeEntry {
-  MillicodeKind kind; /**< Kind of the run the entry belongs to. */
+  MillicodeKind kind; /**< What the run of the entry saves or restores. */
   u32 reg;            /**< Register the entry starts at. */
 };
 

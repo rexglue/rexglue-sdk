@@ -12,6 +12,7 @@
 #include "rex_test.h"
 
 #include <memory>
+#include <optional>
 #include <set>
 #include <string>
 #include <unordered_set>
@@ -181,4 +182,80 @@ REX_TEST_CASE("Reading the decoded binary swaps big endian values of every width
   CHECK(decoded.Read<u32>(kBase) == 0x01020304);
   CHECK(decoded.Read<u64>(kBase) == 0x0102030405060708ULL);
   CHECK_FALSE(decoded.Read<u32>(kBase + 8).has_value());
+}
+
+namespace {
+
+constexpr u32 kLiR3One = 0x38600001;
+constexpr u32 kLiR3Two = 0x38600002;
+constexpr u32 kCmplwiCR6R3Zero = 0x2B030000;
+constexpr u32 kBeqPlus12 = 0x419A000C;
+constexpr u32 kBeqPlus16 = 0x419A0010;
+constexpr u32 kBnePlus8 = 0x409A0008;
+constexpr u32 kBeqlr = 0x4D820020;
+constexpr u32 kBranchForward3 = 0x4800000C;
+constexpr u32 kBranchBack5 = 0x4BFFFFEC;
+constexpr u32 kSlwiR10R3Two = 0x5460103A;
+constexpr u32 kLwzxR10R11R10 = 0x7D4B502E;
+constexpr u32 kMtctrR10 = 0x7D4903A6;
+constexpr u32 kBctr = 0x4E800420;
+
+}  // namespace
+
+REX_TEST_CASE("A return followed by the target of a conditional branch before it is not a cut",
+              "[codegen][scanner]") {
+  ScannerFixture fixture({kBeqPlus12, kLiR3One, kBlr, kLiR3Two, kBlr});
+  const BlockDiscoveryResult result = fixture.Discover({kBase});
+  CHECK_FALSE(FindReturnCut(result, kBase).has_value());
+}
+
+REX_TEST_CASE("A conditional branch before the return that goes past it is not a cut",
+              "[codegen][scanner]") {
+  ScannerFixture fixture({kBeqPlus16, kLiR3One, kBlr, kNop, kLiR3Two, kBlr});
+  const BlockDiscoveryResult result = fixture.Discover({kBase});
+  CHECK_FALSE(FindReturnCut(result, kBase).has_value());
+}
+
+REX_TEST_CASE("A return that only an unconditional branch goes past is a cut",
+              "[codegen][scanner]") {
+  ScannerFixture fixture(
+      {kCmplwiCR6R3Zero, kBnePlus8, kBranchForward3, kLiR3One, kBlr, kLiR3Two, kBlr});
+  const BlockDiscoveryResult result = fixture.Discover({kBase});
+  const std::optional<u32> cut = FindReturnCut(result, kBase);
+  REQUIRE(cut.has_value());
+  CHECK(*cut == kBase + 20);
+}
+
+REX_TEST_CASE("Case bodies that each end in a return after a jump table are not a cut",
+              "[codegen][scanner]") {
+  constexpr u32 kTable = kBase + 24;
+  constexpr u32 kHigh = (kTable + 0x8000) >> 16;
+  constexpr u32 kLow = kTable & 0xFFFF;
+  ScannerFixture fixture({0x3D600000 | kHigh, 0x396B0000 | kLow, kSlwiR10R3Two, kLwzxR10R11R10,
+                          kMtctrR10, kBctr, kBase + 32, kBase + 40, kLiR3One, kBlr, kLiR3Two,
+                          kBlr});
+  const BlockDiscoveryResult result = fixture.Discover({kBase});
+  REQUIRE(result.jump_tables.size() == 1);
+  CHECK(result.jump_tables[0].targets.size() == 2);
+  CHECK_FALSE(FindReturnCut(result, kBase).has_value());
+}
+
+REX_TEST_CASE("A return is not a cut when the code after it branches back into the part before it",
+              "[codegen][scanner]") {
+  ScannerFixture fixture(
+      {kCmplwiCR6R3Zero, kBnePlus8, kBranchForward3, kLiR3One, kBlr, kLiR3Two, kBranchBack5});
+  const BlockDiscoveryResult result = fixture.Discover({kBase});
+  CHECK_FALSE(FindReturnCut(result, kBase).has_value());
+}
+
+REX_TEST_CASE("A conditional return in the middle is not a return", "[codegen][scanner]") {
+  ScannerFixture fixture({kCmplwiCR6R3Zero, kBeqlr, kLiR3One, kBlr});
+  const BlockDiscoveryResult result = fixture.Discover({kBase});
+  CHECK_FALSE(FindReturnCut(result, kBase).has_value());
+}
+
+REX_TEST_CASE("A return with nothing after it is not a cut", "[codegen][scanner]") {
+  ScannerFixture fixture({kLiR3One, kBlr});
+  const BlockDiscoveryResult result = fixture.Discover({kBase});
+  CHECK_FALSE(FindReturnCut(result, kBase).has_value());
 }

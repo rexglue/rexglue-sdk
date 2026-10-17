@@ -126,11 +126,15 @@ std::string GenerateError(const std::vector<u32>& code, std::string_view extra_m
   return result.error().message;
 }
 
-std::vector<u32> WithRun(const RunSpec& spec, std::vector<u32> leading = {kBlr, kBlr}) {
+std::vector<u32> WithRun(const RunSpec& spec, std::vector<u32> leading) {
   leading.resize(kHelperIndex, 0);
   const auto run = BuildRun(spec);
   leading.insert(leading.end(), run.begin(), run.end());
   return leading;
+}
+
+std::vector<u32> WithRun(const RunSpec& spec) {
+  return WithRun(spec, {kBlr, kBlr});
 }
 
 bool Has(const std::string& tree, const std::string& text) {
@@ -336,7 +340,7 @@ REX_TEST_CASE("An SEH function that saves GPR then FPR restores through both",
     code.insert(code.end(), run.begin(), run.end());
   }
   const std::vector<u32> rdata = {1, Address(2), Address(5), Address(8), 0};
-  const rex::test::PDataEntry pdata[] = {{Address(2), 5, 4, rex::test::kPDataException}};
+  const rex::test::PDataEntry pdata[] = {{Address(2), 5, 4, rex::test::kPDataHandler}};
 
   rex::test::TempFolder folder;
   const auto result =
@@ -347,4 +351,34 @@ REX_TEST_CASE("An SEH function that saves GPR then FPR restores through both",
   const auto tree = rex::test::ReadGeneratedTree(folder.path / "generated" / "entry");
   CHECK(Has(tree, "__restgprlr_14(ctx, base);  // Restore caller registers"));
   CHECK(Has(tree, "__restfpr_14(ctx, base);  // Restore caller registers"));
+}
+
+REX_TEST_CASE("A pdata type 0 head confirms a save run", "[codegen][millicode]") {
+  rex::test::TempFolder folder;
+  const rex::test::PDataEntry pdata[] = {
+      {Address(0), 2}, {Address(kHelperIndex), 20, 0, rex::test::kPDataSaveMillicode}};
+  const auto result = rex::test::GenerateFromImage(
+      folder, rex::test::BuildCodeImage(WithRun({Run::kGPRSave}, {kBlr, kBlr}), pdata));
+  INFO((result ? std::string() : result.error().message));
+  CHECK(result);
+}
+
+REX_TEST_CASE("A pdata type 2 entry at a save run is a codegen error", "[codegen][millicode]") {
+  rex::test::TempFolder folder;
+  const rex::test::PDataEntry pdata[] = {
+      {Address(0), 2}, {Address(kHelperIndex), 20, 0, rex::test::kPDataRestoreMillicode}};
+  const auto result = rex::test::GenerateFromImage(
+      folder, rex::test::BuildCodeImage(WithRun({Run::kGPRSave}, {kBlr, kBlr}), pdata), {}, false);
+  REQUIRE_FALSE(result);
+  CHECK(Has(result.error().message, "millicode"));
+}
+
+REX_TEST_CASE("A pdata type 2 entry that is not a helper does not take the handler path",
+              "[codegen][millicode]") {
+  rex::test::TempFolder folder;
+  const rex::test::PDataEntry pdata[] = {{Address(0), 2, 0, rex::test::kPDataRestoreMillicode}};
+  const auto result = rex::test::GenerateFromImage(
+      folder, rex::test::BuildCodeImage(WithRun({Run::kGPRSave}, {kBlr, kBlr}), pdata), {}, false);
+  REQUIRE_FALSE(result);
+  CHECK(Has(result.error().message, "millicode"));
 }

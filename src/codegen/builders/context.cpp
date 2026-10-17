@@ -89,7 +89,7 @@ bool BuilderContext::ShouldLocalizeNonVolatiles() const {
 std::string BuilderContext::R(size_t index) {
   const auto& cfg = GetConfig();
   if (!fn.GetMillicode() && ((cfg.non_argument_registers_as_local_variables &&
-                              (index == 0 || index == 2 || index == 11 || index == 12)) ||
+                              (index == 0 || index == 11 || index == 12)) ||
                              (ShouldLocalizeNonVolatiles() && index >= 14))) {
     locals.r[index] = true;
     return std::format("r{}", index);
@@ -187,6 +187,30 @@ const CallTarget* BuilderContext::FindCallTarget(u32 site) const {
   return nullptr;
 }
 
+void BuilderContext::EmitCallToFunction(const FunctionNode& target_fn) {
+  const auto& name = target_fn.GetName();
+
+  if (target_fn.GetMillicode()) {
+    if (ShouldLocalizeNonVolatiles())
+      return;
+    for (size_t i : {11, 12}) {
+      if (locals.r[i])
+        Println("\tctx.r{} = r{};", i, i);
+    }
+  }
+
+  if (target_fn.SharesRegisters()) {
+    Println("\t{}", kSyncToCtx);
+    emit_ctx.Reference(name);
+    Println("\t{}(ctx, base);", name);
+    Println("\t{}", kSyncFromCtx);
+    return;
+  }
+
+  emit_ctx.Reference(name);
+  Println("\t{}(ctx, base);", name);
+}
+
 void BuilderContext::EmitFunctionCall(u32 address) {
   const auto& cfg = GetConfig();
 
@@ -196,43 +220,18 @@ void BuilderContext::EmitFunctionCall(u32 address) {
   }
 
   if (address == cfg.set_jmp_address) {
+    Println("\t{}", kSyncToCtx);
     Println("\t{} = ctx;", Env());
     Println("\t{}.s64 = ppc_setjmp({}.u32);", Temp(), R(3));
     Println("\tif ({}.s64 != 0) ctx = {};", Temp(), Env());
+    Println("\t{}", kSyncFromCtx);
     Println("\t{} = {};", R(3), Temp());
     return;
   }
 
   if (const auto* target = FindCallTarget(base)) {
     if (target->IsFunction()) {
-      auto* target_fn = target->AsFunction();
-      const auto& name = target_fn->GetName();
-
-      if (target_fn->GetMillicode()) {
-        if (ShouldLocalizeNonVolatiles())
-          return;
-        for (size_t i : {11, 12}) {
-          if (locals.r[i])
-            Println("\tctx.r{} = r{};", i, i);
-        }
-      }
-
-      if (target_fn->SharesRegisters() && ShouldLocalizeNonVolatiles()) {
-        for (size_t i = 14; i < 32; ++i) {
-          if (locals.r[i])
-            Println("\tctx.r{} = r{};", i, i);
-        }
-        emit_ctx.Reference(name);
-        Println("\t{}(ctx, base);", name);
-        for (size_t i = 14; i < 32; ++i) {
-          if (locals.r[i])
-            Println("\tr{} = ctx.r{};", i, i);
-        }
-        return;
-      }
-
-      emit_ctx.Reference(name);
-      Println("\t{}(ctx, base);", name);
+      EmitCallToFunction(*target->AsFunction());
       return;
     }
 

@@ -347,6 +347,13 @@ struct Instruction {
    * @return True for a conditional branch
    */
   bool IsConditional() const;
+
+  /**
+   * Reports whether this is a trap with every condition set.
+   *
+   * @return True for tw and twi with a TO field of 31
+   */
+  bool IsTrapAlways() const;
 };
 
 /**

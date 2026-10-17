@@ -126,3 +126,24 @@ REX_TEST_CASE("Export variables bind per instance", "[kernel][exports]") {
   CHECK(first.Get(0x0193) == 0x40003000u);
   CHECK(second.Get(0x0193) == 0x40002000u);
 }
+
+REX_TEST_CASE("Exports that never return are the thread exit and the title launches",
+              "[kernel][exports]") {
+  std::unordered_set<std::string_view> found;
+  for (const auto module : kModules) {
+    for (const auto& entry : Exports(module)) {
+      if (IsNoReturnExport(module, entry.ordinal)) {
+        found.insert(entry.name);
+      }
+    }
+  }
+  const std::unordered_set<std::string_view> expected = {
+      "ExTerminateThread", "XamLoaderLaunchTitle", "XamLoaderLaunchTitleEx"};
+  CHECK(found == expected);
+}
+
+REX_TEST_CASE("A no return ordinal of another module does not match", "[kernel][exports]") {
+  CHECK_FALSE(IsNoReturnExport(ExportModule::kXAM, 0x0019));
+  CHECK_FALSE(IsNoReturnExport(ExportModule::kXboxkrnl, 0x01A4));
+  CHECK_FALSE(IsNoReturnExport(ExportModule::kXBDM, 0x0019));
+}

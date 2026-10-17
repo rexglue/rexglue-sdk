@@ -1600,6 +1600,7 @@ BlockDiscoveryResult DiscoverBlocks(
   std::queue<u32> worklist;
 
   u32 func_end = (pdata_size > 0) ? (entry_point + pdata_size) : containing_region.end;
+  const u32 declared_end = func_end;
 
   REXLOG_TRACE(
       codegen,
@@ -1627,7 +1628,11 @@ BlockDiscoveryResult DiscoverBlocks(
     block.base = block_start;
     block.size = 0;
 
-    while (is_within_function(addr)) {
+    const bool past_declared_end = block_start >= declared_end;
+
+    while (is_within_function(addr) ||
+           (past_declared_end && addr == func_end && addr < containing_region.end)) {
+      func_end = std::max(func_end, addr + 4);
       auto* insn = decoded.FindInsn(addr);
       if (!insn) {
         REXLOG_TRACE(codegen, "discoverBlocks: 0x{:08X} no instruction at addr, breaking",
@@ -1811,6 +1816,45 @@ BlockDiscoveryResult DiscoverBlocks(
                entry_point, result.blocks.size(), result.instructions.size(), result.labels.size());
 
   return result;
+}
+
+std::optional<u32> FindReturnCut(const BlockDiscoveryResult& result, u32 entry_point) {
+  struct Edge {
+    u32 site;
+    u32 target;
+  };
+  std::vector<Edge> guards;
+  std::vector<Edge> branches;
+  for (const Instruction* insn : result.instructions) {
+    if (!insn->branch_target || insn->IsCall())
+      continue;
+    branches.push_back({insn->address, *insn->branch_target});
+    if (insn->IsConditional() && result.labels.contains(*insn->branch_target))
+      guards.push_back({insn->address, *insn->branch_target});
+  }
+  for (const JumpTable& table : result.jump_tables) {
+    for (u32 target : table.targets) {
+      if (target == 0)
+        continue;
+      branches.push_back({table.bctr_address, target});
+      if (result.labels.contains(target))
+        guards.push_back({table.bctr_address, target});
+    }
+  }
+
+  for (const Instruction* insn : result.instructions) {
+    const u32 at = insn->address;
+    if (!insn->IsReturn() || at == result.instructions.back()->address)
+      continue;
+    const bool guarded = std::ranges::any_of(
+        guards, [&](const Edge& edge) { return edge.site <= at && edge.target > at; });
+    const bool closed = std::ranges::none_of(branches, [&](const Edge& edge) {
+      return edge.site > at && edge.target > entry_point && edge.target <= at;
+    });
+    if (!guarded && closed)
+      return at + 4;
+  }
+  return std::nullopt;
 }
 
 }  // namespace rex::codegen
