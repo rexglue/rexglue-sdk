@@ -42,12 +42,31 @@ const char kProggyTinyCompressedDataBase85[10950 + 1] =
 
 static_assert(sizeof(gpu::OverlayVertex) == sizeof(ImDrawVert), "Vertex types must match");
 
+namespace {
+
+/** Makes a context current and puts back the one that was current. */
+class ContextScope {
+ public:
+  explicit ContextScope(ImGuiContext* context) : previous_(ImGui::GetCurrentContext()) {
+    ImGui::SetCurrentContext(context);
+  }
+  ~ContextScope() { ImGui::SetCurrentContext(previous_); }
+  ContextScope(const ContextScope&) = delete;
+  ContextScope& operator=(const ContextScope&) = delete;
+
+ private:
+  ImGuiContext* previous_;
+};
+
+}  // namespace
+
 ImGuiDrawer::ImGuiDrawer(rex::ui::Window* window, size_t z_order, FontSetupCallback font_setup)
     : window_(window), z_order_(z_order), font_setup_(std::move(font_setup)) {
   Initialize();
 }
 
 ImGuiDrawer::~ImGuiDrawer() {
+  ImGuiContext* caller_context = ImGui::GetCurrentContext();
   if (dialog_counter_) {
     dialog_counter_->store(0, std::memory_order_relaxed);
   }
@@ -56,8 +75,12 @@ ImGuiDrawer::~ImGuiDrawer() {
   log::NoThrow(log::ui, [this] { SetWindowTextInputActive(false); });
   if (internal_state_) {
     ImGui::DestroyContext(internal_state_);
+    if (caller_context == internal_state_) {
+      caller_context = nullptr;
+    }
     internal_state_ = nullptr;
   }
+  ImGui::SetCurrentContext(caller_context);
 }
 
 void ImGuiDrawer::AddDialog(ImGuiDialog& dialog) {
@@ -87,7 +110,7 @@ void ImGuiDrawer::AddDialog(std::unique_ptr<ImGuiDialog> dialog) {
 }
 
 ImGuiStyle& ImGuiDrawer::GetImGuiStyle() {
-  ImGui::SetCurrentContext(internal_state_);
+  ContextScope scope(internal_state_);
   return ImGui::GetStyle();
 }
 
@@ -154,8 +177,10 @@ void ImGuiDrawer::RemoveDialog(ImGuiDialog& dialog) {
 }
 
 void ImGuiDrawer::Initialize() {
+  ImGuiContext* caller_context = ImGui::GetCurrentContext();
   internal_state_ = ImGui::CreateContext();
-  ImGui::SetCurrentContext(internal_state_);
+  ImGui::SetCurrentContext(caller_context);
+  ContextScope scope(internal_state_);
 
   auto& io = ImGui::GetIO();
 
@@ -320,6 +345,7 @@ std::optional<ImGuiKey> ImGuiDrawer::VirtualKeyToImGuiKey(hid::VirtualKey vkey) 
 }
 
 void ImGuiDrawer::SetupFontTexture() {
+  ContextScope scope(internal_state_);
   if (font_texture_ || !overlay_drawer_) {
     return;
   }
@@ -356,6 +382,7 @@ void ImGuiDrawer::SetPresenter(gpu::IPresenter* new_presenter) {
 }
 
 void ImGuiDrawer::SetOverlayDrawer(gpu::IOverlayDrawer* new_overlay_drawer) {
+  ContextScope scope(internal_state_);
   if (overlay_drawer_ == new_overlay_drawer) {
     return;
   }
@@ -381,7 +408,11 @@ void ImGuiDrawer::Draw(gpu::OverlayDrawContext& context) {
     return;
   }
 
-  ImGui::SetCurrentContext(internal_state_);
+  if (IsDrawingDialogs()) {
+    return;
+  }
+
+  ContextScope scope(internal_state_);
 
   ImGuiIO& io = ImGui::GetIO();
 
@@ -402,14 +433,15 @@ void ImGuiDrawer::Draw(gpu::OverlayDrawContext& context) {
 
   ImGui::NewFrame();
 
-  REX_ASSERT(!IsDrawingDialogs());
   dialog_loop_next_index_ = 0;
   while (dialog_loop_next_index_ < dialogs_.size()) {
+    ImGui::SetCurrentContext(internal_state_);
     dialogs_[dialog_loop_next_index_++]->Draw();
   }
   dialog_loop_next_index_ = SIZE_MAX;
   retired_.clear();
 
+  ImGui::SetCurrentContext(internal_state_);
   ImGui::Render();
   ImDrawData* draw_data = ImGui::GetDrawData();
   if (draw_data) {
@@ -431,6 +463,7 @@ void ImGuiDrawer::Draw(gpu::OverlayDrawContext& context) {
 }
 
 void ImGuiDrawer::RenderDrawLists(ImDrawData* data, gpu::OverlayDrawContext& context) {
+  ContextScope scope(internal_state_);
   ImGuiIO& io = ImGui::GetIO();
 
   overlay_drawer_->Begin(context, io.DisplaySize.x, io.DisplaySize.y);
@@ -464,7 +497,7 @@ void ImGuiDrawer::RenderDrawLists(ImDrawData* data, gpu::OverlayDrawContext& con
 }
 
 ImGuiIO& ImGuiDrawer::GetIO() {
-  ImGui::SetCurrentContext(internal_state_);
+  ContextScope scope(internal_state_);
   return ImGui::GetIO();
 }
 
@@ -477,6 +510,7 @@ void ImGuiDrawer::OnKeyUp(KeyEvent& e) {
 }
 
 void ImGuiDrawer::OnKeyChar(KeyEvent& e) {
+  ContextScope scope(internal_state_);
   auto& io = GetIO();
   unsigned int character = static_cast<unsigned int>(e.GetVirtualKey());
   if (character > 0 && character < 0x10000) {
@@ -489,6 +523,7 @@ void ImGuiDrawer::OnKeyChar(KeyEvent& e) {
 }
 
 void ImGuiDrawer::OnMouseDown(MouseEvent& e) {
+  ContextScope scope(internal_state_);
   SwitchToPhysicalMouseAndUpdateMousePosition(e);
   auto& io = GetIO();
   int button = -1;
@@ -516,10 +551,12 @@ void ImGuiDrawer::OnMouseDown(MouseEvent& e) {
 }
 
 void ImGuiDrawer::OnMouseMove(MouseEvent& e) {
+  ContextScope scope(internal_state_);
   SwitchToPhysicalMouseAndUpdateMousePosition(e);
 }
 
 void ImGuiDrawer::OnMouseUp(MouseEvent& e) {
+  ContextScope scope(internal_state_);
   SwitchToPhysicalMouseAndUpdateMousePosition(e);
   auto& io = GetIO();
   int button = -1;
@@ -547,6 +584,7 @@ void ImGuiDrawer::OnMouseUp(MouseEvent& e) {
 }
 
 void ImGuiDrawer::OnMouseWheel(MouseEvent& e) {
+  ContextScope scope(internal_state_);
   SwitchToPhysicalMouseAndUpdateMousePosition(e);
   auto& io = GetIO();
   io.MouseWheel +=
@@ -554,6 +592,7 @@ void ImGuiDrawer::OnMouseWheel(MouseEvent& e) {
 }
 
 void ImGuiDrawer::OnTouchEvent(TouchEvent& e) {
+  ContextScope scope(internal_state_);
   auto& io = GetIO();
   TouchEvent::Action action = e.GetAction();
   u32 pointer_id = e.GetPointerId();
@@ -582,6 +621,7 @@ void ImGuiDrawer::OnTouchEvent(TouchEvent& e) {
 }
 
 void ImGuiDrawer::ClearInput() {
+  ContextScope scope(internal_state_);
   auto& io = GetIO();
   if (touch_pointer_id_ == TouchEvent::kPointerIDNone && ImGui::IsAnyMouseDown()) {
     window_->ReleaseMouse();
@@ -594,6 +634,7 @@ void ImGuiDrawer::ClearInput() {
 }
 
 void ImGuiDrawer::OnKey(KeyEvent& e, bool is_down) {
+  ContextScope scope(internal_state_);
   auto& io = GetIO();
   const hid::VirtualKey virtual_key = e.GetVirtualKey();
   if (auto imgui_key = VirtualKeyToImGuiKey(virtual_key); imgui_key) {
@@ -628,6 +669,7 @@ void ImGuiDrawer::OnKey(KeyEvent& e, bool is_down) {
 }
 
 void ImGuiDrawer::UpdateMousePosition(f32 x, f32 y) {
+  ContextScope scope(internal_state_);
   auto& io = GetIO();
   f32 physical_to_logical =
       static_cast<f32>(window_->GetMediumDPI()) / static_cast<f32>(window_->GetDPI());
@@ -636,6 +678,7 @@ void ImGuiDrawer::UpdateMousePosition(f32 x, f32 y) {
 }
 
 void ImGuiDrawer::SwitchToPhysicalMouseAndUpdateMousePosition(const MouseEvent& e) {
+  ContextScope scope(internal_state_);
   if (touch_pointer_id_ != TouchEvent::kPointerIDNone) {
     touch_pointer_id_ = TouchEvent::kPointerIDNone;
     auto& io = GetIO();

@@ -20,6 +20,9 @@
 #include <thread>
 #include <vector>
 
+#include <imgui.h>
+
+#include <SDL3/SDL_events.h>
 #include <SDL3/SDL_hints.h>
 #include <SDL3/SDL_video.h>
 
@@ -245,4 +248,69 @@ REX_TEST_CASE("A video scope pins the running video driver", "[ui][prompt]") {
     CHECK(std::string(pinned) == std::string(SDL_GetCurrentVideoDriver()));
   }
   SDL_SetHint(SDL_HINT_VIDEO_DRIVER, "dummy");
+}
+
+namespace {
+
+void PushMouse(SDL_WindowID window, SDL_EventType type) {
+  SDL_Event event{};
+  event.button.type = type;
+  event.button.windowID = window;
+  event.button.button = SDL_BUTTON_LEFT;
+  event.button.down = type == SDL_EVENT_MOUSE_BUTTON_DOWN;
+  event.button.clicks = 1;
+  event.button.x = 4.0f;
+  event.button.y = 4.0f;
+  SDL_PushEvent(&event);
+}
+
+void DriveDrawerWithCaller(ImGuiContext* caller) {
+  ImGui::SetCurrentContext(caller);
+  {
+    ModuleFixture fixture;
+    auto opened =
+        fixture.ui->OpenWindow(fixture.config.ui, [](const rex::ui::UIEvent&) { return false; });
+    if (!opened) {
+      ImGui::SetCurrentContext(nullptr);
+      SKIP("SDL dummy video driver unavailable");
+    }
+    CHECK(ImGui::GetCurrentContext() == caller);
+    CHECK(fixture.ui->GetImGuiStyle() != nullptr);
+    CHECK(ImGui::GetCurrentContext() == caller);
+    fixture.ui->Prompt(PromptDesc{.title = "Title", .body = "Body"}, [](PromptResult) {});
+    for (rex::i32 frame = 0; frame < 100 && !fixture.ui->HasDialogs(); ++frame) {
+      fixture.ui->PumpFrame();
+    }
+    REQUIRE(fixture.ui->HasDialogs());
+    int count = 0;
+    SDL_Window** windows = SDL_GetWindows(&count);
+    REQUIRE(windows != nullptr);
+    REQUIRE(count > 0);
+    const SDL_WindowID window = SDL_GetWindowID(windows[0]);
+    SDL_free(windows);
+    PushMouse(window, SDL_EVENT_MOUSE_BUTTON_DOWN);
+    fixture.ui->PumpFrame();
+    CHECK(ImGui::GetCurrentContext() == caller);
+    PushMouse(window, SDL_EVENT_MOUSE_BUTTON_UP);
+    fixture.ui->PumpFrame();
+    CHECK(ImGui::GetCurrentContext() == caller);
+    fixture.ui->CancelPrompts();
+    CHECK(ImGui::GetCurrentContext() == caller);
+    fixture.ui->CloseWindow();
+    CHECK(ImGui::GetCurrentContext() == caller);
+  }
+  ImGui::SetCurrentContext(nullptr);
+}
+
+}  // namespace
+
+REX_TEST_CASE("With no ImGui context current the window opens, takes input and closes",
+              "[ui][imgui]") {
+  DriveDrawerWithCaller(nullptr);
+}
+
+REX_TEST_CASE("With another ImGui context current the window leaves it current", "[ui][imgui]") {
+  ImGuiContext* caller = ImGui::CreateContext();
+  DriveDrawerWithCaller(caller);
+  ImGui::DestroyContext(caller);
 }
