@@ -384,6 +384,7 @@ void TitleApp::Release() {
   if (ui_) {
     ui_->SetPresenter(nullptr);
   }
+  kernel::shim::ShutdownHeap();
   runtime_.reset();
   SetInvokeTarget(nullptr);
   ::rex::detail::SetShutdownWake({});

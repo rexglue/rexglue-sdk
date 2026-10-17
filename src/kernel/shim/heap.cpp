@@ -67,6 +67,11 @@ bool ReXHeap::Init(u32 heap_size_bytes, rex::runtime::Memory* memory) {
   return true;
 }
 
+void ReXHeap::Shutdown() {
+  std::lock_guard lock(mutex_);
+  segments_.clear();
+}
+
 u32 ReXHeap::Alloc(u32 size, bool zero) {
   std::lock_guard lock(mutex_);
   return AllocLocked(size, zero);
@@ -77,13 +82,12 @@ void ReXHeap::Free(u32 guest_addr) {
     return;
   std::lock_guard lock(mutex_);
   auto* segment = FindSegmentByGuestLocked(guest_addr);
-  if (!segment || guest_addr < segment->guest_base + kHeaderSize) {
+  if (!segment || guest_addr < segment->GetBase() + kHeaderSize) {
     REXLOG_WARN(kernel, "rexshim_RtlFreeHeap: skipping OOB ptr 0x{:08X}", guest_addr);
     return;
   }
 
-  void* real_host = GuestToHost(guest_addr - kHeaderSize);
-  o1heapFree(segment->heap, real_host);
+  segment->Free(GuestToHost(guest_addr - kHeaderSize));
 }
 
 u32 ReXHeap::Size(u32 guest_addr) {
@@ -92,7 +96,7 @@ u32 ReXHeap::Size(u32 guest_addr) {
 
   std::lock_guard lock(mutex_);
   auto* segment = FindSegmentByGuestLocked(guest_addr);
-  if (!segment || guest_addr < segment->guest_base + kHeaderSize) {
+  if (!segment || guest_addr < segment->GetBase() + kHeaderSize) {
     return ~0u;
   }
 
@@ -109,7 +113,7 @@ u32 ReXHeap::Realloc(u32 guest_addr, u32 new_size, bool zero_new) {
     new_size = 1;
 
   auto* segment = FindSegmentByGuestLocked(guest_addr);
-  if (!segment || guest_addr < segment->guest_base + kHeaderSize) {
+  if (!segment || guest_addr < segment->GetBase() + kHeaderSize) {
     REXLOG_WARN(kernel, "rexshim_RtlReAllocateHeap: OOB ptr 0x{:08X}, treating as new alloc({})",
                 guest_addr, new_size);
     return AllocLocked(new_size, zero_new);
@@ -119,7 +123,7 @@ u32 ReXHeap::Realloc(u32 guest_addr, u32 new_size, bool zero_new) {
 
   auto* old_hdr = static_cast<SizeHeader*>(real_host);
   u32 old_size = static_cast<u32>(old_hdr->requested_size);
-  void* new_ptr = o1heapReallocate(segment->heap, real_host, new_size + kHeaderSize);
+  void* new_ptr = segment->Reallocate(real_host, new_size + kHeaderSize);
   if (!new_ptr) {
     u32 new_guest = AllocLocked(new_size, false);
     if (!new_guest) {
@@ -135,7 +139,7 @@ u32 ReXHeap::Realloc(u32 guest_addr, u32 new_size, bool zero_new) {
       std::memset(static_cast<u8*>(new_user_ptr) + old_size, 0, new_size - old_size);
     }
 
-    o1heapFree(segment->heap, real_host);
+    segment->Free(real_host);
     return new_guest;
   }
 
@@ -159,34 +163,17 @@ bool ReXHeap::AllocateSegmentLocked(u32 segment_size_bytes) {
   segment_size_bytes =
       rex::Align<u32>(std::max(segment_size_bytes, kMinSegmentSize), O1HEAP_ALIGNMENT);
 
-  u32 guest_base = 0;
-
   // The system heap range is shared with kernel bookkeeping allocations and cannot hold a segment.
-  auto* vheap = mem->LookupHeapByType(false, runtime::kPageSize4KiB);
-  if (!vheap ||
-      !vheap->Alloc(segment_size_bytes, O1HEAP_ALIGNMENT,
-                    rex::runtime::kMemoryAllocationReserve | rex::runtime::kMemoryAllocationCommit,
-                    rex::runtime::kMemoryProtectRead | rex::runtime::kMemoryProtectWrite, true,
-                    &guest_base)) {
-    REX_FAIL(kernel, false, "shim_heap: virtual heap allocation of {} bytes failed",
-             segment_size_bytes);
+  auto segment = runtime::GuestAllocator::Create(*mem, segment_size_bytes, O1HEAP_ALIGNMENT, false,
+                                                 runtime::kPageSize4KiB, 0);
+  if (!segment) {
+    REX_FAIL(kernel, false, "shim_heap: segment allocation of {} bytes failed", segment_size_bytes);
   }
 
-  u8* host_base = mem->TranslateVirtual<u8*>(guest_base);
-  if (!host_base) {
-    REX_FAIL(kernel, false, "shim_heap: TranslateVirtual failed for guest base 0x{:08X}",
-             guest_base);
-  }
-
-  O1HeapInstance* heap = o1heapInit(host_base, segment_size_bytes);
-  if (!heap) {
-    REX_FAIL(kernel, false, "shim_heap: o1heapInit failed for segment 0x{:08X} size {}", guest_base,
-             segment_size_bytes);
-  }
-
-  segments_.push_back(HeapSegment{heap, guest_base, (guest_base + segment_size_bytes)});
+  const u32 guest_base = (*segment)->GetBase();
   REXLOG_DEBUG(kernel, "shim_heap: added segment guest=0x{:08X}-0x{:08X} size={}MB", guest_base,
                guest_base + segment_size_bytes, segment_size_bytes / (1024 * 1024));
+  segments_.push_back(std::move(*segment));
   return true;
 }
 
@@ -196,8 +183,8 @@ u32 ReXHeap::AllocLocked(u32 size, bool zero) {
   }
 
   const u32 alloc_size = size + kHeaderSize;
-  auto try_allocate_in_segment = [&](HeapSegment& segment) -> u32 {
-    void* ptr = o1heapAllocate(segment.heap, alloc_size);
+  auto try_allocate_in_segment = [&](runtime::GuestAllocator& segment) -> u32 {
+    void* ptr = segment.Allocate(alloc_size);
     if (!ptr) {
       return 0;
     }
@@ -214,7 +201,7 @@ u32 ReXHeap::AllocLocked(u32 size, bool zero) {
   };
 
   for (auto& segment : segments_) {
-    if (u32 addr = try_allocate_in_segment(segment)) {
+    if (u32 addr = try_allocate_in_segment(*segment)) {
       return addr;
     }
   }
@@ -226,7 +213,7 @@ u32 ReXHeap::AllocLocked(u32 size, bool zero) {
     const auto diagnostics = GetDiagnosticsLocked();
     bool invariants_ok = true;
     for (const auto& segment : segments_) {
-      invariants_ok = invariants_ok && o1heapDoInvariantsHold(segment.heap);
+      invariants_ok = invariants_ok && segment->InvariantsHold();
     }
     const u64 free_bytes = diagnostics.capacity - diagnostics.allocated;
     REXLOG_WARN(kernel,
@@ -237,7 +224,7 @@ u32 ReXHeap::AllocLocked(u32 size, bool zero) {
     return 0;
   }
 
-  if (u32 addr = try_allocate_in_segment(segments_.back())) {
+  if (u32 addr = try_allocate_in_segment(*segments_.back())) {
     return addr;
   }
 
@@ -251,22 +238,20 @@ u32 ReXHeap::AllocLocked(u32 size, bool zero) {
   return 0;
 }
 
-ReXHeap::HeapSegment* ReXHeap::FindSegmentByGuestLocked(u32 guest_addr) {
-  auto it = std::find_if(segments_.begin(), segments_.end(), [&](const HeapSegment& segment) {
-    return guest_addr >= segment.guest_base && guest_addr < segment.guest_end;
-  });
-  return it != segments_.end() ? &(*it) : nullptr;
+runtime::GuestAllocator* ReXHeap::FindSegmentByGuestLocked(u32 guest_addr) {
+  auto it = std::ranges::find_if(
+      segments_, [&](const auto& segment) { return segment->Contains(guest_addr); });
+  return it != segments_.end() ? it->get() : nullptr;
 }
 
-HeapDiagnostics ReXHeap::GetDiagnosticsLocked() const {
-  HeapDiagnostics diagnostics{};
+runtime::GuestAllocator::Diagnostics ReXHeap::GetDiagnosticsLocked() const {
+  runtime::GuestAllocator::Diagnostics diagnostics{};
   for (const auto& segment : segments_) {
-    const auto d = o1heapGetDiagnostics(segment.heap);
+    const auto d = segment->GetDiagnostics();
     diagnostics.capacity += d.capacity;
     diagnostics.allocated += d.allocated;
     diagnostics.peak_allocated += d.peak_allocated;
-    diagnostics.peak_request_size =
-        std::max(diagnostics.peak_request_size, static_cast<u64>(d.peak_request_size));
+    diagnostics.peak_request_size = std::max(diagnostics.peak_request_size, d.peak_request_size);
     diagnostics.oom_count += d.oom_count;
   }
   return diagnostics;
@@ -293,6 +278,10 @@ REX_SHIM_FN(RtlReAllocateHeap, u32, [[maybe_unused]] u32 hHeap, u32 dwFlags, u32
 
 bool InitHeap(u32 heap_size_mb, rex::runtime::Memory* memory) {
   return g_heap.Init(heap_size_mb * 1024u * 1024u, memory);
+}
+
+void ShutdownHeap() {
+  g_heap.Shutdown();
 }
 
 }  // namespace rex::kernel::shim

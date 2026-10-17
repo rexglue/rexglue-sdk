@@ -12,14 +12,12 @@
 #pragma once
 
 #include <memory>
-#include <mutex>
 
 #include <rex/platform.h>
 #include <rex/export.h>
 #include <rex/result.h>
+#include <rex/runtime/guest_allocator.h>
 #include <rex/types.h>
-
-struct O1HeapInstance;
 
 namespace rex::runtime {
 
@@ -36,11 +34,9 @@ class REX_RUNTIME_API WorkspaceHeap : public NonCopyable {
    *
    * @param key The private construction key.
    * @param memory The guest memory.
-   * @param base The guest address of the workspace.
-   * @param size The byte count.
-   * @param heap The o1heap instance over the workspace.
+   * @param allocator The allocator over the workspace.
    */
-  WorkspaceHeap(Key, Memory& memory, u32 base, u32 size, O1HeapInstance* heap);
+  WorkspaceHeap(Key, Memory& memory, std::unique_ptr<GuestAllocator> allocator);
 
   /**
    * Commits the workspace.
@@ -50,7 +46,6 @@ class REX_RUNTIME_API WorkspaceHeap : public NonCopyable {
    * @return An error when the memory cannot be committed.
    */
   [[nodiscard]] static Result<std::unique_ptr<WorkspaceHeap>> Create(Memory& memory, u32 size);
-  ~WorkspaceHeap();
 
   /**
    * Resolves the workspace size of a title.
@@ -84,10 +79,7 @@ class REX_RUNTIME_API WorkspaceHeap : public NonCopyable {
 
  private:
   Memory& memory_;
-  u32 base_;
-  u32 size_;
-  O1HeapInstance* heap_;
-  std::mutex mutex_;
+  std::unique_ptr<GuestAllocator> allocator_;
 };
 
 }  // namespace rex::runtime

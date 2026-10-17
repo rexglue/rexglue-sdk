@@ -10,6 +10,7 @@ set(REXSYSTEM_SOURCES
     thread_registry.cpp
     guest_stack.cpp
     workspace_heap.cpp
+    guest_allocator.cpp
     event_object.cpp
     file_object.cpp
     mutant_object.cpp

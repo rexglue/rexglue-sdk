@@ -11,29 +11,20 @@
 
 #pragma once
 
+#include <memory>
 #include <mutex>
 #include <vector>
 
 #include <rex/platform.h>
 #include <rex/export.h>
+#include <rex/runtime/guest_allocator.h>
 #include <rex/types.h>
-
-struct O1HeapInstance;
 
 namespace rex::runtime {
 class Memory;
 }  // namespace rex::runtime
 
 namespace rex::kernel::shim {
-
-/** Usage counters of the heap. */
-struct HeapDiagnostics {
-  u64 capacity;          /**< Total capacity in bytes. */
-  u64 allocated;         /**< Bytes allocated. */
-  u64 peak_allocated;    /**< Highest allocated byte count seen. */
-  u64 peak_request_size; /**< Largest single request seen. */
-  u64 oom_count;         /**< Allocations that failed for lack of space. */
-};
 
 /** The heap that serves the shim Rtl heap routines from guest memory. */
 class REX_RUNTIME_API ReXHeap {
@@ -46,6 +37,9 @@ class REX_RUNTIME_API ReXHeap {
    * @return True when the segment was created.
    */
   bool Init(u32 heap_size_bytes, rex::runtime::Memory* memory);
+
+  /** Releases every segment. */
+  void Shutdown();
 
   /**
    * Allocates a block.
@@ -82,14 +76,8 @@ class REX_RUNTIME_API ReXHeap {
   u32 Realloc(u32 guest_addr, u32 new_size, bool zero_new = false);
 
  private:
-  struct HeapSegment {
-    O1HeapInstance* heap = nullptr;
-    u32 guest_base = 0;
-    u32 guest_end = 0;
-  };
-
   mutable std::mutex mutex_;
-  std::vector<HeapSegment> segments_;
+  std::vector<std::unique_ptr<rex::runtime::GuestAllocator>> segments_;
   u8* membase_ = nullptr;
   u32 initial_segment_size_ = 0;
   rex::runtime::Memory* memory_ = nullptr;
@@ -98,8 +86,8 @@ class REX_RUNTIME_API ReXHeap {
   u32 HostToGuest(void* host_ptr) const;
   bool AllocateSegmentLocked(u32 segment_size_bytes);
   u32 AllocLocked(u32 size, bool zero = false);
-  HeapSegment* FindSegmentByGuestLocked(u32 guest_addr);
-  HeapDiagnostics GetDiagnosticsLocked() const;
+  rex::runtime::GuestAllocator* FindSegmentByGuestLocked(u32 guest_addr);
+  rex::runtime::GuestAllocator::Diagnostics GetDiagnosticsLocked() const;
 };
 
 /**
@@ -110,5 +98,8 @@ class REX_RUNTIME_API ReXHeap {
  * @return True when the heap was created.
  */
 REX_RUNTIME_API bool InitHeap(u32 heap_size_mb, rex::runtime::Memory* memory);
+
+/** Releases the global shim heap. */
+REX_RUNTIME_API void ShutdownHeap();
 
 }  // namespace rex::kernel::shim

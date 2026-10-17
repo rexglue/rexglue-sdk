@@ -3,8 +3,6 @@
 #include <algorithm>
 #include <cstring>
 
-#include <o1heap.h>
-
 #include <rex/logging/log.h>
 #include <rex/math.h>
 #include <rex/runtime/error.h>
@@ -21,28 +19,16 @@ constexpr u32 kSizeStep = 16 * 1024;
 
 }  // namespace
 
-WorkspaceHeap::WorkspaceHeap(Key, Memory& memory, u32 base, u32 size, O1HeapInstance* heap)
-    : memory_(memory), base_(base), size_(size), heap_(heap) {}
-
-WorkspaceHeap::~WorkspaceHeap() {
-  memory_.LookupHeap(base_)->Release(base_);
-}
+WorkspaceHeap::WorkspaceHeap(Key, Memory& memory, std::unique_ptr<GuestAllocator> allocator)
+    : memory_(memory), allocator_(std::move(allocator)) {}
 
 Result<std::unique_ptr<WorkspaceHeap>> WorkspaceHeap::Create(Memory& memory, u32 size) {
-  BaseHeap* heap = memory.LookupHeapByType(false, kPageSize4KiB);
-  u32 base = 0;
-  if (!heap ||
-      !heap->Alloc(size, kPageSize4KiB,
-                   kMemoryAllocationReserve | kMemoryAllocationCommit | kMemoryAllocationTitle,
-                   kMemoryProtectRead | kMemoryProtectWrite, true, &base)) {
-    return Err<std::unique_ptr<WorkspaceHeap>>(StatusError(X_STATUS_NO_MEMORY));
+  auto allocator = GuestAllocator::Create(memory, size, kPageSize4KiB, false, kPageSize4KiB,
+                                          kMemoryAllocationTitle);
+  if (!allocator) {
+    return Err<std::unique_ptr<WorkspaceHeap>>(allocator.error());
   }
-  O1HeapInstance* instance = o1heapInit(memory.TranslateVirtual(base), size);
-  if (!instance) {
-    heap->Release(base);
-    return Err<std::unique_ptr<WorkspaceHeap>>(StatusError(X_STATUS_NO_MEMORY));
-  }
-  return std::make_unique<WorkspaceHeap>(Key{}, memory, base, size, instance);
+  return std::make_unique<WorkspaceHeap>(Key{}, memory, std::move(*allocator));
 }
 
 u32 WorkspaceHeap::ResolveSize(u32 header_size) {
@@ -53,16 +39,12 @@ u32 WorkspaceHeap::ResolveSize(u32 header_size) {
 }
 
 u32 WorkspaceHeap::GetSize() const {
-  return size_;
+  return allocator_->GetSize();
 }
 
 Result<u32> WorkspaceHeap::Alloc(u32 size) {
   size = std::max(size, 1u);
-  void* block = nullptr;
-  {
-    std::lock_guard lock(mutex_);
-    block = o1heapAllocate(heap_, size);
-  }
+  void* block = allocator_->Allocate(size);
   if (!block) {
     return Err<u32>(StatusError(X_STATUS_NO_MEMORY));
   }
@@ -74,13 +56,12 @@ void WorkspaceHeap::Free(u32 address) {
   if (!address) {
     return;
   }
-  if (address < base_ || address >= base_ + size_) {
+  if (!allocator_->Contains(address)) {
     REXLOG_WARN(system, "Workspace free of {:#010x} is outside {:#010x}+{:#x}, ignored", address,
-                base_, size_);
+                allocator_->GetBase(), allocator_->GetSize());
     return;
   }
-  std::lock_guard lock(mutex_);
-  o1heapFree(heap_, memory_.TranslateVirtual(address));
+  allocator_->Free(memory_.TranslateVirtual(address));
 }
 
 }  // namespace rex::runtime
