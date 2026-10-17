@@ -243,6 +243,15 @@ struct SocketObject {
   REX_RUNTIME_API X_STATUS Bind(N_XSOCKADDR_IN* name, u32 name_len);
 
   /**
+   * Reads the local port. The address is always INADDR_ANY.
+   *
+   * @param name Receives the local address.
+   * @return X_STATUS_SUCCESS, X_STATUS_INVALID_PARAMETER_1 when the socket has no local port, or
+   * X_STATUS_UNSUCCESSFUL.
+   */
+  REX_RUNTIME_API X_STATUS GetName(N_XSOCKADDR* name) const;
+
+  /**
    * Starts listening for connections.
    *
    * @param backlog The length of the pending connection queue.

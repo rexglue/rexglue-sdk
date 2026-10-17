@@ -525,6 +525,20 @@ X_STATUS SocketObject::Bind(N_XSOCKADDR_IN* name, u32 name_len) {
   return X_STATUS_SUCCESS;
 }
 
+X_STATUS SocketObject::GetName(N_XSOCKADDR* name) const {
+  sockaddr_in host{};
+  i32 host_len = sizeof(host);
+  if (socket.GetName(reinterpret_cast<sockaddr*>(&host), &host_len) < 0) {
+    return X_STATUS_UNSUCCESSFUL;
+  }
+  if (host.sin_port == 0) {
+    return X_STATUS_INVALID_PARAMETER_1;
+  }
+  host.sin_addr.s_addr = 0;
+  FromHost(host, *name);
+  return X_STATUS_SUCCESS;
+}
+
 X_STATUS SocketObject::Listen(int backlog) const {
   int ret = socket.Listen(backlog);
   if (ret < 0) {

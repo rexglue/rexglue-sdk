@@ -885,6 +885,30 @@ u32 NetDll_bind_entry([[maybe_unused]] u32 caller, u32 socket_handle, GuestPtrT<
   return 0;
 }
 
+u32 NetDll_getsockname_entry([[maybe_unused]] u32 caller, u32 socket_handle,
+                             GuestPtrT<XSOCKADDR> name_ptr, MappedU32 namelen_ptr) {
+  auto socket = GetSocket(socket_handle);
+  if (!socket) {
+    return -1;
+  }
+  if (!name_ptr || !namelen_ptr || *namelen_ptr < sizeof(XSOCKADDR_IN)) {
+    KernelThread::GetCurrentThread()->SetLastError(kWSAEFAULT);
+    return -1;
+  }
+
+  N_XSOCKADDR native_name;
+  X_STATUS status = socket->GetName(&native_name);
+  if (XFAILED(status)) {
+    KernelThread::GetCurrentThread()->SetLastError(
+        status == X_STATUS_INVALID_PARAMETER_1 ? kWSAEINVAL : CallError(*socket));
+    return -1;
+  }
+  name_ptr->address_family = native_name.address_family;
+  std::memcpy(name_ptr->sa_data, native_name.sa_data, sizeof(native_name.sa_data));
+  *namelen_ptr = sizeof(XSOCKADDR_IN);
+  return 0;
+}
+
 u32 NetDll_connect_entry([[maybe_unused]] u32 caller, u32 socket_handle, GuestPtrT<XSOCKADDR> name,
                          u32 namelen) {
   auto socket = GetSocket(socket_handle);
@@ -1233,6 +1257,7 @@ REX_EXPORT(__imp__NetDll_setsockopt, rex::kernel::xam::NetDll_setsockopt_entry)
 REX_EXPORT(__imp__NetDll_ioctlsocket, rex::kernel::xam::NetDll_ioctlsocket_entry)
 REX_EXPORT(__imp__NetDll_bind, rex::kernel::xam::NetDll_bind_entry)
 REX_EXPORT(__imp__NetDll_connect, rex::kernel::xam::NetDll_connect_entry)
+REX_EXPORT(__imp__NetDll_getsockname, rex::kernel::xam::NetDll_getsockname_entry)
 REX_EXPORT(__imp__NetDll_getsockopt, rex::kernel::xam::NetDll_getsockopt_entry)
 REX_EXPORT(__imp__NetDll_listen, rex::kernel::xam::NetDll_listen_entry)
 REX_EXPORT(__imp__NetDll_accept, rex::kernel::xam::NetDll_accept_entry)
@@ -1356,4 +1381,3 @@ REX_EXPORT_STUB(__imp__NetDll_XnpToolSetCallbacks);
 REX_EXPORT_STUB(__imp__NetDll_XnpUnregisterKeyForCallerType);
 REX_EXPORT_STUB(__imp__NetDll_XnpUpdateConfigParams);
 REX_EXPORT_STUB(__imp__NetDll_getpeername);
-REX_EXPORT_STUB(__imp__NetDll_getsockname);

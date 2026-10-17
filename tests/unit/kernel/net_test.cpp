@@ -59,6 +59,18 @@ u32 LoopbackAddress(Caller& c, u32 port) {
   c.Store32(name + 4, kLoopback);
   return name;
 }
+u32 PortOf(Caller& c, u32 socket) {
+  const u32 name = c.Alloc(16);
+  const u32 length = c.Alloc(4);
+  c.Store32(length, 16);
+  REQUIRE(c.XAM("NetDll_getsockname", {0, socket, name, length}) == 0);
+  return c.Load32(name) & 0xFFFF;
+}
+
+u32 BindAny(Caller& c, u32 socket) {
+  REQUIRE(c.XAM("NetDll_bind", {0, socket, LoopbackAddress(c, 0), 16}) == 0);
+  return PortOf(c, socket);
+}
 }  // namespace
 
 REX_TEST_CASE("net: a socket with an address family, type or protocol above 255 fails",
@@ -82,15 +94,14 @@ REX_TEST_CASE("net: a socket with an address family, type or protocol above 255 
 REX_TEST_CASE("net: accept copies no more address than a sockaddr holds", "[kernel][net]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    constexpr u32 kPort = 47321;
     REQUIRE(c.XAM("NetDll_WSAStartup", {0, 0x0202, c.Alloc(0x200)}) == 0);
     const u32 listener = c.XAM("NetDll_socket", {0, 2, 1, 6});
     const u32 client = c.XAM("NetDll_socket", {0, 2, 1, 6});
     REQUIRE(listener != kSocketError);
     REQUIRE(client != kSocketError);
-    REQUIRE(c.XAM("NetDll_bind", {0, listener, LoopbackAddress(c, kPort), 16}) == 0);
+    const u32 port = BindAny(c, listener);
     REQUIRE(c.XAM("NetDll_listen", {0, listener, 1}) == 0);
-    REQUIRE(c.XAM("NetDll_connect", {0, client, LoopbackAddress(c, kPort), 16}) == 0);
+    REQUIRE(c.XAM("NetDll_connect", {0, client, LoopbackAddress(c, port), 16}) == 0);
     const u32 address = c.Alloc(64);
     for (u32 offset = 0; offset < 64; offset += 4) {
       c.Store32(address + offset, 0xA5A5A5A5);
@@ -114,8 +125,6 @@ REX_TEST_CASE("net: accept copies no more address than a sockaddr holds", "[kern
 REX_TEST_CASE("net: a length above the int range fails every socket call", "[kernel][net]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    constexpr u32 kPort = 47322;
-    constexpr u32 kDatagramPort = 47323;
     constexpr u32 kTooLong = 0x80000000;
     constexpr u32 kWSAEFAULT = 0x271E;
     REQUIRE(c.XAM("NetDll_WSAStartup", {0, 0x0202, c.Alloc(0x200)}) == 0);
@@ -126,13 +135,12 @@ REX_TEST_CASE("net: a length above the int range fails every socket call", "[ker
     REQUIRE(client != kSocketError);
     REQUIRE(datagram != kSocketError);
 
-    CHECK(c.XAM("NetDll_bind", {0, listener, LoopbackAddress(c, kPort), kTooLong}) == kSocketError);
-    REQUIRE(c.XAM("NetDll_bind", {0, listener, LoopbackAddress(c, kPort), 16}) == 0);
+    CHECK(c.XAM("NetDll_bind", {0, listener, LoopbackAddress(c, 0), kTooLong}) == kSocketError);
+    const u32 port = BindAny(c, listener);
     REQUIRE(c.XAM("NetDll_listen", {0, listener, 1}) == 0);
-    CHECK(c.XAM("NetDll_connect", {0, client, LoopbackAddress(c, kPort), kTooLong}) ==
-          kSocketError);
-    REQUIRE(c.XAM("NetDll_connect", {0, client, LoopbackAddress(c, kPort), 16}) == 0);
-    REQUIRE(c.XAM("NetDll_bind", {0, datagram, LoopbackAddress(c, kDatagramPort), 16}) == 0);
+    CHECK(c.XAM("NetDll_connect", {0, client, LoopbackAddress(c, port), kTooLong}) == kSocketError);
+    REQUIRE(c.XAM("NetDll_connect", {0, client, LoopbackAddress(c, port), 16}) == 0);
+    const u32 datagram_port = BindAny(c, datagram);
 
     const u32 option = c.Alloc(4);
     c.Store32(option, 1);
@@ -147,7 +155,7 @@ REX_TEST_CASE("net: a length above the int range fails every socket call", "[ker
     CHECK(c.XAM("NetDll_WSAGetLastError") == kWSAEFAULT);
     c.XAM("NetDll_WSASetLastError", {0});
     CHECK(c.XAM("NetDll_sendto", {0, datagram, buffer, kTooLong, 0,
-                                  LoopbackAddress(c, kDatagramPort), 16}) == kSocketError);
+                                  LoopbackAddress(c, datagram_port), 16}) == kSocketError);
     CHECK(c.XAM("NetDll_WSAGetLastError") == kWSAEFAULT);
     c.XAM("NetDll_WSASetLastError", {0});
     CHECK(c.XAM("NetDll_recvfrom", {0, datagram, buffer, kTooLong, 0, 0, 0}) == kSocketError);
@@ -163,15 +171,14 @@ REX_TEST_CASE("net: a length above the int range fails every socket call", "[ker
 REX_TEST_CASE("net: closesocket wakes a blocked recv with WSAEINTR", "[kernel][net][close]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    constexpr u32 kPort = 47324;
     REQUIRE(c.XAM("NetDll_WSAStartup", {0, 0x0202, c.Alloc(0x200)}) == 0);
     const u32 listener = c.XAM("NetDll_socket", {0, 2, 1, 6});
     const u32 client = c.XAM("NetDll_socket", {0, 2, 1, 6});
     REQUIRE(listener != kSocketError);
     REQUIRE(client != kSocketError);
-    REQUIRE(c.XAM("NetDll_bind", {0, listener, LoopbackAddress(c, kPort), 16}) == 0);
+    const u32 port = BindAny(c, listener);
     REQUIRE(c.XAM("NetDll_listen", {0, listener, 1}) == 0);
-    REQUIRE(c.XAM("NetDll_connect", {0, client, LoopbackAddress(c, kPort), 16}) == 0);
+    REQUIRE(c.XAM("NetDll_connect", {0, client, LoopbackAddress(c, port), 16}) == 0);
     const u32 length = c.Alloc(4);
     c.Store32(length, 16);
     const u32 peer = c.XAM("NetDll_accept", {0, listener, c.Alloc(16), length});
@@ -202,11 +209,10 @@ REX_TEST_CASE("net: closesocket wakes a blocked recv with WSAEINTR", "[kernel][n
 REX_TEST_CASE("net: closesocket wakes a blocked recvfrom with WSAEINTR", "[kernel][net][close]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    constexpr u32 kPort = 47325;
     REQUIRE(c.XAM("NetDll_WSAStartup", {0, 0x0202, c.Alloc(0x200)}) == 0);
     const u32 datagram = c.XAM("NetDll_socket", {0, 2, 2, 17});
     REQUIRE(datagram != kSocketError);
-    REQUIRE(c.XAM("NetDll_bind", {0, datagram, LoopbackAddress(c, kPort), 16}) == 0);
+    BindAny(c, datagram);
 
     auto result = std::make_shared<std::promise<std::pair<u32, u32>>>();
     auto done = result->get_future();
@@ -231,11 +237,10 @@ REX_TEST_CASE("net: closesocket wakes a blocked recvfrom with WSAEINTR", "[kerne
 REX_TEST_CASE("net: closesocket wakes a blocked accept with WSAEINTR", "[kernel][net][close]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    constexpr u32 kPort = 47326;
     REQUIRE(c.XAM("NetDll_WSAStartup", {0, 0x0202, c.Alloc(0x200)}) == 0);
     const u32 listener = c.XAM("NetDll_socket", {0, 2, 1, 6});
     REQUIRE(listener != kSocketError);
-    REQUIRE(c.XAM("NetDll_bind", {0, listener, LoopbackAddress(c, kPort), 16}) == 0);
+    BindAny(c, listener);
     REQUIRE(c.XAM("NetDll_listen", {0, listener, 1}) == 0);
 
     auto result = std::make_shared<std::promise<std::pair<u32, u32>>>();
@@ -263,11 +268,10 @@ REX_TEST_CASE("net: closesocket wakes a blocked accept with WSAEINTR", "[kernel]
 REX_TEST_CASE("net: closesocket wakes a blocked select with WSAEINTR", "[kernel][net][close]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    constexpr u32 kPort = 47333;
     REQUIRE(c.XAM("NetDll_WSAStartup", {0, 0x0202, c.Alloc(0x200)}) == 0);
     const u32 datagram = c.XAM("NetDll_socket", {0, 2, 2, 17});
     REQUIRE(datagram != kSocketError);
-    REQUIRE(c.XAM("NetDll_bind", {0, datagram, LoopbackAddress(c, kPort), 16}) == 0);
+    BindAny(c, datagram);
 
     auto result = std::make_shared<std::promise<std::pair<u32, u32>>>();
     auto done = result->get_future();
@@ -363,10 +367,9 @@ REX_TEST_CASE("net: a recv with no data on a nonblocking socket fails with WSAEW
               "[kernel][net][error]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    constexpr u32 kPort = 47327;
     REQUIRE(c.XAM("NetDll_WSAStartup", {0, 0x0202, c.Alloc(0x200)}) == 0);
     const u32 datagram = Nonblocking(c, c.XAM("NetDll_socket", {0, 2, 2, 17}));
-    REQUIRE(c.XAM("NetDll_bind", {0, datagram, LoopbackAddress(c, kPort), 16}) == 0);
+    BindAny(c, datagram);
     const u32 buffer = c.Alloc(16);
     CHECK(LastErrorOf(c, "NetDll_recv", {0, datagram, buffer, 16, 0}) == kWSAEWOULDBLOCK);
     CHECK(LastErrorOf(c, "NetDll_recvfrom", {0, datagram, buffer, 16, 0, 0, 0}) == kWSAEWOULDBLOCK);
@@ -393,11 +396,14 @@ REX_TEST_CASE("net: a connect to a loopback port nobody listens on fails with WS
               "[kernel][net][error]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    constexpr u32 kPort = 47328;
     REQUIRE(c.XAM("NetDll_WSAStartup", {0, 0x0202, c.Alloc(0x200)}) == 0);
+    const u32 closed = c.XAM("NetDll_socket", {0, 2, 1, 6});
+    REQUIRE(closed != kSocketError);
+    const u32 port = BindAny(c, closed);
+    CHECK(c.XAM("NetDll_closesocket", {0, closed}) == 0);
     const u32 stream = c.XAM("NetDll_socket", {0, 2, 1, 6});
     REQUIRE(stream != kSocketError);
-    CHECK(LastErrorOf(c, "NetDll_connect", {0, stream, LoopbackAddress(c, kPort), 16}) ==
+    CHECK(LastErrorOf(c, "NetDll_connect", {0, stream, LoopbackAddress(c, port), 16}) ==
           kWSAECONNREFUSED);
     CHECK(c.XAM("NetDll_closesocket", {0, stream}) == 0);
     CHECK(c.XAM("NetDll_WSACleanup", {0}) == 0);
@@ -407,12 +413,11 @@ REX_TEST_CASE("net: a connect to a loopback port nobody listens on fails with WS
 REX_TEST_CASE("net: a bind to a port in use fails with WSAEADDRINUSE", "[kernel][net][error]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    constexpr u32 kPort = 47329;
     REQUIRE(c.XAM("NetDll_WSAStartup", {0, 0x0202, c.Alloc(0x200)}) == 0);
     const u32 first = c.XAM("NetDll_socket", {0, 2, 2, 17});
     const u32 second = c.XAM("NetDll_socket", {0, 2, 2, 17});
-    REQUIRE(c.XAM("NetDll_bind", {0, first, LoopbackAddress(c, kPort), 16}) == 0);
-    CHECK(LastErrorOf(c, "NetDll_bind", {0, second, LoopbackAddress(c, kPort), 16}) ==
+    const u32 port = BindAny(c, first);
+    CHECK(LastErrorOf(c, "NetDll_bind", {0, second, LoopbackAddress(c, port), 16}) ==
           kWSAEADDRINUSE);
     CHECK(c.XAM("NetDll_closesocket", {0, second}) == 0);
     CHECK(c.XAM("NetDll_closesocket", {0, first}) == 0);
@@ -423,10 +428,9 @@ REX_TEST_CASE("net: a bind to a port in use fails with WSAEADDRINUSE", "[kernel]
 REX_TEST_CASE("net: listen on a datagram socket fails with WSAEOPNOTSUPP", "[kernel][net][error]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    constexpr u32 kPort = 47330;
     REQUIRE(c.XAM("NetDll_WSAStartup", {0, 0x0202, c.Alloc(0x200)}) == 0);
     const u32 datagram = c.XAM("NetDll_socket", {0, 2, 2, 17});
-    REQUIRE(c.XAM("NetDll_bind", {0, datagram, LoopbackAddress(c, kPort), 16}) == 0);
+    BindAny(c, datagram);
     CHECK(LastErrorOf(c, "NetDll_listen", {0, datagram, 1}) == kWSAEOPNOTSUPP);
     CHECK(c.XAM("NetDll_closesocket", {0, datagram}) == 0);
     CHECK(c.XAM("NetDll_WSACleanup", {0}) == 0);
@@ -437,10 +441,9 @@ REX_TEST_CASE("net: accept on a stream socket that does not listen fails with WS
               "[kernel][net][error]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    constexpr u32 kPort = 47331;
     REQUIRE(c.XAM("NetDll_WSAStartup", {0, 0x0202, c.Alloc(0x200)}) == 0);
     const u32 stream = c.XAM("NetDll_socket", {0, 2, 1, 6});
-    REQUIRE(c.XAM("NetDll_bind", {0, stream, LoopbackAddress(c, kPort), 16}) == 0);
+    BindAny(c, stream);
     const u32 length = c.Alloc(4);
     c.Store32(length, 16);
     CHECK(LastErrorOf(c, "NetDll_accept", {0, stream, c.Alloc(16), length}) == kWSAEINVAL);
@@ -453,22 +456,25 @@ REX_TEST_CASE("net: a datagram above the size limit fails with WSAEMSGSIZE",
               "[kernel][net][error]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    constexpr u32 kPort = 47332;
     constexpr u32 kTooBig = 70000;
     REQUIRE(c.XAM("NetDll_WSAStartup", {0, 0x0202, c.Alloc(0x200)}) == 0);
+    const u32 receiver = c.XAM("NetDll_socket", {0, 2, 2, 17});
+    REQUIRE(receiver != kSocketError);
+    const u32 port = BindAny(c, receiver);
     const u32 datagram = c.XAM("NetDll_socket", {0, 2, 2, 17});
     REQUIRE(datagram != kSocketError);
     const u32 buffer = c.Alloc(kTooBig);
     CHECK(LastErrorOf(c, "NetDll_sendto",
-                      {0, datagram, buffer, kTooBig, 0, LoopbackAddress(c, kPort), 16}) ==
+                      {0, datagram, buffer, kTooBig, 0, LoopbackAddress(c, port), 16}) ==
           kWSAEMSGSIZE);
     const u32 buffers = c.Alloc(8);
     c.Store32(buffers, kTooBig);
     c.Store32(buffers + 4, buffer);
     CHECK(LastErrorOf(c, "NetDll_WSASendTo",
-                      {0, datagram, buffers, 1, c.Alloc(4), 0, LoopbackAddress(c, kPort), 16, 0,
+                      {0, datagram, buffers, 1, c.Alloc(4), 0, LoopbackAddress(c, port), 16, 0,
                        0}) == kWSAEMSGSIZE);
     CHECK(c.XAM("NetDll_closesocket", {0, datagram}) == 0);
+    CHECK(c.XAM("NetDll_closesocket", {0, receiver}) == 0);
     CHECK(c.XAM("NetDll_WSACleanup", {0}) == 0);
   });
 }
@@ -477,15 +483,14 @@ REX_TEST_CASE("net: a send after the sending side shut down fails with WSAESHUTD
               "[kernel][net][error]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    constexpr u32 kPort = 47334;
     constexpr u32 kWSAESHUTDOWN = 0x274A;
     constexpr u32 kSendSide = 1;
     REQUIRE(c.XAM("NetDll_WSAStartup", {0, 0x0202, c.Alloc(0x200)}) == 0);
     const u32 listener = c.XAM("NetDll_socket", {0, 2, 1, 6});
     const u32 client = c.XAM("NetDll_socket", {0, 2, 1, 6});
-    REQUIRE(c.XAM("NetDll_bind", {0, listener, LoopbackAddress(c, kPort), 16}) == 0);
+    const u32 port = BindAny(c, listener);
     REQUIRE(c.XAM("NetDll_listen", {0, listener, 1}) == 0);
-    REQUIRE(c.XAM("NetDll_connect", {0, client, LoopbackAddress(c, kPort), 16}) == 0);
+    REQUIRE(c.XAM("NetDll_connect", {0, client, LoopbackAddress(c, port), 16}) == 0);
     REQUIRE(c.XAM("NetDll_shutdown", {0, client, kSendSide}) == 0);
     CHECK(LastErrorOf(c, "NetDll_send", {0, client, c.Alloc(16), 16, 0}) == kWSAESHUTDOWN);
     CHECK(c.XAM("NetDll_closesocket", {0, client}) == 0);
@@ -543,12 +548,11 @@ REX_TEST_CASE("net: select reports a socket with a datagram waiting as readable"
               "[kernel][net][select]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    constexpr u32 kPort = 47335;
     REQUIRE(c.XAM("NetDll_WSAStartup", {0, 0x0202, c.Alloc(0x200)}) == 0);
     const u32 receiver = c.XAM("NetDll_socket", {0, 2, 2, 17});
     const u32 sender = c.XAM("NetDll_socket", {0, 2, 2, 17});
-    REQUIRE(c.XAM("NetDll_bind", {0, receiver, LoopbackAddress(c, kPort), 16}) == 0);
-    REQUIRE(c.XAM("NetDll_sendto", {0, sender, c.Alloc(8), 8, 0, LoopbackAddress(c, kPort), 16}) ==
+    const u32 port = BindAny(c, receiver);
+    REQUIRE(c.XAM("NetDll_sendto", {0, sender, c.Alloc(8), 8, 0, LoopbackAddress(c, port), 16}) ==
             8);
     const u32 set = SocketSet(c, {receiver});
     CHECK(c.XAM("NetDll_select", {0, 0, set, 0, 0, Timeval(c, 1, 0)}) == 1);
@@ -564,12 +568,11 @@ REX_TEST_CASE("net: select counts a socket once for each set it is ready in",
               "[kernel][net][select]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    constexpr u32 kPort = 47360;
     REQUIRE(c.XAM("NetDll_WSAStartup", {0, 0x0202, c.Alloc(0x200)}) == 0);
     const u32 receiver = c.XAM("NetDll_socket", {0, 2, 2, 17});
     const u32 sender = c.XAM("NetDll_socket", {0, 2, 2, 17});
-    REQUIRE(c.XAM("NetDll_bind", {0, receiver, LoopbackAddress(c, kPort), 16}) == 0);
-    REQUIRE(c.XAM("NetDll_sendto", {0, sender, c.Alloc(8), 8, 0, LoopbackAddress(c, kPort), 16}) ==
+    const u32 port = BindAny(c, receiver);
+    REQUIRE(c.XAM("NetDll_sendto", {0, sender, c.Alloc(8), 8, 0, LoopbackAddress(c, port), 16}) ==
             8);
     const u32 arrived = SocketSet(c, {receiver});
     REQUIRE(c.XAM("NetDll_select", {0, 0, arrived, 0, 0, Timeval(c, 1, 0)}) == 1);
@@ -629,10 +632,9 @@ REX_TEST_CASE("net: select with a timeout and no ready socket returns 0 at the t
               "[kernel][net][select]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    constexpr u32 kPort = 47336;
     REQUIRE(c.XAM("NetDll_WSAStartup", {0, 0x0202, c.Alloc(0x200)}) == 0);
     const u32 datagram = c.XAM("NetDll_socket", {0, 2, 2, 17});
-    REQUIRE(c.XAM("NetDll_bind", {0, datagram, LoopbackAddress(c, kPort), 16}) == 0);
+    BindAny(c, datagram);
     const u32 set = SocketSet(c, {datagram});
     const auto start = std::chrono::steady_clock::now();
     CHECK(c.XAM("NetDll_select", {0, 0, set, 0, 0, Timeval(c, 0, 100000)}) == 0);
@@ -697,9 +699,11 @@ REX_TEST_CASE("net: an overlapped WSASendTo completes with its byte count and ev
               "[kernel][net][overlapped]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    constexpr u32 kPort = 47337;
     constexpr u32 kLength = 8;
     REQUIRE(c.XAM("NetDll_WSAStartup", {0, 0x0202, c.Alloc(0x200)}) == 0);
+    const u32 receiver = c.XAM("NetDll_socket", {0, 2, 2, 17});
+    REQUIRE(receiver != kSocketError);
+    const u32 port = BindAny(c, receiver);
     const u32 datagram = c.XAM("NetDll_socket", {0, 2, 2, 17});
     REQUIRE(datagram != kSocketError);
     const u32 event = c.XAM("NetDll_WSACreateEvent");
@@ -709,7 +713,7 @@ REX_TEST_CASE("net: an overlapped WSASendTo completes with its byte count and ev
     const u32 sent = c.Alloc(4);
     c.Store32(sent, 0xFFFFFFFF);
     CHECK(c.XAM("NetDll_WSASendTo", {0, datagram, SingleBuffer(c, kLength), 1, sent, 0,
-                                     LoopbackAddress(c, kPort), 16, overlapped, 0}) == 0);
+                                     LoopbackAddress(c, port), 16, overlapped, 0}) == 0);
     CHECK(c.Load32(sent) == kLength);
     const u32 events = c.Alloc(4);
     c.Store32(events, event);
@@ -723,6 +727,7 @@ REX_TEST_CASE("net: an overlapped WSASendTo completes with its byte count and ev
     CHECK(c.Load32(flags) == 0);
     CHECK(c.XAM("NetDll_WSACloseEvent", {event}) == 1);
     CHECK(c.XAM("NetDll_closesocket", {0, datagram}) == 0);
+    CHECK(c.XAM("NetDll_closesocket", {0, receiver}) == 0);
     CHECK(c.XAM("NetDll_WSACleanup", {0}) == 0);
   });
 }
@@ -731,17 +736,20 @@ REX_TEST_CASE("net: a WSASendTo without an overlapped reports its byte count",
               "[kernel][net][overlapped]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    constexpr u32 kPort = 47338;
     constexpr u32 kLength = 12;
     REQUIRE(c.XAM("NetDll_WSAStartup", {0, 0x0202, c.Alloc(0x200)}) == 0);
+    const u32 receiver = c.XAM("NetDll_socket", {0, 2, 2, 17});
+    REQUIRE(receiver != kSocketError);
+    const u32 port = BindAny(c, receiver);
     const u32 datagram = c.XAM("NetDll_socket", {0, 2, 2, 17});
     REQUIRE(datagram != kSocketError);
     const u32 sent = c.Alloc(4);
     c.Store32(sent, 0xFFFFFFFF);
     CHECK(c.XAM("NetDll_WSASendTo", {0, datagram, SingleBuffer(c, kLength), 1, sent, 0,
-                                     LoopbackAddress(c, kPort), 16, 0, 0}) == 0);
+                                     LoopbackAddress(c, port), 16, 0, 0}) == 0);
     CHECK(c.Load32(sent) == kLength);
     CHECK(c.XAM("NetDll_closesocket", {0, datagram}) == 0);
+    CHECK(c.XAM("NetDll_closesocket", {0, receiver}) == 0);
     CHECK(c.XAM("NetDll_WSACleanup", {0}) == 0);
   });
 }
@@ -750,10 +758,12 @@ REX_TEST_CASE("net: a WSASendTo with a completion routine still sends",
               "[kernel][net][overlapped]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    constexpr u32 kPort = 47339;
     constexpr u32 kLength = 8;
     constexpr u32 kRoutine = 0x82000000;
     REQUIRE(c.XAM("NetDll_WSAStartup", {0, 0x0202, c.Alloc(0x200)}) == 0);
+    const u32 receiver = c.XAM("NetDll_socket", {0, 2, 2, 17});
+    REQUIRE(receiver != kSocketError);
+    const u32 port = BindAny(c, receiver);
     const u32 datagram = c.XAM("NetDll_socket", {0, 2, 2, 17});
     REQUIRE(datagram != kSocketError);
     const u32 event = c.XAM("NetDll_WSACreateEvent");
@@ -762,7 +772,7 @@ REX_TEST_CASE("net: a WSASendTo with a completion routine still sends",
     c.Store32(overlapped + 16, event);
     const u32 sent = c.Alloc(4);
     CHECK(c.XAM("NetDll_WSASendTo", {0, datagram, SingleBuffer(c, kLength), 1, sent, 0,
-                                     LoopbackAddress(c, kPort), 16, overlapped, kRoutine}) == 0);
+                                     LoopbackAddress(c, port), 16, overlapped, kRoutine}) == 0);
     CHECK(c.Load32(sent) == kLength);
     CHECK(c.Load32(overlapped) == 0);
     CHECK(c.Load32(overlapped + 4) == kLength);
@@ -771,6 +781,7 @@ REX_TEST_CASE("net: a WSASendTo with a completion routine still sends",
     CHECK(c.XAM("NetDll_WSAWaitForMultipleEvents", {1, events, 0, 0, 0}) == 0);
     CHECK(c.XAM("NetDll_WSACloseEvent", {event}) == 1);
     CHECK(c.XAM("NetDll_closesocket", {0, datagram}) == 0);
+    CHECK(c.XAM("NetDll_closesocket", {0, receiver}) == 0);
     CHECK(c.XAM("NetDll_WSACleanup", {0}) == 0);
   });
 }
@@ -779,8 +790,10 @@ REX_TEST_CASE("net: WSAGetOverlappedResult of a failed overlapped send returns i
               "[kernel][net][overlapped]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    constexpr u32 kPort = 47340;
     REQUIRE(c.XAM("NetDll_WSAStartup", {0, 0x0202, c.Alloc(0x200)}) == 0);
+    const u32 receiver = c.XAM("NetDll_socket", {0, 2, 2, 17});
+    REQUIRE(receiver != kSocketError);
+    const u32 port = BindAny(c, receiver);
     const u32 stream = c.XAM("NetDll_socket", {0, 2, 1, 6});
     REQUIRE(stream != kSocketError);
     const u32 event = c.XAM("NetDll_WSACreateEvent");
@@ -789,7 +802,7 @@ REX_TEST_CASE("net: WSAGetOverlappedResult of a failed overlapped send returns i
     c.Store32(overlapped + 16, event);
     const u32 error = LastErrorOf(c, "NetDll_WSASendTo",
                                   {0, stream, SingleBuffer(c, 8), 1, c.Alloc(4), 0,
-                                   LoopbackAddress(c, kPort), 16, overlapped, 0});
+                                   LoopbackAddress(c, port), 16, overlapped, 0});
     REQUIRE(error != 0);
     CHECK(c.Load32(overlapped) == error);
     const u32 events = c.Alloc(4);
@@ -801,6 +814,7 @@ REX_TEST_CASE("net: WSAGetOverlappedResult of a failed overlapped send returns i
     CHECK(c.XAM("NetDll_WSAGetLastError") == error);
     CHECK(c.XAM("NetDll_WSACloseEvent", {event}) == 1);
     CHECK(c.XAM("NetDll_closesocket", {0, stream}) == 0);
+    CHECK(c.XAM("NetDll_closesocket", {0, receiver}) == 0);
     CHECK(c.XAM("NetDll_WSACleanup", {0}) == 0);
   });
 }
@@ -821,13 +835,14 @@ struct Receive {
   u32 from_len = 0;
   u32 overlapped = 0;
   u32 event = 0;
+  u32 port = 0;
 };
 
-Receive PrepareReceive(Caller& c, u32 port, u32 from_len, bool overlapped) {
+Receive PrepareReceive(Caller& c, u32 from_len, bool overlapped) {
   Receive r;
   r.socket = c.XAM("NetDll_socket", {0, 2, 2, 17});
   REQUIRE(r.socket != kSocketError);
-  REQUIRE(c.XAM("NetDll_bind", {0, r.socket, LoopbackAddress(c, port), 16}) == 0);
+  r.port = BindAny(c, r.socket);
   r.buffers = SingleBuffer(c, 16);
   for (u32 offset = 0; offset < 16; offset += 4) {
     c.Store32(c.Load32(r.buffers + 4) + offset, kUntouched);
@@ -915,10 +930,9 @@ REX_TEST_CASE("net: an overlapped WSARecvFrom with a datagram waiting completes 
               "[kernel][net][overlapped]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    constexpr u32 kPort = 47341;
     REQUIRE(c.XAM("NetDll_WSAStartup", {0, 0x0202, c.Alloc(0x200)}) == 0);
-    const Receive r = PrepareReceive(c, kPort, 16, true);
-    SendDatagram(c, kPort);
+    const Receive r = PrepareReceive(c, 16, true);
+    SendDatagram(c, r.port);
     WaitReadable(c, r.socket);
     CHECK(StartReceive(c, r) == 0);
     CHECK(c.Load32(r.bytes) == 8);
@@ -937,9 +951,8 @@ REX_TEST_CASE("net: a pending WSARecvFrom completes when a datagram arrives",
               "[kernel][net][overlapped]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    constexpr u32 kPort = 47342;
     REQUIRE(c.XAM("NetDll_WSAStartup", {0, 0x0202, c.Alloc(0x200)}) == 0);
-    const Receive r = PrepareReceive(c, kPort, 16, true);
+    const Receive r = PrepareReceive(c, 16, true);
     CHECK(StartPendingReceive(c, r) == kWSAIOPending);
     CHECK(c.LoadAcquire32(r.overlapped) == kWSAIOIncomplete);
     const u32 transferred = c.Alloc(4);
@@ -948,7 +961,7 @@ REX_TEST_CASE("net: a pending WSARecvFrom completes when a datagram arrives",
     CHECK(c.XAM("NetDll_WSAGetOverlappedResult",
                 {0, r.socket, r.overlapped, transferred, 0, flags}) == 0);
     CHECK(c.XAM("NetDll_WSAGetLastError") == kWSAIOIncomplete);
-    SendDatagram(c, kPort);
+    SendDatagram(c, r.port);
     CHECK(c.XAM("NetDll_WSAGetOverlappedResult",
                 {0, r.socket, r.overlapped, transferred, 1, flags}) == 1);
     CHECK(c.Load32(transferred) == 8);
@@ -965,11 +978,10 @@ REX_TEST_CASE("net: a pending WSARecvFrom leaves the byte count and flags of its
               "[kernel][net][overlapped]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    constexpr u32 kPort = 47350;
     REQUIRE(c.XAM("NetDll_WSAStartup", {0, 0x0202, c.Alloc(0x200)}) == 0);
-    const Receive r = PrepareReceive(c, kPort, 16, true);
+    const Receive r = PrepareReceive(c, 16, true);
     CHECK(StartPendingReceive(c, r) == kWSAIOPending);
-    SendDatagram(c, kPort);
+    SendDatagram(c, r.port);
     CHECK(Signaled(c, r.event, 5000));
     CheckPayload(c, r);
     CHECK(c.Load32(r.bytes) == kUntouched);
@@ -983,9 +995,8 @@ REX_TEST_CASE("net: WSACancelOverlappedIO ends a pending WSARecvFrom with WSAECA
               "[kernel][net][overlapped]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    constexpr u32 kPort = 47343;
     REQUIRE(c.XAM("NetDll_WSAStartup", {0, 0x0202, c.Alloc(0x200)}) == 0);
-    const Receive r = PrepareReceive(c, kPort, 16, true);
+    const Receive r = PrepareReceive(c, 16, true);
     CHECK(StartPendingReceive(c, r) == kWSAIOPending);
     CHECK(c.XAM("NetDll_WSACancelOverlappedIO", {0, r.socket}) == 0);
     CHECK(Signaled(c, r.event, 0));
@@ -993,7 +1004,7 @@ REX_TEST_CASE("net: WSACancelOverlappedIO ends a pending WSARecvFrom with WSAECA
     CHECK(c.XAM("NetDll_WSAGetOverlappedResult",
                 {0, r.socket, r.overlapped, c.Alloc(4), 0, c.Alloc(4)}) == 0);
     CHECK(c.XAM("NetDll_WSAGetLastError") == kWSAECANCELLED);
-    SendDatagram(c, kPort);
+    SendDatagram(c, r.port);
     WaitReadable(c, r.socket);
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
     CHECK(c.LoadAcquire32(r.overlapped) == kWSAECANCELLED);
@@ -1008,12 +1019,12 @@ REX_TEST_CASE("net: a WSARecvFrom without an overlapped waits for a datagram",
               "[kernel][net][overlapped]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    constexpr u32 kPort = 47344;
     REQUIRE(c.XAM("NetDll_WSAStartup", {0, 0x0202, c.Alloc(0x200)}) == 0);
-    const Receive r = PrepareReceive(c, kPort, 16, false);
-    const u32 sender = c.Spawn([](Caller& s) {
+    const Receive r = PrepareReceive(c, 16, false);
+    const u32 port = r.port;
+    const u32 sender = c.Spawn([port](Caller& s) {
       std::this_thread::sleep_for(std::chrono::milliseconds(100));
-      SendDatagram(s, kPort);
+      SendDatagram(s, port);
     });
     CHECK(StartReceive(c, r) == 0);
     CHECK(c.Load32(r.bytes) == 8);
@@ -1030,9 +1041,8 @@ REX_TEST_CASE("net: a second pending WSARecvFrom on a socket fails with WSAEWOUL
               "[kernel][net][overlapped]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    constexpr u32 kPort = 47345;
     REQUIRE(c.XAM("NetDll_WSAStartup", {0, 0x0202, c.Alloc(0x200)}) == 0);
-    const Receive r = PrepareReceive(c, kPort, 16, true);
+    const Receive r = PrepareReceive(c, 16, true);
     CHECK(StartPendingReceive(c, r) == kWSAIOPending);
     const u32 second = c.Alloc(20);
     c.Store32(second + 16, r.event);
@@ -1049,14 +1059,13 @@ REX_TEST_CASE("net: closesocket ends a pending WSARecvFrom with WSAECANCELLED",
               "[kernel][net][overlapped][close]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    constexpr u32 kPort = 47346;
     REQUIRE(c.XAM("NetDll_WSAStartup", {0, 0x0202, c.Alloc(0x200)}) == 0);
-    const Receive r = PrepareReceive(c, kPort, 16, true);
+    const Receive r = PrepareReceive(c, 16, true);
     CHECK(StartPendingReceive(c, r) == kWSAIOPending);
     CHECK(c.XAM("NetDll_closesocket", {0, r.socket}) == 0);
     CHECK(Signaled(c, r.event, 0));
     CHECK(c.LoadAcquire32(r.overlapped) == kWSAECANCELLED);
-    SendDatagram(c, kPort);
+    SendDatagram(c, r.port);
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
     CHECK(c.LoadAcquire32(r.overlapped) == kWSAECANCELLED);
     CheckBufferUntouched(c, r);
@@ -1071,9 +1080,8 @@ REX_TEST_CASE("net: title termination ends a pending WSARecvFrom before it retur
   KernelFixture fixture;
   u32 overlapped = 0;
   fixture.RunOnGuestThread([&overlapped](Caller& c) {
-    constexpr u32 kPort = 47347;
     REQUIRE(c.XAM("NetDll_WSAStartup", {0, 0x0202, c.Alloc(0x200)}) == 0);
-    const Receive r = PrepareReceive(c, kPort, 16, true);
+    const Receive r = PrepareReceive(c, 16, true);
     CHECK(StartPendingReceive(c, r) == kWSAIOPending);
     overlapped = r.overlapped;
   });
@@ -1087,10 +1095,9 @@ REX_TEST_CASE("net: WSARecvFrom reads the address length from its 8th argument",
               "[kernel][net][overlapped]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    constexpr u32 kPort = 47348;
     REQUIRE(c.XAM("NetDll_WSAStartup", {0, 0x0202, c.Alloc(0x200)}) == 0);
-    const Receive r = PrepareReceive(c, kPort, 32, false);
-    SendDatagram(c, kPort);
+    const Receive r = PrepareReceive(c, 32, false);
+    SendDatagram(c, r.port);
     WaitReadable(c, r.socket);
     CHECK(StartReceive(c, r) == 0);
     CheckLoopbackFrom(c, r);
@@ -1103,10 +1110,9 @@ REX_TEST_CASE("net: WSARecvFrom writes no more of the address than the length al
               "[kernel][net][overlapped]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    constexpr u32 kPort = 47349;
     REQUIRE(c.XAM("NetDll_WSAStartup", {0, 0x0202, c.Alloc(0x200)}) == 0);
-    const Receive r = PrepareReceive(c, kPort, 8, false);
-    SendDatagram(c, kPort);
+    const Receive r = PrepareReceive(c, 8, false);
+    SendDatagram(c, r.port);
     WaitReadable(c, r.socket);
     CHECK(StartReceive(c, r) == 0);
     CHECK(c.Load32(r.from) >> 16 == 2);
@@ -1144,7 +1150,7 @@ void SetHostNoDelay(rex::platform::SocketHandle native, int value) {
 }
 
 int GetHostNoDelay(rex::platform::SocketHandle native) {
-  int value = -1;
+  int value = 0;
 #if REX_PLATFORM_WIN32
   int length = sizeof(value);
   getsockopt(static_cast<SOCKET>(native), IPPROTO_TCP, TCP_NODELAY, reinterpret_cast<char*>(&value),
@@ -1172,6 +1178,115 @@ u32 GetOption(Caller& c, u32 socket, u32 level, u32 name, u32* value, u32 length
 }
 
 }  // namespace
+
+REX_TEST_CASE("net: getsockname reports the bound port of a datagram socket with INADDR_ANY",
+              "[kernel][net][name]") {
+  KernelFixture fixture;
+  fixture.RunOnGuestThread([](Caller& c) {
+    REQUIRE(c.XAM("NetDll_WSAStartup", {0, 0x0202, c.Alloc(0x200)}) == 0);
+    const u32 datagram = c.XAM("NetDll_socket", {0, 2, 2, 17});
+    REQUIRE(datagram != kSocketError);
+    const u32 name = c.Alloc(16);
+    const u32 length = c.Alloc(4);
+    for (u32 offset = 0; offset < 16; offset += 4) {
+      c.Store32(name + offset, 0xDEADBEEF);
+    }
+    c.Store32(length, 16);
+    REQUIRE(c.XAM("NetDll_bind", {0, datagram, LoopbackAddress(c, 0), 16}) == 0);
+    CHECK(c.XAM("NetDll_getsockname", {0, datagram, name, length}) == 0);
+    CHECK(c.Load32(length) == 16);
+    CHECK((c.Load32(name) >> 16) == 2);
+    CHECK((c.Load32(name) & 0xFFFF) != 0);
+    CHECK(c.Load32(name + 4) == 0);
+    CHECK(c.XAM("NetDll_closesocket", {0, datagram}) == 0);
+    CHECK(c.XAM("NetDll_WSACleanup", {0}) == 0);
+  });
+}
+
+REX_TEST_CASE(
+    "net: getsockname reports the bound port of a stream socket and the port a connect chose",
+    "[kernel][net][name]") {
+  KernelFixture fixture;
+  fixture.RunOnGuestThread([](Caller& c) {
+    REQUIRE(c.XAM("NetDll_WSAStartup", {0, 0x0202, c.Alloc(0x200)}) == 0);
+    const u32 listener = c.XAM("NetDll_socket", {0, 2, 1, 6});
+    const u32 client = c.XAM("NetDll_socket", {0, 2, 1, 6});
+    REQUIRE(listener != kSocketError);
+    REQUIRE(client != kSocketError);
+    const u32 port = BindAny(c, listener);
+    CHECK(port != 0);
+    REQUIRE(c.XAM("NetDll_listen", {0, listener, 1}) == 0);
+    REQUIRE(c.XAM("NetDll_connect", {0, client, LoopbackAddress(c, port), 16}) == 0);
+    const u32 name = c.Alloc(16);
+    const u32 length = c.Alloc(4);
+    c.Store32(length, 16);
+    CHECK(c.XAM("NetDll_getsockname", {0, client, name, length}) == 0);
+    CHECK((c.Load32(name) & 0xFFFF) != 0);
+    CHECK((c.Load32(name) & 0xFFFF) != port);
+    CHECK(c.Load32(name + 4) == 0);
+    CHECK(c.XAM("NetDll_closesocket", {0, client}) == 0);
+    CHECK(c.XAM("NetDll_closesocket", {0, listener}) == 0);
+    CHECK(c.XAM("NetDll_WSACleanup", {0}) == 0);
+  });
+}
+
+REX_TEST_CASE("net: getsockname on a socket that was never bound fails with WSAEINVAL",
+              "[kernel][net][name][error]") {
+  KernelFixture fixture;
+  fixture.RunOnGuestThread([](Caller& c) {
+    REQUIRE(c.XAM("NetDll_WSAStartup", {0, 0x0202, c.Alloc(0x200)}) == 0);
+    const u32 stream = c.XAM("NetDll_socket", {0, 2, 1, 6});
+    const u32 datagram = c.XAM("NetDll_socket", {0, 2, 2, 17});
+    REQUIRE(stream != kSocketError);
+    REQUIRE(datagram != kSocketError);
+    const u32 name = c.Alloc(16);
+    const u32 length = c.Alloc(4);
+    c.Store32(length, 16);
+    CHECK(LastErrorOf(c, "NetDll_getsockname", {0, stream, name, length}) == kWSAEINVAL);
+    c.Store32(length, 16);
+    CHECK(LastErrorOf(c, "NetDll_getsockname", {0, datagram, name, length}) == kWSAEINVAL);
+    CHECK(c.XAM("NetDll_closesocket", {0, datagram}) == 0);
+    CHECK(c.XAM("NetDll_closesocket", {0, stream}) == 0);
+    CHECK(c.XAM("NetDll_WSACleanup", {0}) == 0);
+  });
+}
+
+REX_TEST_CASE("net: getsockname on a closed socket fails with WSAENOTSOCK",
+              "[kernel][net][name][error]") {
+  KernelFixture fixture;
+  fixture.RunOnGuestThread([](Caller& c) {
+    REQUIRE(c.XAM("NetDll_WSAStartup", {0, 0x0202, c.Alloc(0x200)}) == 0);
+    const u32 datagram = c.XAM("NetDll_socket", {0, 2, 2, 17});
+    REQUIRE(datagram != kSocketError);
+    REQUIRE(c.XAM("NetDll_bind", {0, datagram, LoopbackAddress(c, 0), 16}) == 0);
+    CHECK(c.XAM("NetDll_closesocket", {0, datagram}) == 0);
+    const u32 length = c.Alloc(4);
+    c.Store32(length, 16);
+    CHECK(LastErrorOf(c, "NetDll_getsockname", {0, datagram, c.Alloc(16), length}) == kWSAENOTSOCK);
+    CHECK(c.XAM("NetDll_WSACleanup", {0}) == 0);
+  });
+}
+
+REX_TEST_CASE("net: getsockname with a short length or a missing buffer fails with WSAEFAULT",
+              "[kernel][net][name][error]") {
+  KernelFixture fixture;
+  fixture.RunOnGuestThread([](Caller& c) {
+    constexpr u32 kWSAEFAULT = 0x271E;
+    REQUIRE(c.XAM("NetDll_WSAStartup", {0, 0x0202, c.Alloc(0x200)}) == 0);
+    const u32 datagram = c.XAM("NetDll_socket", {0, 2, 2, 17});
+    REQUIRE(datagram != kSocketError);
+    REQUIRE(c.XAM("NetDll_bind", {0, datagram, LoopbackAddress(c, 0), 16}) == 0);
+    const u32 name = c.Alloc(16);
+    const u32 length = c.Alloc(4);
+    c.Store32(length, 8);
+    CHECK(LastErrorOf(c, "NetDll_getsockname", {0, datagram, name, length}) == kWSAEFAULT);
+    c.Store32(length, 16);
+    CHECK(LastErrorOf(c, "NetDll_getsockname", {0, datagram, 0, length}) == kWSAEFAULT);
+    CHECK(LastErrorOf(c, "NetDll_getsockname", {0, datagram, name, 0}) == kWSAEFAULT);
+    CHECK(c.XAM("NetDll_closesocket", {0, datagram}) == 0);
+    CHECK(c.XAM("NetDll_WSACleanup", {0}) == 0);
+  });
+}
 
 REX_TEST_CASE("net: setsockopt reads 4 byte values as big endian integers",
               "[kernel][net][sockopt]") {
@@ -1303,7 +1418,6 @@ REX_TEST_CASE("net: an accepted stream socket disables Nagle on the host",
               "[kernel][net][sockopt]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    constexpr u32 kPort = 47361;
     REQUIRE(c.XAM("NetDll_WSAStartup", {0, 0x0202, c.Alloc(0x200)}) == 0);
     const u32 listener = c.XAM("NetDll_socket", {0, 2, 1, 6});
     const u32 client = c.XAM("NetDll_socket", {0, 2, 1, 6});
@@ -1314,9 +1428,9 @@ REX_TEST_CASE("net: an accepted stream socket disables Nagle on the host",
     SetHostNoDelay(pinned->socket.GetHandle(), 0);
     REQUIRE(GetHostNoDelay(pinned->socket.GetHandle()) == 0);
     pinned = {};
-    REQUIRE(c.XAM("NetDll_bind", {0, listener, LoopbackAddress(c, kPort), 16}) == 0);
+    const u32 port = BindAny(c, listener);
     REQUIRE(c.XAM("NetDll_listen", {0, listener, 1}) == 0);
-    REQUIRE(c.XAM("NetDll_connect", {0, client, LoopbackAddress(c, kPort), 16}) == 0);
+    REQUIRE(c.XAM("NetDll_connect", {0, client, LoopbackAddress(c, port), 16}) == 0);
     const u32 length = c.Alloc(4);
     c.Store32(length, 16);
     const u32 peer = c.XAM("NetDll_accept", {0, listener, c.Alloc(16), length});

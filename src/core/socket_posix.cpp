@@ -120,6 +120,13 @@ i32 Socket::Bind(const sockaddr* name, i32 name_len) const {
   return bind(static_cast<int>(handle_), name, static_cast<socklen_t>(name_len));
 }
 
+i32 Socket::GetName(sockaddr* name, i32* name_len) const {
+  socklen_t length = static_cast<socklen_t>(*name_len);
+  const int result = getsockname(static_cast<int>(handle_), name, &length);
+  *name_len = static_cast<i32>(length);
+  return result;
+}
+
 i32 Socket::Listen(i32 backlog) const {
   return listen(static_cast<int>(handle_), backlog);
 }

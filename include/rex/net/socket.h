@@ -192,6 +192,15 @@ class Socket : public MoveOnly {
   REX_API i32 Bind(const sockaddr* name, i32 name_len) const;
 
   /**
+   * Reads the local address.
+   *
+   * @param name Receives the local address.
+   * @param name_len The size of the address buffer, then the size of the local address.
+   * @return 0 on success, -1 with SocketError set.
+   */
+  REX_API i32 GetName(sockaddr* name, i32* name_len) const;
+
+  /**
    * Starts listening for connections.
    *
    * @param backlog The length of the pending connection queue.

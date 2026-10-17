@@ -56,12 +56,17 @@ ThreadUsage CurrentThreadUsage() {
 
 template <typename Predicate>
 bool WaitUntil(Predicate ready, std::chrono::milliseconds limit = 5s) {
+  constexpr int kYields = 256;
   const auto deadline = Clock::now() + limit;
-  while (!ready()) {
+  for (int attempt = 0; !ready(); ++attempt) {
     if (Clock::now() >= deadline) {
       return false;
     }
-    std::this_thread::sleep_for(100us);
+    if (attempt < kYields) {
+      std::this_thread::yield();
+    } else {
+      std::this_thread::sleep_for(100us);
+    }
   }
   return true;
 }
